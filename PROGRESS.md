@@ -3,7 +3,7 @@
 > Giai đoạn hiện tại: G5 Dựng nền (autopilot đợt 1) · Cập nhật: 2026-10-15 · Nhánh: claude/gifted-noether-iybenn
 
 ## Đang làm
-- Autopilot đợt 2 (PLAN duyệt) — Pha 2: T-101…T-117 xong có bằng chứng (`.autopilot/evidence/`); review lát 3 đã sửa. Kế tiếp **T-118** rà blueprint, rồi review lát 4 (T-115…T-117). PR nháp #5.
+- Autopilot đợt 2 (PLAN duyệt) — Pha 2: T-101…T-118 xong có bằng chứng (`.autopilot/evidence/`). Đang sửa theo review lát 4 (0 🔴 · 3 🟠 · 6 🟢), rồi báo cáo cuối + chuyển PR #5 sẵn review. PR nháp #5.
 
 ## Tiếp theo
 0. [Câu hỏi cho chủ dự án, không chặn] Hợp đồng KHÔNG thời hạn đã ký thì không đổi giá được: phụ lục chồng hiệu lực với phiên bản 1 (mở cuối, bất biến) ⇒ LEASE_VERSION_OVERLAP. Đề xuất: phụ lục được phép "đóng" ngày hết hạn của phiên bản mở cuối ngay trước nó (chỉ NULL → ngày trước hiệu lực phụ lục, ghi audit; điều khoản đã ký không đổi). Cần duyệt vì chạm bất biến INV-G4.
@@ -30,6 +30,7 @@
 - 2026-10-15 Review lát 3 (3 🔴 · 3 🟠 · 2 🟢): đã sửa 🔴1 trả phòng giữa kỳ, 🔴2 phát hành theo thứ tự, 🔴3 read_on trong kỳ/thay công tơ, 🟠4 fixed_30 tháng trọn có đổi giá (chia ngày thực), 🟠5 phí một lần qua phụ lục, 🟢7 thiếu công tơ. Còn hỏi chủ dự án: 🟠6 quản lý có được đặt giá dịch vụ (SPEC-metering S-003 nói có, ma trận `pricing.manage` nói không — code giữ chỉ owner); dịch vụ cố định theo phiên bản hiệu lực ngày cuối kỳ (không prorata theo đoạn phiên bản).
 - 2026-10-15 T-115: import qua đúng hàm module sở hữu, commit nguyên khối (lỗi dòng ⇒ lô về `validated` + CONFLICT_AT_COMMIT ở transaction lưu lỗi); `external_id` theo cơ sở; XLSX đọc/ghi tự viết (zlib, giới hạn chống zip bomb, không tính công thức) — không thêm thư viện; S-009 (booking) và route upload multipart chờ đợt 3/web nối storage.
 - 2026-10-15 T-117: UI trọ (hợp đồng, kỳ thu, chỉ số theo tầng, thu tiền, cọc, đối soát) gọi command qua `useCommand` (offline/timeout/`GET /commands`/gửi lại cùng key); lệnh gộp `payment.collectCash`; E2E chủ trọ đăng nhập TOTP thật; hàng rào `erasableSyntaxOnly` (Node strip-only không chạy parameter property).
+- 2026-10-15 T-118: blueprint MUST 87 đạt (bằng chứng máy, `scripts/check-blueprint-evidence.py`) · 36 miễn (32 mới: AI/realtime/cache/tìm kiếm/OAuth… không có trong sản phẩm — chờ chủ dự án xác nhận) · 373 mở: BASE 52, OPS 29, WF 27, XC 26, FE 25, CMP 25, UX 22, BE 22, DB 21, PM 19, SEC 18, QA 18, ARC 17, IND 17, STD 15, LOOP 11, PRF 9 → đợt 3 (khách sạn + vận hành/OPS/quan sát) và đợt 4 (G7 phát hành). Hỏi chủ dự án: miễn XC-OSS-001/007 (không mở mã?), IND-FIN-008 (TT 50/17/2024).
 - Nợ kỹ thuật chấp nhận: phần pháp lý trong `docs/research/` chỉ có nguồn thứ cấp — phải đối chiếu văn bản gốc trước khi dùng dữ liệu thật.
 
 ## Bàn giao phiên
