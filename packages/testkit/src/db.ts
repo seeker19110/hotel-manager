@@ -20,6 +20,11 @@ export interface TestDb {
   runtime: Kysely<unknown>;
   /** URL kết nối role app_runtime tới DB này (cho thư viện tự tạo pool, vd Better Auth). */
   runtimeUrl: string;
+  /** Kết nối role `app_worker` (relay outbox, job nền). */
+  worker: Kysely<unknown>;
+  workerUrl: string;
+  /** URL superuser tới DB này (cài schema pg-boss trong test). */
+  adminUrl: string;
   name: string;
   drop(): Promise<void>;
 }
@@ -50,12 +55,18 @@ export async function createTestDb(): Promise<TestDb> {
   const admin = connect(withDb(adminUrl, name));
   const runtimeUrl = withDb(adminUrl, name, "app_runtime");
   const runtime = connect(runtimeUrl, 120);
+  const workerUrl = withDb(adminUrl, name, "app_worker");
+  const worker = connect(workerUrl, 10);
   return {
     admin,
     runtime,
     runtimeUrl,
+    worker,
+    workerUrl,
+    adminUrl: withDb(adminUrl, name),
     name,
     async drop() {
+      await worker.destroy();
       await runtime.destroy();
       await admin.destroy();
       const s = connect(adminUrl, 1);

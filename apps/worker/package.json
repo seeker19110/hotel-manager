@@ -9,6 +9,15 @@
     "start": "node src/index.ts"
   },
   "dependencies": {
-    "@hm/app": "workspace:*"
+    "@hm/app": "workspace:*",
+    "@hm/db": "workspace:*",
+    "kysely": "0.29.6",
+    "pg": "8.23.1",
+    "pg-boss": "12.38.0"
+  },
+  "devDependencies": {
+    "@hm/testkit": "workspace:*",
+    "@types/pg": "8.23.1",
+    "vitest": "5.0.4"
   }
 }

@@ -9,9 +9,10 @@ const SENSITIVE_KEY =
   /pass(word)?|secret|token|authorization|cookie|api[_-]?key|session|otp|cccd|cmnd|passport|id[_-]?number|document[_-]?number|identity/i;
 
 /** Giá trị chuỗi: che số giấy tờ (9 hoặc 12 chữ số), số điện thoại VN, email; giữ vài ký tự cuối để tra cứu. */
-const VN_PHONE = /(?<!\d)(?:\+?84|0)(\d{2})\d{4}(\d{3})(?!\d)/g;
+// Ranh giới: không dính chữ/số/gạch nối hai bên — không che nhầm đoạn số bên trong UUID, mã băm, mã tham chiếu.
+const VN_PHONE = /(?<![\w-])(?:\+?84|0)(\d{2})\d{4}(\d{3})(?![\w-])/g;
 // Chỉ đúng độ dài CMND (9) / CCCD (12) để không che nhầm số tiền 10–11 chữ số.
-const ID_NUMBER = /(?<!\d)(?:\d{5}|\d{8})(\d{4})(?!\d)/g;
+const ID_NUMBER = /(?<![\w-])(?:\d{5}|\d{8})(\d{4})(?![\w-])/g;
 const EMAIL = /([A-Za-z0-9._%+-])[A-Za-z0-9._%+-]*@([A-Za-z0-9.-]+\.[A-Za-z]{2,})/g;
 
 export function maskString(value: string): string {

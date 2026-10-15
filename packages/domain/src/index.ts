@@ -18,3 +18,15 @@ export {
   type MatrixRole,
   ROLES,
 } from "./access/matrix.ts";
+export {
+  billingPeriodMachine,
+  bookingMachine,
+  defineMachine,
+  leaseMachine,
+  MACHINES,
+  type Machine,
+  paymentMachine,
+  stayMachine,
+  TransitionError,
+  taskMachine,
+} from "./state/machine.ts";

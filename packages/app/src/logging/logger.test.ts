@@ -64,6 +64,9 @@ describe("che bí mật và dữ liệu cá nhân (BASE-ERR-007, TM-06)", () => 
     ["số tiền 3580000", "số tiền 3580000"],
     ["tổng 1330254041 đ", "tổng 1330254041 đ"],
     ["CMND 123456789", "CMND ****6789"],
+    ["uuid dfed37eb-4b0c-4482-8618-f9a712080629", "uuid dfed37eb-4b0c-4482-8618-f9a712080629"],
+    ["uuid 6f1a2b3c-0000-4000-8000-123456789012", "uuid 6f1a2b3c-0000-4000-8000-123456789012"],
+    ["ref HM0912345678X", "ref HM0912345678X"],
   ])("maskString(%s) → %s", (input, out) => {
     expect(maskString(input)).toBe(out);
   });

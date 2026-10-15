@@ -58,7 +58,8 @@ describe("cấu hình RLS (DB-SEC-007)", () => {
           select 1 from information_schema.columns col
           where col.table_schema = 'public' and col.table_name = c.relname and col.column_name = 'organization_id'))
       order by c.relname`.execute(t.admin);
-    expect(r.rows.map((x) => x.relname).sort()).toEqual([...TABLES].sort());
+    // Động: mọi bảng có organization_id hiện có (kể cả bảng thêm ở migration sau) phải đạt; tối thiểu 9 bảng của T-005.
+    expect(r.rows.map((x) => x.relname)).toEqual(expect.arrayContaining(TABLES));
     for (const row of r.rows) {
       expect(row, row.relname).toMatchObject({ rls: true, force: true });
       expect(row.policies, row.relname).toBeGreaterThanOrEqual(1);

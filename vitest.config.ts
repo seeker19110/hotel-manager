@@ -14,7 +14,7 @@ export default defineConfig({
       {
         test: {
           name: "db",
-          include: ["packages/*/src/**/*.db.test.ts"],
+          include: ["packages/*/src/**/*.db.test.ts", "apps/*/src/**/*.db.test.ts"],
           globalSetup: ["packages/testkit/src/global-setup.ts"],
           testTimeout: 60_000,
           hookTimeout: 120_000,

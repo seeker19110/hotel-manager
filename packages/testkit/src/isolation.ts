@@ -19,13 +19,19 @@ export async function findIsolationLeaks(
 ): Promise<string[]> {
   const leaks: string[] = [];
   for (const table of await tenantTables(admin)) {
-    const n = await withTenant(runtime, { orgId }, async (trx) => {
-      const r = await sql<{ n: number }>`
-        select count(*)::int as n from ${sql.table(table)} where organization_id <> ${orgId}::uuid`.execute(
-        trx,
-      );
-      return r.rows[0]?.n ?? 0;
-    });
+    let n = 0;
+    try {
+      n = await withTenant(runtime, { orgId }, async (trx) => {
+        const r = await sql<{ n: number }>`
+          select count(*)::int as n from ${sql.table(table)} where organization_id <> ${orgId}::uuid`.execute(
+          trx,
+        );
+        return r.rows[0]?.n ?? 0;
+      });
+    } catch (err) {
+      // Role không được cấp SELECT (vd app_runtime chỉ INSERT outbox) thì không thể đọc chéo — đạt.
+      if ((err as { code?: string }).code !== "42501") throw err;
+    }
     if (n > 0) leaks.push(`${table}: thấy ${n} hàng của tổ chức khác`);
   }
   return leaks;
