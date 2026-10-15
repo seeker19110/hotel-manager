@@ -1,13 +1,13 @@
 # PROGRESS.md — Khung X-Templates
 
-> Giai đoạn hiện tại: G8 Vận hành & tiến hoá (khung v2 đã phát hành) · Cập nhật: 2026-10-15 · Nhánh: claude/vibrant-davinci-mbt518
+> Giai đoạn hiện tại: G8 Vận hành & tiến hoá (khung v2 đã phát hành) · Cập nhật: 2026-10-15 · Nhánh: claude/serene-ride-3jvrfp
 
 ## Đang làm
-- Đổi định danh kỹ thuật sang `.xtemplates/`/`xt.py`/`xt.yaml`/`XT_*` (ADR-0007, thay ADR-0006) trên nhánh `claude/modest-dijkstra-ltup0k` (PR #43, CI xanh ở `1c95604`); 24 bằng chứng blueprint trích file đổi đã xác minh lại cùng PR (0 khẳng định sai; sửa số dòng/run CI cũ). Còn: quét lại các nhóm audit theo delta sau merge. Trước đó không có việc dở. Audit delta 2026-10-15 khép lại (#36–#39) + delta `b32e2a6` (2 🟢: AUD-HAR-019 bằng chứng blueprint trích file đổi mỗi phiên, AUD-DOC-022 ghi chú sổ lệch SHA) + AUD-HAR-020 (`progress-check` xét `MERGE_HEAD` khi merge) sửa ở #41 (đã merge); sau đó 31 bằng chứng blueprint xác minh lại (PLAN T-601…T-602): `audit check --strict` exit 0, 0 phát hiện mở; blueprint repo khung 0 MUST mở.
+- Audit delta sau #43 (`0d1b62c`, ADR-0007) xong phần quét: 8 nhóm, 1 🔴 · 3 🟠 · 3 🟢 mở (`docs/ops/AUDIT-REPORT-2026-10-15.md` §10). 🔴 AUD-HAR-021: nâng cấp ≤2.x khi người dùng đã sửa `_lib.sh` hoặc một hook → hook lệch tên biến, guard fail-open (`rm -rf /` lọt). **Chờ người duyệt kế hoạch 3 đợt** trước khi sửa. #43 đã merge (CI xanh ở `1c95604`).
 
 ## Tiếp theo
 1. Cần người chọn: một dự án sản phẩm thật (web/api, quy mô M) để thử khung, đo mục MUST hay bị miễn trừ.
-2. Dự án đã cài khung: chạy lại `install.py` từ X-Templates để chuyển `.xstored/`→`.xtemplates/`, `xs.yaml`→`xt.yaml` (ADR-0007) + nhận guard/hook mới (#35, #36) + `changelog-check` + `progress-check` xét `MERGE_HEAD` (#41).
+2. Dự án đã cài khung (**hoãn tới khi sửa AUD-HAR-021** nếu đã sửa tay hook): chạy lại `install.py` từ X-Templates để chuyển `.xstored/`→`.xtemplates/`, `xs.yaml`→`xt.yaml` (ADR-0007) + nhận guard/hook mới (#35, #36) + `changelog-check` + `progress-check` xét `MERGE_HEAD` (#41).
 3. Admin: tự kiểm Dependabot security updates (proxy chặn API); ô "extra approval for unattributed changes" của ruleset `main` còn bật — khác `.github/rulesets/main.json`, vô hại khi 0 approval.
 4. Giới hạn đã biết, chưa sửa: guard không thấy lệnh trong `eval`/alias/biến chứa cờ (CHANGELOG); `xt.py` có thể lấy `$HOME` dotfiles (`.git`) làm gốc khi dự án chưa có dấu hiệu khung (README).
 5. Giữ cổng: C901 ≤ 10, `mypy --strict`, coverage dòng + nhánh 100%, `changelog-check` — hàm mới vượt thì tách, không `noqa`/pragma.
@@ -37,7 +37,7 @@
 - 2026-10-15 Bằng chứng blueprint trích máy kiểm/test, không trích file trạng thái viết lại mỗi phiên (PROGRESS.md, PLAN) — nếu không `audit plan` cờ cũ sau mọi phiên (AUD-HAR-019).
 
 ## Bàn giao phiên
-- 2026-10-15 · Commit cuối trên `main`: `8e64aac` (#41); tag `v2.0.0` → `55de4d1`; SHA quét audit `8e64aac` (trừ DEP/CFG/PERF cũ hơn, không file đổi).
+- 2026-10-15 · Commit cuối trên `main`: `0d1b62c` (#43); tag `v2.0.0` → `55de4d1`; SHA quét audit `0d1b62c` (trừ DEP/CFG/PERF cũ hơn, không file đổi).
 - Lệnh kiểm nhanh: `scripts/dev-task.sh gate` (đọc `xt.yaml`; `pip install --require-hashes -r requirements-dev.txt`, cần shellcheck).
-- Autopilot: PLAN T-601…T-602 (xác minh lại bằng chứng sau #41). Đang chặn: không. Nhánh `claude/vibrant-davinci-mbt518` trên remote giữ lịch sử trước squash của #41 (cây trùng `main`; hook chặn force-push) — đã merge vào nhánh, không đổi nội dung.
-- Câu hỏi cần người: Tiếp theo 1 (dự án thật để thử khung).
+- Autopilot: không chạy. Đang chặn: duyệt kế hoạch sửa audit §10 (đợt 1 🔴 trước, test tái hiện đỏ trước khi sửa).
+- Câu hỏi cần người: duyệt kế hoạch audit §10; Tiếp theo 1 (dự án thật để thử khung).
