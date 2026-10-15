@@ -3,7 +3,7 @@
 // nhận/xác nhận cọc → hàng chờ đối soát; axe + vùng chạm mỗi màn. Thêm SPEC-pwa S-006 (mất mạng), S-010/S-011 (hết thời gian
 // chờ, tra `GET /api/v1/commands/{id}`, gửi lại cùng key).
 import { readFileSync } from "node:fs";
-import { expect, type Page, test } from "@playwright/test";
+import { type BrowserContext, expect, type Page, test } from "@playwright/test";
 import { expectAccessible } from "./a11y.ts";
 import { ORG_RENTAL, RENTAL_OWNER, RENTAL_TENANT, RENTAL_UNIT } from "./fixtures.ts";
 import { totp, totpFile } from "./totp.ts";
@@ -25,11 +25,22 @@ async function login(page: Page) {
   await expect(page).toHaveURL(/\/phong$/);
 }
 
+// Đăng nhập TOTP MỘT lần rồi dùng lại cookie phiên: Better Auth giới hạn tần suất `/two-factor/*` (vài lần mỗi 10 giây/IP) —
+// đăng nhập lại ở mỗi test trên CI nhanh sẽ bị 429.
+let sessionCookies: Awaited<ReturnType<BrowserContext["cookies"]>> = [];
+test.beforeAll(async ({ browser }, info) => {
+  const ctx = await browser.newContext({ baseURL: info.project.use.baseURL as string });
+  await login(await ctx.newPage());
+  sessionCookies = await ctx.cookies();
+  await ctx.close();
+});
+test.beforeEach(async ({ context }) => {
+  await context.addCookies(sessionCookies);
+});
+
 const status = (page: Page) => page.getByRole("status").filter({ hasNotText: "Đang" });
 
 test("vòng tháng: ký → bàn giao → kỳ thu 3.580.000 đ → phát hành → thu tiền mặt → cọc", async ({ page }) => {
-  await login(page);
-
   // Hợp đồng
   await page.goto("/hop-dong");
   await expectAccessible(page);
@@ -109,7 +120,6 @@ test("S-006: mất mạng thì không gửi lệnh, báo OFFLINE, bấm lại đ
   page,
   context,
 }) => {
-  await login(page);
   await page.goto("/ky-thu");
   let posts = 0;
   page.on("request", (r) => {
@@ -129,7 +139,6 @@ test("S-006: mất mạng thì không gửi lệnh, báo OFFLINE, bấm lại đ
 });
 
 test("S-010: server đã ghi nhưng mất phản hồi → kiểm tra kết quả, không gửi lần hai", async ({ page }) => {
-  await login(page);
   await page.goto("/ky-thu");
   const keys: string[] = [];
   let lookups = 0;
@@ -152,7 +161,6 @@ test("S-010: server đã ghi nhưng mất phản hồi → kiểm tra kết qu�
 test("S-011: server chưa nhận lệnh → 404 COMMAND_NOT_FOUND → Gửi lại cùng key → đúng 1 kỳ", async ({
   page,
 }) => {
-  await login(page);
   await page.goto("/ky-thu");
   const keys: string[] = [];
   await page.route("**/api/v1/billing/createPeriod", async (route) => {
