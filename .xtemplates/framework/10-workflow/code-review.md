@@ -3,7 +3,7 @@ title: Code review: người + AI, checklist, SLA, ranh giới
 kind: module
 prefix: WF-REVIEW
 applies_to: [all]
-updated: 2026-10-14
+updated: 2026-10-15
 ---
 
 # Code review: người + AI, checklist, SLA, ranh giới
@@ -41,7 +41,7 @@ updated: 2026-10-14
 - [ ] `WF-REVIEW-001` **MUST** PR chỉ được xin review khi cổng máy đã xanh (lint, format, type, test, scan); reviewer được phép từ chối review PR đỏ. → Kiểm: job `quality` là required check; PR template có mục "CI xanh". · Nguồn: P9
 - [ ] `WF-REVIEW-002` **MUST** Mỗi PR có mô tả: mục tiêu, link spec/issue, **cách đã xác minh** (lệnh + kết quả/exit code hoặc link CI), rủi ro và cách rollback; thiếu → chưa đủ điều kiện review. → Kiểm: `pr-policy` job kiểm các mục bắt buộc trong body. · Nguồn: catalog 23 §2.5 (mục bắt buộc Summary/Validation/Risk)
 - [ ] `WF-REVIEW-003` **MUST@L** Reviewer dùng checklist review (đúng spec/tiêu chí chấp nhận; ca biên null/rỗng/race/UTC/tiền; bảo mật: input validate, quyền server, không secret; test chứng minh thay đổi; đảo ngược được; không nới cổng); kết luận có bằng chứng, không "LGTM" trần cho PR có code. → Kiểm: comment approve chứa mục checklist hoặc skill `/review` xuất báo cáo; mẫu checklist trong PR template. · Nguồn: [`../14-testing-quality/unit-and-logic-edge-cases.md`](../14-testing-quality/unit-and-logic-edge-cases.md)
-- [ ] `WF-REVIEW-004` **MUST@L** AI review (nếu dùng) chạy bằng model/tool **khác** với model/tool đã viết code; kết quả gắn nhãn là claim; chỉ người hoặc test tái hiện mới đóng được finding; AI không có quyền approve/merge. → Kiểm: cấu hình reviewer agent khác model implementer (vd `.claude/agents/reviewer.md`); token bot không có quyền approve trong ruleset. · Nguồn: catalog 23 §2.3 (reviewer khác model), AGENTS.md §7
+- [ ] `WF-REVIEW-004` **MUST@L** AI review (nếu dùng) chạy bằng model/tool **khác** với model/tool đã viết code; kết quả gắn nhãn là claim; chỉ người hoặc test tái hiện mới đóng được finding; AI không có quyền approve/merge. → Kiểm: cấu hình reviewer agent khác model implementer (vd `.claude/agents/reviewer.md`); token bot không có quyền approve trong ruleset. · Nguồn: catalog 23 §2.3 (reviewer khác model), AGENTS.md §8
 - [ ] `WF-REVIEW-005` **MUST** Finding mức `blocker` phải được sửa hoặc bác bỏ có lý do trước merge; `required_review_thread_resolution` bật; tác giả không tự resolve thread blocker của người khác. → Kiểm: ruleset có `required_review_thread_resolution: true`; review log. · Nguồn: GitHub Rulesets
 - [ ] `WF-REVIEW-006` **MUST@L** SLA: phản hồi đầu tiên ≤ 24 giờ làm việc; nhắc ở 12 giờ; quá 24 giờ → leo thang reviewer khác/người quản lý; **không tự merge vì quá hạn**. → Kiểm: job cron đánh dấu PR chờ review > 24h (nhãn `review-overdue` + thông báo); không có cơ chế auto-approve theo thời gian. · Nguồn: catalog 23 §2.6 (gate timeout 24h leo thang, nhắc 12h)
 - [ ] `WF-REVIEW-007` **MUST** Vùng nhạy cảm (auth, payment, migration, `.github/`, hook, ruleset, secrets, crypto, PII) luôn có người review là code owner; không fast-lane; không auto-merge. → Kiểm: CODEOWNERS có mục; `require_code_owner_review` hoặc guard kiểm đường dẫn ↔ reviewer. · Nguồn: catalog 23 §2.6 (auth/payment/crypto luôn lane kiến trúc)
@@ -56,6 +56,7 @@ updated: 2026-10-14
 - [ ] `WF-REVIEW-016` **SHOULD** Bài học lặp ≥ 2 lần từ review → hàng rào mới (lint rule, test, hook, mục checklist), không chỉ nhắc miệng (P12). → Kiểm: `TRAPS.md`/CHANGELOG ghi hàng rào mới kèm link PR gốc.
 - [ ] `WF-REVIEW-017` **MAY** Hai reviewer AI độc lập cùng rubric, cả hai phải pass trước khi người xem (giảm nhiễu); vẫn là claim. → Kiểm: cấu hình pipeline; nhãn kết quả. · Nguồn: catalog 23 §4.3 (`ecc-santa-method`)
 - [ ] `WF-REVIEW-018` **MAY** Spot-check: review ngẫu nhiên ≥ 10% PR fast-lane đã merge để hiệu chuẩn vị từ. → Kiểm: nhật ký spot-check hàng tuần. · Nguồn: khung cũ spec L2 (review mẫu ≥ 10%)
+- [ ] `WF-REVIEW-019` **SHOULD** PR template có mục bắt buộc **"Hỗ trợ AI"**: phần nào do AI sinh, phần nào người đã tự kiểm và kiểm thế nào, phần nào chỉ AI kiểm; không cần (và theo [`XC-DOCAI-005`](../18-cross-cutting/docs-for-ai-agents.md) không ghi) tên model/phiên. → Kiểm: `pull_request_template.md` có mục; `pr-policy` job kiểm mục không rỗng. · Nguồn: `seeker19110/stored` 13 §6d (PR template của Homebrew/BrewUI)
 
 ## Bẫy thường gặp
 
@@ -90,3 +91,4 @@ updated: 2026-10-14
 - DORA — Metrics (change lead time, change fail rate, rework rate): <https://dora.dev/guides/dora-metrics-four-keys/> — xác minh 2026-10-13
 - Khung cũ X-stored commit `1b80fe4`: `docs/specs/AI-HARNESS-AND-COMPANY-SPEC.md` §B3.1a (vị từ làn nhanh 5 điều kiện, fail-closed), §B10 (auto-merge tự chứng nhận vòng tròn), ASC-FR-14 (gate 24h leo thang).
 - `research/2026-10-13-stored-catalog-extraction.md` §2.11 (reviewer khác model; human gate 24h leo thang; `/hoc` thang mức bền), §4; catalog `23-own-repos-lessons` §2.3, §2.5, §2.6, §4.1, §4.3; `13-dev-stack-devops` §6 (AI code review, open-code-review).
+- Catalog `seeker19110/stored` 13 §6d (Homebrew/BrewUI: PR template có mục bắt buộc "AI assistance", tách phần người kiểm và phần AI kiểm) — đọc 2026-10-15.

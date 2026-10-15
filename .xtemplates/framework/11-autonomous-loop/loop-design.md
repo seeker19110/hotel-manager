@@ -90,7 +90,8 @@ và `--max-budget-usd`. Tăng trần chỉ bằng `loop init` lại có chủ đ
 
 | Công cụ | Lệnh | Đặt ở | Ngưỡng |
 |---|---|---|---|
-| `xt.py loop status` | `xt.py loop status --json` | SessionStart hook, trước khi chọn task | verdict ∈ {continue, verify, done}; `blocked`/`budget` → người |
+| `xt.py loop status` | `xt.py loop status --json` | SessionStart hook (cả sau compaction), trước khi chọn task | verdict ∈ {continue, verify, done}; `done-pending-human`/`blocked`/`budget` → người |
+| `xt.py loop checkpoint` | qua `.claude/hooks/pre-compact.sh` | PreCompact hook | luôn exit 0; ghi `state.json.checkpoint` |
 | `xt.py loop hook-stop` | qua `.claude/hooks/stop-guard.sh` | Stop hook | `decision: block` khi continue/verify; cap 8 lần chặn (`CLAUDE_CODE_STOP_HOOK_BLOCK_CAP`) |
 | `xt.py loop record` | `xt.py loop record --task T-001 -- <Gate>` | Mỗi task | exit 0; timeout `XT_RECORD_TIMEOUT=1800` |
 | `xt.py blueprint-status` | `xt.py blueprint-status BLUEPRINT.md --strict` | Cổng phát hành G7 (dự án tự thêm vào CI khi phát hành) | 0 MUST mở, 0 miễn trừ thiếu lý do |

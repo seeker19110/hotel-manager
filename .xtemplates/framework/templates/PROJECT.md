@@ -1,7 +1,7 @@
 ---
 title: Mẫu PROJECT
 kind: template
-updated: 2026-10-13
+updated: 2026-10-15
 ---
 
 # Mẫu PROJECT.md
@@ -81,5 +81,5 @@ Tổng nỗ lực Must / tổng: <x%> (≤ 60%).
 |---|---|---|---|---|
 
 ## 10. Câu hỏi mở
-- [ ] <câu hỏi> — [chặn]/[không chặn] — hỏi ai: <tên> — hạn: <ngày>
+- [ ] <câu hỏi> — [chặn]/[không chặn] — Đã quyết: D-<NNN> (phiên chính) hoặc <người> (<ngày>) — <câu trả lời>
 ```

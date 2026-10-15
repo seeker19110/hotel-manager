@@ -8,11 +8,16 @@ Lệnh:
                                 Ghép baseline + hồ sơ + gói ngành thành BLUEPRINT.md cho dự án.
   blueprint-status FILE [--strict]
                                 Đếm mục đạt/chưa/miễn; --strict: còn MUST chưa đạt -> exit 1.
-  loop init --plan FILE [--blueprint FILE] [--max-iterations N] [--hours H]
+  loop init --plan FILE [--blueprint FILE] [--max-iterations N] [--hours H] [--single-session]
   loop status [--json]          Verdict máy tính từ PLAN + bằng chứng (không do model tự khai).
   loop record --task T-001 -- <lệnh...>
                                 Chạy lệnh kiểm của task, ghi bằng chứng (exit code, thời gian, đuôi output).
-  loop block --reason TEXT      Đánh dấu BLOCKED (cần người).
+  loop block --reason TEXT      Đánh dấu BLOCKED (điểm dừng an toàn — cần người, mọi việc còn lại phụ thuộc nó).
+  loop defer --task ID --reason TEXT
+                                Việc cần người: bỏ qua, làm việc khác; hết việc → verdict done-pending-human.
+  loop checkpoint               Dùng cho PreCompact hook: ghi vị trí làm việc vào state trước khi nén (luôn exit 0).
+  loop decide --question Q --option A --option B --choice N --why W --revert R [--prod TEXT] [--log FILE]
+                                Phiên chính tự duyệt điểm quyết định, ghi D-NNN vào docs/autopilot/DECISIONS.md.
   loop resume [--reason TEXT]   Người đã xử lý → bỏ BLOCKED, đặt lại đếm lỗi lặp, giữ số vòng/bằng chứng.
   loop stop [--reason TEXT]     Tắt vòng lặp.
   loop hook-stop                Dùng cho Stop hook của Claude Code: đọc JSON stdin, quyết định cho dừng hay chạy tiếp.
@@ -21,6 +26,13 @@ Lệnh:
   audit plan [--blueprint F] [--status F] [--json]
                                 Dò stack → nhóm audit áp dụng/rút gọn/N/A, công cụ có/thiếu, bằng chứng blueprint cũ, nhóm cần quét lại.
   audit check STATUS [--strict] Kiểm sổ docs/ops/AUDIT-STATUS.md; --strict = Definition of Complete (0 🔴/🟠 mở, mọi nhóm đã quét).
+  feedback add --kind K --id ID --symptom S --fix F [--repro R] [--suggest X]
+                                Dự án đích ghi lỗi do khung + cách khắc phục → docs/xtemplates-feedback/FB-NNN.md.
+  feedback collect [--blueprint F]
+                                Tự gom MUST bị miễn và lý do autopilot bị chặn thành FB-NNN (không trùng).
+  feedback list [DIR] [--json]  Liệt kê phản hồi.
+  feedback aggregate --from DỰ_ÁN=THƯ_MỤC ... [--json]
+                                Repo khung: gộp phản hồi nhiều dự án theo (loại, ID), đánh dấu đủ ngưỡng sửa.
   stats                         Thống kê số module/mục.
 
 Thoát: 0 = ổn, 1 = vi phạm/chưa đạt, 2 = lỗi dùng lệnh.
@@ -618,6 +630,9 @@ def blueprint_status_text(raw: str) -> Dict[str, Any]:
 
 
 PROJECT_MARKERS = (".autopilot", "xt.yaml", ".xtemplates")
+PENDING_HUMAN = "done-pending-human"  # verdict: mọi việc tự làm được đã xong, còn việc `loop defer` chờ người
+ASKING_MODES = ("default", "plan", "acceptEdits")  # permission_mode khiến phiên đứng chờ người bấm duyệt
+DEFER_ID_RE = re.compile(r"^(?:T-\d{3,}|[A-Z0-9]+(?:-[A-Z0-9]+)*-\d{3})$")  # task PLAN hoặc ID mục blueprint
 
 
 def project_dir() -> Path:
@@ -705,6 +720,9 @@ def read_evidence(task_id: str, base: Optional[Path] = None) -> Optional[Dict[st
 def _verdict_loop_state(st: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Trạng thái vòng lặp: chưa bật / bị chặn / lỗi lặp / hết ngân sách (vòng, hạn) → verdict dừng; ổn thì None."""
     if not st.get("active"):
+        fv = st.get("final_verdict")
+        if isinstance(fv, dict) and fv.get("verdict"):  # phiên sau thấy vòng trước kết thúc thế nào (vd chờ người)
+            return {"verdict": "inactive", "reason": f"vòng lặp đã kết thúc — {fv['verdict']}: {fv.get('reason', '')}"}
         return {"verdict": "inactive", "reason": "vòng lặp chưa bật"}
     if st.get("blocked"):
         return {"verdict": "blocked", "reason": st.get("blocked_reason", "cần người quyết định")}
@@ -721,8 +739,17 @@ def _verdict_loop_state(st: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     return None
 
 
-def _verdict_task(t: Dict[str, Any], base: Path) -> Optional[Dict[str, Any]]:
-    """Một task trong PLAN: chưa làm → continue; đã tick mà thiếu/lệch bằng chứng → verify; ổn (hoặc miễn) thì None."""
+def _deferred(st: Dict[str, Any]) -> Dict[str, Any]:
+    """`loop defer`: {ID: {"reason", "at"}} — việc chờ người, vòng lặp bỏ qua để làm việc khác (ADR-0009)."""
+    d = st.get("deferred")
+    return d if isinstance(d, dict) else {}
+
+
+def _verdict_task(t: Dict[str, Any], base: Path, deferred: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Một task trong PLAN: chưa làm → continue (trừ khi đang chờ người); đã tick mà thiếu/lệch bằng chứng → verify;
+    ổn (hoặc miễn) thì None."""
+    if t["state"] == " " and t["id"] in deferred:
+        return None
     if t["state"] == " ":
         return {"verdict": "continue", "task": t["id"], "reason": f"làm task {t['id']}: {t['title']}"}
     if t["state"] != "x":
@@ -757,8 +784,9 @@ def _verdict_plan(base: Path, st: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     tasks = parse_plan(plan)
     if not tasks:
         return {"verdict": "blocked", "reason": "PLAN không có task dạng - [ ] `T-001` ..."}
+    deferred = _deferred(st)
     for t in tasks:
-        v = _verdict_task(t, base)
+        v = _verdict_task(t, base, deferred)
         if v:
             return v
     return None
@@ -773,11 +801,12 @@ def _verdict_blueprint(base: Path, st: Dict[str, Any]) -> Dict[str, Any]:
         why = "không kiểm blueprint: loop init không có --blueprint" if bpp is None else f"không thấy blueprint {bp}"
         return {"verdict": "done", "reason": f"mọi task có bằng chứng xanh ({why})"}
     s = blueprint_status(bpp)
-    if s["open_must"]:
+    open_must = [i for i in s["open_must"] if i not in _deferred(st)]
+    if open_must:
         return {
             "verdict": "continue",
-            "task": s["open_must"][0],
-            "reason": f"còn {len(s['open_must'])} mục MUST của blueprint chưa đạt (đầu tiên: {s['open_must'][0]})",
+            "task": open_must[0],
+            "reason": f"còn {len(open_must)} mục MUST của blueprint chưa đạt (đầu tiên: {open_must[0]})",
         }
     if s["bad_waivers"]:
         return {"verdict": "continue", "reason": "mục miễn trừ thiếu lý do: " + ", ".join(s["bad_waivers"][:5])}
@@ -788,7 +817,35 @@ def loop_verdict(base: Optional[Path] = None) -> Dict[str, Any]:
     """Tính verdict CHỈ từ artifact trên đĩa. Model không tự khai 'xong'."""
     base = base or project_dir()
     st = read_state(base) or {}  # không có state ≡ chưa bật: `_verdict_loop_state` trả inactive
-    return _verdict_loop_state(st) or _verdict_plan(base, st) or _verdict_blueprint(base, st)
+    v = _verdict_loop_state(st) or _verdict_plan(base, st) or _verdict_blueprint(base, st)
+    return _with_pending_human(v, base, st) if v["verdict"] == "done" else v
+
+
+def _still_open(base: Path, st: Dict[str, Any]) -> set[str]:
+    """ID còn mở: task `[ ]` trong PLAN + MUST mở trong blueprint (nếu có)."""
+    ids = {t["id"] for t in parse_plan(base / st.get("plan", "docs/autopilot/PLAN.md")) if t["state"] == " "}
+    bp = st.get("blueprint")
+    if bp and (base / bp).exists():
+        ids.update(blueprint_status(base / bp)["open_must"])
+    return ids
+
+
+def _with_pending_human(v: Dict[str, Any], base: Path, st: Dict[str, Any]) -> Dict[str, Any]:
+    """Mọi việc tự làm được đã xong nhưng còn việc `loop defer` chưa xong → `done-pending-human` (gom một lần cho người)."""
+    deferred = _deferred(st)
+    if not deferred:
+        return v
+    open_ids = _still_open(base, st)
+    pending = [{"id": i, "reason": d.get("reason", "") if isinstance(d, dict) else ""} for i, d in deferred.items()]
+    pending = [p for p in pending if p["id"] in open_ids]
+    if not pending:
+        return v
+    items = "; ".join(f"{p['id']} ({p['reason']})" for p in pending)
+    return {
+        "verdict": PENDING_HUMAN,
+        "reason": f"mọi việc tự làm được đã xong; chờ người {len(pending)} việc: {items}",
+        "pending_human": pending,
+    }
 
 
 def failure_signature(task: str, code: int, output: str) -> str:
@@ -855,28 +912,61 @@ def loop_record(task: str, cmd: List[str], base: Optional[Path] = None) -> int:
 def _git_head(base: Path) -> Optional[str]:
     try:
         r = subprocess.run(["git", "rev-parse", "HEAD"], cwd=base, capture_output=True, text=True, timeout=10)
-        return r.stdout.strip() or None
+        return (r.stdout.strip() or None) if r.returncode == 0 else None  # repo chưa commit: không ghi "HEAD" giả
     except (OSError, subprocess.TimeoutExpired):
         return None
 
 
+def _payload_field(text: str, key: str) -> Optional[str]:
+    """Một trường chuỗi trong stdin JSON của hook; thiếu/hỏng → None (fail-open)."""
+    try:
+        data = json.loads(text or "{}")
+    except json.JSONDecodeError:
+        return None
+    val = data.get(key) if isinstance(data, dict) else None
+    return val if isinstance(val, str) else None
+
+
+def _mode_warning(mode: Optional[str]) -> str:
+    if mode not in ASKING_MODES:
+        return ""
+    return (
+        f" ⚠ Phiên ở chế độ hỏi quyền `{mode}`: người vắng thì phiên đứng chờ — chạy autopilot bằng "
+        "`claude --permission-mode auto` (settings dự án không đặt được chế độ này)."
+    )
+
+
+def _stop_reason(st: Dict[str, Any], v: Dict[str, Any], mode: Optional[str]) -> str:
+    one = (
+        " Chế độ một phiên: context đầy thì để compaction tự nén (PreCompact ghi checkpoint), không bàn giao; "
+        "chỉ bàn giao khi gần trần vòng/giờ."
+        if st.get("single_session")
+        else ""
+    )
+    return (
+        f"[autopilot vòng {st['iterations']}/{st.get('max_iterations', 50)}] Chưa xong: {v['reason']}. "
+        "Làm tiếp theo PLAN; chạy `python3 .xtemplates/scripts/xt.py loop record --task <ID> -- <lệnh kiểm>` "
+        "để ghi bằng chứng; commit+push sau mỗi task. Quyết định chuyên môn: tự duyệt bằng `xt.py loop decide`. "
+        "Việc cần người (điểm dừng về hành động): `xt.py loop defer --task <ID> --reason ...` rồi làm việc khác; "
+        "chỉ `xt.py loop block --reason ...` khi mọi việc còn lại đều phụ thuộc nó." + one + _mode_warning(mode)
+    )
+
+
 def hook_stop(stdin_text: str, base: Optional[Path] = None) -> Tuple[str, int]:
-    """Quyết định của Stop hook. Trả (stdout JSON hoặc '', exit code). Luôn fail-open khi có lỗi."""
-    base = base or project_dir()  # stdin của Stop hook không cần: verdict chỉ dựa vào file trên đĩa
+    """Quyết định của Stop hook. Trả (stdout JSON hoặc '', exit code). Luôn fail-open khi có lỗi.
+    Verdict chỉ dựa vào file trên đĩa; từ stdin chỉ lấy `permission_mode` để cảnh báo phiên sẽ đứng chờ hỏi quyền."""
+    base = base or project_dir()
     v = loop_verdict(base)
     st = read_state(base)
+    mode = _payload_field(stdin_text, "permission_mode")
+    if st and mode:
+        st["permission_mode"] = mode
     if v["verdict"] in ("continue", "verify") and st:
         st["iterations"] = st.get("iterations", 0) + 1
         st["last_verdict"] = v
         write_state(st, base)
-        reason = (
-            f"[autopilot vòng {st['iterations']}/{st.get('max_iterations', 50)}] Chưa xong: {v['reason']}. "
-            "Làm tiếp theo PLAN; chạy `python3 .xtemplates/scripts/xt.py loop record --task <ID> -- <lệnh kiểm>` "
-            "để ghi bằng chứng; commit+push sau mỗi task. Nếu cần người quyết (§dừng-bắt-buộc) thì "
-            "`xt.py loop block --reason ...`."
-        )
-        return json.dumps({"decision": "block", "reason": reason}, ensure_ascii=False), 0
-    if st and st.get("active") and v["verdict"] in ("done", "blocked", "budget"):
+        return json.dumps({"decision": "block", "reason": _stop_reason(st, v, mode)}, ensure_ascii=False), 0
+    if st and st.get("active") and v["verdict"] in ("done", "blocked", "budget", PENDING_HUMAN):
         st["active"] = False
         st["ended"] = now_iso()
         st["final_verdict"] = v
@@ -1759,12 +1849,17 @@ def _loop_init(args: argparse.Namespace, base: Path) -> int:
         deadline = (
             (_dt.datetime.now(_dt.timezone.utc) + _dt.timedelta(hours=args.hours)).replace(microsecond=0).isoformat()
         )
+    max_iterations = args.max_iterations
+    if max_iterations is None:  # một phiên: trần theo khối lượng PLAN (~4 vòng/task), không theo số mặc định
+        n_open = len(_still_open(base, {"plan": args.plan, "blueprint": args.blueprint}))  # task [ ] + MUST mở
+        max_iterations = max(20, 4 * n_open) if args.single_session else 50
     state = {
         "active": True,
         "started": now_iso(),
         "plan": args.plan,
         "blueprint": args.blueprint,
-        "max_iterations": args.max_iterations,
+        "single_session": args.single_session,
+        "max_iterations": max_iterations,
         "max_same_failure": 3,
         "iterations": 0,
         "deadline": deadline,
@@ -1773,9 +1868,33 @@ def _loop_init(args: argparse.Namespace, base: Path) -> int:
     }
     write_state(state, base)
     print(
-        f"✓ Autopilot bật: plan={args.plan} trần={args.max_iterations} vòng" + (f", hạn {deadline}" if deadline else "")
+        f"✓ Autopilot bật: plan={args.plan} trần={max_iterations} vòng"
+        + (f", hạn {deadline}" if deadline else "")
+        + (" · chế độ một phiên" if args.single_session else "")
     )
     return 0
+
+
+def _status_notes(st: Dict[str, Any], base: Path) -> List[str]:
+    """Dòng phụ của `loop status` (SessionStart nạp lại sau compaction): chế độ, việc chờ người, quyền, checkpoint.
+    Checkpoint cũ hơn bằng chứng mới nhất thì ẩn — công việc đã đi tiếp, in lại sẽ dẫn sai chỗ."""
+    notes = ["chế độ một phiên: compaction tự nén, không bàn giao vì context"] if st.get("single_session") else []
+    notes += [
+        f"chờ người: {i} — {d.get('reason', '') if isinstance(d, dict) else ''}" for i, d in _deferred(st).items()
+    ]
+    warn = _mode_warning(st.get("permission_mode")) if st.get("active") else ""
+    notes += [warn.strip()] if warn else []
+    cp = st.get("checkpoint")
+    newer = (_evidence_latest(base) or {}).get("finished") or ""
+    if isinstance(cp, dict) and str(newer) <= str(cp.get("at")):
+        ev = cp.get("last_evidence") or {}
+        notes.append(
+            f"checkpoint trước nén {cp.get('at')} ({cp.get('trigger')}): đang ở {cp.get('task') or '—'}; "
+            f"lệnh kiểm cuối {ev.get('task', '—')} `{ev.get('cmd', '')}` exit {ev.get('exit_code', '—')}; "
+            f"file chưa commit: {', '.join(cp.get('dirty') or []) or 'không'}; "
+            f"lỗi lặp {cp.get('same_failure_count', 0)} lần ({cp.get('last_failure_task') or '—'})"
+        )
+    return notes
 
 
 def _loop_status(args: argparse.Namespace, base: Path) -> int:
@@ -1783,9 +1902,12 @@ def _loop_status(args: argparse.Namespace, base: Path) -> int:
     st = read_state(base) or {}
     v["iterations"] = st.get("iterations", 0)
     if args.json:
-        print(json.dumps(v, ensure_ascii=False))
+        extra = {k: st.get(k) for k in ("single_session", "permission_mode", "checkpoint")}
+        print(json.dumps({**v, **extra, "deferred": _deferred(st)}, ensure_ascii=False))
     else:
         print(f"verdict: {v['verdict']} — {v['reason']}")
+        for n in _status_notes(st, base):
+            print(f"  · {n}")
     return 0
 
 
@@ -1805,11 +1927,143 @@ def _loop_block(args: argparse.Namespace, base: Path) -> int:
     return 0
 
 
+DECISION_ID_RE = re.compile(r"^### D-(\d{3,})\b", re.M)
+PROD_SWITCH_LABEL = "Khi chạy thật (đề xuất, chủ dự án quyết ở G7):"
+DECISIONS_HEADER = (
+    "# Nhật ký quyết định tự duyệt\n\n"
+    "> Ghi bởi `xt.py loop decide`. Phiên chính tự duyệt điểm quyết định theo tiêu chí chất lượng cuối "
+    "(`LOOP-STOP-018`, ADR-0008 của khung). Người xem lại bất cứ lúc nào; đổi ý → quyết định mới ghi "
+    '"thay D-NNN", không sửa mục cũ.\n'
+)
+
+
+def _one_line(text: str) -> str:
+    """Gộp khoảng trắng/xuống dòng: một trường = một dòng, không chèn được tiêu đề Markdown giả."""
+    return " ".join(text.split())
+
+
+def _decision_choice(options: List[str], choice: str) -> Optional[str]:
+    """`--choice` là nguyên văn một phương án (ưu tiên, kể cả phương án là số) hoặc số thứ tự ASCII từ 1; không khớp → None."""
+    if choice in options:
+        return choice
+    if re.fullmatch(r"[0-9]+", choice) and 1 <= int(choice) <= len(options):
+        return options[int(choice) - 1]
+    return None
+
+
+def _loop_decide(args: argparse.Namespace, base: Path) -> int:
+    options = list(dict.fromkeys(o for o in map(_one_line, args.option) if o))
+    question, why, revert = _one_line(args.question), _one_line(args.why), _one_line(args.revert)
+    chosen = _decision_choice(options, _one_line(args.choice))
+    problems = [
+        msg
+        for bad, msg in (
+            (len(options) < 2, "cần ≥ 2 phương án khác nhau (--option)"),
+            (chosen is None, "--choice phải là số thứ tự hoặc nguyên văn một --option"),
+            (not (question and why and revert), "--question, --why, --revert không được rỗng"),
+        )
+        if bad
+    ]
+    if problems:
+        print("✗ " + "; ".join(problems), file=sys.stderr)
+        return 2
+    log = (base / args.log).resolve()
+    if not log.is_relative_to(base.resolve()) or log.is_dir():  # không ghi ra ngoài dự án / vào thư mục
+        print(f"✗ --log phải là file trong dự án: {args.log}", file=sys.stderr)
+        return 2
+    text = log.read_text(encoding="utf-8") if log.exists() else DECISIONS_HEADER
+    did = f"D-{max((int(n) for n in DECISION_ID_RE.findall(text)), default=0) + 1:03d}"
+    entry = (
+        f"\n### {did} · {now_iso()} · {question}\n\n"
+        f"- Phương án: " + " · ".join(f"({i}) {o}" for i, o in enumerate(options, 1)) + "\n"
+        f"- Chọn: {chosen}\n- Lý do (tiêu chí chất lượng cuối): {why}\n- Đường lùi: {revert}\n"
+    )
+    prod = _one_line(args.prod or "")
+    if prod:  # mặc định tự host khi phát triển; đề xuất dịch vụ cho chạy thật gom ở đây cho G7 (ADR-0008)
+        entry += f"- {PROD_SWITCH_LABEL} {prod}\n"
+    write_atomic(log, text.rstrip("\n") + "\n" + entry)
+    print(f"✓ {did} tự duyệt: {chosen} → {args.log}")
+    return 0
+
+
+def _defer_problem(st: Dict[str, Any], task: str, reason: str, base: Path) -> Optional[str]:
+    """Lý do từ chối defer: thiếu lý do, ID không còn mở (gõ nhầm/đã xong), hoặc né bế tắc máy (task đang lỗi lặp)."""
+    if not reason:
+        return "--reason rỗng — ghi người cần làm gì"
+    if (base / st.get("plan", "docs/autopilot/PLAN.md")).exists() and task not in _still_open(base, st):
+        return "ID không phải task `[ ]` trong PLAN hay mục MUST mở của blueprint"
+    if st.get("same_failure_count", 0) > 0 and st.get("last_failure_task") == task:
+        return "task đang lỗi — sửa hoặc đổi cách; lỗi lặp lần 3 máy tự BLOCKED, defer không dùng để né"
+    return None
+
+
+def _loop_defer(args: argparse.Namespace, base: Path) -> int:
+    cur = read_state(base)
+    if not cur:
+        print("✗ Chưa có vòng lặp (chạy loop init trước)", file=sys.stderr)
+        return 2
+    problem = _defer_problem(cur, args.task, _one_line(args.reason), base)
+    if problem:
+        print(f"✗ Không defer {args.task}: {problem}", file=sys.stderr)
+        return 2
+    cur["deferred"] = {**_deferred(cur), args.task: {"reason": _one_line(args.reason), "at": now_iso()}}
+    write_state(cur, base)
+    print(
+        f"⏸ {args.task} chờ người: {_one_line(args.reason)} — làm tiếp việc khác; gom cho người khi hết việc tự làm được"
+    )
+    return 0
+
+
+def _evidence_latest(base: Path) -> Optional[Dict[str, Any]]:
+    files = sorted((state_dir(base) / "evidence").glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+    ev = next((e for e in map(_read_json_obj, files) if e), None)  # file mới nhất hỏng → lùi về file trước
+    return {k: ev.get(k) for k in ("task", "cmd", "exit_code", "finished")} if ev else None
+
+
+def loop_checkpoint(stdin_text: str, base: Path) -> None:
+    """PreCompact: ghi vị trí làm việc vào state để SessionStart(compact) nạp lại. Không có vòng lặp → không làm gì."""
+    st = read_state(base)
+    if not st:
+        return
+    v = loop_verdict(base)
+    try:  # quotePath=false: tên file tiếng Việt giữ nguyên; thiếu git trong PATH → bỏ qua, vẫn ghi checkpoint
+        out = (
+            _git(base, "-c", "core.quotePath=false", "status", "--porcelain").stdout if (base / ".git").exists() else ""
+        )
+    except OSError:
+        out = ""
+    dirty = out.splitlines()
+    st["checkpoint"] = {
+        "at": now_iso(),
+        "trigger": _payload_field(stdin_text, "trigger") or "?",
+        "verdict": v["verdict"],
+        "task": v.get("task"),
+        "head": _git_head(base),
+        "dirty": [line[3:] for line in dirty[:20]],
+        "last_evidence": _evidence_latest(base),
+        "same_failure_count": st.get("same_failure_count", 0),
+        "last_failure_task": st.get("last_failure_task"),
+    }
+    mode = _payload_field(stdin_text, "permission_mode")
+    if mode:
+        st["permission_mode"] = mode
+    write_state(st, base)
+
+
+def _loop_checkpoint(args: argparse.Namespace, base: Path) -> int:
+    try:
+        loop_checkpoint(sys.stdin.read() if not sys.stdin.isatty() else "", base)
+    except Exception as exc:  # luôn exit 0: PreCompact exit 2 sẽ CHẶN compaction (phiên kẹt vì context đầy)
+        print(f"[xt checkpoint] lỗi, bỏ qua: {type(exc).__name__}: {exc}", file=sys.stderr)
+    return 0
+
+
 def _loop_resume(args: argparse.Namespace, base: Path) -> int:
     cur = read_state(base)
     if not cur:
         print("✗ Chưa có vòng lặp (chạy loop init trước)", file=sys.stderr)
         return 2
+    cleared = list(_deferred(cur))
     cur.update(
         {
             "active": True,
@@ -1823,15 +2077,25 @@ def _loop_resume(args: argparse.Namespace, base: Path) -> int:
     )
     cur.pop("ended", None)
     cur.pop("final_verdict", None)
+    cur.pop("deferred", None)  # người đã xử lý: việc chờ quay lại hàng làm; còn cần người thì agent defer lại
     write_state(cur, base)
     print(f"▶ Autopilot tiếp tục (vòng {cur.get('iterations', 0)}/{cur.get('max_iterations', 50)}): {args.reason}")
+    if cleared:
+        print("  việc chờ người quay lại hàng làm: " + ", ".join(cleared))
     return 0
 
 
 def _loop_stop(args: argparse.Namespace, base: Path) -> int:
     cur = read_state(base)
     if cur:
-        cur.update({"active": False, "ended": now_iso(), "stop_reason": args.reason})
+        cur.update(
+            {
+                "active": False,
+                "ended": now_iso(),
+                "stop_reason": args.reason,
+                "final_verdict": {"verdict": "stopped", "reason": args.reason},
+            }
+        )
         write_state(cur, base)
     print("■ Autopilot tắt.")
     return 0
@@ -1856,6 +2120,9 @@ LOOP_HANDLERS: Dict[str, Callable[[argparse.Namespace, Path], int]] = {
     "status": _loop_status,
     "record": _loop_record,
     "block": _loop_block,
+    "decide": _loop_decide,
+    "defer": _loop_defer,
+    "checkpoint": _loop_checkpoint,
     "resume": _loop_resume,
     "stop": _loop_stop,
     "hook-stop": _loop_hook_stop,
@@ -2030,6 +2297,171 @@ def cmd_audit(args: argparse.Namespace) -> int:
     return 1 if errors else 0
 
 
+# --------------------------------------------------------------------------- feedback (dự án đích → khung, ADR-0010)
+
+FEEDBACK_DIR = "docs/xtemplates-feedback"
+FEEDBACK_KINDS = ("cong-cu", "hook-chan-nham", "hook-lot", "muc-sai", "tai-lieu", "mien-tru", "bi-chan")
+FEEDBACK_FIELDS = (
+    ("framework", "Khung"),
+    ("date", "Ngày"),
+    ("kind", "Loại"),
+    ("id", "ID"),
+    ("symptom", "Triệu chứng"),
+    ("repro", "Tái hiện"),
+    ("fix", "Cách khắc phục"),
+    ("suggest", "Đề xuất cho khung"),
+    ("source", "Nguồn"),
+)
+FB_FILE_RE = re.compile(r"^FB-(\d{3,})\.md$")
+FB_LINE_RE = re.compile(r"^- (?P<label>[^:]+): (?P<value>.*)$")
+
+
+def _framework_version(base: Path) -> str:
+    """Phiên bản khung đang cài: `.xtemplates/VERSION` (dự án đích) hoặc `VERSION` (repo khung)."""
+    for p in (base / ".xtemplates" / "VERSION", base / "VERSION"):
+        if p.is_file():
+            return _one_line(p.read_text(encoding="utf-8")) or "?"
+    return "?"
+
+
+def feedback_entries(d: Path) -> List[Dict[str, str]]:
+    """Đọc mọi `FB-NNN.md` trong thư mục → [{file, framework, kind, id, …}] theo số tăng dần; dòng lạ bỏ qua."""
+    labels = {lab: key for key, lab in FEEDBACK_FIELDS}
+    out = []
+    files = sorted((p for p in d.glob("FB-*.md") if FB_FILE_RE.match(p.name)), key=lambda p: int(p.name[3:-3]))
+    for f in files:
+        e = {"file": f.name}
+        for line in f.read_text(encoding="utf-8").splitlines():
+            m = FB_LINE_RE.match(line)
+            if m and m["label"] in labels:
+                e[labels[m["label"]]] = m["value"]
+        out.append(e)
+    return out
+
+
+def write_feedback(base: Path, entry: Dict[str, str]) -> str:
+    """Ghi một phản hồi thành `FB-NNN.md` kế tiếp; mọi trường gộp một dòng và qua `redact` (LOOP-FB-003)."""
+    d = base / FEEDBACK_DIR
+    nums = [int(m[1]) for p in d.glob("FB-*.md") if (m := FB_FILE_RE.match(p.name))] if d.is_dir() else []
+    fid = f"FB-{max(nums, default=0) + 1:03d}"
+    e = {"framework": _framework_version(base), "date": now_iso(), **entry}
+    clean = {k: redact(_one_line(e.get(k, ""))) for k, _ in FEEDBACK_FIELDS}
+    body = "".join(f"- {lab}: {clean[k] or '—'}\n" for k, lab in FEEDBACK_FIELDS)
+    write_atomic(d / f"{fid}.md", f"# {fid} · {clean['kind']} · {clean['id']}\n\n{body}")
+    return fid
+
+
+def _feedback_add(args: argparse.Namespace, base: Path) -> int:
+    if not (_one_line(args.symptom) and _one_line(args.fix)):
+        print("✗ --symptom và --fix không được rỗng", file=sys.stderr)
+        return 2
+    entry = {"kind": args.kind, "id": args.id, "symptom": args.symptom, "repro": args.repro or "", "fix": args.fix}
+    fid = write_feedback(base, {**entry, "suggest": args.suggest or "", "source": "tay"})
+    print(f"✓ {fid} → {FEEDBACK_DIR}/{fid}.md (xem lại trước khi commit: không dữ liệu/mã của dự án)")
+    return 0
+
+
+def _collect_candidates(base: Path, blueprint: str) -> List[Dict[str, str]]:
+    """Tín hiệu máy có sẵn: MUST bị miễn trong blueprint, lý do `blocked`/verdict cuối `blocked` của autopilot."""
+    out = []
+    bp = base / blueprint
+    if bp.is_file():
+        for line in bp.read_text(encoding="utf-8").splitlines():
+            m = ITEM_RE.match(line)
+            if m and m["state"] == "~" and m["level"] == "MUST":
+                why = line.split("Miễn:", 1)[1].strip() if "Miễn:" in line else "(thiếu lý do)"
+                out.append({"kind": "mien-tru", "id": m["id"], "symptom": f"MUST bị miễn: {why}", "fix": "miễn trừ"})
+    st = read_state(base) or {}
+    fv_raw = st.get("final_verdict")
+    fv: Dict[str, Any] = fv_raw if isinstance(fv_raw, dict) else {}
+    reason = st.get("blocked_reason") or (fv.get("reason") if fv.get("verdict") == "blocked" else None)
+    if reason:
+        tid = st.get("last_failure_task") or "loop"
+        out.append({"kind": "bi-chan", "id": str(tid), "symptom": f"autopilot bị chặn: {reason}", "fix": "người xử lý"})
+    return out
+
+
+def _feedback_collect(args: argparse.Namespace, base: Path) -> int:
+    d = base / FEEDBACK_DIR
+    seen = {e.get("source") for e in feedback_entries(d)} if d.is_dir() else set()
+    added = []
+    for c in _collect_candidates(base, args.blueprint):
+        source = f"collect:{c['kind']}:{c['id']}:{_one_line(c['symptom'])[:80]}"
+        if redact(source) in seen:
+            continue
+        added.append(write_feedback(base, {**c, "source": source}))
+        seen.add(redact(source))
+    print(f"✓ Thêm {len(added)} phản hồi tự gom" + (f": {', '.join(added)}" if added else " (không có tín hiệu mới)"))
+    return 0
+
+
+def _feedback_list(args: argparse.Namespace, base: Path) -> int:
+    d = Path(args.dir) if args.dir else base / FEEDBACK_DIR
+    entries = feedback_entries(d) if d.is_dir() else []
+    if args.json:
+        print(json.dumps(entries, ensure_ascii=False))
+    for e in [] if args.json else entries:
+        print(f"{e['file']}  {e.get('kind', '?'):<15} {e.get('id', '?'):<16} {e.get('symptom', '')[:90]}")
+    return 0
+
+
+def feedback_aggregate(sources: List[Tuple[str, Path]]) -> List[Dict[str, Any]]:
+    """Gộp phản hồi nhiều dự án theo (loại, ID). `ready` = ≥ 2 dự án cùng báo hoặc có bước tái hiện (ADR-0010)."""
+    groups: Dict[Tuple[str, str], Dict[str, Any]] = {}
+    for project, d in sources:
+        for e in feedback_entries(d) if d.is_dir() else []:
+            key = (e.get("kind", "?"), e.get("id", "?"))
+            g = groups.setdefault(key, {"kind": key[0], "id": key[1], "projects": [], "items": []})
+            g["projects"] = sorted(set(g["projects"]) | {project})
+            g["items"].append({"project": project, **e})
+    out = list(groups.values())
+    for g in out:
+        has_repro = any(i.get("repro", "—") not in ("", "—") for i in g["items"])
+        g["ready"] = len(g["projects"]) >= 2 or has_repro
+    return sorted(out, key=lambda g: (not g["ready"], -len(g["projects"]), g["kind"], g["id"]))
+
+
+def _feedback_aggregate(args: argparse.Namespace, base: Path) -> int:
+    sources = []
+    for spec in args.source:
+        project, sep, path = spec.partition("=")
+        if not (sep and project and path):
+            print(f"✗ --from phải dạng <dự-án>=<thư mục>: {spec}", file=sys.stderr)
+            return 2
+        sources.append((project, Path(path)))
+    groups = feedback_aggregate(sources)
+    if args.json:
+        print(json.dumps(groups, ensure_ascii=False))
+        return 0
+    print(
+        "| Đủ ngưỡng | Loại | ID | Dự án | Triệu chứng (đầu tiên) | Cách khắc phục (đầu tiên) |\n|---|---|---|---|---|---|"
+    )
+    for g in groups:
+        first = g["items"][0]
+        cells = [
+            "✅" if g["ready"] else "—",
+            g["kind"],
+            f"`{g['id']}`",
+            ", ".join(g["projects"]),
+            first.get("symptom", "").replace("|", "\\|")[:160],
+            first.get("fix", "").replace("|", "\\|")[:160],
+        ]
+        print("| " + " | ".join(cells) + " |")
+    return 0
+
+
+FEEDBACK_HANDLERS: Dict[str, Callable[[argparse.Namespace, Path], int]] = {
+    "add": _feedback_add,
+    "collect": _feedback_collect,
+    "list": _feedback_list,
+    "aggregate": _feedback_aggregate,
+}
+
+
+def cmd_feedback(args: argparse.Namespace) -> int:
+    return FEEDBACK_HANDLERS[args.fb_cmd](args, project_dir())
+
+
 def cmd_stats(args: argparse.Namespace) -> int:
     docs, _ = load_docs(args.framework)
     by_kind: Dict[str, int] = {}
@@ -2042,6 +2474,14 @@ def cmd_stats(args: argparse.Namespace) -> int:
     print("Mục theo mức:   " + ", ".join(f"{k}={v}" for k, v in levels.items()))
     print(f"Tổng mục:       {sum(levels.values())}")
     return 0
+
+
+def _defer_id(value: str) -> str:
+    if not DEFER_ID_RE.fullmatch(value):
+        raise argparse.ArgumentTypeError(
+            f"ID không hợp lệ: {value!r} (cần T-NNN hoặc ID mục blueprint như SEC-AUTH-001)"
+        )
+    return value
 
 
 def _task_id(value: str) -> str:
@@ -2105,7 +2545,14 @@ def build_parser() -> argparse.ArgumentParser:
     li = lsub.add_parser("init")
     li.add_argument("--plan", default="docs/autopilot/PLAN.md")
     li.add_argument("--blueprint")
-    li.add_argument("--max-iterations", type=int, default=50)
+    li.add_argument(
+        "--max-iterations", type=int, help="mặc định 50; với --single-session: max(20, 4 × số task chưa làm)"
+    )
+    li.add_argument(
+        "--single-session",
+        action="store_true",
+        help="chạy tới xong trong một phiên: compaction thay bàn giao, việc cần người dùng loop defer (ADR-0009)",
+    )
     li.add_argument("--hours", type=float)
     ls = lsub.add_parser("status")
     ls.add_argument("--json", action="store_true")
@@ -2114,6 +2561,18 @@ def build_parser() -> argparse.ArgumentParser:
     lr.add_argument("cmd", nargs=argparse.REMAINDER)
     lb = lsub.add_parser("block")
     lb.add_argument("--reason", required=True)
+    lde = lsub.add_parser("defer", help="việc cần người: bỏ qua để làm việc khác, gom cuối phiên (done-pending-human)")
+    lde.add_argument("--task", required=True, type=_defer_id, help="T-NNN trong PLAN hoặc ID mục blueprint")
+    lde.add_argument("--reason", required=True)
+    lsub.add_parser("checkpoint", help="dùng bởi PreCompact hook: ghi vị trí làm việc trước khi nén; luôn exit 0")
+    ld = lsub.add_parser("decide", help="phiên chính tự duyệt một điểm quyết định, ghi nhật ký D-NNN (LOOP-STOP-018)")
+    ld.add_argument("--question", required=True)
+    ld.add_argument("--option", action="append", required=True, help="một phương án; lặp ≥ 2 lần")
+    ld.add_argument("--choice", required=True, help="số thứ tự (từ 1) hoặc nguyên văn phương án chọn")
+    ld.add_argument("--why", required=True, help="lý do theo tiêu chí chất lượng cuối")
+    ld.add_argument("--revert", required=True, help="đường lùi nếu người đổi ý")
+    ld.add_argument("--prod", help="đề xuất chuyển sang dịch vụ khác khi chạy thật (phương án chọn là tự host)")
+    ld.add_argument("--log", default="docs/autopilot/DECISIONS.md")
     lrs = lsub.add_parser("resume")
     lrs.add_argument("--reason", default="người đã xử lý điểm dừng")
     lst = lsub.add_parser("stop")
@@ -2139,6 +2598,24 @@ def build_parser() -> argparse.ArgumentParser:
     achk.add_argument("file", help="docs/ops/AUDIT-STATUS.md")
     achk.add_argument("--strict", action="store_true", help="Definition of Complete: 0 🔴/🟠 mở, mọi nhóm đã quét/N/A")
     pau.set_defaults(fn=cmd_audit)
+    pfb = sub.add_parser("feedback", help="phản hồi lỗi/cách khắc phục từ dự án đích về khung (ADR-0010)")
+    fsub = pfb.add_subparsers(dest="fb_cmd", required=True)
+    fa = fsub.add_parser("add", help="ghi một phản hồi FB-NNN (lỗi do khung, không phải lỗi dự án)")
+    fa.add_argument("--kind", required=True, choices=FEEDBACK_KINDS)
+    fa.add_argument("--id", required=True, help="ID mục checklist, lệnh xt.py hoặc tên hook/skill")
+    fa.add_argument("--symptom", required=True)
+    fa.add_argument("--fix", required=True, help="cách đã khắc phục trong dự án")
+    fa.add_argument("--repro", help="bước tái hiện tối thiểu, không dữ liệu/mã của dự án")
+    fa.add_argument("--suggest", help="đề xuất sửa khung")
+    fc = fsub.add_parser("collect", help="tự gom MUST bị miễn + lý do autopilot bị chặn thành FB-NNN (không trùng)")
+    fc.add_argument("--blueprint", default="BLUEPRINT.md")
+    fl = fsub.add_parser("list")
+    fl.add_argument("dir", nargs="?", help=f"mặc định {FEEDBACK_DIR}")
+    fl.add_argument("--json", action="store_true")
+    fg = fsub.add_parser("aggregate", help="repo khung: gộp phản hồi nhiều dự án theo (loại, ID)")
+    fg.add_argument("--from", dest="source", action="append", required=True, metavar="DỰ_ÁN=THƯ_MỤC")
+    fg.add_argument("--json", action="store_true")
+    pfb.set_defaults(fn=cmd_feedback)
     sub.add_parser("stats").set_defaults(fn=cmd_stats)
     return p
 

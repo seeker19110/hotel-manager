@@ -3,7 +3,7 @@ title: Agent & tool: ACI, allowlist, schema, HITL, memory
 kind: module
 prefix: AI-AGENT
 applies_to: [ai-agent, agentic-system, data-ml]
-updated: 2026-10-14
+updated: 2026-10-15
 ---
 
 # Agent & tool: ACI, allowlist, schema, HITL, memory
@@ -73,6 +73,8 @@ updated: 2026-10-14
 - [ ] `AI-AGENT-016` **SHOULD** Giao diện xem trước/duyệt hành động cho người dùng cuối theo [`../06-design-ux/ai-ux.md`](../06-design-ux/ai-ux.md): hiển thị tool, tham số, hậu quả, nút huỷ.
 - [ ] `AI-AGENT-017` **MAY** Thử nghiệm mô tả tool bằng cách cho model dùng thử và đọc transcript thất bại (ACI tuning) trước khi thêm tool mới vào production. · Nguồn: Anthropic *Building effective agents*
 - [ ] `AI-AGENT-018` **MAY** Memory tổ chức chia sẻ giữa agent chỉ qua RAG index có quyền, không qua file chung không kiểm soát.
+- [ ] `AI-AGENT-019` **SHOULD** Agent nhận lệnh qua kênh nhắn (chat, email, SMS) xác định **mức tin cậy theo người gửi** và kiểm ở hook trước mỗi lời gọi tool bằng code (không bằng prompt), ghi audit; kênh giả mạo được người gửi (email chưa qua SPF/DKIM/DMARC) nhận mức thấp nhất. → Kiểm: test gửi cùng yêu cầu từ người gửi tin cậy/không tin cậy → tool bị chặn ở mức thấp; dòng audit tương ứng. · Nguồn: `seeker19110/stored` 21 §10b (open-instinct: `beforeToolCall` 6 mức + `audit.jsonl`)
+- [ ] `AI-AGENT-020` **SHOULD** Memory phân loại theo CoALA (working · episodic · semantic · **procedural**); procedural memory (skill, luật, `AGENTS.md`, prompt hệ thống) chỉ đổi qua PR có review như code, agent không tự ghi. → Kiểm: tool ghi memory của agent không có quyền ghi vào thư mục skill/luật; đổi file đó đi qua CODEOWNERS. · Nguồn: Sumers và cộng sự, *Cognitive Architectures for Language Agents* (CoALA, 2023); `seeker19110/stored` 03 §8d
 
 ## Bẫy thường gặp
 
@@ -104,3 +106,4 @@ updated: 2026-10-14
 - OWASP Top 10 for Agentic Applications 2026 (ASI01 Agent Goal Hijack, ASI02 Tool Misuse, ASI04 Memory Poisoning…): <https://genai.owasp.org/> — (chưa xác minh — không truy cập được ngày 2026-10-13, 403; theo `research/2026-10-13-ai-agent-research.md` §5).
 - `research/2026-10-13-ai-agent-research.md` §2 (allowlist tool+tham số, policy validator, HITL `waiting_approval` timeout huỷ, loop detection k = 3, ngân sách 5 chiều) — tổng hợp 2026-10-13.
 - `seeker19110/stored` mục 02 (ACI, ≤ 8 tool cho model nhỏ, memory đề xuất→duyệt→ghi, "prompt không phải cơ chế bảo mật"), mục 12 §1–2 — đọc 2026-10-13 (`research/2026-10-13-stored-catalog-extraction.md`).
+- Sumers và cộng sự, *Cognitive Architectures for Language Agents* (CoALA; working/episodic/semantic/procedural memory): <https://arxiv.org/abs/2309.02427> — đọc 2026-10-15. Catalog `seeker19110/stored` 03 §8d, 21 §10b (open-instinct: mức tin cậy theo người gửi ở `beforeToolCall`, `audit.jsonl`) — đọc 2026-10-15.

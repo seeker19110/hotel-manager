@@ -3,7 +3,7 @@ title: License mã nguồn mở, IP, dữ liệu huấn luyện, thương hiệu
 kind: module
 prefix: CMP-LIC
 applies_to: [all]
-updated: 2026-10-14
+updated: 2026-10-15
 ---
 
 # License mã nguồn mở, IP, dữ liệu huấn luyện, thương hiệu, điều khoản dịch vụ
@@ -64,6 +64,7 @@ updated: 2026-10-14
 - [ ] `CMP-LIC-016` **SHOULD** Ghi công theo yêu cầu license (CC BY, Apache NOTICE, OFL) ở nơi người dùng thấy được (trang "Giấy phép"/about). → Kiểm: trang tồn tại, sinh từ NOTICE. · Nguồn: CC BY 4.0 §3(a); Apache-2.0 §4
 - [ ] `CMP-LIC-017` **MAY** Dùng dịch vụ quét license/IP sâu (ScanCode toolkit, FOSSology) cho release lớn ngoài cổng CI nhanh. → Kiểm: báo cáo scan đính kèm release. · Nguồn: ScanCode toolkit 32.5.0 (Apache-2.0, xác minh PyPI 2026-10-13)
 - [ ] `CMP-LIC-018` **MAY** Chứng nhận OpenChain (ISO/IEC 5230) cho chương trình tuân thủ OSS. → Kiểm: tự đánh giá OpenChain. · Nguồn: ISO/IEC 5230:2020 (chưa xác minh phiên bản ngày 2026-10-13)
+- [ ] `CMP-LIC-019` **SHOULD** Dependency từng **đổi license** (nhất là copyleft → dễ dãi) trên mã có nhiều tác giả mà không có CLA/DCO: coi lần đổi là rủi ro chưa xác minh; dùng theo license chặt hơn (hoặc bản trước khi đổi) cho tới khi repo ghi bằng chứng đã xin đồng ý người giữ bản quyền. → Kiểm: PR thêm dependency ghi `git log --follow -- LICENSE*` và có/không CLA/DCO; ngoại lệ trong `license-policy.yaml` có `reason`. · Nguồn: `seeker19110/stored` 19 §1b (OpenCreator: GPL-3.0 → Apache-2.0, 22 tác giả, không CLA/DCO)
 
 ## Bẫy thường gặp
 
@@ -100,3 +101,4 @@ updated: 2026-10-14
 - EU AI Act Art. 53 (GPAI: bản quyền, tóm tắt dữ liệu): xem [`ai-regulation.md`](ai-regulation.md); Directive (EU) 2019/790 Art. 4 (TDM opt-out) — (chưa xác minh trực tiếp EUR-Lex ngày 2026-10-13).
 - Phiên bản công cụ (registry, 2026-10-13): scancode-toolkit 32.5.0 <https://pypi.org/pypi/scancode-toolkit/json>; pip-licenses 5.5.5 <https://pypi.org/pypi/pip-licenses/json>; reuse 6.2.0 <https://pypi.org/pypi/reuse/json>; license-checker-rseidelsohn 5.0.1 <https://registry.npmjs.org/license-checker-rseidelsohn/latest>; @cyclonedx/cyclonedx-npm 6.0.1 <https://registry.npmjs.org/@cyclonedx/cyclonedx-npm/latest>; syft v1.54.0 <https://github.com/anchore/syft/releases>.
 - Nghiên cứu nền: `research/2026-10-13-stored-catalog-extraction.md` §2.6 (SBOM + cổng license, exception có `approved_by`/`expires`), §3 (bẫy license không OSI, repo không LICENSE).
+- Catalog `seeker19110/stored` 19 §1b (OpenCreator/KrillinAI đổi GPL-3.0 → Apache-2.0 trên mã nhiều tác giả, không CLA/DCO) — đọc 2026-10-15.
