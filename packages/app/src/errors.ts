@@ -45,6 +45,9 @@ export const ERROR_CODES = {
   LEDGER_UNBALANCED: { status: 422, source: "SPEC-ledger-payments §6" },
   INBOX_HASH_MISMATCH: { status: 409, source: "SPEC-ledger-payments §6" },
   BLOCK_CONFLICT: { status: 409, source: "SPEC-inventory-allocation §6" },
+  SHIFT_ALREADY_OPEN: { status: 409, source: "SPEC-ledger-payments §6" },
+  SHIFT_NOT_OPEN: { status: 409, source: "SPEC-ledger-payments §6" },
+  SHIFT_HAS_PENDING_PAYMENTS: { status: 409, source: "SPEC-ledger-payments §6" },
   DUPLICATE: { status: 409, source: "unique 23505 chưa có mã nghiệp vụ riêng" },
 } as const satisfies Record<string, ErrorSpec>;
 

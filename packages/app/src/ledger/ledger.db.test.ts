@@ -37,7 +37,10 @@ describe("INV-F1 — bút toán cân bằng", () => {
     const invoice = randomUUID();
     const payer = A.ownerPersonId;
     const deposit = randomUUID();
+    // Dòng CASH phải gắn một ca có thật (FK từ migration 0009).
     const shift = randomUUID();
+    await sql`insert into shifts (id, organization_id, property_id, opened_by, opening_cash)
+              values (${shift}, ${A.orgId}, ${A.propertyId}, ${A.ownerMembershipId}, 0)`.execute(t.admin);
     await tenant(async (trx) => {
       const base = { orgId: A.orgId, propertyId: A.propertyId, businessDate: "2026-11-01" };
       await postEntry(trx, {

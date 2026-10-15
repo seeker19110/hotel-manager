@@ -2,6 +2,13 @@
 // (schema Zod là hợp đồng đầu vào). Tên mục = tên command trong SPEC §5.
 import { z } from "zod";
 import { APPROVAL_KINDS, cancelApproval, decideApproval, requestApproval } from "../approvals/approvals.ts";
+import {
+  closeShift,
+  handoverShift,
+  openShift,
+  reassignDiscrepancy,
+  receiveHandover,
+} from "../shifts/shifts.ts";
 import type { CommandDef } from "./command-route.ts";
 
 const uuid = z.uuid();
@@ -65,6 +72,52 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
     command: "approval.cancel",
     input: z.strictObject({ approval_request_id: uuid }),
     run: async (ctx, i) => ({ data: await cancelApproval(ctx, i.approval_request_id) }),
+  }),
+  "shift.open": defineCommand({
+    command: "shift.open",
+    input: z.strictObject({ property_id: uuid, opening_cash: money }),
+    run: async (ctx, i) => ({
+      data: await openShift(ctx, { propertyId: i.property_id, openingCash: i.opening_cash }),
+      httpStatus: 201,
+    }),
+  }),
+  "shift.close": defineCommand({
+    command: "shift.close",
+    input: z.strictObject({ shift_id: uuid, counted_cash: money }),
+    run: async (ctx, i) => ({
+      data: await closeShift(ctx, { shiftId: i.shift_id, countedCash: i.counted_cash }),
+    }),
+  }),
+  "shift.handover": defineCommand({
+    command: "shift.handover",
+    input: z.strictObject({ shift_id: uuid, to_membership_id: uuid }),
+    run: async (ctx, i) => ({
+      data: await handoverShift(ctx, { shiftId: i.shift_id, toMembershipId: i.to_membership_id }),
+    }),
+  }),
+  "shift.receiveHandover": defineCommand({
+    command: "shift.receiveHandover",
+    input: z.strictObject({ shift_id: uuid, received_cash: money }),
+    run: async (ctx, i) => ({
+      data: await receiveHandover(ctx, { shiftId: i.shift_id, receivedCash: i.received_cash }),
+      httpStatus: 201,
+    }),
+  }),
+  "shift.reassignDiscrepancy": defineCommand({
+    command: "shift.reassignDiscrepancy",
+    input: z.strictObject({
+      discrepancy_id: uuid,
+      responsible_membership_id: uuid,
+      reason: z.string().trim().min(1).max(1000),
+    }),
+    run: async (ctx, i) => {
+      await reassignDiscrepancy(ctx, {
+        discrepancyId: i.discrepancy_id,
+        responsibleMembershipId: i.responsible_membership_id,
+        reason: i.reason,
+      });
+      return { data: { discrepancy_id: i.discrepancy_id } };
+    },
   }),
 };
 

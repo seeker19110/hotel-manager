@@ -9,6 +9,7 @@ import * as m0005 from "./0005_ledger_core.ts";
 import * as m0006 from "./0006_files.ts";
 import * as m0007 from "./0007_file_scope_rls.ts";
 import * as m0008 from "./0008_approvals.ts";
+import * as m0009 from "./0009_shifts.ts";
 
 export const migrations: Record<string, Migration> = {
   "0001_tenancy": m0001,
@@ -19,4 +20,5 @@ export const migrations: Record<string, Migration> = {
   "0006_files": m0006,
   "0007_file_scope_rls": m0007,
   "0008_approvals": m0008,
+  "0009_shifts": m0009,
 };
