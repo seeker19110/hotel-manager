@@ -3,7 +3,7 @@
 // qua chuỗi thay công tơ; bất thường (> 2 × trung bình 3 kỳ trước) phải được ghi nhận trước khi gửi duyệt kỳ (T-114).
 import { randomUUID } from "node:crypto";
 import { withTenant } from "@hm/db";
-import { authorize, hasMaxDecimals } from "@hm/domain";
+import { authorize, decimalSub, hasMaxDecimals } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/actor.ts";
 import type { CommandContext } from "../pipeline/command.ts";
@@ -316,6 +316,15 @@ export async function periodConsumption(
   orgId: string,
   readingId: string,
 ): Promise<number> {
+  return Number(await periodConsumptionText(trx, orgId, readingId));
+}
+
+/** Như `periodConsumption` nhưng chính xác thập phân (chuỗi) — dùng cho dòng phiếu (112,7 − 100,5 = 12,2, không sai số thực). */
+export async function periodConsumptionText(
+  trx: Transaction<unknown>,
+  orgId: string,
+  readingId: string,
+): Promise<string> {
   const r = await sql<{ meter_id: string; value: string; read_on: string }>`
     select meter_id, value::text, read_on::text from meter_readings where organization_id = ${orgId} and id = ${readingId}`.execute(
     trx,
@@ -323,17 +332,19 @@ export async function periodConsumption(
   const end = r.rows[0];
   if (!end) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy chỉ số");
   let meterId = end.meter_id;
-  let value = Number(end.value);
+  let value = end.value;
   let before = end.read_on;
   let excludeId: string | null = readingId;
-  let total = 0;
+  let total = "0";
+  // total + (value − prev) viết bằng phép trừ thập phân: total − (prev − value).
+  const add = (prev: string) => decimalSub(total, decimalSub(prev, value));
   for (let hop = 0; hop < 5; hop++) {
     const prev = await sql<{ value: string }>`
       select value::text from meter_readings
       where organization_id = ${orgId} and meter_id = ${meterId} and status = 'approved' and read_on <= ${before}::date
         and id is distinct from ${excludeId}::uuid and source <> 'replacement'
       order by read_on desc, value desc, created_at desc limit 1`.execute(trx);
-    if (prev.rows[0]) return total + value - Number(prev.rows[0].value);
+    if (prev.rows[0]) return add(prev.rows[0].value);
     const ev = await sql<{
       meter_id: string;
       old_final_value: string;
@@ -349,11 +360,11 @@ export async function periodConsumption(
       }>`select initial_value::text as v from meters where organization_id = ${orgId} and id = ${meterId}`.execute(
         trx,
       );
-      return total + value - Number(m.rows[0]?.v ?? 0);
+      return add(m.rows[0]?.v ?? "0");
     }
-    total += value - Number(e.new_initial_value);
+    total = add(e.new_initial_value);
     meterId = e.meter_id;
-    value = Number(e.old_final_value);
+    value = e.old_final_value;
     before = e.occurred_on;
     excludeId = null;
   }

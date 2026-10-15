@@ -71,11 +71,23 @@ export async function lockPeriod(
   if (current && current >= input.lockedThrough) {
     throw new CommandError("INVALID_TRANSITION", 409, `Kỳ đã khoá tới ${current}`);
   }
+  // Một cơ chế khoá (SPEC-metering mục 5): kỳ thu trong khoảng khoá phải đã phát hành, rồi chuyển sang `locked`.
+  const open = await sql<{ n: number }>`
+    select count(*)::int as n from billing_periods
+    where organization_id = ${ctx.actor.orgId} and property_id = ${input.propertyId} and period_end <= ${input.lockedThrough}::date
+      and status in ('draft','reviewing')`.execute(ctx.trx);
+  if ((open.rows[0]?.n ?? 0) > 0) {
+    throw new CommandError("INVALID_TRANSITION", 409, "Còn kỳ thu chưa phát hành trong khoảng khoá");
+  }
   const id = randomUUID();
   await sql`
     insert into period_locks (id, organization_id, property_id, locked_through, locked_by, reason, command_id)
     values (${id}, ${ctx.actor.orgId}, ${input.propertyId}, ${input.lockedThrough}::date, ${ctx.actor.membershipId}, ${reason},
             ${ctx.commandId})`.execute(ctx.trx);
+  await sql`
+    update billing_periods set status = 'locked', version = version + 1
+    where organization_id = ${ctx.actor.orgId} and property_id = ${input.propertyId} and status = 'issued'
+      and period_end <= ${input.lockedThrough}::date`.execute(ctx.trx);
   await ctx.audit({
     action: "period.locked",
     entityType: "period_lock",
@@ -115,6 +127,10 @@ export async function unlockPeriod(
     returning id, locked_through::text`.execute(ctx.trx);
   if (released.rows.length === 0) throw new CommandError("INVALID_TRANSITION", 409, "Kỳ này không đang khoá");
   const after = await lockedThrough(ctx.trx, ctx.actor.orgId, input.propertyId);
+  await sql`
+    update billing_periods set status = 'issued', version = version + 1
+    where organization_id = ${ctx.actor.orgId} and property_id = ${input.propertyId} and status = 'locked'
+      and (${after}::date is null or period_end > ${after}::date)`.execute(ctx.trx);
   await ctx.audit({
     action: "period.unlocked",
     entityType: "property",

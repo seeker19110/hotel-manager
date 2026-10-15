@@ -953,7 +953,7 @@ Loại: M cho đến khi duyệt
 
 - Khoá/index: `UNIQUE (organization_id, meter_id, billing_period_id) WHERE billing_period_id IS NOT NULL AND source = 'period'` (nhập lại cùng kỳ là cập nhật bản nháp); `ix (organization_id, meter_id, read_on)`.
 - Ràng buộc đặc biệt: `CHECK (status <> 'approved' OR (approved_by IS NOT NULL))`. Trigger chặn đổi/xoá chỉ số `approved` thuộc kỳ đã `issued`/`locked` (`PERIOD_ISSUED`); sửa sau phát hành đi qua điều chỉnh. Khoá lạc quan `version` (hai người nhập cùng phòng ⇒ `409 VERSION_CONFLICT`).
-- RLS/quyền đặc biệt: `manager`/`front_desk` ghi; `maintenance` ghi khi được giao; `tenant` chỉ đọc chỉ số `approved` của phòng trong thời gian hợp đồng của mình.
+- RLS/quyền đặc biệt: `manager`/`front_desk` ghi; `maintenance` ghi khi được giao; `tenant` chỉ đọc chỉ số `approved` của phòng trong thời gian hợp đồng của mình. Kế toán (phát hành kỳ — `billing.issue`) chỉ được `UPDATE` sang `approved` (policy `meter_readings_approve` + trigger chặn đổi cột khác ⇒ `403`); phát hành khoá (`FOR UPDATE`) các chỉ số nháp của kỳ trước khi chụp số liệu và chỉ duyệt đúng các chỉ số đó (T-114).
 - Bất biến: INV-G4 (sau phát hành), INV-G3.
 
 ### `meter_events`
@@ -1003,6 +1003,7 @@ Loại: M
 - Khoá/index: `UNIQUE (organization_id, property_id, id)`; **`UNIQUE (organization_id, property_id, period_start)`** (job tạo kỳ chạy lại không trùng); `EXCLUDE USING gist (organization_id WITH =, property_id WITH =, daterange(period_start, period_end, '[]') WITH &&)`.
 - Ràng buộc đặc biệt: một cơ chế duy nhất cho khoá kỳ — constraint trigger deferred bảo đảm `status='locked'` ⇔ có `period_locks` hiệu lực phủ `period_end` (INV-F6); chuyển `locked → issued` chỉ cùng transaction với điền cột mở khoá của `period_locks`. Tạo kỳ theo ngày địa phương của `properties.timezone` (job 00:05 giờ VN = 17:05Z hôm trước).
 - RLS/quyền đặc biệt: `manager`/`owner`/`accountant` ghi; người thuê chỉ thấy kỳ `issued`/`locked` qua phiếu của mình.
+- Thực thi (T-114, migration 0020): trigger chặn đổi khoảng ngày (`DOCUMENT_IMMUTABLE`), chuyển trạng thái ngoài bảng (`INVALID_TRANSITION`), sửa `issued_at`/`issued_by`/`preview_hash` sau phát hành (`PERIOD_ISSUED`), không xoá; `ledger.lockPeriod` từ chối khi còn kỳ `draft`/`reviewing` có `period_end` ≤ ngày khoá. Bút toán `invoice_issued` ghi Có REV_* theo từng dòng phiếu (`invoice_line_id`) để truy vết; tổng theo tài khoản khớp SPEC S-002.
 - Bất biến: INV-G2, INV-G4, INV-F6.
 
 ### `charges`

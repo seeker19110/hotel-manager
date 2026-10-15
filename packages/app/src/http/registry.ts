@@ -4,6 +4,15 @@ import type { StatementMapping } from "@hm/domain";
 import { z } from "zod";
 import { APPROVAL_KINDS, cancelApproval, decideApproval, requestApproval } from "../approvals/approvals.ts";
 import {
+  createPeriod,
+  issuePeriod,
+  lockBillingPeriod,
+  previewPeriod,
+  reopenPeriod,
+  returnToDraft,
+  submitForReview,
+} from "../billing/billing.ts";
+import {
   receiveDeposit,
   requestCreditRefund,
   requestDeduction,
@@ -769,6 +778,48 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
       httpStatus: 201,
     }),
   }),
+  "billing.createPeriod": defineCommand({
+    command: "billing.createPeriod",
+    input: z.strictObject({ property_id: uuid, month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/) }),
+    run: async (ctx, i) => {
+      const r = await createPeriod(ctx, { propertyId: i.property_id, month: i.month });
+      return { data: r, httpStatus: r.created ? 201 : 200 };
+    },
+  }),
+  "billing.submitForReview": defineCommand({
+    command: "billing.submitForReview",
+    input: z.strictObject({ billing_period_id: uuid }),
+    run: async (ctx, i) => ({ data: await submitForReview(ctx, { billingPeriodId: i.billing_period_id }) }),
+  }),
+  "billing.returnToDraft": defineCommand({
+    command: "billing.returnToDraft",
+    input: z.strictObject({ billing_period_id: uuid, reason: z.string().trim().min(1).max(500) }),
+    run: async (ctx, i) => ({
+      data: await returnToDraft(ctx, { billingPeriodId: i.billing_period_id, reason: i.reason }),
+    }),
+  }),
+  "billing.issuePeriod": defineCommand({
+    command: "billing.issuePeriod",
+    input: z.strictObject({ billing_period_id: uuid, preview_hash: z.string().regex(/^[0-9a-f]{64}$/) }),
+    run: async (ctx, i) => ({
+      data: await issuePeriod(ctx, { billingPeriodId: i.billing_period_id, previewHash: i.preview_hash }),
+      httpStatus: 201,
+    }),
+  }),
+  "billing.lockPeriod": defineCommand({
+    command: "billing.lockPeriod",
+    input: z.strictObject({ billing_period_id: uuid, reason: z.string().max(500) }),
+    run: async (ctx, i) => ({
+      data: await lockBillingPeriod(ctx, { billingPeriodId: i.billing_period_id, reason: i.reason }),
+    }),
+  }),
+  "billing.reopenPeriod": defineCommand({
+    command: "billing.reopenPeriod",
+    input: z.strictObject({ billing_period_id: uuid, reason: z.string().max(500) }),
+    run: async (ctx, i) => ({
+      data: await reopenPeriod(ctx, { billingPeriodId: i.billing_period_id, reason: i.reason }),
+    }),
+  }),
   "meter.acknowledgeAnomaly": defineCommand({
     command: "meter.acknowledgeAnomaly",
     input: z.strictObject({ reading_id: uuid, note: z.string().trim().min(1).max(1000) }),
@@ -797,6 +848,12 @@ export const QUERIES: Readonly<Record<string, AnyQuery>> = {
         invoiceId: i.invoice_id,
         ...(i.receiving_account_id ? { receivingAccountId: i.receiving_account_id } : {}),
       }),
+  },
+  "billing.previewPeriod": {
+    query: "billing.previewPeriod",
+    input: z.strictObject({ billing_period_id: uuid }),
+    run: (db, actor, i: { billing_period_id: string }) =>
+      previewPeriod(db, actor, { billingPeriodId: i.billing_period_id }),
   },
   "lease.get": {
     query: "lease.get",

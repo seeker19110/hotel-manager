@@ -104,7 +104,7 @@ export async function seedIssuedInvoice(
     await sql`insert into invoices (id, organization_id, property_id, kind, number, memo_ref, payer_person_id, business_date, total,
                                     lease_id)
               values (${invoiceId}, ${input.orgId}, ${input.propertyId}, 'fee', ${`T-${invoiceId.slice(0, 8)}`}, ${memoRef},
-                      ${input.payerPersonId}, coalesce(${input.businessDate ?? null}::date, current_date), ${total}, ${input.leaseId ?? null})`.execute(
+                      ${input.payerPersonId}, coalesce(${input.businessDate ?? null}::date, app.business_date(${input.orgId}, ${input.propertyId})), ${total}, ${input.leaseId ?? null})`.execute(
       trx,
     );
     // Phiếu 0 đ không có bút toán (mỗi dòng sổ phải đúng một phía > 0).
@@ -112,7 +112,7 @@ export async function seedIssuedInvoice(
     if (posts) {
       await sql`insert into journal_entries (id, organization_id, property_id, entry_type, business_date, source_doc_type, source_doc_id)
                 values (${entryId}, ${input.orgId}, ${input.propertyId}, 'invoice_issued',
-                        coalesce(${input.businessDate ?? null}::date, current_date), 'invoice', ${invoiceId})`.execute(
+                        coalesce(${input.businessDate ?? null}::date, app.business_date(${input.orgId}, ${input.propertyId})), 'invoice', ${invoiceId})`.execute(
         trx,
       );
     }

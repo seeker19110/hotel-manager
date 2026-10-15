@@ -205,7 +205,7 @@ Dữ liệu nền chung (fixture `lease-basic`): cơ sở P1 (trọ, `Asia/Ho_Ch
 | `lease.activate` | `lease_id` | `active` | `HANDOVER_REQUIRED`, `INVALID_TRANSITION` |
 | `lease.renew` | `lease_id`, điều khoản phiên bản mới, `effective_from` | `version_no` | `LEASE_VERSION_OVERLAP`, `INVALID_TRANSITION` |
 | `lease.giveNotice` | `lease_id`, `planned_move_out_on` | `notice_given` | `INVALID_TRANSITION` |
-| `lease.prepareSettlement` | `lease_id`, phí phát sinh (số tiền, lý do, ảnh), khoản khấu trừ (số tiền, lý do, chứng từ) | bảng quyết toán (nợ, phí, khấu trừ, hoàn); chưa có bút toán | `HANDOVER_REQUIRED`, `VALIDATION_FAILED` |
+| `lease.prepareSettlement` | `lease_id`, phí phát sinh (số tiền, lý do, ảnh), khoản khấu trừ (số tiền, lý do, chứng từ) | bảng quyết toán (nợ, phí, khấu trừ, hoàn); chưa có bút toán | `HANDOVER_REQUIRED`, `FINAL_PERIOD_NOT_ISSUED`, `VALIDATION_FAILED` |
 | `lease.approveSettlement` | `settlement_id` | bút toán đã ghi trong một transaction theo thứ tự phiếu phí → khấu trừ → hoàn (qua `ledger.*`) | `SELF_APPROVAL_FORBIDDEN`, `APPROVAL_LIMIT_EXCEEDED`, `PERIOD_LOCKED` |
 | `lease.close` | `lease_id` | `closed`, allocation kết thúc | `SETTLEMENT_REQUIRED`, `INVALID_TRANSITION` |
 | `lease.get` / `lease.list` | `lease_id` / bộ lọc trạng thái, cơ sở | hợp đồng + phiên bản + bàn giao | `NOT_FOUND` |
@@ -226,6 +226,7 @@ Dữ liệu nền chung (fixture `lease-basic`): cơ sở P1 (trọ, `Asia/Ho_Ch
 | `LEASE_VERSION_OVERLAP` | Phụ lục chồng hiệu lực | 409 | Thời gian hiệu lực trùng với phiên bản khác. | S-013 |
 | `ROOM_UNAVAILABLE` | Allocation chồng (INV-I1), kể cả phòng đang hold | 409 | Phòng đã có người hoặc đã được giữ trong khoảng này. | S-004, S-024 |
 | `SETTLEMENT_REQUIRED` | Đóng hợp đồng khi chưa duyệt quyết toán | 409 | Cần duyệt quyết toán trước khi đóng hợp đồng. | S-018 |
+| `FINAL_PERIOD_NOT_ISSUED` | Lập quyết toán khi cơ sở dùng kỳ thu mà kỳ chứa `moved_out_on` chưa có hoặc chưa phát hành (tiền thuê prorata kỳ cuối chưa lên phiếu) | 409 | Cần phát hành kỳ thu có ngày trả phòng trước khi quyết toán. | — (PLAN đợt 2 T-114) |
 | `SELF_APPROVAL_FORBIDDEN` | Người lập tự duyệt | 403 | Bạn không thể tự duyệt chứng từ mình lập. | S-019 |
 | `APPROVAL_LIMIT_EXCEEDED` | Số hoàn vượt hạn mức vai trò | 403 | Số tiền vượt hạn mức duyệt của bạn. | S-017 |
 | `METER_READING_DECREASED` | Chỉ số bàn giao nhỏ hơn chỉ số trước | 422 | Chỉ số nhỏ hơn lần đọc trước. Nếu đã thay công tơ, dùng chức năng thay công tơ. | — |

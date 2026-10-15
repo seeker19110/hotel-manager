@@ -168,6 +168,7 @@ describe("S-005 chỉ số không giảm; kỳ đã phát hành; xung đột phi
     const m = await P.meter(u, "electric");
     const p = await P.period("2026-09");
     await P.approved(m, p, 100, "2026-09-30");
+    await sql`update billing_periods set status = 'reviewing' where id = ${p}`.execute(t.admin);
     await sql`update billing_periods set status = 'issued', issued_at = now() where id = ${p}`.execute(
       t.admin,
     );

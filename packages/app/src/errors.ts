@@ -50,6 +50,7 @@ export const ERROR_CODES = {
   HANDOVER_REQUIRED: { status: 409, source: "SPEC-lease §6" },
   LEASE_VERSION_OVERLAP: { status: 409, source: "SPEC-lease §6" },
   SETTLEMENT_REQUIRED: { status: 409, source: "SPEC-lease §6" },
+  FINAL_PERIOD_NOT_ISSUED: { status: 409, source: "SPEC-lease §6" },
   PERIOD_ISSUED: { status: 409, source: "SPEC-metering-billing §6" },
   READINGS_INCOMPLETE: { status: 409, source: "SPEC-metering-billing §6" },
   UNRESOLVED_ANOMALIES: { status: 409, source: "SPEC-metering-billing §6" },

@@ -141,6 +141,27 @@ export async function prepareSettlement(
       extensions: { from: lease.status },
     });
   }
+  // Tiền thuê kỳ cuối (prorata đến `moved_out_on`) phải lên phiếu trước để quyết toán đối trừ đủ nợ (PLAN đợt 2 T-114).
+  // Cơ sở chưa dùng kỳ thu (chưa có kỳ nào) thì bỏ qua — nợ chỉ gồm phiếu đã có.
+  const finalPeriod = await sql<{ id: string | null; status: string | null; uses_billing: boolean }>`
+    select bp.id, bp.status,
+           exists (select 1 from billing_periods b where b.organization_id = l.organization_id and b.property_id = l.property_id)
+             as uses_billing
+    from leases l
+    left join billing_periods bp on bp.organization_id = l.organization_id and bp.property_id = l.property_id
+      and l.moved_out_on between bp.period_start and bp.period_end
+    where l.organization_id = ${ctx.actor.orgId} and l.id = ${lease.id}`.execute(ctx.trx);
+  const fp = finalPeriod.rows[0];
+  if (fp?.uses_billing && !(fp.status === "issued" || fp.status === "locked")) {
+    throw new CommandError(
+      "FINAL_PERIOD_NOT_ISSUED",
+      409,
+      "Cần phát hành kỳ thu có ngày trả phòng trước khi quyết toán.",
+      {
+        extensions: { items: [{ billing_period_id: fp.id, status: fp.status }] },
+      },
+    );
+  }
   if (input.fees.length > 20) throw fieldError("fees", "TOO_MANY", "Tối đa 20 khoản phí");
   const fileIds: string[] = [];
   input.fees.forEach((f, i) => {

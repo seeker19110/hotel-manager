@@ -16,6 +16,7 @@ export {
   switchOrganization,
 } from "./access/org-context.ts";
 export { type Auth, createAuth } from "./auth/auth.ts";
+export { generatePeriods } from "./billing/billing.ts";
 export { loadConfig } from "./config/schema.ts";
 export { ERROR_CODES, type ErrorCode } from "./errors.ts";
 export {
