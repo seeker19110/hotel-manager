@@ -1,6 +1,6 @@
 # docs/autopilot/PLAN.md — Hotel Manager · Đợt 1: nền tảng (G5) + lõi dùng chung
 
-> **Chưa duyệt.** Cổng duyệt duy nhất: người dùng duyệt file này cùng PROJECT, BLUEPRINT, ADR-0001, các SPEC và `docs/design/`.
+> **Duyệt bởi chủ dự án ngày 2026-10-15** (PR #3 đã merge; đồng ý phạm vi pilot theo backlog, mặc định tham số hoá cho câu hỏi [chặn] đợt 1, 4 mục miễn blueprint, 4 con số ngân sách).
 > Kiến trúc: ADR-0001 + ADR-0002 (tự host). Spec gốc: `docs/specs/SPEC-*.md` (F-001…F-012) · Blueprint: `BLUEPRINT.md` (web-app + saas-multitenant + fintech, quy mô M) · Kế hoạch gốc: backlog T009–T024, T033, T041, T073–T074, T099.
 
 ## Mục tiêu của kế hoạch này
@@ -55,7 +55,7 @@ Các câu [chặn] khác (prorata, giờ nhận/trả, huỷ, ghi nhận doanh t
 > `scripts/dev-task.sh` ở đây là `.xtemplates/scripts/dev-task.sh`.
 
 ### Lát 0 — Môi trường và hàng rào chất lượng (F-000)
-- [ ] `T-001` Môi trường chạy không cần Docker cho agent: `scripts/dev-env-setup.sh` cài PostgreSQL 17 + pgBackRest ≥ 2.59.3 từ kho PGDG, SeaweedFS 4.48 (binary `weed`), Node 24 + pnpm 12 (idempotent, không cần root khi đã có); `scripts/dev-env-check.sh` in phiên bản và thoát ≠ 0 nếu thiếu/sai major — Gate: `bash scripts/dev-env-check.sh`
+- [x] `T-001` Môi trường chạy không cần Docker cho agent: `scripts/dev-env-setup.sh` cài PostgreSQL 17 + pgBackRest ≥ 2.59.3 từ kho PGDG, SeaweedFS 4.48 (binary `weed`), Node 24 + pnpm 12 (idempotent, không cần root khi đã có); `scripts/dev-env-check.sh` in phiên bản và thoát ≠ 0 nếu thiếu/sai major — Gate: `bash scripts/dev-env-check.sh`
 - [ ] `T-002` Dựng pnpm workspace (apps/web Next 16, apps/worker, packages/domain|app|db|testkit), TypeScript strict (kiểm TS 7, lỗi thì 5.x + ghi ADR-0001), Biome, Vitest, lockfile đóng băng (`--frozen-lockfile`, BASE-DEP-002); điền `xt.yaml`; **toàn bộ CI ở task này** (`.github/workflows/ci.yml`): job `quality` chạy `dev-task.sh gate` trên Node 24 + service Postgres 17, `gitleaks`, `dep-audit` (`pnpm audit --prod`), kiểm license (chặn AGPL/GPL trong phụ thuộc chạy, BASE-DEP-005), action ghim SHA + `permissions` tối thiểu (SEC-SUPPLY-001, BASE-GATE-010), lịch quét hằng tuần (SEC-SUPPLY-006) — Gate: `.xtemplates/scripts/dev-task.sh gate`
 - [ ] `T-003` Schema env (Zod) validate lúc khởi động (BASE-CFG-002), `.env.example` khớp schema, che secret khi dump (BASE-CFG-005); logger JSON có `correlation_id`, che PII/secret (BASE-ERR-005/006/007), sự kiện bảo mật (SEC-LOG-001); test build client không chứa biến secret (TM-10) — Gate: `pnpm vitest run packages/app/src/config packages/app/src/logging`
 

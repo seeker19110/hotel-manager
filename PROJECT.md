@@ -1,6 +1,6 @@
 # PROJECT.md — Hotel Manager: nền tảng quản lý phòng trọ, nhà nghỉ, khách sạn nhỏ
 
-> Cổng G0: chờ duyệt (người dùng) · Cổng G1: chờ duyệt · Phiên bản tài liệu: 1 (2026-10-15)
+> Cổng G0: duyệt bởi chủ dự án 2026-10-15 · Cổng G1: duyệt 2026-10-15 · Phiên bản tài liệu: 1 (2026-10-15)
 > Nguồn gốc: *Kế hoạch webapp PWA quản lý phòng trọ – khách sạn* v1.0 (15/10/2026) + workbook *Backlog và ngân sách quản lý lưu trú* (99 gói việc).
 > Tài liệu này rút gọn kế hoạch thành đầu ra G0–G1 của khung; chi tiết nghiệp vụ nằm ở `docs/specs/`, thiết kế ở `docs/design/`.
 
@@ -61,7 +61,7 @@ Mục tiêu pilot: ≥ 6 cơ sở (3 trọ, 2 khách sạn, 1 căn hộ dịch v
 
 Nỗ lực: các gói P0 trong backlog là 224/343 ngày công, tức **65% nằm ở Must**, vượt ngưỡng ≤ 60% mà khung khuyến nghị.
 
-> **Lệch kế hoạch gốc — cần chủ dự án chọn.** Kế hoạch §04/§19 để gia hạn/thanh lý đầy đủ, phân bổ thanh toán, khoá kỳ và portal mở rộng (hợp đồng, công tơ, tiến độ) ở **V1**, nghiệm thu tuần 13–16; pilot tuần 12 xử lý các việc đó bằng chứng từ tối thiểu có người duyệt. Bảng trên đang theo **backlog** (các gói T031, T032, T035, T040, T044 là P0 tuần 9–12). Hai nguồn của chính kế hoạch lệch nhau; mặc định tôi giữ theo backlog (pilot đầy đủ hơn, rủi ro trễ cao hơn). Nếu trễ: cắt F-007, F-008, F-011 xuống tối thiểu trước; không cắt test tiền/tồn (kế hoạch §19).
+> **Lệch kế hoạch gốc — cần chủ dự án chọn.** Kế hoạch §04/§19 để gia hạn/thanh lý đầy đủ, phân bổ thanh toán, khoá kỳ và portal mở rộng (hợp đồng, công tơ, tiến độ) ở **V1**, nghiệm thu tuần 13–16; pilot tuần 12 xử lý các việc đó bằng chứng từ tối thiểu có người duyệt. Bảng trên đang theo **backlog** (các gói T031, T032, T035, T040, T044 là P0 tuần 9–12). Hai nguồn của chính kế hoạch lệch nhau; **chủ dự án chọn theo backlog (2026-10-15)** — pilot đầy đủ hơn, rủi ro trễ cao hơn. Nếu trễ: cắt F-007, F-008, F-011 xuống tối thiểu trước; không cắt test tiền/tồn (kế hoạch §19).
 
 ### Không làm (Won't — trong V1)
 - Bán theo giường; bán theo loại phòng khi chưa gán phòng cụ thể. Lý do: MVP gán phòng ngay để bảo đảm chống trùng bằng constraint.
