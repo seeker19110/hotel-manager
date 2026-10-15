@@ -43,6 +43,9 @@ jobs:
           cache: pnpm
       - name: Cài phụ thuộc (lockfile đóng băng — BASE-DEP-002)
         run: pnpm install --frozen-lockfile
+      # T-011: object storage tự host (ADR-0002) cho test file riêng tư — binary kiểm SHA-256 trong script.
+      - name: SeaweedFS cho test file (PLAN T-011)
+        run: DEV_ENV_OPT_DIR="$RUNNER_TEMP" DEV_ENV_BIN_DIR="$HOME/.local/bin" bash scripts/dev-env-setup.sh --only weed && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Cổng chuẩn — đúng lệnh trong xt.yaml
         run: .xtemplates/scripts/dev-task.sh gate
       - name: Tiêu đề PR theo Conventional Commits, ≤ 72 ký tự

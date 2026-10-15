@@ -84,7 +84,12 @@ install_node() {
   ln -sf "$dest/bin/pnpm" "$BIN_DIR/pnpm"
 }
 
-install_postgres
-install_weed
-install_node
+# --only <thành phần,...>: cài một phần (vd CI chỉ cần `--only weed`). Mặc định: tất cả.
+only="all"
+if [ "${1:-}" = "--only" ]; then only="${2:?thiếu danh sách sau --only}"; fi
+want() { [ "$only" = "all" ] || [[ ",$only," == *",$1,"* ]]; }
+
+want postgres && install_postgres
+want weed && install_weed
+want node && install_node
 log "xong — chạy scripts/dev-env-check.sh để kiểm. Cần ${BIN_DIR} đứng trước các node khác trong PATH."

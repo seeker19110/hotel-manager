@@ -4,12 +4,20 @@ import pg from "pg";
 import { inject } from "vitest";
 import { TEST_ROLE_PASSWORD } from "./constants.ts";
 
+/** Cấu hình S3 test do global-setup cung cấp. Gọi `inject` ở đây vì gói khác có thể nạp biến thể peer khác của
+ *  vitest, khi đó khai báo `ProvidedContext` bên dưới không áp sang được. */
+export function testS3Config(): import("./s3-server.ts").S3TestConfig {
+  return inject("s3");
+}
+
 const TEMPLATE_DB = "hm_test_template";
 
 declare module "vitest" {
   export interface ProvidedContext {
     /** URL superuser của Postgres test — do global-setup cung cấp. */
     pgAdminUrl: string;
+    /** Cấu hình S3 test (SeaweedFS tạm hoặc TEST_S3_*). */
+    s3: import("./s3-server.ts").S3TestConfig;
   }
 }
 

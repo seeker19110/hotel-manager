@@ -7,6 +7,7 @@ import pg from "pg";
 import type { TestProject } from "vitest/node";
 import { TEST_ROLE_PASSWORD } from "./constants.ts";
 import { type PgCluster, startPgCluster } from "./pg-cluster.ts";
+import { type S3Server, type S3TestConfig, startS3Server } from "./s3-server.ts";
 
 export const TEMPLATE_DB = "hm_test_template";
 const ROLES_SQL = new URL("../../db/sql/bootstrap-roles.sql", import.meta.url);
@@ -47,7 +48,22 @@ export default async function setup(project: TestProject): Promise<() => Promise
   }
 
   project.provide("pgAdminUrl", adminUrl);
+
+  // Object storage cho test file (T-011): S3 có sẵn qua TEST_S3_* hoặc tự dựng SeaweedFS tạm.
+  const s3: S3Server | undefined = process.env.TEST_S3_ENDPOINT ? undefined : await startS3Server();
+  const s3cfg: S3TestConfig = s3
+    ? s3.config
+    : {
+        endpoint: process.env.TEST_S3_ENDPOINT ?? "",
+        region: process.env.TEST_S3_REGION ?? "vn-local",
+        bucket: process.env.TEST_S3_BUCKET ?? "hm-test",
+        accessKeyId: process.env.TEST_S3_ACCESS_KEY_ID ?? "",
+        secretAccessKey: process.env.TEST_S3_SECRET_ACCESS_KEY ?? "",
+      };
+  project.provide("s3", s3cfg);
+
   return async () => {
+    await s3?.stop();
     cluster?.stop();
   };
 }

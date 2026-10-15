@@ -13,6 +13,7 @@
   "dependencies": {
     "@hm/db": "workspace:*",
     "@hm/domain": "workspace:*",
+    "aws4fetch": "1.0.20",
     "better-auth": "1.7.9",
     "kysely": "0.29.6",
     "pg": "8.23.1",
