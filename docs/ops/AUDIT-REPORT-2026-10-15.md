@@ -172,3 +172,56 @@ nhất. Cả hai sửa (đọc file `MERGE_HEAD` qua `git rev-parse --git-path`)
 | `audit plan --json` | 0 | `stale_evidence` rỗng |
 
 Phát hiện mới: 0. Sửa: 5 số dòng, "11 ca" → "13 ca" (`BASE-DOC-008`), `LOOP-HARNESS-005` nêu `MERGE_HEAD`.
+
+## 10. Quét lại delta sau merge #43 (`0d1b62c`, đổi định danh `xs`→`xt`, ADR-0007)
+
+> `audit plan` liệt kê 8 nhóm (ARCH, SEC, CODE, TEST, CI, DOC, XFEAT, HAR; 95 file đổi) và 0 bằng chứng blueprint cũ.
+> Người quét: phiên chính (cổng, công cụ) + subagent `reviewer` read-only (tên cũ sót, migrate install, hook, bằng chứng
+> blueprint). 🔴/🟠 tái hiện độc lập bởi phiên chính.
+
+| Nhóm | Lệnh | Exit | Kết quả chính |
+|---|---|---|---|
+| tất cả | `scripts/dev-task.sh gate` (venv `--require-hashes`, shellcheck 0.11.0) | 0 | 315 test; coverage dòng + nhánh 100% (2140 dòng, 924 nhánh); 49 s |
+| SEC | bandit 1.8.6 `-r scripts .claude/hooks` | 1 | như trước: B602 `loop record` (thiết kế) + 7 Low |
+| CODE | vulture 2.14 `--min-confidence 60` | 3 | như trước: 4 báo nhầm (guard.py:184-186, xt.py:863) |
+| SEC | gitleaks 8.28.0 (checksum khớp) `git . --redact --log-opts=--all` | 0 | 144 commit sạch |
+| CI | `xt.py ci-check` · bước smoke ghép blueprint chạy tại máy | 0 · 0 | 7 workflow xanh; 22 blueprint |
+| CI | GitHub API `list_workflow_runs` | — | trả rỗng → kết quả CI trên `main` chưa biết |
+| HAR | install `8e64aac` → sửa `_lib.sh` 1 dòng → install `0d1b62c` → payload `rm -rf /` | 0 | `XT_ROOT: unbound variable`, không quyết định (trước nâng cấp: deny) |
+| HAR | `xt.py audit plan --json` | 0 | `stale_evidence: []` (bỏ sót, xem AUD-DOC-024) |
+
+Phát hiện: 1 🔴 · 3 🟠 · 3 🟢 (chi tiết bảng ở `AUDIT-STATUS.md`).
+
+- **AUD-HAR-021 🔴** — đường tái hiện: (1) cài khung bản `8e64aac` vào repo trống; (2) thêm một dòng comment vào
+  `.claude/hooks/_lib.sh`; (3) chạy `install.py` bản `0d1b62c` — `_lib.sh` giữ bản người dùng (`XS_ROOT`, `xs_py`), các hook
+  khác cập nhật dùng `XT_ROOT`; (4) payload `{"command":"rm -rf /"}` vào `pre-bash-guard.sh` → stderr `XT_ROOT: unbound
+  variable`, exit 0, không output → Claude Code cho chạy. Chiều ngược (sửa một hook, `_lib.sh` mới) cũng chết (`XS_ROOT`
+  unbound, `xs_py: command not found` — reviewer). Vi phạm ADR-0002 "fail-closed về hành động nguy hiểm".
+- **AUD-HAR-022 🟠** — `LEGACY_RE` (install.py:51) không có `xs_py` → hook riêng gọi `xs_py` không được cảnh báo.
+- **AUD-DOC-023/024 🟠** — 2 mục `[x]` (`BASE-CFG-006`, `BASE-DATA-008`) trích dòng `install.py`/`test_install.py` đã dời;
+  máy dò không thấy vì #43 viết lại 98 dòng blueprint (đổi chữ `xs.py`) nên mốc ghi bằng chứng mới hơn file trích.
+- 🟢 AUD-SEC-015 (fingerprint `.gitleaksignore` lịch sử bị đổi tên), AUD-HAR-023 (symlink `.xstored`, `xs.py` thừa),
+  AUD-HAR-024 (nhiễu `.xtemplates-new` + cảnh báo tên cũ cho `xt.yaml`).
+
+Không phát hiện: tên cũ sót trong mã/hook/skill/template/framework/CI (chỉ còn ở lịch sử, hướng dẫn nâng cấp, hằng
+migrate); install chạy lại idempotent; ADR-0006 → "Bị thay thế bởi ADR-0007"; CHANGELOG `[Unreleased]` đúng.
+
+### Kế hoạch sửa (chờ duyệt)
+
+| Đợt | PR | Phát hiện | Gate |
+|---|---|---|---|
+| 1 | `fix(hooks):` | AUD-HAR-021, AUD-HAR-022 | test `legacy_hook_compat` (cài cũ → sửa `_lib.sh`/một hook → cài mới → payload deny) đỏ trước/xanh sau; `-k legacy_refs` với `xs_py` |
+| 2 | `docs:` | AUD-DOC-023, AUD-DOC-024, AUD-SEC-015 | đối chiếu mọi trích `install.py:`/`test_install.py:` trong BLUEPRINT.md; `audit check --strict` |
+| 3 | `fix(install):` | AUD-HAR-023, AUD-HAR-024 (🟢, có thể gộp đợt 1 nếu nhỏ) | test symlink/file thừa; `xt.yaml` mẫu không còn chữ `xs.yaml` |
+
+Kết quả đợt 1 (duyệt 2026-10-15, #1): AUD-HAR-021 + AUD-HAR-022 đã sửa.
+
+| Lệnh | Exit | Kết quả |
+|---|---|---|
+| `python3 -m unittest discover -s tests -k legacy_hook_compat` trước sửa | 1 | 2 FAIL: `XT_ROOT`/`XS_ROOT: unbound variable`, quyết định `None` thay vì `deny` |
+| cùng lệnh sau sửa | 0 | 2 OK (pre-bash deny, pre-edit `xt.yaml` ask, stop-guard không lỗi tên) |
+| `-k legacy_refs_catches -k warns_loudly` trước / sau | 1 / 0 | `_lib.sh` bản khung bị liệt kê, thiếu "HOOK còn tên cũ" → hết |
+| cài `8e64aac` → sửa `_lib.sh` + hook riêng gọi `xs_py` → cài bản sửa → payload `rm -rf /` | 0 | `deny`; cảnh báo "HOOK còn tên cũ" nêu `_lib.sh`, `mine.sh` |
+
+Giới hạn còn lại (ghi CHANGELOG): hook ≤ 2.x người dùng đã sửa vẫn tìm `.xstored/scripts/dev-task.sh` nên cổng commit của
+hook đó không chạy tới khi gộp tay bản `.xtemplates-new` — install giờ cảnh báo riêng thay vì lẫn trong danh sách tên cũ.

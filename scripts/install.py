@@ -48,7 +48,7 @@ ROOT_TEMPLATES = {
 # Tên trước 3.0.0 (ADR-0007): dự án đã cài bản ≤ 2.x được chuyển tự động khi chạy lại install.
 LEGACY_DIR = ".xstored"
 LEGACY_YAML = "xs.yaml"
-LEGACY_RE = re.compile(r"\.xstored\b|\bxs\.(?:py|yaml)\b|\bXS_[A-Z]")
+LEGACY_RE = re.compile(r"\.xstored\b|\bxs\.(?:py|yaml)\b|\bXS_[A-Z]|\bxs_py\b")
 # --with-github: hàng rào GitHub mẫu của khung (copy-if-absent). Workflow KHÔNG copy vì job quality phụ thuộc stack.
 GITHUB_FILES = [".github/rulesets/main.json", ".github/pull_request_template.md", ".github/dependabot.yml"]
 
@@ -345,7 +345,8 @@ def migrate_legacy(target: Path) -> None:
 
 
 def legacy_refs(target: Path) -> list[str]:
-    """File của dự án còn nhắc tên trước 3.0.0 — copy-if-absent không đè file người dùng nên chỉ báo để sửa tay."""
+    """File của dự án còn nhắc tên trước 3.0.0 — copy-if-absent không đè file người dùng nên chỉ báo để sửa tay.
+    Bỏ qua file trùng byte với bản khung (`_lib.sh`/`_compat.sh` cố ý giữ bí danh tên cũ — AUD-HAR-021)."""
     candidates = [*target.glob("*.md"), target / "xt.yaml", *(target / ".claude").rglob("*")]
     candidates += (target / ".github" / "workflows").glob("*")
     hits = []
@@ -356,8 +357,10 @@ def legacy_refs(target: Path) -> list[str]:
             text = p.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
-        if LEGACY_RE.search(text):
-            hits.append(p.relative_to(target).as_posix())
+        rel = p.relative_to(target).as_posix()
+        shipped = SRC / rel.removesuffix(".xtemplates-new")
+        if LEGACY_RE.search(text) and not (shipped.is_file() and shipped.read_bytes() == p.read_bytes()):
+            hits.append(rel)
     return sorted(hits)
 
 
@@ -379,9 +382,16 @@ def install(target: Path, force_harness: bool, no_harness: bool, label: str | No
         install_github(target)
     ensure_gitignore(target)
     stale = legacy_refs(target)
+    hooks = [f for f in stale if f.startswith(".claude/hooks/")]
+    if hooks:
+        log(
+            "  ⚠ HOOK còn tên cũ (bản ≤ 2.x bạn đã sửa, được giữ nguyên): "
+            + ", ".join(hooks)
+            + " — đường dẫn .xstored/ không còn nên cổng commit/hàng rào có thể KHÔNG chạy; gộp ngay bản .xtemplates-new hoặc đổi tay"
+        )
     if stale:
         log(
-            "  ⚠ còn nhắc tên cũ (.xstored/xs.py/xs.yaml/XS_*) — đổi tay sang .xtemplates/xt.py/xt.yaml/XT_*: "
+            "  ⚠ còn nhắc tên cũ (.xstored/xs.py/xs.yaml/XS_*/xs_py) — đổi tay sang .xtemplates/xt.py/xt.yaml/XT_*/xt_py: "
             + ", ".join(stale)
         )
 

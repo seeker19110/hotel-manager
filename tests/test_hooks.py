@@ -648,5 +648,61 @@ class SettingsJsonTest(unittest.TestCase):
         self.assertNotIn("defaultMode", s.get("permissions", {}))  # bị Claude Code bỏ qua ở project settings
 
 
+def to_legacy(text: str) -> str:
+    """Bản ≤ 2.x (trước ADR-0007) của một hook/_lib.sh: chỉ khác tên định danh."""
+    for new, old in (("XT_ROOT", "XS_ROOT"), ("xt_py", "xs_py"), (".xtemplates", ".xstored"), ("xt.py", "xs.py")):
+        text = text.replace(new, old)
+    return text
+
+
+@unittest.skipIf(shutil.which("bash") is None, "cần bash")
+class LegacyHookCompatTest(unittest.TestCase):
+    """AUD-HAR-021: nâng cấp ≤ 2.x giữ file hook người dùng đã sửa → `_lib.sh` và hook lệch tên biến;
+    `set -u` lỗi → exit 0 không output → guard tắt im lặng. Hai chiều lệch đều phải giữ quyết định."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.hooks = self.tmp / "hooks"
+        shutil.copytree(HOOKS, self.hooks)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def legacy(self, name: str) -> None:
+        f = self.hooks / name
+        f.write_text(to_legacy(f.read_text(encoding="utf-8")) + "# người dùng đã sửa\n", encoding="utf-8")
+
+    def run_in(self, name: str, payload: dict) -> tuple[int, str, str]:
+        env = dict(os.environ, CLAUDE_PROJECT_DIR=str(ROOT))
+        r = subprocess.run(
+            ["bash", str(self.hooks / name)],
+            input=json.dumps(payload),
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=120,
+        )
+        return r.returncode, r.stdout, r.stderr
+
+    def assert_guards(self) -> None:
+        code, out, err = self.run_in("pre-bash-guard.sh", {"tool_input": {"command": "rm -rf /"}})
+        self.assertEqual((code, decision(out)), (0, "deny"), err)
+        code, out, err = self.run_in("pre-edit-guard.sh", {"tool_input": {"file_path": str(ROOT / "xt.yaml")}})
+        self.assertEqual((code, decision(out)), (0, "ask"), err)
+        code, _, err = self.run_in("stop-guard.sh", {"stop_hook_active": False})
+        self.assertEqual(code, 0)
+        self.assertNotIn("unbound variable", err)
+        self.assertNotIn("command not found", err)
+
+    def test_legacy_hook_compat_old_lib_new_hooks(self):
+        self.legacy("_lib.sh")
+        self.assert_guards()
+
+    def test_legacy_hook_compat_new_lib_old_hooks(self):
+        for name in ("pre-bash-guard.sh", "pre-edit-guard.sh", "stop-guard.sh"):
+            self.legacy(name)
+        self.assert_guards()
+
+
 if __name__ == "__main__":
     unittest.main()

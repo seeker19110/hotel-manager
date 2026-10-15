@@ -289,6 +289,26 @@ class LegacyMigrationTest(unittest.TestCase):
         (self.target / "README.md").write_text("Dùng .xtemplates/scripts/xt.py và xt.yaml.\n", encoding="utf-8")
         self.assertEqual(install.legacy_refs(self.target), [".github/workflows/ci.yml"])
 
+    def test_legacy_refs_catches_xs_py_and_skips_shipped_files(self):
+        hooks = self.target / ".claude" / "hooks"
+        hooks.mkdir(parents=True)
+        (hooks / "my-hook.sh").write_text('X="$(xs_py)" || exit 0\n', encoding="utf-8")
+        shutil.copy2(ROOT / ".claude/hooks/_lib.sh", hooks / "_lib.sh")  # bản khung giữ bí danh XS_ROOT/xs_py
+        self.assertEqual(install.legacy_refs(self.target), [".claude/hooks/my-hook.sh"])
+
+    def test_upgrade_warns_loudly_about_kept_legacy_hook(self):
+        self.make_legacy_install()
+        kept = self.target / ".claude" / "hooks" / "pre-bash-guard.sh"
+        kept.write_text(
+            kept.read_text(encoding="utf-8").replace("XT_ROOT", "XS_ROOT") + "# sửa tay\n", encoding="utf-8"
+        )
+        code, err = self.install_quiet()
+        self.assertEqual(code, 0, err)
+        self.assertIn("HOOK còn tên cũ", err)
+        listed = err.split("HOOK còn tên cũ")[1].splitlines()[0]
+        self.assertIn(".claude/hooks/pre-bash-guard.sh", listed)
+        self.assertNotIn("pre-bash-guard.sh.xtemplates-new", listed)  # bản mới của khung, không phải tên cũ
+
 
 def make_fake_src(base: Path, ruleset: str | None = None) -> Path:
     """Khung giả tối thiểu: không research/, không templates/, không VERSION — để chạm nhánh 'thiếu'."""

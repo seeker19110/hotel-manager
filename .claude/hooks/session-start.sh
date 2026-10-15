@@ -5,6 +5,7 @@
 # Chỉ đọc, không đổi gì. Fail-open.
 set -uo pipefail
 . "$(dirname "$0")/_lib.sh"
+. "$(dirname "$0")/_compat.sh"
 
 ctx=""
 if [ -f "$XT_ROOT/PROGRESS.md" ]; then
