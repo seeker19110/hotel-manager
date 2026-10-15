@@ -1,9 +1,17 @@
-# xt.yaml — lệnh chuẩn của repo này cho agent, hook và CI (YAML phẳng `task: lệnh`, đọc bởi scripts/dev-task.sh).
-# CI job `quality` chạy `scripts/dev-task.sh gate` = build → typecheck → lint → test bằng ĐÚNG các lệnh dưới đây.
-# Công cụ ghim kèm hash: requirements-dev.txt (ruff 0.17.0, mypy 2.4.0, coverage 7.16.2 — xác minh PyPI 2026-10-14); shellcheck (CI: ubuntu-latest). Agent KHÔNG suy diễn lệnh từ văn xuôi.
-format: python3 -m ruff format scripts tests .claude/hooks
-format_file: python3 -m ruff format {}
-lint: python3 scripts/xt.py validate && python3 scripts/check-links.py && python3 scripts/xt.py progress-check && python3 scripts/xt.py changelog-check && python3 scripts/xt.py ci-check && python3 -m ruff check scripts tests .claude/hooks && python3 -m ruff format --check scripts tests .claude/hooks && for f in scripts/*.sh .claude/hooks/*.sh; do bash -n "$f" || exit 1; done && shellcheck --severity=warning scripts/*.sh .claude/hooks/*.sh && python3 -m json.tool .claude/settings.json >/dev/null && python3 -m json.tool .github/rulesets/main.json >/dev/null
-typecheck: python3 -m mypy --strict --python-version 3.11 scripts/xt.py scripts/install.py scripts/check-links.py .claude/hooks/guard.py
-test: d="$(mktemp -d)" && export COVERAGE_FILE="$d/.coverage" && python3 -m coverage erase && python3 -m coverage run -m unittest discover -s tests && python3 -m coverage combine -q && python3 -m coverage report --fail-under=100; rc=$?; rm -rf "$d"; exit $rc
-build: python3 scripts/xt.py stats
+# xt.yaml — lệnh chuẩn của dự án cho agent và hook (YAML PHẲNG `task: lệnh`, do .xtemplates/scripts/dev-task.sh đọc).
+# Agent KHÔNG suy diễn lệnh từ văn xuôi; đọc file này. Để trống "" = không có; thiếu khoá = tự dò (package.json/pyproject/go.mod/Cargo.toml/Makefile).
+# Nhà của bộ khoá: LOOP-HARNESS-008 (framework/11-autonomous-loop/harness-files.md). `scripts/dev-task.sh` CHỈ chạy các khoá format · lint · typecheck · test · build · format_file
+# (`gate` = build → typecheck → lint → test; lint nên gồm kiểm format). Khoá khác (install, dev, e2e, migrate, init, smoke, audit…) là lệnh KHAI BÁO để agent ĐỌC và chạy trực tiếp; dev-task không chạy.
+# Mẫu theo stack (giữ MỘT bộ, xoá phần còn lại):
+#   Node:   lint: npm run lint · typecheck: npm run typecheck · test: npm test -- --run · build: npm run build · format: npm run format · format_file: npx --no-install prettier --write "{}"
+#   Python: lint: ruff check . · typecheck: pyright · test: pytest -q · build: "" · format: ruff format . · format_file: ruff format "{}"
+#   Go:     lint: go vet ./... · typecheck: "" · test: go test ./... · build: go build ./... · format: gofmt -l -w . · format_file: gofmt -w "{}"
+lint: ""
+typecheck: ""
+test: ""
+build: ""
+format: ""
+format_file: ""
+# Tuỳ chọn, agent đọc và chạy trực tiếp (dev-task không chạy): e2e, audit (dependency), perf (k6/lighthouse), migrate (áp migration local), install, dev, init, smoke
+e2e: ""
+audit: ""

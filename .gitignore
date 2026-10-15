@@ -1,25 +1,2 @@
-# Python
-__pycache__/
-*.py[cod]
-.venv/
-# Trạng thái autopilot cục bộ (bằng chứng chạy của từng máy)
+# X-Templates: trạng thái autopilot cục bộ
 .autopilot/
-# Hệ điều hành / editor
-.DS_Store
-Thumbs.db
-.idea/
-.vscode/
-# Bí mật
-.env
-.env.*
-!.env.example
-# Claude Code cục bộ
-.claude/settings.local.json
-
-# Khoá/chứng chỉ
-*.pem
-*.key
-*.p12
-# Dữ liệu coverage (cổng test ghi rồi gộp)
-.coverage
-.coverage.*
