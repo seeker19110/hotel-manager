@@ -1,0 +1,119 @@
+# DOMAIN-MODEL — từ điển, thực thể, trạng thái và bất biến (G4)
+
+> Phiên bản 1 · 2026-10-15 · Trạng thái: Draft, chờ duyệt.
+> Nguồn: kế hoạch gốc §05–§08, §12–§13.
+> Mọi SPEC dùng **đúng tên** ở đây; đổi tên phải sửa file này trước. Schema SQL chi tiết viết ở T-003 trở đi, theo đúng tài liệu này.
+
+## 1. Từ điển (Ubiquitous language)
+
+| Thuật ngữ | Bảng | Định nghĩa | Không nhầm với |
+|---|---|---|---|
+| Tổ chức | `organizations` | Khách hàng SaaS (chủ kinh doanh), là ranh giới tenant | Người thuê phòng |
+| Cơ sở | `properties` | Một địa điểm kinh doanh, có múi giờ, giờ chốt ngày, mẫu (Trọ/Khách sạn/Hỗn hợp) | Toà nhà/tầng |
+| Phòng | `units` | Đơn vị bán/cho thuê nguyên căn. V1 không bán theo giường | Loại phòng |
+| Loại phòng | `room_types` | Nhóm phòng cùng sức chứa và bảng giá (khách sạn) | |
+| Thành viên | `memberships` | Quan hệ người dùng ↔ tổ chức kèm vai trò, phạm vi cơ sở, thời hạn | Tài khoản đăng nhập (`auth_user_id`) |
+| Cá nhân | `persons` | Người thật được ghi nhận: người thuê, người ở, khách, người trả tiền | Thành viên nhân viên |
+| Phân bổ phòng | `allocations` | Khoảng `[start,end)` một phòng bị chiếm bởi hold, hợp đồng, lượt ở hoặc block | Phân bổ tiền |
+| Giữ chỗ | `allocations.kind='hold'` | Allocation có `expires_at`, chưa phải cam kết | |
+| Block | `blocks` + allocation | Khoá phòng vì bảo trì/ngừng khai thác, có lý do và người duyệt | Trạng thái vệ sinh |
+| Hợp đồng thuê | `leases` + `lease_versions` | Cam kết thuê dài hạn; điều khoản, giá, dịch vụ theo **phiên bản có hiệu lực** | Booking |
+| Bàn giao | `handovers` | Biên bản nhận/trả phòng: chỉ số công tơ, tài sản, chìa khoá, ảnh, xác nhận | Check-in khách sạn |
+| Booking | `reservations` + `reservation_items` | Đặt phòng ngắn hạn, có thể nhiều dòng phòng | Lượt ở |
+| Lượt ở | `stays` | Khách thực ở một phòng cụ thể (check-in → check-out) | Booking |
+| Folio | (khung nhìn trên `charges` + `payment_allocations` theo `stay`/`reservation`) | Tổng hợp các khoản phải thu và đã trả của một lượt ở | Hoá đơn thuế |
+| Công tơ | `meters` | Đồng hồ điện/nước gắn với phòng; thay công tơ tạo sự kiện reset | |
+| Chỉ số | `meter_readings` | Giá trị đọc tại một thời điểm, có ảnh và trạng thái nháp/đã duyệt | |
+| Kỳ thu | `billing_periods` | Một đợt tính tiền của cơ sở (thường theo tháng): Nháp → Duyệt → Phát hành → Khoá | |
+| Khoản phí | `charges` | Một dòng phải thu, có snapshot giá, lượng, đơn giá, quy tắc làm tròn, nguồn (kỳ thu/folio) | |
+| Phiếu tính tiền | `invoices` + `invoice_lines` | Chứng từ nghiệp vụ gom các khoản phí gửi cho người trả. **Không phải hoá đơn điện tử** | HĐĐT |
+| Thanh toán | `payments` | Tiền thực nhận hoặc chi ra (tiền mặt, chuyển khoản), có chứng cứ; Chờ xác nhận → Đã xác nhận | Phân bổ |
+| Phân bổ tiền | `payment_allocations` | Nối một thanh toán với một hay nhiều phiếu | Phân bổ phòng |
+| Cọc | `deposits` | Nghĩa vụ phải hoàn cho khách; **không phải doanh thu** | Ứng trước |
+| Ứng trước | `payments` chưa phân bổ / số dư khách | Tiền khách trả trước, sẽ được phân bổ vào phiếu | Cọc |
+| Bút toán | `journal_entries` + `journal_lines` | Ghi sổ phụ cân bằng (Σ Nợ = Σ Có), append-only | |
+| Chốt kỳ / chốt ca | `period_locks`, `shifts` | Sau khi khoá, mọi thay đổi tiền phải đi qua điều chỉnh/đảo có duyệt | |
+| Ngày kinh doanh | `business_date` | Ngày địa phương của cơ sở, tính theo giờ chốt ngày (không phải ngày UTC) | |
+| Lệnh | `idempotency_keys` | Một thao tác ghi có `command_id`; replay trả cùng kết quả | |
+
+## 2. Quy tắc dữ liệu chung (bất biến toàn hệ)
+
+- **INV-G1 Tenant:** mọi bảng nghiệp vụ có `organization_id NOT NULL`. Bảng thuộc cơ sở có thêm `property_id`. Foreign key ghép `(organization_id, id)` để con không trỏ sang tổ chức khác. RLS lọc theo `current_setting('app.org_id')`; runtime role `app_runtime` không phải owner và không có BYPASSRLS. Server lấy `organization_id` từ membership, **không tin giá trị client gửi**.
+- **INV-G2 Thời gian:** `timestamptz` lưu UTC; `properties.timezone` (IANA, mặc định `Asia/Ho_Chi_Minh`). Ngày thuê, kỳ thu và `business_date` là kiểu `date` địa phương.
+- **INV-G3 Tiền:** VND là `bigint` đồng, không dùng float ở DB, API hay UI. Lượng và đơn giá phân số dùng `numeric`. Mỗi chứng từ lưu `currency`, `tax_profile_id`, `rounding_rule`, `formula_version`. Chỉ có một hàm làm tròn dùng chung (`packages/domain/money`).
+- **INV-G4 Bất biến chứng từ:** chứng từ đã phát hành hoặc ghi sổ không bị UPDATE/DELETE nội dung tiền (trigger chặn). Sửa bằng chứng từ đảo/điều chỉnh tham chiếu bản gốc, có lý do và người duyệt.
+- **INV-G5 Idempotency:** mọi command ghi nhận `Idempotency-Key`, lưu `(organization_id, key)` unique cùng `request_hash`, kết quả và hạn. Cùng key + cùng hash → trả kết quả cũ. Cùng key + khác hash → 409.
+- **INV-G6 Audit + outbox cùng transaction:** command ghi dữ liệu nghiệp vụ, `audit_events` (chủ thể, trước/sau, lý do, `correlation_id`) và `outbox` trong **một** transaction. Gửi ra ngoài làm sau khi commit.
+- **INV-G7 Xoá:** soft delete chỉ áp cho danh mục. Dữ liệu nhận dạng có retention riêng; xoá hoặc ẩn danh kèm tombstone.
+
+## 3. Lịch tài nguyên (Inventory)
+
+```sql
+-- phác thảo, không phải migration
+allocations(organization_id, property_id, unit_id, id,
+            kind  text check (kind in ('hold','lease','stay','block')),
+            source_id uuid,            -- reservation_item / lease / stay / block
+            during tstzrange not null, -- [start, end); end NULL = khoảng mở (hợp đồng không thời hạn)
+            active boolean not null default true,
+            expires_at timestamptz,    -- chỉ cho hold
+            EXCLUDE USING gist (organization_id WITH =, unit_id WITH =, during WITH &&) WHERE (active))
+```
+
+- **INV-I1:** hai allocation `active` trên cùng phòng không được chồng thời gian. Kiểm ở DB trong cùng transaction. Lỗi `23P01` được dịch thành mã `ROOM_UNAVAILABLE`.
+- **INV-I2:** khoảng là `[start,end)` nên `end` của khách trước được trùng `start` của khách sau. Thời gian dọn được thể hiện bằng buffer hoặc block, không cộng hai lần.
+- **INV-I3:** hold hết hạn **không** được lọc bằng `now()` trong partial index. Có hai cách nhả: worker chuyển `active=false`, hoặc command mới khoá phòng rồi dọn hold hết hạn trước khi insert. Mỗi hold chỉ được nhả đúng một lần (audit một sự kiện).
+- **INV-I4:** khách chưa trả phòng thì allocation không tự kết thúc. Kéo dài mà đụng booking đã xác nhận → tạo `exception` để quản lý tái bố trí. Không lưu âm thầm và không bỏ ràng buộc.
+- **Ba chiều trạng thái độc lập của phòng:** chiếm dụng (tính từ allocation) · vệ sinh (`dirty → assigned → cleaning → clean → inspected`) · khả dụng (`active | blocked | out_of_service`). "Sạch" không có nghĩa là còn trống.
+
+## 4. Vòng đời
+
+| Thực thể | Trạng thái | Chuyển không hợp lệ |
+|---|---|---|
+| Booking | `draft → held → confirmed → in_house → checked_out`; nhánh `cancelled`, `no_show`; `held → expired` | nhảy từ `draft` sang `in_house`; huỷ sau `checked_out` |
+| Lượt ở | `expected → in_house → checked_out` | check-out khi chưa check-in |
+| Hợp đồng | `draft → pending_signature → signed_awaiting_handover → active → notice_given → settling → closed` | `active` khi chưa có bàn giao; `closed` khi chưa quyết toán |
+| Kỳ thu | `draft → reviewing → issued → locked` | sửa số sau `issued` (phải dùng điều chỉnh) |
+| Thanh toán | `pending → confirmed`; `confirmed → reversed` (bằng chứng từ đảo) | `pending → reversed`; xác nhận hai lần |
+| Phiếu việc | `open → assigned → in_progress → done → verified`; `cancelled` | `verified` bởi chính người làm (khi bật tách quyền) |
+
+Mọi chuyển trạng thái đi qua bảng chuyển khai báo trong `packages/domain`. Chuyển ngoài bảng bị từ chối với mã `INVALID_TRANSITION` và được ghi audit.
+
+## 5. Tài chính — sổ phụ cân bằng
+
+Tài khoản sổ phụ (V1, theo từng tổ chức; chưa phải hệ thống tài khoản pháp định):
+
+| Mã | Tài khoản | Loại |
+|---|---|---|
+| `CASH` | Tiền mặt tại quầy (theo ca) | Tài sản |
+| `BANK` | Tiền gửi ngân hàng (theo tài khoản nhận) | Tài sản |
+| `AR` | Phải thu khách/người thuê | Tài sản |
+| `DEPOSIT_LIAB` | Nghĩa vụ cọc phải hoàn | Nợ phải trả |
+| `CUSTOMER_CREDIT` | Ứng trước, trả thừa chưa phân bổ | Nợ phải trả |
+| `REV_ROOM` / `REV_UTIL` / `REV_SERVICE` / `REV_FEE` | Doanh thu phòng / điện nước / dịch vụ / phí khác | Doanh thu |
+| `DISCOUNT` | Giảm trừ | Giảm doanh thu |
+
+| Sự kiện | Bút toán |
+|---|---|
+| Phát hành phiếu | Nợ `AR` / Có `REV_*` theo từng dòng |
+| Nhận cọc | Nợ `CASH`/`BANK` / Có `DEPOSIT_LIAB` |
+| Nhận thanh toán (chưa phân bổ) | Nợ `CASH`/`BANK` / Có `CUSTOMER_CREDIT` |
+| Phân bổ vào phiếu | Nợ `CUSTOMER_CREDIT` / Có `AR` |
+| Khấu trừ cọc vào nợ (có duyệt) | Nợ `DEPOSIT_LIAB` / Có `AR` |
+| Hoàn cọc | Nợ `DEPOSIT_LIAB` / Có `CASH`/`BANK` |
+| Đảo | Bút toán ngược, có `reverses_entry_id` |
+
+- **INV-F1:** mỗi bút toán có Σ Nợ = Σ Có (constraint trigger deferred). Dòng bút toán là append-only.
+- **INV-F2:** Σ phân bổ của một thanh toán ≤ số tiền thanh toán; Σ phân bổ vào một phiếu ≤ tổng phiếu. Kiểm trong transaction và khoá hàng `payments`/`invoices` theo thứ tự id tăng dần.
+- **INV-F3:** thanh toán chỉ chuyển sang `confirmed` khi có chứng cứ: người có quyền xác nhận kèm ảnh/sao kê, hoặc webhook đã xác minh chữ ký. Màn hình "khách bấm đã chuyển" hay ảnh chụp **không** đủ.
+- **INV-F4:** webhook/sao kê lưu ở `inbox` với khoá unique `(provider, account, provider_event_id)`. Trùng ID mà khác hash → báo động, không ghi tiền.
+- **INV-F5:** cọc không tự trừ vào nợ. Khấu trừ cần lý do, người duyệt và chứng từ liên kết.
+- **INV-F6:** sau `period_locks` hoặc chốt ca, chỉ được thêm chứng từ điều chỉnh/đảo, phải có quyền duyệt.
+- **Ví dụ kiểm thử bắt buộc (từ kế hoạch):**
+  - Trọ: 3.000.000 + (1.350 − 1.250) × 3.000 + 12 × 15.000 + 100.000 = **3.580.000**; đã phân bổ 2.000.000 → còn **1.580.000**. Cọc 3.000.000 theo dõi riêng.
+  - Khách sạn: 2 × 600.000 + 80.000 + 150.000 = **1.430.000**; ứng trước 500.000 đã phân bổ → còn **930.000**.
+
+## 6. Quyền (tóm tắt — ma trận đầy đủ ở SPEC-access-and-property)
+
+Vai trò: `owner` · `manager` · `front_desk` · `accountant` · `housekeeping` · `maintenance` · `tenant` (portal) · `guest` (link có hạn) · `platform_support` (tách riêng, cấp tạm thời).
+Quyền = (vai trò, hành động, phạm vi cơ sở, hạn mức tiền). Kiểm ở server (`packages/app`) **và** ở RLS. Giao diện chỉ ẩn/hiện để người dùng dễ hiểu.
+`housekeeping` không đọc `identity_documents` và không xem số tiền.

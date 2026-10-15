@@ -5,8 +5,8 @@
 > Dùng chung cho Claude Code, Codex, Gemini CLI, Cursor…; `CLAUDE.md` chỉ import file này.
 
 ## 1. Dự án này
-- **Tên / mục tiêu:** [ĐIỀN — một câu]
-- **Hồ sơ khung:** `[ĐIỀN slug, vd web-app]` · **Gói ngành:** `[ĐIỀN hoặc (không)]` · **Quy mô:** `[S|M|L]`
+- **Tên / mục tiêu:** Hotel Manager — SaaS web/PWA giúp chủ trọ, nhà nghỉ, khách sạn nhỏ ở Việt Nam quản lý phòng, hợp đồng, kỳ thu, cọc, công nợ và lưu trú ngắn hạn đúng tiền, đúng phòng.
+- **Hồ sơ khung:** `web-app` · **Gói ngành:** `saas-multitenant`, `fintech` · **Quy mô:** `M`
 - **Blueprint:** `BLUEPRINT.md` (sinh bằng `python3 .xtemplates/scripts/xt.py compose ...`) — phạm vi chất lượng đã thống nhất.
 - **Stack thật:** đọc `package.json` / `pyproject.toml` / `go.mod` / CI — **không hỏi người điều đã có trong code**. Lệnh chuẩn ở `xt.yaml`.
 - **Tài liệu:** `PROJECT.md` (vấn đề, người dùng, MVP, chỉ số) · `docs/specs/` · `docs/adr/` · `PROGRESS.md` (trạng thái) · `docs/autopilot/PLAN.md` (khi chạy tự động).
@@ -45,7 +45,7 @@ Ngoài các điểm trên, **sau khi kế hoạch được duyệt thì không h
 `/autopilot` · `/blueprint` · `/gate` · `/research` · `/audit` · `/review` · `/adr` · `/handover`. Subagent: `researcher` (tra cứu) · `executor` (task rõ phạm vi) · `reviewer` (model khác). Phiên chính điều phối; subagent không lồng subagent (độ sâu 1). Phạm vi: luật này áp cho **vòng lặp phát triển** bằng agent lập trình (`.xtemplates/framework/11-autonomous-loop/`); độ sâu lồng agent **trong sản phẩm agentic** của dự án theo `AI-AGENTIC-007` (`.xtemplates/framework/13-ai-engineering/agentic-systems.md`: khuyến nghị 2, trần 3).
 
 ## 8. Quy ước riêng của dự án
-- Cấu trúc thư mục: [ĐIỀN]
-- Đặt tên / kiến trúc / thư viện chính và lý do: [ĐIỀN hoặc trỏ ADR]
-- Môi trường & secrets: [ĐIỀN cách nạp — không ghi giá trị]
+- Cấu trúc thư mục: `apps/web` (Next.js) · `apps/worker` (pg-boss, outbox) · `packages/domain` (quy tắc thuần, không I/O) · `packages/app` (command/query) · `packages/db` (Kysely, migration, RLS) · `packages/testkit` · tài liệu ở `docs/` (specs, design, adr, research, autopilot).
+- Kiến trúc/thư viện: `docs/adr/0001-modular-monolith-typescript-postgres.md`. Thuật ngữ và tên bảng: **chỉ** theo `docs/design/DOMAIN-MODEL.md`. Bất biến tiền/tồn (`INV-*`) phải có test trên Postgres thật; không thay constraint DB bằng kiểm tra ở app.
+- Môi trường & secrets: biến môi trường validate bằng schema lúc khởi động; mẫu ở `.env.example`; dev/CI dùng Postgres + Supabase local bằng Docker, không dùng dữ liệu thật, không tạo tài khoản trả phí khi chưa được duyệt.
 - Giao tiếp: tiếng Việt có dấu, ngắn, dẫn đầu bằng kết quả; báo cáo cuối việc: đã làm · bằng chứng · còn treo · đề xuất.
