@@ -18,6 +18,16 @@ import {
   requestDeduction,
   requestDepositRefund,
 } from "../deposits/deposits.ts";
+import {
+  cancelBatch,
+  commitBatch,
+  confirmBatch,
+  downloadErrorReport,
+  getBatch,
+  getTemplate,
+  setExpectedTotals,
+  validateBatch,
+} from "../import/import.ts";
 import { activateLease, recordHandover, renewLease } from "../lease/handover.ts";
 import {
   addOccupant,
@@ -820,6 +830,34 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
       data: await reopenPeriod(ctx, { billingPeriodId: i.billing_period_id, reason: i.reason }),
     }),
   }),
+  // `import.upload` cần storage + multipart — route riêng khi web nối object storage (chưa có ở đợt 2).
+  "import.validate": defineCommand({
+    command: "import.validate",
+    input: z.strictObject({ batch_id: uuid }),
+    run: async (ctx, i) => ({ data: await validateBatch(ctx, { batchId: i.batch_id }) }),
+  }),
+  "import.setExpectedTotals": defineCommand({
+    command: "import.setExpectedTotals",
+    input: z.strictObject({ batch_id: uuid, debt: money, deposit: money }),
+    run: async (ctx, i) => ({
+      data: await setExpectedTotals(ctx, { batchId: i.batch_id, debt: i.debt, deposit: i.deposit }),
+    }),
+  }),
+  "import.confirm": defineCommand({
+    command: "import.confirm",
+    input: z.strictObject({ batch_id: uuid }),
+    run: async (ctx, i) => ({ data: await confirmBatch(ctx, { batchId: i.batch_id }) }),
+  }),
+  "import.commit": defineCommand({
+    command: "import.commit",
+    input: z.strictObject({ batch_id: uuid }),
+    run: async (ctx, i) => ({ data: await commitBatch(ctx, { batchId: i.batch_id }) }),
+  }),
+  "import.cancel": defineCommand({
+    command: "import.cancel",
+    input: z.strictObject({ batch_id: uuid, reason: z.string().max(500) }),
+    run: async (ctx, i) => ({ data: await cancelBatch(ctx, { batchId: i.batch_id, reason: i.reason }) }),
+  }),
   "meter.acknowledgeAnomaly": defineCommand({
     command: "meter.acknowledgeAnomaly",
     input: z.strictObject({ reading_id: uuid, note: z.string().trim().min(1).max(1000) }),
@@ -854,6 +892,21 @@ export const QUERIES: Readonly<Record<string, AnyQuery>> = {
     input: z.strictObject({ billing_period_id: uuid }),
     run: (db, actor, i: { billing_period_id: string }) =>
       previewPeriod(db, actor, { billingPeriodId: i.billing_period_id }),
+  },
+  "import.get": {
+    query: "import.get",
+    input: z.strictObject({ batch_id: uuid }),
+    run: (db, actor, i: { batch_id: string }) => getBatch(db, actor, { batchId: i.batch_id }),
+  },
+  "import.getTemplate": {
+    query: "import.getTemplate",
+    input: z.strictObject({ kind: z.enum(["units", "leases", "meter_readings", "opening_balances"]) }),
+    run: async (_db, _actor, i: { kind: string }) => getTemplate(i.kind),
+  },
+  "import.downloadErrorReport": {
+    query: "import.downloadErrorReport",
+    input: z.strictObject({ batch_id: uuid }),
+    run: (db, actor, i: { batch_id: string }) => downloadErrorReport(db, actor, { batchId: i.batch_id }),
   },
   "lease.get": {
     query: "lease.get",

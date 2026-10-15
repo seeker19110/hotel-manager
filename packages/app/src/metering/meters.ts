@@ -682,3 +682,71 @@ export async function readingRoute(
     return out;
   });
 }
+
+/**
+ * Chỉ số đầu từ lô nhập chuyển đổi (SPEC-import S-010): nguồn `import`, đã duyệt ngay (người xác nhận lô chịu trách nhiệm),
+ * không thuộc kỳ thu. Phòng chưa có công tơ loại này ⇒ lắp công tơ với chỉ số đầu = giá trị nhập. Chỉ số phải không nhỏ hơn
+ * và không lớn hơn các lần đọc đã duyệt trước/sau ngày đọc; kỳ đã phát hành phủ ngày đọc ⇒ PERIOD_ISSUED.
+ */
+export async function importReading(
+  ctx: CommandContext,
+  input: { unitId: string; kind: MeterKind; value: string; readOn: string },
+): Promise<{ readingId: string; meterId: string; installed: boolean }> {
+  assertDate(input.readOn, "read_on");
+  const value = Number(input.value);
+  assertReading(value, "value");
+  const found = await sql<{ id: string; property_id: string }>`
+    select id, property_id from meters where organization_id = ${ctx.actor.orgId} and unit_id = ${input.unitId}
+      and kind = ${input.kind} and removed_on is null for update`.execute(ctx.trx);
+  let meterId = found.rows[0]?.id;
+  let installed = false;
+  if (!meterId) {
+    meterId = (
+      await installMeter(ctx, {
+        unitId: input.unitId,
+        kind: input.kind,
+        installedOn: input.readOn,
+        initialValue: value,
+      })
+    ).meterId;
+    installed = true;
+  }
+  const m = await readMeter(ctx.trx, ctx.actor.orgId, meterId);
+  authorize(ctx.actor, "meter.record", { propertyId: m.property_id });
+  if (input.readOn < m.installed_on)
+    throw fieldError("read_on", "BEFORE_INSTALL", "Ngày đọc trước ngày lắp công tơ");
+  const issued = await sql`
+    select 1 from billing_periods where organization_id = ${ctx.actor.orgId} and property_id = ${m.property_id}
+      and status in ('issued','locked') and period_end >= ${input.readOn}::date limit 1`.execute(ctx.trx);
+  if (issued.rows.length > 0) throw new CommandError("PERIOD_ISSUED", 409, "Ngày đọc thuộc kỳ đã phát hành");
+  const prev = await previousReading(ctx.trx, ctx.actor.orgId, m.id, { before: input.readOn });
+  if (value < prev.value) {
+    throw new CommandError(
+      "METER_READING_DECREASED",
+      422,
+      `Chỉ số ${value} nhỏ hơn lần đọc trước ${prev.value}`,
+      {
+        extensions: { previous_value: prev.value },
+      },
+    );
+  }
+  const later = await sql<{ v: string | null }>`
+    select min(value)::text as v from meter_readings where organization_id = ${ctx.actor.orgId} and meter_id = ${m.id}
+      and status = 'approved' and read_on > ${input.readOn}::date`.execute(ctx.trx);
+  const next = later.rows[0]?.v;
+  if (next != null && value > Number(next))
+    throw fieldError("value", "EXCEEDS_LATER_READING", `Chỉ số lớn hơn lần đọc sau (${Number(next)})`);
+  const readingId = randomUUID();
+  await sql`
+    insert into meter_readings (id, organization_id, property_id, meter_id, read_on, value, status, source, entered_by, approved_by)
+    values (${readingId}, ${ctx.actor.orgId}, ${m.property_id}, ${m.id}, ${input.readOn}::date, ${input.value}, 'approved', 'import',
+            ${ctx.actor.membershipId}, ${ctx.actor.membershipId})`.execute(ctx.trx);
+  await ctx.audit({
+    action: "meter.reading_imported",
+    entityType: "meter_reading",
+    entityId: readingId,
+    propertyId: m.property_id,
+    after: { meter_id: m.id, value: input.value, read_on: input.readOn },
+  });
+  return { readingId, meterId: m.id, installed };
+}

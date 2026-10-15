@@ -1714,7 +1714,7 @@ Loại: M cho đến khi batch `committed`
 | data | jsonb | có | | Giá trị chuẩn hoá của dòng (có PII); xoá sau khi commit/huỷ theo hạn giữ |
 
 - Khoá/index: `UNIQUE (organization_id, batch_id, row_no)`; `CHECK ((action = 'error') = (jsonb_array_length(errors) > 0))`.
-- RLS/quyền đặc biệt: như `import_batches`; không chứa ảnh giấy tờ (không import ảnh).
+- RLS/quyền đặc biệt: như `import_batches`; không chứa ảnh giấy tờ (không import ảnh). Thực thi T-115 (migration 0021): thêm `raw` (ô gốc theo cột mẫu), `action` có `skip_empty` (số dư 0 đ), `action` NULL khi chưa kiểm; `import_batches` thêm `file_format`, `header`, `cancelled_at`/`cancel_reason`; `cutoff_on` bắt buộc cả lô `leases`; trigger chặn xoá, chặn sửa sau `committed`/`cancelled` (dòng chỉ được xoá PII `raw`/`data`).
 - Bất biến: INV-G4 (sau commit), INV-G7 (xoá `data` theo hạn).
 
 ### `import_external_refs`
@@ -1732,7 +1732,7 @@ Loại: A
 | target_id | uuid | không | | Bản ghi đích; không FK (đa hình) |
 | row_hash | text | không | `CHECK (row_hash ~ '^[0-9a-f]{64}$')` | Nội dung khác với `external_id` cũ ⇒ `IMPORT_EXTERNAL_ID_CONFLICT` (V1 không cập nhật qua import) |
 
-- Khoá/index: **`UNIQUE (organization_id, kind, external_id)`**.
+- Khoá/index: **`UNIQUE (organization_id, property_id, kind, external_id)`** — thực thi T-115 thêm `property_id` (mỗi cơ sở có sổ cũ riêng; hai cơ sở cùng chủ hay trùng mã như "U-001").
 - RLS/quyền đặc biệt: hệ thống ghi; `manager`/`owner` đọc.
 - Bất biến: INV-G4, INV-G5.
 

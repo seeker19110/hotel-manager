@@ -97,6 +97,30 @@ export function servicesJson(services: readonly LeaseServiceTerm[]): string {
 }
 
 /** Người đứng/ở hợp đồng: có trong tổ chức; người thuê (primary/co_tenant) bắt buộc SĐT (SPEC-lease §4). */
+/** Tạo hồ sơ người (người thuê/người ở) — `lease.manage`; dùng bởi import hợp đồng (SPEC-import S-007). */
+export async function createPerson(
+  ctx: CommandContext,
+  input: { propertyId: string; fullName: string; phone?: string },
+): Promise<{ personId: string }> {
+  authorize(ctx.actor, "lease.manage", { propertyId: input.propertyId });
+  const fullName = input.fullName.trim();
+  if (fullName.length < 1 || fullName.length > 200)
+    throw fieldError("full_name", "INVALID", "Họ tên 1–200 ký tự");
+  const phone = input.phone?.trim() || null;
+  if (phone !== null && !/^\+?[0-9 .()-]{6,20}$/.test(phone))
+    throw fieldError("phone", "INVALID", "Số điện thoại không hợp lệ");
+  const personId = randomUUID();
+  await sql`insert into persons (id, organization_id, full_name, phone) values (${personId}, ${ctx.actor.orgId}, ${fullName},
+            ${phone})`.execute(ctx.trx);
+  await ctx.audit({
+    action: "person.created",
+    entityType: "person",
+    entityId: personId,
+    propertyId: input.propertyId,
+  });
+  return { personId };
+}
+
 async function assertPerson(
   ctx: CommandContext,
   personId: string,
@@ -200,6 +224,8 @@ export interface CreateDraftInput {
   billingStartOn: string;
   terms: LeaseTerms;
   occupants?: readonly { personId: string; role: "co_tenant" | "occupant" }[];
+  /** `import` khi hợp đồng đến từ lô nhập chuyển đổi (SPEC-import S-007). */
+  source?: "manual" | "import";
 }
 
 /** `lease.createDraft` (S-001): hợp đồng `draft` + phiên bản 1 + người đại diện; chưa giữ phòng. */
@@ -242,9 +268,10 @@ export async function createDraft(
     ctx.trx,
   );
   await sql`
-    insert into lease_versions (id, organization_id, property_id, lease_id, version_no, kind, effective_from, effective_to,
+    insert into lease_versions (id, organization_id, property_id, lease_id, version_no, kind, source, effective_from, effective_to,
                                 rent_amount, deposit_amount, services, created_by, command_id)
-    values (${randomUUID()}, ${ctx.actor.orgId}, ${unit.property_id}, ${leaseId}, 1, 'original', ${input.terms.effectiveFrom}::date,
+    values (${randomUUID()}, ${ctx.actor.orgId}, ${unit.property_id}, ${leaseId}, 1, 'original', ${input.source ?? "manual"},
+            ${input.terms.effectiveFrom}::date,
             ${input.terms.effectiveTo}::date, ${input.terms.rentAmount}, ${input.terms.depositAmount},
             ${servicesJson(input.terms.services)}::jsonb, ${ctx.actor.membershipId}, ${ctx.commandId})`.execute(
     ctx.trx,

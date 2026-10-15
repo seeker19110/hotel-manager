@@ -23,6 +23,8 @@ export interface Problem {
   previous_value?: number;
   /** UNRESOLVED_ANOMALIES / READINGS_INCOMPLETE: danh sách cần xử lý (S-008, S-009). */
   items?: Record<string, string | number | null>[];
+  /** IMPORT_TOTALS_MISMATCH: tổng nguồn so với tổng file theo loại (SPEC-import S-013). */
+  totals?: Record<string, { expected: number; actual: number; diff: number }>;
 }
 
 export interface FieldError {
@@ -33,7 +35,10 @@ export interface FieldError {
 
 /** Trường mở rộng tĩnh gắn vào problem (RFC 9457). */
 export type ProblemExtensions = Partial<
-  Pick<Problem, "approval_request_id" | "payment_id" | "from" | "to" | "errors" | "previous_value" | "items">
+  Pick<
+    Problem,
+    "approval_request_id" | "payment_id" | "from" | "to" | "errors" | "previous_value" | "items" | "totals"
+  >
 >;
 
 /** 422 VALIDATION_FAILED chỉ đúng một trường sai (SPEC-access S-001, SPEC-lease S-007/S-025). */
@@ -49,7 +54,7 @@ export function fieldError(field: string, code: string, message: string): Comman
  */
 export type FailurePersist = (
   trx: Transaction<unknown>,
-) => Promise<Partial<Pick<Problem, "approval_request_id">>>;
+) => Promise<Partial<Pick<Problem, "approval_request_id" | "errors">>>;
 
 /** Lỗi nghiệp vụ có mã — handler ném lớp này (hoặc AuthzError/TransitionError/AccessError). */
 export class CommandError extends Error {

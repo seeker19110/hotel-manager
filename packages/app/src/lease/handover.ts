@@ -376,3 +376,69 @@ export async function renewLease(
   });
   return { versionNo, termsHash };
 }
+
+/**
+ * Bàn giao chuyển đổi (SPEC-import S-007, SPEC-lease S-026): hợp đồng nhập từ hệ thống cũ đã ở thật nên có biên bản
+ * `move_in` nguồn `import`, do người xác nhận lô nhập xác nhận, chưa có chỉ số (`readings_pending`) cho tới khi lô
+ * `meter_readings` đủ chỉ số — kỳ thu bị chặn `READINGS_INCOMPLETE` trong lúc chờ.
+ */
+export async function recordImportHandover(
+  ctx: CommandContext,
+  input: { leaseId: string; handedOverOn: string; note?: string },
+): Promise<{ handoverId: string }> {
+  const lease = await lockLease(ctx, input.leaseId, "lease.manage");
+  if (lease.status !== "signed_awaiting_handover") {
+    throw new CommandError(
+      "INVALID_TRANSITION",
+      409,
+      "Chỉ ghi bàn giao chuyển đổi cho hợp đồng đã ký chờ bàn giao",
+      {
+        extensions: { from: lease.status },
+      },
+    );
+  }
+  assertDate(input.handedOverOn, "handed_over_on");
+  const handoverId = randomUUID();
+  await sql`
+    insert into handovers (id, organization_id, property_id, lease_id, kind, handed_over_on, note, staff_confirmed_by, confirmed_at,
+                           confirmation_method, source, readings_pending, command_id)
+    values (${handoverId}, ${ctx.actor.orgId}, ${lease.property_id}, ${lease.id}, 'move_in', ${input.handedOverOn}::date,
+            ${input.note ?? null}, ${ctx.actor.membershipId}, now(), 'import', 'import', true, ${ctx.commandId})`.execute(
+    ctx.trx,
+  );
+  await ctx.audit({
+    action: "handover.imported",
+    entityType: "handover",
+    entityId: handoverId,
+    propertyId: lease.property_id,
+    after: { lease_id: lease.id, handed_over_on: input.handedOverOn, readings_pending: true },
+  });
+  return { handoverId };
+}
+
+/**
+ * Bỏ cờ `readings_pending` của bàn giao chuyển đổi trên phòng khi MỌI công tơ điện/nước còn lắp tại `cutoffOn` đã có chỉ
+ * số nguồn `import` đã duyệt đúng ngày đó (SPEC-import S-010). Phòng chưa có công tơ nào thì giữ cờ. Trả số biên bản đã bỏ cờ.
+ */
+export async function clearImportReadingsPending(
+  ctx: CommandContext,
+  input: { unitId: string; cutoffOn: string },
+): Promise<number> {
+  const r = await sql`
+    update handovers h set readings_pending = false
+    from leases l
+    where h.organization_id = ${ctx.actor.orgId} and l.organization_id = h.organization_id and l.id = h.lease_id
+      and l.unit_id = ${input.unitId} and h.source = 'import' and h.readings_pending
+      and exists (select 1 from meters m where m.organization_id = h.organization_id and m.unit_id = ${input.unitId}
+                    and m.kind in ('electric','water') and m.installed_on <= ${input.cutoffOn}::date
+                    and (m.removed_on is null or m.removed_on > ${input.cutoffOn}::date))
+      and not exists (
+        select 1 from meters m where m.organization_id = h.organization_id and m.unit_id = ${input.unitId}
+          and m.kind in ('electric','water') and m.installed_on <= ${input.cutoffOn}::date
+          and (m.removed_on is null or m.removed_on > ${input.cutoffOn}::date)
+          and not exists (select 1 from meter_readings r where r.organization_id = m.organization_id and r.meter_id = m.id
+                            and r.source = 'import' and r.status = 'approved' and r.read_on = ${input.cutoffOn}::date))`.execute(
+    ctx.trx,
+  );
+  return Number(r.numAffectedRows ?? 0);
+}

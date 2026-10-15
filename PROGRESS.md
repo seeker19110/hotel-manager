@@ -3,7 +3,7 @@
 > Giai đoạn hiện tại: G5 Dựng nền (autopilot đợt 1) · Cập nhật: 2026-10-15 · Nhánh: claude/gifted-noether-iybenn
 
 ## Đang làm
-- Autopilot đợt 2 (PLAN duyệt) — Pha 2: T-101…T-114 xong có bằng chứng (`.autopilot/evidence/`). Kế tiếp **T-115** import, rồi review độc lập lát 3 (T-112…T-114). PR nháp #5.
+- Autopilot đợt 2 (PLAN duyệt) — Pha 2: T-101…T-115 xong có bằng chứng (`.autopilot/evidence/`); review lát 3 đã sửa. Kế tiếp **T-116** khôi phục MFA. PR nháp #5.
 
 ## Tiếp theo
 0. [Câu hỏi cho chủ dự án, không chặn] Hợp đồng KHÔNG thời hạn đã ký thì không đổi giá được: phụ lục chồng hiệu lực với phiên bản 1 (mở cuối, bất biến) ⇒ LEASE_VERSION_OVERLAP. Đề xuất: phụ lục được phép "đóng" ngày hết hạn của phiên bản mở cuối ngay trước nó (chỉ NULL → ngày trước hiệu lực phụ lục, ghi audit; điều khoản đã ký không đổi). Cần duyệt vì chạm bất biến INV-G4.
@@ -28,6 +28,7 @@
 - 2026-10-15 T-110…T-113: công tơ/`billing_periods` tạo sớm khi bàn giao/chỉ số cần; bàn giao trả chuyển `settling`; khấu trừ mặc định = min(cọc, AR + phí), duyệt kiểm lại cọc/AR dưới khoá; bất thường = > 2 × TB 3 kỳ; dòng tiền thuê lưu quantity = số ngày, unit_price = giá tháng, denominator; làm tròn chỉ trong `money` (test kiến trúc).
 - 2026-10-15 T-114: phát hành khoá chỉ số nháp của kỳ rồi chỉ duyệt đúng các chỉ số đó; kế toán được duyệt (không sửa) chỉ số — policy + trigger; quyết toán bị chặn `FINAL_PERIOD_NOT_ISSUED` khi cơ sở dùng kỳ thu mà kỳ chứa ngày trả chưa phát hành; factory test dùng `app.business_date` (trước dùng `current_date` UTC → lệch sau 17:00Z).
 - 2026-10-15 Review lát 3 (3 🔴 · 3 🟠 · 2 🟢): đã sửa 🔴1 trả phòng giữa kỳ, 🔴2 phát hành theo thứ tự, 🔴3 read_on trong kỳ/thay công tơ, 🟠4 fixed_30 tháng trọn có đổi giá (chia ngày thực), 🟠5 phí một lần qua phụ lục, 🟢7 thiếu công tơ. Còn hỏi chủ dự án: 🟠6 quản lý có được đặt giá dịch vụ (SPEC-metering S-003 nói có, ma trận `pricing.manage` nói không — code giữ chỉ owner); dịch vụ cố định theo phiên bản hiệu lực ngày cuối kỳ (không prorata theo đoạn phiên bản).
+- 2026-10-15 T-115: import qua đúng hàm module sở hữu, commit nguyên khối (lỗi dòng ⇒ lô về `validated` + CONFLICT_AT_COMMIT ở transaction lưu lỗi); `external_id` theo cơ sở; XLSX đọc/ghi tự viết (zlib, giới hạn chống zip bomb, không tính công thức) — không thêm thư viện; S-009 (booking) và route upload multipart chờ đợt 3/web nối storage.
 - Nợ kỹ thuật chấp nhận: phần pháp lý trong `docs/research/` chỉ có nguồn thứ cấp — phải đối chiếu văn bản gốc trước khi dùng dữ liệu thật.
 
 ## Bàn giao phiên

@@ -70,7 +70,7 @@ Bảng trên là **mã dùng chung**. Mã chỉ một tính năng dùng thì đ�
 | `SPEC-portal.md` | `LINK_REVOKED` |
 | `SPEC-pwa.md` | `CLIENT_OUTDATED` · `NETWORK_TIMEOUT` · `RESULT_UNKNOWN` |
 
-Lý do break đối soát (`HASH_MISMATCH`, `THIRD_PARTY_PAYER`, `WRONG_REFERENCE`…) và loại ngoại lệ (`LEASE_OVERSTAY`, `STAY_OVERSTAY`, `RELOCATION_REQUIRED`, `EXTENSION_CONFLICT`) là **giá trị dữ liệu**, không phải mã lỗi API; tương tự mã lỗi từng dòng import (`DUPLICATE_IN_FILE`, `NOT_INTEGER_VND`, `OUT_OF_RANGE`, `TOO_LONG`, `REFERENCE_NOT_FOUND`, `IMPORT_EXTERNAL_ID_CONFLICT`, `CONFLICT_AT_COMMIT` — trả trong danh sách lỗi của batch) và lý do gửi thông báo (`NO_ADDRESS`, `OPTED_OUT`, `PROVIDER_TEMPORARY`, `RECIPIENT_INVALID`, `TEMPLATE_ERROR` — lưu ở `notification_deliveries`).
+Lý do break đối soát (`HASH_MISMATCH`, `THIRD_PARTY_PAYER`, `WRONG_REFERENCE`…) và loại ngoại lệ (`LEASE_OVERSTAY`, `STAY_OVERSTAY`, `RELOCATION_REQUIRED`, `EXTENSION_CONFLICT`) là **giá trị dữ liệu**, không phải mã lỗi API; tương tự mã lỗi từng dòng import (`DUPLICATE_IN_FILE`, `NOT_INTEGER_VND`, `OUT_OF_RANGE`, `TOO_LONG`, `REFERENCE_NOT_FOUND`, `IMPORT_EXTERNAL_ID_CONFLICT`, `CONFLICT_AT_COMMIT`, `ALREADY_EXISTS`, `INVALID_FORMAT` — trả trong danh sách lỗi của batch) và lý do gửi thông báo (`NO_ADDRESS`, `OPTED_OUT`, `PROVIDER_TEMPORARY`, `RECIPIENT_INVALID`, `TEMPLATE_ERROR` — lưu ở `notification_deliveries`).
 
 ## 3. Webhook vào (`POST /api/v1/webhooks/{provider}/{account}`)
 - Xác minh chữ ký/HMAC và timestamp theo nhà cung cấp, kiểm tài khoản nhận, ghi `inbox` với khoá unique `(provider, account, provider_event_id)`, rồi trả 2xx ngay. Xử lý thật diễn ra trong worker.

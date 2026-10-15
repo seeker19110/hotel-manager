@@ -44,7 +44,8 @@ export class ObjectStorage {
   async put(key: string, body: Uint8Array, contentType: string): Promise<void> {
     const res = await this.#aws.fetch(this.#url(key), {
       method: "PUT",
-      body,
+      // Bản sao nền ArrayBuffer: kiểu BodyInit của lib DOM (apps/web) không nhận Uint8Array<ArrayBufferLike>.
+      body: new Uint8Array(body),
       headers: { "content-type": contentType, "content-length": String(body.byteLength) },
     });
     if (!res.ok) throw new Error(`Ghi object lỗi: HTTP ${res.status}`);
