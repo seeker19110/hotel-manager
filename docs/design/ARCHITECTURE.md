@@ -79,7 +79,7 @@ apps/worker (job)    ─┼─► packages/app (command/query: transaction, quy�
 | Môi trường | CSDL | Auth | File | Email | Ghi chú |
 |---|---|---|---|---|---|
 | dev | Postgres 17 Docker | Better Auth (cùng DB) | SeaweedFS Docker | bản giả ghi file | dữ liệu giả, seed |
-| CI | Testcontainers Postgres 17 | JWT ký bằng khoá test | bộ nhớ | bản giả | không mạng ngoài |
+| CI | Postgres 17 (service container/Testcontainers) | phiên Better Auth seed giả | bộ nhớ | bản giả | không mạng ngoài |
 | staging | VPS tự host riêng (mua VPS = điểm dừng) | Better Auth | SeaweedFS | SMTP sandbox | dữ liệu giả/ẩn danh |
 | production | VPS tự host tại VN + pgBackRest PITR ra kho ngoài máy | Better Auth | SeaweedFS + đồng bộ ngoài máy | SMTP relay đã chọn | chỉ mở sau GO-NO-GO |
 

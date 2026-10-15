@@ -10,8 +10,8 @@
 - **Tiền:** `{ "amount": 3580000, "currency": "VND" }` với `amount` là số nguyên đồng. Server từ chối số thập phân bằng `VALIDATION_FAILED`.
 - **ID:** UUID v7. Mã hiển thị (số phiếu, số hợp đồng) là trường riêng, cấp theo cơ sở.
 - **Ngữ cảnh tổ chức:** header `X-Org-Id` chỉ để **chọn** tổ chức trong số tổ chức người dùng đã có membership. Server luôn đối chiếu với membership và không tin ID do client gửi.
-- **Idempotency:** mọi `POST` ghi bắt buộc có `Idempotency-Key: <uuid>`. Thiếu key thì trả 400. Key lặp, cùng payload → trả kết quả cũ với cùng status. Key lặp, khác payload → 409 `IDEMPOTENCY_CONFLICT`. Key được lưu 7 ngày.
-- **Kết quả command:** `{ "command_id": "...", "status": "committed", "data": {...} }`. Tra lại bằng `GET /api/v1/commands/{command_id}` khi client bị timeout.
+- **Idempotency:** mọi `POST` ghi bắt buộc có `Idempotency-Key: <uuid>`. Thiếu key thì trả 400 `MALFORMED_REQUEST`. Key lặp, cùng payload → trả kết quả cũ với cùng status. Key lặp, khác payload → 409 `IDEMPOTENCY_CONFLICT`. Key được lưu 7 ngày.
+- **Kết quả command:** `{ "command_id": "...", "status": "committed", "data": {...} }`. Tra lại bằng `GET /api/v1/commands/{command_id}` khi client bị timeout. Trạng thái chỉ gồm: `committed` (kèm `data`) · `in_progress` (đang chạy, client chờ rồi hỏi lại) · `failed` (kèm `problem`). Không tồn tại hoặc không phải của người hỏi → 404 `COMMAND_NOT_FOUND` — client mới được phép gửi lại với **cùng** `Idempotency-Key`.
 - **Phân trang:** `?cursor=<opaque>&limit=<n>`, mặc định 50, tối đa 200. Phản hồi `{ "data": [...], "next_cursor": "..." | null }`.
 - **Rate limit:** theo người dùng và theo IP. Đăng nhập và link khách có giới hạn chặt hơn. Vượt giới hạn trả 429 kèm `Retry-After`.
 - **Versioning:** tiền tố `/v1`. Thêm trường tuỳ chọn không đổi version. Thay đổi phá vỡ tạo `/v2` và gửi header `Deprecation` + `Sunset`.
@@ -29,7 +29,8 @@
 
 | Mã | HTTP | Khi nào |
 |---|---|---|
-| `VALIDATION_FAILED` | 400 | Schema sai, tiền không nguyên, khoảng `end ≤ start` |
+| `VALIDATION_FAILED` | 422 | Schema/nghiệp vụ đầu vào sai: tiền không nguyên, khoảng `end ≤ start`, thiếu trường (JSON không parse được → 400 `MALFORMED_REQUEST`) |
+| `MALFORMED_REQUEST` | 400 | Body không phải JSON hợp lệ, thiếu `Idempotency-Key` |
 | `UNAUTHENTICATED` | 401 | Thiếu phiên hoặc phiên hết hạn |
 | `REAUTH_REQUIRED` | 401 | Thao tác nhạy cảm (xuất dữ liệu, hoàn tiền vượt ngưỡng) cần xác thực lại hoặc MFA |
 | `FORBIDDEN` | 403 | Có membership nhưng không đủ quyền hoặc vượt hạn mức |
@@ -48,6 +49,10 @@
 | `DOCUMENT_IMMUTABLE` | 409 | Sửa chứng từ/điều khoản đã phát hành hoặc ký (INV-G4); phải dùng điều chỉnh/đảo |
 | `CONTEXT_CHANGED` | 409 | Tổ chức/cơ sở đang chọn đã đổi giữa lúc thao tác |
 | `METER_READING_DECREASED` | 422 | Chỉ số nhỏ hơn lần trước mà không qua luồng thay công tơ |
+| `HOLD_EXPIRED` | 409 | Xác nhận giữ chỗ đã hết hạn |
+| `ROOM_OCCUPIED` | 409 | Phòng đang thực tế có người ở (chưa trả) |
+| `UNIT_OUT_OF_SERVICE` | 409 | Phòng đang block/ngừng khai thác |
+| `COMMAND_NOT_FOUND` | 404 | Tra kết quả command không tồn tại/không thuộc người hỏi |
 | `RATE_LIMITED` | 429 | Vượt rate limit |
 | `INTERNAL` | 500 | Lỗi không dự kiến. Chỉ trả `correlation_id`, không trả stack trace |
 
@@ -65,10 +70,11 @@ Bảng trên là **mã dùng chung**. Mã chỉ một tính năng dùng thì đ�
 | `SPEC-portal.md` | `LINK_REVOKED` |
 | `SPEC-pwa.md` | `CLIENT_OUTDATED` · `COMMAND_NOT_FOUND` · `NETWORK_TIMEOUT` · `RESULT_UNKNOWN` |
 
-## 3. Webhook vào (`POST /api/v1/webhooks/{provider}`)
+## 3. Webhook vào (`POST /api/v1/webhooks/{provider}/{account}`)
 - Xác minh chữ ký/HMAC và timestamp theo nhà cung cấp, kiểm tài khoản nhận, ghi `inbox` với khoá unique `(provider, account, provider_event_id)`, rồi trả 2xx ngay. Xử lý thật diễn ra trong worker.
 - Chữ ký sai → 401, không ghi `inbox` nhưng có log cảnh báo. Event trùng → 200 mà không tạo hiệu lực mới.
-- V1 chỉ có adapter **mô phỏng** để test. Adapter thật chờ hợp đồng ngân hàng (F-016).
+- Mọi nguồn (webhook, sao kê CSV, nhập tay kèm sao kê) quy về `bank_transactions` (INV-F4b) nên cùng một giao dịch ngân hàng chỉ tạo một payment.
+- V1 chỉ có adapter **mô phỏng** (`provider = sim`) để test. Adapter thật chờ hợp đồng ngân hàng (F-016).
 
 ## 4. Endpoint hệ thống
 | Method | Path | Mục đích |

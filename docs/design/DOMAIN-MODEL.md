@@ -1,6 +1,6 @@
 # DOMAIN-MODEL — từ điển, thực thể, trạng thái và bất biến (G4)
 
-> Phiên bản 1.1 · 2026-10-15 · Trạng thái: Draft, chờ duyệt.
+> Phiên bản 1.2 · 2026-10-15 (sửa sau review độc lập: R3–R6, O3, O9, O21, G3, G4, G6) · Trạng thái: Draft, chờ duyệt.
 > Nguồn: kế hoạch gốc §05–§08, §12–§13.
 > Mọi SPEC dùng **đúng tên** ở đây; đổi tên phải sửa file này trước. Schema SQL chi tiết viết ở T-003 trở đi, theo đúng tài liệu này.
 
@@ -21,6 +21,8 @@
 | Bàn giao | `handovers` | Biên bản nhận/trả phòng: chỉ số công tơ, tài sản, chìa khoá, ảnh, xác nhận | Check-in khách sạn |
 | Booking | `reservations` + `reservation_items` | Đặt phòng ngắn hạn, có thể nhiều dòng phòng | Lượt ở |
 | Lượt ở | `stays` | Khách thực ở một phòng cụ thể (check-in → check-out) | Booking |
+| Người ở theo hợp đồng | `lease_occupants` | Người ở thực tế của hợp đồng (khác người ký/người trả) | Người thuê ký |
+| Giấy tờ nhận dạng | `identity_documents` | Số/ảnh CCCD, hộ chiếu (dữ liệu nhạy cảm): file riêng tư, che khi hiển thị, retention riêng | |
 | Folio | (khung nhìn trên `charges` + `payment_allocations` theo `stay`/`reservation`) | Tổng hợp các khoản phải thu và đã trả của một lượt ở | Hoá đơn thuế |
 | Công tơ | `meters` | Đồng hồ điện/nước gắn với phòng; thay công tơ tạo sự kiện reset | |
 | Chỉ số | `meter_readings` | Giá trị đọc tại một thời điểm, có ảnh và trạng thái nháp/đã duyệt | |
@@ -32,7 +34,8 @@
 | Cọc | `deposits` | Nghĩa vụ phải hoàn cho khách; **không phải doanh thu** | Ứng trước |
 | Ứng trước | `payments` chưa phân bổ / số dư khách | Tiền khách trả trước, sẽ được phân bổ vào phiếu | Cọc |
 | Bút toán | `journal_entries` + `journal_lines` | Ghi sổ phụ cân bằng (Σ Nợ = Σ Có), append-only | |
-| Chốt kỳ / chốt ca | `period_locks`, `shifts` | Sau khi khoá, mọi thay đổi tiền phải đi qua điều chỉnh/đảo có duyệt | |
+| Chốt kỳ / chốt ca | `period_locks`, `shifts` | Sau khi khoá, mọi thay đổi tiền phải đi qua điều chỉnh/đảo có duyệt. Pilot có **ca quầy tối thiểu**: mở ca (tiền đầu ca), đóng ca (đếm tiền, chênh lệch, người giao/nhận xác nhận) | |
+| Giao dịch ngân hàng | `bank_transactions` | Một khoản tiền vào tài khoản nhận, định danh bằng `(receiving_account_id, bank_txn_ref)`; mọi nguồn (webhook, sao kê, nhập tay kèm sao kê) quy về đây | Inbox (sự kiện của từng nguồn) |
 | Ngày kinh doanh | `business_date` | Ngày địa phương của cơ sở, tính theo giờ chốt ngày (không phải ngày UTC) | |
 | Lệnh | `idempotency_keys` | Một thao tác ghi có `command_id`; replay trả cùng kết quả | |
 
@@ -69,10 +72,10 @@ allocations(organization_id, property_id, unit_id, id,
 
 | Thực thể | Trạng thái | Chuyển không hợp lệ |
 |---|---|---|
-| Booking | `draft → held → confirmed → in_house → checked_out`; nhánh `cancelled`, `no_show`; `held → expired` | nhảy từ `draft` sang `in_house`; huỷ sau `checked_out` |
-| Lượt ở | `expected → in_house → checked_out`; `expected → cancelled` | check-out khi chưa check-in |
+| Booking | `draft → held → confirmed → in_house → checked_out`; nhánh `cancelled`, `no_show`; `held → expired`; walk-in: khởi tạo → `in_house` (một command) | nhảy từ `draft` sang `in_house`; huỷ sau `checked_out` |
+| Lượt ở | `expected → in_house → checked_out`; `expected → cancelled`; `expected → no_show` (khi booking no-show); walk-in: khởi tạo → `in_house` | check-out khi chưa check-in |
 | Hợp đồng | `draft → pending_signature → signed_awaiting_handover → active → notice_given → settling → closed`; `draft`/`pending_signature`/`signed_awaiting_handover` → `cancelled` | `active` khi chưa có bàn giao; `closed` khi chưa quyết toán |
-| Kỳ thu | `draft → reviewing → issued → locked`; `reviewing → draft` (trả lại để sửa chỉ số) | sửa số sau `issued` (phải dùng điều chỉnh) |
+| Kỳ thu | `draft → reviewing → issued → locked`; `reviewing → draft` (trả lại để sửa chỉ số); `locked → issued` chỉ owner, có lý do + audit (mở khoá **không** cho sửa chứng từ đã phát hành, chỉ cho thêm điều chỉnh/đảo ghi ngày trong kỳ). `billing_periods.status='locked'` ⇔ có `period_locks` hiệu lực cho kỳ đó (một cơ chế) | sửa số sau `issued` (phải dùng điều chỉnh) |
 | Thanh toán | `pending → confirmed`; `confirmed → reversed` (bằng chứng từ đảo) | `pending → reversed`; xác nhận hai lần |
 | Phiếu việc | `open → assigned → in_progress → done → verified`; `cancelled` | `verified` bởi chính người làm (khi bật tách quyền) → `SELF_APPROVAL_FORBIDDEN` |
 
@@ -100,15 +103,20 @@ Tài khoản sổ phụ (V1, theo từng tổ chức; chưa phải hệ thống 
 | Nhận cọc | Nợ `CASH`/`BANK` / Có `DEPOSIT_LIAB` |
 | Nhận thanh toán (chưa phân bổ) | Nợ `CASH`/`BANK` / Có `CUSTOMER_CREDIT` |
 | Phân bổ vào phiếu | Nợ `CUSTOMER_CREDIT` / Có `AR` |
-| Khấu trừ cọc vào nợ (có duyệt) | Nợ `DEPOSIT_LIAB` / Có `AR` |
+| Phát sinh phí khi thanh lý/check-out (hư hỏng, vệ sinh, phạt đã thoả thuận) | Tạo `charges`/phiếu **trước**: Nợ `AR` / Có `REV_FEE` |
+| Khấu trừ cọc vào nợ (có duyệt) | Nợ `DEPOSIT_LIAB` / Có `AR` — chỉ tới số AR còn mở của các phiếu được liên kết (INV-F2) |
 | Hoàn cọc | Nợ `DEPOSIT_LIAB` / Có `CASH`/`BANK` |
+| Hoàn ứng trước / trả thừa (có duyệt) | Nợ `CUSTOMER_CREDIT` / Có `CASH`/`BANK` |
+| Chênh lệch ca (thiếu/thừa tiền mặt) | Ghi `shift_discrepancy` có người chịu trách nhiệm; bút toán điều chỉnh do người có quyền duyệt, không tự sửa số dư |
 | Đảo | Bút toán ngược, có `reverses_entry_id` |
 | Số dư đầu kỳ (import) | Nợ `AR` / Có `OPENING_BALANCE` (nợ cũ); Nợ `OPENING_BALANCE` / Có `DEPOSIT_LIAB` (cọc đang giữ) |
 
 - **INV-F1:** mỗi bút toán có Σ Nợ = Σ Có (constraint trigger deferred). Dòng bút toán là append-only.
 - **INV-F2:** Σ phân bổ của một thanh toán ≤ số tiền thanh toán; Σ phân bổ vào một phiếu ≤ tổng phiếu. Kiểm trong transaction và khoá hàng `payments`/`invoices` theo thứ tự id tăng dần.
+- **INV-F3b (tiền mặt, đề xuất chờ PO):** tiền mặt — kể cả nhận cọc — đi qua cùng luồng `payments` (`pending → confirmed`), không ghi thẳng `CASH`. Lễ tân được xác nhận tiền mặt **do chính mình nhận trong ca đang mở**, hệ thống sinh biên nhận; số này vào đối chiếu đóng ca.
 - **INV-F3:** thanh toán chỉ chuyển sang `confirmed` khi có chứng cứ: người có quyền xác nhận kèm ảnh/sao kê, hoặc webhook đã xác minh chữ ký. Màn hình "khách bấm đã chuyển" hay ảnh chụp **không** đủ.
-- **INV-F4:** webhook/sao kê lưu ở `inbox` với khoá unique `(provider, account, provider_event_id)`. Trùng ID mà khác hash → báo động, không ghi tiền.
+- **INV-F4:** mỗi nguồn ghi `inbox` với khoá unique `(provider, account, provider_event_id)`; trùng ID mà khác hash → báo động, không ghi tiền.
+- **INV-F4b (chống trùng xuyên nguồn):** mọi khoản tiền ngân hàng quy về `bank_transactions` unique `(receiving_account_id, bank_txn_ref)`; `payments` loại chuyển khoản phải tham chiếu đúng một `bank_transaction_id` (unique). Webhook + sao kê + nhập tay của cùng một giao dịch → **một** payment.
 - **INV-F5:** cọc không tự trừ vào nợ. Khấu trừ cần lý do, người duyệt và chứng từ liên kết.
 - **INV-F6:** sau `period_locks` hoặc chốt ca, chỉ được thêm chứng từ điều chỉnh/đảo, phải có quyền duyệt.
 - **Ví dụ kiểm thử bắt buộc (từ kế hoạch):**
@@ -129,12 +137,12 @@ Các bảng dưới đây xuất hiện khi viết SPEC. Tên ở đây là chu�
 |---|---|---|---|
 | Quyền | `floors`, `property_scopes`, `invitations` | Tầng; phạm vi cơ sở của membership; lời mời có hạn | access-and-property |
 | Phê duyệt | `approval_requests` | Yêu cầu duyệt (hoàn, khấu trừ cọc, điều chỉnh, mở khoá kỳ) có hạn mức, cấm tự duyệt | ledger-payments, lease, access |
-| Lịch | `exceptions` | Ngoại lệ cần quản lý xử lý: `LEASE_OVERSTAY`, `STAY_OVERSTAY`, `RELOCATION_REQUIRED` | inventory-allocation, reservation-stay |
+| Lịch | `exceptions` | Ngoại lệ cần quản lý xử lý: `LEASE_OVERSTAY`, `STAY_OVERSTAY`, `RELOCATION_REQUIRED`, `EXTENSION_CONFLICT` | inventory-allocation, reservation-stay |
 | Khách sạn | `rate_plans` | Bảng giá theo loại phòng, ngày thường/cuối tuần, hiệu lực | reservation-stay |
-| Vận hành | `tasks`, `work_orders`, `files` | Việc buồng phòng; phiếu sự cố/sửa chữa; metadata file riêng tư | housekeeping-maintenance |
+| Vận hành | `tasks`, `work_orders`, `files`, `identity_documents`, `residence_notices` (xuất mẫu + đánh dấu đã thông báo lưu trú) | Việc buồng phòng; phiếu sự cố/sửa chữa; metadata file riêng tư | housekeeping-maintenance |
 | Tính tiền | `services`, `service_prices`, `meter_events` | Danh mục dịch vụ; giá có hiệu lực; lắp/thay/reset công tơ | metering-billing |
-| Hợp đồng | `lease_settlements` | Quyết toán khi thanh lý (nợ, khấu trừ, hoàn) | lease |
-| Tiền | `reconciliation_breaks`, `payment_claims` | Chênh lệch đối soát có chủ xử lý; "khách báo đã chuyển" (**không** tạo `payments`/bút toán) | ledger-payments, portal |
+| Hợp đồng | `lease_settlements`, `lease_occupants` (giữ chỗ hợp đồng = allocation `hold` có TTL riêng, xem SPEC-lease) | Quyết toán khi thanh lý (nợ, khấu trừ, hoàn) | lease |
+| Tiền | `bank_transactions`, `reconciliation_breaks`, `payment_claims`, `shift_discrepancies` | Chênh lệch đối soát có chủ xử lý; "khách báo đã chuyển" (**không** tạo `payments`/bút toán) | ledger-payments, portal |
 | Portal | `guest_access_links` | Link khách có token băm, hạn, thu hồi, phạm vi một lượt ở | portal |
 | Import | `import_batches`, `import_rows`, `import_external_refs` | Lô import, dòng + lỗi, khoá chống import lặp | import |
 | Thông báo | `notifications`, `notification_deliveries`, `notification_preferences`, `notification_settings` | Thông báo trong app; lần gửi theo kênh; opt-in/out; lịch nhắc theo cơ sở | notifications |

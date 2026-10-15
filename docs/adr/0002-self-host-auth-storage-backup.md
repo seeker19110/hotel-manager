@@ -51,7 +51,7 @@ Mục tiêu phục hồi trong kế hoạch vẫn giữ: RPO DB ≤ 15 phút, RT
 Triển khai: một VPS chạy `docker compose` (caddy, web, worker, postgres, seaweedfs) cho pilot. Staging và production tách nhau. Kho sao lưu đặt ở chỗ khác.
 
 **Vị trí dữ liệu — điểm dừng pháp lý.** Theo nguồn thứ cấp:
-- Luật 91/2025 (Đ.20/22) đòi hồ sơ đánh giá tác động chuyển dữ liệu xuyên biên giới trong 60 ngày khi lưu hoặc xử lý dữ liệu thu thập tại VN trên hệ thống ở nước ngoài.
+- Luật 91/2025 (Đ.20/22) đòi hồ sơ [T — chưa đối chiếu văn bản gốc] đánh giá tác động chuyển dữ liệu xuyên biên giới trong 60 ngày khi lưu hoặc xử lý dữ liệu thu thập tại VN trên hệ thống ở nước ngoài.
 - Luật ANM 116/2025 có thể đòi lưu dữ liệu tại VN; nghị định hướng dẫn chưa xác minh.
 
 Vì vậy đề xuất **đặt VPS và kho sao lưu tại Việt Nam**. Lưu ý: SMTP relay nước ngoài vẫn chuyển email và tên người nhận ra nước ngoài, nên vẫn cần hồ sơ (CTIA) hoặc chọn relay trong nước. Người phụ trách pháp lý phải xác nhận trước khi đưa dữ liệu thật lên.
@@ -68,9 +68,10 @@ Vì vậy đề xuất **đặt VPS và kho sao lưu tại Việt Nam**. Lưu ý
   - pgBackRest từng gặp khủng hoảng người bảo trì (4–5/2026, nay có nhóm tài trợ). Phương án dự phòng là WAL-G (Apache-2.0); runbook ghi cả hai.
   - SeaweedFS không có S3 bucket replication API, nên phải đồng bộ ra ngoài bằng job riêng.
 - Việc phải làm tiếp:
-  - T-004 (Better Auth + MFA).
-  - T-009 (SeaweedFS + URL ký).
-  - T-010 (pgBackRest backup → restore → PITR thử).
+  - T-001 (cài Postgres 17/pgBackRest/SeaweedFS không cần Docker).
+  - T-006 (Better Auth + MFA).
+  - T-011 (SeaweedFS + URL ký).
+  - T-012 (pgBackRest backup → restore → PITR thử + `deploy/compose.yaml`).
   - Task G5 mới `docker compose` cho staging (điểm dừng: mua VPS).
   - RUNBOOK vận hành ở G8.
 

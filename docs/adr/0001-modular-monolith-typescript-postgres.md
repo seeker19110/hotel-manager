@@ -39,7 +39,7 @@ Chọn **phương án 1**:
 | Runtime | Node.js LTS | 24.x (EOL 2028-04-30) | Chuyển sang 26 LTS bằng một task riêng sau 2026-10-28, khi CI xanh trên 26 |
 | Gói | pnpm workspace | 12.11.x | Không dùng Turborepo ở V1: chỉ có 2 app và vài package, `pnpm -r` là đủ |
 | Web + API | Next.js App Router · React | 16.4.x · 19.3.x | Route handler/server action chỉ gọi lớp `application`, không chứa quy tắc nghiệp vụ |
-| Ngôn ngữ | TypeScript `strict` | 7.0.x. Nếu T-001 thấy Next 16 chưa tương thích TS 7 thì dùng 5.x mới nhất và ghi vào ADR này | |
+| Ngôn ngữ | TypeScript `strict` | 7.0.x. Nếu T-002 thấy Next 16 chưa tương thích TS 7 thì dùng 5.x mới nhất và ghi vào ADR này | |
 | CSDL | PostgreSQL | 17 (khớp mặc định Supabase hosted [T]; local dùng image `postgres:17`) | Extension cần có: `btree_gist`, `pgcrypto` |
 | Truy cập DB | Kysely (query builder có kiểu) + SQL thô cho constraint/RLS | 0.29.x | Migration là file TS chạy SQL, có `up` và `down` |
 | Hàng đợi | pg-boss + bảng `outbox` riêng | 12.x | Nhận job từ outbox, retry, dead letter |
@@ -72,7 +72,7 @@ Ranh giới module (kế hoạch §11): Access · Property & Inventory · Lease 
   - Tự viết nhiều SQL hơn ORM.
   - Kysely 0.x có thể đổi API, nên ghim minor và cập nhật qua Dependabot.
   - Supabase Auth ràng buộc vào nhà cung cấp. Giảm rủi ro bằng cách giữ bảng `persons`/`memberships` của mình và chỉ lưu `auth_user_id`.
-- Việc phải làm tiếp: T-001 (scaffold, kiểm TS 7), T-003 (role DB + RLS), task chọn hosting ở đợt G5.
+- Việc phải làm tiếp: T-002 (scaffold, kiểm TS 7), T-005 (role DB + RLS); hosting: xem ADR-0002.
 
 ### Xác nhận
 - `package.json` ghim đúng các major ở bảng trên.

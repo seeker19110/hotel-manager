@@ -59,7 +59,9 @@ Mục tiêu pilot: ≥ 6 cơ sở (3 trọ, 2 khách sạn, 1 căn hộ dịch v
 | F-015 | Vòng đời thuê bao SaaS, gói, quota; hỗ trợ truy cập tạm thời | Should | (đợt V1) | T069–T071, T097, T098 |
 | F-016 | Adapter một ngân hàng/HĐĐT khi có hợp đồng; booking engine phạm vi hẹp | Could | (đợt V1) | T072 |
 
-Nỗ lực: các gói P0 trong backlog là 224/343 ngày công, tức **65% nằm ở Must**, vượt ngưỡng ≤ 60% mà khung khuyến nghị (`PM-*`). Tôi đề xuất giữ nguyên vì kế hoạch gốc đã tách V1 ra khỏi pilot. Nếu trễ thì cắt F-007, F-008 và F-011 xuống mức tối thiểu trước; không cắt test tiền/tồn (kế hoạch §19).
+Nỗ lực: các gói P0 trong backlog là 224/343 ngày công, tức **65% nằm ở Must**, vượt ngưỡng ≤ 60% mà khung khuyến nghị.
+
+> **Lệch kế hoạch gốc — cần chủ dự án chọn.** Kế hoạch §04/§19 để gia hạn/thanh lý đầy đủ, phân bổ thanh toán, khoá kỳ và portal mở rộng (hợp đồng, công tơ, tiến độ) ở **V1**, nghiệm thu tuần 13–16; pilot tuần 12 xử lý các việc đó bằng chứng từ tối thiểu có người duyệt. Bảng trên đang theo **backlog** (các gói T031, T032, T035, T040, T044 là P0 tuần 9–12). Hai nguồn của chính kế hoạch lệch nhau; mặc định tôi giữ theo backlog (pilot đầy đủ hơn, rủi ro trễ cao hơn). Nếu trễ: cắt F-007, F-008, F-011 xuống tối thiểu trước; không cắt test tiền/tồn (kế hoạch §19).
 
 ### Không làm (Won't — trong V1)
 - Bán theo giường; bán theo loại phòng khi chưa gán phòng cụ thể. Lý do: MVP gán phòng ngay để bảo đảm chống trùng bằng constraint.
@@ -89,10 +91,10 @@ Nỗ lực: các gói P0 trong backlog là 224/343 ngày công, tức **65% nằ
 | Ngôn ngữ/định dạng | Tiếng Việt; VND số nguyên; múi giờ cơ sở (mặc định Asia/Ho_Chi_Minh) | Kế hoạch §12 | test đơn vị |
 
 ## 6. Dữ liệu & pháp lý
-- **Dữ liệu cá nhân:** có. Dữ liệu cơ bản gồm họ tên, SĐT, email, địa chỉ. Ảnh/số CCCD và hộ chiếu là dữ liệu **nhạy cảm** theo NĐ 356/2025 → giảm thu thập, che, lưu file riêng tư, cấm cache offline.
+- **Dữ liệu cá nhân:** có. Dữ liệu cơ bản gồm họ tên, SĐT, email, địa chỉ. Ảnh/số CCCD và hộ chiếu được xếp là dữ liệu **nhạy cảm** theo NĐ 356/2025 [T — nguồn thứ cấp, chưa đối chiếu văn bản gốc; thiết kế vẫn bảo vệ ở mức nhạy cảm] → giảm thu thập, che, lưu file riêng tư, cấm cache offline.
 - **Tiền thật:** có ghi nhận tiền (QR chuyển khoản, tiền mặt, cọc). Hệ thống **không giữ tiền** và không chạm dữ liệu thẻ.
-- **Luật áp dụng** (danh sách xác minh ở `docs/research/2026-10-15-stack-va-phap-ly.md`): Luật BVDLCN 91/2025/QH15 + NĐ 356/2025/NĐ-CP; Luật Cư trú 68/2020/QH14 (thông báo lưu trú); quy định khai báo tạm trú cho người nước ngoài; NĐ về hoá đơn điện tử (kế hoạch ghi NĐ 254/2026, cần đối chiếu); quy định giá bán điện cho người thuê nhà; Luật An ninh mạng 116/2025.
-- **DPIA:** bắt buộc trước khi dùng dữ liệu thật → `docs/DPIA.md` (T-0xx trong PLAN, cần người phụ trách pháp lý duyệt).
+- **Luật áp dụng** (danh sách xác minh ở `docs/research/2026-10-15-stack-va-phap-ly.md`): **tất cả ở mức [T], chưa đối chiếu văn bản gốc** — Luật BVDLCN 91/2025/QH15 + NĐ 356/2025/NĐ-CP (+ NĐ 330/2026 và NĐ 333/2026 mà blueprint trích, cần pháp lý đối chiếu); Luật Cư trú 68/2020/QH14 Đ.30 sửa bởi Luật 118/2025/QH15 (thông báo lưu trú); quy định khai báo tạm trú cho người nước ngoài; NĐ về hoá đơn điện tử (kế hoạch ghi NĐ 254/2026, cần đối chiếu); quy định giá bán điện cho người thuê nhà; Luật An ninh mạng 116/2025.
+- **DPIA:** bắt buộc trước khi dùng dữ liệu thật → `docs/DPIA.md` (việc của **người** — pháp lý soạn/duyệt, ngoài vòng tự động; chặn dữ liệu thật).
 
 ## 7. Stack & kiến trúc (tóm tắt — chi tiết ở ADR-0001)
 Modular monolith TypeScript: Next.js (web + API) và một worker Node chạy chung codebase; PostgreSQL 17 **tự host** (sao lưu pgBackRest có PITR); đăng nhập + MFA bằng Better Auth trong app; file ở SeaweedFS; Caddy; email qua SMTP relay; SQL migrations; hàng đợi bền và outbox nằm trong Postgres. Chi tiết: ADR-0001 và ADR-0002 (tự host).
@@ -106,7 +108,7 @@ Modular monolith TypeScript: Next.js (web + API) và một worker Node chạy ch
 | Đội 4 FTE đủ cho pilot tuần 12 | burn-down theo mốc | tuần 10 | R08 |
 
 - **Ràng buộc cứng:** không gửi dữ liệu thật vào môi trường dev; tiền VND là số nguyên; một nguồn sự thật cho tồn và tiền trong giai đoạn chạy song song.
-- **Ngân sách** (giả định kế hoạch): 798 triệu – 1,33 tỷ đồng cho 24 tuần, 4 FTE, đã gồm 20% dự phòng; hạ tầng pilot 80–180 USD/tháng.
+- **Ngân sách** (giả định kế hoạch): 798 triệu – 1,33 tỷ đồng cho 24 tuần, 4 FTE, đã gồm 20% dự phòng; hạ tầng: kế hoạch gốc ước 80–180 USD/tháng theo Supabase; với tự host (ADR-0002) cần ước lại theo báo giá VPS tại VN + kho sao lưu + SMTP relay (chưa có báo giá).
 - **Hạn:** chưa có hạn thật. Các tuần là tương đối, tính từ ngày đội khởi động.
 
 ## 9. Các bên
