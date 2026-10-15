@@ -47,7 +47,9 @@ updated: 2026-10-15
 - [ ] `T-002` API tạo đơn hàng theo SPEC-order — Gate: `python3 -m pytest tests/order -q`
 ```
 
-Dòng task khớp `^- \[( |x|~)\] \`T-\d{3,}\``; Gate lấy từ `Gate:\s*\`...\`` (chuỗi phải **y nguyên** khi `loop record`).
+Dòng task khớp `^- \[( |x|~)\] \`T-\d{3,}\``; Gate lấy từ `Gate:\s*\`...\`` (chuỗi phải **y nguyên** khi `loop record`; phần bí mật
+được so ở dạng đã che như trong evidence). Dòng *giống* task mà sai định dạng (thụt lề, thiếu backtick, ID ngắn, ô lạ) → `verify`,
+không bị bỏ qua im lặng; task `[~]` phải ghi `— Bỏ: <lý do>`.
 Mẫu đầy đủ: [`../templates/PLAN.md`](../templates/PLAN.md); PROGRESS: [`../templates/PROGRESS.md`](../templates/PROGRESS.md).
 
 ### Context vs memory vs tài liệu

@@ -17,20 +17,35 @@ decision="$(json_field "$res" decision)"
 # ---- 3) Cổng trước commit (chạy TRƯỚC khi hỏi người — ask không được bỏ cổng, AUD-HAR-013) ----
 # `--no-verify` là chính câu hỏi "bỏ cổng?" → không chạy cổng, để người quyết.
 if [ "$(json_field "$res" commit)" = "true" ] && [ "$(json_field "$res" no_verify)" != "true" ]; then
+  # Gốc cổng = repo NHẬN commit (`cd ../repo-khac && git commit`, `git -C …`), không mặc định gốc phiên: từng chạy
+  # cổng của dự án phiên cho commit ở repo khác (đỏ/xanh không liên quan). Repo git lồng trong dự án mà không có
+  # xt.yaml/.xtemplates riêng (submodule, apps/web) → vẫn dùng cổng của dự án.
+  groot="$XT_ROOT"
+  cdir="$(json_field "$res" commit_dir)"
+  top=""
+  [ -n "$cdir" ] && top="$(git -C "$cdir" rev-parse --show-toplevel 2>/dev/null)"
+  if [ -n "$top" ] && [ "$top" != "$XT_ROOT" ]; then
+    if [ -e "$top/xt.yaml" ] || [ -d "$top/.xtemplates" ]; then
+      groot="$top"
+    else
+      case "$top/" in "$XT_ROOT"/*) ;; *) groot="$top" ;; esac
+    fi
+  fi
   gate=""
-  for g in "$XT_ROOT/scripts/dev-task.sh" "$XT_ROOT/.xtemplates/scripts/dev-task.sh"; do
+  for g in "$groot/scripts/dev-task.sh" "$groot/.xtemplates/scripts/dev-task.sh" \
+    "$XT_ROOT/scripts/dev-task.sh" "$XT_ROOT/.xtemplates/scripts/dev-task.sh"; do
     [ -x "$g" ] && { gate="$g"; break; }
   done
   if [ -n "$gate" ]; then
     # stdout của cổng sang stderr: stdout của hook chỉ được chứa JSON quyết định.
-    if ! CLAUDE_PROJECT_DIR="$XT_ROOT" "$gate" gate >&2; then
-      echo "❌ Cổng trước commit ĐỎ (build/typecheck/lint/test). Sửa rồi commit lại." >&2
+    if ! CLAUDE_PROJECT_DIR="$groot" "$gate" gate >&2; then
+      echo "❌ Cổng trước commit ĐỎ (build/typecheck/lint/test) ở $groot. Sửa rồi commit lại." >&2
       exit 2
     fi
   fi
   # Nhắc (không chặn) khi diff lớn: cổng máy chỉ bắt lỗi cú pháp, không bắt lỗi logic.
-  lines="$(git -C "$XT_ROOT" diff --cached --numstat 2>/dev/null | awk '{a+=$1; d+=$2} END{print a+d+0}')"
-  files="$(git -C "$XT_ROOT" diff --cached --name-only 2>/dev/null | grep -c . || true)"
+  lines="$(git -C "$groot" diff --cached --numstat 2>/dev/null | awk '{a+=$1; d+=$2} END{print a+d+0}')"
+  files="$(git -C "$groot" diff --cached --name-only 2>/dev/null | grep -c . || true)"
   if [ "${lines:-0}" -ge 300 ] || [ "${files:-0}" -ge 10 ]; then
     echo "💡 Diff staged lớn (${files} file, ~${lines} dòng). Cân nhắc chia nhỏ commit hoặc chạy /review trước." >&2
   fi

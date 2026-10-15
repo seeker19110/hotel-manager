@@ -3,7 +3,8 @@
 > Giai đoạn hiện tại: G5 Dựng nền (autopilot đợt 1) · Cập nhật: 2026-10-15 · Nhánh: claude/gifted-noether-iybenn
 
 ## Đang làm
-- Autopilot đợt 1 **xong 14/14 task** (T-001…T-014), bằng chứng `.autopilot/evidence/T-001…T-014.json` (exit 0) + CI PR #4. Chờ chủ dự án review/merge PR #4.
+- Đợt 1 đã merge (PR #4). Đợt 2 nhà trọ: PR #5 (nhánh `claude/gifted-noether-iybenn`) CI xanh nhưng xung đột `BLUEPRINT.md`/`PROGRESS.md` với `main` sau PR #6 — gỡ: lấy BLUEPRINT của PR #5 rồi `compose --out` lại (giữ 87 đạt/36 miễn theo ID).
+- Sửa khung X-Templates (nhánh `fix/pipefail-blueprint-path` của repo khung, 1a877b0 + 27e3a9d) và nâng `.xtemplates` ở nhánh `claude/peaceful-bardeen-27pu17`.
 
 ## Tiếp theo
 1. Áp bản vá CI (job `e2e`, `backup-restore` + required checks) khi có quyền; import ruleset `.github/rulesets/main.json`; quyết máy quét mã độc thật và mã hoá cột số giấy tờ (đợt 2).
@@ -29,6 +30,7 @@
 - 2026-10-15 Chủ dự án giao quyền quyết các điểm treo đợt 1 ("chất lượng cao nhất"): giữ thay đổi CI/gitleaks/pnpm của PR #4; sửa hết gợi ý review (0007 RLS giấy tờ theo cơ sở + files mặc định từ chối; `session.switchOrganization` đúng API-CONTRACT kèm idempotency lưu `idempotency_keys`; cookie `__Host-`); merge PR #4 khi CI xanh. Đưa E2E + PITR vào CI: bản vá đã soạn nhưng bị chặn quyền sửa workflow — chờ chủ dự án cấp quyền hoặc tự áp.
 - 2026-10-15 Nâng khung X-Templates lên 4f99dfb — ADR-0008/0009/0010 (phiên chính tự duyệt điểm quyết định, mặc định tự host; autopilot một phiên + hook PreCompact; phản hồi về khung `xt.py feedback`). Blueprint ghép lại giữ trạng thái theo ID (+21 mục mới để `[ ]`, −7 mục ngừng dùng); FB-001…004 = 4 miễn đã duyệt.
 - Nợ kỹ thuật chấp nhận: phần pháp lý trong `docs/research/` chỉ có nguồn thứ cấp — phải đối chiếu văn bản gốc trước khi dùng dữ liệu thật.
+- 2026-10-15 Sửa khung (theo yêu cầu "fix khung"): bằng chứng/cổng xanh giả khi Gate có ống; cổng commit chạy nhầm repo; verdict/blueprint-status xanh giả; ghép blueprint mất ghi chú/mục riêng; guard lọt `#`, `<<<`, push HEAD ở main, `switch -f`, `rm -rf .git`. Phản hồi FB-005…007. Từ nay task `[~]` trong PLAN phải ghi `— Bỏ: <lý do>`.
 
 ## Bàn giao phiên
 - Commit cuối trên nhánh chính: `502819e7b8bc837f7d51478d90e837c31767efd8` (kế hoạch, PR #3). Đợt 1 nằm ở nhánh `claude/gifted-noether-iybenn` (PR #4, chưa merge) · CI PR #4: quality + gitleaks + dep-audit xanh.

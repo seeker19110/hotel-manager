@@ -12,7 +12,7 @@ generated: 2026-10-15
 
 > Sinh bởi `xt.py compose` ngày 2026-10-15 — hồ sơ **web-app**, ngành **saas-multitenant, fintech**, quy mô **M**.
 > Trạng thái: `[ ]` chưa · `[x]` đạt (kèm bằng chứng ở PR/CI) · `[~]` miễn trừ — bắt buộc ghi `— Miễn: <lý do>`.
-> Kiểm tiến độ: `python3 scripts/xt.py blueprint-status BLUEPRINT.md --strict` (còn MUST chưa đạt → exit 1).
+> Kiểm tiến độ: `python3 .xtemplates/scripts/xt.py blueprint-status BLUEPRINT.md --strict` (còn MUST chưa đạt → exit 1).
 
 | Mức | Số mục |
 |---|---|
