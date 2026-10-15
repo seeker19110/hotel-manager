@@ -78,6 +78,15 @@ describe("listRooms", () => {
     expect(r.flatMap((p) => p.rooms.map((x) => x.code)).sort()).toEqual(["101", "201"]);
   });
 
+  it("phạm vi rỗng (chưa được giao cơ sở nào) → danh sách rỗng, không rơi về 'mọi cơ sở'", async () => {
+    const actor = await resolveActor(t.runtime, {
+      authUserId: staffUser,
+      orgId: A.orgId,
+      twoFactorEnabled: false,
+    });
+    expect(await listRooms(t.runtime, { ...actor, allProperties: false, propertyIds: [] })).toEqual([]);
+  });
+
   it("vai trò không có quyền xem lịch (tenant) → FORBIDDEN", async () => {
     const tenant = await resolveActor(t.runtime, {
       authUserId: staffUser,

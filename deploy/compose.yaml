@@ -28,7 +28,8 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./secrets/pgbackrest.conf:/etc/pgbackrest/pgbackrest.conf:ro
-    networks: [backend]
+    # backend: chỉ trong máy; backup_egress: đường ra cho pgBackRest đẩy WAL/backup tới kho S3/SFTP ở máy khác.
+    networks: [backend, backup_egress]
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "postgres"]
       interval: 10s
@@ -44,7 +45,8 @@ services:
       - seaweed:/data
       - ./secrets/s3.json:/etc/seaweedfs/s3.json:ro
     networks: [backend]
-    # Bucket riêng tư, không publish cổng: ứng dụng ký URL ≤ 5 phút qua đường proxy của Caddy (packages/app/src/files).
+    # Bucket riêng tư, không publish cổng. Trình duyệt mở URL ký (≤ 5 phút, packages/app/src/files) qua site
+    # {$HM_FILES_DOMAIN} của Caddy → seaweedfs:8333; ứng dụng phải ký với S3_ENDPOINT=https://{$HM_FILES_DOMAIN}.
 
   caddy:
     image: caddy:2.11.7-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f
@@ -56,6 +58,7 @@ services:
     environment:
       HM_DOMAIN: ${HM_DOMAIN:?đặt HM_DOMAIN trong deploy/.env}
       HM_ACME_EMAIL: ${HM_ACME_EMAIL:?đặt HM_ACME_EMAIL trong deploy/.env}
+      HM_FILES_DOMAIN: ${HM_FILES_DOMAIN:?đặt HM_FILES_DOMAIN trong deploy/.env}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
@@ -76,3 +79,4 @@ networks:
   backend:
     internal: true
   edge:
+  backup_egress:

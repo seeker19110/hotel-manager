@@ -13,3 +13,17 @@
 	}
 	reverse_proxy web:3000
 }
+
+# Object storage: chỉ phục vụ URL ký sẵn (SigV4 ký cả Host — Caddy giữ nguyên Host gốc khi chuyển tiếp).
+# Bucket riêng tư: GET không chữ ký → 403 từ SeaweedFS. Không mở cổng master/filer/volume.
+{$HM_FILES_DOMAIN} {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Cache-Control "private, no-store"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+	reverse_proxy seaweedfs:8333
+}
+

@@ -25,6 +25,7 @@
 - 2026-10-15 PWA: Serwist 9.5.13 bản Turbopack (`@serwist/turbopack`, SW bundle bằng esbuild qua route `/serwist/sw.js`); precache chỉ asset tĩnh + icon + `/offline`; tắt `cacheOnNavigation`/`reloadOnOnline` mặc định của Serwist (trái S-005/S-008); layout render động để Next gắn nonce CSP.
 - 2026-10-15 Ngữ cảnh tổ chức của web: cookie `hm_org` (API: header `X-Org-Id`) chỉ để CHỌN; mọi request vẫn `resolveActor` tra membership.
 - 2026-10-15 E2E chạy cục bộ bằng Chromium có sẵn (`/opt/pw-browsers`, Playwright 1.64.1 qua `executablePath`); chưa đưa E2E và diễn tập PITR vào CI (đổi CI là điểm dừng — chờ duyệt).
+- 2026-10-15 Review độc lập T-011…T-014: 0 🔴 · 6 🟠 · 11 🟢. Đã sửa 🟠1–5 (GPS trong ảnh phụ sau EOI, object mồ côi → `ctx.onRollback` bù trừ, strip ảnh chặn event loop, WAL không ra kho ngoài + URL ký không qua Caddy, đổi tổ chức không xoá dữ liệu máy) và 🟢 1–5, 9, 11. Còn treo: 🟠6 (đổi CI/gitleaks cần duyệt), 🟢 RLS giấy tờ theo cơ sở, RLS mặc định từ chối owner_type mới, cookie `__Host-`, chuẩn hoá phản hồi chọn tổ chức theo API-CONTRACT.
 - Nợ kỹ thuật chấp nhận: phần pháp lý trong `docs/research/` chỉ có nguồn thứ cấp — phải đối chiếu văn bản gốc trước khi dùng dữ liệu thật.
 
 ## Bàn giao phiên

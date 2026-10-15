@@ -15,6 +15,8 @@ describe("findUnpinned", () => {
     ["FROM scratch", []],
     [`image: x@sha256:${"a".repeat(63)}`, [`x@sha256:${"a".repeat(63)}`]],
     ["# image: chú thích không tính", []],
+    [`FROM node:24@${D} AS build\nFROM build`, []],
+    ["FROM node:24 AS build\nFROM build", ["node:24"]],
   ])("%s", (text, expected) => {
     expect(findUnpinned(text)).toEqual(expected);
   });

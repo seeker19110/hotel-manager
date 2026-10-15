@@ -61,14 +61,19 @@ export async function uploadFile(
   const sha256 = createHash("sha256").update(content).digest("hex");
   const scan = await deps.scanner.scan(input.bytes);
   const status = scan.clean ? "ready" : "rejected";
-  // File nhiễm KHÔNG được lưu nội dung; chỉ giữ metadata để truy vết.
-  if (scan.clean) await deps.storage.put(key, content, mime);
+  // Hàng trước, object sau: lỗi ràng buộc (cơ sở không tồn tại…) dừng trước khi có object. Object ghi rồi mà
+  // transaction không commit (lỗi sau đó, lỗi commit, thử lại 40001) → xoá object, không để ảnh mồ côi (INV-G7).
   await sql`
     insert into files (id, organization_id, property_id, owner_type, owner_id, mime, size_bytes, sha256, status, storage_key,
                        exif_stripped, uploaded_by, scanned_at, reject_reason)
     values (${id}, ${ctx.actor.orgId}, ${input.propertyId}, ${input.ownerType}, ${input.ownerId ?? null}, ${mime}, ${content.byteLength},
             ${sha256}, ${status}, ${key}, ${mime.startsWith("image/")}, ${ctx.actor.membershipId}, now(),
             ${scan.clean ? null : scan.reason})`.execute(ctx.trx);
+  // File nhiễm KHÔNG được lưu nội dung; chỉ giữ metadata để truy vết.
+  if (scan.clean) {
+    ctx.onRollback(() => deps.storage.delete(key));
+    await deps.storage.put(key, content, mime);
+  }
   await ctx.audit({
     action: scan.clean ? "file.uploaded" : "file.rejected",
     entityType: "file",
@@ -79,12 +84,24 @@ export async function uploadFile(
   return { fileId: id, status, mime };
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Quyền đọc theo loại chủ — allowlist; loại chưa khai báo (residence_notice, payment_claim, export_job…) bị từ chối. */
+const READ_ACTION: Readonly<Record<string, "identity.read" | "calendar.read_status">> = {
+  identity_document: "identity.read",
+  work_order: "calendar.read_status",
+  handover: "calendar.read_status",
+  meter_reading: "calendar.read_status",
+  task: "calendar.read_status",
+};
+
 /** URL ký cho file — chỉ sau khi kiểm quyền; không thấy (khác tổ chức, ngoài phạm vi, không đủ vai trò) → NOT_FOUND. */
 export async function getFileUrl(
   ctx: CommandContext,
   deps: FileDeps,
   fileId: string,
 ): Promise<{ url: string; expiresIn: number }> {
+  if (!UUID.test(fileId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy file");
   const r = await sql<{
     owner_type: string;
     property_id: string | null;
@@ -95,9 +112,10 @@ export async function getFileUrl(
     ctx.trx,
   );
   const f = r.rows[0];
-  if (f?.status !== "ready") throw new CommandError("NOT_FOUND", 404, "Không tìm thấy file");
+  const action = f ? READ_ACTION[f.owner_type] : undefined;
+  if (f?.status !== "ready" || !action) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy file");
   try {
-    authorize(ctx.actor, f.owner_type === "identity_document" ? "identity.read" : "calendar.read_status", {
+    authorize(ctx.actor, action, {
       ...(f.property_id ? { propertyId: f.property_id } : {}),
     });
   } catch {

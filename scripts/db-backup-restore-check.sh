@@ -22,6 +22,7 @@ die() {
 [ -x "$PG_BIN/initdb" ] || die "không có PostgreSQL 17 ở $PG_BIN — chạy scripts/dev-env-setup.sh"
 command -v pgbackrest >/dev/null || die "không có pgbackrest — chạy scripts/dev-env-setup.sh"
 command -v node >/dev/null || die "không có node — chạy scripts/dev-env-setup.sh --only node"
+for bin in openssl python3; do command -v "$bin" >/dev/null || die "thiếu $bin"; done
 ver="$(pgbackrest version | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -n1)"
 [ "$(printf '%s\n%s\n' "$MIN_PGBACKREST" "$ver" | sort -V | head -n1)" = "$MIN_PGBACKREST" ] ||
   die "pgBackRest $ver < $MIN_PGBACKREST"

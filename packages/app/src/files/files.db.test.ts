@@ -278,3 +278,66 @@ describe("giấy tờ nhận dạng (INV-G7)", () => {
     expect(after.rows[0]).toEqual({ n: null, m: null });
   });
 });
+
+describe("không để object mồ côi (INV-G7)", () => {
+  /** Storage thật nhưng ghi lại khoá đã put; `failAfterPut` mô phỏng lỗi sau khi object đã ghi (mạng đứt, lỗi sau đó). */
+  function spyStorage(failAfterPut: boolean) {
+    const puts: string[] = [];
+    const s = {
+      ensureBucket: () => storage.ensureBucket(),
+      delete: (key: string) => storage.delete(key),
+      signedGetUrl: (key: string, sec?: number) => storage.signedGetUrl(key, sec),
+      async put(key: string, body: Uint8Array, type: string) {
+        await storage.put(key, body, type);
+        puts.push(key);
+        if (failAfterPut) throw new Error("mất kết nối sau khi ghi object");
+      },
+    } as unknown as ObjectStorage;
+    return { s, puts };
+  }
+
+  it("cơ sở không tồn tại → 404 trước khi ghi object", async () => {
+    const { s, puts } = spyStorage(false);
+    const r = await run(owner, async (ctx) => ({
+      data: await uploadFile(
+        ctx,
+        { storage: s, scanner: eicarOnlyScanner },
+        { ownerType: "identity_document", propertyId: randomUUID(), bytes: jpegWithExif() },
+      ),
+    }));
+    expect(r).toMatchObject({ status: "failed", httpStatus: 404 });
+    expect(puts).toEqual([]);
+  });
+
+  it("lỗi sau khi đã ghi object → transaction rollback và object bị xoá", async () => {
+    const { s, puts } = spyStorage(true);
+    await expect(
+      run(owner, async (ctx) => ({
+        data: await uploadFile(
+          ctx,
+          { storage: s, scanner: eicarOnlyScanner },
+          { ownerType: "identity_document", propertyId: A.propertyId, bytes: jpegWithExif() },
+        ),
+      })),
+    ).rejects.toThrow("mất kết nối");
+    expect(puts).toHaveLength(1);
+    const res = await fetch(await storage.signedGetUrl(puts[0] as string, 60));
+    expect(res.status).toBe(404);
+    const rows = await sql<{
+      n: number;
+    }>`select count(*)::int as n from files where storage_key = ${puts[0]}`.execute(t.admin);
+    expect(rows.rows[0]?.n).toBe(0);
+  });
+
+  it("id file không phải UUID → 404 (không lộ lỗi 500)", async () => {
+    expect(await urlFor(owner, "abc")).toMatchObject({ status: "failed", httpStatus: 404 });
+  });
+
+  it("loại chủ chưa khai báo quyền đọc (residence_notice) → 404 kể cả owner", async () => {
+    const id = randomUUID();
+    await sql`insert into files (id, organization_id, property_id, owner_type, mime, size_bytes, sha256, status, storage_key)
+              values (${id}, ${A.orgId}, ${A.propertyId}, 'residence_notice', 'application/pdf', 10, ${"a".repeat(64)},
+                      'ready', ${`${A.orgId}/residence_notice/${id}`})`.execute(t.admin);
+    expect(await urlFor(owner, id)).toMatchObject({ status: "failed", httpStatus: 404 });
+  });
+});

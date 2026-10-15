@@ -24,9 +24,22 @@ test("smoke: đăng nhập → chọn tổ chức → phòng của cơ sở đư
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Chọn tổ chức");
   await expect(page.getByRole("button", { name: ORG_OTHER })).toBeVisible();
   await expectAccessible(page);
+  // Dữ liệu người dùng giả trên máy — phải bị xoá khi chọn/đổi tổ chức (S-007, S-020).
+  await page.evaluate(async () => {
+    localStorage.setItem("hm-thu", "1");
+    sessionStorage.setItem("hm-thu", "1");
+    await (await caches.open("hm-du-lieu-cu")).put("/du-lieu-cu", new Response("x"));
+  });
   await page.getByRole("button", { name: ORG_MAIN }).click();
 
   await expect(page).toHaveURL(/\/phong$/);
+  expect(
+    await page.evaluate(async () => ({
+      local: localStorage.length,
+      session: sessionStorage.length,
+      caches: (await caches.keys()).filter((k) => !k.startsWith("serwist-precache")),
+    })),
+  ).toEqual({ local: 0, session: 0, caches: [] });
   await expect(page.getByRole("heading", { level: 2, name: MAIN_PROPERTY })).toBeVisible();
   await expect(page.getByTestId("room").locator(".room-list__code")).toHaveText(MAIN_ROOMS);
   // Cơ sở cùng tổ chức nhưng không được giao: không lộ tên lẫn phòng.
@@ -55,4 +68,24 @@ test("cookie tổ chức giả mạo (không có membership) → bị đưa về
   ]);
   await page.goto("/phong");
   await expect(page).toHaveURL(/\/chon-to-chuc$/);
+});
+
+test("trang đã đăng nhập mang Cache-Control: no-store", async ({ page }) => {
+  await page.goto("/dang-nhap");
+  await page.getByLabel("Email").fill(SMOKE_USER.email);
+  await page.getByLabel("Mật khẩu").fill(SMOKE_USER.password);
+  await page.getByRole("button", { name: "Đăng nhập" }).click();
+  await expect(page).toHaveURL(/\/chon-to-chuc$/);
+  for (const path of ["/chon-to-chuc", "/phong"]) {
+    const res = await page.goto(path);
+    expect(res?.headers()["cache-control"], path).toContain("no-store");
+  }
+});
+
+test("POST chọn tổ chức từ origin khác → 403 (TM-09)", async ({ request }) => {
+  const res = await request.post("/api/v1/session/organization", {
+    headers: { origin: "https://evil.example", "content-type": "application/x-www-form-urlencoded" },
+    data: "organizationId=00000000-0000-4000-8000-000000000000",
+  });
+  expect(res.status()).toBe(403);
 });

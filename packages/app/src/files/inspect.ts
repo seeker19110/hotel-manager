@@ -15,44 +15,73 @@ export function detectMime(b: Uint8Array): DetectedMime | null {
 
 export class CorruptFileError extends Error {}
 
-/** JPEG: bỏ mọi APP1 (Exif/XMP, chứa GPS) và APP13 (IPTC); giữ nguyên dữ liệu ảnh. */
-function stripJpeg(b: Uint8Array): Uint8Array {
-  const out: number[] = [0xff, 0xd8];
-  let i = 2;
-  while (i + 4 <= b.length) {
-    if (b[i] !== 0xff) throw new CorruptFileError("JPEG hỏng");
-    const marker = b[i + 1] as number;
-    if (marker === 0xda || marker === 0xd9) {
-      for (let k = i; k < b.length; k++) out.push(b[k] as number);
-      return Uint8Array.from(out);
-    }
-    const len = ((b[i + 2] as number) << 8) | (b[i + 3] as number);
-    if (len < 2 || i + 2 + len > b.length) throw new CorruptFileError("JPEG hỏng");
-    const drop = marker === 0xe1 || marker === 0xed;
-    if (!drop) for (let k = i; k < i + 2 + len; k++) out.push(b[k] as number);
-    i += 2 + len;
-  }
-  throw new CorruptFileError("JPEG hỏng");
+function concat(parts: Uint8Array[]): Uint8Array {
+  return new Uint8Array(Buffer.concat(parts));
 }
 
-/** PNG: bỏ chunk metadata (eXIf, tEXt, iTXt, zTXt, tIME). */
+/**
+ * JPEG: bỏ APP1 (Exif/XMP, chứa GPS), APP13 (IPTC) và COM (chú thích tự do); giữ APP0/APP2 (ICC)/APP14 (Adobe) vì
+ * ảnh hưởng hiển thị màu. Chỉ giữ ẢNH CHÍNH: mọi byte sau EOI (ảnh phụ MPF/gain-map của điện thoại — có thể mang
+ * Exif/GPS riêng) bị cắt. Gom bằng subarray (không chép từng byte) để không chặn event loop với file 10 MB.
+ */
+function stripJpeg(b: Uint8Array): Uint8Array {
+  const parts: Uint8Array[] = [b.subarray(0, 2)];
+  let i = 2;
+  while (i < b.length) {
+    if (b[i] !== 0xff) throw new CorruptFileError("JPEG hỏng");
+    // Byte đệm 0xFF trước marker là hợp lệ (ITU T.81 B.1.1.2).
+    while (i < b.length && b[i] === 0xff && b[i + 1] === 0xff) i++;
+    if (i + 1 >= b.length) break;
+    const marker = b[i + 1] as number;
+    if (marker === 0xd9) {
+      parts.push(b.subarray(i, i + 2));
+      return concat(parts);
+    }
+    if (i + 4 > b.length) break;
+    const len = ((b[i + 2] as number) << 8) | (b[i + 3] as number);
+    if (len < 2 || i + 2 + len > b.length) throw new CorruptFileError("JPEG hỏng");
+    if (marker === 0xda) {
+      // Dữ liệu entropy sau SOS: tìm EOI thật (0xFF 0xD9; 0xFF00 và RSTn là dữ liệu). Có thể có nhiều scan (progressive).
+      let j = i + 2 + len;
+      for (; j + 1 < b.length; j++) {
+        if (b[j] !== 0xff) continue;
+        const m = b[j + 1] as number;
+        if (m === 0x00 || (m >= 0xd0 && m <= 0xd7) || m === 0xff) continue;
+        break;
+      }
+      if (j + 1 >= b.length) throw new CorruptFileError("JPEG thiếu EOI");
+      parts.push(b.subarray(i, j));
+      i = j;
+      continue;
+    }
+    const drop = marker === 0xe1 || marker === 0xed || marker === 0xfe;
+    if (!drop) parts.push(b.subarray(i, i + 2 + len));
+    i += 2 + len;
+  }
+  throw new CorruptFileError("JPEG thiếu EOI");
+}
+
+/** PNG: bỏ chunk metadata (eXIf, tEXt, iTXt, zTXt, tIME); bắt buộc IHDR đầu tiên và kết thúc bằng IEND. */
 function stripPng(b: Uint8Array): Uint8Array {
   const drop = new Set(["eXIf", "tEXt", "iTXt", "zTXt", "tIME"]);
-  const out: number[] = Array.from(b.subarray(0, 8));
+  const parts: Uint8Array[] = [b.subarray(0, 8)];
   let i = 8;
+  let first = true;
   while (i + 12 <= b.length) {
     const len = new DataView(b.buffer, b.byteOffset + i, 4).getUint32(0);
     const type = String.fromCharCode(...b.subarray(i + 4, i + 8));
     const end = i + 12 + len;
     if (end > b.length) throw new CorruptFileError("PNG hỏng");
-    if (!drop.has(type)) for (let k = i; k < end; k++) out.push(b[k] as number);
+    if (first && type !== "IHDR") throw new CorruptFileError("PNG thiếu IHDR");
+    first = false;
+    if (!drop.has(type)) parts.push(b.subarray(i, end));
     i = end;
-    if (type === "IEND") break;
+    if (type === "IEND") return concat(parts);
   }
-  return Uint8Array.from(out);
+  throw new CorruptFileError("PNG thiếu IEND");
 }
 
-/** WebP (RIFF): bỏ chunk EXIF và XMP, sửa lại kích thước RIFF. */
+/** WebP (RIFF): bỏ chunk EXIF và XMP, xoá cờ tương ứng trong VP8X, sửa lại kích thước RIFF. */
 function stripWebp(b: Uint8Array): Uint8Array {
   const chunks: Uint8Array[] = [];
   let i = 12;
@@ -61,20 +90,18 @@ function stripWebp(b: Uint8Array): Uint8Array {
     const len = new DataView(b.buffer, b.byteOffset + i + 4, 4).getUint32(0, true);
     const end = i + 8 + len + (len % 2);
     if (end > b.length) throw new CorruptFileError("WebP hỏng");
-    if (fourcc !== "EXIF" && fourcc !== "XMP ") chunks.push(b.subarray(i, end));
+    if (fourcc === "VP8X" && len >= 1) {
+      const c = Uint8Array.from(b.subarray(i, end));
+      c[8] = (c[8] as number) & ~(0x08 | 0x04); // bit EXIF (0x08) và XMP (0x04)
+      chunks.push(c);
+    } else if (fourcc !== "EXIF" && fourcc !== "XMP ") chunks.push(b.subarray(i, end));
     i = end;
   }
+  if (chunks.length === 0) throw new CorruptFileError("WebP hỏng");
   const size = 4 + chunks.reduce((s, c) => s + c.length, 0);
-  const out = new Uint8Array(8 + size);
-  out.set(b.subarray(0, 4), 0);
-  new DataView(out.buffer).setUint32(4, size, true);
-  out.set(b.subarray(8, 12), 8);
-  let o = 12;
-  for (const c of chunks) {
-    out.set(c, o);
-    o += c.length;
-  }
-  return out;
+  const head = Uint8Array.from(b.subarray(0, 12));
+  new DataView(head.buffer).setUint32(4, size, true);
+  return concat([head, ...chunks]);
 }
 
 export function stripImageMetadata(b: Uint8Array, mime: DetectedMime): Uint8Array {

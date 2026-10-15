@@ -79,12 +79,22 @@ export function PwaShell({ children }: { children: ReactNode }) {
   );
 }
 
+/** Tiền tố cache precache của Serwist (app shell) — giữ lại; mọi cache khác có thể chứa dữ liệu người dùng. */
+const PRECACHE_PREFIX = "serwist-precache";
+
 /**
- * S-007: đăng xuất / đổi tổ chức — nhờ SW xoá mọi cache trừ precache, xoá IndexedDB `hm-*` và storage của ứng dụng.
- * Server trả thêm `Clear-Site-Data` khi đăng xuất.
+ * S-007/S-020: đăng xuất / đổi tổ chức — xoá mọi Cache Storage trừ precache, IndexedDB `hm-*`, storage của ứng dụng.
+ * Xoá ngay ở trang (trang có thể chưa được SW điều khiển) và báo SW làm lại phía nó. Đăng xuất: server trả thêm
+ * `Clear-Site-Data`.
  */
 export async function clearUserData(): Promise<void> {
   navigator.serviceWorker?.controller?.postMessage({ type: "CLEAR_USER_DATA" });
+  try {
+    const keys = (await globalThis.caches?.keys()) ?? [];
+    await Promise.all(keys.filter((k) => !k.startsWith(PRECACHE_PREFIX)).map((k) => caches.delete(k)));
+  } catch {
+    // Cache Storage bị chặn (chế độ riêng tư) — không có gì để xoá
+  }
   try {
     const dbs = (await indexedDB.databases?.()) ?? [];
     await Promise.all(

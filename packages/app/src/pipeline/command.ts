@@ -38,6 +38,11 @@ export interface CommandContext {
   correlationId: string;
   audit(e: AuditInput): Promise<void>;
   emit(e: EventInput): Promise<void>;
+  /**
+   * Bù trừ cho tác dụng phụ NGOÀI transaction (vd. object storage): chạy khi lần thử này không commit được (lỗi
+   * nghiệp vụ, lỗi commit, hay 40001/40P01 trước khi thử lại). Lỗi của hàm bù trừ được ghi log, không che lỗi gốc.
+   */
+  onRollback(fn: () => Promise<void>): void;
 }
 
 export type CommandResult<T> =
@@ -123,6 +128,7 @@ export async function executeCommand<T>(
   const ids = { commandId, correlationId: req.correlationId };
 
   for (let attempt = 1; ; attempt++) {
+    const compensations: (() => Promise<void>)[] = [];
     try {
       return await withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
         const inserted = await sql<{ id: string }>`
@@ -155,6 +161,9 @@ export async function executeCommand<T>(
                       ${e.aggregateId ?? null}, ${JSON.stringify(e.payload)}::jsonb, ${req.correlationId}, ${commandId},
                       ${e.dedupeKey ?? null})`.execute(trx);
           },
+          onRollback: (fn) => {
+            compensations.push(fn);
+          },
         };
         const { data, httpStatus = 200 } = await handler(ctx);
         await sql`
@@ -164,6 +173,11 @@ export async function executeCommand<T>(
         return { status: "committed", commandId, httpStatus, data, replayed: false } as CommandResult<T>;
       });
     } catch (err) {
+      for (const r of await Promise.allSettled(compensations.map((fn) => fn()))) {
+        // Không che lỗi gốc, nhưng không im lặng: tác dụng phụ còn sót cần người/job dọn.
+        if (r.status === "rejected")
+          console.error("[command] bù trừ thất bại", req.command, commandId, r.reason);
+      }
       const pgCode = (err as { code?: string }).code;
       if (pgCode && RETRYABLE.has(pgCode) && attempt < MAX_ATTEMPTS) continue;
       if (

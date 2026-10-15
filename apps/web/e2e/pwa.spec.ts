@@ -94,7 +94,7 @@ test("S-004 mất mạng: điều hướng hiện trang offline + banner role=st
 }) => {
   await withActiveSw(page);
   await context.setOffline(true);
-  await page.goto("/?tab=phong");
+  await page.goto("/phong");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Không có kết nối mạng");
   await expect(
     page.getByText("Ứng dụng cần mạng để xem và lưu dữ liệu. Chưa có thao tác nào được gửi."),

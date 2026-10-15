@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { EmptyState } from "../../components/ui/state.tsx";
 import { currentSession } from "../../lib/session.ts";
+import { OrgChoice } from "./org-choice.tsx";
 
 export const metadata: Metadata = { title: "Chọn tổ chức — Hotel Manager" };
 
@@ -30,13 +31,11 @@ export default async function ChooseOrganizationPage() {
         <ul className="choice-list">
           {orgs.map((o) => (
             <li key={o.organizationId}>
-              <form method="post" action="/api/v1/session/organization">
-                <input type="hidden" name="organizationId" value={o.organizationId} />
-                <button type="submit" className="btn btn--secondary choice-list__item">
-                  <span>{o.organizationName}</span>
-                  <span className="choice-list__meta">{ROLE_LABEL[o.role] ?? o.role}</span>
-                </button>
-              </form>
+              <OrgChoice
+                organizationId={o.organizationId}
+                label={o.organizationName}
+                meta={ROLE_LABEL[o.role] ?? o.role}
+              />
             </li>
           ))}
         </ul>
