@@ -1,5 +1,5 @@
 // Phiên + ngữ cảnh tổ chức cho Server Component / Route Handler. Quyền luôn tra lại membership (resolveActor).
-import { AccessError, type Actor, ORG_COOKIE, resolveActor, serverContext } from "@hm/app";
+import { AccessError, type Actor, orgCookieName, resolveActor, serverContext } from "@hm/app";
 import { cookies, headers } from "next/headers";
 
 export async function currentSession() {
@@ -17,7 +17,8 @@ export type ActorResult =
 export async function currentActor(): Promise<ActorResult> {
   const session = await currentSession();
   if (!session) return { kind: "login" };
-  const orgId = (await cookies()).get(ORG_COOKIE)?.value;
+  const secure = serverContext().config.APP_BASE_URL.startsWith("https://");
+  const orgId = (await cookies()).get(orgCookieName(secure))?.value;
   if (!orgId) return { kind: "choose-org" };
   try {
     const actor = await resolveActor(serverContext().db, {

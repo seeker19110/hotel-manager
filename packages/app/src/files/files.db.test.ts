@@ -252,8 +252,10 @@ describe("giấy tờ nhận dạng (INV-G7)", () => {
   it("chỉ số che (4 số cuối) được sinh tự động; buồng phòng không thấy hàng; ẩn danh xoá số và ảnh", async () => {
     const id = randomUUID();
     await withTenant(t.runtime, { orgId: A.orgId, actorId: frontDesk.membershipId }, (trx) =>
-      sql`insert into identity_documents (id, organization_id, person_id, doc_type, doc_number)
-          values (${id}, ${A.orgId}, ${A.ownerPersonId}, 'cccd', '001234567890')`.execute(trx),
+      sql`insert into identity_documents (id, organization_id, property_id, person_id, doc_type, doc_number)
+          values (${id}, ${A.orgId}, ${A.propertyId}, ${A.ownerPersonId}, 'cccd', '001234567890')`.execute(
+        trx,
+      ),
     );
     const masked = await sql<{
       m: string;
@@ -339,5 +341,55 @@ describe("không để object mồ côi (INV-G7)", () => {
               values (${id}, ${A.orgId}, ${A.propertyId}, 'residence_notice', 'application/pdf', 10, ${"a".repeat(64)},
                       'ready', ${`${A.orgId}/residence_notice/${id}`})`.execute(t.admin);
     expect(await urlFor(owner, id)).toMatchObject({ status: "failed", httpStatus: 404 });
+  });
+});
+
+describe("RLS giấy tờ theo phạm vi cơ sở (review T-011)", () => {
+  it("lễ tân chỉ được giao CS1 không thấy giấy tờ/ảnh giấy tờ của CS2 kể cả truy vấn thẳng; owner thấy", async () => {
+    const cs2 = randomUUID();
+    await sql`insert into properties (id, organization_id, name, template) values (${cs2}, ${A.orgId}, 'KS file — CS2', 'hotel')`.execute(
+      t.admin,
+    );
+    const docId = randomUUID();
+    const fileId = randomUUID();
+    await sql`insert into identity_documents (id, organization_id, property_id, person_id, doc_type, doc_number)
+              values (${docId}, ${A.orgId}, ${cs2}, ${A.ownerPersonId}, 'passport', 'B1234567')`.execute(
+      t.admin,
+    );
+    await sql`insert into files (id, organization_id, property_id, owner_type, mime, size_bytes, sha256, status, storage_key, exif_stripped)
+              values (${fileId}, ${A.orgId}, ${cs2}, 'identity_document', 'image/jpeg', 10, ${"b".repeat(64)}, 'ready',
+                      ${`${A.orgId}/identity_document/${fileId}`}, true)`.execute(t.admin);
+    const count = (actor: Actor) =>
+      withTenant(t.runtime, { orgId: A.orgId, actorId: actor.membershipId }, async (trx) => {
+        const d = await sql<{
+          n: number;
+        }>`select count(*)::int as n from identity_documents where id = ${docId}`.execute(trx);
+        const f = await sql<{ n: number }>`select count(*)::int as n from files where id = ${fileId}`.execute(
+          trx,
+        );
+        return [d.rows[0]?.n, f.rows[0]?.n];
+      });
+    expect(await count(frontDesk)).toEqual([0, 0]);
+    expect(await count(owner)).toEqual([1, 1]);
+    // Lễ tân cũng không ghi được giấy tờ vào cơ sở ngoài phạm vi.
+    await expect(
+      withTenant(t.runtime, { orgId: A.orgId, actorId: frontDesk.membershipId }, (trx) =>
+        sql`insert into identity_documents (id, organization_id, property_id, person_id, doc_type, doc_number)
+            values (${randomUUID()}, ${A.orgId}, ${cs2}, ${A.ownerPersonId}, 'cccd', '009999999999')`.execute(
+          trx,
+        ),
+      ),
+    ).rejects.toThrow(/row-level security/);
+  });
+
+  it("loại chủ chưa khai báo quyền đọc (residence_notice) vô hình ở CSDL, kể cả owner", async () => {
+    const id = randomUUID();
+    await sql`insert into files (id, organization_id, property_id, owner_type, mime, size_bytes, sha256, status, storage_key)
+              values (${id}, ${A.orgId}, ${A.propertyId}, 'residence_notice', 'application/pdf', 10, ${"c".repeat(64)},
+                      'ready', ${`${A.orgId}/residence_notice/${id}`})`.execute(t.admin);
+    const n = await withTenant(t.runtime, { orgId: A.orgId, actorId: owner.membershipId }, (trx) =>
+      sql<{ n: number }>`select count(*)::int as n from files where id = ${id}`.execute(trx),
+    );
+    expect(n.rows[0]?.n).toBe(0);
   });
 });

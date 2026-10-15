@@ -7,6 +7,7 @@ import * as m0003 from "./0003_command_pipeline.ts";
 import * as m0004 from "./0004_inventory.ts";
 import * as m0005 from "./0005_ledger_core.ts";
 import * as m0006 from "./0006_files.ts";
+import * as m0007 from "./0007_file_scope_rls.ts";
 
 export const migrations: Record<string, Migration> = {
   "0001_tenancy": m0001,
@@ -15,4 +16,5 @@ export const migrations: Record<string, Migration> = {
   "0004_inventory": m0004,
   "0005_ledger_core": m0005,
   "0006_files": m0006,
+  "0007_file_scope_rls": m0007,
 };

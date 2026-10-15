@@ -82,10 +82,34 @@ test("trang đã đăng nhập mang Cache-Control: no-store", async ({ page }) =
   }
 });
 
-test("POST chọn tổ chức từ origin khác → 403 (TM-09)", async ({ request }) => {
-  const res = await request.post("/api/v1/session/organization", {
-    headers: { origin: "https://evil.example", "content-type": "application/x-www-form-urlencoded" },
-    data: "organizationId=00000000-0000-4000-8000-000000000000",
+test("session.switchOrganization: khác origin → 403; thiếu Idempotency-Key → 400; tổ chức lạ → 404", async ({
+  page,
+}) => {
+  const res = await page.request.post("/api/v1/session/switchOrganization", {
+    headers: { origin: "https://evil.example", "idempotency-key": crypto.randomUUID() },
+    data: { organization_id: "00000000-0000-4000-8000-000000000000" },
   });
   expect(res.status()).toBe(403);
+
+  await page.goto("/dang-nhap");
+  await page.getByLabel("Email").fill(SMOKE_USER.email);
+  await page.getByLabel("Mật khẩu").fill(SMOKE_USER.password);
+  await page.getByRole("button", { name: "Đăng nhập" }).click();
+  await expect(page).toHaveURL(/\/chon-to-chuc$/);
+  const call = (headers: Record<string, string>, org: string) =>
+    page.evaluate(
+      async ([h, o]) =>
+        (
+          await fetch("/api/v1/session/switchOrganization", {
+            method: "POST",
+            headers: { "content-type": "application/json", ...h },
+            body: JSON.stringify({ organization_id: o }),
+          })
+        ).status,
+      [headers, org] as const,
+    );
+  expect(await call({}, "00000000-0000-4000-8000-000000000000")).toBe(400);
+  expect(await call({ "idempotency-key": crypto.randomUUID() }, "00000000-0000-4000-8000-000000000000")).toBe(
+    404,
+  );
 });

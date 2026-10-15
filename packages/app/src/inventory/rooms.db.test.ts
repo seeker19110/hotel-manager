@@ -4,7 +4,12 @@ import { createTestDb, type SeededOrg, seedAuthUser, seedOrg, type TestDb } from
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { resolveActor } from "../access/actor.ts";
-import { requestedOrgId, selectOrganization } from "../access/org-context.ts";
+import {
+  organizationContext,
+  orgCookieName,
+  requestedOrgId,
+  selectOrganization,
+} from "../access/org-context.ts";
 import { listRooms } from "./rooms.ts";
 
 let t: TestDb;
@@ -104,6 +109,28 @@ describe("chọn tổ chức (S-020)", () => {
     const stranger = await seedAuthUser(t.admin, `la+${randomUUID().slice(0, 6)}@example.test`);
     expect(await selectOrganization(t.runtime, stranger, A.orgId)).toBeNull();
     expect(await selectOrganization(t.runtime, staffUser, randomUUID())).toBeNull();
+  });
+
+  it("ngữ cảnh: chỉ cơ sở trong phạm vi; một cơ sở → tự chọn; cơ sở ngoài phạm vi → null", async () => {
+    const ctx = await organizationContext(t.runtime, staffUser, A.orgId);
+    expect(ctx).toMatchObject({
+      organization: { id: A.orgId },
+      role: "housekeeping",
+      property: { id: A.propertyId },
+      properties: [{ id: A.propertyId }],
+    });
+    expect(await organizationContext(t.runtime, staffUser, A.orgId, property2)).toBeNull();
+    const ownerCtx = await organizationContext(t.runtime, A.ownerAuthUserId, A.orgId);
+    expect(ownerCtx?.properties).toHaveLength(2);
+    expect(ownerCtx?.property).toBeNull();
+    expect((await organizationContext(t.runtime, A.ownerAuthUserId, A.orgId, property2))?.property?.id).toBe(
+      property2,
+    );
+  });
+
+  it("cookie chọn tổ chức: HTTPS dùng tiền tố __Host-", () => {
+    expect(orgCookieName(true)).toBe("__Host-hm_org");
+    expect(orgCookieName(false)).toBe("hm_org");
   });
 
   it("header X-Org-Id ưu tiên hơn cookie; rỗng → null", () => {
