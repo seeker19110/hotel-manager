@@ -1,0 +1,9 @@
+{
+  "identities": [
+    {
+      "name": "hotel-manager-app",
+      "credentials": [{ "accessKey": "ĐIỀN", "secretKey": "ĐIỀN" }],
+      "actions": ["Read:hm-files", "Write:hm-files", "List:hm-files"]
+    }
+  ]
+}

@@ -12,3 +12,6 @@ coverage/
 !.env.example
 *.pem
 *.key
+
+# Secret triển khai (mẫu: deploy/*.example)
+deploy/secrets/

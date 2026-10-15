@@ -72,7 +72,7 @@ Các câu [chặn] khác (prorata, giờ nhận/trả, huỷ, ghi nhận doanh t
 
 ### Lát 3 — File, phục hồi, PWA, xương sống E2E (F-009, F-012)
 - [x] `T-011` File riêng tư: adapter S3 tới SeaweedFS 4.48 (binary cục bộ của T-001 hoặc container trong CI), khoá object có tiền tố `organization_id` (IND-SAAS-003), bảng `files`/`identity_documents`, URL ký ≤ 5 phút cấp sau kiểm quyền, allowlist MIME + magic bytes, giới hạn dung lượng, bỏ EXIF; housekeeping xin URL giấy tờ → 404 (TM-06, TM-07) — Gate: `pnpm test:db -- files`
-- [ ] `T-012` Sao lưu/khôi phục thử với dữ liệu giả: `scripts/db-backup-restore-check.sh` dùng Postgres 17 + pgBackRest (repo cục bộ mã hoá): full backup → ghi thêm → PITR về mốc trước khi ghi → so số dòng và Σ bút toán; kèm `deploy/compose.yaml` ghim digest postgres/seaweedfs/caddy cho VPS (chưa triển khai) (backlog T099, ADR-0002) — Gate: `bash scripts/db-backup-restore-check.sh`
+- [x] `T-012` Sao lưu/khôi phục thử với dữ liệu giả: `scripts/db-backup-restore-check.sh` dùng Postgres 17 + pgBackRest (repo cục bộ mã hoá): full backup → ghi thêm → PITR về mốc trước khi ghi → so số dòng và Σ bút toán; kèm `deploy/compose.yaml` ghim digest postgres/seaweedfs/caddy cho VPS (chưa triển khai) (backlog T099, ADR-0002) — Gate: `bash scripts/db-backup-restore-check.sh`
 - [ ] `T-013` Design system tối thiểu (form, lỗi, trạng thái tải/rỗng/lỗi, vùng chạm ≥ 44px), PWA manifest + Serwist app shell, báo mất mạng, SW không cache route PII (SPEC-pwa) — Gate: `pnpm --filter web exec playwright test pwa`
 - [ ] `T-014` E2E xương sống: đăng nhập (seed giả) → chọn tổ chức → danh sách phòng của cơ sở được phép, kèm kiểm axe (WCAG 2.2 AA) — Gate: `pnpm --filter web exec playwright test smoke`
 

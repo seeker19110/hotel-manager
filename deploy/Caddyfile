@@ -1,0 +1,15 @@
+# Caddy: TLS tự động (ACME), HSTS, chuyển tiếp tới web. CSP/Origin do ứng dụng đặt (apps/web/proxy.ts).
+{
+	email {$HM_ACME_EMAIL}
+}
+
+{$HM_DOMAIN} {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+	reverse_proxy web:3000
+}
