@@ -3,11 +3,11 @@
 > Giai đoạn hiện tại: G5 Dựng nền (autopilot đợt 1) · Cập nhật: 2026-10-15 · Nhánh: claude/gifted-noether-iybenn
 
 ## Đang làm
-- Autopilot đợt 1 **xong 14/14 task** (T-001…T-014), bằng chứng `.autopilot/evidence/T-001…T-014.json` (exit 0) + CI PR #4. Chờ chủ dự án review/merge PR #4.
+- Đợt 1 **xong và đã merge** (PR #4 → `main` `07ba2a8`, squash). CI trên `main` gồm 6 check: quality · e2e · backup-restore · gitleaks · dep-audit · protection-guard. Chưa bắt đầu đợt 2.
 
 ## Tiếp theo
-1. Áp bản vá CI (job `e2e`, `backup-restore` + required checks) khi có quyền; import ruleset `.github/rulesets/main.json`; quyết máy quét mã độc thật và mã hoá cột số giấy tờ (đợt 2).
-2. Lập PLAN đợt 2 (luồng nghiệp vụ R-001…R-005 trên lõi đã có: đặt/nhận/trả phòng, hợp đồng, kỳ thu, thanh toán) — trả lời câu hỏi [chặn] đợt 2 trong SPEC trước.
+1. Chủ repo import ruleset `.github/rulesets/main.json` (Settings → Rules → Rulesets → Import) — agent không có API để bật.
+2. Lập PLAN đợt 2: luồng R-001…R-005 (đặt/nhận/trả phòng, hợp đồng, kỳ thu, thanh toán) trên lõi đợt 1; trả lời câu hỏi [chặn] đợt 2 trong SPEC trước. Kèm: chọn máy quét mã độc thật, quyết mã hoá cột số giấy tờ, lưu cơ sở đang chọn (`property_id` của switchOrganization mới chỉ kiểm + trả về), route `GET /api/v1/commands/{id}`.
 3. Người làm song song: quan sát 6–10 cơ sở + baseline M-01…M-03; DPIA + pháp lý đối chiếu bản gốc; mua VPS tại VN + kho sao lưu khác máy; chọn SMTP relay; giấy phép mã nguồn.
 
 ## Quyết định
@@ -30,8 +30,8 @@
 - Nợ kỹ thuật chấp nhận: phần pháp lý trong `docs/research/` chỉ có nguồn thứ cấp — phải đối chiếu văn bản gốc trước khi dùng dữ liệu thật.
 
 ## Bàn giao phiên
-- Commit cuối trên nhánh chính: `502819e7b8bc837f7d51478d90e837c31767efd8` (kế hoạch, PR #3). Đợt 1 nằm ở nhánh `claude/gifted-noether-iybenn` (PR #4, chưa merge) · CI PR #4: quality + gitleaks + dep-audit xanh.
-- Lệnh kiểm nhanh: `.xtemplates/scripts/dev-task.sh gate` · `pnpm test:db` · `pnpm --filter web exec playwright test` · `bash scripts/db-backup-restore-check.sh`. Container mới: `bash scripts/dev-env-setup.sh` trước (PG17, pgBackRest, SeaweedFS, Node 24).
-- Đang chặn: không.
+- Commit cuối trên nhánh chính: `07ba2a8639c13db751773a98da3ae6114cfad249` (đợt 1, PR #4, CI xanh 6/6).
+- Lệnh kiểm nhanh: `.xtemplates/scripts/dev-task.sh gate` · `pnpm test:db` · `pnpm --filter web exec playwright test` · `bash scripts/db-backup-restore-check.sh`. Container mới: `bash scripts/dev-env-setup.sh` trước.
+- Đang chặn: không. Autopilot: tắt.
 - Việc dở chưa commit: không.
-- Câu hỏi cần người: các đề xuất ở *Tiếp theo* mục 1; câu hỏi [chặn] đợt 2–3 trong SPEC (PO).
+- Câu hỏi cần người: mục *Tiếp theo* 1–3.
