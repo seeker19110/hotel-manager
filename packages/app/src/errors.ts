@@ -42,7 +42,7 @@ export const ERROR_CODES = {
   LAST_OWNER: { status: 409, source: "SPEC-access-and-property §6" },
   APPROVAL_NOT_EXECUTABLE: { status: 409, source: "PLAN đợt 2 T-102 (loại chưa có executor)" },
   WEBHOOK_SIGNATURE_INVALID: { status: 401, source: "API-CONTRACT §3" },
-  LEDGER_UNBALANCED: { status: 422, source: "SPEC-ledger-payments §6" },
+  LEDGER_UNBALANCED: { status: 500, source: "SPEC-ledger-payments §6" },
   INBOX_HASH_MISMATCH: { status: 409, source: "SPEC-ledger-payments §6" },
   BLOCK_CONFLICT: { status: 409, source: "SPEC-inventory-allocation §6" },
   SHIFT_ALREADY_OPEN: { status: 409, source: "SPEC-ledger-payments §6" },

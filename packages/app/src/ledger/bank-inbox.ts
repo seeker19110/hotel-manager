@@ -284,11 +284,13 @@ export async function ingestBankEvent(db: Kysely<unknown>, ev: BankEvent): Promi
 }
 
 /**
- * Chữ ký webhook của adapter mô phỏng `sim` (API-CONTRACT §3): HMAC-SHA256(secret, `${timestamp}.${body}`), hex.
+ * Chữ ký webhook của adapter mô phỏng `sim` (API-CONTRACT §3): HMAC-SHA256(secret, `${timestamp}.${account}.${body}`), hex
+ * — gắn tài khoản nhận trong URL để không phát lại cùng body sang tài khoản/tổ chức khác (review lát tiền R8).
  * Lệch giờ quá `toleranceSeconds` → từ chối (chống phát lại). Sai → WEBHOOK_SIGNATURE_INVALID (401), KHÔNG ghi inbox.
  */
 export function verifySimSignature(input: {
   secret: string;
+  account: string;
   body: string;
   timestamp: string;
   signature: string;
@@ -300,7 +302,9 @@ export function verifySimSignature(input: {
   if (!Number.isInteger(ts) || Math.abs(now - ts) > (input.toleranceSeconds ?? 300)) {
     throw new CommandError("WEBHOOK_SIGNATURE_INVALID", 401, "Chữ ký webhook không hợp lệ hoặc đã quá hạn");
   }
-  const expected = createHmac("sha256", input.secret).update(`${input.timestamp}.${input.body}`).digest();
+  const expected = createHmac("sha256", input.secret)
+    .update(`${input.timestamp}.${input.account}.${input.body}`)
+    .digest();
   const given = /^[0-9a-f]{64}$/i.test(input.signature)
     ? Buffer.from(input.signature, "hex")
     : Buffer.alloc(0);
@@ -309,6 +313,6 @@ export function verifySimSignature(input: {
   }
 }
 
-export function signSim(secret: string, timestamp: string, body: string): string {
-  return createHmac("sha256", secret).update(`${timestamp}.${body}`).digest("hex");
+export function signSim(secret: string, timestamp: string, body: string, account: string): string {
+  return createHmac("sha256", secret).update(`${timestamp}.${account}.${body}`).digest("hex");
 }

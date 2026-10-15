@@ -10,6 +10,10 @@ describe("toProblem (API-CONTRACT §2)", () => {
     ["23514", "INVALID_TRANSITION", 409],
     ["23514", "LAST_OWNER", 409],
     ["23514", "VALIDATION_FAILED", 422],
+    ["23514", "PERIOD_LOCKED", 409],
+    ["23514", "EVIDENCE_REQUIRED", 422],
+    // SPEC-ledger S-003: sổ lệch là lỗi hệ thống 500 nhưng giữ mã để cảnh báo/tra cứu.
+    ["23514", "LEDGER_UNBALANCED", 500],
   ])("pg %s + HINT %s → %s", (code, hint, status) => {
     expect(toProblem(pgError(code, hint))).toMatchObject({ code: hint, status });
   });

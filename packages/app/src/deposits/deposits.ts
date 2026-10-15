@@ -7,7 +7,7 @@ import { randomUUID } from "node:crypto";
 import { sql, type Transaction } from "kysely";
 import { type ApprovalRow, registerApprovalExecutor, requestApproval } from "../approvals/approvals.ts";
 import { postEntry } from "../ledger/ledger.ts";
-import { customerCredit, type ManualBankTxn, recordPayment } from "../payments/payments.ts";
+import { customerCredit, lockPerson, type ManualBankTxn, recordPayment } from "../payments/payments.ts";
 import type { CommandContext } from "../pipeline/command.ts";
 import { CommandError } from "../pipeline/problem.ts";
 import { openShiftOf } from "../shifts/shifts.ts";
@@ -129,7 +129,15 @@ async function readInvoice(ctx: CommandContext, invoiceId: string, lock: boolean
 
 /** Khấu trừ chỉ vào phiếu liên kết cùng hợp đồng/đối tượng của cọc và không vượt AR còn mở (INV-F5, lease S-025). */
 function checkDeduction(dep: DepositRow, inv: OpenInvoice, amount: number): void {
-  if (inv.property_id !== dep.property_id || (dep.lease_id !== null && inv.lease_id !== dep.lease_id)) {
+  // Cọc đặt phòng: folio/đặt phòng chưa có (đợt 3) ⇒ chưa cho khấu trừ, tránh cọc của khách X trả nợ của Y (review R6).
+  if (dep.lease_id === null) {
+    throw new CommandError(
+      "VALIDATION_FAILED",
+      422,
+      "Cọc đặt phòng chỉ khấu trừ vào folio của chính đặt phòng (chưa hỗ trợ)",
+    );
+  }
+  if (inv.property_id !== dep.property_id || inv.lease_id !== dep.lease_id) {
     throw new CommandError("VALIDATION_FAILED", 422, "Chỉ khấu trừ vào phiếu của chính hợp đồng có cọc");
   }
   if (amount > Number(dep.balance)) throw refundsExceed(amount, Number(dep.balance), "Khấu trừ");
@@ -190,7 +198,9 @@ export async function requestCreditRefund(
 ): Promise<{ approvalRequestId: string }> {
   assertMoney(input.amount, "Số tiền hoàn");
   if (!UUID.test(input.personId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy người");
-  const bal = await customerCredit(ctx.trx, ctx.actor.orgId, input.personId);
+  if (!UUID.test(input.propertyId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy cơ sở");
+  // Số dư theo cơ sở được hoàn (review R7): không hoàn ở P1 tiền khách gửi ở P2.
+  const bal = await customerCredit(ctx.trx, ctx.actor.orgId, input.personId, input.propertyId);
   if (input.amount > bal) throw refundsExceed(input.amount, bal, "Hoàn");
   return requestApproval(ctx, {
     kind: "credit_refund",
@@ -293,12 +303,10 @@ export function registerDepositExecutors(): void {
       const amount = req.amount as number;
       const personId = req.subjectId as string;
       // Mutex theo chủ số dư: hai lệnh duyệt đồng thời không cùng thấy số dư cũ.
-      await sql`select id from persons where organization_id = ${ctx.actor.orgId} and id = ${personId} for update`.execute(
-        ctx.trx,
-      );
-      const bal = await customerCredit(ctx.trx, ctx.actor.orgId, personId);
-      if (amount > bal) throw refundsExceed(amount, bal, "Hoàn");
+      await lockPerson(ctx.trx, ctx.actor.orgId, personId);
       const propertyId = req.propertyId as string;
+      const bal = await customerCredit(ctx.trx, ctx.actor.orgId, personId, propertyId);
+      if (amount > bal) throw refundsExceed(amount, bal, "Hoàn");
       const entryId = await postEntry(ctx.trx, {
         orgId: ctx.actor.orgId,
         propertyId,

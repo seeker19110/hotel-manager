@@ -54,7 +54,10 @@ async function lockShift(
   return row;
 }
 
-/** Ca đang mở của chính người thao tác tại cơ sở (null nếu chưa mở) — dùng cho xác nhận/chi tiền mặt (INV-F3b). */
+/**
+ * Ca đang mở của chính người thao tác tại cơ sở (null nếu chưa mở) — dùng cho xác nhận/chi tiền mặt (INV-F3b). Khoá
+ * FOR SHARE tới hết transaction để đóng ca không chen giữa (INV-F6).
+ */
 export async function openShiftOf(
   trx: Transaction<unknown>,
   orgId: string,
@@ -63,9 +66,8 @@ export async function openShiftOf(
 ): Promise<string | null> {
   const r = await sql<{ id: string }>`
     select id from shifts
-    where organization_id = ${orgId} and opened_by = ${membershipId} and property_id = ${propertyId} and status = 'open'`.execute(
-    trx,
-  );
+    where organization_id = ${orgId} and opened_by = ${membershipId} and property_id = ${propertyId} and status = 'open'
+    for share`.execute(trx);
   return r.rows[0]?.id ?? null;
 }
 
@@ -284,6 +286,21 @@ export async function reassignDiscrepancy(
   if (!row) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy chênh lệch");
   authorize(ctx.actor, "shift.open_close", { propertyId: row.property_id });
   if (row.status !== "open") throw new CommandError("INVALID_TRANSITION", 409, "Chênh lệch đã xử lý");
+  const target = await sql<{ id: string }>`
+    select m.id from memberships m
+    where m.organization_id = ${ctx.actor.orgId} and m.id = ${input.responsibleMembershipId} and m.status = 'active'
+      and m.role in ('owner','manager','front_desk','accountant')
+      and (m.all_properties or exists (select 1 from property_scopes ps where ps.organization_id = m.organization_id
+                                        and ps.membership_id = m.id and ps.property_id = ${row.property_id}))`.execute(
+    ctx.trx,
+  );
+  if (target.rows.length === 0) {
+    throw new CommandError(
+      "VALIDATION_FAILED",
+      422,
+      "Người được gán phải là nhân viên còn hiệu lực của cơ sở",
+    );
+  }
   await sql`
     update shift_discrepancies set responsible_membership_id = ${input.responsibleMembershipId}, version = version + 1
     where organization_id = ${ctx.actor.orgId} and id = ${input.discrepancyId}`.execute(ctx.trx);

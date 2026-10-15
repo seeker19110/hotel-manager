@@ -221,7 +221,8 @@ export async function decideApproval(
     requestedByPersonId: req.requesterPersonId,
     ...extra,
   });
-  if (authz.grant !== "yes" && authz.grant !== "limit") {
+  // SPEC-ledger mục 10 (một chỗ quyết hạn mức): kế toán chỉ lập đề nghị, không duyệt loại nào (review R4).
+  if ((authz.grant !== "yes" && authz.grant !== "limit") || ctx.actor.role === "accountant") {
     throw new CommandError("FORBIDDEN", 403, "Vai trò này chỉ lập đề nghị, không duyệt");
   }
   if (req.requestedBy === ctx.actor.membershipId) {

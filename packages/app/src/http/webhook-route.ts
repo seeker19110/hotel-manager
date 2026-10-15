@@ -27,6 +27,25 @@ const simPayload = z.strictObject({
   balance_after: z.number().int().max(Number.MAX_SAFE_INTEGER).optional(),
 });
 
+/** Đọc body tối đa `max` byte — không đọc hết payload khổng lồ khi thiếu/khai sai Content-Length (review 🟢11). */
+async function readCapped(req: Request, max: number): Promise<string | null> {
+  if (!req.body) return "";
+  const reader = req.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > max) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
 export async function handleWebhook(
   provider: string,
   account: string,
@@ -41,13 +60,12 @@ export async function handleWebhook(
     const declared = Number(req.headers.get("content-length") ?? "0");
     if (declared > WEBHOOK_MAX_BYTES)
       return simpleProblem("VALIDATION_FAILED", 422, "Payload quá lớn", correlationId);
-    const body = await req.text();
-    if (Buffer.byteLength(body, "utf8") > WEBHOOK_MAX_BYTES) {
-      return simpleProblem("VALIDATION_FAILED", 422, "Payload quá lớn", correlationId);
-    }
+    const body = await readCapped(req, WEBHOOK_MAX_BYTES);
+    if (body === null) return simpleProblem("VALIDATION_FAILED", 422, "Payload quá lớn", correlationId);
     try {
       verifySimSignature({
         secret: deps.simSecret,
+        account,
         body,
         timestamp: req.headers.get("x-hm-timestamp") ?? "",
         signature: req.headers.get("x-hm-signature") ?? "",

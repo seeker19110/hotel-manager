@@ -340,10 +340,18 @@ describe("chữ ký webhook sim (TM-04)", () => {
   const body = JSON.stringify({ id: "evt-1", amount: 2_000_000 });
   const now = new Date("2026-11-01T03:00:00Z");
   const ts = String(Math.floor(now.getTime() / 1000));
+  const account = "6f1b2c4e-0000-4000-8000-000000000001";
 
   it("chữ ký đúng, trong hạn → hợp lệ", () => {
     expect(() =>
-      verifySimSignature({ secret, body, timestamp: ts, signature: signSim(secret, ts, body), now }),
+      verifySimSignature({
+        secret,
+        account,
+        body,
+        timestamp: ts,
+        signature: signSim(secret, ts, body, account),
+        now,
+      }),
     ).not.toThrow();
   });
 
@@ -352,8 +360,17 @@ describe("chữ ký webhook sim (TM-04)", () => {
     ["sửa body", { body: body.replace("2000000", "9000000") }],
     ["quá hạn 10 phút (phát lại)", { now: new Date(now.getTime() + 600_000) }],
     ["chữ ký rỗng", { signature: "" }],
+    ["phát lại sang tài khoản khác", { account: "6f1b2c4e-0000-4000-8000-000000000002" }],
   ])("%s → WEBHOOK_SIGNATURE_INVALID 401", (_n, patch) => {
-    const input = { secret, body, timestamp: ts, signature: signSim(secret, ts, body), now, ...patch };
+    const input = {
+      secret,
+      account,
+      body,
+      timestamp: ts,
+      signature: signSim(secret, ts, body, account),
+      now,
+      ...patch,
+    };
     expect(() => verifySimSignature(input)).toThrowError(
       expect.objectContaining({ code: "WEBHOOK_SIGNATURE_INVALID", status: 401 }),
     );

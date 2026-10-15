@@ -3,7 +3,7 @@
 > Giai đoạn hiện tại: G5 Dựng nền (autopilot đợt 1) · Cập nhật: 2026-10-15 · Nhánh: claude/gifted-noether-iybenn
 
 ## Đang làm
-- Autopilot đợt 2 (PLAN duyệt) — Pha 2: T-101…T-109 xong có bằng chứng (`.autopilot/evidence/`). Đang: sửa phát hiện review lát tiền (1 🔴 hoàn credit rồi vẫn phân bổ được; 8 🟠), rồi **T-110** bàn giao/phụ lục. PR nháp #5.
+- Autopilot đợt 2 (PLAN duyệt) — Pha 2: T-101…T-109 xong có bằng chứng (`.autopilot/evidence/`). Review lát tiền đã sửa (1 🔴, 8 🟠, 3 🟢 — test hồi quy `payments/review-fixes.db.test.ts`). Kế tiếp **T-110** bàn giao/phụ lục. PR nháp #5.
 
 ## Tiếp theo
 1. Chủ repo import ruleset `.github/rulesets/main.json` (Settings → Rules → Rulesets → Import) — agent không có API để bật.
@@ -23,6 +23,7 @@
 - 2026-10-15 T-107: webhook không có người dùng ⇒ thanh toán hệ thống `source='bank_auto'` (`recorded_by`/`confirmed_by` NULL như `files.uploaded_by`), chỉ worker (`app_worker`, policy riêng) ghi, chỉ khi có webhook đã xác minh (trigger) và khớp đúng 1 phiếu không vượt số còn; còn lại vào `reconciliation_breaks`. Dấu vân tay giao dịch = mã + số tiền (bỏ thời điểm: sao kê chỉ có ngày). VietQR theo 3 chuỗi mẫu tự khớp CRC — văn bản NAPAS gốc (chưa xác minh), kiểm lại trước G7. Break do vai trò `payment.confirm_transfer` (owner/manager/accountant) xử lý; QR cho người thuê tự xem chờ cổng người thuê.
 - 2026-10-15 T-108: khoá kỳ theo `business_date` cơ sở (chỉ ngày đã qua, chỉ tiến; mở khoá từ ngày X nhả mọi khoá ≥ X), trigger PERIOD_LOCKED trên `journal_entries`/`payments` (+`charges` ở T-113). Điều chỉnh chỉ GIẢM, luôn qua duyệt người khác (INV-G4), ghi kỳ mở bằng phiếu `adjustment` âm; số còn phải thu = cột sinh `invoices.open_amount`. Tăng tiền = phiếu phí mới. Báo cáo đọc từ sổ phụ; xuất CSV để SPEC-audit-reporting (job xuất).
 - 2026-10-15 T-109: lỗi theo trường trả `errors[]{path, field, code}` (API-CONTRACT dùng `path`, SPEC dùng `field`). Giữ chỗ hợp đồng không khoá hàng `leases` (lễ tân không ghi được) — khoá phòng + EXCLUDE. `allocation.expired` → `allocation.hold_expired` theo SPEC.
+- 2026-10-15 Review lát tiền: phân bổ kiểm số dư CUSTOMER_CREDIT thật (mutex `persons`, theo cơ sở); xác nhận thanh toán ghi sổ theo NGÀY XÁC NHẬN (kỳ cũ khoá vẫn xác nhận được); kiểm ca mở `FOR SHARE`; kế toán không duyệt loại nào (mục 10); chênh lệch ca bất biến, chỉ owner/manager sửa; cọc đặt phòng chưa khấu trừ được tới đợt 3; chữ ký `sim` gắn tài khoản; LEDGER_UNBALANCED = 500 giữ mã + cảnh báo.
 - Nợ kỹ thuật chấp nhận: phần pháp lý trong `docs/research/` chỉ có nguồn thứ cấp — phải đối chiếu văn bản gốc trước khi dùng dữ liệu thật.
 
 ## Bàn giao phiên

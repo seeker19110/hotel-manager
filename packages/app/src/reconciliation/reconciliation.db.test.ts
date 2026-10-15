@@ -97,11 +97,11 @@ const ref = (p = "FT") => `${p}${randomUUID().replaceAll("-", "").slice(0, 10).t
 
 function webhookRequest(
   body: Record<string, unknown>,
-  opts: { badSig?: boolean; ts?: number } = {},
+  opts: { badSig?: boolean; ts?: number; signedFor?: string } = {},
 ): Request {
   const raw = JSON.stringify(body);
   const ts = String(opts.ts ?? Math.floor(Date.now() / 1000));
-  const sig = opts.badSig ? "0".repeat(64) : signSim(SECRET, ts, raw);
+  const sig = opts.badSig ? "0".repeat(64) : signSim(SECRET, ts, raw, opts.signedFor ?? B1);
   return new Request(`http://localhost/api/v1/webhooks/sim/${B1}`, {
     method: "POST",
     headers: { "content-type": "application/json", "x-hm-timestamp": ts, "x-hm-signature": sig },
@@ -316,7 +316,10 @@ describe("S-016…S-018 webhook mô phỏng", () => {
     expect(await bad.json()).toMatchObject({ code: "WEBHOOK_SIGNATURE_INVALID" });
     const old = await webhook(webhookRequest(body, { ts: Math.floor(Date.now() / 1000) - 3600 }));
     expect(old.status).toBe(401);
-    expect(rejected.length - before).toBe(2);
+    // Chữ ký đúng nhưng ký cho tài khoản khác (phát lại sang tài khoản/tổ chức khác) → 401 (review R8).
+    const replay = await webhook(webhookRequest(body, { signedFor: randomUUID() }));
+    expect(replay.status).toBe(401);
+    expect(rejected.length - before).toBe(3);
     const n = await sql<{
       n: number;
     }>`select count(*)::int as n from inbox where provider_event_id = ${body.event_id}`.execute(t.admin);

@@ -73,7 +73,29 @@ async function upsertManualBankTxn(
   return row.id;
 }
 
+/**
+ * Trước khi dùng một giao dịch ngân hàng làm chứng cứ: cùng khoá tư vấn với đối soát/worker (`bank_txn:<id>`) để người và
+ * máy không đua; giao dịch đang lệch nội dung giữa các nguồn (break HASH_MISMATCH mở) thì không ghi tiền (review 🟢10).
+ */
+async function guardBankTxn(ctx: CommandContext, bankTransactionId: string): Promise<void> {
+  await sql`select pg_advisory_xact_lock(hashtextextended(${`bank_txn:${bankTransactionId}`}, 0))`.execute(
+    ctx.trx,
+  );
+  const broken = await sql<{ id: string }>`
+    select id from reconciliation_breaks
+    where organization_id = ${ctx.actor.orgId} and bank_transaction_id = ${bankTransactionId} and status = 'open'
+      and reason = 'HASH_MISMATCH'`.execute(ctx.trx);
+  if (broken.rows.length > 0) {
+    throw new CommandError(
+      "INVALID_TRANSITION",
+      409,
+      "Giao dịch đang lệch nội dung giữa các nguồn — xử lý đối soát trước",
+    );
+  }
+}
+
 async function assertBankTxnUnused(ctx: CommandContext, bankTransactionId: string): Promise<void> {
+  await guardBankTxn(ctx, bankTransactionId);
   const used = await sql<{ id: string }>`
     select id from payments where organization_id = ${ctx.actor.orgId} and bank_transaction_id = ${bankTransactionId}`.execute(
     ctx.trx,
@@ -201,12 +223,22 @@ export async function lockPayment(
   return row;
 }
 
-async function shiftIsOpen(ctx: CommandContext, shiftId: string): Promise<boolean> {
-  const r = await sql<{ status: string }>`
-    select status from shifts where organization_id = ${ctx.actor.orgId} and id = ${shiftId}`.execute(
-    ctx.trx,
+/** Mutex theo chủ số dư CUSTOMER_CREDIT (phân bổ và hoàn cùng khoá). */
+export async function lockPerson(trx: Transaction<unknown>, orgId: string, personId: string): Promise<void> {
+  await sql`select id from persons where organization_id = ${orgId} and id = ${personId} for update`.execute(
+    trx,
   );
-  return r.rows[0]?.status === "open";
+}
+
+/**
+ * Ca còn mở — giữ khoá FOR SHARE tới hết transaction: đóng ca (FOR UPDATE) chờ lệnh ghi CASH này xong rồi mới tính tiền
+ * dự kiến; ca vừa đóng thì điều kiện `status = 'open'` được đánh giá lại sau khi chờ ⇒ false (review lát tiền R3, INV-F6).
+ */
+async function shiftIsOpen(ctx: CommandContext, shiftId: string): Promise<boolean> {
+  const r = await sql<{ id: string }>`
+    select id from shifts where organization_id = ${ctx.actor.orgId} and id = ${shiftId} and status = 'open'
+    for share`.execute(ctx.trx);
+  return r.rows.length > 0;
 }
 
 export interface ConfirmEvidence {
@@ -281,6 +313,7 @@ export async function confirmPayment(
       );
     }
     if (bankTransactionId !== p.bank_transaction_id) await assertBankTxnUnused(ctx, bankTransactionId);
+    else await guardBankTxn(ctx, bankTransactionId);
     evidenceKind = "bank_transaction";
     evidenceId = bankTransactionId;
   }
@@ -288,7 +321,8 @@ export async function confirmPayment(
     orgId: ctx.actor.orgId,
     propertyId: p.property_id,
     entryType: p.purpose === "deposit" ? "deposit_received" : "payment_confirmed",
-    businessDate: p.business_date,
+    // Ghi sổ theo ngày XÁC NHẬN (có chứng cứ): khoản ghi nhận hôm trước mà kỳ đã khoá vẫn xác nhận được (review R2).
+    businessDate: await businessDate(ctx.trx, ctx.actor.orgId, p.property_id),
     // Nguồn luôn là chính khoản thu (một cọc có thể nhận nhiều lần; đảo tìm đúng bút toán của khoản này).
     sourceDocType: "payment",
     sourceDocId: p.id,
@@ -373,6 +407,17 @@ export async function allocatePayment(
       "OVER_ALLOCATION",
       409,
       `Phân bổ ${sum} vượt số chưa phân bổ ${remaining} của khoản thu`,
+    );
+  }
+  // Phần chưa phân bổ nằm ở CUSTOMER_CREDIT của người trả và có thể đã được hoàn (credit.requestRefund): kiểm số dư thật
+  // dưới cùng mutex `persons` với lệnh hoàn, để không phân bổ tiền đã trả lại khách (review lát tiền R1).
+  await lockPerson(ctx.trx, ctx.actor.orgId, p.payer_person_id);
+  const credit = await customerCredit(ctx.trx, ctx.actor.orgId, p.payer_person_id, p.property_id);
+  if (sum > credit) {
+    throw new CommandError(
+      "OVER_ALLOCATION",
+      409,
+      `Phân bổ ${sum} vượt số dư khách ${credit} (đã hoàn một phần?)`,
     );
   }
   const ids = [...seen].sort();
@@ -547,11 +592,12 @@ export async function customerCredit(
   trx: Transaction<unknown>,
   orgId: string,
   personId: string,
+  /** Chỉ số dư phát sinh ở cơ sở này (hoàn/phân bổ không lấy tiền của cơ sở khác). */
+  propertyId?: string,
 ): Promise<number> {
   const r = await sql<{ b: string }>`
     select coalesce(sum(credit - debit), 0)::text as b from journal_lines
-    where organization_id = ${orgId} and account = 'CUSTOMER_CREDIT' and person_id = ${personId}`.execute(
-    trx,
-  );
+    where organization_id = ${orgId} and account = 'CUSTOMER_CREDIT' and person_id = ${personId}
+      ${propertyId ? sql`and property_id = ${propertyId}` : sql``}`.execute(trx);
   return Number(r.rows[0]?.b ?? 0);
 }

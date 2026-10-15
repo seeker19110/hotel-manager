@@ -92,7 +92,8 @@ const HINT_STATUS: Record<string, { status: number; title: string }> = {
   EVIDENCE_REQUIRED: { status: 422, title: "Cần chứng cứ thanh toán" },
   INVALID_TRANSITION: { status: 409, title: "Chuyển trạng thái không hợp lệ" },
   LAST_OWNER: { status: 409, title: "Tổ chức phải còn ít nhất một owner" },
-  LEDGER_UNBALANCED: { status: 422, title: "Bút toán không cân" },
+  // SPEC-ledger S-003: lỗi hệ thống, 500 GIỮ mã (để cảnh báo/tra cứu) và đi đường lỗi không dự kiến (onUnexpectedError).
+  LEDGER_UNBALANCED: { status: 500, title: "Lỗi hệ thống khi ghi sổ. Thao tác chưa được lưu." },
   PERIOD_LOCKED: { status: 409, title: "Kỳ đã khoá. Cần chứng từ điều chỉnh có duyệt." },
   VALIDATION_FAILED: { status: 422, title: "Dữ liệu không hợp lệ" },
   TENANT_CONTEXT_MISSING: { status: 500, title: "Thiếu ngữ cảnh tổ chức" },
@@ -114,8 +115,8 @@ export function toProblem(err: unknown, correlationId?: string): Problem {
   const pg = err as { code?: string; hint?: string };
   const hinted = typeof pg?.hint === "string" ? HINT_STATUS[pg.hint] : undefined;
   if (typeof pg?.code === "string" && hinted && pg.hint) {
-    // Lỗi cấu hình hệ thống (thiếu ngữ cảnh) vẫn che như lỗi nội bộ.
-    if (hinted.status >= 500)
+    // Lỗi cấu hình hệ thống (thiếu ngữ cảnh) vẫn che như lỗi nội bộ; sổ lệch giữ mã theo SPEC.
+    if (hinted.status >= 500 && pg.hint !== "LEDGER_UNBALANCED")
       return base("INTERNAL", 500, "Đã có lỗi, vui lòng thử lại hoặc báo hỗ trợ kèm mã tra cứu");
     return base(pg.hint, hinted.status, hinted.title);
   }
