@@ -3,7 +3,7 @@
 > Giai đoạn hiện tại: G8 Vận hành & tiến hoá (khung v2 đã phát hành) · Cập nhật: 2026-10-15 · Nhánh: claude/serene-ride-3jvrfp
 
 ## Đang làm
-- Audit delta sau #43 (`0d1b62c`, ADR-0007): 8 nhóm quét, 1 🔴 · 3 🟠 · 3 🟢 (`docs/ops/AUDIT-REPORT-2026-10-15.md` §10). Đợt 1 (duyệt 2026-10-15) sửa ở #1: 🔴 AUD-HAR-021 (hook lệch tên sau nâng cấp → guard fail-open; `_lib.sh` giữ bí danh + `_compat.sh`) và AUD-HAR-022 (`xs_py`, cảnh báo "HOOK còn tên cũ"). Còn đợt 2 (`docs:` AUD-DOC-023/024, AUD-SEC-015) và đợt 3 (🟢 AUD-HAR-023/024) chờ làm.
+- Audit delta sau #43 (`0d1b62c`, ADR-0007): 8 nhóm quét, 1 🔴 · 3 🟠 · 3 🟢 (`docs/ops/AUDIT-REPORT-2026-10-15.md` §10). Đợt 1 (duyệt 2026-10-15) sửa ở #1: 🔴 AUD-HAR-021 (hook lệch tên sau nâng cấp → guard fail-open; `_lib.sh` giữ bí danh + `_compat.sh`) và AUD-HAR-022 (`xs_py`, cảnh báo "HOOK còn tên cũ"). Đợt 2 (AUD-DOC-023/024 trích dòng blueprint, AUD-SEC-015 `.gitleaksignore`) cũng ở #1. Còn 🟢 AUD-HAR-023/024 (đợt 3) + AUD-HAR-025 mới (`audit plan` bỏ sót khi file trích và dòng bằng chứng đổi cùng commit).
 
 ## Tiếp theo
 1. Cần người chọn: một dự án sản phẩm thật (web/api, quy mô M) để thử khung, đo mục MUST hay bị miễn trừ.
@@ -39,5 +39,5 @@
 ## Bàn giao phiên
 - 2026-10-15 · Commit cuối trên `main`: `0d1b62c` (#43); tag `v2.0.0` → `55de4d1`; SHA quét audit `0d1b62c` (trừ DEP/CFG/PERF cũ hơn, không file đổi).
 - Lệnh kiểm nhanh: `scripts/dev-task.sh gate` (đọc `xt.yaml`; `pip install --require-hashes -r requirements-dev.txt`, cần shellcheck).
-- Autopilot: không chạy. Đang chặn: không. Đợt 2–3 audit §10 chưa làm (chờ lệnh).
+- Autopilot: không chạy. Đang chặn: không. Đợt 3 audit §10 + AUD-HAR-025 chưa làm (chờ lệnh).
 - Câu hỏi cần người: Tiếp theo 1 (dự án thật để thử khung).
