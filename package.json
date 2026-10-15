@@ -1,0 +1,25 @@
+{
+  "name": "hotel-manager",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.11.2",
+  "engines": {
+    "node": ">=24.11.0 <25"
+  },
+  "scripts": {
+    "build": "pnpm --recursive --filter \"./apps/*\" run build",
+    "typecheck": "pnpm -r run typecheck",
+    "lint": "biome ci .",
+    "format": "biome format --write .",
+    "test": "vitest run",
+    "test:db": "vitest run --project db",
+    "licenses:check": "node scripts/check-licenses.mjs"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.15",
+    "@types/node": "24.19.2",
+    "@types/pg": "8.23.1",
+    "typescript": "7.0.2",
+    "vitest": "5.0.4"
+  }
+}

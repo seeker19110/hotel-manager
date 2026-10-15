@@ -1,0 +1,17 @@
+# Sao thành deploy/secrets/pgbackrest.conf (0600, không commit). Repo PHẢI ở máy/nhà cung cấp khác VPS (ADR-0002).
+# Diễn tập khôi phục: scripts/db-backup-restore-check.sh (cùng cấu hình mã hoá, repo cục bộ tạm).
+[global]
+repo1-type=s3
+repo1-s3-endpoint=ĐIỀN
+repo1-s3-bucket=ĐIỀN
+repo1-s3-region=ĐIỀN
+repo1-s3-key=ĐIỀN
+repo1-s3-key-secret=ĐIỀN
+repo1-path=/hotel-manager
+repo1-cipher-type=aes-256-cbc
+repo1-cipher-pass=ĐIỀN-sinh-bằng-openssl-rand-base64-48
+repo1-retention-full=4
+start-fast=y
+
+[hm]
+pg1-path=/var/lib/postgresql/data

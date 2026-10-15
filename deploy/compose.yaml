@@ -1,0 +1,82 @@
+# Hạ tầng tự host cho VPS (ADR-0002, PLAN T-012) — CHƯA TRIỂN KHAI: mua VPS/tên miền/SMTP và nạp secret là điểm dừng cần duyệt.
+# Mọi image ghim theo digest (index đa kiến trúc, tra Docker Hub 2026-10-15); scripts/check-image-pins.test.mjs chặn image không ghim.
+# Ứng dụng web/worker thêm vào khi có Dockerfile ứng dụng (task deploy đợt sau); Caddy đã trỏ sẵn tới web:3000.
+# Secret nằm trong deploy/secrets/ (bị .gitignore) — mẫu: *.example cạnh file này.
+name: hotel-manager
+
+services:
+  postgres:
+    # FROM postgres:17.11-trixie@sha256:… + pgBackRest 2.59.3 (deploy/postgres/Dockerfile)
+    build: ./postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C.UTF-8 --data-checksums"
+    command:
+      - postgres
+      - -c
+      - wal_level=replica
+      - -c
+      - archive_mode=on
+      - -c
+      - archive_command=pgbackrest --stanza=hm archive-push %p
+      - -c
+      - max_wal_senders=3
+    secrets:
+      - postgres_password
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./secrets/pgbackrest.conf:/etc/pgbackrest/pgbackrest.conf:ro
+    # backend: chỉ trong máy; backup_egress: đường ra cho pgBackRest đẩy WAL/backup tới kho S3/SFTP ở máy khác.
+    networks: [backend, backup_egress]
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # Không publish cổng: chỉ truy cập trong mạng backend.
+
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.48@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d
+    restart: unless-stopped
+    command: ["server", "-dir=/data", "-s3", "-s3.config=/etc/seaweedfs/s3.json", "-master.volumeSizeLimitMB=1024"]
+    volumes:
+      - seaweed:/data
+      - ./secrets/s3.json:/etc/seaweedfs/s3.json:ro
+    networks: [backend]
+    # Bucket riêng tư, không publish cổng. Trình duyệt mở URL ký (≤ 5 phút, packages/app/src/files) qua site
+    # {$HM_FILES_DOMAIN} của Caddy → seaweedfs:8333; ứng dụng phải ký với S3_ENDPOINT=https://{$HM_FILES_DOMAIN}.
+
+  caddy:
+    image: caddy:2.11.7-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      HM_DOMAIN: ${HM_DOMAIN:?đặt HM_DOMAIN trong deploy/.env}
+      HM_ACME_EMAIL: ${HM_ACME_EMAIL:?đặt HM_ACME_EMAIL trong deploy/.env}
+      HM_FILES_DOMAIN: ${HM_FILES_DOMAIN:?đặt HM_FILES_DOMAIN trong deploy/.env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [backend, edge]
+
+secrets:
+  postgres_password:
+    file: ./secrets/postgres_password
+
+volumes:
+  pgdata:
+  seaweed:
+  caddy_data:
+  caddy_config:
+
+networks:
+  backend:
+    internal: true
+  edge:
+  backup_egress:

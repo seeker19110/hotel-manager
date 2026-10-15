@@ -1,2 +1,21 @@
 # X-Templates: trạng thái autopilot cục bộ
 .autopilot/
+
+# Node / Next
+node_modules/
+.next/
+next-env.d.ts
+coverage/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Secret triển khai (mẫu: deploy/*.example)
+deploy/secrets/
+
+# Playwright
+test-results/
+playwright-report/
