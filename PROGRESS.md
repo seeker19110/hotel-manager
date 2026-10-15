@@ -3,7 +3,7 @@
 > Giai đoạn hiện tại: G5 Dựng nền (autopilot đợt 1) · Cập nhật: 2026-10-15 · Nhánh: claude/gifted-noether-iybenn
 
 ## Đang làm
-- Autopilot đợt 2 (PLAN duyệt) — Pha 2: T-101…T-109 xong có bằng chứng (`.autopilot/evidence/`). Review lát tiền đã sửa (1 🔴, 8 🟠, 3 🟢 — test hồi quy `payments/review-fixes.db.test.ts`). Kế tiếp **T-110** bàn giao/phụ lục. PR nháp #5.
+- Autopilot đợt 2 (PLAN duyệt) — Pha 2: T-101…T-110 xong có bằng chứng (`.autopilot/evidence/`). T-110 xong. Kế tiếp **T-111** báo trả + thanh lý. PR nháp #5.
 
 ## Tiếp theo
 1. Chủ repo import ruleset `.github/rulesets/main.json` (Settings → Rules → Rulesets → Import) — agent không có API để bật.
@@ -24,6 +24,7 @@
 - 2026-10-15 T-108: khoá kỳ theo `business_date` cơ sở (chỉ ngày đã qua, chỉ tiến; mở khoá từ ngày X nhả mọi khoá ≥ X), trigger PERIOD_LOCKED trên `journal_entries`/`payments` (+`charges` ở T-113). Điều chỉnh chỉ GIẢM, luôn qua duyệt người khác (INV-G4), ghi kỳ mở bằng phiếu `adjustment` âm; số còn phải thu = cột sinh `invoices.open_amount`. Tăng tiền = phiếu phí mới. Báo cáo đọc từ sổ phụ; xuất CSV để SPEC-audit-reporting (job xuất).
 - 2026-10-15 T-109: lỗi theo trường trả `errors[]{path, field, code}` (API-CONTRACT dùng `path`, SPEC dùng `field`). Giữ chỗ hợp đồng không khoá hàng `leases` (lễ tân không ghi được) — khoá phòng + EXCLUDE. `allocation.expired` → `allocation.hold_expired` theo SPEC.
 - 2026-10-15 Review lát tiền: phân bổ kiểm số dư CUSTOMER_CREDIT thật (mutex `persons`, theo cơ sở); xác nhận thanh toán ghi sổ theo NGÀY XÁC NHẬN (kỳ cũ khoá vẫn xác nhận được); kiểm ca mở `FOR SHARE`; kế toán không duyệt loại nào (mục 10); chênh lệch ca bất biến, chỉ owner/manager sửa; cọc đặt phòng chưa khấu trừ được tới đợt 3; chữ ký `sim` gắn tài khoản; LEDGER_UNBALANCED = 500 giữ mã + cảnh báo.
+- 2026-10-15 T-110: `meters`/`meter_readings` tối thiểu kéo từ T-112 sang (bàn giao cần chỉ số); kích hoạt dời đầu allocation về ngày bàn giao; phụ lục bất biến ngay khi lập, kéo dài allocation; mốc nhắc theo `properties.settings.lease_reminder_days` (mặc định 30/7/0); job đọc xuyên tổ chức qua hàm SECURITY DEFINER hẹp.
 - Nợ kỹ thuật chấp nhận: phần pháp lý trong `docs/research/` chỉ có nguồn thứ cấp — phải đối chiếu văn bản gốc trước khi dùng dữ liệu thật.
 
 ## Bàn giao phiên

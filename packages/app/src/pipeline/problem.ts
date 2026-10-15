@@ -90,6 +90,7 @@ const PG_CODES: Record<string, { code: string; status: number; title: string }> 
 const HINT_STATUS: Record<string, { status: number; title: string }> = {
   DOCUMENT_IMMUTABLE: { status: 409, title: "Chứng từ đã phát hành/ký không được sửa" },
   EVIDENCE_REQUIRED: { status: 422, title: "Cần chứng cứ thanh toán" },
+  HANDOVER_REQUIRED: { status: 409, title: "Cần hoàn tất biên bản bàn giao trước." },
   INVALID_TRANSITION: { status: 409, title: "Chuyển trạng thái không hợp lệ" },
   LAST_OWNER: { status: 409, title: "Tổ chức phải còn ít nhất một owner" },
   // SPEC-ledger S-003: lỗi hệ thống, 500 GIỮ mã (để cảnh báo/tra cứu) và đi đường lỗi không dự kiến (onUnexpectedError).

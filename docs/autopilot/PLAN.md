@@ -79,7 +79,7 @@ Tương ứng mốc "Tuần 5–8" của kế hoạch gốc (mảng trọ). Khá
 
 ### Lát 2 — Hợp đồng và bàn giao (F-003)
 - [x] `T-109` Schema + soạn/ký: `leases`, `lease_versions` (điều khoản bất biến sau ký), `lease_occupants` (PII tối thiểu, SĐT bắt buộc với người thuê); `lease.hold` (TTL theo cơ sở, cọc giữ chỗ), `lease.sign` chuyển hold → allocation `lease` không khoảng trống; quyền đọc theo vai trò/người thuê (lease S-001…S-004, S-008…S-010, S-020, S-022…S-024) — Gate: `pnpm test:db -- lease`
-- [ ] `T-110` Bàn giao + phụ lục: `handovers` (mục bắt buộc, ảnh qua file riêng tư, chỉ số đầu), kích hoạt chỉ sau bàn giao; phụ lục gia hạn/đổi giá theo ngày hiệu lực, chặn chồng hiệu lực; nhắc hết hạn không lặp (`outbox.dedupe_key`); quá hạn chưa trả → cảnh báo chiếm dụng (S-005…S-007, S-011…S-015) — Gate: `pnpm test:db -- lease-handover`
+- [x] `T-110` Bàn giao + phụ lục: `handovers` (mục bắt buộc, ảnh qua file riêng tư, chỉ số đầu), kích hoạt chỉ sau bàn giao; phụ lục gia hạn/đổi giá theo ngày hiệu lực, chặn chồng hiệu lực; nhắc hết hạn không lặp (`outbox.dedupe_key`); quá hạn chưa trả → cảnh báo chiếm dụng (S-005…S-007, S-011…S-015) — Gate: `pnpm test:db -- lease-handover`
 - [ ] `T-111` Báo trả + thanh lý: `lease_settlements`; phí hư hỏng thành phiếu trước, khấu trừ ≤ AR còn mở của phiếu liên kết, hoàn phần còn lại qua duyệt, người lập không tự duyệt; tiền thuê kỳ cuối prorata đến `moved_out_on`; allocation kết thúc `moved_out_on + 1` (S-016…S-019, S-021, S-025) — Gate: `pnpm test:db -- lease-settlement`
 
 ### Lát 3 — Công tơ và kỳ thu (F-004)

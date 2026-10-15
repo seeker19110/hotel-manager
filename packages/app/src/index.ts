@@ -29,6 +29,7 @@ export {
 export { COMMANDS, findCommand, findQuery, QUERIES } from "./http/registry.ts";
 export { handleWebhook, type WebhookDeps } from "./http/webhook-route.ts";
 export { listRooms, type PropertyRooms, type RoomRow } from "./inventory/rooms.ts";
+export { DEFAULT_REMINDER_DAYS, detectOverstay, remindExpiring } from "./lease/jobs.ts";
 export { BANK_TXN_RECEIVED, BREAK_OPENED } from "./ledger/bank-inbox.ts";
 export { createLogger } from "./logging/logger.ts";
 export { getCommandResult } from "./pipeline/command.ts";

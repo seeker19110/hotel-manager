@@ -9,6 +9,7 @@ import {
   requestDeduction,
   requestDepositRefund,
 } from "../deposits/deposits.ts";
+import { activateLease, recordHandover, renewLease } from "../lease/handover.ts";
 import {
   addOccupant,
   cancelLease,
@@ -536,6 +537,64 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
     command: "lease.cancel",
     input: z.strictObject({ lease_id: uuid, reason: z.string().trim().min(1).max(1000) }),
     run: async (ctx, i) => ({ data: await cancelLease(ctx, { leaseId: i.lease_id, reason: i.reason }) }),
+  }),
+  "lease.recordHandover": defineCommand({
+    command: "lease.recordHandover",
+    input: z.strictObject({
+      lease_id: uuid,
+      kind: z.enum(["move_in", "move_out"]),
+      handed_over_on: isoDate,
+      readings: z.strictObject({
+        electric: z.number().nonnegative().optional(),
+        water: z.number().nonnegative().optional(),
+      }),
+      assets: z
+        .array(
+          z.strictObject({
+            name: z.string().max(100),
+            quantity: z.number().int(),
+            condition: z.string().max(200),
+            file_ids: z.array(uuid).max(20).optional(),
+          }),
+        )
+        .max(50),
+      keys_count: z.number().int().min(0).max(100),
+      photo_file_ids: z.array(uuid).max(20),
+      note: z.string().max(2000).optional(),
+      tenant_confirmation: z.strictObject({ method: z.enum(["in_person", "portal"]) }).optional(),
+    }),
+    run: async (ctx, i) => ({
+      data: await recordHandover(ctx, {
+        leaseId: i.lease_id,
+        kind: i.kind,
+        handedOverOn: i.handed_over_on,
+        readings: Object.fromEntries(Object.entries(i.readings).filter(([, v]) => v !== undefined)),
+        assets: i.assets.map((a) => ({
+          name: a.name,
+          quantity: a.quantity,
+          condition: a.condition,
+          ...(a.file_ids ? { fileIds: a.file_ids } : {}),
+        })),
+        keysCount: i.keys_count,
+        photoFileIds: i.photo_file_ids,
+        ...(i.note === undefined ? {} : { note: i.note }),
+        ...(i.tenant_confirmation ? { tenantConfirmation: i.tenant_confirmation } : {}),
+      }),
+      httpStatus: 201,
+    }),
+  }),
+  "lease.activate": defineCommand({
+    command: "lease.activate",
+    input: z.strictObject({ lease_id: uuid }),
+    run: async (ctx, i) => ({ data: await activateLease(ctx, { leaseId: i.lease_id }) }),
+  }),
+  "lease.renew": defineCommand({
+    command: "lease.renew",
+    input: z.strictObject({ lease_id: uuid, terms: leaseTerms }),
+    run: async (ctx, i) => ({
+      data: await renewLease(ctx, { leaseId: i.lease_id, terms: toTerms(i.terms) }),
+      httpStatus: 201,
+    }),
   }),
 };
 

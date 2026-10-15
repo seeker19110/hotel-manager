@@ -46,7 +46,7 @@ export interface LeaseTerms {
 
 export const LEASE_LIMITS = { services: 30, occupants: 20 } as const;
 
-async function validateTerms(
+export async function validateTerms(
   ctx: CommandContext,
   propertyId: string,
   t: LeaseTerms,
@@ -86,7 +86,7 @@ async function validateTerms(
   }
 }
 
-function servicesJson(services: readonly LeaseServiceTerm[]): string {
+export function servicesJson(services: readonly LeaseServiceTerm[]): string {
   return JSON.stringify(
     services.map((s) => ({
       service_id: s.serviceId,
@@ -114,7 +114,7 @@ async function assertPerson(
     throw fieldError(`${field}.phone`, "REQUIRED", "Người thuê cần số điện thoại");
 }
 
-interface LeaseRow {
+export interface LeaseRow {
   id: string;
   property_id: string;
   unit_id: string;
@@ -126,10 +126,10 @@ interface LeaseRow {
 }
 
 /** Đọc (RLS) → kiểm quyền → khoá: người không có quyền nhận 403 thay vì chờ khoá; không đọc được ⇒ 404. */
-async function lockLease(
+export async function lockLease(
   ctx: CommandContext,
   leaseId: string,
-  action: "lease.manage" | "lease.hold",
+  action: "lease.manage" | "lease.hold" | "lease.handover",
 ): Promise<LeaseRow> {
   if (!UUID.test(leaseId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy hợp đồng");
   const read = (lock: boolean) =>
@@ -141,15 +141,15 @@ async function lockLease(
   const seen = (await read(false)).rows[0];
   if (!seen) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy hợp đồng");
   authorize(ctx.actor, action, { propertyId: seen.property_id });
-  // Giữ chỗ không đổi hàng hợp đồng (lễ tân không có quyền ghi `leases` nên không khoá được): tuần tự hoá bằng khoá phòng
-  // trong createHold + EXCLUDE của allocations.
-  if (action === "lease.hold") return seen;
+  // Giữ chỗ/bàn giao không đổi hàng hợp đồng (lễ tân không ghi `leases` nên không khoá được): tuần tự hoá bằng khoá phòng +
+  // EXCLUDE của allocations (giữ chỗ), UNIQUE (lease_id, kind) của handovers (bàn giao).
+  if (action !== "lease.manage") return seen;
   const row = (await read(true)).rows[0];
   if (!row) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy hợp đồng");
   return row;
 }
 
-function transition(row: LeaseRow, to: LeaseStatus): void {
+export function transition(row: LeaseRow, to: LeaseStatus): void {
   leaseMachine.assertTransition(row.status, to);
 }
 
@@ -165,7 +165,7 @@ interface VersionRow {
   signed_at: Date | null;
 }
 
-async function originalVersion(ctx: CommandContext, leaseId: string): Promise<VersionRow> {
+export async function originalVersion(ctx: CommandContext, leaseId: string): Promise<VersionRow> {
   const r = await sql<VersionRow>`
     select id, version_no, effective_from::text, effective_to::text, rent_amount, deposit_amount, billing_cycle, services, signed_at
     from lease_versions where organization_id = ${ctx.actor.orgId} and lease_id = ${leaseId} and version_no = 1`.execute(
@@ -412,7 +412,7 @@ export async function submitForSignature(
   return { status: "pending_signature" };
 }
 
-async function leaseAllocations(ctx: CommandContext, leaseId: string) {
+export async function leaseAllocations(ctx: CommandContext, leaseId: string) {
   const r = await sql<{
     id: string;
     kind: string;

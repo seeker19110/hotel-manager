@@ -16,6 +16,7 @@ import * as m0012 from "./0012_reconciliation.ts";
 import * as m0013 from "./0013_period_close.ts";
 import * as m0014 from "./0014_leases.ts";
 import * as m0015 from "./0015_review_money_fixes.ts";
+import * as m0016 from "./0016_handovers.ts";
 
 export const migrations: Record<string, Migration> = {
   "0001_tenancy": m0001,
@@ -33,4 +34,5 @@ export const migrations: Record<string, Migration> = {
   "0013_period_close": m0013,
   "0014_leases": m0014,
   "0015_review_money_fixes": m0015,
+  "0016_handovers": m0016,
 };

@@ -690,7 +690,7 @@ Loại: M cho đến khi xác nhận, sau đó bất biến
 
 - Khoá/index: `UNIQUE (organization_id, lease_id, kind)`.
 - Ràng buộc đặc biệt: trigger chặn UPDATE/DELETE sau `confirmed_at`, **trừ** việc đổi `readings_pending` từ `true` sang `false` khi đủ `meter_readings` `import` đã duyệt (INV-G4). Bàn giao `manual` bắt buộc đủ chỉ số (kiểm ở command; tạo `meter_readings` nguồn `handover`).
-- RLS/quyền đặc biệt: `front_desk`/`manager` ghi; `tenant` đọc và xác nhận phần mình.
+- RLS/quyền đặc biệt: `front_desk`/`manager` ghi; `tenant` đọc và xác nhận phần mình. T-110: thêm `note` (≤ 2.000 ký tự); `meter_readings.handover_id` (FK, bắt buộc khi `source='handover'`) nối chỉ số với biên bản; `meters`/`meter_readings` tạo sớm ở T-110 (thay công tơ, bất thường, tuyến chốt ở T-112). Kích hoạt hợp đồng có trigger `HANDOVER_REQUIRED`.
 - Bất biến: INV-G4; hợp đồng không `active` khi thiếu bàn giao (DOMAIN-MODEL §4).
 
 ### `lease_settlements`
