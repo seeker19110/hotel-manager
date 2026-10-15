@@ -70,6 +70,8 @@ start-fast=y
 pg1-path=$data
 pg1-port=$port
 pg1-socket-path=$work/sock
+# Role superuser của cluster tạm (initdb -U postgres) — không phụ thuộc tên user hệ điều hành đang chạy (vd. runner của CI).
+pg1-user=postgres
 EOF
 umask 022
 [ "$(id -u)" = 0 ] && chown postgres:postgres "$conf"
