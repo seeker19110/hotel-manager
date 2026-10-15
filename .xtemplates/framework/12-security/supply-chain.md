@@ -3,7 +3,7 @@ title: Chuỗi cung ứng: ghim, SBOM, chữ ký, SLSA, Scorecard, Dependabot
 kind: module
 prefix: SEC-SUPPLY
 applies_to: [all]
-updated: 2026-10-14
+updated: 2026-10-15
 ---
 
 # Chuỗi cung ứng: ghim, SBOM, chữ ký, SLSA, Scorecard, Dependabot
@@ -67,6 +67,8 @@ updated: 2026-10-14
 - [ ] `SEC-SUPPLY-022` **SHOULD** Runner CI tự host (nếu có) là ephemeral, không chạy job từ fork, không mount docker socket. → Kiểm: cấu hình runner `--ephemeral`; chính sách repo không cho fork dùng self-hosted runner. · Nguồn: GitHub Actions hardening (self-hosted runners)
 - [ ] `SEC-SUPPLY-023` **MAY** Mirror/proxy registry nội bộ (Artifactory/Nexus/`verdaccio`) với quarantine package mới < N ngày để tránh typosquat/compromise mới công bố. → Kiểm: `.npmrc`/`pip.conf` trỏ mirror. · Nguồn: kinh nghiệm vận hành
 - [ ] `SEC-SUPPLY-024` **MAY** Lockfile cho workflow (khi nền tảng hỗ trợ) thay/bổ sung ghim SHA. → Kiểm: file lock workflow tồn tại và CI kiểm. · Nguồn: GitHub Actions hardening (lockfile ưu tiên hơn SHA khi có)
+- [ ] `SEC-SUPPLY-025` **SHOULD** Đánh giá dependency/skill/tool trên **repo gốc**, không trên bản mirror hay fork: chủ repo khớp đường dẫn module (`go.mod`, `package.json` `repository`, trang registry) và tác giả commit; sao/fork của mirror không phải tín hiệu chất lượng (repo gốc có thể đã bị gỡ vì lạm dụng). → Kiểm: mục "Đánh giá" trong PR thêm dependency ghi URL repo gốc + bằng chứng khớp (dòng `module`/`repository`). · Nguồn: `seeker19110/stored` 12 §3k (ARTEX, mirror Hinln/ARTEX)
+- [ ] `SEC-SUPPLY-026` **SHOULD** Số commit, số sao và bảng thống kê trong README không dùng làm bằng chứng "còn bảo trì": đọc lịch sử thật (`git log --format='%an %s'`), loại commit bot/tự động ghi timestamp, xem ngày commit người viết gần nhất và lịch sử advisory/gỡ bỏ; tool dual-use đã có lạm dụng thật hoặc bị tác giả rút về thì không đưa vào dự án. → Kiểm: mục "Đánh giá" ghi số commit người viết trong 12 tháng (lệnh + kết quả) và kết quả tra advisory. · Nguồn: `seeker19110/stored` 12 §3j (s4ntrx: 5.340/5.571 commit là bot), 12 §3k
 
 ## Bẫy thường gặp
 
@@ -110,3 +112,4 @@ updated: 2026-10-14
 - CycloneDX 1.7 (2025-10-21; ECMA-424): <https://cyclonedx.org/specification/overview/>; SPDX 3.0; ISO/IEC 5962:2021 tương ứng SPDX 2.2.1: <https://spdx.dev/use/specifications/> — xác minh 2026-10-13 (đính chính 2026-10-14: bản trước ghi như thể ISO/IEC 5962:2021 là SPDX 3.0).
 - Phiên bản tool (tag xác minh 2026-10-13, trang GitHub không hiện năm): syft v1.54.1, cosign v3.1.3, conftest v0.71.1, OSV-Scanner v2.7.0 (12/10/2026 theo catalog 12 §3d), checkov 3.3.28 + pip-audit 2.10.1 + zizmor 1.30.1 (PyPI, 2026-10-13); Renovate AGPL-3.0 (LICENSE fetch 2026-10-13), 44.151.5 theo catalog 13 (2026-10-12).
 - Catalog `seeker19110/stored` 12 §3 (7 quy tắc, supply chain, CI có AI), 23 §8.1 (ma trận vệ sinh), 20 §3b (vendor-with-lock), đọc 2026-10-13. Sự cố tj-actions/changed-files 2025 và Trivy CVE-2026-33634: ghi theo catalog, (chưa xác minh lại nguồn gốc ngày 2026-10-13).
+- Catalog `seeker19110/stored` 12 §3j (số commit do bot ghi timestamp, bảng thống kê README sai), 12 §3k (ARTEX: tool dual-use bị lạm dụng, tác giả gỡ, sao dồn về mirror) — đọc 2026-10-15.

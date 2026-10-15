@@ -3,7 +3,7 @@ title: Đội, WIP, định nghĩa sẵn sàng/hoàn thành, bàn giao
 kind: module
 prefix: WF-TEAM
 applies_to: [all]
-updated: 2026-10-14
+updated: 2026-10-15
 ---
 
 # Đội, WIP, định nghĩa sẵn sàng/hoàn thành, bàn giao
@@ -65,7 +65,7 @@ updated: 2026-10-14
 - **5 PR bảo mật nằm 19 ngày vì bot không điền template** (catalog 23). FIFO + SLA + nhãn `security` ưu tiên có quy tắc.
 - **WIP không trần → 20 việc dở, 0 việc xong.** Hàng đợi review nổ, merge ẩu (khung cũ §B10). Cap bằng máy.
 - **"Done" = code đã push.** Chưa test, chưa deploy thử, chưa docs. DoD có bằng chứng, tick không bằng chứng là chưa done.
-- **Bắt đầu việc mơ hồ "làm rồi hỏi".** Làm lại 2–3 lần. DoR trước; agent gặp mơ hồ thì dừng hỏi (AGENTS.md §4).
+- **Bắt đầu việc mơ hồ "làm rồi hỏi".** Làm lại 2–3 lần. DoR trước; agent gặp mơ hồ thì quyết tường minh (D-NNN, [`LOOP-STOP-018`](../11-autonomous-loop/stop-points-and-escalation.md)), không lấp ngầm.
 - **Bàn giao bằng chat/trí nhớ.** Phiên sau (người hoặc agent) hỏi lại điều đã quyết. PROGRESS 4 mục, hook nạp.
 - **Gate quá hạn thì tự pass.** Lỗ hổng chính sách. Leo thang người.
 - **Một người review 90% PR.** Nút thắt, bus factor 1. Luân phiên, CODEOWNERS theo miền.

@@ -3,7 +3,7 @@ title: Đặc tả: user story, Given/When/Then, ca biên, hợp đồng API, tr
 kind: module
 prefix: PM-SPEC
 applies_to: [all]
-updated: 2026-10-14
+updated: 2026-10-15
 ---
 
 # Đặc tả: user story, Given/When/Then, ca biên, hợp đồng API, truy vết
@@ -20,7 +20,7 @@ updated: 2026-10-14
 2. **Tiêu chí chấp nhận là thứ máy chạy được.** Given/When/Then viết sao cho chuyển thẳng thành test; mỗi scenario có ID để test trỏ về.
 3. **Ca biên liệt kê trước khi code**, không đợi QA tìm: rỗng, cực đại, trùng, song song, mất mạng giữa chừng, múi giờ, quyền, tiền/đơn vị.
 4. **Hợp đồng trước, chia việc sau.** API/sự kiện/schema giữa hai phần (front–back, service–service, agent–tool) được viết và duyệt trước khi hai bên làm song song.
-5. **Spec hở thì dừng và hỏi.** Gặp điểm spec không nói → không tự đoán, không "route lại để tránh hỏi" (catalog 23 §2.3); ghi câu hỏi mở và leo thang theo [`../11-autonomous-loop/stop-points-and-escalation.md`](../11-autonomous-loop/stop-points-and-escalation.md).
+5. **Spec hở thì quyết tường minh.** Gặp điểm spec không nói → không lấp ngầm, không "route lại để tránh hỏi" (catalog 23 §2.3); ghi câu hỏi mở, phiên chính tự duyệt theo tiêu chí chất lượng cuối và ghi `D-NNN` cạnh câu hỏi ([`../11-autonomous-loop/stop-points-and-escalation.md`](../11-autonomous-loop/stop-points-and-escalation.md), ADR-0008).
 6. **Truy vết hai chiều.** Từ `R-NNN` (yêu cầu) → `F-NNN` (tính năng/spec) → `T-NNN` (task) → PR → bằng chứng; ngược lại mỗi PR nêu spec nó phục vụ. Không có task "mồ côi".
 7. **Spec có vòng đời.** Draft → Approved for implementation → Implemented → Superseded; sửa sau khi Approved phải tăng phiên bản và ghi lý do.
 
@@ -48,7 +48,7 @@ updated: 2026-10-14
 - [ ] `PM-SPEC-004` **MUST** Mỗi scenario có ≥1 test tự động trỏ về ID của nó; scenario chưa có test thì tính năng chưa Done. → Kiểm: `rg -l "S-[0-9]{3}" tests/ e2e/ src/` phủ mọi `S-NNN` trong spec (script so khớp hai danh sách).
 - [ ] `PM-SPEC-005` **MUST@L** Hợp đồng API/sự kiện/schema giữa hai thành phần được viết (OpenAPI 3.x, JSON Schema 2020-12, proto, AsyncAPI) và duyệt **trước** khi chia việc song song. → Kiểm: file contract có trong PR đầu tiên của tính năng; `redocly lint openapi.yaml` hoặc `spectral lint` xanh.
 - [ ] `PM-SPEC-006` **MUST@L** Chuỗi truy vết đầy đủ: PR body ghi `Spec: SPEC-<slug> (F-NNN)`; task trong `PLAN.md` ghi `F-NNN`; bằng chứng ở `.autopilot/evidence/T-NNN.json` hoặc CI. → Kiểm: `rg -n "Spec: SPEC-" .github/pull_request_template.md`; CI job kiểm PR body có `Spec:` với PR `feat:`.
-- [ ] `PM-SPEC-007` **MUST** Spec hở (điểm không nói, mâu thuẫn với code/spec khác) → ghi vào "Câu hỏi mở" và dừng task đó; không tự chọn một cách hiểu. → Kiểm: `xt.py loop block --reason "spec hở: …"` trong autopilot; ngoài autopilot: issue/comment nêu câu hỏi trước khi code.
+- [ ] `PM-SPEC-007` **MAY** Ngừng dùng 2026-10-15 — thay bằng `PM-SPEC-020` (ADR-0008: spec hở là điểm quyết định phiên chính tự duyệt, không `loop block`).
 - [ ] `PM-SPEC-008` **MUST@L** Task chỉ bắt đầu khi đạt Definition of Ready: spec Approved, 0 câu hỏi mở chặn, phụ thuộc xác định, đủ nhỏ cho một PR, có Gate máy kiểm. → Kiểm: mục DoR trong spec tick đủ; task trong `PLAN.md` có `Gate:`.
 - [ ] `PM-SPEC-009` **MUST@L** Definition of Done của tính năng gồm: mọi scenario xanh, ca biên có test, cổng commit/merge xanh, tài liệu người dùng/API cập nhật, chỉ số đo được gắn sự kiện. → Kiểm: PR template có mục DoD; CI `gate` xanh; `blueprint-status` không mở MUST liên quan.
 - [ ] `PM-SPEC-010` **MUST@L** Nhánh lỗi được đặc tả: mỗi lỗi nghiệp vụ có mã, thông điệp cho người dùng, HTTP status/exit code; API trả lỗi theo RFC 9457 (`application/problem+json`). → Kiểm: bảng "Lỗi" trong spec; test gọi API lỗi kiểm `Content-Type: application/problem+json` và trường `type`/`title`/`status`. · Nguồn: RFC 9457 §3
@@ -61,6 +61,7 @@ updated: 2026-10-14
 - [ ] `PM-SPEC-017` **MAY** Scenario viết bằng Gherkin thật và chạy bằng công cụ BDD (Cucumber, pytest-bdd, godog) để spec và test là một file. → Kiểm: `features/*.feature` chạy trong CI.
 - [ ] `PM-SPEC-018` **MAY** Spec kèm sơ đồ sequence/state (Mermaid trong Markdown) cho luồng nhiều thành phần. → Kiểm: khối ```` ```mermaid ```` render được.
 - [ ] `PM-SPEC-019` **MAY** Spec cho tính năng dùng AI ghi rõ đầu vào không tin cậy, hành vi khi model trả sai, và tiêu chí eval; chi tiết ở [`../13-ai-engineering/evaluation.md`](../13-ai-engineering/evaluation.md). → Kiểm: mục "Hành vi AI" trong spec.
+- [ ] `PM-SPEC-020` **MUST** Spec hở (điểm không nói, nhiều cách hiểu, mâu thuẫn với code/spec khác) → ghi vào "Câu hỏi mở" kèm quyết định: `D-NNN` của phiên chính theo tiêu chí chất lượng cuối ([`LOOP-STOP-018`](../11-autonomous-loop/stop-points-and-escalation.md)) hoặc câu trả lời của người; không lấp ngầm, subagent không tự chọn. → Kiểm: mỗi câu hỏi mở đã đóng có "Đã quyết: D-NNN" hoặc tên người + ngày, `D-NNN` có trong `docs/autopilot/DECISIONS.md`. · Nguồn: catalog 23 §2.3, ADR-0008
 
 ## Bẫy thường gặp
 
@@ -70,7 +71,7 @@ updated: 2026-10-14
 | Given/When/Then trộn bước | Một scenario có 3 When | Mỗi scenario một hành động; nhiều dữ liệu → Scenario Outline |
 | Ca biên để QA tìm sau | Bug "trống", "trùng", "múi giờ" sau phát hành | Bảng ca biên 8 nhóm là mục bắt buộc của spec (`PM-SPEC-003`) |
 | Chia việc trước khi có hợp đồng | Front và back tự đoán payload, ghép lại không khớp | Contract first; mock server sinh từ OpenAPI để hai bên làm song song |
-| AI/worker tự lấp chỗ spec hở | Code chạy nhưng làm điều không ai yêu cầu | Luật cứng "spec hở → dừng và hỏi"; verdict `blocked` thay vì tự route (catalog 23 §2.3) |
+| AI/worker tự lấp chỗ spec hở | Code chạy nhưng làm điều không ai yêu cầu | Luật cứng "spec hở → quyết định tường minh": câu hỏi mở + `D-NNN` của phiên chính; subagent không tự lấp (catalog 23 §2.3) |
 | Spec sống trong chat | Phiên sau không tìm thấy quyết định | Spec là file trong `docs/specs/`, chat chỉ là nháp |
 | Spec thành tài liệu thiết kế kỹ thuật | Spec mô tả tên class, thư viện | Tách: spec = hành vi; ADR = quyết định kỹ thuật |
 | Sửa spec ngầm khi code | Test đổi mà spec không đổi | `PM-SPEC-013`: cùng PR, tăng phiên bản, ghi lý do |

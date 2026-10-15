@@ -3,7 +3,7 @@ title: Tài liệu cho AI agent: AGENTS.md, CLAUDE.md, llms.txt, runtime.yaml, S
 kind: module
 prefix: XC-DOCAI
 applies_to: [all]
-updated: 2026-10-14
+updated: 2026-10-15
 ---
 
 # Tài liệu cho AI agent: AGENTS.md, CLAUDE.md, llms.txt, runtime.yaml, SCOPE.md
@@ -57,6 +57,8 @@ updated: 2026-10-14
 - [ ] `XC-DOCAI-015` **SHOULD** Audit định kỳ file hướng dẫn: mâu thuẫn, lệnh lỗi thời, luật trùng (`/doctor prompt-audit` của Claude Code hoặc checklist tay); kết quả thành PR. → Kiểm: nhật ký audit hằng quý trong `docs/agents/`. · Nguồn: Claude Code memory docs (consistency, prompt audit)
 - [ ] `XC-DOCAI-016` **MAY** Cung cấp MCP server tài liệu/catalog cho agent (read-only, tool ít, tham số tra được) thay vì nhồi tài liệu vào context; ghi rõ không phải "production-ready" nếu chỉ dùng nội bộ. → Kiểm: `tools/list` thứ tự xác định; server bind loopback; xem [`../13-ai-engineering/protocols-mcp-a2a.md`](../13-ai-engineering/protocols-mcp-a2a.md). · Nguồn: MCP spec 2026-07-28; catalog 04 §2
 - [ ] `XC-DOCAI-017` **MAY** Bản đồ tri thức mã sinh bằng máy (code graph, catalog từ mã) gắn nhãn `EXTRACTED`/`INFERRED` và có cổng drift so với mã thật. → Kiểm: job sinh lại + `git diff --exit-code`. · Nguồn: catalog 16 §2c–2d, 23 §6.4
+- [ ] `XC-DOCAI-018` **SHOULD** Không bật đồng thời nhiều skill/plugin cùng chỉnh **giọng/hành vi trả lời** (vd ponytail + caveman + superpowers): nhiều prompt cùng ra lệnh về cách trả lời sẽ mâu thuẫn; mỗi vai chọn một pack, ghi trong `AGENTS.md`; plugin chạy binary ở hook phải ghim phiên bản, kiểm SHA và tắt telemetry (`DO_NOT_TRACK=1`). → Kiểm: danh sách plugin bật trong `.claude/settings.json` đối chiếu bảng vai trong `AGENTS.md`. · Nguồn: `seeker19110/stored` 20 §3g
+- [ ] `XC-DOCAI-019` **SHOULD** Khi cấp skill cho agent **theo stack dự án**, ưu tiên installer dò stack có **cổng xuất xứ** — manifest + SHA-256 từng file, review nội dung skill trước khi nạp (injection/supply-chain), cảnh báo hiện trước khi cài, và ghi `skills-lock.json` (source + commit + hash) — hơn chép tay hoặc plugin marketplace tự cập nhật (xem `XC-DOCAI-009`, [`SEC-SUPPLY-016`](../12-security/supply-chain.md)). Mẫu tham chiếu: autoskills (midudev). Nhưng license của nó là **CC BY-NC 4.0** (phi thương mại): chỉ gọi CLI đã xuất bản (`npx autoskills`) như **bước dev tuỳ chọn**, không đưa vào `dependencies` hay bước build phân phối, và **không vendor registry/mã** của nó vào sản phẩm phân phối/thương mại — CC BY-NC nằm trong nhóm cấm mặc định của [`CMP-LIC`](../16-compliance-privacy/licensing-and-ip.md). → Kiểm: nếu dùng, có `skills-lock.json` với `source` + `sha256` mỗi skill; `grep -riE "autoskills" package.json` không thấy ở `dependencies`/`devDependencies` và không ở bước build phát hành (chỉ ở script dev hoặc tài liệu); nhúng registry/mã thì `license-policy.yaml` có ngoại lệ kèm `reason` và luật sư duyệt. · Nguồn: `seeker19110/stored` 20 §3h (autoskills: dò stack, registry review hai tầng bằng model + SHA-256 + `skills-lock.json`, license CC BY-NC 4.0)
 
 ## Bẫy thường gặp
 
@@ -98,3 +100,5 @@ updated: 2026-10-14
 - MCP specification 2026-07-28 (`tools/list` thứ tự xác định, trace context trong `_meta`) theo [`../../research/2026-10-13-ai-agent-research.md`](../../research/2026-10-13-ai-agent-research.md) — xác minh 2026-10-13
 - [`../../research/2026-10-13-claude-code-hooks-skills.md`](../../research/2026-10-13-claude-code-hooks-skills.md) (AGENTS.md trong Claude Code, `--bare` bỏ hook/CLAUDE.md) — 2026-10-13
 - Catalog `seeker19110/stored` 04 §4 (bộ file đa harness; `next dev` ghi đè), 16 §2–2d (llms.txt adoption 2–10 %, repomix `--sandbox`, EXTRACTED/INFERRED), 20 §1.5/§3b/§3c (SKILL.md tốt; vendor-with-lock; `SCOPE.md` + `.out-of-scope/`), 23 §3.1/§3.3/§4.3 (`runtime.yaml`, thang mức bền) theo [`../../research/2026-10-13-stored-catalog-extraction.md`](../../research/2026-10-13-stored-catalog-extraction.md), đọc 2026-10-13.
+- Catalog `seeker19110/stored` 20 §3g (bảng "Top Claude Code": chồng pack chỉnh giọng, impeccable chạy engine ở hook, `DO_NOT_TRACK`) — đọc 2026-10-15.
+- Catalog `seeker19110/stored` 20 §3h (midudev/autoskills: dò stack → cài skill từ registry vendor có review hai tầng bằng model + SHA-256 + `skills-lock.json`; license CC BY-NC 4.0 phi thương mại) — đọc 2026-10-15.

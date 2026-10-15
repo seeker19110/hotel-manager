@@ -1,7 +1,7 @@
 ---
 title: Vòng đời dự án và các cổng
 kind: method
-updated: 2026-10-14
+updated: 2026-10-15
 ---
 
 # Vòng đời dự án và các cổng
@@ -44,9 +44,10 @@ updated: 2026-10-14
 ## Ánh xạ sang chế độ tự động
 
 Khi chạy **autopilot** (xem [`../11-autonomous-loop/README.md`](../11-autonomous-loop/README.md)): G0–G4 diễn ra trong
-pha *lập kế hoạch* và kết thúc bằng **một cổng duyệt duy nhất** (người duyệt `PLAN.md`). Sau đó G5–G7 chạy tự động
-trong vòng lặp có bằng chứng; chỉ dừng ở các **điểm dừng bắt buộc** (thao tác không thể hoàn tác, tiền thật, dữ liệu
-người dùng thật, mâu thuẫn không tự giải được).
+pha *lập kế hoạch* và kết thúc bằng **một cổng duyệt duy nhất** — phiên chính tự duyệt `PLAN.md` theo tiêu chí chất
+lượng cuối và ghi `D-NNN` (ADR-0008). Sau đó G5–G7 chạy tự động trong vòng lặp có bằng chứng; điểm quyết định chuyên
+môn tự duyệt và ghi lại, chỉ dừng ở các **điểm dừng bắt buộc về hành động** (thao tác không thể hoàn tác, tiền thật, dữ
+liệu người dùng thật, đối ngoại/production, nới cổng) — xem [`../11-autonomous-loop/stop-points-and-escalation.md`](../11-autonomous-loop/stop-points-and-escalation.md).
 
 ## Nguồn
 

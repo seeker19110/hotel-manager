@@ -1,7 +1,7 @@
 ---
 title: Mẫu SPEC
 kind: template
-updated: 2026-10-13
+updated: 2026-10-15
 ---
 
 # Mẫu SPEC-<tính-năng>.md
@@ -9,7 +9,7 @@ updated: 2026-10-13
 > **Ai viết:** người đặt yêu cầu + AI; người duyệt đổi trạng thái sang "Approved for implementation". **Giai đoạn:** G3 Specify (một file cho mỗi `F-NNN` MVP).
 > **Cổng dùng:** G3 (mỗi tính năng MVP có tiêu chí chấp nhận kiểm được), DoR trước task, DoD trước merge, `PM-SPEC-*`.
 > **Cách điền:** scenario viết Given/When/Then có ID `S-NNN` để test trỏ về; mục "Ca biên" phải phủ 8 nhóm hoặc ghi "không áp dụng — lý do";
-> gặp điểm spec chưa nói → ghi vào "Câu hỏi mở" và dừng, không tự đoán. Đặt tại `docs/specs/SPEC-<slug>.md`.
+> gặp điểm spec chưa nói → ghi vào "Câu hỏi mở", phiên chính quyết tường minh (`xt.py loop decide`, D-NNN), không lấp ngầm. Đặt tại `docs/specs/SPEC-<slug>.md`.
 
 ```markdown
 # SPEC-<slug> — <Tên tính năng>
@@ -79,7 +79,7 @@ Là <ai>, tôi muốn <làm gì>, để <kết quả>. (INVEST: độc lập, th
 - Sự kiện: `<doi_tuong.hanh_dong>` (schema: analytics/events.schema.json) → chỉ số M-<NN>
 
 ## 10. Câu hỏi mở (0 câu [chặn] trước khi Approved)
-- [ ] <câu hỏi> — [chặn]/[không chặn] — hỏi: <ai> — trả lời: <...> (<ngày>)
+- [ ] <câu hỏi> — [chặn]/[không chặn] — Đã quyết: D-<NNN> (phiên chính) hoặc <người> (<ngày>) — <câu trả lời>
 
 ## 11. DoR / DoD
 - DoR: spec Approved · 0 câu hỏi chặn · phụ thuộc rõ · đủ nhỏ cho một PR · mỗi task có Gate
