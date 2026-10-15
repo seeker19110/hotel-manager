@@ -125,11 +125,15 @@ export function rentLines(input: LeaseBillingInput): BillingLine[] {
   if (!occ) return [];
   const lines: BillingLine[] = [];
   const sorted = [...input.versions].sort((a, b) => day(a.from) - day(b.from));
-  for (const v of sorted) {
-    const seg = overlap(occ[0], occ[1], day(v.from), v.to ? day(v.to) : pe);
-    if (!seg) continue;
+  const segments = sorted
+    .map((v) => ({ v, seg: overlap(occ[0], occ[1], day(v.from), v.to ? day(v.to) : pe) }))
+    .filter((x): x is { v: BillingVersion; seg: [number, number] } => x.seg !== null);
+  // Ở trọn tháng thì tổng = giá tháng (SPEC mục 10). `fixed_30` chia 30 chỉ đúng cho tháng lẻ một đoạn; tháng trọn có đổi
+  // giá giữa kỳ chia theo ngày thực (15/31 + 16/31), nếu không 31 ngày thành 15/30 + 16/30 > 1 tháng.
+  const fullMonth = occ[0] === ps && occ[1] === pe;
+  for (const { v, seg } of segments) {
     const days = seg[1] - seg[0] + 1;
-    const mode = input.prorata ?? "actual_days";
+    const mode = fullMonth && segments.length > 1 ? "actual_days" : (input.prorata ?? "actual_days");
     const amount = prorate(v.rentAmount, days, dim, mode, rule);
     const denominator = days === dim ? dim : mode === "fixed_30" ? 30 : dim;
     lines.push({

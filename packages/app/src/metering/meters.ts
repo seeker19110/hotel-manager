@@ -248,6 +248,13 @@ export async function recordReading(
   assertReading(input.value, "value");
   const readOn = input.readOn ?? p.period_end;
   assertDate(readOn, "read_on");
+  // Ngày đọc nằm trong kỳ: lùi ngày ra ngoài kỳ từng né được kiểm chỉ số giảm và tính lại lượng của kỳ đã thu (review lát 3).
+  if (readOn < p.period_start || readOn > p.period_end || readOn < m.installed_on)
+    throw fieldError(
+      "read_on",
+      "OUT_OF_PERIOD",
+      `Ngày đọc phải trong kỳ ${p.period_start} – ${p.period_end}`,
+    );
   if (input.photoFileId && !UUID.test(input.photoFileId))
     throw fieldError("photo_file_id", "INVALID", "Ảnh không hợp lệ");
   const prev = await previousReading(ctx.trx, ctx.actor.orgId, m.id, {
@@ -266,6 +273,15 @@ export async function recordReading(
         },
       },
     );
+  }
+  // Không lớn hơn chỉ số đã duyệt đọc SAU ngày này (vd bàn giao nhận phòng của người kế tiếp) — chỉ số chỉ tăng theo thời gian.
+  const later = await sql<{ v: string }>`
+    select min(value)::text as v from meter_readings
+    where organization_id = ${ctx.actor.orgId} and meter_id = ${m.id} and status = 'approved' and read_on > ${readOn}::date
+      and billing_period_id is distinct from ${p.id}::uuid`.execute(ctx.trx);
+  const next = later.rows[0]?.v;
+  if (next != null && input.value > Number(next)) {
+    throw fieldError("value", "EXCEEDS_LATER_READING", `Chỉ số lớn hơn lần đọc sau (${Number(next)})`);
   }
   const existing = await sql<{ id: string; version: number }>`
     select id, version from meter_readings
@@ -515,7 +531,32 @@ export async function replaceMeter(
     throw fieldError("occurred_on", "BEFORE_INSTALL", "Ngày thay trước ngày lắp");
   assertReading(input.oldFinalValue, "old_final_value");
   assertReading(input.newInitialValue, "new_initial_value");
-  const prev = await previousReading(ctx.trx, ctx.actor.orgId, m.id, { before: input.occurredOn });
+  // Không lùi ngày thay vào trước lần đọc đã duyệt cuối hoặc vào kỳ đã phát hành (lượng của kỳ đã thu không đổi được).
+  const latest = await sql<{ read_on: string }>`
+    select max(read_on)::text as read_on from meter_readings
+    where organization_id = ${ctx.actor.orgId} and meter_id = ${m.id} and status = 'approved'`.execute(
+    ctx.trx,
+  );
+  const lastOn = latest.rows[0]?.read_on;
+  if (lastOn && input.occurredOn < lastOn)
+    throw fieldError(
+      "occurred_on",
+      "BEFORE_LAST_READING",
+      `Ngày thay trước lần đọc đã duyệt cuối (${lastOn})`,
+    );
+  const issued = await sql<{ period_end: string }>`
+    select max(period_end)::text as period_end from billing_periods
+    where organization_id = ${ctx.actor.orgId} and property_id = ${m.property_id} and status in ('issued','locked')`.execute(
+    ctx.trx,
+  );
+  const issuedEnd = issued.rows[0]?.period_end;
+  if (issuedEnd && input.occurredOn <= issuedEnd)
+    throw new CommandError(
+      "PERIOD_ISSUED",
+      409,
+      `Ngày thay thuộc kỳ đã phát hành (đến ${issuedEnd}). Dùng điều chỉnh.`,
+    );
+  const prev = await previousReading(ctx.trx, ctx.actor.orgId, m.id);
   if (input.oldFinalValue < prev.value) {
     throw new CommandError(
       "METER_READING_DECREASED",

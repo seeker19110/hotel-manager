@@ -185,12 +185,27 @@ export async function buildPreview(
           ? String(term.unit_price)
           : await priceAt(trx, orgId, s.id, lastDay).then((v) => (v === null ? null : String(v)));
       if (s.kind === "metered") {
-        const rd = await sql<{ id: string }>`
-          select r.id from meter_readings r join meters m on m.organization_id = r.organization_id and m.id = r.meter_id
-          where r.organization_id = ${orgId} and r.billing_period_id = ${p.id} and r.source = 'period'
-            and m.unit_id = ${l.unit_id} and m.kind = ${s.meter_kind} order by r.read_on desc limit 1`.execute(
-          trx,
-        );
+        // Lượng theo khoảng của TỪNG hợp đồng (review lát 3 🔴1): trả phòng trong kỳ mà biên bản trả có chỉ số ⇒ cuối = chỉ
+        // số bàn giao trả (phần sau đó là của phòng trống/người kế tiếp); còn lại cuối = chỉ số kỳ. Đầu luôn là chỉ số đã
+        // duyệt liền trước điểm cuối (gồm chỉ số bàn giao nhận phòng nếu vào giữa kỳ) — periodConsumptionText.
+        const moveOut =
+          l.moved_out_on && l.moved_out_on <= p.period_end
+            ? await sql<{ id: string }>`
+                select r.id from meter_readings r
+                join handovers h on h.organization_id = r.organization_id and h.id = r.handover_id
+                join meters m on m.organization_id = r.organization_id and m.id = r.meter_id
+                where r.organization_id = ${orgId} and h.lease_id = ${l.id} and h.kind = 'move_out' and r.status = 'approved'
+                  and m.kind = ${s.meter_kind}
+                order by (m.removed_on is null) desc, r.read_on desc, r.created_at desc limit 1`.execute(trx)
+            : null;
+        const rd =
+          moveOut?.rows[0] !== undefined
+            ? moveOut
+            : await sql<{ id: string }>`
+                select r.id from meter_readings r join meters m on m.organization_id = r.organization_id and m.id = r.meter_id
+                where r.organization_id = ${orgId} and r.billing_period_id = ${p.id} and r.source = 'period'
+                  and m.unit_id = ${l.unit_id} and m.kind = ${s.meter_kind}
+                order by (m.removed_on is null) desc, r.read_on desc, r.created_at desc limit 1`.execute(trx);
         const readingId = rd.rows[0]?.id;
         if (!readingId) {
           missing.push(s.meter_kind as string);
@@ -205,12 +220,22 @@ export async function buildPreview(
           unitPrice: price,
         });
       } else {
-        // Phí một lần: chỉ ở kỳ có ngày bắt đầu tính tiền (một lần trong đời hợp đồng — S-016).
-        if (
-          s.kind === "one_time" &&
-          !(l.billing_start_on >= p.period_start && l.billing_start_on <= p.period_end)
-        )
-          continue;
+        // Phí một lần (S-016): đúng một lần — ở kỳ chứa ngày bắt đầu áp dụng = max(ngày bắt đầu tính tiền, hiệu lực của phiên
+        // bản đầu tiên có dịch vụ này) — nên phí thêm bằng phụ lục cũng được tính (review lát 3 🟠5); đã có khoản phải thu
+        // (chưa huỷ) cho hợp đồng + dịch vụ ở kỳ khác thì bỏ qua.
+        if (s.kind === "one_time") {
+          const intro =
+            versions.rows.find((v) => v.services.some((x) => x.service_id === s.id))?.from ??
+            l.billing_start_on;
+          const startOn = intro > l.billing_start_on ? intro : l.billing_start_on;
+          if (startOn < p.period_start || startOn > p.period_end) continue;
+          const charged = await sql`
+            select 1 from charges where organization_id = ${orgId} and lease_id = ${l.id} and service_id = ${s.id}
+              and voided_at is null and billing_period_id is distinct from ${p.id}::uuid limit 1`.execute(
+            trx,
+          );
+          if (charged.rows.length > 0) continue;
+        }
         fixed.push({
           serviceId: s.id,
           name: s.name,
@@ -287,12 +312,50 @@ async function lockedPeriod(
 }
 
 /** `billing.submitForReview` (S-008, S-009): draft → reviewing khi đủ chỉ số và không còn bất thường chưa ghi nhận. */
+/**
+ * Kỳ phải duyệt/phát hành theo thứ tự (review lát 3 🔴2): lượng tiêu thụ lùi về chỉ số đã DUYỆT gần nhất, nên phát hành kỳ
+ * sau khi kỳ trước còn nháp sẽ tính trùng phần của kỳ trước. Trigger CSDL chặn tương tự ở bước `issued`.
+ */
+async function assertEarlierPeriodsIssued(
+  ctx: CommandContext,
+  p: { id: string; property_id: string; period_start: string },
+) {
+  const r = await sql<{ period_start: string; status: string }>`
+    select period_start::text, status from billing_periods
+    where organization_id = ${ctx.actor.orgId} and property_id = ${p.property_id} and period_start < ${p.period_start}::date
+      and status in ('draft','reviewing')
+    order by period_start limit 1`.execute(ctx.trx);
+  const e = r.rows[0];
+  if (e) {
+    throw new CommandError(
+      "INVALID_TRANSITION",
+      409,
+      `Còn kỳ ${e.period_start.slice(0, 7)} chưa phát hành — phát hành theo thứ tự.`,
+      {
+        extensions: { items: [{ period_start: e.period_start, status: e.status }] },
+      },
+    );
+  }
+}
+
+/** Hợp đồng được tính tiền mà thiếu chỉ số (vd dịch vụ theo công tơ nhưng phòng chưa lắp công tơ) ⇒ không duyệt/phát hành. */
+function assertNoMissing(preview: Preview) {
+  const items = preview.items.flatMap((i) =>
+    i.missing.map((meter) => ({ unit: i.unit, meter, reason: "no_reading" })),
+  );
+  if (items.length > 0)
+    throw new CommandError("READINGS_INCOMPLETE", 409, "Còn phòng chưa nhập chỉ số.", {
+      extensions: { items },
+    });
+}
+
 export async function submitForReview(
   ctx: CommandContext,
   input: { billingPeriodId: string },
 ): Promise<{ status: string; previewHash: string }> {
   const p = await lockedPeriod(ctx, input.billingPeriodId, "billing.prepare");
   billingPeriodMachine.assertTransition(p.status, "reviewing");
+  await assertEarlierPeriodsIssued(ctx, p);
   const missing = await missingReadings(ctx.trx, ctx.actor.orgId, p.id);
   if (missing.length > 0) {
     throw new CommandError("READINGS_INCOMPLETE", 409, "Còn phòng chưa nhập chỉ số.", {
@@ -306,6 +369,7 @@ export async function submitForReview(
     });
   }
   const preview = await buildPreview(ctx.trx, ctx.actor.orgId, p.id);
+  assertNoMissing(preview);
   await sql`update billing_periods set status = 'reviewing', preview_hash = ${preview.preview_hash}
             where organization_id = ${ctx.actor.orgId} and id = ${p.id}`.execute(ctx.trx);
   await ctx.audit({
@@ -347,6 +411,7 @@ export async function issuePeriod(
 ): Promise<{ invoiceIds: string[]; journalEntryIds: string[]; total: number }> {
   const p = await lockedPeriod(ctx, input.billingPeriodId, "billing.issue");
   billingPeriodMachine.assertTransition(p.status, "issued");
+  await assertEarlierPeriodsIssued(ctx, p);
   // Khoá chỉ số kỳ trước khi chụp số liệu: sửa chỉ số song song phải chờ rồi gặp PERIOD_ISSUED, không lọt giữa xem trước và
   // duyệt. Chỉ duyệt đúng các chỉ số đã khoá (chỉ số chèn sau không thuộc lần phát hành này).
   const locked = await sql<{ id: string }>`
@@ -361,6 +426,7 @@ export async function issuePeriod(
       "Số liệu đã thay đổi sau khi bạn xem trước. Hãy xem lại.",
     );
   }
+  assertNoMissing(preview);
   const invoiceIds: string[] = [];
   const journalEntryIds: string[] = [];
   for (const item of preview.items) {

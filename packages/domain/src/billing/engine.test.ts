@@ -184,6 +184,55 @@ describe("S-021 đổi giá giữa kỳ", () => {
   });
 });
 
+describe("review lát 3 🟠4: fixed_30 có đổi giá giữa tháng trọn", () => {
+  const split = (periodStart: string, periodEnd: string, cut: string, prev: string) =>
+    rentLines(
+      base({
+        periodStart,
+        periodEnd,
+        prorata: "fixed_30",
+        versions: [
+          { id: "v1", from: "2026-01-01", to: prev, rentAmount: 3_000_000 },
+          { id: "v2", from: cut, to: null, rentAmount: 3_000_000 },
+        ],
+      }),
+    ).reduce((s, l) => s + l.amount, 0);
+  it("01–15/10 + 16–31/10 cùng giá → 3.000.000 (không phải 3.100.000); 2/2027 14 + 14 ngày → 3.000.000", () => {
+    expect(split("2026-10-01", "2026-10-31", "2026-10-16", "2026-10-15")).toBe(3_000_000);
+    expect(split("2027-02-01", "2027-02-28", "2027-02-15", "2027-02-14")).toBe(3_000_000);
+  });
+  it("property: tháng trọn, cùng giá, cắt ngày bất kỳ, cả hai chế độ → |Σ − giá| ≤ 1 đ mỗi đoạn", () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ min: 0, max: 47 }),
+        fc.integer({ min: 2, max: 31 }),
+        fc.integer({ min: 0, max: 50_000_000 }),
+        fc.constantFrom("actual_days" as const, "fixed_30" as const),
+        (i, cutDay, rent, prorata) => {
+          const ym = `${2026 + Math.floor(i / 12)}-${String((i % 12) + 1).padStart(2, "0")}`;
+          const dim = daysInMonth(`${ym}-01`);
+          const c = Math.min(cutDay, dim);
+          const dd = (d: number) => `${ym}-${String(d).padStart(2, "0")}`;
+          const lines = rentLines(
+            base({
+              periodStart: dd(1),
+              periodEnd: dd(dim),
+              prorata,
+              versions: [
+                { id: "v1", from: "2026-01-01", to: dd(c - 1), rentAmount: rent },
+                { id: "v2", from: dd(c), to: null, rentAmount: rent },
+              ],
+            }),
+          );
+          expect(lines).toHaveLength(2);
+          expect(Math.abs(lines.reduce((s, l) => s + l.amount, 0) - rent)).toBeLessThanOrEqual(1);
+        },
+      ),
+      { numRuns: 1000 },
+    );
+  });
+});
+
 describe("S-020 property test (fast-check ≥ 1.000 bộ)", () => {
   const month = fc.integer({ min: 0, max: 47 }).map((i) => {
     const y = 2026 + Math.floor(i / 12);

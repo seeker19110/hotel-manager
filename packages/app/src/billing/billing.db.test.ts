@@ -7,7 +7,7 @@ import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type Actor, resolveActor } from "../access/actor.ts";
 import { prepareSettlement } from "../lease/settlement.ts";
-import { recordReading, setServicePrice } from "../metering/meters.ts";
+import { recordReading, replaceMeter, setServicePrice } from "../metering/meters.ts";
 import { executeCommand } from "../pipeline/command.ts";
 import { toProblem } from "../pipeline/problem.ts";
 import {
@@ -65,7 +65,12 @@ async function fails(p: Promise<{ status: string; problem?: unknown }>) {
 }
 
 /** Cơ sở riêng cho mỗi test (kỳ thu theo cơ sở) với fixture `billing-basic`; trả hàm tiện ích theo kỳ. */
-async function billingBasic() {
+async function billingBasic(
+  opts: {
+    waterMeter?: boolean;
+    extra?: { code: string; name: string; kind: string; account: string; price: number }[];
+  } = {},
+) {
   const propertyId = randomUUID();
   await sql`insert into properties (id, organization_id, name, template)
             values (${propertyId}, ${A.orgId}, ${`P1 ${propertyId.slice(0, 4)}`}, 'rental')`.execute(t.admin);
@@ -116,7 +121,7 @@ async function billingBasic() {
     return id;
   };
   const em = await meter("electric", 1250);
-  const wm = await meter("water", 30);
+  const wm = opts.waterMeter === false ? "" : await meter("water", 30);
   const rep = randomUUID();
   await sql`insert into persons (id, organization_id, full_name) values (${rep}, ${A.orgId}, 'Người thuê L1')`.execute(
     t.admin,
@@ -128,7 +133,12 @@ async function billingBasic() {
     unitId,
     effectiveFrom: "2026-09-01",
   });
-  const services = JSON.stringify([electric, water, other].map((s) => ({ service_id: s, quantity: 1 })));
+  const extra: string[] = [];
+  for (const x of opts.extra ?? [])
+    extra.push(await service(x.code, x.name, x.kind, x.account, null, x.price));
+  const services = JSON.stringify(
+    [electric, water, other, ...extra].map((s) => ({ service_id: s, quantity: 1 })),
+  );
   await t.admin.transaction().execute(async (trx) => {
     await sql`update lease_versions set signed_at = now(), terms_hash = ${"0".repeat(64)}, terms_snapshot = '{}',
                      services = ${services}::jsonb where lease_id = ${leaseId}`.execute(trx);
@@ -476,11 +486,12 @@ describe("S-012 khoá/mở khoá kỳ", () => {
         run(K, async (ctx) => ({ data: await lockBillingPeriod(ctx, { billingPeriodId: id, reason: "x" }) })),
       ),
     ).toMatchObject({ code: "INVALID_TRANSITION" });
-    const { id: id10, hash } = await P.reviewed("2026-10");
-    await ok(P.issue(O, id10, hash));
+    const { id: id9, hash } = await P.reviewed("2026-09", 1300, 36);
+    expect(id9).toBe(id);
+    await ok(P.issue(O, id9, hash));
     const direct = await t.admin
       .transaction()
-      .execute((trx) => sql`update billing_periods set status = 'locked' where id = ${id10}`.execute(trx))
+      .execute((trx) => sql`update billing_periods set status = 'locked' where id = ${id9}`.execute(trx))
       .catch((e: unknown) => e);
     expect(toProblem(direct)).toMatchObject({ code: "INVALID_TRANSITION", status: 409 });
   });
@@ -551,8 +562,8 @@ describe("Thanh lý sau kỳ cuối (PLAN đợt 2 T-114)", () => {
     });
     const prepare = () =>
       run(M, async (ctx) => ({ data: await prepareSettlement(ctx, { leaseId: P.leaseId, fees: [] }) }));
-    // Kỳ 10 chưa có nhưng cơ sở đã dùng kỳ thu (có kỳ 09).
-    await P.period("2026-09");
+    // Kỳ 10 chưa có nhưng cơ sở đã dùng kỳ thu (có kỳ 11 — kỳ sau không chặn phát hành kỳ 10).
+    await P.period("2026-11");
     const none = await fails(prepare());
     expect(none).toMatchObject({ code: "FINAL_PERIOD_NOT_ISSUED", status: 409 });
     const { id, hash } = await P.reviewed("2026-10");
@@ -565,5 +576,140 @@ describe("Thanh lý sau kỳ cuối (PLAN đợt 2 T-114)", () => {
     expect(r.total).toBe(1_935_484 + 300_000 + 180_000 + 100_000);
     const s = await ok(prepare());
     expect(s).toMatchObject({ outstandingAr: r.total });
+  });
+});
+
+describe("review lát 3 — hồi quy", () => {
+  it("🔴1 trả phòng 20/10 có chỉ số bàn giao 1.320/40: điện 70 kWh, nước 10 m³ (không phải 30/2)", async () => {
+    const P = await billingBasic();
+    await t.admin.transaction().execute(async (trx) => {
+      await sql`update leases set status = 'notice_given', planned_move_out_on = '2026-10-20' where id = ${P.leaseId}`.execute(
+        trx,
+      );
+      const h = randomUUID();
+      await sql`insert into handovers (id, organization_id, property_id, lease_id, kind, handed_over_on, staff_confirmed_by,
+                                       confirmed_at, confirmation_method)
+                values (${h}, ${A.orgId}, ${P.propertyId}, ${P.leaseId}, 'move_out', '2026-10-20', ${A.ownerMembershipId}, now(),
+                        'in_person')`.execute(trx);
+      for (const [m, v] of [
+        [P.em, 1320],
+        [P.wm, 40],
+      ] as const) {
+        await sql`insert into meter_readings (id, organization_id, property_id, meter_id, handover_id, read_on, value, status, source,
+                                              approved_by)
+                  values (${randomUUID()}, ${A.orgId}, ${P.propertyId}, ${m}, ${h}, '2026-10-20', ${v}, 'approved', 'handover',
+                          ${A.ownerMembershipId})`.execute(trx);
+      }
+      await sql`update leases set status = 'settling', moved_out_on = '2026-10-20' where id = ${P.leaseId}`.execute(
+        trx,
+      );
+    });
+    const id = await P.period("2026-10");
+    await ok(P.read(F, P.em, id, 1350));
+    await ok(P.read(F, P.wm, id, 42));
+    const pv = await previewPeriod(t.runtime, M, { billingPeriodId: id });
+    expect(pv.items[0]?.lines.map((l) => [l.kind, l.quantity, l.amount])).toEqual([
+      ["room", "20", 1_935_484],
+      ["utility", "70", 210_000],
+      ["utility", "10", 150_000],
+      ["service", "1", 100_000],
+    ]);
+  });
+
+  it("🔴2 phát hành theo thứ tự: kỳ 11 không gửi duyệt/phát hành khi kỳ 10 chưa phát hành (lệnh và CSDL)", async () => {
+    const P = await billingBasic();
+    const { id: id10, hash: h10 } = await P.reviewed("2026-10");
+    const id11 = await P.period("2026-11");
+    await ok(P.read(F, P.em, id11, 1450));
+    await ok(P.read(F, P.wm, id11, 50));
+    const early = await fails(
+      run(M, async (ctx) => ({ data: await submitForReview(ctx, { billingPeriodId: id11 }) })),
+    );
+    expect(early).toMatchObject({
+      code: "INVALID_TRANSITION",
+      status: 409,
+      items: [{ period_start: "2026-10-01" }],
+    });
+    const direct = await t.admin
+      .transaction()
+      .execute(async (trx) => {
+        await sql`update billing_periods set status = 'reviewing' where id = ${id11}`.execute(trx);
+        await sql`update billing_periods set status = 'issued', issued_at = now() where id = ${id11}`.execute(
+          trx,
+        );
+      })
+      .catch((e: unknown) => e);
+    expect(toProblem(direct)).toMatchObject({ code: "INVALID_TRANSITION", status: 409 });
+    await ok(P.issue(O, id10, h10));
+    const s11 = await ok(
+      run(M, async (ctx) => ({ data: await submitForReview(ctx, { billingPeriodId: id11 }) })),
+    );
+    const r11 = await ok(P.issue(O, id11, s11.previewHash));
+    // Kỳ 11: điện 1.350 → 1.450 = 100 kWh (không cộng lại 100 kWh của kỳ 10).
+    const el = await sql<{ quantity: string }>`
+      select quantity::text from invoice_lines where invoice_id = ${r11.invoiceIds[0]} and line_no = 2`.execute(
+      t.admin,
+    );
+    expect(el.rows[0]?.quantity).toBe("100.0000");
+  });
+
+  it("🔴3 không lùi read_on ra ngoài kỳ để né chỉ số giảm; thay công tơ không lùi vào kỳ đã phát hành", async () => {
+    const P = await billingBasic();
+    const { id: id9, hash } = await P.reviewed("2026-09", 1350, 36);
+    await ok(P.issue(O, id9, hash));
+    const id10 = await P.period("2026-10");
+    expect(await fails(P.read(F, P.em, id10, 1300))).toMatchObject({ code: "METER_READING_DECREASED" });
+    const back = await fails(
+      run(F, async (ctx) => ({
+        data: await recordReading(ctx, {
+          meterId: P.em,
+          billingPeriodId: id10,
+          value: 1300,
+          readOn: "2026-08-15",
+        }),
+      })),
+    );
+    expect(back).toMatchObject({ code: "VALIDATION_FAILED", status: 422 });
+    const replace = (occurredOn: string) =>
+      run(M, async (ctx) => ({
+        data: await replaceMeter(ctx, { meterId: P.em, occurredOn, oldFinalValue: 1300, newInitialValue: 0 }),
+      }));
+    expect(await fails(replace("2026-08-15"))).toMatchObject({ code: "VALIDATION_FAILED" });
+    expect(await fails(replace("2026-09-30"))).toMatchObject({ code: "PERIOD_ISSUED", status: 409 });
+    expect(await fails(replace("2026-10-05"))).toMatchObject({ code: "METER_READING_DECREASED" });
+  });
+
+  it("🟢7 dịch vụ theo công tơ mà phòng chưa lắp công tơ nước → gửi duyệt 409 READINGS_INCOMPLETE", async () => {
+    const P = await billingBasic({ waterMeter: false });
+    const id = await P.period("2026-10");
+    await ok(P.read(F, P.em, id, 1350));
+    const r = await fails(
+      run(M, async (ctx) => ({ data: await submitForReview(ctx, { billingPeriodId: id }) })),
+    );
+    expect(r).toMatchObject({ code: "READINGS_INCOMPLETE", items: [{ unit: "U101", meter: "water" }] });
+  });
+
+  it("S-016 trên Postgres: rác theo người 1 × 20.000; làm chìa 50.000 chỉ ở kỳ bắt đầu (09), không lặp ở kỳ 10", async () => {
+    const P = await billingBasic({
+      extra: [
+        { code: "RAC", name: "Rác", kind: "per_person", account: "REV_SERVICE", price: 20_000 },
+        { code: "CHIA", name: "Làm chìa", kind: "one_time", account: "REV_FEE", price: 50_000 },
+      ],
+    });
+    const { id: id9, hash } = await P.reviewed("2026-09", 1300, 36);
+    const r9 = await ok(P.issue(O, id9, hash));
+    const l9 = await sql<{ description: string; amount: string }>`
+      select description, amount::text from invoice_lines where invoice_id = ${r9.invoiceIds[0]} and line_no > 4 order by line_no`.execute(
+      t.admin,
+    );
+    expect(l9.rows).toEqual([
+      { description: "Rác (1 người)", amount: "20000" },
+      { description: "Làm chìa", amount: "50000" },
+    ]);
+    const id10 = await P.period("2026-10");
+    await ok(P.read(F, P.em, id10, 1400));
+    await ok(P.read(F, P.wm, id10, 40));
+    const pv = await previewPeriod(t.runtime, M, { billingPeriodId: id10 });
+    expect(pv.items[0]?.lines.map((l) => l.description)).not.toContain("Làm chìa");
   });
 });

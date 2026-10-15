@@ -25,6 +25,12 @@ BEGIN
         USING ERRCODE = 'check_violation', HINT = 'INVALID_TRANSITION';
     END IF;
   END IF;
+  -- Phát hành theo thứ tự tháng (lượng tiêu thụ lùi về chỉ số đã duyệt gần nhất ⇒ ngược thứ tự là tính trùng).
+  IF NEW.status = 'issued' AND OLD.status = 'reviewing' AND EXISTS (SELECT 1 FROM billing_periods b
+       WHERE b.organization_id = NEW.organization_id AND b.property_id = NEW.property_id AND b.period_start < NEW.period_start
+         AND b.status IN ('draft','reviewing')) THEN
+    RAISE EXCEPTION 'kỳ thu %: còn kỳ trước chưa phát hành', OLD.id USING ERRCODE = 'check_violation', HINT = 'INVALID_TRANSITION';
+  END IF;
   IF OLD.status IN ('issued','locked') AND (NEW.issued_at IS DISTINCT FROM OLD.issued_at OR NEW.issued_by IS DISTINCT FROM OLD.issued_by
        OR NEW.preview_hash IS DISTINCT FROM OLD.preview_hash) THEN
     RAISE EXCEPTION 'kỳ thu % đã phát hành', OLD.id USING ERRCODE = '55000', HINT = 'PERIOD_ISSUED';
