@@ -2,6 +2,12 @@
 // (schema Zod là hợp đồng đầu vào). Tên mục = tên command trong SPEC §5.
 import { z } from "zod";
 import { APPROVAL_KINDS, cancelApproval, decideApproval, requestApproval } from "../approvals/approvals.ts";
+import {
+  receiveDeposit,
+  requestCreditRefund,
+  requestDeduction,
+  requestDepositRefund,
+} from "../deposits/deposits.ts";
 import { allocatePayment, confirmPayment, recordPayment, reversePayment } from "../payments/payments.ts";
 import {
   closeShift,
@@ -198,6 +204,100 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
     input: z.strictObject({ payment_id: uuid, reason: z.string().trim().min(1).max(1000) }),
     run: async (ctx, i) => ({
       data: await reversePayment(ctx, { paymentId: i.payment_id, reason: i.reason }),
+    }),
+  }),
+  "deposit.receive": defineCommand({
+    command: "deposit.receive",
+    input: z
+      .strictObject({
+        property_id: uuid,
+        lease_id: uuid.optional(),
+        reservation_id: uuid.optional(),
+        payer_person_id: uuid,
+        amount: positiveMoney,
+        method: z.enum(["cash", "bank_transfer"]),
+        receiving_account_id: uuid.optional(),
+        bank_txn: bankTxn.optional(),
+      })
+      .refine((i) => Boolean(i.lease_id) !== Boolean(i.reservation_id), {
+        message: "lease_id hoặc reservation_id",
+      }),
+    run: async (ctx, i) => ({
+      data: await receiveDeposit(ctx, {
+        propertyId: i.property_id,
+        payerPersonId: i.payer_person_id,
+        amount: i.amount,
+        method: i.method,
+        ...(i.lease_id ? { leaseId: i.lease_id } : {}),
+        ...(i.reservation_id ? { reservationId: i.reservation_id } : {}),
+        ...(i.receiving_account_id ? { receivingAccountId: i.receiving_account_id } : {}),
+        ...(i.bank_txn ? { bankTxn: toBankTxn(i.bank_txn) } : {}),
+      }),
+      httpStatus: 201,
+    }),
+  }),
+  "deposit.requestDeduction": defineCommand({
+    command: "deposit.requestDeduction",
+    input: z.strictObject({
+      deposit_id: uuid,
+      invoice_id: uuid,
+      amount: positiveMoney,
+      reason: z.string().trim().min(1).max(1000),
+    }),
+    run: async (ctx, i) => ({
+      data: await requestDeduction(ctx, {
+        depositId: i.deposit_id,
+        invoiceId: i.invoice_id,
+        amount: i.amount,
+        reason: i.reason,
+      }),
+      httpStatus: 201,
+    }),
+  }),
+  "deposit.requestRefund": defineCommand({
+    command: "deposit.requestRefund",
+    input: z.strictObject({
+      deposit_id: uuid,
+      amount: positiveMoney,
+      reason: z.string().trim().min(1).max(1000),
+      method: z.enum(["cash", "bank_transfer"]),
+      receiving_account_id: uuid.optional(),
+    }),
+    run: async (ctx, i) => ({
+      data: await requestDepositRefund(ctx, {
+        depositId: i.deposit_id,
+        amount: i.amount,
+        reason: i.reason,
+        refund:
+          i.method === "cash"
+            ? { method: "cash" }
+            : { method: "bank_transfer", receivingAccountId: i.receiving_account_id ?? "" },
+      }),
+      httpStatus: 201,
+    }),
+  }),
+  "credit.requestRefund": defineCommand({
+    command: "credit.requestRefund",
+    input: z.strictObject({
+      person_id: uuid,
+      property_id: uuid,
+      amount: positiveMoney,
+      reason: z.string().trim().min(1).max(1000),
+      method: z.enum(["cash", "bank_transfer"]),
+      receiving_account_id: uuid.optional(),
+    }),
+    run: async (ctx, i) => ({
+      data: await requestCreditRefund(ctx, {
+        personId: i.person_id,
+        propertyId: i.property_id,
+        amount: i.amount,
+        reason: i.reason,
+        refund:
+          i.method === "cash"
+            ? { method: "cash" }
+            : { method: "bank_transfer", receivingAccountId: i.receiving_account_id ?? "" },
+      }),
+      httpStatus: 201,
     }),
   }),
 };

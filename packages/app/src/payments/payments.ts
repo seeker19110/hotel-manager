@@ -288,8 +288,9 @@ export async function confirmPayment(
     propertyId: p.property_id,
     entryType: p.purpose === "deposit" ? "deposit_received" : "payment_confirmed",
     businessDate: p.business_date,
-    sourceDocType: p.purpose === "deposit" ? "deposit" : "payment",
-    sourceDocId: p.purpose === "deposit" ? (p.deposit_id as string) : p.id,
+    // Nguồn luôn là chính khoản thu (một cọc có thể nhận nhiều lần; đảo tìm đúng bút toán của khoản này).
+    sourceDocType: "payment",
+    sourceDocId: p.id,
     createdBy: ctx.actor.membershipId,
     commandId: ctx.commandId,
     lines: [
@@ -311,6 +312,11 @@ export async function confirmPayment(
            evidence_kind = ${evidenceKind}, evidence_id = ${evidenceId}, bank_transaction_id = ${bankTransactionId},
            receipt_no = ${receiptNo}, version = version + 1
     where organization_id = ${ctx.actor.orgId} and id = ${p.id}`.execute(ctx.trx);
+  if (p.purpose === "deposit") {
+    await sql`
+      update deposits set amount = amount + ${Number(p.amount)}, version = version + 1
+      where organization_id = ${ctx.actor.orgId} and id = ${p.deposit_id}`.execute(ctx.trx);
+  }
   await ctx.audit({
     action: "payment.confirmed",
     entityType: "payment",
@@ -500,7 +506,7 @@ export async function reversePayment(
   const confirmEntry = await sql<{ id: string }>`
     select id from journal_entries
     where organization_id = ${ctx.actor.orgId} and source_doc_type = 'payment' and source_doc_id = ${p.id}
-      and entry_type = 'payment_confirmed'`.execute(ctx.trx);
+      and entry_type in ('payment_confirmed','deposit_received')`.execute(ctx.trx);
   const ce = confirmEntry.rows[0]?.id;
   if (!ce) throw new CommandError("INVALID_TRANSITION", 409, "Không tìm thấy bút toán thu để đảo");
   reversalEntryIds.push(
@@ -514,6 +520,12 @@ export async function reversePayment(
       ...(cashShiftId ? { cashShiftId } : {}),
     }),
   );
+  if (p.purpose === "deposit") {
+    // Cọc đã khấu trừ/hoàn một phần thì không đảo được phần đó: CHECK balance >= 0 chặn (đảo khoản hoàn trước).
+    await sql`
+      update deposits set amount = amount - ${Number(p.amount)}, version = version + 1
+      where organization_id = ${ctx.actor.orgId} and id = ${p.deposit_id}`.execute(ctx.trx);
+  }
   await sql`
     update payments set status = 'reversed', allocated_total = 0, reversed_by = ${ctx.actor.membershipId}, reversed_at = now(),
            reverse_reason = ${input.reason.trim()}, version = version + 1

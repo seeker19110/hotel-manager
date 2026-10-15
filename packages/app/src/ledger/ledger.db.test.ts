@@ -53,7 +53,12 @@ describe("INV-F1 — bút toán cân bằng", () => {
   it("ví dụ trọ: phát hành 3.580.000, nhận 2.000.000 chuyển khoản, phân bổ → AR phiếu còn 1.580.000; cọc riêng 3.000.000", async () => {
     const invoice = await invoiceRow(3_580_000);
     const payer = A.ownerPersonId;
+    // Cọc thật (FK journal_lines.deposit_id từ migration 0011).
     const deposit = randomUUID();
+    await sql`insert into deposits (id, organization_id, property_id, lease_id, payer_person_id)
+              values (${deposit}, ${A.orgId}, ${A.propertyId}, ${randomUUID()}, ${A.ownerPersonId})`.execute(
+      t.admin,
+    );
     // Dòng CASH phải gắn một ca có thật (FK từ migration 0009).
     const shift = randomUUID();
     await sql`insert into shifts (id, organization_id, property_id, opened_by, opening_cash)

@@ -84,16 +84,23 @@ export interface SeedInvoiceLine {
  */
 export async function seedIssuedInvoice(
   admin: Kysely<unknown>,
-  input: { orgId: string; propertyId: string; payerPersonId: string; lines: readonly SeedInvoiceLine[] },
+  input: {
+    orgId: string;
+    propertyId: string;
+    payerPersonId: string;
+    lines: readonly SeedInvoiceLine[];
+    leaseId?: string;
+  },
 ): Promise<{ invoiceId: string; total: number; memoRef: string }> {
   const invoiceId = randomUUID();
   const total = input.lines.reduce((s, l) => s + l.amount, 0);
   const memoRef = `HM${randomUUID().replaceAll("-", "").slice(0, 10).toUpperCase()}`;
   const entryId = randomUUID();
   await admin.transaction().execute(async (trx) => {
-    await sql`insert into invoices (id, organization_id, property_id, kind, number, memo_ref, payer_person_id, business_date, total)
+    await sql`insert into invoices (id, organization_id, property_id, kind, number, memo_ref, payer_person_id, business_date, total,
+                                    lease_id)
               values (${invoiceId}, ${input.orgId}, ${input.propertyId}, 'fee', ${`T-${invoiceId.slice(0, 8)}`}, ${memoRef},
-                      ${input.payerPersonId}, current_date, ${total})`.execute(trx);
+                      ${input.payerPersonId}, current_date, ${total}, ${input.leaseId ?? null})`.execute(trx);
     // Phiếu 0 đ không có bút toán (mỗi dòng sổ phải đúng một phía > 0).
     const posts = total > 0;
     if (posts) {

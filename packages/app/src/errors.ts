@@ -50,6 +50,7 @@ export const ERROR_CODES = {
   SHIFT_HAS_PENDING_PAYMENTS: { status: 409, source: "SPEC-ledger-payments §6" },
   EVIDENCE_REQUIRED: { status: 422, source: "SPEC-ledger-payments §6" },
   BANK_TRANSACTION_ALREADY_USED: { status: 409, source: "SPEC-ledger-payments §6" },
+  REFUND_EXCEEDS_BALANCE: { status: 409, source: "SPEC-ledger-payments §6" },
   DUPLICATE: { status: 409, source: "unique 23505 chưa có mã nghiệp vụ riêng" },
 } as const satisfies Record<string, ErrorSpec>;
 
