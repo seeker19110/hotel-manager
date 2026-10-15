@@ -22,3 +22,8 @@ minimumReleaseAgeExclude:
   - '@better-auth/prisma-adapter@1.7.9'
   - '@better-auth/telemetry@1.7.9'
   - better-auth@1.7.9
+# Script cài đặt của phụ thuộc: mặc định KHÔNG chạy (chuỗi cung ứng). Hai gói dưới đây có binary qua optionalDependencies
+# nên không cần postinstall (esbuild bundle SW lúc build — T-013; @swc/core kéo theo @serwist/turbopack).
+allowBuilds:
+  esbuild: false
+  '@swc/core': false
