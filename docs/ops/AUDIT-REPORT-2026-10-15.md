@@ -213,3 +213,15 @@ migrate); install chạy lại idempotent; ADR-0006 → "Bị thay thế bởi A
 | 1 | `fix(hooks):` | AUD-HAR-021, AUD-HAR-022 | test `legacy_hook_compat` (cài cũ → sửa `_lib.sh`/một hook → cài mới → payload deny) đỏ trước/xanh sau; `-k legacy_refs` với `xs_py` |
 | 2 | `docs:` | AUD-DOC-023, AUD-DOC-024, AUD-SEC-015 | đối chiếu mọi trích `install.py:`/`test_install.py:` trong BLUEPRINT.md; `audit check --strict` |
 | 3 | `fix(install):` | AUD-HAR-023, AUD-HAR-024 (🟢, có thể gộp đợt 1 nếu nhỏ) | test symlink/file thừa; `xt.yaml` mẫu không còn chữ `xs.yaml` |
+
+Kết quả đợt 1 (duyệt 2026-10-15, #1): AUD-HAR-021 + AUD-HAR-022 đã sửa.
+
+| Lệnh | Exit | Kết quả |
+|---|---|---|
+| `python3 -m unittest discover -s tests -k legacy_hook_compat` trước sửa | 1 | 2 FAIL: `XT_ROOT`/`XS_ROOT: unbound variable`, quyết định `None` thay vì `deny` |
+| cùng lệnh sau sửa | 0 | 2 OK (pre-bash deny, pre-edit `xt.yaml` ask, stop-guard không lỗi tên) |
+| `-k legacy_refs_catches -k warns_loudly` trước / sau | 1 / 0 | `_lib.sh` bản khung bị liệt kê, thiếu "HOOK còn tên cũ" → hết |
+| cài `8e64aac` → sửa `_lib.sh` + hook riêng gọi `xs_py` → cài bản sửa → payload `rm -rf /` | 0 | `deny`; cảnh báo "HOOK còn tên cũ" nêu `_lib.sh`, `mine.sh` |
+
+Giới hạn còn lại (ghi CHANGELOG): hook ≤ 2.x người dùng đã sửa vẫn tìm `.xstored/scripts/dev-task.sh` nên cổng commit của
+hook đó không chạy tới khi gộp tay bản `.xtemplates-new` — install giờ cảnh báo riêng thay vì lẫn trong danh sách tên cũ.

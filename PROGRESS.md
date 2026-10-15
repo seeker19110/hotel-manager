@@ -3,11 +3,11 @@
 > Giai đoạn hiện tại: G8 Vận hành & tiến hoá (khung v2 đã phát hành) · Cập nhật: 2026-10-15 · Nhánh: claude/serene-ride-3jvrfp
 
 ## Đang làm
-- Audit delta sau #43 (`0d1b62c`, ADR-0007) xong phần quét: 8 nhóm, 1 🔴 · 3 🟠 · 3 🟢 mở (`docs/ops/AUDIT-REPORT-2026-10-15.md` §10). 🔴 AUD-HAR-021: nâng cấp ≤2.x khi người dùng đã sửa `_lib.sh` hoặc một hook → hook lệch tên biến, guard fail-open (`rm -rf /` lọt). **Chờ người duyệt kế hoạch 3 đợt** trước khi sửa. #43 đã merge (CI xanh ở `1c95604`).
+- Audit delta sau #43 (`0d1b62c`, ADR-0007): 8 nhóm quét, 1 🔴 · 3 🟠 · 3 🟢 (`docs/ops/AUDIT-REPORT-2026-10-15.md` §10). Đợt 1 (duyệt 2026-10-15) sửa ở #1: 🔴 AUD-HAR-021 (hook lệch tên sau nâng cấp → guard fail-open; `_lib.sh` giữ bí danh + `_compat.sh`) và AUD-HAR-022 (`xs_py`, cảnh báo "HOOK còn tên cũ"). Còn đợt 2 (`docs:` AUD-DOC-023/024, AUD-SEC-015) và đợt 3 (🟢 AUD-HAR-023/024) chờ làm.
 
 ## Tiếp theo
 1. Cần người chọn: một dự án sản phẩm thật (web/api, quy mô M) để thử khung, đo mục MUST hay bị miễn trừ.
-2. Dự án đã cài khung (**hoãn tới khi sửa AUD-HAR-021** nếu đã sửa tay hook): chạy lại `install.py` từ X-Templates để chuyển `.xstored/`→`.xtemplates/`, `xs.yaml`→`xt.yaml` (ADR-0007) + nhận guard/hook mới (#35, #36) + `changelog-check` + `progress-check` xét `MERGE_HEAD` (#41).
+2. Dự án đã cài khung (sau khi #1 merge; hook đã sửa tay → gộp `.xtemplates-new` theo cảnh báo "HOOK còn tên cũ"): chạy lại `install.py` từ X-Templates để chuyển `.xstored/`→`.xtemplates/`, `xs.yaml`→`xt.yaml` (ADR-0007) + nhận guard/hook mới (#35, #36) + `changelog-check` + `progress-check` xét `MERGE_HEAD` (#41).
 3. Admin: tự kiểm Dependabot security updates (proxy chặn API); ô "extra approval for unattributed changes" của ruleset `main` còn bật — khác `.github/rulesets/main.json`, vô hại khi 0 approval.
 4. Giới hạn đã biết, chưa sửa: guard không thấy lệnh trong `eval`/alias/biến chứa cờ (CHANGELOG); `xt.py` có thể lấy `$HOME` dotfiles (`.git`) làm gốc khi dự án chưa có dấu hiệu khung (README).
 5. Giữ cổng: C901 ≤ 10, `mypy --strict`, coverage dòng + nhánh 100%, `changelog-check` — hàm mới vượt thì tách, không `noqa`/pragma.
@@ -39,5 +39,5 @@
 ## Bàn giao phiên
 - 2026-10-15 · Commit cuối trên `main`: `0d1b62c` (#43); tag `v2.0.0` → `55de4d1`; SHA quét audit `0d1b62c` (trừ DEP/CFG/PERF cũ hơn, không file đổi).
 - Lệnh kiểm nhanh: `scripts/dev-task.sh gate` (đọc `xt.yaml`; `pip install --require-hashes -r requirements-dev.txt`, cần shellcheck).
-- Autopilot: không chạy. Đang chặn: duyệt kế hoạch sửa audit §10 (đợt 1 🔴 trước, test tái hiện đỏ trước khi sửa).
-- Câu hỏi cần người: duyệt kế hoạch audit §10; Tiếp theo 1 (dự án thật để thử khung).
+- Autopilot: không chạy. Đang chặn: không. Đợt 2–3 audit §10 chưa làm (chờ lệnh).
+- Câu hỏi cần người: Tiếp theo 1 (dự án thật để thử khung).

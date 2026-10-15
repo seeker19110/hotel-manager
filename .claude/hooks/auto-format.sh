@@ -4,6 +4,7 @@
 # No-op an toàn khi không có formatter. Luôn exit 0.
 set -uo pipefail
 . "$(dirname "$0")/_lib.sh"
+. "$(dirname "$0")/_compat.sh"
 
 payload="$(cat)"
 path="$(json_field "$payload" tool_input.file_path)"

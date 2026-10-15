@@ -7,6 +7,7 @@
 # Payload đi qua stdin, không qua argv. guard.py lỗi/thiếu python3 → cho qua (fail-open về luồng).
 set -uo pipefail
 . "$(dirname "$0")/_lib.sh"
+. "$(dirname "$0")/_compat.sh"
 
 payload="$(cat)"
 res="$(printf '%s' "$payload" | CLAUDE_PROJECT_DIR="$XT_ROOT" python3 "$(dirname "$0")/guard.py" bash 2>/dev/null)" || exit 0

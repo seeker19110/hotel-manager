@@ -12,6 +12,12 @@ xt_py() {
   return 1
 }
 
+# Tên trước 3.0.0 (ADR-0007): hook ≤ 2.x người dùng đã sửa được install giữ nguyên và vẫn gọi tên cũ —
+# thiếu thì `set -u` lỗi, hook thoát 0 không quyết định → guard tắt im lặng (AUD-HAR-021). Chiều ngược: _compat.sh.
+# shellcheck disable=SC2034  # chỉ hook ≤ 2.x (file khác) đọc biến này
+XS_ROOT="$XT_ROOT"
+xs_py() { xt_py; }
+
 # Đọc một trường trong payload JSON (stdin của hook) bằng python3; rỗng nếu thiếu.
 json_field() { # $1=payload $2=đường dẫn dạng a.b.c
   printf '%s' "$1" | python3 -c '

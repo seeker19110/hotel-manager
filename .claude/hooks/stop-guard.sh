@@ -5,6 +5,7 @@
 # Claude Code tự ngắt sau 8 lần chặn liên tiếp không có tool call (CLAUDE_CODE_STOP_HOOK_BLOCK_CAP).
 set -uo pipefail
 . "$(dirname "$0")/_lib.sh"
+. "$(dirname "$0")/_compat.sh"
 
 payload="$(cat)"
 # Đang trong lượt do chính Stop hook kích (stop_hook_active=true) vẫn phải kiểm lại bằng chứng —

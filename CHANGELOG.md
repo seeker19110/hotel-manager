@@ -59,6 +59,11 @@ Thay đổi **mục checklist** (thêm ID, đổi mức, ngừng dùng) ghi rõ 
 - CI repo: `concurrency` chỉ hủy run cũ của PR, không hủy run trên `main` (`WF-CI-008`).
 
 ### Fixed
+- Nâng cấp ≤ 2.x → 3.0 khi người dùng đã sửa `_lib.sh` hoặc một hook (install giữ bản cũ): hook lệch tên `XS_ROOT`/`XT_ROOT`
+  làm `set -u` lỗi, hook thoát 0 không quyết định → guard cho qua `rm -rf /` (AUD-HAR-021). `_lib.sh` giữ bí danh
+  `XS_ROOT`/`xs_py` cho hook cũ; hook mới nguồn thêm `.claude/hooks/_compat.sh` lấp `XT_ROOT`/`xt_py` khi `_lib.sh` là bản cũ.
+  `install.py` bắt thêm `xs_py` (AUD-HAR-022), bỏ qua file trùng bản khung (kể cả `*.xtemplates-new`), và cảnh báo riêng
+  "HOOK còn tên cũ" — hook ≤ 2.x đã sửa vẫn tìm `.xstored/scripts/dev-task.sh` nên cổng commit không chạy tới khi gộp tay.
 - `xs.py progress-check`: khi đang merge, SHA bàn giao là tổ tiên của một đầu trong file `MERGE_HEAD` (kể cả octopus) cũng hợp lệ — giải xung đột
   `PROGRESS.md` bằng SHA của nhánh chính không còn bị cổng commit chặn (commit merge sẽ chứa SHA đó); hết merge thì luật cũ (AUD-HAR-020).
 - Audit 2026-10-15 đợt 3: `loop init --blueprint` không tồn tại → exit 2 (AUD-HAR-016); `xs.py` không có
