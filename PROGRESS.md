@@ -3,7 +3,7 @@
 > Giai đoạn hiện tại: G5 Dựng nền (autopilot đợt 1) · Cập nhật: 2026-10-15 · Nhánh: claude/gifted-noether-iybenn
 
 ## Đang làm
-- Đợt 1 **xong và đã merge** (PR #4 → `main` `07ba2a8`, squash). CI trên `main` gồm 6 check: quality · e2e · backup-restore · gitleaks · dep-audit · protection-guard. Chưa bắt đầu đợt 2.
+- Autopilot đợt 2 — **Pha 1 (lập kế hoạch) xong, CHỜ DUYỆT** `docs/autopilot/PLAN.md` (18 task T-101…T-118, mảng nhà trọ). Chưa `loop init`, chưa code. Đợt 1 đã merge (`main` `07ba2a8`).
 
 ## Tiếp theo
 1. Chủ repo import ruleset `.github/rulesets/main.json` (Settings → Rules → Rulesets → Import) — agent không có API để bật.

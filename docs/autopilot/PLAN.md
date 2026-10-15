@@ -1,97 +1,110 @@
-# docs/autopilot/PLAN.md — Hotel Manager · Đợt 1: nền tảng (G5) + lõi dùng chung
+# docs/autopilot/PLAN.md — Hotel Manager · Đợt 2: nhà trọ (hợp đồng, công tơ/kỳ thu, thu tiền/cọc, import)
 
-> **Duyệt bởi chủ dự án ngày 2026-10-15** (PR #3 đã merge; đồng ý phạm vi pilot theo backlog, mặc định tham số hoá cho câu hỏi [chặn] đợt 1, 4 mục miễn blueprint, 4 con số ngân sách).
-> Kiến trúc: ADR-0001 + ADR-0002 (tự host). Spec gốc: `docs/specs/SPEC-*.md` (F-001…F-012) · Blueprint: `BLUEPRINT.md` (web-app + saas-multitenant + fintech, quy mô M) · Kế hoạch gốc: backlog T009–T024, T033, T041, T073–T074, T099.
+> **Trạng thái: CHỜ DUYỆT** (cổng duyệt duy nhất của đợt 2). Đợt 1 đã xong và merge (PR #4, `main` `07ba2a8`); kế hoạch đợt 1 lưu ở `archive/PLAN-dot-1.md`.
+> Kiến trúc: ADR-0001 + ADR-0002. Spec: `SPEC-lease` (F-003), `SPEC-metering-billing` (F-004), `SPEC-ledger-payments` (F-005), `SPEC-import` (F-010), phần access/MFA còn chặn pilot. Thuật ngữ và tên bảng: DOMAIN-MODEL v1.3 + ERD.
+> Lõi dùng lại của đợt 1: command pipeline (idempotency, audit, outbox, `onRollback`), RLS + phạm vi cơ sở, allocation/hold, sổ phụ cân bằng, inbox ngân hàng, file riêng tư, PWA shell, E2E server.
 
 ## Mục tiêu của kế hoạch này
-Khi xong đợt này, repo có hàng rào chất lượng chạy thật: CI, cổng commit, Postgres thật trong test. Repo cũng có lõi mà mọi tính năng pilot dựa vào: tenant/RLS, quyền, idempotency + audit + outbox, allocation chống trùng, sổ phụ cân bằng, file riêng tư, PWA shell. Mỗi phần có test chứng minh bất biến:
-- 100 lệnh tranh phòng → 1 allocation;
-- 100 lần cùng payload → 1 hiệu lực;
-- tổ chức A không đọc được dữ liệu của B.
+Khi xong đợt này, một chủ trọ (dữ liệu giả) đi trọn vòng tháng: import dữ liệu đang chạy → ký hợp đồng có giữ chỗ và cọc → bàn giao → chốt chỉ số → phát hành kỳ thu → thu tiền mặt/chuyển khoản, đối soát sao kê → thanh lý và hoàn cọc có duyệt. Mỗi bước có test chứng minh bất biến tiền:
+- ví dụ bắt buộc của SPEC khớp từng đồng (kỳ thu 3.580.000 đ; thu một phần 1.580.000 đ);
+- phân bổ không vượt tiền thu, không vượt số còn của phiếu, kể cả hai người cùng lúc (INV-F2);
+- một giao dịch ngân hàng = một khoản thu dù đến từ webhook, sao kê và nhập tay (INV-F4/F4b);
+- cọc không tự trừ, khấu trừ/hoàn cần người thứ hai và trong hạn mức (INV-F5);
+- import lại cùng file không nhân đôi; số dư đầu kỳ không bịa doanh thu.
 
-Tương ứng mốc "Tuần 3–4" và một phần "Tuần 5–6" của kế hoạch gốc.
+Tương ứng mốc "Tuần 5–8" của kế hoạch gốc (mảng trọ). Khách sạn/vận hành là đợt 3.
 
 ## Ngân sách (4 con số) — đề xuất, người chốt khi duyệt
-- Số vòng tối đa: **70** (`--max-iterations 70`)
-- Ngân sách: **≤ 150 USD** token cho đợt này (đề xuất). Hết ngân sách thì bàn giao và dừng.
+- Số vòng tối đa: **90** (`--max-iterations 90`)
+- Ngân sách: **≤ 220 USD** token cho đợt này. Hết ngân sách thì bàn giao và dừng.
 - Timeout mỗi lệnh Gate: **1800 s** (`XT_RECORD_TIMEOUT`, mặc định)
-- Ngày hết hạn: **48 giờ** kể từ `loop init` (`--hours 48`)
+- Ngày hết hạn: **72 giờ** kể từ `loop init` (`--hours 72`)
 
 ## Hạn
 | Loại | Ngày | Hậu quả nếu trễ | Cách xử lý khi trễ |
 |---|---|---|---|
 | Hạn thật | chưa có | — | — |
-| Hạn mong muốn | tuần 4 kể từ ngày đội khởi động | trễ mốc pilot tuần 12 | cắt T-011/T-012 sang đợt 2; không hạ cổng |
+| Hạn mong muốn | tuần 8 kể từ ngày đội khởi động | trễ mốc pilot tuần 12 | cắt T-115 (import) và T-117 (UI) sang đợt 3; không hạ cổng |
+
+## Quyết định mặc định cho câu hỏi [chặn] của đợt 2 — **duyệt PLAN = chấp nhận** (tham số hoá theo cơ sở, đổi giá trị không cần migration; mỗi chứng từ lưu quy tắc đã dùng — INV-G3)
+| Câu hỏi | Mặc định áp dụng | Tham số |
+|---|---|---|
+| Prorata kỳ đầu/cuối lẻ (metering Q) | `giá × số ngày tính tiền / số ngày thực của tháng`; trọn tháng = giá tháng; ngày đầu và ngày cuối đều tính | `properties.settings.prorata` = `actual_days` \| `fixed_30` |
+| Làm tròn (metering/ledger Q) | `HALF_UP_1` từng dòng; tổng phiếu = Σ dòng, không làm tròn lại | `properties.settings.rounding` = `HALF_UP_1` \| `HALF_UP_1000` |
+| Kỳ thu, thu trước/sau (metering Q) | Tháng dương lịch của cơ sở; tiền thuê và điện nước cùng tháng, phát hành cuối kỳ (thu sau) | `rent_timing` = `arrears` \| `advance` |
+| Tiền thuê kỳ cuối khi trả sớm (lease Q) | Tính đến `moved_out_on` theo prorata; không tự tính phạt, nhân viên thêm phí một lần có lý do | — |
+| Mốc giờ allocation hợp đồng (lease Q) | Bắt đầu 00:00 giờ cơ sở của ngày bàn giao (trước bàn giao: ngày hiệu lực); kết thúc 00:00 giờ cơ sở của `moved_out_on + 1` | — |
+| Hạn mức duyệt hoàn/khấu trừ (ledger Q, access Q-11) | `front_desk` ≤ 2.000.000 đ/lần, chỉ cọc khách sạn lúc check-out; `manager` ≤ 5.000.000 đ; `owner` không giới hạn; `accountant` chỉ lập đề nghị; cấm tự duyệt | mặc định theo vai trò ở `organizations.settings.role_limits`, ghi đè ở `memberships.limits` (ERD 7.1 #9) |
+| Lễ tân tự hoàn nguyên số cọc khách sạn lúc check-out (ledger Q) | Được, một bước, trong hạn mức; khấu trừ/hoàn vượt hạn mức luôn cần người thứ hai | — |
+| Chứng cứ tiền mặt (INV-F3b) | Mọi tiền mặt, kể cả cọc, đi qua `payments` `pending → confirmed`; lễ tân xác nhận tiền mặt do chính mình nhận trong ca đang mở; biên nhận do hệ thống sinh; chênh lệch xử lý khi đóng ca | — |
+| Hoàn `CUSTOMER_CREDIT` (ledger Q, chặn pilot) | Không buộc bù trừ nếu không còn nợ; còn nợ thì gợi ý bù trừ trước; hoàn qua `credit.requestRefund`/`credit.approveRefund` cùng hạn mức trên | — |
+| TTL giữ chỗ hợp đồng (access Q-12) | 48 giờ; owner/manager/lễ tân được giữ | `properties.lease_hold_ttl_hours` (đã có) |
+| Khôi phục MFA (access Q-08, chặn pilot) | Owner khác reset MFA, bắt xác thực lại, có audit; owner duy nhất → hỗ trợ nền tảng (ngoài đợt này) | — |
+| `approval_requests` cột loại (ERD 7.1 #1) | `kind` (theo ERD); sửa SPEC-access §4 | — |
+| Khấu trừ cọc/điều chỉnh giảm AR (ERD 7.3 #1) | Khấu trừ cọc ghi `payment_allocations` có `deposit_id` (cùng hàng rào INV-F2); điều chỉnh là chứng từ điều chỉnh có bút toán Nợ `DISCOUNT` / Có `AR` | — |
+| Webhook tự phân bổ (ledger Q, không chặn) | Có, khi mã tham chiếu khớp và số tiền ≤ số còn; thừa → `CUSTOMER_CREDIT`; không khớp → hàng chờ | — |
+| CSV sao kê (ledger Q, không chặn) | Ánh xạ cột cấu hình theo tài khoản nhận; có sẵn 2 mẫu giả | — |
 
 ## Điểm dừng bắt buộc (`python3 .xtemplates/scripts/xt.py loop block --reason "..."`)
-- Mua VPS/tên miền, cấp quyền SSH, chọn vị trí dữ liệu (VN hay nước ngoài), đăng ký SMTP relay. Dev/CI chỉ dùng Docker cục bộ (ADR-0002).
-- Secret thật, deploy staging/production, gửi email ra ngoài.
-- Bật ruleset GitHub hoặc đổi required checks; đổi cấu hình cổng/CI/hook sau khi T-002 đã chốt (mọi job CI của đợt 1 nằm trong T-002).
-- Spec hở hoặc mâu thuẫn: khi một câu hỏi **[chặn]** trong SPEC chạm tới task đang làm, dừng hỏi PO (prorata, làm tròn, giờ nhận/trả mặc định…).
-- Dữ liệu thật của người dùng, kể cả mẫu hoá đơn chưa ẩn danh.
-- Chọn giấy phép mã nguồn sản phẩm.
+- Tiền thật hoặc tài khoản ngân hàng thật; kết nối API ngân hàng/cổng thanh toán thật (đợt này chỉ webhook **mô phỏng** + CSV giả).
+- Mua VPS/tên miền, SMTP, secret thật, deploy staging/production, gửi email/SMS/Zalo ra ngoài.
+- Dữ liệu thật của người dùng (kể cả file sao kê hay danh sách người thuê chưa ẩn danh).
+- Đổi quyền, ruleset, required checks, cấu hình cổng/CI/hook (CI đợt này giữ nguyên 6 job; thêm test mới chạy trong job sẵn có).
+- Câu hỏi [chặn] **ngoài** bảng trên, hoặc SPEC mâu thuẫn nhau/với DOMAIN-MODEL mà bảng trên chưa giải.
+- Thay đổi phá vỡ migration đã có trên `main` (chỉ thêm migration mới).
 - Hai lần cùng lỗi Gate với hai cách tiếp cận khác nhau (máy tự BLOCKED ở lần 3).
 
-## Câu hỏi [chặn] mà đợt 1 chạm tới — chạy bằng mặc định **tham số hoá** (người duyệt PLAN = chấp nhận cách này)
-| Câu hỏi | Task | Cách xử lý trong đợt 1 |
-|---|---|---|
-| Giờ chốt ngày kinh doanh (access Q-01) | T-005 | Cột cấu hình theo cơ sở, mặc định 00:00; đổi giá trị không cần migration |
-| MFA cho người có quyền tiền (access Q-06) | T-006 | Bắt buộc MFA cho mọi membership có quyền xác nhận/hoàn tiền |
-| Ngưỡng thử sai, hết phiên (access Q-07) | T-006 | 5 lần sai → khoá 15 phút; phiên rảnh 12 giờ; là tham số |
-| Khôi phục MFA (access Q-08) | — | Không làm ở đợt 1; chặn pilot |
-| Ô ma trận chờ PO, hạn mức hoàn/xác nhận (access 5.3, ledger mục 10) | T-007 | Hạn mức nằm trong bảng cấu hình; mặc định = đề xuất ở SPEC |
-| Quy tắc làm tròn (metering/ledger) | T-010 | Hàm nhận `rounding_rule`; mặc định `HALF_UP_1`; mỗi chứng từ lưu quy tắc đã dùng (INV-G3) |
-Các câu [chặn] khác (prorata, giờ nhận/trả, huỷ, ghi nhận doanh thu…) chỉ chạm đợt 2–3 → dừng hỏi khi tới.
-
 ## Thứ tự và lý do
-1. **Lát 0 — môi trường + hàng rào** (T-001…T-003). Không chạy được Gate thì không có bằng chứng; chưa có cổng thì mọi bằng chứng sau đều vô nghĩa.
-2. **Lát 1 — ERD, tenant, quyền, command pipeline** (T-004…T-008). Đây là rủi ro R01 (truy cập chéo tenant), lỗi mức này chặn pilot. Mọi command sau đều đi qua pipeline này.
-3. **Lát 2 — lõi tồn và tiền** (T-009, T-010). Rủi ro R02/R03 (bán trùng, ghi tiền trùng), là đường găng của kế hoạch §19.
-4. **Lát 3 — file, sao lưu, PWA shell, E2E xương sống** (T-011…T-014).
+1. **Lát 0 — chốt quyết định + nền dùng chung** (T-101…T-103): quyết định vào SPEC trước khi code (một chỗ quyết); duyệt/hạn mức và ca quầy là tiền đề của mọi luồng tiền; API command thống nhất để UI và E2E gọi.
+2. **Lát 1 — tiền** (T-104…T-108): rủi ro R03 (ghi tiền sai/trùng) là đường găng; hợp đồng và kỳ thu đều phát sinh chứng từ tiền nên lõi thu/phân bổ/cọc phải có trước.
+3. **Lát 2 — hợp đồng** (T-109…T-111).
+4. **Lát 3 — công tơ và kỳ thu** (T-112…T-114): engine tính tiền thuần (property test) tách khỏi vòng đời kỳ.
+5. **Lát 4 — import, khôi phục MFA, UI + E2E vòng tháng, rà blueprint** (T-115…T-118).
 
 ## Task
 
-> Gate dùng script do T-001 tạo. Trước T-001 chưa có `package.json` nên Gate của T-001 kiểm chính cổng.
-> `scripts/dev-task.sh` ở đây là `.xtemplates/scripts/dev-task.sh`.
+> Gate là lệnh máy kiểm, chạy bằng `python3 .xtemplates/scripts/xt.py loop record --task T-xxx -- <Gate>`. Mọi bất biến tiền/tồn có test trên Postgres thật (`*.db.test.ts`). Ví dụ số tiền bắt buộc của SPEC phải có test khớp từng đồng.
 
-### Lát 0 — Môi trường và hàng rào chất lượng (F-000)
-- [x] `T-001` Môi trường chạy không cần Docker cho agent: `scripts/dev-env-setup.sh` cài PostgreSQL 17 + pgBackRest ≥ 2.59.3 từ kho PGDG, SeaweedFS 4.48 (binary `weed`), Node 24 + pnpm 12 (idempotent, không cần root khi đã có); `scripts/dev-env-check.sh` in phiên bản và thoát ≠ 0 nếu thiếu/sai major — Gate: `bash scripts/dev-env-check.sh`
-- [x] `T-002` Dựng pnpm workspace (apps/web Next 16, apps/worker, packages/domain|app|db|testkit), TypeScript strict (kiểm TS 7, lỗi thì 5.x + ghi ADR-0001), Biome, Vitest, lockfile đóng băng (`--frozen-lockfile`, BASE-DEP-002); điền `xt.yaml`; **toàn bộ CI ở task này** (`.github/workflows/ci.yml`): job `quality` chạy `dev-task.sh gate` trên Node 24 + service Postgres 17, `gitleaks`, `dep-audit` (`pnpm audit --prod`), kiểm license (chặn AGPL/GPL trong phụ thuộc chạy, BASE-DEP-005), action ghim SHA + `permissions` tối thiểu (SEC-SUPPLY-001, BASE-GATE-010), lịch quét hằng tuần (SEC-SUPPLY-006) — Gate: `.xtemplates/scripts/dev-task.sh gate`
-- [x] `T-003` Schema env (Zod) validate lúc khởi động (BASE-CFG-002), `.env.example` khớp schema, che secret khi dump (BASE-CFG-005); logger JSON có `correlation_id`, che PII/secret (BASE-ERR-005/006/007), sự kiện bảo mật (SEC-LOG-001); test build client không chứa biến secret (TM-10) — Gate: `pnpm vitest run packages/app/src/config packages/app/src/logging`
+### Lát 0 — Chốt quyết định và nền dùng chung
+- [ ] `T-101` Ghi các quyết định ở bảng trên vào SPEC (mục 10: tick kèm "quyết theo PLAN đợt 2, ngày, tham số"), DOMAIN-MODEL/ERD (7.1 #1, #9; 7.3 #1, #5); thêm `scripts/check-blocking-questions.py` (exit ≠ 0 nếu SPEC được nêu còn câu `[chặn]` chưa tick) + test — Gate: `python3 scripts/check-blocking-questions.py lease metering-billing ledger-payments import && python3 -m unittest discover -s scripts -p "test_*.py"`
+- [ ] `T-102` Duyệt và hạn mức: bảng `approval_requests` (`kind`, số tiền, người lập/duyệt, trạng thái), `organizations.settings.role_limits` + ghi đè `memberships.limits`; `approval.request/approve/reject` dùng `authorize()` (`APPROVAL_LIMIT_EXCEEDED`, `SELF_APPROVAL_FORBIDDEN`), thực thi đúng một lần sau duyệt (ledger S-014, S-033; access S-017) — Gate: `pnpm test:db -- approvals`
+- [ ] `T-103` API command thống nhất: `POST /api/v1/<module>/<command>` (Zod, `Idempotency-Key`, ngữ cảnh tổ chức, problem+json, `correlation_id`), `GET /api/v1/commands/{id}` (SPEC-pwa S-010…S-012, S-019); danh mục mã lỗi `packages/app/src/errors.ts` + test khớp bảng API-CONTRACT §2 — Gate: `pnpm vitest run packages/app/src/http apps/web/app/api`
 
-### Lát 1 — Dữ liệu, tenant, quyền, command pipeline (F-001)
-- [x] `T-004` ERD chi tiết + từ điển dữ liệu (`docs/design/ERD.md`: mọi bảng ở DOMAIN-MODEL §1/§7, cột, khoá, chủ module, ví dụ ghi sổ) — tiền đề migration theo kế hoạch §12; `scripts/check-erd.sh` đối chiếu danh sách bảng DOMAIN-MODEL ↔ ERD — Gate: `bash scripts/check-erd.sh`
-- [x] `T-005` packages/db: runner migration Kysely (up/down); `pnpm test:db` dùng `TEST_DATABASE_URL` nếu có (service Postgres 17 của CI), không thì tự dựng cluster Postgres 17 tạm từ binary của T-001 (không cần Docker); extension `btree_gist`/`pgcrypto`; role `app_runtime`/`app_worker` (không owner, không BYPASSRLS); bảng tổ chức/cơ sở/tầng/loại phòng/phòng/cá nhân/thành viên/phạm vi với FK ghép `organization_id`; RLS **FORCE** + `WITH CHECK` (DB-SEC-007); `statement_timeout`, `idle_in_transaction_session_timeout` (DB-TX-003, TM-13) (INV-G1, INV-G2) — Gate: `pnpm test:db -- tenancy`
-- [x] `T-006` Xác thực: Better Auth ≥ 1.7.9 trên Postgres (adapter Kysely/`pg`), chỉ bật email/mật khẩu + `twoFactor` + quản lý phiên (test liệt kê plugin), cookie phiên HttpOnly, `/api/v1/me`, chọn tổ chức qua membership; MFA bắt buộc cho owner/manager/accountant và mọi membership có quyền xác nhận/hoàn tiền (access Q-06, mặc định); khoá tạm sau 5 lần sai, phiên rảnh 12 giờ (Q-07, tham số); thu hồi membership → mất quyền ngay — Gate: `pnpm test:db -- auth`
-- [x] `T-007` `authorize(actor, action, scope)` + ma trận quyền 5.3 của SPEC-access-and-property; hạn mức tiền là **tham số** trong bảng cấu hình theo tổ chức (giá trị mặc định = đề xuất, PO đổi không cần sửa mã); bộ test chéo tenant dùng chung; ngoài phạm vi → 404 — Gate: `pnpm test:db -- access`
-- [x] `T-008` Command pipeline: idempotency (INV-G5), `audit_events` append-only (SEC-LOG-007) + `outbox` cùng transaction (INV-G6), bọc retry lỗi 40001/40P01 (DB-TX-002), `GET /api/v1/commands/{id}` (`committed|in_progress|failed`), problem+json; kiểm `Origin` cho ghi + CSP có nonce (TM-09); khung state machine khai báo + property test mọi cặp chuyển không hợp lệ (IND-FIN-005); worker pg-boss relay outbox, payload job mang `organization_id` (IND-SAAS-003), retry/backoff/dead letter — Gate: `pnpm test:db -- command-pipeline`
+### Lát 1 — Tiền: thu, phân bổ, cọc, ca, đối soát (F-005)
+- [ ] `T-104` Ca quầy: `shifts`, `shift_discrepancies`; mở/đóng ca có chênh lệch, bàn giao ca xác nhận hai bên; tiền mặt chỉ xác nhận trong ca đang mở của chính người nhận (ledger S-027, S-028, S-034, S-035) — Gate: `pnpm test:db -- shifts`
+- [ ] `T-105` Thanh toán: `payments` `pending → confirmed → reversed`, chứng cứ theo INV-F3/F3b, biên nhận đánh số theo cơ sở; `payment_allocations` không vượt tiền thu/số còn kể cả 2 người đồng thời; trả thừa → `CUSTOMER_CREDIT`; đảo thanh toán đã phân bổ (ledger S-001, S-003…S-010, S-025, S-026; ví dụ 1.580.000 đ) — Gate: `pnpm test:db -- payments`
+- [ ] `T-106` Cọc và số dư khách: `deposits` (nhận qua `payments`, `DEPOSIT_LIAB`), khấu trừ = `payment_allocations` có `deposit_id` cần duyệt, hoàn trong hạn mức, không vượt số còn; hoàn `CUSTOMER_CREDIT` qua duyệt (ledger S-011…S-014, S-031, S-033) — Gate: `pnpm test:db -- deposits`
+- [ ] `T-107` QR và đối soát: thông tin VietQR theo tài khoản nhận (chỉ hiển thị, S-015); import CSV sao kê có ánh xạ cột, chống nhập trùng, ghép theo mã tham chiếu, hàng chờ `reconciliation_breaks`, xác nhận từ sao kê, người khác trả hộ; webhook/sao kê/nhập tay cùng giao dịch = 1 payment; tự phân bổ khi khớp (S-016…S-021, S-029, S-030) — Gate: `pnpm test:db -- reconciliation`
+- [ ] `T-108` Chốt kỳ sổ: `period_locks` (INV-F6), điều chỉnh sau khoá bằng chứng từ kỳ mở, mở khoá chỉ owner; báo cáo tách tiền thu / doanh thu / cọc / công nợ khớp sổ phụ (S-022…S-024, S-032) — Gate: `pnpm test:db -- period-close`
 
-### Lát 2 — Lõi tồn phòng và sổ tiền (F-002, F-005)
-- [x] `T-009` Inventory: `allocations` tstzrange + EXCLUDE gist (INV-I1/I2), hold có `expires_at` + nhả đúng một lần (INV-I3), `blocks`, trạng thái phòng 3 chiều, chuyển phòng nguyên tử; test 100 lệnh song song tranh một phòng → đúng 1 thành công — Gate: `pnpm test:db -- inventory`
-- [x] `T-010` Lõi sổ tiền: `packages/domain/money` (một hàm làm tròn nhận `rounding_rule`, mặc định `HALF_UP_1` theo đề xuất; property test fast-check; ví dụ 3.580.000/1.580.000 và 1.430.000/930.000 ở mức hàm tính); `journal_entries`/`journal_lines` cân bằng (trigger deferred, INV-F1), append-only (INV-G4), bút toán đảo; `inbox` + `bank_transactions` unique (INV-F4, INV-F4b) với adapter `sim`: 100 lần cùng payload → 1 inbox, 1 bank transaction. (Phiếu, payment, phân bổ và INV-F2 thuộc đợt 2.) — Gate: `pnpm test:db -- ledger`
+### Lát 2 — Hợp đồng và bàn giao (F-003)
+- [ ] `T-109` Schema + soạn/ký: `leases`, `lease_versions` (điều khoản bất biến sau ký), `lease_occupants` (PII tối thiểu, SĐT bắt buộc với người thuê); `lease.hold` (TTL theo cơ sở, cọc giữ chỗ), `lease.sign` chuyển hold → allocation `lease` không khoảng trống; quyền đọc theo vai trò/người thuê (lease S-001…S-004, S-008…S-010, S-020, S-022…S-024) — Gate: `pnpm test:db -- lease`
+- [ ] `T-110` Bàn giao + phụ lục: `handovers` (mục bắt buộc, ảnh qua file riêng tư, chỉ số đầu), kích hoạt chỉ sau bàn giao; phụ lục gia hạn/đổi giá theo ngày hiệu lực, chặn chồng hiệu lực; nhắc hết hạn không lặp (`outbox.dedupe_key`); quá hạn chưa trả → cảnh báo chiếm dụng (S-005…S-007, S-011…S-015) — Gate: `pnpm test:db -- lease-handover`
+- [ ] `T-111` Báo trả + thanh lý: `lease_settlements`; phí hư hỏng thành phiếu trước, khấu trừ ≤ AR còn mở của phiếu liên kết, hoàn phần còn lại qua duyệt, người lập không tự duyệt; tiền thuê kỳ cuối prorata đến `moved_out_on`; allocation kết thúc `moved_out_on + 1` (S-016…S-019, S-021, S-025) — Gate: `pnpm test:db -- lease-settlement`
 
-### Lát 3 — File, phục hồi, PWA, xương sống E2E (F-009, F-012)
-- [x] `T-011` File riêng tư: adapter S3 tới SeaweedFS 4.48 (binary cục bộ của T-001 hoặc container trong CI), khoá object có tiền tố `organization_id` (IND-SAAS-003), bảng `files`/`identity_documents`, URL ký ≤ 5 phút cấp sau kiểm quyền, allowlist MIME + magic bytes, giới hạn dung lượng, bỏ EXIF; housekeeping xin URL giấy tờ → 404 (TM-06, TM-07) — Gate: `pnpm test:db -- files`
-- [x] `T-012` Sao lưu/khôi phục thử với dữ liệu giả: `scripts/db-backup-restore-check.sh` dùng Postgres 17 + pgBackRest (repo cục bộ mã hoá): full backup → ghi thêm → PITR về mốc trước khi ghi → so số dòng và Σ bút toán; kèm `deploy/compose.yaml` ghim digest postgres/seaweedfs/caddy cho VPS (chưa triển khai) (backlog T099, ADR-0002) — Gate: `bash scripts/db-backup-restore-check.sh`
-- [x] `T-013` Design system tối thiểu (form, lỗi, trạng thái tải/rỗng/lỗi, vùng chạm ≥ 44px), PWA manifest + Serwist app shell, báo mất mạng, SW không cache route PII (SPEC-pwa) — Gate: `pnpm --filter web exec playwright test pwa`
-- [x] `T-014` E2E xương sống: đăng nhập (seed giả) → chọn tổ chức → danh sách phòng của cơ sở được phép, kèm kiểm axe (WCAG 2.2 AA) — Gate: `pnpm --filter web exec playwright test smoke`
+### Lát 3 — Công tơ và kỳ thu (F-004)
+- [ ] `T-112` Dịch vụ và công tơ: `services`, `service_prices` (hiệu lực), `meters`, `meter_readings` (không giảm, `METER_READING_DECREASED`), `meter_events` (thay công tơ có quyền); cảnh báo bất thường; thiếu chỉ số; thứ tự chốt theo tuyến tầng (metering S-005…S-010, S-017) — Gate: `pnpm test:db -- meters`
+- [ ] `T-113` Engine tính tiền thuần (`packages/domain/src/billing`): tiền thuê prorata theo tham số, dòng theo chỉ số, phí theo người/một lần, đổi giá giữa kỳ tách hai đoạn, làm tròn qua đúng một hàm; property test (Σ dòng = tổng, không âm, prorata trọn tháng = giá tháng); ví dụ 3.580.000 đ (S-001, S-016, S-018…S-021) — Gate: `pnpm vitest run packages/domain/src/billing`
+- [ ] `T-114` Vòng đời kỳ thu: job tạo kỳ theo ngày địa phương, chạy lại không trùng; xem trước có hash (cũ thì không phát hành); duyệt; phát hành → `invoices`/`invoice_lines`/`charges` snapshot + bút toán AR/REV (INV-F1, INV-G3/G4); không sửa sau phát hành; khoá/mở khoá kỳ; phát hành lặp = 1 (S-002…S-004, S-011…S-015) — Gate: `pnpm test:db -- billing`
 
-### Các đợt sau (chưa phải task máy — chi tiết hoá khi đợt 1 xong và SPEC được duyệt)
-- Đợt 2 — Trọ: F-003 hợp đồng/bàn giao · F-004 công tơ/kỳ thu · F-005 phiếu/thu/phân bổ/cọc/QR/đối soát thủ công · F-010 import.
-- Đợt 3 — Khách sạn và vận hành: F-006 booking/lưu trú/folio · F-007 buồng phòng/sự cố · F-008 portal · F-011 thông báo · F-012 báo cáo/xuất.
-- Đợt 4 — Cổng pilot (G7): E2E R-001…R-005, kiểm tải k6, `GO-NO-GO.md`, `blueprint-status --strict`. Song song, người làm: DPIA, pháp lý, chọn hosting, UAT, pilot.
+### Lát 4 — Import, khôi phục MFA, UI và E2E vòng tháng
+- [ ] `T-115` Import (F-010): mẫu file, xem trước lỗi từng dòng, commit nguyên khối, `external_id` chống nhân đôi/khác nội dung, hợp đồng đang chạy + người ở + bàn giao chuyển đổi, chỉ số đầu, nợ/cọc đầu kỳ qua `OPENING_BALANCE`, đối chiếu tổng với số nguồn, người phụ trách xác nhận, chống CSV formula injection (import S-001…S-020; lease S-026) — Gate: `pnpm test:db -- import`
+- [ ] `T-116` Khôi phục MFA: owner khác reset MFA của thành viên (bắt xác thực lại, thu hồi phiên, audit); không tự reset của mình; owner duy nhất → thông báo liên hệ hỗ trợ (access Q-08) — Gate: `pnpm test:db -- mfa-recovery`
+- [ ] `T-117` UI trọ tối thiểu theo design system (hợp đồng: danh sách/chi tiết/ký/bàn giao; chốt chỉ số theo tầng; kỳ thu: xem trước/phát hành; thu tiền + phân bổ; cọc/thanh lý; hàng chờ đối soát) + E2E vòng tháng với dữ liệu giả, kiểm axe và vùng chạm, timeout/`GET /commands` (SPEC-pwa S-006, S-010, S-011) — Gate: `pnpm --filter web exec playwright test rental`
+
+- [ ] `T-118` Rà blueprint (thiếu của đợt 1: 0/492 MUST được tick dù nhiều mục đã có bằng chứng): tick `[x]` mục MUST/SHOULD đã đạt ở đợt 1–2 kèm `Bằng chứng: <file test/CI job/script>`; `scripts/check-blueprint-evidence.py` (exit ≠ 0 nếu mục `[x]` thiếu bằng chứng hoặc đường dẫn không tồn tại) + test; ghi danh sách MUST còn mở theo đợt 3–4 vào PROGRESS — Gate: `python3 scripts/check-blueprint-evidence.py BLUEPRINT.md && python3 -m unittest discover -s scripts -p "test_*.py"`
 
 ## Phụ thuộc ngoài
 | Việc | Bên ngoài | Kế hoạch B |
 |---|---|---|
-| Môi trường agent không có Docker daemon | kho PGDG, GitHub releases (mạng phiên hiện tại truy cập được) | T-001 cài Postgres 17/pgBackRest/SeaweedFS trực tiếp; Gate chạy cục bộ ra exit code cho `loop record`; CI (Docker) là kiểm chứng thứ hai trước merge. Container phiên bị thu hồi → chạy lại `dev-env-setup.sh` (nên đưa vào setup script của môi trường) |
-| Quyết định PO cho câu hỏi [chặn] trong SPEC | PO | đợt 1 không phụ thuộc; đợt 2 sẽ dừng hỏi |
+| Định dạng sao kê ngân hàng pilot | đại diện pilot | 2 mẫu CSV giả + ánh xạ cột cấu hình; thêm mẫu thật khi có (đã ẩn danh) |
+| VietQR | chuẩn NAPAS (chỉ sinh chuỗi hiển thị) | không gọi API ngoài; test theo ví dụ chuẩn đã xác minh ở `/research` trước T-107 |
+| Môi trường agent | kho PGDG, GitHub releases | `scripts/dev-env-setup.sh` như đợt 1 |
 
 ## Ước lượng (agent + review người)
 | Task | P50 | P90 |
 |---|---|---|
-| T-001, T-003, T-004, T-011, T-014 | 0,5 ngày mỗi task | 1 ngày |
-| T-002 (scaffold + toàn bộ CI) | 1 ngày | 1,5 ngày |
-| T-005…T-010 | 1 ngày mỗi task | 2 ngày |
-| T-012 (PITR + compose), T-013 | 1 ngày | 2 ngày |
-Tổng P50 khoảng 12 ngày, P85 khoảng 18 ngày. Không dùng con số P50 làm ngày hứa.
+| T-101, T-103, T-104, T-116, T-118 | 0,5 ngày mỗi task | 1 ngày |
+| T-102, T-106, T-108, T-110, T-112 | 1 ngày | 1,5 ngày |
+| T-105, T-107, T-109, T-111, T-113, T-114, T-115, T-117 | 1 ngày | 2 ngày |
+Tổng P50 khoảng 15,5 ngày, P85 khoảng 23 ngày. Không dùng con số P50 làm ngày hứa.
