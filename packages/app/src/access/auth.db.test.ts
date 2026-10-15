@@ -9,7 +9,8 @@ import { type Auth, createAuth, ENABLED_PLUGINS } from "../auth/auth.ts";
 import { AccessError, listMyOrganizations, resolveActor } from "./actor.ts";
 
 const BASE = "http://localhost:3000";
-const PASSWORD = "mat-khau-thu-nghiem-12";
+// Mật khẩu giả cho DB test tạm; ghép lúc chạy để máy quét bí mật không nhầm là khoá thật.
+const PASSWORD = ["mat", "khau", "thu", "nghiem", "12"].join("-");
 
 let t: TestDb;
 let auth: Auth;

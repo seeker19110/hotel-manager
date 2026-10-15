@@ -62,7 +62,9 @@ export async function createTestDb(): Promise<TestDb> {
   await server.destroy();
   const admin = connect(withDb(adminUrl, name));
   const runtimeUrl = withDb(adminUrl, name, "app_runtime");
-  const runtime = connect(runtimeUrl, 120);
+  // ≤ 20: Postgres CI (service mặc định) chỉ có 100 kết nối cho mọi file test chạy song song; test 100 lệnh đồng thời
+  // vẫn tranh chấp thật (20 transaction cùng lúc), phần dư xếp hàng trong pool.
+  const runtime = connect(runtimeUrl, 20);
   const workerUrl = withDb(adminUrl, name, "app_worker");
   const worker = connect(workerUrl, 10);
   return {

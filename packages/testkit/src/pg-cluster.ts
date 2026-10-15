@@ -66,7 +66,7 @@ export async function startPgCluster(): Promise<PgCluster> {
     "-c fsync=off",
     "-c synchronous_commit=off",
     "-c full_page_writes=off",
-    "-c max_connections=200",
+    "-c max_connections=100", // bằng mặc định của Postgres service trong CI — lỗi cạn kết nối lộ ra ngay ở máy
   ].join(" ");
   asPg(join(PG_BIN, "pg_ctl"), ["-D", data, "-o", opts, "-w", "-l", join(dir, "log"), "start"]);
   return {
