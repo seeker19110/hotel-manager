@@ -212,9 +212,22 @@ importers:
 
   packages/app:
     dependencies:
+      '@hm/db':
+        specifier: workspace:*
+        version: link:../db
+      kysely:
+        specifier: 0.29.6
+        version: 0.29.6
       zod:
         specifier: 4.6.7
         version: 4.6.7
+    devDependencies:
+      '@hm/testkit':
+        specifier: workspace:*
+        version: link:../testkit
+      vitest:
+        specifier: 5.0.4
+        version: 5.0.4(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2))
 
   packages/db:
     dependencies:

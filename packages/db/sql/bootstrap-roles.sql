@@ -10,3 +10,11 @@ BEGIN
   END IF;
 END
 $$;
+
+-- Giới hạn thời gian theo role (DB-TX-003, TM-13): truy vấn treo hoặc transaction bỏ dở không giữ khoá mãi.
+ALTER ROLE app_runtime SET statement_timeout = '15s';
+ALTER ROLE app_runtime SET idle_in_transaction_session_timeout = '30s';
+ALTER ROLE app_runtime SET lock_timeout = '5s';
+ALTER ROLE app_worker SET statement_timeout = '120s';
+ALTER ROLE app_worker SET idle_in_transaction_session_timeout = '60s';
+ALTER ROLE app_worker SET lock_timeout = '10s';

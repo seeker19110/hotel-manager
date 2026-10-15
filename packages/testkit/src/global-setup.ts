@@ -11,11 +11,7 @@ import { type PgCluster, startPgCluster } from "./pg-cluster.js";
 export const TEMPLATE_DB = "hm_test_template";
 const ROLES_SQL = new URL("../../db/sql/bootstrap-roles.sql", import.meta.url);
 
-declare module "vitest" {
-  export interface ProvidedContext {
-    pgAdminUrl: string;
-  }
-}
+import "./db.js"; // nạp khai báo ProvidedContext.pgAdminUrl
 
 function dbUrl(base: string, database: string): string {
   const u = new URL(base);

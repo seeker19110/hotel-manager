@@ -10,6 +10,12 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@hm/db": "workspace:*",
+    "kysely": "0.29.6",
     "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@hm/testkit": "workspace:*",
+    "vitest": "5.0.4"
   }
 }

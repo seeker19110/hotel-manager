@@ -6,6 +6,13 @@ import { TEST_ROLE_PASSWORD } from "./constants.js";
 
 const TEMPLATE_DB = "hm_test_template";
 
+declare module "vitest" {
+  export interface ProvidedContext {
+    /** URL superuser của Postgres test — do global-setup cung cấp. */
+    pgAdminUrl: string;
+  }
+}
+
 export interface TestDb {
   /** Kết nối superuser/owner — dùng cho dựng dữ liệu và kiểm catalog; KHÔNG chịu RLS. */
   admin: Kysely<unknown>;
