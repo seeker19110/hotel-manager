@@ -39,7 +39,7 @@ Chọn **phương án 1**:
 | Runtime | Node.js LTS | 24.x (EOL 2028-04-30) | Chuyển sang 26 LTS bằng một task riêng sau 2026-10-28, khi CI xanh trên 26 |
 | Gói | pnpm workspace | 12.11.x | Không dùng Turborepo ở V1: chỉ có 2 app và vài package, `pnpm -r` là đủ |
 | Web + API | Next.js App Router · React | 16.4.x · 19.3.x | Route handler/server action chỉ gọi lớp `application`, không chứa quy tắc nghiệp vụ |
-| Ngôn ngữ | TypeScript `strict` | 7.0.x. Nếu T-002 thấy Next 16 chưa tương thích TS 7 thì dùng 5.x mới nhất và ghi vào ADR này | |
+| Ngôn ngữ | TypeScript `strict` | 7.0.2 — T-002 xác nhận `next build` 16.4.1 + `tsc` 7 chạy được (2026-10-15); TS 7 không tự nạp `@types/*` nên `tsconfig.base.json` khai `"types": ["node"]` | |
 | CSDL | PostgreSQL | 17 (khớp mặc định Supabase hosted [T]; local dùng image `postgres:17`) | Extension cần có: `btree_gist`, `pgcrypto` |
 | Truy cập DB | Kysely (query builder có kiểu) + SQL thô cho constraint/RLS | 0.29.x | Migration là file TS chạy SQL, có `up` và `down` |
 | Hàng đợi | pg-boss + bảng `outbox` riêng | 12.x | Nhận job từ outbox, retry, dead letter |

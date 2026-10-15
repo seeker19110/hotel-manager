@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# GITHUB_TOKEN chỉ đọc cho mọi job (SEC-SUPPLY-001, BASE-GATE-010). Action ghim theo SHA commit.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # Cổng chuẩn: đúng lệnh trong xt.yaml (build · typecheck · lint · test) qua dev-task.sh.
+  # Ruleset `.github/rulesets/main.json` đòi: quality, protection-guard (dưới), gitleaks (secret-scan.yml), dep-audit (dep-audit.yml).
+  quality:
+    name: quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17.11
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      # Postgres 17 cho project `db` của Vitest (runner dùng DATABASE_URL nếu có — PLAN T-005). Chỉ dùng trong CI.
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24.22.0"
+          cache: pnpm
+      - name: Cài phụ thuộc (lockfile đóng băng — BASE-DEP-002)
+        run: pnpm install --frozen-lockfile
+      - name: Cổng chuẩn — đúng lệnh trong xt.yaml
+        run: .xtemplates/scripts/dev-task.sh gate
+      - name: Tiêu đề PR theo Conventional Commits, ≤ 72 ký tự
+        if: github.event_name == 'pull_request'
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          printf '%s' "$TITLE" | grep -Eq '^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9._/-]+\))?!?: .+$' \
+            && [ "${#TITLE}" -le 72 ] || { echo "::error::Tiêu đề PR phải dạng '<type>(scope): mô tả' và ≤ 72 ký tự: $TITLE"; exit 1; }
+
+  protection-guard:
+    name: protection-guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Required check trong ruleset ↔ job có thật
+        run: |
+          set -euo pipefail
+          jobs=$(python3 - <<'PY'
+          import glob, re
+          names = set()
+          for f in glob.glob(".github/workflows/*.yml"):
+              txt = open(f, encoding="utf-8").read()
+              m = re.search(r"^jobs:\n(.*)", txt, re.S | re.M)
+              if not m: continue
+              for jm in re.finditer(r"^  ([A-Za-z0-9_-]+):\n((?:    .*\n|\n)*)", m.group(1), re.M):
+                  key, body = jm.group(1), jm.group(2)
+                  nm = re.search(r"^    name:\s*(.+?)\s*$", body, re.M)
+                  names.add(nm.group(1).strip('"\'') if nm else key)
+          print("\n".join(sorted(names)))
+          PY
+          )
+          fail=0
+          for c in $(python3 -c "import json;[print(x['context']) for r in json.load(open('.github/rulesets/main.json'))['rules'] if r['type']=='required_status_checks' for x in r['parameters']['required_status_checks']]"); do
+            grep -qx "$c" <<<"$jobs" || { echo "::error::Required check '$c' không khớp job nào trong .github/workflows/"; fail=1; }
+          done
+          [ "$fail" = 0 ] && echo "OK — mọi required check đều là job có thật."
+          exit $fail
+      - name: Ruleset trên nhánh mặc định đang hiệu lực? (cảnh báo)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -uo pipefail
+          rules=$(curl -sS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$REPO/rules/branches/$BRANCH" || echo "[]")
+          for t in pull_request required_status_checks deletion non_fast_forward; do
+            if ! python3 -c "import json,sys; r=json.loads(sys.argv[1]); sys.exit(0 if any(x.get('type')==sys.argv[2] for x in r) else 1)" "$rules" "$t"; then
+              echo "::warning::Nhánh $BRANCH chưa có rule '$t' — import .github/rulesets/main.json (Settings → Rules → Rulesets → Import)."
+            fi
+          done
+          echo "Đã kiểm ruleset (cảnh báo nếu thiếu)."
