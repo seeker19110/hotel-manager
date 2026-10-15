@@ -650,13 +650,23 @@ export interface LeaseView {
     from_on: string;
     to_on: string | null;
   }[];
+  /** Biên bản bàn giao (S-010: người thuê xem hợp đồng và biên bản của mình). */
+  handovers: {
+    id: string;
+    kind: string;
+    handed_over_on: string;
+    assets: unknown;
+    keys_count: number;
+    confirmed_at: string | null;
+    confirmed_by_tenant_at: string | null;
+  }[];
 }
 
 /** `lease.get` (S-010): RLS quyết ai đọc được — người thuê chỉ hợp đồng mình đứng tên; không đọc được ⇒ 404. */
 export async function getLease(db: Kysely<unknown>, actor: Actor, leaseId: string): Promise<LeaseView> {
   if (!UUID.test(leaseId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy hợp đồng");
   return withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
-    const l = await sql<Omit<LeaseView, "versions" | "occupants">>`
+    const l = await sql<Omit<LeaseView, "versions" | "occupants" | "handovers">>`
       select id, number, property_id, unit_id, status, signed_on::text, billing_start_on::text, planned_move_out_on::text,
              moved_out_on::text, representative_person_id
       from leases where organization_id = ${actor.orgId} and id = ${leaseId}`.execute(trx);
@@ -684,8 +694,26 @@ export async function getLease(db: Kysely<unknown>, actor: Actor, leaseId: strin
       where organization_id = ${actor.orgId} and lease_id = ${leaseId} order by is_representative desc, from_on, person_id`.execute(
       trx,
     );
+    const h = await sql<{
+      id: string;
+      kind: string;
+      handed_over_on: string;
+      assets: unknown;
+      keys_count: number;
+      confirmed_at: Date | null;
+      confirmed_by_tenant_at: Date | null;
+    }>`
+      select id, kind, handed_over_on::text, assets, keys_count, confirmed_at, confirmed_by_tenant_at from handovers
+      where organization_id = ${actor.orgId} and lease_id = ${leaseId} order by kind`.execute(trx);
     return {
       ...lease,
+      handovers: h.rows.map((x) => ({
+        ...x,
+        confirmed_at: x.confirmed_at ? new Date(x.confirmed_at).toISOString() : null,
+        confirmed_by_tenant_at: x.confirmed_by_tenant_at
+          ? new Date(x.confirmed_by_tenant_at).toISOString()
+          : null,
+      })),
       versions: v.rows.map((x) => ({
         ...x,
         rent_amount: Number(x.rent_amount),

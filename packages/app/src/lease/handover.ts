@@ -96,6 +96,24 @@ export async function recordHandover(
     });
   }
   assertDate(input.handedOverOn, "handed_over_on");
+  // Ngày bàn giao hợp lệ với hợp đồng (review lát 2 🟠2, 🟠3): nhận phòng không sau ngày hết hạn phiên bản 1; trả phòng
+  // không trước ngày nhận phòng.
+  if (input.kind === "move_in") {
+    const v1 = await originalVersion(ctx, lease.id);
+    if (v1.effective_to !== null && input.handedOverOn > v1.effective_to) {
+      throw fieldError("handed_over_on", "AFTER_END", "Ngày nhận phòng sau ngày hết hạn hợp đồng");
+    }
+  } else {
+    const mi = await sql<{ d: string }>`
+      select handed_over_on::text as d from handovers
+      where organization_id = ${ctx.actor.orgId} and lease_id = ${lease.id} and kind = 'move_in'`.execute(
+      ctx.trx,
+    );
+    const moveIn = mi.rows[0]?.d;
+    if (moveIn && input.handedOverOn < moveIn) {
+      throw fieldError("handed_over_on", "BEFORE_MOVE_IN", "Ngày trả phòng trước ngày nhận phòng");
+    }
+  }
   if (!Number.isInteger(input.keysCount) || input.keysCount < 0 || input.keysCount > 100) {
     throw fieldError("keys_count", "INVALID", "Số chìa khoá 0–100");
   }
@@ -104,7 +122,8 @@ export async function recordHandover(
   const fileIds = validateAssets(input.assets, input.photoFileIds);
   if (fileIds.length > 0) {
     const f = await sql<{ id: string }>`
-      select id from files where organization_id = ${ctx.actor.orgId} and owner_type = 'handover' and id = any(${fileIds}::uuid[])`.execute(
+      select id from files where organization_id = ${ctx.actor.orgId} and owner_type = 'handover'
+        and (property_id is null or property_id = ${lease.property_id}) and id = any(${fileIds}::uuid[])`.execute(
       ctx.trx,
     );
     const found = new Set(f.rows.map((r) => r.id));

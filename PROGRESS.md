@@ -3,9 +3,10 @@
 > Giai đoạn hiện tại: G5 Dựng nền (autopilot đợt 1) · Cập nhật: 2026-10-15 · Nhánh: claude/gifted-noether-iybenn
 
 ## Đang làm
-- Autopilot đợt 2 (PLAN duyệt) — Pha 2: T-101…T-112 xong có bằng chứng (`.autopilot/evidence/`). T-112 xong. Đang: sửa review lát 2 (1 🔴 duyệt quyết toán không phát hiện nợ mới; 6 🟠), rồi **T-113** engine tính tiền. Ghi nhớ cho T-114: `lease.prepareSettlement` phải chặn khi kỳ thu cuối (prorata đến `moved_out_on`) chưa phát hành. PR nháp #5.
+- Autopilot đợt 2 (PLAN duyệt) — Pha 2: T-101…T-112 xong có bằng chứng (`.autopilot/evidence/`). T-112 xong; review lát 2 đã sửa (trừ 🟠5 — câu hỏi bên dưới). Kế tiếp **T-113** engine tính tiền. Ghi nhớ cho T-114: `lease.prepareSettlement` phải chặn khi kỳ thu cuối (prorata đến `moved_out_on`) chưa phát hành. PR nháp #5.
 
 ## Tiếp theo
+0. [Câu hỏi cho chủ dự án, không chặn] Hợp đồng KHÔNG thời hạn đã ký thì không đổi giá được: phụ lục chồng hiệu lực với phiên bản 1 (mở cuối, bất biến) ⇒ LEASE_VERSION_OVERLAP. Đề xuất: phụ lục được phép "đóng" ngày hết hạn của phiên bản mở cuối ngay trước nó (chỉ NULL → ngày trước hiệu lực phụ lục, ghi audit; điều khoản đã ký không đổi). Cần duyệt vì chạm bất biến INV-G4.
 1. Chủ repo import ruleset `.github/rulesets/main.json` (Settings → Rules → Rulesets → Import) — agent không có API để bật.
 2. Lập PLAN đợt 2: luồng R-001…R-005 (đặt/nhận/trả phòng, hợp đồng, kỳ thu, thanh toán) trên lõi đợt 1; trả lời câu hỏi [chặn] đợt 2 trong SPEC trước. Kèm: chọn máy quét mã độc thật, quyết mã hoá cột số giấy tờ, lưu cơ sở đang chọn (`property_id` của switchOrganization mới chỉ kiểm + trả về), route `GET /api/v1/commands/{id}`.
 3. Người làm song song: quan sát 6–10 cơ sở + baseline M-01…M-03; DPIA + pháp lý đối chiếu bản gốc; mua VPS tại VN + kho sao lưu khác máy; chọn SMTP relay; giấy phép mã nguồn.

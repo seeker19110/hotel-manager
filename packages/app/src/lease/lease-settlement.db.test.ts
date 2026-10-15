@@ -485,3 +485,75 @@ describe("S-025 và ca biên", () => {
     );
   });
 });
+
+describe("review lát hợp đồng — hồi quy", () => {
+  it("🔴1: nợ mới phát sinh sau khi lập quyết toán → duyệt bị từ chối; lập lại khấu trừ đủ", async () => {
+    const L = await rentedLease(3_000_000, 1_000_000);
+    await ok(L.moveOut());
+    const first = await ok(
+      run(M, async (ctx) => ({ data: await prepareSettlement(ctx, { leaseId: L.leaseId, fees: [] }) })),
+    );
+    expect(first).toMatchObject({ deductionsTotal: 1_000_000, refundAmount: 2_000_000 });
+    await seedIssuedInvoice(t.admin, {
+      orgId: A.orgId,
+      propertyId: A.propertyId,
+      payerPersonId: L.rep,
+      leaseId: L.leaseId,
+      lines: [{ amount: 1_500_000 }],
+    });
+    const refund = { method: "bank_transfer" as const, receivingAccountId: B1 };
+    expect(
+      await fails(
+        run(O, async (ctx) => ({
+          data: await approveSettlement(ctx, { settlementId: first.settlementId, refund }),
+        })),
+      ),
+    ).toMatchObject({ code: "INVALID_TRANSITION" });
+    expect(await depositBalance(L.leaseId)).toBe(3_000_000);
+    const again = await ok(
+      run(M, async (ctx) => ({ data: await prepareSettlement(ctx, { leaseId: L.leaseId, fees: [] }) })),
+    );
+    expect(again).toMatchObject({ deductionsTotal: 2_500_000, refundAmount: 500_000, debtAfter: 0 });
+    await ok(
+      run(O, async (ctx) => ({
+        data: await approveSettlement(ctx, { settlementId: again.settlementId, refund }),
+      })),
+    );
+    expect(await openAr(L.leaseId)).toBe(0);
+  });
+
+  it("🟠2/🟠3: ngày trả phòng trước ngày nhận phòng → 422; chỉ số bàn giao đã xác nhận bất biến", async () => {
+    const L = await rentedLease(0, 0);
+    const p = await fails(L.moveOut("2026-10-25"));
+    expect(p.errors?.[0]?.field).toBe("handed_over_on");
+    const r = await sql<{ id: string }>`
+      select r.id from meter_readings r join handovers h on h.id = r.handover_id where h.lease_id = ${L.leaseId}`.execute(
+      t.admin,
+    );
+    await expect(
+      sql`update meter_readings set value = 0 where id = ${r.rows[0]?.id}`.execute(t.admin),
+    ).rejects.toMatchObject({
+      hint: "DOCUMENT_IMMUTABLE",
+    });
+  });
+
+  it("🟠7: người thuê xem hợp đồng kèm biên bản bàn giao; 🟢9: lễ tân không sửa hợp đồng ngoài việc trả phòng", async () => {
+    const L = await rentedLease(0, 0);
+    const user = await seedAuthUser(t.admin, `tenant+${randomUUID().slice(0, 6)}@example.test`);
+    await sql`insert into memberships (id, organization_id, auth_user_id, person_id, role)
+              values (${randomUUID()}, ${A.orgId}, ${user}, ${L.rep}, 'tenant')`.execute(t.admin);
+    const T = await resolveActor(t.runtime, { authUserId: user, orgId: A.orgId, twoFactorEnabled: true });
+    const view = await getLease(t.runtime, T, L.leaseId);
+    expect(view.handovers.map((h) => h.kind)).toEqual(["move_in"]);
+    const asF = await t.runtime
+      .transaction()
+      .execute(async (trx) => {
+        await sql`select set_config('app.org_id', ${A.orgId}, true), set_config('app.actor_id', ${F.membershipId}, true)`.execute(
+          trx,
+        );
+        await sql`update leases set planned_move_out_on = '2027-01-01' where id = ${L.leaseId}`.execute(trx);
+      })
+      .catch((e: unknown) => e);
+    expect((asF as { hint?: string }).hint).toBe("FORBIDDEN");
+  });
+});

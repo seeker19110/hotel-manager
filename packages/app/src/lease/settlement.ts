@@ -156,7 +156,9 @@ export async function prepareSettlement(
   if (fileIds.length > 0) {
     const f = await sql<{ id: string }>`
       select id from files where organization_id = ${ctx.actor.orgId} and owner_type in ('lease_settlement','handover')
-        and id = any(${fileIds}::uuid[])`.execute(ctx.trx);
+        and (property_id is null or property_id = ${lease.property_id}) and id = any(${fileIds}::uuid[])`.execute(
+      ctx.trx,
+    );
     if (f.rows.length !== new Set(fileIds).size)
       throw fieldError("fees", "FILE_NOT_FOUND", "Ảnh chứng cứ không tồn tại");
   }
@@ -250,6 +252,7 @@ interface SettlementRow {
   lease_id: string;
   status: string;
   deposit_balance: string;
+  outstanding_ar: string;
   fees: { amount: number; reason: string }[];
   deductions: { invoice_id: string | null; amount: number; reason: string }[];
   refund_amount: string;
@@ -270,22 +273,29 @@ export async function approveSettlement(
   if (!UUID.test(input.settlementId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy quyết toán");
   const read = (lock: boolean) =>
     sql<SettlementRow>`
-      select id, property_id, lease_id, status, deposit_balance, fees, deductions, refund_amount, prepared_by
+      select id, property_id, lease_id, status, deposit_balance, outstanding_ar, fees, deductions, refund_amount, prepared_by
       from lease_settlements where organization_id = ${ctx.actor.orgId} and id = ${input.settlementId}
       ${lock ? sql`for update` : sql``}`.execute(ctx.trx);
+  // Kiểm quyền/hạn mức/người lập trên bản đọc trước (để 403 không phải chờ khoá) và LẶP LẠI trên hàng đã khoá: quyết toán có
+  // thể được lập lại (số hoàn lớn hơn) giữa hai lần đọc (review lát 2 🟠4).
+  const check = (row: SettlementRow) => {
+    const total = row.deductions.reduce((sum, d) => sum + d.amount, 0);
+    const authz = authorize(ctx.actor, "lease.approve_settlement", {
+      propertyId: row.property_id,
+      amount: Math.max(total, Number(row.refund_amount)),
+    });
+    if (authz.grant !== "yes" && authz.grant !== "limit")
+      throw new CommandError("FORBIDDEN", 403, "Không có quyền duyệt quyết toán");
+    if (row.prepared_by === ctx.actor.membershipId) {
+      throw new CommandError("SELF_APPROVAL_FORBIDDEN", 403, "Bạn không thể tự duyệt chứng từ mình lập.");
+    }
+    return total;
+  };
   const seen = (await read(false)).rows[0];
   if (!seen) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy quyết toán");
-  const deductionsTotal = seen.deductions.reduce((s, d) => s + d.amount, 0);
-  const authz = authorize(ctx.actor, "lease.approve_settlement", {
-    propertyId: seen.property_id,
-    amount: Math.max(deductionsTotal, Number(seen.refund_amount)),
-  });
-  if (authz.grant !== "yes" && authz.grant !== "limit")
-    throw new CommandError("FORBIDDEN", 403, "Không có quyền duyệt quyết toán");
-  if (seen.prepared_by === ctx.actor.membershipId) {
-    throw new CommandError("SELF_APPROVAL_FORBIDDEN", 403, "Bạn không thể tự duyệt chứng từ mình lập.");
-  }
+  check(seen);
   const s = (await read(true)).rows[0] as SettlementRow;
+  const deductionsTotal = check(s);
   if (s.status !== "prepared") throw new CommandError("INVALID_TRANSITION", 409, "Quyết toán đã duyệt");
   const lease = await lockLease(ctx, s.lease_id, "lease.manage");
   if (lease.status !== "settling") {
@@ -298,6 +308,8 @@ export async function approveSettlement(
   const stale = () =>
     new CommandError("INVALID_TRANSITION", 409, "Số liệu cọc/công nợ đã đổi từ lúc lập — lập lại quyết toán");
   if ((deposit?.balance ?? 0) !== Number(s.deposit_balance)) throw stale();
+  // Nợ của hợp đồng đổi (phiếu mới phát hành, khách trả bớt) ⇒ khấu trừ/hoàn đã tính sai — lập lại (review lát 2 🔴1).
+  if (invoices.reduce((sum, i) => sum + i.open, 0) !== Number(s.outstanding_ar)) throw stale();
   const used = new Map<string, number>();
   for (const d of s.deductions) {
     if (d.invoice_id === null) continue;
@@ -504,11 +516,16 @@ export async function closeLease(
     .end as Date;
   const alloc = (await leaseAllocations(ctx, lease.id)).find((a) => a.active && a.kind === "lease");
   if (alloc) {
+    // Kết thúc lúc 00:00 ngày sau ngày trả; không kéo dài đè lịch người khác (quá hạn đã có ngoại lệ). Trả trước cả ngày bắt
+    // đầu (không còn đoạn nào) ⇒ nhả allocation (review lát 2 🟠2).
     await sql`
-      update allocations set during = tstzrange(lower(during), least(coalesce(upper(during), ${end}), ${end}), '[)')
-      where organization_id = ${ctx.actor.orgId} and id = ${alloc.id} and lower(during) < ${end}`.execute(
-      ctx.trx,
-    );
+      update allocations set
+        during = case when lower(during) < ${end} then tstzrange(lower(during), least(coalesce(upper(during), ${end}), ${end}), '[)')
+                      else during end,
+        active = lower(during) < ${end},
+        deactivated_at = case when lower(during) < ${end} then deactivated_at else now() end,
+        deactivated_reason = case when lower(during) < ${end} then deactivated_reason else 'ended' end
+      where organization_id = ${ctx.actor.orgId} and id = ${alloc.id}`.execute(ctx.trx);
   }
   await sql`update leases set status = 'closed', version = version + 1
             where organization_id = ${ctx.actor.orgId} and id = ${lease.id}`.execute(ctx.trx);
