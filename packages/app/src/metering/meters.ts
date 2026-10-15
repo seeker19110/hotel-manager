@@ -3,7 +3,7 @@
 // qua chuỗi thay công tơ; bất thường (> 2 × trung bình 3 kỳ trước) phải được ghi nhận trước khi gửi duyệt kỳ (T-114).
 import { randomUUID } from "node:crypto";
 import { withTenant } from "@hm/db";
-import { authorize } from "@hm/domain";
+import { authorize, hasMaxDecimals } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/actor.ts";
 import type { CommandContext } from "../pipeline/command.ts";
@@ -26,7 +26,7 @@ function assertDate(d: string, field: string): void {
 
 /** Chỉ số: ≥ 0, tối đa 3 chữ số thập phân (numeric(14,3)). */
 function assertReading(v: number, field: string): void {
-  if (!Number.isFinite(v) || v < 0 || v >= 1e11 || Math.round(v * 1000) !== v * 1000) {
+  if (!Number.isFinite(v) || v < 0 || v >= 1e11 || !hasMaxDecimals(v, 3)) {
     throw fieldError(field, "INVALID", "Chỉ số ≥ 0, tối đa 3 chữ số thập phân");
   }
 }
@@ -58,11 +58,7 @@ export async function setServicePrice(
     if (input.effectiveTo < input.effectiveFrom)
       throw fieldError("effective_to", "BEFORE_START", "Ngày kết thúc trước ngày bắt đầu");
   }
-  if (
-    !Number.isFinite(input.unitPrice) ||
-    input.unitPrice < 0 ||
-    Math.round(input.unitPrice * 10_000) !== input.unitPrice * 10_000
-  ) {
+  if (!Number.isFinite(input.unitPrice) || input.unitPrice < 0 || !hasMaxDecimals(input.unitPrice, 4)) {
     throw fieldError("unit_price", "INVALID", "Đơn giá ≥ 0, tối đa 4 chữ số thập phân");
   }
   await sql`

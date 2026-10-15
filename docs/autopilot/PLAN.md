@@ -84,7 +84,7 @@ Tương ứng mốc "Tuần 5–8" của kế hoạch gốc (mảng trọ). Khá
 
 ### Lát 3 — Công tơ và kỳ thu (F-004)
 - [x] `T-112` Dịch vụ và công tơ: `services`, `service_prices` (hiệu lực), `meters`, `meter_readings` (không giảm, `METER_READING_DECREASED`), `meter_events` (thay công tơ có quyền); cảnh báo bất thường; thiếu chỉ số; thứ tự chốt theo tuyến tầng (metering S-005…S-010, S-017) — Gate: `pnpm test:db -- meters`
-- [ ] `T-113` Engine tính tiền thuần (`packages/domain/src/billing`): tiền thuê prorata theo tham số, dòng theo chỉ số, phí theo người/một lần, đổi giá giữa kỳ tách hai đoạn, làm tròn qua đúng một hàm; property test (Σ dòng = tổng, không âm, prorata trọn tháng = giá tháng); ví dụ 3.580.000 đ (S-001, S-016, S-018…S-021) — Gate: `pnpm vitest run packages/domain/src/billing`
+- [x] `T-113` Engine tính tiền thuần (`packages/domain/src/billing`): tiền thuê prorata theo tham số, dòng theo chỉ số, phí theo người/một lần, đổi giá giữa kỳ tách hai đoạn, làm tròn qua đúng một hàm; property test (Σ dòng = tổng, không âm, prorata trọn tháng = giá tháng); ví dụ 3.580.000 đ (S-001, S-016, S-018…S-021) — Gate: `pnpm vitest run packages/domain/src/billing`
 - [ ] `T-114` Vòng đời kỳ thu: job tạo kỳ theo ngày địa phương, chạy lại không trùng; xem trước có hash (cũ thì không phát hành); duyệt; phát hành → `invoices`/`invoice_lines`/`charges` snapshot + bút toán AR/REV (INV-F1, INV-G3/G4); không sửa sau phát hành; khoá/mở khoá kỳ; phát hành lặp = 1 (S-002…S-004, S-011…S-015) — Gate: `pnpm test:db -- billing`
 
 ### Lát 4 — Import, khôi phục MFA, UI và E2E vòng tháng

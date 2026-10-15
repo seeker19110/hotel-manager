@@ -3,7 +3,7 @@
 > Giai đoạn hiện tại: G5 Dựng nền (autopilot đợt 1) · Cập nhật: 2026-10-15 · Nhánh: claude/gifted-noether-iybenn
 
 ## Đang làm
-- Autopilot đợt 2 (PLAN duyệt) — Pha 2: T-101…T-112 xong có bằng chứng (`.autopilot/evidence/`). T-112 xong; review lát 2 đã sửa (trừ 🟠5 — câu hỏi bên dưới). Kế tiếp **T-113** engine tính tiền. Ghi nhớ cho T-114: `lease.prepareSettlement` phải chặn khi kỳ thu cuối (prorata đến `moved_out_on`) chưa phát hành. PR nháp #5.
+- Autopilot đợt 2 (PLAN duyệt) — Pha 2: T-101…T-113 xong có bằng chứng (`.autopilot/evidence/`). T-113 xong. Kế tiếp **T-114** vòng đời kỳ thu. Ghi nhớ cho T-114: `lease.prepareSettlement` phải chặn khi kỳ thu cuối (prorata đến `moved_out_on`) chưa phát hành. PR nháp #5.
 
 ## Tiếp theo
 0. [Câu hỏi cho chủ dự án, không chặn] Hợp đồng KHÔNG thời hạn đã ký thì không đổi giá được: phụ lục chồng hiệu lực với phiên bản 1 (mở cuối, bất biến) ⇒ LEASE_VERSION_OVERLAP. Đề xuất: phụ lục được phép "đóng" ngày hết hạn của phiên bản mở cuối ngay trước nó (chỉ NULL → ngày trước hiệu lực phụ lục, ghi audit; điều khoản đã ký không đổi). Cần duyệt vì chạm bất biến INV-G4.
@@ -25,9 +25,7 @@
 - 2026-10-15 T-108: khoá kỳ theo `business_date` cơ sở (chỉ ngày đã qua, chỉ tiến; mở khoá từ ngày X nhả mọi khoá ≥ X), trigger PERIOD_LOCKED trên `journal_entries`/`payments` (+`charges` ở T-113). Điều chỉnh chỉ GIẢM, luôn qua duyệt người khác (INV-G4), ghi kỳ mở bằng phiếu `adjustment` âm; số còn phải thu = cột sinh `invoices.open_amount`. Tăng tiền = phiếu phí mới. Báo cáo đọc từ sổ phụ; xuất CSV để SPEC-audit-reporting (job xuất).
 - 2026-10-15 T-109: lỗi theo trường trả `errors[]{path, field, code}` (API-CONTRACT dùng `path`, SPEC dùng `field`). Giữ chỗ hợp đồng không khoá hàng `leases` (lễ tân không ghi được) — khoá phòng + EXCLUDE. `allocation.expired` → `allocation.hold_expired` theo SPEC.
 - 2026-10-15 Review lát tiền: phân bổ kiểm số dư CUSTOMER_CREDIT thật (mutex `persons`, theo cơ sở); xác nhận thanh toán ghi sổ theo NGÀY XÁC NHẬN (kỳ cũ khoá vẫn xác nhận được); kiểm ca mở `FOR SHARE`; kế toán không duyệt loại nào (mục 10); chênh lệch ca bất biến, chỉ owner/manager sửa; cọc đặt phòng chưa khấu trừ được tới đợt 3; chữ ký `sim` gắn tài khoản; LEDGER_UNBALANCED = 500 giữ mã + cảnh báo.
-- 2026-10-15 T-110: `meters`/`meter_readings` tối thiểu kéo từ T-112 sang (bàn giao cần chỉ số); kích hoạt dời đầu allocation về ngày bàn giao; phụ lục bất biến ngay khi lập, kéo dài allocation; mốc nhắc theo `properties.settings.lease_reminder_days` (mặc định 30/7/0); job đọc xuyên tổ chức qua hàm SECURITY DEFINER hẹp.
-- 2026-10-15 T-111: bàn giao trả chuyển hợp đồng sang `settling` (lễ tân được UPDATE `leases`, trigger vòng đời vẫn chặn); khấu trừ mặc định = min(cọc, AR + phí) trả phiếu cũ trước; duyệt kiểm lại cọc/AR dưới khoá (đổi ⇒ lập lại); hạn mức quản lý tính trên khoản lớn nhất (khấu trừ/hoàn); đóng hợp đồng không kéo allocation đè lịch người khác.
-- 2026-10-15 T-112: `billing_periods` (khung) tạo sớm vì chỉ số kỳ FK tới kỳ; bất thường = tiêu thụ > 2 × TB 3 kỳ trước, thiếu 3 kỳ thì không cảnh báo; lượng tiêu thụ đi qua chuỗi thay công tơ; bảng giá dịch vụ chỉ owner (ma trận).
+- 2026-10-15 T-110…T-113: công tơ/`billing_periods` tạo sớm khi bàn giao/chỉ số cần; bàn giao trả chuyển `settling`; khấu trừ mặc định = min(cọc, AR + phí), duyệt kiểm lại cọc/AR dưới khoá; bất thường = > 2 × TB 3 kỳ; dòng tiền thuê lưu quantity = số ngày, unit_price = giá tháng, denominator; làm tròn chỉ trong `money` (test kiến trúc).
 - Nợ kỹ thuật chấp nhận: phần pháp lý trong `docs/research/` chỉ có nguồn thứ cấp — phải đối chiếu văn bản gốc trước khi dùng dữ liệu thật.
 
 ## Bàn giao phiên

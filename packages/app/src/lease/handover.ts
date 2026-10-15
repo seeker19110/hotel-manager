@@ -2,6 +2,7 @@
 // Biên bản bàn giao bắt buộc đủ chỉ số mọi công tơ đang dùng của phòng và sinh `meter_readings` nguồn `handover` đã duyệt
 // (chỉ số đầu của kỳ thu sau). Ảnh là file riêng tư (`files.owner_type='handover'`), biên bản lưu id.
 import { createHash, randomUUID } from "node:crypto";
+import { hasMaxDecimals } from "@hm/domain";
 import { sql } from "kysely";
 import { type CommandContext, canonicalJson } from "../pipeline/command.ts";
 import { CommandError, fieldError } from "../pipeline/problem.ts";
@@ -145,7 +146,7 @@ export async function recordHandover(
     const field = `readings.${m.kind}`;
     if (v === undefined || v === null)
       throw fieldError(field, "REQUIRED", `Thiếu chỉ số ${m.kind === "electric" ? "điện" : "nước"}`);
-    if (!Number.isFinite(v) || v < 0 || Math.round(v * 1000) !== v * 1000 || v >= 1e11) {
+    if (!Number.isFinite(v) || v < 0 || !hasMaxDecimals(v, 3) || v >= 1e11) {
       throw fieldError(field, "INVALID", "Chỉ số không hợp lệ (≥ 0, tối đa 3 chữ số thập phân)");
     }
     if (v < Number(m.last)) {

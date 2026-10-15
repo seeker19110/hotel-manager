@@ -71,6 +71,55 @@ export function roundVnd(value: string, rule: RoundingRule = DEFAULT_ROUNDING): 
   return toSafe(roundRational(d.units, 10n ** BigInt(d.scale), rule));
 }
 
+/** a − b chính xác trên chuỗi thập phân (chỉ số công tơ "112.7" − "100.5" = "12.2"). */
+export function decimalSub(a: string, b: string): string {
+  const x = parseDecimal(a);
+  const y = parseDecimal(b);
+  const scale = Math.max(x.scale, y.scale);
+  const v = x.units * 10n ** BigInt(scale - x.scale) - y.units * 10n ** BigInt(scale - y.scale);
+  return formatDecimal(v, scale);
+}
+
+function formatDecimal(units: bigint, scale: number): string {
+  const neg = units < 0n;
+  const abs = (neg ? -units : units).toString().padStart(scale + 1, "0");
+  const int = abs.slice(0, abs.length - scale);
+  const frac = scale > 0 ? abs.slice(abs.length - scale).replace(/0+$/, "") : "";
+  return `${neg ? "-" : ""}${int}${frac ? `.${frac}` : ""}`;
+}
+
+/** Số hữu hạn có tối đa `decimals` chữ số thập phân (kiểm đầu vào chỉ số/đơn giá — không làm tròn). */
+export function hasMaxDecimals(v: number, decimals: number): boolean {
+  if (!Number.isFinite(v)) return false;
+  const s = String(v);
+  if (/e/i.test(s)) return Number.isInteger(v);
+  const dot = s.indexOf(".");
+  return dot < 0 || s.length - dot - 1 <= decimals;
+}
+
+/**
+ * Prorata tiền tháng: `price × days / den`, làm tròn MỘT lần theo `rule` (SPEC-metering mục 10). `den` = số ngày thực của
+ * tháng (`actual_days`) hoặc 30 (`fixed_30`); trọn tháng luôn = đúng giá tháng.
+ */
+export function prorate(
+  monthlyPrice: number,
+  days: number,
+  daysInMonth: number,
+  mode: "actual_days" | "fixed_30" = "actual_days",
+  rule: RoundingRule = DEFAULT_ROUNDING,
+): number {
+  assertVnd(monthlyPrice);
+  if (monthlyPrice < 0) throw new MoneyError("Giá tháng không âm");
+  if (!Number.isInteger(daysInMonth) || daysInMonth < 28 || daysInMonth > 31)
+    throw new MoneyError("Số ngày của tháng sai");
+  if (!Number.isInteger(days) || days < 0 || days > daysInMonth)
+    throw new MoneyError("Số ngày tính tiền sai");
+  if (days === daysInMonth) return monthlyPrice;
+  const den = mode === "fixed_30" ? 30n : BigInt(daysInMonth);
+  const d = mode === "fixed_30" ? BigInt(Math.min(days, 30)) : BigInt(days);
+  return toSafe(roundRational(BigInt(monthlyPrice) * d, den, rule));
+}
+
 /** Tổng các dòng đã làm tròn (quy tắc "từng dòng": tổng không làm tròn lại). */
 export function sumVnd(amounts: readonly number[]): number {
   let total = 0n;
