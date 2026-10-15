@@ -1,6 +1,6 @@
 # DOMAIN-MODEL — từ điển, thực thể, trạng thái và bất biến (G4)
 
-> Phiên bản 1 · 2026-10-15 · Trạng thái: Draft, chờ duyệt.
+> Phiên bản 1.1 · 2026-10-15 · Trạng thái: Draft, chờ duyệt.
 > Nguồn: kế hoạch gốc §05–§08, §12–§13.
 > Mọi SPEC dùng **đúng tên** ở đây; đổi tên phải sửa file này trước. Schema SQL chi tiết viết ở T-003 trở đi, theo đúng tài liệu này.
 
@@ -70,12 +70,13 @@ allocations(organization_id, property_id, unit_id, id,
 | Thực thể | Trạng thái | Chuyển không hợp lệ |
 |---|---|---|
 | Booking | `draft → held → confirmed → in_house → checked_out`; nhánh `cancelled`, `no_show`; `held → expired` | nhảy từ `draft` sang `in_house`; huỷ sau `checked_out` |
-| Lượt ở | `expected → in_house → checked_out` | check-out khi chưa check-in |
-| Hợp đồng | `draft → pending_signature → signed_awaiting_handover → active → notice_given → settling → closed` | `active` khi chưa có bàn giao; `closed` khi chưa quyết toán |
-| Kỳ thu | `draft → reviewing → issued → locked` | sửa số sau `issued` (phải dùng điều chỉnh) |
+| Lượt ở | `expected → in_house → checked_out`; `expected → cancelled` | check-out khi chưa check-in |
+| Hợp đồng | `draft → pending_signature → signed_awaiting_handover → active → notice_given → settling → closed`; `draft`/`pending_signature`/`signed_awaiting_handover` → `cancelled` | `active` khi chưa có bàn giao; `closed` khi chưa quyết toán |
+| Kỳ thu | `draft → reviewing → issued → locked`; `reviewing → draft` (trả lại để sửa chỉ số) | sửa số sau `issued` (phải dùng điều chỉnh) |
 | Thanh toán | `pending → confirmed`; `confirmed → reversed` (bằng chứng từ đảo) | `pending → reversed`; xác nhận hai lần |
-| Phiếu việc | `open → assigned → in_progress → done → verified`; `cancelled` | `verified` bởi chính người làm (khi bật tách quyền) |
+| Phiếu việc | `open → assigned → in_progress → done → verified`; `cancelled` | `verified` bởi chính người làm (khi bật tách quyền) → `SELF_APPROVAL_FORBIDDEN` |
 
+Tự duyệt hoặc tự nghiệm thu khi quy tắc cấm luôn trả `SELF_APPROVAL_FORBIDDEN` (403), không dùng `INVALID_TRANSITION`.
 Mọi chuyển trạng thái đi qua bảng chuyển khai báo trong `packages/domain`. Chuyển ngoài bảng bị từ chối với mã `INVALID_TRANSITION` và được ghi audit.
 
 ## 5. Tài chính — sổ phụ cân bằng
@@ -91,6 +92,7 @@ Tài khoản sổ phụ (V1, theo từng tổ chức; chưa phải hệ thống 
 | `CUSTOMER_CREDIT` | Ứng trước, trả thừa chưa phân bổ | Nợ phải trả |
 | `REV_ROOM` / `REV_UTIL` / `REV_SERVICE` / `REV_FEE` | Doanh thu phòng / điện nước / dịch vụ / phí khác | Doanh thu |
 | `DISCOUNT` | Giảm trừ | Giảm doanh thu |
+| `OPENING_BALANCE` | Đối ứng số dư đầu kỳ khi chuyển dữ liệu (nợ/cọc/ứng trước mở đầu); không phải doanh thu | Vốn/đối ứng |
 
 | Sự kiện | Bút toán |
 |---|---|
@@ -101,6 +103,7 @@ Tài khoản sổ phụ (V1, theo từng tổ chức; chưa phải hệ thống 
 | Khấu trừ cọc vào nợ (có duyệt) | Nợ `DEPOSIT_LIAB` / Có `AR` |
 | Hoàn cọc | Nợ `DEPOSIT_LIAB` / Có `CASH`/`BANK` |
 | Đảo | Bút toán ngược, có `reverses_entry_id` |
+| Số dư đầu kỳ (import) | Nợ `AR` / Có `OPENING_BALANCE` (nợ cũ); Nợ `OPENING_BALANCE` / Có `DEPOSIT_LIAB` (cọc đang giữ) |
 
 - **INV-F1:** mỗi bút toán có Σ Nợ = Σ Có (constraint trigger deferred). Dòng bút toán là append-only.
 - **INV-F2:** Σ phân bổ của một thanh toán ≤ số tiền thanh toán; Σ phân bổ vào một phiếu ≤ tổng phiếu. Kiểm trong transaction và khoá hàng `payments`/`invoices` theo thứ tự id tăng dần.
@@ -117,3 +120,22 @@ Tài khoản sổ phụ (V1, theo từng tổ chức; chưa phải hệ thống 
 Vai trò: `owner` · `manager` · `front_desk` · `accountant` · `housekeeping` · `maintenance` · `tenant` (portal) · `guest` (link có hạn) · `platform_support` (tách riêng, cấp tạm thời).
 Quyền = (vai trò, hành động, phạm vi cơ sở, hạn mức tiền). Kiểm ở server (`packages/app`) **và** ở RLS. Giao diện chỉ ẩn/hiện để người dùng dễ hiểu.
 `housekeeping` không đọc `identity_documents` và không xem số tiền.
+
+## 7. Bảng bổ sung từ SPEC (v1.1, 2026-10-15)
+
+Các bảng dưới đây xuất hiện khi viết SPEC. Tên ở đây là chuẩn; mọi bảng đều theo INV-G1 (có `organization_id`, FK ghép, RLS).
+
+| Nhóm | Bảng | Mục đích | SPEC |
+|---|---|---|---|
+| Quyền | `floors`, `property_scopes`, `invitations` | Tầng; phạm vi cơ sở của membership; lời mời có hạn | access-and-property |
+| Phê duyệt | `approval_requests` | Yêu cầu duyệt (hoàn, khấu trừ cọc, điều chỉnh, mở khoá kỳ) có hạn mức, cấm tự duyệt | ledger-payments, lease, access |
+| Lịch | `exceptions` | Ngoại lệ cần quản lý xử lý: `LEASE_OVERSTAY`, `STAY_OVERSTAY`, `RELOCATION_REQUIRED` | inventory-allocation, reservation-stay |
+| Khách sạn | `rate_plans` | Bảng giá theo loại phòng, ngày thường/cuối tuần, hiệu lực | reservation-stay |
+| Vận hành | `tasks`, `work_orders`, `files` | Việc buồng phòng; phiếu sự cố/sửa chữa; metadata file riêng tư | housekeeping-maintenance |
+| Tính tiền | `services`, `service_prices`, `meter_events` | Danh mục dịch vụ; giá có hiệu lực; lắp/thay/reset công tơ | metering-billing |
+| Hợp đồng | `lease_settlements` | Quyết toán khi thanh lý (nợ, khấu trừ, hoàn) | lease |
+| Tiền | `reconciliation_breaks`, `payment_claims` | Chênh lệch đối soát có chủ xử lý; "khách báo đã chuyển" (**không** tạo `payments`/bút toán) | ledger-payments, portal |
+| Portal | `guest_access_links` | Link khách có token băm, hạn, thu hồi, phạm vi một lượt ở | portal |
+| Import | `import_batches`, `import_rows`, `import_external_refs` | Lô import, dòng + lỗi, khoá chống import lặp | import |
+| Thông báo | `notifications`, `notification_deliveries`, `notification_preferences`, `notification_settings` | Thông báo trong app; lần gửi theo kênh; opt-in/out; lịch nhắc theo cơ sở | notifications |
+| Báo cáo | `export_jobs` | Xuất dữ liệu chạy nền, link có hạn, audit | audit-reporting |

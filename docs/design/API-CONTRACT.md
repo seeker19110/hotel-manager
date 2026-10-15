@@ -41,12 +41,29 @@
 | `OVER_ALLOCATION` | 409 | Vi phạm INV-F2 |
 | `PERIOD_LOCKED` | 409 | Ghi vào kỳ/ca đã khoá |
 | `LINK_EXPIRED` | 410 | Link khách/xuất dữ liệu đã hết hạn |
-| `PAYLOAD_TOO_LARGE` | 413 | File vượt giới hạn |
-| `UNSUPPORTED_MEDIA` | 415 | MIME không cho phép |
+| `FILE_TOO_LARGE` | 413 | File vượt giới hạn |
+| `FILE_TYPE_NOT_ALLOWED` | 415 | MIME/magic bytes không trong allowlist |
+| `APPROVAL_LIMIT_EXCEEDED` | 403 | Số tiền vượt hạn mức duyệt của vai trò |
+| `SELF_APPROVAL_FORBIDDEN` | 403 | Tự duyệt chứng từ hoặc tự nghiệm thu việc của mình |
+| `DOCUMENT_IMMUTABLE` | 409 | Sửa chứng từ/điều khoản đã phát hành hoặc ký (INV-G4); phải dùng điều chỉnh/đảo |
+| `CONTEXT_CHANGED` | 409 | Tổ chức/cơ sở đang chọn đã đổi giữa lúc thao tác |
+| `METER_READING_DECREASED` | 422 | Chỉ số nhỏ hơn lần trước mà không qua luồng thay công tơ |
 | `RATE_LIMITED` | 429 | Vượt rate limit |
 | `INTERNAL` | 500 | Lỗi không dự kiến. Chỉ trả `correlation_id`, không trả stack trace |
 
-Mã riêng của từng tính năng ghi ở mục 6 trong SPEC tương ứng và dùng chung danh mục này. Thêm mã mới thì phải thêm vào bảng trên.
+Bảng trên là **mã dùng chung**. Mã chỉ một tính năng dùng thì định nghĩa (HTTP, thông điệp) ở mục 6 của SPEC tương ứng; chỉ mục dưới đây để tránh trùng nghĩa. Thêm mã mới thì cập nhật chỉ mục này. Mã dùng ở ≥ 2 SPEC phải chuyển lên bảng chung. Khi code có, danh mục sinh từ `packages/app/src/errors.ts` và CI kiểm khớp.
+
+| SPEC | Mã riêng |
+|---|---|
+| `SPEC-audit-reporting.md` | `EXPORT_NOT_READY` · `REPORT_RANGE_TOO_LARGE` |
+| `SPEC-import.md` | `CONFLICT_AT_COMMIT` · `DUPLICATE_IN_FILE` · `IMPORT_CONFIRMATION_REQUIRED` · `IMPORT_EXTERNAL_ID_CONFLICT` · `IMPORT_HAS_ERRORS` · `IMPORT_TOTALS_MISMATCH` · `NOT_INTEGER_VND` · `OUT_OF_RANGE` · `REFERENCE_NOT_FOUND` · `TOO_LONG` |
+| `SPEC-inventory-allocation.md` | `EXTENSION_CONFLICT` |
+| `SPEC-lease.md` | `HANDOVER_REQUIRED` · `LEASE_TERMS_IMMUTABLE` · `LEASE_VERSION_OVERLAP` · `SETTLEMENT_REQUIRED` |
+| `SPEC-ledger-payments.md` | `EVIDENCE_REQUIRED` · `HASH_MISMATCH` · `INBOX_HASH_MISMATCH` · `LEDGER_UNBALANCED` · `REFUND_EXCEEDS_BALANCE` · `THIRD_PARTY_PAYER` · `WEBHOOK_SIGNATURE_INVALID` · `WRONG_REFERENCE` |
+| `SPEC-metering-billing.md` | `BILLING_PREVIEW_STALE` · `PERIOD_ISSUED` · `READINGS_INCOMPLETE` · `UNRESOLVED_ANOMALIES` |
+| `SPEC-notifications.md` | `DELIVERY_NOT_RETRYABLE` · `NO_ADDRESS` · `OPTED_OUT` · `PREFERENCE_REQUIRED` · `PROVIDER_TEMPORARY` · `RECIPIENT_INVALID` · `TEMPLATE_ERROR` |
+| `SPEC-portal.md` | `LINK_REVOKED` |
+| `SPEC-pwa.md` | `CLIENT_OUTDATED` · `COMMAND_NOT_FOUND` · `NETWORK_TIMEOUT` · `RESULT_UNKNOWN` |
 
 ## 3. Webhook vào (`POST /api/v1/webhooks/{provider}`)
 - Xác minh chữ ký/HMAC và timestamp theo nhà cung cấp, kiểm tài khoản nhận, ghi `inbox` với khoá unique `(provider, account, provider_event_id)`, rồi trả 2xx ngay. Xử lý thật diễn ra trong worker.

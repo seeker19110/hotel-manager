@@ -98,13 +98,13 @@ Quy ước chung cho mọi scenario (kế hoạch §16; DOMAIN-MODEL INV-G1):
 ### S-016 Ma trận quyền (Scenario Outline)
 - Given actor có vai trò `<vai_trò>`, phạm vi chứa cơ sở đích, đã xác minh MFA nếu bắt buộc
 - When thực hiện `<hành_động>`
-- Then kết quả đúng ô tương ứng ở mục 5.3: `Có`/`Mình` → `2xx`; `—` → `403 FORBIDDEN` (hoặc `404` nếu không đọc được tài nguyên); `HM` vượt hạn mức → `403 LIMIT_EXCEEDED`
+- Then kết quả đúng ô tương ứng ở mục 5.3: `Có`/`Mình` → `2xx`; `—` → `403 FORBIDDEN` (hoặc `404` nếu không đọc được tài nguyên); `HM` vượt hạn mức → `403 APPROVAL_LIMIT_EXCEEDED`
 - Examples: sinh tự động từ **toàn bộ** bảng 5.3 (mỗi ô một test, chạy cả ở server và RLS)
 
 ### S-017 Hạn mức tiền và yêu cầu duyệt
 - Given lễ tân L có hạn mức giảm giá 100.000 đ (giá trị fixture)
 - When L áp giảm giá 150.000 đ cho booking
-- Then `403 LIMIT_EXCEEDED`, tạo bản ghi `approval_requests` trạng thái `pending` kèm số tiền, lý do; khi owner duyệt, thao tác được thực hiện đúng một lần, audit ghi người đề xuất và người duyệt
+- Then `403 APPROVAL_LIMIT_EXCEEDED`, tạo bản ghi `approval_requests` trạng thái `pending` kèm số tiền, lý do; khi owner duyệt, thao tác được thực hiện đúng một lần, audit ghi người đề xuất và người duyệt
 
 ### S-018 Không tự nâng quyền
 - Given manager M phạm vi [P1]
@@ -187,7 +187,7 @@ Hợp đồng chi tiết: `docs/design/API-CONTRACT.md`. Mọi command nhận `I
 | `session.revokeAll` | membership_id hoặc self | revoked_count | FORBIDDEN |
 | `session.switchOrganization` | organization_id, property_id? | context | NOT_FOUND |
 | `auth.enrollMfa` / `auth.verifyMfa` | (theo Supabase Auth) | mfa_verified | RATE_LIMITED |
-| `approval.decide` | approval_request_id, decision, note | status | FORBIDDEN, INVALID_TRANSITION |
+| `approval.decide` | approval_request_id, decision, note | status | FORBIDDEN, SELF_APPROVAL_FORBIDDEN, INVALID_TRANSITION |
 
 ### 5.2 Query
 `org.listMine` (các tổ chức của người dùng) · `property.list` · `unit.list` {property_id, floor_id?, include_archived?} · `member.list` · `session.listMine` · `approval.listPending` · `context.get`.
@@ -243,7 +243,8 @@ Ký hiệu: **Có** = được trong phạm vi cơ sở · **HM** = trong hạn 
 | SESSION_REVOKED | Phiên đã bị thu hồi | 401 | Phiên này đã bị đăng xuất. Vui lòng đăng nhập lại. | S-010 |
 | MFA_REQUIRED | Vai trò bắt buộc MFA chưa xác minh | 403 | Cần xác thực hai lớp trước khi tiếp tục. | S-011 |
 | FORBIDDEN | Không có quyền trên tài nguyên đọc được | 403 | Bạn không có quyền thực hiện thao tác này. | S-014, S-016, S-018 |
-| LIMIT_EXCEEDED | Vượt hạn mức tiền | 403 | Số tiền vượt hạn mức của bạn. Đã gửi yêu cầu duyệt. | S-017 |
+| APPROVAL_LIMIT_EXCEEDED | Vượt hạn mức tiền | 403 | Số tiền vượt hạn mức của bạn. Đã gửi yêu cầu duyệt. | S-017 |
+| SELF_APPROVAL_FORBIDDEN | Người đề xuất tự duyệt (dùng chung SPEC-ledger-payments) | 403 | Bạn không thể tự duyệt chứng từ mình lập. | S-017 |
 | NOT_FOUND | Không tồn tại hoặc không được đọc | 404 | Không tìm thấy dữ liệu. | S-009, S-013, S-015, S-024 |
 | INVITATION_INVALID | Lời mời hết hạn/đã dùng/sai email | 410 | Lời mời không còn hiệu lực. Hãy nhờ quản trị gửi lại. | S-008 |
 | UNIT_CODE_TAKEN | Trùng mã phòng trong cơ sở | 409 | Mã phòng đã tồn tại trong cơ sở này. | S-004 |

@@ -1,0 +1,261 @@
+# SPEC-reservation-stay — Khách sạn cơ bản: loại phòng, giá ngày/đêm, booking, nhận/trả phòng, folio
+
+| Trường | Giá trị |
+|---|---|
+| ID tính năng | F-006 (luồng: R-003, R-004) |
+| Trạng thái | Draft — chờ duyệt |
+| Phiên bản | 1 — thay đổi: xem cuối file |
+| Chủ spec | (chưa gán) · Duyệt bởi (chưa) |
+| Hồ sơ/quy mô | web-app / M |
+| Nguồn | Kế hoạch §06, §07, §08, §13; DOMAIN-MODEL §1, §3–§5; backlog T049–T054, T056 |
+
+## 1. User story
+- Là **lễ tân**, tôi muốn báo giá, giữ phòng có hạn, xác nhận kèm ứng trước/cọc, nhận khách (booking hoặc walk-in) dưới 2 phút và trả phòng với folio rõ ràng, để quầy không ùn và tiền ca khớp.
+- Là **quản lý**, tôi muốn cho phép trả phòng khi khách còn nợ có chủ thể và hạn trả, để không giữ khách vô lý mà vẫn theo dõi được công nợ.
+
+Phạm vi pilot: 1 dòng phòng/booking, phòng gán cụ thể ngay khi giữ, giá theo đêm (ngày thường/cuối tuần) theo loại phòng, nguồn booking `direct`/`walk_in`.
+Ngoài phạm vi (F-013): giá giờ, phụ thu sớm/muộn tự động, booking nhiều dòng/đoàn, rate plan theo ngày hiệu lực, chính sách huỷ có phiên bản, night audit, ca quầy. Phụ thu trả muộn ở pilot là khoản phí nhập tay.
+
+## 2. Tiêu chí chấp nhận (Given/When/Then)
+Fixture chung: cơ sở P1 mẫu `hotel`, `timezone=Asia/Ho_Chi_Minh`, giờ nhận 14:00 / trả 12:00 (giá trị fixture, chờ Q-01); loại phòng `STD` sức chứa 2, giá ngày thường 600.000 đ (kế hoạch §06), cuối tuần 700.000 đ (giá trị fixture); phòng `201`, `202` loại `STD`. 20/10/2026 là thứ Ba.
+
+### S-001 Báo giá ngày thường
+- Given `201` trống
+- When `reservation.quote` {`STD`, đến 20/10, đi 22/10, 2 khách}
+- Then `nights=2`, dòng giá [20/10: 600.000, 21/10: 600.000], `room_total=1200000` (số nguyên đồng), kèm điều kiện huỷ đang áp dụng (Q-04)
+
+### S-002 Giá ngày thường/cuối tuần (Scenario Outline)
+- Given giá `STD` như fixture, định nghĩa đêm cuối tuần = `<cuối_tuần>`
+- When báo giá đến 22/10 (thứ Năm), đi 25/10 (Chủ nhật)
+- Then `room_total` = `<tổng>`; mỗi đêm xác định theo `business_date` của đêm đó
+- Examples: | cuối_tuần | tổng |
+  | đêm thứ Sáu + thứ Bảy (đề xuất Q-03) | 2.000.000 |
+  | đêm thứ Bảy + Chủ nhật | 1.900.000 |
+
+### S-003 Tạo booking và giữ phòng có hạn
+- Given `201` trống 20/10 14:00 → 22/10 12:00
+- When `reservation.create` {khách, `201`, 20/10→22/10, 2 khách, nguồn `direct`} rồi `reservation.hold`
+- Then booking `draft → held`; gọi `inventory.createHold` → allocation `hold` [20/10 07:00Z, 22/10 05:00Z) có `expires_at`; giá từng đêm được snapshot vào booking
+
+### S-004 Hai lễ tân giữ cùng phòng cuối (R-004)
+- Given `201` là phòng `STD` trống cuối cùng
+- When hai lễ tân gọi `reservation.hold` song song cùng khoảng
+- Then một người `200`/`201`; người còn lại `409 ROOM_UNAVAILABLE` kèm gợi ý; chỉ một allocation (chi tiết tải 100 lệnh: SPEC-inventory-allocation S-005)
+
+### S-005 Xác nhận kèm ứng trước có chứng cứ
+- Given booking `held`, hold còn hạn
+- When `reservation.confirm` kèm ghi nhận 500.000 đ chuyển khoản là **ứng trước**, người có quyền xác nhận với ảnh sao kê (INV-F3)
+- Then booking `confirmed`; tạo `stays` trạng thái `expected`; allocation đổi `kind='stay'`, `source_id`=stay, `expires_at=NULL` (không có khe hở); `payments` `confirmed`; bút toán Nợ `BANK` 500.000 / Có `CUSTOMER_CREDIT` 500.000 (cân đối, INV-F1)
+
+### S-006 "Khách bấm đã chuyển" không đủ để xác nhận tiền (INV-F3)
+- Given booking `held`
+- When lễ tân ghi khoản chuyển khoản 500.000 không có chứng cứ
+- Then `payments.status='pending'`; không có bút toán `BANK`; số dư folio không giảm; booking chỉ `confirmed` nếu chính sách cho phép xác nhận không cần tiền (Q-05)
+
+### S-007 Xác nhận khi hold đã hết hạn
+- Given hold của booking quá `expires_at`
+- When `reservation.confirm`
+- Then `409 HOLD_EXPIRED`; booking `held → expired` đúng một lần; phòng được nhả
+
+### S-008 Đổi ngày nguyên tử (T051)
+- Given booking `confirmed` `201` 20/10→22/10; `201` bận từ 23/10 14:00
+- When `reservation.changeDates` đi 23/10 (preview trước), rồi đi 24/10
+- Then preview trả chênh lệch +600.000 trước khi lưu; đổi đến 23/10 → `200`, allocation cập nhật cùng transaction, đêm cũ giữ giá snapshot, đêm mới lấy giá hiện hành (Q-06); đổi đến 24/10 → `409 ROOM_UNAVAILABLE`, booking và allocation **không đổi**
+
+### S-009 Huỷ booking: nhả phòng, không tự coi tiền là doanh thu (INV-F5)
+- Given booking `confirmed` có ứng trước 500.000
+- When lễ tân `reservation.cancel` {lý do, phí huỷ=0}
+- Then booking `cancelled`, stay `expected → cancelled` (Q-09), allocation `active=false` tại thời điểm commit; 500.000 vẫn ở `CUSTOMER_CREDIT` chờ hoàn hoặc quyết định có lý do + người duyệt; **không** có bút toán `REV_*`
+- And khi phí huỷ > 0: tạo `charges` loại phí (`REV_FEE` khi phát hành), phải trong hạn mức người thao tác, vượt → `403 APPROVAL_LIMIT_EXCEEDED`
+
+### S-010 Chuyển trạng thái không hợp lệ
+- Given booking `draft` / booking `checked_out`
+- When `stay.checkIn` trên booking `draft` / `reservation.cancel` booking `checked_out`
+- Then `409 INVALID_TRANSITION`, có `audit_events` ghi lần từ chối
+
+### S-011 No-show
+- Given booking `confirmed`, ngày đến 20/10, khách không đến
+- When lễ tân `reservation.markNoShow` lúc 20/10 18:00; rồi lúc 21/10 sau giờ chốt ngày
+- Then lần 1 → `409 INVALID_TRANSITION` (chưa qua ngày đến, Q-07); lần 2 → `no_show`, allocation nhả, ứng trước/cọc giữ nguyên chờ quyết định có duyệt
+
+### S-012 Check-in booking có sẵn (T052)
+- Given booking `confirmed` `201`; `201` vệ sinh `inspected`, khả dụng `active`, không có lượt ở `in_house`
+- When `stay.checkIn` {booking, thông tin khách bắt buộc (Q-08)}
+- Then stay `expected → in_house`, booking `in_house`; ghi `charges` phòng mỗi đêm (unique theo stay + `business_date`); sự kiện `stay.check_in_started` (mở form) và `stay.checked_in` (commit)
+
+### S-013 Phòng chưa sạch hoặc còn khách
+- Given `201` vệ sinh `dirty` (hoặc còn lượt ở `in_house` quá hạn)
+- When `stay.checkIn`
+- Then `409 ROOM_NOT_READY` (hoặc `409 ROOM_OCCUPIED`); stay vẫn `expected`; UI gợi ý chuyển sang phòng `inspected` cùng loại
+
+### S-014 Vượt sức chứa
+- Given `STD` sức chứa 2
+- When tạo booking/check-in với 3 khách
+- Then `422 CAPACITY_EXCEEDED`
+
+### S-015 Walk-in (T052)
+- Given `202` trống, `inspected`; hiện tại 20/10 15:10
+- When `stay.walkIn` {`202`, đi 21/10, 1 khách, thông tin khách}
+- Then một transaction tạo booking nguồn `walk_in` trạng thái `in_house`, stay `in_house`, allocation `stay` [20/10 15:10, 21/10 12:00), 1 đêm 600.000; nếu `202` bị chiếm → `409 ROOM_UNAVAILABLE` và không tạo gì
+
+### S-016 Qua 00:00 không tự tạo sai một đêm (kế hoạch §06)
+- Given giờ chốt ngày P1 = 04:00 (giá trị fixture); (a) khách `in_house` 20/10→22/10 có 2 phí đêm; (b) khách walk-in lúc 16/10 01:30, đi 16/10
+- When (a) đồng hồ qua 21/10 00:00 và 22/10 00:00; (b) `stay.walkIn`
+- Then (a) vẫn đúng 2 phí đêm, không job nào tạo thêm phí theo đồng hồ; (b) `business_date` đêm đầu = 15/10, `nights=1`, giá 1 đêm thứ Năm (600.000), **không** tính 2 đêm và không báo lỗi "ngày đi phải sau ngày đến"
+
+### S-017 Folio ví dụ bắt buộc (kế hoạch §06, DOMAIN-MODEL §5)
+- Given stay `201` 20/10→22/10 (2 × 600.000), ứng trước 500.000 đã xác nhận (S-005)
+- When ghi minibar 80.000 (`stay.postCharge`, loại dịch vụ) và phụ thu trả muộn 150.000 (loại phí, nhập tay); rồi `stay.checkOut`
+- Then folio: tổng phí **1.430.000**; phát hành phiếu: Nợ `AR` 1.430.000 / Có `REV_ROOM` 1.200.000, `REV_SERVICE` 80.000, `REV_FEE` 150.000; phân bổ ứng trước: Nợ `CUSTOMER_CREDIT` 500.000 / Có `AR` 500.000; còn phải thu **930.000**. Cọc bảo đảm (nếu có) hiển thị riêng, không trừ vào 930.000 (INV-F5)
+
+### S-018 Không ghi dịch vụ hai lần (T053)
+- Given stay `in_house`
+- When gửi `stay.postCharge` minibar 80.000 hai lần cùng `Idempotency-Key`; rồi lần ba cùng key khác số tiền
+- Then 1 `charges`; lần ba `409 IDEMPOTENCY_CONFLICT`. Hai lần bấm với key khác nhau là hai khoản hợp lệ, hủy bằng `stay.voidCharge` có lý do trước khi phát hành
+
+### S-019 Check-out còn nợ cần quản lý cho phép (kế hoạch §06)
+- Given folio còn 930.000; lễ tân không có quyền cho nợ
+- When lễ tân `stay.checkOut` không thu đủ; rồi gửi lại kèm `approval` của manager, người nợ (`persons`) và hạn trả 30/10
+- Then lần 1 → `409 OUTSTANDING_BALANCE`; lần 2 → stay `checked_out`, `AR` còn 930.000 gắn người nợ + hạn trả; thiếu người nợ hoặc hạn → `422 VALIDATION_FAILED`
+
+### S-020 Check-out tạo việc dọn trong cùng quy trình (T054)
+- Given stay `in_house` `201`, folio đã thu đủ
+- When `stay.checkOut` lúc 22/10 10:30
+- Then trong một transaction: stay `checked_out` (`checked_out_at` lưu UTC), booking `checked_out`; allocation `end` = 22/10 10:30 (trả sớm hơn dự kiến nhả phòng ngay); `201` vệ sinh `dirty`; tạo 1 việc dọn `open` (F-007); trả muộn hơn dự kiến thì **không** kéo dài allocation hồi tố, giờ thực lưu ở stay
+
+### S-021 Đổi giá bảng không ảnh hưởng booking đã giữ (snapshot)
+- Given booking `confirmed` 20/10→22/10 tổng 1.200.000
+- When owner đổi giá `STD` ngày thường thành 650.000
+- Then booking vẫn 1.200.000; booking mới báo giá 650.000/đêm
+
+### S-022 Kỳ đã khoá (INV-F6)
+- Given `period_locks` khoá đến 21/10
+- When `stay.postCharge` hoặc `stay.voidCharge` với `business_date` 21/10
+- Then `409 PERIOD_LOCKED`; chỉ được thêm chứng từ điều chỉnh có duyệt (SPEC-ledger-payments)
+
+### S-023 Phiếu đã phát hành bất biến (INV-G4)
+- Given đã check-out, phiếu 1.430.000 đã phát hành
+- When sửa số tiền minibar trên phiếu
+- Then `409 DOCUMENT_IMMUTABLE`; sửa bằng chứng từ điều chỉnh/đảo tham chiếu bản gốc, có lý do và người duyệt
+
+### S-024 Phân bổ vượt số tiền (INV-F2)
+- Given thanh toán 500.000 đã phân bổ 500.000
+- When phân bổ thêm 100.000 từ cùng thanh toán vào phiếu
+- Then `409 OVER_ALLOCATION`; Σ phân bổ vẫn 500.000
+
+### S-025 Quyền và tenant (INV-G1)
+- Given nhân viên `housekeeping` P1; người dùng tổ chức B
+- When `housekeeping` gọi `stay.getFolio`; người B gọi `reservation.get` của A
+- Then cả hai `404 NOT_FOUND`
+
+## 3. Ca biên
+| Nhóm | Ca cụ thể | Hành vi mong đợi | Scenario |
+|---|---|---|---|
+| Rỗng/null | Booking không có khách; ngày không có giá cấu hình; check-in thiếu trường bắt buộc | `422 VALIDATION_FAILED` / `422 RATE_NOT_CONFIGURED` | S-014, S-019 |
+| Cực đại/độ dài | Booking 30 đêm; ghi chú dài | Tính đúng từng đêm; giới hạn đêm tối đa theo Q-10 | S-002 |
+| Trùng lặp/idempotency | Bấm xác nhận/ghi dịch vụ/check-out 2 lần | 1 hiệu lực, cùng kết quả | S-018 |
+| Song song | 2 lễ tân giữ phòng cuối; huỷ và check-in cùng lúc; 2 người check-out cùng stay | Khoá hàng booking/stay; lệnh sau `409 INVALID_TRANSITION` hoặc `ROOM_UNAVAILABLE` | S-004, S-010 |
+| Mất mạng giữa chừng | Timeout khi check-in/check-out | Hỏi kết quả qua `command_id`; mất mạng → không cho check-in/out (kế hoạch §10) | S-012, S-020 |
+| Thời gian/múi giờ | Qua 00:00; walk-in trước giờ chốt ngày; đêm cuối tuần; trả muộn | Theo `business_date`; không phí theo đồng hồ | S-002, S-016, S-020 |
+| Quyền | Lễ tân cho nợ; giảm giá vượt hạn mức; buồng phòng xem folio; khác tổ chức | 409/403/404 | S-009, S-019, S-025 |
+| Tiền/đơn vị | 1.430.000/930.000; ứng trước ≠ cọc; huỷ không tạo doanh thu; phân bổ vượt | `bigint` đồng; bút toán cân đối | S-005, S-009, S-017, S-024 |
+
+## 4. Dữ liệu
+| Thực thể | Trường chính | Kiểu | Ràng buộc | Ai đọc/ghi |
+|---|---|---|---|---|
+| `room_types` | organization_id, property_id, id, code, name, capacity | int | capacity ≥ 1; unique (property_id, code) | owner ghi |
+| `rate_plans` ¹ | organization_id, room_type_id, id, weekday_price, weekend_price, currency | `bigint` | > 0; pilot 1 bản ghi/loại phòng | owner ghi |
+| `reservations` | organization_id, property_id, id, status, source (`direct`\|`walk_in`), booker_person_id, policy_snapshot | | trạng thái theo DOMAIN-MODEL §4 | lễ tân/manager/owner |
+| `reservation_items` | reservation_id, id, unit_id, room_type_id, arrival_date, departure_date, guests, nightly_prices (snapshot) | `date` địa phương, jsonb `bigint` | departure_date > arrival_business_date | như trên |
+| `stays` | organization_id, property_id, id, reservation_item_id, unit_id, status, checked_in_at, checked_out_at, debtor_person_id?, debt_due_date? | `timestamptz` UTC | `expected → in_house → checked_out` (+`cancelled`, Q-09) | như trên |
+| `charges` | organization_id, id, stay_id, kind (room/service/fee/discount), business_date, quantity, unit_price, amount, tax_profile_id, rounding_rule, formula_version, voided_at | `bigint`, `numeric` | unique (stay_id, business_date) where kind=room and voided_at null | ghi qua `billing.createCharges` |
+| `payments`, `payment_allocations`, `deposits`, `journal_*` | theo SPEC-ledger-payments | | INV-F1–F6 | F-005 |
+
+¹ Tên từ kế hoạch §12, chưa có trong DOMAIN-MODEL §1 (Q-11). Folio = khung nhìn trên `charges` + `payment_allocations` theo stay (DOMAIN-MODEL §1).
+Số đêm: `nights = departure_date − arrival_business_date` (walk-in: `business_date` lúc check-in; booking: `arrival_date`). `during` = ngày địa phương + giờ nhận/trả của cơ sở, đổi sang UTC.
+
+## 5. Giao diện / API
+Hợp đồng chi tiết: `docs/design/API-CONTRACT.md`. Mọi command nhận `Idempotency-Key`. Module này gọi `inventory.*` (F-002), `billing.*`/`payments.*` (F-005), `housekeeping.createTask` (F-007).
+
+| Command/Query | Input chính | Output | Lỗi |
+|---|---|---|---|
+| `roomType.create` / `roomType.update`, `rate.set` | code, capacity / weekday_price, weekend_price | id | VALIDATION_FAILED, FORBIDDEN |
+| `reservation.quote` (query) | room_type_id\|unit_id, arrival_date, departure_date, guests | nights, nightly_prices, room_total, policy | RATE_NOT_CONFIGURED, CAPACITY_EXCEEDED |
+| `reservation.create` | booker, unit_id, arrival_date, departure_date, guests, source | reservation_id (draft) | VALIDATION_FAILED, CAPACITY_EXCEEDED |
+| `reservation.hold` | reservation_id | allocation_id, expires_at | ROOM_UNAVAILABLE, UNIT_OUT_OF_SERVICE |
+| `reservation.confirm` | reservation_id, payment? {amount, method, kind: `advance`\|`security_deposit`, evidence} | status, stay_id | HOLD_EXPIRED, INVALID_TRANSITION |
+| `reservation.changeDates` | reservation_id, arrival_date, departure_date, preview_only | price_diff, reservation | ROOM_UNAVAILABLE, APPROVAL_LIMIT_EXCEEDED |
+| `reservation.cancel` | reservation_id, reason, cancellation_fee | status | INVALID_TRANSITION, APPROVAL_LIMIT_EXCEEDED |
+| `reservation.markNoShow` | reservation_id, reason | status | INVALID_TRANSITION |
+| `stay.checkIn` | reservation_id, guests[], required_guest_fields | stay | ROOM_NOT_READY, ROOM_OCCUPIED, CAPACITY_EXCEEDED, INVALID_TRANSITION |
+| `stay.walkIn` | unit_id, departure_date, guests[] | reservation_id, stay | ROOM_UNAVAILABLE, ROOM_NOT_READY |
+| `stay.postCharge` / `stay.voidCharge` | stay_id, kind, description, quantity, unit_price / charge_id, reason | charge | PERIOD_LOCKED, APPROVAL_LIMIT_EXCEEDED |
+| `stay.getFolio` (query) | stay_id | charges, payments, allocations, balance, deposits (tách) | NOT_FOUND |
+| `stay.checkOut` | stay_id, payments?, allow_balance? {approval_id, debtor_person_id, due_date} | stay, invoice_id, balance | OUTSTANDING_BALANCE, VALIDATION_FAILED |
+| `reservation.list` / `reservation.get` (query) | property_id, date range, status | danh sách/chi tiết | NOT_FOUND |
+
+- UI: các bước ngắn; tổng giá, điều kiện huỷ và phòng luôn hiện; tóm tắt trước/sau khi đổi ngày/giá/hoàn (kế hoạch §09). Chỉ báo thành công sau phản hồi máy chủ. Màn "Hôm nay": khách đến/đi, phòng chưa sẵn sàng.
+
+## 6. Lỗi
+| Mã lỗi | Khi nào | HTTP | Thông điệp cho người dùng | Scenario |
+|---|---|---|---|---|
+| ROOM_UNAVAILABLE | Phòng bị chiếm trong khoảng | 409 | Phòng đã có người giữ trong thời gian này. Xem phòng gợi ý. | S-004, S-008, S-015 |
+| HOLD_EXPIRED | Xác nhận khi hold hết hạn | 409 | Thời gian giữ phòng đã hết. Vui lòng giữ lại. | S-007 |
+| ROOM_NOT_READY | Phòng chưa sạch/chưa kiểm | 409 | Phòng chưa dọn xong, chưa thể nhận khách. | S-013 |
+| ROOM_OCCUPIED | Phòng còn khách thực tế | 409 | Phòng vẫn còn khách chưa trả. | S-013 |
+| INVALID_TRANSITION | Chuyển trạng thái sai | 409 | Thao tác không hợp lệ với trạng thái hiện tại. | S-010, S-011 |
+| OUTSTANDING_BALANCE | Trả phòng còn nợ không có duyệt | 409 | Khách còn nợ. Cần quản lý cho phép và hạn trả. | S-019 |
+| PERIOD_LOCKED | Ghi/huỷ phí trong kỳ đã khoá | 409 | Kỳ này đã khoá. Hãy tạo điều chỉnh có duyệt. | S-022 |
+| DOCUMENT_IMMUTABLE | Sửa chứng từ đã phát hành | 409 | Phiếu đã phát hành, không sửa trực tiếp. Hãy tạo điều chỉnh. | S-023 |
+| OVER_ALLOCATION ² | Phân bổ vượt thanh toán/phiếu | 409 | Số tiền phân bổ vượt số còn lại. | S-024 |
+| IDEMPOTENCY_CONFLICT | Cùng key khác nội dung | 409 | Thao tác trùng mã nhưng khác nội dung. Vui lòng tải lại. | S-018 |
+| APPROVAL_LIMIT_EXCEEDED | Giảm giá/phí huỷ vượt hạn mức | 403 | Số tiền vượt hạn mức của bạn. Đã gửi yêu cầu duyệt. | S-009 |
+| FORBIDDEN | Không đủ quyền | 403 | Bạn không có quyền thực hiện thao tác này. | — |
+| NOT_FOUND | Khác tổ chức/không được đọc | 404 | Không tìm thấy dữ liệu. | S-025 |
+| CAPACITY_EXCEEDED | Vượt sức chứa | 422 | Số khách vượt sức chứa của phòng. | S-014 |
+| RATE_NOT_CONFIGURED | Ngày không có giá | 422 | Chưa cấu hình giá cho loại phòng này. | — |
+| VALIDATION_FAILED | Thiếu/sai trường | 422 | Thông tin chưa hợp lệ, xem các trường được đánh dấu. | S-019 |
+
+² Mã định nghĩa ở SPEC-ledger-payments. `DOCUMENT_IMMUTABLE` là mã đề xuất mới, cần thêm vào SPEC-ledger-payments để dùng chung.
+
+## 7. Yêu cầu phi chức năng của tính năng
+| Thuộc tính | Ngưỡng | Nguồn | Cách đo |
+|---|---|---|---|
+| Thời gian check-in | Trung vị < 2 phút khi đủ thông tin | M-03 | `stay.check_in_started` → `stay.checked_in` |
+| Độ trễ | p95 < 800 ms; hold p95 < 1,5 s | kế hoạch §17 | k6 |
+| Đúng tiền | 0 sai lệch không giải thích; ví dụ 1.430.000/930.000 xanh | M-04, kế hoạch §06 | test tích hợp + đối soát |
+| UAT | 2 cơ sở chạy booking, check-in/out, cọc, huỷ, xung đột với dữ liệu giả lập | T056 | biên bản UAT |
+
+## 8. Hành vi AI
+Không áp dụng — tính năng không dùng model.
+
+## 9. Đo lường
+- `reservation.held`, `reservation.confirmed`, `reservation.cancelled`, `reservation.no_show`, `stay.check_in_started`, `stay.checked_in` (M-03), `stay.checked_out`, `stay.checked_out_with_balance` → M-03, M-04, M-05.
+
+## 10. Câu hỏi mở (0 câu [chặn] trước khi Approved)
+- [ ] Q-01 Giờ nhận/trả mặc định và giờ chốt ngày cho mẫu `hotel` — [chặn] — hỏi: PO — đề xuất: nhận 14:00, trả 12:00, giờ chốt ngày cấu hình theo cơ sở, mặc định chờ dữ liệu T001 (PROJECT §10).
+- [ ] Q-02 "Giá ngày/đêm": là một đơn vị (đêm theo giờ nhận/trả) hay hai sản phẩm (ngày 24h và gói qua đêm) — [chặn] — hỏi: PO — đề xuất: pilot chỉ một đơn vị "đêm"; gói qua đêm/giờ đưa vào F-013.
+- [ ] Q-03 Đêm nào là cuối tuần — [chặn] — hỏi: PO — đề xuất: đêm thứ Sáu và thứ Bảy theo `business_date`; ngày lễ chưa hỗ trợ ở pilot.
+- [ ] Q-04 Chính sách huỷ mặc định ở pilot — [chặn] — hỏi: PO + kế toán — đề xuất: không phạt tự động; phí huỷ nhập tay trong hạn mức, có lý do; ứng trước/cọc không tự thành doanh thu (kế hoạch §06).
+- [ ] Q-05 Có cho xác nhận booking không kèm tiền không — [không chặn] — hỏi: PO — đề xuất: có, cấu hình theo cơ sở, mặc định cho phép; kế hoạch chưa nêu mức ứng trước tối thiểu.
+- [ ] Q-06 Đổi ngày: đêm mới lấy giá hiện hành hay giá snapshot — [không chặn] — hỏi: PO — đề xuất: đêm cũ giữ snapshot, đêm mới giá hiện hành, hiện chênh lệch trước khi lưu.
+- [ ] Q-07 Mốc được đánh no-show — [không chặn] — hỏi: PO — đề xuất: sau giờ chốt ngày của ngày đến, thao tác tay (không tự động ở pilot).
+- [ ] Q-08 Trường thông tin khách bắt buộc khi check-in và có lưu ảnh giấy tờ không — [chặn] — hỏi: PO + pháp lý — đề xuất: họ tên, SĐT, loại + số giấy tờ (che khi hiển thị); không lưu ảnh mặc định (NĐ 356/2025, kế hoạch §15); khách nước ngoài thêm quốc tịch, hộ chiếu.
+- [ ] Q-09 Bổ sung trạng thái `cancelled` cho `stays` (DOMAIN-MODEL §4 chưa có nhánh này) — [chặn migration] — hỏi: Tech Lead.
+- [ ] Q-10 Số đêm tối đa một booking ngắn hạn trước khi phải dùng hợp đồng — [không chặn] — hỏi: PO — đề xuất: 30 đêm.
+- [ ] Q-11 Bổ sung `rate_plans` vào DOMAIN-MODEL; thời điểm ghi phí phòng — [không chặn] — hỏi: Tech Lead — đề xuất: ghi mọi đêm lúc check-in, điều chỉnh khi đổi ngày; phát hành phiếu lúc check-out.
+- [ ] Q-12 Thuế/phí ở giá phòng (tax profile mặc định, giá đã gồm thuế?) — [chặn] — hỏi: kế toán — đề xuất: pilot coi giá niêm yết là giá cuối, không cộng thuế tự động, mỗi `charges` vẫn lưu `tax_profile_id`.
+
+## 11. DoR / DoD
+- DoR: spec Approved · 0 câu hỏi chặn · F-001, F-002 xong · SPEC-ledger-payments Approved (bút toán, mã lỗi chung).
+- DoD: mọi S-NNN có test xanh; S-004, S-005, S-008, S-017, S-024 chạy trên Postgres thật · E2E R-003 · UAT T056 · API-CONTRACT cập nhật.
+
+## 12. Truy vết
+| Task | PR | Bằng chứng |
+|---|---|---|
+| T049, T050, T051, T052, T053, T054, T056 | — | .autopilot/evidence/<task>.json |
+
+## Thay đổi
+| Phiên bản | Ngày | Gì | Vì sao | Duyệt |
+|---|---|---|---|---|
+| 1 | 2026-10-15 | tạo | G3 cho F-006 | (chờ) |
