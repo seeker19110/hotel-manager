@@ -1,2 +1,0 @@
-# Chuỗi giả trong test che bí mật (tests/test_xt.py) ở commit c295f48 — đã thay bằng chuỗi ghép lúc chạy; giữ để quét lịch sử PR #20 không đỏ.
-c295f4818229e5ea59054d91f8a37c9b9aff1ae1:tests/test_xt.py:generic-api-key:454
