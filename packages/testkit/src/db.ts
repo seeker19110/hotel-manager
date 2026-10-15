@@ -70,6 +70,15 @@ export async function createTestDb(): Promise<TestDb> {
       await runtime.destroy();
       await admin.destroy();
       const s = connect(adminUrl, 1);
+      // Chờ các kết nối đang đóng của pool kết thúc hẳn (tối đa 5 s) trước khi xoá: FORCE cắt một client đang đóng
+      // làm nó phát lỗi 57P01 không ai bắt (test chập chờn — tìm thấy ở T-009). FORCE chỉ còn là lưới cuối.
+      for (let i = 0; i < 50; i++) {
+        const r = await sql<{
+          n: number;
+        }>`select count(*)::int as n from pg_stat_activity where datname = ${name}`.execute(s);
+        if ((r.rows[0]?.n ?? 0) === 0) break;
+        await new Promise((res) => setTimeout(res, 100));
+      }
       await sql.raw(`DROP DATABASE IF EXISTS ${name} WITH (FORCE)`).execute(s);
       await s.destroy();
     },

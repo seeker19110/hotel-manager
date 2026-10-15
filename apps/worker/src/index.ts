@@ -1,4 +1,5 @@
 // Worker nền: outbox relay + consumer pg-boss (ARCHITECTURE container apps/worker).
+export { expireHolds } from "./jobs.ts";
 export { DEAD_LETTER_QUEUE, ensureQueues, type OutboxJob, relayOutbox, startConsumers } from "./relay.ts";
 
 export function main(): void {
