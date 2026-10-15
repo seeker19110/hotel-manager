@@ -22,6 +22,14 @@ export function isSameOriginWrite(method: string, headers: Headers, appBaseUrl: 
   return false;
 }
 
+/**
+ * Đường cần kiểm Origin: mọi `/api/` dùng cookie phiên, TRỪ webhook nhà cung cấp (server-to-server, không gửi Origin,
+ * không đọc cookie — xác thực bằng chữ ký HMAC, API-CONTRACT §3).
+ */
+export function requiresSameOrigin(pathname: string): boolean {
+  return pathname.startsWith("/api/") && !pathname.startsWith("/api/v1/webhooks/");
+}
+
 /** Content-Security-Policy chặt: script chỉ từ chính mình + nonce theo request; không inline tuỳ tiện. */
 export function buildCsp(nonce: string, opts: { dev?: boolean } = {}): string {
   if (!/^[A-Za-z0-9+/=_-]{16,}$/.test(nonce)) throw new Error("nonce không hợp lệ");

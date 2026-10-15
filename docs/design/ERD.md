@@ -1209,8 +1209,9 @@ Loại: M cho đến `confirmed`; sau đó chỉ `confirmed → reversed` (bất
 | receipt_no | text | có | | Biên nhận do hệ thống sinh (tiền mặt, INV-F3b) |
 | business_date | date | không | | Ngày kinh doanh địa phương của khoản thu (giờ chốt ngày) |
 | allocated_total | bigint | không | mặc định `0`; `CHECK (allocated_total >= 0 AND allocated_total <= amount)` | Σ phân bổ còn hiệu lực; chỉ đổi cùng transaction phân bổ (INV-F2); đề xuất, SPEC chưa nêu cột |
-| recorded_by | uuid | không | FK ghép → `memberships` | |
+| recorded_by | uuid | có | FK ghép → `memberships` | NULL **chỉ** khi `source = 'bank_auto'` (hệ thống ghi từ webhook đã xác minh, như `files.uploaded_by` NULL khi hệ thống sinh) |
 | confirmed_by | uuid | có | FK ghép → `memberships` | |
+| source | text | không | `CHECK (source IN ('manual','bank_auto'))`, mặc định `'manual'`; bất biến | `bank_auto`: worker tự ghi khi webhook đã xác minh khớp đúng một phiếu (SPEC-ledger S-016; T-107) |
 | confirmed_at | timestamptz | có | | |
 | reversed_by | uuid | có | FK ghép → `memberships` | |
 | reversed_at | timestamptz | có | | |
@@ -1221,7 +1222,8 @@ Loại: M cho đến `confirmed`; sau đó chỉ `confirmed → reversed` (bất
   - `CHECK ((purpose = 'deposit') = (deposit_id IS NOT NULL))`.
   - Tiền mặt: `CHECK (method <> 'cash' OR (shift_id IS NOT NULL AND bank_transaction_id IS NULL AND receiving_account_id IS NULL))` (INV-F3b: tiền mặt kể cả cọc luôn qua `payments` và có ca).
   - Chuyển khoản: `CHECK (method <> 'bank_transfer' OR (shift_id IS NULL AND receiving_account_id IS NOT NULL))`; **`CHECK (NOT (method = 'bank_transfer' AND status IN ('confirmed','reversed')) OR bank_transaction_id IS NOT NULL)`** — `pending` từ `payment_claims` được để trống `bank_transaction_id`, ràng buộc áp từ lúc `confirmed` (INV-F4b).
-  - `CHECK (status = 'pending' OR (confirmed_by IS NOT NULL AND confirmed_at IS NOT NULL AND evidence_kind IS NOT NULL AND evidence_id IS NOT NULL))` (INV-F3: không xác nhận khi thiếu chứng cứ — màn "khách bấm đã chuyển" hay ảnh chụp không đủ); `CHECK ((status = 'reversed') = (reversed_at IS NOT NULL))`.
+  - `CHECK ((source = 'bank_auto') = (recorded_by IS NULL) AND (source <> 'bank_auto' OR (method = 'bank_transfer' AND purpose = 'receivable' AND bank_transaction_id IS NOT NULL AND confirmed_by IS NULL)))`; trigger `BEFORE INSERT`: `bank_auto` phải có `inbox` webhook `signature_verified` trỏ cùng giao dịch (`EVIDENCE_REQUIRED`). Chỉ role `app_worker` ghi được `bank_auto` (policy riêng).
+  - `CHECK (status = 'pending' OR ((confirmed_by IS NOT NULL OR source = 'bank_auto') AND confirmed_at IS NOT NULL AND evidence_kind IS NOT NULL AND evidence_id IS NOT NULL))` (INV-F3: không xác nhận khi thiếu chứng cứ — màn "khách bấm đã chuyển" hay ảnh chụp không đủ); `CHECK ((status = 'reversed') = (reversed_at IS NOT NULL))`.
   - Trigger: sau `confirmed` chỉ cho phép đổi `status → reversed` và điền `reversed_*`, `allocated_total`; trigger `BEFORE INSERT` kiểm khoá kỳ (`PERIOD_LOCKED`).
   - Lễ tân chỉ xác nhận tiền mặt do chính mình nhận trong ca đang mở (`recorded_by = confirmed_by`, `shifts.status='open'`) — kiểm ở command (`FORBIDDEN`/`SHIFT_NOT_OPEN`).
 - RLS/quyền đặc biệt: `front_desk` thấy khoản do mình ghi; `accountant`/`manager`/`owner` theo phạm vi; `housekeeping`/`maintenance`/`tenant` không đọc (tenant chỉ thấy phân bổ vào phiếu của mình qua phiếu).
@@ -1241,7 +1243,7 @@ Loại: M chỉ ở cột đảo (`reversed_*`)
 | deposit_id | uuid | có | FK ghép ba cột → `deposits` | Nguồn là khấu trừ cọc đã duyệt (Nợ `DEPOSIT_LIAB` / Có `AR`); đề xuất, mục 7.3 |
 | invoice_id | uuid | không | FK ghép ba cột → `invoices` | |
 | amount | bigint | không | `CHECK (amount > 0)` | Đồng; phân bổ 0 đ bị từ chối (`VALIDATION_FAILED`) |
-| allocated_by | uuid | không | FK ghép → `memberships` | |
+| allocated_by | uuid | có | FK ghép → `memberships` | NULL chỉ khi phân bổ của thanh toán `bank_auto` (trigger kiểm) |
 | reversed_at | timestamptz | có | | Đặt khi đảo thanh toán đã phân bổ (SPEC-ledger S-010) |
 | reversal_entry_id | uuid | có | FK ghép → `journal_entries` | `CHECK ((reversed_at IS NULL) = (reversal_entry_id IS NULL))` |
 
@@ -1343,7 +1345,8 @@ Loại: M
 
 - Khoá/index: `UNIQUE (organization_id, bank_transaction_id, reason) WHERE status = 'open' AND bank_transaction_id IS NOT NULL`; `ix (organization_id, property_id, status)`.
 - Ràng buộc đặc biệt: `CHECK (status = 'open' OR (resolution IS NOT NULL AND resolved_by IS NOT NULL AND resolved_at IS NOT NULL))`; không dòng nào ghi tiền trước khi người có quyền bấm xác nhận.
-- RLS/quyền đặc biệt: `accountant`/`owner` đọc và xử lý.
+- Khoá bổ sung (T-107): `UNIQUE (organization_id, inbox_id, reason) WHERE status = 'open' AND inbox_id IS NOT NULL AND bank_transaction_id IS NULL` (sự kiện trùng mã khác nội dung gửi lại nhiều lần → một báo động). Trigger: chỉ một lần `open → resolved`; lý do chỉ được đổi lúc đóng và chỉ thành `THIRD_PARTY_PAYER` (lý do gốc lưu `detail.original_reason`).
+- RLS/quyền đặc biệt: vai trò được xác nhận chuyển khoản (`owner`/`manager`/`accountant`, ma trận `payment.confirm_transfer`) đọc và xử lý trong phạm vi cơ sở; worker mở break khi tự ghép thất bại; webhook (không actor) chỉ mở/đọc `HASH_MISMATCH`.
 - Bất biến: INV-F3, INV-F4, INV-F4b.
 
 ### `shifts`

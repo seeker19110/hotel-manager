@@ -77,6 +77,9 @@ Lý do break đối soát (`HASH_MISMATCH`, `THIRD_PARTY_PAYER`, `WRONG_REFERENC
 - Chữ ký sai → 401, không ghi `inbox` nhưng có log cảnh báo. Event trùng → 200 mà không tạo hiệu lực mới.
 - Mọi nguồn (webhook, sao kê CSV, nhập tay kèm sao kê) quy về `bank_transactions` (INV-F4b) nên cùng một giao dịch ngân hàng chỉ tạo một payment.
 - V1 chỉ có adapter **mô phỏng** (`provider = sim`) để test. Adapter thật chờ hợp đồng ngân hàng (F-016).
+- Adapter `sim` (T-107): bật khi có `SIM_WEBHOOK_SECRET` (không thì 404). Header `x-hm-timestamp` (giây Unix, lệch ≤ 300 s) + `x-hm-signature` = hex HMAC-SHA256(secret, `${timestamp}.${body}`). Body JSON ≤ 64 KB: `{ event_id, bank_txn_ref, amount (đồng, nguyên dương), occurred_at (ISO có múi giờ), description?, balance_after? }`. Trả `200 { received: true, duplicate }` (`duplicate=true` khi event đã nhận hoặc giao dịch đã có từ nguồn khác); trùng mã khác nội dung → `409 INBOX_HASH_MISMATCH` + break `HASH_MISMATCH` giao owner.
+- Worker nhận `bank_transaction.received` → khớp **đúng một** phiếu theo mã tham chiếu trong nội dung CK và không vượt số còn ⇒ thanh toán `confirmed` (`source = bank_auto`) + phân bổ; còn lại ⇒ break (`WRONG_REFERENCE`/`COMBINED`/`OVERPAID`/`UNMATCHED`) giao kế toán.
+- Đường webhook miễn kiểm Origin (không dùng cookie; xác thực bằng chữ ký) — `requiresSameOrigin`.
 
 ## 4. Endpoint hệ thống
 | Method | Path | Mục đích |

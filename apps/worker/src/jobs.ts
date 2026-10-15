@@ -1,5 +1,6 @@
 // Job định kỳ của worker.
 import { randomUUID } from "node:crypto";
+import { type AutoApplyResult, applyBankTransaction } from "@hm/app";
 import { withTenant } from "@hm/db";
 import { type Kysely, sql } from "kysely";
 
@@ -18,4 +19,19 @@ export async function expireHolds(workerDb: Kysely<unknown>, now: Date, limit = 
     );
   }
   return released.rows.length;
+}
+
+/**
+ * Handler `bank_transaction.received` (SPEC-ledger S-016): tự ghép/ghi tiền trong worker. Giao lại nhiều lần vẫn một
+ * hiệu lực (khoá theo giao dịch + UNIQUE payments.bank_transaction_id); payload chỉ có id.
+ */
+export function bankTransactionReceivedHandler(workerDb: Kysely<unknown>) {
+  return async (job: {
+    organization_id: string;
+    payload: Record<string, unknown>;
+  }): Promise<AutoApplyResult> => {
+    const id = job.payload.bank_transaction_id;
+    if (typeof id !== "string") throw new Error("payload thiếu bank_transaction_id");
+    return applyBankTransaction(workerDb, job.organization_id, id);
+  };
 }

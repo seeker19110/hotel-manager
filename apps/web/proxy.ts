@@ -1,10 +1,16 @@
 // Next.js 16 proxy (trước là middleware): CSP có nonce + header bảo mật; chặn ghi khác origin (TM-09).
-import { buildCsp, isCacheablePublicPath, isSameOriginWrite, SECURITY_HEADERS } from "@hm/app/http";
+import {
+  buildCsp,
+  isCacheablePublicPath,
+  isSameOriginWrite,
+  requiresSameOrigin,
+  SECURITY_HEADERS,
+} from "@hm/app/http";
 import { type NextRequest, NextResponse } from "next/server";
 
 export function proxy(req: NextRequest): NextResponse {
   const base = process.env.APP_BASE_URL ?? req.nextUrl.origin;
-  if (req.nextUrl.pathname.startsWith("/api/") && !isSameOriginWrite(req.method, req.headers, base)) {
+  if (requiresSameOrigin(req.nextUrl.pathname) && !isSameOriginWrite(req.method, req.headers, base)) {
     return NextResponse.json(
       {
         type: "https://hotel-manager.invalid/errors/FORBIDDEN",

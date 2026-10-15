@@ -36,6 +36,30 @@ export {
   sumVnd,
 } from "./money/money.ts";
 export {
+  BREAK_REASONS,
+  type BreakReason,
+  type CandidateInvoice,
+  classifyBankTxn,
+  generateMemoRef,
+  type MatchSuggestion,
+  MEMO_ALPHABET,
+  MEMO_PREFIX,
+  memoCandidates,
+  normalizeMemo,
+} from "./payments/reconcile.ts";
+export {
+  type ColumnRef,
+  mapStatement,
+  parseCsv,
+  parseStatementDate,
+  parseVndAmount,
+  STATEMENT_MAX_BYTES,
+  STATEMENT_MAX_ROWS,
+  type StatementMapping,
+  type StatementRow,
+} from "./payments/statement-csv.ts";
+export { BANK_BINS, bankBin, buildVietQr, crc16CcittFalse, type VietQrInput } from "./payments/vietqr.ts";
+export {
   billingPeriodMachine,
   bookingMachine,
   defineMachine,

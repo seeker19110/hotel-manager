@@ -3,9 +3,10 @@
 //                            phân bổ       Nợ CUSTOMER_CREDIT (người trả) / Có AR (phiếu);
 //                            đảo           bút toán ngược có reverses_entry_id, bản gốc giữ nguyên.
 // Phần chưa phân bổ của một khoản thu nằm ở CUSTOMER_CREDIT của người trả (trả thừa, S-007).
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { authorize } from "@hm/domain";
 import { sql, type Transaction } from "kysely";
+import { bankTxnHash } from "../ledger/bank-inbox.ts";
 import { postEntry, reverseEntry } from "../ledger/ledger.ts";
 import type { CommandContext } from "../pipeline/command.ts";
 import { CommandError } from "../pipeline/problem.ts";
@@ -47,9 +48,8 @@ async function upsertManualBankTxn(
   const occurred = new Date(input.txn.occurredAt);
   if (Number.isNaN(occurred.getTime()))
     throw new CommandError("VALIDATION_FAILED", 422, "Thời điểm giao dịch không hợp lệ");
-  const rawHash = createHash("sha256")
-    .update(`${input.receivingAccountId}|${ref}|${input.amount}|${occurred.toISOString()}`)
-    .digest("hex");
+  // Cùng dấu vân tay với webhook/sao kê (bankTxnHash) để nguồn sau nhận ra cùng giao dịch (S-029).
+  const rawHash = bankTxnHash(ref, input.amount);
   await sql`
     insert into bank_transactions (id, organization_id, property_id, receiving_account_id, bank_txn_ref, amount, occurred_at,
                                    description, first_source, raw_hash)
@@ -169,8 +169,9 @@ interface PaymentRow {
   deposit_id: string | null;
   shift_id: string | null;
   bank_transaction_id: string | null;
-  recorded_by: string;
-  recorder_person_id: string;
+  /** NULL: thanh toán hệ thống ghi từ webhook đã xác minh (source = bank_auto, T-107). */
+  recorded_by: string | null;
+  recorder_person_id: string | null;
   business_date: string;
 }
 
@@ -189,7 +190,7 @@ export async function lockPayment(
     select p.id, p.property_id, p.method, p.purpose, p.status, p.amount, p.allocated_total, p.receiving_account_id,
            p.payer_person_id, p.deposit_id, p.shift_id, p.bank_transaction_id, p.recorded_by, m.person_id as recorder_person_id,
            p.business_date::text as business_date
-    from payments p join memberships m on m.organization_id = p.organization_id and m.id = p.recorded_by
+    from payments p left join memberships m on m.organization_id = p.organization_id and m.id = p.recorded_by
     where p.organization_id = ${ctx.actor.orgId} and p.id = ${paymentId}
     ${lock ? sql`for update of p` : sql``}`.execute(ctx.trx);
   const seen = (await read(false)).rows[0];
@@ -226,7 +227,7 @@ export async function confirmPayment(
     row.method === "cash"
       ? authorize(ctx.actor, "payment.confirm_cash", {
           propertyId: row.property_id,
-          subjectPersonId: row.recorder_person_id,
+          ...(row.recorder_person_id ? { subjectPersonId: row.recorder_person_id } : {}),
         })
       : authorize(ctx.actor, "payment.confirm_transfer", { propertyId: row.property_id }),
   );

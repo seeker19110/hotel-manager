@@ -26,8 +26,11 @@ export {
   handleQuery,
   type QueryDef,
 } from "./http/command-route.ts";
-export { COMMANDS, findCommand } from "./http/registry.ts";
+export { COMMANDS, findCommand, findQuery, QUERIES } from "./http/registry.ts";
+export { handleWebhook, type WebhookDeps } from "./http/webhook-route.ts";
 export { listRooms, type PropertyRooms, type RoomRow } from "./inventory/rooms.ts";
+export { BANK_TXN_RECEIVED, BREAK_OPENED } from "./ledger/bank-inbox.ts";
 export { createLogger } from "./logging/logger.ts";
 export { getCommandResult } from "./pipeline/command.ts";
+export { type AutoApplyResult, applyBankTransaction } from "./reconciliation/auto-apply.ts";
 export { serverContext } from "./server/context.ts";

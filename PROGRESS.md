@@ -3,7 +3,7 @@
 > Giai đoạn hiện tại: G5 Dựng nền (autopilot đợt 1) · Cập nhật: 2026-10-15 · Nhánh: claude/gifted-noether-iybenn
 
 ## Đang làm
-- Autopilot đợt 2 — **Pha 1 (lập kế hoạch) xong, CHỜ DUYỆT** `docs/autopilot/PLAN.md` (18 task T-101…T-118, mảng nhà trọ). Chưa `loop init`, chưa code. Đợt 1 đã merge (`main` `07ba2a8`).
+- Autopilot đợt 2 (PLAN duyệt) — Pha 2: T-101…T-107 xong có bằng chứng (`.autopilot/evidence/`), kế tiếp **T-108** chốt kỳ + báo cáo. PR nháp #5.
 
 ## Tiếp theo
 1. Chủ repo import ruleset `.github/rulesets/main.json` (Settings → Rules → Rulesets → Import) — agent không có API để bật.
@@ -28,6 +28,7 @@
 - 2026-10-15 Review độc lập T-011…T-014: 0 🔴 · 6 🟠 · 11 🟢. Đã sửa 🟠1–5 (GPS trong ảnh phụ sau EOI, object mồ côi → `ctx.onRollback` bù trừ, strip ảnh chặn event loop, WAL không ra kho ngoài + URL ký không qua Caddy, đổi tổ chức không xoá dữ liệu máy) và 🟢 1–5, 9, 11. Còn treo: 🟠6 (đổi CI/gitleaks cần duyệt), 🟢 RLS giấy tờ theo cơ sở, RLS mặc định từ chối owner_type mới, cookie `__Host-`, chuẩn hoá phản hồi chọn tổ chức theo API-CONTRACT.
 - 2026-10-15 Chủ dự án giao quyền quyết các điểm treo đợt 1 ("chất lượng cao nhất"): giữ thay đổi CI/gitleaks/pnpm của PR #4; sửa hết gợi ý review (0007 RLS giấy tờ theo cơ sở + files mặc định từ chối; `session.switchOrganization` đúng API-CONTRACT kèm idempotency lưu `idempotency_keys`; cookie `__Host-`); merge PR #4 khi CI xanh. Đưa E2E + PITR vào CI: bản vá đã soạn nhưng bị chặn quyền sửa workflow — chờ chủ dự án cấp quyền hoặc tự áp.
 - 2026-10-15 Đợt 2, quyết trong lúc chạy (theo SPEC khi ERD/ma trận lệch): lễ tân ĐỌC ca/thanh toán trong phạm vi nhưng chỉ GHI cái của mình (để trả 403 đúng S-028/S-034); kế toán đóng/đối chiếu ca, không mở ca; kế toán thấy yêu cầu duyệt (403 khi duyệt, S-033); hạn mức phân bổ mặc định của quản lý = 5.000.000 đ (trước là 0 → quản lý không phân bổ được); tiền mặt dự kiến tính từ sổ phụ; đảo tiền mặt khi ca gốc đã chốt → dòng CASH vào ca đang mở của người đảo. Gate `pnpm test:db -- x` chạy toàn bộ test DB (pnpm không lọc). Bài học lặp: `loop record … | tail` nuốt exit code → luôn `set -o pipefail`.
+- 2026-10-15 T-107: webhook không có người dùng ⇒ thanh toán hệ thống `source='bank_auto'` (`recorded_by`/`confirmed_by` NULL như `files.uploaded_by`), chỉ worker (`app_worker`, policy riêng) ghi, chỉ khi có webhook đã xác minh (trigger) và khớp đúng 1 phiếu không vượt số còn; còn lại vào `reconciliation_breaks`. Dấu vân tay giao dịch = mã + số tiền (bỏ thời điểm: sao kê chỉ có ngày). VietQR theo 3 chuỗi mẫu tự khớp CRC — văn bản NAPAS gốc (chưa xác minh), kiểm lại trước G7. Break do vai trò `payment.confirm_transfer` (owner/manager/accountant) xử lý; QR cho người thuê tự xem chờ cổng người thuê.
 - Nợ kỹ thuật chấp nhận: phần pháp lý trong `docs/research/` chỉ có nguồn thứ cấp — phải đối chiếu văn bản gốc trước khi dùng dữ liệu thật.
 
 ## Bàn giao phiên

@@ -90,11 +90,13 @@ export async function seedIssuedInvoice(
     payerPersonId: string;
     lines: readonly SeedInvoiceLine[];
     leaseId?: string;
+    /** Mã tham chiếu cố định (ví dụ trong SPEC, vd `HM7Q4K2P`); mặc định ngẫu nhiên. */
+    memoRef?: string;
   },
 ): Promise<{ invoiceId: string; total: number; memoRef: string }> {
   const invoiceId = randomUUID();
   const total = input.lines.reduce((s, l) => s + l.amount, 0);
-  const memoRef = `HM${randomUUID().replaceAll("-", "").slice(0, 10).toUpperCase()}`;
+  const memoRef = input.memoRef ?? `HM${randomUUID().replaceAll("-", "").slice(0, 10).toUpperCase()}`;
   const entryId = randomUUID();
   await admin.transaction().execute(async (trx) => {
     await sql`insert into invoices (id, organization_id, property_id, kind, number, memo_ref, payer_person_id, business_date, total,

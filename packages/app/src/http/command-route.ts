@@ -37,7 +37,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const CORRELATION = /^[A-Za-z0-9._-]{8,64}$/;
 const NO_STORE = { "cache-control": "no-store" };
 
-function json(body: unknown, status: number, correlationId: string, problem = false): Response {
+export function json(body: unknown, status: number, correlationId: string, problem = false): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
@@ -48,14 +48,14 @@ function json(body: unknown, status: number, correlationId: string, problem = fa
   });
 }
 
-function problemResponse(
+export function problemResponse(
   p: Problem | (Record<string, unknown> & { status: number }),
   correlationId: string,
 ): Response {
   return json({ ...p, correlation_id: correlationId }, p.status, correlationId, true);
 }
 
-function simpleProblem(
+export function simpleProblem(
   code: string,
   status: number,
   title: string,
@@ -77,7 +77,7 @@ function readCookie(header: string | null, name: string): string | undefined {
   return undefined;
 }
 
-function correlationOf(req: Request): string {
+export function correlationOf(req: Request): string {
   const c = req.headers.get("x-correlation-id");
   return c && CORRELATION.test(c) ? c : randomUUID();
 }
@@ -116,7 +116,7 @@ export async function actorFromRequest(
   }
 }
 
-function validationProblem(error: z.ZodError, correlationId: string): Response {
+export function validationProblem(error: z.ZodError, correlationId: string): Response {
   return simpleProblem("VALIDATION_FAILED", 422, "Dữ liệu không hợp lệ", correlationId, {
     errors: error.issues.map((i) => ({ path: i.path.join("."), code: i.code })),
   });

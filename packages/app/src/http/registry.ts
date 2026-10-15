@@ -1,5 +1,6 @@
 // Danh mục command công khai qua `POST /api/v1/<module>/<command>` (API-CONTRACT §1). Thêm command = thêm một mục ở đây
 // (schema Zod là hợp đồng đầu vào). Tên mục = tên command trong SPEC §5.
+import type { StatementMapping } from "@hm/domain";
 import { z } from "zod";
 import { APPROVAL_KINDS, cancelApproval, decideApproval, requestApproval } from "../approvals/approvals.ts";
 import {
@@ -10,13 +11,20 @@ import {
 } from "../deposits/deposits.ts";
 import { allocatePayment, confirmPayment, recordPayment, reversePayment } from "../payments/payments.ts";
 import {
+  confirmMatch,
+  getTransferInfo,
+  importStatement,
+  previewMatches,
+  resolveBreak,
+} from "../reconciliation/reconciliation.ts";
+import {
   closeShift,
   handoverShift,
   openShift,
   reassignDiscrepancy,
   receiveHandover,
 } from "../shifts/shifts.ts";
-import type { CommandDef } from "./command-route.ts";
+import type { CommandDef, QueryDef } from "./command-route.ts";
 
 const uuid = z.uuid();
 const money = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
@@ -26,6 +34,7 @@ const bankTxn = z.strictObject({
   occurred_at: z.iso.datetime({ offset: true }),
   description: z.string().max(500).optional(),
 });
+const column = z.union([z.string().trim().min(1).max(100), z.number().int().min(0).max(200)]);
 const toBankTxn = (b: z.infer<typeof bankTxn>) => ({
   ref: b.ref,
   occurredAt: b.occurred_at,
@@ -300,10 +309,102 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
       httpStatus: 201,
     }),
   }),
+  "reconciliation.importStatement": defineCommand({
+    command: "reconciliation.importStatement",
+    input: z.strictObject({
+      receiving_account_id: uuid,
+      // Giới hạn cứng chống body khổng lồ; quá 2 MB (byte) → 413 FILE_TOO_LARGE ở lệnh (SPEC-ledger mục 5).
+      csv: z
+        .string()
+        .min(1)
+        .max(4 * 1024 * 1024),
+      mapping: z.strictObject({
+        date: column,
+        description: column,
+        amount: column.optional(),
+        credit: column.optional(),
+        debit: column.optional(),
+        ref: column.optional(),
+        balance: column.optional(),
+        header: z.boolean().optional(),
+      }),
+    }),
+    run: async (ctx, i) => ({
+      data: await importStatement(ctx, {
+        receivingAccountId: i.receiving_account_id,
+        csv: i.csv,
+        mapping: Object.fromEntries(
+          Object.entries(i.mapping).filter(([, v]) => v !== undefined),
+        ) as unknown as StatementMapping,
+      }),
+    }),
+  }),
+  "reconciliation.confirmMatch": defineCommand({
+    command: "reconciliation.confirmMatch",
+    input: z.strictObject({
+      bank_transaction_id: uuid,
+      allocations: z.array(z.strictObject({ invoice_id: uuid, amount: positiveMoney })).max(50),
+      payer_person_id: uuid.optional(),
+      third_party_payer: z.boolean().optional(),
+      note: z.string().trim().max(1000).optional(),
+    }),
+    run: async (ctx, i) => ({
+      data: await confirmMatch(ctx, {
+        bankTransactionId: i.bank_transaction_id,
+        allocations: i.allocations.map((a) => ({ invoiceId: a.invoice_id, amount: a.amount })),
+        ...(i.payer_person_id ? { payerPersonId: i.payer_person_id } : {}),
+        ...(i.third_party_payer === undefined ? {} : { thirdPartyPayer: i.third_party_payer }),
+        ...(i.note === undefined ? {} : { note: i.note }),
+      }),
+      httpStatus: 201,
+    }),
+  }),
+  "reconciliation.resolveBreak": defineCommand({
+    command: "reconciliation.resolveBreak",
+    input: z.strictObject({ break_id: uuid, resolution: z.string().trim().min(1).max(1000) }),
+    run: async (ctx, i) => ({
+      data: await resolveBreak(ctx, { breakId: i.break_id, resolution: i.resolution }),
+    }),
+  }),
 };
 
 /** Tìm command theo đường dẫn `<module>/<command>`; tên chỉ gồm chữ/số để không lọt ký tự lạ. */
 export function findCommand(module: string, command: string): AnyCommand | undefined {
   if (!/^[a-z][a-z_]*$/.test(module) || !/^[a-zA-Z][a-zA-Z]*$/.test(command)) return undefined;
   return Object.hasOwn(COMMANDS, `${module}.${command}`) ? COMMANDS[`${module}.${command}`] : undefined;
+}
+
+// biome-ignore lint/suspicious/noExplicitAny: danh mục query không đồng nhất
+type AnyQuery = QueryDef<any, any>;
+
+/** Danh mục query công khai qua `GET /api/v1/<module>/<query>` — chỉ đọc. */
+export const QUERIES: Readonly<Record<string, AnyQuery>> = {
+  "payment.getTransferInfo": {
+    query: "payment.getTransferInfo",
+    input: z.strictObject({ invoice_id: uuid, receiving_account_id: uuid.optional() }),
+    run: (db, actor, i: { invoice_id: string; receiving_account_id?: string }) =>
+      getTransferInfo(db, actor, {
+        invoiceId: i.invoice_id,
+        ...(i.receiving_account_id ? { receivingAccountId: i.receiving_account_id } : {}),
+      }),
+  },
+  "reconciliation.previewMatches": {
+    query: "reconciliation.previewMatches",
+    input: z.strictObject({
+      property_id: uuid,
+      receiving_account_id: uuid.optional(),
+      limit: z.coerce.number().int().min(1).max(500).optional(),
+    }),
+    run: (db, actor, i: { property_id: string; receiving_account_id?: string; limit?: number }) =>
+      previewMatches(db, actor, {
+        propertyId: i.property_id,
+        ...(i.receiving_account_id ? { receivingAccountId: i.receiving_account_id } : {}),
+        ...(i.limit === undefined ? {} : { limit: i.limit }),
+      }),
+  },
+};
+
+export function findQuery(module: string, query: string): AnyQuery | undefined {
+  if (!/^[a-z][a-z_]*$/.test(module) || !/^[a-zA-Z][a-zA-Z]*$/.test(query)) return undefined;
+  return Object.hasOwn(QUERIES, `${module}.${query}`) ? QUERIES[`${module}.${query}`] : undefined;
 }
