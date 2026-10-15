@@ -7,6 +7,7 @@ export {
   AuthzError,
   type AuthzResult,
   authorize,
+  authorizeRequest,
   effectiveLimit,
 } from "./access/authorize.ts";
 export {
@@ -14,6 +15,7 @@ export {
   DEFAULT_LIMITS,
   type Grant,
   grantFor,
+  LIMIT_KIND,
   MATRIX,
   type MatrixRole,
   ROLES,

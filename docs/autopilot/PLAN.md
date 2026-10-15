@@ -67,7 +67,7 @@ Tương ứng mốc "Tuần 5–8" của kế hoạch gốc (mảng trọ). Khá
 
 ### Lát 0 — Chốt quyết định và nền dùng chung
 - [x] `T-101` Ghi các quyết định ở bảng trên vào SPEC (mục 10: tick kèm "quyết theo PLAN đợt 2, ngày, tham số"), DOMAIN-MODEL/ERD (7.1 #1, #9; 7.3 #1, #5); thêm `scripts/check-blocking-questions.py` (exit ≠ 0 nếu SPEC được nêu còn câu `[chặn]` chưa tick) + test — Gate: `python3 scripts/check-blocking-questions.py lease metering-billing ledger-payments import && python3 -m unittest discover -s scripts -p "test_*.py"`
-- [ ] `T-102` Duyệt và hạn mức: bảng `approval_requests` (`kind`, số tiền, người lập/duyệt, trạng thái), `organizations.settings.role_limits` + ghi đè `memberships.limits`; `approval.request/approve/reject` dùng `authorize()` (`APPROVAL_LIMIT_EXCEEDED`, `SELF_APPROVAL_FORBIDDEN`), thực thi đúng một lần sau duyệt (ledger S-014, S-033; access S-017) — Gate: `pnpm test:db -- approvals`
+- [x] `T-102` Duyệt và hạn mức: bảng `approval_requests` (`kind`, số tiền, người lập/duyệt, trạng thái), `organizations.settings.role_limits` + ghi đè `memberships.limits`; `approval.request/approve/reject` dùng `authorize()` (`APPROVAL_LIMIT_EXCEEDED`, `SELF_APPROVAL_FORBIDDEN`), thực thi đúng một lần sau duyệt (ledger S-014, S-033; access S-017) — Gate: `pnpm test:db -- approvals`
 - [ ] `T-103` API command thống nhất: `POST /api/v1/<module>/<command>` (Zod, `Idempotency-Key`, ngữ cảnh tổ chức, problem+json, `correlation_id`), `GET /api/v1/commands/{id}` (SPEC-pwa S-010…S-012, S-019); danh mục mã lỗi `packages/app/src/errors.ts` + test khớp bảng API-CONTRACT §2 — Gate: `pnpm vitest run packages/app/src/http apps/web/app/api`
 
 ### Lát 1 — Tiền: thu, phân bổ, cọc, ca, đối soát (F-005)
