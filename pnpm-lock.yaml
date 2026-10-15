@@ -215,6 +215,9 @@ importers:
       '@hm/db':
         specifier: workspace:*
         version: link:../db
+      '@hm/domain':
+        specifier: workspace:*
+        version: link:../domain
       better-auth:
         specifier: 1.7.9
         version: 1.7.9(next@16.4.1(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(pg@8.23.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.4(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)))

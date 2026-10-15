@@ -1,2 +1,20 @@
-// Quy tắc nghiệp vụ thuần (không I/O) — ADR-0001. Module con sẽ thêm theo PLAN T-008…T-010.
+// Quy tắc nghiệp vụ thuần (không I/O) — ADR-0001.
 export const DOMAIN_PACKAGE = "@hm/domain";
+export {
+  type AuthzActor,
+  type AuthzCode,
+  type AuthzContext,
+  AuthzError,
+  type AuthzResult,
+  authorize,
+  effectiveLimit,
+} from "./access/authorize.ts";
+export {
+  type Action,
+  DEFAULT_LIMITS,
+  type Grant,
+  grantFor,
+  MATRIX,
+  type MatrixRole,
+  ROLES,
+} from "./access/matrix.ts";
