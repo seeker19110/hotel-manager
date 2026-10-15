@@ -4,7 +4,7 @@
 |---|---|
 | ID tính năng | F-008 (yêu cầu gốc: R-001 bước "người thuê xem trên portal"; kế hoạch §03, §08, §09; backlog T044, phần portal của T045) |
 | Trạng thái | Draft — chờ duyệt |
-| Phiên bản | 1 — thay đổi: xem cuối file |
+| Phiên bản | 2 — thay đổi: xem cuối file |
 | Chủ spec | (chưa gán) · Duyệt bởi (chưa) ngày (chưa) |
 | Hồ sơ/quy mô | web-app / M |
 | Ngày | 2026-10-15 |
@@ -21,9 +21,9 @@ Ngoài phạm vi: thanh toán online xác nhận tự động (webhook — F-016
 Dữ liệu mẫu dùng chung (theo DOMAIN-MODEL §5): tổ chức **B** "Nhà trọ Hoa Sen", cơ sở `HS1`, phòng `101` (người thuê **An**) và `102` (người thuê **Bình**). Phiếu kỳ 10/2026 phòng 101: tổng **3.580.000**, đã phân bổ **2.000.000**, còn **1.580.000**; cọc **3.000.000**. Lỗi trả về `application/problem+json` có trường `code`.
 
 ### S-001 Người thuê xem danh sách kỳ thu của mình
-- Given An đã đăng nhập portal của tổ chức B, có phiếu 10/2026 đã phát hành (`issued`) và phiếu 11/2026 còn `draft`
+- Given An đã đăng nhập portal của tổ chức B, có phiếu 10/2026 đã phát hành (kỳ thu 10/2026 `issued`) và kỳ thu 11/2026 còn `draft` (phiếu chỉ được sinh khi phát hành, nên kỳ `draft` **chưa có** `invoices` nào)
 - When An mở "Kỳ thu"
-- Then `portal.listMyInvoices` trả đúng 1 phiếu (10/2026) với `total=3580000`, `paid=2000000`, `balance=1580000`; phiếu `draft` không xuất hiện; UI hiển thị "1.580.000 đ" và nhãn "Còn nợ"
+- Then `portal.listMyInvoices` trả đúng 1 phiếu (10/2026) với `total=3580000`, `paid=2000000`, `balance=1580000`; truy vấn lọc theo trạng thái kỳ thu (`billing_periods.status` ∈ `issued`, `locked`) nên kỳ 11/2026 `draft`/`reviewing` không xuất hiện dù đã có số liệu tạm; UI hiển thị "1.580.000 đ" và nhãn "Còn nợ"
 
 ### S-002 Người thuê xem chi tiết phiếu
 - Given như S-001
@@ -93,7 +93,7 @@ Dữ liệu mẫu dùng chung (theo DOMAIN-MODEL §5): tổ chức **B** "Nhà t
 ### S-015 Người thuê bị thu hồi quyền
 - Given hợp đồng của An chuyển `closed` và quá thời gian xem lại (Q-04), hoặc quản lý thu hồi
 - When An gọi `portal.listMyInvoices`
-- Then HTTP 403 `FORBIDDEN` với thông điệp "Quyền truy cập portal đã kết thúc"; phiên hiện tại bị từ chối ở request kế tiếp
+- Then HTTP 404 `NOT_FOUND` (quy ước SPEC-access-and-property mục 2 và S-009: membership bị thu hồi thì không còn đọc được tổ chức, không lộ việc tồn tại); phiên hiện tại bị từ chối ở request kế tiếp; UI hiện trang "Tài khoản này không còn truy cập được portal" kèm đường dẫn đăng nhập/chọn tổ chức khác, không hiển thị dữ liệu nào
 
 ### S-016 Khách mở liên kết lượt ở hợp lệ
 - Given booking `R-778` đã `confirmed`, lễ tân tạo liên kết khách cho lượt ở phòng 203 (folio: 2 × 600.000 + 80.000 + 150.000 = 1.430.000; ứng trước 500.000 đã phân bổ)
@@ -139,7 +139,7 @@ Dữ liệu mẫu dùng chung (theo DOMAIN-MODEL §5): tổ chức **B** "Nhà t
 | Song song | Hai tab đổi ngữ cảnh; nhân viên xác nhận thanh toán khi người thuê đang xem | 409 `CONTEXT_CHANGED`; số dư lấy mới khi mở lại, không cache | S-013 |
 | Mất mạng giữa chừng | Mất mạng khi bấm "Tôi đã chuyển"/gửi yêu cầu | Không báo thành công; khi có mạng truy vấn `command_id` trước khi cho gửi lại (SPEC-pwa S-010) | S-011 |
 | Thời gian/múi giờ | Hạn phiếu, thời điểm cập nhật yêu cầu, `expires_at` liên kết | Lưu UTC, hiển thị theo `properties.timezone`; hết hạn so với thời gian server | S-009, S-017 |
-| Quyền | Người thuê khác, tổ chức khác, gọi API nhân viên, quyền đã thu hồi, token khách sai lượt ở | 404 cho tài nguyên không thuộc mình; 403 cho hành động không được phép; không lộ dữ liệu | S-003–S-005, S-015, S-018 |
+| Quyền | Người thuê khác, tổ chức khác, gọi API nhân viên, quyền đã thu hồi, token khách sai lượt ở | 404 cho tài nguyên không thuộc mình hoặc quyền portal đã thu hồi; 403 cho hành động không được phép; không lộ dữ liệu | S-003–S-005, S-015, S-018 |
 | Tiền/đơn vị | Số tiền báo chuyển khác số dư; số âm; 0 | VND số nguyên > 0; khác số dư vẫn ghi nhận báo chuyển (nhân viên xử lý); số dư hiển thị từ sổ, không tính ở client | S-010 |
 
 ## 4. Dữ liệu
@@ -151,7 +151,7 @@ Dữ liệu mẫu dùng chung (theo DOMAIN-MODEL §5): tổ chức **B** "Nhà t
 | Phiếu việc (bảng do SPEC-housekeeping-maintenance định nghĩa) | `source='portal'`, `reporter_person_id` | | Trạng thái theo DOMAIN-MODEL §4 | Người thuê tạo/đọc của mình |
 
 - Phạm vi đọc của người thuê: `leases` mà `person_id` là người thuê đứng hợp đồng (Q-05) → `invoices` có người trả là person đó → `deposits`, `meter_readings` đã duyệt của phòng trong thời gian hợp đồng. Kiểm ở `packages/app` **và** RLS (policy riêng cho vai trò `tenant`).
-- Hai thực thể mới phải được bổ sung vào DOMAIN-MODEL trước khi spec Approved (Q-06).
+- Hai thực thể `guest_access_links`, `payment_claims` đã có trong DOMAIN-MODEL §7 (v1.2; Q-06 đã đóng); tên ở đó là chuẩn.
 - Thay đổi schema: migration ở task T044 (rollback được).
 
 ## 5. Giao diện / API
@@ -188,8 +188,8 @@ Dữ liệu mẫu dùng chung (theo DOMAIN-MODEL §5): tổ chức **B** "Nhà t
 | Mã lỗi | Khi nào | HTTP | Thông điệp cho người dùng | Scenario |
 |---|---|---|---|---|
 | `UNAUTHENTICATED` | Chưa đăng nhập / phiên hết hạn | 401 | Phiên đăng nhập đã hết. Vui lòng đăng nhập lại. | — |
-| `FORBIDDEN` | Vai trò không được phép / quyền portal đã kết thúc | 403 | Bạn không có quyền thực hiện thao tác này. | S-005, S-015 |
-| `NOT_FOUND` | Tài nguyên không tồn tại **hoặc** không thuộc phạm vi | 404 | Không tìm thấy dữ liệu. | S-003, S-004, S-018 |
+| `FORBIDDEN` | Vai trò không được phép trên tài nguyên đọc được | 403 | Bạn không có quyền thực hiện thao tác này. | S-005 |
+| `NOT_FOUND` | Tài nguyên không tồn tại **hoặc** không thuộc phạm vi, kể cả membership `tenant` đã bị thu hồi/hết hạn xem lại | 404 | Không tìm thấy dữ liệu. | S-003, S-004, S-015, S-018 |
 | `VALIDATION_FAILED` | Thiếu/sai trường | 422 | Thông tin chưa hợp lệ: {trường}. | S-008 |
 | `FILE_TOO_LARGE` / `FILE_TYPE_NOT_ALLOWED` | Ảnh vượt giới hạn / sai loại | 413 / 415 | Ảnh quá lớn / Chỉ nhận ảnh JPEG, PNG, WebP. | — |
 | `IDEMPOTENCY_CONFLICT` | Cùng key, khác thân | 409 | Yêu cầu bị trùng mã thao tác. Vui lòng tải lại. | S-011 |
@@ -220,9 +220,9 @@ Không áp dụng — tính năng không dùng model.
 - [ ] Q-03 Thời hạn liên kết khách — [không chặn, có cấu hình] — hỏi: PO — **đề xuất:** đến giờ trả phòng dự kiến + 48 giờ, cấu hình theo cơ sở; tạo lại được.
 - [ ] Q-04 Người thuê còn xem được bao lâu sau khi hợp đồng `closed`? — [không chặn] — hỏi: PO + pháp lý — **đề xuất:** đến khi quyết toán xong + 30 ngày, chỉ đọc.
 - [ ] Q-05 Người ở cùng có tài khoản portal và thấy khoản tiền không? — [không chặn] — hỏi: PO — **đề xuất:** pilot chỉ người đứng hợp đồng và người trả tiền được mời; người ở cùng không xem tiền.
-- [ ] Q-06 Bổ sung `guest_access_links`, `payment_claims` vào DOMAIN-MODEL (tên, vòng đời) — **[chặn]** (DOMAIN-MODEL quy định đổi/thêm tên phải sửa ở đó trước) — hỏi: Tech Lead — **đề xuất:** thêm đúng như mục 4. Lưu ý: SPEC-ledger-payments S-008 viết "thanh toán `pending` … khách bấm đã chuyển"; spec này đề xuất báo chuyển **không** tạo `payments` — cần thống nhất với chủ SPEC-ledger-payments.
-- [ ] Q-08 Portal có hiển thị giấy tờ của chính người thuê không (ma trận SPEC-access-and-property cho phép "Mình")? — [không chặn] — hỏi: PO + pháp lý — **đề xuất:** không trong pilot (giảm bề mặt lộ dữ liệu nhạy cảm); xem lại sau DPIA.
+- [x] Q-06 Bổ sung `guest_access_links`, `payment_claims` vào DOMAIN-MODEL — đã đóng: có ở DOMAIN-MODEL §7 (v1.2). Thống nhất với SPEC-ledger-payments: S-008 của ledger nay quy định "khách báo đã chuyển" chỉ tạo `payment_claims`, **không** tạo `payments`/bút toán (INV-F3).
 - [ ] Q-07 Có cho đính kèm ảnh chuyển khoản vào báo chuyển không? — [không chặn] — hỏi: PO — **đề xuất:** có, tuỳ chọn, lưu riêng tư; ảnh không đủ để xác nhận thu (INV-F3).
+- [ ] Q-08 Portal có hiển thị giấy tờ của chính người thuê không (ma trận SPEC-access-and-property cho phép "Mình")? — [không chặn] — hỏi: PO + pháp lý — **đề xuất:** không trong pilot (giảm bề mặt lộ dữ liệu nhạy cảm); xem lại sau DPIA.
 
 ## 11. DoR / DoD
 - DoR: spec Approved · 0 câu hỏi chặn · SPEC-access-and-property có ma trận `tenant`/`guest` · đủ nhỏ cho một PR · mỗi task có Gate.
@@ -239,3 +239,4 @@ Không áp dụng — tính năng không dùng model.
 | Phiên bản | Ngày | Gì | Vì sao | Duyệt |
 |---|---|---|---|---|
 | 1 | 2026-10-15 | tạo | G3 cho F-008 | (chưa) |
+| 2 | 2026-10-15 | sửa theo review độc lập: S-015 membership bị thu hồi → 404 `NOT_FOUND`; fixture S-001 sửa (kỳ thu `draft` chưa có phiếu, lọc theo trạng thái kỳ thu); đóng Q-06 (bảng đã có ở DOMAIN-MODEL §7, ledger S-008 đã thống nhất); đảo thứ tự Q-07/Q-08 | review O6, G7, G5 | (chưa) |

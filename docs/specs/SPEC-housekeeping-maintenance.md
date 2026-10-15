@@ -4,10 +4,10 @@
 |---|---|
 | ID tính năng | F-007 (luồng: R-003 bước "dọn và kiểm tra") |
 | Trạng thái | Draft — chờ duyệt |
-| Phiên bản | 1 — thay đổi: xem cuối file |
+| Phiên bản | 2 — thay đổi: xem cuối file |
 | Chủ spec | (chưa gán) · Duyệt bởi (chưa) |
 | Hồ sơ/quy mô | web-app / M |
-| Nguồn | Kế hoạch §03, §06, §07, §09, §10, §12, §16; DOMAIN-MODEL §3, §4, §6; backlog T045, T055 |
+| Nguồn | Kế hoạch §03, §06, §07, §09, §10, §12, §16; DOMAIN-MODEL §3, §4, §6, §7; backlog T045, T055 |
 
 ## 1. User story
 - Là **nhân viên buồng phòng**, tôi muốn xem việc dọn theo tầng và ưu tiên, nhận việc, báo tiến độ và báo hỏng có ảnh trên điện thoại, để phòng sẵn sàng đúng lúc khách đến.
@@ -171,7 +171,7 @@ Fixture chung: cơ sở P1, tầng 2 có phòng `201`, `202`; manager M, buồng
 | `files` ¹ | organization_id, id, owner_type, owner_id, mime, size_bytes, sha256, status (`pending_scan`→`ready`\|`rejected`), storage_key, exif_stripped | `bigint` size | chỉ `ready` được cấp URL; bucket private | hệ thống ghi; đọc theo quyền của đối tượng chủ |
 | `units` | housekeeping_status | | chỉ đổi qua command F-007 hoặc check-out/chuyển phòng | |
 
-¹ Tên từ kế hoạch §12, **chưa có trong DOMAIN-MODEL §1** (Q-09). Migration có `down`; RLS + FK ghép theo INV-G1.
+¹ Tên từ kế hoạch §12; `tasks`, `work_orders`, `files` đã có trong DOMAIN-MODEL §7 (v1.2). Migration có `down`; RLS + FK ghép theo INV-G1.
 
 ## 5. Giao diện / API
 Hợp đồng chi tiết: `docs/design/API-CONTRACT.md`. Mọi command nhận `Idempotency-Key`.
@@ -181,13 +181,13 @@ Hợp đồng chi tiết: `docs/design/API-CONTRACT.md`. Mọi command nhận `I
 | `housekeeping.createTask` (nội bộ + thủ công) | unit_id, kind, source, priority?, note? | task_id | VALIDATION_FAILED |
 | `housekeeping.assignTask` / `housekeeping.claimTask` | task_id, assignee? | task | INVALID_TRANSITION, FORBIDDEN |
 | `housekeeping.startTask` / `housekeeping.completeTask` | task_id, note? | task | INVALID_TRANSITION, FORBIDDEN |
-| `housekeeping.verifyTask` | task_id, result (`pass`\|`fail`), reason? | task | INVALID_TRANSITION, FORBIDDEN |
+| `housekeeping.verifyTask` | task_id, result (`pass`\|`fail`), reason? | task | INVALID_TRANSITION, FORBIDDEN, SELF_APPROVAL_FORBIDDEN |
 | `housekeeping.cancelTask` | task_id, reason | task | INVALID_TRANSITION |
 | `housekeeping.listTasks` / `housekeeping.getTask` (query) | property_id, floor_id?, status?, assignee? | việc (trường đã lọc theo vai trò) | NOT_FOUND |
 | `files.requestUpload` | owner_type, mime, size_bytes | file_id, upload_url, expires_at | FILE_TYPE_NOT_ALLOWED, FILE_TOO_LARGE |
 | `files.getReadUrl` (query) | file_id | url, expires_at | NOT_FOUND, FILE_NOT_READY |
 | `maintenance.createWorkOrder` | unit_id, title, description, severity, file_ids[] | work_order_id | VALIDATION_FAILED, NOT_FOUND |
-| `maintenance.assignWorkOrder` / `startWorkOrder` / `completeWorkOrder` / `verifyWorkOrder` / `cancelWorkOrder` | work_order_id, … | work_order | INVALID_TRANSITION, FORBIDDEN |
+| `maintenance.assignWorkOrder` / `startWorkOrder` / `completeWorkOrder` / `verifyWorkOrder` / `cancelWorkOrder` | work_order_id, … | work_order | INVALID_TRANSITION, FORBIDDEN, SELF_APPROVAL_FORBIDDEN (khi `verifyWorkOrder` bởi chính người làm) |
 | `maintenance.proposeBlock` | work_order_id, start, end, reason | block_id (gọi `inventory.requestBlock`) | VALIDATION_FAILED |
 | `maintenance.listWorkOrders` (query) | property_id, status?, mine? | danh sách | NOT_FOUND |
 
@@ -196,7 +196,8 @@ Hợp đồng chi tiết: `docs/design/API-CONTRACT.md`. Mọi command nhận `I
 ## 6. Lỗi
 | Mã lỗi | Khi nào | HTTP | Thông điệp cho người dùng | Scenario |
 |---|---|---|---|---|
-| INVALID_TRANSITION | Chuyển trạng thái sai, tự nghiệm thu, nhận việc đã có người nhận | 409 | Việc này đã thay đổi trạng thái. Vui lòng tải lại. | S-004, S-008, S-009 |
+| INVALID_TRANSITION | Chuyển trạng thái sai, nhận việc đã có người nhận | 409 | Việc này đã thay đổi trạng thái. Vui lòng tải lại. | S-004, S-009 |
+| SELF_APPROVAL_FORBIDDEN | Người làm tự nghiệm thu (`verified`) việc/phiếu của mình khi bật tách quyền (DOMAIN-MODEL §4); không dùng `INVALID_TRANSITION` | 403 | Bạn không thể tự nghiệm thu việc mình đã làm. | S-008 |
 | FORBIDDEN | Cập nhật việc không được giao; kỹ thuật duyệt/kết thúc block | 403 | Bạn không có quyền thực hiện thao tác này. | S-006, S-018, S-019 |
 | NOT_FOUND | Khác tổ chức/không được đọc (CCCD, folio, phòng khác) | 404 | Không tìm thấy dữ liệu. | S-017, S-020–S-022 |
 | FILE_TYPE_NOT_ALLOWED | MIME/nội dung không cho phép | 415 | Chỉ nhận ảnh JPEG, PNG hoặc WebP. | S-013 |
@@ -228,7 +229,7 @@ Không áp dụng — tính năng không dùng model.
 - [ ] Q-06 Giới hạn file — [chặn T045/T076] — hỏi: Tech Lead + PO — đề xuất: JPEG/PNG/WebP; ≤ 10 MB/ảnh; ≤ 5 ảnh/phiếu. Cần kiểm iPhone (HEIC) trên thiết bị thật trước khi chốt (chưa xác minh).
 - [ ] Q-07 Thời hạn URL ký đọc/tải — [không chặn] — hỏi: Tech Lead — đề xuất: 5 phút cho ảnh vận hành; ảnh giấy tờ ngắn hơn theo DPIA.
 - [ ] Q-08 Sau sửa chữa có bắt buộc tạo việc dọn trước khi bán lại không — [không chặn] — hỏi: PO — đề xuất: có (S-019).
-- [ ] Q-09 Bổ sung `tasks`, `work_orders`, `files` vào DOMAIN-MODEL §1; trạng thái `cancelled` có cho phiếu sự cố — [chặn migration] — hỏi: Tech Lead.
+- [x] Q-09 Bổ sung `tasks`, `work_orders`, `files` vào DOMAIN-MODEL; trạng thái `cancelled` cho phiếu sự cố — đã đóng: có ở DOMAIN-MODEL §7 và §4 (v1.2).
 - [ ] Q-10 Công cụ quét mã độc và nơi chạy (worker gọi dịch vụ nào, chi phí) — [chặn T076] — hỏi: Tech Lead — đề xuất: chọn qua `/research` + ADR; chưa chọn thì file không bao giờ sang `ready`.
 - [ ] Q-11 Thời hạn lưu ảnh sự cố/việc dọn — [không chặn pilot, chặn go-live] — hỏi: PO + pháp lý — đề xuất: theo lịch retention của DPIA (kế hoạch §16).
 
@@ -245,3 +246,4 @@ Không áp dụng — tính năng không dùng model.
 | Phiên bản | Ngày | Gì | Vì sao | Duyệt |
 |---|---|---|---|---|
 | 1 | 2026-10-15 | tạo | G3 cho F-007 | (chờ) |
+| 2 | 2026-10-15 | sửa theo review độc lập: bảng lỗi mục 6 và bảng lệnh dùng `SELF_APPROVAL_FORBIDDEN` (403) cho tự nghiệm thu, khớp S-008, tách khỏi `INVALID_TRANSITION`; đóng Q-09 | review G2, G5 | (chờ) |

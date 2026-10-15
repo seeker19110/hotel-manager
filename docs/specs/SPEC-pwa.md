@@ -4,11 +4,11 @@
 |---|---|
 | ID tính năng | F-009 (yêu cầu gốc: R-001…R-005 chạy trên thiết bị mục tiêu; kế hoạch §09, §10, §17; backlog T041, T042, T048) |
 | Trạng thái | Draft — chờ duyệt |
-| Phiên bản | 1 — thay đổi: xem cuối file |
+| Phiên bản | 2 — thay đổi: xem cuối file |
 | Chủ spec | (chưa gán) · Duyệt bởi (chưa) ngày (chưa) |
 | Hồ sơ/quy mô | web-app / M |
 | Ngày | 2026-10-15 |
-| Phụ thuộc | ADR-0001 (Next.js 16.4.x, Serwist `@serwist/next` 9.5.x), ARCHITECTURE (luồng command, `GET /api/v1/commands/{command_id}`), SPEC-access-and-property (đăng xuất, đổi tổ chức), SPEC-portal |
+| Phụ thuộc | ADR-0001 (Next.js 16.4.x, Serwist `@serwist/next` 9.5.x), ARCHITECTURE (luồng command, `GET /api/v1/commands/{command_id}`; API-CONTRACT "Kết quả command"), DOMAIN-MODEL INV-G5, SPEC-access-and-property (đăng xuất, đổi tổ chức), SPEC-portal |
 
 ## 1. User story
 - Là **lễ tân/quản lý dùng điện thoại**, tôi muốn cài ứng dụng lên màn hình chính và mở nhanh như app, để thao tác tại phòng/quầy mà không cần tìm trang web.
@@ -67,7 +67,7 @@
 ### S-010 Timeout đúng lúc xác nhận
 - Given client tạo `command_id=c1` (dùng làm `Idempotency-Key`), gửi "Nhận phòng"; server đã commit nhưng phản hồi bị mất (Playwright chặn response)
 - When client hết thời gian chờ
-- Then UI hiện "Đang kiểm tra kết quả…", gọi `GET /api/v1/commands/c1`; nhận `status=completed` → hiện kết quả thành công từ server; **không** có lần gửi command thứ hai; DB có đúng 1 lượt ở `in_house`
+- Then UI hiện "Đang kiểm tra kết quả…", gọi `GET /api/v1/commands/c1`; nhận `status=committed` (kèm `data`) → hiện kết quả thành công từ server; **không** có lần gửi command thứ hai; DB có đúng 1 lượt ở `in_house`
 
 ### S-011 Timeout và server chưa nhận lệnh
 - Given như S-010 nhưng request chưa tới server
@@ -85,7 +85,7 @@
 - Then HTTP 401 `UNAUTHENTICATED`; hiện hộp đăng nhập lại; sau đăng nhập, nếu ngữ cảnh tổ chức giống trước thì cho gửi lại với **cùng** `command_id`, nếu khác thì huỷ form (`CONTEXT_CHANGED`)
 
 ### S-014 Năm điểm vào mobile
-- Given viewport 390×844, vai trò `manager`, mẫu Hỗn hợp
+- Given viewport 390×844, vai trò `manager`, mẫu `hotel` (mẫu `mixed` chưa bật ở pilot — SPEC-access-and-property S-003)
 - When mở ứng dụng
 - Then thanh điều hướng dưới có đúng 5 mục theo thứ tự: Hôm nay · Phòng/Lịch · Thu tiền · Công việc · Thêm; vai trò `housekeeping` không thấy "Thu tiền" (menu theo vai trò, kế hoạch §09); cơ sở đang thao tác luôn hiện ở header
 
@@ -104,22 +104,32 @@
 - When mở lại ứng dụng khi có mạng
 - Then ứng dụng tải bình thường từ mạng, SW cài lại precache; không lỗi trắng trang
 
+### S-018 Lệnh đã commit nhưng thất bại nghiệp vụ
+- Given client gửi `command_id=c2` "Giữ phòng" cho phòng đã bị người khác giữ; phản hồi bị mất; server đã xử lý và ghi kết quả lỗi
+- When client hết thời gian chờ rồi gọi `GET /api/v1/commands/c2`
+- Then nhận `status=failed` kèm `problem` (ví dụ `409 ROOM_UNAVAILABLE`); UI hiện đúng thông điệp của `problem`, **không** hiện "đang kiểm tra" và không báo thành công; muốn thử lại phải tạo `command_id` mới sau khi người dùng đổi nội dung (gửi lại `c2` chỉ trả lại đúng kết quả lỗi cũ); DB không có bản ghi nào do `c2`
+
+### S-019 Tra `command_id` của người khác hoặc không tồn tại
+- Given `command_id=c3` do nhân viên khác gửi (hoặc tổ chức khác); `command_id=c4` chưa từng được gửi
+- When người dùng hiện tại gọi `GET /api/v1/commands/c3` và `GET /api/v1/commands/c4`
+- Then cả hai `404 COMMAND_NOT_FOUND` (không phân biệt "của người khác" với "không tồn tại", không lộ kết quả); riêng `c4` cho phép bật "Gửi lại" với cùng `command_id` (S-011)
+
 ## 3. Ca biên (8 nhóm)
 | Nhóm | Ca cụ thể | Hành vi mong đợi | Scenario |
 |---|---|---|---|
 | Rỗng/null | Chưa có SW (lần đầu, trình duyệt chặn SW); cache rỗng | Ứng dụng chạy như web thường; trang offline chỉ có sau lần tải đầu | S-017 |
 | Cực đại/độ dài | Quota storage đầy; precache quá lớn | Precache chỉ asset app shell (ngân sách đề xuất ≤ 5 MB, Q-05); lỗi quota không chặn ứng dụng online | S-017 |
-| Trùng lặp/idempotency | Gửi lại sau timeout; bấm hai lần | Cùng `command_id`; nút khoá khi đang gửi; server trả kết quả cũ | S-010, S-011 |
+| Trùng lặp/idempotency | Gửi lại sau timeout; bấm hai lần; lệnh đã `failed` | Cùng `command_id`; nút khoá khi đang gửi; server trả kết quả cũ (kể cả `failed`) | S-010, S-011, S-018 |
 | Song song | Hai tab, một tab cập nhật SW; hai tab khác tổ chức | SW mới chờ đến khi người dùng đồng ý; khác ngữ cảnh → `CONTEXT_CHANGED` (SPEC-portal S-013) | S-008 |
 | Mất mạng giữa chừng | Mất mạng trước khi gửi / sau khi gửi trước khi nhận | Trước: `OFFLINE`, không gửi. Sau: truy vấn `command_id` khi có mạng | S-006, S-010 |
 | Thời gian/múi giờ | Giờ thiết bị sai lệch | Hạn phiên, hạn liên kết, thời gian chờ tính theo server; hiển thị theo `properties.timezone` | S-013 |
-| Quyền | Chuyển tài khoản trên cùng thiết bị; người dùng khác mở PWA đã cài | Xoá dữ liệu người dùng cũ khi đăng xuất/đổi ngữ cảnh; không hiển thị trang cũ qua Back | S-007 |
+| Quyền | Chuyển tài khoản trên cùng thiết bị; người dùng khác mở PWA đã cài; tra `command_id` của người khác | Xoá dữ liệu người dùng cũ khi đăng xuất/đổi ngữ cảnh; không hiển thị trang cũ qua Back; `404 COMMAND_NOT_FOUND` | S-007, S-019 |
 | Tiền/đơn vị | Xác nhận thu tiền khi mạng chập chờn | Không bao giờ báo "đã thu" trước phản hồi server; không cache số dư | S-006, S-010 |
 
 ## 4. Dữ liệu
 | Thực thể | Trường | Kiểu | Ràng buộc | Ai đọc/ghi |
 |---|---|---|---|---|
-| `idempotency_keys` (có sẵn, INV-G5) | `key` = `command_id`, `status`, `response`, `expires_at` | | unique `(organization_id, key)` | Server; client đọc qua `GET /api/v1/commands/{id}` (chỉ lệnh của chính mình) |
+| `idempotency_keys` (có sẵn, INV-G5) | `key` = `command_id`, `status` (ánh xạ ra API: `committed` \| `in_progress` \| `failed`), `request_hash`, `response`, `expires_at` | | unique `(organization_id, key)` | Server; client đọc qua `GET /api/v1/commands/{id}` (chỉ lệnh của chính mình) |
 | Cache Storage (trình duyệt) | `hm-precache-<build>` | asset có hash, `/offline`, manifest, icon | **Không** HTML có dữ liệu, `/api/*`, URL file | SW |
 | IndexedDB | Pilot: không dùng cho dữ liệu nghiệp vụ | | Xoá khi đăng xuất | — |
 
@@ -128,7 +138,7 @@
 ## 5. Giao diện / API
 | Loại | Tên | Mô tả |
 |---|---|---|
-| Query | `commands.getStatus` (`GET /api/v1/commands/{command_id}`) | `completed` (kèm kết quả) \| `in_progress` \| 404 `COMMAND_NOT_FOUND` |
+| Query | `commands.getStatus` (`GET /api/v1/commands/{command_id}`) | `committed` (thành công, kèm `data`) \| `in_progress` \| `failed` (kèm `problem`); không tồn tại hoặc không phải của người hỏi → 404 `COMMAND_NOT_FOUND` (API-CONTRACT) |
 | Query | `app.getVersion` (`GET /api/version`) | Phiên bản build + phiên bản client tối thiểu |
 | Command | `session.logout` | Thu hồi phiên, trả `Clear-Site-Data` |
 
@@ -141,7 +151,7 @@
 | Mất mạng | banner trên cùng "Mất kết nối — thao tác chưa được gửi" (`role="status"`, chữ + icon, không chỉ màu); nút command bị khoá |
 | Đang kiểm tra kết quả | hộp thoại "Đang kiểm tra kết quả…" + `command_id` rút gọn |
 | Lỗi | thông điệp theo mã ở mục 6 + hướng sửa |
-| Thành công | chỉ sau phản hồi 2xx hoặc `completed` từ server |
+| Thành công | chỉ sau phản hồi 2xx hoặc `committed` từ server |
 | Có bản mới | banner "Đã có phiên bản mới" + nút "Cập nhật" |
 
 - Tiếp cận: WCAG 2.2 AA (kế hoạch §09, [S26]); vùng chạm ≥ 44 CSS px; banner thông báo bằng `aria-live="polite"`, lỗi chặn bằng `role="alert"`; focus về tiêu đề hộp thoại khi mở; hỗ trợ zoom 200% không mất chức năng; tôn trọng `prefers-reduced-motion`.
@@ -152,7 +162,7 @@
 | `OFFLINE` | Client phát hiện mất mạng trước khi gửi | — (client) | Không có kết nối mạng. Thao tác chưa được gửi. | S-006 |
 | `NETWORK_TIMEOUT` | Hết thời gian chờ phản hồi | — (client) | Chưa nhận được phản hồi. Đang kiểm tra kết quả… | S-010 |
 | `RESULT_UNKNOWN` | Hỏi `command_id` quá thời gian chờ | — (client) | Chưa xác định được kết quả. Đừng thao tác lại; kiểm tra lịch sử hoặc liên hệ quản lý. | S-012 |
-| `COMMAND_NOT_FOUND` | Server chưa nhận `command_id` | 404 | (nội bộ) — bật nút "Gửi lại" | S-011 |
+| `COMMAND_NOT_FOUND` | Server chưa nhận `command_id`, hoặc `command_id` không phải của người hỏi | 404 | (nội bộ) — bật nút "Gửi lại" | S-011, S-019 |
 | `UNAUTHENTICATED` | Phiên hết hạn | 401 | Phiên đăng nhập đã hết. Vui lòng đăng nhập lại. | S-013 |
 | `CONTEXT_CHANGED` | Ngữ cảnh tổ chức khác với lúc mở form | 409 | Bạn vừa chuyển sang cơ sở khác. Tải lại để tiếp tục. | S-013 |
 | `CLIENT_OUTDATED` | Phiên bản client thấp hơn mức tối thiểu | 426 | Ứng dụng cần cập nhật để tiếp tục. | S-009 |
@@ -182,7 +192,7 @@ Kịch bản QA trên mọi cấu hình (T048): mất mạng, đóng/mở app, p
 Không áp dụng — tính năng không dùng model.
 
 ## 9. Đo lường
-- `pwa.installed` (sự kiện `appinstalled`), `pwa.launched_standalone`, `pwa.offline_shown`, `pwa.sw_update_applied`, `command.timeout_resolved` (thuộc tính `outcome=completed|not_found|unknown`) → M-02 (tự hoàn thành tác vụ), M-05 (dùng hằng tuần). Không gửi PII trong sự kiện.
+- `pwa.installed` (sự kiện `appinstalled`), `pwa.launched_standalone`, `pwa.offline_shown`, `pwa.sw_update_applied`, `command.timeout_resolved` (thuộc tính `outcome=committed|failed|not_found|unknown`) → M-02 (tự hoàn thành tác vụ), M-05 (dùng hằng tuần). Không gửi PII trong sự kiện.
 
 ## 10. Câu hỏi mở (0 câu [chặn] trước khi Approved)
 - [ ] Q-01 Ngưỡng timeout client cho command (đề xuất 15 s) và thời gian tối đa hỏi `command_id` (đề xuất 30 s) — [không chặn] — hỏi: Tech Lead — **đề xuất:** như trên, cấu hình được, chỉnh theo số đo T079.
@@ -227,3 +237,4 @@ Index: `[organization_id, status]`, `[organization_id, created_at]`. Câu hỏi 
 | Phiên bản | Ngày | Gì | Vì sao | Duyệt |
 |---|---|---|---|---|
 | 1 | 2026-10-15 | tạo | G3 cho F-009 | (chưa) |
+| 2 | 2026-10-15 | sửa theo review độc lập: trạng thái `GET /api/v1/commands/{command_id}` thống nhất `committed`/`in_progress`/`failed`, không tồn tại → 404 `COMMAND_NOT_FOUND` (S-010, mục 5, đo lường; thêm S-018, S-019); fixture S-014 đổi mẫu Hỗn hợp → `hotel`; ghi tham chiếu API-CONTRACT/INV-G5 (G5: spec không có câu hỏi DOMAIN-MODEL nào còn mở) | review O2, G8, G5 | (chưa) |

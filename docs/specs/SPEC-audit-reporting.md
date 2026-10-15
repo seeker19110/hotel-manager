@@ -4,7 +4,7 @@
 |---|---|
 | ID tính năng | F-012 (yêu cầu gốc: R-001 "công nợ cập nhật", R-005 "đối chiếu tổng"; kế hoạch §08, §09, §16, §17; backlog T014, T039, T085 phần cơ bản) |
 | Trạng thái | Draft — chờ duyệt |
-| Phiên bản | 1 — thay đổi: xem cuối file |
+| Phiên bản | 2 — thay đổi: xem cuối file |
 | Chủ spec | (chưa gán) · Duyệt bởi (chưa) ngày (chưa) |
 | Hồ sơ/quy mô | web-app / M |
 | Ngày | 2026-10-15 |
@@ -42,7 +42,7 @@ Dữ liệu mẫu (DOMAIN-MODEL §5): tổ chức B có cơ sở `HS1` (trọ) v
 |---|---|---|
 | `owner` | toàn tổ chức | 200, mọi sự kiện của B |
 | `manager` (chỉ `HS1`) | không lọc | 200, chỉ sự kiện `property_id=HS1` hoặc cấp tổ chức được phép |
-| `manager` (chỉ `HS1`) | `property_id=HS2` | 403 `FORBIDDEN` |
+| `manager` (chỉ `HS1`) | `property_id=HS2` (cơ sở ngoài phạm vi) | 404 `NOT_FOUND` (quy ước SPEC-access-and-property mục 2), không lộ việc `HS2` tồn tại |
 | `accountant` | không lọc | 200, chỉ nhóm sự kiện tiền (payment, invoice, deposit, period_lock) |
 | `housekeeping`, `tenant` | bất kỳ | 403 `FORBIDDEN` |
 
@@ -109,7 +109,7 @@ Dữ liệu mẫu (DOMAIN-MODEL §5): tổ chức B có cơ sở `HS1` (trọ) v
 ### S-017 Xuất không vượt phạm vi
 - Given `accountant` phạm vi chỉ `HS1`, có quyền xuất nhóm tiền (ma trận SPEC-access-and-property)
 - When accountant xuất công nợ không lọc, rồi xuất với `property_id=HS2`
-- Then lần 1 file chỉ có dòng `HS1`; lần 2 → 403 `FORBIDDEN`; job worker chạy với `app.org_id` và phạm vi của người yêu cầu tại thời điểm chạy (thu hồi quyền trước khi job chạy → job `failed` lý do `FORBIDDEN`)
+- Then lần 1 file chỉ có dòng `HS1`; lần 2 (cơ sở ngoài phạm vi) → 404 `NOT_FOUND`, không tạo `export_jobs`; job worker chạy với `app.org_id` và phạm vi của người yêu cầu tại thời điểm chạy (thu hồi quyền trước khi job chạy → job `failed` lý do `FORBIDDEN`)
 
 ### S-018 Xuất toàn bộ dữ liệu tổ chức (cơ bản)
 - Given owner đã xác thực lại
@@ -130,7 +130,7 @@ Dữ liệu mẫu (DOMAIN-MODEL §5): tổ chức B có cơ sở `HS1` (trọ) v
 | Song song | Thanh toán được xác nhận khi báo cáo đang chạy | Báo cáo đọc trong một snapshot (`REPEATABLE READ`), ghi "số liệu tại {thời điểm}" | S-009 |
 | Mất mạng giữa chừng | Mất mạng khi đang tải file | Tải lại bằng link còn hạn; hết hạn → yêu cầu link mới (xác thực lại nếu quá hạn) | S-015 |
 | Thời gian/múi giờ | Ranh giới ngày kinh doanh, giờ chốt, báo cáo theo ngày địa phương | Lọc theo `business_date`/ngày địa phương của cơ sở; lưu UTC | S-008, S-010 |
-| Quyền | Vai trò không có quyền, phạm vi cơ sở, quyền bị thu hồi giữa chừng, tenant | 403; xuất không vượt phạm vi; job kiểm quyền lại khi chạy | S-004, S-013, S-017 |
+| Quyền | Vai trò không có quyền, phạm vi cơ sở, quyền bị thu hồi giữa chừng, tenant | 403 (vai trò không có quyền); 404 (cơ sở ngoài phạm vi); xuất không vượt phạm vi; job kiểm quyền lại khi chạy | S-004, S-013, S-017 |
 | Tiền/đơn vị | Tổng phải khớp chi tiết và sổ; tách tiền thu/cọc/doanh thu | VND số nguyên; tổng tính ở DB; test so với số dư `AR`, `DEPOSIT_LIAB` | S-009–S-011 |
 
 ## 4. Dữ liệu
@@ -140,7 +140,7 @@ Dữ liệu mẫu (DOMAIN-MODEL §5): tổ chức B có cơ sở `HS1` (trọ) v
 | `export_jobs` (**mới**) | `id`, `organization_id`, `requested_by`, `kind` (`receivables`/`collections`/`deposits`/`occupancy`/`audit`/`org_full`), `format` (`csv`/`xlsx`/`zip`), `filters jsonb`, `scope_snapshot jsonb`, `status` (`queued → running → ready`; `failed`; `expired`), `file_key`, `expires_at`, `row_count` | | `expires_at NOT NULL` khi `ready` | Người yêu cầu đọc; worker ghi |
 | Báo cáo | Không có bảng riêng; truy vấn từ `journal_lines`, `invoices`, `payments`, `payment_allocations`, `deposits`, `allocations` | | Tổng tính bằng SQL, không cộng ở client | — |
 
-- Danh sách trường bị che/loại khỏi audit (đề xuất, chốt ở T014): số CCCD/hộ chiếu (giữ 4 số cuối), mật khẩu, token phiên, OTP, secret, URL ký. `export_jobs` cần bổ sung vào DOMAIN-MODEL (Q-07). Migration ở T014/T039 (rollback được).
+- Danh sách trường bị che/loại khỏi audit (đề xuất, chốt ở T014): số CCCD/hộ chiếu (giữ 4 số cuối), mật khẩu, token phiên, OTP, secret, URL ký. `export_jobs` đã có ở DOMAIN-MODEL §7 (Q-07); danh sách trường `audit_events` chốt ở T014. Migration ở T014/T039 (rollback được).
 
 ## 5. Giao diện / API
 | Loại | Tên | Mô tả |
@@ -169,8 +169,8 @@ Dữ liệu mẫu (DOMAIN-MODEL §5): tổ chức B có cơ sở `HS1` (trọ) v
 ## 6. Lỗi
 | Mã lỗi | Khi nào | HTTP | Thông điệp cho người dùng | Scenario |
 |---|---|---|---|---|
-| `FORBIDDEN` | Không có quyền xem/xuất hoặc ngoài phạm vi cơ sở | 403 | Bạn không có quyền thực hiện thao tác này. | S-004, S-013, S-017 |
-| `NOT_FOUND` | `export_id`/sự kiện không thuộc người dùng | 404 | Không tìm thấy dữ liệu. | — |
+| `FORBIDDEN` | Vai trò không có quyền xem/xuất trên tài nguyên đọc được | 403 | Bạn không có quyền thực hiện thao tác này. | S-004, S-013 |
+| `NOT_FOUND` | `export_id`/sự kiện không thuộc người dùng; cơ sở ngoài phạm vi của actor (quy ước SPEC-access-and-property mục 2) | 404 | Không tìm thấy dữ liệu. | S-004, S-017 |
 | `VALIDATION_FAILED` | Bộ lọc sai (ngày kết thúc < bắt đầu) | 422 | Thông tin chưa hợp lệ: {trường}. | — |
 | `REPORT_RANGE_TOO_LARGE` | Khoảng quá dài cho xem trực tiếp | 422 | Khoảng thời gian quá dài. Hãy chọn ngắn hơn hoặc dùng Xuất dữ liệu. | S-019 |
 | `REAUTH_REQUIRED` | Xuất khi chưa xác thực lại gần đây | 401 | Vui lòng xác thực lại để xuất dữ liệu. | S-014 |
@@ -201,7 +201,7 @@ Không áp dụng — tính năng không dùng model.
 - [ ] Q-04 Mẫu số công suất: trừ phòng `blocked`/`out_of_service` hay không — [không chặn pilot; chặn T063] — hỏi: PO — **đề xuất:** phòng khả dụng = phòng `active` không bị block trong ngày; ghi công thức trên báo cáo.
 - [ ] Q-05 Xuất toàn bộ có gồm số giấy tờ/ảnh không (quyền mang dữ liệu vs dữ liệu nhạy cảm) — [không chặn bản cơ bản] — hỏi: pháp lý — **đề xuất:** bản cơ bản loại trừ; bản đủ (T085) chờ DPIA.
 - [ ] Q-06 Cửa sổ xác thực lại và thời hạn link tải — [không chặn] — hỏi: Tech Lead + PO — **đề xuất:** xác thực lại trong 5 phút trước khi xuất; link 15 phút; file xoá sau 24 giờ.
-- [ ] Q-07 Bổ sung `export_jobs` và danh sách trường `audit_events` vào DOMAIN-MODEL — **[chặn]** — hỏi: Tech Lead — **đề xuất:** thêm đúng như mục 4.
+- [x] Q-07 Bổ sung `export_jobs` vào DOMAIN-MODEL — đã đóng: có ở DOMAIN-MODEL §7 (v1.2). Danh sách trường `audit_events` còn chốt ở T014 (không chặn).
 - [ ] Q-08 Thư viện ghi XLSX — [không chặn] — hỏi: Tech Lead — **đề xuất:** chọn ở T039 qua `/research` (giấy phép OSI, đang bảo trì, ghim phiên bản), ghi vào ADR mới; nếu chưa có thì pilot chỉ xuất CSV UTF-8 có BOM.
 - [ ] Q-09 Thời gian giữ `audit_events` — [không chặn] — hỏi: pháp lý — **đề xuất:** theo lịch retention ở DPIA (kế hoạch §16 "Vòng đời dữ liệu"); chưa xoá trong pilot.
 
@@ -220,3 +220,4 @@ Không áp dụng — tính năng không dùng model.
 | Phiên bản | Ngày | Gì | Vì sao | Duyệt |
 |---|---|---|---|---|
 | 1 | 2026-10-15 | tạo | G3 cho F-012 | (chưa) |
+| 2 | 2026-10-15 | sửa theo review độc lập: S-004, S-017 cơ sở ngoài phạm vi trả 404 `NOT_FOUND` theo quy ước access (không 403), cập nhật bảng lỗi mục 6; đóng Q-07 | review O6, G5 | (chưa) |
