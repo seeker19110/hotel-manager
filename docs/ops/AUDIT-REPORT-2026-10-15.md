@@ -225,3 +225,19 @@ Kết quả đợt 1 (duyệt 2026-10-15, #1): AUD-HAR-021 + AUD-HAR-022 đã s�
 
 Giới hạn còn lại (ghi CHANGELOG): hook ≤ 2.x người dùng đã sửa vẫn tìm `.xstored/scripts/dev-task.sh` nên cổng commit của
 hook đó không chạy tới khi gộp tay bản `.xtemplates-new` — install giờ cảnh báo riêng thay vì lẫn trong danh sách tên cũ.
+
+Kết quả đợt 2 (#2 — #1 merge trước khi kịp đẩy commit): AUD-DOC-023, AUD-DOC-024, AUD-SEC-015 đã sửa.
+
+| Lệnh | Exit | Kết quả |
+|---|---|---|
+| đối chiếu mọi trích `install.py:`/`test_install.py:` trong BLUEPRINT.md với file sau đợt 1 | 0 | `BASE-CFG-006` 344-350 → 406-412; `BASE-DATA-008` 109-143 → 117-150, 305-315 → 315-326, test 129-140 → 133-144, 338-349 → 448-459; `:56-57` (`BASE-ERR-005`, mục mở) vẫn đúng |
+| `xt.py blueprint-status BLUEPRINT.md --strict` | 0 | 0 MUST mở |
+| `.gitleaksignore` trả `tests/test_xs.py` + gitleaks 8.28.0 `--all` | 0 | sạch (c295f48 không có trong clone — khớp fingerprint là suy luận) |
+
+Phát hiện mới: **AUD-HAR-025** 🟢 — gốc của AUD-DOC-024: `audit plan` coi bằng chứng là cũ chỉ khi file được trích đổi
+SAU commit ghi dòng; #43 đổi `install.py` và viết lại dòng blueprint trong CÙNG commit nên không cờ. Ghi nhận, sửa ở đợt sau.
+
+Sau đợt 1, `audit plan` cờ 12 bằng chứng blueprint trích file đổi ở `d0c6537` (`install.py`, `test_hooks.py`,
+`pre-edit-guard.sh`, `auto-format.sh`, `CHANGELOG.md`). Đối chiếu lại: test thêm ở cuối `test_hooks.py` nên 7 dòng trích
+(`:39`, `:64`, `:221`, `:453`, `:508`, `:597`, `:609`) vẫn đúng hàm; chỉ `pre-edit-guard.sh:13` → `:14` (thêm dòng nguồn
+`_compat.sh`); `copy_tree_replace`, log stderr, `CHANGELOG.md:3` không đổi. 0 khẳng định sai; `audit plan` → `stale_evidence: []`.
