@@ -1,3 +1,6 @@
 # Chuỗi giả trong test che bí mật (tests/test_xs.py) ở commit c295f48 — đã thay bằng chuỗi ghép lúc chạy; giữ để quét lịch sử PR #20 không đỏ.
 # Fingerprint là dữ liệu lịch sử: giữ đường dẫn file TẠI commit đó (`test_xs.py`, trước ADR-0007) — đổi tên thì ignore không khớp (AUD-SEC-015).
 c295f4818229e5ea59054d91f8a37c9b9aff1ae1:tests/test_xs.py:generic-api-key:454
+
+# .env.example ở commit 2060b88 dùng placeholder dạng chữ cho BETTER_AUTH_SECRET (giá trị giả, đã thay bằng chuỗi x); giữ để quét lịch sử PR #4 không đỏ.
+2060b8860119616fe72dfc34d462802babe66e76:.env.example:generic-api-key:7
