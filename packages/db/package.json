@@ -14,8 +14,6 @@
     "pg": "8.23.1"
   },
   "devDependencies": {
-    "@hm/testkit": "workspace:*",
-    "@types/pg": "8.23.1",
-    "vitest": "5.0.4"
+    "@types/pg": "8.23.1"
   }
 }
