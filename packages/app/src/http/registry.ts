@@ -2,6 +2,7 @@
 // (schema Zod là hợp đồng đầu vào). Tên mục = tên command trong SPEC §5.
 import type { StatementMapping } from "@hm/domain";
 import { z } from "zod";
+import { resetMemberMfa } from "../access/mfa-recovery.ts";
 import { APPROVAL_KINDS, cancelApproval, decideApproval, requestApproval } from "../approvals/approvals.ts";
 import {
   createPeriod,
@@ -857,6 +858,13 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
     command: "import.cancel",
     input: z.strictObject({ batch_id: uuid, reason: z.string().max(500) }),
     run: async (ctx, i) => ({ data: await cancelBatch(ctx, { batchId: i.batch_id, reason: i.reason }) }),
+  }),
+  "member.resetMfa": defineCommand({
+    command: "member.resetMfa",
+    input: z.strictObject({ membership_id: uuid, reason: z.string().max(500) }),
+    run: async (ctx, i) => ({
+      data: await resetMemberMfa(ctx, { membershipId: i.membership_id, reason: i.reason }),
+    }),
   }),
   "meter.acknowledgeAnomaly": defineCommand({
     command: "meter.acknowledgeAnomaly",

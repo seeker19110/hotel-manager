@@ -3,7 +3,7 @@
 > Giai đoạn hiện tại: G5 Dựng nền (autopilot đợt 1) · Cập nhật: 2026-10-15 · Nhánh: claude/gifted-noether-iybenn
 
 ## Đang làm
-- Autopilot đợt 2 (PLAN duyệt) — Pha 2: T-101…T-115 xong có bằng chứng (`.autopilot/evidence/`); review lát 3 đã sửa. Kế tiếp **T-116** khôi phục MFA. PR nháp #5.
+- Autopilot đợt 2 (PLAN duyệt) — Pha 2: T-101…T-116 xong có bằng chứng (`.autopilot/evidence/`); review lát 3 đã sửa. Kế tiếp **T-117** UI + E2E vòng tháng. PR nháp #5.
 
 ## Tiếp theo
 0. [Câu hỏi cho chủ dự án, không chặn] Hợp đồng KHÔNG thời hạn đã ký thì không đổi giá được: phụ lục chồng hiệu lực với phiên bản 1 (mở cuối, bất biến) ⇒ LEASE_VERSION_OVERLAP. Đề xuất: phụ lục được phép "đóng" ngày hết hạn của phiên bản mở cuối ngay trước nó (chỉ NULL → ngày trước hiệu lực phụ lục, ghi audit; điều khoản đã ký không đổi). Cần duyệt vì chạm bất biến INV-G4.
