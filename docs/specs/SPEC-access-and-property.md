@@ -235,6 +235,7 @@ Ký hiệu: **Có** = được trong phạm vi cơ sở · **HM** = trong hạn 
 | Hoàn/khấu trừ cọc (`deposit.requestRefund`/`approveRefund`, `requestDeduction`/`approveDeduction`; INV-F5) | Có (không giới hạn) | HM (≤ 5.000.000 đ/lần) ³ | HM (≤ 2.000.000 đ/lần, chỉ khi check-out) ³ | Đề nghị | — | — | — | — |
 | Hoàn ứng trước (`credit.requestRefund`/`credit.approveRefund`) | Có (không giới hạn) | HM (≤ 5.000.000 đ/lần) ³ | HM (≤ 2.000.000 đ/lần, chỉ khi check-out) ³ | Đề nghị | — | — | — | — |
 | Mở/đóng ca quầy (`shift.open`/`shift.close`) | Có | Có | Mình (ca của mình) | Có (đối chiếu) | — | — | — | — |
+| Bàn giao ca (`shift.handover` — người nhận xác nhận, không tự nhận ca của mình) | Có | Có | Mình (giao/nhận ca của mình) | Có (đối chiếu, không nhận tiền) | — | — | — | — |
 | Chốt kỳ (`billing.lockPeriod`/`ledger.lockPeriod`) | Có | Có | — | Có | — | — | — | — |
 | Mở khoá kỳ (`ledger.unlockPeriod`, `locked → issued`; INV-F6) | Có (lý do + audit) | — | — | — | — | — | — | — |
 | Lập hợp đồng, ký, kích hoạt (`lease.createDraft`/`updateDraft`/`submitForSignature`/`sign`/`activate`/`renew`/`giveNotice`) | Có | Có | — | — | — | — | — | — |

@@ -4,13 +4,13 @@
 |---|---|
 | ID tính năng | F-004 (luồng gốc: R-001 Kỳ thu trọ) |
 | Trạng thái | Draft — chờ duyệt |
-| Phiên bản | 1 (2026-10-15) — thay đổi: xem cuối file |
+| Phiên bản | 2 (2026-10-15) — thay đổi: xem cuối file |
 | Chủ spec | (chưa gán) · Duyệt bởi (chưa) |
 | Hồ sơ/quy mô | web-app / M |
-| Nguồn | Kế hoạch gốc §05 (kỳ thu, tình huống bắt buộc), §08 (snapshot, làm tròn), §12; backlog T028–T030, T074; nghiên cứu pháp lý `docs/research/2026-10-15-stack-va-phap-ly.md` (giá điện cho người thuê) |
+| Nguồn | Kế hoạch gốc §05 (kỳ thu, tình huống bắt buộc), §08 (snapshot, làm tròn), §12; backlog T028–T030, T074; DOMAIN-MODEL v1.2 §4, §7; nghiên cứu pháp lý `docs/research/2026-10-15-stack-va-phap-ly.md` (giá điện cho người thuê) |
 | Phụ thuộc | SPEC-lease (phiên bản giá, người ở, chỉ số bàn giao) · SPEC-ledger-payments (bút toán, `period_locks`) |
 
-> Tên theo `docs/design/DOMAIN-MODEL.md`. Tên **†** chưa có trong DOMAIN-MODEL, cần bổ sung trước migration (mục 10).
+> Tên theo `docs/design/DOMAIN-MODEL.md` v1.2; `services`, `service_prices`, `meter_events` đã có ở §7, không còn tên **†**.
 > Lỗi trả `application/problem+json` có `code`. Command ghi nhận `Idempotency-Key` (INV-G5).
 > **Pháp lý:** quy định giá điện cho người thuê có các nguồn mâu thuẫn (bậc 2 hay bậc 3). Sản phẩm **không** đưa ra "mức đúng luật": biểu giá do cơ sở cấu hình, có ngày hiệu lực và ô "căn cứ". Đơn giá trong ví dụ chỉ để kiểm phép tính (kế hoạch §05).
 
@@ -50,7 +50,7 @@ Fixture `billing-basic`: cơ sở P1 (`Asia/Ho_Chi_Minh`, làm tròn `HALF_UP_1`
 ### S-006 Thay công tơ (reset) có quyền
 - Given công tơ cũ chỉ số đầu kỳ 1.250
 - When M (quyền `meter.replace`) gọi `meter.replace`: chỉ số cuối công tơ cũ 1.300, công tơ mới bắt đầu 0, ảnh cả hai; cuối kỳ công tơ mới đọc 50
-- Then tạo `meter_events`† loại `replacement`; lượng điện kỳ = (1.300 − 1.250) + (50 − 0) = 100 kWh → 300.000 đ
+- Then tạo `meter_events` loại `replacement`; lượng điện kỳ = (1.300 − 1.250) + (50 − 0) = 100 kWh → 300.000 đ
 
 ### S-007 Thay công tơ không có quyền
 - Given F (`front_desk`) không có quyền `meter.replace`
@@ -65,7 +65,7 @@ Fixture `billing-basic`: cơ sở P1 (`Asia/Ho_Chi_Minh`, làm tròn `HALF_UP_1`
 ### S-009 Thiếu chỉ số
 - Given phòng U102 có hợp đồng `active` nhưng chưa có chỉ số kỳ
 - When M gọi `billing.submitForReview`
-- Then lỗi 409 `READINGS_INCOMPLETE` kèm danh sách phòng thiếu
+- Then lỗi 409 `READINGS_INCOMPLETE` kèm danh sách phòng thiếu; hợp đồng có bàn giao nguồn `import` còn `readings_pending` cũng bị liệt kê cho đến khi đủ chỉ số `import` đã duyệt (SPEC-lease S-026, SPEC-import S-010)
 
 ### S-010 Chốt chỉ số theo tuyến tầng
 - Given cơ sở có tầng 1 (U101, U102), tầng 2 (U201)
@@ -77,10 +77,10 @@ Fixture `billing-basic`: cơ sở P1 (`Asia/Ho_Chi_Minh`, làm tròn `HALF_UP_1`
 - When M gọi `meter.recordReading` thay chỉ số kỳ đó
 - Then lỗi 409 `PERIOD_ISSUED`; thông điệp hướng dẫn dùng điều chỉnh (`ledger.issueAdjustment`)
 
-### S-012 Kỳ đã khoá
-- Given kỳ 09/2026 `locked`
-- When gọi `billing.reopenPeriod` hoặc sửa phiếu kỳ đó
-- Then lỗi 409 `PERIOD_LOCKED` (INV-F6)
+### S-012 Kỳ đã khoá: chỉ owner mở khoá, mở khoá không cho sửa phiếu đã phát hành
+- Given kỳ 09/2026 `locked` (có `period_locks` hiệu lực — cùng một cơ chế với `ledger.lockPeriod`); M (manager), K (accountant), O (owner)
+- When M gọi `billing.reopenPeriod`; K gọi; O gọi không có lý do; O gọi có lý do; rồi M sửa phiếu kỳ 09 (và, ở kỳ khác còn `locked`, M sửa phiếu mà chưa mở khoá)
+- Then M và K → 403 `FORBIDDEN`; O không lý do → 422 `VALIDATION_FAILED`; O có lý do → kỳ `locked → issued` (DOMAIN-MODEL §4), `period_locks` ghi `released_by/released_at/release_reason` (không xoá dòng), audit `period.unlocked`; sau mở khoá sửa trực tiếp phiếu kỳ 09 → 409 `DOCUMENT_IMMUTABLE` và sửa chỉ số → 409 `PERIOD_ISSUED` (chỉ được thêm điều chỉnh/đảo ghi ngày trong kỳ, `ledger.issueAdjustment`); sửa phiếu của kỳ còn `locked` → 409 `PERIOD_LOCKED` (INV-F6); `billing.reopenPeriod` khi kỳ không `locked` → 409 `INVALID_TRANSITION`
 
 ### S-013 Job tạo kỳ chạy lại không tạo trùng
 - Given job `billing.generatePeriods` đã tạo kỳ 11/2026 cho P1
@@ -160,17 +160,17 @@ Fixture `billing-basic`: cơ sở P1 (`Asia/Ho_Chi_Minh`, làm tròn `HALF_UP_1`
 | Song song | 2 người nhập cùng phòng; phát hành khi người khác đang sửa | Khoá lạc quan theo `version` → 409 cho người sau; `preview_hash` chặn phát hành số cũ | S-004 |
 | Mất mạng giữa chừng | Mất mạng khi nhập tuyến tầng | Pilot chỉ online: báo lỗi rõ, chỉ số đã lưu từng phòng giữ nguyên (nháp offline ở F-014) | S-010 |
 | Thời gian/múi giờ | Job 00:05 giờ VN; tháng 28/29/30/31 ngày | Ngày kỳ là `date` địa phương | S-014, S-018 |
-| Quyền | Lễ tân thay công tơ; buồng phòng xem số tiền | 403; buồng phòng không thấy số tiền | S-007 |
+| Quyền | Lễ tân thay công tơ; quản lý/kế toán mở khoá kỳ; buồng phòng xem số tiền | 403; buồng phòng không thấy số tiền | S-007, S-012 |
 | Tiền/đơn vị | 0 đ; 1 đ; lượng thập phân; đơn giá lẻ | `bigint` đồng; lượng/đơn giá `numeric`; làm tròn một hàm | S-018, S-019, S-020 |
 
 ## 4. Dữ liệu
 | Thực thể | Trường chính | Kiểu | Ràng buộc | Ai đọc/ghi |
 |---|---|---|---|---|
-| `services`† | `code`, `name`, `kind` (`fixed_per_unit`/`per_person`/`metered`/`one_time`), `revenue_account` (`REV_ROOM`/`REV_UTIL`/`REV_SERVICE`/`REV_FEE`), `meter_kind` | enum | Danh mục theo cơ sở; soft delete (INV-G7) | owner/manager |
-| `service_prices`† | `service_id`, `unit_price`, `effective_from`, `effective_to`, `basis_note` (căn cứ) | numeric, date, text | EXCLUDE chồng hiệu lực; giá do cơ sở nhập | owner/manager |
+| `services` | `code`, `name`, `kind` (`fixed_per_unit`/`per_person`/`metered`/`one_time`), `revenue_account` (`REV_ROOM`/`REV_UTIL`/`REV_SERVICE`/`REV_FEE`), `meter_kind` | enum | Danh mục theo cơ sở; soft delete (INV-G7) | owner/manager |
+| `service_prices` | `service_id`, `unit_price`, `effective_from`, `effective_to`, `basis_note` (căn cứ) | numeric, date, text | EXCLUDE chồng hiệu lực; giá do cơ sở nhập | owner/manager |
 | `meters` | `unit_id`, `kind` (`electric`/`water`), `serial`, `installed_on`, `removed_on` | | 1 công tơ đang dùng mỗi (phòng, loại) | manager |
 | `meter_readings` | `meter_id`, `read_on`, `value`, `photo_file_id`, `status` (`draft`/`approved`), `source` (`handover`/`period`/`replacement`/`import`) | date, numeric | `value` ≥ chỉ số đã duyệt trước (trừ `replacement`) | manager/front_desk ghi; maintenance nhập nếu được giao |
-| `meter_events`† | `meter_id`, `kind` (`replacement`), `old_final_value`, `new_meter_id`, `new_initial_value`, `approved_by` | | Cần quyền `meter.replace` | manager/owner |
+| `meter_events` | `meter_id`, `kind` (`replacement`), `old_final_value`, `new_meter_id`, `new_initial_value`, `approved_by` | | Cần quyền `meter.replace` | manager/owner |
 | `billing_periods` | `property_id`, `period_start`, `period_end`, `status`, `preview_hash`, `issued_at` | date, enum | unique `(property_id, period_start)`; trạng thái theo DOMAIN-MODEL §4 | manager/owner/accountant |
 | `charges` | `source` (kỳ thu/folio), `service_id`, `lease_version_id`, `quantity`, `unit_price`, `amount`, `rounding_rule`, `formula_version`, `reading_ids` | numeric, bigint | Bất biến sau phát hành | hệ thống |
 | `invoices` / `invoice_lines` | `billing_period_id`, `lease_id`, `number`, `total`; dòng: snapshot như `charges` | bigint | unique `(billing_period_id, lease_id)`; số phiếu tăng dần theo cơ sở | accountant/manager/owner; tenant đọc của mình |
@@ -189,10 +189,12 @@ Fixture `billing-basic`: cơ sở P1 (`Asia/Ho_Chi_Minh`, làm tròn `HALF_UP_1`
 | `billing.createPeriod` / job `billing.generatePeriods` | `property_id`, tháng | `billing_period_id` (cũ nếu đã có) | `VALIDATION_FAILED` |
 | `billing.previewPeriod` | `billing_period_id` | từng phòng: dòng, tổng; tổng kỳ; `preview_hash` | `NOT_FOUND` |
 | `billing.submitForReview` | `billing_period_id` | `reviewing` | `READINGS_INCOMPLETE`, `UNRESOLVED_ANOMALIES`, `INVALID_TRANSITION` |
-| `billing.returnToDraft` | `billing_period_id`, lý do | `draft` | `INVALID_TRANSITION` (xem mục 10) |
+| `billing.returnToDraft` | `billing_period_id`, lý do | `draft` | `INVALID_TRANSITION` |
 | `billing.issuePeriod` | `billing_period_id`, `preview_hash` | `invoice_ids`, `journal_entry_ids` | `BILLING_PREVIEW_STALE`, `INVALID_TRANSITION`, `PERIOD_LOCKED`, `FORBIDDEN` |
-| `billing.lockPeriod` | `billing_period_id` | `locked` (gọi `ledger.lockPeriod`) | `INVALID_TRANSITION` |
+| `billing.lockPeriod` | `billing_period_id` | `locked` (gọi `ledger.lockPeriod`; owner/manager/accountant) | `INVALID_TRANSITION`, `FORBIDDEN` |
+| `billing.reopenPeriod` | `billing_period_id`, lý do (bắt buộc) | `issued` (`locked → issued`; gọi `ledger.unlockPeriod`; chỉ owner; audit) | `FORBIDDEN`, `VALIDATION_FAILED`, `INVALID_TRANSITION` |
 
+- Khoá kỳ chỉ có **một cơ chế** là `period_locks` (SPEC-ledger-payments): `billing_periods.status='locked'` ⇔ có `period_locks` hiệu lực. `billing.lockPeriod`/`billing.reopenPeriod` là lớp bọc theo kỳ thu của `ledger.lockPeriod`/`ledger.unlockPeriod`, không có cờ khoá riêng.
 - UI: bảng tuyến tầng (một tay, ô số lớn, ảnh), danh sách bất thường, màn xem trước (từng phòng mở rộng được, tổng kỳ cố định ở đáy), nút phát hành hiển thị tổng + số phiếu để xác nhận.
 
 ## 6. Lỗi
@@ -204,10 +206,11 @@ Fixture `billing-basic`: cơ sở P1 (`Asia/Ho_Chi_Minh`, làm tròn `HALF_UP_1`
 | `BILLING_PREVIEW_STALE` | `preview_hash` khác số hiện tại | 409 | Số liệu đã thay đổi sau khi bạn xem trước. Hãy xem lại. | S-004 |
 | `PERIOD_ISSUED` | Sửa số sau phát hành | 409 | Kỳ đã phát hành. Dùng chứng từ điều chỉnh. | S-011 |
 | `PERIOD_LOCKED` | Ghi vào kỳ đã khoá | 409 | Kỳ đã khoá. Cần chứng từ điều chỉnh có duyệt. | S-012 |
-| `INVALID_TRANSITION` | Chuyển trạng thái kỳ ngoài bảng | 409 | Không thể chuyển kỳ thu sang trạng thái này. | S-012 |
-| `FORBIDDEN` | Không đủ quyền | 403 | Bạn không có quyền thực hiện thao tác này. | S-007 |
+| `DOCUMENT_IMMUTABLE` (mã chung) | Sửa trực tiếp phiếu đã phát hành, kể cả sau khi mở khoá kỳ | 409 | Phiếu đã phát hành, không sửa trực tiếp. Hãy tạo điều chỉnh. | S-012 |
+| `INVALID_TRANSITION` | Chuyển trạng thái kỳ ngoài bảng (kể cả mở khoá kỳ không khoá) | 409 | Không thể chuyển kỳ thu sang trạng thái này. | S-012 |
+| `FORBIDDEN` | Không đủ quyền (thay công tơ; mở khoá kỳ không phải owner) | 403 | Bạn không có quyền thực hiện thao tác này. | S-007, S-012 |
 | `NOT_FOUND` | Không tồn tại/ngoài phạm vi | 404 | Không tìm thấy. | — |
-| `VALIDATION_FAILED` | Sai trường | 422 | Dữ liệu chưa hợp lệ: xem từng trường. | — |
+| `VALIDATION_FAILED` | Sai trường; mở khoá kỳ không có lý do | 422 | Dữ liệu chưa hợp lệ: xem từng trường. | S-012 |
 | `IDEMPOTENCY_CONFLICT` | Cùng key khác payload | 409 | Yêu cầu trùng mã nhưng khác nội dung. | S-015 |
 
 ## 7. Yêu cầu phi chức năng của tính năng
@@ -221,7 +224,7 @@ Fixture `billing-basic`: cơ sở P1 (`Asia/Ho_Chi_Minh`, làm tròn `HALF_UP_1`
 Không áp dụng (OCR công tơ có người duyệt nằm ngoài pilot).
 
 ## 9. Đo lường
-- `billing_period.created` → `billing_period.issued` (M-01); `meter_reading.recorded`, `meter_reading.anomaly_flagged`, `invoice.issued`.
+- `billing_period.created` → `billing_period.issued` (M-01); `meter_reading.recorded`, `meter_reading.anomaly_flagged`, `invoice.issued`, `billing_period.locked`, `billing_period.reopened`.
 
 ## 10. Câu hỏi mở (0 câu [chặn] trước khi Approved)
 - [ ] Quy tắc prorata kỳ đầu/cuối lẻ — [chặn] — hỏi: PO. **Đề xuất:** `giá × số ngày tính tiền / số ngày thực của tháng` (28/29/30/31); trọn tháng luôn = giá tháng; ngày bắt đầu và ngày kết thúc đều tính. Phương án khác: chia cố định 30.
@@ -231,11 +234,11 @@ Không áp dụng (OCR công tơ có người duyệt nằm ngoài pilot).
 - [ ] Ngưỡng bất thường công tơ — [không chặn] — hỏi: PO. **Đề xuất:** cảnh báo khi lượng > 2 × trung bình 3 kỳ trước, hoặc = 0 khi phòng có người ở; cơ sở chỉnh hệ số.
 - [ ] Biểu giá điện bậc thang — [không chặn] — hỏi: PO + pháp lý. **Đề xuất:** pilot chỉ đơn giá phẳng do cơ sở nhập + ô căn cứ; bậc thang để V1.
 - [ ] Số người cho phí `per_person` khi người ở đổi giữa kỳ — [không chặn] — hỏi: PO. **Đề xuất:** đếm người ở có hiệu lực ngày cuối kỳ.
-- [ ] DOMAIN-MODEL §4 chưa có `reviewing → draft` (trả lại sửa) — [không chặn] — hỏi: Tech Lead. **Đề xuất:** thêm, có lý do và audit.
-- [ ] Bổ sung `services`†, `service_prices`†, `meter_events`† vào DOMAIN-MODEL — [chặn migration] — hỏi: Tech Lead.
+- [x] `reviewing → draft` (trả lại sửa) và `locked → issued` (chỉ owner, lý do + audit) — đã bổ sung DOMAIN-MODEL v1.2 §4 (có lý do và audit).
+- [x] Bổ sung `services`, `service_prices`, `meter_events` vào DOMAIN-MODEL — [chặn migration] — đã bổ sung DOMAIN-MODEL v1.2 §7.
 
 ## 11. DoR / DoD
-- DoR: spec Approved · 0 câu [chặn] · DOMAIN-MODEL bổ sung tên † · SPEC-lease Approved.
+- DoR: spec Approved · 0 câu [chặn] · DOMAIN-MODEL v1.2 đã bổ sung mọi tên bảng · SPEC-lease Approved.
 - DoD: mọi S-NNN có test (S-002, S-013, S-015 trên Postgres thật) · property test tiền xanh · E2E R-001 phần kỳ thu · sự kiện đo có schema.
 
 ## 12. Truy vết
@@ -250,3 +253,4 @@ Không áp dụng (OCR công tơ có người duyệt nằm ngoài pilot).
 | Phiên bản | Ngày | Gì | Vì sao | Duyệt |
 |---|---|---|---|---|
 | 1 | 2026-10-15 | Tạo | G3 cho F-004 | (chưa) |
+| 2 | 2026-10-15 | Sửa theo review độc lập: `billing.reopenPeriod` chỉ owner, `locked → issued`, một cơ chế `period_locks`, sửa S-012 (O3); S-009 thêm `readings_pending` (G18); đóng câu hỏi bảng/`reviewing → draft` (G5) | Review độc lập; DOMAIN-MODEL v1.2 | (chưa) |

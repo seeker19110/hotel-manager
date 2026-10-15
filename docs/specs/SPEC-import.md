@@ -4,13 +4,13 @@
 |---|---|
 | ID tính năng | F-010 (luồng gốc: R-005 Chuyển dữ liệu) |
 | Trạng thái | Draft — chờ duyệt |
-| Phiên bản | 1 (2026-10-15) — thay đổi: xem cuối file |
+| Phiên bản | 2 (2026-10-15) — thay đổi: xem cuối file |
 | Chủ spec | (chưa gán) · Duyệt bởi (chưa) |
 | Hồ sơ/quy mô | web-app / M |
-| Nguồn | Kế hoạch gốc §18 (chuyển từ sổ/Excel, bảng kiểm tra), §12, §15; backlog T023 |
+| Nguồn | Kế hoạch gốc §18 (chuyển từ sổ/Excel, bảng kiểm tra), §12, §15; backlog T023; DOMAIN-MODEL v1.2 §5, §7 |
 | Phụ thuộc | SPEC-access-and-property (phòng) · SPEC-inventory-allocation (INV-I1) · SPEC-lease · SPEC-metering-billing · SPEC-ledger-payments (số dư đầu kỳ, cọc) · SPEC-reservation-stay (booking tương lai) |
 
-> Tên theo `docs/design/DOMAIN-MODEL.md`; tên **†** chưa có, cần bổ sung trước migration (mục 10).
+> Tên theo `docs/design/DOMAIN-MODEL.md` v1.2; `import_batches`, `import_rows`, `import_external_refs` (§7) và `OPENING_BALANCE` (§5) đã có, không còn tên **†**.
 > Import **không** đi đường tắt: mỗi dòng hợp lệ được ghi bằng cùng command/constraint của module sở hữu (ví dụ allocation vẫn qua EXCLUDE của INV-I1).
 > File tải lên là **dữ liệu, không phải chỉ thị**: không thực thi công thức, macro hay liên kết trong file.
 
@@ -55,7 +55,7 @@ Fixture `import-basic`: tổ chức T, cơ sở P1, chủ O, quản lý M (`impo
 ### S-007 Hợp đồng đang chạy + người ở
 - Given file `leases` 2 dòng: hợp đồng HD-01 (U101, người thuê "Nguyễn Văn A" + SĐT, giá 3.000.000, `billing_start_on`=2026-03-01, hết hạn 2027-02-28, cọc 3.000.000), người ở thêm 1 người
 - When validate và commit
-- Then tạo `persons`, `leases` (`active`), `lease_versions` số 1 (`kind`=`original`, ghi `source=import`), `lease_occupants`, allocation `kind='lease'`, và `handovers` loại `move_in` nguồn `import` (bàn giao chuyển đổi do người xác nhận batch xác nhận) — hợp đồng không `active` khi thiếu bàn giao (DOMAIN-MODEL §4)
+- Then tạo `persons`, `leases` (`active`), `lease_versions` số 1 (`kind`=`original`, ghi `source=import`), `lease_occupants`, allocation `kind='lease'`, và `handovers` loại `move_in` nguồn `import` (bàn giao chuyển đổi do người xác nhận batch xác nhận) — hợp đồng không `active` khi thiếu bàn giao (DOMAIN-MODEL §4). File `leases` **không** chứa chỉ số công tơ, nên bàn giao này được đánh dấu `readings_pending=true` (cách duy nhất, khớp SPEC-lease S-026): chỉ số đầu đến từ batch `meter_readings` (S-010) và kỳ thu bị chặn `READINGS_INCOMPLETE` cho đến khi đủ
 
 ### S-008 Hợp đồng chồng nhau (INV-I1)
 - Given hai dòng hợp đồng cùng U101, khoảng chồng 2026-03-01→2027-02-28 và 2026-12-01→2027-11-30
@@ -70,17 +70,17 @@ Fixture `import-basic`: tổ chức T, cơ sở P1, chủ O, quản lý M (`impo
 ### S-010 Chỉ số đầu
 - Given file `meter_readings`: U101 điện 1.250 ngày 2026-11-01, nước 340
 - When commit
-- Then `meter_readings` nguồn `import`, đã duyệt, `read_on`=2026-11-01; kỳ thu 11/2026 dùng 1.250 làm chỉ số đầu; chỉ số âm → lỗi dòng `OUT_OF_RANGE`
+- Then `meter_readings` nguồn `import`, đã duyệt, `read_on`=2026-11-01; kỳ thu 11/2026 dùng 1.250 làm chỉ số đầu; chỉ số âm → lỗi dòng `OUT_OF_RANGE`; khi phòng có đủ chỉ số `import` đã duyệt cho mọi công tơ điện/nước tại `cutoff_on`, bàn giao `import` của hợp đồng trên phòng đó được xoá cờ `readings_pending` (SPEC-lease S-026); thiếu công tơ nào thì cờ còn nguyên
 
 ### S-011 Nợ đầu kỳ = chứng từ số dư đầu kỳ, không bịa doanh thu
 - Given file `opening_balances`: người thuê A nợ 1.580.000 đ tại `cutoff_on`
 - When commit
-- Then tạo 1 `invoices` loại `opening_balance` 1.580.000 đ (một dòng "Số dư đầu kỳ") và bút toán Nợ `AR` 1.580.000 / Có `OPENING_BALANCE`† 1.580.000; **không** có dòng `REV_*`; báo cáo doanh thu trước `cutoff_on` = 0
+- Then tạo 1 `invoices` loại `opening_balance` 1.580.000 đ (một dòng "Số dư đầu kỳ") và bút toán Nợ `AR` 1.580.000 / Có `OPENING_BALANCE` 1.580.000; **không** có dòng `REV_*`; báo cáo doanh thu trước `cutoff_on` = 0
 
 ### S-012 Cọc đầu kỳ
 - Given file `opening_balances`: cọc HD-01 3.000.000 đ
 - When commit
-- Then `deposits` 3.000.000 gắn HD-01 và bút toán Nợ `OPENING_BALANCE`† 3.000.000 / Có `DEPOSIT_LIAB` 3.000.000; không ghi `CASH`/`BANK`
+- Then `deposits` 3.000.000 gắn HD-01 và bút toán Nợ `OPENING_BALANCE` 3.000.000 / Có `DEPOSIT_LIAB` 3.000.000; không ghi `CASH`/`BANK`
 
 ### S-013 Đối chiếu tổng cọc/nợ với số nguồn
 - Given người phụ trách nhập tổng nguồn: nợ 12.450.000 đ, cọc 45.000.000 đ; file cho nợ 12.450.000, cọc 42.000.000
@@ -117,8 +117,8 @@ Fixture `import-basic`: tổ chức T, cơ sở P1, chủ O, quản lý M (`impo
 - When upload
 - Then chỉ đọc giá trị đã lưu (không tính lại); ngày seri được chuyển đúng sang `date` và hiện ở xem trước; macro/liên kết ngoài bị bỏ qua
 
-### S-020 Scenario Outline — số dư đầu kỳ
-- Given dòng số dư loại `<loai>` số tiền `<tien>` (chuỗi trong file)
+### S-020 Scenario Outline — số dư đầu kỳ và quy tắc đọc số tiền
+- Given dòng số dư loại `<loai>` số tiền `<tien>` (chuỗi trong file; ô số của XLSX được lấy nguyên giá trị, số không nguyên → `NOT_INTEGER_VND`)
 - When validate
 - Then kết quả `<kq>`
 - Examples:
@@ -128,7 +128,13 @@ Fixture `import-basic`: tổ chức T, cơ sở P1, chủ O, quản lý M (`impo
 | nợ | 1580000 | sẽ tạo phiếu số dư đầu kỳ 1.580.000 |
 | nợ | 0 | bỏ qua, ghi chú "không có số dư" |
 | nợ | 1 | sẽ tạo 1 đ |
-| cọc | 3.000.000 | sẽ tạo cọc 3.000.000 (dấu chấm phân cách nghìn được chấp nhận) |
+| cọc | 3.000.000 | sẽ tạo cọc 3.000.000 (dấu chấm phân cách nghìn đúng mẫu nhóm 3 chữ số) |
+| nợ | 1.500 | sẽ tạo 1.500 đ (đúng mẫu `^\d{1,3}(\.\d{3})+$`, hiểu là một nghìn năm trăm, **không** phải 1,5 kiểu Anh) |
+| nợ | 1.50 | lỗi `NOT_INTEGER_VND` (nhóm cuối không đủ 3 chữ số, không đoán ý) |
+| nợ | 1.5000 | lỗi `NOT_INTEGER_VND` (nhóm cuối 4 chữ số) |
+| nợ | 12.34.567 | lỗi `NOT_INTEGER_VND` (nhóm giữa 2 chữ số) |
+| nợ | 1.580.000,5 | lỗi `NOT_INTEGER_VND` (phần thập phân) |
+| nợ | 1,500 | lỗi `NOT_INTEGER_VND` (dấu phẩy là thập phân, không phải phân cách nghìn) |
 | nợ | 1580000,5 | lỗi `NOT_INTEGER_VND` |
 | nợ | -500000 | lỗi `OUT_OF_RANGE` (trả thừa nhập ở cột "số dư khách") |
 | cọc | (trống) | lỗi `REQUIRED` |
@@ -136,22 +142,22 @@ Fixture `import-basic`: tổ chức T, cơ sở P1, chủ O, quản lý M (`impo
 ## 3. Ca biên (8 nhóm)
 | Nhóm | Ca cụ thể | Hành vi mong đợi | Scenario |
 |---|---|---|---|
-| Rỗng/null | File chỉ có tiêu đề; ô bắt buộc trống; `external_id` trống | File rỗng → 422 `VALIDATION_FAILED`; dòng lỗi `REQUIRED` | S-020 |
+| Rỗng/null | File chỉ có tiêu đề; ô bắt buộc trống; `external_id` trống; hợp đồng import chưa có chỉ số | File rỗng → 422 `VALIDATION_FAILED`; dòng lỗi `REQUIRED`; bàn giao `readings_pending` | S-007, S-020 |
 | Cực đại/độ dài | > 5.000 dòng hoặc > 5 MB (đề xuất); ô > 500 ký tự | 413 `FILE_TOO_LARGE`; lỗi dòng `TOO_LONG` | — |
 | Trùng lặp/idempotency | Import lại cùng file; trùng trong file; commit lặp | Bỏ qua dòng không đổi; lỗi dòng trùng; commit 1 hiệu lực | S-003, S-005, S-017 |
 | Song song | 2 batch cùng tạo một phòng; 2 người commit | Constraint DB → rollback cả batch, lỗi dòng; 1 commit thắng | S-004, S-017 |
 | Mất mạng giữa chừng | Mất mạng khi upload/commit | Upload lỗi thì tải lại; commit timeout thì hỏi kết quả command; không commit dở | S-004 |
 | Thời gian/múi giờ | Ngày `dd/mm/yyyy` vs `yyyy-mm-dd`; ngày seri Excel; giờ booking không có múi giờ | Chỉ nhận định dạng mẫu + seri Excel; giờ hiểu theo `properties.timezone` | S-019 |
 | Quyền | Lễ tân upload; người chuẩn bị tự xác nhận số dư tiền | 403; xác nhận số dư cần `import.confirm` (owner) | S-014, S-015 |
-| Tiền/đơn vị | 0 đ, 1 đ, số lẻ, số âm, dấu phân cách nghìn | Số nguyên đồng; lỗi rõ | S-020 |
+| Tiền/đơn vị | 0 đ, 1 đ, số lẻ, số âm; dấu `.` phân cách nghìn đúng/sai mẫu (`1.500`, `1.50`, `12.34.567`); dấu phẩy | Số nguyên đồng; `.` chỉ nhận khi đúng `^\d{1,3}(\.\d{3})+$`, còn lại lỗi dòng `NOT_INTEGER_VND`, không đoán | S-020 |
 
 ## 4. Dữ liệu
 | Thực thể | Trường chính | Ràng buộc | Ai đọc/ghi |
 |---|---|---|---|
-| `import_batches`† | `property_id`, `kind` (`units`/`leases`/`meter_readings`/`opening_balances`/`reservations`), `status` (`uploaded → validated → confirmed → committed`; `cancelled`), `file_id`, `file_sha256`, `expected_totals`, `actual_totals`, `confirmed_by`, `confirmed_at`, `cutoff_on` | Chuyển trạng thái qua bảng chuyển; `committed` bất biến | manager chuẩn bị; owner xác nhận |
-| `import_rows`† | `batch_id`, `row_no`, `external_id`, `row_hash`, `action` (`create`/`skip_unchanged`/`error`), `errors` (json: cột, mã, thông điệp), `target_id` | | như trên |
-| `import_external_refs`† | `organization_id`, `kind`, `external_id`, `target_id`, `row_hash` | unique `(organization_id, kind, external_id)` | hệ thống |
-| Bảng đích | `units`, `persons`, `leases`, `lease_versions`, `lease_occupants`, `handovers`, `meters`, `meter_readings`, `invoices`, `deposits`, `journal_entries`, `reservations`, `allocations` | Constraint của module sở hữu áp nguyên vẹn | |
+| `import_batches` | `property_id`, `kind` (`units`/`leases`/`meter_readings`/`opening_balances`/`reservations`), `status` (`uploaded → validated → confirmed → committed`; `cancelled`), `file_id`, `file_sha256`, `expected_totals`, `actual_totals`, `confirmed_by`, `confirmed_at`, `cutoff_on` | Chuyển trạng thái qua bảng chuyển; `committed` bất biến | manager chuẩn bị; owner xác nhận |
+| `import_rows` | `batch_id`, `row_no`, `external_id`, `row_hash`, `action` (`create`/`skip_unchanged`/`error`), `errors` (json: cột, mã, thông điệp), `target_id` | | như trên |
+| `import_external_refs` | `organization_id`, `kind`, `external_id`, `target_id`, `row_hash` | unique `(organization_id, kind, external_id)` | hệ thống |
+| Bảng đích | `units`, `persons`, `leases`, `lease_versions`, `lease_occupants`, `handovers` (nguồn `import`, `readings_pending` cho đến khi có chỉ số), `meters`, `meter_readings`, `invoices`, `deposits`, `journal_entries`, `reservations`, `allocations` | Constraint của module sở hữu áp nguyên vẹn | |
 
 - Giấy tờ cá nhân: chỉ nhận số giấy tờ khi có căn cứ (cột tuỳ chọn, đi vào `identity_documents`); **không** import ảnh giấy tờ (kế hoạch §18). File nguồn lưu riêng tư, có hạn xoá.
 - Số dư đầu kỳ ghi `business_date` = `cutoff_on`; đề xuất khoá kỳ trước `cutoff_on` (`period_locks`) ngay khi commit.
@@ -169,7 +175,8 @@ Fixture `import-basic`: tổ chức T, cơ sở P1, chủ O, quản lý M (`impo
 | `import.get` / `import.list` | `batch_id` / cơ sở | trạng thái, lỗi, ai xác nhận | `NOT_FOUND` |
 | `import.downloadErrorReport` | `batch_id` | CSV lỗi đã chống injection | `NOT_FOUND` |
 
-- Thứ tự gợi ý: `units` → `leases` → `meter_readings` → `opening_balances` → `reservations` (phụ thuộc theo `external_id` của batch trước; tham chiếu chưa có → lỗi dòng `REFERENCE_NOT_FOUND`).
+- Quy tắc đọc số tiền dạng chuỗi: số nguyên đồng; dấu `.` phân cách nghìn **chỉ** chấp nhận khi toàn chuỗi khớp `^\d{1,3}(\.\d{3})+$` (nên `1.500` = 1.500 đ, còn `1.50`, `1.5000`, `12.34.567` là lỗi dòng `NOT_INTEGER_VND`); dấu phẩy luôn là thập phân → lỗi; không đoán ý người dùng.
+- Thứ tự gợi ý (`meter_readings` phải sau `leases` mới xoá được `readings_pending`; chưa nhập thì kỳ thu bị chặn): `units` → `leases` → `meter_readings` (xoá `readings_pending`) → `opening_balances` → `reservations` (phụ thuộc theo `external_id` của batch trước; tham chiếu chưa có → lỗi dòng `REFERENCE_NOT_FOUND`).
 - UI: bước 1 chọn loại + tải mẫu → bước 2 upload → bước 3 xem trước (lọc dòng lỗi, tổng) → bước 4 đối chiếu tổng + xác nhận → bước 5 kết quả. Bảng lỗi đọc được bằng trình đọc màn hình (số dòng, cột, lỗi).
 
 ## 6. Lỗi
@@ -200,16 +207,17 @@ Không áp dụng.
 - `import_batch.uploaded`, `import_batch.validated` (số lỗi), `import_batch.committed`, `import_batch.cancelled` → R-005, M-04 (tổng đối chiếu khớp).
 
 ## 10. Câu hỏi mở (0 câu [chặn] trước khi Approved)
-- [ ] DOMAIN-MODEL §5 chưa có tài khoản đối ứng cho số dư đầu kỳ — [chặn] — hỏi: kế toán + Tech Lead. **Đề xuất:** thêm `OPENING_BALANCE` (Vốn/chênh lệch mở đầu, chỉ dùng cho chứng từ chuyển đổi) và 2 bút toán ở S-011, S-012; không dùng `REV_*`.
-- [ ] Trả thừa đầu kỳ (khách có số dư) — [không chặn] — hỏi: kế toán. **Đề xuất:** cột riêng → Nợ `OPENING_BALANCE`† / Có `CUSTOMER_CREDIT`.
+- [x] Tài khoản đối ứng số dư đầu kỳ — [chặn] — đã bổ sung DOMAIN-MODEL v1.2 §5 (`OPENING_BALANCE` và hai bút toán ở S-011, S-012; không dùng `REV_*`).
+- [ ] Trả thừa đầu kỳ (khách có số dư) — [không chặn] — hỏi: kế toán. **Đề xuất:** cột riêng → Nợ `OPENING_BALANCE` / Có `CUSTOMER_CREDIT`.
 - [ ] Ai được xác nhận số dư chuyển đổi — [không chặn] — hỏi: PO. **Đề xuất:** chỉ `owner` (hoặc đại diện pilot được chỉ định), khác người chuẩn bị.
 - [ ] Giới hạn file và hạn giữ file nguồn — [không chặn] — hỏi: PO + pháp lý. **Đề xuất:** 5 MB / 5.000 dòng; xoá file nguồn 30 ngày sau commit/huỷ.
 - [ ] Import cập nhật (delta có sửa) — [không chặn pilot] — hỏi: PO. **Đề xuất:** V1 chỉ thêm mới; sửa qua giao diện; rollback batch đã commit để T070.
 - [ ] Khoá kỳ trước `cutoff_on` tự động khi commit — [không chặn] — hỏi: kế toán. **Đề xuất:** có.
-- [ ] Bổ sung `import_batches`†, `import_rows`†, `import_external_refs`†, `OPENING_BALANCE`† vào DOMAIN-MODEL — [chặn migration] — hỏi: Tech Lead.
+- [x] Bổ sung `import_batches`, `import_rows`, `import_external_refs`, `OPENING_BALANCE` vào DOMAIN-MODEL — [chặn migration] — đã bổ sung DOMAIN-MODEL v1.2 (§7, §5).
+- [ ] Bàn giao nguồn `import` không có chỉ số (`readings_pending`) — [không chặn] — hỏi: PO. **Đề xuất:** chọn cách này (không bắt chỉ số trên cùng dòng hợp đồng) vì chỉ số hiện tại nằm ở file `meter_readings`; kỳ thu bị chặn `READINGS_INCOMPLETE` đến khi đủ.
 
 ## 11. DoR / DoD
-- DoR: spec Approved · 0 câu [chặn] · DOMAIN-MODEL bổ sung tên † · SPEC-lease, SPEC-ledger-payments Approved.
+- DoR: spec Approved · 0 câu [chặn] · DOMAIN-MODEL v1.2 đã bổ sung mọi tên bảng · SPEC-lease, SPEC-ledger-payments Approved.
 - DoD: mọi S-NNN có test (S-004, S-005, S-008, S-017 trên Postgres thật) · E2E R-005 · test formula injection · sự kiện đo có schema.
 
 ## 12. Truy vết
@@ -221,3 +229,4 @@ Không áp dụng.
 | Phiên bản | Ngày | Gì | Vì sao | Duyệt |
 |---|---|---|---|---|
 | 1 | 2026-10-15 | Tạo | G3 cho F-010 | (chưa) |
+| 2 | 2026-10-15 | Sửa theo review độc lập: bàn giao từ import `readings_pending`, đồng bộ SPEC-lease S-026 (G18); dấu `.` phân cách nghìn chỉ nhận đúng mẫu `^\d{1,3}(\.\d{3})+$`, thêm ca biên ở S-020; đóng câu hỏi bảng/`OPENING_BALANCE` (G5) | Review độc lập; DOMAIN-MODEL v1.2 | (chưa) |

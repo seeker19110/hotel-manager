@@ -61,14 +61,15 @@ Bảng trên là **mã dùng chung**. Mã chỉ một tính năng dùng thì đ�
 | SPEC | Mã riêng |
 |---|---|
 | `SPEC-audit-reporting.md` | `EXPORT_NOT_READY` · `REPORT_RANGE_TOO_LARGE` |
-| `SPEC-import.md` | `CONFLICT_AT_COMMIT` · `DUPLICATE_IN_FILE` · `IMPORT_CONFIRMATION_REQUIRED` · `IMPORT_EXTERNAL_ID_CONFLICT` · `IMPORT_HAS_ERRORS` · `IMPORT_TOTALS_MISMATCH` · `NOT_INTEGER_VND` · `OUT_OF_RANGE` · `REFERENCE_NOT_FOUND` · `TOO_LONG` |
-| `SPEC-inventory-allocation.md` | `EXTENSION_CONFLICT` |
-| `SPEC-lease.md` | `HANDOVER_REQUIRED` · `LEASE_TERMS_IMMUTABLE` · `LEASE_VERSION_OVERLAP` · `SETTLEMENT_REQUIRED` |
-| `SPEC-ledger-payments.md` | `EVIDENCE_REQUIRED` · `HASH_MISMATCH` · `INBOX_HASH_MISMATCH` · `LEDGER_UNBALANCED` · `REFUND_EXCEEDS_BALANCE` · `THIRD_PARTY_PAYER` · `WEBHOOK_SIGNATURE_INVALID` · `WRONG_REFERENCE` |
+| `SPEC-import.md` | `IMPORT_CONFIRMATION_REQUIRED` · `IMPORT_HAS_ERRORS` · `IMPORT_TOTALS_MISMATCH` |
+| `SPEC-lease.md` | `HANDOVER_REQUIRED` · `LEASE_VERSION_OVERLAP` · `SETTLEMENT_REQUIRED` |
+| `SPEC-ledger-payments.md` | `BANK_TRANSACTION_ALREADY_USED` · `EVIDENCE_REQUIRED` · `INBOX_HASH_MISMATCH` · `LEDGER_UNBALANCED` · `REFUND_EXCEEDS_BALANCE` · `SHIFT_ALREADY_OPEN` · `SHIFT_HAS_PENDING_PAYMENTS` · `SHIFT_NOT_OPEN` · `WEBHOOK_SIGNATURE_INVALID` |
 | `SPEC-metering-billing.md` | `BILLING_PREVIEW_STALE` · `PERIOD_ISSUED` · `READINGS_INCOMPLETE` · `UNRESOLVED_ANOMALIES` |
-| `SPEC-notifications.md` | `DELIVERY_NOT_RETRYABLE` · `NO_ADDRESS` · `OPTED_OUT` · `PREFERENCE_REQUIRED` · `PROVIDER_TEMPORARY` · `RECIPIENT_INVALID` · `TEMPLATE_ERROR` |
+| `SPEC-notifications.md` | `DELIVERY_NOT_RETRYABLE` · `PREFERENCE_REQUIRED` |
 | `SPEC-portal.md` | `LINK_REVOKED` |
-| `SPEC-pwa.md` | `CLIENT_OUTDATED` · `COMMAND_NOT_FOUND` · `NETWORK_TIMEOUT` · `RESULT_UNKNOWN` |
+| `SPEC-pwa.md` | `CLIENT_OUTDATED` · `NETWORK_TIMEOUT` · `RESULT_UNKNOWN` |
+
+Lý do break đối soát (`HASH_MISMATCH`, `THIRD_PARTY_PAYER`, `WRONG_REFERENCE`…) và loại ngoại lệ (`LEASE_OVERSTAY`, `STAY_OVERSTAY`, `RELOCATION_REQUIRED`, `EXTENSION_CONFLICT`) là **giá trị dữ liệu**, không phải mã lỗi API; tương tự mã lỗi từng dòng import (`DUPLICATE_IN_FILE`, `NOT_INTEGER_VND`, `OUT_OF_RANGE`, `TOO_LONG`, `REFERENCE_NOT_FOUND`, `IMPORT_EXTERNAL_ID_CONFLICT`, `CONFLICT_AT_COMMIT` — trả trong danh sách lỗi của batch) và lý do gửi thông báo (`NO_ADDRESS`, `OPTED_OUT`, `PROVIDER_TEMPORARY`, `RECIPIENT_INVALID`, `TEMPLATE_ERROR` — lưu ở `notification_deliveries`).
 
 ## 3. Webhook vào (`POST /api/v1/webhooks/{provider}/{account}`)
 - Xác minh chữ ký/HMAC và timestamp theo nhà cung cấp, kiểm tài khoản nhận, ghi `inbox` với khoá unique `(provider, account, provider_event_id)`, rồi trả 2xx ngay. Xử lý thật diễn ra trong worker.
