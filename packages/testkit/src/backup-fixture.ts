@@ -4,13 +4,11 @@
 //   node packages/testkit/src/backup-fixture.ts summary <url>              → JSON số dòng + Σ Nợ/Có + số policy RLS
 // Ghi bằng superuser của cluster tạm (không chịu RLS); không có dữ liệu thật.
 import { randomInt, randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
 import { migrateToLatest } from "@hm/db";
 import { Kysely, PostgresDialect, sql } from "kysely";
 import pg from "pg";
+import { bootstrapRoles } from "./bootstrap.ts";
 import { seedOrg } from "./factory.ts";
-
-const ROLES_SQL = new URL("../../db/sql/bootstrap-roles.sql", import.meta.url);
 
 function open(url: string): Kysely<unknown> {
   return new Kysely<unknown>({
@@ -28,7 +26,7 @@ async function prepare(adminUrl: string, dbName: string): Promise<unknown> {
   if (!/^[a-z_][a-z0-9_]*$/.test(dbName)) throw new Error(`tên DB không hợp lệ: ${dbName}`);
   const admin = open(adminUrl);
   try {
-    await sql.raw(readFileSync(ROLES_SQL, "utf8")).execute(admin);
+    await bootstrapRoles(admin);
     await sql.raw(`CREATE DATABASE ${dbName}`).execute(admin);
   } finally {
     await admin.destroy();

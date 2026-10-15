@@ -1794,6 +1794,13 @@ Better Auth chạy trong `apps/web`, dùng adapter Kysely/`pg` trên **cùng** P
 - `auth.account` — thông tin xác thực gắn với người dùng (mật khẩu băm cho nhà cung cấp `credential`); không bật OAuth/SSO.
 - `auth.verification` — token xác minh ngắn hạn (email, đặt lại mật khẩu).
 - `auth.twoFactor` — bí mật TOTP và mã dự phòng của MFA (bắt buộc cho `owner`/`manager`/`accountant` và mọi membership có quyền xác nhận/hoàn tiền).
+- `auth.rateLimit` — bộ đếm giới hạn tần suất theo IP của Better Auth (`rateLimit.storage = "database"`).
+- `auth.login_throttle` — **bảng của ứng dụng** (không phải Better Auth, migration `0002_auth`): đếm đăng nhập sai theo email và mốc khoá tạm (5 lần → khoá 15 phút, tham số — `packages/app/src/auth/lockout.ts`).
+
+Hàm `SECURITY DEFINER` phạm vi hẹp (thay cho BYPASSRLS/policy rộng; mỗi hàm `REVOKE ALL FROM PUBLIC` rồi chỉ cấp cho role cần):
+`app.list_my_organizations(auth_user_id)` (liệt kê tổ chức của chính người đăng nhập trước khi có ngữ cảnh tổ chức — 0002) ·
+`app.outbox_claim`/`app.outbox_mark` (relay của worker — 0003) · `app.expire_holds` (job — 0004) ·
+`app.receiving_account_owner` (định tuyến webhook ngân hàng — 0005) · `app.actor_role()` (RLS lớp 3 theo vai trò cho giấy tờ — 0006).
 - Có thể thêm một bảng giới hạn tần suất (`rateLimit`) nếu cấu hình lưu rate limit trong DB để khoá tạm sau 5 lần sai (PLAN T-006, access Q-07); xác định ở T-006.
 
 Ràng buộc:

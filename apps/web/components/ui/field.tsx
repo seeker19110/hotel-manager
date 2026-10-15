@@ -2,9 +2,9 @@ import { type InputHTMLAttributes, useId } from "react";
 
 interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "id"> {
   label: string;
-  hint?: string;
+  hint?: string | undefined;
   /** Thông điệp lỗi theo mã (API-CONTRACT) — gắn với ô bằng aria-describedby, đọc ngay bằng role="alert". */
-  error?: string;
+  error?: string | undefined;
 }
 
 export function TextField({ label, hint, error, ...rest }: TextFieldProps) {

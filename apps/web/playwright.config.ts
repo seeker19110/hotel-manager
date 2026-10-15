@@ -1,4 +1,5 @@
-// E2E (SPEC-pwa, PLAN T-013/T-014): build production rồi `next start` — SW chỉ bật ở production.
+// E2E (SPEC-pwa, PLAN T-013/T-014): build production rồi e2e/server.ts (Postgres + seed giả + `next start`) —
+// SW chỉ bật ở production.
 // Chạy: pnpm --filter web exec playwright test <tên>   (pwa | smoke)
 import { existsSync } from "node:fs";
 import { defineConfig, devices } from "@playwright/test";
@@ -24,10 +25,12 @@ export default defineConfig({
   },
   projects: [{ name: "chromium-mobile", use: { ...devices["Pixel 7"] } }],
   webServer: {
-    command: `pnpm build && pnpm exec next start --hostname 127.0.0.1 --port ${PORT}`,
+    command: "pnpm build && node e2e/server.ts",
     url: `${BASE_URL}/api/health`,
     timeout: 300_000,
     reuseExistingServer: false,
-    env: { NEXT_TELEMETRY_DISABLED: "1", APP_BASE_URL: BASE_URL },
+    env: { NEXT_TELEMETRY_DISABLED: "1", E2E_PORT: String(PORT) },
+    // SIGTERM để e2e/server.ts kịp xoá DB/cluster tạm.
+    gracefulShutdown: { signal: "SIGTERM", timeout: 15_000 },
   },
 });
