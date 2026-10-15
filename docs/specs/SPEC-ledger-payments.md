@@ -3,9 +3,9 @@
 | Trường | Giá trị |
 |---|---|
 | ID tính năng | F-005 (luồng gốc: R-001 phần thu và phân bổ; R-002 phần cọc) |
-| Trạng thái | Draft — chờ duyệt |
+| Trạng thái | Approved — câu [chặn] chốt theo PLAN đợt 2 (tham số hoá) |
 | Phiên bản | 2 (2026-10-15) — thay đổi: xem cuối file |
-| Chủ spec | (chưa gán) · Duyệt bởi (chưa) |
+| Chủ spec | (chưa gán) · Duyệt bởi chủ dự án ngày 2026-10-15 (duyệt PLAN đợt 2) |
 | Hồ sơ/quy mô | web-app / M |
 | Nguồn | Kế hoạch gốc §08 (tài chính, đối soát), §12, §13 (ghi tiền và webhook); backlog T033–T040; DOMAIN-MODEL v1.2 §1, §4, §5, §7 (tài khoản, bút toán, INV-F1…F6, INV-F3b, INV-F4b, `bank_transactions`, ca quầy tối thiểu) |
 | Phụ thuộc | SPEC-metering-billing (phát hành phiếu) · SPEC-lease (quyết toán) · SPEC-audit-reporting (xuất) · SPEC-notifications |
@@ -310,16 +310,16 @@ Không áp dụng.
 - `payment.recorded`, `payment.confirmed`, `payment.allocated`, `deposit.refunded`, `reconciliation_break.created/resolved` → M-04; `period.locked`, `period.unlocked`; `credit.refunded`; `shift.opened`, `shift.closed`, `shift.handed_over`, `shift_discrepancy.created/resolved`.
 
 ## 10. Câu hỏi mở (0 câu [chặn] trước khi Approved)
-- [ ] Hạn mức duyệt hoàn/khấu trừ/điều chỉnh theo vai trò — [chặn] — hỏi: PO. **Chỗ duy nhất quyết hạn mức; SPEC khác (lease, access…) tham chiếu mục này.** Hạn mức = trần số tiền một vai trò được **duyệt** mỗi lần (yêu cầu do người khác lập); vượt → `APPROVAL_LIMIT_EXCEEDED`. **Đề xuất (chờ PO):**
+- [x] Hạn mức duyệt hoàn/khấu trừ/điều chỉnh theo vai trò — [chặn] — hỏi: PO. **Chỗ duy nhất quyết hạn mức; SPEC khác (lease, access…) tham chiếu mục này.** Hạn mức = trần số tiền một vai trò được **duyệt** mỗi lần (yêu cầu do người khác lập); vượt → `APPROVAL_LIMIT_EXCEEDED`. **Đề xuất (chờ PO):** — **Quyết 2026-10-15 (PLAN đợt 2, chủ dự án duyệt):** như đề xuất (front_desk ≤ 2.000.000 đ chỉ cọc khách sạn lúc check-out; manager ≤ 5.000.000 đ; owner không giới hạn; accountant chỉ lập đề nghị; cấm tự duyệt). Mặc định theo vai trò ở `organizations.settings.role_limits`, ghi đè ở `memberships.limits` (ERD 7.1 #9).
   - `front_desk`: hoàn/khấu trừ **cọc khách sạn** (và hoàn ứng trước, khớp ma trận access) ≤ 2.000.000 đ/lần, chỉ khi check-out; ngoài phạm vi đó (cọc trọ, điều chỉnh) chỉ lập yêu cầu.
   - `manager`: ≤ 5.000.000 đ/lần.
   - `owner`: không giới hạn.
   - `accountant`: lập đề nghị, **không duyệt**.
   - Mọi vai trò: cấm tự duyệt (`SELF_APPROVAL_FORBIDDEN`). Cơ sở chỉnh số qua `memberships.limits`.
-- [ ] Ma trận SPEC-access-and-property mục 5.3 ghi `front_desk` **HM (≤ 2.000.000 đ/lần, chỉ khi check-out)** cho hoàn/khấu trừ cọc và hoàn ứng trước: trong hạn mức, lễ tân có tự thực hiện không (ca đêm chỉ có 1 lễ tân)? — [chặn] — hỏi: PO. **Đề xuất (đã ghi vào INV-F5, DOMAIN-MODEL 1.2):** hoàn **nguyên số** cọc khách sạn, không khấu trừ, lúc check-out, trong hạn mức → lễ tân làm một bước (khớp SPEC-reservation-stay S-027a; ca đêm một người vẫn trả phòng được). Khấu trừ cọc, hoàn ứng trước và hoàn vượt hạn mức → luôn cần người thứ hai (S-033).
-- [ ] Chứng cứ cho **tiền mặt** theo INV-F3 (INV-F3b) — [chặn] — hỏi: PO + kế toán. **Đề xuất (chờ PO):** mọi tiền mặt, kể cả cọc, đi qua `payments` `pending → confirmed`; lễ tân xác nhận tiền mặt do chính mình nhận trong ca đang mở, biên nhận do hệ thống sinh (ảnh chữ ký tuỳ chọn); chênh lệch xử lý ở đóng ca (mục "Ca quầy tối thiểu").
-- [ ] Quy tắc hoàn `CUSTOMER_CREDIT` (ứng trước, trả thừa) — [chặn pilot] — hỏi: PO + kế toán. Bút toán đã có ở DOMAIN-MODEL v1.2 §5; còn hỏi: có buộc bù trừ vào phiếu còn nợ của người đó trước khi hoàn không; hoàn tiền mặt hay chuyển khoản; thời hạn giữ số dư. **Đề xuất:** không buộc bù trừ nếu khách không còn nợ; hoàn qua `credit.requestRefund`/`credit.approveRefund` cùng hạn mức ở trên.
-- [ ] Làm tròn (1 đ/1.000 đ, dòng/tổng) — [chặn] — hỏi: PO + kế toán. **Đề xuất:** theo SPEC-metering-billing mục 10 (`HALF_UP_1` từng dòng).
+- [x] Ma trận SPEC-access-and-property mục 5.3 ghi `front_desk` **HM (≤ 2.000.000 đ/lần, chỉ khi check-out)** cho hoàn/khấu trừ cọc và hoàn ứng trước: trong hạn mức, lễ tân có tự thực hiện không (ca đêm chỉ có 1 lễ tân)? — [chặn] — hỏi: PO. **Đề xuất (đã ghi vào INV-F5, DOMAIN-MODEL 1.2):** hoàn **nguyên số** cọc khách sạn, không khấu trừ, lúc check-out, trong hạn mức → lễ tân làm một bước (khớp SPEC-reservation-stay S-027a; ca đêm một người vẫn trả phòng được). Khấu trừ cọc, hoàn ứng trước và hoàn vượt hạn mức → luôn cần người thứ hai (S-033). — **Quyết 2026-10-15 (PLAN đợt 2, chủ dự án duyệt):** như đề xuất: hoàn nguyên số cọc khách sạn lúc check-out trong hạn mức → lễ tân một bước; khấu trừ, hoàn ứng trước, vượt hạn mức → luôn cần người thứ hai.
+- [x] Chứng cứ cho **tiền mặt** theo INV-F3 (INV-F3b) — [chặn] — hỏi: PO + kế toán. **Đề xuất (chờ PO):** mọi tiền mặt, kể cả cọc, đi qua `payments` `pending → confirmed`; lễ tân xác nhận tiền mặt do chính mình nhận trong ca đang mở, biên nhận do hệ thống sinh (ảnh chữ ký tuỳ chọn); chênh lệch xử lý ở đóng ca (mục "Ca quầy tối thiểu"). — **Quyết 2026-10-15 (PLAN đợt 2, chủ dự án duyệt):** như đề xuất (mọi tiền mặt qua `payments` `pending → confirmed`, người nhận xác nhận trong ca mở của mình, biên nhận hệ thống sinh, chênh lệch xử lý khi đóng ca).
+- [x] Quy tắc hoàn `CUSTOMER_CREDIT` (ứng trước, trả thừa) — [chặn pilot] — hỏi: PO + kế toán. Bút toán đã có ở DOMAIN-MODEL v1.2 §5; còn hỏi: có buộc bù trừ vào phiếu còn nợ của người đó trước khi hoàn không; hoàn tiền mặt hay chuyển khoản; thời hạn giữ số dư. **Đề xuất:** không buộc bù trừ nếu khách không còn nợ; hoàn qua `credit.requestRefund`/`credit.approveRefund` cùng hạn mức ở trên. — **Quyết 2026-10-15 (PLAN đợt 2, chủ dự án duyệt):** không buộc bù trừ khi không còn nợ; còn nợ thì UI gợi ý bù trừ trước; hoàn qua `credit.requestRefund`/`credit.approveRefund` cùng hạn mức; hoàn tiền mặt hoặc chuyển khoản theo lựa chọn khi duyệt; chưa đặt thời hạn giữ số dư (xem lại sau pilot).
+- [x] Làm tròn (1 đ/1.000 đ, dòng/tổng) — [chặn] — hỏi: PO + kế toán. **Đề xuất:** theo SPEC-metering-billing mục 10 (`HALF_UP_1` từng dòng). — **Quyết 2026-10-15 (PLAN đợt 2, chủ dự án duyệt):** theo SPEC-metering-billing mục 10 (`HALF_UP_1` từng dòng, tham số theo cơ sở).
 - [ ] Ghi nhận doanh thu — [không chặn pilot] — hỏi: kế toán. **Đề xuất:** khi phát hành phiếu.
 - [ ] Webhook: tự phân bổ khi mã tham chiếu khớp và số tiền ≤ số còn — [không chặn] — hỏi: PO. **Đề xuất:** có; phần thừa vào `CUSTOMER_CREDIT`; không khớp → hàng chờ.
 - [ ] Định dạng CSV sao kê của các ngân hàng pilot — [không chặn] — hỏi: đại diện pilot. **Đề xuất:** ánh xạ cột cấu hình theo tài khoản nhận.

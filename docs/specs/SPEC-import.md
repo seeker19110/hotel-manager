@@ -3,9 +3,9 @@
 | Trường | Giá trị |
 |---|---|
 | ID tính năng | F-010 (luồng gốc: R-005 Chuyển dữ liệu) |
-| Trạng thái | Draft — chờ duyệt |
+| Trạng thái | Approved — câu [chặn] chốt theo PLAN đợt 2 (tham số hoá) |
 | Phiên bản | 2 (2026-10-15) — thay đổi: xem cuối file |
-| Chủ spec | (chưa gán) · Duyệt bởi (chưa) |
+| Chủ spec | (chưa gán) · Duyệt bởi chủ dự án ngày 2026-10-15 (duyệt PLAN đợt 2) |
 | Hồ sơ/quy mô | web-app / M |
 | Nguồn | Kế hoạch gốc §18 (chuyển từ sổ/Excel, bảng kiểm tra), §12, §15; backlog T023; DOMAIN-MODEL v1.2 §5, §7 |
 | Phụ thuộc | SPEC-access-and-property (phòng) · SPEC-inventory-allocation (INV-I1) · SPEC-lease · SPEC-metering-billing · SPEC-ledger-payments (số dư đầu kỳ, cọc) · SPEC-reservation-stay (booking tương lai) |

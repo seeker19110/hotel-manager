@@ -3,9 +3,9 @@
 | Trường | Giá trị |
 |---|---|
 | ID tính năng | F-004 (luồng gốc: R-001 Kỳ thu trọ) |
-| Trạng thái | Draft — chờ duyệt |
+| Trạng thái | Approved — câu [chặn] chốt theo PLAN đợt 2 (tham số hoá) |
 | Phiên bản | 2 (2026-10-15) — thay đổi: xem cuối file |
-| Chủ spec | (chưa gán) · Duyệt bởi (chưa) |
+| Chủ spec | (chưa gán) · Duyệt bởi chủ dự án ngày 2026-10-15 (duyệt PLAN đợt 2) |
 | Hồ sơ/quy mô | web-app / M |
 | Nguồn | Kế hoạch gốc §05 (kỳ thu, tình huống bắt buộc), §08 (snapshot, làm tròn), §12; backlog T028–T030, T074; DOMAIN-MODEL v1.2 §4, §7; nghiên cứu pháp lý `docs/research/2026-10-15-stack-va-phap-ly.md` (giá điện cho người thuê) |
 | Phụ thuộc | SPEC-lease (phiên bản giá, người ở, chỉ số bàn giao) · SPEC-ledger-payments (bút toán, `period_locks`) |
@@ -227,9 +227,9 @@ Không áp dụng (OCR công tơ có người duyệt nằm ngoài pilot).
 - `billing_period.created` → `billing_period.issued` (M-01); `meter_reading.recorded`, `meter_reading.anomaly_flagged`, `invoice.issued`, `billing_period.locked`, `billing_period.reopened`.
 
 ## 10. Câu hỏi mở (0 câu [chặn] trước khi Approved)
-- [ ] Quy tắc prorata kỳ đầu/cuối lẻ — [chặn] — hỏi: PO. **Đề xuất:** `giá × số ngày tính tiền / số ngày thực của tháng` (28/29/30/31); trọn tháng luôn = giá tháng; ngày bắt đầu và ngày kết thúc đều tính. Phương án khác: chia cố định 30.
-- [ ] Làm tròn: đến 1 đ hay 1.000 đ; từng dòng hay tổng — [chặn] — hỏi: PO + kế toán. **Đề xuất:** `HALF_UP_1` (nửa lên, đến 1 đ) **từng dòng**; tổng phiếu = Σ dòng, không làm tròn lại tổng. Nếu cơ sở muốn tròn 1.000 đ thì thêm quy tắc `HALF_UP_1000` theo cơ sở, lưu ở mỗi chứng từ.
-- [ ] Kỳ thu theo tháng dương lịch hay theo ngày bắt đầu hợp đồng; tiền thuê thu trước hay sau; điện nước của tháng nào — [chặn] — hỏi: PO (quan sát tuần 1–2). **Đề xuất:** kỳ = tháng dương lịch của cơ sở; tiền thuê và điện nước cùng tháng, thu sau (phát hành cuối kỳ); cấu hình `rent_timing` để mở rộng.
+- [x] Quy tắc prorata kỳ đầu/cuối lẻ — [chặn] — hỏi: PO. **Đề xuất:** `giá × số ngày tính tiền / số ngày thực của tháng` (28/29/30/31); trọn tháng luôn = giá tháng; ngày bắt đầu và ngày kết thúc đều tính. Phương án khác: chia cố định 30. — **Quyết 2026-10-15 (PLAN đợt 2, chủ dự án duyệt):** `actual_days` (giá × ngày tính / ngày thực của tháng, tính cả ngày đầu và cuối; trọn tháng = giá tháng); tham số `properties.settings.prorata` = `actual_days` | `fixed_30`, lưu ở mỗi chứng từ (INV-G3).
+- [x] Làm tròn: đến 1 đ hay 1.000 đ; từng dòng hay tổng — [chặn] — hỏi: PO + kế toán. **Đề xuất:** `HALF_UP_1` (nửa lên, đến 1 đ) **từng dòng**; tổng phiếu = Σ dòng, không làm tròn lại tổng. Nếu cơ sở muốn tròn 1.000 đ thì thêm quy tắc `HALF_UP_1000` theo cơ sở, lưu ở mỗi chứng từ. — **Quyết 2026-10-15 (PLAN đợt 2, chủ dự án duyệt):** `HALF_UP_1` từng dòng, tổng = Σ dòng; tham số `properties.settings.rounding` = `HALF_UP_1` | `HALF_UP_1000`, lưu ở mỗi chứng từ.
+- [x] Kỳ thu theo tháng dương lịch hay theo ngày bắt đầu hợp đồng; tiền thuê thu trước hay sau; điện nước của tháng nào — [chặn] — hỏi: PO (quan sát tuần 1–2). **Đề xuất:** kỳ = tháng dương lịch của cơ sở; tiền thuê và điện nước cùng tháng, thu sau (phát hành cuối kỳ); cấu hình `rent_timing` để mở rộng. — **Quyết 2026-10-15 (PLAN đợt 2, chủ dự án duyệt):** tháng dương lịch của cơ sở; tiền thuê và điện nước cùng tháng, phát hành cuối kỳ; tham số `rent_timing` = `arrears` (mặc định) | `advance`.
 - [ ] Ghi nhận doanh thu khi phát hành hay khi kỳ kết thúc — [không chặn pilot, chặn báo cáo doanh thu] — hỏi: kế toán. **Đề xuất:** khi phát hành (đúng bảng bút toán DOMAIN-MODEL §5).
 - [ ] Ngưỡng bất thường công tơ — [không chặn] — hỏi: PO. **Đề xuất:** cảnh báo khi lượng > 2 × trung bình 3 kỳ trước, hoặc = 0 khi phòng có người ở; cơ sở chỉnh hệ số.
 - [ ] Biểu giá điện bậc thang — [không chặn] — hỏi: PO + pháp lý. **Đề xuất:** pilot chỉ đơn giá phẳng do cơ sở nhập + ô căn cứ; bậc thang để V1.

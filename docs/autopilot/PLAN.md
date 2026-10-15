@@ -1,6 +1,6 @@
 # docs/autopilot/PLAN.md — Hotel Manager · Đợt 2: nhà trọ (hợp đồng, công tơ/kỳ thu, thu tiền/cọc, import)
 
-> **Trạng thái: CHỜ DUYỆT** (cổng duyệt duy nhất của đợt 2). Đợt 1 đã xong và merge (PR #4, `main` `07ba2a8`); kế hoạch đợt 1 lưu ở `archive/PLAN-dot-1.md`.
+> **Duyệt bởi chủ dự án ngày 2026-10-15** (gọi `/autopilot` sau cổng duyệt đợt 2; trước đó đã giao quyền quyết "chất lượng cao nhất"): chấp nhận 18 task, bảng mặc định cho câu hỏi [chặn], ngân sách 90 vòng · ≤ 220 USD · 1800 s · 72 giờ. Đợt 1 đã xong và merge (PR #4, `main` `07ba2a8`); kế hoạch đợt 1 lưu ở `archive/PLAN-dot-1.md`.
 > Kiến trúc: ADR-0001 + ADR-0002. Spec: `SPEC-lease` (F-003), `SPEC-metering-billing` (F-004), `SPEC-ledger-payments` (F-005), `SPEC-import` (F-010), phần access/MFA còn chặn pilot. Thuật ngữ và tên bảng: DOMAIN-MODEL v1.3 + ERD.
 > Lõi dùng lại của đợt 1: command pipeline (idempotency, audit, outbox, `onRollback`), RLS + phạm vi cơ sở, allocation/hold, sổ phụ cân bằng, inbox ngân hàng, file riêng tư, PWA shell, E2E server.
 
@@ -66,7 +66,7 @@ Tương ứng mốc "Tuần 5–8" của kế hoạch gốc (mảng trọ). Khá
 > Gate là lệnh máy kiểm, chạy bằng `python3 .xtemplates/scripts/xt.py loop record --task T-xxx -- <Gate>`. Mọi bất biến tiền/tồn có test trên Postgres thật (`*.db.test.ts`). Ví dụ số tiền bắt buộc của SPEC phải có test khớp từng đồng.
 
 ### Lát 0 — Chốt quyết định và nền dùng chung
-- [ ] `T-101` Ghi các quyết định ở bảng trên vào SPEC (mục 10: tick kèm "quyết theo PLAN đợt 2, ngày, tham số"), DOMAIN-MODEL/ERD (7.1 #1, #9; 7.3 #1, #5); thêm `scripts/check-blocking-questions.py` (exit ≠ 0 nếu SPEC được nêu còn câu `[chặn]` chưa tick) + test — Gate: `python3 scripts/check-blocking-questions.py lease metering-billing ledger-payments import && python3 -m unittest discover -s scripts -p "test_*.py"`
+- [x] `T-101` Ghi các quyết định ở bảng trên vào SPEC (mục 10: tick kèm "quyết theo PLAN đợt 2, ngày, tham số"), DOMAIN-MODEL/ERD (7.1 #1, #9; 7.3 #1, #5); thêm `scripts/check-blocking-questions.py` (exit ≠ 0 nếu SPEC được nêu còn câu `[chặn]` chưa tick) + test — Gate: `python3 scripts/check-blocking-questions.py lease metering-billing ledger-payments import && python3 -m unittest discover -s scripts -p "test_*.py"`
 - [ ] `T-102` Duyệt và hạn mức: bảng `approval_requests` (`kind`, số tiền, người lập/duyệt, trạng thái), `organizations.settings.role_limits` + ghi đè `memberships.limits`; `approval.request/approve/reject` dùng `authorize()` (`APPROVAL_LIMIT_EXCEEDED`, `SELF_APPROVAL_FORBIDDEN`), thực thi đúng một lần sau duyệt (ledger S-014, S-033; access S-017) — Gate: `pnpm test:db -- approvals`
 - [ ] `T-103` API command thống nhất: `POST /api/v1/<module>/<command>` (Zod, `Idempotency-Key`, ngữ cảnh tổ chức, problem+json, `correlation_id`), `GET /api/v1/commands/{id}` (SPEC-pwa S-010…S-012, S-019); danh mục mã lỗi `packages/app/src/errors.ts` + test khớp bảng API-CONTRACT §2 — Gate: `pnpm vitest run packages/app/src/http apps/web/app/api`
 
