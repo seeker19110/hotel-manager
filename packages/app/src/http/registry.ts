@@ -22,6 +22,7 @@ import {
   submitForSignature,
   updateDraft,
 } from "../lease/lease.ts";
+import { approveSettlement, closeLease, giveNotice, prepareSettlement } from "../lease/settlement.ts";
 import { financialSummary, issueAdjustment, lockPeriod, unlockPeriod } from "../ledger/period-close.ts";
 import { allocatePayment, confirmPayment, recordPayment, reversePayment } from "../payments/payments.ts";
 import {
@@ -595,6 +596,85 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
       data: await renewLease(ctx, { leaseId: i.lease_id, terms: toTerms(i.terms) }),
       httpStatus: 201,
     }),
+  }),
+  "lease.giveNotice": defineCommand({
+    command: "lease.giveNotice",
+    input: z.strictObject({ lease_id: uuid, planned_move_out_on: isoDate }),
+    run: async (ctx, i) => ({
+      data: await giveNotice(ctx, { leaseId: i.lease_id, plannedMoveOutOn: i.planned_move_out_on }),
+    }),
+  }),
+  "lease.prepareSettlement": defineCommand({
+    command: "lease.prepareSettlement",
+    input: z.strictObject({
+      lease_id: uuid,
+      fees: z
+        .array(
+          z.strictObject({
+            amount: positiveMoney,
+            reason: z.string().max(500),
+            file_ids: z.array(uuid).max(20).optional(),
+          }),
+        )
+        .max(20),
+      deductions: z
+        .array(
+          z.strictObject({
+            invoice_id: uuid.nullable().optional(),
+            amount: positiveMoney,
+            reason: z.string().max(500),
+          }),
+        )
+        .max(50)
+        .optional(),
+    }),
+    run: async (ctx, i) => ({
+      data: await prepareSettlement(ctx, {
+        leaseId: i.lease_id,
+        fees: i.fees.map((f) => ({
+          amount: f.amount,
+          reason: f.reason,
+          ...(f.file_ids ? { fileIds: f.file_ids } : {}),
+        })),
+        ...(i.deductions
+          ? {
+              deductions: i.deductions.map((d) => ({
+                invoiceId: d.invoice_id ?? null,
+                amount: d.amount,
+                reason: d.reason,
+              })),
+            }
+          : {}),
+      }),
+    }),
+  }),
+  "lease.approveSettlement": defineCommand({
+    command: "lease.approveSettlement",
+    input: z.strictObject({
+      settlement_id: uuid,
+      refund_method: z.enum(["cash", "bank_transfer"]).optional(),
+      receiving_account_id: uuid.optional(),
+    }),
+    run: async (ctx, i) => ({
+      data: await approveSettlement(ctx, {
+        settlementId: i.settlement_id,
+        ...(i.refund_method === "cash"
+          ? { refund: { method: "cash" as const } }
+          : i.refund_method === "bank_transfer"
+            ? {
+                refund: {
+                  method: "bank_transfer" as const,
+                  receivingAccountId: i.receiving_account_id ?? "",
+                },
+              }
+            : {}),
+      }),
+    }),
+  }),
+  "lease.close": defineCommand({
+    command: "lease.close",
+    input: z.strictObject({ lease_id: uuid }),
+    run: async (ctx, i) => ({ data: await closeLease(ctx, { leaseId: i.lease_id }) }),
   }),
 };
 

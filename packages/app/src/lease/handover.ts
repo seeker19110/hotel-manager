@@ -167,6 +167,11 @@ export async function recordHandover(
     }
     throw e;
   }
+  if (input.kind === "move_out") {
+    // Trả phòng: hợp đồng sang `settling`, ghi ngày thực trả (mốc thứ tư, S-017); allocation kết thúc khi đóng hợp đồng.
+    await sql`update leases set status = 'settling', moved_out_on = ${input.handedOverOn}::date, version = version + 1
+              where organization_id = ${ctx.actor.orgId} and id = ${lease.id}`.execute(ctx.trx);
+  }
   const readingIds: string[] = [];
   for (const m of meters.rows) {
     const id = randomUUID();
