@@ -2,12 +2,23 @@
 // role → migrate → seed giả → `next start`. Dừng (SIGTERM) thì xoá DB/cluster tạm. Chạy bằng `node` (bỏ kiểu TS).
 import { spawn } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
+import { writeFileSync } from "node:fs";
 import { createAuth } from "@hm/app";
 import { migrateToLatest } from "@hm/db";
 import { bootstrapRoles, type PgCluster, pgUrl, seedOrg, startPgCluster } from "@hm/testkit/setup";
 import { Kysely, PostgresDialect, sql } from "kysely";
 import pg from "pg";
-import { MAIN_ROOMS, ORG_MAIN, ORG_OTHER, OTHER_ROOMS, SMOKE_USER } from "./fixtures.ts";
+import {
+  MAIN_ROOMS,
+  ORG_MAIN,
+  ORG_OTHER,
+  ORG_RENTAL,
+  OTHER_ROOMS,
+  RENTAL_OWNER,
+  RENTAL_TENANT,
+  SMOKE_USER,
+} from "./fixtures.ts";
+import { totp, totpFile } from "./totp.ts";
 
 const PORT = Number(process.env.E2E_PORT ?? 3100);
 const BASE_URL = `http://127.0.0.1:${PORT}`;
@@ -42,6 +53,81 @@ async function addStaff(db: Kysely<unknown>, orgId: string, authUserId: string, 
             values (${randomUUID()}, ${orgId}, ${membership}, ${propertyId})`.execute(db);
 }
 
+/** Ngày đầu tháng hiện tại theo giờ Việt Nam (hợp đồng bắt đầu tính tiền trọn tháng). */
+function firstOfMonthVn(): string {
+  return `${new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 7)}-01`;
+}
+
+/** Chủ trọ bật TOTP thật qua Better Auth; một hợp đồng chờ ký; dịch vụ + giá + công tơ (dữ liệu giả). */
+async function seedRental(db: Kysely<unknown>, auth: ReturnType<typeof createAuth>["auth"]): Promise<void> {
+  const { user } = await auth.api.signUpEmail({ body: RENTAL_OWNER });
+  const login = await auth.api.signInEmail({
+    body: { email: RENTAL_OWNER.email, password: RENTAL_OWNER.password },
+    returnHeaders: true,
+  });
+  const cookie = login.headers
+    .getSetCookie()
+    .map((c) => c.split(";")[0])
+    .join("; ");
+  const enabled = await auth.api.enableTwoFactor({
+    body: { password: RENTAL_OWNER.password },
+    headers: new Headers({ cookie }),
+  });
+  if (!("totpURI" in enabled)) throw new Error("cần TOTP");
+  const secretB32 = new URL(enabled.totpURI).searchParams.get("secret") ?? "";
+  await auth.api.verifyTOTP({ body: { code: totp(secretB32) }, headers: new Headers({ cookie }) });
+  writeFileSync(totpFile(PORT), JSON.stringify({ secret: secretB32 }), { mode: 0o600 });
+
+  const org = await seedOrg(db, ORG_RENTAL, "rental", user.id);
+  const start = firstOfMonthVn();
+  const svc: Record<string, string> = {};
+  for (const [code, name, kind, account, meter, price] of [
+    ["DIEN", "Điện", "metered", "REV_UTIL", "electric", 3000],
+    ["NUOC", "Nước", "metered", "REV_UTIL", "water", 15000],
+    ["PHI", "Phí khác", "fixed_per_unit", "REV_FEE", null, 100000],
+  ] as const) {
+    const id = randomUUID();
+    svc[code] = id;
+    await sql`insert into services (id, organization_id, property_id, code, name, kind, revenue_account, meter_kind)
+              values (${id}, ${org.orgId}, ${org.propertyId}, ${code}, ${name}, ${kind}, ${account}, ${meter})`.execute(
+      db,
+    );
+    await sql`insert into service_prices (id, organization_id, property_id, service_id, unit_price, effective_from)
+              values (${randomUUID()}, ${org.orgId}, ${org.propertyId}, ${id}, ${price}, '2026-01-01')`.execute(
+      db,
+    );
+  }
+  for (const [kind, initial] of [
+    ["electric", 1250],
+    ["water", 30],
+  ] as const) {
+    await sql`insert into meters (id, organization_id, property_id, unit_id, kind, installed_on, initial_value)
+              values (${randomUUID()}, ${org.orgId}, ${org.propertyId}, ${org.unitId}, ${kind}, '2026-01-01', ${initial})`.execute(
+      db,
+    );
+  }
+  const tenant = randomUUID();
+  await sql`insert into persons (id, organization_id, full_name, phone)
+            values (${tenant}, ${org.orgId}, ${RENTAL_TENANT}, '0900000001')`.execute(db);
+  const lease = randomUUID();
+  const services = JSON.stringify(Object.values(svc).map((service_id) => ({ service_id, quantity: 1 })));
+  await db.transaction().execute(async (trx) => {
+    await sql`insert into leases (id, organization_id, property_id, unit_id, number, billing_start_on, representative_person_id)
+              values (${lease}, ${org.orgId}, ${org.propertyId}, ${org.unitId}, 'HD-000001', ${start}::date, ${tenant})`.execute(
+      trx,
+    );
+    await sql`insert into lease_versions (id, organization_id, property_id, lease_id, version_no, kind, effective_from, rent_amount,
+                                          deposit_amount, services)
+              values (${randomUUID()}, ${org.orgId}, ${org.propertyId}, ${lease}, 1, 'original', ${start}::date, 3000000, 3000000,
+                      ${services}::jsonb)`.execute(trx);
+    await sql`insert into lease_occupants (id, organization_id, property_id, lease_id, person_id, role, is_representative, from_on)
+              values (${randomUUID()}, ${org.orgId}, ${org.propertyId}, ${lease}, ${tenant}, 'primary', true, ${start}::date)`.execute(
+      trx,
+    );
+    await sql`update leases set status = 'pending_signature' where id = ${lease}`.execute(trx);
+  });
+}
+
 async function seed(adminUrl: string, runtimeUrl: string, secret: string): Promise<void> {
   const db = kysely(adminUrl);
   const { auth, close } = createAuth({
@@ -70,6 +156,7 @@ async function seed(adminUrl: string, runtimeUrl: string, secret: string): Promi
     await addStaff(db, main.orgId, user.id, main.propertyId);
     const other = await seedOrg(db, ORG_OTHER, "rental");
     await addStaff(db, other.orgId, user.id, other.propertyId);
+    await seedRental(db, auth);
   } finally {
     await close();
     await db.destroy();

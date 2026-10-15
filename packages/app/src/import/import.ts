@@ -322,7 +322,10 @@ const MESSAGES: Record<string, string> = {
 
 class RowCtx {
   errors: RowError[] = [];
-  constructor(readonly raw: RawRow) {}
+  readonly raw: RawRow;
+  constructor(raw: RawRow) {
+    this.raw = raw;
+  }
   take<T>(column: string, p: Parsed<T>): T | undefined {
     if (p.ok) return p.value;
     this.errors.push({ column, code: p.code, message: MESSAGES[p.code] ?? p.code });

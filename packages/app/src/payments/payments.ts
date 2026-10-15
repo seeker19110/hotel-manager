@@ -601,3 +601,33 @@ export async function customerCredit(
       ${propertyId ? sql`and property_id = ${propertyId}` : sql``}`.execute(trx);
   return Number(r.rows[0]?.b ?? 0);
 }
+
+/**
+ * `payment.collectCash` (PLAN đợt 2 T-117 — thao tác quầy): thu tiền mặt cho MỘT phiếu = `payment.record` (tiền mặt, ca đang
+ * mở) → `payment.confirm` (số phiếu thu) → `payment.allocate` trong một transaction, qua đúng ba hàm trên nên mọi kiểm tra
+ * (quyền từng bước, ca mở, hạn mức phân bổ, không vượt số còn phải thu) giữ nguyên; lỗi ở bước nào ⇒ không ghi gì.
+ */
+export async function collectCash(
+  ctx: CommandContext,
+  input: { invoiceId: string; amount: number },
+): Promise<{ paymentId: string; receiptNo: string | null; unallocated: number }> {
+  if (!UUID.test(input.invoiceId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phiếu");
+  const r = await sql<{ property_id: string; payer_person_id: string }>`
+    select property_id, payer_person_id from invoices where organization_id = ${ctx.actor.orgId} and id = ${input.invoiceId}`.execute(
+    ctx.trx,
+  );
+  const inv = r.rows[0];
+  if (!inv) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phiếu");
+  const { paymentId } = await recordPayment(ctx, {
+    propertyId: inv.property_id,
+    method: "cash",
+    amount: input.amount,
+    payerPersonId: inv.payer_person_id,
+  });
+  const c = await confirmPayment(ctx, { paymentId });
+  const a = await allocatePayment(ctx, {
+    paymentId,
+    allocations: [{ invoiceId: input.invoiceId, amount: input.amount }],
+  });
+  return { paymentId, receiptNo: c.receiptNo, unallocated: a.unallocated };
+}

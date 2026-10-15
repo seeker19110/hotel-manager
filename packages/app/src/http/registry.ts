@@ -52,7 +52,13 @@ import {
   replaceMeter,
   setServicePrice,
 } from "../metering/meters.ts";
-import { allocatePayment, confirmPayment, recordPayment, reversePayment } from "../payments/payments.ts";
+import {
+  allocatePayment,
+  collectCash,
+  confirmPayment,
+  recordPayment,
+  reversePayment,
+} from "../payments/payments.ts";
 import {
   confirmMatch,
   getTransferInfo,
@@ -276,6 +282,14 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
         paymentId: i.payment_id,
         allocations: i.allocations.map((a) => ({ invoiceId: a.invoice_id, amount: a.amount })),
       }),
+    }),
+  }),
+  "payment.collectCash": defineCommand({
+    command: "payment.collectCash",
+    input: z.strictObject({ invoice_id: uuid, amount: positiveMoney }),
+    run: async (ctx, i) => ({
+      data: await collectCash(ctx, { invoiceId: i.invoice_id, amount: i.amount }),
+      httpStatus: 201,
     }),
   }),
   "payment.reverse": defineCommand({

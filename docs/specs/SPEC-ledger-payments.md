@@ -252,6 +252,7 @@ Pilot cần kiểm soát tiền mặt theo ca nhưng chưa cần ca quầy đầ
 | `payment.record` | phương thức, số tiền, tài khoản nhận, người trả, chứng cứ?, dòng sao kê (`bank_txn_ref`) nếu chuyển khoản | `payment_id` (`pending`); tiền mặt: biên nhận hệ thống sinh, gắn ca đang mở | `VALIDATION_FAILED`, `PERIOD_LOCKED`, `SHIFT_NOT_OPEN`, `BANK_TRANSACTION_ALREADY_USED` |
 | `payment.confirm` | `payment_id`, `evidence` (tiền mặt: biên nhận hệ thống) | `confirmed`, `journal_entry_id` | `EVIDENCE_REQUIRED`, `INVALID_TRANSITION`, `FORBIDDEN`, `SHIFT_NOT_OPEN` |
 | `payment.allocate` | `payment_id`, `[{invoice_id, amount}]` | phân bổ, số còn của từng phiếu | `OVER_ALLOCATION`, `VALIDATION_FAILED` |
+| `payment.collectCash` (thao tác quầy, PLAN đợt 2 T-117) | `invoice_id`, `amount` | `payment_id`, `receipt_no`, `unallocated` — gộp `payment.record` (tiền mặt, ca mở) + `payment.confirm` + `payment.allocate` một phiếu trong một transaction, đi qua đúng ba hàm trên | như ba lệnh thành phần |
 | `payment.reverse` | `payment_id`, lý do | `reversed`, bút toán đảo | `INVALID_TRANSITION`, `FORBIDDEN`, `PERIOD_LOCKED` |
 | `payment.getTransferInfo` | `invoice_id` | tài khoản, số tiền còn, nội dung CK, QR | `NOT_FOUND` |
 | `deposit.receive` | `lease_id`/`reservation_id`, số tiền, phương thức, chứng cứ | `deposit_id`, `payment_id` (`pending`; tiền mặt đi qua `payments`, INV-F3b) | `EVIDENCE_REQUIRED`, `SHIFT_NOT_OPEN` |
