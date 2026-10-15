@@ -3,7 +3,7 @@
 > Giai đoạn hiện tại: G8 Vận hành & tiến hoá (khung v2 đã phát hành) · Cập nhật: 2026-10-15 · Nhánh: claude/serene-ride-3jvrfp
 
 ## Đang làm
-- Audit delta sau #43 (`0d1b62c`, ADR-0007): 8 nhóm quét, 1 🔴 · 3 🟠 · 3 🟢 (`docs/ops/AUDIT-REPORT-2026-10-15.md` §10). Đợt 1 (duyệt 2026-10-15) sửa ở #1: 🔴 AUD-HAR-021 (hook lệch tên sau nâng cấp → guard fail-open; `_lib.sh` giữ bí danh + `_compat.sh`) và AUD-HAR-022 (`xs_py`, cảnh báo "HOOK còn tên cũ"). Đợt 2 (AUD-DOC-023/024 trích dòng blueprint, AUD-SEC-015 `.gitleaksignore`) cũng ở #1. Còn 🟢 AUD-HAR-023/024 (đợt 3) + AUD-HAR-025 mới (`audit plan` bỏ sót khi file trích và dòng bằng chứng đổi cùng commit).
+- Audit delta sau #43 (`0d1b62c`, ADR-0007): 8 nhóm quét, 1 🔴 · 3 🟠 · 3 🟢 (`docs/ops/AUDIT-REPORT-2026-10-15.md` §10). Đợt 1 (duyệt 2026-10-15) sửa ở #1: 🔴 AUD-HAR-021 (hook lệch tên sau nâng cấp → guard fail-open; `_lib.sh` giữ bí danh + `_compat.sh`) và AUD-HAR-022 (`xs_py`, cảnh báo "HOOK còn tên cũ"). Đợt 2 (AUD-DOC-023/024 trích dòng blueprint, AUD-SEC-015 `.gitleaksignore`) ở #2. Còn 🟢 AUD-HAR-023/024 (đợt 3) + AUD-HAR-025 mới (`audit plan` bỏ sót khi file trích và dòng bằng chứng đổi cùng commit).
 
 ## Tiếp theo
 1. Cần người chọn: một dự án sản phẩm thật (web/api, quy mô M) để thử khung, đo mục MUST hay bị miễn trừ.

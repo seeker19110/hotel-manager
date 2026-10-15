@@ -226,7 +226,7 @@ Kết quả đợt 1 (duyệt 2026-10-15, #1): AUD-HAR-021 + AUD-HAR-022 đã s�
 Giới hạn còn lại (ghi CHANGELOG): hook ≤ 2.x người dùng đã sửa vẫn tìm `.xstored/scripts/dev-task.sh` nên cổng commit của
 hook đó không chạy tới khi gộp tay bản `.xtemplates-new` — install giờ cảnh báo riêng thay vì lẫn trong danh sách tên cũ.
 
-Kết quả đợt 2 (#1): AUD-DOC-023, AUD-DOC-024, AUD-SEC-015 đã sửa.
+Kết quả đợt 2 (#2 — #1 merge trước khi kịp đẩy commit): AUD-DOC-023, AUD-DOC-024, AUD-SEC-015 đã sửa.
 
 | Lệnh | Exit | Kết quả |
 |---|---|---|
