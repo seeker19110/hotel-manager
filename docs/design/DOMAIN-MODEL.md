@@ -1,6 +1,6 @@
 # DOMAIN-MODEL — từ điển, thực thể, trạng thái và bất biến (G4)
 
-> Phiên bản 1.2 · 2026-10-15 (sửa sau review độc lập: R3–R6, O3, O9, O21, G3, G4, G6) · Trạng thái: Draft, chờ duyệt.
+> Phiên bản 1.3 · 2026-10-15 (1.2: sửa sau review độc lập; 1.3: thêm `receiving_accounts` — tài khoản nhận tiền của cơ sở, khoá của INV-F4b) · Trạng thái: Draft, chờ duyệt.
 > Nguồn: kế hoạch gốc §05–§08, §12–§13.
 > Mọi SPEC dùng **đúng tên** ở đây; đổi tên phải sửa file này trước. Schema SQL chi tiết viết ở T-003 trở đi, theo đúng tài liệu này.
 
@@ -142,7 +142,7 @@ Các bảng dưới đây xuất hiện khi viết SPEC. Tên ở đây là chu�
 | Vận hành | `tasks`, `work_orders`, `files`, `identity_documents`, `residence_notices` (xuất mẫu + đánh dấu đã thông báo lưu trú) | Việc buồng phòng; phiếu sự cố/sửa chữa; metadata file riêng tư | housekeeping-maintenance |
 | Tính tiền | `services`, `service_prices`, `meter_events` | Danh mục dịch vụ; giá có hiệu lực; lắp/thay/reset công tơ | metering-billing |
 | Hợp đồng | `lease_settlements`, `lease_occupants` (giữ chỗ hợp đồng = allocation `hold` có TTL riêng, xem SPEC-lease) | Quyết toán khi thanh lý (nợ, khấu trừ, hoàn) | lease |
-| Tiền | `bank_transactions`, `reconciliation_breaks`, `payment_claims`, `shift_discrepancies` | Chênh lệch đối soát có chủ xử lý; "khách báo đã chuyển" (**không** tạo `payments`/bút toán) | ledger-payments, portal |
+| Tiền | `receiving_accounts`, `bank_transactions`, `reconciliation_breaks`, `payment_claims`, `shift_discrepancies` | Chênh lệch đối soát có chủ xử lý; "khách báo đã chuyển" (**không** tạo `payments`/bút toán) | ledger-payments, portal |
 | Portal | `guest_access_links` | Link khách có token băm, hạn, thu hồi, phạm vi một lượt ở | portal |
 | Import | `import_batches`, `import_rows`, `import_external_refs` | Lô import, dòng + lỗi, khoá chống import lặp | import |
 | Thông báo | `notifications`, `notification_deliveries`, `notification_preferences`, `notification_settings` | Thông báo trong app; lần gửi theo kênh; opt-in/out; lịch nhắc theo cơ sở | notifications |
