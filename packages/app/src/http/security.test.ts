@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCsp, isSameOriginWrite } from "./security.ts";
+import { buildCsp, isCacheablePublicPath, isSameOriginWrite } from "./security.ts";
 
 const BASE = "https://app.example.vn";
 const h = (init: Record<string, string>) => new Headers(init);
@@ -25,8 +25,23 @@ describe("buildCsp", () => {
     expect(csp).not.toContain("unsafe-inline");
     expect(csp).toContain("frame-ancestors 'none'");
     expect(csp).toContain("object-src 'none'");
+    expect(csp).toContain("worker-src 'self'");
   });
   it("nonce ngắn/lạ bị từ chối", () => {
     expect(() => buildCsp("x';")).toThrow();
+  });
+});
+
+describe("isCacheablePublicPath (SPEC-pwa S-005)", () => {
+  it.each([
+    ["/icons/icon-192.png", true],
+    ["/manifest.webmanifest", true],
+    ["/", false],
+    ["/offline", false],
+    ["/api/v1/me", false],
+    ["/icons", false],
+    ["/manifest.webmanifest/x", false],
+  ])("%s → %s", (path, ok) => {
+    expect(isCacheablePublicPath(path)).toBe(ok);
   });
 });

@@ -1,3 +1,4 @@
+import { withSerwist } from "@serwist/turbopack";
 import type { NextConfig } from "next";
 
 const config: NextConfig = {
@@ -9,4 +10,5 @@ const config: NextConfig = {
   serverExternalPackages: ["pg", "better-auth"],
 };
 
-export default config;
+// withSerwist chỉ thêm esbuild vào serverExternalPackages (bundle SW lúc build — app/serwist/[path]/route.ts).
+export default withSerwist(config);

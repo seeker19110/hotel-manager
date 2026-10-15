@@ -1,5 +1,5 @@
 // Next.js 16 proxy (trước là middleware): CSP có nonce + header bảo mật; chặn ghi khác origin (TM-09).
-import { buildCsp, isSameOriginWrite, SECURITY_HEADERS } from "@hm/app/http";
+import { buildCsp, isCacheablePublicPath, isSameOriginWrite, SECURITY_HEADERS } from "@hm/app/http";
 import { type NextRequest, NextResponse } from "next/server";
 
 export function proxy(req: NextRequest): NextResponse {
@@ -23,6 +23,8 @@ export function proxy(req: NextRequest): NextResponse {
   const res = NextResponse.next({ request: { headers: reqHeaders } });
   res.headers.set("content-security-policy", csp);
   for (const [k, v] of Object.entries(SECURITY_HEADERS)) res.headers.set(k, v);
+  // Trang và API có thể chứa dữ liệu người dùng: không lưu ở HTTP cache/bfcache (SPEC-pwa S-005, S-007).
+  if (!isCacheablePublicPath(req.nextUrl.pathname)) res.headers.set("cache-control", "no-store");
   return res;
 }
 

@@ -15,3 +15,7 @@ coverage/
 
 # Secret triển khai (mẫu: deploy/*.example)
 deploy/secrets/
+
+# Playwright
+test-results/
+playwright-report/

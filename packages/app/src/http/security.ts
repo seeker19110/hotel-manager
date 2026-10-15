@@ -33,12 +33,23 @@ export function buildCsp(nonce: string, opts: { dev?: boolean } = {}): string {
     "img-src 'self' blob: data:",
     "font-src 'self'",
     "connect-src 'self'",
+    // SW/manifest cùng origin (SPEC-pwa); nêu rõ vì worker-src mặc định rơi về script-src có 'strict-dynamic'.
+    "worker-src 'self'",
+    "manifest-src 'self'",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",
     "object-src 'none'",
     "upgrade-insecure-requests",
   ].join("; ");
+}
+
+/**
+ * Đường dẫn được phép cache ở trình duyệt (không chứa dữ liệu người dùng): icon và manifest. Mọi phản hồi khác qua
+ * proxy (trang HTML, /api/*) mang `Cache-Control: no-store` (SPEC-pwa S-005). Asset `_next/static` không qua proxy.
+ */
+export function isCacheablePublicPath(pathname: string): boolean {
+  return pathname.startsWith("/icons/") || pathname === "/manifest.webmanifest";
 }
 
 export const SECURITY_HEADERS: Readonly<Record<string, string>> = {
