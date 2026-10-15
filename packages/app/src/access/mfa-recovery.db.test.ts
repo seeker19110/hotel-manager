@@ -166,6 +166,19 @@ describe("member.resetMfa (access Q-08)", () => {
       items: [{ recovery: "platform_support" }],
     });
     expect((await authState(shared.userId))?.secrets).toBeGreaterThan(0);
+    // Membership ở B đang tạm khoá (chưa thu hồi) vẫn tính là "dùng ở tổ chức khác" — review lát 4 🟢4.
+    const susp = await member(B, "manager");
+    await sql`update memberships set status = 'suspended' where organization_id = ${B.orgId} and auth_user_id = ${susp.userId}`.execute(
+      t.admin,
+    );
+    await member(A, "front_desk", susp.userId);
+    const inA2 = await sql<{ id: string }>`
+      select id from memberships where organization_id = ${A.orgId} and auth_user_id = ${susp.userId}`.execute(
+      t.admin,
+    );
+    expect(await fails(reset(O1, inA2.rows[0]?.id as string))).toMatchObject({
+      items: [{ recovery: "platform_support" }],
+    });
     // Lễ tân chỉ thuộc A: owner đặt lại được.
     expect(await reset(O2, f.actor.membershipId)).toMatchObject({ status: "committed" });
   });

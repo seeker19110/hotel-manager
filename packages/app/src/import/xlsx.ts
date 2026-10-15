@@ -215,10 +215,37 @@ function decodeXml(s: string): string {
   });
 }
 
+/** Trần độ dài phần thuộc tính của một thẻ (thẻ hợp lệ của OOXML chỉ vài trăm byte). */
+const MAX_ATTRS = 4096;
+const isSpace = (c: string) => c === " " || c === "\t" || c === "\n" || c === "\r";
+
+/**
+ * Tách thuộc tính `tên="giá trị"` bằng quét TUYẾN TÍNH (review lát 4 🟠1: regex cũ chạy bậc hai trên chuỗi dài không có
+ * dấu `=` — file vài KB treo tiến trình nhiều giờ). Thuộc tính quá dài ⇒ XlsxError.
+ */
 function attrsOf(s: string): Map<string, string> {
+  if (s.length > MAX_ATTRS) throw new XlsxError("Thẻ XML có thuộc tính quá dài.");
   const map = new Map<string, string>();
-  for (const m of s.matchAll(/([^\s=/]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g)) {
-    map.set(m[1] as string, decodeXml(m[2] ?? m[3] ?? ""));
+  let i = 0;
+  const n = s.length;
+  while (i < n) {
+    while (i < n && (isSpace(s[i] as string) || s[i] === "/")) i++;
+    const nameStart = i;
+    while (i < n && !isSpace(s[i] as string) && s[i] !== "=" && s[i] !== "/") i++;
+    const name = s.slice(nameStart, i);
+    while (i < n && isSpace(s[i] as string)) i++;
+    if (s[i] !== "=") {
+      if (i === nameStart) i++;
+      continue;
+    }
+    i++;
+    while (i < n && isSpace(s[i] as string)) i++;
+    const q = s[i];
+    if (q !== '"' && q !== "'") continue;
+    const end = s.indexOf(q, i + 1);
+    if (end < 0) break;
+    if (name) map.set(name, decodeXml(s.slice(i + 1, end)));
+    i = end + 1;
   }
   return map;
 }

@@ -10,18 +10,29 @@ import { postEntry } from "./ledger.ts";
 
 interface LeaseRef {
   id: string;
+  status: string;
   property_id: string;
   representative_person_id: string;
 }
 
 async function leaseOf(ctx: CommandContext, leaseId: string): Promise<LeaseRef> {
   const r = await sql<LeaseRef>`
-    select id, property_id, representative_person_id from leases where organization_id = ${ctx.actor.orgId} and id = ${leaseId}`.execute(
-    ctx.trx,
-  );
+    select id, status, property_id, representative_person_id from leases
+    where organization_id = ${ctx.actor.orgId} and id = ${leaseId}`.execute(ctx.trx);
   const l = r.rows[0];
   if (!l) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy hợp đồng");
   authorize(ctx.actor, "import.commit", { propertyId: l.property_id });
+  // Số dư chuyển đổi chỉ cho hợp đồng còn hiệu lực (review lát 4 🟢5): hợp đồng đã đóng/huỷ đã quyết toán xong.
+  if (!["active", "notice_given", "settling"].includes(l.status)) {
+    throw new CommandError(
+      "INVALID_TRANSITION",
+      409,
+      "Hợp đồng không còn hiệu lực — không ghi số dư đầu kỳ",
+      {
+        extensions: { from: l.status },
+      },
+    );
+  }
   return l;
 }
 

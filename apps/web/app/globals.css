@@ -403,3 +403,10 @@ body {
   border-top: 1px solid var(--c-border);
   padding-top: var(--space-2);
 }
+.command-form__fields {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  align-self: stretch;
+}

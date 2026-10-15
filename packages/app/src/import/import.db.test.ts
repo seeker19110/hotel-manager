@@ -1,12 +1,21 @@
 // PLAN đợt 2 T-115 — import dữ liệu chuyển đổi trên Postgres thật + object storage (SPEC-import S-001…S-020 trừ S-009;
 // SPEC-lease S-026). Fixture `import-basic`: chủ O, quản lý M (`import.prepare`), lễ tân F; ngày mốc 2026-11-01.
 import { randomUUID } from "node:crypto";
-import { createTestDb, type SeededOrg, seedAuthUser, seedOrg, type TestDb, testS3Config } from "@hm/testkit";
+import {
+  createTestDb,
+  type SeededOrg,
+  seedAuthUser,
+  seedLease,
+  seedOrg,
+  type TestDb,
+  testS3Config,
+} from "@hm/testkit";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type Actor, resolveActor } from "../access/actor.ts";
 import { eicarOnlyScanner } from "../files/inspect.ts";
 import { ObjectStorage } from "../files/storage.ts";
+import { recordOpeningDebt } from "../ledger/opening-balance.ts";
 import { financialSummary } from "../ledger/period-close.ts";
 import { recordReading } from "../metering/meters.ts";
 import { executeCommand } from "../pipeline/command.ts";
@@ -184,14 +193,15 @@ afterAll(async () => {
 
 describe("S-001 mẫu, S-015 quyền, S-019 XLSX", () => {
   it("S-001: XLSX có tiêu đề + dòng ví dụ; CSV UTF-8 có BOM", () => {
-    const tpl = getTemplate("leases");
+    const tpl = getTemplate(M, "leases");
     const rows = readXlsx(new Uint8Array(Buffer.from(tpl.xlsx_base64, "base64")));
     expect(rows[0]?.cells.map((c) => c.v)).toEqual(
       LEASE_HEADER.slice(0, 7).concat(["end_on", "signed_on", "services", "occupants"]),
     );
     expect(rows).toHaveLength(2);
     expect(tpl.csv.startsWith("﻿external_id,unit_code,tenant_name")).toBe(true);
-    expect(() => getTemplate("x")).toThrow();
+    expect(() => getTemplate(M, "x")).toThrow();
+    expect(() => getTemplate(F, "units")).toThrow(expect.objectContaining({ code: "FORBIDDEN" }));
   });
 
   it("S-015: lễ tân tải lên → 403; loại đặt phòng chưa mở; file rỗng/chỉ tiêu đề → 422; file lạ → 415", async () => {
@@ -479,6 +489,47 @@ describe("S-011…S-014, S-020 số dư đầu kỳ", () => {
     expect(fs.revenue.net).toBe(0);
     expect(fs.balances).toMatchObject({ receivables: 1_580_000, deposits_held: 3_000_000 });
     expect(fs.cash_flow).toMatchObject({ payments_received: 0, deposits_received: 0 });
+  });
+
+  it("review lát 4 🟢5: số dư vào kỳ đã khoá → cả lô rollback (CONFLICT_AT_COMMIT); hợp đồng không còn hiệu lực → 409", async () => {
+    const P = await withLeases(1);
+    await sql`insert into period_locks (id, organization_id, property_id, locked_through, locked_by, reason)
+              values (${randomUUID()}, ${A.orgId}, ${P.propertyId}, ${CUTOFF}::date, ${A.ownerMembershipId}, 'Chốt sổ cũ')`.execute(
+      t.admin,
+    );
+    const { batchId } = await ok(
+      P.upload(M, "opening_balances", csv([BH, ["D1", "HD-0", "debt", 500_000, ""]])),
+    );
+    await ok(P.validate(M, batchId));
+    await ok(
+      run(M, async (ctx) => ({ data: await setExpectedTotals(ctx, { batchId, debt: 500_000, deposit: 0 }) })),
+    );
+    await ok(P.confirm(O, batchId));
+    expect(await fails(P.commit(O, batchId))).toMatchObject({
+      code: "IMPORT_HAS_ERRORS",
+      errors: [{ code: "CONFLICT_AT_COMMIT" }],
+    });
+    const inv = await sql<{
+      n: number;
+    }>`select count(*)::int as n from invoices where property_id = ${P.propertyId}`.execute(t.admin);
+    expect(inv.rows[0]?.n).toBe(0);
+    const draft = await seedLease(t.admin, {
+      orgId: A.orgId,
+      propertyId: P.propertyId,
+      representativePersonId: A.ownerPersonId,
+    });
+    expect(
+      await fails(
+        run(O, async (ctx) => ({
+          data: await recordOpeningDebt(ctx, {
+            leaseId: draft.leaseId,
+            amount: 1,
+            businessDate: CUTOFF,
+            sourceId: "x",
+          }),
+        })),
+      ),
+    ).toMatchObject({ code: "INVALID_TRANSITION", status: 409 });
   });
 
   it("S-013/S-014: tổng lệch → 409 IMPORT_TOTALS_MISMATCH kèm chênh; chưa xác nhận → IMPORT_CONFIRMATION_REQUIRED; quản lý không xác nhận được", async () => {

@@ -324,6 +324,24 @@ describe("readXlsx — file độc hại / hỏng", () => {
   const limits = { maxEntries: 10, maxEntryBytes: 1024, maxTotalBytes: 2048 };
   const sheet = `<worksheet ${NS}><sheetData/></worksheet>`;
 
+  it("review lát 4 🟠1: thuộc tính dài không có '=' không làm treo (trước đây regex bậc hai: 80.000 ký tự ≈ 11 s)", () => {
+    const evil = `<worksheet ${NS}><sheetData><row ${"a".repeat(80_000)}><c r="A1" t="inlineStr"><is><t>x</t></is></c></row></sheetData></worksheet>`;
+    const t0 = performance.now();
+    expect(() => readXlsx(buildZip(baseEntries(evil)))).toThrow(XlsxError);
+    expect(performance.now() - t0).toBeLessThan(500);
+    // Thuộc tính hợp lệ vẫn đọc đúng sau khi thay regex bằng quét tuyến tính (khoảng trắng quanh '=', nháy đơn, thẻ tự đóng).
+    const ok = `<worksheet ${NS}><sheetData><row r = '2' spans="1:2"><c r="B2" t='inlineStr'><is><t>y</t></is></c></row></sheetData></worksheet>`;
+    expect(readXlsx(buildZip(baseEntries(ok)))).toEqual([
+      {
+        rowNo: 2,
+        cells: [
+          { v: "", numeric: false },
+          { v: "y", numeric: false },
+        ],
+      },
+    ]);
+  });
+
   it("bytes rác / quá ngắn / rỗng → XlsxError", () => {
     expect(() => readXlsx(new Uint8Array(0))).toThrow(XlsxError);
     expect(() => readXlsx(new TextEncoder().encode("đây không phải xlsx, chỉ là chữ"))).toThrow(XlsxError);

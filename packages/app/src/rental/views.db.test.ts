@@ -88,6 +88,35 @@ describe("payment.collectCash", () => {
     expect(p.rows).toEqual([{ status: "confirmed", method: "cash" }]);
   });
 
+  it("quản lý chỉ được giao cơ sở A không thấy phiếu của cơ sở B (review lát 4 🟢5)", async () => {
+    const pB = randomUUID();
+    await sql`insert into properties (id, organization_id, name, template) values (${pB}, ${A.orgId}, 'CS B', 'rental')`.execute(
+      t.admin,
+    );
+    const invB = await seedIssuedInvoice(t.admin, {
+      orgId: A.orgId,
+      propertyId: pB,
+      payerPersonId: A.ownerPersonId,
+      lines: [{ amount: 50_000 }],
+    });
+    const user = await seedAuthUser(t.admin, `mgr+${randomUUID().slice(0, 6)}@example.test`);
+    const person = randomUUID();
+    const m = randomUUID();
+    await sql`insert into persons (id, organization_id, full_name) values (${person}, ${A.orgId}, 'Quản lý A')`.execute(
+      t.admin,
+    );
+    await sql`insert into memberships (id, organization_id, auth_user_id, person_id, role)
+              values (${m}, ${A.orgId}, ${user}, ${person}, 'manager')`.execute(t.admin);
+    await sql`insert into property_scopes (id, organization_id, membership_id, property_id)
+              values (${randomUUID()}, ${A.orgId}, ${m}, ${A.propertyId})`.execute(t.admin);
+    const MA = await resolveActor(t.runtime, { authUserId: user, orgId: A.orgId, twoFactorEnabled: true });
+    expect((await listOpenInvoices(t.runtime, O)).map((i) => i.id)).toContain(invB.invoiceId);
+    const seen = await listOpenInvoices(t.runtime, MA);
+    expect(seen.map((i) => i.id)).not.toContain(invB.invoiceId);
+    expect(seen.every((i) => i.property_id === A.propertyId)).toBe(true);
+    expect((await rentalProperties(t.runtime, MA)).map((p) => p.id)).toEqual([A.propertyId]);
+  });
+
   it("truy vấn tiền theo RLS: buồng phòng không thấy phiếu/khoản thu", async () => {
     await seedIssuedInvoice(t.admin, {
       orgId: A.orgId,

@@ -88,6 +88,11 @@ export function CommandForm({
     if (r !== null) router.refresh();
   }
 
+  async function onRecheck() {
+    const r = await cmd.recheck();
+    if (r !== null) router.refresh();
+  }
+
   async function onResend() {
     const r = await cmd.resend();
     if (r !== null) router.refresh();
@@ -103,26 +108,29 @@ export function CommandForm({
 
   return (
     <form onSubmit={onSubmit} noValidate className="command-form" data-testid={testId}>
-      {fields.map((f) => (
-        <TextField
-          key={f.name}
-          name={f.name}
-          label={f.label}
-          hint={f.hint}
-          error={fieldError(f)}
-          type={f.type === "date" ? "date" : "text"}
-          inputMode={
-            f.type === "money" || f.type === "integer"
-              ? "numeric"
-              : f.type === "decimal"
-                ? "decimal"
-                : undefined
-          }
-          defaultValue={f.defaultValue}
-          required={f.required}
-        />
-      ))}
-      <Button type="submit" variant={variant} loading={cmd.busy}>
+      {/* Khoá ô nhập khi thao tác trước chưa rõ kết quả: không sửa payload dưới key cũ (review lát 4 🟠2). */}
+      <fieldset className="command-form__fields" disabled={cmd.locked}>
+        {fields.map((f) => (
+          <TextField
+            key={f.name}
+            name={f.name}
+            label={f.label}
+            hint={f.hint}
+            error={fieldError(f)}
+            type={f.type === "date" ? "date" : "text"}
+            inputMode={
+              f.type === "money" || f.type === "integer"
+                ? "numeric"
+                : f.type === "decimal"
+                  ? "decimal"
+                  : undefined
+            }
+            defaultValue={f.defaultValue}
+            required={f.required}
+          />
+        ))}
+      </fieldset>
+      <Button type="submit" variant={variant} loading={cmd.busy} disabled={cmd.locked}>
         {submitLabel}
       </Button>
       {cmd.phase === "checking" ? (
@@ -132,9 +140,21 @@ export function CommandForm({
       ) : null}
       {cmd.phase === "unknown" ? (
         <div className="banner banner--warn" role="alert">
-          <p>Máy chủ chưa nhận được thao tác. Bấm "Gửi lại" để gửi đúng thao tác này một lần nữa.</p>
+          <p>
+            Chưa rõ máy chủ đã nhận thao tác này chưa. Bấm "Gửi lại" để gửi đúng thao tác này một lần nữa
+            (không bị ghi hai lần).
+          </p>
+          {cmd.problem ? <p>{problemText(cmd.problem)}</p> : null}
           <Button variant="secondary" onClick={onResend}>
             Gửi lại
+          </Button>
+        </div>
+      ) : null}
+      {cmd.phase === "processing" ? (
+        <div className="banner banner--info" role="status">
+          <p>Máy chủ vẫn đang xử lý thao tác này. Chờ một lát rồi kiểm tra lại — không gửi thao tác mới.</p>
+          <Button variant="secondary" onClick={onRecheck}>
+            Kiểm tra lại
           </Button>
         </div>
       ) : null}

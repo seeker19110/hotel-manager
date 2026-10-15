@@ -41,9 +41,11 @@ export async function resetMemberMfa(
     throw new CommandError("NOT_FOUND", 404, "Không tìm thấy thành viên");
   if (!target.auth_user_id)
     throw new CommandError("INVALID_TRANSITION", 409, "Thành viên chưa có tài khoản đăng nhập");
+  // Mọi membership chưa thu hồi ở tổ chức khác (kể cả tạm khoá/chưa hiệu lực) — review lát 4 🟢4.
   const elsewhere = await sql<{ n: number }>`
-    select count(*)::int as n from app.list_my_organizations(${target.auth_user_id}::uuid)
-    where organization_id <> ${ctx.actor.orgId}::uuid`.execute(ctx.trx);
+    select app.memberships_elsewhere(${target.auth_user_id}::uuid, ${ctx.actor.orgId}::uuid) as n`.execute(
+    ctx.trx,
+  );
   if ((elsewhere.rows[0]?.n ?? 0) > 0) {
     throw new CommandError(
       "FORBIDDEN",

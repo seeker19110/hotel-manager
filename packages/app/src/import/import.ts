@@ -166,7 +166,11 @@ type RawRow = Record<string, Cell>;
 // ---------- Mẫu ----------
 
 /** `import.getTemplate` (S-001): XLSX (sheet dữ liệu + "Hướng dẫn") và CSV UTF-8 có tiêu đề + một dòng ví dụ giả. */
-export function getTemplate(kind: string): { filename: string; xlsx_base64: string; csv: string } {
+export function getTemplate(
+  actor: Actor,
+  kind: string,
+): { filename: string; xlsx_base64: string; csv: string } {
+  authorize(actor, "import.prepare");
   if (!(IMPORT_KINDS as readonly string[]).includes(kind))
     throw fieldError("kind", "INVALID", "Loại nhập không hỗ trợ");
   const cols = IMPORT_COLUMNS[kind as ImportKind];

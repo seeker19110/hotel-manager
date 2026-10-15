@@ -17,13 +17,17 @@ export interface ProblemLike {
   items?: Record<string, unknown>[];
 }
 
-export type CommandPhase = "idle" | "sending" | "checking" | "unknown" | "done" | "error";
+// unknown: chưa biết server đã nhận (404/mất mạng khi tra) ⇒ chỉ "Gửi lại" cùng key; processing: server báo đang xử lý quá
+// lâu (S-012) ⇒ "Kiểm tra lại". Ở hai trạng thái này form bị khoá: không gửi payload khác dưới key cũ (review lát 4 🟠2).
+export type CommandPhase = "idle" | "sending" | "checking" | "unknown" | "processing" | "done" | "error";
 
 const TIMEOUT_MS = 15_000;
 const POLL_MS = 1_000;
 const POLL_TRIES = 8;
 
 export const OFFLINE_TEXT = "Không có kết nối mạng. Thao tác chưa được gửi.";
+export const PENDING_TEXT =
+  'Thao tác trước chưa rõ kết quả. Bấm "Gửi lại" để gửi đúng thao tác đó, hoặc tải lại trang để xem kết quả trước khi làm thao tác khác.';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -56,6 +60,7 @@ export function useCommand<T = unknown>(path: string) {
 
   const check = useCallback(async (): Promise<T | null> => {
     setPhase("checking");
+    let inProgress = false;
     for (let i = 0; i < POLL_TRIES; i++) {
       try {
         const res = await fetch(`/api/v1/commands/${key.current}`, {
@@ -74,13 +79,14 @@ export function useCommand<T = unknown>(path: string) {
           const j = (await res.json()) as { status: string; data?: T; problem?: ProblemLike };
           if (j.status === "committed") return finish(j.data as T);
           if (j.status === "failed") return fail(j.problem ?? { code: "INTERNAL" });
+          inProgress = j.status === "in_progress";
         }
       } catch {
         // vẫn mất mạng — thử lại sau
       }
       await sleep(POLL_MS);
     }
-    setPhase("unknown");
+    setPhase(inProgress ? "processing" : "unknown");
     return null;
   }, [finish, fail]);
 
@@ -109,27 +115,52 @@ export function useCommand<T = unknown>(path: string) {
     }
     const j = (await res.json().catch(() => null)) as ({ data?: T } & ProblemLike) | null;
     if (res.ok) return finish(j?.data as T);
-    if (res.status >= 500) return check();
+    // Key đã dùng cho thao tác khác (vd thao tác trước đã ghi) ⇒ giữ key, tra và hiện kết quả thao tác đó, không tạo key mới.
+    if (res.status >= 500 || j?.code === "IDEMPOTENCY_CONFLICT") return check();
     return fail(j ?? { code: "INTERNAL", status: res.status });
   }, [path, check, finish, fail]);
 
-  /** Gửi lệnh mới với `body`. */
+  /** Mất mạng: không gửi; KHÔNG bỏ key của thao tác đang chưa rõ kết quả. */
+  const offline = useCallback((): null => {
+    setProblem({ code: "OFFLINE", detail: OFFLINE_TEXT });
+    setPhase(key.current ? "unknown" : "error");
+    return null;
+  }, []);
+
+  /** Gửi lệnh mới với `body`. Còn thao tác chưa rõ kết quả ⇒ chỉ cho gửi lại đúng payload đó (cùng key). */
   const send = useCallback(
     async (body: unknown): Promise<T | null> => {
-      if (!online) return fail({ code: "OFFLINE", detail: OFFLINE_TEXT });
+      if (!online) return offline();
+      if (key.current && JSON.stringify(body) !== JSON.stringify(lastBody.current)) {
+        setProblem({ code: "PENDING_UNKNOWN", detail: PENDING_TEXT });
+        return null;
+      }
       key.current ??= crypto.randomUUID();
       lastBody.current = body;
       return post();
     },
-    [online, post, fail],
+    [online, post, offline],
   );
 
   /** S-011: gửi lại đúng lệnh cũ, cùng Idempotency-Key. */
   const resend = useCallback(async (): Promise<T | null> => {
-    if (!online) return fail({ code: "OFFLINE", detail: OFFLINE_TEXT });
+    if (!online) return offline();
     if (!key.current) return null;
     return post();
-  }, [online, post, fail]);
+  }, [online, post, offline]);
 
-  return { send, resend, phase, problem, data, busy: phase === "sending" || phase === "checking" };
+  /** S-012: tra lại kết quả lệnh đang xử lý. */
+  const recheck = useCallback(async (): Promise<T | null> => (key.current ? check() : null), [check]);
+
+  const locked = phase === "sending" || phase === "checking" || phase === "unknown" || phase === "processing";
+  return {
+    send,
+    resend,
+    recheck,
+    phase,
+    problem,
+    data,
+    locked,
+    busy: phase === "sending" || phase === "checking",
+  };
 }

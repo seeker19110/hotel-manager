@@ -2,7 +2,7 @@
 // role → migrate → seed giả → `next start`. Dừng (SIGTERM) thì xoá DB/cluster tạm. Chạy bằng `node` (bỏ kiểu TS).
 import { spawn } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
-import { writeFileSync } from "node:fs";
+import { rmSync, writeFileSync } from "node:fs";
 import { createAuth } from "@hm/app";
 import { migrateToLatest } from "@hm/db";
 import { bootstrapRoles, type PgCluster, pgUrl, seedOrg, startPgCluster } from "@hm/testkit/setup";
@@ -203,6 +203,7 @@ async function stop(code: number): Promise<void> {
   if (stopping) return;
   stopping = true;
   next.kill("SIGTERM");
+  rmSync(totpFile(PORT), { force: true });
   await new Promise((r) => setTimeout(r, 500));
   try {
     const s = kysely(serverUrl);

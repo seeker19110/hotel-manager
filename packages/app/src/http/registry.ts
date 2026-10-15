@@ -923,7 +923,7 @@ export const QUERIES: Readonly<Record<string, AnyQuery>> = {
   "import.getTemplate": {
     query: "import.getTemplate",
     input: z.strictObject({ kind: z.enum(["units", "leases", "meter_readings", "opening_balances"]) }),
-    run: async (_db, _actor, i: { kind: string }) => getTemplate(i.kind),
+    run: async (_db, actor, i: { kind: string }) => getTemplate(actor, i.kind),
   },
   "import.downloadErrorReport": {
     query: "import.downloadErrorReport",

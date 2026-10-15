@@ -93,8 +93,17 @@ test("vòng tháng: ký → bàn giao → kỳ thu 3.580.000 đ → phát hành 
   await page.getByRole("button", { name: "Mở ca" }).click();
   const inv = page.getByTestId("open-invoice");
   await expect(inv.getByTestId("open-amount")).toHaveText("3.580.000 đ");
+  // S-010 với lệnh KHÔNG tự chống trùng: server ghi xong nhưng mất phản hồi → tra kết quả, không thu lần hai.
+  let collects = 0;
+  await page.route("**/api/v1/payment/collectCash", async (route) => {
+    collects++;
+    await route.fetch();
+    await route.abort("failed");
+  });
   await inv.getByRole("button", { name: "Thu tiền mặt" }).click();
   await expect(page.getByText("Không còn phiếu nào phải thu")).toBeVisible();
+  expect(collects).toBe(1);
+  await page.unroute("**/api/v1/payment/collectCash");
   await expectAccessible(page);
 
   // Cọc: nhận ở hợp đồng, xác nhận ở Thu tiền
@@ -170,6 +179,10 @@ test("S-011: server chưa nhận lệnh → 404 COMMAND_NOT_FOUND → Gửi lạ
   });
   await page.getByLabel("Tháng (YYYY-MM)").fill("2099-02");
   await page.getByRole("button", { name: "Tạo kỳ" }).click();
+  // Chưa rõ kết quả ⇒ khoá ô nhập + nút gửi: không thể sửa payload rồi gửi dưới key cũ (review lát 4 🟠2).
+  await expect(page.getByRole("button", { name: "Gửi lại" })).toBeVisible();
+  await expect(page.getByLabel("Tháng (YYYY-MM)")).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Tạo kỳ" })).toBeDisabled();
   await page.getByRole("button", { name: "Gửi lại" }).click();
   await expect(status(page)).toHaveText("Đã có kỳ thu cho tháng này.");
   expect(keys).toHaveLength(2);
