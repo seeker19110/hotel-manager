@@ -58,9 +58,9 @@ Fixture `ledger-basic`: phiếu I1 (trọ, L1) tổng 3.580.000 đ đã phát h�
 - Then I1 = 0 (đã tất toán); 420.000 đ nằm ở `CUSTOMER_CREDIT` của người trả, hiện ở báo cáo "số dư khách"
 
 ### S-008 Không xác nhận khi thiếu chứng cứ (INV-F3)
-- Given thanh toán `pending` 2.000.000 đ, khách bấm "đã chuyển" trên portal
+- Given khách bấm "đã chuyển" trên portal → chỉ tạo `payment_claims` `submitted` (SPEC-portal), **không** tạo `payments`; K tạo thanh toán `pending` 2.000.000 đ từ claim đó
 - When K gọi `payment.confirm` không có `evidence`
-- Then lỗi 422 `EVIDENCE_REQUIRED`; vẫn `pending`; không có bút toán
+- Then lỗi 422 `EVIDENCE_REQUIRED`; vẫn `pending`; không có bút toán; claim vẫn `submitted`
 
 ### S-009 Xác nhận hai lần / đảo khi còn pending
 - Given thanh toán `confirmed`
