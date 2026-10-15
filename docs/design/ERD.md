@@ -1065,6 +1065,8 @@ Loại: M chỉ ở `allocated_total`; mọi cột khác bất biến từ khi t
 | business_date | date | không | | Ngày phát hành theo giờ chốt ngày |
 | due_on | date | có | | Hạn thanh toán; job nhắc quá hạn đọc cột này |
 | total | bigint | không | `CHECK (total >= 0 OR kind = 'adjustment')` | Tổng = Σ `invoice_lines.amount` |
+| adjusted_total | bigint | không | mặc định `0`; `CHECK (adjusted_total <= 0)`; chỉ cộng dồn giảm | Σ phiếu `adjustment` tham chiếu phiếu này (T-108) |
+| open_amount | bigint | — | `GENERATED ALWAYS AS (greatest(total + adjusted_total, 0) - allocated_total) STORED` | Số còn phải thu — một công thức cho phân bổ, khấu trừ cọc, đối soát, QR |
 | allocated_total | bigint | không | mặc định `0`; `CHECK (allocated_total >= 0 AND allocated_total <= greatest(total, 0))` | Σ phân bổ còn hiệu lực (từ thanh toán hoặc khấu trừ cọc); chỉ đổi cùng transaction phân bổ (INV-F2) |
 | currency | char(3) | không | mặc định `'VND'` | |
 | tax_profile_id | uuid | có | | Như `charges` |
@@ -1178,7 +1180,7 @@ Loại: M chỉ ở cột mở khoá (mỗi dòng mở khoá đúng một lần)
 
 - Khoá/index: `ix (organization_id, property_id, locked_through) WHERE released_at IS NULL` (khoá hiệu lực). Hiệu lực = chưa có `released_at`; khoá hiệu lực của cơ sở = `max(locked_through)`.
 - Ràng buộc đặc biệt: trigger chặn DELETE và chặn UPDATE ngoài ba cột `released_*`/`release_reason` điền một lần; trigger `BEFORE INSERT` trên `journal_entries`, `payments`, `charges` đọc bảng này để từ chối ghi vào kỳ đã khoá (`PERIOD_LOCKED`). Mở khoá kỳ `locked → issued` chỉ cho thêm điều chỉnh/đảo ghi ngày trong kỳ, không cho sửa chứng từ đã phát hành (`DOCUMENT_IMMUTABLE`).
-- RLS/quyền đặc biệt: chốt: `owner`/`manager`/`accountant`; mở khoá: chỉ `owner`; lễ tân không chốt kỳ (chỉ chốt ca của mình).
+- RLS/quyền đặc biệt: chốt: `owner`/`manager`/`accountant`; mở khoá: chỉ `owner`; lễ tân không chốt kỳ (chỉ chốt ca của mình). ĐỌC mở cho mọi vai trò trong tổ chức (ngày khoá không nhạy cảm) để trigger `PERIOD_LOCKED` áp cả với lễ tân/worker (T-108). Chốt chỉ ngày đã qua, chỉ tiến; `ledger.unlockPeriod(property_id, from, reason)` mở mọi khoá hiệu lực có `locked_through ≥ from`.
 - Bất biến: INV-F6, INV-G4.
 
 ## 3.7. Nhóm Payment và Reconciliation

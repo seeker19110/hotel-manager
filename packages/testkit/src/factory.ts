@@ -92,6 +92,8 @@ export async function seedIssuedInvoice(
     leaseId?: string;
     /** Mã tham chiếu cố định (ví dụ trong SPEC, vd `HM7Q4K2P`); mặc định ngẫu nhiên. */
     memoRef?: string;
+    /** Ngày kinh doanh `YYYY-MM-DD` (phiếu kỳ cũ khi test chốt kỳ); mặc định hôm nay. */
+    businessDate?: string;
   },
 ): Promise<{ invoiceId: string; total: number; memoRef: string }> {
   const invoiceId = randomUUID();
@@ -102,12 +104,15 @@ export async function seedIssuedInvoice(
     await sql`insert into invoices (id, organization_id, property_id, kind, number, memo_ref, payer_person_id, business_date, total,
                                     lease_id)
               values (${invoiceId}, ${input.orgId}, ${input.propertyId}, 'fee', ${`T-${invoiceId.slice(0, 8)}`}, ${memoRef},
-                      ${input.payerPersonId}, current_date, ${total}, ${input.leaseId ?? null})`.execute(trx);
+                      ${input.payerPersonId}, coalesce(${input.businessDate ?? null}::date, current_date), ${total}, ${input.leaseId ?? null})`.execute(
+      trx,
+    );
     // Phiếu 0 đ không có bút toán (mỗi dòng sổ phải đúng một phía > 0).
     const posts = total > 0;
     if (posts) {
       await sql`insert into journal_entries (id, organization_id, property_id, entry_type, business_date, source_doc_type, source_doc_id)
-                values (${entryId}, ${input.orgId}, ${input.propertyId}, 'invoice_issued', current_date, 'invoice', ${invoiceId})`.execute(
+                values (${entryId}, ${input.orgId}, ${input.propertyId}, 'invoice_issued',
+                        coalesce(${input.businessDate ?? null}::date, current_date), 'invoice', ${invoiceId})`.execute(
         trx,
       );
     }

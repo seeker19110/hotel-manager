@@ -379,11 +379,10 @@ export async function allocatePayment(
   const inv = await sql<{
     id: string;
     property_id: string;
-    total: string;
-    allocated_total: string;
+    open_amount: string;
     payer_person_id: string;
   }>`
-    select id, property_id, total, allocated_total, payer_person_id from invoices
+    select id, property_id, open_amount, payer_person_id from invoices
     where organization_id = ${ctx.actor.orgId} and id = any(${ids}::uuid[])
     order by id
     for update`.execute(ctx.trx);
@@ -392,7 +391,7 @@ export async function allocatePayment(
     const i = byId.get(a.invoiceId);
     if (!i || i.property_id !== p.property_id)
       throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phiếu");
-    const open = Math.max(Number(i.total), 0) - Number(i.allocated_total);
+    const open = Number(i.open_amount);
     if (a.amount > open) {
       throw new CommandError("OVER_ALLOCATION", 409, `Phân bổ ${a.amount} vượt số còn ${open} của phiếu`);
     }

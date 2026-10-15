@@ -9,6 +9,7 @@ import {
   requestDeduction,
   requestDepositRefund,
 } from "../deposits/deposits.ts";
+import { financialSummary, issueAdjustment, lockPeriod, unlockPeriod } from "../ledger/period-close.ts";
 import { allocatePayment, confirmPayment, recordPayment, reversePayment } from "../payments/payments.ts";
 import {
   confirmMatch,
@@ -34,6 +35,7 @@ const bankTxn = z.strictObject({
   occurred_at: z.iso.datetime({ offset: true }),
   description: z.string().max(500).optional(),
 });
+const isoDate = z.iso.date();
 const column = z.union([z.string().trim().min(1).max(100), z.number().int().min(0).max(200)]);
 const toBankTxn = (b: z.infer<typeof bankTxn>) => ({
   ref: b.ref,
@@ -366,6 +368,42 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
       data: await resolveBreak(ctx, { breakId: i.break_id, resolution: i.resolution }),
     }),
   }),
+  "ledger.lockPeriod": defineCommand({
+    command: "ledger.lockPeriod",
+    input: z.strictObject({
+      property_id: uuid,
+      locked_through: isoDate,
+      reason: z.string().trim().min(1).max(1000),
+    }),
+    run: async (ctx, i) => ({
+      data: await lockPeriod(ctx, {
+        propertyId: i.property_id,
+        lockedThrough: i.locked_through,
+        reason: i.reason,
+      }),
+      httpStatus: 201,
+    }),
+  }),
+  "ledger.unlockPeriod": defineCommand({
+    command: "ledger.unlockPeriod",
+    // Lý do kiểm ở lệnh (sau kiểm quyền) để người không có quyền nhận 403 trước 422 (S-023).
+    input: z.strictObject({ property_id: uuid, from: isoDate, reason: z.string().max(1000) }),
+    run: async (ctx, i) => ({
+      data: await unlockPeriod(ctx, { propertyId: i.property_id, from: i.from, reason: i.reason }),
+    }),
+  }),
+  "ledger.issueAdjustment": defineCommand({
+    command: "ledger.issueAdjustment",
+    input: z.strictObject({
+      invoice_id: uuid,
+      amount: positiveMoney,
+      reason: z.string().trim().min(1).max(1000),
+    }),
+    run: async (ctx, i) => ({
+      data: await issueAdjustment(ctx, { invoiceId: i.invoice_id, amount: i.amount, reason: i.reason }),
+      httpStatus: 201,
+    }),
+  }),
 };
 
 /** Tìm command theo đường dẫn `<module>/<command>`; tên chỉ gồm chữ/số để không lọt ký tự lạ. */
@@ -387,6 +425,12 @@ export const QUERIES: Readonly<Record<string, AnyQuery>> = {
         invoiceId: i.invoice_id,
         ...(i.receiving_account_id ? { receivingAccountId: i.receiving_account_id } : {}),
       }),
+  },
+  "report.financialSummary": {
+    query: "report.financialSummary",
+    input: z.strictObject({ property_id: uuid, from: z.iso.date(), to: z.iso.date() }),
+    run: (db, actor, i: { property_id: string; from: string; to: string }) =>
+      financialSummary(db, actor, { propertyId: i.property_id, from: i.from, to: i.to }),
   },
   "reconciliation.previewMatches": {
     query: "reconciliation.previewMatches",

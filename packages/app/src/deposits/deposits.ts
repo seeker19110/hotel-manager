@@ -119,7 +119,7 @@ async function readInvoice(ctx: CommandContext, invoiceId: string, lock: boolean
     open: string;
     payer_person_id: string;
   }>`
-    select id, property_id, lease_id, (greatest(total, 0) - allocated_total)::text as open, payer_person_id from invoices
+    select id, property_id, lease_id, open_amount::text as open, payer_person_id from invoices
     where organization_id = ${ctx.actor.orgId} and id = ${invoiceId}
     ${lock ? sql`for update` : sql``}`.execute(ctx.trx);
   const row = r.rows[0];

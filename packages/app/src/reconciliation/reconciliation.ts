@@ -234,7 +234,7 @@ export async function previewMatches(
         candidates: invoices.map((i) => ({
           invoice_id: i.id,
           number: i.number,
-          open: Math.max(Number(i.total), 0) - Number(i.allocated_total),
+          open: Number(i.open_amount),
         })),
         open_breaks: breaks.rows.map((b) => ({ break_id: b.id, reason: b.reason, assignee: b.assignee })),
       });
@@ -432,10 +432,9 @@ export async function getTransferInfo(
       property_id: string;
       number: string;
       memo_ref: string;
-      total: string;
-      allocated_total: string;
+      open_amount: string;
     }>`
-      select id, property_id, number, memo_ref, total, allocated_total from invoices
+      select id, property_id, number, memo_ref, open_amount from invoices
       where organization_id = ${actor.orgId} and id = ${input.invoiceId}`.execute(trx);
     const i = inv.rows[0];
     if (!i) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phiếu");
@@ -456,7 +455,7 @@ export async function getTransferInfo(
         throw new CommandError("VALIDATION_FAILED", 422, "Cơ sở có nhiều tài khoản nhận — chọn một");
       acct = await receivingAccount(trx, actor.orgId, (r.rows[0] as { id: string }).id);
     }
-    const due = Math.max(Number(i.total), 0) - Number(i.allocated_total);
+    const due = Number(i.open_amount);
     const bin = bankBin(acct.bank_code);
     let qr: string | null = null;
     if (bin && due > 0) {

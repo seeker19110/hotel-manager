@@ -69,9 +69,11 @@ const PG_CODES: Record<string, { code: string; status: number; title: string }> 
  */
 const HINT_STATUS: Record<string, { status: number; title: string }> = {
   DOCUMENT_IMMUTABLE: { status: 409, title: "Chứng từ đã phát hành/ký không được sửa" },
+  EVIDENCE_REQUIRED: { status: 422, title: "Cần chứng cứ thanh toán" },
   INVALID_TRANSITION: { status: 409, title: "Chuyển trạng thái không hợp lệ" },
   LAST_OWNER: { status: 409, title: "Tổ chức phải còn ít nhất một owner" },
   LEDGER_UNBALANCED: { status: 422, title: "Bút toán không cân" },
+  PERIOD_LOCKED: { status: 409, title: "Kỳ đã khoá. Cần chứng từ điều chỉnh có duyệt." },
   VALIDATION_FAILED: { status: 422, title: "Dữ liệu không hợp lệ" },
   TENANT_CONTEXT_MISSING: { status: 500, title: "Thiếu ngữ cảnh tổ chức" },
 };

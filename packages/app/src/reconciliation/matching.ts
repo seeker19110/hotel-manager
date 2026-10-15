@@ -18,8 +18,7 @@ export interface CandidateRow {
   property_id: string;
   number: string;
   memo_ref: string;
-  total: string;
-  allocated_total: string;
+  open_amount: string;
   payer_person_id: string;
 }
 
@@ -48,7 +47,7 @@ export async function candidateInvoices(
               order by id for update`.execute(trx);
   }
   const r = await sql<CandidateRow>`
-    select id, property_id, number, memo_ref, total, allocated_total, payer_person_id from invoices
+    select id, property_id, number, memo_ref, open_amount, payer_person_id from invoices
     where organization_id = ${orgId} and memo_ref = any(${cands}::text[])
     order by due_on nulls last, business_date, number, id`.execute(trx);
   return r.rows;
@@ -57,7 +56,7 @@ export async function candidateInvoices(
 export function suggestFor(bt: BankTxnRow, invoices: readonly CandidateRow[]): MatchSuggestion {
   const cands: CandidateInvoice[] = invoices.map((i) => ({
     id: i.id,
-    open: Math.max(Number(i.total), 0) - Number(i.allocated_total),
+    open: Number(i.open_amount),
     sameProperty: i.property_id === bt.property_id,
   }));
   return classifyBankTxn(Number(bt.amount), cands);
