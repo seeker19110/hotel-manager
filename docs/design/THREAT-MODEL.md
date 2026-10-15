@@ -1,6 +1,6 @@
 # THREAT-MODEL — Hotel Manager · phiên bản 1 · 2026-10-15
 
-> Chủ: (chưa gán — Tech Lead) · Duyệt: chờ · Phạm vi: web/API, worker, PostgreSQL, object storage, Supabase Auth, portal người thuê/khách, webhook mô phỏng, import/export.
+> Chủ: (chưa gán — Tech Lead) · Duyệt: chờ · Phạm vi: web/API, worker, PostgreSQL, object storage SeaweedFS, Better Auth, Caddy, kho sao lưu pgBackRest, portal người thuê/khách, webhook mô phỏng, import/export.
 > Ngoài phạm vi V1: OTA, IoT/khoá, ngân hàng thật (chưa có hợp đồng). Các mục này phải có threat model riêng khi bật.
 > Kế hoạch gốc §16 xác định ba rủi ro nghiêm trọng nhất: xem nhầm dữ liệu cơ sở khác, sửa tiền không dấu vết, lộ giấy tờ nhận dạng.
 
@@ -12,14 +12,14 @@
 | A-03 | Sổ tiền: phiếu, thanh toán, phân bổ, cọc, bút toán | toàn vẹn | mất tiền, tranh chấp, gian lận |
 | A-04 | Tồn phòng: allocation, booking, hợp đồng | toàn vẹn, sẵn sàng | bán trùng, khách không có phòng |
 | A-05 | Ranh giới tenant (dữ liệu giữa các tổ chức) | bí mật | sự cố nghiêm trọng, chặn phát hành |
-| A-06 | Secret: khoá service Supabase, DB URL, khoá ký webhook, khoá email | bí mật | chiếm toàn hệ thống |
+| A-06 | Secret: `BETTER_AUTH_SECRET`, khoá S3 SeaweedFS, khoá mã hoá pgBackRest, DB URL, khoá ký webhook, khoá email | bí mật | chiếm toàn hệ thống |
 | A-07 | Tài khoản nhân viên có quyền tiền/quản trị | xác thực | gian lận, lộ dữ liệu hàng loạt |
 | A-08 | Bản sao lưu, file xuất | bí mật | lộ dữ liệu hàng loạt |
 
 ## 2. Thành phần và ranh giới tin cậy
 ```text
 [Trình duyệt/PWA] --(1) HTTPS--> [Next.js web/API] --(2) role app_runtime + RLS--> [PostgreSQL]
-       |                              |--(3)--> [Supabase Auth]
+       |                              |--(3)--> [Better Auth — cùng Postgres]
        |--(4) URL ký ngắn hạn-->      |--(5)--> [Object storage riêng tư]
 [Ngân hàng/mô phỏng] --(6) webhook--> [web] ; [worker] --(7)--> [Email] ; [worker] --(2')--> [PostgreSQL]
 [Người dùng] --(8) file Excel/CSV--> [import] ; [export] --(9) link có hạn--> [người dùng]
@@ -54,10 +54,12 @@ TB1 Internet↔web · TB2 web/worker↔DB · TB3 ↔ dịch vụ ngoài · TB4 p
 | TM-12 | — | E/R | Hỗ trợ nền tảng truy cập dữ liệu khách tuỳ ý | TB | quyền support tạm thời theo ticket, giới hạn phạm vi, audit mọi lượt truy cập (F-015, V1) | test quyền support hết hạn → 403 | mở (V1) |
 | TM-13 | 1 | D | Spam đăng nhập, booking engine, export nặng | TB | rate limit, báo cáo lớn chạy job, timeout truy vấn, `statement_timeout` | test vượt giới hạn → 429 | mở |
 | TM-14 | 7 | I | Email chứa PII nhạy cảm hoặc gửi nhầm người | TB | mẫu email không chứa CCCD/số tiền chi tiết ngoài phạm vi; kiểm người nhận theo membership/lease | test snapshot mẫu email | mở |
+| TM-16 | — | E/I/D | Máy chủ tự host bị xâm nhập hoặc mất (lộ cổng DB/S3, image chưa vá, đĩa hỏng) | Cao | tường lửa, chỉ Caddy ra ngoài, image ghim digest + cập nhật định kỳ, pgBackRest + đồng bộ file ra máy khác, diễn tập restore | `ss -tlnp` trên staging chỉ 80/443/22; T-010 restore PITR đạt | mở |
 | TM-15 | — | I | Thiết bị mất còn phiên và cache | TB | phiên có hạn, logout xoá cache và hàng chờ (có cảnh báo nháp), thu hồi phiên từ xa | E2E logout → Cache Storage không còn dữ liệu nghiệp vụ | mở |
 
 ## 5. Giả định và chấp nhận rủi ro
-- Nhà cung cấp hạ tầng (Supabase, hosting) bảo vệ lớp hạ tầng. Giả định này **không** chứng minh ứng dụng an toàn (kế hoạch §16).
+- **Tự host (ADR-0002): không còn nhà cung cấp lo lớp hạ tầng.** Đội chịu vá OS/image, tường lửa (chỉ mở 80/443 qua Caddy; DB và S3 không ra Internet), SSH bằng khoá, giám sát và sao lưu ngoài máy. Thêm TM-16 bên dưới.
+- Better Auth: chỉ bật email/mật khẩu, twoFactor, quản lý phiên (+ email OTP cho portal nếu PO chọn); theo dõi advisory (nhiều lỗi High/Critical ở plugin năm 2026).
 - Pilot tiết kiệm chưa bật PITR → RPO DB tối đa 24 giờ. Chỉ chấp nhận khi chủ pilot đã hiểu giới hạn này và có nguồn đối chiếu (kế hoạch §17). Người chấp nhận: chủ dự án, chờ quyết.
 
 ## 6. Hành động còn mở

@@ -1,7 +1,7 @@
 # docs/autopilot/PLAN.md — Hotel Manager · Đợt 1: nền tảng (G5) + lõi dùng chung
 
 > **Chưa duyệt.** Cổng duyệt duy nhất: người dùng duyệt file này cùng PROJECT, BLUEPRINT, ADR-0001, các SPEC và `docs/design/`.
-> Spec gốc: `docs/specs/SPEC-*.md` (F-001…F-012) · Blueprint: `BLUEPRINT.md` (web-app + saas-multitenant + fintech, quy mô M) · Kế hoạch gốc: backlog T009–T024, T033, T041, T073–T074, T099.
+> Kiến trúc: ADR-0001 + ADR-0002 (tự host). Spec gốc: `docs/specs/SPEC-*.md` (F-001…F-012) · Blueprint: `BLUEPRINT.md` (web-app + saas-multitenant + fintech, quy mô M) · Kế hoạch gốc: backlog T009–T024, T033, T041, T073–T074, T099.
 
 ## Mục tiêu của kế hoạch này
 Khi xong đợt này, repo có hàng rào chất lượng chạy thật: CI, cổng commit, Postgres thật trong test. Repo cũng có lõi mà mọi tính năng pilot dựa vào: tenant/RLS, quyền, idempotency + audit + outbox, allocation chống trùng, sổ phụ cân bằng, file riêng tư, PWA shell. Mỗi phần có test chứng minh bất biến:
@@ -24,7 +24,7 @@ Tương ứng mốc "Tuần 3–4" và một phần "Tuần 5–6" của kế ho
 | Hạn mong muốn | tuần 4 kể từ ngày đội khởi động | trễ mốc pilot tuần 12 | cắt T-011/T-012 sang đợt 2; không hạ cổng |
 
 ## Điểm dừng bắt buộc (`python3 .xtemplates/scripts/xt.py loop block --reason "..."`)
-- Tạo tài khoản, dịch vụ trả phí hoặc hosting (Supabase cloud, Render/Fly, nhà cung cấp email). Dev/CI chỉ dùng Docker cục bộ.
+- Mua VPS/tên miền, cấp quyền SSH, chọn vị trí dữ liệu (VN hay nước ngoài), đăng ký SMTP relay. Dev/CI chỉ dùng Docker cục bộ (ADR-0002).
 - Secret thật, deploy staging/production, gửi email ra ngoài.
 - Bật ruleset GitHub hoặc đổi required checks; đổi cấu hình cổng/CI/hook sau khi T-001 đã chốt.
 - Spec hở hoặc mâu thuẫn: khi một câu hỏi **[chặn]** trong SPEC chạm tới task đang làm, dừng hỏi PO (prorata, làm tròn, giờ nhận/trả mặc định…).
@@ -49,7 +49,7 @@ Tương ứng mốc "Tuần 3–4" và một phần "Tuần 5–6" của kế ho
 
 ### Lát 1 — Tenant, quyền, command pipeline (F-001)
 - [ ] `T-003` packages/db: runner migration Kysely (up/down), Postgres 17 qua Testcontainers, extension `btree_gist`/`pgcrypto`, role `app_runtime`/`app_worker` (không owner, không BYPASSRLS), bảng `organizations`, `properties`, `floors`, `room_types`, `units`, `persons`, `memberships` với FK ghép `organization_id` + RLS theo `app.org_id` (INV-G1, INV-G2) — Gate: `pnpm test:db -- tenancy`
-- [ ] `T-004` Xác thực: Supabase Auth local (Supabase CLI), đổi token → cookie phiên HttpOnly, `/api/v1/me`, chọn tổ chức qua membership, MFA bắt buộc cho owner/manager/accountant, thu hồi membership → phiên mất quyền ngay (SPEC-access S-xxx) — Gate: `pnpm vitest run packages/app/src/access/auth`
+- [ ] `T-004` Xác thực: Better Auth ≥ 1.7.9 trên Postgres (adapter Kysely/`pg`), chỉ bật email/mật khẩu + `twoFactor` + quản lý phiên (test liệt kê plugin), cookie phiên HttpOnly, `/api/v1/me`, chọn tổ chức qua membership, MFA bắt buộc cho owner/manager/accountant, thu hồi membership → phiên mất quyền ngay (SPEC-access S-xxx) — Gate: `pnpm vitest run packages/app/src/access/auth`
 - [ ] `T-005` `authorize(actor, action, scope)` + ma trận quyền từ SPEC-access-and-property, phạm vi cơ sở, hạn mức tiền; bộ test chéo tenant dùng chung (factory hai tổ chức) cho mọi query — Gate: `pnpm test:db -- access`
 - [ ] `T-006` Command pipeline: idempotency (INV-G5), `audit_events` + `outbox` cùng transaction (INV-G6), `GET /api/v1/commands/{id}`, problem+json theo API-CONTRACT; worker pg-boss relay outbox → handler giả, retry/backoff/dead letter — Gate: `pnpm test:db -- command-pipeline`
 
@@ -58,8 +58,8 @@ Tương ứng mốc "Tuần 3–4" và một phần "Tuần 5–6" của kế ho
 - [ ] `T-008` Ledger: `packages/domain/money` (một hàm làm tròn, property test fast-check), `journal_entries`/`journal_lines` cân bằng (trigger deferred, INV-F1), append-only (INV-G4), bút toán đảo, `inbox` unique cho webhook mô phỏng (INV-F4); test 100 lần cùng payload → 1 hiệu lực; tái hiện ví dụ 3.580.000/1.580.000 và 1.430.000/930.000 — Gate: `pnpm test:db -- ledger`
 
 ### Lát 3 — File, phục hồi, PWA, xương sống E2E (F-009, F-012)
-- [ ] `T-009` File riêng tư: adapter storage (local/S3-compatible), URL ký ≤ 5 phút cấp sau kiểm quyền, allowlist MIME + magic bytes, giới hạn dung lượng, bỏ EXIF; housekeeping xin URL giấy tờ → 404 (TM-06, TM-07) — Gate: `pnpm test:db -- files`
-- [ ] `T-010` Sao lưu/khôi phục thử với dữ liệu giả: `scripts/db-backup-restore-check.sh` dump → restore sang DB mới → so số dòng và Σ bút toán (backlog T099) — Gate: `bash scripts/db-backup-restore-check.sh`
+- [ ] `T-009` File riêng tư: adapter S3 tới SeaweedFS 4.48 (Docker trong dev/CI, ADR-0002), URL ký ≤ 5 phút cấp sau kiểm quyền, allowlist MIME + magic bytes, giới hạn dung lượng, bỏ EXIF; housekeeping xin URL giấy tờ → 404 (TM-06, TM-07) — Gate: `pnpm test:db -- files`
+- [ ] `T-010` Sao lưu/khôi phục thử với dữ liệu giả: `scripts/db-backup-restore-check.sh` dựng Postgres 17 + pgBackRest ≥ 2.59.3 (repo cục bộ mã hoá), full backup → ghi thêm → PITR về mốc trước khi ghi → so số dòng và Σ bút toán; kèm `compose.yaml` ghim digest cho postgres/seaweedfs/caddy (backlog T099, ADR-0002) — Gate: `bash scripts/db-backup-restore-check.sh`
 - [ ] `T-011` Design system tối thiểu (form, lỗi, trạng thái tải/rỗng/lỗi, vùng chạm ≥ 44px), PWA manifest + Serwist app shell, báo mất mạng, SW không cache route PII (SPEC-pwa) — Gate: `pnpm --filter web exec playwright test pwa`
 - [ ] `T-012` E2E xương sống: đăng nhập (seed giả) → chọn tổ chức → danh sách phòng của cơ sở được phép, kèm kiểm axe (WCAG 2.2 AA) — Gate: `pnpm --filter web exec playwright test smoke`
 
@@ -72,14 +72,15 @@ Tương ứng mốc "Tuần 3–4" và một phần "Tuần 5–6" của kế ho
 | Việc | Bên ngoài | Kế hoạch B |
 |---|---|---|
 | Docker trong môi trường chạy agent/CI | runner GitHub Actions có Docker | không có Docker → test DB chạy bằng service container trong CI; local dùng Postgres cài sẵn |
-| Supabase CLI local | image Docker của Supabase | Auth giả (JWT ký bằng khoá test) cho test; tích hợp thật để sau |
+| Docker daemon | máy chạy agent (phiên hiện tại **không có** daemon) | test DB chạy trên GitHub Actions (service container) hoặc Postgres cài sẵn; vòng lặp chậm hơn |
 | Quyết định PO cho câu hỏi [chặn] trong SPEC | PO | đợt 1 không phụ thuộc; đợt 2 sẽ dừng hỏi |
 
 ## Ước lượng (agent + review người)
 | Task | P50 | P90 |
 |---|---|---|
 | T-001 | 0,5 ngày | 1 ngày |
-| T-002, T-009, T-010, T-012 | 0,5 ngày mỗi task | 1 ngày |
+| T-002, T-009, T-012 | 0,5 ngày mỗi task | 1 ngày |
+| T-010 (PITR + compose) | 1 ngày | 2 ngày |
 | T-003…T-008 | 1 ngày mỗi task | 2 ngày |
 | T-011 | 1 ngày | 1,5 ngày |
 Tổng P50 khoảng 9 ngày, P85 khoảng 14 ngày. Không dùng con số P50 làm ngày hứa.

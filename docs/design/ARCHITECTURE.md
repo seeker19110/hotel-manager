@@ -11,7 +11,7 @@ flowchart LR
   tenant["Người thuê / khách lưu trú"]
   support["Hỗ trợ nền tảng<br/>(truy cập tạm thời)"]
   sys["Hotel Manager<br/>(web + PWA + portal)"]
-  auth["Supabase Auth<br/>(danh tính, MFA)"]
+  auth["Better Auth trong apps/web<br/>(danh tính, MFA TOTP — bảng trong Postgres)"]
   mail["Nhà cung cấp email<br/>(chưa chọn)"]
   bank["Ngân hàng / cổng webhook<br/>(sau pilot, khi có hợp đồng)"]
   gov["Cổng khai báo lưu trú<br/>(chỉ xuất mẫu, không tích hợp)"]
@@ -62,7 +62,7 @@ apps/worker (job)    ─┼─► packages/app (command/query: transaction, quy�
 
 ```text
 1. HTTP POST + Idempotency-Key + phiên
-2. Xác minh JWT (Supabase) → tra memberships → actor {person_id, org_id, roles, property_scopes, limits}
+2. Xác minh phiên Better Auth (cookie) → tra memberships → actor {person_id, org_id, roles, property_scopes, limits}
 3. BEGIN; SET LOCAL app.org_id = actor.org_id; SET LOCAL app.actor_id = …
 4. idempotency: INSERT … ON CONFLICT → nếu đã có kết quả: trả kết quả cũ; khác hash: 409 IDEMPOTENCY_CONFLICT
 5. authorize(actor, action, scope) → domain rule → ghi nghiệp vụ (constraint DB là chốt cuối)
@@ -78,10 +78,10 @@ apps/worker (job)    ─┼─► packages/app (command/query: transaction, quy�
 
 | Môi trường | CSDL | Auth | File | Email | Ghi chú |
 |---|---|---|---|---|---|
-| dev | Postgres 17 Docker (Supabase CLI local) | Supabase local | storage local | bản giả ghi file | dữ liệu giả, seed |
+| dev | Postgres 17 Docker | Better Auth (cùng DB) | SeaweedFS Docker | bản giả ghi file | dữ liệu giả, seed |
 | CI | Testcontainers Postgres 17 | JWT ký bằng khoá test | bộ nhớ | bản giả | không mạng ngoài |
-| staging | (chưa chọn — điểm dừng) | Supabase project riêng | bucket riêng tư | sandbox | dữ liệu giả/ẩn danh |
-| production | Supabase Pro + PITR (khi có tiền thật) | Supabase | bucket riêng tư + bản sao | nhà cung cấp đã ký | chỉ mở sau GO-NO-GO |
+| staging | VPS tự host riêng (mua VPS = điểm dừng) | Better Auth | SeaweedFS | SMTP sandbox | dữ liệu giả/ẩn danh |
+| production | VPS tự host tại VN + pgBackRest PITR ra kho ngoài máy | Better Auth | SeaweedFS + đồng bộ ngoài máy | SMTP relay đã chọn | chỉ mở sau GO-NO-GO |
 
 ## Quan sát tối thiểu (G5)
 - Log JSON có `correlation_id`, lọc PII (che số điện thoại, CCCD, token).

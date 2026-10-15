@@ -215,7 +215,7 @@ Không áp dụng — tính năng không dùng model.
 - `portal.invoice_viewed`, `portal.request_created`, `portal.payment_claim_submitted`, `portal.guest_link_opened`, `portal.access_denied` (schema: `analytics/events.schema.json`, không chứa PII) → hỗ trợ M-01 (người thuê tự xem thay vì hỏi) và M-05 (dùng hằng tuần).
 
 ## 10. Câu hỏi mở (0 câu [chặn] trước khi Approved)
-- [ ] Q-01 Người thuê đăng nhập bằng gì: OTP email, OTP SĐT hay mật khẩu? — **[chặn]** — hỏi: PO + Tech Lead — **đề xuất mặc định:** OTP qua email của Supabase Auth (không cần nhà cung cấp SMS, không có chi phí theo tin); OTP SĐT xem lại sau pilot nếu tỷ lệ người thuê có email thấp (đo ở T001).
+- [ ] Q-01 Người thuê đăng nhập bằng gì: OTP email, OTP SĐT hay mật khẩu? — **[chặn]** — hỏi: PO + Tech Lead — **đề xuất mặc định:** OTP qua email (plugin `emailOTP` của Better Auth, bản ≥ 1.7.9 — đã sau advisory GHSA-qq9h-g4jm-xgf3; ADR-0002) (không cần nhà cung cấp SMS, không có chi phí theo tin); OTP SĐT xem lại sau pilot nếu tỷ lệ người thuê có email thấp (đo ở T001).
 - [ ] Q-02 Xác thực liên kết khách: chỉ token, hay token + yếu tố thứ hai? — **[chặn]** — hỏi: PO + Tech Lead — **đề xuất:** token ngẫu nhiên ≥ 128 bit gửi tới SĐT/email người đặt + nhập 4 số cuối SĐT đặt phòng, giới hạn 5 lần sai/liên kết rồi khoá.
 - [ ] Q-03 Thời hạn liên kết khách — [không chặn, có cấu hình] — hỏi: PO — **đề xuất:** đến giờ trả phòng dự kiến + 48 giờ, cấu hình theo cơ sở; tạo lại được.
 - [ ] Q-04 Người thuê còn xem được bao lâu sau khi hợp đồng `closed`? — [không chặn] — hỏi: PO + pháp lý — **đề xuất:** đến khi quyết toán xong + 30 ngày, chỉ đọc.

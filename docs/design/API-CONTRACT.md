@@ -2,7 +2,7 @@
 
 > Draft, chờ duyệt. Tài liệu này là quy ước chung cho mọi command/query. Danh sách command của từng tính năng nằm ở mục 5 trong mỗi SPEC (`docs/specs/`).
 > File máy đọc `apps/web/openapi.yaml` sinh từ schema Zod ở T-0xx và được lint trong CI.
-> Base URL: `/api/v1` (cùng origin với web). Xác thực: cookie phiên HttpOnly + Secure + SameSite=Lax, do server đổi từ token Supabase. Portal khách dùng link ký có hạn.
+> Base URL: `/api/v1` (cùng origin với web). Xác thực: cookie phiên HttpOnly + Secure + SameSite=Lax, do Better Auth cấp (ADR-0002). Portal khách dùng link ký có hạn.
 
 ## 1. Nguyên tắc chung
 - **Kiểu RPC theo command.** Ghi: `POST /api/v1/<module>/<command>`, ví dụ `POST /api/v1/inventory/createHold`. Đọc: `GET /api/v1/<module>/<query>?...`. Chọn RPC thay vì CRUD REST vì nghiệp vụ là chuyển trạng thái có quy tắc, không phải sửa trường tự do.

@@ -168,7 +168,7 @@ Quy ước chung cho mọi scenario (kế hoạch §16; DOMAIN-MODEL INV-G1):
 
 ¹ Tên lấy từ kế hoạch §12, **chưa có trong DOMAIN-MODEL §1**. ² Tên đề xuất mới. Cả hai phải được bổ sung vào DOMAIN-MODEL trước migration (Q-10).
 - Mọi bảng trên có `organization_id NOT NULL`, RLS theo `app.org_id`, FK ghép `(organization_id, id)` (INV-G1). Migration: viết ở T-003+, có `down`.
-- Phiên và MFA do Supabase Auth giữ (ADR-0001); hệ thống chỉ lưu `auth_user_id` và danh sách phiên bị thu hồi để chặn access token còn hạn.
+- Phiên và MFA do Better Auth giữ trong cùng Postgres (ADR-0002, phiên lưu DB nên thu hồi có hiệu lực ngay); `persons`/`memberships` của mình chỉ tham chiếu `auth_user_id`.
 
 ## 5. Giao diện / API
 Hợp đồng chi tiết: `docs/design/API-CONTRACT.md`. Mọi command nhận `Idempotency-Key`; mọi phản hồi có `context`.
@@ -186,7 +186,7 @@ Hợp đồng chi tiết: `docs/design/API-CONTRACT.md`. Mọi command nhận `I
 | `member.revoke` | membership_id, reason | — | FORBIDDEN, LAST_OWNER |
 | `session.revokeAll` | membership_id hoặc self | revoked_count | FORBIDDEN |
 | `session.switchOrganization` | organization_id, property_id? | context | NOT_FOUND |
-| `auth.enrollMfa` / `auth.verifyMfa` | (theo Supabase Auth) | mfa_verified | RATE_LIMITED |
+| `auth.enrollMfa` / `auth.verifyMfa` | (plugin `twoFactor` của Better Auth) | mfa_verified | RATE_LIMITED |
 | `approval.decide` | approval_request_id, decision, note | status | FORBIDDEN, SELF_APPROVAL_FORBIDDEN, INVALID_TRANSITION |
 
 ### 5.2 Query
@@ -280,7 +280,7 @@ Không áp dụng — tính năng không dùng model.
 - [ ] Q-04 Manager có được mời/thu hồi `front_desk`/`housekeeping`/`maintenance` và chỉnh bảng giá không — [không chặn] — hỏi: PO — đề xuất: được mời/thu hồi trong phạm vi; **không** chỉnh bảng giá (kế hoạch §03 giao "giá" cho owner).
 - [ ] Q-05 Thời hạn lời mời — [không chặn] — hỏi: PO — đề xuất: 7 ngày, dùng một lần, gắn email.
 - [ ] Q-06 Lễ tân có hạn mức hoàn tiền/xác nhận tiền mặt có bắt buộc MFA không (kế hoạch §16 ghi "MFA chủ/quản lý/tiền") — [chặn] — hỏi: PO + Tech Lead — đề xuất: bắt buộc MFA cho mọi membership có hạn mức hoàn > 0 hoặc quyền xác nhận thanh toán.
-- [ ] Q-07 Ngưỡng thử sai và thời gian hết phiên nhân viên — [chặn T010] — hỏi: Tech Lead — đề xuất: khoá tạm 15 phút sau 5 lần sai; phiên không hoạt động 12 giờ; xác thực lại cho xuất dữ liệu/đổi quyền. Cần đối chiếu cấu hình Supabase Auth thực tế (chưa xác minh).
+- [ ] Q-07 Ngưỡng thử sai và thời gian hết phiên nhân viên — [chặn T010] — hỏi: Tech Lead — đề xuất: khoá tạm 15 phút sau 5 lần sai; phiên không hoạt động 12 giờ; xác thực lại cho xuất dữ liệu/đổi quyền. Cấu hình qua rate limit và `session.expiresIn`/`updateAge` của Better Auth (ADR-0002); kiểm bằng test ở T-004.
 - [ ] Q-08 Quy trình khôi phục tài khoản khi mất thiết bị MFA (kế hoạch §16 "account recovery được kiểm tra") — [chặn pilot] — hỏi: PO + Tech Lead — đề xuất: owner khác reset MFA có audit; owner duy nhất → qua hỗ trợ nền tảng có xác minh danh tính (F-015).
 - [ ] Q-09 `accountant` có phạm vi "mọi cơ sở" mặc định không — [không chặn] — hỏi: PO — đề xuất: có, owner thu hẹp được.
 - [ ] Q-10 Bổ sung vào DOMAIN-MODEL các bảng `floors`, `property_scopes` (kế hoạch §12) và `invitations`, `approval_requests` (đề xuất) — [chặn migration] — hỏi: Tech Lead.

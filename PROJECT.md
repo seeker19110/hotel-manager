@@ -95,7 +95,7 @@ Nỗ lực: các gói P0 trong backlog là 224/343 ngày công, tức **65% nằ
 - **DPIA:** bắt buộc trước khi dùng dữ liệu thật → `docs/DPIA.md` (T-0xx trong PLAN, cần người phụ trách pháp lý duyệt).
 
 ## 7. Stack & kiến trúc (tóm tắt — chi tiết ở ADR-0001)
-Modular monolith TypeScript: Next.js (web + API) và một worker Node chạy chung codebase; PostgreSQL (Supabase managed khi lên production; dev/CI dùng Postgres cục bộ); SQL migrations; hàng đợi bền và outbox nằm trong Postgres. Phiên bản xác minh ở `docs/adr/0001-*.md`.
+Modular monolith TypeScript: Next.js (web + API) và một worker Node chạy chung codebase; PostgreSQL 17 **tự host** (sao lưu pgBackRest có PITR); đăng nhập + MFA bằng Better Auth trong app; file ở SeaweedFS; Caddy; email qua SMTP relay; SQL migrations; hàng đợi bền và outbox nằm trong Postgres. Chi tiết: ADR-0001 và ADR-0002 (tự host).
 
 ## 8. Giả định, rủi ro, ràng buộc
 | Giả định nguy hiểm | Cách kiểm chứng | Hạn | RK |
