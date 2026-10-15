@@ -143,6 +143,14 @@ export async function closeShift(
     }),
   );
   if (s.status !== "open") throw new CommandError("INVALID_TRANSITION", 409, "Ca không còn mở");
+  const pending = await sql<{ n: number }>`
+    select count(*)::int as n from payments
+    where organization_id = ${ctx.actor.orgId} and shift_id = ${s.id} and status = 'pending'`.execute(
+    ctx.trx,
+  );
+  if ((pending.rows[0]?.n ?? 0) > 0) {
+    throw new CommandError("SHIFT_HAS_PENDING_PAYMENTS", 409, "Còn khoản tiền mặt chưa xác nhận trong ca");
+  }
   const expected = await expectedCash(ctx.trx, ctx.actor.orgId, s.id);
   const difference = input.countedCash - expected;
   await sql`

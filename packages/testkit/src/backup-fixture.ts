@@ -57,6 +57,16 @@ async function write(
         const entryId = randomUUID();
         const invoiceId = randomUUID();
         const amount = BigInt(randomInt(1, 50_000)) * 1000n;
+        const memoRef = `HM${invoiceId.replaceAll("-", "").slice(0, 10).toUpperCase()}`;
+        await sql`
+          insert into invoices (id, organization_id, property_id, kind, number, memo_ref, payer_person_id, business_date, total)
+          values (${invoiceId}, ${orgId}, ${propertyId}, 'fee', ${`B-${invoiceId.slice(0, 8)}`}, ${memoRef}, ${personId},
+                  current_date, ${amount.toString()})`.execute(trx);
+        await sql`
+          insert into invoice_lines (id, organization_id, property_id, invoice_id, line_no, kind, description, revenue_account,
+                                     quantity, unit_price, amount, rounding_rule, formula_version)
+          values (${randomUUID()}, ${orgId}, ${propertyId}, ${invoiceId}, 1, 'room', 'Tiền phòng (giả)', 'REV_ROOM', 1,
+                  ${amount.toString()}, ${amount.toString()}, 'HALF_UP_1', 1)`.execute(trx);
         await sql`
           insert into journal_entries (id, organization_id, property_id, entry_type, business_date, source_doc_type, source_doc_id)
           values (${entryId}, ${orgId}, ${propertyId}, 'invoice_issued', current_date, 'invoice', ${invoiceId})`.execute(
@@ -82,6 +92,7 @@ async function summary(url: string): Promise<unknown> {
     const r = await sql<Record<string, string>>`
       select (select count(*) from organizations)::text as organizations,
              (select count(*) from journal_entries)::text as journal_entries,
+             (select count(*) from invoices)::text as invoices,
              (select count(*) from journal_lines)::text as journal_lines,
              (select coalesce(sum(debit), 0) from journal_lines)::text as sum_debit,
              (select coalesce(sum(credit), 0) from journal_lines)::text as sum_credit,

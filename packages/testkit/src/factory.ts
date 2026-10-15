@@ -70,3 +70,59 @@ export async function seedOrg(
   });
   return s;
 }
+
+export interface SeedInvoiceLine {
+  kind?: "room" | "utility" | "service" | "fee";
+  revenueAccount?: "REV_ROOM" | "REV_UTIL" | "REV_SERVICE" | "REV_FEE";
+  amount: number;
+  description?: string;
+}
+
+/**
+ * Phiếu `fee` đã phát hành (giả) cho test: phiếu + dòng + bút toán Nợ AR / Có doanh thu, cùng một transaction (đủ hàng rào
+ * tổng = Σ dòng và bút toán cân). Logic phát hành thật ở billing (PLAN đợt 2 T-114).
+ */
+export async function seedIssuedInvoice(
+  admin: Kysely<unknown>,
+  input: { orgId: string; propertyId: string; payerPersonId: string; lines: readonly SeedInvoiceLine[] },
+): Promise<{ invoiceId: string; total: number; memoRef: string }> {
+  const invoiceId = randomUUID();
+  const total = input.lines.reduce((s, l) => s + l.amount, 0);
+  const memoRef = `HM${randomUUID().replaceAll("-", "").slice(0, 10).toUpperCase()}`;
+  const entryId = randomUUID();
+  await admin.transaction().execute(async (trx) => {
+    await sql`insert into invoices (id, organization_id, property_id, kind, number, memo_ref, payer_person_id, business_date, total)
+              values (${invoiceId}, ${input.orgId}, ${input.propertyId}, 'fee', ${`T-${invoiceId.slice(0, 8)}`}, ${memoRef},
+                      ${input.payerPersonId}, current_date, ${total})`.execute(trx);
+    // Phiếu 0 đ không có bút toán (mỗi dòng sổ phải đúng một phía > 0).
+    const posts = total > 0;
+    if (posts) {
+      await sql`insert into journal_entries (id, organization_id, property_id, entry_type, business_date, source_doc_type, source_doc_id)
+                values (${entryId}, ${input.orgId}, ${input.propertyId}, 'invoice_issued', current_date, 'invoice', ${invoiceId})`.execute(
+        trx,
+      );
+    }
+    let no = 0;
+    let jl = 0;
+    if (posts)
+      await sql`insert into journal_lines (id, organization_id, property_id, entry_id, line_no, account, debit, credit, person_id, invoice_id)
+              values (${randomUUID()}, ${input.orgId}, ${input.propertyId}, ${entryId}, ${++jl}, 'AR', ${total}, 0,
+                      ${input.payerPersonId}, ${invoiceId})`.execute(trx);
+    for (const l of input.lines) {
+      const lineId = randomUUID();
+      const account = l.revenueAccount ?? "REV_FEE";
+      await sql`insert into invoice_lines (id, organization_id, property_id, invoice_id, line_no, kind, description, revenue_account,
+                                           quantity, unit_price, amount, rounding_rule, formula_version)
+                values (${lineId}, ${input.orgId}, ${input.propertyId}, ${invoiceId}, ${++no}, ${l.kind ?? "fee"},
+                        ${l.description ?? "Phí (giả)"}, ${account}, 1, ${l.amount}, ${l.amount}, 'HALF_UP_1', 1)`.execute(
+        trx,
+      );
+      if (!posts || l.amount === 0) continue;
+      await sql`insert into journal_lines (id, organization_id, property_id, entry_id, line_no, account, debit, credit, invoice_id,
+                                           invoice_line_id)
+                values (${randomUUID()}, ${input.orgId}, ${input.propertyId}, ${entryId}, ${++jl}, ${account}, 0, ${l.amount},
+                        ${invoiceId}, ${lineId})`.execute(trx);
+    }
+  });
+  return { invoiceId, total, memoRef };
+}

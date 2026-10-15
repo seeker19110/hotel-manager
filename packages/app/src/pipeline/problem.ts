@@ -12,7 +12,12 @@ export interface Problem {
   correlation_id?: string;
   /** Mở rộng RFC 9457: yêu cầu duyệt đã lập khi vượt hạn mức (SPEC-access S-017). */
   approval_request_id?: string;
+  /** Mở rộng: thanh toán đã dùng giao dịch ngân hàng này (SPEC-ledger S-029). */
+  payment_id?: string;
 }
+
+/** Trường mở rộng tĩnh gắn vào problem (RFC 9457). */
+export type ProblemExtensions = Partial<Pick<Problem, "approval_request_id" | "payment_id">>;
 
 /**
  * Ghi kèm khi lệnh THẤT BẠI (vd. lập yêu cầu duyệt khi vượt hạn mức): chạy trong transaction lưu kết quả lỗi — transaction
@@ -27,12 +32,19 @@ export class CommandError extends Error {
   readonly code: string;
   readonly status: number;
   readonly persist: FailurePersist | undefined;
-  constructor(code: string, status: number, message: string, opts: { persist?: FailurePersist } = {}) {
+  readonly extensions: ProblemExtensions;
+  constructor(
+    code: string,
+    status: number,
+    message: string,
+    opts: { persist?: FailurePersist; extensions?: ProblemExtensions } = {},
+  ) {
     super(message);
     this.name = "CommandError";
     this.code = code;
     this.status = status;
     this.persist = opts.persist;
+    this.extensions = opts.extensions ?? {};
   }
 }
 
@@ -73,12 +85,8 @@ export function toProblem(err: unknown, correlationId?: string): Problem {
     ...(detail ? { detail } : {}),
     ...(correlationId ? { correlation_id: correlationId } : {}),
   });
-  if (
-    err instanceof CommandError ||
-    err instanceof AuthzError ||
-    err instanceof AccessError ||
-    err instanceof TransitionError
-  ) {
+  if (err instanceof CommandError) return { ...base(err.code, err.status, err.message), ...err.extensions };
+  if (err instanceof AuthzError || err instanceof AccessError || err instanceof TransitionError) {
     return base(err.code, err.status, err.message);
   }
   const pg = err as { code?: string; hint?: string };

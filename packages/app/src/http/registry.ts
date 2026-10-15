@@ -2,6 +2,7 @@
 // (schema Zod là hợp đồng đầu vào). Tên mục = tên command trong SPEC §5.
 import { z } from "zod";
 import { APPROVAL_KINDS, cancelApproval, decideApproval, requestApproval } from "../approvals/approvals.ts";
+import { allocatePayment, confirmPayment, recordPayment, reversePayment } from "../payments/payments.ts";
 import {
   closeShift,
   handoverShift,
@@ -13,6 +14,17 @@ import type { CommandDef } from "./command-route.ts";
 
 const uuid = z.uuid();
 const money = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
+const positiveMoney = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
+const bankTxn = z.strictObject({
+  ref: z.string().trim().min(1).max(100),
+  occurred_at: z.iso.datetime({ offset: true }),
+  description: z.string().max(500).optional(),
+});
+const toBankTxn = (b: z.infer<typeof bankTxn>) => ({
+  ref: b.ref,
+  occurredAt: b.occurred_at,
+  ...(b.description ? { description: b.description } : {}),
+});
 
 /** Kiểu rộng cho danh mục (mỗi mục giữ schema riêng). */
 // biome-ignore lint/suspicious/noExplicitAny: danh mục không đồng nhất; mỗi mục tự gõ kiểu qua defineCommand
@@ -118,6 +130,75 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
       });
       return { data: { discrepancy_id: i.discrepancy_id } };
     },
+  }),
+  "payment.record": defineCommand({
+    command: "payment.record",
+    input: z.strictObject({
+      property_id: uuid,
+      method: z.enum(["cash", "bank_transfer"]),
+      amount: positiveMoney,
+      payer_person_id: uuid,
+      receiving_account_id: uuid.optional(),
+      bank_txn: bankTxn.optional(),
+    }),
+    run: async (ctx, i) => ({
+      data: await recordPayment(ctx, {
+        propertyId: i.property_id,
+        method: i.method,
+        amount: i.amount,
+        payerPersonId: i.payer_person_id,
+        ...(i.receiving_account_id ? { receivingAccountId: i.receiving_account_id } : {}),
+        ...(i.bank_txn ? { bankTxn: toBankTxn(i.bank_txn) } : {}),
+      }),
+      httpStatus: 201,
+    }),
+  }),
+  "payment.confirm": defineCommand({
+    command: "payment.confirm",
+    input: z.strictObject({
+      payment_id: uuid,
+      evidence: z
+        .strictObject({ bank_transaction_id: uuid.optional(), bank_txn: bankTxn.optional() })
+        .optional(),
+    }),
+    run: async (ctx, i) => ({
+      data: await confirmPayment(ctx, {
+        paymentId: i.payment_id,
+        ...(i.evidence
+          ? {
+              evidence: {
+                ...(i.evidence.bank_transaction_id
+                  ? { bankTransactionId: i.evidence.bank_transaction_id }
+                  : {}),
+                ...(i.evidence.bank_txn ? { bankTxn: toBankTxn(i.evidence.bank_txn) } : {}),
+              },
+            }
+          : {}),
+      }),
+    }),
+  }),
+  "payment.allocate": defineCommand({
+    command: "payment.allocate",
+    input: z.strictObject({
+      payment_id: uuid,
+      allocations: z
+        .array(z.strictObject({ invoice_id: uuid, amount: positiveMoney }))
+        .min(1)
+        .max(50),
+    }),
+    run: async (ctx, i) => ({
+      data: await allocatePayment(ctx, {
+        paymentId: i.payment_id,
+        allocations: i.allocations.map((a) => ({ invoiceId: a.invoice_id, amount: a.amount })),
+      }),
+    }),
+  }),
+  "payment.reverse": defineCommand({
+    command: "payment.reverse",
+    input: z.strictObject({ payment_id: uuid, reason: z.string().trim().min(1).max(1000) }),
+    run: async (ctx, i) => ({
+      data: await reversePayment(ctx, { paymentId: i.payment_id, reason: i.reason }),
+    }),
   }),
 };
 
