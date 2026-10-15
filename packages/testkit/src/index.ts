@@ -1,2 +1,1 @@
-// Khung gói @hm/testkit — nội dung thêm ở các task sau của PLAN.
-export {};
+export { createTestDb, type TestDb } from "./db.js";

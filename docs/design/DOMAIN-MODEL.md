@@ -36,7 +36,7 @@
 | Bút toán | `journal_entries` + `journal_lines` | Ghi sổ phụ cân bằng (Σ Nợ = Σ Có), append-only | |
 | Chốt kỳ / chốt ca | `period_locks`, `shifts` | Sau khi khoá, mọi thay đổi tiền phải đi qua điều chỉnh/đảo có duyệt. Pilot có **ca quầy tối thiểu**: mở ca (tiền đầu ca), đóng ca (đếm tiền, chênh lệch, người giao/nhận xác nhận) | |
 | Giao dịch ngân hàng | `bank_transactions` | Một khoản tiền vào tài khoản nhận, định danh bằng `(receiving_account_id, bank_txn_ref)`; mọi nguồn (webhook, sao kê, nhập tay kèm sao kê) quy về đây | Inbox (sự kiện của từng nguồn) |
-| Ngày kinh doanh | `business_date` | Ngày địa phương của cơ sở, tính theo giờ chốt ngày (không phải ngày UTC) | |
+| Ngày kinh doanh | (cột `business_date` trên chứng từ, không phải bảng) | Ngày địa phương của cơ sở, tính theo giờ chốt ngày (không phải ngày UTC) | |
 | Lệnh | `idempotency_keys` | Một thao tác ghi có `command_id`; replay trả cùng kết quả | |
 
 ## 2. Quy tắc dữ liệu chung (bất biến toàn hệ)

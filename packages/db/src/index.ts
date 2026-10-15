@@ -1,2 +1,2 @@
-// Khung gói @hm/db — nội dung thêm ở các task sau của PLAN.
-export {};
+export { migrations } from "./migrations/index.js";
+export { createMigrator, migrateDownAll, migrateToLatest } from "./migrator.js";
