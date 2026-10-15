@@ -3,7 +3,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { SECRET_KEYS } from "./schema.js";
+import { SECRET_KEYS } from "./schema.ts";
 
 const STATIC_DIR = new URL("../../../../apps/web/.next/static", import.meta.url).pathname;
 

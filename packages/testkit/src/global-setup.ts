@@ -5,13 +5,13 @@ import { migrateToLatest } from "@hm/db";
 import { Kysely, PostgresDialect, sql } from "kysely";
 import pg from "pg";
 import type { TestProject } from "vitest/node";
-import { TEST_ROLE_PASSWORD } from "./constants.js";
-import { type PgCluster, startPgCluster } from "./pg-cluster.js";
+import { TEST_ROLE_PASSWORD } from "./constants.ts";
+import { type PgCluster, startPgCluster } from "./pg-cluster.ts";
 
 export const TEMPLATE_DB = "hm_test_template";
 const ROLES_SQL = new URL("../../db/sql/bootstrap-roles.sql", import.meta.url);
 
-import "./db.js"; // nạp khai báo ProvidedContext.pgAdminUrl
+import "./db.ts"; // nạp khai báo ProvidedContext.pgAdminUrl
 
 function dbUrl(base: string, database: string): string {
   const u = new URL(base);

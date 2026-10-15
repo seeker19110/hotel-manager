@@ -1,6 +1,6 @@
 import type { Kysely } from "kysely";
 import { type MigrationResultSet, Migrator } from "kysely/migration";
-import { migrations } from "./migrations/index.js";
+import { migrations } from "./migrations/index.ts";
 
 export function createMigrator(db: Kysely<unknown>): Migrator {
   return new Migrator({

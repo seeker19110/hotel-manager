@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { inspect } from "node:util";
 import { describe, expect, it } from "vitest";
-import { ConfigError, ENV_KEYS, loadConfig, redactConfig, SECRET_KEYS } from "./schema.js";
+import { ConfigError, ENV_KEYS, loadConfig, redactConfig, SECRET_KEYS } from "./schema.ts";
 
 const valid = {
   APP_BASE_URL: "http://localhost:3000",

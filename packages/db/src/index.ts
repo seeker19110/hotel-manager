@@ -1,3 +1,3 @@
-export { migrations } from "./migrations/index.js";
-export { createMigrator, migrateDownAll, migrateToLatest } from "./migrator.js";
-export { withTenant } from "./tenant.js";
+export { migrations } from "./migrations/index.ts";
+export { createMigrator, migrateDownAll, migrateToLatest } from "./migrator.ts";
+export { withTenant } from "./tenant.ts";

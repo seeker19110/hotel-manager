@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Kysely, PostgresDialect, sql } from "kysely";
 import pg from "pg";
 import { inject } from "vitest";
-import { TEST_ROLE_PASSWORD } from "./constants.js";
+import { TEST_ROLE_PASSWORD } from "./constants.ts";
 
 const TEMPLATE_DB = "hm_test_template";
 
@@ -18,6 +18,8 @@ export interface TestDb {
   admin: Kysely<unknown>;
   /** Kết nối role `app_runtime` (chịu RLS) — dùng để chứng minh bất biến như ứng dụng thật thấy. */
   runtime: Kysely<unknown>;
+  /** URL kết nối role app_runtime tới DB này (cho thư viện tự tạo pool, vd Better Auth). */
+  runtimeUrl: string;
   name: string;
   drop(): Promise<void>;
 }
@@ -46,10 +48,12 @@ export async function createTestDb(): Promise<TestDb> {
   await sql.raw(`CREATE DATABASE ${name} TEMPLATE ${TEMPLATE_DB}`).execute(server);
   await server.destroy();
   const admin = connect(withDb(adminUrl, name));
-  const runtime = connect(withDb(adminUrl, name, "app_runtime"), 120);
+  const runtimeUrl = withDb(adminUrl, name, "app_runtime");
+  const runtime = connect(runtimeUrl, 120);
   return {
     admin,
     runtime,
+    runtimeUrl,
     name,
     async drop() {
       await runtime.destroy();

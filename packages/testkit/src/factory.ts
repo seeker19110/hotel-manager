@@ -13,7 +13,24 @@ export interface SeededOrg {
   ownerAuthUserId: string;
 }
 
-export async function seedOrg(admin: Kysely<unknown>, name: string, template = "hotel"): Promise<SeededOrg> {
+/** Tạo hàng `auth.user` tối thiểu (khi test không cần đăng nhập thật). */
+export async function seedAuthUser(
+  admin: Kysely<unknown>,
+  email: string,
+  id: string = randomUUID(),
+): Promise<string> {
+  await sql`insert into auth."user" (id, name, email, "emailVerified") values (${id}, ${email}, ${email}, false)`.execute(
+    admin,
+  );
+  return id;
+}
+
+export async function seedOrg(
+  admin: Kysely<unknown>,
+  name: string,
+  template = "hotel",
+  ownerAuthUserId?: string,
+): Promise<SeededOrg> {
   const s: SeededOrg = {
     orgId: randomUUID(),
     propertyId: randomUUID(),
@@ -22,8 +39,10 @@ export async function seedOrg(admin: Kysely<unknown>, name: string, template = "
     unitId: randomUUID(),
     ownerPersonId: randomUUID(),
     ownerMembershipId: randomUUID(),
-    ownerAuthUserId: randomUUID(),
+    ownerAuthUserId: ownerAuthUserId ?? randomUUID(),
   };
+  if (!ownerAuthUserId)
+    await seedAuthUser(admin, `owner+${s.orgId.slice(0, 8)}@example.test`, s.ownerAuthUserId);
   await admin.transaction().execute(async (trx) => {
     await sql`insert into organizations (id, name, created_by) values (${s.orgId}, ${name}, ${s.ownerAuthUserId})`.execute(
       trx,

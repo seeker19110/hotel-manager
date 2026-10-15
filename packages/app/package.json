@@ -11,10 +11,13 @@
   },
   "dependencies": {
     "@hm/db": "workspace:*",
+    "better-auth": "1.7.9",
     "kysely": "0.29.6",
+    "pg": "8.23.1",
     "zod": "4.6.7"
   },
   "devDependencies": {
+    "@better-auth/utils": "0.5.0",
     "@hm/testkit": "workspace:*",
     "vitest": "5.0.4"
   }

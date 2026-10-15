@@ -1,2 +1,2 @@
-export { createTestDb, type TestDb } from "./db.js";
-export { type SeededOrg, seedOrg } from "./factory.js";
+export { createTestDb, type TestDb } from "./db.ts";
+export { type SeededOrg, seedAuthUser, seedOrg } from "./factory.ts";

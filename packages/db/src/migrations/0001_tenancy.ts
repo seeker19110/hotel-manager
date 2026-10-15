@@ -270,9 +270,7 @@ BEGIN
                    'WITH CHECK (organization_id = app.current_org())', t);
   END LOOP;
 END $$;
--- Bước chọn tổ chức (chưa có app.org_id): chỉ ĐỌC membership của chính mình qua app.auth_user_id (missing_ok).
-CREATE POLICY own_memberships_select ON memberships FOR SELECT
-  USING (auth_user_id = nullif(current_setting('app.auth_user_id', true), '')::uuid);
+-- Bước chọn tổ chức (chưa có app.org_id) đi qua hàm SECURITY DEFINER app.list_my_organizations (0002), không mở policy.
 
 -- Quyền cho role ứng dụng (bootstrap-roles.sql tạo role). Không owner, không BYPASSRLS.
 GRANT USAGE ON SCHEMA app TO app_runtime, app_worker;
