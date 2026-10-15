@@ -4,7 +4,7 @@
 |---|---|
 | ID tính năng | F-002 (luồng: R-002, R-003, R-004) |
 | Trạng thái | Draft — chờ duyệt |
-| Phiên bản | 1 — thay đổi: xem cuối file |
+| Phiên bản | 2 — thay đổi: xem cuối file |
 | Chủ spec | (chưa gán) · Duyệt bởi (chưa) |
 | Hồ sơ/quy mô | web-app / M |
 | Nguồn | Kế hoạch §07, §13, §17; DOMAIN-MODEL §3, §4; ADR-0001; backlog T018–T022, T024 |
@@ -82,7 +82,7 @@ Fixture chung: tổ chức A, cơ sở P1 (`timezone=Asia/Ho_Chi_Minh`), phòng 
 ### S-013 Sự cố bất ngờ trên phòng có khách sắp đến (kế hoạch §07)
 - Given `102` có lượt ở `expected` bắt đầu hôm nay 14:00
 - When manager `inventory.setUnitAvailability` {`102`, `out_of_service`, lý do}
-- Then chiều khả dụng = `out_of_service`; mọi `createHold`/check-in mới vào `102` → `409 UNIT_OUT_OF_SERVICE`; booking **không** bị xoá hay huỷ; tạo một `exception` loại `RELOCATION_REQUIRED` cho mỗi allocation tương lai bị ảnh hưởng; audit có trước/sau
+- Then chiều khả dụng = `out_of_service`; mọi `createHold`/check-in mới vào `102` → `409 UNIT_OUT_OF_SERVICE`; booking **không** bị xoá hay huỷ; tạo một `exceptions` có `type='RELOCATION_REQUIRED'` cho mỗi allocation tương lai bị ảnh hưởng; audit có trước/sau
 
 ### S-014 Ba chiều trạng thái độc lập (Scenario Outline, T019)
 - Given phòng có `<chiếm dụng>`, `<vệ sinh>`, `<khả dụng>`
@@ -112,12 +112,12 @@ Fixture chung: tổ chức A, cơ sở P1 (`timezone=Asia/Ho_Chi_Minh`), phòng 
 ### S-017 Quá hạn chưa trả phòng (INV-I4)
 - Given lượt ở `s1` `in_house` trên `101`, kết thúc dự kiến 17/10 12:00; đồng hồ test = 17/10 13:00
 - When worker `inventory.detectOverdue` chạy; sau đó lễ tân check-in booking khác vào `101`
-- Then allocation `s1` **không** tự kết thúc (không đặt `active=false`); tạo 1 `exception` loại `STAY_OVERSTAY` (chạy lại không tạo thêm); lịch hiển thị `101` "Quá hạn trả"; check-in mới → `409 ROOM_OCCUPIED`; booking đã xác nhận kế tiếp trên `101` có `exception` `RELOCATION_REQUIRED`
+- Then allocation `s1` **không** tự kết thúc (không đặt `active=false`); tạo 1 `exceptions` có `type='STAY_OVERSTAY'` (chạy lại không tạo thêm); lịch hiển thị `101` "Quá hạn trả"; check-in mới → `409 ROOM_OCCUPIED`; booking đã xác nhận kế tiếp trên `101` có `exceptions` `type='RELOCATION_REQUIRED'`
 
 ### S-018 Gia hạn đụng booking đã xác nhận (INV-I4)
 - Given `s1` trên `101` đến 17/10 12:00; booking `r2` đã `confirmed` trên `101` từ 17/10 14:00
 - When `inventory.resizeAllocation` `s1` đến 18/10 12:00
-- Then `409 ROOM_UNAVAILABLE` kèm `exception_id` loại `EXTENSION_CONFLICT` (ghi ở transaction riêng sau rollback); `s1` giữ nguyên; `r2` không đổi; không bỏ/hoãn constraint
+- Then `409 ROOM_UNAVAILABLE` kèm `exception_id` của một `exceptions` có `type='EXTENSION_CONFLICT'` (ghi ở transaction riêng sau rollback; `EXTENSION_CONFLICT` là loại ngoại lệ, không phải mã lỗi API); `s1` giữ nguyên; `r2` không đổi; không bỏ/hoãn constraint
 
 ### S-019 Hợp đồng không thời hạn (khoảng mở)
 - Given hợp đồng trên `103` có allocation `kind='lease'` [01/11 00:00, ∞)
@@ -127,7 +127,7 @@ Fixture chung: tổ chức A, cơ sở P1 (`timezone=Asia/Ho_Chi_Minh`), phòng 
 ### S-020 Hợp đồng hết hạn nhưng chưa bàn giao trả (kế hoạch §07)
 - Given allocation `lease` của `103` kết thúc 31/12 24:00, chưa có `handovers` trả phòng; đồng hồ test = 01/01 09:00
 - When job `lease.detectOverstay` (SPEC-lease) chạy
-- Then tạo 1 `exception` loại `LEASE_OVERSTAY`; phòng không thành trống; khi ngoại lệ còn `open`: `searchAvailability` loại `103`, `createHold`/check-in/bàn giao vào `103` có `start` trước thời điểm giải quyết → `409 ROOM_OCCUPIED`; mỗi booking đã xác nhận bị đụng có thêm `exception` `RELOCATION_REQUIRED` (Q-09)
+- Then tạo 1 `exceptions` có `type='LEASE_OVERSTAY'`; phòng không thành trống; khi ngoại lệ còn `open`: `searchAvailability` loại `103`, `createHold`/check-in/bàn giao vào `103` có `start` trước thời điểm giải quyết → `409 ROOM_OCCUPIED`; mỗi booking đã xác nhận bị đụng có thêm `exceptions` `type='RELOCATION_REQUIRED'` (Q-09)
 
 ### S-021 Lịch phòng theo cơ sở/tầng/loại (T020)
 - Given P1 có 2 tầng, 3 loại phòng, các allocation hold/stay/lease/block
@@ -162,10 +162,10 @@ Fixture chung: tổ chức A, cơ sở P1 (`timezone=Asia/Ho_Chi_Minh`), phòng 
 | `allocations` | organization_id, property_id, unit_id, id, kind, source_id, during, active, expires_at, created_by | `tstzrange`, `timestamptz` | EXCLUDE GiST (organization_id =, unit_id =, during &&) WHERE active; `expires_at` NOT NULL ⇔ kind=`hold`; `upper(during)` NULL chỉ khi kind=`lease` | chỉ qua command `inventory.*` |
 | `blocks` | organization_id, property_id, unit_id, id, period (`tstzrange`), reason, requested_by, approved_by, status (`requested→approved→ended`; `rejected`), work_order_id? | | `approved_by` ≠ null khi `approved`; có allocation `kind='block'` khi `approved` | đề xuất: xem ma trận F-001; duyệt: owner/manager |
 | `units` (thêm) | housekeeping_status, availability, availability_reason | `dirty\|assigned\|cleaning\|clean\|inspected`; `active\|blocked\|out_of_service` | `blocked` suy ra từ block đang hiệu lực, không ghi tay | ghi qua F-007 (vệ sinh) và `inventory.*` |
-| `exception` ¹ | organization_id, property_id, id, kind (`STAY_OVERSTAY`, `EXTENSION_CONFLICT`, `LEASE_OVERSTAY` (tạo bởi F-003), `RELOCATION_REQUIRED`), allocation_id, status (`open→resolved`), resolution, resolved_by | | unique (allocation_id, kind) where status=`open` | owner/manager |
+| `exceptions` ¹ | organization_id, property_id, id, type (`STAY_OVERSTAY`, `EXTENSION_CONFLICT`, `LEASE_OVERSTAY` (tạo bởi F-003), `RELOCATION_REQUIRED`), allocation_id, status (`open→resolved`), resolution, resolved_by | | unique (allocation_id, type) where status=`open` | owner/manager |
 
 Ánh xạ nguồn (DOMAIN-MODEL §3): `hold` → `reservation_items` (hoặc lease nháp, F-003); `stay` → `stays` (tạo khi booking `confirmed`, trạng thái `expected`); `lease` → `leases`; `block` → `blocks`.
-¹ DOMAIN-MODEL INV-I4 nhắc `exception` nhưng chưa định nghĩa bảng/tên số nhiều — cần chốt (Q-06).
+¹ Bảng `exceptions` và bốn loại ngoại lệ đã có ở DOMAIN-MODEL §7 (v1.2); các loại này là giá trị của `exceptions.type`, không phải mã lỗi HTTP.
 Migration: cần extension `btree_gist` (ADR-0001); có `down`.
 
 ## 5. Giao diện / API
@@ -199,7 +199,7 @@ Hợp đồng chi tiết: `docs/design/API-CONTRACT.md`. Mọi command nhận `I
 ## 6. Lỗi
 | Mã lỗi | Khi nào | HTTP | Thông điệp cho người dùng | Scenario |
 |---|---|---|---|---|
-| ROOM_UNAVAILABLE | Chồng allocation (`23P01`) | 409 | Phòng đã có người giữ hoặc đang dùng trong thời gian này. Xem phòng gợi ý. | S-002, S-005, S-016, S-018, S-019 |
+| ROOM_UNAVAILABLE | Chồng allocation (`23P01`); gia hạn đụng booking đã xác nhận (S-018) trả thêm `exception_id` của `exceptions.type='EXTENSION_CONFLICT'` | 409 | Phòng đã có người giữ hoặc đang dùng trong thời gian này. Xem phòng gợi ý. | S-002, S-005, S-016, S-018, S-019 |
 | HOLD_EXPIRED | Xác nhận hold đã quá hạn | 409 | Thời gian giữ phòng đã hết. Vui lòng giữ lại. | S-009 |
 | BLOCK_CONFLICT | Duyệt block chồng khách đã có | 409 | Khoảng khoá trùng với khách đã xác nhận. Hãy chuyển khách trước. | S-012 |
 | UNIT_OUT_OF_SERVICE | Giữ/chuyển vào phòng ngừng khai thác | 409 | Phòng đang ngừng khai thác. | S-013 |
@@ -226,18 +226,18 @@ Không áp dụng — tính năng không dùng model.
 - `allocation.hold_created`, `allocation.hold_expired`, `allocation.conflict_rejected` (nguồn: R-004), `allocation.moved`, `block.approved`, `exception.opened` / `exception.resolved` → M-04 (sai lệch tồn), M-05 (tác vụ lõi theo `property_id`).
 
 ## 10. Câu hỏi mở (0 câu [chặn] trước khi Approved)
-- [ ] Q-01 TTL mặc định của hold — [chặn T050] — hỏi: PO — đề xuất: 15 phút cho booking tại quầy, cấu hình theo cơ sở; hold hợp đồng thuê (F-003) theo ngày, tối đa 3 ngày. Kế hoạch chỉ ghi "có hạn", chưa có số.
+- [ ] Q-01 TTL mặc định của hold — [chặn T050] — hỏi: PO — đề xuất: 15 phút cho booking tại quầy, cấu hình theo cơ sở; giữ chỗ hợp đồng thuê (`lease.hold`, F-003) là allocation `hold` có TTL riêng 48 giờ (cấu hình theo cơ sở; xem SPEC-lease). Kế hoạch chỉ ghi "có hạn", chưa có số.
 - [ ] Q-02 Buffer dọn phòng giữa hai khách: dùng giờ nhận/trả (khoảng 12:00→14:00 tự nhiên) hay block buffer riêng (INV-I2) — [không chặn] — hỏi: PO — đề xuất: V1 không tạo buffer tự động; khoảng trống nhận/trả đóng vai buffer, `ready_for_arrival` chặn check-in khi phòng chưa sạch.
 - [ ] Q-03 Ngưỡng quá hạn trước khi tạo `STAY_OVERSTAY` — [không chặn] — hỏi: PO — đề xuất: 60 phút sau giờ trả dự kiến (cấu hình theo cơ sở).
 - [ ] Q-04 Mốc giờ của allocation hợp đồng (ngày bắt đầu/kết thúc → `timestamptz`) — [không chặn F-002, chặn F-003] — hỏi: PO — đề xuất: 00:00 giờ địa phương của ngày bàn giao đến 00:00 ngày sau ngày trả.
 - [ ] Q-05 Giới hạn khoảng truy vấn lịch — [không chặn] — hỏi: Tech Lead — đề xuất: tối đa 62 ngày/lần, phân trang theo phòng.
-- [ ] Q-06 Tên bảng ngoại lệ (`exception` trong INV-I4) và có dùng chung cho F-003/F-005 không — [chặn migration] — hỏi: Tech Lead — đề xuất: bảng `exceptions` dùng chung, bổ sung DOMAIN-MODEL §1.
+- [x] Q-06 Tên bảng ngoại lệ (`exception` trong INV-I4) — đã đóng: bảng `exceptions` dùng chung, có ở DOMAIN-MODEL §7 (v1.2).
 - [ ] Q-07 Cơ sở có bắt buộc `inspected` (không chấp nhận `clean`) trước khi nhận khách — [không chặn] — hỏi: PO — đề xuất: mặc định chấp nhận `clean` hoặc `inspected`, có cờ bắt buộc `inspected`.
 - [ ] Q-08 Block đụng khách: ngoài "chuyển khách trước" có cho duyệt block một phần không — [không chặn] — hỏi: PO — đề xuất: không ở pilot; dùng `out_of_service` + exception (S-013).
 - [ ] Q-09 Khi quá hạn (khách/hợp đồng) còn mở, có cho giữ phòng đó cho ngày tương lai xa không — [không chặn] — hỏi: PO — đề xuất: không cho mọi hold có `start` trước khi ngoại lệ được giải quyết; hold sau mốc kết thúc mới đã thoả thuận thì được.
 
 ## 11. DoR / DoD
-- DoR: spec Approved · 0 câu hỏi chặn · F-001 (tenant, quyền) xong · DOMAIN-MODEL chốt bảng ngoại lệ.
+- DoR: spec Approved · 0 câu hỏi chặn · F-001 (tenant, quyền) xong · DOMAIN-MODEL §7 đã có bảng `exceptions` (Q-06 đã đóng).
 - DoD: mọi S-NNN có test xanh; S-002, S-005–S-010, S-015–S-020 chạy trên Postgres thật · cổng commit/merge xanh · API-CONTRACT cập nhật · sự kiện mục 9 có schema.
 
 ## 12. Truy vết
@@ -249,3 +249,4 @@ Không áp dụng — tính năng không dùng model.
 | Phiên bản | Ngày | Gì | Vì sao | Duyệt |
 |---|---|---|---|---|
 | 1 | 2026-10-15 | tạo | G3 cho F-002 | (chờ) |
+| 2 | 2026-10-15 | sửa theo review độc lập: `EXTENSION_CONFLICT` là `exceptions.type`, không phải mã lỗi API (mục 2 S-018, 4, 6); bảng `exceptions` theo DOMAIN-MODEL §7, đóng Q-06; TTL giữ chỗ hợp đồng 48 giờ | review G1, G5 | (chờ) |

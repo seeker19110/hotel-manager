@@ -4,15 +4,16 @@
 |---|---|
 | ID tính năng | F-005 (luồng gốc: R-001 phần thu và phân bổ; R-002 phần cọc) |
 | Trạng thái | Draft — chờ duyệt |
-| Phiên bản | 1 (2026-10-15) — thay đổi: xem cuối file |
+| Phiên bản | 2 (2026-10-15) — thay đổi: xem cuối file |
 | Chủ spec | (chưa gán) · Duyệt bởi (chưa) |
 | Hồ sơ/quy mô | web-app / M |
-| Nguồn | Kế hoạch gốc §08 (tài chính, đối soát), §12, §13 (ghi tiền và webhook); backlog T033–T040; DOMAIN-MODEL §5 (tài khoản, bút toán, INV-F1…F6) |
+| Nguồn | Kế hoạch gốc §08 (tài chính, đối soát), §12, §13 (ghi tiền và webhook); backlog T033–T040; DOMAIN-MODEL v1.2 §1, §4, §5, §7 (tài khoản, bút toán, INV-F1…F6, INV-F3b, INV-F4b, `bank_transactions`, ca quầy tối thiểu) |
 | Phụ thuộc | SPEC-metering-billing (phát hành phiếu) · SPEC-lease (quyết toán) · SPEC-audit-reporting (xuất) · SPEC-notifications |
 
-> Tên tài khoản và bút toán **chỉ** theo DOMAIN-MODEL §5. Tên **†** chưa có trong DOMAIN-MODEL (mục 10).
+> Tên tài khoản, bảng và bút toán **chỉ** theo DOMAIN-MODEL v1.2 (§1, §5, §7); mọi bảng của spec này đã có ở đó, không còn tên **†**.
 > Phiếu (`invoices`) là chứng từ nghiệp vụ nội bộ, **không phải hoá đơn điện tử**; mọi màn hình/PDF ghi rõ "Phiếu tính tiền — không phải hoá đơn GTGT". Hệ thống **không giữ tiền** và không chạm dữ liệu thẻ.
-> Webhook trong pilot là **nhà cung cấp mô phỏng** (`provider='sim'`); adapter ngân hàng thật thuộc F-016.
+> Webhook vào theo một đường duy nhất `POST /api/v1/webhooks/{provider}/{account}`; trong pilot là **nhà cung cấp mô phỏng** (`provider='sim'`); adapter ngân hàng thật thuộc F-016.
+> Hạn mức duyệt tiền theo vai trò chỉ quyết **một chỗ**: mục 10 (đề xuất, chờ PO); các nơi khác chỉ tham chiếu.
 
 ## 1. User story
 - Là **kế toán**, tôi muốn ghi tiền thu có chứng cứ, phân bổ vào một hay nhiều phiếu, để công nợ đúng và không ai xác nhận tiền "khách nói đã chuyển".
@@ -24,8 +25,8 @@ Fixture `ledger-basic`: phiếu I1 (trọ, L1) tổng 3.580.000 đ đã phát h�
 
 ### S-001 Thu một phần — ví dụ bắt buộc 1.580.000 đ
 - Given I1 còn 3.580.000 đ
-- When K gọi `payment.record` 2.000.000 đ chuyển khoản B1 kèm dòng sao kê, `payment.confirm`, rồi `payment.allocate` 2.000.000 vào I1
-- Then thanh toán `confirmed`; bút toán 1: Nợ `BANK` 2.000.000 / Có `CUSTOMER_CREDIT` 2.000.000; bút toán 2: Nợ `CUSTOMER_CREDIT` 2.000.000 / Có `AR` 2.000.000; I1 còn **1.580.000 đ**; cọc 3.000.000 của L1 không đổi
+- When K gọi `payment.record` 2.000.000 đ chuyển khoản B1 kèm dòng sao kê (mã giao dịch `FT26288001`), `payment.confirm`, rồi `payment.allocate` 2.000.000 vào I1
+- Then có 1 `bank_transactions` `(B1, FT26288001)` và thanh toán `confirmed` tham chiếu nó (INV-F4b); bút toán 1: Nợ `BANK` 2.000.000 / Có `CUSTOMER_CREDIT` 2.000.000; bút toán 2: Nợ `CUSTOMER_CREDIT` 2.000.000 / Có `AR` 2.000.000; I1 còn **1.580.000 đ**; cọc 3.000.000 của L1 không đổi
 
 ### S-002 Ứng trước khách sạn — ví dụ bắt buộc 930.000 đ
 - Given khách S1 đã trả trước 500.000 đ (`confirmed`, nằm ở `CUSTOMER_CREDIT`)
@@ -72,10 +73,10 @@ Fixture `ledger-basic`: phiếu I1 (trọ, L1) tổng 3.580.000 đ đã phát h�
 - When O gọi `payment.reverse` có lý do
 - Then trạng thái `reversed`; bút toán đảo phân bổ (Nợ `AR` / Có `CUSTOMER_CREDIT` 2.000.000) và đảo thu (Nợ `CUSTOMER_CREDIT` / Có `BANK` 2.000.000), mỗi bút toán có `reverses_entry_id`; I1 còn lại 3.580.000; bút toán gốc giữ nguyên; đảo lần 2 → 409 `INVALID_TRANSITION`
 
-### S-011 Nhận cọc tách doanh thu
-- Given hợp đồng L1
-- When F gọi `deposit.receive` 3.000.000 đ tiền mặt có biên nhận
-- Then Nợ `CASH` 3.000.000 / Có `DEPOSIT_LIAB` 3.000.000; báo cáo doanh thu không đổi
+### S-011 Nhận cọc tách doanh thu (tiền mặt đi qua `payments`, INV-F3b — đề xuất, chờ PO)
+- Given hợp đồng L1; F có ca đang mở (mục "Ca quầy tối thiểu")
+- When F gọi `deposit.receive` 3.000.000 đ tiền mặt
+- Then **không** ghi thẳng `CASH`: tạo `payments` `pending` (mục đích `deposit`, gắn `deposit_id`, `shift_id` của F) và biên nhận do hệ thống sinh; trước khi xác nhận không có bút toán; F xác nhận (tiền do chính F nhận trong ca đang mở) → `confirmed`, Nợ `CASH` 3.000.000 / Có `DEPOSIT_LIAB` 3.000.000 (không qua `CUSTOMER_CREDIT`); số 3.000.000 vào đối chiếu đóng ca; báo cáo doanh thu không đổi
 
 ### S-012 Khấu trừ cọc cần duyệt (INV-F5)
 - Given cọc L1 3.000.000, I1 còn 1.580.000
@@ -98,9 +99,9 @@ Fixture `ledger-basic`: phiếu I1 (trọ, L1) tổng 3.580.000 đ đã phát h�
 - Then trả số tài khoản B1, số tiền 1.580.000, nội dung CK chứa `HM7Q4K2P`, ảnh QR; trạng thái I1 không đổi cho đến khi có xác nhận có chứng cứ
 
 ### S-016 Webhook mô phỏng — 100 lần cùng payload = 1 hiệu lực (INV-F4)
-- Given payload `sim` hợp lệ: `event_id`=E1, B1, 1.580.000 đ, nội dung `HM7Q4K2P`, chữ ký HMAC-SHA256 đúng
-- When gửi 100 lần song song tới `POST /api/v1/webhooks/sim/{account}`
-- Then đúng 1 dòng `inbox` `(sim, B1, E1)`, 1 thanh toán `confirmed` (chứng cứ = webhook đã xác minh), 1 phân bổ vào I1; I1 = 0; 99 lần còn lại trả 200 `duplicate=true`
+- Given I1 còn 1.580.000; payload `sim` hợp lệ: `event_id`=E1, `bank_txn_ref`=`SIM00001`, B1, 1.580.000 đ, nội dung `HM7Q4K2P`, chữ ký HMAC-SHA256 đúng
+- When gửi 100 lần song song tới `POST /api/v1/webhooks/{provider}/{account}` với provider=`sim`, account=B1
+- Then đúng 1 dòng `inbox` `(sim, B1, E1)`, 1 `bank_transactions` `(B1, SIM00001)`, 1 thanh toán `confirmed` (chứng cứ = webhook đã xác minh, trỏ `bank_transaction_id`), 1 phân bổ vào I1; I1 = 0; 99 lần còn lại trả 200 `duplicate=true`
 
 ### S-017 Webhook sai chữ ký
 - Given payload có chữ ký sai
@@ -110,32 +111,32 @@ Fixture `ledger-basic`: phiếu I1 (trọ, L1) tổng 3.580.000 đ đã phát h�
 ### S-018 Trùng ID khác nội dung (INV-F4)
 - Given `inbox` đã có E1 với hash h1
 - When nhận E1 với số tiền khác (hash h2)
-- Then 409 `INBOX_HASH_MISMATCH`; tạo `reconciliation_break`; báo động cho O; không ghi tiền
+- Then 409 `INBOX_HASH_MISMATCH` (mã lỗi API); tạo `reconciliation_break` với **lý do** `HASH_MISMATCH` (không phải mã lỗi API, mục 6); báo động cho O; không ghi tiền
 
 ### S-019 Import sao kê CSV và chống nhập trùng
 - Given file sao kê B1 gồm 5 dòng; 2 dòng đã nhập ở lần trước
 - When K gọi `reconciliation.importStatement`
-- Then 3 dòng mới vào `inbox` (`provider='statement_csv'`, `provider_event_id` = mã giao dịch ngân hàng, hoặc hash của ngày + số tiền + nội dung + số dư nếu không có mã); 2 dòng báo "đã nhập", không tạo bản ghi mới
+- Then 3 dòng mới vào `inbox` (`provider='statement_csv'`, `provider_event_id` = mã giao dịch ngân hàng, hoặc hash của ngày + số tiền + nội dung + số dư nếu không có mã) và vào `bank_transactions` với `bank_txn_ref` tương ứng; 2 dòng báo "đã nhập", không tạo bản ghi mới
 
 ### S-020 Ghép và hàng chờ khoản bất thường
 - Given 4 dòng sao kê: (a) 1.580.000 nội dung `HM7Q4K2P`; (b) 500.000 nội dung "tien phong"; (c) 2.510.000 nội dung có 2 mã I1 và I2; (d) 2.000.000 có mã I1 nhưng I1 còn 1.580.000
 - When xem trước ghép (`reconciliation.previewMatches`)
-- Then (a) gợi ý khớp I1; (b) vào hàng chờ `WRONG_REFERENCE`; (c) `COMBINED`; (d) `OVERPAID` (đề xuất phân bổ 1.580.000 + 420.000 vào `CUSTOMER_CREDIT`); không dòng nào ghi tiền trước khi K bấm xác nhận
+- Then (a) gợi ý khớp I1; (b) vào hàng chờ với lý do break `WRONG_REFERENCE`; (c) `COMBINED`; (d) `OVERPAID` (đều là lý do break, không phải mã lỗi API) (đề xuất phân bổ 1.580.000 + 420.000 vào `CUSTOMER_CREDIT`); không dòng nào ghi tiền trước khi K bấm xác nhận
 
 ### S-021 Xác nhận từ sao kê; người khác trả hộ
 - Given dòng (b) ở hàng chờ
 - When K gán dòng (b) cho phiếu của L1 và đánh dấu `THIRD_PARTY_PAYER` với ghi chú
-- Then tạo thanh toán `confirmed` (chứng cứ = dòng sao kê), người trả ghi theo sao kê, phân bổ 500.000; audit có lý do
+- Then tạo thanh toán `confirmed` (chứng cứ = `bank_transaction` của dòng sao kê), người trả ghi theo sao kê, phân bổ 500.000; `THIRD_PARTY_PAYER` là lý do break (không phải mã lỗi API) và break được đóng; audit có lý do
 
 ### S-022 Chốt kỳ và điều chỉnh sau khoá (INV-F6)
 - Given kỳ 09/2026 của P1 đã `ledger.lockPeriod`
 - When K ghi thanh toán có `business_date`=2026-09-28
 - Then lỗi 409 `PERIOD_LOCKED`; `ledger.issueAdjustment` (giảm 100.000 cho phiếu kỳ 09, có lý do, O duyệt) ghi vào kỳ đang mở và tham chiếu phiếu gốc: Nợ `DISCOUNT` 100.000 / Có `AR` 100.000
 
-### S-023 Mở khoá kỳ
-- Given kỳ 09/2026 khoá
-- When M gọi `ledger.unlockPeriod`
-- Then lỗi 403 `FORBIDDEN`; chỉ `owner` mở được, bắt buộc lý do, audit `period.unlocked`
+### S-023 Mở khoá kỳ: chỉ owner, không sửa chứng từ đã phát hành
+- Given kỳ 09/2026 khoá (có `period_locks` hiệu lực; `billing_periods.status='locked'`)
+- When M gọi `ledger.unlockPeriod`; K gọi; O gọi không có lý do; O gọi có lý do; sau đó K gọi sửa trực tiếp số tiền phiếu I1 của kỳ 09
+- Then M và K → 403 `FORBIDDEN`; O không lý do → 422 `VALIDATION_FAILED`; O có lý do → `period_locks` ghi `released_by/released_at/release_reason` (không xoá dòng), kỳ chuyển `locked → issued`, audit `period.unlocked`; sửa trực tiếp phiếu I1 → 409 `DOCUMENT_IMMUTABLE` (mở khoá chỉ cho thêm điều chỉnh/đảo ghi ngày trong kỳ, không cho sửa chứng từ đã phát hành); gọi `ledger.unlockPeriod` khi kỳ không khoá → 409 `INVALID_TRANSITION`
 
 ### S-024 Báo cáo tách tiền thu, doanh thu, cọc, nợ
 - Given tháng 10/2026: phát hành I1 3.580.000; thu 2.000.000 (S-001); nhận cọc 3.000.000 (S-011)

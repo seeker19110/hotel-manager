@@ -4,10 +4,10 @@
 |---|---|
 | ID tính năng | F-001 (luồng liên quan: R-001…R-005 đều phụ thuộc) |
 | Trạng thái | Draft — chờ duyệt |
-| Phiên bản | 1 — thay đổi: xem cuối file |
+| Phiên bản | 2 — thay đổi: xem cuối file |
 | Chủ spec | (chưa gán) · Duyệt bởi (chưa) |
 | Hồ sơ/quy mô | web-app / M |
-| Nguồn | Kế hoạch §03, §09, §11, §12, §16; DOMAIN-MODEL §1, §2, §6; ADR-0001; backlog T002, T005, T010–T013, T017 |
+| Nguồn | Kế hoạch §03, §09, §11, §12, §16; DOMAIN-MODEL §1, §2, §4–§7; ADR-0001, ADR-0002; backlog T002, T005, T010–T013, T017 |
 
 ## 1. User story
 - Là **chủ sở hữu**, tôi muốn tạo tổ chức, cơ sở và danh mục phòng rồi mời nhân viên với vai trò, phạm vi cơ sở và hạn mức tiền, để mỗi người chỉ làm đúng việc của mình.
@@ -63,7 +63,7 @@ Quy ước chung cho mọi scenario (kế hoạch §16; DOMAIN-MODEL INV-G1):
 ### S-009 Thu hồi thành viên có hiệu lực ở request kế tiếp
 - Given lễ tân L có membership active ở A và đang có phiên hợp lệ
 - When owner gọi `member.revoke` L; sau đó L gửi `inventory.createHold`
-- Then request của L → `404 NOT_FOUND` (không còn đọc được tổ chức A); quyền được tra `memberships` ở mỗi request, **không** lấy từ claim JWT (ADR-0001)
+- Then request của L → `404 NOT_FOUND` (không còn đọc được tổ chức A); quyền được tra từ `memberships` theo phiên Better Auth ở mỗi request (ADR-0002), không lưu quyền trong token phía client
 
 ### S-010 Thu hồi phiên
 - Given L có 2 phiên trên 2 thiết bị
@@ -141,6 +141,16 @@ Quy ước chung cho mọi scenario (kế hoạch §16; DOMAIN-MODEL INV-G1):
 - When H gọi `identity.get d1`, hoặc xin URL ký cho file của `d1`, hoặc đoán đường dẫn object storage
 - Then `404 NOT_FOUND`; không cấp URL ký; truy cập bị từ chối ghi vào audit
 
+### S-025 Lễ tân xác nhận tiền mặt do chính mình nhận trong ca đang mở (INV-F3b, đề xuất chờ PO)
+- Given lễ tân L có ca `shifts` đang mở; L ghi nhận `payment.record` tiền mặt 500.000 (method `cash`); lễ tân L2 khác cũng có ca mở và ghi nhận tiền mặt 300.000
+- When L gọi `payment.confirm` cho khoản 500.000; rồi L gọi `payment.confirm` cho khoản 300.000 của L2; rồi L (đã đóng ca) xác nhận một khoản tiền mặt mới
+- Then lần 1 → `payment` `confirmed`, hệ thống sinh biên nhận, khoản vào đối chiếu đóng ca của L; lần 2 → `403 FORBIDDEN` (không phải tiền do L nhận); lần 3 → `403 FORBIDDEN` (không có ca đang mở); mỗi lần ghi `audit_events`
+
+### S-026 Hạn mức hoàn/khấu trừ cọc theo vai trò (đề xuất chờ PO)
+- Given hạn mức mặc định: lễ tân 2.000.000 đ/lần (chỉ khi check-out), quản lý 5.000.000 đ/lần, owner không giới hạn, kế toán chỉ lập đề nghị; cọc khách sạn 3.000.000 đ
+- When (a) lễ tân hoàn 2.000.000 lúc check-out; (b) lễ tân hoàn 2.000.001; (c) quản lý duyệt 5.000.000; (d) quản lý duyệt 5.000.001; (e) kế toán gọi `deposit.approveRefund`; (f) người lập đề nghị tự duyệt
+- Then (a) thực hiện; (b), (d) → `403 APPROVAL_LIMIT_EXCEEDED` + `approval_requests` `pending`; (c) thực hiện; (e) `403 FORBIDDEN`; (f) `403 SELF_APPROVAL_FORBIDDEN`; owner duyệt được mọi mức
+
 ## 3. Ca biên
 | Nhóm | Ca cụ thể | Hành vi mong đợi | Scenario |
 |---|---|---|---|
@@ -150,8 +160,8 @@ Quy ước chung cho mọi scenario (kế hoạch §16; DOMAIN-MODEL INV-G1):
 | Song song | Hai owner cùng thu hồi nhau khi chỉ còn 2 owner | Khoá hàng `memberships` của tổ chức theo thứ tự id; đúng một lệnh thành công, lệnh sau `409 LAST_OWNER` | S-019 |
 | Mất mạng giữa chừng | Timeout sau commit khi mời/thu hồi | Client gọi `GET /api/v1/commands/{command_id}`, không gửi lệnh mới | S-021 |
 | Thời gian/múi giờ | Giờ chốt ngày ≠ 00:00; đổi múi giờ khi có dữ liệu; lời mời hết hạn đúng mốc | `business_date` theo giờ chốt; đổi bị chặn; so hạn bằng UTC | S-001, S-023, S-008 |
-| Quyền | Khác tổ chức, khác cơ sở, tự nâng quyền, người bị thu hồi, `housekeeping` đọc CCCD, `platform_support` không có cấp tạm thời | 404/403 theo quy ước mục 2; `platform_support` mặc định không đọc gì (F-015) | S-009, S-013–S-016, S-018, S-024 |
-| Tiền/đơn vị | Hạn mức là `bigint` đồng; hạn mức 0; giá trị âm | 0 = mọi khoản cần duyệt; âm → `422` | S-017 |
+| Quyền | Khác tổ chức, khác cơ sở, tự nâng quyền, người bị thu hồi, `housekeeping` đọc CCCD, `platform_support` không có cấp tạm thời; lễ tân xác nhận tiền mặt người khác/ngoài ca; kế toán duyệt hoàn | 404/403 theo quy ước mục 2; `platform_support` mặc định không đọc gì (F-015) | S-009, S-013–S-016, S-018, S-024–S-026 |
+| Tiền/đơn vị | Hạn mức là `bigint` đồng; hạn mức 0; giá trị âm; đúng bằng/vượt 1 đồng so với hạn mức hoàn cọc | 0 = mọi khoản cần duyệt; âm → `422`; bằng hạn mức được, vượt 1 đ → `APPROVAL_LIMIT_EXCEEDED` | S-017, S-026 |
 
 ## 4. Dữ liệu
 | Thực thể | Trường chính | Kiểu | Ràng buộc | Ai đọc/ghi |
@@ -166,7 +176,7 @@ Quy ước chung cho mọi scenario (kế hoạch §16; DOMAIN-MODEL INV-G1):
 | `approval_requests` ² | organization_id, id, action, amount, reason, requested_by, approved_by, status | | người duyệt ≠ người đề xuất | xem mục 5.3 |
 | `audit_events`, `outbox`, `idempotency_keys` | theo DOMAIN-MODEL INV-G5, INV-G6 | | | hệ thống ghi |
 
-¹ Tên lấy từ kế hoạch §12, **chưa có trong DOMAIN-MODEL §1**. ² Tên đề xuất mới. Cả hai phải được bổ sung vào DOMAIN-MODEL trước migration (Q-10).
+¹ Tên lấy từ kế hoạch §12. ² Tên đề xuất khi viết spec. Cả bốn bảng (`floors`, `property_scopes`, `invitations`, `approval_requests`) đã có trong DOMAIN-MODEL §7 (v1.2) — tên ở đó là chuẩn.
 - Mọi bảng trên có `organization_id NOT NULL`, RLS theo `app.org_id`, FK ghép `(organization_id, id)` (INV-G1). Migration: viết ở T-003+, có `down`.
 - Phiên và MFA do Better Auth giữ trong cùng Postgres (ADR-0002, phiên lưu DB nên thu hồi có hiệu lực ngay); `persons`/`memberships` của mình chỉ tham chiếu `auth_user_id`.
 
@@ -193,7 +203,7 @@ Hợp đồng chi tiết: `docs/design/API-CONTRACT.md`. Mọi command nhận `I
 `org.listMine` (các tổ chức của người dùng) · `property.list` · `unit.list` {property_id, floor_id?, include_archived?} · `member.list` · `session.listMine` · `approval.listPending` · `context.get`.
 
 ### 5.3 Ma trận quyền (vai trò × hành động)
-Ký hiệu: **Có** = được trong phạm vi cơ sở · **HM** = trong hạn mức, vượt → tạo `approval_requests` · **Mình** = chỉ bản ghi của mình/được giao · **Đọc** = chỉ xem · **—** = không. `platform_support`: mặc định **—** toàn bộ; chỉ có quyền tạm thời theo F-015.
+Ký hiệu: **Có** = được trong phạm vi cơ sở · **HM** = trong hạn mức, vượt → tạo `approval_requests` · **Mình** = chỉ bản ghi của mình/được giao · **Đọc** = chỉ xem · **Đề nghị** = chỉ lập yêu cầu, không duyệt · **—** = không. `platform_support`: mặc định **—** toàn bộ; chỉ có quyền tạm thời theo F-015.
 
 | Hành động | owner | manager | front_desk | accountant | housekeeping | maintenance | tenant | guest |
 |---|---|---|---|---|---|---|---|---|
@@ -207,19 +217,40 @@ Ký hiệu: **Có** = được trong phạm vi cơ sở · **HM** = trong hạn 
 | Xem lịch phòng (có tên khách) | Có | Có | Có | Đọc | — | — | — | — |
 | Xem lịch phòng (chỉ số phòng, trống/có khách, vệ sinh) | Có | Có | Có | Có | Có | Có | — | — |
 | Tạo hold/booking, đổi ngày, huỷ, check-in/out | Có | Có | Có | — | — | — | — | — |
+| Thông báo lưu trú: xuất mẫu, đánh dấu đã thông báo (`stay.exportResidenceNotice`/`stay.markNoticeSubmitted`) | Có | Có | Có | — | — | — | — | — |
 | Đổi giá/giảm giá trên booking | Có | HM | HM | — | — | — | — | — |
 | Check-out còn công nợ | Có | Có | — (cần manager duyệt) | — | — | — | — | — |
 | Chuyển phòng | Có | Có | Có | — | — | — | — | — |
 | Đề xuất block | Có | Có | Có | — | — | Có | — | — |
 | Duyệt/kết thúc block | Có | Có | — | — | — | — | — | — |
+| Bật/tắt phòng ngừng khai thác (`inventory.setUnitAvailability`) | Có | Có | — | — | — | — | — | — |
+| Xử lý ngoại lệ lịch (`inventory.resolveException`) | Có | Có | — | — | — | — | — | — |
 | Ghi dịch vụ/phụ thu vào folio | Có | Có | Có | — | — | — | — | — |
 | Xem số tiền, folio, công nợ | Có | Có | Có | Có | — | — | Mình | Mình |
 | Ghi nhận thanh toán (F-005) | Có | Có | Có | Có | — | — | — | — |
-| Xác nhận thanh toán có chứng cứ (INV-F3) | Có | Có | — ³ | Có | — | — | — | — |
+| Xác nhận thanh toán chuyển khoản có chứng cứ (INV-F3) | Có | Có | — ³ | Có | — | — | — | — |
+| Xác nhận tiền mặt (INV-F3b): `payment.confirm` method `cash` | Có | Có | Mình (tiền mặt do chính mình nhận, trong ca đang mở) ³ | Có | — | — | — | — |
+| Nhận cọc (`deposit.receive`) | Có | Có | Có (kèm biên nhận; tiền mặt theo INV-F3b) | Có | — | — | — | — |
 | Phân bổ tiền, điều chỉnh có lý do | Có | HM | — | Có | — | — | — | — |
-| Hoàn tiền/hoàn cọc, khấu trừ cọc (INV-F5) | Có | HM | HM | HM | — | — | — | — |
-| Chốt ca/kỳ | Có | Có | Mình (ca của mình) | Có | — | — | — | — |
-| Mở lại kỳ đã khoá (INV-F6) | Có | — | — | — | — | — | — | — |
+| Hoàn/khấu trừ cọc (`deposit.requestRefund`/`approveRefund`, `requestDeduction`/`approveDeduction`; INV-F5) | Có (không giới hạn) | HM (≤ 5.000.000 đ/lần) ³ | HM (≤ 2.000.000 đ/lần, chỉ khi check-out) ³ | Đề nghị | — | — | — | — |
+| Hoàn ứng trước (`credit.requestRefund`/`credit.approveRefund`) | Có (không giới hạn) | HM (≤ 5.000.000 đ/lần) ³ | HM (≤ 2.000.000 đ/lần, chỉ khi check-out) ³ | Đề nghị | — | — | — | — |
+| Mở/đóng ca quầy (`shift.open`/`shift.close`) | Có | Có | Mình (ca của mình) | Có (đối chiếu) | — | — | — | — |
+| Chốt kỳ (`billing.lockPeriod`/`ledger.lockPeriod`) | Có | Có | — | Có | — | — | — | — |
+| Mở khoá kỳ (`ledger.unlockPeriod`, `locked → issued`; INV-F6) | Có (lý do + audit) | — | — | — | — | — | — | — |
+| Lập hợp đồng, ký, kích hoạt (`lease.createDraft`/`updateDraft`/`submitForSignature`/`sign`/`activate`/`renew`/`giveNotice`) | Có | Có | — | — | — | — | — | — |
+| Giữ chỗ hợp đồng (`lease.hold`, TTL 48 giờ cấu hình) | Có | Có | Có ³ | — | — | — | — | — |
+| Bàn giao nhận/trả phòng (`lease.recordHandover`) | Có | Có | Có ³ | — | — | — | Xác nhận phần mình | — |
+| Lập quyết toán/thanh lý (`lease.prepareSettlement`) | Có | Có | — | Đề nghị | — | — | — | — |
+| Duyệt quyết toán/thanh lý (`lease.approveSettlement`, `lease.close`) | Có | HM (khoản hoàn/khấu trừ ≤ 5.000.000 đ/lần) ³ | — | — | — | — | — | — |
+| Nhập chỉ số công tơ (`meter.recordReading`) | Có | Có | Có | — | — | Mình (nếu được giao) | — | — |
+| Thay công tơ (`meter.replace`) | Có | Có | — | — | — | — | — | — |
+| Tạo/xem trước/gửi duyệt kỳ thu (`billing.createPeriod`/`previewPeriod`/`submitForReview`/`returnToDraft`) | Có | Có | — | Có | — | — | — | — |
+| Phát hành kỳ thu (`billing.issuePeriod`) | Có | Có | — | Có ³ | — | — | — | — |
+| Chuẩn bị nhập liệu (`import.prepare`: upload/validate) | Có | Có | — | — | — | — | — | — |
+| Xác nhận/commit nhập liệu có số dư tiền (`import.confirm`/`import.commit`) | Có | — | — | — | — | — | — | — |
+| Mời người thuê vào portal | Có | Có | Có ³ | — | — | — | — | — |
+| Tạo/thu hồi link khách (`portal.createGuestLink`/`revokeGuestLink`) | Có | Có | Có | — | — | — | — | — |
+| Cấu hình thông báo (`notification_settings`) | Có | Có ³ | — | — | — | — | — | — |
 | Đọc `identity_documents` | Có | Có | Có | — | — | — | Mình | — |
 | Tạo/giao việc dọn | Có | Có | Có | — | Mình (nhận việc) | — | — | — |
 | Cập nhật tiến độ việc dọn | Có | Có | — | — | Mình | — | — | — |
@@ -229,7 +260,11 @@ Ký hiệu: **Có** = được trong phạm vi cơ sở · **HM** = trong hạn 
 | Xem audit | Có | Có | — | Có (tiền) | — | — | — | — |
 | Xuất dữ liệu (xác thực lại) | Có | — | — | Có (tiền) | — | — | — | — |
 
-³ Đề xuất mặc định, chờ PO chốt (Q-04, Q-06). Nguồn vai trò và giới hạn: kế hoạch §03, §16; DOMAIN-MODEL §6.
+³ Đề xuất mặc định, chờ PO chốt (Q-04, Q-06, Q-11). Nguồn vai trò và giới hạn: kế hoạch §03, §16; DOMAIN-MODEL §6.
+
+**Quy tắc hạn mức hoàn/khấu trừ (đề xuất, chờ PO — Q-11):** lễ tân ≤ 2.000.000 đ/lần và chỉ khi check-out; quản lý ≤ 5.000.000 đ/lần; owner không giới hạn; kế toán chỉ lập đề nghị, không duyệt; người lập không tự duyệt (`SELF_APPROVAL_FORBIDDEN`). Vượt hạn mức → `403 APPROVAL_LIMIT_EXCEEDED` và tạo `approval_requests`. Hạn mức lưu ở `memberships.limits` (jsonb, `bigint` đồng), các số trên là mặc định theo vai trò.
+**Quy tắc tiền mặt (INV-F3b, đề xuất chờ PO):** lễ tân chỉ xác nhận tiền mặt **do chính mình nhận trong ca đang mở** (người nhận = người xác nhận = chủ ca); tiền mặt của người khác hoặc ngoài ca → `403 FORBIDDEN`. Quản lý/kế toán/owner xác nhận theo quyền, kèm chứng cứ.
+**Mở khoá kỳ:** chỉ owner, có lý do và audit; mở khoá không cho sửa chứng từ đã phát hành, chỉ cho thêm điều chỉnh/đảo (DOMAIN-MODEL §4).
 
 ### 5.4 Trạng thái UI
 - Thanh ngữ cảnh luôn hiện tên tổ chức + cơ sở + vai trò (kế hoạch §09). Đổi ngữ cảnh có bước xác nhận.
@@ -283,10 +318,12 @@ Không áp dụng — tính năng không dùng model.
 - [ ] Q-07 Ngưỡng thử sai và thời gian hết phiên nhân viên — [chặn T010] — hỏi: Tech Lead — đề xuất: khoá tạm 15 phút sau 5 lần sai; phiên không hoạt động 12 giờ; xác thực lại cho xuất dữ liệu/đổi quyền. Cấu hình qua rate limit và `session.expiresIn`/`updateAge` của Better Auth (ADR-0002); kiểm bằng test ở T-004.
 - [ ] Q-08 Quy trình khôi phục tài khoản khi mất thiết bị MFA (kế hoạch §16 "account recovery được kiểm tra") — [chặn pilot] — hỏi: PO + Tech Lead — đề xuất: owner khác reset MFA có audit; owner duy nhất → qua hỗ trợ nền tảng có xác minh danh tính (F-015).
 - [ ] Q-09 `accountant` có phạm vi "mọi cơ sở" mặc định không — [không chặn] — hỏi: PO — đề xuất: có, owner thu hẹp được.
-- [ ] Q-10 Bổ sung vào DOMAIN-MODEL các bảng `floors`, `property_scopes` (kế hoạch §12) và `invitations`, `approval_requests` (đề xuất) — [chặn migration] — hỏi: Tech Lead.
+- [x] Q-10 Bổ sung vào DOMAIN-MODEL các bảng `floors`, `property_scopes`, `invitations`, `approval_requests` — đã đóng: có ở DOMAIN-MODEL §7 (v1.2).
+- [ ] Q-11 Hạn mức hoàn/khấu trừ cọc và hoàn ứng trước (lễ tân ≤ 2.000.000 đ/lần khi check-out, quản lý ≤ 5.000.000 đ/lần, owner không giới hạn, kế toán chỉ lập đề nghị) và quyền lễ tân xác nhận tiền mặt do mình nhận trong ca mở (INV-F3b) — [chặn pilot] — hỏi: PO + kế toán — đề xuất: như ma trận 5.3; hạn mức cấu hình được ở `memberships.limits`.
+- [ ] Q-12 Giữ chỗ hợp đồng `lease.hold` — TTL 48 giờ (cấu hình theo cơ sở) và vai trò được giữ — [không chặn] — hỏi: PO — đề xuất: 48 giờ; owner/manager/lễ tân (khớp SPEC-lease, SPEC-inventory-allocation Q-01).
 
 ## 11. DoR / DoD
-- DoR: spec Approved · 0 câu hỏi chặn · DOMAIN-MODEL đã bổ sung bảng (Q-10) · mỗi task có Gate.
+- DoR: spec Approved · 0 câu hỏi chặn · DOMAIN-MODEL §7 đã có các bảng (Q-10 đã đóng) · mỗi task có Gate.
 - DoD: mọi S-NNN có test xanh (S-013, S-016 chạy trên Postgres thật) · ma trận 5.3 sinh test tự động · cổng commit/merge xanh · API-CONTRACT cập nhật · sự kiện mục 9 có schema.
 
 ## 12. Truy vết
@@ -298,3 +335,4 @@ Không áp dụng — tính năng không dùng model.
 | Phiên bản | Ngày | Gì | Vì sao | Duyệt |
 |---|---|---|---|---|
 | 1 | 2026-10-15 | tạo | G3 cho F-001 | (chờ) |
+| 2 | 2026-10-15 | sửa theo review độc lập: bổ sung ma trận 5.3 (hợp đồng, giữ chỗ, bàn giao, quyết toán, công tơ, kỳ thu, cọc, hoàn ứng trước, ca, import, mời người thuê, link khách, `setUnitAvailability`, `resolveException`, thông báo, thông báo lưu trú); hạn mức hoàn/khấu trừ và quyền xác nhận tiền mặt của lễ tân (S-025, S-026, Q-11, Q-12); S-009 theo phiên Better Auth (ADR-0002); đóng Q-10 | review O5, R4, O11, G5 | (chờ) |

@@ -4,11 +4,11 @@
 |---|---|
 | ID tính năng | F-011 (yêu cầu gốc: R-001 "người thuê xem trên portal", R-002 "gia hạn"; kế hoạch §11, §14, §15; backlog T015, T046, T047, phần nhắc của T031) |
 | Trạng thái | Draft — chờ duyệt |
-| Phiên bản | 1 — thay đổi: xem cuối file |
+| Phiên bản | 2 — thay đổi: xem cuối file |
 | Chủ spec | (chưa gán) · Duyệt bởi (chưa) ngày (chưa) |
 | Hồ sơ/quy mô | web-app / M |
 | Ngày | 2026-10-15 |
-| Phụ thuộc | DOMAIN-MODEL INV-G6 (audit + outbox cùng transaction), ADR-0001 (pg-boss 12.x), ARCHITECTURE (luồng worker), SPEC-ledger-payments (số dư phiếu), SPEC-lease (ngày hết hạn), SPEC-reservation-stay (thông báo lưu trú, xuất mẫu), SPEC-portal |
+| Phụ thuộc | DOMAIN-MODEL INV-G6 (audit + outbox cùng transaction), ADR-0001 (pg-boss 12.x), ARCHITECTURE (luồng worker), SPEC-ledger-payments (số dư phiếu), SPEC-lease (ngày hết hạn), SPEC-reservation-stay (`residence_notices`, `stay.exportResidenceNotice`, `stay.markNoticeSubmitted`), SPEC-portal |
 
 ## 1. User story
 - Là **người thuê**, tôi muốn nhận thông báo khi có phiếu mới và khi phiếu quá hạn, để trả đúng hạn — và không bị nhắc khi đã trả xong.
@@ -88,7 +88,7 @@ Bối cảnh chung: tổ chức B, cơ sở `HS1` (múi giờ `Asia/Ho_Chi_Minh`
 ### S-014 Nhắc hạn thông báo lưu trú — khách đến trước 23 giờ
 - Given cơ sở cấu hình hạn thông báo lưu trú "trước 23:00 ngày bắt đầu; đến sau 23:00 thì trước 08:00 hôm sau" (giá trị cấu hình, nguồn [T] chưa đối chiếu bản gốc); khách check-in lúc 2026-10-15 20:10 giờ cơ sở
 - When job `reminder.scanStayNotice` chạy
-- Then lễ tân/quản lý `HS1` nhận thông báo trong app `stay_notice_due` "Phòng 203: cần thông báo lưu trú trước 23:00 15/10/2026" kèm liên kết xuất mẫu (SPEC-reservation-stay); hệ thống **không** gửi gì tới cơ quan nhà nước
+- Then lễ tân/quản lý `HS1` nhận thông báo trong app `stay_notice_due` "Phòng 203: cần thông báo lưu trú trước 23:00 15/10/2026" kèm liên kết tới `stay.exportResidenceNotice` (SPEC-reservation-stay, nguồn dữ liệu là `residence_notices` trạng thái `pending`/`exported`); hệ thống **không** gửi gì tới cơ quan nhà nước
 
 ### S-015 Nhắc hạn lưu trú — khách đến sau 23 giờ và khách nước ngoài
 - Examples:
@@ -101,7 +101,7 @@ Bối cảnh chung: tổ chức B, cơ sở `HS1` (múi giờ `Asia/Ho_Chi_Minh`
 - Then hạn tính theo `properties.timezone`, lưu UTC
 
 ### S-016 Dừng nhắc khi đã đánh dấu nộp
-- Given nhân viên đã đánh dấu "Đã thông báo lưu trú" (người, thời điểm, bằng chứng — SPEC-reservation-stay) trước hạn
+- Given nhân viên đã gọi `stay.markNoticeSubmitted` (người gửi, thời điểm, kênh, file bằng chứng tuỳ chọn — SPEC-reservation-stay) → `residence_notices.status='submitted'` trước hạn
 - When job quét lần kế tiếp
 - Then không tạo nhắc mới; nếu chưa đánh dấu khi còn 30 phút đến hạn (đề xuất) → nhắc lần 2 mức "Khẩn"
 
@@ -120,6 +120,16 @@ Bối cảnh chung: tổ chức B, cơ sở `HS1` (múi giờ `Asia/Ho_Chi_Minh`
 - When quản lý bấm "Gửi lại" (`notifications.retryDelivery`, có `Idempotency-Key`)
 - Then delivery về `queued`, `attempts` đặt lại, audit ghi người thao tác; bấm lại cùng key không tạo lần thứ hai
 
+### S-020 Chưa cấu hình hạn thông báo lưu trú
+- Given `notification_settings` của cơ sở `HS1` chưa có hạn thông báo lưu trú (không có mặc định cứng — Q-08); khách check-in
+- When job `reminder.scanStayNotice` chạy
+- Then không tính `due_at` và không tạo nhắc `stay_notice_due`; `residence_notices` vẫn được tạo `pending` để xuất mẫu/đánh dấu được; owner/manager thấy một cảnh báo cấu hình trong app "Chưa cấu hình hạn thông báo lưu trú" (dedupe theo cơ sở, mỗi ngày tối đa 1 lần)
+
+### S-021 Quá hạn mà chưa đánh dấu đã thông báo
+- Given `residence_notices` của phòng 203 có `due_at` đã qua, `status` còn `pending`/`exported`
+- When job `reminder.scanStayNotice` chạy lần kế tiếp (và các lần sau trong ngày)
+- Then tạo đúng 1 thông báo `stay_notice_due` mức "Quá hạn" cho lễ tân/quản lý `HS1` mỗi `business_date` (`dedupe_key = stay_notice_overdue:{notice_id}:{business_date}`); khi `stay.markNoticeSubmitted` được gọi (kể cả sau hạn) thì ngừng nhắc; hạn lưu bản ghi quá hạn để báo cáo
+
 ## 3. Ca biên (8 nhóm)
 | Nhóm | Ca cụ thể | Hành vi mong đợi | Scenario |
 |---|---|---|---|
@@ -128,7 +138,7 @@ Bối cảnh chung: tổ chức B, cơ sở `HS1` (múi giờ `Asia/Ho_Chi_Minh`
 | Trùng lặp/idempotency | Sự kiện giao lại, job quét chạy lại, bấm gửi lại | `dedupe_key` unique; adapter nhận `idempotency_key` | S-003, S-013, S-019 |
 | Song song | Thanh toán được phân bổ đúng lúc nhắc đang gửi | Kiểm lại số dư khi gửi → `suppressed` `SETTLED` | S-008 |
 | Mất mạng giữa chừng | Nhà cung cấp timeout; worker chết giữa chừng | Retry backoff; trạng thái `sending` quá hạn khoá → trả về `retrying` | S-003, S-004 |
-| Thời gian/múi giờ | Hạn 23:00/08:00, nhắc theo ngày địa phương, đổi ngày lúc nửa đêm | Tính theo `properties.timezone`; lưu UTC; giờ gửi nhắc nợ trong khung cấu hình (đề xuất 08:00–20:00) | S-007, S-014, S-015 |
+| Thời gian/múi giờ | Hạn 23:00/08:00, nhắc theo ngày địa phương, đổi ngày lúc nửa đêm; hạn thông báo lưu trú chưa cấu hình; quá hạn | Tính theo `properties.timezone`; lưu UTC; giờ gửi nhắc nợ trong khung cấu hình (đề xuất 08:00–20:00); chưa cấu hình → không nhắc, có cảnh báo cấu hình | S-007, S-014, S-015, S-020, S-021 |
 | Quyền | Người nhận khác, vai trò không có quyền xem lịch sử, huỷ đăng ký không đăng nhập | 404/403; token huỷ đăng ký chỉ đổi đúng một loại của đúng người | S-010, S-017, S-018 |
 | Tiền/đơn vị | Số tiền trong nội dung (nếu Q-03 cho phép) | Lấy từ sổ tại thời điểm render, VND số nguyên, định dạng `1.580.000 đ` | S-008 |
 
@@ -139,10 +149,11 @@ Bối cảnh chung: tổ chức B, cơ sở `HS1` (múi giờ `Asia/Ho_Chi_Minh`
 | `notifications` (**mới**) | `organization_id`, `property_id`, `recipient_person_id`, `type`, `title`, `body`, `link`, `dedupe_key`, `read_at`, `created_at` | | unique `(organization_id, dedupe_key, recipient_person_id)` | Worker ghi; người nhận đọc/đánh dấu đã đọc |
 | `notification_deliveries` (**mới**) | `notification_id`, `channel` (`email`), `status` (`queued → sending → sent`; `retrying`; `failed`; `dead`; `suppressed`), `suppressed_reason`, `attempts`, `next_attempt_at`, `provider_message_id`, `last_error_code` | | unique `(notification_id, channel)` | Worker ghi; quản lý/owner đọc |
 | `notification_preferences` (**mới**) | `organization_id`, `person_id`, `type`, `channel`, `state` (`opted_in`/`opted_out`), `changed_at`, `source` | | Loại bắt buộc không có hàng `opted_out` | Người dùng ghi của mình; audit |
+| `residence_notices` (SPEC-reservation-stay, chỉ đọc ở đây) | `stay_id`, `status` (`pending`/`exported`/`submitted`), `due_at`, `is_foreign` | | Job `reminder.scanStayNotice` đọc theo `organization_id`; không ghi | Worker đọc |
 | `notification_settings` (**mới**, theo cơ sở) | lịch nhắc quá hạn, mốc nhắc hết hạn hợp đồng, hạn thông báo lưu trú (giờ, số giờ cho khách nước ngoài), khung giờ gửi | | Có `updated_by`, audit | Owner/manager ghi |
 
 - Loại thông báo pilot: `account_security` (bắt buộc), `invoice_issued`, `invoice_overdue`, `lease_expiring`, `stay_notice_due` (nhân viên, bắt buộc trong app), `maintenance_status` (người thuê), `export_ready` (SPEC-audit-reporting).
-- Thực thể mới phải bổ sung vào DOMAIN-MODEL trước khi Approved (Q-07). Migration ở T046 (rollback được).
+- Bốn bảng thông báo đã có trong DOMAIN-MODEL §7 (v1.2; Q-07 đã đóng); `residence_notices` thuộc DOMAIN-MODEL §7 nhóm Vận hành. Migration ở T046 (rollback được).
 
 ## 5. Giao diện / API
 | Loại | Tên | Mô tả |
@@ -194,7 +205,7 @@ Không áp dụng — tính năng không dùng model.
 - [ ] Q-04 Lịch nhắc quá hạn mặc định — [không chặn] — hỏi: PO (quan sát T001) — **đề xuất:** +1, +3, +7 ngày sau hạn, cấu hình theo cơ sở, tối đa 1 nhắc/phiếu/ngày.
 - [ ] Q-05 Tham số retry và rate limit — [không chặn] — hỏi: Tech Lead — **đề xuất:** 5 lần (1 ph, 5 ph, 30 ph, 2 giờ, 6 giờ); 10 email/giây/tổ chức; chỉnh theo giới hạn nhà cung cấp.
 - [ ] Q-06 Mốc nhắc hết hạn hợp đồng — [không chặn] — hỏi: PO — **đề xuất:** 30 và 7 ngày trước ngày kết thúc, gửi cho quản lý; người thuê nhận bản ngắn cùng mốc.
-- [ ] Q-07 Bổ sung `notifications`, `notification_deliveries`, `notification_preferences`, `notification_settings` vào DOMAIN-MODEL — **[chặn]** — hỏi: Tech Lead — **đề xuất:** thêm đúng như mục 4.
+- [x] Q-07 Bổ sung `notifications`, `notification_deliveries`, `notification_preferences`, `notification_settings` vào DOMAIN-MODEL — đã đóng: có ở DOMAIN-MODEL §7 (v1.2).
 - [ ] Q-08 Hạn thông báo lưu trú (23:00/08:00; 12 giờ cho khách nước ngoài) mới có nguồn thứ cấp [T] — [không chặn vì là cấu hình; chặn dùng làm giá trị mặc định khi pilot] — hỏi: pháp lý — **đề xuất:** để trống mặc định, cơ sở tự nhập khi onboarding cho tới khi pháp lý đối chiếu bản gốc.
 
 ## 11. DoR / DoD
@@ -213,3 +224,4 @@ Không áp dụng — tính năng không dùng model.
 | Phiên bản | Ngày | Gì | Vì sao | Duyệt |
 |---|---|---|---|---|
 | 1 | 2026-10-15 | tạo | G3 cho F-011 | (chưa) |
+| 2 | 2026-10-15 | sửa theo review độc lập: tham chiếu đúng `stay.exportResidenceNotice`/`stay.markNoticeSubmitted` và bảng `residence_notices` (S-014, S-016); thêm S-020 (chưa cấu hình hạn), S-021 (quá hạn); đóng Q-07 | review O8, G5 | (chưa) |
