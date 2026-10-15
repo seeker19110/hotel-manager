@@ -19,6 +19,10 @@ export interface Problem {
   to?: string;
   /** Lỗi theo trường (422): `path` theo API-CONTRACT §2, `field` theo SPEC — cùng giá trị. */
   errors?: FieldError[];
+  /** METER_READING_DECREASED: chỉ số đã duyệt trước (SPEC-metering S-005). */
+  previous_value?: number;
+  /** UNRESOLVED_ANOMALIES / READINGS_INCOMPLETE: danh sách cần xử lý (S-008, S-009). */
+  items?: Record<string, string | number | null>[];
 }
 
 export interface FieldError {
@@ -29,7 +33,7 @@ export interface FieldError {
 
 /** Trường mở rộng tĩnh gắn vào problem (RFC 9457). */
 export type ProblemExtensions = Partial<
-  Pick<Problem, "approval_request_id" | "payment_id" | "from" | "to" | "errors">
+  Pick<Problem, "approval_request_id" | "payment_id" | "from" | "to" | "errors" | "previous_value" | "items">
 >;
 
 /** 422 VALIDATION_FAILED chỉ đúng một trường sai (SPEC-access S-001, SPEC-lease S-007/S-025). */
@@ -92,6 +96,7 @@ const HINT_STATUS: Record<string, { status: number; title: string }> = {
   EVIDENCE_REQUIRED: { status: 422, title: "Cần chứng cứ thanh toán" },
   HANDOVER_REQUIRED: { status: 409, title: "Cần hoàn tất biên bản bàn giao trước." },
   SETTLEMENT_REQUIRED: { status: 409, title: "Cần duyệt quyết toán trước khi đóng hợp đồng." },
+  PERIOD_ISSUED: { status: 409, title: "Kỳ đã phát hành. Dùng chứng từ điều chỉnh." },
   INVALID_TRANSITION: { status: 409, title: "Chuyển trạng thái không hợp lệ" },
   LAST_OWNER: { status: 409, title: "Tổ chức phải còn ít nhất một owner" },
   // SPEC-ledger S-003: lỗi hệ thống, 500 GIỮ mã (để cảnh báo/tra cứu) và đi đường lỗi không dự kiến (onUnexpectedError).

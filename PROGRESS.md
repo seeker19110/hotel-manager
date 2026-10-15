@@ -3,7 +3,7 @@
 > Giai đoạn hiện tại: G5 Dựng nền (autopilot đợt 1) · Cập nhật: 2026-10-15 · Nhánh: claude/gifted-noether-iybenn
 
 ## Đang làm
-- Autopilot đợt 2 (PLAN duyệt) — Pha 2: T-101…T-111 xong có bằng chứng (`.autopilot/evidence/`). Lát 2 (hợp đồng) xong. Kế tiếp **T-112** công tơ. Ghi nhớ cho T-114: `lease.prepareSettlement` phải chặn khi kỳ thu cuối (prorata đến `moved_out_on`) chưa phát hành. PR nháp #5.
+- Autopilot đợt 2 (PLAN duyệt) — Pha 2: T-101…T-112 xong có bằng chứng (`.autopilot/evidence/`). T-112 xong. Đang: sửa review lát 2 (1 🔴 duyệt quyết toán không phát hiện nợ mới; 6 🟠), rồi **T-113** engine tính tiền. Ghi nhớ cho T-114: `lease.prepareSettlement` phải chặn khi kỳ thu cuối (prorata đến `moved_out_on`) chưa phát hành. PR nháp #5.
 
 ## Tiếp theo
 1. Chủ repo import ruleset `.github/rulesets/main.json` (Settings → Rules → Rulesets → Import) — agent không có API để bật.
@@ -26,6 +26,7 @@
 - 2026-10-15 Review lát tiền: phân bổ kiểm số dư CUSTOMER_CREDIT thật (mutex `persons`, theo cơ sở); xác nhận thanh toán ghi sổ theo NGÀY XÁC NHẬN (kỳ cũ khoá vẫn xác nhận được); kiểm ca mở `FOR SHARE`; kế toán không duyệt loại nào (mục 10); chênh lệch ca bất biến, chỉ owner/manager sửa; cọc đặt phòng chưa khấu trừ được tới đợt 3; chữ ký `sim` gắn tài khoản; LEDGER_UNBALANCED = 500 giữ mã + cảnh báo.
 - 2026-10-15 T-110: `meters`/`meter_readings` tối thiểu kéo từ T-112 sang (bàn giao cần chỉ số); kích hoạt dời đầu allocation về ngày bàn giao; phụ lục bất biến ngay khi lập, kéo dài allocation; mốc nhắc theo `properties.settings.lease_reminder_days` (mặc định 30/7/0); job đọc xuyên tổ chức qua hàm SECURITY DEFINER hẹp.
 - 2026-10-15 T-111: bàn giao trả chuyển hợp đồng sang `settling` (lễ tân được UPDATE `leases`, trigger vòng đời vẫn chặn); khấu trừ mặc định = min(cọc, AR + phí) trả phiếu cũ trước; duyệt kiểm lại cọc/AR dưới khoá (đổi ⇒ lập lại); hạn mức quản lý tính trên khoản lớn nhất (khấu trừ/hoàn); đóng hợp đồng không kéo allocation đè lịch người khác.
+- 2026-10-15 T-112: `billing_periods` (khung) tạo sớm vì chỉ số kỳ FK tới kỳ; bất thường = tiêu thụ > 2 × TB 3 kỳ trước, thiếu 3 kỳ thì không cảnh báo; lượng tiêu thụ đi qua chuỗi thay công tơ; bảng giá dịch vụ chỉ owner (ma trận).
 - Nợ kỹ thuật chấp nhận: phần pháp lý trong `docs/research/` chỉ có nguồn thứ cấp — phải đối chiếu văn bản gốc trước khi dùng dữ liệu thật.
 
 ## Bàn giao phiên

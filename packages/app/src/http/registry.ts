@@ -24,6 +24,14 @@ import {
 } from "../lease/lease.ts";
 import { approveSettlement, closeLease, giveNotice, prepareSettlement } from "../lease/settlement.ts";
 import { financialSummary, issueAdjustment, lockPeriod, unlockPeriod } from "../ledger/period-close.ts";
+import {
+  acknowledgeAnomaly,
+  installMeter,
+  readingRoute,
+  recordReading,
+  replaceMeter,
+  setServicePrice,
+} from "../metering/meters.ts";
 import { allocatePayment, confirmPayment, recordPayment, reversePayment } from "../payments/payments.ts";
 import {
   confirmMatch,
@@ -676,6 +684,98 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
     input: z.strictObject({ lease_id: uuid }),
     run: async (ctx, i) => ({ data: await closeLease(ctx, { leaseId: i.lease_id }) }),
   }),
+  "service.setPrice": defineCommand({
+    command: "service.setPrice",
+    input: z.strictObject({
+      service_id: uuid,
+      unit_price: z.number().nonnegative(),
+      effective_from: isoDate,
+      effective_to: isoDate.nullable().optional(),
+      basis_note: z.string().max(500).optional(),
+    }),
+    run: async (ctx, i) => ({
+      data: await setServicePrice(ctx, {
+        serviceId: i.service_id,
+        unitPrice: i.unit_price,
+        effectiveFrom: i.effective_from,
+        ...(i.effective_to === undefined ? {} : { effectiveTo: i.effective_to }),
+        ...(i.basis_note === undefined ? {} : { basisNote: i.basis_note }),
+      }),
+      httpStatus: 201,
+    }),
+  }),
+  "meter.install": defineCommand({
+    command: "meter.install",
+    input: z.strictObject({
+      unit_id: uuid,
+      kind: z.enum(["electric", "water"]),
+      installed_on: isoDate,
+      initial_value: z.number().nonnegative(),
+      serial: z.string().trim().min(1).max(60).optional(),
+    }),
+    run: async (ctx, i) => ({
+      data: await installMeter(ctx, {
+        unitId: i.unit_id,
+        kind: i.kind,
+        installedOn: i.installed_on,
+        initialValue: i.initial_value,
+        ...(i.serial ? { serial: i.serial } : {}),
+      }),
+      httpStatus: 201,
+    }),
+  }),
+  "meter.recordReading": defineCommand({
+    command: "meter.recordReading",
+    input: z.strictObject({
+      meter_id: uuid,
+      billing_period_id: uuid,
+      value: z.number().nonnegative(),
+      read_on: isoDate.optional(),
+      photo_file_id: uuid.optional(),
+      base_version: z.number().int().positive().optional(),
+    }),
+    run: async (ctx, i) => ({
+      data: await recordReading(ctx, {
+        meterId: i.meter_id,
+        billingPeriodId: i.billing_period_id,
+        value: i.value,
+        ...(i.read_on ? { readOn: i.read_on } : {}),
+        ...(i.photo_file_id ? { photoFileId: i.photo_file_id } : {}),
+        ...(i.base_version === undefined ? {} : { baseVersion: i.base_version }),
+      }),
+    }),
+  }),
+  "meter.replace": defineCommand({
+    command: "meter.replace",
+    input: z.strictObject({
+      meter_id: uuid,
+      occurred_on: isoDate,
+      old_final_value: z.number().nonnegative(),
+      new_initial_value: z.number().nonnegative(),
+      new_serial: z.string().trim().min(1).max(60).optional(),
+      old_photo_file_id: uuid.optional(),
+      new_photo_file_id: uuid.optional(),
+    }),
+    run: async (ctx, i) => ({
+      data: await replaceMeter(ctx, {
+        meterId: i.meter_id,
+        occurredOn: i.occurred_on,
+        oldFinalValue: i.old_final_value,
+        newInitialValue: i.new_initial_value,
+        ...(i.new_serial ? { newSerial: i.new_serial } : {}),
+        ...(i.old_photo_file_id ? { oldPhotoFileId: i.old_photo_file_id } : {}),
+        ...(i.new_photo_file_id ? { newPhotoFileId: i.new_photo_file_id } : {}),
+      }),
+      httpStatus: 201,
+    }),
+  }),
+  "meter.acknowledgeAnomaly": defineCommand({
+    command: "meter.acknowledgeAnomaly",
+    input: z.strictObject({ reading_id: uuid, note: z.string().trim().min(1).max(1000) }),
+    run: async (ctx, i) => ({
+      data: await acknowledgeAnomaly(ctx, { readingId: i.reading_id, note: i.note }),
+    }),
+  }),
 };
 
 /** Tìm command theo đường dẫn `<module>/<command>`; tên chỉ gồm chữ/số để không lọt ký tự lạ. */
@@ -707,6 +807,12 @@ export const QUERIES: Readonly<Record<string, AnyQuery>> = {
     query: "person.get",
     input: z.strictObject({ person_id: z.string().max(64) }),
     run: (db, actor, i: { person_id: string }) => getPerson(db, actor, i.person_id),
+  },
+  "meter.getReadingRoute": {
+    query: "meter.getReadingRoute",
+    input: z.strictObject({ billing_period_id: uuid }),
+    run: (db, actor, i: { billing_period_id: string }) =>
+      readingRoute(db, actor, { billingPeriodId: i.billing_period_id }),
   },
   "report.financialSummary": {
     query: "report.financialSummary",
