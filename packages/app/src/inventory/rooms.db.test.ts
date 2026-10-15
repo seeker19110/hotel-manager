@@ -9,7 +9,9 @@ import {
   orgCookieName,
   requestedOrgId,
   selectOrganization,
+  switchOrganization,
 } from "../access/org-context.ts";
+import { getCommandResult } from "../pipeline/command.ts";
 import { listRooms } from "./rooms.ts";
 
 let t: TestDb;
@@ -126,6 +128,66 @@ describe("chọn tổ chức (S-020)", () => {
     expect((await organizationContext(t.runtime, A.ownerAuthUserId, A.orgId, property2))?.property?.id).toBe(
       property2,
     );
+  });
+
+  it("switchOrganization: cùng key cùng payload → kết quả cũ; khác payload (kể cả khác tổ chức) → conflict; tra được qua GET /commands", async () => {
+    const key = randomUUID();
+    const input = { key, organizationId: A.orgId, propertyId: null, correlationId: "c" };
+    const first = await switchOrganization(t.runtime, staffUser, input);
+    expect(first).toMatchObject({
+      kind: "committed",
+      replayed: false,
+      context: { organization: { id: A.orgId } },
+    });
+    expect(await switchOrganization(t.runtime, staffUser, input)).toMatchObject({
+      kind: "committed",
+      replayed: true,
+    });
+    expect(await switchOrganization(t.runtime, staffUser, { ...input, organizationId: B.orgId })).toEqual({
+      kind: "conflict",
+    });
+    expect(await switchOrganization(t.runtime, staffUser, { ...input, propertyId: A.propertyId })).toEqual({
+      kind: "conflict",
+    });
+    const actor = await resolveActor(t.runtime, {
+      authUserId: staffUser,
+      orgId: A.orgId,
+      twoFactorEnabled: false,
+    });
+    expect(await getCommandResult(t.runtime, actor, key)).toMatchObject({
+      status: "committed",
+      data: { context: { organization: { id: A.orgId } } },
+    });
+  });
+
+  it("switchOrganization: tổ chức không phải thành viên → not_found, không lưu key (gửi lại sau khi được mời vẫn chạy)", async () => {
+    const key = randomUUID();
+    const stranger = await seedAuthUser(t.admin, `la2+${randomUUID().slice(0, 6)}@example.test`);
+    expect(
+      await switchOrganization(t.runtime, stranger, {
+        key,
+        organizationId: A.orgId,
+        propertyId: null,
+        correlationId: "c",
+      }),
+    ).toEqual({ kind: "not_found" });
+    const n = await sql<{
+      n: number;
+    }>`select count(*)::int as n from idempotency_keys where key = ${key}`.execute(t.admin);
+    expect(n.rows[0]?.n).toBe(0);
+  });
+
+  it("switchOrganization: song song cùng key → đúng một bản ghi, mọi lời gọi cùng kết quả", async () => {
+    const key = randomUUID();
+    const input = { key, organizationId: A.orgId, propertyId: null, correlationId: "c" };
+    const rs = await Promise.all(
+      Array.from({ length: 8 }, () => switchOrganization(t.runtime, staffUser, input)),
+    );
+    expect(rs.every((r) => r.kind === "committed")).toBe(true);
+    const n = await sql<{
+      n: number;
+    }>`select count(*)::int as n from idempotency_keys where key = ${key}`.execute(t.admin);
+    expect(n.rows[0]?.n).toBe(1);
   });
 
   it("cookie chọn tổ chức: HTTPS dùng tiền tố __Host-", () => {

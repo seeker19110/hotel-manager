@@ -1,7 +1,9 @@
 // Ngữ cảnh tổ chức của phiên web (API-CONTRACT §1; SPEC-access-and-property S-020). Cookie/header chỉ để CHỌN trong
 // số tổ chức người dùng có membership — mọi request vẫn tra membership (resolveActor), không tin ID client gửi.
+import { randomUUID } from "node:crypto";
 import { withTenant } from "@hm/db";
 import { type Kysely, sql } from "kysely";
+import { hashPayload } from "../pipeline/command.ts";
 import { listMyOrganizations, type MyOrganization, type Role } from "./actor.ts";
 
 export const ORG_HEADER = "x-org-id";
@@ -77,4 +79,80 @@ export async function organizationContext(
     property,
     properties,
   };
+}
+
+const SWITCH_COMMAND = "session.switchOrganization";
+
+export type SwitchResult =
+  | { kind: "committed"; context: OrgContext; replayed: boolean }
+  | { kind: "not_found" }
+  | { kind: "conflict" };
+
+/**
+ * `session.switchOrganization` với idempotency đúng API-CONTRACT §1: key đã dùng (trong bất kỳ tổ chức nào của chính
+ * người dùng) + cùng payload → trả kết quả cũ; khác payload → IDEMPOTENCY_CONFLICT. Kết quả lưu ở `idempotency_keys`
+ * của tổ chức đích nên `GET /commands/{id}` (ngữ cảnh tổ chức đó) tra được. Không thành viên / cơ sở ngoài phạm vi →
+ * not_found (không lưu, giống lệnh không tồn tại).
+ */
+export async function switchOrganization(
+  db: Kysely<unknown>,
+  authUserId: string,
+  input: { key: string; organizationId: string; propertyId: string | null; correlationId: string },
+): Promise<SwitchResult> {
+  const key = input.key.toLowerCase();
+  const hash = hashPayload(SWITCH_COMMAND, {
+    organization_id: input.organizationId,
+    property_id: input.propertyId,
+  });
+  const mine = await listMyOrganizations(db, authUserId);
+
+  const lookup = async (org: MyOrganization) =>
+    withTenant(db, { orgId: org.organizationId, actorId: org.membershipId }, async (trx) => {
+      const r = await sql<{
+        request_hash: Buffer;
+        response: { data?: { context?: OrgContext } } | null;
+        mine: boolean;
+      }>`
+        select k.request_hash, k.response, (k.actor_person_id = m.person_id) as mine
+        from idempotency_keys k join memberships m on m.organization_id = k.organization_id and m.id = ${org.membershipId}
+        where k.organization_id = ${org.organizationId} and k.key = ${key}`.execute(trx);
+      return r.rows[0];
+    });
+  const replayOrConflict = (row: NonNullable<Awaited<ReturnType<typeof lookup>>>): SwitchResult => {
+    const context = row.response?.data?.context;
+    if (!row.mine || !Buffer.from(row.request_hash).equals(hash) || !context) return { kind: "conflict" };
+    return { kind: "committed", context, replayed: true };
+  };
+
+  for (const org of mine) {
+    const row = await lookup(org);
+    if (row) return replayOrConflict(row);
+  }
+
+  const target = mine.find((o) => o.organizationId === input.organizationId);
+  if (!target) return { kind: "not_found" };
+  const context = await organizationContext(db, authUserId, input.organizationId, input.propertyId);
+  if (!context) return { kind: "not_found" };
+
+  const inserted = await withTenant(
+    db,
+    { orgId: target.organizationId, actorId: target.membershipId },
+    async (trx) => {
+      const r = await sql<{ id: string }>`
+      insert into idempotency_keys (id, organization_id, key, command, actor_person_id, request_hash, correlation_id,
+                                    status, http_status, response, completed_at)
+      select ${randomUUID()}, ${target.organizationId}, ${key}, ${SWITCH_COMMAND}, m.person_id, ${hash}, ${input.correlationId},
+             'committed', 200, ${JSON.stringify({ data: { context } })}::jsonb, now()
+      from memberships m where m.organization_id = ${target.organizationId} and m.id = ${target.membershipId}
+      on conflict (organization_id, key) do nothing
+      returning id`.execute(trx);
+      return r.rows.length > 0;
+    },
+  );
+  if (!inserted) {
+    // Hai request cùng key chạy song song: bên thua đọc lại kết quả của bên thắng.
+    const row = await lookup(target);
+    return row ? replayOrConflict(row) : { kind: "conflict" };
+  }
+  return { kind: "committed", context, replayed: false };
 }

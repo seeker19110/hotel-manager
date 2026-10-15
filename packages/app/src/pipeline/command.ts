@@ -68,7 +68,8 @@ export function canonicalJson(v: unknown): string {
     .join(",")}}`;
 }
 
-function hashPayload(command: string, payload: unknown): Buffer {
+/** Băm định danh yêu cầu (lệnh + payload chuẩn hoá) để phát hiện cùng key khác payload (IDEMPOTENCY_CONFLICT). */
+export function hashPayload(command: string, payload: unknown): Buffer {
   return createHash("sha256").update(command).update("\n").update(canonicalJson(payload)).digest();
 }
 
