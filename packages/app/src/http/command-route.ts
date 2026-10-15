@@ -118,7 +118,10 @@ export async function actorFromRequest(
 
 export function validationProblem(error: z.ZodError, correlationId: string): Response {
   return simpleProblem("VALIDATION_FAILED", 422, "Dữ liệu không hợp lệ", correlationId, {
-    errors: error.issues.map((i) => ({ path: i.path.join("."), code: i.code })),
+    errors: error.issues.map((i) => {
+      const path = i.path.join(".");
+      return { path, field: path, code: i.code };
+    }),
   });
 }
 

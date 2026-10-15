@@ -14,10 +14,30 @@ export interface Problem {
   approval_request_id?: string;
   /** Mở rộng: thanh toán đã dùng giao dịch ngân hàng này (SPEC-ledger S-029). */
   payment_id?: string;
+  /** Mở rộng INVALID_TRANSITION: trạng thái hiện tại và trạng thái muốn chuyển (SPEC-lease S-020). */
+  from?: string;
+  to?: string;
+  /** Lỗi theo trường (422): `path` theo API-CONTRACT §2, `field` theo SPEC — cùng giá trị. */
+  errors?: FieldError[];
+}
+
+export interface FieldError {
+  path: string;
+  field: string;
+  code: string;
 }
 
 /** Trường mở rộng tĩnh gắn vào problem (RFC 9457). */
-export type ProblemExtensions = Partial<Pick<Problem, "approval_request_id" | "payment_id">>;
+export type ProblemExtensions = Partial<
+  Pick<Problem, "approval_request_id" | "payment_id" | "from" | "to" | "errors">
+>;
+
+/** 422 VALIDATION_FAILED chỉ đúng một trường sai (SPEC-access S-001, SPEC-lease S-007/S-025). */
+export function fieldError(field: string, code: string, message: string): CommandError {
+  return new CommandError("VALIDATION_FAILED", 422, message, {
+    extensions: { errors: [{ path: field, field, code }] },
+  });
+}
 
 /**
  * Ghi kèm khi lệnh THẤT BẠI (vd. lập yêu cầu duyệt khi vượt hạn mức): chạy trong transaction lưu kết quả lỗi — transaction
@@ -88,9 +108,9 @@ export function toProblem(err: unknown, correlationId?: string): Problem {
     ...(correlationId ? { correlation_id: correlationId } : {}),
   });
   if (err instanceof CommandError) return { ...base(err.code, err.status, err.message), ...err.extensions };
-  if (err instanceof AuthzError || err instanceof AccessError || err instanceof TransitionError) {
-    return base(err.code, err.status, err.message);
-  }
+  if (err instanceof TransitionError)
+    return { ...base(err.code, err.status, err.message), from: err.from, to: err.to };
+  if (err instanceof AuthzError || err instanceof AccessError) return base(err.code, err.status, err.message);
   const pg = err as { code?: string; hint?: string };
   const hinted = typeof pg?.hint === "string" ? HINT_STATUS[pg.hint] : undefined;
   if (typeof pg?.code === "string" && hinted && pg.hint) {

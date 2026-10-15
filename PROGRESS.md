@@ -3,7 +3,7 @@
 > Giai đoạn hiện tại: G5 Dựng nền (autopilot đợt 1) · Cập nhật: 2026-10-15 · Nhánh: claude/gifted-noether-iybenn
 
 ## Đang làm
-- Autopilot đợt 2 (PLAN duyệt) — Pha 2: T-101…T-108 xong có bằng chứng (`.autopilot/evidence/`), kế tiếp **T-109** hợp đồng (schema/ký/giữ chỗ). PR nháp #5.
+- Autopilot đợt 2 (PLAN duyệt) — Pha 2: T-101…T-109 xong có bằng chứng (`.autopilot/evidence/`). Đang: sửa phát hiện review lát tiền (1 🔴 hoàn credit rồi vẫn phân bổ được; 8 🟠), rồi **T-110** bàn giao/phụ lục. PR nháp #5.
 
 ## Tiếp theo
 1. Chủ repo import ruleset `.github/rulesets/main.json` (Settings → Rules → Rulesets → Import) — agent không có API để bật.
@@ -18,18 +18,11 @@
 - 2026-10-15 Stack đề xuất ở ADR-0001 (proposed): Node 24 · Next 16.4 · PostgreSQL 17 · Kysely · pg-boss · Serwist (auth/storage/sao lưu: ADR-0002) · Vitest/Playwright/Testcontainers · Biome · pnpm.
 - 2026-10-15 Review độc lập bộ kế hoạch: 6 🔴 · 21 🟠 · 19 🟢 — đã sửa trong DOMAIN-MODEL 1.2, SPEC v2, API-CONTRACT, THREAT-MODEL 1.1, PLAN (14 task).
 - 2026-10-15 Chủ dự án duyệt PLAN đợt 1 (PR #3 merge): pilot theo backlog; mặc định tham số hoá cho câu hỏi [chặn] đợt 1; 4 miễn blueprint; 70 vòng / 48 giờ / 1800 s / ≤ 150 USD.
-- 2026-10-15 Import trong workspace dùng đuôi `.ts` (`allowImportingTsExtensions`) để Turbopack, Vitest, tsc, Node cùng hiểu.
-- 2026-10-15 Hook cổng commit không chạy được vì phiên mở ở `/home/user` (không thấy `xt.yaml`) → mọi commit qua `scripts/commit-gated.sh` (exit code thật).
-- 2026-10-15 Relay outbox và liệt kê tổ chức đi qua hàm SECURITY DEFINER phạm vi hẹp; không mở BYPASSRLS/policy rộng cho worker.
-- 2026-10-15 CI đỏ từ T-009 do 3 file test cùng bắn 100 lệnh song song qua pool 120 trên Postgres CI 100 kết nối → pool runtime ≤ 20 + cluster cục bộ đặt `max_connections=100` như CI (hàng rào: lỗi cạn kết nối lộ ra ở máy). Gitleaks bắt hằng mật khẩu giả trong test T-006 → ghép chuỗi lúc chạy + fingerprint ở `.gitleaksignore`.
-- 2026-10-15 PWA: Serwist 9.5.13 bản Turbopack (`@serwist/turbopack`, SW bundle bằng esbuild qua route `/serwist/sw.js`); precache chỉ asset tĩnh + icon + `/offline`; tắt `cacheOnNavigation`/`reloadOnOnline` mặc định của Serwist (trái S-005/S-008); layout render động để Next gắn nonce CSP.
-- 2026-10-15 Ngữ cảnh tổ chức của web: cookie `hm_org` (API: header `X-Org-Id`) chỉ để CHỌN; mọi request vẫn `resolveActor` tra membership.
-- 2026-10-15 E2E chạy cục bộ bằng Chromium có sẵn (`/opt/pw-browsers`, Playwright 1.64.1 qua `executablePath`); chưa đưa E2E và diễn tập PITR vào CI (đổi CI là điểm dừng — chờ duyệt).
-- 2026-10-15 Review độc lập T-011…T-014: 0 🔴 · 6 🟠 · 11 🟢. Đã sửa 🟠1–5 (GPS trong ảnh phụ sau EOI, object mồ côi → `ctx.onRollback` bù trừ, strip ảnh chặn event loop, WAL không ra kho ngoài + URL ký không qua Caddy, đổi tổ chức không xoá dữ liệu máy) và 🟢 1–5, 9, 11. Còn treo: 🟠6 (đổi CI/gitleaks cần duyệt), 🟢 RLS giấy tờ theo cơ sở, RLS mặc định từ chối owner_type mới, cookie `__Host-`, chuẩn hoá phản hồi chọn tổ chức theo API-CONTRACT.
-- 2026-10-15 Chủ dự án giao quyền quyết các điểm treo đợt 1 ("chất lượng cao nhất"): giữ thay đổi CI/gitleaks/pnpm của PR #4; sửa hết gợi ý review (0007 RLS giấy tờ theo cơ sở + files mặc định từ chối; `session.switchOrganization` đúng API-CONTRACT kèm idempotency lưu `idempotency_keys`; cookie `__Host-`); merge PR #4 khi CI xanh. Đưa E2E + PITR vào CI: bản vá đã soạn nhưng bị chặn quyền sửa workflow — chờ chủ dự án cấp quyền hoặc tự áp.
+- 2026-10-15 Đợt 1 (chi tiết: git log/PR #4): import đuôi `.ts`; commit qua `scripts/commit-gated.sh`; relay/liệt kê tổ chức qua hàm SECURITY DEFINER hẹp; pool ≤ 20 + `max_connections=100` như CI; Serwist Turbopack, không cache điều hướng; cookie `__Host-hm_org` chỉ để chọn, mọi request `resolveActor`; E2E Chromium có sẵn; review đợt 1 đã xử lý, chủ dự án cấp quyền sửa CI.
 - 2026-10-15 Đợt 2, quyết trong lúc chạy (theo SPEC khi ERD/ma trận lệch): lễ tân ĐỌC ca/thanh toán trong phạm vi nhưng chỉ GHI cái của mình (để trả 403 đúng S-028/S-034); kế toán đóng/đối chiếu ca, không mở ca; kế toán thấy yêu cầu duyệt (403 khi duyệt, S-033); hạn mức phân bổ mặc định của quản lý = 5.000.000 đ (trước là 0 → quản lý không phân bổ được); tiền mặt dự kiến tính từ sổ phụ; đảo tiền mặt khi ca gốc đã chốt → dòng CASH vào ca đang mở của người đảo. Gate `pnpm test:db -- x` chạy toàn bộ test DB (pnpm không lọc). Bài học lặp: `loop record … | tail` nuốt exit code → luôn `set -o pipefail`.
 - 2026-10-15 T-107: webhook không có người dùng ⇒ thanh toán hệ thống `source='bank_auto'` (`recorded_by`/`confirmed_by` NULL như `files.uploaded_by`), chỉ worker (`app_worker`, policy riêng) ghi, chỉ khi có webhook đã xác minh (trigger) và khớp đúng 1 phiếu không vượt số còn; còn lại vào `reconciliation_breaks`. Dấu vân tay giao dịch = mã + số tiền (bỏ thời điểm: sao kê chỉ có ngày). VietQR theo 3 chuỗi mẫu tự khớp CRC — văn bản NAPAS gốc (chưa xác minh), kiểm lại trước G7. Break do vai trò `payment.confirm_transfer` (owner/manager/accountant) xử lý; QR cho người thuê tự xem chờ cổng người thuê.
 - 2026-10-15 T-108: khoá kỳ theo `business_date` cơ sở (chỉ ngày đã qua, chỉ tiến; mở khoá từ ngày X nhả mọi khoá ≥ X), trigger PERIOD_LOCKED trên `journal_entries`/`payments` (+`charges` ở T-113). Điều chỉnh chỉ GIẢM, luôn qua duyệt người khác (INV-G4), ghi kỳ mở bằng phiếu `adjustment` âm; số còn phải thu = cột sinh `invoices.open_amount`. Tăng tiền = phiếu phí mới. Báo cáo đọc từ sổ phụ; xuất CSV để SPEC-audit-reporting (job xuất).
+- 2026-10-15 T-109: lỗi theo trường trả `errors[]{path, field, code}` (API-CONTRACT dùng `path`, SPEC dùng `field`). Giữ chỗ hợp đồng không khoá hàng `leases` (lễ tân không ghi được) — khoá phòng + EXCLUDE. `allocation.expired` → `allocation.hold_expired` theo SPEC.
 - Nợ kỹ thuật chấp nhận: phần pháp lý trong `docs/research/` chỉ có nguồn thứ cấp — phải đối chiếu văn bản gốc trước khi dùng dữ liệu thật.
 
 ## Bàn giao phiên

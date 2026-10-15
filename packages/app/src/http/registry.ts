@@ -9,6 +9,18 @@ import {
   requestDeduction,
   requestDepositRefund,
 } from "../deposits/deposits.ts";
+import {
+  addOccupant,
+  cancelLease,
+  createDraft,
+  getLease,
+  getPerson,
+  holdLease,
+  removeOccupant,
+  signLease,
+  submitForSignature,
+  updateDraft,
+} from "../lease/lease.ts";
 import { financialSummary, issueAdjustment, lockPeriod, unlockPeriod } from "../ledger/period-close.ts";
 import { allocatePayment, confirmPayment, recordPayment, reversePayment } from "../payments/payments.ts";
 import {
@@ -36,6 +48,32 @@ const bankTxn = z.strictObject({
   description: z.string().max(500).optional(),
 });
 const isoDate = z.iso.date();
+const leaseTerms = z.strictObject({
+  effective_from: z.iso.date(),
+  effective_to: z.iso.date().nullable(),
+  rent_amount: money,
+  deposit_amount: money,
+  services: z
+    .array(
+      z.strictObject({
+        service_id: uuid,
+        quantity: z.number().int().min(0).max(1000),
+        unit_price: money.optional(),
+      }),
+    )
+    .max(30),
+});
+const toTerms = (t: z.infer<typeof leaseTerms>) => ({
+  effectiveFrom: t.effective_from,
+  effectiveTo: t.effective_to,
+  rentAmount: t.rent_amount,
+  depositAmount: t.deposit_amount,
+  services: t.services.map((s) => ({
+    serviceId: s.service_id,
+    quantity: s.quantity,
+    ...(s.unit_price === undefined ? {} : { unitPrice: s.unit_price }),
+  })),
+});
 const column = z.union([z.string().trim().min(1).max(100), z.number().int().min(0).max(200)]);
 const toBankTxn = (b: z.infer<typeof bankTxn>) => ({
   ref: b.ref,
@@ -404,6 +442,101 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
       httpStatus: 201,
     }),
   }),
+  "lease.createDraft": defineCommand({
+    command: "lease.createDraft",
+    input: z.strictObject({
+      unit_id: uuid,
+      representative_person_id: uuid,
+      signed_on: isoDate.optional(),
+      billing_start_on: isoDate,
+      terms: leaseTerms,
+      occupants: z
+        .array(z.strictObject({ person_id: uuid, role: z.enum(["co_tenant", "occupant"]) }))
+        .max(19)
+        .optional(),
+    }),
+    run: async (ctx, i) => ({
+      data: await createDraft(ctx, {
+        unitId: i.unit_id,
+        representativePersonId: i.representative_person_id,
+        billingStartOn: i.billing_start_on,
+        terms: toTerms(i.terms),
+        ...(i.signed_on ? { signedOn: i.signed_on } : {}),
+        ...(i.occupants
+          ? { occupants: i.occupants.map((o) => ({ personId: o.person_id, role: o.role })) }
+          : {}),
+      }),
+      httpStatus: 201,
+    }),
+  }),
+  "lease.updateDraft": defineCommand({
+    command: "lease.updateDraft",
+    input: z.strictObject({
+      lease_id: uuid,
+      billing_start_on: isoDate.optional(),
+      signed_on: isoDate.nullable().optional(),
+      terms: leaseTerms,
+    }),
+    run: async (ctx, i) => ({
+      data: await updateDraft(ctx, {
+        leaseId: i.lease_id,
+        terms: toTerms(i.terms),
+        ...(i.billing_start_on ? { billingStartOn: i.billing_start_on } : {}),
+        ...(i.signed_on === undefined ? {} : { signedOn: i.signed_on }),
+      }),
+    }),
+  }),
+  "lease.addOccupant": defineCommand({
+    command: "lease.addOccupant",
+    input: z.strictObject({
+      lease_id: uuid,
+      person_id: uuid,
+      role: z.enum(["co_tenant", "occupant"]),
+      from_on: isoDate,
+    }),
+    run: async (ctx, i) => ({
+      data: await addOccupant(ctx, {
+        leaseId: i.lease_id,
+        personId: i.person_id,
+        role: i.role,
+        fromOn: i.from_on,
+      }),
+      httpStatus: 201,
+    }),
+  }),
+  "lease.removeOccupant": defineCommand({
+    command: "lease.removeOccupant",
+    input: z.strictObject({ lease_id: uuid, person_id: uuid, to_on: isoDate }),
+    run: async (ctx, i) => ({
+      data: await removeOccupant(ctx, { leaseId: i.lease_id, personId: i.person_id, toOn: i.to_on }),
+    }),
+  }),
+  "lease.submitForSignature": defineCommand({
+    command: "lease.submitForSignature",
+    input: z.strictObject({ lease_id: uuid }),
+    run: async (ctx, i) => ({ data: await submitForSignature(ctx, { leaseId: i.lease_id }) }),
+  }),
+  "lease.hold": defineCommand({
+    command: "lease.hold",
+    input: z.strictObject({ lease_id: uuid }),
+    run: async (ctx, i) => ({ data: await holdLease(ctx, { leaseId: i.lease_id }), httpStatus: 201 }),
+  }),
+  "lease.sign": defineCommand({
+    command: "lease.sign",
+    input: z.strictObject({ lease_id: uuid, signer_person_id: uuid, signed_on: isoDate.optional() }),
+    run: async (ctx, i) => ({
+      data: await signLease(ctx, {
+        leaseId: i.lease_id,
+        signerPersonId: i.signer_person_id,
+        ...(i.signed_on ? { signedOn: i.signed_on } : {}),
+      }),
+    }),
+  }),
+  "lease.cancel": defineCommand({
+    command: "lease.cancel",
+    input: z.strictObject({ lease_id: uuid, reason: z.string().trim().min(1).max(1000) }),
+    run: async (ctx, i) => ({ data: await cancelLease(ctx, { leaseId: i.lease_id, reason: i.reason }) }),
+  }),
 };
 
 /** Tìm command theo đường dẫn `<module>/<command>`; tên chỉ gồm chữ/số để không lọt ký tự lạ. */
@@ -425,6 +558,16 @@ export const QUERIES: Readonly<Record<string, AnyQuery>> = {
         invoiceId: i.invoice_id,
         ...(i.receiving_account_id ? { receivingAccountId: i.receiving_account_id } : {}),
       }),
+  },
+  "lease.get": {
+    query: "lease.get",
+    input: z.strictObject({ lease_id: uuid }),
+    run: (db, actor, i: { lease_id: string }) => getLease(db, actor, i.lease_id),
+  },
+  "person.get": {
+    query: "person.get",
+    input: z.strictObject({ person_id: z.string().max(64) }),
+    run: (db, actor, i: { person_id: string }) => getPerson(db, actor, i.person_id),
   },
   "report.financialSummary": {
     query: "report.financialSummary",

@@ -140,3 +140,53 @@ export async function seedIssuedInvoice(
   });
   return { invoiceId, total, memoRef };
 }
+
+/**
+ * Hợp đồng `draft` tối thiểu (phiên bản 1 + người đại diện) cho test cần `lease_id` thật (FK từ migration 0014).
+ * Không truyền `unitId` ⇒ tạo tầng/loại phòng/phòng mới trong cơ sở.
+ */
+export async function seedLease(
+  admin: Kysely<unknown>,
+  input: {
+    orgId: string;
+    propertyId: string;
+    representativePersonId: string;
+    unitId?: string;
+    effectiveFrom?: string;
+    rentAmount?: number;
+    depositAmount?: number;
+  },
+): Promise<{ leaseId: string; unitId: string }> {
+  const leaseId = randomUUID();
+  let unitId = input.unitId;
+  await admin.transaction().execute(async (trx) => {
+    if (!unitId) {
+      const floorId = randomUUID();
+      const typeId = randomUUID();
+      unitId = randomUUID();
+      await sql`insert into floors (id, organization_id, property_id, name) values (${floorId}, ${input.orgId}, ${input.propertyId}, ${`T-${floorId.slice(0, 4)}`})`.execute(
+        trx,
+      );
+      await sql`insert into room_types (id, organization_id, property_id, code, name, capacity)
+                values (${typeId}, ${input.orgId}, ${input.propertyId}, ${`RT${typeId.slice(0, 6)}`}, 'Phòng trọ', 2)`.execute(
+        trx,
+      );
+      await sql`insert into units (id, organization_id, property_id, floor_id, room_type_id, code)
+                values (${unitId}, ${input.orgId}, ${input.propertyId}, ${floorId}, ${typeId}, ${`P${unitId.slice(0, 6)}`})`.execute(
+        trx,
+      );
+    }
+    const from = input.effectiveFrom ?? "2026-11-01";
+    await sql`insert into leases (id, organization_id, property_id, unit_id, number, billing_start_on, representative_person_id)
+              values (${leaseId}, ${input.orgId}, ${input.propertyId}, ${unitId}, ${`HD-T${leaseId.slice(0, 8)}`}, ${from}::date,
+                      ${input.representativePersonId})`.execute(trx);
+    await sql`insert into lease_versions (id, organization_id, property_id, lease_id, version_no, kind, effective_from, rent_amount,
+                                          deposit_amount)
+              values (${randomUUID()}, ${input.orgId}, ${input.propertyId}, ${leaseId}, 1, 'original', ${from}::date,
+                      ${input.rentAmount ?? 3_000_000}, ${input.depositAmount ?? 3_000_000})`.execute(trx);
+    await sql`insert into lease_occupants (id, organization_id, property_id, lease_id, person_id, role, is_representative, from_on)
+              values (${randomUUID()}, ${input.orgId}, ${input.propertyId}, ${leaseId}, ${input.representativePersonId}, 'primary',
+                      true, ${from}::date)`.execute(trx);
+  });
+  return { leaseId, unitId: unitId as string };
+}

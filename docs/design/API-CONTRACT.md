@@ -24,7 +24,7 @@
   "title": "Phòng đã có người đặt trong khoảng thời gian này",
   "status": 409, "code": "ROOM_UNAVAILABLE",
   "detail": "Phòng 203 bận từ 2026-11-02 14:00 đến 2026-11-03 12:00",
-  "correlation_id": "…", "errors": [ { "path": "during.end", "code": "BEFORE_START" } ] }
+  "correlation_id": "…", "errors": [ { "path": "during.end", "field": "during.end", "code": "BEFORE_START" } ] }
 ```
 
 | Mã | HTTP | Khi nào |

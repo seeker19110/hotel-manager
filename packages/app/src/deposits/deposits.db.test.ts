@@ -5,6 +5,7 @@ import {
   type SeededOrg,
   seedAuthUser,
   seedIssuedInvoice,
+  seedLease,
   seedOrg,
   type TestDb,
 } from "@hm/testkit";
@@ -51,6 +52,11 @@ async function person(name: string): Promise<string> {
   );
   return id;
 }
+
+/** Hợp đồng thật (FK `deposits.lease_id` → `leases`, migration 0014). */
+const newLease = async (payer: string) =>
+  (await seedLease(t.admin, { orgId: A.orgId, propertyId: A.propertyId, representativePersonId: payer }))
+    .leaseId;
 
 function run<T>(actor: Actor, fn: Parameters<typeof executeCommand<T>>[3]) {
   return executeCommand<T>(
@@ -135,8 +141,8 @@ afterAll(async () => {
 
 describe("S-011 nhận cọc tách doanh thu", () => {
   it("cọc tiền mặt 3.000.000: pending không bút toán; xác nhận → Nợ CASH / Có DEPOSIT_LIAB, không qua doanh thu", async () => {
-    const L1 = randomUUID();
     const payer = await person("Người thuê L1");
+    const L1 = await newLease(payer);
     const revBefore = await ledger("REV_ROOM");
     const r = await ok(
       run(F, async (ctx) => ({
@@ -173,8 +179,8 @@ describe("S-011 nhận cọc tách doanh thu", () => {
 
 describe("S-012/S-013 khấu trừ và hoàn cọc (INV-F5)", () => {
   it("khấu trừ 1.580.000 cần người khác duyệt; hoàn 1.420.001 vượt → 409; hoàn 1.420.000 tiền mặt → cọc còn 0", async () => {
-    const L1 = randomUUID();
     const payer = await person("Người thuê S-012");
+    const L1 = await newLease(payer);
     const { depositId } = await cashDeposit(L1, payer, 3_000_000);
     const I1 = await seedIssuedInvoice(t.admin, {
       orgId: A.orgId,
@@ -247,14 +253,14 @@ describe("S-012/S-013 khấu trừ và hoàn cọc (INV-F5)", () => {
   });
 
   it("khấu trừ vào phiếu hợp đồng khác → 422; vượt AR còn mở → OVER_ALLOCATION; vượt cọc → REFUND_EXCEEDS_BALANCE", async () => {
-    const L = randomUUID();
     const payer = await person("Người thuê kiểm");
+    const L = await newLease(payer);
     const { depositId } = await cashDeposit(L, payer, 1_000_000);
     const other = await seedIssuedInvoice(t.admin, {
       orgId: A.orgId,
       propertyId: A.propertyId,
       payerPersonId: payer,
-      leaseId: randomUUID(),
+      leaseId: await newLease(payer),
       lines: [{ amount: 100 }],
     });
     const mine = await seedIssuedInvoice(t.admin, {
@@ -283,8 +289,8 @@ describe("S-012/S-013 khấu trừ và hoàn cọc (INV-F5)", () => {
   });
 
   it("hai yêu cầu hoàn cộng lại vượt số còn, duyệt đồng thời → đúng một hiệu lực", async () => {
-    const L = randomUUID();
     const payer = await person("Người thuê đồng thời");
+    const L = await newLease(payer);
     const { depositId } = await cashDeposit(L, payer, 1_420_000);
     const ask = () =>
       ok(
@@ -308,8 +314,8 @@ describe("S-012/S-013 khấu trừ và hoàn cọc (INV-F5)", () => {
   });
 
   it("đảo khoản cọc đã khấu trừ một phần → bị chặn (số cọc không âm)", async () => {
-    const L = randomUUID();
     const payer = await person("Người thuê đảo");
+    const L = await newLease(payer);
     const { depositId, paymentId } = await cashDeposit(L, payer, 500_000);
     const inv = await seedIssuedInvoice(t.admin, {
       orgId: A.orgId,

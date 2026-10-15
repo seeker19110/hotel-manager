@@ -3,7 +3,7 @@
 // chữ ký webhook (TM-04).
 import { randomUUID } from "node:crypto";
 import { withTenant } from "@hm/db";
-import { createTestDb, type SeededOrg, seedOrg, type TestDb } from "@hm/testkit";
+import { createTestDb, type SeededOrg, seedLease, seedOrg, type TestDb } from "@hm/testkit";
 import { sql, type Transaction } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ingestBankEvent, signSim, verifySimSignature } from "./bank-inbox.ts";
@@ -55,8 +55,13 @@ describe("INV-F1 — bút toán cân bằng", () => {
     const payer = A.ownerPersonId;
     // Cọc thật (FK journal_lines.deposit_id từ migration 0011).
     const deposit = randomUUID();
+    const { leaseId } = await seedLease(t.admin, {
+      orgId: A.orgId,
+      propertyId: A.propertyId,
+      representativePersonId: A.ownerPersonId,
+    });
     await sql`insert into deposits (id, organization_id, property_id, lease_id, payer_person_id)
-              values (${deposit}, ${A.orgId}, ${A.propertyId}, ${randomUUID()}, ${A.ownerPersonId})`.execute(
+              values (${deposit}, ${A.orgId}, ${A.propertyId}, ${leaseId}, ${A.ownerPersonId})`.execute(
       t.admin,
     );
     // Dòng CASH phải gắn một ca có thật (FK từ migration 0009).

@@ -76,7 +76,8 @@ export async function createHold(
   });
   if (unit.availability !== "active")
     throw new CommandError("UNIT_OUT_OF_SERVICE", 409, "Phòng đang ngừng khai thác");
-  if (!input.during.end)
+  // Hợp đồng không thời hạn được giữ chỗ mở cuối (SPEC-lease S-023); booking luôn có điểm cuối.
+  if (!input.during.end && input.sourceType !== "lease")
     throw new CommandError("VALIDATION_FAILED", 422, "Giữ chỗ phải có thời điểm kết thúc");
   if (!Number.isInteger(input.ttlMinutes) || input.ttlMinutes <= 0) {
     throw new CommandError("VALIDATION_FAILED", 422, "Thời hạn giữ chỗ không hợp lệ");
@@ -85,7 +86,7 @@ export async function createHold(
   const released = await releaseExpiredOverlapping(ctx.trx, ctx.actor.orgId, input.unitId, range, now);
   for (const id of released) {
     await ctx.audit({
-      action: "allocation.expired",
+      action: "allocation.hold_expired",
       entityType: "allocation",
       entityId: id,
       propertyId: unit.property_id,
@@ -143,12 +144,16 @@ export async function releaseHold(
   return { released: true };
 }
 
-/** Hold → cam kết (stay/lease) trong cùng UPDATE: không có khe hở để người khác chen vào. */
+/**
+ * Hold → cam kết (stay/lease) trong cùng UPDATE: không có khe hở để người khác chen vào. `during` (tuỳ chọn) đặt lại khoảng
+ * cam kết trong cùng câu lệnh (vd điều khoản hợp đồng đổi sau khi giữ chỗ); chồng phòng khác → ROOM_UNAVAILABLE.
+ */
 export async function confirmHold(
   ctx: CommandContext,
   allocationId: string,
   kind: "stay" | "lease",
   now = new Date(),
+  during?: Interval,
 ) {
   const r = await sql<{ property_id: string; expires_at: Date }>`
     select property_id, expires_at from allocations
@@ -162,9 +167,14 @@ export async function confirmHold(
   });
   if (row.expires_at.getTime() <= now.getTime())
     throw new CommandError("HOLD_EXPIRED", 409, "Giữ chỗ đã hết hạn");
-  await sql`update allocations set kind = ${kind}, expires_at = null where id = ${allocationId}`.execute(
-    ctx.trx,
-  );
+  try {
+    await sql`savepoint confirm_hold`.execute(ctx.trx);
+    await sql`update allocations set kind = ${kind}, expires_at = null
+              ${during ? sql`, during = ${rangeLiteral(during)}::tstzrange` : sql``}
+              where id = ${allocationId}`.execute(ctx.trx);
+  } catch (err) {
+    translateOverlap(err);
+  }
   await ctx.audit({
     action: "allocation.confirmed",
     entityType: "allocation",

@@ -6,6 +6,7 @@ import {
   type SeededOrg,
   seedAuthUser,
   seedIssuedInvoice,
+  seedLease,
   seedOrg,
   type TestDb,
 } from "@hm/testkit";
@@ -481,7 +482,9 @@ describe("S-024 báo cáo tách tiền thu, doanh thu, cọc, nợ", () => {
     const dep = await ok(
       run(K, async (ctx) => ({
         data: await receiveDeposit(ctx, {
-          leaseId: randomUUID(),
+          leaseId: (
+            await seedLease(t.admin, { orgId: A.orgId, propertyId: P, representativePersonId: payer })
+          ).leaseId,
           propertyId: P,
           payerPersonId: payer,
           amount: 3_000_000,

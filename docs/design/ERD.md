@@ -611,7 +611,7 @@ Loại: M
 
 - Khoá/index: `UNIQUE (organization_id, property_id, id)`; `UNIQUE (organization_id, property_id, number)`; `ix (organization_id, unit_id, status)`.
 - Ràng buộc đặc biệt: constraint trigger deferred "người đại diện = đúng một `lease_occupants.is_representative` đang hiệu lực" khi `active`; trigger chặn `active` khi chưa có `handovers(kind='move_in')` đã xác nhận (`HANDOVER_REQUIRED`) và chặn `closed` khi `lease_settlements` chưa duyệt (`SETTLEMENT_REQUIRED`). Chống chồng phòng nằm ở `allocations` (ký thất bại ⇒ `ROOM_UNAVAILABLE`), không ở bảng này.
-- RLS/quyền đặc biệt: `owner`/`manager` ghi; `tenant` chỉ đọc hợp đồng có `representative_person_id` = chính mình; `housekeeping`/`maintenance` không đọc.
+- RLS/quyền đặc biệt: `owner`/`manager` ghi; `front_desk`/`accountant` đọc trong phạm vi; `tenant` chỉ đọc hợp đồng có `representative_person_id` = chính mình (`app.actor_person_id()`); `housekeeping`/`maintenance` không đọc. Vòng đời kiểm cả ở trigger (`INVALID_TRANSITION`); người đại diện/mốc ngày bất biến sau ký (`DOCUMENT_IMMUTABLE`). `persons` (T-109): đọc theo vai trò (owner/manager/front_desk/accountant, chính mình, hoặc ngữ cảnh hệ thống không actor). `services` tạo ở T-109 (điều khoản tham chiếu); `allocations.ck_allocations_open_end` cho phép `hold` nguồn `lease` mở cuối.
 - Bất biến: INV-G1, INV-G4 (điều khoản qua `lease_versions`), INV-I1.
 
 ### `lease_versions`
