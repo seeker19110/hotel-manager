@@ -5,7 +5,7 @@
 import { randomUUID } from "node:crypto";
 import { withTenant } from "@hm/db";
 import { type Kysely, sql, type Transaction } from "kysely";
-import { type NotificationType, render, type Vars } from "./templates.ts";
+import { type NotificationType, render, TemplateError, type Vars } from "./templates.ts";
 
 export interface DispatchJob {
   organization_id: string;
@@ -173,12 +173,27 @@ const HANDLERS: Readonly<
 export const NOTIFY_EVENT_TYPES = Object.keys(HANDLERS);
 
 /** Xử lý một sự kiện trong ngữ cảnh tổ chức của chính hàng outbox (IND-SAAS-003). Trả số thông báo mới. */
+/**
+ * Lỗi mẫu (dữ liệu không render được) là lỗi tất định — chạy lại không khỏi — nên bỏ sự kiện đó, ghi log
+ * `notification.template_error` (không kèm biến), thay vì để job lặp tới dead-letter (review PR #10).
+ */
 export async function dispatchNotification(
   workerDb: Kysely<unknown>,
   job: DispatchJob,
   now: Date = new Date(),
+  log: (event: string, fields: Record<string, unknown>) => void = () => {},
 ): Promise<number> {
   const h = HANDLERS[job.event_type];
   if (!h) return 0;
-  return withTenant(workerDb, { orgId: job.organization_id }, (trx) => h(trx, job, now));
+  try {
+    return await withTenant(workerDb, { orgId: job.organization_id }, (trx) => h(trx, job, now));
+  } catch (err) {
+    if (!(err instanceof TemplateError)) throw err;
+    log("notification.template_error", {
+      outbox_id: job.outbox_id,
+      event_type: job.event_type,
+      reason: err.message,
+    });
+    return 0;
+  }
 }

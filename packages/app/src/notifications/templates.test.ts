@@ -73,15 +73,33 @@ describe("S-012 nội dung không chứa PII nhạy cảm", () => {
     }
   });
 
-  it("biến khai báo mà mang dạng nhạy cảm (SĐT/CCCD/số tài khoản) → TemplateError, không gửi", () => {
-    expect(() =>
-      render("invoice_issued", { ...VARS.invoice_issued, propertyName: "Nhà trọ 0912345678" }),
-    ).toThrow(TemplateError);
-    expect(() => render("lease_expiring", { ...VARS.lease_expiring, unitCode: "012345678901" })).toThrow(
-      TemplateError,
-    );
-    expect(() => render("export_ready", { ...VARS.export_ready, exportName: "TK 19036012345678" })).toThrow(
-      TemplateError,
+  it("biến khai báo mang dạng nhạy cảm (SĐT/CCCD/số tài khoản) → che `***`, vẫn gửi được, không lộ số (review PR #10)", () => {
+    const cases: [NotificationType, Vars, string][] = [
+      [
+        "invoice_issued",
+        { ...VARS.invoice_issued, propertyName: "Nhà nghỉ Hoa Mai - 0905123456" },
+        "0905123456",
+      ],
+      ["invoice_issued", { ...VARS.invoice_issued, propertyName: "Nhà trọ +84 905 123 456" }, "905 123 456"],
+      ["lease_expiring", { ...VARS.lease_expiring, unitCode: "012345678901" }, "012345678901"],
+      ["export_ready", { ...VARS.export_ready, exportName: "TK 19036012345678" }, "19036012345678"],
+    ];
+    for (const [type, vars, secret] of cases) {
+      const r = render(type, vars, { baseUrl: "https://app.example" });
+      const all = [r.title, r.body, r.emailSubject, r.emailText].join("\n");
+      expect(all).not.toContain(secret);
+      expect(all).toContain("***");
+    }
+    expect(
+      render("invoice_issued", { ...VARS.invoice_issued, propertyName: "Nhà nghỉ Hoa Mai - 0905123456" })
+        .body,
+    ).toBe("Nhà nghỉ Hoa Mai - ***: phiếu thu kỳ 10/2026 1.580.000 đ, hạn thanh toán 10/10/2026.");
+  });
+
+  it("mã UUID có nhóm cuối toàn chữ số không bị che (liên kết vẫn đúng)", () => {
+    const id = "6f1c2b3a-1111-4222-8333-123456789012";
+    expect(render("invoice_issued", { ...VARS.invoice_issued, invoiceId: id }).link).toBe(
+      `/portal/phieu-thu/${id}`,
     );
   });
 

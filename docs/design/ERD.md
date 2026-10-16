@@ -1661,8 +1661,8 @@ Loại: M
 | Cột | Kiểu | Null | Ràng buộc/mặc định | Ghi chú |
 |---|---|---|---|---|
 | property_id | uuid | không | FK ghép → `properties` | |
-| overdue_reminder_offsets_days | integer[] | không | mặc định `'{1}'` | Lịch nhắc quá hạn (ngày sau hạn) |
-| lease_expiry_offsets_days | integer[] | không | mặc định `'{30,7,0}'` | Mốc nhắc hợp đồng sắp hết hạn |
+| overdue_reminder_offsets_days | integer[] | không | mặc định `'{1,3,7}'` | Lịch nhắc quá hạn (ngày sau hạn; SPEC-notifications Q-04) |
+| lease_expiry_offsets_days | integer[] | không | mặc định `'{30,7}'` | Mốc nhắc hợp đồng sắp hết hạn (SPEC-notifications Q-06) |
 | stay_notice_deadline | jsonb | có | `CHECK (stay_notice_deadline IS NULL OR jsonb_typeof(stay_notice_deadline)='object')` | Hạn thông báo lưu trú (giờ; riêng khách nước ngoài); **NULL = chưa cấu hình, không có mặc định cứng** (SPEC-notifications Q-08) |
 | residence_notice_template | jsonb | có | `CHECK (residence_notice_template IS NULL OR jsonb_typeof(residence_notice_template)='object')` | Mẫu file thông báo lưu trú (cột/trường); thiếu ⇒ `NOTICE_TEMPLATE_MISSING` |
 | send_window_start | time | không | mặc định `'08:00'` | Khung giờ gửi nhắc nợ (giờ địa phương) |

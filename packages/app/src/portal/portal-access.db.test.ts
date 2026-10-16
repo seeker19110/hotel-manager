@@ -394,7 +394,7 @@ describe("S-015 thu hồi / hết hạn xem lại", () => {
   });
 });
 
-describe("RLS: người thuê không đọc dữ liệu nội bộ của tổ chức (0038)", () => {
+describe("RLS: người thuê không đọc dữ liệu nội bộ của tổ chức (0039)", () => {
   it("sổ cái, giao dịch ngân hàng, audit, outbox, lịch phòng, lời mời, kết quả lệnh/ membership của người khác, file người khác → 0 dòng; nhân viên vẫn đọc", async () => {
     const k = await tenantPerson(A, "Người thuê Khoa");
     const r = await okAs(t, owner, (ctx) =>

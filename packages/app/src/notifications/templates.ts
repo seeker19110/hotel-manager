@@ -2,8 +2,9 @@
 // - Mỗi mẫu chỉ đọc đúng các biến khai báo — trường thừa (CCCD, SĐT, số tài khoản…) có trong `vars` cũng không lọt ra.
 // - Email KHÔNG ghi số tiền (Q-03); thông báo trong app (đã đăng nhập) ghi đủ.
 // - Giá trị bị bỏ ký tự điều khiển/xuống dòng (chống chèn header khi có adapter SMTP), cắt độ dài.
-// - Lưới cuối: nội dung render có dạng số CCCD/CMND (9/12 chữ số liền), SĐT Việt Nam hay số tài khoản 10–19 chữ số →
-//   TemplateError (mặc định an toàn: không gửi thay vì lộ).
+// - Giá trị chữ tự do (tên cơ sở, mã phòng…) có dạng số CCCD/CMND (9/12 chữ số liền), SĐT Việt Nam hay số tài khoản
+//   10–19 chữ số → thay bằng `***` (vd tên "Nhà nghỉ Hoa Mai - 0905123456" vẫn gửi được, không lộ số).
+// - Lưới cuối: nội dung render vẫn còn các dạng đó → TemplateError (mặc định an toàn: không gửi thay vì lộ).
 
 export const NOTIFICATION_TYPES = [
   "account_security",
@@ -37,7 +38,25 @@ export interface Rendered {
 
 const MAX_VALUE = 200;
 
-function clean(v: unknown, name: string): string {
+const DOC_NO = /(?<![\d.])\d{9}(?:\d{3})?(?![\d.])/;
+const PHONE = /(?<![\d.])(?:\+?84|0)(?:[\s.-]?\d){9,10}(?![\d.])/;
+const ACCOUNT_NO = /(?<![\d.])\d{10,19}(?![\d.])/;
+
+/** Dạng nhạy cảm không được xuất hiện trong nội dung render (S-012). */
+const SENSITIVE: readonly [string, RegExp][] = [
+  ["số giấy tờ", DOC_NO],
+  ["số điện thoại", PHONE],
+  ["số tài khoản", ACCOUNT_NO],
+];
+
+/** Che các dạng nhạy cảm trong một giá trị biến (SĐT trước: dạng có dấu cách/chấm dài hơn dạng số liền). */
+function redact(s: string): string {
+  let out = s;
+  for (const rx of [PHONE, DOC_NO, ACCOUNT_NO]) out = out.replace(new RegExp(rx.source, "g"), "***");
+  return out;
+}
+
+function clean(v: unknown, name: string, opts: { redact?: boolean } = {}): string {
   if (v === undefined || v === null || v === "") throw new TemplateError(`thiếu biến ${name}`);
   if (typeof v !== "string" && typeof v !== "number") throw new TemplateError(`biến ${name} sai kiểu`);
   // Ký tự điều khiển (CR/LF/NUL…) → khoảng trắng: chống chèn header khi có adapter SMTP.
@@ -49,7 +68,8 @@ function clean(v: unknown, name: string): string {
     .replace(/ {2,}/g, " ")
     .trim();
   if (!s) throw new TemplateError(`thiếu biến ${name}`);
-  return s.length > MAX_VALUE ? `${s.slice(0, MAX_VALUE - 1)}…` : s;
+  const r = opts.redact === false ? s : redact(s);
+  return r.length > MAX_VALUE ? `${r.slice(0, MAX_VALUE - 1)}…` : r;
 }
 
 function str(vars: Vars, name: string): string {
@@ -75,7 +95,8 @@ function date(vars: Vars, name: string): string {
 }
 
 function uuidLink(prefix: string, vars: Vars, name: string): string {
-  const id = str(vars, name);
+  // Mã kiểm bằng định dạng UUID, không che (nhóm cuối 12 chữ số liền là UUID hợp lệ).
+  const id = clean(vars[name], name, { redact: false });
   if (!/^[0-9a-f-]{36}$/i.test(id)) throw new TemplateError(`biến ${name} không phải mã hợp lệ`);
   return `${prefix}/${id}`;
 }
@@ -156,7 +177,8 @@ const BUILDERS: Readonly<Record<NotificationType, Builder>> = {
     return {
       title: `Hợp đồng phòng ${unit} hết hạn ${end}`,
       body: `${p}: hợp đồng phòng ${unit} kết thúc ${end}. Cần gia hạn hoặc chuẩn bị trả phòng.`,
-      link: uuidLink("/hop-dong", v, "leaseId"),
+      // Người thuê (người đại diện) mở portal; nhân viên mở trang hợp đồng.
+      link: v.audience === "tenant" ? "/portal/hop-dong" : uuidLink("/hop-dong", v, "leaseId"),
       emailSubject: `${p}: hợp đồng phòng ${unit} sắp hết hạn`,
       emailLines: [`Hợp đồng phòng ${unit} tại ${p} kết thúc ${end}.`],
     };
@@ -208,13 +230,6 @@ const BUILDERS: Readonly<Record<NotificationType, Builder>> = {
     };
   },
 };
-
-/** Dạng nhạy cảm không được xuất hiện trong nội dung render (S-012). */
-const SENSITIVE: readonly [string, RegExp][] = [
-  ["số giấy tờ", /(?<![\d.])\d{9}(?:\d{3})?(?![\d.])/],
-  ["số điện thoại", /(?<![\d.])(?:\+?84|0)(?:[\s.-]?\d){9,10}(?![\d.])/],
-  ["số tài khoản", /(?<![\d.])\d{10,19}(?![\d.])/],
-];
 
 function assertNoSensitive(text: string): void {
   for (const [what, rx] of SENSITIVE)

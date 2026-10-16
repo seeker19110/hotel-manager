@@ -4,7 +4,8 @@
 // 2. Trong ngữ cảnh tổ chức: kiểm lại trước khi gửi — người nhận tắt loại này → `suppressed OPTED_OUT`; chưa có email →
 //    `NO_ADDRESS`; nhắc quá hạn mà phiếu đã tất toán → `SETTLED` (đọc lại số dư, S-008); lỗi mẫu → `failed TEMPLATE_ERROR`.
 // 3. Gửi NGOÀI transaction (không giữ khoá/kết nối khi gọi mạng); khoá idempotency = id lần gửi (S-003).
-// 4. Ghi kết quả có điều kiện `status = 'sending'`: `sent` · lỗi vĩnh viễn → `failed RECIPIENT_INVALID` (không thử lại) ·
+// 4. Ghi kết quả có điều kiện `status = 'sending' AND attempts = <lúc nhận>` (rào khoá: worker chậm quá `locked_until` bị
+//    nhận lại thì không ghi đè lần nhận mới; `sending` quá hạn về `retrying` có chờ lùi — 0037): `sent` · lỗi vĩnh viễn → `failed RECIPIENT_INVALID` (không thử lại) ·
 //    lỗi tạm → `retrying` sau 1 ph, 5 ph, 30 ph, 2 giờ, 6 giờ (Q-05: 1 lần đầu + 5 lần thử lại) → lần 6 lỗi ⇒ `dead`.
 // Log chỉ có email đã che (`a***@example.com`).
 import { withTenant } from "@hm/db";
@@ -47,6 +48,7 @@ async function prepare(
   workerDb: Kysely<unknown>,
   orgId: string,
   deliveryId: string,
+  attempts: number,
   opts: { baseUrl?: string; unsubscribeKey?: Buffer; now: Date },
 ): Promise<Outcome | null> {
   return withTenant(workerDb, { orgId }, async (trx) => {
@@ -58,7 +60,9 @@ async function prepare(
       from notification_deliveries d
       join notifications n on n.organization_id = d.organization_id and n.id = d.notification_id
       join persons p on p.organization_id = n.organization_id and p.id = n.recipient_person_id
-      where d.organization_id = ${orgId} and d.id = ${deliveryId} and d.status = 'sending'`.execute(trx);
+      where d.organization_id = ${orgId} and d.id = ${deliveryId} and d.status = 'sending' and d.attempts = ${attempts}`.execute(
+      trx,
+    );
     const row = r.rows[0];
     if (!row) return null;
     let out: Outcome;
@@ -90,10 +94,14 @@ async function prepare(
     }
     if (out.kind === "suppressed") {
       await sql`update notification_deliveries set status = 'suppressed', suppressed_reason = ${out.reason}, locked_until = null
-                where organization_id = ${orgId} and id = ${deliveryId} and status = 'sending'`.execute(trx);
+                where organization_id = ${orgId} and id = ${deliveryId} and status = 'sending' and attempts = ${attempts}`.execute(
+        trx,
+      );
     } else if (out.kind === "failed") {
       await sql`update notification_deliveries set status = 'failed', last_error_code = ${out.code}, locked_until = null
-                where organization_id = ${orgId} and id = ${deliveryId} and status = 'sending'`.execute(trx);
+                where organization_id = ${orgId} and id = ${deliveryId} and status = 'sending' and attempts = ${attempts}`.execute(
+        trx,
+      );
     }
     return out;
   });
@@ -131,7 +139,7 @@ export async function sendDueEmails(
                                            ${MAX_ATTEMPTS})`.execute(workerDb);
   stats.claimed = claimed.rows.length;
   for (const c of claimed.rows) {
-    const out = await prepare(workerDb, c.organization_id, c.id, {
+    const out = await prepare(workerDb, c.organization_id, c.id, c.attempts, {
       now,
       ...(opts.baseUrl ? { baseUrl: opts.baseUrl } : {}),
       ...(opts.unsubscribeKey ? { unsubscribeKey: opts.unsubscribeKey } : {}),
@@ -159,26 +167,22 @@ export async function sendDueEmails(
       if (result) {
         await sql`update notification_deliveries set status = 'sent', sent_at = ${now}, provider_message_id = ${result.providerMessageId},
                          locked_until = null, last_error_code = null
-                  where organization_id = ${c.organization_id} and id = ${c.id} and status = 'sending'`.execute(
-          trx,
-        );
+                  where organization_id = ${c.organization_id} and id = ${c.id} and status = 'sending'
+                    and attempts = ${c.attempts}`.execute(trx);
       } else if (error?.kind === "permanent") {
         await sql`update notification_deliveries set status = 'failed', last_error_code = 'RECIPIENT_INVALID', locked_until = null
-                  where organization_id = ${c.organization_id} and id = ${c.id} and status = 'sending'`.execute(
-          trx,
-        );
+                  where organization_id = ${c.organization_id} and id = ${c.id} and status = 'sending'
+                    and attempts = ${c.attempts}`.execute(trx);
       } else if (c.attempts >= MAX_ATTEMPTS) {
         await sql`update notification_deliveries set status = 'dead', last_error_code = 'PROVIDER_TEMPORARY', locked_until = null
-                  where organization_id = ${c.organization_id} and id = ${c.id} and status = 'sending'`.execute(
-          trx,
-        );
+                  where organization_id = ${c.organization_id} and id = ${c.id} and status = 'sending'
+                    and attempts = ${c.attempts}`.execute(trx);
       } else {
         const wait: number = RETRY_BACKOFF_MINUTES[c.attempts - 1] ?? 360;
         await sql`update notification_deliveries set status = 'retrying', last_error_code = 'PROVIDER_TEMPORARY', locked_until = null,
                          next_attempt_at = ${new Date(now.getTime() + wait * 60_000)}
-                  where organization_id = ${c.organization_id} and id = ${c.id} and status = 'sending'`.execute(
-          trx,
-        );
+                  where organization_id = ${c.organization_id} and id = ${c.id} and status = 'sending'
+                    and attempts = ${c.attempts}`.execute(trx);
       }
     });
     const to = maskEmail(out.to);

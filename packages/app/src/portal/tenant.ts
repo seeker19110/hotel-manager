@@ -1,5 +1,5 @@
 // PLAN đợt 3 T-217 — portal người thuê (SPEC-portal S-001…S-011, S-021). Quyền ở hai lớp: hàm chỉ cho vai trò `tenant`
-// (vai trò khác → 403) và RLS riêng của `tenant` (0038/0039) quyết dòng nào thấy được — không thấy = 404 kèm audit
+// (vai trò khác → 403) và RLS riêng của `tenant` (0039/0040) quyết dòng nào thấy được — không thấy = 404 kèm audit
 // `portal.access_denied` (S-003), thân lỗi không chứa dữ liệu của người khác. Số dư lấy từ sổ (cột `open_amount`).
 import { randomUUID } from "node:crypto";
 import { withTenant } from "@hm/db";

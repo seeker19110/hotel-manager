@@ -1,5 +1,5 @@
 // PLAN đợt 3 T-217 — portal người thuê (SPEC-portal S-001…S-011, S-021; ERD `payment_claims`; INV-F3).
-// - Policy đọc riêng vai trò `tenant` (cộng thêm vào policy nhân viên; chặn đọc nội bộ đã có ở 0038):
+// - Policy đọc riêng vai trò `tenant` (cộng thêm vào policy nhân viên; chặn đọc nội bộ đã có ở 0039):
 //   phiếu mà mình là người trả (của hợp đồng; kỳ thu chỉ khi `issued`/`locked`), dòng phiếu + phân bổ của các phiếu đó,
 //   cọc của hợp đồng mình đứng tên, công tơ của phòng mình thuê, chỉ số ĐÃ DUYỆT từ ngày bắt đầu hợp đồng.
 // - `payment_claims` ("Tôi đã chuyển"): người thuê ghi/đọc của chính mình; KHÔNG sinh payments/bút toán (INV-F3); một

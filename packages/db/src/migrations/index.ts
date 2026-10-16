@@ -37,10 +37,11 @@ import * as m0033 from "./0033_hk_maintenance_review_fixes.ts";
 import * as m0034 from "./0034_notifications.ts";
 import * as m0035 from "./0035_notification_preferences.ts";
 import * as m0036 from "./0036_reminders.ts";
-import * as m0037 from "./0037_portal_access.ts";
-import * as m0038 from "./0038_tenant_rls_hardening.ts";
-import * as m0039 from "./0039_portal_tenant.ts";
-import * as m0040 from "./0040_guest_links.ts";
+import * as m0037 from "./0037_notification_claim_fixes.ts";
+import * as m0038 from "./0038_portal_access.ts";
+import * as m0039 from "./0039_tenant_rls_hardening.ts";
+import * as m0040 from "./0040_portal_tenant.ts";
+import * as m0041 from "./0041_guest_links.ts";
 
 export const migrations: Record<string, Migration> = {
   "0001_tenancy": m0001,
@@ -79,8 +80,9 @@ export const migrations: Record<string, Migration> = {
   "0034_notifications": m0034,
   "0035_notification_preferences": m0035,
   "0036_reminders": m0036,
-  "0037_portal_access": m0037,
-  "0038_tenant_rls_hardening": m0038,
-  "0039_portal_tenant": m0039,
-  "0040_guest_links": m0040,
+  "0037_notification_claim_fixes": m0037,
+  "0038_portal_access": m0038,
+  "0039_tenant_rls_hardening": m0039,
+  "0040_portal_tenant": m0040,
+  "0041_guest_links": m0041,
 };

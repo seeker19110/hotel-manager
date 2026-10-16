@@ -190,7 +190,7 @@ export async function getFileUrl(
   const action = f ? READ_ACTION[f.owner_type] : undefined;
   if (f?.status !== "ready" || !action) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy file");
   try {
-    // Người thuê: RLS `portal_files` (0038) đã chỉ để lộ file của chính mình/chỉ số mình được xem — không có phạm vi
+    // Người thuê: RLS `portal_files` (0039) đã chỉ để lộ file của chính mình/chỉ số mình được xem — không có phạm vi
     // cơ sở để kiểm thêm; vai trò khác kiểm theo ma trận.
     if (ctx.actor.role !== "tenant")
       authorize(ctx.actor, action, {
