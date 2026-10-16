@@ -113,6 +113,8 @@ describe("arch-guards — ADR đặt tên NNNN-slug, số không trùng/hở", (
   const dir = join(ROOT, "docs/adr");
   const NAME = /^(\d{4})-[a-z0-9]+(?:-[a-z0-9]+)*\.md$/;
   const entries = readdirSync(dir).filter((f) => f !== "README.md");
+  // Số đã giữ chỗ cho ADR đang viết ở nhánh khác (0003: numeric đơn giá). Xoá phần tử này khi ADR-0003 vào nhánh chính.
+  const RESERVED_ADR_NUMBERS = [3];
 
   /** Trả danh sách lỗi tên/số cho một tập tên tệp. */
   function adrProblems(names: string[]): string[] {
@@ -124,7 +126,8 @@ describe("arch-guards — ADR đặt tên NNNN-slug, số không trùng/hở", (
     for (const n of new Set(nums.filter((x, i) => nums.indexOf(x) !== i))) problems.push(`trùng số ${n}`);
     const max = Math.max(0, ...nums);
     for (let i = 1; i <= max; i++)
-      if (!nums.includes(i)) problems.push(`hở số ${String(i).padStart(4, "0")}`);
+      if (!nums.includes(i) && !RESERVED_ADR_NUMBERS.includes(i))
+        problems.push(`hở số ${String(i).padStart(4, "0")}`);
     return problems;
   }
 

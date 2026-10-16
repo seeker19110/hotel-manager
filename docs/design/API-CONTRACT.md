@@ -1,7 +1,9 @@
 # API-CONTRACT — Hotel Manager API · v1 · hợp đồng phiên bản 1 · 2026-10-15
 
 > Draft, chờ duyệt. Tài liệu này là quy ước chung cho mọi command/query. Danh sách command của từng tính năng nằm ở mục 5 trong mỗi SPEC (`docs/specs/`).
-> File máy đọc `apps/web/openapi.yaml` sinh từ schema Zod ở T-0xx và được lint trong CI.
+> File máy đọc: [`apps/web/openapi.json`](../../apps/web/openapi.json) (OpenAPI 3.1) **sinh** từ registry command/query và schema Zod bằng `pnpm openapi` — không sửa tay;
+> `pnpm openapi --check` và `packages/app/src/http/openapi.test.ts` (chạy trong `pnpm test`) đỏ khi file lệch nguồn. Chưa có bước lint OpenAPI riêng hay so breaking-change trong CI (STD-PROC-003, còn mở).
+> Bảng mã lỗi dùng chung ở mục 2 viết tay nhưng được kiểm hai chiều với `ERROR_CODES` (`packages/app/src/errors.ts`) bởi `errors.test.ts` và `scripts/process-docs.test.mjs`.
 > Base URL: `/api/v1` (cùng origin với web). Xác thực: cookie phiên HttpOnly + Secure + SameSite=Lax, do Better Auth cấp (ADR-0002). Portal khách dùng link ký có hạn.
 
 ## 1. Nguyên tắc chung
@@ -84,8 +86,18 @@ Lý do break đối soát (`HASH_MISMATCH`, `THIRD_PARTY_PAYER`, `WRONG_REFERENC
 - Đường webhook miễn kiểm Origin (không dùng cookie; xác thực bằng chữ ký) — `requiresSameOrigin`.
 
 ## 4. Endpoint hệ thống
+Danh sách đầy đủ command/query nằm ở `apps/web/openapi.json` (sinh từ registry); bảng dưới chỉ là route ngoài hoặc đặc biệt. Chế độ render/cache/quyền từng route: [`docs/ROUTES.md`](../ROUTES.md).
+
 | Method | Path | Mục đích |
 |---|---|---|
-| GET | `/api/health` | DB + hàng đợi; không cần phiên; không lộ phiên bản |
+| GET | `/api/health` | Tiến trình còn sống (`{"status":"ok"}`); không cần phiên; không lộ phiên bản |
+| GET | `/api/ready` | CSDL + kho file + máy quét; 200 sẵn sàng, 503 kèm thành phần lỗi (không chi tiết) |
+| GET | `/api/metrics` | Prometheus text; `Authorization: Bearer <token dẫn xuất>`, chỉ nội bộ (RUNBOOK §1) |
 | GET | `/api/v1/me` | Người dùng, danh sách tổ chức/vai trò, tổ chức đang chọn |
 | GET | `/api/v1/commands/{command_id}` | Kết quả một command (chỉ người tạo hoặc quản lý xem được) |
+| POST | `/api/v1/session/switchOrganization` | Đổi tổ chức/cơ sở đang chọn (cần `Idempotency-Key`) |
+| POST | `/api/v1/files/upload` · `/api/v1/import/upload` | Tải file (thân là byte; quét mã độc, kiểm MIME bằng magic bytes) / tải file import |
+| POST | `/api/v1/notifications/unsubscribe` | Huỷ đăng ký email bằng token ký, không phiên |
+| GET | `/api/v1/portal/guest/stays/{id}` | Khách xem lượt ở bằng liên kết ký, không phiên |
+| POST | `/api/v1/webhooks/{provider}/{account}` | Webhook vào (mục 3) |
+| GET/POST | `/api/auth/*` | Better Auth: đăng nhập, phiên, 2FA (ADR-0002) |

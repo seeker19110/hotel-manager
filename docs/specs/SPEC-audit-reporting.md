@@ -1,3 +1,10 @@
+---
+status: Approved
+approved_by: "(chưa)"
+approved_at: "(chưa)"
+decisions: "D-002 (phiên chính tự duyệt câu hỏi chặn, 2026-10-16)"
+---
+
 # SPEC-audit-reporting — Nhật ký audit, màn "Hôm nay", báo cáo và xuất dữ liệu
 
 | Trường | Giá trị |
@@ -201,7 +208,7 @@ Không áp dụng — tính năng không dùng model.
 - [x] Q-04 Mẫu số công suất: trừ phòng `blocked`/`out_of_service` hay không — [không chặn pilot; chặn T063] — hỏi: PO — **đề xuất:** phòng khả dụng = phòng `active` không bị block trong ngày; ghi công thức trên báo cáo. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** phòng khả dụng = phòng `active` không bị block trong ngày; công thức ghi trên báo cáo.
 - [x] Q-05 Xuất toàn bộ có gồm số giấy tờ/ảnh không (quyền mang dữ liệu vs dữ liệu nhạy cảm) — [không chặn bản cơ bản] — hỏi: pháp lý — **đề xuất:** bản cơ bản loại trừ; bản đủ (T085) chờ DPIA. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** bản cơ bản loại trừ số giấy tờ và ảnh; bản đủ chờ DPIA.
 - [x] Q-06 Cửa sổ xác thực lại và thời hạn link tải — [không chặn] — hỏi: Tech Lead + PO — **đề xuất:** xác thực lại trong 5 phút trước khi xuất; link 15 phút; file xoá sau 24 giờ. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** xác thực lại trong 5 phút trước khi xuất; link 15 phút; file xoá sau 24 giờ.
-- [x] Q-07 Bổ sung `export_jobs` vào DOMAIN-MODEL — đã đóng: có ở DOMAIN-MODEL §7 (v1.2). Danh sách trường `audit_events` còn chốt ở T014 (không chặn).
+- [x] Q-07 Bổ sung `export_jobs` vào DOMAIN-MODEL — đã đóng: có ở DOMAIN-MODEL §7 (v1.2). Danh sách trường `audit_events` còn chốt ở T014 (không chặn). — **Đóng 2026-10-15:** đã có trong DOMAIN-MODEL v1.2 (G4, sửa sau review độc lập); không cần quyết định riêng.
 - [x] Q-08 Thư viện ghi XLSX — [không chặn] — hỏi: Tech Lead — **đề xuất:** chọn ở T039 qua `/research` (giấy phép OSI, đang bảo trì, ghim phiên bản), ghi vào ADR mới; nếu chưa có thì pilot chỉ xuất CSV UTF-8 có BOM. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** dùng bộ ghi XLSX tự viết của T-115 (`packages/app/src/import/xlsx.ts`, không thêm thư viện); CSV UTF-8 có BOM.
 - [x] Q-09 Thời gian giữ `audit_events` — [không chặn] — hỏi: pháp lý — **đề xuất:** theo lịch retention ở DPIA (kế hoạch §16 "Vòng đời dữ liệu"); chưa xoá trong pilot. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** giữ, chưa xoá trong pilot; lịch retention theo DPIA.
 
