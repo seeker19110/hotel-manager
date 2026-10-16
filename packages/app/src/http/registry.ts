@@ -77,6 +77,16 @@ import {
   setServicePrice,
 } from "../metering/meters.ts";
 import {
+  getPreferences,
+  listDeliveries,
+  listMyNotifications,
+  markAllRead,
+  markRead,
+  retryDelivery,
+  updatePreference,
+  updateSettings,
+} from "../notifications/preferences.ts";
+import {
   allocatePayment,
   collectCash,
   confirmPayment,
@@ -639,6 +649,69 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
     command: "maintenance.verifyWorkOrder",
     input: z.strictObject({ work_order_id: uuid }),
     run: async (ctx, i) => ({ data: await verifyWorkOrder(ctx, { workOrderId: i.work_order_id }) }),
+  }),
+  "notifications.markRead": defineCommand({
+    command: "notifications.markRead",
+    input: z.strictObject({ notification_id: uuid }),
+    run: async (ctx, i) => ({ data: await markRead(ctx, { notificationId: i.notification_id }) }),
+  }),
+  "notifications.markAllRead": defineCommand({
+    command: "notifications.markAllRead",
+    input: z.strictObject({}),
+    run: async (ctx) => ({ data: await markAllRead(ctx) }),
+  }),
+  "notifications.updatePreferences": defineCommand({
+    command: "notifications.updatePreferences",
+    input: z.strictObject({
+      type: z.string().max(40),
+      channel: z.literal("email"),
+      state: z.enum(["opted_in", "opted_out"]),
+    }),
+    run: async (ctx, i) => ({ data: await updatePreference(ctx, { type: i.type, state: i.state }) }),
+  }),
+  "notifications.retryDelivery": defineCommand({
+    command: "notifications.retryDelivery",
+    input: z.strictObject({ delivery_id: uuid }),
+    run: async (ctx, i) => ({ data: await retryDelivery(ctx, { deliveryId: i.delivery_id }) }),
+  }),
+  "notifications.updateSettings": defineCommand({
+    command: "notifications.updateSettings",
+    input: z.strictObject({
+      property_id: uuid,
+      overdue_reminder_offsets_days: z.array(z.number().int()).max(10).optional(),
+      lease_expiry_offsets_days: z.array(z.number().int()).max(10).optional(),
+      stay_notice_deadline: z
+        .strictObject({
+          domestic_cutoff: z.string().max(5).optional(),
+          domestic_next_day_before: z.string().max(5).optional(),
+          foreign_hours: z.number().int().optional(),
+        })
+        .nullable()
+        .optional(),
+      send_window_start: z.string().max(5).optional(),
+      send_window_end: z.string().max(5).optional(),
+    }),
+    run: async (ctx, i) => ({
+      data: await updateSettings(ctx, {
+        propertyId: i.property_id,
+        ...(i.overdue_reminder_offsets_days
+          ? { overdueReminderOffsetsDays: i.overdue_reminder_offsets_days }
+          : {}),
+        ...(i.lease_expiry_offsets_days ? { leaseExpiryOffsetsDays: i.lease_expiry_offsets_days } : {}),
+        ...(i.stay_notice_deadline !== undefined
+          ? {
+              stayNoticeDeadline:
+                i.stay_notice_deadline === null
+                  ? null
+                  : Object.fromEntries(
+                      Object.entries(i.stay_notice_deadline).filter(([, v]) => v !== undefined),
+                    ),
+            }
+          : {}),
+        ...(i.send_window_start ? { sendWindowStart: i.send_window_start } : {}),
+        ...(i.send_window_end ? { sendWindowEnd: i.send_window_end } : {}),
+      }),
+    }),
   }),
   "maintenance.cancelWorkOrder": defineCommand({
     command: "maintenance.cancelWorkOrder",
@@ -1543,6 +1616,43 @@ export const QUERIES: Readonly<Record<string, AnyQuery>> = {
     query: "inventory.getUnitStatus",
     input: z.strictObject({ unit_id: uuid }),
     run: (db, actor, i: { unit_id: string }) => getUnitStatus(db, actor, i.unit_id),
+  },
+  "notifications.listMine": {
+    query: "notifications.listMine",
+    input: z.strictObject({
+      limit: z.coerce.number().int().min(1).max(100).optional(),
+      before: z.iso.datetime({ offset: true }).optional(),
+    }),
+    run: (db, actor, i: { limit?: number; before?: string }) =>
+      listMyNotifications(db, actor, {
+        ...(i.limit ? { limit: i.limit } : {}),
+        ...(i.before ? { before: new Date(i.before) } : {}),
+      }),
+  },
+  "notifications.getPreferences": {
+    query: "notifications.getPreferences",
+    input: z.strictObject({}),
+    run: (db, actor) => getPreferences(db, actor),
+  },
+  "notifications.listDeliveries": {
+    query: "notifications.listDeliveries",
+    input: z.strictObject({
+      property_id: uuid.optional(),
+      status: z.enum(["queued", "sending", "sent", "retrying", "failed", "dead", "suppressed"]).optional(),
+      recipient_person_id: uuid.optional(),
+      type: z.string().max(40).optional(),
+    }),
+    run: (
+      db,
+      actor,
+      i: { property_id?: string; status?: never; recipient_person_id?: string; type?: string },
+    ) =>
+      listDeliveries(db, actor, {
+        ...(i.property_id ? { propertyId: i.property_id } : {}),
+        ...(i.status ? { status: i.status } : {}),
+        ...(i.recipient_person_id ? { recipientPersonId: i.recipient_person_id } : {}),
+        ...(i.type ? { type: i.type } : {}),
+      }),
   },
   "maintenance.listWorkOrders": {
     query: "maintenance.listWorkOrders",

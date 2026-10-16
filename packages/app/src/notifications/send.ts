@@ -10,6 +10,7 @@
 import { withTenant } from "@hm/db";
 import { type Kysely, sql, type Transaction } from "kysely";
 import { EmailSendError, type EmailSender } from "./email.ts";
+import { unsubscribeUrl } from "./preferences.ts";
 import { maskEmail, type NotificationType, REQUIRED_TYPES, render, TemplateError } from "./templates.ts";
 
 /** Khoảng chờ trước lần thử lại thứ n (phút) — Q-05. */
@@ -30,6 +31,7 @@ export type SendLog = (event: string, fields: Record<string, unknown>) => void;
 
 interface Row {
   notification_id: string;
+  recipient_person_id: string;
   type: NotificationType;
   vars: Record<string, unknown>;
   email: string | null;
@@ -45,11 +47,11 @@ async function prepare(
   workerDb: Kysely<unknown>,
   orgId: string,
   deliveryId: string,
-  opts: { baseUrl?: string },
+  opts: { baseUrl?: string; unsubscribeKey?: Buffer; now: Date },
 ): Promise<Outcome | null> {
   return withTenant(workerDb, { orgId }, async (trx) => {
     const r = await sql<Row>`
-      select n.id as notification_id, n.type, n.vars, p.email,
+      select n.id as notification_id, n.recipient_person_id, n.type, n.vars, p.email,
              exists (select 1 from notification_preferences np
                      where np.organization_id = n.organization_id and np.person_id = n.recipient_person_id
                        and np.type = n.type and np.channel = 'email' and np.state = 'opted_out') as opted_out
@@ -66,7 +68,20 @@ async function prepare(
       out = { kind: "suppressed", reason: "SETTLED" };
     else {
       try {
-        const m = render(row.type, row.vars, opts);
+        const m = render(row.type, row.vars, {
+          ...(opts.baseUrl ? { baseUrl: opts.baseUrl } : {}),
+          // Liên kết huỷ đăng ký có hạn (S-010) — chỉ khi có khoá ký và địa chỉ gốc; loại bắt buộc không có liên kết.
+          ...(opts.baseUrl && opts.unsubscribeKey
+            ? {
+                unsubscribeUrl: unsubscribeUrl(
+                  opts.baseUrl,
+                  opts.unsubscribeKey,
+                  { orgId, personId: row.recipient_person_id, type: row.type },
+                  opts.now,
+                ),
+              }
+            : {}),
+        });
         out = { kind: "send", to: row.email, subject: m.emailSubject, text: m.emailText };
       } catch (err) {
         if (!(err instanceof TemplateError)) throw err;
@@ -104,6 +119,7 @@ export async function sendDueEmails(
     perOrg?: number;
     lockSeconds?: number;
     baseUrl?: string;
+    unsubscribeKey?: Buffer;
     log?: SendLog;
   } = {},
 ): Promise<SendStats> {
@@ -115,12 +131,11 @@ export async function sendDueEmails(
                                            ${MAX_ATTEMPTS})`.execute(workerDb);
   stats.claimed = claimed.rows.length;
   for (const c of claimed.rows) {
-    const out = await prepare(
-      workerDb,
-      c.organization_id,
-      c.id,
-      opts.baseUrl ? { baseUrl: opts.baseUrl } : {},
-    );
+    const out = await prepare(workerDb, c.organization_id, c.id, {
+      now,
+      ...(opts.baseUrl ? { baseUrl: opts.baseUrl } : {}),
+      ...(opts.unsubscribeKey ? { unsubscribeKey: opts.unsubscribeKey } : {}),
+    });
     if (!out) continue;
     if (out.kind === "suppressed") {
       stats.suppressed += 1;
