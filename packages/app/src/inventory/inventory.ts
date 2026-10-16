@@ -1,8 +1,10 @@
 // Lịch tài nguyên (SPEC-inventory-allocation, DOMAIN-MODEL §3). Bất biến chồng phòng nằm ở CSDL (EXCLUDE — INV-I1);
 // code chỉ dọn hold hết hạn dưới khoá phòng (INV-I3), dịch lỗi 23P01 → ROOM_UNAVAILABLE và ghi audit/outbox.
 import { randomUUID } from "node:crypto";
+import { withTenant } from "@hm/db";
 import { authorize } from "@hm/domain";
-import { sql, type Transaction } from "kysely";
+import { type Kysely, sql, type Transaction } from "kysely";
+import type { Actor } from "../access/actor.ts";
 import type { CommandContext } from "../pipeline/command.ts";
 import { CommandError } from "../pipeline/problem.ts";
 
@@ -339,4 +341,42 @@ export async function unitStatus(trx: Transaction<unknown>, orgId: string, unitI
         ? "held"
         : "vacant";
   return { occupancy, housekeeping: u.housekeeping_status, availability: u.availability };
+}
+
+/**
+ * `inventory.getUnitStatus` (query, SPEC-housekeeping S-007, S-010): ba chiều trạng thái + `ready_for_arrival` = trống, đang
+ * khai thác và đã kiểm (`inspected`; cơ sở không bắt buộc kiểm thì `clean` cũng được). "Sạch" không có nghĩa là "trống".
+ */
+export async function getUnitStatus(
+  db: Kysely<unknown>,
+  actor: Actor,
+  unitId: string,
+  at = new Date(),
+): Promise<{
+  unitId: string;
+  occupancy: Occupancy;
+  housekeeping: string;
+  availability: string;
+  readyForArrival: boolean;
+}> {
+  if (!/^[0-9a-f-]{36}$/i.test(unitId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phòng");
+  return withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
+    const p = await sql<{ property_id: string; require_inspected: boolean }>`
+      select u.property_id, p.require_inspected from units u join properties p on p.organization_id = u.organization_id and p.id = u.property_id
+      where u.organization_id = ${actor.orgId} and u.id = ${unitId}`.execute(trx);
+    const row = p.rows[0];
+    if (!row) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phòng");
+    try {
+      authorize(actor, "calendar.read_status", { propertyId: row.property_id });
+    } catch {
+      throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phòng");
+    }
+    const s = await unitStatus(trx, actor.orgId, unitId, at);
+    const clean = s.housekeeping === "inspected" || (!row.require_inspected && s.housekeeping === "clean");
+    return {
+      unitId,
+      ...s,
+      readyForArrival: s.occupancy === "vacant" && s.availability === "active" && clean,
+    };
+  });
 }

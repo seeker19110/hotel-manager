@@ -19,6 +19,17 @@ import {
   requestDeduction,
   requestDepositRefund,
 } from "../deposits/deposits.ts";
+import {
+  assignTask,
+  cancelTask,
+  claimTask,
+  completeTask,
+  createTask,
+  getTask,
+  listTasks,
+  startTask,
+  verifyTask,
+} from "../housekeeping/tasks.ts";
 import { getIdentityDocument } from "../identity/identity.ts";
 import {
   cancelBatch,
@@ -30,6 +41,7 @@ import {
   setExpectedTotals,
   validateBatch,
 } from "../import/import.ts";
+import { getUnitStatus } from "../inventory/inventory.ts";
 import { activateLease, recordHandover, renewLease } from "../lease/handover.ts";
 import {
   addOccupant,
@@ -499,6 +511,68 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
         ...(i.evidence_file_id ? { evidenceFileId: i.evidence_file_id } : {}),
       }),
     }),
+  }),
+  "housekeeping.createTask": defineCommand({
+    command: "housekeeping.createTask",
+    input: z.strictObject({
+      unit_id: uuid,
+      kind: z.enum(["cleaning", "inspection"]),
+      priority: z.enum(["normal", "high", "urgent"]).optional(),
+      note: z.string().max(2000).optional(),
+    }),
+    run: async (ctx, i) => ({
+      data: await createTask(ctx, {
+        unitId: i.unit_id,
+        kind: i.kind,
+        ...(i.priority ? { priority: i.priority } : {}),
+        ...(i.note ? { note: i.note } : {}),
+      }),
+      httpStatus: 201,
+    }),
+  }),
+  "housekeeping.assignTask": defineCommand({
+    command: "housekeeping.assignTask",
+    input: z.strictObject({ task_id: uuid, assignee_membership_id: uuid }),
+    run: async (ctx, i) => ({
+      data: await assignTask(ctx, { taskId: i.task_id, assigneeMembershipId: i.assignee_membership_id }),
+    }),
+  }),
+  "housekeeping.claimTask": defineCommand({
+    command: "housekeeping.claimTask",
+    input: z.strictObject({ task_id: uuid }),
+    run: async (ctx, i) => ({ data: await claimTask(ctx, { taskId: i.task_id }) }),
+  }),
+  "housekeeping.startTask": defineCommand({
+    command: "housekeeping.startTask",
+    input: z.strictObject({ task_id: uuid }),
+    run: async (ctx, i) => ({ data: await startTask(ctx, { taskId: i.task_id }) }),
+  }),
+  "housekeeping.completeTask": defineCommand({
+    command: "housekeeping.completeTask",
+    input: z.strictObject({ task_id: uuid, note: z.string().max(2000).optional() }),
+    run: async (ctx, i) => ({
+      data: await completeTask(ctx, { taskId: i.task_id, ...(i.note ? { note: i.note } : {}) }),
+    }),
+  }),
+  "housekeeping.verifyTask": defineCommand({
+    command: "housekeeping.verifyTask",
+    input: z.strictObject({
+      task_id: uuid,
+      result: z.enum(["pass", "fail"]),
+      reason: z.string().trim().max(1000).optional(),
+    }),
+    run: async (ctx, i) => ({
+      data: await verifyTask(ctx, {
+        taskId: i.task_id,
+        result: i.result,
+        ...(i.reason ? { reason: i.reason } : {}),
+      }),
+    }),
+  }),
+  "housekeeping.cancelTask": defineCommand({
+    command: "housekeeping.cancelTask",
+    input: z.strictObject({ task_id: uuid, reason: z.string().trim().min(1).max(1000) }),
+    run: async (ctx, i) => ({ data: await cancelTask(ctx, { taskId: i.task_id, reason: i.reason }) }),
   }),
   "reservation.markNoShow": defineCommand({
     command: "reservation.markNoShow",
@@ -1339,6 +1413,32 @@ export const QUERIES: Readonly<Record<string, AnyQuery>> = {
         ...(i.status ? { status: i.status } : {}),
         ...(i.due_before ? { dueBefore: new Date(i.due_before) } : {}),
       }),
+  },
+  "housekeeping.listTasks": {
+    query: "housekeeping.listTasks",
+    input: z.strictObject({
+      property_id: uuid,
+      floor_id: uuid.optional(),
+      status: z.enum(["open", "assigned", "in_progress", "done", "verified", "cancelled"]).optional(),
+      assignee: uuid.optional(),
+    }),
+    run: (db, actor, i: { property_id: string; floor_id?: string; status?: never; assignee?: string }) =>
+      listTasks(db, actor, {
+        propertyId: i.property_id,
+        ...(i.floor_id ? { floorId: i.floor_id } : {}),
+        ...(i.status ? { status: i.status } : {}),
+        ...(i.assignee ? { assignee: i.assignee } : {}),
+      }),
+  },
+  "housekeeping.getTask": {
+    query: "housekeeping.getTask",
+    input: z.strictObject({ task_id: uuid }),
+    run: (db, actor, i: { task_id: string }) => getTask(db, actor, i.task_id),
+  },
+  "inventory.getUnitStatus": {
+    query: "inventory.getUnitStatus",
+    input: z.strictObject({ unit_id: uuid }),
+    run: (db, actor, i: { unit_id: string }) => getUnitStatus(db, actor, i.unit_id),
   },
   "reservation.get": {
     query: "reservation.get",
