@@ -85,9 +85,12 @@ describe("stripImageMetadata — JPEG", () => {
     all.set(big, 0);
     all.set(body, big.length);
     all.set([0xff, 0xd9], big.length + body.length);
-    const t0 = performance.now();
+    // Đo CPU time của chính thao tác (không phải thời gian thực): khi máy chạy nhiều bộ test song song, thời gian chờ
+    // lịch CPU làm đồng hồ thực vượt ngưỡng dù thao tác không chậm hơn (lặp 3 lần ở đợt 4–5). Ngưỡng giữ nguyên 250 ms.
+    const c0 = process.cpuUsage();
     stripImageMetadata(all, "image/jpeg");
-    expect(performance.now() - t0).toBeLessThan(250);
+    const c = process.cpuUsage(c0);
+    expect((c.user + c.system) / 1000).toBeLessThan(250);
   });
 });
 
