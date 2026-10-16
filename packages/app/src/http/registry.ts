@@ -85,6 +85,7 @@ import {
   listReservations,
   markNoShow,
 } from "../stay/reservations.ts";
+import { checkIn, type GuestInput, walkIn } from "../stay/stays.ts";
 import type { CommandDef, QueryDef } from "./command-route.ts";
 
 const uuid = z.uuid();
@@ -121,6 +122,24 @@ const toTerms = (t: z.infer<typeof leaseTerms>) => ({
     quantity: s.quantity,
     ...(s.unit_price === undefined ? {} : { unitPrice: s.unit_price }),
   })),
+});
+const guest = z.strictObject({
+  person_id: uuid.optional(),
+  full_name: z.string().trim().min(1).max(200).optional(),
+  phone: z.string().trim().min(6).max(20).optional(),
+  email: z.email().max(320).optional(),
+  doc_type: z.enum(["cccd", "passport", "other"]),
+  doc_number: z.string().trim().min(5).max(40),
+  nationality: z.string().trim().length(2).optional(),
+});
+const toGuest = (g: z.infer<typeof guest>): GuestInput => ({
+  docType: g.doc_type,
+  docNumber: g.doc_number,
+  ...(g.person_id ? { personId: g.person_id } : {}),
+  ...(g.full_name ? { fullName: g.full_name } : {}),
+  ...(g.phone ? { phone: g.phone } : {}),
+  ...(g.email ? { email: g.email } : {}),
+  ...(g.nationality ? { nationality: g.nationality } : {}),
 });
 const column = z.union([z.string().trim().min(1).max(100), z.number().int().min(0).max(200)]);
 const toBankTxn = (b: z.infer<typeof bankTxn>) => ({
@@ -342,6 +361,25 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
         departureDate: i.departure_date,
         previewOnly: i.preview_only,
       }),
+    }),
+  }),
+  "stay.checkIn": defineCommand({
+    command: "stay.checkIn",
+    input: z.strictObject({ reservation_id: uuid, guests: z.array(guest).min(1).max(50) }),
+    run: async (ctx, i, svc) => ({
+      data: await checkIn(ctx, svc.pii, { reservationId: i.reservation_id, guests: i.guests.map(toGuest) }),
+    }),
+  }),
+  "stay.walkIn": defineCommand({
+    command: "stay.walkIn",
+    input: z.strictObject({ unit_id: uuid, departure_date: isoDate, guests: z.array(guest).min(1).max(50) }),
+    run: async (ctx, i, svc) => ({
+      data: await walkIn(ctx, svc.pii, {
+        unitId: i.unit_id,
+        departureDate: i.departure_date,
+        guests: i.guests.map(toGuest),
+      }),
+      httpStatus: 201,
     }),
   }),
   "reservation.markNoShow": defineCommand({

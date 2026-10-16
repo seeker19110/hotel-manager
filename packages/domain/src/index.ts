@@ -101,6 +101,7 @@ export {
   TransitionError,
   taskMachine,
 } from "./state/machine.ts";
+export { parseStayNoticeDeadline, type StayNoticeDeadline, stayNoticeDueLocal } from "./stay/notice.ts";
 export {
   addDays,
   DEFAULT_MAX_NIGHTS,
