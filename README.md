@@ -1,0 +1,89 @@
+# Hotel Manager
+
+SaaS web/PWA giúp chủ trọ, nhà nghỉ, khách sạn nhỏ ở Việt Nam quản lý phòng, hợp đồng, kỳ thu, cọc, công nợ và lưu trú ngắn hạn
+**đúng tiền, đúng phòng**. Trạng thái: pre-release `0.1.0`, chưa có môi trường production, chưa dùng dữ liệu thật
+(xem [`PROGRESS.md`](PROGRESS.md) và [`CHANGELOG.md`](CHANGELOG.md)).
+
+- Vấn đề, người dùng, phạm vi MVP, chỉ số: [`PROJECT.md`](PROJECT.md)
+- Kiến trúc: [ADR-0001](docs/adr/0001-modular-monolith-typescript-postgres.md) (modular monolith TypeScript + Postgres),
+  [ADR-0002](docs/adr/0002-self-host-auth-storage-backup.md) (tự host đăng nhập, file, sao lưu)
+
+## Yêu cầu môi trường
+
+| Thành phần | Phiên bản | Ghi chú |
+|---|---|---|
+| Node.js | `24.22.0` (`.nvmrc`; `engines`: `>=24.11.0 <25`) | trùng `node-version` của CI |
+| pnpm | `12.11.2` (`packageManager` trong `package.json`) | bật bằng `corepack enable` hoặc dùng bản cài sẵn |
+| PostgreSQL | 17 + pgBackRest | test CSDL dùng cluster tạm hoặc `TEST_DATABASE_URL` |
+| SeaweedFS | 4.48 | kho file riêng tư tương thích S3 (ADR-0002); test file tự dựng bản tạm |
+
+Máy Ubuntu 24.04 x86_64 không có Docker: `bash scripts/dev-env-setup.sh` cài PostgreSQL 17, pgBackRest, SeaweedFS, Node, pnpm
+(kiểm SHA-256; cần root hoặc sudo cho apt; chạy lại an toàn). Máy khác: tự cài đúng phiên bản trên.
+
+## Cài đặt
+
+Lệnh chuẩn nằm ở [`xt.yaml`](xt.yaml) (một nguồn duy nhất, hook và CI cùng đọc):
+
+```bash
+# Môi trường từ máy trống (cài Postgres/SeaweedFS/Node/pnpm rồi cài phụ thuộc)
+bash scripts/dev-env-setup.sh && pnpm install --frozen-lockfile
+# Đã có đủ công cụ: chỉ cài phụ thuộc theo lockfile
+pnpm install --frozen-lockfile
+```
+
+## Chạy
+
+- Cấu hình: sao `.env.example` thành `.env` (không commit) và thay giá trị giả; biến được kiểm bằng schema lúc khởi động
+  (`packages/app/src/config/schema.ts`) — thiếu biến thì dừng ngay và nêu tên. Production bắt buộc đặt khoá PII
+  (`HM_PII_KEYS`…) và máy quét `CLAMD_HOST`.
+- Web (Next.js, phát triển): `pnpm --filter @hm/web dev`. Cần CSDL đã áp migration (`packages/db/src/migrations`; chưa có lệnh
+  `migrate` riêng — test và E2E tự áp lên CSDL tạm).
+- Chạy thử trọn luồng với dữ liệu giả: lệnh E2E bên dưới tự dựng Postgres tạm, seed, build và khởi động web.
+- Worker (`apps/worker`): thư viện outbox/pg-boss đã có; tiến trình khởi chạy thật nằm ở đợt 4 (xem `docs/autopilot/PLAN.md`).
+
+## Kiểm tra (cổng chất lượng)
+
+```bash
+# lint (gồm kiểm format, giấy phép phụ thuộc, workflow CI)
+pnpm lint && pnpm licenses:check && python3 .xtemplates/scripts/xt.py ci-check .github/workflows
+# typecheck
+pnpm typecheck
+# test (Vitest: project unit + db; db dùng Postgres 17 thật)
+pnpm test
+# build
+pnpm build
+# e2e (Playwright, Chromium mobile)
+pnpm --filter @hm/web exec playwright test
+```
+
+Chạy cả cổng trước khi commit: `.xtemplates/scripts/dev-task.sh gate` (build → typecheck → lint → test). Chỉ test CSDL:
+`pnpm vitest run --project db <mẫu tên>`. Diễn tập sao lưu/khôi phục PITR (dữ liệu giả): `bash scripts/db-backup-restore-check.sh`.
+Kiểm phụ thuộc có lỗ hổng: `pnpm audit --prod`.
+
+## Cấu trúc thư mục
+
+| Đường dẫn | Vai trò |
+|---|---|
+| `apps/web` | Next.js 16: giao diện (PWA), route handler HTTP, E2E Playwright |
+| `apps/worker` | worker Node: outbox relay, consumer pg-boss, job định kỳ |
+| `packages/domain` | quy tắc nghiệp vụ thuần (tiền, kỳ thu, giá, trạng thái), không I/O |
+| `packages/app` | command/query: transaction, phân quyền, audit, outbox, idempotency |
+| `packages/db` | Kysely, migration, RLS |
+| `packages/testkit` | cluster Postgres/SeaweedFS tạm, factory dữ liệu giả cho test |
+| `deploy/` | compose, Caddy, mẫu pgBackRest/S3 cho VPS (chưa triển khai) |
+| `scripts/` | môi trường dev, kiểm giấy phép/image/ERD/blueprint, diễn tập sao lưu |
+| `docs/` | spec, thiết kế, ADR, nghiên cứu, vận hành, quyền riêng tư |
+| `.xtemplates/` | khung quy trình X-Templates (luật cho agent, công cụ `xt.py`) — không sửa tay |
+
+## Tài liệu
+
+- Quy tắc cho người và agent: [`AGENTS.md`](AGENTS.md) · trạng thái: [`PROGRESS.md`](PROGRESS.md) · kế hoạch: [`docs/autopilot/PLAN.md`](docs/autopilot/PLAN.md)
+- Đặc tả: [`docs/specs/`](docs/specs) · thiết kế: [`docs/design/`](docs/design) (mô hình dữ liệu [`DOMAIN-MODEL.md`](docs/design/DOMAIN-MODEL.md),
+  [`ERD.md`](docs/design/ERD.md), [`THREAT-MODEL.md`](docs/design/THREAT-MODEL.md)) · quyết định: [`docs/adr/`](docs/adr), [`docs/autopilot/DECISIONS.md`](docs/autopilot/DECISIONS.md)
+- Vận hành: [`docs/RUNBOOK.md`](docs/RUNBOOK.md) · bí mật chỉ nạp qua môi trường, mẫu ở `.env.example`
+
+## Đóng góp
+
+Một thay đổi nhỏ một commit (Conventional Commits, tiếng Việt), qua cổng ở trên; mẫu PR ở
+[`.github/pull_request_template.md`](.github/pull_request_template.md). Không dùng dữ liệu thật ở dev/test.
+Giấy phép mã nguồn và kênh báo lỗ hổng: chưa có (chờ chủ dự án quyết — `PROJECT.md` §10).
