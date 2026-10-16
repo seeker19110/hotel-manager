@@ -2,6 +2,7 @@
 
 > PLAN đợt 3 T-225. Tài liệu cho người trực vận hành. Mọi lệnh trong file này **chỉ dùng dữ liệu giả** khi diễn tập; trên dữ liệu thật phải theo điểm dừng của AGENTS §6 (người duyệt trước thao tác không đảo ngược).
 > Chưa có môi trường production: các mục "Khi chạy thật" là đề xuất, chờ chủ dự án quyết (xem `docs/autopilot/DECISIONS.md`, D-021).
+> Sự cố nghiêm trọng, thông báo vi phạm, lộ bí mật, khôi phục, deploy/rollback, SLO: xem **§8 Tài liệu vận hành liên quan** (T-308).
 
 ## 1. Bản đồ nhanh
 
@@ -26,6 +27,8 @@ node scripts/metrics-token.mjs
 Khi chạy thật (đề xuất D-021): chặn thêm `/api/metrics` ở reverse proxy (chỉ IP mạng nội bộ của Prometheus), không public.
 
 ## 2. Ngưỡng cảnh báo đề xuất
+Đã thành rule Prometheus (có `severity`, `owner`, `runbook_url`) ở [`deploy/prometheus/alerts.yml`](../deploy/prometheus/alerts.yml); bảng dưới giữ ý nghĩa từng chỉ số.
+
 
 | Metric | Cảnh báo | Ý nghĩa |
 |---|---|---|
@@ -64,6 +67,7 @@ Khi chạy thật (đề xuất D-021): chặn thêm `/api/metrics` ở reverse 
 ## 4. Sao lưu và khôi phục
 - Diễn tập PITR (dữ liệu giả, cluster tạm): `bash scripts/db-backup-restore-check.sh` — exit 0 = khôi phục đúng (so số dòng, Σ Nợ/Có, số policy RLS).
 - Khi chạy thật (chờ quyết — PROGRESS "Chờ người"): pgBackRest repo mã hoá ở **máy khác**, giữ khoá `PGBACKREST_REPO_CIPHER_PASS` ngoài máy chủ; diễn tập khôi phục định kỳ.
+- Lệnh khôi phục đầy đủ (pgBackRest PITR, kho file, dựng lại hạ tầng): [`docs/ops/runbooks/restore.md`](ops/runbooks/restore.md).
 - Khôi phục thật là thao tác không đảo ngược trên dữ liệu thật ⇒ người duyệt trước (AGENTS §6); khôi phục vào cluster mới, kiểm rồi mới chuyển ứng dụng sang.
 
 ## 5. Xoay khoá mã hoá giấy tờ (PII, D-004)
@@ -72,7 +76,7 @@ Khi chạy thật (đề xuất D-021): chặn thêm `/api/metrics` ở reverse 
 3. Mã hoá lại dần sang khoá mới: `reencryptIdentityDocuments` (packages/app/src/identity/identity.ts) theo từng tổ chức — chạy như job vận hành, có audit.
 4. Khi không còn bản mã dùng khoá cũ (`keyIdOf`), bỏ khoá cũ khỏi `HM_PII_KEYS`.
 5. **Không** xoay `HM_PII_INDEX_KEY` cùng lúc (đổi khoá blind index = tính lại toàn bộ index tìm kiếm).
-- Lộ khoá: coi dữ liệu giấy tờ đã lộ ⇒ quy trình sự cố dữ liệu cá nhân (pháp lý — chờ đối chiếu văn bản gốc, PROGRESS).
+- Lộ khoá: coi dữ liệu giấy tờ đã lộ ⇒ quy trình sự cố dữ liệu cá nhân ([`data-breach.md`](ops/runbooks/data-breach.md); pháp lý — chờ đối chiếu văn bản gốc, PROGRESS). Xoay mọi loại bí mật: [`secret-leak.md`](ops/runbooks/secret-leak.md).
 
 ## 6. Dead letter (pg-boss)
 - Job hết lượt thử (mặc định 5 lần, backoff) chuyển sang queue `outbox.dead_letter`.
@@ -83,3 +87,15 @@ Khi chạy thật (đề xuất D-021): chặn thêm `/api/metrics` ở reverse 
 - Job `runRetention` (worker, hằng ngày): xoá object file hết hạn (`files.delete_after`) rồi đánh dấu `deleted`; làm rỗng `import_rows.raw/data` 30 ngày sau commit/huỷ lô nhập.
 - Job `expireExports` (5 phút): bản xuất quá 15 phút ⇒ `expired`.
 - Lỗi xoá object ⇒ log `retention.file_delete_failed`, lượt sau thử lại (không đánh dấu `deleted` khi chưa xoá được).
+
+## 8. Tài liệu vận hành liên quan
+| Cần làm | Tài liệu |
+|---|---|
+| Phân mức và xử lý sự cố (SEV1–4, thứ tự, thao tác cần người duyệt) | [`docs/ops/INCIDENT-RESPONSE.md`](ops/INCIDENT-RESPONSE.md) |
+| Vi phạm dữ liệu cá nhân (thời hạn thông báo, mẫu) | [`docs/ops/runbooks/data-breach.md`](ops/runbooks/data-breach.md) |
+| Lộ bí mật (xoay từng loại) | [`docs/ops/runbooks/secret-leak.md`](ops/runbooks/secret-leak.md) |
+| Khôi phục CSDL/file | [`docs/ops/runbooks/restore.md`](ops/runbooks/restore.md) |
+| Deploy, backup trước migrate, rollback | [`docs/ops/runbooks/deploy-rollback.md`](ops/runbooks/deploy-rollback.md) |
+| Mục tiêu dịch vụ, ngân sách lỗi | [`docs/ops/SLO.md`](ops/SLO.md) |
+| Rule cảnh báo | [`deploy/prometheus/alerts.yml`](../deploy/prometheus/alerts.yml) |
+| Mô hình đe doạ | [`docs/design/THREAT-MODEL.md`](design/THREAT-MODEL.md) |
