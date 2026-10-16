@@ -107,12 +107,22 @@ describe("S-012 nội dung không chứa PII nhạy cảm", () => {
     ).toBe("Nhà nghỉ Hoa Mai - ***: phiếu thu kỳ 10/2026 1.580.000 đ, hạn thanh toán 10/10/2026.");
   });
 
-  it("cắt độ dài trước khi che: dãy số dài bị cắt dở không làm hỏng mẫu, không lộ số", () => {
-    const r = render("export_ready", {
-      ...VARS.export_ready,
-      exportName: `Ghi chú ${"a".repeat(185)} 0905123456789012345678`,
+  it("số nằm vắt qua chỗ cắt 200 ký tự không lộ phần dở; dãy số quá dài bị cắt còn 10–19 chữ số vẫn bị che (review PR #10)", () => {
+    const crossing = render("invoice_issued", {
+      ...VARS.invoice_issued,
+      propertyName: `🏠${"x".repeat(188)} 0905123456`,
     });
-    expect(r.emailSubject).not.toContain("0905123456");
+    expect(`${crossing.emailSubject}\n${crossing.body}`).not.toMatch(/\d{6,}/);
+    const tail = render("export_ready", {
+      ...VARS.export_ready,
+      exportName: `${"x".repeat(190)} 0905123456 tiep`,
+    });
+    expect(tail.emailSubject).not.toMatch(/\d{6,}/);
+    const long = render("export_ready", {
+      ...VARS.export_ready,
+      exportName: `${"x".repeat(185)} 0905123456789012345678`,
+    });
+    expect(long.emailSubject).not.toMatch(/\d{10,}/);
   });
 
   it("số tiền có dấu chấm nghìn và ngày không bị che", () => {

@@ -147,7 +147,11 @@ export async function sendDueEmails(
       ...(opts.baseUrl ? { baseUrl: opts.baseUrl } : {}),
       ...(opts.unsubscribeKey ? { unsubscribeKey: opts.unsubscribeKey } : {}),
     });
-    if (!out) continue;
+    if (!out) {
+      // Lần nhận đã bị nhận lại trước khi kịp đọc (khoá hết hạn) — không xử lý, đếm stale.
+      stats.stale += 1;
+      continue;
+    }
     if (out.kind === "suppressed") {
       stats.suppressed += 1;
       log("notification.delivery_suppressed", { delivery_id: c.id, reason: out.reason });

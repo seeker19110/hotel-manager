@@ -17,7 +17,7 @@ format_file: "pnpm exec biome format --write \"{}\""
 # merge_risk_paths: glob thêm vào danh sách đường dẫn nhạy cảm (luôn để người merge), cách nhau dấu phẩy.
 # Chủ dự án duyệt L2 ngày 2026-10-16; nhóm tiền/tồn/lưu trú của dự án luôn để người merge (LOOP-STOP-005).
 merge_autonomy: L2
-merge_risk_paths: "*/ledger/*, */money/*, */deposits/*, */reconciliation/*, */shifts/*, */lease/*, */stay/*, */rental/*, */approvals/*, */identity/*, */access/*, */tenancy/*, */inventory/*, */metering/*, */notifications/*, */thu-tien/*, */ky-thu/*, */doi-soat/*, packages/db/*"
+merge_risk_paths: "*/ledger/*, */money/*, */deposits/*, */reconciliation/*, */shifts/*, */lease/*, */stay/*, */rental/*, */approvals/*, */identity/*, */access/*, */tenancy/*, */inventory/*, */metering/*, */notifications/*, */thu-tien/*, */ky-thu/*, */doi-soat/*, */hop-dong/*, */chi-so/*, */webhooks/*, apps/web/app/api/*, packages/db/*"
 # Tuỳ chọn, agent đọc và chạy trực tiếp (dev-task không chạy): e2e, audit (dependency), perf (k6/lighthouse), migrate (áp migration local), install, dev, init, smoke
 e2e: "pnpm --filter @hm/web exec playwright test"
 audit: "pnpm audit --prod"

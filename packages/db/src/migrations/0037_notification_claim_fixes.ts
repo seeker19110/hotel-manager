@@ -52,7 +52,8 @@ BEGIN
   )
   UPDATE notification_deliveries d
      SET status = 'sending', attempts = d.attempts + 1,
-         locked_until = p_now + make_interval(secs => greatest(p_lock_seconds, 1))
+         -- Mili giây: mã rào được so lại từ Date của JS (mất micro giây) — gọi bằng now() của SQL vẫn khớp.
+         locked_until = date_trunc('milliseconds', p_now) + make_interval(secs => greatest(p_lock_seconds, 1))
     FROM picked p WHERE d.id = p.id
   RETURNING d.id, d.organization_id, d.attempts, d.locked_until;
 END $$;

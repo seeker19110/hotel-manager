@@ -329,7 +329,10 @@ describe("Review PR #10 — cô lập lỗi khi nhắc theo lịch", () => {
       expect(err).toBeInstanceOf(AggregateError);
       const failed = logs.filter((x) => x.event === "reminder.org_failed");
       expect(failed).toEqual([
-        { event: "reminder.org_failed", fields: { scan: "overdue", org_id: h.other.orgId, error: "error" } },
+        {
+          event: "reminder.org_failed",
+          fields: { scan: "overdue", org_id: h.other.orgId, error: "error", code: "P0001" },
+        },
       ]);
       // Tổ chức còn lại: nhắc quá hạn (cùng loại quét với tổ chức lỗi) VÀ nhắc hợp đồng (loại quét sau) vẫn được tạo.
       expect(await count(`invoice_overdue:${inv}:2026-10-11`)).toBe(1);

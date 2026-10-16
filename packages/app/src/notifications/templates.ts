@@ -70,9 +70,11 @@ function clean(v: unknown, name: string, opts: { redact?: boolean } = {}): strin
     .replace(/ {2,}/g, " ")
     .trim();
   if (!s) throw new TemplateError(`thiếu biến ${name}`);
-  // Cắt trước rồi mới che: cắt sau khi che có thể để lại dãy số dài dở dang.
-  const cut = s.length > MAX_VALUE ? `${s.slice(0, MAX_VALUE - 1)}…` : s;
-  return opts.redact === false ? cut : redact(cut);
+  const cut = (x: string) => (x.length > MAX_VALUE ? `${x.slice(0, MAX_VALUE - 1)}…` : x);
+  if (opts.redact === false) return cut(s);
+  // Che → cắt → che lại: che trước để số nằm vắt qua chỗ cắt không còn lại phần dở (8/10 chữ số SĐT), che lại để dãy số
+  // quá dài (≥ 20 chữ số, không khớp mẫu) bị cắt còn 10–19 chữ số cũng bị che.
+  return redact(cut(redact(s)));
 }
 
 function str(vars: Vars, name: string): string {

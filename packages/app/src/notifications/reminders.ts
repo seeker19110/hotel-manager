@@ -43,7 +43,13 @@ async function perOrg(
       created += await fn(orgId);
     } catch (err) {
       errors.push(err);
-      log("reminder.org_failed", { scan, org_id: orgId, error: (err as Error)?.name ?? "Error" });
+      log("reminder.org_failed", {
+        scan,
+        org_id: orgId,
+        error: (err as Error)?.name ?? "Error",
+        // SQLSTATE của lỗi CSDL (không chứa dữ liệu) để phân biệt lỗi.
+        code: (err as { code?: unknown })?.code ?? null,
+      });
     }
   }
   if (errors.length > 0) throw new AggregateError(errors, `nhắc lịch lỗi ở ${errors.length} tổ chức`);
