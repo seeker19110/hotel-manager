@@ -94,18 +94,34 @@ interface TaskRow {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-async function lockTask(ctx: CommandContext, taskId: string): Promise<TaskRow> {
+/**
+ * Đọc việc (RLS đọc theo cơ sở) → kiểm quyền bằng `check` → mới khoá FOR UPDATE. Không đủ quyền nhận 403 đúng SPEC (S-006)
+ * thay vì 404; khoá không lấy được hàng mà hàng vẫn đọc được = việc vừa đổi bởi người khác (vd hai người cùng nhận) → 409.
+ */
+async function lockTask(
+  ctx: CommandContext,
+  taskId: string,
+  check: (t: TaskRow) => void = () => {},
+): Promise<TaskRow> {
   if (!UUID.test(taskId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy việc");
-  const r = await sql<TaskRow>`
-    select t.id, t.property_id, t.unit_id, t.kind, t.status, t.assignee_membership_id, m.person_id as assignee_person_id,
-           t.done_by, t.previous_housekeeping_status
-    from tasks t left join memberships m on m.organization_id = t.organization_id and m.id = t.assignee_membership_id
-    where t.organization_id = ${ctx.actor.orgId} and t.id = ${taskId}
-    for update of t`.execute(ctx.trx);
-  const row = r.rows[0];
-  if (!row || (!ctx.actor.allProperties && !ctx.actor.propertyIds.includes(row.property_id)))
+  const read = (lock: boolean) =>
+    sql<TaskRow>`
+      select t.id, t.property_id, t.unit_id, t.kind, t.status, t.assignee_membership_id, m.person_id as assignee_person_id,
+             t.done_by, t.previous_housekeeping_status
+      from tasks t left join memberships m on m.organization_id = t.organization_id and m.id = t.assignee_membership_id
+      where t.organization_id = ${ctx.actor.orgId} and t.id = ${taskId}
+      ${lock ? sql`for update of t` : sql``}`.execute(ctx.trx);
+  const seen = (await read(false)).rows[0];
+  if (!seen || (!ctx.actor.allProperties && !ctx.actor.propertyIds.includes(seen.property_id)))
     throw new CommandError("NOT_FOUND", 404, "Không tìm thấy việc");
-  return row;
+  check(seen);
+  const locked = (await read(true)).rows[0];
+  if (!locked) {
+    const now = (await read(false)).rows[0];
+    throw new TransitionError("task", now?.status ?? seen.status, "changed");
+  }
+  check(locked);
+  return locked;
 }
 
 function denyTransition(from: string, to: string): never {
@@ -259,8 +275,7 @@ function authorizeProgress(ctx: CommandContext, t: TaskRow): void {
 
 /** `housekeeping.startTask` (S-005): assigned → in_progress, phòng `cleaning`. */
 export async function startTask(ctx: CommandContext, input: { taskId: string }) {
-  const t = await lockTask(ctx, input.taskId);
-  authorizeProgress(ctx, t);
+  const t = await lockTask(ctx, input.taskId, (row) => authorizeProgress(ctx, row));
   if (t.status !== "assigned") denyTransition(t.status, "in_progress");
   await sql`update tasks set status = 'in_progress', started_at = now(), version = version + 1
             where organization_id = ${ctx.actor.orgId} and id = ${t.id}`.execute(ctx.trx);
@@ -271,8 +286,7 @@ export async function startTask(ctx: CommandContext, input: { taskId: string }) 
 
 /** `housekeeping.completeTask` (S-005, S-011): in_progress → done, phòng `clean`. */
 export async function completeTask(ctx: CommandContext, input: { taskId: string; note?: string }) {
-  const t = await lockTask(ctx, input.taskId);
-  authorizeProgress(ctx, t);
+  const t = await lockTask(ctx, input.taskId, (row) => authorizeProgress(ctx, row));
   if (t.status !== "in_progress") denyTransition(t.status, "done");
   if (input.note !== undefined && input.note.length > 2000)
     throw new CommandError("VALIDATION_FAILED", 422, "Ghi chú tối đa 2.000 ký tự");
@@ -300,7 +314,10 @@ export async function verifyTask(
   ctx: CommandContext,
   input: { taskId: string; result: "pass" | "fail"; reason?: string },
 ) {
-  const t = await lockTask(ctx, input.taskId);
+  // Lễ tân chỉ nghiệm thu khi cơ sở bật (kiểm tiếp sau khoá); vai trò khác phải có quyền nghiệm thu TRƯỚC khi khoá (403).
+  const t = await lockTask(ctx, input.taskId, (row) => {
+    if (ctx.actor.role !== "front_desk") authorize(ctx.actor, "task.verify", { propertyId: row.property_id });
+  });
   const settings = await sql<{ s: Record<string, unknown> }>`
     select settings as s from properties where organization_id = ${ctx.actor.orgId} and id = ${t.property_id}`.execute(
     ctx.trx,
@@ -328,7 +345,7 @@ export async function verifyTask(
   const reason = input.reason?.trim() ?? "";
   if (!reason) throw new CommandError("VALIDATION_FAILED", 422, "Cần lý do không đạt");
   await sql`update tasks set status = 'assigned', done_by = null, done_at = null, version = version + 1,
-                   note = left(concat_ws(E'\n', note, ${`Không đạt: ${reason}`}), 2000)
+                   note = left(concat_ws(E'\n', note, ${`Không đạt: ${reason}`}::text), 2000)
             where organization_id = ${ctx.actor.orgId} and id = ${t.id}`.execute(ctx.trx);
   await setUnitStatus(ctx, t, "assigned");
   await audited(ctx, t, "task_rejected", "assigned", { reason });
@@ -422,23 +439,20 @@ async function queryTasks(
     with today as (select app.business_date(${actor.orgId}, ${where.propertyId}, ${now}) as d)
     select t.id, t.unit_id, u.code as unit_code, f.name as floor, t.kind, t.status, t.priority, t.assignee_membership_id,
            ap.full_name as assignee_name, t.note, t.created_at, t.done_at, t.verified_at,
-           (select lower(a.during) from stays s
-              join reservation_items i on i.organization_id = s.organization_id and i.id = s.reservation_item_id
-              join allocations a on a.organization_id = i.organization_id and a.id = i.allocation_id
-            where s.organization_id = t.organization_id and s.unit_id = t.unit_id and s.status = 'expected'
-              and i.arrival_date = (select d from today) limit 1) as arrival_at,
+           arr.arrival_at,
            (t.source_type = 'stay') as from_checkout
     from tasks t
     join units u on u.organization_id = t.organization_id and u.id = t.unit_id
     join floors f on f.organization_id = u.organization_id and f.id = u.floor_id
     left join memberships am on am.organization_id = t.organization_id and am.id = t.assignee_membership_id
     left join persons ap on ap.organization_id = am.organization_id and ap.id = am.person_id
+    left join app.unit_arrivals(${where.propertyId}, (select d from today)) arr on arr.unit_id = t.unit_id
     where t.organization_id = ${actor.orgId} and t.property_id = ${where.propertyId}
       ${where.taskId ? sql`and t.id = ${where.taskId}` : sql``}
       ${where.floorId ? sql`and u.floor_id = ${where.floorId}` : sql``}
       ${where.status ? sql`and t.status = ${where.status}` : where.taskId ? sql`` : sql`and t.status in ('open','assigned','in_progress','done')`}
       ${where.assignee ? sql`and t.assignee_membership_id = ${where.assignee}` : sql``}
-    order by (arrival_at is not null) desc, from_checkout desc, t.created_at
+    order by (arr.arrival_at is not null) desc, (t.source_type = 'stay') desc, t.created_at
     limit 500`.execute(trx);
   return r.rows.map((x) => ({
     id: x.id,
