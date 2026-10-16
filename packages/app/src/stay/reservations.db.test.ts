@@ -442,6 +442,30 @@ describe("S-011 no-show", () => {
   });
 });
 
+describe("khung nhìn booking cho UI (T-223)", () => {
+  it("heldUntil chỉ có khi `held` (khớp hạn giữ), null ở draft/confirmed; bookerName là họ tên, không SĐT", async () => {
+    const d = await draft(h.frontDesk, {
+      unit: h.units.r202,
+      arrival: "2027-06-10",
+      departure: "2027-06-12",
+    });
+    expect(await getReservation(h.t.runtime, h.frontDesk, d.reservationId)).toMatchObject({
+      status: "draft",
+      heldUntil: null,
+      bookerName: "Khách Giả",
+    });
+    const hold = await okAs(h.t, h.frontDesk, (ctx) =>
+      holdReservation(ctx, { reservationId: d.reservationId }),
+    );
+    const v = await getReservation(h.t.runtime, h.frontDesk, d.reservationId);
+    expect(v.status).toBe("held");
+    expect(v.heldUntil?.getTime()).toBe(hold.expiresAt.getTime());
+    expect(Object.keys(v)).not.toContain("phone");
+    await okAs(h.t, h.frontDesk, (ctx) => confirmReservation(ctx, { reservationId: d.reservationId }));
+    expect((await getReservation(h.t.runtime, h.frontDesk, d.reservationId)).heldUntil).toBeNull();
+  });
+});
+
 describe("S-025 quyền và tenant", () => {
   it("buồng phòng, tổ chức khác → 404; buồng phòng giữ phòng → 403/404; RLS: buồng phòng không đọc hàng booking", async () => {
     const r = await draft();

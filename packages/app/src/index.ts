@@ -38,6 +38,11 @@ export {
 } from "./exports/exports.ts";
 export { handleFileUpload } from "./files/http.ts";
 export {
+  getTask as getHousekeepingTask,
+  listTasks as listHousekeepingTasks,
+  type TaskView,
+} from "./housekeeping/tasks.ts";
+export {
   type CommandDef,
   type HttpDeps,
   handleCommand,
@@ -52,6 +57,7 @@ export { DEFAULT_REMINDER_DAYS, detectOverstay, remindExpiring } from "./lease/j
 export { getLease, type LeaseView } from "./lease/lease.ts";
 export { BANK_TXN_RECEIVED, BREAK_OPENED } from "./ledger/bank-inbox.ts";
 export { createLogger, type Logger } from "./logging/logger.ts";
+export { listWorkOrders, type WorkOrderView } from "./maintenance/work-orders.ts";
 export { readingRoute } from "./metering/meters.ts";
 export {
   createNotification,
@@ -66,7 +72,12 @@ export {
   FakeEmailSender,
 } from "./notifications/email.ts";
 export { handleUnsubscribe } from "./notifications/http.ts";
-export { unsubscribeKey, unsubscribeUrl } from "./notifications/preferences.ts";
+export {
+  listMyNotifications,
+  type NotificationItem,
+  unsubscribeKey,
+  unsubscribeUrl,
+} from "./notifications/preferences.ts";
 export {
   type ReminderStats,
   runReminders,
@@ -115,7 +126,12 @@ export {
 } from "./reports/reports.ts";
 export { serverContext } from "./server/context.ts";
 export { type AppServices, createServices, testServices } from "./server/services.ts";
+export { type FolioView, getFolio } from "./stay/folio.ts";
 export { expireHeldReservations } from "./stay/jobs.ts";
+export { type OpsProperty, opsProperties } from "./stay/properties.ts";
+export { type Quote, quote as quoteStay } from "./stay/rates.ts";
+export { getReservation, listReservations, type ReservationView } from "./stay/reservations.ts";
+export { listNotices, type NoticeListItem } from "./stay/residence-notices.ts";
 export {
   getSummary as getTodaySummary,
   listItems as listTodayItems,
