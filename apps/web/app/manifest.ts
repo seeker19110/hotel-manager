@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { BRAND_BG, BRAND_COLOR } from "../lib/brand.ts";
 
 // S-001: manifest cài đặt (Chrome Android/desktop; iOS dùng apple-touch-icon ở layout).
 export default function manifest(): MetadataRoute.Manifest {
@@ -13,8 +14,8 @@ export default function manifest(): MetadataRoute.Manifest {
     scope: "/",
     display: "standalone",
     orientation: "portrait",
-    theme_color: "#0f4c81",
-    background_color: "#ffffff",
+    theme_color: BRAND_COLOR,
+    background_color: BRAND_BG,
     icons: [
       { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
       { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },

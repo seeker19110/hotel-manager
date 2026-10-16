@@ -14,6 +14,9 @@
   --c-warn-text: #5c4300;
   --c-info-bg: #e6f0fa;
   --c-focus: #b35c00;
+  --c-ok: #0b6b2e;
+  --c-skeleton: #e3e7ec;
+  --c-skeleton-hi: #eef1f4;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -223,7 +226,7 @@ body {
   height: 1rem;
   margin: var(--space-2) 0;
   border-radius: var(--radius);
-  background: linear-gradient(90deg, #e3e7ec 0%, #eef1f4 50%, #e3e7ec 100%);
+  background: linear-gradient(90deg, var(--c-skeleton) 0%, var(--c-skeleton-hi) 50%, var(--c-skeleton) 100%);
 }
 
 .visually-hidden {
@@ -397,7 +400,7 @@ body {
   font-weight: 600;
 }
 .command-form__status--ok {
-  color: #0b6b2e;
+  color: var(--c-ok);
 }
 .reading-room {
   border-top: 1px solid var(--c-border);
@@ -438,7 +441,7 @@ body {
   padding: 0 var(--space-1);
   border-radius: 999px;
   background: var(--c-danger);
-  color: #ffffff;
+  color: var(--c-brand-contrast);
   font-size: 0.875rem;
   line-height: 1.5rem;
   text-align: center;
@@ -539,7 +542,7 @@ body {
   font-weight: 700;
 }
 .notice-ok {
-  color: #0b6b2e;
+  color: var(--c-ok);
   font-weight: 600;
 }
 .details-box > summary {
@@ -557,4 +560,30 @@ body {
   .today-cards {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+}
+
+/* Hộp xác nhận thao tác không hoàn tác (T-310). */
+.confirm-dialog {
+  max-width: min(28rem, calc(100vw - 2 * var(--space-4)));
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  padding: var(--space-4);
+  color: var(--c-text);
+  background: var(--c-bg);
+}
+.confirm-dialog::backdrop {
+  background: rgb(0 0 0 / 0.4);
+}
+.confirm-dialog__title {
+  margin: 0 0 var(--space-2);
+  font-size: 1.125rem;
+}
+.confirm-dialog__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+.icon {
+  vertical-align: -0.125em;
 }

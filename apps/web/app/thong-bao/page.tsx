@@ -1,6 +1,7 @@
 import { listMyNotifications, serverContext } from "@hm/app";
 import type { Metadata } from "next";
 import { CommandForm } from "../../components/command/command-form.tsx";
+import { Icon } from "../../components/ui/icon.tsx";
 import { EmptyState, ErrorState } from "../../components/ui/state.tsx";
 import { dateTime } from "../../lib/format.ts";
 import { withActor } from "../../lib/page.tsx";
@@ -14,7 +15,11 @@ const SEVERITY_LABEL: Record<string, string> = {
   critical: "Quá hạn / khẩn",
 };
 
-const SEVERITY_ICON: Record<string, string> = { normal: "ℹ", urgent: "⚠", overdue: "⛔" };
+const SEVERITY_ICON: Record<string, "info" | "warning" | "blocked"> = {
+  normal: "info",
+  urgent: "warning",
+  overdue: "blocked",
+};
 
 /** Màn đích có thật của từng loại thông báo; liên kết mẫu cũ tới màn chưa có (vd. /xuất-dữ-liệu) thì không hiện. */
 const KNOWN = [
@@ -78,7 +83,7 @@ export default async function InboxPage() {
                 >
                   <p className="card__title">{n.title}</p>
                   <p className="card__meta">
-                    <span aria-hidden="true">{SEVERITY_ICON[n.severity] ?? "ℹ"} </span>
+                    <Icon name={SEVERITY_ICON[n.severity] ?? "info"} />{" "}
                     {SEVERITY_LABEL[n.severity] ?? n.severity} · {dateTime(n.createdAt)}
                     {n.readAt ? " · đã đọc" : " · chưa đọc"}
                   </p>

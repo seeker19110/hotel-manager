@@ -84,6 +84,7 @@ export default async function LeasePage({ params }: { params: Promise<{ id: stri
             <p>Người đứng hợp đồng ký trực tiếp; điều khoản được khoá sau khi ký.</p>
             <CommandForm
               path="lease/sign"
+              confirm="Ký hợp đồng sẽ chốt điều khoản và giữ phòng; không sửa lại được — muốn đổi phải lập phụ lục."
               fixed={{ lease_id: id, signer_person_id: lease.representative_person_id }}
               submitLabel="Ký hợp đồng"
               successText="Đã ký hợp đồng."
@@ -126,6 +127,7 @@ export default async function LeasePage({ params }: { params: Promise<{ id: stri
             <p>Đã bàn giao ngày {day(moveIn.handed_over_on)}.</p>
             <CommandForm
               path="lease/activate"
+              confirm="Hợp đồng chuyển sang đang thuê và bắt đầu tính tiền theo kỳ."
               fixed={{ lease_id: id }}
               submitLabel="Kích hoạt"
               successText="Hợp đồng đang hiệu lực."
@@ -139,6 +141,7 @@ export default async function LeasePage({ params }: { params: Promise<{ id: stri
             {x.open_shift ? (
               <CommandForm
                 path="deposit/receive"
+                confirm="Ghi nhận tiền cọc vào sổ; muốn sửa phải lập bút toán điều chỉnh có duyệt."
                 fixed={{
                   property_id: lease.property_id,
                   lease_id: id,
@@ -217,6 +220,7 @@ export default async function LeasePage({ params }: { params: Promise<{ id: stri
             </p>
             <CommandForm
               path="lease/prepareSettlement"
+              confirm="Lập quyết toán từ chỉ số và công nợ hiện tại của hợp đồng."
               fixed={{ lease_id: id, fees: [] }}
               submitLabel="Lập quyết toán"
               successText="Đã lập quyết toán — chờ duyệt."

@@ -2,8 +2,10 @@
 // Form gửi một command (dùng `useCommand`): ô nhập có nhãn, lỗi theo trường gắn đúng ô (aria-describedby + role=alert),
 // lỗi chung role=alert, trạng thái "đang kiểm tra kết quả" role=status, nút "Gửi lại" khi chưa rõ server đã nhận (S-011).
 // Thành công ⇒ báo role=status rồi làm mới dữ liệu trang (Server Component) — không tự tạo kết quả phía client.
+// `confirm` (PLAN đợt 4 T-310, UX-STATE-008): thao tác không hoàn tác (ký, phát hành, thu tiền, trả phòng, huỷ…) mở hộp
+// thoại modal `<dialog>` nêu hậu quả; chỉ gửi khi bấm "Đồng ý" — Esc/"Quay lại" không gửi gì, focus trả về nút gửi.
 import { useRouter } from "next/navigation";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useId, useRef, useState } from "react";
 import { Button } from "../ui/button.tsx";
 import { SelectField, TextField } from "../ui/field.tsx";
 import { CommandStatus } from "./command-status.tsx";
@@ -50,6 +52,7 @@ export function CommandForm({
   variant = "primary",
   testId,
   className,
+  confirm,
 }: {
   path: string;
   fields?: FieldSpec[];
@@ -60,10 +63,15 @@ export function CommandForm({
   testId?: string;
   /** Lớp CSS thêm cho nút gửi (vd `btn--large` cho màn buồng phòng trên điện thoại). */
   className?: string;
+  /** Thao tác không hoàn tác: câu nêu hậu quả hiện trong hộp xác nhận trước khi gửi. */
+  confirm?: string;
 }) {
   const router = useRouter();
   const cmd = useCommand(path);
   const [local, setLocal] = useState<Record<string, string>>({});
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const pending = useRef<Record<string, unknown> | null>(null);
+  const titleId = useId();
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -91,8 +99,24 @@ export function CommandForm({
     }
     setLocal(errs);
     if (Object.keys(errs).length > 0) return;
+    if (confirm && dialogRef.current) {
+      pending.current = body;
+      dialogRef.current.showModal();
+      return;
+    }
+    await sendBody(body);
+  }
+
+  async function sendBody(body: Record<string, unknown>) {
     const r = await cmd.send(body);
     if (r !== null) router.refresh();
+  }
+
+  async function onConfirm() {
+    const body = pending.current;
+    pending.current = null;
+    dialogRef.current?.close();
+    if (body) await sendBody(body);
   }
 
   async function onRecheck() {
@@ -160,6 +184,27 @@ export function CommandForm({
       >
         {submitLabel}
       </Button>
+      {confirm ? (
+        <dialog
+          ref={dialogRef}
+          className="confirm-dialog"
+          aria-labelledby={titleId}
+          onClose={() => {
+            pending.current = null;
+          }}
+        >
+          <h2 id={titleId} className="confirm-dialog__title">
+            {submitLabel}?
+          </h2>
+          <p>{confirm}</p>
+          <div className="confirm-dialog__actions">
+            <Button variant="secondary" onClick={() => dialogRef.current?.close()}>
+              Quay lại
+            </Button>
+            <Button onClick={onConfirm}>Đồng ý</Button>
+          </div>
+        </dialog>
+      ) : null}
       <CommandStatus
         phase={cmd.phase}
         problem={cmd.problem}
