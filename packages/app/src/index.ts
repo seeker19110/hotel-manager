@@ -70,6 +70,7 @@ export {
   FakeEmailSender,
   renderEmail,
 } from "./notifications/email.ts";
+export { type ScanResult, scanOverdue, scanStayNoticeConfig } from "./notifications/reminders.ts";
 export { signUnsubscribeToken, verifyUnsubscribeToken } from "./notifications/token.ts";
 export { getCommandResult } from "./pipeline/command.ts";
 export { type AutoApplyResult, applyBankTransaction } from "./reconciliation/auto-apply.ts";

@@ -177,7 +177,7 @@ export const EVENT_MAPPERS: Readonly<Record<string, Mapper>> = {
       },
     ];
   },
-  // Do job `reminder.scanOverdue` (T-047) phát; payload { invoice_id, business_date }.
+  // Do job `reminder.scanOverdue` (reminders.ts) phát; payload { invoice_id, business_date, milestone, days_overdue }.
   "invoice.overdue": async (trx, orgId, e) => {
     const inv = await loadInvoice(trx, orgId, uuidOf(e.payload.invoice_id, "invoice_id"));
     const day = typeof e.payload.business_date === "string" ? e.payload.business_date : null;
@@ -211,16 +211,10 @@ export const EVENT_MAPPERS: Readonly<Record<string, Mapper>> = {
       where l.organization_id = ${orgId} and l.id = ${leaseId}`.execute(trx);
     const l = lease.rows[0];
     if (!l) return [];
-    const staff = await sql<{ person_id: string }>`
-      select distinct m.person_id from memberships m
-      where m.organization_id = ${orgId} and m.status = 'active' and m.role in ('owner','manager')
-        and (m.all_properties or exists (select 1 from property_scopes ps
-             where ps.organization_id = m.organization_id and ps.membership_id = m.id and ps.property_id = ${l.property_id}))`.execute(
-      trx,
-    );
-    return staff.rows.map((s) => ({
+    const staff = await propertyManagers(trx, orgId, l.property_id);
+    return staff.map((personId) => ({
       propertyId: l.property_id,
-      recipientPersonId: s.person_id,
+      recipientPersonId: personId,
       type: "lease_expiring" as const,
       severity: daysLeft <= 7 ? ("urgent" as const) : ("normal" as const),
       title: "Hợp đồng sắp hết hạn",
@@ -230,7 +224,44 @@ export const EVENT_MAPPERS: Readonly<Record<string, Mapper>> = {
       params: { property_name: l.property_name, end_date: formatDay(effectiveTo) },
     }));
   },
+  // Do `scanStayNoticeConfig` (S-020) phát; payload { property_id, business_date }. Chỉ trong app (D-010), gửi owner/manager.
+  "stay_notice.unconfigured": async (trx, orgId, e) => {
+    const propertyId = uuidOf(e.payload.property_id, "property_id");
+    const day = typeof e.payload.business_date === "string" ? e.payload.business_date : null;
+    if (!day || !/^\d{4}-\d{2}-\d{2}$/.test(day)) return [];
+    const pr = await sql<{ name: string }>`
+      select name from properties where organization_id = ${orgId} and id = ${propertyId}`.execute(trx);
+    const name = pr.rows[0]?.name;
+    if (name === undefined) return [];
+    const staff = await propertyManagers(trx, orgId, propertyId);
+    return staff.map((personId) => ({
+      propertyId,
+      recipientPersonId: personId,
+      type: "stay_notice_due" as const,
+      title: "Chưa cấu hình hạn thông báo lưu trú",
+      body: `Cơ sở ${name} đang có khách lưu trú nhưng chưa cấu hình hạn thông báo lưu trú nên hệ thống chưa nhắc hạn. Vào cấu hình thông báo để nhập hạn.`,
+      link: "/cai-dat/thong-bao",
+      dedupeKey: `stay_notice_unconfigured:${propertyId}:${day}`,
+      params: { property_name: name },
+    }));
+  },
 };
+
+/** Owner/manager đang hoạt động trong phạm vi cơ sở (người nhận thông báo vận hành). */
+async function propertyManagers(
+  trx: Transaction<unknown>,
+  orgId: string,
+  propertyId: string,
+): Promise<string[]> {
+  const staff = await sql<{ person_id: string }>`
+    select distinct m.person_id from memberships m
+    where m.organization_id = ${orgId} and m.status = 'active' and m.role in ('owner','manager')
+      and (m.all_properties or exists (select 1 from property_scopes ps
+           where ps.organization_id = m.organization_id and ps.membership_id = m.id and ps.property_id = ${propertyId}))`.execute(
+    trx,
+  );
+  return staff.rows.map((s) => s.person_id);
+}
 
 export const NOTIFICATION_EVENT_TYPES = Object.keys(EVENT_MAPPERS);
 

@@ -686,7 +686,8 @@ export async function takeBookingPayment(
     paymentId = d.paymentId;
     depositId = d.depositId;
   } else {
-    paymentId = (await recordPayment(ctx, common)).paymentId;
+    // Ứng trước gắn đúng booking: check-out (T-206) chỉ phân bổ ứng trước của chính booking vào folio.
+    paymentId = (await recordPayment(ctx, { ...common, reservationId: res.id })).paymentId;
   }
   // Xác nhận có chứng cứ (INV-F3): chuyển khoản thiếu sao kê/giao dịch ⇒ 422 EVIDENCE_REQUIRED, cả lệnh rollback (không còn khoản
   // `pending` mồ côi); tiền mặt chỉ người nhận trong ca đang mở (INV-F3b). Quyền xác nhận theo ma trận của payments.

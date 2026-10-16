@@ -39,6 +39,15 @@ export const KIND_ACTION: Readonly<Record<ApprovalKind, Action>> = {
   lease_settlement: "lease.approve_settlement",
 };
 
+/**
+ * Quyền LẬP yêu cầu khi khác quyền DUYỆT: lễ tân không được cho nợ (`stay.checkout_with_debt` = "—") nhưng phải xin được phép của
+ * quản lý lúc check-out (SPEC-reservation-stay S-019) — lập cần `reservation.manage`, duyệt vẫn cần `stay.checkout_with_debt`.
+ */
+const REQUEST_ACTION: Readonly<Partial<Record<ApprovalKind, Action>>> = {
+  allow_balance: "reservation.manage",
+};
+const requestAction = (kind: ApprovalKind): Action => REQUEST_ACTION[kind] ?? KIND_ACTION[kind];
+
 export interface ApprovalRow {
   id: string;
   propertyId: string | null;
@@ -121,7 +130,7 @@ export async function requestApproval(
   validate(input);
   authorizeRequest(
     ctx.actor,
-    KIND_ACTION[input.kind],
+    requestAction(input.kind),
     input.propertyId ? { propertyId: input.propertyId } : {},
   );
   const id = await insertRequest(ctx.trx, ctx.actor, input, ctx.commandId);
@@ -155,7 +164,11 @@ export async function requestApproval(
  */
 export function approvalRequired(actor: Actor, input: ApprovalInput, message: string): CommandError {
   validate(input);
-  authorizeRequest(actor, KIND_ACTION[input.kind], input.propertyId ? { propertyId: input.propertyId } : {});
+  authorizeRequest(
+    actor,
+    requestAction(input.kind),
+    input.propertyId ? { propertyId: input.propertyId } : {},
+  );
   return new CommandError("APPROVAL_LIMIT_EXCEEDED", 403, message, {
     persist: async (trx) => ({ approval_request_id: await insertRequest(trx, actor, input, null) }),
   });

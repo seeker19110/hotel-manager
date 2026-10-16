@@ -72,3 +72,17 @@
 - Chọn: 1 lần gửi + 5 lần thử lại (1ph/5ph/30ph/2h/6h) rồi dead; chưa có preference = opted_in cho thông báo giao dịch; stay_notice_due chỉ in-app; email không ghi số tiền (params jsonb không PII); huỷ đăng ký qua GET có token HMAC 30 ngày (đảo ngược được); listDeliveries chỉ owner/manager
 - Lý do (tiêu chí chất lượng cuối): (1) không đổi cấu hình cổng/bảo mật (POST khác origin đang bị chặn có chủ đích); email tối thiểu không lộ số tiền (Q-03); (3) khớp S-004 attempts 1…5
 - Đường lùi: Đổi hằng số backoff; thêm route POST khi chủ dự án duyệt miễn trừ same-origin
+
+### D-011 · 2026-10-16T02:29:59+00:00 · T-212: phạm vi và các điểm SPEC hở của nhắc hạn
+
+- Phương án: (1) Nhắc quá hạn quét mỗi giờ theo múi giờ/giờ chốt từng cơ sở, chỉ trong khung gửi 08:00–20:00, mốc = offset lớn nhất ≤ số ngày quá hạn (bù đúng một nhắc), offset < 1 bỏ qua; mốc nhắc hợp đồng ưu tiên notification_settings rồi properties.settings.lease_reminder_days; nhắc hạn thông báo lưu trú (S-014…S-016, S-021) chuyển T-207 vì nguồn là residence_notices · (2) Quét mỗi ngày một lần giờ UTC; giữ mốc hợp đồng chỉ từ properties.settings; tự suy hạn lưu trú từ stays ngay ở T-212
+- Chọn: Nhắc quá hạn quét mỗi giờ theo múi giờ/giờ chốt từng cơ sở, chỉ trong khung gửi 08:00–20:00, mốc = offset lớn nhất ≤ số ngày quá hạn (bù đúng một nhắc), offset < 1 bỏ qua; mốc nhắc hợp đồng ưu tiên notification_settings rồi properties.settings.lease_reminder_days; nhắc hạn thông báo lưu trú (S-014…S-016, S-021) chuyển T-207 vì nguồn là residence_notices
+- Lý do (tiêu chí chất lượng cuối): (1) ngày/khung giờ đúng theo từng cơ sở; cấu hình qua updateSettings phải có tác dụng (trước đó lưu được nhưng bị bỏ qua); không tạo nguồn dữ liệu thứ hai cho thông báo lưu trú — SPEC định nghĩa residence_notices
+- Đường lùi: Đổi cron/hằng số; down migration 0041 trả thứ tự ưu tiên cũ
+
+### D-012 · 2026-10-16T02:39:01+00:00 · T-206: các điểm SPEC hở của folio/trả phòng (ứng trước gắn booking, phân bổ khi lễ tân trả phòng, cho nợ, hoàn cọc)
+
+- Phương án: (1) payments.reservation_id (bất biến) để folio chỉ ăn ứng trước của chính booking; lễ tân phân bổ qua chế độ system + 2 hàm SECURITY DEFINER kiểm vai trò/cơ sở (chỉ khoá hàng + cộng bộ đếm, CHECK 0..amount giữ INV-F2); cho nợ: owner/manager tự cho, lễ tân qua yêu cầu duyệt allow_balance (tách quyền lập/duyệt); mọi lỗi rollback cả lệnh; thu thừa → 422; lễ tân hoàn nguyên số cọc, vượt hạn mức → duyệt; còn nợ thì không hoàn cọc · (2) Phân bổ FIFO ứng trước theo người đặt; lễ tân không tự trả phòng khi ứng trước do người khác nhận
+- Chọn: payments.reservation_id (bất biến) để folio chỉ ăn ứng trước của chính booking; lễ tân phân bổ qua chế độ system + 2 hàm SECURITY DEFINER kiểm vai trò/cơ sở (chỉ khoá hàng + cộng bộ đếm, CHECK 0..amount giữ INV-F2); cho nợ: owner/manager tự cho, lễ tân qua yêu cầu duyệt allow_balance (tách quyền lập/duyệt); mọi lỗi rollback cả lệnh; thu thừa → 422; lễ tân hoàn nguyên số cọc, vượt hạn mức → duyệt; còn nợ thì không hoàn cọc
+- Lý do (tiêu chí chất lượng cuối): (1) không lẫn tiền giữa các booking của cùng một khách; tuân INV-F2/F3b/F5 và hạn mức D-002; ca đêm không có quản lý vẫn trả phòng được (S-026)
+- Đường lùi: Bỏ cột reservation_id (down 0027); thu hồi quyền lập allow_balance

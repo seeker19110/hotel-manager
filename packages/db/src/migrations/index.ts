@@ -27,8 +27,10 @@ import * as m0023 from "./0023_property_in_use.ts";
 import * as m0024 from "./0024_rate_plans.ts";
 import * as m0025 from "./0025_reservations.ts";
 import * as m0026 from "./0026_stay_checkin.ts";
+import * as m0027 from "./0027_folio.ts";
 import * as m0030 from "./0030_retention.ts";
 import * as m0040 from "./0040_notifications.ts";
+import * as m0041 from "./0041_reminder_scans.ts";
 
 export const migrations: Record<string, Migration> = {
   "0001_tenancy": m0001,
@@ -57,6 +59,8 @@ export const migrations: Record<string, Migration> = {
   "0024_rate_plans": m0024,
   "0025_reservations": m0025,
   "0026_stay_checkin": m0026,
+  "0027_folio": m0027,
   "0030_retention": m0030,
   "0040_notifications": m0040,
+  "0041_reminder_scans": m0041,
 };

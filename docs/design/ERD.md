@@ -1226,6 +1226,7 @@ Loại: M cho đến `confirmed`; sau đó chỉ `confirmed → reversed` (bất
 | reverse_reason | text | có | | |
 
 - Khoá/index: `UNIQUE (organization_id, property_id, id)`; **`UNIQUE (organization_id, bank_transaction_id) WHERE bank_transaction_id IS NOT NULL`** (INV-F4b: webhook + sao kê + nhập tay cùng một giao dịch ⇒ **một** payment; `23505` ⇒ `BANK_TRANSACTION_ALREADY_USED`); `UNIQUE (organization_id, property_id, receipt_no) WHERE receipt_no IS NOT NULL`; `ix (organization_id, property_id, status, method)`; `ix (organization_id, shift_id)`.
+- T-206 (migration 0027): cột `reservation_id` (FK ghép → `reservations`, chỉ với `purpose=receivable`, bất biến sau khi ghi) gắn ứng trước vào đúng booking để check-out chỉ phân bổ ứng trước của booking đó; chỉ mục duy nhất `uq_invoices_folio_stay` (một phiếu folio mỗi lượt ở); hàm SECURITY DEFINER `app.lock_payment_row`/`app.bump_payment_allocated` cho phân bổ hệ thống lúc check-out (lễ tân phân bổ ứng trước do người khác nhận).
 - Ràng buộc đặc biệt:
   - `CHECK ((purpose = 'deposit') = (deposit_id IS NOT NULL))`.
   - Tiền mặt: `CHECK (method <> 'cash' OR (shift_id IS NOT NULL AND bank_transaction_id IS NULL AND receiving_account_id IS NULL))` (INV-F3b: tiền mặt kể cả cọc luôn qua `payments` và có ca).

@@ -6,11 +6,14 @@ export {
   NOTIFY_SEND_CRON,
   NOTIFY_SEND_QUEUE,
   notificationEventHandlers,
+  REMINDER_JOBS,
   RETENTION_CRON,
   RETENTION_QUEUE,
   scheduleNotificationSend,
+  scheduleReminders,
   scheduleRetention,
   startNotificationSendWorker,
+  startReminderWorkers,
   startRetentionWorker,
 } from "./jobs.ts";
 export { DEAD_LETTER_QUEUE, ensureQueues, type OutboxJob, relayOutbox, startConsumers } from "./relay.ts";

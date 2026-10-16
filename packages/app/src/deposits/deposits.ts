@@ -106,6 +106,9 @@ interface OpenInvoice {
   id: string;
   property_id: string;
   lease_id: string | null;
+  kind: string;
+  /** Booking của lượt ở mà phiếu folio thuộc về (null với phiếu không phải folio). */
+  stay_reservation_id: string | null;
   open: number;
   payer_person_id: string;
 }
@@ -116,12 +119,18 @@ async function readInvoice(ctx: CommandContext, invoiceId: string, lock: boolean
     id: string;
     property_id: string;
     lease_id: string | null;
+    kind: string;
+    stay_reservation_id: string | null;
     open: string;
     payer_person_id: string;
   }>`
-    select id, property_id, lease_id, open_amount::text as open, payer_person_id from invoices
-    where organization_id = ${ctx.actor.orgId} and id = ${invoiceId}
-    ${lock ? sql`for update` : sql``}`.execute(ctx.trx);
+    select v.id, v.property_id, v.lease_id, v.kind, v.open_amount::text as open, v.payer_person_id,
+           (select ri.reservation_id from stays s
+              join reservation_items ri on ri.organization_id = s.organization_id and ri.id = s.reservation_item_id
+             where s.organization_id = v.organization_id and s.id = v.stay_id) as stay_reservation_id
+    from invoices v
+    where v.organization_id = ${ctx.actor.orgId} and v.id = ${invoiceId}
+    ${lock ? sql`for update of v` : sql``}`.execute(ctx.trx);
   const row = r.rows[0];
   if (!row) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phiếu");
   return { ...row, open: Number(row.open) };
@@ -129,15 +138,22 @@ async function readInvoice(ctx: CommandContext, invoiceId: string, lock: boolean
 
 /** Khấu trừ chỉ vào phiếu liên kết cùng hợp đồng/đối tượng của cọc và không vượt AR còn mở (INV-F5, lease S-025). */
 function checkDeduction(dep: DepositRow, inv: OpenInvoice, amount: number): void {
-  // Cọc đặt phòng: folio/đặt phòng chưa có (đợt 3) ⇒ chưa cho khấu trừ, tránh cọc của khách X trả nợ của Y (review R6).
   if (dep.lease_id === null) {
-    throw new CommandError(
-      "VALIDATION_FAILED",
-      422,
-      "Cọc đặt phòng chỉ khấu trừ vào folio của chính đặt phòng (chưa hỗ trợ)",
-    );
-  }
-  if (inv.property_id !== dep.property_id || inv.lease_id !== dep.lease_id) {
+    // Cọc đặt phòng: chỉ khấu trừ vào phiếu folio của lượt ở thuộc CHÍNH booking có cọc (cọc của khách X không trả nợ của Y; review
+    // R6, T-206).
+    if (
+      inv.property_id !== dep.property_id ||
+      inv.kind !== "folio" ||
+      inv.stay_reservation_id === null ||
+      inv.stay_reservation_id !== dep.reservation_id
+    ) {
+      throw new CommandError(
+        "VALIDATION_FAILED",
+        422,
+        "Cọc đặt phòng chỉ khấu trừ vào folio của chính đặt phòng",
+      );
+    }
+  } else if (inv.property_id !== dep.property_id || inv.lease_id !== dep.lease_id) {
     throw new CommandError("VALIDATION_FAILED", 422, "Chỉ khấu trừ vào phiếu của chính hợp đồng có cọc");
   }
   if (amount > Number(dep.balance)) throw refundsExceed(amount, Number(dep.balance), "Khấu trừ");
@@ -214,7 +230,11 @@ export async function requestCreditRefund(
 }
 
 /** Dòng chi tiền (Có CASH ca của người duyệt | Có BANK tài khoản nhận) cho hoàn. */
-async function payoutLine(ctx: CommandContext, req: ApprovalRow, amount: number) {
+async function payoutLine(
+  ctx: CommandContext,
+  req: Pick<ApprovalRow, "propertyId" | "payload">,
+  amount: number,
+) {
   const propertyId = req.propertyId as string;
   if (req.payload.method === "cash") {
     const shiftId = await openShiftOf(ctx.trx, ctx.actor.orgId, ctx.actor.membershipId, propertyId);
@@ -226,6 +246,51 @@ async function payoutLine(ctx: CommandContext, req: ApprovalRow, amount: number)
     throw new CommandError("VALIDATION_FAILED", 422, "Hoàn chuyển khoản cần tài khoản chi");
   }
   return { account: "BANK" as const, debit: 0, credit: amount, receivingAccountId: acct };
+}
+
+/** Cọc của một booking mà lượt ở đã trả phòng (hoàn cọc lúc/ngay sau check-out — hạn mức lễ tân chỉ áp ở đây, SPEC S-027). */
+async function isCheckedOutBookingDeposit(ctx: CommandContext, depositId: string): Promise<boolean> {
+  if (!UUID.test(depositId)) return false;
+  const r = await sql<{ ok: boolean }>`
+    select exists (
+      select 1 from deposits d
+      join reservation_items ri on ri.organization_id = d.organization_id and ri.reservation_id = d.reservation_id
+      join stays s on s.organization_id = ri.organization_id and s.reservation_item_id = ri.id
+      where d.organization_id = ${ctx.actor.orgId} and d.id = ${depositId} and s.status = 'checked_out') as ok`.execute(
+    ctx.trx,
+  );
+  return r.rows[0]?.ok ?? false;
+}
+
+/**
+ * Hoàn nguyên số cọc ngay trong lệnh check-out (SPEC S-027 a): Nợ DEPOSIT_LIAB / Có CASH (ca đang mở của người chi) hoặc BANK. Người gọi
+ * (folio.ts) đã kiểm hạn mức `deposit.refund` + số còn giữ dưới khoá hàng cọc; ở đây chỉ ghi sổ + bộ đếm. Không bao giờ có `REV_*`.
+ */
+export async function refundDepositInline(
+  ctx: CommandContext,
+  input: { depositId: string; amount: number; refund: RefundMethod; businessDate: string },
+): Promise<{ entryId: string }> {
+  const dep = await readDeposit(ctx, input.depositId, true);
+  if (input.amount > Number(dep.balance)) throw refundsExceed(input.amount, Number(dep.balance), "Hoàn");
+  const payout = await payoutLine(
+    ctx,
+    { propertyId: dep.property_id, payload: refundPayload(input.refund) },
+    input.amount,
+  );
+  const entryId = await postEntry(ctx.trx, {
+    orgId: ctx.actor.orgId,
+    propertyId: dep.property_id,
+    entryType: "deposit_refunded",
+    businessDate: input.businessDate,
+    sourceDocType: "deposit",
+    sourceDocId: dep.id,
+    createdBy: ctx.actor.membershipId,
+    commandId: ctx.commandId,
+    lines: [{ account: "DEPOSIT_LIAB", debit: input.amount, credit: 0, depositId: dep.id }, payout],
+  });
+  await sql`update deposits set refunded_total = refunded_total + ${input.amount}, version = version + 1
+            where organization_id = ${ctx.actor.orgId} and id = ${dep.id}`.execute(ctx.trx);
+  return { entryId };
 }
 
 let registered = false;
@@ -271,8 +336,11 @@ export function registerDepositExecutors(): void {
   });
 
   registerApprovalExecutor("deposit_refund", {
-    // Cọc hợp đồng trọ: không phải check-out khách sạn → lễ tân không duyệt. Check-out khách sạn suy ra từ stay (đợt 3).
-    context: async () => ({ atCheckout: false }),
+    // "Đang check-out" suy ra từ CSDL, không tin client: cọc đặt phòng mà lượt ở của booking đã `checked_out` (T-206). Cọc hợp đồng
+    // trọ không phải check-out khách sạn → lễ tân không duyệt.
+    context: async (ctx, req) => ({
+      atCheckout: await isCheckedOutBookingDeposit(ctx, req.subjectId as string),
+    }),
     async execute(ctx, req) {
       const amount = req.amount as number;
       const dep = await readDeposit(ctx, req.subjectId as string, true);

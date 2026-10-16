@@ -32,6 +32,18 @@ import { CommandError, fieldError } from "../pipeline/problem.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** Mã nội dung chuyển khoản (`memo_ref`) chưa dùng trong tổ chức — dùng chung cho phiếu kỳ thu và folio (T-206). */
+export async function uniqueMemoRef(trx: Transaction<unknown>, orgId: string): Promise<string> {
+  let memo = generateMemoRef();
+  for (let i = 0; i < 5; i++) {
+    const used =
+      await sql`select 1 from invoices where organization_id = ${orgId} and memo_ref = ${memo}`.execute(trx);
+    if (used.rows.length === 0) break;
+    memo = generateMemoRef();
+  }
+  return memo;
+}
+
 // ---------- Tạo kỳ ----------
 
 /** `billing.createPeriod`: kỳ theo tháng dương lịch; đã có thì trả kỳ hiện có (S-013). */
@@ -436,15 +448,7 @@ export async function issuePeriod(
       n: string;
     }>`select app.next_number(${ctx.actor.orgId}, ${p.property_id}, 'invoice')::text as n`.execute(ctx.trx);
     const number = `PTT-${String(n.rows[0]?.n).padStart(6, "0")}`;
-    let memo = generateMemoRef();
-    for (let i = 0; i < 5; i++) {
-      const used =
-        await sql`select 1 from invoices where organization_id = ${ctx.actor.orgId} and memo_ref = ${memo}`.execute(
-          ctx.trx,
-        );
-      if (used.rows.length === 0) break;
-      memo = generateMemoRef();
-    }
+    const memo = await uniqueMemoRef(ctx.trx, ctx.actor.orgId);
     await sql`
       insert into invoices (id, organization_id, property_id, kind, billing_period_id, lease_id, number, memo_ref, payer_person_id,
                             business_date, total, rounding_rule, formula_version, created_by, command_id)

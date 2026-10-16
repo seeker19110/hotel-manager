@@ -9,10 +9,14 @@ import {
   type NotificationEvent,
   type RetentionResult,
   type RetentionStorage,
+  remindExpiring,
   runRetention,
+  type ScanResult,
   type SendConfig,
   type SendOptions,
   type SendSummary,
+  scanOverdue,
+  scanStayNoticeConfig,
   sendDueEmails,
 } from "@hm/app";
 import { withTenant } from "@hm/db";
@@ -131,4 +135,53 @@ export async function startNotificationSendWorker(
       opts.onResult?.(await sendDueEmails(workerDb, sender, cfg, opts));
     },
   );
+}
+
+/**
+ * Job quét nhắc hạn (T-212; SPEC-notifications §5). Mỗi job chỉ PHÁT sự kiện outbox có `dedupe_key`; relay + `notify.dispatch`
+ * tạo thông báo. Lịch dày hơn nhịp nhắc (mỗi giờ/15 phút) vì ngày/khung giờ tính theo múi giờ từng cơ sở và việc chạy lại luôn
+ * an toàn (không phát trùng) — job lỡ một lượt thì lượt sau bù, không mất nhắc.
+ */
+export const REMINDER_JOBS = {
+  /** Nhắc quá hạn thanh toán: mỗi giờ (SQL chỉ chọn khi cơ sở đang trong khung giờ gửi, mặc định 08:00–20:00). */
+  overdue: { queue: "reminder.scanOverdue", cron: "7 * * * *" },
+  /** Nhắc hợp đồng sắp hết hạn: mỗi giờ (so ngày địa phương từng cơ sở; một nhắc mỗi mốc nhờ dedupe). */
+  leaseExpiry: { queue: "reminder.scanLeaseExpiry", cron: "11 * * * *" },
+  /** Hạn thông báo lưu trú: 15 phút (đề xuất SPEC). Hiện chỉ có bước cảnh báo chưa cấu hình hạn (S-020); T-207 thêm bước nhắc hạn. */
+  stayNotice: { queue: "reminder.scanStayNotice", cron: "*/15 * * * *" },
+} as const;
+
+/** Đăng ký lịch các job nhắc hạn (idempotent: lịch lưu trong DB, gọi lại vô hại). */
+export async function scheduleReminders(boss: PgBoss): Promise<void> {
+  for (const j of Object.values(REMINDER_JOBS)) {
+    await boss.createQueue(j.queue);
+    await boss.schedule(j.queue, j.cron, {});
+  }
+}
+
+/** Nhận job nhắc hạn. `onResult` để quan sát/test; lỗi DB ném ra để pg-boss thử lại (chạy lại an toàn). */
+export async function startReminderWorkers(
+  boss: PgBoss,
+  workerDb: Kysely<unknown>,
+  opts: {
+    now?: () => Date;
+    onResult?: (job: keyof typeof REMINDER_JOBS, r: ScanResult) => void;
+    pollingIntervalSeconds?: number;
+  } = {},
+): Promise<void> {
+  const clock = opts.now ?? (() => new Date());
+  const handlers: Record<keyof typeof REMINDER_JOBS, (now: Date) => Promise<ScanResult>> = {
+    overdue: (now) => scanOverdue(workerDb, now),
+    leaseExpiry: async (now) => ({ created: await remindExpiring(workerDb, now) }),
+    stayNotice: (now) => scanStayNoticeConfig(workerDb, now),
+  };
+  for (const [name, job] of Object.entries(REMINDER_JOBS) as [
+    keyof typeof REMINDER_JOBS,
+    (typeof REMINDER_JOBS)[keyof typeof REMINDER_JOBS],
+  ][]) {
+    await boss.createQueue(job.queue);
+    await boss.work(job.queue, { pollingIntervalSeconds: opts.pollingIntervalSeconds ?? 30 }, async () => {
+      opts.onResult?.(name, await handlers[name](clock()));
+    });
+  }
 }

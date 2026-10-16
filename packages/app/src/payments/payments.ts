@@ -22,8 +22,15 @@ function assertMoney(n: number, field: string): void {
   }
 }
 
-async function businessDate(trx: Transaction<unknown>, orgId: string, propertyId: string): Promise<string> {
-  const r = await sql<{ d: string }>`select app.business_date(${orgId}, ${propertyId})::text as d`.execute(
+async function businessDate(
+  trx: Transaction<unknown>,
+  orgId: string,
+  propertyId: string,
+  /** Thời điểm tính ngày kinh doanh (mặc định: giờ máy chủ CSDL). Check-out truyền giờ trả phòng để khoản thu cùng ngày với phiếu. */
+  at?: Date,
+): Promise<string> {
+  const r = await sql<{ d: string }>`
+    select app.business_date(${orgId}, ${propertyId}, ${at ?? sql`now()`}::timestamptz)::text as d`.execute(
     trx,
   );
   const d = r.rows[0]?.d;
@@ -118,6 +125,10 @@ export interface RecordPaymentInput {
   /** Dùng nội bộ (deposit.receive, T-106). */
   purpose?: "receivable" | "deposit";
   depositId?: string;
+  /** Ứng trước của một booking (T-206): check-out chỉ phân bổ ứng trước gắn đúng booking. Chỉ với `purpose = receivable`. */
+  reservationId?: string;
+  /** Thời điểm tính ngày kinh doanh của khoản thu (mặc định: hiện tại). */
+  at?: Date;
 }
 
 /** `payment.record`: ghi khoản thu `pending` (chưa ghi sổ). */
@@ -162,12 +173,11 @@ export async function recordPayment(
   const id = randomUUID();
   await sql`
     insert into payments (id, organization_id, property_id, method, purpose, amount, receiving_account_id, payer_person_id,
-                          deposit_id, shift_id, bank_transaction_id, business_date, recorded_by, command_id)
+                          deposit_id, shift_id, bank_transaction_id, business_date, recorded_by, command_id, reservation_id)
     values (${id}, ${ctx.actor.orgId}, ${input.propertyId}, ${input.method}, ${input.purpose ?? "receivable"}, ${input.amount},
             ${receivingAccountId}, ${input.payerPersonId}, ${input.depositId ?? null}, ${shiftId}, ${bankTransactionId},
-            ${await businessDate(ctx.trx, ctx.actor.orgId, input.propertyId)}::date, ${ctx.actor.membershipId}, ${ctx.commandId})`.execute(
-    ctx.trx,
-  );
+            ${await businessDate(ctx.trx, ctx.actor.orgId, input.propertyId, input.at)}::date, ${ctx.actor.membershipId},
+            ${ctx.commandId}, ${input.reservationId ?? null})`.execute(ctx.trx);
   await ctx.audit({
     action: "payment.recorded",
     entityType: "payment",
@@ -205,6 +215,11 @@ export async function lockPayment(
   ctx: CommandContext,
   paymentId: string,
   check: (row: PaymentRow) => void = () => {},
+  /**
+   * `definerLock`: khoá hàng qua `app.lock_payment_row` (kiểm vai trò + cơ sở trong hàm) thay vì `FOR UPDATE` qua RLS — cho phân bổ
+   * hệ thống của check-out, nơi lễ tân phân bổ ứng trước do người khác nhận (RLS `payments_write` chỉ cho sửa khoản mình ghi).
+   */
+  opts: { definerLock?: boolean } = {},
 ): Promise<PaymentRow> {
   if (!UUID.test(paymentId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy thanh toán");
   const read = (lock: boolean) =>
@@ -218,7 +233,9 @@ export async function lockPayment(
   const seen = (await read(false)).rows[0];
   if (!seen) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy thanh toán");
   check(seen);
-  const row = (await read(true)).rows[0];
+  if (opts.definerLock)
+    await sql`select app.lock_payment_row(${ctx.actor.orgId}, ${paymentId})`.execute(ctx.trx);
+  const row = (await read(!opts.definerLock)).rows[0];
   if (!row) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy thanh toán");
   return row;
 }
@@ -253,7 +270,7 @@ export interface ConfirmEvidence {
  */
 export async function confirmPayment(
   ctx: CommandContext,
-  input: { paymentId: string; evidence?: ConfirmEvidence },
+  input: { paymentId: string; evidence?: ConfirmEvidence; at?: Date },
 ): Promise<{ paymentId: string; receiptNo: string | null; entryId: string }> {
   const p = await lockPayment(ctx, input.paymentId, (row) =>
     row.method === "cash"
@@ -322,7 +339,7 @@ export async function confirmPayment(
     propertyId: p.property_id,
     entryType: p.purpose === "deposit" ? "deposit_received" : "payment_confirmed",
     // Ghi sổ theo ngày XÁC NHẬN (có chứng cứ): khoản ghi nhận hôm trước mà kỳ đã khoá vẫn xác nhận được (review R2).
-    businessDate: await businessDate(ctx.trx, ctx.actor.orgId, p.property_id),
+    businessDate: await businessDate(ctx.trx, ctx.actor.orgId, p.property_id, input.at),
     // Nguồn luôn là chính khoản thu (một cọc có thể nhận nhiều lần; đảo tìm đúng bút toán của khoản này).
     sourceDocType: "payment",
     sourceDocId: p.id,
@@ -382,7 +399,13 @@ export interface AllocationInput {
  */
 export async function allocatePayment(
   ctx: CommandContext,
-  input: { paymentId: string; allocations: readonly AllocationInput[] },
+  input: { paymentId: string; allocations: readonly AllocationInput[]; at?: Date },
+  /**
+   * `system`: phân bổ do hệ thống thực hiện trong lệnh nghiệp vụ đã được kiểm quyền (check-out, T-206 — SPEC-ledger S-027 "hệ thống
+   * ... phân bổ vào I2"): bỏ kiểm `payment.allocate` của người gọi (lễ tân không có quyền này khi gọi trực tiếp), vẫn kiểm cơ sở,
+   * số còn lại của khoản thu, số dư CUSTOMER_CREDIT, số còn của phiếu (INV-F2).
+   */
+  opts: { system?: boolean } = {},
 ): Promise<{ entryId: string; allocationIds: string[]; unallocated: number }> {
   if (input.allocations.length === 0)
     throw new CommandError("VALIDATION_FAILED", 422, "Cần ít nhất một dòng phân bổ");
@@ -395,8 +418,14 @@ export async function allocatePayment(
     assertMoney(a.amount, "Số tiền phân bổ");
   }
   const sum = input.allocations.reduce((s, a) => s + a.amount, 0);
-  const p = await lockPayment(ctx, input.paymentId, (row) =>
-    authorize(ctx.actor, "payment.allocate", { propertyId: row.property_id, amount: sum }),
+  const p = await lockPayment(
+    ctx,
+    input.paymentId,
+    (row) =>
+      opts.system
+        ? authorize(ctx.actor, "reservation.manage", { propertyId: row.property_id })
+        : authorize(ctx.actor, "payment.allocate", { propertyId: row.property_id, amount: sum }),
+    { definerLock: opts.system === true },
   );
   if (p.status !== "confirmed" || p.purpose !== "receivable") {
     throw new CommandError("INVALID_TRANSITION", 409, "Chỉ phân bổ khoản thu đã xác nhận");
@@ -445,7 +474,7 @@ export async function allocatePayment(
     orgId: ctx.actor.orgId,
     propertyId: p.property_id,
     entryType: "payment_allocated",
-    businessDate: await businessDate(ctx.trx, ctx.actor.orgId, p.property_id),
+    businessDate: await businessDate(ctx.trx, ctx.actor.orgId, p.property_id, input.at),
     sourceDocType: "payment_allocation",
     sourceDocId: p.id,
     createdBy: ctx.actor.membershipId,
@@ -474,9 +503,13 @@ export async function allocatePayment(
       update invoices set allocated_total = allocated_total + ${a.amount}, version = version + 1
       where organization_id = ${ctx.actor.orgId} and id = ${a.invoiceId}`.execute(ctx.trx);
   }
-  await sql`
-    update payments set allocated_total = allocated_total + ${sum}, version = version + 1
-    where organization_id = ${ctx.actor.orgId} and id = ${p.id}`.execute(ctx.trx);
+  if (opts.system) {
+    await sql`select app.bump_payment_allocated(${ctx.actor.orgId}, ${p.id}, ${sum})`.execute(ctx.trx);
+  } else {
+    await sql`
+      update payments set allocated_total = allocated_total + ${sum}, version = version + 1
+      where organization_id = ${ctx.actor.orgId} and id = ${p.id}`.execute(ctx.trx);
+  }
   await ctx.audit({
     action: "payment.allocated",
     entityType: "payment",

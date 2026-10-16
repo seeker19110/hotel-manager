@@ -88,6 +88,7 @@ import {
   previewMatches,
   resolveBreak,
 } from "../reconciliation/reconciliation.ts";
+import { checkOut, getFolio, postCharge, voidCharge } from "../reservation/folio.ts";
 import { quoteReservation, setRatePlan } from "../reservation/rates.ts";
 import {
   cancelReservation,
@@ -1051,6 +1052,99 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
       httpStatus: 201,
     }),
   }),
+  "stay.postCharge": defineCommand({
+    command: "stay.postCharge",
+    input: z.strictObject({
+      stay_id: uuid,
+      kind: z.enum(["service", "fee"]),
+      description: z.string().trim().min(1).max(500),
+      quantity: z.number().int().min(1).max(1000).optional(),
+      unit_price: positiveMoney,
+      business_date: isoDate.optional(),
+    }),
+    run: async (ctx, i) => ({
+      data: await postCharge(ctx, {
+        stayId: i.stay_id,
+        kind: i.kind,
+        description: i.description,
+        unitPrice: i.unit_price,
+        ...(i.quantity === undefined ? {} : { quantity: i.quantity }),
+        ...(i.business_date ? { businessDate: i.business_date } : {}),
+      }),
+      httpStatus: 201,
+    }),
+  }),
+  "stay.voidCharge": defineCommand({
+    command: "stay.voidCharge",
+    input: z.strictObject({ charge_id: uuid, reason: reasonText }),
+    run: async (ctx, i) => ({ data: await voidCharge(ctx, { chargeId: i.charge_id, reason: i.reason }) }),
+  }),
+  "stay.checkOut": defineCommand({
+    command: "stay.checkOut",
+    input: z.strictObject({
+      stay_id: uuid,
+      payments: z
+        .array(
+          z.strictObject({
+            method: z.enum(["cash", "bank_transfer"]),
+            amount: positiveMoney,
+            receiving_account_id: uuid.optional(),
+            bank_txn: bankTxn.optional(),
+            bank_transaction_id: uuid.optional(),
+          }),
+        )
+        .max(5)
+        .optional(),
+      allow_balance: z
+        .strictObject({ approval_id: uuid.optional(), debtor_person_id: uuid, due_date: isoDate })
+        .optional(),
+      deposit_refund: z
+        .strictObject({
+          amount: positiveMoney,
+          method: z.enum(["cash", "bank_transfer"]),
+          receiving_account_id: uuid.optional(),
+          reason: reasonText.optional(),
+        })
+        .optional(),
+    }),
+    run: async (ctx, i) => ({
+      data: await checkOut(ctx, {
+        stayId: i.stay_id,
+        ...(i.payments
+          ? {
+              payments: i.payments.map((p) => ({
+                method: p.method,
+                amount: p.amount,
+                ...(p.receiving_account_id ? { receivingAccountId: p.receiving_account_id } : {}),
+                ...(p.bank_txn ? { bankTxn: toBankTxn(p.bank_txn) } : {}),
+                ...(p.bank_transaction_id ? { bankTransactionId: p.bank_transaction_id } : {}),
+              })),
+            }
+          : {}),
+        ...(i.allow_balance
+          ? {
+              allowBalance: {
+                debtorPersonId: i.allow_balance.debtor_person_id,
+                dueDate: i.allow_balance.due_date,
+                ...(i.allow_balance.approval_id ? { approvalId: i.allow_balance.approval_id } : {}),
+              },
+            }
+          : {}),
+        ...(i.deposit_refund
+          ? {
+              depositRefund: {
+                amount: i.deposit_refund.amount,
+                method: i.deposit_refund.method,
+                ...(i.deposit_refund.receiving_account_id
+                  ? { receivingAccountId: i.deposit_refund.receiving_account_id }
+                  : {}),
+                ...(i.deposit_refund.reason ? { reason: i.deposit_refund.reason } : {}),
+              },
+            }
+          : {}),
+      }),
+    }),
+  }),
   "lease.activate": defineCommand({
     command: "lease.activate",
     input: z.strictObject({ lease_id: uuid }),
@@ -1506,6 +1600,11 @@ export const QUERIES: Readonly<Record<string, AnyQuery>> = {
     query: "stay.get",
     input: z.strictObject({ stay_id: uuid }),
     run: (db, actor, i: { stay_id: string }) => getStay(db, actor, i.stay_id),
+  },
+  "stay.getFolio": {
+    query: "stay.getFolio",
+    input: z.strictObject({ stay_id: uuid }),
+    run: (db, actor, i: { stay_id: string }) => getFolio(db, actor, i.stay_id),
   },
   "reservation.list": {
     query: "reservation.list",
