@@ -85,7 +85,7 @@ Nỗ lực: các gói P0 trong backlog là 224/343 ngày công, tức **65% nằ
 | Đồng thời | 100 lệnh tranh một phòng → tối đa 1 allocation; cùng payload gửi 100 lần → 1 hiệu lực | Kế hoạch §13 | test tích hợp trên Postgres thật |
 | Sẵn sàng | SLO 99,9%/tháng cho luồng server lõi (chưa phải SLA) | Kế hoạch §17 | uptime + error budget |
 | Phục hồi | Production: RPO DB ≤ 15 phút, RTO ≤ 4 giờ, file RPO ≤ 24 giờ — chỉ công bố sau diễn tập | Kế hoạch §17 | diễn tập restore |
-| Bảo mật | Khung blueprint M + ASVS 5.0 L2 cho luồng tiền/quyền | blueprint | CI + pentest có trọng tâm (tuần 21–22) |
+| Bảo mật | Khung blueprint M + ASVS 5.0.0 L2 cho luồng tiền/quyền | blueprint | CI + pentest có trọng tâm (tuần 21–22) |
 | Tiếp cận | WCAG 2.2 AA cho luồng chính; vùng chạm ≥ 44 CSS px | Kế hoạch §09 | axe trong E2E + kiểm tay |
 | Thiết bị | Safari iPhone (iOS ≥ 16.4), Chrome Android, Chrome/Edge desktop, chế độ cài PWA | Kế hoạch §10 | ma trận E2E + thiết bị thật |
 | Ngôn ngữ/định dạng | Tiếng Việt; VND số nguyên; múi giờ cơ sở (mặc định Asia/Ho_Chi_Minh) | Kế hoạch §12 | test đơn vị |
