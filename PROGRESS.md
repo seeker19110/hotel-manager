@@ -1,44 +1,28 @@
 # PROGRESS.md — Hotel Manager
 
-> Giai đoạn hiện tại: G5 Dựng nền (autopilot đợt 2) · Cập nhật: 2026-10-16 · Nhánh: claude/gifted-noether-iybenn
+> Giai đoạn hiện tại: G5–G6 (autopilot đợt 3: khách sạn, buồng phòng/sự cố, portal, thông báo, báo cáo) · Cập nhật: 2026-10-16 · Nhánh: claude/peaceful-bardeen-27pu17 (xếp chồng lên PR #5 — D-001)
 
 ## Đang làm
-- Autopilot đợt 2 xong: T-101…T-118 có bằng chứng (`.autopilot/evidence/`), review lát 4 đã xử lý (🟠3 còn ở *Tiếp theo* 0a). PR #5 sẵn review; đã gộp `main` (khung 59a8fce, PR #6/#7) — BLUEPRINT ghép lại giữ 87 đạt/36 miễn.
+- Autopilot đợt 3 (`docs/autopilot/PLAN.md`, 22 task, 100 vòng/96 giờ, `loop init` 2026-10-16 01:13Z): **13/22 xong có bằng chứng** (`.autopilot/evidence/` — T-201…T-209, T-211, T-212, T-216, T-219). Review độc lập lát khách sạn/thông báo: 0 🔴 · 2 🟠 · 2 🟢 + 4 nghi vấn — đã sửa hết kèm test (commit 2003d6c).
+- Dừng giữa chừng để bàn giao: **T-210** mới có khung `packages/app/src/files/clamd.ts` (`ClamdScanner` zINSTREAM) + `ScanUnavailableError` ở `inspect.ts` — commit WIP, CHƯA có test, CHƯA nối vào server context. **T-217** chưa bắt đầu sửa file.
 
 ## Tiếp theo
-0a. [Chặn trước khi nhập dữ liệu thật] Job hạn giữ: xoá object file nguồn theo `files.delete_after` + làm rỗng `import_rows.raw/data` sau commit/huỷ 30 ngày (review lát 4 🟠3) — cần worker nối object storage + policy worker cho `files`/`import_rows`; route `import.upload` multipart làm cùng lúc.
-0. [Câu hỏi cho chủ dự án, không chặn] Hợp đồng KHÔNG thời hạn đã ký thì không đổi giá được: phụ lục chồng hiệu lực với phiên bản 1 (mở cuối, bất biến) ⇒ LEASE_VERSION_OVERLAP. Đề xuất: phụ lục được phép "đóng" ngày hết hạn của phiên bản mở cuối ngay trước nó (chỉ NULL → ngày trước hiệu lực phụ lục, ghi audit; điều khoản đã ký không đổi). Cần duyệt vì chạm bất biến INV-G4.
-1. Chủ repo import ruleset `.github/rulesets/main.json` (Settings → Rules → Rulesets → Import) — agent không có API để bật.
-2. Lập PLAN đợt 3 (khách sạn + vận hành/OPS/quan sát) sau khi PR #5 merge. Việc kéo từ đợt 2: chọn máy quét mã độc thật, quyết mã hoá cột số giấy tờ, lưu cơ sở đang chọn (`property_id` của switchOrganization mới chỉ kiểm + trả về), route `GET /api/v1/commands/{id}`.
-3. Người làm song song: quan sát 6–10 cơ sở + baseline M-01…M-03; DPIA + pháp lý đối chiếu bản gốc; mua VPS tại VN + kho sao lưu khác máy; chọn SMTP relay; giấy phép mã nguồn.
+1. Tiếp autopilot: `python3 .xtemplates/scripts/xt.py loop status` → T-210 (phiếu sự cố + ảnh + test hợp đồng clamd giả trong test, chọn scanner theo `CLAMD_HOST`, fail-closed production — D-003/D-008), rồi T-217 (4 báo cáo khớp sổ + nối "việc dọn" của `today.getSummary` sang bảng `tasks`), T-213…T-215 (portal, "Tôi đã chuyển", liên kết khách), T-218 (xuất CSV), T-220 (health/metrics), T-221 (UI + E2E, gồm route tải file thông báo lưu trú — D-014), T-222 (rà blueprint). Gate mỗi task: `loop record --task T-xxx -- <Gate y nguyên trong PLAN>`; executor song song dùng dải migration riêng; `export PATH=/root/.local/bin:$PATH` trước test (SeaweedFS `weed`).
+2. Sau T-222: review độc lập lát còn lại, mở PR đợt 3 nhắm vào nhánh PR #5 (`claude/gifted-noether-iybenn`) hoặc `main` nếu PR #5 đã merge.
+3. Chủ dự án quyết (không chặn vòng lặp): merge PR #5; mã hoá cột số giấy tờ (cần khoá + bỏ cột chữ rõ); chọn SMTP relay + adapter `EmailSender` thật (đặt `NOTIFICATION_TOKEN_SECRET`); duyệt hạ tầng ClamAV (RAM ≥ 3 GiB); huỷ đăng ký email bằng POST one-click (cần miễn trừ same-origin); 3 câu treo ở PR #5 (hợp đồng không thời hạn đổi giá, quản lý đặt giá dịch vụ, 32 miễn blueprint + XC-OSS-001/007, IND-FIN-008); import ruleset `.github/rulesets/main.json`.
+4. Người làm song song: quan sát 6–10 cơ sở + baseline M-01…M-03; DPIA + pháp lý đối chiếu bản gốc; mẫu file thông báo lưu trú của cơ quan (chưa xác minh); VPS tại VN + kho sao lưu khác máy; giấy phép mã nguồn.
 
 ## Quyết định
-- 2026-10-15 Repo hotel-manager chuyển thành repo sản phẩm; khung X-Templates 2.0.0 cài ở `.xtemplates/` (người dùng chọn).
-- 2026-10-15 Đợt tự động đầu chỉ lập kế hoạch G0–G4, chưa viết code (người dùng chọn).
-- 2026-10-15 Tự host toàn bộ (người dùng chọn): Postgres 17 + pgBackRest, Better Auth, SeaweedFS, Caddy, SMTP relay — ADR-0002. Dev/CI không mua dịch vụ.
-- 2026-10-15 Blueprint: web-app + saas-multitenant + fintech, quy mô M (4 miễn đã duyệt: IND-FIN-009/010, IND-SAAS-005/012). Khung chưa có gói ngành lưu trú.
-- 2026-10-15 Stack đề xuất ở ADR-0001 (proposed): Node 24 · Next 16.4 · PostgreSQL 17 · Kysely · pg-boss · Serwist (auth/storage/sao lưu: ADR-0002) · Vitest/Playwright/Testcontainers · Biome · pnpm.
-- 2026-10-15 Review độc lập bộ kế hoạch: 6 🔴 · 21 🟠 · 19 🟢 — đã sửa trong DOMAIN-MODEL 1.2, SPEC v2, API-CONTRACT, THREAT-MODEL 1.1, PLAN (14 task).
-- 2026-10-15 Chủ dự án duyệt PLAN đợt 1 (PR #3 merge): pilot theo backlog; mặc định tham số hoá cho câu hỏi [chặn] đợt 1; 4 miễn blueprint; 70 vòng / 48 giờ / 1800 s / ≤ 150 USD.
-- 2026-10-15 Đợt 1 (chi tiết: git log/PR #4): import đuôi `.ts`; commit qua `scripts/commit-gated.sh`; relay/liệt kê tổ chức qua hàm SECURITY DEFINER hẹp; pool ≤ 20 + `max_connections=100` như CI; Serwist Turbopack, không cache điều hướng; cookie `__Host-hm_org` chỉ để chọn, mọi request `resolveActor`; E2E Chromium có sẵn; review đợt 1 đã xử lý, chủ dự án cấp quyền sửa CI.
-- 2026-10-15 Đợt 2 (theo SPEC khi ERD/ma trận lệch): lễ tân đọc ca/thanh toán trong phạm vi, chỉ ghi của mình; kế toán đóng/đối chiếu ca, không mở ca, không duyệt; hạn mức phân bổ mặc định quản lý 5.000.000 đ. Gate `pnpm test:db -- x` chạy toàn bộ test DB. Bài học: luôn `set -o pipefail` với `loop record`.
-- 2026-10-15 T-107: thanh toán hệ thống `source='bank_auto'` chỉ worker ghi, chỉ khi webhook đã xác minh và khớp đúng 1 phiếu; còn lại vào `reconciliation_breaks`. Dấu vân tay giao dịch = mã + số tiền. VietQR theo chuỗi mẫu tự khớp CRC — văn bản NAPAS gốc (chưa xác minh), kiểm lại trước G7.
-- 2026-10-15 T-108: khoá kỳ theo `business_date` (chỉ ngày đã qua, chỉ tiến); trigger PERIOD_LOCKED trên sổ/thanh toán/charges. Điều chỉnh chỉ GIẢM, qua duyệt người khác; tăng tiền = phiếu phí mới; số còn phải thu = `invoices.open_amount`.
-- 2026-10-15 T-109: lỗi theo trường `errors[]{path, field, code}`; giữ chỗ hợp đồng khoá phòng + EXCLUDE (không khoá `leases`).
-- 2026-10-15 Review lát tiền/hợp đồng/kỳ thu: sửa đủ 🔴/🟠 kèm test hồi quy.
-- 2026-10-15 T-110…T-113: công tơ/`billing_periods` tạo sớm khi bàn giao/chỉ số cần; bàn giao trả chuyển `settling`; khấu trừ mặc định = min(cọc, AR + phí), duyệt kiểm lại cọc/AR dưới khoá; bất thường = > 2 × TB 3 kỳ; dòng tiền thuê lưu quantity = số ngày, unit_price = giá tháng, denominator; làm tròn chỉ trong `money` (test kiến trúc).
-- 2026-10-15 T-114: phát hành khoá chỉ số nháp của kỳ rồi chỉ duyệt đúng các chỉ số đó; kế toán được duyệt (không sửa) chỉ số — policy + trigger; quyết toán bị chặn `FINAL_PERIOD_NOT_ISSUED` khi cơ sở dùng kỳ thu mà kỳ chứa ngày trả chưa phát hành; factory test dùng `app.business_date` (trước dùng `current_date` UTC → lệch sau 17:00Z).
-- 2026-10-15 Hỏi chủ dự án: 🟠6 quản lý có được đặt giá dịch vụ (SPEC-metering nói có, ma trận nói không — code chỉ owner); dịch vụ cố định theo phiên bản hiệu lực ngày cuối kỳ.
-- 2026-10-15 T-115: import qua đúng hàm module sở hữu, commit nguyên khối (lỗi dòng ⇒ lô về `validated` + CONFLICT_AT_COMMIT ở transaction lưu lỗi); `external_id` theo cơ sở; XLSX đọc/ghi tự viết (zlib, giới hạn chống zip bomb, không tính công thức) — không thêm thư viện; S-009 (booking) và route upload multipart chờ đợt 3/web nối storage.
-- 2026-10-15 T-117: UI trọ (hợp đồng, kỳ thu, chỉ số theo tầng, thu tiền, cọc, đối soát) gọi command qua `useCommand` (offline/timeout/`GET /commands`/gửi lại cùng key); lệnh gộp `payment.collectCash`; E2E chủ trọ đăng nhập TOTP thật; hàng rào `erasableSyntaxOnly` (Node strip-only không chạy parameter property).
-- 2026-10-15 T-118: blueprint MUST 87 đạt (bằng chứng máy, `scripts/check-blueprint-evidence.py`) · 36 miễn (32 mới: AI/realtime/cache/tìm kiếm/OAuth… không có trong sản phẩm — chờ chủ dự án xác nhận) · 373 mở (theo nhóm: commit 13108d3) → đợt 3–4. Hỏi chủ dự án: miễn XC-OSS-001/007 (không mở mã?), IND-FIN-008 (TT 50/17/2024).
-- 2026-10-15 Nâng khung lên 4f99dfb (PR #6, ADR-0008/0009/0010); FB-001…004 = 4 miễn đã duyệt.
-- 2026-10-16 Sửa khung (X-Templates#49) + nâng `.xtemplates` lên 59a8fce (PR #7): hết xanh giả khi Gate có ống, hook cổng commit chạy đúng repo, blueprint-status/verdict chặt hơn. FB-005…007. Task `[~]` trong PLAN phải ghi `— Bỏ: <lý do>`.
-- Nợ kỹ thuật chấp nhận: phần pháp lý trong `docs/research/` chỉ có nguồn thứ cấp — phải đối chiếu văn bản gốc trước khi dùng dữ liệu thật.
+- 2026-10-15 Repo sản phẩm + khung X-Templates ở `.xtemplates/`; tự host toàn bộ (ADR-0002); stack ADR-0001; blueprint web-app + saas-multitenant + fintech, M (4 miễn đã duyệt). Chi tiết đợt 1–2: `docs/autopilot/archive/PLAN-dot-1.md`, `PLAN-dot-2.md`, git log PR #4/#5.
+- 2026-10-15 Đợt 1 merge (PR #4); đợt 2 xong ở PR #5 (xanh, chờ chủ dự án merge). Gate `pnpm test:db -- x` chạy TOÀN BỘ test DB (bộ lọc không áp).
+- 2026-10-16 Sửa khung X-Templates (#49) + nâng `.xtemplates` lên 59a8fce (PR #7): pipefail cho `loop record`/dev-task, hook cổng commit chạy đúng repo, verdict/blueprint-status chặt hơn; task `[~]` phải ghi `— Bỏ: <lý do>`. FB-005…007, FB-040 (Broken pipe khi `xt.py … | head`).
+- 2026-10-16 Đợt 3 tự duyệt D-001…D-017 (`docs/autopilot/DECISIONS.md`), chính: D-001 xếp chồng lên PR #5 · D-002 mặc định 15 câu [chặn] (tham số theo cơ sở) · D-003 ClamAV tự host qua adapter · D-005 giờ chốt khách sạn 04:00 · D-006 đêm cuối tuần ở `rate_plans.weekend_nights` · D-007 xác nhận booking cần khoản thu đã xác nhận (cờ cơ sở để nới) · D-009 tiền phòng ghi lúc check-in · D-012/D-015 folio: ứng trước gắn booking (`payments.reservation_id`, ứng trước nhập qua `journal_entries.reservation_id`), cho nợ khoá người nợ + hạn ≤ 30 ngày trong yêu cầu duyệt, bộ đếm `allocated_total` tính lại từ Σ phân bổ · D-010 thông báo: retry 5 lần, email không ghi số tiền, huỷ đăng ký GET token HMAC · D-014 hạn thông báo lưu trú (23:00/08:00, nước ngoài theo cấu hình) · D-016 audit: sự kiện cấp tổ chức chỉ owner · D-017 việc dọn tạo cùng transaction trả phòng, tách người làm/nghiệm thu.
+- 2026-10-16 Không đưa vào đợt 3 (cần người): mã hoá `identity_documents.doc_number`; gửi email/thông báo thật; triển khai ClamAV thật.
+- Nợ kỹ thuật chấp nhận: pháp lý trong `docs/research/` chỉ nguồn thứ cấp — đối chiếu văn bản gốc trước dữ liệu thật; RLS `audit_events` mới theo tổ chức (phạm vi cơ sở kiểm ở app — D-016); `listTasks` chưa phân trang.
 
 ## Bàn giao phiên
-- Commit cuối trên nhánh chính: `da4a086df859a5e664028744b458bc671bccf116` (PR #7, khung 59a8fce).
-- Lệnh kiểm nhanh: `.xtemplates/scripts/dev-task.sh gate` · `pnpm test:db` · `pnpm --filter web exec playwright test` · `bash scripts/db-backup-restore-check.sh`. Container mới: `bash scripts/dev-env-setup.sh` trước.
-- Đang chặn: không. Autopilot: tắt.
-- Việc dở chưa commit: không.
-- Câu hỏi cần người: mục *Tiếp theo* 1–3.
+- 2026-10-16. Commit cuối trên nhánh chính: `da4a086df859a5e664028744b458bc671bccf116` (PR #7). Nhánh làm việc `claude/peaceful-bardeen-27pu17` (đầu = commit bàn giao này), gộp đầu PR #5 (nhánh `claude/gifted-noether-iybenn`).
+- Autopilot: bật, verdict `continue — T-210`; phiên sau chỉ cần nhắn "tiếp tục" (đọc mục *Tiếp theo* 1). `.autopilot/` là cục bộ (gitignore): container mới mất bằng chứng cũ → `loop status` có thể báo `verify` cho task đã tick; chạy lại `loop record` với đúng Gate để tái tạo bằng chứng, không tick lại tay.
+- Lệnh kiểm: `.xtemplates/scripts/dev-task.sh gate` · `pnpm test:db` · `pnpm --filter web exec playwright test` · `bash scripts/db-backup-restore-check.sh`. Container mới: `bash scripts/dev-env-setup.sh`, rồi `export PATH=/root/.local/bin:$PATH`.
+- Đang chặn: không. Việc dở chưa commit: không (T-210 WIP đã commit, ghi rõ chưa test).
+- Câu hỏi cần người: mục *Tiếp theo* 3.

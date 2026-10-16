@@ -112,7 +112,19 @@ export function stripImageMetadata(b: Uint8Array, mime: DetectedMime): Uint8Arra
 }
 
 export interface MalwareScanner {
+  /**
+   * `{clean:true}` = quét xong, sạch · `{clean:false}` = quét xong, nhiễm. KHÔNG quét được (không kết nối, quá hạn, máy quét báo
+   * lỗi/quá giới hạn) → ném `ScanUnavailableError`: người gọi không bao giờ coi file là `ready` (D-003).
+   */
   scan(bytes: Uint8Array): Promise<{ clean: true } | { clean: false; reason: string }>;
+}
+
+/** Máy quét không cho kết quả đáng tin (fail-closed): file không được sang `ready`. */
+export class ScanUnavailableError extends Error {
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = "ScanUnavailableError";
+  }
 }
 
 const EICAR = "X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*";
