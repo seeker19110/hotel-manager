@@ -4,6 +4,7 @@
 //   duyệt đồng thời chỉ một hiệu lực. Khấu trừ = `payment_allocations` có deposit_id (cùng hàng rào INV-F2 với thanh toán).
 // - Hoàn CUSTOMER_CREDIT: khoá hàng `persons` của chủ số dư làm mutex trước khi kiểm số dư (không âm khi duyệt đồng thời).
 import { randomUUID } from "node:crypto";
+import { authorize } from "@hm/domain";
 import { sql, type Transaction } from "kysely";
 import { type ApprovalRow, registerApprovalExecutor, requestApproval } from "../approvals/approvals.ts";
 import { postEntry } from "../ledger/ledger.ts";
@@ -346,3 +347,84 @@ export function registerDepositExecutors(): void {
 }
 
 registerDepositExecutors();
+
+/**
+ * Hoàn cọc khách sạn lúc check-out (SPEC-reservation-stay S-027, Q-14): trong hạn mức của người trả phòng (lễ tân chỉ lúc
+ * check-out) → chi ngay một bước (Nợ DEPOSIT_LIAB / Có CASH ca của người chi | BANK); vượt hạn mức → lập yêu cầu duyệt
+ * (pending), cọc giữ nguyên ở DEPOSIT_LIAB. Không bao giờ có bút toán REV_* từ cọc.
+ */
+export async function refundDepositAtCheckout(
+  ctx: CommandContext,
+  input: {
+    depositId: string;
+    amount: number;
+    refund: RefundMethod;
+    stayId: string;
+    reason: string;
+    now?: Date;
+  },
+): Promise<{ status: "done"; entryId: string } | { status: "pending_approval"; approvalRequestId: string }> {
+  assertMoney(input.amount, "Số tiền hoàn");
+  const dep = await readDeposit(ctx, input.depositId, true);
+  if (input.amount > Number(dep.balance)) throw refundsExceed(input.amount, Number(dep.balance), "Hoàn");
+  try {
+    authorize(ctx.actor, "deposit.refund", {
+      propertyId: dep.property_id,
+      amount: input.amount,
+      atCheckout: true,
+    });
+  } catch (e) {
+    if ((e as { code?: string }).code !== "APPROVAL_LIMIT_EXCEEDED") throw e;
+    const r = await requestApproval(ctx, {
+      kind: "deposit_refund",
+      amount: input.amount,
+      reason: input.reason,
+      propertyId: dep.property_id,
+      subjectType: "deposit",
+      subjectId: dep.id,
+      payload: { ...refundPayload(input.refund), at_checkout_stay_id: input.stayId },
+    });
+    return { status: "pending_approval", approvalRequestId: r.approvalRequestId };
+  }
+  let payout: Record<string, unknown> & { account: "CASH" | "BANK"; debit: number; credit: number };
+  if (input.refund.method === "cash") {
+    const shiftId = await openShiftOf(ctx.trx, ctx.actor.orgId, ctx.actor.membershipId, dep.property_id);
+    if (!shiftId) throw new CommandError("SHIFT_NOT_OPEN", 409, "Mở ca trước khi chi tiền mặt");
+    payout = { account: "CASH", debit: 0, credit: input.amount, shiftId };
+  } else {
+    if (!UUID.test(input.refund.receivingAccountId))
+      throw new CommandError("VALIDATION_FAILED", 422, "Hoàn chuyển khoản cần tài khoản chi");
+    payout = {
+      account: "BANK",
+      debit: 0,
+      credit: input.amount,
+      receivingAccountId: input.refund.receivingAccountId,
+    };
+  }
+  const day = await sql<{ d: string }>`
+    select app.business_date(${ctx.actor.orgId}, ${dep.property_id}, coalesce(${input.now ?? null}::timestamptz, now()))::text as d`.execute(
+    ctx.trx,
+  );
+  const entryId = await postEntry(ctx.trx, {
+    orgId: ctx.actor.orgId,
+    propertyId: dep.property_id,
+    entryType: "deposit_refunded",
+    businessDate: day.rows[0]?.d as string,
+    sourceDocType: "deposit",
+    sourceDocId: dep.id,
+    createdBy: ctx.actor.membershipId,
+    commandId: ctx.commandId,
+    lines: [{ account: "DEPOSIT_LIAB", debit: input.amount, credit: 0, depositId: dep.id }, payout as never],
+  });
+  await sql`update deposits set refunded_total = refunded_total + ${input.amount}, version = version + 1
+            where organization_id = ${ctx.actor.orgId} and id = ${dep.id}`.execute(ctx.trx);
+  await ctx.audit({
+    action: "deposit.refunded_at_checkout",
+    entityType: "deposit",
+    entityId: dep.id,
+    propertyId: dep.property_id,
+    after: { amount: input.amount, method: input.refund.method, stay_id: input.stayId },
+    reason: input.reason,
+  });
+  return { status: "done", entryId };
+}

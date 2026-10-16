@@ -74,6 +74,7 @@ import {
   reassignDiscrepancy,
   receiveHandover,
 } from "../shifts/shifts.ts";
+import { checkOut } from "../stay/checkout.ts";
 import { getFolio, postCharge, voidCharge } from "../stay/folio.ts";
 import { createRoomType, quote, setRate, updateRoomType } from "../stay/rates.ts";
 import {
@@ -407,6 +408,74 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
     command: "stay.voidCharge",
     input: z.strictObject({ charge_id: uuid, reason: z.string().trim().min(1).max(1000) }),
     run: async (ctx, i) => ({ data: await voidCharge(ctx, { chargeId: i.charge_id, reason: i.reason }) }),
+  }),
+  "stay.checkOut": defineCommand({
+    command: "stay.checkOut",
+    input: z.strictObject({
+      stay_id: uuid,
+      payments: z
+        .array(
+          z.strictObject({
+            method: z.enum(["cash", "bank_transfer"]),
+            amount: positiveMoney,
+            receiving_account_id: uuid.optional(),
+            bank_txn: bankTxn.optional(),
+          }),
+        )
+        .max(10)
+        .optional(),
+      allow_balance: z
+        .strictObject({ approval_request_id: uuid.optional(), debtor_person_id: uuid, due_date: isoDate })
+        .optional(),
+      deposit_refund: z
+        .strictObject({
+          amount: positiveMoney,
+          method: z.enum(["cash", "bank_transfer"]),
+          receiving_account_id: uuid.optional(),
+        })
+        .optional(),
+      deposit_deduction: z
+        .strictObject({ amount: positiveMoney, reason: z.string().trim().min(1).max(1000) })
+        .optional(),
+    }),
+    run: async (ctx, i) => ({
+      data: await checkOut(ctx, {
+        stayId: i.stay_id,
+        ...(i.payments
+          ? {
+              payments: i.payments.map((p) => ({
+                method: p.method,
+                amount: p.amount,
+                ...(p.receiving_account_id ? { receivingAccountId: p.receiving_account_id } : {}),
+                ...(p.bank_txn ? { bankTxn: toBankTxn(p.bank_txn) } : {}),
+              })),
+            }
+          : {}),
+        ...(i.allow_balance
+          ? {
+              allowBalance: {
+                debtorPersonId: i.allow_balance.debtor_person_id,
+                dueDate: i.allow_balance.due_date,
+                ...(i.allow_balance.approval_request_id
+                  ? { approvalRequestId: i.allow_balance.approval_request_id }
+                  : {}),
+              },
+            }
+          : {}),
+        ...(i.deposit_refund
+          ? {
+              depositRefund: {
+                amount: i.deposit_refund.amount,
+                method: i.deposit_refund.method,
+                ...(i.deposit_refund.receiving_account_id
+                  ? { receivingAccountId: i.deposit_refund.receiving_account_id }
+                  : {}),
+              },
+            }
+          : {}),
+        ...(i.deposit_deduction ? { depositDeduction: i.deposit_deduction } : {}),
+      }),
+    }),
   }),
   "reservation.markNoShow": defineCommand({
     command: "reservation.markNoShow",
