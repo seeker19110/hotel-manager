@@ -26,7 +26,9 @@ import * as m0022 from "./0022_mfa_recovery_scope.ts";
 import * as m0023 from "./0023_property_in_use.ts";
 import * as m0024 from "./0024_rate_plans.ts";
 import * as m0025 from "./0025_reservations.ts";
+import * as m0026 from "./0026_stay_checkin.ts";
 import * as m0030 from "./0030_retention.ts";
+import * as m0040 from "./0040_notifications.ts";
 
 export const migrations: Record<string, Migration> = {
   "0001_tenancy": m0001,
@@ -54,5 +56,7 @@ export const migrations: Record<string, Migration> = {
   "0023_property_in_use": m0023,
   "0024_rate_plans": m0024,
   "0025_reservations": m0025,
+  "0026_stay_checkin": m0026,
   "0030_retention": m0030,
+  "0040_notifications": m0040,
 };

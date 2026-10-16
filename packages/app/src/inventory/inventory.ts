@@ -247,6 +247,57 @@ export async function confirmHold(
 }
 
 /**
+ * Allocation `stay` tạo thẳng cho khách vãng lai (SPEC-reservation-stay S-015, DOMAIN-MODEL §4 "walk-in khởi tạo thẳng in_house"):
+ * không qua hold. Dưới khoá phòng, dọn hold hết hạn chồng khoảng; EXCLUDE (INV-I1) quyết người thắng — phòng bận → 409
+ * ROOM_UNAVAILABLE kèm phòng gợi ý, phòng ngừng khai thác → UNIT_OUT_OF_SERVICE. Quyền `reservation.manage` ở cơ sở của phòng.
+ */
+export async function createStayAllocation(
+  ctx: CommandContext,
+  input: { unitId: string; during: Interval; stayId: string; now?: Date },
+): Promise<{ allocationId: string; propertyId: string }> {
+  const now = input.now ?? new Date();
+  const unit = await lockUnit(ctx.trx, ctx.actor.orgId, input.unitId);
+  authorize(ctx.actor, "reservation.manage", { propertyId: unit.property_id });
+  if (unit.availability !== "active")
+    throw new CommandError("UNIT_OUT_OF_SERVICE", 409, "Phòng đang ngừng khai thác");
+  if (!input.during.end)
+    throw new CommandError("VALIDATION_FAILED", 422, "Lượt ở phải có thời điểm kết thúc");
+  const range = rangeLiteral(input.during);
+  const released = await releaseExpiredOverlapping(ctx.trx, ctx.actor.orgId, input.unitId, range, now);
+  for (const id of released) {
+    await ctx.audit({
+      action: "allocation.hold_expired",
+      entityType: "allocation",
+      entityId: id,
+      propertyId: unit.property_id,
+    });
+  }
+  const id = randomUUID();
+  await sql`savepoint stay_alloc_insert`.execute(ctx.trx);
+  try {
+    await sql`
+      insert into allocations (id, organization_id, property_id, unit_id, kind, source_type, source_id, during, created_by)
+      values (${id}, ${ctx.actor.orgId}, ${unit.property_id}, ${input.unitId}, 'stay', 'stay', ${input.stayId}, ${range}::tstzrange,
+              ${ctx.actor.membershipId})`.execute(ctx.trx);
+  } catch (err) {
+    if ((err as { code?: string }).code !== "23P01") throw err;
+    await sql`rollback to savepoint stay_alloc_insert`.execute(ctx.trx);
+    const alternatives = await alternativeUnits(ctx.trx, ctx.actor.orgId, input.unitId, range, now);
+    throw new CommandError("ROOM_UNAVAILABLE", 409, "Phòng đã có người đặt trong khoảng thời gian này", {
+      extensions: { alternatives },
+    });
+  }
+  await ctx.audit({
+    action: "allocation.stay_started",
+    entityType: "allocation",
+    entityId: id,
+    propertyId: unit.property_id,
+    after: { range },
+  });
+  return { allocationId: id, propertyId: unit.property_id };
+}
+
+/**
  * Nhả allocation của một booking/lượt ở khi huỷ hoặc no-show (S-009, S-011): `active=false` tại thời điểm commit, mỗi
  * allocation đúng một lần (chỉ dòng còn `active`). Trả id đã nhả (để audit). Allocation `stay` đang ở (`in_house`) không thuộc đường này.
  */

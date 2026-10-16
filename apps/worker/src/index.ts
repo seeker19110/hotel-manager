@@ -3,9 +3,14 @@ export { detectOverstay, generatePeriods, remindExpiring } from "@hm/app";
 export {
   bankTransactionReceivedHandler,
   expireHolds,
+  NOTIFY_SEND_CRON,
+  NOTIFY_SEND_QUEUE,
+  notificationEventHandlers,
   RETENTION_CRON,
   RETENTION_QUEUE,
+  scheduleNotificationSend,
   scheduleRetention,
+  startNotificationSendWorker,
   startRetentionWorker,
 } from "./jobs.ts";
 export { DEAD_LETTER_QUEUE, ensureQueues, type OutboxJob, relayOutbox, startConsumers } from "./relay.ts";

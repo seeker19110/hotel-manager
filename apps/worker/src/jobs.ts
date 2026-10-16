@@ -3,9 +3,17 @@ import { randomUUID } from "node:crypto";
 import {
   type AutoApplyResult,
   applyBankTransaction,
+  dispatchNotificationEvent,
+  type EmailSender,
+  NOTIFICATION_EVENT_TYPES,
+  type NotificationEvent,
   type RetentionResult,
   type RetentionStorage,
   runRetention,
+  type SendConfig,
+  type SendOptions,
+  type SendSummary,
+  sendDueEmails,
 } from "@hm/app";
 import { withTenant } from "@hm/db";
 import { type Kysely, sql } from "kysely";
@@ -76,6 +84,51 @@ export async function startRetentionWorker(
       opts.onResult?.(r);
       // File lỗi storage: ném để pg-boss ghi nhận và thử lại theo chính sách queue (các file đã xoá không bị xoá lại).
       if (r.files.failed.length > 0) throw new Error(`hạn giữ: ${r.files.failed.length} file chưa xoá được`);
+    },
+  );
+}
+
+/**
+ * Handler `notify.dispatch` cho mọi sự kiện có thông báo (`invoice.issued`, `invoice.overdue`, `lease.expiring`…): gắn vào
+ * `startConsumers`. Idempotent theo `dedupe_key` nên pg-boss giao lại vẫn một thông báo (SPEC-notifications S-003).
+ */
+export function notificationEventHandlers(
+  workerDb: Kysely<unknown>,
+  now: () => Date = () => new Date(),
+): Record<string, (job: NotificationEvent) => Promise<void>> {
+  return Object.fromEntries(
+    NOTIFICATION_EVENT_TYPES.map((type) => [
+      type,
+      async (job: NotificationEvent) => {
+        await dispatchNotificationEvent(workerDb, job, now());
+      },
+    ]),
+  );
+}
+
+/** Queue job gửi email tới hạn (`notify.sendEmail`) và lịch mặc định mỗi phút (khớp mức backoff nhỏ nhất 1 phút). */
+export const NOTIFY_SEND_QUEUE = "notify.sendEmail";
+export const NOTIFY_SEND_CRON = "* * * * *";
+
+export async function scheduleNotificationSend(boss: PgBoss, cron = NOTIFY_SEND_CRON): Promise<void> {
+  await boss.createQueue(NOTIFY_SEND_QUEUE);
+  await boss.schedule(NOTIFY_SEND_QUEUE, cron, {});
+}
+
+/** Nhận job gửi email: mỗi lượt claim các delivery tới hạn rồi gửi qua `EmailSender` (production: adapter thật do chủ dự án chọn). */
+export async function startNotificationSendWorker(
+  boss: PgBoss,
+  workerDb: Kysely<unknown>,
+  sender: EmailSender,
+  cfg: SendConfig,
+  opts: SendOptions & { onResult?: (r: SendSummary) => void; pollingIntervalSeconds?: number } = {},
+): Promise<void> {
+  await boss.createQueue(NOTIFY_SEND_QUEUE);
+  await boss.work(
+    NOTIFY_SEND_QUEUE,
+    { pollingIntervalSeconds: opts.pollingIntervalSeconds ?? 15 },
+    async () => {
+      opts.onResult?.(await sendDueEmails(workerDb, sender, cfg, opts));
     },
   );
 }

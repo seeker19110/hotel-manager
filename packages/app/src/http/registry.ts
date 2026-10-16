@@ -62,6 +62,18 @@ import {
   replaceMeter,
   setServicePrice,
 } from "../metering/meters.ts";
+import { NOTIFICATION_TYPES } from "../notifications/dispatch.ts";
+import {
+  getPreferences,
+  getSettings,
+  listDeliveries,
+  listMine,
+  markAllRead,
+  markRead,
+  retryDelivery,
+  updatePreferences,
+  updateSettings,
+} from "../notifications/notifications.ts";
 import {
   allocatePayment,
   collectCash,
@@ -87,6 +99,7 @@ import {
   listReservations,
   markNoShow,
 } from "../reservation/reservation.ts";
+import { checkIn, getStay, walkIn } from "../reservation/stay.ts";
 import {
   closeShift,
   handoverShift,
@@ -147,7 +160,43 @@ const bookingPayment = z.strictObject({
   bank_txn: bankTxn.optional(),
   bank_transaction_id: uuid.optional(),
 });
+const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 const reasonText = z.string().trim().min(1).max(1000);
+
+// Người lưu trú (SPEC-reservation-stay Q-08): người có sẵn (`person_id`) hoặc tạo mới (`full_name`); giấy tờ loại + số.
+const stayGuest = z
+  .strictObject({
+    person_id: uuid.optional(),
+    full_name: z.string().trim().min(1).max(200).optional(),
+    phone: z.string().trim().min(6).max(20).optional(),
+    nationality: z.string().trim().length(2).optional(),
+    document: z
+      .strictObject({
+        type: z.enum(["cccd", "passport", "other"]),
+        number: z.string().trim().min(5).max(30),
+        file_id: uuid.optional(),
+      })
+      .optional(),
+  })
+  .refine((g) => (g.person_id !== undefined) !== (g.full_name !== undefined), {
+    message: "person_id hoặc full_name",
+  });
+const toGuests = (gs: z.infer<typeof stayGuest>[]) =>
+  gs.map((g) => ({
+    ...(g.person_id ? { personId: g.person_id } : {}),
+    ...(g.full_name ? { fullName: g.full_name } : {}),
+    ...(g.phone ? { phone: g.phone } : {}),
+    ...(g.nationality ? { nationality: g.nationality } : {}),
+    ...(g.document
+      ? {
+          document: {
+            type: g.document.type,
+            number: g.document.number,
+            ...(g.document.file_id ? { fileId: g.document.file_id } : {}),
+          },
+        }
+      : {}),
+  }));
 
 /** Kiểu rộng cho danh mục (mỗi mục giữ schema riêng). */
 // biome-ignore lint/suspicious/noExplicitAny: danh mục không đồng nhất; mỗi mục tự gõ kiểu qua defineCommand
@@ -158,6 +207,82 @@ function defineCommand<I, O>(def: CommandDef<I, O>): CommandDef<I, O> {
 }
 
 export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
+  "notifications.markRead": defineCommand({
+    command: "notifications.markRead",
+    input: z.strictObject({ notification_id: uuid }),
+    run: async (ctx, i) => ({ data: await markRead(ctx, i.notification_id) }),
+  }),
+  "notifications.markAllRead": defineCommand({
+    command: "notifications.markAllRead",
+    input: z.strictObject({}),
+    run: async (ctx) => ({ data: await markAllRead(ctx) }),
+  }),
+  "notifications.updatePreferences": defineCommand({
+    command: "notifications.updatePreferences",
+    input: z.strictObject({
+      preferences: z
+        .array(
+          z.strictObject({
+            type: z.enum(NOTIFICATION_TYPES),
+            channel: z.literal("email").optional(),
+            state: z.enum(["opted_in", "opted_out"]),
+          }),
+        )
+        .min(1)
+        .max(20),
+    }),
+    run: async (ctx, i) => ({
+      data: await updatePreferences(
+        ctx,
+        i.preferences.map((p) => ({ type: p.type, state: p.state })),
+      ),
+    }),
+  }),
+  "notifications.retryDelivery": defineCommand({
+    command: "notifications.retryDelivery",
+    input: z.strictObject({ delivery_id: uuid }),
+    run: async (ctx, i) => ({ data: await retryDelivery(ctx, i.delivery_id) }),
+  }),
+  "notifications.updateSettings": defineCommand({
+    command: "notifications.updateSettings",
+    input: z.strictObject({
+      property_id: uuid,
+      overdue_reminder_offsets_days: z.array(z.number().int().min(0).max(365)).min(1).max(10).optional(),
+      lease_expiry_offsets_days: z.array(z.number().int().min(0).max(365)).min(1).max(10).optional(),
+      stay_notice_deadline: z
+        .strictObject({
+          before_time: hhmm.optional(),
+          late_arrival_after: hhmm.optional(),
+          late_deadline_time: hhmm.optional(),
+          foreign_guest_hours: z.number().int().min(1).max(72).optional(),
+        })
+        .nullable()
+        .optional(),
+      send_window_start: hhmm.optional(),
+      send_window_end: hhmm.optional(),
+    }),
+    run: async (ctx, i) => ({
+      data: await updateSettings(ctx, {
+        propertyId: i.property_id,
+        ...(i.overdue_reminder_offsets_days
+          ? { overdueReminderOffsetsDays: i.overdue_reminder_offsets_days }
+          : {}),
+        ...(i.lease_expiry_offsets_days ? { leaseExpiryOffsetsDays: i.lease_expiry_offsets_days } : {}),
+        ...(i.stay_notice_deadline === undefined
+          ? {}
+          : {
+              stayNoticeDeadline:
+                i.stay_notice_deadline === null
+                  ? null
+                  : (Object.fromEntries(
+                      Object.entries(i.stay_notice_deadline).filter(([, v]) => v !== undefined),
+                    ) as Record<string, string | number>),
+            }),
+        ...(i.send_window_start ? { sendWindowStart: i.send_window_start } : {}),
+        ...(i.send_window_end ? { sendWindowEnd: i.send_window_end } : {}),
+      }),
+    }),
+  }),
   "approval.request": defineCommand({
     command: "approval.request",
     // Không nhận `payload` từ client: ngữ cảnh duyệt do server suy ra (executor), không tin client.
@@ -878,6 +1003,54 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
       data: await markNoShow(ctx, { reservationId: i.reservation_id, reason: i.reason }),
     }),
   }),
+  "stay.checkIn": defineCommand({
+    command: "stay.checkIn",
+    input: z.strictObject({
+      reservation_id: uuid,
+      stay_id: uuid.optional(),
+      guests: z.array(stayGuest).min(1).max(20),
+    }),
+    run: async (ctx, i) => ({
+      data: await checkIn(ctx, {
+        reservationId: i.reservation_id,
+        ...(i.stay_id ? { stayId: i.stay_id } : {}),
+        guests: toGuests(i.guests),
+      }),
+    }),
+  }),
+  "stay.walkIn": defineCommand({
+    command: "stay.walkIn",
+    input: z.strictObject({
+      unit_id: uuid,
+      departure_date: isoDate,
+      guests: z.array(stayGuest).min(1).max(20),
+      payment: bookingPayment.optional(),
+    }),
+    run: async (ctx, i) => ({
+      data: await walkIn(ctx, {
+        unitId: i.unit_id,
+        departureDate: i.departure_date,
+        guests: toGuests(i.guests),
+        ...(i.payment
+          ? {
+              payment: {
+                kind: i.payment.kind,
+                method: i.payment.method,
+                amount: i.payment.amount,
+                ...(i.payment.receiving_account_id
+                  ? { receivingAccountId: i.payment.receiving_account_id }
+                  : {}),
+                ...(i.payment.bank_txn ? { bankTxn: toBankTxn(i.payment.bank_txn) } : {}),
+                ...(i.payment.bank_transaction_id
+                  ? { bankTransactionId: i.payment.bank_transaction_id }
+                  : {}),
+              },
+            }
+          : {}),
+      }),
+      httpStatus: 201,
+    }),
+  }),
   "lease.activate": defineCommand({
     command: "lease.activate",
     input: z.strictObject({ lease_id: uuid }),
@@ -1176,6 +1349,52 @@ type AnyQuery = QueryDef<any, any>;
 
 /** Danh mục query công khai qua `GET /api/v1/<module>/<query>` — chỉ đọc. */
 export const QUERIES: Readonly<Record<string, AnyQuery>> = {
+  "notifications.listMine": {
+    query: "notifications.listMine",
+    input: z.strictObject({
+      limit: z.coerce.number().int().min(1).max(100).optional(),
+      cursor: z.string().min(1).max(400).optional(),
+      unread: z.enum(["true", "false"]).optional(),
+    }),
+    run: (db, actor, i: { limit?: number; cursor?: string; unread?: "true" | "false" }) =>
+      listMine(db, actor, {
+        ...(i.limit === undefined ? {} : { limit: i.limit }),
+        ...(i.cursor ? { cursor: i.cursor } : {}),
+        unreadOnly: i.unread === "true",
+      }),
+  },
+  "notifications.getPreferences": {
+    query: "notifications.getPreferences",
+    input: z.strictObject({}),
+    run: (db, actor) => getPreferences(db, actor),
+  },
+  "notifications.getSettings": {
+    query: "notifications.getSettings",
+    input: z.strictObject({ property_id: uuid }),
+    run: (db, actor, i: { property_id: string }) => getSettings(db, actor, i.property_id),
+  },
+  "notifications.listDeliveries": {
+    query: "notifications.listDeliveries",
+    input: z.strictObject({
+      status: z.enum(["queued", "sending", "sent", "retrying", "failed", "dead", "suppressed"]).optional(),
+      type: z.enum(NOTIFICATION_TYPES).optional(),
+      recipient_person_id: uuid.optional(),
+      limit: z.coerce.number().int().min(1).max(200).optional(),
+      cursor: z.string().min(1).max(400).optional(),
+    }),
+    run: (
+      db,
+      actor,
+      i: { status?: string; type?: string; recipient_person_id?: string; limit?: number; cursor?: string },
+    ) =>
+      listDeliveries(db, actor, {
+        ...(i.status ? { status: i.status } : {}),
+        ...(i.type ? { type: i.type } : {}),
+        ...(i.recipient_person_id ? { recipientPersonId: i.recipient_person_id } : {}),
+        ...(i.limit === undefined ? {} : { limit: i.limit }),
+        ...(i.cursor ? { cursor: i.cursor } : {}),
+      }),
+  },
   "inventory.getCalendar": {
     query: "inventory.getCalendar",
     input: z.strictObject({
@@ -1282,6 +1501,11 @@ export const QUERIES: Readonly<Record<string, AnyQuery>> = {
     query: "reservation.get",
     input: z.strictObject({ reservation_id: uuid }),
     run: (db, actor, i: { reservation_id: string }) => getReservation(db, actor, i.reservation_id),
+  },
+  "stay.get": {
+    query: "stay.get",
+    input: z.strictObject({ stay_id: uuid }),
+    run: (db, actor, i: { stay_id: string }) => getStay(db, actor, i.stay_id),
   },
   "reservation.list": {
     query: "reservation.list",

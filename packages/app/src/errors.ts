@@ -65,6 +65,9 @@ export const ERROR_CODES = {
   REFUND_EXCEEDS_BALANCE: { status: 409, source: "SPEC-ledger-payments §6" },
   RATE_NOT_CONFIGURED: { status: 422, source: "SPEC-reservation-stay §6" },
   CAPACITY_EXCEEDED: { status: 422, source: "SPEC-reservation-stay §6" },
+  ROOM_NOT_READY: { status: 409, source: "SPEC-reservation-stay §6" },
+  PREFERENCE_REQUIRED: { status: 422, source: "SPEC-notifications §6" },
+  DELIVERY_NOT_RETRYABLE: { status: 409, source: "SPEC-notifications §6" },
   DUPLICATE: { status: 409, source: "unique 23505 chưa có mã nghiệp vụ riêng" },
 } as const satisfies Record<string, ErrorSpec>;
 

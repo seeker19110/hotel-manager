@@ -10,6 +10,7 @@ export const SECRET_KEYS = [
   "SMTP_URL",
   "PGBACKREST_REPO_CIPHER_PASS",
   "SIM_WEBHOOK_SECRET",
+  "NOTIFICATION_TOKEN_SECRET",
 ] as const;
 
 const url = z.url();
@@ -32,6 +33,8 @@ export const envSchema = z.object({
   PGBACKREST_REPO_CIPHER_PASS: z.string().min(16).optional(),
   /** HMAC của webhook ngân hàng MÔ PHỎNG (API-CONTRACT §3); không đặt → `/api/v1/webhooks/sim/*` trả 404. */
   SIM_WEBHOOK_SECRET: z.string().min(32, "tối thiểu 32 ký tự").optional(),
+  /** Khoá HMAC ký token huỷ đăng ký trong email (SPEC-notifications S-010); không đặt → liên kết huỷ đăng ký tắt. */
+  NOTIFICATION_TOKEN_SECRET: z.string().min(32, "tối thiểu 32 ký tự").optional(),
 });
 
 export type AppConfig = Readonly<z.infer<typeof envSchema>>;

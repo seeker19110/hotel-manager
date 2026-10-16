@@ -998,12 +998,14 @@ describe("S-010 chuyển trạng thái không hợp lệ", () => {
       for (const to of stayMachine.states) {
         if (from === to) continue;
         const id = randomUUID();
+        // Mỗi hàng một phòng riêng: chỉ mục `uq_stays_unit_in_house` (0026, T-205) chỉ cho một lượt in_house mỗi phòng.
+        const unitId = await newUnit("SM");
         // Dựng hàng ở trạng thái `from` (tắt trigger khi chèn), cam kết, rồi thử chuyển ở transaction khác (RI không kiểm lại khoá không đổi).
         await t.admin.transaction().execute(async (trx) => {
           await sql`set local session_replication_role = replica`.execute(trx);
           await sql`insert into stays (id, organization_id, property_id, reservation_item_id, unit_id, status, primary_guest_person_id,
                                        checked_in_at, checked_out_at)
-                    values (${id}, ${A.orgId}, ${A.propertyId}, ${randomUUID()}, ${A.unitId}, ${from}, ${A.ownerPersonId}, now(), now())`.execute(
+                    values (${id}, ${A.orgId}, ${A.propertyId}, ${randomUUID()}, ${unitId}, ${from}, ${A.ownerPersonId}, now(), now())`.execute(
             trx,
           );
         });

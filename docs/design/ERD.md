@@ -393,7 +393,7 @@ Loại: M
 | retention_until | date | có | | Hạn giữ riêng; quá hạn thì worker ẩn danh |
 | anonymized_at | timestamptz | có | | Xoá `doc_number` và `file_id`, giữ tombstone (INV-G7) |
 
-- Khoá/index: `ix (organization_id, person_id)`.
+- Khoá/index: `ix (organization_id, person_id)`; `UNIQUE (organization_id, person_id, doc_type, doc_number) WHERE doc_number IS NOT NULL` (T-205, migration 0026: ghi lại giấy tờ cũ thì tái dùng dòng, không nhân bản PII).
 - RLS/quyền đặc biệt: **chỉ** `owner`, `manager`, `front_desk` (quyền `pii.read_sensitive`) và `tenant` đọc hàng của chính mình; `housekeeping`, `maintenance`, `accountant`, `guest` không thấy hàng nào (API trả `404`, truy cập bị từ chối được ghi audit; xin URL ký file của giấy tờ cũng `404`). Không cache offline; không vào `outbox.payload`, thông báo, xuất toàn bộ dữ liệu (SPEC-audit Q-05).
 - Bất biến: INV-G1, INV-G7, kế hoạch §15–§16 (NĐ 356/2025 [T]).
 
@@ -818,7 +818,7 @@ Loại: M
 
 - Khoá/index: `UNIQUE (organization_id, property_id, id)`; `UNIQUE (organization_id, reservation_item_id)` (pilot một stay mỗi dòng phòng); `ix (organization_id, unit_id, status)`.
 - Ràng buộc đặc biệt: `CHECK (status NOT IN ('in_house','checked_out') OR checked_in_at IS NOT NULL)`; `CHECK (status <> 'checked_out' OR checked_out_at IS NOT NULL)`. Stay `no_show`/`cancelled` không được đếm là khách sắp đến. Check-out trong **một** transaction: stay, booking, allocation (`end`), `units.housekeeping_status='dirty'` và một `tasks` dọn phòng.
-- RLS/quyền đặc biệt: `housekeeping` không đọc (folio/khách); như `reservations` (T-204: bảng tạo ở migration 0025 vì `reservation.confirm` tạo lượt ở `expected`; hủy/no-show đổi trạng thái; check-in/out ở T-205/T-206). Trigger `app.stay_guard`: INSERT chỉ `expected`/`in_house`; UPDATE theo bảng chuyển khớp `stayMachine` (`no_show`/`cancelled`/`checked_out` không đi tiếp → `23514` + HINT `INVALID_TRANSITION`). FK ghép `charges.stay_id`, `invoices.stay_id` → `stays` thêm ở 0025.
+- RLS/quyền đặc biệt: `housekeeping` không đọc (folio/khách); như `reservations` (T-204: bảng tạo ở migration 0025 vì `reservation.confirm` tạo lượt ở `expected`; hủy/no-show đổi trạng thái; check-in/out ở T-205/T-206). Trigger `app.stay_guard`: INSERT chỉ `expected`/`in_house`; UPDATE theo bảng chuyển khớp `stayMachine` (`no_show`/`cancelled`/`checked_out` không đi tiếp → `23514` + HINT `INVALID_TRANSITION`). FK ghép `charges.stay_id`, `invoices.stay_id` → `stays` thêm ở 0025. T-205 (migration 0026): chỉ mục duy nhất một phần `uq_stays_unit_in_house (organization_id, unit_id) WHERE status='in_house'` (một lượt đang ở mỗi phòng); check-in (`stay.checkIn`) đặt `checked_in_at`, `primary_guest_person_id`, `additional_guest_person_ids`; walk-in tạo thẳng `in_house` cùng booking `walk_in`.
 - Bất biến: INV-I1/I4 (qua allocation), INV-F5 (cọc không tự trừ vào nợ).
 
 ### `residence_notices`
@@ -1595,7 +1595,8 @@ Loại: M (chỉ `read_at`)
 | severity | text | không | `CHECK (severity IN ('normal','urgent','overdue'))`, mặc định `'normal'` | Mức "Khẩn", "Quá hạn" của nhắc lưu trú; đề xuất |
 | title | text | không | | Không chứa PII nhạy cảm (CCCD, SĐT đầy đủ, nội dung hợp đồng) |
 | body | text | không | | |
-| link | text | có | | |
+| link | text | có | `CHECK (link IS NULL OR link ~ '^/[^/\\]')` | Đường dẫn tương đối trong app (không URL ngoài) |
+| params | jsonb | không | mặc định `'{}'`, `CHECK (jsonb_typeof(params)='object')` | Tham số **không PII** (id phiếu, nhãn kỳ, hạn…) để dựng email tối thiểu; T-211 |
 | dedupe_key | text | không | | Vd `invoice_overdue:{invoice_id}:2026-10-11` |
 | read_at | timestamptz | có | | |
 

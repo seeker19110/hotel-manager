@@ -58,3 +58,17 @@
 - Chọn: delete_after = ngày tải lên + 90 ngày (commit/huỷ đặt lại 30 ngày); production fail-closed khi chỉ có eicarOnlyScanner (upload trả 500 cho tới khi có ClamdScanner T-210)
 - Lý do (tiêu chí chất lượng cuối): (1) không giữ PII vô hạn trong lô bỏ dở; không coi EICAR-only là quét thật ở production (SPEC S-015, THREAT-MODEL)
 - Đường lùi: Đổi hằng số ngày; cấu hình scanner
+
+### D-009 · 2026-10-16T02:17:21+00:00 · T-205: thời điểm ghi tiền phòng từng đêm và quy tắc giấy tờ khi nhận phòng (SPEC hở/Q-11)
+
+- Phương án: (1) Ghi charges tiền phòng mỗi đêm ngay lúc check-in/walk-in theo snapshot giá (SPEC S-012, đề xuất Q-11), chỉ mục duy nhất mỗi đêm một khoản; giấy tờ bắt buộc mọi người lưu trú (trẻ em loại other), nước ngoài bắt buộc hộ chiếu, CCCD 9/12 số, người đại diện có SĐT; check-in chỉ trong [ngày đến, ngày đi) · (2) Để T-206 ghi tiền phòng lúc check-out/đêm; giấy tờ chỉ bắt buộc người đại diện
+- Chọn: Ghi charges tiền phòng mỗi đêm ngay lúc check-in/walk-in theo snapshot giá (SPEC S-012, đề xuất Q-11), chỉ mục duy nhất mỗi đêm một khoản; giấy tờ bắt buộc mọi người lưu trú (trẻ em loại other), nước ngoài bắt buộc hộ chiếu, CCCD 9/12 số, người đại diện có SĐT; check-in chỉ trong [ngày đến, ngày đi)
+- Lý do (tiêu chí chất lượng cuối): (1) khớp SPEC S-012 và ví dụ folio S-017 (đủ phí đêm trước khi trả phòng, không job theo đồng hồ — S-016 a), ràng buộc DB chống ghi trùng; giấy tờ theo D-002/Q-08 và nghĩa vụ thông báo lưu trú
+- Đường lùi: Bỏ ghi charges ở checkIn, chuyển sang T-206; nới CHECK giấy tờ
+
+### D-010 · 2026-10-16T02:19:40+00:00 · T-211: các điểm SPEC hở của thông báo (retry, mặc định opt-in, email tối thiểu, huỷ đăng ký GET, quyền xem lịch sử gửi)
+
+- Phương án: (1) 1 lần gửi + 5 lần thử lại (1ph/5ph/30ph/2h/6h) rồi dead; chưa có preference = opted_in cho thông báo giao dịch; stay_notice_due chỉ in-app; email không ghi số tiền (params jsonb không PII); huỷ đăng ký qua GET có token HMAC 30 ngày (đảo ngược được); listDeliveries chỉ owner/manager · (2) Tổng 5 lần gửi; mặc định opted_out; huỷ đăng ký POST one-click (cần đổi cấu hình same-origin của cổng)
+- Chọn: 1 lần gửi + 5 lần thử lại (1ph/5ph/30ph/2h/6h) rồi dead; chưa có preference = opted_in cho thông báo giao dịch; stay_notice_due chỉ in-app; email không ghi số tiền (params jsonb không PII); huỷ đăng ký qua GET có token HMAC 30 ngày (đảo ngược được); listDeliveries chỉ owner/manager
+- Lý do (tiêu chí chất lượng cuối): (1) không đổi cấu hình cổng/bảo mật (POST khác origin đang bị chặn có chủ đích); email tối thiểu không lộ số tiền (Q-03); (3) khớp S-004 attempts 1…5
+- Đường lùi: Đổi hằng số backoff; thêm route POST khi chủ dự án duyệt miễn trừ same-origin

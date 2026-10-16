@@ -174,7 +174,7 @@ Bối cảnh chung: tổ chức B, cơ sở `HS1` (múi giờ `Asia/Ho_Chi_Minh`
 ## 6. Lỗi
 | Mã lỗi | Khi nào | HTTP | Thông điệp cho người dùng | Scenario |
 |---|---|---|---|---|
-| `NOT_FOUND` | Thông báo không thuộc người dùng | 404 | Không tìm thấy dữ liệu. | S-017 |
+| `NOT_FOUND` | Thông báo/delivery không thuộc phạm vi người dùng; token huỷ đăng ký sai chữ ký hoặc bị sửa (không phân biệt lý do) | 404 | Không tìm thấy dữ liệu. | S-017 |
 | `FORBIDDEN` | Không có quyền xem lịch sử/cấu hình | 403 | Bạn không có quyền thực hiện thao tác này. | S-018 |
 | `VALIDATION_FAILED` | Cấu hình sai (giờ không hợp lệ, mốc âm) | 422 | Thông tin chưa hợp lệ: {trường}. | — |
 | `PREFERENCE_REQUIRED` | Tắt loại bắt buộc | 422 | Loại thông báo này cần thiết cho tài khoản và không tắt được. | S-011 |
@@ -225,3 +225,4 @@ Không áp dụng — tính năng không dùng model.
 |---|---|---|---|---|
 | 1 | 2026-10-15 | tạo | G3 cho F-011 | (chưa) |
 | 2 | 2026-10-15 | sửa theo review độc lập: tham chiếu đúng `stay.exportResidenceNotice`/`stay.markNoticeSubmitted` và bảng `residence_notices` (S-014, S-016); thêm S-020 (chưa cấu hình hạn), S-021 (quá hạn); đóng Q-07 | review O8, G5 | (chưa) |
+| 3 | 2026-10-16 | ghi quyết định khi cài T-211 (chờ phiên chính duyệt, D-NNN): (a) retry = 1 lần gửi đầu + 5 lần thử lại (chờ 1 ph, 5 ph, 30 ph, 2 giờ, 6 giờ), lần thứ 6 lỗi tạm → `dead` (`attempts` 1…5 ở `retrying` — S-004); (b) chưa có hàng `notification_preferences` = `opted_in` (thông báo giao dịch); (c) `stay_notice_due` chỉ trong app (không delivery email); (d) `notifications.params` (jsonb không PII) để dựng email tối thiểu; (e) `notifications.unsubscribe` là `GET /api/v1/notifications/unsubscribe?token=` (liên kết trong email; POST bị chặn bởi kiểm same-origin của proxy); (f) `listDeliveries` chỉ `owner`/`manager`; (g) chưa giới hạn tốc độ 10 email/giây/tổ chức (mới giới hạn lô mỗi lượt) | cài đặt T-211 | (chưa) |

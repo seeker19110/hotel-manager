@@ -71,7 +71,7 @@ export interface ReservationView {
   items: ReservationItemView[];
 }
 
-interface ReservationRow {
+export interface ReservationRow {
   id: string;
   property_id: string;
   number: string;
@@ -80,7 +80,7 @@ interface ReservationRow {
   booker_person_id: string;
 }
 
-interface ItemRow {
+export interface ItemRow {
   id: string;
   unit_id: string;
   room_type_id: string;
@@ -96,7 +96,7 @@ const iso = (d: Date | null | undefined): string | null => (d ? new Date(d).toIS
 // ---------- đọc/khoá ----------
 
 /** Đọc (RLS) → kiểm quyền → khoá hàng: không đọc được (khác tổ chức, buồng phòng) ⇒ 404; thiếu quyền ghi ⇒ 403 trước khi giữ khoá. */
-async function lockReservation(ctx: CommandContext, reservationId: string): Promise<ReservationRow> {
+export async function lockReservation(ctx: CommandContext, reservationId: string): Promise<ReservationRow> {
   if (!UUID.test(reservationId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy booking");
   const read = (lock: boolean) =>
     sql<ReservationRow>`
@@ -113,7 +113,11 @@ async function lockReservation(ctx: CommandContext, reservationId: string): Prom
 }
 
 /** Dòng phòng theo `unit_id` tăng dần (thứ tự khoá phòng thống nhất, không deadlock giữa hai booking nhiều phòng). */
-async function loadItems(ctx: CommandContext, reservationId: string, lock = false): Promise<ItemRow[]> {
+export async function loadItems(
+  ctx: CommandContext,
+  reservationId: string,
+  lock = false,
+): Promise<ItemRow[]> {
   const r = await sql<ItemRow>`
     select id, unit_id, room_type_id, arrival_date::text, departure_date::text, guests, nightly_prices, room_total::text
     from reservation_items where organization_id = ${ctx.actor.orgId} and reservation_id = ${reservationId}
@@ -121,7 +125,7 @@ async function loadItems(ctx: CommandContext, reservationId: string, lock = fals
   return r.rows;
 }
 
-async function loadStays(ctx: CommandContext, itemIds: readonly string[], lock = false) {
+export async function loadStays(ctx: CommandContext, itemIds: readonly string[], lock = false) {
   if (itemIds.length === 0) return [];
   const r = await sql<{ id: string; reservation_item_id: string; status: string }>`
     select id, reservation_item_id, status from stays
@@ -164,7 +168,7 @@ export async function stayInterval(
   return { start: new Date(row.s), end: new Date(row.e) };
 }
 
-async function businessDateAt(ctx: CommandContext, propertyId: string, at: Date): Promise<string> {
+export async function businessDateAt(ctx: CommandContext, propertyId: string, at: Date): Promise<string> {
   const r = await sql<{ d: string }>`
     select app.business_date(${ctx.actor.orgId}, ${propertyId}, ${at}::timestamptz)::text as d`.execute(
     ctx.trx,
@@ -172,7 +176,7 @@ async function businessDateAt(ctx: CommandContext, propertyId: string, at: Date)
   return r.rows[0]?.d as string;
 }
 
-function snapshotOf(q: Quote): NightSnapshot[] {
+export function snapshotOf(q: Quote): NightSnapshot[] {
   return q.nights.map((n) => ({
     business_date: n.businessDate,
     amount: n.amount,
@@ -189,12 +193,12 @@ function toRates(nights: readonly NightSnapshot[]): NightlyRate[] {
   }));
 }
 
-function transitionError(from: string, to: string, message: string): CommandError {
+export function transitionError(from: string, to: string, message: string): CommandError {
   return new CommandError("INVALID_TRANSITION", 409, message, { extensions: { from, to } });
 }
 
 /** Lỗi theo `bookingMachine` (DOMAIN-MODEL §4) — cùng bảng với trigger CSDL; từ chối được audit bởi pipeline. */
-function assertBooking(from: string, to: Parameters<typeof bookingMachine.canTransition>[1]): void {
+export function assertBooking(from: string, to: Parameters<typeof bookingMachine.canTransition>[1]): void {
   bookingMachine.assertTransition(from as Parameters<typeof bookingMachine.canTransition>[0], to);
 }
 
@@ -262,7 +266,7 @@ async function readView(
   };
 }
 
-async function mustView(ctx: CommandContext, reservationId: string): Promise<ReservationView> {
+export async function mustView(ctx: CommandContext, reservationId: string): Promise<ReservationView> {
   const v = await readView(ctx.trx, ctx.actor.orgId, reservationId);
   if (!v) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy booking");
   return v;
@@ -660,7 +664,7 @@ function holdExpired(
   });
 }
 
-async function takeBookingPayment(
+export async function takeBookingPayment(
   ctx: CommandContext,
   res: ReservationRow,
   p: BookingPaymentInput,
