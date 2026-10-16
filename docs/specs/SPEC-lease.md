@@ -163,6 +163,12 @@ Dữ liệu nền chung (fixture `lease-basic`): cơ sở P1 (trọ, `Asia/Ho_Ch
 - When batch commit; rồi M gọi `billing.submitForReview`; sau đó batch `meter_readings` (SPEC-import S-010) commit với `read_on` = `cutoff_on` cho mọi công tơ điện/nước của U101
 - Then `handovers` loại `move_in` có `source='import'` và `readings_pending=true` (**chọn một cách:** bàn giao từ import không bắt buộc chỉ số trên cùng dòng, nhưng bị đánh dấu `readings_pending`); `billing.submitForReview` → 409 `READINGS_INCOMPLETE` kèm U101; sau khi chỉ số `import` đã duyệt cho đủ công tơ thì `readings_pending=false` và gửi duyệt được, kỳ thu dùng chỉ số đó làm chỉ số đầu. Bàn giao tạo thủ công (`source='manual'`) vẫn bắt buộc đủ chỉ số (S-007); `readings_pending=true` với `source='manual'` bị từ chối
 
+### S-027 Hợp đồng không thời hạn đổi giá bằng phụ lục (D-007, 2026-10-16)
+- Given hợp đồng `active`, phiên bản 1 đã ký: 3.000.000 đ, `effective_from`=2026-09-01, `effective_to`=NULL (không thời hạn)
+- When M gọi `lease.renew` phiên bản 2: 3.300.000 đ, `effective_from`=2026-12-01, `effective_to`=NULL
+- Then trong một transaction: phiên bản 1 được đặt `superseded_on`=2026-12-01 (chỉ NULL → ngày, một lần), `terms_snapshot`/`terms_hash` **không đổi**; phiên bản 2 có hiệu lực từ 2026-12-01; kỳ 11/2026 dùng 3.000.000 đ, kỳ 12/2026 dùng 3.300.000 đ; audit `lease.version_superseded`
+- And sửa `superseded_on` lần hai, xoá về NULL hay sửa cột khác của phiên bản đã ký → `409 DOCUMENT_IMMUTABLE`; phụ lục có `effective_from` ≤ `effective_from` của phiên bản 1 → `409 LEASE_VERSION_OVERLAP`; phiên bản có `effective_to` xác định vẫn theo S-011/S-012 (không dùng `superseded_on`)
+
 ## 3. Ca biên (8 nhóm)
 | Nhóm | Ca cụ thể | Hành vi mong đợi | Scenario |
 |---|---|---|---|
@@ -278,4 +284,5 @@ Không áp dụng (tính năng không dùng model).
 | Phiên bản | Ngày | Gì | Vì sao | Duyệt |
 |---|---|---|---|---|
 | 1 | 2026-10-15 | Tạo | G3 cho F-003 | (chưa) |
+| 3 | 2026-10-16 | Thêm S-027: phụ lục cho hợp đồng không thời hạn qua `lease_versions.superseded_on` | D-007 (treo từ review đợt 2) | phiên chính tự duyệt |
 | 2 | 2026-10-15 | Sửa theo review độc lập: S-017 phí hư hỏng thành phiếu trước, khấu trừ ≤ AR (R3); `lease.hold` + S-023/S-024 (O7); S-009 → 404 (O6); bàn giao từ import `readings_pending` + S-026 (G18); mốc giờ allocation (G19); `LEASE_TERMS_IMMUTABLE` → `DOCUMENT_IMMUTABLE`; đóng câu hỏi bảng/`cancelled` (G5) | Review độc lập; DOMAIN-MODEL v1.2 | (chưa) |

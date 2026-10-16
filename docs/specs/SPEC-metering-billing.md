@@ -167,7 +167,7 @@ Fixture `billing-basic`: cơ sở P1 (`Asia/Ho_Chi_Minh`, làm tròn `HALF_UP_1`
 | Thực thể | Trường chính | Kiểu | Ràng buộc | Ai đọc/ghi |
 |---|---|---|---|---|
 | `services` | `code`, `name`, `kind` (`fixed_per_unit`/`per_person`/`metered`/`one_time`), `revenue_account` (`REV_ROOM`/`REV_UTIL`/`REV_SERVICE`/`REV_FEE`), `meter_kind` | enum | Danh mục theo cơ sở; soft delete (INV-G7) | owner/manager |
-| `service_prices` | `service_id`, `unit_price`, `effective_from`, `effective_to`, `basis_note` (căn cứ) | numeric, date, text | EXCLUDE chồng hiệu lực; giá do cơ sở nhập | owner/manager |
+| `service_prices` | `service_id`, `unit_price`, `effective_from`, `effective_to`, `basis_note` (căn cứ) | numeric, date, text | EXCLUDE chồng hiệu lực; giá do cơ sở nhập | owner (D-008, 2026-10-16: theo ma trận quyền SPEC-access-and-property 5.3 "Loại phòng, bảng giá"; mở cho manager = đổi ma trận + dòng này) |
 | `meters` | `unit_id`, `kind` (`electric`/`water`), `serial`, `installed_on`, `removed_on` | | 1 công tơ đang dùng mỗi (phòng, loại) | manager |
 | `meter_readings` | `meter_id`, `read_on`, `value`, `photo_file_id`, `status` (`draft`/`approved`), `source` (`handover`/`period`/`replacement`/`import`) | date, numeric | `value` ≥ chỉ số đã duyệt trước (trừ `replacement`) | manager/front_desk ghi; maintenance nhập nếu được giao |
 | `meter_events` | `meter_id`, `kind` (`replacement`), `old_final_value`, `new_meter_id`, `new_initial_value`, `approved_by` | | Cần quyền `meter.replace` | manager/owner |

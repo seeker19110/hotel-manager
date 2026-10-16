@@ -3,7 +3,7 @@
 | Trường | Giá trị |
 |---|---|
 | ID tính năng | F-002 (luồng: R-002, R-003, R-004) |
-| Trạng thái | Draft — chờ duyệt |
+| Trạng thái | Approved — câu [chặn] chốt theo PLAN đợt 3 (tham số hoá, D-002) |
 | Phiên bản | 2 — thay đổi: xem cuối file |
 | Chủ spec | (chưa gán) · Duyệt bởi (chưa) |
 | Hồ sơ/quy mô | web-app / M |
@@ -226,7 +226,7 @@ Không áp dụng — tính năng không dùng model.
 - `allocation.hold_created`, `allocation.hold_expired`, `allocation.conflict_rejected` (nguồn: R-004), `allocation.moved`, `block.approved`, `exception.opened` / `exception.resolved` → M-04 (sai lệch tồn), M-05 (tác vụ lõi theo `property_id`).
 
 ## 10. Câu hỏi mở (0 câu [chặn] trước khi Approved)
-- [ ] Q-01 TTL mặc định của hold — [chặn T050] — hỏi: PO — đề xuất: 15 phút cho booking tại quầy, cấu hình theo cơ sở; giữ chỗ hợp đồng thuê (`lease.hold`, F-003) là allocation `hold` có TTL riêng 48 giờ (cấu hình theo cơ sở; xem SPEC-lease). Kế hoạch chỉ ghi "có hạn", chưa có số.
+- [x] Q-01 TTL mặc định của hold — [chặn T050] — hỏi: PO — đề xuất: 15 phút cho booking tại quầy, cấu hình theo cơ sở; giữ chỗ hợp đồng thuê (`lease.hold`, F-003) là allocation `hold` có TTL riêng 48 giờ (cấu hình theo cơ sở; xem SPEC-lease). Kế hoạch chỉ ghi "có hạn", chưa có số. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** 15 phút cho booking (`properties.hold_ttl_minutes`, đã có), 48 giờ cho giữ chỗ hợp đồng (`lease_hold_ttl_hours`).
 - [ ] Q-02 Buffer dọn phòng giữa hai khách: dùng giờ nhận/trả (khoảng 12:00→14:00 tự nhiên) hay block buffer riêng (INV-I2) — [không chặn] — hỏi: PO — đề xuất: V1 không tạo buffer tự động; khoảng trống nhận/trả đóng vai buffer, `ready_for_arrival` chặn check-in khi phòng chưa sạch.
 - [ ] Q-03 Ngưỡng quá hạn trước khi tạo `STAY_OVERSTAY` — [không chặn] — hỏi: PO — đề xuất: 60 phút sau giờ trả dự kiến (cấu hình theo cơ sở).
 - [ ] Q-04 Mốc giờ của allocation hợp đồng (ngày bắt đầu/kết thúc → `timestamptz`) — [không chặn F-002, chặn F-003] — hỏi: PO — đề xuất: 00:00 giờ địa phương của ngày bàn giao đến 00:00 ngày sau ngày trả.

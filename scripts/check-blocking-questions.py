@@ -2,6 +2,7 @@
 """Cổng "0 câu [chặn]" (DoR của SPEC): exit ≠ 0 nếu SPEC được nêu còn câu hỏi `[chặn…]` chưa tick.
 
 Dùng: python3 scripts/check-blocking-questions.py lease metering-billing …   (tên theo docs/specs/SPEC-<tên>.md)
+      python3 scripts/check-blocking-questions.py --approved   (mọi SPEC có "Trạng thái | Approved" — hàng rào DoR)
 Câu `[không chặn]` không tính. Câu đã quyết ghi `- [x] … — **Quyết …:** …` (một chỗ quyết, có ngày).
 """
 
@@ -12,6 +13,7 @@ import sys
 from pathlib import Path
 
 OPEN_BLOCKING = re.compile(r"^\s*- \[ \] .*\[chặn[^\]]*\]")
+APPROVED = re.compile(r"^\|\s*Trạng thái\s*\|\s*Approved\b", re.MULTILINE)
 SPECS_DIR = Path(__file__).resolve().parent.parent / "docs" / "specs"
 
 
@@ -20,7 +22,21 @@ def open_blocking(text: str) -> list[tuple[int, str]]:
     return [(i, line.strip()[:160]) for i, line in enumerate(text.splitlines(), 1) if OPEN_BLOCKING.match(line)]
 
 
+def approved_specs(specs_dir: Path = SPECS_DIR) -> list[str]:
+    """Tên các SPEC đã Approved (bảng đầu file) — Approved mà còn câu [chặn] là vi phạm DoR."""
+    return sorted(
+        p.stem.removeprefix("SPEC-")
+        for p in specs_dir.glob("SPEC-*.md")
+        if APPROVED.search(p.read_text(encoding="utf-8"))
+    )
+
+
 def main(argv: list[str]) -> int:
+    if argv == ["--approved"]:
+        argv = approved_specs()
+        if not argv:
+            print("✗ không có SPEC nào Approved", file=sys.stderr)
+            return 1
     if not argv:
         print("dùng: check-blocking-questions.py <spec> [<spec> …]", file=sys.stderr)
         return 2

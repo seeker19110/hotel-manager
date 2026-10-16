@@ -3,7 +3,7 @@
 | Trường | Giá trị |
 |---|---|
 | ID tính năng | F-001 (luồng liên quan: R-001…R-005 đều phụ thuộc) |
-| Trạng thái | Draft — chờ duyệt |
+| Trạng thái | Approved — câu [chặn] chốt theo PLAN đợt 3 (tham số hoá, D-002) |
 | Phiên bản | 2 — thay đổi: xem cuối file |
 | Chủ spec | (chưa gán) · Duyệt bởi (chưa) |
 | Hồ sơ/quy mô | web-app / M |
@@ -310,9 +310,9 @@ Không áp dụng — tính năng không dùng model.
 - `organization.created`, `property.created`, `member.invited`, `member.accepted`, `member.revoked`, `session.revoked`, `access.denied` (code, action) → hỗ trợ M-02 (hoàn thành thiết lập) và giám sát bảo mật; `property_id` trên mọi sự kiện cho M-05.
 
 ## 10. Câu hỏi mở (0 câu [chặn] trước khi Approved)
-- [ ] Q-01 Giờ chốt ngày kinh doanh mặc định — [chặn] — hỏi: PO — đề xuất: 00:00 giờ địa phương cho mẫu `rental`; cấu hình được cho `hotel` với mặc định chờ quan sát T001 (PROJECT §10 đã ghi câu này là chặn F-006).
+- [x] Q-01 Giờ chốt ngày kinh doanh mặc định — [chặn] — hỏi: PO — đề xuất: 00:00 giờ địa phương cho mẫu `rental`; cấu hình được cho `hotel` với mặc định chờ quan sát T001 (PROJECT §10 đã ghi câu này là chặn F-006). — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** 00:00 giờ địa phương (mặc định cột `properties.business_day_cutoff`), cấu hình theo cơ sở.
 - [ ] Q-02 Có cho đổi múi giờ/giờ chốt khi đã có dữ liệu không — [không chặn] — hỏi: PO + Tech Lead — đề xuất: chặn (S-023); đổi giờ chốt chỉ áp từ `business_date` sau ngày khoá kỳ gần nhất, làm ở V1.
-- [ ] Q-03 Giờ nhận/trả phòng mặc định của cơ sở `hotel` — [chặn F-006] — hỏi: PO — xem SPEC-reservation-stay Q-01.
+- [x] Q-03 Giờ nhận/trả phòng mặc định của cơ sở `hotel` — [chặn F-006] — hỏi: PO — xem SPEC-reservation-stay Q-01. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** theo SPEC-reservation-stay Q-01 (14:00/12:00 khi cơ sở chưa đặt).
 - [ ] Q-04 Manager có được mời/thu hồi `front_desk`/`housekeeping`/`maintenance` và chỉnh bảng giá không — [không chặn] — hỏi: PO — đề xuất: được mời/thu hồi trong phạm vi; **không** chỉnh bảng giá (kế hoạch §03 giao "giá" cho owner).
 - [ ] Q-05 Thời hạn lời mời — [không chặn] — hỏi: PO — đề xuất: 7 ngày, dùng một lần, gắn email.
 - [x] Q-06 Lễ tân có hạn mức hoàn tiền/xác nhận tiền mặt có bắt buộc MFA không (kế hoạch §16 ghi "MFA chủ/quản lý/tiền") — [chặn] — hỏi: PO + Tech Lead — đề xuất: bắt buộc MFA cho mọi membership có hạn mức hoàn > 0 hoặc quyền xác nhận thanh toán. — **Quyết 2026-10-15 (PLAN đợt 1, chủ dự án duyệt):** bắt buộc MFA cho owner/manager/accountant/front_desk và mọi membership có hạn mức tiền > 0 (`requiresMfa`, T-006).
