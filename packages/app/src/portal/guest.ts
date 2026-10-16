@@ -22,13 +22,17 @@ export async function createGuestLink(
   input: { stayId: string; now?: Date },
 ): Promise<{ linkId: string; token: string; expiresAt: Date }> {
   if (!UUID.test(input.stayId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy lượt ở");
-  const r = await sql<{ property_id: string; status: string; expires_at: Date }>`
+  const r = await sql<{ property_id: string; status: string; expires_at: Date; factor_ok: boolean }>`
     select s.property_id, s.status,
+           (not coalesce((p.settings ->> 'guest_link_second_factor')::boolean, true)
+             or length(regexp_replace(coalesce(bp.phone, ''), '[^0-9]', '', 'g')) >= 4) as factor_ok,
            ((ri.departure_date + coalesce(p.check_out_time, '12:00'::time)) at time zone p.timezone)
              + make_interval(hours => coalesce((p.settings ->> 'guest_link_hours_after_checkout')::int, 48)) as expires_at
     from stays s
     join reservation_items ri on ri.organization_id = s.organization_id and ri.id = s.reservation_item_id
     join properties p on p.organization_id = s.organization_id and p.id = s.property_id
+    join reservations rv on rv.organization_id = ri.organization_id and rv.id = ri.reservation_id
+    left join persons bp on bp.organization_id = rv.organization_id and bp.id = rv.booker_person_id
     where s.organization_id = ${ctx.actor.orgId} and s.id = ${input.stayId}`.execute(ctx.trx);
   const s = r.rows[0];
   if (!s) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy lượt ở");
@@ -42,6 +46,16 @@ export async function createGuestLink(
     throw new CommandError("VALIDATION_FAILED", 422, "Lượt ở đã quá hạn xem lại — không tạo liên kết", {
       extensions: { errors: [{ path: "stay_id", field: "stay_id", code: "expired" }] },
     });
+  // Bước hai bật mà người đặt không có SĐT đủ 4 số ⇒ link không bao giờ mở được — từ chối ngay (review lát 4).
+  if (!s.factor_ok)
+    throw new CommandError(
+      "VALIDATION_FAILED",
+      422,
+      "Người đặt chưa có số điện thoại — bổ sung trước khi tạo liên kết",
+      {
+        extensions: { errors: [{ path: "stay_id", field: "booker_phone", code: "required" }] },
+      },
+    );
   const token = randomBytes(32).toString("base64url");
   const linkId = randomUUID();
   await sql`
@@ -150,7 +164,10 @@ export async function guestGetStay(
   // Token hợp lệ nhưng hỏi lượt ở khác → 404 (S-018), không tính là đoán token.
   if (!UUID.test(input.stayId) || link.stay_id !== input.stayId)
     throw new CommandError("NOT_FOUND", 404, "Không tìm thấy dữ liệu.");
-  await sql`select app.guest_link_attempt(${link.id}::uuid, true, ${now})`.execute(db);
+  const used = await sql<{ locked: boolean }>`
+    select app.guest_link_attempt(${link.id}::uuid, true, ${now}) as locked`.execute(db);
+  if (used.rows[0]?.locked)
+    throw new CommandError("LINK_REVOKED", 410, "Liên kết không còn hiệu lực. Vui lòng liên hệ lễ tân.");
   const v = await sql<{ v: GuestViewRaw | null }>`select app.guest_stay_view(${link.id}::uuid) as v`.execute(
     db,
   );

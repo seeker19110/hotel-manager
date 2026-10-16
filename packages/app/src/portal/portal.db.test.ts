@@ -2,6 +2,7 @@
 // Ví dụ chung: phiếu kỳ 10/2026 phòng 101 tổng 3.580.000, đã phân bổ 2.000.000, còn 1.580.000; cọc 3.000.000.
 import { randomUUID } from "node:crypto";
 import {
+  activateLease,
   createTestDb,
   type SeededOrg,
   seedAuthUser,
@@ -253,6 +254,61 @@ describe("S-007 chỉ số đã duyệt", () => {
     expect(r.map((x) => [x.kind, x.readOn, x.value])).toEqual([["electric", "2026-10-31", 1350]]);
     expect(r[0]?.photoUrl).toMatch(/X-Amz-Expires=300/);
     expect((await fetch(r[0]?.photoUrl as string)).status).toBe(200);
+  });
+
+  it("người thuê cũ cùng phòng (đã trả phòng 31/08, vẫn thuê phòng khác) chỉ thấy chỉ số trong thời gian mình ở (review lát 4)", async () => {
+    const oldId = randomUUID();
+    await sql`insert into persons (id, organization_id, full_name) values (${oldId}, ${A.orgId}, 'Người thuê cũ')`.execute(
+      t.admin,
+    );
+    const before = await seedLease(t.admin, {
+      orgId: A.orgId,
+      propertyId: A.propertyId,
+      representativePersonId: oldId,
+      unitId: anLease.unitId,
+      effectiveFrom: "2026-01-01",
+    });
+    await activateLease(t.admin, { org: A, leaseId: before.leaseId, effectiveFrom: "2026-01-01" });
+    await t.admin.transaction().execute(async (trx) => {
+      await sql`alter table leases disable trigger trg_leases_close`.execute(trx);
+      await sql`alter table leases disable trigger trg_leases_guard`.execute(trx);
+      await sql`update leases set status = 'closed', moved_out_on = '2026-08-31' where id = ${before.leaseId}`.execute(
+        trx,
+      );
+      await sql`set constraints all immediate`.execute(trx);
+      await sql`alter table leases enable trigger trg_leases_close`.execute(trx);
+      await sql`alter table leases enable trigger trg_leases_guard`.execute(trx);
+    });
+    const other = await seedLease(t.admin, {
+      orgId: A.orgId,
+      propertyId: A.propertyId,
+      representativePersonId: oldId,
+      effectiveFrom: "2026-09-01",
+    });
+    await activateLease(t.admin, { org: A, leaseId: other.leaseId, effectiveFrom: "2026-09-01" });
+    const uid = await seedAuthUser(t.admin, `${randomUUID().slice(0, 8)}@example.test`);
+    await sql`insert into memberships (id, organization_id, auth_user_id, person_id, role)
+              values (${randomUUID()}, ${A.orgId}, ${uid}, ${oldId}, 'tenant')`.execute(t.admin);
+    const old = await resolveActor(t.runtime, { authUserId: uid, orgId: A.orgId, twoFactorEnabled: false });
+
+    const water = randomUUID();
+    await sql`insert into meters (id, organization_id, property_id, unit_id, kind, installed_on)
+              values (${water}, ${A.orgId}, ${A.propertyId}, ${anLease.unitId}, 'water', '2026-01-01')`.execute(
+      t.admin,
+    );
+    for (const [readOn, value] of [
+      ["2026-05-31", 40],
+      ["2026-10-31", 52],
+    ] as const)
+      await sql`insert into meter_readings (id, organization_id, property_id, meter_id, read_on, value, status, source,
+                                            entered_by, approved_by)
+                values (${randomUUID()}, ${A.orgId}, ${A.propertyId}, ${water}, ${readOn}::date, ${value}, 'approved', 'import',
+                        ${A.ownerMembershipId}, ${A.ownerMembershipId})`.execute(t.admin);
+    const mine = await listMyMeterReadings(t.runtime, old, { storage });
+    expect(mine.map((x) => [x.kind, x.readOn, x.value])).toEqual([["water", "2026-05-31", 40]]);
+    const anNow = await listMyMeterReadings(t.runtime, an, { storage });
+    expect(anNow.map((x) => x.readOn)).not.toContain("2026-05-31");
+    expect(anNow.map((x) => [x.kind, x.readOn])).toContainEqual(["water", "2026-10-31"]);
   });
 });
 

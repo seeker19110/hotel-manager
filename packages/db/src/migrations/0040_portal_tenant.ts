@@ -1,7 +1,7 @@
 // PLAN đợt 3 T-217 — portal người thuê (SPEC-portal S-001…S-011, S-021; ERD `payment_claims`; INV-F3).
 // - Policy đọc riêng vai trò `tenant` (cộng thêm vào policy nhân viên; chặn đọc nội bộ đã có ở 0039):
 //   phiếu mà mình là người trả (của hợp đồng; kỳ thu chỉ khi `issued`/`locked`), dòng phiếu + phân bổ của các phiếu đó,
-//   cọc của hợp đồng mình đứng tên, công tơ của phòng mình thuê, chỉ số ĐÃ DUYỆT từ ngày bắt đầu hợp đồng.
+//   cọc của hợp đồng mình đứng tên, công tơ của phòng mình thuê, chỉ số ĐÃ DUYỆT trong khoảng [bắt đầu tính tiền, ngày trả phòng] của từng hợp đồng.
 // - `payment_claims` ("Tôi đã chuyển"): người thuê ghi/đọc của chính mình; KHÔNG sinh payments/bút toán (INV-F3); một
 //   claim mỗi Idempotency-Key; nhân viên có quyền thu đọc/xử lý trong phạm vi cơ sở.
 import { type Kysely, sql } from "kysely";
@@ -11,15 +11,18 @@ CREATE FUNCTION app.billing_period_published(p_org uuid, p_id uuid) RETURNS bool
   LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
     SELECT EXISTS (SELECT 1 FROM billing_periods WHERE organization_id = p_org AND id = p_id AND status IN ('issued','locked'))
   $$;
--- Công tơ của phòng thuộc hợp đồng người thuê (actor) đứng tên + ngày bắt đầu tính tiền sớm nhất của hợp đồng đó.
-CREATE FUNCTION app.tenant_meters() RETURNS TABLE (meter_id uuid, since date)
+-- Công tơ của phòng thuộc hợp đồng người thuê (actor) đứng tên + khoảng ngày của TỪNG hợp đồng đó: từ ngày bắt đầu tính
+-- tiền đến ngày trả phòng thực tế (hợp đồng đã trả phòng mà thiếu ngày trả ⇒ khoảng rỗng — đóng an toàn). Không gộp
+-- min() trên nhiều hợp đồng: người thuê cũ không được thấy chỉ số của người thuê sau ở cùng phòng (review lát 4).
+CREATE FUNCTION app.tenant_meters() RETURNS TABLE (meter_id uuid, since date, until date)
   LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
-    SELECT m.id, min(l.billing_start_on) FROM meters m
+    SELECT m.id, l.billing_start_on,
+           CASE WHEN l.status IN ('settling','closed') THEN coalesce(l.moved_out_on, l.billing_start_on - 1) END
+    FROM meters m
     JOIN leases l ON l.organization_id = m.organization_id AND l.unit_id = m.unit_id
     WHERE m.organization_id = app.current_org() AND app.actor_role() = 'tenant'
       AND l.representative_person_id = app.actor_person_id()
       AND l.status IN ('signed_awaiting_handover','active','notice_given','settling','closed')
-    GROUP BY m.id
   $$;
 REVOKE ALL ON FUNCTION app.billing_period_published(uuid, uuid), app.tenant_meters() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION app.billing_period_published(uuid, uuid), app.tenant_meters() TO app_runtime;
@@ -44,7 +47,8 @@ CREATE POLICY meters_tenant_read ON meters FOR SELECT TO app_runtime
   USING (organization_id = app.current_org() AND app.actor_role() = 'tenant' AND id IN (SELECT meter_id FROM app.tenant_meters()));
 CREATE POLICY meter_readings_tenant_read ON meter_readings FOR SELECT TO app_runtime
   USING (organization_id = app.current_org() AND app.actor_role() = 'tenant' AND status = 'approved'
-         AND EXISTS (SELECT 1 FROM app.tenant_meters() tm WHERE tm.meter_id = meter_readings.meter_id AND meter_readings.read_on >= tm.since));
+         AND EXISTS (SELECT 1 FROM app.tenant_meters() tm WHERE tm.meter_id = meter_readings.meter_id AND meter_readings.read_on >= tm.since
+                     AND (tm.until IS NULL OR meter_readings.read_on <= tm.until)));
 
 CREATE TABLE payment_claims (
   id uuid PRIMARY KEY,
