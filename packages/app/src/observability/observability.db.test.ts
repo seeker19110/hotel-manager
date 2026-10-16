@@ -78,7 +78,7 @@ describe("số liệu", () => {
     expect(ok.status).toBe(200);
     expect(ok.headers.get("content-type")).toContain("text/plain; version=0.0.4");
     const body = await ok.text();
-    expect(body).toContain("# TYPE notification_dead_total counter\nnotification_dead_total 1\n");
+    expect(body).toContain("# TYPE notification_dead_total gauge\nnotification_dead_total 1\n");
     expect(body).toMatch(/^hm_outbox_unpublished 2$/m);
     const bad = await handleMetrics(
       new Request("http://x/api/metrics", { headers: { authorization: "Bearer sai" } }),

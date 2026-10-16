@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import { ConfigError, createLogger } from "@hm/app";
 import { createTestDb, type SeededOrg, seedOrg, type TestDb, testS3Config } from "@hm/testkit";
 import { sql } from "kysely";
+import { PgBoss } from "pg-boss";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { OutboxJob } from "./relay.ts";
 import { bootWorker, type RunningWorker } from "./runtime.ts";
@@ -155,15 +156,27 @@ describe("worker chạy thật", () => {
     expect(handled.filter((j) => j.outbox_id === id)).toHaveLength(1); // không phát trùng
   });
 
-  it("sự kiện chưa có consumer được đánh dấu đã phát mà không sinh job (không kẹt đầu hàng)", async () => {
-    const orphan = await addOutbox("person.created");
+  it("sự kiện 'chỉ để audit' được đánh dấu đã phát mà không sinh job; loại KHÔNG có consumer và không khai audit-only ở lại outbox (no_consumer), không kẹt đầu hàng", async () => {
+    const orphan = await addOutbox("stay.checked_in"); // audit-only
+    const unlisted = await addOutbox("orphan.unlisted"); // không consumer, không khai
     const after = await addOutbox("test.ping");
     await waitFor(() => published(orphan));
     await waitFor(() => handled.some((j) => j.outbox_id === after));
     const jobs = await sql<{
       n: number;
-    }>`select count(*)::int as n from pgboss.job where name = 'person.created'`.execute(t.admin);
+    }>`select count(*)::int as n from pgboss.job where name in ('stay.checked_in', 'orphan.unlisted')`.execute(
+      t.admin,
+    );
     expect(jobs.rows[0]?.n).toBe(0);
+    expect(await published(unlisted)).toBe(false);
+    const r = await sql<{
+      last_error: string;
+      attempts: number;
+    }>`select last_error, attempts from outbox where id = ${unlisted}`.execute(t.admin);
+    expect(r.rows[0]).toEqual({ last_error: "no_consumer", attempts: 1 }); // lùi lần thử ⇒ không bị thử lại ngay
+    expect(cap.lines.some((l) => l.msg === "outbox.no_consumer" && l.event_type === "orphan.unlisted")).toBe(
+      true,
+    );
   });
 
   it("mọi job định kỳ chạy ít nhất một lượt, không lượt nào lỗi; nhịp được ghi", async () => {
@@ -196,9 +209,26 @@ describe("worker chạy thật", () => {
     const slowId = await addOutbox("test.slow");
     await waitFor(() => slowStarted);
     const t0 = Date.now();
-    await w.shutdown();
+    const down = w.shutdown();
+    // Tín hiệu dừng ⇒ pg-boss ngừng lấy job NGAY: job đến sau tín hiệu (gửi thẳng vào queue) không được nhận.
+    await new Promise((r) => setTimeout(r, 200));
+    const sender = new PgBoss({
+      connectionString: t.adminUrl,
+      schema: "pgboss",
+      supervise: false,
+      schedule: false,
+    });
+    sender.on("error", () => {});
+    await sender.start();
+    const lateJobId = await sender.send("test.ping", { outbox_id: randomUUID(), organization_id: A.orgId });
+    await sender.stop({ graceful: false });
+    await down;
     // handler chậm (1,5 s) đã hoàn tất TRƯỚC khi shutdown trả về
     expect(slowFinished).toBe(true);
+    const lateJob = await sql<{
+      state: string;
+    }>`select state from pgboss.job where id = ${lateJobId}`.execute(t.admin);
+    expect(lateJob.rows[0]?.state).toBe("created"); // chưa ai nhận
     expect(Date.now() - t0).toBeLessThan(15_000);
     const state = await sql<{
       state: string;

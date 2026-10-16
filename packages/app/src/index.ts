@@ -63,7 +63,12 @@ export { getLease, type LeaseView } from "./lease/lease.ts";
 export { BANK_TXN_RECEIVED, BREAK_OPENED } from "./ledger/bank-inbox.ts";
 export { createLogger, type Logger } from "./logging/logger.ts";
 export { appLogger, setAppLogger } from "./logging/runtime.ts";
-export { emitSecurity, SECURITY_EVENTS, type SecurityEventName } from "./logging/security-events.ts";
+export {
+  emitSecurity,
+  forwardedClientIp,
+  SECURITY_EVENTS,
+  type SecurityEventName,
+} from "./logging/security-events.ts";
 export { listWorkOrders, type WorkOrderView } from "./maintenance/work-orders.ts";
 export { readingRoute } from "./metering/meters.ts";
 export {
