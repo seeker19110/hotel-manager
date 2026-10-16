@@ -40,6 +40,7 @@ export const ERROR_CODES = {
   ORG_CONTEXT_REQUIRED: { status: 409, source: "SPEC-access-and-property §6" },
   MFA_REQUIRED: { status: 403, source: "SPEC-access-and-property Q-06 (T-006)" },
   LAST_OWNER: { status: 409, source: "SPEC-access-and-property §6" },
+  PROPERTY_IN_USE: { status: 409, source: "SPEC-access-and-property §6" },
   APPROVAL_NOT_EXECUTABLE: { status: 409, source: "PLAN đợt 2 T-102 (loại chưa có executor)" },
   WEBHOOK_SIGNATURE_INVALID: { status: 401, source: "API-CONTRACT §3" },
   LEDGER_UNBALANCED: { status: 500, source: "SPEC-ledger-payments §6" },

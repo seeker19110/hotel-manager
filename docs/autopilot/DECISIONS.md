@@ -30,3 +30,10 @@
 - Chọn: Duyệt nguyên PLAN
 - Lý do (tiêu chí chất lượng cuối): (1) phủ đủ 5 tính năng Must còn lại của MVP trước pilot, mỗi task có Gate máy kiểm, bất biến tiền/tồn test trên Postgres thật; (3) cùng khuôn đợt 2 (18 task, xong trong một phiên); cắt giảm đã có thứ tự trong PROJECT §5 nếu trễ
 - Đường lùi: Tick [~] — Bỏ: <lý do> cho task cắt; đợt 4 nhận lại
+
+### D-005 · 2026-10-16T01:14:14+00:00 · Giờ chốt ngày mặc định của cơ sở hotel và nơi áp các giá trị mặc định theo mẫu (thay phần cột/tham số của D-002)
+
+- Phương án: (1) 06:00 (D-002), đặt bằng trigger DB khi INSERT · (2) 04:00 khớp fixture SPEC-reservation S-016/S-026, đặt ở lớp app (propertyDefaults theo mẫu) — cột properties.business_day_cutoff/check_in_time/check_out_time/hold_ttl_minutes giữ mặc định DB
+- Chọn: 04:00 khớp fixture SPEC-reservation S-016/S-026, đặt ở lớp app (propertyDefaults theo mẫu) — cột properties.business_day_cutoff/check_in_time/check_out_time/hold_ttl_minutes giữ mặc định DB
+- Lý do (tiêu chí chất lượng cuối): (1) SPEC đã viết ví dụ bắt buộc với giờ chốt 04:00; trigger không phân biệt được 00:00 cố ý với mặc định; (3) tham số đã là cột trong ERD (không phải settings) — dùng đúng cột, đổi không cần migration
+- Đường lùi: Đổi hằng số propertyDefaults; cơ sở đã tạo giữ giá trị đã lưu

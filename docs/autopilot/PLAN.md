@@ -29,15 +29,15 @@ Tương ứng mốc "Tuần 9–12" của kế hoạch gốc (khách sạn + v�
 ## Quyết định mặc định cho câu hỏi [chặn] của đợt 3 — **D-002** (tham số hoá theo cơ sở; đổi giá trị không cần migration; chứng từ lưu quy tắc đã dùng — INV-G3)
 | Câu hỏi | Mặc định áp dụng | Tham số |
 |---|---|---|
-| Giờ nhận/trả phòng (reservation Q-01, access Q-03) | nhận 14:00, trả 12:00 giờ cơ sở | `properties.settings.check_in_time` / `check_out_time` |
-| Giờ chốt ngày kinh doanh (access Q-01, reservation Q-01) | `rental` 00:00; `hotel` 06:00 (khách nhận phòng 00:00–05:59 tính đêm hôm trước — tránh S-016 "qua 00:00 tạo sai một đêm") | `properties.settings.business_day_cutoff`; `app.business_date` đọc tham số |
+| Giờ nhận/trả phòng (reservation Q-01, access Q-03) | nhận 14:00, trả 12:00 giờ cơ sở | cột `properties.check_in_time` / `check_out_time` |
+| Giờ chốt ngày kinh doanh (access Q-01, reservation Q-01) | `rental` 00:00; `hotel` **04:00** (D-005 thay 06:00: khớp ví dụ S-016/S-026; khách nhận phòng trước giờ chốt tính đêm hôm trước) | cột `properties.business_day_cutoff` (đã có, `app.business_date` đã đọc); mặc định theo mẫu ở `propertyDefaults` |
 | Đơn vị giá (reservation Q-02) | một đơn vị "đêm" theo ngày đến/ngày đi; giá giờ/qua đêm để F-013 | — |
 | Đêm cuối tuần (reservation Q-03) | đêm thứ Sáu và thứ Bảy theo `business_date`; chưa hỗ trợ ngày lễ | `rate_plans.weekend_nights` (mặc định `[5,6]`) |
 | Huỷ booking (reservation Q-04) | không phạt tự động; phí huỷ nhập tay có lý do, trong hạn mức; ứng trước/cọc giữ nguyên, hoàn qua duyệt (INV-F5) | — |
 | Thông tin khách khi check-in (reservation Q-08) | bắt buộc: họ tên, SĐT người đặt; người lưu trú: loại + số giấy tờ (hiển thị che), khách nước ngoài thêm quốc tịch + hộ chiếu; **không lưu ảnh giấy tờ** mặc định | `properties.settings.store_id_images` = `false` |
 | Thuế trong giá phòng (reservation Q-12) | giá niêm yết là giá cuối, không cộng thuế tự động; `charges.tax_profile_id` vẫn lưu | — |
 | Hoàn/khấu trừ cọc lúc check-out; lễ tân tự xác nhận tiền mặt (reservation Q-14, Q-15) | **đã quyết ở đợt 2** (bảng PLAN đợt 2: lễ tân ≤ 2.000.000 đ chỉ khi check-out, hoàn nguyên số một bước; khấu trừ cần người thứ hai; tiền mặt xác nhận trong ca của chính mình) | `organizations.settings.role_limits` |
-| TTL giữ phòng tại quầy (inventory Q-01) | 15 phút | `properties.settings.booking_hold_ttl_minutes` |
+| TTL giữ phòng tại quầy (inventory Q-01) | 15 phút | cột `properties.hold_ttl_minutes` (đã có) |
 | Ai nghiệm thu phòng (housekeeping Q-01) | owner/manager; lễ tân nếu cơ sở bật; người làm không tự nghiệm thu | `properties.settings.front_desk_can_inspect` = `false` |
 | Giới hạn ảnh phiếu sự cố (housekeeping Q-06) | JPEG/PNG/WebP; ≤ 10 MB/ảnh; ≤ 5 ảnh/phiếu; HEIC chưa nhận (chưa xác minh trên thiết bị thật) | `properties.settings.work_order_max_images` |
 | Máy quét mã độc (housekeeping Q-10) | **D-003**: adapter `ClamdScanner` (giao thức `zINSTREAM` TCP) cho ClamAV tự host; dev/CI: `eicarOnlyScanner` + test hợp đồng với clamd giả trong test; chưa quét được → file không bao giờ `ready` | env `CLAMD_HOST`/`CLAMD_PORT` |
@@ -70,7 +70,7 @@ Tương ứng mốc "Tuần 9–12" của kế hoạch gốc (khách sạn + v�
 > Gate là lệnh máy kiểm, chạy bằng `python3 .xtemplates/scripts/xt.py loop record --task T-xxx -- <Gate>`. Bất biến tiền/tồn có test trên Postgres thật (`*.db.test.ts`); test nhắc ID kịch bản (`S-0xx`) của SPEC. Ví dụ số tiền bắt buộc phải có test khớp từng đồng. Mỗi lát có review độc lập (`reviewer`) trước khi sang lát sau; 🔴/🟠 sửa kèm test hồi quy.
 
 ### Lát 0 — Chốt quyết định và lịch phòng
-- [ ] `T-201` Ghi bảng D-002/D-003 vào SPEC (mục câu hỏi: tick kèm "quyết theo PLAN đợt 3 — D-002, ngày, tham số"), DOMAIN-MODEL/ERD nếu đổi tên/tham số; `app.business_date` đọc `business_day_cutoff` (migration mới, giữ hành vi cũ khi thiếu tham số) — Gate: `python3 scripts/check-blocking-questions.py reservation-stay housekeeping-maintenance portal audit-reporting inventory-allocation access-and-property notifications && python3 -m unittest discover -s scripts -p "test_*.py" && pnpm test:db -- business-date`
+- [x] `T-201` Ghi bảng D-002/D-003 vào SPEC (mục câu hỏi: tick kèm "quyết theo PLAN đợt 3 — D-002, ngày, tham số"), DOMAIN-MODEL/ERD nếu đổi tên/tham số; `propertyDefaults(template)` (D-005) + test DB `app.business_date` với giờ chốt 04:00 (S-016 b: walk-in 01:30 → ngày kinh doanh hôm trước) — Gate: `python3 scripts/check-blocking-questions.py reservation-stay housekeeping-maintenance portal audit-reporting inventory-allocation access-and-property notifications && python3 -m unittest discover -s scripts -p "test_*.py" && pnpm test:db -- business-date`
 - [ ] `T-202` Lịch phòng: đăng ký HTTP các lệnh inventory (`hold/release/confirm/move/proposeBlock/approveBlock/unitStatus`), query lịch theo cơ sở/tầng/loại/khoảng ngày có phân trang (inventory S-021), sự cố bất ngờ trên phòng có khách sắp đến → cảnh báo + đề xuất chuyển phòng (S-013) — Gate: `pnpm test:db -- inventory`
 
 ### Lát 1 — Khách sạn (F-006)

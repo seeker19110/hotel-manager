@@ -104,6 +104,7 @@ const HINT_STATUS: Record<string, { status: number; title: string }> = {
   PERIOD_ISSUED: { status: 409, title: "Kỳ đã phát hành. Dùng chứng từ điều chỉnh." },
   INVALID_TRANSITION: { status: 409, title: "Chuyển trạng thái không hợp lệ" },
   LAST_OWNER: { status: 409, title: "Tổ chức phải còn ít nhất một owner" },
+  PROPERTY_IN_USE: { status: 409, title: "Cơ sở đã có giao dịch, không thể đổi múi giờ hoặc giờ chốt ngày." },
   // SPEC-ledger S-003: lỗi hệ thống, 500 GIỮ mã (để cảnh báo/tra cứu) và đi đường lỗi không dự kiến (onUnexpectedError).
   LEDGER_UNBALANCED: { status: 500, title: "Lỗi hệ thống khi ghi sổ. Thao tác chưa được lưu." },
   PERIOD_LOCKED: { status: 409, title: "Kỳ đã khoá. Cần chứng từ điều chỉnh có duyệt." },

@@ -195,7 +195,7 @@ Không áp dụng — tính năng không dùng model.
 - `today.viewed`, `report.viewed` (thuộc tính `kind`), `export.requested`, `export.downloaded`, `audit.viewed` (không PII) → M-04 (sai lệch tiền/tồn), M-05 (dùng hằng tuần theo `property_id`); dùng `reconciliation_break` cho M-04.
 
 ## 10. Câu hỏi mở (0 câu [chặn] trước khi Approved)
-- [ ] Q-01 Bộ báo cáo **bắt buộc** cho pilot (tuần 12) và cột tối thiểu mỗi báo cáo — **[chặn]** — hỏi: PO + đại diện pilot + kế toán — **đề xuất mặc định:** 4 báo cáo ở S-009–S-012 + nhật ký; cột theo mục 5; đối chiếu với sổ Excel của 2 cơ sở pilot ở T078.
+- [x] Q-01 Bộ báo cáo **bắt buộc** cho pilot (tuần 12) và cột tối thiểu mỗi báo cáo — **[chặn]** — hỏi: PO + đại diện pilot + kế toán — **đề xuất mặc định:** 4 báo cáo ở S-009–S-012 + nhật ký; cột theo mục 5; đối chiếu với sổ Excel của 2 cơ sở pilot ở T078. — **Quyết theo PLAN đợt 3 (D-002/D-005, 2026-10-16):** 4 báo cáo S-009…S-012 (công nợ, thu tiền theo phương thức/ca, cọc đang giữ, công suất) + nhật ký audit; cột theo mục 5; đối chiếu sổ Excel pilot ở T078 khi có dữ liệu.
 - [ ] Q-02 Báo cáo thu theo "ca" khi F-013 (ca quầy) là Should — [không chặn] — hỏi: PO — **đề xuất:** pilot nhóm theo ngày kinh doanh + người xác nhận; thêm nhóm theo ca khi T065 xong.
 - [ ] Q-03 Nhóm tuổi nợ (0–30/31–60/>60 ngày) có cần không? — [không chặn] — hỏi: kế toán — **đề xuất:** pilot chỉ "số ngày quá hạn" từng phiếu.
 - [ ] Q-04 Mẫu số công suất: trừ phòng `blocked`/`out_of_service` hay không — [không chặn pilot; chặn T063] — hỏi: PO — **đề xuất:** phòng khả dụng = phòng `active` không bị block trong ngày; ghi công thức trên báo cáo.
