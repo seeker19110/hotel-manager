@@ -144,7 +144,11 @@ export function useCommand<T = unknown>(path: string) {
     // Tab khác đã đổi tổ chức: server không ghi gì — báo tải lại, KHÔNG gửi lại (S-013).
     if (res.status === 409 && j?.code === CONTEXT_CHANGED_CODE) return fail(contextChanged());
     // Key đã dùng cho thao tác khác (vd thao tác trước đã ghi) ⇒ giữ key, tra và hiện kết quả thao tác đó, không tạo key mới.
-    if (res.status >= 500 || j?.code === "IDEMPOTENCY_CONFLICT") return check();
+    if (res.status >= 500 || j?.code === "IDEMPOTENCY_CONFLICT") {
+      // Giữ mã tra cứu của lỗi 5xx để hiện cùng "Chưa rõ… Gửi lại" nếu tra kết quả không thấy lệnh.
+      if (res.status >= 500 && j) setProblem({ ...j, status: res.status });
+      return check();
+    }
     return fail(j ?? { code: "INTERNAL", status: res.status });
   }, [path, check, finish, fail]);
 

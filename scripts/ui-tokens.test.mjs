@@ -7,7 +7,9 @@ import { describe, expect, it } from "vitest";
 
 const WEB = "apps/web";
 const css = readFileSync(join(WEB, "app/globals.css"), "utf8");
-const HEX = /#[0-9a-fA-F]{3,8}\b/g;
+// Không cờ /g: dùng với .test() theo từng dòng, lastIndex không được giữ giữa các dòng (review lát 9).
+const HEX = /#[0-9a-fA-F]{3,8}\b/;
+const HEX_ALL = /#[0-9a-fA-F]{3,8}\b/g;
 
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
@@ -41,7 +43,7 @@ describe("token giao diện", () => {
     const emoji = [];
     for (const f of walk(WEB)) {
       const src = readFileSync(f, "utf8");
-      if (!allowHex.has(f) && src.match(HEX)?.some((m) => !/^#\d+$/.test(m))) hex.push(f);
+      if (!allowHex.has(f) && src.match(HEX_ALL)?.length) hex.push(f);
       // Ký tự hình (Extended_Pictographic: ⚠ ℹ ⛔ 🔔…) ngoài comment; ✓/✕ là ký tự chữ thường, không tính.
       const code = src
         .split("\n")

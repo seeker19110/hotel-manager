@@ -35,7 +35,13 @@ export function CommandStatus({
             Chưa rõ máy chủ đã nhận thao tác này chưa. Bấm "Gửi lại" để gửi đúng thao tác này một lần nữa
             (không bị ghi hai lần).
           </p>
-          {problem ? <p>{problemText(problem)}</p> : null}
+          {problem && (problem.status ?? 0) >= 500 ? (
+            problem.correlation_id && /^[\w-]{1,64}$/.test(problem.correlation_id) ? (
+              <p>Mã tra cứu: {problem.correlation_id}</p>
+            ) : null
+          ) : problem ? (
+            <p>{problemText(problem)}</p>
+          ) : null}
           <Button variant="secondary" onClick={onResend}>
             Gửi lại
           </Button>

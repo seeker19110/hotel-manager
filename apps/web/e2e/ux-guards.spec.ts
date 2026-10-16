@@ -71,6 +71,37 @@ test("bàn phím: đăng nhập → chọn tổ chức → danh sách phòng kh�
   await expect(page).toHaveURL(/\/phong$/);
 });
 
+test("lỗi 5xx đường thật: POST 500 → tra lệnh 404 → 'Chưa rõ… Gửi lại' + mã tra cứu, không lộ chi tiết", async ({
+  page,
+  context,
+}) => {
+  await context.addCookies(hkCookies);
+  const leak = "TypeError: cannot read 'x' at /srv/app/packages/app/src/secret.ts:12";
+  await page.route("**/api/v1/maintenance/createWorkOrder", (r) =>
+    r.fulfill({
+      status: 500,
+      contentType: "application/problem+json",
+      body: JSON.stringify({ code: "INTERNAL", title: leak, detail: leak, correlation_id: "e2e-corr-real" }),
+    }),
+  );
+  await page.route("**/api/v1/commands/*", (r) =>
+    r.fulfill({
+      status: 404,
+      contentType: "application/problem+json",
+      body: JSON.stringify({ code: "COMMAND_NOT_FOUND" }),
+    }),
+  );
+  await page.goto("/su-co");
+  const form = page.getByTestId("incident-form");
+  await form.getByLabel("Sự cố", { exact: true }).fill("Ổ cắm hỏng");
+  await form.getByLabel("Mô tả").fill("Ổ cắm cạnh giường không có điện.");
+  await form.getByRole("button", { name: "Gửi báo sự cố" }).click();
+  const banner = page.getByRole("alert").filter({ hasText: "Chưa rõ máy chủ đã nhận" });
+  await expect(banner).toBeVisible({ timeout: 20_000 });
+  await expect(banner).toContainText("Mã tra cứu: e2e-corr-real");
+  await expect(page.getByText(leak)).toHaveCount(0);
+});
+
 test("lỗi 5xx: chỉ câu chung + mã tra cứu, không lộ chi tiết nội bộ; icon là SVG", async ({
   page,
   context,

@@ -108,7 +108,7 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
             <h2 id="a-confirm">Xác nhận đặt phòng</h2>
             <CommandForm
               path="reservation/confirm"
-              confirm="Xác nhận đặt phòng kèm khoản thu vào sổ."
+              confirm="Xác nhận đặt phòng không thu trước: phòng được giữ chắc cho khách, huỷ sau sẽ theo chính sách huỷ."
               fixed={{ reservation_id: id }}
               submitLabel="Xác nhận (chưa thu trước)"
               successText="Đã xác nhận đặt phòng."
@@ -118,7 +118,7 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
             {property ? <ShiftPanel property={property} /> : null}
             <CommandForm
               path="reservation/confirm"
-              confirm="Xác nhận đặt phòng kèm khoản thu vào sổ."
+              confirm="Xác nhận đặt phòng và ghi khoản ứng trước tiền mặt vào ca đang mở; không xoá được, chỉ đảo bằng bút toán có duyệt."
               fixed={{ reservation_id: id, payment: { method: "cash", kind: "advance" } }}
               fields={[
                 {

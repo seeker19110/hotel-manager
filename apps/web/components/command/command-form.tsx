@@ -72,6 +72,7 @@ export function CommandForm({
   const dialogRef = useRef<HTMLDialogElement>(null);
   const pending = useRef<Record<string, unknown> | null>(null);
   const titleId = useId();
+  const descId = useId();
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -99,7 +100,9 @@ export function CommandForm({
     }
     setLocal(errs);
     if (Object.keys(errs).length > 0) return;
-    if (confirm && dialogRef.current) {
+    if (confirm) {
+      // Đóng khi lỗi: chưa có hộp thoại thì không gửi (không bao giờ bỏ qua bước xác nhận).
+      if (!dialogRef.current) return;
       pending.current = body;
       dialogRef.current.showModal();
       return;
@@ -189,6 +192,7 @@ export function CommandForm({
           ref={dialogRef}
           className="confirm-dialog"
           aria-labelledby={titleId}
+          aria-describedby={descId}
           onClose={() => {
             pending.current = null;
           }}
@@ -196,7 +200,7 @@ export function CommandForm({
           <h2 id={titleId} className="confirm-dialog__title">
             {submitLabel}?
           </h2>
-          <p>{confirm}</p>
+          <p id={descId}>{confirm}</p>
           <div className="confirm-dialog__actions">
             <Button variant="secondary" onClick={() => dialogRef.current?.close()}>
               Quay lại

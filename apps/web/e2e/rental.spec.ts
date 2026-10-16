@@ -64,6 +64,8 @@ test("vòng tháng: ký → bàn giao → kỳ thu 3.580.000 đ → phát hành 
   await sign.click();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toBeHidden();
+  // Sự kiện request đến không đồng bộ: chờ ngắn để một lần gửi nhầm (vd trong onClose) kịp bị đếm.
+  await page.waitForTimeout(500);
   expect(signs).toBe(0);
   await expect(page.getByTestId("lease-status")).not.toHaveText("Đã ký — chờ bàn giao");
   await sign.click();
