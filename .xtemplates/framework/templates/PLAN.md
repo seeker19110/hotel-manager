@@ -21,7 +21,7 @@ updated: 2026-10-15
 <1–2 câu: lát dọc nào chạy được khi xong; chỉ số nào đo được>
 
 ## Ngân sách (4 con số)
-- Số vòng tối đa: <N> (`--max-iterations`; bỏ trống với `--single-session` = max(20, 4 × (task chưa làm + MUST mở của blueprint)))
+- Số vòng tối đa: <N> (`--max-iterations`; bỏ trống với `--single-session` = max(20, 4 × task chưa làm))
 - Ngân sách: <token hoặc tiền> 
 - Timeout mỗi lệnh Gate: <giây> (`XT_RECORD_TIMEOUT`)
 - Ngày hết hạn: <YYYY-MM-DDThh:mm:ssZ> (`--hours`)

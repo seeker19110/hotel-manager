@@ -3,7 +3,7 @@ title: Agent tự sửa CI/review: giới hạn, cấm, bằng chứng
 kind: module
 prefix: LOOP-CI
 applies_to: [all]
-updated: 2026-10-14
+updated: 2026-10-16
 ---
 
 # Agent tự sửa CI/review: giới hạn, cấm, bằng chứng
@@ -15,7 +15,9 @@ updated: 2026-10-14
 ## Nguyên tắc
 
 1. **Sửa nguyên nhân, không sửa cổng** (P8, `AGENTS.md` §3): test đỏ → sửa code; chỉ sửa test khi test sai so với
-   SPEC và nói rõ trong commit. Skip/disable test, hạ ngưỡng coverage, nới lint = thay đổi cấu hình cổng → điểm dừng.
+   SPEC và nói rõ trong commit. Skip/disable test, gắn `@flaky`/cách ly test, hạ ngưỡng coverage, nới lint = thay đổi
+   cấu hình cổng → điểm dừng. Agent sửa lỗi không được làm yếu chính bài kiểm của đoạn code nó sửa: `pre-edit-guard.sh`
+   hỏi khi lần sửa một file test **đã có** thêm skip/only/xfail/`@flaky` hoặc bớt assertion.
 2. **Đọc log trước khi sửa**: không đoán lỗi từ tên job; lấy đúng dòng lỗi (stack trace, assertion) rồi mới sửa.
 3. **Trần rõ ràng**: re-run tối đa 1 lần cho lỗi nghi flake; cùng chữ ký lỗi tối đa 3 lần sửa (máy chặn qua
    `same_failure_count`, xem [`loop-design.md`](loop-design.md)); vượt → `blocked`, người xem.
@@ -32,7 +34,7 @@ updated: 2026-10-14
 |---|---|---|
 | Hạ tầng (runner mất mạng, timeout tải dependency, 5xx registry) | Re-run **1 lần**; vẫn đỏ → coi là lỗi thật | Re-run lần 2 "cho chắc" |
 | Test đỏ, tái hiện được local | Sửa code; nếu test sai so với SPEC → sửa test, nêu SPEC trong commit | `skip`, `xfail`, `.only`, xoá test |
-| Test flake (đỏ/xanh ngẫu nhiên, không đổi code) | Đánh dấu flaky theo cơ chế của framework test + mở issue; không chạy lại nhiều | Retry vô hạn trong CI |
+| Test flake (đỏ/xanh ngẫu nhiên, không đổi code) | Ghi bằng chứng (run đỏ và xanh trên cùng commit) + mở issue; **gắn `@flaky`/cách ly khỏi cổng là nới cổng** → `loop defer`, người duyệt theo [`QA-STRAT-009`](../14-testing-quality/test-strategy.md) | Retry vô hạn trong CI; agent tự gắn `@flaky` trong vòng tự động |
 | Lint/format | Chạy formatter/linter fix cục bộ, commit riêng `style:` | Tắt rule, thêm `eslint-disable` diện rộng |
 | Typecheck | Sửa kiểu; không `any`/`@ts-ignore` để qua | Nới `strict` trong tsconfig |
 | Coverage dưới ngưỡng | Thêm test cho nhánh thiếu | Hạ ngưỡng trong config |
@@ -53,7 +55,7 @@ updated: 2026-10-14
 
 ## Checklist
 
-- [ ] `LOOP-CI-001` **MUST** Không skip/disable/xoá test, không hạ ngưỡng coverage, không tắt rule lint/type để cổng xanh. → Kiểm: diff không chứa `skip(`, `xfail`, `.only(`, `eslint-disable` mới, thay đổi `coverageThreshold`/`strict`; hook `pre-edit-guard.sh` hỏi khi chạm file cấu hình cổng. · Nguồn: `AGENTS.md` §3
+- [ ] `LOOP-CI-001` **MUST** Không skip/disable/xoá test, không hạ ngưỡng coverage, không tắt rule lint/type để cổng xanh. → Kiểm: diff không chứa `skip(`, `xfail`, `.only(`, `eslint-disable` mới, thay đổi `coverageThreshold`/`strict`; hook `pre-edit-guard.sh` hỏi khi chạm file cấu hình cổng và khi sửa file test đã có mà thêm skip/only/xfail/`@flaky` hoặc bớt assertion. · Nguồn: `AGENTS.md` §3
 - [ ] `LOOP-CI-002` **MUST@L** Re-run CI tối đa 1 lần cho mỗi lần đỏ nghi do hạ tầng; đỏ lần hai được xử lý như lỗi thật. → Kiểm: log autopilot/PROGRESS ghi số lần re-run mỗi run ID ≤ 1.
 - [ ] `LOOP-CI-003` **MAY** Ngừng dùng 2026-10-14 — gộp vào [`LOOP-DESIGN-005`](loop-design.md) (cùng chữ ký lỗi lặp 3 lần → `blocked`).
 - [ ] `LOOP-CI-004` **MUST** Không force-push, không rebase/rewrite history nhánh người khác, không empty commit để kích CI. → Kiểm: `.claude/settings.json` deny `git push --force*`; `pre-bash-guard.sh` chặn; `git log` không có commit rỗng (`git log --format=%H --diff-filter=A`… hoặc `git show --stat` rỗng). · Nguồn: [`../10-workflow/git-and-branching.md`](../10-workflow/git-and-branching.md)
@@ -64,7 +66,7 @@ updated: 2026-10-14
 - [ ] `LOOP-CI-009` **MUST@L** Job có agent dùng `permissions:` tối thiểu; job ghi (commit/comment) tách khỏi job đọc/suy luận. → Kiểm: workflow có khối `permissions:` tường minh; job chạy model không có `contents: write`. · Nguồn: stored 21 §9 (safe-outputs)
 - [ ] `LOOP-CI-010` **MUST@L** Chạy headless không dùng `--bare`; có `--max-turns` và `--max-budget-usd`. → Kiểm: lệnh trong workflow; JSON kết quả có `total_cost_usd` ≤ trần. · Nguồn: Claude Code headless docs
 - [ ] `LOOP-CI-011` **MUST@L** PR do agent mở dẫn link run CI xanh và lệnh Gate đã chạy; không ghi "đã test" bằng lời. → Kiểm: mô tả PR có URL run + exit code; `reviewer` từ chối PR thiếu link. · Nguồn: `AGENTS.md` §3
-- [ ] `LOOP-CI-012` **SHOULD** Test flake được đánh dấu bằng cơ chế của framework test và mở issue trong cùng PR; không retry nhiều lần trong CI để che. · Nguồn: [`../14-testing-quality/test-strategy.md`](../14-testing-quality/test-strategy.md)
+- [ ] `LOOP-CI-012` **SHOULD** Test nghi flake: agent ghi bằng chứng (run đỏ và xanh trên cùng commit) và mở issue; việc gắn `@flaky`/cách ly khỏi cổng là nới cổng nên đi qua người duyệt (`loop defer`), không tự làm trong vòng tự động; không retry nhiều lần trong CI để che. → Kiểm: issue có hai run ID cùng SHA; commit thêm `@flaky` có người duyệt PR. · Nguồn: [`../14-testing-quality/test-strategy.md`](../14-testing-quality/test-strategy.md) (`QA-STRAT-009`)
 - [ ] `LOOP-CI-013` **SHOULD** Sửa lint/format đi commit riêng `style:`; sửa logic đi commit `fix:` để review tách bạch.
 - [ ] `LOOP-CI-014` **SHOULD** Kiểm `system/init` của phiên headless: `plugin_errors`/`mcp_server_errors` không rỗng → fail job sớm thay vì chạy thiếu cổng. · Nguồn: Claude Code headless docs
 - [ ] `LOOP-CI-015` **SHOULD** Pin mọi action/CLI trong workflow theo SHA hoặc phiên bản khoá; agent không tự nâng. · Nguồn: [`../12-security/supply-chain.md`](../12-security/supply-chain.md)
@@ -78,6 +80,7 @@ updated: 2026-10-14
 |---|---|---|
 | "Test này không liên quan, skip tạm" | Hồi quy lọt; cổng mất giá trị | Cấm skip; sửa hoặc hỏi |
 | Re-run đến khi xanh | Che flake thật, tốn runner, bằng chứng giả | Trần 1 re-run; flake → issue |
+| Sửa kỳ vọng của test cho khớp code sai, hoặc gắn `@flaky` cho test đỏ thật | Cổng xanh nhưng hồi quy lọt; lỗi bị "hợp thức hoá" | Hook hỏi khi test đã có bị bớt assertion/thêm skip; flake phải có hai run cùng SHA |
 | Empty commit để kích lại CI | Lịch sử rác, ẩn lỗi cấu hình | Cấm theo `AGENTS.md` §3; hook `pre-bash-guard` deny `git commit --allow-empty`; dùng re-run của CI |
 | Agent chạy trên PR từ fork với secret | Prompt injection từ PR lấy token | Kiểm actor; tách job ghi |
 | `--bare` trong CI "cho nhanh" | Mất hook deny/ask, mất CLAUDE.md | Không `--bare`; truyền `--settings` |
@@ -89,7 +92,7 @@ updated: 2026-10-14
 
 | Việc | Công cụ → lệnh | Đặt ở đâu | Ngưỡng |
 |---|---|---|---|
-| Chặn nới cổng | `pre-edit-guard.sh` (ask khi sửa eslint/tsconfig/coverage/workflows/migration); grep diff `skip(|xfail|\.only\(|eslint-disable` | PreToolUse Edit/Write; job CI | 0 vi phạm không giải thích |
+| Chặn nới cổng | `pre-edit-guard.sh` (ask khi sửa eslint/tsconfig/coverage/workflows/migration, và khi test đã có bị thêm skip/only/xfail/`@flaky` hoặc bớt assertion); grep diff `skip(|xfail|\.only\(|eslint-disable` | PreToolUse Edit/Write/MultiEdit; job CI | 0 vi phạm không giải thích |
 | Chặn lệnh phá huỷ | `pre-bash-guard.sh` deny `push --force`, `reset --hard`, `clean`; `settings.json` deny | PreToolUse Bash | Deny |
 | Trần sửa cùng lỗi | `xt.py loop status --json` → `blocked` | Stop hook `stop-guard.sh` | `same_failure_count` ≥ 3 |
 | Trần chi phí headless | `claude -p … --max-turns N --max-budget-usd X --output-format json` | Workflow | `total_cost_usd` ≤ X |
@@ -102,4 +105,5 @@ updated: 2026-10-14
 - Claude Code docs — headless (`--bare` bỏ hook/skill/CLAUDE.md; `--max-turns`, `--max-budget-usd`, `--output-format json`, `system/init` với `plugin_errors`/`mcp_server_errors`): <https://code.claude.com/docs/en/headless> · GitHub Actions (`claude-code-action@v1`, OIDC): <https://code.claude.com/docs/en/github-actions> — xác minh 2026-10-13 (`research/2026-10-13-claude-code-hooks-skills.md`).
 - GitHub docs — `permissions` của `GITHUB_TOKEN` và rủi ro `pull_request_target`: <https://docs.github.com/en/actions/security-for-github-actions/security-guides/automatic-token-authentication> · <https://docs.github.com/en/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions> — xác minh 2026-10-13.
 - `seeker19110/stored` mục 21 §9 (self-healing CI: trần re-run, cấm skip test, safe-outputs tách job ghi, `author_association`), mục 23 §2.6 (DORA baseline trước tự trị) — đọc 2026-10-13 (`research/2026-10-13-stored-catalog-extraction.md`).
+- Anthropic, *The AI-native SDLC playbook* (2026-08-21), stage 4 Test: hook chặn agent sửa file test trong task sửa lỗi để vòng kiểm không bị làm yếu; ví dụ stage 6 lại cho agent cách ly test flaky qua cổng review — khung chọn luật chặt hơn (cách ly = điểm dừng): <https://claude.com/blog/the-ai-native-sdlc-playbook> — xác minh 2026-10-16 (`seeker19110/stored` mục 21 §10c).
 - Pin action theo SHA và kiểm supply chain: xem [`../12-security/supply-chain.md`](../12-security/supply-chain.md) (nhà của chủ đề).

@@ -20,6 +20,7 @@ Chạy `<XT> audit plan` (thêm `--json` khi cần xử lý máy). Từ output:
 - Ghi nhóm `N/A`/`rút gọn` kèm lý do vào sổ; **không** quét nhóm N/A, không bịa phát hiện cho mã không tồn tại.
 - Công cụ **thiếu** của nhóm áp dụng: cài được nhanh (pip/npm/binary chính chủ, phiên bản ghim) thì cài và chạy; không được → bằng chứng nhóm đó là `chưa biết:` + cần gì để đo.
 - Mục "Bằng chứng/miễn trừ blueprint trỏ file đã đổi" → mở từng mục, xác minh lại; sai → phát hiện nhóm 13 (HAR).
+- Nhóm 13 (harness): chạy `<XT> doctor --json` trước — mỗi lỗi ✗ là một phát hiện có sẵn đường tái hiện (không `--fix` trong lúc audit: sửa chờ duyệt).
 - Repo khung (`REPO KHUNG`): trọng tâm nhóm 9 (quy ước, ID, link, nguồn có ngày, tài liệu lệch mã) và 13 (hook, install, lệnh `xt.py`).
 
 ## 2. Blueprint

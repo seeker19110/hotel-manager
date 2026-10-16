@@ -3,7 +3,7 @@ title: Điểm dừng bắt buộc, mức tin cậy T0–T4, leo thang
 kind: module
 prefix: LOOP-STOP
 applies_to: [all]
-updated: 2026-10-15
+updated: 2026-10-16
 ---
 
 # Điểm dừng bắt buộc, mức tin cậy T0–T4, leo thang
@@ -84,7 +84,7 @@ chuyên môn; hook `ask`/`deny` vẫn cưỡng chế bất kể chính sách tro
 | Tiền thật | Thanh toán, hoàn tiền, đổi giá, gọi API thu phí ngoài sandbox | `loop block --reason` + SPEC phải có ca test | Chủ sản phẩm |
 | Dữ liệu người dùng thật | Migration trên DB production, export PII, xoá tài khoản | `pre-edit-guard.sh` ask khi sửa migration đã tồn tại; deploy → ask | Người trực + chủ dữ liệu |
 | Đổi quyền / nới cổng | Sửa `eslint`/`tsconfig`/coverage/workflows/ruleset/`.claude/settings.json`/`.xtemplates/` | `pre-edit-guard.sh` → **ask** kèm lý do | Tech lead |
-| Hành động đối ngoại | `gh pr merge`, `gh release`, `npm publish`, `docker push`, `terraform apply`, gửi email/thông báo, đăng bài | `pre-bash-guard.sh` → **ask**; Routine chỉ đề xuất | Người duyệt T4 |
+| Hành động đối ngoại | `gh pr merge` (trừ làn nhanh qua `xt.py merge-check`, `LOOP-STOP-022`), `gh release`, `npm publish`, `docker push`, `terraform apply`, gửi email/thông báo, đăng bài | `pre-bash-guard.sh` → **ask**; Routine chỉ đề xuất | Người duyệt T4 |
 | Merge thay đổi rủi ro cao | Chạm auth, mật mã, dữ liệu nhạy cảm, luật ngành | Luôn làn kiến trúc; `risk_tags` ≠ rỗng → thêm review bảo mật (`LOOP-STOP-005`) | Người phê duyệt bảo mật |
 | Bế tắc máy | Cùng chữ ký lỗi lần 3, ngân sách/hạn hết | `loop record` tự đặt `blocked`; verdict `budget` | Người xem rồi `loop resume` |
 
@@ -124,14 +124,14 @@ Ngoại lệ cứng: **xác thực/phân quyền · thanh toán · mật mã lu�
 ## Checklist
 
 - [ ] `LOOP-STOP-001` **MUST** Lệnh phá huỷ/không đảo ngược bị **deny** ở PreToolUse (không chỉ `ask`), sau khi tách lệnh nối `; && | ||`. → Kiểm: hook trả `permissionDecision: deny` cho `ls; rm -rf /` và `git push --force`; test hook xanh. · Nguồn: stored 12 §4 quy tắc 6
-- [ ] `LOOP-STOP-002` **MUST** Hành động đối ngoại (merge, release, publish, deploy, gửi thông báo) qua `ask` hoặc `loop block`, không bao giờ tự chạy trong autopilot. → Kiểm: `.claude/settings.json` `permissions.ask` có `gh pr merge`, `npm publish`, `docker push`; log phiên không có lệnh đó chạy tự động.
+- [ ] `LOOP-STOP-002` **MUST** Hành động đối ngoại (merge, release, publish, deploy, gửi thông báo) qua `ask` hoặc `loop block`, không bao giờ tự chạy trong autopilot — ngoại lệ duy nhất: merge PR làn nhanh khi `xt.py merge-check` trả `merge` ở mức tự chủ ≥ L2 (`LOOP-STOP-022`). → Kiểm: `.claude/settings.json` `permissions.ask` có `npm publish`, `docker push`; guard trả `ask` cho `gh pr merge` không ghim `--match-head-commit`, có `--admin`/`--repo`, hoặc `merge-check` ≠ `merge`; log phiên không có lệnh đối ngoại nào khác chạy tự động.
 - [ ] `LOOP-STOP-003` **MUST** Sửa cấu hình cổng (lint/type/coverage/workflows/ruleset/hook) và migration đã tồn tại đi qua `ask` kèm lý do ghi ở PR. → Kiểm: `pre-edit-guard.sh` trả `ask` cho `.github/workflows/x.yml` và file trong `migrations/` đã có; PR mô tả lý do. · Nguồn: stored 23 §4.3
 - [ ] `LOOP-STOP-004` **MAY** Ngừng dùng 2026-10-15 — thay bằng `LOOP-STOP-018` (ADR-0008: mâu thuẫn spec/nhiều cách hiểu là điểm quyết định, phiên chính tự duyệt và ghi lại thay vì `loop block`).
 - [ ] `LOOP-STOP-005` **MUST** Việc chạm tiền thật, dữ liệu người dùng thật, xác thực/phân quyền, mật mã luôn có người duyệt trước merge (T4/làn kiến trúc). → Kiểm: PR có nhãn `risk:` tương ứng và required review của người; CI chặn merge khi thiếu.
 - [ ] `LOOP-STOP-006` **MUST@L** Mỗi task giao cho subagent ghi `model_tier` (T0–T4) và `external_side_effects`; subagent không tự nâng tier. → Kiểm: task pack có hai trường; test từ chối task thiếu trường. · Nguồn: stored 23 §4.5
 - [ ] `LOOP-STOP-007` **MUST@L** Cổng chờ người có hạn (mặc định 24 h) và nhắc giữa hạn; quá hạn **không tự pass, không tự huỷ**. → Kiểm: cấu hình `gate_timeout_hours: 24`; test quá hạn → trạng thái `escalated`. · Nguồn: spec cũ ASC-FR-14
 - [ ] `LOOP-STOP-008` **MAY** Ngừng dùng 2026-10-14 — gộp vào [`LOOP-DESIGN-005`](loop-design.md) (trần rework 3 vòng/việc → `blocked`, người xem).
-- [ ] `LOOP-STOP-009` **MUST@L** Làn nhanh (tự merge) chỉ bật ở L2 trở lên và được định nghĩa bằng vị từ máy (5 điều kiện + 3 ngoại lệ cứng); mặc định là "không phải làn nhanh". → Kiểm: script phân làn đọc `git diff --numstat` + đường dẫn + `risk_tags`; test: diff chạm `auth/` → làn kiến trúc. · Nguồn: spec cũ §B3.1a
+- [ ] `LOOP-STOP-009` **MUST@L** Làn nhanh (tự merge) chỉ bật ở L2 trở lên và được định nghĩa bằng vị từ máy (5 điều kiện + 3 ngoại lệ cứng); mặc định là "không phải làn nhanh". → Kiểm: `xt.py merge-check` phân làn từ `files` + nhãn `risk:` của PR (vị từ trên, `merge_risk_paths` thêm đường dẫn riêng), mặc định `merge_autonomy: L1`; test: diff chạm `auth/` → làn chuẩn, người merge. · Nguồn: spec cũ §B3.1a
 - [ ] `LOOP-STOP-010` **MUST@L** Đường lùi tự chủ được đo: lỗi lọt nghiêm trọng qua làn nhanh → về L1 cho tới khi rà xong nguyên nhân. → Kiểm: `docs/ops/` có bảng mức hiện tại + ngày + lý do đổi; chỉ số `escaped_defect_rate` có số.
 - [ ] `LOOP-STOP-011` **SHOULD** Lỗi lần 2 cùng bước → đổi cách tiếp cận trước khi thử lại; ghi vào PROGRESS mục Quyết định. → Kiểm: evidence lần 2 và 3 có `cmd`/diff khác nhau; PROGRESS có dòng "đổi cách". · Nguồn: stored 23 §6.1
 - [ ] `LOOP-STOP-012` **SHOULD** Người giữ review mẫu ≥ 10 % PR ở mọi mức tự chủ để hiệu chuẩn niềm tin vào reviewer máy. → Kiểm: báo cáo tháng có tỉ lệ review mẫu. · Nguồn: spec cũ §B10
@@ -144,6 +144,7 @@ Ngoại lệ cứng: **xác thực/phân quyền · thanh toán · mật mã lu�
 - [ ] `LOOP-STOP-019` **SHOULD** Báo cáo cuối việc/bàn giao liệt kê các `D-NNN` mới trong kỳ để người xem lại; người đổi ý → quyết định mới ghi "thay D-NNN", không sửa mục cũ. → Kiểm: báo cáo cuối/PR có dòng "Quyết định tự duyệt: D-…"; `git log -p docs/autopilot/DECISIONS.md` chỉ thêm dòng. · Nguồn: ADR-0008
 - [ ] `LOOP-STOP-020` **SHOULD** Phương án cần thông tin/tài khoản/khoá chỉ chủ dự án có → chọn phương án tự host chạy được trong repo (giấy phép OSI) và ghi đề xuất dịch vụ cho lúc chạy thật bằng `loop decide --prod`; không dừng xin khoá khi phát triển. → Kiểm: `docker compose up` (hoặc lệnh `xt.yaml`) chạy đủ phụ thuộc không cần khoá ngoài; `GO-NO-GO.md` liệt kê mọi dòng "Khi chạy thật" của `DECISIONS.md`. · Nguồn: ADR-0008
 - [ ] `LOOP-STOP-021` **SHOULD** Việc cần người (điểm dừng về hành động) **không chặn cả vòng**: `xt.py loop defer --task <T-NNN|ID blueprint> --reason …` rồi làm việc độc lập khác; `loop block` chỉ khi mọi việc còn lại phụ thuộc nó; hết việc tự làm được → verdict `done-pending-human`, người xử lý gom một lần rồi `loop resume`. → Kiểm: `state.json.deferred` có lý do; `loop status` liệt kê "chờ người"; test `test_defer_status_hook_stop_and_resume_flow`. · Nguồn: ADR-0009
+- [ ] `LOOP-STOP-022` **SHOULD** Thời điểm merge PR đã mở do máy quyết: `xt.py merge-check [--pr N]` đọc PR qua REST (`gh api`, chạy được cả ở phiên chặn GraphQL; review: lần mới nhất của mỗi người, `mergeable_state` BLOCKED → `human`) (trạng thái, nháp, xung đột, CI, review, tụt sau nhánh đích, file, nhãn) → `merge` · `wait` · `update` · `fix` · `human` · `closed`; agent làm đúng bước `next` (merge bằng lệnh ghim `--match-head-commit`, `update` = `gh pr update-branch`, `wait` = chạy lại sau, `human` = báo người kèm lý do). Không có check CI nào → `human`. → Kiểm: `xt.py merge-check --json` có trong log trước mỗi `gh pr merge`; guard chỉ `allow` khi verdict `merge` và head khớp. · Nguồn: ADR-0013 của repo khung
 
 ## Bẫy thường gặp
 

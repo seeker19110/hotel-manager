@@ -4,7 +4,7 @@
 Dùng (payload JSON của Claude Code trên stdin, kết quả JSON trên stdout):
   guard.py bash   → {"decision": "deny"|"ask"|"", "reason": "...", "commit": true|false, "no_verify": true|false,
                      "commit_dir": "<thư mục git commit chạy, rỗng nếu không biết>"}
-  guard.py edit   → {"decision": "deny"|"ask"|"", "reason": "..."}
+  guard.py edit   → {"decision": "deny"|"ask"|"", "reason": "..."}  (file bí mật/cổng/migration; test ĐÃ CÓ bị làm yếu)
 
 Vì sao Python thay regex trong bash (audit 2026-10-14, AUD-SEC-001…010):
 - tách lệnh theo token shell (`shlex`): `|`/`;` trong nháy không phải ranh giới, thân heredoc là dữ liệu;
@@ -103,6 +103,39 @@ GATE_PATTERNS = (
 )
 MIGRATION_RE = re.compile(r"(^|/)(migrations?|migrate)/|(^|/)db/schema\.|(^|/)prisma/schema\.prisma$")
 
+# File test (đa ngôn ngữ). Sửa test ĐÃ CÓ theo hướng làm yếu bài kiểm = nới cổng (LOOP-CI-001): agent đang sửa lỗi
+# không được làm yếu chính bài kiểm đoạn code nó sửa (Anthropic AI-native SDLC playbook 2026-08-21, stage Test).
+TEST_PATTERNS = (
+    "test_*.py",
+    "*_test.py",
+    "*_test.go",
+    "*.test.*",
+    "*.spec.*",
+    "*_spec.rb",
+    "*Test.java",
+    "*Tests.java",
+    "*Test.kt",
+    "*Tests.cs",
+    "tests/*",
+    "test/*",
+    "__tests__/*",
+    "spec/*",
+)
+# Dấu bỏ qua / chỉ chạy một phần / chấp nhận đỏ / flaky: thêm mới = bớt phần được kiểm.
+TEST_SKIP_RE = re.compile(
+    r"\b(?:it|test|describe|context|suite)\.(?:skip|only|todo|fixme)\b"  # Jest/Vitest/Mocha/Playwright
+    r"|\bx(?:it|test|describe)\s*\(|\bf(?:it|describe)\s*\("  # xit/fit của Jasmine/Jest
+    r"|@pytest\.mark\.(?:skip|skipif|xfail|flaky)\b|\bpytest\.(?:skip|xfail)\s*\("
+    r"|@unittest\.(?:skip\w*|expectedFailure)\b|\.skipTest\s*\("
+    r"|\bt\.Skip(?:Now|f)?\s*\("  # Go
+    r"|@(?:Disabled|Ignore)\b|\bSkip\s*="  # JUnit, xUnit
+    r"|@flaky\b"  # nhãn flaky (QA-STRAT-009)
+)
+# Lời gọi kiểm: bớt đi = bài test kiểm ít hơn.
+TEST_ASSERT_RE = re.compile(
+    r"\bassert\w*\b|\bexpect\s*\(|\.should\b|\bt\.(?:Error|Fatal)f?\s*\(|\brequire\.\w+\s*\(|\bAssert\.\w+\s*\("
+)
+
 
 # --------------------------------------------------------------------------- đường dẫn
 
@@ -141,7 +174,44 @@ def classify_path(rel: str) -> str:
     return ""
 
 
-def edit_decision(path: str, root: str) -> Tuple[str, str]:
+def weakens_test(old: str, new: str) -> str:
+    """Lý do nếu `new` làm yếu bài test so với `old` (thêm dấu skip/only/xfail/flaky, hoặc bớt lời gọi kiểm); không thì ''."""
+    if len(TEST_SKIP_RE.findall(new)) > len(TEST_SKIP_RE.findall(old)):
+        return "thêm skip/only/xfail/flaky"
+    if len(TEST_ASSERT_RE.findall(new)) < len(TEST_ASSERT_RE.findall(old)):
+        return "bớt assertion"
+    return ""
+
+
+def _text(v: object) -> str:
+    return v if isinstance(v, str) else ""
+
+
+def _edit_texts(tool_input: Dict[str, object], full: str) -> Tuple[str, str]:
+    """(trước, sau) của lần sửa: Edit `old_string`/`new_string`, MultiEdit `edits`, Write `content` (trước = file trên đĩa)."""
+    edits = tool_input.get("edits")
+    if isinstance(edits, list):
+        pairs = [(_text(e.get("old_string")), _text(e.get("new_string"))) for e in edits if isinstance(e, dict)]
+        return "\n".join(p[0] for p in pairs), "\n".join(p[1] for p in pairs)
+    if "content" in tool_input:
+        with open(full, encoding="utf-8", errors="replace") as f:
+            return f.read(), _text(tool_input.get("content"))
+    return _text(tool_input.get("old_string")), _text(tool_input.get("new_string"))
+
+
+def _test_weakening(rel: str, root: str, tool_input: Optional[Dict[str, object]]) -> str:
+    """Lý do nếu lần sửa làm yếu một file test ĐÃ CÓ; file mới, không phải test, không đọc được → ''."""
+    full = os.path.join(root, rel)
+    if not tool_input or not _match_any(rel, TEST_PATTERNS) or not os.path.isfile(full):
+        return ""
+    try:
+        old, new = _edit_texts(tool_input, full)
+    except OSError:  # fail-open: không đọc được file thì không kết luận
+        return ""
+    return weakens_test(old, new)
+
+
+def edit_decision(path: str, root: str, tool_input: Optional[Dict[str, object]] = None) -> Tuple[str, str]:
     rel = rel_path(path, root)
     kind = classify_path(rel)
     if kind == "secret":
@@ -155,6 +225,12 @@ def edit_decision(path: str, root: str) -> Tuple[str, str]:
         return "ask", (
             f"Sửa migration/schema ĐÃ TỒN TẠI ({rel}). Migration đã áp không được sửa — tạo migration mới. "
             "Nếu chưa áp ở đâu, xác nhận rồi tiếp."
+        )
+    weak = _test_weakening(rel, root, tool_input)
+    if weak:
+        return "ask", (
+            f"Sửa test ĐÃ CÓ theo hướng làm yếu bài kiểm ({weak}: {rel}). Khung coi đây là nới cổng (LOOP-CI-001): "
+            "sửa code thay vì sửa test; chỉ sửa test khi test sai so với SPEC — nêu SPEC rồi xác nhận."
         )
     return "", ""
 
@@ -587,6 +663,64 @@ ASK_CMDS: Dict[str, Optional[Tuple[str, ...]]] = {
 INFO_ONLY = {"--version", "-v", "version", "--help", "-h", "help"}
 
 
+EXTERNAL_ASK = "hành động đối ngoại/triển khai thật (điểm dừng bắt buộc)"
+# Cờ của `gh pr merge` ăn thêm một token giá trị — không bóc thì giá trị bị hiểu là số PR.
+GH_MERGE_VALUE_FLAGS: Tuple[str, ...] = (
+    *("--match-head-commit", "-b", "--body", "-F", "--body-file", "-t", "--subject"),
+    *("-A", "--author-email", "-R", "--repo"),
+)
+MERGE_CHECK_TIMEOUT = 90
+
+
+def _flag_value(args: List[str], flag: str) -> Optional[str]:
+    for i, a in enumerate(args):
+        if a == flag and i + 1 < len(args):
+            return args[i + 1]
+        if a.startswith(flag + "="):
+            return a.split("=", 1)[1]
+    return None
+
+
+def merge_check(selector: List[str], root: str) -> Dict[str, object]:
+    """Chạy `xt.py merge-check --json` cài CÙNG khung với hook này (không theo PATH/biến môi trường agent đặt được)."""
+    here = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    xt = next(
+        (
+            p
+            for p in (os.path.join(here, ".xtemplates", "scripts", "xt.py"), os.path.join(here, "scripts", "xt.py"))
+            if os.path.isfile(p)
+        ),
+        "",
+    )
+    cmd = [sys.executable, xt, "merge-check", "--json", *(["--pr", selector[0]] if selector else [])]
+    try:
+        env = dict(os.environ, CLAUDE_PROJECT_DIR=root)
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=MERGE_CHECK_TIMEOUT, env=env, check=False)
+        data: Dict[str, object] = json.loads(r.stdout)
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return {"verdict": "lỗi", "reasons": ["merge-check không chạy được"]}
+    return data
+
+
+def gh_pr_merge_rule(args: List[str], root: str) -> Tuple[str, str]:
+    """`gh pr merge` (ADR-0013): mặc định hỏi người; `allow` chỉ khi `xt.py merge-check` = merge VÀ lệnh ghim đúng
+    head đã kiểm (`--match-head-commit`). `--admin` (vượt ruleset) và `--repo` (repo khác) luôn hỏi."""
+    sha = _flag_value(args, "--match-head-commit")
+    other_repo = any(a == "-R" or a.startswith(("-R", "--repo")) for a in args)
+    if not sha or "--admin" in args or other_repo:
+        return (
+            "ask",
+            f"{EXTERNAL_ASK} — tự merge cần `--match-head-commit <sha>` từ `xt.py merge-check`, không --admin/--repo",
+        )
+    d = merge_check(_positionals(args, GH_MERGE_VALUE_FLAGS)[:1], root)
+    reasons = "; ".join(str(x) for x in d.get("reasons") or [])  # type: ignore[attr-defined]
+    if d.get("verdict") != "merge":
+        return "ask", f"{EXTERNAL_ASK} — merge-check: {d.get('verdict')}: {reasons}"
+    if d.get("head") != sha:
+        return "ask", f"{EXTERNAL_ASK} — head đã kiểm {d.get('head')} khác --match-head-commit {sha}"
+    return "allow", f"merge-check: {reasons}"
+
+
 def _rm_rule(args: List[str]) -> Tuple[str, str]:
     """rm: deny --no-preserve-root và rm -rf trên đích nguy hiểm (gốc, home, cwd, glob, thư mục `.git`)."""
     flags = _short_flags(args)
@@ -615,15 +749,22 @@ def command_rules(n: List[str], root: str, cwd: Optional[str] = None) -> Tuple[s
         return "deny", "chmod 777"
     if name == "git":
         return git_rules(n, cwd)
+    return _external_rule(name, args, root)
+
+
+def _external_rule(name: str, args: List[str], root: str) -> Tuple[str, str]:
+    """Hành động đối ngoại/triển khai thật → ask; `gh pr merge` qua `xt.py merge-check` (ADR-0013)."""
+    if name == "gh" and args[:2] == ["pr", "merge"] and not set(args[2:]) & INFO_ONLY:
+        return gh_pr_merge_rule(args[2:], root)
     if name in ASK_CMDS and not (set(args) and set(args) <= INFO_ONLY):
         subs = ASK_CMDS[name]
         if (
             subs is None
             or (args and args[0] in subs)
-            or (name == "gh" and args[:2] in (["repo", "delete"], ["pr", "merge"]))
+            or (name == "gh" and args[:2] == ["repo", "delete"])
             or (name == "vercel" and "--prod" in args)
         ):
-            return "ask", "hành động đối ngoại/triển khai thật (điểm dừng bắt buộc)"
+            return "ask", EXTERNAL_ASK
     return "", ""
 
 
@@ -835,6 +976,8 @@ def _scan_command(
         return f"Lệnh bị khung chặn ({why}): {' '.join(argv)[:300]}. Muốn làm thật thì người dùng tự chạy."
     if decision == "ask":
         asks.append(f"{why}: {' '.join(argv)[:200]}")
+    if decision == "allow":  # chỉ hiệu lực khi cả lệnh Bash là đúng một lệnh này (bash_decision)
+        res["allow"] = why
     bypass = hook_bypass(argv, n)
     if bypass:
         asks.append(f"{bypass}: {' '.join(argv)[:200]}")
@@ -859,13 +1002,19 @@ def bash_decision(cmd: str, root: str, cwd: Optional[str] = None) -> Dict[str, o
         )
         return res
     asks: List[str] = []
-    for argv, here in _commands_with_cwd(tokens, cwd or root):
+    commands = _commands_with_cwd(tokens, cwd or root)
+    for argv, here in commands:
         deny_reason = _scan_command(argv, root, res, asks, here)
         if deny_reason:
             res.update(decision="deny", reason=deny_reason)
             return res
+    allow = res.pop("allow", "")
+    if allow and len(commands) > 1:  # `allow` bỏ hỏi cho CẢ lệnh Bash → chỉ khi merge đứng một mình
+        asks.append(f"{EXTERNAL_ASK} — tự merge chỉ khi lệnh đứng một mình")
     if asks:
         res.update(decision="ask", reason="Khung cần xác nhận: " + "; ".join(dict.fromkeys(asks)))
+    elif allow:
+        res.update(decision="allow", reason=f"Khung cho tự merge (ADR-0013) — {allow}")
     return res
 
 
@@ -882,7 +1031,7 @@ def main() -> int:
             out: Dict[str, object] = bash_decision(cmd, root, cwd) if isinstance(cmd, str) and cmd else {"decision": ""}
         elif mode == "edit":
             path = tool_input.get("file_path")
-            d, r = edit_decision(path, root) if isinstance(path, str) and path else ("", "")
+            d, r = edit_decision(path, root, tool_input) if isinstance(path, str) and path else ("", "")
             out = {"decision": d, "reason": r}
         else:
             out = {"decision": ""}
