@@ -83,6 +83,17 @@ describe("S-012 nội dung không chứa PII nhạy cảm", () => {
       ["invoice_issued", { ...VARS.invoice_issued, propertyName: "Nhà trọ +84 905 123 456" }, "905 123 456"],
       ["lease_expiring", { ...VARS.lease_expiring, unitCode: "012345678901" }, "012345678901"],
       ["export_ready", { ...VARS.export_ready, exportName: "TK 19036012345678" }, "19036012345678"],
+      [
+        "invoice_issued",
+        { ...VARS.invoice_issued, propertyName: "Nhà nghỉ Hoa Mai - ĐT.0905123456" },
+        "0905123456",
+      ],
+      [
+        "invoice_issued",
+        { ...VARS.invoice_issued, propertyName: "Nhà nghỉ Hoa Mai 0905123456." },
+        "0905123456",
+      ],
+      ["export_ready", { ...VARS.export_ready, exportName: "CCCD 079123456789." }, "079123456789"],
     ];
     for (const [type, vars, secret] of cases) {
       const r = render(type, vars, { baseUrl: "https://app.example" });
@@ -94,6 +105,22 @@ describe("S-012 nội dung không chứa PII nhạy cảm", () => {
       render("invoice_issued", { ...VARS.invoice_issued, propertyName: "Nhà nghỉ Hoa Mai - 0905123456" })
         .body,
     ).toBe("Nhà nghỉ Hoa Mai - ***: phiếu thu kỳ 10/2026 1.580.000 đ, hạn thanh toán 10/10/2026.");
+  });
+
+  it("cắt độ dài trước khi che: dãy số dài bị cắt dở không làm hỏng mẫu, không lộ số", () => {
+    const r = render("export_ready", {
+      ...VARS.export_ready,
+      exportName: `Ghi chú ${"a".repeat(185)} 0905123456789012345678`,
+    });
+    expect(r.emailSubject).not.toContain("0905123456");
+  });
+
+  it("số tiền có dấu chấm nghìn và ngày không bị che", () => {
+    const r = render("export_ready", {
+      ...VARS.export_ready,
+      exportName: "Thu 1.580.000.000 đ ngày 10/10/2026",
+    });
+    expect(r.emailSubject).toBe("Đã xuất xong: Thu 1.580.000.000 đ ngày 10/10/2026");
   });
 
   it("mã UUID có nhóm cuối toàn chữ số không bị che (liên kết vẫn đúng)", () => {

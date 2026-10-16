@@ -38,9 +38,11 @@ export interface Rendered {
 
 const MAX_VALUE = 200;
 
-const DOC_NO = /(?<![\d.])\d{9}(?:\d{3})?(?![\d.])/;
-const PHONE = /(?<![\d.])(?:\+?84|0)(?:[\s.-]?\d){9,10}(?![\d.])/;
-const ACCOUNT_NO = /(?<![\d.])\d{10,19}(?![\d.])/;
+// Biên: không dính chữ số, và dấu chấm chỉ bị coi là một phần số khi là dấu phân cách nghìn (`1.580.000`) — số dính dấu
+// chấm câu/viết tắt (`ĐT.0905123456`, `… 0905123456.`) vẫn bị bắt.
+const DOC_NO = /(?<!\d)(?<!\d\.)\d{9}(?:\d{3})?(?!\d)(?!\.\d)/;
+const PHONE = /(?<!\d)(?<!\d\.)(?:\+?84|0)(?:[\s.-]?\d){9,10}(?!\d)(?!\.\d)/;
+const ACCOUNT_NO = /(?<!\d)(?<!\d\.)\d{10,19}(?!\d)(?!\.\d)/;
 
 /** Dạng nhạy cảm không được xuất hiện trong nội dung render (S-012). */
 const SENSITIVE: readonly [string, RegExp][] = [
@@ -68,8 +70,9 @@ function clean(v: unknown, name: string, opts: { redact?: boolean } = {}): strin
     .replace(/ {2,}/g, " ")
     .trim();
   if (!s) throw new TemplateError(`thiếu biến ${name}`);
-  const r = opts.redact === false ? s : redact(s);
-  return r.length > MAX_VALUE ? `${r.slice(0, MAX_VALUE - 1)}…` : r;
+  // Cắt trước rồi mới che: cắt sau khi che có thể để lại dãy số dài dở dang.
+  const cut = s.length > MAX_VALUE ? `${s.slice(0, MAX_VALUE - 1)}…` : s;
+  return opts.redact === false ? cut : redact(cut);
 }
 
 function str(vars: Vars, name: string): string {

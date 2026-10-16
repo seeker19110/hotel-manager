@@ -143,10 +143,10 @@ const HANDLERS: Readonly<
 /** Sự kiện outbox mà `notify.dispatch` xử lý (worker tạo queue + consumer cho từng loại). */
 export const NOTIFY_EVENT_TYPES = Object.keys(HANDLERS);
 
-/** Xử lý một sự kiện trong ngữ cảnh tổ chức của chính hàng outbox (IND-SAAS-003). Trả số thông báo mới. */
 /**
+ * Xử lý một sự kiện trong ngữ cảnh tổ chức của chính hàng outbox (IND-SAAS-003). Trả số thông báo mới.
  * Lỗi mẫu (dữ liệu không render được) là lỗi tất định — chạy lại không khỏi — nên bỏ sự kiện đó, ghi log
- * `notification.template_error` (không kèm biến), thay vì để job lặp tới dead-letter (review PR #10).
+ * `notification.template_error` (lý do chỉ nêu tên biến/ngày, logger che lại), thay vì để job lặp tới dead-letter.
  */
 export async function dispatchNotification(
   workerDb: Kysely<unknown>,

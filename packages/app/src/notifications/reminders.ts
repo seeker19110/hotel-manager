@@ -12,6 +12,9 @@ import { type Kysely, sql } from "kysely";
 import { createNotification, type NewNotification } from "./dispatch.ts";
 import { TemplateError } from "./templates.ts";
 
+export type ReminderLog = (event: string, fields: Record<string, unknown>) => void;
+const noLog: ReminderLog = () => {};
+
 export interface ReminderStats {
   overdue: number;
   leaseExpiring: number;
@@ -27,7 +30,12 @@ async function orgs(workerDb: Kysely<unknown>): Promise<string[]> {
  * Chạy `fn` cho từng tổ chức; lỗi của một tổ chức không chặn tổ chức khác (review PR #10). Hết lượt mà có lỗi ⇒ ném
  * AggregateError để job bị đánh dấu lỗi và chạy lại (khoá dedupe giữ cho tổ chức đã xong không bị nhắc lặp).
  */
-async function perOrg(workerDb: Kysely<unknown>, fn: (orgId: string) => Promise<number>): Promise<number> {
+async function perOrg(
+  workerDb: Kysely<unknown>,
+  scan: string,
+  log: ReminderLog,
+  fn: (orgId: string) => Promise<number>,
+): Promise<number> {
   let created = 0;
   const errors: unknown[] = [];
   for (const orgId of await orgs(workerDb)) {
@@ -35,6 +43,7 @@ async function perOrg(workerDb: Kysely<unknown>, fn: (orgId: string) => Promise<
       created += await fn(orgId);
     } catch (err) {
       errors.push(err);
+      log("reminder.org_failed", { scan, org_id: orgId, error: (err as Error)?.name ?? "Error" });
     }
   }
   if (errors.length > 0) throw new AggregateError(errors, `nhắc lịch lỗi ở ${errors.length} tổ chức`);
@@ -59,6 +68,7 @@ async function createMany(
   orgId: string,
   items: NewNotification[],
   now: Date,
+  log: ReminderLog,
 ): Promise<number> {
   if (items.length === 0) return 0;
   return withTenant(workerDb, { orgId }, async (trx) => {
@@ -69,6 +79,8 @@ async function createMany(
       } catch (err) {
         // Lỗi mẫu xảy ra trước mọi câu ghi (render trước insert) ⇒ bỏ riêng mục đó, transaction còn dùng được.
         if (!(err instanceof TemplateError)) throw err;
+        // Không kèm biến (có thể chứa dữ liệu người dùng) — chỉ loại + khoá dedupe để lần ra.
+        log("notification.template_error", { type: it.type, dedupe_key: it.dedupeKey, reason: err.message });
       }
     }
     return n;
@@ -78,8 +90,12 @@ async function createMany(
 const period = (iso: string) => `${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
 
 /** `reminder.scanOverdue` (S-007): một nhắc mỗi phiếu mỗi ngày địa phương theo lịch nhắc của cơ sở. */
-export async function scanOverdue(workerDb: Kysely<unknown>, now: Date = new Date()): Promise<number> {
-  return perOrg(workerDb, async (orgId) => {
+export async function scanOverdue(
+  workerDb: Kysely<unknown>,
+  now: Date = new Date(),
+  log: ReminderLog = noLog,
+): Promise<number> {
+  return perOrg(workerDb, "overdue", log, async (orgId) => {
     const r = await sql<{
       property_id: string;
       property_name: string;
@@ -112,13 +128,18 @@ export async function scanOverdue(workerDb: Kysely<unknown>, now: Date = new Dat
         dedupeKey: `invoice_overdue:${x.invoice_id}:${x.local_date}`,
       })),
       now,
+      log,
     );
   });
 }
 
 /** `reminder.scanLeaseExpiry` (S-013): mốc 30/7 ngày (cấu hình), khoá dedupe theo hợp đồng + phiên bản + mốc. */
-export async function scanLeaseExpiry(workerDb: Kysely<unknown>, now: Date = new Date()): Promise<number> {
-  return perOrg(workerDb, async (orgId) => {
+export async function scanLeaseExpiry(
+  workerDb: Kysely<unknown>,
+  now: Date = new Date(),
+  log: ReminderLog = noLog,
+): Promise<number> {
+  return perOrg(workerDb, "lease_expiry", log, async (orgId) => {
     const r = await sql<{
       property_id: string;
       property_name: string;
@@ -150,13 +171,17 @@ export async function scanLeaseExpiry(workerDb: Kysely<unknown>, now: Date = new
           dedupeKey: `lease_expiring:${x.lease_id}:${x.version_no}:${x.days_left}`,
         });
     }
-    return createMany(workerDb, orgId, items, now);
+    return createMany(workerDb, orgId, items, now, log);
   });
 }
 
 /** `reminder.scanStayNotice` (S-014…S-016, S-020, S-021). Chỉ trong app (nhân viên). */
-export async function scanStayNotice(workerDb: Kysely<unknown>, now: Date = new Date()): Promise<number> {
-  return perOrg(workerDb, async (orgId) => {
+export async function scanStayNotice(
+  workerDb: Kysely<unknown>,
+  now: Date = new Date(),
+  log: ReminderLog = noLog,
+): Promise<number> {
+  return perOrg(workerDb, "stay_notice", log, async (orgId) => {
     const r = await sql<{
       property_id: string;
       property_name: string;
@@ -205,18 +230,33 @@ export async function scanStayNotice(workerDb: Kysely<unknown>, now: Date = new 
           email: false,
         });
     }
-    return createMany(workerDb, orgId, items, now);
+    return createMany(workerDb, orgId, items, now, log);
   });
 }
 
-/** Một lượt quét đủ ba loại (worker gọi theo lịch). */
+/**
+ * Một lượt quét đủ ba loại (worker gọi theo lịch). Mỗi loại chạy bất kể loại trước lỗi (review PR #10: nhắc quá hạn lỗi
+ * không được chặn thông báo lưu trú Khẩn); có lỗi ⇒ ném AggregateError sau khi chạy hết để job được chạy lại.
+ */
 export async function runReminders(
   workerDb: Kysely<unknown>,
   now: Date = new Date(),
+  log: ReminderLog = noLog,
 ): Promise<ReminderStats> {
-  return {
-    overdue: await scanOverdue(workerDb, now),
-    leaseExpiring: await scanLeaseExpiry(workerDb, now),
-    stayNotice: await scanStayNotice(workerDb, now),
-  };
+  const stats: ReminderStats = { overdue: 0, leaseExpiring: 0, stayNotice: 0 };
+  const errors: unknown[] = [];
+  const steps: [keyof ReminderStats, typeof scanOverdue][] = [
+    ["overdue", scanOverdue],
+    ["leaseExpiring", scanLeaseExpiry],
+    ["stayNotice", scanStayNotice],
+  ];
+  for (const [key, scan] of steps) {
+    try {
+      stats[key] = await scan(workerDb, now, log);
+    } catch (err) {
+      errors.push(err);
+    }
+  }
+  if (errors.length > 0) throw new AggregateError(errors, `nhắc lịch lỗi ở ${errors.length} loại quét`);
+  return stats;
 }

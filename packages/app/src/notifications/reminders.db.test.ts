@@ -9,7 +9,7 @@ import { markNoticeSubmitted } from "../stay/residence-notices.ts";
 import { walkIn } from "../stay/stays.ts";
 import { okAs, seedMember } from "../testing/helpers.ts";
 import { type Hotel, seedHotel } from "../testing/hotel.ts";
-import { scanLeaseExpiry, scanOverdue, scanStayNotice } from "./reminders.ts";
+import { runReminders, scanLeaseExpiry, scanOverdue, scanStayNotice } from "./reminders.ts";
 
 let h: Hotel;
 let tenant: Actor;
@@ -256,5 +256,88 @@ describe("S-014…S-016, S-021 nhắc thông báo lưu trú", () => {
       h.t.admin,
     );
     expect(r.rows[0]?.n).toBe(0);
+  });
+});
+
+describe("Review PR #10 — cô lập lỗi khi nhắc theo lịch", () => {
+  async function leaseEnding(end: string, name: string): Promise<{ leaseId: string; unitId: string }> {
+    const p = await seedMember(h.t, h.org, "tenant", { name });
+    const l = await seedLease(h.t.admin, {
+      orgId: h.org.orgId,
+      propertyId: h.org.propertyId,
+      representativePersonId: p.personId,
+      effectiveFrom: "2026-09-01",
+    });
+    await activate(l.leaseId, end);
+    return l;
+  }
+
+  it("một hợp đồng không render được (mã phòng chỉ ký tự điều khiển) → bỏ riêng mục đó + log, hợp đồng khác vẫn nhắc", async () => {
+    const bad = await leaseEnding("2026-12-15", "Người thuê C");
+    const good = await leaseEnding("2026-12-15", "Người thuê D");
+    await sql`update units set code = ${"\u0001"} where id = ${bad.unitId}`.execute(h.t.admin);
+    const logs: { event: string; fields: Record<string, unknown> }[] = [];
+    await scanLeaseExpiry(h.t.worker, vn("2026-11-15T09:00"), (event, fields) =>
+      logs.push({ event, fields }),
+    );
+    expect(await count(`lease_expiring:${good.leaseId}:`)).toBeGreaterThanOrEqual(3);
+    expect(await count(`lease_expiring:${bad.leaseId}:`)).toBe(0);
+    const te = logs.filter((l) => l.event === "notification.template_error");
+    expect(te.length).toBeGreaterThanOrEqual(1);
+    expect(te.every((l) => l.fields.type === "lease_expiring")).toBe(true);
+    expect(JSON.stringify(te)).not.toContain("Người thuê");
+  });
+
+  it("một tổ chức lỗi khi ghi → tổ chức khác vẫn được nhắc, các loại quét sau vẫn chạy; runReminders ném AggregateError sau khi chạy hết", async () => {
+    const inv = await invoice(700_000);
+    const l = await leaseEnding("2026-11-10", "Người thuê E");
+    // Tổ chức kia có một phiếu quá hạn thật; ghi thông báo của tổ chức đó bị lỗi (trigger tạm — mô phỏng lỗi CSDL).
+    const otherTenant = await seedMember(h.t, h.other, "tenant", { name: "Người thuê khác" });
+    const otherLease = await seedLease(h.t.admin, {
+      orgId: h.other.orgId,
+      propertyId: h.other.propertyId,
+      representativePersonId: otherTenant.personId,
+      effectiveFrom: "2026-09-01",
+    });
+    const otherInv = randomUUID();
+    await h.t.admin.transaction().execute(async (trx) => {
+      await sql`insert into invoices (id, organization_id, property_id, kind, lease_id, number, memo_ref, payer_person_id,
+                                      business_date, due_on, total)
+                values (${otherInv}, ${h.other.orgId}, ${h.other.propertyId}, 'fee', ${otherLease.leaseId}, ${`R-${otherInv.slice(0, 8)}`},
+                        ${`HM${otherInv.replaceAll("-", "").slice(0, 10).toUpperCase()}`}, ${otherTenant.personId}, '2026-10-01',
+                        '2026-10-10', 400000)`.execute(trx);
+      await sql`insert into invoice_lines (id, organization_id, property_id, invoice_id, line_no, kind, description, revenue_account,
+                                           quantity, unit_price, amount, rounding_rule, formula_version)
+                values (${randomUUID()}, ${h.other.orgId}, ${h.other.propertyId}, ${otherInv}, 1, 'fee', 'Phí (giả)', 'REV_FEE', 1,
+                        400000, 400000, 'HALF_UP_1', 1)`.execute(trx);
+    });
+    await sql
+      .raw(`
+      CREATE FUNCTION pg_temp_fail_org() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        IF NEW.organization_id = '${h.other.orgId}' THEN RAISE EXCEPTION 'lỗi giả cho tổ chức kia'; END IF;
+        RETURN NEW;
+      END $$;
+      CREATE TRIGGER trg_test_fail_org BEFORE INSERT ON notifications FOR EACH ROW EXECUTE FUNCTION pg_temp_fail_org();
+    `)
+      .execute(h.t.admin);
+    try {
+      const logs: { event: string; fields: Record<string, unknown> }[] = [];
+      const err = await runReminders(h.t.worker, vn("2026-10-11T09:00"), (event, fields) =>
+        logs.push({ event, fields }),
+      ).catch((e) => e);
+      expect(err).toBeInstanceOf(AggregateError);
+      const failed = logs.filter((x) => x.event === "reminder.org_failed");
+      expect(failed).toEqual([
+        { event: "reminder.org_failed", fields: { scan: "overdue", org_id: h.other.orgId, error: "error" } },
+      ]);
+      // Tổ chức còn lại: nhắc quá hạn (cùng loại quét với tổ chức lỗi) VÀ nhắc hợp đồng (loại quét sau) vẫn được tạo.
+      expect(await count(`invoice_overdue:${inv}:2026-10-11`)).toBe(1);
+      expect(await count(`lease_expiring:${l.leaseId}:1:30`)).toBeGreaterThanOrEqual(3);
+    } finally {
+      await sql
+        .raw("DROP TRIGGER trg_test_fail_org ON notifications; DROP FUNCTION pg_temp_fail_org();")
+        .execute(h.t.admin);
+    }
   });
 });

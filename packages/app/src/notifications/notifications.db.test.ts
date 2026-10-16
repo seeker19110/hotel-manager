@@ -445,7 +445,8 @@ describe("Review PR #10 — rào khoá khi worker chậm bị nhận lại", () 
     await b.inside;
     expect((await delivery(inv))[0]).toMatchObject({ status: "sending", attempts: 2 });
     a.release();
-    expect((await pA).retrying).toBe(1);
+    // Kết quả về muộn của A: không ghi (0 hàng), đếm `stale`, không đếm/log như retrying.
+    expect(await pA).toMatchObject({ stale: 1, retrying: 0 });
     // A (attempts 1) không đổi được hàng B đang giữ.
     expect((await delivery(inv))[0]).toMatchObject({ status: "sending", attempts: 2 });
     b.release();

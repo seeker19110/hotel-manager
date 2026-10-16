@@ -1,19 +1,23 @@
 // Review PR #10 — `app.claim_due_deliveries` (SPEC-notifications S-003, S-004; Q-05):
 // - `sending` quá hạn khoá được trả về `retrying` với CHỜ LÙI theo số lần đã thử (1/5/30/120/360 phút, như `send.ts`),
-//   không nhận lại ngay trong cùng lượt (worker cũ có thể vẫn đang gửi). `send.ts` ghi kết quả có điều kiện
-//   `attempts = <lúc nhận>` nên worker cũ không ghi đè lần nhận mới.
+//   không nhận lại ngay trong cùng lượt (worker cũ có thể vẫn đang gửi).
+// - Trả thêm `locked_until` của lần nhận làm mã rào: `send.ts` ghi kết quả có điều kiện `locked_until = <lúc nhận>` (tăng
+//   ngặt giữa các lần nhận vì chỉ nhận lại khi `locked_until < p_now`) — worker cũ không ghi đè lần nhận mới, kể cả khi
+//   gửi lại thủ công đã đặt `attempts = 0` (ABA với rào bằng `attempts`).
 // - Chọn theo TỪNG tổ chức trước (tổ chức có hàng đến hạn → tối đa p_per_org hàng, SKIP LOCKED) rồi xếp vòng tròn theo thứ
 //   hạng trong tổ chức và mới cắt p_limit: một tổ chức tồn đọng nhiều không chiếm hết lô của tổ chức khác (bản 0034 cắt
-//   p_limit × 4 hàng sớm nhất toàn hệ thống trước khi chia theo tổ chức).
+//   p_limit × 4 hàng sớm nhất toàn hệ thống trước khi chia theo tổ chức). Chỉ xét tối đa p_limit tổ chức có hàng đến hạn
+//   sớm nhất ⇒ khoá tối đa p_limit × p_per_org hàng mỗi lượt.
 import { type Kysely, sql } from "kysely";
 
 const UP = `
 CREATE INDEX ix_notification_deliveries_org_due ON notification_deliveries (organization_id, next_attempt_at, id)
   WHERE status IN ('queued','retrying');
 
-CREATE OR REPLACE FUNCTION app.claim_due_deliveries(p_now timestamptz, p_limit integer, p_per_org integer, p_lock_seconds integer,
-                                                    p_max_attempts integer)
-  RETURNS TABLE (id uuid, organization_id uuid, attempts integer)
+DROP FUNCTION app.claim_due_deliveries(timestamptz, integer, integer, integer, integer);
+CREATE FUNCTION app.claim_due_deliveries(p_now timestamptz, p_limit integer, p_per_org integer, p_lock_seconds integer,
+                                         p_max_attempts integer)
+  RETURNS TABLE (id uuid, organization_id uuid, attempts integer, locked_until timestamptz)
   LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp AS $$
 BEGIN
   UPDATE notification_deliveries d
@@ -24,8 +28,11 @@ BEGIN
    WHERE d.status = 'sending' AND d.locked_until < p_now;
   RETURN QUERY
   WITH due_orgs AS (
-    SELECT DISTINCT d.organization_id FROM notification_deliveries d
+    SELECT d.organization_id FROM notification_deliveries d
      WHERE d.status IN ('queued','retrying') AND d.next_attempt_at <= p_now
+     GROUP BY d.organization_id
+     ORDER BY min(d.next_attempt_at), d.organization_id
+     LIMIT least(greatest(p_limit, 1), 1000)
   ), locked AS (
     SELECT x.id, x.organization_id, x.next_attempt_at
       FROM due_orgs o
@@ -47,13 +54,16 @@ BEGIN
      SET status = 'sending', attempts = d.attempts + 1,
          locked_until = p_now + make_interval(secs => greatest(p_lock_seconds, 1))
     FROM picked p WHERE d.id = p.id
-  RETURNING d.id, d.organization_id, d.attempts;
+  RETURNING d.id, d.organization_id, d.attempts, d.locked_until;
 END $$;
+REVOKE ALL ON FUNCTION app.claim_due_deliveries(timestamptz, integer, integer, integer, integer) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION app.claim_due_deliveries(timestamptz, integer, integer, integer, integer) TO app_worker;
 `;
 
 const DOWN = `
-CREATE OR REPLACE FUNCTION app.claim_due_deliveries(p_now timestamptz, p_limit integer, p_per_org integer, p_lock_seconds integer,
-                                                    p_max_attempts integer)
+DROP FUNCTION app.claim_due_deliveries(timestamptz, integer, integer, integer, integer);
+CREATE FUNCTION app.claim_due_deliveries(p_now timestamptz, p_limit integer, p_per_org integer, p_lock_seconds integer,
+                                         p_max_attempts integer)
   RETURNS TABLE (id uuid, organization_id uuid, attempts integer)
   LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp AS $$
 BEGIN
@@ -82,6 +92,8 @@ BEGIN
     FROM picked p WHERE d.id = p.id
   RETURNING d.id, d.organization_id, d.attempts;
 END $$;
+REVOKE ALL ON FUNCTION app.claim_due_deliveries(timestamptz, integer, integer, integer, integer) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION app.claim_due_deliveries(timestamptz, integer, integer, integer, integer) TO app_worker;
 DROP INDEX IF EXISTS ix_notification_deliveries_org_due;
 `;
 
