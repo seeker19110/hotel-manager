@@ -61,7 +61,7 @@ Mục tiêu pilot: ≥ 6 cơ sở (3 trọ, 2 khách sạn, 1 căn hộ dịch v
 
 Nỗ lực: các gói P0 trong backlog là 224/343 ngày công, tức **65% nằm ở Must**, vượt ngưỡng ≤ 60% mà khung khuyến nghị.
 
-> **Lệch kế hoạch gốc — cần chủ dự án chọn.** Kế hoạch §04/§19 để gia hạn/thanh lý đầy đủ, phân bổ thanh toán, khoá kỳ và portal mở rộng (hợp đồng, công tơ, tiến độ) ở **V1**, nghiệm thu tuần 13–16; pilot tuần 12 xử lý các việc đó bằng chứng từ tối thiểu có người duyệt. Bảng trên đang theo **backlog** (các gói T031, T032, T035, T040, T044 là P0 tuần 9–12). Hai nguồn của chính kế hoạch lệch nhau; **chủ dự án chọn theo backlog (2026-10-15)** — pilot đầy đủ hơn, rủi ro trễ cao hơn. Nếu trễ: cắt F-007, F-008, F-011 xuống tối thiểu trước; không cắt test tiền/tồn (kế hoạch §19).
+> **Lệch kế hoạch gốc — chủ dự án đã chọn (ghi ở [`SCOPE.md`](SCOPE.md)).** Kế hoạch §04/§19 để gia hạn/thanh lý đầy đủ, phân bổ thanh toán, khoá kỳ và portal mở rộng (hợp đồng, công tơ, tiến độ) ở **V1**, nghiệm thu tuần 13–16; pilot tuần 12 xử lý các việc đó bằng chứng từ tối thiểu có người duyệt. Bảng trên đang theo **backlog** (các gói T031, T032, T035, T040, T044 là P0 tuần 9–12). Hai nguồn của chính kế hoạch lệch nhau; **chủ dự án chọn theo backlog (2026-10-15)** — pilot đầy đủ hơn, rủi ro trễ cao hơn. Nếu trễ: cắt F-007, F-008, F-011 xuống tối thiểu trước; không cắt test tiền/tồn (kế hoạch §19).
 
 ### Không làm (Won't — trong V1)
 - Bán theo giường; bán theo loại phòng khi chưa gán phòng cụ thể. Lý do: MVP gán phòng ngay để bảo đảm chống trùng bằng constraint.
@@ -94,6 +94,16 @@ Chín đặc tính của ISO/IEC 25010:2023; mỗi hàng có ngưỡng đo đư�
 
 ## 6. Dữ liệu & pháp lý
 - **Dữ liệu cá nhân:** có. Dữ liệu cơ bản gồm họ tên, SĐT, email, địa chỉ. Ảnh/số CCCD và hộ chiếu được xếp là dữ liệu **nhạy cảm** theo NĐ 356/2025 [T — nguồn thứ cấp, chưa đối chiếu văn bản gốc; thiết kế vẫn bảo vệ ở mức nhạy cảm] → giảm thu thập, che, lưu file riêng tư, cấm cache offline.
+- **Phân loại dữ liệu** (BASE-SEC-013). Phân loại **theo từng cột** nằm ở [`docs/privacy/data-map.yaml`](docs/privacy/data-map.yaml) (mục đích, cơ sở pháp lý đề xuất, hạn giữ, nơi lưu, bên xử lý); test `packages/app/src/privacy/data-map.db.test.ts` đối chiếu với catalog CSDL — cột có tên mẫu PII chưa khai thì đỏ. Giá trị phân loại dùng trong sổ đó:
+
+| Lớp (`classification`) | Gồm | Xử lý bắt buộc | Ví dụ |
+|---|---|---|---|
+| `nhay_cam` | số và ảnh giấy tờ nhận dạng, số tài khoản nhận tiền | mã hoá AES-256-GCM tầng ứng dụng (D-004) hoặc file riêng tư ở bucket không công khai; chỉ hiển thị bản che; không vào log; không cache offline | `identity_documents.doc_number_enc`, ảnh giấy tờ |
+| `xac_thuc` | mật khẩu đã băm, secret TOTP, mã dự phòng, token và băm token | không bao giờ trả ra API/log; chỉ lưu dạng băm hoặc do Better Auth quản lý; xoay theo `docs/ops/runbooks/secret-leak.md` | `auth.account.password`, `guest_access_links.token_hash` |
+| `co_ban` | họ tên, SĐT, email, địa chỉ | RLS theo tổ chức; che SĐT/email trong log và thông báo; ẩn danh hoá khi xoá người (`persons.anonymized_at`) | `persons.full_name`, `persons.phone` |
+| không phải PII (`not_pii`) | cột trùng tên mẫu PII nhưng không chứa dữ liệu cá nhân, kèm lý do | không cần | khai ở mục `not_pii` của sổ |
+
+  Tối thiểu hoá: không lưu ảnh giấy tờ khi lưu trú (D-002); hạn giữ từng cột ghi ở sổ, nhiều hạn chưa chốt vì chờ DPIA (`docs/RISKS.md` RK-019).
 - **Tiền thật:** có ghi nhận tiền (QR chuyển khoản, tiền mặt, cọc). Hệ thống **không giữ tiền** và không chạm dữ liệu thẻ.
 - **Luật áp dụng** (danh sách xác minh ở `docs/research/2026-10-15-stack-va-phap-ly.md`): **tất cả ở mức [T], chưa đối chiếu văn bản gốc** — Luật BVDLCN 91/2025/QH15 + NĐ 356/2025/NĐ-CP (+ NĐ 330/2026 và NĐ 333/2026 mà blueprint trích, cần pháp lý đối chiếu); Luật Cư trú 68/2020/QH14 Đ.30 sửa bởi Luật 118/2025/QH15 (thông báo lưu trú); quy định khai báo tạm trú cho người nước ngoài; NĐ về hoá đơn điện tử (kế hoạch ghi NĐ 254/2026, cần đối chiếu); quy định giá bán điện cho người thuê nhà; Luật An ninh mạng 116/2025.
 - **DPIA:** bắt buộc trước khi dùng dữ liệu thật → `docs/DPIA.md` (việc của **người** — pháp lý soạn/duyệt, ngoài vòng tự động; chặn dữ liệu thật).

@@ -9,6 +9,7 @@ import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { ERROR_CODES } from "../packages/app/src/errors.ts";
+import { aliasOf, expandIds, mentioned, scenarios, coverage as specCoverage } from "./spec-coverage.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const read = (rel) => readFileSync(join(ROOT, rel), "utf8");
@@ -545,5 +546,693 @@ describe("SPEC mục 10: câu đã đóng trỏ D-NNN/ngày (PM-SPEC-020)", () =
       for (const d of ds) if (!decisions.includes(`### ${d} `)) bad.push(`${d} không có trong DECISIONS.md`);
     }
     expect(bad).toEqual([]);
+  });
+});
+
+// ───────────────────────── SCOPE.md (PM-PRIO-004) ─────────────────────────
+
+describe("SCOPE.md (PM-PRIO-004)", () => {
+  const text = read("SCOPE.md");
+  const rows = text
+    .split("\n")
+    .filter((l) => /^\| \d{4}-\d{2}-\d{2} \|/.test(l))
+    .map((l) =>
+      l
+        .slice(1, -1)
+        .split("|")
+        .map((c) => c.trim()),
+    );
+  it("nêu điều kiện xét, quy ước commit docs(scope) và đóng băng ở G1", () => {
+    expect(text).toMatch(/^## Điều kiện xét/m);
+    expect(text).toContain("docs(scope)");
+    expect(text).toContain("G1");
+  });
+  it("nhật ký: mỗi dòng đủ 5 cột, có người quyết và mục bị đẩy ra/bù, ngày không giảm", () => {
+    expect(rows.length).toBeGreaterThanOrEqual(5);
+    for (const r of rows) {
+      expect(r, r[0]).toHaveLength(5);
+      for (const c of r) expect(c.length, `${r[0]}: ô trống`).toBeGreaterThan(0);
+    }
+    const dates = rows.map((r) => r[0]);
+    expect([...dates].sort()).toEqual(dates);
+  });
+  it("PROJECT.md trỏ SCOPE.md và các D-NNN trong nhật ký có thật", () => {
+    expect(read("PROJECT.md")).toContain("SCOPE.md");
+    const decisions = read("docs/autopilot/DECISIONS.md");
+    for (const m of text.matchAll(/\bD-\d{3}\b/g)) expect(decisions, m[0]).toContain(`### ${m[0]} `);
+  });
+});
+
+// ───────────────────────── RK-NNN ↔ PLAN, bảng phụ thuộc (PM-RISK-003/006) ─────────────────────────
+
+describe("sổ rủi ro ↔ PLAN (PM-RISK-003)", () => {
+  const plan = read("docs/autopilot/PLAN.md");
+  const risks = read("docs/RISKS.md");
+  const riskRows = risks
+    .split("\n")
+    .filter((l) => /^\| RK-\d{3} \|/.test(l))
+    .map((l) =>
+      l
+        .slice(1, -1)
+        .split("|")
+        .map((c) => c.trim()),
+    );
+  const block = section(plan, /^Rủi ro ↔ task đợt 5/) ?? "";
+
+  it("PLAN có bảng rủi ro ↔ task và xếp RK đầu của lát 10 ở dòng task đầu", () => {
+    const rows = block.split("\n").filter((l) => /^\| `T-\d{3}` \|/.test(l));
+    expect(rows.length).toBeGreaterThanOrEqual(5);
+    expect(rows[0]).toContain("`T-401`");
+    expect(rows[0]).toMatch(/RK-\d{3}/);
+  });
+  it("mọi RK-NNN nhắc trong PLAN có trong sổ rủi ro", () => {
+    const ids = new Set(riskRows.map((r) => r[0]));
+    for (const m of plan.matchAll(/\bRK-\d{3}\b/g)) expect(ids.has(m[0]), m[0]).toBe(true);
+  });
+  it("mọi task nêu trong bảng có dòng task trong PLAN", () => {
+    for (const m of block.matchAll(/^\| `(T-\d{3})` \|/gm))
+      expect(plan, m[1]).toMatch(new RegExp(`^- \\[.\\] \`${m[1]}\``, "m"));
+  });
+  it("rủi ro Cao × Cao nào cũng có chỗ đứng trong PLAN (task hoặc ghi là việc của người)", () => {
+    for (const r of riskRows.filter((x) => x[2] === "Cao" && x[3] === "Cao"))
+      expect(block, r[0]).toContain(r[0]);
+  });
+  it("mọi T-NNN trong cột task/test của sổ có trong PLAN hoặc kế hoạch đã lưu", () => {
+    const all = [plan, ...walk("docs/autopilot/archive").map(read)].join("\n");
+    const missing = [];
+    for (const r of riskRows)
+      for (const m of r[8].matchAll(/\bT-\d{3}\b/g))
+        if (!all.includes(`\`${m[0]}\``)) missing.push(`${r[0]} → ${m[0]}`);
+    expect(missing).toEqual([]);
+  });
+});
+
+describe("docs/RISKS.md — bảng phụ thuộc (PM-RISK-006)", () => {
+  const sec = section(read("docs/RISKS.md"), /^Phụ thuộc bên thứ ba/) ?? "";
+  const rows = sec
+    .split("\n")
+    .filter((l) => /^\| /.test(l) && !/^\|\s*-/.test(l) && !/^\| Phụ thuộc/.test(l))
+    .map((l) =>
+      l
+        .slice(1, -1)
+        .split("|")
+        .map((c) => c.trim()),
+    );
+
+  it("≥ 14 phụ thuộc, mỗi dòng đủ 6 cột, không ô trống", () => {
+    expect(rows.length).toBeGreaterThanOrEqual(14);
+    for (const r of rows) {
+      expect(r, r[0]).toHaveLength(6);
+      for (const c of r) expect(c.length, `${r[0]}: ô trống`).toBeGreaterThan(0);
+    }
+  });
+  it("phụ thuộc lõi có mặt", () => {
+    const names = rows.map((r) => r[0]).join("|");
+    for (const n of [
+      "Node.js",
+      "PostgreSQL",
+      "Next.js",
+      "Better Auth",
+      "pg-boss",
+      "SeaweedFS",
+      "Caddy",
+      "pgBackRest",
+      "ClamAV",
+    ])
+      expect(names, n).toContain(n);
+  });
+  it("phiên bản và giấy phép của gói npm khớp package.json đã ghim và gói đã cài", () => {
+    const pkgs = {
+      "Next.js": ["apps/web", "next"],
+      React: ["apps/web", "react"],
+      "Better Auth": ["packages/app", "better-auth"],
+      Kysely: ["packages/app", "kysely"],
+      pg: ["packages/app", "pg"],
+      "pg-boss": ["apps/worker", "pg-boss"],
+      Zod: ["packages/app", "zod"],
+      aws4fetch: ["packages/app", "aws4fetch"],
+      Serwist: ["apps/web", "serwist"],
+    };
+    for (const [name, [dir, dep]] of Object.entries(pkgs)) {
+      const row = rows.find((r) => r[0] === name);
+      expect(row, name).toBeTruthy();
+      const pinned = JSON.parse(read(`${dir}/package.json`)).dependencies[dep];
+      expect(pinned, `${name} phải ghim đúng phiên bản`).toMatch(/^\d+\.\d+\.\d+$/);
+      expect(row[1], name).toContain(pinned);
+      const installed = `${dir}/node_modules/${dep}/package.json`;
+      if (exists(installed)) expect(row[2], name).toBe(JSON.parse(read(installed)).license);
+    }
+  });
+  it("Node.js và PostgreSQL khớp .nvmrc và image đã ghim", () => {
+    const node = rows.find((r) => r[0] === "Node.js");
+    expect(node[1]).toContain(read(".nvmrc").trim());
+    const pg = rows.find((r) => r[0] === "PostgreSQL");
+    expect(pg[1]).toContain(/postgres:(\d+\.\d+)/.exec(read("deploy/postgres/Dockerfile"))[1]);
+  });
+  it("điều chưa kiểm ghi đúng cụm '(chưa xác minh)', không để trống hay đoán", () => {
+    expect(
+      rows.some((r) => r.includes("(chưa xác minh)") || r.some((c) => c.includes("(chưa xác minh)"))),
+    ).toBe(true);
+  });
+});
+
+// ───────────────────────── AGENTS.md / README ↔ xt.yaml (XC-DOCAI-001/003) ─────────────────────────
+
+/** `xt.yaml` phẳng `khoá: giá trị` (giá trị có thể trong nháy kép kiểu JSON). */
+function xtYaml() {
+  const out = {};
+  for (const line of read("xt.yaml").split("\n")) {
+    const m = /^([a-z0-9_]+):\s*(.*)$/.exec(line);
+    if (!m) continue;
+    const v = m[2].trim();
+    out[m[1]] = v.startsWith('"') ? JSON.parse(v) : v;
+  }
+  return out;
+}
+
+/** Lệnh `pnpm …` trong khối code rào và đoạn code dòng của một tài liệu. */
+function pnpmCommands(md) {
+  const out = new Set();
+  const lines = md.split("\n");
+  let fence = false;
+  for (const line of lines) {
+    if (/^\s*```/.test(line)) {
+      fence = !fence;
+      continue;
+    }
+    const candidates = fence
+      ? [line.replace(/\s+#.*$/, "")]
+      : [...line.matchAll(/`([^`]+)`/g)].map((m) => m[1]);
+    for (const c of candidates)
+      for (const part of c.split("&&")) {
+        const t = part.trim();
+        if (/^pnpm\s/.test(t)) out.add(t);
+      }
+  }
+  return [...out];
+}
+
+/** Lệnh pnpm hợp lệ: script gốc, script của package qua --filter, hoặc lệnh có sẵn của pnpm (exec/install/audit/vitest/licenses). */
+function pnpmCommandProblem(cmd, rootScripts, pkgScripts) {
+  const words = cmd.split(/\s+/).slice(1);
+  if (words[0] === "--filter") {
+    const pkg = (words[1] ?? "").replace(/^@hm\//, "");
+    const next = words[2];
+    if (!pkgScripts[pkg]) return `package lạ: ${words[1]}`;
+    if (["exec", "run"].includes(next)) return null;
+    return pkgScripts[pkg][next] ? null : `${pkg} không có script ${next}`;
+  }
+  const first = words[0];
+  if (["exec", "install", "audit", "vitest", "licenses", "add", "-r", "run"].includes(first)) return null;
+  return rootScripts[first] ? null : `script gốc không có: ${first}`;
+}
+
+describe("AGENTS.md (XC-DOCAI-001/003)", () => {
+  const agents = read("AGENTS.md");
+  it("có đủ các mục bắt buộc", () => {
+    for (const h of [
+      /^## 1\. Dự án này/m,
+      /^## 3\. Đọc theo thứ tự/m,
+      /^## 4\. Luật bất biến/m,
+      /^## 6\. Điểm dừng bắt buộc/m,
+      /^## 7\. Cổng/m,
+      /^## 9\. Quy ước riêng/m,
+    ])
+      expect(agents).toMatch(h);
+  });
+  it("trỏ xt.yaml và cấm suy diễn lệnh từ văn xuôi", () => {
+    expect(agents).toContain("xt.yaml");
+    expect(agents).toContain("Không suy diễn lệnh từ văn xuôi");
+  });
+  it("mọi lệnh `.xtemplates/scripts/*` AGENTS.md nêu có thật", () => {
+    for (const m of agents.matchAll(/`((?:python3 )?\.xtemplates\/scripts\/[A-Za-z0-9_.-]+)/g)) {
+      const file = m[1].replace(/^python3 /, "");
+      expect(exists(file), file).toBe(true);
+    }
+  });
+  it("lệnh pnpm trong AGENTS.md, README.md khớp script thật", () => {
+    const rootScripts = JSON.parse(read("package.json")).scripts;
+    const pkgScripts = {};
+    for (const f of [
+      "apps/web",
+      "apps/worker",
+      "packages/app",
+      "packages/db",
+      "packages/domain",
+      "packages/testkit",
+    ])
+      pkgScripts[f.split("/")[1]] = JSON.parse(read(`${f}/package.json`)).scripts ?? {};
+    const bad = [];
+    for (const doc of ["AGENTS.md", "README.md"])
+      for (const c of pnpmCommands(read(doc))) {
+        const p = pnpmCommandProblem(c, rootScripts, pkgScripts);
+        if (p) bad.push(`${doc}: ${c} → ${p}`);
+      }
+    expect(bad).toEqual([]);
+  });
+});
+
+describe("pnpmCommandProblem", () => {
+  const root = { lint: "x" };
+  const pk = { web: { dev: "x" }, worker: {} };
+  it("nhận script gốc, script package, lệnh có sẵn; bắt lệnh lạ", () => {
+    expect(pnpmCommandProblem("pnpm lint", root, pk)).toBeNull();
+    expect(pnpmCommandProblem("pnpm --filter @hm/web dev", root, pk)).toBeNull();
+    expect(pnpmCommandProblem("pnpm --filter @hm/web exec playwright test", root, pk)).toBeNull();
+    expect(pnpmCommandProblem("pnpm vitest run", root, pk)).toBeNull();
+    expect(pnpmCommandProblem("pnpm nope", root, pk)).toMatch(/không có/);
+    expect(pnpmCommandProblem("pnpm --filter @hm/web start", root, pk)).toMatch(/không có script/);
+    expect(pnpmCommandProblem("pnpm --filter @hm/zzz dev", root, pk)).toMatch(/package lạ/);
+  });
+});
+
+describe("xt.yaml ↔ package.json, CI (XC-DOCAI-003, chỉ đọc)", () => {
+  const xt = xtYaml();
+  const rootScripts = JSON.parse(read("package.json")).scripts;
+  const ci = read(".github/workflows/ci.yml");
+  const audit = read(".github/workflows/dep-audit.yml");
+
+  it("đủ khoá lệnh cho cổng", () => {
+    for (const k of ["lint", "typecheck", "test", "build", "format", "e2e", "install", "init", "audit"])
+      expect(xt[k], k).toBeTruthy();
+  });
+  it("mỗi lệnh `pnpm <script>` trong xt.yaml là script gốc có thật", () => {
+    for (const k of ["lint", "typecheck", "test", "build", "format"])
+      for (const part of xt[k].split("&&")) {
+        const m = /^\s*pnpm\s+([a-z:-]+)\s*$/.exec(part);
+        if (m) expect(rootScripts[m[1]], `${k}: pnpm ${m[1]}`).toBeTruthy();
+      }
+  });
+  it("CI chạy cổng bằng dev-task.sh gate (đọc xt.yaml), và ci-check workflow có trong xt.yaml lint", () => {
+    expect(ci).toContain(".xtemplates/scripts/dev-task.sh gate");
+    expect(xt.lint).toContain("xt.py ci-check .github/workflows");
+  });
+  it("e2e: CI chạy cùng lệnh (tên package `web` ≡ `@hm/web`)", () => {
+    const norm = (s) => s.replace("@hm/web", "web");
+    expect(ci).toContain(norm(xt.e2e));
+  });
+  it("audit: dep-audit.yml chạy lệnh của xt.yaml, chặt hơn bằng --audit-level", () => {
+    expect(audit).toContain(xt.audit);
+    expect(audit).toMatch(
+      new RegExp(`${xt.audit.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&")} --audit-level \\w+`),
+    );
+  });
+  it("README nêu mọi lệnh xt.yaml dạng chuẩn (lint/test/typecheck/build/e2e/install/init)", () => {
+    const readme = read("README.md");
+    for (const k of ["lint", "test", "typecheck", "build", "e2e", "install", "init"])
+      expect(readme, k).toContain(xt[k]);
+  });
+});
+
+// ───────────────────────── THREAT-MODEL ↔ ADR (SEC-TM-001) ─────────────────────────
+
+describe("THREAT-MODEL cập nhật sau ADR kiến trúc mới nhất (SEC-TM-001)", () => {
+  const adrDates = readdirSync(join(ROOT, "docs/adr"))
+    .filter((f) => /^\d{4}-.*\.md$/.test(f))
+    .map((f) => frontmatter(read(`docs/adr/${f}`))?.date);
+  const tm = frontmatter(read("docs/design/THREAT-MODEL.md"));
+  it("mọi ADR có ngày hợp lệ", () => {
+    for (const d of adrDates) expect(d).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+  it("`updated` của THREAT-MODEL ≥ ngày ADR mới nhất", () => {
+    expect(tm.updated).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(tm.updated >= [...adrDates].sort().at(-1)).toBe(true);
+  });
+  it("bắt đúng: ngày cũ hơn ADR → đỏ", () => {
+    expect("2026-10-15" >= "2026-10-16").toBe(false);
+  });
+});
+
+// ───────────────────────── phân loại dữ liệu (BASE-SEC-013) ─────────────────────────
+
+describe("bảng phân loại dữ liệu trong PROJECT.md (BASE-SEC-013)", () => {
+  const project = read("PROJECT.md");
+  const dataMap = read("docs/privacy/data-map.yaml");
+  it("trỏ data-map và có đủ các lớp phân loại dùng trong sổ", () => {
+    expect(project).toContain("docs/privacy/data-map.yaml");
+    const used = new Set([...dataMap.matchAll(/classification: "([a-z_]+)"/g)].map((m) => m[1]));
+    expect(used.size).toBeGreaterThanOrEqual(3);
+    for (const c of used) expect(project, c).toContain(`\`${c}\``);
+  });
+  it("lớp nhạy cảm nêu mã hoá và che; lớp xác thực nêu không trả ra", () => {
+    expect(project).toMatch(/`nhay_cam`[^\n]*AES-256-GCM/);
+    expect(project).toMatch(/`xac_thuc`[^\n]*không bao giờ trả ra/);
+  });
+  it("test đối chiếu catalog CSDL ↔ sổ có thật", () => {
+    expect(exists("packages/app/src/privacy/data-map.db.test.ts")).toBe(true);
+  });
+});
+
+// ───────────────────────── mẫu PR / issue (OPS-MAINT-005, WF-TEAM-003/004, WF-REVIEW-001, WF-DOC-001, XC-GREEN-005) ─────────────────────────
+
+describe("mẫu PR chung (WF-TEAM-004, WF-REVIEW-001, WF-DOC-001, XC-GREEN-005)", () => {
+  const t = read(".github/pull_request_template.md");
+  it("có mục CI xanh kèm link lượt chạy, Docs cập nhật/không cần, DoD, bảng trước–sau", () => {
+    expect(t).toMatch(/CI xanh:.*link lượt chạy/);
+    expect(t).toMatch(/^## Docs cập nhật \/ không cần/m);
+    expect(t).toMatch(/^## Definition of Done/m);
+    expect(t).toMatch(/^## Refactor \/ perf — bảng trước–sau/m);
+    expect(t).toContain("WF-REVIEW-001");
+  });
+  it("mỗi mục DoD có chỗ ghi bằng chứng", () => {
+    const dod = section(t, /^Definition of Done/) ?? "";
+    const items = dod.split("\n").filter((l) => l.startsWith("- [ ]"));
+    expect(items.length).toBeGreaterThanOrEqual(5);
+    for (const l of items) expect(l, l).toMatch(/bằng chứng: …/);
+  });
+  it("bảng trước–sau có dòng, bundle, test, phụ thuộc", () => {
+    const sec = section(t, /^Refactor \/ perf/) ?? "";
+    for (const k of ["Dòng mã", "Số test", "Phụ thuộc", "Bundle"]) expect(sec, k).toContain(k);
+  });
+});
+
+describe("mẫu PR nâng cấp lớn (OPS-MAINT-005)", () => {
+  const t = read(".github/PULL_REQUEST_TEMPLATE/major-upgrade.md");
+  it("đủ mục bắt buộc", () => {
+    for (const h of [
+      "Gói và phiên bản",
+      "Đã đọc changelog",
+      "Phạm vi",
+      "Kiểm chứng",
+      "Triển khai và đường lùi",
+      "Rủi ro",
+    ])
+      expect(t, h).toMatch(new RegExp(`^## ${h}`, "m"));
+  });
+  it("nêu nhãn `major`, codemod, toàn bộ test + E2E, canary/flag, không gộp tính năng", () => {
+    expect(t).toContain("`major`");
+    expect(t).toContain("Codemod");
+    expect(t).toContain("playwright test");
+    expect(t).toMatch(/canary\/feature flag/);
+    expect(t).toMatch(/không trộn tính năng/);
+  });
+  it("là mẫu, không phải workflow", () => {
+    expect(exists(".github/PULL_REQUEST_TEMPLATE/major-upgrade.md")).toBe(true);
+    expect(walk(".github/PULL_REQUEST_TEMPLATE").every((f) => f.endsWith(".md"))).toBe(true);
+  });
+});
+
+describe("issue template (WF-TEAM-003 DoR)", () => {
+  const files = walk(".github/ISSUE_TEMPLATE");
+  it("có mẫu task với checklist Definition of Ready và nhãn `ready`", () => {
+    const task = read(".github/ISSUE_TEMPLATE/task.md");
+    expect(frontmatter(task)?.name).toBeTruthy();
+    expect(task).toMatch(/^## Definition of Ready/m);
+    expect(task).toContain("`ready`");
+    for (const k of ["Tiêu chí chấp nhận", "Không còn câu hỏi mở", "Phụ thuộc", "Gate"])
+      expect(task, k).toContain(k);
+  });
+  it("mẫu lỗi nhắc không dán dữ liệu thật", () => {
+    const bug = read(".github/ISSUE_TEMPLATE/bug.md");
+    expect(bug).toMatch(/Không dán dữ liệu thật/);
+  });
+  it("chỉ chứa mẫu .md (không phải workflow)", () => {
+    expect(files.length).toBeGreaterThanOrEqual(2);
+    expect(files.every((f) => f.endsWith(".md") || f.endsWith(".yml"))).toBe(true);
+  });
+});
+
+// ───────────────────────── Dockerfile + danh tính (BASE-SEC-006, SEC-INFRA-001) ─────────────────────────
+
+const DOCKERFILES = ["deploy/web.Dockerfile", "deploy/worker.Dockerfile"];
+
+/** Các khối stage: [{ from, name, lines }] theo thứ tự. */
+function stages(dockerfile) {
+  const out = [];
+  for (const raw of dockerfile.split("\n")) {
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) continue;
+    const from = /^FROM\s+(?:--platform=\S+\s+)?(\S+)(?:\s+AS\s+(\S+))?/i.exec(line);
+    if (from) out.push({ from: from[1], name: from[2], lines: [] });
+    else out.at(-1)?.lines.push(line);
+  }
+  return out;
+}
+
+describe("Dockerfile web/worker (BASE-SEC-006)", () => {
+  it.each(DOCKERFILES)(
+    "%s: multi-stage, base ghim digest khớp .nvmrc, stage cuối chạy USER không root",
+    (f) => {
+      const st = stages(read(f));
+      expect(st.length).toBeGreaterThanOrEqual(3);
+      const base = st[0].from;
+      expect(base).toMatch(
+        new RegExp(`^node:${read(".nvmrc").trim().replaceAll(".", "\\.")}-[a-z-]+@sha256:[0-9a-f]{64}$`),
+      );
+      const last = st.at(-1);
+      const users = last.lines.filter((l) => /^USER\s/i.test(l)).map((l) => l.split(/\s+/)[1]);
+      expect(users.length).toBeGreaterThan(0);
+      expect(users.at(-1)).not.toMatch(/^(root|0)(:|$)/);
+      expect(users.at(-1)).toBe("node");
+      // USER phải đứng trước lệnh khởi chạy.
+      const idxUser = last.lines.findIndex((l) => /^USER\s/i.test(l));
+      const idxCmd = last.lines.findIndex((l) => /^(CMD|ENTRYPOINT)\s/i.test(l));
+      expect(idxCmd).toBeGreaterThan(idxUser);
+    },
+  );
+  it("hai image dùng cùng một digest base và cùng bản pnpm với package.json", () => {
+    const digests = DOCKERFILES.map((f) => /@sha256:([0-9a-f]{64})/.exec(read(f))[1]);
+    expect(new Set(digests).size).toBe(1);
+    const pnpm = /pnpm@([\d.]+)$/.exec(JSON.parse(read("package.json")).packageManager)[1];
+    for (const f of DOCKERFILES) expect(read(f)).toContain(`pnpm@${pnpm}`);
+  });
+  it.each(DOCKERFILES)("%s: không bí mật, không COPY .env, không chạy bằng root", (f) => {
+    const text = read(f);
+    const code = text
+      .split("\n")
+      .filter((l) => !l.trim().startsWith("#"))
+      .join("\n");
+    expect(code).not.toMatch(
+      /\b(ENV|ARG)\s+\S*(SECRET|PASSWORD|TOKEN|PRIVATE|API_?KEY|ACCESS_?KEY)\S*\s*=?\s*\S+/i,
+    );
+    expect(code).not.toMatch(/COPY\s+[^\n]*\.env/);
+    expect(code).not.toMatch(/\bsudo\b/);
+    expect(code).not.toMatch(/curl[^\n]*\|\s*(sh|bash)/);
+  });
+  it("kiểm ghim image bao phủ *.Dockerfile (check-image-pins) và không có image trôi", async () => {
+    const { deployFiles, checkDir } = await import("./check-image-pins.mjs");
+    const names = deployFiles(join(ROOT, "deploy")).map((f) => f.slice(join(ROOT, "deploy").length + 1));
+    for (const f of DOCKERFILES) expect(names).toContain(f.replace("deploy/", ""));
+    expect(checkDir(join(ROOT, "deploy"))).toEqual([]);
+  });
+  it(".dockerignore loại bí mật, lịch sử git và node_modules khỏi ngữ cảnh build", () => {
+    const lines = read(".dockerignore")
+      .split("\n")
+      .map((l) => l.trim());
+    for (const e of [".git", ".env", ".env.*", "node_modules", "deploy/secrets", "**/.next"])
+      expect(lines, e).toContain(e);
+  });
+  it("lệnh khởi chạy khớp RUNBOOK: worker chạy `node apps/worker/src/index.ts`, web lắng nghe cổng Caddy trỏ tới", () => {
+    expect(read("deploy/worker.Dockerfile")).toContain('["node", "apps/worker/src/index.ts"]');
+    expect(read("docs/RUNBOOK.md")).toContain("node apps/worker/src/index.ts");
+    const port = /reverse_proxy web:(\d+)/.exec(read("deploy/Caddyfile"))[1];
+    expect(read("deploy/web.Dockerfile")).toContain(`EXPOSE ${port}`);
+    expect(read("deploy/web.Dockerfile")).toContain('"--hostname", "0.0.0.0"');
+  });
+  it("ghi rõ chưa build thật (không có daemon Docker)", () => {
+    for (const f of DOCKERFILES) expect(read(f)).toMatch(/CHƯA build thật/);
+    expect(read("deploy/README.md")).toMatch(/Chưa build thật/);
+  });
+});
+
+describe("tách danh tính S3 web/worker (SEC-INFRA-001)", () => {
+  const cfg = JSON.parse(read("deploy/s3.json.example"));
+  it("hai danh tính riêng, khoá khác nhau, một bucket, không wildcard", () => {
+    const names = cfg.identities.map((i) => i.name);
+    expect(names).toEqual(["hotel-manager-web", "hotel-manager-worker"]);
+    const keys = cfg.identities.flatMap((i) => i.credentials.map((c) => c.accessKey));
+    expect(new Set(keys).size).toBe(keys.length);
+    for (const i of cfg.identities)
+      for (const a of i.actions) {
+        expect(a).not.toContain("*");
+        expect(a).toMatch(/^(Read|Write|List):hm-files$/);
+      }
+  });
+  it("deploy/README.md lập bảng service ↔ vai trò CSDL ↔ danh tính S3 và nêu scope token", () => {
+    const r = read("deploy/README.md");
+    for (const k of [
+      "hotel-manager-web",
+      "hotel-manager-worker",
+      "app_runtime",
+      "app_worker",
+      "`GITHUB_TOKEN`",
+      "contents: read",
+    ])
+      expect(r, k).toContain(k);
+    expect(read("docs/RUNBOOK.md")).toContain("hotel-manager-worker");
+  });
+  it("vai trò CSDL trong tài liệu có trong bootstrap-roles.sql", () => {
+    const sql = read("packages/db/sql/bootstrap-roles.sql");
+    for (const role of ["app_runtime", "app_worker"]) expect(sql).toContain(role);
+  });
+});
+
+// ───────────────────────── bàn giao (PM-HANDOVER-002) ─────────────────────────
+
+describe("docs/handover/accounts.md (PM-HANDOVER-002)", () => {
+  const text = read("docs/handover/accounts.md");
+  const rows = text
+    .split("\n")
+    .filter((l) => /^\| /.test(l) && !/^\|\s*-/.test(l) && !/^\| Dịch vụ/.test(l))
+    .map((l) =>
+      l
+        .slice(1, -1)
+        .split("|")
+        .map((c) => c.trim()),
+    );
+  it("có các dịch vụ cần bàn giao và trạng thái từng dòng", () => {
+    expect(rows.length).toBeGreaterThanOrEqual(10);
+    const all = rows.map((r) => r[0]).join("|");
+    for (const k of ["GitHub", "VPS", "Tên miền", "SMTP", "Kho sao lưu CSDL", "S3", "Kho bí mật"])
+      expect(all, k).toContain(k);
+    for (const r of rows) {
+      expect(r, r[0]).toHaveLength(7);
+      expect(r[3].length, `${r[0]}: trạng thái`).toBeGreaterThan(0);
+    }
+  });
+  it("chưa có dịch vụ thật thì ghi 'chưa có/chưa mua/chưa chọn'", () => {
+    expect(text).toMatch(/\*\*chưa (có|mua|chọn)\*\*/);
+  });
+  it("không chứa bí mật", () => {
+    expect(text).not.toMatch(/(?:password|secret|token|key)\s*[:=]\s*[A-Za-z0-9+/_-]{12,}/i);
+    expect(text).not.toMatch(/\b[A-Za-z0-9+/]{40,}={0,2}\b/);
+    expect(text).not.toMatch(/postgres(ql)?:\/\/[^\s)]*:[^\s)@]+@/);
+    expect(text).not.toMatch(/-----BEGIN/);
+  });
+  it("README trỏ tới tài liệu bàn giao và tới Dockerfile", () => {
+    const readme = read("README.md");
+    for (const k of [
+      "docs/handover/accounts.md",
+      "deploy/web.Dockerfile",
+      "deploy/worker.Dockerfile",
+      "SCOPE.md",
+      "docs/ROUTES.md",
+    ])
+      expect(readme, k).toContain(k);
+  });
+});
+
+// ───────────────────────── README cập nhật ─────────────────────────
+
+describe("README (worker đã chạy thật)", () => {
+  const readme = read("README.md");
+  it("nêu lệnh chạy worker thật và không còn nói 'đợt 4' chưa có tiến trình", () => {
+    expect(readme).toContain("node apps/worker/src/index.ts");
+    expect(readme).not.toMatch(/tiến trình khởi chạy thật nằm ở đợt/);
+    expect(read("docs/RUNBOOK.md")).toContain("node apps/worker/src/index.ts");
+    expect(exists("apps/worker/src/index.ts")).toBe(true);
+  });
+});
+
+// ───────────────────────── retry và trạng thái (ARC-RES-002/005) ─────────────────────────
+
+describe("docs/architecture/resilience.md khớp hằng số mã nguồn (ARC-RES-002/005)", () => {
+  const doc = read("docs/architecture/resilience.md");
+  it("lịch email, trần lần gửi", () => {
+    const send = read("packages/app/src/notifications/send.ts");
+    const list = /RETRY_BACKOFF_MINUTES = \[([\d, ]+)\]/.exec(send)[1];
+    expect(doc).toContain(`RETRY_BACKOFF_MINUTES = [${list}]`);
+    const attempts = list.split(",").length + 1;
+    expect(doc).toContain(`\`MAX_ATTEMPTS\` = ${attempts} lượt gửi`);
+  });
+  it("kho file S3: timeout, số lần, nền lùi, trần", () => {
+    const s = read("packages/app/src/files/storage.ts");
+    const num = (k) =>
+      Number(
+        new RegExp(`${k}: ([\\d_]+)`).exec(s.slice(s.indexOf("DEFAULT_RESILIENCE")))[1].replaceAll("_", ""),
+      );
+    const fmt = (n) => n.toLocaleString("vi-VN");
+    expect(doc).toContain(`\`maxRetries\` = ${num("maxRetries")}`);
+    expect(doc).toContain(`\`baseDelayMs\` = ${num("baseDelayMs")} ms`);
+    expect(doc).toContain(`\`maxDelayMs\` = ${fmt(num("maxDelayMs"))} ms`);
+    expect(doc).toContain(`\`timeoutMs\` = ${fmt(num("timeoutMs"))} ms`);
+  });
+  it("pg-boss và transaction lệnh", () => {
+    const relay = read("apps/worker/src/relay.ts");
+    const q =
+      /DEFAULT_QUEUE_POLICY: QueuePolicy = \{ retryLimit: (\d+), retryDelay: (\d+), retryBackoff: true \}/.exec(
+        relay,
+      );
+    expect(q).toBeTruthy();
+    expect(doc).toContain(`\`retryLimit\` = ${q[1]}`);
+    expect(doc).toContain(`\`retryDelay\` = ${q[2]} giây`);
+    const cmd = read("packages/app/src/pipeline/command.ts");
+    expect(doc).toContain(`\`MAX_ATTEMPTS\` = ${/const MAX_ATTEMPTS = (\d+)/.exec(cmd)[1]}`);
+    expect(cmd).toContain('new Set(["40001", "40P01"])');
+  });
+  it("ghi rõ điều chưa làm: helper chung, jitter email, E2E hai bản sao", () => {
+    expect(doc).toMatch(/\*\*không\*\*/);
+    expect(doc).toMatch(/chưa làm/);
+    expect(doc).toContain("hai bản sao");
+  });
+  it("trạng thái ở Postgres/S3: rate limit lưu CSDL đúng như mã", () => {
+    expect(read("packages/app/src/auth/auth.ts")).toMatch(/storage: "database"/);
+    expect(doc).toContain('rateLimit.storage = "database"');
+  });
+});
+
+// ───────────────────────── S-NNN ↔ test (PM-SPEC-004, WF-SDD-003) ─────────────────────────
+
+describe("spec-coverage: heuristic nhận S-NNN theo spec", () => {
+  const names = ["ledger-payments", "lease", "pwa"];
+  it("scenarios lấy `### S-NNN` không trùng, có thứ tự", () => {
+    expect(scenarios("### S-002 a\n### S-001 b\n### S-002 c\nS-009")).toEqual(["S-001", "S-002"]);
+    expect(scenarios("")).toEqual([]);
+  });
+  it("expandIds trải khoảng …", () => {
+    expect([...expandIds("S-002…S-004 và S-009")].sort()).toEqual(["S-002", "S-003", "S-004", "S-009"]);
+    expect([...expandIds("không có")]).toEqual([]);
+  });
+  it("file chỉ nhắc một spec: mọi S-NNN thuộc spec đó", () => {
+    expect([...mentioned("// SPEC-pwa\nit('S-005 x'); it('S-010 y')", "pwa", names)].sort()).toEqual([
+      "S-005",
+      "S-010",
+    ]);
+    expect([...mentioned("// SPEC-pwa\nit('S-005 x')", "lease", names)]).toEqual([]);
+  });
+  it("file nhắc nhiều spec: chỉ S-NNN đứng ngay sau SPEC-<bí danh> được tính", () => {
+    const src = "// SPEC-ledger S-014/S-033 ...\n// SPEC-lease S-007\nit('S-099')";
+    expect([...mentioned(src, "ledger-payments", names)].sort()).toEqual(["S-014", "S-033"]);
+    expect([...mentioned(src, "lease", names)]).toContain("S-007");
+    expect([...mentioned(src, "lease", names)]).not.toContain("S-014");
+  });
+  it("bí danh = phần đầu tên spec", () => {
+    expect(aliasOf("ledger-payments")).toBe("ledger");
+    expect(aliasOf("pwa")).toBe("pwa");
+  });
+});
+
+describe("độ phủ S-NNN ↔ test của spec Approved (ratchet)", () => {
+  const report = specCoverage();
+  const base = JSON.parse(read("scripts/spec-coverage.baseline.json")).specs;
+
+  it("quét đủ 12 spec và hơn 200 scenario", () => {
+    expect(Object.keys(report).length).toBeGreaterThanOrEqual(12);
+    expect(Object.values(report).reduce((n, r) => n + r.total, 0)).toBeGreaterThan(200);
+  });
+  it("spec Approved không có S-NNN mới thiếu test ngoài danh sách nền (thêm test hoặc gắn ID — KHÔNG thêm vào nền)", () => {
+    const bad = [];
+    for (const [name, r] of Object.entries(report)) {
+      if (r.status.toLowerCase() !== "approved") continue;
+      const allowed = new Set(base[name]?.uncovered ?? []);
+      for (const id of r.uncovered) if (!allowed.has(id)) bad.push(`${name} ${id}`);
+    }
+    expect(bad).toEqual([]);
+  });
+  it("danh sách nền không có mục thừa: scenario đã có test thì xoá khỏi nền (chỉ được co lại)", () => {
+    const stale = [];
+    for (const [name, b] of Object.entries(base)) {
+      const r = report[name];
+      if (!r) stale.push(`${name}: spec không còn`);
+      else for (const id of b.uncovered) if (!r.uncovered.includes(id)) stale.push(`${name} ${id}`);
+    }
+    expect(stale).toEqual([]);
+  });
+  it("mỗi mục nền có lý do đủ rõ và chỉ chứa ID có trong spec", () => {
+    for (const [name, b] of Object.entries(base)) {
+      expect(b.reason.length, name).toBeGreaterThan(60);
+      const ids = scenarios(read(`docs/specs/SPEC-${name}.md`));
+      for (const id of b.uncovered) expect(ids, `${name} ${id}`).toContain(id);
+    }
   });
 });

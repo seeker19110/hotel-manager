@@ -1,0 +1,19 @@
+# Ngữ cảnh build image (deploy/web.Dockerfile, deploy/worker.Dockerfile): không đưa bí mật, lịch sử, thư viện đã cài hay kết quả build vào image.
+.git
+.github
+.claude
+.xtemplates
+.autopilot
+node_modules
+**/node_modules
+**/.next
+**/test-results
+**/playwright-report
+coverage
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+deploy/secrets
+docs

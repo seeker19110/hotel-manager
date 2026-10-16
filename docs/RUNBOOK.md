@@ -96,6 +96,9 @@ Khi chạy thật (đề xuất D-021): chặn thêm `/api/metrics` ở reverse 
 - Sự kiện outbox chưa có consumer được đánh dấu đã phát mà không sinh job (không kẹt hàng); xem lịch sử ở bảng `outbox`.
 - Dừng: SIGTERM/SIGINT ⇒ ngừng lập lịch → chờ job/handler đang chạy (trần 25 giây) → `boss.stop` graceful → đóng pool → thoát 0. Tín hiệu lần hai ⇒ thoát ngay (mã 1). Đặt `terminationGracePeriod`/`stop_grace_period` ≥ 40 giây.
 
+## 8b. Danh tính từng service (web, worker)
+Web chạy vai trò CSDL `app_runtime` và danh tính S3 `hotel-manager-web`; worker chạy `app_worker` (+ `app_runtime` cho job xuất dữ liệu) và danh tính S3 `hotel-manager-worker`. Hai danh tính S3 có khoá khác nhau trong `deploy/secrets/s3.json`, để thu hồi/xoay một bên không ảnh hưởng bên kia. Bảng đầy đủ, scope token/khoá và đóng gói image (`deploy/web.Dockerfile`, `deploy/worker.Dockerfile`, chưa build thật): [`deploy/README.md`](../deploy/README.md).
+
 ## 9. Tài liệu vận hành liên quan
 | Cần làm | Tài liệu |
 |---|---|

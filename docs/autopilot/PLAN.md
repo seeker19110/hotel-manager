@@ -148,6 +148,20 @@ Sau mỗi lát: review độc lập (`reviewer`), sửa hết 🔴/🟠 kèm tes
 > Nguồn: `docs/autopilot/BLUEPRINT-GAPS.md` sau T-311. Cùng luật đợt 4 (D-023): chỉ mã/tài liệu/test, rào chạy trong `pnpm test`/E2E sẵn có;
 > CI/workflow/hook/xt.yaml/.env.example, pháp lý, hạ tầng, diễn tập người → đã `loop defer`. Xếp chồng sau lát 9.
 
+### Rủi ro ↔ task đợt 5 (PM-RISK-003)
+> Sổ rủi ro: [`docs/RISKS.md`](../RISKS.md). Rủi ro xếp đầu của lát 10 là RK-003 (ghi tiền trùng/sai) và RK-007: T-401 mở lát và xử lý hai rủi ro này trước. Test máy kiểm: `scripts/process-docs.test.mjs`.
+
+| Task | Rủi ro (RK-NNN) |
+|---|---|
+| `T-401` | RK-003 (webhook phát lại, relay gửi trong transaction), RK-007 (thông báo gửi trùng) |
+| `T-402` | RK-013 (hạ tầng tự host: dừng êm, readiness) |
+| `T-404` | RK-001 (truy cập chéo tenant), RK-005 (rò dữ liệu portal) |
+| `T-406` | RK-016 (chưa có metric HTTP/SLO) |
+| `T-410` | RK-018 (thư viện xác thực và chuỗi cung ứng) |
+| `T-412` | RK-013 (Dockerfile không root, tách danh tính), RK-020 (phân loại dữ liệu ↔ sổ PII) |
+| `T-413` | RK-008 (phình phạm vi blueprint) |
+| (người) | RK-012 (DPIA, đối chiếu luật gốc) — ngoài vòng tự động |
+
 ### Lát 10 — Bền vững runtime + bảo mật HTTP
 - [ ] `T-401` Worker/HTTP bền: relay claim → commit → `boss.send` → đánh dấu (không gửi trong transaction claim), payload job validate zod + lỗi vĩnh viễn không retry (dead letter ngay), metric dead letter, `Retry-After` cho mọi 429 của app, quota lệnh theo tổ chức, webhook nhận nhiều secret khi xoay (cùng biến, phân tách dấu phẩy), S3 trần tổng thời gian + POST không retry (ARC-INT-003, DB-TX-003, BE-JOB-003/004/007, BE-REL-003/006, BE-INT-002, IND-SAAS-008) — Gate: `pnpm vitest run --project db relay webhook quota && pnpm vitest run --project unit storage-resilience`
 - [ ] `T-402` Web dừng êm + timeout phía trình duyệt: SIGTERM ⇒ `/api/ready` 503, chờ request đang chạy trong hạn, thoát 0; `fetch` client có `AbortSignal.timeout` (ARC-RES-009, BE-REL-004, BASE-ERR-004) — Gate: `pnpm vitest run --project db web-shutdown && pnpm vitest run --project unit fetch-timeout`

@@ -31,3 +31,26 @@ updated: 2026-10-16
 | RK-018 | Lỗ hổng thư viện (Better Auth có nhiều advisory High/Critical ở plugin năm 2026) và chuỗi cung ứng npm | TB | Cao | Tech Lead | giảm: chỉ bật plugin tối thiểu, lockfile đóng băng, action ghim SHA, quét lỗ hổng theo PR và theo lịch, kiểm giấy phép | giảm đã làm; theo dõi | advisory mới | `.github/workflows/dep-audit.yml` · `scripts/check-licenses.test.mjs` | 2026-10-16 |
 | RK-019 | Dữ liệu cá nhân giữ quá hạn/không xoá được: nhiều bảng chưa có hạn giữ (thông báo, outbox, inbox, liên kết khách, phiên) | TB | TB | Tech Lead + pháp lý | giảm: sổ `data-map.yaml` ghi từng cột; chốt hạn giữ cùng DPIA rồi viết job; chấp nhận bản sao lưu giữ tới hết retention | mở — chờ DPIA | trước pilot | `docs/privacy/data-map.yaml` · `packages/app/src/import/import-retention.db.test.ts` | 2026-10-16 |
 | RK-020 | Cột PII mới vào schema mà chưa khai trong sổ dữ liệu (lệch giữa mã và hồ sơ quyền riêng tư) | TB | TB | Tech Lead | giảm: test đối chiếu catalog ↔ data-map (đỏ nếu thiếu); mẫu PR có mục kiểm | giảm đã làm | đổi mẫu tên cột PII | T-309 · `packages/app/src/privacy/data-map.db.test.ts` | 2026-10-16 |
+
+## Phụ thuộc bên thứ ba (PM-RISK-006)
+
+> Mỗi phụ thuộc lõi một dòng: giấy phép, hỗ trợ/EOL, telemetry mặc định, cách thoát/xuất dữ liệu. Chỉ ghi điều kiểm được; chỗ chưa kiểm ghi "(chưa xác minh)". Giấy phép npm đọc từ `package.json` của gói đã cài ngày 2026-10-16 và được `scripts/check-licenses.mjs` chặn khi ngoài allowlist SPDX; EOL và giấy phép hạ tầng lấy từ [`docs/research/2026-10-15-self-host.md`](research/2026-10-15-self-host.md) và [`docs/research/2026-10-15-stack-va-phap-ly.md`](research/2026-10-15-stack-va-phap-ly.md) (ngày tra 2026-10-15). Dòng "chưa xác minh" cần tra `https://endoflife.date/api/<product>.json` và trang giấy phép chính thức khi có mạng ổn định.
+
+| Phụ thuộc | Phiên bản ghim | Giấy phép | Hỗ trợ / EOL | Telemetry mặc định | Thoát / xuất dữ liệu |
+|---|---|---|---|---|---|
+| Node.js | 24.22.0 (`.nvmrc`) | (chưa xác minh) | EOL 2028-04-30 (nghiên cứu 2026-10-15); chuyển 26 LTS bằng task riêng (ADR-0001) | (chưa xác minh) | không giữ dữ liệu |
+| PostgreSQL | 17.11 (image `postgres:17.11-trixie`) | (chưa xác minh) | EOL 2029-11-08 (nghiên cứu 2026-10-15) | (chưa xác minh) | dữ liệu nằm ở máy mình: `pg_dump`, bản sao lưu pgBackRest; không khoá nhà cung cấp |
+| Next.js | 16.4.1 | MIT | (chưa xác minh) | **bật mặc định** (`next telemetry status` = Enabled, kiểm 2026-10-16); `deploy/web.Dockerfile` đặt `NEXT_TELEMETRY_DISABLED=1`; build ở máy dev/CI chưa tắt | framework, không giữ dữ liệu; thay = viết lại lớp giao diện (logic nằm ở `packages/app`, `packages/domain`) |
+| React | 19.3.1 | MIT | (chưa xác minh) | (chưa xác minh) | như Next.js |
+| Better Auth | 1.7.9 | MIT | nhiều advisory năm 2026, chỉ bật plugin tối thiểu (RK-018, ADR-0002) | **tắt** (`telemetry: { enabled: false }` ở `packages/app/src/auth/auth.ts`) | tài khoản, phiên, 2FA nằm trong bảng Postgres của mình; thoát = đổi thư viện xác thực, giữ bảng `persons`/`memberships` |
+| Kysely | 0.29.6 | MIT | 0.x, có thể đổi API; ghim minor (ADR-0001) | (chưa xác minh) | thư viện truy cập; SQL migration là SQL thuần |
+| pg | 8.23.1 | MIT | (chưa xác minh) | (chưa xác minh) | thư viện; không giữ dữ liệu |
+| pg-boss | 12.38.0 | MIT | (chưa xác minh) | (chưa xác minh) | hàng đợi nằm trong schema `pgboss` của Postgres mình; outbox là bảng riêng của sản phẩm |
+| Zod | 4.6.7 | MIT | (chưa xác minh) | (chưa xác minh) | thư viện kiểm đầu vào |
+| aws4fetch | 1.0.20 | MIT | (chưa xác minh) | (chưa xác minh) | ký SigV4 cho S3; đổi bằng thư viện ký khác |
+| Serwist | 9.5.13 (`@serwist/turbopack` cùng bản) | MIT | (chưa xác minh) | (chưa xác minh) | service worker; bỏ = mất cài PWA/trang offline |
+| SeaweedFS | 4.48 | Apache-2.0 | (chưa xác minh) | (chưa xác minh) | S3 API chuẩn: đồng bộ ra ngoài bằng rclone (ADR-0002); không có S3 bucket replication API |
+| Caddy | 2.11.7 | Apache-2.0 | (chưa xác minh) | (chưa xác minh) | cấu hình `deploy/Caddyfile`; phương án thay: Traefik (MIT, ADR-0002) |
+| pgBackRest | 2.59.3 | MIT | người bảo trì duy nhất tuyên bố dừng 04–05/2026, sau đó nhiều công ty tài trợ; mức bền vững chưa xác minh | (chưa xác minh) | kho sao lưu mã hoá aes-256-cbc ở S3/SFTP khác máy; dự phòng WAL-G (Apache-2.0) |
+| ClamAV (clamd) | chưa ghim (chưa dựng) | (chưa xác minh) | (chưa xác minh) | (chưa xác minh; `freshclam` có gửi dữ liệu ra ngoài hay không chưa xác minh — `docs/privacy/processors.md`) | không giữ dữ liệu của sản phẩm |
+| Docker Hub (kéo image) | image ghim digest (`scripts/check-image-pins.mjs`) | điều khoản dịch vụ (chưa xác minh) | quan sát 2026-10-16: giới hạn 100 yêu cầu/giờ/IP khi chưa đăng nhập (trả HTTP 429) | (chưa xác minh) | `mirror.gcr.io` và `public.ecr.aws` trả cùng digest cho `node:24.22.0-trixie-slim` (kiểm 2026-10-16) |

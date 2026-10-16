@@ -8,7 +8,7 @@ owner: (chưa gán — Tech Lead)
 
 # Deploy và rollback
 
-> **Trạng thái:** `deploy/compose.yaml` hiện chỉ có `postgres` (+ pgBackRest), `seaweedfs`, `caddy`. Dockerfile cho `web`/`worker` **chưa có** (Caddy đã trỏ sẵn `web:3000`); mua VPS/tên miền/SMTP là điểm dừng của chủ dự án. Các bước ứng dụng ghi theo thiết kế, đánh dấu "(chờ Dockerfile)". Deploy production là thao tác cần người duyệt (AGENTS §6).
+> **Trạng thái:** `deploy/compose.yaml` hiện chỉ có `postgres` (+ pgBackRest), `seaweedfs`, `caddy`. Dockerfile cho `web`/`worker` đã có ở `deploy/` nhưng **chưa build thật** và compose chưa có service tương ứng (Caddy đã trỏ sẵn `web:3000`; danh tính CSDL/S3 riêng từng service: [`deploy/README.md`](../../../deploy/README.md)); mua VPS/tên miền/SMTP là điểm dừng của chủ dự án. Các bước ứng dụng ghi theo thiết kế, đánh dấu "(chờ Dockerfile)". Deploy production là thao tác cần người duyệt (AGENTS §6).
 > Không chạy lệnh nào dưới đây lên dữ liệu thật trước khi có người duyệt.
 
 ## Khi nào dùng

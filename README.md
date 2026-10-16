@@ -6,7 +6,8 @@ SaaS web/PWA giúp chủ trọ, nhà nghỉ, khách sạn nhỏ ở Việt Nam q
 
 - Vấn đề, người dùng, phạm vi MVP, chỉ số: [`PROJECT.md`](PROJECT.md)
 - Kiến trúc: [ADR-0001](docs/adr/0001-modular-monolith-typescript-postgres.md) (modular monolith TypeScript + Postgres),
-  [ADR-0002](docs/adr/0002-self-host-auth-storage-backup.md) (tự host đăng nhập, file, sao lưu)
+  [ADR-0002](docs/adr/0002-self-host-auth-storage-backup.md) (tự host đăng nhập, file, sao lưu),
+  [ADR-0004](docs/adr/0004-chien-luoc-render.md) (chiến lược render)
 
 ## Yêu cầu môi trường
 
@@ -39,7 +40,8 @@ pnpm install --frozen-lockfile
 - Web (Next.js, phát triển): `pnpm --filter @hm/web dev`. Cần CSDL đã áp migration (`packages/db/src/migrations`; chưa có lệnh
   `migrate` riêng — test và E2E tự áp lên CSDL tạm).
 - Chạy thử trọn luồng với dữ liệu giả: lệnh E2E bên dưới tự dựng Postgres tạm, seed, build và khởi động web.
-- Worker (`apps/worker`): thư viện outbox/pg-boss đã có; tiến trình khởi chạy thật nằm ở đợt 4 (xem `docs/autopilot/PLAN.md`).
+- Worker (`apps/worker`): tiến trình chạy thật — `node apps/worker/src/index.ts` (Node 24; relay outbox, consumer pg-boss, job định kỳ; dừng êm khi nhận SIGTERM). Cần thêm `WORKER_DATABASE_URL` (vai trò `app_worker`); lịch và cách dừng ở [`docs/RUNBOOK.md`](docs/RUNBOOK.md) §8.
+- Đóng gói: [`deploy/web.Dockerfile`](deploy/web.Dockerfile) và [`deploy/worker.Dockerfile`](deploy/worker.Dockerfile) (chưa build thật trên máy có Docker; compose chưa có service ứng dụng).
 
 ## Kiểm tra (cổng chất lượng)
 
@@ -70,7 +72,7 @@ Kiểm phụ thuộc có lỗ hổng: `pnpm audit --prod`.
 | `packages/app` | command/query: transaction, phân quyền, audit, outbox, idempotency |
 | `packages/db` | Kysely, migration, RLS |
 | `packages/testkit` | cluster Postgres/SeaweedFS tạm, factory dữ liệu giả cho test |
-| `deploy/` | compose, Caddy, mẫu pgBackRest/S3 cho VPS (chưa triển khai) |
+| `deploy/` | compose, Caddy, Dockerfile web/worker, mẫu pgBackRest/S3, rule Prometheus cho VPS (chưa triển khai) |
 | `scripts/` | môi trường dev, kiểm giấy phép/image/ERD/blueprint, diễn tập sao lưu |
 | `docs/` | spec, thiết kế, ADR, nghiên cứu, vận hành, quyền riêng tư |
 | `.xtemplates/` | khung quy trình X-Templates (luật cho agent, công cụ `xt.py`) — không sửa tay |
@@ -81,6 +83,8 @@ Kiểm phụ thuộc có lỗ hổng: `pnpm audit --prod`.
 - Đặc tả: [`docs/specs/`](docs/specs) · thiết kế: [`docs/design/`](docs/design) (mô hình dữ liệu [`DOMAIN-MODEL.md`](docs/design/DOMAIN-MODEL.md),
   [`ERD.md`](docs/design/ERD.md), [`THREAT-MODEL.md`](docs/design/THREAT-MODEL.md)) · quyết định: [`docs/adr/`](docs/adr), [`docs/autopilot/DECISIONS.md`](docs/autopilot/DECISIONS.md)
 - Vận hành: [`docs/RUNBOOK.md`](docs/RUNBOOK.md) · bí mật chỉ nạp qua môi trường, mẫu ở `.env.example`
+- Hợp đồng API: [`docs/design/API-CONTRACT.md`](docs/design/API-CONTRACT.md) (quy ước) và `apps/web/openapi.json` (sinh bằng `pnpm openapi`) · route và chế độ render: [`docs/ROUTES.md`](docs/ROUTES.md) · miền ↔ thư mục: [`docs/architecture/domains.md`](docs/architecture/domains.md), retry/trạng thái: [`docs/architecture/resilience.md`](docs/architecture/resilience.md)
+- Phạm vi và rủi ro: [`SCOPE.md`](SCOPE.md) · bàn giao: [`docs/handover/accounts.md`](docs/handover/accounts.md)
 - Quyền riêng tư và rủi ro: [`docs/privacy/data-map.yaml`](docs/privacy/data-map.yaml) (sổ dữ liệu cá nhân, có test đối chiếu CSDL), [`docs/privacy/ROPA.md`](docs/privacy/ROPA.md), [`docs/privacy/processors.md`](docs/privacy/processors.md), [`docs/RISKS.md`](docs/RISKS.md)
 - Ứng phó sự cố, runbook, SLO: [`docs/ops/INCIDENT-RESPONSE.md`](docs/ops/INCIDENT-RESPONSE.md), [`docs/ops/SLO.md`](docs/ops/SLO.md)
 
