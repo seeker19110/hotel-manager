@@ -21,8 +21,9 @@ import {
   SMOKE_USER,
   unsubFile,
 } from "./fixtures.ts";
+import { seedHotelOrg, signUpWithTotp } from "./hotel-seed.ts";
 import { seedPortal } from "./portal-seed.ts";
-import { totp, totpFile } from "./totp.ts";
+import { hotelTotpFile, totpFile } from "./totp.ts";
 
 const PORT = Number(process.env.E2E_PORT ?? 3100);
 const BASE_URL = `http://127.0.0.1:${PORT}`;
@@ -64,25 +65,9 @@ function firstOfMonthVn(): string {
 
 /** Chủ trọ bật TOTP thật qua Better Auth; một hợp đồng chờ ký; dịch vụ + giá + công tơ (dữ liệu giả). */
 async function seedRental(db: Kysely<unknown>, auth: ReturnType<typeof createAuth>["auth"]): Promise<void> {
-  const { user } = await auth.api.signUpEmail({ body: RENTAL_OWNER });
-  const login = await auth.api.signInEmail({
-    body: { email: RENTAL_OWNER.email, password: RENTAL_OWNER.password },
-    returnHeaders: true,
-  });
-  const cookie = login.headers
-    .getSetCookie()
-    .map((c) => c.split(";")[0])
-    .join("; ");
-  const enabled = await auth.api.enableTwoFactor({
-    body: { password: RENTAL_OWNER.password },
-    headers: new Headers({ cookie }),
-  });
-  if (!("totpURI" in enabled)) throw new Error("cần TOTP");
-  const secretB32 = new URL(enabled.totpURI).searchParams.get("secret") ?? "";
-  await auth.api.verifyTOTP({ body: { code: totp(secretB32) }, headers: new Headers({ cookie }) });
-  writeFileSync(totpFile(PORT), JSON.stringify({ secret: secretB32 }), { mode: 0o600 });
+  const ownerId = await signUpWithTotp(auth, RENTAL_OWNER, totpFile(PORT));
 
-  const org = await seedOrg(db, ORG_RENTAL, "rental", user.id);
+  const org = await seedOrg(db, ORG_RENTAL, "rental", ownerId);
   const start = firstOfMonthVn();
   const svc: Record<string, string> = {};
   for (const [code, name, kind, account, meter, price] of [
@@ -161,6 +146,7 @@ async function seed(adminUrl: string, runtimeUrl: string, secret: string): Promi
     const other = await seedOrg(db, ORG_OTHER, "rental");
     await addStaff(db, other.orgId, user.id, other.propertyId);
     await seedRental(db, auth);
+    await seedHotelOrg(db, auth, PORT);
     const portal = await seedPortal(db);
     // Liên kết huỷ đăng ký ký số trong email nhắc quá hạn của người thuê An (SPEC-notifications S-010).
     writeFileSync(
@@ -236,6 +222,7 @@ async function stop(code: number): Promise<void> {
   stopping = true;
   next.kill("SIGTERM");
   rmSync(totpFile(PORT), { force: true });
+  rmSync(hotelTotpFile(PORT), { force: true });
   rmSync(outbox, { force: true });
   rmSync(unsubFile(PORT), { force: true });
   fakeS3.server.close();
