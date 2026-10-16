@@ -235,11 +235,19 @@ function fakeBoss(busyMs: number) {
   return { boss: boss as unknown as PgBoss, stops, t0 };
 }
 
-/** workerDb giả: giao dịch của relay treo tới khi `release()` — một job định kỳ chạy lâu. */
+/**
+ * workerDb giả: câu claim của relay (`sql\`…\`.execute(db)` — relay không còn mở transaction, T-401) treo tới khi
+ * `release()` — một job định kỳ chạy lâu.
+ */
 function slowRelayDb() {
   let release: () => void = () => {};
   const gate = new Promise<void>((r) => (release = r));
-  const db = { transaction: () => ({ execute: () => gate.then(() => 0) }) } as unknown as Kysely<unknown>;
+  const executor = {
+    transformQuery: (node: unknown) => node,
+    compileQuery: () => ({ sql: "", parameters: [], query: {} }),
+    executeQuery: () => gate.then(() => ({ rows: [] })),
+  };
+  const db = { getExecutor: () => executor } as unknown as Kysely<unknown>;
   return { db, release };
 }
 

@@ -47,10 +47,12 @@ function capture() {
   return { lines, log };
 }
 
-async function addOutbox(eventType: string): Promise<string> {
+async function addOutbox(eventType: string, payload: Record<string, unknown> = {}): Promise<string> {
   const id = randomUUID();
   await sql`insert into outbox (id, organization_id, event_type, payload, correlation_id)
-            values (${id}, ${A.orgId}, ${eventType}, '{}'::jsonb, ${`c-${id}`})`.execute(t.admin);
+            values (${id}, ${A.orgId}, ${eventType}, ${JSON.stringify(payload)}::jsonb, ${`c-${id}`})`.execute(
+    t.admin,
+  );
   return id;
 }
 
@@ -202,6 +204,28 @@ describe("worker chạy thật", () => {
     );
     expect(beat.rows.map((r) => r.name)).toContain("worker");
     expect(beat.rows[0]?.age).toBeLessThan(5);
+  });
+
+  it("payload sai schema (BE-JOB-007) ⇒ lỗi vĩnh viễn: handler KHÔNG chạy, vào dead letter ngay không retry, log job.permanent_failure", async () => {
+    const id = await addOutbox("export.requested", { export_id: "không-phải-id" });
+    await waitFor(async () => {
+      const r = await sql<{ n: number }>`select count(*)::int as n from pgboss.job
+        where name = 'outbox.dead_letter' and data->>'outbox_id' = ${id}`.execute(t.admin);
+      return (r.rows[0]?.n ?? 0) === 1;
+    });
+    const orig = await sql<{ state: string; retry_count: number }>`select state, retry_count from pgboss.job
+      where name = 'export.requested' and data->>'outbox_id' = ${id}`.execute(t.admin);
+    expect(orig.rows).toEqual([{ state: "completed", retry_count: 0 }]); // không retry
+    const dl = await sql<{
+      data: { dead_letter: { kind: string; message: string } };
+    }>`select data from pgboss.job
+      where name = 'outbox.dead_letter' and data->>'outbox_id' = ${id}`.execute(t.admin);
+    expect(dl.rows[0]?.data.dead_letter).toEqual({
+      kind: "permanent",
+      message: "payload sai schema ở: export_id",
+    });
+    expect(cap.lines.some((l) => l.msg === "job.permanent_failure" && l.outbox_id === id)).toBe(true);
+    expect(JSON.stringify(cap.lines)).not.toContain("không-phải-id"); // log không kèm giá trị payload
   });
 
   it("dừng êm: chờ handler đang chạy xong, ngừng nhận việc mới, đóng sạch mọi kết nối", async () => {

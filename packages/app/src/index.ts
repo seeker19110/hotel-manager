@@ -109,7 +109,13 @@ export {
   renderPrometheus,
   type Sample,
 } from "./observability/metrics.ts";
+export {
+  InvalidJobPayloadError,
+  OUTBOX_PAYLOAD_SCHEMAS,
+  parseOutboxPayload,
+} from "./outbox/payloads.ts";
 export { getCommandResult } from "./pipeline/command.ts";
+export { CommandError } from "./pipeline/problem.ts";
 export { handleGuestStay } from "./portal/guest-http.ts";
 export {
   getMyInvoice,

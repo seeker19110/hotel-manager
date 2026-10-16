@@ -16,6 +16,7 @@ import {
   type Logger,
   loadWorkerConfig,
   type ObjectStorage,
+  parseOutboxPayload,
   remindExpiring,
   runReminders,
   runRetention,
@@ -136,11 +137,14 @@ export async function startWorker(deps: WorkerDeps): Promise<WorkerHandle> {
   const iv = { ...DEFAULT_INTERVALS, ...deps.intervals };
   const stopTimeoutMs = deps.stopTimeoutMs ?? DEFAULT_STOP_TIMEOUT_MS;
 
-  // Handler của pg-boss: lỗi được log rồi ném lại để pg-boss retry/dead letter theo chính sách queue.
+  // Handler của pg-boss: validate payload theo event_type TRƯỚC khi chạy (BE-JOB-007; sai ⇒ lỗi vĩnh viễn, dead letter
+  // ngay); lỗi được log rồi ném lại — `startConsumers` phân loại: vĩnh viễn ⇒ dead letter không retry, còn lại ⇒ pg-boss
+  // retry/dead letter theo chính sách queue.
   const wrap =
     (type: string, h: (job: OutboxJob) => Promise<unknown>) =>
     async (job: OutboxJob): Promise<void> => {
       try {
+        parseOutboxPayload(type, job.payload);
         await h(job);
       } catch (err) {
         log.error("job.handler_failed", { event_type: type, outbox_id: job.outbox_id, error: err });
@@ -162,6 +166,7 @@ export async function startWorker(deps: WorkerDeps): Promise<WorkerHandle> {
   await ensureQueues(boss, eventTypes);
   await startConsumers(boss, handlers, {
     pollingIntervalSeconds: deps.pollingIntervalSeconds ?? 2,
+    log: (e, f) => log.warn(e, f),
   });
 
   const ac = new AbortController();

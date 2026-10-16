@@ -9,6 +9,12 @@
 // - Outbox: cột `available_at` (lùi lần thử kế tiếp). `app.outbox_mark` đặt backoff khi có lỗi (gửi lỗi hoặc `no_consumer`:
 //   sự kiện chưa có consumer ở worker này, review lát 7 🟠2/D-026) nên `app.outbox_claim` (cũ nhất trước) không kẹt đầu hàng
 //   vì một hàng chưa xử lý được; hàng vẫn `published_at IS NULL` ⇒ worker khác (có consumer) hoặc lần triển khai sau nhận được.
+// - Claim ngắn (T-401, ARC-INT-003/DB-TX-003): `app.outbox_claim` KHÔNG giữ khoá qua lúc gọi pg-boss nữa — nó đặt lease
+//   (`available_at = now() + 60 giây`) cho hàng lấy được rồi relay COMMIT ngay, sau đó mới `boss.send` (job id = outbox.id,
+//   khoá chính (name, id) của pg-boss ⇒ gửi lại không tạo job thứ hai) và `app.outbox_mark`. Sập giữa chừng ⇒ hết lease thì
+//   hàng được claim lại; gửi lại là no-op ở pg-boss.
+// - `app.dead_letter_jobs()` (T-401, BE-JOB-004): số job còn nằm trong queue `outbox.dead_letter` (chưa xử lý/redrive) cho
+//   metric `hm_dead_letter_jobs`. Hàm riêng (không sửa `app.metrics_snapshot` của 0046) để không đè lên thay đổi khác của hàm đó.
 // - RLS: dòng staging chỉ chính người tạo (`uploaded_by = app.actor_id`) được tạo/sửa (policy RESTRICTIVE theo từng lệnh),
 //   người khác trong tổ chức chỉ đọc được metadata theo policy sẵn có.
 import { type Kysely, sql } from "kysely";
@@ -39,14 +45,22 @@ CREATE OR REPLACE FUNCTION app.mark_file_deleted(p_id uuid, p_today date) RETURN
 
 ALTER TABLE outbox ADD COLUMN available_at timestamptz NOT NULL DEFAULT now();
 
+-- Lease 60 giây: đủ cho một lượt gửi (tối đa 1000 hàng, mỗi hàng một INSERT của pg-boss) mà sập tiến trình vẫn được nhận lại
+-- nhanh; gửi trùng sau khi lease hết hạn vô hại vì job id = outbox.id.
 CREATE OR REPLACE FUNCTION app.outbox_claim(p_limit integer)
   RETURNS TABLE (id uuid, organization_id uuid, event_type text, aggregate_id uuid, payload jsonb, correlation_id text)
   LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp AS $$
-    SELECT o.id, o.organization_id, o.event_type, o.aggregate_id, o.payload, o.correlation_id
-    FROM outbox o WHERE o.published_at IS NULL AND o.available_at <= now()
-    ORDER BY o.created_at, o.id
-    LIMIT least(greatest(p_limit, 1), 1000)
-    FOR UPDATE SKIP LOCKED
+    WITH c AS (
+      SELECT o.id FROM outbox o WHERE o.published_at IS NULL AND o.available_at <= now()
+      ORDER BY o.created_at, o.id
+      LIMIT least(greatest(p_limit, 1), 1000)
+      FOR UPDATE SKIP LOCKED),
+    u AS (
+      UPDATE outbox o SET available_at = now() + interval '60 seconds'
+      FROM c WHERE o.id = c.id
+      RETURNING o.id, o.organization_id, o.event_type, o.aggregate_id, o.payload, o.correlation_id, o.created_at)
+    SELECT u.id, u.organization_id, u.event_type, u.aggregate_id, u.payload, u.correlation_id
+    FROM u ORDER BY u.created_at, u.id
   $$;
 -- Lỗi ⇒ lần thử kế tiếp sau 5 s · 2^attempts (trần 5 phút); attempts ở vế phải là giá trị TRƯỚC khi tăng.
 CREATE OR REPLACE FUNCTION app.outbox_mark(p_id uuid, p_error text)
@@ -60,6 +74,17 @@ CREATE OR REPLACE FUNCTION app.outbox_mark(p_id uuid, p_error text)
     WHERE id = p_id AND published_at IS NULL
   $$;
 
+CREATE FUNCTION app.dead_letter_jobs() RETURNS bigint
+  LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE n bigint;
+BEGIN
+  IF to_regclass('pgboss.job') IS NULL THEN RETURN 0; END IF;
+  EXECUTE 'SELECT count(*) FROM pgboss.job WHERE name = ''outbox.dead_letter'' AND state IN (''created'', ''retry'', ''active'', ''failed'')' INTO n;
+  RETURN n;
+END $$;
+REVOKE ALL ON FUNCTION app.dead_letter_jobs() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION app.dead_letter_jobs() TO app_runtime, app_worker;
+
 CREATE POLICY files_staging_insert ON files AS RESTRICTIVE FOR INSERT TO app_runtime
   WITH CHECK (status <> 'pending_scan' OR uploaded_by = nullif(current_setting('app.actor_id', true), '')::uuid);
 CREATE POLICY files_staging_update ON files AS RESTRICTIVE FOR UPDATE TO app_runtime
@@ -67,6 +92,7 @@ CREATE POLICY files_staging_update ON files AS RESTRICTIVE FOR UPDATE TO app_run
 `;
 
 const DOWN = `
+DROP FUNCTION IF EXISTS app.dead_letter_jobs();
 -- Khôi phục đúng định nghĩa của 0003 trước khi bỏ cột mà hàm mới dùng.
 CREATE OR REPLACE FUNCTION app.outbox_claim(p_limit integer)
   RETURNS TABLE (id uuid, organization_id uuid, event_type text, aggregate_id uuid, payload jsonb, correlation_id text)
