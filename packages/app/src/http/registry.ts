@@ -114,6 +114,7 @@ import {
   previewMatches,
   resolveBreak,
 } from "../reconciliation/reconciliation.ts";
+import { collections, depositsHeld, occupancy, receivables } from "../reports/reports.ts";
 import {
   closeShift,
   handoverShift,
@@ -1732,6 +1733,41 @@ export const QUERIES: Readonly<Record<string, AnyQuery>> = {
     query: "audit.getEvent",
     input: z.strictObject({ event_id: z.string().max(64) }),
     run: (db, actor, i: { event_id: string }) => getEvent(db, actor, i.event_id),
+  },
+  "reports.receivables": {
+    query: "reports.receivables",
+    input: z.strictObject({ as_of: isoDate.optional(), property_id: z.string().max(64).optional() }),
+    run: (db, actor, i: { as_of?: string; property_id?: string }) =>
+      receivables(db, actor, {
+        ...(i.as_of ? { asOf: i.as_of } : {}),
+        ...(i.property_id ? { propertyId: i.property_id } : {}),
+      }),
+  },
+  "reports.collections": {
+    query: "reports.collections",
+    input: z.strictObject({ from: isoDate, to: isoDate, property_id: z.string().max(64).optional() }),
+    run: (db, actor, i: { from: string; to: string; property_id?: string }) =>
+      collections(db, actor, {
+        from: i.from,
+        to: i.to,
+        ...(i.property_id ? { propertyId: i.property_id } : {}),
+      }),
+  },
+  "reports.depositsHeld": {
+    query: "reports.depositsHeld",
+    input: z.strictObject({ property_id: z.string().max(64).optional() }),
+    run: (db, actor, i: { property_id?: string }) =>
+      depositsHeld(db, actor, i.property_id ? { propertyId: i.property_id } : {}),
+  },
+  "reports.occupancy": {
+    query: "reports.occupancy",
+    input: z.strictObject({ from: isoDate, to: isoDate, property_id: z.string().max(64).optional() }),
+    run: (db, actor, i: { from: string; to: string; property_id?: string }) =>
+      occupancy(db, actor, {
+        from: i.from,
+        to: i.to,
+        ...(i.property_id ? { propertyId: i.property_id } : {}),
+      }),
   },
   "today.getSummary": {
     query: "today.getSummary",

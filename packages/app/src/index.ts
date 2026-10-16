@@ -93,6 +93,16 @@ export {
   type RentalProperty,
   rentalProperties,
 } from "./rental/views.ts";
+export {
+  type CollectionsReport,
+  collections as reportCollections,
+  type DepositsReport,
+  depositsHeld as reportDepositsHeld,
+  type OccupancyRow,
+  occupancy as reportOccupancy,
+  type ReceivablesReport,
+  receivables as reportReceivables,
+} from "./reports/reports.ts";
 export { serverContext } from "./server/context.ts";
 export { type AppServices, createServices, testServices } from "./server/services.ts";
 export { expireHeldReservations } from "./stay/jobs.ts";
