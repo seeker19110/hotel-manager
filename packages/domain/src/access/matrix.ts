@@ -187,7 +187,8 @@ export function grantFor(action: Action, role: MatrixRole): Grant {
  * (mọi khoản cần duyệt — mặc định an toàn) cho tới khi PO chốt.
  */
 export const DEFAULT_LIMITS: Readonly<Partial<Record<MatrixRole, Readonly<Record<string, number>>>>> = {
-  manager: { refund: 5_000_000, price_override: 0, allocation: 0 },
+  // allocation: phân bổ/đảo/điều chỉnh — mặc định bằng hạn mức tiền của quản lý (PLAN đợt 2, quyết 2026-10-15).
+  manager: { refund: 5_000_000, price_override: 0, allocation: 5_000_000 },
   front_desk: { refund: 2_000_000, price_override: 0 },
 };
 

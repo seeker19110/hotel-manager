@@ -24,7 +24,7 @@
   "title": "Phòng đã có người đặt trong khoảng thời gian này",
   "status": 409, "code": "ROOM_UNAVAILABLE",
   "detail": "Phòng 203 bận từ 2026-11-02 14:00 đến 2026-11-03 12:00",
-  "correlation_id": "…", "errors": [ { "path": "during.end", "code": "BEFORE_START" } ] }
+  "correlation_id": "…", "errors": [ { "path": "during.end", "field": "during.end", "code": "BEFORE_START" } ] }
 ```
 
 | Mã | HTTP | Khi nào |
@@ -63,20 +63,23 @@ Bảng trên là **mã dùng chung**. Mã chỉ một tính năng dùng thì đ�
 | `SPEC-audit-reporting.md` | `EXPORT_NOT_READY` · `REPORT_RANGE_TOO_LARGE` |
 | `SPEC-import.md` | `IMPORT_CONFIRMATION_REQUIRED` · `IMPORT_HAS_ERRORS` · `IMPORT_TOTALS_MISMATCH` |
 | `SPEC-inventory-allocation.md` | `BLOCK_CONFLICT` |
-| `SPEC-lease.md` | `HANDOVER_REQUIRED` · `LEASE_VERSION_OVERLAP` · `SETTLEMENT_REQUIRED` |
+| `SPEC-lease.md` | `FINAL_PERIOD_NOT_ISSUED` · `HANDOVER_REQUIRED` · `LEASE_VERSION_OVERLAP` · `SETTLEMENT_REQUIRED` |
 | `SPEC-ledger-payments.md` | `BANK_TRANSACTION_ALREADY_USED` · `EVIDENCE_REQUIRED` · `INBOX_HASH_MISMATCH` · `LEDGER_UNBALANCED` · `REFUND_EXCEEDS_BALANCE` · `SHIFT_ALREADY_OPEN` · `SHIFT_HAS_PENDING_PAYMENTS` · `SHIFT_NOT_OPEN` · `WEBHOOK_SIGNATURE_INVALID` |
 | `SPEC-metering-billing.md` | `BILLING_PREVIEW_STALE` · `PERIOD_ISSUED` · `READINGS_INCOMPLETE` · `UNRESOLVED_ANOMALIES` |
 | `SPEC-notifications.md` | `DELIVERY_NOT_RETRYABLE` · `PREFERENCE_REQUIRED` |
 | `SPEC-portal.md` | `LINK_REVOKED` |
 | `SPEC-pwa.md` | `CLIENT_OUTDATED` · `NETWORK_TIMEOUT` · `RESULT_UNKNOWN` |
 
-Lý do break đối soát (`HASH_MISMATCH`, `THIRD_PARTY_PAYER`, `WRONG_REFERENCE`…) và loại ngoại lệ (`LEASE_OVERSTAY`, `STAY_OVERSTAY`, `RELOCATION_REQUIRED`, `EXTENSION_CONFLICT`) là **giá trị dữ liệu**, không phải mã lỗi API; tương tự mã lỗi từng dòng import (`DUPLICATE_IN_FILE`, `NOT_INTEGER_VND`, `OUT_OF_RANGE`, `TOO_LONG`, `REFERENCE_NOT_FOUND`, `IMPORT_EXTERNAL_ID_CONFLICT`, `CONFLICT_AT_COMMIT` — trả trong danh sách lỗi của batch) và lý do gửi thông báo (`NO_ADDRESS`, `OPTED_OUT`, `PROVIDER_TEMPORARY`, `RECIPIENT_INVALID`, `TEMPLATE_ERROR` — lưu ở `notification_deliveries`).
+Lý do break đối soát (`HASH_MISMATCH`, `THIRD_PARTY_PAYER`, `WRONG_REFERENCE`…) và loại ngoại lệ (`LEASE_OVERSTAY`, `STAY_OVERSTAY`, `RELOCATION_REQUIRED`, `EXTENSION_CONFLICT`) là **giá trị dữ liệu**, không phải mã lỗi API; tương tự mã lỗi từng dòng import (`DUPLICATE_IN_FILE`, `NOT_INTEGER_VND`, `OUT_OF_RANGE`, `TOO_LONG`, `REFERENCE_NOT_FOUND`, `IMPORT_EXTERNAL_ID_CONFLICT`, `CONFLICT_AT_COMMIT`, `ALREADY_EXISTS`, `INVALID_FORMAT` — trả trong danh sách lỗi của batch) và lý do gửi thông báo (`NO_ADDRESS`, `OPTED_OUT`, `PROVIDER_TEMPORARY`, `RECIPIENT_INVALID`, `TEMPLATE_ERROR` — lưu ở `notification_deliveries`).
 
 ## 3. Webhook vào (`POST /api/v1/webhooks/{provider}/{account}`)
 - Xác minh chữ ký/HMAC và timestamp theo nhà cung cấp, kiểm tài khoản nhận, ghi `inbox` với khoá unique `(provider, account, provider_event_id)`, rồi trả 2xx ngay. Xử lý thật diễn ra trong worker.
 - Chữ ký sai → 401, không ghi `inbox` nhưng có log cảnh báo. Event trùng → 200 mà không tạo hiệu lực mới.
 - Mọi nguồn (webhook, sao kê CSV, nhập tay kèm sao kê) quy về `bank_transactions` (INV-F4b) nên cùng một giao dịch ngân hàng chỉ tạo một payment.
 - V1 chỉ có adapter **mô phỏng** (`provider = sim`) để test. Adapter thật chờ hợp đồng ngân hàng (F-016).
+- Adapter `sim` (T-107): bật khi có `SIM_WEBHOOK_SECRET` (không thì 404). Header `x-hm-timestamp` (giây Unix, lệch ≤ 300 s) + `x-hm-signature` = hex HMAC-SHA256(secret, `${timestamp}.${account}.${body}`) (gắn tài khoản trong URL). Body JSON ≤ 64 KB: `{ event_id, bank_txn_ref, amount (đồng, nguyên dương), occurred_at (ISO có múi giờ), description?, balance_after? }`. Trả `200 { received: true, duplicate }` (`duplicate=true` khi event đã nhận hoặc giao dịch đã có từ nguồn khác); trùng mã khác nội dung → `409 INBOX_HASH_MISMATCH` + break `HASH_MISMATCH` giao owner.
+- Worker nhận `bank_transaction.received` → khớp **đúng một** phiếu theo mã tham chiếu trong nội dung CK và không vượt số còn ⇒ thanh toán `confirmed` (`source = bank_auto`) + phân bổ; còn lại ⇒ break (`WRONG_REFERENCE`/`COMBINED`/`OVERPAID`/`UNMATCHED`) giao kế toán.
+- Đường webhook miễn kiểm Origin (không dùng cookie; xác thực bằng chữ ký) — `requiresSameOrigin`.
 
 ## 4. Endpoint hệ thống
 | Method | Path | Mục đích |

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCsp, isCacheablePublicPath, isSameOriginWrite } from "./security.ts";
+import { buildCsp, isCacheablePublicPath, isSameOriginWrite, requiresSameOrigin } from "./security.ts";
 
 const BASE = "https://app.example.vn";
 const h = (init: Record<string, string>) => new Headers(init);
@@ -43,5 +43,17 @@ describe("isCacheablePublicPath (SPEC-pwa S-005)", () => {
     ["/manifest.webmanifest/x", false],
   ])("%s → %s", (path, ok) => {
     expect(isCacheablePublicPath(path)).toBe(ok);
+  });
+});
+
+describe("requiresSameOrigin: chỉ webhook nhà cung cấp được miễn (xác thực bằng chữ ký, không cookie)", () => {
+  it.each([
+    ["/api/v1/payment/record", true],
+    ["/api/v1/webhooks/sim/123", false],
+    ["/api/v1/webhooksx/sim", true],
+    ["/api/auth/sign-in", true],
+    ["/phong", false],
+  ])("%s → %s", (path, need) => {
+    expect(requiresSameOrigin(path)).toBe(need);
   });
 });

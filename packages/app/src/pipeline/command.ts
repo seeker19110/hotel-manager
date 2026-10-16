@@ -190,7 +190,8 @@ export async function executeCommand<T>(
       if (problem.status >= 500) throw err;
       // Lỗi nghiệp vụ: transaction đã rollback (không audit/outbox nghiệp vụ). Ghi kết quả failed ở transaction riêng
       // để gửi lại cùng key trả cùng lỗi; lần bị từ chối được ghi audit outcome=denied.
-      await withTenant(db, { orgId: actor.orgId }, async (trx) => {
+      let finalProblem = problem;
+      await withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
         const ins = await sql<{ id: string }>`
           insert into idempotency_keys (id, organization_id, key, command, actor_person_id, request_hash, correlation_id,
                                         status, http_status, response, error_code, completed_at)
@@ -198,6 +199,12 @@ export async function executeCommand<T>(
                   'failed', ${problem.status}, ${JSON.stringify({ problem })}::jsonb, ${problem.code}, now())
           on conflict (organization_id, key) do nothing returning id`.execute(trx);
         if (ins.rows.length > 0) {
+          if (err instanceof CommandError && err.persist) {
+            finalProblem = { ...problem, ...(await err.persist(trx)) };
+            await sql`
+              update idempotency_keys set response = ${JSON.stringify({ problem: finalProblem })}::jsonb
+              where organization_id = ${actor.orgId} and key = ${commandId}`.execute(trx);
+          }
           await auditRow(
             trx,
             actor,
@@ -205,9 +212,22 @@ export async function executeCommand<T>(
             { action: "command.denied", entityType: req.command, reason: problem.code },
             "denied",
           );
+        } else {
+          // Request song song cùng key đã ghi kết quả trước: trả đúng kết quả đã lưu.
+          const stored = await sql<StoredRow>`
+            select status, request_hash, http_status, response from idempotency_keys
+            where organization_id = ${actor.orgId} and key = ${commandId}`.execute(trx);
+          const p = stored.rows[0]?.response?.problem;
+          if (p) finalProblem = p;
         }
       });
-      return { status: "failed", commandId, httpStatus: problem.status, problem, replayed: false };
+      return {
+        status: "failed",
+        commandId,
+        httpStatus: finalProblem.status,
+        problem: finalProblem,
+        replayed: false,
+      };
     }
   }
 }

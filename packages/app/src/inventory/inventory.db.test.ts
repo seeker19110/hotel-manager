@@ -204,12 +204,12 @@ describe("INV-I3 — hold hết hạn nhả đúng một lần", () => {
     ]);
     const manualReleased = [manual, again].filter((r) => r.status === "committed" && r.data.released).length;
     const byJob = await sql<{ n: number }>`
-      select count(*)::int as n from audit_events where entity_id = ${id} and action = 'allocation.expired'`.execute(
+      select count(*)::int as n from audit_events where entity_id = ${id} and action = 'allocation.hold_expired'`.execute(
       t.admin,
     );
     expect((byJob.rows[0]?.n ?? 0) + manualReleased).toBe(1);
     const audits = await sql<{ n: number }>`
-      select count(*)::int as n from audit_events where entity_id = ${id} and action in ('allocation.expired','allocation.released')`.execute(
+      select count(*)::int as n from audit_events where entity_id = ${id} and action in ('allocation.hold_expired','allocation.released')`.execute(
       t.admin,
     );
     expect(audits.rows[0]?.n).toBe(1);

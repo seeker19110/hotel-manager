@@ -3,9 +3,9 @@
 | Trường | Giá trị |
 |---|---|
 | ID tính năng | F-003 (luồng gốc: R-002 Vòng đời hợp đồng) |
-| Trạng thái | Draft — chờ duyệt |
+| Trạng thái | Approved — câu [chặn] chốt theo PLAN đợt 2 (tham số hoá) |
 | Phiên bản | 2 (2026-10-15) — thay đổi: xem cuối file |
-| Chủ spec | (chưa gán) · Duyệt bởi (chưa) |
+| Chủ spec | (chưa gán) · Duyệt bởi chủ dự án ngày 2026-10-15 (duyệt PLAN đợt 2) |
 | Hồ sơ/quy mô | web-app / M |
 | Nguồn | Kế hoạch gốc §05, §07 (vòng đời giao dịch), §12, §15; backlog T025–T027, T031, T032; DOMAIN-MODEL v1.2 §4, §5, §7 |
 | Phụ thuộc | SPEC-access-and-property (quyền, phạm vi cơ sở) · SPEC-inventory-allocation (allocation `kind='lease'`) · SPEC-metering-billing (chỉ số, kỳ thu) · SPEC-ledger-payments (cọc, khấu trừ, hoàn) · SPEC-notifications (outbox) |
@@ -205,7 +205,7 @@ Dữ liệu nền chung (fixture `lease-basic`): cơ sở P1 (trọ, `Asia/Ho_Ch
 | `lease.activate` | `lease_id` | `active` | `HANDOVER_REQUIRED`, `INVALID_TRANSITION` |
 | `lease.renew` | `lease_id`, điều khoản phiên bản mới, `effective_from` | `version_no` | `LEASE_VERSION_OVERLAP`, `INVALID_TRANSITION` |
 | `lease.giveNotice` | `lease_id`, `planned_move_out_on` | `notice_given` | `INVALID_TRANSITION` |
-| `lease.prepareSettlement` | `lease_id`, phí phát sinh (số tiền, lý do, ảnh), khoản khấu trừ (số tiền, lý do, chứng từ) | bảng quyết toán (nợ, phí, khấu trừ, hoàn); chưa có bút toán | `HANDOVER_REQUIRED`, `VALIDATION_FAILED` |
+| `lease.prepareSettlement` | `lease_id`, phí phát sinh (số tiền, lý do, ảnh), khoản khấu trừ (số tiền, lý do, chứng từ) | bảng quyết toán (nợ, phí, khấu trừ, hoàn); chưa có bút toán | `HANDOVER_REQUIRED`, `FINAL_PERIOD_NOT_ISSUED`, `VALIDATION_FAILED` |
 | `lease.approveSettlement` | `settlement_id` | bút toán đã ghi trong một transaction theo thứ tự phiếu phí → khấu trừ → hoàn (qua `ledger.*`) | `SELF_APPROVAL_FORBIDDEN`, `APPROVAL_LIMIT_EXCEEDED`, `PERIOD_LOCKED` |
 | `lease.close` | `lease_id` | `closed`, allocation kết thúc | `SETTLEMENT_REQUIRED`, `INVALID_TRANSITION` |
 | `lease.get` / `lease.list` | `lease_id` / bộ lọc trạng thái, cơ sở | hợp đồng + phiên bản + bàn giao | `NOT_FOUND` |
@@ -226,6 +226,7 @@ Dữ liệu nền chung (fixture `lease-basic`): cơ sở P1 (trọ, `Asia/Ho_Ch
 | `LEASE_VERSION_OVERLAP` | Phụ lục chồng hiệu lực | 409 | Thời gian hiệu lực trùng với phiên bản khác. | S-013 |
 | `ROOM_UNAVAILABLE` | Allocation chồng (INV-I1), kể cả phòng đang hold | 409 | Phòng đã có người hoặc đã được giữ trong khoảng này. | S-004, S-024 |
 | `SETTLEMENT_REQUIRED` | Đóng hợp đồng khi chưa duyệt quyết toán | 409 | Cần duyệt quyết toán trước khi đóng hợp đồng. | S-018 |
+| `FINAL_PERIOD_NOT_ISSUED` | Lập quyết toán khi cơ sở dùng kỳ thu mà kỳ chứa `moved_out_on` chưa có hoặc chưa phát hành (tiền thuê prorata kỳ cuối chưa lên phiếu) | 409 | Cần phát hành kỳ thu có ngày trả phòng trước khi quyết toán. | — (PLAN đợt 2 T-114) |
 | `SELF_APPROVAL_FORBIDDEN` | Người lập tự duyệt | 403 | Bạn không thể tự duyệt chứng từ mình lập. | S-019 |
 | `APPROVAL_LIMIT_EXCEEDED` | Số hoàn vượt hạn mức vai trò | 403 | Số tiền vượt hạn mức duyệt của bạn. | S-017 |
 | `METER_READING_DECREASED` | Chỉ số bàn giao nhỏ hơn chỉ số trước | 422 | Chỉ số nhỏ hơn lần đọc trước. Nếu đã thay công tơ, dùng chức năng thay công tơ. | — |
@@ -250,9 +251,9 @@ Không áp dụng (tính năng không dùng model).
 - `lease.created`, `lease.held`, `lease.signed`, `lease.activated`, `lease.renewed`, `lease.settled`, `lease.overstay_detected` → luồng R-002, chỉ số M-02/M-05.
 
 ## 10. Câu hỏi mở (0 câu [chặn] trước khi Approved)
-- [ ] Thanh lý: tiền thuê kỳ cuối tính đến `moved_out_on` (prorata) hay đến `planned_move_out_on`/hết hạn khi trả sớm; có phạt vi phạm báo trước không — [chặn] — hỏi: PO. **Đề xuất mặc định:** tính đến `moved_out_on` theo prorata (SPEC-metering-billing); không tự tính phạt, nhân viên thêm phí một lần có lý do.
-- [ ] Hạn mức duyệt hoàn cọc theo vai trò — [chặn] — hỏi: PO. **Đề xuất:** xem SPEC-ledger-payments mục 10 (một chỗ quyết, dùng chung; không lặp số ở đây).
-- [ ] Mốc giờ của allocation hợp đồng (ngày bắt đầu/kết thúc → `timestamptz`; chép từ SPEC-inventory-allocation Q-04) — [chặn F-003] — hỏi: PO. **Đề xuất:** bắt đầu 00:00 giờ cơ sở của ngày bàn giao (trước bàn giao: ngày bắt đầu hiệu lực); kết thúc 00:00 giờ cơ sở của ngày sau ngày thực trả (`moved_out_on` + 1).
+- [x] Thanh lý: tiền thuê kỳ cuối tính đến `moved_out_on` (prorata) hay đến `planned_move_out_on`/hết hạn khi trả sớm; có phạt vi phạm báo trước không — [chặn] — hỏi: PO. **Đề xuất mặc định:** tính đến `moved_out_on` theo prorata (SPEC-metering-billing); không tự tính phạt, nhân viên thêm phí một lần có lý do. — **Quyết 2026-10-15 (PLAN đợt 2, chủ dự án duyệt):** tính đến `moved_out_on` theo prorata (SPEC-metering-billing mục 10); không tự tính phạt — nhân viên thêm phí một lần có lý do.
+- [x] Hạn mức duyệt hoàn cọc theo vai trò — [chặn] — hỏi: PO. **Đề xuất:** xem SPEC-ledger-payments mục 10 (một chỗ quyết, dùng chung; không lặp số ở đây). — **Quyết 2026-10-15 (PLAN đợt 2, chủ dự án duyệt):** theo SPEC-ledger-payments mục 10 (một chỗ quyết).
+- [x] Mốc giờ của allocation hợp đồng (ngày bắt đầu/kết thúc → `timestamptz`; chép từ SPEC-inventory-allocation Q-04) — [chặn F-003] — hỏi: PO. **Đề xuất:** bắt đầu 00:00 giờ cơ sở của ngày bàn giao (trước bàn giao: ngày bắt đầu hiệu lực); kết thúc 00:00 giờ cơ sở của ngày sau ngày thực trả (`moved_out_on` + 1). — **Quyết 2026-10-15 (PLAN đợt 2, chủ dự án duyệt):** bắt đầu 00:00 giờ cơ sở của ngày bàn giao (trước bàn giao: ngày hiệu lực); kết thúc 00:00 giờ cơ sở của `moved_out_on + 1`.
 - [ ] TTL giữ chỗ hợp đồng (`lease.hold`) — [không chặn; cùng Q-01 của SPEC-inventory-allocation] — hỏi: PO. **Đề xuất:** mặc định 48 giờ, cấu hình theo cơ sở (`lease_hold_ttl_hours`); vai trò giữ chỗ: owner/manager/lễ tân (khớp ma trận access); cọc giữ chỗ không tự mất khi hold hết hạn.
 - [x] Trạng thái huỷ cho hợp đồng (`draft`/`pending_signature`/`signed_awaiting_handover` → `cancelled`) — đã bổ sung DOMAIN-MODEL v1.2 §4. Còn lại: từ `signed_awaiting_handover` thì nhả allocation và xử lý cọc qua quyết toán (làm cùng T032).
 - [x] Bảng `lease_settlements`, `services` — [chặn migration] — đã bổ sung DOMAIN-MODEL v1.2 §7.

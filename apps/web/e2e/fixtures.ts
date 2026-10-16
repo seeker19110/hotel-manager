@@ -12,3 +12,14 @@ export const MAIN_PROPERTY = `${ORG_MAIN} — CS1`;
 export const MAIN_ROOMS = ["101", "102", "103"];
 export const OTHER_PROPERTY = `${ORG_MAIN} — CS2`;
 export const OTHER_ROOMS = ["201", "202"];
+
+/** Vòng tháng nhà trọ (T-117): chủ trọ giả có TOTP, một phòng có hợp đồng chờ ký, công tơ điện 1.250 / nước 30. */
+export const RENTAL_OWNER = {
+  email: "chu.tro@example.test",
+  password: ["e2e", "chu", "tro", "gia"].join("-"),
+  name: "Chủ trọ (giả)",
+};
+export const ORG_RENTAL = "Nhà trọ Mai (giả)";
+export const RENTAL_PROPERTY = `${ORG_RENTAL} — CS1`;
+export const RENTAL_UNIT = "101";
+export const RENTAL_TENANT = "Người thuê A (giả)";

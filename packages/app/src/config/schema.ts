@@ -9,6 +9,7 @@ export const SECRET_KEYS = [
   "S3_SECRET_ACCESS_KEY",
   "SMTP_URL",
   "PGBACKREST_REPO_CIPHER_PASS",
+  "SIM_WEBHOOK_SECRET",
 ] as const;
 
 const url = z.url();
@@ -29,6 +30,8 @@ export const envSchema = z.object({
     .regex(/^(smtps?|fake):\/\//, "phải là smtp://, smtps:// hoặc fake://")
     .default("fake://local"),
   PGBACKREST_REPO_CIPHER_PASS: z.string().min(16).optional(),
+  /** HMAC của webhook ngân hàng MÔ PHỎNG (API-CONTRACT §3); không đặt → `/api/v1/webhooks/sim/*` trả 404. */
+  SIM_WEBHOOK_SECRET: z.string().min(32, "tối thiểu 32 ký tự").optional(),
 });
 
 export type AppConfig = Readonly<z.infer<typeof envSchema>>;

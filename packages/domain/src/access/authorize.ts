@@ -103,3 +103,16 @@ export function authorize(actor: AuthzActor, action: Action, ctx: AuthzContext =
     }
   }
 }
+
+/**
+ * Quyền LẬP yêu cầu duyệt cho một hành động có hạn mức/đề nghị: mọi ô khác "—" trong ma trận (kể cả "Đề nghị" của kế
+ * toán) và trong phạm vi cơ sở. Không kiểm số tiền — số tiền chỉ kiểm khi DUYỆT (authorize).
+ */
+export function authorizeRequest(actor: AuthzActor, action: Action, ctx: { propertyId?: string } = {}): void {
+  if (ctx.propertyId !== undefined && !actor.allProperties && !actor.propertyIds.includes(ctx.propertyId)) {
+    throw new AuthzError("NOT_FOUND", "Không tìm thấy");
+  }
+  if (!isMatrixRole(actor.role) || grantFor(action, actor.role) === "no") {
+    throw new AuthzError("FORBIDDEN", "Bạn không có quyền lập yêu cầu này");
+  }
+}

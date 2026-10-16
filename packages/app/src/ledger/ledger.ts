@@ -75,6 +75,8 @@ export async function reverseEntry(
     reason: string;
     createdBy?: string;
     commandId?: string;
+    /** Dòng CASH của bút toán đảo vào ca này (ca gốc đã đóng thì không ghi vào ca đã chốt — INV-F6). */
+    cashShiftId?: string;
   },
 ): Promise<string> {
   const head = await sql<{
@@ -124,7 +126,11 @@ export async function reverseEntry(
         credit: Number(l.debit),
         ...(l.person_id ? { personId: l.person_id } : {}),
         ...(l.receiving_account_id ? { receivingAccountId: l.receiving_account_id } : {}),
-        ...(l.shift_id ? { shiftId: l.shift_id } : {}),
+        ...(l.account === "CASH" && input.cashShiftId
+          ? { shiftId: input.cashShiftId }
+          : l.shift_id
+            ? { shiftId: l.shift_id }
+            : {}),
         ...(l.invoice_id ? { invoiceId: l.invoice_id } : {}),
         ...(l.invoice_line_id ? { invoiceLineId: l.invoice_line_id } : {}),
         ...(l.deposit_id ? { depositId: l.deposit_id } : {}),
