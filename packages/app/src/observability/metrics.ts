@@ -150,6 +150,9 @@ export async function handleReady(deps: ReadyDeps): Promise<Response> {
   const r = await readiness(deps);
   return Response.json(
     { status: r.ready ? "ready" : "not_ready", checks: r.checks },
-    { status: r.ready ? 200 : 503, headers: noStore },
+    {
+      status: r.ready ? 200 : 503,
+      headers: { ...noStore, "content-type": "application/json; charset=utf-8" },
+    },
   );
 }

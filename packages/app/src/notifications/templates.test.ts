@@ -16,7 +16,7 @@ const ID = "6f1c2b3a-1111-4222-8333-444455556666";
 const SENSITIVE = {
   cccd: "012345678901",
   passport: "C1234567",
-  phone: "0912345678",
+  phone: "0100005678",
   accountNumber: "0123456789",
   fullName: "Nguyễn Văn An",
   contractText: "Điều 5: bên B phải trả",
@@ -77,8 +77,8 @@ describe("S-012 nội dung không chứa PII nhạy cảm", () => {
     const cases: [NotificationType, Vars, string][] = [
       [
         "invoice_issued",
-        { ...VARS.invoice_issued, propertyName: "Nhà nghỉ Hoa Mai - 0905123456" },
-        "0905123456",
+        { ...VARS.invoice_issued, propertyName: "Nhà nghỉ Hoa Mai - 0100003456" },
+        "0100003456",
       ],
       ["invoice_issued", { ...VARS.invoice_issued, propertyName: "Nhà trọ +84 905 123 456" }, "905 123 456"],
       ["lease_expiring", { ...VARS.lease_expiring, unitCode: "012345678901" }, "012345678901"],
@@ -91,7 +91,7 @@ describe("S-012 nội dung không chứa PII nhạy cảm", () => {
       expect(all).toContain("***");
     }
     expect(
-      render("invoice_issued", { ...VARS.invoice_issued, propertyName: "Nhà nghỉ Hoa Mai - 0905123456" })
+      render("invoice_issued", { ...VARS.invoice_issued, propertyName: "Nhà nghỉ Hoa Mai - 0100003456" })
         .body,
     ).toBe("Nhà nghỉ Hoa Mai - ***: phiếu thu kỳ 10/2026 1.580.000 đ, hạn thanh toán 10/10/2026.");
   });

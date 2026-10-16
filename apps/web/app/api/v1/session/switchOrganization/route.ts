@@ -13,7 +13,10 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function problem(status: number, code: string, title: string) {
   return NextResponse.json(
     { type: `https://hotel-manager.invalid/errors/${code}`, title, status, code },
-    { status, headers: { "content-type": "application/problem+json", "cache-control": "no-store" } },
+    {
+      status,
+      headers: { "content-type": "application/problem+json; charset=utf-8", "cache-control": "no-store" },
+    },
   );
 }
 
@@ -50,7 +53,7 @@ export async function POST(req: Request): Promise<Response> {
   const secure = config.APP_BASE_URL.startsWith("https://");
   const res = NextResponse.json(
     { command_id: key.toLowerCase(), status: "committed", data: { context } },
-    { headers: { "cache-control": "no-store" } },
+    { headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } },
   );
   res.cookies.set(orgCookieName(secure), context.organization.id, {
     httpOnly: true,

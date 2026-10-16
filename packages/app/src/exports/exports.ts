@@ -11,7 +11,7 @@
 //   giữ là số. Xuất toàn tổ chức (S-018): ZIP các CSV nghiệp vụ, không ảnh/file, không số giấy tờ, bỏ cột bí mật.
 import { randomUUID } from "node:crypto";
 import { withTenant } from "@hm/db";
-import { authorize } from "@hm/domain";
+import { authorize, MS_PER_DAY, MS_PER_MINUTE, minutesToMs, msToSeconds, secondsToMs } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
 import { AccessError, type Actor, resolveActor } from "../access/actor.ts";
 import { listEvents } from "../audit/events.ts";
@@ -143,7 +143,11 @@ function assertKindAllowed(actor: Actor, kind: string): void {
 
 function assertRecentAuth(actor: Actor, now: Date): void {
   const at = actor.authenticatedAt?.getTime();
-  if (at === undefined || now.getTime() - at > REAUTH_MAX_AGE_SECONDS * 1000 || at > now.getTime() + 60_000)
+  if (
+    at === undefined ||
+    now.getTime() - at > secondsToMs(REAUTH_MAX_AGE_SECONDS) ||
+    at > now.getTime() + MS_PER_MINUTE
+  )
     throw new CommandError("REAUTH_REQUIRED", 401, "Vui lòng xác thực lại để xuất dữ liệu.");
 }
 
@@ -354,7 +358,7 @@ export async function downloadExport(
     );
   const expiresIn = Math.max(
     1,
-    Math.min(MAX_SIGNED_URL_SECONDS, Math.floor((job.expires_at.getTime() - now.getTime()) / 1000)),
+    Math.min(MAX_SIGNED_URL_SECONDS, msToSeconds(job.expires_at.getTime() - now.getTime())),
   );
   await ctx.audit({
     action: "export.downloaded",
@@ -535,7 +539,7 @@ async function reportTable(
       for (;;) {
         const r = await listEvents(db, actor, {
           from: new Date(`${f.from}T00:00:00+07:00`),
-          to: new Date(Date.parse(`${f.to}T00:00:00+07:00`) + 86_400_000),
+          to: new Date(Date.parse(`${f.to}T00:00:00+07:00`) + MS_PER_DAY),
           ...(propertyId ? { propertyId } : {}),
           ...(f.correlation_id ? { correlationId: f.correlation_id } : {}),
           order: "asc",
@@ -774,7 +778,7 @@ async function produce(
     commitGeneratedFile(trx, actor, prepared, "keep"),
   );
   const key = prepared.key;
-  const expiresAt = new Date(now.getTime() + EXPORT_TTL_MINUTES * 60_000);
+  const expiresAt = new Date(now.getTime() + minutesToMs(EXPORT_TTL_MINUTES));
   let hit = false;
   await transition(deps.workerDb, orgId, async (trx) => {
     const u =

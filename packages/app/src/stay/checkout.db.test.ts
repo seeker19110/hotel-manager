@@ -63,7 +63,7 @@ async function make(
       departureDate: "2026-10-22",
       guests: 2,
       source: "direct",
-      booker: { fullName: "Khách trả phòng", phone: "0933444555" },
+      booker: { fullName: "Khách trả phòng", phone: "0100004555" },
     }),
   );
   await okAs(h.t, h.manager, (ctx) => holdReservation(ctx, { reservationId: d.reservationId }));
@@ -108,7 +108,7 @@ async function make(
     checkIn(ctx, pii, {
       reservationId: d.reservationId,
       guests: [
-        { fullName: "Khách trả phòng", phone: "0933444555", docType: "cccd", docNumber: "001088776655" },
+        { fullName: "Khách trả phòng", phone: "0100004555", docType: "cccd", docNumber: "001088776655" },
       ],
       now: new Date("2026-10-20T08:00:00Z"),
     }),

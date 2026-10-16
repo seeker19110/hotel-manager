@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { CommandForm } from "../../../components/command/command-form.tsx";
 import { EmptyState, ErrorState } from "../../../components/ui/state.tsx";
-import { month, PERIOD_STATUS, vnd } from "../../../lib/format.ts";
+import { month, PERIOD_STATUS, vnd, vndUnitPrice } from "../../../lib/format.ts";
 import { withActor } from "../../../lib/page.tsx";
 
 export const metadata: Metadata = { title: "Kỳ thu — xem trước — Hotel Manager" };
@@ -71,7 +71,7 @@ export default async function PeriodPage({ params }: { params: Promise<{ id: str
                     <tr key={`${l.kind}-${l.description}-${l.periodFrom}`}>
                       <th scope="row">{l.description}</th>
                       <td>{l.quantity}</td>
-                      <td>{vnd(Number(l.unitPrice))}</td>
+                      <td>{vndUnitPrice(Number(l.unitPrice))}</td>
                       <td>{vnd(l.amount)}</td>
                     </tr>
                   ))}

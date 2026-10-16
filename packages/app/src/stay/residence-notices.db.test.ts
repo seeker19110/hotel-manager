@@ -18,7 +18,7 @@ let svc: ReturnType<typeof testServices>;
 const pii = createPiiCipher(devKeyring());
 const AN: GuestInput = {
   fullName: "Nguyễn Văn An",
-  phone: "0912345678",
+  phone: "0100005678",
   docType: "cccd",
   docNumber: "001234567890",
 };
@@ -90,7 +90,7 @@ describe("S-028 xuất file thông báo lưu trú theo mẫu", () => {
     const lines = csv.replace(/^﻿/, "").split("\r\n");
     expect(lines[0]).toBe("HO_TEN,Loại giấy tờ,Số giấy tờ,Quốc tịch,Ngày đến,Phòng");
     expect(lines[1]).toMatch(/^Nguyễn Văn An,CCCD,001234567890,VN,2026-10-15,4\d\d$/);
-    expect(csv).not.toContain("0912345678");
+    expect(csv).not.toContain("0100005678");
     expect(csv).not.toContain("600000");
     const again = await okAs(h.t, h.frontDesk, (ctx) =>
       exportResidenceNotice(ctx, svc, { stayId: s.stayId }),

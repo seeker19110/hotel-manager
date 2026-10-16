@@ -1,6 +1,7 @@
 // POST /api/v1/webhooks/{provider}/{account} (API-CONTRACT §3; SPEC-ledger S-016…S-018, S-030). Không có phiên người dùng:
 // xác thực bằng chữ ký HMAC + timestamp của nhà cung cấp. Chỉ adapter mô phỏng `sim` (adapter ngân hàng thật: F-016).
 // Ghi inbox + bank_transactions rồi trả 2xx ngay; tự ghép/ghi tiền chạy trong worker (`bank_transaction.received`).
+import { kibToBytes } from "@hm/domain";
 import type { Kysely } from "kysely";
 import { z } from "zod";
 import { ingestBankEvent, verifySimSignature } from "../ledger/bank-inbox.ts";
@@ -16,7 +17,7 @@ export interface WebhookDeps {
   onUnexpectedError?(err: unknown, correlationId: string): void;
 }
 
-export const WEBHOOK_MAX_BYTES = 64 * 1024;
+export const WEBHOOK_MAX_BYTES = kibToBytes(64);
 
 export const simPayload = z.strictObject({
   event_id: z.string().min(1).max(200),

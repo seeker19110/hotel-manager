@@ -2,7 +2,9 @@
 // xác minh 2026-10-16): gửi `zINSTREAM\0`, rồi từng khúc = độ dài 4 byte big-endian + dữ liệu, kết thúc bằng khúc độ dài 0;
 // clamd trả `stream: OK\0` | `stream: <tên> FOUND\0` | `<lý do> ERROR\0`. Không xác thực/TLS → chỉ nối qua mạng nội bộ.
 // Mọi lỗi (kết nối, quá hạn, ERROR, trả lời lạ) → ScannerUnavailableError: file KHÔNG bao giờ được coi là sạch.
+
 import { connect, type Socket } from "node:net";
+import { kibToBytes, mibToBytes } from "@hm/domain";
 import type { MalwareScanner } from "./inspect.ts";
 
 export class ScannerUnavailableError extends Error {
@@ -22,7 +24,7 @@ export interface ClamdOptions {
   chunkBytes?: number;
 }
 
-const DEFAULTS = { timeoutMs: 30_000, maxBytes: 25 * 1024 * 1024, chunkBytes: 64 * 1024 };
+const DEFAULTS = { timeoutMs: 30_000, maxBytes: mibToBytes(25), chunkBytes: kibToBytes(64) };
 /** Tên chữ ký chỉ giữ ký tự an toàn trước khi ghi CSDL/audit. */
 const SAFE_NAME = /^[A-Za-z0-9._:\-/]{1,120}$/;
 

@@ -1,9 +1,11 @@
 // Tiền vào tài khoản ngân hàng (INV-F3, INV-F4, INV-F4b; API-CONTRACT §3; TM-04).
 // Mọi nguồn (webhook, sao kê, nhập tay kèm sao kê) → inbox (chống trùng theo nguồn) → bank_transactions (chống trùng
 // theo GIAO DỊCH NGÂN HÀNG). Ghép/ghi tiền từ bank_transaction: `reconciliation/` (T-107).
+
 import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { withTenant } from "@hm/db";
 import type { BreakReason } from "@hm/domain";
+import { msToSecondsExact } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
 import { canonicalJson } from "../pipeline/command.ts";
 import { CommandError } from "../pipeline/problem.ts";
@@ -298,7 +300,7 @@ export function verifySimSignature(input: {
   toleranceSeconds?: number;
 }): void {
   const ts = Number(input.timestamp);
-  const now = (input.now ?? new Date()).getTime() / 1000;
+  const now = msToSecondsExact((input.now ?? new Date()).getTime());
   if (!Number.isInteger(ts) || Math.abs(now - ts) > (input.toleranceSeconds ?? 300)) {
     throw new CommandError("WEBHOOK_SIGNATURE_INVALID", 401, "Chữ ký webhook không hợp lệ hoặc đã quá hạn");
   }

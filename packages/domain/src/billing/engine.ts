@@ -1,6 +1,7 @@
 // Engine tính tiền kỳ thu hợp đồng — THUẦN, không I/O (PLAN đợt 2 T-113; SPEC-metering-billing S-001, S-016, S-018…S-021,
 // mục 10). Đầu vào là ảnh chụp đã đọc sẵn (phiên bản hợp đồng, chỉ số, đơn giá hiệu lực, số người ở); đầu ra là các dòng
 // phiếu có snapshot lượng/đơn giá/quy tắc làm tròn. Mọi phép làm tròn tiền đi qua `money` (một hàm, từng dòng; tổng = Σ dòng).
+import { formatVndNumber } from "../format/intl.ts";
 import {
   DEFAULT_ROUNDING,
   decimalSub,
@@ -10,6 +11,7 @@ import {
   type RoundingRule,
   sumVnd,
 } from "../money/money.ts";
+import { MS_PER_DAY } from "../units/units.ts";
 
 /** Phiên bản công thức ghi trên từng dòng phiếu (INV-G3) — đổi công thức thì tăng số này. */
 export const FORMULA_VERSION = 1;
@@ -86,11 +88,11 @@ function day(d: string): number {
   if (!DATE.test(d)) throw new MoneyError(`Ngày không hợp lệ: ${d}`);
   const t = Date.UTC(Number(d.slice(0, 4)), Number(d.slice(5, 7)) - 1, Number(d.slice(8, 10)));
   if (new Date(t).toISOString().slice(0, 10) !== d) throw new MoneyError(`Ngày không hợp lệ: ${d}`);
-  return t / 86_400_000;
+  return t / MS_PER_DAY;
 }
 
 function iso(n: number): string {
-  return new Date(n * 86_400_000).toISOString().slice(0, 10);
+  return new Date(n * MS_PER_DAY).toISOString().slice(0, 10);
 }
 
 export function daysInMonth(d: string): number {
@@ -105,8 +107,6 @@ function overlap(a1: number, a2: number, b1: number, b2: number): [number, numbe
   const e = Math.min(a2, b2);
   return s <= e ? [s, e] : null;
 }
-
-const vnd = (n: number) => n.toLocaleString("vi-VN");
 
 /**
  * Tiền thuê: mỗi phiên bản hiệu lực trong kỳ là một đoạn (S-021), prorata theo ngày thực của tháng, tính cả ngày đầu và
@@ -141,7 +141,7 @@ export function rentLines(input: LeaseBillingInput): BillingLine[] {
       description:
         days === dim
           ? `Tiền thuê tháng ${input.periodStart.slice(5, 7)}/${input.periodStart.slice(0, 4)}`
-          : `Tiền thuê ${days}/${dim} ngày (${vnd(v.rentAmount)} đ/tháng)`,
+          : `Tiền thuê ${days}/${dim} ngày (${formatVndNumber(v.rentAmount)} đ/tháng)`,
       revenueAccount: "REV_ROOM",
       quantity: String(days === dim ? denominator : Math.min(days, denominator)),
       unitPrice: String(v.rentAmount),

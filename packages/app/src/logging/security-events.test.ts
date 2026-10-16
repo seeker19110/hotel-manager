@@ -143,11 +143,11 @@ describe("logging — emitSecurity theo schema (SEC-LOG-002)", () => {
       event: "authz.denied",
       outcome: "denied",
       reason: "email an.nguyen@example.com Bearer abcdef0123456789",
-      client: { ip: null, userAgent: "tool 0912345678" },
+      client: { ip: null, userAgent: "tool 0100005678" },
     });
     expect(lines[0]).not.toContain("an.nguyen");
     expect(lines[0]).not.toContain("abcdef0123456789");
-    expect(lines[0]).not.toContain("0912345678");
+    expect(lines[0]).not.toContain("0100005678");
   });
 
   it("sink ném lỗi thì emitSecurity không ném (log không làm hỏng nghiệp vụ)", () => {

@@ -1,6 +1,8 @@
 // Danh mục command công khai qua `POST /api/v1/<module>/<command>` (API-CONTRACT §1). Thêm command = thêm một mục ở đây
 // (schema Zod là hợp đồng đầu vào). Tên mục = tên command trong SPEC §5.
+
 import type { StatementMapping } from "@hm/domain";
+import { mibToBytes } from "@hm/domain";
 import { z } from "zod";
 import { resetMemberMfa } from "../access/mfa-recovery.ts";
 import { APPROVAL_KINDS, cancelApproval, decideApproval, requestApproval } from "../approvals/approvals.ts";
@@ -1117,10 +1119,7 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
     input: z.strictObject({
       receiving_account_id: uuid,
       // Giới hạn cứng chống body khổng lồ; quá 2 MB (byte) → 413 FILE_TOO_LARGE ở lệnh (SPEC-ledger mục 5).
-      csv: z
-        .string()
-        .min(1)
-        .max(4 * 1024 * 1024),
+      csv: z.string().min(1).max(mibToBytes(4)),
       mapping: z.strictObject({
         date: column,
         description: column,

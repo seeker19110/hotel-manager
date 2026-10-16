@@ -2,5 +2,8 @@
 export const dynamic = "force-dynamic";
 
 export function GET(): Response {
-  return Response.json({ status: "ok" }, { headers: { "cache-control": "no-store" } });
+  return Response.json(
+    { status: "ok" },
+    { headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } },
+  );
 }

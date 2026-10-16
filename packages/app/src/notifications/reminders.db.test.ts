@@ -171,7 +171,7 @@ describe("S-014…S-016, S-021 nhắc thông báo lưu trú", () => {
         guests: [
           {
             fullName: "Khách lưu trú",
-            phone: "0911222333",
+            phone: "0100002333",
             docType: "cccd",
             docNumber: `0019${String(unitSeq).padStart(8, "0")}`,
           },

@@ -12,7 +12,7 @@
 //   bỏ buồng phòng/kỹ thuật (chỉ owner/manager/front_desk/accountant). Cơ sở ngoài phạm vi ⇒ 404.
 
 import { withTenant } from "@hm/db";
-import { authorize } from "@hm/domain";
+import { authorize, MS_PER_DAY, VN_UTC_OFFSET_MS } from "@hm/domain";
 import { type Kysely, sql } from "kysely";
 import type { Actor } from "../access/actor.ts";
 import { CommandError } from "../pipeline/problem.ts";
@@ -43,7 +43,7 @@ export function validDate(s: string, field: string): string {
 export function reportRange(from: string, to: string): { from: string; to: string; days: number } {
   validDate(from, "from");
   validDate(to, "to");
-  const days = (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000 + 1;
+  const days = (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / MS_PER_DAY + 1;
   if (days < 1) throw badDate("to");
   if (days > REPORT_MAX_DAYS)
     throw new CommandError(
@@ -79,7 +79,7 @@ const scope = (actor: Actor, propertyId?: string) => sql`
     and (${actor.allProperties} or p.id = any(${[...actor.propertyIds]}::uuid[]))
     ${propertyId ? sql`and p.id = ${propertyId}` : sql``}`;
 
-const today = () => new Date(Date.now() + 7 * 3_600_000).toISOString().slice(0, 10);
+const today = () => new Date(Date.now() + VN_UTC_OFFSET_MS).toISOString().slice(0, 10);
 
 export interface ReceivableRow {
   invoiceId: string;

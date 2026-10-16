@@ -117,7 +117,7 @@ describe("tải lô nhập (import.upload)", () => {
 describe("xuất thông báo lưu trú", () => {
   const AN: GuestInput = {
     fullName: "Nguyễn Văn An",
-    phone: "0912345678",
+    phone: "0100005678",
     docType: "cccd",
     docNumber: "001234567890",
   };

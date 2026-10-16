@@ -30,7 +30,7 @@ async function stay(): Promise<{ stayId: string; unitId: string }> {
       departureDate: "2026-10-22",
       guests: 1,
       source: "direct",
-      booker: { fullName: "Khách R-778", phone: "0912345678" },
+      booker: { fullName: "Khách R-778", phone: "0100005678" },
     }),
   );
   await okAs(h.t, h.manager, (ctx) => holdReservation(ctx, { reservationId: d.reservationId }));
@@ -52,7 +52,7 @@ async function stay(): Promise<{ stayId: string; unitId: string }> {
       guests: [
         {
           fullName: "Khách R-778",
-          phone: "0912345678",
+          phone: "0100005678",
           docType: "cccd",
           docNumber: `0017${String(seq).padStart(8, "0")}`,
         },
@@ -111,7 +111,7 @@ describe("S-016 khách mở liên kết hợp lệ", () => {
     });
     expect(v.folio).toMatchObject({ total: 1_430_000, paid: 500_000, balance: 930_000 });
     const body = JSON.stringify(v);
-    expect(body).not.toMatch(/0912345678|0017\d{8}|Khách R-778/);
+    expect(body).not.toMatch(/0100005678|0017\d{8}|Khách R-778/);
   });
 
   it("cơ sở tắt bước hai → mở được không cần 4 số", async () => {
