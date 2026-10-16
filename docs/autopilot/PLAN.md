@@ -71,7 +71,7 @@ Tương ứng mốc "Tuần 9–12" của kế hoạch gốc (khách sạn + v�
 
 ### Lát 0 — Chốt quyết định và lịch phòng
 - [x] `T-201` Ghi bảng D-002/D-003 vào SPEC (mục câu hỏi: tick kèm "quyết theo PLAN đợt 3 — D-002, ngày, tham số"), DOMAIN-MODEL/ERD nếu đổi tên/tham số; `propertyDefaults(template)` (D-005) + test DB `app.business_date` với giờ chốt 04:00 (S-016 b: walk-in 01:30 → ngày kinh doanh hôm trước) — Gate: `python3 scripts/check-blocking-questions.py reservation-stay housekeeping-maintenance portal audit-reporting inventory-allocation access-and-property notifications && python3 -m unittest discover -s scripts -p "test_*.py" && pnpm test:db -- business-date`
-- [ ] `T-202` Lịch phòng: đăng ký HTTP các lệnh inventory (`hold/release/confirm/move/proposeBlock/approveBlock/unitStatus`), query lịch theo cơ sở/tầng/loại/khoảng ngày có phân trang (inventory S-021), sự cố bất ngờ trên phòng có khách sắp đến → cảnh báo + đề xuất chuyển phòng (S-013) — Gate: `pnpm test:db -- inventory`
+- [x] `T-202` Lịch phòng: đăng ký HTTP các lệnh inventory (`hold/release/confirm/move/proposeBlock/approveBlock/unitStatus`), query lịch theo cơ sở/tầng/loại/khoảng ngày có phân trang (inventory S-021), sự cố bất ngờ trên phòng có khách sắp đến → cảnh báo + đề xuất chuyển phòng (S-013) — Gate: `pnpm test:db -- inventory`
 
 ### Lát 1 — Khách sạn (F-006)
 - [ ] `T-203` Giá: `rate_plans` (theo loại phòng, giá đêm thường/cuối tuần, hiệu lực); engine báo giá thuần `packages/domain/src/rates` (số đêm theo ngày kinh doanh, đổi bảng giá không ảnh hưởng booking đã giữ — snapshot); property test (Σ đêm = tổng, không âm, ngày đi > ngày đến) (reservation S-001, S-002, S-016, S-021) — Gate: `pnpm vitest run packages/domain/src/rates && pnpm test:db -- rates`

@@ -29,6 +29,16 @@ import {
   setExpectedTotals,
   validateBatch,
 } from "../import/import.ts";
+import { getCalendar, getUnitStatus } from "../inventory/calendar.ts";
+import {
+  approveBlock,
+  confirmHold,
+  createHold,
+  moveAllocation,
+  proposeBlock,
+  releaseHold,
+  setUnitAvailability,
+} from "../inventory/inventory.ts";
 import { activateLease, recordHandover, renewLease } from "../lease/handover.ts";
 import {
   addOccupant,
@@ -84,6 +94,7 @@ const bankTxn = z.strictObject({
   description: z.string().max(500).optional(),
 });
 const isoDate = z.iso.date();
+const instant = z.iso.datetime({ offset: true });
 const leaseTerms = z.strictObject({
   effective_from: z.iso.date(),
   effective_to: z.iso.date().nullable(),
@@ -485,6 +496,113 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
       data: await issueAdjustment(ctx, { invoiceId: i.invoice_id, amount: i.amount, reason: i.reason }),
       httpStatus: 201,
     }),
+  }),
+  "inventory.createHold": defineCommand({
+    command: "inventory.createHold",
+    // Chỉ giữ chỗ trơn (không nguồn): nguồn booking/hợp đồng do lệnh của module đó gắn (lease.hold; reservation ở T-204) —
+    // để client không tự gắn `source_type='lease'` mở khoảng cuối vượt qua luồng hợp đồng.
+    input: z.strictObject({
+      unit_id: uuid,
+      start: instant,
+      end: instant.nullable().optional(),
+      ttl_minutes: z.number().int().min(1).max(2880).optional(),
+    }),
+    run: async (ctx, i) => {
+      const r = await createHold(ctx, {
+        unitId: i.unit_id,
+        during: { start: new Date(i.start), end: i.end ? new Date(i.end) : null },
+        ...(i.ttl_minutes === undefined ? {} : { ttlMinutes: i.ttl_minutes }),
+      });
+      return {
+        data: { allocation_id: r.allocationId, expires_at: r.expiresAt.toISOString() },
+        httpStatus: 201,
+      };
+    },
+  }),
+  "inventory.releaseHold": defineCommand({
+    command: "inventory.releaseHold",
+    input: z.strictObject({ allocation_id: uuid, reason: z.string().trim().min(1).max(500) }),
+    run: async (ctx, i) => ({
+      data: await releaseHold(ctx, i.allocation_id, new Date(), i.reason),
+    }),
+  }),
+  "inventory.confirmHold": defineCommand({
+    command: "inventory.confirmHold",
+    // `kind='lease'` đi qua lease.sign/activate (gắn hợp đồng); công khai chỉ chuyển giữ chỗ thành lượt ở.
+    input: z.strictObject({ allocation_id: uuid, kind: z.literal("stay") }),
+    run: async (ctx, i) => {
+      await confirmHold(ctx, i.allocation_id, i.kind);
+      return { data: { allocation_id: i.allocation_id } };
+    },
+  }),
+  "inventory.moveAllocation": defineCommand({
+    command: "inventory.moveAllocation",
+    input: z.strictObject({
+      allocation_id: uuid,
+      to_unit_id: uuid,
+      effective_at: instant,
+      reason: z.string().trim().min(1).max(500),
+    }),
+    run: async (ctx, i) => {
+      const r = await moveAllocation(ctx, {
+        allocationId: i.allocation_id,
+        toUnitId: i.to_unit_id,
+        at: new Date(i.effective_at),
+        reason: i.reason,
+      });
+      return {
+        data: { old_allocation_id: r.oldAllocationId, new_allocation_id: r.newAllocationId },
+      };
+    },
+  }),
+  "inventory.requestBlock": defineCommand({
+    command: "inventory.requestBlock",
+    input: z.strictObject({
+      unit_id: uuid,
+      start: instant,
+      end: instant,
+      reason: z.string().trim().min(1).max(500),
+    }),
+    run: async (ctx, i) => {
+      const r = await proposeBlock(ctx, {
+        unitId: i.unit_id,
+        period: { start: new Date(i.start), end: new Date(i.end) },
+        reason: i.reason,
+      });
+      return { data: { block_id: r.blockId }, httpStatus: 201 };
+    },
+  }),
+  "inventory.approveBlock": defineCommand({
+    command: "inventory.approveBlock",
+    input: z.strictObject({ block_id: uuid, note: z.string().trim().max(500).optional() }),
+    run: async (ctx, i) => {
+      const r = await approveBlock(ctx, i.block_id, i.note ? { note: i.note } : {});
+      return { data: { block_id: r.blockId, allocation_id: r.allocationId } };
+    },
+  }),
+  "inventory.setUnitAvailability": defineCommand({
+    command: "inventory.setUnitAvailability",
+    // Lý do bắt buộc khi `out_of_service` — kiểm ở lệnh (sau kiểm quyền) để người không có quyền nhận 403 trước 422.
+    input: z.strictObject({
+      unit_id: uuid,
+      availability: z.enum(["active", "out_of_service"]),
+      reason: z.string().max(500).optional(),
+    }),
+    run: async (ctx, i) => {
+      const r = await setUnitAvailability(ctx, {
+        unitId: i.unit_id,
+        availability: i.availability,
+        ...(i.reason === undefined ? {} : { reason: i.reason }),
+      });
+      return {
+        data: {
+          unit_id: r.unitId,
+          availability: r.availability,
+          exception_ids: r.exceptionIds,
+          relocations: r.relocations,
+        },
+      };
+    },
   }),
   "lease.createDraft": defineCommand({
     command: "lease.createDraft",
@@ -900,6 +1018,46 @@ type AnyQuery = QueryDef<any, any>;
 
 /** Danh mục query công khai qua `GET /api/v1/<module>/<query>` — chỉ đọc. */
 export const QUERIES: Readonly<Record<string, AnyQuery>> = {
+  "inventory.getCalendar": {
+    query: "inventory.getCalendar",
+    input: z.strictObject({
+      property_id: uuid,
+      from: isoDate,
+      to: isoDate,
+      floor_id: uuid.optional(),
+      room_type_id: uuid.optional(),
+      limit: z.coerce.number().int().min(1).max(200).optional(),
+      cursor: z.string().min(1).max(400).optional(),
+    }),
+    run: (
+      db,
+      actor,
+      i: {
+        property_id: string;
+        from: string;
+        to: string;
+        floor_id?: string;
+        room_type_id?: string;
+        limit?: number;
+        cursor?: string;
+      },
+    ) =>
+      getCalendar(db, actor, {
+        propertyId: i.property_id,
+        from: i.from,
+        to: i.to,
+        ...(i.floor_id ? { floorId: i.floor_id } : {}),
+        ...(i.room_type_id ? { roomTypeId: i.room_type_id } : {}),
+        ...(i.limit === undefined ? {} : { limit: i.limit }),
+        ...(i.cursor ? { cursor: i.cursor } : {}),
+      }),
+  },
+  "inventory.getUnitStatus": {
+    query: "inventory.getUnitStatus",
+    input: z.strictObject({ unit_id: uuid, at: instant.optional() }),
+    run: (db, actor, i: { unit_id: string; at?: string }) =>
+      getUnitStatus(db, actor, { unitId: i.unit_id, ...(i.at ? { at: new Date(i.at) } : {}) }),
+  },
   "payment.getTransferInfo": {
     query: "payment.getTransferInfo",
     input: z.strictObject({ invoice_id: uuid, receiving_account_id: uuid.optional() }),

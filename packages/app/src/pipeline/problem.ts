@@ -23,6 +23,8 @@ export interface Problem {
   previous_value?: number;
   /** UNRESOLVED_ANOMALIES / READINGS_INCOMPLETE: danh sách cần xử lý (S-008, S-009). */
   items?: Record<string, string | number | null>[];
+  /** ROOM_UNAVAILABLE: phòng cùng loại còn trống trong khoảng đó (SPEC-inventory S-002). */
+  alternatives?: Record<string, string | number | null>[];
   /** IMPORT_TOTALS_MISMATCH: tổng nguồn so với tổng file theo loại (SPEC-import S-013). */
   totals?: Record<string, { expected: number; actual: number; diff: number }>;
 }
@@ -37,7 +39,15 @@ export interface FieldError {
 export type ProblemExtensions = Partial<
   Pick<
     Problem,
-    "approval_request_id" | "payment_id" | "from" | "to" | "errors" | "previous_value" | "items" | "totals"
+    | "approval_request_id"
+    | "payment_id"
+    | "from"
+    | "to"
+    | "errors"
+    | "previous_value"
+    | "items"
+    | "totals"
+    | "alternatives"
   >
 >;
 
