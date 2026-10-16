@@ -96,6 +96,13 @@ Khi chạy thật (đề xuất D-021): chặn thêm `/api/metrics` ở reverse 
 - Sự kiện outbox chưa có consumer được đánh dấu đã phát mà không sinh job (không kẹt hàng); xem lịch sử ở bảng `outbox`.
 - Dừng: SIGTERM/SIGINT ⇒ ngừng lập lịch → chờ job/handler đang chạy (trần 25 giây) → `boss.stop` graceful → đóng pool → thoát 0. Tín hiệu lần hai ⇒ thoát ngay (mã 1). Đặt `terminationGracePeriod`/`stop_grace_period` ≥ 40 giây.
 
+## 8b. Web — bind, https, cấu hình hiệu lực (T-403)
+- `pnpm --filter @hm/web start` (và `dev`) mặc định bind **127.0.0.1** (`next start -H ${HOST:-127.0.0.1}`). Caddy chuyển tiếp tới web; chạy web trong container sau Caddy thì đặt `HOST=0.0.0.0` ở **môi trường container** (mạng backend nội bộ, không publish cổng ra host) — không đặt trên máy có cổng mở Internet.
+- `NODE_ENV=production`: `APP_BASE_URL` và `S3_ENDPOINT` phải `https://` (loopback được miễn), `SMTP_URL` phải `smtps://` hoặc `smtp://…?requireTLS=true` (hoặc `fake://` = không gửi thư). Sai → tiến trình không lên, log nêu **tên biến** và lý do, không giá trị.
+- Lúc khởi động web in một dòng log `config.effective` (bí mật thành `***`); đối chiếu với bảng mặc định [`docs/design/SECURE-DEFAULTS.md`](design/SECURE-DEFAULTS.md) khi nghi cấu hình lệch.
+- Lỗi render/route chưa bắt ghi log `lỗi render/route không dự kiến` (mẫu route, `digest`, stack; không cookie/đường dẫn thật).
+- Cookie phiên khi https mang tiền tố `__Host-hm.` (trình duyệt buộc Secure, Path=/, không Domain). Đổi `APP_BASE_URL` giữa http↔https ⇒ mọi phiên cũ mất hiệu lực (tên cookie đổi): người dùng đăng nhập lại.
+
 ## 9. Tài liệu vận hành liên quan
 | Cần làm | Tài liệu |
 |---|---|

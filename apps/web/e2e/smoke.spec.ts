@@ -113,3 +113,35 @@ test("session.switchOrganization: khác origin 403; thiếu key 400; tổ chức
     404,
   );
 });
+
+// PRF-WEB-007 / FE-SEC-003: header bảo mật trên response HTML và API thật của `next start`; CSP không chặn script của chính trang.
+test("header bảo mật + CSP strict trên HTML và API, không lỗi CSP trong console", async ({ page }) => {
+  const cspErrors: string[] = [];
+  page.on("console", (m) => {
+    if (/Content Security Policy|Refused to (execute|load|apply)/i.test(m.text())) cspErrors.push(m.text());
+  });
+  page.on("pageerror", (e) => {
+    if (/Content Security Policy|Refused to/i.test(e.message)) cspErrors.push(e.message);
+  });
+  const res = await page.goto("/dang-nhap");
+  const api = await page.request.get("/api/health");
+  for (const r of [res, api]) {
+    const h = r?.headers() ?? {};
+    expect(h["x-content-type-options"]).toBe("nosniff");
+    expect(h["referrer-policy"]).toBe("strict-origin-when-cross-origin");
+    expect(h["permissions-policy"]).toContain("geolocation=()");
+    expect(h["x-frame-options"]).toBe("DENY");
+    const csp = h["content-security-policy"] ?? "";
+    expect(csp).toMatch(/script-src [^;]*'nonce-[A-Za-z0-9+/=]+'/);
+    expect(csp).toMatch(/script-src [^;]*'strict-dynamic'/);
+    expect(csp).not.toMatch(/script-src [^;]*'unsafe-(inline|eval)'/);
+    for (const d of ["base-uri 'none'", "object-src 'none'", "frame-ancestors 'none'", "form-action 'self'"])
+      expect(csp).toContain(d);
+    // Không có CORS mở.
+    expect(h["access-control-allow-origin"]).toBeUndefined();
+  }
+  // Trang tương tác được (script có nonce chạy): ô email nhận chữ.
+  await page.getByLabel("Email").fill("kiem.tra@example.test");
+  await expect(page.getByLabel("Email")).toHaveValue("kiem.tra@example.test");
+  expect(cspErrors).toEqual([]);
+});

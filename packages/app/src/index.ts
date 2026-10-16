@@ -24,7 +24,7 @@ export {
 } from "./audit/events.ts";
 export { type Auth, createAuth } from "./auth/auth.ts";
 export { generatePeriods, type Preview, previewPeriod } from "./billing/billing.ts";
-export { type AppConfig, ConfigError, loadConfig } from "./config/schema.ts";
+export { type AppConfig, ConfigError, loadConfig, redactConfig } from "./config/schema.ts";
 export { loadWorkerConfig, type WorkerConfig } from "./config/worker.ts";
 export { createPool } from "./db/pool.ts";
 export { ERROR_CODES, type ErrorCode } from "./errors.ts";
@@ -64,6 +64,7 @@ export { BANK_TXN_RECEIVED, BREAK_OPENED } from "./ledger/bank-inbox.ts";
 export { createLogger, type Logger } from "./logging/logger.ts";
 export { appLogger, setAppLogger } from "./logging/runtime.ts";
 export { emitSecurity, SECURITY_EVENTS, type SecurityEventName } from "./logging/security-events.ts";
+export { reportRequestError, reportUnexpectedError } from "./logging/unexpected.ts";
 export { listWorkOrders, type WorkOrderView } from "./maintenance/work-orders.ts";
 export { readingRoute } from "./metering/meters.ts";
 export {
