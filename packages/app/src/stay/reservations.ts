@@ -11,6 +11,8 @@ import {
   grantFor,
   isMatrixRole,
   type NightPrice,
+  nightsOf,
+  repriceForDates,
 } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/actor.ts";
@@ -20,7 +22,7 @@ import { postEntry } from "../ledger/ledger.ts";
 import { confirmPayment, type ManualBankTxn, recordPayment } from "../payments/payments.ts";
 import type { CommandContext } from "../pipeline/command.ts";
 import { CommandError } from "../pipeline/problem.ts";
-import { quoteIn, staySettings } from "./rates.ts";
+import { loadRates, quoteIn, quoteProblem, staySettings } from "./rates.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -623,4 +625,132 @@ export async function getReservation(
   return withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) =>
     viewOf(await readReservation(trx, actor, reservationId, false)),
   );
+}
+
+/**
+ * `reservation.changeDates` (S-008, Q-06): xem trước chênh lệch (đêm cũ giữ snapshot, đêm mới giá hiện hành) rồi lưu nguyên
+ * tử — allocation đổi khoảng trong cùng transaction; phòng bận → ROOM_UNAVAILABLE, booking và allocation không đổi.
+ * Pilot: booking draft/held/confirmed (lượt đang ở đổi ngày đi thuộc F-013).
+ */
+export async function changeDates(
+  ctx: CommandContext,
+  input: {
+    reservationId: string;
+    arrivalDate: string;
+    departureDate: string;
+    previewOnly: boolean;
+    now?: Date;
+  },
+): Promise<{ previewOnly: boolean; priceDiff: number; roomTotal: number; nightlyPrices: NightPrice[] }> {
+  const now = input.now ?? new Date();
+  const row = await readReservation(ctx.trx, ctx.actor, input.reservationId, true);
+  authorize(ctx.actor, "reservation.manage", { propertyId: row.property_id });
+  if (!["draft", "held", "confirmed"].includes(row.status)) {
+    throw new CommandError("INVALID_TRANSITION", 409, "Chỉ đổi ngày booking chưa nhận phòng", {
+      extensions: { from: row.status, to: row.status },
+    });
+  }
+  const s = await staySettings(ctx.trx, ctx.actor.orgId, row.property_id);
+  let repriced: { prices: NightPrice[]; total: number; diff: number };
+  try {
+    repriced = repriceForDates(
+      row.nightly_prices,
+      nightsOf(input.arrivalDate, input.departureDate, s.maxNights),
+      await loadRates(ctx.trx, ctx.actor.orgId, row.room_type_id),
+      s.weekendNights,
+    );
+  } catch (e) {
+    return quoteProblem(e);
+  }
+  const result = {
+    previewOnly: input.previewOnly,
+    priceDiff: repriced.diff,
+    roomTotal: repriced.total,
+    nightlyPrices: repriced.prices,
+  };
+  if (input.previewOnly) return result;
+  if (row.allocation_id && row.status !== "draft") {
+    const during = await stayInterval(
+      ctx.trx,
+      ctx.actor.orgId,
+      row.property_id,
+      input.arrivalDate,
+      input.departureDate,
+    );
+    const a = await sql<{ active: boolean; kind: string; expires_at: Date | null }>`
+      select active, kind, expires_at from allocations where organization_id = ${ctx.actor.orgId} and id = ${row.allocation_id}
+      for update`.execute(ctx.trx);
+    const alloc = a.rows[0];
+    if (!alloc?.active || (alloc.kind === "hold" && (alloc.expires_at as Date).getTime() <= now.getTime()))
+      throw holdExpired(ctx.actor.orgId, row);
+    try {
+      await sql`savepoint change_dates`.execute(ctx.trx);
+      await sql`update allocations set during = tstzrange(${during.start}, ${during.end}, '[)')
+                where organization_id = ${ctx.actor.orgId} and id = ${row.allocation_id}`.execute(ctx.trx);
+    } catch (e) {
+      if ((e as { code?: string }).code === "23P01")
+        throw new CommandError(
+          "ROOM_UNAVAILABLE",
+          409,
+          "Phòng đã có người giữ trong thời gian mới. Booking không đổi.",
+        );
+      throw e;
+    }
+  }
+  await sql`
+    update reservation_items set arrival_date = ${input.arrivalDate}::date, departure_date = ${input.departureDate}::date,
+           nightly_prices = ${JSON.stringify(repriced.prices)}::jsonb, room_total = ${repriced.total}, version = version + 1
+    where organization_id = ${ctx.actor.orgId} and id = ${row.item_id}`.execute(ctx.trx);
+  await sql`update reservations set version = version + 1 where organization_id = ${ctx.actor.orgId} and id = ${row.id}`.execute(
+    ctx.trx,
+  );
+  await ctx.audit({
+    action: "reservation.dates_changed",
+    entityType: "reservation",
+    entityId: row.id,
+    propertyId: row.property_id,
+    before: {
+      arrival_date: row.arrival_date,
+      departure_date: row.departure_date,
+      room_total: Number(row.room_total),
+    },
+    after: {
+      arrival_date: input.arrivalDate,
+      departure_date: input.departureDate,
+      room_total: repriced.total,
+    },
+  });
+  return result;
+}
+
+/** `reservation.list` (query): booking của cơ sở có ngày ở giao khoảng [from, to), lọc trạng thái; tối đa 200 dòng. */
+export async function listReservations(
+  db: Kysely<unknown>,
+  actor: Actor,
+  input: { propertyId: string; from: string; to: string; status?: BookingStatus },
+): Promise<ReservationView[]> {
+  if (!["owner", "manager", "front_desk", "accountant"].includes(actor.role) || !UUID.test(input.propertyId))
+    throw new CommandError("NOT_FOUND", 404, "Không tìm thấy cơ sở");
+  if (!actor.allProperties && !actor.propertyIds.includes(input.propertyId))
+    throw new CommandError("NOT_FOUND", 404, "Không tìm thấy cơ sở");
+  if (input.to <= input.from) throw fieldError("to", "invalid_range", "Khoảng ngày không hợp lệ");
+  return withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
+    const p = await sql<{ id: string }>`
+      select id from properties where organization_id = ${actor.orgId} and id = ${input.propertyId}`.execute(
+      trx,
+    );
+    if (!p.rows[0]) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy cơ sở");
+    const r = await sql<ReservationRow>`
+      select r.id, r.property_id, r.number, r.status, r.source, r.booker_person_id, i.id as item_id, i.unit_id, i.room_type_id,
+             i.arrival_date::text, i.departure_date::text, i.guests, i.nightly_prices, i.room_total::text, i.allocation_id,
+             s.id as stay_id, s.status as stay_status
+      from reservations r
+      join reservation_items i on i.organization_id = r.organization_id and i.reservation_id = r.id
+      left join stays s on s.organization_id = i.organization_id and s.reservation_item_id = i.id
+      where r.organization_id = ${actor.orgId} and r.property_id = ${input.propertyId}
+        and i.arrival_date < ${input.to}::date and i.departure_date > ${input.from}::date
+        ${input.status ? sql`and r.status = ${input.status}` : sql``}
+      order by i.arrival_date, r.number limit 200`.execute(trx);
+    return r.rows.map(viewOf);
+  });
 }

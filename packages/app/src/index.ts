@@ -55,3 +55,4 @@ export {
 } from "./rental/views.ts";
 export { serverContext } from "./server/context.ts";
 export { type AppServices, createServices, testServices } from "./server/services.ts";
+export { expireHeldReservations } from "./stay/jobs.ts";

@@ -77,10 +77,12 @@ import {
 import { createRoomType, quote, setRate, updateRoomType } from "../stay/rates.ts";
 import {
   cancelReservation,
+  changeDates,
   confirmReservation,
   createReservation,
   getReservation,
   holdReservation,
+  listReservations,
   markNoShow,
 } from "../stay/reservations.ts";
 import type { CommandDef, QueryDef } from "./command-route.ts";
@@ -322,6 +324,23 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
         reservationId: i.reservation_id,
         reason: i.reason,
         ...(i.cancellation_fee === undefined ? {} : { cancellationFee: i.cancellation_fee }),
+      }),
+    }),
+  }),
+  "reservation.changeDates": defineCommand({
+    command: "reservation.changeDates",
+    input: z.strictObject({
+      reservation_id: uuid,
+      arrival_date: isoDate,
+      departure_date: isoDate,
+      preview_only: z.boolean().default(false),
+    }),
+    run: async (ctx, i) => ({
+      data: await changeDates(ctx, {
+        reservationId: i.reservation_id,
+        arrivalDate: i.arrival_date,
+        departureDate: i.departure_date,
+        previewOnly: i.preview_only,
       }),
     }),
   }),
@@ -1122,6 +1141,24 @@ export const QUERIES: Readonly<Record<string, AnyQuery>> = {
         arrivalDate: i.arrival_date,
         departureDate: i.departure_date,
         guests: i.guests,
+      }),
+  },
+  "reservation.list": {
+    query: "reservation.list",
+    input: z.strictObject({
+      property_id: uuid,
+      from: isoDate,
+      to: isoDate,
+      status: z
+        .enum(["draft", "held", "confirmed", "in_house", "checked_out", "cancelled", "no_show", "expired"])
+        .optional(),
+    }),
+    run: (db, actor, i: { property_id: string; from: string; to: string; status?: never }) =>
+      listReservations(db, actor, {
+        propertyId: i.property_id,
+        from: i.from,
+        to: i.to,
+        ...(i.status ? { status: i.status } : {}),
       }),
   },
   "reservation.get": {

@@ -3,7 +3,7 @@
 > Giai đoạn hiện tại: G5 Dựng nền (autopilot đợt 3) · Cập nhật: 2026-10-16 · Nhánh: claude/gallant-shannon-2uccvp (xếp chồng trên PR #5)
 
 ## Đang làm
-- Autopilot đợt 3 (`docs/autopilot/PLAN.md`, 26 task T-201…T-226, tự duyệt D-009; 130 vòng / 120 giờ). Xong: T-201…T-205.
+- Autopilot đợt 3 (`docs/autopilot/PLAN.md`, 26 task T-201…T-226, tự duyệt D-009; 130 vòng / 120 giờ). Xong: T-201…T-206.
 - PR #5 (đợt 2, nhánh `claude/gifted-noether-iybenn`): CI xanh 6/6, mergeable — chờ chủ dự án merge; nhánh đợt 3 xếp chồng lên (D-001).
 
 ## Tiếp theo
