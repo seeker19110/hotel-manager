@@ -231,6 +231,7 @@ describe("S-019 trả phòng còn nợ cần quản lý cho phép", () => {
         propertyId: h.org.propertyId,
         subjectType: "stay",
         subjectId: m.stayId,
+        payload: { debtor_person_id: m.booker, due_date: "2026-10-30" },
       }),
     );
     expect(

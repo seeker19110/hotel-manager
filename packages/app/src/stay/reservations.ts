@@ -16,6 +16,7 @@ import {
 } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/actor.ts";
+import { approvalRequired, registerApprovalExecutor } from "../approvals/approvals.ts";
 import { receiveDeposit } from "../deposits/deposits.ts";
 import { confirmHold, createHold, type Interval } from "../inventory/inventory.ts";
 import { postEntry } from "../ledger/ledger.ts";
@@ -326,7 +327,8 @@ export async function recordBookingPayment(
 }
 
 /** Lỗi HOLD_EXPIRED kèm ghi `held → expired` đúng một lần ở transaction riêng (lệnh chính đã rollback — S-007). */
-function holdExpired(orgId: string, row: ReservationRow): CommandError {
+function holdExpired(ctx: CommandContext, row: ReservationRow): CommandError {
+  const orgId = ctx.actor.orgId;
   return new CommandError("HOLD_EXPIRED", 409, "Thời gian giữ phòng đã hết. Vui lòng giữ lại.", {
     persist: async (trx) => {
       const r = await sql<{ id: string }>`
@@ -337,6 +339,14 @@ function holdExpired(orgId: string, row: ReservationRow): CommandError {
                   where organization_id = ${orgId} and id = ${row.allocation_id} and active and kind = 'hold'`.execute(
           trx,
         );
+      }
+      if (r.rows[0]) {
+        // INV-I3: hết hạn giữ = một sự kiện có audit (như job worker), kể cả khi phát hiện lúc xác nhận/đổi ngày.
+        await sql`insert into audit_events (id, organization_id, property_id, actor_type, actor_person_id, action, entity_type,
+                                            entity_id, before, after, correlation_id)
+                  values (${randomUUID()}, ${orgId}, ${row.property_id}, 'user', ${ctx.actor.personId}, 'reservation.expired',
+                          'reservation', ${row.id}, '{"status":"held"}'::jsonb, '{"status":"expired"}'::jsonb,
+                          ${ctx.correlationId})`.execute(trx);
       }
       return {};
     },
@@ -364,14 +374,14 @@ export async function confirmReservation(
   const row = await readReservation(ctx.trx, ctx.actor, input.reservationId, true);
   authorize(ctx.actor, "reservation.manage", { propertyId: row.property_id });
   transition(row.status, "confirmed");
-  if (!row.allocation_id) throw holdExpired(ctx.actor.orgId, row);
+  if (!row.allocation_id) throw holdExpired(ctx, row);
   const a = await sql<{ active: boolean; expires_at: Date | null }>`
     select active, expires_at from allocations where organization_id = ${ctx.actor.orgId} and id = ${row.allocation_id} for update`.execute(
     ctx.trx,
   );
   const alloc = a.rows[0];
   if (!alloc?.active || (alloc.expires_at && alloc.expires_at.getTime() <= now.getTime()))
-    throw holdExpired(ctx.actor.orgId, row);
+    throw holdExpired(ctx, row);
   const s = await staySettings(ctx.trx, ctx.actor.orgId, row.property_id);
   if (!input.payment && !s.confirmWithoutPayment)
     throw fieldError("payment", "required", "Cơ sở yêu cầu ứng trước/cọc khi xác nhận");
@@ -387,6 +397,13 @@ export async function confirmReservation(
   await sql`update reservations set status = 'confirmed', confirmed_at = ${now}, held_until = null, version = version + 1
             where organization_id = ${ctx.actor.orgId} and id = ${row.id}`.execute(ctx.trx);
   const payment = input.payment ? await recordBookingPayment(ctx, row, input.payment) : null;
+  // Cơ sở bắt buộc tiền khi xác nhận (S-006): khoản "khách báo đã chuyển" chưa có chứng cứ không đủ — rollback, booking giữ `held`.
+  if (!s.confirmWithoutPayment && payment?.status !== "confirmed")
+    throw fieldError(
+      "payment",
+      "unconfirmed",
+      "Cơ sở yêu cầu khoản thu đã xác nhận (tiền mặt hoặc chuyển khoản có chứng cứ) khi xác nhận booking",
+    );
   await ctx.audit({
     action: "reservation.confirmed",
     entityType: "reservation",
@@ -437,8 +454,28 @@ async function issueCancellationFee(
   fee: number,
   reason: string,
   at: Date,
+  approved: boolean,
 ): Promise<string> {
-  authorize(ctx.actor, "reservation.override_price", { propertyId: row.property_id, amount: fee });
+  if (!approved) {
+    try {
+      authorize(ctx.actor, "reservation.override_price", { propertyId: row.property_id, amount: fee });
+    } catch (e) {
+      if ((e as { code?: string }).code !== "APPROVAL_LIMIT_EXCEEDED") throw e;
+      // Vượt hạn mức: lập yêu cầu duyệt `cancellation_fee`; người duyệt huỷ booking kèm đúng phí đó (executor).
+      throw approvalRequired(
+        ctx.actor,
+        {
+          kind: "cancellation_fee",
+          amount: fee,
+          reason,
+          propertyId: row.property_id,
+          subjectType: "reservation",
+          subjectId: row.id,
+        },
+        "Phí huỷ vượt hạn mức — đã gửi yêu cầu duyệt",
+      );
+    }
+  }
   const day = await businessDateAt(ctx.trx, ctx.actor.orgId, row.property_id, at);
   const chargeId = randomUUID();
   await sql`
@@ -488,6 +525,7 @@ async function issueCancellationFee(
 export async function cancelReservation(
   ctx: CommandContext,
   input: { reservationId: string; reason: string; cancellationFee?: number; now?: Date },
+  opts: { approvedFee?: boolean } = {},
 ): Promise<{ status: "cancelled"; feeInvoiceId: string | null }> {
   const now = input.now ?? new Date();
   const row = await readReservation(ctx.trx, ctx.actor, input.reservationId, true);
@@ -510,7 +548,17 @@ export async function cancelReservation(
     ctx.trx,
   );
   const feeInvoiceId =
-    fee > 0 ? await issueCancellationFee(ctx, row, row.stay_id as string, fee, reason, now) : null;
+    fee > 0
+      ? await issueCancellationFee(
+          ctx,
+          row,
+          row.stay_id as string,
+          fee,
+          reason,
+          now,
+          opts.approvedFee === true,
+        )
+      : null;
   await ctx.audit({
     action: "reservation.cancelled",
     entityType: "reservation",
@@ -682,7 +730,7 @@ export async function changeDates(
       for update`.execute(ctx.trx);
     const alloc = a.rows[0];
     if (!alloc?.active || (alloc.kind === "hold" && (alloc.expires_at as Date).getTime() <= now.getTime()))
-      throw holdExpired(ctx.actor.orgId, row);
+      throw holdExpired(ctx, row);
     try {
       await sql`savepoint change_dates`.execute(ctx.trx);
       await sql`update allocations set during = tstzrange(${during.start}, ${during.end}, '[)')
@@ -754,3 +802,23 @@ export async function listReservations(
     return r.rows.map(viewOf);
   });
 }
+
+let registered = false;
+/** Duyệt `cancellation_fee` (vượt hạn mức) = huỷ booking kèm đúng phí đã duyệt (S-009). */
+export function registerReservationExecutors(): void {
+  if (registered) return;
+  registered = true;
+  registerApprovalExecutor("cancellation_fee", {
+    async execute(ctx, req) {
+      if (req.subjectType !== "reservation" || !req.subjectId || req.amount === null)
+        throw new CommandError("VALIDATION_FAILED", 422, "Yêu cầu phí huỷ thiếu booking/số tiền");
+      return cancelReservation(
+        ctx,
+        { reservationId: req.subjectId, reason: req.reason, cancellationFee: req.amount },
+        { approvedFee: true },
+      );
+    },
+  });
+}
+
+registerReservationExecutors();

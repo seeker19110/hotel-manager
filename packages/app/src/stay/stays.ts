@@ -87,14 +87,9 @@ async function recordGuests(
   let isForeign = false;
   for (const [i, g] of guests.entries()) {
     const path = `guests.${i}`;
-    const nationality = g.nationality?.trim().toUpperCase() || "VN";
-    if (!/^[A-Z]{2}$/.test(nationality))
+    const given = g.nationality?.trim().toUpperCase() || null;
+    if (given !== null && !/^[A-Z]{2}$/.test(given))
       throw fieldError(`${path}.nationality`, "invalid", "Quốc tịch phải là mã ISO 2 chữ cái");
-    if (nationality !== "VN") {
-      isForeign = true;
-      if (g.docType !== "passport")
-        throw fieldError(`${path}.doc_type`, "passport_required", "Khách nước ngoài cần hộ chiếu");
-    }
     let personId: string;
     if (g.personId) {
       personId = await resolveBooker(ctx, { personId: g.personId }, path);
@@ -112,8 +107,21 @@ async function recordGuests(
           )
         : await createGuestWithoutPhone(ctx, g.fullName, path);
     }
-    await sql`update persons set nationality = ${nationality}, version = version + 1
-              where organization_id = ${ctx.actor.orgId} and id = ${personId}`.execute(ctx.trx);
+    // Không gửi quốc tịch → dùng giá trị đã lưu của người đó; chỉ người chưa có mới mặc định VN (không ghi đè khách nước
+    // ngoài thành VN — sai hạn thông báo lưu trú).
+    const stored = await sql<{ nationality: string | null }>`
+      select nationality from persons where organization_id = ${ctx.actor.orgId} and id = ${personId}`.execute(
+      ctx.trx,
+    );
+    const nationality = given ?? stored.rows[0]?.nationality ?? "VN";
+    if (nationality !== "VN") {
+      isForeign = true;
+      if (g.docType !== "passport")
+        throw fieldError(`${path}.doc_type`, "passport_required", "Khách nước ngoài cần hộ chiếu");
+    }
+    if (nationality !== stored.rows[0]?.nationality)
+      await sql`update persons set nationality = ${nationality}, version = version + 1
+                where organization_id = ${ctx.actor.orgId} and id = ${personId}`.execute(ctx.trx);
     await recordIdentityDocument(
       ctx,
       pii,
