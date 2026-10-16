@@ -1,4 +1,4 @@
-// PLAN đợt 4 T-306 — rào catalog CSDL sau migrate (DB-MODEL-001/002/004, BASE-DATA-006): đọc information_schema/pg_catalog của
+// PLAN đợt 4 T-306 + đợt 5 T-408 — rào catalog CSDL sau migrate (DB-MODEL-001/002/004/005, BASE-DATA-006): đọc information_schema/pg_catalog của
 // CSDL test đã chạy đủ migration, nên cột/khoá ngoại thêm bằng migration mới bị kiểm ngay.
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -182,5 +182,63 @@ describe("schema-guards — khoá ngoại có index hỗ trợ (DB-MODEL-004, ra
       await sql`drop table sg_child`.execute(t.admin);
       await sql`drop table sg_parent`.execute(t.admin);
     }
+  });
+});
+
+describe("schema-guards — ràng buộc toàn vẹn (DB-MODEL-004 ON DELETE, DB-MODEL-005)", () => {
+  /** Mọi FK còn lại dùng NO ACTION (mặc định, chặn xoá cha còn con). Chỉ hai ngoại lệ, mỗi cái một lý do. */
+  const FK_DELETE_ALLOWED: Record<string, string> = {
+    fk_memberships_auth_user:
+      "RESTRICT: không xoá tài khoản đăng nhập khi còn membership (ẩn danh hoá thay vì xoá).",
+    account_userId_fkey:
+      "CASCADE (Better Auth): tài khoản liên kết thuộc về người dùng đăng nhập, hết người dùng thì hết.",
+    session_userId_fkey: "CASCADE (Better Auth): phiên đăng nhập chỉ tồn tại khi còn người dùng.",
+    twoFactor_userId_fkey:
+      "CASCADE (Better Auth): bí mật TOTP gắn với người dùng, xoá người dùng phải xoá luôn.",
+    fk_property_scopes_memberships:
+      "CASCADE: phạm vi cơ sở chỉ là bảng nối của membership, hết membership thì hết phạm vi.",
+  };
+
+  it("hành động ON DELETE khác NO ACTION chỉ ở các FK đã khai kèm lý do (không CASCADE/SET NULL lén vào dữ liệu tiền/tồn)", async () => {
+    const r = await sql<{ name: string }>`
+      select conname as name from pg_constraint c join pg_namespace n on n.oid = c.connamespace
+      where c.contype = 'f' and c.confdeltype <> 'a' and n.nspname not in ('pg_catalog', 'information_schema')`.execute(
+      t.admin,
+    );
+    const names = r.rows.map((x) => x.name).sort();
+    expect(names).toEqual(Object.keys(FK_DELETE_ALLOWED).sort());
+    for (const reason of Object.values(FK_DELETE_ALLOWED)) expect(reason.length).toBeGreaterThan(20);
+  });
+
+  it("cột trạng thái/loại/phương thức (status, kind, type, method, role, purpose, source, severity, priority) đều có CHECK ∈ tập", async () => {
+    const r = await sql<{ key: string }>`
+      select c.table_name || '.' || c.column_name as key
+      from information_schema.columns c
+      where c.table_schema = 'public'
+        and c.column_name in ('status', 'kind', 'type', 'method', 'role', 'purpose', 'source', 'severity', 'priority')
+        and c.table_name in (select table_name from information_schema.tables where table_schema = 'public' and table_type = 'BASE TABLE')
+        and not exists (
+          select 1 from pg_constraint k join pg_attribute a on a.attrelid = k.conrelid and a.attnum = any (k.conkey)
+          where k.contype = 'c' and k.conrelid = (quote_ident(c.table_schema) || '.' || quote_ident(c.table_name))::regclass
+            and a.attname = c.column_name)
+      order by 1`.execute(t.admin);
+    expect(r.rows.map((x) => x.key)).toEqual([]);
+  });
+
+  it("số CHECK trong schema không giảm (bất biến đơn giản nằm ở CSDL, không chuyển sang app)", async () => {
+    const r = await sql<{ n: number }>`
+      select count(*)::int as n from pg_constraint c join pg_namespace s on s.oid = c.connamespace
+      where c.contype = 'c' and s.nspname = 'public'`.execute(t.admin);
+    expect(r.rows[0]?.n).toBeGreaterThanOrEqual(375);
+  });
+
+  it("số cột NULL theo bảng khớp nền ratchet (cột NULL mới/bớt phải sửa nền có chủ đích)", async () => {
+    const r = await sql<{ t: string; n: number }>`
+      select table_name as t, count(*)::int as n from information_schema.columns
+      where table_schema = 'public' and is_nullable = 'YES'
+        and table_name in (select table_name from information_schema.tables where table_schema = 'public' and table_type = 'BASE TABLE')
+      group by 1 order by 1`.execute(t.admin);
+    const actual = Object.fromEntries(r.rows.map((x) => [x.t, x.n]));
+    expect(actual).toEqual(baseline.nullable);
   });
 });
