@@ -74,6 +74,7 @@ import {
   reassignDiscrepancy,
   receiveHandover,
 } from "../shifts/shifts.ts";
+import { getFolio, postCharge, voidCharge } from "../stay/folio.ts";
 import { createRoomType, quote, setRate, updateRoomType } from "../stay/rates.ts";
 import {
   cancelReservation,
@@ -381,6 +382,31 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
       }),
       httpStatus: 201,
     }),
+  }),
+  "stay.postCharge": defineCommand({
+    command: "stay.postCharge",
+    input: z.strictObject({
+      stay_id: uuid,
+      kind: z.enum(["service", "fee", "discount"]),
+      description: z.string().trim().min(1).max(500),
+      quantity: z.number().int().min(1).max(1000).default(1),
+      unit_price: positiveMoney,
+    }),
+    run: async (ctx, i) => ({
+      data: await postCharge(ctx, {
+        stayId: i.stay_id,
+        kind: i.kind,
+        description: i.description,
+        quantity: i.quantity,
+        unitPrice: i.unit_price,
+      }),
+      httpStatus: 201,
+    }),
+  }),
+  "stay.voidCharge": defineCommand({
+    command: "stay.voidCharge",
+    input: z.strictObject({ charge_id: uuid, reason: z.string().trim().min(1).max(1000) }),
+    run: async (ctx, i) => ({ data: await voidCharge(ctx, { chargeId: i.charge_id, reason: i.reason }) }),
   }),
   "reservation.markNoShow": defineCommand({
     command: "reservation.markNoShow",
@@ -1198,6 +1224,11 @@ export const QUERIES: Readonly<Record<string, AnyQuery>> = {
         to: i.to,
         ...(i.status ? { status: i.status } : {}),
       }),
+  },
+  "stay.getFolio": {
+    query: "stay.getFolio",
+    input: z.strictObject({ stay_id: uuid }),
+    run: (db, actor, i: { stay_id: string }) => getFolio(db, actor, i.stay_id),
   },
   "reservation.get": {
     query: "reservation.get",
