@@ -192,7 +192,7 @@ Fixture chung: cơ sở P1 mẫu `hotel`, `timezone=Asia/Ho_Chi_Minh`, giờ nh�
 | Thực thể | Trường chính | Kiểu | Ràng buộc | Ai đọc/ghi |
 |---|---|---|---|---|
 | `room_types` | organization_id, property_id, id, code, name, capacity | int | capacity ≥ 1; unique (property_id, code) | owner ghi |
-| `rate_plans` ¹ | organization_id, room_type_id, id, weekday_price, weekend_price, currency | `bigint` | > 0; pilot 1 bản ghi/loại phòng | owner ghi |
+| `rate_plans` ¹ | organization_id, property_id, room_type_id, id, weekday_price, weekend_price, weekend_nights, currency, effective_from, effective_to | `bigint`, `smallint[]`, `date` | giá > 0; `weekend_nights` ⊂ 0..6 (0 = Chủ nhật), mặc định `{5,6}` (Q-03, D-006); hiệu lực không chồng, một bản mở cuối/loại phòng | owner ghi; owner/manager/lễ tân đọc |
 | `reservations` | organization_id, property_id, id, status, source (`direct`\|`walk_in`), booker_person_id, policy_snapshot | | trạng thái theo DOMAIN-MODEL §4 | lễ tân/manager/owner |
 | `reservation_items` | reservation_id, id, unit_id, room_type_id, arrival_date, departure_date, guests, nightly_prices (snapshot) | `date` địa phương, jsonb `bigint` | departure_date > arrival_business_date | như trên |
 | `stays` | organization_id, property_id, id, reservation_item_id, unit_id, status, checked_in_at, checked_out_at, debtor_person_id?, debt_due_date? | `timestamptz` UTC | `expected → in_house → checked_out`; `expected → cancelled`; `expected → no_show` (khi booking no-show); walk-in khởi tạo → `in_house` (DOMAIN-MODEL §4) | như trên |
@@ -209,7 +209,7 @@ Hợp đồng chi tiết: `docs/design/API-CONTRACT.md`. Mọi command nhận `I
 
 | Command/Query | Input chính | Output | Lỗi |
 |---|---|---|---|
-| `roomType.create` / `roomType.update`, `rate.set` | code, capacity / weekday_price, weekend_price | id | VALIDATION_FAILED, FORBIDDEN |
+| `roomType.create` / `roomType.update`, `rate.set` | code, capacity / room_type_id, weekday_price, weekend_price, effective_from, weekend_nights? (đóng bản đang mở tại effective_from − 1; phải sau bản gần nhất và không hồi tố — ERD `rate_plans`) | id (`rate.set`: rate_plan_id, closed_rate_plan_id) | VALIDATION_FAILED, FORBIDDEN, NOT_FOUND |
 | `reservation.quote` (query) | room_type_id\|unit_id, arrival_date, departure_date, guests | nights, nightly_prices, room_total, policy | RATE_NOT_CONFIGURED, CAPACITY_EXCEEDED |
 | `reservation.create` | booker, unit_id, arrival_date, departure_date, guests, source | reservation_id (draft) | VALIDATION_FAILED, CAPACITY_EXCEEDED |
 | `reservation.hold` | reservation_id | allocation_id, expires_at | ROOM_UNAVAILABLE, UNIT_OUT_OF_SERVICE |

@@ -76,6 +76,7 @@ import {
   previewMatches,
   resolveBreak,
 } from "../reconciliation/reconciliation.ts";
+import { quoteReservation, setRatePlan } from "../reservation/rates.ts";
 import {
   closeShift,
   handoverShift,
@@ -998,6 +999,30 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
       data: await resetMemberMfa(ctx, { membershipId: i.membership_id, reason: i.reason }),
     }),
   }),
+  "rate.set": defineCommand({
+    command: "rate.set",
+    // Chỉ owner (`pricing.manage`, kiểm ở lệnh sau khi biết cơ sở). `weekend_nights`: 0 = Chủ nhật … 6 = thứ Bảy.
+    input: z.strictObject({
+      room_type_id: uuid,
+      weekday_price: positiveMoney,
+      weekend_price: positiveMoney,
+      effective_from: isoDate,
+      weekend_nights: z.array(z.number().int().min(0).max(6)).min(1).max(7).optional(),
+    }),
+    run: async (ctx, i) => {
+      const r = await setRatePlan(ctx, {
+        roomTypeId: i.room_type_id,
+        weekdayPrice: i.weekday_price,
+        weekendPrice: i.weekend_price,
+        effectiveFrom: i.effective_from,
+        ...(i.weekend_nights ? { weekendNights: i.weekend_nights } : {}),
+      });
+      return {
+        data: { rate_plan_id: r.ratePlanId, closed_rate_plan_id: r.closedRatePlanId },
+        httpStatus: 201,
+      };
+    },
+  }),
   "meter.acknowledgeAnomaly": defineCommand({
     command: "meter.acknowledgeAnomaly",
     input: z.strictObject({ reading_id: uuid, note: z.string().trim().min(1).max(1000) }),
@@ -1109,6 +1134,16 @@ export const QUERIES: Readonly<Record<string, AnyQuery>> = {
     input: z.strictObject({ property_id: uuid, from: z.iso.date(), to: z.iso.date() }),
     run: (db, actor, i: { property_id: string; from: string; to: string }) =>
       financialSummary(db, actor, { propertyId: i.property_id, from: i.from, to: i.to }),
+  },
+  "reservation.quote": {
+    query: "reservation.quote",
+    input: z.strictObject({ room_type_id: uuid, arrival_date: isoDate, departure_date: isoDate }),
+    run: (db, actor, i: { room_type_id: string; arrival_date: string; departure_date: string }) =>
+      quoteReservation(db, actor, {
+        roomTypeId: i.room_type_id,
+        arrivalDate: i.arrival_date,
+        departureDate: i.departure_date,
+      }),
   },
   "reconciliation.previewMatches": {
     query: "reconciliation.previewMatches",

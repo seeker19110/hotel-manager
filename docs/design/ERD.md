@@ -733,14 +733,16 @@ Loại: M
 |---|---|---|---|---|
 | property_id | uuid | không | FK ghép ba cột → `room_types` | Bổ sung để lọc theo cơ sở |
 | room_type_id | uuid | không | FK ghép ba cột → `room_types` | |
-| weekday_price | bigint | không | `CHECK (weekday_price > 0)` | Giá một đêm ngày thường (đồng) |
-| weekend_price | bigint | không | `CHECK (weekend_price > 0)` | Đêm nào là cuối tuần: cấu hình ở `properties.settings` (đề xuất thứ Sáu và thứ Bảy, SPEC-reservation Q-03) |
+| weekday_price | bigint | không | `CHECK (weekday_price > 0 AND weekday_price <= 9007199254740991)` | Giá một đêm ngày thường (đồng); trần 2^53−1 để đọc ra số JS không mất chính xác |
+| weekend_price | bigint | không | `CHECK (weekend_price > 0 AND weekend_price <= 9007199254740991)` | Giá một đêm cuối tuần (đồng) |
+| weekend_nights | smallint[] | không | mặc định `'{5,6}'`; `CHECK (app.valid_weekend_nights(weekend_nights))` | Đêm nào là cuối tuần theo `business_date` của đêm: 0 = Chủ nhật … 6 = thứ Bảy (khớp `weekdayOf` của engine báo giá). Mảng 1 chiều, 1–7 phần tử, không NULL, mỗi phần tử 0..6, không trùng. Mặc định T6 + T7 (SPEC-reservation Q-03, D-006) — cấu hình theo bản giá, **không** ở `properties.settings` |
 | currency | char(3) | không | mặc định `'VND'` | |
 | effective_from | date | không | | DOMAIN-MODEL §7 có "hiệu lực"; SPEC-reservation không có cột (mục 7) |
 | effective_to | date | có | `CHECK (effective_to IS NULL OR effective_to >= effective_from)` | |
 
-- Khoá/index: `EXCLUDE USING gist (organization_id WITH =, room_type_id WITH =, daterange(effective_from, effective_to, '[]') WITH &&)`; `UNIQUE (organization_id, room_type_id) WHERE effective_to IS NULL` (pilot: một bản ghi đang hiệu lực mỗi loại phòng; `rate.set` đóng bản cũ rồi thêm bản mới để giữ lịch sử).
-- RLS/quyền đặc biệt: chỉ `owner` ghi (SPEC-access 5.3).
+- Khoá/index: `EXCLUDE USING gist (organization_id WITH =, room_type_id WITH =, daterange(effective_from, effective_to, '[]') WITH &&)`; `UNIQUE (organization_id, room_type_id) WHERE effective_to IS NULL` (pilot: một bản ghi đang hiệu lực mỗi loại phòng; `rate.set` đóng bản cũ rồi thêm bản mới để giữ lịch sử). FK ghép `(organization_id, property_id, room_type_id)` → `room_types`; `UNIQUE (organization_id, id)`.
+- Ràng buộc đặc biệt: trigger `BEFORE UPDATE` chỉ cho **đóng** bản đang mở (`effective_to` từ NULL sang ngày); sửa giá/ngày bắt đầu/tập cuối tuần hoặc mở lại → `55000` + `DOCUMENT_IMMUTABLE`. `app_runtime` không có quyền DELETE. Quy tắc `rate.set` (kiểm ở command): ngày hiệu lực X phải sau ngày bắt đầu của bản gần nhất và không trước ngày kinh doanh hiện tại của cơ sở khi đã có bản giá; bản đang mở bị đóng tại X − 1; tập cuối tuần bỏ trống thì kế thừa bản gần nhất.
+- RLS/quyền đặc biệt: chỉ `owner` ghi (SPEC-access 5.3 `pricing.manage`); đọc: `owner`/`manager`/`front_desk` trong phạm vi cơ sở (worker không có actor đọc theo tổ chức).
 - Bất biến: INV-G3; booking đã giữ không đổi giá khi đổi bảng (snapshot ở `reservation_items.nightly_prices`).
 
 ### `reservations`
