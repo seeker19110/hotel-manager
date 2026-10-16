@@ -2,9 +2,9 @@
 // Gửi yêu cầu sửa chữa kèm ảnh (SPEC-portal S-008). Ảnh tải lên trước (POST /api/v1/files/upload, Idempotency-Key riêng, giữ
 // nguyên khi thử lại), rồi gửi `portal/createRequest` với file_ids — cùng cơ chế chống gửi đúp/mất mạng của mọi command.
 import { useRouter } from "next/navigation";
-import { type FormEvent, useRef, useState } from "react";
-import { orgContextHeaders } from "../command/org-context.ts";
+import { type FormEvent, useState } from "react";
 import { problemText, useCommand } from "../command/use-command.ts";
+import { usePhotoUpload } from "../command/use-photo-upload.ts";
 import { Button } from "../ui/button.tsx";
 import { TextField } from "../ui/field.tsx";
 
@@ -14,70 +14,12 @@ export interface RentedUnit {
   unitCode: string;
 }
 
-const MAX_BYTES = 10 * 1024 * 1024;
-const UPLOAD_ERRORS: Record<number, string> = {
-  413: "Ảnh quá lớn (tối đa 10 MB).",
-  415: "Chỉ nhận ảnh JPEG, PNG, WebP.",
-  503: "Chưa kiểm tra được ảnh, vui lòng thử lại sau.",
-};
-
 export function RequestForm({ units }: { units: RentedUnit[] }) {
   const router = useRouter();
   const cmd = useCommand("portal/createRequest");
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [photoError, setPhotoError] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
-  // Một ảnh = một Idempotency-Key + một fileId: gửi lại cùng lệnh không tải ảnh lần hai.
-  const uploaded = useRef<{ sig: string; key: string; fileId: string | null } | null>(null);
-
-  async function uploadPhoto(file: File, propertyId: string): Promise<string | null> {
-    const sig = `${file.name}:${file.size}:${file.lastModified}:${propertyId}`;
-    if (uploaded.current?.sig !== sig) uploaded.current = { sig, key: crypto.randomUUID(), fileId: null };
-    const u = uploaded.current;
-    if (u.fileId) return u.fileId;
-    setUploading(true);
-    try {
-      const res = await fetch(`/api/v1/files/upload?owner_type=work_order&property_id=${propertyId}`, {
-        method: "POST",
-        headers: {
-          "content-type": file.type || "application/octet-stream",
-          "idempotency-key": u.key,
-          ...orgContextHeaders(),
-        },
-        body: file,
-        credentials: "same-origin",
-      });
-      const j = (await res.json().catch(() => null)) as {
-        data?: { fileId: string; status: string };
-        code?: string;
-      } | null;
-      if (res.status === 401) {
-        window.location.assign("/dang-nhap/nguoi-thue");
-        return null;
-      }
-      if (res.status === 409 && j?.code === "CONTEXT_CHANGED") {
-        setPhotoError("Bạn vừa đổi tổ chức ở tab khác — tải lại trang");
-        return null;
-      }
-      if (!res.ok || !j?.data) {
-        uploaded.current = null;
-        setPhotoError(UPLOAD_ERRORS[res.status] ?? "Không tải được ảnh. Vui lòng thử lại.");
-        return null;
-      }
-      if (j.data.status !== "ready") {
-        uploaded.current = null;
-        setPhotoError("Ảnh không đạt kiểm tra an toàn. Hãy chọn ảnh khác.");
-        return null;
-      }
-      u.fileId = j.data.fileId;
-      return u.fileId;
-    } catch {
-      setPhotoError("Chưa tải được ảnh. Kiểm tra mạng rồi bấm gửi lại.");
-      return null;
-    } finally {
-      setUploading(false);
-    }
-  }
+  const photos = usePhotoUpload("/dang-nhap/nguoi-thue");
+  const { error: photoError, uploading } = photos;
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -93,13 +35,12 @@ export function RequestForm({ units }: { units: RentedUnit[] }) {
     if (!description) errs.description = "Bắt buộc nhập";
     if (description.length > 2000) errs.description = "Tối đa 2.000 ký tự";
     setErrors(errs);
-    setPhotoError(null);
+    photos.setError(null);
     if (Object.keys(errs).length > 0 || !unit) return;
     const file = photo instanceof File && photo.size > 0 ? photo : null;
-    if (file && file.size > MAX_BYTES) return setPhotoError(UPLOAD_ERRORS[413] as string);
     let fileIds: string[] = [];
     if (file) {
-      const id = await uploadPhoto(file, unit.propertyId);
+      const id = await photos.upload(file, unit.propertyId);
       if (!id) return;
       fileIds = [id];
     }
@@ -111,7 +52,7 @@ export function RequestForm({ units }: { units: RentedUnit[] }) {
     });
     if (r !== null) {
       form.reset();
-      uploaded.current = null;
+      photos.reset();
       router.refresh();
     }
   }

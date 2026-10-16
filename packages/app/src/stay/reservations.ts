@@ -87,6 +87,8 @@ export interface ReservationRow {
   allocation_id: string | null;
   stay_id: string | null;
   stay_status: string | null;
+  booker_name: string;
+  held_until: Date | null;
 }
 
 /** Đọc booking + dòng phòng + lượt ở; `lock` khoá hàng booking (mọi chuyển trạng thái đi qua đây). */
@@ -105,9 +107,10 @@ export async function readReservation(
   const r = await sql<ReservationRow>`
     select r.id, r.property_id, r.number, r.status, r.source, r.booker_person_id, i.id as item_id, i.unit_id, i.room_type_id,
            i.arrival_date::text, i.departure_date::text, i.guests, i.nightly_prices, i.room_total::text, i.allocation_id,
-           s.id as stay_id, s.status as stay_status
+           s.id as stay_id, s.status as stay_status, coalesce(bp.full_name, '—') as booker_name, r.held_until
     from reservations r
     join reservation_items i on i.organization_id = r.organization_id and i.reservation_id = r.id
+    left join persons bp on bp.organization_id = r.organization_id and bp.id = r.booker_person_id
     left join stays s on s.organization_id = i.organization_id and s.reservation_item_id = i.id
     where r.organization_id = ${actor.orgId} and r.id = ${reservationId}`.execute(trx);
   const row = r.rows[0];
@@ -639,6 +642,10 @@ export interface ReservationView {
   roomTotal: number;
   stayId: string | null;
   stayStatus: string | null;
+  /** Họ tên người đặt (không SĐT/giấy tờ) — hiện trên danh sách/lịch. */
+  bookerName: string;
+  /** Hạn giữ phòng khi booking `held` (đếm ngược ở UI); null ở trạng thái khác. */
+  heldUntil: Date | null;
 }
 
 export function viewOf(r: ReservationRow): ReservationView {
@@ -659,6 +666,8 @@ export function viewOf(r: ReservationRow): ReservationView {
     roomTotal: Number(r.room_total),
     stayId: r.stay_id,
     stayStatus: r.stay_status,
+    bookerName: r.booker_name,
+    heldUntil: r.status === "held" ? r.held_until : null,
   };
 }
 
@@ -791,9 +800,10 @@ export async function listReservations(
     const r = await sql<ReservationRow>`
       select r.id, r.property_id, r.number, r.status, r.source, r.booker_person_id, i.id as item_id, i.unit_id, i.room_type_id,
              i.arrival_date::text, i.departure_date::text, i.guests, i.nightly_prices, i.room_total::text, i.allocation_id,
-             s.id as stay_id, s.status as stay_status
+             s.id as stay_id, s.status as stay_status, coalesce(bp.full_name, '—') as booker_name, r.held_until
       from reservations r
       join reservation_items i on i.organization_id = r.organization_id and i.reservation_id = r.id
+      left join persons bp on bp.organization_id = r.organization_id and bp.id = r.booker_person_id
       left join stays s on s.organization_id = i.organization_id and s.reservation_item_id = i.id
       where r.organization_id = ${actor.orgId} and r.property_id = ${input.propertyId}
         and i.arrival_date < ${input.to}::date and i.departure_date > ${input.from}::date

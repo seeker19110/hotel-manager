@@ -1,18 +1,118 @@
-import { EmptyState } from "../components/ui/state.tsx";
+import { getTodaySummary, serverContext } from "@hm/app";
+import type { Metadata } from "next";
+import { EmptyState, ErrorState } from "../components/ui/state.tsx";
+import { CARD_LABEL, dateTime, day, vnd } from "../lib/format.ts";
+import { withActor } from "../lib/page.tsx";
+import { safe } from "../lib/safe.ts";
+import { currentSession } from "../lib/session.ts";
 
-export default function HomePage() {
-  return (
-    <main id="main" className="page">
-      <h1>Hôm nay</h1>
-      <EmptyState
-        title="Chưa đăng nhập"
-        text="Đăng nhập để xem phòng và việc trong ngày."
-        action={
-          <a className="btn" href="/dang-nhap">
-            Đăng nhập
-          </a>
-        }
-      />
-    </main>
-  );
+export const metadata: Metadata = { title: "Hôm nay — Hotel Manager" };
+
+const FRONT_ROLES = ["owner", "manager", "front_desk"];
+
+// SPEC-audit-reporting S-006…S-008: thẻ theo vai trò, số thẻ = số dòng danh sách (bấm ra đúng số dòng), ngày kinh doanh từng cơ sở.
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ property_id?: string }>;
+}) {
+  const { property_id: propertyId } = await searchParams;
+  if (!(await currentSession())) {
+    return (
+      <main id="main" className="page">
+        <h1>Hôm nay</h1>
+        <EmptyState
+          title="Chưa đăng nhập"
+          text="Đăng nhập để xem phòng và việc trong ngày."
+          action={
+            <a className="btn" href="/dang-nhap">
+              Đăng nhập
+            </a>
+          }
+        />
+      </main>
+    );
+  }
+  return withActor("Hôm nay", "/", async (actor) => {
+    const r = await safe(getTodaySummary(serverContext().db, actor, propertyId ? { propertyId } : {}));
+    if (!r.ok)
+      return (
+        <ErrorState
+          title="Không xem được màn Hôm nay"
+          text={r.status === 403 ? "Vai trò của bạn không có mục này." : r.message}
+          action={
+            <a className="btn" href="/">
+              Thử lại
+            </a>
+          }
+        />
+      );
+    const s = r.data;
+    const q = propertyId ? `?property_id=${encodeURIComponent(propertyId)}` : "";
+    return (
+      <>
+        {s.properties.length > 1 ? (
+          <nav aria-label="Lọc theo cơ sở" className="pager">
+            <a className="btn btn--secondary" href="/" aria-current={propertyId ? undefined : "page"}>
+              Tất cả cơ sở
+            </a>
+            {s.properties.map((p) => (
+              <a
+                key={p.id}
+                className="btn btn--secondary"
+                href={`/?property_id=${p.id}`}
+                aria-current={propertyId === p.id ? "page" : undefined}
+              >
+                {p.name}
+              </a>
+            ))}
+          </nav>
+        ) : null}
+        <ul className="card-list" aria-label="Ngày kinh doanh">
+          {s.properties.map((p) => (
+            <li key={p.id} className="card__meta" data-testid="business-date">
+              {p.name}: ngày kinh doanh {day(p.businessDate)}
+            </li>
+          ))}
+        </ul>
+        {s.cards.length === 0 ? (
+          <EmptyState title="Chưa có việc nào cho vai trò của bạn" />
+        ) : (
+          <ul className="today-cards">
+            {s.cards.map((c) => {
+              const label = CARD_LABEL[c.key] ?? c.label;
+              return (
+                <li key={c.key}>
+                  <a
+                    className="today-card"
+                    href={`/hom-nay/${c.key}${q}`}
+                    aria-label={`${label}: ${c.count}`}
+                    data-testid={`card-${c.key}`}
+                  >
+                    <span className="today-card__label">{label}</span>
+                    <span className="today-card__count">{c.count}</span>
+                    {c.amount !== undefined ? (
+                      <span className="today-card__hint">{vnd(c.amount)}</span>
+                    ) : null}
+                    {c.count === 0 ? <span className="today-card__hint">Không có việc</span> : null}
+                  </a>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        <p className="card__meta">Số liệu tại {dateTime(s.asOf)}</p>
+        {FRONT_ROLES.includes(actor.role) ? (
+          <p className="pager">
+            <a className="btn" href="/dat-phong/moi">
+              Đặt phòng mới
+            </a>
+            <a className="btn btn--secondary" href="/luu-tru/moi">
+              Khách vãng lai
+            </a>
+          </p>
+        ) : null}
+      </>
+    );
+  });
 }

@@ -35,3 +35,8 @@ export function totp(secretBase32: string, at = Date.now()): string {
 export function totpFile(port: number): string {
   return join(tmpdir(), `hm-e2e-${port}-totp.json`);
 }
+
+/** Như `totpFile` cho chủ khách sạn giả (T-223) — hai tài khoản có TOTP không dùng chung một file. */
+export function hotelTotpFile(port: number): string {
+  return join(tmpdir(), `hm-e2e-${port}-hotel-totp.json`);
+}

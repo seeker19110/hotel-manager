@@ -11,6 +11,7 @@ import {
   GUEST_TOKEN,
   GUEST_TOKEN_EXPIRED,
   GUEST_TOKEN_REVOKED,
+  JPEG,
   ORG_PORTAL,
   ORG_PORTAL_2,
   outboxFile,
@@ -183,31 +184,6 @@ test("S-007 Điện nước: chỉ thấy chỉ số đã duyệt (1.350), khôn
   await expect(page.locator("body")).not.toContainText("1.420");
   await expectAccessible(page);
 });
-
-// JPEG tối thiểu hợp lệ.
-const JPEG = Buffer.from([
-  0xff,
-  0xd8,
-  0xff,
-  0xe0,
-  0,
-  16,
-  ...Buffer.from("JFIF\0\x01\x01\0\0\x01\0\x01\0\0", "latin1"),
-  0xff,
-  0xda,
-  0,
-  8,
-  1,
-  1,
-  0,
-  0,
-  0x3f,
-  0,
-  0x12,
-  0x34,
-  0xff,
-  0xd9,
-]);
 
 test("S-008/S-009/S-022 Yêu cầu: rỗng → gửi kèm ảnh → 'Đã tiếp nhận'; ảnh sai loại bị từ chối; axe", async ({
   page,
