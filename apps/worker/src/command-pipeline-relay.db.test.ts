@@ -5,7 +5,14 @@ import { createTestDb, type SeededOrg, seedOrg, type TestDb } from "@hm/testkit"
 import { sql } from "kysely";
 import { PgBoss } from "pg-boss";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { DEAD_LETTER_QUEUE, ensureQueues, type OutboxJob, relayOutbox, startConsumers } from "./relay.ts";
+import {
+  AUDIT_ONLY_EVENT_TYPES,
+  DEAD_LETTER_QUEUE,
+  ensureQueues,
+  type OutboxJob,
+  relayOutbox,
+  startConsumers,
+} from "./relay.ts";
 
 let t: TestDb;
 let A: SeededOrg;
@@ -122,5 +129,97 @@ describe("relay outbox", () => {
         return sql`select count(*) from outbox`.execute(trx);
       }),
     ).rejects.toThrow(/permission denied/);
+  });
+});
+
+describe("sự kiện chưa có consumer (review lát 7 🟠2, D-026)", () => {
+  async function row(id: string) {
+    const r = await sql<{
+      published: boolean;
+      attempts: number;
+      last_error: string | null;
+      delayed: boolean;
+    }>`select published_at is not null as published, attempts, last_error, available_at > now() as delayed
+       from outbox where id = ${id}`.execute(t.admin);
+    return r.rows[0];
+  }
+
+  it("2 worker: một có handler `foo.bar`, một không ⇒ worker không handler KHÔNG làm mất sự kiện; worker có handler nhận được sau đó", async () => {
+    const [foo] = await addOutbox(A.orgId, "foo.bar", 1);
+    const [later] = await addOutbox(A.orgId, "person.created", 1);
+    const events: { event: string; fields: Record<string, unknown> }[] = [];
+    const log = (event: string, fields: Record<string, unknown>) => void events.push({ event, fields });
+
+    // Worker X: chỉ có consumer person.created (đã đăng ký ở phần trên) — không có foo.bar.
+    const seen: OutboxJob[] = [];
+    await startConsumers(
+      boss,
+      { "person.created": async (job) => void seen.push(job) },
+      { pollingIntervalSeconds: 0.5 },
+    ).catch(() => {}); // đã đăng ký ở test trước: bỏ qua
+    await relayOutbox(t.worker, boss, 100, { consumed: new Set(["person.created"]), log });
+
+    const afterX = await row(foo as string);
+    expect(afterX?.published).toBe(false); // KHÔNG đánh dấu đã phát
+    expect(afterX?.last_error).toBe("no_consumer");
+    expect(afterX?.attempts).toBe(1);
+    expect(afterX?.delayed).toBe(true); // lùi lần thử ⇒ không kẹt đầu hàng
+    expect(events).toContainEqual({
+      event: "outbox.no_consumer",
+      fields: expect.objectContaining({ event_type: "foo.bar", outbox_id: foo }),
+    });
+    // hàng cũ hơn chưa xử lý được không chặn hàng sau nó
+    expect((await row(later as string))?.published).toBe(true);
+    // lượt kế tiếp không đụng lại hàng đang lùi
+    expect(await relayOutbox(t.worker, boss, 100, { consumed: new Set(["person.created"]), log })).toBe(0);
+
+    // Worker Y: có handler foo.bar. Hết thời gian lùi ⇒ nhận và phát.
+    await ensureQueues(boss, ["foo.bar"], { retryLimit: 0, retryDelay: 1, retryBackoff: false });
+    const got: OutboxJob[] = [];
+    await startConsumers(
+      boss,
+      { "foo.bar": async (job) => void got.push(job) },
+      { pollingIntervalSeconds: 0.5 },
+    );
+    await sql`update outbox set available_at = now() where id = ${foo}`.execute(t.admin);
+    expect(await relayOutbox(t.worker, boss, 100, { consumed: new Set(["foo.bar"]), log })).toBe(1);
+    await waitFor(() => got.some((j) => j.outbox_id === foo));
+    expect((await row(foo as string))?.published).toBe(true);
+  });
+
+  it("event_type khai trong danh sách 'chỉ để audit' ⇒ đánh dấu đã phát, không sinh job, không log no_consumer", async () => {
+    const [id] = await addOutbox(A.orgId, "audit.only", 1);
+    const events: string[] = [];
+    await relayOutbox(t.worker, boss, 100, {
+      consumed: new Set(["person.created"]),
+      auditOnly: new Set(["audit.only"]),
+      log: (e) => void events.push(e),
+    });
+    expect((await row(id as string))?.published).toBe(true);
+    expect(events).not.toContain("outbox.no_consumer");
+    const jobs = await sql<{
+      n: number;
+    }>`select count(*)::int as n from pgboss.job where name = 'audit.only'`.execute(t.admin);
+    expect(jobs.rows[0]?.n).toBe(0);
+  });
+
+  it("lỗi gửi (boss.send ném) cũng lùi lần thử: không kẹt đầu hàng, không mất", async () => {
+    const [bad] = await addOutbox(A.orgId, "never.queued", 1); // không có queue ⇒ boss.send lỗi
+    await relayOutbox(t.worker, boss, 100);
+    const r = await row(bad as string);
+    expect(r?.published).toBe(false);
+    expect(r?.last_error).toBeTruthy();
+    expect(r?.delayed).toBe(true);
+  });
+
+  it("danh sách audit-only là hằng khai tường minh, không chứa loại có consumer", () => {
+    for (const consumed of [
+      "invoice.issued",
+      "work_order.status_changed",
+      "portal.tenant_invited",
+      "export.requested",
+    ])
+      expect(AUDIT_ONLY_EVENT_TYPES.has(consumed)).toBe(false);
+    expect(AUDIT_ONLY_EVENT_TYPES.size).toBeGreaterThan(10);
   });
 });

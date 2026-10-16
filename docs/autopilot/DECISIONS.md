@@ -184,12 +184,13 @@
 - Lý do (tiêu chí chất lượng cuối): (1) đúng và an toàn: retry S3 (T-302) có thể kéo put tới ~60 s > idle_in_transaction_session_timeout 30 s của app_runtime — C và hiện trạng làm Postgres cắt kết nối giữa lệnh; B để lại object mồ côi không ai dọn khi sập. A có bản ghi DB cho mọi object nên job hạn giữ dọn được, replay idempotent. (3) dùng trạng thái pending_scan đã có trong CHECK; áp cho cả export ở worker.
 - Đường lùi: Revert commit T-303 + migration down 0047 (khôi phục hàm hạn giữ của 0045); luồng cũ vẫn chạy được.
 
-### D-026 · 2026-10-16T14:21:42+00:00 · T-301: sự kiện outbox chưa có consumer — giữ ở hàng đợi hay đánh dấu đã phát?
+### D-026 · 2026-10-16T14:21:42+00:00 · T-301: sự kiện outbox chưa có consumer — giữ ở hàng đợi hay đánh dấu đã phát? (sửa theo review lát 7)
 
-- Phương án: (1) Đánh dấu đã phát không sinh job (consumer thêm sau không nhận sự kiện cũ), log + đếm · (2) Tạo queue lười cho mọi event_type, job chất đống trong pgboss.job tới khi có consumer · (3) Để nguyên ở outbox (chặn đầu hàng vì claim lấy cũ nhất trước)
-- Chọn: Đánh dấu đã phát không sinh job (consumer thêm sau không nhận sự kiện cũ), log + đếm
-- Lý do (tiêu chí chất lượng cuối): (1) đúng: phương án 3 làm kẹt toàn bộ outbox; phương án 2 tích job không giới hạn, không ai xử lý. Sự kiện không consumer là sự kiện chỉ để audit/tương lai; dữ liệu nguồn vẫn nằm trong bảng nghiệp vụ + audit_events nên consumer mới có thể backfill có chủ đích. (3) đơn giản, đo được.
-- Đường lùi: Đổi sang queue lười bằng một thay đổi ở relay.ts; sự kiện đã đánh dấu vẫn còn trong outbox để phát lại thủ công.
+- Phương án: (1) Đánh dấu đã phát không sinh job cho MỌI event_type không consumer (consumer thêm sau/worker khác không nhận sự kiện cũ — sự kiện có thể MẤT khi triển khai lệch phiên bản) · (2) Tạo queue lười cho mọi event_type, job chất đống trong pgboss.job tới khi có consumer · (3) Để nguyên ở outbox không lùi (chặn đầu hàng vì claim lấy cũ nhất trước) · (4) Chỉ bỏ qua có chủ đích loại khai tường minh "chỉ để audit"; loại khác không consumer ⇒ không đánh dấu đã phát, `last_error = 'no_consumer'`, lùi lần thử (`outbox.available_at`, backoff trong `app.outbox_mark`), log `outbox.no_consumer`
+- Chọn: (4). Bản đầu chọn (1) — sửa theo review lát 7: (1) làm mất sự kiện khi hai worker lệch phiên bản (worker không có handler đánh dấu đã phát hàng mà worker kia đáng lẽ xử lý) và không để lại dấu vết
+- Lý do (tiêu chí chất lượng cuối): (1) đúng và an toàn: không mất sự kiện, hàng chưa xử lý còn đó để worker có consumer nhận và để cảnh báo `hm_outbox_unpublished`/`hm_outbox_oldest_unpublished_age_seconds`/`hm_outbox_failing` thấy. (3) bền: danh sách audit-only là hằng có comment (`AUDIT_ONLY_EVENT_TYPES`, `apps/worker/src/relay.ts`) + test quét mã chặn thêm event_type mà quên cả consumer lẫn khai báo; lùi `available_at` (migration 0047, chưa merge) giữ claim "cũ nhất trước" không kẹt đầu hàng; lỗi gửi pg-boss cũng được lùi (trước đó thử lại mỗi nhịp). Phương án 2 tích job không giới hạn.
+- Đường lùi: Migration 0047 down khôi phục `outbox_claim/outbox_mark` của 0003 và bỏ cột `available_at`; thêm event_type vào danh sách audit-only để dọn hàng `no_consumer` cũ (được đánh dấu đã phát ở lượt kế).
+
 ### D-027 · 2026-10-16T14:28:08+00:00 · roomType.create/update luôn 422 vì idempotency_keys.command CHECK '^[a-z_]+(\.[a-zA-Z_]+)+$' (0003) không nhận đoạn đầu có chữ hoa — sửa tên lệnh hay nới CHECK?
 
 - Phương án: (1) Đổi tên lệnh thành room_type.create/update (khớp quy ước snake_case đoạn đầu của mọi lệnh khác + tên bảng room_types), thêm test mọi lệnh registry khớp CHECK · (2) Migration mới nới regex CHECK cho phép camelCase đoạn đầu

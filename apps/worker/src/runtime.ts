@@ -1,5 +1,5 @@
 // Worker chạy thật (PLAN đợt 4 T-301; BASE-CFG-002, ARC-RES-009, BE-REL-004): validate env → mở pool + pg-boss → tạo queue →
-// consumer → lịch định kỳ; SIGTERM/SIGINT: ngừng nhận việc → `boss.stop({graceful, timeout})` → đóng pool → exit 0.
+// consumer → lịch định kỳ; SIGTERM/SIGINT: ngừng nhận việc → đồng thời abort scheduler + `boss.stop({graceful, timeout})` (một hạn chót) → đóng pool → exit 0.
 // `startWorker(deps)` thuần phụ thuộc tiêm vào (test được trên Postgres thật); `bootWorker(env)` dựng phụ thuộc từ cấu hình;
 // `main()` (index.ts) nối tiến trình + tín hiệu.
 import {
@@ -95,7 +95,7 @@ export interface WorkerDeps {
 }
 
 export interface WorkerHandle {
-  /** Dừng êm: ngừng nhận → chờ việc đang chạy (có trần) → dừng pg-boss. KHÔNG đóng pool của người gọi. Gọi lại trả cùng promise. */
+  /** Dừng êm: ngừng nhận (scheduler + pg-boss, song song) → chờ việc đang chạy tới MỘT hạn chót chung → đóng pool pg-boss. KHÔNG đóng pool của người gọi. Gọi lại trả cùng promise. */
   stop(): Promise<void>;
   /** Tập event_type có consumer. */
   readonly eventTypes: readonly string[];
@@ -172,7 +172,10 @@ export async function startWorker(deps: WorkerDeps): Promise<WorkerHandle> {
       run: async () => {
         let total = 0;
         for (let round = 0; round < RELAY_MAX_ROUNDS && !ac.signal.aborted; round++) {
-          const n = await relayOutbox(workerDb, boss, RELAY_BATCH, { consumed });
+          const n = await relayOutbox(workerDb, boss, RELAY_BATCH, {
+            consumed,
+            log: (e, f) => log.warn(e, f),
+          });
           total += n;
           if (n < RELAY_BATCH) break;
         }
@@ -233,13 +236,22 @@ export async function startWorker(deps: WorkerDeps): Promise<WorkerHandle> {
     eventTypes,
     stop() {
       stopping ??= (async () => {
-        // 1) Ngừng lập lịch: lượt đang chạy làm nốt (có trần), không lượt mới.
+        // MỘT hạn chót chung (`stopTimeoutMs`) cho cả hai việc, chạy SONG SONG — tín hiệu dừng là ngừng nhận việc mới ngay:
+        //  a) scheduler: abort ⇒ không lượt mới; lượt đang chạy làm nốt tới hạn chót;
+        //  b) pg-boss: ngừng lấy job mới + chờ handler đang chạy tới hạn chót; `close: false` để giữ pool cho relay còn dở
+        //     (nó còn `boss.send`).
+        // Sau cùng mới đóng pool của boss; pool CSDL của worker do `bootWorker().shutdown()` đóng sau `stop()` này.
         ac.abort();
-        if ((await withTimeout(scheduler.stopped, stopTimeoutMs)) === "timeout") {
+        const [sched, quiesce] = await Promise.allSettled([
+          withTimeout(scheduler.stopped, stopTimeoutMs),
+          boss.stop({ graceful: true, close: false, timeout: stopTimeoutMs }),
+        ]);
+        if (sched.status === "fulfilled" && sched.value === "timeout") {
           log.warn("worker.stop_timeout", { stage: "scheduler", timeout_ms: stopTimeoutMs });
         }
-        // 2) pg-boss: ngừng nhận job, chờ handler đang chạy tới trần rồi đóng pool riêng của nó.
-        await boss.stop({ graceful: true, timeout: stopTimeoutMs });
+        // Đóng pool boss kể cả khi bước (b) lỗi; đã dừng rồi thì chỉ đóng pool, chưa thì dừng cưỡng bức.
+        await boss.stop({ graceful: false, close: true, timeout: 1000 });
+        if (quiesce.status === "rejected") throw quiesce.reason;
         log.info("worker.stopped", { name });
       })();
       return stopping;
@@ -347,7 +359,8 @@ export interface ProcessLike {
 
 /**
  * SIGTERM/SIGINT lần đầu → `shutdown()` (êm) rồi exit 0 (lỗi → exit 1); lần thứ hai → exit 1 NGAY. Đồng hồ canh: quá
- * `stopTimeoutMs + 10 s` mà chưa xong thì exit 1 (không treo mãi dưới orchestrator).
+ * `stopTimeoutMs + 10 s` mà chưa xong thì exit 1 (không treo mãi dưới orchestrator). Hạn chót tổng của `stop()` là `stopTimeoutMs`
+ * (+ thời gian đóng pool), nên đồng hồ canh luôn muộn hơn nó.
  */
 export function installShutdown(
   proc: ProcessLike,

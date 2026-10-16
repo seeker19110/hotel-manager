@@ -16,6 +16,46 @@ export interface OutboxJob {
   correlation_id: string;
 }
 
+/**
+ * event_type được khai TƯỜNG MINH là "chỉ để audit" (D-026, sửa theo review lát 7): hiện chưa có consumer và không cần có —
+ * dữ liệu nguồn nằm ở bảng nghiệp vụ + `audit_events`. Relay đánh dấu đã phát mà không sinh job. Một event_type KHÔNG có
+ * consumer và KHÔNG nằm ở đây thì KHÔNG bị đánh dấu đã phát (ghi `last_error = 'no_consumer'`, lùi lần thử, log
+ * `outbox.no_consumer`) để worker có consumer (hoặc bản triển khai sau) vẫn nhận được và cảnh báo `hm_outbox_*` thấy.
+ * Thêm event_type mới vào outbox ⇒ thêm consumer HOẶC thêm vào đây (có test chặn quên: `outbox-event-types.test.ts`).
+ */
+export const AUDIT_ONLY_EVENT_TYPES: ReadonlySet<string> = new Set([
+  "allocation.held",
+  "approval.requested",
+  "exception.opened",
+  "housekeeping.task_created",
+  "housekeeping.task_done",
+  "housekeeping.task_verified",
+  "lease.activated",
+  "lease.closed",
+  "lease.created",
+  "lease.expiring",
+  "lease.renewed",
+  "lease.settled",
+  "lease.signed",
+  "member.mfa_reset",
+  "payment.confirmed",
+  "payment_claim.submitted",
+  "period.locked",
+  "period.unlocked",
+  "reconciliation.break_opened",
+  "reservation.cancelled",
+  "reservation.confirmed",
+  "reservation.held",
+  "reservation.no_show",
+  "stay.checked_in",
+  "stay.checked_out",
+  "stay.notice_exported",
+  "stay.notice_submitted",
+  "work_order.created",
+]);
+
+export const NO_CONSUMER_ERROR = "no_consumer";
+
 export interface QueuePolicy {
   retryLimit: number;
   retryDelay: number;
@@ -38,15 +78,23 @@ export async function ensureQueues(
 
 /**
  * Chuyển tối đa `batch` hàng chưa phát sang pg-boss qua `app.outbox_claim` (FOR UPDATE SKIP LOCKED) nên nhiều relay
- * chạy song song không phát trùng; `singletonKey = outbox.id` là lưới thứ hai. Gửi lỗi → ghi `last_error`, lần sau thử lại.
- * `opts.consumed`: tập event_type có consumer; loại khác được đánh dấu đã phát mà không gửi job (xem bên dưới).
+ * chạy song song không phát trùng; `singletonKey = outbox.id` là lưới thứ hai. Gửi lỗi → ghi `last_error` + lùi lần thử
+ * (`available_at`, backoff trong `app.outbox_mark`), lần sau thử lại.
+ * `opts.consumed`: tập event_type có consumer ở worker này. Loại khác: nằm trong `opts.auditOnly` (mặc định
+ * `AUDIT_ONLY_EVENT_TYPES`) ⇒ đánh dấu đã phát không sinh job; không nằm trong đó ⇒ KHÔNG đánh dấu đã phát, ghi
+ * `no_consumer`, log `outbox.no_consumer`, lùi lần thử (không kẹt đầu hàng; worker khác có consumer vẫn nhận được).
  */
 export async function relayOutbox(
   workerDb: Kysely<unknown>,
   boss: PgBoss,
   batch = 100,
-  opts: { consumed?: ReadonlySet<string> } = {},
+  opts: {
+    consumed?: ReadonlySet<string>;
+    auditOnly?: ReadonlySet<string>;
+    log?: (event: string, fields: Record<string, unknown>) => void;
+  } = {},
 ): Promise<number> {
+  const auditOnly = opts.auditOnly ?? AUDIT_ONLY_EVENT_TYPES;
   return workerDb.transaction().execute(async (trx) => {
     const rows = await sql<{
       id: string;
@@ -57,11 +105,13 @@ export async function relayOutbox(
       correlation_id: string;
     }>`select * from app.outbox_claim(${batch})`.execute(trx);
     for (const r of rows.rows) {
-      // Sự kiện chưa có consumer (T-301): không có việc phải làm → đánh dấu đã phát, KHÔNG gửi job. Nếu để chưa phát, `outbox_claim`
-      // (cũ nhất trước) sẽ kẹt đầu hàng vì pg-boss không có queue cho event_type đó. Hàng outbox vẫn còn làm lịch sử; consumer
-      // thêm sau cần tự quét bù nếu muốn xử lý sự kiện cũ.
       if (opts.consumed && !opts.consumed.has(r.event_type)) {
-        await sql`select app.outbox_mark(${r.id}::uuid, ${null})`.execute(trx);
+        if (auditOnly.has(r.event_type)) {
+          await sql`select app.outbox_mark(${r.id}::uuid, ${null})`.execute(trx);
+        } else {
+          opts.log?.("outbox.no_consumer", { event_type: r.event_type, outbox_id: r.id });
+          await sql`select app.outbox_mark(${r.id}::uuid, ${NO_CONSUMER_ERROR})`.execute(trx);
+        }
         continue;
       }
       const job: OutboxJob = {

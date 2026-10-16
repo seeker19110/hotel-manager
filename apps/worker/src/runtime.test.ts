@@ -1,8 +1,10 @@
 // T-301 (không cần CSDL): lịch định kỳ có AbortSignal, xử lý tín hiệu SIGTERM/SIGINT, thiếu biến → exit ≠ 0 nêu tên biến.
 import { EventEmitter } from "node:events";
-import { createLogger } from "@hm/app";
+import { createLogger, type ObjectStorage } from "@hm/app";
+import type { Kysely } from "kysely";
+import type { PgBoss } from "pg-boss";
 import { describe, expect, it, vi } from "vitest";
-import { installShutdown, type ProcessLike, runMain } from "./runtime.ts";
+import { installShutdown, type ProcessLike, runMain, startWorker } from "./runtime.ts";
 import { abortableSleep, startScheduler } from "./scheduler.ts";
 
 function capture() {
@@ -202,5 +204,114 @@ describe("runMain — cấu hình sai", () => {
     expect(f.exit).toHaveBeenCalledWith(1);
     expect(f.stderr.join("")).toContain("WORKER_DATABASE_URL");
     expect(f.stderr.join("")).not.toContain("APP_BASE_URL");
+  });
+});
+
+/** pg-boss giả: ghi lại lệnh `stop` (thời điểm, tuỳ chọn); handler đang chạy giả lập giữ `stop` tối đa `busyMs`/`timeout`. */
+function fakeBoss(busyMs: number) {
+  const t0 = Date.now();
+  const stops: {
+    at: number;
+    done?: number;
+    opts: { close?: boolean; graceful?: boolean; timeout?: number };
+  }[] = [];
+  let stopped = false;
+  const boss = {
+    on: () => boss,
+    start: async () => {},
+    createQueue: async () => {},
+    work: async () => "w",
+    send: async () => "id",
+    stop: async (opts: { close?: boolean; graceful?: boolean; timeout?: number } = {}) => {
+      const rec: (typeof stops)[number] = { at: Date.now() - t0, opts };
+      stops.push(rec);
+      if (!stopped) {
+        stopped = true;
+        await new Promise((r) => setTimeout(r, Math.min(busyMs, opts.timeout ?? 30_000)));
+      }
+      rec.done = Date.now() - t0;
+    },
+  };
+  return { boss: boss as unknown as PgBoss, stops, t0 };
+}
+
+/** workerDb giả: giao dịch của relay treo tới khi `release()` — một job định kỳ chạy lâu. */
+function slowRelayDb() {
+  let release: () => void = () => {};
+  const gate = new Promise<void>((r) => (release = r));
+  const db = { transaction: () => ({ execute: () => gate.then(() => 0) }) } as unknown as Kysely<unknown>;
+  return { db, release };
+}
+
+const deps = (over: Partial<Parameters<typeof startWorker>[0]>) =>
+  ({
+    workerDb: {} as Kysely<unknown>,
+    db: {} as Kysely<unknown>,
+    storage: {} as ObjectStorage,
+    sender: null,
+    baseUrl: "http://localhost:3000",
+    unsubscribeKey: Buffer.alloc(32),
+    retentionInitialDelayMs: 60_000,
+    ...over,
+  }) as Parameters<typeof startWorker>[0];
+
+describe("startWorker.stop — một hạn chót chung (review lát 7 🟠1)", () => {
+  it("tín hiệu dừng ⇒ ngừng nhận job pg-boss NGAY (song song với việc chờ scheduler), tổng ≤ stopTimeoutMs, đóng pool boss sau cùng", async () => {
+    const { log, lines } = capture();
+    const f = fakeBoss(60_000); // handler pg-boss "chạy mãi"
+    const slow = slowRelayDb(); // job định kỳ (relay) chạy mãi
+    const w = await startWorker(
+      deps({ boss: f.boss, workerDb: slow.db, log, stopTimeoutMs: 400, intervals: { relay: 10 } }),
+    );
+    await new Promise((r) => setTimeout(r, 30)); // relay đã vào lượt treo
+    const t0 = Date.now();
+    await w.stop();
+    const total = Date.now() - t0;
+    slow.release();
+
+    // 1) boss.stop gọi ngay khi có tín hiệu, không đợi scheduler hết trần (cũ: gọi sau ≥ 400 ms)
+    const first = f.stops[0];
+    expect(first).toBeDefined();
+    expect(first?.at).toBeGreaterThanOrEqual(t0 - f.t0);
+    expect((first?.at ?? 0) - (t0 - f.t0)).toBeLessThan(150);
+    // 2) hạn chót tổng ≈ stopTimeoutMs (cũ: ≈ 2 × stopTimeoutMs)
+    expect(total).toBeLessThan(400 + 250);
+    expect(first?.opts.timeout).toBeLessThanOrEqual(400);
+    // 3) đóng pool của boss là bước CUỐI, sau khi bước ngừng-nhận-việc kết thúc
+    const last = f.stops[f.stops.length - 1];
+    expect(last?.opts.close).toBe(true);
+    expect(last?.at ?? 0).toBeGreaterThanOrEqual(first?.done ?? Number.POSITIVE_INFINITY);
+    expect(first?.opts.close).toBe(false);
+    expect(lines.some((l) => l.msg === "worker.stop_timeout")).toBe(true);
+    expect(lines.some((l) => l.msg === "worker.stopped")).toBe(true);
+  });
+
+  it("không việc nào đang chạy ⇒ dừng ngay, không chờ hết trần; gọi lại trả cùng kết quả", async () => {
+    const { log } = capture();
+    const f = fakeBoss(0);
+    const w = await startWorker(deps({ boss: f.boss, log, stopTimeoutMs: 5_000, intervals: { relay: 10 } }));
+    const t0 = Date.now();
+    const p = w.stop();
+    expect(w.stop()).toBe(p);
+    await p;
+    expect(Date.now() - t0).toBeLessThan(1_000);
+  });
+});
+
+describe("installShutdown — đồng hồ canh", () => {
+  it("canh ở stopTimeoutMs + 10 s (> hạn chót tổng của stop): chưa tới thì chưa exit, quá thì exit(1)", async () => {
+    vi.useFakeTimers();
+    try {
+      const { log } = capture();
+      const f = fakeProcess();
+      installShutdown(f.proc, () => new Promise<void>(() => {}), log, 1_000);
+      f.ee.emit("SIGTERM");
+      await vi.advanceTimersByTimeAsync(10_900);
+      expect(f.exit).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(200);
+      expect(f.exit).toHaveBeenCalledExactlyOnceWith(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -6,6 +6,9 @@
 //   object NGOÀI transaction (DB-TX-003), rồi transaction lệnh chuyển sang `ready`/`rejected`. Lệnh lỗi/sập tiến trình để lại
 //   object mồ côi CÓ dòng `pending_scan` + `delete_after` ⇒ job hạn giữ (`app.files_due_for_deletion`/`mark_file_deleted`,
 //   nay bao cả `pending_scan`) xoá object rồi đánh dấu `deleted`.
+// - Outbox: cột `available_at` (lùi lần thử kế tiếp). `app.outbox_mark` đặt backoff khi có lỗi (gửi lỗi hoặc `no_consumer`:
+//   sự kiện chưa có consumer ở worker này, review lát 7 🟠2/D-026) nên `app.outbox_claim` (cũ nhất trước) không kẹt đầu hàng
+//   vì một hàng chưa xử lý được; hàng vẫn `published_at IS NULL` ⇒ worker khác (có consumer) hoặc lần triển khai sau nhận được.
 // - RLS: dòng staging chỉ chính người tạo (`uploaded_by = app.actor_id`) được tạo/sửa (policy RESTRICTIVE theo từng lệnh),
 //   người khác trong tổ chức chỉ đọc được metadata theo policy sẵn có.
 import { type Kysely, sql } from "kysely";
@@ -34,6 +37,29 @@ CREATE OR REPLACE FUNCTION app.mark_file_deleted(p_id uuid, p_today date) RETURN
     SELECT EXISTS (SELECT 1 FROM x)
   $$;
 
+ALTER TABLE outbox ADD COLUMN available_at timestamptz NOT NULL DEFAULT now();
+
+CREATE OR REPLACE FUNCTION app.outbox_claim(p_limit integer)
+  RETURNS TABLE (id uuid, organization_id uuid, event_type text, aggregate_id uuid, payload jsonb, correlation_id text)
+  LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+    SELECT o.id, o.organization_id, o.event_type, o.aggregate_id, o.payload, o.correlation_id
+    FROM outbox o WHERE o.published_at IS NULL AND o.available_at <= now()
+    ORDER BY o.created_at, o.id
+    LIMIT least(greatest(p_limit, 1), 1000)
+    FOR UPDATE SKIP LOCKED
+  $$;
+-- Lỗi ⇒ lần thử kế tiếp sau 5 s · 2^attempts (trần 5 phút); attempts ở vế phải là giá trị TRƯỚC khi tăng.
+CREATE OR REPLACE FUNCTION app.outbox_mark(p_id uuid, p_error text)
+  RETURNS void
+  LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+    UPDATE outbox SET attempts = attempts + 1,
+           published_at = CASE WHEN p_error IS NULL THEN now() ELSE published_at END,
+           last_error = left(p_error, 500),
+           available_at = CASE WHEN p_error IS NULL THEN available_at
+                               ELSE now() + least(interval '5 minutes', make_interval(secs => 5 * power(2, least(attempts, 6)))) END
+    WHERE id = p_id AND published_at IS NULL
+  $$;
+
 CREATE POLICY files_staging_insert ON files AS RESTRICTIVE FOR INSERT TO app_runtime
   WITH CHECK (status <> 'pending_scan' OR uploaded_by = nullif(current_setting('app.actor_id', true), '')::uuid);
 CREATE POLICY files_staging_update ON files AS RESTRICTIVE FOR UPDATE TO app_runtime
@@ -41,6 +67,26 @@ CREATE POLICY files_staging_update ON files AS RESTRICTIVE FOR UPDATE TO app_run
 `;
 
 const DOWN = `
+-- Khôi phục đúng định nghĩa của 0003 trước khi bỏ cột mà hàm mới dùng.
+CREATE OR REPLACE FUNCTION app.outbox_claim(p_limit integer)
+  RETURNS TABLE (id uuid, organization_id uuid, event_type text, aggregate_id uuid, payload jsonb, correlation_id text)
+  LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+    SELECT o.id, o.organization_id, o.event_type, o.aggregate_id, o.payload, o.correlation_id
+    FROM outbox o WHERE o.published_at IS NULL
+    ORDER BY o.created_at, o.id
+    LIMIT least(greatest(p_limit, 1), 1000)
+    FOR UPDATE SKIP LOCKED
+  $$;
+CREATE OR REPLACE FUNCTION app.outbox_mark(p_id uuid, p_error text)
+  RETURNS void
+  LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+    UPDATE outbox SET attempts = attempts + 1,
+           published_at = CASE WHEN p_error IS NULL THEN now() ELSE published_at END,
+           last_error = left(p_error, 500)
+    WHERE id = p_id AND published_at IS NULL
+  $$;
+ALTER TABLE outbox DROP COLUMN available_at;
+
 DROP POLICY files_staging_update ON files;
 DROP POLICY files_staging_insert ON files;
 
