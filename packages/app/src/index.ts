@@ -78,6 +78,16 @@ export {
 } from "./notifications/reminders.ts";
 export { MAX_ATTEMPTS, RETRY_BACKOFF_MINUTES, type SendStats, sendDueEmails } from "./notifications/send.ts";
 export { deliveryStatusLabel, maskEmail, render as renderNotification } from "./notifications/templates.ts";
+export {
+  collectMetrics,
+  handleMetrics,
+  handleReady,
+  metricsAuthorized,
+  metricsToken,
+  readiness,
+  renderPrometheus,
+  type Sample,
+} from "./observability/metrics.ts";
 export { getCommandResult } from "./pipeline/command.ts";
 export { handleGuestStay } from "./portal/guest-http.ts";
 export {
