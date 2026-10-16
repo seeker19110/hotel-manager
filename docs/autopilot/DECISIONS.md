@@ -162,3 +162,10 @@
 - Chọn: Tick 48 mục đạt có bằng chứng file git/CI (bỏ tham chiếu không được git theo dõi), chấp nhận 18 miễn trừ có dữ kiện + điều kiện mở lại, loop defer 46 mục cần người/production, lập docs/autopilot/BLUEPRINT-GAPS.md cho 261 mục thiếu làm đề xuất PLAN đợt 4
 - Lý do (tiêu chí chất lượng cuối): Tiêu chí 2–3: không phình phạm vi đợt đã duyệt (D-009), giữ minh bạch — GO-NO-GO ghi NO-GO đúng thực tế; nhiều khoảng trống cần quyết của chủ dự án (giấy phép, kênh báo lỗ hổng, pháp lý)
 - Đường lùi: Mục [x]/[~] đổi lại [ ] bằng một commit; danh sách thiếu chỉ là đề xuất
+
+### D-023 · 2026-10-16T13:38:29+00:00 · Đợt 4: 261 mục MUST còn thiếu (BLUEPRINT-GAPS.md) — làm gì trong repo, phần nào là điểm dừng của người, sắp lát thế nào?
+
+- Phương án: (1) Làm mọi mục, kể cả sửa workflow CI/cấu hình cổng (coverage, forbidOnly, biome rule, Lighthouse, SAST, SBOM) ngay trong đợt · (2) Chỉ làm mục sửa được trong mã/tài liệu/test mà không đổi cấu hình cổng-CI-hook (bộ kiểm mới viết thành test chạy trong pnpm test sẵn có); cấu hình cổng/CI/hook, giấy phép, kênh SECURITY, pháp lý (DSAR/đồng ý), analytics → loop defer có đề xuất sẵn · (3) Dừng đợt 3, bàn giao 261 mục cho người
+- Chọn: Chỉ làm mục sửa được trong mã/tài liệu/test mà không đổi cấu hình cổng-CI-hook (bộ kiểm mới viết thành test chạy trong pnpm test sẵn có); cấu hình cổng/CI/hook, giấy phép, kênh SECURITY, pháp lý (DSAR/đồng ý), analytics → loop defer có đề xuất sẵn
+- Lý do (tiêu chí chất lượng cuối): (1) đúng và an toàn: AGENTS §6 coi đổi cấu hình cổng/CI/hook là điểm dừng bắt buộc — phương án 1 vi phạm; worker hiện chưa chạy thật (main chỉ in thông báo) và chưa xử lý SIGTERM là lỗi đúng-sai nên phải làm trước. (2) giữ đường lùi: DSAR/đồng ý phụ thuộc cơ sở pháp lý từng hoạt động xử lý (DPIA chờ người) — làm data map trước để người quyết. (3) kiểm máy được: rào mới viết thành test vitest/unittest nên chạy ngay trong cổng hiện có mà không đổi cấu hình. Phương án 3 bỏ việc làm được.
+- Đường lùi: Mỗi lát một PR riêng (7 runtime, 8 tài liệu/hồ sơ, 9 UX); bỏ lát nào thì revert PR đó; mục đã defer vẫn có đề xuất trong BLUEPRINT-GAPS.md để người bật sau.
