@@ -69,7 +69,7 @@ test("vòng tháng: ký → bàn giao → kỳ thu 3.580.000 đ → phát hành 
   expect(signs).toBe(0);
   await expect(page.getByTestId("lease-status")).not.toHaveText("Đã ký — chờ bàn giao");
   await sign.click();
-  await confirmAction(page);
+  await confirmAction(page, "Ký hợp đồng HD-000001");
   await expect.poll(() => signs).toBe(1);
   await expect(page.getByTestId("lease-status")).toHaveText("Đã ký — chờ bàn giao");
   await page.getByLabel("Chỉ số điện").fill("1250");
@@ -77,7 +77,7 @@ test("vòng tháng: ký → bàn giao → kỳ thu 3.580.000 đ → phát hành 
   await expectAccessible(page);
   await page.getByRole("button", { name: "Xác nhận bàn giao" }).click();
   await page.getByRole("button", { name: "Kích hoạt" }).click();
-  await confirmAction(page);
+  await confirmAction(page, "Kích hoạt hợp đồng HD-000001");
   await expect(page.getByTestId("lease-status")).toHaveText("Đang thuê");
   const leaseUrl = page.url();
 
@@ -107,7 +107,7 @@ test("vòng tháng: ký → bàn giao → kỳ thu 3.580.000 đ → phát hành 
   await page.getByRole("button", { name: "Gửi duyệt" }).click();
   await expect(page.getByTestId("period-status")).toHaveText("Chờ phát hành");
   await page.getByRole("button", { name: "Phát hành kỳ" }).click();
-  await confirmAction(page);
+  await confirmAction(page, /^Phát hành kỳ \d{2}\/\d{4}$/);
   await expect(page.getByTestId("period-status")).toHaveText("Đã phát hành");
 
   // Thu tiền mặt
@@ -124,7 +124,7 @@ test("vòng tháng: ký → bàn giao → kỳ thu 3.580.000 đ → phát hành 
     await route.abort("failed");
   });
   await inv.getByRole("button", { name: "Thu tiền mặt" }).click();
-  await confirmAction(page);
+  await confirmAction(page, /^Thu 3\.580\.000 đ cho /);
   await expect(page.getByText("Không còn phiếu nào phải thu")).toBeVisible();
   expect(collects).toBe(1);
   await page.unroute("**/api/v1/payment/collectCash");
@@ -133,13 +133,13 @@ test("vòng tháng: ký → bàn giao → kỳ thu 3.580.000 đ → phát hành 
   // Cọc: nhận ở hợp đồng, xác nhận ở Thu tiền
   await page.goto(leaseUrl);
   await page.getByRole("button", { name: "Nhận cọc" }).click();
-  await confirmAction(page);
+  await confirmAction(page, "Nhận cọc 3.000.000 đ cho HD-000001");
   await expect(page.getByTestId("deposit-balance")).toHaveText("0 đ");
   await page.goto("/thu-tien");
   const pending = page.getByTestId("pending-payment");
   await expect(pending).toContainText("Cọc 3.000.000 đ");
   await pending.getByRole("button", { name: "Xác nhận đã nhận tiền" }).click();
-  await confirmAction(page);
+  await confirmAction(page, `Xác nhận cọc 3.000.000 đ từ ${RENTAL_TENANT}`);
   await expect(page.getByText("Không có khoản chờ xác nhận")).toBeVisible();
   await page.goto(leaseUrl);
   await expect(page.getByTestId("deposit-balance")).toHaveText("3.000.000 đ");

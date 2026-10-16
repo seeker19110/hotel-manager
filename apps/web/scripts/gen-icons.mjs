@@ -1,11 +1,14 @@
-// Sinh icon PWA (PNG) không cần thư viện ảnh: nền màu thương hiệu + hình ngôi nhà trắng. Chạy lại khi đổi màu/kích thước:
-//   node apps/web/scripts/gen-icons.mjs
+// Sinh icon PWA (PNG) không cần thư viện ảnh: nền màu thương hiệu + hình ngôi nhà trắng. Màu lấy từ token `--c-brand` /
+// `--c-brand-contrast` ở `app/globals.css` (nguồn token duy nhất, UX-DS-001 — xem scripts/build-tokens.mjs). Chạy lại khi
+// đổi màu/kích thước:  pnpm gen:icons   (= node apps/web/scripts/gen-icons.mjs)
 // Icon maskable giữ hình trong vùng an toàn (hình tròn 80% ở giữa) theo đặc tả Web App Manifest.
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { deflateSync } from "node:zlib";
+import { CSS_FILE, hexToRgb, readToken } from "../../../scripts/build-tokens.mjs";
 
-const BG = [0x0f, 0x4c, 0x81];
-const FG = [0xff, 0xff, 0xff];
+const css = readFileSync(CSS_FILE, "utf8");
+const BG = hexToRgb(readToken(css, "c-brand"));
+const FG = hexToRgb(readToken(css, "c-brand-contrast"));
 const OUT = new URL("../public/icons/", import.meta.url);
 
 const CRC_TABLE = Array.from({ length: 256 }, (_, n) => {

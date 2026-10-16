@@ -57,6 +57,7 @@ export default async function CollectPage() {
                   <CommandForm
                     path="payment/confirm"
                     confirm="Xác nhận khoản thu vào sổ; không xoá được, chỉ đảo bằng bút toán có duyệt."
+                    confirmLabel={`Xác nhận ${p.purpose === "deposit" ? "cọc" : "thu"} ${vnd(p.amount)} từ ${p.payer}`}
                     fixed={{ payment_id: p.id }}
                     submitLabel="Xác nhận đã nhận tiền"
                     successText="Đã xác nhận và ghi sổ."
@@ -86,6 +87,7 @@ export default async function CollectPage() {
                     <CommandForm
                       path="payment/collectCash"
                       confirm="Ghi nhận tiền mặt vào ca đang mở; không xoá được, chỉ đảo bằng bút toán có duyệt."
+                      confirmLabel={`Thu {amount} cho ${i.number}`}
                       fixed={{ invoice_id: i.id }}
                       fields={[
                         {

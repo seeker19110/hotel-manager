@@ -218,3 +218,9 @@
 - Chọn: Đổi sang 404 khi bộ lọc không thuộc tổ chức/phạm vi
 - Lý do (tiêu chí chất lượng cuối): (1) đúng: quy ước dự án (SPEC-access-and-property, exports, reports) là cơ sở/đối tượng ngoài phạm vi ⇒ 404; 200 rỗng khiến người dùng tưởng không có dữ liệu thay vì sai cơ sở và là ngoại lệ phải nhớ. (3) thống nhất, test được bằng ma trận. Không lộ dữ liệu ở cả hai cách nên đổi rủi ro thấp.
 - Đường lùi: Bỏ kiểm phạm vi bộ lọc ở 4 truy vấn; ma trận đưa lại vào ngoại lệ.
+### D-032 · 2026-10-16T16:30:49+00:00 · T-411: loading.tsx ở nhóm route có [id]/notFound làm 404/500 thành HTTP 200 (streaming) — đặt loading ở đâu?
+
+- Phương án: (1) A: chỉ nhóm danh sách thuần (thu-tien, su-co, doi-soat, thong-bao, thong-bao-luu-tru); error.tsx mọi nhóm; test chặn loading ở nhóm có [id]/notFound · (2) B: loading mọi nhóm, chấp nhận 404/500 thành 200 · (3) C: chuyển trang danh sách vào route group (danh-sach) để có loading mà [id] không bị bọc
+- Chọn: A: chỉ nhóm danh sách thuần (thu-tien, su-co, doi-soat, thong-bao, thong-bao-luu-tru); error.tsx mọi nhóm; test chặn loading ở nhóm có [id]/notFound
+- Lý do (tiêu chí chất lượng cuối): (1) đúng: mã trạng thái HTTP đúng (404/500) là hợp đồng với client, metric SLO (T-406) và bảo mật (không lộ tồn tại qua 200); B phá điều đó. (3) đơn giản: C đổi cấu trúc file nhiều route để đổi lấy skeleton — lợi ích UX nhỏ so với rủi ro; A có rào test.
+- Đường lùi: Thêm loading.tsx theo C khi cần skeleton cho trang chi tiết.

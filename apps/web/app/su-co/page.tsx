@@ -80,6 +80,7 @@ export default async function IncidentsPage() {
               <CommandForm
                 path="maintenance/cancelWorkOrder"
                 confirm="Huỷ phiếu sự cố; không mở lại được."
+                confirmLabel={`Huỷ phiếu sự cố phòng ${w.unitCode}`}
                 fixed={{ work_order_id: w.id }}
                 fields={[{ name: "reason", label: "Lý do huỷ", required: true, maxLength: 1000 }]}
                 submitLabel="Huỷ phiếu"

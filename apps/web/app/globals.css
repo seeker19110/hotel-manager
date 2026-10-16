@@ -17,6 +17,7 @@
   --c-ok: #0b6b2e;
   --c-skeleton: #e3e7ec;
   --c-skeleton-hi: #eef1f4;
+  --c-scrim: rgb(0 0 0 / 0.4);
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -364,6 +365,21 @@ body {
   margin: 0;
   font-weight: 600;
 }
+.facts dt,
+.facts dd {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+/* Màn hẹp (320 px, UX-RESP-001): nhãn dài (vd tên khoản cọc) không được đẩy cột giá trị ra ngoài — xếp nhãn trên giá trị. */
+@media (max-width: 30em) {
+  .facts {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  .facts dd {
+    margin-bottom: var(--space-2);
+  }
+}
 .lines {
   width: 100%;
   border-collapse: collapse;
@@ -384,6 +400,18 @@ body {
 .lines thead th:first-child {
   text-align: left;
   font-weight: 400;
+  overflow-wrap: anywhere;
+}
+.lines td {
+  white-space: nowrap;
+}
+/* Màn hẹp (320 px, UX-RESP-001): bảng 4 cột thu gọn lề + cỡ chữ; tên khoản xuống dòng, số tiền giữ nguyên một dòng. */
+@media (max-width: 30em) {
+  .lines th,
+  .lines td {
+    padding: var(--space-1);
+    font-size: 0.875rem;
+  }
 }
 .command-form {
   display: flex;
@@ -572,11 +600,18 @@ body {
   background: var(--c-bg);
 }
 .confirm-dialog::backdrop {
-  background: rgb(0 0 0 / 0.4);
+  background: var(--c-scrim);
 }
 .confirm-dialog__title {
   margin: 0 0 var(--space-2);
   font-size: 1.125rem;
+  overflow-wrap: anywhere;
+}
+/* Nhãn xác nhận nêu động từ + đối tượng nên có thể dài: cho xuống dòng thay vì tràn khỏi màn 320 px. */
+.confirm-dialog__actions .btn {
+  padding-block: var(--space-2);
+  text-align: center;
+  overflow-wrap: anywhere;
 }
 .confirm-dialog__actions {
   display: flex;
