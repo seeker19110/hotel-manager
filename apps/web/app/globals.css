@@ -365,6 +365,21 @@ body {
   margin: 0;
   font-weight: 600;
 }
+.facts dt,
+.facts dd {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+/* Màn hẹp (320 px, UX-RESP-001): nhãn dài (vd tên khoản cọc) không được đẩy cột giá trị ra ngoài — xếp nhãn trên giá trị. */
+@media (max-width: 30em) {
+  .facts {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  .facts dd {
+    margin-bottom: var(--space-2);
+  }
+}
 .lines {
   width: 100%;
   border-collapse: collapse;
@@ -385,6 +400,18 @@ body {
 .lines thead th:first-child {
   text-align: left;
   font-weight: 400;
+  overflow-wrap: anywhere;
+}
+.lines td {
+  white-space: nowrap;
+}
+/* Màn hẹp (320 px, UX-RESP-001): bảng 4 cột thu gọn lề + cỡ chữ; tên khoản xuống dòng, số tiền giữ nguyên một dòng. */
+@media (max-width: 30em) {
+  .lines th,
+  .lines td {
+    padding: var(--space-1);
+    font-size: 0.875rem;
+  }
 }
 .command-form {
   display: flex;
