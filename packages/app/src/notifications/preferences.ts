@@ -10,6 +10,7 @@ import { withTenant } from "@hm/db";
 import { authorize } from "@hm/domain";
 import { type Kysely, sql } from "kysely";
 import type { Actor } from "../access/actor.ts";
+import { assertPersonInOrg, assertPropertyInOrg } from "../access/scope.ts";
 import type { CommandContext } from "../pipeline/command.ts";
 import { CommandError } from "../pipeline/problem.ts";
 import {
@@ -296,6 +297,13 @@ export async function listDeliveries(
     throw new CommandError("NOT_FOUND", 404, "Không tìm thấy dữ liệu");
   authorize(actor, "notification.configure", input.propertyId ? { propertyId: input.propertyId } : {});
   return withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
+    if (input.propertyId) await assertPropertyInOrg(trx, actor.orgId, input.propertyId);
+    // Người nhận lạ (hoặc không phải uuid) → 404, không lọc im lặng thành rỗng.
+    if (input.recipientPersonId !== undefined) {
+      if (!UUID.test(input.recipientPersonId))
+        throw new CommandError("NOT_FOUND", 404, "Không tìm thấy dữ liệu");
+      await assertPersonInOrg(trx, actor.orgId, input.recipientPersonId);
+    }
     const r = await sql<{
       id: string;
       notification_id: string;

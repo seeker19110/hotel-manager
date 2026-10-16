@@ -6,6 +6,7 @@ import { withTenant } from "@hm/db";
 import { authorize, generateMemoRef } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/actor.ts";
+import { assertPropertyInOrg } from "../access/scope.ts";
 import { type ApprovalRow, registerApprovalExecutor, requestApproval } from "../approvals/approvals.ts";
 import type { CommandContext } from "../pipeline/command.ts";
 import { CommandError } from "../pipeline/problem.ts";
@@ -314,6 +315,7 @@ export async function financialSummary(
   if (input.from > input.to) throw new CommandError("VALIDATION_FAILED", 422, "Từ ngày phải ≤ đến ngày");
   authorize(actor, "money.read", { propertyId: input.propertyId });
   return withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
+    await assertPropertyInOrg(trx, actor.orgId, input.propertyId);
     const flows = await sql<{ account: string; kind: string; dr: string; cr: string }>`
       select l.account,
              case when e.entry_type = 'reversal' then coalesce(o.entry_type, 'reversal') else e.entry_type end as kind,

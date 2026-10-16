@@ -343,25 +343,6 @@ describe("api1-bola — không phiên, tổ chức khác, id tài nguyên của 
     },
   };
 
-  /**
-   * Truy vấn lọc/tổng hợp theo id: id của tổ chức khác → 200 nhưng RỖNG/0 (mọi truy vấn ràng `organization_id` của A + RLS), không
-   * phải 404. Không lộ dữ liệu; chỉ khác các mục còn lại ở chỗ không báo "không tìm thấy". Kiểm tường minh là rỗng/0.
-   */
-  const FILTER_200_EMPTY = [
-    "payment.listClaims",
-    "notifications.listDeliveries",
-    "report.financialSummary",
-    "reconciliation.previewMatches",
-  ];
-  const emptyish = (v: unknown): boolean =>
-    Array.isArray(v)
-      ? v.length === 0
-      : v && typeof v === "object"
-        ? Object.values(v).every(emptyish)
-        : typeof v === "number"
-          ? v === 0
-          : true;
-
   it("api1-bola: chủ A cầm id thật của B → 404 (hoặc ngoại lệ có lý do), không ghi vào B, không lộ dữ liệu B", async () => {
     const before = await rowsOf(B.orgId);
     const bValues = new Set(Object.values(idsB));
@@ -379,10 +360,6 @@ describe("api1-bola — không phiên, tổ chức khác, id tài nguyên của 
       crossChecked++;
       const exception = CROSS_ID_NON_404[e.name];
       if (r.status === 404) continue;
-      if (r.status === 200 && FILTER_200_EMPTY.includes(e.name)) {
-        if (!emptyish((JSON.parse(r.text) as { data: unknown }).data)) bad.push(`${e.name}: 200 không rỗng`);
-        continue;
-      }
       if (!exception?.codes.includes(r.code) || r.status < 400) bad.push(`${e.name}: ${r.status} ${r.code}`);
     }
     expect(bad).toEqual([]);
