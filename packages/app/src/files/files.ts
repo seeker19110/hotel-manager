@@ -1,11 +1,13 @@
 // File riêng tư (SPEC-housekeeping-maintenance, ERD files; TM-06, TM-07; ADR-0002).
 // Tải lên: kiểm kích thước → nhận dạng magic bytes theo allowlist của loại chủ → bỏ EXIF → quét mã độc → ghi object
 // (khoá có tiền tố tổ chức) → hàng `files`. Đọc: kiểm quyền TRƯỚC, rồi mới cấp URL ký ≤ 5 phút.
+
 import { createHash, randomUUID } from "node:crypto";
 import { authorize } from "@hm/domain";
 import { sql } from "kysely";
 import type { CommandContext } from "../pipeline/command.ts";
 import { CommandError } from "../pipeline/problem.ts";
+import { ScannerUnavailableError } from "./clamd.ts";
 import {
   CorruptFileError,
   type DetectedMime,
@@ -31,6 +33,21 @@ export const MAX_FILE_BYTES = 10 * 1024 * 1024;
 export interface FileDeps {
   storage: ObjectStorage;
   scanner: MalwareScanner;
+}
+
+/** Quét bắt buộc: máy quét lỗi/không trả lời → 503, file không được ghi, không bao giờ coi là sạch (D-003). */
+async function scanOrFail(deps: FileDeps, bytes: Uint8Array) {
+  try {
+    return await deps.scanner.scan(bytes);
+  } catch (err) {
+    if (err instanceof ScannerUnavailableError)
+      throw new CommandError(
+        "SERVICE_UNAVAILABLE",
+        503,
+        "Chưa kiểm tra được an toàn của file, vui lòng thử lại sau",
+      );
+    throw err;
+  }
 }
 
 export async function uploadFile(
@@ -59,7 +76,7 @@ export async function uploadFile(
   const id = randomUUID();
   const key = `${ctx.actor.orgId}/${input.ownerType}/${id}`;
   const sha256 = createHash("sha256").update(content).digest("hex");
-  const scan = await deps.scanner.scan(input.bytes);
+  const scan = await scanOrFail(deps, input.bytes);
   const status = scan.clean ? "ready" : "rejected";
   // Hàng trước, object sau: lỗi ràng buộc (cơ sở không tồn tại…) dừng trước khi có object. Object ghi rồi mà
   // transaction không commit (lỗi sau đó, lỗi commit, thử lại 40001) → xoá object, không để ảnh mồ côi (INV-G7).
@@ -95,7 +112,7 @@ export async function storeTabularFile(
   deps: FileDeps,
   input: { ownerId: string; propertyId: string; bytes: Uint8Array; mime: TabularMime },
 ): Promise<{ fileId: string; sha256: string }> {
-  const scan = await deps.scanner.scan(input.bytes);
+  const scan = await scanOrFail(deps, input.bytes);
   if (!scan.clean) throw new CommandError("FILE_TYPE_NOT_ALLOWED", 415, "File bị từ chối khi quét an toàn");
   const id = randomUUID();
   const key = `${ctx.actor.orgId}/import_batch/${id}`;

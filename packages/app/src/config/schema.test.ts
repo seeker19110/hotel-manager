@@ -79,6 +79,7 @@ describe("khoá mã hoá số giấy tờ (D-004, T-202)", () => {
       issuesOf({
         ...valid,
         NODE_ENV: "production",
+        CLAMD_HOST: "clamav",
         HM_PII_KEYS: `1:${key}`,
         HM_PII_KEY_ID: "1",
         HM_PII_INDEX_KEY: key,
@@ -100,6 +101,11 @@ describe("khoá mã hoá số giấy tờ (D-004, T-202)", () => {
     }
     expect(msg).toContain("HM_PII_KEY_ID");
     expect(msg).not.toContain(key);
+  });
+
+  it("production thiếu CLAMD_HOST → lỗi khởi động (D-003: không có máy quét thì không nhận file)", () => {
+    expect(issuesOf({ ...valid, NODE_ENV: "production" })).toContain("CLAMD_HOST");
+    expect(loadConfig(valid).CLAMD_PORT).toBe(3310);
   });
 
   it("khoá PII là bí mật: bị che khi in", () => {

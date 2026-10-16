@@ -7,6 +7,7 @@ import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type Actor, resolveActor } from "../access/actor.ts";
 import { executeCommand } from "../pipeline/command.ts";
+import { ScannerUnavailableError } from "./clamd.ts";
 import { getFileUrl, MAX_FILE_BYTES, uploadFile } from "./files.ts";
 import { eicarOnlyScanner } from "./inspect.ts";
 import { ObjectStorage } from "./storage.ts";
@@ -394,5 +395,55 @@ describe("RLS giấy tờ theo phạm vi cơ sở (review T-011)", () => {
       sql<{ n: number }>`select count(*)::int as n from files where id = ${id}`.execute(trx),
     );
     expect(n.rows[0]?.n).toBe(0);
+  });
+});
+
+describe("máy quét không dùng được (D-003, T-203)", () => {
+  it("clamd lỗi/không trả lời → 503 SERVICE_UNAVAILABLE, không có hàng files, không có object", async () => {
+    const before = await sql<{
+      n: number;
+    }>`select count(*)::int as n from files where organization_id = ${A.orgId}`.execute(t.admin);
+    const puts: string[] = [];
+    const down = {
+      storage: {
+        ensureBucket: () => storage.ensureBucket(),
+        delete: (k: string) => storage.delete(k),
+        put: async (k: string, b: Uint8Array, m: string) => {
+          puts.push(k);
+          return storage.put(k, b, m);
+        },
+        signedGetUrl: (k: string, s: number) => storage.signedGetUrl(k, s),
+      } as unknown as ObjectStorage,
+      scanner: {
+        scan: async () => {
+          throw new ScannerUnavailableError("không kết nối được clamd");
+        },
+      },
+    };
+    const key = randomUUID();
+    // 5xx không lưu kết quả theo Idempotency-Key: gửi lại cùng key được khi clamd hoạt động lại (route HTTP trả 503).
+    await expect(
+      executeCommand(
+        t.runtime,
+        housekeeping,
+        { command: "files.upload", idempotencyKey: key, payload: { k: key }, correlationId: "c" },
+        async (ctx) => ({
+          data: await uploadFile(ctx, down, {
+            ownerType: "work_order",
+            propertyId: A.propertyId,
+            bytes: jpegWithExif(),
+          }),
+        }),
+      ),
+    ).rejects.toMatchObject({ code: "SERVICE_UNAVAILABLE", status: 503 });
+    const stored = await sql<{
+      n: number;
+    }>`select count(*)::int as n from idempotency_keys where key = ${key}`.execute(t.admin);
+    expect(stored.rows[0]?.n).toBe(0);
+    const after = await sql<{
+      n: number;
+    }>`select count(*)::int as n from files where organization_id = ${A.orgId}`.execute(t.admin);
+    expect(after.rows[0]?.n).toBe(before.rows[0]?.n);
+    expect(puts).toEqual([]);
   });
 });

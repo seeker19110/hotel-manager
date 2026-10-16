@@ -43,8 +43,18 @@ export const envSchema = z
     HM_PII_KEYS: optional(z.string().min(1)),
     HM_PII_KEY_ID: optional(z.coerce.number().int().min(1).max(255)),
     HM_PII_INDEX_KEY: optional(z.string().min(1)),
+    /** clamd (ClamAV) tự host — D-003. Bắt buộc ở production; dev/test không đặt → bản giả chỉ nhận chuỗi EICAR. */
+    CLAMD_HOST: optional(z.string().min(1)),
+    CLAMD_PORT: z.coerce.number().int().min(1).max(65535).default(3310),
   })
   .superRefine((env, ctx) => {
+    if (env.NODE_ENV === "production" && !env.CLAMD_HOST) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["CLAMD_HOST"],
+        message: "bắt buộc ở production (máy quét mã độc)",
+      });
+    }
     const pii = [env.HM_PII_KEYS, env.HM_PII_KEY_ID, env.HM_PII_INDEX_KEY];
     if (pii.every((v) => v === undefined)) {
       if (env.NODE_ENV === "production") {

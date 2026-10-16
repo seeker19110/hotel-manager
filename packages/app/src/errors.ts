@@ -36,6 +36,7 @@ export const ERROR_CODES = {
   COMMAND_NOT_FOUND: { status: 404, source: "contract" },
   RATE_LIMITED: { status: 429, source: "contract" },
   INTERNAL: { status: 500, source: "contract" },
+  SERVICE_UNAVAILABLE: { status: 503, source: "contract" },
   // Riêng tính năng / nội bộ
   ORG_CONTEXT_REQUIRED: { status: 409, source: "SPEC-access-and-property §6" },
   MFA_REQUIRED: { status: 403, source: "SPEC-access-and-property Q-06 (T-006)" },
