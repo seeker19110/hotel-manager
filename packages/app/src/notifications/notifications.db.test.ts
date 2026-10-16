@@ -9,6 +9,7 @@ import type { Actor } from "../access/actor.ts";
 import { CommandError } from "../pipeline/problem.ts";
 import { ownerOf, runAs, seedMember } from "../testing/helpers.ts";
 import { createNotification, type DispatchJob, dispatchNotification } from "./dispatch.ts";
+import type { EmailMessage } from "./email.ts";
 import { EmailSendError, FakeEmailSender } from "./email.ts";
 import { MAX_ATTEMPTS, RETRY_BACKOFF_MINUTES, sendDueEmails } from "./send.ts";
 
@@ -183,7 +184,12 @@ describe("sending quá hạn khoá → retrying", () => {
     expect((await delivery(inv))[0]).toMatchObject({ status: "sending", attempts: 1 });
     const fake = new FakeEmailSender();
     expect((await sendDueEmails(t.worker, fake, { now: new Date(NOW.getTime() + 10_000) })).claimed).toBe(0);
-    const s = await sendDueEmails(t.worker, fake, { now: new Date(NOW.getTime() + 31_000) });
+    // Quá hạn khoá → `retrying` chờ lùi 1 phút (worker cũ có thể vẫn đang gửi), không nhận lại ngay trong lượt đó.
+    expect((await sendDueEmails(t.worker, fake, { now: new Date(NOW.getTime() + 31_000) })).claimed).toBe(0);
+    const d = (await delivery(inv))[0];
+    expect(d).toMatchObject({ status: "retrying", attempts: 1, last_error_code: "PROVIDER_TEMPORARY" });
+    expect(d?.next_attempt_at?.getTime()).toBe(NOW.getTime() + 31_000 + 60_000);
+    const s = await sendDueEmails(t.worker, fake, { now: new Date(NOW.getTime() + 91_000) });
     expect(s.sent).toBe(1);
     expect((await delivery(inv))[0]).toMatchObject({ status: "sent", attempts: 2 });
   });
@@ -389,5 +395,157 @@ describe("Rate limit + cách ly tổ chức", () => {
       sql<{ n: number }>`select count(*)::int as n from notification_deliveries`.execute(trx),
     );
     expect(ownerSees.rows[0]?.n).toBeGreaterThan(0);
+  });
+});
+
+/** Cổng chặn `send()` cho đúng một lần gửi — mô phỏng worker đang chờ nhà cung cấp. */
+function gated(onlyKey: () => string | undefined, outcome: "ok" | "temporary", fake = new FakeEmailSender()) {
+  let release!: () => void;
+  let entered!: () => void;
+  const gate = new Promise<void>((r) => {
+    release = r;
+  });
+  const inside = new Promise<void>((r) => {
+    entered = r;
+  });
+  return {
+    fake,
+    release,
+    inside,
+    sender: {
+      send: async (m: EmailMessage) => {
+        if (m.idempotencyKey === onlyKey()) {
+          entered();
+          await gate;
+          if (outcome === "temporary") throw new EmailSendError("temporary", "timeout");
+        }
+        return fake.send(m);
+      },
+    },
+  };
+}
+
+describe("Review PR #10 — rào khoá khi worker chậm bị nhận lại", () => {
+  it("worker A quá locked_until, worker B nhận lại (attempts 2) và gửi; A lỗi muộn không ghi đè → sent bởi B", async () => {
+    const inv = await invoice();
+    await issue(inv);
+    await dispatchNotification(t.worker, (await jobsFor(inv))[0] as DispatchJob, NOW);
+    const id = (await delivery(inv))[0]?.id as string;
+    const a = gated(() => id, "temporary");
+    const pA = sendDueEmails(t.worker, a.sender, { now: NOW, lockSeconds: 30 });
+    await a.inside;
+    expect((await delivery(inv))[0]).toMatchObject({ status: "sending", attempts: 1 });
+    // B thấy khoá quá hạn → trả về retrying có chờ lùi, chưa nhận.
+    expect(
+      (await sendDueEmails(t.worker, new FakeEmailSender(), { now: new Date(NOW.getTime() + 31_000) }))
+        .claimed,
+    ).toBe(0);
+    const b = gated(() => id, "ok");
+    const pB = sendDueEmails(t.worker, b.sender, { now: new Date(NOW.getTime() + 92_000), lockSeconds: 30 });
+    await b.inside;
+    expect((await delivery(inv))[0]).toMatchObject({ status: "sending", attempts: 2 });
+    a.release();
+    expect((await pA).retrying).toBe(1);
+    // A (attempts 1) không đổi được hàng B đang giữ.
+    expect((await delivery(inv))[0]).toMatchObject({ status: "sending", attempts: 2 });
+    b.release();
+    expect((await pB).sent).toBe(1);
+    expect((await delivery(inv))[0]).toMatchObject({
+      status: "sent",
+      attempts: 2,
+      provider_message_id: "fake-1",
+    });
+    expect(b.fake.sent).toHaveLength(1);
+  });
+});
+
+describe("Review PR #10 — tên cơ sở có số điện thoại", () => {
+  it("'Nhà nghỉ Hoa Mai - 0905123456' → thông báo + email vẫn tạo/gửi, số bị che ***", async () => {
+    const old = await sql<{ name: string }>`select name from properties where id = ${A.propertyId}`.execute(
+      t.admin,
+    );
+    await sql`update properties set name = 'Nhà nghỉ Hoa Mai - 0905123456' where id = ${A.propertyId}`.execute(
+      t.admin,
+    );
+    try {
+      const inv = await invoice();
+      await issue(inv);
+      expect(await dispatchNotification(t.worker, (await jobsFor(inv))[0] as DispatchJob, NOW)).toBe(1);
+      const n = await sql<{ title: string; body: string }>`
+        select title, body from notifications where dedupe_key = ${`invoice_issued:${inv}`}`.execute(t.admin);
+      expect(n.rows[0]?.body).toContain("Nhà nghỉ Hoa Mai - ***");
+      const fake = new FakeEmailSender();
+      const s = await sendDueEmails(t.worker, fake, { now: NOW });
+      expect(s.sent).toBe(1);
+      expect(`${fake.sent[0]?.subject}\n${fake.sent[0]?.text}`).not.toContain("0905123456");
+      expect((await delivery(inv))[0]?.status).toBe("sent");
+    } finally {
+      await sql`update properties set name = ${old.rows[0]?.name} where id = ${A.propertyId}`.execute(
+        t.admin,
+      );
+    }
+  });
+
+  it("dữ liệu không render được (tên cơ sở chỉ ký tự điều khiển) → dispatch bỏ sự kiện + log, không ném (job không lặp tới dead-letter)", async () => {
+    const old = await sql<{ name: string }>`select name from properties where id = ${A.propertyId}`.execute(
+      t.admin,
+    );
+    await sql`update properties set name = ${"\u0001"} where id = ${A.propertyId}`.execute(t.admin);
+    try {
+      const inv = await invoice();
+      await issue(inv);
+      const logs: string[] = [];
+      expect(
+        await dispatchNotification(t.worker, (await jobsFor(inv))[0] as DispatchJob, NOW, (e) =>
+          logs.push(e),
+        ),
+      ).toBe(0);
+      expect(logs).toEqual(["notification.template_error"]);
+      expect(await delivery(inv)).toHaveLength(0);
+    } finally {
+      await sql`update properties set name = ${old.rows[0]?.name} where id = ${A.propertyId}`.execute(
+        t.admin,
+      );
+    }
+  });
+});
+
+describe("Review PR #10 — tổ chức tồn đọng không chiếm hết lô", () => {
+  it("A có 13 lần gửi đến hạn sớm hơn, B có 1 → limit 3/perOrg 3 vẫn nhận lần gửi của B", async () => {
+    const bPerson = randomUUID();
+    await sql`insert into persons (id, organization_id, full_name, email)
+              values (${bPerson}, ${B.orgId}, 'Người nhận B', 'b@example.test')`.execute(t.admin);
+    const { withTenant } = await import("@hm/db");
+    const make = (orgId: string, propertyId: string, person: string, key: string, at: Date) =>
+      withTenant(t.worker, { orgId }, (trx) =>
+        createNotification(
+          trx,
+          orgId,
+          {
+            propertyId,
+            recipientPersonId: person,
+            type: "export_ready",
+            vars: { exportName: "Báo cáo", exportId: randomUUID() },
+            dedupeKey: key,
+          },
+          { now: at },
+        ),
+      );
+    for (let i = 0; i < 13; i++)
+      await make(
+        A.orgId,
+        A.propertyId,
+        tenant.personId,
+        `starve:${i}`,
+        new Date(NOW.getTime() - 3_600_000 + i),
+      );
+    await make(B.orgId, B.propertyId, bPerson, "starve:b", NOW);
+    const r = await sql<{ organization_id: string }>`
+      select organization_id from app.claim_due_deliveries(${NOW}, 3, 3, 30, ${MAX_ATTEMPTS})`.execute(
+      t.worker,
+    );
+    expect(r.rows).toHaveLength(3);
+    expect(r.rows.filter((x) => x.organization_id === B.orgId)).toHaveLength(1);
+    expect(r.rows.filter((x) => x.organization_id === A.orgId)).toHaveLength(2);
   });
 });

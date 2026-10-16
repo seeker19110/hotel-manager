@@ -10,6 +10,7 @@
 import { withTenant } from "@hm/db";
 import { type Kysely, sql } from "kysely";
 import { createNotification, type NewNotification } from "./dispatch.ts";
+import { TemplateError } from "./templates.ts";
 
 export interface ReminderStats {
   overdue: number;
@@ -20,6 +21,24 @@ export interface ReminderStats {
 async function orgs(workerDb: Kysely<unknown>): Promise<string[]> {
   const r = await sql<{ id: string }>`select reminder_orgs as id from app.reminder_orgs()`.execute(workerDb);
   return r.rows.map((x) => x.id);
+}
+
+/**
+ * Chạy `fn` cho từng tổ chức; lỗi của một tổ chức không chặn tổ chức khác (review PR #10). Hết lượt mà có lỗi ⇒ ném
+ * AggregateError để job bị đánh dấu lỗi và chạy lại (khoá dedupe giữ cho tổ chức đã xong không bị nhắc lặp).
+ */
+async function perOrg(workerDb: Kysely<unknown>, fn: (orgId: string) => Promise<number>): Promise<number> {
+  let created = 0;
+  const errors: unknown[] = [];
+  for (const orgId of await orgs(workerDb)) {
+    try {
+      created += await fn(orgId);
+    } catch (err) {
+      errors.push(err);
+    }
+  }
+  if (errors.length > 0) throw new AggregateError(errors, `nhắc lịch lỗi ở ${errors.length} tổ chức`);
+  return created;
 }
 
 async function staff(
@@ -44,7 +63,14 @@ async function createMany(
   if (items.length === 0) return 0;
   return withTenant(workerDb, { orgId }, async (trx) => {
     let n = 0;
-    for (const it of items) if (await createNotification(trx, orgId, it, { now })) n += 1;
+    for (const it of items) {
+      try {
+        if (await createNotification(trx, orgId, it, { now })) n += 1;
+      } catch (err) {
+        // Lỗi mẫu xảy ra trước mọi câu ghi (render trước insert) ⇒ bỏ riêng mục đó, transaction còn dùng được.
+        if (!(err instanceof TemplateError)) throw err;
+      }
+    }
     return n;
   });
 }
@@ -53,8 +79,7 @@ const period = (iso: string) => `${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
 
 /** `reminder.scanOverdue` (S-007): một nhắc mỗi phiếu mỗi ngày địa phương theo lịch nhắc của cơ sở. */
 export async function scanOverdue(workerDb: Kysely<unknown>, now: Date = new Date()): Promise<number> {
-  let created = 0;
-  for (const orgId of await orgs(workerDb)) {
+  return perOrg(workerDb, async (orgId) => {
     const r = await sql<{
       property_id: string;
       property_name: string;
@@ -69,7 +94,7 @@ export async function scanOverdue(workerDb: Kysely<unknown>, now: Date = new Dat
       select property_id, property_name, invoice_id, payer_person_id, open_amount::text, due_on::text, period_start::text,
              business_date::text, local_date::text
       from app.overdue_candidates(${orgId}::uuid, ${now})`.execute(workerDb);
-    created += await createMany(
+    return createMany(
       workerDb,
       orgId,
       r.rows.map((x) => ({
@@ -88,14 +113,12 @@ export async function scanOverdue(workerDb: Kysely<unknown>, now: Date = new Dat
       })),
       now,
     );
-  }
-  return created;
+  });
 }
 
 /** `reminder.scanLeaseExpiry` (S-013): mốc 30/7 ngày (cấu hình), khoá dedupe theo hợp đồng + phiên bản + mốc. */
 export async function scanLeaseExpiry(workerDb: Kysely<unknown>, now: Date = new Date()): Promise<number> {
-  let created = 0;
-  for (const orgId of await orgs(workerDb)) {
+  return perOrg(workerDb, async (orgId) => {
     const r = await sql<{
       property_id: string;
       property_name: string;
@@ -110,10 +133,8 @@ export async function scanLeaseExpiry(workerDb: Kysely<unknown>, now: Date = new
       from app.lease_expiry_candidates(${orgId}::uuid, ${now})`.execute(workerDb);
     const items: NewNotification[] = [];
     for (const x of r.rows) {
-      const people = new Set([
-        ...(await staff(workerDb, orgId, x.property_id, ["owner", "manager"])),
-        x.representative_person_id,
-      ]);
+      const managers = await staff(workerDb, orgId, x.property_id, ["owner", "manager"]);
+      const people = new Set([...managers, x.representative_person_id]);
       for (const person of people)
         items.push({
           propertyId: x.property_id,
@@ -124,19 +145,18 @@ export async function scanLeaseExpiry(workerDb: Kysely<unknown>, now: Date = new
             unitCode: x.unit_code,
             endOn: x.effective_to,
             leaseId: x.lease_id,
+            ...(managers.includes(person) ? {} : { audience: "tenant" }),
           },
           dedupeKey: `lease_expiring:${x.lease_id}:${x.version_no}:${x.days_left}`,
         });
     }
-    created += await createMany(workerDb, orgId, items, now);
-  }
-  return created;
+    return createMany(workerDb, orgId, items, now);
+  });
 }
 
 /** `reminder.scanStayNotice` (S-014…S-016, S-020, S-021). Chỉ trong app (nhân viên). */
 export async function scanStayNotice(workerDb: Kysely<unknown>, now: Date = new Date()): Promise<number> {
-  let created = 0;
-  for (const orgId of await orgs(workerDb)) {
+  return perOrg(workerDb, async (orgId) => {
     const r = await sql<{
       property_id: string;
       property_name: string;
@@ -185,9 +205,8 @@ export async function scanStayNotice(workerDb: Kysely<unknown>, now: Date = new 
           email: false,
         });
     }
-    created += await createMany(workerDb, orgId, items, now);
-  }
-  return created;
+    return createMany(workerDb, orgId, items, now);
+  });
 }
 
 /** Một lượt quét đủ ba loại (worker gọi theo lịch). */

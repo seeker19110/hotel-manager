@@ -120,11 +120,15 @@ describe("S-013 nhắc hợp đồng sắp hết hạn", () => {
     const first = await scanLeaseExpiry(h.t.worker, vn("2026-10-31T09:00"));
     expect(first).toBeGreaterThanOrEqual(3);
     expect(await scanLeaseExpiry(h.t.worker, vn("2026-10-31T18:00"))).toBe(0);
-    const r = await sql<{ recipient_person_id: string }>`
-      select recipient_person_id from notifications where dedupe_key = ${`lease_expiring:${leaseId}:1:30`}`.execute(
+    const r = await sql<{ recipient_person_id: string; link: string }>`
+      select recipient_person_id, link from notifications where dedupe_key = ${`lease_expiring:${leaseId}:1:30`}`.execute(
       h.t.admin,
     );
     const who = r.rows.map((x) => x.recipient_person_id);
+    // Người thuê mở portal; nhân viên mở trang hợp đồng (review PR #10).
+    const linkOf = (p: string) => r.rows.find((x) => x.recipient_person_id === p)?.link;
+    expect(linkOf(tenant.personId)).toBe("/portal/hop-dong");
+    expect(linkOf(h.manager.personId)).toBe(`/hop-dong/${leaseId}`);
     expect(who).toContain(h.manager.personId);
     expect(who).toContain(h.owner.personId);
     expect(who).toContain(tenant.personId);

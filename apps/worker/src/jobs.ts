@@ -3,7 +3,9 @@ import { randomUUID } from "node:crypto";
 import {
   type AutoApplyResult,
   applyBankTransaction,
+  createLogger,
   dispatchNotification,
+  type Logger,
   NOTIFY_EVENT_TYPES,
 } from "@hm/app";
 import { withTenant } from "@hm/db";
@@ -46,12 +48,15 @@ export function bankTransactionReceivedHandler(workerDb: Kysely<unknown>) {
  * `notify.dispatch` (SPEC-notifications S-001…S-003): handler cho từng sự kiện outbox sinh thông báo — đăng ký với
  * `startConsumers` theo `NOTIFY_EVENT_TYPES`; dedupe ở CSDL nên pg-boss giao lại vẫn một thông báo.
  */
-export function notifyHandlers(workerDb: Kysely<unknown>): Record<string, (job: OutboxJob) => Promise<void>> {
+export function notifyHandlers(
+  workerDb: Kysely<unknown>,
+  logger: Logger = createLogger({ bindings: { component: "notify.dispatch" } }),
+): Record<string, (job: OutboxJob) => Promise<void>> {
   return Object.fromEntries(
     NOTIFY_EVENT_TYPES.map((type) => [
       type,
       async (job: OutboxJob) => {
-        await dispatchNotification(workerDb, job);
+        await dispatchNotification(workerDb, job, new Date(), (event, fields) => logger.warn(event, fields));
       },
     ]),
   );
