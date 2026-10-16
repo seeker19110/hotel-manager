@@ -5,7 +5,7 @@
   ".claude/hooks/_lib.sh": "152c9a1bdd16ebee215289367e2fe71fc0b50ceb23675c841c2f10edc4a834cd",
   ".claude/hooks/auto-format.sh": "c5dbef6eb00f4bf59fabc4ededd66d16efc71ac84f00722993ea85608b728f67",
   ".claude/hooks/guard.py": "864f1a5fe638e4f20ca830e5c276a2009746ea65a450cd1a293793362803f7a3",
-  ".claude/hooks/pre-bash-guard.sh": "ba2a1ecf643c0c30c3813931c0fe40d80869242410a5d8ab0a8b3b0bd07bbe83",
+  ".claude/hooks/pre-bash-guard.sh": "414168c6424735dc8b4195ffac0f1d1067aa2b7bd03dc2ef3a78c15aed4fcd6f",
   ".claude/hooks/pre-compact.sh": "d452650e82615454602f25bb7e760637b3a5f6dacfc01e61ca95aa102bb5aa98",
   ".claude/hooks/pre-edit-guard.sh": "8d4d52901a0ce61a671bd410b2743d57caeae23d370942cbc26b12b01ff2abc2",
   ".claude/hooks/session-start.sh": "0ba8904eda93b8b5c5708e459a0fc6f665b8282ec6f96a78e84f53455169ceff",

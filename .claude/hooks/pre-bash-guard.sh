@@ -24,11 +24,13 @@ if [ "$(json_field "$res" commit)" = "true" ] && [ "$(json_field "$res" no_verif
   cdir="$(json_field "$res" commit_dir)"
   top=""
   [ -n "$cdir" ] && top="$(git -C "$cdir" rev-parse --show-toplevel 2>/dev/null)"
-  if [ -n "$top" ] && [ "$top" != "$XT_ROOT" ]; then
+  # git trả đường dẫn vật lý; gốc dự án có thể đi qua symlink (macOS: /var → /private/var) → so theo `pwd -P`.
+  xroot="$(cd "$XT_ROOT" 2>/dev/null && pwd -P)" || xroot="$XT_ROOT"
+  if [ -n "$top" ] && [ "$top" != "$xroot" ]; then
     if [ -e "$top/xt.yaml" ] || [ -d "$top/.xtemplates" ]; then
       groot="$top"
     else
-      case "$top/" in "$XT_ROOT"/*) ;; *) groot="$top" ;; esac
+      case "$top/" in "$xroot"/*) ;; *) groot="$top" ;; esac
     fi
   fi
   gate=""
