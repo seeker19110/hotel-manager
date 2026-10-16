@@ -3,7 +3,7 @@ title: Thiết kế vòng lặp: 4 con số, tiêu chí dừng máy kiểm, bằ
 kind: module
 prefix: LOOP-DESIGN
 applies_to: [all]
-updated: 2026-10-15
+updated: 2026-10-16
 ---
 
 # Thiết kế vòng lặp: 4 con số, tiêu chí dừng máy kiểm, bằng chứng
@@ -36,6 +36,7 @@ updated: 2026-10-15
 | Việc nhiều giờ, nhiều cửa sổ context | Harness dài hạn | Stop hook + `PROGRESS.md` bàn giao + phiên mới (`context-and-token-budget.md`) | — |
 | Quay lại định kỳ (poll CI, chăm PR) | Trigger trong phiên | `/loop <khoảng> <prompt>` (hết hạn 7 ngày, ≤ 50 task/phiên) | Cần chạy khi không mở máy |
 | Chạy không người trực | Trigger ngoài phiên | Routine đám mây (≥ 1 giờ), GitHub Actions `schedule` | Hành động đối ngoại — chỉ **đề xuất** |
+| Bảo trì khi production lệch chuẩn (G8 → task mới) | Trigger theo ngưỡng | Script tất định so chỉ số với baseline, gọi agent headless theo bậc quyền (`LOOP-DESIGN-019`) | Chưa có SLO/baseline ([`../15-operations/slo-and-alerting.md`](../15-operations/slo-and-alerting.md)) |
 | Side effect thật + chờ duyệt lâu + sống qua crash | Durable runtime | Xem [`../13-ai-engineering/agentic-systems.md`](../13-ai-engineering/agentic-systems.md) | Việc chỉ sửa code trong repo |
 
 ### Verdict máy của `xt.py loop status` (đọc từ đĩa, thứ tự ưu tiên)
@@ -72,11 +73,13 @@ và `--max-budget-usd`. Tăng trần chỉ bằng `loop init` lại có chủ đ
 - [ ] `LOOP-DESIGN-016` **SHOULD** Đo DORA baseline (lead time, change failure rate, lỗi lọt) trước khi bật tự trị để có số so sánh. → Kiểm: file baseline trong `docs/ops/` có ngày và 4 chỉ số. · Nguồn: stored 21 §8
 - [ ] `LOOP-DESIGN-017` **MAY** Dùng evaluator riêng (test như người dùng thật qua trình duyệt/CLI) khi task vượt mức model làm ổn một mình. → Kiểm: evidence có lệnh E2E thật, không chỉ unit test.
 - [ ] `LOOP-DESIGN-018` **MAY** Headless/CI dùng `claude -p --output-format json` và đọc `total_cost_usd`, `num_turns` để tính chi phí mỗi task hoàn thành. → Kiểm: báo cáo cuối có cột chi phí/task.
+- [ ] `LOOP-DESIGN-019` **SHOULD** Vòng bảo trì (G8 → task mới) kích hoạt bằng ngưỡng tất định, không bằng model đọc log: script so chỉ số (tỉ lệ fail CI, 5xx sau deploy…) với baseline; quyền agent tăng theo độ lệch — 1σ chỉ ghi log, 2σ chẩn đoán read-only, 3σ chỉ được mở PR/issue hoặc chạy runbook đã duyệt trước; kết quả thành task/SPEC mới và đi qua cổng như mọi task. → Kiểm: file bậc có version (vd `docs/ops/bands.yaml`) ghi baseline + allowlist tool từng bậc, không bậc nào có quyền merge/deploy; log mỗi lần gọi có thời điểm, bậc, kết quả triage. · Nguồn: Anthropic AI-native SDLC playbook (2026-08-21) stage 6
 
 ## Bẫy thường gặp
 
 | Bẫy | Hậu quả | Cách tránh |
 |---|---|---|
+| Cho model đọc log/metric liên tục để "tự phát hiện" sự cố | Tốn tiền, báo động giả, agent cầm quyền rộng khi chưa có gì xảy ra | Phát hiện bằng ngưỡng tất định; model chỉ vào cuộc khi vượt ngưỡng, quyền theo bậc (`LOOP-DESIGN-019`) |
 | Dùng `<promise>COMPLETE</promise>` hoặc `/goal` làm điều kiện dừng duy nhất | Model tự khai xong; `/goal` là model nhỏ **chỉ đọc hội thoại**, không chạy tool, không đọc file | Stop hook đọc `.autopilot/` (xt.py); `/goal` chỉ là lớp bổ sung |
 | Tick `[x]` rồi mới chạy test, hoặc chạy test bằng tay không qua `loop record` | Verdict `verify` kẹt vòng; không có bằng chứng | Luôn `loop record` với đúng chuỗi Gate |
 | Sửa lệnh Gate trong PLAN cho khớp lệnh "dễ xanh" | Bằng chứng đúng cú pháp nhưng sai nội dung | Đổi Gate phải ghi lý do ở PROGRESS; `pre-edit-guard.sh` hỏi khi sửa cấu hình cổng |
@@ -106,4 +109,5 @@ và `--max-budget-usd`. Tăng trần chỉ bằng `loop init` lại có chủ đ
 - Claude Code docs — headless (`--bare` bỏ hook/skill/CLAUDE.md; `--max-turns`, `--max-budget-usd`, `total_cost_usd`): <https://code.claude.com/docs/en/headless> — xác minh 2026-10-13.
 - Anthropic, *Effective harnesses for long-running agents* (2025-11-26): <https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents> · *Harness design for long-running application development* (2026-03-24): <https://www.anthropic.com/engineering/harness-design-long-running-apps> — theo `research/2026-10-13-ai-agent-research.md` §3.4 [F].
 - `seeker19110/stored` mục 03 §6 (checklist 9 điểm), §8c; mục 21 §1, §8, §10; mục 23 §2.2 (ba cổng máy), §6.1 — đọc 2026-10-13 (`research/2026-10-13-stored-catalog-extraction.md`).
+- Anthropic, *The AI-native SDLC playbook* (2026-08-21), stage 6 Maintain: script tất định theo dõi production, `bands.yaml` (baseline 30 ngày, luật Western Electric; 1σ log · 2σ chẩn đoán với tool hạn chế · 3σ đề xuất PR/runbook), chẩn đoán ghi thành `intent.md` mới; "the agent may act up to the production gate and cannot pass it". Đây là hướng dẫn, chưa kèm số đo hiệu quả: <https://claude.com/blog/the-ai-native-sdlc-playbook> — xác minh 2026-10-16 (`seeker19110/stored` mục 21 §10c).
 - `research/2026-10-13-claude-code-hooks-skills.md` (ba phát hiện: `/goal` là lời khai, `defaultMode auto` bị bỏ qua ở project settings, `--bare` mất hook).

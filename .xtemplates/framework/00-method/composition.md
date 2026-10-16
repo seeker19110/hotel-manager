@@ -1,7 +1,7 @@
 ---
 title: Ghép blueprint cho một dự án
 kind: method
-updated: 2026-10-14
+updated: 2026-10-16
 ---
 
 # Ghép blueprint cho một dự án
@@ -55,6 +55,10 @@ python3 .xtemplates/scripts/xt.py blueprint-status BLUEPRINT.md --strict
 5. **Ghép lại khi khung cập nhật**: chạy lại đúng lệnh `compose ... --out BLUEPRINT.md`. Khi file đã có, máy giữ ô trạng thái
    và ghi chú cuối dòng (`— Bằng chứng:` / `— Miễn:` / `— Thiếu:`) theo **ID**; mục mới vào ở `[ ]`, mục đã bỏ khỏi khung biến mất.
    Xem diff trước khi commit.
+6. **Hai file** (ADR-0012 của repo khung): `--out BLUEPRINT.md` ghi `BLUEPRINT.md` chỉ chứa MUST ở quy mô đã chọn và
+   `BLUEPRINT-BACKLOG.md` chứa SHOULD/MAY. Agent đọc file chính mỗi vòng; backlog không chặn "xong", làm khi còn ngân
+   sách. `blueprint-status` đọc cả hai (frontmatter `backlog:`); đổi quy mô thì ghép lại, mục chuyển file theo ID và giữ
+   trạng thái. Cần một file như trước: `--full`.
 
 ## Chọn quy mô
 
@@ -65,7 +69,7 @@ python3 .xtemplates/scripts/xt.py blueprint-status BLUEPRINT.md --strict
 | Nhiều đội cùng phát triển, SLA ký với khách hàng, kiểm toán bên ngoài? | L |
 | Chỉ thử nghiệm ý tưởng, không lưu dữ liệu thật? | S |
 
-Quy mô quyết định khối lượng: blueprint `web-app` 70 MUST ở S, 468 ở M, 1.124 ở L (đo 2026-10-14). Chọn đúng quy mô quan trọng hơn chọn đủ module.
+Quy mô quyết định khối lượng: blueprint `web-app` 70 MUST ở S, 468 ở M, 1.124 ở L (đo 2026-10-14). Chọn đúng quy mô quan trọng hơn chọn đủ module. Quy mô cũng quyết định cỡ file agent đọc: `web-app` + `ecommerce` có `BLUEPRINT.md` 41 KB ở S, 229 KB ở M, 483 KB ở L; bản một file (`--full`) ~690 KB ở cả ba (đo 2026-10-16).
 
 ## Nguồn
 

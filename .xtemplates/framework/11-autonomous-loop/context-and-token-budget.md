@@ -3,7 +3,7 @@ title: Ngân sách context/token, compaction, bàn giao phiên
 kind: module
 prefix: LOOP-CTX
 applies_to: [all]
-updated: 2026-10-15
+updated: 2026-10-16
 ---
 
 # Ngân sách context/token, compaction, bàn giao phiên
@@ -42,7 +42,7 @@ updated: 2026-10-15
 
 **Context** đi đường riêng: đầy → compaction tự nén (PreCompact → `xt.py loop checkpoint` ghi task đang làm, lệnh kiểm
 cuối + exit code, file chưa commit, lỗi lặp vào `.autopilot/state.json`; SessionStart(compact) in lại qua `loop status`)
-rồi chạy tiếp. Áp dụng khi `loop init --single-session` (trần vòng tự tính `max(20, 4 × (task chưa làm + MUST mở của blueprint))`).
+rồi chạy tiếp. Áp dụng khi `loop init --single-session` (trần vòng tự tính `max(20, 4 × task chưa làm)`).
 
 Ngưỡng 80/100 tương ứng circuit breaker 80/90/100 của stored 21 §10; 90% là mốc cảnh báo nếu harness có đo chi phí thật.
 

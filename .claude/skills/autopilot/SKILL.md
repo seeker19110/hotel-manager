@@ -11,8 +11,11 @@ argument-hint: "[mô tả yêu cầu hoặc đường dẫn PROJECT.md]"
 
 **Mục tiêu: xong trong MỘT phiên** (ADR-0009) — không bàn giao vì context, việc cần người không chặn cả vòng.
 
-## Bước 0 — Kiểm điều kiện chạy một phiên
+## Bước 0 — Audit khung + sửa, rồi kiểm điều kiện chạy một phiên
 
+- **Việc đầu tiên, trước mọi việc khác**: `<XT> doctor --fix` (audit khung đã cài: Python/git/bash, hook trong `.claude/settings.json` + file hook và file chúng nạp + cú pháp, skill/subagent, `*.xtemplates-new` chưa gộp, `AGENTS.md`/`CLAUDE.md` có `@AGENTS.md`, `xt.yaml` đủ khoá, `.autopilot/` trong `.gitignore`, state hỏng/BLOCKED, khung `validate` xanh, `PROGRESS.md`). `--fix` chỉ sửa phần an toàn, đảo ngược được (tạo file thiếu từ mẫu, thêm dòng `@AGENTS.md`/`.gitignore`, đổi tên tệp lệnh của bản ≤ 2.x sang `xt.yaml`, chuyển state hỏng sang bản sao lưu) — **không** đụng hook/settings.
+  - Exit 0 → làm tiếp; cảnh báo ⚠ là việc của phiên (vd `xt.yaml` trống → task đầu PLAN điền lệnh thật theo stack; PROGRESS sai luật → sửa tay).
+  - Exit 1 → lỗi ✗ còn lại cần người (thiếu/hỏng hook, settings, khung cài lệch): báo người **một lần** lệnh sửa (`install.py`, gộp `*.xtemplates-new`) — đổi hook là điểm dừng, không tự sửa; vẫn làm Pha 1. Trước `loop init` chạy lại `<XT> doctor`; còn ✗ về hook → `loop init` vẫn chạy (cảnh báo trên stderr) nhưng ghi rõ trong báo cáo cuối rằng vòng thiếu máy kiểm, và gom vào việc chờ người.
 - **Chế độ quyền**: phiên phải chạy không hỏi quyền — `claude --permission-mode auto` (container dùng một lần: `bypassPermissions`; headless: `dontAsk`). Settings dự án không đặt được. Đang ở chế độ hỏi (`default`/`plan`/`acceptEdits`) thì báo người một lần câu lệnh mở lại phiên, rồi vẫn làm; Stop hook nhắc lại mỗi vòng (`permission_mode` ghi ở `.autopilot/state.json`).
 - **Hook**: `.claude/settings.json` có `PreCompact` (checkpoint trước nén), `SessionStart`, `Stop`. Thiếu → báo người chạy lại `install.py` (đổi hook là điểm dừng).
 
@@ -31,11 +34,11 @@ argument-hint: "[mô tả yêu cầu hoặc đường dẫn PROJECT.md]"
 
 ## Pha 2 — Vòng lặp có bằng chứng (G5–G7)
 
-9. `<XT> loop init --plan docs/autopilot/PLAN.md --blueprint BLUEPRINT.md --single-session [--hours <H>]` (trần vòng tự tính `max(20, 4 × (task chưa làm + MUST mở của blueprint))`; ghi đè bằng `--max-iterations`).
+9. `<XT> loop init --plan docs/autopilot/PLAN.md --blueprint BLUEPRINT.md --single-session [--hours <H>]` (trần vòng tự tính `max(20, 4 × task chưa làm)`; ghi đè bằng `--max-iterations`).
 10. Mỗi vòng: `<XT> loop status` → làm đúng task mà `loop status` trả về (task `[ ]` đầu tiên chưa `defer`) → chạy Gate qua `<XT> loop record --task T-xxx -- <lệnh Gate y nguyên>` → xanh thì tick `[x]` trong PLAN, commit (`feat/fix/...: ...`, nhỏ, qua cổng commit) + push nhánh làm việc → cập nhật `PROGRESS.md` (≤ 8 KB).
 11. Gate đỏ: sửa; cùng một lỗi **lần 2 → đổi cách tiếp cận** (ghi vào PROGRESS), **lần 3 → máy tự BLOCKED** (dừng để người xem). Không skip/disable test, không nới cấu hình cổng để xanh (hook sẽ hỏi).
 12. Blueprint: tick `[x]` **chỉ khi có bằng chứng** (CI/test/scan/file) ghi ở PR; mục không áp dụng → `[~] — Miễn: <lý do>`.
-13. Giao việc: `executor` cho task rõ phạm vi; `reviewer` (model khác) review diff trước khi merge PR; phiên chính điều phối, **subagent không lồng subagent**.
+13. Giao việc: `executor` cho task rõ phạm vi; `reviewer` (model khác) review diff trước khi merge PR; PR đã mở → `<XT> merge-check --pr <N>` quyết thời điểm merge và làm đúng `next` (`merge` → chạy y nguyên lệnh có `--match-head-commit`; `wait` → làm task khác rồi kiểm lại; `update`/`fix` → làm; `human` → ghi vào báo cáo, không tự merge — `LOOP-STOP-022`); phiên chính điều phối, **subagent không lồng subagent**.
 14. **Điểm dừng bắt buộc về hành động** — mặc định **không chặn cả vòng**: `<XT> loop defer --task <T-NNN|ID blueprint> --reason "<cần người làm gì>"` rồi làm việc khác; chỉ `<XT> loop block --reason "..."` khi mọi việc còn lại phụ thuộc nó. Người xử lý xong chạy `<XT> loop resume --reason "..."`. Gồm: thao tác không đảo ngược (xoá dữ liệu, drop/alter phá vỡ), tiền thật/thanh toán, dữ liệu người dùng thật, publish/deploy production/gửi email-thông báo ra ngoài, đăng ký dịch vụ trả phí/nhập khoá thật, đổi quyền hoặc cấu hình cổng. Mâu thuẫn spec, bảo mật/pháp lý mơ hồ **không** dừng — tự quyết theo bước 5b.
 15. **Context đầy → không bàn giao**: để compaction tự nén; PreCompact ghi checkpoint, sau nén SessionStart in lại `loop status` (task đang làm, lệnh kiểm cuối, file chưa commit) — đọc rồi làm tiếp. Chỉ khi gần **trần máy** (≥ 80% vòng/giờ/tiền): ghi **Bàn giao phiên** vào PROGRESS.md (việc dở, bước kế tiếp, SHA), commit + push, để Stop hook kết thúc.
 
