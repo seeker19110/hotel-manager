@@ -110,6 +110,8 @@ describe("khoá tạm theo tài khoản (access Q-07: 5 lần sai → 15 phút)"
     const locked = await post("/sign-in/email", { email, password: PASSWORD });
     expect(locked.status).toBe(429);
     expect(await locked.json()).toMatchObject({ code: "ACCOUNT_LOCKED" });
+    // BE-REL-006: 429 có Retry-After = số giây còn khoá (đồng hồ test đứng yên ⇒ đúng 15 phút).
+    expect(locked.headers.get("retry-after")).toBe("900");
 
     clock = new Date(clock.getTime() + 16 * 60_000);
     expect((await post("/sign-in/email", { email, password: PASSWORD })).status).toBe(200);

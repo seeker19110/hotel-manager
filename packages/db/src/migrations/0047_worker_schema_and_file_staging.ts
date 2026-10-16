@@ -13,6 +13,8 @@
 //   (`available_at = now() + 60 giây`) cho hàng lấy được rồi relay COMMIT ngay, sau đó mới `boss.send` (job id = outbox.id,
 //   khoá chính (name, id) của pg-boss ⇒ gửi lại không tạo job thứ hai) và `app.outbox_mark`. Sập giữa chừng ⇒ hết lease thì
 //   hàng được claim lại; gửi lại là no-op ở pg-boss.
+// - Hạn mức lệnh theo tổ chức (T-401, IND-SAAS-008): index `ix_idempotency_org_time (organization_id, created_at DESC)` cho
+//   truy vấn đếm lệnh trong 60 giây gần nhất của pipeline (không thêm bảng).
 // - `app.dead_letter_jobs()` (T-401, BE-JOB-004): số job còn nằm trong queue `outbox.dead_letter` (chưa xử lý/redrive) cho
 //   metric `hm_dead_letter_jobs`. Hàm riêng (không sửa `app.metrics_snapshot` của 0046) để không đè lên thay đổi khác của hàm đó.
 // - RLS: dòng staging chỉ chính người tạo (`uploaded_by = app.actor_id`) được tạo/sửa (policy RESTRICTIVE theo từng lệnh),
@@ -74,6 +76,8 @@ CREATE OR REPLACE FUNCTION app.outbox_mark(p_id uuid, p_error text)
     WHERE id = p_id AND published_at IS NULL
   $$;
 
+CREATE INDEX ix_idempotency_org_time ON idempotency_keys (organization_id, created_at DESC);
+
 CREATE FUNCTION app.dead_letter_jobs() RETURNS bigint
   LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE n bigint;
@@ -93,6 +97,7 @@ CREATE POLICY files_staging_update ON files AS RESTRICTIVE FOR UPDATE TO app_run
 
 const DOWN = `
 DROP FUNCTION IF EXISTS app.dead_letter_jobs();
+DROP INDEX IF EXISTS ix_idempotency_org_time;
 -- Khôi phục đúng định nghĩa của 0003 trước khi bỏ cột mà hàm mới dùng.
 CREATE OR REPLACE FUNCTION app.outbox_claim(p_limit integer)
   RETURNS TABLE (id uuid, organization_id uuid, event_type text, aggregate_id uuid, payload jsonb, correlation_id text)

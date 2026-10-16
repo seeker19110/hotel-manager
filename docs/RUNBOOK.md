@@ -66,6 +66,13 @@ Khi chạy thật (đề xuất D-021): chặn thêm `/api/metrics` ở reverse 
 ### 3.5 Xuất dữ liệu lỗi
 `select id, kind, failed_reason from export_jobs where status = 'failed' order by created_at desc limit 20;` — `FORBIDDEN` = người yêu cầu bị thu hồi quyền trước khi chạy (đúng thiết kế); `TOO_LARGE` = vượt 100.000 dòng/bảng — thu hẹp khoảng; `INVALID` = bộ lọc sai. Người dùng tạo yêu cầu mới (không chạy lại job cũ).
 
+### 3.6 Người dùng báo 429 (giới hạn tần suất)
+- Mọi 429 có header `Retry-After` (giây). Nguồn: hạn mức lệnh theo tổ chức (`COMMAND_QUOTA_PER_MINUTE` = 600 lệnh mới/phút, `packages/app/src/pipeline/command.ts`; tổ chức chạy script/vòng lặp lỗi sẽ chạm), xuất dữ liệu 10 lần/giờ/người, link khách 10 lần sai/phút/IP, đăng nhập theo IP và khoá tài khoản (Better Auth). Sự kiện bảo mật `rate_limit.exceeded` ghi tổ chức/lệnh (không kèm nội dung).
+- Đếm lệnh: `select count(*) from idempotency_keys where organization_id = '<org>' and created_at > now() - interval '60 seconds';`. Hạn mức cố định theo mã, chưa theo gói; muốn nâng cho một tổ chức cần đổi mã (chưa có cấu hình theo gói — F-015).
+
+### 3.7 Kho object (S3) chậm hoặc lỗi
+- Mỗi thao tác kho (`packages/app/src/files/storage.ts`): mỗi lần gọi tối đa 15 giây, thử lại ≤ 3 lần (lùi mũ + jitter, theo `Retry-After`) CHỈ với GET/HEAD/PUT/DELETE; POST không bao giờ thử lại. Cả thao tác (mọi lần thử + thời gian chờ) có trần tổng 30 giây ⇒ lỗi `quá tổng thời gian 30000 ms` (`StorageError.retryable`). `/api/ready` không thử lại, trần 3 giây.
+
 ## 4. Sao lưu và khôi phục
 - Diễn tập PITR (dữ liệu giả, cluster tạm): `bash scripts/db-backup-restore-check.sh` — exit 0 = khôi phục đúng (so số dòng, Σ Nợ/Có, số policy RLS).
 - Khi chạy thật (chờ quyết — PROGRESS "Chờ người"): pgBackRest repo mã hoá ở **máy khác**, giữ khoá `PGBACKREST_REPO_CIPHER_PASS` ngoài máy chủ; diễn tập khôi phục định kỳ.

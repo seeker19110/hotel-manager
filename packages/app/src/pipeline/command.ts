@@ -12,11 +12,21 @@ import {
   type SecurityEventInput,
   securityEventForProblem,
 } from "../logging/security-events.ts";
-import { CommandError, type Problem, toProblem } from "./problem.ts";
+import { CommandError, type Problem, rateLimited, toProblem } from "./problem.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const RETRYABLE = new Set(["40001", "40P01"]);
 const MAX_ATTEMPTS = 3;
+
+/**
+ * Hạn mức lệnh ghi theo TỔ CHỨC (IND-SAAS-008): tối đa chừng này lệnh MỚI (Idempotency-Key chưa từng thấy) trong 60 giây
+ * trượt; vượt ⇒ 429 RATE_LIMITED + `Retry-After`, KHÔNG lưu kết quả (gửi lại cùng key sau khi hết giới hạn chạy bình thường).
+ * Một tổ chức bão hoà hạn mức không chiếm tài nguyên của tổ chức khác. Đếm ngay trong CSDL (`idempotency_keys`, mỗi lệnh một
+ * hàng, kể cả lệnh lỗi) nên đúng khi nhiều instance. 600/phút ≈ 10 lệnh/giây — gấp nhiều lần mức thao tác tay của một
+ * khách sạn nhỏ, chỉ chặn script/lỗi vòng lặp. Cố định theo mã (không biến môi trường); sau này theo gói thì đổi nguồn của hằng này.
+ */
+export const COMMAND_QUOTA_PER_MINUTE = 600;
+const QUOTA_WINDOW_SECONDS = 60;
 
 export interface AuditInput {
   action: string;
@@ -68,6 +78,8 @@ export interface CommandRequest {
   correlationId: string;
   /** IP/User-Agent của request, để gắn vào sự kiện bảo mật (không dùng cho nghiệp vụ). */
   client?: SecurityClient;
+  /** Ghi đè hạn mức lệnh/phút/tổ chức (test); mặc định `COMMAND_QUOTA_PER_MINUTE`. */
+  quotaPerMinute?: number;
 }
 
 /** JSON chuẩn hoá (khoá sắp xếp) để băm payload ổn định. */
@@ -129,6 +141,35 @@ async function auditRow(
             ${ids.correlationId}, ${ids.commandId}, ${outcome})`.execute(trx);
 }
 
+/**
+ * Số giây phải đợi nếu tổ chức đã dùng hết hạn mức lệnh trong 60 giây gần nhất (0 = còn hạn mức). Lệnh gửi lại với key đã
+ * có (replay) không tốn hạn mức nên không bị chặn.
+ */
+async function quotaWaitSeconds(
+  db: Kysely<unknown>,
+  actor: Actor,
+  commandId: string,
+  limit: number,
+): Promise<number> {
+  return withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
+    const r = await sql<{ n: number; replay: boolean }>`
+      select count(*)::int as n, coalesce(bool_or(key = ${commandId}), false) as replay
+      from idempotency_keys
+      where organization_id = ${actor.orgId}
+        and created_at > now() - make_interval(secs => ${QUOTA_WINDOW_SECONDS})`.execute(trx);
+    const { n, replay } = r.rows[0] ?? { n: 0, replay: false };
+    if (n < limit || replay) return 0;
+    // Hàng thứ (n - limit + 1) từ cũ nhất rời cửa sổ ⇒ còn limit - 1 hàng ⇒ lệnh mới vào được.
+    const edge = await sql<{ wait: number }>`
+      select ceil(extract(epoch from created_at + make_interval(secs => ${QUOTA_WINDOW_SECONDS}) - now()))::int as wait
+      from idempotency_keys
+      where organization_id = ${actor.orgId}
+        and created_at > now() - make_interval(secs => ${QUOTA_WINDOW_SECONDS})
+      order by created_at offset ${n - limit} limit 1`.execute(trx);
+    return Math.max(1, edge.rows[0]?.wait ?? QUOTA_WINDOW_SECONDS);
+  });
+}
+
 export async function executeCommand<T>(
   db: Kysely<unknown>,
   actor: Actor,
@@ -141,6 +182,25 @@ export async function executeCommand<T>(
   const commandId = req.idempotencyKey.toLowerCase();
   const hash = hashPayload(req.command, req.payload);
   const ids = { commandId, correlationId: req.correlationId };
+
+  const wait = await quotaWaitSeconds(db, actor, commandId, req.quotaPerMinute ?? COMMAND_QUOTA_PER_MINUTE);
+  if (wait > 0) {
+    // 429 không lưu vào idempotency_keys: retry cùng key sau Retry-After phải chạy được, không dính kết quả lỗi cũ.
+    const problem = toProblem(
+      rateLimited("Tổ chức gửi quá nhiều thao tác trong một phút. Vui lòng thử lại sau.", wait),
+      req.correlationId,
+    );
+    emitSecurity({
+      event: "rate_limit.exceeded",
+      outcome: "denied",
+      actor,
+      target: { type: "command", id: req.command },
+      reason: problem.code,
+      client: req.client ?? null,
+      correlationId: req.correlationId,
+    });
+    return { status: "failed", commandId, httpStatus: 429, problem, replayed: false };
+  }
 
   for (let attempt = 1; ; attempt++) {
     const compensations: (() => Promise<void>)[] = [];

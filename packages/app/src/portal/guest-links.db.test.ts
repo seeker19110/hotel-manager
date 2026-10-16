@@ -241,7 +241,7 @@ describe("S-020 đoán token", () => {
         ip: addr,
         now: NOW,
       }).catch((e) => e),
-    ).toMatchObject({ code: "RATE_LIMITED", status: 429 });
+    ).toMatchObject({ code: "RATE_LIMITED", status: 429, extensions: { retry_after: 60 } }); // → Retry-After: 60
     // IP khác không bị ảnh hưởng; phút sau mở lại.
     expect(
       (

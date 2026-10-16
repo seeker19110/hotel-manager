@@ -18,6 +18,7 @@ import { type Problem, toProblem } from "../pipeline/problem.ts";
 import { settle, unwrap } from "../pipeline/settled.ts";
 import type { AppServices } from "../server/services.ts";
 import { nfcDeep } from "./normalize.ts";
+import { retryAfterSeconds } from "./retry-after.ts";
 
 export interface HttpSession {
   user: { id: string; twoFactorEnabled?: boolean | null | undefined };
@@ -79,6 +80,12 @@ export function json(body: unknown, status: number, correlationId: string, probl
       "content-type": problem ? "application/problem+json" : "application/json",
       "x-correlation-id": correlationId,
       ...NO_STORE,
+      // Mọi 429 đều có Retry-After (BE-REL-006): lấy từ `retry_after` của problem, thiếu ⇒ mặc định 60 giây.
+      ...(status === 429
+        ? {
+            "retry-after": String(retryAfterSeconds((body as { retry_after?: unknown } | null)?.retry_after)),
+          }
+        : {}),
     },
   });
 }

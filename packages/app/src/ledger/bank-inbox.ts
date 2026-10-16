@@ -5,8 +5,15 @@ import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto
 import { withTenant } from "@hm/db";
 import type { BreakReason } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
+import {
+  parseWebhookSecrets,
+  WEBHOOK_SECRET_MAX_COUNT,
+  WEBHOOK_SECRET_MIN_LENGTH,
+} from "../config/webhook-secrets.ts";
 import { canonicalJson } from "../pipeline/command.ts";
 import { CommandError } from "../pipeline/problem.ts";
+
+export { parseWebhookSecrets, WEBHOOK_SECRET_MAX_COUNT, WEBHOOK_SECRET_MIN_LENGTH };
 
 export interface BankEvent {
   provider: string;
@@ -286,10 +293,12 @@ export async function ingestBankEvent(db: Kysely<unknown>, ev: BankEvent): Promi
 /**
  * Chữ ký webhook của adapter mô phỏng `sim` (API-CONTRACT §3): HMAC-SHA256(secret, `${timestamp}.${account}.${body}`), hex
  * — gắn tài khoản nhận trong URL để không phát lại cùng body sang tài khoản/tổ chức khác (review lát tiền R8).
+ * `secret` có thể là một khoá hoặc danh sách khoá (xoay khoá, BE-INT-002): thử TỪNG khoá, luôn tính đủ mọi khoá (không thoát
+ * sớm) và so sánh thời gian hằng nên thời gian trả lời không lộ khoá nào khớp.
  * Lệch giờ quá `toleranceSeconds` → từ chối (chống phát lại). Sai → WEBHOOK_SIGNATURE_INVALID (401), KHÔNG ghi inbox.
  */
 export function verifySimSignature(input: {
-  secret: string;
+  secret: string | readonly string[];
   account: string;
   body: string;
   timestamp: string;
@@ -297,20 +306,23 @@ export function verifySimSignature(input: {
   now?: Date;
   toleranceSeconds?: number;
 }): void {
+  const fail = () =>
+    new CommandError("WEBHOOK_SIGNATURE_INVALID", 401, "Chữ ký webhook không hợp lệ hoặc đã quá hạn");
   const ts = Number(input.timestamp);
   const now = (input.now ?? new Date()).getTime() / 1000;
-  if (!Number.isInteger(ts) || Math.abs(now - ts) > (input.toleranceSeconds ?? 300)) {
-    throw new CommandError("WEBHOOK_SIGNATURE_INVALID", 401, "Chữ ký webhook không hợp lệ hoặc đã quá hạn");
-  }
-  const expected = createHmac("sha256", input.secret)
-    .update(`${input.timestamp}.${input.account}.${input.body}`)
-    .digest();
+  if (!Number.isInteger(ts) || Math.abs(now - ts) > (input.toleranceSeconds ?? 300)) throw fail();
   const given = /^[0-9a-f]{64}$/i.test(input.signature)
     ? Buffer.from(input.signature, "hex")
     : Buffer.alloc(0);
-  if (given.length !== expected.length || !timingSafeEqual(given, expected)) {
-    throw new CommandError("WEBHOOK_SIGNATURE_INVALID", 401, "Chữ ký webhook không hợp lệ hoặc đã quá hạn");
+  const secrets = typeof input.secret === "string" ? [input.secret] : input.secret;
+  let ok = false;
+  for (const secret of secrets) {
+    const expected = createHmac("sha256", secret)
+      .update(`${input.timestamp}.${input.account}.${input.body}`)
+      .digest();
+    if (given.length === expected.length && timingSafeEqual(given, expected)) ok = true;
   }
+  if (!ok) throw fail();
 }
 
 export function signSim(secret: string, timestamp: string, body: string, account: string): string {

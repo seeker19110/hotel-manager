@@ -23,7 +23,8 @@ export async function handleUnsubscribe(
     const r = await unsubscribe(deps.db, unsubscribeKey(deps.secret), { token, correlationId });
     return json({ data: { type: r.type, message: r.message } }, 200, correlationId);
   } catch (err) {
-    if (err instanceof CommandError) return simpleProblem(err.code, err.status, err.message, correlationId);
+    if (err instanceof CommandError)
+      return simpleProblem(err.code, err.status, err.message, correlationId, err.extensions);
     throw err;
   }
 }

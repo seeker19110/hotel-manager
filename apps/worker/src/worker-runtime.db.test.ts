@@ -213,8 +213,14 @@ describe("worker chạy thật", () => {
         where name = 'outbox.dead_letter' and data->>'outbox_id' = ${id}`.execute(t.admin);
       return (r.rows[0]?.n ?? 0) === 1;
     });
-    const orig = await sql<{ state: string; retry_count: number }>`select state, retry_count from pgboss.job
-      where name = 'export.requested' and data->>'outbox_id' = ${id}`.execute(t.admin);
+    const origRows = () =>
+      sql<{ state: string; retry_count: number }>`select state, retry_count from pgboss.job
+        where name = 'export.requested' and data->>'outbox_id' = ${id}`
+        .execute(t.admin)
+        .then((r) => r.rows);
+    // pg-boss hoàn tất job gốc SAU khi handler trả về (đã gửi dead letter trước đó) ⇒ chờ trạng thái cuối.
+    await waitFor(async () => (await origRows())[0]?.state === "completed");
+    const orig = { rows: await origRows() };
     expect(orig.rows).toEqual([{ state: "completed", retry_count: 0 }]); // không retry
     const dl = await sql<{
       data: { dead_letter: { kind: string; message: string } };

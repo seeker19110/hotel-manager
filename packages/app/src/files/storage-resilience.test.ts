@@ -4,7 +4,14 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
 import { createPool } from "../db/pool.ts";
-import { ObjectStorage, parseRetryAfter, StorageError, type StorageResilience } from "./storage.ts";
+import {
+  DEFAULT_RESILIENCE,
+  ObjectStorage,
+  parseRetryAfter,
+  resilientSend,
+  StorageError,
+  type StorageResilience,
+} from "./storage.ts";
 
 type Handler = (req: IncomingMessage, res: ServerResponse, n: number) => void;
 
@@ -168,6 +175,111 @@ describe("retry", () => {
     }).put("k", BODY, "text/plain");
     // lần 1: Retry-After 2 s bị cắt ở trần 1000; lần 2: 100·2¹·0,5 = 100; lần 3: 100·2²·0,5 = 200
     expect(waits).toEqual([1_000, 100, 200]);
+  });
+});
+
+describe("trần tổng thời gian (BE-REL-003, T-401)", () => {
+  it("mặc định có trần tổng ≥ trần một lần và ≤ 30 giây", () => {
+    expect(DEFAULT_RESILIENCE.totalTimeoutMs).toBeGreaterThanOrEqual(DEFAULT_RESILIENCE.timeoutMs);
+    expect(DEFAULT_RESILIENCE.totalTimeoutMs).toBeLessThanOrEqual(30_000);
+  });
+
+  it("lỗi 503 mãi với lùi chờ dài: dừng khi hết trần tổng (không chờ đủ 1 + 3 lần), lỗi nêu 'quá tổng thời gian' kèm lỗi gốc", async () => {
+    const endpoint = await start((_q, res) => {
+      res.statusCode = 503;
+      res.end();
+    });
+    const t0 = Date.now();
+    const err = await storage(endpoint, {
+      baseDelayMs: 150,
+      maxDelayMs: 150,
+      random: () => 1, // chờ đúng 150 ms mỗi lần ⇒ 1 + 3 lần thử cần ≥ 450 ms
+      totalTimeoutMs: 300,
+    })
+      .put("k", BODY, "text/plain")
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(StorageError);
+    expect((err as StorageError).message).toContain("quá tổng thời gian 300 ms");
+    expect((err as StorageError).status).toBe(503);
+    expect(((err as StorageError).cause as StorageError).message).toContain("HTTP 503");
+    expect((err as StorageError).retryable).toBe(true);
+    expect(Date.now() - t0).toBeLessThan(450);
+    expect(hits.length).toBeLessThan(4); // chưa đủ 1 + 3 lần
+  });
+
+  it("server treo: mỗi lần gọi bị cắt còn phần thời gian còn lại ⇒ tổng ≤ trần tổng, không phải 4 × timeoutMs", async () => {
+    const endpoint = await start(() => {});
+    const t0 = Date.now();
+    await expect(
+      storage(endpoint, { timeoutMs: 2_000, totalTimeoutMs: 300, baseDelayMs: 1, maxDelayMs: 5 }).put(
+        "k",
+        BODY,
+        "text/plain",
+      ),
+    ).rejects.toThrow(StorageError);
+    expect(Date.now() - t0).toBeLessThan(1_000);
+  });
+});
+
+describe("phương thức không idempotent không thử lại (BE-REL-003)", () => {
+  const cfg = (over: Partial<StorageResilience> = {}): StorageResilience => ({
+    ...DEFAULT_RESILIENCE,
+    baseDelayMs: 1,
+    maxDelayMs: 5,
+    sleep: async () => {},
+    ...over,
+  });
+  const plain = async (url: string, init: RequestInit) => new Request(url, init);
+
+  it("POST gặp 503/timeout ⇒ đúng một lần gọi, lỗi trả ngay", async () => {
+    const endpoint = await start((_q, res) => {
+      res.statusCode = 503;
+      res.end();
+    });
+    await expect(
+      resilientSend(plain, "gửi", `${endpoint}/x`, { method: "POST" }, (st) => st === 200, cfg()),
+    ).rejects.toThrow(/HTTP 503/);
+    expect(hits).toHaveLength(1);
+    expect(hits[0]?.method).toBe("POST");
+  });
+
+  it("POST treo ⇒ một lần, báo quá thời gian (không gửi lại có thể tạo bản ghi trùng)", async () => {
+    const endpoint = await start(() => {});
+    await expect(
+      resilientSend(
+        plain,
+        "gửi",
+        `${endpoint}/x`,
+        { method: "POST" },
+        (st) => st === 200,
+        cfg({ timeoutMs: 100 }),
+      ),
+    ).rejects.toThrow(/quá thời gian/);
+    expect(hits.length).toBeLessThanOrEqual(1);
+  });
+
+  it("PUT (idempotent) cùng tình huống thì thử lại — đối chứng", async () => {
+    const endpoint = await start((_q, res, n) => {
+      res.statusCode = n < 3 ? 503 : 200;
+      res.end();
+    });
+    await resilientSend(plain, "ghi", `${endpoint}/x`, { method: "PUT" }, (st) => st === 200, cfg());
+    expect(hits).toHaveLength(3);
+  });
+
+  it("409 và 400 không thử lại với mọi phương thức", async () => {
+    for (const status of [400, 409]) {
+      const endpoint = await start((_q, res) => {
+        res.statusCode = status;
+        res.end();
+      });
+      await expect(
+        resilientSend(plain, "ghi", `${endpoint}/x`, { method: "PUT" }, (st) => st === 200, cfg()),
+      ).rejects.toMatchObject({ status, retryable: false });
+      expect(hits).toHaveLength(1);
+      await new Promise<void>((r) => (server ? server.close(() => r()) : r()));
+      server = undefined;
+    }
   });
 });
 

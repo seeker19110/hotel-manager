@@ -1,6 +1,7 @@
 // Cấu hình môi trường (BASE-CFG-001/002/005, ADR-0002). Mọi đọc `process.env` của server đi qua module này.
 import { z } from "zod";
 import { PiiKeyError, parseKeyring } from "../crypto/pii.ts";
+import { parseWebhookSecrets } from "./webhook-secrets.ts";
 
 /** Biến là bí mật: không bao giờ in giá trị, không được có tiền tố NEXT_PUBLIC_ (lọt vào bundle client). */
 export const SECRET_KEYS = [
@@ -37,8 +38,20 @@ export const envSchema = z
       .regex(/^(smtps?|fake):\/\//, "phải là smtp://, smtps:// hoặc fake://")
       .default("fake://local"),
     PGBACKREST_REPO_CIPHER_PASS: z.string().min(16).optional(),
-    /** HMAC của webhook ngân hàng MÔ PHỎNG (API-CONTRACT §3); không đặt → `/api/v1/webhooks/sim/*` trả 404. */
-    SIM_WEBHOOK_SECRET: z.string().min(32, "tối thiểu 32 ký tự").optional(),
+    /**
+     * HMAC của webhook ngân hàng MÔ PHỎNG (API-CONTRACT §3); không đặt → `/api/v1/webhooks/sim/*` trả 404. Là DANH SÁCH khoá
+     * phân tách dấu phẩy (tối đa 3, mỗi khoá ≥ 32 ký tự) để xoay khoá không gián đoạn: "khoá_mới,khoá_cũ" (BE-INT-002).
+     */
+    SIM_WEBHOOK_SECRET: z
+      .string()
+      .superRefine((v, ctx) => {
+        try {
+          parseWebhookSecrets(v);
+        } catch (e) {
+          ctx.addIssue({ code: "custom", message: (e as Error).message });
+        }
+      })
+      .optional(),
     /** Khoá mã hoá số giấy tờ (D-004): "id:base64(32 byte),…"; bắt buộc ở production, dev/test dùng khoá dẫn xuất công khai. */
     HM_PII_KEYS: optional(z.string().min(1)),
     HM_PII_KEY_ID: optional(z.coerce.number().int().min(1).max(255)),

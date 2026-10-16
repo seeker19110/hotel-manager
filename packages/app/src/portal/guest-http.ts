@@ -24,7 +24,8 @@ export async function handleGuestStay(
     });
     return json({ data }, 200, correlationId);
   } catch (err) {
-    if (err instanceof CommandError) return simpleProblem(err.code, err.status, err.message, correlationId);
+    if (err instanceof CommandError)
+      return simpleProblem(err.code, err.status, err.message, correlationId, err.extensions);
     throw err;
   }
 }

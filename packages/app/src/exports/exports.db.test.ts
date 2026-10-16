@@ -256,6 +256,13 @@ describe("Giới hạn tần suất", () => {
     expect(
       await codeOf(runAs(h.t, o, (ctx) => requestExport(ctx, { kind: "deposits", format: "csv" }))),
     ).toBe("RATE_LIMITED");
+    // Retry-After = giây tới lúc yêu cầu cũ nhất rời cửa sổ 1 giờ (BE-REL-006).
+    const over = await runAs(h.t, o, (ctx) => requestExport(ctx, { kind: "deposits", format: "csv" }));
+    expect(over.status).toBe("failed");
+    if (over.status === "failed") {
+      expect(over.problem.retry_after).toBeGreaterThan(3500);
+      expect(over.problem.retry_after).toBeLessThanOrEqual(3600);
+    }
   });
 });
 
