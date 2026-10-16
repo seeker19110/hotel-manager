@@ -46,5 +46,11 @@ Quy tắc đi kèm:
 ### Xác nhận
 `packages/app/src/units-guards.test.ts` cấm `parseFloat`/`toFixed`/`Math.round`/`float` ở mã tiền, và đối chiếu mọi cột `numeric` trong migration với bảng trên.
 
+## Điều kiện xem lại
+Mở ADR mới (thay hoặc bổ sung) khi một trong các điều kiện sau xảy ra:
+- Cần đơn giá/lượng quá 4 chữ số lẻ hoặc chỉ số công tơ quá 3 chữ số lẻ (đo thực tế từ dữ liệu cơ sở).
+- Thêm tiền tệ có số mũ ISO 4217 khác 0 (hiện chỉ VND, số mũ 0).
+- Có yêu cầu lưu tiền lẻ dưới đồng (vd đối soát quốc tế) — khi đó cột tiền `bigint` đơn vị đồng không còn đủ.
+
 ## Thông tin thêm
 Đảo ngược: đổi sang phương án 2 cần migration đổi kiểu (expand-contract) — chưa có lý do.

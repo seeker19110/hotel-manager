@@ -1,3 +1,10 @@
+---
+status: Approved
+approved_by: "(chưa)"
+approved_at: "(chưa)"
+decisions: "D-002 (phiên chính tự duyệt câu hỏi chặn, 2026-10-16)"
+---
+
 # SPEC-portal — Portal người thuê và khách lưu trú
 
 | Trường | Giá trị |
@@ -220,7 +227,7 @@ Không áp dụng — tính năng không dùng model.
 - [x] Q-03 Thời hạn liên kết khách — [không chặn, có cấu hình] — hỏi: PO — **đề xuất:** đến giờ trả phòng dự kiến + 48 giờ, cấu hình theo cơ sở; tạo lại được. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** đến giờ trả phòng dự kiến + 48 giờ, tham số `properties.settings.guest_link_hours_after_checkout`; tạo lại được.
 - [x] Q-04 Người thuê còn xem được bao lâu sau khi hợp đồng `closed`? — [không chặn] — hỏi: PO + pháp lý — **đề xuất:** đến khi quyết toán xong + 30 ngày, chỉ đọc. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** đến khi quyết toán xong + 30 ngày, chỉ đọc; tham số `organizations.settings.tenant_readonly_days`.
 - [x] Q-05 Người ở cùng có tài khoản portal và thấy khoản tiền không? — [không chặn] — hỏi: PO — **đề xuất:** pilot chỉ người đứng hợp đồng và người trả tiền được mời; người ở cùng không xem tiền. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** chỉ người đứng hợp đồng/người trả tiền được mời; người ở cùng không xem tiền.
-- [x] Q-06 Bổ sung `guest_access_links`, `payment_claims` vào DOMAIN-MODEL — đã đóng: có ở DOMAIN-MODEL §7 (v1.2). Thống nhất với SPEC-ledger-payments: S-008 của ledger nay quy định "khách báo đã chuyển" chỉ tạo `payment_claims`, **không** tạo `payments`/bút toán (INV-F3).
+- [x] Q-06 Bổ sung `guest_access_links`, `payment_claims` vào DOMAIN-MODEL — đã đóng: có ở DOMAIN-MODEL §7 (v1.2). Thống nhất với SPEC-ledger-payments: S-008 của ledger nay quy định "khách báo đã chuyển" chỉ tạo `payment_claims`, **không** tạo `payments`/bút toán (INV-F3). — **Đóng 2026-10-15:** đã có trong DOMAIN-MODEL v1.2 (G4, sửa sau review độc lập); không cần quyết định riêng.
 - [x] Q-07 Có cho đính kèm ảnh chuyển khoản vào báo chuyển không? — [không chặn] — hỏi: PO — **đề xuất:** có, tuỳ chọn, lưu riêng tư; ảnh không đủ để xác nhận thu (INV-F3). — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** có, tuỳ chọn, lưu riêng tư; ảnh không đủ để xác nhận thu (INV-F3).
 - [x] Q-08 Portal có hiển thị giấy tờ của chính người thuê không (ma trận SPEC-access-and-property cho phép "Mình")? — [không chặn] — hỏi: PO + pháp lý — **đề xuất:** không trong pilot (giảm bề mặt lộ dữ liệu nhạy cảm); xem lại sau DPIA. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** không hiển thị giấy tờ trên portal ở pilot.
 

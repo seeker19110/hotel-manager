@@ -1,3 +1,10 @@
+---
+status: Approved
+approved_by: "(chưa)"
+approved_at: "(chưa)"
+decisions: "D-002 (phiên chính tự duyệt câu hỏi chặn, 2026-10-16)"
+---
+
 # SPEC-housekeeping-maintenance — Buồng phòng và phiếu sự cố/sửa chữa tối thiểu
 
 | Trường | Giá trị |
@@ -230,7 +237,7 @@ Không áp dụng — tính năng không dùng model.
 - [x] Q-06 Giới hạn file — [chặn T045/T076] — hỏi: Tech Lead + PO — đề xuất: JPEG/PNG/WebP; ≤ 10 MB/ảnh; ≤ 5 ảnh/phiếu. Cần kiểm iPhone (HEIC) trên thiết bị thật trước khi chốt (chưa xác minh). — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** JPEG/PNG/WebP (kiểm magic bytes); ≤ 10 MB/ảnh; ≤ 5 ảnh/phiếu; HEIC chưa hỗ trợ (chưa xác minh trên thiết bị thật).
 - [x] Q-07 Thời hạn URL ký đọc/tải — [không chặn] — hỏi: Tech Lead — đề xuất: 5 phút cho ảnh vận hành; ảnh giấy tờ ngắn hơn theo DPIA. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** URL ký đọc ≤ 5 phút cho ảnh vận hành.
 - [x] Q-08 Sau sửa chữa có bắt buộc tạo việc dọn trước khi bán lại không — [không chặn] — hỏi: PO — đề xuất: có (S-019). — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** có — nghiệm thu sửa chữa tạo việc dọn `open`.
-- [x] Q-09 Bổ sung `tasks`, `work_orders`, `files` vào DOMAIN-MODEL; trạng thái `cancelled` cho phiếu sự cố — đã đóng: có ở DOMAIN-MODEL §7 và §4 (v1.2).
+- [x] Q-09 Bổ sung `tasks`, `work_orders`, `files` vào DOMAIN-MODEL; trạng thái `cancelled` cho phiếu sự cố — đã đóng: có ở DOMAIN-MODEL §7 và §4 (v1.2). — **Đóng 2026-10-15:** đã có trong DOMAIN-MODEL v1.2 (G4, sửa sau review độc lập); không cần quyết định riêng.
 - [x] Q-10 Công cụ quét mã độc và nơi chạy (worker gọi dịch vụ nào, chi phí) — [chặn T076] — hỏi: Tech Lead — đề xuất: chọn qua `/research` + ADR; chưa chọn thì file không bao giờ sang `ready`. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002, D-003):** ClamAV `clamd` tự host qua giao thức INSTREAM (adapter `ClamdScanner`), bản giả trong dev/CI; production thiếu `CLAMD_HOST` → khởi động lỗi; lỗi quét → file không bao giờ `ready`.
 - [ ] Q-11 Thời hạn lưu ảnh sự cố/việc dọn — [không chặn pilot, chặn go-live] — hỏi: PO + pháp lý — đề xuất: theo lịch retention của DPIA (kế hoạch §16).
 

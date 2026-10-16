@@ -1,0 +1,68 @@
+# Miền nghiệp vụ ↔ mã nguồn, và hướng phụ thuộc cho phép
+
+> Ranh giới module (ARC-MOD-004; kiến trúc modular monolith theo [ADR-0001](../adr/0001-modular-monolith-typescript-postgres.md)). Thuật ngữ và tên bảng: [DOMAIN-MODEL](../design/DOMAIN-MODEL.md); sơ đồ: [ARCHITECTURE](../design/ARCHITECTURE.md).
+> `scripts/process-docs.test.mjs` kiểm: mọi thư mục `packages/app/src/*` có một dòng ở bảng 2 (và ngược lại), mọi import chéo thư mục tuân thủ thứ tự tầng ở bảng 3 (trừ vòng đã biết ở `packages/app/src/arch-guards.baseline.json`), mã trong `packages/*` không import `apps/*`.
+> Ngày đo: 2026-10-16.
+
+## 1. Các gói và hướng phụ thuộc
+| Gói | Được phụ thuộc vào | Không được |
+|---|---|---|
+| `apps/web`, `apps/worker` | `@hm/app` (và `@hm/db`, `@hm/testkit` cho khởi tạo/test) | chứa quy tắc nghiệp vụ; route handler và job chỉ gọi lớp `packages/app` |
+| `packages/app` | `@hm/domain`, `@hm/db` | import `apps/*` |
+| `packages/domain` | không gì ngoài thư viện thuần (zod…) | I/O: `kysely`, `pg`, `fs`, `http`, `@hm/app`, `@hm/db` (test `arch-guards.test.ts`) |
+| `packages/db` | `kysely`, `pg` | `@hm/app`, `@hm/domain` |
+| `packages/testkit` | các gói trên, chỉ dùng trong test | được import từ mã sản phẩm |
+
+Thư mục của `packages/domain/src` (quy tắc thuần): `access` (ma trận quyền, `authorize`) · `billing` (engine kỳ thu, làm tròn) · `format` (định dạng hiển thị qua `Intl`: tiền, ngày) · `import` (kiểm giá trị dòng import) · `money` (tiền số nguyên) · `payments` (đối soát thuần, QR, sao kê CSV) · `state` (máy trạng thái) · `stay` (giá lưu trú, thông báo lưu trú) · `units` (hằng đơn vị byte/thời gian, ADR-0003).
+
+## 2. Thư mục `packages/app/src/*` ↔ miền
+Miền theo ranh giới của ADR-0001 (kế hoạch §11); cột "Tầng" dùng ở mục 3. Việc gán thư mục vào miền theo mục đích thực tế của mã.
+
+| Thư mục | Miền | Tầng | Vai trò |
+|---|---|---|---|
+| `access` | Access | B | Xác định người thao tác (`resolveActor`), ngữ cảnh tổ chức, khôi phục MFA |
+| `pipeline` | Access | B | Command pipeline: idempotency, quyền, audit + outbox cùng transaction, lỗi → problem+json |
+| `identity` | Access | C | Giấy tờ nhận dạng: mã hoá AES-256-GCM, blind index, che hiển thị |
+| `approvals` | Access | C | Yêu cầu duyệt có hạn mức, cấm tự duyệt |
+| `auth` | Nền | A | Better Auth (email/mật khẩu, TOTP, OTP người thuê), khoá tài khoản |
+| `inventory` | Property & Inventory | C | Lịch tài nguyên, allocation, hold, block, phòng và đơn vị |
+| `rental` | Lease | C | Truy vấn chỉ đọc cho giao diện nhà trọ (RLS quyết định phạm vi) |
+| `lease` | Lease | E | Hợp đồng thuê, bàn giao, phụ lục, thanh lý |
+| `stay` | Reservation & Stay | E | Đặt phòng, lưu trú, folio, trả phòng, giá, thông báo lưu trú |
+| `metering` | Pricing & Meter | C | Dịch vụ, đơn giá hiệu lực, công tơ, chỉ số |
+| `billing` | Billing & Ledger | E | Vòng đời kỳ thu: tạo, xem trước, duyệt, phát hành |
+| `ledger` | Billing & Ledger | D | Sổ phụ, inbox ngân hàng, số dư đầu kỳ, chốt kỳ |
+| `deposits` | Billing & Ledger | D | Cọc, hoàn và khấu trừ qua duyệt |
+| `shifts` | Billing & Ledger | C | Ca quầy, tiền mặt dự kiến |
+| `payments` | Payment & Reconciliation | D | Thanh toán và phân bổ |
+| `reconciliation` | Payment & Reconciliation | D | Ghép giao dịch ngân hàng, tự ghi tiền, break đối soát |
+| `housekeeping` | Housekeeping & Maintenance | C | Việc buồng phòng |
+| `maintenance` | Housekeeping & Maintenance | C | Phiếu sự cố/sửa chữa |
+| `notifications` | Notification & Integration | C | Thông báo trong app, email qua outbox, nhắc hạn, huỷ đăng ký |
+| `files` | Notification & Integration | C | File riêng tư: kiểm magic bytes, quét clamd, S3, URL ký, staging ngoài transaction |
+| `import` | Chuyển dữ liệu | E | Import Excel/CSV: xem trước, xác nhận, hạn giữ |
+| `portal` | Portal | E | Mời người thuê, portal người thuê, liên kết khách |
+| `audit` | Audit & Reporting | C | Nhật ký audit |
+| `reports` | Audit & Reporting | C | Báo cáo thu/nợ/cọc/công suất |
+| `exports` | Audit & Reporting | E | Xuất dữ liệu có xác thực lại và hạn link |
+| `today` | Audit & Reporting | C | Màn Hôm nay theo vai trò |
+| `observability` | Nền | A | Metric Prometheus, `/api/ready` |
+| `logging` | Nền | A | Log JSON có cấu trúc, che bí mật/PII, sự kiện bảo mật |
+| `crypto` | Nền | A | Mã hoá PII, khoá xoay |
+| `config` | Nền | A | Schema biến môi trường, cấu hình worker |
+| `db` | Nền | A | Pool kết nối Postgres có trần thời gian |
+| `server` | Nền | E | Ngữ cảnh server (composition root): nối auth, db, storage, scanner |
+| `http` | Cổng HTTP | F | Lớp HTTP không phụ thuộc Next: registry command/query, OpenAPI, bảo mật header/CSRF, webhook |
+| `testing` | Kiểm thử | F | Helper test dùng chung trong packages/app (không vào bundle sản phẩm) |
+| `privacy` | Kiểm thử | A | Chỉ có test đối chiếu data-map ↔ catalog CSDL |
+| `tenancy` | Kiểm thử | A | Chỉ có test cách ly tenant (RLS) |
+
+## 3. Hướng phụ thuộc cho phép giữa các thư mục
+Tầng từ thấp lên cao: **A** nền · **B** lõi lệnh · **C** miền đơn · **D** tiền · **E** miền ghép · **F** cổng.
+
+- Một thư mục chỉ import thư mục **cùng tầng hoặc thấp hơn**. Ví dụ `ledger` (D) được import `approvals` (C) nhưng không được import `stay` (E).
+- Import cùng tầng được phép nhưng không được tạo vòng mới (rào ARC-MOD-004 ở `arch-guards.test.ts`, nền ratchet `arch-guards.baseline.json`).
+- Hiện còn hai nhóm vòng đã biết (nợ kỹ thuật, task T-409 gỡ): `access` ↔ `pipeline`; `http` ↔ (`exports`, `files`, `import`, `notifications`, `portal`, `server`, `stay`). Các cạnh này nằm ngoài rào thứ tự tầng cho tới khi gỡ.
+- Chỉ `http` (F) được biết mọi miền (registry command/query); `server` (E) là nơi duy nhất ráp `auth`, `db`, kho file và máy quét thành ngữ cảnh.
+- Thư mục mới ở `packages/app/src` phải thêm một dòng ở bảng 2 (chọn miền và tầng) trong cùng PR; test sẽ đỏ nếu thiếu.
+- Biên module công khai qua `index.ts` từng thư mục (ADR-0001) chưa có; hiện `packages/app/src/index.ts` xuất lại hàm công khai cho `apps/*`. Thêm biên này là việc của T-409 (ARC-MOD-005).

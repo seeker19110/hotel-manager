@@ -1,0 +1,69 @@
+{
+  "_ghi_chu": "Nền ratchet cho PM-SPEC-004/WF-SDD-003 (scripts/spec-coverage.mjs, kiểm ở scripts/process-docs.test.mjs). Mỗi spec Approved liệt kê S-NNN chưa có test nhắc ID. Scenario mới chưa có test và không có ở đây → test đỏ. Scenario đã có test mà còn ở đây → test đỏ đòi xoá (chỉ được co lại). Không thêm mục để làm xanh: gắn ID vào test hoặc viết test.",
+  "specs": {
+    "access-and-property": {
+      "uncovered": [
+        "S-001",
+        "S-002",
+        "S-003",
+        "S-004",
+        "S-005",
+        "S-006",
+        "S-007",
+        "S-008",
+        "S-009",
+        "S-010",
+        "S-011",
+        "S-012",
+        "S-013",
+        "S-014",
+        "S-015",
+        "S-018",
+        "S-019",
+        "S-021",
+        "S-022",
+        "S-023",
+        "S-024",
+        "S-025",
+        "S-026"
+      ],
+      "reason": "Test của access/tenancy/auth kiểm hành vi theo tên mô tả và ma trận quyền sinh từ `matrix.ts`, chưa gắn ID S-NNN vào tên test; việc gắn ID và bổ sung test còn thiếu là việc của task sau (PM-SPEC-004)."
+    },
+    "housekeeping-maintenance": {
+      "uncovered": ["S-013", "S-016", "S-017", "S-024"],
+      "reason": "Bốn scenario chưa có test nhắc ID (S-013, S-016, S-017, S-024); cần đối chiếu từng cái với test hiện có rồi gắn ID hoặc viết test (PM-SPEC-004)."
+    },
+    "inventory-allocation": {
+      "uncovered": [
+        "S-001",
+        "S-002",
+        "S-003",
+        "S-004",
+        "S-005",
+        "S-006",
+        "S-007",
+        "S-008",
+        "S-009",
+        "S-010",
+        "S-011",
+        "S-012",
+        "S-013",
+        "S-014",
+        "S-015",
+        "S-016",
+        "S-017",
+        "S-018",
+        "S-019",
+        "S-020",
+        "S-021",
+        "S-022",
+        "S-023"
+      ],
+      "reason": "Test tồn dùng ID bất biến INV-* (EXCLUDE, hold, block) thay vì S-NNN nên 23 scenario chưa truy được; cần ánh xạ S-NNN ↔ INV-* và gắn ID vào tên test (PM-SPEC-004)."
+    },
+    "pwa": {
+      "uncovered": ["S-002", "S-003", "S-007", "S-009", "S-012", "S-013", "S-014", "S-016", "S-017", "S-018"],
+      "reason": "Mười scenario PWA (S-002, S-003, S-007, S-009, S-012…S-014, S-016…S-018) chưa có test E2E hoặc đơn vị nhắc ID; một phần cần thiết bị/trình duyệt thật (PM-SPEC-004)."
+    }
+  }
+}

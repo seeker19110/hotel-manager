@@ -1,0 +1,33 @@
+<!-- Mẫu PR nâng cấp MAJOR của một phụ thuộc/nền tảng (OPS-MAINT-005). Mở bằng `?template=major-upgrade.md`. Gắn nhãn `major`.
+     PR này CHỈ nâng cấp: không gộp tính năng, không sửa lỗi không liên quan. Tiêu đề: `chore(deps): nâng <gói> lên <major>`. -->
+
+## Gói và phiên bản
+- Gói / thành phần: …
+- Từ → đến (ghim đúng phiên bản, không dải): … → …
+- Lý do nâng (lỗ hổng, hết hỗ trợ — ghi ngày EOL —, tính năng cần): …
+- Giấy phép bản mới: … (`pnpm licenses:check` xanh)
+
+## Đã đọc changelog / hướng dẫn nâng cấp
+<!-- Link nguồn chính thức và tóm tắt các thay đổi phá vỡ ảnh hưởng tới repo này. Không có nguồn → ghi "(chưa xác minh)". -->
+- Nguồn: …
+- Tóm tắt thay đổi phá vỡ liên quan: …
+- Codemod chính thức: có / không — lệnh đã chạy: …
+
+## Phạm vi
+- [ ] PR chỉ chứa việc nâng cấp và sửa tương thích tối thiểu; không trộn tính năng
+- [ ] Danh sách file mã phải sửa vì thay đổi phá vỡ: …
+
+## Kiểm chứng
+- [ ] `.xtemplates/scripts/dev-task.sh gate` exit 0 — dán kết quả/link CI
+- [ ] Toàn bộ test (kể cả `--project db`) xanh
+- [ ] E2E `pnpm --filter @hm/web exec playwright test` xanh
+- [ ] `pnpm audit --prod` không thêm lỗ hổng so với trước
+- [ ] Hợp đồng API (`apps/web/openapi.json`) không đổi, hoặc đã sinh lại bằng `pnpm openapi` và giải thích
+
+## Triển khai và đường lùi
+- Cách phát hành an toàn (canary/feature flag/triển khai từng bước; chưa có môi trường thật thì ghi dự kiến): …
+- Đường lùi: lệnh/bước quay lại phiên bản cũ đã viết và thử (revert PR, ghim lại phiên bản; migration có `down`): …
+- Dữ liệu bị đổi định dạng không đảo ngược được? Có / không — nếu có: backup trước và người duyệt (AGENTS §6): …
+
+## Rủi ro
+<!-- Ảnh hưởng nếu sai (tiền/tồn/dữ liệu cá nhân/quyền), cách phát hiện, cách tắt. -->

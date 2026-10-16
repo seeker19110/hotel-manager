@@ -95,6 +95,15 @@ Ranh giới module (kế hoạch §11): Access · Property & Inventory · Lease 
 - Tốt: không thêm phụ thuộc.
 - Xấu: không có kiểu từ schema, dễ sai cột khi refactor.
 
+## Điều kiện xem lại
+Mở ADR mới (thay hoặc bổ sung) khi một trong các điều kiện sau xảy ra; không sửa nội dung quyết định ở trên:
+- **Tải:** p95 API thường vượt 800 ms kéo dài dù đã tối ưu truy vấn và chỉ mục, hoặc pool kết nối chạm trần (`max_connections=100`, pool ≤ 20 mỗi tiến trình) — xét PgBouncer, bản sao đọc, tách worker ra máy riêng.
+- **Đội và nhịp phát hành:** đội vượt 4 FTE, hoặc một module cần phát hành/scale độc lập với phần còn lại — xét tách service.
+- **Hàng đợi:** thông lượng hoặc độ trễ job vượt khả năng pg-boss trên Postgres (hàng đợi sâu kéo dài, tranh chấp khoá với tải giao dịch) — xét broker riêng (kế hoạch ghi V1 chưa cần Redis/Kafka).
+- **Ranh giới module:** danh sách nền vòng phụ thuộc (`packages/app/src/arch-guards.baseline.json`) không co lại qua hai đợt liên tiếp, hoặc test kiến trúc không còn giữ được ranh giới module.
+- **Nền tảng:** Node 24 hết hỗ trợ (EOL 2028-04-30) khi chưa chuyển 26 LTS; Kysely/TypeScript/Next.js đổi major làm hỏng cách truy cập SQL-first hoặc kiểu sinh từ schema.
+- **Dữ liệu:** thêm tính năng cần truy vấn không biểu diễn được bằng Kysely + SQL thô, hoặc bất biến mới không đặt được ở constraint/RLS của Postgres.
+
 ## Thông tin thêm
 - Liên quan: `docs/design/DOMAIN-MODEL.md`, `docs/design/ARCHITECTURE.md`, `docs/design/THREAT-MODEL.md`.
 - Nguồn: `docs/research/2026-10-15-stack-va-phap-ly.md`.

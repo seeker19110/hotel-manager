@@ -1,3 +1,9 @@
+---
+status: Approved
+approved_by: "chủ dự án (duyệt PLAN đợt 2)"
+approved_at: 2026-10-15
+---
+
 # SPEC-ledger-payments — Sổ phụ, thu tiền, phân bổ, cọc, hoàn/đảo, QR, đối soát, chốt kỳ
 
 | Trường | Giá trị |
@@ -326,8 +332,8 @@ Không áp dụng.
 - [ ] Định dạng CSV sao kê của các ngân hàng pilot — [không chặn] — hỏi: đại diện pilot. **Đề xuất:** ánh xạ cột cấu hình theo tài khoản nhận.
 - [ ] `payments` chuyển khoản ở trạng thái `pending` (tạo từ claim, chưa có dòng sao kê) có được để trống `bank_transaction_id` đến lúc xác nhận không (INV-F4b nói "phải tham chiếu") — [không chặn] — hỏi: Tech Lead. **Đề xuất:** được; ràng buộc kiểm lúc `confirmed`.
 - [ ] Ngưỡng/giờ đóng ca bắt buộc (ca quên đóng qua ngày) — [không chặn pilot] — hỏi: PO. **Đề xuất:** nhắc đóng ca khi qua `business_date`; quản lý đóng thay có audit; ca quầy đầy đủ ở F-013.
-- [x] Bổ sung `approval_requests`, `reconciliation_breaks`, `bank_transactions`, `shifts`, `shift_discrepancies` vào DOMAIN-MODEL — [chặn migration] — hỏi: Tech Lead. Đã bổ sung DOMAIN-MODEL v1.2 (§1, §7).
-- [x] Hoàn tiền thừa từ `CUSTOMER_CREDIT` (Nợ `CUSTOMER_CREDIT` / Có `CASH`/`BANK`) chưa có trong bảng bút toán — Đã bổ sung DOMAIN-MODEL v1.2 §5; phần quy tắc còn lại ở câu hỏi [chặn pilot] phía trên.
+- [x] Bổ sung `approval_requests`, `reconciliation_breaks`, `bank_transactions`, `shifts`, `shift_discrepancies` vào DOMAIN-MODEL — [chặn migration] — hỏi: Tech Lead. Đã bổ sung DOMAIN-MODEL v1.2 (§1, §7). — **Đóng 2026-10-15:** đã có trong DOMAIN-MODEL v1.2 (G4, sửa sau review độc lập); không cần quyết định riêng.
+- [x] Hoàn tiền thừa từ `CUSTOMER_CREDIT` (Nợ `CUSTOMER_CREDIT` / Có `CASH`/`BANK`) chưa có trong bảng bút toán — Đã bổ sung DOMAIN-MODEL v1.2 §5; phần quy tắc còn lại ở câu hỏi [chặn pilot] phía trên. — **Đóng 2026-10-15:** đã có trong DOMAIN-MODEL v1.2 (G4, sửa sau review độc lập); không cần quyết định riêng.
 
 ## 11. DoR / DoD
 - DoR: spec Approved · 0 câu [chặn] · DOMAIN-MODEL v1.2 đã bổ sung mọi tên bảng · SPEC-metering-billing Approved.

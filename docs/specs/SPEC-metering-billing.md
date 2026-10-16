@@ -1,3 +1,9 @@
+---
+status: Approved
+approved_by: "chủ dự án (duyệt PLAN đợt 2)"
+approved_at: 2026-10-15
+---
+
 # SPEC-metering-billing — Dịch vụ, công tơ và kỳ thu xem trước → phát hành
 
 | Trường | Giá trị |
@@ -234,8 +240,8 @@ Không áp dụng (OCR công tơ có người duyệt nằm ngoài pilot).
 - [ ] Ngưỡng bất thường công tơ — [không chặn] — hỏi: PO. **Đề xuất:** cảnh báo khi lượng > 2 × trung bình 3 kỳ trước, hoặc = 0 khi phòng có người ở; cơ sở chỉnh hệ số.
 - [ ] Biểu giá điện bậc thang — [không chặn] — hỏi: PO + pháp lý. **Đề xuất:** pilot chỉ đơn giá phẳng do cơ sở nhập + ô căn cứ; bậc thang để V1.
 - [ ] Số người cho phí `per_person` khi người ở đổi giữa kỳ — [không chặn] — hỏi: PO. **Đề xuất:** đếm người ở có hiệu lực ngày cuối kỳ.
-- [x] `reviewing → draft` (trả lại sửa) và `locked → issued` (chỉ owner, lý do + audit) — đã bổ sung DOMAIN-MODEL v1.2 §4 (có lý do và audit).
-- [x] Bổ sung `services`, `service_prices`, `meter_events` vào DOMAIN-MODEL — [chặn migration] — đã bổ sung DOMAIN-MODEL v1.2 §7.
+- [x] `reviewing → draft` (trả lại sửa) và `locked → issued` (chỉ owner, lý do + audit) — đã bổ sung DOMAIN-MODEL v1.2 §4 (có lý do và audit). — **Đóng 2026-10-15:** đã có trong DOMAIN-MODEL v1.2 (G4, sửa sau review độc lập); không cần quyết định riêng.
+- [x] Bổ sung `services`, `service_prices`, `meter_events` vào DOMAIN-MODEL — [chặn migration] — đã bổ sung DOMAIN-MODEL v1.2 §7. — **Đóng 2026-10-15:** đã có trong DOMAIN-MODEL v1.2 (G4, sửa sau review độc lập); không cần quyết định riêng.
 
 ## 11. DoR / DoD
 - DoR: spec Approved · 0 câu [chặn] · DOMAIN-MODEL v1.2 đã bổ sung mọi tên bảng · SPEC-lease Approved.

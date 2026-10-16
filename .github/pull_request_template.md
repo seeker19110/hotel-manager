@@ -8,19 +8,38 @@
 <!-- Gồm những gì, đọc từ đâu trước; phần cố ý không làm. -->
 
 ## Bằng chứng cổng
+<!-- Chỉ xin review khi cổng đã xanh (WF-REVIEW-001): reviewer được từ chối review PR đỏ. -->
 - [ ] `.xtemplates/scripts/dev-task.sh gate` exit 0 (build · typecheck · lint · test) — dán dòng kết quả hoặc link job CI `quality`
 - [ ] Test mới cho mọi thay đổi hành vi, gồm ca biên (rỗng/null/0, lỗi I/O, thời gian, Unicode); sửa lỗi có test đỏ trước, xanh sau
 - [ ] Bất biến tiền/tồn (`INV-*`) đụng tới: test trên Postgres thật (`pnpm vitest run --project db <mẫu>`)
 - [ ] E2E (`pnpm --filter @hm/web exec playwright test`) nếu đổi luồng giao diện, hoặc "không áp dụng — lý do"
-- [ ] CI xanh: `quality`, `e2e`, `backup-restore`, `gitleaks`, `dep-audit`
+- [ ] CI xanh: `quality`, `e2e`, `backup-restore`, `gitleaks`, `dep-audit` — link lượt chạy: …
 
 ## Tiêu chí chấp nhận
-<!-- Chép từng tiêu chí của SPEC/task và trỏ bằng chứng (test, file, ảnh chụp) cho từng dòng. -->
+<!-- Chép từng tiêu chí của SPEC/task (S-NNN) và trỏ bằng chứng (test, file, ảnh chụp) cho từng dòng; PR `feat:` liệt kê bản đồ S-NNN → test (WF-SDD-003). -->
 - [ ] …
 
 ## Docs cập nhật / không cần
 - [ ] Đã cập nhật: <!-- README, RUNBOOK, SPEC, ERD/DOMAIN-MODEL, THREAT-MODEL, `docs/privacy/data-map.yaml`, CHANGELOG [Unreleased]… -->
 - [ ] Không cần — lý do: …
+
+## Definition of Done — bằng chứng từng mục
+<!-- Tick không kèm bằng chứng = chưa Done (WF-TEAM-004). Ghi link CI, tên test, đường dẫn file hoặc lệnh + exit code. -->
+- [ ] Mỗi tiêu chí chấp nhận có test xanh — bằng chứng: …
+- [ ] Cổng máy xanh (build · typecheck · lint · test) — bằng chứng: …
+- [ ] Trạng thái lỗi/rỗng/đang tải đã xử lý (UI) hoặc "không áp dụng — lý do" — bằng chứng: …
+- [ ] Không bí mật, không rác (file tạm, log gỡ lỗi), đã tự review diff — bằng chứng: …
+- [ ] Docs đã cập nhật (mục trên) — bằng chứng: …
+- [ ] Mục blueprint liên quan tick kèm `Bằng chứng:` (`python3 scripts/check-blueprint-evidence.py BLUEPRINT.md`) — bằng chứng: …
+
+## Refactor / perf — bảng trước–sau
+<!-- Chỉ cho PR `refactor:`/`perf:` (XC-GREEN-005): không trộn tính năng, không đổi hành vi công khai; số test không đổi trừ test mới thêm. Còn lại ghi "không áp dụng". -->
+| Số đo | Trước | Sau |
+|---|---|---|
+| Dòng mã (vùng sửa) | | |
+| Số test (`pnpm test`) | | |
+| Phụ thuộc (số, `pnpm-lock.yaml`) | | |
+| Bundle/độ phức tạp/thời gian (nếu là mục tiêu của PR) | | |
 
 ## Migration
 - [ ] Không có migration

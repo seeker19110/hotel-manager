@@ -104,6 +104,9 @@ Khi chạy thật (đề xuất D-021): chặn thêm `/api/metrics` ở reverse 
 - Lỗi render/route chưa bắt ghi log `lỗi render/route không dự kiến` (mẫu route, `digest`, stack; không cookie/đường dẫn thật).
 - Cookie phiên khi https mang tiền tố `__Host-hm.` (trình duyệt buộc Secure, Path=/, không Domain). Đổi `APP_BASE_URL` giữa http↔https ⇒ mọi phiên cũ mất hiệu lực (tên cookie đổi): người dùng đăng nhập lại.
 
+## 8c. Danh tính từng service (web, worker)
+Web chạy vai trò CSDL `app_runtime` và danh tính S3 `hotel-manager-web`; worker chạy `app_worker` (+ `app_runtime` cho job xuất dữ liệu) và danh tính S3 `hotel-manager-worker`. Hai danh tính S3 có khoá khác nhau trong `deploy/secrets/s3.json`, để thu hồi/xoay một bên không ảnh hưởng bên kia. Bảng đầy đủ, scope token/khoá và đóng gói image (`deploy/web.Dockerfile`, `deploy/worker.Dockerfile`, chưa build thật): [`deploy/README.md`](../deploy/README.md).
+
 ## 9. Địa chỉ IP khách sau reverse proxy (X-Forwarded-For)
 - Ràng buộc triển khai: **đúng MỘT proxy tin cậy trước ứng dụng** — Caddy (`deploy/Caddyfile`), KHÔNG đặt `trusted_proxies`, KHÔNG có CDN/lớp proxy khác phía trước. Ứng dụng lấy hop **phải nhất** của `X-Forwarded-For` (`forwardedClientIp`, `packages/app/src/logging/security-events.ts` — nơi duy nhất đọc header) cho `source_ip` của log bảo mật (cắt /24 hoặc /48) và cho giới hạn tần suất liên kết khách.
 - Căn cứ (tài liệu Caddy `reverse_proxy`, đọc 2026-10-16): Caddy mặc định bỏ qua `X-Forwarded-For` từ client không tin cậy và đặt/nối địa chỉ kết nối thật, nên hop phải nhất là địa chỉ Caddy thấy. Hop đầu là do client tự khai (giả được) nên không dùng.

@@ -21,6 +21,10 @@ phiên bản theo [SemVer](https://semver.org/lang/vi/). Chưa có bản phát h
   thao tác không hoàn tác; đóng 36 mục blueprint (171/496 MUST đạt). Hồ sơ: README, `.editorconfig`,
   `.gitattributes`, `.nvmrc`, mẫu PR sản phẩm, threat model cập nhật, quy trình sự cố/runbook/SLO + rule cảnh báo Prometheus,
   sổ dữ liệu cá nhân (`docs/privacy/`) và sổ rủi ro; test kiểm link tài liệu và tài liệu vận hành.
+- Đợt 5, T-412 (tài liệu + quy trình máy kiểm): ADR-0004 chiến lược render + mục "Điều kiện xem lại" cho ADR-0001/0002, `docs/ROUTES.md`
+  và `docs/architecture/{domains,resilience}.md` có test đối chiếu mã, PROJECT §5 theo ISO/IEC 25010:2023 và bảng phân loại dữ liệu,
+  `SCOPE.md`, bảng phụ thuộc ở `docs/RISKS.md`, SPEC có frontmatter + lint tiêu chí + đối chiếu S-NNN ↔ test (ratchet), mẫu PR nâng cấp
+  lớn + DoR/DoD + issue template, Dockerfile web/worker (chưa build thật) và tách danh tính S3 web/worker, `docs/handover/accounts.md`.
 
 ### Changed
 - Đợt 3: sửa theo các vòng review độc lập (công nợ tính từ sổ phụ gồm điều chỉnh giảm, job xuất không kẹt, claim thông báo chia đều
