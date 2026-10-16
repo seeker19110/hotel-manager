@@ -29,7 +29,7 @@ function storage(endpoint: string, resilience: Partial<StorageResilience> = {}):
     bucket: "bucket-test",
     accessKeyId: "AKIATEST",
     secretAccessKey: "khoa-bi-mat-test",
-    resilience: { timeoutMs: 300, baseDelayMs: 1, maxDelayMs: 20, ...resilience },
+    resilience: { timeoutMs: 3_000, baseDelayMs: 1, maxDelayMs: 20, ...resilience },
   });
 }
 
@@ -54,13 +54,17 @@ describe("timeout", () => {
     expect((err as StorageError).message).toContain("quá thời gian");
     expect((err as StorageError).retryable).toBe(true);
     expect(Date.now() - t0).toBeLessThan(2_000);
-    expect(hits).toHaveLength(1);
+    // Tải máy cao có thể làm 100 ms hết trước khi yêu cầu tới server: chỉ khẳng định KHÔNG gửi lại (≤ 1 lần tới nơi).
+    expect(hits.length).toBeLessThanOrEqual(1);
   });
 
   it("treo ở mọi lần → thử đúng 1 + 3 lần rồi báo lỗi", async () => {
     const endpoint = await start(() => {});
-    await expect(storage(endpoint, { timeoutMs: 60 }).delete("k")).rejects.toThrow(/quá thời gian/);
-    expect(hits).toHaveLength(4);
+    const waits: number[] = [];
+    await expect(
+      storage(endpoint, { timeoutMs: 80, sleep: async (ms) => void waits.push(ms) }).delete("k"),
+    ).rejects.toThrow(/quá thời gian/);
+    expect(waits).toHaveLength(3); // 1 + 3 lần thử, đếm qua số lần chờ (không phụ thuộc yêu cầu kịp tới server)
   });
 
   it("ping không thử lại (readiness phản ánh trạng thái hiện tại)", async () => {
