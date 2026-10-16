@@ -219,7 +219,7 @@ Ký hiệu: **Có** = được trong phạm vi cơ sở · **HM** = trong hạn 
 | Tạo hold/booking, đổi ngày, huỷ, check-in/out | Có | Có | Có | — | — | — | — | — |
 | Thông báo lưu trú: xuất mẫu, đánh dấu đã thông báo (`stay.exportResidenceNotice`/`stay.markNoticeSubmitted`) | Có | Có | Có | — | — | — | — | — |
 | Đổi giá/giảm giá trên booking | Có | HM | HM | — | — | — | — | — |
-| Check-out còn công nợ | Có | Có | — (cần manager duyệt) | — | — | — | — | — |
+| Check-out còn công nợ | Có | Có | Đề nghị (cần manager duyệt; D-012) | — | — | — | — | — |
 | Chuyển phòng | Có | Có | Có | — | — | — | — | — |
 | Đề xuất block | Có | Có | Có | — | — | Có | — | — |
 | Duyệt/kết thúc block | Có | Có | — | — | — | — | — | — |

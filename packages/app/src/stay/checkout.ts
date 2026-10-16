@@ -219,6 +219,15 @@ export async function checkOut(ctx: CommandContext, input: CheckoutInput): Promi
       extensions: { from: stay.status, to: "checked_out" },
     });
   }
+  if (input.allowBalance) {
+    if (!UUID.test(input.allowBalance.debtorPersonId))
+      throw fieldError("allow_balance.debtor_person_id", "required", "Cần người nợ");
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(input.allowBalance.dueDate) ||
+      Number.isNaN(Date.parse(input.allowBalance.dueDate))
+    )
+      throw fieldError("allow_balance.due_date", "required", "Cần hạn trả hợp lệ");
+  }
   const dayRow = await sql<{ d: string }>`
     select app.business_date(${ctx.actor.orgId}, ${stay.property_id}, ${now})::text as d`.execute(ctx.trx);
   const day = dayRow.rows[0]?.d as string;

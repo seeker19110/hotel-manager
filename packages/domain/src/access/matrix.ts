@@ -59,7 +59,10 @@ export const MATRIX = {
     "Đổi giá/giảm giá trên booking",
     ["yes", "limit", "limit", "no", "no", "no", "no", "no"],
   ],
-  "stay.checkout_with_debt": ["Check-out còn công nợ", ["yes", "yes", "no", "no", "no", "no", "no", "no"]],
+  "stay.checkout_with_debt": [
+    "Check-out còn công nợ",
+    ["yes", "yes", "request", "no", "no", "no", "no", "no"],
+  ],
   "stay.move": ["Chuyển phòng", ["yes", "yes", "yes", "no", "no", "no", "no", "no"]],
   "block.propose": ["Đề xuất block", ["yes", "yes", "yes", "no", "no", "yes", "no", "no"]],
   "block.approve": ["Duyệt/kết thúc block", ["yes", "yes", "no", "no", "no", "no", "no", "no"]],

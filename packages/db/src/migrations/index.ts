@@ -29,6 +29,7 @@ import * as m0025 from "./0025_reservations.ts";
 import * as m0026 from "./0026_reservation_expiry.ts";
 import * as m0027 from "./0027_residence_notices.ts";
 import * as m0028 from "./0028_tasks_checkout.ts";
+import * as m0029 from "./0029_checkout_allocation_policy.ts";
 
 export const migrations: Record<string, Migration> = {
   "0001_tenancy": m0001,
@@ -59,4 +60,5 @@ export const migrations: Record<string, Migration> = {
   "0026_reservation_expiry": m0026,
   "0027_residence_notices": m0027,
   "0028_tasks_checkout": m0028,
+  "0029_checkout_allocation_policy": m0029,
 };
