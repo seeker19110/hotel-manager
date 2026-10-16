@@ -16,7 +16,9 @@ phiên bản theo [SemVer](https://semver.org/lang/vi/). Chưa có bản phát h
   thông báo trong app + email qua outbox (nhắc quá hạn/hết hạn/lưu trú, tuỳ chọn, huỷ đăng ký); portal người thuê (đăng nhập OTP
   email, xem kỳ thu/hợp đồng/công tơ, "Tôi đã chuyển") và liên kết khách; nhật ký audit, màn "Hôm nay", báo cáo công nợ/thu tiền/cọc/
   công suất, xuất dữ liệu qua job; `/api/metrics`, `/api/ready`, `docs/RUNBOOK.md`; UI khách sạn + E2E R-003.
-- Đợt 4 (đang thực hiện, `docs/autopilot/PLAN.md`) — đóng mục blueprint làm được trong repo: README, `.editorconfig`,
+- Đợt 4 (`docs/autopilot/PLAN.md`, T-301…T-311) — worker chạy thật (validate env, lịch định kỳ, dừng êm), timeout + retry cho kho object/pool,
+  ghi file ngoài transaction, log chuẩn OTel + sự kiện bảo mật + NFC, OpenAPI 3.1 sinh từ registry, rào cấu trúc CSDL/kiến trúc, hộp xác nhận
+  thao tác không hoàn tác; đóng 36 mục blueprint (171/496 MUST đạt). Hồ sơ: README, `.editorconfig`,
   `.gitattributes`, `.nvmrc`, mẫu PR sản phẩm, threat model cập nhật, quy trình sự cố/runbook/SLO + rule cảnh báo Prometheus,
   sổ dữ liệu cá nhân (`docs/privacy/`) và sổ rủi ro; test kiểm link tài liệu và tài liệu vận hành.
 
