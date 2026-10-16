@@ -81,6 +81,8 @@ Kiểm phụ thuộc có lỗ hổng: `pnpm audit --prod`.
 - Đặc tả: [`docs/specs/`](docs/specs) · thiết kế: [`docs/design/`](docs/design) (mô hình dữ liệu [`DOMAIN-MODEL.md`](docs/design/DOMAIN-MODEL.md),
   [`ERD.md`](docs/design/ERD.md), [`THREAT-MODEL.md`](docs/design/THREAT-MODEL.md)) · quyết định: [`docs/adr/`](docs/adr), [`docs/autopilot/DECISIONS.md`](docs/autopilot/DECISIONS.md)
 - Vận hành: [`docs/RUNBOOK.md`](docs/RUNBOOK.md) · bí mật chỉ nạp qua môi trường, mẫu ở `.env.example`
+- Quyền riêng tư và rủi ro: [`docs/privacy/data-map.yaml`](docs/privacy/data-map.yaml) (sổ dữ liệu cá nhân, có test đối chiếu CSDL), [`docs/privacy/ROPA.md`](docs/privacy/ROPA.md), [`docs/privacy/processors.md`](docs/privacy/processors.md), [`docs/RISKS.md`](docs/RISKS.md)
+- Ứng phó sự cố, runbook, SLO: [`docs/ops/INCIDENT-RESPONSE.md`](docs/ops/INCIDENT-RESPONSE.md), [`docs/ops/SLO.md`](docs/ops/SLO.md)
 
 ## Đóng góp
 

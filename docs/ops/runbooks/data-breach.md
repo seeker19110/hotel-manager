@@ -30,7 +30,7 @@ Gửi **thông báo sơ bộ** trong thời hạn rồi bổ sung; không chờ 
 
 ## Các bước
 1. **Phát hiện và ghi giờ (UTC)**: ai, khi nào, bằng cách nào; mở dòng thời gian (mẫu ở INCIDENT-RESPONSE §7). Đồng hồ pháp lý bắt đầu.
-2. **Đánh giá** (≤ 4 giờ): loại dữ liệu (giấy tờ nhạy cảm, SĐT/email/tên, dữ liệu tiền), số chủ thể và tổ chức bị ảnh hưởng, nguyên nhân còn tiếp diễn không, dữ liệu có được mã hoá khi lộ không (số giấy tờ AES-256-GCM; ảnh file riêng tư; bản sao lưu mã hoá). Truy vấn phạm vi từ `audit_events`, log Caddy/web (`correlation_id`), `files`, `export_jobs`. Tra bảng cột/nơi lưu ở `docs/privacy/data-map.yaml` (T-309).
+2. **Đánh giá** (≤ 4 giờ): loại dữ liệu (giấy tờ nhạy cảm, SĐT/email/tên, dữ liệu tiền), số chủ thể và tổ chức bị ảnh hưởng, nguyên nhân còn tiếp diễn không, dữ liệu có được mã hoá khi lộ không (số giấy tờ AES-256-GCM; ảnh file riêng tư; bản sao lưu mã hoá). Truy vấn phạm vi từ `audit_events`, log Caddy/web (`correlation_id`), `files`, `export_jobs`. Tra bảng cột/nơi lưu ở [`docs/privacy/data-map.yaml`](../../privacy/data-map.yaml).
 3. **Khoanh vùng**: dừng đường rò (rollback, thu hồi phiên/membership/liên kết khách, xoay bí mật theo [secret-leak](secret-leak.md), chặn route). Thao tác lên dữ liệu thật theo INCIDENT-RESPONSE §4–§5.
 4. **Quyết nghĩa vụ thông báo** (pháp lý, ≤ 24 giờ từ phát hiện): có/không, đối tượng, nội dung. Ghi quyết định và người quyết vào dòng thời gian.
 5. **Thông báo**: dùng mẫu bên dưới; mỗi thông báo ra ngoài cần chủ dự án duyệt (AGENTS §6). Lưu bản đã gửi + biên nhận.
