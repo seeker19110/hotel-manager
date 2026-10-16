@@ -3,7 +3,7 @@
 | Trường | Giá trị |
 |---|---|
 | ID tính năng | F-009 (yêu cầu gốc: R-001…R-005 chạy trên thiết bị mục tiêu; kế hoạch §09, §10, §17; backlog T041, T042, T048) |
-| Trạng thái | Draft — chờ duyệt |
+| Trạng thái | Approved — 0 câu [chặn] (PLAN đợt 3, D-002) |
 | Phiên bản | 2 — thay đổi: xem cuối file |
 | Chủ spec | (chưa gán) · Duyệt bởi (chưa) ngày (chưa) |
 | Hồ sơ/quy mô | web-app / M |

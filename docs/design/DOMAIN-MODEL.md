@@ -22,7 +22,7 @@
 | Booking | `reservations` + `reservation_items` | Đặt phòng ngắn hạn, có thể nhiều dòng phòng | Lượt ở |
 | Lượt ở | `stays` | Khách thực ở một phòng cụ thể (check-in → check-out) | Booking |
 | Người ở theo hợp đồng | `lease_occupants` | Người ở thực tế của hợp đồng (khác người ký/người trả) | Người thuê ký |
-| Giấy tờ nhận dạng | `identity_documents` | Số/ảnh CCCD, hộ chiếu (dữ liệu nhạy cảm): file riêng tư, che khi hiển thị, retention riêng | |
+| Giấy tờ nhận dạng | `identity_documents` | Số/ảnh CCCD, hộ chiếu (dữ liệu nhạy cảm): số mã hoá tầng app + blind index (D-004), chỉ hiển thị 4 số cuối; file riêng tư; retention riêng | |
 | Folio | (khung nhìn trên `charges` + `payment_allocations` theo `stay`/`reservation`) | Tổng hợp các khoản phải thu và đã trả của một lượt ở | Hoá đơn thuế |
 | Công tơ | `meters` | Đồng hồ điện/nước gắn với phòng; thay công tơ tạo sự kiện reset | |
 | Chỉ số | `meter_readings` | Giá trị đọc tại một thời điểm, có ảnh và trạng thái nháp/đã duyệt | |
@@ -44,7 +44,7 @@
 - **INV-G1 Tenant:** mọi bảng nghiệp vụ có `organization_id NOT NULL`. Bảng thuộc cơ sở có thêm `property_id`. Foreign key ghép `(organization_id, id)` để con không trỏ sang tổ chức khác. RLS lọc theo `current_setting('app.org_id')`; runtime role `app_runtime` không phải owner và không có BYPASSRLS. Server lấy `organization_id` từ membership, **không tin giá trị client gửi**.
 - **INV-G2 Thời gian:** `timestamptz` lưu UTC; `properties.timezone` (IANA, mặc định `Asia/Ho_Chi_Minh`). Ngày thuê, kỳ thu và `business_date` là kiểu `date` địa phương.
 - **INV-G3 Tiền:** VND là `bigint` đồng, không dùng float ở DB, API hay UI. Lượng và đơn giá phân số dùng `numeric`. Mỗi chứng từ lưu `currency`, `tax_profile_id`, `rounding_rule`, `formula_version`. Chỉ có một hàm làm tròn dùng chung (`packages/domain/money`).
-- **INV-G4 Bất biến chứng từ:** chứng từ đã phát hành hoặc ghi sổ không bị UPDATE/DELETE nội dung tiền (trigger chặn). Sửa bằng chứng từ đảo/điều chỉnh tham chiếu bản gốc, có lý do và người duyệt.
+- **INV-G4 Bất biến chứng từ:** chứng từ đã phát hành hoặc ghi sổ không bị UPDATE/DELETE nội dung tiền (trigger chặn). Sửa bằng chứng từ đảo/điều chỉnh tham chiếu bản gốc, có lý do và người duyệt. Ngoại lệ có kiểm soát duy nhất: `lease_versions.superseded_on` đặt một lần (NULL → ngày) khi phụ lục thay phiên bản không thời hạn — điều khoản và băm không đổi (D-007).
 - **INV-G5 Idempotency:** mọi command ghi nhận `Idempotency-Key`, lưu `(organization_id, key)` unique cùng `request_hash`, kết quả và hạn. Cùng key + cùng hash → trả kết quả cũ. Cùng key + khác hash → 409.
 - **INV-G6 Audit + outbox cùng transaction:** command ghi dữ liệu nghiệp vụ, `audit_events` (chủ thể, trước/sau, lý do, `correlation_id`) và `outbox` trong **một** transaction. Gửi ra ngoài làm sau khi commit.
 - **INV-G7 Xoá:** soft delete chỉ áp cho danh mục. Dữ liệu nhận dạng có retention riêng; xoá hoặc ẩn danh kèm tombstone.

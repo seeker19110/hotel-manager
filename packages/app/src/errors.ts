@@ -36,6 +36,7 @@ export const ERROR_CODES = {
   COMMAND_NOT_FOUND: { status: 404, source: "contract" },
   RATE_LIMITED: { status: 429, source: "contract" },
   INTERNAL: { status: 500, source: "contract" },
+  SERVICE_UNAVAILABLE: { status: 503, source: "contract" },
   // Riêng tính năng / nội bộ
   ORG_CONTEXT_REQUIRED: { status: 409, source: "SPEC-access-and-property §6" },
   MFA_REQUIRED: { status: 403, source: "SPEC-access-and-property Q-06 (T-006)" },
@@ -62,6 +63,11 @@ export const ERROR_CODES = {
   EVIDENCE_REQUIRED: { status: 422, source: "SPEC-ledger-payments §6" },
   BANK_TRANSACTION_ALREADY_USED: { status: 409, source: "SPEC-ledger-payments §6" },
   REFUND_EXCEEDS_BALANCE: { status: 409, source: "SPEC-ledger-payments §6" },
+  RATE_NOT_CONFIGURED: { status: 422, source: "SPEC-reservation-stay §6" },
+  CAPACITY_EXCEEDED: { status: 422, source: "SPEC-reservation-stay §6" },
+  ROOM_NOT_READY: { status: 409, source: "SPEC-reservation-stay §6" },
+  OUTSTANDING_BALANCE: { status: 409, source: "SPEC-reservation-stay §6" },
+  NOTICE_TEMPLATE_MISSING: { status: 409, source: "SPEC-reservation-stay §6" },
   DUPLICATE: { status: 409, source: "unique 23505 chưa có mã nghiệp vụ riêng" },
 } as const satisfies Record<string, ErrorSpec>;
 

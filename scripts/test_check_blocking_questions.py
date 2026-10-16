@@ -1,4 +1,5 @@
 import importlib.util
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -34,6 +35,18 @@ class OpenBlockingTest(unittest.TestCase):
     def test_main_spec_khong_ton_tai(self):
         self.assertEqual(mod.main(["khong-ton-tai-xyz"]), 1)
         self.assertEqual(mod.main([]), 2)
+
+    def test_approved_specs_chi_lay_spec_approved(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            (root / "SPEC-a.md").write_text("| Trạng thái | Approved — chốt |\n", encoding="utf-8")
+            (root / "SPEC-b.md").write_text("| Trạng thái | Draft — chờ duyệt |\n", encoding="utf-8")
+            (root / "SPEC-c.md").write_text("| Trạng thái | Approved |\n- [ ] Q — [chặn]\n", encoding="utf-8")
+            self.assertEqual(mod.approved_specs(root), ["a", "c"])
+
+    def test_repo_moi_spec_approved_khong_con_cau_chan(self):
+        self.assertTrue(len(mod.approved_specs()) >= 5)
+        self.assertEqual(mod.main(["--approved"]), 0)
 
 
 if __name__ == "__main__":

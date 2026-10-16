@@ -387,8 +387,11 @@ Loại: M
 | property_id | uuid | có | FK ghép → `properties` | SPEC-reservation ghi có `property_id`, SPEC-lease không (mục 7); NULL khi ghi ở cấp tổ chức |
 | person_id | uuid | không | FK ghép → `persons` | |
 | doc_type | text | không | `CHECK (doc_type IN ('cccd','passport','other'))` | Giá trị đề xuất; SPEC chỉ nêu "loại giấy tờ" |
-| doc_number | text | không | `CHECK (length(btrim(doc_number)) BETWEEN 5 AND 30)` | Số đầy đủ; nhạy cảm; mã hoá cột hay không là quyết định ở T-011 (mục 7) |
-| doc_number_masked | text | không | `GENERATED ALWAYS AS (repeat('*', greatest(length(doc_number)-4, 0)) \|\| right(doc_number, 4)) STORED` | Chỉ cột này được hiển thị/ghi audit (giữ 4 số cuối) |
+| doc_number_enc | bytea | có | NULL chỉ khi đã ẩn danh | Số đầy đủ mã hoá AES-256-GCM tầng app (D-004, T-202): `key_id(1) ‖ iv(12) ‖ tag(16) ‖ ciphertext`; CSDL không bao giờ thấy số rõ |
+| doc_number_key_id | smallint | có | | Khoá đã dùng (xoay khoá: đọc theo `key_id`, ghi bằng khoá hiện hành) |
+| doc_number_hash | bytea | có | `CHECK (octet_length(doc_number_hash) = 32)` | Blind index HMAC-SHA256(khoá index, loại ‖ số chuẩn hoá) — tra trùng/tìm theo số mà không giải mã |
+| doc_number_last4 | text | có | `CHECK (doc_number_last4 ~ '^[0-9A-Z]{1,4}$')` | Chỉ cột này được hiển thị/ghi audit (`****1234`) |
+| nationality | char(2) | có | `CHECK (nationality ~ '^[A-Z]{2}$')` | Quốc tịch ghi trên giấy tờ (hộ chiếu); `residence_notices.is_foreign` |
 | file_id | uuid | có | FK ghép → `files` | Ảnh giấy tờ tuỳ chọn, mặc định không lưu (Q-08); file riêng tư |
 | retention_until | date | có | | Hạn giữ riêng; quá hạn thì worker ẩn danh |
 | anonymized_at | timestamptz | có | | Xoá `doc_number` và `file_id`, giữ tombstone (INV-G7) |
@@ -637,9 +640,10 @@ Loại: M cho đến khi ký, sau đó bất biến
 | terms_snapshot | jsonb | có | | Điều khoản đóng băng lúc ký |
 | terms_hash | text | có | `CHECK (terms_hash ~ '^[0-9a-f]{64}$')` | SHA-256 của `terms_snapshot` |
 | signed_at | timestamptz | có | `CHECK ((signed_at IS NULL) = (terms_hash IS NULL))` | Đặt khi ký (bản gốc) hoặc khi phụ lục có hiệu lực |
+| superseded_on | date | có | đặt **một lần** (NULL → ngày), chỉ bởi `lease.renew`; `CHECK (superseded_on IS NULL OR superseded_on > effective_from)` | D-007: phiên bản không thời hạn bị phụ lục thay từ ngày này; điều khoản + `terms_hash` không đổi. Hiệu lực thực = `[effective_from, least(effective_to, superseded_on − 1)]` |
 
-- Khoá/index: `UNIQUE (organization_id, property_id, id)`; `UNIQUE (organization_id, lease_id, version_no)`; **`ex_lease_versions_no_overlap EXCLUDE USING gist (organization_id WITH =, lease_id WITH =, daterange(effective_from, effective_to, '[]') WITH &&)`** (`23P01` → `LEASE_VERSION_OVERLAP`).
-- Ràng buộc đặc biệt: trigger chặn UPDATE/DELETE khi `signed_at IS NOT NULL` (INV-G4, `DOCUMENT_IMMUTABLE`); sửa điều khoản = phụ lục mới (`lease.renew`). Mỗi kỳ thu tính theo phiên bản hiệu lực từng ngày, đổi giá giữa kỳ tách hai đoạn (SPEC-metering S-021).
+- Khoá/index: `UNIQUE (organization_id, property_id, id)`; `UNIQUE (organization_id, lease_id, version_no)`; **`ex_lease_versions_no_overlap EXCLUDE USING gist (organization_id WITH =, lease_id WITH =, daterange(effective_from, least(effective_to, superseded_on - 1), '[]') WITH &&)`** (từ migration T-224) (`23P01` → `LEASE_VERSION_OVERLAP`).
+- Ràng buộc đặc biệt: trigger chặn UPDATE/DELETE khi `signed_at IS NOT NULL` (INV-G4, `DOCUMENT_IMMUTABLE`) — ngoại lệ duy nhất: đặt `superseded_on` từ NULL một lần (D-007); sửa điều khoản = phụ lục mới (`lease.renew`). Mỗi kỳ thu tính theo phiên bản hiệu lực từng ngày, đổi giá giữa kỳ tách hai đoạn (SPEC-metering S-021).
 - RLS/quyền đặc biệt: như `leases`.
 - Bất biến: INV-G4, INV-G3 (tiền `bigint`).
 

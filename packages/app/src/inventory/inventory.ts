@@ -1,8 +1,10 @@
 // Lịch tài nguyên (SPEC-inventory-allocation, DOMAIN-MODEL §3). Bất biến chồng phòng nằm ở CSDL (EXCLUDE — INV-I1);
 // code chỉ dọn hold hết hạn dưới khoá phòng (INV-I3), dịch lỗi 23P01 → ROOM_UNAVAILABLE và ghi audit/outbox.
 import { randomUUID } from "node:crypto";
+import { withTenant } from "@hm/db";
 import { authorize } from "@hm/domain";
-import { sql, type Transaction } from "kysely";
+import { type Kysely, sql, type Transaction } from "kysely";
+import type { Actor } from "../access/actor.ts";
 import type { CommandContext } from "../pipeline/command.ts";
 import { CommandError } from "../pipeline/problem.ts";
 
@@ -103,6 +105,9 @@ export async function createHold(
       ctx.trx,
     );
   } catch (err) {
+    // Về lại savepoint để người gọi còn dùng được transaction (vd tìm phòng gợi ý — SPEC-reservation-stay S-004).
+    if ((err as { code?: string }).code === "23P01")
+      await sql`rollback to savepoint hold_insert`.execute(ctx.trx);
     translateOverlap(err);
   }
   await ctx.audit({
@@ -336,4 +341,91 @@ export async function unitStatus(trx: Transaction<unknown>, orgId: string, unitI
         ? "held"
         : "vacant";
   return { occupancy, housekeeping: u.housekeeping_status, availability: u.availability };
+}
+
+/**
+ * `inventory.getUnitStatus` (query, SPEC-housekeeping S-007, S-010): ba chiều trạng thái + `ready_for_arrival` = trống, đang
+ * khai thác và đã kiểm (`inspected`; cơ sở không bắt buộc kiểm thì `clean` cũng được). "Sạch" không có nghĩa là "trống".
+ */
+export async function getUnitStatus(
+  db: Kysely<unknown>,
+  actor: Actor,
+  unitId: string,
+  at = new Date(),
+): Promise<{
+  unitId: string;
+  occupancy: Occupancy;
+  housekeeping: string;
+  availability: string;
+  readyForArrival: boolean;
+}> {
+  if (!/^[0-9a-f-]{36}$/i.test(unitId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phòng");
+  return withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
+    const p = await sql<{ property_id: string; require_inspected: boolean }>`
+      select u.property_id, p.require_inspected from units u join properties p on p.organization_id = u.organization_id and p.id = u.property_id
+      where u.organization_id = ${actor.orgId} and u.id = ${unitId}`.execute(trx);
+    const row = p.rows[0];
+    if (!row) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phòng");
+    try {
+      authorize(actor, "calendar.read_status", { propertyId: row.property_id });
+    } catch {
+      throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phòng");
+    }
+    const s = await unitStatus(trx, actor.orgId, unitId, at);
+    const clean = s.housekeeping === "inspected" || (!row.require_inspected && s.housekeeping === "clean");
+    return {
+      unitId,
+      ...s,
+      readyForArrival: s.occupancy === "vacant" && s.availability === "active" && clean,
+    };
+  });
+}
+
+/**
+ * `inventory.endBlock` (SPEC-housekeeping S-019; SPEC-inventory block): chỉ owner/manager (`block.approve`); block `approved` →
+ * `ended`, allocation block thu lại tới thời điểm kết thúc (chưa bắt đầu → nhả). Gọi lại block đã kết thúc → 409.
+ */
+export async function endBlock(
+  ctx: CommandContext,
+  blockId: string,
+  now = new Date(),
+): Promise<{ blockId: string }> {
+  const r = await sql<{ property_id: string; status: string }>`
+    select property_id, status from blocks where organization_id = ${ctx.actor.orgId} and id = ${blockId} for update`.execute(
+    ctx.trx,
+  );
+  const b = r.rows[0];
+  if (!b) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy block");
+  authorize(ctx.actor, "block.approve", { propertyId: b.property_id });
+  if (b.status !== "approved")
+    throw new CommandError("INVALID_TRANSITION", 409, "Block không ở trạng thái đang chặn");
+  const a = await sql<{ id: string; lo: Date; hi: Date }>`
+    select id, lower(during) as lo, upper(during) as hi from allocations
+    where organization_id = ${ctx.actor.orgId} and kind = 'block' and source_id = ${blockId} and active for update`.execute(
+    ctx.trx,
+  );
+  for (const al of a.rows) {
+    if (now.getTime() <= al.lo.getTime()) {
+      await sql`update allocations set active = false, deactivated_at = ${now}, deactivated_reason = 'ended'
+                where organization_id = ${ctx.actor.orgId} and id = ${al.id}`.execute(ctx.trx);
+    } else if (now.getTime() < al.hi.getTime()) {
+      // Đang chặn: giữ khoảng đã chặn thật (lịch sử) rồi nhả — bất biến `trg_blocks_allocation`: ended ⇒ không còn active.
+      await sql`update allocations set during = tstzrange(lower(during), ${now}, '[)'), active = false, deactivated_at = ${now},
+                       deactivated_reason = 'ended'
+                where organization_id = ${ctx.actor.orgId} and id = ${al.id}`.execute(ctx.trx);
+    } else {
+      // Khoảng chặn đã qua (sửa xong muộn hơn hạn block): giữ nguyên khoảng, chỉ nhả (review buồng phòng/sự cố R1).
+      await sql`update allocations set active = false, deactivated_at = ${now}, deactivated_reason = 'ended'
+                where organization_id = ${ctx.actor.orgId} and id = ${al.id}`.execute(ctx.trx);
+    }
+  }
+  await sql`update blocks set status = 'ended', ended_at = ${now}, version = version + 1
+            where organization_id = ${ctx.actor.orgId} and id = ${blockId}`.execute(ctx.trx);
+  await ctx.audit({
+    action: "block.ended",
+    entityType: "block",
+    entityId: blockId,
+    propertyId: b.property_id,
+  });
+  return { blockId };
 }

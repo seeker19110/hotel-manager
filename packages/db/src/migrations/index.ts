@@ -23,6 +23,17 @@ import * as m0019 from "./0019_review_lease_fixes.ts";
 import * as m0020 from "./0020_billing.ts";
 import * as m0021 from "./0021_import.ts";
 import * as m0022 from "./0022_mfa_recovery_scope.ts";
+import * as m0023 from "./0023_identity_encryption.ts";
+import * as m0024 from "./0024_rate_plans.ts";
+import * as m0025 from "./0025_reservations.ts";
+import * as m0026 from "./0026_reservation_expiry.ts";
+import * as m0027 from "./0027_residence_notices.ts";
+import * as m0028 from "./0028_tasks_checkout.ts";
+import * as m0029 from "./0029_checkout_allocation_policy.ts";
+import * as m0030 from "./0030_residence_notice_files.ts";
+import * as m0031 from "./0031_unit_arrivals.ts";
+import * as m0032 from "./0032_work_orders.ts";
+import * as m0033 from "./0033_hk_maintenance_review_fixes.ts";
 
 export const migrations: Record<string, Migration> = {
   "0001_tenancy": m0001,
@@ -47,4 +58,15 @@ export const migrations: Record<string, Migration> = {
   "0020_billing": m0020,
   "0021_import": m0021,
   "0022_mfa_recovery_scope": m0022,
+  "0023_identity_encryption": m0023,
+  "0024_rate_plans": m0024,
+  "0025_reservations": m0025,
+  "0026_reservation_expiry": m0026,
+  "0027_residence_notices": m0027,
+  "0028_tasks_checkout": m0028,
+  "0029_checkout_allocation_policy": m0029,
+  "0030_residence_notice_files": m0030,
+  "0031_unit_arrivals": m0031,
+  "0032_work_orders": m0032,
+  "0033_hk_maintenance_review_fixes": m0033,
 };

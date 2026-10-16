@@ -3,7 +3,7 @@
 | Trường | Giá trị |
 |---|---|
 | ID tính năng | F-012 (yêu cầu gốc: R-001 "công nợ cập nhật", R-005 "đối chiếu tổng"; kế hoạch §08, §09, §16, §17; backlog T014, T039, T085 phần cơ bản) |
-| Trạng thái | Draft — chờ duyệt |
+| Trạng thái | Approved — câu [chặn] chốt theo PLAN đợt 3 (tham số hoá, D-002) |
 | Phiên bản | 2 — thay đổi: xem cuối file |
 | Chủ spec | (chưa gán) · Duyệt bởi (chưa) ngày (chưa) |
 | Hồ sơ/quy mô | web-app / M |
@@ -195,15 +195,15 @@ Không áp dụng — tính năng không dùng model.
 - `today.viewed`, `report.viewed` (thuộc tính `kind`), `export.requested`, `export.downloaded`, `audit.viewed` (không PII) → M-04 (sai lệch tiền/tồn), M-05 (dùng hằng tuần theo `property_id`); dùng `reconciliation_break` cho M-04.
 
 ## 10. Câu hỏi mở (0 câu [chặn] trước khi Approved)
-- [ ] Q-01 Bộ báo cáo **bắt buộc** cho pilot (tuần 12) và cột tối thiểu mỗi báo cáo — **[chặn]** — hỏi: PO + đại diện pilot + kế toán — **đề xuất mặc định:** 4 báo cáo ở S-009–S-012 + nhật ký; cột theo mục 5; đối chiếu với sổ Excel của 2 cơ sở pilot ở T078.
-- [ ] Q-02 Báo cáo thu theo "ca" khi F-013 (ca quầy) là Should — [không chặn] — hỏi: PO — **đề xuất:** pilot nhóm theo ngày kinh doanh + người xác nhận; thêm nhóm theo ca khi T065 xong.
-- [ ] Q-03 Nhóm tuổi nợ (0–30/31–60/>60 ngày) có cần không? — [không chặn] — hỏi: kế toán — **đề xuất:** pilot chỉ "số ngày quá hạn" từng phiếu.
-- [ ] Q-04 Mẫu số công suất: trừ phòng `blocked`/`out_of_service` hay không — [không chặn pilot; chặn T063] — hỏi: PO — **đề xuất:** phòng khả dụng = phòng `active` không bị block trong ngày; ghi công thức trên báo cáo.
-- [ ] Q-05 Xuất toàn bộ có gồm số giấy tờ/ảnh không (quyền mang dữ liệu vs dữ liệu nhạy cảm) — [không chặn bản cơ bản] — hỏi: pháp lý — **đề xuất:** bản cơ bản loại trừ; bản đủ (T085) chờ DPIA.
-- [ ] Q-06 Cửa sổ xác thực lại và thời hạn link tải — [không chặn] — hỏi: Tech Lead + PO — **đề xuất:** xác thực lại trong 5 phút trước khi xuất; link 15 phút; file xoá sau 24 giờ.
+- [x] Q-01 Bộ báo cáo **bắt buộc** cho pilot (tuần 12) và cột tối thiểu mỗi báo cáo — **[chặn]** — hỏi: PO + đại diện pilot + kế toán — **đề xuất mặc định:** 4 báo cáo ở S-009–S-012 + nhật ký; cột theo mục 5; đối chiếu với sổ Excel của 2 cơ sở pilot ở T078. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** 4 báo cáo S-009–S-012 + nhật ký audit; cột theo mục 5; đối chiếu sổ Excel pilot khi có dữ liệu (T078).
+- [x] Q-02 Báo cáo thu theo "ca" khi F-013 (ca quầy) là Should — [không chặn] — hỏi: PO — **đề xuất:** pilot nhóm theo ngày kinh doanh + người xác nhận; thêm nhóm theo ca khi T065 xong. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** nhóm theo ngày kinh doanh + phương thức + người xác nhận, kèm nhóm theo ca (`shifts` đã có từ đợt 2).
+- [x] Q-03 Nhóm tuổi nợ (0–30/31–60/>60 ngày) có cần không? — [không chặn] — hỏi: kế toán — **đề xuất:** pilot chỉ "số ngày quá hạn" từng phiếu. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** pilot chỉ "số ngày quá hạn" từng phiếu.
+- [x] Q-04 Mẫu số công suất: trừ phòng `blocked`/`out_of_service` hay không — [không chặn pilot; chặn T063] — hỏi: PO — **đề xuất:** phòng khả dụng = phòng `active` không bị block trong ngày; ghi công thức trên báo cáo. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** phòng khả dụng = phòng `active` không bị block trong ngày; công thức ghi trên báo cáo.
+- [x] Q-05 Xuất toàn bộ có gồm số giấy tờ/ảnh không (quyền mang dữ liệu vs dữ liệu nhạy cảm) — [không chặn bản cơ bản] — hỏi: pháp lý — **đề xuất:** bản cơ bản loại trừ; bản đủ (T085) chờ DPIA. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** bản cơ bản loại trừ số giấy tờ và ảnh; bản đủ chờ DPIA.
+- [x] Q-06 Cửa sổ xác thực lại và thời hạn link tải — [không chặn] — hỏi: Tech Lead + PO — **đề xuất:** xác thực lại trong 5 phút trước khi xuất; link 15 phút; file xoá sau 24 giờ. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** xác thực lại trong 5 phút trước khi xuất; link 15 phút; file xoá sau 24 giờ.
 - [x] Q-07 Bổ sung `export_jobs` vào DOMAIN-MODEL — đã đóng: có ở DOMAIN-MODEL §7 (v1.2). Danh sách trường `audit_events` còn chốt ở T014 (không chặn).
-- [ ] Q-08 Thư viện ghi XLSX — [không chặn] — hỏi: Tech Lead — **đề xuất:** chọn ở T039 qua `/research` (giấy phép OSI, đang bảo trì, ghim phiên bản), ghi vào ADR mới; nếu chưa có thì pilot chỉ xuất CSV UTF-8 có BOM.
-- [ ] Q-09 Thời gian giữ `audit_events` — [không chặn] — hỏi: pháp lý — **đề xuất:** theo lịch retention ở DPIA (kế hoạch §16 "Vòng đời dữ liệu"); chưa xoá trong pilot.
+- [x] Q-08 Thư viện ghi XLSX — [không chặn] — hỏi: Tech Lead — **đề xuất:** chọn ở T039 qua `/research` (giấy phép OSI, đang bảo trì, ghim phiên bản), ghi vào ADR mới; nếu chưa có thì pilot chỉ xuất CSV UTF-8 có BOM. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** dùng bộ ghi XLSX tự viết của T-115 (`packages/app/src/import/xlsx.ts`, không thêm thư viện); CSV UTF-8 có BOM.
+- [x] Q-09 Thời gian giữ `audit_events` — [không chặn] — hỏi: pháp lý — **đề xuất:** theo lịch retention ở DPIA (kế hoạch §16 "Vòng đời dữ liệu"); chưa xoá trong pilot. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** giữ, chưa xoá trong pilot; lịch retention theo DPIA.
 
 ## 11. DoR / DoD
 - DoR: spec Approved · 0 câu hỏi chặn · sổ phụ và phân bổ (F-005) có API query công khai · mỗi task có Gate.

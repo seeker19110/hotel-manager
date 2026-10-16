@@ -3,7 +3,7 @@
 import { spawn } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
 import { rmSync, writeFileSync } from "node:fs";
-import { createAuth } from "@hm/app";
+import { createAuth, loadConfig } from "@hm/app";
 import { migrateToLatest } from "@hm/db";
 import { bootstrapRoles, type PgCluster, pgUrl, seedOrg, startPgCluster } from "@hm/testkit/setup";
 import { Kysely, PostgresDialect, sql } from "kysely";
@@ -181,21 +181,32 @@ await migrator.destroy();
 const secret = randomBytes(32).toString("base64url");
 await seed(adminUrl, runtimeUrl, secret);
 
+const appEnv: NodeJS.ProcessEnv = {
+  ...process.env,
+  NODE_ENV: "production",
+  NEXT_TELEMETRY_DISABLED: "1",
+  APP_BASE_URL: BASE_URL,
+  DATABASE_URL: runtimeUrl,
+  BETTER_AUTH_SECRET: secret,
+  // Smoke không dùng object storage; giá trị giả chỉ để qua validate cấu hình.
+  S3_ENDPOINT: "http://127.0.0.1:9/",
+  S3_BUCKET: "hm-e2e",
+  S3_ACCESS_KEY_ID: "e2e",
+  S3_SECRET_ACCESS_KEY: "e2e-khong-dung",
+  // Production bắt buộc khoá PII + máy quét (T-202/T-203): khoá ngẫu nhiên chỉ sống trong tiến trình này; E2E không tải
+  // file nên clamd giả (cổng 9) không được gọi.
+  HM_PII_KEYS: `1:${randomBytes(32).toString("base64")}`,
+  HM_PII_KEY_ID: "1",
+  HM_PII_INDEX_KEY: randomBytes(32).toString("base64"),
+  CLAMD_HOST: "127.0.0.1",
+  CLAMD_PORT: "9",
+};
+// Hàng rào: env của server E2E phải qua đúng schema cấu hình production — thiếu biến thì dừng ngay, báo tên biến
+// (thay vì đăng nhập 500 âm thầm như lần thêm khoá PII).
+loadConfig(appEnv);
 const next = spawn("pnpm", ["exec", "next", "start", "--hostname", "127.0.0.1", "--port", String(PORT)], {
   stdio: "inherit",
-  env: {
-    ...process.env,
-    NODE_ENV: "production",
-    NEXT_TELEMETRY_DISABLED: "1",
-    APP_BASE_URL: BASE_URL,
-    DATABASE_URL: runtimeUrl,
-    BETTER_AUTH_SECRET: secret,
-    // Smoke không dùng object storage; giá trị giả chỉ để qua validate cấu hình.
-    S3_ENDPOINT: "http://127.0.0.1:9/",
-    S3_BUCKET: "hm-e2e",
-    S3_ACCESS_KEY_ID: "e2e",
-    S3_SECRET_ACCESS_KEY: "e2e-khong-dung",
-  },
+  env: appEnv,
 });
 
 let stopping = false;

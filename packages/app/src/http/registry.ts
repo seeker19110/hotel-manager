@@ -20,6 +20,18 @@ import {
   requestDepositRefund,
 } from "../deposits/deposits.ts";
 import {
+  assignTask,
+  cancelTask,
+  claimTask,
+  completeTask,
+  createTask,
+  getTask,
+  listTasks,
+  startTask,
+  verifyTask,
+} from "../housekeeping/tasks.ts";
+import { getIdentityDocument } from "../identity/identity.ts";
+import {
   cancelBatch,
   commitBatch,
   confirmBatch,
@@ -29,6 +41,7 @@ import {
   setExpectedTotals,
   validateBatch,
 } from "../import/import.ts";
+import { approveBlock, endBlock, getUnitStatus } from "../inventory/inventory.ts";
 import { activateLease, recordHandover, renewLease } from "../lease/handover.ts";
 import {
   addOccupant,
@@ -44,6 +57,17 @@ import {
 } from "../lease/lease.ts";
 import { approveSettlement, closeLease, giveNotice, prepareSettlement } from "../lease/settlement.ts";
 import { financialSummary, issueAdjustment, lockPeriod, unlockPeriod } from "../ledger/period-close.ts";
+import {
+  assignWorkOrder,
+  cancelWorkOrder,
+  completeWorkOrder,
+  createWorkOrder,
+  listMyWorkOrders,
+  listWorkOrders,
+  proposeWorkOrderBlock,
+  startWorkOrder,
+  verifyWorkOrder,
+} from "../maintenance/work-orders.ts";
 import {
   acknowledgeAnomaly,
   installMeter,
@@ -73,6 +97,21 @@ import {
   reassignDiscrepancy,
   receiveHandover,
 } from "../shifts/shifts.ts";
+import { checkOut } from "../stay/checkout.ts";
+import { getFolio, postCharge, voidCharge } from "../stay/folio.ts";
+import { createRoomType, quote, setRate, updateRoomType } from "../stay/rates.ts";
+import {
+  cancelReservation,
+  changeDates,
+  confirmReservation,
+  createReservation,
+  getReservation,
+  holdReservation,
+  listReservations,
+  markNoShow,
+} from "../stay/reservations.ts";
+import { exportResidenceNotice, listNotices, markNoticeSubmitted } from "../stay/residence-notices.ts";
+import { checkIn, type GuestInput, walkIn } from "../stay/stays.ts";
 import type { CommandDef, QueryDef } from "./command-route.ts";
 
 const uuid = z.uuid();
@@ -109,6 +148,24 @@ const toTerms = (t: z.infer<typeof leaseTerms>) => ({
     quantity: s.quantity,
     ...(s.unit_price === undefined ? {} : { unitPrice: s.unit_price }),
   })),
+});
+const guest = z.strictObject({
+  person_id: uuid.optional(),
+  full_name: z.string().trim().min(1).max(200).optional(),
+  phone: z.string().trim().min(6).max(20).optional(),
+  email: z.email().max(320).optional(),
+  doc_type: z.enum(["cccd", "passport", "other"]),
+  doc_number: z.string().trim().min(5).max(40),
+  nationality: z.string().trim().length(2).optional(),
+});
+const toGuest = (g: z.infer<typeof guest>): GuestInput => ({
+  docType: g.doc_type,
+  docNumber: g.doc_number,
+  ...(g.person_id ? { personId: g.person_id } : {}),
+  ...(g.full_name ? { fullName: g.full_name } : {}),
+  ...(g.phone ? { phone: g.phone } : {}),
+  ...(g.email ? { email: g.email } : {}),
+  ...(g.nationality ? { nationality: g.nationality } : {}),
 });
 const column = z.union([z.string().trim().min(1).max(100), z.number().int().min(0).max(200)]);
 const toBankTxn = (b: z.infer<typeof bankTxn>) => ({
@@ -175,6 +232,458 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
     command: "approval.cancel",
     input: z.strictObject({ approval_request_id: uuid }),
     run: async (ctx, i) => ({ data: await cancelApproval(ctx, i.approval_request_id) }),
+  }),
+  "roomType.create": defineCommand({
+    command: "roomType.create",
+    input: z.strictObject({
+      property_id: uuid,
+      code: z.string().trim().min(1).max(20),
+      name: z.string().trim().min(1).max(100),
+      capacity: z.number().int().min(1).max(50),
+    }),
+    run: async (ctx, i) => ({
+      data: await createRoomType(ctx, {
+        propertyId: i.property_id,
+        code: i.code,
+        name: i.name,
+        capacity: i.capacity,
+      }),
+      httpStatus: 201,
+    }),
+  }),
+  "roomType.update": defineCommand({
+    command: "roomType.update",
+    input: z.strictObject({
+      room_type_id: uuid,
+      name: z.string().trim().min(1).max(100).optional(),
+      capacity: z.number().int().min(1).max(50).optional(),
+    }),
+    run: async (ctx, i) => ({
+      data: await updateRoomType(ctx, {
+        roomTypeId: i.room_type_id,
+        ...(i.name === undefined ? {} : { name: i.name }),
+        ...(i.capacity === undefined ? {} : { capacity: i.capacity }),
+      }),
+    }),
+  }),
+  "rate.set": defineCommand({
+    command: "rate.set",
+    input: z.strictObject({
+      room_type_id: uuid,
+      weekday_price: positiveMoney,
+      weekend_price: positiveMoney,
+      effective_from: isoDate.optional(),
+    }),
+    run: async (ctx, i) => ({
+      data: await setRate(ctx, {
+        roomTypeId: i.room_type_id,
+        weekdayPrice: i.weekday_price,
+        weekendPrice: i.weekend_price,
+        ...(i.effective_from ? { effectiveFrom: i.effective_from } : {}),
+      }),
+    }),
+  }),
+  "reservation.create": defineCommand({
+    command: "reservation.create",
+    input: z.strictObject({
+      unit_id: uuid,
+      arrival_date: isoDate,
+      departure_date: isoDate,
+      guests: z.number().int().min(1).max(50),
+      source: z.literal("direct"),
+      booker: z.union([
+        z.strictObject({ person_id: uuid }),
+        z.strictObject({
+          full_name: z.string().trim().min(1).max(200),
+          phone: z.string().trim().min(6).max(20),
+          email: z.email().max(320).optional(),
+        }),
+      ]),
+    }),
+    run: async (ctx, i) => ({
+      data: await createReservation(ctx, {
+        unitId: i.unit_id,
+        arrivalDate: i.arrival_date,
+        departureDate: i.departure_date,
+        guests: i.guests,
+        source: i.source,
+        booker:
+          "person_id" in i.booker
+            ? { personId: i.booker.person_id }
+            : {
+                fullName: i.booker.full_name,
+                phone: i.booker.phone,
+                ...(i.booker.email ? { email: i.booker.email } : {}),
+              },
+      }),
+      httpStatus: 201,
+    }),
+  }),
+  "reservation.hold": defineCommand({
+    command: "reservation.hold",
+    input: z.strictObject({ reservation_id: uuid }),
+    run: async (ctx, i) => ({ data: await holdReservation(ctx, { reservationId: i.reservation_id }) }),
+  }),
+  "reservation.confirm": defineCommand({
+    command: "reservation.confirm",
+    input: z.strictObject({
+      reservation_id: uuid,
+      payment: z
+        .strictObject({
+          amount: positiveMoney,
+          method: z.enum(["cash", "bank_transfer"]),
+          kind: z.enum(["advance", "security_deposit"]),
+          receiving_account_id: uuid.optional(),
+          bank_txn: bankTxn.optional(),
+        })
+        .optional(),
+    }),
+    run: async (ctx, i) => ({
+      data: await confirmReservation(ctx, {
+        reservationId: i.reservation_id,
+        ...(i.payment
+          ? {
+              payment: {
+                amount: i.payment.amount,
+                method: i.payment.method,
+                kind: i.payment.kind,
+                ...(i.payment.receiving_account_id
+                  ? { receivingAccountId: i.payment.receiving_account_id }
+                  : {}),
+                ...(i.payment.bank_txn ? { bankTxn: toBankTxn(i.payment.bank_txn) } : {}),
+              },
+            }
+          : {}),
+      }),
+    }),
+  }),
+  "reservation.cancel": defineCommand({
+    command: "reservation.cancel",
+    input: z.strictObject({
+      reservation_id: uuid,
+      reason: z.string().trim().min(1).max(1000),
+      cancellation_fee: money.optional(),
+    }),
+    run: async (ctx, i) => ({
+      data: await cancelReservation(ctx, {
+        reservationId: i.reservation_id,
+        reason: i.reason,
+        ...(i.cancellation_fee === undefined ? {} : { cancellationFee: i.cancellation_fee }),
+      }),
+    }),
+  }),
+  "reservation.changeDates": defineCommand({
+    command: "reservation.changeDates",
+    input: z.strictObject({
+      reservation_id: uuid,
+      arrival_date: isoDate,
+      departure_date: isoDate,
+      preview_only: z.boolean().default(false),
+    }),
+    run: async (ctx, i) => ({
+      data: await changeDates(ctx, {
+        reservationId: i.reservation_id,
+        arrivalDate: i.arrival_date,
+        departureDate: i.departure_date,
+        previewOnly: i.preview_only,
+      }),
+    }),
+  }),
+  "stay.checkIn": defineCommand({
+    command: "stay.checkIn",
+    input: z.strictObject({ reservation_id: uuid, guests: z.array(guest).min(1).max(50) }),
+    run: async (ctx, i, svc) => ({
+      data: await checkIn(ctx, svc.pii, { reservationId: i.reservation_id, guests: i.guests.map(toGuest) }),
+    }),
+  }),
+  "stay.walkIn": defineCommand({
+    command: "stay.walkIn",
+    input: z.strictObject({ unit_id: uuid, departure_date: isoDate, guests: z.array(guest).min(1).max(50) }),
+    run: async (ctx, i, svc) => ({
+      data: await walkIn(ctx, svc.pii, {
+        unitId: i.unit_id,
+        departureDate: i.departure_date,
+        guests: i.guests.map(toGuest),
+      }),
+      httpStatus: 201,
+    }),
+  }),
+  "stay.postCharge": defineCommand({
+    command: "stay.postCharge",
+    input: z.strictObject({
+      stay_id: uuid,
+      kind: z.enum(["service", "fee", "discount"]),
+      description: z.string().trim().min(1).max(500),
+      quantity: z.number().int().min(1).max(1000).default(1),
+      unit_price: positiveMoney,
+    }),
+    run: async (ctx, i) => ({
+      data: await postCharge(ctx, {
+        stayId: i.stay_id,
+        kind: i.kind,
+        description: i.description,
+        quantity: i.quantity,
+        unitPrice: i.unit_price,
+      }),
+      httpStatus: 201,
+    }),
+  }),
+  "stay.voidCharge": defineCommand({
+    command: "stay.voidCharge",
+    input: z.strictObject({ charge_id: uuid, reason: z.string().trim().min(1).max(1000) }),
+    run: async (ctx, i) => ({ data: await voidCharge(ctx, { chargeId: i.charge_id, reason: i.reason }) }),
+  }),
+  "stay.checkOut": defineCommand({
+    command: "stay.checkOut",
+    input: z.strictObject({
+      stay_id: uuid,
+      payments: z
+        .array(
+          z.strictObject({
+            method: z.enum(["cash", "bank_transfer"]),
+            amount: positiveMoney,
+            receiving_account_id: uuid.optional(),
+            bank_txn: bankTxn.optional(),
+          }),
+        )
+        .max(10)
+        .optional(),
+      allow_balance: z
+        .strictObject({ approval_request_id: uuid.optional(), debtor_person_id: uuid, due_date: isoDate })
+        .optional(),
+      deposit_refund: z
+        .strictObject({
+          amount: positiveMoney,
+          method: z.enum(["cash", "bank_transfer"]),
+          receiving_account_id: uuid.optional(),
+        })
+        .optional(),
+      deposit_deduction: z
+        .strictObject({ amount: positiveMoney, reason: z.string().trim().min(1).max(1000) })
+        .optional(),
+    }),
+    run: async (ctx, i) => ({
+      data: await checkOut(ctx, {
+        stayId: i.stay_id,
+        ...(i.payments
+          ? {
+              payments: i.payments.map((p) => ({
+                method: p.method,
+                amount: p.amount,
+                ...(p.receiving_account_id ? { receivingAccountId: p.receiving_account_id } : {}),
+                ...(p.bank_txn ? { bankTxn: toBankTxn(p.bank_txn) } : {}),
+              })),
+            }
+          : {}),
+        ...(i.allow_balance
+          ? {
+              allowBalance: {
+                debtorPersonId: i.allow_balance.debtor_person_id,
+                dueDate: i.allow_balance.due_date,
+                ...(i.allow_balance.approval_request_id
+                  ? { approvalRequestId: i.allow_balance.approval_request_id }
+                  : {}),
+              },
+            }
+          : {}),
+        ...(i.deposit_refund
+          ? {
+              depositRefund: {
+                amount: i.deposit_refund.amount,
+                method: i.deposit_refund.method,
+                ...(i.deposit_refund.receiving_account_id
+                  ? { receivingAccountId: i.deposit_refund.receiving_account_id }
+                  : {}),
+              },
+            }
+          : {}),
+        ...(i.deposit_deduction ? { depositDeduction: i.deposit_deduction } : {}),
+      }),
+    }),
+  }),
+  "stay.exportResidenceNotice": defineCommand({
+    command: "stay.exportResidenceNotice",
+    input: z.strictObject({ stay_id: uuid }),
+    run: async (ctx, i, svc) => ({ data: await exportResidenceNotice(ctx, svc, { stayId: i.stay_id }) }),
+  }),
+  "stay.markNoticeSubmitted": defineCommand({
+    command: "stay.markNoticeSubmitted",
+    input: z.strictObject({
+      notice_id: uuid,
+      submitted_at: z.iso.datetime({ offset: true }),
+      channel: z.enum(["in_person", "online", "other"]),
+      evidence_file_id: uuid.optional(),
+    }),
+    run: async (ctx, i) => ({
+      data: await markNoticeSubmitted(ctx, {
+        noticeId: i.notice_id,
+        submittedAt: new Date(i.submitted_at),
+        channel: i.channel,
+        ...(i.evidence_file_id ? { evidenceFileId: i.evidence_file_id } : {}),
+      }),
+    }),
+  }),
+  "housekeeping.createTask": defineCommand({
+    command: "housekeeping.createTask",
+    input: z.strictObject({
+      unit_id: uuid,
+      kind: z.enum(["cleaning", "inspection"]),
+      priority: z.enum(["normal", "high", "urgent"]).optional(),
+      note: z.string().max(2000).optional(),
+    }),
+    run: async (ctx, i) => ({
+      data: await createTask(ctx, {
+        unitId: i.unit_id,
+        kind: i.kind,
+        ...(i.priority ? { priority: i.priority } : {}),
+        ...(i.note ? { note: i.note } : {}),
+      }),
+      httpStatus: 201,
+    }),
+  }),
+  "housekeeping.assignTask": defineCommand({
+    command: "housekeeping.assignTask",
+    input: z.strictObject({ task_id: uuid, assignee_membership_id: uuid }),
+    run: async (ctx, i) => ({
+      data: await assignTask(ctx, { taskId: i.task_id, assigneeMembershipId: i.assignee_membership_id }),
+    }),
+  }),
+  "housekeeping.claimTask": defineCommand({
+    command: "housekeeping.claimTask",
+    input: z.strictObject({ task_id: uuid }),
+    run: async (ctx, i) => ({ data: await claimTask(ctx, { taskId: i.task_id }) }),
+  }),
+  "housekeeping.startTask": defineCommand({
+    command: "housekeeping.startTask",
+    input: z.strictObject({ task_id: uuid }),
+    run: async (ctx, i) => ({ data: await startTask(ctx, { taskId: i.task_id }) }),
+  }),
+  "housekeeping.completeTask": defineCommand({
+    command: "housekeeping.completeTask",
+    input: z.strictObject({ task_id: uuid, note: z.string().max(2000).optional() }),
+    run: async (ctx, i) => ({
+      data: await completeTask(ctx, { taskId: i.task_id, ...(i.note ? { note: i.note } : {}) }),
+    }),
+  }),
+  "housekeeping.verifyTask": defineCommand({
+    command: "housekeeping.verifyTask",
+    input: z.strictObject({
+      task_id: uuid,
+      result: z.enum(["pass", "fail"]),
+      reason: z.string().trim().max(1000).optional(),
+    }),
+    run: async (ctx, i) => ({
+      data: await verifyTask(ctx, {
+        taskId: i.task_id,
+        result: i.result,
+        ...(i.reason ? { reason: i.reason } : {}),
+      }),
+    }),
+  }),
+  "housekeeping.cancelTask": defineCommand({
+    command: "housekeeping.cancelTask",
+    input: z.strictObject({ task_id: uuid, reason: z.string().trim().min(1).max(1000) }),
+    run: async (ctx, i) => ({ data: await cancelTask(ctx, { taskId: i.task_id, reason: i.reason }) }),
+  }),
+  "maintenance.createWorkOrder": defineCommand({
+    command: "maintenance.createWorkOrder",
+    input: z.strictObject({
+      unit_id: uuid,
+      title: z.string().trim().min(1).max(200),
+      description: z.string().trim().min(1).max(2000),
+      severity: z.enum(["low", "medium", "high", "critical"]),
+      file_ids: z.array(uuid).max(5).default([]),
+    }),
+    run: async (ctx, i) => ({
+      data: await createWorkOrder(ctx, {
+        unitId: i.unit_id,
+        title: i.title,
+        description: i.description,
+        severity: i.severity,
+        fileIds: i.file_ids,
+      }),
+      httpStatus: 201,
+    }),
+  }),
+  "maintenance.assignWorkOrder": defineCommand({
+    command: "maintenance.assignWorkOrder",
+    input: z.strictObject({ work_order_id: uuid, assignee_membership_id: uuid }),
+    run: async (ctx, i) => ({
+      data: await assignWorkOrder(ctx, {
+        workOrderId: i.work_order_id,
+        assigneeMembershipId: i.assignee_membership_id,
+      }),
+    }),
+  }),
+  "maintenance.startWorkOrder": defineCommand({
+    command: "maintenance.startWorkOrder",
+    input: z.strictObject({ work_order_id: uuid }),
+    run: async (ctx, i) => ({ data: await startWorkOrder(ctx, { workOrderId: i.work_order_id }) }),
+  }),
+  "maintenance.completeWorkOrder": defineCommand({
+    command: "maintenance.completeWorkOrder",
+    input: z.strictObject({
+      work_order_id: uuid,
+      note: z.string().max(2000).optional(),
+      file_ids: z.array(uuid).max(5).default([]),
+    }),
+    run: async (ctx, i) => ({
+      data: await completeWorkOrder(ctx, {
+        workOrderId: i.work_order_id,
+        fileIds: i.file_ids,
+        ...(i.note ? { note: i.note } : {}),
+      }),
+    }),
+  }),
+  "maintenance.verifyWorkOrder": defineCommand({
+    command: "maintenance.verifyWorkOrder",
+    input: z.strictObject({ work_order_id: uuid }),
+    run: async (ctx, i) => ({ data: await verifyWorkOrder(ctx, { workOrderId: i.work_order_id }) }),
+  }),
+  "maintenance.cancelWorkOrder": defineCommand({
+    command: "maintenance.cancelWorkOrder",
+    input: z.strictObject({ work_order_id: uuid, reason: z.string().trim().min(1).max(1000) }),
+    run: async (ctx, i) => ({
+      data: await cancelWorkOrder(ctx, { workOrderId: i.work_order_id, reason: i.reason }),
+    }),
+  }),
+  "maintenance.proposeBlock": defineCommand({
+    command: "maintenance.proposeBlock",
+    input: z.strictObject({
+      work_order_id: uuid,
+      start: z.iso.datetime({ offset: true }),
+      end: z.iso.datetime({ offset: true }),
+      reason: z.string().trim().min(1).max(1000),
+    }),
+    run: async (ctx, i) => ({
+      data: await proposeWorkOrderBlock(ctx, {
+        workOrderId: i.work_order_id,
+        start: new Date(i.start),
+        end: new Date(i.end),
+        reason: i.reason,
+      }),
+      httpStatus: 201,
+    }),
+  }),
+  "inventory.approveBlock": defineCommand({
+    command: "inventory.approveBlock",
+    input: z.strictObject({ block_id: uuid }),
+    run: async (ctx, i) => {
+      await approveBlock(ctx, i.block_id);
+      return { data: { blockId: i.block_id, status: "approved" } };
+    },
+  }),
+  "inventory.endBlock": defineCommand({
+    command: "inventory.endBlock",
+    input: z.strictObject({ block_id: uuid }),
+    run: async (ctx, i) => ({ data: await endBlock(ctx, i.block_id) }),
+  }),
+  "reservation.markNoShow": defineCommand({
+    command: "reservation.markNoShow",
+    input: z.strictObject({ reservation_id: uuid, reason: z.string().trim().min(1).max(1000) }),
+    run: async (ctx, i) => ({
+      data: await markNoShow(ctx, { reservationId: i.reservation_id, reason: i.reason }),
+    }),
   }),
   "shift.open": defineCommand({
     command: "shift.open",
@@ -891,7 +1400,7 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
 
 /** Tìm command theo đường dẫn `<module>/<command>`; tên chỉ gồm chữ/số để không lọt ký tự lạ. */
 export function findCommand(module: string, command: string): AnyCommand | undefined {
-  if (!/^[a-z][a-z_]*$/.test(module) || !/^[a-zA-Z][a-zA-Z]*$/.test(command)) return undefined;
+  if (!/^[a-z][a-zA-Z_]*$/.test(module) || !/^[a-zA-Z][a-zA-Z]*$/.test(command)) return undefined;
   return Object.hasOwn(COMMANDS, `${module}.${command}`) ? COMMANDS[`${module}.${command}`] : undefined;
 }
 
@@ -935,6 +1444,136 @@ export const QUERIES: Readonly<Record<string, AnyQuery>> = {
     input: z.strictObject({ lease_id: uuid }),
     run: (db, actor, i: { lease_id: string }) => getLease(db, actor, i.lease_id),
   },
+  "reservation.quote": {
+    query: "reservation.quote",
+    input: z
+      .strictObject({
+        room_type_id: uuid.optional(),
+        unit_id: uuid.optional(),
+        arrival_date: isoDate,
+        departure_date: isoDate,
+        guests: z.coerce.number().int().min(1).max(50),
+      })
+      .refine((v) => (v.room_type_id === undefined) !== (v.unit_id === undefined), {
+        message: "cần đúng một trong room_type_id, unit_id",
+        path: ["room_type_id"],
+      }),
+    run: (
+      db,
+      actor,
+      i: {
+        room_type_id?: string;
+        unit_id?: string;
+        arrival_date: string;
+        departure_date: string;
+        guests: number;
+      },
+    ) =>
+      quote(db, actor, {
+        ...(i.room_type_id ? { roomTypeId: i.room_type_id } : {}),
+        ...(i.unit_id ? { unitId: i.unit_id } : {}),
+        arrivalDate: i.arrival_date,
+        departureDate: i.departure_date,
+        guests: i.guests,
+      }),
+  },
+  "reservation.list": {
+    query: "reservation.list",
+    input: z.strictObject({
+      property_id: uuid,
+      from: isoDate,
+      to: isoDate,
+      status: z
+        .enum(["draft", "held", "confirmed", "in_house", "checked_out", "cancelled", "no_show", "expired"])
+        .optional(),
+    }),
+    run: (db, actor, i: { property_id: string; from: string; to: string; status?: never }) =>
+      listReservations(db, actor, {
+        propertyId: i.property_id,
+        from: i.from,
+        to: i.to,
+        ...(i.status ? { status: i.status } : {}),
+      }),
+  },
+  "stay.getFolio": {
+    query: "stay.getFolio",
+    input: z.strictObject({ stay_id: uuid }),
+    run: (db, actor, i: { stay_id: string }) => getFolio(db, actor, i.stay_id),
+  },
+  "stay.listNotices": {
+    query: "stay.listNotices",
+    input: z.strictObject({
+      property_id: uuid,
+      status: z.enum(["pending", "exported", "submitted"]).optional(),
+      due_before: z.iso.datetime({ offset: true }).optional(),
+    }),
+    run: (
+      db,
+      actor,
+      i: { property_id: string; status?: "pending" | "exported" | "submitted"; due_before?: string },
+    ) =>
+      listNotices(db, actor, {
+        propertyId: i.property_id,
+        ...(i.status ? { status: i.status } : {}),
+        ...(i.due_before ? { dueBefore: new Date(i.due_before) } : {}),
+      }),
+  },
+  "housekeeping.listTasks": {
+    query: "housekeeping.listTasks",
+    input: z.strictObject({
+      property_id: uuid,
+      floor_id: uuid.optional(),
+      status: z.enum(["open", "assigned", "in_progress", "done", "verified", "cancelled"]).optional(),
+      assignee: uuid.optional(),
+    }),
+    run: (db, actor, i: { property_id: string; floor_id?: string; status?: never; assignee?: string }) =>
+      listTasks(db, actor, {
+        propertyId: i.property_id,
+        ...(i.floor_id ? { floorId: i.floor_id } : {}),
+        ...(i.status ? { status: i.status } : {}),
+        ...(i.assignee ? { assignee: i.assignee } : {}),
+      }),
+  },
+  "housekeeping.getTask": {
+    query: "housekeeping.getTask",
+    input: z.strictObject({ task_id: uuid }),
+    run: (db, actor, i: { task_id: string }) => getTask(db, actor, i.task_id),
+  },
+  "inventory.getUnitStatus": {
+    query: "inventory.getUnitStatus",
+    input: z.strictObject({ unit_id: uuid }),
+    run: (db, actor, i: { unit_id: string }) => getUnitStatus(db, actor, i.unit_id),
+  },
+  "maintenance.listWorkOrders": {
+    query: "maintenance.listWorkOrders",
+    input: z.strictObject({
+      property_id: uuid,
+      status: z.enum(["open", "assigned", "in_progress", "done", "verified", "cancelled"]).optional(),
+      mine: z.enum(["true", "false"]).optional(),
+    }),
+    run: (db, actor, i: { property_id: string; status?: never; mine?: "true" | "false" }) =>
+      listWorkOrders(db, actor, {
+        propertyId: i.property_id,
+        ...(i.status ? { status: i.status } : {}),
+        mine: i.mine === "true",
+      }),
+  },
+  "maintenance.listMyWorkOrders": {
+    query: "maintenance.listMyWorkOrders",
+    input: z.strictObject({}),
+    run: (db, actor) => listMyWorkOrders(db, actor),
+  },
+  "reservation.get": {
+    query: "reservation.get",
+    input: z.strictObject({ reservation_id: uuid }),
+    run: (db, actor, i: { reservation_id: string }) => getReservation(db, actor, i.reservation_id),
+  },
+  "identity.get": {
+    query: "identity.get",
+    input: z.strictObject({ identity_document_id: uuid }),
+    run: (db, actor, i: { identity_document_id: string }) =>
+      getIdentityDocument(db, actor, i.identity_document_id),
+  },
   "person.get": {
     query: "person.get",
     input: z.strictObject({ person_id: z.string().max(64) }),
@@ -969,6 +1608,6 @@ export const QUERIES: Readonly<Record<string, AnyQuery>> = {
 };
 
 export function findQuery(module: string, query: string): AnyQuery | undefined {
-  if (!/^[a-z][a-z_]*$/.test(module) || !/^[a-zA-Z][a-zA-Z]*$/.test(query)) return undefined;
+  if (!/^[a-z][a-zA-Z_]*$/.test(module) || !/^[a-zA-Z][a-zA-Z]*$/.test(query)) return undefined;
   return Object.hasOwn(QUERIES, `${module}.${query}`) ? QUERIES[`${module}.${query}`] : undefined;
 }

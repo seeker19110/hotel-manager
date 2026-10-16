@@ -4,6 +4,7 @@ import { createTestDb, type SeededOrg, seedAuthUser, seedOrg, type TestDb } from
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod";
+import { testServices } from "../server/services.ts";
 import {
   type CommandDef,
   type HttpDeps,
@@ -29,6 +30,7 @@ function makeDeps(): HttpDeps {
       return id ? { user: { id, twoFactorEnabled: h.get("x-test-2fa") === "1" } } : null;
     },
     secureCookies: false,
+    services: testServices(),
   };
 }
 

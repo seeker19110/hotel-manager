@@ -3,7 +3,7 @@
 | Trường | Giá trị |
 |---|---|
 | ID tính năng | F-011 (yêu cầu gốc: R-001 "người thuê xem trên portal", R-002 "gia hạn"; kế hoạch §11, §14, §15; backlog T015, T046, T047, phần nhắc của T031) |
-| Trạng thái | Draft — chờ duyệt |
+| Trạng thái | Approved — câu [chặn] chốt theo PLAN đợt 3 (tham số hoá, D-002) |
 | Phiên bản | 2 — thay đổi: xem cuối file |
 | Chủ spec | (chưa gán) · Duyệt bởi (chưa) ngày (chưa) |
 | Hồ sơ/quy mô | web-app / M |
@@ -200,13 +200,13 @@ Không áp dụng — tính năng không dùng model.
 
 ## 10. Câu hỏi mở (0 câu [chặn] trước khi Approved)
 - [ ] Q-01 Nhà cung cấp email transactional (vùng dữ liệu, giá, hợp đồng xử lý dữ liệu, webhook bounce) — [không chặn spec/dev nhờ adapter + bản giả; **chặn pilot với người dùng thật**] — hỏi: chủ dự án + pháp lý — **đề xuất:** dùng `/research` so 2–3 nhà cung cấp có DPA và webhook ký số, chốt bằng ADR trước tuần 8 (T046).
-- [ ] Q-02 Có cần email "đã nhận" (delivered/bounce) hay chỉ "đã chuyển cho nhà cung cấp"? — [không chặn] — hỏi: PO — **đề xuất:** pilot chỉ `sent`; bounce cứng → tự đặt `suppressed` cho email đó khi nhà cung cấp hỗ trợ webhook.
-- [ ] Q-03 Email nhắc có được ghi số tiền không? — [không chặn] — hỏi: pháp lý — **đề xuất:** pilot không ghi số tiền trong email, chỉ kỳ thu + hạn + liên kết portal; thông báo trong app (đã đăng nhập) hiển thị đủ.
-- [ ] Q-04 Lịch nhắc quá hạn mặc định — [không chặn] — hỏi: PO (quan sát T001) — **đề xuất:** +1, +3, +7 ngày sau hạn, cấu hình theo cơ sở, tối đa 1 nhắc/phiếu/ngày.
-- [ ] Q-05 Tham số retry và rate limit — [không chặn] — hỏi: Tech Lead — **đề xuất:** 5 lần (1 ph, 5 ph, 30 ph, 2 giờ, 6 giờ); 10 email/giây/tổ chức; chỉnh theo giới hạn nhà cung cấp.
-- [ ] Q-06 Mốc nhắc hết hạn hợp đồng — [không chặn] — hỏi: PO — **đề xuất:** 30 và 7 ngày trước ngày kết thúc, gửi cho quản lý; người thuê nhận bản ngắn cùng mốc.
+- [x] Q-02 Có cần email "đã nhận" (delivered/bounce) hay chỉ "đã chuyển cho nhà cung cấp"? — [không chặn] — hỏi: PO — **đề xuất:** pilot chỉ `sent`; bounce cứng → tự đặt `suppressed` cho email đó khi nhà cung cấp hỗ trợ webhook. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** pilot chỉ `sent` (đã chuyển cho nhà cung cấp).
+- [x] Q-03 Email nhắc có được ghi số tiền không? — [không chặn] — hỏi: pháp lý — **đề xuất:** pilot không ghi số tiền trong email, chỉ kỳ thu + hạn + liên kết portal; thông báo trong app (đã đăng nhập) hiển thị đủ. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** email nhắc không ghi số tiền; thông báo trong app (đã đăng nhập) hiển thị đủ.
+- [x] Q-04 Lịch nhắc quá hạn mặc định — [không chặn] — hỏi: PO (quan sát T001) — **đề xuất:** +1, +3, +7 ngày sau hạn, cấu hình theo cơ sở, tối đa 1 nhắc/phiếu/ngày. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** +1, +3, +7 ngày sau hạn, tối đa 1 nhắc/phiếu/ngày, cấu hình ở `notification_settings`.
+- [x] Q-05 Tham số retry và rate limit — [không chặn] — hỏi: Tech Lead — **đề xuất:** 5 lần (1 ph, 5 ph, 30 ph, 2 giờ, 6 giờ); 10 email/giây/tổ chức; chỉnh theo giới hạn nhà cung cấp. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** 5 lần (1 ph, 5 ph, 30 ph, 2 giờ, 6 giờ); 10 email/giây/tổ chức.
+- [x] Q-06 Mốc nhắc hết hạn hợp đồng — [không chặn] — hỏi: PO — **đề xuất:** 30 và 7 ngày trước ngày kết thúc, gửi cho quản lý; người thuê nhận bản ngắn cùng mốc. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** 30 và 7 ngày trước ngày kết thúc, gửi quản lý; người thuê nhận bản ngắn cùng mốc.
 - [x] Q-07 Bổ sung `notifications`, `notification_deliveries`, `notification_preferences`, `notification_settings` vào DOMAIN-MODEL — đã đóng: có ở DOMAIN-MODEL §7 (v1.2).
-- [ ] Q-08 Hạn thông báo lưu trú (23:00/08:00; 12 giờ cho khách nước ngoài) mới có nguồn thứ cấp [T] — [không chặn vì là cấu hình; chặn dùng làm giá trị mặc định khi pilot] — hỏi: pháp lý — **đề xuất:** để trống mặc định, cơ sở tự nhập khi onboarding cho tới khi pháp lý đối chiếu bản gốc.
+- [x] Q-08 Hạn thông báo lưu trú (23:00/08:00; 12 giờ cho khách nước ngoài) mới có nguồn thứ cấp [T] — [không chặn vì là cấu hình; chặn dùng làm giá trị mặc định khi pilot] — hỏi: pháp lý — **đề xuất:** để trống mặc định, cơ sở tự nhập khi onboarding cho tới khi pháp lý đối chiếu bản gốc. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** để trống mặc định, cơ sở tự nhập khi onboarding.
 
 ## 11. DoR / DoD
 - DoR: spec Approved · 0 câu hỏi chặn · outbox/pg-boss từ T015 sẵn sàng · mỗi task có Gate.

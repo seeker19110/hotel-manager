@@ -22,8 +22,16 @@ function assertMoney(n: number, field: string): void {
   }
 }
 
-async function businessDate(trx: Transaction<unknown>, orgId: string, propertyId: string): Promise<string> {
-  const r = await sql<{ d: string }>`select app.business_date(${orgId}, ${propertyId})::text as d`.execute(
+async function businessDate(
+  trx: Transaction<unknown>,
+  orgId: string,
+  propertyId: string,
+  /** Thời điểm nghiệp vụ (mặc định giờ CSDL) — luồng trả phòng ca đêm truyền giờ thao tác để ngày kinh doanh nhất quán. */
+  at?: Date,
+): Promise<string> {
+  const r = await sql<{
+    d: string;
+  }>`select app.business_date(${orgId}, ${propertyId}, coalesce(${at ?? null}::timestamptz, now()))::text as d`.execute(
     trx,
   );
   const d = r.rows[0]?.d;
@@ -118,6 +126,9 @@ export interface RecordPaymentInput {
   /** Dùng nội bộ (deposit.receive, T-106). */
   purpose?: "receivable" | "deposit";
   depositId?: string;
+  /** Ứng trước/cọc của booking (SPEC-reservation-stay S-005): folio và check-out phân bổ đúng khoản. */
+  reservationId?: string;
+  now?: Date;
 }
 
 /** `payment.record`: ghi khoản thu `pending` (chưa ghi sổ). */
@@ -162,10 +173,10 @@ export async function recordPayment(
   const id = randomUUID();
   await sql`
     insert into payments (id, organization_id, property_id, method, purpose, amount, receiving_account_id, payer_person_id,
-                          deposit_id, shift_id, bank_transaction_id, business_date, recorded_by, command_id)
+                          deposit_id, reservation_id, shift_id, bank_transaction_id, business_date, recorded_by, command_id)
     values (${id}, ${ctx.actor.orgId}, ${input.propertyId}, ${input.method}, ${input.purpose ?? "receivable"}, ${input.amount},
-            ${receivingAccountId}, ${input.payerPersonId}, ${input.depositId ?? null}, ${shiftId}, ${bankTransactionId},
-            ${await businessDate(ctx.trx, ctx.actor.orgId, input.propertyId)}::date, ${ctx.actor.membershipId}, ${ctx.commandId})`.execute(
+            ${receivingAccountId}, ${input.payerPersonId}, ${input.depositId ?? null}, ${input.reservationId ?? null}, ${shiftId}, ${bankTransactionId},
+            ${await businessDate(ctx.trx, ctx.actor.orgId, input.propertyId, input.now)}::date, ${ctx.actor.membershipId}, ${ctx.commandId})`.execute(
     ctx.trx,
   );
   await ctx.audit({
@@ -178,7 +189,7 @@ export async function recordPayment(
   return { paymentId: id };
 }
 
-interface PaymentRow {
+export interface PaymentRow {
   id: string;
   property_id: string;
   method: PaymentMethod;
@@ -253,7 +264,7 @@ export interface ConfirmEvidence {
  */
 export async function confirmPayment(
   ctx: CommandContext,
-  input: { paymentId: string; evidence?: ConfirmEvidence },
+  input: { paymentId: string; evidence?: ConfirmEvidence; now?: Date },
 ): Promise<{ paymentId: string; receiptNo: string | null; entryId: string }> {
   const p = await lockPayment(ctx, input.paymentId, (row) =>
     row.method === "cash"
@@ -322,7 +333,7 @@ export async function confirmPayment(
     propertyId: p.property_id,
     entryType: p.purpose === "deposit" ? "deposit_received" : "payment_confirmed",
     // Ghi sổ theo ngày XÁC NHẬN (có chứng cứ): khoản ghi nhận hôm trước mà kỳ đã khoá vẫn xác nhận được (review R2).
-    businessDate: await businessDate(ctx.trx, ctx.actor.orgId, p.property_id),
+    businessDate: await businessDate(ctx.trx, ctx.actor.orgId, p.property_id, input.now),
     // Nguồn luôn là chính khoản thu (một cọc có thể nhận nhiều lần; đảo tìm đúng bút toán của khoản này).
     sourceDocType: "payment",
     sourceDocId: p.id,
@@ -383,6 +394,11 @@ export interface AllocationInput {
 export async function allocatePayment(
   ctx: CommandContext,
   input: { paymentId: string; allocations: readonly AllocationInput[] },
+  /**
+   * Thay kiểm quyền mặc định (`payment.allocate` + hạn mức) — CHỈ cho luồng hệ thống có quy tắc chặt hơn: check-out phân bổ
+   * tiền của chính booking vào folio của chính lượt ở (SPEC-reservation-stay S-017, S-026). Mọi hàng rào số tiền giữ nguyên.
+   */
+  opts: { authorizeRow?: (row: PaymentRow) => void; now?: Date } = {},
 ): Promise<{ entryId: string; allocationIds: string[]; unallocated: number }> {
   if (input.allocations.length === 0)
     throw new CommandError("VALIDATION_FAILED", 422, "Cần ít nhất một dòng phân bổ");
@@ -395,8 +411,11 @@ export async function allocatePayment(
     assertMoney(a.amount, "Số tiền phân bổ");
   }
   const sum = input.allocations.reduce((s, a) => s + a.amount, 0);
-  const p = await lockPayment(ctx, input.paymentId, (row) =>
-    authorize(ctx.actor, "payment.allocate", { propertyId: row.property_id, amount: sum }),
+  const p = await lockPayment(
+    ctx,
+    input.paymentId,
+    opts.authorizeRow ??
+      ((row) => authorize(ctx.actor, "payment.allocate", { propertyId: row.property_id, amount: sum })),
   );
   if (p.status !== "confirmed" || p.purpose !== "receivable") {
     throw new CommandError("INVALID_TRANSITION", 409, "Chỉ phân bổ khoản thu đã xác nhận");
@@ -445,7 +464,7 @@ export async function allocatePayment(
     orgId: ctx.actor.orgId,
     propertyId: p.property_id,
     entryType: "payment_allocated",
-    businessDate: await businessDate(ctx.trx, ctx.actor.orgId, p.property_id),
+    businessDate: await businessDate(ctx.trx, ctx.actor.orgId, p.property_id, opts.now),
     sourceDocType: "payment_allocation",
     sourceDocId: p.id,
     createdBy: ctx.actor.membershipId,

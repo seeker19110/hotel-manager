@@ -2,7 +2,7 @@
 import { type HttpDeps, serverContext } from "@hm/app";
 
 export function httpDeps(): HttpDeps {
-  const { db, auth, config, log } = serverContext();
+  const { db, auth, config, log, services } = serverContext();
   return {
     db,
     getSession: async (headers) => {
@@ -10,6 +10,7 @@ export function httpDeps(): HttpDeps {
       return s ? { user: { id: s.user.id, twoFactorEnabled: s.user.twoFactorEnabled } } : null;
     },
     secureCookies: config.APP_BASE_URL.startsWith("https://"),
+    services,
     onUnexpectedError: (err, correlationId) =>
       log.error("lỗi không dự kiến", {
         correlation_id: correlationId,

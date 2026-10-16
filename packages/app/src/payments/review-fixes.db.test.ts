@@ -7,6 +7,7 @@ import {
   seedIssuedInvoice,
   seedLease,
   seedOrg,
+  seedReservation,
   type TestDb,
 } from "@hm/testkit";
 import { sql } from "kysely";
@@ -318,10 +319,11 @@ describe("review lát tiền — hồi quy", () => {
   it("R6 🟠: cọc đặt phòng không khấu trừ được vào phiếu của người khác", async () => {
     const X = await person("Khách X");
     const Y = await person("Người thuê Y");
+    const { reservationId } = await seedReservation(t.admin, { org: A, bookerPersonId: X });
     const dep = await ok(
       run(K, async (ctx) => ({
         data: await receiveDeposit(ctx, {
-          reservationId: randomUUID(),
+          reservationId,
           propertyId: A.propertyId,
           payerPersonId: X,
           amount: 1_000_000,

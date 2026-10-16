@@ -3,7 +3,7 @@
 | Trường | Giá trị |
 |---|---|
 | ID tính năng | F-007 (luồng: R-003 bước "dọn và kiểm tra") |
-| Trạng thái | Draft — chờ duyệt |
+| Trạng thái | Approved — câu [chặn] chốt theo PLAN đợt 3 (tham số hoá, D-002) |
 | Phiên bản | 2 — thay đổi: xem cuối file |
 | Chủ spec | (chưa gán) · Duyệt bởi (chưa) |
 | Hồ sơ/quy mô | web-app / M |
@@ -190,6 +190,7 @@ Hợp đồng chi tiết: `docs/design/API-CONTRACT.md`. Mọi command nhận `I
 | `maintenance.assignWorkOrder` / `startWorkOrder` / `completeWorkOrder` / `verifyWorkOrder` / `cancelWorkOrder` | work_order_id, … | work_order | INVALID_TRANSITION, FORBIDDEN, SELF_APPROVAL_FORBIDDEN (khi `verifyWorkOrder` bởi chính người làm) |
 | `maintenance.proposeBlock` | work_order_id, start, end, reason | block_id (gọi `inventory.requestBlock`) | VALIDATION_FAILED |
 | `maintenance.listWorkOrders` (query) | property_id, status?, mine? | danh sách | NOT_FOUND |
+| `maintenance.listMyWorkOrders` (query, người thuê) | — | phiếu mình báo: mã phòng, tiêu đề, mức độ, trạng thái, mốc thời gian (không người giao/ảnh/block) | NOT_FOUND (không phải người thuê) |
 
 - UI điện thoại: danh sách việc theo tầng, một tác vụ mỗi màn, nút lớn (≥ 44 CSS px) "Nhận / Bắt đầu / Xong"; trạng thái có chữ + icon; ảnh chụp trực tiếp từ camera; hiển thị tiến độ quét ảnh ("Đang kiểm tra ảnh"). Trạng thái: đang tải / rỗng / lỗi có hướng sửa / thành công sau phản hồi máy chủ.
 
@@ -221,16 +222,16 @@ Không áp dụng — tính năng không dùng model.
 - `housekeeping.task_created`, `housekeeping.task_done`, `housekeeping.task_verified` (thời gian từ `dirty` đến `inspected`), `work_order.created`, `work_order.verified`, `file.rejected` → M-05 (tác vụ lõi theo `property_id`), hỗ trợ M-03 (phòng sẵn sàng khi khách đến).
 
 ## 10. Câu hỏi mở (0 câu [chặn] trước khi Approved)
-- [ ] Q-01 Ai được nghiệm thu phòng (manager, lễ tân, hay buồng phòng trưởng) — [chặn] — hỏi: PO — đề xuất: owner/manager; thêm lễ tân nếu cơ sở bật; chưa thêm vai trò mới.
-- [ ] Q-02 Buồng phòng có được tự nhận việc chưa giao không — [không chặn] — hỏi: PO — đề xuất: có, trong phạm vi cơ sở.
-- [ ] Q-03 Mặc định bật tách quyền "người làm không tự nghiệm thu" — [không chặn] — hỏi: PO — đề xuất: bật.
-- [ ] Q-04 Quy tắc ưu tiên việc dọn — [không chặn] — hỏi: PO — đề xuất: phòng có khách đến hôm nay → phòng vừa trả → còn lại theo thời gian tạo.
-- [ ] Q-05 Nghiệm thu không đạt quay về người cũ hay về `open` — [không chặn] — hỏi: PO — đề xuất: về `assigned` cho cùng người. Cần thêm chuyển `done → assigned` vào bảng chuyển DOMAIN-MODEL §4.
-- [ ] Q-06 Giới hạn file — [chặn T045/T076] — hỏi: Tech Lead + PO — đề xuất: JPEG/PNG/WebP; ≤ 10 MB/ảnh; ≤ 5 ảnh/phiếu. Cần kiểm iPhone (HEIC) trên thiết bị thật trước khi chốt (chưa xác minh).
-- [ ] Q-07 Thời hạn URL ký đọc/tải — [không chặn] — hỏi: Tech Lead — đề xuất: 5 phút cho ảnh vận hành; ảnh giấy tờ ngắn hơn theo DPIA.
-- [ ] Q-08 Sau sửa chữa có bắt buộc tạo việc dọn trước khi bán lại không — [không chặn] — hỏi: PO — đề xuất: có (S-019).
+- [x] Q-01 Ai được nghiệm thu phòng (manager, lễ tân, hay buồng phòng trưởng) — [chặn] — hỏi: PO — đề xuất: owner/manager; thêm lễ tân nếu cơ sở bật; chưa thêm vai trò mới. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** owner/manager nghiệm thu; lễ tân khi cơ sở bật `properties.settings.front_desk_can_inspect` (mặc định false); chưa thêm vai trò mới.
+- [x] Q-02 Buồng phòng có được tự nhận việc chưa giao không — [không chặn] — hỏi: PO — đề xuất: có, trong phạm vi cơ sở. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** có, trong phạm vi cơ sở.
+- [x] Q-03 Mặc định bật tách quyền "người làm không tự nghiệm thu" — [không chặn] — hỏi: PO — đề xuất: bật. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** bật mặc định, tham số `properties.settings.segregate_inspection` (mặc định true).
+- [x] Q-04 Quy tắc ưu tiên việc dọn — [không chặn] — hỏi: PO — đề xuất: phòng có khách đến hôm nay → phòng vừa trả → còn lại theo thời gian tạo. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** phòng có khách đến hôm nay → phòng vừa trả → còn lại theo thời gian tạo.
+- [x] Q-05 Nghiệm thu không đạt quay về người cũ hay về `open` — [không chặn] — hỏi: PO — đề xuất: về `assigned` cho cùng người. Cần thêm chuyển `done → assigned` vào bảng chuyển DOMAIN-MODEL §4. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** về `assigned` cho cùng người (thêm chuyển `done → assigned` khi nghiệm thu không đạt).
+- [x] Q-06 Giới hạn file — [chặn T045/T076] — hỏi: Tech Lead + PO — đề xuất: JPEG/PNG/WebP; ≤ 10 MB/ảnh; ≤ 5 ảnh/phiếu. Cần kiểm iPhone (HEIC) trên thiết bị thật trước khi chốt (chưa xác minh). — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** JPEG/PNG/WebP (kiểm magic bytes); ≤ 10 MB/ảnh; ≤ 5 ảnh/phiếu; HEIC chưa hỗ trợ (chưa xác minh trên thiết bị thật).
+- [x] Q-07 Thời hạn URL ký đọc/tải — [không chặn] — hỏi: Tech Lead — đề xuất: 5 phút cho ảnh vận hành; ảnh giấy tờ ngắn hơn theo DPIA. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** URL ký đọc ≤ 5 phút cho ảnh vận hành.
+- [x] Q-08 Sau sửa chữa có bắt buộc tạo việc dọn trước khi bán lại không — [không chặn] — hỏi: PO — đề xuất: có (S-019). — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** có — nghiệm thu sửa chữa tạo việc dọn `open`.
 - [x] Q-09 Bổ sung `tasks`, `work_orders`, `files` vào DOMAIN-MODEL; trạng thái `cancelled` cho phiếu sự cố — đã đóng: có ở DOMAIN-MODEL §7 và §4 (v1.2).
-- [ ] Q-10 Công cụ quét mã độc và nơi chạy (worker gọi dịch vụ nào, chi phí) — [chặn T076] — hỏi: Tech Lead — đề xuất: chọn qua `/research` + ADR; chưa chọn thì file không bao giờ sang `ready`.
+- [x] Q-10 Công cụ quét mã độc và nơi chạy (worker gọi dịch vụ nào, chi phí) — [chặn T076] — hỏi: Tech Lead — đề xuất: chọn qua `/research` + ADR; chưa chọn thì file không bao giờ sang `ready`. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002, D-003):** ClamAV `clamd` tự host qua giao thức INSTREAM (adapter `ClamdScanner`), bản giả trong dev/CI; production thiếu `CLAMD_HOST` → khởi động lỗi; lỗi quét → file không bao giờ `ready`.
 - [ ] Q-11 Thời hạn lưu ảnh sự cố/việc dọn — [không chặn pilot, chặn go-live] — hỏi: PO + pháp lý — đề xuất: theo lịch retention của DPIA (kế hoạch §16).
 
 ## 11. DoR / DoD

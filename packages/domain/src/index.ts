@@ -9,6 +9,7 @@ export {
   authorize,
   authorizeRequest,
   effectiveLimit,
+  isMatrixRole,
 } from "./access/authorize.ts";
 export {
   type Action,
@@ -100,3 +101,20 @@ export {
   TransitionError,
   taskMachine,
 } from "./state/machine.ts";
+export { parseStayNoticeDeadline, type StayNoticeDeadline, stayNoticeDueLocal } from "./stay/notice.ts";
+export {
+  addDays,
+  DEFAULT_MAX_NIGHTS,
+  DEFAULT_WEEKEND_NIGHTS,
+  isoWeekday,
+  maxNightsSetting,
+  type NightPrice,
+  nightsOf,
+  priceNights,
+  type QuoteError,
+  QuoteRuleError,
+  type RateVersion,
+  repriceForDates,
+  sumNights,
+  weekendNightsSetting,
+} from "./stay/pricing.ts";

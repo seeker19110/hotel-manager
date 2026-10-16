@@ -190,3 +190,29 @@ export async function seedLease(
   });
   return { leaseId, unitId: unitId as string };
 }
+
+/** Booking `draft` tối thiểu (một dòng phòng, giá giả) — cho test cần FK tới `reservations` (cọc/ứng trước đặt phòng). */
+export async function seedReservation(
+  admin: Kysely<unknown>,
+  input: { org: SeededOrg; bookerPersonId: string; arrivalDate?: string; departureDate?: string },
+): Promise<{ reservationId: string; itemId: string }> {
+  const reservationId = randomUUID();
+  const itemId = randomUUID();
+  const a = input.arrivalDate ?? "2026-10-20";
+  const d = input.departureDate ?? "2026-10-21";
+  await admin.transaction().execute(async (trx) => {
+    await sql`insert into reservations (id, organization_id, property_id, number, status, source, booker_person_id, created_by)
+              values (${reservationId}, ${input.org.orgId}, ${input.org.propertyId}, ${`R-${Math.floor(Math.random() * 1e9)}`},
+                      'draft', 'direct', ${input.bookerPersonId}, ${input.org.ownerMembershipId})`.execute(
+      trx,
+    );
+    await sql`insert into reservation_items (id, organization_id, property_id, reservation_id, unit_id, room_type_id,
+                                             arrival_date, departure_date, guests, nightly_prices, room_total)
+              select ${itemId}, ${input.org.orgId}, ${input.org.propertyId}, ${reservationId}, ${input.org.unitId},
+                     ${input.org.roomTypeId}, ${a}::date, ${d}::date, 1,
+                     (select jsonb_agg(jsonb_build_object('businessDate', g::date::text, 'amount', 600000))
+                      from generate_series(${a}::date, ${d}::date - 1, interval '1 day') g),
+                     600000 * (${d}::date - ${a}::date)`.execute(trx);
+  });
+  return { reservationId, itemId };
+}

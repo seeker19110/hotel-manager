@@ -3,7 +3,7 @@
 | Trường | Giá trị |
 |---|---|
 | ID tính năng | F-008 (yêu cầu gốc: R-001 bước "người thuê xem trên portal"; kế hoạch §03, §08, §09; backlog T044, phần portal của T045) |
-| Trạng thái | Draft — chờ duyệt |
+| Trạng thái | Approved — câu [chặn] chốt theo PLAN đợt 3 (tham số hoá, D-002) |
 | Phiên bản | 2 — thay đổi: xem cuối file |
 | Chủ spec | (chưa gán) · Duyệt bởi (chưa) ngày (chưa) |
 | Hồ sơ/quy mô | web-app / M |
@@ -215,14 +215,14 @@ Không áp dụng — tính năng không dùng model.
 - `portal.invoice_viewed`, `portal.request_created`, `portal.payment_claim_submitted`, `portal.guest_link_opened`, `portal.access_denied` (schema: `analytics/events.schema.json`, không chứa PII) → hỗ trợ M-01 (người thuê tự xem thay vì hỏi) và M-05 (dùng hằng tuần).
 
 ## 10. Câu hỏi mở (0 câu [chặn] trước khi Approved)
-- [ ] Q-01 Người thuê đăng nhập bằng gì: OTP email, OTP SĐT hay mật khẩu? — **[chặn]** — hỏi: PO + Tech Lead — **đề xuất mặc định:** OTP qua email (plugin `emailOTP` của Better Auth, bản ≥ 1.7.9 — đã sau advisory GHSA-qq9h-g4jm-xgf3; ADR-0002) (không cần nhà cung cấp SMS, không có chi phí theo tin); OTP SĐT xem lại sau pilot nếu tỷ lệ người thuê có email thấp (đo ở T001).
-- [ ] Q-02 Xác thực liên kết khách: chỉ token, hay token + yếu tố thứ hai? — **[chặn]** — hỏi: PO + Tech Lead — **đề xuất:** token ngẫu nhiên ≥ 128 bit gửi tới SĐT/email người đặt + nhập 4 số cuối SĐT đặt phòng, giới hạn 5 lần sai/liên kết rồi khoá.
-- [ ] Q-03 Thời hạn liên kết khách — [không chặn, có cấu hình] — hỏi: PO — **đề xuất:** đến giờ trả phòng dự kiến + 48 giờ, cấu hình theo cơ sở; tạo lại được.
-- [ ] Q-04 Người thuê còn xem được bao lâu sau khi hợp đồng `closed`? — [không chặn] — hỏi: PO + pháp lý — **đề xuất:** đến khi quyết toán xong + 30 ngày, chỉ đọc.
-- [ ] Q-05 Người ở cùng có tài khoản portal và thấy khoản tiền không? — [không chặn] — hỏi: PO — **đề xuất:** pilot chỉ người đứng hợp đồng và người trả tiền được mời; người ở cùng không xem tiền.
+- [x] Q-01 Người thuê đăng nhập bằng gì: OTP email, OTP SĐT hay mật khẩu? — **[chặn]** — hỏi: PO + Tech Lead — **đề xuất mặc định:** OTP qua email (plugin `emailOTP` của Better Auth, bản ≥ 1.7.9 — đã sau advisory GHSA-qq9h-g4jm-xgf3; ADR-0002) (không cần nhà cung cấp SMS, không có chi phí theo tin); OTP SĐT xem lại sau pilot nếu tỷ lệ người thuê có email thấp (đo ở T001). — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002, D-005):** OTP qua email (plugin `emailOTP` của Better Auth 1.7.9), có hạn và giới hạn số lần thử; gửi qua `EmailSender` (SMTP relay tự host).
+- [x] Q-02 Xác thực liên kết khách: chỉ token, hay token + yếu tố thứ hai? — **[chặn]** — hỏi: PO + Tech Lead — **đề xuất:** token ngẫu nhiên ≥ 128 bit gửi tới SĐT/email người đặt + nhập 4 số cuối SĐT đặt phòng, giới hạn 5 lần sai/liên kết rồi khoá. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002, D-006):** token ngẫu nhiên 256 bit (chỉ lưu SHA-256) + nhập 4 số cuối SĐT người đặt; sai 5 lần thì khoá liên kết; giới hạn theo IP; tắt bước thứ hai bằng `properties.settings.guest_link_second_factor=false`.
+- [x] Q-03 Thời hạn liên kết khách — [không chặn, có cấu hình] — hỏi: PO — **đề xuất:** đến giờ trả phòng dự kiến + 48 giờ, cấu hình theo cơ sở; tạo lại được. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** đến giờ trả phòng dự kiến + 48 giờ, tham số `properties.settings.guest_link_hours_after_checkout`; tạo lại được.
+- [x] Q-04 Người thuê còn xem được bao lâu sau khi hợp đồng `closed`? — [không chặn] — hỏi: PO + pháp lý — **đề xuất:** đến khi quyết toán xong + 30 ngày, chỉ đọc. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** đến khi quyết toán xong + 30 ngày, chỉ đọc; tham số `organizations.settings.tenant_readonly_days`.
+- [x] Q-05 Người ở cùng có tài khoản portal và thấy khoản tiền không? — [không chặn] — hỏi: PO — **đề xuất:** pilot chỉ người đứng hợp đồng và người trả tiền được mời; người ở cùng không xem tiền. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** chỉ người đứng hợp đồng/người trả tiền được mời; người ở cùng không xem tiền.
 - [x] Q-06 Bổ sung `guest_access_links`, `payment_claims` vào DOMAIN-MODEL — đã đóng: có ở DOMAIN-MODEL §7 (v1.2). Thống nhất với SPEC-ledger-payments: S-008 của ledger nay quy định "khách báo đã chuyển" chỉ tạo `payment_claims`, **không** tạo `payments`/bút toán (INV-F3).
-- [ ] Q-07 Có cho đính kèm ảnh chuyển khoản vào báo chuyển không? — [không chặn] — hỏi: PO — **đề xuất:** có, tuỳ chọn, lưu riêng tư; ảnh không đủ để xác nhận thu (INV-F3).
-- [ ] Q-08 Portal có hiển thị giấy tờ của chính người thuê không (ma trận SPEC-access-and-property cho phép "Mình")? — [không chặn] — hỏi: PO + pháp lý — **đề xuất:** không trong pilot (giảm bề mặt lộ dữ liệu nhạy cảm); xem lại sau DPIA.
+- [x] Q-07 Có cho đính kèm ảnh chuyển khoản vào báo chuyển không? — [không chặn] — hỏi: PO — **đề xuất:** có, tuỳ chọn, lưu riêng tư; ảnh không đủ để xác nhận thu (INV-F3). — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** có, tuỳ chọn, lưu riêng tư; ảnh không đủ để xác nhận thu (INV-F3).
+- [x] Q-08 Portal có hiển thị giấy tờ của chính người thuê không (ma trận SPEC-access-and-property cho phép "Mình")? — [không chặn] — hỏi: PO + pháp lý — **đề xuất:** không trong pilot (giảm bề mặt lộ dữ liệu nhạy cảm); xem lại sau DPIA. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** không hiển thị giấy tờ trên portal ở pilot.
 
 ## 11. DoR / DoD
 - DoR: spec Approved · 0 câu hỏi chặn · SPEC-access-and-property có ma trận `tenant`/`guest` · đủ nhỏ cho một PR · mỗi task có Gate.
