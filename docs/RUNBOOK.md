@@ -10,7 +10,7 @@
 | Web (Next.js) | `GET /api/health` | `200 {"status":"ok"}` — tiến trình còn sống |
 | Web + phụ thuộc | `GET /api/ready` | `200 {"status":"ready","checks":{"database":"ok","storage":"ok","scanner":"ok"}}`; thiếu ⇒ `503` kèm thành phần `fail`/`timeout` (không có chi tiết lỗi) |
 | Số liệu | `GET /api/metrics` + `Authorization: Bearer <token>` | Prometheus text 0.0.4 |
-| Worker | metric `hm_worker_heartbeat_age_seconds{worker=…}` | < 120 giây (worker gọi `workerHeartbeat` mỗi vòng — lập lịch ở bước triển khai) |
+| Worker | metric `hm_worker_heartbeat_age_seconds{worker=…}` | < 120 giây (worker ghi nhịp mỗi 30 giây, tên `worker`; §8) |
 | CSDL | Postgres 17, `max_connections=100`, pool ≤ 20/tiến trình | — |
 | Kho file | SeaweedFS (S3), bucket riêng tư, URL ký ≤ 5 phút | — |
 | Quét mã độc | clamd (ClamAV) nội bộ; dev/CI dùng bản giả EICAR | — |
@@ -83,3 +83,10 @@ Khi chạy thật (đề xuất D-021): chặn thêm `/api/metrics` ở reverse 
 - Job `runRetention` (worker, hằng ngày): xoá object file hết hạn (`files.delete_after`) rồi đánh dấu `deleted`; làm rỗng `import_rows.raw/data` 30 ngày sau commit/huỷ lô nhập.
 - Job `expireExports` (5 phút): bản xuất quá 15 phút ⇒ `expired`.
 - Lỗi xoá object ⇒ log `retention.file_delete_failed`, lượt sau thử lại (không đánh dấu `deleted` khi chưa xoá được).
+
+## 8. Worker (apps/worker) — khởi chạy, lịch, dừng
+- Chạy: `node apps/worker/src/index.ts` (Node 24). Biến: toàn bộ schema web (`DATABASE_URL` = vai trò `app_runtime`, dùng cho job xuất dữ liệu) **cộng `WORKER_DATABASE_URL`** = vai trò `app_worker` (relay outbox, job nền, pg-boss). Thiếu/sai biến ⇒ thoát mã 1, stderr nêu tên biến (không giá trị). Web cũng validate lúc khởi động (`apps/web/instrumentation.ts`).
+- pg-boss tự dựng schema `pgboss` lần đầu: vai trò dùng cho nó cần `CREATE` trên CSDL (một lần; test cấp bằng `GRANT CREATE ON DATABASE … TO app_worker`). Quyết định cấp quyền này hay dựng schema bằng vai trò owner trước: chủ dự án (đề xuất trong báo cáo T-301).
+- Lịch (vòng lặp trong tiến trình, mỗi job không chồng lượt, lỗi chỉ ghi log `job.failed`): relay outbox 2 giây · nhịp 30 giây · gửi email đến hạn 15 giây (bỏ nếu `SMTP_URL` là `smtp(s)://` — chưa có adapter, log `email.sender_unavailable`) · nhả hold 1 phút · nhắc 15 phút · tạo kỳ thu, hợp đồng (nhắc hết hạn, quá hạn ở) 1 giờ · hết hạn bản xuất 5 phút · hạn giữ import/file 24 giờ (lượt đầu sau 60 giây). Nhiều worker chạy song song an toàn (SKIP LOCKED, khoá dedupe).
+- Sự kiện outbox chưa có consumer được đánh dấu đã phát mà không sinh job (không kẹt hàng); xem lịch sử ở bảng `outbox`.
+- Dừng: SIGTERM/SIGINT ⇒ ngừng lập lịch → chờ job/handler đang chạy (trần 25 giây) → `boss.stop` graceful → đóng pool → thoát 0. Tín hiệu lần hai ⇒ thoát ngay (mã 1). Đặt `terminationGracePeriod`/`stop_grace_period` ≥ 40 giây.

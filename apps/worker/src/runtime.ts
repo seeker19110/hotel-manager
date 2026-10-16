@@ -1,0 +1,419 @@
+// Worker chạy thật (PLAN đợt 4 T-301; BASE-CFG-002, ARC-RES-009, BE-REL-004): validate env → mở pool + pg-boss → tạo queue →
+// consumer → lịch định kỳ; SIGTERM/SIGINT: ngừng nhận việc → `boss.stop({graceful, timeout})` → đóng pool → exit 0.
+// `startWorker(deps)` thuần phụ thuộc tiêm vào (test được trên Postgres thật); `bootWorker(env)` dựng phụ thuộc từ cấu hình;
+// `main()` (index.ts) nối tiến trình + tín hiệu.
+import {
+  BANK_TXN_RECEIVED,
+  ConfigError,
+  createLogger,
+  createPool,
+  createServices,
+  detectOverstay,
+  type EmailSender,
+  expireHeldReservations,
+  FakeEmailSender,
+  generatePeriods,
+  type Logger,
+  loadWorkerConfig,
+  type ObjectStorage,
+  remindExpiring,
+  runReminders,
+  runRetention,
+  sendDueEmails,
+  unsubscribeKey,
+} from "@hm/app";
+import { Kysely, PostgresDialect } from "kysely";
+import { PgBoss } from "pg-boss";
+import {
+  bankTransactionReceivedHandler,
+  expireExportsJob,
+  expireHolds,
+  exportHandlers,
+  notifyHandlers,
+  workerHeartbeat,
+} from "./jobs.ts";
+import { ensureQueues, type OutboxJob, relayOutbox, startConsumers } from "./relay.ts";
+import { type ScheduledJob, startScheduler } from "./scheduler.ts";
+
+const SECOND = 1000;
+const MINUTE = 60 * SECOND;
+const HOUR = 60 * MINUTE;
+
+/** Khoảng giữa hai lượt của từng job (ms). Ghi đè được (test dùng giá trị nhỏ). */
+export interface Intervals {
+  relay: number;
+  heartbeat: number;
+  emails: number;
+  holds: number;
+  reminders: number;
+  periods: number;
+  lease: number;
+  exports: number;
+  retention: number;
+}
+
+export const DEFAULT_INTERVALS: Intervals = {
+  relay: 2 * SECOND,
+  heartbeat: 30 * SECOND, // RUNBOOK: cảnh báo khi nhịp > 120 giây
+  emails: 15 * SECOND,
+  holds: MINUTE,
+  reminders: 15 * MINUTE, // nhắc lưu trú cần nhịp 15 phút; quá hạn/hợp đồng chạy cùng nhịp, dedupe giữ không lặp
+  periods: HOUR,
+  lease: HOUR,
+  exports: 5 * MINUTE,
+  retention: 24 * HOUR,
+};
+
+export const DEFAULT_STOP_TIMEOUT_MS = 25_000;
+const RELAY_BATCH = 100;
+/** Một lượt relay xả tối đa chừng này lô liên tiếp rồi nhường (tránh độc chiếm khi outbox đầy). */
+const RELAY_MAX_ROUNDS = 20;
+
+export interface WorkerDeps {
+  /** Kết nối vai trò app_worker. */
+  workerDb: Kysely<unknown>;
+  /** Kết nối vai trò app_runtime — export đọc dữ liệu trong ngữ cảnh người yêu cầu (RLS). */
+  db: Kysely<unknown>;
+  /** Chưa `start()` — startWorker sẽ start. */
+  boss: PgBoss;
+  storage: ObjectStorage;
+  /** null = chưa có adapter gửi thật (SMTP): KHÔNG chạy vòng gửi để không đốt lượt thử của thông báo. */
+  sender: EmailSender | null;
+  log: Logger;
+  baseUrl: string;
+  unsubscribeKey: Buffer;
+  /** Tên ghi ở `worker_heartbeats` (khớp `^[a-z0-9][a-z0-9._-]{0,62}$`). */
+  name?: string;
+  /** Handler bổ sung cho event_type khác (mở rộng/test); trùng tên với handler sẵn có thì handler này thắng. */
+  extraHandlers?: Readonly<Record<string, (job: OutboxJob) => Promise<unknown>>>;
+  intervals?: Partial<Intervals>;
+  /** Trần chờ job/handler đang chạy khi dừng (ms). */
+  stopTimeoutMs?: number;
+  pollingIntervalSeconds?: number;
+  /** Trì hoãn lượt đầu của job hạn giữ (ms) — test đặt 0. */
+  retentionInitialDelayMs?: number;
+}
+
+export interface WorkerHandle {
+  /** Dừng êm: ngừng nhận → chờ việc đang chạy (có trần) → dừng pg-boss. KHÔNG đóng pool của người gọi. Gọi lại trả cùng promise. */
+  stop(): Promise<void>;
+  /** Tập event_type có consumer. */
+  readonly eventTypes: readonly string[];
+}
+
+/** Chạy lần lượt các bước; một bước lỗi không chặn bước sau, hết lượt mới ném. */
+async function sequence(steps: readonly (() => Promise<unknown>)[]): Promise<unknown[]> {
+  const out: unknown[] = [];
+  const errors: unknown[] = [];
+  for (const step of steps) {
+    try {
+      out.push(await step());
+    } catch (err) {
+      errors.push(err);
+    }
+  }
+  if (errors.length > 0) throw new AggregateError(errors, `${errors.length}/${steps.length} bước lỗi`);
+  return out;
+}
+
+async function withTimeout(p: Promise<unknown>, ms: number): Promise<"done" | "timeout"> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      p.then(() => "done" as const),
+      new Promise<"timeout">((r) => {
+        timer = setTimeout(() => r("timeout"), ms);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function startWorker(deps: WorkerDeps): Promise<WorkerHandle> {
+  const { workerDb, db, boss, storage, log } = deps;
+  const name = deps.name ?? "worker";
+  const iv = { ...DEFAULT_INTERVALS, ...deps.intervals };
+  const stopTimeoutMs = deps.stopTimeoutMs ?? DEFAULT_STOP_TIMEOUT_MS;
+
+  // Handler của pg-boss: lỗi được log rồi ném lại để pg-boss retry/dead letter theo chính sách queue.
+  const wrap =
+    (type: string, h: (job: OutboxJob) => Promise<unknown>) =>
+    async (job: OutboxJob): Promise<void> => {
+      try {
+        await h(job);
+      } catch (err) {
+        log.error("job.handler_failed", { event_type: type, outbox_id: job.outbox_id, error: err });
+        throw err;
+      }
+    };
+  const raw: Record<string, (job: OutboxJob) => Promise<unknown>> = {
+    ...notifyHandlers(workerDb, log.child({ component: "notify.dispatch" })),
+    ...exportHandlers({ db, workerDb, storage }),
+    [BANK_TXN_RECEIVED]: bankTransactionReceivedHandler(workerDb),
+    ...deps.extraHandlers,
+  };
+  const handlers = Object.fromEntries(Object.entries(raw).map(([t, h]) => [t, wrap(t, h)]));
+  const eventTypes = Object.keys(handlers);
+  const consumed = new Set(eventTypes);
+
+  boss.on("error", (err) => log.error("pgboss.error", { error: err }));
+  await boss.start();
+  await ensureQueues(boss, eventTypes);
+  await startConsumers(boss, handlers, {
+    pollingIntervalSeconds: deps.pollingIntervalSeconds ?? 2,
+  });
+
+  const ac = new AbortController();
+  const jobs: ScheduledJob[] = [
+    {
+      name: "outbox.relay",
+      everyMs: iv.relay,
+      run: async () => {
+        let total = 0;
+        for (let round = 0; round < RELAY_MAX_ROUNDS && !ac.signal.aborted; round++) {
+          const n = await relayOutbox(workerDb, boss, RELAY_BATCH, { consumed });
+          total += n;
+          if (n < RELAY_BATCH) break;
+        }
+        return total;
+      },
+    },
+    { name: "worker.heartbeat", everyMs: iv.heartbeat, run: () => workerHeartbeat(workerDb, name) },
+    {
+      name: "inventory.expire_holds",
+      everyMs: iv.holds,
+      run: () =>
+        sequence([
+          () => expireHolds(workerDb, new Date()),
+          () => expireHeldReservations(workerDb, new Date()),
+        ]),
+    },
+    { name: "notifications.reminders", everyMs: iv.reminders, run: () => runReminders(workerDb, new Date()) },
+    {
+      name: "billing.generate_periods",
+      everyMs: iv.periods,
+      run: () => generatePeriods(workerDb, new Date()),
+    },
+    {
+      name: "lease.daily",
+      everyMs: iv.lease,
+      run: () =>
+        sequence([() => remindExpiring(workerDb, new Date()), () => detectOverstay(workerDb, new Date())]),
+    },
+    { name: "exports.expire", everyMs: iv.exports, run: expireExportsJob(workerDb) },
+    {
+      name: "import.retention",
+      everyMs: iv.retention,
+      initialDelayMs: deps.retentionInitialDelayMs ?? MINUTE,
+      run: () => runRetention(workerDb, storage, { now: new Date(), log: (e, f) => log.info(e, f) }),
+    },
+  ];
+  const sender = deps.sender;
+  if (sender) {
+    jobs.push({
+      name: "notifications.send_due",
+      everyMs: iv.emails,
+      run: () =>
+        sendDueEmails(workerDb, sender, {
+          now: new Date(),
+          baseUrl: deps.baseUrl,
+          unsubscribeKey: deps.unsubscribeKey,
+          log: (e, f) => log.info(e, f),
+        }),
+    });
+  } else {
+    log.warn("email.sender_unavailable", { reason: "chưa có adapter SMTP — bỏ vòng gửi email (D-010)" });
+  }
+  const scheduler = startScheduler(jobs, { signal: ac.signal, log });
+  log.info("worker.started", { name, queues: eventTypes.length, jobs: jobs.map((j) => j.name) });
+
+  let stopping: Promise<void> | undefined;
+  return {
+    eventTypes,
+    stop() {
+      stopping ??= (async () => {
+        // 1) Ngừng lập lịch: lượt đang chạy làm nốt (có trần), không lượt mới.
+        ac.abort();
+        if ((await withTimeout(scheduler.stopped, stopTimeoutMs)) === "timeout") {
+          log.warn("worker.stop_timeout", { stage: "scheduler", timeout_ms: stopTimeoutMs });
+        }
+        // 2) pg-boss: ngừng nhận job, chờ handler đang chạy tới trần rồi đóng pool riêng của nó.
+        await boss.stop({ graceful: true, timeout: stopTimeoutMs });
+        log.info("worker.stopped", { name });
+      })();
+      return stopping;
+    },
+  };
+}
+
+export interface RunningWorker {
+  handle: WorkerHandle;
+  /** Dừng êm rồi đóng mọi pool. Gọi lại an toàn. */
+  shutdown(): Promise<void>;
+}
+
+export interface BootOptions {
+  log?: Logger;
+  intervals?: Partial<Intervals>;
+  stopTimeoutMs?: number;
+  pollingIntervalSeconds?: number;
+  retentionInitialDelayMs?: number;
+  extraHandlers?: WorkerDeps["extraHandlers"];
+  /** Thay bộ gửi email (test). Mặc định: `fake://…` → FakeEmailSender; `smtp(s)://…` → null (chưa có adapter). */
+  sender?: EmailSender | null;
+}
+
+/** Dựng worker từ env: ConfigError nếu thiếu/sai biến (nêu tên, không giá trị). */
+export async function bootWorker(
+  env: Record<string, string | undefined>,
+  opts: BootOptions = {},
+): Promise<RunningWorker> {
+  const cfg = loadWorkerConfig(env); // ném ConfigError trước khi mở bất kỳ kết nối nào
+  const config = cfg.app;
+  const log = opts.log ?? createLogger({ level: config.LOG_LEVEL, bindings: { service: "worker" } });
+  const onError = (err: Error) => log.warn("pool.idle_error", { error: err });
+  const workerPool = createPool(cfg.workerDatabaseUrl, { max: 10, onError });
+  const runtimePool = createPool(config.DATABASE_URL, { max: 5, onError });
+  const workerDb = new Kysely<unknown>({ dialect: new PostgresDialect({ pool: workerPool }) });
+  const db = new Kysely<unknown>({ dialect: new PostgresDialect({ pool: runtimePool }) });
+  const boss = new PgBoss({
+    connectionString: cfg.workerDatabaseUrl,
+    schema: "pgboss",
+    application_name: "hm-worker-boss",
+    max: 5,
+  });
+  const closePools = async () => {
+    await Promise.allSettled([workerDb.destroy(), db.destroy()]);
+  };
+  let handle: WorkerHandle;
+  try {
+    handle = await startWorker({
+      workerDb,
+      db,
+      boss,
+      storage: createServices(config).storage,
+      sender:
+        opts.sender !== undefined
+          ? opts.sender
+          : config.SMTP_URL.startsWith("fake://")
+            ? new FakeEmailSender()
+            : null,
+      log,
+      baseUrl: config.APP_BASE_URL,
+      unsubscribeKey: unsubscribeKey(config.BETTER_AUTH_SECRET),
+      // Tên nhịp cố định (không theo hostname): container khởi động lại đổi hostname sẽ để lại hàng nhịp cũ → cảnh báo treo giả.
+      ...(opts.extraHandlers ? { extraHandlers: opts.extraHandlers } : {}),
+      ...(opts.intervals ? { intervals: opts.intervals } : {}),
+      ...(opts.stopTimeoutMs !== undefined ? { stopTimeoutMs: opts.stopTimeoutMs } : {}),
+      ...(opts.pollingIntervalSeconds !== undefined
+        ? { pollingIntervalSeconds: opts.pollingIntervalSeconds }
+        : {}),
+      ...(opts.retentionInitialDelayMs !== undefined
+        ? { retentionInitialDelayMs: opts.retentionInitialDelayMs }
+        : {}),
+    });
+  } catch (err) {
+    // Khởi động dở (DB không tới, thiếu quyền tạo schema pgboss…): dọn những gì đã mở rồi báo lỗi.
+    await boss.stop({ graceful: false, timeout: 1000 }).catch(() => {});
+    await closePools();
+    throw err;
+  }
+  let down: Promise<void> | undefined;
+  return {
+    handle,
+    shutdown() {
+      down ??= (async () => {
+        try {
+          await handle.stop();
+        } finally {
+          await closePools();
+        }
+      })();
+      return down;
+    },
+  };
+}
+
+/** Phần của `process` mà worker dùng — tách để test bằng bản giả. */
+export interface ProcessLike {
+  env: Record<string, string | undefined>;
+  on(event: string, listener: (...args: never[]) => void): unknown;
+  exit(code: number): unknown;
+  stderr: { write(s: string): unknown };
+}
+
+/**
+ * SIGTERM/SIGINT lần đầu → `shutdown()` (êm) rồi exit 0 (lỗi → exit 1); lần thứ hai → exit 1 NGAY. Đồng hồ canh: quá
+ * `stopTimeoutMs + 10 s` mà chưa xong thì exit 1 (không treo mãi dưới orchestrator).
+ */
+export function installShutdown(
+  proc: ProcessLike,
+  shutdown: () => Promise<void>,
+  log: Logger,
+  stopTimeoutMs = DEFAULT_STOP_TIMEOUT_MS,
+): void {
+  let signals = 0;
+  const onSignal = (signal: string) => {
+    signals += 1;
+    if (signals > 1) {
+      log.warn("worker.force_exit", { signal });
+      proc.exit(1);
+      return;
+    }
+    log.info("worker.stopping", { signal });
+    setTimeout(() => {
+      log.error("worker.shutdown_watchdog", { timeout_ms: stopTimeoutMs + 10_000 });
+      proc.exit(1);
+    }, stopTimeoutMs + 10_000).unref();
+    shutdown().then(
+      () => proc.exit(0),
+      (err) => {
+        log.error("worker.shutdown_failed", { error: err });
+        proc.exit(1);
+      },
+    );
+  };
+  proc.on("SIGTERM", () => onSignal("SIGTERM"));
+  proc.on("SIGINT", () => onSignal("SIGINT"));
+}
+
+/**
+ * Điểm vào tiến trình. Bộ xử lý tín hiệu được cài TRƯỚC khi khởi động: SIGTERM đến giữa lúc đang mở kết nối vẫn dừng êm
+ * (đợi khởi động xong rồi dừng) thay vì bị hệ điều hành giết ngang. Lỗi khởi động → exit 1.
+ */
+export async function runMain(proc: ProcessLike, opts: BootOptions = {}): Promise<void> {
+  const fatal = createLogger({
+    sink: { write: (l) => proc.stderr.write(`${l}\n`) },
+    bindings: { service: "worker" },
+  });
+  const booting = bootWorker(proc.env, opts);
+  // Tránh "unhandled rejection" nếu khởi động lỗi trong lúc chưa ai await (xử lý thật ở try/catch bên dưới).
+  booting.catch(() => {});
+  installShutdown(
+    proc,
+    async () => {
+      const worker = await booting.catch(() => undefined);
+      await worker?.shutdown();
+    },
+    opts.log ?? createLogger({ bindings: { service: "worker" } }),
+    opts.stopTimeoutMs,
+  );
+  try {
+    await booting;
+    const crash = (err: unknown) => {
+      fatal.error("worker.crashed", { error: err });
+      proc.exit(1);
+    };
+    proc.on("uncaughtException", crash);
+    proc.on("unhandledRejection", crash);
+  } catch (err) {
+    if (err instanceof ConfigError) {
+      // Chỉ tên biến + lý do (ConfigError không chứa giá trị).
+      proc.stderr.write(`worker: ${err.message}\n`);
+    } else {
+      fatal.error("worker.start_failed", { error: err });
+    }
+    proc.exit(1);
+  }
+}

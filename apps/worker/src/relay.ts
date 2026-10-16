@@ -39,8 +39,14 @@ export async function ensureQueues(
 /**
  * Chuyển tối đa `batch` hàng chưa phát sang pg-boss qua `app.outbox_claim` (FOR UPDATE SKIP LOCKED) nên nhiều relay
  * chạy song song không phát trùng; `singletonKey = outbox.id` là lưới thứ hai. Gửi lỗi → ghi `last_error`, lần sau thử lại.
+ * `opts.consumed`: tập event_type có consumer; loại khác được đánh dấu đã phát mà không gửi job (xem bên dưới).
  */
-export async function relayOutbox(workerDb: Kysely<unknown>, boss: PgBoss, batch = 100): Promise<number> {
+export async function relayOutbox(
+  workerDb: Kysely<unknown>,
+  boss: PgBoss,
+  batch = 100,
+  opts: { consumed?: ReadonlySet<string> } = {},
+): Promise<number> {
   return workerDb.transaction().execute(async (trx) => {
     const rows = await sql<{
       id: string;
@@ -51,6 +57,13 @@ export async function relayOutbox(workerDb: Kysely<unknown>, boss: PgBoss, batch
       correlation_id: string;
     }>`select * from app.outbox_claim(${batch})`.execute(trx);
     for (const r of rows.rows) {
+      // Sự kiện chưa có consumer (T-301): không có việc phải làm → đánh dấu đã phát, KHÔNG gửi job. Nếu để chưa phát, `outbox_claim`
+      // (cũ nhất trước) sẽ kẹt đầu hàng vì pg-boss không có queue cho event_type đó. Hàng outbox vẫn còn làm lịch sử; consumer
+      // thêm sau cần tự quét bù nếu muốn xử lý sự kiện cũ.
+      if (opts.consumed && !opts.consumed.has(r.event_type)) {
+        await sql`select app.outbox_mark(${r.id}::uuid, ${null})`.execute(trx);
+        continue;
+      }
       const job: OutboxJob = {
         organization_id: r.organization_id,
         outbox_id: r.id,
