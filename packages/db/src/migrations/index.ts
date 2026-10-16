@@ -33,6 +33,7 @@ import * as m0029 from "./0029_checkout_allocation_policy.ts";
 import * as m0030 from "./0030_residence_notice_files.ts";
 import * as m0031 from "./0031_unit_arrivals.ts";
 import * as m0032 from "./0032_work_orders.ts";
+import * as m0033 from "./0033_hk_maintenance_review_fixes.ts";
 
 export const migrations: Record<string, Migration> = {
   "0001_tenancy": m0001,
@@ -67,4 +68,5 @@ export const migrations: Record<string, Migration> = {
   "0030_residence_notice_files": m0030,
   "0031_unit_arrivals": m0031,
   "0032_work_orders": m0032,
+  "0033_hk_maintenance_review_fixes": m0033,
 };

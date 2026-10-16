@@ -413,6 +413,10 @@ export async function endBlock(
       await sql`update allocations set during = tstzrange(lower(during), ${now}, '[)'), active = false, deactivated_at = ${now},
                        deactivated_reason = 'ended'
                 where organization_id = ${ctx.actor.orgId} and id = ${al.id}`.execute(ctx.trx);
+    } else {
+      // Khoảng chặn đã qua (sửa xong muộn hơn hạn block): giữ nguyên khoảng, chỉ nhả (review buồng phòng/sự cố R1).
+      await sql`update allocations set active = false, deactivated_at = ${now}, deactivated_reason = 'ended'
+                where organization_id = ${ctx.actor.orgId} and id = ${al.id}`.execute(ctx.trx);
     }
   }
   await sql`update blocks set status = 'ended', ended_at = ${now}, version = version + 1

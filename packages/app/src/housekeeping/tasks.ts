@@ -90,6 +90,7 @@ interface TaskRow {
   assignee_person_id: string | null;
   done_by: string | null;
   previous_housekeeping_status: string | null;
+  source_type: string;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -107,7 +108,7 @@ async function lockTask(
   const read = (lock: boolean) =>
     sql<TaskRow>`
       select t.id, t.property_id, t.unit_id, t.kind, t.status, t.assignee_membership_id, m.person_id as assignee_person_id,
-             t.done_by, t.previous_housekeeping_status
+             t.done_by, t.previous_housekeeping_status, t.source_type
       from tasks t left join memberships m on m.organization_id = t.organization_id and m.id = t.assignee_membership_id
       where t.organization_id = ${ctx.actor.orgId} and t.id = ${taskId}
       ${lock ? sql`for update of t` : sql``}`.execute(ctx.trx);
@@ -128,9 +129,27 @@ function denyTransition(from: string, to: string): never {
   throw new TransitionError("task", from, to);
 }
 
+/** Việc dọn KHÁC đang mở trên cùng phòng (S-002: việc cũ `done` + sự kiện mới ⇒ đã có việc mới). */
+async function otherOpenCleaning(ctx: CommandContext, t: TaskRow): Promise<string | null> {
+  const r = await sql<{ id: string }>`
+    select id from tasks where organization_id = ${ctx.actor.orgId} and unit_id = ${t.unit_id} and kind = 'cleaning'
+      and id <> ${t.id} and status in ('open','assigned','in_progress') limit 1`.execute(ctx.trx);
+  return r.rows[0]?.id ?? null;
+}
+
 async function setUnitStatus(ctx: CommandContext, t: TaskRow, status: TaskStatus): Promise<void> {
   if (t.kind !== "cleaning") return;
-  const hs = status === "cancelled" ? t.previous_housekeeping_status : UNIT_STATUS[status];
+  // Phòng đã bẩn lại và có việc dọn mới đang mở: việc cũ không được ghi đè trạng thái phòng (review R2 — không báo phòng
+  // sẵn sàng khi còn bẩn).
+  if (await otherOpenCleaning(ctx, t)) return;
+  // Huỷ: chỉ việc tạo tay mới trả phòng về trạng thái trước đó; việc sinh từ trả phòng/đổi phòng/sự cố thì phòng vẫn bẩn
+  // (chưa ai dọn — review R6, D-014).
+  const hs =
+    status === "cancelled"
+      ? t.source_type === "manual"
+        ? t.previous_housekeeping_status
+        : "dirty"
+      : UNIT_STATUS[status];
   if (!hs) return;
   await sql`update units set housekeeping_status = ${hs}, version = version + 1
             where organization_id = ${ctx.actor.orgId} and id = ${t.unit_id}`.execute(ctx.trx);
@@ -344,6 +363,18 @@ export async function verifyTask(
   }
   const reason = input.reason?.trim() ?? "";
   if (!reason) throw new CommandError("VALIDATION_FAILED", 422, "Cần lý do không đạt");
+  const newer = t.kind === "cleaning" ? await otherOpenCleaning(ctx, t) : null;
+  if (newer) {
+    // Đã có việc dọn mới cho phòng (S-002): việc cũ không đạt thì đóng lại, lý do chuyển sang việc mới (review R3 — thay vì
+    // 409 DUPLICATE do unique việc dọn mở).
+    await sql`update tasks set status = 'cancelled', cancel_reason = ${`Không đạt: ${reason} — gộp vào việc dọn mới`}, version = version + 1
+              where organization_id = ${ctx.actor.orgId} and id = ${t.id}`.execute(ctx.trx);
+    await sql`update tasks set note = left(concat_ws(E'\n', note, ${`Kiểm việc trước không đạt: ${reason}`}::text), 2000),
+                     version = version + 1
+              where organization_id = ${ctx.actor.orgId} and id = ${newer}`.execute(ctx.trx);
+    await audited(ctx, t, "task_rejected", "cancelled", { reason, merged_into: newer });
+    return { taskId: t.id, status: "cancelled" as const };
+  }
   await sql`update tasks set status = 'assigned', done_by = null, done_at = null, version = version + 1,
                    note = left(concat_ws(E'\n', note, ${`Không đạt: ${reason}`}::text), 2000)
             where organization_id = ${ctx.actor.orgId} and id = ${t.id}`.execute(ctx.trx);

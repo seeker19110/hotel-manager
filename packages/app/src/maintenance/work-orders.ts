@@ -77,15 +77,11 @@ export async function createWorkOrder(
   });
   if (tenant) {
     // Người thuê chỉ báo phòng thuộc hợp đồng đang hiệu lực của mình (S-021); phòng khác → 404 (không lộ tồn tại).
-    const own = await sql<{ id: string }>`
-      select l.id from leases l
-      where l.organization_id = ${ctx.actor.orgId} and l.unit_id = ${input.unitId}
-        and l.status in ('active','notice_given')
-        and (l.representative_person_id = ${ctx.actor.personId}
-             or exists (select 1 from lease_occupants o where o.organization_id = l.organization_id and o.lease_id = l.id
-                          and o.person_id = ${ctx.actor.personId} and o.role in ('primary','co_tenant')))
-      limit 1`.execute(ctx.trx);
-    if (!own.rows[0]) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phòng");
+    // Qua hàm hẹp `app.tenant_rents_unit` (0033): người thuê chung đang ở cũng báo được; người đã rời → 404.
+    const own = await sql<{ ok: boolean }>`select app.tenant_rents_unit(${input.unitId}::uuid) as ok`.execute(
+      ctx.trx,
+    );
+    if (!own.rows[0]?.ok) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phòng");
   }
   const title = input.title.trim();
   const description = input.description.trim();
@@ -258,21 +254,7 @@ export async function verifyWorkOrder(ctx: CommandContext, input: { workOrderId:
     throw new CommandError("SELF_APPROVAL_FORBIDDEN", 403, "Bạn không thể tự nghiệm thu việc mình đã làm.");
   await sql`update work_orders set status = 'verified', verified_by = ${ctx.actor.membershipId}, verified_at = now(), version = version + 1
             where organization_id = ${ctx.actor.orgId} and id = ${w.id}`.execute(ctx.trx);
-  let blockEnded = false;
-  if (w.block_id) {
-    const b = await sql<{
-      status: string;
-    }>`select status from blocks where organization_id = ${ctx.actor.orgId} and id = ${w.block_id}`.execute(
-      ctx.trx,
-    );
-    if (b.rows[0]?.status === "approved") {
-      await endBlock(ctx, w.block_id, input.now);
-      blockEnded = true;
-    } else if (b.rows[0]?.status === "requested") {
-      await sql`update blocks set status = 'rejected', version = version + 1
-                where organization_id = ${ctx.actor.orgId} and id = ${w.block_id}`.execute(ctx.trx);
-    }
-  }
+  const blockEnded = await closeWorkOrderBlocks(ctx, w, input.now);
   const task = await createCleaningTask(ctx, {
     propertyId: w.property_id,
     unitId: w.unit_id,
@@ -283,7 +265,36 @@ export async function verifyWorkOrder(ctx: CommandContext, input: { workOrderId:
   return { workOrderId: w.id, status: "verified" as const, blockEnded, cleaningTaskId: task.taskId };
 }
 
-/** `maintenance.cancelWorkOrder`: owner/manager, có lý do. */
+/**
+ * Đóng mọi block gắn phiếu (review R4/R8/R9): `approved` → kết thúc (nhả phòng), `requested` → từ chối có audit. Trả true nếu
+ * có block đang chặn được kết thúc.
+ */
+async function closeWorkOrderBlocks(ctx: CommandContext, w: WoRow, now?: Date): Promise<boolean> {
+  const bs = await sql<{ id: string; status: string }>`
+    select id, status from blocks where organization_id = ${ctx.actor.orgId} and work_order_id = ${w.id}
+      and status in ('requested','approved') order by created_at for update`.execute(ctx.trx);
+  let ended = false;
+  for (const b of bs.rows) {
+    if (b.status === "approved") {
+      await endBlock(ctx, b.id, now);
+      ended = true;
+    } else {
+      await sql`update blocks set status = 'rejected', version = version + 1
+                where organization_id = ${ctx.actor.orgId} and id = ${b.id}`.execute(ctx.trx);
+      await ctx.audit({
+        action: "block.rejected",
+        entityType: "block",
+        entityId: b.id,
+        propertyId: w.property_id,
+        reason: "Phiếu sự cố đã kết thúc",
+        after: { status: "rejected", work_order_id: w.id },
+      });
+    }
+  }
+  return ended;
+}
+
+/** `maintenance.cancelWorkOrder`: owner/manager, có lý do; block gắn phiếu được kết thúc/từ chối. */
 export async function cancelWorkOrder(ctx: CommandContext, input: { workOrderId: string; reason: string }) {
   const w = await lockWorkOrder(ctx, input.workOrderId, (row) => {
     authorize(ctx.actor, "work_order.handle", { propertyId: row.property_id });
@@ -295,7 +306,8 @@ export async function cancelWorkOrder(ctx: CommandContext, input: { workOrderId:
   if (!reason) throw fieldError("reason", "required", "Cần lý do huỷ");
   await sql`update work_orders set status = 'cancelled', cancel_reason = ${reason}, version = version + 1
             where organization_id = ${ctx.actor.orgId} and id = ${w.id}`.execute(ctx.trx);
-  await audit(ctx, w, "cancelled", "cancelled", { reason });
+  const blockEnded = await closeWorkOrderBlocks(ctx, w);
+  await audit(ctx, w, "cancelled", "cancelled", { reason, block_ended: blockEnded });
   return { workOrderId: w.id, status: "cancelled" as const };
 }
 
@@ -304,10 +316,24 @@ export async function proposeWorkOrderBlock(
   ctx: CommandContext,
   input: { workOrderId: string; start: Date; end: Date; reason: string },
 ): Promise<{ blockId: string }> {
-  const w = await lockWorkOrder(ctx, input.workOrderId, (row) =>
-    authorize(ctx.actor, "block.propose", { propertyId: row.property_id }),
-  );
+  const w = await lockWorkOrder(ctx, input.workOrderId, (row) => {
+    authorize(ctx.actor, "block.propose", { propertyId: row.property_id });
+    // Qua phiếu: owner/manager hoặc kỹ thuật được giao (403 thay vì 409 do RLS); lễ tân đề xuất block qua
+    // `inventory.requestBlock` (review R7).
+    if (ctx.actor.role !== "owner" && ctx.actor.role !== "manager") {
+      if (ctx.actor.role !== "maintenance")
+        throw new CommandError("FORBIDDEN", 403, "Đề xuất block cho phiếu: quản lý hoặc kỹ thuật được giao");
+      authorizeHandle(ctx, row);
+    }
+  });
   if (!["open", "assigned", "in_progress"].includes(w.status)) deny(w.status, w.status);
+  const active = await sql<{ id: string }>`
+    select id from blocks where organization_id = ${ctx.actor.orgId} and work_order_id = ${w.id}
+      and status in ('requested','approved') limit 1`.execute(ctx.trx);
+  if (active.rows[0])
+    throw new CommandError("INVALID_TRANSITION", 409, "Phiếu đã có block đang chờ duyệt/đang chặn", {
+      extensions: { from: "blocked", to: "blocked" },
+    });
   const reason = input.reason.trim();
   if (!reason) throw fieldError("reason", "required", "Cần lý do");
   const { blockId } = await proposeBlock(ctx, {
