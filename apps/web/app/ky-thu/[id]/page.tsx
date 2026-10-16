@@ -101,6 +101,7 @@ export default async function PeriodPage({ params }: { params: Promise<{ id: str
             <CommandForm
               path="billing/issuePeriod"
               confirm="Phát hành kỳ thu: phiếu gửi tới người thuê và ghi công nợ; muốn sửa phải điều chỉnh có duyệt."
+              confirmLabel={`Phát hành kỳ ${month(pv.period_start)}`}
               fixed={{ billing_period_id: id, preview_hash: pv.preview_hash }}
               submitLabel="Phát hành kỳ"
               successText="Đã phát hành phiếu thu."

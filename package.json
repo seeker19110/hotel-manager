@@ -15,7 +15,10 @@
     "test": "vitest run",
     "test:db": "vitest run --project db",
     "licenses:check": "node scripts/check-licenses.mjs",
-    "openapi": "node apps/web/scripts/openapi.mjs"
+    "openapi": "node apps/web/scripts/openapi.mjs",
+    "build:tokens": "node scripts/build-tokens.mjs",
+    "check:tokens": "node scripts/build-tokens.mjs --check",
+    "gen:icons": "node apps/web/scripts/gen-icons.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",

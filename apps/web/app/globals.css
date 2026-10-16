@@ -17,6 +17,7 @@
   --c-ok: #0b6b2e;
   --c-skeleton: #e3e7ec;
   --c-skeleton-hi: #eef1f4;
+  --c-scrim: rgb(0 0 0 / 0.4);
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -572,11 +573,18 @@ body {
   background: var(--c-bg);
 }
 .confirm-dialog::backdrop {
-  background: rgb(0 0 0 / 0.4);
+  background: var(--c-scrim);
 }
 .confirm-dialog__title {
   margin: 0 0 var(--space-2);
   font-size: 1.125rem;
+  overflow-wrap: anywhere;
+}
+/* Nhãn xác nhận nêu động từ + đối tượng nên có thể dài: cho xuống dòng thay vì tràn khỏi màn 320 px. */
+.confirm-dialog__actions .btn {
+  padding-block: var(--space-2);
+  text-align: center;
+  overflow-wrap: anywhere;
 }
 .confirm-dialog__actions {
   display: flex;

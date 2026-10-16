@@ -123,7 +123,7 @@ test("R-003: báo giá → giữ → xác nhận → nhận phòng → dịch v�
 
   // Xác nhận (chưa thu trước) rồi nhận phòng: số giấy tờ ngắn → lỗi theo ô; khách chính = người đặt.
   await page.getByRole("button", { name: "Xác nhận (chưa thu trước)" }).click();
-  await confirmAction(page);
+  await confirmAction(page, /^Xác nhận đặt phòng \S+ \(phòng \d+\) không thu trước$/);
   await expect(page.getByTestId("booking-status")).toHaveText(/Đã xác nhận/);
   await expectAccessible(page);
   await page.getByLabel("Số giấy tờ khách 1").fill("123");
@@ -156,7 +156,7 @@ test("R-003: báo giá → giữ → xác nhận → nhận phòng → dịch v�
   await page.getByText("Huỷ khoản: Khăn thêm").click();
   await page.getByLabel('Lý do huỷ "Khăn thêm"').fill("Khách không dùng");
   await page.getByRole("button", { name: "Huỷ khoản này" }).click();
-  await confirmAction(page);
+  await confirmAction(page, /^Huỷ khoản "Khăn thêm" \(phòng \d+\)$/);
   await expect(page.getByTestId("folio-charges")).toHaveText(vnd(roomTotal + 40_000));
   await expect(page.getByTestId("charge").filter({ hasText: "đã huỷ" })).toHaveCount(1);
   await expectAccessible(page);
@@ -168,7 +168,7 @@ test("R-003: báo giá → giữ → xác nhận → nhận phòng → dịch v�
   const cash = page.getByLabel("Tiền mặt thu (đồng)");
   await expect(cash).toHaveValue(String(due));
   await page.getByRole("button", { name: "Thu tiền mặt và trả phòng" }).click();
-  await confirmAction(page);
+  await confirmAction(page, new RegExp(`^Thu ${vnd(due).replace(/\./g, "\\.")} và trả phòng \\d+$`));
   await expect(page.getByTestId("stay-status")).toHaveText(/Đã trả phòng/);
   await expect(page.getByTestId("folio-balance")).toHaveText("0 đ");
   await expect(page.getByTestId("folio-paid")).toHaveText(vnd(due));

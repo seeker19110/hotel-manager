@@ -56,6 +56,9 @@ export function useCommand<T = unknown>(path: string) {
   const online = useOnline();
   const key = useRef<string | null>(null);
   const lastBody = useRef<unknown>(null);
+  // Đang có một lượt gửi/tra chạy: lần bấm thứ hai (bấm đúp, Enter lặp) bị bỏ qua — đúng 1 POST (UX-STATE-006, FE-FORM-007).
+  // Không dựa vào `disabled` của nút vì state cập nhật sau sự kiện thứ hai trong cùng một nhịp.
+  const inflight = useRef(false);
   const [phase, setPhase] = useState<CommandPhase>("idle");
   const [problem, setProblem] = useState<ProblemLike | null>(null);
   const [data, setData] = useState<T | null>(null);
@@ -162,6 +165,7 @@ export function useCommand<T = unknown>(path: string) {
   /** Gửi lệnh mới với `body`. Còn thao tác chưa rõ kết quả ⇒ chỉ cho gửi lại đúng payload đó (cùng key). */
   const send = useCallback(
     async (body: unknown): Promise<T | null> => {
+      if (inflight.current) return null;
       if (!online) return offline();
       if (key.current && JSON.stringify(body) !== JSON.stringify(lastBody.current)) {
         setProblem({ code: "PENDING_UNKNOWN", detail: PENDING_TEXT });
@@ -169,20 +173,39 @@ export function useCommand<T = unknown>(path: string) {
       }
       key.current ??= crypto.randomUUID();
       lastBody.current = body;
-      return post();
+      inflight.current = true;
+      try {
+        return await post();
+      } finally {
+        inflight.current = false;
+      }
     },
     [online, post, offline],
   );
 
   /** S-011: gửi lại đúng lệnh cũ, cùng Idempotency-Key. */
   const resend = useCallback(async (): Promise<T | null> => {
+    if (inflight.current) return null;
     if (!online) return offline();
     if (!key.current) return null;
-    return post();
+    inflight.current = true;
+    try {
+      return await post();
+    } finally {
+      inflight.current = false;
+    }
   }, [online, post, offline]);
 
   /** S-012: tra lại kết quả lệnh đang xử lý. */
-  const recheck = useCallback(async (): Promise<T | null> => (key.current ? check() : null), [check]);
+  const recheck = useCallback(async (): Promise<T | null> => {
+    if (inflight.current || !key.current) return null;
+    inflight.current = true;
+    try {
+      return await check();
+    } finally {
+      inflight.current = false;
+    }
+  }, [check]);
 
   const locked = phase === "sending" || phase === "checking" || phase === "unknown" || phase === "processing";
   return {
