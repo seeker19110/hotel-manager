@@ -1,6 +1,6 @@
-// Healthcheck tối thiểu; kiểm DB + hàng đợi thêm ở T-005/T-008 (ARCHITECTURE "Quan sát tối thiểu").
+// GET /api/health — liveness TĨNH (OPS-OBS-006): không gọi CSDL/kho/máy quét/cấu hình. Chọn bản nhận tải dùng `/api/ready`.
+import { handleHealth, withHttpMetrics } from "@hm/app";
+
 export const dynamic = "force-dynamic";
 
-export function GET(): Response {
-  return Response.json({ status: "ok" }, { headers: { "cache-control": "no-store" } });
-}
+export const GET = withHttpMetrics("/api/health", () => handleHealth());

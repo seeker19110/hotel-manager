@@ -13,6 +13,7 @@ import {
   type SecurityEventName,
   securityEventForProblem,
 } from "../logging/security-events.ts";
+import { observeHttp } from "../observability/http-metrics.ts";
 import { type CommandContext, executeCommand, getCommandResult } from "../pipeline/command.ts";
 import { type Problem, toProblem } from "../pipeline/problem.ts";
 import { settle, unwrap } from "../pipeline/settled.ts";
@@ -214,8 +215,22 @@ function unexpected(err: unknown, deps: HttpDeps, correlationId: string): Respon
   return problemResponse(toProblem(err, correlationId), correlationId);
 }
 
-/** POST command: trả `{ command_id, status: "committed", data }` hoặc problem+json. */
-export async function handleCommand<I, O, P = undefined>(
+/**
+ * Mẫu route của lệnh/truy vấn trong metric HTTP: `module.name` (do danh mục đăng ký, không phải đầu vào của request) →
+ * `/api/v1/module/name`. Không có id nào trong nhãn (OPS-OBS-003).
+ */
+const routeOf = (name: string) => `/api/v1/${name.replace(".", "/")}`;
+
+/** POST command: trả `{ command_id, status: "committed", data }` hoặc problem+json. Đo `hm_http_*` (T-406). */
+export function handleCommand<I, O, P = undefined>(
+  def: CommandDef<I, O, P>,
+  req: Request,
+  deps: HttpDeps,
+): Promise<Response> {
+  return observeHttp(routeOf(def.command), req.method, () => runCommand(def, req, deps));
+}
+
+async function runCommand<I, O, P>(
   def: CommandDef<I, O, P>,
   req: Request,
   deps: HttpDeps,
@@ -269,12 +284,12 @@ export async function handleCommand<I, O, P = undefined>(
   }
 }
 
-/** GET query: tham số từ query string; trả `{ data }` hoặc problem+json. */
-export async function handleQuery<I, O>(
-  def: QueryDef<I, O>,
-  req: Request,
-  deps: HttpDeps,
-): Promise<Response> {
+/** GET query: tham số từ query string; trả `{ data }` hoặc problem+json. Đo `hm_http_*` (T-406). */
+export function handleQuery<I, O>(def: QueryDef<I, O>, req: Request, deps: HttpDeps): Promise<Response> {
+  return observeHttp(routeOf(def.query), req.method, () => runQuery(def, req, deps));
+}
+
+async function runQuery<I, O>(def: QueryDef<I, O>, req: Request, deps: HttpDeps): Promise<Response> {
   const correlationId = correlationOf(req);
   let actorOf: Actor | null = null;
   try {
@@ -299,12 +314,12 @@ export async function handleQuery<I, O>(
   }
 }
 
-/** GET /api/v1/commands/{id} (API-CONTRACT §1, SPEC-pwa S-010…S-012, S-019). */
-export async function handleCommandStatus(
-  commandId: string,
-  req: Request,
-  deps: HttpDeps,
-): Promise<Response> {
+/** GET /api/v1/commands/{id} (API-CONTRACT §1, SPEC-pwa S-010…S-012, S-019). Đo `hm_http_*` (T-406). */
+export function handleCommandStatus(commandId: string, req: Request, deps: HttpDeps): Promise<Response> {
+  return observeHttp("/api/v1/commands/{id}", req.method, () => runCommandStatus(commandId, req, deps));
+}
+
+async function runCommandStatus(commandId: string, req: Request, deps: HttpDeps): Promise<Response> {
   const correlationId = correlationOf(req);
   try {
     const actor = await actorFromRequest(req, deps, correlationId);

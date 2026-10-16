@@ -4,6 +4,7 @@
 // - Số liệu chỉ tổng hợp toàn hệ thống (không nhãn tổ chức) — `app.metrics_snapshot`.
 import { hkdfSync, timingSafeEqual } from "node:crypto";
 import { type Kysely, sql } from "kysely";
+import { httpMetrics } from "./http-metrics.ts";
 
 export interface Sample {
   name: string;
@@ -11,7 +12,7 @@ export interface Sample {
   value: number;
 }
 
-const HELP: Readonly<Record<string, [type: "gauge" | "counter", help: string]>> = {
+const HELP: Readonly<Record<string, [type: "gauge" | "counter" | "histogram", help: string]>> = {
   hm_up: ["gauge", "Ứng dụng đang trả lời (1)."],
   hm_outbox_unpublished: ["gauge", "Số sự kiện outbox chưa phát."],
   hm_outbox_oldest_unpublished_age_seconds: [
@@ -28,7 +29,25 @@ const HELP: Readonly<Record<string, [type: "gauge" | "counter", help: string]>> 
   hm_holds_active: ["gauge", "Giữ chỗ đang hiệu lực."],
   hm_jobs_failed: ["gauge", "Job pg-boss ở trạng thái failed."],
   hm_worker_heartbeat_age_seconds: ["gauge", "Tuổi (giây) nhịp gần nhất của từng worker."],
+  hm_metrics_db_ok: ["gauge", "1 nếu đọc được số liệu nghiệp vụ từ CSDL lượt scrape này, 0 nếu CSDL lỗi."],
+  hm_reconciliation_breaks_open: ["gauge", "Chênh lệch đối soát đang mở (IND-FIN-006)."],
+  hm_reconciliation_breaks_oldest_open_age_seconds: [
+    "gauge",
+    "Tuổi (giây) chênh lệch đối soát đang mở cũ nhất — so với SLA xử lý.",
+  ],
+  // HTTP (T-406, observability/http-metrics.ts): đo ở lớp handler, lưu trong bộ nhớ từng bản web.
+  hm_http_requests_total: ["counter", "Số request HTTP theo mẫu route, method, status."],
+  hm_http_request_duration_seconds: [
+    "histogram",
+    "Thời gian xử lý request HTTP (giây) theo mẫu route, method, status.",
+  ],
 };
+
+/** `x_bucket`/`x_sum`/`x_count` của histogram `x` dùng chung một HELP/TYPE ở tên gốc. */
+function baseName(name: string): string {
+  const m = /^(.*)_(?:bucket|sum|count)$/.exec(name);
+  return m?.[1] !== undefined && HELP[m[1]]?.[0] === "histogram" ? m[1] : name;
+}
 
 const NAME = /^[a-zA-Z_:][a-zA-Z0-9_:]*$/;
 const LABEL = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
@@ -49,9 +68,10 @@ export function renderPrometheus(samples: readonly Sample[]): string {
   const groups = new Map<string, Sample[]>();
   for (const s of samples) {
     if (!NAME.test(s.name)) continue;
-    const g = groups.get(s.name) ?? [];
+    const base = baseName(s.name);
+    const g = groups.get(base) ?? [];
     g.push(s);
-    groups.set(s.name, g);
+    groups.set(base, g);
   }
   const out: string[] = [];
   for (const [name, list] of groups) {
@@ -60,7 +80,7 @@ export function renderPrometheus(samples: readonly Sample[]): string {
     for (const s of list) {
       const labels = Object.entries(s.labels ?? {}).filter(([k]) => LABEL.test(k));
       const l = labels.length ? `{${labels.map(([k, v]) => `${k}="${escapeLabel(v)}"`).join(",")}}` : "";
-      out.push(`${name}${l} ${formatValue(s.value)}`);
+      out.push(`${s.name}${l} ${formatValue(s.value)}`);
     }
   }
   return `${out.join("\n")}\n`;
@@ -82,11 +102,17 @@ export function metricsAuthorized(header: string | null, secret: string): boolea
 
 /** Đọc số liệu từ CSDL (một câu, một snapshot). */
 export async function collectMetrics(db: Kysely<unknown>, now: Date = new Date()): Promise<Sample[]> {
-  const r = await sql<{ name: string; labels: Record<string, string>; value: number }>`
-    select name, labels, value from app.metrics_snapshot(${now})`.execute(db);
+  type Row = { name: string; labels: Record<string, string>; value: number };
+  const r = await sql<Row>`select name, labels, value from app.metrics_snapshot(${now})`.execute(db);
+  // Đối soát (0050) ở hàm riêng để không đè `metrics_snapshot` (0046).
+  const rec = await sql<Row>`select name, labels, value from app.reconciliation_metrics(${now})`.execute(db);
   return [
     { name: "hm_up", value: 1 },
-    ...r.rows.map((x) => ({ name: x.name, labels: x.labels ?? {}, value: Number(x.value) })),
+    ...[...r.rows, ...rec.rows].map((x) => ({
+      name: x.name,
+      labels: x.labels ?? {},
+      value: Number(x.value),
+    })),
   ];
 }
 
@@ -131,6 +157,14 @@ export async function readiness(
 
 const noStore = { "cache-control": "no-store" };
 
+/**
+ * GET /api/health — liveness (OPS-OBS-006): TĨNH, không gọi CSDL/kho/máy quét/cấu hình, không nhận phụ thuộc nào. Chỉ nói tiến
+ * trình còn trả lời; orchestrator dùng để khởi động lại tiến trình treo, KHÔNG dùng để chọn bản nhận tải (đó là `/api/ready`).
+ */
+export function handleHealth(): Response {
+  return Response.json({ status: "ok" }, { headers: noStore });
+}
+
 /** GET /api/metrics. */
 export async function handleMetrics(
   req: Request,
@@ -141,7 +175,18 @@ export async function handleMetrics(
       status: 401,
       headers: { ...noStore, "www-authenticate": "Bearer" },
     });
-  const body = renderPrometheus(await collectMetrics(deps.db));
+  // Metric HTTP nằm trong bộ nhớ nên VẪN xuất được khi CSDL chết — đúng lúc SLI khả dụng cần số liệu nhất. CSDL lỗi ⇒ chỉ
+  // mất nhóm số liệu nghiệp vụ, `hm_metrics_db_ok 0` báo điều đó (không trả 500 làm mất cả trang scrape).
+  let business: Sample[];
+  try {
+    business = [...(await collectMetrics(deps.db)), { name: "hm_metrics_db_ok", value: 1 }];
+  } catch {
+    business = [
+      { name: "hm_up", value: 1 },
+      { name: "hm_metrics_db_ok", value: 0 },
+    ];
+  }
+  const body = renderPrometheus([...business, ...httpMetrics.samples()]);
   return new Response(body, {
     headers: { ...noStore, "content-type": "text/plain; version=0.0.4; charset=utf-8" },
   });

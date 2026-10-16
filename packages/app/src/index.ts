@@ -99,8 +99,10 @@ export {
 } from "./notifications/reminders.ts";
 export { MAX_ATTEMPTS, RETRY_BACKOFF_MINUTES, type SendStats, sendDueEmails } from "./notifications/send.ts";
 export { deliveryStatusLabel, maskEmail, render as renderNotification } from "./notifications/templates.ts";
+export { httpMetrics, observeHttp, withHttpMetrics } from "./observability/http-metrics.ts";
 export {
   collectMetrics,
+  handleHealth,
   handleMetrics,
   handleReady,
   metricsAuthorized,
@@ -120,6 +122,11 @@ export {
   listMyRequests,
 } from "./portal/tenant.ts";
 export { type AutoApplyResult, applyBankTransaction } from "./reconciliation/auto-apply.ts";
+export {
+  RECONCILIATION_BREAK_SLA_HOURS,
+  type ReconciliationDailyResult,
+  runReconciliationDaily,
+} from "./reconciliation/daily.ts";
 export {
   type BreakItem,
   type LeaseExtras,

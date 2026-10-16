@@ -17,6 +17,7 @@ import {
   loadWorkerConfig,
   type ObjectStorage,
   remindExpiring,
+  runReconciliationDaily,
   runReminders,
   runRetention,
   sendDueEmails,
@@ -50,6 +51,8 @@ export interface Intervals {
   lease: number;
   exports: number;
   retention: number;
+  /** Đối soát hằng ngày (IND-FIN-006). */
+  reconciliation: number;
 }
 
 export const DEFAULT_INTERVALS: Intervals = {
@@ -62,6 +65,7 @@ export const DEFAULT_INTERVALS: Intervals = {
   lease: HOUR,
   exports: 5 * MINUTE,
   retention: 24 * HOUR,
+  reconciliation: 24 * HOUR,
 };
 
 export const DEFAULT_STOP_TIMEOUT_MS = 25_000;
@@ -205,6 +209,12 @@ export async function startWorker(deps: WorkerDeps): Promise<WorkerHandle> {
         sequence([() => remindExpiring(workerDb, new Date()), () => detectOverstay(workerDb, new Date())]),
     },
     { name: "exports.expire", everyMs: iv.exports, run: expireExportsJob(workerDb) },
+    {
+      // Hằng ngày: break đối soát mở quá SLA + sổ cái trôi (IND-FIN-006). Chạy lại bao nhiêu lần/ngày vẫn một hiệu lực.
+      name: "reconciliation.daily",
+      everyMs: iv.reconciliation,
+      run: () => runReconciliationDaily(workerDb, new Date(), { log: (e, f) => log.error(e, f) }),
+    },
     {
       name: "import.retention",
       everyMs: iv.retention,

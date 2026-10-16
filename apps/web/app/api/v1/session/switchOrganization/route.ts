@@ -3,7 +3,7 @@
 // (cookie không phải quyền: mọi request vẫn resolveActor). Idempotency như mọi command: cùng key + cùng payload → kết
 // quả cũ; khác payload → 409 IDEMPOTENCY_CONFLICT; kết quả lưu ở idempotency_keys của tổ chức đích.
 import { randomUUID } from "node:crypto";
-import { orgCookieName, serverContext, switchOrganization } from "@hm/app";
+import { orgCookieName, serverContext, switchOrganization, withHttpMetrics } from "@hm/app";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +17,9 @@ function problem(status: number, code: string, title: string) {
   );
 }
 
-export async function POST(req: Request): Promise<Response> {
+export const POST = withHttpMetrics("/api/v1/session/switchOrganization", handle);
+
+async function handle(req: Request): Promise<Response> {
   const { auth, db, config } = serverContext();
   const session = await auth.api.getSession({ headers: req.headers });
   if (!session) return problem(401, "UNAUTHENTICATED", "Cần đăng nhập");
