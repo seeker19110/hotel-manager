@@ -24,6 +24,13 @@ export const SECURITY_EVENTS = [
   "guest_link.revoked",
   "guest_link.denied",
   "guest_link.locked",
+  // Sự kiện xác thực từ hook Better Auth (T-405; `auth/auth-events.ts`).
+  "auth.login",
+  "auth.logout",
+  "auth.account_locked",
+  "auth.password_changed",
+  "auth.mfa_enabled",
+  "auth.mfa_disabled",
 ] as const;
 export type SecurityEventName = (typeof SECURITY_EVENTS)[number];
 export type SecurityOutcome = "success" | "denied" | "failure";
@@ -119,16 +126,38 @@ export function forwardedClientIp(headers: Headers): string | null {
   return hops.at(-1) ?? null;
 }
 
-/** IP (xem `forwardedClientIp`) + User-Agent đã cắt 200 ký tự, bỏ ký tự điều khiển. */
-export function requestClient(headers: Headers): SecurityClient {
-  const ip = forwardedClientIp(headers);
-  const ua = headers
-    .get("user-agent")
+/** Trần độ dài User-Agent lưu/ghi log (ký tự Unicode, không phải byte). */
+export const USER_AGENT_MAX = 200;
+
+/**
+ * User-Agent do client gửi → chuỗi an toàn để ghi log/audit: bỏ ký tự điều khiển (chống chèn dòng log), chuẩn hoá NFC
+ * (BASE-DATA-002), cắt ≤ 200 ký tự theo điểm mã (không cắt đôi cặp thay thế). Rỗng → null.
+ */
+export function sanitizeUserAgent(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const ua = raw
     // biome-ignore lint/suspicious/noControlCharactersInRegex: chủ ý loại ký tự điều khiển khỏi chuỗi do client gửi.
-    ?.replace(/[\u0000-\u001f\u007f]/g, " ")
-    .trim()
-    .slice(0, 200);
-  return { ip, userAgent: ua || null };
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .normalize("NFC")
+    .trim();
+  const cut = Array.from(ua).slice(0, USER_AGENT_MAX).join("").trim();
+  return cut || null;
+}
+
+/** IP (xem `forwardedClientIp`) + User-Agent đã làm sạch (`sanitizeUserAgent`). */
+export function requestClient(headers: Headers): SecurityClient {
+  return { ip: forwardedClientIp(headers), userAgent: sanitizeUserAgent(headers.get("user-agent")) };
+}
+
+/**
+ * Hai cột "từ đâu" của `audit_events` (CMP-AUDIT-002): IP ĐÃ CẮT (/24, /48) + User-Agent đã làm sạch. Không có client
+ * (worker/hệ thống, hoặc không xác định được IP hợp lệ) ⇒ `null` từng cột.
+ */
+export function auditSource(client: SecurityClient | null | undefined): {
+  sourceIp: string | null;
+  userAgent: string | null;
+} {
+  return { sourceIp: anonymizeIp(client?.ip), userAgent: sanitizeUserAgent(client?.userAgent) };
 }
 
 /** Phát một sự kiện bảo mật theo hình dạng chuẩn. Không bao giờ ném lỗi (log không được làm hỏng luồng nghiệp vụ). */
@@ -146,7 +175,7 @@ export function emitSecurity(e: SecurityEventInput): void {
       target: e.target ? { type: e.target.type, id: e.target.id ?? null } : null,
       outcome: e.outcome,
       source_ip: anonymizeIp(e.client?.ip),
-      user_agent: e.client?.userAgent ?? null,
+      user_agent: sanitizeUserAgent(e.client?.userAgent),
       reason: e.reason ?? null,
       correlation_id: e.correlationId ?? null,
     });

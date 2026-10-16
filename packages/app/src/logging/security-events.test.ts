@@ -3,10 +3,12 @@ import { describe, expect, it } from "vitest";
 import { createLogger } from "./logger.ts";
 import {
   anonymizeIp,
+  auditSource,
   emitSecurity,
   forwardedClientIp,
   requestClient,
   SECURITY_EVENTS,
+  sanitizeUserAgent,
   securityEventForProblem,
   securityRecordSchema,
 } from "./security-events.ts";
@@ -72,6 +74,33 @@ describe("logging — requestClient", () => {
 
   it("thiếu header → null (không bịa)", () => {
     expect(requestClient(new Headers())).toEqual({ ip: null, userAgent: null });
+  });
+});
+
+describe("logging — sanitizeUserAgent / auditSource (cột 'từ đâu' của audit, T-405)", () => {
+  it("NFC, bỏ ký tự điều khiển, cắt ≤ 200 điểm mã không cắt đôi cặp thay thế, rỗng → null", () => {
+    expect(sanitizeUserAgent("Tr\u0069\u0300nh")).toBe("Tr\u00ecnh");
+    expect(sanitizeUserAgent("a\u0000b\tc")).toBe("a b c");
+    const cut = sanitizeUserAgent("😀".repeat(250)) as string;
+    expect(Array.from(cut)).toHaveLength(200);
+    expect(cut).toBe("😀".repeat(200));
+    expect(sanitizeUserAgent("   ")).toBeNull();
+    expect(sanitizeUserAgent("")).toBeNull();
+    expect(sanitizeUserAgent(null)).toBeNull();
+    expect(sanitizeUserAgent(undefined)).toBeNull();
+  });
+
+  it("auditSource: IP cắt + UA sạch; không client hoặc IP rác → null từng cột", () => {
+    expect(auditSource({ ip: "198.51.100.77", userAgent: " UA " })).toEqual({
+      sourceIp: "198.51.100.0",
+      userAgent: "UA",
+    });
+    expect(auditSource({ ip: "2001:db8:1:2:3:4:5:6", userAgent: null })).toEqual({
+      sourceIp: "2001:db8:1::",
+      userAgent: null,
+    });
+    expect(auditSource(null)).toEqual({ sourceIp: null, userAgent: null });
+    expect(auditSource({ ip: "rác", userAgent: null }).sourceIp).toBeNull();
   });
 });
 

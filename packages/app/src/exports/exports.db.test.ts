@@ -1,5 +1,5 @@
 // PLAN đợt 3 T-222 — xuất dữ liệu trên Postgres thật + SeaweedFS (SPEC-audit-reporting S-013…S-018).
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { seedIssuedInvoice, testS3Config } from "@hm/testkit";
 import { type Kysely, sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -14,6 +14,8 @@ import {
   expireExports,
   getExportStatus,
   ORG_EXPORT_EXCLUDED_COLUMN,
+  ORG_EXPORT_FILES_MAX_BYTES,
+  ORG_EXPORT_SKIP_REASONS,
   requestExport,
   requestOrgExport,
   runExportJob,
@@ -245,6 +247,140 @@ describe("S-018 xuất toàn bộ tổ chức", () => {
     expect(raw).toContain("KS Mai");
     expect(raw).not.toMatch(/storage_key|token_hash|blind_index/);
     expect(ORG_EXPORT_EXCLUDED_COLUMN.test("doc_number")).toBe(true);
+  });
+});
+
+/** Đọc ZIP kiểu "store" (không nén) do `zipStore` ghi: tên → nội dung. */
+function readZip(zip: Buffer): Map<string, Buffer> {
+  const out = new Map<string, Buffer>();
+  let off = 0;
+  while (zip.readUInt32LE(off) === 0x04034b50) {
+    const size = zip.readUInt32LE(off + 18);
+    const nameLen = zip.readUInt16LE(off + 26);
+    const extraLen = zip.readUInt16LE(off + 28);
+    const name = zip.subarray(off + 30, off + 30 + nameLen).toString("utf8");
+    const start = off + 30 + nameLen + extraLen;
+    out.set(name, zip.subarray(start, start + size));
+    off = start + size;
+  }
+  return out;
+}
+
+/** Dòng CSV đơn giản (không có dấu phẩy trong ô) → mảng đối tượng theo tiêu đề. */
+function manifestRows(csv: Buffer): Record<string, string>[] {
+  const [head, ...rest] = csv
+    .toString("utf8")
+    .replace(/^\uFEFF/, "")
+    .trim()
+    .split(/\r?\n/);
+  const cols = (head ?? "").split(",");
+  return rest.map((l) => Object.fromEntries(l.split(",").map((v, i) => [cols[i] as string, v])));
+}
+
+describe("IND-SAAS-007 xuất toàn tổ chức kèm file đính kèm (T-405)", () => {
+  const sha = (b: Buffer) => createHash("sha256").update(b).digest("hex");
+
+  /** Tạo file `ready` của tổ chức: dòng `files` + object trong kho (storeBytes ≠ bytes ⇒ giả lập object hỏng/thiếu). */
+  async function seedFile(
+    orgId: string,
+    ownerType: string,
+    bytes: Buffer,
+    opts: { store?: Buffer | "missing"; mime?: string } = {},
+  ): Promise<string> {
+    const id = randomUUID();
+    const key = `${orgId}/exp-test/${id}`;
+    const mime = opts.mime ?? "image/png";
+    await sql`insert into files (id, organization_id, owner_type, mime, size_bytes, sha256, status, storage_key, exif_stripped)
+              values (${id}, ${orgId}, ${ownerType}, ${mime}, ${bytes.length}, ${sha(bytes)}, 'ready', ${key}, true)`.execute(
+      h.t.admin,
+    );
+    if (opts.store !== "missing") await storage.put(key, opts.store ?? bytes, mime);
+    return id;
+  }
+
+  async function runOrgExport(maxBytes?: number): Promise<Map<string, Buffer>> {
+    const owner = fresh(h.owner);
+    const q = await okAs(h.t, owner, (ctx) => requestOrgExport(ctx));
+    const d0 = { ...deps(), ...(maxBytes === undefined ? {} : { orgFilesMaxBytes: maxBytes }) };
+    expect(await runExportJob(d0, job(q.exportId))).toBe("ready");
+    const d = await okAs(h.t, owner, (ctx) => downloadExport(ctx, deps(), { exportId: q.exportId }));
+    return readZip(Buffer.from(await text(d.url)));
+  }
+
+  it("nhúng file ready (ảnh sự cố, chứng từ) đúng nội dung + MANIFEST; không lấy file tổ chức khác, bản xuất cũ, ảnh giấy tờ tuỳ thân", async () => {
+    const photo = Buffer.from(`ảnh sự cố ${randomUUID()}`);
+    const pdf = Buffer.from(`%PDF chứng từ ${randomUUID()}`);
+    const idDoc = Buffer.from(`CCCD-IMAGE-${randomUUID()}`);
+    const foreign = Buffer.from(`FOREIGN-ORG-FILE-${randomUUID()}`);
+    const fPhoto = await seedFile(h.org.orgId, "work_order", photo);
+    const fPdf = await seedFile(h.org.orgId, "payment_claim", pdf, { mime: "application/pdf" });
+    const fId = await seedFile(h.org.orgId, "identity_document", idDoc);
+    await seedFile(h.other.orgId, "work_order", foreign);
+
+    const zip = await runOrgExport();
+    expect(zip.get(`files/work_order/${fPhoto}.png`)).toEqual(photo);
+    expect(zip.get(`files/payment_claim/${fPdf}.pdf`)).toEqual(pdf);
+    expect([...zip.keys()].some((k) => k.includes(fId))).toBe(false);
+    for (const raw of zip.values()) {
+      expect(raw.includes(idDoc)).toBe(false);
+      expect(raw.includes(foreign)).toBe(false);
+    }
+    const rows = manifestRows(zip.get("files/MANIFEST.csv") as Buffer);
+    const by = (id: string) => rows.find((r) => r.file_id === id);
+    expect(by(fPhoto)).toMatchObject({
+      status: "included",
+      zip_path: `files/work_order/${fPhoto}.png`,
+      sha256: sha(photo),
+    });
+    expect(by(fId)).toMatchObject({ status: "skipped", reason: "identity_document", zip_path: "" });
+    expect(rows.some((r) => r.owner_type === "export_job")).toBe(false); // bản xuất cũ không tự nhúng vào bản mới
+    expect(zip.get("README.txt")?.toString("utf8")).toContain("TỪ ĐIỂN CỘT");
+  });
+
+  it("vượt trần tổng dung lượng → không nhúng, liệt kê kèm lý do; file nhỏ hơn phía sau vẫn vừa thì vẫn nhúng", async () => {
+    const big = Buffer.alloc(600, 1);
+    const small = Buffer.from(`nhỏ-${randomUUID()}`);
+    const fBig = await seedFile(h.org.orgId, "meter_reading", big);
+    const fSmall = await seedFile(h.org.orgId, "meter_reading", small);
+    // Trần đủ chứa các file nhỏ đã có từ trước nhưng không đủ cho `big` (600 B) cộng dồn.
+    const used = await sql<{ n: string }>`
+      select coalesce(sum(size_bytes), 0)::text as n from files
+      where organization_id = ${h.org.orgId} and status = 'ready' and owner_type not in ('export_job', 'identity_document')
+        and id not in (${fBig}, ${fSmall})`.execute(h.t.admin);
+    const cap = Number(used.rows[0]?.n) + small.length + 10;
+    const zip = await runOrgExport(cap);
+    const rows = manifestRows(zip.get("files/MANIFEST.csv") as Buffer);
+    expect(rows.find((r) => r.file_id === fBig)).toMatchObject({
+      status: "skipped",
+      reason: "over_total_limit",
+      zip_path: "",
+    });
+    expect(rows.find((r) => r.file_id === fSmall)).toMatchObject({ status: "included" });
+    expect([...zip.keys()].some((k) => k.includes(fBig))).toBe(false);
+    expect(zip.get(`files/meter_reading/${fSmall}.png`)).toEqual(small);
+    expect(ORG_EXPORT_SKIP_REASONS.over_total_limit).toBeTruthy();
+  });
+
+  it("object thiếu/hỏng trong kho: bản xuất vẫn hoàn tất, file đó ghi fetch_failed/checksum_mismatch", async () => {
+    const miss = await seedFile(h.org.orgId, "task", Buffer.from("thiếu"), { store: "missing" });
+    const bad = await seedFile(h.org.orgId, "task", Buffer.from("đúng"), { store: Buffer.from("SAI") });
+    const rows = manifestRows((await runOrgExport()).get("files/MANIFEST.csv") as Buffer);
+    expect(rows.find((r) => r.file_id === miss)).toMatchObject({ status: "skipped", reason: "fetch_failed" });
+    expect(rows.find((r) => r.file_id === bad)).toMatchObject({
+      status: "skipped",
+      reason: "checksum_mismatch",
+    });
+  });
+
+  it("file chưa ready (đang quét/bị từ chối) không vào bản xuất; không có file nào → MANIFEST chỉ có tiêu đề", async () => {
+    const orgless = Buffer.from("PENDING-FILE");
+    const id = randomUUID();
+    await sql`insert into files (id, organization_id, owner_type, mime, size_bytes, sha256, status, storage_key)
+              values (${id}, ${h.org.orgId}, 'task', 'application/pdf', ${orgless.length}, ${sha(orgless)}, 'pending_scan',
+                      ${`${h.org.orgId}/exp-test/${id}`})`.execute(h.t.admin);
+    const zip = await runOrgExport();
+    expect(manifestRows(zip.get("files/MANIFEST.csv") as Buffer).some((r) => r.file_id === id)).toBe(false);
+    expect(ORG_EXPORT_FILES_MAX_BYTES).toBeGreaterThan(0);
   });
 });
 

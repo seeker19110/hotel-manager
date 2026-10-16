@@ -161,12 +161,51 @@ async function tenantInvited(trx: Transaction<unknown>, job: DispatchJob, now: D
   return id ? 1 : 0;
 }
 
+/**
+ * Sự kiện bảo mật của CHÍNH tài khoản (T-405) → `account_security` (bắt buộc, không tắt được) cho chủ membership:
+ * MFA bị owner đặt lại (`member.mfa_reset`), đổi mật khẩu, tắt MFA. Báo để người dùng nhận ra thao tác không phải của mình.
+ * Không đưa IP/UA/người thực hiện vào nội dung (S-012: không PII); dedupe theo outbox_id ⇒ giao lại không tạo bản thứ hai.
+ */
+const SECURITY_KIND: Readonly<Record<string, { kind: string; action: string }>> = {
+  "member.mfa_reset": { kind: "mfa_reset", action: "xác thực hai lớp đã được đặt lại" },
+  "member.password_changed": { kind: "password_changed", action: "mật khẩu đã được đổi" },
+  "member.mfa_disabled": { kind: "mfa_disabled", action: "xác thực hai lớp đã được tắt" },
+};
+
+async function accountSecurity(trx: Transaction<unknown>, job: DispatchJob, now: Date): Promise<number> {
+  const membershipId = job.payload.membership_id;
+  if (typeof membershipId !== "string") throw new Error("payload thiếu membership_id");
+  const spec = SECURITY_KIND[job.event_type];
+  if (!spec) return 0;
+  const r = await sql<{ person_id: string; org_name: string }>`
+    select m.person_id, o.name as org_name from memberships m join organizations o on o.id = m.organization_id
+    where m.organization_id = ${job.organization_id} and m.id = ${membershipId}`.execute(trx);
+  const m = r.rows[0];
+  if (!m) return 0;
+  const id = await createNotification(
+    trx,
+    job.organization_id,
+    {
+      propertyId: null,
+      recipientPersonId: m.person_id,
+      type: "account_security",
+      vars: { orgName: m.org_name, action: spec.action, kind: spec.kind },
+      dedupeKey: `${spec.kind}:${job.outbox_id}`,
+    },
+    { now, sourceOutboxId: job.outbox_id },
+  );
+  return id ? 1 : 0;
+}
+
 const HANDLERS: Readonly<
   Record<string, (trx: Transaction<unknown>, job: DispatchJob, now: Date) => Promise<number>>
 > = {
   "invoice.issued": invoiceIssued,
   "work_order.status_changed": workOrderStatus,
   "portal.tenant_invited": tenantInvited,
+  "member.mfa_reset": accountSecurity,
+  "member.password_changed": accountSecurity,
+  "member.mfa_disabled": accountSecurity,
 };
 
 /** Sự kiện outbox mà `notify.dispatch` xử lý (worker tạo queue + consumer cho từng loại). */

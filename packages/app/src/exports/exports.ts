@@ -8,8 +8,9 @@
 // - `exports.download`: chỉ người yêu cầu (RLS), chưa xong ⇒ 409 EXPORT_NOT_READY, quá hạn ⇒ 410 LINK_EXPIRED; URL ký ≤ 5 phút
 //   (MAX_SIGNED_URL_SECONDS) và không quá hạn của bản xuất; audit `export.downloaded`.
 // - CSV/XLSX chống formula injection (S-016): ô chữ bắt đầu bằng = + - @ tab CR ⇒ thêm `'` (CSV); XLSX ghi kiểu chuỗi; số
-//   giữ là số. Xuất toàn tổ chức (S-018): ZIP các CSV nghiệp vụ, không ảnh/file, không số giấy tờ, bỏ cột bí mật.
-import { randomUUID } from "node:crypto";
+//   giữ là số. Xuất toàn tổ chức (S-018): ZIP các CSV nghiệp vụ + file đính kèm đã `ready` (theo quyền người yêu cầu, có trần
+//   tổng dung lượng — T-405/IND-SAAS-007), không số giấy tờ, không ảnh giấy tờ tuỳ thân, bỏ cột bí mật.
+import { createHash, randomUUID } from "node:crypto";
 import { withTenant } from "@hm/db";
 import { authorize } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
@@ -374,6 +375,8 @@ export interface ExportJobDeps {
   /** Kết nối vai trò worker — đổi trạng thái job, audit, thông báo. */
   workerDb: Kysely<unknown>;
   storage: ObjectStorage;
+  /** Ghi đè trần tổng dung lượng file đính kèm của xuất toàn tổ chức (test); mặc định `ORG_EXPORT_FILES_MAX_BYTES`. */
+  orgFilesMaxBytes?: number;
 }
 
 class ExportFailure extends Error {
@@ -529,6 +532,8 @@ async function reportTable(
           "Trước",
           "Sau",
           "Correlation",
+          "IP (đã cắt)",
+          "Thiết bị (User-Agent)",
         ],
       ];
       let cursor: string | undefined;
@@ -553,6 +558,8 @@ async function reportTable(
             e.before as Cell,
             e.after as Cell,
             e.correlationId,
+            e.sourceIp,
+            e.userAgent,
           ]);
         if (out.length - 1 > EXPORT_MAX_ROWS) throw new ExportFailure("TOO_LARGE");
         if (!r.nextCursor) break;
@@ -596,9 +603,137 @@ export const ORG_EXPORT_TABLES = [
 export const ORG_EXPORT_EXCLUDED_COLUMN =
   /(token|secret|hash|storage_key|encrypted|cipher|blind|doc(ument)?_number|id_number|account_number$|password|_enc$|^raw$|signature)/i;
 
-async function orgZip(db: Kysely<unknown>, actor: Actor): Promise<{ bytes: Uint8Array; rows: number }> {
+/** Trần TỔNG dung lượng file đính kèm nhúng vào ZIP toàn tổ chức (ZIP dựng trong bộ nhớ worker). Vượt ⇒ liệt kê kèm lý do. */
+export const ORG_EXPORT_FILES_MAX_BYTES = 100 * 1024 * 1024;
+/** Trần thời gian tải MỘT object từ kho khi dựng ZIP; quá hạn/lỗi ⇒ file đó được liệt kê `fetch_failed`, job vẫn hoàn tất. */
+export const ORG_EXPORT_FILE_FETCH_TIMEOUT_MS = 30_000;
+/** Lý do KHÔNG nhúng file (cột `reason` của `files/MANIFEST.csv`). */
+export const ORG_EXPORT_SKIP_REASONS = {
+  over_total_limit: "vượt trần tổng dung lượng file đính kèm của bản xuất",
+  identity_document:
+    "ảnh giấy tờ tuỳ thân không đưa vào bản xuất (dữ liệu nhạy cảm — lấy qua màn hình hồ sơ)",
+  fetch_failed: "không tải được object từ kho lưu trữ (lỗi hoặc quá thời gian)",
+  checksum_mismatch: "nội dung object không khớp sha256/kích thước đã ghi",
+} as const;
+type SkipReason = keyof typeof ORG_EXPORT_SKIP_REASONS;
+
+const FILE_EXT: Readonly<Record<string, string>> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "application/pdf": "pdf",
+  "text/csv": "csv",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+};
+
+interface OrgFileRow {
+  id: string;
+  owner_type: string;
+  owner_id: string | null;
+  property_id: string | null;
+  mime: string;
+  size_bytes: string;
+  sha256: string;
+  created_at: Date;
+  storage_key: string;
+}
+
+/** Tải một object qua URL ký ngắn hạn, có trần thời gian; lỗi bất kỳ ⇒ null (không làm hỏng cả bản xuất). */
+async function fetchObject(storage: ObjectStorage, key: string): Promise<Buffer | null> {
+  try {
+    const res = await fetch(await storage.signedGetUrl(key, 60), {
+      signal: AbortSignal.timeout(ORG_EXPORT_FILE_FETCH_TIMEOUT_MS),
+    });
+    if (!res.ok) {
+      await res.body?.cancel();
+      return null;
+    }
+    return Buffer.from(await res.arrayBuffer());
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * File đính kèm (ảnh công tơ, ảnh sự cố, chứng từ…) của tổ chức mà `actor` ĐƯỢC THẤY (RLS `files` chạy trong ngữ cảnh actor),
+ * trạng thái `ready`. Duyệt theo thời gian tạo; file nào làm tổng vượt `maxBytes` thì không nhúng mà ghi lý do (file nhỏ hơn
+ * phía sau vẫn có thể vừa). Danh sách đọc trong transaction ngắn; TẢI object NGOÀI transaction (DB-TX-003).
+ */
+async function orgFiles(
+  db: Kysely<unknown>,
+  storage: ObjectStorage,
+  actor: Actor,
+  maxBytes: number,
+): Promise<{ entries: { name: string; data: Buffer }[]; manifest: Cell[][]; included: number }> {
+  const rows = await withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
+    const r = await sql<OrgFileRow>`
+      select id, owner_type, owner_id, property_id, mime, size_bytes::text, sha256, created_at, storage_key
+      from files where organization_id = ${actor.orgId} and status = 'ready' and owner_type <> 'export_job'
+      order by created_at, id`.execute(trx);
+    return r.rows;
+  });
+  const entries: { name: string; data: Buffer }[] = [];
+  const manifest: Cell[][] = [
+    [
+      "file_id",
+      "owner_type",
+      "owner_id",
+      "property_id",
+      "mime",
+      "size_bytes",
+      "sha256",
+      "created_at",
+      "zip_path",
+      "status",
+      "reason",
+    ],
+  ];
+  let used = 0;
+  for (const f of rows) {
+    const size = Number(f.size_bytes);
+    const path = `files/${f.owner_type}/${f.id}.${FILE_EXT[f.mime] ?? "bin"}`;
+    let data: Buffer | null = null;
+    let reason: SkipReason | null = null;
+    if (f.owner_type === "identity_document") reason = "identity_document";
+    else if (used + size > maxBytes) reason = "over_total_limit";
+    else {
+      data = await fetchObject(storage, f.storage_key);
+      if (!data) reason = "fetch_failed";
+      else if (data.length !== size || createHash("sha256").update(data).digest("hex") !== f.sha256) {
+        data = null;
+        reason = "checksum_mismatch";
+      }
+    }
+    if (data) {
+      used += size;
+      entries.push({ name: path, data });
+    }
+    manifest.push([
+      f.id,
+      f.owner_type,
+      f.owner_id,
+      f.property_id,
+      f.mime,
+      size,
+      f.sha256,
+      f.created_at.toISOString(),
+      data ? path : null,
+      data ? "included" : "skipped",
+      reason,
+    ]);
+  }
+  return { entries, manifest, included: entries.length };
+}
+
+async function orgZip(
+  db: Kysely<unknown>,
+  storage: ObjectStorage,
+  actor: Actor,
+  maxFileBytes: number = ORG_EXPORT_FILES_MAX_BYTES,
+): Promise<{ bytes: Uint8Array; rows: number }> {
   let total = 0;
   const files: { name: string; data: Buffer }[] = [];
+  const dictionary: string[] = [];
   await withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
     for (const table of ORG_EXPORT_TABLES) {
       const exists = await sql<{
@@ -628,12 +763,36 @@ async function orgZip(db: Kysely<unknown>, actor: Actor): Promise<{ bytes: Uint8
         name: `${table}.csv`,
         data: Buffer.from(toCsv([keep, ...r.rows.map((row) => keep.map((c) => row[c]))])),
       });
+      dictionary.push(`${table}.csv: ${kept.map((c) => `${c.column_name} (${c.data_type})`).join(", ")}`);
     }
   });
+  // Tải file NGOÀI transaction dữ liệu (không giữ kết nối CSDL trong lúc chờ kho object).
+  const att = await orgFiles(db, storage, actor, maxFileBytes);
+  files.push(...att.entries, { name: "files/MANIFEST.csv", data: Buffer.from(toCsv(att.manifest)) });
+  const skipped = att.manifest.length - 1 - att.included;
   files.push({
     name: "README.txt",
     data: Buffer.from(
-      "Xuất toàn bộ dữ liệu nghiệp vụ của tổ chức (CSV UTF-8). Không gồm ảnh/file đính kèm, số giấy tờ tuỳ thân, thông tin đăng nhập.\r\n",
+      [
+        "Xuất toàn bộ dữ liệu của tổ chức — Hotel Manager.",
+        "",
+        "ĐỊNH DẠNG",
+        "- CSV UTF-8 (có BOM), dấu phẩy, ô chứa dấu phẩy/xuống dòng đặt trong nháy kép. Ô chữ bắt đầu bằng = + - @ được thêm dấu ' phía trước (chống công thức khi mở bằng bảng tính).",
+        "- Tiền: số nguyên đồng (VND), không có dấu phân cách. Thời điểm: ISO 8601 UTC (có hậu tố Z). Ngày: YYYY-MM-DD (theo múi giờ cơ sở).",
+        "- Khoá: *_id là UUID; tệp con tham chiếu tệp cha qua cột *_id (vd. invoice_lines.invoice_id → invoices.id).",
+        "",
+        "FILE ĐÍNH KÈM",
+        `- Thư mục files/<loại>/<file_id>.<đuôi>: ảnh công tơ, ảnh sự cố, chứng từ… đã quét và ở trạng thái sẵn sàng, theo quyền của người yêu cầu xuất. Đã nhúng ${att.included} file, bỏ qua ${skipped} file.`,
+        "- files/MANIFEST.csv liệt kê MỌI file thuộc phạm vi (cột status = included|skipped; file bỏ qua có cột reason).",
+        `- Trần tổng dung lượng file nhúng: ${ORG_EXPORT_FILES_MAX_BYTES / 1024 / 1024} MiB; file vượt trần được liệt kê kèm lý do thay vì nhúng.`,
+        ...Object.entries(ORG_EXPORT_SKIP_REASONS).map(([k, v]) => `  · ${k}: ${v}`),
+        "",
+        "KHÔNG GỒM: số giấy tờ tuỳ thân, ảnh giấy tờ tuỳ thân, thông tin đăng nhập, khoá/băm/bí mật, bản xuất cũ.",
+        "",
+        "TỪ ĐIỂN CỘT",
+        ...dictionary,
+        "",
+      ].join("\r\n"),
       "utf8",
     ),
   });
@@ -732,7 +891,7 @@ async function produce(
     if (claimed.kind === "org_full") {
       if (actor.role !== "owner") throw new ExportFailure("FORBIDDEN");
       authorize(actor, "data.export");
-      ({ bytes, rows } = await orgZip(deps.db, actor));
+      ({ bytes, rows } = await orgZip(deps.db, deps.storage, actor, deps.orgFilesMaxBytes));
     } else {
       try {
         assertKindAllowed(actor, claimed.kind);
