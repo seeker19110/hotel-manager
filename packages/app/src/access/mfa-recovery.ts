@@ -76,5 +76,6 @@ export async function resetMemberMfa(
     aggregateId: input.membershipId,
     payload: { membership_id: input.membershipId, by_membership_id: ctx.actor.membershipId },
   });
+  ctx.security({ event: "member.mfa_reset", target: { type: "membership", id: input.membershipId } });
   return { membershipId: input.membershipId, sessionsRevoked };
 }

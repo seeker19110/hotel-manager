@@ -2,6 +2,7 @@
 // (không đặt trên URL để khỏi lọt vào log/referrer), bước hai `X-Guest-Verify` (4 số cuối SĐT người đặt).
 import type { Kysely } from "kysely";
 import { correlationOf, json, simpleProblem } from "../http/command-route.ts";
+import { requestClient } from "../logging/security-events.ts";
 import { CommandError } from "../pipeline/problem.ts";
 import { guestGetStay } from "./guest.ts";
 
@@ -17,6 +18,8 @@ export async function handleGuestStay(
       token: req.headers.get("x-guest-token")?.trim() ?? "",
       stayId,
       ip: deps.clientIp,
+      userAgent: requestClient(req.headers).userAgent,
+      correlationId,
       ...(phone ? { phoneLast4: phone } : {}),
     });
     return json({ data }, 200, correlationId);

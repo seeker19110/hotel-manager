@@ -6,9 +6,17 @@ import type { Kysely } from "kysely";
 import type { z } from "zod";
 import { AccessError, type Actor, listMyOrganizations, resolveActor } from "../access/actor.ts";
 import { ORG_CONTEXT_HEADER, ORG_HEADER, orgCookieName, requestedOrgId } from "../access/org-context.ts";
+import {
+  type ActorRef,
+  emitSecurity,
+  requestClient,
+  type SecurityEventName,
+  securityEventForProblem,
+} from "../logging/security-events.ts";
 import { type CommandContext, executeCommand, getCommandResult } from "../pipeline/command.ts";
 import { type Problem, toProblem } from "../pipeline/problem.ts";
 import type { AppServices } from "../server/services.ts";
+import { nfcDeep } from "./normalize.ts";
 
 export interface HttpSession {
   user: { id: string; twoFactorEnabled?: boolean | null | undefined };
@@ -92,6 +100,28 @@ export function correlationOf(req: Request): string {
   return c && CORRELATION.test(c) ? c : randomUUID();
 }
 
+/** Từ chối (401/403/429, hoặc 404 vì không thuộc tổ chức) → sự kiện bảo mật chuẩn hoá (SEC-LOG-001). */
+function denied(
+  req: Request,
+  correlationId: string,
+  p: { status: number; code: string },
+  actor: ActorRef | null,
+  target: { type: string; id: string },
+  event?: SecurityEventName | null,
+): void {
+  const name = event ?? securityEventForProblem(p);
+  if (!name) return;
+  emitSecurity({
+    event: name,
+    outcome: "denied",
+    actor,
+    target,
+    reason: p.code,
+    client: requestClient(req.headers),
+    correlationId,
+  });
+}
+
 /** Actor của request hoặc Response lỗi (401/409/404/403) đã sẵn để trả. */
 export async function actorFromRequest(
   req: Request,
@@ -99,7 +129,11 @@ export async function actorFromRequest(
   correlationId: string,
 ): Promise<Actor | Response> {
   const session = await deps.getSession(req.headers);
-  if (!session) return simpleProblem("UNAUTHENTICATED", 401, "Cần đăng nhập", correlationId);
+  const endpoint = { type: "endpoint", id: new URL(req.url).pathname };
+  if (!session) {
+    denied(req, correlationId, { status: 401, code: "UNAUTHENTICATED" }, null, endpoint);
+    return simpleProblem("UNAUTHENTICATED", 401, "Cần đăng nhập", correlationId);
+  }
   const orgId = requestedOrgId(
     req.headers.get(ORG_HEADER),
     readCookie(req.headers.get("cookie"), orgCookieName(deps.secureCookies)),
@@ -132,7 +166,19 @@ export async function actorFromRequest(
       authenticatedAt: session.session?.createdAt ? new Date(session.session.createdAt) : undefined,
     });
   } catch (err) {
-    if (err instanceof AccessError) return problemResponse(toProblem(err), correlationId);
+    if (err instanceof AccessError) {
+      const p = toProblem(err);
+      // 404 ở đây = không phải thành viên tổ chức được yêu cầu (dò tổ chức khác): vẫn ghi để phát hiện dò quét.
+      denied(
+        req,
+        correlationId,
+        p,
+        { authUserId: session.user.id, orgId },
+        endpoint,
+        p.status === 404 ? "authz.org_not_found" : null,
+      );
+      return problemResponse(p, correlationId);
+    }
     throw err;
   }
 }
@@ -167,7 +213,7 @@ export async function handleCommand<I, O>(
     }
     let body: unknown;
     try {
-      body = await req.json();
+      body = nfcDeep(await req.json());
     } catch {
       return simpleProblem("MALFORMED_REQUEST", 400, "Thân yêu cầu không phải JSON hợp lệ", correlationId);
     }
@@ -177,7 +223,13 @@ export async function handleCommand<I, O>(
     const result = await executeCommand<O>(
       deps.db,
       actor,
-      { command: def.command, idempotencyKey: key, payload: body, correlationId },
+      {
+        command: def.command,
+        idempotencyKey: key,
+        payload: body,
+        correlationId,
+        client: requestClient(req.headers),
+      },
       (ctx) => def.run(ctx, input, deps.services),
     );
     if (result.status === "committed") {
@@ -200,10 +252,12 @@ export async function handleQuery<I, O>(
   deps: HttpDeps,
 ): Promise<Response> {
   const correlationId = correlationOf(req);
+  let actorOf: Actor | null = null;
   try {
     const actor = await actorFromRequest(req, deps, correlationId);
     if (actor instanceof Response) return actor;
-    const params = Object.fromEntries(new URL(req.url).searchParams);
+    actorOf = actor;
+    const params = nfcDeep(Object.fromEntries(new URL(req.url).searchParams));
     const parsed = def.input.safeParse(params);
     if (!parsed.success) return validationProblem(parsed.error, correlationId);
     return json(
@@ -213,7 +267,10 @@ export async function handleQuery<I, O>(
     );
   } catch (err) {
     const p = toProblem(err, correlationId);
-    if (p.status < 500) return problemResponse(p, correlationId);
+    if (p.status < 500) {
+      denied(req, correlationId, p, actorOf, { type: "query", id: def.query });
+      return problemResponse(p, correlationId);
+    }
     return unexpected(err, deps, correlationId);
   }
 }

@@ -17,9 +17,7 @@ export function httpDeps(): HttpDeps {
     secureCookies: config.APP_BASE_URL.startsWith("https://"),
     services,
     onUnexpectedError: (err, correlationId) =>
-      log.error("lỗi không dự kiến", {
-        correlation_id: correlationId,
-        err: err instanceof Error ? err.message : String(err),
-      }),
+      // `err` là Error ⇒ logger ghi exception.type/message/stacktrace (đã che bí mật/PII), cause đệ quy.
+      log.error("lỗi không dự kiến", { correlation_id: correlationId, err }),
   };
 }

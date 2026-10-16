@@ -7,6 +7,7 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { authorize } from "@hm/domain";
 import { type Kysely, sql } from "kysely";
+import { emitSecurity, type SecurityClient, type SecurityEventName } from "../logging/security-events.ts";
 import type { CommandContext } from "../pipeline/command.ts";
 import { CommandError } from "../pipeline/problem.ts";
 
@@ -90,6 +91,7 @@ export async function revokeGuestLink(ctx: CommandContext, input: { linkId: stri
     entityId: input.linkId,
     propertyId: l.property_id,
   });
+  ctx.security({ event: "guest_link.revoked", target: { type: "guest_access_link", id: input.linkId } });
   return { linkId: input.linkId, revoked: true as const };
 }
 
@@ -115,16 +117,38 @@ const invalidLink = () => new CommandError("NOT_FOUND", 404, "Liên kết hoặc
 /** `portal.guestGetStay` + folio (S-016…S-020). `ip` dùng để giới hạn tần suất (băm, không lưu IP thô). */
 export async function guestGetStay(
   db: Kysely<unknown>,
-  input: { token: string; stayId: string; phoneLast4?: string; ip: string; now?: Date },
+  input: {
+    token: string;
+    stayId: string;
+    phoneLast4?: string;
+    ip: string;
+    userAgent?: string | null;
+    correlationId?: string;
+    now?: Date;
+  },
 ): Promise<GuestView> {
   const now = input.now ?? new Date();
   const ipHash = sha256(`guest-link:${input.ip}`);
+  // Sự kiện bảo mật (SEC-LOG-001): IP ghi log đã cắt /24 (xem logging/security-events.ts), token KHÔNG bao giờ vào log.
+  const client: SecurityClient = { ip: input.ip, userAgent: input.userAgent ?? null };
+  const secure = (event: SecurityEventName, reason: string, linkId?: string) =>
+    emitSecurity({
+      event,
+      outcome: "denied",
+      target: linkId ? { type: "guest_access_link", id: linkId } : { type: "guest_access_link" },
+      reason,
+      client,
+      correlationId: input.correlationId ?? null,
+    });
   const rate = async (record: boolean) =>
     (await sql<{ n: number }>`select app.guest_link_rate(${ipHash}, ${now}, ${record}) as n`.execute(db))
       .rows[0]?.n ?? 0;
-  if ((await rate(false)) >= GUEST_RATE_LIMIT_PER_MINUTE)
+  if ((await rate(false)) >= GUEST_RATE_LIMIT_PER_MINUTE) {
+    secure("rate_limit.exceeded", "RATE_LIMITED");
     throw new CommandError("RATE_LIMITED", 429, "Bạn thử quá nhiều lần. Vui lòng đợi ít phút.");
-  const fail = async (err: CommandError): Promise<never> => {
+  }
+  const fail = async (err: CommandError, reason = "INVALID_LINK", linkId?: string): Promise<never> => {
+    secure("guest_link.denied", reason, linkId);
     await rate(true);
     throw err;
   };
@@ -141,8 +165,10 @@ export async function guestGetStay(
      from app.resolve_guest_link(${sha256(input.token)})`.execute(db);
   const link = r.rows[0];
   if (!link) return fail(invalidLink());
-  if (link.revoked_at || link.locked_at)
+  if (link.revoked_at || link.locked_at) {
+    secure("guest_link.denied", "LINK_REVOKED", link.id);
     throw new CommandError("LINK_REVOKED", 410, "Liên kết không còn hiệu lực. Vui lòng liên hệ lễ tân.");
+  }
   if (link.expires_at.getTime() <= now.getTime())
     throw new CommandError(
       "LINK_EXPIRED",
@@ -155,10 +181,11 @@ export async function guestGetStay(
       const locked = await sql<{ locked: boolean }>`
         select app.guest_link_attempt(${link.id}::uuid, false, ${now}) as locked`.execute(db);
       if (locked.rows[0]?.locked) {
+        secure("guest_link.locked", "SECOND_FACTOR_ATTEMPTS", link.id);
         await rate(true);
         throw new CommandError("LINK_REVOKED", 410, "Liên kết không còn hiệu lực. Vui lòng liên hệ lễ tân.");
       }
-      return fail(invalidLink());
+      return fail(invalidLink(), "SECOND_FACTOR_MISMATCH", link.id);
     }
   }
   // Token hợp lệ nhưng hỏi lượt ở khác → 404 (S-018), không tính là đoán token.
