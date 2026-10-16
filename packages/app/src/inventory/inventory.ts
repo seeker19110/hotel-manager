@@ -3,6 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { authorize } from "@hm/domain";
 import { sql, type Transaction } from "kysely";
+import { openCleaningTask } from "../housekeeping/cleaning.ts";
 import type { CommandContext } from "../pipeline/command.ts";
 import { CommandError, fieldError } from "../pipeline/problem.ts";
 
@@ -528,6 +529,14 @@ export async function moveAllocation(
   await sql`update units set housekeeping_status = 'dirty' where organization_id = ${ctx.actor.orgId} and id = ${a.unit_id}`.execute(
     ctx.trx,
   );
+  // Phòng cũ cần dọn (housekeeping S-001): một việc `open` cùng transaction; đã có việc đang mở thì chỉ ghi thêm nguồn (S-002).
+  await openCleaningTask(ctx.trx, {
+    orgId: ctx.actor.orgId,
+    propertyId: a.property_id,
+    unitId: a.unit_id,
+    source: { type: "move", id: newId },
+    now,
+  });
   // Khách đã được chuyển đi → yêu cầu tái bố trí (S-013) của allocation này hết hiệu lực.
   await sql`
     update exceptions set status = 'resolved', resolution = 'moved', resolved_by = ${ctx.actor.membershipId}, resolved_at = ${now}

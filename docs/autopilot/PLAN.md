@@ -82,7 +82,7 @@ Tương ứng mốc "Tuần 9–12" của kế hoạch gốc (khách sạn + v�
 - [x] `T-208` Import booking đang có (import S-009): lô `kind='reservations'` qua hàm module đặt phòng, chống trùng `external_id`, phòng bận → lỗi dòng — Gate: `pnpm test:db -- import`
 
 ### Lát 2 — Buồng phòng và sự cố (F-007)
-- [ ] `T-209` Việc buồng phòng: `tasks` (từ check-out, không trùng), danh sách theo tầng/ưu tiên, giao/tự nhận, tiến độ chỉ người được giao, nghiệm thu không tự nghiệm thu, chuyển trạng thái hợp lệ, "sạch" ≠ "trống", bấm hai lần; buồng phòng không thấy CCCD/tiền (housekeeping S-001…S-011, S-020) — Gate: `pnpm test:db -- housekeeping`
+- [x] `T-209` Việc buồng phòng: `tasks` (từ check-out, không trùng), danh sách theo tầng/ưu tiên, giao/tự nhận, tiến độ chỉ người được giao, nghiệm thu không tự nghiệm thu, chuyển trạng thái hợp lệ, "sạch" ≠ "trống", bấm hai lần; buồng phòng không thấy CCCD/tiền (housekeeping S-001…S-011, S-020) — Gate: `pnpm test:db -- housekeeping`
 - [ ] `T-210` Phiếu sự cố: `work_orders` + ảnh (giới hạn D-002, bỏ EXIF, riêng tư, URL ngắn hạn), `ClamdScanner` (`zINSTREAM`, timeout, lỗi/không kết nối → không `ready`) + test hợp đồng với clamd giả; kỹ thuật đề xuất block, hoàn tất sửa mở lại phòng cần thẩm quyền, người thuê gửi yêu cầu; chéo tenant; audit + outbox (S-012…S-019, S-021…S-023) — Gate: `pnpm test:db -- work-orders`
 
 ### Lát 3 — Thông báo (F-011)
@@ -95,7 +95,7 @@ Tương ứng mốc "Tuần 9–12" của kế hoạch gốc (khách sạn + v�
 - [ ] `T-215` Liên kết khách: `guest_access_links` (hash token, 4 số cuối SĐT, khoá sau 5 lần sai, hết hạn, thu hồi, lượt ở khác bị từ chối, thời gian phản hồi không lộ token đúng/sai) (S-016…S-020) — Gate: `pnpm test:db -- guest-link`
 
 ### Lát 5 — Báo cáo, audit, xuất (F-012)
-- [ ] `T-216` Màn "Hôm nay" theo vai trò và ngày kinh doanh (đến/đi/đang ở/việc dọn/nợ); xem nhật ký audit theo quyền, lọc `correlation_id` (audit S-004…S-008) — Gate: `pnpm test:db -- today`
+- [x] `T-216` Màn "Hôm nay" theo vai trò và ngày kinh doanh (đến/đi/đang ở/việc dọn/nợ); xem nhật ký audit theo quyền, lọc `correlation_id` (audit S-004…S-008) — Gate: `pnpm test:db -- today`
 - [ ] `T-217` 4 báo cáo pilot khớp sổ phụ: công nợ (chi tiết = tổng = sổ), thu tiền theo phương thức/ca, cọc đang giữ, công suất; phân trang, giới hạn khoảng thời gian (S-009…S-012, S-019) — Gate: `pnpm test:db -- reports`
 - [ ] `T-218` Xuất CSV: `export_jobs` (quyền riêng, xác thực lại trong 5 phút, chạy job, link ký có hạn, chống formula injection dùng chung với import, không vượt phạm vi cơ sở, xuất toàn bộ dữ liệu tổ chức cho owner) (S-013…S-018) — Gate: `pnpm test:db -- export`
 

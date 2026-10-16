@@ -1472,6 +1472,7 @@ Loại: M
 - Ràng buộc đặc biệt: `CHECK (status <> 'verified' OR (verified_by IS NOT NULL AND verified_at IS NOT NULL))`. Khi cơ sở bật tách quyền (`properties.settings`), `verified_by <> done_by` được kiểm ở command (`SELF_APPROVAL_FORBIDDEN`, không dùng `INVALID_TRANSITION`). Tự nhận việc song song: khoá hàng, người sau `409 INVALID_TRANSITION`.
 - RLS/quyền đặc biệt: `housekeeping` đọc việc của cơ sở được giao, chỉ cập nhật việc được giao cho mình; không có cột tiền/khách trong bảng này.
 - Bất biến: INV-G1, DOMAIN-MODEL §4 (vòng đời phiếu việc).
+- T-209 (migration 0032): thêm `created_at`/`updated_at`/`version`; unique `(organization_id, kind, source_type, source_id) WHERE source_id IS NOT NULL` (mỗi nguồn một việc, sự kiện chạy lại không tạo trùng); CHECK `done`/`verified` có người + giờ, `cancelled` có lý do, trạng thái sau `open` có người nhận; trigger `app.task_guard` khớp `taskMachine` (gồm `done → assigned` khi nghiệm thu không đạt) và kiểm quyền nghiệm thu/tách quyền (`properties.settings.front_desk_can_inspect` mặc định `false`, `properties.settings.separate_task_verification` mặc định bật); RLS: `owner`/`manager`/`front_desk` ghi trong phạm vi cơ sở, `housekeeping` đọc + chỉ nhận việc chưa giao/cập nhật việc của mình, vai trò khác không thấy hàng nào; hàm `app.housekeeping_arrivals` (SECURITY DEFINER) chỉ trả (phòng, giờ khách đến dự kiến hôm nay).
 
 ### `work_orders`
 Phiếu sự cố/sửa chữa, do nhân viên hoặc người thuê báo, có thể dẫn tới block phòng.

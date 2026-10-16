@@ -107,3 +107,17 @@
 - Chọn: Hàm app.sync_payment_allocated không nhận số tiền (tự đặt = Σ payment_allocations chưa đảo dưới khoá hàng); khoá tư vấn theo cơ sở (chia sẻ khi tạo allocation/chứng từ, độc quyền khi đổi múi giờ/giờ chốt); cho nợ: người nợ + hạn ≤ 30 ngày lưu trong yêu cầu duyệt, check-out phải khớp
 - Lý do (tiêu chí chất lượng cuối): (1) một nguồn sự thật cho bộ đếm mà không cộng đôi với auto-apply/reversePayment đang tự cập nhật; FOR SHARE properties gây deadlock với app.next_number; người duyệt thấy và khoá đúng điều khoản nợ
 - Đường lùi: Down migration 0031 trả hàm/trigger cũ
+
+### D-016 · 2026-10-16T03:17:28+00:00 · T-216: phạm vi xem nhật ký audit và nội dung màn Hôm nay theo vai trò
+
+- Phương án: (1) Sự kiện cấp tổ chức chỉ owner xem; quản lý theo phạm vi cơ sở; kế toán chỉ nhóm payment./invoice./deposit./period.; lễ tân/buồng phòng không xem nhật ký; khoảng ≤ 366 ngày; Hôm nay: khối theo quyền ma trận (không có khoá khi không được xem), buồng phòng chỉ thấy việc dọn; phạm vi audit kiểm ở app (RLS DB theo tổ chức) · (2) Quản lý xem cả sự kiện cấp tổ chức theo danh sách cho phép; thêm RLS DB theo cơ sở cho audit_events ngay
+- Chọn: Sự kiện cấp tổ chức chỉ owner xem; quản lý theo phạm vi cơ sở; kế toán chỉ nhóm payment./invoice./deposit./period.; lễ tân/buồng phòng không xem nhật ký; khoảng ≤ 366 ngày; Hôm nay: khối theo quyền ma trận (không có khoá khi không được xem), buồng phòng chỉ thấy việc dọn; phạm vi audit kiểm ở app (RLS DB theo tổ chức)
+- Lý do (tiêu chí chất lượng cuối): (1) chặt hơn khi SPEC chưa có danh mục sự kiện cấp tổ chức; dữ liệu tiền/khách chỉ hiện khi có quyền; (3) audit_events append-only đã RLS theo tổ chức — lớp RLS theo cơ sở để đợt 4 nếu cần
+- Đường lùi: Thêm allowlist cho quản lý; migration RLS audit theo cơ sở
+
+### D-017 · 2026-10-16T03:23:07+00:00 · T-209: các điểm SPEC hở của việc buồng phòng
+
+- Phương án: (1) Tạo việc dọn trong cùng transaction check-out/chuyển phòng (dedupe theo nguồn); buồng phòng tự nhận việc chưa giao, lễ tân chỉ giao; tách người làm/người nghiệm thu mặc định bật (properties.settings.separate_task_verification), kiểm cả app và trigger; nghiệm thu không đạt → done → assigned cùng người, bắt buộc lý do; owner/manager cập nhật mọi việc trong phạm vi; huỷ việc đưa phòng assigned/cleaning về dirty; ưu tiên khách đến hôm nay · (2) Tạo việc qua consumer outbox sau commit; chỉ người được giao cập nhật; huỷ giữ nguyên trạng thái phòng
+- Chọn: Tạo việc dọn trong cùng transaction check-out/chuyển phòng (dedupe theo nguồn); buồng phòng tự nhận việc chưa giao, lễ tân chỉ giao; tách người làm/người nghiệm thu mặc định bật (properties.settings.separate_task_verification), kiểm cả app và trigger; nghiệm thu không đạt → done → assigned cùng người, bắt buộc lý do; owner/manager cập nhật mọi việc trong phạm vi; huỷ việc đưa phòng assigned/cleaning về dirty; ưu tiên khách đến hôm nay
+- Lý do (tiêu chí chất lượng cuối): (1) SPEC S-001/ERD §5 yêu cầu cùng transaction, không độ trễ; phòng không kẹt trạng thái dở khi việc bị huỷ; người làm không tự nghiệm thu (S-008) giữ ở cả DB
+- Đường lùi: Bỏ openCleaningTask trong check-out/move và thêm consumer; tắt cờ tách nghiệm thu theo cơ sở

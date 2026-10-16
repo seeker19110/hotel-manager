@@ -77,7 +77,7 @@ allocations(organization_id, property_id, unit_id, id,
 | Hợp đồng | `draft → pending_signature → signed_awaiting_handover → active → notice_given → settling → closed`; `draft`/`pending_signature`/`signed_awaiting_handover` → `cancelled` | `active` khi chưa có bàn giao; `closed` khi chưa quyết toán |
 | Kỳ thu | `draft → reviewing → issued → locked`; `reviewing → draft` (trả lại để sửa chỉ số); `locked → issued` chỉ owner, có lý do + audit (mở khoá **không** cho sửa chứng từ đã phát hành, chỉ cho thêm điều chỉnh/đảo ghi ngày trong kỳ). `billing_periods.status='locked'` ⇔ có `period_locks` hiệu lực cho kỳ đó (một cơ chế) | sửa số sau `issued` (phải dùng điều chỉnh) |
 | Thanh toán | `pending → confirmed`; `confirmed → reversed` (bằng chứng từ đảo) | `pending → reversed`; xác nhận hai lần |
-| Phiếu việc | `open → assigned → in_progress → done → verified`; `cancelled` | `verified` bởi chính người làm (khi bật tách quyền) → `SELF_APPROVAL_FORBIDDEN` |
+| Phiếu việc | `open → assigned → in_progress → done → verified`; `done → assigned` (nghiệm thu không đạt, về cùng người); `cancelled` | `verified` bởi chính người làm (khi bật tách quyền) → `SELF_APPROVAL_FORBIDDEN` |
 
 Tự duyệt hoặc tự nghiệm thu khi quy tắc cấm luôn trả `SELF_APPROVAL_FORBIDDEN` (403), không dùng `INVALID_TRANSITION`.
 Mọi chuyển trạng thái đi qua bảng chuyển khai báo trong `packages/domain`. Chuyển ngoài bảng bị từ chối với mã `INVALID_TRANSITION` và được ghi audit.

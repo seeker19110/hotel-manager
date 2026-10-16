@@ -171,7 +171,7 @@ Dữ liệu mẫu (DOMAIN-MODEL §5): tổ chức B có cơ sở `HS1` (trọ) v
 |---|---|---|---|---|
 | `FORBIDDEN` | Vai trò không có quyền xem/xuất trên tài nguyên đọc được | 403 | Bạn không có quyền thực hiện thao tác này. | S-004, S-013 |
 | `NOT_FOUND` | `export_id`/sự kiện không thuộc người dùng; cơ sở ngoài phạm vi của actor (quy ước SPEC-access-and-property mục 2) | 404 | Không tìm thấy dữ liệu. | S-004, S-017 |
-| `VALIDATION_FAILED` | Bộ lọc sai (ngày kết thúc < bắt đầu) | 422 | Thông tin chưa hợp lệ: {trường}. | — |
+| `VALIDATION_FAILED` | Bộ lọc sai (ngày kết thúc < bắt đầu); nhật ký `audit.listEvents` với khoảng > 366 ngày (trường `to`, mã `RANGE_TOO_LARGE`), `cursor` hỏng hoặc khác chiều sắp xếp | 422 | Thông tin chưa hợp lệ: {trường}. | S-019 |
 | `REPORT_RANGE_TOO_LARGE` | Khoảng quá dài cho xem trực tiếp | 422 | Khoảng thời gian quá dài. Hãy chọn ngắn hơn hoặc dùng Xuất dữ liệu. | S-019 |
 | `REAUTH_REQUIRED` | Xuất khi chưa xác thực lại gần đây | 401 | Vui lòng xác thực lại để xuất dữ liệu. | S-014 |
 | `EXPORT_NOT_READY` | Tải khi job chưa xong | 409 | File đang được chuẩn bị. Vui lòng đợi. | — |

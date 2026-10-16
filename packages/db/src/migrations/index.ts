@@ -31,6 +31,7 @@ import * as m0027 from "./0027_folio.ts";
 import * as m0028 from "./0028_residence_notices.ts";
 import * as m0030 from "./0030_retention.ts";
 import * as m0031 from "./0031_folio_review_fixes.ts";
+import * as m0032 from "./0032_housekeeping.ts";
 import * as m0040 from "./0040_notifications.ts";
 import * as m0041 from "./0041_reminder_scans.ts";
 
@@ -65,6 +66,7 @@ export const migrations: Record<string, Migration> = {
   "0028_residence_notices": m0028,
   "0030_retention": m0030,
   "0031_folio_review_fixes": m0031,
+  "0032_housekeeping": m0032,
   "0040_notifications": m0040,
   "0041_reminder_scans": m0041,
 };

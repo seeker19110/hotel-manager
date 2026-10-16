@@ -112,7 +112,8 @@ export const taskMachine = defineMachine(
     open: ["assigned", "cancelled"],
     assigned: ["in_progress", "cancelled"],
     in_progress: ["done", "cancelled"],
-    done: ["verified"],
+    // `done → assigned`: nghiệm thu không đạt quay về cùng người (SPEC-housekeeping Q-05).
+    done: ["verified", "assigned"],
     verified: [],
     cancelled: [],
   },

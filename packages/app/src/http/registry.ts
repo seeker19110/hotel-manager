@@ -20,6 +20,17 @@ import {
   requestDepositRefund,
 } from "../deposits/deposits.ts";
 import {
+  assignTask,
+  cancelTask,
+  claimTask,
+  completeTask,
+  createTask,
+  getTask,
+  listTasks,
+  startTask,
+  verifyTask,
+} from "../housekeeping/housekeeping.ts";
+import {
   cancelBatch,
   commitBatch,
   confirmBatch,
@@ -88,6 +99,8 @@ import {
   previewMatches,
   resolveBreak,
 } from "../reconciliation/reconciliation.ts";
+import { listAuditEvents } from "../reports/audit.ts";
+import { getTodaySummary } from "../reports/today.ts";
 import { checkOut, getFolio, postCharge, requestAllowBalance, voidCharge } from "../reservation/folio.ts";
 import { quoteReservation, setRatePlan } from "../reservation/rates.ts";
 import {
@@ -780,6 +793,70 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
         },
       };
     },
+  }),
+  "housekeeping.createTask": defineCommand({
+    command: "housekeeping.createTask",
+    input: z.strictObject({
+      unit_id: uuid,
+      kind: z.enum(["cleaning", "inspection"]).optional(),
+      priority: z.enum(["normal", "high", "urgent"]).optional(),
+      note: z.string().max(2000).optional(),
+    }),
+    run: async (ctx, i) => {
+      const r = await createTask(ctx, {
+        unitId: i.unit_id,
+        ...(i.kind ? { kind: i.kind } : {}),
+        ...(i.priority ? { priority: i.priority } : {}),
+        ...(i.note === undefined ? {} : { note: i.note }),
+      });
+      return { data: r, httpStatus: r.created ? 201 : 200 };
+    },
+  }),
+  "housekeeping.assignTask": defineCommand({
+    command: "housekeeping.assignTask",
+    input: z.strictObject({ task_id: uuid, assignee_membership_id: uuid }),
+    run: async (ctx, i) => ({
+      data: await assignTask(ctx, { taskId: i.task_id, assigneeMembershipId: i.assignee_membership_id }),
+    }),
+  }),
+  "housekeeping.claimTask": defineCommand({
+    command: "housekeeping.claimTask",
+    input: z.strictObject({ task_id: uuid }),
+    run: async (ctx, i) => ({ data: await claimTask(ctx, { taskId: i.task_id }) }),
+  }),
+  "housekeeping.startTask": defineCommand({
+    command: "housekeeping.startTask",
+    input: z.strictObject({ task_id: uuid, note: z.string().max(2000).optional() }),
+    run: async (ctx, i) => ({
+      data: await startTask(ctx, { taskId: i.task_id, ...(i.note === undefined ? {} : { note: i.note }) }),
+    }),
+  }),
+  "housekeeping.completeTask": defineCommand({
+    command: "housekeeping.completeTask",
+    input: z.strictObject({ task_id: uuid, note: z.string().max(2000).optional() }),
+    run: async (ctx, i) => ({
+      data: await completeTask(ctx, { taskId: i.task_id, ...(i.note === undefined ? {} : { note: i.note }) }),
+    }),
+  }),
+  "housekeeping.verifyTask": defineCommand({
+    command: "housekeeping.verifyTask",
+    input: z.strictObject({
+      task_id: uuid,
+      result: z.enum(["pass", "fail"]),
+      reason: z.string().max(1000).optional(),
+    }),
+    run: async (ctx, i) => ({
+      data: await verifyTask(ctx, {
+        taskId: i.task_id,
+        result: i.result,
+        ...(i.reason === undefined ? {} : { reason: i.reason }),
+      }),
+    }),
+  }),
+  "housekeeping.cancelTask": defineCommand({
+    command: "housekeeping.cancelTask",
+    input: z.strictObject({ task_id: uuid, reason: z.string().max(1000) }),
+    run: async (ctx, i) => ({ data: await cancelTask(ctx, { taskId: i.task_id, reason: i.reason }) }),
   }),
   "lease.createDraft": defineCommand({
     command: "lease.createDraft",
@@ -1571,6 +1648,33 @@ export const QUERIES: Readonly<Record<string, AnyQuery>> = {
         ...(i.cursor ? { cursor: i.cursor } : {}),
       }),
   },
+  "housekeeping.listTasks": {
+    query: "housekeeping.listTasks",
+    input: z.strictObject({
+      property_id: uuid,
+      floor_id: uuid.optional(),
+      status: z.string().min(1).max(100).optional(),
+      assignee: z.union([z.literal("me"), uuid]).optional(),
+      limit: z.coerce.number().int().min(1).max(500).optional(),
+    }),
+    run: (
+      db,
+      actor,
+      i: { property_id: string; floor_id?: string; status?: string; assignee?: string; limit?: number },
+    ) =>
+      listTasks(db, actor, {
+        propertyId: i.property_id,
+        ...(i.floor_id ? { floorId: i.floor_id } : {}),
+        ...(i.status ? { statuses: i.status.split(",").map((x) => x.trim()) } : {}),
+        ...(i.assignee ? { assignee: i.assignee } : {}),
+        ...(i.limit === undefined ? {} : { limit: i.limit }),
+      }).then((tasks) => ({ tasks })),
+  },
+  "housekeeping.getTask": {
+    query: "housekeeping.getTask",
+    input: z.strictObject({ task_id: uuid }),
+    run: (db, actor, i: { task_id: string }) => getTask(db, actor, { taskId: i.task_id }),
+  },
   "inventory.getUnitStatus": {
     query: "inventory.getUnitStatus",
     input: z.strictObject({ unit_id: uuid, at: instant.optional() }),
@@ -1707,6 +1811,79 @@ export const QUERIES: Readonly<Record<string, AnyQuery>> = {
         ...(i.from ? { from: i.from } : {}),
         ...(i.to ? { to: i.to } : {}),
         ...(i.status ? { statuses: i.status.split(",").map((x) => x.trim()) } : {}),
+        ...(i.limit === undefined ? {} : { limit: i.limit }),
+        ...(i.cursor ? { cursor: i.cursor } : {}),
+      }),
+  },
+  "today.getSummary": {
+    query: "today.getSummary",
+    input: z.strictObject({
+      property_id: uuid.optional(),
+      item_limit: z.coerce.number().int().min(1).max(200).optional(),
+      debt_top: z.coerce.number().int().min(1).max(50).optional(),
+      lease_horizon_days: z.coerce.number().int().min(1).max(90).optional(),
+    }),
+    run: (
+      db,
+      actor,
+      i: { property_id?: string; item_limit?: number; debt_top?: number; lease_horizon_days?: number },
+    ) =>
+      getTodaySummary(db, actor, {
+        ...(i.property_id ? { propertyId: i.property_id } : {}),
+        ...(i.item_limit === undefined ? {} : { itemLimit: i.item_limit }),
+        ...(i.debt_top === undefined ? {} : { debtTop: i.debt_top }),
+        ...(i.lease_horizon_days === undefined ? {} : { leaseHorizonDays: i.lease_horizon_days }),
+      }),
+  },
+  "audit.listEvents": {
+    query: "audit.listEvents",
+    input: z.strictObject({
+      property_id: uuid.optional(),
+      from: instant.optional(),
+      to: instant.optional(),
+      actor_person_id: uuid.optional(),
+      entity_type: z.string().min(1).max(60).optional(),
+      entity_id: uuid.optional(),
+      action: z
+        .string()
+        .max(100)
+        .regex(/^[a-z_]+(\.[a-z_]+)+$/)
+        .optional(),
+      correlation_id: z.string().min(1).max(128).optional(),
+      outcome: z.enum(["success", "denied"]).optional(),
+      order: z.enum(["asc", "desc"]).optional(),
+      limit: z.coerce.number().int().min(1).max(200).optional(),
+      cursor: z.string().min(1).max(400).optional(),
+    }),
+    run: (
+      db,
+      actor,
+      i: {
+        property_id?: string;
+        from?: string;
+        to?: string;
+        actor_person_id?: string;
+        entity_type?: string;
+        entity_id?: string;
+        action?: string;
+        correlation_id?: string;
+        outcome?: "success" | "denied";
+        order?: "asc" | "desc";
+        limit?: number;
+        cursor?: string;
+      },
+    ) =>
+      listAuditEvents(db, actor, {
+        ...(i.property_id ? { propertyId: i.property_id } : {}),
+        ...(i.from ? { from: new Date(i.from) } : {}),
+        ...(i.to ? { to: new Date(i.to) } : {}),
+        ...(i.actor_person_id ? { actorPersonId: i.actor_person_id } : {}),
+        ...(i.entity_type ? { entityType: i.entity_type } : {}),
+        ...(i.entity_id ? { entityId: i.entity_id } : {}),
+        ...(i.action ? { action: i.action } : {}),
+        ...(i.correlation_id ? { correlationId: i.correlation_id } : {}),
+        ...(i.outcome ? { outcome: i.outcome } : {}),
+        ...(i.order ? { order: i.order } : {}),
         ...(i.limit === undefined ? {} : { limit: i.limit }),
         ...(i.cursor ? { cursor: i.cursor } : {}),
       }),

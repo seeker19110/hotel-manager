@@ -222,10 +222,10 @@ Không áp dụng — tính năng không dùng model.
 
 ## 10. Câu hỏi mở (0 câu [chặn] trước khi Approved)
 - [x] Q-01 Ai được nghiệm thu phòng (manager, lễ tân, hay buồng phòng trưởng) — [chặn] — hỏi: PO — đề xuất: owner/manager; thêm lễ tân nếu cơ sở bật; chưa thêm vai trò mới. — **Quyết theo PLAN đợt 3 (D-002/D-005, 2026-10-16):** owner/manager; lễ tân khi cơ sở bật `properties.settings.front_desk_can_inspect` (mặc định `false`); người làm không tự nghiệm thu; chưa thêm vai trò mới.
-- [ ] Q-02 Buồng phòng có được tự nhận việc chưa giao không — [không chặn] — hỏi: PO — đề xuất: có, trong phạm vi cơ sở.
-- [ ] Q-03 Mặc định bật tách quyền "người làm không tự nghiệm thu" — [không chặn] — hỏi: PO — đề xuất: bật.
-- [ ] Q-04 Quy tắc ưu tiên việc dọn — [không chặn] — hỏi: PO — đề xuất: phòng có khách đến hôm nay → phòng vừa trả → còn lại theo thời gian tạo.
-- [ ] Q-05 Nghiệm thu không đạt quay về người cũ hay về `open` — [không chặn] — hỏi: PO — đề xuất: về `assigned` cho cùng người. Cần thêm chuyển `done → assigned` vào bảng chuyển DOMAIN-MODEL §4.
+- [x] Q-02 Buồng phòng có được tự nhận việc chưa giao không — [không chặn] — hỏi: PO — đề xuất: có, trong phạm vi cơ sở. — **Quyết ở T-209 (D-017, 2026-10-16):** buồng phòng tự nhận việc chưa giao trong phạm vi cơ sở; người nhận phải có quyền housekeeping.progress (housekeeping/manager/owner); lễ tân chỉ giao.
+- [x] Q-03 Mặc định bật tách quyền "người làm không tự nghiệm thu" — [không chặn] — hỏi: PO — đề xuất: bật. — **Quyết ở T-209 (D-017, 2026-10-16):** tách người làm/người nghiệm thu mặc định bật, tắt bằng `properties.settings.separate_task_verification=false`; kiểm ở lệnh và trigger (SELF_APPROVAL_FORBIDDEN).
+- [x] Q-04 Quy tắc ưu tiên việc dọn — [không chặn] — hỏi: PO — đề xuất: phòng có khách đến hôm nay → phòng vừa trả → còn lại theo thời gian tạo. — **Quyết ở T-209 (D-017, 2026-10-16):** ưu tiên: khách đến hôm nay (giờ đến sớm trước) → ưu tiên đặt tay → phòng vừa trả/chuyển → thời gian tạo.
+- [x] Q-05 Nghiệm thu không đạt quay về người cũ hay về `open` — [không chặn] — hỏi: PO — đề xuất: về `assigned` cho cùng người. Cần thêm chuyển `done → assigned` vào bảng chuyển DOMAIN-MODEL §4. — **Quyết ở T-209 (D-017, 2026-10-16):** nghiệm thu không đạt: `done → assigned` cho cùng người, bắt buộc lý do (ghi `note`).
 - [x] Q-06 Giới hạn file — [chặn T045/T076] — hỏi: Tech Lead + PO — đề xuất: JPEG/PNG/WebP; ≤ 10 MB/ảnh; ≤ 5 ảnh/phiếu. Cần kiểm iPhone (HEIC) trên thiết bị thật trước khi chốt (chưa xác minh). — **Quyết theo PLAN đợt 3 (D-002/D-005, 2026-10-16):** JPEG/PNG/WebP; ≤ 10 MB/ảnh; ≤ 5 ảnh/phiếu (`properties.settings.work_order_max_images`); HEIC chưa nhận (chưa xác minh trên thiết bị thật).
 - [ ] Q-07 Thời hạn URL ký đọc/tải — [không chặn] — hỏi: Tech Lead — đề xuất: 5 phút cho ảnh vận hành; ảnh giấy tờ ngắn hơn theo DPIA.
 - [ ] Q-08 Sau sửa chữa có bắt buộc tạo việc dọn trước khi bán lại không — [không chặn] — hỏi: PO — đề xuất: có (S-019).

@@ -19,6 +19,7 @@ import type { Actor } from "../access/actor.ts";
 import { registerApprovalExecutor, requestApproval } from "../approvals/approvals.ts";
 import { uniqueMemoRef } from "../billing/billing.ts";
 import { refundDepositInline, requestDepositRefund } from "../deposits/deposits.ts";
+import { openCleaningTask } from "../housekeeping/cleaning.ts";
 import { resizeAllocation } from "../inventory/inventory.ts";
 import { postEntry } from "../ledger/ledger.ts";
 import {
@@ -479,7 +480,7 @@ export async function requestAllowBalance(
  * 3. còn nợ ⇒ `409 OUTSTANDING_BALANCE` (rollback cả lệnh) trừ khi được cho nợ (người nợ + hạn trả, S-019);
  * 4. hoàn cọc theo hạn mức (xong hoặc lập yêu cầu duyệt; không bao giờ qua `REV_*`), lượt ở `checked_out` (giờ UTC), booking
  *    `checked_out` khi mọi lượt ở đã xong, allocation kết thúc đúng giờ trả (trả muộn không kéo dài hồi tố), phòng `dirty`;
- * 5. phát outbox `stay.checked_out` (T-209 tạo việc dọn từ sự kiện — module này không ghi bảng việc).
+ * 5. mở việc dọn (`openCleaningTask`, housekeeping S-001) cùng transaction rồi phát outbox `stay.checked_out`.
  */
 export async function checkOut(
   ctx: CommandContext,
@@ -781,6 +782,14 @@ export async function checkOut(
   await sql`update units set housekeeping_status = 'dirty' where organization_id = ${orgId} and id = ${stay.unit_id}`.execute(
     ctx.trx,
   );
+  // Cùng transaction: một việc dọn `open` cho phòng (SPEC-housekeeping S-001); phòng đã có việc dọn đang mở thì chỉ ghi thêm nguồn (S-002).
+  await openCleaningTask(ctx.trx, {
+    orgId,
+    propertyId: stay.property_id,
+    unitId: stay.unit_id,
+    source: { type: "stay", id: stay.id },
+    now,
+  });
 
   await ctx.audit({
     action: "stay.checked_out",
