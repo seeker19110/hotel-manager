@@ -5,15 +5,16 @@
 # Chỉ đọc, không đổi gì. Fail-open.
 set -uo pipefail
 . "$(dirname "$0")/_lib.sh"
-. "$(dirname "$0")/_compat.sh"
 
 ctx=""
 if [ -f "$XT_ROOT/PROGRESS.md" ]; then
   # Chỉ lấy các mục "Đang làm / Tiếp theo / Quyết định / Bàn giao" (và tiêu đề), cắt 8 KB.
-  prog="$(awk '
+  # Chuẩn hoá NFC trước awk: PROGRESS.md dạng NFD (soạn trên macOS) không khớp tên mục → mất cả 4 mục.
+  prog="$(python3 -c 'import sys, unicodedata; sys.stdout.write(unicodedata.normalize("NFC", sys.stdin.read()))' \
+    < "$XT_ROOT/PROGRESS.md" 2>/dev/null | awk '
     /^## /{keep = ($0 ~ /Đang làm|Tiếp theo|Quyết định|Bàn giao|Kế hoạch/)}
     NR==1 || keep {print}
-  ' "$XT_ROOT/PROGRESS.md" | utf8_head 8192)"
+  ' | utf8_head 8192)"
   [ -n "$prog" ] || prog="$(utf8_head 8192 < "$XT_ROOT/PROGRESS.md")"
   ctx+="===== PROGRESS.md (trạng thái phiên trước) =====
 $prog

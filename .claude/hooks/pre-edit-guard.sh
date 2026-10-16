@@ -8,7 +8,6 @@
 # Danh sách đường dẫn dùng chung với pre-bash-guard ở guard.py. Lỗi → cho qua (fail-open).
 set -uo pipefail
 . "$(dirname "$0")/_lib.sh"
-. "$(dirname "$0")/_compat.sh"
 
 payload="$(cat)"
 res="$(printf '%s' "$payload" | CLAUDE_PROJECT_DIR="$XT_ROOT" python3 "$(dirname "$0")/guard.py" edit 2>/dev/null)" || exit 0

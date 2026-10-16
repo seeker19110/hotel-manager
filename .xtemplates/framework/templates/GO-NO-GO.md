@@ -1,7 +1,7 @@
 ---
 title: Mẫu GO-NO-GO
 kind: template
-updated: 2026-10-13
+updated: 2026-10-15
 ---
 
 # Mẫu GO-NO-GO.md — báo cáo phát hành
@@ -44,8 +44,9 @@ updated: 2026-10-13
 | 15 | SHOULD | Runbook được người không xây chạy thử | | docs/handover/runbook-test-<ngày>.md |
 | 16 | SHOULD | Sự kiện đo cho tính năng mới có schema, dashboard baseline ghi | | analytics/events.schema.json; METRICS.md |
 | 17 | SHOULD | Tài liệu khớp code (README, PROJECT, ADR không lỗi thời) | | review <ngày> |
-| 18 | NICE | Tối ưu mã nguồn: dead code/dependency thừa đã rà | | knip/depcheck output |
-| 19 | <mức> | <mục đặc thù hồ sơ/ngành> | | |
+| 18 | BLOCKER | Mọi đề xuất "Khi chạy thật" (dịch vụ thay phần tự host) đã được chủ dự án quyết: chuyển (khoá/tài khoản đã cấu hình qua secret store) hoặc giữ tự host (có người vận hành, backup) | | `rg -n "Khi chạy thật" docs/autopilot/DECISIONS.md` → từng D-NNN có quyết định ghi ở mục 4 |
+| 19 | NICE | Tối ưu mã nguồn: dead code/dependency thừa đã rà | | knip/depcheck output |
+| 20 | <mức> | <mục đặc thù hồ sơ/ngành> | | |
 
 ## 3. Bảng FAIL
 | # | Mức | Mục | Bằng chứng | Cách sửa đề xuất | Ticket / chủ / hạn (chỉ SHOULD) |

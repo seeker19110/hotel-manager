@@ -119,7 +119,9 @@ run_task() { # $1=task -> chạy; 0 nếu ok hoặc no-op, khác 0 nếu lệnh 
   if [ -z "$cmd" ]; then log "skip: chưa cấu hình/dò được '$1'"; return 0; fi
   RAN=$((RAN + 1))
   log "run [$1]: $cmd"
-  ( cd "$ROOT" && bash -c "$cmd" )
+  # pipefail cho chính lệnh khai báo: `set -o pipefail` ở trên không truyền vào `bash -c` mới, nên
+  # `test | tee log` từng xanh giả khi test đỏ.
+  ( cd "$ROOT" && bash -o pipefail -c "$cmd" )
 }
 
 # --- format-file: format ĐÚNG file vừa sửa (dùng cho auto-format hook) --------

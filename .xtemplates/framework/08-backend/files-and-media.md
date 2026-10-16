@@ -3,7 +3,7 @@ title: File, upload, lưu trữ đối tượng, xử lý ảnh/video, quét
 kind: module
 prefix: BE-FILE
 applies_to: [web-app, api-service, ai-agent, agentic-system, data-ml, monorepo, blockchain]
-updated: 2026-10-14
+updated: 2026-10-15
 ---
 
 # File, upload, lưu trữ đối tượng, xử lý ảnh/video, quét
@@ -51,7 +51,7 @@ updated: 2026-10-14
 - [ ] `BE-FILE-008` **MUST@L** Phản hồi tải xuống có `Content-Disposition` (attachment cho file người dùng), `Content-Type` từ mime đã xác minh, `X-Content-Type-Options: nosniff`; không bao giờ phục vụ HTML/SVG do người dùng tải lên cùng origin ứng dụng (dùng domain/sub-domain riêng hoặc sandbox CSP). → Kiểm: test tải SVG → `Content-Disposition: attachment` hoặc domain tách; header nosniff có mặt. · Nguồn: OWASP File Upload Cheat Sheet, [`../07-frontend/client-security.md`](../07-frontend/client-security.md)
 - [ ] `BE-FILE-009` **MUST@L** Quét malware bất đồng bộ sau upload (ClamAV hoặc dịch vụ), trạng thái `pending` không cho tải công khai; `infected` → cách ly + thông báo; chữ ký virus cập nhật tự động. → Kiểm: test upload EICAR → `infected`, tải xuống bị chặn; cron `freshclam` chạy. · Nguồn: OWASP File Upload Cheat Sheet
 - [ ] `BE-FILE-010` **MUST@L** Xử lý file nặng (transcode, OCR, nén) chạy trong job có timeout, giới hạn CPU/RAM/đĩa tạm, trong container/sandbox riêng, không trên tiến trình web. → Kiểm: job có timeout + limits; test file gây treo → bị huỷ, không ảnh hưởng API. · Nguồn: [`background-jobs-and-queues.md`](background-jobs-and-queues.md)
-- [ ] `BE-FILE-011` **MUST@L** File nén (zip/tar): giới hạn số entry, tổng kích thước sau giải nén, tỉ lệ nén, độ sâu lồng; chặn path traversal trong entry; không giải nén đệ quy mặc định. → Kiểm: test zip bomb và entry `../x` → từ chối. · Nguồn: OWASP File Upload Cheat Sheet (archives)
+- [ ] `BE-FILE-011` **MUST@L** File nén (zip/tar): giới hạn số entry, tổng kích thước sau giải nén, tỉ lệ nén, độ sâu lồng; chặn path traversal trong entry; không giải nén đệ quy mặc định. → Kiểm: test zip bomb và entry `../x` → từ chối; Python gọi `tarfile.extractall(..., filter="data")` tường minh (mặc định từ 3.14, bản cũ hơn không lọc). · Nguồn: OWASP File Upload Cheat Sheet (archives); Python docs `tarfile` extraction filters (PEP 706)
 - [ ] `BE-FILE-012` **MUST@L** Bucket: versioning hoặc soft-delete cho dữ liệu người dùng, lifecycle rule (xoá multipart dở, chuyển lớp lưu trữ lạnh, xoá theo retention), mã hoá at-rest bật, log truy cập bật; backup/replication theo [`../15-operations/backup-and-disaster-recovery.md`](../15-operations/backup-and-disaster-recovery.md). → Kiểm: IaC bucket có versioning/lifecycle/encryption/logging. · Nguồn: ASVS 5.0 V14
 - [ ] `BE-FILE-013` **MUST@L** Xoá file theo yêu cầu người dùng/khi xoá bản ghi: xoá object + bản dẫn xuất (thumbnail/transcode) + cache CDN, có job dọn và bằng chứng (log) — đáp ứng quyền xoá dữ liệu. → Kiểm: test xoá bản ghi → object và dẫn xuất không còn sau job; xem [`../16-compliance-privacy/consent-and-user-rights.md`](../16-compliance-privacy/consent-and-user-rights.md).
 - [ ] `BE-FILE-014` **SHOULD** Presigned upload có chính sách ràng buộc: key do server quyết, `content-length-range`, `Content-Type` cố định, hết hạn ≤ 15 phút; sau upload client gọi "confirm" để server xác minh object tồn tại + kích thước + magic bytes rồi mới tạo bản ghi `ready`. → Kiểm: test upload key khác chính sách → 403; test confirm với object không tồn tại → 404.

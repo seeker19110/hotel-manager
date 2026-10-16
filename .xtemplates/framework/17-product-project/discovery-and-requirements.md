@@ -3,7 +3,7 @@ title: Khám phá & yêu cầu: vấn đề, người dùng, chỉ số thành c
 kind: module
 prefix: PM-REQ
 applies_to: [all]
-updated: 2026-10-14
+updated: 2026-10-15
 ---
 
 # Khám phá & yêu cầu: vấn đề, người dùng, chỉ số thành công, phạm vi không làm
@@ -44,17 +44,18 @@ updated: 2026-10-14
 - [ ] `PM-REQ-005` **MUST@L** Mục "Không làm" (Won't have lúc này) không rỗng và nêu lý do cho từng mục. → Kiểm: `rg -A3 "^## .*Không làm" PROJECT.md` có ≥1 dòng gạch đầu; `SCOPE.md` tồn tại khi dự án ≥ M.
 - [ ] `PM-REQ-006` **MUST@L** Mọi giả định quan trọng ghi vào bảng giả định với cách kiểm chứng và hạn. → Kiểm: bảng "Giả định" trong `PROJECT.md` (hoặc `docs/RISKS.md`) đủ cột giả định · cách kiểm · hạn · trạng thái.
 - [ ] `PM-REQ-007` **MUST** Mỗi yêu cầu có ID ổn định `R-NNN`, không tái sử dụng ID đã bỏ. → Kiểm: `rg -o "R-[0-9]{3}" PROJECT.md | sort | uniq -d` rỗng (không trùng ID).
-- [ ] `PM-REQ-008` **MUST** Không còn câu hỏi mở đánh dấu `[chặn]` khi qua cổng G0; câu hỏi chặn phải được hỏi người quyết định, không tự đoán. → Kiểm: `rg -c "\[chặn\]" PROJECT.md` = 0 tại commit đánh dấu cổng G0.
+- [ ] `PM-REQ-008` **MAY** Ngừng dùng 2026-10-15 — thay bằng `PM-REQ-019` (ADR-0008: câu hỏi chặn được phiên chính tự duyệt và ghi lại, không chỉ người).
 - [ ] `PM-REQ-009` **MUST@M** Phân loại dữ liệu dự án sẽ xử lý ngay ở G0: có dữ liệu cá nhân không, có dữ liệu nhạy cảm (sức khoẻ, tài chính, trẻ em, định danh) không. → Kiểm: mục "Dữ liệu & pháp lý" ghi rõ có/không + loại; nếu có → gói ngành/module [`../16-compliance-privacy/privacy-by-design.md`](../16-compliance-privacy/privacy-by-design.md) được ghép vào blueprint.
 - [ ] `PM-REQ-010` **SHOULD** Yêu cầu phi chức năng ghi bằng số theo hồ sơ (web: Core Web Vitals; backend: p95; CLI: thời gian chạy/kích thước; mobile: cold start) kèm nguồn ngưỡng. → Kiểm: bảng NFR có cột "ngưỡng" và "nguồn"; ngưỡng không tự nghĩ ra.
 - [ ] `PM-REQ-011` **SHOULD** Ràng buộc cứng ghi rõ: hạn thật, ngân sách, nền tảng bắt buộc, tích hợp bắt buộc, luật ngành. → Kiểm: mục "Ràng buộc" phân biệt "hạn thật" và "hạn mong muốn" (xem `PM-PLAN`).
 - [ ] `PM-REQ-012` **SHOULD** Có bảng giải pháp thay thế/đối thủ với dẫn chứng (URL, ngày xem) và điểm khác biệt của sản phẩm. → Kiểm: bảng ≥2 dòng, mỗi dòng có URL và ngày.
-- [ ] `PM-REQ-013` **SHOULD** Cổng G0 có người duyệt ghi tên và ngày trong `PROJECT.md` hoặc `PROGRESS.md`; dự án một người vẫn tự ký để đóng băng phạm vi. → Kiểm: dòng "Cổng G0: duyệt bởi … ngày …" tồn tại.
+- [ ] `PM-REQ-013` **SHOULD** Cổng G0 có người duyệt (hoặc `D-NNN` của phiên chính, ADR-0008) ghi tên và ngày trong `PROJECT.md` hoặc `PROGRESS.md`; dự án một người vẫn tự ký để đóng băng phạm vi. → Kiểm: dòng "Cổng G0: duyệt bởi … ngày …" tồn tại.
 - [ ] `PM-REQ-014` **SHOULD** Dự án có sẵn: `PROJECT.md` viết "ngược" từ repo (route/command/schema thật) và ghi rõ phần nào là đọc được, phần nào là suy đoán. → Kiểm: mỗi mục có nhãn *(đo được)* / *(suy luận)* / *(chưa biết)* theo [`../00-method/evidence-and-sources.md`](../00-method/evidence-and-sources.md) §1.8.
 - [ ] `PM-REQ-015` **SHOULD** Luồng người dùng chính (2–5 luồng sống còn) mô tả từng bước từ điểm vào đến kết quả; đây là danh sách luồng bắt buộc có E2E sau này. → Kiểm: mục "Luồng chính" có ≥2 luồng, mỗi luồng tham chiếu `R-NNN`.
 - [ ] `PM-REQ-016` **MAY** Có glossary thuật ngữ nghiệp vụ (một nghĩa cho mỗi từ) dùng chung cho spec, code và UI. → Kiểm: `docs/GLOSSARY.md` tồn tại và được spec tham chiếu.
 - [ ] `PM-REQ-017` **MAY** Persona ngắn (tên, bối cảnh, thiết bị, mức kỹ năng) cho mỗi nhóm người dùng, dùng khi thiết kế UI/UX. → Kiểm: mục "Persona" hoặc file `docs/personas.md`.
 - [ ] `PM-REQ-018` **MAY** Ghi lại "cách người dùng đang xoay sở" (workaround hiện tại) làm baseline so sánh sau phát hành. → Kiểm: mục "Hiện trạng" mô tả quy trình hiện có + thời gian/lỗi đo được.
+- [ ] `PM-REQ-019` **MUST** Không còn câu hỏi `[chặn]` chưa trả lời khi qua cổng G0; mỗi câu có câu trả lời của người hoặc quyết định `D-NNN` của phiên chính theo tiêu chí chất lượng cuối — thiếu dữ kiện chỉ người có thì chọn giả định đảo ngược được ([`LOOP-STOP-018`](../11-autonomous-loop/stop-points-and-escalation.md)); không đoán ngầm. → Kiểm: `rg -c "\[chặn\]" PROJECT.md` = 0 tại commit đánh dấu cổng G0; mỗi câu đã đóng trỏ `D-NNN` hoặc tên người + ngày. · Nguồn: ADR-0008
 
 ## Bẫy thường gặp
 

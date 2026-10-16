@@ -45,8 +45,8 @@ updated: 2026-10-15
 | `inactive` | Chưa `loop init` hoặc đã tắt | Cho dừng |
 | `blocked` | `loop block` đã gọi · `same_failure_count ≥ 3` · không thấy PLAN · PLAN không có task | Cho dừng, `active=false`, ghi `final_verdict` |
 | `budget` | `iterations ≥ max_iterations` (mặc định 50) · quá `deadline` (`--hours`) | Cho dừng, `active=false` |
-| `continue` | Còn task `[ ]`, hoặc blueprint còn MUST mở / miễn trừ thiếu lý do | **Chặn dừng**, `iterations += 1`, nêu task kế |
-| `verify` | Task `[x]` nhưng không có evidence, `exit_code ≠ 0`, hoặc `cmd ≠ Gate` khai trong PLAN | **Chặn dừng**, yêu cầu `loop record` lại |
+| `continue` | Còn task `[ ]`, hoặc blueprint còn MUST mở / miễn trừ thiếu lý do / dòng mục sai định dạng hoặc bị xoá | **Chặn dừng**, `iterations += 1`, nêu task kế |
+| `verify` | Task `[x]` nhưng không có evidence, `exit_code ≠ 0`, `cmd ≠ Gate` khai trong PLAN, hoặc evidence có từ trước lần `loop init` này (vòng/PLAN trước) · task `[~]` không ghi `— Bỏ: <lý do>` · dòng task sai định dạng | **Chặn dừng**, yêu cầu `loop record` lại |
 | `done` | Mọi task có bằng chứng xanh đúng Gate và blueprint 0 MUST mở (blueprint khai ở `loop init` phải tồn tại; biến mất giữa chừng thì PLAN là nguồn sự thật và lý do verdict ghi rõ blueprint không được kiểm) | Cho dừng, `active=false` |
 
 Mặc định khuyến nghị: `--max-iterations` 30–50 cho một PLAN ≤ 10 task; `--hours` ≤ 8; headless thêm `--max-turns`
@@ -90,7 +90,8 @@ và `--max-budget-usd`. Tăng trần chỉ bằng `loop init` lại có chủ đ
 
 | Công cụ | Lệnh | Đặt ở | Ngưỡng |
 |---|---|---|---|
-| `xt.py loop status` | `xt.py loop status --json` | SessionStart hook, trước khi chọn task | verdict ∈ {continue, verify, done}; `blocked`/`budget` → người |
+| `xt.py loop status` | `xt.py loop status --json` | SessionStart hook (cả sau compaction), trước khi chọn task | verdict ∈ {continue, verify, done}; `done-pending-human`/`blocked`/`budget` → người |
+| `xt.py loop checkpoint` | qua `.claude/hooks/pre-compact.sh` | PreCompact hook | luôn exit 0; ghi `state.json.checkpoint` |
 | `xt.py loop hook-stop` | qua `.claude/hooks/stop-guard.sh` | Stop hook | `decision: block` khi continue/verify; cap 8 lần chặn (`CLAUDE_CODE_STOP_HOOK_BLOCK_CAP`) |
 | `xt.py loop record` | `xt.py loop record --task T-001 -- <Gate>` | Mỗi task | exit 0; timeout `XT_RECORD_TIMEOUT=1800` |
 | `xt.py blueprint-status` | `xt.py blueprint-status BLUEPRINT.md --strict` | Cổng phát hành G7 (dự án tự thêm vào CI khi phát hành) | 0 MUST mở, 0 miễn trừ thiếu lý do |

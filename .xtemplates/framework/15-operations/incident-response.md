@@ -3,7 +3,7 @@ title: Ứng phó sự cố: SEV, runbook, liên lạc, post-mortem không đổ
 kind: module
 prefix: OPS-IR
 applies_to: [all]
-updated: 2026-10-14
+updated: 2026-10-15
 ---
 
 # Ứng phó sự cố: SEV, runbook, liên lạc, post-mortem không đổ lỗi
@@ -49,7 +49,7 @@ updated: 2026-10-14
 - [ ] `OPS-IR-003` **MUST@L** Vai trò rõ: Incident Commander (điều phối, quyết định), người xử lý kỹ thuật (SME), người liên lạc (khách/nội bộ), người ghi chép; đội nhỏ gộp vai nhưng IC luôn tách biệt với người gõ lệnh khi ≥ 2 người. → Kiểm: bản ghi sự cố có tên IC; checklist IC trong runbook. · Nguồn: PagerDuty IR — different roles
 - [ ] `OPS-IR-004` **MUST** Thứ tự xử lý cố định: phát hiện → phân mức → **giảm thiệt hại** (rollback/flag/khôi phục/kill switch) → liên lạc → khắc phục triệt để qua cổng thường → đóng → post-mortem. → Kiểm: runbook liệt kê thứ tự; timeline sự cố gần nhất có mốc "giảm thiệt hại" trước mốc "root cause". · Nguồn: khung cũ `docs/ops/incident-response.md` (1b80fe4); NIST SP 800-61r3
 - [ ] `OPS-IR-005` **MUST@L** Mọi lệnh/thay đổi tay lúc chữa cháy ghi vào kênh sự cố (lệnh + giờ + người); sau sự cố đưa về IaC/code hoặc hoàn tác. → Kiểm: timeline có lệnh đã chạy; drift job IaC = 0 sau khi đóng sự cố. · Nguồn: P8; [`infrastructure-as-code.md`](infrastructure-as-code.md)
-- [ ] `OPS-IR-006` **MUST** Thao tác lên dữ liệu thật lúc sự cố có snapshot/backup ngay trước đó và lệnh hoàn tác đã viết sẵn; thao tác không thể hoàn tác cần hai người xác nhận. → Kiểm: runbook mục "Trước khi chạy lệnh lên dữ liệu"; timeline ghi snapshot id. · Nguồn: AGENTS.md §4 (điểm dừng bắt buộc); P3
+- [ ] `OPS-IR-006` **MUST** Thao tác lên dữ liệu thật lúc sự cố có snapshot/backup ngay trước đó và lệnh hoàn tác đã viết sẵn; thao tác không thể hoàn tác cần hai người xác nhận. → Kiểm: runbook mục "Trước khi chạy lệnh lên dữ liệu"; timeline ghi snapshot id. · Nguồn: AGENTS.md §5 (điểm dừng bắt buộc về hành động); P3
 - [ ] `OPS-IR-007` **MUST@L** Post-mortem **không đổ lỗi** cho mọi SEV1/SEV2 trong ≤ 5 ngày làm việc theo mẫu khung: tóm tắt, ảnh hưởng, timeline, nguyên nhân (5 whys), tốt/chưa tốt/may mắn, hành động. → Kiểm: file `docs/ops/postmortems/YYYY-MM-DD-<slug>.md` tồn tại ≤ 5 ngày sau đóng sự cố (script so ngày); không có tên người ở mục nguyên nhân. · Nguồn: SRE Book — Postmortem Culture; khung cũ post-mortem template
 - [ ] `OPS-IR-008` **MUST@L** Mỗi post-mortem có ≥ 1 hành động là **hàng rào máy** (test hồi quy, alert, lint/policy, hook, cổng CI) kèm người phụ trách + hạn + ticket; hành động quá hạn hiện trong review tháng. → Kiểm: bảng hành động có cột Loại = `phòng ngừa|phát hiện` ≥ 1 hàng trỏ PR/rule; script liệt kê hành động quá hạn. · Nguồn: P12; khung cũ "mỗi sự cố ≥ 1 cải tiến"
 - [ ] `OPS-IR-009` **MUST@L** Liên lạc: SEV1/2 cập nhật status page/kênh người dùng ≤ 15 phút sau xác nhận và mỗi 30–60 phút cho đến khi khôi phục; nội dung nói tác động + bước tiếp theo, không hứa thời gian không chắc. → Kiểm: timeline có mốc liên lạc; mẫu thông báo trong runbook. · Nguồn: PagerDuty IR — customer liaison

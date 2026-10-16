@@ -354,3 +354,8 @@ Tôi chỉ đọc, không sửa file nào. Đã đọc kỹ các mục 03, 04, 0
 ## Đính chính (2026-10-13, sau khi viết mảng 16)
 
 - §2.16 ghi NĐ 13/2023 là văn bản chính về dữ liệu cá nhân: **đã lỗi thời**. Hiện hành là **Luật Bảo vệ dữ liệu cá nhân 91/2025/QH15** (hiệu lực 01/01/2026) và **NĐ 356/2025/NĐ-CP** (ký 31/12/2025, hiệu lực 01/01/2026, thay NĐ 13/2023). Luật An ninh mạng 116/2025/QH15 (hiệu lực 01/07/2026) + NĐ 333/2026 thay Luật 24/2018 + NĐ 53/2022. Chi tiết và nguồn: `framework/16-compliance-privacy/vietnam-data-law.md`. Giữ nguyên nội dung gốc ở trên để lưu dấu vết (luật 12 chống ảo giác).
+
+## Đính chính (2026-10-15, đối chiếu catalog mới)
+
+- §3 bảng "nên tránh" (dòng Skill packs) xếp `DietrichGebert/ponytail` vào "nghi dựng": **sai**. Catalog `seeker19110/stored` 20 §3g (kiểm 14/10/2026) xác nhận repo thật, tạo 12/6/2026, ~163k★, có test và harness benchmark. Con số "289k★" trong tài liệu cũ mới là chỗ sai. Giữ nguyên dòng gốc để lưu dấu vết.
+- Catalog thêm 10 mục sau ngày 13/10 (03 §8d, 06 §7d–7e, 10 §4b, 12 §3j–3k, 13 §6c–6d, 19 §1b, 20 §3g, 21 §10b). Bài học đã đưa vào khung: `SEC-SUPPLY-025`, `SEC-SUPPLY-026`, `CMP-LIC-019`, `WF-REVIEW-019`, `AI-AGENT-019`, `AI-AGENT-020`, `LOOP-HARNESS-019`, `XC-DOCAI-018`, phần Kiểm của `BE-FILE-011`. Phần còn lại là hồ sơ công cụ, không thêm yêu cầu mới.

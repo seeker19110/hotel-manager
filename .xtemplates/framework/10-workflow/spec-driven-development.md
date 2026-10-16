@@ -3,7 +3,7 @@ title: Spec-driven: spec là hợp đồng, tiêu chí chấp nhận, truy vết
 kind: module
 prefix: WF-SDD
 applies_to: [all]
-updated: 2026-10-14
+updated: 2026-10-15
 ---
 
 # Spec-driven: spec là hợp đồng, tiêu chí chấp nhận, truy vết
@@ -19,8 +19,8 @@ updated: 2026-10-14
    người duyệt, ngày; chỉ `approved` mới được code.
 2. **Spec trước test, test trước code.** Tiêu chí chấp nhận máy kiểm (Given/When/Then) chuyển thành test trước
    khi/đồng thời với implement; test là bằng chứng spec đã đạt.
-3. **Spec hở thì dừng (luật cứng).** Thiếu dữ kiện quyết định → hỏi người, ghi câu hỏi vào spec; không tự route lại
-   để né hỏi, không viết lấp.
+3. **Spec hở thì quyết tường minh (luật cứng).** Thiếu dữ kiện quyết định → ghi câu hỏi vào spec; phiên chính tự
+   duyệt theo tiêu chí chất lượng cuối và ghi `D-NNN` ([`LOOP-STOP-018`](../11-autonomous-loop/stop-points-and-escalation.md), ADR-0008); không lấp ngầm, không tự route lại.
 4. **Truy vết hai chiều.** Spec ↔ task ↔ PR ↔ test ↔ bằng chứng; đổi spec sau khi approved = phiên bản mới + ghi lý
    do, PR cũ không bị "đổi nghĩa" âm thầm.
 5. **Spec là tiêu chí dừng của agent.** Loop tự động chỉ được dừng khi mọi tiêu chí chấp nhận trong spec có test
@@ -42,7 +42,7 @@ updated: 2026-10-14
 - [ ] `WF-SDD-001` **MUST** Mỗi tính năng (user-visible hoặc chạm dữ liệu/API/quyền) có file spec theo [`../templates/SPEC.md`](../templates/SPEC.md) với frontmatter `status`, `approved_by`, `approved_at`; chỉ `status: approved` (hoặc "Approved for implementation") mới được bắt đầu code. → Kiểm: script liệt kê spec thiếu trường/status; PR `feat:` link spec có `status: approved`. · Nguồn: catalog 23 §2.5 (`pr-policy`: feat phải link spec Approved)
 - [ ] `WF-SDD-002` **MUST** Tiêu chí chấp nhận viết dạng máy kiểm được (Given/When/Then hoặc bảng input→output), mỗi tiêu chí có ID (`AC-xx`), bao gồm ca biên (rỗng/null/quá dài/race/UTC/tiền) và ca lỗi. → Kiểm: lint spec: mục "Tiêu chí chấp nhận" có ≥ 1 `AC-` và ≥ 1 ca lỗi; xem [`../17-product-project/specification.md`](../17-product-project/specification.md). · Nguồn: lifecycle G3
 - [ ] `WF-SDD-003` **MUST** Mỗi `AC-xx` có test tham chiếu ID (tên test hoặc tag) **viết từ spec**, không chỉ test agent sinh từ diff; PR `feat` liệt kê map AC → test. → Kiểm: script grep `AC-\d+` trong test ↔ spec = phủ 100% AC bắt buộc; `pr-policy` kiểm mục map. · Nguồn: khung cũ spec §B3.1a (test viết mù từ spec), P1
-- [ ] `WF-SDD-004` **MUST** Spec hở (thiếu dữ kiện quyết định, mâu thuẫn, nhiều cách hiểu) → agent/người **dừng và hỏi**, ghi câu hỏi vào mục "Câu hỏi mở" của spec; không đoán, không tự route sang việc khác để né hỏi. → Kiểm: autopilot ghi `xt.py loop block --reason` khi gặp; spec có mục "Câu hỏi mở" trống khi approved. · Nguồn: catalog 23 §2.3 (luật cứng), AGENTS.md §4
+- [ ] `WF-SDD-004` **MAY** Ngừng dùng 2026-10-15 — gộp vào [`PM-SPEC-020`](../17-product-project/specification.md) (spec hở → quyết định tường minh D-NNN, ADR-0008).
 - [ ] `WF-SDD-005` **MUST@L** Thay đổi spec sau approved → tăng `version`, ghi "Thay đổi" (gì, vì sao, ai duyệt), trạng thái về `review` cho tới khi duyệt lại; PR đang mở theo bản cũ phải cập nhật hoặc ghi rõ dùng bản nào. → Kiểm: diff spec approved mà không tăng version → lint đỏ; PR link spec kèm version. · Nguồn: P5
 - [ ] `WF-SDD-006` **MUST@L** Spec nằm trong repo (`docs/specs/` hoặc cạnh code), đi qua PR/review như code; không chỉ trong tool ngoài (Notion/Jira) mà không có bản trong repo. → Kiểm: thư mục spec tồn tại; link từ PR trỏ đường dẫn repo. · Nguồn: docs-as-code ([`documentation-workflow.md`](documentation-workflow.md))
 - [ ] `WF-SDD-007` **MUST@L** Mục "Không phạm vi" (out of scope) và "Giả định" bắt buộc có nội dung; ý tưởng bị từ chối ghi lý do (vd `SCOPE.md`/`.out-of-scope/`) để không hỏi lại. → Kiểm: lint spec: hai mục không rỗng. · Nguồn: catalog 20 §3c (SCOPE.md + .out-of-scope/)
