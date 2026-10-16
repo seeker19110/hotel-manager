@@ -5,6 +5,7 @@
 import { readFileSync } from "node:fs";
 import { type BrowserContext, expect, type Page, test } from "@playwright/test";
 import { expectAccessible } from "./a11y.ts";
+import { confirmAction } from "./confirm.ts";
 import { ORG_RENTAL, RENTAL_OWNER, RENTAL_TENANT, RENTAL_UNIT } from "./fixtures.ts";
 import { totp, totpFile } from "./totp.ts";
 
@@ -49,13 +50,34 @@ test("vòng tháng: ký → bàn giao → kỳ thu 3.580.000 đ → phát hành 
   await card.getByRole("link").click();
   await expect(page.getByTestId("lease-status")).toHaveText("Chờ ký");
   await expectAccessible(page);
-  await page.getByRole("button", { name: "Ký hợp đồng" }).click();
+  // T-310: thao tác không hoàn tác hỏi lại; "Quay lại" và Esc không gửi gì, focus về nút.
+  let signs = 0;
+  page.on("request", (r) => {
+    if (r.method() === "POST" && r.url().includes("/api/v1/lease/sign")) signs++;
+  });
+  const sign = page.getByRole("button", { name: "Ký hợp đồng" });
+  await sign.click();
+  await expect(page.getByRole("dialog")).toContainText("không sửa lại được");
+  await page.getByRole("dialog").getByRole("button", { name: "Quay lại" }).click();
+  await expect(page.getByRole("dialog")).toBeHidden();
+  await expect(sign).toBeFocused();
+  await sign.click();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toBeHidden();
+  // Sự kiện request đến không đồng bộ: chờ ngắn để một lần gửi nhầm (vd trong onClose) kịp bị đếm.
+  await page.waitForTimeout(500);
+  expect(signs).toBe(0);
+  await expect(page.getByTestId("lease-status")).not.toHaveText("Đã ký — chờ bàn giao");
+  await sign.click();
+  await confirmAction(page);
+  await expect.poll(() => signs).toBe(1);
   await expect(page.getByTestId("lease-status")).toHaveText("Đã ký — chờ bàn giao");
   await page.getByLabel("Chỉ số điện").fill("1250");
   await page.getByLabel("Chỉ số nước").fill("30");
   await expectAccessible(page);
   await page.getByRole("button", { name: "Xác nhận bàn giao" }).click();
   await page.getByRole("button", { name: "Kích hoạt" }).click();
+  await confirmAction(page);
   await expect(page.getByTestId("lease-status")).toHaveText("Đang thuê");
   const leaseUrl = page.url();
 
@@ -85,6 +107,7 @@ test("vòng tháng: ký → bàn giao → kỳ thu 3.580.000 đ → phát hành 
   await page.getByRole("button", { name: "Gửi duyệt" }).click();
   await expect(page.getByTestId("period-status")).toHaveText("Chờ phát hành");
   await page.getByRole("button", { name: "Phát hành kỳ" }).click();
+  await confirmAction(page);
   await expect(page.getByTestId("period-status")).toHaveText("Đã phát hành");
 
   // Thu tiền mặt
@@ -101,6 +124,7 @@ test("vòng tháng: ký → bàn giao → kỳ thu 3.580.000 đ → phát hành 
     await route.abort("failed");
   });
   await inv.getByRole("button", { name: "Thu tiền mặt" }).click();
+  await confirmAction(page);
   await expect(page.getByText("Không còn phiếu nào phải thu")).toBeVisible();
   expect(collects).toBe(1);
   await page.unroute("**/api/v1/payment/collectCash");
@@ -109,11 +133,13 @@ test("vòng tháng: ký → bàn giao → kỳ thu 3.580.000 đ → phát hành 
   // Cọc: nhận ở hợp đồng, xác nhận ở Thu tiền
   await page.goto(leaseUrl);
   await page.getByRole("button", { name: "Nhận cọc" }).click();
+  await confirmAction(page);
   await expect(page.getByTestId("deposit-balance")).toHaveText("0 đ");
   await page.goto("/thu-tien");
   const pending = page.getByTestId("pending-payment");
   await expect(pending).toContainText("Cọc 3.000.000 đ");
   await pending.getByRole("button", { name: "Xác nhận đã nhận tiền" }).click();
+  await confirmAction(page);
   await expect(page.getByText("Không có khoản chờ xác nhận")).toBeVisible();
   await page.goto(leaseUrl);
   await expect(page.getByTestId("deposit-balance")).toHaveText("3.000.000 đ");

@@ -129,6 +129,7 @@ export default async function StayPage({ params }: { params: Promise<{ id: strin
                   <summary>Huỷ khoản: {c.description}</summary>
                   <CommandForm
                     path="stay/voidCharge"
+                    confirm="Huỷ khoản phí này khỏi folio; thao tác được ghi nhật ký."
                     fixed={{ charge_id: c.id }}
                     fields={[
                       {
@@ -161,6 +162,7 @@ export default async function StayPage({ params }: { params: Promise<{ id: strin
                 <CommandForm
                   key={`cash-${f.balance}`}
                   path="stay/checkOut"
+                  confirm="Trả phòng sẽ phát hành folio, ghi sổ và tạo việc dọn phòng; không quay lại được."
                   fixed={{ stay_id: id, payments: [{ method: "cash" }] }}
                   fields={[
                     {
@@ -185,6 +187,7 @@ export default async function StayPage({ params }: { params: Promise<{ id: strin
                 <CommandForm
                   key={`refund-${f.deposit.balance}`}
                   path="stay/checkOut"
+                  confirm="Trả phòng sẽ phát hành folio, ghi sổ và tạo việc dọn phòng; không quay lại được."
                   fixed={{ stay_id: id, deposit_refund: { method: "cash" } }}
                   fields={[
                     {
@@ -202,6 +205,7 @@ export default async function StayPage({ params }: { params: Promise<{ id: strin
                 />
                 <CommandForm
                   path="stay/checkOut"
+                  confirm="Trả phòng sẽ phát hành folio, ghi sổ và tạo việc dọn phòng; không quay lại được."
                   fixed={{ stay_id: id }}
                   submitLabel="Trả phòng (chưa hoàn cọc)"
                   successText="Đã trả phòng. Việc dọn phòng đã được tạo."
@@ -211,6 +215,7 @@ export default async function StayPage({ params }: { params: Promise<{ id: strin
             ) : (
               <CommandForm
                 path="stay/checkOut"
+                confirm="Trả phòng sẽ phát hành folio, ghi sổ và tạo việc dọn phòng; không quay lại được."
                 fixed={{ stay_id: id }}
                 submitLabel="Trả phòng"
                 successText="Đã trả phòng. Việc dọn phòng đã được tạo."

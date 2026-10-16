@@ -118,6 +118,7 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
             <summary>Huỷ việc</summary>
             <CommandForm
               path="housekeeping/cancelTask"
+              confirm="Huỷ việc dọn phòng; không mở lại được."
               fixed={{ task_id: id }}
               fields={[{ name: "reason", label: "Lý do huỷ", required: true, maxLength: 1000 }]}
               submitLabel="Huỷ việc"

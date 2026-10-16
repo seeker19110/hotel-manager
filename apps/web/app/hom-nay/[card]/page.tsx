@@ -1,6 +1,7 @@
 import { listTodayItems, serverContext, TODAY_CARDS, type TodayCard } from "@hm/app";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { Icon } from "../../../components/ui/icon.tsx";
 import { EmptyState, ErrorState } from "../../../components/ui/state.tsx";
 import { CARD_LABEL, vnd } from "../../../lib/format.ts";
 import { withActor } from "../../../lib/page.tsx";
@@ -86,7 +87,7 @@ export default async function TodayListPage({
                   {i.amount !== undefined ? <span className="card__meta">Còn {vnd(i.amount)}</span> : null}
                   {i.overdue ? (
                     <span className="badge" data-status="overdue">
-                      <span aria-hidden="true">⚠ </span>Quá hạn
+                      <Icon name="warning" /> Quá hạn
                     </span>
                   ) : null}
                 </a>
