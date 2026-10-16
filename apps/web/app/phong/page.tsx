@@ -1,6 +1,7 @@
 import { listRooms, serverContext } from "@hm/app";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { ORG_CONTEXT_META } from "../../components/command/org-context.ts";
 import { EmptyState, ErrorState } from "../../components/ui/state.tsx";
 import { currentActor } from "../../lib/session.ts";
 
@@ -29,9 +30,12 @@ export default async function RoomsPage() {
       </main>
     );
   }
+  // Người thuê chỉ có portal (SPEC-portal S-005).
+  if (r.actor.role === "tenant") redirect("/portal");
   const properties = await listRooms(serverContext().db, r.actor);
   return (
     <main id="main" className="page">
+      <meta name={ORG_CONTEXT_META} content={r.actor.orgId} />
       <h1>Phòng</h1>
       {properties.length === 0 ? (
         <EmptyState title="Chưa có cơ sở nào được giao" text="Liên hệ quản lý để được giao cơ sở." />

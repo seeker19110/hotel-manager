@@ -159,6 +159,8 @@ export async function getMyLease(db: Kysely<unknown>, actor: Actor) {
       id: string;
       number: string;
       status: string;
+      unit_id: string;
+      property_id: string;
       unit_code: string;
       version_no: number | null;
       effective_from: string | null;
@@ -167,7 +169,7 @@ export async function getMyLease(db: Kysely<unknown>, actor: Actor) {
       deposit_amount: string | null;
       deposit_balance: string | null;
     }>`
-      select l.id, l.number, l.status, u.code as unit_code, v.version_no, v.effective_from::text, v.effective_to::text,
+      select l.id, l.number, l.status, l.unit_id, l.property_id, u.code as unit_code, v.version_no, v.effective_from::text, v.effective_to::text,
              v.rent_amount::text, v.deposit_amount::text,
              (select sum(d.balance)::text from deposits d where d.organization_id = l.organization_id and d.lease_id = l.id) as deposit_balance
       from leases l
@@ -185,6 +187,8 @@ export async function getMyLease(db: Kysely<unknown>, actor: Actor) {
       id: x.id,
       number: x.number,
       status: x.status,
+      unitId: x.unit_id,
+      propertyId: x.property_id,
       unitCode: x.unit_code,
       currentVersion:
         x.version_no === null

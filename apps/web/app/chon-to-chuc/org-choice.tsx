@@ -9,10 +9,13 @@ export function OrgChoice({
   organizationId,
   label,
   meta,
+  home = "/phong",
 }: {
   organizationId: string;
   label: string;
   meta: string;
+  /** Trang đích sau khi chọn: nhân viên → /phong, người thuê → /portal. */
+  home?: string;
 }) {
   const online = useOnline();
   const key = useRef<string | null>(null);
@@ -37,7 +40,7 @@ export function OrgChoice({
         key.current = null;
         return setError("Không chọn được tổ chức này. Tải lại trang để xem danh sách mới.");
       }
-      window.location.assign("/phong");
+      window.location.assign(home);
     } catch {
       setError("Chưa nhận được phản hồi. Kiểm tra mạng rồi bấm lại.");
     } finally {

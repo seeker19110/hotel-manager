@@ -1,3 +1,4 @@
+export { qrMatrix, vndInWords } from "@hm/domain";
 export {
   AccessError,
   type Actor,
@@ -19,6 +20,7 @@ export { type Auth, createAuth } from "./auth/auth.ts";
 export { generatePeriods, type Preview, previewPeriod } from "./billing/billing.ts";
 export { loadConfig } from "./config/schema.ts";
 export { ERROR_CODES, type ErrorCode } from "./errors.ts";
+export { handleFileUpload } from "./files/http.ts";
 export {
   type CommandDef,
   type HttpDeps,
@@ -60,6 +62,14 @@ export { MAX_ATTEMPTS, RETRY_BACKOFF_MINUTES, type SendStats, sendDueEmails } fr
 export { deliveryStatusLabel, maskEmail, render as renderNotification } from "./notifications/templates.ts";
 export { getCommandResult } from "./pipeline/command.ts";
 export { handleGuestStay } from "./portal/guest-http.ts";
+export {
+  getMyInvoice,
+  getMyLease,
+  getPaymentInstructions,
+  listMyInvoices,
+  listMyMeterReadings,
+  listMyRequests,
+} from "./portal/tenant.ts";
 export { type AutoApplyResult, applyBankTransaction } from "./reconciliation/auto-apply.ts";
 export {
   type BreakItem,

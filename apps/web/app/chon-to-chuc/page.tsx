@@ -35,6 +35,7 @@ export default async function ChooseOrganizationPage() {
                 organizationId={o.organizationId}
                 label={o.organizationName}
                 meta={ROLE_LABEL[o.role] ?? o.role}
+                home={o.role === "tenant" ? "/portal" : "/phong"}
               />
             </li>
           ))}

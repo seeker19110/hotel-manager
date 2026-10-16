@@ -3,21 +3,25 @@
 import { spawn } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
 import { rmSync, writeFileSync } from "node:fs";
-import { createAuth, loadConfig } from "@hm/app";
+import { createAuth, loadConfig, unsubscribeKey, unsubscribeUrl } from "@hm/app";
 import { migrateToLatest } from "@hm/db";
 import { bootstrapRoles, type PgCluster, pgUrl, seedOrg, startPgCluster } from "@hm/testkit/setup";
 import { Kysely, PostgresDialect, sql } from "kysely";
 import pg from "pg";
+import { startFakeClamd, startFakeS3 } from "./fakes.ts";
 import {
   MAIN_ROOMS,
   ORG_MAIN,
   ORG_OTHER,
   ORG_RENTAL,
   OTHER_ROOMS,
+  outboxFile,
   RENTAL_OWNER,
   RENTAL_TENANT,
   SMOKE_USER,
+  unsubFile,
 } from "./fixtures.ts";
+import { seedPortal } from "./portal-seed.ts";
 import { totp, totpFile } from "./totp.ts";
 
 const PORT = Number(process.env.E2E_PORT ?? 3100);
@@ -157,6 +161,17 @@ async function seed(adminUrl: string, runtimeUrl: string, secret: string): Promi
     const other = await seedOrg(db, ORG_OTHER, "rental");
     await addStaff(db, other.orgId, user.id, other.propertyId);
     await seedRental(db, auth);
+    const portal = await seedPortal(db);
+    // Liên kết huỷ đăng ký ký số trong email nhắc quá hạn của người thuê An (SPEC-notifications S-010).
+    writeFileSync(
+      unsubFile(PORT),
+      unsubscribeUrl(BASE_URL, unsubscribeKey(secret), {
+        orgId: portal.orgId,
+        personId: portal.tenantPersonId,
+        type: "invoice_overdue",
+      }),
+      { mode: 0o600 },
+    );
   } finally {
     await close();
     await db.destroy();
@@ -181,6 +196,12 @@ await migrator.destroy();
 const secret = randomBytes(32).toString("base64url");
 await seed(adminUrl, runtimeUrl, secret);
 
+// Dịch vụ giả (portal tải ảnh): S3 trong bộ nhớ + clamd giả; OTP đăng nhập người thuê ghi vào hộp thư giả (file) cho test đọc.
+const fakeS3 = await startFakeS3();
+const fakeClamd = await startFakeClamd();
+const outbox = outboxFile(PORT);
+writeFileSync(outbox, "", { mode: 0o600 });
+
 const appEnv: NodeJS.ProcessEnv = {
   ...process.env,
   NODE_ENV: "production",
@@ -188,18 +209,18 @@ const appEnv: NodeJS.ProcessEnv = {
   APP_BASE_URL: BASE_URL,
   DATABASE_URL: runtimeUrl,
   BETTER_AUTH_SECRET: secret,
-  // Smoke không dùng object storage; giá trị giả chỉ để qua validate cấu hình.
-  S3_ENDPOINT: "http://127.0.0.1:9/",
+  // Object storage giả trong bộ nhớ (fakes.ts); khoá giả chỉ để qua validate cấu hình.
+  S3_ENDPOINT: `http://127.0.0.1:${fakeS3.port}`,
   S3_BUCKET: "hm-e2e",
   S3_ACCESS_KEY_ID: "e2e",
   S3_SECRET_ACCESS_KEY: "e2e-khong-dung",
-  // Production bắt buộc khoá PII + máy quét (T-202/T-203): khoá ngẫu nhiên chỉ sống trong tiến trình này; E2E không tải
-  // file nên clamd giả (cổng 9) không được gọi.
+  // Production bắt buộc khoá PII + máy quét (T-202/T-203): khoá ngẫu nhiên chỉ sống trong tiến trình này; clamd giả (fakes.ts).
   HM_PII_KEYS: `1:${randomBytes(32).toString("base64")}`,
   HM_PII_KEY_ID: "1",
   HM_PII_INDEX_KEY: randomBytes(32).toString("base64"),
   CLAMD_HOST: "127.0.0.1",
-  CLAMD_PORT: "9",
+  CLAMD_PORT: String(fakeClamd.port),
+  SMTP_URL: `fake://file?path=${encodeURIComponent(outbox)}`,
 };
 // Hàng rào: env của server E2E phải qua đúng schema cấu hình production — thiếu biến thì dừng ngay, báo tên biến
 // (thay vì đăng nhập 500 âm thầm như lần thêm khoá PII).
@@ -215,6 +236,10 @@ async function stop(code: number): Promise<void> {
   stopping = true;
   next.kill("SIGTERM");
   rmSync(totpFile(PORT), { force: true });
+  rmSync(outbox, { force: true });
+  rmSync(unsubFile(PORT), { force: true });
+  fakeS3.server.close();
+  fakeClamd.server.close();
   await new Promise((r) => setTimeout(r, 500));
   try {
     const s = kysely(serverUrl);

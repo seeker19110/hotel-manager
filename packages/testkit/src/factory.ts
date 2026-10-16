@@ -191,6 +191,30 @@ export async function seedLease(
   return { leaseId, unitId: unitId as string };
 }
 
+/**
+ * Đưa hợp đồng `draft` của `seedLease` tới `active` (ký phiên bản → chờ bàn giao → bàn giao nhập khẩu → đang thuê) bằng đúng
+ * chuỗi chuyển trạng thái mà trigger cho phép; dùng cho test/E2E cần người thuê có hợp đồng hiệu lực (portal).
+ */
+export async function activateLease(
+  admin: Kysely<unknown>,
+  input: { org: SeededOrg; leaseId: string; effectiveFrom?: string },
+): Promise<void> {
+  const from = input.effectiveFrom ?? "2026-11-01";
+  await admin.transaction().execute(async (trx) => {
+    await sql`update lease_versions set signed_at = now(), terms_hash = ${"0".repeat(64)}, terms_snapshot = '{}'
+              where lease_id = ${input.leaseId}`.execute(trx);
+    await sql`update leases set status = 'pending_signature' where id = ${input.leaseId}`.execute(trx);
+    await sql`update leases set status = 'signed_awaiting_handover', signed_on = ${from}::date where id = ${input.leaseId}`.execute(
+      trx,
+    );
+    await sql`insert into handovers (id, organization_id, property_id, lease_id, kind, handed_over_on, staff_confirmed_by,
+                                     confirmed_at, source, readings_pending, confirmation_method)
+              values (${randomUUID()}, ${input.org.orgId}, ${input.org.propertyId}, ${input.leaseId}, 'move_in', ${from}::date,
+                      ${input.org.ownerMembershipId}, now(), 'import', false, 'import')`.execute(trx);
+    await sql`update leases set status = 'active' where id = ${input.leaseId}`.execute(trx);
+  });
+}
+
 /** Booking `draft` tối thiểu (một dòng phòng, giá giả) — cho test cần FK tới `reservations` (cọc/ứng trước đặt phòng). */
 export async function seedReservation(
   admin: Kysely<unknown>,

@@ -210,6 +210,9 @@ describe("S-006 hợp đồng và cọc", () => {
     expect(l[0]).toMatchObject({
       id: anLease.leaseId,
       status: "active",
+      // UI portal cần id phòng/cơ sở để gửi yêu cầu sửa chữa kèm ảnh (T-219).
+      unitId: anLease.unitId,
+      propertyId: A.propertyId,
       currentVersion: { versionNo: 1, rentAmount: 3_000_000 },
       deposit: { amount: 3_000_000, balance: 3_000_000, label: "Cọc — không phải tiền đã trả cho phiếu" },
     });

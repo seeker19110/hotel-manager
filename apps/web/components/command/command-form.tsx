@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
 import { Button } from "../ui/button.tsx";
 import { TextField } from "../ui/field.tsx";
+import { CONTEXT_CHANGED_CODE } from "./org-context.ts";
 import { problemText, useCommand } from "./use-command.ts";
 
 export interface FieldSpec {
@@ -162,6 +163,11 @@ export function CommandForm({
         <p className="field__error" role="alert">
           {general}
         </p>
+      ) : null}
+      {cmd.phase === "error" && cmd.problem?.code === CONTEXT_CHANGED_CODE ? (
+        <Button variant="secondary" onClick={() => window.location.reload()}>
+          Tải lại trang
+        </Button>
       ) : null}
       {cmd.phase === "done" ? (
         <p className="command-form__status command-form__status--ok" role="status">

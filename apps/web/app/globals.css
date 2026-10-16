@@ -410,3 +410,21 @@ body {
   min-width: 0;
   align-self: stretch;
 }
+
+/* Portal người thuê (PLAN T-219): dòng ngữ cảnh, mã QR, số tiền đọc thành chữ. */
+.portal-context {
+  margin: 0;
+  color: var(--c-text-muted);
+  font-weight: 600;
+}
+.qr {
+  display: block;
+  width: min(100%, 320px);
+  height: auto;
+  margin: 0 auto var(--space-4);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+}
+.field textarea {
+  resize: vertical;
+}

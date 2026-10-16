@@ -7,6 +7,7 @@
 // Key giữ nguyên tới khi có kết quả chắc chắn; lỗi nghiệp vụ (4xx) ⇒ key mới cho lần sửa sau (tránh IDEMPOTENCY_CONFLICT).
 import { useCallback, useRef, useState } from "react";
 import { useOnline } from "../pwa/pwa-shell.tsx";
+import { CONTEXT_CHANGED_CODE, CONTEXT_CHANGED_TEXT, orgContextHeaders } from "./org-context.ts";
 
 export interface ProblemLike {
   code: string;
@@ -35,6 +36,12 @@ export function problemText(p: ProblemLike | null): string | null {
   if (!p) return null;
   return p.detail || p.title || "Không thực hiện được. Vui lòng thử lại.";
 }
+
+const contextChanged = (): ProblemLike => ({
+  code: CONTEXT_CHANGED_CODE,
+  status: 409,
+  detail: CONTEXT_CHANGED_TEXT,
+});
 
 export function useCommand<T = unknown>(path: string) {
   const online = useOnline();
@@ -66,11 +73,17 @@ export function useCommand<T = unknown>(path: string) {
         const res = await fetch(`/api/v1/commands/${key.current}`, {
           credentials: "same-origin",
           cache: "no-store",
+          headers: orgContextHeaders(),
         });
         if (res.status === 401) {
           window.location.assign("/dang-nhap");
           return null;
         }
+        if (
+          res.status === 409 &&
+          ((await res.json().catch(() => null)) as ProblemLike | null)?.code === CONTEXT_CHANGED_CODE
+        )
+          return fail(contextChanged());
         if (res.status === 404) {
           setPhase("unknown");
           return null;
@@ -99,7 +112,11 @@ export function useCommand<T = unknown>(path: string) {
     try {
       res = await fetch(`/api/v1/${path}`, {
         method: "POST",
-        headers: { "content-type": "application/json", "idempotency-key": key.current as string },
+        headers: {
+          "content-type": "application/json",
+          "idempotency-key": key.current as string,
+          ...orgContextHeaders(),
+        },
         body: JSON.stringify(lastBody.current ?? {}),
         credentials: "same-origin",
         signal: ctl.signal,
@@ -115,6 +132,8 @@ export function useCommand<T = unknown>(path: string) {
     }
     const j = (await res.json().catch(() => null)) as ({ data?: T } & ProblemLike) | null;
     if (res.ok) return finish(j?.data as T);
+    // Tab khác đã đổi tổ chức: server không ghi gì — báo tải lại, KHÔNG gửi lại (S-013).
+    if (res.status === 409 && j?.code === CONTEXT_CHANGED_CODE) return fail(contextChanged());
     // Key đã dùng cho thao tác khác (vd thao tác trước đã ghi) ⇒ giữ key, tra và hiện kết quả thao tác đó, không tạo key mới.
     if (res.status >= 500 || j?.code === "IDEMPOTENCY_CONFLICT") return check();
     return fail(j ?? { code: "INTERNAL", status: res.status });
