@@ -8,7 +8,9 @@ import { betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { emailOTP, twoFactor } from "better-auth/plugins";
 import { createPool } from "../db/pool.ts";
+import { appLogger } from "../logging/runtime.ts";
 import { clearFailures, DEFAULT_LOCKOUT, isLocked, type LockoutPolicy, recordFailure } from "./lockout.ts";
+import { hashPassword, needsRehash, verifyPassword } from "./password.ts";
 
 export const ENABLED_PLUGINS = ["two-factor", "email-otp"] as const;
 
@@ -50,12 +52,51 @@ export function createAuth(deps: AuthDeps) {
     return r.rows[0]?.ok === true;
   };
 
+  // Băm lại ở chính bước verify (không ở hook `after`): đây là nơi duy nhất có đủ băm cũ + mật khẩu rõ, nên không phải
+  // đọc lại tài khoản hay băm lần hai. Cập nhật kiểu so-và-đổi theo đúng băm cũ ⇒ hai lần đăng nhập song song không
+  // ghi đè nhau, và nếu mật khẩu vừa bị đổi thì không ghi đè băm mới. Lỗi ghi KHÔNG làm hỏng đăng nhập (lần sau thử lại).
+  const verifyAndUpgrade = async ({
+    hash,
+    password,
+  }: {
+    hash: string;
+    password: string;
+  }): Promise<boolean> => {
+    const ok = await verifyPassword({ hash, password });
+    if (ok && needsRehash(hash)) {
+      try {
+        await pool.query(
+          `update auth.account set password = $1, "updatedAt" = $2
+            where "providerId" = 'credential' and password = $3`,
+          [await hashPassword(password), now(), hash],
+        );
+      } catch (error) {
+        // Không làm hỏng đăng nhập: băm cũ vẫn hợp lệ, lần sau thử lại — nhưng ghi log (BASE-ERR-001).
+        appLogger().warn("auth.password_rehash_failed", { error });
+      }
+    }
+    return ok;
+  };
+
+  // Telemetry của Better Auth: tắt tường minh. Lưu ý thư viện còn bật nếu env BETTER_AUTH_TELEMETRY=1 (env thắng
+  // tuỳ chọn) ⇒ chặn khởi động thay vì để gửi dữ liệu ra ngoài âm thầm.
+  if (/^(1|true|yes|on)$/i.test(process.env.BETTER_AUTH_TELEMETRY ?? ""))
+    throw new Error(
+      "BETTER_AUTH_TELEMETRY phải tắt: dự án tự host, không gửi telemetry ra ngoài (ADR-0002).",
+    );
+
   const auth = betterAuth({
     appName: "Hotel Manager",
     baseURL: deps.baseURL,
     secret: deps.secret,
     database: pool,
-    emailAndPassword: { enabled: true, minPasswordLength: 10, autoSignIn: false },
+    emailAndPassword: {
+      enabled: true,
+      minPasswordLength: 10,
+      autoSignIn: false,
+      // Argon2id (BE-AUTH-001, D-031). `verify` nhận cả băm scrypt cũ và băm lại ngay khi mật khẩu đúng.
+      password: { hash: hashPassword, verify: verifyAndUpgrade },
+    },
     // Phiên lăn: hết hạn sau `idle` không hoạt động; gia hạn tối đa mỗi giờ.
     session: { expiresIn: idleSeconds, updateAge: SECONDS_PER_HOUR },
     plugins: [

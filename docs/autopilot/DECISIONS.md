@@ -224,3 +224,9 @@
 - Chọn: A: chỉ nhóm danh sách thuần (thu-tien, su-co, doi-soat, thong-bao, thong-bao-luu-tru); error.tsx mọi nhóm; test chặn loading ở nhóm có [id]/notFound
 - Lý do (tiêu chí chất lượng cuối): (1) đúng: mã trạng thái HTTP đúng (404/500) là hợp đồng với client, metric SLO (T-406) và bảo mật (không lộ tồn tại qua 200); B phá điều đó. (3) đơn giản: C đổi cấu trúc file nhiều route để đổi lấy skeleton — lợi ích UX nhỏ so với rủi ro; A có rào test.
 - Đường lùi: Thêm loading.tsx theo C khi cần skeleton cho trang chi tiết.
+### D-031 · 2026-10-16T16:23:35+00:00 · T-410: thư viện Argon2id cho mật khẩu (Better Auth password.hash/verify)?
+
+- Phương án: (1) node:crypto argon2 dựng sẵn (Node ≥ 24.7; dự án ghim 24.22) + tự mã hoá chuỗi PHC $argon2id$v=19$m=19456,t=2,p=1$… và so sánh timingSafeEqual; băm scrypt cũ verify bằng hàm mặc định của Better Auth rồi băm lại khi đăng nhập · (2) @node-rs/argon2 2.2.2 (MIT, 0 dependency, binary napi dựng sẵn, có PHC + verify) · (3) argon2 (node-argon2) 0.45.1 (MIT, install script node-gyp-build)
+- Chọn: node:crypto argon2 dựng sẵn (Node ≥ 24.7; dự án ghim 24.22) + tự mã hoá chuỗi PHC $argon2id$v=19$m=19456,t=2,p=1$… và so sánh timingSafeEqual; băm scrypt cũ verify bằng hàm mặc định của Better Auth rồi băm lại khi đăng nhập
+- Lý do (tiêu chí chất lượng cuối): (1) an toàn chuỗi cung ứng: không thêm binary native/install script của bên thứ ba vào luồng xác thực; crypto.argon2 có trong Node 24 LTS, docs không đánh dấu experimental (nguồn nodejs.org/docs/latest-v24.x, 2026-10-16). Tham số OWASP m=19456 KiB, t=2, p=1 (cheatsheet, 2026-10-16). Phần tự viết chỉ là mã hoá/giải mã PHC + so sánh hằng thời gian — nhỏ, test được bằng vector. (3) ít phụ thuộc. Phương án 2 hợp lệ nếu crypto.argon2 có vấn đề.
+- Đường lùi: Đổi hàm hash/verify sang @node-rs/argon2 (cùng định dạng PHC nên băm đã lưu vẫn verify được).
