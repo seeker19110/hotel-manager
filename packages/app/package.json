@@ -7,7 +7,9 @@
     ".": "./src/index.ts",
     "./config": "./src/config/schema.ts",
     "./logging": "./src/logging/index.ts",
-    "./http": "./src/http/security.ts"
+    "./http": "./src/http/security.ts",
+    "./units": "./src/units.ts",
+    "./format": "./src/format.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"

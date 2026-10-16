@@ -5,7 +5,14 @@ import { CommandForm } from "../../../components/command/command-form.tsx";
 import { ShiftPanel } from "../../../components/hotel/shift-panel.tsx";
 import { StatusBadge } from "../../../components/ui/badge.tsx";
 import { ErrorState } from "../../../components/ui/state.tsx";
-import { CHARGE_KIND, PAYMENT_METHOD, PAYMENT_STATUS, STAY_STATUS, vnd } from "../../../lib/format.ts";
+import {
+  CHARGE_KIND,
+  PAYMENT_METHOD,
+  PAYMENT_STATUS,
+  STAY_STATUS,
+  vnd,
+  vndUnitPrice,
+} from "../../../lib/format.ts";
 import { withActor } from "../../../lib/page.tsx";
 import { safe } from "../../../lib/safe.ts";
 
@@ -75,7 +82,7 @@ export default async function StayPage({ params }: { params: Promise<{ id: strin
                 <tr key={c.id} data-testid="charge">
                   <th scope="row">
                     {CHARGE_KIND[c.kind] ?? c.kind}: {c.description}
-                    {c.quantity > 1 ? ` (${c.quantity} × ${vnd(c.unitPrice)})` : ""}
+                    {c.quantity > 1 ? ` (${c.quantity} × ${vndUnitPrice(c.unitPrice)})` : ""}
                     {c.voided ? " — đã huỷ" : ""}
                   </th>
                   <td>{c.voided ? <s>{vnd(c.amount)}</s> : vnd(c.amount)}</td>

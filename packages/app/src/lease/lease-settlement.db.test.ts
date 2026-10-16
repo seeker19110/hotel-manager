@@ -37,7 +37,7 @@ async function member(role: string): Promise<Actor> {
   const user = await seedAuthUser(t.admin, `${role}+${randomUUID().slice(0, 6)}@example.test`);
   const person = randomUUID();
   const membership = randomUUID();
-  await sql`insert into persons (id, organization_id, full_name, phone) values (${person}, ${A.orgId}, ${role}, '0900000000')`.execute(
+  await sql`insert into persons (id, organization_id, full_name, phone) values (${person}, ${A.orgId}, ${role}, '0100000000')`.execute(
     t.admin,
   );
   await sql`insert into memberships (id, organization_id, auth_user_id, person_id, role, all_properties)
@@ -85,7 +85,7 @@ async function rentedLease(deposit: number, ar: number) {
     t.admin,
   );
   const rep = randomUUID();
-  await sql`insert into persons (id, organization_id, full_name, phone) values (${rep}, ${A.orgId}, 'Người thuê L1', '0911111111')`.execute(
+  await sql`insert into persons (id, organization_id, full_name, phone) values (${rep}, ${A.orgId}, 'Người thuê L1', '0100001111')`.execute(
     t.admin,
   );
   const terms = {

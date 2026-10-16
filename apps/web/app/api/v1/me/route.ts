@@ -14,7 +14,10 @@ export async function GET(req: Request): Promise<Response> {
         status: 401,
         code: "UNAUTHENTICATED",
       },
-      { status: 401, headers: { "content-type": "application/problem+json", "cache-control": "no-store" } },
+      {
+        status: 401,
+        headers: { "content-type": "application/problem+json; charset=utf-8", "cache-control": "no-store" },
+      },
     );
   }
   const organizations = await listMyOrganizations(db, s.user.id);
@@ -28,6 +31,6 @@ export async function GET(req: Request): Promise<Response> {
       },
       organizations,
     },
-    { headers: { "cache-control": "no-store" } },
+    { headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } },
   );
 }

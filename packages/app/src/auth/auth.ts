@@ -3,6 +3,7 @@
 // emailOTP: OTP lưu dạng băm, 6 số, hạn 5 phút, 3 lần thử, không tự đăng ký; CHỈ đăng nhập (`sign-in`) và chỉ cho tài
 // khoản mà mọi membership còn hiệu lực đều là `tenant` (`app.otp_sign_in_allowed`) — nhân viên luôn mật khẩu + TOTP.
 // Tài khoản không đủ điều kiện: không gửi mã (phản hồi như thường, không lộ email có tồn tại không) và chặn bước đăng nhập.
+import { SECONDS_PER_HOUR } from "@hm/domain";
 import { betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { emailOTP, twoFactor } from "better-auth/plugins";
@@ -42,7 +43,7 @@ export function createAuth(deps: AuthDeps) {
   const pool = createPool(deps.databaseUrl, { options: "-c search_path=auth", max: 10 });
   const lockout = deps.lockout ?? DEFAULT_LOCKOUT;
   const now = deps.now ?? (() => new Date());
-  const idleSeconds = (deps.sessionIdleHours ?? 12) * 3600;
+  const idleSeconds = (deps.sessionIdleHours ?? 12) * SECONDS_PER_HOUR;
   const otpAllowed = async (email: string): Promise<boolean> => {
     if (!email || email.length > 320) return false;
     const r = await pool.query<{ ok: boolean }>("select app.otp_sign_in_allowed($1) as ok", [email]);
@@ -56,7 +57,7 @@ export function createAuth(deps: AuthDeps) {
     database: pool,
     emailAndPassword: { enabled: true, minPasswordLength: 10, autoSignIn: false },
     // Phiên lăn: hết hạn sau `idle` không hoạt động; gia hạn tối đa mỗi giờ.
-    session: { expiresIn: idleSeconds, updateAge: 3600 },
+    session: { expiresIn: idleSeconds, updateAge: SECONDS_PER_HOUR },
     plugins: [
       twoFactor({ issuer: "Hotel Manager" }),
       emailOTP({

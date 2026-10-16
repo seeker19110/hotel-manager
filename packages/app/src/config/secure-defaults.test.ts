@@ -177,8 +177,8 @@ describe("BASE-SEC-004 — production bắt TLS cho mọi kênh mạng", () => {
     HM_PII_KEYS: `1:${Buffer.alloc(32, 7).toString("base64")}`,
     HM_PII_KEY_ID: "1",
     HM_PII_INDEX_KEY: Buffer.alloc(32, 9).toString("base64"),
-    APP_BASE_URL: "https://hm.example.vn",
-    S3_ENDPOINT: "https://files.example.vn",
+    APP_BASE_URL: "https://hm.example.test",
+    S3_ENDPOINT: "https://files.example.test",
   };
   const issuesOf = (env: Record<string, string>) => {
     try {
@@ -194,9 +194,9 @@ describe("BASE-SEC-004 — production bắt TLS cho mọi kênh mạng", () => {
   });
 
   it.each([
-    ["APP_BASE_URL", "http://hm.example.vn"],
-    ["S3_ENDPOINT", "http://files.example.vn"],
-    ["SMTP_URL", "smtp://relay.example.vn:25"],
+    ["APP_BASE_URL", "http://hm.example.test"],
+    ["S3_ENDPOINT", "http://files.example.test"],
+    ["SMTP_URL", "smtp://relay.example.test:25"],
   ])("production + %s=%s → ConfigError nêu tên, không lộ giá trị", (key, value) => {
     expect(issuesOf({ ...prod, [key]: value })).toContain(key);
     expect(() => loadConfig({ ...prod, [key]: value })).not.toThrow(
@@ -209,22 +209,22 @@ describe("BASE-SEC-004 — production bắt TLS cho mọi kênh mạng", () => {
       issuesOf({ ...prod, APP_BASE_URL: "http://127.0.0.1:3100", S3_ENDPOINT: "http://localhost:8333" }),
     ).toEqual([]);
     expect(issuesOf({ ...prod, S3_ENDPOINT: "http://[::1]:8333" })).toEqual([]);
-    expect(issuesOf({ ...MINIMAL, APP_BASE_URL: "http://app.example.vn" })).toEqual([]);
+    expect(issuesOf({ ...MINIMAL, APP_BASE_URL: "http://app.example.test" })).toEqual([]);
   });
 
   it("SMTP production: smtps://, smtp://…?requireTLS=true, fake:// được; smtp:// trần thì không", () => {
-    expect(issuesOf({ ...prod, SMTP_URL: "smtps://u:p@relay.example.vn:465" })).toEqual([]);
-    expect(issuesOf({ ...prod, SMTP_URL: "smtp://relay.example.vn:587?requireTLS=true" })).toEqual([]);
+    expect(issuesOf({ ...prod, SMTP_URL: "smtps://u:p@example.test:465" })).toEqual([]);
+    expect(issuesOf({ ...prod, SMTP_URL: "smtp://relay.example.test:587?requireTLS=true" })).toEqual([]);
     expect(issuesOf({ ...prod, SMTP_URL: "fake://local" })).toEqual([]);
-    expect(issuesOf({ ...prod, SMTP_URL: "smtp://relay.example.vn:587?requireTLS=false" })).toContain(
+    expect(issuesOf({ ...prod, SMTP_URL: "smtp://relay.example.test:587?requireTLS=false" })).toContain(
       "SMTP_URL",
     );
   });
 
   it("isInsecureRemoteUrl: http tới máy khác = true; https/loopback/không phải URL = false", () => {
-    expect(isInsecureRemoteUrl("http://example.vn")).toBe(true);
-    expect(isInsecureRemoteUrl("HTTP://EXAMPLE.VN/x")).toBe(true);
-    expect(isInsecureRemoteUrl("https://example.vn")).toBe(false);
+    expect(isInsecureRemoteUrl("http://example.test")).toBe(true);
+    expect(isInsecureRemoteUrl("HTTP://EXAMPLE.TEST/x")).toBe(true);
+    expect(isInsecureRemoteUrl("https://example.test")).toBe(false);
     expect(isInsecureRemoteUrl("http://127.0.0.1:1")).toBe(false);
     expect(isInsecureRemoteUrl("khong-phai-url")).toBe(false);
   });

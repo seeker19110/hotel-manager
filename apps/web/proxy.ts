@@ -12,7 +12,7 @@ export function proxy(req: NextRequest): NextResponse {
         status: 403,
         code: "FORBIDDEN",
       },
-      { status: 403, headers: { "content-type": "application/problem+json" } },
+      { status: 403, headers: { "content-type": "application/problem+json; charset=utf-8" } },
     );
   }
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");

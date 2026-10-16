@@ -76,7 +76,7 @@ export function json(body: unknown, status: number, correlationId: string, probl
   return new Response(JSON.stringify(body), {
     status,
     headers: {
-      "content-type": problem ? "application/problem+json" : "application/json",
+      "content-type": problem ? "application/problem+json; charset=utf-8" : "application/json; charset=utf-8",
       "x-correlation-id": correlationId,
       ...NO_STORE,
     },

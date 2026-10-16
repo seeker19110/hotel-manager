@@ -6,11 +6,11 @@ import { safeUrl } from "./safe-url.ts";
 
 describe("safeUrl", () => {
   it.each([
-    ["https://example.vn/a?b=1#c", "https://example.vn/a?b=1#c"],
+    ["https://example.test/a?b=1#c", "https://example.test/a?b=1#c"],
     ["http://localhost:3000/x", "http://localhost:3000/x"],
-    ["mailto:chu@example.vn", "mailto:chu@example.vn"],
-    ["  https://example.vn  ", "https://example.vn/"],
-    ["HTTPS://EXAMPLE.VN/Phong", "https://example.vn/Phong"],
+    ["mailto:chu@example.test", "mailto:chu@example.test"],
+    ["  https://example.test  ", "https://example.test/"],
+    ["HTTPS://EXAMPLE.TEST/Phong", "https://example.test/Phong"],
     ["/hop-dong/123?x=1#y", "/hop-dong/123?x=1#y"],
     ["/", "/"],
   ])("cho qua %j → %j", (input, out) => {
@@ -27,18 +27,18 @@ describe("safeUrl", () => {
     "data:text/html,<script>alert(1)</script>",
     "data:image/svg+xml;base64,PHN2Zz4=",
     "vbscript:msgbox(1)",
-    "blob:https://example.vn/uuid",
+    "blob:https://example.test/uuid",
     "file:///etc/passwd",
-    "ftp://example.vn/x",
+    "ftp://example.test/x",
     "//evil.example/x",
     "/\\evil.example/x",
     "\\\\evil.example\\x",
-    "tel:+84900000000",
+    "tel:0100000001",
     "phong/101",
     "",
     "   ",
     "https://",
-    `https://example.vn/${"a".repeat(5000)}`,
+    `https://example.test/${"a".repeat(5000)}`,
   ])("chặn %j", (input) => {
     expect(safeUrl(input)).toBeNull();
   });
@@ -52,7 +52,7 @@ describe("safeUrl", () => {
 
   it("Unicode/tiếng Việt trong đường dẫn được mã hoá, không đổi nghĩa", () => {
     expect(safeUrl("/phong/Phòng 101")).toBe("/phong/Ph%C3%B2ng%20101");
-    expect(safeUrl("https://example.vn/phòng")).toBe("https://example.vn/ph%C3%B2ng");
+    expect(safeUrl("https://example.test/phòng")).toBe("https://example.test/ph%C3%B2ng");
   });
 });
 

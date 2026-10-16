@@ -1,6 +1,7 @@
 // Object storage S3-tương thích tự host (SeaweedFS — ADR-0002). Bucket riêng tư; đọc chỉ qua URL ký ngắn hạn.
 // PLAN đợt 4 T-302 (ARC-RES-001, BE-REL-001/003): mỗi lời gọi mạng có `AbortSignal.timeout` và retry ≤ 3 lần (lùi mũ + jitter,
 // tôn trọng `Retry-After`) — CHỈ thao tác idempotent (GET/HEAD/PUT theo key/DELETE); phương thức khác gọi đúng một lần.
+import { secondsToMs } from "@hm/domain";
 import { AwsClient } from "aws4fetch";
 
 export interface StorageResilience {
@@ -57,7 +58,7 @@ function retryableStatus(status: number): boolean {
 export function parseRetryAfter(value: string | null, now: number = Date.now()): number | undefined {
   if (!value) return undefined;
   const v = value.trim();
-  if (/^\d+$/.test(v)) return Number(v) * 1000;
+  if (/^\d+$/.test(v)) return secondsToMs(Number(v));
   // Ngày HTTP luôn có tên thứ/tháng; chuỗi chỉ số/dấu ("-5") không phải ngày hợp lệ.
   const at = /[a-z]/i.test(v) ? Date.parse(v) : Number.NaN;
   return Number.isNaN(at) ? undefined : Math.max(0, at - now);

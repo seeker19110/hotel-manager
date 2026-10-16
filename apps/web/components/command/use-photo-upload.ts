@@ -3,10 +3,11 @@
 // Mỗi ảnh = một Idempotency-Key + một fileId: gửi lại cùng lệnh (mất mạng, "Gửi lại") không tải ảnh lần hai. Ảnh chỉ dùng
 // được khi máy chủ báo `ready` (đã qua kiểm tra an toàn) — trong lúc chờ UI hiện "Đang kiểm tra ảnh…" (role=status).
 import { safeUrl } from "@hm/app/http";
+import { mibToBytes } from "@hm/app/units";
 import { useRef, useState } from "react";
 import { orgContextHeaders } from "./org-context.ts";
 
-export const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
+export const MAX_PHOTO_BYTES = mibToBytes(10);
 export const MAX_PHOTOS = 5;
 export const PHOTO_ERRORS: Record<number, string> = {
   413: "Ảnh quá lớn (tối đa 10 MB).",

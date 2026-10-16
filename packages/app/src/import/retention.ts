@@ -3,6 +3,7 @@
 // - File: object xoá TRƯỚC, đánh dấu `deleted` SAU (xoá lỗi ⇒ để lượt sau thử lại; đánh dấu lỗi ⇒ lượt sau xoá lại —
 //   xoá object là idempotent). File đã `deleted` không cấp URL ký nữa (getFileUrl chỉ cấp cho `ready`).
 // - Dòng nhập: làm rỗng `raw`/`data` (PII) của lô đã commit/huỷ quá `IMPORT_ROW_RETENTION_DAYS` ngày (ngày giờ cơ sở).
+import { VN_UTC_OFFSET_MS } from "@hm/domain";
 import type { Kysely } from "kysely";
 import { sql } from "kysely";
 import type { ObjectStorage } from "../files/storage.ts";
@@ -18,7 +19,7 @@ export interface RetentionStats {
 
 /** Ngày hôm nay theo giờ Việt Nam (mốc so với `files.delete_after`, vốn ghi bằng current_date của CSDL). */
 function vnToday(now: Date): string {
-  return new Date(now.getTime() + 7 * 3_600_000).toISOString().slice(0, 10);
+  return new Date(now.getTime() + VN_UTC_OFFSET_MS).toISOString().slice(0, 10);
 }
 
 export async function runRetention(

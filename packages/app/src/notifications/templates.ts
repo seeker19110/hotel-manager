@@ -3,8 +3,9 @@
 // - Email KHÔNG ghi số tiền (Q-03); thông báo trong app (đã đăng nhập) ghi đủ.
 // - Giá trị bị bỏ ký tự điều khiển/xuống dòng (chống chèn header khi có adapter SMTP), cắt độ dài.
 // - Giá trị chữ tự do (tên cơ sở, mã phòng…) có dạng số CCCD/CMND (9/12 chữ số liền), SĐT Việt Nam hay số tài khoản
-//   10–19 chữ số → thay bằng `***` (vd tên "Nhà nghỉ Hoa Mai - 0905123456" vẫn gửi được, không lộ số).
+//   10–19 chữ số → thay bằng `***` (vd tên "Nhà nghỉ Hoa Mai - 0100003456" vẫn gửi được, không lộ số).
 // - Lưới cuối: nội dung render vẫn còn các dạng đó → TemplateError (mặc định an toàn: không gửi thay vì lộ).
+import { formatDate, formatVnd } from "@hm/domain";
 
 export const NOTIFICATION_TYPES = [
   "account_security",
@@ -80,14 +81,17 @@ function vnd(vars: Vars, name: string): string {
   const v = vars[name];
   if (typeof v !== "number" || !Number.isSafeInteger(v))
     throw new TemplateError(`biến ${name} phải là số nguyên đồng`);
-  return `${v.toLocaleString("vi-VN")} đ`;
+  return formatVnd(v);
 }
 
 /** `YYYY-MM-DD` → `DD/MM/YYYY`. */
 export function viDate(iso: string): string {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
-  if (!m) throw new TemplateError(`ngày không hợp lệ: ${iso}`);
-  return `${m[3]}/${m[2]}/${m[1]}`;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) throw new TemplateError(`ngày không hợp lệ: ${iso}`);
+  try {
+    return formatDate(iso);
+  } catch {
+    throw new TemplateError(`ngày không hợp lệ: ${iso}`);
+  }
 }
 
 function date(vars: Vars, name: string): string {

@@ -30,7 +30,7 @@ export const RENTAL_TENANT = "Người thuê A (giả)";
 /** Portal người thuê (T-219): tổ chức giả có người thuê An (OTP email), Bình (để thử truy cập chéo), lượt ở của khách. */
 export const ORG_PORTAL = "Nhà trọ Hoa Sen (giả)";
 export const ORG_PORTAL_2 = "Nhà trọ Lan (giả)";
-export const PORTAL_TENANT = { email: "an.nguoi.thue@example.test", name: "An (giả)", phone: "0900000011" };
+export const PORTAL_TENANT = { email: "an.nguoi.thue@example.test", name: "An (giả)", phone: "0100000011" };
 export const PORTAL_OTHER_TENANT = { email: "binh.nguoi.thue@example.test", name: "Bình (giả)" };
 export const PORTAL_UNIT = "P101";
 export const PORTAL_BANK_ACCOUNT = "0123456789";

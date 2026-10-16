@@ -1,12 +1,30 @@
 // Định dạng hiển thị (chỉ dùng ở Server Component để HTML server/client không lệch nhau).
-export const vnd = (n: number) => `${new Intl.NumberFormat("vi-VN").format(n)} đ`;
+// Tiền/ngày đi qua Intl ở @hm/domain (XC-I18N-003) — không ghép chuỗi tay.
+import { formatDate, formatMonth, formatVnd, formatVndUnitPrice } from "@hm/app/format";
 
-/** `YYYY-MM-DD` → `dd/mm/yyyy`. */
-export const day = (d: string | null | undefined) =>
-  d ? `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}` : "—";
+export const vnd = (n: number) => formatVnd(n);
 
-/** `YYYY-MM-DD` → `mm/yyyy` (kỳ thu). */
-export const month = (d: string) => `${d.slice(5, 7)}/${d.slice(0, 4)}`;
+/** Đơn giá (có thể lẻ, ADR-0003). */
+export const vndUnitPrice = (n: number) => formatVndUnitPrice(n);
+
+/** `YYYY-MM-DD` → `dd/mm/yyyy` (theo vi-VN). Rỗng → "—"; dạng lạ giữ nguyên để lỗi dữ liệu hiện ra thay vì làm sập trang. */
+export const day = (d: string | null | undefined) => {
+  if (!d) return "—";
+  try {
+    return formatDate(d);
+  } catch {
+    return d;
+  }
+};
+
+/** `YYYY-MM-DD` → `mm/yyyy` (kỳ thu). Dạng lạ giữ nguyên. */
+export const month = (d: string) => {
+  try {
+    return formatMonth(d);
+  } catch {
+    return d;
+  }
+};
 
 export const LEASE_STATUS: Record<string, string> = {
   draft: "Nháp",

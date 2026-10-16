@@ -2,7 +2,7 @@
 // code chỉ dọn hold hết hạn dưới khoá phòng (INV-I3), dịch lỗi 23P01 → ROOM_UNAVAILABLE và ghi audit/outbox.
 import { randomUUID } from "node:crypto";
 import { withTenant } from "@hm/db";
-import { authorize } from "@hm/domain";
+import { authorize, minutesToMs } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/actor.ts";
 import type { CommandContext } from "../pipeline/command.ts";
@@ -95,7 +95,7 @@ export async function createHold(
     });
   }
   const id = randomUUID();
-  const expiresAt = new Date(now.getTime() + input.ttlMinutes * 60_000);
+  const expiresAt = new Date(now.getTime() + minutesToMs(input.ttlMinutes));
   try {
     await sql`savepoint hold_insert`.execute(ctx.trx);
     await sql`

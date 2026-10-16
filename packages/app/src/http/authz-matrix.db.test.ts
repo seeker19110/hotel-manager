@@ -278,7 +278,8 @@ describe("api1-bola — không phiên, tổ chức khác, id tài nguyên của 
       const r = await call(e, { org: A.orgId }, e.kind === "command" ? "{rác" : { khong: "hop-le" });
       if (r.status !== 401 || r.code !== "UNAUTHENTICATED") bad.push(`${e.name}: ${r.status} ${r.code}`);
       else if (
-        r.headers.get("content-type") !== "application/problem+json" ||
+        // Kiểu media (bỏ tham số; T-407 thêm `charset=utf-8`).
+        r.headers.get("content-type")?.split(";")[0]?.trim() !== "application/problem+json" ||
         r.headers.get("cache-control") !== "no-store"
       )
         bad.push(`${e.name}: header`);

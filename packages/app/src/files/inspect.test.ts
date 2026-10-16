@@ -36,8 +36,8 @@ function jpeg(extra: number[] = [], tail: number[] = []): Uint8Array {
 
 describe("stripImageMetadata — JPEG", () => {
   it("bỏ APP1 (Exif/GPS) và COM, giữ dữ liệu ảnh nguyên vẹn", () => {
-    const out = stripImageMetadata(jpeg(seg(0xfe, ascii("SDT 0912345678"))), "image/jpeg");
-    expect(text(out)).not.toMatch(/Exif|GPS|0912345678/);
+    const out = stripImageMetadata(jpeg(seg(0xfe, ascii("SDT 0100005678"))), "image/jpeg");
+    expect(text(out)).not.toMatch(/Exif|GPS|0100005678/);
     expect(text(out)).toContain("JFIF");
     expect(Array.from(out.subarray(-9))).toEqual([0x12, 0xff, 0x00, 0x34, 0xff, 0xd0, 0x56, 0xff, 0xd9]);
   });
@@ -116,12 +116,12 @@ describe("stripImageMetadata — PNG", () => {
     const b = Uint8Array.from([
       ...PNG_SIG,
       ...pngChunk("IHDR", new Uint8Array(13)),
-      ...pngChunk("tEXt", ascii("Comment\0SDT 0912345678")),
+      ...pngChunk("tEXt", ascii("Comment\0SDT 0100005678")),
       ...pngChunk("IEND", new Uint8Array()),
       ...ascii("GPS sau IEND"),
     ]);
     const out = stripImageMetadata(b, "image/png");
-    expect(text(out)).not.toMatch(/0912345678|GPS/);
+    expect(text(out)).not.toMatch(/0100005678|GPS/);
   });
 });
 

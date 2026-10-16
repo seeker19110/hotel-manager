@@ -96,6 +96,9 @@ Nỗ lực: các gói P0 trong backlog là 224/343 ngày công, tức **65% nằ
 - **Luật áp dụng** (danh sách xác minh ở `docs/research/2026-10-15-stack-va-phap-ly.md`): **tất cả ở mức [T], chưa đối chiếu văn bản gốc** — Luật BVDLCN 91/2025/QH15 + NĐ 356/2025/NĐ-CP (+ NĐ 330/2026 và NĐ 333/2026 mà blueprint trích, cần pháp lý đối chiếu); Luật Cư trú 68/2020/QH14 Đ.30 sửa bởi Luật 118/2025/QH15 (thông báo lưu trú); quy định khai báo tạm trú cho người nước ngoài; NĐ về hoá đơn điện tử (kế hoạch ghi NĐ 254/2026, cần đối chiếu); quy định giá bán điện cho người thuê nhà; Luật An ninh mạng 116/2025.
 - **DPIA:** bắt buộc trước khi dùng dữ liệu thật → `docs/DPIA.md` (việc của **người** — pháp lý soạn/duyệt, ngoài vòng tự động; chặn dữ liệu thật).
 
+### Dữ liệu test
+**Cấm** đưa dump/export dữ liệu production (hoặc dữ liệu thật của khách) vào repo, CI, staging hay máy dev. Fixture/seed chỉ dùng dữ liệu giả: email domain dành riêng (`example.test`…), SĐT dải mẫu `0100000NNN`. Danh sách cho phép và rào máy: [`docs/compliance/test-data.md`](docs/compliance/test-data.md).
+
 ## 7. Stack & kiến trúc (tóm tắt — chi tiết ở ADR-0001)
 Modular monolith TypeScript: Next.js (web + API) và một worker Node chạy chung codebase; PostgreSQL 17 **tự host** (sao lưu pgBackRest có PITR); đăng nhập + MFA bằng Better Auth trong app; file ở SeaweedFS; Caddy; email qua SMTP relay; SQL migrations; hàng đợi bền và outbox nằm trong Postgres. Chi tiết: ADR-0001 và ADR-0002 (tự host).
 

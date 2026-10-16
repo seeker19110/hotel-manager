@@ -32,7 +32,7 @@ async function confirmed(unitId: string, arrival: string, departure: string) {
       departureDate: departure,
       guests: 2,
       source: "direct",
-      booker: { fullName: "Khách", phone: "0901234567" },
+      booker: { fullName: "Khách", phone: "0100004567" },
     }),
   );
   await okAs(h.t, h.frontDesk, (ctx) => holdReservation(ctx, { reservationId: d.reservationId }));
@@ -170,7 +170,7 @@ describe("S-021 đổi giá bảng không ảnh hưởng booking đã giữ", ()
         departureDate: "2027-02-04",
         guests: 1,
         source: "direct",
-        booker: { fullName: "Khách mới", phone: "0907654321" },
+        booker: { fullName: "Khách mới", phone: "0100004321" },
       }),
     );
     expect(fresh.roomTotal).toBe(1_400_000);
@@ -212,7 +212,7 @@ describe("job hết hạn giữ phòng (S-007, INV-I3)", () => {
         departureDate: "2027-03-02",
         guests: 1,
         source: "direct",
-        booker: { fullName: "Khách giữ", phone: "0901111222" },
+        booker: { fullName: "Khách giữ", phone: "0100001222" },
       }),
     );
     const hold = await okAs(h.t, h.frontDesk, (ctx) =>
