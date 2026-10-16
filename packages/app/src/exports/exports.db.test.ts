@@ -1,7 +1,7 @@
 // PLAN đợt 3 T-222 — xuất dữ liệu trên Postgres thật + SeaweedFS (SPEC-audit-reporting S-013…S-018).
 import { randomUUID } from "node:crypto";
 import { seedIssuedInvoice, testS3Config } from "@hm/testkit";
-import { sql } from "kysely";
+import { type Kysely, sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Actor } from "../access/actor.ts";
 import { ObjectStorage } from "../files/storage.ts";
@@ -271,6 +271,45 @@ describe("Review lát 5 — job xuất bền vững", () => {
     const st = await getExportStatus(h.t.runtime, owner, q.exportId);
     expect(st).toMatchObject({ status: "failed", failedReason: "INTERNAL" });
     expect(await runExportJob(deps(), job(q.exportId))).toBe("skipped");
+  });
+
+  it("lượt chạy lại (job `running` bị bỏ dở > 10 phút) khi dữ liệu đã đổi → vẫn ready với dữ liệu mới, không 409 (review lát 7 🟡5)", async () => {
+    const acc = fresh(await seedMember(h.t, h.org, "accountant", { properties: [h.org.propertyId] }));
+    const q = await okAs(h.t, acc, (ctx) => requestExport(ctx, { kind: "receivables", format: "csv" }));
+    // Lượt 1 "sập tiến trình" sau khi file đã ghi + chốt nhưng trước khi chuyển job sang ready: workerDb từ lần mở giao dịch
+    // thứ hai trở đi ném lỗi (cả lần ghi `failed` cũng hỏng) ⇒ job kẹt `running`.
+    let opened = 0;
+    const crashing = new Proxy(h.t.worker, {
+      get(target, prop) {
+        if (prop === "transaction")
+          return (...a: []) => {
+            opened += 1;
+            if (opened > 1) throw new Error("sập tiến trình giả lập");
+            return target.transaction(...a);
+          };
+        const v = Reflect.get(target, prop, target);
+        return typeof v === "function" ? v.bind(target) : v;
+      },
+    }) as Kysely<unknown>;
+    await expect(runExportJob({ ...deps(), workerDb: crashing }, job(q.exportId))).rejects.toThrow(
+      "sập tiến trình",
+    );
+    const st1 = await sql<{
+      status: string;
+    }>`select status from export_jobs where id = ${q.exportId}`.execute(h.t.admin);
+    expect(st1.rows[0]?.status).toBe("running");
+
+    // Dữ liệu đổi giữa hai lượt ⇒ nội dung file khác (sha256 khác).
+    await seedIssuedInvoice(h.t.admin, {
+      orgId: h.org.orgId,
+      propertyId: h.org.propertyId,
+      payerPersonId: payer,
+      lines: [{ amount: 987_654 }],
+    });
+    const later = new Date(Date.now() + 11 * 60_000);
+    expect(await runExportJob(deps(), job(q.exportId), later)).toBe("ready");
+    const d = await okAs(h.t, acc, (ctx) => downloadExport(ctx, deps(), { exportId: q.exportId }));
+    expect(decode(await text(d.url))).toContain(",987654,");
   });
 
   it("xuất toàn tổ chức khi tiến trình chạy giờ Việt Nam: cột date giữ đúng ngày (không lùi một ngày)", async () => {

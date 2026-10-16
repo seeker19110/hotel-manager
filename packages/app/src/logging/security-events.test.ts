@@ -4,6 +4,7 @@ import { createLogger } from "./logger.ts";
 import {
   anonymizeIp,
   emitSecurity,
+  forwardedClientIp,
   requestClient,
   SECURITY_EVENTS,
   securityEventForProblem,
@@ -44,16 +45,29 @@ describe("logging — anonymizeIp (IP ghi log đã cắt, không băm trần)", 
 });
 
 describe("logging — requestClient", () => {
-  it("hop đầu X-Forwarded-For + User-Agent; UA cắt 200 ký tự và bỏ ký tự điều khiển", () => {
+  it("hop PHẢI NHẤT X-Forwarded-For (do proxy tin cậy thêm) + User-Agent; UA cắt 200 ký tự và bỏ ký tự điều khiển", () => {
     const c = requestClient(
       new Headers({
-        "x-forwarded-for": " 203.0.113.7 , 10.0.0.1",
+        "x-forwarded-for": " 10.0.0.1 , 203.0.113.7 ",
         "user-agent": `Mozilla\t[ERROR] ${"a".repeat(300)}`,
       }),
     );
     expect(c.ip).toBe("203.0.113.7");
     expect(c.userAgent).toHaveLength(200);
     expect(c.userAgent).not.toMatch(/[\t\r\n]/); // Headers đã chặn CR/LF; tab là ký tự điều khiển duy nhất lọt qua
+  });
+
+  it("XFF `1.2.3.4, 10.0.0.9` ⇒ dùng `10.0.0.9` (hop đầu là do client tự khai, giả được)", () => {
+    expect(requestClient(new Headers({ "x-forwarded-for": "1.2.3.4, 10.0.0.9" })).ip).toBe("10.0.0.9");
+    expect(forwardedClientIp(new Headers({ "x-forwarded-for": "1.2.3.4, 10.0.0.9" }))).toBe("10.0.0.9");
+  });
+
+  it("một hop → hop đó; rỗng/chỉ dấu phẩy/khoảng trắng → null; bỏ phần tử rỗng ở cuối", () => {
+    expect(forwardedClientIp(new Headers({ "x-forwarded-for": "198.51.100.4" }))).toBe("198.51.100.4");
+    expect(forwardedClientIp(new Headers({ "x-forwarded-for": "198.51.100.4," }))).toBe("198.51.100.4");
+    expect(forwardedClientIp(new Headers({ "x-forwarded-for": " , " }))).toBeNull();
+    expect(forwardedClientIp(new Headers({ "x-forwarded-for": "" }))).toBeNull();
+    expect(forwardedClientIp(new Headers())).toBeNull();
   });
 
   it("thiếu header → null (không bịa)", () => {

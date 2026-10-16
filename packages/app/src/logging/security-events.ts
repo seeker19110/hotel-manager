@@ -105,9 +105,23 @@ export function anonymizeIp(ip: string | null | undefined): string | null {
   return null;
 }
 
-/** IP (hop đầu `X-Forwarded-For` do reverse proxy tự host đặt — ADR-0002) + User-Agent đã cắt 200 ký tự, bỏ ký tự điều khiển. */
+/**
+ * IP khách từ `X-Forwarded-For`: hop PHẢI NHẤT — chính là địa chỉ mà reverse proxy tin cậy đã thấy ở kết nối tới nó và nối vào
+ * cuối. Hop đầu do client tự khai (giả được: `X-Forwarded-For: 1.2.3.4` ⇒ `1.2.3.4, <thật>`). Ràng buộc triển khai (RUNBOOK §9):
+ * đúng MỘT proxy tin cậy (Caddy, không đặt `trusted_proxies`, không CDN phía trước) đứng trước ứng dụng; có thêm lớp proxy/CDN
+ * thì hop phải nhất là địa chỉ của lớp đó và hàm này phải đổi (đếm số hop tin cậy). Đây là chỗ DUY NHẤT đọc header (test chặn).
+ */
+export function forwardedClientIp(headers: Headers): string | null {
+  const hops = (headers.get("x-forwarded-for") ?? "")
+    .split(",")
+    .map((h) => h.trim())
+    .filter(Boolean);
+  return hops.at(-1) ?? null;
+}
+
+/** IP (xem `forwardedClientIp`) + User-Agent đã cắt 200 ký tự, bỏ ký tự điều khiển. */
 export function requestClient(headers: Headers): SecurityClient {
-  const ip = headers.get("x-forwarded-for")?.split(",")[0]?.trim() || null;
+  const ip = forwardedClientIp(headers);
   const ua = headers
     .get("user-agent")
     // biome-ignore lint/suspicious/noControlCharactersInRegex: chủ ý loại ký tự điều khiển khỏi chuỗi do client gửi.

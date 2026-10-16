@@ -18,7 +18,7 @@ Cộng các trường chung của logger: `ts`, `service`, `version`, `env`.
 
 **IP:** không ghi IP đầy đủ, cũng không ghi băm trần (IPv4 chỉ 2^32 giá trị — băm không muối đảo ngược được trong vài giây). IP cắt đủ để gom
 theo mạng/nhà cung cấp, không định danh một thiết bị. Cần IP đầy đủ khi điều tra → nhật ký reverse proxy (hạn giữ ngắn, quyền hạn chế).
-Nguồn IP: hop đầu `X-Forwarded-For` do reverse proxy tự host đặt (ADR-0002).
+Nguồn IP: hop PHẢI NHẤT của `X-Forwarded-For` (do proxy tin cậy duy nhất nối thêm; hop đầu do client tự khai nên không dùng) — ràng buộc triển khai ở RUNBOOK §9.
 
 ## Danh mục
 

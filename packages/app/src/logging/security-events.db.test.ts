@@ -81,7 +81,7 @@ function makeDeps(session?: { createdAt?: Date }): HttpDeps {
   };
 }
 
-const CLIENT = { "x-forwarded-for": "203.0.113.77, 10.0.0.1", "user-agent": "HM-Test/1.0 (kiem thu)" };
+const CLIENT = { "x-forwarded-for": "10.0.0.1, 203.0.113.77", "user-agent": "HM-Test/1.0 (kiem thu)" };
 const as = (a: Actor) => ({ "x-test-user": a.authUserId, "x-org-id": a.orgId });
 const post = (headers: Record<string, string>, body: unknown, key = randomUUID()) =>
   new Request("http://local.test/api/v1/x/y", {

@@ -86,23 +86,34 @@ async function stageInTrx(
     status: string;
     sha256: string;
     owner_type: string;
+    owner_id: string | null;
+    property_id: string | null;
     uploaded_by: string | null;
     storage_key: string;
     reject_reason: string | null;
+    expired: boolean;
   }>`
-      select status, sha256, owner_type, uploaded_by, storage_key, reject_reason from files
+      select status, sha256, owner_type, owner_id, property_id, uploaded_by, storage_key, reject_reason,
+             coalesce(delete_after <= (now() at time zone 'Asia/Ho_Chi_Minh')::date, false) as expired
+      from files
       where organization_id = ${actor.orgId} and id = ${spec.id}`.execute(trx);
   const f = r.rows[0];
-  // Không thấy (RLS) hoặc khác người/nội dung/loại ⇒ cùng khoá nhưng khác yêu cầu.
+  // Không thấy (RLS) hoặc khác người/nội dung/loại/cơ sở/chủ sở hữu ⇒ cùng khoá nhưng khác yêu cầu.
   if (
     !f ||
     f.uploaded_by !== actor.membershipId ||
     f.sha256 !== spec.sha256 ||
     f.owner_type !== spec.ownerType ||
+    (f.owner_id ?? null) !== (spec.ownerId ?? null) ||
+    (f.property_id ?? null) !== (spec.propertyId ?? null) ||
     f.storage_key !== key
   )
     throw conflict("Idempotency-Key đã dùng cho yêu cầu khác");
   if (f.status === "deleted") throw conflict("Idempotency-Key đã hết hạn, hãy tạo khoá mới");
+  // Dòng chưa chốt tới/quá `delete_after` (hôm nay giờ VN, cùng phép so `<=` với app.files_due_for_deletion mà `runRetention`
+  // dùng) có thể đang/sắp bị job hạn giữ xoá object ⇒ không chốt lại dòng đó.
+  if (f.status === "pending_scan" && f.expired)
+    throw conflict("Idempotency-Key đã hết hạn, hãy tạo khoá mới");
   if (f.status === "ready" || f.status === "rejected")
     return { state: "done", status: f.status, rejectReason: f.reject_reason, key };
   return { state: "pending", status: "pending_scan", rejectReason: null, key };

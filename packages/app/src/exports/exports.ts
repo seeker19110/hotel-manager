@@ -668,11 +668,12 @@ export async function runExportJob(
       property_id: string | null;
       requested_by: string;
       filters: Record<string, string>;
+      version: number;
     }>`
       update export_jobs set status = 'running', version = version + 1
       where organization_id = ${orgId} and id = ${id}
         and (status = 'queued' or (status = 'running' and updated_at < ${now}::timestamptz - interval '10 minutes'))
-      returning id, kind, format, property_id, requested_by, filters`.execute(trx);
+      returning id, kind, format, property_id, requested_by, filters, version`.execute(trx);
     return r.rows[0];
   });
   if (!claimed) return "skipped";
@@ -711,6 +712,8 @@ type Claimed = {
   property_id: string | null;
   requested_by: string;
   filters: Record<string, string>;
+  /** Tăng mỗi lần nhận job (`running`) ⇒ định danh lượt chạy; lượt chạy lại không đụng file của lượt trước. */
+  version: number;
 };
 
 async function produce(
@@ -760,15 +763,16 @@ async function produce(
   }
 
   // File riêng tư, ghi trong ngữ cảnh người yêu cầu (policy `files` nhánh export_job). T-303: dòng staging (transaction ngắn)
-  // → `storage.put` KHÔNG giữ kết nối CSDL → chốt `ready` (transaction ngắn). id/khoá suy từ id job nên lượt chạy lại ghi đè
-  // đúng object cũ; object mồ côi (put xong mà không chốt được) có dòng `pending_scan` + `delete_after` → job hạn giữ dọn.
+  // → `storage.put` KHÔNG giữ kết nối CSDL → chốt `ready` (transaction ngắn). id/khoá suy từ (id job, số lần nhận job = `version`):
+  // lượt chạy lại (job `running` bỏ dở > 10 phút được nhận lại, dữ liệu có thể đã đổi ⇒ sha256 khác) có file RIÊNG, không dính
+  // 409 của dòng staging lượt trước (review lát 7 🟡5). File của lượt bỏ dở là mồ côi: có dòng staging + `delete_after` → job hạn giữ dọn.
   const mime = MIME[claimed.format];
   const prepared = await prepareGeneratedFile(
     deps.db,
     deps,
     actor,
     { ownerType: "export_job", ownerId: id, propertyId: claimed.property_id, bytes, mime },
-    id,
+    `${id}:run${claimed.version}`,
   );
   await withTenant(deps.db, { orgId, actorId: actor.membershipId }, (trx) =>
     commitGeneratedFile(trx, actor, prepared, "keep"),
