@@ -70,7 +70,13 @@ export {
   FakeEmailSender,
   renderEmail,
 } from "./notifications/email.ts";
-export { type ScanResult, scanOverdue, scanStayNoticeConfig } from "./notifications/reminders.ts";
+export {
+  type ScanResult,
+  STAY_NOTICE_URGENT_MINUTES,
+  scanOverdue,
+  scanResidenceNotices,
+  scanStayNoticeConfig,
+} from "./notifications/reminders.ts";
 export { signUnsubscribeToken, verifyUnsubscribeToken } from "./notifications/token.ts";
 export { getCommandResult } from "./pipeline/command.ts";
 export { type AutoApplyResult, applyBankTransaction } from "./reconciliation/auto-apply.ts";
@@ -90,4 +96,14 @@ export {
   type RentalProperty,
   rentalProperties,
 } from "./rental/views.ts";
+export {
+  backfillNoticeDeadlines,
+  type ExportResult,
+  exportResidenceNotice,
+  listNotices,
+  markNoticeSubmitted,
+  type NoticeListItem,
+  type NoticeView,
+  RESIDENCE_EXPORT_RETENTION_DAYS,
+} from "./reservation/residence.ts";
 export { serverContext } from "./server/context.ts";

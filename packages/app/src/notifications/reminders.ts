@@ -5,13 +5,20 @@
 //   consumer (`dispatch.ts`) và lúc gửi email (`SETTLED`) kiểm lại số dư — ba lớp (S-008).
 // - Nhắc hết hạn hợp đồng (`reminder.scanLeaseExpiry`) = `remindExpiring` ở `lease/jobs.ts` (một đường duy nhất, S-013).
 // - `scanStayNoticeConfig`: cảnh báo cơ sở có khách đang ở mà chưa cấu hình hạn thông báo lưu trú (S-020), mỗi cơ sở mỗi ngày
-//   kinh doanh tối đa một sự kiện. Phần nhắc hạn/quá hạn (S-014…S-016, S-021) đọc `residence_notices` nên thuộc T-207.
+//   kinh doanh tối đa một sự kiện.
+// - `scanResidenceNotices` (T-207; S-014…S-016, S-021): thông báo lưu trú còn mở (`pending`/`exported`) có `due_at` → sự kiện outbox
+//   `stay_notice.reminder { notice_id, phase, business_date }` với phase `due` (nhắc đầu) → `urgent` (còn ≤ 30 phút) → `overdue` (mỗi
+//   ngày kinh doanh một lần). Đọc xuyên tổ chức bằng `app.residence_notices_due` (chỉ chọn thông báo CHƯA có sự kiện của giai đoạn hiện
+//   tại, không bao giờ chọn `submitted`); `dedupe_key` = khoá do hàm SQL trả nên chạy lại/song song không phát trùng. Một nhắc mỗi lượt
+//   cho mỗi thông báo (lỡ lượt thì lượt sau phát giai đoạn mới nhất, không dồn). Không có `due_at` ⇒ không nhắc (S-020).
 import { randomUUID } from "node:crypto";
 import { withTenant } from "@hm/db";
 import { type Kysely, sql } from "kysely";
 
 const BATCH = 500;
 const MAX_BATCHES = 20;
+/** Nhắc "Khẩn" khi còn chừng này phút tới hạn thông báo lưu trú (đề xuất SPEC-notifications S-016). */
+export const STAY_NOTICE_URGENT_MINUTES = 30;
 
 export interface ScanResult {
   /** Số sự kiện outbox mới phát lượt này (chạy lại ⇒ 0). */
@@ -79,6 +86,37 @@ export async function scanStayNoticeConfig(workerDb: Kysely<unknown>, now: Date)
           on conflict do nothing`.execute(trx),
     );
     created += Number(ins.numAffectedRows ?? 0);
+  }
+  return { created };
+}
+
+/** Phát nhắc hạn/quá hạn thông báo lưu trú (S-014, S-015, S-016, S-021). Chạy lại ⇒ `created = 0`. */
+export async function scanResidenceNotices(workerDb: Kysely<unknown>, now: Date): Promise<ScanResult> {
+  let created = 0;
+  for (let i = 0; i < MAX_BATCHES; i++) {
+    const due = await sql<{
+      organization_id: string;
+      property_id: string;
+      notice_id: string;
+      phase: "due" | "urgent" | "overdue";
+      business_date: string;
+      dedupe_key: string;
+    }>`select organization_id, property_id, notice_id, phase, business_date::text, dedupe_key
+       from app.residence_notices_due(${now}, ${STAY_NOTICE_URGENT_MINUTES}, ${BATCH})`.execute(workerDb);
+    let batchNew = 0;
+    for (const r of due.rows) {
+      const ins = await withTenant(workerDb, { orgId: r.organization_id }, (trx) =>
+        sql`insert into outbox (id, organization_id, property_id, event_type, aggregate_type, aggregate_id, payload, correlation_id,
+                                dedupe_key)
+            values (${randomUUID()}, ${r.organization_id}, ${r.property_id}, 'stay_notice.reminder', 'residence_notice', ${r.notice_id},
+                    ${JSON.stringify({ notice_id: r.notice_id, phase: r.phase, business_date: r.business_date })}::jsonb,
+                    ${`job:reminder.scanStayNotice:${now.toISOString()}`}, ${r.dedupe_key})
+            on conflict do nothing`.execute(trx),
+      );
+      batchNew += Number(ins.numAffectedRows ?? 0);
+    }
+    created += batchNew;
+    if (due.rows.length < BATCH || batchNew === 0) break;
   }
   return { created };
 }

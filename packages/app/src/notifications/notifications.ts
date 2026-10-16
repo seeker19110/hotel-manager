@@ -5,11 +5,12 @@
 // - Huỷ đăng ký bằng token HMAC: không cần đăng nhập, kết quả giống nhau dù người nhận có tồn tại hay không.
 
 import { withTenant } from "@hm/db";
-import { AuthzError, authorize } from "@hm/domain";
+import { AuthzError, authorize, parseNoticeTemplate } from "@hm/domain";
 import { type Kysely, sql } from "kysely";
 import type { Actor } from "../access/actor.ts";
 import type { CommandContext } from "../pipeline/command.ts";
-import { CommandError } from "../pipeline/problem.ts";
+import { CommandError, fieldError } from "../pipeline/problem.ts";
+import { backfillNoticeDeadlines } from "../reservation/residence.ts";
 import {
   DELIVERY_ERROR_LABEL,
   DELIVERY_STATUS_LABEL,
@@ -324,6 +325,11 @@ export interface SettingsInput {
   leaseExpiryOffsetsDays?: number[];
   /** `null` = xoá cấu hình (chưa cấu hình ⇒ không nhắc, có cảnh báo — S-020). */
   stayNoticeDeadline?: Record<string, string | number> | null;
+  /**
+   * Mẫu file thông báo lưu trú `{ columns, foreign_columns?, required? }` (trường trong danh mục của domain; T-207). `null` = xoá mẫu
+   * (xuất file → `NOTICE_TEMPLATE_MISSING`). Nguồn mẫu của cơ quan chưa xác minh (Q-13) nên không có mẫu mặc định.
+   */
+  residenceNoticeTemplate?: Record<string, unknown> | null;
   sendWindowStart?: string;
   sendWindowEnd?: string;
 }
@@ -333,6 +339,7 @@ export interface SettingsView {
   overdue_reminder_offsets_days: number[];
   lease_expiry_offsets_days: number[];
   stay_notice_deadline: Record<string, unknown> | null;
+  residence_notice_template: Record<string, unknown> | null;
   send_window_start: string;
   send_window_end: string;
   configured: boolean;
@@ -362,10 +369,11 @@ export async function getSettings(
       overdue_reminder_offsets_days: number[];
       lease_expiry_offsets_days: number[];
       stay_notice_deadline: Record<string, unknown> | null;
+      residence_notice_template: Record<string, unknown> | null;
       send_window_start: string;
       send_window_end: string;
     }>`
-      select overdue_reminder_offsets_days, lease_expiry_offsets_days, stay_notice_deadline,
+      select overdue_reminder_offsets_days, lease_expiry_offsets_days, stay_notice_deadline, residence_notice_template,
              to_char(send_window_start, 'HH24:MI') as send_window_start, to_char(send_window_end, 'HH24:MI') as send_window_end
       from notification_settings where organization_id = ${actor.orgId} and property_id = ${propertyId}`.execute(
       trx,
@@ -377,6 +385,7 @@ export async function getSettings(
     overdue_reminder_offsets_days: row?.overdue_reminder_offsets_days ?? DEFAULT_SETTINGS.overdue,
     lease_expiry_offsets_days: row?.lease_expiry_offsets_days ?? DEFAULT_SETTINGS.lease,
     stay_notice_deadline: row?.stay_notice_deadline ?? null,
+    residence_notice_template: row?.residence_notice_template ?? null,
     send_window_start: row?.send_window_start ?? DEFAULT_SETTINGS.start,
     send_window_end: row?.send_window_end ?? DEFAULT_SETTINGS.end,
     configured: Boolean(row),
@@ -402,22 +411,38 @@ export async function updateSettings(
     where organization_id = ${ctx.actor.orgId} and property_id = ${input.propertyId}`.execute(ctx.trx);
   const exists = (before.rows[0]?.n ?? 0) > 0;
   const deadline = input.stayNoticeDeadline === undefined ? undefined : input.stayNoticeDeadline;
+  const template = input.residenceNoticeTemplate;
+  if (template !== undefined && template !== null && parseNoticeTemplate(template) === null)
+    throw fieldError(
+      "residence_notice_template",
+      "INVALID",
+      "Mẫu thông báo lưu trú không hợp lệ (cột ngoài danh mục, trùng cột hoặc thiếu cột)",
+    );
   await sql`
     insert into notification_settings (id, organization_id, property_id, overdue_reminder_offsets_days, lease_expiry_offsets_days,
-                                       stay_notice_deadline, send_window_start, send_window_end, updated_by)
+                                       stay_notice_deadline, residence_notice_template, send_window_start, send_window_end,
+                                       updated_by)
     values (gen_random_uuid(), ${ctx.actor.orgId}, ${input.propertyId},
             ${input.overdueReminderOffsetsDays ?? DEFAULT_SETTINGS.overdue}::int[],
             ${input.leaseExpiryOffsetsDays ?? DEFAULT_SETTINGS.lease}::int[],
             ${deadline === undefined || deadline === null ? null : JSON.stringify(deadline)}::jsonb,
+            ${template === undefined || template === null ? null : JSON.stringify(template)}::jsonb,
             ${start}::time, ${end}::time, ${ctx.actor.membershipId})
     on conflict (organization_id, property_id) do update set
       overdue_reminder_offsets_days = coalesce(${input.overdueReminderOffsetsDays ?? null}::int[], notification_settings.overdue_reminder_offsets_days),
       lease_expiry_offsets_days = coalesce(${input.leaseExpiryOffsetsDays ?? null}::int[], notification_settings.lease_expiry_offsets_days),
       stay_notice_deadline = case when ${deadline === undefined}::boolean then notification_settings.stay_notice_deadline
                                   else ${deadline === undefined || deadline === null ? null : JSON.stringify(deadline)}::jsonb end,
+      residence_notice_template = case when ${template === undefined}::boolean then notification_settings.residence_notice_template
+                                  else ${template === undefined || template === null ? null : JSON.stringify(template)}::jsonb end,
       send_window_start = coalesce(${input.sendWindowStart ?? null}::time, notification_settings.send_window_start),
       send_window_end = coalesce(${input.sendWindowEnd ?? null}::time, notification_settings.send_window_end),
       updated_by = ${ctx.actor.membershipId}`.execute(ctx.trx);
+  // S-020: cơ sở cấu hình hạn SAU khi đã có khách → tính hạn bù cho thông báo lưu trú còn mở của các lượt đang ở (T-207).
+  const backfilled =
+    deadline !== undefined && deadline !== null
+      ? await backfillNoticeDeadlines(ctx.trx, ctx.actor.orgId, input.propertyId)
+      : 0;
   await ctx.audit({
     action: "notification.settings_updated",
     entityType: "notification_settings",
@@ -429,6 +454,8 @@ export async function updateSettings(
         : {}),
       ...(input.leaseExpiryOffsetsDays ? { lease_expiry_offsets_days: input.leaseExpiryOffsetsDays } : {}),
       ...(deadline !== undefined ? { stay_notice_deadline_configured: deadline !== null } : {}),
+      ...(template !== undefined ? { residence_notice_template_configured: template !== null } : {}),
+      ...(backfilled > 0 ? { residence_notice_due_backfilled: backfilled } : {}),
     },
   });
   return { propertyId: input.propertyId };

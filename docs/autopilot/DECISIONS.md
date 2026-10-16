@@ -86,3 +86,24 @@
 - Chọn: payments.reservation_id (bất biến) để folio chỉ ăn ứng trước của chính booking; lễ tân phân bổ qua chế độ system + 2 hàm SECURITY DEFINER kiểm vai trò/cơ sở (chỉ khoá hàng + cộng bộ đếm, CHECK 0..amount giữ INV-F2); cho nợ: owner/manager tự cho, lễ tân qua yêu cầu duyệt allow_balance (tách quyền lập/duyệt); mọi lỗi rollback cả lệnh; thu thừa → 422; lễ tân hoàn nguyên số cọc, vượt hạn mức → duyệt; còn nợ thì không hoàn cọc
 - Lý do (tiêu chí chất lượng cuối): (1) không lẫn tiền giữa các booking của cùng một khách; tuân INV-F2/F3b/F5 và hạn mức D-002; ca đêm không có quản lý vẫn trả phòng được (S-026)
 - Đường lùi: Bỏ cột reservation_id (down 0027); thu hồi quyền lập allow_balance
+
+### D-013 · 2026-10-16T02:49:22+00:00 · T-208: import booking đang có — giá, phạm vi ngày, xác nhận, ứng trước đầu kỳ
+
+- Phương án: (1) Giá trong file là giá đã chốt (snapshot nightly_prices; chỉ có tổng thì chia đều, dư dồn đêm đầu); chỉ nhận booking ngày đến ≥ cutoff_on (khách đang ở check-in trên hệ thống); booking nhập xác nhận không cần khoản thu (cờ imported, confirmed_without_payment ở DB, audit/sự kiện mang imported:true); ứng trước đầu kỳ ≤ tiền phòng qua OPENING_BALANCE → CUSTOMER_CREDIT ngày cutoff_on, không tạo payment/doanh thu · (2) Tính lại giá theo bảng giá hiện hành; nhập cả khách đang ở; bắt buộc ghi payment cho ứng trước
+- Chọn: Giá trong file là giá đã chốt (snapshot nightly_prices; chỉ có tổng thì chia đều, dư dồn đêm đầu); chỉ nhận booking ngày đến ≥ cutoff_on (khách đang ở check-in trên hệ thống); booking nhập xác nhận không cần khoản thu (cờ imported, confirmed_without_payment ở DB, audit/sự kiện mang imported:true); ứng trước đầu kỳ ≤ tiền phòng qua OPENING_BALANCE → CUSTOMER_CREDIT ngày cutoff_on, không tạo payment/doanh thu
+- Lý do (tiêu chí chất lượng cuối): (1) giá đã cam kết với khách không được đổi khi chuyển hệ thống; không bịa dòng tiền (payments cần chứng cứ thật); khách đang ở cần quy trình check-in có giấy tờ; (4) nhập được cả khi chưa cấu hình bảng giá
+- Đường lùi: Đổi quy tắc parseRow; huỷ lô trước commit
+
+### D-014 · 2026-10-16T02:58:31+00:00 · T-207: các điểm SPEC hở của thông báo lưu trú
+
+- Phương án: (1) Tạo notice trong cùng transaction check-in/walk-in; hạn: trước 23:00 → 23:00 cùng ngày, 23:00–07:59 → 08:00 (đến 00:00–08:00 cũng 08:00 cùng ngày — chặt hơn), nước ngoài theo foreign_guest_hours; thiếu cấu hình → due_at NULL + cảnh báo; nhắc due → urgent (≤30 phút) → overdue chỉ in-app cho owner/manager/lễ tân; file CSV riêng tư URL ký ≤5 phút, tự xoá sau 30 ngày, cần residence_notice.manage + identity.read; kế toán không đọc; route HTTP xuất file làm cùng T-221 · (2) Tạo notice bằng consumer sự kiện sau commit; khách đến 00:00–08:00 coi như trong ngày (hạn 23:00)
+- Chọn: Tạo notice trong cùng transaction check-in/walk-in; hạn: trước 23:00 → 23:00 cùng ngày, 23:00–07:59 → 08:00 (đến 00:00–08:00 cũng 08:00 cùng ngày — chặt hơn), nước ngoài theo foreign_guest_hours; thiếu cấu hình → due_at NULL + cảnh báo; nhắc due → urgent (≤30 phút) → overdue chỉ in-app cho owner/manager/lễ tân; file CSV riêng tư URL ký ≤5 phút, tự xoá sau 30 ngày, cần residence_notice.manage + identity.read; kế toán không đọc; route HTTP xuất file làm cùng T-221
+- Lý do (tiêu chí chất lượng cuối): (1) SPEC yêu cầu cùng transaction; hạn chặt hơn với nghĩa vụ pháp lý (thông báo lưu trú); số giấy tờ đầy đủ chỉ trong file, không vào audit/outbox; không bịa thông số khi chưa cấu hình
+- Đường lùi: Đổi thông số notification_settings; đổi hàm app.residence_notice_due_at bằng migration mới
+
+### D-015 · 2026-10-16T03:05:27+00:00 · Sửa review đợt 3: cách giữ bộ đếm allocated_total và tuần tự hoá đổi giờ chốt
+
+- Phương án: (1) Hàm app.sync_payment_allocated không nhận số tiền (tự đặt = Σ payment_allocations chưa đảo dưới khoá hàng); khoá tư vấn theo cơ sở (chia sẻ khi tạo allocation/chứng từ, độc quyền khi đổi múi giờ/giờ chốt); cho nợ: người nợ + hạn ≤ 30 ngày lưu trong yêu cầu duyệt, check-out phải khớp · (2) Trigger AFTER INSERT trên payment_allocations tự cộng; FOR SHARE hàng properties
+- Chọn: Hàm app.sync_payment_allocated không nhận số tiền (tự đặt = Σ payment_allocations chưa đảo dưới khoá hàng); khoá tư vấn theo cơ sở (chia sẻ khi tạo allocation/chứng từ, độc quyền khi đổi múi giờ/giờ chốt); cho nợ: người nợ + hạn ≤ 30 ngày lưu trong yêu cầu duyệt, check-out phải khớp
+- Lý do (tiêu chí chất lượng cuối): (1) một nguồn sự thật cho bộ đếm mà không cộng đôi với auto-apply/reversePayment đang tự cập nhật; FOR SHARE properties gây deadlock với app.next_number; người duyệt thấy và khoá đúng điều khoản nợ
+- Đường lùi: Down migration 0031 trả hàm/trigger cũ

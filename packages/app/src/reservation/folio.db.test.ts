@@ -1,18 +1,27 @@
 // PLAN đợt 3 T-206 — folio và trả phòng trên Postgres thật (SPEC-reservation-stay S-017…S-020, S-022…S-024, S-026, S-027;
 // ERD §5.5; INV-F1, INV-F2, INV-F3b, INV-F5, INV-G4). Cơ sở `hotel`: nhận 14:00 / trả 12:00, giờ chốt ngày 04:00, UTC+7 (fixture SPEC).
 import { randomUUID } from "node:crypto";
+import { withTenant } from "@hm/db";
 import { createTestDb, type SeededOrg, seedAuthUser, seedOrg, type TestDb } from "@hm/testkit";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type Actor, resolveActor } from "../access/actor.ts";
 import { decideApproval, requestApproval } from "../approvals/approvals.ts";
-import { receiveDeposit, requestDeduction } from "../deposits/deposits.ts";
+import { receiveDeposit, requestDeduction, requestDepositRefund } from "../deposits/deposits.ts";
 import { type HttpDeps, handleCommand, handleQuery } from "../http/command-route.ts";
 import { COMMANDS, QUERIES } from "../http/registry.ts";
+import { recordOpeningAdvance } from "../ledger/opening-balance.ts";
 import { allocatePayment, confirmPayment, recordPayment } from "../payments/payments.ts";
 import { executeCommand } from "../pipeline/command.ts";
 import { closeShift, openShift } from "../shifts/shifts.ts";
-import { checkOut, getFolio, postCharge, voidCharge } from "./folio.ts";
+import {
+  checkOut,
+  getFolio,
+  MAX_DEBT_TERM_DAYS,
+  postCharge,
+  requestAllowBalance,
+  voidCharge,
+} from "./folio.ts";
 import { setRatePlan } from "./rates.ts";
 import { confirmReservation, createReservation, holdReservation } from "./reservation.ts";
 import { checkIn } from "./stay.ts";
@@ -155,13 +164,21 @@ interface Scenario {
  * `extras`: minibar 80.000 (21/10) + phụ thu trả muộn 150.000 (22/10) ⇒ folio 1.430.000 (S-017).
  */
 async function scenario(
-  opts: { advance?: number; extras?: boolean; arrival?: string; departure?: string } = {},
+  opts: {
+    advance?: number;
+    extras?: boolean;
+    arrival?: string;
+    departure?: string;
+    bookerPersonId?: string;
+  } = {},
 ): Promise<Scenario> {
   const unitId = await newUnit("F");
   const r = await ok(
     run(F, async (ctx) => ({
       data: await createReservation(ctx, {
-        booker: { fullName: "Khách folio", phone: "0912345678" },
+        booker: opts.bookerPersonId
+          ? { personId: opts.bookerPersonId }
+          : { fullName: "Khách folio", phone: "0912345678" },
         rooms: [{ unitId, guests: 2 }],
         arrivalDate: opts.arrival ?? "2026-10-20",
         departureDate: opts.departure ?? "2026-10-22",
@@ -725,6 +742,7 @@ describe("S-019 check-out còn nợ cần quản lý cho phép", () => {
           propertyId: A.propertyId,
           subjectType: "stay",
           subjectId: s.stayId,
+          payload: { due_date: DUE },
         }),
       })),
     );
@@ -749,6 +767,7 @@ describe("S-019 check-out còn nợ cần quản lý cho phép", () => {
           propertyId: A.propertyId,
           subjectType: "stay",
           subjectId: other.stayId,
+          payload: { due_date: DUE },
         }),
       })),
     );
@@ -772,6 +791,7 @@ describe("S-019 check-out còn nợ cần quản lý cho phép", () => {
           propertyId: A.propertyId,
           subjectType: "stay",
           subjectId: s.stayId,
+          payload: { due_date: DUE },
         }),
       })),
     );
@@ -1013,6 +1033,7 @@ describe("S-026 check-out ca đêm, khách trả tiền mặt: lễ tân tự x�
           propertyId: A.propertyId,
           subjectType: "stay",
           subjectId: s.stayId,
+          payload: { due_date: DUE },
         }),
       })),
     );
@@ -1444,6 +1465,10 @@ describe("S-027 hoàn cọc khách sạn lúc check-out theo hạn mức lễ t�
         }),
       }));
     expect(await fails(approve(L))).toMatchObject({ code: "SELF_APPROVAL_FORBIDDEN", status: 403 });
+    // Đồng hồ thật: lượt ở trả "ngay bây giờ" (fixture dùng giờ giả 22/10) — cùng ngày kinh doanh với lúc duyệt ⇒ đang check-out.
+    await sql`update stays set checked_in_at = now() - interval '10 days', checked_out_at = now() where id = ${s.stayId}`.execute(
+      t.admin,
+    );
     expect(await fails(approve(L2))).toMatchObject({ code: "APPROVAL_LIMIT_EXCEEDED", status: 403 });
     // Quản lý chi tiền mặt trong ca của chính mình.
     await ok(
@@ -1557,5 +1582,436 @@ describe("stay.getFolio và quyền đọc (S-025)", () => {
     const g = await getFolio(t.runtime, F, s.stayId);
     expect(g.charges_total).toBe(1_430_000);
     expect(g.charges.find((x) => x.id === c.charge_id)?.voided).toBe(true);
+  });
+});
+
+// ---------- review độc lập: cho nợ ràng buộc người nợ/hạn trả ----------
+
+/** Khách lưu trú chính của lượt ở (khác người đặt) — người liên quan hợp lệ thứ hai. */
+const primaryGuestOf = async (stayId: string) =>
+  (await one(sql<{ p: string }>`select primary_guest_person_id as p from stays where id = ${stayId}`)).p;
+
+describe("review: duyệt cho nợ gắn đúng người nợ và hạn trả (S-019)", () => {
+  const askDebt = (actor: Actor, s: Scenario, payload: Record<string, unknown>, amount = 930_000) =>
+    ok(
+      run(actor, async (ctx) => ({
+        data: await requestApproval(ctx, {
+          kind: "allow_balance",
+          amount,
+          reason: "Khách hẹn chuyển khoản",
+          propertyId: A.propertyId,
+          subjectType: "stay",
+          subjectId: s.stayId,
+          payload,
+        }),
+      })),
+    );
+  const approve = (approvalRequestId: string) =>
+    ok(
+      run(M, async (ctx) => ({
+        data: await decideApproval(ctx, { approvalRequestId, decision: "approve" }),
+      })),
+    );
+
+  it("tái hiện S-017: F lấy duyệt cho nợ rồi đổi người nợ sang nhân viên khác + hạn 2099 → bị chặn; chỉ đúng người nợ + hạn đã duyệt mới check-out được", async () => {
+    const s = await scenario({ advance: 500_000, extras: true });
+    const guest = await primaryGuestOf(s.stayId);
+    expect(guest).not.toBe(s.bookerId);
+    const req = await askDebt(F, s, { debtor_person_id: s.bookerId, due_date: DUE });
+    await approve(req.approvalRequestId);
+    const use = (debtorPersonId: string, dueDate: string) =>
+      out(F, s.stayId, { allowBalance: { approvalId: req.approvalRequestId, debtorPersonId, dueDate } });
+    // Nhân viên khác làm người nợ + hạn 2099: không được (người nợ không liên quan lượt ở / hạn quá 30 ngày).
+    expect(await fails(use(M.personId, "2099-12-31"))).toMatchObject({ code: "VALIDATION_FAILED" });
+    expect(await fails(use(M.personId, DUE))).toMatchObject({ code: "VALIDATION_FAILED" });
+    expect(await fails(use(s.bookerId, "2099-12-31"))).toMatchObject({ code: "VALIDATION_FAILED" });
+    // Người liên quan hợp lệ nhưng KHÁC người đã duyệt, hoặc hạn khác hạn đã duyệt (dù trong giới hạn) → không khớp duyệt.
+    expect(await fails(use(guest, DUE))).toMatchObject({ code: "OUTSTANDING_BALANCE" });
+    expect(await fails(use(s.bookerId, "2026-11-15"))).toMatchObject({ code: "OUTSTANDING_BALANCE" });
+    expect((await stayRow(s.stayId)).status).toBe("in_house");
+    expect(await folioOf(s.stayId)).toHaveLength(0);
+    // Đúng cả hai giá trị đã duyệt → check-out; phiếu gắn đúng người nợ + hạn.
+    const r = await ok(use(s.bookerId, DUE));
+    expect(r).toMatchObject({ balance: 930_000, debtor_person_id: s.bookerId, due_date: DUE });
+    expect((await folioOf(s.stayId))[0]).toMatchObject({ payer_person_id: s.bookerId, due_on: DUE });
+  });
+
+  it("duyệt ghi người nợ = khách lưu trú chính → check-out phải đúng người đó; yêu cầu thiếu hạn trả/payload → không dùng được", async () => {
+    const s = await scenario({ extras: true });
+    const guest = await primaryGuestOf(s.stayId);
+    const reqGuest = await askDebt(F, s, { debtor_person_id: guest, due_date: DUE }, 1_430_000);
+    await approve(reqGuest.approvalRequestId);
+    const use = (approvalId: string, debtorPersonId: string) =>
+      out(F, s.stayId, { allowBalance: { approvalId, debtorPersonId, dueDate: DUE } });
+    expect(await fails(use(reqGuest.approvalRequestId, s.bookerId))).toMatchObject({
+      code: "OUTSTANDING_BALANCE",
+    });
+    // Yêu cầu không có hạn trả trong payload (không biết quản lý đã duyệt hạn nào) → không dùng được.
+    const reqNoDue = await askDebt(F, s, {}, 1_430_000);
+    expect(
+      await fails(
+        run(M, async (ctx) => ({
+          data: await decideApproval(ctx, {
+            approvalRequestId: reqNoDue.approvalRequestId,
+            decision: "approve",
+          }),
+        })),
+      ),
+    ).toMatchObject({ code: "VALIDATION_FAILED", errors: [{ field: "payload.due_date" }] });
+    expect(await fails(use(reqNoDue.approvalRequestId, s.bookerId))).toMatchObject({
+      code: "OUTSTANDING_BALANCE",
+    });
+    const r = await ok(use(reqGuest.approvalRequestId, guest));
+    expect(r).toMatchObject({ debtor_person_id: guest, due_date: DUE, balance: 1_430_000 });
+  });
+
+  it("hạn trả ≤ 30 ngày kể từ ngày kinh doanh check-out (biên 30/31), owner/manager tự cho nợ cũng bị giới hạn; người nợ phải liên quan lượt ở", async () => {
+    expect(MAX_DEBT_TERM_DAYS).toBe(30);
+    const s = await scenario({ extras: true });
+    // OUT = 22/10 (giờ VN) ⇒ hạn tối đa 21/11.
+    expect(
+      await fails(out(M, s.stayId, { allowBalance: { debtorPersonId: s.bookerId, dueDate: "2026-11-22" } })),
+    ).toMatchObject({ code: "VALIDATION_FAILED", errors: [{ field: "allow_balance.due_date" }] });
+    expect(
+      await fails(out(O, s.stayId, { allowBalance: { debtorPersonId: s.bookerId, dueDate: "2099-12-31" } })),
+    ).toMatchObject({ code: "VALIDATION_FAILED" });
+    // Người không liên quan lượt ở (nhân viên) làm người nợ → 422 dù tồn tại.
+    expect(
+      await fails(out(M, s.stayId, { allowBalance: { debtorPersonId: F.personId, dueDate: DUE } })),
+    ).toMatchObject({ code: "VALIDATION_FAILED", errors: [{ field: "allow_balance.debtor_person_id" }] });
+    const r = await ok(
+      out(M, s.stayId, { allowBalance: { debtorPersonId: s.bookerId, dueDate: "2026-11-21" } }),
+    );
+    expect(r).toMatchObject({ due_date: "2026-11-21", debtor_person_id: s.bookerId });
+    // Khách lưu trú chính cũng là người nợ hợp lệ.
+    const s2 = await scenario({ extras: true });
+    const g2 = await primaryGuestOf(s2.stayId);
+    expect(await ok(out(M, s2.stayId, { allowBalance: { debtorPersonId: g2, dueDate: DUE } }))).toMatchObject(
+      {
+        debtor_person_id: g2,
+      },
+    );
+  });
+
+  it("stay.requestAllowBalance: mặc định người nợ = người đặt; hạn > 30 ngày/người lạ/lượt ở không đang ở → 422; payload lưu để người duyệt thấy", async () => {
+    const s = await scenario({ extras: true });
+    const req = (input: Partial<Parameters<typeof requestAllowBalance>[1]>) =>
+      run(F, async (ctx) => ({
+        data: await requestAllowBalance(ctx, {
+          stayId: s.stayId,
+          amount: 100_000,
+          reason: "Khách hẹn trả",
+          dueDate: DUE,
+          now: OUT,
+          ...input,
+        }),
+      }));
+    expect(await fails(req({ dueDate: "2026-11-22" }))).toMatchObject({ code: "VALIDATION_FAILED" });
+    expect(await fails(req({ debtorPersonId: M.personId }))).toMatchObject({ code: "VALIDATION_FAILED" });
+    expect(await fails(req({ amount: 0 }))).toMatchObject({ code: "VALIDATION_FAILED" });
+    const a = await ok(req({}));
+    const row = await one(
+      sql<{ payload: Record<string, unknown>; amount: string; subject_id: string }>`
+        select payload, amount::text, subject_id from approval_requests where id = ${a.approvalRequestId}`,
+    );
+    expect(row).toMatchObject({
+      payload: { debtor_person_id: s.bookerId, due_date: DUE },
+      amount: "100000",
+      subject_id: s.stayId,
+    });
+    // Qua HTTP (approval.request): lễ tân lập đúng một yêu cầu có payload do server dựng.
+    const h = await http(
+      "approval.request",
+      {
+        kind: "allow_balance",
+        amount: 100_000,
+        reason: "Qua HTTP",
+        property_id: A.propertyId,
+        subject_type: "stay",
+        subject_id: s.stayId,
+        allow_balance: { due_date: DUE },
+      },
+      "front_desk",
+    );
+    expect(h.status).toBe(201);
+    const hp = await one(
+      sql<{
+        payload: Record<string, unknown>;
+      }>`select payload from approval_requests where id = ${h.body.data.approvalRequestId ?? h.body.data.approval_request_id}`,
+    );
+    expect(hp.payload).toMatchObject({ debtor_person_id: s.bookerId, due_date: DUE });
+  });
+});
+
+// ---------- review độc lập: bộ đếm allocated_total của khoản thu ----------
+
+describe("review: allocated_total của khoản thu luôn bằng Σ phân bổ còn hiệu lực", () => {
+  const asActor = <T>(
+    actor: Actor,
+    fn: (trx: Parameters<Parameters<typeof withTenant>[2]>[0]) => Promise<T>,
+  ) => withTenant(t.runtime, { orgId: actor.orgId, actorId: actor.membershipId }, fn);
+
+  it("lễ tân F (không phải người ghi khoản thu) không còn đẩy được bộ đếm: hàm nhận delta bị gỡ; UPDATE trực tiếp 0 hàng; S-017 vẫn đúng từng đồng", async () => {
+    const s = await scenario({ advance: 500_000, extras: true });
+    const org = A.orgId;
+    const pay = s.advancePaymentId as string;
+    const alloc = (id: string) =>
+      one(sql<{ a: string; s: string }>`
+        select allocated_total::text as a,
+               (select coalesce(sum(amount), 0)::text from payment_allocations where payment_id = p.id and reversed_at is null) as s
+        from payments p where id = ${id}`);
+    expect(await alloc(pay)).toEqual({ a: "0", s: "0" });
+    // Hàm cũ (delta tuỳ ý) không còn tồn tại; hàm mới không nhận số tiền.
+    await pgError(
+      asActor(F, (trx) => sql`select app.bump_payment_allocated(${org}, ${pay}, 400000)`.execute(trx)),
+    );
+    // Hàm đồng bộ chỉ tính lại từ phân bổ thật ⇒ không đổi khi chưa có phân bổ nào.
+    await asActor(F, (trx) => sql`select app.sync_payment_allocated(${org}, ${pay})`.execute(trx));
+    expect(await alloc(pay)).toEqual({ a: "0", s: "0" });
+    // UPDATE trực tiếp bộ đếm của khoản thu người khác ghi: RLS chặn (0 hàng).
+    const upd = await asActor(F, (trx) =>
+      sql`update payments set allocated_total = 400000 where id = ${pay}`.execute(trx),
+    );
+    expect(Number(upd.numAffectedRows ?? 0)).toBe(0);
+    expect(await alloc(pay)).toEqual({ a: "0", s: "0" });
+    // Người không có vai trò tiền/cơ sở khác: hàm từ chối.
+    await pgError(asActor(H, (trx) => sql`select app.sync_payment_allocated(${org}, ${pay})`.execute(trx)));
+    // Luồng S-017: còn đúng 930.000 (không phải 530.000), sau check-out bộ đếm = Σ phân bổ = 500.000.
+    expect(await fails(out(F, s.stayId))).toMatchObject({
+      code: "OUTSTANDING_BALANCE",
+      items: [{ balance: 930_000 }],
+    });
+    const r = await ok(out(L, s.stayId, { payments: [{ method: "cash", amount: 930_000 }] }));
+    expect(r).toMatchObject({ advance_applied: 500_000, paid: 930_000, balance: 0 });
+    expect(await alloc(pay)).toEqual({ a: "500000", s: "500000" });
+    const cash = await one(
+      sql<{ a: string; s: string }>`
+        select allocated_total::text as a,
+               (select coalesce(sum(amount), 0)::text from payment_allocations where payment_id = p.id and reversed_at is null) as s
+        from payments p where id = ${r.payments[0]?.payment_id}`,
+    );
+    expect(cash).toEqual({ a: "930000", s: "930000" });
+  });
+});
+
+// ---------- review độc lập: giờ ghi sổ lúc xác nhận khoản thu check-out ----------
+
+describe("review: bút toán xác nhận thu lúc check-out ghi đúng ngày kinh doanh của giờ trả phòng", () => {
+  it("S-026: now giả 00:40 (< giờ chốt 04:00) ⇒ payment_confirmed và payment_allocated đều ngày 22/10", async () => {
+    const s = await scenario({ extras: true });
+    const r = await ok(out(L, s.stayId, { payments: [{ method: "cash", amount: 1_430_000 }] }, NIGHT_OUT));
+    const e = await rows(
+      sql<{ entry_type: string; business_date: string }>`
+        select distinct entry_type, business_date::text from journal_entries
+        where source_doc_id = ${r.payments[0]?.payment_id} order by entry_type`,
+    );
+    expect(e).toEqual([
+      { entry_type: "payment_allocated", business_date: "2026-10-22" },
+      { entry_type: "payment_confirmed", business_date: "2026-10-22" },
+    ]);
+  });
+});
+
+// ---------- review độc lập: ứng trước đầu kỳ của booking nhập (T-208) ----------
+
+describe("review: ứng trước đầu kỳ của booking nhập được dùng lúc check-out (đúng booking)", () => {
+  const importAdvance = (reservationId: string, amount: number) =>
+    ok(
+      run(O, async (ctx) => ({
+        data: await recordOpeningAdvance(ctx, {
+          reservationId,
+          amount,
+          businessDate: "2026-10-16",
+          batchId: randomUUID(),
+          sourceId: "batch:1",
+        }),
+      })),
+    );
+  const credit = async (personId: string) =>
+    Number(
+      (
+        await one(
+          sql<{ b: string }>`select coalesce(sum(credit - debit), 0)::text as b from journal_lines
+            where organization_id = ${A.orgId} and account = 'CUSTOMER_CREDIT' and person_id = ${personId}`,
+        )
+      ).b,
+    );
+
+  it("booking nhập ứng trước 500.000 + folio 1.430.000 → còn 930.000; AR/CUSTOMER_CREDIT đúng từng đồng; getFolio thấy ứng trước", async () => {
+    const s = await scenario({ extras: true });
+    await importAdvance(s.reservationId, 500_000);
+    const f0 = await getFolio(t.runtime, F, s.stayId);
+    expect(f0).toMatchObject({ advance_available: 500_000, balance: 930_000 });
+    const creditBefore = await credit(s.bookerId);
+    expect(await fails(out(F, s.stayId))).toMatchObject({
+      code: "OUTSTANDING_BALANCE",
+      items: [{ balance: 930_000 }],
+    });
+    const r = await ok(out(L, s.stayId, { payments: [{ method: "cash", amount: 930_000 }] }));
+    expect(r).toMatchObject({ folio_total: 1_430_000, advance_applied: 500_000, paid: 930_000, balance: 0 });
+    expect((await folioOf(s.stayId))[0]).toMatchObject({ allocated_total: "1430000", open_amount: "0" });
+    // Tiền ứng trước đã tiêu: CUSTOMER_CREDIT của người đặt giảm đúng 500.000 (khoản 930.000 thu rồi phân bổ hết).
+    expect(await credit(s.bookerId)).toBe(creditBefore - 500_000);
+    const al = await rows(
+      sql<{ amount: string }>`select amount::text from payment_allocations
+        where invoice_id = ${r.invoice_id} and payment_id is null and deposit_id is null and reversed_at is null`,
+    );
+    expect(al).toEqual([{ amount: "500000" }]);
+    expect((await getFolio(t.runtime, F, s.stayId)).advance_available).toBe(0);
+    // Mỗi booking một bút toán ứng trước gắn đúng booking; check-out không sinh thêm bút toán ứng trước.
+    expect(
+      await count(
+        "journal_entries",
+        sql`reservation_id = ${s.reservationId} and entry_type = 'opening_balance'`,
+      ),
+    ).toBe(1);
+  });
+
+  it("hai booking của cùng người đặt: ứng trước nhập của booking này không bị booking kia ăn (không FIFO theo người)", async () => {
+    const a = await scenario({ extras: true });
+    const b = await scenario({ extras: true, bookerPersonId: a.bookerId });
+    expect(a.bookerId).toBe(b.bookerId);
+    await importAdvance(a.reservationId, 500_000);
+    // b KHÔNG có ứng trước: dù người đặt có 500.000 credit chung, folio b vẫn đòi đủ 1.430.000.
+    expect(await fails(out(F, b.stayId))).toMatchObject({
+      code: "OUTSTANDING_BALANCE",
+      items: [{ balance: 1_430_000 }],
+    });
+    expect((await getFolio(t.runtime, F, b.stayId)).advance_available).toBe(0);
+    // b có ứng trước 200.000 riêng → chỉ dùng 200.000 của b; a vẫn dùng đủ 500.000 của a.
+    await importAdvance(b.reservationId, 200_000);
+    expect(await fails(out(F, b.stayId))).toMatchObject({ items: [{ balance: 1_230_000 }] });
+    const rb = await ok(out(L, b.stayId, { payments: [{ method: "cash", amount: 1_230_000 }] }));
+    expect(rb).toMatchObject({ advance_applied: 200_000, balance: 0 });
+    expect(await fails(out(F, a.stayId))).toMatchObject({ items: [{ balance: 930_000 }] });
+    const ra = await ok(out(L, a.stayId, { payments: [{ method: "cash", amount: 930_000 }] }));
+    expect(ra).toMatchObject({ advance_applied: 500_000, balance: 0 });
+  });
+
+  it("ứng trước lớn hơn folio: chỉ dùng đủ folio, phần dư còn lại cho booking (không dùng lần hai)", async () => {
+    const s = await scenario(); // folio 1.200.000
+    await importAdvance(s.reservationId, 1_500_000);
+    const r = await ok(out(F, s.stayId));
+    expect(r).toMatchObject({ folio_total: 1_200_000, advance_applied: 1_200_000, balance: 0 });
+    // Phần dư 300.000 còn lại làm credit của booking (không dùng lần hai).
+    expect((await getFolio(t.runtime, F, s.stayId)).advance_available).toBe(300_000);
+  });
+});
+
+// ---------- review độc lập: "lúc check-out" của hoàn cọc theo duyệt (S-027) ----------
+
+describe("review: lễ tân chỉ duyệt hoàn cọc đúng lúc check-out (mọi lượt ở đã trả + cùng ngày kinh doanh)", () => {
+  const sinceCheckout = (stayId: string, outSql: ReturnType<typeof sql>) =>
+    sql`update stays set checked_in_at = now() - interval '10 days', checked_out_at = ${outSql} where id = ${stayId}`.execute(
+      t.admin,
+    );
+  const ensureShift = async (actor: Actor) => {
+    if ((await count("shifts", sql`opened_by = ${actor.membershipId} and status = 'open'`)) === 0)
+      await ok(
+        run(actor, async (ctx) => ({
+          data: await openShift(ctx, { propertyId: A.propertyId, openingCash: 0 }),
+        })),
+      );
+  };
+  const ask = async (depositId: string) =>
+    ok(
+      run(F, async (ctx) => ({
+        data: await requestDepositRefund(ctx, {
+          depositId,
+          amount: 1_000_000,
+          reason: "Hoàn cọc",
+          refund: { method: "cash" },
+        }),
+      })),
+    );
+  const decide = (actor: Actor, approvalRequestId: string) =>
+    run(actor, async (ctx) => ({
+      data: await decideApproval(ctx, { approvalRequestId, decision: "approve" }),
+    }));
+
+  it("booking còn ở (chưa trả) → lễ tân FORBIDDEN; vừa trả (cùng ngày kinh doanh) → lễ tân duyệt được; trả từ 3 ngày trước → lễ tân FORBIDDEN, quản lý vẫn duyệt", async () => {
+    await ensureShift(L);
+    await ensureShift(M);
+    const live = await scenario();
+    const depLive = await addDeposit(L, live, 1_000_000);
+    expect(await fails(decide(L, (await ask(depLive)).approvalRequestId))).toMatchObject({
+      code: "FORBIDDEN",
+    });
+
+    const fresh = await scenario();
+    const depFresh = await addDeposit(L, fresh, 1_000_000);
+    await ok(out(M, fresh.stayId, { allowBalance: { debtorPersonId: fresh.bookerId, dueDate: DUE } }));
+    await sinceCheckout(fresh.stayId, sql`now()`);
+    await ok(decide(L, (await ask(depFresh)).approvalRequestId));
+    expect(
+      (await one(sql<{ b: string }>`select balance::text as b from deposits where id = ${depFresh}`)).b,
+    ).toBe("0");
+
+    const old = await scenario();
+    const depOld = await addDeposit(L, old, 1_000_000);
+    await ok(out(M, old.stayId, { allowBalance: { debtorPersonId: old.bookerId, dueDate: DUE } }));
+    await sinceCheckout(old.stayId, sql`now() - interval '3 days'`);
+    const reqOld = await ask(depOld);
+    expect(await fails(decide(L, reqOld.approvalRequestId))).toMatchObject({
+      code: "FORBIDDEN",
+      status: 403,
+    });
+    await ok(decide(M, reqOld.approvalRequestId));
+    expect(
+      (await one(sql<{ b: string }>`select balance::text as b from deposits where id = ${depOld}`)).b,
+    ).toBe("0");
+  });
+
+  it("booking hai phòng: một phòng đã trả, phòng kia còn ở → chưa phải lúc check-out cuối ⇒ lễ tân FORBIDDEN; trả nốt (cùng ngày) → duyệt được", async () => {
+    const u1 = await newUnit("T1");
+    const u2 = await newUnit("T2");
+    const r = await ok(
+      run(F, async (ctx) => ({
+        data: await createReservation(ctx, {
+          booker: { fullName: "Khách hai phòng", phone: "0912345611" },
+          rooms: [
+            { unitId: u1, guests: 1 },
+            { unitId: u2, guests: 1 },
+          ],
+          arrivalDate: "2026-10-20",
+          departureDate: "2026-10-22",
+        }),
+      })),
+    );
+    await ok(
+      run(F, async (ctx) => ({ data: await holdReservation(ctx, { reservationId: r.id, now: NOW }) })),
+    );
+    await ok(
+      run(M, async (ctx) => ({ data: await confirmReservation(ctx, { reservationId: r.id, now: NOW }) })),
+    );
+    const sts = await rows(
+      sql<{ id: string }>`select s.id from stays s join reservation_items i on i.id = s.reservation_item_id
+                          where i.reservation_id = ${r.id} order by s.id`,
+    );
+    for (const st of sts)
+      await ok(
+        run(F, async (ctx) => ({
+          data: await checkIn(ctx, { reservationId: r.id, stayId: st.id, guests: [GUEST], now: IN }),
+        })),
+      );
+    const booker = (
+      await one(sql<{ b: string }>`select booker_person_id as b from reservations where id = ${r.id}`)
+    ).b;
+    const s1: Scenario = {
+      reservationId: r.id,
+      stayId: sts[0]?.id as string,
+      unitId: u1,
+      bookerId: booker,
+      advancePaymentId: null,
+      roomTotal: 1_200_000,
+    };
+    const dep = await addDeposit(L, s1, 1_000_000);
+    const debt = { allowBalance: { debtorPersonId: booker, dueDate: DUE } };
+    await ok(out(M, sts[0]?.id as string, debt));
+    await sinceCheckout(sts[0]?.id as string, sql`now()`);
+    expect(await fails(decide(L, (await ask(dep)).approvalRequestId))).toMatchObject({ code: "FORBIDDEN" });
+    await ok(out(M, sts[1]?.id as string, debt));
+    await sinceCheckout(sts[1]?.id as string, sql`now()`);
+    await ok(decide(L, (await ask(dep)).approvalRequestId));
   });
 });

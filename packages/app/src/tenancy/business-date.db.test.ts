@@ -104,3 +104,98 @@ describe("S-023 — đổi múi giờ/giờ chốt khi cơ sở đã có dữ li
     expect(err?.hint).toBe("PROPERTY_IN_USE");
   });
 });
+
+describe("S-023 — đổi giờ chốt song song với tạo chứng từ đầu tiên không thể cùng commit (review: kiểm EXISTS không khoá)", () => {
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  const insertAllocation = (o: SeededOrg) =>
+    sql`insert into allocations (id, organization_id, property_id, unit_id, kind, source_type, source_id, during)
+        values (${randomUUID()}, ${o.orgId}, ${o.propertyId}, ${o.unitId}, 'block', 'block', ${randomUUID()},
+                tstzrange('2026-11-01T14:00:00+07:00', '2026-11-02T12:00:00+07:00'))`;
+  const changeCutoff = (o: SeededOrg) =>
+    sql`update properties set business_day_cutoff = '03:00' where id = ${o.propertyId}`;
+  const cutoffOf = async (o: SeededOrg) =>
+    (
+      await sql<{
+        c: string;
+      }>`select business_day_cutoff::text c from properties where id = ${o.propertyId}`.execute(t.admin)
+    ).rows[0]?.c;
+
+  it("allocation đã insert (chưa commit) → bên đổi giờ chốt CHỜ, rồi nhận PROPERTY_IN_USE; giá trị cũ giữ nguyên", async () => {
+    const o = await seedOrg(t.admin, "Đua: allocation trước", "hotel");
+    const before = await cutoffOf(o);
+    let inserted!: () => void;
+    const insertedP = new Promise<void>((r) => {
+      inserted = r;
+    });
+    let release!: () => void;
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    const tx1 = t.admin.transaction().execute(async (trx) => {
+      await insertAllocation(o).execute(trx);
+      inserted();
+      await gate;
+    });
+    await insertedP;
+    let state: "pending" | "done" = "pending";
+    const tx2 = t.admin
+      .transaction()
+      .execute((trx) => changeCutoff(o).execute(trx))
+      .then(
+        () => {
+          state = "done";
+          return null;
+        },
+        (e: { hint?: string }) => {
+          state = "done";
+          return e;
+        },
+      );
+    await sleep(600);
+    const waited = state === "pending"; // bên đổi giờ đang chờ chứng từ chưa commit
+    release(); // luôn nhả khoá kể cả khi khẳng định bên dưới đỏ (tránh treo test)
+    expect(waited).toBe(true);
+    await tx1;
+    expect((await tx2)?.hint).toBe("PROPERTY_IN_USE");
+    expect(await cutoffOf(o)).toBe(before);
+  });
+
+  it("đổi giờ chốt đang giữ (chưa commit) → allocation đầu tiên CHỜ rồi mới ghi; không có hai bên cùng commit lệch nhau", async () => {
+    const o = await seedOrg(t.admin, "Đua: đổi giờ trước", "hotel");
+    let changed!: () => void;
+    const changedP = new Promise<void>((r) => {
+      changed = r;
+    });
+    let release!: () => void;
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    const tx1 = t.admin.transaction().execute(async (trx) => {
+      await changeCutoff(o).execute(trx);
+      changed();
+      await gate;
+    });
+    await changedP;
+    let state: "pending" | "done" = "pending";
+    const tx2 = t.admin
+      .transaction()
+      .execute((trx) => insertAllocation(o).execute(trx))
+      .then(() => {
+        state = "done";
+      });
+    await sleep(600);
+    const waited = state === "pending";
+    release();
+    expect(waited).toBe(true);
+    await tx1;
+    await tx2;
+    expect(await cutoffOf(o)).toBe("03:00:00");
+  });
+
+  it("khoá chia sẻ nằm trên cả bốn loại chứng từ (allocations, journal_entries, invoices, payments)", async () => {
+    const r = await sql<{ t: string }>`
+      select c.relname as t from pg_trigger g join pg_class c on c.oid = g.tgrelid
+      where g.tgname like '%\_property\_use' order by 1`.execute(t.admin);
+    expect(r.rows.map((x) => x.t)).toEqual(["allocations", "invoices", "journal_entries", "payments"]);
+  });
+});

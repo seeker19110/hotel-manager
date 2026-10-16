@@ -16,7 +16,7 @@ import { withTenant } from "@hm/db";
 import { AuthzError, authorize, stayMachine } from "@hm/domain";
 import { type Kysely, sql } from "kysely";
 import type { Actor } from "../access/actor.ts";
-import { registerApprovalExecutor } from "../approvals/approvals.ts";
+import { registerApprovalExecutor, requestApproval } from "../approvals/approvals.ts";
 import { uniqueMemoRef } from "../billing/billing.ts";
 import { refundDepositInline, requestDepositRefund } from "../deposits/deposits.ts";
 import { resizeAllocation } from "../inventory/inventory.ts";
@@ -31,6 +31,7 @@ import {
 import type { CommandContext } from "../pipeline/command.ts";
 import { CommandError, fieldError } from "../pipeline/problem.ts";
 import { openShiftOf } from "../shifts/shifts.ts";
+import { allocateOpeningAdvance, openingAdvancesOf } from "./opening-advance.ts";
 import { assertDate } from "./rates.ts";
 import { businessDateAt, loadItems, loadStays, lockReservation, transitionError } from "./reservation.ts";
 
@@ -40,6 +41,11 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const MAX_CHARGE_AMOUNT = 1_000_000_000_000;
 export const MAX_CHARGE_QUANTITY = 1000;
 export const MAX_CHECKOUT_PAYMENTS = 5;
+/**
+ * Hạn trả tối đa (ngày, kể từ ngày kinh doanh check-out) của khoản nợ cho phép lúc trả phòng. Nợ lưu trú ngắn hạn mà hạn 2099 là nợ
+ * không bao giờ đòi: giới hạn buộc gia hạn/ghi nhận lại có người duyệt thay vì cho khoản nợ vô thời hạn; 30 ngày = một kỳ công nợ.
+ */
+export const MAX_DEBT_TERM_DAYS = 30;
 
 const REVENUE_OF = { service: "REV_SERVICE", fee: "REV_FEE" } as const;
 export type ManualChargeKind = keyof typeof REVENUE_OF;
@@ -265,10 +271,14 @@ export interface CheckOutPaymentInput {
 }
 
 export interface AllowBalanceInput {
-  /** Yêu cầu duyệt `allow_balance` (subject = lượt ở) đã được owner/manager duyệt; bỏ trống nếu chính người gọi có quyền cho nợ. */
+  /**
+   * Yêu cầu duyệt `allow_balance` (subject = lượt ở) đã được owner/manager duyệt; bỏ trống nếu chính người gọi có quyền cho nợ.
+   * Có duyệt ⇒ `debtorPersonId` và `dueDate` PHẢI đúng hai giá trị người duyệt đã thấy (payload yêu cầu).
+   */
   approvalId?: string;
+  /** Người nợ: người đặt hoặc khách lưu trú của chính lượt ở này. */
   debtorPersonId: string;
-  /** Hạn trả (YYYY-MM-DD, ≥ ngày kinh doanh check-out). */
+  /** Hạn trả (YYYY-MM-DD, ≥ ngày kinh doanh check-out và ≤ ngày đó + `MAX_DEBT_TERM_DAYS`). */
   dueDate: string;
 }
 
@@ -312,30 +322,64 @@ function outstanding(balance: number, why?: string): CommandError {
   );
 }
 
-/** Người nợ phải có thật; hạn trả không trước ngày kinh doanh của check-out. */
-async function assertDebtor(ctx: CommandContext, a: AllowBalanceInput, today: string): Promise<void> {
+function addDays(date: string, days: number): string {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Người nợ phải có thật VÀ liên quan lượt ở (người đặt hoặc khách lưu trú chính/đi cùng của chính lượt ở — không cho gán nợ cho
+ * nhân viên/người lạ); hạn trả trong [ngày kinh doanh check-out, + `MAX_DEBT_TERM_DAYS`].
+ */
+async function assertDebtor(
+  ctx: CommandContext,
+  a: { debtorPersonId: string; dueDate: string },
+  today: string,
+  stayId: string,
+  bookerPersonId: string,
+): Promise<void> {
   if (!UUID.test(a.debtorPersonId ?? ""))
     throw fieldError("allow_balance.debtor_person_id", "REQUIRED", "Cần người nợ (persons)");
   if (!a.dueDate) throw fieldError("allow_balance.due_date", "REQUIRED", "Cần hạn trả");
   assertDate(a.dueDate, "allow_balance.due_date");
   if (a.dueDate < today)
     throw fieldError("allow_balance.due_date", "PAST", "Hạn trả không được trước ngày check-out");
-  const p = await sql<{ id: string }>`
-    select id from persons where organization_id = ${ctx.actor.orgId} and id = ${a.debtorPersonId} and anonymized_at is null`.execute(
+  if (a.dueDate > addDays(today, MAX_DEBT_TERM_DAYS))
+    throw fieldError(
+      "allow_balance.due_date",
+      "TOO_FAR",
+      `Hạn trả tối đa ${MAX_DEBT_TERM_DAYS} ngày kể từ ngày check-out (${addDays(today, MAX_DEBT_TERM_DAYS)})`,
+    );
+  const p = await sql<{ related: boolean }>`
+    select (p.id = ${bookerPersonId}
+            or exists (select 1 from stays s where s.organization_id = p.organization_id and s.id = ${stayId}
+                         and (s.primary_guest_person_id = p.id or p.id = any(s.additional_guest_person_ids)))) as related
+    from persons p
+    where p.organization_id = ${ctx.actor.orgId} and p.id = ${a.debtorPersonId} and p.anonymized_at is null`.execute(
     ctx.trx,
   );
   if (!p.rows[0]) throw fieldError("allow_balance.debtor_person_id", "NOT_FOUND", "Không tìm thấy người nợ");
+  if (!p.rows[0].related)
+    throw fieldError(
+      "allow_balance.debtor_person_id",
+      "NOT_RELATED",
+      "Người nợ phải là người đặt hoặc khách lưu trú của lượt ở này",
+    );
 }
 
 /**
  * Được phép cho nợ khi: chính người gọi có quyền `stay.checkout_with_debt` (owner/manager), hoặc có yêu cầu duyệt `allow_balance` của
- * CHÍNH lượt ở này, đã được người khác có thẩm quyền duyệt (`executed`) cho số tiền ≥ số nợ. Lễ tân tự lập yêu cầu rồi xin duyệt (S-019).
+ * CHÍNH lượt ở này, đã được người khác có thẩm quyền duyệt (`executed`) cho số tiền ≥ số nợ VÀ đúng người nợ + hạn trả ghi trong yêu cầu
+ * (payload: `debtor_person_id` — mặc định người đặt, `due_date` bắt buộc). Người gọi không đổi được hai giá trị đó sau khi đã được duyệt.
+ * Lễ tân tự lập yêu cầu rồi xin duyệt (S-019).
  */
 async function assertMayLeaveBalance(
   ctx: CommandContext,
   a: AllowBalanceInput,
   stay: StayHead,
   balance: number,
+  bookerPersonId: string,
 ): Promise<{ via: "authority" | "approval"; approvalId: string | null }> {
   try {
     authorize(ctx.actor, "stay.checkout_with_debt", { propertyId: stay.property_id });
@@ -355,8 +399,9 @@ async function assertMayLeaveBalance(
     subject_type: string | null;
     subject_id: string | null;
     property_id: string | null;
+    payload: Record<string, unknown>;
   }>`
-    select kind, status, amount::text, subject_type, subject_id, property_id from approval_requests
+    select kind, status, amount::text, subject_type, subject_id, property_id, payload from approval_requests
     where organization_id = ${ctx.actor.orgId} and id = ${a.approvalId}`.execute(ctx.trx);
   const q = r.rows[0];
   const valid =
@@ -370,7 +415,60 @@ async function assertMayLeaveBalance(
     Number(q.amount) >= balance;
   if (!valid)
     throw outstanding(balance, "Duyệt cho nợ không hợp lệ, chưa được duyệt hoặc không đủ số tiền còn nợ.");
+  const approvedDebtor =
+    typeof q.payload.debtor_person_id === "string" ? q.payload.debtor_person_id : bookerPersonId;
+  const approvedDue = typeof q.payload.due_date === "string" ? q.payload.due_date : null;
+  if (approvedDue === null)
+    throw outstanding(
+      balance,
+      "Yêu cầu duyệt cho nợ thiếu hạn trả — lập lại yêu cầu kèm người nợ và hạn trả.",
+    );
+  if (a.debtorPersonId.toLowerCase() !== approvedDebtor.toLowerCase() || a.dueDate !== approvedDue)
+    throw outstanding(
+      balance,
+      "Người nợ/hạn trả không khớp với yêu cầu đã được duyệt (người nợ và hạn trả không đổi được sau khi duyệt).",
+    );
   return { via: "approval", approvalId: a.approvalId };
+}
+
+/**
+ * `stay.requestAllowBalance` (S-019, qua `approval.request` kind `allow_balance`): lễ tân xin quản lý cho khách nợ lúc check-out. Người
+ * nợ (mặc định người đặt) và hạn trả được kiểm ngay lúc lập và LƯU trong payload để người duyệt thấy đúng thứ mình duyệt; check-out
+ * bắt buộc khớp hai giá trị này. Lượt ở phải đang ở; số tiền nợ > 0.
+ */
+export async function requestAllowBalance(
+  ctx: CommandContext,
+  input: {
+    stayId: string;
+    amount: number;
+    reason: string;
+    dueDate: string;
+    debtorPersonId?: string;
+    now?: Date;
+  },
+): Promise<{ approvalRequestId: string }> {
+  const stay = await readStay(ctx, input.stayId, false);
+  authorize(ctx.actor, "reservation.manage", { propertyId: stay.property_id });
+  assertAmount(input.amount, "amount", MAX_CHARGE_AMOUNT);
+  if (stay.status !== "in_house")
+    throw transitionError(stay.status, "checked_out", "Chỉ xin cho nợ khi lượt ở đang ở (in_house)");
+  const booker = await sql<{ booker_person_id: string }>`
+    select booker_person_id from reservations where organization_id = ${ctx.actor.orgId} and id = ${stay.reservation_id}`.execute(
+    ctx.trx,
+  );
+  const bookerId = booker.rows[0]?.booker_person_id as string;
+  const debtorPersonId = input.debtorPersonId ?? bookerId;
+  const today = await businessDateAt(ctx, stay.property_id, input.now ?? new Date());
+  await assertDebtor(ctx, { debtorPersonId, dueDate: input.dueDate }, today, stay.id, bookerId);
+  return requestApproval(ctx, {
+    kind: "allow_balance",
+    amount: input.amount,
+    reason: input.reason,
+    propertyId: stay.property_id,
+    subjectType: "stay",
+    subjectId: stay.id,
+    payload: { debtor_person_id: debtorPersonId, due_date: input.dueDate },
+  });
 }
 
 /**
@@ -459,7 +557,8 @@ export async function checkOut(
   if (!Number.isSafeInteger(total) || total < 0)
     throw new CommandError("VALIDATION_FAILED", 422, "Tổng folio không hợp lệ");
 
-  // Ứng trước của CHÍNH booking còn chưa phân bổ, không vượt số dư CUSTOMER_CREDIT thật của người đặt (đã có thể được hoàn).
+  // Ứng trước của CHÍNH booking còn chưa phân bổ, không vượt số dư CUSTOMER_CREDIT thật của người đặt (đã có thể được hoàn): khoản thu
+  // `payments.reservation_id` và ứng trước đầu kỳ của booking nhập (bút toán mang `reservation_id`, 0031) — không lấy credit chung theo người.
   const advances = (
     await sql<{ id: string; remaining: string }>`
       select id, (amount - allocated_total)::text as remaining from payments
@@ -467,14 +566,24 @@ export async function checkOut(
         and amount > allocated_total
       order by created_at, id`.execute(ctx.trx)
   ).rows;
+  const openingAdvances = await openingAdvancesOf(ctx.trx, orgId, res.id);
   let creditLeft =
-    advances.length > 0 ? await customerCredit(ctx.trx, orgId, res.booker_person_id, stay.property_id) : 0;
+    advances.length + openingAdvances.length > 0
+      ? await customerCredit(ctx.trx, orgId, res.booker_person_id, stay.property_id)
+      : 0;
   let toCover = total;
-  const advancePlan: { paymentId: string; amount: number }[] = [];
+  const advancePlan: ({ amount: number } & ({ paymentId: string } | { openingEntryId: string }))[] = [];
   for (const a of advances) {
     const take = Math.min(Number(a.remaining), toCover, Math.max(creditLeft, 0));
     if (take <= 0) continue;
     advancePlan.push({ paymentId: a.id, amount: take });
+    toCover -= take;
+    creditLeft -= take;
+  }
+  for (const a of openingAdvances) {
+    const take = Math.min(a.remaining, toCover, Math.max(creditLeft, 0));
+    if (take <= 0) continue;
+    advancePlan.push({ openingEntryId: a.entryId, amount: take });
     toCover -= take;
     creditLeft -= take;
   }
@@ -500,8 +609,8 @@ export async function checkOut(
   let leftVia: { via: "authority" | "approval"; approvalId: string | null } | null = null;
   if (balance > 0) {
     if (!input.allowBalance) throw outstanding(balance);
-    await assertDebtor(ctx, input.allowBalance, today);
-    leftVia = await assertMayLeaveBalance(ctx, input.allowBalance, stay, balance);
+    await assertDebtor(ctx, input.allowBalance, today, stay.id, res.booker_person_id);
+    leftVia = await assertMayLeaveBalance(ctx, input.allowBalance, stay, balance, res.booker_person_id);
     debtor = { personId: input.allowBalance.debtorPersonId, dueDate: input.allowBalance.dueDate };
   }
   if (input.depositRefund && balance > 0)
@@ -578,11 +687,21 @@ export async function checkOut(
   // Phân bổ ứng trước (hệ thống, kiểm INV-F2) rồi các khoản thu trong lệnh.
   if (invoiceId) {
     for (const a of advancePlan) {
-      await allocatePayment(
-        ctx,
-        { paymentId: a.paymentId, allocations: [{ invoiceId, amount: a.amount }], at: now },
-        { system: true },
-      );
+      if ("paymentId" in a)
+        await allocatePayment(
+          ctx,
+          { paymentId: a.paymentId, allocations: [{ invoiceId, amount: a.amount }], at: now },
+          { system: true },
+        );
+      else
+        await allocateOpeningAdvance(ctx, {
+          entryId: a.openingEntryId,
+          invoiceId,
+          amount: a.amount,
+          bookerPersonId: res.booker_person_id,
+          propertyId: stay.property_id,
+          at: now,
+        });
     }
   }
   const paid: CheckOutResult["payments"] = [];
@@ -809,7 +928,7 @@ let registered = false;
 
 /**
  * Duyệt `allow_balance` (SPEC S-019): bản thân việc duyệt không ghi sổ — chỉ xác nhận lượt ở còn đang ở; hiệu lực được TIÊU THỤ khi
- * `stay.checkOut` kiểm yêu cầu (đúng lượt ở, đã `executed`, số tiền ≥ số nợ). Lễ tân lập yêu cầu (`reservation.manage`), quản lý/owner duyệt
+ * `stay.checkOut` kiểm yêu cầu (đúng lượt ở, đã `executed`, số tiền ≥ số nợ, đúng người nợ + hạn trả trong payload). Lễ tân lập yêu cầu (`reservation.manage`), quản lý/owner duyệt
  * (`stay.checkout_with_debt`), người lập không tự duyệt (INV-F5).
  */
 export function registerFolioExecutors(): void {
@@ -825,6 +944,14 @@ export function registerFolioExecutors(): void {
         req.amount <= 0
       )
         throw fieldError("subject_id", "INVALID", "Yêu cầu cho nợ cần lượt ở và số tiền nợ > 0");
+      // Người duyệt phải thấy hạn trả (và người nợ nếu khác người đặt) trong yêu cầu: không duyệt "chay" (check-out sẽ đòi khớp).
+      const due = req.payload.due_date;
+      if (typeof due !== "string")
+        throw fieldError("payload.due_date", "REQUIRED", "Yêu cầu cho nợ cần hạn trả");
+      assertDate(due, "payload.due_date");
+      const who = req.payload.debtor_person_id;
+      if (who !== undefined && (typeof who !== "string" || !UUID.test(who)))
+        throw fieldError("payload.debtor_person_id", "INVALID", "Người nợ không hợp lệ");
       const s = await sql<{ status: string }>`
         select status from stays where organization_id = ${ctx.actor.orgId} and id = ${req.subjectId} for share`.execute(
         ctx.trx,
@@ -864,8 +991,14 @@ export interface FolioView {
     open_amount: number;
     due_on: string | null;
   } | null;
-  allocations: { payment_id: string | null; deposit_id: string | null; amount: number }[];
-  /** Ứng trước của booking chưa phân bổ (CUSTOMER_CREDIT). */
+  /** `opening_advance_entry_id`: phân bổ từ ứng trước đầu kỳ của booking nhập (không có khoản thu `payments`). */
+  allocations: {
+    payment_id: string | null;
+    deposit_id: string | null;
+    opening_advance_entry_id: string | null;
+    amount: number;
+  }[];
+  /** Ứng trước của booking chưa phân bổ (CUSTOMER_CREDIT): khoản thu ứng trước + ứng trước đầu kỳ của booking nhập. */
   advance_available: number;
   /** Còn phải thu: phiếu đã phát hành → `open_amount`; chưa → ước tính (charges − ứng trước dùng được). */
   balance: number;
@@ -916,8 +1049,13 @@ export async function getFolio(db: Kysely<unknown>, actor: Actor, stayId: string
     const invoice = inv.rows[0] ?? null;
     const allocs = invoice
       ? (
-          await sql<{ payment_id: string | null; deposit_id: string | null; amount: string }>`
-            select payment_id, deposit_id, amount::text from payment_allocations
+          await sql<{
+            payment_id: string | null;
+            deposit_id: string | null;
+            opening_advance_entry_id: string | null;
+            amount: string;
+          }>`
+            select payment_id, deposit_id, opening_advance_entry_id, amount::text from payment_allocations
             where organization_id = ${actor.orgId} and invoice_id = ${invoice.id} and reversed_at is null
             order by created_at, id`.execute(trx)
         ).rows
@@ -926,6 +1064,10 @@ export async function getFolio(db: Kysely<unknown>, actor: Actor, stayId: string
       select coalesce(sum(amount - allocated_total), 0)::text as v from payments
       where organization_id = ${actor.orgId} and reservation_id = ${st.reservation_id} and purpose = 'receivable'
         and status = 'confirmed'`.execute(trx);
+    const openingRemaining = (await openingAdvancesOf(trx, actor.orgId, st.reservation_id)).reduce(
+      (n, a) => n + a.remaining,
+      0,
+    );
     const dep = await sql<{
       id: string;
       amount: string;
@@ -936,7 +1078,7 @@ export async function getFolio(db: Kysely<unknown>, actor: Actor, stayId: string
       select id, amount::text, deducted_total::text, refunded_total::text, balance::text from deposits
       where organization_id = ${actor.orgId} and reservation_id = ${st.reservation_id}`.execute(trx);
     const chargesTotal = ch.rows.filter((c) => !c.voided_at).reduce((n, c) => n + Number(c.amount), 0);
-    const advanceAvailable = Number(adv.rows[0]?.v ?? 0);
+    const advanceAvailable = Number(adv.rows[0]?.v ?? 0) + openingRemaining;
     return {
       stay_id: st.id,
       stay_status: st.status,
@@ -965,6 +1107,7 @@ export async function getFolio(db: Kysely<unknown>, actor: Actor, stayId: string
       allocations: allocs.map((a) => ({
         payment_id: a.payment_id,
         deposit_id: a.deposit_id,
+        opening_advance_entry_id: a.opening_advance_entry_id,
         amount: Number(a.amount),
       })),
       advance_available: advanceAvailable,

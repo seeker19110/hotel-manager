@@ -16,6 +16,7 @@ import {
   type SendOptions,
   type SendSummary,
   scanOverdue,
+  scanResidenceNotices,
   scanStayNoticeConfig,
   sendDueEmails,
 } from "@hm/app";
@@ -147,7 +148,7 @@ export const REMINDER_JOBS = {
   overdue: { queue: "reminder.scanOverdue", cron: "7 * * * *" },
   /** Nhắc hợp đồng sắp hết hạn: mỗi giờ (so ngày địa phương từng cơ sở; một nhắc mỗi mốc nhờ dedupe). */
   leaseExpiry: { queue: "reminder.scanLeaseExpiry", cron: "11 * * * *" },
-  /** Hạn thông báo lưu trú: 15 phút (đề xuất SPEC). Hiện chỉ có bước cảnh báo chưa cấu hình hạn (S-020); T-207 thêm bước nhắc hạn. */
+  /** Hạn thông báo lưu trú: 15 phút (đề xuất SPEC). Hai bước: cảnh báo chưa cấu hình hạn (S-020) + nhắc hạn/khẩn/quá hạn từ `residence_notices` (S-014…S-016, S-021). */
   stayNotice: { queue: "reminder.scanStayNotice", cron: "*/15 * * * *" },
 } as const;
 
@@ -173,7 +174,11 @@ export async function startReminderWorkers(
   const handlers: Record<keyof typeof REMINDER_JOBS, (now: Date) => Promise<ScanResult>> = {
     overdue: (now) => scanOverdue(workerDb, now),
     leaseExpiry: async (now) => ({ created: await remindExpiring(workerDb, now) }),
-    stayNotice: (now) => scanStayNoticeConfig(workerDb, now),
+    stayNotice: async (now) => {
+      const config = await scanStayNoticeConfig(workerDb, now);
+      const notices = await scanResidenceNotices(workerDb, now);
+      return { created: config.created + notices.created };
+    },
   };
   for (const [name, job] of Object.entries(REMINDER_JOBS) as [
     keyof typeof REMINDER_JOBS,

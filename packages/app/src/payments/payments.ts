@@ -504,7 +504,8 @@ export async function allocatePayment(
       where organization_id = ${ctx.actor.orgId} and id = ${a.invoiceId}`.execute(ctx.trx);
   }
   if (opts.system) {
-    await sql`select app.bump_payment_allocated(${ctx.actor.orgId}, ${p.id}, ${sum})`.execute(ctx.trx);
+    // Hàm không nhận số tiền: tự tính lại bộ đếm = Σ phân bổ còn hiệu lực vừa ghi ở trên (một nguồn sự thật, 0031).
+    await sql`select app.sync_payment_allocated(${ctx.actor.orgId}, ${p.id})`.execute(ctx.trx);
   } else {
     await sql`
       update payments set allocated_total = allocated_total + ${sum}, version = version + 1

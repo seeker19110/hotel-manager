@@ -427,6 +427,11 @@ export interface CreateReservationInput {
   rooms: readonly { unitId: string; guests: number }[];
   arrivalDate: string;
   departureDate: string;
+  /**
+   * Giá đã chốt với khách theo đêm (import chuyển đổi — SPEC-import S-009): đêm có ở đây giữ NGUYÊN giá làm ảnh chụp (INV-G3),
+   * không tra bảng giá; đêm thiếu vẫn tra bảng giá. Chỉ đường đã kiểm quyền riêng (import.commit) mới truyền.
+   */
+  nightlyRates?: readonly NightlyRate[];
 }
 
 /**
@@ -487,6 +492,7 @@ export async function createReservation(
       arrivalDate: input.arrivalDate,
       departureDate: input.departureDate,
       maxNights: MAX_BOOKING_NIGHTS,
+      ...(input.nightlyRates ? { nightlyRates: input.nightlyRates } : {}),
     });
     priced.push({ quote, line });
   }
@@ -706,7 +712,16 @@ export async function takeBookingPayment(
  */
 export async function confirmReservation(
   ctx: CommandContext,
-  input: { reservationId: string; payment?: BookingPaymentInput; now?: Date },
+  input: {
+    reservationId: string;
+    payment?: BookingPaymentInput;
+    now?: Date;
+    /**
+     * Xác nhận không kèm khoản thu dù cơ sở chưa bật `confirm_without_payment`: CHỈ cho import chuyển đổi (SPEC-import S-009) —
+     * tiền đã thu ở sổ cũ, ghi bằng số dư đầu kỳ (Nợ OPENING_BALANCE / Có CUSTOMER_CREDIT), không bịa khoản thu ở hệ thống mới.
+     */
+    imported?: boolean;
+  },
 ): Promise<{
   reservation_id: string;
   status: "confirmed";
@@ -737,7 +752,7 @@ export async function confirmReservation(
     );
   }
   const cfg = await propertyConfig(ctx, res.property_id);
-  if (!input.payment && !cfg.confirmWithoutPayment) {
+  if (!input.payment && !cfg.confirmWithoutPayment && !input.imported) {
     throw new CommandError(
       "EVIDENCE_REQUIRED",
       422,
@@ -775,6 +790,7 @@ export async function confirmReservation(
       payment_kind: input.payment?.kind ?? null,
       amount: input.payment?.amount ?? null,
       without_payment: paid === null,
+      ...(input.imported ? { imported: true } : {}),
     },
   });
   await ctx.emit({
@@ -782,7 +798,11 @@ export async function confirmReservation(
     aggregateType: "reservation",
     aggregateId: res.id,
     propertyId: res.property_id,
-    payload: { reservation_id: res.id, with_payment: paid !== null },
+    payload: {
+      reservation_id: res.id,
+      with_payment: paid !== null,
+      ...(input.imported ? { imported: true } : {}),
+    },
   });
   return {
     reservation_id: res.id,

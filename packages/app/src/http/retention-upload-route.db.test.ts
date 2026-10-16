@@ -406,13 +406,14 @@ describe("loại file (FILE_TYPE_NOT_ALLOWED 415) và quét mã độc", () => {
 
 describe("trường biểu mẫu (422)", () => {
   const post = (f: FormData) => handleImportUpload(req(as(managerUser, A), f), deps);
-  it("property_id không phải UUID; loại không hỗ trợ; reservations chưa mở; trường lạ; hai phần `file`; file rỗng; chỉ có tiêu đề", async () => {
+  it("property_id không phải UUID; loại không hỗ trợ; reservations cần ngày mốc; trường lạ; hai phần `file`; file rỗng; chỉ có tiêu đề", async () => {
     expect((await post(form(enc(UNITS), { property: "abc" }))).status).toBe(422);
     expect((await post(form(enc(UNITS), { kind: "payroll" }))).status).toBe(422);
+    // `reservations` đã mở ở T-208: giờ cần ngày mốc (không còn NOT_SUPPORTED_YET).
     const res = await post(form(enc(UNITS), { kind: "reservations" }));
     expect(res.status).toBe(422);
     expect((await j(res)).errors).toEqual([
-      expect.objectContaining({ field: "kind", code: "NOT_SUPPORTED_YET" }),
+      expect.objectContaining({ field: "cutoff_on", code: "REQUIRED" }),
     ]);
     const extra = await post(form(enc(UNITS), { extra: { evil: "1" } }));
     expect(extra.status).toBe(422);

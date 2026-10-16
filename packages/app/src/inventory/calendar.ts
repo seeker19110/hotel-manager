@@ -116,7 +116,7 @@ function canSeeGuests(actor: Actor, propertyId: string): boolean {
 /**
  * Lịch phòng theo cơ sở, phân trang theo PHÒNG (tầng → mã phòng → id, keyset nên không trùng/sót khi dữ liệu đổi giữa các
  * trang). Chỉ trả đoạn còn hiệu lực chồng khoảng; hold hết hạn chưa nhả không hiển thị. Vai trò chỉ có `calendar.read_status`
- * không nhận tên khách/lý do; không bao giờ có số tiền.
+ * không nhận tên khách (hợp đồng: người đại diện; lượt ở: khách chính) hay lý do (ngừng khai thác, block); không bao giờ có số tiền.
  */
 export async function getCalendar(
   db: Kysely<unknown>,
@@ -196,8 +196,8 @@ export async function getCalendar(
         expires_at: Date | null;
       }>`
         select a.unit_id, a.id as allocation_id, a.kind, a.source_type, l.status as lease_status,
-               coalesce(l.number, b.reason) as label,
-               case when ${seeGuests}::boolean then pr.full_name end as guest_name,
+               coalesce(l.number, case when ${seeGuests}::boolean then b.reason end) as label,
+               case when ${seeGuests}::boolean then coalesce(pr.full_name, sg.full_name) end as guest_name,
                lower(a.during) as lo, upper(a.during) as hi,
                to_char(lower(a.during) at time zone ${tz}, 'YYYY-MM-DD"T"HH24:MI') as start_local,
                to_char(upper(a.during) at time zone ${tz}, 'YYYY-MM-DD"T"HH24:MI') as end_local,
@@ -205,6 +205,8 @@ export async function getCalendar(
         from allocations a
         left join leases l on a.source_type = 'lease' and l.organization_id = a.organization_id and l.id = a.source_id
         left join persons pr on pr.organization_id = l.organization_id and pr.id = l.representative_person_id
+        left join stays st on a.source_type = 'stay' and st.organization_id = a.organization_id and st.id = a.source_id
+        left join persons sg on sg.organization_id = st.organization_id and sg.id = st.primary_guest_person_id
         left join blocks b on a.source_type = 'block' and b.organization_id = a.organization_id and b.id = a.source_id
         where a.organization_id = ${actor.orgId} and a.unit_id = any(${ids}::uuid[]) and a.active
           and a.during && tstzrange((${input.from}::date)::timestamp at time zone ${tz},

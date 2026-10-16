@@ -245,17 +245,79 @@ export const EVENT_MAPPERS: Readonly<Record<string, Mapper>> = {
       params: { property_name: name },
     }));
   },
+  // Do `scanResidenceNotices` (reminders.ts) phát; payload { notice_id, phase: due|urgent|overdue, business_date }. Chỉ trong app (D-010),
+  // gửi owner/manager/lễ tân của cơ sở (S-014). Đọc lại trạng thái ở đây: đã `submitted` (hoặc không còn hạn) ⇒ không tạo gì (S-016).
+  "stay_notice.reminder": async (trx, orgId, e) => {
+    const noticeId = uuidOf(e.payload.notice_id, "notice_id");
+    const phase = e.payload.phase;
+    const day = typeof e.payload.business_date === "string" ? e.payload.business_date : null;
+    if (phase !== "due" && phase !== "urgent" && phase !== "overdue") return [];
+    if (phase === "overdue" && (!day || !/^\d{4}-\d{2}-\d{2}$/.test(day))) return [];
+    const r = await sql<{
+      property_id: string;
+      stay_id: string;
+      status: string;
+      unit_code: string;
+      property_name: string;
+      due_local: string | null;
+    }>`
+      select n.property_id, n.stay_id, n.status, u.code as unit_code, pr.name as property_name,
+             to_char(n.due_at at time zone pr.timezone, 'HH24:MI DD/MM/YYYY') as due_local
+      from residence_notices n
+      join stays s on s.organization_id = n.organization_id and s.id = n.stay_id
+      join units u on u.organization_id = s.organization_id and u.id = s.unit_id
+      join properties pr on pr.organization_id = n.organization_id and pr.id = n.property_id
+      where n.organization_id = ${orgId} and n.id = ${noticeId}`.execute(trx);
+    const n = r.rows[0];
+    if (!n || n.status === "submitted" || !n.due_local) return [];
+    const staff = await propertyManagers(trx, orgId, n.property_id, NOTICE_ROLES);
+    const [title, body, severity, key] =
+      phase === "overdue"
+        ? ([
+            `Quá hạn: phòng ${n.unit_code} chưa đánh dấu đã thông báo lưu trú`,
+            `Phòng ${n.unit_code} (hạn ${n.due_local}) chưa được đánh dấu đã thông báo lưu trú. Xuất file, thông báo rồi đánh dấu đã thông báo.`,
+            "overdue",
+            `stay_notice_overdue:${noticeId}:${day}`,
+          ] as const)
+        : phase === "urgent"
+          ? ([
+              `Khẩn: phòng ${n.unit_code} còn ít phút để thông báo lưu trú`,
+              `Phòng ${n.unit_code}: cần thông báo lưu trú trước ${n.due_local}. Hệ thống không tự gửi — hãy xuất file và đánh dấu đã thông báo.`,
+              "urgent",
+              `stay_notice_urgent:${noticeId}`,
+            ] as const)
+          : ([
+              `Phòng ${n.unit_code}: cần thông báo lưu trú trước ${n.due_local}`,
+              `Phòng ${n.unit_code}: cần thông báo lưu trú trước ${n.due_local}. Hệ thống không tự gửi — hãy xuất file và đánh dấu đã thông báo.`,
+              "normal",
+              `stay_notice_due:${noticeId}`,
+            ] as const);
+    return staff.map((personId) => ({
+      propertyId: n.property_id,
+      recipientPersonId: personId,
+      type: "stay_notice_due" as const,
+      severity,
+      title,
+      body,
+      link: `/luu-tru/${n.stay_id}/thong-bao`,
+      dedupeKey: key,
+      params: { property_name: n.property_name },
+    }));
+  },
 };
 
-/** Owner/manager đang hoạt động trong phạm vi cơ sở (người nhận thông báo vận hành). */
+const NOTICE_ROLES = ["owner", "manager", "front_desk"] as const;
+
+/** Người đang hoạt động trong phạm vi cơ sở theo vai trò (mặc định owner/manager — người nhận thông báo vận hành). */
 async function propertyManagers(
   trx: Transaction<unknown>,
   orgId: string,
   propertyId: string,
+  roles: readonly string[] = ["owner", "manager"],
 ): Promise<string[]> {
   const staff = await sql<{ person_id: string }>`
     select distinct m.person_id from memberships m
-    where m.organization_id = ${orgId} and m.status = 'active' and m.role in ('owner','manager')
+    where m.organization_id = ${orgId} and m.status = 'active' and m.role = any(${[...roles]}::text[])
       and (m.all_properties or exists (select 1 from property_scopes ps
            where ps.organization_id = m.organization_id and ps.membership_id = m.id and ps.property_id = ${propertyId}))`.execute(
     trx,

@@ -4,7 +4,10 @@
 // giao/kích hoạt hợp đồng, chỉ số, số dư đầu kỳ) nên mọi ràng buộc (EXCLUDE phòng, khoá kỳ…) áp nguyên vẹn; lỗi ràng buộc ở
 // dòng nào ⇒ rollback toàn bộ, lô về `validated` kèm `CONFLICT_AT_COMMIT` (ghi ở transaction lưu lỗi).
 // File là DỮ LIỆU: không tính công thức (chỉ đọc giá trị đã lưu), không chạy macro/liên kết; báo cáo lỗi chống formula injection.
-// `reservations` (S-009) chờ module đặt phòng ở đợt 3.
+// `reservations` (PLAN đợt 3 T-208; S-009): booking đang có/tương lai — mỗi dòng đi qua đúng `createReservation` → `holdReservation` →
+// `confirmReservation` của module đặt phòng (EXCLUDE chồng phòng, sức chứa, số đêm, snapshot giá áp nguyên vẹn). Giá trong file là
+// giá ĐÃ CHỐT với khách ⇒ làm ảnh chụp `nightly_prices` (không tra bảng giá hiện hành); ứng trước đã nhận ở sổ cũ ghi bằng
+// Nợ OPENING_BALANCE / Có CUSTOMER_CREDIT (không bịa khoản thu CASH/BANK hay doanh thu).
 import { createHash, randomUUID } from "node:crypto";
 import { withTenant } from "@hm/db";
 import {
@@ -26,10 +29,17 @@ import { detectMime } from "../files/inspect.ts";
 import { createUnit } from "../inventory/units.ts";
 import { activateLease, clearImportReadingsPending, recordImportHandover } from "../lease/handover.ts";
 import { createDraft, createPerson, signLease, submitForSignature } from "../lease/lease.ts";
-import { recordOpeningDebt, recordOpeningDeposit } from "../ledger/opening-balance.ts";
+import { recordOpeningAdvance, recordOpeningDebt, recordOpeningDeposit } from "../ledger/opening-balance.ts";
 import { importReading } from "../metering/meters.ts";
 import { type CommandContext, canonicalJson } from "../pipeline/command.ts";
 import { CommandError, fieldError, toProblem } from "../pipeline/problem.ts";
+import {
+  confirmReservation,
+  createReservation,
+  holdReservation,
+  MAX_BOOKING_NIGHTS,
+  stayInterval,
+} from "../reservation/reservation.ts";
 import { readXlsx, writeXlsx, XlsxError } from "./xlsx.ts";
 
 /** Đề xuất SPEC-import mục 10 (chờ PO): 5 MB / 5.000 dòng; ô ≤ 500 ký tự. */
@@ -40,7 +50,13 @@ export const IMPORT_LIMITS = {
   previewRows: 200,
   errors: 1000,
 } as const;
-export const IMPORT_KINDS = ["units", "leases", "meter_readings", "opening_balances"] as const;
+export const IMPORT_KINDS = [
+  "units",
+  "leases",
+  "meter_readings",
+  "opening_balances",
+  "reservations",
+] as const;
 export type ImportKind = (typeof IMPORT_KINDS)[number];
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -153,6 +169,48 @@ export const IMPORT_COLUMNS: Readonly<Record<ImportKind, readonly ColumnSpec[]>>
     { name: "amount", required: true, help: "Số nguyên đồng ≥ 0 (1580000 hoặc 1.580.000)", example: 1580000 },
     { name: "note", required: false, help: "Ghi chú", example: "Tiền điện tháng 10 chưa trả" },
   ],
+  reservations: [
+    {
+      name: "external_id",
+      required: true,
+      help: "Mã booking ở sổ/hệ thống cũ (chống nhập lặp)",
+      example: "BK-001",
+    },
+    { name: "unit_code", required: true, help: "Mã phòng đã có trong hệ thống", example: "101" },
+    {
+      name: "arrival_on",
+      required: true,
+      help: "Ngày đến YYYY-MM-DD, không trước ngày mốc chuyển đổi",
+      example: "2026-11-10",
+    },
+    {
+      name: "departure_on",
+      required: true,
+      help: `Ngày đi YYYY-MM-DD, sau ngày đến, tối đa ${MAX_BOOKING_NIGHTS} đêm`,
+      example: "2026-11-12",
+    },
+    { name: "guest_name", required: true, help: "Họ tên người đặt", example: "Nguyễn Văn A" },
+    { name: "guest_phone", required: true, help: "Số điện thoại người đặt", example: "0900000001" },
+    { name: "guests", required: false, help: "Số khách; trống = 1; không vượt sức chứa phòng", example: 2 },
+    {
+      name: "nightly_price",
+      required: false,
+      help: "Giá một đêm ĐÃ CHỐT với khách, số nguyên đồng; cần một trong nightly_price/total_amount",
+      example: 600000,
+    },
+    {
+      name: "total_amount",
+      required: false,
+      help: "Tổng tiền phòng ĐÃ CHỐT, số nguyên đồng (chia đều các đêm, đêm đầu nhận phần dư); nếu có cả hai phải khớp giá đêm × số đêm",
+      example: 1200000,
+    },
+    {
+      name: "advance_amount",
+      required: false,
+      help: "Ứng trước đã nhận ở sổ cũ, số nguyên đồng ≥ 0, không vượt tổng tiền phòng; ghi bằng số dư đầu kỳ",
+      example: 500000,
+    },
+  ],
 };
 
 export interface RowError {
@@ -236,8 +294,6 @@ export async function uploadBatch(
 ): Promise<{ batchId: string; fileId: string; rows: number }> {
   if (!UUID.test(input.propertyId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy cơ sở");
   authorize(ctx.actor, "import.prepare", { propertyId: input.propertyId });
-  if (input.kind === "reservations")
-    throw fieldError("kind", "NOT_SUPPORTED_YET", "Nhập đặt phòng mở ở đợt 3");
   if (!(IMPORT_KINDS as readonly string[]).includes(input.kind))
     throw fieldError("kind", "INVALID", "Loại nhập không hỗ trợ");
   const kind = input.kind as ImportKind;
@@ -445,8 +501,81 @@ function parseRow(
       data.note = r.text("note", IMPORT_LIMITS.cell, false) ?? "";
       break;
     }
+    case "reservations": {
+      data.unit_code = r.text("unit_code", 20);
+      const arrival = r.take("arrival_on", parseImportDate(raw.arrival_on));
+      const departure = r.take("departure_on", parseImportDate(raw.departure_on));
+      data.arrival_on = arrival;
+      data.departure_on = departure;
+      data.guest_name = r.text("guest_name", 200);
+      const phone = r.text("guest_phone", 20);
+      if (phone !== undefined && !/^\+?[0-9 .()-]{6,20}$/.test(phone))
+        r.err("guest_phone", "INVALID_FORMAT", "Số điện thoại không hợp lệ");
+      data.guest_phone = phone;
+      data.guests = raw.guests ? r.take("guests", parseImportInt(raw.guests, 1, 1000)) : 1;
+      const nightly = raw.nightly_price
+        ? r.take("nightly_price", parseImportVnd(raw.nightly_price, { allowZero: false }))
+        : undefined;
+      const total = raw.total_amount
+        ? r.take("total_amount", parseImportVnd(raw.total_amount, { allowZero: false }))
+        : undefined;
+      if (!raw.nightly_price && !raw.total_amount)
+        r.err("total_amount", "REQUIRED", "Cần giá đêm (nightly_price) hoặc tổng tiền phòng (total_amount)");
+      data.nightly_price = nightly ?? null;
+      data.total_amount = total ?? null;
+      const advance = raw.advance_amount ? r.take("advance_amount", parseImportVnd(raw.advance_amount)) : 0;
+      data.advance_amount = advance;
+      if (arrival && cutoffOn && arrival < cutoffOn)
+        r.err(
+          "arrival_on",
+          "OUT_OF_RANGE",
+          `Chỉ nhập booking đến từ ngày mốc ${cutoffOn} trở đi (khách đang ở: check-in trên hệ thống)`,
+        );
+      let nights: number | undefined;
+      if (arrival && departure) {
+        nights = dayNumber(departure) - dayNumber(arrival);
+        if (nights < 1) r.err("departure_on", "OUT_OF_RANGE", "Ngày đi phải sau ngày đến");
+        else if (nights > MAX_BOOKING_NIGHTS)
+          r.err("departure_on", "OUT_OF_RANGE", `Tối đa ${MAX_BOOKING_NIGHTS} đêm một booking`);
+      }
+      if (nights !== undefined && nights >= 1 && nights <= MAX_BOOKING_NIGHTS) {
+        if (nightly !== undefined && total !== undefined && nightly * nights !== total)
+          r.err("total_amount", "OUT_OF_RANGE", "Tổng tiền khác giá đêm × số đêm");
+        const roomTotal = total ?? (nightly === undefined ? undefined : nightly * nights);
+        if (roomTotal !== undefined && advance !== undefined && advance > roomTotal)
+          r.err("advance_amount", "OUT_OF_RANGE", "Ứng trước vượt tổng tiền phòng");
+        if (roomTotal !== undefined && !Number.isSafeInteger(roomTotal))
+          r.err("total_amount", "OUT_OF_RANGE", "Tổng tiền quá lớn");
+        data.room_total = roomTotal ?? null;
+      }
+      break;
+    }
   }
   return { r, data };
+}
+
+/** Số ngày kể từ epoch của ngày lịch `YYYY-MM-DD` (đã kiểm ở `parseImportDate`). */
+// Số ngày từ epoch: 00:00 UTC luôn là bội số đúng của 86.400.000 ms nên phép chia ra số nguyên (không làm tròn — test kiến trúc tiền).
+const dayNumber = (d: string) => Date.parse(`${d}T00:00:00Z`) / 86_400_000;
+
+/**
+ * Giá từng đêm của booking nhập: có `nightly_price` ⇒ đều nhau; chỉ có `total_amount` ⇒ chia đều, phần dư (đồng) dồn vào các đêm đầu
+ * (mỗi đêm +1 đ) để Σ = tổng đúng từng đồng. Cùng đầu vào ⇒ cùng kết quả (ảnh chụp INV-G3, không phụ thuộc bảng giá).
+ */
+export function nightlyAmountsOf(
+  arrival: string,
+  departure: string,
+  nightly: number | null,
+  total: number | null,
+): { businessDate: string; amount: number }[] {
+  const nights = dayNumber(departure) - dayNumber(arrival);
+  const sum = total ?? (nightly ?? 0) * nights;
+  const base = nightly ?? Math.floor(sum / nights);
+  const extra = nightly === null ? sum - base * nights : 0;
+  return Array.from({ length: nights }, (_, i) => ({
+    businessDate: new Date((dayNumber(arrival) + i) * 86_400_000).toISOString().slice(0, 10),
+    amount: base + (i < extra ? 1 : 0),
+  }));
 }
 
 const hashOf = (kind: ImportKind, data: Record<string, unknown>) =>
@@ -575,7 +704,7 @@ async function checkRows(trx: Transaction<unknown>, orgId: string, b: BatchRow):
     const unitId = typeof d.unit_code === "string" ? units.get(d.unit_code.toLowerCase()) : undefined;
     if (b.kind === "units" && unitId)
       c.errors.push({ column: "unit_code", code: "ALREADY_EXISTS", message: "Mã phòng đã có trong cơ sở" });
-    if ((b.kind === "leases" || b.kind === "meter_readings") && !unitId)
+    if ((b.kind === "leases" || b.kind === "meter_readings" || b.kind === "reservations") && !unitId)
       c.errors.push({
         column: "unit_code",
         code: "REFERENCE_NOT_FOUND",
@@ -586,6 +715,7 @@ async function checkRows(trx: Transaction<unknown>, orgId: string, b: BatchRow):
   if (b.kind === "leases") await checkLeases(trx, orgId, b, pending);
   if (b.kind === "meter_readings") await checkReadings(trx, orgId, b, pending);
   if (b.kind === "opening_balances") await checkBalances(trx, orgId, b, pending);
+  if (b.kind === "reservations") await checkReservations(trx, orgId, b, pending);
   for (const c of out) {
     if (c.errors.length > 0) c.action = "error";
   }
@@ -643,6 +773,108 @@ async function checkLeases(trx: Transaction<unknown>, orgId: string, b: BatchRow
   }
 }
 
+/**
+ * Booking (S-009): phòng phải khai thác được, đủ sức chứa, có loại phòng; khoảng ở [ngày đến + giờ nhận, ngày đi + giờ trả) theo
+ * giờ cơ sở không chồng booking/hợp đồng/block đang có (kể cả hold còn hạn) và không chồng dòng trước trong cùng file. Dòng bận chỉ
+ * lỗi ở dòng đó — các dòng khác vẫn "sẽ tạo". Commit vẫn đi qua EXCLUDE của CSDL nên đua giữa validate và commit ⇒ CONFLICT_AT_COMMIT.
+ */
+async function checkReservations(trx: Transaction<unknown>, orgId: string, b: BatchRow, rows: Checked[]) {
+  const unitIds = [
+    ...new Set(rows.map((c) => c.data?.unit_id).filter((x): x is string => typeof x === "string")),
+  ];
+  const info = new Map(
+    unitIds.length === 0
+      ? []
+      : (
+          await sql<{
+            id: string;
+            availability: string;
+            room_type_id: string | null;
+            capacity: number | null;
+          }>`
+            select u.id, u.availability, u.room_type_id, rt.capacity
+            from units u left join room_types rt on rt.organization_id = u.organization_id and rt.id = u.room_type_id
+            where u.organization_id = ${orgId} and u.id = any(${unitIds}::uuid[])`.execute(trx)
+        ).rows.map((u) => [u.id, u]),
+  );
+  const times = (
+    await sql<{ ok: boolean }>`
+      select (check_in_time is not null and check_out_time is not null) as ok from properties
+      where organization_id = ${orgId} and id = ${b.property_id}`.execute(trx)
+  ).rows[0];
+  const seen: { unit: string; start: number; end: number; ref: string | null }[] = [];
+  for (const c of rows) {
+    const d = c.data as Record<string, unknown>;
+    if (typeof d.unit_id !== "string") continue;
+    const unit = info.get(d.unit_id);
+    if (!times?.ok) {
+      c.errors.push({
+        column: "unit_code",
+        code: "CHECK_TIMES_MISSING",
+        message: "Cơ sở chưa cấu hình giờ nhận/trả phòng",
+      });
+      continue;
+    }
+    if (!unit?.room_type_id || unit.capacity === null) {
+      c.errors.push({
+        column: "unit_code",
+        code: "UNIT_NO_ROOM_TYPE",
+        message: "Phòng chưa gán loại phòng nên không nhận booking được",
+      });
+      continue;
+    }
+    if (unit.availability !== "active") {
+      c.errors.push({
+        column: "unit_code",
+        code: "UNIT_OUT_OF_SERVICE",
+        message: "Phòng đang ngừng khai thác",
+      });
+      continue;
+    }
+    if ((d.guests as number) > unit.capacity) {
+      c.errors.push({
+        column: "guests",
+        code: "CAPACITY_EXCEEDED",
+        message: `Số khách vượt sức chứa của phòng (${unit.capacity})`,
+      });
+      continue;
+    }
+    const during = await stayInterval(
+      trx,
+      orgId,
+      b.property_id,
+      d.arrival_on as string,
+      d.departure_on as string,
+    );
+    const [start, end] = [during.start.getTime(), (during.end as Date).getTime()];
+    const clash = seen.find((x) => x.unit === d.unit_id && x.start < end && start < x.end);
+    if (clash) {
+      c.errors.push({
+        column: "unit_code",
+        code: "ROOM_UNAVAILABLE",
+        message: "Phòng đã có người hoặc đã được giữ trong khoảng này.",
+        ...(clash.ref ? { ref: clash.ref } : {}),
+      });
+      continue;
+    }
+    const busy = await sql`
+      select 1 from allocations a
+      where a.organization_id = ${orgId} and a.unit_id = ${d.unit_id} and a.active
+        and not coalesce(a.kind = 'hold' and a.expires_at <= now(), false)
+        and a.during && tstzrange(${during.start}::timestamptz, ${during.end}::timestamptz, '[)')
+      limit 1`.execute(trx);
+    if (busy.rows.length > 0) {
+      c.errors.push({
+        column: "unit_code",
+        code: "ROOM_UNAVAILABLE",
+        message: "Phòng đã có người hoặc đã được giữ trong khoảng này.",
+      });
+      continue;
+    }
+    seen.push({ unit: d.unit_id, start, end, ref: c.externalId });
+  }
+}
+
 async function checkReadings(trx: Transaction<unknown>, orgId: string, _b: BatchRow, rows: Checked[]) {
   for (const c of rows) {
     const d = c.data as Record<string, unknown>;
@@ -695,6 +927,12 @@ async function checkBalances(trx: Transaction<unknown>, orgId: string, b: BatchR
 
 function totalsOf(kind: ImportKind, rows: Checked[]): Totals {
   const created = rows.filter((c) => c.action === "create");
+  if (kind === "reservations")
+    return {
+      rows: created.length,
+      room_total: created.reduce((s, c) => s + Number(c.data?.room_total ?? 0), 0),
+      advance: created.reduce((s, c) => s + Number(c.data?.advance_amount ?? 0), 0),
+    };
   if (kind !== "opening_balances") return { rows: created.length };
   const sum = (t: string) =>
     created.filter((c) => c.data?.type === t).reduce((s, c) => s + Number(c.data?.amount), 0);
@@ -901,6 +1139,35 @@ async function writeRow(
       });
       await clearImportReadingsPending(ctx, { unitId: d.unit_id as string, cutoffOn: cutoff });
       return r.readingId;
+    }
+    case "reservations": {
+      const arrival = d.arrival_on as string;
+      const departure = d.departure_on as string;
+      const nights = nightlyAmountsOf(
+        arrival,
+        departure,
+        (d.nightly_price as number | null) ?? null,
+        (d.total_amount as number | null) ?? null,
+      );
+      const created = await createReservation(ctx, {
+        booker: { fullName: d.guest_name as string, phone: d.guest_phone as string },
+        rooms: [{ unitId: d.unit_id as string, guests: d.guests as number }],
+        arrivalDate: arrival,
+        departureDate: departure,
+        nightlyRates: nights,
+      });
+      const now = new Date();
+      await holdReservation(ctx, { reservationId: created.id, now });
+      await confirmReservation(ctx, { reservationId: created.id, now, imported: true });
+      if ((d.advance_amount as number) > 0)
+        await recordOpeningAdvance(ctx, {
+          reservationId: created.id,
+          amount: d.advance_amount as number,
+          businessDate: cutoff,
+          batchId: b.id,
+          sourceId: `${b.id}:${rowNo}`,
+        });
+      return created.id;
     }
     case "opening_balances":
       if (d.type === "debt") {

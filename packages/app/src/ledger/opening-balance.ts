@@ -145,3 +145,64 @@ export async function recordOpeningDeposit(
   });
   return { depositId, journalEntryId };
 }
+
+/**
+ * Ứng trước đã nhận cho booking khi chuyển đổi (SPEC-import S-009; SPEC-import mục 10 "trả thừa đầu kỳ"): Nợ `OPENING_BALANCE` /
+ * Có `CUSTOMER_CREDIT` (gắn người đặt) — KHÔNG ghi `CASH`/`BANK`/`REV_*` và không tạo `payments` (tiền đã vào sổ cũ, không có chứng cứ
+ * ở hệ thống mới). Booking phải còn hiệu lực (`confirmed`/`in_house`); chống ghi lặp do `import_external_refs` của lô nhập.
+ */
+export async function recordOpeningAdvance(
+  ctx: CommandContext,
+  input: {
+    reservationId: string;
+    amount: number;
+    businessDate: string;
+    /** Lô nhập — `source_doc_id` của bút toán (loại `import_batch`). */
+    batchId: string;
+    sourceId: string;
+  },
+): Promise<{ journalEntryId: string }> {
+  if (!Number.isSafeInteger(input.amount) || input.amount <= 0)
+    throw new CommandError("VALIDATION_FAILED", 422, "Ứng trước là số nguyên dương");
+  const r = await sql<{ id: string; status: string; property_id: string; booker_person_id: string }>`
+    select id, status, property_id, booker_person_id from reservations
+    where organization_id = ${ctx.actor.orgId} and id = ${input.reservationId}`.execute(ctx.trx);
+  const res = r.rows[0];
+  if (!res) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy booking");
+  authorize(ctx.actor, "import.commit", { propertyId: res.property_id });
+  if (!["confirmed", "in_house"].includes(res.status)) {
+    throw new CommandError(
+      "INVALID_TRANSITION",
+      409,
+      "Booking không còn hiệu lực — không ghi ứng trước đầu kỳ",
+      {
+        extensions: { from: res.status },
+      },
+    );
+  }
+  const journalEntryId = await postEntry(ctx.trx, {
+    orgId: ctx.actor.orgId,
+    propertyId: res.property_id,
+    entryType: "opening_balance",
+    businessDate: input.businessDate,
+    sourceDocType: "import_batch",
+    sourceDocId: input.batchId,
+    createdBy: ctx.actor.membershipId,
+    commandId: ctx.commandId,
+    memo: `Ứng trước đầu kỳ booking ${res.id}`,
+    // Khoá liên kết booking ↔ khoản ứng trước nhập: check-out chỉ dùng ứng trước gắn đúng booking (không FIFO theo người đặt).
+    reservationId: res.id,
+    lines: [
+      { account: "OPENING_BALANCE", debit: input.amount, credit: 0 },
+      { account: "CUSTOMER_CREDIT", debit: 0, credit: input.amount, personId: res.booker_person_id },
+    ],
+  });
+  await ctx.audit({
+    action: "ledger.opening_advance",
+    entityType: "reservation",
+    entityId: res.id,
+    propertyId: res.property_id,
+    after: { amount: input.amount, business_date: input.businessDate, import_row: input.sourceId },
+  });
+  return { journalEntryId };
+}

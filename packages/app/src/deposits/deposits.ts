@@ -248,17 +248,27 @@ async function payoutLine(
   return { account: "BANK" as const, debit: 0, credit: amount, receivingAccountId: acct };
 }
 
-/** Cọc của một booking mà lượt ở đã trả phòng (hoàn cọc lúc/ngay sau check-out — hạn mức lễ tân chỉ áp ở đây, SPEC S-027). */
-async function isCheckedOutBookingDeposit(ctx: CommandContext, depositId: string): Promise<boolean> {
+/**
+ * "Lúc check-out" của một cọc đặt phòng (hạn mức hoàn của lễ tân chỉ áp ở đây, SPEC S-027): MỌI lượt ở còn hiệu lực của booking đã
+ * `checked_out` (ít nhất một) VÀ thời điểm duyệt (giờ CSDL) cùng NGÀY KINH DOANH với lần check-out cuối cùng. Một lượt ở đã trả từ lâu,
+ * hoặc booking còn phòng đang ở, không còn là "lúc check-out" → lễ tân không duyệt (chỉ owner/manager theo hạn mức riêng). Cọc hợp đồng
+ * trọ (không có booking) không phải check-out khách sạn.
+ */
+async function isAtBookingCheckout(ctx: CommandContext, depositId: string): Promise<boolean> {
   if (!UUID.test(depositId)) return false;
   const r = await sql<{ ok: boolean }>`
-    select exists (
-      select 1 from deposits d
+    select (open_n = 0 and out_n > 0
+            and app.business_date(${ctx.actor.orgId}, property_id, now()) = app.business_date(${ctx.actor.orgId}, property_id, last_out)) as ok
+    from (
+      select d.property_id,
+             count(*) filter (where s.status in ('expected', 'in_house')) as open_n,
+             count(*) filter (where s.status = 'checked_out') as out_n,
+             max(s.checked_out_at) as last_out
+      from deposits d
       join reservation_items ri on ri.organization_id = d.organization_id and ri.reservation_id = d.reservation_id
       join stays s on s.organization_id = ri.organization_id and s.reservation_item_id = ri.id
-      where d.organization_id = ${ctx.actor.orgId} and d.id = ${depositId} and s.status = 'checked_out') as ok`.execute(
-    ctx.trx,
-  );
+      where d.organization_id = ${ctx.actor.orgId} and d.id = ${depositId}
+      group by d.property_id) x`.execute(ctx.trx);
   return r.rows[0]?.ok ?? false;
 }
 
@@ -336,10 +346,10 @@ export function registerDepositExecutors(): void {
   });
 
   registerApprovalExecutor("deposit_refund", {
-    // "Đang check-out" suy ra từ CSDL, không tin client: cọc đặt phòng mà lượt ở của booking đã `checked_out` (T-206). Cọc hợp đồng
-    // trọ không phải check-out khách sạn → lễ tân không duyệt.
+    // "Đang check-out" suy ra từ CSDL, không tin client (xem `isAtBookingCheckout`): mọi lượt ở đã trả VÀ cùng ngày kinh doanh với lần
+    // trả cuối; ngoài ra lễ tân không duyệt (áp hạn mức thường = 0).
     context: async (ctx, req) => ({
-      atCheckout: await isCheckedOutBookingDeposit(ctx, req.subjectId as string),
+      atCheckout: await isAtBookingCheckout(ctx, req.subjectId as string),
     }),
     async execute(ctx, req) {
       const amount = req.amount as number;

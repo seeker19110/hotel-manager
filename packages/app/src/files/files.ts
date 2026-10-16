@@ -2,7 +2,7 @@
 // Tải lên: kiểm kích thước → nhận dạng magic bytes theo allowlist của loại chủ → bỏ EXIF → quét mã độc → ghi object
 // (khoá có tiền tố tổ chức) → hàng `files`. Đọc: kiểm quyền TRƯỚC, rồi mới cấp URL ký ≤ 5 phút.
 import { createHash, randomUUID } from "node:crypto";
-import { authorize } from "@hm/domain";
+import { type Action, authorize } from "@hm/domain";
 import { sql } from "kysely";
 import type { CommandContext } from "../pipeline/command.ts";
 import { CommandError } from "../pipeline/problem.ts";
@@ -15,7 +15,13 @@ import {
 } from "./inspect.ts";
 import { MAX_SIGNED_URL_SECONDS, type ObjectStorage } from "./storage.ts";
 
-export type FileOwnerType = "work_order" | "handover" | "meter_reading" | "identity_document" | "task";
+export type FileOwnerType =
+  | "work_order"
+  | "handover"
+  | "meter_reading"
+  | "identity_document"
+  | "task"
+  | "residence_notice";
 
 const IMAGES: readonly DetectedMime[] = ["image/jpeg", "image/png", "image/webp"];
 const ALLOW: Readonly<Record<FileOwnerType, readonly DetectedMime[]>> = {
@@ -24,6 +30,8 @@ const ALLOW: Readonly<Record<FileOwnerType, readonly DetectedMime[]>> = {
   meter_reading: IMAGES,
   task: IMAGES,
   identity_document: [...IMAGES, "application/pdf"],
+  // Bằng chứng đã thông báo lưu trú (ảnh chụp/PDF biên nhận) — T-207.
+  residence_notice: [...IMAGES, "application/pdf"],
 };
 /** 10 MB/ảnh (đề xuất SPEC-housekeeping Q, chờ PO). */
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;
@@ -38,9 +46,15 @@ export async function uploadFile(
   deps: FileDeps,
   input: { ownerType: FileOwnerType; ownerId?: string; propertyId: string; bytes: Uint8Array },
 ): Promise<{ fileId: string; status: "ready" | "rejected"; mime: DetectedMime }> {
-  authorize(ctx.actor, input.ownerType === "identity_document" ? "identity.read" : "work_order.create", {
-    propertyId: input.propertyId,
-  });
+  authorize(
+    ctx.actor,
+    input.ownerType === "identity_document"
+      ? "identity.read"
+      : input.ownerType === "residence_notice"
+        ? "residence_notice.manage"
+        : "work_order.create",
+    { propertyId: input.propertyId },
+  );
   if (input.bytes.byteLength === 0) throw new CommandError("VALIDATION_FAILED", 422, "File rỗng");
   if (input.bytes.byteLength > MAX_FILE_BYTES)
     throw new CommandError("FILE_TOO_LARGE", 413, "File vượt dung lượng cho phép");
@@ -122,13 +136,14 @@ export async function storeTabularFile(
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Quyền đọc theo loại chủ — allowlist; loại chưa khai báo (residence_notice, payment_claim, export_job…) bị từ chối. */
-const READ_ACTION: Readonly<Record<string, "identity.read" | "calendar.read_status">> = {
+/** Quyền đọc theo loại chủ — allowlist; loại chưa khai báo (payment_claim, export_job…) bị từ chối. */
+const READ_ACTION: Readonly<Record<string, Action>> = {
   identity_document: "identity.read",
   work_order: "calendar.read_status",
   handover: "calendar.read_status",
   meter_reading: "calendar.read_status",
   task: "calendar.read_status",
+  residence_notice: "residence_notice.manage",
 };
 
 /** URL ký cho file — chỉ sau khi kiểm quyền; không thấy (khác tổ chức, ngoài phạm vi, không đủ vai trò) → NOT_FOUND. */

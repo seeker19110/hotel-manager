@@ -40,6 +40,8 @@ export interface EntryInput {
   commandId?: string;
   memo?: string;
   reversesEntryId?: string;
+  /** Chỉ bút toán `opening_balance` ứng trước đầu kỳ của booking nhập (0031): khoá liên kết để check-out dùng đúng booking. */
+  reservationId?: string;
 }
 
 export async function postEntry(trx: Transaction<unknown>, e: EntryInput): Promise<string> {
@@ -47,11 +49,10 @@ export async function postEntry(trx: Transaction<unknown>, e: EntryInput): Promi
   const id = randomUUID();
   await sql`
     insert into journal_entries (id, organization_id, property_id, entry_type, business_date, source_doc_type, source_doc_id,
-                                 reverses_entry_id, memo, created_by, command_id)
+                                 reverses_entry_id, memo, created_by, command_id, reservation_id)
     values (${id}, ${e.orgId}, ${e.propertyId}, ${e.entryType}, ${e.businessDate}::date, ${e.sourceDocType}, ${e.sourceDocId},
-            ${e.reversesEntryId ?? null}, ${e.memo ?? null}, ${e.createdBy ?? null}, ${e.commandId ?? null})`.execute(
-    trx,
-  );
+            ${e.reversesEntryId ?? null}, ${e.memo ?? null}, ${e.createdBy ?? null}, ${e.commandId ?? null},
+            ${e.reservationId ?? null})`.execute(trx);
   let n = 0;
   for (const l of e.lines) {
     n++;

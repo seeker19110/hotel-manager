@@ -171,6 +171,8 @@ Bối cảnh chung: tổ chức B, cơ sở `HS1` (múi giờ `Asia/Ho_Chi_Minh`
 - Trạng thái UI: chuông có số chưa đọc · đang tải: khung xương · rỗng: "Chưa có thông báo" · lỗi: thông điệp theo mã + "Thử lại" · lịch sử gửi: nhãn chữ + icon cho từng trạng thái (S-006).
 - Tiếp cận: số chưa đọc có `aria-label` "3 thông báo chưa đọc"; thông báo mới đọc qua `aria-live="polite"`; trang tuỳ chọn dùng checkbox có nhãn; email có phiên bản văn bản thuần, ngôn ngữ `vi`.
 
+- Ghi chú triển khai (T-207, đợt 3): job `reminder.scanStayNotice` chạy hai bước — cảnh báo chưa cấu hình hạn (S-020) và `scanResidenceNotices` đọc `residence_notices` qua `app.residence_notices_due`, phát outbox `stay_notice.reminder {notice_id, phase, business_date}` với `phase`: `due` (nhắc đầu, S-014/S-015) → `urgent` ("Khẩn", còn ≤ 30 phút, S-016) → `overdue` ("Quá hạn", `dedupe_key = stay_notice_overdue:{notice_id}:{business_date}` ở thông báo, S-021). Mỗi lượt quét một giai đoạn mới nhất cho mỗi thông báo (không dồn). Dừng khi `submitted` (SQL không chọn + mapper kiểm lại). Người nhận: owner/manager/lễ tân trong phạm vi cơ sở; chỉ trong app (D-010), không email.
+
 ## 6. Lỗi
 | Mã lỗi | Khi nào | HTTP | Thông điệp cho người dùng | Scenario |
 |---|---|---|---|---|

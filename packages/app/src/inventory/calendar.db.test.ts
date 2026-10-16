@@ -1,6 +1,14 @@
 // T-202 — lịch phòng (SPEC-inventory-allocation S-021, S-022, Q-05) và trạng thái ba chiều (S-014) trên Postgres thật.
 import { randomUUID } from "node:crypto";
-import { createTestDb, type SeededOrg, seedAuthUser, seedLease, seedOrg, type TestDb } from "@hm/testkit";
+import {
+  createTestDb,
+  type SeededOrg,
+  seedAuthUser,
+  seedLease,
+  seedOrg,
+  seedReservation,
+  type TestDb,
+} from "@hm/testkit";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type Actor, resolveActor } from "../access/actor.ts";
@@ -11,6 +19,7 @@ let A: SeededOrg;
 let B: SeededOrg;
 let owner: Actor;
 let housekeeping: Actor;
+let frontDesk: Actor;
 let tenantRole: Actor;
 let floor2: string;
 let typeDeluxe: string;
@@ -18,6 +27,8 @@ let u: Record<string, string>; // mã phòng → id
 let leaseNumber: string;
 
 const REP_NAME = "Nguyễn Thị Khách Thuê";
+const STAY_GUEST = "Trần Văn Khách Lưu Trú";
+const BLOCK_REASON = "Sơn lại tường (bảo trì)";
 const iso = (s: string) => new Date(s);
 
 async function addMember(orgId: string, propertyId: string, role: string, fullName: string): Promise<string> {
@@ -111,14 +122,47 @@ beforeAll(async () => {
     sourceType: "lease",
     sourceId: lease.leaseId,
   });
-  await alloc(u["202"] as string, "stay", "2026-10-15T14:00:00+07:00", "2026-10-17T12:00:00+07:00");
+  // 202: lượt ở THẬT (booking + stays + khách chính) để lịch hiện tên khách lưu trú cho vai trò được xem.
+  const guest = randomUUID();
+  await sql`insert into persons (id, organization_id, full_name) values (${guest}, ${A.orgId}, ${STAY_GUEST})`.execute(
+    t.admin,
+  );
+  const bk = await seedReservation(t.admin, {
+    orgId: A.orgId,
+    propertyId: A.propertyId,
+    bookerPersonId: guest,
+    unitId: u["202"] as string,
+    roomTypeId: A.roomTypeId,
+    arrivalDate: "2026-10-15",
+    departureDate: "2026-10-17",
+  });
+  const stayId = randomUUID();
+  await sql`insert into stays (id, organization_id, property_id, reservation_item_id, unit_id, status, primary_guest_person_id,
+                               checked_in_at)
+            values (${stayId}, ${A.orgId}, ${A.propertyId}, ${bk.itemId}, ${u["202"] as string}, 'in_house', ${guest},
+                    ${iso("2026-10-15T07:00:00Z")})`.execute(t.admin);
+  await alloc(u["202"] as string, "stay", "2026-10-15T14:00:00+07:00", "2026-10-17T12:00:00+07:00", {
+    sourceType: "stay",
+    sourceId: stayId,
+  });
   await alloc(u["101"] as string, "hold", "2026-10-18T14:00:00+07:00", "2026-10-19T12:00:00+07:00", {
     expiresAt: "2026-10-17T00:00:00Z",
   });
   await alloc(u["102"] as string, "hold", "2026-10-15T14:00:00+07:00", "2026-10-16T12:00:00+07:00", {
     expiresAt: "2026-10-16T02:00:00Z",
   });
-  await alloc(u["102"] as string, "block", "2026-10-19T08:00:00+07:00", "2026-10-20T17:00:00+07:00");
+  const blockId = randomUUID();
+  await t.admin.transaction().execute(async (trx) => {
+    await sql`insert into blocks (id, organization_id, property_id, unit_id, period, reason, requested_by, approved_by, status, approved_at)
+              values (${blockId}, ${A.orgId}, ${A.propertyId}, ${u["102"] as string},
+                      tstzrange(${iso("2026-10-19T08:00:00+07:00")}, ${iso("2026-10-20T17:00:00+07:00")}, '[)'), ${BLOCK_REASON},
+                      ${A.ownerMembershipId}, ${A.ownerMembershipId}, 'approved', now())`.execute(trx);
+    await sql`insert into allocations (id, organization_id, property_id, unit_id, kind, source_type, source_id, during)
+              values (${randomUUID()}, ${A.orgId}, ${A.propertyId}, ${u["102"] as string}, 'block', 'block', ${blockId},
+                      tstzrange(${iso("2026-10-19T08:00:00+07:00")}, ${iso("2026-10-20T17:00:00+07:00")}, '[)'))`.execute(
+      trx,
+    );
+  });
   await alloc(u["203"] as string, "stay", "2026-10-16T14:00:00+07:00", "2026-10-17T12:00:00+07:00", {
     active: false,
   });
@@ -134,6 +178,11 @@ beforeAll(async () => {
     authUserId: await addMember(A.orgId, A.propertyId, "housekeeping", "Buồng Phòng"),
     orgId: A.orgId,
     twoFactorEnabled: false,
+  });
+  frontDesk = await resolveActor(t.runtime, {
+    authUserId: await addMember(A.orgId, A.propertyId, "front_desk", "Lễ Tân"),
+    orgId: A.orgId,
+    twoFactorEnabled: true,
   });
   tenantRole = await resolveActor(t.runtime, {
     authUserId: await addMember(A.orgId, A.propertyId, "tenant", "Người thuê"),
@@ -242,6 +291,23 @@ describe("S-021 vai trò và dữ liệu nhạy cảm", () => {
     expect(JSON.stringify(own)).not.toMatch(/amount|rent|deposit|price|total/i);
     expect(own.rooms.find((r) => r.code === "201")?.segments[0]?.guest_name).toBe(REP_NAME);
     expect(own.rooms.find((r) => r.code === "203")?.availability_reason).toBe("Vỡ ống nước");
+  });
+
+  it("review: đoạn lưu trú (stay) có tên khách chính cho owner/lễ tân, buồng phòng KHÔNG thấy; lý do block bị che như availability_reason", async () => {
+    const seg = (v: CalendarView, code: string, kind: string) =>
+      v.rooms.find((r) => r.code === code)?.segments.find((x) => x.kind === kind);
+    for (const actor of [owner, frontDesk]) {
+      const v = await cal(actor);
+      expect(seg(v, "202", "stay")?.guest_name).toBe(STAY_GUEST);
+      expect(seg(v, "102", "block")?.label).toBe(BLOCK_REASON);
+    }
+    const hk = await cal(housekeeping);
+    expect(seg(hk, "202", "stay")).toBeDefined();
+    expect(seg(hk, "202", "stay")?.guest_name).toBeNull();
+    expect(seg(hk, "102", "block")).toBeDefined();
+    expect(seg(hk, "102", "block")?.label).toBeNull();
+    expect(JSON.stringify(hk)).not.toContain(STAY_GUEST);
+    expect(JSON.stringify(hk)).not.toContain(BLOCK_REASON);
   });
 
   it("vai trò không có quyền xem lịch (tenant) → FORBIDDEN", async () => {

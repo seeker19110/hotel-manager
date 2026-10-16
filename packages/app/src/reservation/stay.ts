@@ -27,6 +27,7 @@ import {
   takeBookingPayment,
   transitionError,
 } from "./reservation.ts";
+import { createResidenceNotice } from "./residence.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PHONE = /^\+?[0-9 .()-]{6,20}$/;
@@ -427,6 +428,13 @@ export async function checkIn(
     number: res.number,
     nights: item.nightly_prices,
   });
+  // S-028: thông báo lưu trú `pending` cùng transaction với việc lượt ở thành `in_house` (T-207).
+  await createResidenceNotice(ctx, {
+    propertyId: res.property_id,
+    stayId: target.id,
+    isForeign: g.foreign,
+    checkedInAt: now,
+  });
   await ctx.audit({
     action: "stay.checked_in",
     entityType: "stay",
@@ -594,6 +602,12 @@ export async function walkIn(
     stayId,
     number,
     nights: nightly,
+  });
+  await createResidenceNotice(ctx, {
+    propertyId: unit.property_id,
+    stayId,
+    isForeign: g.foreign,
+    checkedInAt: now,
   });
   // Một sự kiện tạo duy nhất (không có `stay.checkIn` riêng): lịch sử trạng thái và audit của walk-in chỉ có "tạo ở in_house".
   await ctx.audit({

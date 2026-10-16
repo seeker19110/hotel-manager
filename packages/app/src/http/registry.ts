@@ -88,7 +88,7 @@ import {
   previewMatches,
   resolveBreak,
 } from "../reconciliation/reconciliation.ts";
-import { checkOut, getFolio, postCharge, voidCharge } from "../reservation/folio.ts";
+import { checkOut, getFolio, postCharge, requestAllowBalance, voidCharge } from "../reservation/folio.ts";
 import { quoteReservation, setRatePlan } from "../reservation/rates.ts";
 import {
   cancelReservation,
@@ -100,6 +100,7 @@ import {
   listReservations,
   markNoShow,
 } from "../reservation/reservation.ts";
+import { listNotices, markNoticeSubmitted, NOTICE_CHANNELS } from "../reservation/residence.ts";
 import { checkIn, getStay, walkIn } from "../reservation/stay.ts";
 import {
   closeShift,
@@ -259,6 +260,14 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
         })
         .nullable()
         .optional(),
+      residence_notice_template: z
+        .strictObject({
+          columns: z.array(z.string().min(1).max(40)).min(1).max(12),
+          foreign_columns: z.array(z.string().min(1).max(40)).max(12).optional(),
+          required: z.array(z.string().min(1).max(40)).max(12).optional(),
+        })
+        .nullable()
+        .optional(),
       send_window_start: hhmm.optional(),
       send_window_end: hhmm.optional(),
     }),
@@ -279,6 +288,9 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
                       Object.entries(i.stay_notice_deadline).filter(([, v]) => v !== undefined),
                     ) as Record<string, string | number>),
             }),
+        ...(i.residence_notice_template === undefined
+          ? {}
+          : { residenceNoticeTemplate: i.residence_notice_template }),
         ...(i.send_window_start ? { sendWindowStart: i.send_window_start } : {}),
         ...(i.send_window_end ? { sendWindowEnd: i.send_window_end } : {}),
       }),
@@ -286,24 +298,42 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
   }),
   "approval.request": defineCommand({
     command: "approval.request",
-    // Không nhận `payload` từ client: ngữ cảnh duyệt do server suy ra (executor), không tin client.
-    input: z.strictObject({
-      kind: z.enum(APPROVAL_KINDS),
-      amount: money.nullable(),
-      reason: z.string().trim().min(1).max(1000),
-      property_id: uuid.nullable(),
-      subject_type: z.string().min(1).max(64).optional(),
-      subject_id: uuid.optional(),
-    }),
-    run: async (ctx, i) => ({
-      data: await requestApproval(ctx, {
-        kind: i.kind,
-        amount: i.amount,
-        reason: i.reason,
-        propertyId: i.property_id,
-        ...(i.subject_type ? { subjectType: i.subject_type } : {}),
-        ...(i.subject_id ? { subjectId: i.subject_id } : {}),
+    // Không nhận `payload` từ client: ngữ cảnh duyệt do server suy ra (executor), không tin client. Riêng `allow_balance`
+    // (cho nợ lúc check-out) nhận người nợ + hạn trả có kiểu rõ ràng; server kiểm rồi mới dựng payload để người duyệt thấy.
+    input: z
+      .strictObject({
+        kind: z.enum(APPROVAL_KINDS),
+        amount: money.nullable(),
+        reason: z.string().trim().min(1).max(1000),
+        property_id: uuid.nullable(),
+        subject_type: z.string().min(1).max(64).optional(),
+        subject_id: uuid.optional(),
+        allow_balance: z.strictObject({ debtor_person_id: uuid.optional(), due_date: isoDate }).optional(),
+      })
+      .refine((i) => i.allow_balance === undefined || i.kind === "allow_balance", {
+        path: ["allow_balance"],
+        message: "Chỉ dùng cho loại allow_balance",
       }),
+    run: async (ctx, i) => ({
+      data:
+        i.kind === "allow_balance"
+          ? await requestAllowBalance(ctx, {
+              stayId: i.subject_id ?? "",
+              amount: i.amount ?? 0,
+              reason: i.reason,
+              dueDate: i.allow_balance?.due_date ?? "",
+              ...(i.allow_balance?.debtor_person_id
+                ? { debtorPersonId: i.allow_balance.debtor_person_id }
+                : {}),
+            })
+          : await requestApproval(ctx, {
+              kind: i.kind,
+              amount: i.amount,
+              reason: i.reason,
+              propertyId: i.property_id,
+              ...(i.subject_type ? { subjectType: i.subject_type } : {}),
+              ...(i.subject_id ? { subjectId: i.subject_id } : {}),
+            }),
       httpStatus: 201,
     }),
   }),
@@ -1052,6 +1082,24 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
       httpStatus: 201,
     }),
   }),
+  // `stay.exportResidenceNotice` cần object storage (file riêng tư): không đi qua registry JSON — xem `exportResidenceNotice` (T-207).
+  "stay.markNoticeSubmitted": defineCommand({
+    command: "stay.markNoticeSubmitted",
+    input: z.strictObject({
+      notice_id: uuid,
+      submitted_at: instant,
+      channel: z.enum(NOTICE_CHANNELS),
+      evidence_file_id: uuid.optional(),
+    }),
+    run: async (ctx, i) => ({
+      data: await markNoticeSubmitted(ctx, {
+        noticeId: i.notice_id,
+        submittedAt: new Date(i.submitted_at),
+        channel: i.channel,
+        ...(i.evidence_file_id ? { evidenceFileId: i.evidence_file_id } : {}),
+      }),
+    }),
+  }),
   "stay.postCharge": defineCommand({
     command: "stay.postCharge",
     input: z.strictObject({
@@ -1600,6 +1648,31 @@ export const QUERIES: Readonly<Record<string, AnyQuery>> = {
     query: "stay.get",
     input: z.strictObject({ stay_id: uuid }),
     run: (db, actor, i: { stay_id: string }) => getStay(db, actor, i.stay_id),
+  },
+  "stay.listNotices": {
+    query: "stay.listNotices",
+    input: z.strictObject({
+      property_id: uuid,
+      status: z.enum(["pending", "exported", "submitted"]).optional(),
+      due_before: instant.optional(),
+      limit: z.coerce.number().int().min(1).max(200).optional(),
+    }),
+    run: (
+      db,
+      actor,
+      i: {
+        property_id: string;
+        status?: "pending" | "exported" | "submitted";
+        due_before?: string;
+        limit?: number;
+      },
+    ) =>
+      listNotices(db, actor, {
+        propertyId: i.property_id,
+        ...(i.status ? { status: i.status } : {}),
+        ...(i.due_before ? { dueBefore: new Date(i.due_before) } : {}),
+        ...(i.limit === undefined ? {} : { limit: i.limit }),
+      }),
   },
   "stay.getFolio": {
     query: "stay.getFolio",
