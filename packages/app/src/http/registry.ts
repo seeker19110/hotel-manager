@@ -41,7 +41,7 @@ import {
   setExpectedTotals,
   validateBatch,
 } from "../import/import.ts";
-import { getUnitStatus } from "../inventory/inventory.ts";
+import { approveBlock, endBlock, getUnitStatus } from "../inventory/inventory.ts";
 import { activateLease, recordHandover, renewLease } from "../lease/handover.ts";
 import {
   addOccupant,
@@ -57,6 +57,16 @@ import {
 } from "../lease/lease.ts";
 import { approveSettlement, closeLease, giveNotice, prepareSettlement } from "../lease/settlement.ts";
 import { financialSummary, issueAdjustment, lockPeriod, unlockPeriod } from "../ledger/period-close.ts";
+import {
+  assignWorkOrder,
+  cancelWorkOrder,
+  completeWorkOrder,
+  createWorkOrder,
+  listWorkOrders,
+  proposeWorkOrderBlock,
+  startWorkOrder,
+  verifyWorkOrder,
+} from "../maintenance/work-orders.ts";
 import {
   acknowledgeAnomaly,
   installMeter,
@@ -573,6 +583,99 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
     command: "housekeeping.cancelTask",
     input: z.strictObject({ task_id: uuid, reason: z.string().trim().min(1).max(1000) }),
     run: async (ctx, i) => ({ data: await cancelTask(ctx, { taskId: i.task_id, reason: i.reason }) }),
+  }),
+  "maintenance.createWorkOrder": defineCommand({
+    command: "maintenance.createWorkOrder",
+    input: z.strictObject({
+      unit_id: uuid,
+      title: z.string().trim().min(1).max(200),
+      description: z.string().trim().min(1).max(2000),
+      severity: z.enum(["low", "medium", "high", "critical"]),
+      file_ids: z.array(uuid).max(5).default([]),
+    }),
+    run: async (ctx, i) => ({
+      data: await createWorkOrder(ctx, {
+        unitId: i.unit_id,
+        title: i.title,
+        description: i.description,
+        severity: i.severity,
+        fileIds: i.file_ids,
+      }),
+      httpStatus: 201,
+    }),
+  }),
+  "maintenance.assignWorkOrder": defineCommand({
+    command: "maintenance.assignWorkOrder",
+    input: z.strictObject({ work_order_id: uuid, assignee_membership_id: uuid }),
+    run: async (ctx, i) => ({
+      data: await assignWorkOrder(ctx, {
+        workOrderId: i.work_order_id,
+        assigneeMembershipId: i.assignee_membership_id,
+      }),
+    }),
+  }),
+  "maintenance.startWorkOrder": defineCommand({
+    command: "maintenance.startWorkOrder",
+    input: z.strictObject({ work_order_id: uuid }),
+    run: async (ctx, i) => ({ data: await startWorkOrder(ctx, { workOrderId: i.work_order_id }) }),
+  }),
+  "maintenance.completeWorkOrder": defineCommand({
+    command: "maintenance.completeWorkOrder",
+    input: z.strictObject({
+      work_order_id: uuid,
+      note: z.string().max(2000).optional(),
+      file_ids: z.array(uuid).max(5).default([]),
+    }),
+    run: async (ctx, i) => ({
+      data: await completeWorkOrder(ctx, {
+        workOrderId: i.work_order_id,
+        fileIds: i.file_ids,
+        ...(i.note ? { note: i.note } : {}),
+      }),
+    }),
+  }),
+  "maintenance.verifyWorkOrder": defineCommand({
+    command: "maintenance.verifyWorkOrder",
+    input: z.strictObject({ work_order_id: uuid }),
+    run: async (ctx, i) => ({ data: await verifyWorkOrder(ctx, { workOrderId: i.work_order_id }) }),
+  }),
+  "maintenance.cancelWorkOrder": defineCommand({
+    command: "maintenance.cancelWorkOrder",
+    input: z.strictObject({ work_order_id: uuid, reason: z.string().trim().min(1).max(1000) }),
+    run: async (ctx, i) => ({
+      data: await cancelWorkOrder(ctx, { workOrderId: i.work_order_id, reason: i.reason }),
+    }),
+  }),
+  "maintenance.proposeBlock": defineCommand({
+    command: "maintenance.proposeBlock",
+    input: z.strictObject({
+      work_order_id: uuid,
+      start: z.iso.datetime({ offset: true }),
+      end: z.iso.datetime({ offset: true }),
+      reason: z.string().trim().min(1).max(1000),
+    }),
+    run: async (ctx, i) => ({
+      data: await proposeWorkOrderBlock(ctx, {
+        workOrderId: i.work_order_id,
+        start: new Date(i.start),
+        end: new Date(i.end),
+        reason: i.reason,
+      }),
+      httpStatus: 201,
+    }),
+  }),
+  "inventory.approveBlock": defineCommand({
+    command: "inventory.approveBlock",
+    input: z.strictObject({ block_id: uuid }),
+    run: async (ctx, i) => {
+      await approveBlock(ctx, i.block_id);
+      return { data: { blockId: i.block_id, status: "approved" } };
+    },
+  }),
+  "inventory.endBlock": defineCommand({
+    command: "inventory.endBlock",
+    input: z.strictObject({ block_id: uuid }),
+    run: async (ctx, i) => ({ data: await endBlock(ctx, i.block_id) }),
   }),
   "reservation.markNoShow": defineCommand({
     command: "reservation.markNoShow",
@@ -1439,6 +1542,20 @@ export const QUERIES: Readonly<Record<string, AnyQuery>> = {
     query: "inventory.getUnitStatus",
     input: z.strictObject({ unit_id: uuid }),
     run: (db, actor, i: { unit_id: string }) => getUnitStatus(db, actor, i.unit_id),
+  },
+  "maintenance.listWorkOrders": {
+    query: "maintenance.listWorkOrders",
+    input: z.strictObject({
+      property_id: uuid,
+      status: z.enum(["open", "assigned", "in_progress", "done", "verified", "cancelled"]).optional(),
+      mine: z.enum(["true", "false"]).optional(),
+    }),
+    run: (db, actor, i: { property_id: string; status?: never; mine?: "true" | "false" }) =>
+      listWorkOrders(db, actor, {
+        propertyId: i.property_id,
+        ...(i.status ? { status: i.status } : {}),
+        mine: i.mine === "true",
+      }),
   },
   "reservation.get": {
     query: "reservation.get",

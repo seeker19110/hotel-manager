@@ -380,3 +380,46 @@ export async function getUnitStatus(
     };
   });
 }
+
+/**
+ * `inventory.endBlock` (SPEC-housekeeping S-019; SPEC-inventory block): chỉ owner/manager (`block.approve`); block `approved` →
+ * `ended`, allocation block thu lại tới thời điểm kết thúc (chưa bắt đầu → nhả). Gọi lại block đã kết thúc → 409.
+ */
+export async function endBlock(
+  ctx: CommandContext,
+  blockId: string,
+  now = new Date(),
+): Promise<{ blockId: string }> {
+  const r = await sql<{ property_id: string; status: string }>`
+    select property_id, status from blocks where organization_id = ${ctx.actor.orgId} and id = ${blockId} for update`.execute(
+    ctx.trx,
+  );
+  const b = r.rows[0];
+  if (!b) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy block");
+  authorize(ctx.actor, "block.approve", { propertyId: b.property_id });
+  if (b.status !== "approved")
+    throw new CommandError("INVALID_TRANSITION", 409, "Block không ở trạng thái đang chặn");
+  const a = await sql<{ id: string; lo: Date; hi: Date }>`
+    select id, lower(during) as lo, upper(during) as hi from allocations
+    where organization_id = ${ctx.actor.orgId} and kind = 'block' and source_id = ${blockId} and active for update`.execute(
+    ctx.trx,
+  );
+  for (const al of a.rows) {
+    if (now.getTime() <= al.lo.getTime()) {
+      await sql`update allocations set active = false, deactivated_at = ${now}, deactivated_reason = 'ended'
+                where organization_id = ${ctx.actor.orgId} and id = ${al.id}`.execute(ctx.trx);
+    } else if (now.getTime() < al.hi.getTime()) {
+      await sql`update allocations set during = tstzrange(lower(during), ${now}, '[)')
+                where organization_id = ${ctx.actor.orgId} and id = ${al.id}`.execute(ctx.trx);
+    }
+  }
+  await sql`update blocks set status = 'ended', ended_at = ${now}, version = version + 1
+            where organization_id = ${ctx.actor.orgId} and id = ${blockId}`.execute(ctx.trx);
+  await ctx.audit({
+    action: "block.ended",
+    entityType: "block",
+    entityId: blockId,
+    propertyId: b.property_id,
+  });
+  return { blockId };
+}
