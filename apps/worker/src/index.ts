@@ -1,6 +1,13 @@
 // Worker nền: outbox relay + consumer pg-boss (ARCHITECTURE container apps/worker).
 export { detectOverstay, generatePeriods, remindExpiring } from "@hm/app";
-export { bankTransactionReceivedHandler, expireHolds } from "./jobs.ts";
+export {
+  bankTransactionReceivedHandler,
+  expireHolds,
+  RETENTION_CRON,
+  RETENTION_QUEUE,
+  scheduleRetention,
+  startRetentionWorker,
+} from "./jobs.ts";
 export { DEAD_LETTER_QUEUE, ensureQueues, type OutboxJob, relayOutbox, startConsumers } from "./relay.ts";
 
 export function main(): void {

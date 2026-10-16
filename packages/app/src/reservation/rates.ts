@@ -24,7 +24,7 @@ const MAX_PRICE = Number.MAX_SAFE_INTEGER;
 const MIN_YEAR = 2000;
 const MAX_YEAR = 2100;
 
-function assertDate(d: string, field: string): void {
+export function assertDate(d: string, field: string): void {
   const t = new Date(`${d}T00:00:00Z`);
   if (!DATE.test(d) || Number.isNaN(t.getTime()) || t.toISOString().slice(0, 10) !== d) {
     throw fieldError(field, "INVALID_DATE", `${field}: ngày không hợp lệ (YYYY-MM-DD)`);

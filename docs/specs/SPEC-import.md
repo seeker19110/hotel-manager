@@ -217,6 +217,7 @@ Không áp dụng.
 - [ ] Bàn giao nguồn `import` không có chỉ số (`readings_pending`) — [không chặn] — hỏi: PO. **Đề xuất:** chọn cách này (không bắt chỉ số trên cùng dòng hợp đồng) vì chỉ số hiện tại nằm ở file `meter_readings`; kỳ thu bị chặn `READINGS_INCOMPLETE` đến khi đủ.
 
 - **Quyết trong lúc làm (PLAN đợt 2 T-115):** chống nhập lặp theo `(cơ sở, loại, external_id)` (mỗi cơ sở có sổ cũ riêng); dòng tiêu đề là dòng 1, số dòng lỗi theo dòng của file; nợ/cọc 0 đ → hành động `skip_empty` ("không có số dư"); hợp đồng nhập phải bắt đầu tính tiền ≤ ngày mốc và chưa hết hạn tại ngày mốc; phòng nhập: loại phòng theo sức chứa (`P<n>`), tầng theo tên; chỉ số nhập mà phòng chưa có công tơ ⇒ lắp công tơ với chỉ số đầu = giá trị nhập; xác nhận chỉ owner (`import.commit`); lô số dư bắt buộc nhập tổng nguồn trước khi xác nhận; route tải file (`import.upload` multipart) chờ web nối object storage.
+- **Quyết trong lúc làm (PLAN đợt 3 T-219):** `POST /api/v1/import/upload` (multipart/form-data: `property_id`, `kind`, `cutoff_on`, `file`; trả 201 `{batch_id, file_id, rows, status:"uploaded"}`) là route riêng (không đi `handleCommand` JSON), giữ trần 5 MB/5.000 dòng của mục 10 (thân yêu cầu đọc theo luồng, trần = file + 64 KB); loại file nhận dạng theo nội dung (ZIP → XLSX; UTF-8 không NUL → CSV; ảnh/PDF/nhị phân → 415), quét mã độc TRƯỚC khi phân tích; hạn giữ: file nguồn có `delete_after` = ngày tải lên (UTC) + 90 ngày cho lô bỏ dở, commit/huỷ đặt lại còn 30 ngày; job `retention.sweep` (hằng ngày 03:17 UTC) xoá object quá hạn rồi đánh dấu `files.deleted_at` (lỗi storage → thử lại lần sau; 404 coi như đã xoá) và làm rỗng `import_rows.raw/data` (`'{}'`/NULL) của lô `committed`/`cancelled` quá 30 ngày; giữ số dòng, `external_id`, `row_hash`, `action`, `errors`, `target_id` và `actual_totals`/`expected_totals` của lô. Lô bỏ dở (`uploaded`/`validated`/`confirmed` quá lâu) chưa bị tự huỷ — việc tiếp theo.
 
 ## 11. DoR / DoD
 - DoR: spec Approved · 0 câu [chặn] · DOMAIN-MODEL v1.2 đã bổ sung mọi tên bảng · SPEC-lease, SPEC-ledger-payments Approved.
@@ -225,7 +226,7 @@ Không áp dụng.
 ## 12. Truy vết
 | Task | PR | Bằng chứng |
 |---|---|---|
-| T023 Import Excel/CSV | PR #5 (PLAN đợt 2 T-115) | `packages/app/src/import/import.db.test.ts` (S-001…S-008, S-010…S-020), `xlsx.test.ts`, `packages/domain/src/import/values.test.ts`; **S-009 (booking) chờ module đặt phòng đợt 3** |
+| T023 Import Excel/CSV | PR #5 (PLAN đợt 2 T-115) | `packages/app/src/import/import.db.test.ts` (S-001…S-008, S-010…S-020), `xlsx.test.ts`, `packages/domain/src/import/values.test.ts`; **S-009 (booking) chờ module đặt phòng đợt 3**; T-219 (hạn giữ + route upload): `packages/app/src/files/retention.db.test.ts`, `apps/worker/src/retention.db.test.ts`, `packages/app/src/http/retention-upload-route.db.test.ts` |
 
 ## Thay đổi
 | Phiên bản | Ngày | Gì | Vì sao | Duyệt |

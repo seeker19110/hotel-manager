@@ -84,6 +84,12 @@ export async function uploadFile(
   return { fileId: id, status, mime };
 }
 
+/**
+ * Hạn giữ file nguồn của lô nhập chưa commit/huỷ (bỏ dở): tính từ lúc tải lên. Commit/huỷ đặt lại còn 30 ngày
+ * (SPEC-import mục 10). Chọn 90 ngày để người dùng kịp đối chiếu tổng cọc/nợ mà không để PII nằm mãi.
+ */
+export const IMPORT_UPLOAD_RETENTION_DAYS = 90;
+
 export type TabularMime = "text/csv" | "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
 /**
@@ -93,20 +99,22 @@ export type TabularMime = "text/csv" | "application/vnd.openxmlformats-officedoc
 export async function storeTabularFile(
   ctx: CommandContext,
   deps: FileDeps,
-  input: { ownerId: string; propertyId: string; bytes: Uint8Array; mime: TabularMime },
+  input: { ownerId: string; propertyId: string; bytes: Uint8Array; mime: TabularMime; scanned?: boolean },
 ): Promise<{ fileId: string; sha256: string }> {
-  const scan = await deps.scanner.scan(input.bytes);
-  if (!scan.clean) throw new CommandError("FILE_TYPE_NOT_ALLOWED", 415, "File bị từ chối khi quét an toàn");
+  // `scanned`: người gọi đã quét đúng các byte này (trước khi phân tích) — không quét lần hai.
+  if (!input.scanned) {
+    const scan = await deps.scanner.scan(input.bytes);
+    if (!scan.clean) throw new CommandError("FILE_TYPE_NOT_ALLOWED", 415, "File bị từ chối khi quét an toàn");
+  }
   const id = randomUUID();
   const key = `${ctx.actor.orgId}/import_batch/${id}`;
   const sha256 = createHash("sha256").update(input.bytes).digest("hex");
   await sql`
     insert into files (id, organization_id, property_id, owner_type, owner_id, mime, size_bytes, sha256, status, storage_key,
-                       uploaded_by, scanned_at)
+                       uploaded_by, scanned_at, delete_after)
     values (${id}, ${ctx.actor.orgId}, ${input.propertyId}, 'import_batch', ${input.ownerId}, ${input.mime},
-            ${input.bytes.byteLength}, ${sha256}, 'ready', ${key}, ${ctx.actor.membershipId}, now())`.execute(
-    ctx.trx,
-  );
+            ${input.bytes.byteLength}, ${sha256}, 'ready', ${key}, ${ctx.actor.membershipId}, now(),
+            (now() at time zone 'utc')::date + ${IMPORT_UPLOAD_RETENTION_DAYS}::int)`.execute(ctx.trx);
   ctx.onRollback(() => deps.storage.delete(key));
   await deps.storage.put(key, input.bytes, input.mime);
   return { fileId: id, sha256 };
@@ -136,7 +144,7 @@ export async function getFileUrl(
     status: string;
     storage_key: string;
   }>`
-    select owner_type, property_id, status, storage_key from files where organization_id = ${ctx.actor.orgId} and id = ${fileId}`.execute(
+    select owner_type, property_id, status, storage_key from files where organization_id = ${ctx.actor.orgId} and id = ${fileId} and deleted_at is null`.execute(
     ctx.trx,
   );
   const f = r.rows[0];

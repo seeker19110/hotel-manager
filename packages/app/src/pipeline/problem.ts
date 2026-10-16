@@ -25,6 +25,8 @@ export interface Problem {
   items?: Record<string, string | number | null>[];
   /** ROOM_UNAVAILABLE: phòng cùng loại còn trống trong khoảng đó (SPEC-inventory S-002). */
   alternatives?: Record<string, string | number | null>[];
+  /** ROOM_UNAVAILABLE khi gia hạn/kéo dài đụng booking-hợp đồng đã xác nhận: `exceptions` loại EXTENSION_CONFLICT (SPEC-inventory S-018). */
+  exception_id?: string;
   /** IMPORT_TOTALS_MISMATCH: tổng nguồn so với tổng file theo loại (SPEC-import S-013). */
   totals?: Record<string, { expected: number; actual: number; diff: number }>;
 }
@@ -48,6 +50,7 @@ export type ProblemExtensions = Partial<
     | "items"
     | "totals"
     | "alternatives"
+    | "exception_id"
   >
 >;
 
@@ -64,7 +67,7 @@ export function fieldError(field: string, code: string, message: string): Comman
  */
 export type FailurePersist = (
   trx: Transaction<unknown>,
-) => Promise<Partial<Pick<Problem, "approval_request_id" | "errors">>>;
+) => Promise<Partial<Pick<Problem, "approval_request_id" | "errors" | "exception_id">>>;
 
 /** Lỗi nghiệp vụ có mã — handler ném lớp này (hoặc AuthzError/TransitionError/AccessError). */
 export class CommandError extends Error {

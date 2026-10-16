@@ -78,6 +78,16 @@ import {
 } from "../reconciliation/reconciliation.ts";
 import { quoteReservation, setRatePlan } from "../reservation/rates.ts";
 import {
+  cancelReservation,
+  changeReservationDates,
+  confirmReservation,
+  createReservation,
+  getReservation,
+  holdReservation,
+  listReservations,
+  markNoShow,
+} from "../reservation/reservation.ts";
+import {
   closeShift,
   handoverShift,
   openShift,
@@ -128,6 +138,16 @@ const toBankTxn = (b: z.infer<typeof bankTxn>) => ({
   occurredAt: b.occurred_at,
   ...(b.description ? { description: b.description } : {}),
 });
+
+const bookingPayment = z.strictObject({
+  kind: z.enum(["advance", "security_deposit"]),
+  method: z.enum(["cash", "bank_transfer"]),
+  amount: positiveMoney,
+  receiving_account_id: uuid.optional(),
+  bank_txn: bankTxn.optional(),
+  bank_transaction_id: uuid.optional(),
+});
+const reasonText = z.string().trim().min(1).max(1000);
 
 /** Kiểu rộng cho danh mục (mỗi mục giữ schema riêng). */
 // biome-ignore lint/suspicious/noExplicitAny: danh mục không đồng nhất; mỗi mục tự gõ kiểu qua defineCommand
@@ -745,6 +765,119 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
       httpStatus: 201,
     }),
   }),
+  "reservation.create": defineCommand({
+    command: "reservation.create",
+    // Pilot: một phòng (`unit_id` + `guests`, SPEC §5); `rooms` là mở rộng nhiều phòng chung ngày đến/đi.
+    input: z
+      .strictObject({
+        booker: z.union([
+          z.strictObject({ person_id: uuid }),
+          z.strictObject({
+            full_name: z.string().trim().min(1).max(200),
+            phone: z.string().trim().min(6).max(20),
+          }),
+        ]),
+        unit_id: uuid.optional(),
+        guests: z.number().int().min(1).max(1000).optional(),
+        rooms: z
+          .array(z.strictObject({ unit_id: uuid, guests: z.number().int().min(1).max(1000) }))
+          .min(1)
+          .max(10)
+          .optional(),
+        arrival_date: isoDate,
+        departure_date: isoDate,
+        source: z.literal("direct").optional(),
+      })
+      .refine((i) => (i.rooms !== undefined) !== (i.unit_id !== undefined), {
+        message: "unit_id hoặc rooms",
+      }),
+    run: async (ctx, i) => ({
+      data: await createReservation(ctx, {
+        booker:
+          "person_id" in i.booker
+            ? { personId: i.booker.person_id }
+            : { fullName: i.booker.full_name, phone: i.booker.phone },
+        rooms: i.rooms
+          ? i.rooms.map((r) => ({ unitId: r.unit_id, guests: r.guests }))
+          : [{ unitId: i.unit_id as string, guests: i.guests ?? 1 }],
+        arrivalDate: i.arrival_date,
+        departureDate: i.departure_date,
+      }),
+      httpStatus: 201,
+    }),
+  }),
+  "reservation.hold": defineCommand({
+    command: "reservation.hold",
+    input: z.strictObject({ reservation_id: uuid }),
+    run: async (ctx, i) => ({
+      data: await holdReservation(ctx, { reservationId: i.reservation_id }),
+      httpStatus: 201,
+    }),
+  }),
+  "reservation.confirm": defineCommand({
+    command: "reservation.confirm",
+    input: z.strictObject({ reservation_id: uuid, payment: bookingPayment.optional() }),
+    run: async (ctx, i) => ({
+      data: await confirmReservation(ctx, {
+        reservationId: i.reservation_id,
+        ...(i.payment
+          ? {
+              payment: {
+                kind: i.payment.kind,
+                method: i.payment.method,
+                amount: i.payment.amount,
+                ...(i.payment.receiving_account_id
+                  ? { receivingAccountId: i.payment.receiving_account_id }
+                  : {}),
+                ...(i.payment.bank_txn ? { bankTxn: toBankTxn(i.payment.bank_txn) } : {}),
+                ...(i.payment.bank_transaction_id
+                  ? { bankTransactionId: i.payment.bank_transaction_id }
+                  : {}),
+              },
+            }
+          : {}),
+      }),
+    }),
+  }),
+  "reservation.changeDates": defineCommand({
+    command: "reservation.changeDates",
+    input: z.strictObject({
+      reservation_id: uuid,
+      arrival_date: isoDate,
+      departure_date: isoDate,
+      preview_only: z.boolean().optional(),
+    }),
+    run: async (ctx, i) => ({
+      data: await changeReservationDates(ctx, {
+        reservationId: i.reservation_id,
+        arrivalDate: i.arrival_date,
+        departureDate: i.departure_date,
+        ...(i.preview_only === undefined ? {} : { previewOnly: i.preview_only }),
+      }),
+    }),
+  }),
+  "reservation.cancel": defineCommand({
+    command: "reservation.cancel",
+    input: z.strictObject({
+      reservation_id: uuid,
+      reason: reasonText,
+      cancellation_fee: money.optional(),
+    }),
+    run: async (ctx, i) => ({
+      data: await cancelReservation(ctx, {
+        reservationId: i.reservation_id,
+        reason: i.reason,
+        ...(i.cancellation_fee === undefined ? {} : { cancellationFee: i.cancellation_fee }),
+      }),
+    }),
+  }),
+  "reservation.markNoShow": defineCommand({
+    command: "reservation.markNoShow",
+    input: z.strictObject({ reservation_id: uuid, reason: reasonText }),
+    run: async (ctx, i) => ({
+      data: await markNoShow(ctx, { reservationId: i.reservation_id, reason: i.reason }),
+    }),
+  }),
   "lease.activate": defineCommand({
     command: "lease.activate",
     input: z.strictObject({ lease_id: uuid }),
@@ -964,7 +1097,7 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
       data: await reopenPeriod(ctx, { billingPeriodId: i.billing_period_id, reason: i.reason }),
     }),
   }),
-  // `import.upload` cần storage + multipart — route riêng khi web nối object storage (chưa có ở đợt 2).
+  // `import.upload` cần byte file (multipart) — route riêng `POST /api/v1/import/upload` (http/upload-route.ts, T-219).
   "import.validate": defineCommand({
     command: "import.validate",
     input: z.strictObject({ batch_id: uuid }),
@@ -1143,6 +1276,43 @@ export const QUERIES: Readonly<Record<string, AnyQuery>> = {
         roomTypeId: i.room_type_id,
         arrivalDate: i.arrival_date,
         departureDate: i.departure_date,
+      }),
+  },
+  "reservation.get": {
+    query: "reservation.get",
+    input: z.strictObject({ reservation_id: uuid }),
+    run: (db, actor, i: { reservation_id: string }) => getReservation(db, actor, i.reservation_id),
+  },
+  "reservation.list": {
+    query: "reservation.list",
+    input: z.strictObject({
+      property_id: uuid,
+      from: isoDate.optional(),
+      to: isoDate.optional(),
+      // Nhiều trạng thái cách nhau bằng dấu phẩy: `status=held,confirmed`.
+      status: z.string().max(200).optional(),
+      limit: z.coerce.number().int().min(1).max(200).optional(),
+      cursor: z.string().min(1).max(400).optional(),
+    }),
+    run: (
+      db,
+      actor,
+      i: {
+        property_id: string;
+        from?: string;
+        to?: string;
+        status?: string;
+        limit?: number;
+        cursor?: string;
+      },
+    ) =>
+      listReservations(db, actor, {
+        propertyId: i.property_id,
+        ...(i.from ? { from: i.from } : {}),
+        ...(i.to ? { to: i.to } : {}),
+        ...(i.status ? { statuses: i.status.split(",").map((x) => x.trim()) } : {}),
+        ...(i.limit === undefined ? {} : { limit: i.limit }),
+        ...(i.cursor ? { cursor: i.cursor } : {}),
       }),
   },
   "reconciliation.previewMatches": {

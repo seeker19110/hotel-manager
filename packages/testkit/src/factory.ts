@@ -190,3 +190,44 @@ export async function seedLease(
   });
   return { leaseId, unitId: unitId as string };
 }
+
+/**
+ * Booking `draft` tối thiểu (một dòng phòng, 1 đêm, ảnh chụp giá hợp lệ) cho test cần `reservation_id` thật (FK từ migration 0025).
+ * Không truyền `unitId` ⇒ dùng phòng/loại phòng của tổ chức mẫu (`SeededOrg`). Logic booking thật ở `packages/app` (reservation).
+ */
+export async function seedReservation(
+  admin: Kysely<unknown>,
+  input: {
+    orgId: string;
+    propertyId: string;
+    bookerPersonId: string;
+    unitId: string;
+    roomTypeId: string;
+    arrivalDate?: string;
+    departureDate?: string;
+    nightPrice?: number;
+  },
+): Promise<{ reservationId: string; itemId: string }> {
+  const reservationId = randomUUID();
+  const itemId = randomUUID();
+  const arrival = input.arrivalDate ?? "2026-12-01";
+  const departure = input.departureDate ?? "2026-12-02";
+  const nights = (Date.parse(`${departure}T00:00:00Z`) - Date.parse(`${arrival}T00:00:00Z`)) / 86_400_000;
+  const price = input.nightPrice ?? 600_000;
+  const snapshot = Array.from({ length: nights }, (_, i) => ({
+    business_date: new Date(Date.parse(`${arrival}T00:00:00Z`) + i * 86_400_000).toISOString().slice(0, 10),
+    amount: price,
+  }));
+  await admin.transaction().execute(async (trx) => {
+    await sql`insert into reservations (id, organization_id, property_id, number, source, booker_person_id)
+              values (${reservationId}, ${input.orgId}, ${input.propertyId}, ${`R-T${reservationId.slice(0, 8)}`}, 'direct',
+                      ${input.bookerPersonId})`.execute(trx);
+    await sql`insert into reservation_items (id, organization_id, property_id, reservation_id, unit_id, room_type_id, arrival_date,
+                                             departure_date, guests, nightly_prices, room_total)
+              values (${itemId}, ${input.orgId}, ${input.propertyId}, ${reservationId}, ${input.unitId}, ${input.roomTypeId},
+                      ${arrival}::date, ${departure}::date, 1, ${JSON.stringify(snapshot)}::jsonb, ${price * nights})`.execute(
+      trx,
+    );
+  });
+  return { reservationId, itemId };
+}

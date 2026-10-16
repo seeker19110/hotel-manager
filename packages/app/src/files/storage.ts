@@ -51,8 +51,11 @@ export class ObjectStorage {
     if (!res.ok) throw new Error(`Ghi object lỗi: HTTP ${res.status}`);
   }
 
-  async delete(key: string): Promise<void> {
-    const res = await this.#aws.fetch(this.#url(key), { method: "DELETE" });
+  async delete(key: string, opts: { signal?: AbortSignal } = {}): Promise<void> {
+    const res = await this.#aws.fetch(this.#url(key), {
+      method: "DELETE",
+      ...(opts.signal ? { signal: opts.signal } : {}),
+    });
     if (!res.ok && res.status !== 404) throw new Error(`Xoá object lỗi: HTTP ${res.status}`);
   }
 

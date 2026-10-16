@@ -760,13 +760,16 @@ Loại: M
 | source | text | không | `CHECK (source IN ('direct','walk_in'))` | |
 | booker_person_id | uuid | không | FK ghép → `persons` | |
 | policy_snapshot | jsonb | không | `CHECK (jsonb_typeof(policy_snapshot)='object')`, mặc định `'{}'` | Điều kiện huỷ đang áp dụng lúc đặt |
-| cancel_reason | text | có | `CHECK (status NOT IN ('cancelled','no_show') OR cancel_reason IS NOT NULL)` | |
-| cancelled_at | timestamptz | có | | |
+| cancel_reason | text | có | `CHECK (status NOT IN ('cancelled','no_show') OR (cancel_reason IS NOT NULL AND length(btrim(cancel_reason)) >= 1 AND cancelled_at IS NOT NULL))` | Lý do huỷ hoặc đánh dấu no-show (bắt buộc, không rỗng) |
+| cancelled_at | timestamptz | có | | Thời điểm huỷ hoặc đánh dấu no-show (T-204) |
+| confirmed_at | timestamptz | có | | T-204: thời điểm `held → confirmed` |
+| confirmation_payment_id | uuid | có | FK ghép ba cột → `payments` | T-204: khoản ứng trước/cọc đã `confirmed` làm chứng cứ xác nhận (INV-F3) |
+| confirmed_without_payment | boolean | không | mặc định `false`; `CHECK (NOT (confirmed_without_payment AND confirmation_payment_id IS NOT NULL))` | T-204: xác nhận không tiền khi cơ sở bật `properties.settings.reservation.confirm_without_payment` (Q-05; mặc định tắt) |
 
 - Khoá/index: `UNIQUE (organization_id, property_id, id)`; `UNIQUE (organization_id, property_id, number)`; `ix (organization_id, property_id, status)`.
-- Ràng buộc đặc biệt: chuyển trạng thái chỉ qua bảng chuyển; `held → expired` đúng một lần khi hold hết hạn (INV-I3). Khoá hàng booking/stay khi huỷ, no-show, check-in cạnh tranh.
-- RLS/quyền đặc biệt: `front_desk`/`manager`/`owner` ghi; `housekeeping` không đọc.
-- Bất biến: INV-I3, INV-G6.
+- Ràng buộc đặc biệt: chuyển trạng thái chỉ qua bảng chuyển; `held → expired` đúng một lần khi hold hết hạn (INV-I3). Khoá hàng booking/stay khi huỷ, no-show, check-in cạnh tranh. T-204 (migration 0025): trigger `BEFORE INSERT OR UPDATE` `app.reservation_guard` (SECURITY DEFINER) — INSERT chỉ `draft` (`direct`) hoặc `in_house` (`walk_in`); UPDATE theo bảng chuyển khớp `bookingMachine` (ngoài bảng → `23514` + HINT `INVALID_TRANSITION`), trạng thái cuối (`checked_out`, `cancelled`, `no_show`, `expired`) bất biến, định danh/người đặt/nguồn bất biến (`55000` `DOCUMENT_IMMUTABLE`); `held → confirmed` đòi `confirmed_at` và (`confirmation_payment_id` trỏ `payments.status='confirmed'` **hoặc** `confirmed_without_payment`) — thiếu → `23514` + HINT `EVIDENCE_REQUIRED`; chứng cứ xác nhận chỉ ghi lúc `held → confirmed`. Trigger `app.expire_reservation_on_hold_expiry` trên `allocations` (`active: true → false`, `kind='hold'`, `source_type='reservation_item'`, `deactivated_reason='expired'`) đưa booking `held → expired` (`WHERE status = 'held'` nên đúng một lần, mọi đường nhả). `DELETE`/`TRUNCATE` bị chặn.
+- RLS/quyền đặc biệt: `front_desk`/`manager`/`owner` ghi; `accountant` chỉ đọc (đối soát); `housekeeping` không đọc; ngữ cảnh hệ thống (worker, không actor) đọc theo tổ chức. Phạm vi cơ sở theo membership (T-204).
+- Bất biến: INV-I3, INV-G6, INV-F3.
 
 ### `reservation_items`
 Dòng phòng của booking: phòng cụ thể, ngày đến/đi, giá từng đêm (snapshot).
@@ -785,11 +788,11 @@ Loại: M
 | departure_date | date | không | `CHECK (departure_date > arrival_date)` | |
 | nights | integer | không | `GENERATED ALWAYS AS (departure_date - arrival_date) STORED` | |
 | guests | integer | không | mặc định `1`; `CHECK (guests >= 1)` | Vượt sức chứa ⇒ `CAPACITY_EXCEEDED` (kiểm ở command) |
-| nightly_prices | jsonb | không | `CHECK (jsonb_typeof(nightly_prices)='array' AND jsonb_array_length(nightly_prices) >= 1)` | Snapshot `{business_date, amount}` từng đêm (đồng) |
-| room_total | bigint | không | `CHECK (room_total >= 0)` | = Σ `nightly_prices` (kiểm ở command) |
+| nightly_prices | jsonb | không | `CHECK (app.valid_nightly_prices(nightly_prices, arrival_date, departure_date, room_total))` | Snapshot `{business_date, amount, day_kind?, rate_plan_id?}` từng đêm (đồng). T-204: hàm kiểm ở CSDL — mảng đúng `departure_date − arrival_date` phần tử, phần tử i có `business_date = arrival_date + i`, `amount` số nguyên 0..2^53−1, Σ `amount` = `room_total`; sai cấu trúc → `false` (CHECK vi phạm), không ném lỗi |
+| room_total | bigint | không | `CHECK (room_total >= 0 AND room_total <= 9007199254740991)` | = Σ `nightly_prices` (T-204: ép ở CSDL bằng CHECK trên, không chỉ ở command) |
 
 - Khoá/index: `UNIQUE (organization_id, property_id, id)`; `ix (organization_id, unit_id, arrival_date)`.
-- Ràng buộc đặc biệt: pilot chỉ một dòng mỗi booking (giữ ở command, không hard-code trong schema để mở rộng nhóm/đoàn ở F-013). Allocation `hold`/`stay` trỏ về bảng này bằng `source_type='reservation_item'`.
+- Ràng buộc đặc biệt: pilot chỉ một dòng mỗi booking (giữ ở command, không hard-code trong schema để mở rộng nhóm/đoàn ở F-013; T-204 cho phép tới 10 phòng chung ngày đến/đi). Allocation `hold` trỏ về bảng này bằng `source_type='reservation_item'`; sau xác nhận allocation `stay` trỏ về `stays`. Trigger `app.reservation_item_guard` (T-204, INV-G3): `room_type_id`/định danh bất biến; booking ở trạng thái cuối đóng băng cả dòng; đêm có ở cả `nightly_prices` cũ và mới phải GIỮ NGUYÊN `amount` (đổi ngày chỉ thêm đêm theo giá hiện hành hoặc bớt đêm) — vi phạm → `55000` + `DOCUMENT_IMMUTABLE`. `DELETE` bị chặn.
 - RLS/quyền đặc biệt: như `reservations`.
 - Bất biến: INV-G2 (ngày địa phương), INV-G3.
 
@@ -815,7 +818,7 @@ Loại: M
 
 - Khoá/index: `UNIQUE (organization_id, property_id, id)`; `UNIQUE (organization_id, reservation_item_id)` (pilot một stay mỗi dòng phòng); `ix (organization_id, unit_id, status)`.
 - Ràng buộc đặc biệt: `CHECK (status NOT IN ('in_house','checked_out') OR checked_in_at IS NOT NULL)`; `CHECK (status <> 'checked_out' OR checked_out_at IS NOT NULL)`. Stay `no_show`/`cancelled` không được đếm là khách sắp đến. Check-out trong **một** transaction: stay, booking, allocation (`end`), `units.housekeeping_status='dirty'` và một `tasks` dọn phòng.
-- RLS/quyền đặc biệt: `housekeeping` không đọc (folio/khách).
+- RLS/quyền đặc biệt: `housekeeping` không đọc (folio/khách); như `reservations` (T-204: bảng tạo ở migration 0025 vì `reservation.confirm` tạo lượt ở `expected`; hủy/no-show đổi trạng thái; check-in/out ở T-205/T-206). Trigger `app.stay_guard`: INSERT chỉ `expected`/`in_house`; UPDATE theo bảng chuyển khớp `stayMachine` (`no_show`/`cancelled`/`checked_out` không đi tiếp → `23514` + HINT `INVALID_TRANSITION`). FK ghép `charges.stay_id`, `invoices.stay_id` → `stays` thêm ở 0025.
 - Bất biến: INV-I1/I4 (qua allocation), INV-F5 (cọc không tự trừ vào nợ).
 
 ### `residence_notices`
@@ -1268,7 +1271,7 @@ Loại: M (bộ đếm), mọi thay đổi số dư có `journal_entries`
 |---|---|---|---|---|
 | property_id | uuid | không | FK ghép ba cột → `properties` | |
 | lease_id | uuid | có | FK ghép ba cột → `leases` | Cọc hợp đồng (kể cả cọc giữ chỗ gắn hợp đồng nháp) |
-| reservation_id | uuid | có | FK ghép ba cột → `reservations` | Cọc bảo đảm khách sạn |
+| reservation_id | uuid | có | FK ghép ba cột → `reservations` | Cọc bảo đảm khách sạn (FK `fk_deposits_reservation` thêm ở migration 0025, T-204) |
 | payer_person_id | uuid | không | FK ghép → `persons` | Người đặt cọc |
 | amount | bigint | không | mặc định `0`; `CHECK (amount >= 0)` | Σ khoản cọc đã `confirmed` (tăng khi nhận thêm) |
 | deducted_total | bigint | không | mặc định `0`; `CHECK (deducted_total >= 0)` | Đã khấu trừ vào nợ = Σ `payment_allocations.amount` có `deposit_id` này (chưa đảo) |
@@ -1516,6 +1519,7 @@ Loại: M (chỉ `status`, `owner_*`, các cột quét/xử lý)
 | scanned_at | timestamptz | có | | |
 | reject_reason | text | có | `CHECK (status <> 'rejected' OR reject_reason IS NOT NULL)` | Nhiễm mã độc ⇒ `rejected`, không bao giờ cấp URL |
 | delete_after | date | có | | Hạn xoá (file import nguồn, file xuất hết hạn) |
+| deleted_at | timestamptz | có | `CHECK (deleted_at IS NULL OR delete_after IS NOT NULL)`; `ix (delete_after) WHERE deleted_at IS NULL AND delete_after IS NOT NULL` | Đã xoá object ở storage theo hạn giữ (job `retention.sweep`, T-219); hàng giữ làm dấu vết, không cấp URL nữa. Worker đi qua hàm SECURITY DEFINER hẹp `app.retention_claim_files`/`retention_mark_file_deleted`/`retention_scrub_import_rows` |
 
 - Khoá/index: `UNIQUE (organization_id, id)`; **`UNIQUE (storage_key)`** và `UNIQUE (organization_id, storage_key)` (đích FK của `export_jobs.file_key`); `ix (organization_id, owner_type, owner_id)`.
 - Ràng buộc đặc biệt: bucket riêng tư (không đọc công khai), URL ký ≤ 5 phút cấp **sau** kiểm quyền (ADR-0002); worker quét mã độc và bỏ EXIF trước khi `ready`.

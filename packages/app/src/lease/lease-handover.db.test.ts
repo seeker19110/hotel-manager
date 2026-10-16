@@ -319,6 +319,29 @@ describe("S-011, S-013 phụ lục", () => {
     );
     expect(p).toMatchObject({ code: "ROOM_UNAVAILABLE" });
     expect((await getLease(t.runtime, M, leaseId)).versions).toHaveLength(1);
+    // SPEC-inventory S-018 (INV-I4): kèm exception_id của EXTENSION_CONFLICT (ghi ở transaction riêng); hợp đồng/booking không đổi.
+    const exceptionId = (p as unknown as { exception_id?: string }).exception_id;
+    expect(exceptionId).toEqual(expect.any(String));
+    const ex = await sql<{
+      type: string;
+      status: string;
+      allocation_id: string;
+      related_allocation_id: string;
+    }>`
+      select e.type, e.status, e.allocation_id, e.related_allocation_id from exceptions e where e.id = ${exceptionId as string}`.execute(
+      t.admin,
+    );
+    expect(ex.rows[0]).toMatchObject({ type: "EXTENSION_CONFLICT", status: "open" });
+    const al = await sql<{ kind: string; hi: Date | null; id: string }>`
+      select id, kind, upper(during) as hi from allocations where unit_id = ${unitId} and active order by lower(during)`.execute(
+      t.admin,
+    );
+    expect(al.rows.map((a) => a.kind)).toEqual(["lease", "stay"]);
+    expect(al.rows[0]?.hi?.toISOString()).toBe("2027-10-31T17:00:00.000Z"); // hợp đồng giữ nguyên hạn cũ
+    expect([ex.rows[0]?.allocation_id, ex.rows[0]?.related_allocation_id]).toEqual([
+      al.rows[0]?.id,
+      al.rows[1]?.id,
+    ]);
   });
 });
 

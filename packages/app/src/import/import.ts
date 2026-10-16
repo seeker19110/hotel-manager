@@ -22,6 +22,7 @@ import {
 import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/actor.ts";
 import { type FileDeps, storeTabularFile } from "../files/files.ts";
+import { detectMime } from "../files/inspect.ts";
 import { createUnit } from "../inventory/units.ts";
 import { activateLease, clearImportReadingsPending, recordImportHandover } from "../lease/handover.ts";
 import { createDraft, createPerson, signLease, submitForSignature } from "../lease/lease.ts";
@@ -232,7 +233,7 @@ export async function uploadBatch(
   ctx: CommandContext,
   deps: FileDeps,
   input: { propertyId: string; kind: string; cutoffOn?: string; bytes: Uint8Array },
-): Promise<{ batchId: string; rows: number }> {
+): Promise<{ batchId: string; fileId: string; rows: number }> {
   if (!UUID.test(input.propertyId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy cơ sở");
   authorize(ctx.actor, "import.prepare", { propertyId: input.propertyId });
   if (input.kind === "reservations")
@@ -247,6 +248,12 @@ export async function uploadBatch(
   if (input.bytes.byteLength === 0) throw new CommandError("VALIDATION_FAILED", 422, "File rỗng");
   if (input.bytes.byteLength > IMPORT_LIMITS.bytes)
     throw new CommandError("FILE_TOO_LARGE", 413, "File quá lớn. Tách thành nhiều file.");
+  // Nhận dạng theo nội dung (không tin Content-Type/đuôi): ảnh/PDF thật ra không phải bảng dữ liệu → 415, dù có thể là UTF-8.
+  if (detectMime(input.bytes))
+    throw new CommandError("FILE_TYPE_NOT_ALLOWED", 415, "Chỉ nhận file .xlsx hoặc .csv (UTF-8).");
+  // Quét TRƯỚC khi phân tích: nội dung nhiễm không được đi qua bộ đọc XLSX/CSV, và luôn trả 415 (không lẫn lỗi tiêu đề).
+  const scan = await deps.scanner.scan(input.bytes);
+  if (!scan.clean) throw new CommandError("FILE_TYPE_NOT_ALLOWED", 415, "File bị từ chối khi quét an toàn");
   const table = detectTable(input.bytes);
   const [head, ...data] = table.rows.filter((r) => r.cells.some((c) => c.v.trim() !== ""));
   if (!head) throw new CommandError("VALIDATION_FAILED", 422, "File không có dữ liệu");
@@ -269,6 +276,7 @@ export async function uploadBatch(
     propertyId: input.propertyId,
     bytes: input.bytes,
     mime: table.format === "csv" ? "text/csv" : XLSX_MIME,
+    scanned: true,
   });
   await sql`
     insert into import_batches (id, organization_id, property_id, kind, file_id, file_sha256, file_format, header, cutoff_on,
@@ -300,7 +308,7 @@ export async function uploadBatch(
     propertyId: input.propertyId,
     after: { kind, rows: data.length, format: table.format, file_sha256: file.sha256 },
   });
-  return { batchId, rows: data.length };
+  return { batchId, fileId: file.fileId, rows: data.length };
 }
 
 // ---------- Kiểm từng dòng ----------
@@ -995,7 +1003,7 @@ export async function commitBatch(
     where organization_id = ${ctx.actor.orgId} and id = ${b.id}`.execute(ctx.trx);
   // Hạn giữ file nguồn (đề xuất mục 10: 30 ngày sau commit/huỷ).
   await sql`
-    update files set delete_after = current_date + 30
+    update files set delete_after = (now() at time zone 'utc')::date + 30
     where organization_id = ${ctx.actor.orgId} and owner_type = 'import_batch' and owner_id = ${b.id}`.execute(
     ctx.trx,
   );
@@ -1020,7 +1028,7 @@ export async function cancelBatch(ctx: CommandContext, input: { batchId: string;
     update import_batches set status = 'cancelled', cancelled_at = now(), cancel_reason = ${reason}
     where organization_id = ${ctx.actor.orgId} and id = ${b.id}`.execute(ctx.trx);
   await sql`
-    update files set delete_after = current_date + 30
+    update files set delete_after = (now() at time zone 'utc')::date + 30
     where organization_id = ${ctx.actor.orgId} and owner_type = 'import_batch' and owner_id = ${b.id}`.execute(
     ctx.trx,
   );

@@ -4,6 +4,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { hasMaxDecimals } from "@hm/domain";
 import { sql } from "kysely";
+import { resizeAllocation } from "../inventory/inventory.ts";
 import { type CommandContext, canonicalJson } from "../pipeline/command.ts";
 import { CommandError, fieldError } from "../pipeline/problem.ts";
 import {
@@ -341,19 +342,15 @@ export async function renewLease(
       input.terms.effectiveFrom,
       input.terms.effectiveTo,
     );
-    try {
-      await sql`savepoint renew_alloc`.execute(ctx.trx);
-      await sql`
-        update allocations set during = tstzrange(lower(during), ${end.end}, '[)')
-        where organization_id = ${ctx.actor.orgId} and id = ${alloc.id}
-          and upper(during) is not null and (${end.end}::timestamptz is null or upper(during) < ${end.end})`.execute(
-        ctx.trx,
-      );
-    } catch (e) {
-      if ((e as { code?: string }).code === "23P01") {
-        throw new CommandError("ROOM_UNAVAILABLE", 409, "Phòng đã có người trong thời gian gia hạn");
-      }
-      throw e;
+    const cur = await sql<{ hi: Date | null }>`
+      select upper(during) as hi from allocations where organization_id = ${ctx.actor.orgId} and id = ${alloc.id}`.execute(
+      ctx.trx,
+    );
+    const hi = cur.rows[0]?.hi ?? null;
+    // Chỉ kéo dài (không thu hẹp, không đụng hợp đồng đã không thời hạn). Đụng booking/lượt ở đã xác nhận ⇒ ROOM_UNAVAILABLE
+    // kèm `exception_id` (EXTENSION_CONFLICT, ghi ở transaction riêng) — hợp đồng giữ nguyên, booking không bị đè (INV-I4, S-018).
+    if (hi !== null && (end.end === null || hi.getTime() < end.end.getTime())) {
+      await resizeAllocation(ctx, { allocationId: alloc.id, end: end.end, conflict: "extension" });
     }
   }
   await ctx.audit({

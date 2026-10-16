@@ -44,3 +44,17 @@
 - Chọn: rate_plans.weekend_nights smallint[] mặc định {5,6} (0=CN…6=T7), CHECK giá trị 0..6 ở DB; báo giá: đêm có trong snapshot reservation_items.nightly_prices thì giữ, đêm mới tra bảng giá hiện hành
 - Lý do (tiêu chí chất lượng cuối): (1) ràng buộc kiểu ở DB thay vì jsonb không kiểm; bảng giá mang luôn quy tắc nên snapshot/INV-G3 rõ; (3) một nơi cấu hình theo loại phòng, sửa ERD cho khớp
 - Đường lùi: Migration thêm settings + bỏ dùng cột (cột vẫn có mặc định)
+
+### D-007 · 2026-10-16T01:59:56+00:00 · T-204: các điểm SPEC hở khi làm booking (stays tạo sớm; xác nhận không tiền; booking nhiều phòng; no-show; phí huỷ)
+
+- Phương án: (1) Áp như executor đã làm: stays tạo ngay ở 0025 (S-005/S-009/S-011 cần stay expected/cancelled/no_show); xác nhận không tiền mặc định TỪ CHỐI (EVIDENCE_REQUIRED), bật bằng properties.settings.reservation.confirm_without_payment; nhiều phòng tối đa 10 (mở rộng, HTTP vẫn nhận unit_id đơn); no-show khi ngày kinh doanh > ngày đến; phí huỷ qua charges trong hạn mức, vượt → duyệt · (2) Theo đề xuất SPEC Q-05: mặc định cho xác nhận không tiền; bỏ booking nhiều phòng (để F-013)
+- Chọn: Áp như executor đã làm: stays tạo ngay ở 0025 (S-005/S-009/S-011 cần stay expected/cancelled/no_show); xác nhận không tiền mặc định TỪ CHỐI (EVIDENCE_REQUIRED), bật bằng properties.settings.reservation.confirm_without_payment; nhiều phòng tối đa 10 (mở rộng, HTTP vẫn nhận unit_id đơn); no-show khi ngày kinh doanh > ngày đến; phí huỷ qua charges trong hạn mức, vượt → duyệt
+- Lý do (tiêu chí chất lượng cuối): (1) chặt hơn với tiền: không xác nhận giữ phòng nếu chưa có khoản thu đã xác nhận (INV-F3) — cơ sở muốn nới thì bật cờ; (2) nhiều phòng đã có test ở DB, không ảnh hưởng luồng một phòng, HTTP mặc định vẫn một phòng; stays sớm khớp SPEC
+- Đường lùi: Đổi cờ cơ sở; ẩn rooms[] khỏi schema HTTP
+
+### D-008 · 2026-10-16T01:59:57+00:00 · T-219: hạn giữ file import nguồn khi lô bị bỏ dở; production chưa có máy quét thật
+
+- Phương án: (1) delete_after = ngày tải lên + 90 ngày (commit/huỷ đặt lại 30 ngày); production fail-closed khi chỉ có eicarOnlyScanner (upload trả 500 cho tới khi có ClamdScanner T-210) · (2) Không đặt hạn cho lô bỏ dở; production dùng eicarOnlyScanner
+- Chọn: delete_after = ngày tải lên + 90 ngày (commit/huỷ đặt lại 30 ngày); production fail-closed khi chỉ có eicarOnlyScanner (upload trả 500 cho tới khi có ClamdScanner T-210)
+- Lý do (tiêu chí chất lượng cuối): (1) không giữ PII vô hạn trong lô bỏ dở; không coi EICAR-only là quét thật ở production (SPEC S-015, THREAT-MODEL)
+- Đường lùi: Đổi hằng số ngày; cấu hình scanner
