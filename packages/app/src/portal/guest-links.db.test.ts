@@ -171,6 +171,46 @@ describe("S-017…S-019 hết hạn, sai lượt ở, thu hồi, khoá", () => {
     expect(await tryWith("0000")).toMatchObject({ code: "LINK_REVOKED" });
     expect(await tryWith("5678")).toMatchObject({ code: "LINK_REVOKED" });
   });
+
+  it("lần đúng chạy song song ngay sau khi link bị khoá → hàm ghi lần dùng báo khoá, không mở (review lát 4)", async () => {
+    const s = await stay();
+    const l = await okAs(h.t, h.frontDesk, (ctx) => createGuestLink(ctx, { stayId: s.stayId, now: NOW }));
+    await sql`update guest_access_links set locked_at = ${NOW}, failed_attempts = 5 where id = ${l.linkId}`.execute(
+      h.t.admin,
+    );
+    const r = await sql<{ locked: boolean }>`
+      select app.guest_link_attempt(${l.linkId}::uuid, true, ${NOW}) as locked`.execute(h.t.runtime);
+    expect(r.rows[0]?.locked).toBe(true);
+    const used = await sql<{ last_used_at: Date | null }>`
+      select last_used_at from guest_access_links where id = ${l.linkId}`.execute(h.t.admin);
+    expect(used.rows[0]?.last_used_at).toBeNull();
+  });
+
+  it("người đặt không có SĐT mà cơ sở bật bước hai → 422 booker_phone, không tạo link; tắt bước hai → tạo được", async () => {
+    // Người đặt nhập từ nguồn khác/đã sửa hồ sơ, không còn SĐT (đặt phòng mới luôn bắt buộc SĐT).
+    const s = await stay();
+    await sql`update persons set phone = null where id = (
+                select r.booker_person_id from stays st
+                join reservation_items ri on ri.id = st.reservation_item_id
+                join reservations r on r.id = ri.reservation_id where st.id = ${s.stayId})`.execute(
+      h.t.admin,
+    );
+    const r = await runAs(h.t, h.frontDesk, (ctx) => createGuestLink(ctx, { stayId: s.stayId, now: NOW }));
+    expect(await codeOf(Promise.resolve(r))).toBe("VALIDATION_FAILED");
+    expect(JSON.stringify(r)).toContain("booker_phone");
+    const n = await sql<{ n: number }>`
+      select count(*)::int as n from guest_access_links where stay_id = ${s.stayId}`.execute(h.t.admin);
+    expect(n.rows[0]?.n).toBe(0);
+    await sql`update properties set settings = settings || '{"guest_link_second_factor": false}'::jsonb
+              where id = ${h.org.propertyId}`.execute(h.t.admin);
+    try {
+      await okAs(h.t, h.frontDesk, (ctx) => createGuestLink(ctx, { stayId: s.stayId, now: NOW }));
+    } finally {
+      await sql`update properties set settings = settings - 'guest_link_second_factor' where id = ${h.org.propertyId}`.execute(
+        h.t.admin,
+      );
+    }
+  });
 });
 
 describe("S-020 đoán token", () => {
