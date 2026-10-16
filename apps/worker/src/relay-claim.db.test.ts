@@ -227,10 +227,13 @@ describe("lỗi vĩnh viễn không retry (BE-JOB-003) + dead letter đo đượ
     expect(dead.find((d) => d.outbox_id === t0)?.dead_letter).toBeUndefined(); // dead letter do hết lượt thử, không do phân loại
     expect(events.filter((e) => e.event === "job.permanent_failure")).toHaveLength(2);
     // Job gốc của lỗi vĩnh viễn đã hoàn tất (không kẹt retry).
-    const st = await sql<{ state: string }>`select state from pgboss.job where name = 'perm.demo'`.execute(
-      t.admin,
-    );
-    expect(st.rows.map((r) => r.state)).toEqual(["completed", "completed"]);
+    const states = () =>
+      sql<{ state: string }>`select state from pgboss.job where name = 'perm.demo'`
+        .execute(t.admin)
+        .then((r) => r.rows.map((x) => x.state));
+    // pg-boss hoàn tất job gốc sau khi handler trả về ⇒ chờ trạng thái cuối.
+    await waitFor(async () => (await states()).every((x) => x === "completed"));
+    expect(await states()).toEqual(["completed", "completed"]);
   });
 
   it("metric hm_dead_letter_jobs đếm job còn nằm trong dead letter; xử lý xong thì về 0", async () => {

@@ -111,4 +111,22 @@ describe("/api/ready", () => {
       checks: { storage: "fail", database: "ok" },
     });
   });
+
+  it("đang dừng êm (draining) → 503 ngay, không chạy kiểm tra nào (T-402)", async () => {
+    let probed = 0;
+    const spyScanner = {
+      scan: async () => {
+        probed++;
+        return {};
+      },
+    };
+    const res = await handleReady({ draining: () => true, db: t.runtime, storage, scanner: spyScanner });
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ status: "draining" });
+    expect(probed).toBe(0);
+    expect(
+      (await handleReady({ draining: () => false, db: t.runtime, storage, scanner: eicarOnlyScanner }))
+        .status,
+    ).toBe(200);
+  });
 });

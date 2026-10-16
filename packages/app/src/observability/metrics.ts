@@ -98,6 +98,8 @@ export async function collectMetrics(db: Kysely<unknown>, now: Date = new Date()
 }
 
 export interface ReadyDeps {
+  /** Tiến trình đang dừng êm (SIGTERM): trả 503 NGAY, không chạy các kiểm tra — để bộ cân bằng tải rút instance (T-402). */
+  draining?: () => boolean;
   db: Kysely<unknown>;
   storage: { ping(): Promise<void> };
   scanner: { scan(bytes: Uint8Array): Promise<unknown> };
@@ -156,6 +158,7 @@ export async function handleMetrics(
 
 /** GET /api/ready: 200 khi đủ, 503 khi thiếu — cho load balancer/orchestrator. */
 export async function handleReady(deps: ReadyDeps): Promise<Response> {
+  if (deps.draining?.()) return Response.json({ status: "draining" }, { status: 503, headers: noStore });
   const r = await readiness(deps);
   return Response.json(
     { status: r.ready ? "ready" : "not_ready", checks: r.checks },

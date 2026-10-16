@@ -6,6 +6,7 @@ import { type FormEvent, useEffect, useState } from "react";
 import { Button } from "../../../../components/ui/button.tsx";
 import { TextField } from "../../../../components/ui/field.tsx";
 import { ErrorState, LoadingState } from "../../../../components/ui/state.tsx";
+import { timedFetch } from "../../../../lib/fetch-timeout.ts";
 import { day, vnd } from "../../../../lib/format.ts";
 
 interface GuestView {
@@ -71,7 +72,7 @@ export function GuestStay({ stayId }: { stayId: string }) {
     setError(undefined);
     setState({ kind: "loading" });
     try {
-      const res = await fetch(`/api/v1/portal/guest/stays/${encodeURIComponent(stayId)}`, {
+      const res = await timedFetch(`/api/v1/portal/guest/stays/${encodeURIComponent(stayId)}`, {
         headers: { "x-guest-token": token, "x-guest-verify": digits },
         cache: "no-store",
         referrerPolicy: "no-referrer",

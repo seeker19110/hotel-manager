@@ -4,6 +4,7 @@
 import { useRef, useState } from "react";
 import { clearUserData, useOnline } from "../../components/pwa/pwa-shell.tsx";
 import { Button } from "../../components/ui/button.tsx";
+import { timedFetch } from "../../lib/fetch-timeout.ts";
 
 export function OrgChoice({
   organizationId,
@@ -29,7 +30,7 @@ export function OrgChoice({
     key.current ??= crypto.randomUUID();
     try {
       await clearUserData();
-      const res = await fetch("/api/v1/session/switchOrganization", {
+      const res = await timedFetch("/api/v1/session/switchOrganization", {
         method: "POST",
         headers: { "content-type": "application/json", "idempotency-key": key.current },
         body: JSON.stringify({ organization_id: organizationId }),

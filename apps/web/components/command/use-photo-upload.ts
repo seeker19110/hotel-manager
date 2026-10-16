@@ -3,6 +3,7 @@
 // Mỗi ảnh = một Idempotency-Key + một fileId: gửi lại cùng lệnh (mất mạng, "Gửi lại") không tải ảnh lần hai. Ảnh chỉ dùng
 // được khi máy chủ báo `ready` (đã qua kiểm tra an toàn) — trong lúc chờ UI hiện "Đang kiểm tra ảnh…" (role=status).
 import { useRef, useState } from "react";
+import { timedFetch, UPLOAD_TIMEOUT_MS } from "../../lib/fetch-timeout.ts";
 import { orgContextHeaders } from "./org-context.ts";
 
 export const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
@@ -39,16 +40,20 @@ export function usePhotoUpload(loginPath: string) {
     if (u.fileId) return u.fileId;
     setUploading(true);
     try {
-      const res = await fetch(`/api/v1/files/upload?owner_type=work_order&property_id=${propertyId}`, {
-        method: "POST",
-        headers: {
-          "content-type": file.type || "application/octet-stream",
-          "idempotency-key": u.key,
-          ...orgContextHeaders(),
+      const res = await timedFetch(
+        `/api/v1/files/upload?owner_type=work_order&property_id=${propertyId}`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": file.type || "application/octet-stream",
+            "idempotency-key": u.key,
+            ...orgContextHeaders(),
+          },
+          body: file,
+          credentials: "same-origin",
         },
-        body: file,
-        credentials: "same-origin",
-      });
+        UPLOAD_TIMEOUT_MS,
+      );
       const j = (await res.json().catch(() => null)) as {
         data?: { fileId: string; status: string };
         code?: string;

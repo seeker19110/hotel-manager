@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useOnline } from "../../components/pwa/pwa-shell.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { ErrorState } from "../../components/ui/state.tsx";
+import { timedFetch } from "../../lib/fetch-timeout.ts";
 
 const FALLBACK: Record<number, string> = {
   404: "Liên kết không hợp lệ.",
@@ -30,7 +31,7 @@ export function UnsubscribeConfirm({ token }: { token: string }) {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch("/api/v1/notifications/unsubscribe", {
+      const res = await timedFetch("/api/v1/notifications/unsubscribe", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ token }),
