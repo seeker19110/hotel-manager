@@ -40,6 +40,7 @@ import * as m0036 from "./0036_reminders.ts";
 import * as m0037 from "./0037_portal_access.ts";
 import * as m0038 from "./0038_tenant_rls_hardening.ts";
 import * as m0039 from "./0039_portal_tenant.ts";
+import * as m0040 from "./0040_guest_links.ts";
 
 export const migrations: Record<string, Migration> = {
   "0001_tenancy": m0001,
@@ -81,4 +82,5 @@ export const migrations: Record<string, Migration> = {
   "0037_portal_access": m0037,
   "0038_tenant_rls_hardening": m0038,
   "0039_portal_tenant": m0039,
+  "0040_guest_links": m0040,
 };

@@ -59,6 +59,7 @@ export {
 export { MAX_ATTEMPTS, RETRY_BACKOFF_MINUTES, type SendStats, sendDueEmails } from "./notifications/send.ts";
 export { deliveryStatusLabel, maskEmail, render as renderNotification } from "./notifications/templates.ts";
 export { getCommandResult } from "./pipeline/command.ts";
+export { handleGuestStay } from "./portal/guest-http.ts";
 export { type AutoApplyResult, applyBankTransaction } from "./reconciliation/auto-apply.ts";
 export {
   type BreakItem,

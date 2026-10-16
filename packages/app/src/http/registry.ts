@@ -94,6 +94,7 @@ import {
   reversePayment,
 } from "../payments/payments.ts";
 import { inviteTenant, revokeTenantAccess } from "../portal/access.ts";
+import { createGuestLink, revokeGuestLink } from "../portal/guest.ts";
 import {
   createRequest,
   getMyInvoice,
@@ -699,6 +700,16 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
       }),
       httpStatus: 201,
     }),
+  }),
+  "portal.createGuestLink": defineCommand({
+    command: "portal.createGuestLink",
+    input: z.strictObject({ stay_id: uuid }),
+    run: async (ctx, i) => ({ data: await createGuestLink(ctx, { stayId: i.stay_id }), httpStatus: 201 }),
+  }),
+  "portal.revokeGuestLink": defineCommand({
+    command: "portal.revokeGuestLink",
+    input: z.strictObject({ link_id: uuid }),
+    run: async (ctx, i) => ({ data: await revokeGuestLink(ctx, { linkId: i.link_id }) }),
   }),
   "portal.inviteTenant": defineCommand({
     command: "portal.inviteTenant",
