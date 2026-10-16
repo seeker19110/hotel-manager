@@ -31,6 +31,12 @@ BEGIN
        AND NOT EXISTS (SELECT 1 FROM leases l WHERE l.organization_id = NEW.organization_id AND l.id <> NEW.id
                          AND l.representative_person_id = NEW.representative_person_id
                          AND l.status IN ('signed_awaiting_handover','active','notice_given','settling'));
+  ELSIF NEW.status IN ('signed_awaiting_handover','active','notice_given','settling')
+        AND OLD.status NOT IN ('signed_awaiting_handover','active','notice_given','settling') THEN
+    -- Hợp đồng mới có hiệu lực ⇒ bỏ hạn chỉ-đọc đã đặt khi hợp đồng cũ đóng (review lát 4); quyền đã thu hồi giữ nguyên.
+    UPDATE memberships m SET valid_to = NULL, version = m.version + 1
+     WHERE m.organization_id = NEW.organization_id AND m.person_id = NEW.representative_person_id AND m.role = 'tenant'
+       AND m.status = 'active' AND m.valid_to IS NOT NULL;
   END IF;
   RETURN NULL;
 END $$;

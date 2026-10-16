@@ -116,8 +116,9 @@ CREATE FUNCTION app.guest_link_attempt(p_id uuid, p_ok boolean, p_now timestampt
 DECLARE locked boolean;
 BEGIN
   IF p_ok THEN
-    UPDATE guest_access_links SET last_used_at = p_now WHERE id = p_id;
-    RETURN false;
+    -- Kiểm lại khoá dưới khoá hàng: lần đúng chạy song song sau lần sai thứ 5 vẫn bị từ chối (review lát 4).
+    UPDATE guest_access_links SET last_used_at = p_now WHERE id = p_id AND locked_at IS NULL AND revoked_at IS NULL;
+    RETURN NOT FOUND;
   END IF;
   UPDATE guest_access_links SET failed_attempts = failed_attempts + 1,
          locked_at = CASE WHEN failed_attempts + 1 >= 5 THEN coalesce(locked_at, p_now) ELSE locked_at END
@@ -145,12 +146,16 @@ CREATE FUNCTION app.guest_stay_view(p_link uuid) RETURNS jsonb
                            FROM charges c WHERE c.organization_id = st.organization_id AND c.stay_id = st.id AND c.voided_at IS NULL), '[]'),
       'invoice', (SELECT jsonb_build_object('total', i.total, 'allocated', i.allocated_total) FROM invoices i
                   WHERE i.organization_id = st.organization_id AND i.stay_id = st.id AND i.kind = 'folio' LIMIT 1),
-      'advancePaid', coalesce((SELECT sum(least(p.amount - p.allocated_total,
-                                                greatest(0, (SELECT coalesce(sum(jl.credit - jl.debit), 0) FROM journal_lines jl
-                                                             WHERE jl.organization_id = st.organization_id AND jl.account = 'CUSTOMER_CREDIT'
-                                                               AND jl.person_id = p.payer_person_id AND jl.property_id = st.property_id))))
-                               FROM payments p WHERE p.organization_id = st.organization_id AND p.reservation_id = st.reservation_id
-                                 AND p.purpose = 'receivable' AND p.status = 'confirmed'), 0))
+      -- Ứng trước chưa phân bổ, chặn trần theo số dư CUSTOMER_CREDIT của TỪNG người trả (cộng dồn rồi mới chặn — review lát 4).
+      'advancePaid', coalesce((SELECT sum(least(u.unallocated, greatest(0, (
+                                 SELECT coalesce(sum(jl.credit - jl.debit), 0) FROM journal_lines jl
+                                 WHERE jl.organization_id = st.organization_id AND jl.account = 'CUSTOMER_CREDIT'
+                                   AND jl.person_id = u.payer_person_id AND jl.property_id = st.property_id))))
+                               FROM (SELECT p.payer_person_id, sum(p.amount - p.allocated_total) AS unallocated
+                                     FROM payments p WHERE p.organization_id = st.organization_id
+                                       AND p.reservation_id = st.reservation_id
+                                       AND p.purpose = 'receivable' AND p.status = 'confirmed'
+                                     GROUP BY p.payer_person_id) u), 0))
     FROM st
   $$;
 

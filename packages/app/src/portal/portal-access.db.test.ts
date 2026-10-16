@@ -1,7 +1,15 @@
 // PLAN đợt 3 T-216 — người thuê vào portal trên Postgres thật + Better Auth thật (SPEC-portal S-005, S-012…S-015;
 // D-005, D-011, D-016).
 import { randomUUID } from "node:crypto";
-import { createTestDb, type SeededOrg, seedAuthUser, seedLease, seedOrg, type TestDb } from "@hm/testkit";
+import {
+  activateLease,
+  createTestDb,
+  type SeededOrg,
+  seedAuthUser,
+  seedLease,
+  seedOrg,
+  type TestDb,
+} from "@hm/testkit";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AccessError, type Actor, listMyOrganizations, resolveActor } from "../access/actor.ts";
@@ -388,6 +396,17 @@ describe("S-015 thu hồi / hết hạn xem lại", () => {
     ).rejects.toMatchObject({
       code: "NOT_FOUND",
     });
+    // Hợp đồng mới cho cùng người → quyền portal có lại, không phải thu hồi + mời lại (review lát 4).
+    const again = await seedLease(t.admin, {
+      orgId: A.orgId,
+      propertyId: A.propertyId,
+      representativePersonId: h2.personId,
+      effectiveFrom: "2026-11-01",
+    });
+    await activateLease(t.admin, { org: A, leaseId: again.leaseId });
+    expect(
+      (await resolveActor(t.runtime, { authUserId: uid2, orgId: A.orgId, twoFactorEnabled: false })).role,
+    ).toBe("tenant");
     await sql`update organizations set settings = settings - 'tenant_readonly_days' where id = ${A.orgId}`.execute(
       t.admin,
     );
