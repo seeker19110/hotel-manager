@@ -3,7 +3,7 @@
 // chữ ký webhook (TM-04).
 import { randomUUID } from "node:crypto";
 import { withTenant } from "@hm/db";
-import { createTestDb, type SeededOrg, seedOrg, type TestDb } from "@hm/testkit";
+import { createTestDb, type SeededOrg, seedLease, seedOrg, type TestDb } from "@hm/testkit";
 import { sql, type Transaction } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ingestBankEvent, signSim, verifySimSignature } from "./bank-inbox.ts";
@@ -16,6 +16,23 @@ let accountA: string;
 
 const tenant = <T>(fn: (trx: Transaction<unknown>) => Promise<T>) =>
   withTenant(t.runtime, { orgId: A.orgId }, fn);
+
+/** Hàng phiếu thật (FK journal_lines.invoice_id từ migration 0010) — test tự ghi bút toán AR của phiếu. */
+async function invoiceRow(total: number): Promise<string> {
+  const id = randomUUID();
+  await t.admin.transaction().execute(async (trx) => {
+    await sql`insert into invoices (id, organization_id, property_id, kind, number, memo_ref, payer_person_id, business_date, total)
+              values (${id}, ${A.orgId}, ${A.propertyId}, 'fee', ${`L-${id.slice(0, 8)}`},
+                      ${`HM${id.replaceAll("-", "").slice(0, 10).toUpperCase()}`}, ${A.ownerPersonId}, current_date, ${total})`.execute(
+      trx,
+    );
+    await sql`insert into invoice_lines (id, organization_id, property_id, invoice_id, line_no, kind, description, revenue_account,
+                                         quantity, unit_price, amount, rounding_rule, formula_version)
+              values (${randomUUID()}, ${A.orgId}, ${A.propertyId}, ${id}, 1, 'fee', 'Phí (giả)', 'REV_FEE', 1, ${total},
+                      ${total}, 'HALF_UP_1', 1)`.execute(trx);
+  });
+  return id;
+}
 
 beforeAll(async () => {
   t = await createTestDb();
@@ -34,10 +51,23 @@ afterAll(async () => {
 
 describe("INV-F1 — bút toán cân bằng", () => {
   it("ví dụ trọ: phát hành 3.580.000, nhận 2.000.000 chuyển khoản, phân bổ → AR phiếu còn 1.580.000; cọc riêng 3.000.000", async () => {
-    const invoice = randomUUID();
+    const invoice = await invoiceRow(3_580_000);
     const payer = A.ownerPersonId;
+    // Cọc thật (FK journal_lines.deposit_id từ migration 0011).
     const deposit = randomUUID();
+    const { leaseId } = await seedLease(t.admin, {
+      orgId: A.orgId,
+      propertyId: A.propertyId,
+      representativePersonId: A.ownerPersonId,
+    });
+    await sql`insert into deposits (id, organization_id, property_id, lease_id, payer_person_id)
+              values (${deposit}, ${A.orgId}, ${A.propertyId}, ${leaseId}, ${A.ownerPersonId})`.execute(
+      t.admin,
+    );
+    // Dòng CASH phải gắn một ca có thật (FK từ migration 0009).
     const shift = randomUUID();
+    await sql`insert into shifts (id, organization_id, property_id, opened_by, opening_cash)
+              values (${shift}, ${A.orgId}, ${A.propertyId}, ${A.ownerMembershipId}, 0)`.execute(t.admin);
     await tenant(async (trx) => {
       const base = { orgId: A.orgId, propertyId: A.propertyId, businessDate: "2026-11-01" };
       await postEntry(trx, {
@@ -96,7 +126,7 @@ describe("INV-F1 — bút toán cân bằng", () => {
   });
 
   it("ví dụ khách sạn: 1.430.000 với ứng trước 500.000 đã phân bổ → còn 930.000", async () => {
-    const folio = randomUUID();
+    const folio = await invoiceRow(1_430_000);
     const guest = A.ownerPersonId;
     await tenant(async (trx) => {
       const base = { orgId: A.orgId, propertyId: A.propertyId, businessDate: "2026-11-02" };
@@ -130,6 +160,7 @@ describe("INV-F1 — bút toán cân bằng", () => {
 
   it("bút toán lệch bị CSDL từ chối lúc commit — kể cả owner chèn trực tiếp, bỏ qua kiểm ở app", async () => {
     const entry = randomUUID();
+    const inv = await invoiceRow(100);
     await expect(
       t.admin.transaction().execute(async (trx) => {
         await sql`insert into journal_entries (id, organization_id, property_id, entry_type, business_date, source_doc_type, source_doc_id)
@@ -137,7 +168,7 @@ describe("INV-F1 — bút toán cân bằng", () => {
           trx,
         );
         await sql`insert into journal_lines (id, organization_id, property_id, entry_id, line_no, account, debit, credit, invoice_id)
-                  values (${randomUUID()}, ${A.orgId}, ${A.propertyId}, ${entry}, 1, 'AR', 100, 0, ${randomUUID()})`.execute(
+                  values (${randomUUID()}, ${A.orgId}, ${A.propertyId}, ${entry}, 1, 'AR', 100, 0, ${inv})`.execute(
           trx,
         );
         await sql`insert into journal_lines (id, organization_id, property_id, entry_id, line_no, account, debit, credit)
@@ -189,7 +220,7 @@ describe("INV-G4 — append-only và đảo một lần", () => {
   });
 
   it("đảo bút toán: số dư về 0; đảo lần hai → INVALID_TRANSITION", async () => {
-    const invoice = randomUUID();
+    const invoice = await invoiceRow(250_000);
     const entryId = await tenant((trx) =>
       postEntry(trx, {
         orgId: A.orgId,
@@ -309,10 +340,18 @@ describe("chữ ký webhook sim (TM-04)", () => {
   const body = JSON.stringify({ id: "evt-1", amount: 2_000_000 });
   const now = new Date("2026-11-01T03:00:00Z");
   const ts = String(Math.floor(now.getTime() / 1000));
+  const account = "6f1b2c4e-0000-4000-8000-000000000001";
 
   it("chữ ký đúng, trong hạn → hợp lệ", () => {
     expect(() =>
-      verifySimSignature({ secret, body, timestamp: ts, signature: signSim(secret, ts, body), now }),
+      verifySimSignature({
+        secret,
+        account,
+        body,
+        timestamp: ts,
+        signature: signSim(secret, ts, body, account),
+        now,
+      }),
     ).not.toThrow();
   });
 
@@ -321,8 +360,17 @@ describe("chữ ký webhook sim (TM-04)", () => {
     ["sửa body", { body: body.replace("2000000", "9000000") }],
     ["quá hạn 10 phút (phát lại)", { now: new Date(now.getTime() + 600_000) }],
     ["chữ ký rỗng", { signature: "" }],
+    ["phát lại sang tài khoản khác", { account: "6f1b2c4e-0000-4000-8000-000000000002" }],
   ])("%s → WEBHOOK_SIGNATURE_INVALID 401", (_n, patch) => {
-    const input = { secret, body, timestamp: ts, signature: signSim(secret, ts, body), now, ...patch };
+    const input = {
+      secret,
+      account,
+      body,
+      timestamp: ts,
+      signature: signSim(secret, ts, body, account),
+      now,
+      ...patch,
+    };
     expect(() => verifySimSignature(input)).toThrowError(
       expect.objectContaining({ code: "WEBHOOK_SIGNATURE_INVALID", status: 401 }),
     );

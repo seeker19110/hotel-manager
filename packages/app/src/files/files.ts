@@ -84,6 +84,34 @@ export async function uploadFile(
   return { fileId: id, status, mime };
 }
 
+export type TabularMime = "text/csv" | "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+/**
+ * File nguồn dạng bảng (CSV/XLSX) của lô nhập (SPEC-import mục 4): riêng tư, khoá có tiền tố tổ chức, quét mã độc; không
+ * phải ảnh nên không bỏ EXIF. Người gọi kiểm quyền (`import.prepare`) và nhận dạng định dạng trước. Nhiễm ⇒ 415, không lưu.
+ */
+export async function storeTabularFile(
+  ctx: CommandContext,
+  deps: FileDeps,
+  input: { ownerId: string; propertyId: string; bytes: Uint8Array; mime: TabularMime },
+): Promise<{ fileId: string; sha256: string }> {
+  const scan = await deps.scanner.scan(input.bytes);
+  if (!scan.clean) throw new CommandError("FILE_TYPE_NOT_ALLOWED", 415, "File bị từ chối khi quét an toàn");
+  const id = randomUUID();
+  const key = `${ctx.actor.orgId}/import_batch/${id}`;
+  const sha256 = createHash("sha256").update(input.bytes).digest("hex");
+  await sql`
+    insert into files (id, organization_id, property_id, owner_type, owner_id, mime, size_bytes, sha256, status, storage_key,
+                       uploaded_by, scanned_at)
+    values (${id}, ${ctx.actor.orgId}, ${input.propertyId}, 'import_batch', ${input.ownerId}, ${input.mime},
+            ${input.bytes.byteLength}, ${sha256}, 'ready', ${key}, ${ctx.actor.membershipId}, now())`.execute(
+    ctx.trx,
+  );
+  ctx.onRollback(() => deps.storage.delete(key));
+  await deps.storage.put(key, input.bytes, input.mime);
+  return { fileId: id, sha256 };
+}
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Quyền đọc theo loại chủ — allowlist; loại chưa khai báo (residence_notice, payment_claim, export_job…) bị từ chối. */

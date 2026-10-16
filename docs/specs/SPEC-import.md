@@ -3,9 +3,9 @@
 | Trường | Giá trị |
 |---|---|
 | ID tính năng | F-010 (luồng gốc: R-005 Chuyển dữ liệu) |
-| Trạng thái | Draft — chờ duyệt |
+| Trạng thái | Approved — câu [chặn] chốt theo PLAN đợt 2 (tham số hoá) |
 | Phiên bản | 2 (2026-10-15) — thay đổi: xem cuối file |
-| Chủ spec | (chưa gán) · Duyệt bởi (chưa) |
+| Chủ spec | (chưa gán) · Duyệt bởi chủ dự án ngày 2026-10-15 (duyệt PLAN đợt 2) |
 | Hồ sơ/quy mô | web-app / M |
 | Nguồn | Kế hoạch gốc §18 (chuyển từ sổ/Excel, bảng kiểm tra), §12, §15; backlog T023; DOMAIN-MODEL v1.2 §5, §7 |
 | Phụ thuộc | SPEC-access-and-property (phòng) · SPEC-inventory-allocation (INV-I1) · SPEC-lease · SPEC-metering-billing · SPEC-ledger-payments (số dư đầu kỳ, cọc) · SPEC-reservation-stay (booking tương lai) |
@@ -187,7 +187,7 @@ Fixture `import-basic`: tổ chức T, cơ sở P1, chủ O, quản lý M (`impo
 | `IMPORT_CONFIRMATION_REQUIRED` | Commit số dư khi chưa xác nhận | 409 | Cần người phụ trách xác nhận trước khi nhập. | S-014 |
 | `IMPORT_EXTERNAL_ID_CONFLICT` (lỗi dòng) | `external_id` đã có, nội dung khác | — | Mã ngoài đã nhập trước đó với nội dung khác. | S-006 |
 | `ROOM_UNAVAILABLE` (lỗi dòng) | Chồng allocation | — | Phòng đã có người hoặc đã được giữ trong khoảng này. | S-008, S-009 |
-| `DUPLICATE_IN_FILE`, `OUT_OF_RANGE`, `REQUIRED`, `NOT_INTEGER_VND`, `TOO_LONG`, `REFERENCE_NOT_FOUND`, `CONFLICT_AT_COMMIT` (lỗi dòng) | Kiểm từng dòng | — | Thông điệp tiếng Việt theo cột | S-003, S-004, S-020 |
+| `DUPLICATE_IN_FILE`, `OUT_OF_RANGE`, `REQUIRED`, `NOT_INTEGER_VND`, `TOO_LONG`, `REFERENCE_NOT_FOUND`, `CONFLICT_AT_COMMIT`, `ALREADY_EXISTS` (mã phòng/cọc đã có ngoài lô), `INVALID_FORMAT` (ngày/SĐT/loại sai mẫu) (lỗi dòng) | Kiểm từng dòng | — | Thông điệp tiếng Việt theo cột | S-003, S-004, S-020 |
 | `FILE_TOO_LARGE` | Vượt giới hạn | 413 | File quá lớn. Tách thành nhiều file. | — |
 | `FILE_TYPE_NOT_ALLOWED` | Không phải XLSX/CSV UTF-8 | 415 | Chỉ nhận file .xlsx hoặc .csv (UTF-8). | — |
 | `INVALID_TRANSITION` | Huỷ/commit sai trạng thái | 409 | Không thể thực hiện với trạng thái hiện tại của lô nhập. | S-016, S-017 |
@@ -216,6 +216,8 @@ Không áp dụng.
 - [x] Bổ sung `import_batches`, `import_rows`, `import_external_refs`, `OPENING_BALANCE` vào DOMAIN-MODEL — [chặn migration] — đã bổ sung DOMAIN-MODEL v1.2 (§7, §5).
 - [ ] Bàn giao nguồn `import` không có chỉ số (`readings_pending`) — [không chặn] — hỏi: PO. **Đề xuất:** chọn cách này (không bắt chỉ số trên cùng dòng hợp đồng) vì chỉ số hiện tại nằm ở file `meter_readings`; kỳ thu bị chặn `READINGS_INCOMPLETE` đến khi đủ.
 
+- **Quyết trong lúc làm (PLAN đợt 2 T-115):** chống nhập lặp theo `(cơ sở, loại, external_id)` (mỗi cơ sở có sổ cũ riêng); dòng tiêu đề là dòng 1, số dòng lỗi theo dòng của file; nợ/cọc 0 đ → hành động `skip_empty` ("không có số dư"); hợp đồng nhập phải bắt đầu tính tiền ≤ ngày mốc và chưa hết hạn tại ngày mốc; phòng nhập: loại phòng theo sức chứa (`P<n>`), tầng theo tên; chỉ số nhập mà phòng chưa có công tơ ⇒ lắp công tơ với chỉ số đầu = giá trị nhập; xác nhận chỉ owner (`import.commit`); lô số dư bắt buộc nhập tổng nguồn trước khi xác nhận; route tải file (`import.upload` multipart) chờ web nối object storage.
+
 ## 11. DoR / DoD
 - DoR: spec Approved · 0 câu [chặn] · DOMAIN-MODEL v1.2 đã bổ sung mọi tên bảng · SPEC-lease, SPEC-ledger-payments Approved.
 - DoD: mọi S-NNN có test (S-004, S-005, S-008, S-017 trên Postgres thật) · E2E R-005 · test formula injection · sự kiện đo có schema.
@@ -223,7 +225,7 @@ Không áp dụng.
 ## 12. Truy vết
 | Task | PR | Bằng chứng |
 |---|---|---|
-| T023 Import Excel/CSV | — | S-001…S-020 |
+| T023 Import Excel/CSV | PR #5 (PLAN đợt 2 T-115) | `packages/app/src/import/import.db.test.ts` (S-001…S-008, S-010…S-020), `xlsx.test.ts`, `packages/domain/src/import/values.test.ts`; **S-009 (booking) chờ module đặt phòng đợt 3** |
 
 ## Thay đổi
 | Phiên bản | Ngày | Gì | Vì sao | Duyệt |

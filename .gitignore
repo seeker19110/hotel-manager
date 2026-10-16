@@ -19,3 +19,7 @@ deploy/secrets/
 # Playwright
 test-results/
 playwright-report/
+
+# Python (scripts/)
+__pycache__/
+*.pyc

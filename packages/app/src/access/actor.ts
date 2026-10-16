@@ -91,19 +91,26 @@ export async function resolveActor(
       role: Role;
       all_properties: boolean;
       limits: Record<string, number>;
+      role_limits: Record<string, number> | null;
       property_ids: string[] | null;
     }>`
       select m.id, m.person_id, m.role, m.all_properties, m.limits,
+             o.settings -> 'role_limits' -> m.role as role_limits,
              array_remove(array_agg(ps.property_id), null)::text[] as property_ids
       from memberships m
+      join organizations o on o.id = m.organization_id
       left join property_scopes ps on ps.membership_id = m.id and ps.organization_id = m.organization_id
       where m.auth_user_id = ${authUserId}::uuid and m.status = 'active'
         and m.valid_from <= now() and (m.valid_to is null or m.valid_to > now())
-      group by m.id`.execute(trx);
+      group by m.id, o.settings`.execute(trx);
     return r.rows[0];
   });
   if (!row) throw new AccessError("NOT_FOUND", "Không tìm thấy tổ chức");
 
+  // Hạn mức 3 tầng (ERD 7.1 #9): mặc định trong mã (DEFAULT_LIMITS, authorize) < theo vai trò của tổ chức
+  // (`organizations.settings.role_limits.<role>`) < ghi đè của membership (`memberships.limits`).
+  const roleLimits = row.role_limits && typeof row.role_limits === "object" ? row.role_limits : {};
+  const limits: Record<string, number> = { ...roleLimits, ...row.limits };
   const actor: Actor = {
     authUserId,
     orgId: input.orgId,
@@ -112,8 +119,8 @@ export async function resolveActor(
     role: row.role,
     allProperties: row.all_properties,
     propertyIds: row.property_ids ?? [],
-    limits: row.limits,
-    mfaRequired: requiresMfa(row.role, row.limits),
+    limits,
+    mfaRequired: requiresMfa(row.role, limits),
   };
   if (actor.mfaRequired && !input.twoFactorEnabled) {
     throw new AccessError("MFA_REQUIRED", "Vai trò này cần bật xác thực hai lớp trước khi thao tác");

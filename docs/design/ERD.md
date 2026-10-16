@@ -611,7 +611,7 @@ Loại: M
 
 - Khoá/index: `UNIQUE (organization_id, property_id, id)`; `UNIQUE (organization_id, property_id, number)`; `ix (organization_id, unit_id, status)`.
 - Ràng buộc đặc biệt: constraint trigger deferred "người đại diện = đúng một `lease_occupants.is_representative` đang hiệu lực" khi `active`; trigger chặn `active` khi chưa có `handovers(kind='move_in')` đã xác nhận (`HANDOVER_REQUIRED`) và chặn `closed` khi `lease_settlements` chưa duyệt (`SETTLEMENT_REQUIRED`). Chống chồng phòng nằm ở `allocations` (ký thất bại ⇒ `ROOM_UNAVAILABLE`), không ở bảng này.
-- RLS/quyền đặc biệt: `owner`/`manager` ghi; `tenant` chỉ đọc hợp đồng có `representative_person_id` = chính mình; `housekeeping`/`maintenance` không đọc.
+- RLS/quyền đặc biệt: `owner`/`manager` ghi; `front_desk`/`accountant` đọc trong phạm vi; `tenant` chỉ đọc hợp đồng có `representative_person_id` = chính mình (`app.actor_person_id()`); `housekeeping`/`maintenance` không đọc. Vòng đời kiểm cả ở trigger (`INVALID_TRANSITION`); người đại diện/mốc ngày bất biến sau ký (`DOCUMENT_IMMUTABLE`). `persons` (T-109): đọc theo vai trò (owner/manager/front_desk/accountant, chính mình, hoặc ngữ cảnh hệ thống không actor). `services` tạo ở T-109 (điều khoản tham chiếu); `allocations.ck_allocations_open_end` cho phép `hold` nguồn `lease` mở cuối.
 - Bất biến: INV-G1, INV-G4 (điều khoản qua `lease_versions`), INV-I1.
 
 ### `lease_versions`
@@ -690,7 +690,7 @@ Loại: M cho đến khi xác nhận, sau đó bất biến
 
 - Khoá/index: `UNIQUE (organization_id, lease_id, kind)`.
 - Ràng buộc đặc biệt: trigger chặn UPDATE/DELETE sau `confirmed_at`, **trừ** việc đổi `readings_pending` từ `true` sang `false` khi đủ `meter_readings` `import` đã duyệt (INV-G4). Bàn giao `manual` bắt buộc đủ chỉ số (kiểm ở command; tạo `meter_readings` nguồn `handover`).
-- RLS/quyền đặc biệt: `front_desk`/`manager` ghi; `tenant` đọc và xác nhận phần mình.
+- RLS/quyền đặc biệt: `front_desk`/`manager` ghi; `tenant` đọc và xác nhận phần mình. T-110: thêm `note` (≤ 2.000 ký tự); `meter_readings.handover_id` (FK, bắt buộc khi `source='handover'`) nối chỉ số với biên bản; `meters`/`meter_readings` tạo sớm ở T-110 (thay công tơ, bất thường, tuyến chốt ở T-112). Kích hoạt hợp đồng có trigger `HANDOVER_REQUIRED`.
 - Bất biến: INV-G4; hợp đồng không `active` khi thiếu bàn giao (DOMAIN-MODEL §4).
 
 ### `lease_settlements`
@@ -953,7 +953,7 @@ Loại: M cho đến khi duyệt
 
 - Khoá/index: `UNIQUE (organization_id, meter_id, billing_period_id) WHERE billing_period_id IS NOT NULL AND source = 'period'` (nhập lại cùng kỳ là cập nhật bản nháp); `ix (organization_id, meter_id, read_on)`.
 - Ràng buộc đặc biệt: `CHECK (status <> 'approved' OR (approved_by IS NOT NULL))`. Trigger chặn đổi/xoá chỉ số `approved` thuộc kỳ đã `issued`/`locked` (`PERIOD_ISSUED`); sửa sau phát hành đi qua điều chỉnh. Khoá lạc quan `version` (hai người nhập cùng phòng ⇒ `409 VERSION_CONFLICT`).
-- RLS/quyền đặc biệt: `manager`/`front_desk` ghi; `maintenance` ghi khi được giao; `tenant` chỉ đọc chỉ số `approved` của phòng trong thời gian hợp đồng của mình.
+- RLS/quyền đặc biệt: `manager`/`front_desk` ghi; `maintenance` ghi khi được giao; `tenant` chỉ đọc chỉ số `approved` của phòng trong thời gian hợp đồng của mình. Kế toán (phát hành kỳ — `billing.issue`) chỉ được `UPDATE` sang `approved` (policy `meter_readings_approve` + trigger chặn đổi cột khác ⇒ `403`); phát hành khoá (`FOR UPDATE`) các chỉ số nháp của kỳ trước khi chụp số liệu và chỉ duyệt đúng các chỉ số đó (T-114).
 - Bất biến: INV-G4 (sau phát hành), INV-G3.
 
 ### `meter_events`
@@ -1003,6 +1003,7 @@ Loại: M
 - Khoá/index: `UNIQUE (organization_id, property_id, id)`; **`UNIQUE (organization_id, property_id, period_start)`** (job tạo kỳ chạy lại không trùng); `EXCLUDE USING gist (organization_id WITH =, property_id WITH =, daterange(period_start, period_end, '[]') WITH &&)`.
 - Ràng buộc đặc biệt: một cơ chế duy nhất cho khoá kỳ — constraint trigger deferred bảo đảm `status='locked'` ⇔ có `period_locks` hiệu lực phủ `period_end` (INV-F6); chuyển `locked → issued` chỉ cùng transaction với điền cột mở khoá của `period_locks`. Tạo kỳ theo ngày địa phương của `properties.timezone` (job 00:05 giờ VN = 17:05Z hôm trước).
 - RLS/quyền đặc biệt: `manager`/`owner`/`accountant` ghi; người thuê chỉ thấy kỳ `issued`/`locked` qua phiếu của mình.
+- Thực thi (T-114, migration 0020): trigger chặn đổi khoảng ngày (`DOCUMENT_IMMUTABLE`), chuyển trạng thái ngoài bảng (`INVALID_TRANSITION`), sửa `issued_at`/`issued_by`/`preview_hash` sau phát hành (`PERIOD_ISSUED`), không xoá; `ledger.lockPeriod` từ chối khi còn kỳ `draft`/`reviewing` có `period_end` ≤ ngày khoá. Kỳ gửi duyệt/phát hành theo thứ tự tháng (trigger chặn `issued` khi còn kỳ trước `draft`/`reviewing` — lượng tiêu thụ lùi về chỉ số đã duyệt gần nhất); chỉ số kỳ chỉ đọc trong [period_start, period_end] và không vượt chỉ số đã duyệt đọc sau; thay công tơ không lùi vào kỳ đã phát hành; hợp đồng trả phòng giữa kỳ tính lượng đến chỉ số bàn giao trả (review lát 3). Bút toán `invoice_issued` ghi Có REV_* theo từng dòng phiếu (`invoice_line_id`) để truy vết; tổng theo tài khoản khớp SPEC S-002.
 - Bất biến: INV-G2, INV-G4, INV-F6.
 
 ### `charges`
@@ -1065,6 +1066,8 @@ Loại: M chỉ ở `allocated_total`; mọi cột khác bất biến từ khi t
 | business_date | date | không | | Ngày phát hành theo giờ chốt ngày |
 | due_on | date | có | | Hạn thanh toán; job nhắc quá hạn đọc cột này |
 | total | bigint | không | `CHECK (total >= 0 OR kind = 'adjustment')` | Tổng = Σ `invoice_lines.amount` |
+| adjusted_total | bigint | không | mặc định `0`; `CHECK (adjusted_total <= 0)`; chỉ cộng dồn giảm | Σ phiếu `adjustment` tham chiếu phiếu này (T-108) |
+| open_amount | bigint | — | `GENERATED ALWAYS AS (greatest(total + adjusted_total, 0) - allocated_total) STORED` | Số còn phải thu — một công thức cho phân bổ, khấu trừ cọc, đối soát, QR |
 | allocated_total | bigint | không | mặc định `0`; `CHECK (allocated_total >= 0 AND allocated_total <= greatest(total, 0))` | Σ phân bổ còn hiệu lực (từ thanh toán hoặc khấu trừ cọc); chỉ đổi cùng transaction phân bổ (INV-F2) |
 | currency | char(3) | không | mặc định `'VND'` | |
 | tax_profile_id | uuid | có | | Như `charges` |
@@ -1178,7 +1181,7 @@ Loại: M chỉ ở cột mở khoá (mỗi dòng mở khoá đúng một lần)
 
 - Khoá/index: `ix (organization_id, property_id, locked_through) WHERE released_at IS NULL` (khoá hiệu lực). Hiệu lực = chưa có `released_at`; khoá hiệu lực của cơ sở = `max(locked_through)`.
 - Ràng buộc đặc biệt: trigger chặn DELETE và chặn UPDATE ngoài ba cột `released_*`/`release_reason` điền một lần; trigger `BEFORE INSERT` trên `journal_entries`, `payments`, `charges` đọc bảng này để từ chối ghi vào kỳ đã khoá (`PERIOD_LOCKED`). Mở khoá kỳ `locked → issued` chỉ cho thêm điều chỉnh/đảo ghi ngày trong kỳ, không cho sửa chứng từ đã phát hành (`DOCUMENT_IMMUTABLE`).
-- RLS/quyền đặc biệt: chốt: `owner`/`manager`/`accountant`; mở khoá: chỉ `owner`; lễ tân không chốt kỳ (chỉ chốt ca của mình).
+- RLS/quyền đặc biệt: chốt: `owner`/`manager`/`accountant`; mở khoá: chỉ `owner`; lễ tân không chốt kỳ (chỉ chốt ca của mình). ĐỌC mở cho mọi vai trò trong tổ chức (ngày khoá không nhạy cảm) để trigger `PERIOD_LOCKED` áp cả với lễ tân/worker (T-108). Chốt chỉ ngày đã qua, chỉ tiến; `ledger.unlockPeriod(property_id, from, reason)` mở mọi khoá hiệu lực có `locked_through ≥ from`.
 - Bất biến: INV-F6, INV-G4.
 
 ## 3.7. Nhóm Payment và Reconciliation
@@ -1209,8 +1212,9 @@ Loại: M cho đến `confirmed`; sau đó chỉ `confirmed → reversed` (bất
 | receipt_no | text | có | | Biên nhận do hệ thống sinh (tiền mặt, INV-F3b) |
 | business_date | date | không | | Ngày kinh doanh địa phương của khoản thu (giờ chốt ngày) |
 | allocated_total | bigint | không | mặc định `0`; `CHECK (allocated_total >= 0 AND allocated_total <= amount)` | Σ phân bổ còn hiệu lực; chỉ đổi cùng transaction phân bổ (INV-F2); đề xuất, SPEC chưa nêu cột |
-| recorded_by | uuid | không | FK ghép → `memberships` | |
+| recorded_by | uuid | có | FK ghép → `memberships` | NULL **chỉ** khi `source = 'bank_auto'` (hệ thống ghi từ webhook đã xác minh, như `files.uploaded_by` NULL khi hệ thống sinh) |
 | confirmed_by | uuid | có | FK ghép → `memberships` | |
+| source | text | không | `CHECK (source IN ('manual','bank_auto'))`, mặc định `'manual'`; bất biến | `bank_auto`: worker tự ghi khi webhook đã xác minh khớp đúng một phiếu (SPEC-ledger S-016; T-107) |
 | confirmed_at | timestamptz | có | | |
 | reversed_by | uuid | có | FK ghép → `memberships` | |
 | reversed_at | timestamptz | có | | |
@@ -1221,7 +1225,8 @@ Loại: M cho đến `confirmed`; sau đó chỉ `confirmed → reversed` (bất
   - `CHECK ((purpose = 'deposit') = (deposit_id IS NOT NULL))`.
   - Tiền mặt: `CHECK (method <> 'cash' OR (shift_id IS NOT NULL AND bank_transaction_id IS NULL AND receiving_account_id IS NULL))` (INV-F3b: tiền mặt kể cả cọc luôn qua `payments` và có ca).
   - Chuyển khoản: `CHECK (method <> 'bank_transfer' OR (shift_id IS NULL AND receiving_account_id IS NOT NULL))`; **`CHECK (NOT (method = 'bank_transfer' AND status IN ('confirmed','reversed')) OR bank_transaction_id IS NOT NULL)`** — `pending` từ `payment_claims` được để trống `bank_transaction_id`, ràng buộc áp từ lúc `confirmed` (INV-F4b).
-  - `CHECK (status = 'pending' OR (confirmed_by IS NOT NULL AND confirmed_at IS NOT NULL AND evidence_kind IS NOT NULL AND evidence_id IS NOT NULL))` (INV-F3: không xác nhận khi thiếu chứng cứ — màn "khách bấm đã chuyển" hay ảnh chụp không đủ); `CHECK ((status = 'reversed') = (reversed_at IS NOT NULL))`.
+  - `CHECK ((source = 'bank_auto') = (recorded_by IS NULL) AND (source <> 'bank_auto' OR (method = 'bank_transfer' AND purpose = 'receivable' AND bank_transaction_id IS NOT NULL AND confirmed_by IS NULL)))`; trigger `BEFORE INSERT`: `bank_auto` phải có `inbox` webhook `signature_verified` trỏ cùng giao dịch (`EVIDENCE_REQUIRED`). Chỉ role `app_worker` ghi được `bank_auto` (policy riêng).
+  - `CHECK (status = 'pending' OR ((confirmed_by IS NOT NULL OR source = 'bank_auto') AND confirmed_at IS NOT NULL AND evidence_kind IS NOT NULL AND evidence_id IS NOT NULL))` (INV-F3: không xác nhận khi thiếu chứng cứ — màn "khách bấm đã chuyển" hay ảnh chụp không đủ); `CHECK ((status = 'reversed') = (reversed_at IS NOT NULL))`.
   - Trigger: sau `confirmed` chỉ cho phép đổi `status → reversed` và điền `reversed_*`, `allocated_total`; trigger `BEFORE INSERT` kiểm khoá kỳ (`PERIOD_LOCKED`).
   - Lễ tân chỉ xác nhận tiền mặt do chính mình nhận trong ca đang mở (`recorded_by = confirmed_by`, `shifts.status='open'`) — kiểm ở command (`FORBIDDEN`/`SHIFT_NOT_OPEN`).
 - RLS/quyền đặc biệt: `front_desk` thấy khoản do mình ghi; `accountant`/`manager`/`owner` theo phạm vi; `housekeeping`/`maintenance`/`tenant` không đọc (tenant chỉ thấy phân bổ vào phiếu của mình qua phiếu).
@@ -1241,7 +1246,7 @@ Loại: M chỉ ở cột đảo (`reversed_*`)
 | deposit_id | uuid | có | FK ghép ba cột → `deposits` | Nguồn là khấu trừ cọc đã duyệt (Nợ `DEPOSIT_LIAB` / Có `AR`); đề xuất, mục 7.3 |
 | invoice_id | uuid | không | FK ghép ba cột → `invoices` | |
 | amount | bigint | không | `CHECK (amount > 0)` | Đồng; phân bổ 0 đ bị từ chối (`VALIDATION_FAILED`) |
-| allocated_by | uuid | không | FK ghép → `memberships` | |
+| allocated_by | uuid | có | FK ghép → `memberships` | NULL chỉ khi phân bổ của thanh toán `bank_auto` (trigger kiểm) |
 | reversed_at | timestamptz | có | | Đặt khi đảo thanh toán đã phân bổ (SPEC-ledger S-010) |
 | reversal_entry_id | uuid | có | FK ghép → `journal_entries` | `CHECK ((reversed_at IS NULL) = (reversal_entry_id IS NULL))` |
 
@@ -1343,7 +1348,8 @@ Loại: M
 
 - Khoá/index: `UNIQUE (organization_id, bank_transaction_id, reason) WHERE status = 'open' AND bank_transaction_id IS NOT NULL`; `ix (organization_id, property_id, status)`.
 - Ràng buộc đặc biệt: `CHECK (status = 'open' OR (resolution IS NOT NULL AND resolved_by IS NOT NULL AND resolved_at IS NOT NULL))`; không dòng nào ghi tiền trước khi người có quyền bấm xác nhận.
-- RLS/quyền đặc biệt: `accountant`/`owner` đọc và xử lý.
+- Khoá bổ sung (T-107): `UNIQUE (organization_id, inbox_id, reason) WHERE status = 'open' AND inbox_id IS NOT NULL AND bank_transaction_id IS NULL` (sự kiện trùng mã khác nội dung gửi lại nhiều lần → một báo động). Trigger: chỉ một lần `open → resolved`; lý do chỉ được đổi lúc đóng và chỉ thành `THIRD_PARTY_PAYER` (lý do gốc lưu `detail.original_reason`).
+- RLS/quyền đặc biệt: vai trò được xác nhận chuyển khoản (`owner`/`manager`/`accountant`, ma trận `payment.confirm_transfer`) đọc và xử lý trong phạm vi cơ sở; worker mở break khi tự ghép thất bại; webhook (không actor) chỉ mở/đọc `HASH_MISMATCH`.
 - Bất biến: INV-F3, INV-F4, INV-F4b.
 
 ### `shifts`
@@ -1708,7 +1714,7 @@ Loại: M cho đến khi batch `committed`
 | data | jsonb | có | | Giá trị chuẩn hoá của dòng (có PII); xoá sau khi commit/huỷ theo hạn giữ |
 
 - Khoá/index: `UNIQUE (organization_id, batch_id, row_no)`; `CHECK ((action = 'error') = (jsonb_array_length(errors) > 0))`.
-- RLS/quyền đặc biệt: như `import_batches`; không chứa ảnh giấy tờ (không import ảnh).
+- RLS/quyền đặc biệt: như `import_batches`; không chứa ảnh giấy tờ (không import ảnh). Thực thi T-115 (migration 0021): thêm `raw` (ô gốc theo cột mẫu), `action` có `skip_empty` (số dư 0 đ), `action` NULL khi chưa kiểm; `import_batches` thêm `file_format`, `header`, `cancelled_at`/`cancel_reason`; `cutoff_on` bắt buộc cả lô `leases`; trigger chặn xoá, chặn sửa sau `committed`/`cancelled` (dòng chỉ được xoá PII `raw`/`data`).
 - Bất biến: INV-G4 (sau commit), INV-G7 (xoá `data` theo hạn).
 
 ### `import_external_refs`
@@ -1726,7 +1732,7 @@ Loại: A
 | target_id | uuid | không | | Bản ghi đích; không FK (đa hình) |
 | row_hash | text | không | `CHECK (row_hash ~ '^[0-9a-f]{64}$')` | Nội dung khác với `external_id` cũ ⇒ `IMPORT_EXTERNAL_ID_CONFLICT` (V1 không cập nhật qua import) |
 
-- Khoá/index: **`UNIQUE (organization_id, kind, external_id)`**.
+- Khoá/index: **`UNIQUE (organization_id, property_id, kind, external_id)`** — thực thi T-115 thêm `property_id` (mỗi cơ sở có sổ cũ riêng; hai cơ sở cùng chủ hay trùng mã như "U-001").
 - RLS/quyền đặc biệt: hệ thống ghi; `manager`/`owner` đọc.
 - Bất biến: INV-G4, INV-G5.
 
@@ -1992,7 +1998,7 @@ Theo quy tắc "SPEC mâu thuẫn DOMAIN-MODEL thì theo DOMAIN-MODEL": ERD đã
 
 | # | Điểm lệch | ERD dùng | Cần chốt |
 |---|---|---|---|
-| 1 | `approval_requests`: cột loại là `action` (SPEC-access §4) hay `kind` (SPEC-ledger §4) | `kind`, danh sách giá trị mở rộng gồm cả hạn mức giảm giá, phí huỷ, cho nợ khi check-out, mở khoá kỳ, quyết toán | Sửa SPEC-access §4 thành `kind`; chốt danh sách giá trị |
+| 1 | `approval_requests`: cột loại là `action` (SPEC-access §4) hay `kind` (SPEC-ledger §4) | `kind`, danh sách giá trị mở rộng gồm cả hạn mức giảm giá, phí huỷ, cho nợ khi check-out, mở khoá kỳ, quyết toán | Sửa SPEC-access §4 thành `kind`; chốt danh sách giá trị **Đã chốt 2026-10-15 (PLAN đợt 2):** dùng `kind`; SPEC-access §4 đã sửa. |
 | 2 | `identity_documents`: SPEC-lease có `doc_number_masked`, không có `property_id`; SPEC-reservation có `doc_number` và `property_id` | Cả `doc_number` và `doc_number_masked` (cột sinh, 4 số cuối); `property_id` cho phép NULL | Thống nhất tên cột ở hai SPEC |
 | 3 | `memberships`: thời hạn là `valid_to` (SPEC-access) hay `valid_until` (SPEC-portal §4) | `valid_to` | Sửa SPEC-portal §4 |
 | 4 | `work_orders`: nguồn `portal` (SPEC-portal §4) hay `tenant` (SPEC-housekeeping S-021); người báo `reporter_person_id` (portal) hay "membership hoặc person" (housekeeping) | `source IN ('staff','tenant')`; hai cột `reporter_membership_id`, `reporter_person_id` đúng một cái NOT NULL | Sửa SPEC-portal §4 |
@@ -2000,7 +2006,7 @@ Theo quy tắc "SPEC mâu thuẫn DOMAIN-MODEL thì theo DOMAIN-MODEL": ERD đã
 | 6 | `units.availability`: SPEC-inventory §4 liệt kê `active\|blocked\|out_of_service` nhưng cũng nói `blocked` suy ra, không ghi tay | Theo DOMAIN-MODEL §3 (ba chiều độc lập): cột chỉ `active`/`out_of_service`, `blocked` tính từ `blocks` | Sửa dòng `units` ở SPEC-inventory §4 |
 | 7 | `receiving_account_id` (DOMAIN-MODEL §1, INV-F4b; SPEC-ledger) dùng ở `bank_transactions`, `payments`, `journal_lines`, nhưng DOMAIN-MODEL §1/§7 không có bảng nào cho tài khoản nhận; `inbox.account` là text | `uuid` không FK; `inbox.account` = `receiving_account_id::text` | Thêm bảng `receiving_accounts` vào DOMAIN-MODEL §7 (số tài khoản, ngân hàng, ánh xạ cột CSV, cơ sở) **trước T-010**, hoặc quyết định lưu trong `properties.settings` |
 | 8 | `tax_profile_id` (INV-G3; `charges` ở SPEC-reservation) không có bảng `tax_profiles` | `uuid` NULL, không FK (pilot không cộng thuế tự động, SPEC-reservation Q-12) | Quyết định khi chốt Q-12 |
-| 9 | PLAN T-007 nói hạn mức nằm trong "bảng cấu hình theo tổ chức", DOMAIN-MODEL không có bảng đó và SPEC-access nói hạn mức ở `memberships.limits` | Mặc định theo vai trò ở `organizations.settings.role_limits`, ghi đè ở `memberships.limits`; không thêm bảng | Sửa lời PLAN T-007, hoặc thêm bảng vào DOMAIN-MODEL trước |
+| 9 | PLAN T-007 nói hạn mức nằm trong "bảng cấu hình theo tổ chức", DOMAIN-MODEL không có bảng đó và SPEC-access nói hạn mức ở `memberships.limits` | Mặc định theo vai trò ở `organizations.settings.role_limits`, ghi đè ở `memberships.limits`; không thêm bảng | Sửa lời PLAN T-007, hoặc thêm bảng vào DOMAIN-MODEL trước **Đã chốt 2026-10-15 (PLAN đợt 2):** mặc định theo vai trò ở `organizations.settings.role_limits`, ghi đè ở `memberships.limits`. |
 | 10 | `allocations`: DOMAIN-MODEL §3 chỉ có `source_id`, nhưng `inventory.createHold` nhận `source_type` và hold có thể thuộc `reservation_items` hoặc `leases` | Thêm cột `source_type` | Bổ sung DOMAIN-MODEL §3 và SPEC-inventory §4 |
 | 11 | `persons.phone`: SPEC-lease S-008 bắt buộc họ tên và SĐT, nhưng nhân viên được mời bằng email | Cột cho phép NULL; command tạo người thuê/khách bắt buộc SĐT | Xác nhận với PO |
 | 12 | Vai trò: SPEC-access nói `memberships.role` thuộc 9 vai trò, DOMAIN-MODEL §6 nói `guest` dùng link, không có membership | CHECK đủ 9 giá trị, nhưng không tạo membership `guest` | Ghi rõ ở SPEC-access §4 |
@@ -2018,10 +2024,10 @@ Các mục dưới đây là quyết định thiết kế để SPEC thực thi 
 
 ### 7.3 Khoảng trống cần quyết định (SPEC chưa nêu)
 
-1. **Khấu trừ cọc và điều chỉnh làm giảm AR của phiếu.** INV-F2 chỉ nói về phân bổ thanh toán, nhưng khấu trừ cọc (Nợ `DEPOSIT_LIAB` / Có `AR`) và điều chỉnh (Nợ `DISCOUNT` / Có `AR`) cũng giảm số còn phải thu. ERD đề xuất: khấu trừ cọc là `payment_allocations` có `deposit_id`; điều chỉnh là phiếu `invoices.kind='adjustment'` tham chiếu phiếu gốc, số còn phải thu = `total` + Σ điều chỉnh − `allocated_total`. Cần chốt trước khi viết INV-F2 ở đợt 2.
+1. **Khấu trừ cọc và điều chỉnh làm giảm AR của phiếu.** INV-F2 chỉ nói về phân bổ thanh toán, nhưng khấu trừ cọc (Nợ `DEPOSIT_LIAB` / Có `AR`) và điều chỉnh (Nợ `DISCOUNT` / Có `AR`) cũng giảm số còn phải thu. ERD đề xuất: khấu trừ cọc là `payment_allocations` có `deposit_id`; điều chỉnh là phiếu `invoices.kind='adjustment'` tham chiếu phiếu gốc, số còn phải thu = `total` + Σ điều chỉnh − `allocated_total`. Cần chốt trước khi viết INV-F2 ở đợt 2. **Đã chốt 2026-10-15 (PLAN đợt 2):** khấu trừ cọc = `payment_allocations` có `deposit_id` (cùng hàng rào INV-F2); điều chỉnh = chứng từ điều chỉnh, bút toán Nợ `DISCOUNT` / Có `AR`.
 2. **Kiểu `auth.user.id`** (uuid hay text) — quyết định ở T-006; nếu là text thì đổi kiểu `memberships.auth_user_id` bằng migration T-006.
 3. **Mã hoá cột `identity_documents.doc_number`** (pgcrypto/KMS hay chỉ RLS + che hiển thị) — quyết định ở T-011 cùng DPIA.
 4. **Danh sách khách của một stay**: mảng `stays.additional_guest_person_ids` (không FK) hay bảng `stay_guests` riêng. Bảng riêng phải vào DOMAIN-MODEL §7 trước.
-5. **Dấu của giảm giá**: `charges.kind='discount'` mang `amount` âm, bút toán ghi Nợ `DISCOUNT` — cần kế toán xác nhận.
+5. **Dấu của giảm giá**: `charges.kind='discount'` mang `amount` âm, bút toán ghi Nợ `DISCOUNT` — cần kế toán xác nhận. **Đã chốt 2026-10-15 (PLAN đợt 2):** `amount` âm, Nợ `DISCOUNT`; kế toán xem lại khi pilot.
 6. **Một membership đang hiệu lực mỗi (tổ chức, người dùng)**: ERD cấm một người vừa là nhân viên vừa là người thuê trong cùng tổ chức bằng cùng tài khoản; nếu cần, đổi unique thành `(organization_id, auth_user_id, role)` và thêm chọn vai trò vào ngữ cảnh phiên.
 7. **Quyền của `app_worker`**: policy đọc `outbox` mọi tổ chức để relay (rồi đặt `app.org_id` theo hàng) và policy dọn `idempotency_keys` hết hạn là ngoại lệ có chủ đích của quy tắc RLS; cần được review bảo mật (THREAT-MODEL) ở T-008.
