@@ -180,7 +180,7 @@ export async function recordPayment(
   return { paymentId: id };
 }
 
-interface PaymentRow {
+export interface PaymentRow {
   id: string;
   property_id: string;
   method: PaymentMethod;
@@ -385,6 +385,11 @@ export interface AllocationInput {
 export async function allocatePayment(
   ctx: CommandContext,
   input: { paymentId: string; allocations: readonly AllocationInput[] },
+  /**
+   * Thay kiểm quyền mặc định (`payment.allocate` + hạn mức) — CHỈ cho luồng hệ thống có quy tắc chặt hơn: check-out phân bổ
+   * tiền của chính booking vào folio của chính lượt ở (SPEC-reservation-stay S-017, S-026). Mọi hàng rào số tiền giữ nguyên.
+   */
+  opts: { authorizeRow?: (row: PaymentRow) => void } = {},
 ): Promise<{ entryId: string; allocationIds: string[]; unallocated: number }> {
   if (input.allocations.length === 0)
     throw new CommandError("VALIDATION_FAILED", 422, "Cần ít nhất một dòng phân bổ");
@@ -397,8 +402,11 @@ export async function allocatePayment(
     assertMoney(a.amount, "Số tiền phân bổ");
   }
   const sum = input.allocations.reduce((s, a) => s + a.amount, 0);
-  const p = await lockPayment(ctx, input.paymentId, (row) =>
-    authorize(ctx.actor, "payment.allocate", { propertyId: row.property_id, amount: sum }),
+  const p = await lockPayment(
+    ctx,
+    input.paymentId,
+    opts.authorizeRow ??
+      ((row) => authorize(ctx.actor, "payment.allocate", { propertyId: row.property_id, amount: sum })),
   );
   if (p.status !== "confirmed" || p.purpose !== "receivable") {
     throw new CommandError("INVALID_TRANSITION", 409, "Chỉ phân bổ khoản thu đã xác nhận");

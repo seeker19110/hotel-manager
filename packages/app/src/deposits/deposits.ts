@@ -107,6 +107,8 @@ interface OpenInvoice {
   id: string;
   property_id: string;
   lease_id: string | null;
+  /** Booking của lượt ở mà phiếu folio/phí thuộc về (cọc đặt phòng chỉ khấu trừ vào đây). */
+  reservation_id: string | null;
   open: number;
   payer_person_id: string;
 }
@@ -117,12 +119,16 @@ async function readInvoice(ctx: CommandContext, invoiceId: string, lock: boolean
     id: string;
     property_id: string;
     lease_id: string | null;
+    reservation_id: string | null;
     open: string;
     payer_person_id: string;
   }>`
-    select id, property_id, lease_id, open_amount::text as open, payer_person_id from invoices
-    where organization_id = ${ctx.actor.orgId} and id = ${invoiceId}
-    ${lock ? sql`for update` : sql``}`.execute(ctx.trx);
+    select iv.id, iv.property_id, iv.lease_id, ri.reservation_id, iv.open_amount::text as open, iv.payer_person_id
+    from invoices iv
+    left join stays s on s.organization_id = iv.organization_id and s.id = iv.stay_id
+    left join reservation_items ri on ri.organization_id = s.organization_id and ri.id = s.reservation_item_id
+    where iv.organization_id = ${ctx.actor.orgId} and iv.id = ${invoiceId}
+    ${lock ? sql`for update of iv` : sql``}`.execute(ctx.trx);
   const row = r.rows[0];
   if (!row) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phiếu");
   return { ...row, open: Number(row.open) };
@@ -130,15 +136,16 @@ async function readInvoice(ctx: CommandContext, invoiceId: string, lock: boolean
 
 /** Khấu trừ chỉ vào phiếu liên kết cùng hợp đồng/đối tượng của cọc và không vượt AR còn mở (INV-F5, lease S-025). */
 function checkDeduction(dep: DepositRow, inv: OpenInvoice, amount: number): void {
-  // Cọc đặt phòng: folio/đặt phòng chưa có (đợt 3) ⇒ chưa cho khấu trừ, tránh cọc của khách X trả nợ của Y (review R6).
-  if (dep.lease_id === null) {
-    throw new CommandError(
-      "VALIDATION_FAILED",
-      422,
-      "Cọc đặt phòng chỉ khấu trừ vào folio của chính đặt phòng (chưa hỗ trợ)",
-    );
-  }
-  if (inv.property_id !== dep.property_id || inv.lease_id !== dep.lease_id) {
+  // Cọc đặt phòng chỉ trừ vào folio/phí của chính booking đó (không để cọc khách X trả nợ của Y — review R6).
+  if (dep.reservation_id !== null) {
+    if (inv.property_id !== dep.property_id || inv.reservation_id !== dep.reservation_id) {
+      throw new CommandError(
+        "VALIDATION_FAILED",
+        422,
+        "Cọc đặt phòng chỉ khấu trừ vào folio của chính đặt phòng",
+      );
+    }
+  } else if (inv.property_id !== dep.property_id || inv.lease_id !== dep.lease_id) {
     throw new CommandError("VALIDATION_FAILED", 422, "Chỉ khấu trừ vào phiếu của chính hợp đồng có cọc");
   }
   if (amount > Number(dep.balance)) throw refundsExceed(amount, Number(dep.balance), "Khấu trừ");
@@ -272,8 +279,19 @@ export function registerDepositExecutors(): void {
   });
 
   registerApprovalExecutor("deposit_refund", {
-    // Cọc hợp đồng trọ: không phải check-out khách sạn → lễ tân không duyệt. Check-out khách sạn suy ra từ stay (đợt 3).
-    context: async () => ({ atCheckout: false }),
+    // Hoàn cọc khách sạn lập lúc check-out (payload.at_checkout_stay_id) → lễ tân được duyệt trong hạn mức nếu lượt ở thuộc
+    // đúng booking của cọc và đã trả phòng; còn lại (cọc hợp đồng trọ) lễ tân không duyệt. Suy ra từ CSDL, không tin client.
+    context: async (ctx, req) => {
+      const stayId = req.payload.at_checkout_stay_id;
+      if (typeof stayId !== "string" || !UUID.test(stayId) || !req.subjectId) return { atCheckout: false };
+      const r = await sql<{ ok: boolean }>`
+        select true as ok from stays s
+        join reservation_items ri on ri.organization_id = s.organization_id and ri.id = s.reservation_item_id
+        join deposits d on d.organization_id = ri.organization_id and d.reservation_id = ri.reservation_id
+        where s.organization_id = ${ctx.actor.orgId} and s.id = ${stayId} and d.id = ${req.subjectId}
+          and s.status = 'checked_out'`.execute(ctx.trx);
+      return { atCheckout: Boolean(r.rows[0]?.ok) };
+    },
     async execute(ctx, req) {
       const amount = req.amount as number;
       const dep = await readDeposit(ctx, req.subjectId as string, true);
