@@ -7,6 +7,8 @@ import { hashPayload } from "../pipeline/command.ts";
 import { listMyOrganizations, type MyOrganization, type Role } from "./actor.ts";
 
 export const ORG_HEADER = "x-org-id";
+/** Ngữ cảnh tổ chức mà trang web đang hiển thị (SPEC-portal S-013) — khác tổ chức của request ⇒ 409 CONTEXT_CHANGED. */
+export const ORG_CONTEXT_HEADER = "x-org-context";
 
 /**
  * Tên cookie chọn tổ chức. HTTPS → tiền tố `__Host-` (trình duyệt buộc Secure, Path=/, không Domain — chống ghi đè từ

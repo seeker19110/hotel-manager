@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import type { Kysely } from "kysely";
 import type { z } from "zod";
 import { AccessError, type Actor, listMyOrganizations, resolveActor } from "../access/actor.ts";
-import { ORG_HEADER, orgCookieName, requestedOrgId } from "../access/org-context.ts";
+import { ORG_CONTEXT_HEADER, ORG_HEADER, orgCookieName, requestedOrgId } from "../access/org-context.ts";
 import { type CommandContext, executeCommand, getCommandResult } from "../pipeline/command.ts";
 import { type Problem, toProblem } from "../pipeline/problem.ts";
 import type { AppServices } from "../server/services.ts";
@@ -32,7 +32,13 @@ export interface CommandDef<I, O> {
 export interface QueryDef<I, O> {
   query: string;
   input: z.ZodType<I>;
-  run(db: Kysely<unknown>, actor: Actor, input: I, services: AppServices): Promise<O>;
+  run(
+    db: Kysely<unknown>,
+    actor: Actor,
+    input: I,
+    services: AppServices,
+    meta: { correlationId: string },
+  ): Promise<O>;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -96,6 +102,16 @@ export async function actorFromRequest(
     req.headers.get(ORG_HEADER),
     readCookie(req.headers.get("cookie"), orgCookieName(deps.secureCookies)),
   );
+  // SPEC-portal S-013: trang web gửi kèm ngữ cảnh nó đang hiển thị (`X-Org-Context`); phiên đã chuyển sang tổ chức khác ở
+  // tab khác ⇒ 409, không ghi gì — UI tải lại. (`X-Org-Id` vẫn là cách API client CHỌN tổ chức, ưu tiên hơn cookie.)
+  const shown = req.headers.get(ORG_CONTEXT_HEADER)?.trim();
+  if (shown && orgId && shown !== orgId)
+    return simpleProblem(
+      "CONTEXT_CHANGED",
+      409,
+      "Bạn vừa chuyển sang cơ sở khác. Tải lại để tiếp tục.",
+      correlationId,
+    );
   if (!orgId) {
     const organizations = await listMyOrganizations(deps.db, session.user.id);
     return simpleProblem("ORG_CONTEXT_REQUIRED", 409, "Hãy chọn tổ chức bạn đang làm việc.", correlationId, {
@@ -187,7 +203,11 @@ export async function handleQuery<I, O>(
     const params = Object.fromEntries(new URL(req.url).searchParams);
     const parsed = def.input.safeParse(params);
     if (!parsed.success) return validationProblem(parsed.error, correlationId);
-    return json({ data: await def.run(deps.db, actor, parsed.data, deps.services) }, 200, correlationId);
+    return json(
+      { data: await def.run(deps.db, actor, parsed.data, deps.services, { correlationId }) },
+      200,
+      correlationId,
+    );
   } catch (err) {
     const p = toProblem(err, correlationId);
     if (p.status < 500) return problemResponse(p, correlationId);

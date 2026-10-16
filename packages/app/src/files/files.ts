@@ -23,7 +23,8 @@ export type FileOwnerType =
   | "meter_reading"
   | "identity_document"
   | "task"
-  | "residence_notice";
+  | "residence_notice"
+  | "payment_claim";
 
 const IMAGES: readonly DetectedMime[] = ["image/jpeg", "image/png", "image/webp"];
 const ALLOW: Readonly<Record<FileOwnerType, readonly DetectedMime[]>> = {
@@ -34,6 +35,8 @@ const ALLOW: Readonly<Record<FileOwnerType, readonly DetectedMime[]>> = {
   identity_document: [...IMAGES, "application/pdf"],
   // Ảnh/PDF bằng chứng đã thông báo lưu trú (SPEC-reservation-stay S-029).
   residence_notice: [...IMAGES, "application/pdf"],
+  // Ảnh/PDF chuyển khoản người thuê đính kèm "Tôi đã chuyển" (SPEC-portal Q-07) — không đủ để xác nhận thu (INV-F3).
+  payment_claim: [...IMAGES, "application/pdf"],
 };
 /** 10 MB/ảnh (đề xuất SPEC-housekeeping Q, chờ PO). */
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;
@@ -68,9 +71,19 @@ export async function uploadFile(
   deps: FileDeps,
   input: { ownerType: FileOwnerType; ownerId?: string; propertyId: string; bytes: Uint8Array },
 ): Promise<{ fileId: string; status: "ready" | "rejected"; mime: DetectedMime }> {
-  authorize(ctx.actor, UPLOAD_ACTION[input.ownerType] ?? "work_order.create", {
-    propertyId: input.propertyId,
-  });
+  if (ctx.actor.role === "tenant") {
+    // Người thuê (portal, SPEC-portal S-008/S-010): chỉ ảnh sự cố/báo chuyển, chỉ cho cơ sở có hợp đồng mình đứng tên
+    // (CSDL cũng chặn — 0038 `portal_files`).
+    if (input.ownerType !== "work_order" && input.ownerType !== "payment_claim")
+      throw new CommandError("FORBIDDEN", 403, "Bạn không có quyền tải loại file này");
+    const own = await sql<{ ok: boolean }>`
+      select ${input.propertyId}::uuid in (select app.tenant_property_ids()) as ok`.execute(ctx.trx);
+    if (!own.rows[0]?.ok) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy cơ sở");
+  } else {
+    authorize(ctx.actor, UPLOAD_ACTION[input.ownerType] ?? "work_order.create", {
+      propertyId: input.propertyId,
+    });
+  }
   if (input.bytes.byteLength === 0) throw new CommandError("VALIDATION_FAILED", 422, "File rỗng");
   if (input.bytes.byteLength > MAX_FILE_BYTES)
     throw new CommandError("FILE_TOO_LARGE", 413, "File vượt dung lượng cho phép");
@@ -144,10 +157,11 @@ export async function storeTabularFile(
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Quyền đọc theo loại chủ — allowlist; loại chưa khai báo (payment_claim, export_job…) bị từ chối. */
+/** Quyền đọc theo loại chủ — allowlist; loại chưa khai báo (export_job…) bị từ chối. */
 const READ_ACTION: Readonly<
-  Record<string, "identity.read" | "calendar.read_status" | "residence_notice.manage">
+  Record<string, "identity.read" | "calendar.read_status" | "residence_notice.manage" | "money.read">
 > = {
+  payment_claim: "money.read",
   identity_document: "identity.read",
   residence_notice: "residence_notice.manage",
   work_order: "calendar.read_status",
@@ -176,9 +190,12 @@ export async function getFileUrl(
   const action = f ? READ_ACTION[f.owner_type] : undefined;
   if (f?.status !== "ready" || !action) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy file");
   try {
-    authorize(ctx.actor, action, {
-      ...(f.property_id ? { propertyId: f.property_id } : {}),
-    });
+    // Người thuê: RLS `portal_files` (0038) đã chỉ để lộ file của chính mình/chỉ số mình được xem — không có phạm vi
+    // cơ sở để kiểm thêm; vai trò khác kiểm theo ma trận.
+    if (ctx.actor.role !== "tenant")
+      authorize(ctx.actor, action, {
+        ...(f.property_id ? { propertyId: f.property_id } : {}),
+      });
   } catch {
     // Không phân biệt "không có quyền" với "không tồn tại" (API-CONTRACT §2).
     throw new CommandError("NOT_FOUND", 404, "Không tìm thấy file");

@@ -133,11 +133,40 @@ async function workOrderStatus(trx: Transaction<unknown>, job: DispatchJob, now:
   return id ? 1 : 0;
 }
 
+/** Lời mời vào portal (SPEC-portal S-014) → `account_security` (bắt buộc, không tắt được). */
+async function tenantInvited(trx: Transaction<unknown>, job: DispatchJob, now: Date): Promise<number> {
+  const membershipId = job.payload.membership_id;
+  const personId = job.payload.person_id;
+  if (typeof membershipId !== "string" || typeof personId !== "string")
+    throw new Error("payload thiếu membership_id/person_id");
+  const o = await sql<{
+    name: string;
+  }>`select name from organizations where id = ${job.organization_id}`.execute(trx);
+  const id = await createNotification(
+    trx,
+    job.organization_id,
+    {
+      propertyId: null,
+      recipientPersonId: personId,
+      type: "account_security",
+      vars: {
+        orgName: o.rows[0]?.name ?? "Cơ sở",
+        action: "mời vào cổng người thuê",
+        kind: "tenant_invited",
+      },
+      dedupeKey: `tenant_invited:${membershipId}`,
+    },
+    { now, sourceOutboxId: job.outbox_id },
+  );
+  return id ? 1 : 0;
+}
+
 const HANDLERS: Readonly<
   Record<string, (trx: Transaction<unknown>, job: DispatchJob, now: Date) => Promise<number>>
 > = {
   "invoice.issued": invoiceIssued,
   "work_order.status_changed": workOrderStatus,
+  "portal.tenant_invited": tenantInvited,
 };
 
 /** Sự kiện outbox mà `notify.dispatch` xử lý (worker tạo queue + consumer cho từng loại). */

@@ -1,12 +1,26 @@
-// Xác thực tự host bằng Better Auth (ADR-0002). CHỈ bật: email/mật khẩu, twoFactor (TOTP), quản lý phiên.
-// Không bật magic link, OAuth proxy, SSO, SCIM, Stripe, device login (các plugin có advisory 2026).
+// Xác thực tự host bằng Better Auth (ADR-0002). CHỈ bật: email/mật khẩu, twoFactor (TOTP), emailOTP (người thuê — D-005,
+// D-011, D-016), quản lý phiên. Không bật magic link, OAuth proxy, SSO, SCIM, Stripe, device login (advisory 2026).
+// emailOTP: OTP lưu dạng băm, 6 số, hạn 5 phút, 3 lần thử, không tự đăng ký; CHỈ đăng nhập (`sign-in`) và chỉ cho tài
+// khoản mà mọi membership còn hiệu lực đều là `tenant` (`app.otp_sign_in_allowed`) — nhân viên luôn mật khẩu + TOTP.
+// Tài khoản không đủ điều kiện: không gửi mã (phản hồi như thường, không lộ email có tồn tại không) và chặn bước đăng nhập.
 import { betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
-import { twoFactor } from "better-auth/plugins";
+import { emailOTP, twoFactor } from "better-auth/plugins";
 import pg from "pg";
 import { clearFailures, DEFAULT_LOCKOUT, isLocked, type LockoutPolicy, recordFailure } from "./lockout.ts";
 
-export const ENABLED_PLUGINS = ["two-factor"] as const;
+export const ENABLED_PLUGINS = ["two-factor", "email-otp"] as const;
+
+/** Đường OTP không dùng (quên mật khẩu, đổi email, xác minh email…) — chặn hẳn. */
+const OTP_BLOCKED_PATHS = new Set([
+  "/email-otp/check-verification-otp",
+  "/email-otp/verify-email",
+  "/email-otp/request-password-reset",
+  "/email-otp/reset-password",
+  "/email-otp/request-email-change",
+  "/email-otp/change-email",
+  "/forget-password/email-otp",
+]);
 
 export interface AuthDeps {
   /** URL tới Postgres bằng role app_runtime; pool riêng với search_path=auth. */
@@ -19,6 +33,8 @@ export interface AuthDeps {
   /** Phiên rảnh quá lâu thì hết hạn (access Q-07: 12 giờ, tham số). */
   sessionIdleHours?: number;
   now?: () => Date;
+  /** Gửi mã OTP đăng nhập cho người thuê (EmailSender; KHÔNG ghi mã vào log/CSDL thông báo). */
+  sendSignInOtp?: (email: string, otp: string) => Promise<void>;
 }
 
 export function createAuth(deps: AuthDeps) {
@@ -29,6 +45,11 @@ export function createAuth(deps: AuthDeps) {
   const lockout = deps.lockout ?? DEFAULT_LOCKOUT;
   const now = deps.now ?? (() => new Date());
   const idleSeconds = (deps.sessionIdleHours ?? 12) * 3600;
+  const otpAllowed = async (email: string): Promise<boolean> => {
+    if (!email || email.length > 320) return false;
+    const r = await pool.query<{ ok: boolean }>("select app.otp_sign_in_allowed($1) as ok", [email]);
+    return r.rows[0]?.ok === true;
+  };
 
   const auth = betterAuth({
     appName: "Hotel Manager",
@@ -38,14 +59,31 @@ export function createAuth(deps: AuthDeps) {
     emailAndPassword: { enabled: true, minPasswordLength: 10, autoSignIn: false },
     // Phiên lăn: hết hạn sau `idle` không hoạt động; gia hạn tối đa mỗi giờ.
     session: { expiresIn: idleSeconds, updateAge: 3600 },
-    plugins: [twoFactor({ issuer: "Hotel Manager" })],
+    plugins: [
+      twoFactor({ issuer: "Hotel Manager" }),
+      emailOTP({
+        otpLength: 6,
+        expiresIn: 300,
+        allowedAttempts: 3,
+        storeOTP: "hashed",
+        disableSignUp: true,
+        async sendVerificationOTP({ email, otp, type }) {
+          if (type !== "sign-in" || !(await otpAllowed(email))) return;
+          await deps.sendSignInOtp?.(email, otp);
+        },
+      }),
+    ],
     // Theo IP: chống dò mật khẩu hàng loạt; khoá theo TÀI KHOẢN nằm ở hooks bên dưới.
     rateLimit: {
       enabled: deps.ipRateLimit ?? true,
       storage: "database",
       window: 60,
       max: 100,
-      customRules: { "/sign-in/email": { window: 60, max: 20 } },
+      customRules: {
+        "/sign-in/email": { window: 60, max: 20 },
+        "/email-otp/send-verification-otp": { window: 60, max: 3 },
+        "/sign-in/email-otp": { window: 60, max: 10 },
+      },
     },
     advanced: {
       database: { generateId: "uuid" },
@@ -55,6 +93,22 @@ export function createAuth(deps: AuthDeps) {
     telemetry: { enabled: false },
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
+        if (OTP_BLOCKED_PATHS.has(ctx.path)) throw new APIError("NOT_FOUND", { message: "Không hỗ trợ" });
+        if (ctx.path === "/email-otp/send-verification-otp") {
+          if ((ctx.body as { type?: unknown } | undefined)?.type !== "sign-in")
+            throw new APIError("NOT_FOUND", { message: "Không hỗ trợ" });
+          return;
+        }
+        if (ctx.path === "/sign-in/email-otp") {
+          const email = String((ctx.body as { email?: unknown } | undefined)?.email ?? "");
+          // Cùng phản hồi với mã sai: không lộ tài khoản có tồn tại / có phải nhân viên.
+          if (!(await otpAllowed(email)))
+            throw new APIError("BAD_REQUEST", {
+              code: "INVALID_OTP",
+              message: "Mã không đúng hoặc đã hết hạn.",
+            });
+          return;
+        }
         if (ctx.path !== "/sign-in/email") return;
         const email = String((ctx.body as { email?: unknown } | undefined)?.email ?? "");
         if (email && (await isLocked(pool, email, now()))) {
