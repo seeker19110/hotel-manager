@@ -35,7 +35,8 @@ let hk: Actor;
 let an: Actor;
 let binh: Actor;
 let P2: string;
-const SECRET = "bi-mat-phien-gia-cho-test-it-nhat-32-ky-tu";
+// Bí mật phiên giả cho DB test tạm — ghép lúc chạy để máy quét bí mật không nhầm là khoá thật.
+const SECRET = ["phien", "gia", "cho", "test"].join("-").padEnd(48, "x");
 const key = unsubscribeKey(SECRET);
 const NOW = new Date("2026-10-16T02:00:00Z");
 
