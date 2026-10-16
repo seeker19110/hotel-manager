@@ -75,6 +75,18 @@ export async function createWorkOrder(
     ...(tenant ? {} : { propertyId: unit.property_id }),
     subjectPersonId: input.reporterPersonId ?? ctx.actor.personId,
   });
+  if (tenant) {
+    // Người thuê chỉ báo phòng thuộc hợp đồng đang hiệu lực của mình (S-021); phòng khác → 404 (không lộ tồn tại).
+    const own = await sql<{ id: string }>`
+      select l.id from leases l
+      where l.organization_id = ${ctx.actor.orgId} and l.unit_id = ${input.unitId}
+        and l.status in ('active','notice_given')
+        and (l.representative_person_id = ${ctx.actor.personId}
+             or exists (select 1 from lease_occupants o where o.organization_id = l.organization_id and o.lease_id = l.id
+                          and o.person_id = ${ctx.actor.personId} and o.role in ('primary','co_tenant')))
+      limit 1`.execute(ctx.trx);
+    if (!own.rows[0]) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phòng");
+  }
   const title = input.title.trim();
   const description = input.description.trim();
   if (title.length < 1 || title.length > 200) throw fieldError("title", "required", "Tiêu đề 1–200 ký tự");
@@ -407,6 +419,53 @@ export async function listWorkOrders(
       doneAt: x.done_at,
       verifiedAt: x.verified_at,
       photoFileIds: x.photos ?? [],
+    }));
+  });
+}
+
+export interface TenantWorkOrderView {
+  id: string;
+  unitCode: string;
+  title: string;
+  severity: string;
+  status: string;
+  createdAt: Date;
+  doneAt: Date | null;
+  verifiedAt: Date | null;
+}
+
+/**
+ * `maintenance.listMyWorkOrders` (query, S-021): người thuê xem phiếu MÌNH báo — RLS `work_orders_read` lọc theo
+ * `reporter_person_id`; không lộ người được giao, mô tả nội bộ, block hay ảnh.
+ */
+export async function listMyWorkOrders(db: Kysely<unknown>, actor: Actor): Promise<TenantWorkOrderView[]> {
+  if (actor.role !== "tenant" || !actor.personId)
+    throw new CommandError("NOT_FOUND", 404, "Không tìm thấy dữ liệu");
+  return withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
+    const r = await sql<{
+      id: string;
+      unit_code: string;
+      title: string;
+      severity: string;
+      status: string;
+      created_at: Date;
+      done_at: Date | null;
+      verified_at: Date | null;
+    }>`
+      select w.id, u.code as unit_code, w.title, w.severity, w.status, w.created_at, w.done_at, w.verified_at
+      from work_orders w join units u on u.organization_id = w.organization_id and u.id = w.unit_id
+      where w.organization_id = ${actor.orgId} and w.reporter_person_id = ${actor.personId}
+      order by w.created_at desc
+      limit 200`.execute(trx);
+    return r.rows.map((x) => ({
+      id: x.id,
+      unitCode: x.unit_code,
+      title: x.title,
+      severity: x.severity,
+      status: x.status,
+      createdAt: x.created_at,
+      doneAt: x.done_at,
+      verifiedAt: x.verified_at,
     }));
   });
 }

@@ -62,6 +62,7 @@ import {
   cancelWorkOrder,
   completeWorkOrder,
   createWorkOrder,
+  listMyWorkOrders,
   listWorkOrders,
   proposeWorkOrderBlock,
   startWorkOrder,
@@ -1556,6 +1557,11 @@ export const QUERIES: Readonly<Record<string, AnyQuery>> = {
         ...(i.status ? { status: i.status } : {}),
         mine: i.mine === "true",
       }),
+  },
+  "maintenance.listMyWorkOrders": {
+    query: "maintenance.listMyWorkOrders",
+    input: z.strictObject({}),
+    run: (db, actor) => listMyWorkOrders(db, actor),
   },
   "reservation.get": {
     query: "reservation.get",

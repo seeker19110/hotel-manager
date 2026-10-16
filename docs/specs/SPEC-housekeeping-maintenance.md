@@ -190,6 +190,7 @@ Hợp đồng chi tiết: `docs/design/API-CONTRACT.md`. Mọi command nhận `I
 | `maintenance.assignWorkOrder` / `startWorkOrder` / `completeWorkOrder` / `verifyWorkOrder` / `cancelWorkOrder` | work_order_id, … | work_order | INVALID_TRANSITION, FORBIDDEN, SELF_APPROVAL_FORBIDDEN (khi `verifyWorkOrder` bởi chính người làm) |
 | `maintenance.proposeBlock` | work_order_id, start, end, reason | block_id (gọi `inventory.requestBlock`) | VALIDATION_FAILED |
 | `maintenance.listWorkOrders` (query) | property_id, status?, mine? | danh sách | NOT_FOUND |
+| `maintenance.listMyWorkOrders` (query, người thuê) | — | phiếu mình báo: mã phòng, tiêu đề, mức độ, trạng thái, mốc thời gian (không người giao/ảnh/block) | NOT_FOUND (không phải người thuê) |
 
 - UI điện thoại: danh sách việc theo tầng, một tác vụ mỗi màn, nút lớn (≥ 44 CSS px) "Nhận / Bắt đầu / Xong"; trạng thái có chữ + icon; ảnh chụp trực tiếp từ camera; hiển thị tiến độ quét ảnh ("Đang kiểm tra ảnh"). Trạng thái: đang tải / rỗng / lỗi có hướng sửa / thành công sau phản hồi máy chủ.
 

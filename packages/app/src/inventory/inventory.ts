@@ -409,7 +409,9 @@ export async function endBlock(
       await sql`update allocations set active = false, deactivated_at = ${now}, deactivated_reason = 'ended'
                 where organization_id = ${ctx.actor.orgId} and id = ${al.id}`.execute(ctx.trx);
     } else if (now.getTime() < al.hi.getTime()) {
-      await sql`update allocations set during = tstzrange(lower(during), ${now}, '[)')
+      // Đang chặn: giữ khoảng đã chặn thật (lịch sử) rồi nhả — bất biến `trg_blocks_allocation`: ended ⇒ không còn active.
+      await sql`update allocations set during = tstzrange(lower(during), ${now}, '[)'), active = false, deactivated_at = ${now},
+                       deactivated_reason = 'ended'
                 where organization_id = ${ctx.actor.orgId} and id = ${al.id}`.execute(ctx.trx);
     }
   }
