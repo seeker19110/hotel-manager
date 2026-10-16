@@ -74,6 +74,7 @@ import {
   reassignDiscrepancy,
   receiveHandover,
 } from "../shifts/shifts.ts";
+import { createRoomType, quote, setRate, updateRoomType } from "../stay/rates.ts";
 import type { CommandDef, QueryDef } from "./command-route.ts";
 
 const uuid = z.uuid();
@@ -176,6 +177,56 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
     command: "approval.cancel",
     input: z.strictObject({ approval_request_id: uuid }),
     run: async (ctx, i) => ({ data: await cancelApproval(ctx, i.approval_request_id) }),
+  }),
+  "roomType.create": defineCommand({
+    command: "roomType.create",
+    input: z.strictObject({
+      property_id: uuid,
+      code: z.string().trim().min(1).max(20),
+      name: z.string().trim().min(1).max(100),
+      capacity: z.number().int().min(1).max(50),
+    }),
+    run: async (ctx, i) => ({
+      data: await createRoomType(ctx, {
+        propertyId: i.property_id,
+        code: i.code,
+        name: i.name,
+        capacity: i.capacity,
+      }),
+      httpStatus: 201,
+    }),
+  }),
+  "roomType.update": defineCommand({
+    command: "roomType.update",
+    input: z.strictObject({
+      room_type_id: uuid,
+      name: z.string().trim().min(1).max(100).optional(),
+      capacity: z.number().int().min(1).max(50).optional(),
+    }),
+    run: async (ctx, i) => ({
+      data: await updateRoomType(ctx, {
+        roomTypeId: i.room_type_id,
+        ...(i.name === undefined ? {} : { name: i.name }),
+        ...(i.capacity === undefined ? {} : { capacity: i.capacity }),
+      }),
+    }),
+  }),
+  "rate.set": defineCommand({
+    command: "rate.set",
+    input: z.strictObject({
+      room_type_id: uuid,
+      weekday_price: positiveMoney,
+      weekend_price: positiveMoney,
+      effective_from: isoDate.optional(),
+    }),
+    run: async (ctx, i) => ({
+      data: await setRate(ctx, {
+        roomTypeId: i.room_type_id,
+        weekdayPrice: i.weekday_price,
+        weekendPrice: i.weekend_price,
+        ...(i.effective_from ? { effectiveFrom: i.effective_from } : {}),
+      }),
+    }),
   }),
   "shift.open": defineCommand({
     command: "shift.open",
@@ -892,7 +943,7 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
 
 /** Tìm command theo đường dẫn `<module>/<command>`; tên chỉ gồm chữ/số để không lọt ký tự lạ. */
 export function findCommand(module: string, command: string): AnyCommand | undefined {
-  if (!/^[a-z][a-z_]*$/.test(module) || !/^[a-zA-Z][a-zA-Z]*$/.test(command)) return undefined;
+  if (!/^[a-z][a-zA-Z_]*$/.test(module) || !/^[a-zA-Z][a-zA-Z]*$/.test(command)) return undefined;
   return Object.hasOwn(COMMANDS, `${module}.${command}`) ? COMMANDS[`${module}.${command}`] : undefined;
 }
 
@@ -936,6 +987,39 @@ export const QUERIES: Readonly<Record<string, AnyQuery>> = {
     input: z.strictObject({ lease_id: uuid }),
     run: (db, actor, i: { lease_id: string }) => getLease(db, actor, i.lease_id),
   },
+  "reservation.quote": {
+    query: "reservation.quote",
+    input: z
+      .strictObject({
+        room_type_id: uuid.optional(),
+        unit_id: uuid.optional(),
+        arrival_date: isoDate,
+        departure_date: isoDate,
+        guests: z.coerce.number().int().min(1).max(50),
+      })
+      .refine((v) => (v.room_type_id === undefined) !== (v.unit_id === undefined), {
+        message: "cần đúng một trong room_type_id, unit_id",
+        path: ["room_type_id"],
+      }),
+    run: (
+      db,
+      actor,
+      i: {
+        room_type_id?: string;
+        unit_id?: string;
+        arrival_date: string;
+        departure_date: string;
+        guests: number;
+      },
+    ) =>
+      quote(db, actor, {
+        ...(i.room_type_id ? { roomTypeId: i.room_type_id } : {}),
+        ...(i.unit_id ? { unitId: i.unit_id } : {}),
+        arrivalDate: i.arrival_date,
+        departureDate: i.departure_date,
+        guests: i.guests,
+      }),
+  },
   "identity.get": {
     query: "identity.get",
     input: z.strictObject({ identity_document_id: uuid }),
@@ -976,6 +1060,6 @@ export const QUERIES: Readonly<Record<string, AnyQuery>> = {
 };
 
 export function findQuery(module: string, query: string): AnyQuery | undefined {
-  if (!/^[a-z][a-z_]*$/.test(module) || !/^[a-zA-Z][a-zA-Z]*$/.test(query)) return undefined;
+  if (!/^[a-z][a-zA-Z_]*$/.test(module) || !/^[a-zA-Z][a-zA-Z]*$/.test(query)) return undefined;
   return Object.hasOwn(QUERIES, `${module}.${query}`) ? QUERIES[`${module}.${query}`] : undefined;
 }

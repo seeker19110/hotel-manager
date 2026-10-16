@@ -69,6 +69,7 @@ Bảng trên là **mã dùng chung**. Mã chỉ một tính năng dùng thì đ�
 | `SPEC-metering-billing.md` | `BILLING_PREVIEW_STALE` · `PERIOD_ISSUED` · `READINGS_INCOMPLETE` · `UNRESOLVED_ANOMALIES` |
 | `SPEC-notifications.md` | `DELIVERY_NOT_RETRYABLE` · `PREFERENCE_REQUIRED` |
 | `SPEC-portal.md` | `LINK_REVOKED` |
+| `SPEC-reservation-stay.md` | `CAPACITY_EXCEEDED` · `NOTICE_TEMPLATE_MISSING` · `OUTSTANDING_BALANCE` · `RATE_NOT_CONFIGURED` · `ROOM_NOT_READY` |
 | `SPEC-pwa.md` | `CLIENT_OUTDATED` · `NETWORK_TIMEOUT` · `RESULT_UNKNOWN` |
 
 Lý do break đối soát (`HASH_MISMATCH`, `THIRD_PARTY_PAYER`, `WRONG_REFERENCE`…) và loại ngoại lệ (`LEASE_OVERSTAY`, `STAY_OVERSTAY`, `RELOCATION_REQUIRED`, `EXTENSION_CONFLICT`) là **giá trị dữ liệu**, không phải mã lỗi API; tương tự mã lỗi từng dòng import (`DUPLICATE_IN_FILE`, `NOT_INTEGER_VND`, `OUT_OF_RANGE`, `TOO_LONG`, `REFERENCE_NOT_FOUND`, `IMPORT_EXTERNAL_ID_CONFLICT`, `CONFLICT_AT_COMMIT`, `ALREADY_EXISTS`, `INVALID_FORMAT` — trả trong danh sách lỗi của batch) và lý do gửi thông báo (`NO_ADDRESS`, `OPTED_OUT`, `PROVIDER_TEMPORARY`, `RECIPIENT_INVALID`, `TEMPLATE_ERROR` — lưu ở `notification_deliveries`).

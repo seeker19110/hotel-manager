@@ -24,6 +24,7 @@ import * as m0020 from "./0020_billing.ts";
 import * as m0021 from "./0021_import.ts";
 import * as m0022 from "./0022_mfa_recovery_scope.ts";
 import * as m0023 from "./0023_identity_encryption.ts";
+import * as m0024 from "./0024_rate_plans.ts";
 
 export const migrations: Record<string, Migration> = {
   "0001_tenancy": m0001,
@@ -49,4 +50,5 @@ export const migrations: Record<string, Migration> = {
   "0021_import": m0021,
   "0022_mfa_recovery_scope": m0022,
   "0023_identity_encryption": m0023,
+  "0024_rate_plans": m0024,
 };
