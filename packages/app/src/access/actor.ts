@@ -23,6 +23,8 @@ export interface Actor {
   propertyIds: readonly string[];
   limits: Readonly<Record<string, number>>;
   mfaRequired: boolean;
+  /** Thời điểm đăng nhập của phiên (Better Auth `session.createdAt`) — thao tác nhạy cảm đòi xác thực lại gần đây. */
+  authenticatedAt?: Date;
 }
 
 export type AccessErrorCode = "UNAUTHENTICATED" | "NOT_FOUND" | "MFA_REQUIRED";
@@ -77,7 +79,12 @@ export async function listMyOrganizations(
  */
 export async function resolveActor(
   db: Kysely<unknown>,
-  input: { authUserId: string | null | undefined; orgId: string; twoFactorEnabled: boolean },
+  input: {
+    authUserId: string | null | undefined;
+    orgId: string;
+    twoFactorEnabled: boolean;
+    authenticatedAt?: Date | undefined;
+  },
 ): Promise<Actor> {
   if (!input.authUserId) throw new AccessError("UNAUTHENTICATED", "Cần đăng nhập");
   const authUserId = input.authUserId;
@@ -121,6 +128,7 @@ export async function resolveActor(
     propertyIds: row.property_ids ?? [],
     limits,
     mfaRequired: requiresMfa(row.role, limits),
+    ...(input.authenticatedAt ? { authenticatedAt: input.authenticatedAt } : {}),
   };
   if (actor.mfaRequired && !input.twoFactorEnabled) {
     throw new AccessError("MFA_REQUIRED", "Vai trò này cần bật xác thực hai lớp trước khi thao tác");

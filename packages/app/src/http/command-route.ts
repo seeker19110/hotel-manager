@@ -12,6 +12,8 @@ import type { AppServices } from "../server/services.ts";
 
 export interface HttpSession {
   user: { id: string; twoFactorEnabled?: boolean | null | undefined };
+  /** Thời điểm đăng nhập (xác thực lại = đăng nhập lại ⇒ phiên mới). */
+  session?: { createdAt?: Date | string | null | undefined };
 }
 
 export interface HttpDeps {
@@ -127,6 +129,7 @@ export async function actorFromRequest(
       authUserId: session.user.id,
       orgId,
       twoFactorEnabled: Boolean(session.user.twoFactorEnabled),
+      authenticatedAt: session.session?.createdAt ? new Date(session.session.createdAt) : undefined,
     });
   } catch (err) {
     if (err instanceof AccessError) return problemResponse(toProblem(err), correlationId);

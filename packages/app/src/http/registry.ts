@@ -21,6 +21,14 @@ import {
   requestDepositRefund,
 } from "../deposits/deposits.ts";
 import {
+  downloadExport,
+  EXPORT_KINDS,
+  getExportStatus,
+  listMyExports,
+  requestExport,
+  requestOrgExport,
+} from "../exports/exports.ts";
+import {
   assignTask,
   cancelTask,
   claimTask,
@@ -703,6 +711,46 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
       }),
       httpStatus: 201,
     }),
+  }),
+  "exports.request": defineCommand({
+    command: "exports.request",
+    input: z.strictObject({
+      kind: z.enum(EXPORT_KINDS),
+      format: z.enum(["csv", "xlsx"]),
+      property_id: z.string().max(64).optional(),
+      filters: z
+        .strictObject({
+          as_of: isoDate.optional(),
+          from: isoDate.optional(),
+          to: isoDate.optional(),
+          correlation_id: z.string().min(1).max(200).optional(),
+        })
+        .optional(),
+    }),
+    run: async (ctx, i) => ({
+      data: await requestExport(ctx, {
+        kind: i.kind,
+        format: i.format,
+        ...(i.property_id ? { propertyId: i.property_id } : {}),
+        filters: {
+          ...(i.filters?.as_of ? { asOf: i.filters.as_of } : {}),
+          ...(i.filters?.from ? { from: i.filters.from } : {}),
+          ...(i.filters?.to ? { to: i.filters.to } : {}),
+          ...(i.filters?.correlation_id ? { correlationId: i.filters.correlation_id } : {}),
+        },
+      }),
+      httpStatus: 202,
+    }),
+  }),
+  "exports.requestOrgExport": defineCommand({
+    command: "exports.requestOrgExport",
+    input: z.strictObject({}),
+    run: async (ctx) => ({ data: await requestOrgExport(ctx), httpStatus: 202 }),
+  }),
+  "exports.download": defineCommand({
+    command: "exports.download",
+    input: z.strictObject({ export_id: z.string().max(64) }),
+    run: async (ctx, i, svc) => ({ data: await downloadExport(ctx, svc, { exportId: i.export_id }) }),
   }),
   "portal.createGuestLink": defineCommand({
     command: "portal.createGuestLink",
@@ -1768,6 +1816,16 @@ export const QUERIES: Readonly<Record<string, AnyQuery>> = {
         to: i.to,
         ...(i.property_id ? { propertyId: i.property_id } : {}),
       }),
+  },
+  "exports.getStatus": {
+    query: "exports.getStatus",
+    input: z.strictObject({ export_id: z.string().max(64) }),
+    run: (db, actor, i: { export_id: string }) => getExportStatus(db, actor, i.export_id),
+  },
+  "exports.listMine": {
+    query: "exports.listMine",
+    input: z.strictObject({}),
+    run: (db, actor) => listMyExports(db, actor),
   },
   "today.getSummary": {
     query: "today.getSummary",

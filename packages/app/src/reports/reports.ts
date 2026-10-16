@@ -29,7 +29,7 @@ const badDate = (field: string) =>
     extensions: { errors: [{ path: field, field, code: "invalid_date" }] },
   });
 
-function validDate(s: string, field: string): string {
+export function validDate(s: string, field: string): string {
   if (
     !DATE.test(s) ||
     Number.isNaN(Date.parse(`${s}T00:00:00Z`)) ||
@@ -39,7 +39,7 @@ function validDate(s: string, field: string): string {
   return s;
 }
 
-function range(from: string, to: string): { from: string; to: string; days: number } {
+export function reportRange(from: string, to: string): { from: string; to: string; days: number } {
   validDate(from, "from");
   validDate(to, "to");
   const days = (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000 + 1;
@@ -217,7 +217,7 @@ export async function collections(
   input: { from: string; to: string; propertyId?: string },
 ): Promise<CollectionsReport> {
   authorizeMoney(actor, input.propertyId);
-  const { from, to } = range(input.from, input.to);
+  const { from, to } = reportRange(input.from, input.to);
   return withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
     const r = await sql<{
       by_method: { method: "cash" | "bank_transfer"; amount: number; count: number }[];
@@ -375,7 +375,7 @@ export async function occupancy(
   input: { from: string; to: string; propertyId?: string },
 ): Promise<{ rows: OccupancyRow[]; formula: string; generatedAt: Date }> {
   authorizeOccupancy(actor, input.propertyId);
-  const { from, to } = range(input.from, input.to);
+  const { from, to } = reportRange(input.from, input.to);
   return withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
     const r = await sql<{
       property_id: string;

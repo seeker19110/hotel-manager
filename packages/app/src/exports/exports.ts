@@ -1,0 +1,747 @@
+// PLAN đợt 3 T-222 — xuất dữ liệu (SPEC-audit-reporting S-013…S-018; ERD `export_jobs`; D-019).
+// - `exports.request` / `exports.requestOrgExport` (command): quyền `data.export` (owner; kế toán chỉ nhóm tiền), cơ sở ngoài
+//   phạm vi ⇒ 404 KHÔNG tạo job, xác thực lại trong 5 phút (REAUTH_REQUIRED 401), ≤ 10 yêu cầu/giờ/người (429); ghi job
+//   `queued` + audit `export.requested` + outbox `export.requested` (cùng transaction) ⇒ 202 + `export_id`.
+// - Worker (`runExportJob`): dựng lại actor của người yêu cầu TẠI LÚC CHẠY (membership bị thu hồi/đổi vai trò ⇒ `failed`
+//   FORBIDDEN), đọc dữ liệu bằng kết nối runtime trong ngữ cảnh của chính người đó (RLS + phạm vi), ghi file riêng tư, chỉ
+//   worker đổi trạng thái; `ready` + hạn 15 phút + audit `export.completed` + thông báo `export_ready`.
+// - `exports.download`: chỉ người yêu cầu (RLS), chưa xong ⇒ 409 EXPORT_NOT_READY, quá hạn ⇒ 410 LINK_EXPIRED; URL ký ≤ 5 phút
+//   (MAX_SIGNED_URL_SECONDS) và không quá hạn của bản xuất; audit `export.downloaded`.
+// - CSV/XLSX chống formula injection (S-016): ô chữ bắt đầu bằng = + - @ tab CR ⇒ thêm `'` (CSV); XLSX ghi kiểu chuỗi; số
+//   giữ là số. Xuất toàn tổ chức (S-018): ZIP các CSV nghiệp vụ, không ảnh/file, không số giấy tờ, bỏ cột bí mật.
+import { createHash, randomUUID } from "node:crypto";
+import { withTenant } from "@hm/db";
+import { authorize } from "@hm/domain";
+import { type Kysely, sql, type Transaction } from "kysely";
+import { AccessError, type Actor, resolveActor } from "../access/actor.ts";
+import { listEvents } from "../audit/events.ts";
+import { MAX_SIGNED_URL_SECONDS, type ObjectStorage } from "../files/storage.ts";
+import { writeXlsx, zipStore } from "../import/xlsx.ts";
+import { createNotification } from "../notifications/dispatch.ts";
+import type { CommandContext } from "../pipeline/command.ts";
+import { CommandError } from "../pipeline/problem.ts";
+import {
+  collections,
+  depositsHeld,
+  occupancy,
+  receivables,
+  reportRange,
+  validDate,
+} from "../reports/reports.ts";
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Xác thực lại trong vòng (giây) — SPEC Q-06 đề xuất 5 phút. */
+export const REAUTH_MAX_AGE_SECONDS = 300;
+/** Bản xuất tải được trong (phút) sau khi xong — SPEC Q-06. */
+export const EXPORT_TTL_MINUTES = 15;
+/** Số yêu cầu xuất tối đa mỗi giờ mỗi người (SPEC §6 RATE_LIMITED). */
+export const EXPORT_RATE_PER_HOUR = 10;
+/** Trần số dòng mỗi bảng/báo cáo — vượt ⇒ job `failed` TOO_LARGE (không cắt âm thầm). */
+export const EXPORT_MAX_ROWS = 100_000;
+
+export const EXPORT_KINDS = ["receivables", "collections", "deposits", "occupancy", "audit"] as const;
+export type ExportKind = (typeof EXPORT_KINDS)[number];
+/** Kế toán: "Có (tiền)" theo ma trận SPEC-access-and-property. */
+const ACCOUNTANT_KINDS: ReadonlySet<string> = new Set(["receivables", "collections", "deposits"]);
+
+const KIND_LABEL: Readonly<Record<ExportKind | "org_full", string>> = {
+  receivables: "Công nợ",
+  collections: "Tiền đã thu",
+  deposits: "Cọc đang giữ",
+  occupancy: "Công suất",
+  audit: "Nhật ký audit",
+  org_full: "Toàn bộ dữ liệu tổ chức",
+};
+
+const MIME = {
+  csv: "text/csv",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  zip: "application/zip",
+} as const;
+
+const notFound = () => new CommandError("NOT_FOUND", 404, "Không tìm thấy dữ liệu.");
+const forbidden = () => new CommandError("FORBIDDEN", 403, "Bạn không có quyền thực hiện thao tác này.");
+
+// ───────────────────────────── CSV an toàn ─────────────────────────────
+
+export type Cell =
+  | string
+  | number
+  | bigint
+  | boolean
+  | Date
+  | null
+  | undefined
+  | Record<string, unknown>
+  | unknown[];
+
+const NUMERIC = /^-?\d+(\.\d+)?$/;
+const FORMULA_START = /^[=+\-@\t\r]/;
+
+/** Chuỗi an toàn cho bảng tính: bắt đầu bằng ký tự công thức ⇒ thêm `'`; chuỗi số thuần (số tiền) giữ nguyên. */
+export function safeText(s: string): string {
+  return FORMULA_START.test(s) && !NUMERIC.test(s) ? `'${s}` : s;
+}
+
+function cellText(v: Cell): string {
+  if (v === null || v === undefined) return "";
+  if (typeof v === "number" || typeof v === "bigint") return String(v);
+  if (typeof v === "boolean") return v ? "true" : "false";
+  if (v instanceof Date) return v.toISOString();
+  if (typeof v === "object") return safeText(JSON.stringify(v));
+  return safeText(v);
+}
+
+/** CSV UTF-8 (BOM cho Excel), CRLF, trích dẫn theo RFC 4180. */
+export function toCsv(rows: readonly (readonly Cell[])[]): Uint8Array {
+  const line = (r: readonly Cell[]) =>
+    r
+      .map((v) => {
+        const t = cellText(v);
+        return /[",\r\n]|^\s|\s$/.test(t) ? `"${t.replaceAll('"', '""')}"` : t;
+      })
+      .join(",");
+  return new TextEncoder().encode(`﻿${rows.map(line).join("\r\n")}\r\n`);
+}
+
+function toXlsx(name: string, rows: readonly (readonly Cell[])[]): Uint8Array {
+  return writeXlsx([
+    {
+      name,
+      rows: rows.map((r) =>
+        r.map((v) =>
+          typeof v === "number"
+            ? v
+            : typeof v === "bigint"
+              ? Number(v)
+              : v === null || v === undefined
+                ? ""
+                : typeof v === "string"
+                  ? v
+                  : cellText(v),
+        ),
+      ),
+    },
+  ]);
+}
+
+// ───────────────────────────── Yêu cầu xuất ─────────────────────────────
+
+export interface ExportFilters {
+  asOf?: string;
+  from?: string;
+  to?: string;
+  correlationId?: string;
+}
+
+function assertKindAllowed(actor: Actor, kind: string): void {
+  authorize(actor, "data.export");
+  if (actor.role === "accountant" && !ACCOUNTANT_KINDS.has(kind)) throw forbidden();
+}
+
+function assertRecentAuth(actor: Actor, now: Date): void {
+  const at = actor.authenticatedAt?.getTime();
+  if (at === undefined || now.getTime() - at > REAUTH_MAX_AGE_SECONDS * 1000 || at > now.getTime() + 60_000)
+    throw new CommandError("REAUTH_REQUIRED", 401, "Vui lòng xác thực lại để xuất dữ liệu.");
+}
+
+function normalizeFilters(kind: ExportKind, f: ExportFilters): Record<string, string> {
+  switch (kind) {
+    case "receivables":
+      return f.asOf ? { as_of: validDate(f.asOf, "as_of") } : {};
+    case "collections":
+    case "occupancy":
+    case "audit": {
+      if (!f.from || !f.to) {
+        const field = f.from ? "to" : "from";
+        throw new CommandError("VALIDATION_FAILED", 422, `Thông tin chưa hợp lệ: ${field}.`, {
+          extensions: { errors: [{ path: field, field, code: "required" }] },
+        });
+      }
+      const r = reportRange(f.from, f.to);
+      return {
+        from: r.from,
+        to: r.to,
+        ...(kind === "audit" && f.correlationId ? { correlation_id: f.correlationId.slice(0, 200) } : {}),
+      };
+    }
+    case "deposits":
+      return {};
+  }
+}
+
+async function assertRate(ctx: CommandContext, now: Date): Promise<void> {
+  const r = await sql<{ n: number }>`
+    select count(*)::int as n from export_jobs
+    where organization_id = ${ctx.actor.orgId} and requested_by = ${ctx.actor.membershipId}
+      and created_at > ${now}::timestamptz - interval '1 hour'`.execute(ctx.trx);
+  if ((r.rows[0]?.n ?? 0) >= EXPORT_RATE_PER_HOUR)
+    throw new CommandError("RATE_LIMITED", 429, "Bạn đã yêu cầu xuất quá nhiều lần. Vui lòng thử lại sau.");
+}
+
+async function createJob(
+  ctx: CommandContext,
+  job: {
+    kind: ExportKind | "org_full";
+    format: "csv" | "xlsx" | "zip";
+    propertyId: string | null;
+    filters: Record<string, string>;
+  },
+  now: Date,
+): Promise<{ exportId: string; status: "queued" }> {
+  await assertRate(ctx, now);
+  const id = randomUUID();
+  const scope = {
+    role: ctx.actor.role,
+    all_properties: ctx.actor.allProperties,
+    property_ids: [...ctx.actor.propertyIds],
+  };
+  await sql`
+    insert into export_jobs (id, organization_id, property_id, requested_by, kind, format, filters, scope_snapshot, created_at)
+    values (${id}, ${ctx.actor.orgId}, ${job.propertyId}, ${ctx.actor.membershipId}, ${job.kind}, ${job.format},
+            ${JSON.stringify(job.filters)}::jsonb, ${JSON.stringify(scope)}::jsonb, ${now})`.execute(ctx.trx);
+  await ctx.audit({
+    action: "export.requested",
+    entityType: "export_job",
+    entityId: id,
+    ...(job.propertyId ? { propertyId: job.propertyId } : {}),
+    after: { kind: job.kind, format: job.format, filters: job.filters },
+  });
+  await ctx.emit({
+    eventType: "export.requested",
+    aggregateType: "export_job",
+    aggregateId: id,
+    ...(job.propertyId ? { propertyId: job.propertyId } : {}),
+    payload: { export_id: id },
+  });
+  return { exportId: id, status: "queued" };
+}
+
+/** `exports.request` (S-013…S-017). */
+export async function requestExport(
+  ctx: CommandContext,
+  input: {
+    kind: ExportKind;
+    format: "csv" | "xlsx";
+    propertyId?: string;
+    filters?: ExportFilters;
+    now?: Date;
+  },
+): Promise<{ exportId: string; status: "queued" }> {
+  const now = input.now ?? new Date();
+  assertKindAllowed(ctx.actor, input.kind);
+  if (input.propertyId !== undefined) {
+    if (!UUID.test(input.propertyId)) throw notFound();
+    authorize(ctx.actor, "data.export", { propertyId: input.propertyId });
+  }
+  const filters = normalizeFilters(input.kind, input.filters ?? {});
+  assertRecentAuth(ctx.actor, now);
+  return createJob(
+    ctx,
+    { kind: input.kind, format: input.format, propertyId: input.propertyId ?? null, filters },
+    now,
+  );
+}
+
+/** `exports.requestOrgExport` (S-018): chỉ owner. */
+export async function requestOrgExport(
+  ctx: CommandContext,
+  input: { now?: Date } = {},
+): Promise<{ exportId: string; status: "queued" }> {
+  const now = input.now ?? new Date();
+  authorize(ctx.actor, "data.export");
+  if (ctx.actor.role !== "owner") throw forbidden();
+  assertRecentAuth(ctx.actor, now);
+  return createJob(ctx, { kind: "org_full", format: "zip", propertyId: null, filters: {} }, now);
+}
+
+// ───────────────────────────── Trạng thái + tải ─────────────────────────────
+
+export interface ExportStatus {
+  exportId: string;
+  kind: string;
+  format: string;
+  status: "queued" | "running" | "ready" | "failed" | "expired";
+  rowCount: number | null;
+  failedReason: string | null;
+  expiresAt: Date | null;
+  createdAt: Date;
+  completedAt: Date | null;
+}
+
+interface JobRow {
+  id: string;
+  kind: string;
+  format: string;
+  status: ExportStatus["status"];
+  row_count: string | null;
+  failed_reason: string | null;
+  expires_at: Date | null;
+  created_at: Date;
+  completed_at: Date | null;
+  file_key: string | null;
+  property_id: string | null;
+}
+
+const toStatus = (r: JobRow): ExportStatus => ({
+  exportId: r.id,
+  kind: r.kind,
+  format: r.format,
+  status: r.status,
+  rowCount: r.row_count === null ? null : Number(r.row_count),
+  failedReason: r.failed_reason,
+  expiresAt: r.expires_at,
+  createdAt: r.created_at,
+  completedAt: r.completed_at,
+});
+
+/** `exports.getStatus`: chỉ job của chính mình (RLS) — khác ⇒ 404. */
+export async function getExportStatus(
+  db: Kysely<unknown>,
+  actor: Actor,
+  exportId: string,
+): Promise<ExportStatus> {
+  if (!UUID.test(exportId)) throw notFound();
+  return withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
+    const r =
+      await sql<JobRow>`select * from export_jobs where organization_id = ${actor.orgId} and id = ${exportId}`.execute(
+        trx,
+      );
+    const row = r.rows[0];
+    if (!row) throw notFound();
+    return toStatus(row);
+  });
+}
+
+/** `exports.listMine`: 50 yêu cầu gần nhất của chính mình. */
+export async function listMyExports(db: Kysely<unknown>, actor: Actor): Promise<ExportStatus[]> {
+  return withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
+    const r = await sql<JobRow>`
+      select * from export_jobs where organization_id = ${actor.orgId} and requested_by = ${actor.membershipId}
+      order by created_at desc, id desc limit 50`.execute(trx);
+    return r.rows.map(toStatus);
+  });
+}
+
+/** `exports.download` (S-015): URL ký ngắn hạn cho chính người yêu cầu. */
+export async function downloadExport(
+  ctx: CommandContext,
+  deps: { storage: ObjectStorage },
+  input: { exportId: string; now?: Date },
+): Promise<{ url: string; expiresIn: number }> {
+  const now = input.now ?? new Date();
+  if (!UUID.test(input.exportId)) throw notFound();
+  const r = await sql<JobRow>`
+    select * from export_jobs where organization_id = ${ctx.actor.orgId} and id = ${input.exportId}
+      and requested_by = ${ctx.actor.membershipId}`.execute(ctx.trx);
+  const job = r.rows[0];
+  if (!job) throw notFound();
+  if (job.status === "expired" || (job.status === "ready" && job.expires_at && job.expires_at <= now))
+    throw new CommandError("LINK_EXPIRED", 410, "Liên kết tải đã hết hạn. Hãy tạo yêu cầu xuất mới.");
+  if (job.status !== "ready" || !job.file_key || !job.expires_at)
+    throw new CommandError(
+      "EXPORT_NOT_READY",
+      409,
+      job.status === "failed"
+        ? "Bản xuất không tạo được. Hãy tạo yêu cầu mới."
+        : "File đang được chuẩn bị. Vui lòng đợi.",
+    );
+  const expiresIn = Math.max(
+    1,
+    Math.min(MAX_SIGNED_URL_SECONDS, Math.floor((job.expires_at.getTime() - now.getTime()) / 1000)),
+  );
+  await ctx.audit({
+    action: "export.downloaded",
+    entityType: "export_job",
+    entityId: job.id,
+    ...(job.property_id ? { propertyId: job.property_id } : {}),
+  });
+  return { url: await deps.storage.signedGetUrl(job.file_key, expiresIn), expiresIn };
+}
+
+// ───────────────────────────── Worker ─────────────────────────────
+
+export interface ExportJobDeps {
+  /** Kết nối vai trò runtime — đọc dữ liệu trong ngữ cảnh người yêu cầu (RLS). */
+  db: Kysely<unknown>;
+  /** Kết nối vai trò worker — đổi trạng thái job, audit, thông báo. */
+  workerDb: Kysely<unknown>;
+  storage: ObjectStorage;
+}
+
+class ExportFailure extends Error {
+  readonly reason: "FORBIDDEN" | "TOO_LARGE" | "INVALID";
+  constructor(reason: "FORBIDDEN" | "TOO_LARGE" | "INVALID") {
+    super(reason);
+    this.reason = reason;
+  }
+}
+
+/** Actor của người yêu cầu tại lúc chạy; membership không còn hiệu lực/không còn quyền ⇒ FORBIDDEN. */
+async function requesterNow(db: Kysely<unknown>, orgId: string, membershipId: string): Promise<Actor> {
+  const m = await withTenant(db, { orgId }, (trx) =>
+    sql<{ auth_user_id: string | null }>`
+      select auth_user_id from memberships where organization_id = ${orgId} and id = ${membershipId}`.execute(
+      trx,
+    ),
+  );
+  const authUserId = m.rows[0]?.auth_user_id;
+  if (!authUserId) throw new ExportFailure("FORBIDDEN");
+  try {
+    const a = await resolveActor(db, { authUserId, orgId, twoFactorEnabled: true });
+    if (a.membershipId !== membershipId) throw new ExportFailure("FORBIDDEN");
+    return a;
+  } catch (err) {
+    if (err instanceof AccessError || err instanceof ExportFailure) throw new ExportFailure("FORBIDDEN");
+    throw err;
+  }
+}
+
+function capped<T>(rows: readonly T[]): readonly T[] {
+  if (rows.length > EXPORT_MAX_ROWS) throw new ExportFailure("TOO_LARGE");
+  return rows;
+}
+
+const vnDate = (d: string | null) => (d ? `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}` : "");
+
+/** Bảng dữ liệu của một báo cáo (dòng đầu là tiêu đề). */
+async function reportTable(
+  db: Kysely<unknown>,
+  actor: Actor,
+  kind: ExportKind,
+  propertyId: string | null,
+  f: Record<string, string>,
+): Promise<{ table: Cell[][]; rows: number }> {
+  const p = propertyId ? { propertyId } : {};
+  switch (kind) {
+    case "receivables": {
+      const r = await receivables(db, actor, { ...p, ...(f.as_of ? { asOf: f.as_of } : {}) });
+      return {
+        rows: r.rows.length,
+        table: [
+          ["Phiếu", "Cơ sở", "Người trả", "Loại", "Hạn", "Tổng", "Đã phân bổ", "Còn nợ", "Số ngày quá hạn"],
+          ...capped(r.rows).map((x) => [
+            x.number,
+            x.propertyName,
+            x.payerName,
+            x.kind,
+            vnDate(x.dueOn),
+            x.total,
+            x.allocated,
+            x.balance,
+            x.daysOverdue,
+          ]),
+          ["Tổng", "", "", "", "", "", "", r.total, ""],
+          [
+            `Ngày chốt ${vnDate(r.asOf)}`,
+            `Số dư AR ${r.ledgerBalance}`,
+            r.matchesLedger ? "Khớp sổ" : "LỆCH SỔ",
+          ],
+        ],
+      };
+    }
+    case "collections": {
+      const r = await collections(db, actor, { from: f.from as string, to: f.to as string, ...p });
+      return {
+        rows: r.byDay.length,
+        table: [
+          ["Ngày kinh doanh", "Phương thức", "Người xác nhận", "Số khoản", "Số tiền"],
+          ...capped(r.byDay).map((x) => [
+            vnDate(x.businessDate),
+            x.method === "cash" ? "Tiền mặt" : "Chuyển khoản",
+            x.confirmedBy,
+            x.count,
+            x.amount,
+          ]),
+          ["Tổng", "", "", "", r.total],
+          [r.note],
+        ],
+      };
+    }
+    case "deposits": {
+      const r = await depositsHeld(db, actor, p);
+      return {
+        rows: r.rows.length,
+        table: [
+          ["Mã cọc", "Người nộp", "Hợp đồng", "Đặt phòng", "Đã nhận", "Đã khấu trừ", "Đã hoàn", "Đang giữ"],
+          ...capped(r.rows).map((x) => [
+            x.depositId,
+            x.payerName,
+            x.leaseId,
+            x.reservationId,
+            x.amount,
+            x.deducted,
+            x.refunded,
+            x.balance,
+          ]),
+          ["Tổng", "", "", "", "", "", "", r.total],
+          [`Số dư DEPOSIT_LIAB ${r.ledgerBalance}`, r.matchesLedger ? "Khớp sổ" : "LỆCH SỔ"],
+        ],
+      };
+    }
+    case "occupancy": {
+      const r = await occupancy(db, actor, { from: f.from as string, to: f.to as string, ...p });
+      return {
+        rows: r.rows.length,
+        table: [
+          ["Ngày", "Cơ sở", "Số phòng", "Bị chặn", "Khả dụng", "Đang ở", "Công suất (%)"],
+          ...capped(r.rows).map((x) => [
+            vnDate(x.date),
+            x.propertyName,
+            x.units,
+            x.blocked,
+            x.available,
+            x.occupied,
+            x.rate,
+          ]),
+          [r.formula],
+        ],
+      };
+    }
+    case "audit": {
+      const out: Cell[][] = [
+        [
+          "Thời điểm (giờ cơ sở)",
+          "Người",
+          "Hành động",
+          "Đối tượng",
+          "Mã đối tượng",
+          "Lý do",
+          "Trước",
+          "Sau",
+          "Correlation",
+        ],
+      ];
+      let cursor: string | undefined;
+      for (;;) {
+        const r = await listEvents(db, actor, {
+          from: new Date(`${f.from}T00:00:00+07:00`),
+          to: new Date(Date.parse(`${f.to}T00:00:00+07:00`) + 86_400_000),
+          ...(propertyId ? { propertyId } : {}),
+          ...(f.correlation_id ? { correlationId: f.correlation_id } : {}),
+          order: "asc",
+          limit: 200,
+          ...(cursor ? { cursor } : {}),
+        });
+        for (const e of r.items)
+          out.push([
+            e.occurredAtLocal,
+            e.actorName ?? e.actorType,
+            e.action,
+            e.entityType,
+            e.entityId,
+            e.reason,
+            e.before as Cell,
+            e.after as Cell,
+            e.correlationId,
+          ]);
+        if (out.length - 1 > EXPORT_MAX_ROWS) throw new ExportFailure("TOO_LARGE");
+        if (!r.nextCursor) break;
+        cursor = r.nextCursor;
+      }
+      return { rows: out.length - 1, table: out };
+    }
+  }
+}
+
+/** Bảng nghiệp vụ của xuất toàn tổ chức (S-018). Không có `identity_documents`, `files`, bảng xác thực/kỹ thuật. */
+export const ORG_EXPORT_TABLES = [
+  "properties",
+  "floors",
+  "room_types",
+  "units",
+  "persons",
+  "leases",
+  "lease_versions",
+  "lease_occupants",
+  "handovers",
+  "meters",
+  "meter_readings",
+  "billing_periods",
+  "invoices",
+  "invoice_lines",
+  "payments",
+  "payment_allocations",
+  "deposits",
+  "reservations",
+  "reservation_items",
+  "stays",
+  "charges",
+  "journal_entries",
+  "journal_lines",
+  "work_orders",
+  "blocks",
+] as const;
+
+/** Cột không bao giờ xuất: bí mật, băm, khoá lưu trữ, số giấy tờ/tài khoản đầy đủ, dữ liệu mã hoá. */
+export const ORG_EXPORT_EXCLUDED_COLUMN =
+  /(token|secret|hash|storage_key|encrypted|cipher|blind|doc(ument)?_number|id_number|account_number$|password|_enc$|^raw$|signature)/i;
+
+async function orgZip(db: Kysely<unknown>, actor: Actor): Promise<{ bytes: Uint8Array; rows: number }> {
+  let total = 0;
+  const files: { name: string; data: Buffer }[] = [];
+  await withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
+    for (const table of ORG_EXPORT_TABLES) {
+      const exists = await sql<{
+        ok: boolean;
+      }>`select to_regclass(${`public.${table}`}) is not null as ok`.execute(trx);
+      if (!exists.rows[0]?.ok) continue;
+      const cols = await sql<{ column_name: string }>`
+        select column_name from information_schema.columns
+        where table_schema = 'public' and table_name = ${table} order by ordinal_position`.execute(trx);
+      const keep = cols.rows.map((c) => c.column_name).filter((c) => !ORG_EXPORT_EXCLUDED_COLUMN.test(c));
+      const r = await sql<Record<string, Cell>>`
+        select ${sql.join(keep.map((c) => sql.ref(c)))} from ${sql.table(table)}
+        where organization_id = ${actor.orgId}
+        order by ${sql.ref(keep.includes("created_at") ? "created_at" : "id")}, id
+        limit ${EXPORT_MAX_ROWS + 1}`.execute(trx);
+      capped(r.rows);
+      total += r.rows.length;
+      files.push({
+        name: `${table}.csv`,
+        data: Buffer.from(toCsv([keep, ...r.rows.map((row) => keep.map((c) => row[c]))])),
+      });
+    }
+  });
+  files.push({
+    name: "README.txt",
+    data: Buffer.from(
+      "Xuất toàn bộ dữ liệu nghiệp vụ của tổ chức (CSV UTF-8). Không gồm ảnh/file đính kèm, số giấy tờ tuỳ thân, thông tin đăng nhập.\r\n",
+      "utf8",
+    ),
+  });
+  return { bytes: zipStore(files), rows: total };
+}
+
+async function transition(
+  workerDb: Kysely<unknown>,
+  orgId: string,
+  fn: (trx: Transaction<unknown>) => Promise<void>,
+): Promise<void> {
+  await withTenant(workerDb, { orgId }, fn);
+}
+
+/**
+ * Worker xử lý `export.requested` (S-015, S-017, S-018). Giao lại (pg-boss) ⇒ bỏ qua nếu job không còn `queued`
+ * (hoặc `running` bị bỏ dở > 10 phút ⇒ chạy lại). Trả trạng thái cuối.
+ */
+export async function runExportJob(
+  deps: ExportJobDeps,
+  job: { organization_id: string; payload: Record<string, unknown> },
+  now: Date = new Date(),
+): Promise<ExportStatus["status"] | "skipped"> {
+  const orgId = job.organization_id;
+  const id = job.payload.export_id;
+  if (typeof id !== "string" || !UUID.test(id)) throw new Error("payload thiếu export_id");
+  const claimed = await withTenant(deps.workerDb, { orgId }, async (trx) => {
+    const r = await sql<{
+      id: string;
+      kind: ExportKind | "org_full";
+      format: "csv" | "xlsx" | "zip";
+      property_id: string | null;
+      requested_by: string;
+      filters: Record<string, string>;
+    }>`
+      update export_jobs set status = 'running', version = version + 1
+      where organization_id = ${orgId} and id = ${id}
+        and (status = 'queued' or (status = 'running' and updated_at < ${now}::timestamptz - interval '10 minutes'))
+      returning id, kind, format, property_id, requested_by, filters`.execute(trx);
+    return r.rows[0];
+  });
+  if (!claimed) return "skipped";
+
+  const fail = async (reason: string): Promise<"failed"> => {
+    await transition(deps.workerDb, orgId, async (trx) => {
+      await sql`update export_jobs set status = 'failed', failed_reason = ${reason}, completed_at = ${now}
+                where organization_id = ${orgId} and id = ${id} and status = 'running'`.execute(trx);
+      await sql`insert into audit_events (id, organization_id, property_id, actor_type, action, entity_type, entity_id, after,
+                                          correlation_id)
+                values (${randomUUID()}, ${orgId}, ${claimed.property_id}, 'worker', 'export.failed', 'export_job', ${id},
+                        ${JSON.stringify({ reason })}::jsonb, ${`export:${id}`})`.execute(trx);
+    });
+    return "failed";
+  };
+
+  let actor: Actor;
+  let bytes: Uint8Array;
+  let rows: number;
+  try {
+    actor = await requesterNow(deps.db, orgId, claimed.requested_by);
+    if (claimed.kind === "org_full") {
+      if (actor.role !== "owner") throw new ExportFailure("FORBIDDEN");
+      authorize(actor, "data.export");
+      ({ bytes, rows } = await orgZip(deps.db, actor));
+    } else {
+      try {
+        assertKindAllowed(actor, claimed.kind);
+        if (claimed.property_id) authorize(actor, "data.export", { propertyId: claimed.property_id });
+      } catch {
+        throw new ExportFailure("FORBIDDEN");
+      }
+      const { table, rows: n } = await reportTable(
+        deps.db,
+        actor,
+        claimed.kind,
+        claimed.property_id,
+        claimed.filters,
+      );
+      rows = n;
+      bytes = claimed.format === "xlsx" ? toXlsx(KIND_LABEL[claimed.kind], table) : toCsv(table);
+    }
+  } catch (err) {
+    if (err instanceof ExportFailure) return fail(err.reason);
+    if (err instanceof CommandError && (err.code === "FORBIDDEN" || err.code === "NOT_FOUND"))
+      return fail("FORBIDDEN");
+    if (
+      err instanceof CommandError &&
+      (err.code === "VALIDATION_FAILED" || err.code === "REPORT_RANGE_TOO_LARGE")
+    )
+      return fail("INVALID");
+    throw err;
+  }
+
+  // File riêng tư, ghi trong ngữ cảnh người yêu cầu (policy `files` nhánh export_job); put lỗi ⇒ rollback hàng files.
+  const key = `${orgId}/export_job/${randomUUID()}`;
+  const mime = MIME[claimed.format];
+  await withTenant(deps.db, { orgId, actorId: actor.membershipId }, async (trx) => {
+    await sql`
+      insert into files (id, organization_id, property_id, owner_type, owner_id, mime, size_bytes, sha256, status, storage_key,
+                         uploaded_by, scanned_at, delete_after)
+      values (${randomUUID()}, ${orgId}, ${claimed.property_id}, 'export_job', ${id}, ${mime}, ${bytes.byteLength},
+              ${createHash("sha256").update(bytes).digest("hex")}, 'ready', ${key}, ${actor.membershipId}, ${now},
+              (${now}::timestamptz at time zone 'Asia/Ho_Chi_Minh')::date + 2)`.execute(trx);
+    await deps.storage.put(key, bytes, mime);
+  });
+  const expiresAt = new Date(now.getTime() + EXPORT_TTL_MINUTES * 60_000);
+  await transition(deps.workerDb, orgId, async (trx) => {
+    await sql`update export_jobs set status = 'ready', file_key = ${key}, row_count = ${rows}, expires_at = ${expiresAt},
+                     completed_at = ${now}
+              where organization_id = ${orgId} and id = ${id} and status = 'running'`.execute(trx);
+    await sql`insert into audit_events (id, organization_id, property_id, actor_type, action, entity_type, entity_id, after,
+                                        correlation_id)
+              values (${randomUUID()}, ${orgId}, ${claimed.property_id}, 'worker', 'export.completed', 'export_job', ${id},
+                      ${JSON.stringify({ rows, format: claimed.format })}::jsonb, ${`export:${id}`})`.execute(
+      trx,
+    );
+    await createNotification(
+      trx,
+      orgId,
+      {
+        propertyId: claimed.property_id,
+        recipientPersonId: actor.personId,
+        type: "export_ready",
+        vars: { exportName: KIND_LABEL[claimed.kind], exportId: id },
+        dedupeKey: `export_ready:${id}`,
+      },
+      { now },
+    );
+  });
+  return "ready";
+}
+
+/** Job định kỳ: bản xuất quá hạn tải ⇒ `expired` (mọi tổ chức). Trả số job đã chuyển. */
+export async function expireExports(workerDb: Kysely<unknown>, now: Date = new Date()): Promise<number> {
+  const r = await sql<{ n: number }>`select app.expire_export_jobs(${now}) as n`.execute(workerDb);
+  return r.rows[0]?.n ?? 0;
+}

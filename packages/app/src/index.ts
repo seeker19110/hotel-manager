@@ -26,6 +26,16 @@ export { type Auth, createAuth } from "./auth/auth.ts";
 export { generatePeriods, type Preview, previewPeriod } from "./billing/billing.ts";
 export { loadConfig } from "./config/schema.ts";
 export { ERROR_CODES, type ErrorCode } from "./errors.ts";
+export {
+  downloadExport,
+  EXPORT_KINDS,
+  type ExportJobDeps,
+  type ExportStatus,
+  expireExports,
+  getExportStatus,
+  listMyExports,
+  runExportJob,
+} from "./exports/exports.ts";
 export { handleFileUpload } from "./files/http.ts";
 export {
   type CommandDef,

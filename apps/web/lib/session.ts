@@ -25,6 +25,7 @@ export async function currentActor(): Promise<ActorResult> {
       authUserId: session.user.id,
       orgId,
       twoFactorEnabled: Boolean(session.user.twoFactorEnabled),
+      authenticatedAt: new Date(session.session.createdAt),
     });
     return { kind: "ok", actor };
   } catch (e) {
