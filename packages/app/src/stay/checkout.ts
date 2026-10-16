@@ -238,7 +238,7 @@ async function assertAllowBalance(
     where organization_id = ${ctx.actor.orgId} and id = ${allow.approvalRequestId} and kind = 'allow_balance'
       and subject_type = 'stay' and subject_id = ${stayId} for update`.execute(ctx.trx);
   const row = a.rows[0];
-  if (!row || row.status !== "executed" || row.amount === null || Number(row.amount) < remaining)
+  if (row?.status !== "executed" || row.amount === null || Number(row.amount) < remaining)
     throw new CommandError("OUTSTANDING_BALANCE", 409, "Khách còn nợ. Cần quản lý cho phép và hạn trả.", {
       extensions: { items: [{ balance: remaining }] },
     });

@@ -1594,8 +1594,10 @@ Loại: M (chỉ `read_at`)
 | title | text | không | | Không chứa PII nhạy cảm (CCCD, SĐT đầy đủ, nội dung hợp đồng) |
 | body | text | không | | |
 | link | text | có | | |
+| vars | jsonb | không | mặc định `'{}'`, object | Biến mẫu để render email lúc gửi (chỉ id/nhãn, không PII nhạy cảm) — PLAN T-213 |
 | dedupe_key | text | không | | Vd `invoice_overdue:{invoice_id}:2026-10-11` |
-| read_at | timestamptz | có | | |
+| source_outbox_id | uuid | có | | Hàng outbox sinh ra thông báo (truy vết) |
+| read_at | timestamptz | có | | Chỉ cột này đổi được (trigger `notification_guard`) |
 
 - Khoá/index: **`UNIQUE (organization_id, dedupe_key, recipient_person_id)`**; `ix (organization_id, recipient_person_id, read_at)`.
 - RLS/quyền đặc biệt: người nhận chỉ đọc và đánh dấu đã đọc thông báo của mình (của người khác ⇒ `404`); worker ghi.
@@ -1621,6 +1623,7 @@ Loại: M
 | provider_message_id | text | có | | |
 | last_error_code | text | có | `CHECK (last_error_code IN ('RECIPIENT_INVALID','PROVIDER_TEMPORARY','TEMPLATE_ERROR'))` | Giá trị dữ liệu, không phải mã lỗi API |
 | sent_at | timestamptz | có | | |
+| version | integer | không | mặc định `1` | |
 
 - Khoá/index: **`UNIQUE (organization_id, notification_id, channel)`**; `ix (next_attempt_at) WHERE status IN ('queued','retrying')`.
 - Ràng buộc đặc biệt: adapter truyền `idempotency_key = delivery_id` để gửi lại không trùng email; worker đọc lại số dư phiếu trong transaction trước khi gửi nhắc quá hạn (`suppressed` `SETTLED`).

@@ -1,8 +1,14 @@
 // Job định kỳ của worker.
 import { randomUUID } from "node:crypto";
-import { type AutoApplyResult, applyBankTransaction } from "@hm/app";
+import {
+  type AutoApplyResult,
+  applyBankTransaction,
+  dispatchNotification,
+  NOTIFY_EVENT_TYPES,
+} from "@hm/app";
 import { withTenant } from "@hm/db";
 import { type Kysely, sql } from "kysely";
+import type { OutboxJob } from "./relay.ts";
 
 /**
  * Nhả hold hết hạn (INV-I3) — xuyên tổ chức qua `app.expire_holds` (SKIP LOCKED, mỗi hold đúng một lần), rồi ghi
@@ -34,4 +40,19 @@ export function bankTransactionReceivedHandler(workerDb: Kysely<unknown>) {
     if (typeof id !== "string") throw new Error("payload thiếu bank_transaction_id");
     return applyBankTransaction(workerDb, job.organization_id, id);
   };
+}
+
+/**
+ * `notify.dispatch` (SPEC-notifications S-001…S-003): handler cho từng sự kiện outbox sinh thông báo — đăng ký với
+ * `startConsumers` theo `NOTIFY_EVENT_TYPES`; dedupe ở CSDL nên pg-boss giao lại vẫn một thông báo.
+ */
+export function notifyHandlers(workerDb: Kysely<unknown>): Record<string, (job: OutboxJob) => Promise<void>> {
+  return Object.fromEntries(
+    NOTIFY_EVENT_TYPES.map((type) => [
+      type,
+      async (job: OutboxJob) => {
+        await dispatchNotification(workerDb, job);
+      },
+    ]),
+  );
 }

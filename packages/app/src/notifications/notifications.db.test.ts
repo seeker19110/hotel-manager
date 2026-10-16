@@ -1,0 +1,393 @@
+// PLAN đợt 3 T-213 — thông báo + gửi email trên Postgres thật (SPEC-notifications S-001…S-006, S-008, S-009, S-012).
+// Đường đi thật: command ghi outbox cùng transaction → (relay) → `dispatchNotification` (worker, đúng tổ chức của hàng
+// outbox) → `sendDueEmails` với `FakeEmailSender`.
+import { randomUUID } from "node:crypto";
+import { createTestDb, type SeededOrg, seedLease, seedOrg, type TestDb } from "@hm/testkit";
+import { sql } from "kysely";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { Actor } from "../access/actor.ts";
+import { CommandError } from "../pipeline/problem.ts";
+import { ownerOf, runAs, seedMember } from "../testing/helpers.ts";
+import { createNotification, type DispatchJob, dispatchNotification } from "./dispatch.ts";
+import { EmailSendError, FakeEmailSender } from "./email.ts";
+import { MAX_ATTEMPTS, RETRY_BACKOFF_MINUTES, sendDueEmails } from "./send.ts";
+
+let t: TestDb;
+let A: SeededOrg;
+let B: SeededOrg;
+let owner: Actor;
+let tenant: Actor;
+let tenantEmail: string;
+let leaseId: string;
+const NOW = new Date("2026-10-16T02:00:00Z");
+
+beforeAll(async () => {
+  t = await createTestDb();
+  A = await seedOrg(t.admin, "Nhà trọ Hoa Sen");
+  B = await seedOrg(t.admin, "Nhà trọ khác");
+  owner = await ownerOf(t, A);
+  tenant = await seedMember(t, A, "tenant", { name: "Người thuê An" });
+  tenantEmail = `an.${randomUUID().slice(0, 6)}@example.test`;
+  await sql`update persons set email = ${tenantEmail} where id = ${tenant.personId}`.execute(t.admin);
+  leaseId = (
+    await seedLease(t.admin, {
+      orgId: A.orgId,
+      propertyId: A.propertyId,
+      representativePersonId: tenant.personId,
+    })
+  ).leaseId;
+});
+
+afterAll(async () => {
+  await t?.drop();
+});
+
+async function invoice(opts: { payer?: string; total?: number; allocated?: number } = {}): Promise<string> {
+  const id = randomUUID();
+  const total = opts.total ?? 1_580_000;
+  await t.admin.transaction().execute(async (trx) => {
+    await sql`insert into invoices (id, organization_id, property_id, kind, lease_id, number, memo_ref, payer_person_id,
+                                    business_date, due_on, total)
+              values (${id}, ${A.orgId}, ${A.propertyId}, 'fee', ${leaseId}, ${`N-${id.slice(0, 8)}`},
+                      ${`HM${id.replaceAll("-", "").slice(0, 10).toUpperCase()}`}, ${opts.payer ?? tenant.personId},
+                      '2026-10-01', '2026-10-10', ${total})`.execute(trx);
+    await sql`insert into invoice_lines (id, organization_id, property_id, invoice_id, line_no, kind, description, revenue_account,
+                                         quantity, unit_price, amount, rounding_rule, formula_version)
+              values (${randomUUID()}, ${A.orgId}, ${A.propertyId}, ${id}, 1, 'fee', 'Phí (giả)', 'REV_FEE', 1, ${total},
+                      ${total}, 'HALF_UP_1', 1)`.execute(trx);
+  });
+  if (opts.allocated !== undefined)
+    await sql`update invoices set allocated_total = ${opts.allocated} where id = ${id}`.execute(t.admin);
+  return id;
+}
+
+/** Phát `invoice.issued` qua pipeline lệnh thật (outbox cùng transaction); `fail` = lỗi sau khi ghi outbox. */
+async function issue(invoiceId: string, fail = false) {
+  return runAs(t, owner, async (ctx) => {
+    await ctx.emit({
+      eventType: "invoice.issued",
+      aggregateType: "invoice",
+      aggregateId: invoiceId,
+      propertyId: A.propertyId,
+      payload: { invoice_id: invoiceId },
+    });
+    if (fail) throw new CommandError("VALIDATION_FAILED", 422, "lỗi sau khi ghi outbox");
+    return {};
+  });
+}
+
+/** Hàng outbox → job như relay đưa cho consumer. */
+async function jobsFor(invoiceId: string): Promise<DispatchJob[]> {
+  const r = await sql<DispatchJob & { id: string }>`
+    select id as outbox_id, organization_id, event_type, aggregate_id, payload from outbox
+    where aggregate_id = ${invoiceId} and event_type = 'invoice.issued'`.execute(t.admin);
+  return r.rows;
+}
+
+const delivery = async (invoiceId: string) =>
+  (
+    await sql<{
+      id: string;
+      status: string;
+      attempts: number;
+      next_attempt_at: Date | null;
+      last_error_code: string | null;
+      suppressed_reason: string | null;
+      provider_message_id: string | null;
+    }>`
+      select d.id, d.status, d.attempts, d.next_attempt_at, d.last_error_code, d.suppressed_reason, d.provider_message_id
+      from notification_deliveries d join notifications n on n.id = d.notification_id
+      where n.dedupe_key in (${`invoice_issued:${invoiceId}`}, ${`invoice_overdue:${invoiceId}:2026-10-11`})`.execute(
+      t.admin,
+    )
+  ).rows;
+
+describe("S-001 phát hành phiếu → thông báo trong app + email", () => {
+  it("outbox → dispatch → 1 notification + delivery queued → sending → sent; Fake nhận đúng 1 email, không số tiền", async () => {
+    const inv = await invoice();
+    expect((await issue(inv)).status).toBe("committed");
+    const [job] = await jobsFor(inv);
+    if (!job) throw new Error("không có outbox");
+    expect(await dispatchNotification(t.worker, job, NOW)).toBe(1);
+    const n = await sql<{ type: string; recipient_person_id: string; body: string; link: string }>`
+      select type, recipient_person_id, body, link from notifications where dedupe_key = ${`invoice_issued:${inv}`}`.execute(
+      t.admin,
+    );
+    expect(n.rows[0]).toMatchObject({ type: "invoice_issued", recipient_person_id: tenant.personId });
+    expect(n.rows[0]?.body).toContain("1.580.000 đ");
+    expect((await delivery(inv))[0]?.status).toBe("queued");
+    const fake = new FakeEmailSender();
+    const s = await sendDueEmails(t.worker, fake, { now: NOW, baseUrl: "https://app.example" });
+    expect(s.sent).toBe(1);
+    expect(fake.sent).toHaveLength(1);
+    expect(fake.sent[0]?.to).toBe(tenantEmail);
+    expect(fake.sent[0]?.text).not.toContain("1.580.000");
+    expect(fake.sent[0]?.text).toContain(`https://app.example/portal/phieu-thu/${inv}`);
+    const d = (await delivery(inv))[0];
+    expect(d).toMatchObject({ status: "sent", attempts: 1, provider_message_id: "fake-1" });
+    expect(fake.sent[0]?.idempotencyKey).toBe(d?.id);
+  });
+});
+
+describe("S-002 outbox chỉ phát sau commit", () => {
+  it("lệnh rollback sau khi ghi outbox → không hàng outbox, không thông báo", async () => {
+    const inv = await invoice();
+    expect((await issue(inv, true)).status).toBe("failed");
+    expect(await jobsFor(inv)).toHaveLength(0);
+    const n = await sql<{ n: number }>`
+      select count(*)::int as n from notifications where dedupe_key = ${`invoice_issued:${inv}`}`.execute(
+      t.admin,
+    );
+    expect(n.rows[0]?.n).toBe(0);
+  });
+});
+
+describe("S-003 dedupe khi xử lý hai lần", () => {
+  it("dispatch 2 lần → 1 thông báo, 1 delivery; worker lỗi sau khi nhà cung cấp nhận → gửi lại cùng khoá, Fake nhận 1", async () => {
+    const inv = await invoice();
+    await issue(inv);
+    const [job] = await jobsFor(inv);
+    if (!job) throw new Error("không có outbox");
+    expect(await dispatchNotification(t.worker, job, NOW)).toBe(1);
+    expect(await dispatchNotification(t.worker, job, NOW)).toBe(0);
+    expect(await delivery(inv)).toHaveLength(1);
+    // (a) Nhà cung cấp đã nhận nhưng worker không ghi được `sent` (timeout/chết) → lần sau gửi lại cùng khoá.
+    const fake = new FakeEmailSender();
+    let crash = true;
+    const flaky = {
+      send: async (m: Parameters<FakeEmailSender["send"]>[0]) => {
+        const r = await fake.send(m);
+        if (crash) {
+          crash = false;
+          throw new Error("worker mất kết nối sau khi gửi");
+        }
+        return r;
+      },
+    };
+    await sendDueEmails(t.worker, flaky, { now: NOW });
+    expect((await delivery(inv))[0]?.status).toBe("retrying");
+    await sendDueEmails(t.worker, flaky, { now: new Date(NOW.getTime() + 60_000) });
+    const id = (await delivery(inv))[0]?.id as string;
+    expect(fake.attempts.filter((m) => m.idempotencyKey === id)).toHaveLength(2);
+    expect(fake.sent.filter((m) => m.idempotencyKey === id)).toHaveLength(1);
+    expect((await delivery(inv))[0]?.status).toBe("sent");
+  });
+});
+
+describe("sending quá hạn khoá → retrying", () => {
+  it("lô bị nhận rồi bỏ dở (worker chết) → quá locked_until thì nhận lại và gửi", async () => {
+    const inv = await invoice();
+    await issue(inv);
+    await dispatchNotification(t.worker, (await jobsFor(inv))[0] as DispatchJob, NOW);
+    await sql`select * from app.claim_due_deliveries(${NOW}, 50, 10, 30, ${MAX_ATTEMPTS})`.execute(t.worker);
+    expect((await delivery(inv))[0]).toMatchObject({ status: "sending", attempts: 1 });
+    const fake = new FakeEmailSender();
+    expect((await sendDueEmails(t.worker, fake, { now: new Date(NOW.getTime() + 10_000) })).claimed).toBe(0);
+    const s = await sendDueEmails(t.worker, fake, { now: new Date(NOW.getTime() + 31_000) });
+    expect(s.sent).toBe(1);
+    expect((await delivery(inv))[0]).toMatchObject({ status: "sent", attempts: 2 });
+  });
+});
+
+describe("S-004 retry có backoff rồi dead", () => {
+  it("lỗi tạm mọi lần → retrying attempts 1…5 chờ 1/5/30/120/360 phút → lần 6 dead; thông báo trong app còn; log che email", async () => {
+    const inv = await invoice();
+    await issue(inv);
+    const [job] = await jobsFor(inv);
+    await dispatchNotification(t.worker, job as DispatchJob, NOW);
+    const fake = new FakeEmailSender();
+    fake.failWith = () => new EmailSendError("temporary", "421 thử lại sau");
+    const logs: string[] = [];
+    let at = NOW;
+    for (let i = 1; i <= MAX_ATTEMPTS; i++) {
+      const s = await sendDueEmails(t.worker, fake, {
+        now: at,
+        log: (e, f) => logs.push(`${e} ${JSON.stringify(f)}`),
+      });
+      const d = (await delivery(inv))[0];
+      expect(d?.attempts).toBe(i);
+      if (i < MAX_ATTEMPTS) {
+        expect(d?.status).toBe("retrying");
+        const wait = RETRY_BACKOFF_MINUTES[i - 1] as number;
+        const next = d?.next_attempt_at as Date;
+        expect(next.getTime() - at.getTime()).toBe(wait * 60_000);
+        // Chưa tới hạn → không nhận lại.
+        expect(
+          (await sendDueEmails(t.worker, fake, { now: new Date(at.getTime() + wait * 60_000 - 1000) }))
+            .claimed,
+        ).toBe(0);
+        at = d?.next_attempt_at as Date;
+      } else {
+        expect(s.dead).toBe(1);
+        expect(d).toMatchObject({ status: "dead", last_error_code: "PROVIDER_TEMPORARY" });
+      }
+    }
+    expect(fake.sent).toHaveLength(0);
+    expect(logs.join("\n")).not.toContain(tenantEmail);
+    expect(logs.at(-1)).toContain("notification_dead_total");
+    const n = await sql<{ n: number }>`
+      select count(*)::int as n from notifications where dedupe_key = ${`invoice_issued:${inv}`}`.execute(
+      t.admin,
+    );
+    expect(n.rows[0]?.n).toBe(1);
+  });
+});
+
+describe("S-005 lỗi vĩnh viễn không retry", () => {
+  it("địa chỉ không hợp lệ → failed ngay, attempts=1, RECIPIENT_INVALID; lượt sau không nhận lại", async () => {
+    const inv = await invoice();
+    await issue(inv);
+    await dispatchNotification(t.worker, (await jobsFor(inv))[0] as DispatchJob, NOW);
+    const fake = new FakeEmailSender();
+    fake.failWith = () => new EmailSendError("permanent", "550 5.1.1 no such user");
+    await sendDueEmails(t.worker, fake, { now: NOW });
+    expect((await delivery(inv))[0]).toMatchObject({
+      status: "failed",
+      attempts: 1,
+      last_error_code: "RECIPIENT_INVALID",
+    });
+    expect((await sendDueEmails(t.worker, fake, { now: new Date(NOW.getTime() + 86_400_000) })).claimed).toBe(
+      0,
+    );
+  });
+});
+
+describe("Kiểm lại trước khi gửi", () => {
+  it("không có email → suppressed NO_ADDRESS; vẫn có thông báo trong app", async () => {
+    const p = randomUUID();
+    await sql`insert into persons (id, organization_id, full_name) values (${p}, ${A.orgId}, 'Không email')`.execute(
+      t.admin,
+    );
+    const inv = await invoice({ payer: p });
+    await issue(inv);
+    await dispatchNotification(t.worker, (await jobsFor(inv))[0] as DispatchJob, NOW);
+    await sendDueEmails(t.worker, new FakeEmailSender(), { now: NOW });
+    expect((await delivery(inv))[0]).toMatchObject({ status: "suppressed", suppressed_reason: "NO_ADDRESS" });
+  });
+
+  it("S-009 tắt email loại invoice_overdue → suppressed OPTED_OUT; invoice_issued vẫn gửi", async () => {
+    await sql`insert into notification_preferences (id, organization_id, person_id, type, channel, state, source)
+              values (${randomUUID()}, ${A.orgId}, ${tenant.personId}, 'invoice_overdue', 'email', 'opted_out', 'user')`.execute(
+      t.admin,
+    );
+    const inv = await invoice();
+    await withWorker(inv, "invoice_overdue");
+    await issue(inv);
+    await dispatchNotification(t.worker, (await jobsFor(inv))[0] as DispatchJob, NOW);
+    const fake = new FakeEmailSender();
+    await sendDueEmails(t.worker, fake, { now: NOW });
+    const ds = await sql<{ type: string; status: string; reason: string | null }>`
+      select n.type, d.status, d.suppressed_reason as reason from notification_deliveries d
+      join notifications n on n.id = d.notification_id where n.vars->>'invoiceId' = ${inv} order by n.type`.execute(
+      t.admin,
+    );
+    expect(ds.rows).toEqual([
+      { type: "invoice_issued", status: "sent", reason: null },
+      { type: "invoice_overdue", status: "suppressed", reason: "OPTED_OUT" },
+    ]);
+    await sql`delete from notification_preferences where person_id = ${tenant.personId}`.execute(t.admin);
+  });
+
+  it("S-008 nhắc quá hạn mà phiếu đã tất toán sau khi xếp hàng → suppressed SETTLED, không email", async () => {
+    const inv = await invoice();
+    await withWorker(inv, "invoice_overdue");
+    await sql`update invoices set allocated_total = total where id = ${inv}`.execute(t.admin);
+    const fake = new FakeEmailSender();
+    await sendDueEmails(t.worker, fake, { now: NOW });
+    expect((await delivery(inv))[0]).toMatchObject({ status: "suppressed", suppressed_reason: "SETTLED" });
+    expect(fake.sent).toHaveLength(0);
+  });
+
+  it("mẫu hỏng (thiếu biến) → failed TEMPLATE_ERROR, không gửi email rỗng", async () => {
+    const inv = await invoice();
+    await withWorker(inv, "invoice_overdue");
+    // Mẫu đổi giữa lúc tạo và lúc gửi (bản triển khai mới): tắt trigger bất biến trong transaction admin để mô phỏng.
+    await t.admin.transaction().execute(async (trx) => {
+      await sql`set local session_replication_role = replica`.execute(trx);
+      await sql`update notifications set vars = vars - 'dueOn' where vars->>'invoiceId' = ${inv}`.execute(
+        trx,
+      );
+    });
+    const fake = new FakeEmailSender();
+    await sendDueEmails(t.worker, fake, { now: NOW });
+    expect((await delivery(inv))[0]).toMatchObject({ status: "failed", last_error_code: "TEMPLATE_ERROR" });
+    expect(fake.attempts).toHaveLength(0);
+  });
+});
+
+/** Nhắc quá hạn tạo trực tiếp (job quét là T-215) — dùng chung `createNotification` của worker. */
+async function withWorker(inv: string, type: "invoice_overdue") {
+  const { withTenant } = await import("@hm/db");
+  await withTenant(t.worker, { orgId: A.orgId }, (trx) =>
+    createNotification(
+      trx,
+      A.orgId,
+      {
+        propertyId: A.propertyId,
+        recipientPersonId: tenant.personId,
+        type,
+        vars: {
+          propertyName: "Nhà trọ Hoa Sen",
+          period: "10/2026",
+          dueOn: "2026-10-10",
+          amount: 1_580_000,
+          invoiceId: inv,
+        },
+        dedupeKey: `invoice_overdue:${inv}:2026-10-11`,
+      },
+      { now: NOW },
+    ),
+  );
+}
+
+describe("Rate limit + cách ly tổ chức", () => {
+  it("mỗi tổ chức tối đa perOrg lần gửi mỗi lượt", async () => {
+    for (let i = 0; i < 3; i++) {
+      const inv = await invoice();
+      await issue(inv);
+      await dispatchNotification(t.worker, (await jobsFor(inv))[0] as DispatchJob, NOW);
+    }
+    const s = await sendDueEmails(t.worker, new FakeEmailSender(), { now: NOW, perOrg: 2 });
+    expect(s.claimed).toBe(2);
+    await sendDueEmails(t.worker, new FakeEmailSender(), { now: NOW });
+  });
+
+  it("job mang organization_id của B mà invoice của A → không thông báo (đọc theo tổ chức của hàng outbox)", async () => {
+    const inv = await invoice();
+    const job: DispatchJob = {
+      organization_id: B.orgId,
+      outbox_id: randomUUID(),
+      event_type: "invoice.issued",
+      aggregate_id: inv,
+      payload: { invoice_id: inv },
+    };
+    expect(await dispatchNotification(t.worker, job, NOW)).toBe(0);
+  });
+
+  it("RLS: người nhận chỉ thấy thông báo của mình; chỉ đổi được read_at; người khác 0 hàng; buồng phòng không thấy lịch sử gửi", async () => {
+    const other = await seedMember(t, A, "tenant", { name: "Bình" });
+    const hk = await seedMember(t, A, "housekeeping");
+    const { withTenant } = await import("@hm/db");
+    const mine = await withTenant(t.runtime, { orgId: A.orgId, actorId: tenant.membershipId }, (trx) =>
+      sql<{ n: number }>`select count(*)::int as n from notifications`.execute(trx),
+    );
+    expect(mine.rows[0]?.n).toBeGreaterThan(0);
+    const theirs = await withTenant(t.runtime, { orgId: A.orgId, actorId: other.membershipId }, (trx) =>
+      sql<{ n: number }>`select count(*)::int as n from notifications`.execute(trx),
+    );
+    expect(theirs.rows[0]?.n).toBe(0);
+    await expect(
+      withTenant(t.runtime, { orgId: A.orgId, actorId: tenant.membershipId }, (trx) =>
+        sql`update notifications set title = 'x'`.execute(trx),
+      ),
+    ).rejects.toThrow(/permission denied/);
+    const hkSees = await withTenant(t.runtime, { orgId: A.orgId, actorId: hk.membershipId }, (trx) =>
+      sql<{ n: number }>`select count(*)::int as n from notification_deliveries`.execute(trx),
+    );
+    expect(hkSees.rows[0]?.n).toBe(0);
+    const ownerSees = await withTenant(t.runtime, { orgId: A.orgId, actorId: owner.membershipId }, (trx) =>
+      sql<{ n: number }>`select count(*)::int as n from notification_deliveries`.execute(trx),
+    );
+    expect(ownerSees.rows[0]?.n).toBeGreaterThan(0);
+  });
+});

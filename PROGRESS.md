@@ -3,12 +3,12 @@
 > Giai đoạn hiện tại: G5 Dựng nền (autopilot đợt 3) · Cập nhật: 2026-10-16 · Nhánh: claude/gallant-shannon-2uccvp (xếp chồng trên PR #5)
 
 ## Đang làm
-- Autopilot đợt 3 (`docs/autopilot/PLAN.md`, 26 task T-201…T-226, tự duyệt D-009; 130 vòng / 120 giờ). Xong: T-201…T-212 (review lát khách sạn đang chạy).
-- PR #5 (đợt 2, nhánh `claude/gifted-noether-iybenn`): CI xanh 6/6, mergeable — chờ chủ dự án merge; nhánh đợt 3 xếp chồng lên (D-001).
+- Autopilot đợt 3 (`docs/autopilot/PLAN.md`, 26 task T-201…T-226, tự duyệt D-009; 130 vòng / 120 giờ). Xong: T-201…T-213. Lát 1–2 đã merge (PR #9); lát 3 (thông báo T-213…T-215) đang làm.
+- Merge: `merge_autonomy: L2` + `merge_risk_paths` (tiền/tồn/lưu trú/CSDL → người merge). Hook/permission chưa vá (FB-009…020, chờ chủ dự án duyệt).
 
 ## Tiếp theo
-1. Theo `loop status`: T-202 (mã hoá số giấy tờ) → T-203 (clamd) → lát khách sạn T-204…T-210.
-2. Chờ người (không chặn vòng): merge PR #5; import ruleset `.github/rulesets/main.json`; quan sát 6–10 cơ sở + baseline M-01…M-03; DPIA + pháp lý đối chiếu bản gốc (thông báo lưu trú, NĐ 356/2025, TT 50/17/2024); VPS tại VN + kho sao lưu khác máy; SMTP relay; ClamAV trên VPS; giấy phép mã nguồn; xác nhận 32 miễn trừ blueprint đợt 2.
+1. Theo `loop status`: T-214 (tuỳ chọn/lịch sử thông báo) → T-215 (nhắc theo lịch) → PR lát 3.
+2. Chờ người (không chặn vòng): adapter SMTP thật cần duyệt MIT-0 (D-010, hiện FakeEmailSender); import ruleset `.github/rulesets/main.json`; quan sát 6–10 cơ sở + baseline M-01…M-03; DPIA + pháp lý đối chiếu bản gốc (thông báo lưu trú, NĐ 356/2025, TT 50/17/2024); VPS tại VN + kho sao lưu khác máy; SMTP relay; ClamAV trên VPS; giấy phép mã nguồn; xác nhận 32 miễn trừ blueprint đợt 2.
 
 ## Quyết định
 - 2026-10-15 Repo sản phẩm + khung X-Templates ở `.xtemplates/`; tự host toàn bộ (ADR-0002); blueprint web-app + saas-multitenant + fintech, quy mô M; stack ADR-0001 (Node 24 · Next 16.4 · PG 17 · Kysely · pg-boss · Better Auth · Serwist · Vitest/Playwright · Biome · pnpm).
@@ -20,7 +20,7 @@
 - Nợ kỹ thuật chấp nhận: pháp lý trong `docs/research/` chỉ có nguồn thứ cấp — phải đối chiếu văn bản gốc trước khi dùng dữ liệu thật.
 
 ## Bàn giao phiên
-- Nhánh chính: `da4a086` (PR #7). Đợt 2: PR #5 `a4c0a1d`. Đợt 3: nhánh này.
+- Nhánh chính: `67f1990`+PR #9 (đợt 2 PR #5, đợt 3 lát 1–2 PR #9 đã merge). Đợt 3 tiếp: nhánh này (đã merge main).
 - Lệnh kiểm nhanh: `.xtemplates/scripts/dev-task.sh gate` · `pnpm test:db` · `pnpm --filter @hm/web exec playwright test` · `bash scripts/db-backup-restore-check.sh`. Container mới: `bash scripts/dev-env-setup.sh` rồi `pnpm install --frozen-lockfile`.
 - Đang chặn: không. Autopilot: bật (một phiên).
 - Việc dở chưa commit: không.
