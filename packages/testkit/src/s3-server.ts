@@ -81,6 +81,10 @@ export async function startS3Server(): Promise<S3Server> {
       "-s3",
       `-s3.port=${s3}`,
       `-s3.config=${join(dir, "s3.json")}`,
+      // Tắt dịch vụ phụ có cổng mặc định CỐ ĐỊNH (Iceberg 8181, Lance 9101 từ SeaweedFS 4.x): hai lượt test song song
+      // (hoặc một `weed` mồ côi) giữ cổng đó làm `weed` mới thoát ngay ⇒ "SeaweedFS không khởi động được".
+      "-s3.port.iceberg=0",
+      "-s3.port.lance=0",
     ],
     { stdio: "ignore" },
   );
