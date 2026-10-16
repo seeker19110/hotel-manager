@@ -336,11 +336,11 @@ describe("không để object mồ côi (INV-G7)", () => {
     expect(await urlFor(owner, "abc")).toMatchObject({ status: "failed", httpStatus: 404 });
   });
 
-  it("loại chủ chưa khai báo quyền đọc (residence_notice) → 404 kể cả owner", async () => {
+  it("loại chủ chưa khai báo quyền đọc (payment_claim) → 404 kể cả owner", async () => {
     const id = randomUUID();
     await sql`insert into files (id, organization_id, property_id, owner_type, mime, size_bytes, sha256, status, storage_key)
-              values (${id}, ${A.orgId}, ${A.propertyId}, 'residence_notice', 'application/pdf', 10, ${"a".repeat(64)},
-                      'ready', ${`${A.orgId}/residence_notice/${id}`})`.execute(t.admin);
+              values (${id}, ${A.orgId}, ${A.propertyId}, 'payment_claim', 'application/pdf', 10, ${"a".repeat(64)},
+                      'ready', ${`${A.orgId}/payment_claim/${id}`})`.execute(t.admin);
     expect(await urlFor(owner, id)).toMatchObject({ status: "failed", httpStatus: 404 });
   });
 });
@@ -386,11 +386,11 @@ describe("RLS giấy tờ theo phạm vi cơ sở (review T-011)", () => {
     ).rejects.toThrow(/row-level security/);
   });
 
-  it("loại chủ chưa khai báo quyền đọc (residence_notice) vô hình ở CSDL, kể cả owner", async () => {
+  it("loại chủ chưa khai báo quyền đọc (payment_claim) vô hình ở CSDL, kể cả owner", async () => {
     const id = randomUUID();
     await sql`insert into files (id, organization_id, property_id, owner_type, mime, size_bytes, sha256, status, storage_key)
-              values (${id}, ${A.orgId}, ${A.propertyId}, 'residence_notice', 'application/pdf', 10, ${"c".repeat(64)},
-                      'ready', ${`${A.orgId}/residence_notice/${id}`})`.execute(t.admin);
+              values (${id}, ${A.orgId}, ${A.propertyId}, 'payment_claim', 'application/pdf', 10, ${"c".repeat(64)},
+                      'ready', ${`${A.orgId}/payment_claim/${id}`})`.execute(t.admin);
     const n = await withTenant(t.runtime, { orgId: A.orgId, actorId: owner.membershipId }, (trx) =>
       sql<{ n: number }>`select count(*)::int as n from files where id = ${id}`.execute(trx),
     );

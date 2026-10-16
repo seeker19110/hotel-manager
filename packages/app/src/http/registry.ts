@@ -87,6 +87,7 @@ import {
   listReservations,
   markNoShow,
 } from "../stay/reservations.ts";
+import { exportResidenceNotice, listNotices, markNoticeSubmitted } from "../stay/residence-notices.ts";
 import { checkIn, type GuestInput, walkIn } from "../stay/stays.ts";
 import type { CommandDef, QueryDef } from "./command-route.ts";
 
@@ -474,6 +475,28 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
             }
           : {}),
         ...(i.deposit_deduction ? { depositDeduction: i.deposit_deduction } : {}),
+      }),
+    }),
+  }),
+  "stay.exportResidenceNotice": defineCommand({
+    command: "stay.exportResidenceNotice",
+    input: z.strictObject({ stay_id: uuid }),
+    run: async (ctx, i, svc) => ({ data: await exportResidenceNotice(ctx, svc, { stayId: i.stay_id }) }),
+  }),
+  "stay.markNoticeSubmitted": defineCommand({
+    command: "stay.markNoticeSubmitted",
+    input: z.strictObject({
+      notice_id: uuid,
+      submitted_at: z.iso.datetime({ offset: true }),
+      channel: z.enum(["in_person", "online", "other"]),
+      evidence_file_id: uuid.optional(),
+    }),
+    run: async (ctx, i) => ({
+      data: await markNoticeSubmitted(ctx, {
+        noticeId: i.notice_id,
+        submittedAt: new Date(i.submitted_at),
+        channel: i.channel,
+        ...(i.evidence_file_id ? { evidenceFileId: i.evidence_file_id } : {}),
       }),
     }),
   }),
@@ -1298,6 +1321,24 @@ export const QUERIES: Readonly<Record<string, AnyQuery>> = {
     query: "stay.getFolio",
     input: z.strictObject({ stay_id: uuid }),
     run: (db, actor, i: { stay_id: string }) => getFolio(db, actor, i.stay_id),
+  },
+  "stay.listNotices": {
+    query: "stay.listNotices",
+    input: z.strictObject({
+      property_id: uuid,
+      status: z.enum(["pending", "exported", "submitted"]).optional(),
+      due_before: z.iso.datetime({ offset: true }).optional(),
+    }),
+    run: (
+      db,
+      actor,
+      i: { property_id: string; status?: "pending" | "exported" | "submitted"; due_before?: string },
+    ) =>
+      listNotices(db, actor, {
+        propertyId: i.property_id,
+        ...(i.status ? { status: i.status } : {}),
+        ...(i.due_before ? { dueBefore: new Date(i.due_before) } : {}),
+      }),
   },
   "reservation.get": {
     query: "reservation.get",

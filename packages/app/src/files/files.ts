@@ -17,7 +17,13 @@ import {
 } from "./inspect.ts";
 import { MAX_SIGNED_URL_SECONDS, type ObjectStorage } from "./storage.ts";
 
-export type FileOwnerType = "work_order" | "handover" | "meter_reading" | "identity_document" | "task";
+export type FileOwnerType =
+  | "work_order"
+  | "handover"
+  | "meter_reading"
+  | "identity_document"
+  | "task"
+  | "residence_notice";
 
 const IMAGES: readonly DetectedMime[] = ["image/jpeg", "image/png", "image/webp"];
 const ALLOW: Readonly<Record<FileOwnerType, readonly DetectedMime[]>> = {
@@ -26,6 +32,8 @@ const ALLOW: Readonly<Record<FileOwnerType, readonly DetectedMime[]>> = {
   meter_reading: IMAGES,
   task: IMAGES,
   identity_document: [...IMAGES, "application/pdf"],
+  // Ảnh/PDF bằng chứng đã thông báo lưu trú (SPEC-reservation-stay S-029).
+  residence_notice: [...IMAGES, "application/pdf"],
 };
 /** 10 MB/ảnh (đề xuất SPEC-housekeeping Q, chờ PO). */
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;
@@ -50,12 +58,17 @@ async function scanOrFail(deps: FileDeps, bytes: Uint8Array) {
   }
 }
 
+const UPLOAD_ACTION: Partial<Record<FileOwnerType, "identity.read" | "residence_notice.manage">> = {
+  identity_document: "identity.read",
+  residence_notice: "residence_notice.manage",
+};
+
 export async function uploadFile(
   ctx: CommandContext,
   deps: FileDeps,
   input: { ownerType: FileOwnerType; ownerId?: string; propertyId: string; bytes: Uint8Array },
 ): Promise<{ fileId: string; status: "ready" | "rejected"; mime: DetectedMime }> {
-  authorize(ctx.actor, input.ownerType === "identity_document" ? "identity.read" : "work_order.create", {
+  authorize(ctx.actor, UPLOAD_ACTION[input.ownerType] ?? "work_order.create", {
     propertyId: input.propertyId,
   });
   if (input.bytes.byteLength === 0) throw new CommandError("VALIDATION_FAILED", 422, "File rỗng");
@@ -131,9 +144,12 @@ export async function storeTabularFile(
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Quyền đọc theo loại chủ — allowlist; loại chưa khai báo (residence_notice, payment_claim, export_job…) bị từ chối. */
-const READ_ACTION: Readonly<Record<string, "identity.read" | "calendar.read_status">> = {
+/** Quyền đọc theo loại chủ — allowlist; loại chưa khai báo (payment_claim, export_job…) bị từ chối. */
+const READ_ACTION: Readonly<
+  Record<string, "identity.read" | "calendar.read_status" | "residence_notice.manage">
+> = {
   identity_document: "identity.read",
+  residence_notice: "residence_notice.manage",
   work_order: "calendar.read_status",
   handover: "calendar.read_status",
   meter_reading: "calendar.read_status",
@@ -171,4 +187,34 @@ export async function getFileUrl(
     url: await deps.storage.signedGetUrl(f.storage_key, MAX_SIGNED_URL_SECONDS),
     expiresIn: MAX_SIGNED_URL_SECONDS,
   };
+}
+
+/**
+ * File do hệ thống SINH (không phải người dùng tải lên — vd file thông báo lưu trú, file xuất): riêng tư, khoá có tiền tố tổ
+ * chức, hạn xoá `deleteAfterDays`; người gọi đã kiểm quyền. Không qua máy quét (nội dung do chính ứng dụng tạo).
+ */
+export async function storeGeneratedFile(
+  ctx: CommandContext,
+  deps: Pick<FileDeps, "storage">,
+  input: {
+    ownerType: "residence_notice" | "export_job";
+    ownerId: string;
+    propertyId: string | null;
+    bytes: Uint8Array;
+    mime: TabularMime;
+    deleteAfterDays: number;
+  },
+): Promise<{ fileId: string }> {
+  const id = randomUUID();
+  const key = `${ctx.actor.orgId}/${input.ownerType}/${id}`;
+  const sha256 = createHash("sha256").update(input.bytes).digest("hex");
+  await sql`
+    insert into files (id, organization_id, property_id, owner_type, owner_id, mime, size_bytes, sha256, status, storage_key,
+                       uploaded_by, scanned_at, delete_after)
+    values (${id}, ${ctx.actor.orgId}, ${input.propertyId}, ${input.ownerType}, ${input.ownerId}, ${input.mime},
+            ${input.bytes.byteLength}, ${sha256}, 'ready', ${key}, ${ctx.actor.membershipId}, now(),
+            current_date + ${input.deleteAfterDays}::int)`.execute(ctx.trx);
+  ctx.onRollback(() => deps.storage.delete(key));
+  await deps.storage.put(key, input.bytes, input.mime);
+  return { fileId: id };
 }

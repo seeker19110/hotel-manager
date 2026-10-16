@@ -3,10 +3,12 @@ import type { AppConfig } from "../config/schema.ts";
 import { createPiiCipher, devKeyring, type PiiCipher, parseKeyring } from "../crypto/pii.ts";
 import { clamdScanner } from "../files/clamd.ts";
 import { eicarOnlyScanner, type MalwareScanner } from "../files/inspect.ts";
+import { ObjectStorage } from "../files/storage.ts";
 
 export interface AppServices {
   pii: PiiCipher;
   scanner: MalwareScanner;
+  storage: ObjectStorage;
 }
 
 export function createServices(config: AppConfig): AppServices {
@@ -20,10 +22,28 @@ export function createServices(config: AppConfig): AppServices {
     scanner: config.CLAMD_HOST
       ? clamdScanner({ host: config.CLAMD_HOST, port: config.CLAMD_PORT })
       : eicarOnlyScanner,
+    storage: new ObjectStorage({
+      endpoint: config.S3_ENDPOINT,
+      region: config.S3_REGION,
+      bucket: config.S3_BUCKET,
+      accessKeyId: config.S3_ACCESS_KEY_ID,
+      secretAccessKey: config.S3_SECRET_ACCESS_KEY,
+    }),
   };
 }
 
-/** Dịch vụ cho test/dev: khoá dẫn xuất công khai. */
+/** Dịch vụ cho test/dev: khoá dẫn xuất công khai; storage truyền vào (S3 test của testkit) hoặc trỏ địa chỉ không dùng. */
 export function testServices(overrides: Partial<AppServices> = {}): AppServices {
-  return { pii: createPiiCipher(devKeyring()), scanner: eicarOnlyScanner, ...overrides };
+  return {
+    pii: createPiiCipher(devKeyring()),
+    scanner: eicarOnlyScanner,
+    storage: new ObjectStorage({
+      endpoint: "http://127.0.0.1:9",
+      region: "test",
+      bucket: "unused",
+      accessKeyId: "unused",
+      secretAccessKey: "unused-unused",
+    }),
+    ...overrides,
+  };
 }
