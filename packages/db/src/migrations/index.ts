@@ -36,6 +36,7 @@ import * as m0032 from "./0032_work_orders.ts";
 import * as m0033 from "./0033_hk_maintenance_review_fixes.ts";
 import * as m0034 from "./0034_notifications.ts";
 import * as m0035 from "./0035_notification_preferences.ts";
+import * as m0036 from "./0036_reminders.ts";
 
 export const migrations: Record<string, Migration> = {
   "0001_tenancy": m0001,
@@ -73,4 +74,5 @@ export const migrations: Record<string, Migration> = {
   "0033_hk_maintenance_review_fixes": m0033,
   "0034_notifications": m0034,
   "0035_notification_preferences": m0035,
+  "0036_reminders": m0036,
 };

@@ -49,6 +49,13 @@ export {
 } from "./notifications/email.ts";
 export { handleUnsubscribe } from "./notifications/http.ts";
 export { unsubscribeKey, unsubscribeUrl } from "./notifications/preferences.ts";
+export {
+  type ReminderStats,
+  runReminders,
+  scanLeaseExpiry,
+  scanOverdue,
+  scanStayNotice,
+} from "./notifications/reminders.ts";
 export { MAX_ATTEMPTS, RETRY_BACKOFF_MINUTES, type SendStats, sendDueEmails } from "./notifications/send.ts";
 export { deliveryStatusLabel, maskEmail, render as renderNotification } from "./notifications/templates.ts";
 export { getCommandResult } from "./pipeline/command.ts";

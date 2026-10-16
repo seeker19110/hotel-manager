@@ -149,6 +149,16 @@ const BUILDERS: Readonly<Record<NotificationType, Builder>> = {
   },
   stay_notice_due: (v) => {
     const p = str(v, "propertyName");
+    if (v.kind === "config_missing") {
+      // S-020: cơ sở chưa cấu hình hạn thông báo lưu trú (không có mặc định cứng — Q-08).
+      return {
+        title: "Chưa cấu hình hạn thông báo lưu trú",
+        body: `${p}: chưa cấu hình hạn thông báo lưu trú nên hệ thống không nhắc được. Vào Cài đặt → Thông báo để nhập hạn.`,
+        link: "/cai-dat/thong-bao",
+        emailSubject: `${p}: chưa cấu hình hạn thông báo lưu trú`,
+        emailLines: [`${p} chưa cấu hình hạn thông báo lưu trú nên hệ thống không nhắc được.`],
+      };
+    }
     const unit = str(v, "unitCode");
     const dueAt = str(v, "dueAtLocal");
     const sev = SEVERITY_PREFIX[String(v.severity ?? "normal")] ?? "";

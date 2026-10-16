@@ -5,6 +5,7 @@ export {
   FakeEmailSender,
   generatePeriods,
   remindExpiring,
+  runReminders,
   sendDueEmails,
 } from "@hm/app";
 export { bankTransactionReceivedHandler, expireHolds, notifyHandlers } from "./jobs.ts";

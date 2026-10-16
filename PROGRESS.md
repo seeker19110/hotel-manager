@@ -3,11 +3,11 @@
 > Giai đoạn hiện tại: G5 Dựng nền (autopilot đợt 3) · Cập nhật: 2026-10-16 · Nhánh: claude/gallant-shannon-2uccvp (xếp chồng trên PR #5)
 
 ## Đang làm
-- Autopilot đợt 3 (`docs/autopilot/PLAN.md`, 26 task T-201…T-226, tự duyệt D-009; 130 vòng / 120 giờ). Xong: T-201…T-214. Lát 1–2 đã merge (PR #9); lát 3 (thông báo T-213…T-215) đang làm.
+- Autopilot đợt 3 (`docs/autopilot/PLAN.md`, 26 task T-201…T-226, tự duyệt D-009; 130 vòng / 120 giờ). Xong: T-201…T-215. Lát 1–2 đã merge (PR #9); lát 3 (thông báo T-213…T-215) xong — PR + review.
 - Merge: `merge_autonomy: L2` + `merge_risk_paths` (tiền/tồn/lưu trú/CSDL → người merge). Hook/permission chưa vá (FB-009…020, chờ chủ dự án duyệt).
 
 ## Tiếp theo
-1. Theo `loop status`: T-215 (nhắc theo lịch) → PR lát 3.
+1. PR lát 3 (review độc lập, merge-check) → theo `loop status`: lát 4 portal T-216…T-219.
 2. Chờ người (không chặn vòng): adapter SMTP thật cần duyệt MIT-0 (D-010, hiện FakeEmailSender); import ruleset `.github/rulesets/main.json`; quan sát 6–10 cơ sở + baseline M-01…M-03; DPIA + pháp lý đối chiếu bản gốc (thông báo lưu trú, NĐ 356/2025, TT 50/17/2024); VPS tại VN + kho sao lưu khác máy; SMTP relay; ClamAV trên VPS; giấy phép mã nguồn; xác nhận 32 miễn trừ blueprint đợt 2.
 
 ## Quyết định
