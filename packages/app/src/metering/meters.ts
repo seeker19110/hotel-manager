@@ -493,7 +493,7 @@ export async function missingReadings(
       select distinct l.unit_id, l.id as lease_id from leases l
       join lease_versions v on v.organization_id = l.organization_id and v.lease_id = l.id and v.signed_at is not null
       where l.organization_id = ${orgId} and l.property_id = ${p.property_id} and l.status in ('active','notice_given','settling')
-        and v.effective_from <= ${p.period_end}::date and (v.effective_to is null or v.effective_to >= ${p.period_start}::date)
+        and v.effective_from <= ${p.period_end}::date and (v.effective_until is null or v.effective_until >= ${p.period_start}::date)
     )
     select u.id as unit_id, u.code as unit, m.kind as meter, 'no_reading' as reason
     from leased x join units u on u.organization_id = ${orgId} and u.id = x.unit_id

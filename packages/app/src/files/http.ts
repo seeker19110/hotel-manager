@@ -20,7 +20,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const OWNER_TYPES: readonly FileOwnerType[] = ["work_order", "payment_claim"];
 
 /** Đọc thân tối đa `limit` byte; vượt → null (đã dừng đọc). */
-async function readCapped(req: Request, limit: number): Promise<Uint8Array | null> {
+export async function readCapped(req: Request, limit: number): Promise<Uint8Array | null> {
   const declared = Number(req.headers.get("content-length") ?? "");
   if (Number.isFinite(declared) && declared > limit) return null;
   if (!req.body) return new Uint8Array();

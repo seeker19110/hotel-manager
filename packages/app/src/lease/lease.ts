@@ -663,6 +663,10 @@ export interface LeaseView {
     kind: string;
     effective_from: string;
     effective_to: string | null;
+    /** D-007: ngày phụ lục thay phiên bản không thời hạn (null = chưa bị thay). */
+    superseded_on: string | null;
+    /** Ngày cuối hiệu lực thực = least(effective_to, superseded_on − 1); null = còn mở. */
+    effective_until: string | null;
     rent_amount: number;
     deposit_amount: number;
     billing_cycle: string;
@@ -704,6 +708,8 @@ export async function getLease(db: Kysely<unknown>, actor: Actor, leaseId: strin
       kind: string;
       effective_from: string;
       effective_to: string | null;
+      superseded_on: string | null;
+      effective_until: string | null;
       rent_amount: string;
       deposit_amount: string;
       billing_cycle: string;
@@ -711,8 +717,8 @@ export async function getLease(db: Kysely<unknown>, actor: Actor, leaseId: strin
       terms_hash: string | null;
       signed_at: Date | null;
     }>`
-      select version_no, kind, effective_from::text, effective_to::text, rent_amount, deposit_amount, billing_cycle, services,
-             terms_hash, signed_at
+      select version_no, kind, effective_from::text, effective_to::text, superseded_on::text, effective_until::text, rent_amount,
+             deposit_amount, billing_cycle, services, terms_hash, signed_at
       from lease_versions where organization_id = ${actor.orgId} and lease_id = ${leaseId} order by version_no`.execute(
       trx,
     );

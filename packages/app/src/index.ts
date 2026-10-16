@@ -47,6 +47,8 @@ export {
 } from "./http/command-route.ts";
 export { COMMANDS, findCommand, findQuery, QUERIES } from "./http/registry.ts";
 export { handleWebhook, type WebhookDeps } from "./http/webhook-route.ts";
+export { handleImportUpload } from "./import/http.ts";
+export { IMPORT_ROW_RETENTION_DAYS, type RetentionStats, runRetention } from "./import/retention.ts";
 export { listRooms, type PropertyRooms, type RoomRow } from "./inventory/rooms.ts";
 export { DEFAULT_REMINDER_DAYS, detectOverstay, remindExpiring } from "./lease/jobs.ts";
 export { getLease, type LeaseView } from "./lease/lease.ts";

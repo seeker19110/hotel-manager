@@ -151,7 +151,8 @@ export async function buildPreview(
       rent: string;
       services: LeaseSvc[];
     }>`
-      select id, effective_from::text as "from", effective_to::text as "to", rent_amount::text as rent, services
+      -- Ngày cuối hiệu lực THỰC (phiên bản không thời hạn bị phụ lục thay — D-007).
+      select id, effective_from::text as "from", effective_until::text as "to", rent_amount::text as rent, services
       from lease_versions where organization_id = ${orgId} and lease_id = ${l.id} and signed_at is not null
       order by version_no`.execute(trx);
     if (versions.rows.length === 0) continue;

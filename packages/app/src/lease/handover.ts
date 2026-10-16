@@ -280,7 +280,8 @@ export async function activateLease(
 }
 
 /**
- * `lease.renew` (S-011, S-013): phụ lục = phiên bản mới (bất biến ngay khi lập), giữ nguyên lịch sử giá; chồng hiệu lực ⇒
+ * `lease.renew` (S-011, S-013, S-027): phụ lục = phiên bản mới (bất biến ngay khi lập), giữ nguyên lịch sử giá; phiên bản
+ * không thời hạn bị thay qua `superseded_on` (D-007); chồng hiệu lực ⇒
  * LEASE_VERSION_OVERLAP. Allocation của hợp đồng kéo dài tới hết phụ lục (chồng phòng ⇒ ROOM_UNAVAILABLE).
  */
 export async function renewLease(
@@ -315,6 +316,30 @@ export async function renewLease(
     services: JSON.parse(servicesJson(input.terms.services)),
   };
   const termsHash = createHash("sha256").update(canonicalJson(snapshot)).digest("hex");
+  // S-027 (D-007): phiên bản đang mở (không thời hạn, chưa bị thay) ⇒ đặt superseded_on = ngày hiệu lực của phụ lục, một lần,
+  // cùng transaction; điều khoản + băm của phiên bản cũ giữ nguyên.
+  const open = await sql<{ id: string; version_no: number; effective_from: string }>`
+    select id, version_no, effective_from::text from lease_versions
+    where organization_id = ${ctx.actor.orgId} and lease_id = ${lease.id} and signed_at is not null
+      and effective_until is null
+    for update`.execute(ctx.trx);
+  const openVersion = open.rows[0];
+  if (openVersion) {
+    if (input.terms.effectiveFrom <= openVersion.effective_from)
+      throw new CommandError("LEASE_VERSION_OVERLAP", 409, "Thời gian hiệu lực trùng với phiên bản khác.");
+    await sql`update lease_versions set superseded_on = ${input.terms.effectiveFrom}::date, version = version + 1
+              where organization_id = ${ctx.actor.orgId} and id = ${openVersion.id} and superseded_on is null`.execute(
+      ctx.trx,
+    );
+    await ctx.audit({
+      action: "lease.version_superseded",
+      entityType: "lease",
+      entityId: lease.id,
+      propertyId: lease.property_id,
+      before: { version_no: openVersion.version_no, superseded_on: null },
+      after: { version_no: openVersion.version_no, superseded_on: input.terms.effectiveFrom },
+    });
+  }
   try {
     await sql`savepoint renew_version`.execute(ctx.trx);
     await sql`
