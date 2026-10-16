@@ -9,6 +9,7 @@ owner: (chưa gán — Tech Lead)
 
 > Nguồn ngưỡng: `PROJECT.md` §5 (kế hoạch §17). **SLO nội bộ, chưa phải SLA** cam kết với khách hàng. Chưa có production: số liệu thật chưa đo; ngưỡng chỉnh lại sau pilot.
 > **Giới hạn hiện tại (cần biết):** ứng dụng mới xuất số liệu vận hành ở `packages/app/src/observability/metrics.ts` (outbox, thông báo, xuất, hold, job, nhịp worker). **Chưa có metric HTTP** (số yêu cầu theo mã trạng thái, histogram độ trễ) nên SLI khả dụng và độ trễ dưới đây **chưa tính được từ Prometheus**; truy vấn PromQL ghi sẵn để kích hoạt khi có metric (bảng "Cần có"). Trong lúc đó, `deploy/prometheus/alerts.yml` chỉ có cảnh báo trên metric hiện hữu — **không có cảnh báo burn rate** vì không có SLI để tính; không giả lập bằng `up` hay `hm_up`.
+> **Loại metric:** `notification_dead_total` là **gauge** (số hàng `notification_deliveries.status = 'dead'` tại lúc đọc, `app.metrics_snapshot`), không phải counter dù tên có `_total` và `metrics.ts` đang khai `# TYPE counter`. Rule cảnh báo dùng `delta()` thay `increase()` vì gửi lại làm số này giảm. Việc còn lại (nhánh khác): sửa TYPE thành `gauge` hoặc đổi tên metric, cập nhật test và rule. `hm_jobs_failed`, `hm_holds_active`, `hm_outbox_*` cũng là gauge.
 
 ## 1. SLI và SLO
 Dạng tốt/tổng. "Luồng lõi" = API `/api/v1/*` (lệnh/truy vấn) và `/api/ready`; không tính 4xx do người dùng (trừ 429 do hệ thống giới hạn quá tay).

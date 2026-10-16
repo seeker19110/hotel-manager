@@ -34,7 +34,7 @@ Khi chạy thật (đề xuất D-021): chặn thêm `/api/metrics` ở reverse 
 |---|---|---|
 | `hm_outbox_oldest_unpublished_age_seconds` | > 300 trong 5 phút | Relay outbox đứng — thông báo/xuất/đối soát không chạy |
 | `hm_outbox_failing` | > 0 trong 15 phút | Có sự kiện phát lỗi lặp lại |
-| `increase(notification_dead_total[1h])` | > 0 | Email hết lượt thử (nhà cung cấp lỗi kéo dài hoặc địa chỉ sai hàng loạt) |
+| `delta(notification_dead_total[1h])` | > 0 | Email hết lượt thử (nhà cung cấp lỗi kéo dài hoặc địa chỉ sai hàng loạt). Metric là gauge số hàng `dead` (dù tên `_total`, `# TYPE counter` — sai, sẽ sửa ở nhánh khác): dùng `delta`, không dùng `increase` |
 | `hm_jobs_failed` | tăng | Job pg-boss lỗi (xem dead letter §6) |
 | `hm_export_jobs{status="failed"}` | tăng | Xuất dữ liệu lỗi (xem `export_jobs.failed_reason`) |
 | `hm_worker_heartbeat_age_seconds` | > 120 | Worker treo/chết |

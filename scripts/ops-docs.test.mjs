@@ -200,6 +200,14 @@ describe("deploy/prometheus/alerts.yml", () => {
       expect(unknown, `metric không có ở metrics.ts: ${unknown.join(", ")}`).toEqual([]);
     },
   );
+  it("metric thực chất là gauge (notification_dead_total = số hàng dead) không dùng increase()/rate(): retry làm giảm ⇒ báo giả", () => {
+    for (const r of rules)
+      expect(r.expr, `${r.alert}: gauge không dùng increase/rate`).not.toMatch(
+        /\b(increase|rate|irate)\(\s*(notification_dead_total|hm_jobs_failed|hm_holds_active|hm_outbox_\w+)/,
+      );
+    const dead = rules.find((r) => r.alert === "HmNotificationDead");
+    expect(dead?.expr).toMatch(/^delta\(notification_dead_total\[1h\]\) > 0$/);
+  });
   it("cảnh báo page không dùng ngưỡng tài nguyên máy (OPS-SLO-004: không page kiểu cpu > 80%)", () => {
     for (const r of rules.filter((x) => x.labels.severity === "page"))
       expect(r.expr).not.toMatch(/cpu|memory|node_/i);
@@ -273,7 +281,8 @@ describe("runbook có đủ mục bắt buộc", () => {
     const script = read("scripts/db-backup-restore-check.sh");
     expect(script).toContain("--delta --type=name");
     for (const frag of [
-      "pgbackrest --stanza=hm --delta --type=name",
+      "run --rm --no-deps -u postgres postgres",
+      "--type=name --target=truoc_migrate_",
       "--type=time",
       "--target-action=promote",
       "pgbackrest --stanza=hm info",
@@ -286,6 +295,23 @@ describe("runbook có đủ mục bắt buộc", () => {
     expect(script).toContain('STANZA="hm"');
   });
 
+  it("khôi phục: mặc định vào volume mới; --delta chỉ ở phương án cuối; không lấy truoc_khoi_phuc làm đích", () => {
+    const text = read("docs/ops/runbooks/restore.md");
+    const overlay = read("deploy/compose.restore.yaml");
+    expect(overlay).toMatch(/pgdata:\s*\n\s+external: true/);
+    expect(text).toContain("-f deploy/compose.restore.yaml");
+    const finalOption = text.indexOf("Phương án cuối");
+    expect(finalOption).toBeGreaterThan(0);
+    // --delta chỉ xuất hiện (trong lệnh) sau mục phương án cuối, kèm cảnh báo không đảo ngược
+    const firstDelta = text.indexOf("--delta ");
+    expect(firstDelta).toBeGreaterThan(finalOption);
+    expect(text.slice(finalOption, finalOption + 200)).toMatch(/KHÔNG đảo ngược/);
+    // không `exec` vào container postgres đã dừng để restore
+    expect(text).not.toMatch(/exec postgres pgbackrest[^\n]*restore/);
+    // đích khôi phục không phải điểm tạo sau sự cố
+    expect(text).not.toMatch(/--target=truoc_khoi_phuc/);
+  });
+
   it("deploy/rollback: backup trước migrate, lệnh theo compose, migration down", () => {
     const text = read("docs/ops/runbooks/deploy-rollback.md");
     for (const frag of [
@@ -294,6 +320,8 @@ describe("runbook có đủ mục bắt buộc", () => {
       "pg_create_restore_point",
       "migrateToLatest",
       "migrateDown",
+      "res.error",
+      "process.exit(code)",
       "/api/ready",
     ])
       expect(text, `deploy-rollback.md thiếu: ${frag}`).toContain(frag);
@@ -411,6 +439,16 @@ const tableRows = (text, prefix) =>
         .map((c) => c.trim()),
     );
 
+/**
+ * Tiêu đề (chuỗi literal) của `it(`/`test(`/`describe(` (kể cả `.each(...)(`, `.skip` không tính là bằng chứng nhưng vẫn lộ ra ở đây).
+ * Tên bằng chứng phải nằm trong một tiêu đề thật — khớp chuỗi con trong thân file (comment, dữ liệu, chuỗi khác) không đủ.
+ */
+function testTitles(file) {
+  const src = read(file);
+  const re = /(?:\b(?:it|test|describe)(?:\.[A-Za-z]+)*|[)\]])\s*\(\s*(["'`])((?:\\.|(?!\1)[^\\])*)\1/g;
+  return [...src.matchAll(re)].map((m) => m[2]);
+}
+
 /** Kiểm các tham chiếu `đường dẫn` «tên test» trong một ô bằng chứng; trả danh sách lỗi. */
 function checkEvidence(cell) {
   const errors = [];
@@ -426,8 +464,8 @@ function checkEvidence(cell) {
       } else current = m[1];
     } else if (current === null) {
       errors.push(`tên test không gắn với file: «${m[2]}»`);
-    } else if (!read(current).includes(m[2])) {
-      errors.push(`${current} không chứa «${m[2]}»`);
+    } else if (!testTitles(current).some((title) => title.includes(m[2]))) {
+      errors.push(`${current}: «${m[2]}» không nằm trong tiêu đề it(/test(/describe( nào`);
     }
   }
   if (paths === 0) errors.push("không trỏ tới file nào");
@@ -443,6 +481,16 @@ describe("checkEvidence", () => {
     expect(checkEvidence("`packages/app/src/config/schema.test.ts` «tên không tồn tại xyz»")).toHaveLength(1);
     expect(checkEvidence("IND-SAAS-002")).toEqual(["không trỏ tới file nào"]);
     expect(checkEvidence("«mồ côi»").length).toBeGreaterThan(0);
+  });
+  it("tên test phải là (một phần của) tiêu đề it(/describe(, không chỉ là chuỗi có trong file", () => {
+    // `const TM_STATUS` và tên biến có trong thân file nhưng không phải tiêu đề test
+    expect(checkEvidence("`scripts/ops-docs.test.mjs` «const TM_STATUS»")).toHaveLength(1);
+    expect(checkEvidence("`scripts/ops-docs.test.mjs` «testTitles»")).toHaveLength(1);
+    // tiêu đề thật: it(...), describe(...), it.each(...)(...)
+    expect(checkEvidence("`scripts/ops-docs.test.mjs` «mọi image ghim digest»")).toHaveLength(1); // ở file khác
+    expect(checkEvidence("`scripts/check-image-pins.test.mjs` «mọi image ghim digest sha256»")).toEqual([]);
+    expect(checkEvidence("`scripts/check-image-pins.test.mjs` «deploy/»")).toEqual([]);
+    expect(checkEvidence("`packages/app/src/privacy/data-map.db.test.ts` «%s → %s»")).toEqual([]);
   });
 });
 

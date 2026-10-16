@@ -1,6 +1,8 @@
 // T-309 (CMP-PRIV-001, STD-PRIV-002, CMP-INTL-002, CMP-VN-004): sổ dữ liệu cá nhân `docs/privacy/data-map.yaml` ↔ catalog CSDL
-// thật. Cột có tên khớp mẫu PII trong schema public/auth mà chưa khai → ĐỎ (cột PII mới không thể "lọt"); mục khai mà không có
-// trong catalog → ĐỎ. Đặt ở packages/app vì gói db không phụ thuộc @hm/testkit (testkit phụ thuộc db — tránh vòng).
+// thật. Rào theo TÊN cột: cột có tên khớp mẫu PII trong schema public/auth mà chưa khai → ĐỎ; cột jsonb/chữ tự do (memo, note,
+// reason, detail, payload…) chưa khai ở entries/not_pii/free_text → ĐỎ; mục khai mà không có trong catalog → ĐỎ. Máy KHÔNG thấy
+// cột PII đặt tên lạ hay PII nhét vào cột tự do: phần đó phải rà tay (free_text.risk). Đặt ở packages/app vì gói db không phụ
+// thuộc @hm/testkit (testkit phụ thuộc db — tránh vòng).
 import { readFileSync } from "node:fs";
 import { createTestDb, type TestDb } from "@hm/testkit";
 import { sql } from "kysely";
@@ -82,15 +84,24 @@ describe("parseYaml (tối thiểu)", () => {
 // Khớp THEO TỪ (tách snake_case/camelCase) thay vì chuỗi con: `ip` không bắt `description`/`membership_id`, `name` không bắt
 // `rename`. Mẫu gốc của task: email|phone|full_name|address|doc_number|dob|birth|national|ip|user_agent|name — thêm thông tin
 // tài chính cá nhân (account_number/account_name) và bí mật xác thực (password/secret/token/backup_codes) vì cùng thuộc
-// phạm vi hồ sơ xử lý; `national` bắt cả `nationality` (xử lý riêng bên dưới).
+// phạm vi hồ sơ xử lý; thêm số giấy tờ (id_number/cccd/passport), biển số, ngân hàng, giới tính, mã số thuế, giấy phép.
+// Cột kết thúc `_id`/`_ids` (khoá ngoại uuid) không xét theo tên: `bank_transaction_id`, `tax_profile_id` không chứa giá trị người.
 const PII_RE =
-  /(^|_)(email|phone|full_name|address|doc_number|dob|birth|birthday|national|nationality|ip|user_agent|name|account_number|account_name|password|secret|backup_codes|access_token|refresh_token|id_token|token)(_|$)/;
+  /(^|_)(email|phone|full_name|address|doc_number|id_number|cccd|cmnd|passport|plate|bank|gender|tax|license|iban|dob|birth|birthday|national|nationality|ip|user_agent|name|account_number|account_name|password|secret|backup_codes|access_token|refresh_token|id_token|token)(_|$)/;
 
 function snake(column: string): string {
   return column.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toLowerCase();
 }
 function isPiiName(column: string): boolean {
-  return PII_RE.test(snake(column));
+  const c = snake(column);
+  return !/_ids?$/.test(c) && PII_RE.test(c);
+}
+
+// Cột chữ/jsonb tự do: tên không nói lên nội dung có PII hay không ⇒ buộc khai và rà tay (free_text).
+const FREE_TEXT_RE =
+  /(^|_)(memo|note|reason|detail|payload|description|title|snapshot|file_key|error|errors|resolution|comment|header|message|body|content)(_|$)/;
+function isFreeTextName(column: string): boolean {
+  return FREE_TEXT_RE.test(snake(column));
 }
 
 describe("mẫu tên cột PII", () => {
@@ -107,6 +118,16 @@ describe("mẫu tên cột PII", () => {
     ["accessToken", true],
     ["token_hash", true],
     ["name", true],
+    ["id_number", true],
+    ["idNumber", true],
+    ["cccd", true],
+    ["passport_no", true],
+    ["plate_number", true],
+    ["bank_account", true],
+    ["gender", true],
+    ["tax_code", true],
+    ["bank_transaction_id", false],
+    ["tax_profile_id", false],
     ["description", false],
     ["membership_id", false],
     ["exif_stripped", false],
@@ -138,6 +159,12 @@ interface Excluded {
   column: string;
   reason: string;
 }
+interface FreeText {
+  table: string;
+  column: string;
+  risk: string;
+  note: string;
+}
 
 const MAP = parseYaml(
   readFileSync(new URL("../../../../docs/privacy/data-map.yaml", import.meta.url), "utf8"),
@@ -148,6 +175,7 @@ const entries = ((MAP.entries ?? []) as Record<string, string>[]).map((e) => ({
   ...e,
 })) as unknown as Entry[];
 const notPii = (MAP.not_pii ?? []) as unknown as Excluded[];
+const freeText = (MAP.free_text ?? []) as unknown as FreeText[];
 const key = (t: string, c: string) => `${t}.${c}`;
 
 let t: TestDb;
@@ -166,6 +194,27 @@ async function catalog(): Promise<Set<string>> {
      where c.table_schema in ('public', 'auth') and tb.table_type = 'BASE TABLE'
        and c.table_name not in ('kysely_migration', 'kysely_migration_lock')`.execute(t.admin);
   return new Set(r.rows.map((x) => key(`${x.table_schema}.${x.table_name}`, x.column_name)));
+}
+
+/** Cột jsonb/json (mọi tên) và cột có tên kiểu "chữ tự do" trong public/auth. */
+async function freeTextColumns(): Promise<Set<string>> {
+  const r = await sql<{ table_schema: string; table_name: string; column_name: string; data_type: string }>`
+    select c.table_schema, c.table_name, c.column_name, c.data_type
+      from information_schema.columns c
+      join information_schema.tables tb on tb.table_schema = c.table_schema and tb.table_name = c.table_name
+     where c.table_schema in ('public', 'auth') and tb.table_type = 'BASE TABLE'
+       and c.table_name not in ('kysely_migration', 'kysely_migration_lock')`.execute(t.admin);
+  return new Set(
+    r.rows
+      .filter((x) => x.data_type === "jsonb" || x.data_type === "json" || isFreeTextName(x.column_name))
+      .map((x) => key(`${x.table_schema}.${x.table_name}`, x.column_name)),
+  );
+}
+
+/** Cột tự do chưa khai ở entries/not_pii/free_text. */
+function undeclaredFreeText(cols: Set<string>): string[] {
+  const declared = new Set([...entries, ...notPii, ...freeText].map((e) => key(e.table, e.column)));
+  return [...cols].filter((k) => !declared.has(k)).sort();
 }
 
 /** Cột khớp mẫu PII mà chưa khai ở entries/not_pii. */
@@ -210,6 +259,32 @@ describe("data-map.yaml — cấu trúc", () => {
     }
   });
 
+  it("free_text: risk hợp lệ, có ghi chú, không trùng entries/not_pii", () => {
+    expect(freeText.length).toBeGreaterThanOrEqual(40);
+    const other = new Set([...entries, ...notPii].map((e) => key(e.table, e.column)));
+    const seen = new Set<string>();
+    for (const f of freeText) {
+      const id = key(f.table, f.column);
+      expect(["co_the_chua_pii", "khong_pii"], `${id}: risk`).toContain(f.risk);
+      expect(f.note.length, `${id}: thiếu ghi chú`).toBeGreaterThan(10);
+      expect(other.has(id), `${id}: vừa ở free_text vừa ở entries/not_pii`).toBe(false);
+      expect(seen.has(id), `${id}: trùng`).toBe(false);
+      seen.add(id);
+    }
+    // sáu cột tự do đã biết là có thể chứa PII phải được rà (không được hạ xuống khong_pii)
+    for (const [tb, col] of [
+      ["public.approval_requests", "payload"],
+      ["public.journal_entries", "memo"],
+      ["public.invoices", "memo_ref"],
+      ["public.lease_versions", "terms_snapshot"],
+      ["public.reconciliation_breaks", "detail"],
+      ["public.export_jobs", "file_key"],
+    ] as const)
+      expect(freeText.find((f) => f.table === tb && f.column === col)?.risk, key(tb, col)).toBe(
+        "co_the_chua_pii",
+      );
+  });
+
   it("giấy tờ nhận dạng xếp nhạy cảm; bí mật xác thực xếp xac_thuc", () => {
     for (const e of entries.filter(
       (x) => x.table === "public.identity_documents" && /doc_number_(enc|hash|last4)/.test(x.column),
@@ -223,7 +298,9 @@ describe("data-map.yaml — cấu trúc", () => {
 describe("data-map.yaml ↔ catalog CSDL (sau migrate)", () => {
   it("mọi mục khai (entries, not_pii) tồn tại thật trong catalog", async () => {
     const cols = await catalog();
-    const missing = [...entries, ...notPii].map((e) => key(e.table, e.column)).filter((k) => !cols.has(k));
+    const missing = [...entries, ...notPii, ...freeText]
+      .map((e) => key(e.table, e.column))
+      .filter((k) => !cols.has(k));
     expect(missing, `mục không có trong catalog (đổi tên/xoá cột?): ${missing.join(", ")}`).toEqual([]);
   });
 
@@ -244,6 +321,11 @@ describe("data-map.yaml ↔ catalog CSDL (sau migrate)", () => {
     expect(matched.length).toBeGreaterThanOrEqual(35);
   });
 
+  it("mọi cột jsonb và cột chữ tự do đều được khai (entries, not_pii hoặc free_text)", async () => {
+    const missing = undeclaredFreeText(await freeTextColumns());
+    expect(missing, `cột tự do chưa rà trong docs/privacy/data-map.yaml: ${missing.join(", ")}`).toEqual([]);
+  });
+
   it("cột PII mới chưa khai → bị phát hiện (đỏ); khai xong thì hết", async () => {
     await sql`alter table persons add column phone_backup text, add column dob date`.execute(t.admin);
     try {
@@ -252,5 +334,30 @@ describe("data-map.yaml ↔ catalog CSDL (sau migrate)", () => {
       await sql`alter table persons drop column phone_backup, drop column dob`.execute(t.admin);
     }
     expect(undeclared(await catalog())).toEqual([]);
+  });
+
+  it("ca âm: thêm cột id_number / bank_account / plate_number / gender / tax_code → đỏ; cột tự do mới (staff_note, extra jsonb) chưa rà → đỏ", async () => {
+    await sql`alter table persons add column id_number text, add column bank_account text, add column plate_number text,
+      add column gender text, add column tax_code text, add column staff_note text, add column extra jsonb`.execute(
+      t.admin,
+    );
+    try {
+      expect(undeclared(await catalog())).toEqual([
+        "public.persons.bank_account",
+        "public.persons.gender",
+        "public.persons.id_number",
+        "public.persons.plate_number",
+        "public.persons.tax_code",
+      ]);
+      expect(undeclaredFreeText(await freeTextColumns())).toEqual([
+        "public.persons.extra",
+        "public.persons.staff_note",
+      ]);
+    } finally {
+      await sql`alter table persons drop column id_number, drop column bank_account, drop column plate_number,
+        drop column gender, drop column tax_code, drop column staff_note, drop column extra`.execute(t.admin);
+    }
+    expect(undeclared(await catalog())).toEqual([]);
+    expect(undeclaredFreeText(await freeTextColumns())).toEqual([]);
   });
 });

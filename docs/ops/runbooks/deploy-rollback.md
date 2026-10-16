@@ -83,9 +83,15 @@ curl -fsS https://<domain>/api/ready
    import pg from "pg"; import { Kysely, PostgresDialect } from "kysely";
    import { createMigrator } from "./src/index.ts";
    const db = new Kysely({ dialect: new PostgresDialect({ pool: new pg.Pool({ connectionString: process.env.DATABASE_URL }) }) });
-   try { console.log(JSON.stringify(await createMigrator(db).migrateDown())); } finally { await db.destroy(); }'
+   let code = 0;
+   try {
+     const res = await createMigrator(db).migrateDown();
+     console.log(JSON.stringify(res.results ?? []));
+     if (res.error) { console.error("migrateDown LỖI:", String(res.error)); code = 1; }
+   } finally { await db.destroy(); }
+   process.exit(code);'
    ```
-   Mỗi lần chạy lùi **một** migration (đã thử trên cluster tạm: lùi `0046_observability`). Không dùng `migrateDownAll` ngoài test.
+   Mỗi lần chạy lùi **một** migration (đã thử trên cluster tạm: lùi `0046_observability`). Kysely không ném lỗi khi `down` hỏng mà trả `res.error`: lệnh trên in lỗi ra stderr và thoát mã 1 (mã 0 = lùi xong, hoặc không còn gì để lùi: `[]`); mã ≠ 0 thì dừng, đọc lỗi, không chạy lại khi chưa hiểu. Không dùng `migrateDownAll` ngoài test.
 3. Không đủ ⇒ khôi phục PITR về điểm `truoc_migrate_<phiên_bản>` ([restore](restore.md) mục B) — mất dữ liệu ghi sau điểm đó; cần người duyệt.
 
 ## Xác minh

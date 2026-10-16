@@ -2,6 +2,11 @@
 # packages/app/src/observability/metrics.ts. Chưa có metric HTTP nên chưa có rule burn rate — xem docs/ops/SLO.md §2.
 # Mỗi rule: labels.severity (page | ticket), labels.owner, annotations.runbook_url (đường dẫn tệp có thật trong repo,
 # tính từ gốc repo) + summary. scripts/ops-docs.test.mjs kiểm cấu trúc này; giữ YAML đơn giản (không anchor, không block scalar).
+# LƯU Ý LOẠI METRIC: `notification_dead_total` KHÔNG phải counter dù tên có hậu tố _total và /api/metrics khai `# TYPE ... counter`:
+# giá trị là SỐ HÀNG đang ở trạng thái `dead` tại thời điểm đọc (app.metrics_snapshot, migration 0046), tức gauge — giảm khi
+# hàng dead được gửi lại. Vì vậy dùng `delta()` (không dùng `increase()`/`rate()`, vốn coi mọi lần giảm là reset counter và báo giả).
+# Việc còn lại (nhánh khác, không sửa ở đây): đổi TYPE thành gauge trong packages/app/src/observability/metrics.ts (+ test) hoặc
+# đổi tên metric bỏ _total. Chừng nào chưa sửa, rule ở dưới đúng cho cả hai trường hợp vì chỉ dựa vào `delta()`.
 # Nạp: rule_files: [alerts.yml] trong prometheus.yml; scrape /api/metrics với Bearer token (docs/RUNBOOK.md §1).
 groups:
   - name: hotel-manager.van-hanh
@@ -55,17 +60,18 @@ groups:
           runbook_section: "3.3 Outbox đứng (bước 2)"
 
       - alert: HmNotificationDead
-        expr: increase(notification_dead_total[1h]) > 0
+        expr: delta(notification_dead_total[1h]) > 0
         labels:
           severity: ticket
           owner: backend
         annotations:
-          summary: "Email hết lượt thử (dead) trong 1 giờ qua"
-          description: "Nhà cung cấp SMTP lỗi kéo dài hoặc địa chỉ nhận sai hàng loạt; owner/manager có thể gửi lại sau khi sửa."
+          summary: "Số email hết lượt thử (dead) tăng ròng trong 1 giờ qua"
+          description: "Nhà cung cấp SMTP lỗi kéo dài hoặc địa chỉ nhận sai hàng loạt; owner/manager có thể gửi lại sau khi sửa. Metric là gauge số hàng dead: gửi lại làm giảm; nếu vừa có hàng dead mới vừa gửi lại hàng cũ trong cùng 1 giờ thì tăng ròng có thể bằng 0 — xem số dead hiện tại."
           runbook_url: docs/RUNBOOK.md
           runbook_section: "3.4 Email dead tăng"
 
       - alert: HmJobsFailed
+        # hm_jobs_failed là gauge (số job đang failed): so sánh trực tiếp, `for` lọc nhiễu; không dùng increase().
         expr: hm_jobs_failed > 0
         for: 15m
         labels:
@@ -89,13 +95,14 @@ groups:
           runbook_section: "3.5 Xuất dữ liệu lỗi"
 
       - alert: HmHoldsActiveUnusual
+        # avg_over_time(...[1d] offset 1d) = trung bình của 24 giờ liền trước 24 giờ gần nhất (cả ngày hôm trước), không phải cùng giờ.
         expr: hm_holds_active > 2 * (avg_over_time(hm_holds_active[1d] offset 1d) + 10)
         for: 1h
         labels:
           severity: ticket
           owner: backend
         annotations:
-          summary: "Số giữ chỗ đang hiệu lực gấp hơn đôi so với cùng giờ hôm qua"
-          description: "Ngưỡng khởi điểm (hệ số 2, cộng 10), chỉnh sau khi có dữ liệu pilot. Có thể job nhả hold không chạy hoặc bị lạm dụng giữ phòng."
+          summary: "Số giữ chỗ đang hiệu lực gấp hơn đôi so với trung bình cả ngày hôm trước (cộng 10)"
+          description: "Ngưỡng khởi điểm (hệ số 2 so với trung bình cả ngày hôm trước, cộng 10), chỉnh sau khi có dữ liệu pilot. Có thể job nhả hold không chạy hoặc bị lạm dụng giữ phòng."
           runbook_url: docs/RUNBOOK.md
           runbook_section: "2 Ngưỡng cảnh báo đề xuất (hm_holds_active)"

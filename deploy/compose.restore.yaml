@@ -1,0 +1,7 @@
+# Lớp phủ khi khôi phục CSDL vào VOLUME MỚI (docs/ops/runbooks/restore.md mục B): trỏ volume `pgdata` sang volume đã tạo sẵn,
+# volume cũ (dữ liệu hỏng/cũ) giữ nguyên làm đường lùi. Luôn truyền CẢ HAI tệp: -f deploy/compose.yaml -f deploy/compose.restore.yaml.
+# Quên tệp này ⇒ compose gắn lại volume cũ. Tên volume mới đặt ở deploy/.env (HM_RESTORE_VOLUME), tạo bằng `docker volume create`.
+volumes:
+  pgdata:
+    external: true
+    name: ${HM_RESTORE_VOLUME:?đặt HM_RESTORE_VOLUME trong deploy/.env (tên volume mới đã docker volume create)}
