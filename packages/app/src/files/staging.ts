@@ -143,17 +143,4 @@ export async function finalizeStaged(
 }
 
 /** Chạy bước prepare ngoài transaction và giữ kết quả/lỗi để ném lại TRONG handler (giữ ghi `failed` + audit `denied`). */
-export type Settled<T> = { ok: true; value: T } | { ok: false; error: unknown };
-
-export async function settle<T>(fn: () => Promise<T>): Promise<Settled<T>> {
-  try {
-    return { ok: true, value: await fn() };
-  } catch (error) {
-    return { ok: false, error };
-  }
-}
-
-export function unwrap<T>(s: Settled<T>): T {
-  if (!s.ok) throw s.error;
-  return s.value;
-}
+export { type Settled, settle, unwrap } from "../pipeline/settled.ts";

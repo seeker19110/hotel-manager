@@ -362,6 +362,7 @@ export async function downloadExport(
     entityId: job.id,
     ...(job.property_id ? { propertyId: job.property_id } : {}),
   });
+  ctx.security({ event: "export.downloaded", target: { type: "export_job", id: job.id } });
   return { url: await deps.storage.signedGetUrl(job.file_key, expiresIn), expiresIn };
 }
 

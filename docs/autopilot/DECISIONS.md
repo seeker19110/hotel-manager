@@ -190,3 +190,9 @@
 - Chọn: Đánh dấu đã phát không sinh job (consumer thêm sau không nhận sự kiện cũ), log + đếm
 - Lý do (tiêu chí chất lượng cuối): (1) đúng: phương án 3 làm kẹt toàn bộ outbox; phương án 2 tích job không giới hạn, không ai xử lý. Sự kiện không consumer là sự kiện chỉ để audit/tương lai; dữ liệu nguồn vẫn nằm trong bảng nghiệp vụ + audit_events nên consumer mới có thể backfill có chủ đích. (3) đơn giản, đo được.
 - Đường lùi: Đổi sang queue lười bằng một thay đổi ở relay.ts; sự kiện đã đánh dấu vẫn còn trong outbox để phát lại thủ công.
+### D-027 · 2026-10-16T14:28:08+00:00 · roomType.create/update luôn 422 vì idempotency_keys.command CHECK '^[a-z_]+(\.[a-zA-Z_]+)+$' (0003) không nhận đoạn đầu có chữ hoa — sửa tên lệnh hay nới CHECK?
+
+- Phương án: (1) Đổi tên lệnh thành room_type.create/update (khớp quy ước snake_case đoạn đầu của mọi lệnh khác + tên bảng room_types), thêm test mọi lệnh registry khớp CHECK · (2) Migration mới nới regex CHECK cho phép camelCase đoạn đầu
+- Chọn: Đổi tên lệnh thành room_type.create/update (khớp quy ước snake_case đoạn đầu của mọi lệnh khác + tên bảng room_types), thêm test mọi lệnh registry khớp CHECK
+- Lý do (tiêu chí chất lượng cuối): (1) đúng: mọi lệnh khác đều snake_case đoạn đầu; chưa client nào gọi roomType.* (UI chưa có màn loại phòng, lệnh luôn lỗi) nên đổi tên không phá ai. (3) đơn giản: không đụng schema; test registry ↔ CHECK chặn tái phát.
+- Đường lùi: Đổi lại tên trong registry + chạy pnpm openapi.

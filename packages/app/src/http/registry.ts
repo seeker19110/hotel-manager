@@ -272,8 +272,8 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
     input: z.strictObject({ approval_request_id: uuid }),
     run: async (ctx, i) => ({ data: await cancelApproval(ctx, i.approval_request_id) }),
   }),
-  "roomType.create": defineCommand({
-    command: "roomType.create",
+  "room_type.create": defineCommand({
+    command: "room_type.create",
     input: z.strictObject({
       property_id: uuid,
       code: z.string().trim().min(1).max(20),
@@ -290,8 +290,8 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
       httpStatus: 201,
     }),
   }),
-  "roomType.update": defineCommand({
-    command: "roomType.update",
+  "room_type.update": defineCommand({
+    command: "room_type.update",
     input: z.strictObject({
       room_type_id: uuid,
       name: z.string().trim().min(1).max(100).optional(),
