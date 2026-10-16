@@ -1,5 +1,6 @@
 # xt.yaml — lệnh chuẩn của dự án cho agent và hook (YAML PHẲNG `task: lệnh`, do .xtemplates/scripts/dev-task.sh đọc).
 # Agent KHÔNG suy diễn lệnh từ văn xuôi; đọc file này. Để trống "" = không có; thiếu khoá = tự dò (package.json/pyproject/go.mod/Cargo.toml/Makefile).
+# Khi autopilot đang chạy, lint/test để "" hoặc lệnh không kiểm gì (true, :, exit 0, echo …) = cổng ĐỎ (ADR-0011): điền ở task đầu PLAN.
 # Nhà của bộ khoá: LOOP-HARNESS-008 (framework/11-autonomous-loop/harness-files.md). `scripts/dev-task.sh` CHỈ chạy các khoá format · lint · typecheck · test · build · format_file
 # (`gate` = build → typecheck → lint → test; lint nên gồm kiểm format). Khoá khác (install, dev, e2e, migrate, init, smoke, audit…) là lệnh KHAI BÁO để agent ĐỌC và chạy trực tiếp; dev-task không chạy.
 # Mẫu theo stack (giữ MỘT bộ, xoá phần còn lại):
@@ -12,6 +13,10 @@ test: ""
 build: ""
 format: ""
 format_file: ""
+# Merge PR (ADR-0013, LOOP-STOP-022): `xt.py merge-check` quyết; L1 = người merge mọi PR, L2 = máy tự merge làn nhanh khi CI xanh.
+# merge_risk_paths: glob thêm vào danh sách đường dẫn nhạy cảm (luôn để người merge), cách nhau dấu phẩy.
+merge_autonomy: L1
+merge_risk_paths: ""
 # Tuỳ chọn, agent đọc và chạy trực tiếp (dev-task không chạy): e2e, audit (dependency), perf (k6/lighthouse), migrate (áp migration local), install, dev, init, smoke
 e2e: ""
 audit: ""

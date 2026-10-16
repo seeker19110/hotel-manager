@@ -48,7 +48,7 @@ Chi tiết: `.xtemplates/framework/11-autonomous-loop/stop-points-and-escalation
 ## 6. Điểm dừng bắt buộc về hành động (hỏi người, kể cả khi đang tự động)
 Tự duyệt không mở các điểm này: thao tác không đảo ngược · tiền thật/thanh toán · dữ liệu người dùng thật · publish/deploy production/gửi thông báo ra ngoài · đăng ký dịch vụ trả phí/nhập khoá thật · đổi quyền/ruleset/cấu hình cổng-CI-hook · bế tắc máy (cùng lỗi lần 3, hết ngân sách).
 Trong autopilot: còn việc khác làm được → `python3 .xtemplates/scripts/xt.py loop defer --task <ID> --reason "..."` rồi làm tiếp (gom cho người cuối phiên, verdict `done-pending-human`); mọi việc còn lại phụ thuộc nó → `loop block --reason "..."` rồi dừng. Ngoài các điểm trên **không hỏi lại** — tự làm đến khi có bằng chứng xong.
-Autopilot chạy **một phiên đến khi xong**: mở phiên bằng `claude --permission-mode auto`, `loop init --single-session`; context đầy để compaction tự nén (hook PreCompact ghi checkpoint), chỉ bàn giao khi gần trần vòng/giờ/tiền.
+Autopilot bắt đầu bằng `python3 .xtemplates/scripts/xt.py doctor --fix` (audit khung đã cài, sửa phần an toàn; còn lỗi hook/settings → báo người chạy lại `install.py`). Autopilot chạy **một phiên đến khi xong**: mở phiên bằng `claude --permission-mode auto`, `loop init --single-session`; context đầy để compaction tự nén (hook PreCompact ghi checkpoint), chỉ bàn giao khi gần trần vòng/giờ/tiền.
 
 ## 7. Cổng
 - **Trước commit** (`/gate`): `scripts/dev-task.sh gate` (đọc `xt.yaml`) → build · typecheck · lint · test xanh (lint nên gồm kiểm format); tự review diff; không rác/bí mật; conventional commit.

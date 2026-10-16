@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # pre-bash-guard.sh — PreToolUse hook (matcher: Bash). Ba việc, theo thứ tự:
 #  1) DENY lệnh phá huỷ / không đảo ngược (deny chặn cả ở bypassPermissions).
-#  2) ASK lệnh "hành động đối ngoại", nới hàng rào, ghi file cổng/bí mật qua Bash (điểm dừng bắt buộc — 11-autonomous-loop).
+#  2) ASK lệnh "hành động đối ngoại" (riêng `gh pr merge` qua `xt.py merge-check` → có thể ALLOW, ADR-0013), nới hàng rào, ghi file cổng/bí mật qua Bash (điểm dừng bắt buộc — 11-autonomous-loop).
 #  3) Khi là `git commit`: chạy cổng chất lượng qua dev-task.sh gate; đỏ → chặn (exit 2).
 # Phân tích lệnh nằm ở guard.py (tách theo token shell, chuẩn hoá wrapper/tuỳ chọn git — audit AUD-SEC-001…010).
 # Payload đi qua stdin, không qua argv. guard.py lỗi/thiếu python3 → cho qua (fail-open về luồng).
@@ -53,4 +53,6 @@ if [ "$(json_field "$res" commit)" = "true" ] && [ "$(json_field "$res" no_verif
   fi
 fi
 [ "$decision" = "ask" ] && pretool_decision ask "$(json_field "$res" reason)"
+# allow chỉ do guard.py trả cho `gh pr merge` đứng một mình đã qua `xt.py merge-check` (ADR-0013).
+[ "$decision" = "allow" ] && pretool_decision allow "$(json_field "$res" reason)"
 exit 0
