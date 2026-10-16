@@ -9,4 +9,4 @@
 - Hook (`.claude/settings.json`): SessionStart nạp PROGRESS + trạng thái autopilot (cả sau compaction); PreCompact ghi checkpoint (`xt.py loop checkpoint`, luôn exit 0); PreToolUse chặn lệnh phá huỷ/`curl|sh`, hỏi khi deploy/publish/push nhánh chính hoặc sửa cấu hình cổng/CI/migration đã có; PostToolUse format file vừa sửa; Stop đọc bằng chứng autopilot (`xt.py loop hook-stop`).
 - `permissions.defaultMode` ở settings dự án bị bỏ qua với `auto`/`bypassPermissions`; muốn chạy không hỏi quyền: bật ở settings người dùng hoặc `--permission-mode` — autopilot một phiên: `claude --permission-mode auto`. Hook `deny` vẫn chặn kể cả ở bypass.
 - Headless: không dùng `--bare` (mất hook/skill/CLAUDE.md).
-- Model/effort: [ĐIỀN nếu dự án quy định — vd phiên chính opus/sonnet, subagent sonnet/haiku].
+- Model/effort: dự án không ghim model; `reviewer` phải chạy model KHÁC phiên chính (AGENTS §7) — đặt ở `.claude/agents/reviewer.md`.

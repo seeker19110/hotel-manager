@@ -45,8 +45,9 @@ Trong autopilot: còn việc khác làm được → `python3 .xtemplates/script
 Autopilot bắt đầu bằng `python3 .xtemplates/scripts/xt.py doctor --fix` (audit khung đã cài, sửa phần an toàn; còn lỗi hook/settings → báo người chạy lại `install.py`). Autopilot chạy **một phiên đến khi xong**: mở phiên bằng `claude --permission-mode auto`, `loop init --single-session`; context đầy để compaction tự nén (hook PreCompact ghi checkpoint), chỉ bàn giao khi gần trần vòng/giờ/tiền.
 
 ## 7. Cổng
-- **Trước commit** (`/gate`): `scripts/dev-task.sh gate` (đọc `xt.yaml`) → build · typecheck · lint · test xanh (lint nên gồm kiểm format); tự review diff; không rác/bí mật; conventional commit.
+- **Trước commit** (`/gate`): `.xtemplates/scripts/dev-task.sh gate` (đọc `xt.yaml`; commit qua `scripts/commit-gated.sh` — chỉ commit phần đã stage) → build · typecheck · lint · test xanh (lint nên gồm kiểm format); tự review diff; không rác/bí mật; conventional commit.
 - **Trước merge:** + toàn bộ test, nhánh cập nhật với `main`, tiêu chí chấp nhận trong SPEC, mục blueprint liên quan tick kèm bằng chứng, review (người hoặc `reviewer` model khác), CI xanh.
+- **Merge (chủ dự án quyết 2026-10-16):** merge từng lát — mỗi lát một PR; phiên chính merge khi CI xanh, review độc lập đã sửa hết 🔴/🟠 và nhánh cập nhật với `main`. `xt.yaml` vẫn `merge_autonomy: L1` (máy không tự merge qua `xt.py merge-check`); nâng L2 + `merge_risk_paths` là đổi cấu hình cổng — chờ chủ dự án duyệt.
 - **Phát hành (G7):** `python3 .xtemplates/scripts/xt.py blueprint-status BLUEPRINT.md --strict` = 0 MUST mở + `GO-NO-GO.md` không còn BLOCKER + chủ dự án đã quyết từng đề xuất "Khi chạy thật" trong `docs/autopilot/DECISIONS.md`.
 
 ## 8. Skill và subagent (Claude Code)
