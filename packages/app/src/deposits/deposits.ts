@@ -72,6 +72,7 @@ export async function receiveDeposit(
     payerPersonId: input.payerPersonId,
     purpose: "deposit",
     depositId: dep.id,
+    ...(input.reservationId ? { reservationId: input.reservationId } : {}),
     ...(input.receivingAccountId ? { receivingAccountId: input.receivingAccountId } : {}),
     ...(input.bankTxn ? { bankTxn: input.bankTxn } : {}),
   });

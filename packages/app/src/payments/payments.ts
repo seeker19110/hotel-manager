@@ -118,6 +118,8 @@ export interface RecordPaymentInput {
   /** Dùng nội bộ (deposit.receive, T-106). */
   purpose?: "receivable" | "deposit";
   depositId?: string;
+  /** Ứng trước/cọc của booking (SPEC-reservation-stay S-005): folio và check-out phân bổ đúng khoản. */
+  reservationId?: string;
 }
 
 /** `payment.record`: ghi khoản thu `pending` (chưa ghi sổ). */
@@ -162,9 +164,9 @@ export async function recordPayment(
   const id = randomUUID();
   await sql`
     insert into payments (id, organization_id, property_id, method, purpose, amount, receiving_account_id, payer_person_id,
-                          deposit_id, shift_id, bank_transaction_id, business_date, recorded_by, command_id)
+                          deposit_id, reservation_id, shift_id, bank_transaction_id, business_date, recorded_by, command_id)
     values (${id}, ${ctx.actor.orgId}, ${input.propertyId}, ${input.method}, ${input.purpose ?? "receivable"}, ${input.amount},
-            ${receivingAccountId}, ${input.payerPersonId}, ${input.depositId ?? null}, ${shiftId}, ${bankTransactionId},
+            ${receivingAccountId}, ${input.payerPersonId}, ${input.depositId ?? null}, ${input.reservationId ?? null}, ${shiftId}, ${bankTransactionId},
             ${await businessDate(ctx.trx, ctx.actor.orgId, input.propertyId)}::date, ${ctx.actor.membershipId}, ${ctx.commandId})`.execute(
     ctx.trx,
   );

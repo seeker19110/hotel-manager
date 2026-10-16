@@ -75,6 +75,14 @@ import {
   receiveHandover,
 } from "../shifts/shifts.ts";
 import { createRoomType, quote, setRate, updateRoomType } from "../stay/rates.ts";
+import {
+  cancelReservation,
+  confirmReservation,
+  createReservation,
+  getReservation,
+  holdReservation,
+  markNoShow,
+} from "../stay/reservations.ts";
 import type { CommandDef, QueryDef } from "./command-route.ts";
 
 const uuid = z.uuid();
@@ -226,6 +234,102 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
         weekendPrice: i.weekend_price,
         ...(i.effective_from ? { effectiveFrom: i.effective_from } : {}),
       }),
+    }),
+  }),
+  "reservation.create": defineCommand({
+    command: "reservation.create",
+    input: z.strictObject({
+      unit_id: uuid,
+      arrival_date: isoDate,
+      departure_date: isoDate,
+      guests: z.number().int().min(1).max(50),
+      source: z.literal("direct"),
+      booker: z.union([
+        z.strictObject({ person_id: uuid }),
+        z.strictObject({
+          full_name: z.string().trim().min(1).max(200),
+          phone: z.string().trim().min(6).max(20),
+          email: z.email().max(320).optional(),
+        }),
+      ]),
+    }),
+    run: async (ctx, i) => ({
+      data: await createReservation(ctx, {
+        unitId: i.unit_id,
+        arrivalDate: i.arrival_date,
+        departureDate: i.departure_date,
+        guests: i.guests,
+        source: i.source,
+        booker:
+          "person_id" in i.booker
+            ? { personId: i.booker.person_id }
+            : {
+                fullName: i.booker.full_name,
+                phone: i.booker.phone,
+                ...(i.booker.email ? { email: i.booker.email } : {}),
+              },
+      }),
+      httpStatus: 201,
+    }),
+  }),
+  "reservation.hold": defineCommand({
+    command: "reservation.hold",
+    input: z.strictObject({ reservation_id: uuid }),
+    run: async (ctx, i) => ({ data: await holdReservation(ctx, { reservationId: i.reservation_id }) }),
+  }),
+  "reservation.confirm": defineCommand({
+    command: "reservation.confirm",
+    input: z.strictObject({
+      reservation_id: uuid,
+      payment: z
+        .strictObject({
+          amount: positiveMoney,
+          method: z.enum(["cash", "bank_transfer"]),
+          kind: z.enum(["advance", "security_deposit"]),
+          receiving_account_id: uuid.optional(),
+          bank_txn: bankTxn.optional(),
+        })
+        .optional(),
+    }),
+    run: async (ctx, i) => ({
+      data: await confirmReservation(ctx, {
+        reservationId: i.reservation_id,
+        ...(i.payment
+          ? {
+              payment: {
+                amount: i.payment.amount,
+                method: i.payment.method,
+                kind: i.payment.kind,
+                ...(i.payment.receiving_account_id
+                  ? { receivingAccountId: i.payment.receiving_account_id }
+                  : {}),
+                ...(i.payment.bank_txn ? { bankTxn: toBankTxn(i.payment.bank_txn) } : {}),
+              },
+            }
+          : {}),
+      }),
+    }),
+  }),
+  "reservation.cancel": defineCommand({
+    command: "reservation.cancel",
+    input: z.strictObject({
+      reservation_id: uuid,
+      reason: z.string().trim().min(1).max(1000),
+      cancellation_fee: money.optional(),
+    }),
+    run: async (ctx, i) => ({
+      data: await cancelReservation(ctx, {
+        reservationId: i.reservation_id,
+        reason: i.reason,
+        ...(i.cancellation_fee === undefined ? {} : { cancellationFee: i.cancellation_fee }),
+      }),
+    }),
+  }),
+  "reservation.markNoShow": defineCommand({
+    command: "reservation.markNoShow",
+    input: z.strictObject({ reservation_id: uuid, reason: z.string().trim().min(1).max(1000) }),
+    run: async (ctx, i) => ({
+      data: await markNoShow(ctx, { reservationId: i.reservation_id, reason: i.reason }),
     }),
   }),
   "shift.open": defineCommand({
@@ -1019,6 +1123,11 @@ export const QUERIES: Readonly<Record<string, AnyQuery>> = {
         departureDate: i.departure_date,
         guests: i.guests,
       }),
+  },
+  "reservation.get": {
+    query: "reservation.get",
+    input: z.strictObject({ reservation_id: uuid }),
+    run: (db, actor, i: { reservation_id: string }) => getReservation(db, actor, i.reservation_id),
   },
   "identity.get": {
     query: "identity.get",

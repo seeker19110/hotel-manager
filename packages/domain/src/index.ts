@@ -9,6 +9,7 @@ export {
   authorize,
   authorizeRequest,
   effectiveLimit,
+  isMatrixRole,
 } from "./access/authorize.ts";
 export {
   type Action,

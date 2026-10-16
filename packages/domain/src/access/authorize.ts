@@ -43,7 +43,7 @@ export interface AuthzResult {
   limit?: number;
 }
 
-function isMatrixRole(role: string): role is MatrixRole {
+export function isMatrixRole(role: string): role is MatrixRole {
   return (ROLES as readonly string[]).includes(role);
 }
 

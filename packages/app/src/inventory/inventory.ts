@@ -103,6 +103,9 @@ export async function createHold(
       ctx.trx,
     );
   } catch (err) {
+    // Về lại savepoint để người gọi còn dùng được transaction (vd tìm phòng gợi ý — SPEC-reservation-stay S-004).
+    if ((err as { code?: string }).code === "23P01")
+      await sql`rollback to savepoint hold_insert`.execute(ctx.trx);
     translateOverlap(err);
   }
   await ctx.audit({
