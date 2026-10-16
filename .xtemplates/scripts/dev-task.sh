@@ -10,6 +10,8 @@
 #      .claude/project-commands.sh (biến bash <task>=lệnh) → chạy lệnh khai báo.
 #   2) TỰ DÒ: nhận diện hệ sinh thái (node/python/go/rust/make) → chạy lệnh quy ước.
 #   3) NO-OP: không có gì khớp → in thông báo skip, exit 0 (KHÔNG làm gãy dự án nào).
+#      Ngoại lệ (ADR-0011): autopilot đang chạy (.autopilot/state.json "active": true) mà `lint`/`test`
+#      rỗng hoặc là lệnh không kiểm gì (true, :, exit 0, echo …) → ĐỎ. Cổng rỗng không phải bằng chứng.
 #
 # Task hỗ trợ: format | lint | typecheck | test | build | gate
 #   gate = chạy tuần tự build→typecheck→lint→test (cái nào phân giải được), đỏ 1 cái → fail.
@@ -113,9 +115,24 @@ resolve() { # $1=task -> in lệnh (khai báo ưu tiên), rỗng nếu không c�
   detected_cmd "$1"
 }
 
+# --- ADR-0011: trong vòng autopilot, lint/test không được là no-op ------------
+LOOP_REQUIRED=" lint test "
+autopilot_active() { [ -f "$ROOT/.autopilot/state.json" ] && grep -Eq '"active"[[:space:]]*:[[:space:]]*true' "$ROOT/.autopilot/state.json"; }
+is_noop() { # $1=lệnh -> true nếu rỗng hoặc không kiểm gì
+  local c; c="$(printf '%s' "$1" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
+  [ -z "$c" ] || printf '%s' "$c" | grep -Eqx "true|:|exit( 0)?|(echo|printf)([[:space:]].*)?"
+}
+loop_noop() { # $1=task $2=lệnh -> true (kèm log) nếu autopilot đang chạy mà task bắt buộc là no-op
+  case "$LOOP_REQUIRED" in *" $1 "*) ;; *) return 1 ;; esac
+  is_noop "$2" && autopilot_active || return 1
+  local why="chưa có lệnh"; [ -n "$2" ] && why="là lệnh không kiểm gì ($2)"
+  log "ĐỎ: autopilot đang chạy mà '$1' $why — khai lệnh thật trong xt.yaml (LOOP-HARNESS-008, ADR-0011); cổng rỗng không phải bằng chứng xanh"
+}
+
 RAN=0
-run_task() { # $1=task -> chạy; 0 nếu ok hoặc no-op, khác 0 nếu lệnh fail
+run_task() { # $1=task -> chạy; 0 nếu ok hoặc no-op, khác 0 nếu lệnh fail hoặc no-op trong autopilot
   local cmd; cmd="$(resolve "$1")"
+  if loop_noop "$1" "$cmd"; then return 3; fi
   if [ -z "$cmd" ]; then log "skip: chưa cấu hình/dò được '$1'"; return 0; fi
   RAN=$((RAN + 1))
   log "run [$1]: $cmd"

@@ -1,7 +1,7 @@
 ---
 title: Vòng lặp tự động (autopilot)
 kind: index
-updated: 2026-10-15
+updated: 2026-10-16
 ---
 
 # 11 — Vòng lặp tự động (autopilot)
@@ -13,11 +13,11 @@ updated: 2026-10-15
 
 | File | Nội dung | Đọc khi nào |
 |---|---|---|
-| [`loop-design.md`](loop-design.md) | Thiết kế vòng lặp: 4 con số, tiêu chí dừng máy kiểm, bằng chứng | Trước khi bật autopilot lần đầu; khi chọn tầng vòng lặp (hook/`/loop`/headless) |
+| [`loop-design.md`](loop-design.md) | Thiết kế vòng lặp: 4 con số, tiêu chí dừng máy kiểm, bằng chứng; vòng bảo trì kích hoạt theo ngưỡng | Trước khi bật autopilot lần đầu; khi chọn tầng vòng lặp (hook/`/loop`/headless/ngưỡng) |
 | [`harness-files.md`](harness-files.md) | File harness: PLAN · PROGRESS · BLUEPRINT · evidence · state | Khi viết PLAN.md, PROGRESS.md; khi hỏi "file nào commit, file nào không" |
 | [`stop-points-and-escalation.md`](stop-points-and-escalation.md) | Điểm quyết định tự duyệt (tiêu chí chất lượng cuối), điểm dừng bắt buộc, mức tin cậy T0–T4, leo thang | Khi cần quyết định; khi quyết hành động nào agent được tự làm; khi cấu hình allow/ask/deny |
 | [`orchestration-and-subagents.md`](orchestration-and-subagents.md) | Điều phối: subagent, worktree, song song, không lồng | Khi tách việc cho `researcher`/`executor`/`reviewer`; khi muốn chạy song song |
-| [`self-healing-ci.md`](self-healing-ci.md) | Agent tự sửa CI/review: giới hạn, cấm, bằng chứng | Khi CI đỏ trong autopilot; khi cấu hình workflow có agent là tác giả |
+| [`self-healing-ci.md`](self-healing-ci.md) | Agent tự sửa CI/review: giới hạn, cấm (kể cả làm yếu test, tự gắn `@flaky`), bằng chứng | Khi CI đỏ trong autopilot; khi cấu hình workflow có agent là tác giả |
 | [`context-and-token-budget.md`](context-and-token-budget.md) | Ngân sách context/token, compaction, bàn giao phiên | Khi phiên dài, gần hết ngân sách; khi viết bàn giao |
 | [`framework-feedback.md`](framework-feedback.md) | Phản hồi lỗi do khung + cách khắc phục từ dự án đích (`xt.py feedback`), khung kéo về và gộp | Khi sửa xong một lỗi do khung; trước bàn giao/phát hành; khi bảo trì repo khung |
 
@@ -25,6 +25,13 @@ updated: 2026-10-15
 
 `<XT>` = `python3 .xtemplates/scripts/xt.py` trong dự án đích (hoặc `python3 scripts/xt.py` trong repo khung). Skill
 `/autopilot` (`.claude/skills/autopilot/SKILL.md`) là bản rút gọn của giao thức này.
+
+**Pha 0 — audit khung trước khi làm** (`LOOP-HARNESS-020`)
+
+0. `<XT> doctor --fix` là việc **đầu tiên** của mỗi lần `/autopilot`: kiểm khung đã cài (runtime, hook + file hook + cú pháp,
+   skill/subagent, `AGENTS.md`/`CLAUDE.md`, `xt.yaml`, `.gitignore`, state, khung hợp lệ, `PROGRESS.md`) và sửa phần an toàn,
+   đảo ngược được. Còn ✗ (hook/settings/khung cài lệch) → báo người lệnh `install.py` một lần — đổi hook là điểm dừng;
+   `loop init` cũng chạy phần nhanh của audit và cảnh báo trên stderr khi còn lỗi (không chặn, ADR-0002 fail-open về luồng).
 
 **Pha 1 — lập kế hoạch, không code**
 
@@ -48,7 +55,7 @@ updated: 2026-10-15
 **Pha 2 — vòng lặp có bằng chứng**
 
 9. `<XT> loop init --plan docs/autopilot/PLAN.md --blueprint BLUEPRINT.md --single-session [--hours <H>]` → tạo
-   `.autopilot/state.json` (gitignore; `max_same_failure: 3`; trần vòng tự tính `max(20, 4 × (task chưa làm + MUST mở của blueprint))`, hoặc
+   `.autopilot/state.json` (gitignore; `max_same_failure: 3`; trần vòng tự tính `max(20, 4 × task chưa làm)`, hoặc
    `--max-iterations <N>`). **Một phiên đến khi xong** (ADR-0009): phiên mở bằng `claude --permission-mode auto`
    (settings dự án không đặt được; Stop hook cảnh báo nếu phiên đang ở chế độ hỏi quyền).
 10. **Mỗi vòng**: `<XT> loop status --json` → verdict `continue` kèm task do máy chọn (task `[ ]` đầu tiên chưa `defer`) → làm task → chạy Gate
@@ -76,7 +83,8 @@ updated: 2026-10-15
 
 | Lệnh | Làm gì |
 |---|---|
-| `loop init --plan P [--blueprint B] [--max-iterations N] [--hours H] [--single-session]` | Tạo `.autopilot/state.json`, bật vòng; `--single-session`: trần vòng `max(20, 4 × (task chưa làm + MUST mở của blueprint))` (mặc định 50) |
+| `doctor [--fix] [--json]` | Audit khung đã cài trước autopilot; `--fix` sửa phần an toàn (không đụng hook/settings); exit 1 khi còn lỗi ✗ |
+| `loop init --plan P [--blueprint B] [--max-iterations N] [--hours H] [--single-session]` | Tạo `.autopilot/state.json`, bật vòng; `--single-session`: trần vòng `max(20, 4 × task chưa làm)` (mặc định 50) |
 | `loop status [--json]` | Verdict: `inactive` · `continue` · `verify` · `blocked` · `budget` · `done` · `done-pending-human`; kèm chế độ, việc chờ người, cảnh báo quyền, checkpoint |
 | `loop defer --task ID --reason "..."` | Việc cần người (T-NNN hoặc ID blueprint): bỏ qua, làm việc khác; `loop resume` đưa lại hàng làm |
 | `loop checkpoint` | Dùng bởi PreCompact hook: ghi vị trí làm việc vào state; luôn exit 0 (exit 2 sẽ chặn nén) |

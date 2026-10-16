@@ -13,7 +13,7 @@ argument-hint: "[compose|status|audit] [--profile p --industry i --scale M]"
 2. `<XT> compose --profile <p> [--industry <i>]... --scale <S|M|L> [--add <module-glob>]... --out BLUEPRINT.md`
    - `--add` khi dự án có nhu cầu ngoài hồ sơ (vd web app có tính năng AI → `--add "13-ai-engineering/*"`).
    - `--include-may` nếu muốn thấy cả mục MAY.
-3. Commit `BLUEPRINT.md`. Không sửa chữ của mục; muốn đổi yêu cầu → PR vào khung rồi ghép lại.
+3. Commit `BLUEPRINT.md` và `BLUEPRINT-BACKLOG.md` (ADR-0012: file chính chỉ MUST theo quy mô, backlog SHOULD/MAY; `blueprint-status` đọc cả hai). Không sửa chữ của mục; muốn đổi yêu cầu → PR vào khung rồi ghép lại.
 
 ## status
 `<XT> blueprint-status BLUEPRINT.md [--strict]` — đếm đạt/miễn/chưa theo mức; `--strict` exit 1 khi còn MUST mở hoặc miễn trừ thiếu lý do. Dùng làm cổng phát hành (G7).
@@ -24,4 +24,4 @@ argument-hint: "[compose|status|audit] [--profile p --industry i --scale M]"
 3. Phân loại bằng chứng: *đo được* / *suy luận* / *chưa biết* — không trình bày suy luận như đo được.
 
 ## Ghép lại khi khung cập nhật
-Chạy lại đúng lệnh `<XT> compose ... --out BLUEPRINT.md`: máy giữ trạng thái + ghi chú `— Bằng chứng/Miễn/Thiếu:` theo **ID**, mục mới vào ở `[ ]`. Xem `git diff BLUEPRINT.md` trước khi commit.
+Chạy lại đúng lệnh `<XT> compose ... --out BLUEPRINT.md`: máy giữ trạng thái + ghi chú `— Bằng chứng/Miễn/Thiếu:` theo **ID**, mục mới vào ở `[ ]`. Đổi quy mô thì mục chuyển giữa hai file theo ID, giữ trạng thái. Xem `git diff BLUEPRINT.md BLUEPRINT-BACKLOG.md` trước khi commit.

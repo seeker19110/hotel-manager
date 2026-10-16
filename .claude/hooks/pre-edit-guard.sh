@@ -4,6 +4,7 @@
 #  - ASK khi sửa file cấu hình cổng/CI/quyền (workflow, lint/type/coverage config, settings của harness, ruleset) —
 #    ở gốc HOẶC thư mục con (monorepo), đường dẫn chuẩn hoá (./, //, .., symlink) — audit AUD-SEC-006.
 #  - ASK khi sửa migration ĐÃ TỒN TẠI (migration đã áp thì không được sửa — tạo migration mới).
+#  - ASK khi sửa file test ĐÃ CÓ theo hướng làm yếu bài kiểm: thêm skip/only/xfail/@flaky hoặc bớt assertion (LOOP-CI-001).
 #  - DENY ghi file bí mật (.env*, *.pem, *.key, secrets/, .npmrc, .pypirc, .netrc, .envrc).
 # Danh sách đường dẫn dùng chung với pre-bash-guard ở guard.py. Lỗi → cho qua (fail-open).
 set -uo pipefail
