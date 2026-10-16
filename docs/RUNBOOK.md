@@ -65,6 +65,9 @@ Khi chạy thật (đề xuất D-021): chặn thêm `/api/metrics` ở reverse 
 ### 3.5 Xuất dữ liệu lỗi
 `select id, kind, failed_reason from export_jobs where status = 'failed' order by created_at desc limit 20;` — `FORBIDDEN` = người yêu cầu bị thu hồi quyền trước khi chạy (đúng thiết kế); `TOO_LARGE` = vượt 100.000 dòng/bảng — thu hẹp khoảng; `INVALID` = bộ lọc sai. Người dùng tạo yêu cầu mới (không chạy lại job cũ).
 
+### 3.6 Đăng nhập chậm hoặc tăng CPU/RAM khi nhiều người đăng nhập
+Mật khẩu băm Argon2id (19 MiB RAM, ~80 ms CPU mỗi lần; D-031). Mỗi lần đăng nhập/đăng ký tốn chừng đó; rate limit IP (20/phút) và khoá theo tài khoản chặn lạm dụng. Tài khoản cũ băm scrypt được băm lại ở lần đăng nhập đúng kế tiếp (không cần thao tác). Băm hỏng hoặc tham số vượt trần (m > 65536 KiB, t > 10, p > 4) bị từ chối như sai mật khẩu — không sửa tay cột `auth.account.password`; điều tra nguyên nhân (khôi phục sao lưu hỏng?) trước. Tham số hiện hành ở `ARGON2_PARAMS` (`packages/app/src/auth/password.ts`); đổi tham số thì băm cũ tự được băm lại khi đăng nhập.
+
 ## 4. Sao lưu và khôi phục
 - Diễn tập PITR (dữ liệu giả, cluster tạm): `bash scripts/db-backup-restore-check.sh` — exit 0 = khôi phục đúng (so số dòng, Σ Nợ/Có, số policy RLS).
 - Khi chạy thật (chờ quyết — PROGRESS "Chờ người"): pgBackRest repo mã hoá ở **máy khác**, giữ khoá `PGBACKREST_REPO_CIPHER_PASS` ngoài máy chủ; diễn tập khôi phục định kỳ.
