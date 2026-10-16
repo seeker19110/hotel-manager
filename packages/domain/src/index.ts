@@ -89,6 +89,7 @@ export {
 } from "./payments/statement-csv.ts";
 export { BANK_BINS, bankBin, buildVietQr, crc16CcittFalse, type VietQrInput } from "./payments/vietqr.ts";
 export { type PropertyDefaults, type PropertyTemplate, propertyDefaults } from "./property/defaults.ts";
+export * from "./rates/index.ts";
 export {
   billingPeriodMachine,
   bookingMachine,

@@ -37,3 +37,10 @@
 - Chọn: 04:00 khớp fixture SPEC-reservation S-016/S-026, đặt ở lớp app (propertyDefaults theo mẫu) — cột properties.business_day_cutoff/check_in_time/check_out_time/hold_ttl_minutes giữ mặc định DB
 - Lý do (tiêu chí chất lượng cuối): (1) SPEC đã viết ví dụ bắt buộc với giờ chốt 04:00; trigger không phân biệt được 00:00 cố ý với mặc định; (3) tham số đã là cột trong ERD (không phải settings) — dùng đúng cột, đổi không cần migration
 - Đường lùi: Đổi hằng số propertyDefaults; cơ sở đã tạo giữ giá trị đã lưu
+
+### D-006 · 2026-10-16T01:22:14+00:00 · Đêm cuối tuần cấu hình ở đâu (ERD: properties.settings; D-002/Q-03: rate_plans.weekend_nights) và báo giá dùng snapshot thế nào
+
+- Phương án: (1) rate_plans.weekend_nights smallint[] mặc định {5,6} (0=CN…6=T7), CHECK giá trị 0..6 ở DB; báo giá: đêm có trong snapshot reservation_items.nightly_prices thì giữ, đêm mới tra bảng giá hiện hành · (2) properties.settings.weekend_nights (jsonb) như ERD
+- Chọn: rate_plans.weekend_nights smallint[] mặc định {5,6} (0=CN…6=T7), CHECK giá trị 0..6 ở DB; báo giá: đêm có trong snapshot reservation_items.nightly_prices thì giữ, đêm mới tra bảng giá hiện hành
+- Lý do (tiêu chí chất lượng cuối): (1) ràng buộc kiểu ở DB thay vì jsonb không kiểm; bảng giá mang luôn quy tắc nên snapshot/INV-G3 rõ; (3) một nơi cấu hình theo loại phòng, sửa ERD cho khớp
+- Đường lùi: Migration thêm settings + bỏ dùng cột (cột vẫn có mặc định)
