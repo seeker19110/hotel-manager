@@ -4,12 +4,14 @@ import pg from "pg";
 import { type Auth, createAuth } from "../auth/auth.ts";
 import { type AppConfig, loadConfig } from "../config/schema.ts";
 import { createLogger, type Logger } from "../logging/logger.ts";
+import { type AppServices, createServices } from "./services.ts";
 
 export interface ServerContext {
   config: AppConfig;
   db: Kysely<unknown>;
   auth: Auth;
   log: Logger;
+  services: AppServices;
 }
 
 let ctx: ServerContext | undefined;
@@ -27,6 +29,7 @@ export function serverContext(env: Record<string, string | undefined> = process.
       baseURL: config.APP_BASE_URL,
     }).auth,
     log: createLogger({ level: config.LOG_LEVEL }),
+    services: createServices(config),
   };
   return ctx;
 }

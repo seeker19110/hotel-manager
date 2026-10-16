@@ -8,6 +8,7 @@ import { AccessError, type Actor, listMyOrganizations, resolveActor } from "../a
 import { ORG_HEADER, orgCookieName, requestedOrgId } from "../access/org-context.ts";
 import { type CommandContext, executeCommand, getCommandResult } from "../pipeline/command.ts";
 import { type Problem, toProblem } from "../pipeline/problem.ts";
+import type { AppServices } from "../server/services.ts";
 
 export interface HttpSession {
   user: { id: string; twoFactorEnabled?: boolean | null | undefined };
@@ -18,19 +19,20 @@ export interface HttpDeps {
   getSession(headers: Headers): Promise<HttpSession | null>;
   /** APP_BASE_URL là https → cookie `__Host-`. */
   secureCookies: boolean;
+  services: AppServices;
   onUnexpectedError?(err: unknown, correlationId: string): void;
 }
 
 export interface CommandDef<I, O> {
   command: string;
   input: z.ZodType<I>;
-  run(ctx: CommandContext, input: I): Promise<{ data: O; httpStatus?: number }>;
+  run(ctx: CommandContext, input: I, services: AppServices): Promise<{ data: O; httpStatus?: number }>;
 }
 
 export interface QueryDef<I, O> {
   query: string;
   input: z.ZodType<I>;
-  run(db: Kysely<unknown>, actor: Actor, input: I): Promise<O>;
+  run(db: Kysely<unknown>, actor: Actor, input: I, services: AppServices): Promise<O>;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -157,7 +159,7 @@ export async function handleCommand<I, O>(
       deps.db,
       actor,
       { command: def.command, idempotencyKey: key, payload: body, correlationId },
-      (ctx) => def.run(ctx, input),
+      (ctx) => def.run(ctx, input, deps.services),
     );
     if (result.status === "committed") {
       return json(
@@ -185,7 +187,7 @@ export async function handleQuery<I, O>(
     const params = Object.fromEntries(new URL(req.url).searchParams);
     const parsed = def.input.safeParse(params);
     if (!parsed.success) return validationProblem(parsed.error, correlationId);
-    return json({ data: await def.run(deps.db, actor, parsed.data) }, 200, correlationId);
+    return json({ data: await def.run(deps.db, actor, parsed.data, deps.services) }, 200, correlationId);
   } catch (err) {
     const p = toProblem(err, correlationId);
     if (p.status < 500) return problemResponse(p, correlationId);

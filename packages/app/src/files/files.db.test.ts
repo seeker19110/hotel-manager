@@ -1,6 +1,6 @@
 // T-011 — file riêng tư trên SeaweedFS + Postgres thật: magic bytes, EXIF, quét mã độc, khoá có tiền tố tổ chức,
 // URL ký ≤ 5 phút, bucket riêng tư, buồng phòng xin file giấy tờ → 404 (TM-06, TM-07, IND-SAAS-003).
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { withTenant } from "@hm/db";
 import { createTestDb, type SeededOrg, seedAuthUser, seedOrg, type TestDb, testS3Config } from "@hm/testkit";
 import { sql } from "kysely";
@@ -248,19 +248,20 @@ describe("đọc file (TM-06)", () => {
   });
 });
 
+/** Cột số giấy tờ đã mã hoá (D-004) — bytes giả đúng định dạng (byte đầu = key_id), test file không cần khoá thật. */
+const encCols = () => ({ enc: Buffer.concat([Buffer.from([1]), randomBytes(40)]), hash: randomBytes(32) });
+
 describe("giấy tờ nhận dạng (INV-G7)", () => {
-  it("chỉ số che (4 số cuối) được sinh tự động; buồng phòng không thấy hàng; ẩn danh xoá số và ảnh", async () => {
+  it("chỉ lưu bản mã hoá + 4 số cuối; buồng phòng không thấy hàng; ẩn danh xoá số, băm và ảnh", async () => {
     const id = randomUUID();
+    const c = encCols();
     await withTenant(t.runtime, { orgId: A.orgId, actorId: frontDesk.membershipId }, (trx) =>
-      sql`insert into identity_documents (id, organization_id, property_id, person_id, doc_type, doc_number)
-          values (${id}, ${A.orgId}, ${A.propertyId}, ${A.ownerPersonId}, 'cccd', '001234567890')`.execute(
+      sql`insert into identity_documents (id, organization_id, property_id, person_id, doc_type, doc_number_enc,
+                                          doc_number_key_id, doc_number_hash, doc_number_last4)
+          values (${id}, ${A.orgId}, ${A.propertyId}, ${A.ownerPersonId}, 'cccd', ${c.enc}, 1, ${c.hash}, '7890')`.execute(
         trx,
       ),
     );
-    const masked = await sql<{
-      m: string;
-    }>`select doc_number_masked as m from identity_documents where id = ${id}`.execute(t.admin);
-    expect(masked.rows[0]?.m).toBe("********7890");
     const hk = await withTenant(t.runtime, { orgId: A.orgId, actorId: housekeeping.membershipId }, (trx) =>
       sql<{ n: number }>`select count(*)::int as n from identity_documents`.execute(trx),
     );
@@ -268,13 +269,12 @@ describe("giấy tờ nhận dạng (INV-G7)", () => {
     await expect(
       sql`update identity_documents set anonymized_at = now() where id = ${id}`.execute(t.admin),
     ).rejects.toThrow(/ck_identity_documents_anonymized/);
-    await sql`update identity_documents set anonymized_at = now(), doc_number = null where id = ${id}`.execute(
-      t.admin,
-    );
+    await sql`update identity_documents set anonymized_at = now(), doc_number_enc = null, doc_number_key_id = null,
+                     doc_number_hash = null, doc_number_last4 = null where id = ${id}`.execute(t.admin);
     const after = await sql<{
-      n: string | null;
+      n: Buffer | null;
       m: string | null;
-    }>`select doc_number as n, doc_number_masked as m from identity_documents where id = ${id}`.execute(
+    }>`select doc_number_enc as n, doc_number_last4 as m from identity_documents where id = ${id}`.execute(
       t.admin,
     );
     expect(after.rows[0]).toEqual({ n: null, m: null });
@@ -352,8 +352,10 @@ describe("RLS giấy tờ theo phạm vi cơ sở (review T-011)", () => {
     );
     const docId = randomUUID();
     const fileId = randomUUID();
-    await sql`insert into identity_documents (id, organization_id, property_id, person_id, doc_type, doc_number)
-              values (${docId}, ${A.orgId}, ${cs2}, ${A.ownerPersonId}, 'passport', 'B1234567')`.execute(
+    const c2 = encCols();
+    await sql`insert into identity_documents (id, organization_id, property_id, person_id, doc_type, doc_number_enc,
+                                              doc_number_key_id, doc_number_hash, doc_number_last4)
+              values (${docId}, ${A.orgId}, ${cs2}, ${A.ownerPersonId}, 'passport', ${c2.enc}, 1, ${c2.hash}, '4567')`.execute(
       t.admin,
     );
     await sql`insert into files (id, organization_id, property_id, owner_type, mime, size_bytes, sha256, status, storage_key, exif_stripped)
@@ -374,8 +376,9 @@ describe("RLS giấy tờ theo phạm vi cơ sở (review T-011)", () => {
     // Lễ tân cũng không ghi được giấy tờ vào cơ sở ngoài phạm vi.
     await expect(
       withTenant(t.runtime, { orgId: A.orgId, actorId: frontDesk.membershipId }, (trx) =>
-        sql`insert into identity_documents (id, organization_id, property_id, person_id, doc_type, doc_number)
-            values (${randomUUID()}, ${A.orgId}, ${cs2}, ${A.ownerPersonId}, 'cccd', '009999999999')`.execute(
+        sql`insert into identity_documents (id, organization_id, property_id, person_id, doc_type, doc_number_enc,
+                                            doc_number_key_id, doc_number_hash, doc_number_last4)
+            values (${randomUUID()}, ${A.orgId}, ${cs2}, ${A.ownerPersonId}, 'cccd', ${c2.enc}, 1, ${c2.hash}, '9999')`.execute(
           trx,
         ),
       ),

@@ -1,5 +1,6 @@
 // Cấu hình môi trường (BASE-CFG-001/002/005, ADR-0002). Mọi đọc `process.env` của server đi qua module này.
 import { z } from "zod";
+import { PiiKeyError, parseKeyring } from "../crypto/pii.ts";
 
 /** Biến là bí mật: không bao giờ in giá trị, không được có tiền tố NEXT_PUBLIC_ (lọt vào bundle client). */
 export const SECRET_KEYS = [
@@ -10,29 +11,63 @@ export const SECRET_KEYS = [
   "SMTP_URL",
   "PGBACKREST_REPO_CIPHER_PASS",
   "SIM_WEBHOOK_SECRET",
+  "HM_PII_KEYS",
+  "HM_PII_INDEX_KEY",
 ] as const;
 
 const url = z.url();
+/** Biến tuỳ chọn: chuỗi rỗng trong file env = không đặt. */
+const optional = <T extends z.ZodType>(s: T) =>
+  z.preprocess((v) => (v === "" ? undefined : v), s.optional()) as unknown as z.ZodOptional<T>;
 
-export const envSchema = z.object({
-  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-  LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
-  APP_BASE_URL: url,
-  DATABASE_URL: z.string().regex(/^postgres(ql)?:\/\//, "phải là URL postgres://"),
-  BETTER_AUTH_SECRET: z.string().min(32, "tối thiểu 32 ký tự"),
-  S3_ENDPOINT: url,
-  S3_REGION: z.string().min(1).default("vn-local"),
-  S3_BUCKET: z.string().min(3),
-  S3_ACCESS_KEY_ID: z.string().min(1),
-  S3_SECRET_ACCESS_KEY: z.string().min(8),
-  SMTP_URL: z
-    .string()
-    .regex(/^(smtps?|fake):\/\//, "phải là smtp://, smtps:// hoặc fake://")
-    .default("fake://local"),
-  PGBACKREST_REPO_CIPHER_PASS: z.string().min(16).optional(),
-  /** HMAC của webhook ngân hàng MÔ PHỎNG (API-CONTRACT §3); không đặt → `/api/v1/webhooks/sim/*` trả 404. */
-  SIM_WEBHOOK_SECRET: z.string().min(32, "tối thiểu 32 ký tự").optional(),
-});
+export const envSchema = z
+  .object({
+    NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+    LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
+    APP_BASE_URL: url,
+    DATABASE_URL: z.string().regex(/^postgres(ql)?:\/\//, "phải là URL postgres://"),
+    BETTER_AUTH_SECRET: z.string().min(32, "tối thiểu 32 ký tự"),
+    S3_ENDPOINT: url,
+    S3_REGION: z.string().min(1).default("vn-local"),
+    S3_BUCKET: z.string().min(3),
+    S3_ACCESS_KEY_ID: z.string().min(1),
+    S3_SECRET_ACCESS_KEY: z.string().min(8),
+    SMTP_URL: z
+      .string()
+      .regex(/^(smtps?|fake):\/\//, "phải là smtp://, smtps:// hoặc fake://")
+      .default("fake://local"),
+    PGBACKREST_REPO_CIPHER_PASS: z.string().min(16).optional(),
+    /** HMAC của webhook ngân hàng MÔ PHỎNG (API-CONTRACT §3); không đặt → `/api/v1/webhooks/sim/*` trả 404. */
+    SIM_WEBHOOK_SECRET: z.string().min(32, "tối thiểu 32 ký tự").optional(),
+    /** Khoá mã hoá số giấy tờ (D-004): "id:base64(32 byte),…"; bắt buộc ở production, dev/test dùng khoá dẫn xuất công khai. */
+    HM_PII_KEYS: optional(z.string().min(1)),
+    HM_PII_KEY_ID: optional(z.coerce.number().int().min(1).max(255)),
+    HM_PII_INDEX_KEY: optional(z.string().min(1)),
+  })
+  .superRefine((env, ctx) => {
+    const pii = [env.HM_PII_KEYS, env.HM_PII_KEY_ID, env.HM_PII_INDEX_KEY];
+    if (pii.every((v) => v === undefined)) {
+      if (env.NODE_ENV === "production") {
+        for (const k of ["HM_PII_KEYS", "HM_PII_KEY_ID", "HM_PII_INDEX_KEY"] as const)
+          ctx.addIssue({ code: "custom", path: [k], message: "bắt buộc ở production" });
+      }
+      return;
+    }
+    if (pii.some((v) => v === undefined)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["HM_PII_KEYS"],
+        message: "đặt đủ HM_PII_KEYS, HM_PII_KEY_ID, HM_PII_INDEX_KEY",
+      });
+      return;
+    }
+    try {
+      parseKeyring(env.HM_PII_KEYS as string, env.HM_PII_KEY_ID as number, env.HM_PII_INDEX_KEY as string);
+    } catch (e) {
+      const msg = e instanceof PiiKeyError ? e.message : "khoá không hợp lệ";
+      ctx.addIssue({ code: "custom", path: [msg.split(":")[0] ?? "HM_PII_KEYS"], message: msg });
+    }
+  });
 
 export type AppConfig = Readonly<z.infer<typeof envSchema>>;
 export const ENV_KEYS = Object.keys(envSchema.shape) as (keyof typeof envSchema.shape)[];

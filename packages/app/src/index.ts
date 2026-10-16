@@ -54,3 +54,4 @@ export {
   rentalProperties,
 } from "./rental/views.ts";
 export { serverContext } from "./server/context.ts";
+export { type AppServices, createServices, testServices } from "./server/services.ts";

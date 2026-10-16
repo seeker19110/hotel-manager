@@ -19,6 +19,7 @@ import {
   requestDeduction,
   requestDepositRefund,
 } from "../deposits/deposits.ts";
+import { getIdentityDocument } from "../identity/identity.ts";
 import {
   cancelBatch,
   commitBatch,
@@ -934,6 +935,12 @@ export const QUERIES: Readonly<Record<string, AnyQuery>> = {
     query: "lease.get",
     input: z.strictObject({ lease_id: uuid }),
     run: (db, actor, i: { lease_id: string }) => getLease(db, actor, i.lease_id),
+  },
+  "identity.get": {
+    query: "identity.get",
+    input: z.strictObject({ identity_document_id: uuid }),
+    run: (db, actor, i: { identity_document_id: string }) =>
+      getIdentityDocument(db, actor, i.identity_document_id),
   },
   "person.get": {
     query: "person.get",

@@ -391,6 +391,7 @@ Loại: M
 | doc_number_key_id | smallint | có | | Khoá đã dùng (xoay khoá: đọc theo `key_id`, ghi bằng khoá hiện hành) |
 | doc_number_hash | bytea | có | `CHECK (octet_length(doc_number_hash) = 32)` | Blind index HMAC-SHA256(khoá index, loại ‖ số chuẩn hoá) — tra trùng/tìm theo số mà không giải mã |
 | doc_number_last4 | text | có | `CHECK (doc_number_last4 ~ '^[0-9A-Z]{1,4}$')` | Chỉ cột này được hiển thị/ghi audit (`****1234`) |
+| nationality | char(2) | có | `CHECK (nationality ~ '^[A-Z]{2}$')` | Quốc tịch ghi trên giấy tờ (hộ chiếu); `residence_notices.is_foreign` |
 | file_id | uuid | có | FK ghép → `files` | Ảnh giấy tờ tuỳ chọn, mặc định không lưu (Q-08); file riêng tư |
 | retention_until | date | có | | Hạn giữ riêng; quá hạn thì worker ẩn danh |
 | anonymized_at | timestamptz | có | | Xoá `doc_number` và `file_id`, giữ tombstone (INV-G7) |
