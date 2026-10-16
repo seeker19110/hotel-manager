@@ -6,10 +6,12 @@ import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { decideApproval } from "../approvals/approvals.ts";
 import { receiveDeposit, requestDepositRefund } from "../deposits/deposits.ts";
+import { issueAdjustment } from "../ledger/period-close.ts";
 import { allocatePayment, confirmPayment, recordPayment } from "../payments/payments.ts";
 import { openShift } from "../shifts/shifts.ts";
 import { okAs, seedMember } from "../testing/helpers.ts";
 import { type Hotel, seedHotel } from "../testing/hotel.ts";
+import { getSummary, listItems } from "../today/today.ts";
 import { collections, depositsHeld, occupancy, REPORT_MAX_DAYS, receivables } from "./reports.ts";
 
 let h: Hotel;
@@ -210,6 +212,10 @@ describe("S-012 công suất cơ bản", () => {
         await sql`insert into units (id, organization_id, property_id, floor_id, room_type_id, code)
                   values (${u}, ${h.org.orgId}, ${hs3}, ${floor}, ${type}, ${`H${i}`})`.execute(trx);
       }
+      // Phòng có từ đầu năm (mẫu số công suất chỉ đếm phòng đã tạo tại ngày đó).
+      await sql`update units set created_at = '2026-01-01T00:00:00+07' where property_id = ${hs3}`.execute(
+        trx,
+      );
       // Bỏ qua trigger nguồn allocation (dữ liệu dựng cho báo cáo); khoảng phủ ngày 15/10 giờ VN.
       await sql`set local session_replication_role = replica`.execute(trx);
       const alloc = (unit: string, kind: string, extra = sql``) =>
@@ -258,6 +264,23 @@ describe("S-012 công suất cơ bản", () => {
     expect(r.formula).toContain("phòng khả dụng");
   });
 
+  it("phòng tạo sau ngày báo cáo không tính vào mẫu số ngày đó", async () => {
+    const u = randomUUID();
+    const f = await sql<{ floor_id: string; room_type_id: string }>`
+      select floor_id, room_type_id from units where property_id = ${hs3} limit 1`.execute(h.t.admin);
+    await sql`insert into units (id, organization_id, property_id, floor_id, room_type_id, code, created_at)
+              values (${u}, ${h.org.orgId}, ${hs3}, ${f.rows[0]?.floor_id}, ${f.rows[0]?.room_type_id}, 'HNEW', '2026-10-15T12:00:00+07')`.execute(
+      h.t.admin,
+    );
+    const r = await occupancy(h.t.runtime, h.owner, {
+      from: "2026-10-14",
+      to: "2026-10-15",
+      propertyId: hs3,
+    });
+    expect(r.rows.map((x) => x.units)).toEqual([10, 11]);
+    await sql`update units set archived_at = '2026-10-15T13:00:00+07' where id = ${u}`.execute(h.t.admin);
+  });
+
   it("quyền: buồng phòng/người thuê → 403; quản lý (chỉ HS1) xem HS3 → 404", async () => {
     const tenant = await seedMember(h.t, h.org, "tenant", { properties: [] });
     for (const a of [h.housekeeping, tenant]) {
@@ -274,5 +297,40 @@ describe("S-012 công suất cơ bản", () => {
     await expect(receivables(h.t.runtime, h.manager, { propertyId: hs3 })).rejects.toMatchObject({
       code: "NOT_FOUND",
     });
+  });
+});
+
+describe("Review lát 5 🔴 — điều chỉnh giảm đã duyệt", () => {
+  const adjust = async (invoiceId: string, amount: number) => {
+    const r = await okAs(h.t, h.accountant, (ctx) =>
+      issueAdjustment(ctx, { invoiceId, amount, reason: "Giảm do mất nước" }),
+    );
+    await okAs(h.t, h.owner, (ctx) =>
+      decideApproval(ctx, { approvalRequestId: r.approvalRequestId, decision: "approve" }),
+    );
+  };
+
+  it("giảm 130.000 phiếu 203 → còn 800.000 (cột đã giảm trừ 130.000), tổng 2.380.000 = AR; chốt hôm qua chưa tính điều chỉnh", async () => {
+    await adjust(invB, 130_000);
+    const r = await receivables(h.t.runtime, h.owner, {});
+    const b = r.rows.find((x) => x.invoiceId === invB);
+    expect(b).toMatchObject({ total: 930_000, allocated: 0, adjusted: 130_000, balance: 800_000 });
+    // Phiếu điều chỉnh (DC-…) không thành dòng riêng.
+    expect(r.rows.every((x) => x.kind !== "adjustment")).toBe(true);
+    expect(r).toMatchObject({ total: 2_380_000, ledgerBalance: 2_380_000, matchesLedger: true });
+    const before = await receivables(h.t.runtime, h.owner, { asOf: addDays(TODAY, -1) });
+    expect(before).toMatchObject({ total: 4_510_000, matchesLedger: true });
+  });
+
+  it("giảm 100% phần còn lại của 203 → không còn dòng; thẻ 'Nợ đến hạn' của Hôm nay không đếm phiếu đã giảm hết", async () => {
+    await adjust(invB, 800_000);
+    const r = await receivables(h.t.runtime, h.owner, {});
+    expect(r.rows.find((x) => x.invoiceId === invB)).toBeUndefined();
+    expect(r).toMatchObject({ total: 1_580_000, ledgerBalance: 1_580_000, matchesLedger: true });
+    const items = await listItems(h.t.runtime, h.owner, { card: "receivables" });
+    expect(items.find((x) => x.id === invB)).toBeUndefined();
+    expect(items.find((x) => x.id === invA)).toMatchObject({ amount: 1_580_000 });
+    const card = (await getSummary(h.t.runtime, h.owner)).cards.find((c) => c.key === "receivables");
+    expect(card).toMatchObject({ count: items.length });
   });
 });

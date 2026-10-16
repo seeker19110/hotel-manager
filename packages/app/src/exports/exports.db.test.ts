@@ -258,3 +258,41 @@ describe("Giới hạn tần suất", () => {
     ).toBe("RATE_LIMITED");
   });
 });
+
+describe("Review lát 5 — job xuất bền vững", () => {
+  it("kho object lỗi giữa chừng → job thành failed INTERNAL (không kẹt running), lượt giao lại bỏ qua", async () => {
+    const owner = fresh(h.owner);
+    const q = await okAs(h.t, owner, (ctx) => requestExport(ctx, { kind: "deposits", format: "csv" }));
+    const broken = {
+      ...deps(),
+      storage: { put: async () => Promise.reject(new Error("S3 503")) } as unknown as ObjectStorage,
+    };
+    await expect(runExportJob(broken, job(q.exportId))).rejects.toThrow("S3 503");
+    const st = await getExportStatus(h.t.runtime, owner, q.exportId);
+    expect(st).toMatchObject({ status: "failed", failedReason: "INTERNAL" });
+    expect(await runExportJob(deps(), job(q.exportId))).toBe("skipped");
+  });
+
+  it("xuất toàn tổ chức khi tiến trình chạy giờ Việt Nam: cột date giữ đúng ngày (không lùi một ngày)", async () => {
+    await h.t.admin.transaction().execute(async (trx) => {
+      await sql`set local session_replication_role = replica`.execute(trx);
+      await sql`update invoices set due_on = '2031-02-03' where organization_id = ${h.org.orgId} and property_id = ${hs2}`.execute(
+        trx,
+      );
+    });
+    const tz = process.env.TZ;
+    process.env.TZ = "Asia/Ho_Chi_Minh";
+    try {
+      const owner = fresh(h.owner);
+      const q = await okAs(h.t, owner, (ctx) => requestOrgExport(ctx));
+      expect(await runExportJob(deps(), job(q.exportId))).toBe("ready");
+      const d = await okAs(h.t, owner, (ctx) => downloadExport(ctx, deps(), { exportId: q.exportId }));
+      const raw = Buffer.from(await text(d.url)).toString("utf8");
+      expect(raw).toContain(",2031-02-03,");
+      expect(raw).not.toContain("2031-02-02T17:00:00.000Z");
+    } finally {
+      if (tz === undefined) delete process.env.TZ;
+      else process.env.TZ = tz;
+    }
+  });
+});

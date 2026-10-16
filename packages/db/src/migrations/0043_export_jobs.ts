@@ -90,7 +90,9 @@ CREATE POLICY export_jobs_read ON export_jobs FOR SELECT
          OR requested_by = nullif(current_setting('app.actor_id', true), '')::uuid));
 CREATE POLICY export_jobs_request ON export_jobs FOR INSERT TO app_runtime
   WITH CHECK (organization_id = app.current_org() AND status = 'queued'
-              AND requested_by = nullif(current_setting('app.actor_id', true), '')::uuid);
+              AND requested_by = nullif(current_setting('app.actor_id', true), '')::uuid
+              AND file_key IS NULL AND expires_at IS NULL AND row_count IS NULL AND completed_at IS NULL
+              AND failed_reason IS NULL);
 CREATE POLICY export_jobs_worker_update ON export_jobs FOR UPDATE TO app_worker
   USING (organization_id = app.current_org()) WITH CHECK (organization_id = app.current_org());
 GRANT SELECT, INSERT ON export_jobs TO app_runtime;
