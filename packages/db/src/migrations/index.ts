@@ -34,6 +34,10 @@ import * as m0030 from "./0030_residence_notice_files.ts";
 import * as m0031 from "./0031_unit_arrivals.ts";
 import * as m0032 from "./0032_work_orders.ts";
 import * as m0033 from "./0033_hk_maintenance_review_fixes.ts";
+import * as m0034 from "./0034_notifications.ts";
+import * as m0035 from "./0035_notification_preferences.ts";
+import * as m0036 from "./0036_reminders.ts";
+import * as m0037 from "./0037_notification_claim_fixes.ts";
 
 export const migrations: Record<string, Migration> = {
   "0001_tenancy": m0001,
@@ -69,4 +73,8 @@ export const migrations: Record<string, Migration> = {
   "0031_unit_arrivals": m0031,
   "0032_work_orders": m0032,
   "0033_hk_maintenance_review_fixes": m0033,
+  "0034_notifications": m0034,
+  "0035_notification_preferences": m0035,
+  "0036_reminders": m0036,
+  "0037_notification_claim_fixes": m0037,
 };

@@ -33,8 +33,31 @@ export { listRooms, type PropertyRooms, type RoomRow } from "./inventory/rooms.t
 export { DEFAULT_REMINDER_DAYS, detectOverstay, remindExpiring } from "./lease/jobs.ts";
 export { getLease, type LeaseView } from "./lease/lease.ts";
 export { BANK_TXN_RECEIVED, BREAK_OPENED } from "./ledger/bank-inbox.ts";
-export { createLogger } from "./logging/logger.ts";
+export { createLogger, type Logger } from "./logging/logger.ts";
 export { readingRoute } from "./metering/meters.ts";
+export {
+  createNotification,
+  type DispatchJob,
+  dispatchNotification,
+  NOTIFY_EVENT_TYPES,
+} from "./notifications/dispatch.ts";
+export {
+  type EmailMessage,
+  EmailSendError,
+  type EmailSender,
+  FakeEmailSender,
+} from "./notifications/email.ts";
+export { handleUnsubscribe } from "./notifications/http.ts";
+export { unsubscribeKey, unsubscribeUrl } from "./notifications/preferences.ts";
+export {
+  type ReminderStats,
+  runReminders,
+  scanLeaseExpiry,
+  scanOverdue,
+  scanStayNotice,
+} from "./notifications/reminders.ts";
+export { MAX_ATTEMPTS, RETRY_BACKOFF_MINUTES, type SendStats, sendDueEmails } from "./notifications/send.ts";
+export { deliveryStatusLabel, maskEmail, render as renderNotification } from "./notifications/templates.ts";
 export { getCommandResult } from "./pipeline/command.ts";
 export { type AutoApplyResult, applyBankTransaction } from "./reconciliation/auto-apply.ts";
 export {

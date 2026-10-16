@@ -1594,8 +1594,10 @@ Loại: M (chỉ `read_at`)
 | title | text | không | | Không chứa PII nhạy cảm (CCCD, SĐT đầy đủ, nội dung hợp đồng) |
 | body | text | không | | |
 | link | text | có | | |
+| vars | jsonb | không | mặc định `'{}'`, object | Biến mẫu để render email lúc gửi (chỉ id/nhãn, không PII nhạy cảm) — PLAN T-213 |
 | dedupe_key | text | không | | Vd `invoice_overdue:{invoice_id}:2026-10-11` |
-| read_at | timestamptz | có | | |
+| source_outbox_id | uuid | có | | Hàng outbox sinh ra thông báo (truy vết) |
+| read_at | timestamptz | có | | Chỉ cột này đổi được (trigger `notification_guard`) |
 
 - Khoá/index: **`UNIQUE (organization_id, dedupe_key, recipient_person_id)`**; `ix (organization_id, recipient_person_id, read_at)`.
 - RLS/quyền đặc biệt: người nhận chỉ đọc và đánh dấu đã đọc thông báo của mình (của người khác ⇒ `404`); worker ghi.
@@ -1621,6 +1623,7 @@ Loại: M
 | provider_message_id | text | có | | |
 | last_error_code | text | có | `CHECK (last_error_code IN ('RECIPIENT_INVALID','PROVIDER_TEMPORARY','TEMPLATE_ERROR'))` | Giá trị dữ liệu, không phải mã lỗi API |
 | sent_at | timestamptz | có | | |
+| version | integer | không | mặc định `1` | |
 
 - Khoá/index: **`UNIQUE (organization_id, notification_id, channel)`**; `ix (next_attempt_at) WHERE status IN ('queued','retrying')`.
 - Ràng buộc đặc biệt: adapter truyền `idempotency_key = delivery_id` để gửi lại không trùng email; worker đọc lại số dư phiếu trong transaction trước khi gửi nhắc quá hạn (`suppressed` `SETTLED`).
@@ -1658,8 +1661,8 @@ Loại: M
 | Cột | Kiểu | Null | Ràng buộc/mặc định | Ghi chú |
 |---|---|---|---|---|
 | property_id | uuid | không | FK ghép → `properties` | |
-| overdue_reminder_offsets_days | integer[] | không | mặc định `'{1}'` | Lịch nhắc quá hạn (ngày sau hạn) |
-| lease_expiry_offsets_days | integer[] | không | mặc định `'{30,7,0}'` | Mốc nhắc hợp đồng sắp hết hạn |
+| overdue_reminder_offsets_days | integer[] | không | mặc định `'{1,3,7}'` | Lịch nhắc quá hạn (ngày sau hạn; SPEC-notifications Q-04) |
+| lease_expiry_offsets_days | integer[] | không | mặc định `'{30,7}'` | Mốc nhắc hợp đồng sắp hết hạn (SPEC-notifications Q-06) |
 | stay_notice_deadline | jsonb | có | `CHECK (stay_notice_deadline IS NULL OR jsonb_typeof(stay_notice_deadline)='object')` | Hạn thông báo lưu trú (giờ; riêng khách nước ngoài); **NULL = chưa cấu hình, không có mặc định cứng** (SPEC-notifications Q-08) |
 | residence_notice_template | jsonb | có | `CHECK (residence_notice_template IS NULL OR jsonb_typeof(residence_notice_template)='object')` | Mẫu file thông báo lưu trú (cột/trường); thiếu ⇒ `NOTICE_TEMPLATE_MISSING` |
 | send_window_start | time | không | mặc định `'08:00'` | Khung giờ gửi nhắc nợ (giờ địa phương) |
