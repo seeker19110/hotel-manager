@@ -6,6 +6,7 @@ import type { Kysely } from "kysely";
 import type { z } from "zod";
 import { AccessError, type Actor, listMyOrganizations, resolveActor } from "../access/actor.ts";
 import { ORG_CONTEXT_HEADER, ORG_HEADER, orgCookieName, requestedOrgId } from "../access/org-context.ts";
+import { settle, unwrap } from "../files/staging.ts";
 import { type CommandContext, executeCommand, getCommandResult } from "../pipeline/command.ts";
 import { type Problem, toProblem } from "../pipeline/problem.ts";
 import type { AppServices } from "../server/services.ts";
@@ -25,10 +26,26 @@ export interface HttpDeps {
   onUnexpectedError?(err: unknown, correlationId: string): void;
 }
 
-export interface CommandDef<I, O> {
+export interface CommandDef<I, O, P = undefined> {
   command: string;
   input: z.ZodType<I>;
-  run(ctx: CommandContext, input: I, services: AppServices): Promise<{ data: O; httpStatus?: number }>;
+  /**
+   * Bước chuẩn bị NGOÀI transaction lệnh (T-303; quét mã độc, ghi object — xem files/staging.ts). Chạy trước `executeCommand`;
+   * kết quả đi vào `run`. Lỗi của bước này được ném lại TRONG `run` để pipeline vẫn ghi kết quả `failed` + audit `denied`.
+   */
+  prepare?(
+    db: Kysely<unknown>,
+    actor: Actor,
+    input: I,
+    services: AppServices,
+    meta: { idempotencyKey: string },
+  ): Promise<P>;
+  run(
+    ctx: CommandContext,
+    input: I,
+    services: AppServices,
+    prepared: P,
+  ): Promise<{ data: O; httpStatus?: number }>;
 }
 
 export interface QueryDef<I, O> {
@@ -152,8 +169,8 @@ function unexpected(err: unknown, deps: HttpDeps, correlationId: string): Respon
 }
 
 /** POST command: trả `{ command_id, status: "committed", data }` hoặc problem+json. */
-export async function handleCommand<I, O>(
-  def: CommandDef<I, O>,
+export async function handleCommand<I, O, P = undefined>(
+  def: CommandDef<I, O, P>,
   req: Request,
   deps: HttpDeps,
 ): Promise<Response> {
@@ -174,11 +191,18 @@ export async function handleCommand<I, O>(
     const parsed = def.input.safeParse(body);
     if (!parsed.success) return validationProblem(parsed.error, correlationId);
     const input = parsed.data;
+    const prep = def.prepare
+      ? await settle(() =>
+          (def.prepare as NonNullable<typeof def.prepare>)(deps.db, actor, input, deps.services, {
+            idempotencyKey: key,
+          }),
+        )
+      : undefined;
     const result = await executeCommand<O>(
       deps.db,
       actor,
       { command: def.command, idempotencyKey: key, payload: body, correlationId },
-      (ctx) => def.run(ctx, input, deps.services),
+      (ctx) => def.run(ctx, input, deps.services, (prep ? unwrap(prep) : undefined) as P),
     );
     if (result.status === "committed") {
       return json(

@@ -80,12 +80,20 @@ async function appConnections(): Promise<number> {
 beforeAll(async () => {
   t = await createTestDb();
   A = await seedOrg(t.admin, "Worker runtime");
-  // pg-boss tự dựng schema `pgboss` lần đầu: vai trò worker cần quyền CREATE trên CSDL (xem RUNBOOK). Test cấp quyền đó.
-  await sql.raw(`GRANT CREATE ON DATABASE ${t.name} TO app_worker`).execute(t.admin);
 });
 
 afterAll(async () => {
   await t.drop();
+});
+
+describe("schema pgboss (migration 0047, D-024)", () => {
+  it("tạo sẵn, thuộc app_worker; app_worker không có CREATE trên CSDL", async () => {
+    const r = await sql<{ owner: string; can_create: boolean }>`
+      select nspowner::regrole::text as owner,
+             has_database_privilege('app_worker', current_database(), 'CREATE') as can_create
+      from pg_namespace where nspname = 'pgboss'`.execute(t.admin);
+    expect(r.rows[0]).toEqual({ owner: "app_worker", can_create: false });
+  });
 });
 
 describe("cấu hình sai", () => {

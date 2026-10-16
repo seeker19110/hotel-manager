@@ -1,7 +1,7 @@
 // POST /api/v1/files/upload?owner_type=work_order|payment_claim&property_id=<uuid> — tải ảnh/PDF (SPEC-portal S-008, Q-07).
 // Thân yêu cầu là BYTE của file (không multipart), `Idempotency-Key` bắt buộc (tải lại cùng key → cùng fileId, không hai file).
 // Kiểm kích thước ngay khi đọc luồng (không nạp quá giới hạn vào bộ nhớ), phần còn lại do `uploadFile` (magic bytes, EXIF,
-// quét mã độc, quyền theo cơ sở). Phản hồi problem+json như mọi command.
+// quét mã độc, quyền theo cơ sở). Quét + ghi object chạy NGOÀI transaction lệnh (staging.ts). Phản hồi problem+json như mọi command.
 
 import { createHash } from "node:crypto";
 import {
@@ -14,7 +14,8 @@ import {
 } from "../http/command-route.ts";
 import { executeCommand } from "../pipeline/command.ts";
 import { toProblem } from "../pipeline/problem.ts";
-import { type FileOwnerType, MAX_FILE_BYTES, uploadFile } from "./files.ts";
+import { type FileOwnerType, MAX_FILE_BYTES, prepareUpload, uploadFile } from "./files.ts";
+import { settle, unwrap } from "./staging.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const OWNER_TYPES: readonly FileOwnerType[] = ["work_order", "payment_claim"];
@@ -63,6 +64,10 @@ export async function handleFileUpload(req: Request, deps: HttpDeps): Promise<Re
       return simpleProblem("MALFORMED_REQUEST", 400, "Thiếu hoặc sai Idempotency-Key (UUID)", correlationId);
     const bytes = await readCapped(req, MAX_FILE_BYTES);
     if (!bytes) return simpleProblem("FILE_TOO_LARGE", 413, "File vượt dung lượng cho phép", correlationId);
+    const input = { ownerType, propertyId: propertyId.toLowerCase(), bytes };
+    // Quét + ghi object NGOÀI transaction lệnh (T-303). Lỗi của bước này được ném lại trong handler để pipeline vẫn ghi
+    // kết quả `failed` + audit `denied` như khi chạy trong transaction.
+    const prepared = await settle(() => prepareUpload(deps.db, deps.services, actor, input, key));
     const result = await executeCommand(
       deps.db,
       actor,
@@ -77,11 +82,7 @@ export async function handleFileUpload(req: Request, deps: HttpDeps): Promise<Re
         correlationId,
       },
       async (ctx) => ({
-        data: await uploadFile(ctx, deps.services, {
-          ownerType,
-          propertyId: propertyId.toLowerCase(),
-          bytes,
-        }),
+        data: await uploadFile(ctx, deps.services, { ...input, prepared: unwrap(prepared) }),
         httpStatus: 201,
       }),
     );

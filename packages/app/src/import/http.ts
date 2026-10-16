@@ -4,6 +4,7 @@
 // (nhận dạng định dạng, quét mã độc, quyền theo cơ sở, giới hạn dòng/ô) do `uploadBatch`.
 import { createHash } from "node:crypto";
 import { readCapped } from "../files/http.ts";
+import { settle, unwrap } from "../files/staging.ts";
 import {
   actorFromRequest,
   correlationOf,
@@ -14,7 +15,7 @@ import {
 } from "../http/command-route.ts";
 import { executeCommand } from "../pipeline/command.ts";
 import { toProblem } from "../pipeline/problem.ts";
-import { IMPORT_LIMITS, uploadBatch } from "./import.ts";
+import { IMPORT_LIMITS, prepareBatchUpload, uploadBatch } from "./import.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Phần đầu multipart (ranh giới, header từng phần, các trường chữ) được phép ngoài dung lượng file. */
@@ -60,6 +61,14 @@ export async function handleImportUpload(req: Request, deps: HttpDeps): Promise<
     if (file.size > IMPORT_LIMITS.bytes)
       return simpleProblem("FILE_TOO_LARGE", 413, "File quá lớn. Tách thành nhiều file.", correlationId);
     const bytes = new Uint8Array(await file.arrayBuffer());
+    const input = {
+      propertyId: propertyId.toLowerCase(),
+      kind,
+      ...(typeof cutoff === "string" && cutoff ? { cutoffOn: cutoff } : {}),
+      bytes,
+    };
+    // Quét + ghi object nguồn NGOÀI transaction lệnh (T-303); lỗi ném lại trong handler để pipeline ghi `failed`/`denied`.
+    const prepared = await settle(() => prepareBatchUpload(deps.db, deps.services, actor, input, key));
     const result = await executeCommand(
       deps.db,
       actor,
@@ -75,12 +84,7 @@ export async function handleImportUpload(req: Request, deps: HttpDeps): Promise<
         correlationId,
       },
       async (ctx) => ({
-        data: await uploadBatch(ctx, deps.services, {
-          propertyId: propertyId.toLowerCase(),
-          kind,
-          ...(typeof cutoff === "string" && cutoff ? { cutoffOn: cutoff } : {}),
-          bytes,
-        }),
+        data: await uploadBatch(ctx, deps.services, { ...input, prepared: unwrap(prepared) }),
         httpStatus: 201,
       }),
     );

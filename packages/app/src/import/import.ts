@@ -21,7 +21,13 @@ import {
 } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/actor.ts";
-import { type FileDeps, storeTabularFile } from "../files/files.ts";
+import {
+  commitTabularFile,
+  type FileDeps,
+  type PreparedTabular,
+  prepareTabularFile,
+  storeTabularFile,
+} from "../files/files.ts";
 import { createUnit } from "../inventory/units.ts";
 import { activateLease, clearImportReadingsPending, recordImportHandover } from "../lease/handover.ts";
 import { createDraft, createPerson, signLease, submitForSignature } from "../lease/lease.ts";
@@ -227,14 +233,12 @@ function detectTable(bytes: Uint8Array): {
   };
 }
 
-/** `import.upload`: kiểm quyền, kích thước, định dạng, tiêu đề; lưu file nguồn riêng tư + dòng thô; chưa ghi dữ liệu nghiệp vụ. */
-export async function uploadBatch(
-  ctx: CommandContext,
-  deps: FileDeps,
-  input: { propertyId: string; kind: string; cutoffOn?: string; bytes: Uint8Array },
-): Promise<{ batchId: string; rows: number }> {
+type UploadBatchInput = { propertyId: string; kind: string; cutoffOn?: string; bytes: Uint8Array };
+
+/** Kiểm quyền, kích thước, định dạng, tiêu đề — thuần CPU/không I/O; dùng ở bước prepare VÀ trong lệnh. */
+function inspectBatchUpload(actor: Actor, input: UploadBatchInput) {
   if (!UUID.test(input.propertyId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy cơ sở");
-  authorize(ctx.actor, "import.prepare", { propertyId: input.propertyId });
+  authorize(actor, "import.prepare", { propertyId: input.propertyId });
   if (input.kind === "reservations")
     throw fieldError("kind", "NOT_SUPPORTED_YET", "Nhập đặt phòng mở ở đợt 3");
   if (!(IMPORT_KINDS as readonly string[]).includes(input.kind))
@@ -263,13 +267,54 @@ export async function uploadBatch(
       },
     });
   }
-  const batchId = randomUUID();
-  const file = await storeTabularFile(ctx, deps, {
-    ownerId: batchId,
-    propertyId: input.propertyId,
-    bytes: input.bytes,
-    mime: table.format === "csv" ? "text/csv" : XLSX_MIME,
-  });
+  return { kind, table, header, data, cols };
+}
+
+const xlsxOrCsv = (format: "csv" | "xlsx") => (format === "csv" ? "text/csv" : XLSX_MIME);
+
+/**
+ * Bước chuẩn bị NGOÀI transaction lệnh (T-303): kiểm đầu vào → dòng staging → quét → ghi object nguồn (xem files/staging.ts).
+ * Gọi trước `executeCommand`; truyền kết quả vào `uploadBatch`.
+ */
+export async function prepareBatchUpload(
+  db: Kysely<unknown>,
+  deps: FileDeps,
+  actor: Actor,
+  input: UploadBatchInput,
+  idempotencyKey: string,
+): Promise<PreparedTabular> {
+  const { table } = inspectBatchUpload(actor, input);
+  return prepareTabularFile(
+    db,
+    deps,
+    actor,
+    { propertyId: input.propertyId, bytes: input.bytes, mime: xlsxOrCsv(table.format) },
+    idempotencyKey,
+  );
+}
+
+/** `import.upload`: kiểm quyền, kích thước, định dạng, tiêu đề; lưu file nguồn riêng tư + dòng thô; chưa ghi dữ liệu nghiệp vụ. */
+export async function uploadBatch(
+  ctx: CommandContext,
+  deps: FileDeps,
+  input: UploadBatchInput & {
+    /** Từ `prepareBatchUpload` (đường sản phẩm). Không có ⇒ đường cũ quét + ghi object NGAY TRONG transaction. */
+    prepared?: PreparedTabular;
+  },
+): Promise<{ batchId: string; rows: number }> {
+  const { kind, table, header, data, cols } = inspectBatchUpload(ctx.actor, input);
+  const prepared = input.prepared;
+  if (prepared && prepared.mime !== xlsxOrCsv(table.format))
+    throw new Error("Bản chuẩn bị tải lên không khớp định dạng file");
+  const batchId = prepared?.batchId ?? randomUUID();
+  const file = prepared
+    ? await commitTabularFile(ctx, prepared)
+    : await storeTabularFile(ctx, deps, {
+        ownerId: batchId,
+        propertyId: input.propertyId,
+        bytes: input.bytes,
+        mime: xlsxOrCsv(table.format),
+      });
   await sql`
     insert into import_batches (id, organization_id, property_id, kind, file_id, file_sha256, file_format, header, cutoff_on,
                                 uploaded_by)

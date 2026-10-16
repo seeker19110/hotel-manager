@@ -280,6 +280,8 @@ export async function bootWorker(
   const boss = new PgBoss({
     connectionString: cfg.workerDatabaseUrl,
     schema: "pgboss",
+    // Schema do migration 0047 tạo sẵn cho app_worker (D-024); vai trò worker không có CREATE trên CSDL.
+    createSchema: false,
     application_name: "hm-worker-boss",
     max: 5,
   });

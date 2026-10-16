@@ -9,12 +9,13 @@
 //   (MAX_SIGNED_URL_SECONDS) và không quá hạn của bản xuất; audit `export.downloaded`.
 // - CSV/XLSX chống formula injection (S-016): ô chữ bắt đầu bằng = + - @ tab CR ⇒ thêm `'` (CSV); XLSX ghi kiểu chuỗi; số
 //   giữ là số. Xuất toàn tổ chức (S-018): ZIP các CSV nghiệp vụ, không ảnh/file, không số giấy tờ, bỏ cột bí mật.
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { withTenant } from "@hm/db";
 import { authorize } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
 import { AccessError, type Actor, resolveActor } from "../access/actor.ts";
 import { listEvents } from "../audit/events.ts";
+import { commitGeneratedFile, prepareGeneratedFile } from "../files/files.ts";
 import { MAX_SIGNED_URL_SECONDS, type ObjectStorage } from "../files/storage.ts";
 import { writeXlsx, zipStore } from "../import/xlsx.ts";
 import { createNotification } from "../notifications/dispatch.ts";
@@ -757,18 +758,21 @@ async function produce(
     throw err;
   }
 
-  // File riêng tư, ghi trong ngữ cảnh người yêu cầu (policy `files` nhánh export_job); put lỗi ⇒ rollback hàng files.
-  const key = `${orgId}/export_job/${randomUUID()}`;
+  // File riêng tư, ghi trong ngữ cảnh người yêu cầu (policy `files` nhánh export_job). T-303: dòng staging (transaction ngắn)
+  // → `storage.put` KHÔNG giữ kết nối CSDL → chốt `ready` (transaction ngắn). id/khoá suy từ id job nên lượt chạy lại ghi đè
+  // đúng object cũ; object mồ côi (put xong mà không chốt được) có dòng `pending_scan` + `delete_after` → job hạn giữ dọn.
   const mime = MIME[claimed.format];
-  await withTenant(deps.db, { orgId, actorId: actor.membershipId }, async (trx) => {
-    await sql`
-      insert into files (id, organization_id, property_id, owner_type, owner_id, mime, size_bytes, sha256, status, storage_key,
-                         uploaded_by, scanned_at, delete_after)
-      values (${randomUUID()}, ${orgId}, ${claimed.property_id}, 'export_job', ${id}, ${mime}, ${bytes.byteLength},
-              ${createHash("sha256").update(bytes).digest("hex")}, 'ready', ${key}, ${actor.membershipId}, ${now},
-              (${now}::timestamptz at time zone 'Asia/Ho_Chi_Minh')::date + 2)`.execute(trx);
-    await deps.storage.put(key, bytes, mime);
-  });
+  const prepared = await prepareGeneratedFile(
+    deps.db,
+    deps,
+    actor,
+    { ownerType: "export_job", ownerId: id, propertyId: claimed.property_id, bytes, mime },
+    id,
+  );
+  await withTenant(deps.db, { orgId, actorId: actor.membershipId }, (trx) =>
+    commitGeneratedFile(trx, actor, prepared, "keep"),
+  );
+  const key = prepared.key;
   const expiresAt = new Date(now.getTime() + EXPORT_TTL_MINUTES * 60_000);
   let hit = false;
   await transition(deps.workerDb, orgId, async (trx) => {
