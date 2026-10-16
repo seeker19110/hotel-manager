@@ -4,6 +4,7 @@
 //   phản hồi; kế toán: công nợ + kỳ thu cần duyệt; lễ tân: việc trong ca (không kỳ thu); owner/manager: đủ.
 // - Số trên thẻ = số dòng của `today.listItems` cùng thẻ (đếm trên CHÍNH truy vấn danh sách) — bấm thẻ ra đúng số dòng.
 // - Khách đến/đi không đếm booking `cancelled`/`no_show`/`expired`/`draft`.
+// - Nợ đến hạn dùng `invoices.open_amount` (tổng + giảm trừ đã duyệt − đã phân bổ) — review lát 5 🔴.
 import { withTenant } from "@hm/db";
 import { type Kysely, type RawBuilder, sql } from "kysely";
 import type { Actor } from "../access/actor.ts";
@@ -103,10 +104,10 @@ function listSql(card: TodayCard, now: Date): RawBuilder<unknown> {
     case "receivables":
       return sql`
         select i.id, pr.id as property_id, concat('Phiếu ', i.number) as title,
-               concat('Hạn ', to_char(i.due_on, 'DD/MM/YYYY')) as subtitle, (i.total - i.allocated_total)::bigint as amount,
+               concat('Hạn ', to_char(i.due_on, 'DD/MM/YYYY')) as subtitle, i.open_amount::bigint as amount,
                i.due_on < pr.bd as overdue, to_char(i.due_on, 'YYYY-MM-DD') || i.number as sort_key
         from pr join invoices i on i.organization_id = pr.org and i.property_id = pr.id
-        where i.kind in ('periodic','fee','folio','opening_balance') and i.total > i.allocated_total
+        where i.kind in ('periodic','fee','folio','opening_balance') and i.open_amount > 0
           and i.due_on is not null and i.due_on <= pr.bd
           and (i.billing_period_id is null or exists (
                  select 1 from billing_periods b where b.organization_id = i.organization_id and b.id = i.billing_period_id

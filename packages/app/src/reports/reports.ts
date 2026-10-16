@@ -1,8 +1,9 @@
 // PLAN đợt 3 T-221 — báo cáo (SPEC-audit-reporting S-009…S-012, S-019; INV-L*; D-018).
 // - Mỗi báo cáo là MỘT câu SQL (một snapshot kể cả ở READ COMMITTED) — chi tiết, tổng và số dư sổ phụ đọc cùng thời
 //   điểm; tổng tính ở CSDL, VND số nguyên; trả "số liệu tại" (`asOf`).
-// - Công nợ tại ngày chốt d: mỗi phiếu = tổng − Σ phân bổ có bút toán ngày ≤ d (chưa bị đảo trước/đúng d); so với số dư AR
-//   (Σ Nợ − Có, bút toán ngày ≤ d) — trả `ledgerBalance` + `matchesLedger` thay vì giấu chênh lệch. Cọc không trừ vào nợ.
+// - Công nợ tại ngày chốt d: mỗi phiếu = Σ(Nợ − Có) các dòng AR gắn phiếu đó, bút toán ngày ≤ d (gồm phân bổ, đảo, điều
+//   chỉnh giảm — review lát 5 🔴); tách cột đã phân bổ / đã giảm trừ; so tổng với số dư AR toàn phạm vi — trả
+//   `ledgerBalance` + `matchesLedger` (dòng AR không gắn phiếu sẽ lộ chênh lệch). Cọc không trừ vào nợ.
 // - Thu tiền: chỉ `payments.status = confirmed` theo ngày kinh doanh (tiền đã thu — KHÔNG phải doanh thu).
 // - Cọc đang giữ: `deposits.balance > 0`, so với số dư DEPOSIT_LIAB (Σ Có − Nợ).
 // - Công suất theo đêm: phòng có allocation lease/stay hiệu lực lúc 23:59:59 giờ cơ sở; khả dụng = phòng chưa lưu trữ
@@ -91,6 +92,8 @@ export interface ReceivableRow {
   dueOn: string | null;
   total: number;
   allocated: number;
+  /** Đã giảm trừ (điều chỉnh đã duyệt, bút toán ≤ ngày chốt) = tổng − đã phân bổ − còn nợ. */
+  adjusted: number;
   balance: number;
   daysOverdue: number;
 }
@@ -125,6 +128,7 @@ export async function receivables(
         due_on: string | null;
         total: number;
         allocated: number;
+        adjusted: number;
         balance: number;
         days_overdue: number;
       }[];
@@ -140,23 +144,30 @@ export async function receivables(
                          join journal_entries e on e.organization_id = a.organization_id and e.id = a.entry_id
                          left join journal_entries re on re.organization_id = a.organization_id and re.id = a.reversal_entry_id
                          where a.organization_id = i.organization_id and a.invoice_id = i.id and e.business_date <= ${asOf}::date
-                           and (re.id is null or re.business_date > ${asOf}::date)), 0)::bigint as allocated
+                           and (re.id is null or re.business_date > ${asOf}::date)), 0)::bigint as allocated,
+               -- Số còn nợ THEO SỔ PHỤ tại ngày chốt: gồm phân bổ, đảo phân bổ, điều chỉnh giảm (Có AR gắn phiếu gốc).
+               ar.balance
         from invoices i
         join pr on pr.id = i.property_id
         join persons pe on pe.organization_id = i.organization_id and pe.id = i.payer_person_id
-        where i.organization_id = ${actor.orgId} and i.business_date <= ${asOf}::date
-          and exists (select 1 from journal_lines jl join journal_entries je on je.organization_id = jl.organization_id and je.id = jl.entry_id
-                      where jl.organization_id = i.organization_id and jl.invoice_id = i.id and jl.account = 'AR'
-                        and je.business_date <= ${asOf}::date)
+        join lateral (
+          select sum(jl.debit - jl.credit)::bigint as balance, count(*) as n from journal_lines jl
+          join journal_entries je on je.organization_id = jl.organization_id and je.id = jl.entry_id
+          where jl.organization_id = i.organization_id and jl.invoice_id = i.id and jl.account = 'AR'
+            and je.business_date <= ${asOf}::date
+        ) ar on ar.n > 0
+        -- Phiếu điều chỉnh (kind adjustment) không có dòng AR riêng — phần giảm nằm ở phiếu gốc.
+        where i.organization_id = ${actor.orgId} and i.business_date <= ${asOf}::date and i.kind <> 'adjustment'
       ), open as (
-        select *, (total - allocated)::bigint as balance,
+        select *, (total - allocated - balance)::bigint as adjusted,
                greatest(${asOf}::date - due_on, 0) as days_overdue
-        from inv where total - allocated <> 0
+        from inv where balance <> 0
       )
       select coalesce((select jsonb_agg(jsonb_build_object(
                  'invoice_id', id, 'number', number, 'property_id', property_id, 'property_name', property_name,
                  'payer_person_id', payer_person_id, 'payer_name', payer_name, 'kind', kind, 'due_on', due_on,
-                 'total', total, 'allocated', allocated, 'balance', balance, 'days_overdue', coalesce(days_overdue, 0))
+                 'total', total, 'allocated', allocated, 'adjusted', adjusted, 'balance', balance,
+                 'days_overdue', coalesce(days_overdue, 0))
                order by days_overdue desc nulls last, number) from open), '[]'::jsonb) as rows,
              coalesce((select sum(balance) from open), 0)::text as total,
              coalesce((select sum(jl.debit - jl.credit) from journal_lines jl
@@ -181,6 +192,7 @@ export async function receivables(
         dueOn: y.due_on,
         total: Number(y.total),
         allocated: Number(y.allocated),
+        adjusted: Number(y.adjusted),
         balance: Number(y.balance),
         daysOverdue: Number(y.days_overdue),
       })),
@@ -397,7 +409,8 @@ export async function occupancy(
                exists (select 1 from allocations a where a.organization_id = un.organization_id and a.unit_id = un.id
                          and a.kind in ('lease','stay') and a.during @> pd.at and (a.active or a.deactivated_at > pd.at)) as occupied
         from pd join units un on un.organization_id = ${actor.orgId} and un.property_id = pd.id
-          and (un.archived_at is null or un.archived_at > pd.at)
+          -- Phòng chỉ tính từ khi có (tạo) tới khi lưu trữ — ngày quá khứ không đếm phòng tạo sau (review lát 5 🟢8).
+          and un.created_at <= pd.at and (un.archived_at is null or un.archived_at > pd.at)
       )
       select pd.id as property_id, pd.name as property_name, pd.d::text as date,
              count(u.unit_id)::int as units, count(*) filter (where u.blocked)::int as blocked,

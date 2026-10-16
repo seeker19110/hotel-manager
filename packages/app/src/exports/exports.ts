@@ -172,6 +172,10 @@ function normalizeFilters(kind: ExportKind, f: ExportFilters): Record<string, st
 }
 
 async function assertRate(ctx: CommandContext, now: Date): Promise<void> {
+  // Khoá theo người yêu cầu trong transaction: hai yêu cầu song song không cùng đếm 9 rồi cùng qua (review lát 5 🟢6).
+  await sql`select pg_advisory_xact_lock(hashtextextended(${`export-rate:${ctx.actor.orgId}:${ctx.actor.membershipId}`}, 0))`.execute(
+    ctx.trx,
+  );
   const r = await sql<{ n: number }>`
     select count(*)::int as n from export_jobs
     where organization_id = ${ctx.actor.orgId} and requested_by = ${ctx.actor.membershipId}
@@ -420,7 +424,18 @@ async function reportTable(
       return {
         rows: r.rows.length,
         table: [
-          ["Phiếu", "Cơ sở", "Người trả", "Loại", "Hạn", "Tổng", "Đã phân bổ", "Còn nợ", "Số ngày quá hạn"],
+          [
+            "Phiếu",
+            "Cơ sở",
+            "Người trả",
+            "Loại",
+            "Hạn",
+            "Tổng",
+            "Đã phân bổ",
+            "Đã giảm trừ",
+            "Còn nợ",
+            "Số ngày quá hạn",
+          ],
           ...capped(r.rows).map((x) => [
             x.number,
             x.propertyName,
@@ -429,10 +444,11 @@ async function reportTable(
             vnDate(x.dueOn),
             x.total,
             x.allocated,
+            x.adjusted,
             x.balance,
             x.daysOverdue,
           ]),
-          ["Tổng", "", "", "", "", "", "", r.total, ""],
+          ["Tổng", "", "", "", "", "", "", "", r.total, ""],
           [
             `Ngày chốt ${vnDate(r.asOf)}`,
             `Số dư AR ${r.ledgerBalance}`,
@@ -587,12 +603,20 @@ async function orgZip(db: Kysely<unknown>, actor: Actor): Promise<{ bytes: Uint8
         ok: boolean;
       }>`select to_regclass(${`public.${table}`}) is not null as ok`.execute(trx);
       if (!exists.rows[0]?.ok) continue;
-      const cols = await sql<{ column_name: string }>`
-        select column_name from information_schema.columns
+      const cols = await sql<{ column_name: string; data_type: string }>`
+        select column_name, data_type from information_schema.columns
         where table_schema = 'public' and table_name = ${table} order by ordinal_position`.execute(trx);
-      const keep = cols.rows.map((c) => c.column_name).filter((c) => !ORG_EXPORT_EXCLUDED_COLUMN.test(c));
+      const kept = cols.rows.filter((c) => !ORG_EXPORT_EXCLUDED_COLUMN.test(c.column_name));
+      const keep = kept.map((c) => c.column_name);
+      // Cột `date` đọc dạng chữ YYYY-MM-DD: để pg chuyển sang Date sẽ lệch một ngày theo múi giờ của tiến trình (review
+      // lát 5 🟠3). timestamptz giữ Date (ISO UTC, không mơ hồ).
+      const select = kept.map((c) =>
+        c.data_type === "date"
+          ? sql`${sql.ref(c.column_name)}::text as ${sql.ref(c.column_name)}`
+          : sql.ref(c.column_name),
+      );
       const r = await sql<Record<string, Cell>>`
-        select ${sql.join(keep.map((c) => sql.ref(c)))} from ${sql.table(table)}
+        select ${sql.join(select)} from ${sql.table(table)}
         where organization_id = ${actor.orgId}
         order by ${sql.ref(keep.includes("created_at") ? "created_at" : "id")}, id
         limit ${EXPORT_MAX_ROWS + 1}`.execute(trx);
@@ -651,18 +675,50 @@ export async function runExportJob(
   });
   if (!claimed) return "skipped";
 
-  const fail = async (reason: string): Promise<"failed"> => {
+  /** Ghi `failed` + audit — chỉ khi job còn `running` của lượt này (không ghi đè job lượt khác đã xong). */
+  const fail = async (reason: string): Promise<"failed" | "skipped"> => {
+    let hit = false;
     await transition(deps.workerDb, orgId, async (trx) => {
-      await sql`update export_jobs set status = 'failed', failed_reason = ${reason}, completed_at = ${now}
+      const u =
+        await sql`update export_jobs set status = 'failed', failed_reason = ${reason}, completed_at = ${now}
                 where organization_id = ${orgId} and id = ${id} and status = 'running'`.execute(trx);
+      hit = Number(u.numAffectedRows ?? 0) === 1;
+      if (!hit) return;
       await sql`insert into audit_events (id, organization_id, property_id, actor_type, action, entity_type, entity_id, after,
                                           correlation_id)
                 values (${randomUUID()}, ${orgId}, ${claimed.property_id}, 'worker', 'export.failed', 'export_job', ${id},
                         ${JSON.stringify({ reason })}::jsonb, ${`export:${id}`})`.execute(trx);
     });
-    return "failed";
+    return hit ? "failed" : "skipped";
   };
 
+  try {
+    return await produce(deps, claimed, id, orgId, now, fail);
+  } catch (err) {
+    // Lỗi tạm (mạng, kho object, CSDL): KHÔNG để job kẹt `running` — ghi `failed` INTERNAL (người dùng tạo yêu cầu mới) rồi
+    // ném tiếp cho worker log/pg-boss (review lát 5 🟠2). Giao lại sau đó thấy `failed` ⇒ bỏ qua.
+    await fail("INTERNAL").catch(() => {});
+    throw err;
+  }
+}
+
+type Claimed = {
+  id: string;
+  kind: ExportKind | "org_full";
+  format: "csv" | "xlsx" | "zip";
+  property_id: string | null;
+  requested_by: string;
+  filters: Record<string, string>;
+};
+
+async function produce(
+  deps: ExportJobDeps,
+  claimed: Claimed,
+  id: string,
+  orgId: string,
+  now: Date,
+  fail: (reason: string) => Promise<"failed" | "skipped">,
+): Promise<ExportStatus["status"] | "skipped"> {
   let actor: Actor;
   let bytes: Uint8Array;
   let rows: number;
@@ -714,10 +770,15 @@ export async function runExportJob(
     await deps.storage.put(key, bytes, mime);
   });
   const expiresAt = new Date(now.getTime() + EXPORT_TTL_MINUTES * 60_000);
+  let hit = false;
   await transition(deps.workerDb, orgId, async (trx) => {
-    await sql`update export_jobs set status = 'ready', file_key = ${key}, row_count = ${rows}, expires_at = ${expiresAt},
+    const u =
+      await sql`update export_jobs set status = 'ready', file_key = ${key}, row_count = ${rows}, expires_at = ${expiresAt},
                      completed_at = ${now}
               where organization_id = ${orgId} and id = ${id} and status = 'running'`.execute(trx);
+    // Lượt khác đã chốt job (bị nhận lại sau 10 phút): không audit/thông báo trùng; file thừa hết hạn sau 2 ngày (retention).
+    hit = Number(u.numAffectedRows ?? 0) === 1;
+    if (!hit) return;
     await sql`insert into audit_events (id, organization_id, property_id, actor_type, action, entity_type, entity_id, after,
                                         correlation_id)
               values (${randomUUID()}, ${orgId}, ${claimed.property_id}, 'worker', 'export.completed', 'export_job', ${id},
@@ -737,7 +798,7 @@ export async function runExportJob(
       { now },
     );
   });
-  return "ready";
+  return hit ? "ready" : "skipped";
 }
 
 /** Job định kỳ: bản xuất quá hạn tải ⇒ `expired` (mọi tổ chức). Trả số job đã chuyển. */
