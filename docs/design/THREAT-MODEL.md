@@ -131,6 +131,16 @@ flowchart LR
 - **Chấp nhận — dữ liệu đã xoá còn trong bản sao lưu** tới khi bản sao lưu hết hạn giữ (TM-22); hạn giữ chốt cùng DPIA (người).
 - Pilot tiết kiệm chưa bật PITR → RPO DB tối đa 24 giờ. Chỉ chấp nhận khi chủ pilot đã hiểu giới hạn này và có nguồn đối chiếu (kế hoạch §17). Người chấp nhận: chủ dự án, chờ quyết. (Cấu hình đề xuất của repo đã bật PITR — `deploy/compose.yaml`.)
 
+## 5b. Điểm fail-open (BASE-ERR-010)
+Nguyên tắc: lỗi ở cổng bảo mật (xác thực, phân quyền, validate, chữ ký, quét mã độc) → **từ chối**, không fallback cho qua. **Không có điểm fail-open ở cổng bảo mật.** Bằng chứng: `packages/app/src/http/secure-defaults-fail-closed.test.ts` «backend xác thực (getSession) ném lỗi → không bao giờ 2xx» (500/401, không chạm CSDL) · `packages/app/src/files/files.db.test.ts` (clamd lỗi → 503).
+
+Degrade có kiểm soát (KHÔNG phải cổng bảo mật, có log):
+| Thành phần | Khi lỗi | Vì sao chấp nhận |
+|---|---|---|
+| Ghi sự kiện bảo mật ra log (`emitSecurity`) | request vẫn được xử lý theo kết quả quyền đã quyết | chỉ là bản ghi quan sát; quyết định cho/từ chối đã xong trước đó, audit nghiệp vụ nằm cùng transaction |
+| Gửi email/thông báo | job retry theo lịch rồi `dead`, log lỗi | không ảnh hưởng quyền hay tiền |
+| Đánh dấu job `failed` best-effort trước khi ném lại lỗi gốc | lỗi gốc vẫn tới worker/pg-boss | xem ngoại lệ có lý do ở `secure-defaults-swallow.test.ts` |
+
 ## 6. Hành động còn mở (chờ người hoặc hạ tầng)
 | Mối đe doạ | Việc | Chủ |
 |---|---|---|

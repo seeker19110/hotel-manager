@@ -85,8 +85,17 @@ export function createAuth(deps: AuthDeps) {
     },
     advanced: {
       database: { generateId: "uuid" },
-      useSecureCookies: deps.baseURL.startsWith("https://"),
-      defaultCookieAttributes: { httpOnly: true, sameSite: "lax" },
+      // BE-AUTH-004: https → MỌI cookie của Better Auth (phiên, 2FA, thiết bị tin cậy…) mang tiền tố `__Host-` (trình duyệt buộc
+      // Secure, Path=/, không Domain — subdomain không ghi đè được). Better Auth chỉ tự thêm `__Secure-` qua `useSecureCookies`,
+      // nên tắt cờ đó và đặt tiền tố + `secure` rõ ràng. HTTP cục bộ/E2E không dùng được `__Host-` ⇒ tên thường, không Secure.
+      useSecureCookies: false,
+      ...(deps.baseURL.startsWith("https://") ? { cookiePrefix: "__Host-hm" } : {}),
+      defaultCookieAttributes: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        ...(deps.baseURL.startsWith("https://") ? { secure: true } : {}),
+      },
     },
     telemetry: { enabled: false },
     hooks: {

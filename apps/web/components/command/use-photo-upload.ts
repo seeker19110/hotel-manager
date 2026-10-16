@@ -2,6 +2,7 @@
 // Tải ảnh lên trước khi gửi command (POST /api/v1/files/upload, SPEC-portal S-008, SPEC-housekeeping-maintenance S-012…S-014).
 // Mỗi ảnh = một Idempotency-Key + một fileId: gửi lại cùng lệnh (mất mạng, "Gửi lại") không tải ảnh lần hai. Ảnh chỉ dùng
 // được khi máy chủ báo `ready` (đã qua kiểm tra an toàn) — trong lúc chờ UI hiện "Đang kiểm tra ảnh…" (role=status).
+import { safeUrl } from "@hm/app/http";
 import { useRef, useState } from "react";
 import { orgContextHeaders } from "./org-context.ts";
 
@@ -54,7 +55,7 @@ export function usePhotoUpload(loginPath: string) {
         code?: string;
       } | null;
       if (res.status === 401) {
-        window.location.assign(loginPath);
+        window.location.assign(safeUrl(loginPath) ?? "/dang-nhap");
         return null;
       }
       if (res.status === 409 && j?.code === "CONTEXT_CHANGED") {

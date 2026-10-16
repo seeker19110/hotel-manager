@@ -1,6 +1,7 @@
 "use client";
 // Một lựa chọn tổ chức (S-020): xoá dữ liệu người dùng trên máy rồi gọi `session.switchOrganization`
 // (API-CONTRACT: JSON + Idempotency-Key; gửi lại cùng key khi lỗi mạng).
+import { safeUrl } from "@hm/app/http";
 import { useRef, useState } from "react";
 import { clearUserData, useOnline } from "../../components/pwa/pwa-shell.tsx";
 import { Button } from "../../components/ui/button.tsx";
@@ -40,7 +41,7 @@ export function OrgChoice({
         key.current = null;
         return setError("Không chọn được tổ chức này. Tải lại trang để xem danh sách mới.");
       }
-      window.location.assign(home);
+      window.location.assign(safeUrl(home) ?? "/phong");
     } catch {
       setError("Chưa nhận được phản hồi. Kiểm tra mạng rồi bấm lại.");
     } finally {
