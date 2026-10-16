@@ -198,7 +198,7 @@ describe("S-021 rate.set giữ lịch sử, chỉ owner", () => {
   });
 });
 
-describe("roomType.create/update", () => {
+describe("room_type.create/update", () => {
   it("mã trùng trong cơ sở → 422; đổi sức chứa có audit; buồng phòng → 403", async () => {
     expect(
       await codeOf(

@@ -96,7 +96,7 @@
       "name": "reservation"
     },
     {
-      "name": "roomType"
+      "name": "room_type"
     },
     {
       "name": "service"
@@ -13378,11 +13378,11 @@
         }
       }
     },
-    "/api/v1/roomType/create": {
+    "/api/v1/room_type/create": {
       "post": {
-        "operationId": "roomType.create",
-        "tags": ["roomType"],
-        "summary": "roomType.create",
+        "operationId": "room_type.create",
+        "tags": ["room_type"],
+        "summary": "room_type.create",
         "security": [
           {
             "sessionCookie": []
@@ -13489,11 +13489,11 @@
         }
       }
     },
-    "/api/v1/roomType/update": {
+    "/api/v1/room_type/update": {
       "post": {
-        "operationId": "roomType.update",
-        "tags": ["roomType"],
-        "summary": "roomType.update",
+        "operationId": "room_type.update",
+        "tags": ["room_type"],
+        "summary": "room_type.update",
         "security": [
           {
             "sessionCookie": []

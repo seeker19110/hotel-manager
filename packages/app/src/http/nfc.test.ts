@@ -47,8 +47,8 @@ describe("nfc — nfcDeep", () => {
     expect(() => nfcDeep(deep)).not.toThrow();
   });
 
-  it("schema registry (trim/min/max) nhận chuỗi đã chuẩn hoá: 'Việt' NFD sau nfcDeep qua roomType.create như NFC", () => {
-    const def = COMMANDS["roomType.create"];
+  it("schema registry (trim/min/max) nhận chuỗi đã chuẩn hoá: 'Việt' NFD sau nfcDeep qua room_type.create như NFC", () => {
+    const def = COMMANDS["room_type.create"];
     const body = (name: string) => ({
       property_id: "6f1a2b3c-0000-4000-8000-123456789012",
       code: "STD",
