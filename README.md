@@ -9,6 +9,18 @@ SaaS web/PWA giúp chủ trọ, nhà nghỉ, khách sạn nhỏ ở Việt Nam q
   [ADR-0002](docs/adr/0002-self-host-auth-storage-backup.md) (tự host đăng nhập, file, sao lưu),
   [ADR-0004](docs/adr/0004-chien-luoc-render.md) (chiến lược render)
 
+## Bắt đầu nhanh (3 lệnh, từ clone sạch đến test xanh)
+
+```bash
+bash scripts/dev-env-setup.sh
+pnpm install --frozen-lockfile
+pnpm test
+```
+
+Lệnh 1 cài PostgreSQL 17 + pgBackRest, SeaweedFS, Node và pnpm (Ubuntu 24.04 x86_64, cần root hoặc sudo; máy đã có đủ công cụ
+đúng phiên bản thì bỏ qua); lệnh 2 cài phụ thuộc và tự cài hook git `pre-commit` (xem [Hook git](#hook-git)). Không bước tay nào khác,
+không cần bí mật. CI chạy đúng 3 lệnh này ở job `onboarding-smoke` trên runner mới và ghi thời gian vào tóm tắt job.
+
 ## Yêu cầu môi trường
 
 | Thành phần | Phiên bản | Ghi chú |

@@ -16,10 +16,11 @@ concurrency:
 
 jobs:
   # Cổng chuẩn: đúng lệnh trong xt.yaml (build · typecheck · lint · test) qua dev-task.sh.
-  # Ruleset `.github/rulesets/main.json` đòi: quality, e2e, backup-restore, protection-guard (dưới), gitleaks (secret-scan.yml),
-  # dep-audit (dep-audit.yml).
-  quality:
-    name: quality
+  # Ruleset `.github/rulesets/main.json` đòi đúng 4 check: quality (job gom ở cuối file, `needs` mọi job cổng), protection-guard,
+  # gitleaks (secret-scan.yml), dep-audit (dep-audit.yml). Job cổng con (gate, e2e, backup-restore, workflow-lint,
+  # onboarding-smoke) không đứng riêng trong ruleset: `quality` đỏ khi bất kỳ job con không `success` (WF-CI-001).
+  gate:
+    name: gate
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     services:
@@ -37,6 +38,8 @@ jobs:
       TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -76,6 +79,8 @@ jobs:
       TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -103,6 +108,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -121,6 +128,8 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Required check trong ruleset ↔ job có thật
         run: |
           set -euo pipefail
@@ -159,3 +168,65 @@ jobs:
             fi
           done
           echo "Đã kiểm ruleset (cảnh báo nếu thiếu)."
+
+  # Lint workflow bằng zizmor (WF-CI-004): template-injection, dangerous-triggers… Bản ghim kèm hash ở
+  # `.github/requirements-zizmor.txt`; chạy offline (không cần token), mọi finding đều đỏ.
+  workflow-lint:
+    name: workflow-lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Cài zizmor (ghim phiên bản + hash)
+        run: |
+          python3 -m venv "$RUNNER_TEMP/zizmor-venv"
+          "$RUNNER_TEMP/zizmor-venv/bin/pip" install --quiet --require-hashes -r .github/requirements-zizmor.txt
+      - name: zizmor — 0 finding trên .github/workflows
+        run: '"$RUNNER_TEMP/zizmor-venv/bin/zizmor" --offline --no-progress .github/workflows'
+
+  # Onboarding (XC-DX-001): clone sạch → đúng 3 lệnh ở đầu README → test xanh, trên runner mới, có đo thời gian.
+  # Mỗi `run:` bên dưới PHẢI trùng một lệnh trong khối "Bắt đầu nhanh" của README (test scripts/ci-gates.test.mjs khoá).
+  # Không dùng setup-node/pnpm-action: chính dev-env-setup.sh cài Node + pnpm.
+  onboarding-smoke:
+    name: onboarding-smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Bắt đầu đo thời gian
+        run: echo "ONBOARD_T0=$(date +%s)" >> "$GITHUB_ENV"
+      - name: PATH cho công cụ do dev-env-setup cài (không phải bước của người dùng)
+        run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Lệnh 1 của README
+        run: bash scripts/dev-env-setup.sh
+      - name: Lệnh 2 của README
+        run: pnpm install --frozen-lockfile
+      - name: Lệnh 3 của README
+        run: pnpm test
+      - name: Ghi thời gian từ clone sạch đến test xanh
+        if: always()
+        run: |
+          elapsed=$(( $(date +%s) - ONBOARD_T0 ))
+          echo "onboarding-smoke: ${elapsed}s (clone sạch → test)" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "::notice title=onboarding-smoke::${elapsed}s từ clone sạch đến kết quả test"
+
+  # Job gom: luôn chạy (`if: always()`), đỏ khi BẤT KỲ job cổng con không `success` (kể cả skipped/cancelled).
+  # Đây là required check duy nhất đại diện cho các cổng của ci.yml (ADR-0003 của khung, WF-CI-001).
+  quality:
+    name: quality
+    if: ${{ always() }}
+    needs: [gate, e2e, backup-restore, workflow-lint, onboarding-smoke]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Mọi job cổng phải success
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          bad=$(printf '%s' "$NEEDS" | jq -r 'to_entries[] | select(.value.result != "success") | "\(.key)=\(.value.result)"')
+          if [ -n "$bad" ]; then echo "::error::Job cổng chưa success: $bad"; exit 1; fi
+          echo "OK — mọi job cổng đều success."

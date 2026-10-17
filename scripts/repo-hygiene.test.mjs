@@ -296,11 +296,11 @@ describe("gói bàn giao (PM-HANDOVER-002)", () => {
     expect(t).not.toMatch(/-----BEGIN [A-Z ]*PRIVATE KEY-----|postgres(?:ql)?:\/\/[^\s:@]+:[^\s@]+@/);
   });
 
-  it("clean clone build = job quality của CI: checkout sạch → install --frozen-lockfile → cổng có build", () => {
+  it("clean clone build = job gate (nằm dưới job gom quality) của CI: checkout sạch → install --frozen-lockfile → cổng có build", () => {
     const ci = read(".github/workflows/ci.yml");
-    const quality = /^ {2}quality:\n([\s\S]*?)(?=^ {2}[a-z][\w-]*:\n)/m.exec(ci)?.[1] ?? "";
-    expect(quality.length).toBeGreaterThan(0);
-    const at = (needle) => quality.indexOf(needle);
+    const gateJob = /^ {2}gate:\n([\s\S]*?)(?=^ {2}[a-z][\w-]*:\n)/m.exec(ci)?.[1] ?? "";
+    expect(gateJob.length).toBeGreaterThan(0);
+    const at = (needle) => gateJob.indexOf(needle);
     expect(at("actions/checkout")).toBeGreaterThan(-1);
     expect(at("pnpm install --frozen-lockfile")).toBeGreaterThan(at("actions/checkout"));
     expect(at("dev-task.sh gate")).toBeGreaterThan(at("pnpm install --frozen-lockfile"));
