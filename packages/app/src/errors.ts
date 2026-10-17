@@ -70,6 +70,7 @@ export const ERROR_CODES = {
   NOTICE_TEMPLATE_MISSING: { status: 409, source: "SPEC-reservation-stay §6" },
   PREFERENCE_REQUIRED: { status: 422, source: "SPEC-notifications §6" },
   DELIVERY_NOT_RETRYABLE: { status: 409, source: "SPEC-notifications §6" },
+  LINK_REVOKED: { status: 410, source: "SPEC-portal §6" },
   DUPLICATE: { status: 409, source: "unique 23505 chưa có mã nghiệp vụ riêng" },
 } as const satisfies Record<string, ErrorSpec>;
 

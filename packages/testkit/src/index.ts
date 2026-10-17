@@ -1,5 +1,6 @@
 export { createTestDb, type TestDb, testS3Config } from "./db.ts";
 export {
+  activateLease,
   type SeededOrg,
   type SeedInvoiceLine,
   seedAuthUser,

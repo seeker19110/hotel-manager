@@ -55,6 +55,9 @@ export function effectiveLimit(actor: AuthzActor, kind: string): number {
 }
 
 export function authorize(actor: AuthzActor, action: Action, ctx: AuthzContext = {}): AuthzResult {
+  // SPEC-portal S-005: người thuê (không có phạm vi cơ sở) gọi API nhân viên → 403 rõ ràng, không phải 404 do phạm vi.
+  if (actor.role === "tenant" && grantFor(action, "tenant") === "no")
+    throw new AuthzError("FORBIDDEN", "Bạn không có quyền thực hiện thao tác này");
   if (ctx.propertyId !== undefined && !actor.allProperties && !actor.propertyIds.includes(ctx.propertyId)) {
     throw new AuthzError("NOT_FOUND", "Không tìm thấy");
   }

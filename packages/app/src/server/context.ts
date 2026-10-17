@@ -2,6 +2,7 @@
 import { Kysely, PostgresDialect } from "kysely";
 import pg from "pg";
 import { type Auth, createAuth } from "../auth/auth.ts";
+import { createSignInOtpSender } from "../auth/otp-mail.ts";
 import { type AppConfig, loadConfig } from "../config/schema.ts";
 import { createLogger, type Logger } from "../logging/logger.ts";
 import { type AppServices, createServices } from "./services.ts";
@@ -19,6 +20,7 @@ let ctx: ServerContext | undefined;
 export function serverContext(env: Record<string, string | undefined> = process.env): ServerContext {
   if (ctx) return ctx;
   const config = loadConfig(env);
+  const sendSignInOtp = createSignInOtpSender(config.SMTP_URL);
   const pool = new pg.Pool({ connectionString: config.DATABASE_URL, max: 20 });
   ctx = {
     config,
@@ -27,6 +29,7 @@ export function serverContext(env: Record<string, string | undefined> = process.
       databaseUrl: config.DATABASE_URL,
       secret: config.BETTER_AUTH_SECRET,
       baseURL: config.APP_BASE_URL,
+      ...(sendSignInOtp ? { sendSignInOtp } : {}),
     }).auth,
     log: createLogger({ level: config.LOG_LEVEL }),
     services: createServices(config),

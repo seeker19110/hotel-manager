@@ -2,6 +2,7 @@
 import type { Actor } from "@hm/app";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
+import { ORG_CONTEXT_META } from "../components/command/org-context.ts";
 import { AppNav } from "../components/rental/app-nav.tsx";
 import { ErrorState } from "../components/ui/state.tsx";
 import { currentActor } from "./session.ts";
@@ -25,8 +26,11 @@ export async function withActor(
       </main>
     );
   }
+  // Người thuê chỉ có portal (SPEC-portal S-005); quyền thật vẫn kiểm ở server mỗi lần gọi.
+  if (r.actor.role === "tenant") redirect("/portal");
   return (
     <>
+      <meta name={ORG_CONTEXT_META} content={r.actor.orgId} />
       <AppNav current={current} />
       <main id="main" className="page">
         <h1>{title}</h1>

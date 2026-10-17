@@ -93,6 +93,19 @@ import {
   recordPayment,
   reversePayment,
 } from "../payments/payments.ts";
+import { inviteTenant, revokeTenantAccess } from "../portal/access.ts";
+import { createGuestLink, revokeGuestLink } from "../portal/guest.ts";
+import {
+  createRequest,
+  getMyInvoice,
+  getMyLease,
+  getPaymentInstructions,
+  listMyInvoices,
+  listMyMeterReadings,
+  listMyRequests,
+  listPaymentClaims,
+  submitPaymentClaim,
+} from "../portal/tenant.ts";
 import {
   confirmMatch,
   getTransferInfo,
@@ -649,6 +662,69 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
     command: "maintenance.verifyWorkOrder",
     input: z.strictObject({ work_order_id: uuid }),
     run: async (ctx, i) => ({ data: await verifyWorkOrder(ctx, { workOrderId: i.work_order_id }) }),
+  }),
+  "portal.createRequest": defineCommand({
+    command: "portal.createRequest",
+    input: z.strictObject({
+      unit_id: uuid,
+      title: z.string().trim().min(1).max(200),
+      description: z.string().trim().min(1).max(2000),
+      severity: z.enum(["low", "medium", "high", "critical"]).optional(),
+      file_ids: z.array(uuid).max(5).optional(),
+    }),
+    run: async (ctx, i) => ({
+      data: await createRequest(ctx, {
+        unitId: i.unit_id,
+        title: i.title,
+        description: i.description,
+        ...(i.severity ? { severity: i.severity } : {}),
+        ...(i.file_ids ? { fileIds: i.file_ids } : {}),
+      }),
+      httpStatus: 201,
+    }),
+  }),
+  "portal.submitPaymentClaim": defineCommand({
+    command: "portal.submitPaymentClaim",
+    input: z.strictObject({
+      invoice_id: uuid,
+      amount: z.number().int(),
+      reference_code: z.string().trim().max(100).optional(),
+      proof_file_id: uuid.optional(),
+    }),
+    run: async (ctx, i) => ({
+      data: await submitPaymentClaim(ctx, {
+        invoiceId: i.invoice_id,
+        amount: i.amount,
+        ...(i.reference_code ? { referenceCode: i.reference_code } : {}),
+        ...(i.proof_file_id ? { proofFileId: i.proof_file_id } : {}),
+      }),
+      httpStatus: 201,
+    }),
+  }),
+  "portal.createGuestLink": defineCommand({
+    command: "portal.createGuestLink",
+    input: z.strictObject({ stay_id: uuid }),
+    run: async (ctx, i) => ({ data: await createGuestLink(ctx, { stayId: i.stay_id }), httpStatus: 201 }),
+  }),
+  "portal.revokeGuestLink": defineCommand({
+    command: "portal.revokeGuestLink",
+    input: z.strictObject({ link_id: uuid }),
+    run: async (ctx, i) => ({ data: await revokeGuestLink(ctx, { linkId: i.link_id }) }),
+  }),
+  "portal.inviteTenant": defineCommand({
+    command: "portal.inviteTenant",
+    input: z.strictObject({ person_id: uuid, email: z.string().trim().min(3).max(320) }),
+    run: async (ctx, i) => ({ data: await inviteTenant(ctx, { personId: i.person_id, email: i.email }) }),
+  }),
+  "portal.revokeTenantAccess": defineCommand({
+    command: "portal.revokeTenantAccess",
+    input: z.strictObject({ membership_id: uuid, reason: z.string().trim().max(500).optional() }),
+    run: async (ctx, i) => ({
+      data: await revokeTenantAccess(ctx, {
+        membershipId: i.membership_id,
+        ...(i.reason ? { reason: i.reason } : {}),
+      }),
+    }),
   }),
   "notifications.markRead": defineCommand({
     command: "notifications.markRead",
@@ -1616,6 +1692,50 @@ export const QUERIES: Readonly<Record<string, AnyQuery>> = {
     query: "inventory.getUnitStatus",
     input: z.strictObject({ unit_id: uuid }),
     run: (db, actor, i: { unit_id: string }) => getUnitStatus(db, actor, i.unit_id),
+  },
+  "portal.listMyInvoices": {
+    query: "portal.listMyInvoices",
+    input: z.strictObject({ status: z.enum(["open", "paid"]).optional() }),
+    run: (db, actor, i: { status?: "open" | "paid" }) =>
+      listMyInvoices(db, actor, i.status ? { status: i.status } : {}),
+  },
+  "portal.getMyInvoice": {
+    query: "portal.getMyInvoice",
+    input: z.strictObject({ invoice_id: z.string().max(64) }),
+    run: (db, actor, i: { invoice_id: string }, _s, meta) => getMyInvoice(db, actor, i.invoice_id, meta),
+  },
+  "portal.getMyLease": {
+    query: "portal.getMyLease",
+    input: z.strictObject({}),
+    run: (db, actor) => getMyLease(db, actor),
+  },
+  "portal.listMyMeterReadings": {
+    query: "portal.listMyMeterReadings",
+    input: z.strictObject({}),
+    run: (db, actor, _i, services) => listMyMeterReadings(db, actor, services),
+  },
+  "portal.listMyRequests": {
+    query: "portal.listMyRequests",
+    input: z.strictObject({}),
+    run: (db, actor) => listMyRequests(db, actor),
+  },
+  "portal.getPaymentInstructions": {
+    query: "portal.getPaymentInstructions",
+    input: z.strictObject({ invoice_id: z.string().max(64) }),
+    run: (db, actor, i: { invoice_id: string }, _s, meta) =>
+      getPaymentInstructions(db, actor, i.invoice_id, meta),
+  },
+  "payment.listClaims": {
+    query: "payment.listClaims",
+    input: z.strictObject({
+      property_id: uuid.optional(),
+      status: z.enum(["submitted", "matched", "rejected"]).optional(),
+    }),
+    run: (db, actor, i: { property_id?: string; status?: "submitted" | "matched" | "rejected" }) =>
+      listPaymentClaims(db, actor, {
+        ...(i.property_id ? { propertyId: i.property_id } : {}),
+        ...(i.status ? { status: i.status } : {}),
+      }),
   },
   "notifications.listMine": {
     query: "notifications.listMine",
