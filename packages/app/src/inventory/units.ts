@@ -61,8 +61,8 @@ export async function createUnit(
 
 /**
  * `unit.archive` (SPEC-access S-006, INV-G7): lưu trữ mềm — đặt `archived_at`, không xoá hàng (chứng từ/lịch sử còn tham chiếu).
- * Phòng còn allocation đang hiệu lực kết thúc sau `now` (hoặc khoảng mở) → 409 UNIT_IN_USE; hold đã quá hạn chưa được worker
- * nhả không tính là đang dùng.
+ * Phòng còn allocation đang hiệu lực kết thúc sau `now` (hoặc khoảng mở), hoặc còn hợp đồng/booking chưa kết thúc/block
+ * `requested` tham chiếu → 409 UNIT_IN_USE; hold đã quá hạn chưa được worker nhả không tính là đang dùng.
  */
 export async function archiveUnit(
   ctx: CommandContext,
@@ -81,8 +81,24 @@ export async function archiveUnit(
       and (upper_inf(during) or upper(during) > ${now}) and (kind <> 'hold' or expires_at > ${now})`.execute(
     ctx.trx,
   );
-  if ((busy.rows[0]?.n ?? 0) > 0)
-    throw new CommandError("UNIT_IN_USE", 409, "Phòng còn lượt ở/giữ chỗ/hợp đồng đang hiệu lực");
+  // Hợp đồng/booking chưa kết thúc và block chờ duyệt chưa chiếm allocation nhưng vẫn tham chiếu phòng: lưu trữ lúc này
+  // sẽ để `lease.sign`/`reservation.hold`/`block.approve` ghi allocation lên phòng đã lưu trữ (INV-G7).
+  const pending = await sql<{ n: number }>`
+    select (select count(*) from leases where organization_id = ${ctx.actor.orgId} and unit_id = ${input.unitId}
+              and status not in ('closed', 'cancelled'))
+         + (select count(*) from reservation_items i
+              join reservations r on r.organization_id = i.organization_id and r.id = i.reservation_id
+            where i.organization_id = ${ctx.actor.orgId} and i.unit_id = ${input.unitId}
+              and r.status not in ('checked_out', 'cancelled', 'no_show', 'expired'))
+         + (select count(*) from blocks where organization_id = ${ctx.actor.orgId} and unit_id = ${input.unitId}
+              and status = 'requested')
+         as n`.execute(ctx.trx);
+  if ((busy.rows[0]?.n ?? 0) + Number(pending.rows[0]?.n ?? 0) > 0)
+    throw new CommandError(
+      "UNIT_IN_USE",
+      409,
+      "Phòng còn lượt ở/giữ chỗ/hợp đồng/đặt phòng/block đang hiệu lực hoặc chờ xử lý",
+    );
   await sql`update units set archived_at = ${now}, version = version + 1
             where organization_id = ${ctx.actor.orgId} and id = ${input.unitId}`.execute(ctx.trx);
   await ctx.audit({

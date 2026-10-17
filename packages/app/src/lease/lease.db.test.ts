@@ -251,6 +251,17 @@ describe("S-001…S-003 soạn và ký", () => {
     expect(audit.rows[0]?.n).toBe(1);
   });
 
+  it("S-002 (INV-G7): phòng đã lưu trữ → ký 404 NOT_FOUND, không tạo allocation, hợp đồng vẫn pending_signature", async () => {
+    const { leaseId, personId, unitId } = await pendingLease();
+    await sql`update units set archived_at = now() where id = ${unitId}`.execute(t.admin);
+    const p = await fails(
+      run(M, async (ctx) => ({ data: await signLease(ctx, { leaseId, signerPersonId: personId }) })),
+    );
+    expect(p).toMatchObject({ code: "NOT_FOUND", status: 404 });
+    expect(await allocationsOf(leaseId)).toEqual([]);
+    expect((await getLease(t.runtime, M, leaseId)).status).toBe("pending_signature");
+  });
+
   it("S-003: sửa điều khoản sau ký → 409 DOCUMENT_IMMUTABLE (lệnh và CSDL); trước ký sửa được", async () => {
     const { leaseId, personId } = await pendingLease();
     await ok(

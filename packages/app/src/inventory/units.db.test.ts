@@ -1,6 +1,6 @@
 // Tạo phòng, mã phòng duy nhất theo cơ sở, chỉ bán nguyên phòng, lưu trữ phòng (SPEC-access S-004, S-005, S-006, T017; ERD `units`).
 import { randomUUID } from "node:crypto";
-import { createTestDb, type SeededOrg, seedOrg, type TestDb } from "@hm/testkit";
+import { createTestDb, type SeededOrg, seedLease, seedOrg, seedReservation, type TestDb } from "@hm/testkit";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Actor } from "../access/actor.ts";
@@ -194,5 +194,80 @@ describe("SPEC-access S-006: lưu trữ phòng (soft delete — INV-G7)", () => 
       t.admin,
     );
     expect(await archive(owner, otherUnit)).toMatchObject({ status: "failed", httpStatus: 404 });
+  });
+});
+
+describe("SPEC-access S-006 / INV-G7: không lưu trữ phòng còn hợp đồng, booking hoặc block chưa kết thúc tham chiếu", () => {
+  const archive = (unitId: string) =>
+    runAs(t, owner, (ctx) => archiveUnit(ctx, { unitId, now: new Date("2026-10-20T03:00:00Z") }));
+  const newUnit = async (code: string) => {
+    const r = await runAs(t, owner, (ctx) =>
+      createUnit(ctx, { propertyId: A.propertyId, floorName: "Tầng 7", code, capacity: 2 }),
+    );
+    if (r.status !== "committed") throw new Error(r.problem.code);
+    return r.data.unitId;
+  };
+  const person = async () => {
+    const id = randomUUID();
+    await sql`insert into persons (id, organization_id, full_name, phone) values (${id}, ${A.orgId}, 'Người thuê', '0100000001')`.execute(
+      t.admin,
+    );
+    return id;
+  };
+  const archivedAt = async (unit: string) =>
+    (await sql<{ a: Date | null }>`select archived_at as a from units where id = ${unit}`.execute(t.admin))
+      .rows[0]?.a;
+
+  it("hợp đồng nháp (chưa giữ phòng, chưa có allocation) → 409 UNIT_IN_USE; huỷ hợp đồng → lưu trữ được", async () => {
+    const u = await newUnit("RF1");
+    const { leaseId } = await seedLease(t.admin, {
+      orgId: A.orgId,
+      propertyId: A.propertyId,
+      representativePersonId: await person(),
+      unitId: u,
+    });
+    expect(await archive(u)).toMatchObject({
+      status: "failed",
+      httpStatus: 409,
+      problem: { code: "UNIT_IN_USE" },
+    });
+    expect(await archivedAt(u)).toBeNull();
+    await sql`update leases set status = 'cancelled', cancel_reason = 'test' where id = ${leaseId}`.execute(
+      t.admin,
+    );
+    expect(await archive(u)).toMatchObject({ status: "committed" });
+  });
+
+  it("booking chưa kết thúc (draft) → 409 UNIT_IN_USE; đã huỷ → lưu trữ được", async () => {
+    const u = await newUnit("RF2");
+    const { reservationId } = await seedReservation(t.admin, {
+      org: { ...A, unitId: u },
+      bookerPersonId: await person(),
+    });
+    expect(await archive(u)).toMatchObject({
+      status: "failed",
+      httpStatus: 409,
+      problem: { code: "UNIT_IN_USE" },
+    });
+    expect(await archivedAt(u)).toBeNull();
+    await sql`update reservations set status = 'cancelled', cancel_reason = 'test', cancelled_at = now() where id = ${reservationId}`.execute(
+      t.admin,
+    );
+    expect(await archive(u)).toMatchObject({ status: "committed" });
+  });
+
+  it("block đang chờ duyệt (`requested`) → 409 UNIT_IN_USE; block đã bị từ chối/kết thúc không chặn", async () => {
+    const u = await newUnit("RF3");
+    const blockId = randomUUID();
+    await sql`insert into blocks (id, organization_id, property_id, unit_id, period, reason, requested_by)
+              values (${blockId}, ${A.orgId}, ${A.propertyId}, ${u}, tstzrange('2026-10-25T00:00Z', '2026-10-26T00:00Z', '[)'),
+                      'sửa điện', ${A.ownerMembershipId})`.execute(t.admin);
+    expect(await archive(u)).toMatchObject({
+      status: "failed",
+      httpStatus: 409,
+      problem: { code: "UNIT_IN_USE" },
+    });
+    await sql`update blocks set status = 'rejected' where id = ${blockId}`.execute(t.admin);
+    expect(await archive(u)).toMatchObject({ status: "committed" });
   });
 });

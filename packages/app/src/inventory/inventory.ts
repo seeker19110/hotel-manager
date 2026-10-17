@@ -21,7 +21,7 @@ function rangeLiteral(i: Interval): string {
   return `[${i.start.toISOString()},${i.end ? i.end.toISOString() : ""})`;
 }
 
-async function lockUnit(
+export async function lockUnit(
   trx: Transaction<unknown>,
   orgId: string,
   unitId: string,

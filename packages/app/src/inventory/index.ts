@@ -6,6 +6,7 @@ export {
   endBlock,
   getUnitStatus,
   type Interval,
+  lockUnit,
   proposeBlock,
 } from "./inventory.ts";
 export { archiveUnit, createUnit } from "./units.ts";
