@@ -44,6 +44,8 @@ export interface HttpDeps {
   commandQuotaPerMinute?: number;
   /** Hạn mức lệnh mới/phút/thành viên; bỏ trống = `COMMAND_MEMBER_QUOTA_PER_MINUTE`. Chỉ test đặt khác. */
   commandMemberQuotaPerMinute?: number;
+  /** Ghi đè hạn mức tải file/nhập liệu mỗi phút (thành viên/tổ chức) — chỉ test đặt khác; bỏ trống = hằng ở `rate-limit.ts`. */
+  uploadRateLimit?: { perMember?: number; perOrg?: number };
 }
 
 export interface CommandDef<I, O, P = undefined> {

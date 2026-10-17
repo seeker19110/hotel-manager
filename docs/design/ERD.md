@@ -422,7 +422,7 @@ Loại: H (hạ tầng pipeline dùng chung ở `packages/app`; xoá theo hạn,
 | expires_at | timestamptz | không | `CHECK (expires_at > created_at)` | `created_at + 7 ngày` (API-CONTRACT) |
 
 - Khoá/index: **`UNIQUE (organization_id, key)`** (INV-G5); `ix (expires_at)` cho job dọn; `ix (organization_id, actor_person_id, created_at DESC)`.
-- Ràng buộc đặc biệt: bước 4 pipeline `INSERT … ON CONFLICT (organization_id, key) DO NOTHING RETURNING`; nếu trùng thì so `request_hash`: cùng ⇒ trả kết quả cũ, khác ⇒ `409 IDEMPOTENCY_CONFLICT`. Hai request song song cùng key chờ nhau trên unique index. Dòng `failed` do lỗi ràng buộc được ghi ở transaction riêng sau rollback (kể cả `exceptions` loại `EXTENSION_CONFLICT`).
+- Ràng buộc đặc biệt: bước 4 pipeline `INSERT … ON CONFLICT (organization_id, key) DO NOTHING RETURNING`; nếu trùng thì so `request_hash`: cùng ⇒ trả kết quả cũ, khác ⇒ `422 IDEMPOTENCY_CONFLICT`. Hai request song song cùng key chờ nhau trên unique index. Dòng `failed` do lỗi ràng buộc được ghi ở transaction riêng sau rollback (kể cả `exceptions` loại `EXTENSION_CONFLICT`).
 - RLS/quyền đặc biệt: `app_worker` được `DELETE` chỉ khi `expires_at < now()`; `GET /api/v1/commands/{id}` lọc theo `organization_id` và người gửi (không tồn tại hoặc không phải của người hỏi ⇒ `404 COMMAND_NOT_FOUND`).
 - Bất biến: INV-G5.
 
@@ -1817,6 +1817,7 @@ Hàm `SECURITY DEFINER` phạm vi hẹp (thay cho BYPASSRLS/policy rộng; mỗi
 `app.list_my_organizations(auth_user_id)` (liệt kê tổ chức của chính người đăng nhập trước khi có ngữ cảnh tổ chức — 0002) ·
 `app.outbox_claim`/`app.outbox_mark` (relay của worker — 0003) · `app.expire_holds` (job — 0004) ·
 `app.receiving_account_owner` (định tuyến webhook ngân hàng — 0005) · `app.actor_role()` (RLS lớp 3 theo vai trò cho giấy tờ — 0006).
+`app.rate_limit_hit(scope, subject, limit, window_seconds, now)` (bộ đếm giới hạn tần suất dùng chung giữa instance cho tải file/nhập liệu/webhook — bảng toàn cục `rate_limit_counters`, khoá advisory theo (scope, subject), lượt bị từ chối không tăng bộ đếm — 0053).
 - Có thể thêm một bảng giới hạn tần suất (`rateLimit`) nếu cấu hình lưu rate limit trong DB để khoá tạm sau 5 lần sai (PLAN T-006, access Q-07); xác định ở T-006.
 
 Ràng buộc:

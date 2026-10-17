@@ -131,7 +131,7 @@ Quy ước chung cho mọi scenario (kế hoạch §16; DOMAIN-MODEL INV-G1):
 ### S-021 Idempotency của command quản trị (INV-G5)
 - Given owner gửi `member.invite` với `Idempotency-Key=k1`
 - When gửi lại đúng body với `k1`; rồi gửi body khác (email khác) với `k1`
-- Then lần 2 trả **cùng** `invitation_id`, tổng số lời mời = 1; lần 3 → `409 IDEMPOTENCY_CONFLICT`
+- Then lần 2 trả **cùng** `invitation_id`, tổng số lời mời = 1; lần 3 → `422 IDEMPOTENCY_CONFLICT`
 
 ### S-022 Audit và outbox cùng transaction (INV-G6)
 - Given owner đổi vai trò của L từ `front_desk` sang `manager`
@@ -297,7 +297,7 @@ Ký hiệu: **Có** = được trong phạm vi cơ sở · **HM** = trong hạn 
 | LAST_OWNER | Thu hồi/hạ owner cuối | 409 | Tổ chức phải còn ít nhất một chủ sở hữu. | S-019 |
 | ORG_CONTEXT_REQUIRED | Thuộc nhiều tổ chức, chưa chọn | 409 | Hãy chọn tổ chức bạn đang làm việc. | S-020 |
 | INVALID_TRANSITION | Duyệt yêu cầu đã xử lý | 409 | Yêu cầu này đã được xử lý. | — |
-| IDEMPOTENCY_CONFLICT | Cùng key, khác nội dung | 409 | Thao tác trùng mã nhưng khác nội dung. Vui lòng tải lại. | S-021 |
+| IDEMPOTENCY_CONFLICT | Cùng key, khác nội dung | 422 | Thao tác trùng mã nhưng khác nội dung. Vui lòng tải lại. | S-021 |
 | VALIDATION_FAILED | Dữ liệu không hợp lệ | 422 | Thông tin chưa hợp lệ, xem các trường được đánh dấu. | S-002, S-005 |
 | RATE_LIMITED | Vượt ngưỡng thử | 429 | Bạn thử quá nhiều lần. Vui lòng đợi rồi thử lại. | S-012 |
 

@@ -183,7 +183,7 @@ Dữ liệu mẫu (DOMAIN-MODEL §5): tổ chức B có cơ sở `HS1` (trọ) v
 | `REAUTH_REQUIRED` | Xuất khi chưa xác thực lại gần đây | 401 | Vui lòng xác thực lại để xuất dữ liệu. | S-014 |
 | `EXPORT_NOT_READY` | Tải khi job chưa xong | 409 | File đang được chuẩn bị. Vui lòng đợi. | — |
 | `LINK_EXPIRED` | Link tải quá hạn / export `expired` | 410 | Liên kết tải đã hết hạn. Hãy tạo yêu cầu xuất mới. | S-015 |
-| `IDEMPOTENCY_CONFLICT` | Cùng key khác bộ lọc | 409 | Yêu cầu bị trùng mã thao tác. Vui lòng tải lại. | — |
+| `IDEMPOTENCY_CONFLICT` | Cùng key khác bộ lọc | 422 | Yêu cầu bị trùng mã thao tác. Vui lòng tải lại. | — |
 | `RATE_LIMITED` | Quá số yêu cầu xuất (đề xuất 10/giờ/người) | 429 | Bạn đã yêu cầu xuất quá nhiều lần. Vui lòng thử lại sau. | — |
 
 ## 7. Yêu cầu phi chức năng của tính năng

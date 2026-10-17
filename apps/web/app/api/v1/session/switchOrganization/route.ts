@@ -1,7 +1,7 @@
 // POST /api/v1/session/switchOrganization — `session.switchOrganization` (SPEC-access-and-property S-020, API-CONTRACT §1).
 // Đầu vào { organization_id, property_id? } + `Idempotency-Key`. Chỉ đặt cookie chọn ngữ cảnh sau khi đối chiếu membership
 // (cookie không phải quyền: mọi request vẫn resolveActor). Idempotency như mọi command: cùng key + cùng payload → kết
-// quả cũ; khác payload → 409 IDEMPOTENCY_CONFLICT; kết quả lưu ở idempotency_keys của tổ chức đích.
+// quả cũ; khác payload → 422 IDEMPOTENCY_CONFLICT; kết quả lưu ở idempotency_keys của tổ chức đích.
 import { randomUUID } from "node:crypto";
 import { orgCookieName, serverContext, switchOrganization, withHttpMetrics } from "@hm/app";
 import { NextResponse } from "next/server";
@@ -48,7 +48,7 @@ async function handle(req: Request): Promise<Response> {
     correlationId: req.headers.get("x-correlation-id") ?? randomUUID(),
   });
   if (result.kind === "conflict")
-    return problem(409, "IDEMPOTENCY_CONFLICT", "Idempotency-Key đã dùng cho yêu cầu khác");
+    return problem(422, "IDEMPOTENCY_CONFLICT", "Idempotency-Key đã dùng cho yêu cầu khác");
   if (result.kind === "not_found") return problem(404, "NOT_FOUND", "Không tìm thấy tổ chức");
   const { context } = result;
 

@@ -12,10 +12,10 @@
 - **Tiền:** `{ "amount": 3580000, "currency": "VND" }` với `amount` là số nguyên đồng. Server từ chối số thập phân bằng `VALIDATION_FAILED`.
 - **ID:** UUID v7. Mã hiển thị (số phiếu, số hợp đồng) là trường riêng, cấp theo cơ sở.
 - **Ngữ cảnh tổ chức:** header `X-Org-Id` chỉ để **chọn** tổ chức trong số tổ chức người dùng đã có membership. Server luôn đối chiếu với membership và không tin ID do client gửi. Trang web gửi kèm `X-Org-Context` = tổ chức trang đang hiển thị; khác tổ chức của request (tab khác đã chuyển) ⇒ `409 CONTEXT_CHANGED`, không ghi gì (SPEC-portal S-013).
-- **Idempotency:** mọi `POST` ghi bắt buộc có `Idempotency-Key: <uuid>`. Thiếu key thì trả 400 `MALFORMED_REQUEST`. Key lặp, cùng payload → trả kết quả cũ với cùng status. Key lặp, khác payload → 409 `IDEMPOTENCY_CONFLICT`. Key được lưu 7 ngày.
+- **Idempotency:** mọi `POST` ghi bắt buộc có `Idempotency-Key: <uuid>`. Thiếu key thì trả 400 `MALFORMED_REQUEST`. Key lặp, cùng payload → trả kết quả cũ với cùng status. Key lặp, khác payload → 422 `IDEMPOTENCY_CONFLICT` (theo draft IETF httpapi-idempotency-key-header, D-034; client xử lý theo `code`, không theo status). Key được lưu 7 ngày.
 - **Kết quả command:** `{ "command_id": "...", "status": "committed", "data": {...} }`. Tra lại bằng `GET /api/v1/commands/{command_id}` khi client bị timeout. Trạng thái chỉ gồm: `committed` (kèm `data`) · `in_progress` (đang chạy, client chờ rồi hỏi lại) · `failed` (kèm `problem`). Không tồn tại hoặc không phải của người hỏi → 404 `COMMAND_NOT_FOUND` — client mới được phép gửi lại với **cùng** `Idempotency-Key`.
 - **Phân trang:** `?cursor=<opaque>&limit=<n>`, mặc định 50, tối đa 200. Phản hồi `{ "data": [...], "next_cursor": "..." | null }`.
-- **Rate limit:** theo người dùng và theo IP. Đăng nhập và link khách có giới hạn chặt hơn. Vượt giới hạn trả 429 kèm `Retry-After` (số giây, MỌI 429 của app — kể cả của Better Auth, khoá tài khoản — đều có; thân problem có thêm `retry_after`). Hạn mức lệnh ghi theo TỔ CHỨC (IND-SAAS-008): tối đa `COMMAND_QUOTA_PER_MINUTE` (600) lệnh mới/phút/tổ chức, vượt ⇒ 429 `RATE_LIMITED` và KHÔNG lưu kết quả (gửi lại cùng `Idempotency-Key` sau `Retry-After` chạy bình thường; replay key đã có không tốn hạn mức).
+- **Rate limit:** theo người dùng và theo IP. Đăng nhập và link khách có giới hạn chặt hơn. Vượt giới hạn trả 429 kèm `Retry-After` (số giây, MỌI 429 của app — kể cả của Better Auth, khoá tài khoản — đều có; thân problem có thêm `retry_after`). Hạn mức lệnh ghi theo TỔ CHỨC (IND-SAAS-008): tối đa `COMMAND_QUOTA_PER_MINUTE` (600) lệnh mới/phút/tổ chức, vượt ⇒ 429 `RATE_LIMITED` và KHÔNG lưu kết quả (gửi lại cùng `Idempotency-Key` sau `Retry-After` chạy bình thường; replay key đã có không tốn hạn mức). Route không đi qua pipeline lệnh có hạn mức riêng bằng bộ đếm trong Postgres (dùng chung mọi instance, `app.rate_limit_hit`, BE-REL-006): tải file `files/upload` 30/phút/thành viên và 120/phút/tổ chức; `import/upload` 10 và 30; webhook ngân hàng đã xác thực chữ ký 600/phút/tài khoản; chữ ký webhook SAI 300/phút/nhà cung cấp (vượt ⇒ 429 thay cho 401, không ảnh hưởng webhook hợp lệ). Vượt ⇒ 429 `RATE_LIMITED` + `Retry-After` = số giây tới hết cửa sổ 60 giây.
 - **Versioning:** tiền tố `/v1`. Thêm trường tuỳ chọn không đổi version. Thay đổi phá vỡ tạo `/v2` và gửi header `Deprecation` + `Sunset`.
 - **CSRF:** ghi bằng cookie phiên phải kiểm `Origin` và dùng SameSite=Lax. Không có endpoint ghi nào nhận `GET`.
 
@@ -37,7 +37,7 @@
 | `REAUTH_REQUIRED` | 401 | Thao tác nhạy cảm (xuất dữ liệu, hoàn tiền vượt ngưỡng) cần xác thực lại hoặc MFA |
 | `FORBIDDEN` | 403 | Có membership nhưng không đủ quyền hoặc vượt hạn mức |
 | `NOT_FOUND` | 404 | Không tồn tại **hoặc** thuộc tổ chức/cơ sở khác (không phân biệt hai trường hợp, để không lộ thông tin) |
-| `IDEMPOTENCY_CONFLICT` | 409 | Key trùng, payload khác |
+| `IDEMPOTENCY_CONFLICT` | 422 | Key trùng, payload khác |
 | `ROOM_UNAVAILABLE` | 409 | Vi phạm INV-I1 |
 | `INVALID_TRANSITION` | 409 | Chuyển trạng thái ngoài bảng |
 | `VERSION_CONFLICT` | 409 | `base_version` cũ (optimistic lock) |

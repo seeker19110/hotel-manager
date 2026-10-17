@@ -52,7 +52,7 @@ export interface StageResult {
   key: string;
 }
 
-const conflict = (msg: string) => new CommandError("IDEMPOTENCY_CONFLICT", 409, msg);
+const conflict = (msg: string) => new CommandError("IDEMPOTENCY_CONFLICT", 422, msg);
 
 /** Chèn dòng staging bằng transaction ngắn trong ngữ cảnh người dùng (RLS: chỉ chính người tạo — migration 0047). */
 export async function stageFile(db: Kysely<unknown>, actor: Actor, spec: StageSpec): Promise<StageResult> {

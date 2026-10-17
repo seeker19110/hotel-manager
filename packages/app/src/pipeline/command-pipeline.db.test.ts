@@ -108,7 +108,7 @@ describe("idempotency (INV-G5)", () => {
     expect(after).toEqual({ a: before.a + 1, o: before.o + 1, p: before.p + 1 });
   });
 
-  it("cùng key + khác payload → 409 IDEMPOTENCY_CONFLICT", async () => {
+  it("cùng key + khác payload → 422 IDEMPOTENCY_CONFLICT", async () => {
     const key = randomUUID();
     await executeCommand(
       t.runtime,
@@ -123,7 +123,7 @@ describe("idempotency (INV-G5)", () => {
         { command: "person.create", idempotencyKey: key, payload: { name: "KH B" }, correlationId: "c" },
         createPerson("KH B"),
       ),
-    ).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT", status: 409 });
+    ).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT", status: 422 });
   });
 
   it("thiếu/sai Idempotency-Key → 400 MALFORMED_REQUEST", async () => {

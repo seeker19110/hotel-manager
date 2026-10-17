@@ -211,7 +211,7 @@ Hợp đồng chi tiết: `docs/design/API-CONTRACT.md`. Mọi command nhận `I
 | FILE_TYPE_NOT_ALLOWED | MIME/nội dung không cho phép | 415 | Chỉ nhận ảnh JPEG, PNG hoặc WebP. | S-013 |
 | FILE_TOO_LARGE | Vượt dung lượng | 413 | Ảnh quá lớn. Vui lòng chọn ảnh nhỏ hơn. | S-014 |
 | FILE_NOT_READY | File đang quét hoặc bị từ chối | 409 | Ảnh đang được kiểm tra hoặc không hợp lệ. | S-015 |
-| IDEMPOTENCY_CONFLICT | Cùng key khác nội dung | 409 | Thao tác trùng mã nhưng khác nội dung. Vui lòng tải lại. | S-011 |
+| IDEMPOTENCY_CONFLICT | Cùng key khác nội dung | 422 | Thao tác trùng mã nhưng khác nội dung. Vui lòng tải lại. | S-011 |
 | VALIDATION_FAILED | Thiếu mô tả, quá số ảnh | 422 | Thông tin chưa hợp lệ, xem các trường được đánh dấu. | S-014 |
 
 ## 7. Yêu cầu phi chức năng của tính năng

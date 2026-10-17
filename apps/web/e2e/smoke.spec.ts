@@ -82,7 +82,7 @@ test("trang đã đăng nhập mang Cache-Control: no-store", async ({ page }) =
   }
 });
 
-test("session.switchOrganization: khác origin 403; thiếu key 400; tổ chức lạ 404; key trùng khác payload 409", async ({
+test("session.switchOrganization: khác origin 403; thiếu key 400; tổ chức lạ 404; key trùng khác payload 422", async ({
   page,
 }) => {
   const res = await page.request.post("/api/v1/session/switchOrganization", {

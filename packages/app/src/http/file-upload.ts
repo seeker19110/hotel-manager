@@ -1,5 +1,6 @@
 // POST /api/v1/files/upload?owner_type=work_order|payment_claim&property_id=<uuid> — tải ảnh/PDF (SPEC-portal S-008, Q-07).
 // Thân yêu cầu là BYTE của file (không multipart), `Idempotency-Key` bắt buộc (tải lại cùng key → cùng fileId, không hai file).
+// Giới hạn tần suất theo thành viên/tổ chức (rate-limit.ts) → 429 + Retry-After.
 // Kiểm kích thước ngay khi đọc luồng (không nạp quá giới hạn vào bộ nhớ), phần còn lại do `uploadFile` (magic bytes, EXIF,
 // quét mã độc, quyền theo cơ sở). Quét + ghi object chạy NGOÀI transaction lệnh (staging.ts). Phản hồi problem+json như mọi command.
 
@@ -15,6 +16,11 @@ import {
   problemResponse,
   simpleProblem,
 } from "./command-route.ts";
+import {
+  enforceActorRateLimit,
+  FILE_UPLOAD_PER_MEMBER_PER_MINUTE,
+  FILE_UPLOAD_PER_ORG_PER_MINUTE,
+} from "./rate-limit.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const OWNER_TYPES: readonly FileOwnerType[] = ["work_order", "payment_claim"];
@@ -61,6 +67,13 @@ export async function handleFileUpload(req: Request, deps: HttpDeps): Promise<Re
     const key = req.headers.get("idempotency-key") ?? "";
     if (!UUID.test(key))
       return simpleProblem("MALFORMED_REQUEST", 400, "Thiếu hoặc sai Idempotency-Key (UUID)", correlationId);
+    // Giới hạn tần suất TRƯỚC khi đọc thân/quét/ghi object (BE-REL-006): bộ đếm trong Postgres, đúng khi nhiều instance.
+    const limited = await enforceActorRateLimit(deps.db, actor, req, correlationId, {
+      scope: "file_upload",
+      perMember: deps.uploadRateLimit?.perMember ?? FILE_UPLOAD_PER_MEMBER_PER_MINUTE,
+      perOrg: deps.uploadRateLimit?.perOrg ?? FILE_UPLOAD_PER_ORG_PER_MINUTE,
+    });
+    if (limited) return limited;
     const bytes = await readCapped(req, MAX_FILE_BYTES);
     if (!bytes) return simpleProblem("FILE_TOO_LARGE", 413, "File vượt dung lượng cho phép", correlationId);
     const input = { ownerType, propertyId: propertyId.toLowerCase(), bytes };

@@ -92,6 +92,28 @@ describe("openapi — mỗi command/query một thao tác đúng URL route thậ
     expect(JSON.stringify(spec.components.responses)).toContain("application/problem+json");
   });
 
+  it("BE-API-008 (D-034): mọi thao tác có Idempotency-Key khai 422 (cùng key khác payload), mô tả khớp 422 và không còn hứa 409; upload/webhook khai 429", () => {
+    const withKey: string[] = [];
+    for (const [path, item] of Object.entries(spec.paths))
+      for (const [method, op] of Object.entries(item))
+        if (op.parameters?.some((p) => p.$ref?.endsWith("/IdempotencyKey"))) {
+          withKey.push(`${method} ${path}`);
+          expect(op.responses["422"], `${method} ${path} thiếu 422`).toBeDefined();
+        }
+    expect(withKey.length).toBeGreaterThan(10);
+    const text = JSON.stringify(spec);
+    expect(text).toContain("khác payload → 422 IDEMPOTENCY_CONFLICT");
+    expect(text).not.toMatch(/409 IDEMPOTENCY_CONFLICT/);
+    expect(JSON.stringify(spec.components.responses.Error422)).toContain("IDEMPOTENCY_CONFLICT");
+    expect(JSON.stringify(spec.components.responses.Error409)).not.toContain("idempotency");
+    for (const [path, m] of [
+      ["/api/v1/files/upload", "post"],
+      ["/api/v1/import/upload", "post"],
+      ["/api/v1/webhooks/{provider}/{account}", "post"],
+    ] as const)
+      expect(spec.paths[path]?.[m]?.responses["429"], path).toBeDefined();
+  });
+
   it("ca biên: schema rỗng (strictObject({})) vẫn ra body object; tham số tuỳ chọn không bị đánh required", () => {
     const empty = spec.paths["/api/v1/exports/requestOrgExport"]?.post as unknown as {
       requestBody: { content: { "application/json": { schema: { type: string } } } };

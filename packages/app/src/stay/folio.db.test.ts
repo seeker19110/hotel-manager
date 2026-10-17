@@ -133,7 +133,7 @@ describe("S-017 folio ví dụ bắt buộc (trước check-out)", () => {
 });
 
 describe("S-018 không ghi dịch vụ hai lần", () => {
-  it("cùng Idempotency-Key 2 lần → 1 khoản; cùng key khác số tiền → 409 IDEMPOTENCY_CONFLICT; key khác = khoản mới, huỷ có lý do", async () => {
+  it("cùng Idempotency-Key 2 lần → 1 khoản; cùng key khác số tiền → 422 IDEMPOTENCY_CONFLICT; key khác = khoản mới, huỷ có lý do", async () => {
     const stayId = await inHouse();
     const key = randomUUID();
     const send = (unitPrice: number) =>

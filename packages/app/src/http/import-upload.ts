@@ -18,6 +18,11 @@ import {
 } from "./command-route.ts";
 import { readCapped } from "./file-upload.ts";
 import { normalizeUploadName } from "./normalize.ts";
+import {
+  enforceActorRateLimit,
+  IMPORT_UPLOAD_PER_MEMBER_PER_MINUTE,
+  IMPORT_UPLOAD_PER_ORG_PER_MINUTE,
+} from "./rate-limit.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Phần đầu multipart (ranh giới, header từng phần, các trường chữ) được phép ngoài dung lượng file. */
@@ -39,6 +44,13 @@ export async function handleImportUpload(req: Request, deps: HttpDeps): Promise<
     const type = req.headers.get("content-type") ?? "";
     if (!/^multipart\/form-data;\s*boundary=/i.test(type))
       return simpleProblem("MALFORMED_REQUEST", 400, "Cần multipart/form-data", correlationId);
+    // Giới hạn tần suất TRƯỚC khi đọc thân tới 10 MB + phân tích (BE-REL-006): bộ đếm trong Postgres.
+    const limited = await enforceActorRateLimit(deps.db, actor, req, correlationId, {
+      scope: "import_upload",
+      perMember: deps.uploadRateLimit?.perMember ?? IMPORT_UPLOAD_PER_MEMBER_PER_MINUTE,
+      perOrg: deps.uploadRateLimit?.perOrg ?? IMPORT_UPLOAD_PER_ORG_PER_MINUTE,
+    });
+    if (limited) return limited;
     const body = await readCapped(req, IMPORT_LIMITS.bytes + MULTIPART_OVERHEAD);
     if (!body)
       return simpleProblem("FILE_TOO_LARGE", 413, "File quá lớn. Tách thành nhiều file.", correlationId);

@@ -64,7 +64,7 @@ apps/worker (job)    ─┼─► packages/app (command/query: transaction, quy�
 1. HTTP POST + Idempotency-Key + phiên
 2. Xác minh phiên Better Auth (cookie) → tra memberships → actor {person_id, org_id, roles, property_scopes, limits}
 3. BEGIN; SET LOCAL app.org_id = actor.org_id; SET LOCAL app.actor_id = …
-4. idempotency: INSERT … ON CONFLICT → nếu đã có kết quả: trả kết quả cũ; khác hash: 409 IDEMPOTENCY_CONFLICT
+4. idempotency: INSERT … ON CONFLICT → nếu đã có kết quả: trả kết quả cũ; khác hash: 422 IDEMPOTENCY_CONFLICT
 5. authorize(actor, action, scope) → domain rule → ghi nghiệp vụ (constraint DB là chốt cuối)
 6. INSERT audit_events + outbox (cùng transaction)
 7. COMMIT → 200/201 kèm command_id

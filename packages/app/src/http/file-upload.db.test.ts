@@ -120,10 +120,10 @@ describe("tải ảnh qua HTTP", () => {
       n: number;
     }>`select count(*)::int as n from files where id = ${d1.data.fileId}`.execute(t.admin);
     expect(n.rows[0]?.n).toBe(1);
-    // Cùng key, nội dung khác → 409.
+    // Cùng key, nội dung khác → 422.
     const other = new Uint8Array([...JPEG, 0]);
     const r3 = await handleFileUpload(upload(q, other, { "idempotency-key": key }), deps);
-    expect(r3.status).toBe(409);
+    expect(r3.status).toBe(422);
   });
 
   it("ca biên: không phiên 401; thiếu key 400; owner_type lạ 422; rỗng 422; không phải ảnh 415; quá 10 MB 413", async () => {

@@ -13,6 +13,7 @@ export const MAX_PHOTOS = 5;
 export const PHOTO_ERRORS: Record<number, string> = {
   413: "Ảnh quá lớn (tối đa 10 MB).",
   415: "Chỉ nhận ảnh JPEG, PNG, WebP.",
+  429: "Bạn tải ảnh quá nhanh, vui lòng thử lại sau ít phút.",
   503: "Chưa kiểm tra được ảnh, vui lòng thử lại sau.",
 };
 

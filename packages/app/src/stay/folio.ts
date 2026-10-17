@@ -55,7 +55,7 @@ export async function readStay(
 
 /**
  * `stay.postCharge` (S-017, S-018): dịch vụ/phụ thu (≥ 0) hoặc giảm giá (âm, trong hạn mức đổi giá). Ngày kinh doanh hiện tại;
- * kỳ đã khoá → PERIOD_LOCKED (trigger). Idempotency theo Idempotency-Key của pipeline (cùng key khác số tiền → 409).
+ * kỳ đã khoá → PERIOD_LOCKED (trigger). Idempotency theo Idempotency-Key của pipeline (cùng key khác số tiền → 422).
  */
 export async function postCharge(
   ctx: CommandContext,
