@@ -359,7 +359,7 @@ Nguồn khung: [`05-architecture/resilience-and-scalability.md`](.xtemplates/fra
 
 Nguồn khung: [`06-design-ux/accessibility.md`](.xtemplates/framework/06-design-ux/accessibility.md)
 
-- [ ] `UX-A11Y-001` **MUST** Mọi trang/màn hình qua quét axe-core với tag `wcag2a`, `wcag2aa`, `wcag21aa`, `wcag22aa` không có vi phạm (`violations.length === 0`). → Kiểm: `@axe-core/playwright` trong mọi smoke test E2E; CI đỏ nếu vi phạm. · Nguồn: WCAG 2.2 AA
+- [x] `UX-A11Y-001` **MUST** Mọi trang/màn hình qua quét axe-core với tag `wcag2a`, `wcag2aa`, `wcag21aa`, `wcag22aa` không có vi phạm (`violations.length === 0`). → Kiểm: `@axe-core/playwright` trong mọi smoke test E2E; CI đỏ nếu vi phạm. · Nguồn: WCAG 2.2 AA · Bằng chứng: `apps/web/e2e/a11y.ts`, `apps/web/e2e/ux-guards.spec.ts`, `ci:e2e`
 - [ ] `UX-A11Y-002` **MUST** Tương phản chữ ≥ 4.5:1 (chữ lớn ≥ 3:1); thành phần UI và trạng thái (viền input, icon, focus) ≥ 3:1 với nền kề. → Kiểm: `check:contrast` trên token + axe rule `color-contrast` ở cả hai theme. · Nguồn: WCAG 2.2 SC 1.4.3, 1.4.11
 - [x] `UX-A11Y-003` **MUST** Toàn bộ chức năng dùng được bằng bàn phím; không bẫy focus (trừ dialog modal có Esc để thoát). → Kiểm: E2E luồng chính chỉ dùng `keyboard.press('Tab'|'Enter'|'Escape')`; axe rule `focus-order-semantics`. · Nguồn: WCAG 2.2 SC 2.1.1, 2.1.2 · Bằng chứng: `apps/web/e2e/ux-guards.spec.ts`, `ci:e2e`
 - [ ] `UX-A11Y-004` **SHOULD** Phần tử nhận focus không bị che hoàn toàn bởi header/footer dính hay banner cookie. → Kiểm: E2E Tab qua trang có sticky header, `boundingBox` của phần tử focus không nằm trọn dưới sticky element. · Nguồn: WCAG 2.2 SC 2.4.11

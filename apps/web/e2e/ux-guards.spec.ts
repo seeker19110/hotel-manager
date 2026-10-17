@@ -10,6 +10,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type BrowserContext, expect, type Locator, type Page, test } from "@playwright/test";
+import { accessibilityProblems } from "./a11y.ts";
 import { confirmAction } from "./confirm.ts";
 import { GUEST_STAY_ID, GUEST_TOKEN, HOTEL_HK, ORG_HOTEL } from "./fixtures.ts";
 import { type Cookies, loginOwner, loginTenant } from "./sessions.ts";
@@ -378,7 +379,7 @@ test("danh mục route của E2E 320 px khớp đúng app/**/page.tsx (thêm tra
   expect(todayCards().length).toBeGreaterThanOrEqual(7);
 });
 
-test("320 px: MỌI route trong app/**/page.tsx không cuộn ngang, không mất nội dung", async ({
+test("320 px: MỌI route trong app/**/page.tsx không cuộn ngang, không mất nội dung, axe 0 vi phạm", async ({
   page,
   context,
   browser,
@@ -388,6 +389,7 @@ test("320 px: MỌI route trong app/**/page.tsx không cuộn ngang, không mấ
   await page.setViewportSize({ width: 320, height: 800 });
   // Gom theo người dùng để đăng nhập mỗi tài khoản đúng một lần; dữ liệu động (đặt phòng → lượt ở…) chạy theo thứ tự tên route.
   const visited: string[] = [];
+  const a11y: string[] = []; // gom mọi vi phạm tiếp cận của mọi route rồi đòi rỗng (một lần chạy thấy hết, không dừng ở route đầu)
   for (const who of ["public", "rental", "hotel", "tenant"] as const) {
     await asSession(who, browser, baseURL as string, context);
     for (const [pattern, spec] of Object.entries(ROUTES)) {
@@ -400,11 +402,14 @@ test("320 px: MỌI route trong app/**/page.tsx không cuộn ngang, không mấ
         expect(new URL(page.url()).pathname, `${pattern}: bị chuyển hướng khỏi ${url}`).toBe(want);
         await expect(page.locator("main").first(), url).toBeVisible();
         expect(await overflowing(page), `${url} cuộn ngang ở 320 px (phần tử tràn phải)`).toEqual([]);
+        // UX-A11Y-001: mọi route (kể cả route động) qua axe 0 vi phạm + vùng chạm ≥ 44 px, ở màn 320 px.
+        for (const p of await accessibilityProblems(page)) a11y.push(`${url} → ${p}`);
         visited.push(url);
       }
     }
   }
   expect(visited.length).toBeGreaterThanOrEqual(Object.keys(ROUTES).length);
+  expect(a11y, "vấn đề tiếp cận (UX-A11Y-001)").toEqual([]);
 });
 
 // ───────────────────────── bàn phím, hộp xác nhận, gửi đúp ─────────────────────────
