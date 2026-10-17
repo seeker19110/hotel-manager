@@ -408,3 +408,11 @@
 - Chọn: license-policy.json (đọc bằng JSON.parse, không thêm phụ thuộc)
 - Lý do (tiêu chí chất lượng cuối): (3) không thêm phụ thuộc; script check-licenses.mjs đọc trực tiếp
 - Đường lùi: Đổi sang YAML khi có thư viện YAML sẵn
+
+### D-058 · 2026-10-17T17:49:59+00:00 · T-709 OPS-COST-004: ngân sách email theo ngày nào, trần bao nhiêu, 100% có chặn cả thư bảo mật tài khoản?
+
+- Phương án: (1) Ngày UTC; 1000 lượt/tổ chức/ngày (hằng @hm/domain); 80% cảnh báo, 90% chỉ account_security + lời mời, 100% dừng mọi loại (trần cứng), hoãn sang 00:00 UTC hôm sau; alert mức ticket · (2) Ngày kinh doanh theo cơ sở; thư account_security vượt trần
+- Chọn: Ngày UTC; 1000 lượt/tổ chức/ngày (hằng @hm/domain); 80% cảnh báo, 90% chỉ account_security + lời mời, 100% dừng mọi loại (trần cứng), hoãn sang 00:00 UTC hôm sau; alert mức ticket
+- Lý do (tiêu chí chất lượng cuối): (1) an toàn chi phí: trần cứng đúng tiêu chí mục; ngân sách là chi phí hệ thống theo tổ chức (nhiều cơ sở khác múi giờ) nên dùng UTC như rate_limit_hit; (2) đường lùi: đổi hằng/hàm một chỗ
+- Đường lùi: Đổi hằng EMAIL_BUDGET_PER_ORG_PER_DAY hoặc cho account_security vượt trần trong app.email_budget_take
+- Khi chạy thật (đề xuất, chủ dự án quyết ở G7): Chủ dự án xác nhận trần/ngày theo gói và có cho thư bảo mật tài khoản vượt trần không; OTP người thuê chưa qua ngân sách (chờ adapter SMTP thật, D-010)
