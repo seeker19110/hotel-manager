@@ -25,7 +25,8 @@ COPY packages/domain packages/domain
 # ── runtime: người dùng `node` (không root), không pnpm/npm trong lệnh chạy.
 FROM base AS runtime
 ENV NODE_ENV=production
-COPY --from=deps --chown=node:node /app /app
+# Mã và node_modules do root sở hữu (user `node` chỉ đọc); worker không ghi gì vào cây mã.
+COPY --from=deps /app /app
 USER node
 # Không có bí mật trong image: DATABASE_URL, WORKER_DATABASE_URL, S3_*, SMTP_URL, HM_PII_KEYS… chỉ nạp qua môi trường khi chạy.
 # Worker dùng vai trò CSDL `app_worker` và danh tính S3 RIÊNG của worker (deploy/README.md). Không mở cổng.

@@ -1019,12 +1019,63 @@ describe("Dockerfile web/worker (BASE-SEC-006)", () => {
     for (const f of DOCKERFILES) expect(names).toContain(f.replace("deploy/", ""));
     expect(checkDir(join(ROOT, "deploy"))).toEqual([]);
   });
+  it.each(DOCKERFILES)(
+    "%s: mã ứng dụng do root sở hữu (chỉ đọc với user node); chỉ .next/cache của web ghi được",
+    (f) => {
+      const code = read(f)
+        .split("\n")
+        .filter((l) => !l.trim().startsWith("#"));
+      // COPY cây /app vào image runtime KHÔNG được chown cho node (user node chỉ đọc mã, không sửa được mã/node_modules).
+      for (const l of code.filter((x) => /^COPY\b/.test(x.trim()))) expect(l, l).not.toMatch(/--chown=/);
+      const chowns = code.filter((l) => /\bchown\b/.test(l));
+      if (f.includes("web")) {
+        expect(chowns).toHaveLength(1);
+        expect(chowns[0]).toMatch(/chown -R node:node \.next\/cache\s*$/);
+        // chown phải đứng sau WORKDIR /app/apps/web và trước USER node
+        const i = code.findIndex((l) => l === chowns[0]);
+        expect(code.findIndex((l) => /^WORKDIR \/app\/apps\/web/.test(l))).toBeLessThan(i);
+        expect(i).toBeLessThan(code.findIndex((l) => /^USER\s+node/.test(l)));
+      } else expect(chowns).toEqual([]);
+    },
+  );
   it(".dockerignore loại bí mật, lịch sử git và node_modules khỏi ngữ cảnh build", () => {
     const lines = read(".dockerignore")
       .split("\n")
       .map((l) => l.trim());
     for (const e of [".git", ".env", ".env.*", "node_modules", "deploy/secrets", "**/.next"])
       expect(lines, e).toContain(e);
+  });
+  it(".dockerignore loại .env* ở MỌI độ sâu (không chỉ gốc) nhưng giữ .env.example", () => {
+    // Bộ khớp tối giản theo ngữ nghĩa .dockerignore: mẫu neo ở gốc ngữ cảnh, `*` không vượt `/`, `**/` = 0+ thư mục, mẫu sau thắng, `!` phủ định.
+    const toRe = (pat) => {
+      let re = "";
+      for (let i = 0; i < pat.length; i++) {
+        if (pat.startsWith("**/", i)) {
+          re += "(?:.*/)?";
+          i += 2;
+        } else if (pat[i] === "*") re += "[^/]*";
+        else if (pat[i] === "?") re += "[^/]";
+        else re += pat[i].replace(/[.+^${}()|[\]\\]/g, "\\$&");
+      }
+      return new RegExp(`^${re}(?:/.*)?$`);
+    };
+    const rules = read(".dockerignore")
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l && !l.startsWith("#"))
+      .map((l) => ({ neg: l.startsWith("!"), re: toRe(l.replace(/^!/, "")) }));
+    const excluded = (path) => rules.reduce((acc, r) => (r.re.test(path) ? !r.neg : acc), false);
+    for (const p of [
+      ".env",
+      ".env.local",
+      "deploy/.env",
+      "apps/web/.env.local",
+      "packages/db/.env.production",
+    ])
+      expect(excluded(p), p).toBe(true);
+    for (const p of [".env.example", "apps/web/.env.example", "deploy/.env.example"])
+      expect(excluded(p), p).toBe(false);
+    expect(excluded("apps/web/src/index.ts")).toBe(false);
   });
   it("lệnh khởi chạy khớp RUNBOOK: worker chạy `node apps/worker/src/index.ts`, web lắng nghe cổng Caddy trỏ tới", () => {
     expect(read("deploy/worker.Dockerfile")).toContain('["node", "apps/worker/src/index.ts"]');

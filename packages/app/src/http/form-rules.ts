@@ -31,5 +31,7 @@ export function parseDecimalInput(s: string): number | null {
 
 /** Thay `{tên_ô}` trong nhãn xác nhận bằng giá trị đã nhập; ô không có giá trị → "—". Một lượt, không quét lại phần đã thay. */
 export function fillConfirmLabel(template: string, shown: Record<string, string>): string {
-  return template.replace(/\{(\w+)\}/g, (_, name: string) => shown[name] ?? "—");
+  return template.replace(/\{(\w+)\}/g, (_, name: string) =>
+    Object.hasOwn(shown, name) ? (shown[name] ?? "—") : "—",
+  );
 }

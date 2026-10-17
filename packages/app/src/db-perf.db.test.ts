@@ -6,6 +6,12 @@
 //   2. Mỗi truy vấn chạy `EXPLAIN (FORMAT JSON)` (không ANALYZE — không thực thi) với vai trò app_runtime trong ngữ cảnh tổ chức
 //      (cùng điều kiện RLS như thật). Bảng seed nhỏ nên planner coi Seq Scan là rẻ: đặt `enable_seqscan = off` để bất kỳ Seq Scan
 //      còn sót nghĩa là KHÔNG có index dùng được; không Seq Scan trên bảng thuộc danh sách "lớn" (BIG_TABLES) ở mọi nút kế hoạch.
+//      Không Seq Scan CHƯA đủ (một Index Scan chỉ theo `organization_id` rồi lọc bằng Filter vẫn qua): truy vấn tra theo khoá/bộ lọc còn
+//      khai CỘT CHỌN LỌC (`Expect`) và bộ đánh giá đòi cột đó nằm trong Index Cond/Recheck Cond của nút quét, trong đoạn tiền tố liên tiếp
+//      của khoá index (Postgres 17 không có skip scan: cột đứng sau một cột chưa bị ràng buộc thì phải quét cả dải). Cột không có index
+//      ⇒ đỏ (ca âm ở "bộ đánh giá"). Bảng thật quá nhỏ nên planner hoà giá giữa các index: truy vấn folio chạy trên bảng bóng (schema `perf`,
+//      cùng cột + cùng index, 60.000 dòng đã ANALYZE) để lựa chọn index có nghĩa; audit dùng dữ liệu 30.000 dòng thật.
+//      Thẻ "today"/kỳ thu là truy vấn toàn tổ chức (lọc theo trạng thái, không theo khoá): chỉ kiểm không Seq Scan.
 //   3. Thêm kiểm chứng "tự nhiên" (seqscan bật) trên dữ liệu lớn hơn (30.000 dòng audit/outbox) cho ba truy vấn quét tuần tự đắt nhất.
 
 import { randomUUID } from "node:crypto";
@@ -21,6 +27,7 @@ import { createPeriod, previewPeriod } from "./billing/billing.ts";
 import { okAs, ownerOf } from "./testing/helpers.ts";
 import { getSummary, listItems, TODAY_CARDS } from "./today/today.ts";
 
+const U = "00000000-0000-4000-8000-000000000001";
 let t: TestDb;
 let A: SeededOrg;
 let owner: Actor;
@@ -60,7 +67,74 @@ const BIG_TABLES = new Set([
 interface PlanNode {
   "Node Type": string;
   "Relation Name"?: string;
+  "Index Name"?: string;
+  "Index Cond"?: string;
+  "Recheck Cond"?: string;
   Plans?: PlanNode[];
+}
+
+/** Một lần quét bảng bằng index: bảng, tên index, điều kiện index (Index Cond; với Bitmap là Index Cond của nút con). */
+interface IndexScan {
+  table: string;
+  index: string;
+  cond: string;
+}
+function indexScans(node: PlanNode, heap?: string, out: IndexScan[] = []): IndexScan[] {
+  const rel = node["Relation Name"] ?? heap;
+  if (node["Index Name"] && rel)
+    out.push({ table: rel, index: node["Index Name"], cond: node["Index Cond"] ?? "" });
+  for (const c of node.Plans ?? []) indexScans(c, node["Node Type"] === "Bitmap Heap Scan" ? rel : heap, out);
+  return out;
+}
+
+/** Cột chọn lọc kỳ vọng theo bảng: `cols` phải nằm trong tiền tố liên tiếp của khoá index đang dùng và trong Index/Recheck Cond;
+ *  `index` (tuỳ chọn) khẳng định đúng index (vd. index một phần). */
+type Expect = Record<string, { cols?: string[]; index?: string }>;
+
+/** Khoá (cột) của mọi index theo tên, ở mọi schema người dùng. */
+async function indexKeys(): Promise<Map<string, string[]>> {
+  const r = await sql<{ name: string; keys: string[] }>`
+    select ic.relname::text as name,
+      array(select a.attname::text from unnest((string_to_array(i.indkey::text, ' ')::int2[])[1:i.indnkeyatts]) with ordinality k(attnum, ord)
+            join pg_attribute a on a.attrelid = i.indrelid and a.attnum = k.attnum order by k.ord) as keys
+    from pg_index i join pg_class ic on ic.oid = i.indexrelid join pg_namespace n on n.oid = ic.relnamespace
+    where n.nspname not in ('pg_catalog', 'information_schema', 'pg_toast')`.execute(t.admin);
+  return new Map(r.rows.map((x) => [x.name, x.keys]));
+}
+
+/** Đoạn tiền tố liên tiếp của khoá index mà Index Cond ràng buộc (dừng sau cột đầu tiên chỉ bị chặn khoảng, hoặc không có điều kiện). */
+function boundPrefix(keys: string[], cond: string): string[] {
+  const run: string[] = [];
+  for (const k of keys) {
+    const m = new RegExp(`\\b${k}\\s*(=|>=|<=|<|>)\\s`).exec(cond);
+    if (!m) break;
+    run.push(k);
+    if (m[1] !== "=") break;
+  }
+  return run;
+}
+
+/** Vi phạm "cột chọn lọc" của một kế hoạch (rỗng = đạt). */
+function selectiveProblems(plan: PlanNode, expect: Expect, keys: Map<string, string[]>): string[] {
+  const scans = indexScans(plan);
+  const bad: string[] = [];
+  for (const [table, want] of Object.entries(expect)) {
+    const mine = scans.filter((x) => x.table === table);
+    if (mine.length === 0) {
+      bad.push(`${table}: không quét bằng index nào`);
+      continue;
+    }
+    if (want.index && !mine.some((x) => x.index === want.index))
+      bad.push(`${table}: dùng ${mine.map((x) => x.index).join(",")}, cần ${want.index}`);
+    for (const col of want.cols ?? []) {
+      const ok = mine.some((x) => boundPrefix(keys.get(x.index) ?? [], x.cond).includes(col));
+      if (!ok)
+        bad.push(
+          `${table}.${col}: không nằm trong tiền tố Index Cond (${mine.map((x) => `${x.index}: ${x.cond || "∅"}`).join(" | ")})`,
+        );
+    }
+  }
+  return bad;
 }
 function seqScans(node: PlanNode, out: string[] = []): string[] {
   if (node["Node Type"] === "Seq Scan" && node["Relation Name"]) out.push(node["Relation Name"]);
@@ -68,10 +142,16 @@ function seqScans(node: PlanNode, out: string[] = []): string[] {
   return out;
 }
 
-async function explainAs(role: "runtime" | "admin", q: { sql: string; params: unknown[] }, seqscan: boolean) {
+async function explainAs(
+  role: "runtime" | "admin",
+  q: { sql: string; params: unknown[] },
+  seqscan: boolean,
+  searchPath?: string,
+) {
   const db = role === "runtime" ? t.runtime : t.admin;
   const run = async (trx: Kysely<unknown>) => {
     await sql`select set_config('enable_seqscan', ${seqscan ? "on" : "off"}, true)`.execute(trx);
+    if (searchPath) await sql`select set_config('search_path', ${searchPath}, true)`.execute(trx);
     const r = await trx.executeQuery<{ "QUERY PLAN": { Plan: PlanNode }[] }>(
       CompiledQuery.raw(`EXPLAIN (FORMAT JSON) ${q.sql}`, q.params),
     );
@@ -92,6 +172,74 @@ function selects(): { sql: string; params: unknown[] }[] {
     seen.add(q.sql);
     return true;
   });
+}
+
+/**
+ * Bảng bóng cho truy vấn folio: schema `perf` có cùng cột và cùng index (LIKE … INCLUDING INDEXES) với bảng thật, đổ 60.000 dòng rồi ANALYZE.
+ * Cột NOT NULL không mặc định được điền theo kiểu (khoá tổ chức/lượt ở/đặt phòng theo phân phối chọn lọc: 1/30 hàng thuộc tổ chức A,
+ * ~15 hàng mỗi lượt ở/đặt phòng). Không dùng RLS/ràng buộc CHECK/FK — chỉ để planner chọn index có nghĩa.
+ */
+const SHADOW: Record<string, Record<string, string>> = {
+  charges: { stay_id: "stay" },
+  payments: { reservation_id: "stay", purpose: "'receivable'" },
+  invoices: { stay_id: "stay", kind: "'folio'" },
+  deposits: { reservation_id: "unique" },
+};
+async function buildShadowTables() {
+  await sql`create schema perf`.execute(t.admin);
+  for (const [table, special] of Object.entries(SHADOW)) {
+    await sql
+      .raw(`create table perf.${table} (like public.${table} including defaults including indexes)`)
+      .execute(t.admin);
+    const cols = await sql<{ column_name: string; data_type: string }>`
+      select column_name, data_type from information_schema.columns
+      where table_schema = 'public' and table_name = ${table} and is_nullable = 'NO' and column_default is null
+        and is_generated = 'NEVER' order by ordinal_position`.execute(t.admin);
+    const value = (c: { column_name: string; data_type: string }): string => {
+      if (c.column_name === "organization_id")
+        return `case when g % 30 = 0 then '${A.orgId}'::uuid else gen_random_uuid() end`;
+      const sp = special[c.column_name];
+      if (sp === "stay")
+        return `case when g % 4000 = 0 then '${U}'::uuid else md5((g % 4000)::text)::uuid end`;
+      if (sp === "unique") return "md5(g::text)::uuid";
+      if (sp) return sp;
+      switch (c.data_type) {
+        case "uuid":
+          return "gen_random_uuid()";
+        case "text":
+        case "character varying":
+          return "'x' || g";
+        case "bigint":
+        case "integer":
+        case "smallint":
+        case "numeric":
+          return "g";
+        case "date":
+          return "current_date + (g % 3650)";
+        case "timestamp with time zone":
+          return "now()";
+        case "boolean":
+          return "false";
+        case "jsonb":
+          return "'{}'::jsonb";
+        default:
+          throw new Error(`bảng bóng ${table}: chưa hỗ trợ kiểu ${c.data_type} của cột ${c.column_name}`);
+      }
+    };
+    const names = cols.rows.map((c) => c.column_name);
+    for (const k of Object.keys(special))
+      if (!names.includes(k)) {
+        names.push(k);
+        cols.rows.push({ column_name: k, data_type: "uuid" });
+      }
+    await sql
+      .raw(
+        `insert into perf.${table} (${names.map((n) => `"${n}"`).join(", ")})
+         select ${cols.rows.map(value).join(", ")} from generate_series(1, 60000) g`,
+      )
+      .execute(t.admin);
+    await sql.raw(`analyze perf.${table}`).execute(t.admin);
+  }
 }
 
 beforeAll(async () => {
@@ -120,9 +268,12 @@ beforeAll(async () => {
   await activateLease(t.admin, { org: A, leaseId, effectiveFrom: "2026-11-01" });
 
   // Dữ liệu lớn hơn cho kiểm chứng tự nhiên: 30.000 audit + 30.000 outbox (10% chưa phát) + 3 tổ chức nền.
+  // 1% sự kiện thuộc cơ sở A và do người dùng (chủ) thao tác — còn lại là sự kiện cấp tổ chức của worker — để lọc theo cơ sở/người
+  // thật sự chọn lọc (planner mới có lý do dùng index thay vì quét theo thời gian rồi lọc).
   await sql`
-    insert into audit_events (id, organization_id, property_id, occurred_at, actor_type, action, entity_type, entity_id, correlation_id)
-    select gen_random_uuid(), ${A.orgId}, ${A.propertyId}, now() - (g || ' seconds')::interval, 'worker',
+    insert into audit_events (id, organization_id, property_id, occurred_at, actor_type, actor_person_id, action, entity_type, entity_id, correlation_id)
+    select gen_random_uuid(), ${A.orgId}, case when g % 100 = 0 then ${A.propertyId}::uuid end, now() - (g || ' seconds')::interval,
+           case when g % 100 = 0 then 'user' else 'worker' end, case when g % 100 = 0 then ${A.ownerPersonId}::uuid end,
            'perf.event_' || chr(97 + g % 7), 'perf', gen_random_uuid(), 'perf-' || (g % 500)
     from generate_series(1, 30000) g`.execute(t.admin);
   await sql`
@@ -131,6 +282,7 @@ beforeAll(async () => {
            case when g % 10 = 0 then null else now() end
     from generate_series(1, 30000) g`.execute(t.admin);
   await sql`analyze`.execute(t.admin);
+  await buildShadowTables();
 });
 
 afterAll(async () => {
@@ -138,17 +290,21 @@ afterAll(async () => {
   await t?.drop();
 });
 
-/** Kiểm các truy vấn đã bắt: không Seq Scan trên bảng lớn (seqscan tắt ⇒ phải có index dùng được). */
+/** Kiểm các truy vấn: không Seq Scan trên bảng lớn (seqscan tắt ⇒ phải có index dùng được) và, nếu khai `expect`, đúng cột chọn lọc. */
 async function expectIndexed(
   queries: { sql: string; params: unknown[] }[],
   role: "runtime" | "admin" = "runtime",
+  opts: { expect?: Expect; searchPath?: string } = {},
 ) {
   expect(queries.length).toBeGreaterThan(0);
+  const keys = opts.expect ? await indexKeys() : new Map<string, string[]>();
   const bad: string[] = [];
   for (const q of queries) {
-    const plan = await explainAs(role, q, false);
+    const plan = await explainAs(role, q, false, opts.searchPath);
     const hit = seqScans(plan).filter((r) => BIG_TABLES.has(r));
-    if (hit.length > 0) bad.push(`${hit.join(",")} ← ${q.sql.replace(/\s+/g, " ").slice(0, 160)}`);
+    const head = q.sql.replace(/\s+/g, " ").slice(0, 160);
+    if (hit.length > 0) bad.push(`${hit.join(",")} ← ${head}`);
+    if (opts.expect) for (const p of selectiveProblems(plan, opts.expect, keys)) bad.push(`${p} ← ${head}`);
   }
   expect(bad).toEqual([]);
 }
@@ -176,6 +332,54 @@ describe("db-perf — bộ đánh giá", () => {
   });
 });
 
+describe("db-perf — bộ đánh giá cột chọn lọc (ca âm)", () => {
+  const Q = { sql: "select * from perf_probe2 where organization_id = $1 and b = $2", params: [U, 1] };
+  const problems = async (expect: Expect) =>
+    selectiveProblems(await explainAs("admin", Q, false), expect, await indexKeys());
+
+  it("index chỉ theo organization_id: KHÔNG Seq Scan nhưng cột lọc không có trong Index Cond ⇒ đỏ", async () => {
+    await sql`create table perf_probe2 (organization_id uuid, a int, b int)`.execute(t.admin);
+    try {
+      await sql`create index perf_probe2_org on perf_probe2 (organization_id)`.execute(t.admin);
+      const plan = await explainAs("admin", Q, false);
+      expect(seqScans(plan)).toEqual([]); // rào cũ chấp nhận kế hoạch này
+      expect(await problems({ perf_probe2: { cols: ["organization_id"] } })).toEqual([]);
+      expect(await problems({ perf_probe2: { cols: ["b"] } })).toEqual([
+        expect.stringContaining("perf_probe2.b: không nằm trong tiền tố Index Cond"),
+      ]);
+      await sql`drop index perf_probe2_org`.execute(t.admin);
+      await sql`create index perf_probe2_org_b on perf_probe2 (organization_id, b)`.execute(t.admin);
+      expect(
+        await problems({ perf_probe2: { cols: ["organization_id", "b"], index: "perf_probe2_org_b" } }),
+      ).toEqual([]);
+      expect(await problems({ perf_probe2: { index: "perf_probe2_org" } })).toEqual([
+        expect.stringContaining("cần perf_probe2_org"),
+      ]);
+      // Cột chọn lọc đứng sau một cột chưa bị ràng buộc: Index Cond có mặt nhưng phải quét cả dải (không skip scan) ⇒ đỏ.
+      await sql`drop index perf_probe2_org_b`.execute(t.admin);
+      await sql`create index perf_probe2_org_a_b on perf_probe2 (organization_id, a, b)`.execute(t.admin);
+      expect(await problems({ perf_probe2: { cols: ["b"] } })).toEqual([
+        expect.stringContaining("perf_probe2.b: không nằm trong tiền tố Index Cond"),
+      ]);
+    } finally {
+      await sql`drop table perf_probe2`.execute(t.admin);
+    }
+  });
+
+  it("bảng không được quét bằng index nào (khai nhầm bảng) ⇒ đỏ; cột chặn khoảng: dừng tiền tố sau nó", async () => {
+    expect(
+      selectiveProblems({ "Node Type": "Seq Scan", "Relation Name": "x" }, { x: { cols: ["a"] } }, new Map()),
+    ).toEqual(["x: không quét bằng index nào"]);
+    expect(
+      boundPrefix(
+        ["organization_id", "occurred_at", "id"],
+        "((organization_id = 'x') AND (occurred_at >= 'y') AND (id = 'z'))",
+      ),
+    ).toEqual(["organization_id", "occurred_at"]);
+    expect(boundPrefix(["organization_id", "id"], "(id = 'z')")).toEqual([]);
+  });
+});
+
 describe("db-perf — today (S-006…S-008)", () => {
   it("getSummary + listItems cho mọi thẻ: truy vấn thật không Seq Scan trên bảng lớn", async () => {
     captured.length = 0;
@@ -188,22 +392,62 @@ describe("db-perf — today (S-006…S-008)", () => {
 });
 
 describe("db-perf — danh sách audit (S-004, S-005)", () => {
-  it("các bộ lọc thường dùng (mặc định, cơ sở, đối tượng, hành động, người, correlation, khoảng thời gian): có index", async () => {
+  /** Truy vấn danh sách của một lần gọi `listEvents` (select đọc `audit_events`). */
+  async function auditQuery(filter: Parameters<typeof listEvents>[2]) {
     captured.length = 0;
-    const entityId = randomUUID();
-    const base = { limit: 50 };
-    await listEvents(capturing, owner, base);
-    await listEvents(capturing, owner, { ...base, propertyId: A.propertyId });
-    await listEvents(capturing, owner, { ...base, entityType: "perf", entityId });
-    await listEvents(capturing, owner, { ...base, action: "perf.event_b" });
-    await listEvents(capturing, owner, { ...base, actorPersonId: A.ownerPersonId });
-    await listEvents(capturing, owner, { ...base, correlationId: "perf-1" });
-    await listEvents(capturing, owner, {
-      ...base,
-      from: new Date(Date.now() - 3_600_000),
-      to: new Date(),
+    await listEvents(capturing, owner, filter);
+    const q = selects().find((x) => x.sql.includes("from audit_events"));
+    if (!q) throw new Error("không bắt được truy vấn audit_events");
+    return q;
+  }
+  const base = { limit: 50 };
+  const entityId = randomUUID();
+  // Mỗi bộ lọc khai cột chọn lọc phải nằm trong Index Cond. Mặc định (không lọc): quét có thứ tự theo (organization_id, occurred_at DESC) + LIMIT.
+  const AUDIT_CASES: {
+    name: string;
+    filter: Parameters<typeof listEvents>[2] | (() => Parameters<typeof listEvents>[2]);
+    expect: Expect;
+  }[] = [
+    { name: "mặc định", filter: base, expect: { audit_events: { index: "ix_audit_org_time" } } },
+    {
+      name: "cơ sở",
+      filter: () => ({ ...base, propertyId: A.propertyId }),
+      expect: { audit_events: { cols: ["property_id"], index: "ix_audit_property_time" } },
+    },
+    {
+      name: "đối tượng",
+      filter: { ...base, entityType: "perf", entityId },
+      expect: { audit_events: { cols: ["entity_type", "entity_id"] } },
+    },
+    {
+      name: "hành động",
+      filter: { ...base, action: "perf.event_b" },
+      expect: { audit_events: { cols: ["action"] } },
+    },
+    {
+      name: "correlation",
+      filter: { ...base, correlationId: "perf-1" },
+      expect: { audit_events: { cols: ["correlation_id"] } },
+    },
+    {
+      name: "khoảng thời gian",
+      filter: { ...base, from: new Date(Date.now() - 3_600_000), to: new Date() },
+      expect: { audit_events: { cols: ["occurred_at"] } },
+    },
+  ];
+  for (const c of AUDIT_CASES)
+    it(`bộ lọc ${c.name}: không Seq Scan và dùng index theo cột chọn lọc`, async () => {
+      const q = await auditQuery(typeof c.filter === "function" ? c.filter() : c.filter);
+      await expectIndexed([q], "runtime", { expect: c.expect });
     });
-    await expectIndexed(selects());
+
+  it("bộ lọc người thao tác: CHƯA có index (ghi nhận) — chỉ không Seq Scan; có index thì đỏ để chuyển sang AUDIT_CASES", async () => {
+    // Quyết định mở (xem báo cáo): thêm `ix_audit_actor_time (organization_id, actor_person_id, occurred_at DESC)` hay chấp nhận quét theo thời gian + Filter.
+    const q = await auditQuery({ ...base, actorPersonId: A.ownerPersonId });
+    await expectIndexed([q]);
+    const plan = await explainAs("runtime", q, false);
+    const keys = await indexKeys();
+    expect(selectiveProblems(plan, { audit_events: { cols: ["actor_person_id"] } }, keys)).not.toEqual([]);
   });
 
   it("tự nhiên (seqscan bật, 30.000 dòng): danh sách mặc định và theo hành động dùng index, không Seq Scan audit_events", async () => {
@@ -231,29 +475,35 @@ describe("db-perf — billing (S-001, kỳ thu)", () => {
 });
 
 // Truy vấn nằm trong hàm SQL/mã khó gọi riêng: viết tay, kèm dấu vân tay phải còn trong nguồn.
-const MIGRATIONS = new URL("../../db/src/migrations/", import.meta.url);
 const read = (rel: string) => readFileSync(new URL(rel, import.meta.url), "utf8");
-const U = "00000000-0000-4000-8000-000000000001";
 
 describe("db-perf — folio (S-017)", () => {
   const FOLIO = [
     {
       name: "khoản phí theo lượt ở",
+      table: "charges",
+      col: "stay_id",
       sql: "select id from charges where organization_id = $1 and stay_id = $2 order by business_date, created_at",
       print: ["from charges where organization_id =", "and stay_id ="],
     },
     {
       name: "thanh toán theo đặt phòng",
+      table: "payments",
+      col: "reservation_id",
       sql: "select id from payments where organization_id = $1 and reservation_id = $2 and purpose = 'receivable' order by created_at",
       print: ["where organization_id =", "and reservation_id =", "and purpose = 'receivable'"],
     },
     {
       name: "phiếu folio của lượt ở",
+      table: "invoices",
+      col: "stay_id",
       sql: "select id from invoices where organization_id = $1 and stay_id = $2 and kind = 'folio'",
       print: ["where organization_id =", "and stay_id =", "and kind = 'folio'"],
     },
     {
       name: "cọc theo đặt phòng",
+      table: "deposits",
+      col: "reservation_id",
       sql: "select id from deposits where organization_id = $1 and reservation_id = $2",
       print: ["from deposits where organization_id =", "and reservation_id ="],
     },
@@ -261,50 +511,81 @@ describe("db-perf — folio (S-017)", () => {
   it("dấu vân tay còn trong stay/folio.ts và mỗi truy vấn có index", async () => {
     const src = read("./stay/folio.ts");
     for (const f of FOLIO) for (const part of f.print) expect(src, f.name).toContain(part);
-    await expectIndexed(FOLIO.map((f) => ({ sql: f.sql, params: [A.orgId, U] })));
+    // Bảng bóng (perf) + cột chọn lọc: org-only Index Scan + Filter không còn qua được.
+    for (const f of FOLIO)
+      await expectIndexed([{ sql: f.sql, params: [A.orgId, U] }], "admin", {
+        expect: { [f.table]: { cols: [f.col] } },
+        searchPath: "perf, public",
+      });
   });
 });
 
 describe("db-perf — claim outbox và thông báo (worker)", () => {
-  it("app.outbox_claim: dấu vân tay trong migration 0003 và truy vấn dùng index (không Seq Scan outbox)", async () => {
-    const mig = readFileSync(new URL("0003_command_pipeline.ts", MIGRATIONS), "utf8");
-    expect(mig).toContain("FROM outbox o WHERE o.published_at IS NULL\n    ORDER BY o.created_at, o.id");
+  it("app.outbox_claim: dấu vân tay khớp định nghĩa ĐANG DÙNG (0047: available_at + lease) và truy vấn dùng index một phần", async () => {
+    const def = (
+      await sql<{
+        d: string;
+      }>`select pg_get_functiondef('app.outbox_claim(integer)'::regprocedure) as d`.execute(t.admin)
+    ).rows[0]?.d as string;
+    for (const part of [
+      "WHERE o.published_at IS NULL AND o.available_at <= now()",
+      "ORDER BY o.created_at, o.id",
+      "FOR UPDATE SKIP LOCKED",
+      "SET available_at = now() + interval '60 seconds'",
+    ])
+      expect(def, part).toContain(part);
     await expectIndexed(
       [
         {
-          sql: "select o.id from outbox o where o.published_at is null order by o.created_at, o.id limit 100",
+          sql: "select o.id from outbox o where o.published_at is null and o.available_at <= now() order by o.created_at, o.id limit 100 for update skip locked",
           params: [],
         },
       ],
       "admin",
+      { expect: { outbox: { index: "ix_outbox_unpublished" } } },
     );
   });
 
-  it("app.claim_due_deliveries: dấu vân tay trong migration 0037 và hai truy vấn bên trong dùng index", async () => {
-    const mig = readFileSync(new URL("0037_notification_claim_fixes.ts", MIGRATIONS), "utf8");
-    expect(mig).toContain("WHERE d.status IN ('queued','retrying') AND d.next_attempt_at <= p_now");
-    expect(mig).toContain(
+  it("app.claim_due_deliveries: dấu vân tay trong định nghĩa đang dùng và hai truy vấn bên trong dùng index", async () => {
+    const def = (
+      await sql<{
+        d: string;
+      }>`select pg_get_functiondef('app.claim_due_deliveries(timestamptz,integer,integer,integer,integer)'::regprocedure) as d`.execute(
+        t.admin,
+      )
+    ).rows[0]?.d as string;
+    expect(def).toContain("WHERE d.status IN ('queued','retrying') AND d.next_attempt_at <= p_now");
+    expect(def).toContain(
       "WHERE d.organization_id = o.organization_id AND d.status IN ('queued','retrying')",
     );
-    await expectIndexed(
-      [
-        {
-          sql: "select distinct d.organization_id from notification_deliveries d where d.status in ('queued','retrying') and d.next_attempt_at <= $1::timestamptz",
-          params: [new Date()],
-        },
-        {
-          sql: `select d.id from notification_deliveries d
+    const now = new Date();
+    const DELIVERIES: { sql: string; params: unknown[]; cols: string[]; index: string }[] = [
+      {
+        // Quét mọi tổ chức bằng Index Only Scan toàn index (điều kiện thời gian không ở đầu khoá — chủ ý, worker liệt kê tổ chức có việc).
+        sql: "select distinct d.organization_id from notification_deliveries d where d.status in ('queued','retrying') and d.next_attempt_at <= $1::timestamptz",
+        params: [now],
+        cols: [],
+        index: "ix_notification_deliveries_org_due",
+      },
+      {
+        sql: `select d.id from notification_deliveries d
               where d.organization_id = $1 and d.status in ('queued','retrying') and d.next_attempt_at <= $2::timestamptz
               order by d.next_attempt_at, d.id limit 50`,
-          params: [A.orgId, new Date()],
-        },
-        {
-          sql: "select d.id from notification_deliveries d where d.status = 'sending' and d.locked_until < $1::timestamptz",
-          params: [new Date()],
-        },
-      ],
-      "admin",
-    );
+        params: [A.orgId, now],
+        cols: ["organization_id", "next_attempt_at"],
+        index: "ix_notification_deliveries_org_due",
+      },
+      {
+        sql: "select d.id from notification_deliveries d where d.status = 'sending' and d.locked_until < $1::timestamptz",
+        params: [now],
+        cols: ["locked_until"],
+        index: "ix_notification_deliveries_sending",
+      },
+    ];
+    for (const d of DELIVERIES)
+      await expectIndexed([{ sql: d.sql, params: d.params }], "admin", {
+        expect: { notification_deliveries: { cols: d.cols, index: d.index } },
+      });
   });
 
   it("tự nhiên (seqscan bật, 30.000 dòng): claim outbox chỉ đọc hàng chưa phát bằng index, không Seq Scan outbox", async () => {
