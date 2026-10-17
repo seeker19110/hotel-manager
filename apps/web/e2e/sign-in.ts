@@ -12,11 +12,8 @@ export async function signInClick(page: Page, button?: Locator): Promise<void> {
     const res = page.waitForResponse((r) => r.url().includes("/api/auth/sign-in/"));
     await submit.click();
     if ((await res).status() !== 429 || attempt >= MAX_ATTEMPTS) return;
-    try {
-      test.info().setTimeout(test.info().timeout + WINDOW_WAIT_MS + 10_000);
-    } catch {
-      // ngoài test/hook (không có testInfo) — hạn do nơi gọi tự đặt
-    }
+    // Mọi nơi gọi đều trong test/hook (có testInfo): nới hạn đúng bằng thời gian chờ.
+    test.info().setTimeout(test.info().timeout + WINDOW_WAIT_MS + 10_000);
     await page.waitForTimeout(WINDOW_WAIT_MS);
   }
 }

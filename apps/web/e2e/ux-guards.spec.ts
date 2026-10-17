@@ -420,6 +420,33 @@ async function mockClaim(page: Page, delayMs = 0): Promise<string[]> {
   return keys;
 }
 
+test("hộp xác nhận: đóng rồi mở lại ngay (sự kiện close của lần đóng cũ đến muộn) → xác nhận vẫn gửi đúng 1 lần", async ({
+  page,
+  context,
+  browser,
+  baseURL,
+}) => {
+  await asSession("tenant", browser, baseURL as string, context);
+  const keys = await mockClaim(page);
+  await page.goto("/portal");
+  await page.getByTestId("invoice").getByRole("link").first().click();
+  await page.getByRole("link", { name: "Thanh toán" }).click();
+  await expect(page).toHaveURL(/\/portal\/thanh-toan\//);
+  await page.getByRole("button", { name: "Tôi đã chuyển" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  // Đóng và mở lại trong CÙNG một task: sự kiện `close` của lần đóng tới sau khi hộp đã mở lại.
+  await page.evaluate(() => {
+    document.querySelector<HTMLDialogElement>("dialog.confirm-dialog")?.close();
+    [...document.querySelectorAll("button")].find((b) => b.textContent?.trim() === "Tôi đã chuyển")?.click();
+  });
+  await expect(dialog).toBeVisible();
+  await page.waitForTimeout(100);
+  await dialog.getByRole("button", { name: CLAIM_LABEL }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Đã ghi nhận báo chuyển" })).toBeVisible();
+  expect(keys).toHaveLength(1);
+});
+
 test("bàn phím (portal + hộp xác nhận): danh sách phiếu → thanh toán → Enter mở hộp → Esc/Quay lại không gửi → Enter xác nhận gửi đúng 1", async ({
   page,
   context,
