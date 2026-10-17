@@ -10,6 +10,8 @@ import { ORG_RENTAL, RENTAL_OWNER, RENTAL_TENANT, RENTAL_UNIT } from "./fixtures
 import { totp, totpFile } from "./totp.ts";
 
 test.describe.configure({ mode: "serial" });
+// Spec dùng page.route: chặn service worker (SW của app có thể trả phản hồi trước khi route giả chặn được — tránh flaky).
+test.use({ serviceWorkers: "block" });
 
 const PORT = Number(process.env.E2E_PORT ?? 3100);
 
@@ -41,7 +43,9 @@ test.beforeEach(async ({ context }) => {
 
 const status = (page: Page) => page.getByRole("status").filter({ hasNotText: "Đang" });
 
-test("vòng tháng: ký → bàn giao → kỳ thu 3.580.000 đ → phát hành → thu tiền mặt → cọc", async ({ page }) => {
+test("@smoke vòng tháng: ký → bàn giao → kỳ thu 3.580.000 đ → phát hành → thu tiền mặt → cọc", async ({
+  page,
+}) => {
   // Hợp đồng
   await page.goto("/hop-dong");
   await expectAccessible(page);
