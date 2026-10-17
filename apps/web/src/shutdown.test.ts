@@ -1,4 +1,5 @@
 // T-402 — mức handler của dừng êm (lib/shutdown.ts) với `process` giả: cờ draining, bọc handler của Next, đổi mã 143 → 0, hạn chót.
+import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   DRAIN_NOTICE_MS,
@@ -7,6 +8,7 @@ import {
   type ProcessLike,
   resetShutdownForTest,
   SHUTDOWN_DEADLINE_MS,
+  STOP_GRACE_PERIOD_SECONDS,
 } from "../lib/shutdown.ts";
 
 type L = (s: NodeJS.Signals) => void;
@@ -44,9 +46,23 @@ const quiet = () => {};
 afterEach(() => resetShutdownForTest());
 
 describe("hằng số", () => {
-  it("thời gian báo + chờ nằm dưới stop_grace 30 s", () => {
+  it("thời gian báo + chờ nằm dưới stop_grace_period với biên ≥ 10 s", () => {
     expect(DRAIN_NOTICE_MS).toBeLessThan(SHUTDOWN_DEADLINE_MS);
-    expect(SHUTDOWN_DEADLINE_MS).toBeLessThan(30_000);
+    expect(SHUTDOWN_DEADLINE_MS + 10_000).toBeLessThanOrEqual(STOP_GRACE_PERIOD_SECONDS * 1000);
+  });
+
+  it("MỘT giá trị stop_grace_period: Dockerfile web + RUNBOOK + shutdown.ts khớp STOP_GRACE_PERIOD_SECONDS (review đợt 5, mục 3)", () => {
+    const read = (rel: string) => readFileSync(new URL(rel, import.meta.url), "utf8");
+    const grace = (text: string, anchor: RegExp) => {
+      const lines = text.split("\n").filter((l) => anchor.test(l));
+      return lines.flatMap((l) => [...l.matchAll(/≥\s*(\d+)\s*giây/g)].map((m) => Number(m[1])));
+    };
+    const docker = grace(read("../../../deploy/web.Dockerfile"), /stop_grace_period/);
+    const runbook = grace(read("../../../docs/RUNBOOK.md"), /Web dừng êm/);
+    const source = grace(read("../lib/shutdown.ts"), /stop_grace_period/);
+    expect(docker).toEqual([STOP_GRACE_PERIOD_SECONDS]);
+    expect(runbook).toEqual([STOP_GRACE_PERIOD_SECONDS]);
+    expect(source).toEqual([STOP_GRACE_PERIOD_SECONDS]);
   });
 });
 

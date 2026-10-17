@@ -19,7 +19,11 @@ export function safeUrl(input: unknown): string | null {
     if (raw.startsWith("//") || raw.startsWith("/\\")) return null;
     try {
       const u = new URL(raw, PROBE_ORIGIN);
-      return u.origin === PROBE_ORIGIN ? `${u.pathname}${u.search}${u.hash}` : null;
+      if (u.origin !== PROBE_ORIGIN) return null;
+      const out = `${u.pathname}${u.search}${u.hash}`;
+      // Chuẩn hoá có thể TẠO ra `//host` từ đường dẫn có vẻ lành (`/.//evil.com`, `/a/..//evil.com`, `/%2e//evil.com` →
+      // `//evil.com`): kiểm lại KẾT QUẢ, không chỉ đầu vào.
+      return out.startsWith("//") || out.startsWith("/\\") ? null : out;
     } catch {
       return null;
     }

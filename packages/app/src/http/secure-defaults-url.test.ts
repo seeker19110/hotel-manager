@@ -32,6 +32,12 @@ describe("safeUrl", () => {
     "ftp://example.test/x",
     "//evil.example/x",
     "/\\evil.example/x",
+    "/.//evil.com", // URL chuẩn hoá thành "//evil.com" (cùng-scheme tới máy khác)
+    "/..//evil.com",
+    "/a/..//evil.com",
+    "/./\\evil.com",
+    "/%2e//evil.com",
+    "/\t/evil.com",
     "\\\\evil.example\\x",
     "tel:0100000001",
     "phong/101",

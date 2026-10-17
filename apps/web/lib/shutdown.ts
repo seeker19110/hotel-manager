@@ -7,16 +7,19 @@
 //   2. hết thời gian báo ⇒ gọi handler gốc của Next: đóng cổng nghe, chờ request đang chạy;
 //   3. Next gọi `process.exit(143)` ⇒ đổi thành 0 (dừng có chủ đích là thành công);
 //   4. quá `SHUTDOWN_DEADLINE_MS` kể từ SIGTERM mà còn request chạy ⇒ log `web.shutdown_timeout` rồi thoát 0 (việc dở của
-//      request đó mất; không thể chờ vô hạn dưới `stop_grace_period`);
+//      request đó mất; không thể chờ vô hạn dưới `stop_grace_period` (xem `STOP_GRACE_PERIOD_SECONDS`));
 //   5. tín hiệu SIGTERM lần hai ⇒ thoát ngay mã 1.
 // Cờ nằm ở `globalThis` (Symbol.for) vì instrumentation và route handler có thể là hai bản module riêng trong bundle.
 
 /** Thời gian vẫn phục vụ bình thường (chỉ `/api/ready` trả 503) trước khi đóng cổng nghe. */
 export const DRAIN_NOTICE_MS = 5_000;
 /**
- * Hạn chót kể từ SIGTERM tới khi thoát. Đặt `stop_grace_period`/`terminationGracePeriodSeconds` của web ≥ 30 giây
- * (RUNBOOK §8); phải nhỏ hơn giá trị đó để tiến trình tự thoát trước SIGKILL.
+ * `stop_grace_period` (`terminationGracePeriodSeconds`) của web ≥ 40 giây — MỘT giá trị cho cả web và worker
+ * (deploy/web.Dockerfile, deploy/worker.Dockerfile, RUNBOOK §8): hạn chót + biên dự phòng để tiến trình tự thoát trước SIGKILL.
+ * Test `shutdown.test.ts` giữ các nơi này khớp nhau.
  */
+export const STOP_GRACE_PERIOD_SECONDS = 40;
+/** Hạn chót kể từ SIGTERM tới khi thoát (gồm `DRAIN_NOTICE_MS`); phải nhỏ hơn `STOP_GRACE_PERIOD_SECONDS` ít nhất 10 giây. */
 export const SHUTDOWN_DEADLINE_MS = 25_000;
 
 const DRAINING = Symbol.for("hm.web.draining");
