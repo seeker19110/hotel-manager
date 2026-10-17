@@ -663,7 +663,7 @@ async function recordExceptionOpened(
 
 /**
  * `inventory.setUnitAvailability` (SPEC-inventory S-013): bật/tắt phòng ngừng khai thác. Ngừng khai thác KHÔNG xoá hay huỷ
- * booking/hợp đồng: mỗi allocation `stay`/`lease` còn hiệu lực sau `now` (kể cả khoảng mở, kể cả lượt ở đang diễn ra) nhận một
+ * booking/hợp đồng: mỗi allocation `stay`/`lease` còn hiệu lực sau `now` (kể cả khoảng mở, kể cả lượt ở đang diễn ra và người ở quá hạn chưa trả) nhận một
  * ngoại lệ `RELOCATION_REQUIRED` (một cái đang mở cho mỗi allocation — gọi lại không nhân bản). Hold chưa xác nhận không tính
  * (tự hết hạn). Chỉ owner/manager (`unit.set_availability`); `out_of_service` bắt buộc có lý do.
  */
@@ -688,11 +688,22 @@ export async function setUnitAvailability(
     where organization_id = ${ctx.actor.orgId} and id = ${input.unitId}`.execute(ctx.trx);
   const exceptionIds: string[] = [];
   if (input.availability === "out_of_service") {
+    // Còn hiệu lực sau `now`, HOẶC người ở thực tế còn đó dù allocation đã hết giờ: hợp đồng có ngoại lệ quá hạn đang mở, lượt ở
+    // `in_house` chưa trả phòng (kể cả chưa tới ngưỡng job `detectOverdue`) — chỉ allocation CUỐI của lượt ở (đoạn cũ sau khi chuyển
+    // phòng không còn người).
     const affected = await sql<{ id: string }>`
-      select id from allocations
-      where organization_id = ${ctx.actor.orgId} and unit_id = ${input.unitId} and active and kind in ('stay', 'lease')
-        and (upper_inf(during) or upper(during) > ${now})
-      order by lower(during), id`.execute(ctx.trx);
+      select a.id from allocations a
+      where a.organization_id = ${ctx.actor.orgId} and a.unit_id = ${input.unitId} and a.active and a.kind in ('stay', 'lease')
+        and (upper_inf(a.during) or upper(a.during) > ${now}
+             or exists (select 1 from exceptions e where e.organization_id = a.organization_id and e.allocation_id = a.id
+                          and e.status = 'open' and e.type in ('STAY_OVERSTAY', 'LEASE_OVERSTAY'))
+             or (a.source_type = 'stay' and a.kind = 'stay'
+                 and exists (select 1 from stays st where st.organization_id = a.organization_id and st.id = a.source_id
+                               and st.status = 'in_house')
+                 and not exists (select 1 from allocations l where l.organization_id = a.organization_id
+                                   and l.source_type = 'stay' and l.source_id = a.source_id and l.active and l.kind = 'stay'
+                                   and l.id <> a.id and lower(l.during) >= upper(a.during))))
+      order by lower(a.during), a.id`.execute(ctx.trx);
     for (const al of affected.rows) {
       const e = await openException(ctx.trx, {
         orgId: ctx.actor.orgId,

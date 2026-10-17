@@ -476,6 +476,62 @@ describe("SPEC-inventory S-013 sự cố bất ngờ trên phòng có khách s�
     ).toBe(0);
   });
 
+  it("S-013 ca biên: khách đang ở QUÁ HẠN (allocation đã hết giờ nhưng chưa check-out, kể cả chưa tới ngưỡng job) và hợp đồng LEASE_OVERSTAY mở vẫn nhận RELOCATION_REQUIRED; đoạn cũ sau khi chuyển phòng và lượt ở đã trả phòng thì không", async () => {
+    const out = (unitId: string, now: Date) =>
+      okAs(h.t, h.manager, (ctx) =>
+        setUnitAvailability(ctx, { unitId, availability: "out_of_service", reason: "Hỏng", now }),
+      );
+    // (a) lượt ở in_house quá giờ trả 30 phút (trong ngưỡng 60 phút nên job chưa mở STAY_OVERSTAY).
+    const unitA = await freshUnit();
+    const sA = await booking(unitA, "2027-08-01", "2027-08-03", { checkedInAt: loc("2027-08-01T15:00") });
+    const rA = await out(unitA, loc("2027-08-03T12:30"));
+    expect(rA.exceptionIds).toHaveLength(1);
+    expect((await exceptionsOf(sA.allocationId)).map((e) => [e.type, e.status])).toEqual([
+      ["RELOCATION_REQUIRED", "open"],
+    ]);
+
+    // (b) hợp đồng hết hạn chưa bàn giao: LEASE_OVERSTAY đang mở.
+    const unitB = await freshUnit();
+    const lease = randomUUID();
+    await sql`insert into allocations (id, organization_id, property_id, unit_id, kind, source_type, source_id, during)
+              values (${lease}, ${h.org.orgId}, ${h.org.propertyId}, ${unitB}, 'lease', 'lease', ${randomUUID()},
+                      '[2027-01-01T00:00:00+07,2027-08-01T00:00:00+07)'::tstzrange)`.execute(h.t.admin);
+    await sql`insert into exceptions (id, organization_id, property_id, type, allocation_id)
+              values (${randomUUID()}, ${h.org.orgId}, ${h.org.propertyId}, 'LEASE_OVERSTAY', ${lease})`.execute(
+      h.t.admin,
+    );
+    expect((await out(unitB, loc("2027-08-05T09:00"))).exceptionIds).toHaveLength(1);
+    expect((await exceptionsOf(lease)).map((e) => [e.type, e.status])).toEqual([
+      ["LEASE_OVERSTAY", "open"],
+      ["RELOCATION_REQUIRED", "open"],
+    ]);
+
+    // (c) đoạn cũ sau chuyển phòng (khách đã sang phòng khác) và lượt ở đã trả phòng không phải người còn ở.
+    const unitC = await freshUnit();
+    const unitC2 = await freshUnit();
+    const sC = await booking(unitC, "2027-08-10", "2027-08-12", { checkedInAt: loc("2027-08-10T15:00") });
+    await okAs(h.t, h.manager, (ctx) =>
+      moveAllocation(ctx, {
+        allocationId: sC.allocationId,
+        toUnitId: unitC2,
+        at: loc("2027-08-11T10:00"),
+        reason: "Đổi phòng",
+      }),
+    );
+    expect((await out(unitC, loc("2027-08-12T13:00"))).exceptionIds).toEqual([]);
+    expect(await exceptionsOf(sC.allocationId)).toEqual([]);
+    const unitD = await freshUnit();
+    const sD = await booking(unitD, "2027-08-10", "2027-08-12", { checkedInAt: loc("2027-08-10T15:00") });
+    await okAs(h.t, h.manager, (ctx) =>
+      checkOut(ctx, {
+        stayId: sD.stayId,
+        allowBalance: { debtorPersonId: sD.bookerPersonId, dueDate: "2027-08-30" },
+        now: loc("2027-08-12T11:00"),
+      }),
+    );
+    expect((await out(unitD, loc("2027-08-12T13:00"))).exceptionIds).toEqual([]);
+  });
+
   it("S-013 ca đua: confirmHold đồng thời với việc phòng ngừng khai thác (giữ khoá phòng) → confirmHold chờ khoá rồi thấy out_of_service → UNIT_OUT_OF_SERVICE, không thành lượt ở", async () => {
     const unit = await freshUnit();
     const hold = await okAs(h.t, h.frontDesk, (ctx) =>
