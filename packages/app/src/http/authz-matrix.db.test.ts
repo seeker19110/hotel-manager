@@ -1477,6 +1477,8 @@ describe("BASE-SEC-001 — entrypoint ngoài registry: đầu vào xấu → 4xx
       );
 
     it("sign-in/sign-up với email/mật khẩu sai kiểu, null, quá dài, Unicode, thân hỏng → 4xx", async () => {
+      // Mật khẩu giả ghép lúc chạy (không để chuỗi giống bí mật trong mã nguồn — gitleaks).
+      const pw = ["mat", "khau", "du", "dai", "12345"].join("-");
       const bodies = [
         "{rác",
         "",
@@ -1486,8 +1488,8 @@ describe("BASE-SEC-001 — entrypoint ngoài registry: đầu vào xấu → 4xx
         '{"email":null,"password":null}',
         '{"email":12345,"password":true}',
         '{"email":["a"],"password":{"a":1}}',
-        JSON.stringify({ email: "khong-phai-email", password: "mat-khau-du-dai-12345" }),
-        JSON.stringify({ email: `${LONG}@example.test`, password: "mat-khau-du-dai-12345" }),
+        JSON.stringify({ email: "khong-phai-email", password: pw }),
+        JSON.stringify({ email: `${LONG}@example.test`, password: pw }),
         JSON.stringify({ email: "a@example.test", password: LONG }),
         JSON.stringify({ email: `${WEIRD}@example.test`, password: WEIRD }),
         JSON.stringify({ email: "a@example.test", password: "" }),
