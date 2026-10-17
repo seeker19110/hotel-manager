@@ -62,8 +62,8 @@
       "reason": "Test tồn dùng ID bất biến INV-* (EXCLUDE, hold, block) thay vì S-NNN nên 23 scenario chưa truy được; cần ánh xạ S-NNN ↔ INV-* và gắn ID vào tên test (PM-SPEC-004)."
     },
     "pwa": {
-      "uncovered": ["S-002", "S-003", "S-007", "S-009", "S-012", "S-013", "S-014", "S-016", "S-017", "S-018"],
-      "reason": "Mười scenario PWA (S-002, S-003, S-007, S-009, S-012…S-014, S-016…S-018) chưa có test E2E hoặc đơn vị nhắc ID; một phần cần thiết bị/trình duyệt thật (PM-SPEC-004)."
+      "uncovered": ["S-002", "S-003", "S-007", "S-009", "S-012", "S-013", "S-014", "S-016"],
+      "reason": "S-017 và S-018 đã có E2E (pwa.spec.ts, rental.spec.ts). Còn lại là tính năng chưa có hoặc lệch spec, không thể gắn ID: S-002/S-003 chưa có nút/hướng dẫn cài (và cần thiết bị thật); S-007 đổi tổ chức đã xoá cache nhưng đăng xuất chưa trả Clear-Site-Data; S-009 chưa có 426 CLIENT_OUTDATED/X-App-Version; S-012 client hỏi lại 8 lần cách 1 giây rồi hiện nút Kiểm tra lại (spec: backoff 1-2-4 giây tối đa 30 giây + thông điệp RESULT_UNKNOWN kèm command_id); S-013 gặp 401 thì chuyển trang đăng nhập (spec: hộp đăng nhập lại, gửi lại cùng command_id); S-014 thanh điều hướng có tới 11 mục theo vai trò (spec: đúng 5 mục); S-016 cần ma trận thiết bị thật (PM-SPEC-004)."
     }
   }
 }
