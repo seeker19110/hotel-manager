@@ -105,3 +105,12 @@ Kiểm phụ thuộc có lỗ hổng: `pnpm audit --prod`.
 Một thay đổi nhỏ một commit (Conventional Commits, tiếng Việt), qua cổng ở trên; mẫu PR ở
 [`.github/pull_request_template.md`](.github/pull_request_template.md). Không dùng dữ liệu thật ở dev/test.
 Giấy phép mã nguồn và kênh báo lỗ hổng: chưa có (chờ chủ dự án quyết — `PROJECT.md` §10).
+
+## Phát hành
+
+Số phiên bản (SemVer) do [release-please](release-please-config.json) sinh từ Conventional Commits trên `main`: workflow
+[`release.yml`](.github/workflows/release.yml) mở/cập nhật một "Release PR" (đổi `version` + manifest). **Không sửa tay số phiên bản**
+trong PR tính năng. Người merge Release PR → Release nháp → job `assets` đợi check `quality` của commit phát hành xanh, đính tarball
+mã nguồn + `SHA256SUMS`, rồi công khai và tạo tag `vX.Y.Z`. Tag `v*` bất biến nhờ ruleset [`tags.json`](.github/rulesets/tags.json)
+(chủ dự án import một lần ở Settings → Rules → Rulesets, cùng `main.json`). Ghi chú phát hành nằm ở nội dung Release; `CHANGELOG.md`
+vẫn do người viết.
