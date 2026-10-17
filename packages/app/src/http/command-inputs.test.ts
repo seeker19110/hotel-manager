@@ -69,6 +69,15 @@ describe("registry dùng đúng schema dùng chung", () => {
 });
 
 describe("checkCommandInput", () => {
+  it("NFC trước khi kiểm (cùng thứ tự với server): lý do 1000 ký tự gõ kiểu tổ hợp (NFD) không bị chặn sai; 1001 vẫn bị chặn", () => {
+    const nfd = (n: number) => "ệ".repeat(n).normalize("NFD"); // mỗi "ệ" thành 3 điểm mã
+    expect(nfd(1000).length).toBeGreaterThan(1000);
+    expect(checkCommandInput("reservation/cancel", { reservation_id: UUID, reason: nfd(1000) })).toEqual([]);
+    expect(
+      fields(checkCommandInput("reservation/cancel", { reservation_id: UUID, reason: nfd(1001) })),
+    ).toEqual(["reason"]);
+  });
+
   it("thân hợp lệ → mảng rỗng; lệnh lạ / tên kế thừa của Object → null (không kiểm được)", () => {
     expect(checkCommandInput("reservation/hold", { reservation_id: UUID })).toEqual([]);
     expect(checkCommandInput("nope/nothing", {})).toBeNull();

@@ -4,7 +4,7 @@
 // `./form-rules.ts` (thuần) — không import mã server (CSDL, S3, xác thực) nên vào bundle trình duyệt được; có test chặn
 // import lạ (`command-inputs.test.ts`) và quét bundle `.next/static`. Phía client chỉ để báo lỗi sớm, không phải ranh giới tin cậy.
 import { z } from "zod";
-import { MONEY_MAX } from "./form-rules.ts";
+import { MONEY_MAX, nfcDeep } from "./form-rules.ts";
 
 export const uuid = z.uuid();
 export const money = z.number().int().nonnegative().max(MONEY_MAX);
@@ -306,7 +306,8 @@ export function checkCommandInput(path: string, body: unknown): FieldIssue[] | n
   if (!Object.hasOwn(COMMAND_INPUTS, name)) return null;
   const schema = (COMMAND_INPUTS as Record<string, z.ZodType>)[name];
   if (!schema) return null;
-  const r = schema.safeParse(body);
+  // Cùng thứ tự với server (command-route): NFC rồi mới kiểm, để chuỗi gõ kiểu tổ hợp không bị chặn sai độ dài.
+  const r = schema.safeParse(nfcDeep(body));
   if (r.success) return [];
   // Mỗi trường một thông báo (lỗi đầu tiên) — người dùng sửa từng ô một, không cần chồng nhiều câu.
   const out = new Map<string, FieldIssue>();
