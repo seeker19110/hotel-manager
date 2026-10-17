@@ -1129,7 +1129,11 @@ describe("BASE-SEC-001 — entrypoint ngoài registry: đầu vào xấu → 4xx
   });
 
   it("files/upload: owner_type/property_id sai (kiểu, Unicode, quá dài, thiếu), Idempotency-Key sai, thân quá lớn, file rác → 4xx", async () => {
-    const call = (qs: Record<string, string>, headers: Record<string, string>, body: BodyInit = "x") =>
+    const call = (
+      qs: Record<string, string>,
+      headers: Record<string, string>,
+      body: string | Uint8Array | FormData = "x",
+    ) =>
       handleFileUpload(
         new Request(`http://local.test/api/v1/files/upload?${new URLSearchParams(qs)}`, {
           method: "POST",
@@ -1158,7 +1162,7 @@ describe("BASE-SEC-001 — entrypoint ngoài registry: đầu vào xấu → 4xx
   });
 
   it("import/upload: không phải multipart, multipart hỏng, thiếu file, property_id/kind/cutoff_on sai → 4xx", async () => {
-    const call = (init: { headers?: Record<string, string>; body: BodyInit }) =>
+    const call = (init: { headers?: Record<string, string>; body: string | Uint8Array | FormData }) =>
       handleImportUpload(
         new Request("http://local.test/api/v1/import/upload", {
           method: "POST",
