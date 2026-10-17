@@ -18,6 +18,7 @@ import { type Problem, toProblem } from "../pipeline/problem.ts";
 import { settle, unwrap } from "../pipeline/settled.ts";
 import type { AppServices } from "../server/services.ts";
 import { nfcDeep } from "./normalize.ts";
+import { retryAfterSeconds } from "./retry-after.ts";
 
 export interface HttpSession {
   user: { id: string; twoFactorEnabled?: boolean | null | undefined };
@@ -32,6 +33,8 @@ export interface HttpDeps {
   secureCookies: boolean;
   services: AppServices;
   onUnexpectedError?(err: unknown, correlationId: string): void;
+  /** Hạn mức lệnh mới/phút/tổ chức (T-401); bỏ trống = `COMMAND_QUOTA_PER_MINUTE`. Chỉ test đặt khác. */
+  commandQuotaPerMinute?: number;
 }
 
 export interface CommandDef<I, O, P = undefined> {
@@ -79,6 +82,12 @@ export function json(body: unknown, status: number, correlationId: string, probl
       "content-type": problem ? "application/problem+json; charset=utf-8" : "application/json; charset=utf-8",
       "x-correlation-id": correlationId,
       ...NO_STORE,
+      // Mọi 429 đều có Retry-After (BE-REL-006): lấy từ `retry_after` của problem, thiếu ⇒ mặc định 60 giây.
+      ...(status === 429
+        ? {
+            "retry-after": String(retryAfterSeconds((body as { retry_after?: unknown } | null)?.retry_after)),
+          }
+        : {}),
     },
   });
 }
@@ -253,6 +262,7 @@ export async function handleCommand<I, O, P = undefined>(
         payload: body,
         correlationId,
         client: requestClient(req.headers),
+        ...(deps.commandQuotaPerMinute ? { quotaPerMinute: deps.commandQuotaPerMinute } : {}),
       },
       (ctx) => def.run(ctx, input, deps.services, (prep ? unwrap(prep) : undefined) as P),
     );

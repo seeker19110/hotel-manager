@@ -9,7 +9,13 @@ import { APIError, createAuthMiddleware } from "better-auth/api";
 import { emailOTP, twoFactor } from "better-auth/plugins";
 import { createPool } from "../db/pool.ts";
 import { appLogger } from "../logging/runtime.ts";
-import { clearFailures, DEFAULT_LOCKOUT, isLocked, type LockoutPolicy, recordFailure } from "./lockout.ts";
+import {
+  clearFailures,
+  DEFAULT_LOCKOUT,
+  type LockoutPolicy,
+  lockRemainingSeconds,
+  recordFailure,
+} from "./lockout.ts";
 import { hashPassword, needsRehash, verifyPassword } from "./password.ts";
 
 export const ENABLED_PLUGINS = ["two-factor", "email-otp"] as const;
@@ -160,11 +166,16 @@ export function createAuth(deps: AuthDeps) {
         }
         if (ctx.path !== "/sign-in/email") return;
         const email = String((ctx.body as { email?: unknown } | undefined)?.email ?? "");
-        if (email && (await isLocked(pool, email, now()))) {
-          throw new APIError("TOO_MANY_REQUESTS", {
-            code: "ACCOUNT_LOCKED",
-            message: "Tài khoản tạm khoá do đăng nhập sai nhiều lần. Thử lại sau.",
-          });
+        const wait = email ? await lockRemainingSeconds(pool, email, now()) : 0;
+        if (wait > 0) {
+          throw new APIError(
+            "TOO_MANY_REQUESTS",
+            {
+              code: "ACCOUNT_LOCKED",
+              message: "Tài khoản tạm khoá do đăng nhập sai nhiều lần. Thử lại sau.",
+            },
+            { "Retry-After": String(wait) },
+          );
         }
       }),
       after: createAuthMiddleware(async (ctx) => {

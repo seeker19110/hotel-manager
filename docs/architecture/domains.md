@@ -47,6 +47,7 @@ Miền theo ranh giới của ADR-0001 (kế hoạch §11); cột "Tầng" dùng
 | `exports` | Audit & Reporting | E | Xuất dữ liệu có xác thực lại và hạn link |
 | `today` | Audit & Reporting | C | Màn Hôm nay theo vai trò |
 | `observability` | Nền | A | Metric Prometheus, `/api/ready` |
+| `outbox` | Nền | A | Schema zod payload sự kiện outbox (worker validate, T-401) |
 | `logging` | Nền | A | Log JSON có cấu trúc, che bí mật/PII, sự kiện bảo mật |
 | `crypto` | Nền | A | Mã hoá PII, khoá xoay |
 | `config` | Nền | A | Schema biến môi trường, cấu hình worker |

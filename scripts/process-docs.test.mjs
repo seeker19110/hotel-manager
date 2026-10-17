@@ -1152,7 +1152,7 @@ describe("docs/architecture/resilience.md khớp hằng số mã nguồn (ARC-RE
   it("pg-boss và transaction lệnh", () => {
     const relay = read("apps/worker/src/relay.ts");
     const q =
-      /DEFAULT_QUEUE_POLICY: QueuePolicy = \{ retryLimit: (\d+), retryDelay: (\d+), retryBackoff: true \}/.exec(
+      /DEFAULT_QUEUE_POLICY: QueuePolicy = \{\s*retryLimit: (\d+),\s*retryDelay: (\d+),\s*retryBackoff: true\b/.exec(
         relay,
       );
     expect(q).toBeTruthy();

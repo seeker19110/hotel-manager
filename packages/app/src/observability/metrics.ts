@@ -27,6 +27,10 @@ const HELP: Readonly<Record<string, [type: "gauge" | "counter", help: string]>> 
   hm_holds_expired_total: ["counter", "Giữ chỗ đã hết hạn tự nhả."],
   hm_holds_active: ["gauge", "Giữ chỗ đang hiệu lực."],
   hm_jobs_failed: ["gauge", "Job pg-boss ở trạng thái failed."],
+  hm_dead_letter_jobs: [
+    "gauge",
+    "Job còn nằm trong queue outbox.dead_letter (hết lượt thử hoặc lỗi vĩnh viễn, chưa redrive).",
+  ],
   hm_worker_heartbeat_age_seconds: ["gauge", "Tuổi (giây) nhịp gần nhất của từng worker."],
 };
 
@@ -84,13 +88,18 @@ export function metricsAuthorized(header: string | null, secret: string): boolea
 export async function collectMetrics(db: Kysely<unknown>, now: Date = new Date()): Promise<Sample[]> {
   const r = await sql<{ name: string; labels: Record<string, string>; value: number }>`
     select name, labels, value from app.metrics_snapshot(${now})`.execute(db);
+  // Hàm riêng (0047): số job nằm trong dead letter — cảnh báo `HmDeadLetterJobs` (BE-JOB-004).
+  const dead = await sql<{ n: string }>`select app.dead_letter_jobs()::text as n`.execute(db);
   return [
     { name: "hm_up", value: 1 },
     ...r.rows.map((x) => ({ name: x.name, labels: x.labels ?? {}, value: Number(x.value) })),
+    { name: "hm_dead_letter_jobs", value: Number(dead.rows[0]?.n ?? 0) },
   ];
 }
 
 export interface ReadyDeps {
+  /** Tiến trình đang dừng êm (SIGTERM): trả 503 NGAY, không chạy các kiểm tra — để bộ cân bằng tải rút instance (T-402). */
+  draining?: () => boolean;
   db: Kysely<unknown>;
   storage: { ping(): Promise<void> };
   scanner: { scan(bytes: Uint8Array): Promise<unknown> };
@@ -149,6 +158,7 @@ export async function handleMetrics(
 
 /** GET /api/ready: 200 khi đủ, 503 khi thiếu — cho load balancer/orchestrator. */
 export async function handleReady(deps: ReadyDeps): Promise<Response> {
+  if (deps.draining?.()) return Response.json({ status: "draining" }, { status: 503, headers: noStore });
   const r = await readiness(deps);
   return Response.json(
     { status: r.ready ? "ready" : "not_ready", checks: r.checks },

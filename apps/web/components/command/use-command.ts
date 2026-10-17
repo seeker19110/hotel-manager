@@ -6,6 +6,7 @@
 // - S-011 server chưa nhận (404 COMMAND_NOT_FOUND) ⇒ bật "Gửi lại", gửi lại dùng CÙNG key.
 // Key giữ nguyên tới khi có kết quả chắc chắn; lỗi nghiệp vụ (4xx) ⇒ key mới cho lần sửa sau (tránh IDEMPOTENCY_CONFLICT).
 import { useCallback, useRef, useState } from "react";
+import { timedFetch } from "../../lib/fetch-timeout.ts";
 import { useOnline } from "../pwa/pwa-shell.tsx";
 import { CONTEXT_CHANGED_CODE, CONTEXT_CHANGED_TEXT, orgContextHeaders } from "./org-context.ts";
 
@@ -23,7 +24,6 @@ export interface ProblemLike {
 // lâu (S-012) ⇒ "Kiểm tra lại". Ở hai trạng thái này form bị khoá: không gửi payload khác dưới key cũ (review lát 4 🟠2).
 export type CommandPhase = "idle" | "sending" | "checking" | "unknown" | "processing" | "done" | "error";
 
-const TIMEOUT_MS = 15_000;
 const POLL_MS = 1_000;
 const POLL_TRIES = 8;
 
@@ -82,7 +82,7 @@ export function useCommand<T = unknown>(path: string) {
     let inProgress = false;
     for (let i = 0; i < POLL_TRIES; i++) {
       try {
-        const res = await fetch(`/api/v1/commands/${key.current}`, {
+        const res = await timedFetch(`/api/v1/commands/${key.current}`, {
           credentials: "same-origin",
           cache: "no-store",
           headers: orgContextHeaders(),
@@ -118,11 +118,9 @@ export function useCommand<T = unknown>(path: string) {
   const post = useCallback(async (): Promise<T | null> => {
     setPhase("sending");
     setProblem(null);
-    const ctl = new AbortController();
-    const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
     let res: Response;
     try {
-      res = await fetch(`/api/v1/${path}`, {
+      res = await timedFetch(`/api/v1/${path}`, {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -131,12 +129,10 @@ export function useCommand<T = unknown>(path: string) {
         },
         body: JSON.stringify(lastBody.current ?? {}),
         credentials: "same-origin",
-        signal: ctl.signal,
       });
     } catch {
+      // Hết hạn (TimeoutError của timedFetch) hay mất mạng: chưa rõ server đã ghi chưa ⇒ tra theo Idempotency-Key, không gửi lại mù.
       return check();
-    } finally {
-      clearTimeout(timer);
     }
     if (res.status === 401) {
       window.location.assign("/dang-nhap");

@@ -11,7 +11,15 @@
 //   giữ là số. Xuất toàn tổ chức (S-018): ZIP các CSV nghiệp vụ, không ảnh/file, không số giấy tờ, bỏ cột bí mật.
 import { randomUUID } from "node:crypto";
 import { withTenant } from "@hm/db";
-import { authorize, MS_PER_DAY, MS_PER_MINUTE, minutesToMs, msToSeconds, secondsToMs } from "@hm/domain";
+import {
+  authorize,
+  MS_PER_DAY,
+  MS_PER_MINUTE,
+  minutesToMs,
+  msToSeconds,
+  SECONDS_PER_HOUR,
+  secondsToMs,
+} from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
 import { AccessError, type Actor, resolveActor } from "../access/actor.ts";
 import { listEvents } from "../audit/events.ts";
@@ -20,7 +28,7 @@ import { MAX_SIGNED_URL_SECONDS, type ObjectStorage } from "../files/storage.ts"
 import { writeXlsx, zipStore } from "../import/xlsx.ts";
 import { createNotification } from "../notifications/dispatch.ts";
 import type { CommandContext } from "../pipeline/command.ts";
-import { CommandError } from "../pipeline/problem.ts";
+import { CommandError, rateLimited } from "../pipeline/problem.ts";
 import {
   collections,
   depositsHeld,
@@ -181,12 +189,18 @@ async function assertRate(ctx: CommandContext, now: Date): Promise<void> {
   await sql`select pg_advisory_xact_lock(hashtextextended(${`export-rate:${ctx.actor.orgId}:${ctx.actor.membershipId}`}, 0))`.execute(
     ctx.trx,
   );
-  const r = await sql<{ n: number }>`
-    select count(*)::int as n from export_jobs
+  const r = await sql<{ n: number; wait: number | null }>`
+    select count(*)::int as n,
+           ceil(extract(epoch from min(created_at) + interval '1 hour' - ${now}::timestamptz))::int as wait
+    from export_jobs
     where organization_id = ${ctx.actor.orgId} and requested_by = ${ctx.actor.membershipId}
       and created_at > ${now}::timestamptz - interval '1 hour'`.execute(ctx.trx);
+  // Yêu cầu cũ nhất rời cửa sổ 1 giờ ⇒ được yêu cầu tiếp: đó là số giây `Retry-After`.
   if ((r.rows[0]?.n ?? 0) >= EXPORT_RATE_PER_HOUR)
-    throw new CommandError("RATE_LIMITED", 429, "Bạn đã yêu cầu xuất quá nhiều lần. Vui lòng thử lại sau.");
+    throw rateLimited(
+      "Bạn đã yêu cầu xuất quá nhiều lần. Vui lòng thử lại sau.",
+      r.rows[0]?.wait ?? SECONDS_PER_HOUR,
+    );
 }
 
 async function createJob(

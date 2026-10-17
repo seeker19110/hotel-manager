@@ -4,13 +4,16 @@
 import { kibToBytes } from "@hm/domain";
 import type { Kysely } from "kysely";
 import { z } from "zod";
-import { ingestBankEvent, verifySimSignature } from "../ledger/bank-inbox.ts";
+import { ingestBankEvent, parseWebhookSecrets, verifySimSignature } from "../ledger/bank-inbox.ts";
 import { toProblem } from "../pipeline/problem.ts";
 import { correlationOf, json, problemResponse, simpleProblem, validationProblem } from "./command-route.ts";
 
 export interface WebhookDeps {
   db: Kysely<unknown>;
-  /** Bí mật HMAC của adapter `sim`; không đặt → adapter tắt (404). */
+  /**
+   * Khoá HMAC của adapter `sim`: một khoá hoặc danh sách phân tách dấu phẩy (xoay khoá không gián đoạn — thử từng khoá);
+   * không đặt/rỗng → adapter tắt (404).
+   */
   simSecret: string | undefined;
   /** Đếm/ghi cảnh báo chữ ký sai (S-017) — không kèm nội dung. */
   onRejected?(reason: "signature", correlationId: string): void;
@@ -57,6 +60,15 @@ export async function handleWebhook(
   if (provider !== "sim" || !deps.simSecret) {
     return simpleProblem("NOT_FOUND", 404, "Không có nhà cung cấp này", correlationId);
   }
+  // Danh sách khoá sai dạng (cấu hình đã bị schema chặn từ lúc khởi động) ⇒ đóng: coi như adapter tắt, không chấp nhận gì.
+  let secrets: string[];
+  try {
+    secrets = parseWebhookSecrets(deps.simSecret);
+  } catch {
+    secrets = [];
+  }
+  if (secrets.length === 0)
+    return simpleProblem("NOT_FOUND", 404, "Không có nhà cung cấp này", correlationId);
   try {
     const declared = Number(req.headers.get("content-length") ?? "0");
     if (declared > WEBHOOK_MAX_BYTES)
@@ -65,7 +77,7 @@ export async function handleWebhook(
     if (body === null) return simpleProblem("VALIDATION_FAILED", 422, "Payload quá lớn", correlationId);
     try {
       verifySimSignature({
-        secret: deps.simSecret,
+        secret: secrets,
         account,
         body,
         timestamp: req.headers.get("x-hm-timestamp") ?? "",

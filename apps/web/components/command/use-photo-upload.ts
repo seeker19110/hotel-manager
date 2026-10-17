@@ -5,6 +5,7 @@
 import { safeUrl } from "@hm/app/http";
 import { mibToBytes } from "@hm/app/units";
 import { useRef, useState } from "react";
+import { timedFetch, UPLOAD_TIMEOUT_MS } from "../../lib/fetch-timeout.ts";
 import { orgContextHeaders } from "./org-context.ts";
 
 export const MAX_PHOTO_BYTES = mibToBytes(10);
@@ -41,16 +42,20 @@ export function usePhotoUpload(loginPath: string) {
     if (u.fileId) return u.fileId;
     setUploading(true);
     try {
-      const res = await fetch(`/api/v1/files/upload?owner_type=work_order&property_id=${propertyId}`, {
-        method: "POST",
-        headers: {
-          "content-type": file.type || "application/octet-stream",
-          "idempotency-key": u.key,
-          ...orgContextHeaders(),
+      const res = await timedFetch(
+        `/api/v1/files/upload?owner_type=work_order&property_id=${propertyId}`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": file.type || "application/octet-stream",
+            "idempotency-key": u.key,
+            ...orgContextHeaders(),
+          },
+          body: file,
+          credentials: "same-origin",
         },
-        body: file,
-        credentials: "same-origin",
-      });
+        UPLOAD_TIMEOUT_MS,
+      );
       const j = (await res.json().catch(() => null)) as {
         data?: { fileId: string; status: string };
         code?: string;

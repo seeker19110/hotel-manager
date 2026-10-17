@@ -16,6 +16,9 @@ export async function register(): Promise<void> {
       config: redactConfig(config),
     },
   );
+  // Dừng êm (T-402): SIGTERM ⇒ `/api/ready` 503, chờ request đang chạy, thoát 0 — xem lib/shutdown.ts.
+  const { installShutdownHandler } = await import("./lib/shutdown.ts");
+  installShutdownHandler();
 }
 
 /** Cấu trúc tối thiểu của đối số Next truyền cho `onRequestError` (không phụ thuộc kiểu của `next`). */

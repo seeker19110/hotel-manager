@@ -62,6 +62,7 @@ export {
   type QueryDef,
 } from "./http/command-route.ts";
 export { COMMANDS, findCommand, findQuery, QUERIES } from "./http/registry.ts";
+export { DEFAULT_RETRY_AFTER_SECONDS, retryAfterSeconds, withRetryAfter } from "./http/retry-after.ts";
 export { handleWebhook, type WebhookDeps } from "./http/webhook-route.ts";
 export { handleImportUpload } from "./import/http.ts";
 export { IMPORT_ROW_RETENTION_DAYS, type RetentionStats, runRetention } from "./import/retention.ts";
@@ -118,7 +119,13 @@ export {
   renderPrometheus,
   type Sample,
 } from "./observability/metrics.ts";
+export {
+  InvalidJobPayloadError,
+  OUTBOX_PAYLOAD_SCHEMAS,
+  parseOutboxPayload,
+} from "./outbox/payloads.ts";
 export { getCommandResult } from "./pipeline/command.ts";
+export { CommandError } from "./pipeline/problem.ts";
 export { handleGuestStay } from "./portal/guest-http.ts";
 export {
   getMyInvoice,

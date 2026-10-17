@@ -77,6 +77,18 @@ groups:
           runbook_url: docs/RUNBOOK.md
           runbook_section: "6 Dead letter (pg-boss)"
 
+      - alert: HmDeadLetterJobs
+        expr: hm_dead_letter_jobs > 0
+        for: 10m
+        labels:
+          severity: ticket
+          owner: backend
+        annotations:
+          summary: "Có job nằm trong dead letter (outbox.dead_letter) quá 10 phút"
+          description: "Job hết lượt thử hoặc lỗi vĩnh viễn (payload sai, lỗi nghiệp vụ 4xx) chờ người xử lý; sửa nguyên nhân rồi redrive theo runbook."
+          runbook_url: docs/RUNBOOK.md
+          runbook_section: "6 Dead letter (pg-boss)"
+
       - alert: HmExportJobsFailed
         expr: delta(hm_export_jobs{status="failed"}[1h]) > 0
         labels:

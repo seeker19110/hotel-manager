@@ -177,6 +177,8 @@ beforeAll(async () => {
     },
     secureCookies: false,
     services: testServices(),
+    // Ma trận gọi hàng trăm lệnh vào CÙNG tổ chức trong < 1 phút — nới hạn mức T-401 (đã có test riêng `command-quota`).
+    commandQuotaPerMinute: 100_000,
   };
   for (const role of LOW_ROLES) userOf[role] = (await seedMember(t, A, role)).authUserId;
   outsider = await seedAuthUser(t.admin, `ngoai+${randomUUID().slice(0, 6)}@example.test`);

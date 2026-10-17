@@ -23,6 +23,15 @@ export async function isLocked(pool: pg.Pool, email: string, now: Date): Promise
   return r.rows[0]?.locked ?? false;
 }
 
+/** Số giây còn bị khoá (0 nếu không khoá) — `Retry-After` của ACCOUNT_LOCKED. */
+export async function lockRemainingSeconds(pool: pg.Pool, email: string, now: Date): Promise<number> {
+  const r = await pool.query<{ secs: number | null }>(
+    "select ceil(extract(epoch from locked_until - $2))::int as secs from auth.login_throttle where email_hash = $1 and locked_until > $2",
+    [emailHash(email), now],
+  );
+  return Math.max(0, r.rows[0]?.secs ?? 0);
+}
+
 /** Ghi một lần sai; đủ ngưỡng trong cửa sổ → đặt locked_until. Một câu lệnh nguyên tử (an toàn khi song song). */
 export async function recordFailure(
   pool: pg.Pool,

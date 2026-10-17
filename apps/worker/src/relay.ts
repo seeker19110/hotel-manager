@@ -1,6 +1,8 @@
 // Outbox relay (INV-G6, ARCHITECTURE bước 8): hàng outbox chưa phát → job pg-boss (mỗi event_type một queue)
-// → handler. Job mang organization_id (IND-SAAS-003); retry có backoff; quá giới hạn → dead letter.
+// → handler. Job mang organization_id (IND-SAAS-003); retry có backoff; quá giới hạn → dead letter; lỗi vĩnh viễn
+// (payload sai, lỗi nghiệp vụ 4xx) → dead letter ngay, không retry (BE-JOB-003).
 
+import { SECONDS_PER_DAY } from "@hm/app/units";
 import type { Kysely } from "kysely";
 import { sql } from "kysely";
 import type { PgBoss } from "pg-boss";
@@ -60,9 +62,20 @@ export interface QueuePolicy {
   retryLimit: number;
   retryDelay: number;
   retryBackoff: boolean;
+  /** Trần (giây) của thời gian chờ giữa hai lần thử khi backoff mũ — tường minh, không để mặc định "không giới hạn". */
+  retryDelayMax?: number;
 }
 
-export const DEFAULT_QUEUE_POLICY: QueuePolicy = { retryLimit: 5, retryDelay: 5, retryBackoff: true };
+/** BE-JOB-003: 5 lần thử, chờ 5 s · 2^n có jitter (công thức pg-boss), trần 5 phút. */
+export const DEFAULT_QUEUE_POLICY: QueuePolicy = {
+  retryLimit: 5,
+  retryDelay: 5,
+  retryBackoff: true,
+  retryDelayMax: 300,
+};
+
+/** Dead letter giữ lâu hơn queue gốc (mặc định pg-boss: 14 ngày chờ, 7 ngày sau khi xong) để người kịp xử lý (BE-JOB-004). */
+export const DEAD_LETTER_RETENTION_SECONDS = 30 * SECONDS_PER_DAY;
 
 /** pg-boss queue name: chữ thường, số, `.`/`_`/`-` — event_type đã đúng dạng `a.b`. */
 export async function ensureQueues(
@@ -70,19 +83,36 @@ export async function ensureQueues(
   eventTypes: readonly string[],
   policy = DEFAULT_QUEUE_POLICY,
 ): Promise<void> {
-  await boss.createQueue(DEAD_LETTER_QUEUE);
+  await boss.createQueue(DEAD_LETTER_QUEUE, {
+    retentionSeconds: DEAD_LETTER_RETENTION_SECONDS,
+    deleteAfterSeconds: DEAD_LETTER_RETENTION_SECONDS,
+  });
   for (const name of eventTypes) {
     await boss.createQueue(name, { ...policy, deadLetter: DEAD_LETTER_QUEUE });
   }
 }
 
+/** `true` khi chạy lại không khỏi: payload sai schema, hoặc lỗi nghiệp vụ 4xx (trừ 408/429 là lỗi tạm). */
+export function isPermanentJobError(err: unknown): boolean {
+  if (typeof err !== "object" || err === null) return false;
+  const e = err as { permanent?: unknown; status?: unknown };
+  if (e.permanent === true) return true;
+  return (
+    typeof e.status === "number" && e.status >= 400 && e.status < 500 && e.status !== 408 && e.status !== 429
+  );
+}
+
 /**
- * Chuyển tối đa `batch` hàng chưa phát sang pg-boss qua `app.outbox_claim` (FOR UPDATE SKIP LOCKED) nên nhiều relay
- * chạy song song không phát trùng; `singletonKey = outbox.id` là lưới thứ hai. Gửi lỗi → ghi `last_error` + lùi lần thử
- * (`available_at`, backoff trong `app.outbox_mark`), lần sau thử lại.
+ * Chuyển tối đa `batch` hàng chưa phát sang pg-boss — claim → commit → gửi → đánh dấu (T-401, ARC-INT-003, DB-TX-003):
+ *  1. `app.outbox_claim` (FOR UPDATE SKIP LOCKED) đặt lease 60 giây cho hàng lấy được trong MỘT câu lệnh tự commit nên
+ *     nhiều relay song song không phát trùng và KHÔNG giữ transaction/khoá trong lúc gọi mạng;
+ *  2. `boss.send` NGOÀI transaction, job id = outbox.id (khoá chính (name, id) của pg-boss: gửi lại là no-op, trả null);
+ *  3. `app.outbox_mark` đánh dấu đã phát, hoặc ghi `last_error` + lùi lần thử (backoff) khi lỗi.
+ * Sập giữa 2 và 3 ⇒ hết lease hàng được claim lại, `send` trùng không tạo job thứ hai ⇒ không mất, không trùng.
  * `opts.consumed`: tập event_type có consumer ở worker này. Loại khác: nằm trong `opts.auditOnly` (mặc định
  * `AUDIT_ONLY_EVENT_TYPES`) ⇒ đánh dấu đã phát không sinh job; không nằm trong đó ⇒ KHÔNG đánh dấu đã phát, ghi
  * `no_consumer`, log `outbox.no_consumer`, lùi lần thử (không kẹt đầu hàng; worker khác có consumer vẫn nhận được).
+ * Trả số hàng đã claim.
  */
 export async function relayOutbox(
   workerDb: Kysely<unknown>,
@@ -95,25 +125,23 @@ export async function relayOutbox(
   } = {},
 ): Promise<number> {
   const auditOnly = opts.auditOnly ?? AUDIT_ONLY_EVENT_TYPES;
-  return workerDb.transaction().execute(async (trx) => {
-    const rows = await sql<{
-      id: string;
-      organization_id: string;
-      event_type: string;
-      aggregate_id: string | null;
-      payload: Record<string, unknown>;
-      correlation_id: string;
-    }>`select * from app.outbox_claim(${batch})`.execute(trx);
-    for (const r of rows.rows) {
-      if (opts.consumed && !opts.consumed.has(r.event_type)) {
-        if (auditOnly.has(r.event_type)) {
-          await sql`select app.outbox_mark(${r.id}::uuid, ${null})`.execute(trx);
-        } else {
-          opts.log?.("outbox.no_consumer", { event_type: r.event_type, outbox_id: r.id });
-          await sql`select app.outbox_mark(${r.id}::uuid, ${NO_CONSUMER_ERROR})`.execute(trx);
-        }
-        continue;
+  // (1) Một câu lệnh = một transaction tự commit: lease đã bền trước khi gọi pg-boss.
+  const claimed = await sql<{
+    id: string;
+    organization_id: string;
+    event_type: string;
+    aggregate_id: string | null;
+    payload: Record<string, unknown>;
+    correlation_id: string;
+  }>`select * from app.outbox_claim(${batch})`.execute(workerDb);
+  for (const r of claimed.rows) {
+    let error: string | null = null;
+    if (opts.consumed && !opts.consumed.has(r.event_type)) {
+      if (!auditOnly.has(r.event_type)) {
+        opts.log?.("outbox.no_consumer", { event_type: r.event_type, outbox_id: r.id });
+        error = NO_CONSUMER_ERROR;
       }
+    } else {
       const job: OutboxJob = {
         organization_id: r.organization_id,
         outbox_id: r.id,
@@ -122,32 +150,61 @@ export async function relayOutbox(
         payload: r.payload,
         correlation_id: r.correlation_id,
       };
-      let error: string | null = null;
       try {
-        await boss.send(r.event_type, job, { singletonKey: r.id });
+        await boss.send(r.event_type, job, { id: r.id });
       } catch (err) {
         error = String((err as Error).message);
       }
-      await sql`select app.outbox_mark(${r.id}::uuid, ${error})`.execute(trx);
     }
-    return rows.rows.length;
-  });
+    try {
+      await sql`select app.outbox_mark(${r.id}::uuid, ${error})`.execute(workerDb);
+    } catch (err) {
+      // Không đánh dấu được (CSDL chập chờn): hàng được claim lại khi hết lease, gửi lại là no-op ở pg-boss.
+      opts.log?.("outbox.mark_failed", { outbox_id: r.id, error: String((err as Error).message) });
+    }
+  }
+  return claimed.rows.length;
 }
 
 export type EventHandler = (job: OutboxJob) => Promise<void>;
 
-/** Đăng ký handler cho từng event_type. Handler phải idempotent theo `outbox_id` (job có thể chạy lại khi retry). */
+/**
+ * Đăng ký handler cho từng event_type. Handler phải idempotent theo `outbox_id` (job có thể chạy lại khi retry).
+ * Lỗi VĨNH VIỄN (`isPermanentJobError`) không retry: job được chép sang dead letter (cùng id, kèm `dead_letter` lý do)
+ * rồi hoàn tất ở queue gốc, log `job.permanent_failure`. Lỗi khác ném lại cho pg-boss retry theo chính sách queue.
+ */
 export async function startConsumers(
   boss: PgBoss,
   handlers: Readonly<Record<string, EventHandler>>,
-  opts: { pollingIntervalSeconds?: number } = {},
+  opts: {
+    pollingIntervalSeconds?: number;
+    log?: (event: string, fields: Record<string, unknown>) => void;
+  } = {},
 ): Promise<void> {
   for (const [name, handler] of Object.entries(handlers)) {
     await boss.work<OutboxJob>(
       name,
       { pollingIntervalSeconds: opts.pollingIntervalSeconds ?? 2 },
       async (jobs) => {
-        for (const j of jobs) await handler(j.data);
+        for (const j of jobs) {
+          try {
+            await handler(j.data);
+          } catch (err) {
+            if (!isPermanentJobError(err)) throw err;
+            const message = String((err as Error).message).slice(0, 500);
+            // Gửi dead letter TRƯỚC khi hoàn tất job gốc: gửi lỗi ⇒ ném ⇒ pg-boss retry; id cố định ⇒ gửi lại là no-op.
+            await boss.send(
+              DEAD_LETTER_QUEUE,
+              { ...j.data, dead_letter: { kind: "permanent", message } },
+              { id: j.id },
+            );
+            opts.log?.("job.permanent_failure", {
+              event_type: name,
+              outbox_id: j.data?.outbox_id,
+              reason: message,
+            });
+          }
+        }
       },
     );
   }
