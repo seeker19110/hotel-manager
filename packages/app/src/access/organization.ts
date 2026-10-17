@@ -1,6 +1,7 @@
 // `org.create` (SPEC-access S-001): người dùng đã đăng nhập tạo tổ chức và trở thành owner (membership `owner`, mọi cơ sở).
 // Tổ chức + person + membership + audit `organization.created` + outbox cùng MỘT transaction (INV-G6); cùng Idempotency-Key ⇒ cùng
 // tổ chức (id suy ra từ người dùng + key, xem `provision.ts`). Owner cần MFA (Q-06) nên lệnh kế tiếp bị `MFA_REQUIRED` tới khi bật.
+import { SECONDS_PER_HOUR } from "@hm/domain";
 import { sql } from "kysely";
 import type { Actor } from "../actor-core/index.ts";
 import { CommandError, type CommandResult, rateLimited, rateLimitHit } from "../pipeline/index.ts";
@@ -14,7 +15,7 @@ import { deriveUuid, readAuthUser, runUserCommand, type UserCommandRequest } fro
  * key không chạy `bootstrap` nên không tốn thêm). Cố định theo mã (không biến môi trường).
  */
 export const ORG_CREATE_PER_USER_PER_HOUR = 10;
-const ORG_CREATE_WINDOW_SECONDS = 3600;
+const ORG_CREATE_WINDOW_SECONDS = SECONDS_PER_HOUR;
 
 export interface CreatedOrganization {
   organizationId: string;

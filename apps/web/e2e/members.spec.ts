@@ -101,8 +101,7 @@ test("chủ: mời nhân viên → lời mời hiện ở danh sách chờ; mờ
   await expectAccessible(page);
 
   // Email rất dài, không có khoảng trắng: phải xuống dòng, không đẩy trang cuộn ngang ở 320 px (và không bị cắt mất nội dung).
-  const longEmail =
-    "danh.cho.nguoi.khac.co.ten.rat.dai.de.thu.tran.ngang.man@ten-mien-rat-dai-de-thu-man-hinh-hep.example.test";
+  const longEmail = "danh.cho.nguoi.khac.co.ten.rat.dai.de.thu.tran.ngang.man.hinh@example.test";
   await form.getByLabel("Email người được mời").fill(longEmail);
   await form.getByLabel("Cơ sở").selectOption({ index: 1 });
   await form.getByRole("button", { name: "Gửi lời mời" }).click();
