@@ -374,6 +374,8 @@ export async function uploadBatch(
       ...(input.fileName === undefined ? {} : { file_name: input.fileName.normalize("NFC") }),
     },
   });
+  // Upload (SEC-LOG-001): chỉ id lô, không tên file (có thể chứa tên người).
+  ctx.security({ event: "file.uploaded", target: { type: "import_batch", id: batchId } });
   return { batchId, rows: data.length };
 }
 

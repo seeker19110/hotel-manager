@@ -71,6 +71,8 @@ export async function createGuestLink(
     propertyId: s.property_id,
     after: { stay_id: input.stayId, expires_at: s.expires_at.toISOString() },
   });
+  // Cấp token (SEC-LOG-001): chỉ id liên kết — token KHÔNG bao giờ vào log (chỉ băm nằm ở CSDL).
+  ctx.security({ event: "guest_link.issued", target: { type: "guest_access_link", id: linkId } });
   return { linkId, token, expiresAt: s.expires_at };
 }
 
