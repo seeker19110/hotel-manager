@@ -1131,6 +1131,9 @@ describe("BASE-SEC-001 — entrypoint ngoài registry: đầu vào xấu → 4xx
       "health/route.ts": { none: "GET không tham số" },
       "ready/route.ts": { none: "GET không tham số" },
       "metrics/route.ts": { none: "GET không tham số; Bearer token so khớp hằng-thời-gian" },
+      "version/route.ts": {
+        none: "GET không tham số, công khai; chỉ trả hằng phiên bản build (SPEC-pwa §5)",
+      },
     };
     const routes = sourceFiles(["apps/web/app/api"], /^route\.ts$/).map((f) =>
       f.path.slice("apps/web/app/api/".length),
