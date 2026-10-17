@@ -663,6 +663,30 @@ describe("T-602 ảnh chứng cứ phí thanh lý (owner_type lease_settlement)"
     ).toMatchObject({ code: "VALIDATION_FAILED" });
   });
 
+  it("ảnh chưa sẵn sàng (pending_scan) hoặc bị máy quét từ chối (rejected) không dùng làm chứng cứ phí → 422 FILE_NOT_FOUND", async () => {
+    const L = await settlingLease();
+    for (const status of ["pending_scan", "rejected"] as const) {
+      const id = randomUUID();
+      await sql`insert into files (id, organization_id, property_id, owner_type, mime, size_bytes, sha256, status, storage_key, exif_stripped, reject_reason)
+                values (${id}, ${A.orgId}, ${A.propertyId}, 'lease_settlement', 'image/jpeg', 10, ${"c".repeat(64)}, ${status}, ${`${A.orgId}/lease_settlement/${id}`}, true,
+                        ${status === "rejected" ? "MALWARE" : null})`.execute(t.admin);
+      expect(
+        await fails(
+          run(M, async (ctx) => ({
+            data: await prepareSettlement(ctx, {
+              leaseId: L.leaseId,
+              fees: [{ amount: 1000, reason: "x", fileIds: [id] }],
+            }),
+          })),
+        ),
+        status,
+      ).toMatchObject({
+        code: "VALIDATION_FAILED",
+        errors: [expect.objectContaining({ code: "FILE_NOT_FOUND" })],
+      });
+    }
+  });
+
   it("lễ tân, buồng phòng, người thuê không tải được (403); ảnh đã tải thì họ xin URL → 404", async () => {
     const L = await rentedLease(0, 0);
     const user = await seedAuthUser(t.admin, `tenant+${randomUUID().slice(0, 6)}@example.test`);
@@ -683,7 +707,7 @@ describe("T-602 ảnh chứng cứ phí thanh lý (owner_type lease_settlement)"
     }
   });
 
-  it("ca biên: PDF và file rỗng bị từ chối (chỉ ảnh); file chưa sẵn sàng/không tồn tại → 404", async () => {
+  it("ca biên: PDF và file rỗng bị từ chối (chỉ ảnh); file không tồn tại → 404", async () => {
     expect(await fails(uploadAs(M, new TextEncoder().encode("%PDF-1.4\n%%EOF")))).toMatchObject({
       code: "FILE_TYPE_NOT_ALLOWED",
     });
