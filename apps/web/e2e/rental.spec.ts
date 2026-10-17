@@ -7,6 +7,7 @@ import { type BrowserContext, expect, type Page, test } from "@playwright/test";
 import { expectAccessible } from "./a11y.ts";
 import { confirmAction } from "./confirm.ts";
 import { ORG_RENTAL, RENTAL_OWNER, RENTAL_TENANT, RENTAL_UNIT } from "./fixtures.ts";
+import { signInClick } from "./sign-in.ts";
 import { totp, totpFile } from "./totp.ts";
 
 test.describe.configure({ mode: "serial" });
@@ -24,7 +25,7 @@ async function login(page: Page) {
   await page.goto("/dang-nhap");
   await page.getByLabel("Email").fill(RENTAL_OWNER.email);
   await page.getByLabel("Mật khẩu").fill(RENTAL_OWNER.password);
-  await page.getByRole("button", { name: "Đăng nhập" }).click();
+  await signInClick(page);
   await page.getByLabel("Mã xác thực 6 số").fill(totp(secret));
   await page.getByRole("button", { name: "Xác nhận" }).click();
   await expect(page).toHaveURL(/\/chon-to-chuc$/);

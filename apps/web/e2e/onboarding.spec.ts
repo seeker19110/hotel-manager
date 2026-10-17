@@ -2,6 +2,7 @@
 // → tạo cơ sở với mặc định đúng → lỗi múi giờ/giờ chốt báo đúng ô → sửa cơ sở. Axe + vùng chạm ≥ 44 px ở mọi màn.
 import { expect, test } from "@playwright/test";
 import { expectAccessible } from "./a11y.ts";
+import { signInClick } from "./sign-in.ts";
 import { totp } from "./totp.ts";
 
 test.describe.configure({ mode: "serial" });
@@ -45,7 +46,7 @@ test("bật xác thực hai lớp: sai mật khẩu báo lỗi; đúng mật kh�
   await page.goto("/dang-nhap");
   await page.getByLabel("Email").fill(NEW_USER.email);
   await page.getByLabel("Mật khẩu").fill(NEW_USER.password);
-  await page.getByRole("button", { name: "Đăng nhập" }).click();
+  await signInClick(page);
   await expect(page).toHaveURL(/\/chon-to-chuc$/);
   await page.goto("/bao-mat");
   await expectAccessible(page);
@@ -69,19 +70,14 @@ test("bật xác thực hai lớp: sai mật khẩu báo lỗi; đúng mật kh�
 test("S-001/S-002/S-003/S-023 tạo cơ sở: mặc định đúng, lỗi theo ô, sửa được; tên Unicode giữ nguyên", async ({
   page,
 }) => {
-  // Better Auth giới hạn đăng nhập/xác thực hai lớp theo IP (20 lần/phút, đặt lại sau 60 s yên); bộ E2E đăng nhập nhiều lần liên
-  // tiếp nên gặp 429 thì đợi hết cửa sổ rồi thử lại từ đầu (không tắt rào) — như ux-guards.spec.ts và sessions.ts.
+  // Đăng nhập qua `signInClick` (chịu 429 của /sign-in); bước xác thực hai lớp cũng bị giới hạn theo IP — gặp 429 thì đợi hết
+  // cửa sổ rồi làm lại từ đầu (không tắt rào).
   test.setTimeout(180_000);
   for (let attempt = 0; attempt < 2; attempt++) {
     await page.goto("/dang-nhap");
     await page.getByLabel("Email").fill(NEW_USER.email);
     await page.getByLabel("Mật khẩu").fill(NEW_USER.password);
-    const signIn = page.waitForResponse((r) => r.url().endsWith("/api/auth/sign-in/email"));
-    await page.getByRole("button", { name: "Đăng nhập" }).click();
-    if ((await signIn).status() === 429) {
-      await page.waitForTimeout(61_000);
-      continue;
-    }
+    await signInClick(page);
     await page.getByLabel("Mã xác thực 6 số").fill(totp(secret));
     const verify = page.waitForResponse((r) => r.url().includes("/api/auth/two-factor/"));
     await page.getByRole("button", { name: "Xác nhận" }).click();

@@ -13,6 +13,7 @@ import { type BrowserContext, expect, type Locator, type Page, test } from "@pla
 import { confirmAction } from "./confirm.ts";
 import { GUEST_STAY_ID, GUEST_TOKEN, HOTEL_HK, ORG_HOTEL } from "./fixtures.ts";
 import { type Cookies, loginOwner, loginTenant } from "./sessions.ts";
+import { signInClick } from "./sign-in.ts";
 
 // `page.route` không chặn được request do service worker đã nắm (production bật SW): chặn SW để mock luôn có tác dụng.
 test.use({ serviceWorkers: "block" });
@@ -28,7 +29,7 @@ test.beforeAll(async ({ browser }, info) => {
   await page.goto("/dang-nhap");
   await page.getByLabel("Email").fill(HOTEL_HK.email);
   await page.getByLabel("Mật khẩu").fill(HOTEL_HK.password);
-  await page.getByRole("button", { name: "Đăng nhập" }).click();
+  await signInClick(page);
   await expect(page).toHaveURL(/\/chon-to-chuc$/);
   await page.getByRole("button", { name: ORG_HOTEL }).click();
   await expect(page).toHaveURL(/\/phong$/);

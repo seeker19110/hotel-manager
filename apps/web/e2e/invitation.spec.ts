@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import { expectAccessible } from "./a11y.ts";
 import { HOTEL_HK, INVITEE, INVITEE_EXPIRED_EMAIL, inviteTokensFile, ORG_HOTEL } from "./fixtures.ts";
+import { signInClick } from "./sign-in.ts";
 
 test.describe.configure({ mode: "serial" });
 
@@ -66,7 +67,7 @@ test("sai email: đăng nhập bằng tài khoản khác với email được m�
   await page.goto(`/loi-moi#token=${other}`);
   await page.getByLabel("Email").fill(HOTEL_HK.email);
   await page.getByLabel("Mật khẩu").fill(HOTEL_HK.password);
-  await page.getByRole("button", { name: "Đăng nhập" }).click();
+  await signInClick(page);
   await expect(page.getByText(HOTEL_HK.email)).toBeVisible();
   await page.getByRole("button", { name: "Chấp nhận lời mời" }).click();
   await expect(page.getByText("Lời mời không còn hiệu lực", { exact: false }).first()).toBeVisible();
