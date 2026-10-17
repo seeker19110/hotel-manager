@@ -5,6 +5,7 @@
 import { readFileSync } from "node:fs";
 import { type BrowserContext, expect, test } from "@playwright/test";
 import { expectAccessible } from "./a11y.ts";
+import { confirmAction } from "./confirm.ts";
 import {
   GUEST_PHONE_LAST4,
   GUEST_STAY_ID,
@@ -157,6 +158,7 @@ test("S-010/S-022 Thanh toán: QR có văn bản thay thế, nội dung CK; 'Tô
 
   await page.getByLabel("Số tiền đã chuyển (đồng)").fill("3.580.000");
   await page.getByRole("button", { name: "Tôi đã chuyển" }).click();
+  await confirmAction(page);
   await expect(
     page
       .getByRole("status")
@@ -270,6 +272,7 @@ test("S-012/S-013 đổi tổ chức ở tab khác → 409 CONTEXT_CHANGED: báo
       posts.push({ header: r.request().headers()["x-org-context"] ?? "", status: r.status() });
   });
   await page.getByRole("button", { name: "Tôi đã chuyển" }).click();
+  await confirmAction(page);
   await expect(
     page.getByRole("alert").filter({ hasText: "Bạn vừa đổi tổ chức ở tab khác — tải lại trang" }),
   ).toBeVisible();

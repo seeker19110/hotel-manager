@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from "next";
 import { connection } from "next/server";
 import type { ReactNode } from "react";
 import { PwaShell } from "../components/pwa/pwa-shell.tsx";
+import { BRAND_COLOR } from "../lib/brand.ts";
 
 export const metadata: Metadata = {
   title: "Hotel Manager",
@@ -14,7 +15,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0f4c81",
+  themeColor: BRAND_COLOR,
   width: "device-width",
   initialScale: 1,
 };

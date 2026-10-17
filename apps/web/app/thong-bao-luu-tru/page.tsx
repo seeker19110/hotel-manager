@@ -2,6 +2,7 @@ import { listNotices, opsProperties, serverContext } from "@hm/app";
 import type { Metadata } from "next";
 import { NoticeActions } from "../../components/hotel/notice-actions.tsx";
 import { StatusBadge } from "../../components/ui/badge.tsx";
+import { Icon } from "../../components/ui/icon.tsx";
 import { EmptyState, ErrorState } from "../../components/ui/state.tsx";
 import { dateTime, NOTICE_STATUS } from "../../lib/format.ts";
 import { withActor } from "../../lib/page.tsx";
@@ -50,7 +51,7 @@ export default async function NoticesPage() {
                     <StatusBadge status={n.status} label={NOTICE_STATUS[n.status] ?? n.status} />
                     {n.overdue ? (
                       <span className="badge" data-status="overdue">
-                        <span aria-hidden="true">⚠ </span>Quá hạn
+                        <Icon name="warning" /> Quá hạn
                       </span>
                     ) : null}
                     {["owner", "manager", "front_desk"].includes(actor.role) ? (

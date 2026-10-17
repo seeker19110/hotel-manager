@@ -9,6 +9,7 @@ import {
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { StatusBadge } from "../../components/ui/badge.tsx";
+import { Icon } from "../../components/ui/icon.tsx";
 import { EmptyState, ErrorState } from "../../components/ui/state.tsx";
 import { addDays, BOOKING_STATUS, day, weekdayDay } from "../../lib/format.ts";
 import { withActor } from "../../lib/page.tsx";
@@ -101,7 +102,7 @@ export default async function CalendarPage({
                       <span className="day-rooms__code">{u.code}</span>
                       {u.availability === "out_of_service" ? (
                         <span>
-                          <span aria-hidden="true">⛔ </span>Ngừng sử dụng
+                          <Icon name="blocked" /> Ngừng sử dụng
                         </span>
                       ) : b ? (
                         <a href={`/dat-phong/${b.id}`} className="card__link">

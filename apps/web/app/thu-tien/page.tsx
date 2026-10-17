@@ -56,6 +56,7 @@ export default async function CollectPage() {
                   </p>
                   <CommandForm
                     path="payment/confirm"
+                    confirm="Xác nhận khoản thu vào sổ; không xoá được, chỉ đảo bằng bút toán có duyệt."
                     fixed={{ payment_id: p.id }}
                     submitLabel="Xác nhận đã nhận tiền"
                     successText="Đã xác nhận và ghi sổ."
@@ -84,6 +85,7 @@ export default async function CollectPage() {
                   {shiftOpen.get(i.property_id) ? (
                     <CommandForm
                       path="payment/collectCash"
+                      confirm="Ghi nhận tiền mặt vào ca đang mở; không xoá được, chỉ đảo bằng bút toán có duyệt."
                       fixed={{ invoice_id: i.id }}
                       fields={[
                         {
