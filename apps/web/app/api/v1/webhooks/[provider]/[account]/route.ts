@@ -1,12 +1,11 @@
 // POST /api/v1/webhooks/{provider}/{account} — tiền vào từ nhà cung cấp (API-CONTRACT §3). Không phiên, xác thực bằng chữ ký.
-import { handleWebhook, serverContext } from "@hm/app";
+import { handleWebhook, serverContext, withHttpMetrics } from "@hm/app";
 
 export const dynamic = "force-dynamic";
 
-export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ provider: string; account: string }> },
-) {
+export const POST = withHttpMetrics("/api/v1/webhooks/{provider}/{account}", handle);
+
+async function handle(req: Request, { params }: { params: Promise<{ provider: string; account: string }> }) {
   const { provider, account } = await params;
   const { db, config, log } = serverContext();
   return handleWebhook(provider, account, req, {

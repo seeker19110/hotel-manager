@@ -1,10 +1,10 @@
 // GET /api/v1/portal/guest/stays/{id} (SPEC-portal S-016…S-020): khách không phiên — token qua header `X-Guest-Token`
 // (không đặt trên URL để khỏi lọt vào log/referrer), bước hai `X-Guest-Verify` (4 số cuối SĐT người đặt).
 import type { Kysely } from "kysely";
-import { correlationOf, json, simpleProblem } from "../http/command-route.ts";
 import { requestClient } from "../logging/security-events.ts";
-import { CommandError } from "../pipeline/problem.ts";
-import { guestGetStay } from "./guest.ts";
+import { CommandError } from "../pipeline/index.ts";
+import { guestGetStay } from "../portal/guest.ts";
+import { correlationOf, json, simpleProblem } from "./command-route.ts";
 
 export async function handleGuestStay(
   req: Request,
@@ -24,7 +24,8 @@ export async function handleGuestStay(
     });
     return json({ data }, 200, correlationId);
   } catch (err) {
-    if (err instanceof CommandError) return simpleProblem(err.code, err.status, err.message, correlationId);
+    if (err instanceof CommandError)
+      return simpleProblem(err.code, err.status, err.message, correlationId, err.extensions);
     throw err;
   }
 }

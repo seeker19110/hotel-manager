@@ -286,7 +286,7 @@ describe("S-006…S-008 Hôm nay", () => {
           unitId: u,
           departureDate: "2026-10-20",
           guests: [
-            { fullName: `Khách đi ${i}`, phone: "0912345678", docType: "cccd", docNumber: `00170000000${i}` },
+            { fullName: `Khách đi ${i}`, phone: "0100005678", docType: "cccd", docNumber: `00170000000${i}` },
           ],
           now: vn("2026-10-19T15:00"),
         }),

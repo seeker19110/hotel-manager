@@ -1,6 +1,7 @@
 // Cấu hình môi trường (BASE-CFG-001/002/005, ADR-0002). Mọi đọc `process.env` của server đi qua module này.
 import { z } from "zod";
 import { PiiKeyError, parseKeyring } from "../crypto/pii.ts";
+import { parseWebhookSecrets } from "./webhook-secrets.ts";
 
 /** Biến là bí mật: không bao giờ in giá trị, không được có tiền tố NEXT_PUBLIC_ (lọt vào bundle client). */
 export const SECRET_KEYS = [
@@ -16,6 +17,39 @@ export const SECRET_KEYS = [
 ] as const;
 
 const url = z.url();
+
+/** Loopback: trình duyệt/Node coi là ngữ cảnh an toàn nên `http://` được chấp nhận (dev, E2E, CI); mọi máy khác phải TLS. */
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
+/** `http://` tới máy không phải loopback? (BASE-SEC-004: mọi kênh mạng dùng TLS ở production.) */
+export function isInsecureRemoteUrl(value: string): boolean {
+  try {
+    const u = new URL(value);
+    return u.protocol === "http:" && !LOOPBACK_HOSTS.has(u.hostname);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Tiền tố biến "công khai" — framework nhúng giá trị vào bundle client (Next `NEXT_PUBLIC_`, Vite, Expo…).
+ * Dự án hiện KHÔNG dùng biến công khai nào (BASE-CFG-008): mọi khoá trong `envSchema` là server-only.
+ */
+export const PUBLIC_ENV_PREFIXES = ["NEXT_PUBLIC_", "VITE_", "PUBLIC_", "EXPO_PUBLIC_"] as const;
+/** Tên chứa từ này mà lại có tiền tố công khai = bí mật sắp lọt vào bundle (trừ `PUBLIC_ENV_ALLOWLIST`). */
+const SECRET_NAME = /SECRET|KEY|TOKEN|PASSWORD/;
+/** Biến công khai có tên giống bí mật nhưng đã duyệt là công khai (khoá công khai, mã site…) — hiện không có. */
+export const PUBLIC_ENV_ALLOWLIST: readonly string[] = [];
+
+/** Tên biến vi phạm: có tiền tố công khai VÀ tên giống bí mật (ngoài allowlist). */
+export function publicSecretNames(names: readonly string[]): string[] {
+  return names.filter(
+    (n) =>
+      PUBLIC_ENV_PREFIXES.some((p) => n.startsWith(p)) &&
+      SECRET_NAME.test(n) &&
+      !PUBLIC_ENV_ALLOWLIST.includes(n),
+  );
+}
 /** Biến tuỳ chọn: chuỗi rỗng trong file env = không đặt. */
 const optional = <T extends z.ZodType>(s: T) =>
   z.preprocess((v) => (v === "" ? undefined : v), s.optional()) as unknown as z.ZodOptional<T>;
@@ -37,8 +71,20 @@ export const envSchema = z
       .regex(/^(smtps?|fake):\/\//, "phải là smtp://, smtps:// hoặc fake://")
       .default("fake://local"),
     PGBACKREST_REPO_CIPHER_PASS: z.string().min(16).optional(),
-    /** HMAC của webhook ngân hàng MÔ PHỎNG (API-CONTRACT §3); không đặt → `/api/v1/webhooks/sim/*` trả 404. */
-    SIM_WEBHOOK_SECRET: z.string().min(32, "tối thiểu 32 ký tự").optional(),
+    /**
+     * HMAC của webhook ngân hàng MÔ PHỎNG (API-CONTRACT §3); không đặt → `/api/v1/webhooks/sim/*` trả 404. Là DANH SÁCH khoá
+     * phân tách dấu phẩy (tối đa 3, mỗi khoá ≥ 32 ký tự) để xoay khoá không gián đoạn: "khoá_mới,khoá_cũ" (BE-INT-002).
+     */
+    SIM_WEBHOOK_SECRET: z
+      .string()
+      .superRefine((v, ctx) => {
+        try {
+          parseWebhookSecrets(v);
+        } catch (e) {
+          ctx.addIssue({ code: "custom", message: (e as Error).message });
+        }
+      })
+      .optional(),
     /** Khoá mã hoá số giấy tờ (D-004): "id:base64(32 byte),…"; bắt buộc ở production, dev/test dùng khoá dẫn xuất công khai. */
     HM_PII_KEYS: optional(z.string().min(1)),
     HM_PII_KEY_ID: optional(z.coerce.number().int().min(1).max(255)),
@@ -48,6 +94,21 @@ export const envSchema = z
     CLAMD_PORT: z.coerce.number().int().min(1).max(65535).default(3310),
   })
   .superRefine((env, ctx) => {
+    if (env.NODE_ENV === "production") {
+      // BASE-SEC-004: production không có kênh http:// tới máy khác (loopback được miễn).
+      for (const k of ["APP_BASE_URL", "S3_ENDPOINT"] as const) {
+        if (isInsecureRemoteUrl(env[k]))
+          ctx.addIssue({ code: "custom", path: [k], message: "phải là https:// ở production" });
+      }
+      // smtp:// thuần gửi mật khẩu/thư không mã hoá: chỉ smtps://, fake:// hoặc smtp:// ép STARTTLS (`requireTLS=true`).
+      if (env.SMTP_URL.startsWith("smtp://") && !/[?&]requireTLS=true(?:&|$)/.test(env.SMTP_URL)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["SMTP_URL"],
+          message: "production dùng smtps:// (hoặc smtp:// kèm ?requireTLS=true)",
+        });
+      }
+    }
     if (env.NODE_ENV === "production" && !env.CLAMD_HOST) {
       ctx.addIssue({
         code: "custom",

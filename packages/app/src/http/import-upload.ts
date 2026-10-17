@@ -2,9 +2,12 @@
 // `file` (CSV/XLSX), `property_id`, `kind`, `cutoff_on?`; `Idempotency-Key` bắt buộc (tải lại cùng key → cùng lô).
 // Đọc thân có trần (giới hạn file + phần đầu multipart) TRƯỚC khi phân tích — không nạp file quá lớn vào bộ nhớ; còn lại
 // (nhận dạng định dạng, quét mã độc, quyền theo cơ sở, giới hạn dòng/ô) do `uploadBatch`.
+
 import { createHash } from "node:crypto";
-import { readCapped } from "../files/http.ts";
+import { kibToBytes } from "@hm/domain";
 import { settle, unwrap } from "../files/staging.ts";
+import { IMPORT_LIMITS, prepareBatchUpload, uploadBatch } from "../import/import.ts";
+import { executeCommand, toProblem } from "../pipeline/index.ts";
 import {
   actorFromRequest,
   correlationOf,
@@ -12,14 +15,13 @@ import {
   json,
   problemResponse,
   simpleProblem,
-} from "../http/command-route.ts";
-import { executeCommand } from "../pipeline/command.ts";
-import { toProblem } from "../pipeline/problem.ts";
-import { IMPORT_LIMITS, prepareBatchUpload, uploadBatch } from "./import.ts";
+} from "./command-route.ts";
+import { readCapped } from "./file-upload.ts";
+import { normalizeUploadName } from "./normalize.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Phần đầu multipart (ranh giới, header từng phần, các trường chữ) được phép ngoài dung lượng file. */
-const MULTIPART_OVERHEAD = 64 * 1024;
+const MULTIPART_OVERHEAD = kibToBytes(64);
 
 const invalid = (field: string, correlationId: string) =>
   simpleProblem("VALIDATION_FAILED", 422, "Dữ liệu không hợp lệ", correlationId, {
@@ -64,6 +66,7 @@ export async function handleImportUpload(req: Request, deps: HttpDeps): Promise<
     const input = {
       propertyId: propertyId.toLowerCase(),
       kind,
+      fileName: normalizeUploadName(file instanceof File ? file.name : ""),
       ...(typeof cutoff === "string" && cutoff ? { cutoffOn: cutoff } : {}),
       bytes,
     };

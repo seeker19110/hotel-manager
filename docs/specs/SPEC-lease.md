@@ -1,3 +1,9 @@
+---
+status: Approved
+approved_by: "chủ dự án (duyệt PLAN đợt 2)"
+approved_at: 2026-10-15
+---
+
 # SPEC-lease — Hợp đồng thuê dài hạn: người ở, phiên bản điều khoản, bàn giao, gia hạn, thanh lý
 
 | Trường | Giá trị |
@@ -263,8 +269,8 @@ Không áp dụng (tính năng không dùng model).
 - [x] Hạn mức duyệt hoàn cọc theo vai trò — [chặn] — hỏi: PO. **Đề xuất:** xem SPEC-ledger-payments mục 10 (một chỗ quyết, dùng chung; không lặp số ở đây). — **Quyết 2026-10-15 (PLAN đợt 2, chủ dự án duyệt):** theo SPEC-ledger-payments mục 10 (một chỗ quyết).
 - [x] Mốc giờ của allocation hợp đồng (ngày bắt đầu/kết thúc → `timestamptz`; chép từ SPEC-inventory-allocation Q-04) — [chặn F-003] — hỏi: PO. **Đề xuất:** bắt đầu 00:00 giờ cơ sở của ngày bàn giao (trước bàn giao: ngày bắt đầu hiệu lực); kết thúc 00:00 giờ cơ sở của ngày sau ngày thực trả (`moved_out_on` + 1). — **Quyết 2026-10-15 (PLAN đợt 2, chủ dự án duyệt):** bắt đầu 00:00 giờ cơ sở của ngày bàn giao (trước bàn giao: ngày hiệu lực); kết thúc 00:00 giờ cơ sở của `moved_out_on + 1`.
 - [ ] TTL giữ chỗ hợp đồng (`lease.hold`) — [không chặn; cùng Q-01 của SPEC-inventory-allocation] — hỏi: PO. **Đề xuất:** mặc định 48 giờ, cấu hình theo cơ sở (`lease_hold_ttl_hours`); vai trò giữ chỗ: owner/manager/lễ tân (khớp ma trận access); cọc giữ chỗ không tự mất khi hold hết hạn.
-- [x] Trạng thái huỷ cho hợp đồng (`draft`/`pending_signature`/`signed_awaiting_handover` → `cancelled`) — đã bổ sung DOMAIN-MODEL v1.2 §4. Còn lại: từ `signed_awaiting_handover` thì nhả allocation và xử lý cọc qua quyết toán (làm cùng T032).
-- [x] Bảng `lease_settlements`, `services` — [chặn migration] — đã bổ sung DOMAIN-MODEL v1.2 §7.
+- [x] Trạng thái huỷ cho hợp đồng (`draft`/`pending_signature`/`signed_awaiting_handover` → `cancelled`) — đã bổ sung DOMAIN-MODEL v1.2 §4. Còn lại: từ `signed_awaiting_handover` thì nhả allocation và xử lý cọc qua quyết toán (làm cùng T032). — **Đóng 2026-10-15:** đã có trong DOMAIN-MODEL v1.2 (G4, sửa sau review độc lập); không cần quyết định riêng.
+- [x] Bảng `lease_settlements`, `services` — [chặn migration] — đã bổ sung DOMAIN-MODEL v1.2 §7. — **Đóng 2026-10-15:** đã có trong DOMAIN-MODEL v1.2 (G4, sửa sau review độc lập); không cần quyết định riêng.
 - [ ] Mốc nhắc hết hạn — [không chặn] — hỏi: PO. **Đề xuất:** 30/7/0 ngày, cơ sở cấu hình.
 - [ ] Cách người thuê "xác nhận" bàn giao khi chưa có ký điện tử (ngoài phạm vi V1) — [không chặn] — hỏi: PO + pháp lý. **Đề xuất:** xác nhận trên portal hoặc ký giấy rồi chụp ảnh; lưu `confirmation_method`.
 - [ ] Chuyển phòng giữa kỳ (kế hoạch §05 yêu cầu bàn giao + chỉ số cho hai phòng) — [không chặn pilot] — hỏi: PO. **Đề xuất:** để đợt V1, mô hình = thanh lý phòng cũ + hợp đồng mới không hoàn cọc mà chuyển cọc.

@@ -99,5 +99,14 @@ Vì vậy đề xuất **đặt VPS và kho sao lưu tại Việt Nam**. Lưu ý
 - **Traefik**: tốt, nhưng cấu hình dài hơn Caddy với một máy chủ.
 - **Tự gửi email từ VPS**: tỉ lệ vào spam cao, khách không nhận được phiếu thu. Loại.
 
+## Điều kiện xem lại
+Mở ADR mới (thay hoặc bổ sung) khi một trong các điều kiện sau xảy ra; không sửa nội dung quyết định ở trên:
+- **Phục hồi:** diễn tập PITR trên hạ tầng thật không đạt RPO DB ≤ 15 phút hoặc RTO ≤ 4 giờ, hoặc không có người trực đáp ứng RTO — xét Postgres managed.
+- **Xác thực:** Better Auth có advisory mức High/Critical ở thành phần đang bật mà bản vá chậm, đổi giấy phép khỏi MIT, hoặc ngừng bảo trì — xét Ory Kratos hoặc phương án khác (RK-018 trong `docs/RISKS.md`).
+- **Lưu file:** SeaweedFS đổi giấy phép, có lỗ hổng chưa vá, hoặc dung lượng file vượt đĩa VPS — xét Garage/object storage managed trong nước.
+- **Sao lưu:** pgBackRest mất người bảo trì lần nữa — chuyển sang WAL-G (đã ghi làm dự phòng).
+- **Email:** chọn SMTP relay đặt ngoài Việt Nam — cần hồ sơ chuyển dữ liệu ra nước ngoài (`docs/privacy/processors.md`) và có thể đổi sang relay trong nước.
+- **Quy mô hạ tầng:** một VPS không còn đủ (cần chạy nhiều máy hoặc tính sẵn sàng cao) — xét lại compose, mạng nội bộ và sao lưu.
+
 ## Thông tin thêm
 - Nguồn: `docs/research/2026-10-15-self-host.md` (xác minh 2026-10-15).

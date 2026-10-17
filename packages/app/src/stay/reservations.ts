@@ -21,8 +21,7 @@ import { receiveDeposit } from "../deposits/deposits.ts";
 import { confirmHold, createHold, type Interval } from "../inventory/inventory.ts";
 import { postEntry } from "../ledger/ledger.ts";
 import { confirmPayment, type ManualBankTxn, recordPayment } from "../payments/payments.ts";
-import type { CommandContext } from "../pipeline/command.ts";
-import { CommandError } from "../pipeline/problem.ts";
+import { type CommandContext, CommandError } from "../pipeline/index.ts";
 import { loadRates, quoteIn, quoteProblem, staySettings } from "./rates.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

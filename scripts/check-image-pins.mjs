@@ -27,7 +27,7 @@ export function deployFiles(dir) {
   const out = [];
   for (const e of readdirSync(dir, { withFileTypes: true, recursive: true })) {
     if (!e.isFile()) continue;
-    if (/^(compose|docker-compose).*\.ya?ml$/.test(e.name) || /^Dockerfile/.test(e.name)) {
+    if (/^(compose|docker-compose).*\.ya?ml$/.test(e.name) || /^Dockerfile|\.Dockerfile$/.test(e.name)) {
       out.push(join(e.parentPath, e.name));
     }
   }

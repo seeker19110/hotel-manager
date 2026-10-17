@@ -1,3 +1,9 @@
+---
+status: Approved
+approved_by: "chủ dự án (duyệt PLAN đợt 2)"
+approved_at: 2026-10-15
+---
+
 # SPEC-import — Import Excel/CSV có xem trước, lỗi từng dòng, chống import lặp
 
 | Trường | Giá trị |
@@ -207,13 +213,13 @@ Không áp dụng.
 - `import_batch.uploaded`, `import_batch.validated` (số lỗi), `import_batch.committed`, `import_batch.cancelled` → R-005, M-04 (tổng đối chiếu khớp).
 
 ## 10. Câu hỏi mở (0 câu [chặn] trước khi Approved)
-- [x] Tài khoản đối ứng số dư đầu kỳ — [chặn] — đã bổ sung DOMAIN-MODEL v1.2 §5 (`OPENING_BALANCE` và hai bút toán ở S-011, S-012; không dùng `REV_*`).
+- [x] Tài khoản đối ứng số dư đầu kỳ — [chặn] — đã bổ sung DOMAIN-MODEL v1.2 §5 (`OPENING_BALANCE` và hai bút toán ở S-011, S-012; không dùng `REV_*`). — **Đóng 2026-10-15:** đã có trong DOMAIN-MODEL v1.2 (G4, sửa sau review độc lập); không cần quyết định riêng.
 - [ ] Trả thừa đầu kỳ (khách có số dư) — [không chặn] — hỏi: kế toán. **Đề xuất:** cột riêng → Nợ `OPENING_BALANCE` / Có `CUSTOMER_CREDIT`.
 - [ ] Ai được xác nhận số dư chuyển đổi — [không chặn] — hỏi: PO. **Đề xuất:** chỉ `owner` (hoặc đại diện pilot được chỉ định), khác người chuẩn bị.
 - [ ] Giới hạn file và hạn giữ file nguồn — [không chặn] — hỏi: PO + pháp lý. **Đề xuất:** 5 MB / 5.000 dòng; xoá file nguồn 30 ngày sau commit/huỷ.
 - [ ] Import cập nhật (delta có sửa) — [không chặn pilot] — hỏi: PO. **Đề xuất:** V1 chỉ thêm mới; sửa qua giao diện; rollback batch đã commit để T070.
 - [ ] Khoá kỳ trước `cutoff_on` tự động khi commit — [không chặn] — hỏi: kế toán. **Đề xuất:** có.
-- [x] Bổ sung `import_batches`, `import_rows`, `import_external_refs`, `OPENING_BALANCE` vào DOMAIN-MODEL — [chặn migration] — đã bổ sung DOMAIN-MODEL v1.2 (§7, §5).
+- [x] Bổ sung `import_batches`, `import_rows`, `import_external_refs`, `OPENING_BALANCE` vào DOMAIN-MODEL — [chặn migration] — đã bổ sung DOMAIN-MODEL v1.2 (§7, §5). — **Đóng 2026-10-15:** đã có trong DOMAIN-MODEL v1.2 (G4, sửa sau review độc lập); không cần quyết định riêng.
 - [ ] Bàn giao nguồn `import` không có chỉ số (`readings_pending`) — [không chặn] — hỏi: PO. **Đề xuất:** chọn cách này (không bắt chỉ số trên cùng dòng hợp đồng) vì chỉ số hiện tại nằm ở file `meter_readings`; kỳ thu bị chặn `READINGS_INCOMPLETE` đến khi đủ.
 
 - **Quyết trong lúc làm (PLAN đợt 2 T-115):** chống nhập lặp theo `(cơ sở, loại, external_id)` (mỗi cơ sở có sổ cũ riêng); dòng tiêu đề là dòng 1, số dòng lỗi theo dòng của file; nợ/cọc 0 đ → hành động `skip_empty` ("không có số dư"); hợp đồng nhập phải bắt đầu tính tiền ≤ ngày mốc và chưa hết hạn tại ngày mốc; phòng nhập: loại phòng theo sức chứa (`P<n>`), tầng theo tên; chỉ số nhập mà phòng chưa có công tơ ⇒ lắp công tơ với chỉ số đầu = giá trị nhập; xác nhận chỉ owner (`import.commit`); lô số dư bắt buộc nhập tổng nguồn trước khi xác nhận; route tải file (`import.upload` multipart) chờ web nối object storage.

@@ -1,4 +1,5 @@
 import { listBillingPeriods, rentalProperties, serverContext } from "@hm/app";
+import { VN_UTC_OFFSET_MS } from "@hm/app/units";
 import type { Metadata } from "next";
 import { CommandForm } from "../../components/command/command-form.tsx";
 import { EmptyState } from "../../components/ui/state.tsx";
@@ -9,7 +10,7 @@ export const metadata: Metadata = { title: "Kỳ thu — Hotel Manager" };
 
 /** Tháng hiện tại theo giờ Việt Nam (mặc định ô "Tháng"). */
 function currentMonth(): string {
-  return new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 7);
+  return new Date(Date.now() + VN_UTC_OFFSET_MS).toISOString().slice(0, 7);
 }
 
 export default async function PeriodsPage() {

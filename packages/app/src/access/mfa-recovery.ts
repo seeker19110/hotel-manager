@@ -5,8 +5,7 @@
 // - Tài khoản đăng nhập dùng chung nhiều tổ chức: owner tổ chức này KHÔNG được hạ bảo mật của tổ chức khác ⇒ chuyển hỗ trợ.
 import { authorize } from "@hm/domain";
 import { sql } from "kysely";
-import type { CommandContext } from "../pipeline/command.ts";
-import { CommandError, fieldError } from "../pipeline/problem.ts";
+import { type CommandContext, CommandError, fieldError } from "../pipeline/index.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

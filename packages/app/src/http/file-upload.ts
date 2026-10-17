@@ -4,6 +4,9 @@
 // quét mã độc, quyền theo cơ sở). Quét + ghi object chạy NGOÀI transaction lệnh (staging.ts). Phản hồi problem+json như mọi command.
 
 import { createHash } from "node:crypto";
+import { type FileOwnerType, MAX_FILE_BYTES, prepareUpload, uploadFile } from "../files/files.ts";
+import { settle, unwrap } from "../files/staging.ts";
+import { executeCommand, toProblem } from "../pipeline/index.ts";
 import {
   actorFromRequest,
   correlationOf,
@@ -11,11 +14,7 @@ import {
   json,
   problemResponse,
   simpleProblem,
-} from "../http/command-route.ts";
-import { executeCommand } from "../pipeline/command.ts";
-import { toProblem } from "../pipeline/problem.ts";
-import { type FileOwnerType, MAX_FILE_BYTES, prepareUpload, uploadFile } from "./files.ts";
-import { settle, unwrap } from "./staging.ts";
+} from "./command-route.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const OWNER_TYPES: readonly FileOwnerType[] = ["work_order", "payment_claim"];

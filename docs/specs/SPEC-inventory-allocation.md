@@ -1,3 +1,10 @@
+---
+status: Approved
+approved_by: "(chưa)"
+approved_at: "(chưa)"
+decisions: "D-002 (phiên chính tự duyệt câu hỏi chặn, 2026-10-16)"
+---
+
 # SPEC-inventory-allocation — Lịch tài nguyên, allocation, hold, block và trạng thái phòng
 
 | Trường | Giá trị |
@@ -231,7 +238,7 @@ Không áp dụng — tính năng không dùng model.
 - [ ] Q-03 Ngưỡng quá hạn trước khi tạo `STAY_OVERSTAY` — [không chặn] — hỏi: PO — đề xuất: 60 phút sau giờ trả dự kiến (cấu hình theo cơ sở).
 - [ ] Q-04 Mốc giờ của allocation hợp đồng (ngày bắt đầu/kết thúc → `timestamptz`) — [không chặn F-002, chặn F-003] — hỏi: PO — đề xuất: 00:00 giờ địa phương của ngày bàn giao đến 00:00 ngày sau ngày trả.
 - [ ] Q-05 Giới hạn khoảng truy vấn lịch — [không chặn] — hỏi: Tech Lead — đề xuất: tối đa 62 ngày/lần, phân trang theo phòng.
-- [x] Q-06 Tên bảng ngoại lệ (`exception` trong INV-I4) — đã đóng: bảng `exceptions` dùng chung, có ở DOMAIN-MODEL §7 (v1.2).
+- [x] Q-06 Tên bảng ngoại lệ (`exception` trong INV-I4) — đã đóng: bảng `exceptions` dùng chung, có ở DOMAIN-MODEL §7 (v1.2). — **Đóng 2026-10-15:** đã có trong DOMAIN-MODEL v1.2 (G4, sửa sau review độc lập); không cần quyết định riêng.
 - [ ] Q-07 Cơ sở có bắt buộc `inspected` (không chấp nhận `clean`) trước khi nhận khách — [không chặn] — hỏi: PO — đề xuất: mặc định chấp nhận `clean` hoặc `inspected`, có cờ bắt buộc `inspected`.
 - [ ] Q-08 Block đụng khách: ngoài "chuyển khách trước" có cho duyệt block một phần không — [không chặn] — hỏi: PO — đề xuất: không ở pilot; dùng `out_of_service` + exception (S-013).
 - [ ] Q-09 Khi quá hạn (khách/hợp đồng) còn mở, có cho giữ phòng đó cho ngày tương lai xa không — [không chặn] — hỏi: PO — đề xuất: không cho mọi hold có `start` trước khi ngoại lệ được giải quyết; hold sau mốc kết thúc mới đã thoả thuận thì được.

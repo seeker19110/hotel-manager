@@ -1,4 +1,14 @@
-export { isIsoDate, isoDateOr, qrMatrix, vndInWords } from "@hm/domain";
+export {
+  formatDate,
+  formatMonth,
+  formatVnd,
+  formatVndNumber,
+  formatVndUnitPrice,
+  isIsoDate,
+  isoDateOr,
+  qrMatrix,
+  vndInWords,
+} from "@hm/domain";
 export {
   AccessError,
   type Actor,
@@ -24,7 +34,7 @@ export {
 } from "./audit/events.ts";
 export { type Auth, createAuth } from "./auth/auth.ts";
 export { generatePeriods, type Preview, previewPeriod } from "./billing/billing.ts";
-export { type AppConfig, ConfigError, loadConfig } from "./config/schema.ts";
+export { type AppConfig, ConfigError, loadConfig, redactConfig } from "./config/schema.ts";
 export { loadWorkerConfig, type WorkerConfig } from "./config/worker.ts";
 export { createPool } from "./db/pool.ts";
 export { ERROR_CODES, type ErrorCode } from "./errors.ts";
@@ -38,7 +48,6 @@ export {
   listMyExports,
   runExportJob,
 } from "./exports/exports.ts";
-export { handleFileUpload } from "./files/http.ts";
 export { ObjectStorage, StorageError } from "./files/storage.ts";
 export {
   getTask as getHousekeepingTask,
@@ -53,9 +62,13 @@ export {
   handleQuery,
   type QueryDef,
 } from "./http/command-route.ts";
+export { handleFileUpload } from "./http/file-upload.ts";
+export { handleGuestStay } from "./http/guest-stay.ts";
+export { handleImportUpload } from "./http/import-upload.ts";
 export { COMMANDS, findCommand, findQuery, QUERIES } from "./http/registry.ts";
+export { DEFAULT_RETRY_AFTER_SECONDS, retryAfterSeconds, withRetryAfter } from "./http/retry-after.ts";
+export { handleUnsubscribe } from "./http/unsubscribe.ts";
 export { handleWebhook, type WebhookDeps } from "./http/webhook-route.ts";
-export { handleImportUpload } from "./import/http.ts";
 export { IMPORT_ROW_RETENTION_DAYS, type RetentionStats, runRetention } from "./import/retention.ts";
 export { listRooms, type PropertyRooms, type RoomRow } from "./inventory/rooms.ts";
 export { DEFAULT_REMINDER_DAYS, detectOverstay, remindExpiring } from "./lease/jobs.ts";
@@ -69,6 +82,7 @@ export {
   SECURITY_EVENTS,
   type SecurityEventName,
 } from "./logging/security-events.ts";
+export { reportRequestError, reportUnexpectedError } from "./logging/unexpected.ts";
 export { listWorkOrders, type WorkOrderView } from "./maintenance/work-orders.ts";
 export { readingRoute } from "./metering/meters.ts";
 export {
@@ -83,7 +97,6 @@ export {
   type EmailSender,
   FakeEmailSender,
 } from "./notifications/email.ts";
-export { handleUnsubscribe } from "./notifications/http.ts";
 export {
   listMyNotifications,
   type NotificationItem,
@@ -99,8 +112,10 @@ export {
 } from "./notifications/reminders.ts";
 export { MAX_ATTEMPTS, RETRY_BACKOFF_MINUTES, type SendStats, sendDueEmails } from "./notifications/send.ts";
 export { deliveryStatusLabel, maskEmail, render as renderNotification } from "./notifications/templates.ts";
+export { httpMetrics, observeHttp, withHttpMetrics } from "./observability/http-metrics.ts";
 export {
   collectMetrics,
+  handleHealth,
   handleMetrics,
   handleReady,
   metricsAuthorized,
@@ -109,8 +124,13 @@ export {
   renderPrometheus,
   type Sample,
 } from "./observability/metrics.ts";
+export {
+  InvalidJobPayloadError,
+  OUTBOX_PAYLOAD_SCHEMAS,
+  parseOutboxPayload,
+} from "./outbox/payloads.ts";
 export { getCommandResult } from "./pipeline/command.ts";
-export { handleGuestStay } from "./portal/guest-http.ts";
+export { CommandError } from "./pipeline/problem.ts";
 export {
   getMyInvoice,
   getMyLease,
@@ -120,6 +140,11 @@ export {
   listMyRequests,
 } from "./portal/tenant.ts";
 export { type AutoApplyResult, applyBankTransaction } from "./reconciliation/auto-apply.ts";
+export {
+  RECONCILIATION_BREAK_SLA_HOURS,
+  type ReconciliationDailyResult,
+  runReconciliationDaily,
+} from "./reconciliation/daily.ts";
 export {
   type BreakItem,
   type LeaseExtras,

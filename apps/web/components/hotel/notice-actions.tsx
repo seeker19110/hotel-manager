@@ -1,6 +1,7 @@
 "use client";
 // Thông báo lưu trú (SPEC-reservation-stay S-028…S-030): xuất file theo mẫu (liên kết ký có hạn ngắn) và đánh dấu đã nộp.
 // Hệ thống chỉ xuất file và ghi dấu vết — KHÔNG tự nộp; "đã nộp" do người dùng xác nhận kèm kênh và thời điểm bấm.
+import { safeUrl } from "@hm/app/http";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { CommandStatus } from "../command/command-status.tsx";
@@ -59,8 +60,8 @@ export function NoticeActions({
         onResend={() => void exp.resend().then(afterExport)}
         onRecheck={() => void exp.recheck().then(afterExport)}
       />
-      {url ? (
-        <a className="btn" href={url} download data-testid="notice-download">
+      {safeUrl(url) ? (
+        <a className="btn" href={safeUrl(url) as string} download data-testid="notice-download">
           Tải file thông báo phòng {unitCode}
         </a>
       ) : null}

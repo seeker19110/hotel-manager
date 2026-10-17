@@ -97,7 +97,7 @@ async function seedRental(db: Kysely<unknown>, auth: ReturnType<typeof createAut
   }
   const tenant = randomUUID();
   await sql`insert into persons (id, organization_id, full_name, phone)
-            values (${tenant}, ${org.orgId}, ${RENTAL_TENANT}, '0900000001')`.execute(db);
+            values (${tenant}, ${org.orgId}, ${RENTAL_TENANT}, '0100000001')`.execute(db);
   const lease = randomUUID();
   const services = JSON.stringify(Object.values(svc).map((service_id) => ({ service_id, quantity: 1 })));
   await db.transaction().execute(async (trx) => {

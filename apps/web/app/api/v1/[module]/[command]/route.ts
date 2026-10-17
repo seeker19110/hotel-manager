@@ -13,7 +13,10 @@ const notFound = () =>
       status: 404,
       code: "NOT_FOUND",
     },
-    { status: 404, headers: { "content-type": "application/problem+json", "cache-control": "no-store" } },
+    {
+      status: 404,
+      headers: { "content-type": "application/problem+json; charset=utf-8", "cache-control": "no-store" },
+    },
   );
 
 export async function GET(

@@ -11,7 +11,7 @@ import { withTenant } from "@hm/db";
 import { authorize } from "@hm/domain";
 import { type Kysely, sql } from "kysely";
 import type { Actor } from "../access/actor.ts";
-import { CommandError } from "../pipeline/problem.ts";
+import { CommandError } from "../pipeline/index.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -63,6 +63,9 @@ export interface AuditEvent {
   correlationId: string;
   commandId: string | null;
   outcome: string;
+  /** "Từ đâu" (CMP-AUDIT-002): IP đã cắt (/24, /48) và User-Agent ≤ 200 ký tự; null = lệnh worker/hệ thống. */
+  sourceIp: string | null;
+  userAgent: string | null;
 }
 
 const notFound = () => new CommandError("NOT_FOUND", 404, "Không tìm thấy");
@@ -105,6 +108,7 @@ function authorizeAudit(actor: Actor, propertyId?: string): void {
 const SELECT = sql`
   select e.id, e.occurred_at, e.property_id, e.actor_type, e.actor_person_id, pe.full_name as actor_name, e.action,
          e.entity_type, e.entity_id, e.before, e.after, e.reason, e.correlation_id, e.command_id, e.outcome,
+         e.source_ip, e.user_agent,
          to_char(e.occurred_at at time zone coalesce(p.timezone,
                    (select p2.timezone from properties p2 where p2.organization_id = e.organization_id order by p2.created_at, p2.id limit 1),
                    'Asia/Ho_Chi_Minh'), 'YYYY-MM-DD HH24:MI:SS') as occurred_at_local,
@@ -130,6 +134,8 @@ interface Row {
   correlation_id: string;
   command_id: string | null;
   outcome: string;
+  source_ip: string | null;
+  user_agent: string | null;
   occurred_at_local: string;
   occurred_at_key: string;
 }
@@ -151,6 +157,8 @@ const toEvent = (r: Row): AuditEvent => ({
   correlationId: r.correlation_id,
   commandId: r.command_id,
   outcome: r.outcome,
+  sourceIp: r.source_ip,
+  userAgent: r.user_agent,
 });
 
 const moneyOnly = (actor: Actor) =>

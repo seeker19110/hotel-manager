@@ -15,6 +15,7 @@ import {
 } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/actor.ts";
+import { assertPropertyInOrg } from "../access/scope.ts";
 import { ingestInTx, openBreak, openHashMismatchBreak } from "../ledger/bank-inbox.ts";
 import {
   type AllocationInput,
@@ -22,8 +23,7 @@ import {
   confirmPayment,
   recordPayment,
 } from "../payments/payments.ts";
-import type { CommandContext } from "../pipeline/command.ts";
-import { CommandError } from "../pipeline/problem.ts";
+import { type CommandContext, CommandError } from "../pipeline/index.ts";
 import { candidateInvoices, loadBankTxn, suggestFor } from "./matching.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -200,6 +200,7 @@ export async function previewMatches(
 ): Promise<PreviewItem[]> {
   authorize(actor, "payment.confirm_transfer", { propertyId: input.propertyId });
   return withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
+    await assertPropertyInOrg(trx, actor.orgId, input.propertyId);
     const bts = await sql<{
       id: string;
       property_id: string;

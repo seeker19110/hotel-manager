@@ -45,7 +45,8 @@ export function buildCsp(nonce: string, opts: { dev?: boolean } = {}): string {
     "worker-src 'self'",
     "manifest-src 'self'",
     "frame-ancestors 'none'",
-    "base-uri 'self'",
+    // FE-SEC-003: không dùng <base>, nên cấm hẳn — chặn kẻ chèn thẻ <base> đổi gốc URL tương đối của script/form.
+    "base-uri 'none'",
     "form-action 'self'",
     "object-src 'none'",
     "upgrade-insecure-requests",
@@ -60,9 +61,34 @@ export function isCacheablePublicPath(pathname: string): boolean {
   return pathname.startsWith("/icons/") || pathname === "/manifest.webmanifest";
 }
 
+/** HSTS (PRF-WEB-007): chỉ đặt khi ứng dụng chạy sau https (APP_BASE_URL https); Caddy đặt cùng giá trị ở deploy/Caddyfile. */
+export const HSTS_HEADER = "max-age=31536000; includeSubDomains";
+
 export const SECURITY_HEADERS: Readonly<Record<string, string>> = {
   "x-content-type-options": "nosniff",
   "referrer-policy": "strict-origin-when-cross-origin",
   "permissions-policy": "camera=(self), microphone=(), geolocation=()",
   "x-frame-options": "DENY",
 };
+
+/**
+ * Toàn bộ header bảo mật của MỘT response đi qua `proxy.ts` (CSP có nonce, nosniff, Referrer-Policy, Permissions-Policy,
+ * X-Frame-Options, HSTS khi https, no-store cho trang/API có dữ liệu người dùng). Hàm thuần để test đọc header thật.
+ */
+export function responseSecurityHeaders(opts: {
+  nonce: string;
+  pathname: string;
+  appBaseUrl: string;
+  dev: boolean;
+}): Record<string, string> {
+  return {
+    "content-security-policy": buildCsp(opts.nonce, { dev: opts.dev }),
+    ...SECURITY_HEADERS,
+    // HSTS chỉ có nghĩa qua https (trình duyệt bỏ qua trên http); đặt khi APP_BASE_URL là https.
+    ...(opts.appBaseUrl.startsWith("https://") ? { "strict-transport-security": HSTS_HEADER } : {}),
+    // Trang và API có thể chứa dữ liệu người dùng: không lưu ở HTTP cache/bfcache (SPEC-pwa S-005, S-007).
+    ...(isCacheablePublicPath(opts.pathname) ? {} : { "cache-control": "no-store" }),
+  };
+}
+
+export { safeUrl } from "./safe-url.ts";

@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./units": "./src/units/units.ts",
+    "./format": "./src/format/intl.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"

@@ -6,10 +6,10 @@ import { createTestDb, type SeededOrg, seedOrg, type TestDb } from "@hm/testkit"
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Actor } from "../access/actor.ts";
+import { handleUnsubscribe } from "../http/unsubscribe.ts";
 import { codeOf, okAs, ownerOf, runAs, seedMember } from "../testing/helpers.ts";
 import { createNotification } from "./dispatch.ts";
 import { FakeEmailSender } from "./email.ts";
-import { handleUnsubscribe } from "./http.ts";
 import {
   getPreferences,
   listDeliveries,

@@ -48,6 +48,9 @@ import * as m0044 from "./0044_lease_supersede.ts";
 import * as m0045 from "./0045_retention_and_selection.ts";
 import * as m0046 from "./0046_observability.ts";
 import * as m0047 from "./0047_worker_schema_and_file_staging.ts";
+import * as m0048 from "./0048_fk_indexes_and_autovacuum.ts";
+import * as m0049 from "./0049_audit_source.ts";
+import * as m0050 from "./0050_reconciliation_daily.ts";
 
 export const migrations: Record<string, Migration> = {
   "0001_tenancy": m0001,
@@ -97,4 +100,7 @@ export const migrations: Record<string, Migration> = {
   "0045_retention_and_selection": m0045,
   "0046_observability": m0046,
   "0047_worker_schema_and_file_staging": m0047,
+  "0048_fk_indexes_and_autovacuum": m0048,
+  "0049_audit_source": m0049,
+  "0050_reconciliation_daily": m0050,
 };

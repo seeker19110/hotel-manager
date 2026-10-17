@@ -5,6 +5,7 @@
 // Khách trong nước: nhận trước giờ `domestic_cutoff` → hạn = `domestic_cutoff` cùng ngày; từ giờ đó trở đi → hạn =
 // `domestic_next_day_before` ngày hôm sau. Khách nước ngoài: hạn = giờ nhận + `foreign_hours` giờ. Thiếu phần cấu hình
 // tương ứng → null (không nhắc, vẫn xuất/đánh dấu được).
+import { hoursToMinutes, MINUTES_PER_DAY, minutesToMs } from "../units/units.ts";
 
 export interface StayNoticeDeadline {
   domesticCutoff?: string;
@@ -34,11 +35,11 @@ export function parseStayNoticeDeadline(v: unknown): StayNoticeDeadline | null {
 
 function minutes(hhmm: string): number {
   const [h, m] = hhmm.split(":").map(Number) as [number, number];
-  return h * 60 + m;
+  return hoursToMinutes(h) + m;
 }
 
 function shiftLocal(localIso: string, addMinutes: number): string {
-  const t = Date.parse(`${localIso}:00Z`) + addMinutes * 60_000;
+  const t = Date.parse(`${localIso}:00Z`) + minutesToMs(addMinutes);
   return new Date(t).toISOString().slice(0, 16);
 }
 
@@ -53,12 +54,12 @@ export function stayNoticeDueLocal(
   if (!cfg) return null;
   if (isForeign) {
     if (cfg.foreignHours === undefined) return null;
-    return shiftLocal(checkInLocal, cfg.foreignHours * 60);
+    return shiftLocal(checkInLocal, hoursToMinutes(cfg.foreignHours));
   }
   if (!cfg.domesticCutoff) return null;
   const day = checkInLocal.slice(0, 10);
   const at = minutes(checkInLocal.slice(11, 16));
   if (at < minutes(cfg.domesticCutoff)) return `${day}T${cfg.domesticCutoff}`;
   if (!cfg.domesticNextDayBefore) return null;
-  return `${shiftLocal(`${day}T00:00`, 24 * 60).slice(0, 10)}T${cfg.domesticNextDayBefore}`;
+  return `${shiftLocal(`${day}T00:00`, MINUTES_PER_DAY).slice(0, 10)}T${cfg.domesticNextDayBefore}`;
 }

@@ -461,11 +461,11 @@ describe("Review PR #10 — rào khoá khi worker chậm bị nhận lại", () 
 });
 
 describe("Review PR #10 — tên cơ sở có số điện thoại", () => {
-  it("'Nhà nghỉ Hoa Mai - 0905123456' → thông báo + email vẫn tạo/gửi, số bị che ***", async () => {
+  it("'Nhà nghỉ Hoa Mai - 0100003456' → thông báo + email vẫn tạo/gửi, số bị che ***", async () => {
     const old = await sql<{ name: string }>`select name from properties where id = ${A.propertyId}`.execute(
       t.admin,
     );
-    await sql`update properties set name = 'Nhà nghỉ Hoa Mai - 0905123456' where id = ${A.propertyId}`.execute(
+    await sql`update properties set name = 'Nhà nghỉ Hoa Mai - 0100003456' where id = ${A.propertyId}`.execute(
       t.admin,
     );
     try {
@@ -478,7 +478,7 @@ describe("Review PR #10 — tên cơ sở có số điện thoại", () => {
       const fake = new FakeEmailSender();
       const s = await sendDueEmails(t.worker, fake, { now: NOW });
       expect(s.sent).toBe(1);
-      expect(`${fake.sent[0]?.subject}\n${fake.sent[0]?.text}`).not.toContain("0905123456");
+      expect(`${fake.sent[0]?.subject}\n${fake.sent[0]?.text}`).not.toContain("0100003456");
       expect((await delivery(inv))[0]?.status).toBe("sent");
     } finally {
       await sql`update properties set name = ${old.rows[0]?.name} where id = ${A.propertyId}`.execute(

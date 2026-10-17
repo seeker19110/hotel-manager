@@ -1,3 +1,10 @@
+---
+status: Approved
+approved_by: "(chưa)"
+approved_at: "(chưa)"
+decisions: "D-002 (phiên chính tự duyệt câu hỏi chặn, 2026-10-16)"
+---
+
 # SPEC-access-and-property — Tổ chức, cơ sở, phòng, thành viên và quyền
 
 | Trường | Giá trị |
@@ -319,7 +326,7 @@ Không áp dụng — tính năng không dùng model.
 - [x] Q-07 Ngưỡng thử sai và thời gian hết phiên nhân viên — [chặn T010] — hỏi: Tech Lead — đề xuất: khoá tạm 15 phút sau 5 lần sai; phiên không hoạt động 12 giờ; xác thực lại cho xuất dữ liệu/đổi quyền. Cấu hình qua rate limit và `session.expiresIn`/`updateAge` của Better Auth (ADR-0002); kiểm bằng test ở T-004. — **Quyết 2026-10-15 (PLAN đợt 1, chủ dự án duyệt):** 5 lần sai → khoá 15 phút; phiên rảnh 12 giờ; là tham số (T-006).
 - [x] Q-08 Quy trình khôi phục tài khoản khi mất thiết bị MFA (kế hoạch §16 "account recovery được kiểm tra") — [chặn pilot] — hỏi: PO + Tech Lead — đề xuất: owner khác reset MFA có audit; owner duy nhất → qua hỗ trợ nền tảng có xác minh danh tính (F-015). — **Quyết 2026-10-15 (PLAN đợt 2, chủ dự án duyệt):** owner khác reset MFA của thành viên (bắt xác thực lại, thu hồi phiên, audit); không tự reset; owner duy nhất → hỗ trợ nền tảng (F-015, ngoài đợt 2). Thực hiện ở PLAN đợt 2 T-116: command `member.resetMfa` (`membership_id`, lý do; quyền `member.change_role`) xoá TOTP + mã dự phòng, tắt cờ 2FA, thu hồi mọi phiên, audit `member.mfa_reset` + outbox; tự đặt lại → 403 kèm `items[{recovery: another_owner|platform_support}]`; tài khoản còn membership CHƯA THU HỒI ở tổ chức khác (kể cả tạm khoá — hàm `app.memberships_elsewhere`, migration 0022) → 403 `platform_support` (owner một tổ chức không hạ bảo mật tổ chức khác). Test: `packages/app/src/access/mfa-recovery.db.test.ts`.
 - [ ] Q-09 `accountant` có phạm vi "mọi cơ sở" mặc định không — [không chặn] — hỏi: PO — đề xuất: có, owner thu hẹp được.
-- [x] Q-10 Bổ sung vào DOMAIN-MODEL các bảng `floors`, `property_scopes`, `invitations`, `approval_requests` — đã đóng: có ở DOMAIN-MODEL §7 (v1.2).
+- [x] Q-10 Bổ sung vào DOMAIN-MODEL các bảng `floors`, `property_scopes`, `invitations`, `approval_requests` — đã đóng: có ở DOMAIN-MODEL §7 (v1.2). — **Đóng 2026-10-15:** đã có trong DOMAIN-MODEL v1.2 (G4, sửa sau review độc lập); không cần quyết định riêng.
 - [x] Q-11 Hạn mức hoàn/khấu trừ cọc và hoàn ứng trước (lễ tân ≤ 2.000.000 đ/lần khi check-out, quản lý ≤ 5.000.000 đ/lần, owner không giới hạn, kế toán chỉ lập đề nghị) và quyền lễ tân xác nhận tiền mặt do mình nhận trong ca mở (INV-F3b) — [chặn pilot] — hỏi: PO + kế toán — đề xuất: như ma trận 5.3; hạn mức cấu hình được ở `memberships.limits`. — **Quyết 2026-10-15 (PLAN đợt 2, chủ dự án duyệt):** như đề xuất; số chốt một chỗ ở SPEC-ledger-payments mục 10.
 - [x] Q-12 Giữ chỗ hợp đồng `lease.hold` — TTL 48 giờ (cấu hình theo cơ sở) và vai trò được giữ — [không chặn] — hỏi: PO — đề xuất: 48 giờ; owner/manager/lễ tân (khớp SPEC-lease, SPEC-inventory-allocation Q-01). — **Quyết 2026-10-15 (PLAN đợt 2, chủ dự án duyệt):** 48 giờ (`properties.lease_hold_ttl_hours`); owner/manager/lễ tân được giữ.
 

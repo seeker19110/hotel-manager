@@ -6,8 +6,7 @@ import { randomUUID } from "node:crypto";
 import { authorize, generateMemoRef } from "@hm/domain";
 import { sql } from "kysely";
 import { postEntry } from "../ledger/ledger.ts";
-import type { CommandContext } from "../pipeline/command.ts";
-import { CommandError, fieldError } from "../pipeline/problem.ts";
+import { type CommandContext, CommandError, fieldError } from "../pipeline/index.ts";
 import { openShiftOf } from "../shifts/shifts.ts";
 import { type LeaseStatus, leaseAllocations, leaseInterval, lockLease, transition } from "./lease.ts";
 

@@ -8,7 +8,7 @@ owner: (chưa gán — Tech Lead)
 
 # Deploy và rollback
 
-> **Trạng thái:** `deploy/compose.yaml` hiện chỉ có `postgres` (+ pgBackRest), `seaweedfs`, `caddy`. Dockerfile cho `web`/`worker` **chưa có** (Caddy đã trỏ sẵn `web:3000`); mua VPS/tên miền/SMTP là điểm dừng của chủ dự án. Các bước ứng dụng ghi theo thiết kế, đánh dấu "(chờ Dockerfile)". Deploy production là thao tác cần người duyệt (AGENTS §6).
+> **Trạng thái:** `deploy/compose.yaml` hiện chỉ có `postgres` (+ pgBackRest), `seaweedfs`, `caddy`. Dockerfile cho `web`/`worker` đã có ở `deploy/` nhưng **chưa build thật** và compose chưa có service tương ứng (Caddy đã trỏ sẵn `web:3000`; danh tính CSDL/S3 riêng từng service: [`deploy/README.md`](../../../deploy/README.md)); mua VPS/tên miền/SMTP là điểm dừng của chủ dự án. Các bước ứng dụng ghi theo thiết kế, đánh dấu "(chờ Dockerfile)". Deploy production là thao tác cần người duyệt (AGENTS §6).
 > Không chạy lệnh nào dưới đây lên dữ liệu thật trước khi có người duyệt.
 
 ## Khi nào dùng
@@ -46,7 +46,8 @@ import { migrateToLatest } from "./src/index.ts";
 const db = new Kysely({ dialect: new PostgresDialect({ pool: new pg.Pool({ connectionString: process.env.DATABASE_URL }) }) });
 try { await migrateToLatest(db); } finally { await db.destroy(); }'
 ```
-(Đã thử trên cluster tạm: áp 46 migration, không lỗi.) Quy tắc: migration mới là file mới, **không sửa migration đã áp**; thay đổi phá vỡ dùng expand → contract qua hai lần phát hành.
+(Đã thử trên cluster tạm: áp 46 migration, không lỗi.) **Khoá bảng (RK-021):** migration có `CREATE INDEX`/`ALTER TABLE` khoá bảng đích (0048 xây ~58 index). Chạy **ngoài giờ cao điểm**, sau khi kiểm không còn giao dịch dài (`select pid, now()-xact_start, state, left(query,60) from pg_stat_activity where xact_start is not null order by 2 desc`). Migration phải tự đặt `lock_timeout` (0048: 5 s, cục bộ trong transaction của migrator, trả lại giá trị cũ sau khi xong); nếu báo `canceling statement due to lock timeout` thì transaction đã hoàn tác sạch — chờ giao dịch dài kết thúc rồi chạy lại, không tăng timeout. Bảng lớn (hàng trăm nghìn dòng trở lên): tạo index bằng `CREATE INDEX CONCURRENTLY` ngoài migrator rồi mới đánh dấu migration.
+Quy tắc: migration mới là file mới, **không sửa migration đã áp**; thay đổi phá vỡ dùng expand → contract qua hai lần phát hành.
 
 ### 4. Triển khai ứng dụng (chờ Dockerfile)
 ```bash

@@ -90,7 +90,7 @@ describe("handleCommand — thứ tự kiểm và mã lỗi", () => {
   it("không phiên → 401 UNAUTHENTICATED (problem+json, no-store, có correlation id)", async () => {
     const res = await handleCommand(ECHO, post({ n: 1 }), deps);
     expect(res.status).toBe(401);
-    expect(res.headers.get("content-type")).toBe("application/problem+json");
+    expect(res.headers.get("content-type")).toBe("application/problem+json; charset=utf-8");
     expect(res.headers.get("cache-control")).toBe("no-store");
     const body = await j(res);
     expect(body).toMatchObject({

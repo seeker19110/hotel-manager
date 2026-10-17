@@ -14,7 +14,7 @@ test.describe.configure({ mode: "serial" });
 
 const PORT = Number(process.env.E2E_PORT ?? 3100);
 const vnd = (n: number) => `${new Intl.NumberFormat("vi-VN").format(n)} đ`;
-const GUEST = { name: "Khách E2E (giả)", phone: "0900000077", doc: "079123456789" };
+const GUEST = { name: "Khách E2E (giả)", phone: "0100000077", doc: "079123456789" };
 const UUID_URL = /\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 type Cookies = Awaited<ReturnType<BrowserContext["cookies"]>>;
@@ -123,7 +123,7 @@ test("R-003: báo giá → giữ → xác nhận → nhận phòng → dịch v�
 
   // Xác nhận (chưa thu trước) rồi nhận phòng: số giấy tờ ngắn → lỗi theo ô; khách chính = người đặt.
   await page.getByRole("button", { name: "Xác nhận (chưa thu trước)" }).click();
-  await confirmAction(page);
+  await confirmAction(page, /^Xác nhận đặt phòng \S+ \(phòng \d+\) không thu trước$/);
   await expect(page.getByTestId("booking-status")).toHaveText(/Đã xác nhận/);
   await expectAccessible(page);
   await page.getByLabel("Số giấy tờ khách 1").fill("123");
@@ -156,7 +156,7 @@ test("R-003: báo giá → giữ → xác nhận → nhận phòng → dịch v�
   await page.getByText("Huỷ khoản: Khăn thêm").click();
   await page.getByLabel('Lý do huỷ "Khăn thêm"').fill("Khách không dùng");
   await page.getByRole("button", { name: "Huỷ khoản này" }).click();
-  await confirmAction(page);
+  await confirmAction(page, /^Huỷ khoản "Khăn thêm" \(phòng \d+\)$/);
   await expect(page.getByTestId("folio-charges")).toHaveText(vnd(roomTotal + 40_000));
   await expect(page.getByTestId("charge").filter({ hasText: "đã huỷ" })).toHaveCount(1);
   await expectAccessible(page);
@@ -168,7 +168,7 @@ test("R-003: báo giá → giữ → xác nhận → nhận phòng → dịch v�
   const cash = page.getByLabel("Tiền mặt thu (đồng)");
   await expect(cash).toHaveValue(String(due));
   await page.getByRole("button", { name: "Thu tiền mặt và trả phòng" }).click();
-  await confirmAction(page);
+  await confirmAction(page, new RegExp(`^Thu ${vnd(due).replace(/\./g, "\\.")} và trả phòng \\d+$`));
   await expect(page.getByTestId("stay-status")).toHaveText(/Đã trả phòng/);
   await expect(page.getByTestId("folio-balance")).toHaveText("0 đ");
   await expect(page.getByTestId("folio-paid")).toHaveText(vnd(due));
@@ -339,7 +339,7 @@ test("khách vãng lai nhận phòng ngay; đặt trùng phòng đang có khách
   await page.getByRole("button", { name: "Nhận khách ngay" }).click();
   await expect(page.getByRole("alert").filter({ hasText: "Bắt buộc nhập" }).first()).toBeVisible();
   await page.getByLabel("Họ tên khách 1").fill("Khách vãng lai (giả)");
-  await page.getByLabel("Số điện thoại khách 1").fill("0900000099");
+  await page.getByLabel("Số điện thoại khách 1").fill("0100000099");
   await page.getByLabel("Số giấy tờ khách 1").fill("079012345678");
   await page.getByRole("button", { name: "Nhận khách ngay" }).click();
   await expect(page).toHaveURL(/\/luu-tru\/[0-9a-f-]{36}$/);
@@ -350,7 +350,7 @@ test("khách vãng lai nhận phòng ngay; đặt trùng phòng đang có khách
   await page.getByRole("button", { name: "Báo giá" }).click();
   await expect(page.getByTestId("quote-total")).toBeVisible();
   await page.getByLabel("Họ tên người đặt").fill("Khách đặt trùng (giả)");
-  await page.getByLabel("Số điện thoại").fill("0900000088");
+  await page.getByLabel("Số điện thoại").fill("0100000088");
   await page.getByRole("button", { name: "Tạo và giữ phòng" }).click();
   await expect(page.getByRole("alert").filter({ hasText: "Phòng đã có người" })).toBeVisible();
   const draft = page.getByRole("link", { name: "Mở đặt phòng nháp" });

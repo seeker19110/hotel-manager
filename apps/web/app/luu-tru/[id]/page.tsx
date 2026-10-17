@@ -5,7 +5,14 @@ import { CommandForm } from "../../../components/command/command-form.tsx";
 import { ShiftPanel } from "../../../components/hotel/shift-panel.tsx";
 import { StatusBadge } from "../../../components/ui/badge.tsx";
 import { ErrorState } from "../../../components/ui/state.tsx";
-import { CHARGE_KIND, PAYMENT_METHOD, PAYMENT_STATUS, STAY_STATUS, vnd } from "../../../lib/format.ts";
+import {
+  CHARGE_KIND,
+  PAYMENT_METHOD,
+  PAYMENT_STATUS,
+  STAY_STATUS,
+  vnd,
+  vndUnitPrice,
+} from "../../../lib/format.ts";
 import { withActor } from "../../../lib/page.tsx";
 import { safe } from "../../../lib/safe.ts";
 
@@ -75,7 +82,7 @@ export default async function StayPage({ params }: { params: Promise<{ id: strin
                 <tr key={c.id} data-testid="charge">
                   <th scope="row">
                     {CHARGE_KIND[c.kind] ?? c.kind}: {c.description}
-                    {c.quantity > 1 ? ` (${c.quantity} × ${vnd(c.unitPrice)})` : ""}
+                    {c.quantity > 1 ? ` (${c.quantity} × ${vndUnitPrice(c.unitPrice)})` : ""}
                     {c.voided ? " — đã huỷ" : ""}
                   </th>
                   <td>{c.voided ? <s>{vnd(c.amount)}</s> : vnd(c.amount)}</td>
@@ -130,6 +137,7 @@ export default async function StayPage({ params }: { params: Promise<{ id: strin
                   <CommandForm
                     path="stay/voidCharge"
                     confirm="Huỷ khoản phí này khỏi folio; thao tác được ghi nhật ký."
+                    confirmLabel={`Huỷ khoản "${c.description}" (phòng ${f.unitCode})`}
                     fixed={{ charge_id: c.id }}
                     fields={[
                       {
@@ -163,6 +171,7 @@ export default async function StayPage({ params }: { params: Promise<{ id: strin
                   key={`cash-${f.balance}`}
                   path="stay/checkOut"
                   confirm="Trả phòng sẽ phát hành folio, ghi sổ và tạo việc dọn phòng; không quay lại được."
+                  confirmLabel={`Thu {cash} và trả phòng ${f.unitCode}`}
                   fixed={{ stay_id: id, payments: [{ method: "cash" }] }}
                   fields={[
                     {
@@ -188,6 +197,7 @@ export default async function StayPage({ params }: { params: Promise<{ id: strin
                   key={`refund-${f.deposit.balance}`}
                   path="stay/checkOut"
                   confirm="Trả phòng sẽ phát hành folio, ghi sổ và tạo việc dọn phòng; không quay lại được."
+                  confirmLabel={`Hoàn cọc {refund} và trả phòng ${f.unitCode}`}
                   fixed={{ stay_id: id, deposit_refund: { method: "cash" } }}
                   fields={[
                     {
@@ -206,6 +216,7 @@ export default async function StayPage({ params }: { params: Promise<{ id: strin
                 <CommandForm
                   path="stay/checkOut"
                   confirm="Trả phòng sẽ phát hành folio, ghi sổ và tạo việc dọn phòng; không quay lại được."
+                  confirmLabel={`Trả phòng ${f.unitCode} (chưa hoàn cọc)`}
                   fixed={{ stay_id: id }}
                   submitLabel="Trả phòng (chưa hoàn cọc)"
                   successText="Đã trả phòng. Việc dọn phòng đã được tạo."
@@ -216,6 +227,7 @@ export default async function StayPage({ params }: { params: Promise<{ id: strin
               <CommandForm
                 path="stay/checkOut"
                 confirm="Trả phòng sẽ phát hành folio, ghi sổ và tạo việc dọn phòng; không quay lại được."
+                confirmLabel={`Trả phòng ${f.unitCode}`}
                 fixed={{ stay_id: id }}
                 submitLabel="Trả phòng"
                 successText="Đã trả phòng. Việc dọn phòng đã được tạo."

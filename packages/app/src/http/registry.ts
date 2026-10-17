@@ -1,6 +1,8 @@
 // Danh mục command công khai qua `POST /api/v1/<module>/<command>` (API-CONTRACT §1). Thêm command = thêm một mục ở đây
 // (schema Zod là hợp đồng đầu vào). Tên mục = tên command trong SPEC §5.
+
 import type { StatementMapping } from "@hm/domain";
+import { mibToBytes } from "@hm/domain";
 import { z } from "zod";
 import { resetMemberMfa } from "../access/mfa-recovery.ts";
 import { APPROVAL_KINDS, cancelApproval, decideApproval, requestApproval } from "../approvals/approvals.ts";
@@ -152,10 +154,11 @@ import {
 import { checkIn, type GuestInput, walkIn } from "../stay/stays.ts";
 import { getSummary, listItems, TODAY_CARDS } from "../today/today.ts";
 import type { CommandDef, QueryDef } from "./command-route.ts";
+import { MONEY_MAX } from "./form-rules.ts";
 
 const uuid = z.uuid();
-const money = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
-const positiveMoney = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
+const money = z.number().int().nonnegative().max(MONEY_MAX);
+const positiveMoney = z.number().int().positive().max(MONEY_MAX);
 const bankTxn = z.strictObject({
   ref: z.string().trim().min(1).max(100),
   occurred_at: z.iso.datetime({ offset: true }),
@@ -1117,10 +1120,7 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
     input: z.strictObject({
       receiving_account_id: uuid,
       // Giới hạn cứng chống body khổng lồ; quá 2 MB (byte) → 413 FILE_TOO_LARGE ở lệnh (SPEC-ledger mục 5).
-      csv: z
-        .string()
-        .min(1)
-        .max(4 * 1024 * 1024),
+      csv: z.string().min(1).max(mibToBytes(4)),
       mapping: z.strictObject({
         date: column,
         description: column,

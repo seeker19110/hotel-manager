@@ -1,0 +1,64 @@
+# ROUTES — mọi route của `apps/web/app`: chế độ render, cache, quyền
+
+> FE-RENDER-001, PRF-WEB-001. Lý do chọn chế độ render: [ADR-0004](adr/0004-chien-luoc-render.md). Cập nhật cùng PR thêm/đổi/xoá `page.tsx`/`route.ts`/`manifest.ts`.
+> `scripts/process-docs.test.mjs` so cột 1–3 của bảng với cây `apps/web/app` (thiếu hoặc thừa route, sai method → đỏ). Cột render/cache/quyền do người viết và được review.
+> Đường dẫn `[x]` là tham số động. Mọi phản hồi đi qua `apps/web/proxy.ts` (trừ `/_next/static`, `/_next/image`, `favicon.ico`) mang CSP có nonce và header bảo mật, và `Cache-Control: no-store` trừ `/icons/*` và `/manifest.webmanifest`. API ghi cùng origin (trừ webhook); chi tiết hợp đồng API: [API-CONTRACT](design/API-CONTRACT.md) và `apps/web/openapi.json`.
+> Quyền ở cột cuối chỉ là cổng điều hướng; quyền thật kiểm ở server (`authorize()` + RLS), không dựa vào việc ẩn nút.
+
+| Đường dẫn | Loại | Method | Render | Cache | Quyền / xác thực | Mục đích |
+|---|---|---|---|---|---|---|
+| `/` | trang | GET | SSR động | no-store (proxy) | nhân viên; chưa đăng nhập vẫn render trang mời đăng nhập, không có dữ liệu (`currentSession`) | Hôm nay: thẻ việc theo vai trò; chưa đăng nhập hiện lời mời đăng nhập |
+| `/hom-nay/[card]` | trang | GET | SSR động | no-store (proxy) | nhân viên đã đăng nhập và chọn tổ chức (`withActor`); vai trò `tenant` bị chuyển sang `/portal`; quyền chi tiết kiểm lại ở server mỗi lệnh/truy vấn | Danh sách đằng sau một thẻ ở trang Hôm nay |
+| `/phong` | trang | GET | SSR động | no-store (proxy) | nhân viên đã đăng nhập và chọn tổ chức (tự kiểm `currentActor`, không qua `withActor`); `tenant` → `/portal` | Danh sách phòng theo cơ sở |
+| `/lich-phong` | trang | GET | SSR động | no-store (proxy) | nhân viên đã đăng nhập và chọn tổ chức (`withActor`); vai trò `tenant` bị chuyển sang `/portal`; quyền chi tiết kiểm lại ở server mỗi lệnh/truy vấn | Lịch tài nguyên theo phòng |
+| `/hop-dong` | trang | GET | SSR động | no-store (proxy) | nhân viên đã đăng nhập và chọn tổ chức (`withActor`); vai trò `tenant` bị chuyển sang `/portal`; quyền chi tiết kiểm lại ở server mỗi lệnh/truy vấn | Danh sách hợp đồng thuê |
+| `/hop-dong/[id]` | trang | GET | SSR động | no-store (proxy) | nhân viên đã đăng nhập và chọn tổ chức (`withActor`); vai trò `tenant` bị chuyển sang `/portal`; quyền chi tiết kiểm lại ở server mỗi lệnh/truy vấn | Chi tiết hợp đồng |
+| `/ky-thu` | trang | GET | SSR động | no-store (proxy) | nhân viên đã đăng nhập và chọn tổ chức (`withActor`); vai trò `tenant` bị chuyển sang `/portal`; quyền chi tiết kiểm lại ở server mỗi lệnh/truy vấn | Danh sách kỳ thu |
+| `/ky-thu/[id]` | trang | GET | SSR động | no-store (proxy) | nhân viên đã đăng nhập và chọn tổ chức (`withActor`); vai trò `tenant` bị chuyển sang `/portal`; quyền chi tiết kiểm lại ở server mỗi lệnh/truy vấn | Chi tiết kỳ thu: xem trước, duyệt, phát hành |
+| `/chi-so/[id]` | trang | GET | SSR động | no-store (proxy) | nhân viên đã đăng nhập và chọn tổ chức (`withActor`); vai trò `tenant` bị chuyển sang `/portal`; quyền chi tiết kiểm lại ở server mỗi lệnh/truy vấn | Chốt chỉ số công tơ theo tầng cho một kỳ |
+| `/thu-tien` | trang | GET | SSR động | no-store (proxy) | nhân viên đã đăng nhập và chọn tổ chức (`withActor`); vai trò `tenant` bị chuyển sang `/portal`; quyền chi tiết kiểm lại ở server mỗi lệnh/truy vấn | Thu tiền, xác nhận thanh toán |
+| `/doi-soat` | trang | GET | SSR động | no-store (proxy) | nhân viên đã đăng nhập và chọn tổ chức (`withActor`); vai trò `tenant` bị chuyển sang `/portal`; quyền chi tiết kiểm lại ở server mỗi lệnh/truy vấn | Đối soát ngân hàng: các break còn mở |
+| `/dat-phong` | trang | GET | SSR động | no-store (proxy) | nhân viên đã đăng nhập và chọn tổ chức (`withActor`); vai trò `tenant` bị chuyển sang `/portal`; quyền chi tiết kiểm lại ở server mỗi lệnh/truy vấn | Danh sách đặt phòng |
+| `/dat-phong/moi` | trang | GET | SSR động | no-store (proxy) | nhân viên có vai trò `owner`, `manager` hoặc `front_desk` (kiểm trong trang; vai trò khác thấy thông báo không đủ quyền); kiểm lại ở server | Tạo đặt phòng mới |
+| `/dat-phong/[id]` | trang | GET | SSR động | no-store (proxy) | nhân viên đã đăng nhập và chọn tổ chức (`withActor`); vai trò `tenant` bị chuyển sang `/portal`; quyền chi tiết kiểm lại ở server mỗi lệnh/truy vấn | Chi tiết đặt phòng |
+| `/luu-tru/moi` | trang | GET | SSR động | no-store (proxy) | nhân viên có vai trò `owner`, `manager` hoặc `front_desk` (kiểm trong trang); kiểm lại ở server | Nhận khách vãng lai (không đặt trước) |
+| `/luu-tru/[id]` | trang | GET | SSR động | no-store (proxy) | nhân viên đã đăng nhập và chọn tổ chức (`withActor`); vai trò `tenant` bị chuyển sang `/portal`; quyền chi tiết kiểm lại ở server mỗi lệnh/truy vấn | Lượt ở và folio |
+| `/thong-bao-luu-tru` | trang | GET | SSR động | no-store (proxy) | nhân viên đã đăng nhập và chọn tổ chức (`withActor`); vai trò `tenant` bị chuyển sang `/portal`; quyền chi tiết kiểm lại ở server mỗi lệnh/truy vấn | Thông báo lưu trú (nhắc hạn, đánh dấu đã gửi) |
+| `/buong-phong` | trang | GET | SSR động | no-store (proxy) | nhân viên đã đăng nhập và chọn tổ chức (`withActor`); vai trò `tenant` bị chuyển sang `/portal`; quyền chi tiết kiểm lại ở server mỗi lệnh/truy vấn | Buồng phòng: việc dọn |
+| `/buong-phong/[id]` | trang | GET | SSR động | no-store (proxy) | nhân viên đã đăng nhập và chọn tổ chức (`withActor`); vai trò `tenant` bị chuyển sang `/portal`; quyền chi tiết kiểm lại ở server mỗi lệnh/truy vấn | Chi tiết việc dọn phòng |
+| `/su-co` | trang | GET | SSR động | no-store (proxy) | nhân viên đã đăng nhập và chọn tổ chức (`withActor`); vai trò `tenant` bị chuyển sang `/portal`; quyền chi tiết kiểm lại ở server mỗi lệnh/truy vấn | Phiếu sự cố/sửa chữa |
+| `/thong-bao` | trang | GET | SSR động | no-store (proxy) | nhân viên đã đăng nhập và chọn tổ chức (`withActor`); vai trò `tenant` bị chuyển sang `/portal`; quyền chi tiết kiểm lại ở server mỗi lệnh/truy vấn | Thông báo trong ứng dụng của người dùng |
+| `/chon-to-chuc` | trang | GET | SSR động | no-store (proxy) | người dùng đã đăng nhập (`currentSession`); chưa đăng nhập → `/dang-nhap` | Chọn tổ chức (và cơ sở) làm việc |
+| `/dang-nhap` | trang | GET | SSR động | no-store (proxy) | công khai (biểu mẫu; xác thực qua `/api/auth`) | Đăng nhập nhân viên (email, mật khẩu, TOTP) |
+| `/dang-nhap/nguoi-thue` | trang | GET | SSR động | no-store (proxy) | công khai (biểu mẫu; xác thực qua `/api/auth`) | Đăng nhập người thuê bằng mã OTP qua email |
+| `/portal` | trang | GET | SSR động | no-store (proxy) | chỉ vai trò `tenant` (`withPortal`); dữ liệu qua hàm `portal.*` + RLS | Portal người thuê: danh sách kỳ thu |
+| `/portal/phieu/[id]` | trang | GET | SSR động | no-store (proxy) | chỉ vai trò `tenant` (`withPortal`); dữ liệu qua hàm `portal.*` + RLS | Portal: chi tiết phiếu |
+| `/portal/thanh-toan/[id]` | trang | GET | SSR động | no-store (proxy) | chỉ vai trò `tenant` (`withPortal`); dữ liệu qua hàm `portal.*` + RLS | Portal: hướng dẫn thanh toán (QR, nội dung chuyển khoản) |
+| `/portal/hop-dong` | trang | GET | SSR động | no-store (proxy) | chỉ vai trò `tenant` (`withPortal`); dữ liệu qua hàm `portal.*` + RLS | Portal: hợp đồng và cọc |
+| `/portal/dien-nuoc` | trang | GET | SSR động | no-store (proxy) | chỉ vai trò `tenant` (`withPortal`); dữ liệu qua hàm `portal.*` + RLS | Portal: chỉ số điện nước đã duyệt |
+| `/portal/yeu-cau` | trang | GET | SSR động | no-store (proxy) | chỉ vai trò `tenant` (`withPortal`); dữ liệu qua hàm `portal.*` + RLS | Portal: gửi yêu cầu/sự cố kèm ảnh |
+| `/huy-dang-ky` | trang | GET | SSR động | no-store (proxy) | công khai có token ký trong query; `no-referrer`, `noindex`; việc huỷ làm bằng POST `/api/v1/notifications/unsubscribe` | Huỷ đăng ký email: chỉ hiện nút xác nhận, không đổi gì khi tải trang |
+| `/khach/luot-o/[id]` | trang | GET | SSR động | no-store (proxy) | công khai có token liên kết ở fragment `#t=` (không vào log/Referer); `no-referrer`, `noindex`; dữ liệu qua GET `/api/v1/portal/guest/stays/{id}` | Khách xem lượt ở và folio bằng liên kết |
+| `/offline` | trang | GET | SSR động (layout gốc gọi `connection()`); được service worker precache | no-store (proxy); bản precache do service worker giữ | công khai | Trang dự phòng khi mất mạng; không chứa dữ liệu nghiệp vụ |
+| `/manifest.webmanifest` | metadata route (`app/manifest.ts`) | GET | tĩnh lúc build | được cache công khai (ngoại lệ `isCacheablePublicPath`) | công khai | Manifest cài PWA |
+| `/api/health` | API | GET | động (`force-dynamic`) | no-store (proxy) | công khai, không lộ phiên bản | Tiến trình còn sống |
+| `/api/ready` | API | GET | động (`force-dynamic`) | no-store (proxy) | công khai, chỉ trả trạng thái từng thành phần | Sẵn sàng: CSDL, kho file, máy quét (200/503) |
+| `/api/metrics` | API | GET | động (`force-dynamic`) | no-store (proxy) | Bearer token dẫn xuất từ `BETTER_AUTH_SECRET`; chặn thêm ở reverse proxy khi chạy thật (RUNBOOK §1) | Metric Prometheus |
+| `/api/auth/[...all]` | API | GET, POST | động (`force-dynamic`) | no-store (proxy) | do Better Auth quyết định; cùng origin cho POST | Better Auth: đăng nhập, phiên, 2FA, OTP |
+| `/api/v1/[module]/[command]` | API | GET, POST | động (`force-dynamic`) | no-store (proxy) | phiên + `authorize()` + RLS; POST cần cùng origin và `Idempotency-Key` | Mọi command (POST) và query (GET) trong registry |
+| `/api/v1/commands/[id]` | API | GET | động (`force-dynamic`) | no-store (proxy) | phiên; chỉ người tạo hoặc quản lý | Tra kết quả command |
+| `/api/v1/me` | API | GET | động (`force-dynamic`) | no-store (proxy) | phiên (401 khi chưa đăng nhập) | Người dùng và tổ chức của họ |
+| `/api/v1/session/switchOrganization` | API | POST | động (`force-dynamic`) | no-store (proxy) | phiên + membership; cùng origin; `Idempotency-Key` | Đổi tổ chức/cơ sở đang chọn |
+| `/api/v1/files/upload` | API | POST | động (`force-dynamic`) | no-store (proxy) | phiên + quyền theo cơ sở (`owner_type` = `work_order` hoặc `payment_claim`); cùng origin; `Idempotency-Key` | Tải ảnh sự cố/chứng từ |
+| `/api/v1/import/upload` | API | POST | động (`force-dynamic`) | no-store (proxy) | phiên + quyền import; cùng origin | Tải file import Excel/CSV |
+| `/api/v1/notifications/unsubscribe` | API | POST | động (`force-dynamic`) | no-store (proxy) | token ký trong email, không phiên; cùng origin | Huỷ đăng ký email |
+| `/api/v1/portal/guest/stays/[id]` | API | GET | động (`force-dynamic`) | no-store (proxy) | token liên kết + bước hai (4 số cuối SĐT), giới hạn tần suất; không phiên | Khách xem lượt ở bằng liên kết |
+| `/api/v1/webhooks/[provider]/[account]` | API | POST | động (`force-dynamic`) | no-store (proxy) | chữ ký HMAC + timestamp; không phiên, miễn kiểm Origin | Webhook tiền vào |
+| `/serwist/[path]` | API | GET | bundle lúc build (`createSerwistRoute`) | no-store (proxy) | công khai | Phục vụ `/serwist/sw.js` (service worker) |
+
+## Nhóm và quy tắc
+- **Không có route tĩnh theo người dùng:** trang động hết (layout gốc gọi `connection()` để Next gắn nonce CSP vào script). Cache dùng chung cho dữ liệu theo người dùng/tổ chức bị cấm (ADR-0004).
+- **Nhóm nhân viên** (`withActor`): chưa đăng nhập → `/dang-nhap`; chưa chọn tổ chức → `/chon-to-chuc`; vai trò bắt buộc MFA mà chưa bật → thông báo, không có dữ liệu.
+- **Nhóm người thuê** (`withPortal`): vai trò khác `tenant` → `/phong`; mất quyền → thông báo "Không còn truy cập".
+- **Nhóm công khai có token** (`/huy-dang-ky`, `/khach/luot-o/[id]`, `/api/v1/portal/guest/*`, `/api/v1/notifications/unsubscribe`, webhook): không phiên; mọi quyết định dựa vào token/chữ ký kiểm ở server.
+- **Thêm route mới:** thêm một dòng ở bảng, chọn nhóm, nêu quyền; nếu muốn cache hoặc render tĩnh thì mở ADR (ADR-0004 "Điều kiện xem lại").

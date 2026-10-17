@@ -244,7 +244,7 @@ describe("audit append-only (SEC-LOG-007)", () => {
         await ctx.audit({
           action: "person.updated",
           entityType: "person",
-          after: { phone: "0912345678", cccd_number: "001234567890" },
+          after: { phone: "0100005678", cccd_number: "001234567890" },
         });
         return { data: null };
       },
@@ -252,7 +252,7 @@ describe("audit append-only (SEC-LOG-007)", () => {
     const r = await sql<{
       after: Record<string, string>;
     }>`select after from audit_events where command_id = ${key}`.execute(t.admin);
-    expect(r.rows[0]?.after).toEqual({ phone: "091****678", cccd_number: "***" });
+    expect(r.rows[0]?.after).toEqual({ phone: "010****678", cccd_number: "***" });
   });
 });
 

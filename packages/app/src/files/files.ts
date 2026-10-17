@@ -4,11 +4,10 @@
 
 import { createHash, randomUUID } from "node:crypto";
 import { withTenant } from "@hm/db";
-import { authorize } from "@hm/domain";
+import { authorize, mibToBytes } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/actor.ts";
-import type { CommandContext } from "../pipeline/command.ts";
-import { CommandError } from "../pipeline/problem.ts";
+import { type CommandContext, CommandError } from "../pipeline/index.ts";
 import { ScannerUnavailableError } from "./clamd.ts";
 import {
   CorruptFileError,
@@ -42,7 +41,7 @@ const ALLOW: Readonly<Record<FileOwnerType, readonly DetectedMime[]>> = {
   payment_claim: [...IMAGES, "application/pdf"],
 };
 /** 10 MB/ảnh (đề xuất SPEC-housekeeping Q, chờ PO). */
-export const MAX_FILE_BYTES = 10 * 1024 * 1024;
+export const MAX_FILE_BYTES = mibToBytes(10);
 
 export interface FileDeps {
   storage: ObjectStorage;

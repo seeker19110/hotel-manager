@@ -4,6 +4,7 @@
 // Giữ phòng thất bại (vd. phòng bận) thì booking nháp đã tạo được dùng lại — không tạo thêm bản nháp thứ hai.
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { timedFetch } from "../../lib/fetch-timeout.ts";
 import { vnd } from "../../lib/format.ts";
 import { CommandStatus } from "../command/command-status.tsx";
 import { orgContextHeaders } from "../command/org-context.ts";
@@ -67,7 +68,7 @@ export function BookingForm({
         departure_date: departure,
         guests,
       });
-      const res = await fetch(`/api/v1/reservation/quote?${qs}`, {
+      const res = await timedFetch(`/api/v1/reservation/quote?${qs}`, {
         credentials: "same-origin",
         cache: "no-store",
         headers: orgContextHeaders(),

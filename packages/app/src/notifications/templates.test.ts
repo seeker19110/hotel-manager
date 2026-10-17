@@ -16,7 +16,7 @@ const ID = "6f1c2b3a-1111-4222-8333-444455556666";
 const SENSITIVE = {
   cccd: "012345678901",
   passport: "C1234567",
-  phone: "0912345678",
+  phone: "0100005678",
   accountNumber: "0123456789",
   fullName: "Nguyễn Văn An",
   contractText: "Điều 5: bên B phải trả",
@@ -49,6 +49,20 @@ const VARS: Record<NotificationType, Vars> = {
   export_ready: { exportName: "Báo cáo công nợ 10/2026", exportId: ID },
 };
 
+describe("account_security — sự kiện bảo mật của chính tài khoản (T-405)", () => {
+  it.each([
+    ["mfa_reset", "xác thực hai lớp đã được đặt lại", /đặt lại/],
+    ["password_changed", "mật khẩu đã được đổi", /Mật khẩu tài khoản của bạn đã được đổi/],
+    ["mfa_disabled", "xác thực hai lớp đã được tắt", /đã được tắt/],
+  ])("%s: nêu việc đã xảy ra + cách xử lý, bắt buộc có cơ sở", (kind, action, re) => {
+    const r = render("account_security", { orgName: "Nhà trọ Hoa Sen", action, kind });
+    expect(r.title).toBe(`Nhà trọ Hoa Sen: ${action}`);
+    expect(r.body).toMatch(re);
+    expect(r.body).toContain("Nếu không phải bạn");
+    expect(r.emailText).toContain("Nếu không phải bạn");
+  });
+});
+
 describe("S-012 nội dung không chứa PII nhạy cảm", () => {
   for (const type of NOTIFICATION_TYPES) {
     it(`${type}: không CCCD/hộ chiếu/SĐT/số tài khoản/tên/nội dung hợp đồng dù có trong dữ liệu`, () => {
@@ -77,8 +91,8 @@ describe("S-012 nội dung không chứa PII nhạy cảm", () => {
     const cases: [NotificationType, Vars, string][] = [
       [
         "invoice_issued",
-        { ...VARS.invoice_issued, propertyName: "Nhà nghỉ Hoa Mai - 0905123456" },
-        "0905123456",
+        { ...VARS.invoice_issued, propertyName: "Nhà nghỉ Hoa Mai - 0100003456" },
+        "0100003456",
       ],
       ["invoice_issued", { ...VARS.invoice_issued, propertyName: "Nhà trọ +84 905 123 456" }, "905 123 456"],
       ["lease_expiring", { ...VARS.lease_expiring, unitCode: "012345678901" }, "012345678901"],
@@ -102,7 +116,7 @@ describe("S-012 nội dung không chứa PII nhạy cảm", () => {
       expect(all).toContain("***");
     }
     expect(
-      render("invoice_issued", { ...VARS.invoice_issued, propertyName: "Nhà nghỉ Hoa Mai - 0905123456" })
+      render("invoice_issued", { ...VARS.invoice_issued, propertyName: "Nhà nghỉ Hoa Mai - 0100003456" })
         .body,
     ).toBe("Nhà nghỉ Hoa Mai - ***: phiếu thu kỳ 10/2026 1.580.000 đ, hạn thanh toán 10/10/2026.");
   });

@@ -5,9 +5,10 @@ import { type FormEvent, useState } from "react";
 import { useOnline } from "../../../components/pwa/pwa-shell.tsx";
 import { Button } from "../../../components/ui/button.tsx";
 import { TextField } from "../../../components/ui/field.tsx";
+import { timedFetch } from "../../../lib/fetch-timeout.ts";
 
 async function post(path: string, body: unknown): Promise<{ ok: boolean; status: number }> {
-  const res = await fetch(path, {
+  const res = await timedFetch(path, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),

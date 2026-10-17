@@ -8,8 +8,7 @@ import { type Kysely, sql } from "kysely";
 import type { Actor } from "../access/actor.ts";
 import { createCleaningTask } from "../housekeeping/tasks.ts";
 import { approveBlock, endBlock, proposeBlock } from "../inventory/inventory.ts";
-import type { CommandContext } from "../pipeline/command.ts";
-import { CommandError } from "../pipeline/problem.ts";
+import { type CommandContext, CommandError } from "../pipeline/index.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const MAX_WORK_ORDER_PHOTOS = 5;

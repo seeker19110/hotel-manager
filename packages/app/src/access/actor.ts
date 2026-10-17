@@ -2,43 +2,10 @@
 // Quyền KHÔNG lấy từ token: tra `memberships` mỗi lần, nên thu hồi có hiệu lực ngay ở request kế tiếp.
 import { withTenant } from "@hm/db";
 import { type Kysely, sql } from "kysely";
+import { AccessError, type Actor, type Role } from "../actor-core/index.ts";
 
-export type Role =
-  | "owner"
-  | "manager"
-  | "front_desk"
-  | "accountant"
-  | "housekeeping"
-  | "maintenance"
-  | "tenant"
-  | "platform_support";
-
-export interface Actor {
-  authUserId: string;
-  orgId: string;
-  membershipId: string;
-  personId: string;
-  role: Role;
-  allProperties: boolean;
-  propertyIds: readonly string[];
-  limits: Readonly<Record<string, number>>;
-  mfaRequired: boolean;
-  /** Thời điểm đăng nhập của phiên (Better Auth `session.createdAt`) — thao tác nhạy cảm đòi xác thực lại gần đây. */
-  authenticatedAt?: Date;
-}
-
-export type AccessErrorCode = "UNAUTHENTICATED" | "NOT_FOUND" | "MFA_REQUIRED";
-
-export class AccessError extends Error {
-  readonly code: AccessErrorCode;
-  readonly status: 401 | 403 | 404;
-  constructor(code: AccessErrorCode, message: string) {
-    super(message);
-    this.name = "AccessError";
-    this.code = code;
-    this.status = code === "UNAUTHENTICATED" ? 401 : code === "NOT_FOUND" ? 404 : 403;
-  }
-}
+// Kiểu Actor/Role và AccessError nằm ở `actor-core` (module nền, tránh vòng access<->pipeline); xuất lại để giữ đường import cũ.
+export { AccessError, type AccessErrorCode, type Actor, type Role } from "../actor-core/index.ts";
 
 /** Vai trò có quyền tiền/quản trị bắt buộc MFA (kế hoạch §16; access Q-06 — chủ dự án duyệt 2026-10-15). */
 const MFA_ROLES: ReadonlySet<Role> = new Set(["owner", "manager", "accountant", "front_desk"]);

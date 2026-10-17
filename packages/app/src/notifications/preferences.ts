@@ -7,11 +7,11 @@
 //   (S-018). Gửi lại chỉ với `failed`/`dead` ⇒ `queued`, attempts về 0 (S-019); khác ⇒ 409 DELIVERY_NOT_RETRYABLE.
 import { createHmac, hkdfSync, randomUUID, timingSafeEqual } from "node:crypto";
 import { withTenant } from "@hm/db";
-import { authorize } from "@hm/domain";
+import { authorize, daysToMs, epochSeconds, secondsToMs } from "@hm/domain";
 import { type Kysely, sql } from "kysely";
 import type { Actor } from "../access/actor.ts";
-import type { CommandContext } from "../pipeline/command.ts";
-import { CommandError } from "../pipeline/problem.ts";
+import { assertPersonInOrg, assertPropertyInOrg } from "../access/scope.ts";
+import { type CommandContext, CommandError } from "../pipeline/index.ts";
 import {
   type DeliveryStatus,
   deliveryStatusLabel,
@@ -188,7 +188,7 @@ export function signUnsubscribe(
   key: Buffer,
   input: { orgId: string; personId: string; type: NotificationType; expiresAt: Date },
 ): string {
-  const payload = `${input.orgId}.${input.personId}.${input.type}.${Math.floor(input.expiresAt.getTime() / 1000)}`;
+  const payload = `${input.orgId}.${input.personId}.${input.type}.${epochSeconds(input.expiresAt)}`;
   return `${b64(payload)}.${b64(createHmac("sha256", key).update(payload).digest())}`;
 }
 
@@ -201,7 +201,7 @@ export function unsubscribeUrl(
 ): string {
   const token = signUnsubscribe(key, {
     ...input,
-    expiresAt: new Date(now.getTime() + UNSUBSCRIBE_TTL_DAYS * 86_400_000),
+    expiresAt: new Date(now.getTime() + daysToMs(UNSUBSCRIBE_TTL_DAYS)),
   });
   return `${baseUrl.replace(/\/$/, "")}/huy-dang-ky?t=${token}`;
 }
@@ -224,7 +224,7 @@ function verifyUnsubscribe(key: Buffer, token: string, now: Date) {
     !/^\d+$/.test(exp ?? "")
   )
     throw notFound();
-  if (Number(exp) * 1000 <= now.getTime())
+  if (secondsToMs(Number(exp)) <= now.getTime())
     throw new CommandError(
       "LINK_EXPIRED",
       410,
@@ -296,6 +296,13 @@ export async function listDeliveries(
     throw new CommandError("NOT_FOUND", 404, "Không tìm thấy dữ liệu");
   authorize(actor, "notification.configure", input.propertyId ? { propertyId: input.propertyId } : {});
   return withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
+    if (input.propertyId) await assertPropertyInOrg(trx, actor.orgId, input.propertyId);
+    // Người nhận lạ (hoặc không phải uuid) → 404, không lọc im lặng thành rỗng.
+    if (input.recipientPersonId !== undefined) {
+      if (!UUID.test(input.recipientPersonId))
+        throw new CommandError("NOT_FOUND", 404, "Không tìm thấy dữ liệu");
+      await assertPersonInOrg(trx, actor.orgId, input.recipientPersonId);
+    }
     const r = await sql<{
       id: string;
       notification_id: string;

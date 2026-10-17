@@ -7,8 +7,7 @@ import { AuthzError, authorize } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/actor.ts";
 import { last4, maskDocNumber, normalizeDocNumber, type PiiCipher } from "../crypto/pii.ts";
-import type { CommandContext } from "../pipeline/command.ts";
-import { CommandError } from "../pipeline/problem.ts";
+import { type CommandContext, CommandError } from "../pipeline/index.ts";
 
 export const DOC_TYPES = ["cccd", "passport", "other"] as const;
 export type DocType = (typeof DOC_TYPES)[number];

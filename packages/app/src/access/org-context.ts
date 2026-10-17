@@ -3,7 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { withTenant } from "@hm/db";
 import { type Kysely, sql } from "kysely";
-import { hashPayload } from "../pipeline/command.ts";
+import { hashPayload } from "../pipeline/index.ts";
 import { listMyOrganizations, type MyOrganization, type Role } from "./actor.ts";
 
 export const ORG_HEADER = "x-org-id";

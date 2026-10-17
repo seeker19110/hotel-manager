@@ -8,12 +8,13 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { authorize } from "@hm/domain";
 import { type Kysely, sql } from "kysely";
 import { emitSecurity, type SecurityClient, type SecurityEventName } from "../logging/security-events.ts";
-import type { CommandContext } from "../pipeline/command.ts";
-import { CommandError } from "../pipeline/problem.ts";
+import { type CommandContext, CommandError, rateLimited } from "../pipeline/index.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TOKEN = /^[A-Za-z0-9_-]{43}$/;
 export const GUEST_RATE_LIMIT_PER_MINUTE = 10;
+/** Độ dài cửa sổ đếm của `app.guest_link_rate` (phút nguyên) — dùng cho `Retry-After`. */
+const GUEST_RATE_WINDOW_SECONDS = 60;
 
 const sha256 = (s: string) => createHash("sha256").update(s).digest();
 
@@ -145,7 +146,8 @@ export async function guestGetStay(
       .rows[0]?.n ?? 0;
   if ((await rate(false)) >= GUEST_RATE_LIMIT_PER_MINUTE) {
     secure("rate_limit.exceeded", "RATE_LIMITED");
-    throw new CommandError("RATE_LIMITED", 429, "Bạn thử quá nhiều lần. Vui lòng đợi ít phút.");
+    // Cửa sổ đếm là 1 phút (app.guest_link_rate) ⇒ sau tối đa 60 giây hết giới hạn.
+    throw rateLimited("Bạn thử quá nhiều lần. Vui lòng đợi ít phút.", GUEST_RATE_WINDOW_SECONDS);
   }
   const fail = async (err: CommandError, reason = "INVALID_LINK", linkId?: string): Promise<never> => {
     secure("guest_link.denied", reason, linkId);
