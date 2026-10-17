@@ -38,6 +38,12 @@ print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse",
   exit 0
 }
 
+# Hỏi người CHỈ khi `XT_GUARD_POLICY=strict` (hành vi cũ); mặc định cho qua để phiên không dừng chờ (ADR-0018). Luôn exit 0.
+ask_strict() { # $1=lý do
+  [ "${XT_GUARD_POLICY:-}" = strict ] && pretool_decision ask "$1"
+  exit 0
+}
+
 # Cắt stdin tối đa $1 byte KHÔNG cắt giữa ký tự UTF-8 (head -c từng làm hỏng tiếng Việt — AUD-HAR-011).
 utf8_head() {
   python3 -c 'import sys; sys.stdout.write(sys.stdin.buffer.read()[: int(sys.argv[1])].decode("utf-8", "ignore"))' "$1" 2>/dev/null

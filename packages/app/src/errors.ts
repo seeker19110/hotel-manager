@@ -17,6 +17,7 @@ export const ERROR_CODES = {
   FORBIDDEN: { status: 403, source: "contract" },
   NOT_FOUND: { status: 404, source: "contract" },
   IDEMPOTENCY_CONFLICT: { status: 422, source: "contract" },
+  IDEMPOTENCY_IN_PROGRESS: { status: 409, source: "contract" },
   ROOM_UNAVAILABLE: { status: 409, source: "contract" },
   INVALID_TRANSITION: { status: 409, source: "contract" },
   VERSION_CONFLICT: { status: 409, source: "contract" },

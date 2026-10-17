@@ -59,6 +59,9 @@ const OVERRIDES: Record<string, (i: Ids) => Record<string, unknown>> = {
     method: "cash",
   }),
   "billing.createPeriod": (i) => ({ property_id: i.property_id, month: "2026-11" }),
+  // Phòng có hợp đồng nháp chưa kết thúc ⇒ chủ luôn nhận 409 UNIT_IN_USE (không bao giờ lưu trữ thật phòng dùng chung của
+  // fixture — nếu không các lệnh khác dùng `unit_id` sẽ nhận 404 tuỳ thứ tự chạy).
+  "unit.archive": (i) => ({ unit_id: i.leased_unit_id as string }),
   "billing.issuePeriod": (i) => ({
     billing_period_id: i.billing_period_id ?? randomUUID(),
     preview_hash: "a".repeat(64),
@@ -212,6 +215,7 @@ beforeAll(async () => {
     lease_id: lB.leaseId,
     invoice_id: iB.invoiceId,
     reservation_id: rB.reservationId,
+    leased_unit_id: lB.unitId,
     ...personIds(B),
   };
   bTokens = [
@@ -219,6 +223,7 @@ beforeAll(async () => {
     B.orgId,
     B.propertyId,
     B.unitId,
+    lB.unitId,
     B.roomTypeId,
     B.floorId,
     B.ownerPersonId,
@@ -252,6 +257,7 @@ beforeAll(async () => {
     lease_id: lA.leaseId,
     invoice_id: iA.invoiceId,
     reservation_id: rA.reservationId,
+    leased_unit_id: lA.unitId,
     ...personIds(A),
   };
   const create = async (name: string) => {
@@ -458,6 +464,8 @@ const ALLOWED_2XX: Record<string, Allowed> = {
 const MUST_403: readonly (readonly [string, Action | null, readonly Role[]])[] = [
   ...["room_type.create", "room_type.update", "rate.set"].map((n) => [n, "pricing.manage", ALL5] as const),
   ["meter.install", "meter.replace", ALL5],
+  // SPEC-access S-005/S-006: chỉ chủ/quản lý được tạo/lưu trữ phòng (`unit.manage`).
+  ...["unit.create", "unit.archive"].map((n) => [n, "unit.manage", ALL5] as const),
   ["lease.createDraft", "lease.manage", ALL5],
   ...[
     "lease.updateDraft",

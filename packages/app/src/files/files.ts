@@ -4,7 +4,7 @@
 
 import { createHash, randomUUID } from "node:crypto";
 import { withTenant } from "@hm/db";
-import { authorize, mibToBytes } from "@hm/domain";
+import { type Action, authorize, mibToBytes } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/index.ts";
 import { type CommandContext, CommandError } from "../pipeline/index.ts";
@@ -26,7 +26,8 @@ export type FileOwnerType =
   | "identity_document"
   | "task"
   | "residence_notice"
-  | "payment_claim";
+  | "payment_claim"
+  | "lease_settlement";
 
 const IMAGES: readonly DetectedMime[] = ["image/jpeg", "image/png", "image/webp"];
 const ALLOW: Readonly<Record<FileOwnerType, readonly DetectedMime[]>> = {
@@ -39,6 +40,8 @@ const ALLOW: Readonly<Record<FileOwnerType, readonly DetectedMime[]>> = {
   residence_notice: [...IMAGES, "application/pdf"],
   // Ảnh/PDF chuyển khoản người thuê đính kèm "Tôi đã chuyển" (SPEC-portal Q-07) — không đủ để xác nhận thu (INV-F3).
   payment_claim: [...IMAGES, "application/pdf"],
+  // Ảnh chứng cứ phí thanh lý (SPEC-lease: lập quyết toán `fees[].fileIds`) — chỉ ảnh, không PDF.
+  lease_settlement: IMAGES,
 };
 /** 10 MB/ảnh (đề xuất SPEC-housekeeping Q, chờ PO). */
 export const MAX_FILE_BYTES = mibToBytes(10);
@@ -63,9 +66,16 @@ async function scanOrFail(deps: FileDeps, bytes: Uint8Array) {
   }
 }
 
-const UPLOAD_ACTION: Partial<Record<FileOwnerType, "identity.read" | "residence_notice.manage">> = {
+/**
+ * Quyền ghi theo loại chủ (nhân viên) — allowlist, MẶC ĐỊNH TỪ CHỐI: loại không khai ở đây (handover, meter_reading, task,
+ * payment_claim — loại sau chỉ người thuê tải qua cổng) không có đường tải lên của nhân viên.
+ */
+const UPLOAD_ACTION: Partial<Record<FileOwnerType, Action>> = {
+  work_order: "work_order.create",
   identity_document: "identity.read",
   residence_notice: "residence_notice.manage",
+  // Cùng quyền lập quyết toán (`lease.prepare_settlement`): người không lập được quyết toán không có lý do tải ảnh phí.
+  lease_settlement: "lease.prepare_settlement",
 };
 
 export interface UploadInput {
@@ -90,9 +100,9 @@ async function assertUploadAllowed(
       select ${input.propertyId}::uuid in (select app.tenant_property_ids()) as ok`.execute(trx);
     if (!own.rows[0]?.ok) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy cơ sở");
   } else {
-    authorize(actor, UPLOAD_ACTION[input.ownerType] ?? "work_order.create", {
-      propertyId: input.propertyId,
-    });
+    const action = UPLOAD_ACTION[input.ownerType];
+    if (!action) throw new CommandError("FORBIDDEN", 403, "Bạn không có quyền tải loại file này");
+    authorize(actor, action, { propertyId: input.propertyId });
   }
 }
 
@@ -334,6 +344,8 @@ const READ_ACTION: Readonly<
   Record<string, "identity.read" | "calendar.read_status" | "residence_notice.manage" | "money.read">
 > = {
   payment_claim: "money.read",
+  // Cùng quyền đọc quyết toán: CSDL (0052 `tenant_isolation`) chỉ trả hàng cho owner/manager/accountant trong phạm vi cơ sở.
+  lease_settlement: "money.read",
   identity_document: "identity.read",
   residence_notice: "residence_notice.manage",
   work_order: "calendar.read_status",

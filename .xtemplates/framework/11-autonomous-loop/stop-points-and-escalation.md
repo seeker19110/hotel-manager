@@ -3,7 +3,7 @@ title: Điểm dừng bắt buộc, mức tin cậy T0–T4, leo thang
 kind: module
 prefix: LOOP-STOP
 applies_to: [all]
-updated: 2026-10-16
+updated: 2026-10-17
 ---
 
 # Điểm dừng bắt buộc, mức tin cậy T0–T4, leo thang
@@ -133,7 +133,7 @@ Ngoại lệ cứng: **xác thực/phân quyền · thanh toán · mật mã lu�
 - [ ] `LOOP-STOP-002` **MUST** Hành động đối ngoại (merge, release, publish, deploy, gửi thông báo) qua `ask` hoặc `loop block`, không bao giờ tự chạy trong autopilot — ngoại lệ duy nhất: merge PR — làn nhanh khi `xt.py merge-check` trả `merge` ở mức tự chủ ≥ L2, hoặc bật auto-merge của GitHub ở L3 cho mọi PR trừ ngoại lệ cứng (`LOOP-STOP-022`, ADR-0015, ADR-0016). → Kiểm: `.claude/settings.json` `permissions.ask` có `npm publish`, `docker push`; guard trả `ask` cho `gh pr merge` không ghim `--match-head-commit`, có `--admin`/`--repo`, hoặc `merge-check` ≠ `merge` — cùng luật cho `gh api -X PUT …/pulls/N/merge` (ghim `sha`) và tool MCP `merge_pull_request` (ghim `expectedHeadSha`), mọi `gh api` ghi khác (cả `--input`) luôn `ask`, bật auto-merge `ask` dưới L3 hoặc khi `merge-check` có `hard`; log phiên không có lệnh đối ngoại nào khác chạy tự động.
 - [ ] `LOOP-STOP-003` **MUST** Sửa cấu hình cổng (lint/type/coverage/workflows/ruleset/hook) và migration đã tồn tại đi qua `ask` kèm lý do ghi ở PR. → Kiểm: `pre-edit-guard.sh` trả `ask` cho `.github/workflows/x.yml` và file trong `migrations/` đã có; PR mô tả lý do. · Nguồn: stored 23 §4.3
 - [ ] `LOOP-STOP-004` **MAY** Ngừng dùng 2026-10-15 — thay bằng `LOOP-STOP-018` (ADR-0008: mâu thuẫn spec/nhiều cách hiểu là điểm quyết định, phiên chính tự duyệt và ghi lại thay vì `loop block`).
-- [ ] `LOOP-STOP-005` **MUST** Việc chạm tiền thật, dữ liệu người dùng thật, xác thực/phân quyền, mật mã luôn có người duyệt trước merge (T4/làn kiến trúc), ở mọi mức `merge_autonomy` kể cả L3 (ADR-0016). → Kiểm: PR có nhãn `risk:` tương ứng và required review của người; CI chặn merge khi thiếu; `xt.py merge-check` trả `hard` + `human` và guard không bật auto-merge cho PR đó.
+- [ ] `LOOP-STOP-005` **MUST** Việc chạm tiền thật, dữ liệu người dùng thật, xác thực/phân quyền, mật mã luôn có người duyệt trước merge (T4/làn kiến trúc), ở mọi mức `merge_autonomy` kể cả L3 (ADR-0016). → Kiểm: PR có nhãn `risk:` tương ứng và required review của người; CI chặn merge khi thiếu; `xt.py merge-check` trả `hard` + `human` và guard không bật auto-merge cho PR đó; sau **mỗi push** vào PR đang bật auto-merge chạy lại `merge-check` — có `hard` (commit sau chạm auth/tiền, thêm nhãn `risk:`) thì tắt auto-merge (MCP `disable_pr_auto_merge` hoặc `gh pr merge <N> --disable-auto`, guard hỏi người) rồi `loop defer` (AUD-SEC-036).
 - [ ] `LOOP-STOP-006` **MUST@L** Mỗi task giao cho subagent ghi `model_tier` (T0–T4) và `external_side_effects`; subagent không tự nâng tier. → Kiểm: task pack có hai trường; test từ chối task thiếu trường. · Nguồn: stored 23 §4.5
 - [ ] `LOOP-STOP-007` **MUST@L** Cổng chờ người có hạn (mặc định 24 h) và nhắc giữa hạn; quá hạn **không tự pass, không tự huỷ**. → Kiểm: cấu hình `gate_timeout_hours: 24`; test quá hạn → trạng thái `escalated`. · Nguồn: spec cũ ASC-FR-14
 - [ ] `LOOP-STOP-008` **MAY** Ngừng dùng 2026-10-14 — gộp vào [`LOOP-DESIGN-005`](loop-design.md) (trần rework 3 vòng/việc → `blocked`, người xem).

@@ -6,6 +6,7 @@ import { safeUrl } from "@hm/app/http";
 import { mibToBytes } from "@hm/app/units";
 import { useRef, useState } from "react";
 import { timedFetch, UPLOAD_TIMEOUT_MS } from "../../lib/fetch-timeout.ts";
+import { IN_PROGRESS_CODE } from "./in-progress.ts";
 import { orgContextHeaders } from "./org-context.ts";
 
 export const MAX_PHOTO_BYTES = mibToBytes(10);
@@ -67,6 +68,11 @@ export function usePhotoUpload(loginPath: string) {
       }
       if (res.status === 409 && j?.code === "CONTEXT_CHANGED") {
         setError("Bạn vừa đổi tổ chức ở tab khác — tải lại trang");
+        return null;
+      }
+      if (res.status === 409 && j?.code === IN_PROGRESS_CODE) {
+        // D-043: lần tải trước cùng key còn đang xử lý — GIỮ key để lần gửi lại nhận đúng file đó, không tải bản thứ hai.
+        setError("Ảnh đang được xử lý. Chờ vài giây rồi bấm gửi lại.");
         return null;
       }
       if (!res.ok || !j?.data) {
