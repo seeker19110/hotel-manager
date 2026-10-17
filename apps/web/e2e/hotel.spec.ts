@@ -81,7 +81,7 @@ test("Hôm nay: thẻ có tên đầy đủ, 0 việc → 'Không có việc'; c
   expect(res?.status()).toBe(404);
 });
 
-test("R-003: báo giá → giữ → xác nhận → nhận phòng → dịch vụ → mở ca → trả phòng tiền mặt", async ({
+test("@smoke R-003: báo giá → giữ → xác nhận → nhận phòng → dịch vụ → mở ca → trả phòng tiền mặt", async ({
   page,
   context,
 }) => {

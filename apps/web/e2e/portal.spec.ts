@@ -25,6 +25,8 @@ import {
 } from "./fixtures.ts";
 
 test.describe.configure({ mode: "serial" });
+// Spec dùng page.route: chặn service worker (SW của app có thể trả phản hồi trước khi route giả chặn được — tránh flaky).
+test.use({ serviceWorkers: "block" });
 
 const PORT = Number(process.env.E2E_PORT ?? 3100);
 
@@ -89,7 +91,7 @@ test.beforeEach(async ({ context }) => {
   if (sessionCookies.length > 0) await context.addCookies(sessionCookies);
 });
 
-test("S-001/S-021/S-022 Kỳ thu: một phiếu 3.580.000 đ 'Còn nợ'; kỳ nháp không hiện; header 'Tổ chức · Người thuê'; axe", async ({
+test("@smoke S-001/S-021/S-022 Kỳ thu: một phiếu 3.580.000 đ 'Còn nợ'; kỳ nháp không hiện; header 'Tổ chức · Người thuê'; axe", async ({
   page,
 }) => {
   await page.goto("/portal");

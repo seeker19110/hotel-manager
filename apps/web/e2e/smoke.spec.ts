@@ -11,7 +11,7 @@ import {
   SMOKE_USER,
 } from "./fixtures.ts";
 
-test("smoke: đăng nhập → chọn tổ chức → phòng của cơ sở được giao", async ({ page }) => {
+test("@smoke đăng nhập → chọn tổ chức → phòng của cơ sở được giao", async ({ page }) => {
   await page.goto("/phong");
   await expect(page).toHaveURL(/\/dang-nhap$/);
   await expectAccessible(page);

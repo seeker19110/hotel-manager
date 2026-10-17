@@ -15,6 +15,8 @@ import { GUEST_STAY_ID, GUEST_TOKEN, HOTEL_HK, ORG_HOTEL } from "./fixtures.ts";
 import { type Cookies, loginOwner, loginTenant } from "./sessions.ts";
 
 test.describe.configure({ mode: "serial" });
+// Spec dùng page.route: chặn service worker (SW của app có thể trả phản hồi trước khi route giả chặn được — tránh flaky).
+test.use({ serviceWorkers: "block" });
 
 let hkCookies: Cookies = [];
 
