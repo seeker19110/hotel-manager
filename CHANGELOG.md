@@ -33,6 +33,13 @@ phiên bản theo [SemVer](https://semver.org/lang/vi/). Chưa có bản phát h
   và `docs/architecture/{domains,resilience}.md` có test đối chiếu mã, PROJECT §5 theo ISO/IEC 25010:2023 và bảng phân loại dữ liệu,
   `SCOPE.md`, bảng phụ thuộc ở `docs/RISKS.md`, SPEC có frontmatter + lint tiêu chí + đối chiếu S-NNN ↔ test (ratchet), mẫu PR nâng cấp
   lớn + DoR/DoD + issue template, Dockerfile web/worker (chưa build thật) và tách danh tính S3 web/worker, `docs/handover/accounts.md`.
+- Đợt 6 (`docs/autopilot/PLAN.md`, T-501…T-508) — truy vết và độ bền: `traceparent` W3C vào mọi dòng log của request/job + JSON Schema cho
+  bản ghi log, đủ sự kiện bảo mật còn thiếu, API từ chối thời điểm không offset; rào cấm gọi mạng/storage/broker/mail trong transaction và
+  helper retry chung (lùi mũ + jitter) cho 40001/40P01, job nền và lịch email; FK `ON DELETE RESTRICT` tường minh + index FK nhóm nóng,
+  `docs/db/explain/*.txt` khớp test, metric/cảnh báo kết nối, tuổi XID, dead tuples; cùng `Idempotency-Key` khác payload trả 422; giới hạn
+  tần suất upload/webhook dùng chung giữa các tiến trình; compose có web/worker (dừng êm, danh tính riêng) và bảng hạn giữ dữ liệu sự kiện
+  + job dọn; schema form dùng chung client ↔ server, E2E cô lập hai người dùng, `@smoke`; `index.ts` cho mọi module; test S-NNN cho 4 spec
+  (nền spec-coverage 26 scenario chưa có tính năng); đóng thêm 21 mục blueprint (267/496 MUST đạt).
 
 ### Changed
 - Đợt 3: sửa theo các vòng review độc lập (công nợ tính từ sổ phụ gồm điều chỉnh giảm, job xuất không kẹt, claim thông báo chia đều
