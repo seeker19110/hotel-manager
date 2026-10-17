@@ -1,7 +1,7 @@
 "use client";
 // Đăng ký TOTP: (1) nhập mật khẩu → Better Auth sinh khoá + mã dự phòng; (2) thêm khoá vào ứng dụng xác thực rồi nhập mã 6 số để
 // xác nhận. Vai trò chủ/quản lý/kế toán/lễ tân bắt buộc bước này trước khi thao tác (Q-06). Mã dự phòng chỉ hiện MỘT lần.
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { Button } from "../../components/ui/button.tsx";
 import { TextField } from "../../components/ui/field.tsx";
 import { ErrorState, LoadingState } from "../../components/ui/state.tsx";
@@ -30,7 +30,7 @@ export function MfaEnroll() {
   const [secret, setSecret] = useState("");
   const [codes, setCodes] = useState<string[]>([]);
 
-  async function check() {
+  const check = useCallback(async () => {
     setPhase("checking");
     try {
       const res = await timedFetch("/api/v1/me", { credentials: "same-origin", cache: "no-store" });
@@ -41,10 +41,10 @@ export function MfaEnroll() {
     } catch {
       setPhase("failed");
     }
-  }
+  }, []);
   useEffect(() => {
     void check();
-  }, []);
+  }, [check]);
 
   async function onPassword(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();

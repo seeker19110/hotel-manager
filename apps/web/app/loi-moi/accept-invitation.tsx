@@ -4,7 +4,7 @@
 // Gửi lại khi chưa rõ kết quả dùng CÙNG Idempotency-Key (server trả đúng kết quả cũ); lệnh cấp người dùng không có ngữ cảnh tổ chức
 // nên không tra `/api/v1/commands/{id}` như `useCommand`.
 import { safeUrl } from "@hm/app/http";
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { clearUserData, useOnline } from "../../components/pwa/pwa-shell.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { TextField } from "../../components/ui/field.tsx";
@@ -47,7 +47,7 @@ export function AcceptInvitation() {
   const [error, setError] = useState<string | undefined>();
   const [problem, setProblem] = useState<string | undefined>();
 
-  async function checkSession() {
+  const checkSession = useCallback(async () => {
     setPhase("checking");
     try {
       const res = await timedFetch("/api/v1/me", { credentials: "same-origin", cache: "no-store" });
@@ -59,7 +59,7 @@ export function AcceptInvitation() {
     } catch {
       setPhase("failed");
     }
-  }
+  }, []);
 
   useEffect(() => {
     token.current = tokenFromHash(window.location.hash);
@@ -67,7 +67,7 @@ export function AcceptInvitation() {
     if (window.location.hash) history.replaceState(null, "", window.location.pathname);
     if (!token.current) return setPhase("no-token");
     void checkSession();
-  }, []);
+  }, [checkSession]);
 
   async function onAuth(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();

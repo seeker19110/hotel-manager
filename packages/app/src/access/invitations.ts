@@ -131,7 +131,7 @@ export async function inviteMember(
             ${JSON.stringify(input.limits)}::jsonb, ${hash}, now() + make_interval(days => ${INVITATION_TTL_DAYS}),
             ${ctx.actor.membershipId})
     returning expires_at`.execute(ctx.trx);
-  const expiresAt = (ins.rows[0]?.expires_at as Date).toISOString();
+  const expiresAt = (ins.rows[0] as { expires_at: Date }).expires_at.toISOString();
   await ctx.audit({
     action: "member.invited",
     entityType: "invitation",
@@ -179,7 +179,7 @@ export async function buildInvitationMail(
   const link = `${opts.baseUrl.replace(/\/+$/, "")}/loi-moi#token=${invitationToken(opts.key, id)}`;
   const role = ROLE_LABEL[row.role] ?? row.role;
   const org = row.org_name
-    .replace(/[\r\n\u0000-\u001f]+/g, " ")
+    .replace(/\p{Cc}+/gu, " ")
     .trim()
     .slice(0, 200);
   return {
