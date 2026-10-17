@@ -138,6 +138,16 @@ export function simpleProblem(
   );
 }
 
+/**
+ * Client quá cũ (S-009): 426 CLIENT_OUTDATED hoặc null. Dùng chung cho command và hai route tải file (upload ảnh, nhập liệu) để
+ * mọi đường ghi dữ liệu từ trình duyệt kiểm phiên bản như nhau — gọi TRƯỚC phiên/CSDL/đọc thân.
+ */
+export function outdatedClientProblem(req: Request, deps: HttpDeps, correlationId: string): Response | null {
+  return isClientOutdated(req.headers.get(CLIENT_VERSION_HEADER), deps.minClientVersion)
+    ? simpleProblem("CLIENT_OUTDATED", 426, "Ứng dụng cần cập nhật để tiếp tục.", correlationId)
+    : null;
+}
+
 function readCookie(header: string | null, name: string): string | undefined {
   if (!header) return undefined;
   for (const part of header.split(";")) {
@@ -297,9 +307,8 @@ async function runCommand<I, O, P>(
   const correlationId = correlationOf(req);
   try {
     // Client quá cũ: trả 426 TRƯỚC mọi việc khác (không cần phiên, không đụng CSDL) để UI hiện nút "Cập nhật" (S-009).
-    if (isClientOutdated(req.headers.get(CLIENT_VERSION_HEADER), deps.minClientVersion)) {
-      return simpleProblem("CLIENT_OUTDATED", 426, "Ứng dụng cần cập nhật để tiếp tục.", correlationId);
-    }
+    const outdated = outdatedClientProblem(req, deps, correlationId);
+    if (outdated) return outdated;
     const actor = await actorFromRequest(req, deps, correlationId);
     if (actor instanceof Response) return actor;
     const key = req.headers.get("idempotency-key") ?? "";

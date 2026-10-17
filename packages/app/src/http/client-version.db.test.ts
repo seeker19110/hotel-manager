@@ -7,6 +7,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod";
 import { testServices } from "../server/services.ts";
 import { type CommandDef, type HttpDeps, handleCommand } from "./command-route.ts";
+import { handleFileUpload } from "./file-upload.ts";
+import { handleImportUpload } from "./import-upload.ts";
 
 let t: TestDb;
 let A: SeededOrg;
@@ -94,4 +96,51 @@ describe("S-009 client quá cũ", () => {
     const res = await handleCommand(ECHO, post({ ...signedIn(), "x-app-version": "0.0.1" }), open);
     expect(res.status).toBe(200);
   });
+});
+
+// Hai route tải file kiểm phiên bản như lệnh: client cũ không được ghi file/lô nhập qua đường khác lệnh.
+describe("S-009 client quá cũ — route tải ảnh và nhập liệu", () => {
+  const uploadReq = (url: string, headers: Record<string, string>) =>
+    new Request(`http://local.test${url}`, {
+      method: "POST",
+      headers: { "idempotency-key": randomUUID(), ...headers },
+      body: Buffer.from("x"),
+    });
+  const fileUrl = () => `/api/v1/files/upload?owner_type=work_order&property_id=${A.propertyId}`;
+  const routes: [string, (h: Record<string, string>) => Promise<Response>][] = [
+    [
+      "files/upload",
+      (h) => handleFileUpload(uploadReq(fileUrl(), { "content-type": "image/jpeg", ...h }), deps),
+    ],
+    [
+      "import/upload",
+      (h) =>
+        handleImportUpload(
+          uploadReq("/api/v1/import/upload", { "content-type": "multipart/form-data; boundary=x", ...h }),
+          deps,
+        ),
+    ],
+  ];
+
+  for (const [name, call] of routes) {
+    it(`${name}: X-App-Version thấp ⇒ 426 CLIENT_OUTDATED, không ghi gì, kiểm TRƯỚC phiên`, async () => {
+      const before = await counts();
+      const files = await sql<{ n: string }>`select count(*)::text as n from files`.execute(t.admin);
+      for (const h of [{ "x-app-version": "1.1.9" }, { ...signedIn(), "x-app-version": "abc" }]) {
+        const res = await call(h);
+        expect(res.status, name).toBe(426);
+        expect(res.headers.get("cache-control")).toBe("no-store");
+        expect(await res.json()).toMatchObject({ code: "CLIENT_OUTDATED", status: 426 });
+      }
+      expect(await counts()).toEqual(before);
+      expect(
+        (await sql<{ n: string }>`select count(*)::text as n from files`.execute(t.admin)).rows[0]?.n,
+      ).toBe(files.rows[0]?.n);
+    });
+
+    it(`${name}: đủ phiên bản hoặc không gửi header ⇒ không bị 426 (đi tiếp tới kiểm phiên)`, async () => {
+      expect((await call({ "x-app-version": "1.2.0" })).status).toBe(401);
+      expect((await call({})).status).toBe(401);
+    });
+  }
 });

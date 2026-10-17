@@ -6,6 +6,8 @@ import { safeUrl } from "@hm/app/http";
 import { mibToBytes } from "@hm/app/units";
 import { useRef, useState } from "react";
 import { timedFetch, UPLOAD_TIMEOUT_MS } from "../../lib/fetch-timeout.ts";
+import { reportClientOutdated } from "../pwa/pwa-shell.tsx";
+import { appVersionHeaders, CLIENT_OUTDATED_TEXT } from "./app-version.ts";
 import { orgContextHeaders } from "./org-context.ts";
 
 export const MAX_PHOTO_BYTES = mibToBytes(10);
@@ -51,6 +53,7 @@ export function usePhotoUpload(loginPath: string) {
             "content-type": file.type || "application/octet-stream",
             "idempotency-key": u.key,
             ...orgContextHeaders(),
+            ...appVersionHeaders(),
           },
           body: file,
           credentials: "same-origin",
@@ -61,6 +64,13 @@ export function usePhotoUpload(loginPath: string) {
         data?: { fileId: string; status: string };
         code?: string;
       } | null;
+      // Client quá cũ (S-009): server không ghi gì ⇒ banner toàn cục "Cập nhật", không nhắc "thử lại".
+      if (res.status === 426) {
+        reportClientOutdated();
+        uploaded.current.delete(sig);
+        setError(CLIENT_OUTDATED_TEXT);
+        return null;
+      }
       if (res.status === 401) {
         window.location.assign(safeUrl(loginPath) ?? "/dang-nhap");
         return null;

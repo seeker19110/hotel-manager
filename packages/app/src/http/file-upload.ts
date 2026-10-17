@@ -20,6 +20,7 @@ import {
   correlationOf,
   type HttpDeps,
   json,
+  outdatedClientProblem,
   problemResponse,
   rejectInput,
   simpleProblem,
@@ -63,6 +64,9 @@ export async function readCapped(req: Request, limit: number): Promise<Uint8Arra
 export async function handleFileUpload(req: Request, deps: HttpDeps): Promise<Response> {
   const correlationId = correlationOf(req);
   try {
+    // Client quá cũ (S-009): 426 trước phiên/đọc thân, như lệnh thường.
+    const outdated = outdatedClientProblem(req, deps, correlationId);
+    if (outdated) return outdated;
     const actor = await actorFromRequest(req, deps, correlationId);
     if (actor instanceof Response) return actor;
     const q = new URL(req.url).searchParams;

@@ -1,7 +1,7 @@
 // SPEC-pwa S-009, S-012, S-013: hành vi client của command — client quá cũ (426), hỏi lại kết quả theo backoff, phiên hết hạn.
 // Dùng form báo sự cố của buồng phòng khách sạn (ORG_HOTEL); lệnh ghi được MOCK ở tầng mạng khi cần để không đổi dữ liệu spec khác.
 import { expect, type Page, test } from "@playwright/test";
-import { HOTEL_HK } from "./fixtures.ts";
+import { HOTEL_HK, JPEG } from "./fixtures.ts";
 import { type Cookies, loginStaff } from "./sessions.ts";
 
 // page.route không thấy request đi qua service worker của PWA: chặn SW để route giả luôn có tác dụng.
@@ -88,6 +88,46 @@ test("S-009 client quá cũ: server THẬT trả 426 CLIENT_OUTDATED, không ghi
   await expect(page.getByTestId("outdated-banner")).toHaveCount(0);
   // Không có phiếu nào được ghi từ lần gửi bị 426.
   await expect(page.getByText(title)).toHaveCount(0);
+});
+
+test("S-009 tải ảnh: gửi X-App-Version đúng bản build; client cũ ⇒ 426 từ server THẬT, hiện nút Cập nhật, ảnh không được ghi", async ({
+  page,
+  context,
+  request,
+}) => {
+  const { version } = (await (await request.get("/api/version")).json()) as { version: string };
+  await context.addCookies(hkCookies);
+  const UPLOAD = "**/api/v1/files/upload?*";
+  const sent: (string | undefined)[] = [];
+  const statuses: number[] = [];
+  let downgrade = false;
+  let createPosts = 0;
+  await page.route(CREATE, (r) => {
+    createPosts++;
+    return r.continue();
+  });
+  await page.route(UPLOAD, (r) => {
+    const headers = r.request().headers();
+    sent.push(headers["x-app-version"]);
+    return r.continue({ headers: downgrade ? { ...headers, "x-app-version": "0.0.1" } : headers });
+  });
+  page.on("response", (res) => {
+    if (res.url().includes("/api/v1/files/upload")) statuses.push(res.status());
+  });
+  await page.goto("/su-co");
+  const form = page.getByTestId("incident-form");
+  await form.getByLabel("Sự cố", { exact: true }).fill("Sự cố kèm ảnh kiểm tra phiên bản");
+  await form.getByLabel("Mô tả").fill("Mô tả sự cố cho kiểm thử tải ảnh.");
+  await form.getByLabel(/^Ảnh/).setInputFiles({ name: "a.jpg", mimeType: "image/jpeg", buffer: JPEG });
+  downgrade = true;
+  await form.getByRole("button", { name: "Gửi báo sự cố" }).click();
+  await expect(page.getByTestId("outdated-banner")).toBeVisible();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "Ứng dụng cần cập nhật để tiếp tục" }).first(),
+  ).toBeVisible();
+  expect(sent).toEqual([version]);
+  expect(statuses).toEqual([426]);
+  expect(createPosts).toBe(0); // chưa tới bước gửi lệnh: ảnh bị chặn thì phiếu không được tạo
 });
 
 test("S-012 lệnh đang xử lý: hỏi lại theo backoff 1-2-4-8-15 s (tổng 30 s), 'Gửi lại' khoá suốt thời gian chờ; quá hạn hiện RESULT_UNKNOWN kèm command_id", async ({
