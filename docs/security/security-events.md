@@ -52,6 +52,8 @@ Nguồn IP: hop PHẢI NHẤT của `X-Forwarded-For` (do proxy tin cậy duy nh
 | `member.invited` | Cấp lời mời nhân viên (token 256 bit dẫn xuất, chỉ băm được lưu): `target` = id lời mời; **token/email không vào log** | `access/invitations.ts` `inviteMember` | `access/invitations.db.test.ts` |
 | `member.accepted` | Chấp nhận lời mời ⇒ cấp quyền (membership mới): `target` = id membership | `access/accept-invitation.ts` | idem |
 | `invitation.rejected` | Chấp nhận lời mời bị từ chối (410 `INVITATION_INVALID`): `reason` = `unknown_token` · `status_<accepted\|expired\|revoked>` · `expired` · `email_mismatch` — phản hồi cho client không phân biệt | `access/accept-invitation.ts` | idem |
+| `member.role_changed` | Owner đổi vai trò nhân viên (lần thay đổi thật; đặt lại đúng vai trò cũ không phát): `target` = id membership, `reason` = vai trò mới; trước/sau + lý do ở `audit_events`. Lần thử bị từ chối ⇒ `authz.denied` + audit `member.role_change_denied` | `access/members.ts` `updateMemberRole` | `access/members.db.test.ts` |
+| `member.scope_changed` | Owner đổi phạm vi cơ sở của nhân viên: `target` = id membership. Lần thử bị từ chối ⇒ `authz.denied` + audit `member.scope_change_denied` | `access/members.ts` `updateMemberScope` | idem |
 
 Sự kiện thành công (`ctx.security`) chỉ phát **sau commit**; lệnh bị rollback hoặc replay cùng `Idempotency-Key` không phát. Sự kiện từ chối của
 command phát một lần cho mỗi `Idempotency-Key`.
@@ -66,7 +68,7 @@ người đó còn membership hiệu lực, kèm `source_ip`/`user_agent` — ow
 **Audit "từ đâu".** `audit_events.source_ip` (đã cắt /24, /48; CSDL chặn dạng khác) và `user_agent` (≤ 200 ký tự, NFC) do pipeline lệnh ghi từ `requestClient`; việc của worker/hệ thống: `NULL`.
 Còn lại, đường ghi audit ngoài pipeline (truy vấn bị từ chối `person.read`/`portal.access_denied`, job worker) chưa có client ⇒ `NULL`.
 
-**Phạm vi của "cấp/thu hồi token" và "đổi vai/quyền" trong sản phẩm này.** Token do hệ thống cấp: liên kết khách (`guest_link.issued`/`guest_link.revoked`; link khách là token thật, chỉ băm được lưu). Phiên đăng nhập do Better Auth quản (`auth.login`/`auth.logout`). Quyền: ứng dụng chưa có lệnh đổi vai nhân viên (membership nhân viên do tạo tổ chức/seed); các thao tác đổi quyền truy cập hiện có là cấp/thu hồi quyền người thuê (`portal.tenant_access_granted`/`portal.tenant_access_revoked`) và đặt lại MFA (`member.mfa_reset`). Khi thêm lệnh đổi vai/quyền nhân viên phải thêm sự kiện (và dòng ở bảng trên) cùng lúc.
+**Phạm vi của "cấp/thu hồi token" và "đổi vai/quyền" trong sản phẩm này.** Token do hệ thống cấp: liên kết khách (`guest_link.issued`/`guest_link.revoked`; link khách là token thật, chỉ băm được lưu). Phiên đăng nhập do Better Auth quản (`auth.login`/`auth.logout`). Quyền: các thao tác đổi quyền truy cập là mời/chấp nhận nhân viên (`member.invited`/`member.accepted`), đổi vai trò/phạm vi nhân viên (`member.role_changed`/`member.scope_changed`), cấp/thu hồi quyền người thuê (`portal.tenant_access_granted`/`portal.tenant_access_revoked`) và đặt lại MFA (`member.mfa_reset`). Khi thêm lệnh đổi vai/quyền mới phải thêm sự kiện (và dòng ở bảng trên) cùng lúc.
 
 **Cấu hình.** Mọi lệnh đổi cấu hình tổ chức/cơ sở phải gọi `ctx.security({ event: "config.changed", … })`. Bảng giá/loại phòng/dịch vụ là dữ liệu nghiệp vụ (audit_events), không phải cấu hình bảo mật.
 

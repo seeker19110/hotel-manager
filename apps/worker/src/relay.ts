@@ -46,6 +46,8 @@ export const AUDIT_ONLY_EVENT_TYPES: ReadonlySet<string> = new Set([
   "lease.settled",
   "lease.signed",
   "member.accepted",
+  "member.role_changed",
+  "member.scope_changed",
   "organization.created",
   "payment.confirmed",
   "payment_claim.submitted",

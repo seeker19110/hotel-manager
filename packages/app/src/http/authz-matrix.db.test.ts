@@ -465,6 +465,8 @@ const MUST_403: readonly (readonly [string, Action | null, readonly Role[]])[] =
   ].map((n) => [n, "lease.manage", ["accountant", "front_desk"]] as const),
   ["lease.close", "lease.approve_settlement", ["accountant", "front_desk"]],
   ["member.invite", "member.invite_senior", ALL5],
+  ["member.updateRole", "member.change_role", ALL5],
+  ["member.updateScope", "member.change_role", ALL5],
   ["property.create", "org.configure", ALL5],
   ["property.update", "org.configure", ALL5],
   ["ledger.unlockPeriod", "period.unlock", ALL5],

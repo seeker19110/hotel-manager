@@ -44,6 +44,9 @@ export const SECURITY_EVENTS = [
   "member.invited",
   "member.accepted",
   "invitation.rejected",
+  // Đổi vai trò/phạm vi nhân viên (T-605, SPEC-access S-018; SEC-LOG-001 "đổi vai/quyền").
+  "member.role_changed",
+  "member.scope_changed",
 ] as const;
 export type SecurityEventName = (typeof SECURITY_EVENTS)[number];
 export type SecurityOutcome = "success" | "denied" | "failure";

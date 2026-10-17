@@ -6,8 +6,11 @@ import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type HttpDeps, handleCommand, handleUserCommand } from "../http/command-route.ts";
 import { COMMANDS, USER_COMMANDS } from "../http/registry.ts";
+import { createLogger } from "../logging/logger.ts";
+import { setAppLogger } from "../logging/runtime.ts";
 import { testServices } from "../server/services.ts";
 import { seedMember } from "../testing/helpers.ts";
+import { assertLogRecords } from "../testing/log-schema.ts";
 import { resolveActor } from "./actor.ts";
 import { buildInvitationMail, invitationToken } from "./invitations.ts";
 
@@ -460,5 +463,52 @@ describe("token chỉ lưu băm; email lời mời dựng lại token ở worker
         { key: services.invitationKey, baseUrl: "https://x.test" },
       ),
     ).toBeNull();
+  });
+});
+
+describe("sự kiện bảo mật của lời mời (SEC-LOG-001)", () => {
+  it("member.invited, member.accepted và invitation.rejected (mỗi lý do một mã) — không ghi token/email", async () => {
+    const lines: string[] = [];
+    setAppLogger(
+      createLogger({
+        sink: { write: (l) => lines.push(l) },
+        service: "hm-test",
+        version: "0.0.0",
+        env: "test",
+      }),
+    );
+    try {
+      const a = await invited();
+      const u = await seedAuthUser(t.admin, a.email);
+      await accept(await seedAuthUser(t.admin, mail()), a.token); // sai email
+      await accept(u, a.token);
+      await accept(u, a.token); // đã dùng
+      await accept(u, "token-la");
+      const events = lines.map(
+        (l) =>
+          JSON.parse(l) as {
+            event: string;
+            outcome: string;
+            reason: string | null;
+            target: { id: string | null } | null;
+          },
+      );
+      assertLogRecords(lines);
+      const of = (e: string) => events.filter((x) => x.event === e);
+      expect(of("member.invited")).toHaveLength(1);
+      expect(of("member.invited")[0]?.target?.id).toBe(a.invitationId);
+      expect(of("member.accepted")).toHaveLength(1);
+      expect(
+        of("invitation.rejected")
+          .map((x) => x.reason)
+          .sort(),
+      ).toEqual(["email_mismatch", "status_accepted", "unknown_token"]);
+      for (const l of lines) {
+        expect(l).not.toContain(a.token);
+        expect(l).not.toContain(a.email);
+      }
+    } finally {
+      setAppLogger(undefined);
+    }
   });
 });

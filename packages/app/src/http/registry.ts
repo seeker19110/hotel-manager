@@ -10,6 +10,8 @@ import {
   createProperty,
   inviteMember,
   resetMemberMfa,
+  updateMemberRole,
+  updateMemberScope,
   updateProperty,
 } from "../access/index.ts";
 import { APPROVAL_KINDS, cancelApproval, decideApproval, requestApproval } from "../approvals/index.ts";
@@ -1455,6 +1457,30 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
         limits: i.limits,
       }),
       httpStatus: 201,
+    }),
+  }),
+  "member.updateRole": defineCommand({
+    command: "member.updateRole",
+    input: COMMAND_INPUTS["member.updateRole"],
+    run: async (ctx, i) => ({
+      data: await updateMemberRole(ctx, {
+        membershipId: i.membership_id,
+        role: i.role,
+        ...(i.property_ids === undefined ? {} : { propertyIds: i.property_ids }),
+        reason: i.reason,
+      }),
+    }),
+  }),
+  "member.updateScope": defineCommand({
+    command: "member.updateScope",
+    input: COMMAND_INPUTS["member.updateScope"],
+    run: async (ctx, i) => ({
+      data: await updateMemberScope(ctx, {
+        membershipId: i.membership_id,
+        propertyIds: i.property_ids,
+        ...(i.all_properties === undefined ? {} : { allProperties: i.all_properties }),
+        reason: i.reason,
+      }),
     }),
   }),
   "property.create": defineCommand({

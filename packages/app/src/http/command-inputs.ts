@@ -175,6 +175,18 @@ export const COMMAND_INPUTS = {
     property_ids: z.array(uuid).max(50).default([]),
     limits: memberLimits.default({}),
   }),
+  "member.updateRole": z.strictObject({
+    membership_id: uuid,
+    role: memberRole,
+    property_ids: z.array(uuid).max(50).optional(),
+    reason: z.string().trim().min(1).max(500),
+  }),
+  "member.updateScope": z.strictObject({
+    membership_id: uuid,
+    property_ids: z.array(uuid).max(50),
+    all_properties: z.boolean().optional(),
+    reason: z.string().trim().min(1).max(500),
+  }),
   "org.create": z.strictObject({ name: displayName }),
   "payment.collectCash": z.strictObject({ invoice_id: uuid, amount: positiveMoney }),
   "payment.confirm": z.strictObject({
