@@ -30,7 +30,7 @@
   "correlation_id": "…", "errors": [ { "path": "during.end", "field": "during.end", "code": "BEFORE_START" } ] }
 ```
 
-Trường tuỳ chọn theo mã (không có thì bỏ hẳn, không gửi `null`): `retry_after` (giây, mọi 429 và 409 `IDEMPOTENCY_IN_PROGRESS`) · `alternatives` (`[{unit_id, code}]` — phòng cùng loại còn trống khi `ROOM_UNAVAILABLE` ở `allocation.createHold` và `reservation.hold`, SPEC-inventory-allocation S-002) · `items` (danh sách bản ghi liên quan: allocation xung đột khi `BLOCK_CONFLICT`, gợi ý phòng ở `reservation.hold` — cùng nội dung `alternatives`, giữ cho tương thích, D-040) · `errors` (lỗi theo trường, 422).
+Trường tuỳ chọn theo mã (không có thì bỏ hẳn, không gửi `null`): `retry_after` (giây, mọi 429 và 409 `IDEMPOTENCY_IN_PROGRESS`) · `alternatives` (`[{unit_id, code}]` — phòng cùng loại còn trống khi `ROOM_UNAVAILABLE` ở `allocation.createHold` và `reservation.hold`, SPEC-inventory-allocation S-002) · `items` (danh sách bản ghi liên quan: allocation xung đột khi `BLOCK_CONFLICT`, gợi ý phòng ở `reservation.hold` — cùng nội dung `alternatives`, giữ cho tương thích, D-040) · `exception_id` (id ngoại lệ `EXTENSION_CONFLICT` khi `ROOM_UNAVAILABLE` ở lệnh nghiệp vụ gia hạn/đổi khoảng allocation (qua `resizeAllocation` nội bộ, D-047), ghi ở transaction riêng sau rollback — SPEC-inventory-allocation S-018) · `errors` (lỗi theo trường, 422).
 
 | Mã | HTTP | Khi nào |
 |---|---|---|

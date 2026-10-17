@@ -4,6 +4,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { hasMaxDecimals } from "@hm/domain";
 import { sql } from "kysely";
+import { assertNoOpenOverstay, resolveOverstayExceptions } from "../inventory/index.ts";
 import { type CommandContext, CommandError, canonicalJson, fieldError } from "../pipeline/index.ts";
 import {
   type LeaseStatus,
@@ -99,6 +100,8 @@ export async function recordHandover(
   // Ngày bàn giao hợp lệ với hợp đồng (review lát 2 🟠2, 🟠3): nhận phòng không sau ngày hết hạn phiên bản 1; trả phòng
   // không trước ngày nhận phòng.
   if (input.kind === "move_in") {
+    // Phòng còn hợp đồng/lượt ở quá hạn chưa trả → không bàn giao nhận phòng vào (SPEC-inventory S-020).
+    await assertNoOpenOverstay(ctx.trx, ctx.actor.orgId, lease.unit_id, lease.id);
     const v1 = await originalVersion(ctx, lease.id);
     if (v1.effective_to !== null && input.handedOverOn > v1.effective_to) {
       throw fieldError("handed_over_on", "AFTER_END", "Ngày nhận phòng sau ngày hết hạn hợp đồng");
@@ -190,6 +193,14 @@ export async function recordHandover(
     // Trả phòng: hợp đồng sang `settling`, ghi ngày thực trả (mốc thứ tư, S-017); allocation kết thúc khi đóng hợp đồng.
     await sql`update leases set status = 'settling', moved_out_on = ${input.handedOverOn}::date, version = version + 1
               where organization_id = ${ctx.actor.orgId} and id = ${lease.id}`.execute(ctx.trx);
+    // Người thuê đã trả phòng: đóng LEASE_OVERSTAY (và RELOCATION_REQUIRED do nó gây ra) để phòng hết bị chặn ROOM_OCCUPIED.
+    for (const al of await leaseAllocations(ctx, lease.id))
+      if (al.active && al.kind === "lease")
+        await resolveOverstayExceptions(ctx, {
+          allocationId: al.id,
+          propertyId: lease.property_id,
+          resolution: "moved_out",
+        });
   }
   const readingIds: string[] = [];
   for (const m of meters.rows) {
