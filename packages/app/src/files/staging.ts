@@ -12,7 +12,7 @@
 import { createHash } from "node:crypto";
 import { withTenant } from "@hm/db";
 import { type Kysely, sql, type Transaction } from "kysely";
-import type { Actor } from "../access/actor.ts";
+import type { Actor } from "../access/index.ts";
 import { CommandError } from "../pipeline/index.ts";
 
 /** Hạn (ngày, giờ VN) của dòng staging — dư để lượt quét/ghi chậm hoặc replay không bị job hạn giữ xoá giữa chừng. */

@@ -14,15 +14,15 @@ import { randomUUID } from "node:crypto";
 import { withTenant } from "@hm/db";
 import { Kysely, PostgresDialect, sql } from "kysely";
 import type pg from "pg";
-import type { Logger } from "../logging/logger.ts";
-import { appLogger } from "../logging/runtime.ts";
+import type { Logger } from "../logging/index.ts";
 import {
+  appLogger,
   auditSource,
   emitSecurity,
   type SecurityClient,
   type SecurityEventName,
   type SecurityOutcome,
-} from "../logging/security-events.ts";
+} from "../logging/index.ts";
 
 export type AuthEventName = Extract<SecurityEventName, `auth.${string}`>;
 

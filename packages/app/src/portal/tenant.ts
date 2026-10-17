@@ -5,9 +5,9 @@ import { randomUUID } from "node:crypto";
 import { withTenant } from "@hm/db";
 import { authorize, bankBin, buildVietQr } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
-import type { Actor } from "../access/actor.ts";
-import { assertPropertyInOrg } from "../access/scope.ts";
-import type { FileDeps } from "../files/files.ts";
+import type { Actor } from "../access/index.ts";
+import { assertPropertyInOrg } from "../access/index.ts";
+import type { FileDeps } from "../files/index.ts";
 import { createWorkOrder, type Severity } from "../maintenance/work-orders.ts";
 import { type CommandContext, CommandError } from "../pipeline/index.ts";
 

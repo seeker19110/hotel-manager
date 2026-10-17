@@ -14,7 +14,7 @@ import {
   sumNights,
 } from "@hm/domain";
 import { sql, type Transaction } from "kysely";
-import type { PiiCipher } from "../crypto/pii.ts";
+import type { PiiCipher } from "../crypto/index.ts";
 import { type DocType, recordIdentityDocument } from "../identity/identity.ts";
 import { confirmHold, createHold } from "../inventory/inventory.ts";
 import { type CommandContext, CommandError } from "../pipeline/index.ts";

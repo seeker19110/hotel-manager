@@ -4,8 +4,14 @@
 // quét mã độc, quyền theo cơ sở). Quét + ghi object chạy NGOÀI transaction lệnh (staging.ts). Phản hồi problem+json như mọi command.
 
 import { createHash } from "node:crypto";
-import { type FileOwnerType, MAX_FILE_BYTES, prepareUpload, uploadFile } from "../files/files.ts";
-import { settle, unwrap } from "../files/staging.ts";
+import {
+  type FileOwnerType,
+  MAX_FILE_BYTES,
+  prepareUpload,
+  settle,
+  unwrap,
+  uploadFile,
+} from "../files/index.ts";
 import { executeCommand, toProblem } from "../pipeline/index.ts";
 import {
   actorFromRequest,

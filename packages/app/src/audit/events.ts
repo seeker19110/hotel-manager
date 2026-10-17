@@ -10,7 +10,7 @@
 import { withTenant } from "@hm/db";
 import { authorize } from "@hm/domain";
 import { type Kysely, sql } from "kysely";
-import type { Actor } from "../access/actor.ts";
+import type { Actor } from "../access/index.ts";
 import { CommandError } from "../pipeline/index.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

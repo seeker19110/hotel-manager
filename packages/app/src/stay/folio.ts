@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import { withTenant } from "@hm/db";
 import { authorize } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
-import type { Actor } from "../access/actor.ts";
+import type { Actor } from "../access/index.ts";
 import { approvalRequired, registerApprovalExecutor } from "../approvals/approvals.ts";
 import { customerCredit } from "../payments/payments.ts";
 import { type CommandContext, CommandError } from "../pipeline/index.ts";

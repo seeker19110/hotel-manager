@@ -4,16 +4,24 @@
 import { randomUUID } from "node:crypto";
 import type { Kysely } from "kysely";
 import type { z } from "zod";
-import { AccessError, type Actor, listMyOrganizations, resolveActor } from "../access/actor.ts";
-import { ORG_CONTEXT_HEADER, ORG_HEADER, orgCookieName, requestedOrgId } from "../access/org-context.ts";
+import {
+  AccessError,
+  type Actor,
+  listMyOrganizations,
+  ORG_CONTEXT_HEADER,
+  ORG_HEADER,
+  orgCookieName,
+  requestedOrgId,
+  resolveActor,
+} from "../access/index.ts";
 import {
   type ActorRef,
   emitSecurity,
   requestClient,
   type SecurityEventName,
   securityEventForProblem,
-} from "../logging/security-events.ts";
-import { observeHttp } from "../observability/http-metrics.ts";
+} from "../logging/index.ts";
+import { observeHttp } from "../observability/index.ts";
 import {
   type CommandContext,
   executeCommand,
@@ -23,7 +31,7 @@ import {
   toProblem,
   unwrap,
 } from "../pipeline/index.ts";
-import type { AppServices } from "../server/services.ts";
+import type { AppServices } from "../server/index.ts";
 import { nfcDeep } from "./normalize.ts";
 import { retryAfterSeconds } from "./retry-after.ts";
 

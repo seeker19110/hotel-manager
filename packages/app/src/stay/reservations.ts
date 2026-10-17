@@ -15,7 +15,7 @@ import {
   repriceForDates,
 } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
-import type { Actor } from "../access/actor.ts";
+import type { Actor } from "../access/index.ts";
 import { approvalRequired, registerApprovalExecutor } from "../approvals/approvals.ts";
 import { receiveDeposit } from "../deposits/deposits.ts";
 import { confirmHold, createHold, type Interval } from "../inventory/inventory.ts";

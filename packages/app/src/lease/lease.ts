@@ -6,7 +6,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { withTenant } from "@hm/db";
 import { authorize, leaseMachine } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
-import type { Actor } from "../access/actor.ts";
+import type { Actor } from "../access/index.ts";
 import { confirmHold, createHold, type Interval } from "../inventory/inventory.ts";
 import { type CommandContext, CommandError, canonicalJson, fieldError } from "../pipeline/index.ts";
 

@@ -5,8 +5,8 @@
 
 import { createHash } from "node:crypto";
 import { kibToBytes } from "@hm/domain";
-import { settle, unwrap } from "../files/staging.ts";
-import { IMPORT_LIMITS, prepareBatchUpload, uploadBatch } from "../import/import.ts";
+import { settle, unwrap } from "../files/index.ts";
+import { IMPORT_LIMITS, prepareBatchUpload, uploadBatch } from "../import/index.ts";
 import { executeCommand, toProblem } from "../pipeline/index.ts";
 import {
   actorFromRequest,

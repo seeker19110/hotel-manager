@@ -4,15 +4,15 @@ import { createHash, randomUUID } from "node:crypto";
 import { withTenant } from "@hm/db";
 import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../actor-core/index.ts";
-import { redact } from "../logging/logger.ts";
-import { appLogger } from "../logging/runtime.ts";
 import {
+  appLogger,
   auditSource,
   emitSecurity,
+  redact,
   type SecurityClient,
   type SecurityEventInput,
   securityEventForProblem,
-} from "../logging/security-events.ts";
+} from "../logging/index.ts";
 import { CommandError, type Problem, rateLimited, toProblem } from "./problem.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

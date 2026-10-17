@@ -1,7 +1,7 @@
 // GET /api/v1/portal/guest/stays/{id} (SPEC-portal S-016…S-020): khách không phiên — token qua header `X-Guest-Token`
 // (không đặt trên URL để khỏi lọt vào log/referrer), bước hai `X-Guest-Verify` (4 số cuối SĐT người đặt).
 import type { Kysely } from "kysely";
-import { requestClient } from "../logging/security-events.ts";
+import { requestClient } from "../logging/index.ts";
 import { CommandError } from "../pipeline/index.ts";
 import { guestGetStay } from "../portal/guest.ts";
 import { correlationOf, json, simpleProblem } from "./command-route.ts";

@@ -21,14 +21,14 @@ import {
   toCsv,
 } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
-import type { Actor } from "../access/actor.ts";
+import type { Actor } from "../access/index.ts";
 import {
   commitTabularFile,
   type FileDeps,
   type PreparedTabular,
   prepareTabularFile,
   storeTabularFile,
-} from "../files/files.ts";
+} from "../files/index.ts";
 import { createUnit } from "../inventory/units.ts";
 import { activateLease, clearImportReadingsPending, recordImportHandover } from "../lease/handover.ts";
 import { createDraft, createPerson, signLease, submitForSignature } from "../lease/lease.ts";

@@ -1,9 +1,7 @@
 // Dịch vụ ngoài CSDL mà command/query cần (khoá PII, …) — dựng một lần từ cấu hình đã validate, tiêm qua HttpDeps.
-import type { AppConfig } from "../config/schema.ts";
-import { createPiiCipher, devKeyring, type PiiCipher, parseKeyring } from "../crypto/pii.ts";
-import { clamdScanner } from "../files/clamd.ts";
-import { eicarOnlyScanner, type MalwareScanner } from "../files/inspect.ts";
-import { ObjectStorage } from "../files/storage.ts";
+import type { AppConfig } from "../config/index.ts";
+import { createPiiCipher, devKeyring, type PiiCipher, parseKeyring } from "../crypto/index.ts";
+import { clamdScanner, eicarOnlyScanner, type MalwareScanner, ObjectStorage } from "../files/index.ts";
 
 export interface AppServices {
   pii: PiiCipher;

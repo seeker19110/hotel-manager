@@ -17,7 +17,7 @@ import {
   type RoundingRule,
 } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
-import type { Actor } from "../access/actor.ts";
+import type { Actor } from "../access/index.ts";
 import { postEntry } from "../ledger/ledger.ts";
 import { lockPeriod, unlockPeriod } from "../ledger/period-close.ts";
 import {

@@ -4,9 +4,9 @@
 import type { StatementMapping } from "@hm/domain";
 import { mibToBytes } from "@hm/domain";
 import { z } from "zod";
-import { resetMemberMfa } from "../access/mfa-recovery.ts";
+import { resetMemberMfa } from "../access/index.ts";
 import { APPROVAL_KINDS, cancelApproval, decideApproval, requestApproval } from "../approvals/approvals.ts";
-import { getEvent, listEvents } from "../audit/events.ts";
+import { getEvent, listEvents } from "../audit/index.ts";
 import {
   createPeriod,
   issuePeriod,
@@ -51,7 +51,7 @@ import {
   getTemplate,
   setExpectedTotals,
   validateBatch,
-} from "../import/import.ts";
+} from "../import/index.ts";
 import { approveBlock, endBlock, getUnitStatus } from "../inventory/inventory.ts";
 import { activateLease, recordHandover, renewLease } from "../lease/handover.ts";
 import {

@@ -14,8 +14,8 @@ import {
   type StatementMapping,
 } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
-import type { Actor } from "../access/actor.ts";
-import { assertPropertyInOrg } from "../access/scope.ts";
+import type { Actor } from "../access/index.ts";
+import { assertPropertyInOrg } from "../access/index.ts";
 import { ingestInTx, openBreak, openHashMismatchBreak } from "../ledger/bank-inbox.ts";
 import {
   type AllocationInput,
