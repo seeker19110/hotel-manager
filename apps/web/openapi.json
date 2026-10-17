@@ -2506,7 +2506,7 @@
             "in": "query",
             "required": true,
             "schema": {
-              "enum": ["work_order", "payment_claim"]
+              "enum": ["work_order", "payment_claim", "lease_settlement"]
             }
           },
           {
