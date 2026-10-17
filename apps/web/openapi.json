@@ -7952,6 +7952,16 @@
           "409": {
             "$ref": "#/components/responses/Error409"
           },
+          "410": {
+            "description": "INVITATION_INVALID — lời mời không còn hiệu lực (không phân biệt lý do)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
           "422": {
             "$ref": "#/components/responses/Error422"
           },

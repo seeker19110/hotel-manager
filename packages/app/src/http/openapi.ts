@@ -97,6 +97,13 @@ function correlationHeader(): Json {
   };
 }
 
+/** Phản hồi riêng của từng lệnh ngoài bộ chung (vd. chấp nhận lời mời: mọi lý do không hợp lệ đều trả cùng 410, không lộ trạng thái). */
+const COMMAND_EXTRA_RESPONSES: Record<string, Json> = {
+  "member.acceptInvitation": {
+    "410": errorResponse("INVITATION_INVALID — lời mời không còn hiệu lực (không phân biệt lý do)"),
+  },
+};
+
 /** `userScope` = lệnh cấp người dùng (cần phiên, KHÔNG nhận ngữ cảnh tổ chức — `USER_COMMANDS`). */
 function commandOperation(name: string, input: z.ZodType, userScope = false): Json {
   const module = name.split(".")[0] as string;
@@ -109,7 +116,11 @@ function commandOperation(name: string, input: z.ZodType, userScope = false): Js
       ? [ref("IdempotencyKey")]
       : [ref("IdempotencyKey"), ref("OrgId"), ref("OrgContext")],
     requestBody: { required: true, content: { "application/json": { schema: schemaOf(input) } } },
-    responses: { "2XX": commandSuccess(), ...pick("400", "401", "403", "404", "409", "422", "429", "500") },
+    responses: {
+      "2XX": commandSuccess(),
+      ...pick("400", "401", "403", "404", "409", "422", "429", "500"),
+      ...(COMMAND_EXTRA_RESPONSES[name] ?? {}),
+    },
   };
 }
 

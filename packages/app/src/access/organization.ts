@@ -3,8 +3,18 @@
 // tổ chức (id suy ra từ người dùng + key, xem `provision.ts`). Owner cần MFA (Q-06) nên lệnh kế tiếp bị `MFA_REQUIRED` tới khi bật.
 import { sql } from "kysely";
 import type { Actor } from "../actor-core/index.ts";
-import { CommandError, type CommandResult } from "../pipeline/index.ts";
+import { CommandError, type CommandResult, rateLimited, rateLimitHit } from "../pipeline/index.ts";
 import { deriveUuid, readAuthUser, runUserCommand, type UserCommandRequest } from "./provision.ts";
+
+/**
+ * Hạn mức `org.create` theo NGƯỜI DÙNG (IND-SAAS-008): tối đa chừng này tổ chức MỚI/giờ/tài khoản. Hạn mức lệnh của pipeline đếm
+ * theo tổ chức/person suy ra từ (người dùng, Idempotency-Key) nên mỗi key mới có bộ đếm 0 — không chặn được script tạo hàng
+ * loạt tổ chức (làm phình bảng, nhiễu tenant). 10/giờ vượt xa nhu cầu thật (một chủ trọ lập vài tổ chức), chỉ chặn lạm dụng.
+ * Chỉ lượt THÀNH CÔNG tính: đếm chạy trong `bootstrap` (cùng transaction — lệnh lỗi/rollback thì bộ đếm cũng rollback; replay cùng
+ * key không chạy `bootstrap` nên không tốn thêm). Cố định theo mã (không biến môi trường).
+ */
+export const ORG_CREATE_PER_USER_PER_HOUR = 10;
+const ORG_CREATE_WINDOW_SECONDS = 3600;
 
 export interface CreatedOrganization {
   organizationId: string;
@@ -36,6 +46,15 @@ export function createOrganization(
     bootstrap: async (trx) => {
       const user = await readAuthUser(trx, req.userId);
       if (!user) throw new CommandError("UNAUTHENTICATED", 401, "Cần đăng nhập");
+      const hit = await rateLimitHit(trx, {
+        scope: "org.create:user",
+        subject: req.userId,
+        limit: ORG_CREATE_PER_USER_PER_HOUR,
+        windowSeconds: ORG_CREATE_WINDOW_SECONDS,
+      });
+      if (!hit.allowed) {
+        throw rateLimited("Bạn tạo quá nhiều tổ chức trong một giờ. Vui lòng thử lại sau.", hit.retryAfter);
+      }
       await sql`insert into organizations (id, name, created_by) values (${orgId}, ${name}, ${req.userId})`.execute(
         trx,
       );

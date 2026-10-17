@@ -3,13 +3,15 @@
 // CSDL nên đúng khi nhiều instance/pool; khoá advisory trong hàm SQL chặn hai kết nối cùng lọt lượt cuối. Vượt ⇒ 429
 // RATE_LIMITED + `Retry-After` (số giây tới hết cửa sổ). Lỗi CSDL được ném lên (đóng an toàn: 5xx, không bỏ qua giới hạn).
 
-import { type Kysely, sql } from "kysely";
+import type { Kysely } from "kysely";
 import type { Actor } from "../access/index.ts";
 import { emitSecurity, requestClient } from "../logging/index.ts";
-import { rateLimited, toProblem } from "../pipeline/index.ts";
+import { rateLimited, rateLimitHit, toProblem } from "../pipeline/index.ts";
 import { problemResponse } from "./command-route.ts";
 
-export const RATE_WINDOW_SECONDS = 60;
+// Giữ đường import cũ của bộ đếm (đã chuyển sang `pipeline/rate-counter.ts` để `access` dùng chung).
+export { RATE_WINDOW_SECONDS, type RateHit, type RateResult, rateLimitHit } from "../pipeline/index.ts";
+
 /** Tải ảnh/PDF (vật dụng, phiếu sự cố, báo chuyển): mỗi thành viên / mỗi tổ chức trong 60 giây. Vượt xa thao tác tay. */
 export const FILE_UPLOAD_PER_MEMBER_PER_MINUTE = 30;
 export const FILE_UPLOAD_PER_ORG_PER_MINUTE = 120;
@@ -20,31 +22,6 @@ export const IMPORT_UPLOAD_PER_ORG_PER_MINUTE = 30;
 export const WEBHOOK_PER_ACCOUNT_PER_MINUTE = 600;
 /** Webhook chữ ký SAI: theo nhà cung cấp (không theo tài khoản do kẻ gọi tự chọn ⇒ bảng không phình). Vượt ⇒ 429 thay cho 401. */
 export const WEBHOOK_BAD_SIGNATURE_PER_MINUTE = 300;
-
-export interface RateHit {
-  scope: string;
-  subject: string;
-  limit: number;
-  windowSeconds?: number;
-  /** Chỉ test: giả lập thời gian. */
-  now?: Date;
-}
-
-export type RateResult =
-  | { allowed: true; used: number }
-  | { allowed: false; used: number; retryAfter: number };
-
-/** Ghi một lượt và cho biết còn trong hạn mức không. Lượt bị từ chối không tăng bộ đếm. */
-export async function rateLimitHit(db: Kysely<unknown>, h: RateHit): Promise<RateResult> {
-  const r = await sql<{ allowed: boolean; used: number; retry_after: number }>`
-    select allowed, used, retry_after from app.rate_limit_hit(${h.scope}, ${h.subject}, ${h.limit},
-      ${h.windowSeconds ?? RATE_WINDOW_SECONDS}, ${h.now ?? sql`now()`})`.execute(db);
-  const row = r.rows[0];
-  if (!row) throw new Error("app.rate_limit_hit không trả hàng");
-  return row.allowed
-    ? { allowed: true, used: row.used }
-    : { allowed: false, used: row.used, retryAfter: Math.max(1, row.retry_after) };
-}
 
 /**
  * Hạn mức thành viên (kiểm TRƯỚC — kẻ spam chỉ tự chặn mình) rồi tổ chức. Trả `Response` 429 (có `Retry-After`) nếu vượt,

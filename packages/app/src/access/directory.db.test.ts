@@ -96,6 +96,34 @@ describe("member.list", () => {
     }
   });
 
+  it("manager phạm vi [P1] xem nhân viên/lời mời phạm vi [P1,P2] → chỉ thấy cơ sở P1 (không lộ tên cơ sở ngoài phạm vi); owner thấy đủ", async () => {
+    const mgr = await seedMember(t, A, "manager", { name: "QL chỉ P1", properties: [A.propertyId] });
+    const wide = await seedMember(t, A, "front_desk", {
+      name: "Lễ tân hai cơ sở",
+      properties: [A.propertyId, P2],
+    });
+    await invite("rong@example.test", "front_desk", [A.propertyId, P2]);
+    const seen = await listMembers(t.runtime, mgr);
+    const row = seen.members.find((m) => m.membershipId === wide.membershipId);
+    expect(row?.properties.map((p) => p.id)).toEqual([A.propertyId]);
+    const inv = seen.invitations.find((i) => i.email === "rong@example.test");
+    expect(inv?.properties.map((p) => p.id)).toEqual([A.propertyId]);
+    expect(JSON.stringify(seen)).not.toContain("Cơ sở 2");
+    const owner = await listMembers(t.runtime, await ownerOf(t, A));
+    expect(
+      owner.members
+        .find((m) => m.membershipId === wide.membershipId)
+        ?.properties.map((p) => p.id)
+        .sort(),
+    ).toEqual([A.propertyId, P2].sort());
+    expect(
+      owner.invitations
+        .find((i) => i.email === "rong@example.test")
+        ?.properties.map((p) => p.id)
+        .sort(),
+    ).toEqual([A.propertyId, P2].sort());
+  });
+
   it("không lẫn tổ chức khác", async () => {
     const B = await seedOrg(t.admin, "Tổ chức B");
     await seedMember(t, B, "front_desk", { name: "Lễ tân của B" });

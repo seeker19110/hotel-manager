@@ -512,3 +512,38 @@ describe("sự kiện bảo mật của lời mời (SEC-LOG-001)", () => {
     }
   });
 });
+
+describe("lời mời không hợp lệ: đúng một sự kiện invitation.rejected, route không ghi thêm denied", () => {
+  it("token lạ / sai email / đã dùng → mỗi lần đúng một sự kiện bảo mật (invitation.rejected), 410 INVITATION_INVALID", async () => {
+    const lines: string[] = [];
+    setAppLogger(
+      createLogger({
+        sink: { write: (l) => lines.push(l) },
+        service: "hm-test",
+        version: "0.0.0",
+        env: "test",
+      }),
+    );
+    try {
+      const a = await invited();
+      const u = await seedAuthUser(t.admin, a.email);
+      lines.length = 0;
+      for (const [user, token] of [
+        [u, "token-la-khong-ton-tai"],
+        [await seedAuthUser(t.admin, mail()), a.token],
+      ] as const) {
+        const r = await accept(user, token);
+        expect([r.status, r.body.code]).toEqual([410, "INVITATION_INVALID"]);
+      }
+      const events = lines
+        .map((l) => JSON.parse(l) as { category?: string; event: string; reason: string | null })
+        .filter((r) => r.category === "security");
+      expect(events.map((e) => [e.event, e.reason])).toEqual([
+        ["invitation.rejected", "unknown_token"],
+        ["invitation.rejected", "email_mismatch"],
+      ]);
+    } finally {
+      setAppLogger(undefined);
+    }
+  });
+});

@@ -35,6 +35,9 @@ export async function listMembers(
   authorize(actor, "member.invite_staff", {});
   const isOwner = actor.role === "owner";
   const myProps = [...actor.propertyIds];
+  // Cơ sở được HIỂN THỊ trong `properties` của từng dòng: actor không phải owner (và không có phạm vi "mọi cơ sở") chỉ thấy cơ sở
+  // trong phạm vi của mình — không lộ tên cơ sở ngoài phạm vi qua thành viên/lời mời có phạm vi rộng hơn.
+  const visible = isOwner || actor.allProperties ? null : myProps;
   return withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
     const m = await sql<{
       id: string;
@@ -48,7 +51,8 @@ export async function listMembers(
       select m.id, p.full_name, p.email, m.role, m.status, m.all_properties,
              coalesce((select jsonb_agg(jsonb_build_object('id', pr.id, 'name', pr.name) order by pr.name)
                        from property_scopes ps join properties pr on pr.organization_id = ps.organization_id and pr.id = ps.property_id
-                       where ps.organization_id = m.organization_id and ps.membership_id = m.id), '[]'::jsonb) as props
+                       where ps.organization_id = m.organization_id and ps.membership_id = m.id
+                         and (${visible}::uuid[] is null or pr.id = any(${visible}::uuid[]))), '[]'::jsonb) as props
       from memberships m join persons p on p.organization_id = m.organization_id and p.id = m.person_id
       where m.organization_id = ${actor.orgId} and m.status <> 'revoked' and m.role not in ('tenant', 'guest')
         and (${isOwner} or m.id = ${actor.membershipId}
@@ -66,7 +70,8 @@ export async function listMembers(
     }>`
       select i.id, i.email, i.role, i.expires_at,
              coalesce((select jsonb_agg(jsonb_build_object('id', pr.id, 'name', pr.name) order by pr.name)
-                       from properties pr where pr.organization_id = i.organization_id and pr.id = any(i.property_ids)), '[]'::jsonb) as props
+                       from properties pr where pr.organization_id = i.organization_id and pr.id = any(i.property_ids)
+                         and (${visible}::uuid[] is null or pr.id = any(${visible}::uuid[]))), '[]'::jsonb) as props
       from invitations i
       where i.organization_id = ${actor.orgId} and i.status = 'pending' and i.expires_at > now()
         and (${isOwner} or (i.role = any(${LOW}::text[]) and i.property_ids && ${myProps}::uuid[]))

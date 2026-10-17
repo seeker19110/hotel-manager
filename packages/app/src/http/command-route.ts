@@ -109,6 +109,18 @@ export interface QueryDef<I, O> {
   ): Promise<O>;
 }
 
+/**
+ * Lỗi của lệnh cấp người dùng KHÔNG được route ghi thêm sự kiện bảo mật `denied`: lỗi idempotency là hành vi bình thường của
+ * client retry (không phải bị từ chối quyền) và lỗi đã tự phát sự kiện riêng, mã ngắn, ở nơi sinh lỗi (`invitation.rejected` với
+ * lý do thật trong `accept-invitation.ts`) — ghi thêm sẽ nhân đôi/gây nhiễu. 429 do hạn mức của bootstrap thì KHÔNG nằm đây
+ * (không ai khác phát ⇒ route phát `rate_limit.exceeded` đúng một lần).
+ */
+const NO_ROUTE_DENIED_EVENT = new Set([
+  "IDEMPOTENCY_IN_PROGRESS",
+  "IDEMPOTENCY_CONFLICT",
+  "INVITATION_INVALID",
+]);
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const CORRELATION = /^[A-Za-z0-9._-]{8,64}$/;
 const NO_STORE = { "cache-control": "no-store" };
@@ -468,10 +480,11 @@ async function runUserCommand<I, O>(
   } catch (err) {
     const p = toProblem(err, correlationId);
     if (p.status < 500) {
-      denied(req, correlationId, p, userId ? { authUserId: userId } : null, {
-        type: "command",
-        id: def.command,
-      });
+      if (!NO_ROUTE_DENIED_EVENT.has(p.code))
+        denied(req, correlationId, p, userId ? { authUserId: userId } : null, {
+          type: "command",
+          id: def.command,
+        });
       return problemResponse(p, correlationId);
     }
     return unexpected(err, deps, correlationId);

@@ -6,7 +6,10 @@ import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type HttpDeps, handleCommand, handleUserCommand } from "../http/command-route.ts";
 import { COMMANDS, USER_COMMANDS } from "../http/registry.ts";
+import { createLogger } from "../logging/logger.ts";
+import { setAppLogger } from "../logging/runtime.ts";
 import { testServices } from "../server/services.ts";
+import { ORG_CREATE_PER_USER_PER_HOUR } from "./organization.ts";
 
 let t: TestDb;
 let deps: HttpDeps;
@@ -416,6 +419,48 @@ describe("SPEC-access S-023: đổi múi giờ/giờ chốt khi cơ sở đã c�
     await sql`update properties set timezone = timezone where id = ${A.propertyId}`.execute(t.admin);
   });
 
+  it("S-023 chỉ số công tơ hoặc giao dịch ngân hàng cũng là dữ liệu: cơ sở chỉ có một trong hai → đổi timezone 409 PROPERTY_IN_USE (lệnh) và bị trigger chặn (SQL)", async () => {
+    const M = await seedOrg(t.admin, "KS chỉ có chỉ số");
+    const meterId = randomUUID();
+    await sql`insert into meters (id, organization_id, property_id, unit_id, kind, installed_on)
+              values (${meterId}, ${M.orgId}, ${M.propertyId}, ${M.unitId}, 'electric', '2026-01-01')`.execute(
+      t.admin,
+    );
+    // Chưa có chỉ số ⇒ còn đổi được; ghi nhận chỉ số rồi mới bị chặn.
+    await sql`insert into meter_readings (id, organization_id, property_id, meter_id, read_on, value, source)
+              values (${randomUUID()}, ${M.orgId}, ${M.propertyId}, ${meterId}, '2026-01-02', 10, 'import')`.execute(
+      t.admin,
+    );
+    const r = await call(
+      "org",
+      "property.update",
+      M.ownerAuthUserId,
+      { property_id: M.propertyId, timezone: "Asia/Bangkok" },
+      { org: M.orgId },
+    );
+    expect(r.status).toBe(409);
+    expect(r.body.code).toBe("PROPERTY_IN_USE");
+
+    const Bk = await seedOrg(t.admin, "KS chỉ có giao dịch ngân hàng");
+    const accountId = randomUUID();
+    await sql`insert into receiving_accounts (id, organization_id, property_id, bank_code, account_number_masked, account_number, account_name)
+              values (${accountId}, ${Bk.orgId}, ${Bk.propertyId}, 'VCB', '****1234', '0011001234', 'CHU TRO')`.execute(
+      t.admin,
+    );
+    await sql`update properties set timezone = 'Asia/Bangkok' where id = ${Bk.propertyId}`.execute(t.admin);
+    await sql`update properties set timezone = 'Asia/Ho_Chi_Minh' where id = ${Bk.propertyId}`.execute(
+      t.admin,
+    );
+    await sql`insert into bank_transactions (id, organization_id, property_id, receiving_account_id, bank_txn_ref, amount,
+                                             occurred_at, first_source, raw_hash)
+              values (${randomUUID()}, ${Bk.orgId}, ${Bk.propertyId}, ${accountId}, 'REF1', 1000, now(), 'manual', ${"a".repeat(64)})`.execute(
+      t.admin,
+    );
+    await expect(
+      sql`update properties set timezone = 'Asia/Bangkok' where id = ${Bk.propertyId}`.execute(t.admin),
+    ).rejects.toMatchObject({ hint: "PROPERTY_IN_USE" });
+  });
+
   it("property.update: cơ sở không tồn tại/của tổ chức khác → 404; không trường nào → 422; mixed khi cờ tắt → 409", async () => {
     const { user, org } = await ownerWithOrg();
     const other = await seedOrg(t.admin, "KS khác");
@@ -433,5 +478,120 @@ describe("SPEC-access S-023: đổi múi giờ/giờ chốt khi cơ sở đã c�
     expect(m.body.code).toBe("FEATURE_DISABLED");
     const clear = await call("org", "property.update", user, { property_id, check_in_time: null }, { org });
     expect(clear.status).toBe(200);
+  });
+});
+
+describe("SPEC-access S-001: hạn mức org.create theo người dùng (IND-SAAS-008)", () => {
+  const orgsOf = async (user: string) =>
+    (
+      await sql<{
+        n: number;
+      }>`select count(*)::int as n from organizations where created_by = ${user}`.execute(t.admin)
+    ).rows[0]?.n ?? 0;
+  const counted = async (user: string) =>
+    (
+      await sql<{ n: number }>`select coalesce(sum(hits), 0)::int as n from rate_limit_counters
+        where scope = 'org.create:user' and subject = ${user}`.execute(t.admin)
+    ).rows[0]?.n ?? 0;
+
+  it("10 tổ chức/giờ/người dùng: lần 11 (key mới) → 429 RATE_LIMITED + retry_after, không tạo tổ chức; người dùng khác không bị ảnh hưởng; replay key đã tạo vẫn 201 và không tính thêm", async () => {
+    expect(ORG_CREATE_PER_USER_PER_HOUR).toBe(10);
+    const user = await newUser();
+    const other = await newUser();
+    const keys: string[] = [];
+    const orgIds: string[] = [];
+    for (let i = 0; i < ORG_CREATE_PER_USER_PER_HOUR; i++) {
+      const key = randomUUID();
+      const r = await call("user", "org.create", user, { name: `Trọ số ${i}` }, { key });
+      expect(r.status, `lần ${i + 1}: ${JSON.stringify(r.body)}`).toBe(201);
+      keys.push(key);
+      orgIds.push(r.body.data?.organizationId as string);
+    }
+    expect(await orgsOf(user)).toBe(10);
+    expect(await counted(user)).toBe(10);
+
+    const over = await call("user", "org.create", user, { name: "Trọ thứ 11" });
+    expect(over.status).toBe(429);
+    expect(over.body.code).toBe("RATE_LIMITED");
+    expect(over.body.retry_after).toBeGreaterThanOrEqual(1);
+    expect(over.body.retry_after).toBeLessThanOrEqual(3600);
+    expect(await orgsOf(user)).toBe(10);
+    expect(await counted(user)).toBe(10); // lượt bị từ chối không tăng bộ đếm
+
+    // Replay key đã tạo: vẫn 201 cùng tổ chức, không chạm hạn mức.
+    const replay = await call("user", "org.create", user, { name: "Trọ số 0" }, { key: keys[0] as string });
+    expect(replay.status).toBe(201);
+    expect(replay.body.data?.organizationId).toBe(orgIds[0]);
+    expect(await counted(user)).toBe(10);
+    expect(await orgsOf(user)).toBe(10);
+
+    // Người dùng khác: không ảnh hưởng.
+    expect((await call("user", "org.create", other, { name: "Trọ của người khác" })).status).toBe(201);
+    expect(await counted(other)).toBe(1);
+  });
+
+  it("lệnh lỗi không tính vào hạn mức: tên sai (422) hoặc phiên không có người dùng trong CSDL (401) không làm tăng bộ đếm", async () => {
+    const user = await newUser();
+    expect((await call("user", "org.create", user, { name: "" })).status).toBe(422);
+    expect(await counted(user)).toBe(0);
+    const ghost = randomUUID(); // có phiên nhưng không có hàng auth.user
+    expect((await call("user", "org.create", ghost, { name: "Ma" })).status).toBe(401);
+    expect(await counted(ghost)).toBe(0);
+    expect((await call("user", "org.create", user, { name: "Trọ thật" })).status).toBe(201);
+    expect(await counted(user)).toBe(1);
+  });
+});
+
+describe("sự kiện bảo mật của lệnh cấp người dùng (SEC-LOG-001)", () => {
+  /** Chạy `fn` và trả các sự kiện bảo mật đã phát (category=security). */
+  async function securityEvents(fn: () => Promise<void>) {
+    const lines: string[] = [];
+    setAppLogger(
+      createLogger({
+        sink: { write: (l) => lines.push(l) },
+        service: "hm-test",
+        version: "0.0.0",
+        env: "test",
+      }),
+    );
+    try {
+      await fn();
+    } finally {
+      setAppLogger(undefined);
+    }
+    return lines
+      .map((l) => JSON.parse(l) as { category?: string; event: string; reason: string | null })
+      .filter((r) => r.category === "security");
+  }
+
+  it("lỗi idempotency (422 IDEMPOTENCY_CONFLICT, 409 IDEMPOTENCY_IN_PROGRESS) là hành vi retry bình thường: không ghi sự kiện bảo mật denied", async () => {
+    const user = await newUser();
+    const key = randomUUID();
+    const ev = await securityEvents(async () => {
+      expect((await call("user", "org.create", user, { name: "Trọ A" }, { key })).status).toBe(201);
+      const conflict = await call("user", "org.create", user, { name: "Trọ B" }, { key });
+      expect([conflict.status, conflict.body.code]).toEqual([422, "IDEMPOTENCY_CONFLICT"]);
+      const racing = await Promise.all(
+        [1, 2, 3].map(() => call("user", "org.create", user, { name: "Song song" }, { key: randomUUID() })),
+      );
+      expect(racing.every((r) => r.status === 201)).toBe(true);
+      const sameKey = randomUUID();
+      const rs = await Promise.all(
+        [1, 2, 3].map(() => call("user", "org.create", user, { name: "Cùng key" }, { key: sameKey })),
+      );
+      for (const r of rs) expect([201, 409]).toContain(r.status);
+    });
+    expect(ev.filter((e) => /IDEMPOTENCY/.test(e.reason ?? ""))).toEqual([]);
+    expect(ev.map((e) => e.event)).not.toContain("authz.denied");
+  });
+
+  it("vượt hạn mức org.create → đúng một rate_limit.exceeded (không nhân đôi)", async () => {
+    const user = await newUser();
+    for (let i = 0; i < ORG_CREATE_PER_USER_PER_HOUR; i++)
+      expect((await call("user", "org.create", user, { name: `Trọ ${i}` })).status).toBe(201);
+    const ev = await securityEvents(async () => {
+      expect((await call("user", "org.create", user, { name: "Quá" })).status).toBe(429);
+    });
+    expect(ev.map((e) => e.event)).toEqual(["rate_limit.exceeded"]);
   });
 });
