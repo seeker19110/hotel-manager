@@ -777,6 +777,8 @@ INFO_ONLY = {"--version", "-v", "version", "--help", "-h", "help"}
 
 EXTERNAL_ASK = "hành động đối ngoại/triển khai thật (điểm dừng bắt buộc)"
 DESTROY_ASK = "huỷ/xoá repo, bí mật hoặc hạ tầng (không đảo ngược)"
+# Ngoại lệ cứng (ADR-0016): tiền/dữ liệu thật/auth/mật mã/bí mật luôn người merge — ADR-0019 giữ chặn dưới ADR-0018.
+HARD_ASK = "ngoại lệ cứng (LOOP-STOP-005): người merge"
 # Cờ của `gh pr merge` ăn thêm một token giá trị — không bóc thì giá trị bị hiểu là số PR.
 GH_MERGE_VALUE_FLAGS: Tuple[str, ...] = (
     *("--match-head-commit", "-b", "--body", "-F", "--body-file", "-t", "--subject"),
@@ -1062,7 +1064,7 @@ def _auto_merge_verdict(selector: List[str], root: str, repo: str = "") -> Tuple
     if d.get("verdict") in ("closed", "lỗi") or d.get("stacked"):
         return "ask", f"{EXTERNAL_ASK} — không bật auto-merge: PR {d.get('verdict')}/PR chồng (nhắm nhánh sắp bị xoá)"
     if d.get("hard"):  # tiền/dữ liệu thật/auth/mật mã/bí mật luôn người merge, kể cả L3 (ADR-0016, AUD-HAR-042)
-        return "ask", f"{EXTERNAL_ASK} — ngoại lệ cứng (LOOP-STOP-005): người merge, không bật auto-merge"
+        return "ask", f"{EXTERNAL_ASK} — {HARD_ASK}, không bật auto-merge: {_hard_reasons(d)}"
     if repo and str(d.get("repo", "")).lower() != repo.lower():
         return "ask", f"{EXTERNAL_ASK} — merge-check kiểm repo {d.get('repo') or '?'}, không phải {repo}"
     return "allow", f"merge_autonomy L{level}: bật auto-merge (GitHub merge khi required check xanh)"
@@ -1097,12 +1099,19 @@ def mcp_decision(tool_name: str, tool_input: Dict[str, object], root: str) -> Tu
     return _merge_verdict([str(n)], sha, root, f"{owner}/{repo}")
 
 
+def _hard_reasons(d: Dict[str, object]) -> str:
+    raw = d.get("hard")
+    return "; ".join(str(x) for x in raw) if isinstance(raw, list) else str(raw)
+
+
 def _merge_verdict(selector: List[str], sha: str, root: str, repo: str = "") -> Tuple[str, str]:
     """`allow` khi `xt.py merge-check` (PR theo selector; rỗng = nhánh hiện tại) trả merge, head đã kiểm = `sha` (và repo
-    trùng nếu có); không thì ask."""
+    trùng nếu có), không thuộc ngoại lệ cứng (`hard` → ask mang `HARD_ASK`, mặc định thành deny — ADR-0019); không thì ask."""
     d = merge_check(selector, root)
     raw = d.get("reasons")
     reasons = "; ".join(str(x) for x in raw) if isinstance(raw, list) else ""
+    if d.get("hard"):  # ADR-0019: kiểm trước verdict để chính sách ADR-0018 chặn thay vì cho qua
+        return "ask", f"{EXTERNAL_ASK} — {HARD_ASK}: {_hard_reasons(d)}"
     if d.get("verdict") != "merge":
         return "ask", f"{EXTERNAL_ASK} — merge-check: {d.get('verdict')}: {reasons}"
     if d.get("head") != sha:
@@ -2344,6 +2353,7 @@ DANGER_MARKERS = (
     "find xoá file ngoài thư mục dự án",
     "xoá thay đổi đã cất",
     DESTROY_ASK,
+    HARD_ASK,
     "container có quyền máy chủ",
     "xoá thư mục gắn từ máy",
     "tắt hook của khung",
