@@ -184,6 +184,9 @@ export async function voidCharge(
 
 export interface FolioView {
   stayId: string;
+  /** Cơ sở và booking của lượt ở — UI cần để mở ca tiền mặt đúng cơ sở và quay về booking. */
+  propertyId: string;
+  reservationId: string;
   stayStatus: string;
   unitCode: string;
   charges: {
@@ -297,6 +300,8 @@ export async function folioIn(trx: Transaction<unknown>, actor: Actor, stay: Sta
   const d = dep.rows[0];
   return {
     stayId: stay.id,
+    propertyId: stay.property_id,
+    reservationId: stay.reservation_id,
     stayStatus: stay.status,
     unitCode: stay.unit_code,
     charges,

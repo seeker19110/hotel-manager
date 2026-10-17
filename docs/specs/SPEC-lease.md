@@ -168,6 +168,7 @@ Dữ liệu nền chung (fixture `lease-basic`): cơ sở P1 (trọ, `Asia/Ho_Ch
 - When M gọi `lease.renew` phiên bản 2: 3.300.000 đ, `effective_from`=2026-12-01, `effective_to`=NULL
 - Then trong một transaction: phiên bản 1 được đặt `superseded_on`=2026-12-01 (chỉ NULL → ngày, một lần), `terms_snapshot`/`terms_hash` **không đổi**; phiên bản 2 có hiệu lực từ 2026-12-01; kỳ 11/2026 dùng 3.000.000 đ, kỳ 12/2026 dùng 3.300.000 đ; audit `lease.version_superseded`
 - And sửa `superseded_on` lần hai, xoá về NULL hay sửa cột khác của phiên bản đã ký → `409 DOCUMENT_IMMUTABLE`; phụ lục có `effective_from` ≤ `effective_from` của phiên bản 1 → `409 LEASE_VERSION_OVERLAP`; phiên bản có `effective_to` xác định vẫn theo S-011/S-012 (không dùng `superseded_on`)
+- And phụ lục không hồi tố vào kỳ đã chốt (INV-F6): với kỳ thu 10/2026 đã `issued`, `lease.renew` có `effective_from` ≤ 2026-10-31 → `409 PERIOD_ISSUED`; kỳ đã `locked` hoặc `effective_from` ≤ mốc khoá sổ → `409 PERIOD_LOCKED`; không đổi gì (phiên bản 1 giữ `superseded_on`=NULL); `effective_from` ≥ 2026-11-01 được. Kiểm này áp cho cả phụ lục của hợp đồng có hạn (đổi giá hồi tố vào kỳ đã lên phiếu phải đi qua `ledger.issueAdjustment`)
 
 ## 3. Ca biên (8 nhóm)
 | Nhóm | Ca cụ thể | Hành vi mong đợi | Scenario |
@@ -209,7 +210,7 @@ Dữ liệu nền chung (fixture `lease-basic`): cơ sở P1 (trọ, `Asia/Ho_Ch
 | `lease.sign` | `lease_id`, người ký | `signed_awaiting_handover`, `allocation_id` (hold của hợp đồng, nếu có, được xác nhận thành `lease`) | `ROOM_UNAVAILABLE`, `HOLD_EXPIRED`, `INVALID_TRANSITION` |
 | `lease.recordHandover` | `lease_id`, `kind`, ngày, chỉ số, tài sản, chìa khoá, ảnh, xác nhận | `handover_id`, `reading_ids` | `VALIDATION_FAILED`, `METER_READING_DECREASED`, `INVALID_TRANSITION` |
 | `lease.activate` | `lease_id` | `active` | `HANDOVER_REQUIRED`, `INVALID_TRANSITION` |
-| `lease.renew` | `lease_id`, điều khoản phiên bản mới, `effective_from` | `version_no` | `LEASE_VERSION_OVERLAP`, `INVALID_TRANSITION` |
+| `lease.renew` | `lease_id`, điều khoản phiên bản mới, `effective_from` | `version_no` | `LEASE_VERSION_OVERLAP`, `INVALID_TRANSITION`, `PERIOD_ISSUED`, `PERIOD_LOCKED` |
 | `lease.giveNotice` | `lease_id`, `planned_move_out_on` | `notice_given` | `INVALID_TRANSITION` |
 | `lease.prepareSettlement` | `lease_id`, phí phát sinh (số tiền, lý do, ảnh), khoản khấu trừ (số tiền, lý do, chứng từ) | bảng quyết toán (nợ, phí, khấu trừ, hoàn); chưa có bút toán | `HANDOVER_REQUIRED`, `FINAL_PERIOD_NOT_ISSUED`, `VALIDATION_FAILED` |
 | `lease.approveSettlement` | `settlement_id` | bút toán đã ghi trong một transaction theo thứ tự phiếu phí → khấu trừ → hoàn (qua `ledger.*`) | `SELF_APPROVAL_FORBIDDEN`, `APPROVAL_LIMIT_EXCEEDED`, `PERIOD_LOCKED` |
@@ -240,7 +241,8 @@ Dữ liệu nền chung (fixture `lease-basic`): cơ sở P1 (trọ, `Asia/Ho_Ch
 | `NOT_FOUND` | Không tồn tại, ngoài phạm vi hoặc vai trò không được đọc | 404 | Không tìm thấy. | S-009, S-010 |
 | `VALIDATION_FAILED` | Thiếu/sai trường; khấu trừ vượt AR còn mở | 422 | Dữ liệu chưa hợp lệ: xem từng trường. | S-007, S-025 |
 | `IDEMPOTENCY_CONFLICT` | Cùng key khác payload | 409 | Yêu cầu trùng mã nhưng khác nội dung. | S-022 |
-| `PERIOD_LOCKED` | Quyết toán ghi vào kỳ đã khoá | 409 | Kỳ đã khoá. Cần chứng từ điều chỉnh có duyệt. | — |
+| `PERIOD_ISSUED` (mã chung, SPEC-metering-billing) | Phụ lục có `effective_from` ≤ ngày cuối kỳ thu đã phát hành | 409 | Kỳ đã phát hành. Dùng chứng từ điều chỉnh. | S-027 |
+| `PERIOD_LOCKED` | Quyết toán ghi vào kỳ đã khoá; phụ lục hồi tố vào kỳ/mốc đã khoá | 409 | Kỳ đã khoá. Cần chứng từ điều chỉnh có duyệt. | S-027 |
 
 ## 7. Yêu cầu phi chức năng của tính năng
 | Thuộc tính | Ngưỡng | Nguồn | Cách đo |

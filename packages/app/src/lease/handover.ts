@@ -280,7 +280,33 @@ export async function activateLease(
 }
 
 /**
- * `lease.renew` (S-011, S-013): phụ lục = phiên bản mới (bất biến ngay khi lập), giữ nguyên lịch sử giá; chồng hiệu lực ⇒
+ * INV-F6 / S-027: phụ lục không được có hiệu lực hồi tố vào kỳ thu đã phát hành hoặc đã khoá (đổi giá ngược về kỳ đã lên phiếu
+ * làm lệch phiếu/sổ). `effective_from` phải sau ngày cuối của kỳ phát hành/khoá gần nhất của cơ sở (kỳ kết thúc trước ngày
+ * hợp đồng bắt đầu thì không bao giờ chặn vì `effective_from` luôn sau phiên bản 1) và sau mốc khoá sổ. Kỳ đã khoá hoặc
+ * trong mốc khoá sổ ⇒ PERIOD_LOCKED, kỳ chỉ mới phát hành ⇒ PERIOD_ISSUED (đều 409; muốn đổi hồi tố phải dùng điều chỉnh có duyệt).
+ */
+async function assertNotRetroactiveIntoClosedPeriod(
+  ctx: CommandContext,
+  propertyId: string,
+  effectiveFrom: string,
+): Promise<void> {
+  const r = await sql<{ status: string }>`
+    select status from billing_periods
+    where organization_id = ${ctx.actor.orgId} and property_id = ${propertyId} and status in ('issued','locked')
+      and period_end >= ${effectiveFrom}::date
+    order by (status = 'locked') desc limit 1`.execute(ctx.trx);
+  const lt = await sql<{ locked: boolean }>`
+    select coalesce(app.locked_through(${ctx.actor.orgId}, ${propertyId}) >= ${effectiveFrom}::date, false) as locked`.execute(
+    ctx.trx,
+  );
+  if (r.rows[0]?.status === "locked" || lt.rows[0]?.locked)
+    throw new CommandError("PERIOD_LOCKED", 409, "Kỳ đã khoá. Cần chứng từ điều chỉnh có duyệt.");
+  if (r.rows[0]) throw new CommandError("PERIOD_ISSUED", 409, "Kỳ đã phát hành. Dùng chứng từ điều chỉnh.");
+}
+
+/**
+ * `lease.renew` (S-011, S-013, S-027): phụ lục = phiên bản mới (bất biến ngay khi lập), giữ nguyên lịch sử giá; phiên bản
+ * không thời hạn bị thay qua `superseded_on` (D-007); chồng hiệu lực ⇒
  * LEASE_VERSION_OVERLAP. Allocation của hợp đồng kéo dài tới hết phụ lục (chồng phòng ⇒ ROOM_UNAVAILABLE).
  */
 export async function renewLease(
@@ -298,6 +324,7 @@ export async function renewLease(
   if (input.terms.effectiveFrom <= v1.effective_from) {
     throw new CommandError("LEASE_VERSION_OVERLAP", 409, "Thời gian hiệu lực trùng với phiên bản khác.");
   }
+  await assertNotRetroactiveIntoClosedPeriod(ctx, lease.property_id, input.terms.effectiveFrom);
   const n = await sql<{ n: number }>`
     select coalesce(max(version_no), 0)::int + 1 as n from lease_versions
     where organization_id = ${ctx.actor.orgId} and lease_id = ${lease.id}`.execute(ctx.trx);
@@ -315,6 +342,30 @@ export async function renewLease(
     services: JSON.parse(servicesJson(input.terms.services)),
   };
   const termsHash = createHash("sha256").update(canonicalJson(snapshot)).digest("hex");
+  // S-027 (D-007): phiên bản đang mở (không thời hạn, chưa bị thay) ⇒ đặt superseded_on = ngày hiệu lực của phụ lục, một lần,
+  // cùng transaction; điều khoản + băm của phiên bản cũ giữ nguyên.
+  const open = await sql<{ id: string; version_no: number; effective_from: string }>`
+    select id, version_no, effective_from::text from lease_versions
+    where organization_id = ${ctx.actor.orgId} and lease_id = ${lease.id} and signed_at is not null
+      and effective_until is null
+    for update`.execute(ctx.trx);
+  const openVersion = open.rows[0];
+  if (openVersion) {
+    if (input.terms.effectiveFrom <= openVersion.effective_from)
+      throw new CommandError("LEASE_VERSION_OVERLAP", 409, "Thời gian hiệu lực trùng với phiên bản khác.");
+    await sql`update lease_versions set superseded_on = ${input.terms.effectiveFrom}::date, version = version + 1
+              where organization_id = ${ctx.actor.orgId} and id = ${openVersion.id} and superseded_on is null`.execute(
+      ctx.trx,
+    );
+    await ctx.audit({
+      action: "lease.version_superseded",
+      entityType: "lease",
+      entityId: lease.id,
+      propertyId: lease.property_id,
+      before: { version_no: openVersion.version_no, superseded_on: null },
+      after: { version_no: openVersion.version_no, superseded_on: input.terms.effectiveFrom },
+    });
+  }
   try {
     await sql`savepoint renew_version`.execute(ctx.trx);
     await sql`

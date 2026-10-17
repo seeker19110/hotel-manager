@@ -14,6 +14,7 @@ export {
   expireHolds,
   exportHandlers,
   notifyHandlers,
+  workerHeartbeat,
 } from "./jobs.ts";
 export { DEAD_LETTER_QUEUE, ensureQueues, type OutboxJob, relayOutbox, startConsumers } from "./relay.ts";
 

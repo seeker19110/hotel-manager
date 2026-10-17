@@ -74,6 +74,16 @@ export async function organizationContext(
     if (!property) return null;
   } else if (properties.length === 1) {
     property = properties[0] ?? null;
+  } else {
+    // Cơ sở đã chọn lần trước (T-224) — chỉ dùng nếu vẫn trong phạm vi hiện tại; không phải quyền.
+    const saved = await withTenant(db, { orgId, actorId: org.membershipId }, (trx) =>
+      sql<{ id: string | null }>`
+        select selected_property_id as id from memberships where organization_id = ${orgId} and id = ${org.membershipId}`.execute(
+        trx,
+      ),
+    );
+    const id = saved.rows[0]?.id;
+    property = (id && properties.find((p) => p.id === id)) || null;
   }
   return {
     organization: { id: org.organizationId, name: org.organizationName },
@@ -148,6 +158,9 @@ export async function switchOrganization(
       from memberships m where m.organization_id = ${target.organizationId} and m.id = ${target.membershipId}
       on conflict (organization_id, key) do nothing
       returning id`.execute(trx);
+      // Lưu cơ sở vừa chọn (cùng transaction với kết quả idempotency) — lần đăng nhập/chuyển sau mặc định về cơ sở này.
+      if (r.rows.length > 0 && input.propertyId)
+        await sql`select app.select_property(${input.propertyId}::uuid)`.execute(trx);
       return r.rows.length > 0;
     },
   );
