@@ -30,7 +30,8 @@ function messageFor(status: number, data: Record<string, unknown>): string {
   return "Không đăng nhập được. Vui lòng thử lại.";
 }
 
-export function LoginForm() {
+/** `onSuccess`: đăng nhập lại ngay trên trang (hộp đăng nhập lại, S-013) — không chuyển sang /chon-to-chuc. */
+export function LoginForm({ onSuccess }: { onSuccess?: () => void } = {}) {
   const online = useOnline();
   const [step, setStep] = useState<Step>("password");
   const [busy, setBusy] = useState(false);
@@ -57,7 +58,8 @@ export function LoginForm() {
         const r = await post("/api/auth/two-factor/verify-totp", { code: String(form.get("code") ?? "") });
         if (!r.ok) return setError("Mã xác thực không đúng hoặc đã hết hạn.");
       }
-      window.location.assign("/chon-to-chuc");
+      if (onSuccess) onSuccess();
+      else window.location.assign("/chon-to-chuc");
     } catch {
       setError("Chưa nhận được phản hồi. Kiểm tra mạng rồi thử lại.");
     } finally {

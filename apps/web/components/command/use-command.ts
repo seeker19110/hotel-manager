@@ -12,6 +12,7 @@ import { timedFetch } from "../../lib/fetch-timeout.ts";
 import { reportClientOutdated, useOnline } from "../pwa/pwa-shell.tsx";
 import { appVersionHeaders, CLIENT_OUTDATED_CODE, CLIENT_OUTDATED_TEXT } from "./app-version.ts";
 import { CONTEXT_CHANGED_CODE, CONTEXT_CHANGED_TEXT, orgContextHeaders } from "./org-context.ts";
+import { requestReauth, UNAUTHENTICATED_TEXT } from "./reauth.ts";
 import { recheckSchedule } from "./recheck.ts";
 
 export interface ProblemLike {
@@ -102,7 +103,12 @@ export function useCommand<T = unknown>(path: string) {
           headers: orgContextHeaders(),
         });
         if (res.status === 401) {
-          window.location.assign("/dang-nhap");
+          // S-013: phiên hết hạn lúc đang tra kết quả ⇒ đăng nhập lại rồi tra tiếp CÙNG command_id.
+          if (await requestReauth()) {
+            i--;
+            continue;
+          }
+          setPhase("unknown");
           return null;
         }
         if (
@@ -134,47 +140,56 @@ export function useCommand<T = unknown>(path: string) {
     return null;
   }, [finish, fail]);
 
-  const post = useCallback(async (): Promise<T | null> => {
-    setPhase("sending");
-    setProblem(null);
-    let res: Response;
-    try {
-      res = await timedFetch(`/api/v1/${path}`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "idempotency-key": key.current as string,
-          ...orgContextHeaders(),
-          ...appVersionHeaders(),
-        },
-        body: JSON.stringify(lastBody.current ?? {}),
-        credentials: "same-origin",
-      });
-    } catch {
-      // Hết hạn (TimeoutError của timedFetch) hay mất mạng: chưa rõ server đã ghi chưa ⇒ tra theo Idempotency-Key, không gửi lại mù.
-      return check();
-    }
-    // Client quá cũ (S-009): server không ghi gì ⇒ bỏ key, báo cập nhật (banner toàn cục có nút "Cập nhật").
-    if (res.status === 426) {
-      reportClientOutdated();
-      return fail({ code: CLIENT_OUTDATED_CODE, status: 426, detail: CLIENT_OUTDATED_TEXT });
-    }
-    if (res.status === 401) {
-      window.location.assign("/dang-nhap");
-      return null;
-    }
-    const j = (await res.json().catch(() => null)) as ({ data?: T } & ProblemLike) | null;
-    if (res.ok) return finish(j?.data as T);
-    // Tab khác đã đổi tổ chức: server không ghi gì — báo tải lại, KHÔNG gửi lại (S-013).
-    if (res.status === 409 && j?.code === CONTEXT_CHANGED_CODE) return fail(contextChanged());
-    // Key đã dùng cho thao tác khác (vd thao tác trước đã ghi) ⇒ giữ key, tra và hiện kết quả thao tác đó, không tạo key mới.
-    if (res.status >= 500 || j?.code === "IDEMPOTENCY_CONFLICT") {
-      // Giữ mã tra cứu của lỗi 5xx để hiện cùng "Chưa rõ… Gửi lại" nếu tra kết quả không thấy lệnh.
-      if (res.status >= 500 && j) setProblem({ ...j, status: res.status });
-      return check();
-    }
-    return fail(j ?? { code: "INTERNAL", status: res.status });
-  }, [path, check, finish, fail]);
+  const post = useCallback(
+    async (afterReauth = false): Promise<T | null> => {
+      setPhase("sending");
+      setProblem(null);
+      let res: Response;
+      try {
+        res = await timedFetch(`/api/v1/${path}`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "idempotency-key": key.current as string,
+            ...orgContextHeaders(),
+            ...appVersionHeaders(),
+          },
+          body: JSON.stringify(lastBody.current ?? {}),
+          credentials: "same-origin",
+        });
+      } catch {
+        // Hết hạn (TimeoutError của timedFetch) hay mất mạng: chưa rõ server đã ghi chưa ⇒ tra theo Idempotency-Key, không gửi lại mù.
+        return check();
+      }
+      // Client quá cũ (S-009): server không ghi gì ⇒ bỏ key, báo cập nhật (banner toàn cục có nút "Cập nhật").
+      if (res.status === 426) {
+        reportClientOutdated();
+        return fail({ code: CLIENT_OUTDATED_CODE, status: 426, detail: CLIENT_OUTDATED_TEXT });
+      }
+      if (res.status === 401) {
+        // S-013: phiên hết hạn ⇒ hộp đăng nhập lại; xong thì gửi lại với CÙNG key (server chưa ghi gì ở lượt 401).
+        if (await requestReauth()) return post(true);
+        return fail({ code: "UNAUTHENTICATED", status: 401, detail: UNAUTHENTICATED_TEXT });
+      }
+      const j = (await res.json().catch(() => null)) as ({ data?: T } & ProblemLike) | null;
+      if (res.ok) return finish(j?.data as T);
+      // Tab khác đã đổi tổ chức: server không ghi gì — báo tải lại, KHÔNG gửi lại (S-013).
+      // Sau đăng nhập lại mà tổ chức đang chọn đã khác/mất (cookie ngữ cảnh) ⇒ huỷ form, không gửi sang tổ chức khác (S-013).
+      if (
+        res.status === 409 &&
+        (j?.code === CONTEXT_CHANGED_CODE || (afterReauth && j?.code === "ORG_CONTEXT_REQUIRED"))
+      )
+        return fail(contextChanged());
+      // Key đã dùng cho thao tác khác (vd thao tác trước đã ghi) ⇒ giữ key, tra và hiện kết quả thao tác đó, không tạo key mới.
+      if (res.status >= 500 || j?.code === "IDEMPOTENCY_CONFLICT") {
+        // Giữ mã tra cứu của lỗi 5xx để hiện cùng "Chưa rõ… Gửi lại" nếu tra kết quả không thấy lệnh.
+        if (res.status >= 500 && j) setProblem({ ...j, status: res.status });
+        return check();
+      }
+      return fail(j ?? { code: "INTERNAL", status: res.status });
+    },
+    [path, check, finish, fail],
+  );
 
   /** Mất mạng: không gửi; KHÔNG bỏ key của thao tác đang chưa rõ kết quả. */
   const offline = useCallback((): null => {

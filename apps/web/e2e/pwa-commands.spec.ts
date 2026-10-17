@@ -1,6 +1,7 @@
-// SPEC-pwa S-009, S-012: hành vi client của command — client quá cũ (426), hỏi lại kết quả theo backoff.
+// SPEC-pwa S-009, S-012, S-013: hành vi client của command — client quá cũ (426), hỏi lại kết quả theo backoff, phiên hết hạn.
 // Dùng form báo sự cố của buồng phòng khách sạn (ORG_HOTEL); lệnh ghi được MOCK ở tầng mạng khi cần để không đổi dữ liệu spec khác.
 import { expect, type Page, test } from "@playwright/test";
+import { HOTEL_HK } from "./fixtures.ts";
 import { type Cookies, loginStaff } from "./sessions.ts";
 
 // page.route không thấy request đi qua service worker của PWA: chặn SW để route giả luôn có tác dụng.
@@ -130,4 +131,101 @@ test("S-012 lệnh đang xử lý: hỏi lại theo backoff 1-2-4-8-15 s (tổng
     expect(gaps[i], `lần hỏi ${i + 2}`).toBeGreaterThanOrEqual(want - 0.5);
     expect(gaps[i], `lần hỏi ${i + 2}`).toBeLessThanOrEqual(want + 3);
   }
+});
+
+/** Mở /su-co, điền form báo sự cố rồi GIỮ NGUYÊN trang (chưa bấm gửi) — để cho phiên hết hạn trước khi bấm. */
+async function fillIncident(page: Page, title: string) {
+  await page.goto("/su-co");
+  const form = page.getByTestId("incident-form");
+  await form.getByLabel("Sự cố", { exact: true }).fill(title);
+  await form.getByLabel("Mô tả").fill("Mô tả sự cố cho kiểm thử phiên hết hạn.");
+  return form;
+}
+
+/** Đăng nhập lại trong hộp thoại bằng tài khoản buồng phòng khách sạn. */
+async function reloginInDialog(page: Page) {
+  const dialog = page.getByTestId("reauth-dialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("heading", { name: "Đăng nhập lại" })).toBeFocused();
+  await expect(dialog.getByText("Phiên đăng nhập đã hết. Vui lòng đăng nhập lại.")).toBeVisible();
+  await dialog.getByLabel("Email").fill(HOTEL_HK.email);
+  await dialog.getByLabel("Mật khẩu").fill(HOTEL_HK.password);
+  await dialog.getByRole("button", { name: "Đăng nhập" }).click();
+}
+
+test("S-013 phiên hết hạn: 401 ⇒ hộp đăng nhập lại (form giữ nguyên); đăng nhập xong gửi lại với CÙNG command_id, cùng tổ chức", async ({
+  page,
+  context,
+}) => {
+  await context.addCookies(hkCookies);
+  const keys: string[] = [];
+  const statuses: number[] = [];
+  let first = true;
+  await page.route(CREATE, (r) => {
+    keys.push(r.request().headers()["idempotency-key"] ?? "");
+    // Lượt đầu đi tới server THẬT (phiên đã mất ⇒ 401); lượt sau đăng nhập lại được giả lập thành công để không đổi dữ liệu.
+    if (first) {
+      first = false;
+      return r.continue();
+    }
+    return r.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ command_id: keys.at(-1), status: "committed", data: {} }),
+    });
+  });
+  page.on("response", (res) => {
+    if (res.url().endsWith("/maintenance/createWorkOrder")) statuses.push(res.status());
+  });
+  const title = "Sự cố khi phiên hết hạn";
+  const form = await fillIncident(page, title);
+  await context.clearCookies({ name: /session/ }); // phiên hết hạn; cookie chọn tổ chức còn nguyên
+  await form.getByRole("button", { name: "Gửi báo sự cố" }).click();
+
+  await reloginInDialog(page);
+  await expect(page.getByRole("status").filter({ hasText: "Đã ghi nhận sự cố" })).toBeVisible();
+  await expect(page.getByTestId("reauth-dialog")).toBeHidden();
+  expect(statuses[0]).toBe(401);
+  expect(keys).toHaveLength(2);
+  expect(keys[1]).toBe(keys[0]); // cùng command_id
+  expect(keys[0]).toMatch(/^[0-9a-f-]{36}$/);
+});
+
+test("S-013 sau đăng nhập lại mà ngữ cảnh tổ chức không còn: huỷ form (CONTEXT_CHANGED), không gửi sang tổ chức khác", async ({
+  page,
+  context,
+}) => {
+  await context.addCookies(hkCookies);
+  const statuses: number[] = [];
+  page.on("response", (res) => {
+    if (res.url().endsWith("/maintenance/createWorkOrder")) statuses.push(res.status());
+  });
+  const form = await fillIncident(page, "Sự cố đổi ngữ cảnh");
+  await context.clearCookies(); // mất cả phiên lẫn cookie chọn tổ chức ⇒ sau đăng nhập chưa có tổ chức nào đang chọn
+  await form.getByRole("button", { name: "Gửi báo sự cố" }).click();
+  await reloginInDialog(page);
+  await expect(
+    page.getByRole("alert").filter({ hasText: "Bạn vừa đổi tổ chức ở tab khác" }).first(),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Tải lại trang" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Gửi lại" })).toHaveCount(0);
+  expect(statuses).toEqual([401, 409]); // lượt hai bị chặn ở máy chủ, không ghi gì
+});
+
+test("S-013 bấm 'Để sau': không gửi gì, báo phiên đã hết, form dùng lại được", async ({ page, context }) => {
+  await context.addCookies(hkCookies);
+  let posts = 0;
+  page.on("request", (r) => {
+    if (r.url().endsWith("/maintenance/createWorkOrder")) posts++;
+  });
+  const form = await fillIncident(page, "Sự cố bỏ qua đăng nhập");
+  await context.clearCookies({ name: /session/ });
+  await form.getByRole("button", { name: "Gửi báo sự cố" }).click();
+  const dialog = page.getByTestId("reauth-dialog");
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "Để sau" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole("alert").filter({ hasText: "Phiên đăng nhập đã hết" })).toBeVisible();
+  await expect(form.getByLabel("Sự cố", { exact: true })).toBeEnabled();
+  expect(posts).toBe(1);
 });

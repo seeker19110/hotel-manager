@@ -3,6 +3,7 @@
 import { SerwistProvider, useSerwist } from "@serwist/turbopack/react";
 import { type ReactNode, useEffect, useState, useSyncExternalStore } from "react";
 import { CLIENT_OUTDATED_TEXT } from "../command/app-version.ts";
+import { ReauthDialog } from "../command/reauth-dialog.tsx";
 import { Icon } from "../ui/icon.tsx";
 
 function subscribeOnline(cb: () => void): () => void {
@@ -130,6 +131,7 @@ export function PwaShell({ children }: { children: ReactNode }) {
       <NetworkBanner />
       <UpdateBanner />
       <OutdatedBanner />
+      <ReauthDialog />
       {children}
     </SerwistProvider>
   );

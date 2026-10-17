@@ -17,7 +17,8 @@ async function post(path: string, body: unknown): Promise<{ ok: boolean; status:
   return { ok: res.ok, status: res.status };
 }
 
-export function TenantLoginForm() {
+/** `onSuccess`: đăng nhập lại ngay trên trang (hộp đăng nhập lại, S-013) — không chuyển sang /chon-to-chuc. */
+export function TenantLoginForm({ onSuccess }: { onSuccess?: () => void } = {}) {
   const online = useOnline();
   const [step, setStep] = useState<"email" | "code">("email");
   const [email, setEmail] = useState("");
@@ -45,7 +46,8 @@ export function TenantLoginForm() {
         const r = await post("/api/auth/sign-in/email-otp", { email, otp });
         if (r.status === 429) return setError("Bạn thử quá nhiều lần. Vui lòng đợi ít phút.");
         if (!r.ok) return setError("Mã không đúng hoặc đã hết hạn.");
-        window.location.assign("/chon-to-chuc");
+        if (onSuccess) onSuccess();
+        else window.location.assign("/chon-to-chuc");
       }
     } catch {
       setError("Chưa nhận được phản hồi. Kiểm tra mạng rồi thử lại.");
