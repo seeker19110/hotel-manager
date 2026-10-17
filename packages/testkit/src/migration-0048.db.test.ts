@@ -15,13 +15,17 @@ const m0048 = () => {
 let t: TestDb;
 beforeAll(async () => {
   t = await createTestDb();
-  // Lùi mọi migration từ mới nhất tới 0048 (kiểm luôn `down` khớp phần up mới) để áp lại 0048 theo ý. Lùi tới khi gặp 0048
-  // (không đếm cứng số migration phía sau — migration mới thêm không làm vỡ test này).
-  for (let guard = 0; guard < 100; guard++) {
+  // Lùi mọi migration sau 0048 rồi tới chính 0048 (kiểm luôn `down` khớp phần up mới) để áp lại 0048 theo ý.
+  // Không đếm cứng số migration: migration mới thêm sau không làm vỡ test này (dừng khi gặp 0048, có trần chống lặp vô hạn).
+  const undone: string[] = [];
+  for (let i = 0; i < 50 && undone.at(-1) !== NAME; i++) {
     const res = await createMigrator(t.admin).migrateDown();
     expect(res.error).toBeUndefined();
-    if (res.results?.[0]?.migrationName === NAME) break;
+    const name = res.results?.[0]?.migrationName;
+    expect(name).toBeDefined();
+    undone.push(name as string);
   }
+  expect(undone.at(-1)).toBe(NAME);
 }, 120_000);
 afterAll(async () => {
   await t.drop();

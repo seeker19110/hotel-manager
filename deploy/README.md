@@ -4,7 +4,7 @@
 
 | Tệp | Nội dung |
 |---|---|
-| `compose.yaml` | `postgres` (+ pgBackRest), `seaweedfs`, `caddy`; mọi image ghim digest. Chưa có service `web`/`worker` |
+| `compose.yaml` | `postgres` (+ pgBackRest), `seaweedfs`, `caddy`, `web`, `worker`; image ngoài ghim digest, `web`/`worker` build từ hai Dockerfile bên dưới; `stop_grace_period: 40s`, log xoay vòng ([`docs/ops/retention-policy.md`](../docs/ops/retention-policy.md)). **Chưa chạy thật** |
 | `web.Dockerfile`, `worker.Dockerfile` | image ứng dụng (multi-stage, base Node ghim digest, chạy bằng người dùng `node`, không bí mật trong image). **Chưa build thật** (máy dev không có Docker) |
 | `postgres/Dockerfile` | Postgres 17 + pgBackRest |
 | `Caddyfile` | TLS tự động, HSTS, chuyển tiếp tới `web:3000` và kho file |
@@ -32,3 +32,13 @@ Khi cấp: sinh hai cặp khoá khác nhau, đặt `S3_ACCESS_KEY_ID`/`S3_SECRET
 | `SMTP_URL` | gửi email | tài khoản relay (chưa chọn nhà cung cấp; hiện `FakeEmailSender`) | `secret-leak.md` |
 | `PGBACKREST_REPO_CIPHER_PASS`, khoá repo S3 sao lưu | sao lưu PITR | ghi repo sao lưu khác máy | `secret-leak.md` (không đảo ngược, cần người duyệt) |
 | `BETTER_AUTH_SECRET`, `HM_PII_KEYS`, `HM_PII_INDEX_KEY` | phiên, mã hoá giấy tờ | trong ứng dụng, không phải token bên thứ ba | `secret-leak.md`, RUNBOOK §5 |
+
+## Biến môi trường của web và worker (T-505)
+Compose chỉ ghi thẳng biến không bí mật (`NODE_ENV`, `APP_BASE_URL`, `S3_ENDPOINT`, `S3_BUCKET`, lấy từ `HM_DOMAIN`/`HM_FILES_DOMAIN` của `deploy/.env`). Bí mật nằm ở hai file riêng, ngoài git, mỗi service một file để khoá/vai trò không dùng chung. Tên biến theo schema `packages/app/src/config/schema.ts` và `worker.ts` — không có biến mới.
+
+| File | Biến |
+|---|---|
+| `deploy/secrets/web.env` | `DATABASE_URL` (`app_runtime`), `BETTER_AUTH_SECRET`, `S3_ACCESS_KEY_ID`/`S3_SECRET_ACCESS_KEY` (danh tính `hotel-manager-web`), `HM_PII_KEYS`, `HM_PII_KEY_ID`, `HM_PII_INDEX_KEY`, `CLAMD_HOST` (+ `CLAMD_PORT`), `SMTP_URL`, `SIM_WEBHOOK_SECRET` (nếu bật webhook mô phỏng) |
+| `deploy/secrets/worker.env` | `WORKER_DATABASE_URL` (`app_worker`), `DATABASE_URL` (`app_runtime`, job xuất dữ liệu), `BETTER_AUTH_SECRET`, `S3_ACCESS_KEY_ID`/`S3_SECRET_ACCESS_KEY` (danh tính `hotel-manager-worker`, **khác web**), `HM_PII_KEYS`, `HM_PII_KEY_ID`, `HM_PII_INDEX_KEY`, `CLAMD_HOST` (+ `CLAMD_PORT`), `SMTP_URL` |
+
+Ghi chú: `web` có healthcheck `/api/ready`; `worker` không có cổng nên sức khoẻ = nhịp `worker_heartbeats`. Production không chấp nhận `http://` tới máy khác nên cả hai gọi kho file qua `https://${HM_FILES_DOMAIN}` (Caddy có bí danh mạng cho hai tên miền, chưa kiểm bằng triển khai thật). Chưa có service ClamAV trong compose (`CLAMD_HOST` trỏ tới máy chủ clamd do chủ dự án cài — `docs/privacy/processors.md`).

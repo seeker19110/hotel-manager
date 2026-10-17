@@ -183,6 +183,16 @@ export {
   type ReceivablesReport,
   receivables as reportReceivables,
 } from "./reports/reports.ts";
+export {
+  DELIVERY_DONE_RETENTION_DAYS,
+  DELIVERY_FAILED_RETENTION_DAYS,
+  type EventPurgeStats,
+  IDEMPOTENCY_GRACE_DAYS,
+  OUTBOX_PUBLISHED_RETENTION_DAYS,
+  PURGE_BATCH,
+  PURGE_MAX_ROUNDS,
+  purgeEventTables,
+} from "./retention/index.ts";
 export { serverContext } from "./server/context.ts";
 export { type AppServices, createServices, testServices } from "./server/services.ts";
 export { type FolioView, getFolio } from "./stay/folio.ts";

@@ -272,3 +272,11 @@
 - Chọn: Cộng thêm tối đa 20% (thực tế ∈ [mốc, 1,2·mốc]) — không bao giờ sớm hơn lịch Q-05
 - Lý do (tiêu chí chất lượng cuối): (1) đúng: giữ lịch Q-05 (1/5/30/120/360 phút) đã ghi trong SPEC; vẫn tránh dồn cùng thời điểm. (3) đơn giản, một hằng RETRY_JITTER_RATIO.
 - Đường lùi: Đổi RETRY_JITTER_RATIO hoặc spreadDelayMs trong notifications.
+
+### D-039 · 2026-10-17T05:09:16+00:00 · T-505: số ngày giữ bảng sự kiện (XC-GREEN-007) khi DPIA chưa có?
+
+- Phương án: (1) outbox đã phát 90 ngày; idempotency xoá khi hết hạn; deliveries sent/suppressed 90 ngày, failed/dead 180 ngày; audit không xoá · (2) outbox 30 ngày (sát cửa sổ dedupe 30 ngày của nhắc hợp đồng) · (3) 180 ngày cho tất cả
+- Chọn: outbox đã phát 90 ngày; idempotency xoá khi hết hạn; deliveries sent/suppressed 90 ngày, failed/dead 180 ngày; audit không xoá
+- Lý do (tiêu chí chất lượng cuối): (1) đúng: lớn hơn mọi cửa sổ dedupe/điều tra hiện có, không xoá hàng chưa phát/chưa xong, audit giữ nguyên. (2) đường lùi: hằng trong retention/policy.ts + tài liệu RET-01…10 có test đồng bộ; DPIA quyết số cuối.
+- Đường lùi: Đổi hằng trong packages/app/src/retention/policy.ts và docs/ops/retention-policy.md.
+- Khi chạy thật (đề xuất, chủ dự án quyết ở G7): Chủ dự án + pháp lý chốt số ngày giữ theo DPIA (RK-019).
