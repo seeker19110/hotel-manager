@@ -40,6 +40,8 @@ import { hotelTotpFile, totpFile } from "./totp.ts";
 
 const PORT = Number(process.env.E2E_PORT ?? 3100);
 const BASE_URL = `http://127.0.0.1:${PORT}`;
+// Bản sao thứ hai của web (ARC-RES-005): cùng CSDL/bí mật/kho, KHÔNG sticky — `replicas.spec.ts` đi xen kẽ hai cổng.
+const REPLICA_PORT = PORT + 1;
 
 function kysely(url: string): Kysely<unknown> {
   return new Kysely<unknown>({
@@ -268,16 +270,22 @@ const appEnv: NodeJS.ProcessEnv = {
 // Hàng rào: env của server E2E phải qua đúng schema cấu hình production — thiếu biến thì dừng ngay, báo tên biến
 // (thay vì đăng nhập 500 âm thầm như lần thêm khoá PII).
 loadConfig(appEnv);
-const next = spawn("pnpm", ["exec", "next", "start", "--hostname", "127.0.0.1", "--port", String(PORT)], {
-  stdio: "inherit",
-  env: appEnv,
-});
+const replicaEnv: NodeJS.ProcessEnv = { ...appEnv, APP_BASE_URL: `http://127.0.0.1:${REPLICA_PORT}` };
+loadConfig(replicaEnv);
+const startNext = (port: number, env: NodeJS.ProcessEnv) =>
+  spawn("pnpm", ["exec", "next", "start", "--hostname", "127.0.0.1", "--port", String(port)], {
+    stdio: "inherit",
+    env,
+  });
+const next = startNext(PORT, appEnv);
+const replica = startNext(REPLICA_PORT, replicaEnv);
 
 let stopping = false;
 async function stop(code: number): Promise<void> {
   if (stopping) return;
   stopping = true;
   next.kill("SIGTERM");
+  replica.kill("SIGTERM");
   rmSync(totpFile(PORT), { force: true });
   rmSync(hotelTotpFile(PORT), { force: true });
   rmSync(outbox, { force: true });

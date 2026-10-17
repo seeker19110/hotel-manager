@@ -19,7 +19,13 @@ export {
 } from "./invitations.ts";
 export { updateMemberRole, updateMemberScope } from "./members.ts";
 export { resetMemberMfa } from "./mfa-recovery.ts";
-export { ORG_CONTEXT_HEADER, ORG_HEADER, orgCookieName, requestedOrgId } from "./org-context.ts";
+export {
+  ORG_CONTEXT_HEADER,
+  ORG_HEADER,
+  orgCookieName,
+  requestedOrgId,
+  switchOrganization,
+} from "./org-context.ts";
 export { createOrganization } from "./organization.ts";
 export { createProperty, updateProperty } from "./property.ts";
 export type { UserCommandRequest } from "./provision.ts";

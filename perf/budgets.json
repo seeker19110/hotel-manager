@@ -1,0 +1,13 @@
+{
+  "basis": "docs/perf/baseline-web-2026-10-17.json × 1,3 (làm tròn lên); siết khi có đo trên staging; đổi ngân sách phải ghi lý do ở docs/perf/README.md",
+  "pages": {
+    "/dang-nhap": { "max_transfer_kb": 200, "max_requests": 12 },
+    "/dang-nhap/nguoi-thue": { "max_transfer_kb": 200, "max_requests": 12 },
+    "/offline": { "max_transfer_kb": 200, "max_requests": 11 },
+    "/chon-to-chuc": { "max_transfer_kb": 200, "max_requests": 12 },
+    "/phong": { "max_transfer_kb": 200, "max_requests": 12 },
+    "/buong-phong": { "max_transfer_kb": 250, "max_requests": 15 },
+    "/su-co": { "max_transfer_kb": 250, "max_requests": 16 },
+    "/thong-bao": { "max_transfer_kb": 250, "max_requests": 16 }
+  }
+}
