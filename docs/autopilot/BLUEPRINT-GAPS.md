@@ -9,6 +9,12 @@
 > `PM-SPEC-004` và `WF-SDD-003` (nền spec-coverage còn 26 S-NNN). **Tick kèm lưu ý để phiên chính xác nhận:** `DB-MODEL-004` (52 FK nhóm A thiếu index là ngoại lệ có lý do — D-035),
 > `UX-STATE-001` (không Storybook; loading bị D-032 miễn ở trang có route con động/notFound/redirect), `DB-PERF-001` (EXPLAIN không ANALYZE), `XC-GREEN-007` (còn `notifications`/`inbox`/`worker_heartbeats` chưa có job dọn, chờ DPIA).
 
+## Kết quả đợt 8 (T-710, 2026-10-17)
+
+- Phân loại 169 MUST mở (sau đợt 7): **12** làm trọn được trong repo · **90** làm được một phần nhưng chưa tick được (32 cần sửa workflow/thêm job CI, 21 cần sửa file cổng — `playwright.config`/`vitest.config`/`xt.yaml`/`biome.json`/tsconfig/`dependabot.yml`/`AGENTS.md`/hook, 14 cần phụ thuộc/công cụ mới — Testing Library, spectral, SAST, ZAP, trivy, SBOM, lhci, size-limit, promtool, Collector, 4 cần biến môi trường mới, 19 cần DPIA/pháp lý/kinh doanh) · **67** cần người/hạ tầng thật/GitHub.
+- Đợt 8 làm 10/12 (D-053): T-701 UX-DS-003 + UX-A11Y-002 (tương phản, theme sáng D-054) · T-702 QA-COV-004 · T-703 QA-STATIC-005 (D-055) · T-704 XC-PERF-003 · T-705 CMP-LIC-002 (D-057) · T-706 PM-HANDOVER-002 (D-056) → PR #34 · T-707 UX-A11Y-001 → PR #35 · T-708 DB-MIG-001 → PR #32 · T-709 OPS-COST-004 (D-058) → PR #33. Hai mục chờ chủ dự án: IND-SAAS-009 (truy cập hỗ trợ tạm — F-015, auth) và CMP-RIGHTS-001 (danh mục mục đích đồng ý — pháp lý).
+- Sau khi merge đủ: MUST đạt 282 · miễn 55 · mở 159 — không còn mục nào agent làm trọn được mà không cần người duyệt CI/cổng/phụ thuộc/pháp lý. Mở khoá tiếp theo nhanh nhất cho chủ dự án: duyệt đổi CI/file cổng (53 mục) và phụ thuộc công cụ (14 mục).
+
 ## Kết quả đợt 7 (T-609, 2026-10-17)
 
 - `main` `8a6996e`: MUST **đạt 266 · miễn 55 · mở 175** — cả 175 đã `loop defer` chờ người (172 từ đợt 4–6 + `PM-SPEC-004`, `WF-SDD-003`, `BASE-SEC-001` tới khi PR #24 merge).

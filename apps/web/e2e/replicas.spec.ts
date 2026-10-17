@@ -3,6 +3,7 @@
 // chọn tổ chức, lệnh ghi có Idempotency-Key, đọc lại, đăng xuất. Mọi kết quả phải như một bản duy nhất: nếu tiến trình giữ
 // trạng thái trong bộ nhớ (phiên, idempotency, cache "nguồn sự thật") thì xen kẽ sẽ lệch.
 import { expect, type Page, test } from "@playwright/test";
+import { expectAccessible } from "./a11y.ts";
 import { ORG_MAIN, SMOKE_USER } from "./fixtures.ts";
 import { type Cookies, loginStaff } from "./sessions.ts";
 
@@ -69,6 +70,7 @@ test("trang /phong render được ở cả hai bản sao với cùng cookie phi
       const page: Page = await ctx.newPage();
       await page.goto("/phong");
       await expect(page).toHaveURL(/\/phong$/);
+      await expectAccessible(page);
       orgs.push(await page.locator('meta[name="hm-org-context"]').getAttribute("content"));
     } finally {
       await ctx.close();
