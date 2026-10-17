@@ -115,28 +115,38 @@ for (const [authed, routes] of [
   }
 }
 
+/** Chạy `fn`; lỗi (không phải Linux, tiến trình khác chủ/đã thoát) → `fallback` thay vì làm hỏng phép đo. */
+const safe = <T>(fn: () => T, fallback: T): T => {
+  try {
+    return fn();
+  } catch {
+    return fallback;
+  }
+};
+
 /** pid của tiến trình đang nghe cổng TCP (IPv4) qua /proc — null nếu không tìm được (không phải Linux/không đủ quyền). */
 function pidListeningOn(port: number): number | null {
-  try {
-    const hex = port.toString(16).toUpperCase().padStart(4, "0");
-    const inode = readFileSync("/proc/net/tcp", "utf8")
-      .split("\n")
-      .slice(1)
-      .map((l) => l.trim().split(/\s+/))
-      .find((c) => c[3] === "0A" && c[1]?.endsWith(`:${hex}`))?.[9];
-    if (!inode) return null;
-    for (const pid of readdirSync("/proc").filter((n) => /^\d+$/.test(n))) {
-      try {
-        for (const fd of readdirSync(`/proc/${pid}/fd`))
-          if (readlinkSync(`/proc/${pid}/fd/${fd}`) === `socket:[${inode}]`) return Number(pid);
-      } catch {
-        // tiến trình khác chủ/đã thoát
-      }
-    }
-  } catch {
-    // không có /proc
-  }
-  return null;
+  const hex = port.toString(16).toUpperCase().padStart(4, "0");
+  const inode = safe(
+    () =>
+      readFileSync("/proc/net/tcp", "utf8")
+        .split("\n")
+        .slice(1)
+        .map((l) => l.trim().split(/\s+/))
+        .find((c) => c[3] === "0A" && c[1]?.endsWith(`:${hex}`))?.[9],
+    undefined,
+  );
+  if (!inode) return null;
+  const owns = (pid: string) =>
+    safe(
+      () =>
+        readdirSync(`/proc/${pid}/fd`).some(
+          (fd) => readlinkSync(`/proc/${pid}/fd/${fd}`) === `socket:[${inode}]`,
+        ),
+      false,
+    );
+  const pid = safe(() => readdirSync("/proc"), [] as string[]).find((n) => /^\d+$/.test(n) && owns(n));
+  return pid ? Number(pid) : null;
 }
 
 const cpuTicks = (pid: number) => {

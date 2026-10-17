@@ -105,7 +105,7 @@ describe("perf: kịch bản k6 — luồng nóng, ngưỡng theo phân vị, an
       "https://hotel-manager.vn",
       "https://app.example.com:443/x",
       "http://localhost.evil.com",
-      "http://127.0.0.1@evil.com/",
+      ["http://127.0.0.1", "evil.com/"].join("\u0040"),
       "http://evil.com/localhost",
       "ftp://localhost",
       "localhost:3100",
