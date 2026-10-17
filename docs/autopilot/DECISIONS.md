@@ -52,7 +52,7 @@
 - Phương án: (1) Giữ nguyên, bắt thanh lý và ký hợp đồng mới · (2) Cho phụ lục sửa effective_to của phiên bản mở cuối · (3) Thêm cột superseded_on (chỉ NULL → ngày, đặt một lần bởi phụ lục, trigger chặn mọi đổi khác); điều khoản đã ký + SHA-256 giữ nguyên; hiệu lực thực = least(effective_to, superseded_on − 1)
 - Chọn: Thêm cột superseded_on (chỉ NULL → ngày, đặt một lần bởi phụ lục, trigger chặn mọi đổi khác); điều khoản đã ký + SHA-256 giữ nguyên; hiệu lực thực = least(effective_to, superseded_on − 1)
 - Lý do (tiêu chí chất lượng cuối): Giữ bất biến INV-G4 (điều khoản đã ký không đổi byte nào) mà vẫn đổi giá được; ràng buộc ở CSDL, có audit; phương án 2 phá băm điều khoản.
-- Đường lùi: Migration down bỏ cột; phụ lục đã tạo vẫn là phiên bản hợp lệ, chỉ cần chặn tạo mới.
+- Đường lùi: Migration down đóng phiên bản đã bị thay (`effective_to = superseded_on − 1`, tắt riêng trigger bất biến quanh đúng câu UPDATE đó, cùng transaction) rồi mới bỏ cột và dựng lại EXCLUDE; phụ lục đã tạo vẫn là phiên bản hợp lệ, chỉ cần chặn tạo mới (test `lease-supersede-down.db.test.ts`).
 
 ### D-008 · 2026-10-16T03:41:31+00:00 · Quản lý có được đặt giá dịch vụ (SPEC-metering nói có, ma trận quyền SPEC-access nói không)
 

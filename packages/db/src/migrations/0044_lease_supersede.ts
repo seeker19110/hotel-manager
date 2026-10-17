@@ -55,11 +55,18 @@ BEGIN
 END $$;
 `;
 
+// Down: phiên bản không thời hạn đã bị thay phải "đóng" lại bằng effective_to = superseded_on − 1 TRƯỚC khi bỏ cột — nếu không,
+// dựng lại EXCLUDE trên (effective_from, effective_to) thấy v1 và phụ lục cùng mở ⇒ 23P01. Trigger bất biến chặn UPDATE hàng đã ký,
+// nên chỉ tắt đúng trigger đó quanh một câu UPDATE hẹp (hàng có superseded_on), cùng transaction của migration.
+// (`terms_snapshot`/`terms_hash` — bản ký — không đổi; chỉ cột hiệu lực suy ra được.)
 const DOWN = `
 ${GUARD_OLD}
 ALTER TABLE lease_versions DROP CONSTRAINT ex_lease_versions_no_overlap;
-ALTER TABLE lease_versions DROP COLUMN effective_until;
 ALTER TABLE lease_versions DROP CONSTRAINT ck_lease_versions_superseded;
+ALTER TABLE lease_versions DISABLE TRIGGER trg_lease_versions_guard;
+UPDATE lease_versions SET effective_to = superseded_on - 1 WHERE superseded_on IS NOT NULL;
+ALTER TABLE lease_versions ENABLE TRIGGER trg_lease_versions_guard;
+ALTER TABLE lease_versions DROP COLUMN effective_until;
 ALTER TABLE lease_versions DROP COLUMN superseded_on;
 ALTER TABLE lease_versions ADD CONSTRAINT ex_lease_versions_no_overlap EXCLUDE USING gist (organization_id WITH =, lease_id WITH =,
   daterange(effective_from, effective_to, '[]') WITH &&);
