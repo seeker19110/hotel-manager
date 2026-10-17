@@ -31,6 +31,7 @@ import { confirmReservation, createReservation, holdReservation } from "../stay/
 import { checkIn } from "../stay/stays.ts";
 import { codeOf, okAs, runAs, seedMember } from "../testing/helpers.ts";
 import { type Hotel, seedHotel } from "../testing/hotel.ts";
+import { assertLogRecords } from "../testing/log-schema.ts";
 import { createLogger } from "./logger.ts";
 import { setAppLogger } from "./runtime.ts";
 import { securityRecordSchema } from "./security-events.ts";
@@ -67,7 +68,11 @@ beforeEach(() => {
     }),
   );
 });
-afterEach(() => setAppLogger(undefined));
+afterEach(() => {
+  // Mọi dòng log phát ra trong từng test phải hợp lệ schema chung (BASE-ERR-006).
+  assertLogRecords(lines);
+  setAppLogger(undefined);
+});
 
 function makeDeps(session?: { createdAt?: Date }): HttpDeps {
   return {
@@ -236,7 +241,8 @@ describe("sự kiện thành công chỉ phát SAU commit", () => {
       throw new CommandError("VALIDATION_FAILED", 422, "sai");
     });
     expect(r.status).toBe("failed");
-    expect(events()).toHaveLength(0);
+    // Không có sự kiện THÀNH CÔNG của handler đã rollback; chỉ còn ghi nhận đầu vào bị từ chối (422).
+    expect(events().map((e) => e.event)).toEqual(["input.validation_failed"]);
   });
 
   it("handler thành công → đúng một sự kiện outcome=success kèm actor, correlation_id", async () => {
@@ -373,6 +379,7 @@ describe("liên kết khách (guest_link.*) và 429 theo IP", () => {
 
   it("sai bước hai 5 lần → guest_link.denied ×4 rồi guest_link.locked; sau đó truy cập link khoá → denied LINK_REVOKED; token/SĐT không vào log", async () => {
     const s = await stayWithLink();
+    lines = []; // bỏ guest_link.issued của bước dựng dữ liệu
     const from = ip();
     for (let i = 0; i < 5; i++) {
       await guestGetStay(h.t.runtime, {

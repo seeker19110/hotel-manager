@@ -14,6 +14,7 @@ import { randomUUID } from "node:crypto";
 import { withTenant } from "@hm/db";
 import { Kysely, PostgresDialect, sql } from "kysely";
 import type pg from "pg";
+import { currentTraceparent } from "../logging/index.ts";
 import type { Logger } from "../logging/logger.ts";
 import { appLogger } from "../logging/runtime.ts";
 import {
@@ -91,10 +92,12 @@ export function createAuthEvents(pool: pg.Pool, log?: () => Logger): AuthEvents 
         if (eventType && e.outcome === "success") {
           await sql`
             insert into public.outbox (id, organization_id, event_type, aggregate_type, aggregate_id, payload, correlation_id,
-                                       dedupe_key)
+                                       dedupe_key, traceparent)
             values (${randomUUID()}, ${o.organization_id}, ${eventType}, 'membership', ${o.membership_id},
                     ${JSON.stringify({ membership_id: o.membership_id })}::jsonb, ${e.correlationId},
-                    ${`${eventType}:${e.correlationId}:${o.membership_id}`})`.execute(trx);
+                    ${`${eventType}:${e.correlationId}:${o.membership_id}`}, ${currentTraceparent()})`.execute(
+            trx,
+          );
         }
       });
     }

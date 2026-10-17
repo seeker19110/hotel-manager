@@ -6,6 +6,7 @@ import type { Kysely } from "kysely";
 import type { z } from "zod";
 import { AccessError, type Actor, listMyOrganizations, resolveActor } from "../access/actor.ts";
 import { ORG_CONTEXT_HEADER, ORG_HEADER, orgCookieName, requestedOrgId } from "../access/org-context.ts";
+import { withRequestTrace } from "../logging/index.ts";
 import {
   type ActorRef,
   emitSecurity,
@@ -157,6 +158,29 @@ function denied(
   });
 }
 
+/**
+ * Đầu vào bị từ chối ở biên HTTP (SEC-LOG-001): `input.validation_failed` (sai schema/quy tắc) hoặc `input.deserialize_failed`
+ * (thân không phải JSON/multipart hợp lệ). Chỉ ghi MÃ lý do cố định — không ghi giá trị người dùng gửi.
+ */
+export function rejectInput(
+  req: Request,
+  correlationId: string,
+  event: "input.validation_failed" | "input.deserialize_failed" | "file.upload_rejected",
+  actor: ActorRef | null,
+  target: { type: string; id: string },
+  reason: string,
+): void {
+  emitSecurity({
+    event,
+    outcome: "denied",
+    actor,
+    target,
+    reason,
+    client: requestClient(req.headers),
+    correlationId,
+  });
+}
+
 /** Actor của request hoặc Response lỗi (401/409/404/403) đã sẵn để trả. */
 export async function actorFromRequest(
   req: Request,
@@ -244,7 +268,9 @@ export function handleCommand<I, O, P = undefined>(
   req: Request,
   deps: HttpDeps,
 ): Promise<Response> {
-  return observeHttp(routeOf(def.command), req.method, () => runCommand(def, req, deps));
+  return observeHttp(routeOf(def.command), req.method, () =>
+    withRequestTrace(req, () => runCommand(def, req, deps)),
+  );
 }
 
 async function runCommand<I, O, P>(
@@ -264,10 +290,28 @@ async function runCommand<I, O, P>(
     try {
       body = nfcDeep(await req.json());
     } catch {
+      rejectInput(
+        req,
+        correlationId,
+        "input.deserialize_failed",
+        actor,
+        { type: "command", id: def.command },
+        "MALFORMED_REQUEST",
+      );
       return simpleProblem("MALFORMED_REQUEST", 400, "Thân yêu cầu không phải JSON hợp lệ", correlationId);
     }
     const parsed = def.input.safeParse(body);
-    if (!parsed.success) return validationProblem(parsed.error, correlationId);
+    if (!parsed.success) {
+      rejectInput(
+        req,
+        correlationId,
+        "input.validation_failed",
+        actor,
+        { type: "command", id: def.command },
+        "VALIDATION_FAILED",
+      );
+      return validationProblem(parsed.error, correlationId);
+    }
     const input = parsed.data;
     const prep = def.prepare
       ? await settle(() =>
@@ -307,7 +351,9 @@ async function runCommand<I, O, P>(
 
 /** GET query: tham số từ query string; trả `{ data }` hoặc problem+json. Đo `hm_http_*` (T-406). */
 export function handleQuery<I, O>(def: QueryDef<I, O>, req: Request, deps: HttpDeps): Promise<Response> {
-  return observeHttp(routeOf(def.query), req.method, () => runQuery(def, req, deps));
+  return observeHttp(routeOf(def.query), req.method, () =>
+    withRequestTrace(req, () => runQuery(def, req, deps)),
+  );
 }
 
 async function runQuery<I, O>(def: QueryDef<I, O>, req: Request, deps: HttpDeps): Promise<Response> {
@@ -319,7 +365,17 @@ async function runQuery<I, O>(def: QueryDef<I, O>, req: Request, deps: HttpDeps)
     actorOf = actor;
     const params = nfcDeep(Object.fromEntries(new URL(req.url).searchParams));
     const parsed = def.input.safeParse(params);
-    if (!parsed.success) return validationProblem(parsed.error, correlationId);
+    if (!parsed.success) {
+      rejectInput(
+        req,
+        correlationId,
+        "input.validation_failed",
+        actor,
+        { type: "query", id: def.query },
+        "VALIDATION_FAILED",
+      );
+      return validationProblem(parsed.error, correlationId);
+    }
     return json(
       { data: await def.run(deps.db, actor, parsed.data, deps.services, { correlationId }) },
       200,
@@ -337,7 +393,9 @@ async function runQuery<I, O>(def: QueryDef<I, O>, req: Request, deps: HttpDeps)
 
 /** GET /api/v1/commands/{id} (API-CONTRACT §1, SPEC-pwa S-010…S-012, S-019). Đo `hm_http_*` (T-406). */
 export function handleCommandStatus(commandId: string, req: Request, deps: HttpDeps): Promise<Response> {
-  return observeHttp("/api/v1/commands/{id}", req.method, () => runCommandStatus(commandId, req, deps));
+  return observeHttp("/api/v1/commands/{id}", req.method, () =>
+    withRequestTrace(req, () => runCommandStatus(commandId, req, deps)),
+  );
 }
 
 async function runCommandStatus(commandId: string, req: Request, deps: HttpDeps): Promise<Response> {

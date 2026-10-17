@@ -1573,6 +1573,7 @@ Loại: H (chỉ cột phát/thử lại đổi; worker xoá theo hạn)
 | attempts | integer | không | mặc định `0` | |
 | last_error | text | có | | Lỗi phát gần nhất; `no_consumer` = chưa worker nào có consumer cho event_type (D-026) |
 | available_at | timestamptz | không | mặc định `now()` (0047) | Lần thử kế tiếp sớm nhất; `app.outbox_mark` lùi theo backoff khi lỗi; `app.outbox_claim` bỏ qua hàng chưa tới hạn và đặt lease 60 giây (`available_at = now() + 60 s`) cho hàng lấy được (claim ngắn, T-401) |
+| traceparent | text | có | `CHECK` dạng W3C `00-<32 hex>-<16 hex>-0[01]`, không toàn 0 (0054) | `traceparent` của span lúc ghi sự kiện; relay chép vào job, handler worker nối tiếp trace của request (BASE-ERR-006). NULL = ghi ngoài request/job |
 
 - Khoá/index: `UNIQUE (organization_id, dedupe_key) WHERE dedupe_key IS NOT NULL`; `ix (id) WHERE published_at IS NULL` cho relay (`FOR UPDATE SKIP LOCKED`).
 - Ràng buộc đặc biệt: INSERT chung transaction với nghiệp vụ và `audit_events` (INV-G6); gửi ra ngoài làm sau COMMIT; transaction rollback ⇒ không có hàng. `app_worker` có policy riêng đọc các hàng `published_at IS NULL` mọi tổ chức để relay, và đặt `app.org_id` theo hàng trước khi làm việc tiếp (đề xuất, T-008).

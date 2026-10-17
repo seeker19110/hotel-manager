@@ -3,10 +3,11 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { ConfigError, createLogger } from "@hm/app";
+import { assertLogRecords } from "@hm/app/testing/log-schema";
 import { createTestDb, type SeededOrg, seedOrg, type TestDb, testS3Config } from "@hm/testkit";
 import { sql } from "kysely";
 import { PgBoss } from "pg-boss";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { OutboxJob } from "./relay.ts";
 import { bootWorker, type RunningWorker } from "./runtime.ts";
 
@@ -41,9 +42,24 @@ function envOf(): Record<string, string> {
   };
 }
 
+// Mọi dòng log của mọi test đều phải hợp lệ với log-record.schema.json (BASE-ERR-006) — kiểm ở afterEach.
+const rawLogs: string[] = [];
+afterEach(() => {
+  const all = rawLogs.splice(0);
+  assertLogRecords(all);
+});
+
 function capture() {
   const lines: Record<string, unknown>[] = [];
-  const log = createLogger({ level: "debug", sink: { write: (l) => void lines.push(JSON.parse(l)) } });
+  const log = createLogger({
+    level: "debug",
+    sink: {
+      write: (l) => {
+        rawLogs.push(l);
+        lines.push(JSON.parse(l));
+      },
+    },
+  });
   return { lines, log };
 }
 

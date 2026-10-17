@@ -8,7 +8,7 @@
 
 ## 1. Nguyên tắc chung
 - **Kiểu RPC theo command.** Ghi: `POST /api/v1/<module>/<command>`, ví dụ `POST /api/v1/inventory/createHold`. Đọc: `GET /api/v1/<module>/<query>?...`. Chọn RPC thay vì CRUD REST vì nghiệp vụ là chuyển trạng thái có quy tắc, không phải sửa trường tự do.
-- **Định dạng:** JSON UTF-8. Thời điểm là ISO 8601 UTC. Ngày địa phương là `YYYY-MM-DD` kèm `property_id`. Khoảng thời gian dùng `{ "start": ..., "end": ... }` theo `[start, end)`.
+- **Định dạng:** JSON UTF-8. Thời điểm là RFC 3339 và **bắt buộc có offset** (`2026-10-13T07:14:05.123Z` hoặc `+07:00`); chuỗi không có `Z`/`±hh:mm` (kể cả `2026-10-13T07:14:05`) bị từ chối `422 VALIDATION_FAILED` (XC-UNITS-001). Server trả thời điểm ở UTC (`Z`). Ngày địa phương là `YYYY-MM-DD` kèm `property_id`. Khoảng thời gian dùng `{ "start": ..., "end": ... }` theo `[start, end)`.
 - **Tiền:** `{ "amount": 3580000, "currency": "VND" }` với `amount` là số nguyên đồng. Server từ chối số thập phân bằng `VALIDATION_FAILED`.
 - **ID:** UUID v7. Mã hiển thị (số phiếu, số hợp đồng) là trường riêng, cấp theo cơ sở.
 - **Ngữ cảnh tổ chức:** header `X-Org-Id` chỉ để **chọn** tổ chức trong số tổ chức người dùng đã có membership. Server luôn đối chiếu với membership và không tin ID do client gửi. Trang web gửi kèm `X-Org-Context` = tổ chức trang đang hiển thị; khác tổ chức của request (tab khác đã chuyển) ⇒ `409 CONTEXT_CHANGED`, không ghi gì (SPEC-portal S-013).
@@ -16,6 +16,7 @@
 - **Kết quả command:** `{ "command_id": "...", "status": "committed", "data": {...} }`. Tra lại bằng `GET /api/v1/commands/{command_id}` khi client bị timeout. Trạng thái chỉ gồm: `committed` (kèm `data`) · `in_progress` (đang chạy, client chờ rồi hỏi lại) · `failed` (kèm `problem`). Không tồn tại hoặc không phải của người hỏi → 404 `COMMAND_NOT_FOUND` — client mới được phép gửi lại với **cùng** `Idempotency-Key`.
 - **Phân trang:** `?cursor=<opaque>&limit=<n>`, mặc định 50, tối đa 200. Phản hồi `{ "data": [...], "next_cursor": "..." | null }`.
 - **Rate limit:** theo người dùng và theo IP. Đăng nhập và link khách có giới hạn chặt hơn. Vượt giới hạn trả 429 kèm `Retry-After` (số giây, MỌI 429 của app — kể cả của Better Auth, khoá tài khoản — đều có; thân problem có thêm `retry_after`). Hạn mức lệnh ghi theo TỔ CHỨC (IND-SAAS-008): tối đa `COMMAND_QUOTA_PER_MINUTE` (600) lệnh mới/phút/tổ chức, vượt ⇒ 429 `RATE_LIMITED` và KHÔNG lưu kết quả (gửi lại cùng `Idempotency-Key` sau `Retry-After` chạy bình thường; replay key đã có không tốn hạn mức).
+- **Trace (W3C Trace Context level 1):** mọi phản hồi của `/api/*` có header `traceparent` (`00-<trace-id>-<span-id>-<flags>`). Request đến có `traceparent` đúng chuẩn (chữ hex thường, version ≠ `ff`, id không toàn 0) thì server giữ `trace-id` và dùng `span-id` MỚI của mình; thiếu/sai ⇒ server sinh trace mới (không báo lỗi). `trace_id`/`span_id` được ghi vào mọi dòng log của request đó và của job worker sinh từ nó (`outbox.traceparent`). `tracestate` không dùng. `X-Correlation-Id` vẫn là mã tra cứu cho người dùng/hỗ trợ.
 - **Versioning:** tiền tố `/v1`. Thêm trường tuỳ chọn không đổi version. Thay đổi phá vỡ tạo `/v2` và gửi header `Deprecation` + `Sunset`.
 - **CSRF:** ghi bằng cookie phiên phải kiểm `Origin` và dùng SameSite=Lax. Không có endpoint ghi nào nhận `GET`.
 

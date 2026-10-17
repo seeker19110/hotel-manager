@@ -80,6 +80,20 @@ export {
   SECURITY_EVENTS,
   type SecurityEventName,
 } from "./logging/security-events.ts";
+export { reportBackendTlsError, tlsFailureCode } from "./logging/tls-errors.ts";
+export {
+  currentTrace,
+  currentTraceparent,
+  formatTraceparent,
+  newTraceContext,
+  parseTraceparent,
+  runJobWithTrace,
+  runWithTrace,
+  TRACEPARENT_HEADER,
+  type TraceContext,
+  traceForJob,
+  withRequestTrace,
+} from "./logging/trace.ts";
 export { reportRequestError, reportUnexpectedError } from "./logging/unexpected.ts";
 export { listWorkOrders, type WorkOrderView } from "./maintenance/work-orders.ts";
 export { readingRoute } from "./metering/meters.ts";

@@ -15,8 +15,13 @@ const m0048 = () => {
 let t: TestDb;
 beforeAll(async () => {
   t = await createTestDb();
-  // Lùi 0050, 0049, 0048 (kiểm luôn `down` khớp phần up mới) để áp lại 0048 theo ý.
-  for (const expected of ["0050_reconciliation_daily", "0049_audit_source", NAME]) {
+  // Lùi MỌI migration mới hơn 0048 (kiểm luôn `down` của chúng) rồi tới 0048, để áp lại 0048 theo ý. Lấy danh sách từ sổ migration
+  // (không gõ cứng) — thêm migration mới không làm test này đỏ.
+  const newer = Object.keys(migrations)
+    .filter((k) => k > NAME)
+    .sort()
+    .reverse();
+  for (const expected of [...newer, NAME]) {
     const res = await createMigrator(t.admin).migrateDown();
     expect(res.error).toBeUndefined();
     expect(res.results?.[0]?.migrationName).toBe(expected);

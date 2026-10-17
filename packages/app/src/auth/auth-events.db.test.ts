@@ -14,6 +14,7 @@ import { setAppLogger } from "../logging/runtime.ts";
 import { securityRecordSchema } from "../logging/security-events.ts";
 import { dispatchNotification } from "../notifications/dispatch.ts";
 import { okAs, ownerOf, seedMember } from "../testing/helpers.ts";
+import { assertLogRecords } from "../testing/log-schema.ts";
 import { type Auth, createAuth } from "./auth.ts";
 
 const BASE = "http://localhost:3000";
@@ -112,7 +113,11 @@ beforeEach(() => {
     }),
   );
 });
-afterEach(() => setAppLogger(undefined));
+afterEach(() => {
+  // Mọi dòng log phát ra trong từng test phải hợp lệ schema chung (BASE-ERR-006).
+  assertLogRecords(lines);
+  setAppLogger(undefined);
+});
 
 describe("auth-events — đăng nhập", () => {
   it("thành công: log chuẩn (IP cắt /24, UA), audit ở tổ chức của người dùng với cột source_ip/user_agent", async () => {

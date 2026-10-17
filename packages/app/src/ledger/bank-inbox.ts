@@ -12,6 +12,7 @@ import {
   WEBHOOK_SECRET_MAX_COUNT,
   WEBHOOK_SECRET_MIN_LENGTH,
 } from "../config/webhook-secrets.ts";
+import { currentTraceparent } from "../logging/index.ts";
 import { CommandError, canonicalJson } from "../pipeline/index.ts";
 
 export { parseWebhookSecrets, WEBHOOK_SECRET_MAX_COUNT, WEBHOOK_SECRET_MIN_LENGTH };
@@ -216,9 +217,10 @@ async function systemEvent(
 ): Promise<void> {
   await sql`
     insert into outbox (id, organization_id, property_id, event_type, aggregate_type, aggregate_id, payload, correlation_id,
-                        dedupe_key)
+                        dedupe_key, traceparent)
     values (${randomUUID()}, ${orgId}, ${propertyId}, ${eventType}, ${aggregateType}, ${aggregateId},
-            ${JSON.stringify(payload)}::jsonb, ${`sys:${eventType}:${aggregateId}`}, ${`${eventType}:${aggregateId}`})
+            ${JSON.stringify(payload)}::jsonb, ${`sys:${eventType}:${aggregateId}`}, ${`${eventType}:${aggregateId}`},
+            ${currentTraceparent()})
     on conflict do nothing`.execute(trx);
 }
 

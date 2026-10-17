@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hotel-manager.invalid/schemas/log-record.schema.json",
+  "title": "Bản ghi log của Hotel Manager",
+  "description": "Một dòng JSON do createLogger (packages/app/src/logging/logger.ts) phát ra; mọi bản ghi của web và worker phải hợp lệ. Nguồn: OpenTelemetry Logs Data Model, W3C Trace Context level 1, OWASP Logging Cheat Sheet. Kiểm bằng test log-schema.test.ts (BASE-ERR-006).",
+  "type": "object",
+  "required": ["ts", "level", "severity_number", "service", "version", "env", "msg"],
+  "properties": {
+    "ts": {
+      "description": "RFC 3339 UTC, đuôi Z, độ phân giải mili giây.",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+      "format": "date-time"
+    },
+    "level": { "enum": ["debug", "info", "warn", "error"] },
+    "severity_number": {
+      "description": "SeverityNumber của OTel: DEBUG=5, INFO=9, WARN=13, ERROR=17.",
+      "enum": [5, 9, 13, 17]
+    },
+    "service": { "type": "string", "minLength": 1 },
+    "version": { "type": "string", "minLength": 1 },
+    "env": { "type": "string", "minLength": 1 },
+    "msg": { "type": "string", "minLength": 1 },
+    "category": { "const": "security" },
+    "correlation_id": { "type": ["string", "null"], "minLength": 1 },
+    "trace_id": {
+      "description": "W3C trace-id: 32 hex thường, không toàn 0. Có trong mọi log của request HTTP và job worker.",
+      "type": "string",
+      "pattern": "^(?!0{32}$)[0-9a-f]{32}$"
+    },
+    "span_id": {
+      "description": "W3C parent-id/span-id của request/job hiện tại: 16 hex thường, không toàn 0.",
+      "type": "string",
+      "pattern": "^(?!0{16}$)[0-9a-f]{16}$"
+    },
+    "exception.type": { "type": "string", "minLength": 1 },
+    "exception.message": { "type": "string" },
+    "exception.stacktrace": { "type": "string" },
+    "exception.cause": { "type": ["object", "string"] }
+  },
+  "dependentRequired": {
+    "span_id": ["trace_id"],
+    "trace_id": ["span_id"],
+    "exception.message": ["exception.type"]
+  },
+  "allOf": [
+    {
+      "if": { "required": ["level"], "properties": { "level": { "const": "debug" } } },
+      "then": { "properties": { "severity_number": { "const": 5 } } }
+    },
+    {
+      "if": { "required": ["level"], "properties": { "level": { "const": "info" } } },
+      "then": { "properties": { "severity_number": { "const": 9 } } }
+    },
+    {
+      "if": { "required": ["level"], "properties": { "level": { "const": "warn" } } },
+      "then": { "properties": { "severity_number": { "const": 13 } } }
+    },
+    {
+      "if": { "required": ["level"], "properties": { "level": { "const": "error" } } },
+      "then": { "properties": { "severity_number": { "const": 17 } } }
+    },
+    {
+      "description": "Sự kiện bảo mật (SEC-LOG-001/002): hình dạng cố định, trường không có giá trị ghi null (không bỏ khoá).",
+      "if": { "required": ["category"] },
+      "then": {
+        "required": [
+          "event",
+          "actor",
+          "target",
+          "outcome",
+          "source_ip",
+          "user_agent",
+          "reason",
+          "correlation_id"
+        ],
+        "properties": {
+          "level": { "const": "warn" },
+          "event": { "type": "string", "pattern": "^[a-z_]+(\\.[a-z_]+)+$" },
+          "actor": {
+            "oneOf": [
+              { "type": "null" },
+              {
+                "type": "object",
+                "required": ["user_id", "org_id", "membership_id", "role"],
+                "additionalProperties": false,
+                "properties": {
+                  "user_id": { "type": ["string", "null"] },
+                  "org_id": { "type": ["string", "null"] },
+                  "membership_id": { "type": ["string", "null"] },
+                  "role": { "type": ["string", "null"] }
+                }
+              }
+            ]
+          },
+          "target": {
+            "oneOf": [
+              { "type": "null" },
+              {
+                "type": "object",
+                "required": ["type", "id"],
+                "additionalProperties": false,
+                "properties": {
+                  "type": { "type": "string", "minLength": 1 },
+                  "id": { "type": ["string", "null"] }
+                }
+              }
+            ]
+          },
+          "outcome": { "enum": ["success", "denied", "failure"] },
+          "source_ip": {
+            "description": "IP đã cắt (IPv4 /24, IPv6 /48) hoặc null — không bao giờ IP đầy đủ.",
+            "oneOf": [
+              { "type": "null" },
+              {
+                "type": "string",
+                "pattern": "^(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.0|[0-9a-f]{1,4}:[0-9a-f]{1,4}:[0-9a-f]{1,4}::)$"
+              }
+            ]
+          },
+          "user_agent": { "type": ["string", "null"], "maxLength": 200 },
+          "reason": { "type": ["string", "null"] }
+        }
+      }
+    }
+  ]
+}

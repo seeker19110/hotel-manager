@@ -115,7 +115,7 @@
     "notification_deliveries": 7,
     "notification_settings": 2,
     "notifications": 4,
-    "outbox": 7,
+    "outbox": 8,
     "payment_allocations": 6,
     "payment_claims": 5,
     "payments": 16,
