@@ -121,9 +121,14 @@ describe("password-hash: hàm băm", () => {
       phc(19456, 2, 0),
       phc(4, 2, 1), // m < 8p
     ];
+    // So với một lần tính Argon2 thật trên cùng máy (không ngưỡng tuyệt đối — máy CI/đang tải chậm đều như nhau):
+    // từ chối cả 7 PHC xấu phải rẻ hơn hẳn một lần tính, tức không lần nào chạm tới Argon2.
+    const r0 = performance.now();
+    expect(await verifyPassword({ hash: VECTOR, password: PASSWORD })).toBe(false);
+    const oneArgon2 = performance.now() - r0;
     const t0 = performance.now();
     for (const hash of bad) expect(await verifyPassword({ hash, password: PASSWORD })).toBe(false);
-    expect(performance.now() - t0).toBeLessThan(50);
+    expect(performance.now() - t0).toBeLessThan(oneArgon2 / 2);
     // Ở biên trên vẫn được chấp nhận về cú pháp (kết quả sai mật khẩu vẫn là false nhưng đã tính).
     expect(needsRehash(phc(65536, 10, 4))).toBe(true);
   });
