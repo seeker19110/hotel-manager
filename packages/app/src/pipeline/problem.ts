@@ -2,6 +2,7 @@
 import { AuthzError, TransitionError } from "@hm/domain";
 import type { Transaction } from "kysely";
 import { AccessError } from "../actor-core/index.ts";
+import type { AuditInput } from "./command.ts";
 
 export interface Problem {
   type: string;
@@ -74,6 +75,8 @@ export function fieldError(field: string, code: string, message: string): Comman
  */
 export type FailurePersist = (
   trx: Transaction<unknown>,
+  /** Ghi audit trong `trx` như `ctx.audit` (kèm command_id, correlation_id, IP/UA của lệnh) — đừng chèn `audit_events` thô. */
+  audit: (e: AuditInput) => Promise<void>,
 ) => Promise<Partial<Pick<Problem, "approval_request_id" | "errors">>>;
 
 /** Lỗi nghiệp vụ có mã — handler ném lớp này (hoặc AuthzError/TransitionError/AccessError). */

@@ -230,6 +230,52 @@ describe("INV-I3 — hold hết hạn nhả đúng một lần", () => {
     expect(audits.rows[0]?.n).toBe(1);
   });
 
+  it("SPEC-inventory S-009 / CMP-AUDIT-002: audit allocation.hold_expired khi confirm quá hạn mang command_id, correlation_id, source_ip, user_agent của lệnh", async () => {
+    const unit = randomUUID();
+    await sql`insert into units (id, organization_id, property_id, floor_id, code) values (${unit}, ${A.orgId}, ${A.propertyId}, ${A.floorId}, 'R106')`.execute(
+      t.admin,
+    );
+    const held = await run((ctx) =>
+      createHold(ctx, {
+        unitId: unit,
+        during: { start: H("25T14:00"), end: H("26T12:00") },
+        ttlMinutes: 15,
+        now: H("24T08:00"),
+      }).then((data) => ({ data })),
+    );
+    if (held.status !== "committed") throw new Error("hold lỗi");
+    const id = held.data.allocationId;
+    const late = await executeCommand(
+      t.runtime,
+      owner,
+      {
+        command: "inventory.confirm",
+        idempotencyKey: randomUUID(),
+        payload: { r: randomUUID() },
+        correlationId: "c-hold-expired",
+        client: { ip: "203.0.113.45", userAgent: "HM-Test/1.0" },
+      },
+      (ctx) => confirmHold(ctx, id, "stay", H("24T09:00")).then(() => ({ data: null })),
+    );
+    expect(late).toMatchObject({ status: "failed", problem: { code: "HOLD_EXPIRED" } });
+    const a = await sql<{
+      command_id: string | null;
+      correlation_id: string | null;
+      source_ip: string | null;
+      user_agent: string | null;
+      outcome: string;
+    }>`select command_id, correlation_id, source_ip, user_agent, outcome from audit_events
+       where entity_id = ${id} and action = 'allocation.hold_expired'`.execute(t.admin);
+    expect(a.rows).toHaveLength(1);
+    expect(a.rows[0]).toMatchObject({
+      command_id: late.commandId,
+      correlation_id: "c-hold-expired",
+      user_agent: "HM-Test/1.0",
+      outcome: "success",
+    });
+    expect(a.rows[0]?.source_ip).toMatch(/^203\.0\.113\./);
+  });
+
   it("không kích hoạt lại allocation đã nhả (trigger)", async () => {
     const r = await sql<{ id: string }>`select id from allocations where not active limit 1`.execute(t.admin);
     await expect(

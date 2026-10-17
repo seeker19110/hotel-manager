@@ -382,7 +382,10 @@ export async function executeCommand<T>(
           on conflict (organization_id, key) do nothing returning id`.execute(trx);
       if (ins.rows.length > 0) {
         if (err instanceof CommandError && err.persist) {
-          finalProblem = { ...problem, ...(await err.persist(trx)) };
+          finalProblem = {
+            ...problem,
+            ...(await err.persist(trx, (e) => auditRow(trx, actor, ids, e, "success", req.client))),
+          };
           await sql`
               update idempotency_keys set response = ${JSON.stringify({ problem: finalProblem })}::jsonb
               where organization_id = ${actor.orgId} and key = ${commandId}`.execute(trx);

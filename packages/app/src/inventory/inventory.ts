@@ -207,19 +207,20 @@ export async function confirmHold(
   });
   if (row.expires_at.getTime() <= now.getTime()) {
     // Lệnh chính rollback nên việc nhả hold (đúng một lần, kèm audit như job worker — INV-I3) ghi ở transaction riêng.
-    const { orgId, personId } = ctx.actor;
-    const { correlationId } = ctx;
+    const { orgId } = ctx.actor;
     throw new CommandError("HOLD_EXPIRED", 409, "Giữ chỗ đã hết hạn", {
-      persist: async (trx) => {
+      persist: async (trx, audit) => {
         const released = await sql`
           update allocations set active = false, deactivated_at = ${now}, deactivated_reason = 'expired'
           where organization_id = ${orgId} and id = ${allocationId} and kind = 'hold' and active
           returning id`.execute(trx);
         if (released.rows[0]) {
-          await sql`insert into audit_events (id, organization_id, property_id, actor_type, actor_person_id, action, entity_type,
-                                              entity_id, correlation_id)
-                    values (${randomUUID()}, ${orgId}, ${row.property_id}, 'user', ${personId}, 'allocation.hold_expired',
-                            'allocation', ${allocationId}, ${correlationId})`.execute(trx);
+          await audit({
+            action: "allocation.hold_expired",
+            entityType: "allocation",
+            entityId: allocationId,
+            propertyId: row.property_id,
+          });
         }
         return {};
       },
