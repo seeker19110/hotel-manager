@@ -39,7 +39,6 @@ export const AUDIT_ONLY_EVENT_TYPES: ReadonlySet<string> = new Set([
   "lease.renewed",
   "lease.settled",
   "lease.signed",
-  "member.mfa_reset",
   "payment.confirmed",
   "payment_claim.submitted",
   "period.locked",

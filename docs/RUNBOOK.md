@@ -9,8 +9,8 @@
 | Thành phần | Kiểm | Bình thường |
 |---|---|---|
 | Web (Next.js) | `GET /api/health` | `200 {"status":"ok"}` — tiến trình còn sống |
-| Web + phụ thuộc | `GET /api/ready` | `200 {"status":"ready","checks":{"database":"ok","storage":"ok","scanner":"ok"}}`; thiếu ⇒ `503` kèm thành phần `fail`/`timeout` (không có chi tiết lỗi); đang dừng êm (nhận SIGTERM) ⇒ `503 {"status":"draining"}` ngay, không chạy kiểm tra (§8) |
-| Số liệu | `GET /api/metrics` + `Authorization: Bearer <token>` | Prometheus text 0.0.4 |
+| Web + phụ thuộc (readiness) | `GET /api/ready` | `200 {"status":"ready","checks":{"database":"ok","storage":"ok","scanner":"ok"}}`; thiếu ⇒ `503` kèm thành phần `fail`/`timeout` (không có chi tiết lỗi) |
+| Số liệu | `GET /api/metrics` + `Authorization: Bearer <token>` | Prometheus text 0.0.4; có `hm_http_requests_total` và `hm_http_request_duration_seconds` (theo mẫu route/method/status), `hm_metrics_db_ok` (0 = CSDL lỗi lượt scrape đó) |
 | Worker | metric `hm_worker_heartbeat_age_seconds{worker=…}` | < 120 giây (worker ghi nhịp mỗi 30 giây, tên `worker`; §8) |
 | CSDL | Postgres 17, `max_connections=100`, pool ≤ 20/tiến trình | — |
 | Kho file | SeaweedFS (S3), bucket riêng tư, URL ký ≤ 5 phút | — |
@@ -41,6 +41,8 @@ Khi chạy thật (đề xuất D-021): chặn thêm `/api/metrics` ở reverse 
 | `hm_worker_heartbeat_age_seconds` | > 120 | Worker treo/chết |
 | `hm_holds_active` | tăng bất thường | Job nhả hold không chạy |
 | `/api/ready` | 503 > 2 phút | Phụ thuộc hỏng (CSDL/kho/máy quét) |
+| burn rate khả dụng/độ trễ | xem `docs/ops/SLO.md` §2 | Đốt ngân sách lỗi nhanh (page) hoặc chậm (ticket) |
+| `hm_reconciliation_breaks_oldest_open_age_seconds` | > 48 giờ trong 1 giờ | Chênh lệch đối soát mở quá SLA (§3.6) |
 
 ## 3. Sự cố thường gặp
 
@@ -76,6 +78,12 @@ Mật khẩu băm Argon2id (19 MiB RAM, ~80 ms CPU mỗi lần; D-031). Mỗi l�
 ### 3.8 Kho object (S3) chậm hoặc lỗi
 - Mỗi thao tác kho (`packages/app/src/files/storage.ts`): mỗi lần gọi tối đa 15 giây, thử lại ≤ 3 lần (lùi mũ + jitter, theo `Retry-After`) CHỈ với GET/HEAD/PUT/DELETE; POST không bao giờ thử lại. Cả thao tác (mọi lần thử + thời gian chờ) có trần tổng 30 giây ⇒ lỗi `quá tổng thời gian 30000 ms` (`StorageError.retryable`). `/api/ready` không thử lại, trần 3 giây.
 
+### 3.9 Chênh lệch đối soát mở quá hạn
+Job worker `reconciliation.daily` (mỗi 24 giờ) ghi audit `reconciliation.break_overdue` cho từng break mở quá 48 giờ (mỗi break một dòng/ngày) và `ledger.drift_detected` + log lỗi `reconciliation.ledger_drift` nếu Σ nợ ≠ Σ có của một tổ chức (bình thường không bao giờ xảy ra — trigger chặn bút toán mất cân bằng).
+1. `select organization_id, property_id, reason, assignee, created_at from reconciliation_breaks where status = 'open' order by created_at;` (vai trò quản trị, dữ liệu thật cần người duyệt — AGENTS §6).
+2. Mỗi break có `assignee`: nhắc người đó xử lý (đóng có lý do ở màn đối soát). Không sửa tay bảng `reconciliation_breaks`.
+3. Sổ cái trôi (`ledger.drift_detected`): coi là SEV2 (tiền) — dừng ghi vào tổ chức đó, đối chiếu `journal_entries`/`journal_lines` theo [INCIDENT-RESPONSE](ops/INCIDENT-RESPONSE.md); không "vá" bằng bút toán tay khi chưa tìm nguyên nhân.
+
 ## 4. Sao lưu và khôi phục
 - Diễn tập PITR (dữ liệu giả, cluster tạm): `bash scripts/db-backup-restore-check.sh` — exit 0 = khôi phục đúng (so số dòng, Σ Nợ/Có, số policy RLS).
 - Khi chạy thật (chờ quyết — PROGRESS "Chờ người"): pgBackRest repo mã hoá ở **máy khác**, giữ khoá `PGBACKREST_REPO_CIPHER_PASS` ngoài máy chủ; diễn tập khôi phục định kỳ.
@@ -105,7 +113,7 @@ Mật khẩu băm Argon2id (19 MiB RAM, ~80 ms CPU mỗi lần; D-031). Mỗi l�
 ## 8. Worker (apps/worker) — khởi chạy, lịch, dừng
 - Chạy: `node apps/worker/src/index.ts` (Node 24). Biến: toàn bộ schema web (`DATABASE_URL` = vai trò `app_runtime`, dùng cho job xuất dữ liệu) **cộng `WORKER_DATABASE_URL`** = vai trò `app_worker` (relay outbox, job nền, pg-boss). Thiếu/sai biến ⇒ thoát mã 1, stderr nêu tên biến (không giá trị). Web cũng validate lúc khởi động (`apps/web/instrumentation.ts`).
 - Schema `pgboss` do migration 0047 tạo sẵn, thuộc `app_worker` (D-024); worker chạy pg-boss với `createSchema: false` nên vai trò worker KHÔNG cần `CREATE` trên CSDL — bảng của pg-boss tự dựng bên trong schema đó lần đầu. Migration down chỉ xoá được schema rỗng (còn bảng ⇒ lỗi có chủ đích; dừng worker và quyết định có bỏ hàng đợi hay không).
-- Lịch (vòng lặp trong tiến trình, mỗi job không chồng lượt, lỗi chỉ ghi log `job.failed`): relay outbox 2 giây · nhịp 30 giây · gửi email đến hạn 15 giây (bỏ nếu `SMTP_URL` là `smtp(s)://` — chưa có adapter, log `email.sender_unavailable`) · nhả hold 1 phút · nhắc 15 phút · tạo kỳ thu, hợp đồng (nhắc hết hạn, quá hạn ở) 1 giờ · hết hạn bản xuất 5 phút · hạn giữ import/file 24 giờ (lượt đầu sau 60 giây). Nhiều worker chạy song song an toàn (SKIP LOCKED, khoá dedupe).
+- Lịch (vòng lặp trong tiến trình, mỗi job không chồng lượt, lỗi chỉ ghi log `job.failed`): relay outbox 2 giây · nhịp 30 giây · gửi email đến hạn 15 giây (bỏ nếu `SMTP_URL` là `smtp(s)://` — chưa có adapter, log `email.sender_unavailable`) · nhả hold 1 phút · nhắc 15 phút · tạo kỳ thu, hợp đồng (nhắc hết hạn, quá hạn ở) 1 giờ · hết hạn bản xuất 5 phút · hạn giữ import/file 24 giờ (lượt đầu sau 60 giây) · đối soát hằng ngày `reconciliation.daily` 24 giờ (break mở quá SLA, sổ cái trôi; §3.6). Nhiều worker chạy song song an toàn (SKIP LOCKED, khoá dedupe).
 - Relay outbox (T-401, ARC-INT-003/DB-TX-003): claim NGẮN → commit → `boss.send` → đánh dấu. `app.outbox_claim` đặt lease 60 giây (`available_at = now() + 60 s`) cho hàng lấy được rồi commit ngay; `boss.send` chạy NGOÀI transaction với job id = `outbox.id` (khoá chính `(name, id)` của pg-boss ⇒ gửi lại không tạo job thứ hai); `app.outbox_mark` đánh dấu đã phát hoặc lùi lần thử khi lỗi. Worker sập giữa gửi và đánh dấu ⇒ hết lease hàng được claim lại, gửi trùng là no-op ⇒ không mất, không trùng. Log `outbox.mark_failed` = không đánh dấu được (CSDL chập chờn), tự khỏi sau lease.
 - Sự kiện outbox chưa có consumer (D-026, sửa theo review lát 7): chỉ loại khai tường minh "chỉ để audit" (`AUDIT_ONLY_EVENT_TYPES` ở `apps/worker/src/relay.ts`) được đánh dấu đã phát mà không sinh job. Loại KHÁC không có consumer ở worker này thì KHÔNG đánh dấu đã phát: `last_error = 'no_consumer'`, `attempts` tăng, `available_at` lùi (5 s · 2^lần, trần 5 phút) để không kẹt đầu hàng, log WARN `outbox.no_consumer {event_type, outbox_id}`. Worker có consumer (hoặc bản triển khai sau thêm consumer) nhận được sau khi hết thời gian lùi — không mất sự kiện khi triển khai lệch phiên bản. Cảnh báo dùng chỉ số sẵn có: `hm_outbox_unpublished`, `hm_outbox_oldest_unpublished_age_seconds`, `hm_outbox_failing`. Gặp `no_consumer` kéo dài: thêm consumer hoặc (nếu thật sự chỉ để audit) thêm event_type vào danh sách audit-only — test `outbox-event-types.test.ts` chặn quên; hàng cũ sẽ được đánh dấu đã phát ở lượt kế.
 - Dừng: SIGTERM/SIGINT ⇒ NGAY LẬP TỨC và song song: ngừng lập lịch (không lượt mới) + pg-boss ngừng lấy job mới; hai bên cùng chờ việc đang chạy tới MỘT hạn chót chung 25 giây → đóng pool pg-boss → đóng pool CSDL → thoát 0. Đồng hồ canh thoát mã 1 sau 35 giây (hạn chót + 10 giây). Tín hiệu lần hai ⇒ thoát ngay (mã 1). Đặt `terminationGracePeriod`/`stop_grace_period` ≥ 40 giây.

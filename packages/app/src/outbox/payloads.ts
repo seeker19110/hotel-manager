@@ -17,6 +17,10 @@ export const OUTBOX_PAYLOAD_SCHEMAS = {
   "portal.tenant_invited": z.looseObject({ membership_id: id, person_id: id }),
   "export.requested": z.looseObject({ export_id: id }),
   "bank_transaction.received": z.looseObject({ bank_transaction_id: id }),
+  // T-405: thông báo account_security cho chính người bị đặt lại MFA.
+  "member.mfa_reset": z.looseObject({ membership_id: id, by_membership_id: id }),
+  "member.password_changed": z.looseObject({ membership_id: id }),
+  "member.mfa_disabled": z.looseObject({ membership_id: id }),
 } as const satisfies Record<string, z.ZodType>;
 
 /** Khoá không bao giờ được nằm trong payload job (BE-JOB-007: không bí mật, không dữ liệu serialize lệch phiên bản). */

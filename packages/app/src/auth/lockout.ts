@@ -32,14 +32,17 @@ export async function lockRemainingSeconds(pool: pg.Pool, email: string, now: Da
   return Math.max(0, r.rows[0]?.secs ?? 0);
 }
 
-/** Ghi một lần sai; đủ ngưỡng trong cửa sổ → đặt locked_until. Một câu lệnh nguyên tử (an toàn khi song song). */
+/**
+ * Ghi một lần sai; đủ ngưỡng trong cửa sổ → đặt locked_until. Một câu lệnh nguyên tử (an toàn khi song song).
+ * Trả `true` nếu SAU lần sai này tài khoản đang bị khoá (để phát sự kiện `auth.account_locked`).
+ */
 export async function recordFailure(
   pool: pg.Pool,
   email: string,
   now: Date,
   p: LockoutPolicy,
-): Promise<void> {
-  await pool.query(
+): Promise<boolean> {
+  const r = await pool.query<{ locked: boolean }>(
     `insert into auth.login_throttle as t (email_hash, failures, window_started_at)
        values ($1, 1, $2)
      on conflict (email_hash) do update set
@@ -47,9 +50,11 @@ export async function recordFailure(
        window_started_at = case when t.window_started_at < $2 - make_interval(mins => $3) then $2 else t.window_started_at end,
        locked_until = case
          when (case when t.window_started_at < $2 - make_interval(mins => $3) then 1 else t.failures + 1 end) >= $4
-         then $2 + make_interval(mins => $5) else t.locked_until end`,
+         then $2 + make_interval(mins => $5) else t.locked_until end
+     returning coalesce(t.locked_until > $2, false) as locked`,
     [emailHash(email), now, p.windowMinutes, p.maxFailures, p.lockMinutes],
   );
+  return r.rows[0]?.locked ?? false;
 }
 
 export async function clearFailures(pool: pg.Pool, email: string): Promise<void> {

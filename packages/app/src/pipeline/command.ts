@@ -7,6 +7,7 @@ import type { Actor } from "../access/actor.ts";
 import { redact } from "../logging/logger.ts";
 import { appLogger } from "../logging/runtime.ts";
 import {
+  auditSource,
   emitSecurity,
   type SecurityClient,
   type SecurityEventInput,
@@ -131,14 +132,19 @@ async function auditRow(
   ids: { commandId: string; correlationId: string },
   e: AuditInput,
   outcome: "success" | "denied",
+  client: SecurityClient | null | undefined,
 ) {
+  // "Từ đâu" (CMP-AUDIT-002): IP đã cắt + UA làm sạch; không có client (worker/hệ thống) ⇒ null.
+  const src = auditSource(client);
   await sql`
     insert into audit_events (id, organization_id, property_id, actor_type, actor_person_id, action, entity_type, entity_id,
-                              before, after, reason, correlation_id, command_id, outcome)
+                              before, after, reason, correlation_id, command_id, outcome, source_ip, user_agent)
     values (${randomUUID()}, ${actor.orgId}, ${e.propertyId ?? null}, 'user', ${actor.personId}, ${e.action}, ${e.entityType},
             ${e.entityId ?? null}, ${e.before === undefined ? null : JSON.stringify(redact(e.before))}::jsonb,
             ${e.after === undefined ? null : JSON.stringify(redact(e.after))}::jsonb, ${e.reason ?? null},
-            ${ids.correlationId}, ${ids.commandId}, ${outcome})`.execute(trx);
+            ${ids.correlationId}, ${ids.commandId}, ${outcome}, ${src.sourceIp}, ${src.userAgent})`.execute(
+    trx,
+  );
 }
 
 /**
@@ -231,7 +237,7 @@ export async function executeCommand<T>(
             actor,
             commandId,
             correlationId: req.correlationId,
-            audit: (e) => auditRow(trx, actor, ids, e, "success"),
+            audit: (e) => auditRow(trx, actor, ids, e, "success", req.client),
             async emit(e) {
               await sql`
               insert into outbox (id, organization_id, property_id, event_type, aggregate_type, aggregate_id, payload,
@@ -308,6 +314,7 @@ export async function executeCommand<T>(
             ids,
             { action: "command.denied", entityType: req.command, reason: problem.code },
             "denied",
+            req.client,
           );
         } else {
           // Request song song cùng key đã ghi kết quả trước: trả đúng kết quả đã lưu.

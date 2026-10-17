@@ -138,6 +138,23 @@ const BUILDERS: Readonly<Record<NotificationType, Builder>> = {
         ],
       };
     }
+    if (v.kind === "mfa_reset" || v.kind === "password_changed" || v.kind === "mfa_disabled") {
+      // Sự kiện bảo mật của chính tài khoản (T-405): nêu việc đã xảy ra + cách xử lý, KHÔNG kèm IP/thiết bị/người thực hiện.
+      const what =
+        v.kind === "mfa_reset"
+          ? "Xác thực hai lớp của bạn đã được chủ cơ sở đặt lại; lần đăng nhập tới bạn cần đăng ký lại."
+          : v.kind === "mfa_disabled"
+            ? "Xác thực hai lớp của tài khoản bạn đã được tắt."
+            : "Mật khẩu tài khoản của bạn đã được đổi.";
+      const act = str(v, "action");
+      return {
+        title: `${org}: ${act}`,
+        body: `${what} Nếu không phải bạn, hãy đổi mật khẩu ngay và liên hệ chủ cơ sở.`,
+        link: "/tai-khoan",
+        emailSubject: `${org}: ${act}`,
+        emailLines: [`${what}`, "Nếu không phải bạn, hãy đổi mật khẩu ngay và liên hệ chủ cơ sở."],
+      };
+    }
     const action = str(v, "action");
     return {
       title: `${org}: ${action}`,

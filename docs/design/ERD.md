@@ -1766,9 +1766,11 @@ Loại: A
 | correlation_id | text | không | | Khớp `X-Correlation-Id` |
 | command_id | uuid | có | | `idempotency_keys.key` |
 | outcome | text | không | `CHECK (outcome IN ('success','denied'))`, mặc định `'success'` | Lần bị từ chối (`INVALID_TRANSITION`, `FORBIDDEN`, truy cập PII) ghi ở transaction riêng; đề xuất |
+| source_ip | text | có | `CHECK` dạng IP đã cắt (`a.b.c.0` hoặc `x:y:z::`) — migration 0049 | "Từ đâu" (CMP-AUDIT-002): IPv4 cắt /24, IPv6 cắt /48 ở `anonymizeIp`; không lưu IP đầy đủ. NULL = việc của worker/hệ thống |
+| user_agent | text | có | `CHECK (char_length(user_agent) BETWEEN 1 AND 200)` — migration 0049 | User-Agent làm sạch (NFC, bỏ ký tự điều khiển, ≤ 200 ký tự). NULL như `source_ip` |
 
 - Khoá/index: `ix (organization_id, occurred_at DESC, id DESC)` (phân trang keyset 50 dòng); `ix (organization_id, correlation_id)`; `ix (organization_id, entity_type, entity_id)`; `ix (organization_id, property_id, occurred_at DESC)`.
-- Ràng buộc đặc biệt: **append-only** — trigger `BEFORE UPDATE OR DELETE` và trigger statement-level chặn `TRUNCATE`, `REVOKE UPDATE, DELETE, TRUNCATE` khỏi `app_runtime`/`app_worker` (SEC-LOG-007); ghi **cùng transaction** với dữ liệu nghiệp vụ và `outbox` (INV-G6: rollback ⇒ không có audit). Trường bị che/loại: số CCCD/hộ chiếu (giữ 4 số cuối), mật khẩu, token phiên, OTP, secret, URL ký. Chưa phân vùng ở V1 (cân nhắc theo tháng khi đủ lớn).
+- Ràng buộc đặc biệt: **append-only** — trigger `BEFORE UPDATE OR DELETE` và trigger statement-level chặn `TRUNCATE`, `REVOKE UPDATE, DELETE, TRUNCATE` khỏi `app_runtime`/`app_worker` (SEC-LOG-007); ghi **cùng transaction** với dữ liệu nghiệp vụ và `outbox` (INV-G6: rollback ⇒ không có audit). Trường bị che/loại: số CCCD/hộ chiếu (giữ 4 số cuối), mật khẩu, token phiên, OTP, secret, URL ký. Chưa phân vùng ở V1 (cân nhắc theo tháng khi đủ lớn). Sự kiện xác thực (`auth.login`, `auth.logout`, `auth.password_changed`, `auth.mfa_enabled`, `auth.mfa_disabled`, `auth.account_locked`; `entity_type = membership`) ghi qua hook Better Auth ở mỗi tổ chức người dùng thuộc về (T-405).
 - RLS/quyền đặc biệt: `owner` đọc toàn tổ chức; `manager` chỉ `property_id` trong phạm vi hoặc cấp tổ chức được phép; `accountant` chỉ nhóm tiền (`action` thuộc `payment`, `invoice`, `deposit`, `period`, `ledger`, `credit`, `shift`); `housekeeping`/`tenant` không đọc (`403`).
 - Bất biến: INV-G6, INV-G4.
 

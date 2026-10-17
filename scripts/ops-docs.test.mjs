@@ -137,10 +137,16 @@ function metricsInExpr(expr) {
   return [...out];
 }
 
+// Metric có thật = khóa trong HELP của metrics.ts; histogram `x` còn có `x_bucket`/`x_sum`/`x_count` (dùng trong PromQL).
 function knownMetrics() {
   const src = read("packages/app/src/observability/metrics.ts");
   const help = /const HELP[^=]*=\s*\{([\s\S]*?)\n\};/.exec(src)?.[1] ?? "";
-  return [...help.matchAll(/^\s{2}([a-zA-Z_:][a-zA-Z0-9_:]*):\s*\[/gm)].map((m) => m[1]);
+  const out = [];
+  for (const m of help.matchAll(/^\s{2}([a-zA-Z_:][a-zA-Z0-9_:]*):\s*\[\s*"(gauge|counter|histogram)"/gm)) {
+    out.push(m[1]);
+    if (m[2] === "histogram") out.push(`${m[1]}_bucket`, `${m[1]}_sum`, `${m[1]}_count`);
+  }
+  return out;
 }
 
 describe("metricsInExpr", () => {
@@ -160,6 +166,18 @@ describe("metricsInExpr", () => {
     expect(k).toContain("notification_dead_total");
     expect(k).toContain("hm_worker_heartbeat_age_seconds");
     expect(k.length).toBeGreaterThanOrEqual(11);
+  });
+  it("knownMetrics gồm metric HTTP (counter + histogram và hậu tố _bucket/_sum/_count)", () => {
+    const k = knownMetrics();
+    for (const m of [
+      "hm_http_requests_total",
+      "hm_http_request_duration_seconds",
+      "hm_http_request_duration_seconds_bucket",
+      "hm_http_request_duration_seconds_sum",
+      "hm_http_request_duration_seconds_count",
+      "hm_reconciliation_breaks_open",
+    ])
+      expect(k, m).toContain(m);
   });
 });
 
@@ -378,9 +396,104 @@ describe("docs/ops/SLO.md", () => {
     expect(text).toMatch(/43 phút/);
     expect(text).toMatch(/```promql/);
   });
-  it("nói thật về metric HTTP chưa có", () => {
-    expect(text).toMatch(/Chưa có metric HTTP/);
-    expect(knownMetrics().some((m) => /http/i.test(m))).toBe(false);
+  it("metric HTTP có thật: SLO.md nêu đúng tên metric/bucket và không còn nói 'chưa có'; metrics.ts khai HELP cho chúng", () => {
+    expect(text).not.toMatch(/Chưa có metric HTTP/);
+    for (const m of ["hm_http_requests_total", "hm_http_request_duration_seconds", 'le="0.8"'])
+      expect(text, `SLO.md thiếu ${m}`).toContain(m);
+    const known = knownMetrics();
+    expect(known).toContain("hm_http_requests_total");
+    expect(known).toContain("hm_http_request_duration_seconds");
+  });
+  it("mọi metric mà mã phát ra (name: \"hm_…\" trong metrics.ts và http-metrics.ts) đều khai HELP (không metric 'mồ côi')", () => {
+    const known = new Set(knownMetrics());
+    const emitted = new Set();
+    for (const f of [
+      "packages/app/src/observability/metrics.ts",
+      "packages/app/src/observability/http-metrics.ts",
+    ])
+      for (const m of read(f).matchAll(/name:\s*"((?:hm_|notification_)[a-z0-9_]+)"/g)) emitted.add(m[1]);
+    expect(emitted.size).toBeGreaterThanOrEqual(5);
+    expect([...emitted].filter((n) => !known.has(n)).sort()).toEqual([]);
+    // metric nghiệp vụ do hàm SQL trả về cũng phải có HELP: 0046 (metrics_snapshot) + 0050 (reconciliation_metrics)
+    for (const f of [
+      "packages/db/src/migrations/0046_observability.ts",
+      "packages/db/src/migrations/0050_reconciliation_daily.ts",
+    ])
+      for (const m of read(f).matchAll(/'((?:hm_|notification_)[a-z0-9_]+)'::text/g))
+        expect(known.has(m[1]), `${f}: metric ${m[1]} thiếu HELP`).toBe(true);
+  });
+  it("histogram độ trễ có bucket 0,8 (SLO-LAT) và 1,5 (SLO-HOLD)", () => {
+    const src = read("packages/app/src/observability/http-metrics.ts");
+    const buckets =
+      /HTTP_DURATION_BUCKETS = \[([^\]]+)\]/
+        .exec(src)?.[1]
+        .split(",")
+        .map((x) => x.trim())
+        .filter(Boolean)
+        .map(Number) ?? [];
+    expect(buckets).toContain(0.8);
+    expect(buckets).toContain(1.5);
+    expect([...buckets].sort((a, b) => a - b)).toEqual(buckets);
+  });
+  it("mọi rule nêu trong bảng burn rate của SLO.md có thật ở alerts.yml, và ngược lại cho nhóm hotel-manager.slo", () => {
+    const doc = parseYaml(read("deploy/prometheus/alerts.yml"));
+    const slo = (doc.groups ?? []).find((g) => g.name === "hotel-manager.slo");
+    expect(slo, "thiếu nhóm hotel-manager.slo").toBeTruthy();
+    for (const r of slo.rules) expect(text, `SLO.md không nhắc ${r.alert}`).toContain(r.alert);
+  });
+});
+
+describe("burn rate nhiều cửa sổ (OPS-SLO-004)", () => {
+  const doc = parseYaml(read("deploy/prometheus/alerts.yml"));
+  const slo = (doc.groups ?? []).find((g) => g.name === "hotel-manager.slo")?.rules ?? [];
+  const byName = Object.fromEntries(slo.map((r) => [r.alert, r]));
+  const windows = (expr) => [...new Set([...expr.matchAll(/\[(\d+[smhd])\]/g)].map((m) => m[1]))];
+
+  it("khả dụng 99,9% và độ trễ 800 ms: mỗi SLI đủ ba cặp cửa sổ 1h/5m (page), 6h/30m (ticket), 3d/6h (ticket)", () => {
+    const want = {
+      Fast: { severity: "page", w: ["1h", "5m"] },
+      Medium: { severity: "ticket", w: ["6h", "30m"] },
+      Slow: { severity: "ticket", w: ["3d", "6h"] },
+    };
+    for (const sli of ["Availability", "Latency"])
+      for (const [speed, { severity, w }] of Object.entries(want)) {
+        const r = byName[`Hm${sli}Burn${speed}`];
+        expect(r, `thiếu Hm${sli}Burn${speed}`).toBeTruthy();
+        expect(r.labels.severity).toBe(severity);
+        expect(windows(r.expr).sort()).toEqual([...w].sort());
+        // hai cửa sổ nối bằng `and` (cả dài lẫn ngắn phải vượt)
+        expect(r.expr).toMatch(/\) and \(/);
+        expect(r.expr).not.toMatch(/\bor\b/);
+      }
+  });
+  it("ngưỡng = hệ số đốt × ngân sách lỗi: 14,4/6/1 × 0,001 (khả dụng) và × 0,05 (độ trễ)", () => {
+    for (const [speed, f] of [
+      ["Fast", "14.4"],
+      ["Medium", "6"],
+      ["Slow", "1"],
+    ]) {
+      expect(byName[`HmAvailabilityBurn${speed}`].expr).toContain(`> ${f} * 0.001`);
+      expect(byName[`HmLatencyBurn${speed}`].expr).toContain(`> ${f} * 0.05`);
+    }
+  });
+  it("SLI khả dụng: 5xx / tổng của luồng lõi; SLI độ trễ: bucket le=0.8 / count — không dùng trung bình; có sàn số request", () => {
+    for (const speed of ["Fast", "Medium", "Slow"]) {
+      const a = byName[`HmAvailabilityBurn${speed}`].expr;
+      expect(a).toContain('status=~"5.."');
+      expect(a).toContain("hm_http_requests_total");
+      expect(a).toMatch(/increase\(hm_http_requests_total\{[^}]*\}\[\w+\]\)\) > 30/);
+      const l = byName[`HmLatencyBurn${speed}`].expr;
+      expect(l).toContain('le="0.8"');
+      expect(l).toContain("hm_http_request_duration_seconds_bucket");
+      expect(l).toContain("hm_http_request_duration_seconds_count");
+      expect(l).not.toMatch(/_sum|avg/);
+    }
+  });
+  it("có rule ticket đối soát (IND-FIN-006) trên metric hm_reconciliation_*", () => {
+    const rules = (doc.groups ?? []).flatMap((g) => g.rules ?? []);
+    const r = rules.find((x) => x.alert === "HmReconciliationBreaksOverSla");
+    expect(r?.labels.severity).toBe("ticket");
+    expect(r?.expr).toContain("hm_reconciliation_breaks_oldest_open_age_seconds");
   });
 });
 

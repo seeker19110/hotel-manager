@@ -178,6 +178,8 @@ function routeMethods(src) {
     if (new RegExp(`export\\s+(?:async\\s+)?function\\s+${m}\\b`).test(src)) found.add(m);
     if (new RegExp(`\\bas\\s+${m}\\b`).test(src)) found.add(m);
     if (new RegExp(`export\\s+const\\s*\\{[^}]*\\b${m}\\b[^}]*\\}`).test(src)) found.add(m);
+    // T-406: `export const GET = withHttpMetrics(…)`.
+    if (new RegExp(`export\\s+const\\s+${m}\\s*=`).test(src)) found.add(m);
   }
   return METHODS.filter((m) => found.has(m));
 }

@@ -1,11 +1,16 @@
 // PLAN đợt 3 T-225 — /api/metrics + /api/ready trên Postgres thật + SeaweedFS (BASE-OBS-*; D-021).
 import { randomUUID } from "node:crypto";
 import { createTestDb, type SeededOrg, seedOrg, type TestDb, testS3Config } from "@hm/testkit";
-import { sql } from "kysely";
+import { Kysely, PostgresDialect, sql } from "kysely";
+import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { z } from "zod";
 import { eicarOnlyScanner } from "../files/inspect.ts";
 import { ObjectStorage } from "../files/storage.ts";
-import { collectMetrics, handleMetrics, handleReady, metricsToken } from "./metrics.ts";
+import { type HttpDeps, handleQuery, type QueryDef } from "../http/command-route.ts";
+import { testServices } from "../server/services.ts";
+import { httpMetrics } from "./http-metrics.ts";
+import { collectMetrics, handleHealth, handleMetrics, handleReady, metricsToken } from "./metrics.ts";
 
 let t: TestDb;
 let A: SeededOrg;
@@ -128,5 +133,85 @@ describe("/api/ready", () => {
       (await handleReady({ draining: () => false, db: t.runtime, storage, scanner: eicarOnlyScanner }))
         .status,
     ).toBe(200);
+  });
+});
+
+describe("/api/ready khi CSDL chết, /api/health vẫn sống (OPS-OBS-006)", () => {
+  it("CSDL không kết nối được → 503 database fail (có trần thời gian), không lộ chuỗi kết nối/lỗi; kho + máy quét vẫn ok", async () => {
+    const pool = new pg.Pool({
+      connectionString: "postgres://bi_mat_mat_khau@127.0.0.1:1/khong_co",
+      connectionTimeoutMillis: 800,
+    });
+    pool.on("error", () => {});
+    const dead = new Kysely<unknown>({ dialect: new PostgresDialect({ pool }) });
+    try {
+      const t0 = Date.now();
+      const res = await handleReady({ db: dead, storage, scanner: eicarOnlyScanner });
+      expect(Date.now() - t0).toBeLessThan(4000);
+      expect(res.status).toBe(503);
+      const text = await res.text();
+      expect(JSON.parse(text)).toEqual({
+        status: "not_ready",
+        checks: { database: "fail", storage: "ok", scanner: "ok" },
+      });
+      expect(text).not.toMatch(/bi_mat|127\.0\.0\.1|ECONNREFUSED/);
+      // Liveness tĩnh: không phụ thuộc gì nên vẫn 200 dù CSDL chết.
+      expect(handleHealth().status).toBe(200);
+    } finally {
+      await dead.destroy();
+    }
+  });
+});
+
+describe("metric HTTP của lớp lệnh/truy vấn (T-406)", () => {
+  const def: QueryDef<Record<string, never>, { ok: true }> = {
+    query: "probe.metricRoute",
+    input: z.object({}),
+    run: async () => ({ ok: true }),
+  };
+  const deps = (user: boolean): HttpDeps => ({
+    db: t.runtime,
+    getSession: async () => (user ? { user: { id: A.ownerAuthUserId, twoFactorEnabled: true } } : null),
+    secureCookies: false,
+    services: testServices(),
+  });
+
+  it("đo theo mẫu route của truy vấn (không id), method, status; /api/metrics xuất histogram + counter cùng metric cũ", async () => {
+    httpMetrics.reset();
+    const id = randomUUID();
+    // 401 (không phiên) rồi 200 (đúng tổ chức qua X-Org-Id); URL có id/chuỗi truy vấn không lọt vào nhãn.
+    expect(
+      (await handleQuery(def, new Request(`http://x/api/v1/probe/metricRoute?id=${id}`), deps(false))).status,
+    ).toBe(401);
+    const ok = await handleQuery(
+      def,
+      new Request("http://x/api/v1/probe/metricRoute", { headers: { "x-org-id": A.orgId } }),
+      deps(true),
+    );
+    expect(ok.status).toBe(200);
+
+    const res = await handleMetrics(
+      new Request("http://x/api/metrics", { headers: { authorization: `Bearer ${metricsToken(SECRET)}` } }),
+      { db: t.runtime, secret: SECRET },
+    );
+    const text = await res.text();
+    expect(res.status).toBe(200);
+    expect(text).toContain(
+      'hm_http_requests_total{route="/api/v1/probe/metricRoute",method="GET",status="401"} 1',
+    );
+    expect(text).toContain(
+      'hm_http_requests_total{route="/api/v1/probe/metricRoute",method="GET",status="200"} 1',
+    );
+    expect(text).toContain(
+      'hm_http_request_duration_seconds_count{route="/api/v1/probe/metricRoute",method="GET",status="200"} 1',
+    );
+    expect(text).toContain('le="0.8"');
+    expect(text).toContain("hm_metrics_db_ok 1");
+    expect(text).toContain("hm_outbox_unpublished"); // metric nghiệp vụ cũ vẫn có
+    expect(text).toContain("hm_reconciliation_breaks_open");
+    expect(text).not.toContain(id);
+    // Cardinality: số dòng mẫu HTTP nhỏ, không phụ thuộc số request.
+    expect(httpMetrics.seriesCount()).toBeLessThanOrEqual(4);
+    httpMetrics.reset();
   });
 });

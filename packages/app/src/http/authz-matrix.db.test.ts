@@ -908,10 +908,17 @@ describe("BE-API-009 — route không guard = danh sách công khai đã duyệt
       ["packages/app/src/import/http.ts", "handleImportUpload"],
     ] as const) {
       const src = body(file);
-      const start = src.indexOf(`export async function ${fn}`);
-      expect(start, `${file}: ${fn}`).toBeGreaterThan(-1);
-      const next = src.indexOf("\nexport ", start + 10);
-      expect(src.slice(start, next < 0 ? undefined : next), fn).toMatch(/actorFromRequest\(/);
+      const fnBody = (decl: string) => {
+        const start = src.search(new RegExp(`(?:export )?(?:async )?function ${decl}\\b`));
+        expect(start, `${file}: ${decl}`).toBeGreaterThan(-1);
+        const next = src.slice(start + 10).search(/\n(?:export |async function |function )/);
+        return src.slice(start, next < 0 ? undefined : start + 10 + next);
+      };
+      let text = fnBody(fn);
+      // T-406 bọc hàm công khai để đo metric và gọi hàm `run…` bên trong — kiểm thân hàm đó.
+      const inner = /\b(run[A-Z]\w*)\(/.exec(text)?.[1];
+      if (!/actorFromRequest\(/.test(text) && inner) text = fnBody(inner);
+      expect(text, fn).toMatch(/actorFromRequest\(/);
     }
     expect(routes.find((r) => r.rel === "v1/me/route.ts")?.text).toMatch(/if \(!s\)[\s\S]{0,200}401/);
   });

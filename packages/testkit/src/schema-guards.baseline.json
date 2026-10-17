@@ -84,7 +84,7 @@
   "nullable": {
     "allocations": 6,
     "approval_requests": 9,
-    "audit_events": 7,
+    "audit_events": 9,
     "bank_transactions": 3,
     "billing_periods": 3,
     "blocks": 4,

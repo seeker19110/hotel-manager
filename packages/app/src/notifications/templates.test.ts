@@ -49,6 +49,20 @@ const VARS: Record<NotificationType, Vars> = {
   export_ready: { exportName: "Báo cáo công nợ 10/2026", exportId: ID },
 };
 
+describe("account_security — sự kiện bảo mật của chính tài khoản (T-405)", () => {
+  it.each([
+    ["mfa_reset", "xác thực hai lớp đã được đặt lại", /đặt lại/],
+    ["password_changed", "mật khẩu đã được đổi", /Mật khẩu tài khoản của bạn đã được đổi/],
+    ["mfa_disabled", "xác thực hai lớp đã được tắt", /đã được tắt/],
+  ])("%s: nêu việc đã xảy ra + cách xử lý, bắt buộc có cơ sở", (kind, action, re) => {
+    const r = render("account_security", { orgName: "Nhà trọ Hoa Sen", action, kind });
+    expect(r.title).toBe(`Nhà trọ Hoa Sen: ${action}`);
+    expect(r.body).toMatch(re);
+    expect(r.body).toContain("Nếu không phải bạn");
+    expect(r.emailText).toContain("Nếu không phải bạn");
+  });
+});
+
 describe("S-012 nội dung không chứa PII nhạy cảm", () => {
   for (const type of NOTIFICATION_TYPES) {
     it(`${type}: không CCCD/hộ chiếu/SĐT/số tài khoản/tên/nội dung hợp đồng dù có trong dữ liệu`, () => {
