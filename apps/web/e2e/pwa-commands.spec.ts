@@ -3,6 +3,7 @@
 import { expect, type Page, test } from "@playwright/test";
 import { HOTEL_HK, JPEG } from "./fixtures.ts";
 import { type Cookies, loginStaff } from "./sessions.ts";
+import { signInClick } from "./sign-in.ts";
 
 // page.route không thấy request đi qua service worker của PWA: chặn SW để route giả luôn có tác dụng.
 test.use({ serviceWorkers: "block" });
@@ -277,7 +278,7 @@ async function reloginInDialog(page: Page) {
   await expect(dialog.getByText("Phiên đăng nhập đã hết. Vui lòng đăng nhập lại.")).toBeVisible();
   await dialog.getByLabel("Email").fill(HOTEL_HK.email);
   await dialog.getByLabel("Mật khẩu").fill(HOTEL_HK.password);
-  await dialog.getByRole("button", { name: "Đăng nhập" }).click();
+  await signInClick(page, dialog.getByRole("button", { name: "Đăng nhập" }));
 }
 
 test("S-013 phiên hết hạn: 401 ⇒ hộp đăng nhập lại (form giữ nguyên); đăng nhập xong gửi lại với CÙNG command_id, cùng tổ chức", async ({

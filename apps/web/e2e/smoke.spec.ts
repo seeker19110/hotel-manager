@@ -10,6 +10,7 @@ import {
   OTHER_ROOMS,
   SMOKE_USER,
 } from "./fixtures.ts";
+import { signInClick } from "./sign-in.ts";
 
 test("@smoke đăng nhập → chọn tổ chức → phòng của cơ sở được giao", async ({ page }) => {
   await page.goto("/phong");
@@ -18,7 +19,7 @@ test("@smoke đăng nhập → chọn tổ chức → phòng của cơ sở đư
 
   await page.getByLabel("Email").fill(SMOKE_USER.email);
   await page.getByLabel("Mật khẩu").fill(SMOKE_USER.password);
-  await page.getByRole("button", { name: "Đăng nhập" }).click();
+  await signInClick(page);
 
   await expect(page).toHaveURL(/\/chon-to-chuc$/);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Chọn tổ chức");
@@ -52,7 +53,7 @@ test("sai mật khẩu: báo lỗi role=alert, không vào được", async ({ p
   await page.goto("/dang-nhap");
   await page.getByLabel("Email").fill(SMOKE_USER.email);
   await page.getByLabel("Mật khẩu").fill("sai-mat-khau-hoan-toan");
-  await page.getByRole("button", { name: "Đăng nhập" }).click();
+  await signInClick(page);
   await expect(page.locator(".field__error[role=alert]")).toHaveText("Email hoặc mật khẩu không đúng.");
   await expect(page).toHaveURL(/\/dang-nhap$/);
 });
@@ -61,7 +62,7 @@ test("cookie tổ chức giả mạo (không có membership) → bị đưa về
   await page.goto("/dang-nhap");
   await page.getByLabel("Email").fill(SMOKE_USER.email);
   await page.getByLabel("Mật khẩu").fill(SMOKE_USER.password);
-  await page.getByRole("button", { name: "Đăng nhập" }).click();
+  await signInClick(page);
   await expect(page).toHaveURL(/\/chon-to-chuc$/);
   await context.addCookies([
     { name: "hm_org", value: "00000000-0000-4000-8000-000000000000", url: page.url() },
@@ -74,7 +75,7 @@ test("trang đã đăng nhập mang Cache-Control: no-store", async ({ page }) =
   await page.goto("/dang-nhap");
   await page.getByLabel("Email").fill(SMOKE_USER.email);
   await page.getByLabel("Mật khẩu").fill(SMOKE_USER.password);
-  await page.getByRole("button", { name: "Đăng nhập" }).click();
+  await signInClick(page);
   await expect(page).toHaveURL(/\/chon-to-chuc$/);
   for (const path of ["/chon-to-chuc", "/phong"]) {
     const res = await page.goto(path);
@@ -94,7 +95,7 @@ test("session.switchOrganization: khác origin 403; thiếu key 400; tổ chức
   await page.goto("/dang-nhap");
   await page.getByLabel("Email").fill(SMOKE_USER.email);
   await page.getByLabel("Mật khẩu").fill(SMOKE_USER.password);
-  await page.getByRole("button", { name: "Đăng nhập" }).click();
+  await signInClick(page);
   await expect(page).toHaveURL(/\/chon-to-chuc$/);
   const call = (headers: Record<string, string>, org: string) =>
     page.evaluate(

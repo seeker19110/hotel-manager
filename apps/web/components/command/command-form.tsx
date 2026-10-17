@@ -222,7 +222,9 @@ export function CommandForm({
           aria-labelledby={titleId}
           aria-describedby={descId}
           onClose={() => {
-            pending.current = null;
+            // Sự kiện `close` đến SAU một task: đóng rồi mở lại thật nhanh (Quay lại → Enter) thì sự kiện của lần đóng cũ tới khi
+            // hộp đã mở lại — chỉ xoá payload khi hộp thật sự đang đóng, không xoá payload của lần mở mới.
+            if (!dialogRef.current?.open) pending.current = null;
           }}
         >
           <h2 id={titleId} className="confirm-dialog__title">
