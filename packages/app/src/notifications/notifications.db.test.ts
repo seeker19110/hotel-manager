@@ -11,7 +11,7 @@ import { ownerOf, runAs, seedMember } from "../testing/helpers.ts";
 import { createNotification, type DispatchJob, dispatchNotification } from "./dispatch.ts";
 import type { EmailMessage } from "./email.ts";
 import { EmailSendError, FakeEmailSender } from "./email.ts";
-import { MAX_ATTEMPTS, RETRY_BACKOFF_MINUTES, sendDueEmails } from "./send.ts";
+import { MAX_ATTEMPTS, RETRY_BACKOFF_MINUTES, RETRY_JITTER_RATIO, sendDueEmails } from "./send.ts";
 
 let t: TestDb;
 let A: SeededOrg;
@@ -165,7 +165,7 @@ describe("S-003 dedupe khi xử lý hai lần", () => {
         return r;
       },
     };
-    await sendDueEmails(t.worker, flaky, { now: NOW });
+    await sendDueEmails(t.worker, flaky, { now: NOW, random: () => 0 });
     expect((await delivery(inv))[0]?.status).toBe("retrying");
     await sendDueEmails(t.worker, flaky, { now: new Date(NOW.getTime() + 60_000) });
     const id = (await delivery(inv))[0]?.id as string;
@@ -208,19 +208,21 @@ describe("S-004 retry có backoff rồi dead", () => {
     for (let i = 1; i <= MAX_ATTEMPTS; i++) {
       const s = await sendDueEmails(t.worker, fake, {
         now: at,
+        // Jitter xác định: lần i dùng nguồn ngẫu nhiên cố định → thêm đúng i·4 % (≤ RETRY_JITTER_RATIO).
+        random: () => (i * 0.2) % 1,
         log: (e, f) => logs.push(`${e} ${JSON.stringify(f)}`),
       });
       const d = (await delivery(inv))[0];
       expect(d?.attempts).toBe(i);
       if (i < MAX_ATTEMPTS) {
         expect(d?.status).toBe("retrying");
-        const wait = RETRY_BACKOFF_MINUTES[i - 1] as number;
+        const wait = (RETRY_BACKOFF_MINUTES[i - 1] as number) * 60_000;
         const next = d?.next_attempt_at as Date;
-        expect(next.getTime() - at.getTime()).toBe(wait * 60_000);
-        // Chưa tới hạn → không nhận lại.
+        const jittered = wait * (1 + RETRY_JITTER_RATIO * ((i * 0.2) % 1));
+        expect(Math.abs(next.getTime() - at.getTime() - jittered)).toBeLessThanOrEqual(1);
+        // Chưa tới hạn (mốc Q-05 không bị đẩy sớm) → không nhận lại.
         expect(
-          (await sendDueEmails(t.worker, fake, { now: new Date(at.getTime() + wait * 60_000 - 1000) }))
-            .claimed,
+          (await sendDueEmails(t.worker, fake, { now: new Date(at.getTime() + wait - 1000) })).claimed,
         ).toBe(0);
         at = d?.next_attempt_at as Date;
       } else {
@@ -547,5 +549,26 @@ describe("Review PR #10 — tổ chức tồn đọng không chiếm hết lô",
     expect(r.rows).toHaveLength(3);
     expect(r.rows.filter((x) => x.organization_id === B.orgId)).toHaveLength(1);
     expect(r.rows.filter((x) => x.organization_id === A.orgId)).toHaveLength(2);
+  });
+});
+
+describe("jitter lịch gửi lại (ARC-RES-002)", () => {
+  /** Đặt CUỐI file: để lại hàng `retrying` còn hạn nên mọi test đếm `claimed` toàn cục phải chạy trước. Hai thư lỗi tạm cùng lúc: jitter khác nhau → hai mốc thử lại khác nhau, đều trong [mốc, mốc·(1+tỉ lệ)]. */
+  it.each([
+    ["random = 0 → đúng mốc Q-05", 0, 0],
+    ["random sát 1 → mốc · (1 + tỉ lệ)", 0.999999, RETRY_JITTER_RATIO],
+  ])("%s", async (_name, rnd, extra) => {
+    const inv = await invoice();
+    await issue(inv);
+    await dispatchNotification(t.worker, (await jobsFor(inv))[0] as DispatchJob, NOW);
+    const fake = new FakeEmailSender();
+    fake.failWith = () => new EmailSendError("temporary", "421 thử lại sau");
+    await sendDueEmails(t.worker, fake, { now: NOW, random: () => rnd, limit: 1000, perOrg: 1000 });
+    const d = (await delivery(inv))[0];
+    expect(d?.status).toBe("retrying");
+    const delta = (d?.next_attempt_at?.getTime() ?? Number.NaN) - NOW.getTime();
+    expect(delta).toBeGreaterThanOrEqual(60_000);
+    expect(delta).toBeLessThanOrEqual(60_000 * (1 + RETRY_JITTER_RATIO));
+    expect(Math.abs(delta - 60_000 * (1 + extra))).toBeLessThanOrEqual(1);
   });
 });

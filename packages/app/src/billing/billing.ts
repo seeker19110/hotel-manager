@@ -3,7 +3,7 @@
 // số, không còn bất thường) → phát hành (hash phải khớp số hiện tại; phiếu + charges snapshot + bút toán AR/REV; một phiếu mỗi
 // hợp đồng mỗi kỳ) → khoá/mở khoá qua cùng cơ chế `period_locks` của sổ.
 import { createHash, randomUUID } from "node:crypto";
-import { withTenant } from "@hm/db";
+import { withTenant, withTenantRetry } from "@hm/db";
 import {
   authorize,
   type BillingLine,
@@ -76,7 +76,7 @@ export async function generatePeriods(workerDb: Kysely<unknown>, now: Date): Pro
   );
   let created = 0;
   for (const d of due.rows) {
-    const r = await withTenant(workerDb, { orgId: d.organization_id }, (trx) =>
+    const r = await withTenantRetry(workerDb, { orgId: d.organization_id }, (trx) =>
       sql`insert into billing_periods (id, organization_id, property_id, period_start, period_end)
           values (${randomUUID()}, ${d.organization_id}, ${d.property_id}, ${d.period_start}::date, ${d.period_end}::date)
           on conflict (organization_id, property_id, period_start) do nothing`.execute(trx),

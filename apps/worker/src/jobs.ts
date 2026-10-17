@@ -11,7 +11,7 @@ import {
   NOTIFY_EVENT_TYPES,
   runExportJob,
 } from "@hm/app";
-import { withTenant } from "@hm/db";
+import { withTenantRetry } from "@hm/db";
 import { type Kysely, sql } from "kysely";
 import type { OutboxJob } from "./relay.ts";
 
@@ -23,7 +23,7 @@ export async function expireHolds(workerDb: Kysely<unknown>, now: Date, limit = 
   const released = await sql<{ allocation_id: string; organization_id: string }>`
     select * from app.expire_holds(${now}, ${limit})`.execute(workerDb);
   for (const r of released.rows) {
-    await withTenant(workerDb, { orgId: r.organization_id }, (trx) =>
+    await withTenantRetry(workerDb, { orgId: r.organization_id }, (trx) =>
       sql`insert into audit_events (id, organization_id, actor_type, action, entity_type, entity_id, correlation_id)
           values (${randomUUID()}, ${r.organization_id}, 'worker', 'allocation.hold_expired', 'allocation', ${r.allocation_id},
                   ${`job:expire_holds:${now.toISOString()}`})`.execute(trx),

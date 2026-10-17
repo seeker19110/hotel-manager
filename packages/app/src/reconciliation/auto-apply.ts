@@ -3,7 +3,7 @@
 // nhiêu lần cũng chỉ một hiệu lực: khoá tư vấn theo giao dịch + UNIQUE payments(bank_transaction_id) là hàng rào cuối.
 // Chỉ tự ghi khi khớp ĐÚNG một phiếu và không vượt số còn; mọi trường hợp khác → break có người chịu trách nhiệm.
 import { randomUUID } from "node:crypto";
-import { withTenant } from "@hm/db";
+import { withTenantRetry } from "@hm/db";
 import { type Kysely, sql, type Transaction } from "kysely";
 import { BREAK_OPENED, defaultAssignee, openBreak } from "../ledger/bank-inbox.ts";
 import { postEntry } from "../ledger/ledger.ts";
@@ -54,7 +54,7 @@ export async function applyBankTransaction(
   bankTransactionId: string,
 ): Promise<AutoApplyResult> {
   const correlationId = `job:bank_auto:${bankTransactionId}`;
-  return withTenant(workerDb, { orgId }, async (trx): Promise<AutoApplyResult> => {
+  return withTenantRetry(workerDb, { orgId }, async (trx): Promise<AutoApplyResult> => {
     await sql`select pg_advisory_xact_lock(hashtextextended(${`bank_txn:${bankTransactionId}`}, 0))`.execute(
       trx,
     );

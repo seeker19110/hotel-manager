@@ -11,7 +11,7 @@
 //   giữ là số. Xuất toàn tổ chức (S-018): ZIP các CSV nghiệp vụ + file đính kèm đã `ready` (theo quyền người yêu cầu, có trần
 //   tổng dung lượng — T-405/IND-SAAS-007), không số giấy tờ, không ảnh giấy tờ tuỳ thân, bỏ cột bí mật.
 import { createHash, randomUUID } from "node:crypto";
-import { withTenant } from "@hm/db";
+import { withTenant, withTenantRetry } from "@hm/db";
 import {
   authorize,
   BYTES_PER_MIB,
@@ -859,7 +859,7 @@ async function transition(
   orgId: string,
   fn: (trx: Transaction<unknown>) => Promise<void>,
 ): Promise<void> {
-  await withTenant(workerDb, { orgId }, fn);
+  await withTenantRetry(workerDb, { orgId }, fn);
 }
 
 /**
@@ -874,7 +874,7 @@ export async function runExportJob(
   const orgId = job.organization_id;
   const id = job.payload.export_id;
   if (typeof id !== "string" || !UUID.test(id)) throw new Error("payload thiếu export_id");
-  const claimed = await withTenant(deps.workerDb, { orgId }, async (trx) => {
+  const claimed = await withTenantRetry(deps.workerDb, { orgId }, async (trx) => {
     const r = await sql<{
       id: string;
       kind: ExportKind | "org_full";

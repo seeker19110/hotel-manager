@@ -2,6 +2,7 @@
 // PLAN đợt 4 T-302 (ARC-RES-001, BE-REL-001/003): mỗi lời gọi mạng có `AbortSignal.timeout` và retry ≤ 3 lần (lùi mũ + jitter,
 // tôn trọng `Retry-After`) — CHỈ thao tác idempotent (GET/HEAD/PUT theo key/DELETE); phương thức khác (POST…) gọi đúng một lần.
 // T-401 (BE-REL-003): một thao tác — gồm MỌI lần thử và thời gian chờ giữa chúng — có trần tổng `totalTimeoutMs`.
+import { type RetryPolicy, retryAsync } from "@hm/db";
 import { secondsToMs } from "@hm/domain";
 import { AwsClient } from "aws4fetch";
 
@@ -51,11 +52,17 @@ const MAX_RETRIES_CAP = 3;
 export class StorageError extends Error {
   readonly status: number | undefined;
   readonly retryable: boolean;
-  constructor(message: string, opts: { status?: number; retryable: boolean; cause?: unknown }) {
+  /** `Retry-After` của máy chủ (ms) nếu có — gợi ý chờ tối thiểu cho lần thử lại. */
+  readonly retryAfterMs: number | undefined;
+  constructor(
+    message: string,
+    opts: { status?: number; retryable: boolean; cause?: unknown; retryAfterMs?: number },
+  ) {
     super(message, opts.cause === undefined ? undefined : { cause: opts.cause });
     this.name = "StorageError";
     this.status = opts.status;
     this.retryable = opts.retryable;
+    this.retryAfterMs = opts.retryAfterMs;
   }
 }
 
@@ -90,54 +97,67 @@ export async function resilientSend(
   ok: (status: number) => boolean,
   cfg: StorageResilience,
 ): Promise<void> {
-  const retries = IDEMPOTENT.has(init.method) ? Math.min(cfg.maxRetries, MAX_RETRIES_CAP) : 0;
-  const random = cfg.random ?? Math.random;
-  const sleep = cfg.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
-  const now = cfg.now ?? Date.now;
-  const deadline = now() + cfg.totalTimeoutMs;
   const overBudget = (last: StorageError) =>
     new StorageError(`${label}: quá tổng thời gian ${cfg.totalTimeoutMs} ms`, {
       retryable: true,
       cause: last,
       ...(last.status === undefined ? {} : { status: last.status }),
     });
-  for (let attempt = 0; ; attempt++) {
-    let failure: StorageError;
-    let retryAfterMs: number | undefined;
-    const remaining = deadline - now();
-    // Ký ngoài `try`: lỗi ký là lỗi lập trình/cấu hình, không phải lỗi tạm — không thử lại.
-    const req = await sign(url, {
-      ...init,
-      signal: AbortSignal.timeout(Math.max(1, Math.min(cfg.timeoutMs, remaining))),
-    });
-    try {
-      const res = await fetch(req);
-      if (ok(res.status)) {
+  const retries = IDEMPOTENT.has(init.method) ? Math.min(cfg.maxRetries, MAX_RETRIES_CAP) : 0;
+  // Lùi mũ + jitter ∈ [0,5; 1] · mũ, trần một lần chờ, trần tổng — vòng retry dùng chung `retryAsync` (ARC-RES-002).
+  const policy: RetryPolicy = {
+    maxAttempts: retries + 1,
+    baseDelayMs: cfg.baseDelayMs,
+    maxDelayMs: cfg.maxDelayMs,
+    maxElapsedMs: cfg.totalTimeoutMs,
+    minJitterRatio: 0.5,
+  };
+  await retryAsync(
+    async ({ remainingMs }) => {
+      // Ký ngoài `try`: lỗi ký là lỗi lập trình/cấu hình (không phải StorageError) — không thử lại.
+      const req = await sign(url, {
+        ...init,
+        signal: AbortSignal.timeout(Math.max(1, Math.min(cfg.timeoutMs, remainingMs))),
+      });
+      let failure: StorageError;
+      try {
+        const res = await fetch(req);
+        if (ok(res.status)) {
+          await res.body?.cancel();
+          return;
+        }
+        const retryAfterMs = parseRetryAfter(res.headers.get("retry-after"));
         await res.body?.cancel();
-        return;
+        failure = new StorageError(`${label}: HTTP ${res.status}`, {
+          status: res.status,
+          retryable: retryableStatus(res.status),
+          ...(retryAfterMs === undefined ? {} : { retryAfterMs }),
+        });
+      } catch (err) {
+        const timedOut =
+          err instanceof DOMException && (err.name === "TimeoutError" || err.name === "AbortError");
+        failure = new StorageError(`${label}: ${timedOut ? "quá thời gian" : "lỗi kết nối"}`, {
+          retryable: true,
+          cause: err,
+        });
       }
-      retryAfterMs = parseRetryAfter(res.headers.get("retry-after"));
-      await res.body?.cancel();
-      failure = new StorageError(`${label}: HTTP ${res.status}`, {
-        status: res.status,
-        retryable: retryableStatus(res.status),
-      });
-    } catch (err) {
-      const timedOut =
-        err instanceof DOMException && (err.name === "TimeoutError" || err.name === "AbortError");
-      failure = new StorageError(`${label}: ${timedOut ? "quá thời gian" : "lỗi kết nối"}`, {
-        retryable: true,
-        cause: err,
-      });
-    }
-    if (!failure.retryable || attempt >= retries) throw failure;
-    const exp = Math.min(cfg.baseDelayMs * 2 ** attempt, cfg.maxDelayMs);
-    const jittered = exp * (0.5 + random() * 0.5);
-    const wait = Math.min(Math.max(retryAfterMs ?? 0, jittered), cfg.maxDelayMs);
-    // Chờ xong còn chưa đủ thời gian cho một lần thử nữa ⇒ dừng luôn, không ngủ vô ích.
-    if (deadline - now() <= wait) throw overBudget(failure);
-    await sleep(wait);
-  }
+      throw failure;
+    },
+    {
+      policy,
+      classify: (e) =>
+        e instanceof StorageError && e.retryable
+          ? e.retryAfterMs === undefined
+            ? true
+            : { retryAfterMs: e.retryAfterMs }
+          : false,
+      // Hết trần tổng (kể cả thời gian chờ) ⇒ lỗi "quá tổng thời gian" kèm lỗi gốc; hết lượt ⇒ lỗi cuối nguyên vẹn.
+      giveUp: (e, reason) => (reason === "budget" && e instanceof StorageError ? overBudget(e) : e),
+      ...(cfg.random ? { random: cfg.random } : {}),
+      ...(cfg.sleep ? { sleep: cfg.sleep } : {}),
+      ...(cfg.now ? { now: cfg.now } : {}),
+    },
+  );
 }
 
 export class ObjectStorage {
