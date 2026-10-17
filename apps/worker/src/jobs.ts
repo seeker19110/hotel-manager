@@ -6,12 +6,17 @@ import {
   buildInvitationMail,
   createLogger,
   dispatchNotification,
+  EMAIL_DAILY_BUDGET_PER_ORG,
+  EmailBudgetDeferredError,
   type EmailSender,
   type ExportJobDeps,
   expireExports,
   type Logger,
+  logEmailBudget,
   NOTIFY_EVENT_TYPES,
+  nextBudgetDayStart,
   runExportJob,
+  takeEmailBudget,
 } from "@hm/app";
 import { withTenantRetry } from "@hm/db";
 import { type Kysely, sql } from "kysely";
@@ -100,11 +105,13 @@ export const INVITATION_EVENT_TYPES = ["member.invited"] as const;
  * `member.invited` (SPEC-access S-007): gửi email lời mời nhân viên. Token dựng lại từ khoá + id lời mời (không lưu ở đâu);
  * lời mời đã dùng/thu hồi/quá hạn thì bỏ qua. Khoá idempotency của email = id lời mời ⇒ pg-boss giao lại không gửi hai thư.
  * Lỗi tạm thời ném lại để pg-boss thử lại theo chính sách queue; địa chỉ không hợp lệ (vĩnh viễn) chỉ ghi log.
+ * Ngân sách email ngày/tổ chức (OPS-COST-004): lời mời là loại giao dịch (còn được gửi ở mức bóp 90%); hết ngân sách (100%) ⇒ ném
+ * `EmailBudgetDeferredError` — job không mất (pg-boss thử lại, hết lượt vào dead letter để redrive sau khi sang ngày, RUNBOOK §3.12).
  */
 export function invitationHandlers(
   workerDb: Kysely<unknown>,
   sender: EmailSender,
-  opts: { key: Buffer; baseUrl: string },
+  opts: { key: Buffer; baseUrl: string; now?: () => Date; dailyBudget?: number },
   logger: Logger = createLogger({ bindings: { component: "member.invitation" } }),
 ): Record<string, (job: OutboxJob) => Promise<void>> {
   return {
@@ -114,6 +121,16 @@ export function invitationHandlers(
         logger.info("invitation.mail_skipped", { outbox_id: job.outbox_id, reason: "not_pending" });
         return;
       }
+      const now = opts.now?.() ?? new Date();
+      const budget = opts.dailyBudget ?? EMAIL_DAILY_BUDGET_PER_ORG;
+      const grant = await takeEmailBudget(workerDb, {
+        orgId: job.organization_id,
+        required: true,
+        now,
+        budget,
+      });
+      logEmailBudget((e, f) => logger.warn(e, f), job.organization_id, grant, budget);
+      if (grant.decision !== "send") throw new EmailBudgetDeferredError(nextBudgetDayStart(now));
       try {
         await sender.send(mail);
       } catch (err) {

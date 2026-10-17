@@ -67,6 +67,11 @@ export {
   roundVnd,
   sumVnd,
 } from "./money/money.ts";
+export {
+  EMAIL_BUDGET_THROTTLE_PCT,
+  EMAIL_BUDGET_WARN_PCT,
+  EMAIL_DAILY_BUDGET_PER_ORG,
+} from "./notifications/email-budget.ts";
 export { QR_MAX_BYTES, qrMatrix } from "./payments/qr.ts";
 export {
   BREAK_REASONS,

@@ -95,6 +95,16 @@ export { reportRequestError, reportUnexpectedError } from "./logging/unexpected.
 export { listWorkOrders, type WorkOrderView } from "./maintenance/work-orders.ts";
 export { readingRoute } from "./metering/meters.ts";
 export {
+  EMAIL_BUDGET_THROTTLE_PCT,
+  EMAIL_BUDGET_WARN_PCT,
+  EMAIL_DAILY_BUDGET_PER_ORG,
+  EmailBudgetDeferredError,
+  type EmailBudgetResult,
+  logEmailBudget,
+  nextBudgetDayStart,
+  takeEmailBudget,
+} from "./notifications/budget.ts";
+export {
   createNotification,
   type DispatchJob,
   dispatchNotification,

@@ -8,11 +8,14 @@
 //    hạn khoá bị nhận lại thì không ghi đè lần nhận mới — kể cả sau gửi lại thủ công đặt attempts = 0; ghi 0 hàng ⇒
 //    `stale`, không đếm/log như kết quả; `sending` quá hạn về `retrying` có chờ lùi): `sent` · lỗi vĩnh viễn → `failed RECIPIENT_INVALID` (không thử lại) ·
 //    lỗi tạm → `retrying` sau 1 ph, 5 ph, 30 ph, 2 giờ, 6 giờ (Q-05: 1 lần đầu + 5 lần thử lại) → lần 6 lỗi ⇒ `dead`.
+// 3a. Trước khi gọi nhà cung cấp: xin ngân sách email ngày của tổ chức (`budget.ts`, OPS-COST-004): ≥ 90% chỉ loại bắt buộc, 100% dừng.
+//    Bị hoãn ⇒ `retrying` hẹn đầu ngày UTC kế tiếp, KHÔNG tính một lần thử (attempts − 1) — không mất, không tiến tới `dead`.
 // Log chỉ có email đã che (`a***@example.com`).
 
 import { spreadDelayMs, withTenantRetry } from "@hm/db";
 import { minutesToMs } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
+import { EMAIL_DAILY_BUDGET_PER_ORG, logEmailBudget, nextBudgetDayStart, takeEmailBudget } from "./budget.ts";
 import { EmailSendError, type EmailSender } from "./email.ts";
 import { unsubscribeUrl } from "./preferences.ts";
 import { maskEmail, type NotificationType, REQUIRED_TYPES, render, TemplateError } from "./templates.ts";
@@ -36,6 +39,8 @@ export interface SendStats {
   suppressed: number;
   /** Kết quả về muộn của lần nhận đã bị nhận lại (không ghi). */
   stale: number;
+  /** Hoãn tới ngày sau vì ngân sách email ngày (bóp loại không bắt buộc / dừng ở 100%). */
+  deferred: number;
 }
 
 export type SendLog = (event: string, fields: Record<string, unknown>) => void;
@@ -52,7 +57,7 @@ interface Row {
 type Outcome =
   | { kind: "suppressed"; reason: "OPTED_OUT" | "NO_ADDRESS" | "SETTLED" }
   | { kind: "failed"; code: "TEMPLATE_ERROR" }
-  | { kind: "send"; to: string; subject: string; text: string };
+  | { kind: "send"; to: string; subject: string; text: string; required: boolean };
 
 async function prepare(
   workerDb: Kysely<unknown>,
@@ -96,7 +101,13 @@ async function prepare(
               }
             : {}),
         });
-        out = { kind: "send", to: row.email, subject: m.emailSubject, text: m.emailText };
+        out = {
+          kind: "send",
+          to: row.email,
+          subject: m.emailSubject,
+          text: m.emailText,
+          required: REQUIRED_TYPES.has(row.type),
+        };
       } catch (err) {
         if (!(err instanceof TemplateError)) throw err;
         out = { kind: "failed", code: "TEMPLATE_ERROR" };
@@ -141,12 +152,23 @@ export async function sendDueEmails(
     log?: SendLog;
     /** Nguồn ngẫu nhiên ∈ [0, 1) cho jitter của lịch gửi lại (tiêm cho test); mặc định `Math.random`. */
     random?: () => number;
+    /** Ngân sách email/ngày/tổ chức (tiêm cho test); mặc định `EMAIL_DAILY_BUDGET_PER_ORG`. */
+    dailyBudget?: number;
   } = {},
 ): Promise<SendStats> {
   const now = opts.now ?? new Date();
   const log: SendLog = opts.log ?? (() => {});
   const random = opts.random ?? Math.random;
-  const stats: SendStats = { claimed: 0, sent: 0, retrying: 0, failed: 0, dead: 0, suppressed: 0, stale: 0 };
+  const stats: SendStats = {
+    claimed: 0,
+    sent: 0,
+    retrying: 0,
+    failed: 0,
+    dead: 0,
+    suppressed: 0,
+    stale: 0,
+    deferred: 0,
+  };
   const claimed = await sql<{ id: string; organization_id: string; attempts: number; locked_until: Date }>`
     select * from app.claim_due_deliveries(${now}, ${opts.limit ?? 50}, ${opts.perOrg ?? 10}, ${opts.lockSeconds ?? 120},
                                            ${MAX_ATTEMPTS})`.execute(workerDb);
@@ -170,6 +192,29 @@ export async function sendDueEmails(
     if (out.kind === "failed") {
       stats.failed += 1;
       log("notification.delivery_failed", { delivery_id: c.id, code: out.code });
+      continue;
+    }
+    // Ngân sách ngày (OPS-COST-004) — TRƯỚC khi gọi nhà cung cấp; lỗi đếm ⇒ ném lên (không gửi khi không đếm được; lần nhận hết khoá
+    // sẽ được nhận lại theo chờ lùi).
+    const budget = opts.dailyBudget ?? EMAIL_DAILY_BUDGET_PER_ORG;
+    const grant = await takeEmailBudget(workerDb, {
+      orgId: c.organization_id,
+      required: out.required,
+      now,
+      budget,
+    });
+    logEmailBudget(log, c.organization_id, grant, budget);
+    if (grant.decision !== "send") {
+      const deferred = await withTenantRetry(workerDb, { orgId: c.organization_id }, async (trx) => {
+        const r =
+          await sql`update notification_deliveries set status = 'retrying', attempts = attempts - 1, locked_until = null,
+                                   next_attempt_at = ${nextBudgetDayStart(now)}
+                            where organization_id = ${c.organization_id} and id = ${c.id} and status = 'sending'
+                              and locked_until = ${c.locked_until}`.execute(trx);
+        return Number(r.numAffectedRows ?? 0) > 0;
+      });
+      if (deferred) stats.deferred += 1;
+      else stats.stale += 1;
       continue;
     }
     let result: { providerMessageId: string } | null = null;

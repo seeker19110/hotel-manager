@@ -3,6 +3,7 @@
 //   token). So sánh thời gian hằng; sai/thiếu ⇒ 401 không nói gì thêm. Khi chạy thật: chặn thêm ở reverse proxy/mạng nội bộ.
 // - Số liệu chỉ tổng hợp toàn hệ thống (không nhãn tổ chức) — `app.metrics_snapshot`.
 import { hkdfSync, timingSafeEqual } from "node:crypto";
+import { EMAIL_DAILY_BUDGET_PER_ORG } from "@hm/domain";
 import { type Kysely, sql } from "kysely";
 import { httpMetrics } from "./http-metrics.ts";
 
@@ -49,6 +50,19 @@ const HELP: Readonly<Record<string, [type: "gauge" | "counter" | "histogram", he
   hm_db_multixact_age: ["gauge", "Tuổi multixact của CSDL, mxid_age(datminmxid) — cùng ngưỡng 2^31 như XID."],
   hm_db_dead_tuples: ["gauge", "Số hàng chết (n_dead_tup) theo bảng — chờ autovacuum dọn."],
   hm_db_dead_tuple_ratio: ["gauge", "Tỉ lệ hàng chết / (sống + chết) theo bảng, 0 khi bảng rỗng."],
+  // Ngân sách email ngày/tổ chức (T-709, OPS-COST-004; `app.email_budget_metrics` — migration 0063). Tổng hợp toàn hệ thống, không nhãn tổ chức.
+  hm_email_budget_used_ratio: [
+    "gauge",
+    "Tỉ lệ ngân sách email ngày (UTC) đã dùng của tổ chức dùng nhiều nhất (0…1; 0,8 cảnh báo, 0,9 bóp, 1 dừng).",
+  ],
+  hm_email_budget_throttled_total: [
+    "counter",
+    "Lần gửi email bị hoãn vì bóp ngân sách (≥ 90%, loại không bắt buộc); đếm theo hàng còn lưu (90 ngày).",
+  ],
+  hm_email_budget_stopped_total: [
+    "counter",
+    "Lần gửi email bị hoãn vì hết ngân sách ngày (100%); đếm theo hàng còn lưu (90 ngày).",
+  ],
   // HTTP (T-406, observability/http-metrics.ts): đo ở lớp handler, lưu trong bộ nhớ từng bản web.
   hm_http_requests_total: ["counter", "Số request HTTP theo mẫu route, method, status."],
   hm_http_request_duration_seconds: [
@@ -124,9 +138,14 @@ export async function collectMetrics(db: Kysely<unknown>, now: Date = new Date()
   const dead = await sql<{ n: string }>`select app.dead_letter_jobs()::text as n`.execute(db);
   // Hàm riêng (0051): kết nối đang mở, tuổi XID/multixact, hàng chết theo bảng — cảnh báo `HmDb*` (DB-PERF-004/008).
   const health = await sql<Row>`select name, labels, value from app.db_health_metrics()`.execute(db);
+  // Hàm riêng (0063): ngân sách email ngày/tổ chức — cảnh báo `HmEmailBudget*` (OPS-COST-004).
+  const budget =
+    await sql<Row>`select name, labels, value from app.email_budget_metrics(${now}, ${EMAIL_DAILY_BUDGET_PER_ORG})`.execute(
+      db,
+    );
   return [
     { name: "hm_up", value: 1 },
-    ...[...r.rows, ...rec.rows, ...health.rows].map((x) => ({
+    ...[...r.rows, ...rec.rows, ...health.rows, ...budget.rows].map((x) => ({
       name: x.name,
       labels: x.labels ?? {},
       value: Number(x.value),
