@@ -12,8 +12,11 @@ import {
   parseBlocks,
   parseColor,
   readCss,
+  resolveAliases,
   THRESHOLD,
   themes,
+  uncoveredUsage,
+  usageOf,
 } from "./contrast.mjs";
 
 const css = readCss();
@@ -79,6 +82,86 @@ describe("parseBlocks / themes", () => {
   });
   it("CSS rỗng → ném lỗi (không xanh giả)", () => {
     expect(() => themes("")).toThrow();
+  });
+});
+
+describe("khai báo token: dấu ; cuối, alias var()", () => {
+  it("khai báo cuối khối không có ; vẫn được đọc", () => {
+    expect(colorTokens("--c-a: #111111; --c-b: #222222").get("b")).toBe("#222222");
+    expect(colorTokens("--c-a: #111111;\n  --c-b: #222222\n").get("b")).toBe("#222222");
+  });
+  it("khối cuối thiếu ; không làm token biến mất khỏi phép đo", () => {
+    const src = ":root { --c-t: #000000; --c-b: #ffffff }";
+    const r = checkContrast(src, [{ fg: "t", bg: "b", kind: "text", use: "x" }], {});
+    expect(r.errors).toEqual([]);
+    expect(r.results[0].ratio).toBeCloseTo(21, 5);
+  });
+  it("giải alias var(--c-x), alias bắc cầu, dự phòng, vòng và token thiếu", () => {
+    const m = resolveAliases(
+      new Map([
+        ["a", "#111111"],
+        ["b", "var(--c-a)"],
+        ["c", "var(--c-b)"],
+        ["d", "var(--c-nothing, #abcdef)"],
+        ["e", "var(--c-nothing)"],
+        ["f", "var(--c-g)"],
+        ["g", "var(--c-f)"],
+      ]),
+    );
+    expect(m.get("b")).toBe("#111111");
+    expect(m.get("c")).toBe("#111111");
+    expect(m.get("d")).toBe("#abcdef");
+    expect(m.get("e")).toBe("var(--c-nothing)");
+    expect(m.get("f")).toMatch(/^var\(/);
+  });
+  it("alias được đo theo giá trị thật; alias hỏng → lỗi chứ không bỏ qua", () => {
+    const pair = [{ fg: "t", bg: "b", kind: "text", use: "x" }];
+    const ok = checkContrast(":root { --c-base: #000000; --c-t: var(--c-base); --c-b: #ffffff; }", pair, {
+      base: "gốc",
+    });
+    expect(ok.errors).toEqual([]);
+    expect(ok.results[0].ratio).toBeCloseTo(21, 5);
+    const bad = checkContrast(":root { --c-t: var(--c-nothing); --c-b: #ffffff; }", pair, {});
+    expect(bad.errors.join()).toMatch(/Không phân tích được/);
+  });
+});
+
+describe("cách dùng thật của token trong CSS phải được phủ bởi PAIRS", () => {
+  const css2 = `:root { --c-t: #000000; --c-bg: #ffffff; --c-r: #aa0000; }
+.badge { color: var(--c-t); background: var(--c-r); border: 1px solid var(--c-r); }
+.note { color: var(--c-r); }`;
+  it("usageOf lấy cặp chữ/nền cùng quy tắc, chữ kế thừa nền, viền/outline", () => {
+    const u = usageOf(css2);
+    expect(u.textPairs).toEqual([{ fg: "t", bg: "r", selector: ".badge" }]);
+    expect(u.textOnly).toEqual([{ fg: "r", selector: ".note" }]);
+    expect(u.ui).toEqual([{ fg: "r", selector: ".badge", prop: "border" }]);
+  });
+  it("cặp chưa khai → lỗi; khai đủ → sạch", () => {
+    const pairs = [{ fg: "t", bg: "bg", kind: "text", use: "x" }];
+    const errs = uncoveredUsage(css2, pairs, {}).join("\n");
+    expect(errs).toMatch(/--c-t trên nền --c-r chưa có/);
+    expect(errs).toMatch(/--c-r \(nền kế thừa\) chưa có/);
+    expect(errs).toMatch(/border dùng --c-r chưa có cặp UI/);
+    const full = [
+      { fg: "t", bg: "r", kind: "text", use: "x" },
+      { fg: "r", bg: "bg", kind: "text", use: "x" },
+      { fg: "r", bg: "bg", kind: "ui", use: "x" },
+    ];
+    expect(uncoveredUsage(css2, full, {})).toEqual([]);
+  });
+  it("token trong EXEMPT (trang trí) không đòi cặp", () => {
+    const src =
+      ":root { --c-sk: #eeeeee; } .sk { background: linear-gradient(90deg, var(--c-sk), var(--c-sk)); color: var(--c-sk); }";
+    expect(uncoveredUsage(src, [], { sk: "trang trí" })).toEqual([]);
+  });
+  it("globals.css thật: .bell__count (chữ trắng trên nền danger) được đo", () => {
+    expect(usageOf(css).textPairs).toContainEqual({
+      fg: "brand-contrast",
+      bg: "danger",
+      selector: ".bell__count",
+    });
+    expect(PAIRS.some((p) => p.fg === "brand-contrast" && p.bg === "danger" && p.kind === "text")).toBe(true);
+    expect(uncoveredUsage(css)).toEqual([]);
   });
 });
 

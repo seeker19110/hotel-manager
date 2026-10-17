@@ -35,6 +35,7 @@ export const PAIRS = [
   { fg: "danger", bg: "surface", kind: "text", use: ".field__error trong khối" },
   { fg: "danger", bg: "danger-bg", kind: "text", use: ".state--error" },
   { fg: "warn-text", bg: "warn-bg", kind: "text", use: ".banner--warn" },
+  { fg: "brand-contrast", bg: "danger", kind: "text", use: ".bell__count" },
   { fg: "ok", bg: "bg", kind: "text", use: ".command-form__status--ok" },
   { fg: "ok", bg: "surface", kind: "text", use: "trạng thái OK trong khối" },
   // thành phần UI và trạng thái (SC 1.4.11): viền điều khiển, viền lỗi, vòng focus, nút
@@ -99,7 +100,7 @@ export function parseBlocks(css, context = "") {
 /** Token `--c-*` khai trong thân khối: Map tên (không `--c-`) → giá trị chuỗi. */
 export function colorTokens(body) {
   const map = new Map();
-  for (const m of body.matchAll(/--c-([^\s:;{}]+)\s*:\s*([^;]+);/gi))
+  for (const m of body.matchAll(/--c-([^\s:;{}]+)\s*:\s*([^;]+)(?:;|$)/gi))
     map.set(m[1].toLowerCase(), m[2].trim());
   return map;
 }
@@ -113,12 +114,32 @@ export function themes(css) {
   const base = blocks.find((b) => b.context === "" && /^:root$/.test(b.selector));
   if (!base) throw new Error("Thiếu khối :root khai token --c-* trong globals.css");
   const baseTokens = colorTokens(base.body);
-  const out = [{ name: ":root", tokens: baseTokens }];
+  const out = [{ name: ":root", tokens: resolveAliases(baseTokens) }];
   for (const b of blocks) {
     if (b === base) continue;
     const name = `${b.context ? `${b.context} ` : ""}${b.selector}`.trim();
-    out.push({ name, tokens: new Map([...baseTokens, ...colorTokens(b.body)]) });
+    out.push({ name, tokens: resolveAliases(new Map([...baseTokens, ...colorTokens(b.body)])) });
   }
+  return out;
+}
+
+/**
+ * Giải alias `--c-a: var(--c-b)` (kể cả `var(--c-b, #fff)` — dùng dự phòng khi `--c-b` không có) thành giá trị màu thật.
+ * Vòng alias hoặc alias tới token không tồn tại (không dự phòng) giữ nguyên chuỗi `var(...)` → `parseColor` ném lỗi, test đỏ.
+ */
+export function resolveAliases(tokens) {
+  const out = new Map();
+  const resolve = (name, seen) => {
+    const raw = tokens.get(name);
+    if (raw === undefined) return undefined;
+    const m = /^var\(\s*--c-([^\s,)]+)\s*(?:,\s*(.+?))?\s*\)$/i.exec(raw);
+    if (!m) return raw;
+    const target = m[1].toLowerCase();
+    if (seen.has(target)) return raw; // vòng alias
+    const v = resolve(target, new Set([...seen, target]));
+    return v ?? m[2] ?? raw;
+  };
+  for (const name of tokens.keys()) out.set(name, resolve(name, new Set([name])));
   return out;
 }
 
@@ -170,7 +191,7 @@ export function contrastRatio(fg, bg) {
  */
 export function checkContrast(css, pairs = PAIRS, exempt = EXEMPT) {
   const results = [];
-  const errors = [];
+  const errors = [...uncoveredUsage(css, pairs, exempt)];
   for (const theme of themes(css)) {
     const used = new Set(Object.keys(exempt));
     for (const p of pairs) {
@@ -197,6 +218,58 @@ export function checkContrast(css, pairs = PAIRS, exempt = EXEMPT) {
         errors.push(`[${theme.name}] token --c-${name} không thuộc cặp nào (khai vào PAIRS hoặc EXEMPT)`);
   }
   return { results, errors };
+}
+
+const TOKEN_REF = /var\(\s*--c-([^\s,)]+)/g;
+const declsOf = (body) =>
+  [...body.matchAll(/([a-z-]+)\s*:\s*([^;]+)(?:;|$)/gi)].map((m) => ({
+    prop: m[1].toLowerCase(),
+    value: m[2],
+  }));
+const refs = (value) => [...value.matchAll(TOKEN_REF)].map((m) => m[1].toLowerCase());
+
+/**
+ * Cách `globals.css` THỰC SỰ dùng token (khác :root): trong cùng một quy tắc, `color: var(--c-X)` + `background[-color]:
+ * var(--c-Y)` → cặp chữ X/Y; `color` không kèm nền → X phải được đo trên nền trang (`bg`); `border*`/`outline*` dùng token →
+ * phải có cặp UI. Trả {textPairs, textOnly, ui}.
+ */
+export function usageOf(css) {
+  const textPairs = [];
+  const textOnly = [];
+  const ui = [];
+  for (const b of parseBlocks(css)) {
+    if (/^:root\b/.test(b.selector) || colorTokens(b.body).size > 0) continue;
+    const ds = declsOf(b.body);
+    const fg = ds.filter((d) => d.prop === "color").flatMap((d) => refs(d.value));
+    const bg = ds
+      .filter((d) => d.prop === "background" || d.prop === "background-color")
+      .flatMap((d) => refs(d.value));
+    for (const f of fg) {
+      if (bg.length === 0) textOnly.push({ fg: f, selector: b.selector });
+      for (const g of bg) textPairs.push({ fg: f, bg: g, selector: b.selector });
+    }
+    for (const d of ds)
+      if (/^(?:border|outline)(?:-[a-z]+)*$/.test(d.prop))
+        for (const f of refs(d.value)) ui.push({ fg: f, selector: b.selector, prop: d.prop });
+  }
+  return { textPairs, textOnly, ui };
+}
+
+/** Cách dùng thật mà `pairs` chưa phủ: danh sách lỗi (chuỗi). Token trong `exempt` được bỏ qua. */
+export function uncoveredUsage(css, pairs = PAIRS, exempt = EXEMPT) {
+  const { textPairs, textOnly, ui } = usageOf(css);
+  const errors = [];
+  const has = (f, g, kind) => pairs.some((p) => p.fg === f && p.bg === g && p.kind === kind);
+  for (const u of textPairs)
+    if (!exempt[u.fg] && !exempt[u.bg] && !has(u.fg, u.bg, "text"))
+      errors.push(`${u.selector}: chữ --c-${u.fg} trên nền --c-${u.bg} chưa có trong PAIRS`);
+  for (const u of textOnly)
+    if (!exempt[u.fg] && !has(u.fg, "bg", "text"))
+      errors.push(`${u.selector}: chữ --c-${u.fg} (nền kế thừa) chưa có cặp chữ với --c-bg trong PAIRS`);
+  for (const u of ui)
+    if (!exempt[u.fg] && !pairs.some((p) => p.fg === u.fg && p.kind === "ui"))
+      errors.push(`${u.selector}: ${u.prop} dùng --c-${u.fg} chưa có cặp UI trong PAIRS`);
+  return [...new Set(errors)];
 }
 
 export const readCss = () => readFileSync(CSS_FILE, "utf8");
