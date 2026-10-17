@@ -8,8 +8,7 @@ import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/actor.ts";
 import { assertPropertyInOrg } from "../access/scope.ts";
 import { type ApprovalRow, registerApprovalExecutor, requestApproval } from "../approvals/approvals.ts";
-import type { CommandContext } from "../pipeline/command.ts";
-import { CommandError } from "../pipeline/problem.ts";
+import { type CommandContext, CommandError } from "../pipeline/index.ts";
 import { postEntry } from "./ledger.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

@@ -9,8 +9,7 @@ import { sql, type Transaction } from "kysely";
 import { type ApprovalRow, registerApprovalExecutor, requestApproval } from "../approvals/approvals.ts";
 import { postEntry } from "../ledger/ledger.ts";
 import { customerCredit, lockPerson, type ManualBankTxn, recordPayment } from "../payments/payments.ts";
-import type { CommandContext } from "../pipeline/command.ts";
-import { CommandError } from "../pipeline/problem.ts";
+import { type CommandContext, CommandError } from "../pipeline/index.ts";
 import { openShiftOf } from "../shifts/shifts.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

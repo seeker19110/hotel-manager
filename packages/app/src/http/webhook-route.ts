@@ -5,7 +5,7 @@ import { kibToBytes } from "@hm/domain";
 import type { Kysely } from "kysely";
 import { z } from "zod";
 import { ingestBankEvent, parseWebhookSecrets, verifySimSignature } from "../ledger/bank-inbox.ts";
-import { toProblem } from "../pipeline/problem.ts";
+import { toProblem } from "../pipeline/index.ts";
 import { correlationOf, json, problemResponse, simpleProblem, validationProblem } from "./command-route.ts";
 
 export interface WebhookDeps {

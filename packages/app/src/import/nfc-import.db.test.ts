@@ -8,10 +8,10 @@ import { z } from "zod";
 import type { Actor } from "../access/actor.ts";
 import { ObjectStorage } from "../files/storage.ts";
 import { type CommandDef, type HttpDeps, handleCommand } from "../http/command-route.ts";
+import { handleImportUpload } from "../http/import-upload.ts";
 import { normalizeUploadName } from "../http/normalize.ts";
 import { testServices } from "../server/services.ts";
 import { okAs, ownerOf, seedMember } from "../testing/helpers.ts";
-import { handleImportUpload } from "./http.ts";
 import { validateBatch } from "./import.ts";
 
 let t: TestDb;

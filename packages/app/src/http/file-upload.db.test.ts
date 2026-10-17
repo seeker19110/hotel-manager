@@ -12,11 +12,11 @@ import {
 } from "@hm/testkit";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { HttpDeps } from "../http/command-route.ts";
+import { MAX_FILE_BYTES } from "../files/files.ts";
+import { ObjectStorage } from "../files/storage.ts";
 import { testServices } from "../server/services.ts";
-import { MAX_FILE_BYTES } from "./files.ts";
-import { handleFileUpload } from "./http.ts";
-import { ObjectStorage } from "./storage.ts";
+import type { HttpDeps } from "./command-route.ts";
+import { handleFileUpload } from "./file-upload.ts";
 
 let t: TestDb;
 let A: SeededOrg;

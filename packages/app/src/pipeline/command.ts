@@ -3,7 +3,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { withTenant } from "@hm/db";
 import { type Kysely, sql, type Transaction } from "kysely";
-import type { Actor } from "../access/actor.ts";
+import type { Actor } from "../actor-core/index.ts";
 import { redact } from "../logging/logger.ts";
 import { appLogger } from "../logging/runtime.ts";
 import {

@@ -8,8 +8,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { authorize } from "@hm/domain";
 import { type Kysely, sql } from "kysely";
 import { emitSecurity, type SecurityClient, type SecurityEventName } from "../logging/security-events.ts";
-import type { CommandContext } from "../pipeline/command.ts";
-import { CommandError, rateLimited } from "../pipeline/problem.ts";
+import { type CommandContext, CommandError, rateLimited } from "../pipeline/index.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TOKEN = /^[A-Za-z0-9_-]{43}$/;

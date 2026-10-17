@@ -1,7 +1,7 @@
 // Bộ lọc/id của truy vấn phải THUỘC tổ chức của người gọi (D-030): id lạ → 404 NOT_FOUND như mọi chỗ khác (không "200 rỗng",
 // người dùng không nhầm "không có dữ liệu" với "sai cơ sở"). `authorize` chỉ kiểm phạm vi cơ sở của actor, không kiểm tồn tại.
 import { type Kysely, sql, type Transaction } from "kysely";
-import { CommandError } from "../pipeline/problem.ts";
+import { CommandError } from "../pipeline/index.ts";
 
 type Db = Kysely<unknown> | Transaction<unknown>;
 

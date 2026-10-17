@@ -7,9 +7,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Actor } from "../access/actor.ts";
 import { ObjectStorage } from "../files/storage.ts";
 import type { HttpDeps } from "../http/command-route.ts";
+import { handleImportUpload } from "../http/import-upload.ts";
 import { testServices } from "../server/services.ts";
 import { okAs, ownerOf, seedMember } from "../testing/helpers.ts";
-import { handleImportUpload } from "./http.ts";
 import { cancelBatch } from "./import.ts";
 import { IMPORT_ROW_RETENTION_DAYS, runRetention } from "./retention.ts";
 

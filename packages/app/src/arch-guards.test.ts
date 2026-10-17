@@ -3,6 +3,7 @@
 //   · tên ADR `NNNN-slug` không trùng/hở số (ARC-ADR-002)
 //   · packages/domain không import hạ tầng I/O (ARC-MOD-003)
 //   · không vòng phụ thuộc MỚI giữa thư mục module của packages/app (ARC-MOD-004) — ratchet theo arch-guards.baseline.json
+//   · module của packages/app chỉ import module khác qua điểm công khai `<module>/index.ts` (ARC-MOD-005) — ratchet theo cùng tệp nền
 //   · không dùng định dạng thời gian theo locale/toString ở mã chạy (BASE-DATA-006)
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, join, relative, resolve } from "node:path";
@@ -298,7 +299,9 @@ describe("arch-guards — không vòng phụ thuộc mới giữa module package
   const files = productTs(APP_SRC);
   const edges = moduleEdges(files, APP_SRC);
   const current = cyclicEdges([...edges.keys()]);
-  const base = baseline.canh_trong_vong;
+  // JSON rỗng suy ra kiểu never[]/{} — ép về kiểu thật của nền.
+  const base: string[] = baseline.canh_trong_vong;
+  const reasons: Record<string, string> = baseline.vong;
 
   it("đồ thị có đủ module (bảo đảm quét không rỗng)", () => {
     expect(edges.size).toBeGreaterThan(80);
@@ -316,9 +319,9 @@ describe("arch-guards — không vòng phụ thuộc mới giữa module package
     expect(base.filter((e) => !current.includes(e))).toEqual([]);
   });
 
-  it("nền được ghi chú lý do cho từng nhóm vòng", () => {
-    expect(Object.keys(baseline.vong).length).toBeGreaterThan(0);
-    for (const reason of Object.values(baseline.vong)) expect(reason.length).toBeGreaterThan(40);
+  it("nền được ghi chú lý do cho từng nhóm vòng (nền rỗng ⇒ không còn nhóm nào)", () => {
+    expect(Object.keys(reasons).length > 0).toBe(base.length > 0);
+    for (const reason of Object.values(reasons)) expect(reason.length).toBeGreaterThan(40);
   });
 
   it("thuật toán: nhận ra vòng 2 nút, vòng gián tiếp, bỏ qua cạnh một chiều", () => {
@@ -326,6 +329,70 @@ describe("arch-guards — không vòng phụ thuộc mới giữa module package
     expect(cyclicEdges(["a->b", "b->c", "c->a", "c->d"])).toEqual(["a->b", "b->c", "c->a"]);
     expect(cyclicEdges(["a->b", "b->c"])).toEqual([]);
     expect(cyclicEdges([])).toEqual([]);
+  });
+});
+
+// ───────────────────────── biên module công khai (ARC-MOD-005) ─────────────────────────
+
+/**
+ * Điểm công khai của một module = `<module>/index.ts`. Tệp khác của module chỉ được import trong chính module đó.
+ * Cạnh vi phạm = 'module nguồn->module đích/tệp' (ví dụ `lease->ledger/ledger.ts`). Tệp ở gốc src (vd. `index.ts` của `@hm/app`)
+ * không thuộc module nào nên được import tự do.
+ */
+function deepImportEdges(files: string[], srcDir: string): Map<string, Set<string>> {
+  const edges = new Map<string, Set<string>>();
+  for (const f of files) {
+    const from = relative(srcDir, f).split("/");
+    if (from.length < 2) continue;
+    for (const spec of importSpecifiers(readFileSync(f, "utf8"))) {
+      if (!spec.startsWith(".")) continue;
+      const to = relative(srcDir, resolve(dirname(f), spec)).split("/");
+      if (to[0]?.startsWith("..") || to.length < 2 || to[0] === from[0]) continue;
+      if (to.length === 2 && to[1] === "index.ts") continue;
+      const key = `${from[0]}->${to.join("/")}`;
+      if (!edges.has(key)) edges.set(key, new Set());
+      edges.get(key)?.add(relative(srcDir, f));
+    }
+  }
+  return edges;
+}
+
+describe("arch-guards — module chỉ import module khác qua index.ts (ARC-MOD-005, ratchet)", () => {
+  const files = productTs(APP_SRC);
+  const edges = deepImportEdges(files, APP_SRC);
+  const current = [...edges.keys()].sort();
+  const base = Object.entries(baseline.import_noi_bo).flatMap(([from, targets]) =>
+    targets.map((t) => `${from}->${t}`),
+  );
+
+  it("quét được các import chéo module (không rỗng)", () => {
+    expect(current.length).toBeGreaterThan(50);
+  });
+
+  it("không có import nội bộ mới ngoài danh sách nền (đi qua index.ts của module đích, KHÔNG thêm vào nền)", () => {
+    const added = current.filter((e) => !base.includes(e));
+    expect(
+      added.map((e) => `${e} (${[...(edges.get(e) ?? [])].slice(0, 3).join(", ")})`),
+      "import tệp nội bộ của module khác",
+    ).toEqual([]);
+  });
+
+  it("danh sách nền không có mục thừa (đã chuyển sang index.ts thì xoá khỏi nền — ratchet chỉ co lại)", () => {
+    expect(base.filter((e) => !current.includes(e))).toEqual([]);
+  });
+
+  it("nền được sắp xếp và không trùng (diff gọn, dễ review)", () => {
+    for (const targets of Object.values(baseline.import_noi_bo))
+      expect(targets).toEqual([...new Set(targets)].sort());
+    expect(Object.keys(baseline.import_noi_bo)).toEqual(Object.keys(baseline.import_noi_bo).sort());
+  });
+
+  it("module đã có index.ts thì module khác không còn import tệp nội bộ của nó (đã gỡ hết)", () => {
+    for (const mod of ["actor-core", "pipeline"])
+      expect(
+        current.filter((e) => e.split("->")[1]?.startsWith(`${mod}/`)),
+        `${mod} có index.ts — import qua index.ts`,
+      ).toEqual([]);
   });
 });
 

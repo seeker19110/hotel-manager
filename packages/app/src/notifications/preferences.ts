@@ -11,8 +11,7 @@ import { authorize, daysToMs, epochSeconds, secondsToMs } from "@hm/domain";
 import { type Kysely, sql } from "kysely";
 import type { Actor } from "../access/actor.ts";
 import { assertPersonInOrg, assertPropertyInOrg } from "../access/scope.ts";
-import type { CommandContext } from "../pipeline/command.ts";
-import { CommandError } from "../pipeline/problem.ts";
+import { type CommandContext, CommandError } from "../pipeline/index.ts";
 import {
   type DeliveryStatus,
   deliveryStatusLabel,

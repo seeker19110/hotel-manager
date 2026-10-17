@@ -8,8 +8,7 @@ import { randomUUID } from "node:crypto";
 import { type Action, authorize, authorizeRequest } from "@hm/domain";
 import { sql } from "kysely";
 import type { Actor } from "../access/actor.ts";
-import type { CommandContext } from "../pipeline/command.ts";
-import { CommandError } from "../pipeline/problem.ts";
+import { type CommandContext, CommandError } from "../pipeline/index.ts";
 
 export const APPROVAL_KINDS = [
   "deposit_deduction",

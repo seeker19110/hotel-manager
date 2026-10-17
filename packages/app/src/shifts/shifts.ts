@@ -7,8 +7,7 @@
 import { randomUUID } from "node:crypto";
 import { authorize } from "@hm/domain";
 import { sql, type Transaction } from "kysely";
-import type { CommandContext } from "../pipeline/command.ts";
-import { CommandError } from "../pipeline/problem.ts";
+import { type CommandContext, CommandError } from "../pipeline/index.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

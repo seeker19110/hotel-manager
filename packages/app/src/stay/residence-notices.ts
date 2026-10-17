@@ -16,8 +16,7 @@ import {
 } from "../files/files.ts";
 import { revealDocNumber } from "../identity/identity.ts";
 import { writeXlsx } from "../import/xlsx.ts";
-import type { CommandContext } from "../pipeline/command.ts";
-import { CommandError } from "../pipeline/problem.ts";
+import { type CommandContext, CommandError } from "../pipeline/index.ts";
 import type { AppServices } from "../server/services.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

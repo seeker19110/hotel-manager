@@ -30,8 +30,7 @@ import { commitGeneratedFile, prepareGeneratedFile } from "../files/files.ts";
 import { MAX_SIGNED_URL_SECONDS, type ObjectStorage } from "../files/storage.ts";
 import { writeXlsx, zipStore } from "../import/xlsx.ts";
 import { createNotification } from "../notifications/dispatch.ts";
-import type { CommandContext } from "../pipeline/command.ts";
-import { CommandError, rateLimited } from "../pipeline/problem.ts";
+import { type CommandContext, CommandError, rateLimited } from "../pipeline/index.ts";
 import {
   collections,
   depositsHeld,

@@ -1,7 +1,7 @@
 // Lỗi nghiệp vụ → application/problem+json (RFC 9457) theo API-CONTRACT §2.
 import { AuthzError, TransitionError } from "@hm/domain";
 import type { Transaction } from "kysely";
-import { AccessError } from "../access/actor.ts";
+import { AccessError } from "../actor-core/index.ts";
 
 export interface Problem {
   type: string;

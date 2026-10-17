@@ -21,9 +21,10 @@ Miền theo ranh giới của ADR-0001 (kế hoạch §11); cột "Tầng" dùng
 | Thư mục | Miền | Tầng | Vai trò |
 |---|---|---|---|
 | `access` | Access | B | Xác định người thao tác (`resolveActor`), ngữ cảnh tổ chức, khôi phục MFA |
-| `pipeline` | Access | B | Command pipeline: idempotency, quyền, audit + outbox cùng transaction, lỗi → problem+json |
+| `pipeline` | Access | B | Command pipeline: idempotency, quyền, audit + outbox cùng transaction, lỗi → problem+json (điểm công khai `index.ts`) |
 | `identity` | Access | C | Giấy tờ nhận dạng: mã hoá AES-256-GCM, blind index, che hiển thị |
 | `approvals` | Access | C | Yêu cầu duyệt có hạn mức, cấm tự duyệt |
+| `actor-core` | Access | A | Kiểu `Actor`/`Role` và `AccessError` thuần (không I/O) cho cả `access` và `pipeline`; tách ra để hai module không import vòng (điểm công khai `index.ts`) |
 | `auth` | Nền | A | Better Auth (email/mật khẩu, TOTP, OTP người thuê), khoá tài khoản |
 | `inventory` | Property & Inventory | C | Lịch tài nguyên, allocation, hold, block, phòng và đơn vị |
 | `rental` | Lease | C | Truy vấn chỉ đọc cho giao diện nhà trọ (RLS quyết định phạm vi) |
@@ -53,7 +54,7 @@ Miền theo ranh giới của ADR-0001 (kế hoạch §11); cột "Tầng" dùng
 | `config` | Nền | A | Schema biến môi trường, cấu hình worker |
 | `db` | Nền | A | Pool kết nối Postgres có trần thời gian |
 | `server` | Nền | E | Ngữ cảnh server (composition root): nối auth, db, storage, scanner |
-| `http` | Cổng HTTP | F | Lớp HTTP không phụ thuộc Next: registry command/query, OpenAPI, bảo mật header/CSRF, webhook |
+| `http` | Cổng HTTP | F | Lớp HTTP không phụ thuộc Next: lõi route (`command-route`), registry command/query, OpenAPI, bảo mật header/CSRF, webhook, route adapter của module (tải file, tải import, huỷ đăng ký email, khách xem lưu trú) |
 | `testing` | Kiểm thử | F | Helper test dùng chung trong packages/app (không vào bundle sản phẩm) |
 | `privacy` | Kiểm thử | A | Chỉ có test đối chiếu data-map ↔ catalog CSDL |
 | `tenancy` | Kiểm thử | A | Chỉ có test cách ly tenant (RLS) |
@@ -63,7 +64,7 @@ Tầng từ thấp lên cao: **A** nền · **B** lõi lệnh · **C** miền đ
 
 - Một thư mục chỉ import thư mục **cùng tầng hoặc thấp hơn**. Ví dụ `ledger` (D) được import `approvals` (C) nhưng không được import `stay` (E).
 - Import cùng tầng được phép nhưng không được tạo vòng mới (rào ARC-MOD-004 ở `arch-guards.test.ts`, nền ratchet `arch-guards.baseline.json`).
-- Hiện còn hai nhóm vòng đã biết (nợ kỹ thuật, task T-409 gỡ): `access` ↔ `pipeline`; `http` ↔ (`exports`, `files`, `import`, `notifications`, `portal`, `server`, `stay`). Các cạnh này nằm ngoài rào thứ tự tầng cho tới khi gỡ.
+- Không còn vòng phụ thuộc nền (T-409): `access` ↔ `pipeline` được gỡ bằng `actor-core` (tầng A, `access/actor.ts` xuất lại kiểu để đường import cũ vẫn dùng); `http` ↔ (`exports`, `files`, `import`, `notifications`, `portal`, `server`, `stay`) được gỡ bằng cách chuyển route adapter (`file-upload`, `import-upload`, `unsubscribe`, `guest-stay`) từ thư mục miền vào `http/` — module miền không còn import `http`. Nền `canh_trong_vong` ở `arch-guards.baseline.json` rỗng; vòng mới là test đỏ ngay.
 - Chỉ `http` (F) được biết mọi miền (registry command/query); `server` (E) là nơi duy nhất ráp `auth`, `db`, kho file và máy quét thành ngữ cảnh.
 - Thư mục mới ở `packages/app/src` phải thêm một dòng ở bảng 2 (chọn miền và tầng) trong cùng PR; test sẽ đỏ nếu thiếu.
-- Biên module công khai qua `index.ts` từng thư mục (ADR-0001) chưa có; hiện `packages/app/src/index.ts` xuất lại hàm công khai cho `apps/*`. Thêm biên này là việc của T-409 (ARC-MOD-005).
+- Biên module công khai (ARC-MOD-005): module chỉ import module khác qua `<module>/index.ts`. Hiện `actor-core` và `pipeline` đã có `index.ts` và không còn ai import tệp nội bộ của chúng. Các module còn lại chưa có `index.ts`: nền ratchet `import_noi_bo` ở `arch-guards.baseline.json` ghi 132 cạnh 'module nguồn → tệp nội bộ module đích' (nền cũ trước khi thêm `pipeline/index.ts` là 182); cạnh mới → `arch-guards.test.ts` đỏ, cạnh đã chuyển sang `index.ts` mà còn trong nền → test đòi xoá. `packages/app/src/index.ts` (gốc `@hm/app`) xuất lại hàm công khai cho `apps/*` và không thuộc module nào.

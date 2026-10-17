@@ -46,7 +46,6 @@ export {
   listMyExports,
   runExportJob,
 } from "./exports/exports.ts";
-export { handleFileUpload } from "./files/http.ts";
 export { ObjectStorage, StorageError } from "./files/storage.ts";
 export {
   getTask as getHousekeepingTask,
@@ -61,10 +60,13 @@ export {
   handleQuery,
   type QueryDef,
 } from "./http/command-route.ts";
+export { handleFileUpload } from "./http/file-upload.ts";
+export { handleGuestStay } from "./http/guest-stay.ts";
+export { handleImportUpload } from "./http/import-upload.ts";
 export { COMMANDS, findCommand, findQuery, QUERIES } from "./http/registry.ts";
 export { DEFAULT_RETRY_AFTER_SECONDS, retryAfterSeconds, withRetryAfter } from "./http/retry-after.ts";
+export { handleUnsubscribe } from "./http/unsubscribe.ts";
 export { handleWebhook, type WebhookDeps } from "./http/webhook-route.ts";
-export { handleImportUpload } from "./import/http.ts";
 export { IMPORT_ROW_RETENTION_DAYS, type RetentionStats, runRetention } from "./import/retention.ts";
 export { listRooms, type PropertyRooms, type RoomRow } from "./inventory/rooms.ts";
 export { DEFAULT_REMINDER_DAYS, detectOverstay, remindExpiring } from "./lease/jobs.ts";
@@ -93,7 +95,6 @@ export {
   type EmailSender,
   FakeEmailSender,
 } from "./notifications/email.ts";
-export { handleUnsubscribe } from "./notifications/http.ts";
 export {
   listMyNotifications,
   type NotificationItem,
@@ -128,7 +129,6 @@ export {
 } from "./outbox/payloads.ts";
 export { getCommandResult } from "./pipeline/command.ts";
 export { CommandError } from "./pipeline/problem.ts";
-export { handleGuestStay } from "./portal/guest-http.ts";
 export {
   getMyInvoice,
   getMyLease,

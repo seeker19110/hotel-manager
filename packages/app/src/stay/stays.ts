@@ -17,8 +17,7 @@ import { sql, type Transaction } from "kysely";
 import type { PiiCipher } from "../crypto/pii.ts";
 import { type DocType, recordIdentityDocument } from "../identity/identity.ts";
 import { confirmHold, createHold } from "../inventory/inventory.ts";
-import type { CommandContext } from "../pipeline/command.ts";
-import { CommandError } from "../pipeline/problem.ts";
+import { type CommandContext, CommandError } from "../pipeline/index.ts";
 import { assertCapacity, loadRates, quoteProblem, staySettings } from "./rates.ts";
 import { readReservation, resolveBooker } from "./reservations.ts";
 

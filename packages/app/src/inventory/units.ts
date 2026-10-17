@@ -3,8 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { authorize } from "@hm/domain";
 import { sql } from "kysely";
-import type { CommandContext } from "../pipeline/command.ts";
-import { fieldError } from "../pipeline/problem.ts";
+import { type CommandContext, fieldError } from "../pipeline/index.ts";
 
 export async function createUnit(
   ctx: CommandContext,

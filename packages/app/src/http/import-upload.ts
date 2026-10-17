@@ -5,8 +5,9 @@
 
 import { createHash } from "node:crypto";
 import { kibToBytes } from "@hm/domain";
-import { readCapped } from "../files/http.ts";
 import { settle, unwrap } from "../files/staging.ts";
+import { IMPORT_LIMITS, prepareBatchUpload, uploadBatch } from "../import/import.ts";
+import { executeCommand, toProblem } from "../pipeline/index.ts";
 import {
   actorFromRequest,
   correlationOf,
@@ -14,11 +15,9 @@ import {
   json,
   problemResponse,
   simpleProblem,
-} from "../http/command-route.ts";
-import { normalizeUploadName } from "../http/normalize.ts";
-import { executeCommand } from "../pipeline/command.ts";
-import { toProblem } from "../pipeline/problem.ts";
-import { IMPORT_LIMITS, prepareBatchUpload, uploadBatch } from "./import.ts";
+} from "./command-route.ts";
+import { readCapped } from "./file-upload.ts";
+import { normalizeUploadName } from "./normalize.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Phần đầu multipart (ranh giới, header từng phần, các trường chữ) được phép ngoài dung lượng file. */

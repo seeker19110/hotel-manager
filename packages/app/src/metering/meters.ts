@@ -6,8 +6,7 @@ import { withTenant } from "@hm/db";
 import { authorize, decimalSub, hasMaxDecimals } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/actor.ts";
-import type { CommandContext } from "../pipeline/command.ts";
-import { CommandError, fieldError } from "../pipeline/problem.ts";
+import { type CommandContext, CommandError, fieldError } from "../pipeline/index.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;

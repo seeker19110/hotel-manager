@@ -9,8 +9,7 @@ import type { Actor } from "../access/actor.ts";
 import { assertPropertyInOrg } from "../access/scope.ts";
 import type { FileDeps } from "../files/files.ts";
 import { createWorkOrder, type Severity } from "../maintenance/work-orders.ts";
-import type { CommandContext } from "../pipeline/command.ts";
-import { CommandError } from "../pipeline/problem.ts";
+import { type CommandContext, CommandError } from "../pipeline/index.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PHOTO_URL_SECONDS = 300;

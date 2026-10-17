@@ -23,8 +23,7 @@ import {
   confirmPayment,
   recordPayment,
 } from "../payments/payments.ts";
-import type { CommandContext } from "../pipeline/command.ts";
-import { CommandError } from "../pipeline/problem.ts";
+import { type CommandContext, CommandError } from "../pipeline/index.ts";
 import { candidateInvoices, loadBankTxn, suggestFor } from "./matching.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

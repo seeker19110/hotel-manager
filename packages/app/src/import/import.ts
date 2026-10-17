@@ -34,8 +34,13 @@ import { activateLease, clearImportReadingsPending, recordImportHandover } from 
 import { createDraft, createPerson, signLease, submitForSignature } from "../lease/lease.ts";
 import { recordOpeningDebt, recordOpeningDeposit } from "../ledger/opening-balance.ts";
 import { importReading } from "../metering/meters.ts";
-import { type CommandContext, canonicalJson } from "../pipeline/command.ts";
-import { CommandError, fieldError, toProblem } from "../pipeline/problem.ts";
+import {
+  type CommandContext,
+  CommandError,
+  canonicalJson,
+  fieldError,
+  toProblem,
+} from "../pipeline/index.ts";
 import { readXlsx, writeXlsx, XlsxError } from "./xlsx.ts";
 
 /** Đề xuất SPEC-import mục 10 (chờ PO): 5 MB / 5.000 dòng; ô ≤ 500 ký tự. */

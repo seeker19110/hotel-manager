@@ -6,8 +6,7 @@ import { withTenant } from "@hm/db";
 import { authorize, TransitionError } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/actor.ts";
-import type { CommandContext } from "../pipeline/command.ts";
-import { CommandError } from "../pipeline/problem.ts";
+import { type CommandContext, CommandError } from "../pipeline/index.ts";
 
 export type TaskSource = "stay" | "move" | "work_order" | "lease" | "manual";
 

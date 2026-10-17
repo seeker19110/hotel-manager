@@ -13,7 +13,7 @@ import { createHash } from "node:crypto";
 import { withTenant } from "@hm/db";
 import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/actor.ts";
-import { CommandError } from "../pipeline/problem.ts";
+import { CommandError } from "../pipeline/index.ts";
 
 /** Hạn (ngày, giờ VN) của dòng staging — dư để lượt quét/ghi chậm hoặc replay không bị job hạn giữ xoá giữa chừng. */
 export const STAGING_TTL_DAYS = 2;
@@ -154,4 +154,4 @@ export async function finalizeStaged(
 }
 
 /** Chạy bước prepare ngoài transaction và giữ kết quả/lỗi để ném lại TRONG handler (giữ ghi `failed` + audit `denied`). */
-export { type Settled, settle, unwrap } from "../pipeline/settled.ts";
+export { type Settled, settle, unwrap } from "../pipeline/index.ts";

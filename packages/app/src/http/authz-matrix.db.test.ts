@@ -904,8 +904,8 @@ describe("BE-API-009 — route không guard = danh sách công khai đã duyệt
       ["packages/app/src/http/command-route.ts", "handleCommand"],
       ["packages/app/src/http/command-route.ts", "handleQuery"],
       ["packages/app/src/http/command-route.ts", "handleCommandStatus"],
-      ["packages/app/src/files/http.ts", "handleFileUpload"],
-      ["packages/app/src/import/http.ts", "handleImportUpload"],
+      ["packages/app/src/http/file-upload.ts", "handleFileUpload"],
+      ["packages/app/src/http/import-upload.ts", "handleImportUpload"],
     ] as const) {
       const src = body(file);
       const fnBody = (decl: string) => {
@@ -924,8 +924,8 @@ describe("BE-API-009 — route không guard = danh sách công khai đã duyệt
   });
 
   it("không phiên → upload/trạng thái lệnh 401 (gọi hàm xử lý thật)", async () => {
-    const { handleFileUpload } = await import("../files/http.ts");
-    const { handleImportUpload } = await import("../import/http.ts");
+    const { handleFileUpload } = await import("./file-upload.ts");
+    const { handleImportUpload } = await import("./import-upload.ts");
     const { handleCommandStatus } = await import("./command-route.ts");
     for (const res of [
       await handleFileUpload(
@@ -943,8 +943,8 @@ describe("BE-API-009 — route không guard = danh sách công khai đã duyệt
 
   it("route công khai tự bảo vệ: metrics thiếu token → 401; huỷ đăng ký/khách với token sai → không 2xx", async () => {
     const { handleMetrics } = await import("../observability/metrics.ts");
-    const { handleUnsubscribe } = await import("../notifications/http.ts");
-    const { handleGuestStay } = await import("../portal/guest-http.ts");
+    const { handleUnsubscribe } = await import("./unsubscribe.ts");
+    const { handleGuestStay } = await import("./guest-stay.ts");
     expect(
       (await handleMetrics(new Request("http://local.test/m"), { db: t.runtime, secret: "s".repeat(40) }))
         .status,

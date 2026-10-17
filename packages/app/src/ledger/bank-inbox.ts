@@ -12,8 +12,7 @@ import {
   WEBHOOK_SECRET_MAX_COUNT,
   WEBHOOK_SECRET_MIN_LENGTH,
 } from "../config/webhook-secrets.ts";
-import { canonicalJson } from "../pipeline/command.ts";
-import { CommandError } from "../pipeline/problem.ts";
+import { CommandError, canonicalJson } from "../pipeline/index.ts";
 
 export { parseWebhookSecrets, WEBHOOK_SECRET_MAX_COUNT, WEBHOOK_SECRET_MIN_LENGTH };
 

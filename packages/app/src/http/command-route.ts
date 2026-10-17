@@ -14,9 +14,15 @@ import {
   securityEventForProblem,
 } from "../logging/security-events.ts";
 import { observeHttp } from "../observability/http-metrics.ts";
-import { type CommandContext, executeCommand, getCommandResult } from "../pipeline/command.ts";
-import { type Problem, toProblem } from "../pipeline/problem.ts";
-import { settle, unwrap } from "../pipeline/settled.ts";
+import {
+  type CommandContext,
+  executeCommand,
+  getCommandResult,
+  type Problem,
+  settle,
+  toProblem,
+  unwrap,
+} from "../pipeline/index.ts";
 import type { AppServices } from "../server/services.ts";
 import { nfcDeep } from "./normalize.ts";
 import { retryAfterSeconds } from "./retry-after.ts";
