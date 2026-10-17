@@ -42,6 +42,8 @@ export interface HttpDeps {
   onUnexpectedError?(err: unknown, correlationId: string): void;
   /** Hạn mức lệnh mới/phút/tổ chức (T-401); bỏ trống = `COMMAND_QUOTA_PER_MINUTE`. Chỉ test đặt khác. */
   commandQuotaPerMinute?: number;
+  /** Hạn mức lệnh mới/phút/thành viên; bỏ trống = `COMMAND_MEMBER_QUOTA_PER_MINUTE`. Chỉ test đặt khác. */
+  commandMemberQuotaPerMinute?: number;
 }
 
 export interface CommandDef<I, O, P = undefined> {
@@ -284,6 +286,9 @@ async function runCommand<I, O, P>(
         correlationId,
         client: requestClient(req.headers),
         ...(deps.commandQuotaPerMinute ? { quotaPerMinute: deps.commandQuotaPerMinute } : {}),
+        ...(deps.commandMemberQuotaPerMinute
+          ? { memberQuotaPerMinute: deps.commandMemberQuotaPerMinute }
+          : {}),
       },
       (ctx) => def.run(ctx, input, deps.services, (prep ? unwrap(prep) : undefined) as P),
     );

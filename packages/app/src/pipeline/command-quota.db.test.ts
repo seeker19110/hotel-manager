@@ -6,8 +6,9 @@ import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Actor } from "../access/actor.ts";
 import { problemResponse } from "../http/command-route.ts";
-import { ownerOf } from "../testing/helpers.ts";
-import { COMMAND_QUOTA_PER_MINUTE, executeCommand } from "./command.ts";
+import { ownerOf, seedMember } from "../testing/helpers.ts";
+import { COMMAND_MEMBER_QUOTA_PER_MINUTE, COMMAND_QUOTA_PER_MINUTE, executeCommand } from "./command.ts";
+import { CommandError } from "./problem.ts";
 
 let t: TestDb;
 let A: SeededOrg;
@@ -17,7 +18,16 @@ let ownerB: Actor;
 
 const noop = async () => ({ data: { ok: true } });
 
-function run(actor: Actor, quotaPerMinute: number, key = randomUUID()) {
+const forbidden = async (): Promise<{ data: { ok: boolean } }> => {
+  throw new CommandError("FORBIDDEN", 403, "Không đủ quyền");
+};
+
+function run(
+  actor: Actor,
+  quotaPerMinute: number,
+  key = randomUUID(),
+  opts: { memberQuotaPerMinute?: number; handler?: typeof noop } = {},
+) {
   return executeCommand(
     t.runtime,
     actor,
@@ -27,8 +37,9 @@ function run(actor: Actor, quotaPerMinute: number, key = randomUUID()) {
       payload: { k: key },
       correlationId: "c-quota",
       quotaPerMinute,
+      ...(opts.memberQuotaPerMinute === undefined ? {} : { memberQuotaPerMinute: opts.memberQuotaPerMinute }),
     },
-    noop,
+    opts.handler ?? noop,
   );
 }
 
@@ -106,5 +117,60 @@ describe("quota lệnh theo tổ chức", () => {
     if (over.status !== "failed") return;
     expect(over.problem.retry_after).toBeGreaterThanOrEqual(13);
     expect(over.problem.retry_after).toBeLessThanOrEqual(16);
+  });
+
+  it("hạn mức theo thành viên nhỏ hơn hạn mức tổ chức", () => {
+    expect(COMMAND_MEMBER_QUOTA_PER_MINUTE).toBeGreaterThanOrEqual(30);
+    expect(COMMAND_MEMBER_QUOTA_PER_MINUTE).toBeLessThan(COMMAND_QUOTA_PER_MINUTE);
+  });
+});
+
+describe("một thành viên không làm cạn hạn mức của cả tổ chức (review đợt 5 🟠1)", () => {
+  it("thành viên gửi hàng loạt lệnh bị 403 ⇒ lệnh lỗi KHÔNG tính vào hạn mức tổ chức ⇒ owner vẫn ghi được", async () => {
+    const org = await seedOrg(t.admin, "Quota C");
+    const owner = await ownerOf(t, org);
+    const bad = await seedMember(t, org, "front_desk");
+    for (let i = 0; i < 8; i++) {
+      const r = await run(bad, 5, randomUUID(), { handler: forbidden });
+      expect(r).toMatchObject({ status: "failed", httpStatus: 403 }); // 403 thật, không phải 429 của tổ chức
+    }
+    for (let i = 0; i < 5; i++) expect((await run(owner, 5)).status).toBe("committed");
+    expect(await run(owner, 5)).toMatchObject({ status: "failed", httpStatus: 429 }); // lệnh THÀNH CÔNG vẫn tính
+  });
+
+  it("hạn mức theo thành viên: kẻ spam bị 429 của riêng mình (kể cả lệnh lỗi), kiểm trước hạn mức tổ chức; người khác không bị ảnh hưởng", async () => {
+    const org = await seedOrg(t.admin, "Quota D");
+    const owner = await ownerOf(t, org);
+    const bad = await seedMember(t, org, "front_desk");
+    for (let i = 0; i < 3; i++)
+      expect(
+        await run(bad, 1000, randomUUID(), { memberQuotaPerMinute: 3, handler: forbidden }),
+      ).toMatchObject({
+        httpStatus: 403,
+      });
+    const over = await run(bad, 1000, randomUUID(), { memberQuotaPerMinute: 3, handler: forbidden });
+    expect(over).toMatchObject({ status: "failed", httpStatus: 429 });
+    if (over.status === "failed") {
+      expect(over.problem.code).toBe("RATE_LIMITED");
+      expect(over.problem.retry_after).toBeGreaterThanOrEqual(1);
+    }
+    expect((await run(owner, 1000, randomUUID(), { memberQuotaPerMinute: 3 })).status).toBe("committed");
+  });
+
+  it("replay key cũ (> 60 s) khi hạn mức đã cạn vẫn nhận lại kết quả cũ, không bị 429 (🟢4)", async () => {
+    const org = await seedOrg(t.admin, "Quota E");
+    const owner = await ownerOf(t, org);
+    const key = randomUUID();
+    expect((await run(owner, 3, key)).status).toBe("committed");
+    await sql`update idempotency_keys set created_at = now() - interval '2 minutes', expires_at = now() + interval '7 days'
+              where organization_id = ${org.orgId}`.execute(t.admin); // key cũ rời cửa sổ 60 s
+    for (let i = 0; i < 3; i++) expect((await run(owner, 3)).status).toBe("committed"); // cạn hạn mức tổ chức
+    expect((await run(owner, 3)).status).toBe("failed"); // lệnh MỚI bị chặn…
+    expect(await run(owner, 3, key)).toMatchObject({ status: "committed", replayed: true }); // …replay thì không
+    // …cũng không bị hạn mức thành viên chặn.
+    expect(await run(owner, 3, key, { memberQuotaPerMinute: 1 })).toMatchObject({
+      status: "committed",
+      replayed: true,
+    });
   });
 });

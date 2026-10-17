@@ -179,6 +179,7 @@ beforeAll(async () => {
     services: testServices(),
     // Ma trận gọi hàng trăm lệnh vào CÙNG tổ chức trong < 1 phút — nới hạn mức T-401 (đã có test riêng `command-quota`).
     commandQuotaPerMinute: 100_000,
+    commandMemberQuotaPerMinute: 100_000,
   };
   for (const role of LOW_ROLES) userOf[role] = (await seedMember(t, A, role)).authUserId;
   outsider = await seedAuthUser(t.admin, `ngoai+${randomUUID().slice(0, 6)}@example.test`);
@@ -661,22 +662,69 @@ describe("BASE-SEC-001 — trường lạ → 422 ở MỌI lệnh/truy vấn", 
     expect(bad).toEqual([]);
   });
 
-  it("đầu vào xấu: sai kiểu, null, chuỗi quá dài, Unicode lạ ở trường đầu tiên → 4xx có kiểm soát (không 5xx)", async () => {
+  it("đầu vào xấu: sai kiểu, null, chuỗi quá dài, Unicode lạ ở trường đầu tiên → 4xx có kiểm soát (không 2xx, không 5xx)", async () => {
     const bad: string[] = [];
+    let trials = 0;
     for (const e of ENTRIES) {
       const base = bodyFor(e, idsA);
       const first = Object.keys(base)[0];
       if (!first) continue;
       for (const evil of [null, 12345, { a: 1 }, "x".repeat(20_000), "‮\u0000💩", [] as unknown[]]) {
         const r = await call(e, ownerA(), { ...base, [first]: evil });
-        if (
-          r.status >= 500 ||
-          (r.status >= 200 && r.status < 300 && e.kind === "command" && evil === null && false)
-        )
+        trials++;
+        if (r.status >= 500 || (r.status >= 200 && r.status < 300))
           bad.push(`${e.name}.${first}=${JSON.stringify(evil)?.slice(0, 20)}: ${r.status}`);
       }
     }
     expect(bad).toEqual([]);
+    expect(trials).toBeGreaterThan(300); // vòng lặp không rỗng
+  });
+
+  it("quan hệ sai giữa các trường (kết thúc < bắt đầu) → 4xx có kiểm soát: không 2xx, không 5xx", async () => {
+    // Cặp (đầu, cuối) cùng nằm trong một đầu vào; giá trị cuối được đặt SỚM hơn giá trị đầu.
+    const PAIRS: [string, string][] = [
+      ["from", "to"],
+      ["arrival_date", "departure_date"],
+      ["start", "end"],
+      ["effective_from", "effective_to"],
+    ];
+    const FORMS = [
+      { early: "2000-01-01", late: "2030-01-01" },
+      { early: "2000-01-01T00:00:00Z", late: "2030-01-01T00:00:00Z" },
+    ];
+    const bad: string[] = [];
+    const exercised: string[] = [];
+    for (const e of ENTRIES) {
+      const keys = Object.keys(((e.def.input as unknown as { shape?: object }).shape ?? {}) as object);
+      for (const withOptionalIds of [false, true]) {
+        const base = bodyFor(e, idsA, withOptionalIds);
+        for (const [a, b] of PAIRS) {
+          if (!keys.includes(a) || !keys.includes(b)) continue; // kể cả trường tuỳ chọn mà đầu vào mẫu bỏ qua
+          // Dạng ngày hay thời điểm: chọn dạng mà đầu vào ĐÚNG THỨ TỰ qua được schema.
+          const form = FORMS.find(
+            (f) => e.def.input.safeParse({ ...base, [a]: f.early, [b]: f.late }).success,
+          );
+          if (!form) continue;
+          exercised.push(`${e.name}.${a}/${b}`);
+          const r = await call(e, ownerA(), { ...base, [a]: form.late, [b]: form.early });
+          if (r.status < 400 || r.status >= 500) bad.push(`${e.name}.${a}>${b}: ${r.status} ${r.code}`);
+        }
+      }
+    }
+    // Điều khoản hợp đồng lồng (`terms.effective_from/effective_to`).
+    for (const e of ENTRIES) {
+      const base = bodyFor(e, idsA);
+      const terms = base.terms as Record<string, unknown> | undefined;
+      if (!terms || typeof terms !== "object" || !("effective_from" in terms)) continue;
+      exercised.push(`${e.name}.terms`);
+      const r = await call(e, ownerA(), {
+        ...base,
+        terms: { ...terms, effective_from: "2030-01-01", effective_to: "2000-01-01" },
+      });
+      if (r.status < 400 || r.status >= 500) bad.push(`${e.name}.terms: ${r.status} ${r.code}`);
+    }
+    expect(bad).toEqual([]);
+    expect(exercised.length).toBeGreaterThanOrEqual(8); // không vô hiệu hoá âm thầm khi registry đổi
   });
 });
 

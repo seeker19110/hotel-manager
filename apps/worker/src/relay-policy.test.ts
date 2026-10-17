@@ -6,11 +6,11 @@ import { DEAD_LETTER_RETENTION_SECONDS, DEFAULT_QUEUE_POLICY, isPermanentJobErro
 describe("isPermanentJobError", () => {
   it("payload sai và lỗi nghiệp vụ 4xx là vĩnh viễn", () => {
     expect(isPermanentJobError(new InvalidJobPayloadError("x", "sai"))).toBe(true);
-    for (const status of [400, 401, 403, 404, 409, 410, 413, 422])
+    for (const status of [400, 401, 403, 404, 410, 413, 422])
       expect(isPermanentJobError(new CommandError("X", status, "m")), String(status)).toBe(true);
   });
-  it("lỗi tạm (5xx, 408, 429, lỗi mạng/không có mã, giá trị lạ) ⇒ được retry", () => {
-    for (const status of [408, 429, 500, 502, 503, 504])
+  it("lỗi tạm (5xx, 408, 409 tranh chấp/VERSION_CONFLICT, 429, lỗi mạng/không có mã, giá trị lạ) ⇒ được retry", () => {
+    for (const status of [408, 409, 429, 500, 502, 503, 504])
       expect(isPermanentJobError(new CommandError("X", status, "m")), String(status)).toBe(false);
     expect(isPermanentJobError(new Error("ECONNRESET"))).toBe(false);
     expect(isPermanentJobError(Object.assign(new Error("x"), { status: "404" }))).toBe(false);

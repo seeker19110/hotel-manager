@@ -91,13 +91,21 @@ export async function ensureQueues(
   }
 }
 
-/** `true` khi chạy lại không khỏi: payload sai schema, hoặc lỗi nghiệp vụ 4xx (trừ 408/429 là lỗi tạm). */
+/**
+ * `true` khi chạy lại không khỏi: payload sai schema, hoặc lỗi nghiệp vụ 4xx — trừ 408/429 (quá hạn/giới hạn tần suất) và 409
+ * (VERSION_CONFLICT/tranh chấp ghi tạm thời: lần chạy sau đọc lại phiên bản mới nên có thể thành công ⇒ retry theo backoff).
+ */
 export function isPermanentJobError(err: unknown): boolean {
   if (typeof err !== "object" || err === null) return false;
   const e = err as { permanent?: unknown; status?: unknown };
   if (e.permanent === true) return true;
   return (
-    typeof e.status === "number" && e.status >= 400 && e.status < 500 && e.status !== 408 && e.status !== 429
+    typeof e.status === "number" &&
+    e.status >= 400 &&
+    e.status < 500 &&
+    e.status !== 408 &&
+    e.status !== 409 &&
+    e.status !== 429
   );
 }
 

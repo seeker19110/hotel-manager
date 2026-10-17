@@ -22,11 +22,22 @@ const MAX_ATTEMPTS = 3;
 /**
  * Hạn mức lệnh ghi theo TỔ CHỨC (IND-SAAS-008): tối đa chừng này lệnh MỚI (Idempotency-Key chưa từng thấy) trong 60 giây
  * trượt; vượt ⇒ 429 RATE_LIMITED + `Retry-After`, KHÔNG lưu kết quả (gửi lại cùng key sau khi hết giới hạn chạy bình thường).
- * Một tổ chức bão hoà hạn mức không chiếm tài nguyên của tổ chức khác. Đếm ngay trong CSDL (`idempotency_keys`, mỗi lệnh một
- * hàng, kể cả lệnh lỗi) nên đúng khi nhiều instance. 600/phút ≈ 10 lệnh/giây — gấp nhiều lần mức thao tác tay của một
- * khách sạn nhỏ, chỉ chặn script/lỗi vòng lặp. Cố định theo mã (không biến môi trường); sau này theo gói thì đổi nguồn của hằng này.
+ * Một tổ chức bão hoà hạn mức không chiếm tài nguyên của tổ chức khác. Đếm ngay trong CSDL (`idempotency_keys`) nên đúng khi
+ * nhiều instance. 600/phút ≈ 10 lệnh/giây — gấp nhiều lần mức thao tác tay của một khách sạn nhỏ, chỉ chặn script/lỗi vòng
+ * lặp. Cố định theo mã (không biến môi trường); sau này theo gói thì đổi nguồn của hằng này.
+ *
+ * Chỉ lệnh `committed`/`in_progress` tính vào hạn mức TỔ CHỨC: lệnh bị từ chối (401/403/404/409/422… — kết quả `failed`) do
+ * chính người gửi tự gây ra, không được phép làm cạn hạn mức của cả tổ chức (một người thuê/nhân viên spam lệnh 403 không
+ * chặn được owner ghi). Lệnh lỗi vẫn tính vào hạn mức THÀNH VIÊN bên dưới. (5xx không để lại hàng: transaction rollback.)
  */
 export const COMMAND_QUOTA_PER_MINUTE = 600;
+/**
+ * Hạn mức lệnh ghi theo THÀNH VIÊN (kể cả người thuê): mọi lệnh MỚI của một thành viên (cả lệnh bị từ chối), 60 giây trượt;
+ * kiểm TRƯỚC hạn mức tổ chức nên kẻ spam chỉ tự chặn mình. Nhỏ hơn hạn mức tổ chức (200/phút ≈ 3 lệnh/giây — vượt xa thao
+ * tác tay của một người). Khoá đếm là `actor_person_id` của `idempotency_keys`; mỗi thành viên có đúng một person trong tổ chức
+ * (`uq_memberships_person`) nên tương đương theo `membershipId`.
+ */
+export const COMMAND_MEMBER_QUOTA_PER_MINUTE = 200;
 const QUOTA_WINDOW_SECONDS = 60;
 
 export interface AuditInput {
@@ -81,6 +92,8 @@ export interface CommandRequest {
   client?: SecurityClient;
   /** Ghi đè hạn mức lệnh/phút/tổ chức (test); mặc định `COMMAND_QUOTA_PER_MINUTE`. */
   quotaPerMinute?: number;
+  /** Ghi đè hạn mức lệnh/phút/thành viên (test); mặc định `COMMAND_MEMBER_QUOTA_PER_MINUTE`. */
+  memberQuotaPerMinute?: number;
 }
 
 /** JSON chuẩn hoá (khoá sắp xếp) để băm payload ổn định. */
@@ -147,32 +160,60 @@ async function auditRow(
   );
 }
 
+interface QuotaLimits {
+  org: number;
+  member: number;
+}
+
 /**
- * Số giây phải đợi nếu tổ chức đã dùng hết hạn mức lệnh trong 60 giây gần nhất (0 = còn hạn mức). Lệnh gửi lại với key đã
- * có (replay) không tốn hạn mức nên không bị chặn.
+ * Số giây phải đợi nếu thành viên (kiểm trước) hoặc tổ chức đã dùng hết hạn mức lệnh trong 60 giây gần nhất (0 = còn hạn
+ * mức) + phạm vi bị chặn. Lệnh gửi lại với key đã có (replay, ở BẤT KỲ độ cũ nào — `idempotency_keys` giữ 7 ngày) không tốn
+ * hạn mức nên không bao giờ bị chặn.
  */
-async function quotaWaitSeconds(
+async function quotaWait(
   db: Kysely<unknown>,
   actor: Actor,
   commandId: string,
-  limit: number,
-): Promise<number> {
+  limits: QuotaLimits,
+): Promise<{ wait: number; scope: "member" | "org" } | null> {
   return withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
-    const r = await sql<{ n: number; replay: boolean }>`
-      select count(*)::int as n, coalesce(bool_or(key = ${commandId}), false) as replay
-      from idempotency_keys
-      where organization_id = ${actor.orgId}
-        and created_at > now() - make_interval(secs => ${QUOTA_WINDOW_SECONDS})`.execute(trx);
-    const { n, replay } = r.rows[0] ?? { n: 0, replay: false };
-    if (n < limit || replay) return 0;
-    // Hàng thứ (n - limit + 1) từ cũ nhất rời cửa sổ ⇒ còn limit - 1 hàng ⇒ lệnh mới vào được.
-    const edge = await sql<{ wait: number }>`
-      select ceil(extract(epoch from created_at + make_interval(secs => ${QUOTA_WINDOW_SECONDS}) - now()))::int as wait
-      from idempotency_keys
-      where organization_id = ${actor.orgId}
-        and created_at > now() - make_interval(secs => ${QUOTA_WINDOW_SECONDS})
-      order by created_at offset ${n - limit} limit 1`.execute(trx);
-    return Math.max(1, edge.rows[0]?.wait ?? QUOTA_WINDOW_SECONDS);
+    const window = sql`created_at > now() - make_interval(secs => ${QUOTA_WINDOW_SECONDS})`;
+    const r = await sql<{ replay: boolean; member_n: number; org_n: number }>`
+      select exists (select 1 from idempotency_keys where organization_id = ${actor.orgId} and key = ${commandId}) as replay,
+             (select count(*)::int from idempotency_keys
+               where organization_id = ${actor.orgId} and actor_person_id = ${actor.personId} and ${window}) as member_n,
+             (select count(*)::int from idempotency_keys
+               where organization_id = ${actor.orgId} and status in ('committed', 'in_progress') and ${window}) as org_n`.execute(
+      trx,
+    );
+    const { replay, member_n, org_n } = r.rows[0] ?? { replay: false, member_n: 0, org_n: 0 };
+    if (replay) return null;
+    // Thành viên TRƯỚC tổ chức: kẻ spam bị chặn bằng hạn mức riêng của mình.
+    const scopes = [
+      {
+        scope: "member" as const,
+        n: member_n,
+        limit: limits.member,
+        filter: sql`actor_person_id = ${actor.personId}`,
+      },
+      {
+        scope: "org" as const,
+        n: org_n,
+        limit: limits.org,
+        filter: sql`status in ('committed', 'in_progress')`,
+      },
+    ];
+    for (const { scope, n, limit, filter } of scopes) {
+      if (n < limit) continue;
+      // Hàng thứ (n - limit + 1) từ cũ nhất rời cửa sổ ⇒ còn limit - 1 hàng ⇒ lệnh mới vào được.
+      const edge = await sql<{ wait: number }>`
+        select ceil(extract(epoch from created_at + make_interval(secs => ${QUOTA_WINDOW_SECONDS}) - now()))::int as wait
+        from idempotency_keys
+        where organization_id = ${actor.orgId} and ${filter} and ${window}
+        order by created_at offset ${n - limit} limit 1`.execute(trx);
+      return { wait: Math.max(1, edge.rows[0]?.wait ?? QUOTA_WINDOW_SECONDS), scope };
+    }
+    return null;
   });
 }
 
@@ -189,11 +230,19 @@ export async function executeCommand<T>(
   const hash = hashPayload(req.command, req.payload);
   const ids = { commandId, correlationId: req.correlationId };
 
-  const wait = await quotaWaitSeconds(db, actor, commandId, req.quotaPerMinute ?? COMMAND_QUOTA_PER_MINUTE);
-  if (wait > 0) {
+  const blocked = await quotaWait(db, actor, commandId, {
+    org: req.quotaPerMinute ?? COMMAND_QUOTA_PER_MINUTE,
+    member: req.memberQuotaPerMinute ?? COMMAND_MEMBER_QUOTA_PER_MINUTE,
+  });
+  if (blocked) {
     // 429 không lưu vào idempotency_keys: retry cùng key sau Retry-After phải chạy được, không dính kết quả lỗi cũ.
     const problem = toProblem(
-      rateLimited("Tổ chức gửi quá nhiều thao tác trong một phút. Vui lòng thử lại sau.", wait),
+      rateLimited(
+        blocked.scope === "member"
+          ? "Bạn gửi quá nhiều thao tác trong một phút. Vui lòng thử lại sau."
+          : "Tổ chức gửi quá nhiều thao tác trong một phút. Vui lòng thử lại sau.",
+        blocked.wait,
+      ),
       req.correlationId,
     );
     emitSecurity({
