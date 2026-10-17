@@ -230,3 +230,24 @@
 - Chọn: node:crypto argon2 dựng sẵn (Node ≥ 24.7; dự án ghim 24.22) + tự mã hoá chuỗi PHC $argon2id$v=19$m=19456,t=2,p=1$… và so sánh timingSafeEqual; băm scrypt cũ verify bằng hàm mặc định của Better Auth rồi băm lại khi đăng nhập
 - Lý do (tiêu chí chất lượng cuối): (1) an toàn chuỗi cung ứng: không thêm binary native/install script của bên thứ ba vào luồng xác thực; crypto.argon2 có trong Node 24 LTS, docs không đánh dấu experimental (nguồn nodejs.org/docs/latest-v24.x, 2026-10-16). Tham số OWASP m=19456 KiB, t=2, p=1 (cheatsheet, 2026-10-16). Phần tự viết chỉ là mã hoá/giải mã PHC + so sánh hằng thời gian — nhỏ, test được bằng vector. (3) ít phụ thuộc. Phương án 2 hợp lệ nếu crypto.argon2 có vấn đề.
 - Đường lùi: Đổi hàm hash/verify sang @node-rs/argon2 (cùng định dạng PHC nên băm đã lưu vẫn verify được).
+
+### D-034 · 2026-10-17T02:23:29+00:00 · BE-API-008/ARC-INT-002: cùng Idempotency-Key khác payload hiện trả 409 IDEMPOTENCY_CONFLICT; chuẩn khung và draft IETF httpapi-idempotency-key-header đòi 422
+
+- Phương án: (1) Đổi sang 422 (giữ code IDEMPOTENCY_CONFLICT), cập nhật API-CONTRACT/OpenAPI/test; client xử lý theo code nên không vỡ · (2) Giữ 409, miễn trừ BE-API-008 có lý do
+- Chọn: Đổi sang 422 (giữ code IDEMPOTENCY_CONFLICT), cập nhật API-CONTRACT/OpenAPI/test; client xử lý theo code nên không vỡ
+- Lý do (tiêu chí chất lượng cuối): (3) theo chuẩn: draft IETF (httpapi-idempotency-key-header) ghi 422 khi tái dùng khoá với payload khác (chưa xác minh lại bản mới nhất — ghi nguồn khi sửa); use-command.ts xử lý theo code IDEMPOTENCY_CONFLICT chứ không theo status nên không vỡ client; chưa có client ngoài.
+- Đường lùi: Đổi lại status 409 ở một chỗ (pipeline/problem.ts).
+
+### D-035 · 2026-10-17T02:23:29+00:00 · DB-MODEL-004: ~240 FK mặc định NO ACTION (không ghi hành động) + 74 FK thiếu index trong nền — làm tường minh thế nào?
+
+- Phương án: (1) Migration mới: đổi FK NO ACTION không DEFERRABLE sang ON DELETE RESTRICT (cùng ngữ nghĩa khi không trì hoãn); FK DEFERRABLE giữ NO ACTION + ghi danh sách ngoại lệ có lý do trong rào; thêm index cho FK còn thiếu trừ nhóm có lý do (cột người thao tác bảng ít xoá) — rào ratchet về 0 hoặc ngoại lệ tường minh · (2) Miễn trừ DB-MODEL-004 · (3) Viết lại toàn bộ FK kể cả DEFERRABLE thành RESTRICT
+- Chọn: Migration mới: đổi FK NO ACTION không DEFERRABLE sang ON DELETE RESTRICT (cùng ngữ nghĩa khi không trì hoãn); FK DEFERRABLE giữ NO ACTION + ghi danh sách ngoại lệ có lý do trong rào; thêm index cho FK còn thiếu trừ nhóm có lý do (cột người thao tác bảng ít xoá) — rào ratchet về 0 hoặc ngoại lệ tường minh
+- Lý do (tiêu chí chất lượng cuối): (1) đúng: RESTRICT và NO ACTION chỉ khác khi FK trì hoãn được — đổi phần không trì hoãn giữ nguyên hành vi, làm hành động tường minh trong catalog; phương án 3 phá FK DEFERRABLE đang dựa vào kiểm cuối transaction. (3) kiểm máy được bằng catalog.
+- Đường lùi: Down của migration đổi lại NO ACTION (danh sách sinh từ catalog lúc up), drop index đã thêm.
+
+### D-036 · 2026-10-17T02:24:00+00:00 · Đợt 6: 26 MUST còn thiếu làm được trong repo — làm hết hay dừng?
+
+- Phương án: (1) Làm hết trong 8 task T-501…T-508 (cùng luật D-023) · (2) Dừng, bàn giao 26 mục
+- Chọn: Làm hết trong 8 task T-501…T-508 (cùng luật D-023)
+- Lý do (tiêu chí chất lượng cuối): (1) đúng/an toàn: gồm rào transaction, retry có jitter, FK tường minh, sự kiện bảo mật còn thiếu — lỗi tiềm ẩn thật; (3) mỗi mục có Gate máy; ngân sách còn (vòng 33/130).
+- Đường lùi: Mỗi task một commit; revert theo task.
