@@ -9,7 +9,12 @@ export {
   getCalendar,
   searchAvailability,
 } from "./calendar.ts";
-export { openException, openRelocationForNextBooking, recordWorkerExceptionOpened } from "./exceptions.ts";
+export {
+  openException,
+  openRelocationForNextBooking,
+  recordWorkerExceptionOpened,
+  resolveOverstayExceptions,
+} from "./exceptions.ts";
 export {
   approveBlock,
   assertNoOpenOverstay,

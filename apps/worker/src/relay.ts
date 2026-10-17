@@ -43,6 +43,7 @@ export const AUDIT_ONLY_EVENT_TYPES: ReadonlySet<string> = new Set([
   "block.ended",
   "block.requested",
   "exception.opened",
+  "exception.resolved",
   "housekeeping.task_created",
   "housekeeping.task_done",
   "housekeeping.task_verified",

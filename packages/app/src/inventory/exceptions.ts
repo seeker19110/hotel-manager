@@ -4,6 +4,7 @@
 import { randomUUID } from "node:crypto";
 import { sql, type Transaction } from "kysely";
 import { currentTraceparent } from "../logging/index.ts";
+import type { CommandContext } from "../pipeline/index.ts";
 
 export type ExceptionType = "LEASE_OVERSTAY" | "STAY_OVERSTAY" | "RELOCATION_REQUIRED" | "EXTENSION_CONFLICT";
 
@@ -99,4 +100,41 @@ export async function openRelocationForNextBooking(
     relatedAllocationId: a.overstayAllocationId,
   });
   return e.created ? [{ id: e.id, allocationId: target.id }] : [];
+}
+
+/**
+ * Đóng ngoại lệ quá hạn khi người ở thực sự đã trả phòng (check-out muộn, bàn giao trả hợp đồng): `STAY_OVERSTAY`/`LEASE_OVERSTAY`
+ * trên allocation đó và `RELOCATION_REQUIRED` do chính nó gây ra (`related_allocation_id`). Allocation quá hạn vẫn `active` (giữ lịch
+ * sử, không kéo dài hồi tố) nên nếu không đóng ngoại lệ thì phòng bị chặn `ROOM_OCCUPIED` mãi. Mỗi ngoại lệ đóng ghi audit +
+ * outbox `exception.resolved` cùng transaction của lệnh gọi; không có ngoại lệ mở thì không làm gì. Trả id ngoại lệ vừa đóng.
+ */
+export async function resolveOverstayExceptions(
+  ctx: CommandContext,
+  a: { allocationId: string; propertyId: string; resolution: string },
+): Promise<string[]> {
+  const r = await sql<{ id: string; type: ExceptionType }>`
+    update exceptions set status = 'resolved', resolution = ${a.resolution}, resolved_by = ${ctx.actor.membershipId},
+                          resolved_at = now(), version = version + 1
+    where organization_id = ${ctx.actor.orgId} and status = 'open'
+      and ((allocation_id = ${a.allocationId} and type in ('STAY_OVERSTAY', 'LEASE_OVERSTAY'))
+           or (related_allocation_id = ${a.allocationId} and type = 'RELOCATION_REQUIRED'))
+    returning id, type`.execute(ctx.trx);
+  for (const e of r.rows) {
+    await ctx.audit({
+      action: "exception.resolved",
+      entityType: "exception",
+      entityId: e.id,
+      propertyId: a.propertyId,
+      after: { type: e.type, resolution: a.resolution, allocation_id: a.allocationId },
+    });
+    await ctx.emit({
+      eventType: "exception.resolved",
+      aggregateType: "exception",
+      aggregateId: e.id,
+      propertyId: a.propertyId,
+      dedupeKey: `exception.resolved:${e.id}`,
+      payload: { exception_id: e.id, type: e.type, resolution: a.resolution },
+    });
+  }
+  return r.rows.map((e) => e.id);
 }

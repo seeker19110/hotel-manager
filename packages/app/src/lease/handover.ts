@@ -4,7 +4,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { hasMaxDecimals } from "@hm/domain";
 import { sql } from "kysely";
-import { assertNoOpenOverstay } from "../inventory/index.ts";
+import { assertNoOpenOverstay, resolveOverstayExceptions } from "../inventory/index.ts";
 import { type CommandContext, CommandError, canonicalJson, fieldError } from "../pipeline/index.ts";
 import {
   type LeaseStatus,
@@ -193,6 +193,14 @@ export async function recordHandover(
     // Trả phòng: hợp đồng sang `settling`, ghi ngày thực trả (mốc thứ tư, S-017); allocation kết thúc khi đóng hợp đồng.
     await sql`update leases set status = 'settling', moved_out_on = ${input.handedOverOn}::date, version = version + 1
               where organization_id = ${ctx.actor.orgId} and id = ${lease.id}`.execute(ctx.trx);
+    // Người thuê đã trả phòng: đóng LEASE_OVERSTAY (và RELOCATION_REQUIRED do nó gây ra) để phòng hết bị chặn ROOM_OCCUPIED.
+    for (const al of await leaseAllocations(ctx, lease.id))
+      if (al.active && al.kind === "lease")
+        await resolveOverstayExceptions(ctx, {
+          allocationId: al.id,
+          propertyId: lease.property_id,
+          resolution: "moved_out",
+        });
   }
   const readingIds: string[] = [];
   for (const m of meters.rows) {
