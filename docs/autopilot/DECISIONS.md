@@ -416,3 +416,10 @@
 - Lý do (tiêu chí chất lượng cuối): (1) an toàn chi phí: trần cứng đúng tiêu chí mục; ngân sách là chi phí hệ thống theo tổ chức (nhiều cơ sở khác múi giờ) nên dùng UTC như rate_limit_hit; (2) đường lùi: đổi hằng/hàm một chỗ
 - Đường lùi: Đổi hằng EMAIL_BUDGET_PER_ORG_PER_DAY hoặc cho account_security vượt trần trong app.email_budget_take
 - Khi chạy thật (đề xuất, chủ dự án quyết ở G7): Chủ dự án xác nhận trần/ngày theo gói và có cho thư bảo mật tài khoản vượt trần không; OTP người thuê chưa qua ngân sách (chờ adapter SMTP thật, D-010)
+
+### D-059 · 2026-10-17T23:46:44+00:00 · Đợt 9: phạm vi sau khi chủ dự án duyệt sửa CI/file cổng và thêm công cụ kiểm (trả lời 'Duyệt CI + công cụ', 2026-10-17)
+
+- Phương án: (1) 67 mục MUST 'một phần' cần CI/file cổng/công cụ, chia 7 lát theo chủ đề (pr-policy+lịch sử, chuỗi cung ứng, quét bảo mật, frontend perf/test, chất lượng test, API/vận hành, phát hành/DX); bỏ 4 mục cần biến môi trường mới và 19 mục pháp lý · (2) Chỉ các mục sửa workflow, chưa thêm công cụ
+- Chọn: 67 mục MUST 'một phần' cần CI/file cổng/công cụ, chia 7 lát theo chủ đề (pr-policy+lịch sử, chuỗi cung ứng, quét bảo mật, frontend perf/test, chất lượng test, API/vận hành, phát hành/DX); bỏ 4 mục cần biến môi trường mới và 19 mục pháp lý
+- Lý do (tiêu chí chất lượng cuối): (1) đúng phạm vi người duyệt; (3) mỗi lát một PR có test/CI chứng minh; công cụ chọn tự host, giấy phép OSI, action ghim SHA (ci-check); phụ thuộc mới theo license-policy.json
+- Đường lùi: Revert PR của lát tương ứng; cấu hình cổng trở về bản trước
