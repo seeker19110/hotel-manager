@@ -1,17 +1,17 @@
 # PROGRESS.md — Hotel Manager
 
-> Giai đoạn hiện tại: G5→G6 (autopilot đợt 4 xong mã, chờ merge từng lát) · Cập nhật: 2026-10-16 · Nhánh: lát 3 `claude/gallant-shannon-2uccvp` (PR #10); lát 4–6 cục bộ `wip/portal` → `wip/slice5` → `wip/slice6`; lát 7–9 gộp ở `wip/wave4-final`
+> Giai đoạn hiện tại: G5→G6 (autopilot đợt 5 xong mã, chờ merge từng lát) · Cập nhật: 2026-10-17 · Nhánh: lát 3 `claude/gallant-shannon-2uccvp` (PR #10); lát 4–6 cục bộ `wip/portal` → `wip/slice5` → `wip/slice6`; lát 7–9 `wip/wave4-final`; lát 10–12 + rà blueprint `wip/wave5-final` / `wip/wave5-bp`
 
 ## Đang làm
-- Autopilot đợt 3 (`docs/autopilot/PLAN.md`, T-201…T-226): **đủ 26 task có bằng chứng** (`.autopilot/evidence/`). Lát 1–2 đã merge (PR #9); lát 3 = PR #10 (CI xanh, review 3 vòng hết 🔴/🟠, `merge-check` HUMAN — chờ chủ dự án merge).
-- Lát 4 portal (T-216…T-219) `wip/portal`; lát 5 audit/báo cáo/xuất (T-220…T-222) `wip/slice5` (đã sửa review lát 5: công nợ theo sổ phụ gồm điều chỉnh giảm, job xuất không kẹt, ngày ở ZIP); lát 6 (T-223…T-226) `wip/slice6` — chưa push vì mỗi lát một PR, xếp sau PR #10.
-- Đợt 4 (T-301…T-311): **xong mã + bằng chứng** — lát 7 runtime (worker chạy thật, timeout/retry I/O, ghi object ngoài transaction, log OTel + sự kiện bảo mật + NFC, OpenAPI 3.1, rào cấu trúc), lát 8 hồ sơ (README/CHANGELOG/.nvmrc, threat model v2, sự cố/runbook/SLO/alert, data-map/ROPA/RISKS), lát 9 UX (hộp xác nhận, icon SVG, token màu, E2E `ux-guards`). Lát 7/8/9 chờ PR xếp chồng sau lát 4–6.
-- Blueprint (T-311): MUST đạt 171 · miễn 54 · mở 271 (121 defer: 46 cần người + 75 đợt 4; 150 thiếu trong repo → `docs/autopilot/BLUEPRINT-GAPS.md`).
+- Đợt 3 (T-201…T-226): đủ 26 task có bằng chứng; lát 1–2 đã merge (PR #9); lát 3 = PR #10 (CI xanh, review hết 🔴/🟠, `merge-check` HUMAN — chờ chủ dự án merge). Lát 4–6 (`wip/portal`, `wip/slice5`, `wip/slice6`) chưa push vì mỗi lát một PR.
+- Đợt 4 (T-301…T-311) **xong**: lát 7 runtime, lát 8 hồ sơ, lát 9 UX (`wip/wave4-final`).
+- Đợt 5 (T-401…T-412) **xong mã + bằng chứng** (`wip/wave5-final`): lát 10 vận hành/bảo mật (relay claim ngắn + dead letter, Retry-After + quota, webhook xoay khoá, dừng êm web, mặc định an toàn/CSP, ma trận quyền sinh từ registry, audit "từ đâu" + sự kiện xác thực, metric HTTP + burn rate, đối soát hằng ngày, Argon2id), lát 11 dữ liệu/CSDL (đơn vị, NFC import, index FK, EXPLAIN, trần danh sách, gỡ vòng phụ thuộc), lát 12 UX + tài liệu máy kiểm. T-413 rà blueprint ở `wip/wave5-bp`.
+- Blueprint (T-413): MUST đạt 246 · miễn 54 · mở 196 (156 defer chờ người + 40 thiếu trong repo, chủ yếu còn một rào/test nhỏ → `docs/autopilot/BLUEPRINT-GAPS.md`).
 
 ## Tiếp theo
-1. Sau khi PR #10 merge: đưa lát 4 lên nhánh PR → review lát 4 (đang chạy lại) → PR; rồi lát 5, 6, 7, 8, 9 tương tự (mỗi lát merge main, CI, review, merge-check).
+1. Sau khi PR #10 merge: PR xếp chồng lát 4 portal → 5 → 6 → đợt 4 (lát 7–9) → đợt 5 (lát 10–12); mỗi lát: cập nhật với main, CI, review độc lập, merge-check.
 2. GO-NO-GO (`GO-NO-GO.md`): NO-GO phát hành — còn MUST mở và các đề xuất "Khi chạy thật" chưa được chủ dự án quyết.
-3. Chờ người (không chặn vòng): SMTP thật (D-010 MIT-0), import ruleset `.github/rulesets/main.json`, VPS VN + kho sao lưu khác máy, ClamAV, DPIA + pháp lý đối chiếu bản gốc, giấy phép mã nguồn, kênh báo lỗ hổng (SECURITY.md), xác nhận miễn trừ blueprint (32 đợt 2 + 18 đợt 3), FB-009…021 về khung. **Mới (đợt 4):** thêm `WORKER_DATABASE_URL` vào `.env.example` (settings chặn agent; mở BASE-CFG-002) · duyệt D-024…D-027 (schema pgboss tạo sẵn, staging `pending_scan`, sự kiện outbox chưa có consumer, tên lệnh `room_type.*`) · dừng cluster Postgres tạm `/tmp/hm-pg-review-0h8w` cổng 55432 (agent không dừng được) · 75 mục blueprint đã defer (đổi workflow/ruleset/giấy phép/`.env.example`).
+3. Chờ người (không chặn vòng): SMTP thật (D-010 MIT-0), import ruleset `.github/rulesets/main.json`, VPS VN + kho sao lưu khác máy, ClamAV, DPIA + pháp lý đối chiếu bản gốc, giấy phép mã nguồn, kênh báo lỗ hổng (SECURITY.md), xác nhận miễn trừ blueprint (32 đợt 2 + 18 đợt 3), FB-009…021 về khung. **Chờ người mới (đợt 4–5):** thêm `WORKER_DATABASE_URL` vào `.env.example` (settings chặn agent; mở BASE-CFG-002) · dừng cluster Postgres tạm `/tmp/hm-pg-review-0h8w` cổng 55432 (agent không dừng được) · duyệt D-023…D-032 (nhất là D-024…D-027 pgboss/staging/outbox, D-029 cookie `__Host-`, D-031 Argon2id dựng sẵn của Node) · 156 mục blueprint đã defer (workflow/ruleset/giấy phép/`.env.example`/hạ tầng).
 
 ## Quyết định
 - 2026-10-15 Repo sản phẩm + khung X-Templates ở `.xtemplates/`; tự host toàn bộ (ADR-0002); blueprint web-app + saas-multitenant + fintech, quy mô M; stack ADR-0001 (Node 24 · Next 16.4 · PG 17 · Kysely · pg-boss · Better Auth · Serwist · Vitest/Playwright · Biome · pnpm).
@@ -23,7 +23,7 @@
 - Nợ kỹ thuật chấp nhận: pháp lý trong `docs/research/` chỉ có nguồn thứ cấp — phải đối chiếu văn bản gốc trước khi dùng dữ liệu thật.
 
 ## Bàn giao phiên
-- Nhánh chính: `67f1990`+PR #9 (đợt 2 PR #5, đợt 3 lát 1–2 PR #9 đã merge). Đợt 3 tiếp: nhánh này (đã merge main).
+- Nhánh chính: `67f1990`+PR #9 (đợt 2 PR #5, đợt 3 lát 1–2 PR #9 đã merge). Đợt 4–5 nằm ở nhánh `wip/*` (chưa push).
 - Lệnh kiểm nhanh: `.xtemplates/scripts/dev-task.sh gate` · `pnpm test:db` · `pnpm --filter @hm/web exec playwright test` · `bash scripts/db-backup-restore-check.sh`. Container mới: `bash scripts/dev-env-setup.sh` rồi `pnpm install --frozen-lockfile`.
 - Đang chặn: không. Autopilot: bật (một phiên).
 - Việc dở chưa commit: không (worktree: `../hm-pr10` lát 3, `../hm-s5` lát 5, `../hm-slice5` lát 6, `../hm-ui` UI T-223 đã gộp vào lát 6).
