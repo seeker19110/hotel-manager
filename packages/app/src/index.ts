@@ -56,6 +56,7 @@ export {
 } from "./housekeeping/tasks.ts";
 export * from "./http/index.ts";
 export { IMPORT_ROW_RETENTION_DAYS, type RetentionStats, runRetention } from "./import/retention.ts";
+export { detectOverdue } from "./inventory/index.ts";
 export { listRooms, type PropertyRooms, type RoomRow } from "./inventory/rooms.ts";
 export { DEFAULT_REMINDER_DAYS, detectOverstay, remindExpiring } from "./lease/jobs.ts";
 export { getLease, type LeaseView } from "./lease/lease.ts";

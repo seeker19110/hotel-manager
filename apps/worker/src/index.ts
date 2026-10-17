@@ -1,5 +1,6 @@
 // Worker nền: outbox relay + consumer pg-boss + job định kỳ (ARCHITECTURE container apps/worker). Chạy thật: runtime.ts.
 export {
+  detectOverdue,
   detectOverstay,
   expireHeldReservations,
   FakeEmailSender,

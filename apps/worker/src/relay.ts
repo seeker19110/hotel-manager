@@ -32,9 +32,18 @@ export interface OutboxJob {
  * Thêm event_type mới vào outbox ⇒ thêm consumer HOẶC thêm vào đây (có test chặn quên: `outbox-event-types.test.ts`).
  */
 export const AUDIT_ONLY_EVENT_TYPES: ReadonlySet<string> = new Set([
+  "allocation.confirmed",
   "allocation.held",
+  "allocation.hold_expired",
+  "allocation.moved",
+  "allocation.released",
+  "allocation.resized",
   "approval.requested",
+  "block.approved",
+  "block.ended",
+  "block.requested",
   "exception.opened",
+  "exception.resolved",
   "housekeeping.task_created",
   "housekeeping.task_done",
   "housekeeping.task_verified",
@@ -58,6 +67,7 @@ export const AUDIT_ONLY_EVENT_TYPES: ReadonlySet<string> = new Set([
   "stay.checked_out",
   "stay.notice_exported",
   "stay.notice_submitted",
+  "unit.availability_changed",
   "work_order.created",
 ]);
 

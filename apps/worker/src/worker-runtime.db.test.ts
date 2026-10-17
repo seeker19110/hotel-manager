@@ -22,6 +22,7 @@ const FAST = {
   reminders: 100,
   periods: 100,
   lease: 100,
+  overdue: 100,
   exports: 100,
   retention: 100,
 };
@@ -205,6 +206,7 @@ describe("worker chạy thật", () => {
       "notifications.reminders",
       "billing.generate_periods",
       "lease.daily",
+      "inventory.detect_overdue",
       "exports.expire",
       "import.retention",
       "events.retention",
