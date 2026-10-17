@@ -276,7 +276,7 @@ export async function executeCommand<T>(
             where organization_id = ${actor.orgId} and key = ${commandId}`.execute(trx);
             const row = existing.rows[0] as StoredRow;
             if (!Buffer.from(row.request_hash).equals(hash)) {
-              throw new CommandError("IDEMPOTENCY_CONFLICT", 409, "Idempotency-Key đã dùng cho yêu cầu khác");
+              throw new CommandError("IDEMPOTENCY_CONFLICT", 422, "Idempotency-Key đã dùng cho yêu cầu khác");
             }
             return replay<T>(commandId, row);
           }

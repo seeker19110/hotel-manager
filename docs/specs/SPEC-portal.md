@@ -80,7 +80,7 @@ Dữ liệu mẫu dùng chung (theo DOMAIN-MODEL §5): tổ chức **B** "Nhà t
 ### S-011 Bấm "Tôi đã chuyển" hai lần
 - Given S-010 đã thực hiện với `Idempotency-Key=k2`
 - When client gửi lại cùng key và cùng thân
-- Then trả lại kết quả cũ (HTTP 200), vẫn 1 báo chuyển; cùng key khác thân → 409 `IDEMPOTENCY_CONFLICT`
+- Then trả lại kết quả cũ (HTTP 200), vẫn 1 báo chuyển; cùng key khác thân → 422 `IDEMPOTENCY_CONFLICT`
 
 ### S-012 Người dùng hai ngữ cảnh
 - Given Chi là `manager` ở tổ chức A và `tenant` ở tổ chức B
@@ -142,7 +142,7 @@ Dữ liệu mẫu dùng chung (theo DOMAIN-MODEL §5): tổ chức **B** "Nhà t
 |---|---|---|---|
 | Rỗng/null | Chưa có phiếu; hợp đồng chưa có công tơ; yêu cầu không mô tả | Trạng thái rỗng có hướng dẫn; mô tả rỗng → 422 `VALIDATION_FAILED` | S-021 |
 | Cực đại/độ dài | Mô tả yêu cầu > 2.000 ký tự (đề xuất); ảnh vượt số lượng/dung lượng/MIME cho phép (giới hạn theo SPEC-housekeeping-maintenance) | 422 `VALIDATION_FAILED` / 413 `FILE_TOO_LARGE` / 415 `FILE_TYPE_NOT_ALLOWED`; danh sách phiếu phân trang keyset 20/trang | S-008 |
-| Trùng lặp/idempotency | Gửi lại yêu cầu sửa chữa/báo chuyển cùng key | Không tạo bản ghi thứ hai; khác thân → 409 | S-011 |
+| Trùng lặp/idempotency | Gửi lại yêu cầu sửa chữa/báo chuyển cùng key | Không tạo bản ghi thứ hai; khác thân → 422 | S-011 |
 | Song song | Hai tab đổi ngữ cảnh; nhân viên xác nhận thanh toán khi người thuê đang xem | 409 `CONTEXT_CHANGED`; số dư lấy mới khi mở lại, không cache | S-013 |
 | Mất mạng giữa chừng | Mất mạng khi bấm "Tôi đã chuyển"/gửi yêu cầu | Không báo thành công; khi có mạng truy vấn `command_id` trước khi cho gửi lại (SPEC-pwa S-010) | S-011 |
 | Thời gian/múi giờ | Hạn phiếu, thời điểm cập nhật yêu cầu, `expires_at` liên kết | Lưu UTC, hiển thị theo `properties.timezone`; hết hạn so với thời gian server | S-009, S-017 |
@@ -199,7 +199,7 @@ Dữ liệu mẫu dùng chung (theo DOMAIN-MODEL §5): tổ chức **B** "Nhà t
 | `NOT_FOUND` | Tài nguyên không tồn tại **hoặc** không thuộc phạm vi, kể cả membership `tenant` đã bị thu hồi/hết hạn xem lại | 404 | Không tìm thấy dữ liệu. | S-003, S-004, S-015, S-018 |
 | `VALIDATION_FAILED` | Thiếu/sai trường | 422 | Thông tin chưa hợp lệ: {trường}. | S-008 |
 | `FILE_TOO_LARGE` / `FILE_TYPE_NOT_ALLOWED` | Ảnh vượt giới hạn / sai loại | 413 / 415 | Ảnh quá lớn / Chỉ nhận ảnh JPEG, PNG, WebP. | — |
-| `IDEMPOTENCY_CONFLICT` | Cùng key, khác thân | 409 | Yêu cầu bị trùng mã thao tác. Vui lòng tải lại. | S-011 |
+| `IDEMPOTENCY_CONFLICT` | Cùng key, khác thân | 422 | Yêu cầu bị trùng mã thao tác. Vui lòng tải lại. | S-011 |
 | `CONTEXT_CHANGED` | Ngữ cảnh tổ chức đã đổi ở tab khác | 409 | Bạn vừa chuyển sang cơ sở khác. Tải lại để tiếp tục. | S-013 |
 | `LINK_EXPIRED` | Liên kết khách quá `expires_at` | 410 | Liên kết đã hết hạn. Vui lòng liên hệ lễ tân để nhận liên kết mới. | S-017 |
 | `LINK_REVOKED` | Liên kết đã bị thu hồi | 410 | Liên kết không còn hiệu lực. Vui lòng liên hệ lễ tân. | S-019 |

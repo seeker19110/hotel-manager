@@ -120,7 +120,7 @@ Fixture chung: cơ sở P1 mẫu `hotel`, `timezone=Asia/Ho_Chi_Minh`, giờ nh�
 ### S-018 Không ghi dịch vụ hai lần (T053)
 - Given stay `in_house`
 - When gửi `stay.postCharge` minibar 80.000 hai lần cùng `Idempotency-Key`; rồi lần ba cùng key khác số tiền
-- Then 1 `charges`; lần ba `409 IDEMPOTENCY_CONFLICT`. Hai lần bấm với key khác nhau là hai khoản hợp lệ, hủy bằng `stay.voidCharge` có lý do trước khi phát hành
+- Then 1 `charges`; lần ba `422 IDEMPOTENCY_CONFLICT`. Hai lần bấm với key khác nhau là hai khoản hợp lệ, hủy bằng `stay.voidCharge` có lý do trước khi phát hành
 
 ### S-019 Check-out còn nợ cần quản lý cho phép (kế hoạch §06)
 - Given folio còn 930.000; lễ tân không có quyền cho nợ
@@ -248,7 +248,7 @@ Hợp đồng chi tiết: `docs/design/API-CONTRACT.md`. Mọi command nhận `I
 | PERIOD_LOCKED | Ghi/huỷ phí trong kỳ đã khoá | 409 | Kỳ này đã khoá. Hãy tạo điều chỉnh có duyệt. | S-022 |
 | DOCUMENT_IMMUTABLE | Sửa chứng từ đã phát hành | 409 | Phiếu đã phát hành, không sửa trực tiếp. Hãy tạo điều chỉnh. | S-023 |
 | OVER_ALLOCATION ² | Phân bổ vượt thanh toán/phiếu | 409 | Số tiền phân bổ vượt số còn lại. | S-024 |
-| IDEMPOTENCY_CONFLICT | Cùng key khác nội dung | 409 | Thao tác trùng mã nhưng khác nội dung. Vui lòng tải lại. | S-018 |
+| IDEMPOTENCY_CONFLICT | Cùng key khác nội dung | 422 | Thao tác trùng mã nhưng khác nội dung. Vui lòng tải lại. | S-018 |
 | APPROVAL_LIMIT_EXCEEDED | Giảm giá/phí huỷ/hoàn cọc vượt hạn mức | 403 | Số tiền vượt hạn mức của bạn. Đã gửi yêu cầu duyệt. | S-009, S-027 |
 | FORBIDDEN | Không đủ quyền (gồm xác nhận tiền mặt không phải do mình nhận hoặc không có ca đang mở) | 403 | Bạn không có quyền thực hiện thao tác này. | S-026 |
 | SELF_APPROVAL_FORBIDDEN | Tự duyệt khấu trừ/hoàn cọc mình lập (mã dùng chung, SPEC-ledger-payments) | 403 | Bạn không thể tự duyệt chứng từ mình lập. | S-027 |

@@ -1,5 +1,5 @@
-// T-303 / review lát 7 🟡3 🟡4 — replay `stageFile` cùng Idempotency-Key: (3) so khớp cả property_id/owner_id (khác ⇒ 409);
-// (4) dòng `pending_scan` đã tới/quá hạn staging (job hạn giữ có thể đang/sắp xoá object) ⇒ 409, không chốt dòng sắp bị dọn.
+// T-303 / review lát 7 🟡3 🟡4 — replay `stageFile` cùng Idempotency-Key: (3) so khớp cả property_id/owner_id (khác ⇒ 422);
+// (4) dòng `pending_scan` đã tới/quá hạn staging (job hạn giữ có thể đang/sắp xoá object) ⇒ 422 IDEMPOTENCY_CONFLICT, không chốt dòng sắp bị dọn.
 import { randomUUID } from "node:crypto";
 import { createTestDb, type SeededOrg, seedAuthUser, seedOrg, type TestDb } from "@hm/testkit";
 import { sql } from "kysely";
@@ -46,18 +46,18 @@ const spec = (over: Partial<StageSpec> = {}): StageSpec => ({
 const vnDaysFromToday = (days: number) => sql`(now() at time zone 'Asia/Ho_Chi_Minh')::date + ${days}::int`;
 
 describe("stageFile — replay khớp đủ trường (🟡3)", () => {
-  it("cùng yêu cầu ⇒ pending; khác property_id ⇒ 409; khác owner_id ⇒ 409", async () => {
+  it("cùng yêu cầu ⇒ pending; khác property_id ⇒ 422; khác owner_id ⇒ 422", async () => {
     const owner = randomUUID();
     const s = spec({ ownerId: owner });
     expect((await stageFile(t.runtime, actor, s)).state).toBe("new");
     expect((await stageFile(t.runtime, actor, s)).state).toBe("pending");
     await expect(stageFile(t.runtime, actor, { ...s, propertyId: null })).rejects.toMatchObject({
-      status: 409,
+      status: 422,
     });
     await expect(stageFile(t.runtime, actor, { ...s, ownerId: randomUUID() })).rejects.toMatchObject({
-      status: 409,
+      status: 422,
     });
-    await expect(stageFile(t.runtime, actor, { ...s, ownerId: null })).rejects.toMatchObject({ status: 409 });
+    await expect(stageFile(t.runtime, actor, { ...s, ownerId: null })).rejects.toMatchObject({ status: 422 });
   });
 });
 
@@ -66,15 +66,15 @@ describe("stageFile — dòng pending_scan hết hạn staging (🟡4)", () => {
     await sql`update files set delete_after = ${vnDaysFromToday(days)} where id = ${id}`.execute(t.admin);
   }
 
-  it("delete_after = hôm nay (VN) hoặc đã qua ⇒ 409 (job hạn giữ sẽ/đang xoá object); ngày mai ⇒ vẫn chốt được", async () => {
+  it("delete_after = hôm nay (VN) hoặc đã qua ⇒ 422 (job hạn giữ sẽ/đang xoá object); ngày mai ⇒ vẫn chốt được", async () => {
     const s = spec();
     await stageFile(t.runtime, actor, s);
     await setAfter(s.id, 1);
     expect((await stageFile(t.runtime, actor, s)).state).toBe("pending");
     await setAfter(s.id, 0);
-    await expect(stageFile(t.runtime, actor, s)).rejects.toMatchObject({ status: 409 });
+    await expect(stageFile(t.runtime, actor, s)).rejects.toMatchObject({ status: 422 });
     await setAfter(s.id, -3);
-    await expect(stageFile(t.runtime, actor, s)).rejects.toMatchObject({ status: 409 });
+    await expect(stageFile(t.runtime, actor, s)).rejects.toMatchObject({ status: 422 });
   });
 
   it("dòng đã ready không bị coi là hết hạn dù delete_after cũ; dòng ready delete_after rỗng ⇒ done", async () => {

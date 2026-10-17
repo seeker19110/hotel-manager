@@ -15,11 +15,12 @@ const m0048 = () => {
 let t: TestDb;
 beforeAll(async () => {
   t = await createTestDb();
-  // Lùi 0050, 0049, 0048 (kiểm luôn `down` khớp phần up mới) để áp lại 0048 theo ý.
-  for (const expected of ["0050_reconciliation_daily", "0049_audit_source", NAME]) {
+  // Lùi mọi migration từ mới nhất tới 0048 (kiểm luôn `down` khớp phần up mới) để áp lại 0048 theo ý. Lùi tới khi gặp 0048
+  // (không đếm cứng số migration phía sau — migration mới thêm không làm vỡ test này).
+  for (let guard = 0; guard < 100; guard++) {
     const res = await createMigrator(t.admin).migrateDown();
     expect(res.error).toBeUndefined();
-    expect(res.results?.[0]?.migrationName).toBe(expected);
+    if (res.results?.[0]?.migrationName === NAME) break;
   }
 }, 120_000);
 afterAll(async () => {

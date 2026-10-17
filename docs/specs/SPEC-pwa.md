@@ -173,7 +173,7 @@ decisions: "D-002 (phiên chính tự duyệt câu hỏi chặn, 2026-10-16)"
 | `UNAUTHENTICATED` | Phiên hết hạn | 401 | Phiên đăng nhập đã hết. Vui lòng đăng nhập lại. | S-013 |
 | `CONTEXT_CHANGED` | Ngữ cảnh tổ chức khác với lúc mở form | 409 | Bạn vừa chuyển sang cơ sở khác. Tải lại để tiếp tục. | S-013 |
 | `CLIENT_OUTDATED` | Phiên bản client thấp hơn mức tối thiểu | 426 | Ứng dụng cần cập nhật để tiếp tục. | S-009 |
-| `IDEMPOTENCY_CONFLICT` | Cùng `command_id`, khác thân | 409 | Yêu cầu bị trùng mã thao tác. Vui lòng tải lại. | — |
+| `IDEMPOTENCY_CONFLICT` | Cùng `command_id`, khác thân | 422 | Yêu cầu bị trùng mã thao tác. Vui lòng tải lại. | — |
 
 ## 7. Yêu cầu phi chức năng của tính năng
 | Thuộc tính | Ngưỡng | Nguồn | Cách đo |

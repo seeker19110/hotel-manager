@@ -410,7 +410,7 @@ describe("S-010/S-011 QR + Tôi đã chuyển", () => {
     if (r1.status !== "committed") throw new Error(JSON.stringify(r1));
     expect(r1.data.message).toBe("Đã ghi nhận báo chuyển — chủ trọ sẽ xác nhận khi thấy tiền");
     expect(await send(1_580_000)).toMatchObject({ status: "committed", replayed: true });
-    await expect(send(1_000_000)).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT", status: 409 });
+    await expect(send(1_000_000)).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT", status: 422 });
     const after = await sql<{ p: number; j: number; c: number; open: string }>`
       select (select count(*)::int from payments where organization_id = ${A.orgId}) as p,
              (select count(*)::int from journal_entries where organization_id = ${A.orgId}) as j,

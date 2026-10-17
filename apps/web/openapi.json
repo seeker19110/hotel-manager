@@ -15661,6 +15661,9 @@
           "422": {
             "$ref": "#/components/responses/Error422"
           },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
           "500": {
             "$ref": "#/components/responses/Error500"
           }
@@ -15731,7 +15734,7 @@
         }
       },
       "Error409": {
-        "description": "Xung đột trạng thái/idempotency/ngữ cảnh (ORG_CONTEXT_REQUIRED, CONTEXT_CHANGED…)",
+        "description": "Xung đột trạng thái/ngữ cảnh (ORG_CONTEXT_REQUIRED, CONTEXT_CHANGED…)",
         "content": {
           "application/problem+json": {
             "schema": {
@@ -15741,7 +15744,7 @@
         }
       },
       "Error422": {
-        "description": "VALIDATION_FAILED — kèm `errors[]` theo trường",
+        "description": "VALIDATION_FAILED — kèm `errors[]` theo trường; hoặc IDEMPOTENCY_CONFLICT (cùng Idempotency-Key khác payload, D-034)",
         "content": {
           "application/problem+json": {
             "schema": {
@@ -15785,7 +15788,7 @@
         "name": "Idempotency-Key",
         "in": "header",
         "required": true,
-        "description": "UUID do client sinh; cùng key + cùng payload → kết quả cũ; khác payload → 409 IDEMPOTENCY_CONFLICT. Lưu 7 ngày.",
+        "description": "UUID do client sinh; cùng key + cùng payload → kết quả cũ; khác payload → 422 IDEMPOTENCY_CONFLICT. Lưu 7 ngày.",
         "schema": {
           "type": "string",
           "format": "uuid"
