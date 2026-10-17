@@ -14,8 +14,10 @@ import {
   expireExports,
   getExportStatus,
   ORG_EXPORT_EXCLUDED_COLUMN,
+  ORG_EXPORT_FILE_OWNER_ALLOWLIST,
   ORG_EXPORT_FILES_MAX_BYTES,
   ORG_EXPORT_SKIP_REASONS,
+  orgFileSkipReasonForOwner,
   requestExport,
   requestOrgExport,
   runExportJob,
@@ -298,8 +300,8 @@ describe("IND-SAAS-007 xuất toàn tổ chức kèm file đính kèm (T-405)", 
     return id;
   }
 
-  async function runOrgExport(maxBytes?: number): Promise<Map<string, Buffer>> {
-    const owner = fresh(h.owner);
+  async function runOrgExport(maxBytes?: number, who: Actor = h.owner): Promise<Map<string, Buffer>> {
+    const owner = fresh(who);
     const q = await okAs(h.t, owner, (ctx) => requestOrgExport(ctx));
     const d0 = { ...deps(), ...(maxBytes === undefined ? {} : { orgFilesMaxBytes: maxBytes }) };
     expect(await runExportJob(d0, job(q.exportId))).toBe("ready");
@@ -333,8 +335,41 @@ describe("IND-SAAS-007 xuất toàn tổ chức kèm file đính kèm (T-405)", 
       sha256: sha(photo),
     });
     expect(by(fId)).toMatchObject({ status: "skipped", reason: "identity_document", zip_path: "" });
-    expect(rows.some((r) => r.owner_type === "export_job")).toBe(false); // bản xuất cũ không tự nhúng vào bản mới
+    expect(rows.filter((r) => r.owner_type === "export_job").every((r) => r.status === "skipped")).toBe(true); // bản xuất cũ không tự nhúng vào bản mới
     expect(zip.get("README.txt")?.toString("utf8")).toContain("TỪ ĐIỂN CỘT");
+  });
+
+  it("D-033: file residence_notice / import_batch / export_job KHÔNG vào ZIP (có thể chứa số giấy tờ), MANIFEST ghi lý do; allowlist nhúng đủ", async () => {
+    const notice = Buffer.from(`SO-GIAY-TO-9876543210-${randomUUID()}`);
+    const batch = Buffer.from(`IMPORT-BATCH-${randomUUID()}`);
+    const oldExport = Buffer.from(`OLD-EXPORT-${randomUUID()}`);
+    const fNotice = await seedFile(h.org.orgId, "residence_notice", notice, { mime: "text/csv" });
+    const fBatch = await seedFile(h.org.orgId, "import_batch", batch, { mime: "text/csv" });
+    // Bản xuất cũ chỉ người yêu cầu thấy (RLS) ⇒ dùng chủ riêng (cũng tránh trần 10 yêu cầu/giờ của h.owner).
+    const o2 = await seedMember(h.t, h.org, "owner", { properties: "all" });
+    const fOld = await seedFile(h.org.orgId, "export_job", oldExport, { mime: "text/csv" });
+    await sql`update files set uploaded_by = ${o2.membershipId} where id = ${fOld}`.execute(h.t.admin);
+    const allowed: string[] = [];
+    // lease_settlement nằm trong allowlist nhưng RLS `files` hiện chưa có nhánh cho loại này (ELSE false) ⇒ không ai thấy; xem hàm thuần bên dưới.
+    for (const t of ["work_order", "handover", "meter_reading", "task", "payment_claim"])
+      allowed.push(await seedFile(h.org.orgId, t, Buffer.from(`OK-${t}-${randomUUID()}`)));
+
+    const zip = await runOrgExport(undefined, o2);
+    for (const id of [fNotice, fBatch, fOld]) expect([...zip.keys()].some((k) => k.includes(id))).toBe(false);
+    for (const raw of zip.values()) {
+      for (const secret of [notice, batch, oldExport]) expect(raw.includes(secret)).toBe(false);
+    }
+    const rows = manifestRows(zip.get("files/MANIFEST.csv") as Buffer);
+    const by = (id: string) => rows.find((r) => r.file_id === id);
+    expect(by(fNotice)).toMatchObject({ status: "skipped", reason: "residence_notice", zip_path: "" });
+    expect(by(fBatch)).toMatchObject({ status: "skipped", reason: "import_batch", zip_path: "" });
+    expect(by(fOld)).toMatchObject({ status: "skipped", reason: "export_job", zip_path: "" });
+    for (const id of allowed) expect(by(id)).toMatchObject({ status: "included" });
+    const readme = zip.get("README.txt")?.toString("utf8") ?? "";
+    expect(readme).not.toContain(
+      "KHÔNG GỒM: số giấy tờ tuỳ thân, ảnh giấy tờ tuỳ thân, thông tin đăng nhập, khoá/băm/bí mật, bản xuất cũ.",
+    );
+    expect(readme).toContain("thông báo lưu trú");
   });
 
   it("vượt trần tổng dung lượng → không nhúng, liệt kê kèm lý do; file nhỏ hơn phía sau vẫn vừa thì vẫn nhúng", async () => {
@@ -345,7 +380,7 @@ describe("IND-SAAS-007 xuất toàn tổ chức kèm file đính kèm (T-405)", 
     // Trần đủ chứa các file nhỏ đã có từ trước nhưng không đủ cho `big` (600 B) cộng dồn.
     const used = await sql<{ n: string }>`
       select coalesce(sum(size_bytes), 0)::text as n from files
-      where organization_id = ${h.org.orgId} and status = 'ready' and owner_type not in ('export_job', 'identity_document')
+      where organization_id = ${h.org.orgId} and status = 'ready' and owner_type in (${sql.join([...ORG_EXPORT_FILE_OWNER_ALLOWLIST])})
         and id not in (${fBig}, ${fSmall})`.execute(h.t.admin);
     const cap = Number(used.rows[0]?.n) + small.length + 10;
     const zip = await runOrgExport(cap);
@@ -381,6 +416,21 @@ describe("IND-SAAS-007 xuất toàn tổ chức kèm file đính kèm (T-405)", 
     const zip = await runOrgExport();
     expect(manifestRows(zip.get("files/MANIFEST.csv") as Buffer).some((r) => r.file_id === id)).toBe(false);
     expect(ORG_EXPORT_FILES_MAX_BYTES).toBeGreaterThan(0);
+  });
+});
+
+describe("D-033 allowlist owner_type nhúng file (hàm thuần)", () => {
+  it("chỉ 6 loại trong allowlist được nhúng; loại không nhạy cảm cũng như loại MỚI chưa biết đều bị bỏ (đóng mặc định)", () => {
+    expect([...ORG_EXPORT_FILE_OWNER_ALLOWLIST].sort()).toEqual(
+      ["handover", "lease_settlement", "meter_reading", "payment_claim", "task", "work_order"].sort(),
+    );
+    for (const t of ORG_EXPORT_FILE_OWNER_ALLOWLIST) expect(orgFileSkipReasonForOwner(t)).toBeNull();
+    expect(orgFileSkipReasonForOwner("identity_document")).toBe("identity_document");
+    expect(orgFileSkipReasonForOwner("residence_notice")).toBe("residence_notice");
+    expect(orgFileSkipReasonForOwner("import_batch")).toBe("import_batch");
+    expect(orgFileSkipReasonForOwner("export_job")).toBe("export_job");
+    expect(orgFileSkipReasonForOwner("loai_moi_chua_biet")).toBe("owner_type_not_allowed");
+    expect(orgFileSkipReasonForOwner("")).toBe("owner_type_not_allowed");
   });
 });
 

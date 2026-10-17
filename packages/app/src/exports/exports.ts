@@ -626,15 +626,49 @@ export const ORG_EXPORT_EXCLUDED_COLUMN =
 export const ORG_EXPORT_FILES_MAX_BYTES = mibToBytes(100);
 /** Trần thời gian tải MỘT object từ kho khi dựng ZIP; quá hạn/lỗi ⇒ file đó được liệt kê `fetch_failed`, job vẫn hoàn tất. */
 export const ORG_EXPORT_FILE_FETCH_TIMEOUT_MS = 30_000;
+/**
+ * ALLOWLIST (D-033, 2026-10-17) owner_type của file được nhúng vào ZIP toàn tổ chức: ảnh công tơ/sự cố/biên bản/chứng từ —
+ * không chứa số giấy tờ tuỳ thân. ĐÓNG MẶC ĐỊNH: loại khác (identity_document, residence_notice — CSV/XLSX chứa số giấy tờ đã
+ * giải mã; import_batch — file nguồn nhập liệu có thể chứa CCCD; export_job — bản xuất cũ) và loại MỚI thêm sau KHÔNG tự lọt;
+ * chúng chỉ được liệt kê ở `files/MANIFEST.csv` kèm lý do. Số giấy tờ chỉ đi ra qua luồng thông báo lưu trú có kiểm soát.
+ * Đường lùi: đặt mảng rỗng ⇒ không nhúng file nào.
+ */
+export const ORG_EXPORT_FILE_OWNER_ALLOWLIST: readonly string[] = [
+  "work_order",
+  "handover",
+  "meter_reading",
+  "task",
+  "payment_claim",
+  "lease_settlement",
+];
 /** Lý do KHÔNG nhúng file (cột `reason` của `files/MANIFEST.csv`). */
 export const ORG_EXPORT_SKIP_REASONS = {
   over_total_limit: "vượt trần tổng dung lượng file đính kèm của bản xuất",
   identity_document:
     "ảnh giấy tờ tuỳ thân không đưa vào bản xuất (dữ liệu nhạy cảm — lấy qua màn hình hồ sơ)",
+  residence_notice:
+    "file thông báo lưu trú chứa số giấy tờ tuỳ thân (số giấy tờ chỉ đi qua luồng thông báo lưu trú có kiểm soát)",
+  import_batch: "file nguồn nhập liệu có thể chứa số giấy tờ tuỳ thân",
+  export_job: "bản xuất cũ không nhúng vào bản xuất mới",
+  owner_type_not_allowed: "loại file chưa nằm trong danh sách được phép nhúng (đóng mặc định)",
   fetch_failed: "không tải được object từ kho lưu trữ (lỗi hoặc quá thời gian)",
   checksum_mismatch: "nội dung object không khớp sha256/kích thước đã ghi",
 } as const;
 type SkipReason = keyof typeof ORG_EXPORT_SKIP_REASONS;
+
+/** `null` = được nhúng (theo allowlist); ngược lại là lý do liệt kê ở MANIFEST. */
+export function orgFileSkipReasonForOwner(ownerType: string): SkipReason | null {
+  if (ORG_EXPORT_FILE_OWNER_ALLOWLIST.includes(ownerType)) return null;
+  switch (ownerType) {
+    case "identity_document":
+    case "residence_notice":
+    case "import_batch":
+    case "export_job":
+      return ownerType;
+    default:
+      return "owner_type_not_allowed";
+  }
+}
 
 const FILE_EXT: Readonly<Record<string, string>> = {
   "image/jpeg": "jpg",
@@ -687,7 +721,7 @@ async function orgFiles(
   const rows = await withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
     const r = await sql<OrgFileRow>`
       select id, owner_type, owner_id, property_id, mime, size_bytes::text, sha256, created_at, storage_key
-      from files where organization_id = ${actor.orgId} and status = 'ready' and owner_type <> 'export_job'
+      from files where organization_id = ${actor.orgId} and status = 'ready'
       order by created_at, id`.execute(trx);
     return r.rows;
   });
@@ -712,10 +746,10 @@ async function orgFiles(
     const size = Number(f.size_bytes);
     const path = `files/${f.owner_type}/${f.id}.${FILE_EXT[f.mime] ?? "bin"}`;
     let data: Buffer | null = null;
-    let reason: SkipReason | null = null;
-    if (f.owner_type === "identity_document") reason = "identity_document";
-    else if (used + size > maxBytes) reason = "over_total_limit";
-    else {
+    let reason: SkipReason | null = orgFileSkipReasonForOwner(f.owner_type);
+    // Loại ngoài allowlist: KHÔNG tải object (dữ liệu nhạy cảm không đi qua bộ nhớ worker).
+    if (!reason && used + size > maxBytes) reason = "over_total_limit";
+    else if (!reason) {
       data = await fetchObject(storage, f.storage_key);
       if (!data) reason = "fetch_failed";
       else if (data.length !== size || createHash("sha256").update(data).digest("hex") !== f.sha256) {
@@ -806,7 +840,9 @@ async function orgZip(
         `- Trần tổng dung lượng file nhúng: ${ORG_EXPORT_FILES_MAX_BYTES / BYTES_PER_MIB} MiB; file vượt trần được liệt kê kèm lý do thay vì nhúng.`,
         ...Object.entries(ORG_EXPORT_SKIP_REASONS).map(([k, v]) => `  · ${k}: ${v}`),
         "",
-        "KHÔNG GỒM: số giấy tờ tuỳ thân, ảnh giấy tờ tuỳ thân, thông tin đăng nhập, khoá/băm/bí mật, bản xuất cũ.",
+        `- Chỉ nhúng file thuộc loại: ${ORG_EXPORT_FILE_OWNER_ALLOWLIST.join(", ")}. File thông báo lưu trú (chứa số giấy tờ), file nguồn nhập liệu, ảnh giấy tờ tuỳ thân và bản xuất cũ KHÔNG được nhúng — chỉ liệt kê ở MANIFEST kèm lý do; thông báo lưu trú lấy qua luồng thông báo lưu trú.`,
+        "",
+        "KHÔNG GỒM: số giấy tờ tuỳ thân (kể cả trong file thông báo lưu trú/nhập liệu), ảnh giấy tờ tuỳ thân, thông tin đăng nhập, khoá/băm/bí mật, bản xuất cũ.",
         "",
         "TỪ ĐIỂN CỘT",
         ...dictionary,

@@ -230,3 +230,10 @@
 - Chọn: node:crypto argon2 dựng sẵn (Node ≥ 24.7; dự án ghim 24.22) + tự mã hoá chuỗi PHC $argon2id$v=19$m=19456,t=2,p=1$… và so sánh timingSafeEqual; băm scrypt cũ verify bằng hàm mặc định của Better Auth rồi băm lại khi đăng nhập
 - Lý do (tiêu chí chất lượng cuối): (1) an toàn chuỗi cung ứng: không thêm binary native/install script của bên thứ ba vào luồng xác thực; crypto.argon2 có trong Node 24 LTS, docs không đánh dấu experimental (nguồn nodejs.org/docs/latest-v24.x, 2026-10-16). Tham số OWASP m=19456 KiB, t=2, p=1 (cheatsheet, 2026-10-16). Phần tự viết chỉ là mã hoá/giải mã PHC + so sánh hằng thời gian — nhỏ, test được bằng vector. (3) ít phụ thuộc. Phương án 2 hợp lệ nếu crypto.argon2 có vấn đề.
 - Đường lùi: Đổi hàm hash/verify sang @node-rs/argon2 (cùng định dạng PHC nên băm đã lưu vẫn verify được).
+
+### D-033 · 2026-10-17T02:06:15+00:00 · Xuất toàn tổ chức (S-018, IND-SAAS-007): nhúng file đính kèm nào? SPEC S-018/Q-05 ghi 'không gồm file ảnh và số giấy tờ', blueprint IND-SAAS-007 đòi dữ liệu xuất được đầy đủ
+
+- Phương án: (1) Allowlist owner_type không chứa số giấy tờ: work_order, handover, meter_reading, task, payment_claim, lease_settlement; loại identity_document, residence_notice, import_batch, export_job (danh sách trong MANIFEST kèm lý do); cập nhật SPEC S-018/Q-05 · (2) Không nhúng file nào (giữ S-018 cũ), IND-SAAS-007 để mở · (3) Nhúng mọi file ready, chỉ loại identity_document (hiện trạng — lộ CCCD qua residence_notice/import_batch)
+- Chọn: Allowlist owner_type không chứa số giấy tờ: work_order, handover, meter_reading, task, payment_claim, lease_settlement; loại identity_document, residence_notice, import_batch, export_job (danh sách trong MANIFEST kèm lý do); cập nhật SPEC S-018/Q-05
+- Lý do (tiêu chí chất lượng cuối): (1) an toàn: số giấy tờ chỉ đi ra qua luồng thông báo lưu trú có kiểm soát; allowlist đóng mặc định (owner_type mới không tự lọt). Q-05 cấm số giấy tờ — ảnh công tơ/sự cố/biên bản không chứa số giấy tờ nên cho phép theo đúng mục đích quyền mang dữ liệu đi (IND-SAAS-007). (2) đường lùi: một hằng số.
+- Đường lùi: Đặt allowlist rỗng ⇒ quay về không nhúng file.
