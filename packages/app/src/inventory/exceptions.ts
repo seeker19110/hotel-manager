@@ -76,9 +76,11 @@ export async function recordWorkerExceptionOpened(
 }
 
 /**
- * Booking đã xác nhận KẾ TIẾP trên cùng phòng sau khi allocation quá hạn kết thúc → `RELOCATION_REQUIRED` (SPEC S-017, S-020;
- * Q-09). "Đã xác nhận" = allocation `stay` đang active (lượt ở `expected`/`in_house`); hold chưa xác nhận không tính.
- * Trả ngoại lệ vừa MỞ MỚI (đã có rồi thì rỗng) để người gọi ghi audit/outbox.
+ * MỖI booking đã xác nhận đứng sau allocation quá hạn trên cùng phòng → `RELOCATION_REQUIRED` (SPEC S-017, S-020; Q-09 hiểu chặt:
+ * ngoại lệ quá hạn chưa có mốc giải quyết nên mọi booking bắt đầu từ lúc allocation kết thúc đều bị đụng, không chỉ cái kế tiếp).
+ * "Đã xác nhận" = allocation `stay`/`lease` đang active (lượt ở `expected`/`in_house`, hợp đồng); hold chưa xác nhận không tính.
+ * Cùng tiêu chí với `related_allocation_id` của `app.stays_overdue` (migration 0057). Trả các ngoại lệ vừa MỞ MỚI (đã có rồi thì
+ * bỏ qua) để người gọi ghi audit/outbox.
  */
 export async function openRelocationForNextBooking(
   trx: Transaction<unknown>,
@@ -86,20 +88,22 @@ export async function openRelocationForNextBooking(
 ): Promise<{ id: string; allocationId: string }[]> {
   const next = await sql<{ id: string }>`
     select n.id from allocations o
-    join allocations n on n.organization_id = o.organization_id and n.unit_id = o.unit_id and n.active and n.kind = 'stay'
-                      and n.id <> o.id and lower(n.during) >= upper(o.during)
+    join allocations n on n.organization_id = o.organization_id and n.unit_id = o.unit_id and n.active
+                      and n.kind in ('stay', 'lease') and n.id <> o.id and lower(n.during) >= upper(o.during)
     where o.organization_id = ${a.orgId} and o.id = ${a.overstayAllocationId} and not upper_inf(o.during)
-    order by lower(n.during), n.id limit 1`.execute(trx);
-  const target = next.rows[0];
-  if (!target) return [];
-  const e = await openException(trx, {
-    orgId: a.orgId,
-    propertyId: a.propertyId,
-    type: "RELOCATION_REQUIRED",
-    allocationId: target.id,
-    relatedAllocationId: a.overstayAllocationId,
-  });
-  return e.created ? [{ id: e.id, allocationId: target.id }] : [];
+    order by lower(n.during), n.id`.execute(trx);
+  const opened: { id: string; allocationId: string }[] = [];
+  for (const target of next.rows) {
+    const e = await openException(trx, {
+      orgId: a.orgId,
+      propertyId: a.propertyId,
+      type: "RELOCATION_REQUIRED",
+      allocationId: target.id,
+      relatedAllocationId: a.overstayAllocationId,
+    });
+    if (e.created) opened.push({ id: e.id, allocationId: target.id });
+  }
+  return opened;
 }
 
 /**

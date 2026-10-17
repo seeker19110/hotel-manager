@@ -862,6 +862,48 @@ describe("SPEC-inventory S-017 quá hạn chưa trả phòng (detectOverdue)", (
     const done = await view("2027-03-04", "2027-03-07");
     expect(done.rooms.map((r) => r.segments)).toEqual([[], []]);
   });
+
+  it("S-017/S-020: MỖI booking đã xác nhận (stay và lease) đứng sau allocation quá hạn nhận RELOCATION_REQUIRED, không chỉ booking kế tiếp; hold chưa xác nhận không nhận; chạy lại không nhân; trả phòng đóng tất cả", async () => {
+    const unit = await freshUnit();
+    const s = await booking(unit, "2027-04-10", "2027-04-12", { checkedInAt: loc("2027-04-10T15:00") });
+    const r2 = await booking(unit, "2027-04-12", "2027-04-13");
+    const r3 = await booking(unit, "2027-04-14", "2027-04-15");
+    const hold = await okAs(h.t, h.frontDesk, (ctx) =>
+      createHold(ctx, {
+        unitId: unit,
+        during: { start: loc("2027-04-16T14:00"), end: loc("2027-04-17T12:00") },
+        ttlMinutes: 24 * 60 * 400,
+      }),
+    );
+    const lease = randomUUID();
+    await sql`insert into allocations (id, organization_id, property_id, unit_id, kind, source_type, source_id, during)
+              values (${lease}, ${h.org.orgId}, ${h.org.propertyId}, ${unit}, 'lease', 'lease', ${randomUUID()},
+                      '[2027-04-20T00:00:00+07,)'::tstzrange)`.execute(h.t.admin);
+    const t0 = loc("2027-04-12T13:30");
+    await detectOverdue(h.t.worker, t0);
+    await detectOverdue(h.t.worker, t0);
+    for (const id of [r2.allocationId, r3.allocationId, lease]) {
+      expect(
+        (await exceptionsOf(id)).map((e) => [e.type, e.status, e.related]),
+        id,
+      ).toEqual([["RELOCATION_REQUIRED", "open", s.allocationId]]);
+    }
+    expect(await exceptionsOf(hold.allocationId)).toEqual([]);
+
+    await okAs(h.t, h.manager, (ctx) =>
+      checkOut(ctx, {
+        stayId: s.stayId,
+        allowBalance: { debtorPersonId: s.bookerPersonId, dueDate: "2027-04-30" },
+        now: loc("2027-04-12T13:45"),
+      }),
+    );
+    for (const id of [r2.allocationId, r3.allocationId, lease]) {
+      expect(
+        (await exceptionsOf(id)).map((e) => e.status),
+        id,
+      ).toEqual(["resolved"]);
+    }
+  });
 });
 
 // ------------------------------------------------------------------------------------------------------------- S-018, S-019
