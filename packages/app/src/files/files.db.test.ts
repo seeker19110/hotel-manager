@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type Actor, resolveActor } from "../access/actor.ts";
 import { executeCommand } from "../pipeline/command.ts";
 import { ScannerUnavailableError } from "./clamd.ts";
-import { getFileUrl, MAX_FILE_BYTES, uploadFile } from "./files.ts";
+import { type FileOwnerType, getFileUrl, MAX_FILE_BYTES, uploadFile } from "./files.ts";
 import { eicarOnlyScanner } from "./inspect.ts";
 import { ObjectStorage } from "./storage.ts";
 
@@ -102,7 +102,7 @@ function run<T>(actor: Actor, fn: Parameters<typeof executeCommand<T>>[3]) {
   );
 }
 
-async function upload(actor: Actor, ownerType: "work_order" | "identity_document", bytes: Uint8Array) {
+async function upload(actor: Actor, ownerType: FileOwnerType, bytes: Uint8Array) {
   return run(actor, async (ctx) => ({
     data: await uploadFile(ctx, deps(), { ownerType, propertyId: A.propertyId, bytes }),
   }));
@@ -182,6 +182,22 @@ describe("tải lên (TM-07)", () => {
         httpStatus: 415,
         problem: { code: "FILE_TYPE_NOT_ALLOWED" },
       });
+      const after = await sql<{ n: number }>`select count(*)::int as n from files`.execute(t.admin);
+      expect(after.rows[0]?.n).toBe(before.rows[0]?.n);
+    },
+  );
+
+  it.each(["handover", "meter_reading", "task", "payment_claim"] as const)(
+    "T-602: loại chủ %s chưa khai quyền ghi cho nhân viên → mặc định từ chối 403 (không rơi về work_order.create), kể cả chủ",
+    async (ownerType) => {
+      const before = await sql<{ n: number }>`select count(*)::int as n from files`.execute(t.admin);
+      for (const actor of [housekeeping, owner]) {
+        expect(await upload(actor, ownerType, jpegWithExif())).toMatchObject({
+          status: "failed",
+          httpStatus: 403,
+          problem: { code: "FORBIDDEN" },
+        });
+      }
       const after = await sql<{ n: number }>`select count(*)::int as n from files`.execute(t.admin);
       expect(after.rows[0]?.n).toBe(before.rows[0]?.n);
     },

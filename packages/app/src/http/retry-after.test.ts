@@ -35,6 +35,15 @@ describe("phản hồi 429", () => {
     expect(json({ x: 1 }, 429, "c").headers.get("retry-after")).toBe("60");
     expect(simpleProblem("NOT_FOUND", 404, "x", "c").headers.get("retry-after")).toBeNull();
   });
+  it("409 IDEMPOTENCY_IN_PROGRESS (D-043) có Retry-After theo retry_after; 409 khác thì không", () => {
+    expect(
+      problemResponse(
+        { type: "t", title: "x", status: 409, code: "IDEMPOTENCY_IN_PROGRESS", retry_after: 1 },
+        "c",
+      ).headers.get("retry-after"),
+    ).toBe("1");
+    expect(simpleProblem("VERSION_CONFLICT", 409, "x", "c").headers.get("retry-after")).toBeNull();
+  });
   it("rateLimited kẹp tối thiểu 1 giây (0, âm, số lẻ)", () => {
     expect(rateLimited("x", 0).extensions.retry_after).toBe(1);
     expect(rateLimited("x", -3).extensions.retry_after).toBe(1);

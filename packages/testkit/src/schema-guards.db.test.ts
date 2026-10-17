@@ -1,4 +1,4 @@
-// PLAN đợt 4 T-306 + đợt 5 T-408 + đợt 6 T-503 — rào catalog CSDL sau migrate (DB-MODEL-001/002/004/005, BASE-DATA-006, IND-SAAS-001): đọc
+// PLAN đợt 4 T-306 + đợt 5 T-408 + đợt 6 T-503 + đợt 7 T-610 — rào catalog CSDL sau migrate (DB-MODEL-001/002/004/005, BASE-DATA-006, IND-SAAS-001): đọc
 // information_schema/pg_catalog của CSDL test đã chạy đủ migration, nên cột/khoá ngoại/bảng thêm bằng migration mới bị kiểm ngay.
 import { type Kysely, sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -237,21 +237,13 @@ async function redundantIndexes(db: Kysely<unknown>): Promise<string[]> {
 /** Ngoại lệ có lý do (`bảng.index`). Rỗng = không có index thừa nào được phép. */
 const REDUNDANT_INDEX_ALLOWED: Record<string, string> = {};
 
-describe("schema-guards — khoá ngoại có index hỗ trợ (DB-MODEL-004; ngoại lệ có lý do ở schema-guards.baseline.json)", () => {
-  it("không có FK thiếu index ngoài ngoại lệ đã khai (thêm index bằng migration mới — không thêm vào danh sách ngoại lệ)", async () => {
-    const missing = await fksWithoutIndex(t.admin);
-    expect(missing.filter((k) => !(k in baseline.muc))).toEqual([]);
+describe("schema-guards — khoá ngoại có index hỗ trợ (DB-MODEL-004; KHÔNG có danh sách ngoại lệ — nhóm A đã có index ở 0060)", () => {
+  it("không có FK nào thiếu index: FK mới phải kèm index bằng migration (không có danh sách ngoại lệ để thêm vào)", async () => {
+    expect(await fksWithoutIndex(t.admin)).toEqual([]);
   });
 
-  it("ngoại lệ không thừa: FK đã có index/đã gỡ thì xoá khỏi danh sách (chỉ co lại)", async () => {
-    const missing = await fksWithoutIndex(t.admin);
-    expect(Object.keys(baseline.muc).filter((k) => !missing.includes(k))).toEqual([]);
-  });
-
-  it("mỗi ngoại lệ gắn một lý do đã khai", async () => {
-    const reasons = baseline.ly_do as Record<string, string>;
-    for (const [k, code] of Object.entries(baseline.muc)) expect(reasons[code], k).toBeDefined();
-    for (const reason of Object.values(reasons)) expect(reason.length).toBeGreaterThan(40);
+  it("nền ratchet không còn mục ngoại lệ index (muc/ly_do đã gỡ cùng 0060)", () => {
+    expect(Object.keys(baseline).sort()).toEqual(["_ghi_chu", "nullable", "nullable_ghi_chu"]);
   });
 
   it("phát hiện đúng: FK không index bị bắt, thêm index đủ tiền tố thì hết, index một phần không tính", async () => {

@@ -126,12 +126,12 @@ describe("SPEC-inventory S-002 chồng lấn bị DB từ chối (INV-I1)", () =
 });
 
 describe("SPEC-inventory S-006 cùng lệnh gửi 100 lần (INV-G5)", () => {
-  it("100 lệnh song song cùng Idempotency-Key và body → cùng allocation_id; đúng 1 allocation, 1 audit, 1 outbox", async () => {
+  it("100 lệnh song song cùng Idempotency-Key và body → đúng 1 allocation, 1 audit, 1 outbox; lượt khác replay cùng allocation_id hoặc 409 IDEMPOTENCY_IN_PROGRESS (D-043)", async () => {
     const unit = await freshUnit();
     const key = randomUUID();
     const body = { unit: unit, from: "2026-10-20", to: "2026-10-21" };
     const now = new Date("2026-10-19T03:00:00Z");
-    const results = await Promise.all(
+    const settled = await Promise.allSettled(
       Array.from({ length: 100 }, () =>
         runAs(
           h.t,
@@ -147,6 +147,11 @@ describe("SPEC-inventory S-006 cùng lệnh gửi 100 lần (INV-G5)", () => {
         ),
       ),
     );
+    const results = settled.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
+    // D-043: lần đầu cùng key chưa commit ⇒ 409 IDEMPOTENCY_IN_PROGRESS, không thực thi lại.
+    for (const r of settled)
+      if (r.status === "rejected")
+        expect(r.reason).toMatchObject({ code: "IDEMPOTENCY_IN_PROGRESS", status: 409 });
     const ids = new Set<string>();
     for (const r of results) {
       if (r.status !== "committed") throw new Error(r.problem.code);

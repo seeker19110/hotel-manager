@@ -91,7 +91,7 @@ describe("idempotency (INV-G5)", () => {
     expect(after).toEqual({ a: before.a + 1, o: before.o + 1, p: before.p + 1 });
   });
 
-  it("100 request song song cùng key → đúng 1 hiệu lực nghiệp vụ", async () => {
+  it("BE-API-008 (D-043): 100 request song song cùng key → đúng 1 hiệu lực; còn lại 409 IDEMPOTENCY_IN_PROGRESS hoặc replay", async () => {
     const before = await counts(A.orgId);
     const key = randomUUID();
     const req = {
@@ -100,13 +100,90 @@ describe("idempotency (INV-G5)", () => {
       payload: { name: "KH Song song" },
       correlationId: "c-p",
     };
-    const results = await Promise.all(
+    const results = await Promise.allSettled(
       Array.from({ length: 100 }, () => executeCommand(t.runtime, owner, req, createPerson("KH Song song"))),
     );
-    expect(results.every((r) => r.status === "committed")).toBe(true);
-    expect(results.filter((r) => !r.replayed)).toHaveLength(1);
+    const done = results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
+    const rejected = results.flatMap((r) => (r.status === "rejected" ? [r.reason] : []));
+    expect(done.every((r) => r.status === "committed")).toBe(true);
+    expect(done.filter((r) => !r.replayed)).toHaveLength(1);
+    // Mọi request không thành công phải là 409 IDEMPOTENCY_IN_PROGRESS kèm Retry-After (không lỗi lạ, không 5xx).
+    for (const e of rejected)
+      expect(e).toMatchObject({
+        code: "IDEMPOTENCY_IN_PROGRESS",
+        status: 409,
+        extensions: { retry_after: 1 },
+      });
+    expect(done.length + rejected.length).toBe(100);
     const after = await counts(A.orgId);
     expect(after).toEqual({ a: before.a + 1, o: before.o + 1, p: before.p + 1 });
+  });
+
+  it("BE-API-008 (D-043): lần đầu giữ transaction mở → request thứ hai cùng key trả NGAY 409 IDEMPOTENCY_IN_PROGRESS (không chờ); sau commit gửi lại → replay; khác payload → 422", async () => {
+    const before = await counts(A.orgId);
+    const key = randomUUID();
+    const req = {
+      command: "person.create",
+      idempotencyKey: key,
+      payload: { name: "KH Giữ mở" },
+      correlationId: "c-hold",
+    };
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    let entered: () => void = () => {};
+    const inside = new Promise<void>((r) => {
+      entered = r;
+    });
+    const first = executeCommand(t.runtime, owner, req, async (ctx) => {
+      entered();
+      await gate; // giữ transaction mở, chưa commit
+      return createPerson("KH Giữ mở")(ctx);
+    });
+    await inside;
+
+    const t0 = Date.now();
+    await expect(executeCommand(t.runtime, owner, req, createPerson("KH Giữ mở"))).rejects.toMatchObject({
+      code: "IDEMPOTENCY_IN_PROGRESS",
+      status: 409,
+      extensions: { retry_after: 1 },
+    });
+    // Trả ngay: không đợi lần đầu (đang bị giữ) — nếu chờ khoá thì test sẽ treo tới timeout.
+    expect(Date.now() - t0).toBeLessThan(2_000);
+    // 409 không được lưu thành kết quả của key (không phá lần đầu): chưa có hàng nào hiển thị.
+    await expect(getCommandResult(t.runtime, owner, key)).rejects.toMatchObject({ status: 404 });
+
+    release();
+    const r1 = await first;
+    expect(r1).toMatchObject({ status: "committed", httpStatus: 201, replayed: false });
+    const r2 = await executeCommand(t.runtime, owner, req, createPerson("KH Giữ mở"));
+    expect(r2).toMatchObject({ status: "committed", httpStatus: 201, replayed: true });
+    expect(r2.status === "committed" && r1.status === "committed" && r2.data).toEqual(
+      r1.status === "committed" && r1.data,
+    );
+    await expect(
+      executeCommand(t.runtime, owner, { ...req, payload: { name: "Khác" } }, createPerson("KH Khác")),
+    ).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT", status: 422 });
+    const after = await counts(A.orgId);
+    expect(after).toEqual({ a: before.a + 1, o: before.o + 1, p: before.p + 1 });
+  });
+
+  it("BE-API-008 (D-043): lần đầu thất bại nghiệp vụ (rollback) nhả khoá → gửi lại cùng key nhận kết quả failed đã lưu, không 409", async () => {
+    const key = randomUUID();
+    const req = {
+      command: "person.create",
+      idempotencyKey: key,
+      payload: { name: "KH Lỗi" },
+      correlationId: "c-fail",
+    };
+    const boom = async () => {
+      throw new CommandError("NOT_FOUND", 404, "không có");
+    };
+    const r1 = await executeCommand(t.runtime, owner, req, boom);
+    expect(r1).toMatchObject({ status: "failed", httpStatus: 404, replayed: false });
+    const r2 = await executeCommand(t.runtime, owner, req, boom);
+    expect(r2).toMatchObject({ status: "failed", httpStatus: 404, replayed: true });
   });
 
   it("SPEC-access S-021: cùng key + khác payload → 422 IDEMPOTENCY_CONFLICT", async () => {
