@@ -208,6 +208,21 @@ Thứ tự: T-601 → T-603 (nhỏ) song song; T-604, T-605, T-606 (tính năng)
 - [x] `T-610` CSDL: index cho 52 FK nhóm A (cột người thao tác, ngoại lệ D-035) — migration 0060, rào schema-guards FK thiếu index = 0 không ngoại lệ (DB-MODEL-004) — Gate: `pnpm vitest run --project db schema-guards migration-0060`
 - [x] `T-609` Rà blueprint đợt 7 + GO-NO-GO (—) — Gate: `python3 scripts/check-blueprint-evidence.py BLUEPRINT.md && python3 -m unittest discover -s scripts -p "test_*.py"`
 
+## Đợt 8 — 10 mục MUST làm trọn được trong repo (D-053…D-057, 2026-10-17)
+
+Phân loại 169 mục mở: 12 làm trọn trong repo, 90 một phần (cần CI/cổng/phụ thuộc/biến môi trường/pháp lý), 67 cần người. Đợt 8 lấy 10 (D-053; IND-SAAS-009 và CMP-RIGHTS-001 chờ chủ dự án). Mỗi lát một PR trên nhánh riêng; PR chạm `merge_risk_paths`/ngoại lệ cứng → người merge.
+
+- [ ] `T-701` Tương phản token: test tính tỷ lệ WCAG cho mọi khối token `:root` trong `globals.css` (chữ ≥ 4.5:1, viền/focus ≥ 3:1), script `check:contrast`; theme sáng (D-054) (UX-DS-003, UX-A11Y-002) — Gate: `pnpm vitest run --project unit contrast`
+- [ ] `T-702` Rào test có khẳng định: mỗi `it`/`test` có `expect`/`assert` (allowlist helper), snapshot không là khẳng định duy nhất (QA-COV-004) — Gate: `pnpm vitest run --project unit test-assertions`
+- [ ] `T-703` Rào mã chú thích bỏ dở: test quét code bị comment-out (cùng kiểu `no-console`, D-055) (QA-STATIC-005) — Gate: `pnpm vitest run --project unit no-console commented-code`
+- [ ] `T-704` Ngân sách hiệu năng: tách hàm kiểm ngân sách khỏi `perf-baseline.spec.ts`, unit test thêm 200 KB phải đỏ (XC-PERF-003) — Gate: `pnpm vitest run --project unit perf`
+- [ ] `T-705` Chính sách giấy phép: `license-policy.json` (allow/deny/review, ngoại lệ có package/reason/approved_by/expires), `check-licenses.mjs` đọc và đỏ khi ngoại lệ hết hạn (D-057) (CMP-LIC-002) — Gate: `pnpm vitest run --project unit check-licenses && pnpm licenses:check`
+- [ ] `T-706` Gói bàn giao: `RUNBOOK.md` ở gốc trỏ `docs/RUNBOOK.md`, rào repo-hygiene; job `quality` là clean clone build (D-056) (PM-HANDOVER-002) — Gate: `test -f README.md -a -f RUNBOOK.md -a -d docs/adr && pnpm vitest run --project unit repo-hygiene`
+- [ ] `T-707` Tiếp cận chặt: `expectAccessible` đòi 0 vi phạm axe (mọi mức), gọi ở mọi spec chính, sửa vi phạm lộ ra (UX-A11Y-001) — Gate: `pnpm --filter @hm/web exec playwright test`
+- [x] `T-708` Lệch schema: test so `kysely_migration` ↔ file migration và snapshot schema (pg_catalog) ↔ file đã commit (DB-MIG-001) — Gate: `pnpm vitest run --project db schema-drift`
+- [ ] `T-709` Ngân sách email: theo ngày/tổ chức 80% cảnh báo · 90% bóp · 100% dừng, metric `/api/metrics`, phủ job nền (OPS-COST-004) — Gate: `pnpm vitest run --project db notification-budget`
+- [ ] `T-710` Rà blueprint đợt 8 + GO-NO-GO (—) — Gate: `python3 scripts/check-blueprint-evidence.py BLUEPRINT.md && python3 -m unittest discover -s scripts -p "test_*.py"`
+
 ## Phụ thuộc ngoài
 | Việc | Bên ngoài | Kế hoạch B |
 |---|---|---|

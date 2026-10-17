@@ -373,3 +373,38 @@
 - Lý do (tiêu chí chất lượng cuối): (1) an toàn: chặn tài khoản rác làm đầy CSDL, chỉ tính lượt thành công (lỗi rollback), replay không tính; (3) dùng cơ chế sẵn có, không thêm bảng/biến môi trường. (3) bị loại vì giới hạn IP chỉ áp `/api/auth/*`. Cửa sổ cố định theo giờ có thể lọt tới 2× sát ranh giới — chấp nhận.
 - Đường lùi: Đổi hằng `ORG_CREATE_PER_USER_PER_HOUR` hoặc bỏ lời gọi `rateLimitHit` trong bootstrap của `org.create`.
 - Khi chạy thật: chủ dự án xem lại mức 10/giờ và cân nhắc bật xác minh email khi đăng ký (`requireEmailVerification`, cần SMTP — chống chiếm trước email của nhân viên/người thuê được mời).
+
+### D-053 · 2026-10-17T17:22:57+00:00 · Đợt 8: làm mục MUST nào trong 169 mục mở (đã phân loại: 12 làm trọn trong repo, 90 một phần, 67 cần người)?
+
+- Phương án: (1) 10 mục làm trọn, không mở rộng phạm vi sản phẩm: UX-A11Y-001, UX-A11Y-002, UX-DS-003, QA-COV-004, QA-STATIC-005, XC-PERF-003, DB-MIG-001, CMP-LIC-002, OPS-COST-004, PM-HANDOVER-002 · (2) Cả 12 mục, gồm IND-SAAS-009 (quyền hỗ trợ tạm thời) và CMP-RIGHTS-001 (bảng consents)
+- Chọn: 10 mục làm trọn, không mở rộng phạm vi sản phẩm: UX-A11Y-001, UX-A11Y-002, UX-DS-003, QA-COV-004, QA-STATIC-005, XC-PERF-003, DB-MIG-001, CMP-LIC-002, OPS-COST-004, PM-HANDOVER-002
+- Lý do (tiêu chí chất lượng cuối): (1) đúng/an toàn: IND-SAAS-009 mở tính năng truy cập hỗ trợ (F-015, auth) cần quyết định sản phẩm/bảo mật; CMP-RIGHTS-001 cần danh mục mục đích từ pháp lý — tick lúc này là hình thức. (3) phần còn lại có bằng chứng máy đầy đủ.
+- Đường lùi: Thêm hai mục vào đợt sau khi chủ dự án quyết F-015 và danh mục mục đích
+
+### D-054 · 2026-10-17T17:22:58+00:00 · UX-A11Y-002 đòi kiểm tương phản 'cả hai theme' nhưng sản phẩm chỉ có theme sáng (color-scheme: light)
+
+- Phương án: (1) Kiểm tương phản cho theme sáng; ghi điều kiện mở lại: thêm theme tối thì token tối phải qua cùng script · (2) Làm thêm theme tối chỉ để kiểm
+- Chọn: Kiểm tương phản cho theme sáng; ghi điều kiện mở lại: thêm theme tối thì token tối phải qua cùng script
+- Lý do (tiêu chí chất lượng cuối): (3) đơn giản, không xây tính năng ngoài PROJECT.md; script kiểm áp cho mọi khối token :root nên theme tối thêm sau tự bị kiểm
+- Đường lùi: Thêm theme tối + khối token prefers-color-scheme: dark; script tự kiểm
+
+### D-055 · 2026-10-17T17:22:58+00:00 · QA-STATIC-005 đòi lint chặn code comment-out/console; dự án dùng test quét mã (no-console.test.ts) thay rule lint
+
+- Phương án: (1) Test quét mã trong project unit (chạy trong pnpm test của cổng và CI), cùng kiểu rào sẵn có · (2) Sửa biome.json thêm rule (đổi cấu hình cổng — điểm dừng)
+- Chọn: Test quét mã trong project unit (chạy trong pnpm test của cổng và CI), cùng kiểu rào sẵn có
+- Lý do (tiêu chí chất lượng cuối): (3) theo quy ước rào máy của dự án; không đổi cấu hình cổng; cổng commit/CI đều chạy
+- Đường lùi: Chuyển sang rule Biome khi chủ dự án duyệt đổi biome.json
+
+### D-056 · 2026-10-17T17:22:58+00:00 · PM-HANDOVER-002 đòi 'clean clone build' — có cần workflow riêng?
+
+- Phương án: (1) Job quality của CI (checkout sạch + pnpm install --frozen-lockfile + build) là bằng chứng clean clone build; thêm RUNBOOK.md ở gốc trỏ docs/RUNBOOK.md · (2) Thêm workflow riêng (đổi CI — điểm dừng)
+- Chọn: Job quality của CI (checkout sạch + pnpm install --frozen-lockfile + build) là bằng chứng clean clone build; thêm RUNBOOK.md ở gốc trỏ docs/RUNBOOK.md
+- Lý do (tiêu chí chất lượng cuối): (3) job quality đã đúng định nghĩa clone sạch trên runner mới; không nhân đôi CI
+- Đường lùi: Thêm workflow clean-clone riêng khi chủ dự án duyệt
+
+### D-057 · 2026-10-17T17:22:58+00:00 · CMP-LIC-002 đòi file policy giấy phép (allow/deny/review + ngoại lệ có hạn); định dạng?
+
+- Phương án: (1) license-policy.json (đọc bằng JSON.parse, không thêm phụ thuộc) · (2) YAML (cần thêm thư viện đọc YAML — phụ thuộc mới)
+- Chọn: license-policy.json (đọc bằng JSON.parse, không thêm phụ thuộc)
+- Lý do (tiêu chí chất lượng cuối): (3) không thêm phụ thuộc; script check-licenses.mjs đọc trực tiếp
+- Đường lùi: Đổi sang YAML khi có thư viện YAML sẵn
