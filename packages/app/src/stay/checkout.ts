@@ -9,6 +9,7 @@ import { sql } from "kysely";
 import { registerApprovalExecutor } from "../approvals/index.ts";
 import { refundDepositAtCheckout, requestDeduction } from "../deposits/index.ts";
 import { createCleaningTask } from "../housekeeping/index.ts";
+import { resolveOverstayExceptions } from "../inventory/index.ts";
 import { postEntry } from "../ledger/index.ts";
 import {
   allocatePayment,
@@ -418,6 +419,12 @@ export async function checkOut(ctx: CommandContext, input: CheckoutInput): Promi
   );
   const a = alloc.rows[0];
   if (a) {
+    // Người ở đã trả phòng: đóng STAY_OVERSTAY (và RELOCATION_REQUIRED do nó gây ra) để phòng hết bị chặn ROOM_OCCUPIED.
+    await resolveOverstayExceptions(ctx, {
+      allocationId: a.id,
+      propertyId: stay.property_id,
+      resolution: "checked_out",
+    });
     if (now.getTime() <= a.lo.getTime()) {
       await sql`update allocations set active = false, deactivated_at = ${now}, deactivated_reason = 'ended'
                 where organization_id = ${ctx.actor.orgId} and id = ${a.id}`.execute(ctx.trx);

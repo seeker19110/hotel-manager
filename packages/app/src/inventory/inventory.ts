@@ -7,6 +7,7 @@ import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/index.ts";
 import { createCleaningTask } from "../housekeeping/index.ts";
 import { type CommandContext, CommandError } from "../pipeline/index.ts";
+import { type ExceptionType, insertExceptionOutbox, openException } from "./exceptions.ts";
 
 export interface Interval {
   start: Date;
@@ -47,13 +48,56 @@ async function releaseExpiredOverlapping(
   unitId: string,
   range: string,
   now: Date,
+  exceptAllocationId: string | null = null,
 ) {
   const r = await sql<{ id: string }>`
     update allocations set active = false, deactivated_at = ${now}, deactivated_reason = 'expired'
     where organization_id = ${orgId} and unit_id = ${unitId} and active and kind = 'hold'
       and expires_at <= ${now} and during && ${range}::tstzrange
+      ${exceptAllocationId ? sql`and id <> ${exceptAllocationId}` : sql``}
     returning id`.execute(trx);
   return r.rows.map((x) => x.id);
+}
+
+/** Audit + outbox cho hold hết hạn bị dọn trong lệnh (cùng transaction — INV-G6). */
+async function recordExpired(ctx: CommandContext, propertyId: string, ids: readonly string[]) {
+  for (const id of ids) {
+    await ctx.audit({
+      action: "allocation.hold_expired",
+      entityType: "allocation",
+      entityId: id,
+      propertyId,
+    });
+    await ctx.emit({
+      eventType: "allocation.hold_expired",
+      aggregateType: "allocation",
+      aggregateId: id,
+      propertyId,
+      payload: { allocation_id: id },
+    });
+  }
+}
+
+/**
+ * Phòng còn lượt ở/hợp đồng quá hạn chưa trả (ngoại lệ `STAY_OVERSTAY`/`LEASE_OVERSTAY` đang mở trên allocation còn active) là
+ * phòng THỰC TẾ còn người: giữ/nhận khách/bàn giao vào phòng → 409 ROOM_OCCUPIED (SPEC-inventory S-017, S-020; Q-09 hiểu chặt:
+ * ngoại lệ mở nghĩa là chưa có mốc giải quyết nên mọi `start` đều "trước mốc giải quyết"). Hết chặn khi allocation quá hạn kết
+ * thúc (check-out/bàn giao trả) — không cần chờ ai đóng ngoại lệ. `exceptSourceId` loại allocation của chính nguồn đang thao tác.
+ */
+export async function assertNoOpenOverstay(
+  trx: Transaction<unknown>,
+  orgId: string,
+  unitId: string,
+  exceptSourceId: string | null = null,
+): Promise<void> {
+  const r = await sql<{ id: string }>`
+    select e.id from exceptions e
+    join allocations a on a.organization_id = e.organization_id and a.id = e.allocation_id
+    where e.organization_id = ${orgId} and e.status = 'open' and e.type in ('STAY_OVERSTAY', 'LEASE_OVERSTAY')
+      and a.unit_id = ${unitId} and a.active
+      ${exceptSourceId ? sql`and a.source_id is distinct from ${exceptSourceId}` : sql``}
+    limit 1`.execute(trx);
+  if (r.rows[0]) throw new CommandError("ROOM_OCCUPIED", 409, "Phòng vẫn còn khách chưa trả.");
 }
 
 function translateOverlap(err: unknown): never {
@@ -102,6 +146,7 @@ export async function createHold(
   });
   if (unit.availability !== "active")
     throw new CommandError("UNIT_OUT_OF_SERVICE", 409, "Phòng đang ngừng khai thác");
+  await assertNoOpenOverstay(ctx.trx, ctx.actor.orgId, input.unitId);
   // Hợp đồng không thời hạn được giữ chỗ mở cuối (SPEC-lease S-023); booking luôn có điểm cuối.
   if (!input.during.end && input.sourceType !== "lease")
     throw new CommandError("VALIDATION_FAILED", 422, "Giữ chỗ phải có thời điểm kết thúc");
@@ -110,14 +155,7 @@ export async function createHold(
   }
   const range = rangeLiteral(input.during);
   const released = await releaseExpiredOverlapping(ctx.trx, ctx.actor.orgId, input.unitId, range, now);
-  for (const id of released) {
-    await ctx.audit({
-      action: "allocation.hold_expired",
-      entityType: "allocation",
-      entityId: id,
-      propertyId: unit.property_id,
-    });
-  }
+  await recordExpired(ctx, unit.property_id, released);
   const id = randomUUID();
   const expiresAt = new Date(now.getTime() + minutesToMs(input.ttlMinutes));
   try {
@@ -181,6 +219,13 @@ export async function releaseHold(
     entityId: allocationId,
     propertyId: row.property_id,
   });
+  await ctx.emit({
+    eventType: "allocation.released",
+    aggregateType: "allocation",
+    aggregateId: allocationId,
+    propertyId: row.property_id,
+    payload: { allocation_id: allocationId },
+  });
   return { released: true };
 }
 
@@ -195,6 +240,19 @@ export async function confirmHold(
   now = new Date(),
   during?: Interval,
 ) {
+  // Khoá phòng TRƯỚC khoá allocation (cùng thứ tự với moveAllocation/resizeAllocation — không khoá chéo) để `setUnitAvailability`
+  // đồng thời không lọt: hold tạo trước khi phòng ngừng khai thác không được xác nhận thành lượt ở/hợp đồng (S-013).
+  const pre = await sql<{ unit_id: string; property_id: string }>`
+    select unit_id, property_id from allocations
+    where organization_id = ${ctx.actor.orgId} and id = ${allocationId} and kind = 'hold' and active`.execute(
+    ctx.trx,
+  );
+  const found = pre.rows[0];
+  if (!found) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy giữ chỗ");
+  authorize(ctx.actor, kind === "lease" ? "lease.manage" : "reservation.manage", {
+    propertyId: found.property_id,
+  });
+  const unit = await lockUnit(ctx.trx, ctx.actor.orgId, found.unit_id);
   const r = await sql<{ property_id: string; expires_at: Date }>`
     select property_id, expires_at from allocations
     where organization_id = ${ctx.actor.orgId} and id = ${allocationId} and kind = 'hold' and active for update`.execute(
@@ -202,9 +260,6 @@ export async function confirmHold(
   );
   const row = r.rows[0];
   if (!row) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy giữ chỗ");
-  authorize(ctx.actor, kind === "lease" ? "lease.manage" : "reservation.manage", {
-    propertyId: row.property_id,
-  });
   if (row.expires_at.getTime() <= now.getTime()) {
     // Lệnh chính rollback nên việc nhả hold (đúng một lần, kèm audit như job worker — INV-I3) ghi ở transaction riêng.
     const { orgId } = ctx.actor;
@@ -226,6 +281,8 @@ export async function confirmHold(
       },
     });
   }
+  if (unit.availability !== "active")
+    throw new CommandError("UNIT_OUT_OF_SERVICE", 409, "Phòng đang ngừng khai thác");
   try {
     await sql`savepoint confirm_hold`.execute(ctx.trx);
     await sql`update allocations set kind = ${kind}, expires_at = null
@@ -240,6 +297,13 @@ export async function confirmHold(
     entityId: allocationId,
     propertyId: row.property_id,
     after: { kind },
+  });
+  await ctx.emit({
+    eventType: "allocation.confirmed",
+    aggregateType: "allocation",
+    aggregateId: allocationId,
+    propertyId: row.property_id,
+    payload: { allocation_id: allocationId, kind },
   });
 }
 
@@ -288,6 +352,9 @@ export async function moveAllocation(
   const target = await lockUnit(ctx.trx, ctx.actor.orgId, input.toUnitId);
   if (target.property_id !== a.property_id)
     throw new CommandError("VALIDATION_FAILED", 422, "Chỉ chuyển trong cùng cơ sở");
+  if (target.availability !== "active")
+    throw new CommandError("UNIT_OUT_OF_SERVICE", 409, "Phòng đang ngừng khai thác");
+  await assertNoOpenOverstay(ctx.trx, ctx.actor.orgId, input.toUnitId);
   const newId = randomUUID();
   try {
     await sql`savepoint move`.execute(ctx.trx);
@@ -328,6 +395,13 @@ export async function moveAllocation(
       new_allocation: newId,
     },
   });
+  await ctx.emit({
+    eventType: "allocation.moved",
+    aggregateType: "allocation",
+    aggregateId: input.allocationId,
+    propertyId: a.property_id,
+    payload: { allocation_id: input.allocationId, new_allocation_id: newId, to_unit_id: input.toUnitId },
+  });
   return { newAllocationId: newId };
 }
 
@@ -349,6 +423,13 @@ export async function proposeBlock(
     entityId: id,
     propertyId: unit.property_id,
     reason: input.reason,
+  });
+  await ctx.emit({
+    eventType: "block.requested",
+    aggregateType: "block",
+    aggregateId: id,
+    propertyId: unit.property_id,
+    payload: { block_id: id, unit_id: input.unitId },
   });
   return { blockId: id };
 }
@@ -416,6 +497,13 @@ export async function approveBlock(ctx: CommandContext, blockId: string) {
     entityType: "block",
     entityId: blockId,
     propertyId: b.property_id,
+  });
+  await ctx.emit({
+    eventType: "block.approved",
+    aggregateType: "block",
+    aggregateId: blockId,
+    propertyId: b.property_id,
+    payload: { block_id: blockId, unit_id: b.unit_id },
   });
 }
 
@@ -531,5 +619,263 @@ export async function endBlock(
     entityId: blockId,
     propertyId: b.property_id,
   });
+  await ctx.emit({
+    eventType: "block.ended",
+    aggregateType: "block",
+    aggregateId: blockId,
+    propertyId: b.property_id,
+    payload: { block_id: blockId },
+  });
   return { blockId };
+}
+
+/** Ghi audit + outbox `exception.opened` cho ngoại lệ vừa mở trong một command (cùng transaction — INV-G6). */
+async function recordExceptionOpened(
+  ctx: CommandContext,
+  a: {
+    propertyId: string;
+    exceptionId: string;
+    type: ExceptionType;
+    allocationId: string;
+    relatedAllocationId?: string | null;
+  },
+) {
+  await ctx.audit({
+    action: "exception.opened",
+    entityType: "exception",
+    entityId: a.exceptionId,
+    propertyId: a.propertyId,
+    after: {
+      type: a.type,
+      allocation_id: a.allocationId,
+      related_allocation_id: a.relatedAllocationId ?? null,
+    },
+  });
+  await ctx.emit({
+    eventType: "exception.opened",
+    aggregateType: "exception",
+    aggregateId: a.exceptionId,
+    propertyId: a.propertyId,
+    dedupeKey: `exception.opened:${a.exceptionId}`,
+    payload: { exception_id: a.exceptionId, type: a.type, allocation_id: a.allocationId },
+  });
+}
+
+/**
+ * `inventory.setUnitAvailability` (SPEC-inventory S-013): bật/tắt phòng ngừng khai thác. Ngừng khai thác KHÔNG xoá hay huỷ
+ * booking/hợp đồng: mỗi allocation `stay`/`lease` còn hiệu lực sau `now` (kể cả khoảng mở, kể cả lượt ở đang diễn ra và người ở quá hạn chưa trả) nhận một
+ * ngoại lệ `RELOCATION_REQUIRED` (một cái đang mở cho mỗi allocation — gọi lại không nhân bản). Hold chưa xác nhận không tính
+ * (tự hết hạn). Chỉ owner/manager (`unit.set_availability`); `out_of_service` bắt buộc có lý do.
+ */
+export async function setUnitAvailability(
+  ctx: CommandContext,
+  input: { unitId: string; availability: "active" | "out_of_service"; reason?: string; now?: Date },
+): Promise<{ unitId: string; availability: "active" | "out_of_service"; exceptionIds: string[] }> {
+  const now = input.now ?? new Date();
+  const unit = await lockUnit(ctx.trx, ctx.actor.orgId, input.unitId);
+  authorize(ctx.actor, "unit.set_availability", { propertyId: unit.property_id });
+  const reason = input.reason?.trim() ?? "";
+  if (input.availability === "out_of_service" && reason.length === 0)
+    throw new CommandError("VALIDATION_FAILED", 422, "Cần ghi lý do ngừng khai thác", {
+      extensions: { errors: [{ path: "reason", field: "reason", code: "required" }] },
+    });
+  const before = await sql<{ availability: string; availability_reason: string | null }>`
+    select availability, availability_reason from units
+    where organization_id = ${ctx.actor.orgId} and id = ${input.unitId}`.execute(ctx.trx);
+  await sql`
+    update units set availability = ${input.availability},
+                     availability_reason = ${input.availability === "active" ? null : reason}, version = version + 1
+    where organization_id = ${ctx.actor.orgId} and id = ${input.unitId}`.execute(ctx.trx);
+  const exceptionIds: string[] = [];
+  if (input.availability === "out_of_service") {
+    // Còn hiệu lực sau `now`, HOẶC người ở thực tế còn đó dù allocation đã hết giờ: hợp đồng có ngoại lệ quá hạn đang mở, lượt ở
+    // `in_house` chưa trả phòng (kể cả chưa tới ngưỡng job `detectOverdue`) — chỉ allocation CUỐI của lượt ở (đoạn cũ sau khi chuyển
+    // phòng không còn người).
+    const affected = await sql<{ id: string }>`
+      select a.id from allocations a
+      where a.organization_id = ${ctx.actor.orgId} and a.unit_id = ${input.unitId} and a.active and a.kind in ('stay', 'lease')
+        and (upper_inf(a.during) or upper(a.during) > ${now}
+             or exists (select 1 from exceptions e where e.organization_id = a.organization_id and e.allocation_id = a.id
+                          and e.status = 'open' and e.type in ('STAY_OVERSTAY', 'LEASE_OVERSTAY'))
+             or (a.source_type = 'stay' and a.kind = 'stay'
+                 and exists (select 1 from stays st where st.organization_id = a.organization_id and st.id = a.source_id
+                               and st.status = 'in_house')
+                 and not exists (select 1 from allocations l where l.organization_id = a.organization_id
+                                   and l.source_type = 'stay' and l.source_id = a.source_id and l.active and l.kind = 'stay'
+                                   and l.id <> a.id and lower(l.during) >= upper(a.during))))
+      order by lower(a.during), a.id`.execute(ctx.trx);
+    for (const al of affected.rows) {
+      const e = await openException(ctx.trx, {
+        orgId: ctx.actor.orgId,
+        propertyId: unit.property_id,
+        type: "RELOCATION_REQUIRED",
+        allocationId: al.id,
+      });
+      exceptionIds.push(e.id);
+      if (e.created)
+        await recordExceptionOpened(ctx, {
+          propertyId: unit.property_id,
+          exceptionId: e.id,
+          type: "RELOCATION_REQUIRED",
+          allocationId: al.id,
+        });
+    }
+  }
+  await ctx.audit({
+    action: "unit.availability_changed",
+    entityType: "unit",
+    entityId: input.unitId,
+    propertyId: unit.property_id,
+    ...(reason ? { reason } : {}),
+    before: before.rows[0] ?? null,
+    after: {
+      availability: input.availability,
+      availability_reason: input.availability === "active" ? null : reason,
+    },
+  });
+  await ctx.emit({
+    eventType: "unit.availability_changed",
+    aggregateType: "unit",
+    aggregateId: input.unitId,
+    propertyId: unit.property_id,
+    payload: {
+      unit_id: input.unitId,
+      availability: input.availability,
+      relocation_required: exceptionIds.length,
+    },
+  });
+  return { unitId: input.unitId, availability: input.availability, exceptionIds };
+}
+
+/**
+ * `inventory.resizeAllocation` (SPEC-inventory S-018, S-019): đổi `start`/`end` của allocation đang hiệu lực (`end: null` = khoảng
+ * mở, chỉ `lease`). Khoá phòng rồi cập nhật một câu; chồng allocation khác → 23P01 → `ROOM_UNAVAILABLE`, và nếu bên chiếm là booking
+ * đã xác nhận (`stay`/`lease`) thì MỞ `EXTENSION_CONFLICT` ở transaction riêng SAU rollback (`persist`) và trả `exception_id`.
+ * Không bỏ/hoãn constraint. Lệnh này CHỈ đổi allocation — nguồn (booking/hợp đồng, giá, folio) do module gọi tự đồng bộ.
+ */
+export async function resizeAllocation(
+  ctx: CommandContext,
+  input: { allocationId: string; start?: Date; end?: Date | null; now?: Date },
+): Promise<{ allocationId: string; start: string; end: string | null }> {
+  const now = input.now ?? new Date();
+  if (input.start === undefined && input.end === undefined)
+    throw new CommandError("VALIDATION_FAILED", 422, "Cần ít nhất start hoặc end");
+  const { orgId } = ctx.actor;
+  const src = await sql<{ unit_id: string }>`
+    select unit_id from allocations where organization_id = ${orgId} and id = ${input.allocationId} and active`.execute(
+    ctx.trx,
+  );
+  const unitId = src.rows[0]?.unit_id;
+  if (!unitId) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phân bổ phòng");
+  const unit = await lockUnit(ctx.trx, orgId, unitId);
+  const r = await sql<{
+    kind: string;
+    source_type: string | null;
+    expires_at: Date | null;
+    lo: Date;
+    hi: Date | null;
+  }>`
+    select kind, source_type, expires_at, lower(during) as lo, upper(during) as hi from allocations
+    where organization_id = ${orgId} and id = ${input.allocationId} and active for update`.execute(ctx.trx);
+  const a = r.rows[0];
+  if (!a) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phân bổ phòng");
+  authorize(
+    ctx.actor,
+    a.kind === "lease"
+      ? "lease.manage"
+      : a.kind === "block"
+        ? "block.approve"
+        : a.source_type === "lease"
+          ? "lease.hold"
+          : "reservation.manage",
+    { propertyId: unit.property_id },
+  );
+  if (a.kind === "hold" && a.expires_at && a.expires_at.getTime() <= now.getTime())
+    throw new CommandError("HOLD_EXPIRED", 409, "Giữ chỗ đã hết hạn");
+  const start = input.start ?? a.lo;
+  const end = input.end === undefined ? a.hi : input.end;
+  if (end === null && a.kind !== "lease")
+    throw new CommandError(
+      "VALIDATION_FAILED",
+      422,
+      "Chỉ hợp đồng được để khoảng mở (không có thời điểm kết thúc)",
+    );
+  const range = rangeLiteral({ start, end });
+  await recordExpired(
+    ctx,
+    unit.property_id,
+    await releaseExpiredOverlapping(ctx.trx, orgId, unitId, range, now, input.allocationId),
+  );
+  try {
+    await sql`savepoint resize_alloc`.execute(ctx.trx);
+    await sql`update allocations set during = ${range}::tstzrange where organization_id = ${orgId} and id = ${input.allocationId}`.execute(
+      ctx.trx,
+    );
+  } catch (err) {
+    if ((err as { code?: string }).code !== "23P01") throw err;
+    await sql`rollback to savepoint resize_alloc`.execute(ctx.trx);
+    const c = await sql<{ id: string; kind: string }>`
+      select id, kind from allocations
+      where organization_id = ${orgId} and unit_id = ${unitId} and active and id <> ${input.allocationId}
+        and during && ${range}::tstzrange
+      order by lower(during), id`.execute(ctx.trx);
+    const confirmed = c.rows.find((x) => x.kind === "stay" || x.kind === "lease");
+    const { correlationId, commandId } = ctx;
+    throw new CommandError("ROOM_UNAVAILABLE", 409, "Phòng đã có người đặt trong khoảng thời gian này", {
+      // Transaction của lệnh đã rollback: ngoại lệ ghi ở transaction riêng (đúng một lần cho mỗi Idempotency-Key).
+      ...(confirmed
+        ? {
+            persist: async (trx, audit) => {
+              const e = await openException(trx, {
+                orgId,
+                propertyId: unit.property_id,
+                type: "EXTENSION_CONFLICT",
+                allocationId: input.allocationId,
+                relatedAllocationId: confirmed.id,
+              });
+              if (e.created) {
+                await audit({
+                  action: "exception.opened",
+                  entityType: "exception",
+                  entityId: e.id,
+                  propertyId: unit.property_id,
+                  after: {
+                    type: "EXTENSION_CONFLICT",
+                    allocation_id: input.allocationId,
+                    related_allocation_id: confirmed.id,
+                  },
+                });
+                await insertExceptionOutbox(trx, {
+                  orgId,
+                  propertyId: unit.property_id,
+                  exceptionId: e.id,
+                  type: "EXTENSION_CONFLICT",
+                  details: { allocation_id: input.allocationId },
+                  correlationId,
+                  commandId,
+                });
+              }
+              return { exception_id: e.id };
+            },
+          }
+        : {}),
+    });
+  }
+  const iso = (d: Date | null) => (d ? d.toISOString() : null);
+  await ctx.audit({
+    action: "allocation.resized",
+    entityType: "allocation",
+    entityId: input.allocationId,
+    propertyId: unit.property_id,
+    before: { start: a.lo.toISOString(), end: iso(a.hi) },
+    after: { start: start.toISOString(), end: iso(end) },
+  });
+  await ctx.emit({
+    eventType: "allocation.resized",
+    aggregateType: "allocation",
+    aggregateId: input.allocationId,
+    propertyId: unit.property_id,
+    payload: { allocation_id: input.allocationId },
+  });
+  return { allocationId: input.allocationId, start: start.toISOString(), end: iso(end) };
 }

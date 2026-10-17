@@ -8,6 +8,7 @@ import {
   createLogger,
   createPool,
   createServices,
+  detectOverdue,
   detectOverstay,
   type EmailSender,
   expireHeldReservations,
@@ -51,6 +52,8 @@ export interface Intervals {
   reminders: number;
   periods: number;
   lease: number;
+  /** Lượt ở quá giờ trả chưa check-out → ngoại lệ STAY_OVERSTAY (SPEC-inventory S-017). */
+  overdue: number;
   exports: number;
   retention: number;
   /** Dọn bảng sự kiện (outbox đã phát, idempotency hết hạn, lần gửi thông báo đã xong; T-505). */
@@ -67,6 +70,7 @@ export const DEFAULT_INTERVALS: Intervals = {
   reminders: 15 * MINUTE, // nhắc lưu trú cần nhịp 15 phút; quá hạn/hợp đồng chạy cùng nhịp, dedupe giữ không lặp
   periods: HOUR,
   lease: HOUR,
+  overdue: 15 * MINUTE, // ngưỡng quá hạn mặc định 60 phút (Q-03): nhịp 15 phút đủ sát
   exports: 5 * MINUTE,
   retention: 24 * HOUR,
   eventsRetention: HOUR, // xoá theo lô có trần; tồn đọng lớn được dọn dần qua các lượt
@@ -217,6 +221,7 @@ export async function startWorker(deps: WorkerDeps): Promise<WorkerHandle> {
       run: () =>
         sequence([() => remindExpiring(workerDb, new Date()), () => detectOverstay(workerDb, new Date())]),
     },
+    { name: "inventory.detect_overdue", everyMs: iv.overdue, run: () => detectOverdue(workerDb, new Date()) },
     { name: "exports.expire", everyMs: iv.exports, run: expireExportsJob(workerDb) },
     {
       // Hằng ngày: break đối soát mở quá SLA + sổ cái trôi (IND-FIN-006). Chạy lại bao nhiêu lần/ngày vẫn một hiệu lực.

@@ -18,7 +18,7 @@ import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/index.ts";
 import { approvalRequired, registerApprovalExecutor } from "../approvals/index.ts";
 import { receiveDeposit } from "../deposits/index.ts";
-import { confirmHold, createHold, type Interval } from "../inventory/index.ts";
+import { confirmHold, createHold, type Interval, lockUnit } from "../inventory/index.ts";
 import { postEntry } from "../ledger/index.ts";
 import { confirmPayment, type ManualBankTxn, recordPayment } from "../payments/index.ts";
 import { type CommandContext, CommandError } from "../pipeline/index.ts";
@@ -357,6 +357,8 @@ export async function confirmReservation(
   authorize(ctx.actor, "reservation.manage", { propertyId: row.property_id });
   transition(row.status, "confirmed");
   if (!row.allocation_id) throw holdExpired(ctx, row);
+  // Khoá phòng trước khoá allocation (thứ tự chung của module tồn — tránh khoá chéo với resize/move/setUnitAvailability).
+  await lockUnit(ctx.trx, ctx.actor.orgId, row.unit_id);
   const a = await sql<{ active: boolean; expires_at: Date | null }>`
     select active, expires_at from allocations where organization_id = ${ctx.actor.orgId} and id = ${row.allocation_id} for update`.execute(
     ctx.trx,

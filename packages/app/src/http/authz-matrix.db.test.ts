@@ -65,6 +65,12 @@ const OVERRIDES: Record<string, (i: Ids) => Record<string, unknown>> = {
     locked_through: "2026-01-31",
     reason: "Chốt kỳ thử nghiệm",
   }),
+  "inventory.getCalendar": (i) => ({ property_id: i.property_id, from: "2026-11-01", to: "2026-11-08" }),
+  "inventory.searchAvailability": (i) => ({
+    property_id: i.property_id,
+    start: "2026-11-05T14:00:00+07:00",
+    end: "2026-11-06T12:00:00+07:00",
+  }),
   "reservation.quote": (i) => ({
     room_type_id: i.room_type_id,
     arrival_date: "2026-11-05",
@@ -431,6 +437,14 @@ const ALLOWED_2XX: Record<string, Allowed> = {
     "calendar.read_status",
     ["housekeeping", "maintenance", "accountant", "front_desk"],
   ],
+  "inventory.getCalendar": [
+    "calendar.read_status",
+    ["housekeeping", "maintenance", "accountant", "front_desk"],
+  ],
+  "inventory.searchAvailability": [
+    "calendar.read_status",
+    ["housekeeping", "maintenance", "accountant", "front_desk"],
+  ],
   "today.getSummary": ["calendar.read_status", ["housekeeping", "maintenance", "accountant", "front_desk"]],
   "today.listItems": ["calendar.read_guests", ["front_desk"]],
   "maintenance.listWorkOrders": [
@@ -512,6 +526,9 @@ const MUST_403: readonly (readonly [string, Action | null, readonly Role[]])[] =
   ].map((n) => [n, "work_order.handle", ["housekeeping", "front_desk"]] as const),
   ["maintenance.verifyWorkOrder", "task.verify", ["housekeeping", "maintenance", "front_desk"]],
   ["today.getSummary", "calendar.read_status", ["tenant"]],
+  ["inventory.getCalendar", "calendar.read_status", ["tenant"]],
+  ["inventory.searchAvailability", "calendar.read_status", ["tenant"]],
+  ["inventory.setUnitAvailability", "unit.set_availability", ALL5],
   // Duyệt đề nghị: chỉ chủ/quản lý (SPEC-ledger hạn mức) — kế toán và lễ tân chỉ được LẬP đề nghị.
   ...["approval.approve", "approval.reject", "approval.cancel"].map(
     (n) => [n, null, ["accountant", "front_desk"]] as const,
