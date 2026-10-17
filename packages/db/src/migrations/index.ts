@@ -59,6 +59,7 @@ import * as m0056 from "./0056_event_table_retention.ts";
 import * as m0060 from "./0060_fk_operator_indexes.ts";
 import * as m0061 from "./0061_stays_overdue.ts";
 import * as m0062 from "./0062_access_property.ts";
+import * as m0063 from "./0063_email_budget.ts";
 
 export const migrations: Record<string, Migration> = {
   "0001_tenancy": m0001,
@@ -119,4 +120,5 @@ export const migrations: Record<string, Migration> = {
   "0060_fk_operator_indexes": m0060,
   "0061_stays_overdue": m0061,
   "0062_access_property": m0062,
+  "0063_email_budget": m0063,
 };

@@ -35,6 +35,7 @@ Khi chạy thật (đề xuất D-021): chặn thêm `/api/metrics` ở reverse 
 | `hm_outbox_oldest_unpublished_age_seconds` | > 300 trong 5 phút | Relay outbox đứng — thông báo/xuất/đối soát không chạy |
 | `hm_outbox_failing` | > 0 trong 15 phút | Có sự kiện phát lỗi lặp lại |
 | `delta(notification_dead_total[1h])` | > 0 | Email hết lượt thử (nhà cung cấp lỗi kéo dài hoặc địa chỉ sai hàng loạt). Metric là gauge số hàng `dead` (dù tên `_total`, `# TYPE counter` — sai, sẽ sửa ở nhánh khác): dùng `delta`, không dùng `increase` |
+| `hm_email_budget_used_ratio` | ≥ 0,8 (ticket); ≥ 1 hoặc `hm_email_budget_stopped_today > 0` (ticket) | Ngân sách email ngày/tổ chức: 80% cảnh báo, 90% bóp, 100% dừng (§3.12) |
 | `hm_jobs_failed` | tăng | Job pg-boss lỗi (xem dead letter §6) |
 | `hm_dead_letter_jobs` | > 0 trong 10 phút | Job nằm trong dead letter chờ người xử lý/redrive (§6) |
 | `hm_export_jobs{status="failed"}` | tăng | Xuất dữ liệu lỗi (xem `export_jobs.failed_reason`) |
@@ -99,6 +100,14 @@ Cảnh báo `HmDbDeadTuplesHigh`: nhãn `table` cho bảng; xem `select relname,
 1. Autovacuum có chạy không (`last_autovacuum` gần đây)? Không ⇒ tìm giao dịch dài giữ xmin như §3.10 bước 2.
 2. Bảng ghi nhiều đã có tham số riêng (migration 0048, docs/db/connections.md §4); bảng khác cần thì thêm `ALTER TABLE … SET (autovacuum_vacuum_scale_factor = …)` bằng migration mới.
 3. Cần dọn gấp: `VACUUM (VERBOSE, ANALYZE) <bảng>;` (không `FULL` — khoá bảng).
+
+### 3.12 Ngân sách email ngày
+Cảnh báo `HmEmailBudgetHigh` (≥ 80%) / `HmEmailBudgetExhausted` (100%); metric (gauge, chỉ ngày UTC hiện tại, tổng hợp toàn hệ thống): `hm_email_budget_used_ratio` (tổ chức dùng nhiều nhất, 0…1), `hm_email_budget_throttled_today`, `hm_email_budget_stopped_today` (số lần hoãn vì bóp/dừng trong ngày, về 0 khi sang ngày UTC). Circuit breaker chi phí (OPS-COST-004): ngân sách `EMAIL_DAILY_BUDGET_PER_ORG` lượt gọi nhà cung cấp mỗi tổ chức mỗi ngày UTC (hằng trong `packages/domain/src/notifications/email-budget.ts`, đổi qua PR). ≥ 80% log `notification.email_budget_warn`; ≥ 90% log `…_throttle` và chỉ gửi loại bắt buộc/giao dịch (`account_security`, lời mời nhân viên) — loại khác hoãn; 100% log `…_exhausted` và dừng mọi loại.
+1. Tổ chức nào: `select organization_id, day, used, throttled, stopped, level from email_budget_days where day = (now() at time zone 'utc')::date order by used desc limit 10;` (vai trò quản trị).
+2. Nguồn: lượt gửi theo loại — `select n.type, count(*) from notification_deliveries d join notifications n on n.organization_id = d.organization_id and n.id = d.notification_id where d.organization_id = '<org>' and d.created_at > now() - interval '1 day' group by 1;`. Nhiều bất thường ⇒ tìm vòng lặp/job phát sinh (nhắc nợ lặp, thử lại thủ công hàng loạt) và sửa nguồn.
+3. Không mất thư: lần gửi bị hoãn nằm ở `retrying` với `next_attempt_at` = đầu ngày UTC kế tiếp (không tính một lần thử) và tự gửi sau khi sang ngày. Lời mời nhân viên bị hoãn được xếp lại cùng dữ liệu vào queue `member.invited` với `start_after` = đầu ngày UTC kế tiếp (job gốc hoàn tất, không vào dead letter; log `invitation.mail_deferred`): `select id, state, start_after from pgboss.job where name = 'member.invited' and state = 'created' and start_after > now();`.
+4. Hệ quả cần biết: mỗi lần gọi nhà cung cấp tính một lượt kể cả khi lỗi tạm (không hoàn lượt) — nhà cung cấp sập kéo dài làm các lần thử lại ăn ngân sách; có thể chạm 100% và chặn cả `account_security`/lời mời tới 00:00 UTC. Khi thấy `HmEmailBudgetExhausted` cùng `HmNotificationDead`/lỗi nhà cung cấp, sửa nhà cung cấp trước; thư vẫn không mất (được hoãn tới ngày sau).
+5. Không sửa tay `email_budget_days` để "xả" ngân sách; nâng trần cần đổi hằng bằng PR có review. Mã OTP đăng nhập người thuê chưa qua ngân sách (không gắn tổ chức, chưa có adapter SMTP thật — D-058).
 
 ## 4. Sao lưu và khôi phục
 - Diễn tập PITR (dữ liệu giả, cluster tạm): `bash scripts/db-backup-restore-check.sh` — exit 0 = khôi phục đúng (so số dòng, Σ Nợ/Có, số policy RLS).
