@@ -1,8 +1,17 @@
 # Hạ tầng tự host cho VPS (ADR-0002, PLAN T-012) — CHƯA TRIỂN KHAI: mua VPS/tên miền/SMTP và nạp secret là điểm dừng cần duyệt.
 # Mọi image ghim theo digest (index đa kiến trúc, tra Docker Hub 2026-10-15); scripts/check-image-pins.test.mjs chặn image không ghim.
-# Ứng dụng web/worker thêm vào khi có Dockerfile ứng dụng (task deploy đợt sau); Caddy đã trỏ sẵn tới web:3000.
-# Secret nằm trong deploy/secrets/ (bị .gitignore) — mẫu: *.example cạnh file này.
+# Ứng dụng: `web` (deploy/web.Dockerfile) và `worker` (deploy/worker.Dockerfile) — CHƯA build/chạy thật (máy dev không có daemon Docker);
+# test tĩnh scripts/process-docs.test.mjs giữ: stop_grace_period ≥ hạn chót dừng êm, danh tính riêng, không bí mật, log có trần.
+# Secret nằm trong deploy/secrets/ (bị .gitignore) — mẫu: *.example cạnh file này; danh sách biến của từng env_file: deploy/README.md.
 name: hotel-manager
+
+# Hạn giữ log container (docs/ops/retention-policy.md): xoay vòng theo kích thước, tối đa max-size × max-file mỗi container.
+# Một dòng log của container là bản tạm; sự kiện cần lưu lâu nằm ở CSDL (audit_events), không dựa vào log container.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
 
 services:
   postgres:
@@ -29,6 +38,7 @@ services:
       - pgdata:/var/lib/postgresql/data
       - ./secrets/pgbackrest.conf:/etc/pgbackrest/pgbackrest.conf:ro
     # backend: chỉ trong máy; backup_egress: đường ra cho pgBackRest đẩy WAL/backup tới kho S3/SFTP ở máy khác.
+    logging: *default-logging
     networks: [backend, backup_egress]
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "postgres"]
@@ -44,6 +54,7 @@ services:
     volumes:
       - seaweed:/data
       - ./secrets/s3.json:/etc/seaweedfs/s3.json:ro
+    logging: *default-logging
     networks: [backend]
     # Bucket riêng tư, không publish cổng. Trình duyệt mở URL ký (≤ 5 phút, packages/app/src/files) qua site
     # {$HM_FILES_DOMAIN} của Caddy → seaweedfs:8333; ứng dụng phải ký với S3_ENDPOINT=https://{$HM_FILES_DOMAIN}.
@@ -63,7 +74,90 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
-    networks: [backend, edge]
+    logging: *default-logging
+    networks:
+      backend:
+        # web/worker ký và gọi S3 qua https://${HM_FILES_DOMAIN} (production không chấp nhận http:// tới máy khác): bí danh để tên
+        # miền công khai phân giải về Caddy ngay trong mạng backend (chưa kiểm bằng triển khai thật).
+        aliases:
+          - ${HM_DOMAIN}
+          - ${HM_FILES_DOMAIN}
+      edge:
+
+  web:
+    # Next.js (apps/web). Vai trò CSDL `app_runtime` (không owner, NOBYPASSRLS) qua DATABASE_URL; danh tính S3 `hotel-manager-web`.
+    build:
+      context: ..
+      dockerfile: deploy/web.Dockerfile
+    restart: unless-stopped
+    # Hạn dừng êm: SHUTDOWN_DEADLINE_MS (25 s) + biên 10 s ≤ STOP_GRACE_PERIOD_SECONDS (apps/web/lib/shutdown.ts) — MỘT giá trị
+    # cho web và worker; test shutdown.test.ts + process-docs.test.mjs giữ khớp.
+    stop_grace_period: 40s
+    environment:
+      NODE_ENV: production
+      APP_BASE_URL: https://${HM_DOMAIN:?đặt HM_DOMAIN trong deploy/.env}
+      S3_ENDPOINT: https://${HM_FILES_DOMAIN:?đặt HM_FILES_DOMAIN trong deploy/.env}
+      S3_BUCKET: hm-files
+    # Bí mật của web: DATABASE_URL (app_runtime), BETTER_AUTH_SECRET, S3_ACCESS_KEY_ID/S3_SECRET_ACCESS_KEY (danh tính web),
+    # HM_PII_KEYS, HM_PII_KEY_ID, HM_PII_INDEX_KEY, CLAMD_HOST, SMTP_URL, SIM_WEBHOOK_SECRET. File nằm ngoài git.
+    env_file:
+      - ./secrets/web.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      seaweedfs:
+        condition: service_started
+    # /api/ready: CSDL + kho object + máy quét; 503 ngay khi nhận SIGTERM (đang rút khỏi vòng) — khác /api/health (chỉ còn sống).
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/ready').then((r)=>process.exit(r.ok?0:1),()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
+    networks: [backend]
+    # Không publish cổng: chỉ Caddy (reverse_proxy web:3000) vào được.
+
+  worker:
+    # Outbox relay + pg-boss + job định kỳ (apps/worker). Vai trò CSDL `app_worker` qua WORKER_DATABASE_URL (relay, job nền, pg-boss) và
+    # `app_runtime` qua DATABASE_URL (job xuất dữ liệu đọc theo quyền người yêu cầu); danh tính S3 `hotel-manager-worker` (khác web).
+    build:
+      context: ..
+      dockerfile: deploy/worker.Dockerfile
+    restart: unless-stopped
+    # Hạn chót dừng êm của worker 25 s + đồng hồ canh 10 s (RUNBOOK §8) ≤ 40 s — cùng giá trị với web.
+    stop_grace_period: 40s
+    environment:
+      NODE_ENV: production
+      APP_BASE_URL: https://${HM_DOMAIN:?đặt HM_DOMAIN trong deploy/.env}
+      S3_ENDPOINT: https://${HM_FILES_DOMAIN:?đặt HM_FILES_DOMAIN trong deploy/.env}
+      S3_BUCKET: hm-files
+    # Bí mật của worker: WORKER_DATABASE_URL (app_worker), DATABASE_URL (app_runtime), BETTER_AUTH_SECRET, S3_ACCESS_KEY_ID/
+    # S3_SECRET_ACCESS_KEY (danh tính worker, KHÁC web), HM_PII_KEYS, HM_PII_KEY_ID, HM_PII_INDEX_KEY, CLAMD_HOST, SMTP_URL.
+    env_file:
+      - ./secrets/worker.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      seaweedfs:
+        condition: service_started
+    # Không có cổng HTTP nên không có healthcheck kiểu /api/ready; sức khoẻ = nhịp `worker_heartbeats` (metric
+    # hm_worker_heartbeat_age_seconds, cảnh báo ở deploy/prometheus/alerts.yml) + log `worker.started`.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
+    networks: [backend]
 
 secrets:
   postgres_password:

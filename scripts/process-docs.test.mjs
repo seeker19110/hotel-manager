@@ -1122,6 +1122,248 @@ describe("tách danh tính S3 web/worker (SEC-INFRA-001)", () => {
   });
 });
 
+// ───────────────────────── compose: web/worker (ARC-RES-009, SEC-INFRA-001, T-505) ─────────────────────────
+
+/** Khối văn bản của một service trong compose (từ `  <tên>:` tới service kế/khoá cấp 0); null nếu không có. */
+function composeService(text, name) {
+  const lines = text.split("\n");
+  const start = lines.findIndex((l) => l === `  ${name}:`);
+  if (start < 0) return null;
+  const body = [];
+  for (const l of lines.slice(start + 1)) {
+    if (/^ {2}\S/.test(l) || /^\S/.test(l)) break;
+    body.push(l);
+  }
+  return body.join("\n");
+}
+/** Mã (bỏ dòng chú thích) của khối. */
+const noComments = (block) =>
+  block
+    .split("\n")
+    .filter((l) => !l.trim().startsWith("#"))
+    .join("\n");
+/** Tên biến dưới `environment:` của khối (khoá `NAME:` thụt 6 ô). */
+function composeEnvNames(block) {
+  const i = block.indexOf("    environment:\n");
+  if (i < 0) return [];
+  const names = [];
+  for (const l of block.slice(i).split("\n").slice(1)) {
+    const m = /^ {6}([A-Z][A-Z0-9_]*):/.exec(l);
+    if (m) names.push(m[1]);
+    else if (/^ {0,4}\S/.test(l)) break;
+  }
+  return names;
+}
+
+describe("deploy/compose.yaml: web + worker (ARC-RES-009, SEC-INFRA-001)", () => {
+  const compose = read("deploy/compose.yaml");
+  const SERVICES = ["web", "worker"];
+  const graceSeconds = Number(/STOP_GRACE_PERIOD_SECONDS = (\d+)/.exec(read("apps/web/lib/shutdown.ts"))[1]);
+
+  it("composeService tách đúng khối và không lẫn service kế", () => {
+    const sample = "services:\n  a:\n    x: 1\n    # c\n  b:\n    y: 2\nsecrets:\n  z:\n";
+    expect(composeService(sample, "a")).toBe("    x: 1\n    # c");
+    expect(composeService(sample, "b")).toBe("    y: 2");
+    expect(composeService(sample, "c")).toBeNull();
+  });
+  it("có service web và worker, build từ Dockerfile ứng dụng ở gốc repo (không image trôi)", () => {
+    for (const [name, dockerfile] of [
+      ["web", "deploy/web.Dockerfile"],
+      ["worker", "deploy/worker.Dockerfile"],
+    ]) {
+      const block = composeService(compose, name);
+      expect(block, name).not.toBeNull();
+      expect(block).toMatch(/\n {6}context: \.\.\n/);
+      expect(block).toContain(`dockerfile: ${dockerfile}`);
+      expect(noComments(block)).not.toMatch(/^\s+image:/m);
+      expect(exists(dockerfile)).toBe(true);
+    }
+  });
+  it.each(SERVICES)("%s: stop_grace_period ≥ hạn chót dừng êm, khớp STOP_GRACE_PERIOD_SECONDS", (name) => {
+    const m = /^\s+stop_grace_period:\s*(\d+)s\s*$/m.exec(composeService(compose, name));
+    expect(m, "thiếu stop_grace_period dạng `<số>s`").not.toBeNull();
+    expect(Number(m[1])).toBe(graceSeconds);
+    // Hạn chót thật của hai tiến trình + biên 10 s phải nằm trong hạn compose.
+    const deadline = Number(
+      /SHUTDOWN_DEADLINE_MS = ([\d_]+)/.exec(read("apps/web/lib/shutdown.ts"))[1].replaceAll("_", ""),
+    );
+    const workerStop = Number(
+      /DEFAULT_STOP_TIMEOUT_MS = ([\d_]+)/.exec(read("apps/worker/src/runtime.ts"))[1].replaceAll("_", ""),
+    );
+    expect((name === "web" ? deadline : workerStop) + 10_000).toBeLessThanOrEqual(Number(m[1]) * 1000);
+  });
+  it("web: healthcheck gọi /api/ready (không phải /api/health) trên đúng cổng Caddy trỏ tới", () => {
+    const block = composeService(compose, "web");
+    const port = /reverse_proxy web:(\d+)/.exec(read("deploy/Caddyfile"))[1];
+    const hc = block.slice(block.indexOf("healthcheck:"));
+    expect(hc).toContain(`127.0.0.1:${port}/api/ready`);
+    expect(hc).not.toContain("/api/health");
+    expect(hc).toMatch(/start_period:/);
+    expect(exists("apps/web/app/api/ready/route.ts")).toBe(true);
+  });
+  it("vai trò CSDL riêng: web chỉ nhận env_file của web; worker nhận env_file riêng; hai file khác nhau", () => {
+    const web = composeService(compose, "web");
+    const worker = composeService(compose, "worker");
+    expect(web).toMatch(/env_file:\n\s+- \.\/secrets\/web\.env\b/);
+    expect(worker).toMatch(/env_file:\n\s+- \.\/secrets\/worker\.env\b/);
+    // Chú thích nêu đúng vai trò: web dùng app_runtime (DATABASE_URL); worker dùng WORKER_DATABASE_URL (app_worker).
+    expect(web).toContain("app_runtime");
+    expect(worker).toContain("WORKER_DATABASE_URL");
+    expect(worker).toContain("app_worker");
+    expect(web).not.toContain("WORKER_DATABASE_URL");
+    expect(web).not.toContain("app_worker");
+  });
+  it("danh tính S3 riêng: web và worker không dùng chung file khoá; không khoá S3 ghi thẳng trong compose", () => {
+    expect(composeService(compose, "web")).toContain("hotel-manager-web");
+    expect(composeService(compose, "worker")).toContain("hotel-manager-worker");
+    for (const name of SERVICES) {
+      const env = composeEnvNames(composeService(compose, name));
+      expect(env).not.toContain("S3_ACCESS_KEY_ID");
+      expect(env).not.toContain("S3_SECRET_ACCESS_KEY");
+    }
+  });
+  it("biến môi trường ghi thẳng trong compose đều có sẵn trong schema cấu hình (không biến mới) và không phải bí mật", async () => {
+    const { envSchema, SECRET_KEYS } = await import("../packages/app/src/config/schema.ts");
+    const { WORKER_ENV_KEYS } = await import("../packages/app/src/config/worker.ts");
+    const known = new Set([
+      ...Object.keys(envSchema.shape ?? envSchema._def.schema.shape),
+      ...WORKER_ENV_KEYS,
+    ]);
+    for (const name of SERVICES) {
+      const env = composeEnvNames(composeService(compose, name));
+      expect(env.length).toBeGreaterThan(0);
+      for (const k of env) {
+        expect(known.has(k), `${name}: ${k} không có trong schema cấu hình`).toBe(true);
+        expect(SECRET_KEYS, `${name}: ${k} là bí mật, đặt ở env_file`).not.toContain(k);
+      }
+      // Giá trị trong compose chỉ là hằng không bí mật hoặc tham chiếu ${...} tới deploy/.env.
+      expect(noComments(composeService(compose, name))).not.toMatch(/postgres(ql)?:\/\/[^\s$]*:[^\s$@]+@/);
+    }
+  });
+  it("mọi service có log xoay vòng (RET-01) và hardening tối thiểu cho web/worker", () => {
+    expect(compose).toMatch(
+      /x-logging: &default-logging\n {2}driver: json-file\n {2}options:\n {4}max-size: "10m"\n {4}max-file: "5"/,
+    );
+    for (const name of ["postgres", "seaweedfs", "caddy", ...SERVICES])
+      expect(composeService(compose, name), name).toContain("logging: *default-logging");
+    for (const name of SERVICES) {
+      const block = noComments(composeService(compose, name));
+      expect(block).toContain("cap_drop: [ALL]");
+      expect(block).toContain("no-new-privileges:true");
+      expect(block).toMatch(/restart: unless-stopped/);
+      expect(block).toMatch(/networks: \[backend\]/);
+      expect(block).not.toMatch(/^\s+ports:/m);
+    }
+  });
+  it("web/worker chỉ chạy sau khi Postgres khoẻ", () => {
+    for (const name of SERVICES)
+      expect(composeService(compose, name)).toMatch(/postgres:\n\s+condition: service_healthy/);
+  });
+  it("deploy/README.md không còn nói thiếu service web/worker và liệt kê hai env_file", () => {
+    const r = read("deploy/README.md");
+    expect(r).not.toMatch(/Chưa có service `web`/);
+    expect(r).toContain("secrets/web.env");
+    expect(r).toContain("secrets/worker.env");
+  });
+});
+
+// ───────────────────────── chính sách hạn giữ (XC-GREEN-007, T-505) ─────────────────────────
+
+describe("docs/ops/retention-policy.md khớp mã và cấu hình (XC-GREEN-007)", () => {
+  const doc = read("docs/ops/retention-policy.md");
+  const policySrc = read("packages/app/src/retention/policy.ts");
+  const rows = doc
+    .split("\n")
+    .filter((l) => /^\| RET-\d+ /.test(l))
+    .map((l) => l.split("|").map((c) => c.trim()))
+    .map((c) => ({ id: c[1], what: c[2], keep: c[4], how: c[5], cfg: c[6] }));
+
+  it("bảng có đủ các nhóm dữ liệu cần hạn giữ, ID liên tục và không trùng", () => {
+    expect(rows.map((r) => r.id)).toEqual(rows.map((_, i) => `RET-${String(i + 1).padStart(2, "0")}`));
+    const text = rows.map((r) => `${r.what} ${r.how}`).join("\n");
+    for (const k of [
+      /log container/i,
+      /outbox đã phát/i,
+      /idempotency/i,
+      /notification|thông báo/i,
+      /audit_events/,
+      /bucket/i,
+    ]) {
+      expect(text).toMatch(k);
+    }
+    for (const r of rows) {
+      expect(r.keep, r.id).not.toBe("");
+      expect(r.how, r.id).not.toBe("");
+    }
+  });
+  it("mọi hằng `TÊN=số` trong bảng bằng giá trị ở policy.ts / mã nguồn", () => {
+    const sources = [
+      policySrc,
+      read("packages/app/src/import/retention.ts"),
+      read("apps/worker/src/relay.ts"),
+    ].join("\n");
+    const consts = [...doc.matchAll(/`([A-Z][A-Z0-9_]+)=(\d+)`/g)].map((m) => [m[1], Number(m[2])]);
+    expect(consts.map(([k]) => k)).toEqual(
+      expect.arrayContaining([
+        "OUTBOX_PUBLISHED_RETENTION_DAYS",
+        "IDEMPOTENCY_GRACE_DAYS",
+        "DELIVERY_DONE_RETENTION_DAYS",
+        "DELIVERY_FAILED_RETENTION_DAYS",
+        "IMPORT_ROW_RETENTION_DAYS",
+        "PURGE_BATCH",
+        "PURGE_MAX_ROUNDS",
+      ]),
+    );
+    for (const [k, v] of consts) {
+      const m = new RegExp(`export const ${k}\\s*=\\s*([\\d_]+)`).exec(sources);
+      expect(m, `${k} không có trong mã nguồn`).not.toBeNull();
+      expect(Number(m[1].replaceAll("_", "")), k).toBe(v);
+    }
+  });
+  it("log container: số trong bảng khớp x-logging ở compose, và mọi service có logging", () => {
+    const compose = read("deploy/compose.yaml");
+    const size = /max-size: "(\d+)m"/.exec(compose)[1];
+    const files = /max-file: "(\d+)"/.exec(compose)[1];
+    const row = rows.find((r) => /log container/i.test(r.what));
+    expect(row.cfg).toContain(`max-size=${size}m`);
+    expect(row.cfg).toContain(`max-file=${files}`);
+    expect(row.keep).toContain(`${Number(size) * Number(files)} MB`);
+  });
+  it("sao lưu: retention trong bảng khớp pgbackrest.conf.example; dead letter khớp relay.ts", () => {
+    const full = /repo1-retention-full=(\d+)/.exec(read("deploy/pgbackrest.conf.example"))[1];
+    expect(rows.find((r) => /sao lưu/i.test(r.what)).cfg).toContain(`repo1-retention-full=${full}`);
+    const days = Number(
+      /DEAD_LETTER_RETENTION_SECONDS = (\d+) \* SECONDS_PER_DAY/.exec(read("apps/worker/src/relay.ts"))[1],
+    );
+    expect(rows.find((r) => /pg-boss/i.test(r.what)).keep).toContain(`dead letter ${days} ngày`);
+  });
+  it("mỗi hàm app.purge_* của migration 0056 được bảng nhắc tới, kèm job chạy ở worker", () => {
+    const mig = read("packages/db/src/migrations/0056_event_table_retention.ts");
+    const fns = [...mig.matchAll(/CREATE FUNCTION (app\.purge_\w+)/g)].map((m) => m[1]);
+    expect(fns).toHaveLength(3);
+    for (const f of fns) expect(doc, f).toContain(`\`${f}\``);
+    const runtime = read("apps/worker/src/runtime.ts");
+    expect(runtime).toContain('name: "events.retention"');
+    expect(runtime).toContain("purgeEventTables(workerDb");
+    expect(doc).toContain("events.retention");
+    // Hàm chỉ cấp cho app_worker, không cho PUBLIC/runtime.
+    expect(mig).toMatch(/REVOKE ALL ON FUNCTION app\.purge_outbox[\s\S]*FROM PUBLIC/);
+    expect(mig).toMatch(/GRANT EXECUTE ON FUNCTION app\.purge_outbox[\s\S]*TO app_worker;/);
+    expect(mig).not.toMatch(/TO app_runtime/);
+  });
+  it("audit_events được ghi rõ là không xoá và vẫn có trigger append-only", () => {
+    expect(rows.find((r) => r.what.includes("audit_events")).keep).toContain("không xoá");
+    expect(read("packages/db/src/migrations/0003_command_pipeline.ts")).toContain(
+      "trg_audit_events_append_only",
+    );
+    expect(read("packages/app/src/retention/events.ts")).not.toMatch(/delete from audit_events/i);
+  });
+  it("nêu rõ điều chưa có: lifecycle SeaweedFS chưa xác minh, bảng chưa có job", () => {
+    expect(doc).toMatch(/Lifecycle phía SeaweedFS[^\n]*chưa xác minh/);
+    expect(doc).toMatch(/Bảng chưa có job dọn/);
+  });
+});
+
 // ───────────────────────── bàn giao (PM-HANDOVER-002) ─────────────────────────
 
 describe("docs/handover/accounts.md (PM-HANDOVER-002)", () => {
