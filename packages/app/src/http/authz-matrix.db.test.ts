@@ -429,6 +429,7 @@ const ALLOWED_2XX: Record<string, Allowed> = {
     "calendar.read_status",
     ["housekeeping", "maintenance", "accountant", "front_desk"],
   ],
+  "property.list": ["calendar.read_status", ["housekeeping", "maintenance", "accountant", "front_desk"]],
   "today.getSummary": ["calendar.read_status", ["housekeeping", "maintenance", "accountant", "front_desk"]],
   "today.listItems": ["calendar.read_guests", ["front_desk"]],
   "maintenance.listWorkOrders": [
@@ -467,6 +468,8 @@ const MUST_403: readonly (readonly [string, Action | null, readonly Role[]])[] =
   ].map((n) => [n, "lease.manage", ["accountant", "front_desk"]] as const),
   ["lease.close", "lease.approve_settlement", ["accountant", "front_desk"]],
   ["member.invite", "member.invite_senior", ALL5],
+  ["member.list", "member.invite_staff", ALL5],
+  ["property.list", "calendar.read_status", ["tenant"]],
   ["session.revokeAll", "session.revoke_other", ALL5],
   ["member.updateRole", "member.change_role", ALL5],
   ["member.updateScope", "member.change_role", ALL5],

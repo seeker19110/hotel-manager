@@ -9,6 +9,8 @@ import {
   createOrganization,
   createProperty,
   inviteMember,
+  listMembers,
+  listProperties,
   resetMemberMfa,
   revokeAllSessions,
   updateMemberRole,
@@ -1575,6 +1577,16 @@ type AnyQuery = QueryDef<any, any>;
 
 /** Danh mục query công khai qua `GET /api/v1/<module>/<query>` — chỉ đọc. */
 export const QUERIES: Readonly<Record<string, AnyQuery>> = {
+  "member.list": {
+    query: "member.list",
+    input: z.strictObject({}),
+    run: (db, actor) => listMembers(db, actor),
+  },
+  "property.list": {
+    query: "property.list",
+    input: z.strictObject({}),
+    run: (db, actor) => listProperties(db, actor),
+  },
   "payment.getTransferInfo": {
     query: "payment.getTransferInfo",
     input: z.strictObject({ invoice_id: uuid, receiving_account_id: uuid.optional() }),

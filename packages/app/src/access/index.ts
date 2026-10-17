@@ -3,6 +3,13 @@
 export { type AcceptedInvitation, acceptInvitation } from "./accept-invitation.ts";
 export { AccessError, type Actor, listMyOrganizations, resolveActor } from "./actor.ts";
 export {
+  type InvitationRow,
+  listMembers,
+  listProperties,
+  type MemberRow,
+  type PropertyRow,
+} from "./directory.ts";
+export {
   buildInvitationMail,
   INVITATION_TTL_DAYS,
   type InvitationMail,
