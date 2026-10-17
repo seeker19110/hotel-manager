@@ -1,15 +1,16 @@
-// Kiểm tiếp cận dùng chung cho E2E (SPEC-pwa S-015): axe WCAG 2.2 AA (serious/critical = 0) + vùng chạm ≥ 44px.
+// Kiểm tiếp cận dùng chung cho E2E (SPEC-pwa S-015): axe WCAG 2.2 AA (0 vi phạm ở mọi mức impact) + vùng chạm ≥ 44px.
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page } from "@playwright/test";
 
-export async function expectAccessible(page: Page): Promise<void> {
+/** Mọi vấn đề tiếp cận của trang hiện tại (rỗng = đạt): vi phạm axe ở MỌI mức impact + vùng chạm < 44 px. */
+export async function accessibilityProblems(page: Page): Promise<string[]> {
   const r = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
     .analyze();
-  const blocking = r.violations
-    .filter((v) => v.impact === "serious" || v.impact === "critical")
-    .map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`);
-  expect(blocking, "vi phạm axe serious/critical").toEqual([]);
+  // UX-A11Y-001: minor/moderate/serious/critical đều chặn; không tắt rule nào.
+  const problems = r.violations.map(
+    (v) => `axe ${v.id} [${v.impact}]: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`,
+  );
 
   const small = await page.evaluate(() =>
     [...document.querySelectorAll<HTMLElement>("a[href], button, input, select, textarea, [role='button']")]
@@ -24,5 +25,10 @@ export async function expectAccessible(page: Page): Promise<void> {
       })
       .filter((x) => x.w < 44 || x.h < 44),
   );
-  expect(small, "phần tử tương tác nhỏ hơn 44 × 44 CSS px").toEqual([]);
+  for (const x of small) problems.push(`vùng chạm < 44 × 44 CSS px: ${x.el} (${x.w} × ${x.h})`);
+  return problems;
+}
+
+export async function expectAccessible(page: Page): Promise<void> {
+  expect(await accessibilityProblems(page), "vấn đề tiếp cận (axe mọi mức, vùng chạm 44 px)").toEqual([]);
 }
