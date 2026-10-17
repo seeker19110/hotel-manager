@@ -1,11 +1,11 @@
 # PROGRESS.md — Hotel Manager
 ## Đang làm
-- Đợt 7 xong và đã merge vào `main` (PR #22, #24, #26–#30): T-601…T-610 có bằng chứng (`.autopilot/evidence/`). Autopilot `blocked` — mọi việc còn lại cần người.
-- Blueprint (`xt.py blueprint-status --strict`): MUST đạt 272 · miễn 55 · mở 169 — tất cả `loop defer` chờ người (`docs/autopilot/BLUEPRINT-GAPS.md`); 55 miễn trừ MUST thiếu `Duyệt:` của chủ dự án (LOOP-STOP-024). GO-NO-GO: NO-GO (7 BLOCKER, đều cần người).
+- Đợt 8 xong và đã merge vào `main` (PR #32–#36): T-701…T-710 có bằng chứng; 10 mục MUST làm trọn trong repo (D-053…D-058). Autopilot `blocked` — phần còn lại cần người.
+- Blueprint (`xt.py blueprint-status --strict`): MUST đạt 282 · miễn 55 · mở 159 — 90 làm được một phần nhưng cần duyệt đổi CI/file cổng/phụ thuộc/biến môi trường/pháp lý, 67 cần người/hạ tầng/GitHub, IND-SAAS-009 + CMP-RIGHTS-001 chờ quyết (`docs/autopilot/BLUEPRINT-GAPS.md` mục 'Kết quả đợt 8'). 55 miễn trừ MUST thiếu `Duyệt:` (LOOP-STOP-024). GO-NO-GO: NO-GO.
 
 ## Tiếp theo
-1. Chủ dự án: ghi `Duyệt:` hoặc bỏ 55 miễn trừ MUST; bật Settings → General → *Allow auto-merge* (L3); import ruleset `.github/rulesets/main.json`.
-2. Chờ người (không chặn vòng): `.env.example` thêm `WORKER_DATABASE_URL` (BASE-CFG-002); DPIA + pháp lý (NĐ 13/2023, Luật BVDLCN 2025, NĐ 356/2025, TT 50/17/2024); VPS tại VN + kho sao lưu khác máy + Prometheus/Alertmanager; SMTP relay (D-010); ClamAV trên VPS; duyệt job CI Lighthouse/k6 (T-608); kiểm tay SPEC-pwa S-002/S-003/S-016 trên thiết bị thật (PM-SPEC-004, WF-SDD-003); quyết 9 đề xuất "Khi chạy thật" (DECISIONS.md, gồm D-052 xác minh email); phản hồi khung FB-009…095.
+1. Chủ dự án: ghi `Duyệt:` hoặc bỏ 55 miễn trừ MUST; duyệt đổi CI/file cổng (53 mục) và phụ thuộc công cụ (14 mục) để mở đợt 9; quyết F-015 (IND-SAAS-009), danh mục mục đích đồng ý (CMP-RIGHTS-001); import ruleset `.github/rulesets/main.json`.
+2. Chờ người (không chặn vòng): `.env.example` thêm `WORKER_DATABASE_URL`; DPIA + pháp lý; VPS tại VN + sao lưu khác máy + Prometheus/Alertmanager; SMTP relay (D-010); ClamAV; job CI Lighthouse/k6; kiểm tay SPEC-pwa S-002/S-003/S-016; quyết 10 đề xuất "Khi chạy thật" (DECISIONS.md, gồm D-052, D-058 trần email); phản hồi khung FB-009…096.
 3. Sau khi người xử lý: `python3 .xtemplates/scripts/xt.py loop resume --reason "..."`.
 
 ## Quyết định
@@ -17,11 +17,12 @@
 - Bài học: luôn `set -o pipefail` với `loop record`; lọc test DB bằng `pnpm vitest run --project db <mẫu>` (`pnpm test:db -- x` chạy toàn bộ).
 - Nợ kỹ thuật chấp nhận: pháp lý trong `docs/research/` chỉ có nguồn thứ cấp — phải đối chiếu văn bản gốc trước khi dùng dữ liệu thật.
 - 2026-10-17 Merge L3 (AGENTS §7): mỗi lát một PR trên nhánh riêng `claude/gallant-shannon-2uccvp-<task>`; phiên tự merge làn nhanh/chuẩn khi CI xanh; PR ngoại lệ cứng (auth/tiền/tồn — `merge-check` HUMAN) do người merge (guard ADR-0019).
-- 2026-10-17 Đợt 4–7 tự duyệt: D-023…D-052 (thêm D-045…D-052: S-025 409, allocation.held, resize nội bộ, 404 ngoài phạm vi, EXIF Orientation, refresh khi có mạng, đổi số migration 0061/0062, hạn mức org.create) (worker runtime, staging file ngoài transaction, Argon2id, 422 idempotency, FK RESTRICT, rate limit, hạn giữ, miễn Storybook có điều kiện).
+- 2026-10-17 Đợt 4–8 tự duyệt: D-023…D-058 (đợt 8: D-053 phạm vi 10 mục · D-054 một theme · D-055 rào test thay lint · D-056 job quality = clean clone · D-057 license-policy.json · D-058 ngân sách email UTC trần cứng); trước đó (thêm D-045…D-052: S-025 409, allocation.held, resize nội bộ, 404 ngoài phạm vi, EXIF Orientation, refresh khi có mạng, đổi số migration 0061/0062, hạn mức org.create) (worker runtime, staging file ngoài transaction, Argon2id, 422 idempotency, FK RESTRICT, rate limit, hạn giữ, miễn Storybook có điều kiện).
+- Bài học đợt 8: hai lát song song có thể đụng nhau qua rào mới (rào test-assertions bắt test schema-drift chỉ có snapshot; rào schema-drift đòi sinh lại ảnh chụp khi có migration) — sau mỗi lần merge `main` vào lát chạy lại toàn bộ `pnpm test`; `merge-check` có thể báo 'CI xanh' khi job chính chưa tạo check run (FB-096) — kiểm đủ check trước merge; repo đã bật auto-merge.
 - Bài học đợt 7: Better Auth `/sign-in/email` 20 lần/phút theo IP (cửa sổ đặt lại sau 60 s yên) — E2E đăng nhập qua `e2e/sign-in.ts` `signInClick` (có rào); `<dialog>` phát `close` sau một task — `onClose` chỉ xoá trạng thái khi hộp thật sự đóng; migration mới luôn đánh số sau bản cuối trên `main` (Kysely từ chối chèn trước); chạy lại job CI dùng payload sự kiện cũ (tiêu đề PR cũ) — cần push mới.
 - Bài học đợt 5–6: E2E dùng `page.route` phải `test.use({ serviceWorkers: "block" })`; mốc `delete_after` theo ngày UTC ở mọi chỗ ghi/so; test có giá trị ngẫu nhiên phải loại ca biên (IP octet 0); không so thời gian tuyệt đối trong test (so tương đối).
 
 ## Bàn giao phiên
-- `main` = `f9bfa5c` (đợt 3–7 đã merge). Worktree đợt 7 (`../hm-w7*`) không còn việc dở.
+- `main` = `d9dbbbe` (đợt 3–8 đã merge). Worktree đợt 7–8 (`../hm-w7*`, `../hm-w8*`) không còn việc dở.
 - Lệnh kiểm nhanh: `.xtemplates/scripts/dev-task.sh gate` · `pnpm test:db` · `E2E_PORT=<cổng riêng> pnpm --filter @hm/web exec playwright test` · `bash scripts/db-backup-restore-check.sh`. Container mới: `bash scripts/dev-env-setup.sh` rồi `pnpm install --frozen-lockfile`.
 - Đang chặn: chờ người (mục *Tiếp theo* 1–2). Autopilot: `blocked` (một phiên).
