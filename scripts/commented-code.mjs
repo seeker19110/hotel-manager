@@ -79,7 +79,9 @@ export function commentLines(src) {
   const inComment = new Uint8Array(src.length);
   for (const [a, b] of comments) inComment.fill(1, a, b);
   const owner = new Int32Array(src.length).fill(-1);
-  comments.forEach(([a, b], idx) => owner.fill(idx, a, b));
+  comments.forEach(([a, b], idx) => {
+    owner.fill(idx, a, b);
+  });
   const out = [];
   let pos = 0;
   src.split("\n").forEach((line, i) => {
