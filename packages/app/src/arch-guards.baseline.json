@@ -1,32 +1,5 @@
 {
-  "_ghi_chu": "Nền ratchet của arch-guards.test.ts. (1) ARC-MOD-004: `canh_trong_vong` = cạnh 'thư mục module -> thư mục module' nằm trong vòng phụ thuộc đã biết; T-409 đã gỡ hết (access<->pipeline qua actor-core; http<->… bằng cách chuyển route adapter vào http/) nên nền RỖNG và mọi vòng mới đều đỏ. (2) ARC-MOD-005: `import_noi_bo` = import chéo module vào tệp nội bộ (không phải `<module>/index.ts`), nhóm theo module nguồn. Cạnh nội bộ mới → test đỏ; cạnh đã chuyển sang index.ts mà còn trong nền → test đỏ đòi xoá (chỉ được co lại, không được phình ra). Không thêm mục để làm xanh: thêm `index.ts` cho module đích và import qua đó.",
+  "_ghi_chu": "Nền ratchet của arch-guards.test.ts. ARC-MOD-004: `canh_trong_vong` = cạnh 'thư mục module -> thư mục module' nằm trong vòng phụ thuộc đã biết; T-409 đã gỡ hết (access<->pipeline qua actor-core; http<->… bằng cách chuyển route adapter vào http/) nên nền RỖNG và mọi vòng mới đều đỏ. ARC-MOD-005 (T-507): nền `import_noi_bo` đã về 0 và bị XOÁ — rào là cấm tuyệt đối: mọi import chéo module phải đi qua `<module>/index.ts`; không có chỗ để thêm ngoại lệ, thiếu export thì bổ sung vào `index.ts` của module đích.",
   "vong": {},
-  "canh_trong_vong": [],
-  "import_noi_bo": {
-    "http": [
-      "housekeeping/tasks.ts",
-      "inventory/inventory.ts",
-      "lease/handover.ts",
-      "lease/lease.ts",
-      "lease/settlement.ts",
-      "maintenance/work-orders.ts",
-      "portal/access.ts",
-      "portal/guest.ts",
-      "portal/tenant.ts",
-      "reconciliation/reconciliation.ts",
-      "stay/checkout.ts",
-      "stay/folio.ts",
-      "stay/rates.ts",
-      "stay/reservations.ts",
-      "stay/residence-notices.ts",
-      "stay/stays.ts",
-      "today/today.ts"
-    ],
-    "import": ["inventory/units.ts", "lease/handover.ts", "lease/lease.ts"],
-    "lease": ["inventory/inventory.ts"],
-    "maintenance": ["housekeeping/tasks.ts", "inventory/inventory.ts"],
-    "portal": ["maintenance/work-orders.ts"],
-    "stay": ["housekeeping/tasks.ts", "inventory/inventory.ts"],
-    "testing": ["stay/rates.ts"]
-  }
+  "canh_trong_vong": []
 }

@@ -8,7 +8,7 @@ import { authorize, generateMemoRef, grantFor, isMatrixRole } from "@hm/domain";
 import { sql } from "kysely";
 import { registerApprovalExecutor } from "../approvals/index.ts";
 import { refundDepositAtCheckout, requestDeduction } from "../deposits/index.ts";
-import { createCleaningTask } from "../housekeeping/tasks.ts";
+import { createCleaningTask } from "../housekeeping/index.ts";
 import { postEntry } from "../ledger/index.ts";
 import {
   allocatePayment,

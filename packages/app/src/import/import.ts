@@ -29,9 +29,16 @@ import {
   prepareTabularFile,
   storeTabularFile,
 } from "../files/index.ts";
-import { createUnit } from "../inventory/units.ts";
-import { activateLease, clearImportReadingsPending, recordImportHandover } from "../lease/handover.ts";
-import { createDraft, createPerson, signLease, submitForSignature } from "../lease/lease.ts";
+import { createUnit } from "../inventory/index.ts";
+import {
+  activateLease,
+  clearImportReadingsPending,
+  createDraft,
+  createPerson,
+  recordImportHandover,
+  signLease,
+  submitForSignature,
+} from "../lease/index.ts";
 import { recordOpeningDebt, recordOpeningDeposit } from "../ledger/index.ts";
 import { importReading } from "../metering/index.ts";
 import {

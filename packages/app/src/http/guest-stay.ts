@@ -3,7 +3,7 @@
 import type { Kysely } from "kysely";
 import { requestClient } from "../logging/index.ts";
 import { CommandError } from "../pipeline/index.ts";
-import { guestGetStay } from "../portal/guest.ts";
+import { guestGetStay } from "../portal/index.ts";
 import { correlationOf, json, simpleProblem } from "./command-route.ts";
 
 export async function handleGuestStay(

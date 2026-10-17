@@ -8,7 +8,7 @@ import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/index.ts";
 import { assertPropertyInOrg } from "../access/index.ts";
 import type { FileDeps } from "../files/index.ts";
-import { createWorkOrder, type Severity } from "../maintenance/work-orders.ts";
+import { createWorkOrder, type Severity } from "../maintenance/index.ts";
 import { type CommandContext, CommandError } from "../pipeline/index.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

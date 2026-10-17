@@ -18,7 +18,7 @@ import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/index.ts";
 import { approvalRequired, registerApprovalExecutor } from "../approvals/index.ts";
 import { receiveDeposit } from "../deposits/index.ts";
-import { confirmHold, createHold, type Interval } from "../inventory/inventory.ts";
+import { confirmHold, createHold, type Interval } from "../inventory/index.ts";
 import { postEntry } from "../ledger/index.ts";
 import { confirmPayment, type ManualBankTxn, recordPayment } from "../payments/index.ts";
 import { type CommandContext, CommandError } from "../pipeline/index.ts";

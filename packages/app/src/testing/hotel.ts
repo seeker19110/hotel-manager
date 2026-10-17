@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import { createTestDb, type SeededOrg, seedOrg, type TestDb } from "@hm/testkit";
 import { sql } from "kysely";
 import type { Actor } from "../access/index.ts";
-import { setRate } from "../stay/rates.ts";
+import { setRate } from "../stay/index.ts";
 import { okAs, ownerOf, seedMember } from "./helpers.ts";
 
 export interface Hotel {

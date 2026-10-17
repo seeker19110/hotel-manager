@@ -7,7 +7,7 @@ import { withTenant } from "@hm/db";
 import { authorize, leaseMachine } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/index.ts";
-import { confirmHold, createHold, type Interval } from "../inventory/inventory.ts";
+import { confirmHold, createHold, type Interval } from "../inventory/index.ts";
 import { type CommandContext, CommandError, canonicalJson, fieldError } from "../pipeline/index.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
