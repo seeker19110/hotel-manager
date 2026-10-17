@@ -240,6 +240,19 @@ export async function confirmHold(
   now = new Date(),
   during?: Interval,
 ) {
+  // Khoá phòng TRƯỚC khoá allocation (cùng thứ tự với moveAllocation/resizeAllocation — không khoá chéo) để `setUnitAvailability`
+  // đồng thời không lọt: hold tạo trước khi phòng ngừng khai thác không được xác nhận thành lượt ở/hợp đồng (S-013).
+  const pre = await sql<{ unit_id: string; property_id: string }>`
+    select unit_id, property_id from allocations
+    where organization_id = ${ctx.actor.orgId} and id = ${allocationId} and kind = 'hold' and active`.execute(
+    ctx.trx,
+  );
+  const found = pre.rows[0];
+  if (!found) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy giữ chỗ");
+  authorize(ctx.actor, kind === "lease" ? "lease.manage" : "reservation.manage", {
+    propertyId: found.property_id,
+  });
+  const unit = await lockUnit(ctx.trx, ctx.actor.orgId, found.unit_id);
   const r = await sql<{ property_id: string; expires_at: Date }>`
     select property_id, expires_at from allocations
     where organization_id = ${ctx.actor.orgId} and id = ${allocationId} and kind = 'hold' and active for update`.execute(
@@ -247,9 +260,6 @@ export async function confirmHold(
   );
   const row = r.rows[0];
   if (!row) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy giữ chỗ");
-  authorize(ctx.actor, kind === "lease" ? "lease.manage" : "reservation.manage", {
-    propertyId: row.property_id,
-  });
   if (row.expires_at.getTime() <= now.getTime()) {
     // Lệnh chính rollback nên việc nhả hold (đúng một lần, kèm audit như job worker — INV-I3) ghi ở transaction riêng.
     const { orgId } = ctx.actor;
@@ -271,6 +281,8 @@ export async function confirmHold(
       },
     });
   }
+  if (unit.availability !== "active")
+    throw new CommandError("UNIT_OUT_OF_SERVICE", 409, "Phòng đang ngừng khai thác");
   try {
     await sql`savepoint confirm_hold`.execute(ctx.trx);
     await sql`update allocations set kind = ${kind}, expires_at = null

@@ -405,6 +405,101 @@ describe("SPEC-inventory S-013 sự cố bất ngờ trên phòng có khách s�
     );
     expect(av.rows[0]?.availability).toBe("active");
   });
+
+  it("S-013 ca biên: hold tạo TRƯỚC khi phòng ngừng khai thác không xác nhận được (confirmHold stay/lease, confirmReservation) → 409 UNIT_OUT_OF_SERVICE, hold/booking giữ nguyên; bật lại thì xác nhận được", async () => {
+    const out = (unitId: string) =>
+      okAs(h.t, h.manager, (ctx) =>
+        setUnitAvailability(ctx, { unitId, availability: "out_of_service", reason: "Sập trần" }),
+      );
+    const kindOf = async (id: string) =>
+      (await sql<{ kind: string }>`select kind from allocations where id = ${id}`.execute(h.t.admin)).rows[0]
+        ?.kind;
+
+    const unit = await freshUnit();
+    const holdStay = await okAs(h.t, h.frontDesk, (ctx) =>
+      createHold(ctx, {
+        unitId: unit,
+        during: { start: loc("2027-05-01T14:00"), end: loc("2027-05-02T12:00") },
+        ttlMinutes: 60,
+      }),
+    );
+    const holdLease = await okAs(h.t, h.manager, (ctx) =>
+      createHold(ctx, {
+        unitId: unit,
+        during: { start: loc("2027-06-01T00:00"), end: null },
+        ttlMinutes: 60,
+        sourceType: "lease",
+        sourceId: randomUUID(),
+      }),
+    );
+    await out(unit);
+    for (const [id, kind] of [
+      [holdStay.allocationId, "stay"],
+      [holdLease.allocationId, "lease"],
+    ] as const) {
+      expect((await failed(runAs(h.t, h.manager, (ctx) => confirmHold(ctx, id, kind)))).code).toBe(
+        "UNIT_OUT_OF_SERVICE",
+      );
+      expect(await kindOf(id)).toBe("hold");
+    }
+    await okAs(h.t, h.manager, (ctx) => setUnitAvailability(ctx, { unitId: unit, availability: "active" }));
+    await okAs(h.t, h.frontDesk, (ctx) => confirmHold(ctx, holdStay.allocationId, "stay"));
+    expect(await kindOf(holdStay.allocationId)).toBe("stay");
+
+    // confirmReservation đi qua confirmHold: booking `held` trên phòng vừa ngừng khai thác bị chặn, vẫn `held`.
+    const unit2 = await freshUnit();
+    const d = await okAs(h.t, h.frontDesk, (ctx) =>
+      createReservation(ctx, {
+        unitId: unit2,
+        arrivalDate: "2027-05-10",
+        departureDate: "2027-05-12",
+        guests: 1,
+        source: "direct",
+        booker: { fullName: "Người đặt", phone: "0100000444" },
+      }),
+    );
+    await okAs(h.t, h.frontDesk, (ctx) => holdReservation(ctx, { reservationId: d.reservationId }));
+    await out(unit2);
+    expect(
+      (
+        await failed(
+          runAs(h.t, h.frontDesk, (ctx) => confirmReservation(ctx, { reservationId: d.reservationId })),
+        )
+      ).code,
+    ).toBe("UNIT_OUT_OF_SERVICE");
+    const st = await sql<{
+      status: string;
+    }>`select status from reservations where id = ${d.reservationId}`.execute(h.t.admin);
+    expect(st.rows[0]?.status).toBe("held");
+    expect(
+      await count(sql<{ n: number }>`select count(*)::int as n from stays where unit_id = ${unit2}`),
+    ).toBe(0);
+  });
+
+  it("S-013 ca đua: confirmHold đồng thời với việc phòng ngừng khai thác (giữ khoá phòng) → confirmHold chờ khoá rồi thấy out_of_service → UNIT_OUT_OF_SERVICE, không thành lượt ở", async () => {
+    const unit = await freshUnit();
+    const hold = await okAs(h.t, h.frontDesk, (ctx) =>
+      createHold(ctx, {
+        unitId: unit,
+        during: { start: loc("2027-07-01T14:00"), end: loc("2027-07-02T12:00") },
+        ttlMinutes: 60,
+      }),
+    );
+    let confirming: ReturnType<typeof runAs<void>> | undefined;
+    await h.t.admin.transaction().execute(async (trx) => {
+      await sql`select 1 from units where id = ${unit} for update`.execute(trx);
+      confirming = runAs(h.t, h.frontDesk, (ctx) => confirmHold(ctx, hold.allocationId, "stay"));
+      await new Promise((r) => setTimeout(r, 400)); // để confirmHold tới điểm chờ khoá phòng
+      await sql`update units set availability = 'out_of_service', availability_reason = 'Sự cố' where id = ${unit}`.execute(
+        trx,
+      );
+    });
+    expect((await failed(confirming as NonNullable<typeof confirming>)).code).toBe("UNIT_OUT_OF_SERVICE");
+    const al = await sql<{
+      kind: string;
+    }>`select kind from allocations where id = ${hold.allocationId}`.execute(h.t.admin);
+    expect(al.rows[0]?.kind).toBe("hold");
+  });
 });
 
 // ------------------------------------------------------------------------------------------------------------- S-017
