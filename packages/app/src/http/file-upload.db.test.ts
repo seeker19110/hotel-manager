@@ -95,7 +95,8 @@ beforeAll(async () => {
     db: t.runtime,
     getSession: async (h) => {
       const id = h.get("x-test-user");
-      return id ? { user: { id, twoFactorEnabled: false } } : null;
+      // Nhân viên (owner…) bắt buộc 2FA; người thuê không.
+      return id ? { user: { id, twoFactorEnabled: id !== tenantUser } } : null;
     },
     secureCookies: false,
     services: testServices({ storage }),
@@ -143,6 +144,22 @@ describe("tải ảnh qua HTTP", () => {
     const big = await handleFileUpload(upload(q, new Uint8Array(MAX_FILE_BYTES + 1)), deps);
     expect(big.status).toBe(413);
     expect((await j(big)).code).toBe("FILE_TOO_LARGE");
+  });
+
+  it("T-602: lease_settlement — chủ tải JPEG → 201 ready (owner_type lease_settlement); người thuê → 403, không ghi file", async () => {
+    const q = `owner_type=lease_settlement&property_id=${A.propertyId}`;
+    const ok = await handleFileUpload(upload(q, JPEG, {}, A.ownerAuthUserId), deps);
+    expect(ok.status).toBe(201);
+    const d = await j(ok);
+    expect(d).toMatchObject({ status: "committed", data: { status: "ready", mime: "image/jpeg" } });
+    const row = await sql<{
+      owner_type: string;
+    }>`select owner_type from files where id = ${d.data.fileId}`.execute(t.admin);
+    expect(row.rows[0]?.owner_type).toBe("lease_settlement");
+    const before = await sql<{ n: number }>`select count(*)::int as n from files`.execute(t.admin);
+    expect((await handleFileUpload(upload(q, JPEG), deps)).status).toBe(403);
+    const after = await sql<{ n: number }>`select count(*)::int as n from files`.execute(t.admin);
+    expect(after.rows[0]?.n).toBe(before.rows[0]?.n);
   });
 
   it("cơ sở không có hợp đồng của mình (tổ chức khác) → 404, không ghi file", async () => {

@@ -7,11 +7,13 @@ import {
   seedIssuedInvoice,
   seedOrg,
   type TestDb,
+  testS3Config,
 } from "@hm/testkit";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type Actor, resolveActor } from "../access/actor.ts";
 import { receiveDeposit } from "../deposits/deposits.ts";
+import { eicarOnlyScanner, getFileUrl, ObjectStorage, uploadFile } from "../files/index.ts";
 import { allocatePayment, confirmPayment, recordPayment } from "../payments/payments.ts";
 import { executeCommand } from "../pipeline/command.ts";
 import { activateLease, recordHandover } from "./handover.ts";
@@ -32,6 +34,8 @@ let M2: Actor;
 let K: Actor;
 let F: Actor;
 let B1: string;
+let H: Actor;
+let storage: ObjectStorage;
 
 async function member(role: string): Promise<Actor> {
   const user = await seedAuthUser(t.admin, `${role}+${randomUUID().slice(0, 6)}@example.test`);
@@ -209,6 +213,9 @@ beforeAll(async () => {
   M2 = await member("manager");
   K = await member("accountant");
   F = await member("front_desk");
+  H = await member("housekeeping");
+  storage = new ObjectStorage(testS3Config());
+  await storage.ensureBucket();
   B1 = randomUUID();
   await sql`insert into receiving_accounts (id, organization_id, property_id, bank_code, account_number_masked, account_number, account_name)
             values (${B1}, ${A.orgId}, ${A.propertyId}, 'VCB', '****0001', '1010000001', 'CHU TRO')`.execute(
@@ -555,5 +562,132 @@ describe("review lát hợp đồng — hồi quy", () => {
       })
       .catch((e: unknown) => e);
     expect((asF as { hint?: string }).hint).toBe("FORBIDDEN");
+  });
+});
+
+// JPEG tối thiểu hợp lệ (SOI, JFIF, SOS, EOI).
+const JPEG = new Uint8Array([
+  0xff,
+  0xd8,
+  0xff,
+  0xe0,
+  0,
+  16,
+  ...Buffer.from("JFIF\0\x01\x01\0\0\x01\0\x01\0\0", "latin1"),
+  0xff,
+  0xda,
+  0,
+  8,
+  1,
+  1,
+  0,
+  0,
+  0x3f,
+  0,
+  0x12,
+  0x34,
+  0xff,
+  0xd9,
+]);
+const fileDeps = () => ({ storage, scanner: eicarOnlyScanner });
+
+describe("T-602 ảnh chứng cứ phí thanh lý (owner_type lease_settlement)", () => {
+  const uploadAs = (actor: Actor, bytes: Uint8Array = JPEG) =>
+    run(actor, async (ctx) => ({
+      data: await uploadFile(ctx, fileDeps(), {
+        ownerType: "lease_settlement",
+        propertyId: A.propertyId,
+        bytes,
+      }),
+    }));
+  const urlAs = (actor: Actor, fileId: string) =>
+    run(actor, async (ctx) => ({ data: await getFileUrl(ctx, fileDeps(), fileId) }));
+
+  async function settlingLease() {
+    const L = await rentedLease(0, 0);
+    await ok(
+      run(M, async (ctx) => ({
+        data: await giveNotice(ctx, { leaseId: L.leaseId, plannedMoveOutOn: "2027-03-15" }),
+      })),
+    );
+    await ok(L.moveOut());
+    return L;
+  }
+
+  it("S-017: quản lý tải ảnh → dùng làm chứng cứ trong lease.prepareSettlement; chủ/quản lý/kế toán xin URL ký đọc được", async () => {
+    const L = await settlingLease();
+    const up = await ok(uploadAs(M));
+    expect(up.status).toBe("ready");
+    const sum = await ok(
+      run(M, async (ctx) => ({
+        data: await prepareSettlement(ctx, {
+          leaseId: L.leaseId,
+          fees: [{ amount: 200_000, reason: "Vỡ gương", fileIds: [up.fileId] }],
+        }),
+      })),
+    );
+    expect(sum.feesTotal).toBe(200_000);
+    for (const [who, actor] of [
+      ["quản lý", M],
+      ["chủ", O],
+      ["kế toán", K],
+    ] as const) {
+      const r = await urlAs(actor, up.fileId);
+      if (r.status !== "committed") throw new Error(`${who}: ${JSON.stringify(r)}`);
+      expect((await fetch(r.data.url)).status, who).toBe(200);
+    }
+  });
+
+  it("kế toán (đề nghị lập quyết toán) tải được; file ở tổ chức/cơ sở khác không dùng làm chứng cứ", async () => {
+    const up = await ok(uploadAs(K));
+    expect(up.status).toBe("ready");
+    const L = await settlingLease();
+    const other = randomUUID();
+    await sql`insert into properties (id, organization_id, name, template) values (${other}, ${A.orgId}, 'CS khác', 'rental')`.execute(
+      t.admin,
+    );
+    const foreign = randomUUID();
+    await sql`insert into files (id, organization_id, property_id, owner_type, mime, size_bytes, sha256, status, storage_key, exif_stripped)
+              values (${foreign}, ${A.orgId}, ${other}, 'lease_settlement', 'image/jpeg', 10, ${"b".repeat(64)}, 'ready', ${`${A.orgId}/lease_settlement/${foreign}`}, true)`.execute(
+      t.admin,
+    );
+    expect(
+      await fails(
+        run(M, async (ctx) => ({
+          data: await prepareSettlement(ctx, {
+            leaseId: L.leaseId,
+            fees: [{ amount: 1000, reason: "x", fileIds: [foreign] }],
+          }),
+        })),
+      ),
+    ).toMatchObject({ code: "VALIDATION_FAILED" });
+  });
+
+  it("lễ tân, buồng phòng, người thuê không tải được (403); ảnh đã tải thì họ xin URL → 404", async () => {
+    const L = await rentedLease(0, 0);
+    const user = await seedAuthUser(t.admin, `tenant+${randomUUID().slice(0, 6)}@example.test`);
+    await sql`insert into memberships (id, organization_id, auth_user_id, person_id, role)
+              values (${randomUUID()}, ${A.orgId}, ${user}, ${L.rep}, 'tenant')`.execute(t.admin);
+    const T = await resolveActor(t.runtime, { authUserId: user, orgId: A.orgId, twoFactorEnabled: true });
+    const up = await ok(uploadAs(M));
+    for (const [who, actor] of [
+      ["lễ tân", F],
+      ["buồng phòng", H],
+      ["người thuê", T],
+    ] as const) {
+      expect(await fails(uploadAs(actor)), `${who} tải`).toMatchObject({ code: "FORBIDDEN", status: 403 });
+      expect(await fails(urlAs(actor, up.fileId)), `${who} đọc`).toMatchObject({
+        code: "NOT_FOUND",
+        status: 404,
+      });
+    }
+  });
+
+  it("ca biên: PDF và file rỗng bị từ chối (chỉ ảnh); file chưa sẵn sàng/không tồn tại → 404", async () => {
+    expect(await fails(uploadAs(M, new TextEncoder().encode("%PDF-1.4\n%%EOF")))).toMatchObject({
+      code: "FILE_TYPE_NOT_ALLOWED",
+    });
+    expect(await fails(uploadAs(M, new Uint8Array()))).toMatchObject({ status: 422 });
+    expect(await fails(urlAs(M, randomUUID()))).toMatchObject({ code: "NOT_FOUND" });
   });
 });

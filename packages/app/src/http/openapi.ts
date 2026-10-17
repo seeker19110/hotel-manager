@@ -295,7 +295,7 @@ const EXTRA_PATHS: Record<string, Json> = {
           name: "owner_type",
           in: "query",
           required: true,
-          schema: { enum: ["work_order", "payment_claim"] },
+          schema: { enum: ["work_order", "payment_claim", "lease_settlement"] },
         },
         { name: "property_id", in: "query", required: true, schema: uuidSchema },
       ],
