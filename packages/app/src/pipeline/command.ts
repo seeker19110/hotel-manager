@@ -102,6 +102,23 @@ export interface CommandRequest {
   memberQuotaPerMinute?: number;
   /** Chính sách chạy lại khi 40001/40P01 (mặc định `REQUEST_TX_RETRY`) và nguồn ngẫu nhiên/đồng hồ/chờ tiêm cho test. */
   retry?: RetryDeps & { policy?: RetryPolicy };
+  /**
+   * Lệnh "cấp người dùng" (tạo tổ chức, chấp nhận lời mời): người gọi CHƯA là thành viên nên `actor` là bản dựng sẵn (id tất định
+   * theo Idempotency-Key) và hàng tổ chức/person/membership của nó do hàm này ghi — CÙNG transaction với lệnh, ngay trước khoá
+   * idempotency (khoá có FK tới person). Chỉ chạy khi khoá CHƯA có (replay không chạy lại). Ném `CommandError` ⇒ transaction
+   * rollback và lỗi ném thẳng ra ngoài (KHÔNG ghi kết quả `failed`: tổ chức/person của actor chưa từng tồn tại nên không có chỗ ghi).
+   */
+  bootstrap?: (trx: Transaction<unknown>) => Promise<void>;
+}
+
+/** Lỗi của `bootstrap`: đi thẳng ra ngoài `executeCommand`, bỏ qua đường ghi kết quả `failed` (xem `CommandRequest.bootstrap`). */
+class BootstrapFailure extends Error {
+  readonly original: unknown;
+  constructor(original: unknown) {
+    super("bootstrap thất bại");
+    this.name = "BootstrapFailure";
+    this.original = original;
+  }
 }
 
 /** JSON chuẩn hoá (khoá sắp xếp) để băm payload ổn định. */
@@ -274,6 +291,20 @@ export async function executeCommand<T>(
         db,
         { orgId: actor.orgId, actorId: actor.membershipId },
         async (trx) => {
+          if (req.bootstrap) {
+            const known = await sql<{ one: number }>`
+              select 1 as one from idempotency_keys where organization_id = ${actor.orgId} and key = ${commandId}`.execute(
+              trx,
+            );
+            if (known.rows.length === 0) {
+              try {
+                await req.bootstrap(trx);
+              } catch (err) {
+                if (isTransientTxError(err)) throw err; // để retryAsync chạy lại cả lần thử
+                throw new BootstrapFailure(err);
+              }
+            }
+          }
           const inserted = await sql<{ id: string }>`
           insert into idempotency_keys (id, organization_id, key, command, actor_person_id, request_hash, correlation_id)
           values (${randomUUID()}, ${actor.orgId}, ${commandId}, ${req.command}, ${actor.personId}, ${hash}, ${req.correlationId})
@@ -363,6 +394,9 @@ export async function executeCommand<T>(
         }),
     });
   } catch (err) {
+    if (err instanceof BootstrapFailure) throw err.original;
+    // Lệnh cấp người dùng: tổ chức/person của actor chỉ tồn tại sau commit nên không có chỗ ghi kết quả `failed` — ném thẳng.
+    if (req.bootstrap) throw err;
     if (
       err instanceof CommandError &&
       (err.code === "IDEMPOTENCY_CONFLICT" || err.code === "MALFORMED_REQUEST")

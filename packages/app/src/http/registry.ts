@@ -4,7 +4,7 @@
 import type { StatementMapping } from "@hm/domain";
 import { mibToBytes } from "@hm/domain";
 import { z } from "zod";
-import { resetMemberMfa } from "../access/index.ts";
+import { createOrganization, createProperty, resetMemberMfa, updateProperty } from "../access/index.ts";
 import { APPROVAL_KINDS, cancelApproval, decideApproval, requestApproval } from "../approvals/index.ts";
 import { getEvent, listEvents } from "../audit/index.ts";
 import {
@@ -174,7 +174,7 @@ import {
   positiveMoney,
   uuid,
 } from "./command-inputs.ts";
-import type { CommandDef, QueryDef } from "./command-route.ts";
+import type { CommandDef, QueryDef, UserCommandDef } from "./command-route.ts";
 
 const leaseTerms = z.strictObject({
   effective_from: z.iso.date(),
@@ -1437,6 +1437,36 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
       data: await resetMemberMfa(ctx, { membershipId: i.membership_id, reason: i.reason }),
     }),
   }),
+  "property.create": defineCommand({
+    command: "property.create",
+    input: COMMAND_INPUTS["property.create"],
+    run: async (ctx, i) => ({
+      data: await createProperty(ctx, {
+        name: i.name,
+        template: i.template,
+        ...(i.timezone === undefined ? {} : { timezone: i.timezone }),
+        ...(i.business_day_cutoff === undefined ? {} : { businessDayCutoff: i.business_day_cutoff }),
+        ...(i.check_in_time === undefined ? {} : { checkInTime: i.check_in_time }),
+        ...(i.check_out_time === undefined ? {} : { checkOutTime: i.check_out_time }),
+      }),
+      httpStatus: 201,
+    }),
+  }),
+  "property.update": defineCommand({
+    command: "property.update",
+    input: COMMAND_INPUTS["property.update"],
+    run: async (ctx, i) => ({
+      data: await updateProperty(ctx, {
+        propertyId: i.property_id,
+        ...(i.name === undefined ? {} : { name: i.name }),
+        ...(i.template === undefined ? {} : { template: i.template }),
+        ...(i.timezone === undefined ? {} : { timezone: i.timezone }),
+        ...(i.business_day_cutoff === undefined ? {} : { businessDayCutoff: i.business_day_cutoff }),
+        ...(i.check_in_time === undefined ? {} : { checkInTime: i.check_in_time }),
+        ...(i.check_out_time === undefined ? {} : { checkOutTime: i.check_out_time }),
+      }),
+    }),
+  }),
   "meter.acknowledgeAnomaly": defineCommand({
     command: "meter.acknowledgeAnomaly",
     input: z.strictObject({ reading_id: uuid, note: z.string().trim().min(1).max(1000) }),
@@ -1445,6 +1475,32 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
     }),
   }),
 };
+
+// biome-ignore lint/suspicious/noExplicitAny: danh mục không đồng nhất; mỗi mục tự gõ kiểu qua defineUserCommand
+type AnyUserCommand = UserCommandDef<any, any>;
+
+function defineUserCommand<I, O>(def: UserCommandDef<I, O>): UserCommandDef<I, O> {
+  return def;
+}
+
+/**
+ * Lệnh cấp người dùng (cần phiên, KHÔNG cần ngữ cảnh tổ chức — người gọi chưa là thành viên). Cùng URL `POST /api/v1/<module>/<command>`,
+ * cùng Idempotency-Key; không nằm trong `COMMANDS` vì mọi ca của ma trận quyền ở đó đều giả định có tổ chức (xem authz-matrix).
+ */
+export const USER_COMMANDS: Readonly<Record<string, AnyUserCommand>> = {
+  "org.create": defineUserCommand({
+    command: "org.create",
+    input: COMMAND_INPUTS["org.create"],
+    run: (req, i) => createOrganization(req, { name: i.name }),
+  }),
+};
+
+export function findUserCommand(module: string, command: string): AnyUserCommand | undefined {
+  if (!/^[a-z][a-zA-Z_]*$/.test(module) || !/^[a-zA-Z][a-zA-Z]*$/.test(command)) return undefined;
+  return Object.hasOwn(USER_COMMANDS, `${module}.${command}`)
+    ? USER_COMMANDS[`${module}.${command}`]
+    : undefined;
+}
 
 /** Tìm command theo đường dẫn `<module>/<command>`; tên chỉ gồm chữ/số để không lọt ký tự lạ. */
 export function findCommand(module: string, command: string): AnyCommand | undefined {

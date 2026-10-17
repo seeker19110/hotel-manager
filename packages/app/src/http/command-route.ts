@@ -13,6 +13,7 @@ import {
   orgCookieName,
   requestedOrgId,
   resolveActor,
+  type UserCommandRequest,
 } from "../access/index.ts";
 import {
   type ActorRef,
@@ -23,6 +24,7 @@ import {
   withRequestTrace,
 } from "../logging/index.ts";
 import { observeHttp } from "../observability/index.ts";
+import type { CommandResult } from "../pipeline/index.ts";
 import {
   type CommandContext,
   executeCommand,
@@ -77,6 +79,17 @@ export interface CommandDef<I, O, P = undefined> {
     services: AppServices,
     prepared: P,
   ): Promise<{ data: O; httpStatus?: number }>;
+}
+
+/**
+ * Lệnh "cấp người dùng" (SPEC-access S-001 `org.create`, S-007/S-008 `member.acceptInvitation`): cần phiên đăng nhập nhưng KHÔNG cần
+ * (cũng không nhận) ngữ cảnh tổ chức — người gọi chưa là thành viên. `X-Org-Id` bị bỏ qua. Quyền là điều kiện của chính lệnh
+ * (vd. đúng email được mời), kiểm trong `run`; idempotency/audit/outbox vẫn đi qua pipeline (xem `access/provision.ts`).
+ */
+export interface UserCommandDef<I, O> {
+  command: string;
+  input: z.ZodType<I>;
+  run(req: UserCommandRequest, input: I, services: AppServices): Promise<CommandResult<O>>;
 }
 
 export interface QueryDef<I, O> {
@@ -355,6 +368,89 @@ async function runCommand<I, O, P>(
     }
     return problemResponse(result.problem, correlationId);
   } catch (err) {
+    return unexpected(err, deps, correlationId);
+  }
+}
+
+/** POST lệnh cấp người dùng: phiên (401) → Idempotency-Key (400) → JSON (400) → schema (422) → `run`. Đo `hm_http_*`. */
+export function handleUserCommand<I, O>(
+  def: UserCommandDef<I, O>,
+  req: Request,
+  deps: HttpDeps,
+): Promise<Response> {
+  return observeHttp(routeOf(def.command), req.method, () =>
+    withRequestTrace(req, () => runUserCommand(def, req, deps)),
+  );
+}
+
+async function runUserCommand<I, O>(
+  def: UserCommandDef<I, O>,
+  req: Request,
+  deps: HttpDeps,
+): Promise<Response> {
+  const correlationId = correlationOf(req);
+  const endpoint = { type: "endpoint", id: new URL(req.url).pathname };
+  let userId: string | null = null;
+  try {
+    const session = await deps.getSession(req.headers);
+    if (!session) {
+      denied(req, correlationId, { status: 401, code: "UNAUTHENTICATED" }, null, endpoint);
+      return simpleProblem("UNAUTHENTICATED", 401, "Cần đăng nhập", correlationId);
+    }
+    userId = session.user.id;
+    const actorRef: ActorRef = { authUserId: userId };
+    const key = req.headers.get("idempotency-key") ?? "";
+    if (!UUID.test(key)) {
+      return simpleProblem("MALFORMED_REQUEST", 400, "Thiếu hoặc sai Idempotency-Key (UUID)", correlationId);
+    }
+    let body: unknown;
+    try {
+      body = nfcDeep(await req.json());
+    } catch {
+      rejectInput(
+        req,
+        correlationId,
+        "input.deserialize_failed",
+        actorRef,
+        { type: "command", id: def.command },
+        "MALFORMED_REQUEST",
+      );
+      return simpleProblem("MALFORMED_REQUEST", 400, "Thân yêu cầu không phải JSON hợp lệ", correlationId);
+    }
+    const parsed = def.input.safeParse(body);
+    if (!parsed.success) {
+      rejectInput(
+        req,
+        correlationId,
+        "input.validation_failed",
+        actorRef,
+        { type: "command", id: def.command },
+        "VALIDATION_FAILED",
+      );
+      return validationProblem(parsed.error, correlationId);
+    }
+    const result = await def.run(
+      { db: deps.db, userId, key, payload: body, correlationId, client: requestClient(req.headers) },
+      parsed.data,
+      deps.services,
+    );
+    if (result.status === "committed") {
+      return json(
+        { command_id: result.commandId, status: "committed", data: result.data },
+        result.httpStatus,
+        correlationId,
+      );
+    }
+    return problemResponse(result.problem, correlationId);
+  } catch (err) {
+    const p = toProblem(err, correlationId);
+    if (p.status < 500) {
+      denied(req, correlationId, p, userId ? { authUserId: userId } : null, {
+        type: "command",
+        id: def.command,
+      });
+      return problemResponse(p, correlationId);
+    }
     return unexpected(err, deps, correlationId);
   }
 }
