@@ -265,3 +265,10 @@
 - Chọn: Cửa sổ cố định 60 s trong Postgres (khoá advisory): upload 30/phút/thành viên + 120/phút/tổ chức, import 10/30, webhook đã xác thực 600/phút/tài khoản, chữ ký sai 300/phút/nhà cung cấp; hằng số trong rate-limit.ts
 - Lý do (tiêu chí chất lượng cuối): (1) an toàn: chặn trước khi đọc thân/quét/ghi object, bộ đếm chung giữa mọi tiến trình (test hai pool), lượt từ chối không tăng bộ đếm; ranh giới lọt tối đa 2× trong thời gian ngắn là chấp nhận được cho chống lạm dụng. (2) đường lùi: đổi hằng số. (3) không thêm biến môi trường (không cập nhật được .env.example).
 - Đường lùi: Đổi hằng trong packages/app/src/http/rate-limit.ts; muốn cửa sổ trượt thì thay hàm app.rate_limit_hit bằng migration mới.
+
+### D-038 · 2026-10-17T05:09:16+00:00 · T-502: jitter cho lịch gửi lại email (ARC-RES-002) — full jitter hay cộng thêm?
+
+- Phương án: (1) Cộng thêm tối đa 20% (thực tế ∈ [mốc, 1,2·mốc]) — không bao giờ sớm hơn lịch Q-05 · (2) Full jitter [0, mốc] — rải đều hơn nhưng có thể gửi lại sớm hơn lịch đã hứa
+- Chọn: Cộng thêm tối đa 20% (thực tế ∈ [mốc, 1,2·mốc]) — không bao giờ sớm hơn lịch Q-05
+- Lý do (tiêu chí chất lượng cuối): (1) đúng: giữ lịch Q-05 (1/5/30/120/360 phút) đã ghi trong SPEC; vẫn tránh dồn cùng thời điểm. (3) đơn giản, một hằng RETRY_JITTER_RATIO.
+- Đường lùi: Đổi RETRY_JITTER_RATIO hoặc spreadDelayMs trong notifications.

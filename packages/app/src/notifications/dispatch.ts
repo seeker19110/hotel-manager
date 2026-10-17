@@ -3,7 +3,7 @@
 // Dedupe bằng unique `(organization_id, dedupe_key, recipient_person_id)` + `(notification_id, channel)`: sự kiện giao lại
 // không tạo bản thứ hai (S-003). Payload outbox chỉ có id; nội dung đọc lại từ CSDL trong ngữ cảnh đúng tổ chức.
 import { randomUUID } from "node:crypto";
-import { withTenant } from "@hm/db";
+import { withTenantRetry } from "@hm/db";
 import { type Kysely, sql, type Transaction } from "kysely";
 import { type NotificationType, render, TemplateError, type Vars } from "./templates.ts";
 
@@ -225,7 +225,7 @@ export async function dispatchNotification(
   const h = HANDLERS[job.event_type];
   if (!h) return 0;
   try {
-    return await withTenant(workerDb, { orgId: job.organization_id }, (trx) => h(trx, job, now));
+    return await withTenantRetry(workerDb, { orgId: job.organization_id }, (trx) => h(trx, job, now));
   } catch (err) {
     if (!(err instanceof TemplateError)) throw err;
     log("notification.template_error", {

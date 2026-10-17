@@ -1211,12 +1211,27 @@ describe("docs/architecture/resilience.md khớp hằng số mã nguồn (ARC-RE
     expect(q).toBeTruthy();
     expect(doc).toContain(`\`retryLimit\` = ${q[1]}`);
     expect(doc).toContain(`\`retryDelay\` = ${q[2]} giây`);
-    const cmd = read("packages/app/src/pipeline/command.ts");
-    expect(doc).toContain(`\`MAX_ATTEMPTS\` = ${/const MAX_ATTEMPTS = (\d+)/.exec(cmd)[1]}`);
-    expect(cmd).toContain('new Set(["40001", "40P01"])');
+    // T-502: lịch retry transaction nằm ở helper chung `packages/db/src/retry.ts` (REQUEST_TX_RETRY / WORKER_TX_RETRY).
+    const retry = read("packages/db/src/retry.ts");
+    const pol = (name) => {
+      const m = new RegExp(
+        `${name}: RetryPolicy = \\{\\s*maxAttempts: (\\d+),\\s*baseDelayMs: (\\d+),\\s*maxDelayMs: ([\\d_]+),\\s*maxElapsedMs: ([\\d_]+)`,
+      ).exec(retry);
+      expect(m, `không đọc được ${name}`).toBeTruthy();
+      return m.slice(1).map((x) => Number(x.replaceAll("_", "")));
+    };
+    const fmt = (n) => n.toLocaleString("vi-VN");
+    const [reqN, reqBase, reqMax, reqTotal] = pol("REQUEST_TX_RETRY");
+    expect(doc).toContain(`lùi mũ từ ${reqBase} ms, một lần chờ ≤ ${reqMax} ms (\`REQUEST_TX_RETRY\`)`);
+    expect(doc).toContain(`\`maxAttempts\` = ${reqN}; tổng ≤ ${fmt(reqTotal)} ms`);
+    const [wN, wBase, wMax, wTotal] = pol("WORKER_TX_RETRY");
+    expect(doc).toContain(`lùi mũ từ ${wBase} ms, một lần chờ ≤ ${fmt(wMax)} ms (\`WORKER_TX_RETRY\`)`);
+    expect(doc).toContain(`\`maxAttempts\` = ${wN}; tổng ≤ ${fmt(wTotal)} ms`);
+    expect(retry).toContain('new Set(["40001", "40P01"])');
+    const send = read("packages/app/src/notifications/send.ts");
+    expect(doc).toContain(`\`RETRY_JITTER_RATIO\` = ${/RETRY_JITTER_RATIO = ([\d.]+)/.exec(send)[1]}`);
   });
-  it("ghi rõ điều chưa làm: helper chung, jitter email, E2E hai bản sao", () => {
-    expect(doc).toMatch(/\*\*không\*\*/);
+  it("ghi rõ điều chưa làm: E2E hai bản sao", () => {
     expect(doc).toMatch(/chưa làm/);
     expect(doc).toContain("hai bản sao");
   });
