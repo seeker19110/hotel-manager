@@ -240,3 +240,21 @@ export async function seedReservation(
   });
   return { reservationId, itemId };
 }
+
+/**
+ * CHỈ cho test "du hành thời gian": đổi giờ chốt ngày của cơ sở ĐÃ có dữ liệu bằng cách tắt tạm trigger `PROPERTY_IN_USE`
+ * (INV-G2, migration 0058) trong một transaction của kết nối admin. Mã chạy thật không có đường này — `property.update` bị chặn.
+ */
+export async function setBusinessDayCutoffForTest(
+  admin: Kysely<unknown>,
+  propertyId: string,
+  cutoff: string,
+): Promise<void> {
+  await admin.transaction().execute(async (trx) => {
+    await sql`alter table properties disable trigger trg_properties_in_use`.execute(trx);
+    await sql`update properties set business_day_cutoff = ${cutoff}::time where id = ${propertyId}`.execute(
+      trx,
+    );
+    await sql`alter table properties enable trigger trg_properties_in_use`.execute(trx);
+  });
+}

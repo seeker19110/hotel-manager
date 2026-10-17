@@ -2,6 +2,7 @@
 // INV-F1…F5, INV-F3b). Ví dụ bắt buộc: folio 1.430.000 đ, ứng trước 500.000 đ, còn 930.000 đ.
 import { randomUUID } from "node:crypto";
 import { withTenant } from "@hm/db";
+import { setBusinessDayCutoffForTest } from "@hm/testkit";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Actor } from "../access/actor.ts";
@@ -340,9 +341,7 @@ describe("S-023/S-024 bất biến sau phát hành", () => {
 describe("S-026 trả phòng ca đêm, khách trả tiền mặt — lễ tân tự xác nhận", () => {
   it("23/10 00:40 (giờ chốt 04:00): một transaction thu 930.000 → folio 0, biên nhận, vào tiền mặt kỳ vọng ca L; ngày kinh doanh 22/10", async () => {
     const m = await make({ advance: true, extras: true });
-    await sql`update properties set business_day_cutoff = '04:00' where id = ${h.org.propertyId}`.execute(
-      h.t.admin,
-    );
+    await setBusinessDayCutoffForTest(h.t.admin, h.org.propertyId, "04:00");
     try {
       const cashBefore = await withTenant(
         h.t.runtime,
@@ -381,9 +380,7 @@ describe("S-026 trả phòng ca đêm, khách trả tiền mặt — lễ tân t
       );
       expect(Number(cashAfter) - Number(cashBefore)).toBe(930_000);
     } finally {
-      await sql`update properties set business_day_cutoff = '00:00' where id = ${h.org.propertyId}`.execute(
-        h.t.admin,
-      );
+      await setBusinessDayCutoffForTest(h.t.admin, h.org.propertyId, "00:00");
     }
   });
 

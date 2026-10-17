@@ -1,5 +1,6 @@
 // PLAN đợt 3 T-207 — nhận phòng và walk-in trên Postgres thật (SPEC-reservation-stay S-010…S-016, S-030; D-004).
 import { randomUUID } from "node:crypto";
+import { setBusinessDayCutoffForTest } from "@hm/testkit";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createPiiCipher, devKeyring } from "../crypto/pii.ts";
@@ -295,9 +296,7 @@ describe("S-015/S-016 walk-in", () => {
   });
 
   it("S-016 (b): giờ chốt 04:00, walk-in 16/10 01:30 đi 16/10 → đêm đầu 15/10 (thứ Năm), 1 đêm 600.000, không báo lỗi ngày", async () => {
-    await sql`update properties set business_day_cutoff = '04:00' where id = ${h.org.propertyId}`.execute(
-      h.t.admin,
-    );
+    await setBusinessDayCutoffForTest(h.t.admin, h.org.propertyId, "04:00");
     try {
       const unit = await freshUnit();
       const r = await okAs(h.t, h.frontDesk, (ctx) =>
@@ -314,9 +313,7 @@ describe("S-015/S-016 walk-in", () => {
       }>`select business_date::text as d from charges where stay_id = ${r.stayId}`.execute(h.t.admin);
       expect(c.rows.map((x) => x.d)).toEqual(["2026-10-15"]);
     } finally {
-      await sql`update properties set business_day_cutoff = '00:00' where id = ${h.org.propertyId}`.execute(
-        h.t.admin,
-      );
+      await setBusinessDayCutoffForTest(h.t.admin, h.org.propertyId, "00:00");
     }
   });
 });
