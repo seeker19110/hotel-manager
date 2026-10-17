@@ -80,13 +80,21 @@ test("prefers-reduced-motion: spinner/chuyển động gần như tắt", async 
 });
 
 test("bàn phím: đăng nhập → chọn tổ chức → danh sách phòng không cần chuột", async ({ page }) => {
-  await page.goto("/dang-nhap");
-  await page.getByLabel("Email").focus();
-  await page.keyboard.type(HOTEL_HK.email);
-  await page.keyboard.press("Tab");
-  await expect(page.getByLabel("Mật khẩu")).toBeFocused();
-  await page.keyboard.type(HOTEL_HK.password);
-  await page.keyboard.press("Enter");
+  // Better Auth giới hạn /sign-in/email 20 lần/phút theo IP và chỉ đặt lại sau 60 s không có yêu cầu; bộ E2E đăng nhập nhiều
+  // lần liên tiếp nên gặp 429 thì đợi hết cửa sổ rồi thử lại (không tắt rào), như sessions.ts.
+  test.setTimeout(150_000);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await page.goto("/dang-nhap");
+    await page.getByLabel("Email").focus();
+    await page.keyboard.type(HOTEL_HK.email);
+    await page.keyboard.press("Tab");
+    await expect(page.getByLabel("Mật khẩu")).toBeFocused();
+    await page.keyboard.type(HOTEL_HK.password);
+    const signIn = page.waitForResponse((r) => r.url().endsWith("/api/auth/sign-in/email"));
+    await page.keyboard.press("Enter");
+    if ((await signIn).status() !== 429) break;
+    await page.waitForTimeout(61_000);
+  }
   await expect(page).toHaveURL(/\/chon-to-chuc$/);
   const org = page.getByRole("button", { name: ORG_HOTEL });
   for (let i = 0; i < 20 && !(await org.evaluate((el) => el === document.activeElement)); i++)
