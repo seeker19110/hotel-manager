@@ -5,8 +5,7 @@
 import { randomUUID } from "node:crypto";
 import { withTenantRetry } from "@hm/db";
 import { type Kysely, sql, type Transaction } from "kysely";
-import { BREAK_OPENED, defaultAssignee, openBreak } from "../ledger/bank-inbox.ts";
-import { postEntry } from "../ledger/ledger.ts";
+import { BREAK_OPENED, defaultAssignee, openBreak, postEntry } from "../ledger/index.ts";
 import { currentTraceparent } from "../logging/index.ts";
 import { candidateInvoices, loadBankTxn, suggestFor } from "./matching.ts";
 

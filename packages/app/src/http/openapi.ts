@@ -6,7 +6,7 @@
 // `info.version` là phiên bản HỢP ĐỒNG API (`/v1`), không phải phiên bản sản phẩm — đổi khi hợp đồng đổi (breaking → /v2).
 import { z } from "zod";
 import { ERROR_CODES } from "../errors.ts";
-import { IMPORT_KINDS } from "../import/import.ts";
+import { IMPORT_KINDS } from "../import/index.ts";
 import { COMMANDS, QUERIES } from "./registry.ts";
 import { simPayload } from "./webhook-route.ts";
 

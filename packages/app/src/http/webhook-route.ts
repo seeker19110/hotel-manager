@@ -4,7 +4,7 @@
 import { kibToBytes } from "@hm/domain";
 import type { Kysely } from "kysely";
 import { z } from "zod";
-import { ingestBankEvent, parseWebhookSecrets, verifySimSignature } from "../ledger/bank-inbox.ts";
+import { ingestBankEvent, parseWebhookSecrets, verifySimSignature } from "../ledger/index.ts";
 import { rateLimited, toProblem } from "../pipeline/index.ts";
 import {
   correlationOf,

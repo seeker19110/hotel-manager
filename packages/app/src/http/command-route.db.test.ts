@@ -139,7 +139,7 @@ describe("handleCommand — thứ tự kiểm và mã lỗi", () => {
     expect(m.rows[0]?.o).toBe(A.orgId);
   });
 
-  it("tổ chức không phải thành viên → 404; vai trò cần MFA mà chưa bật → 403 MFA_REQUIRED", async () => {
+  it("SPEC-access S-011: tổ chức không phải thành viên → 404; vai trò cần MFA mà chưa bật → 403 MFA_REQUIRED", async () => {
     const r1 = await handleCommand(
       ECHO,
       post({ n: 1 }, { "x-test-user": housekeepingUser, "x-org-id": B.orgId }),

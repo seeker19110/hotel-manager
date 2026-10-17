@@ -5,8 +5,8 @@ import { randomUUID } from "node:crypto";
 import { withTenant } from "@hm/db";
 import { AuthzError, authorize } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
-import type { Actor } from "../access/actor.ts";
-import { last4, maskDocNumber, normalizeDocNumber, type PiiCipher } from "../crypto/pii.ts";
+import type { Actor } from "../access/index.ts";
+import { last4, maskDocNumber, normalizeDocNumber, type PiiCipher } from "../crypto/index.ts";
 import { type CommandContext, CommandError } from "../pipeline/index.ts";
 
 export const DOC_TYPES = ["cccd", "passport", "other"] as const;

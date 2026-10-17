@@ -7,7 +7,7 @@
 // - Nợ đến hạn dùng `invoices.open_amount` (tổng + giảm trừ đã duyệt − đã phân bổ) — review lát 5 🔴.
 import { withTenant } from "@hm/db";
 import { type Kysely, type RawBuilder, sql } from "kysely";
-import type { Actor } from "../access/actor.ts";
+import type { Actor } from "../access/index.ts";
 import { CommandError } from "../pipeline/index.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

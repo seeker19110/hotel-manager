@@ -4,9 +4,9 @@
 import type { StatementMapping } from "@hm/domain";
 import { mibToBytes } from "@hm/domain";
 import { z } from "zod";
-import { resetMemberMfa } from "../access/mfa-recovery.ts";
-import { APPROVAL_KINDS, cancelApproval, decideApproval, requestApproval } from "../approvals/approvals.ts";
-import { getEvent, listEvents } from "../audit/events.ts";
+import { resetMemberMfa } from "../access/index.ts";
+import { APPROVAL_KINDS, cancelApproval, decideApproval, requestApproval } from "../approvals/index.ts";
+import { getEvent, listEvents } from "../audit/index.ts";
 import {
   createPeriod,
   issuePeriod,
@@ -15,13 +15,13 @@ import {
   reopenPeriod,
   returnToDraft,
   submitForReview,
-} from "../billing/billing.ts";
+} from "../billing/index.ts";
 import {
   receiveDeposit,
   requestCreditRefund,
   requestDeduction,
   requestDepositRefund,
-} from "../deposits/deposits.ts";
+} from "../deposits/index.ts";
 import {
   downloadExport,
   EXPORT_KINDS,
@@ -29,7 +29,7 @@ import {
   listMyExports,
   requestExport,
   requestOrgExport,
-} from "../exports/exports.ts";
+} from "../exports/index.ts";
 import {
   assignTask,
   cancelTask,
@@ -40,8 +40,8 @@ import {
   listTasks,
   startTask,
   verifyTask,
-} from "../housekeeping/tasks.ts";
-import { getIdentityDocument } from "../identity/identity.ts";
+} from "../housekeeping/index.ts";
+import { getIdentityDocument } from "../identity/index.ts";
 import {
   cancelBatch,
   commitBatch,
@@ -51,23 +51,28 @@ import {
   getTemplate,
   setExpectedTotals,
   validateBatch,
-} from "../import/import.ts";
-import { approveBlock, endBlock, getUnitStatus } from "../inventory/inventory.ts";
-import { activateLease, recordHandover, renewLease } from "../lease/handover.ts";
+} from "../import/index.ts";
+import { approveBlock, endBlock, getUnitStatus } from "../inventory/index.ts";
 import {
+  activateLease,
   addOccupant,
+  approveSettlement,
   cancelLease,
+  closeLease,
   createDraft,
   getLease,
   getPerson,
+  giveNotice,
   holdLease,
+  prepareSettlement,
+  recordHandover,
   removeOccupant,
+  renewLease,
   signLease,
   submitForSignature,
   updateDraft,
-} from "../lease/lease.ts";
-import { approveSettlement, closeLease, giveNotice, prepareSettlement } from "../lease/settlement.ts";
-import { financialSummary, issueAdjustment, lockPeriod, unlockPeriod } from "../ledger/period-close.ts";
+} from "../lease/index.ts";
+import { financialSummary, issueAdjustment, lockPeriod, unlockPeriod } from "../ledger/index.ts";
 import {
   assignWorkOrder,
   cancelWorkOrder,
@@ -78,7 +83,7 @@ import {
   proposeWorkOrderBlock,
   startWorkOrder,
   verifyWorkOrder,
-} from "../maintenance/work-orders.ts";
+} from "../maintenance/index.ts";
 import {
   acknowledgeAnomaly,
   installMeter,
@@ -86,7 +91,7 @@ import {
   recordReading,
   replaceMeter,
   setServicePrice,
-} from "../metering/meters.ts";
+} from "../metering/index.ts";
 import {
   getPreferences,
   listDeliveries,
@@ -96,63 +101,70 @@ import {
   retryDelivery,
   updatePreference,
   updateSettings,
-} from "../notifications/preferences.ts";
+} from "../notifications/index.ts";
 import {
   allocatePayment,
   collectCash,
   confirmPayment,
   recordPayment,
   reversePayment,
-} from "../payments/payments.ts";
-import { inviteTenant, revokeTenantAccess } from "../portal/access.ts";
-import { createGuestLink, revokeGuestLink } from "../portal/guest.ts";
+} from "../payments/index.ts";
 import {
+  createGuestLink,
   createRequest,
   getMyInvoice,
   getMyLease,
   getPaymentInstructions,
+  inviteTenant,
   listMyInvoices,
   listMyMeterReadings,
   listMyRequests,
   listPaymentClaims,
+  revokeGuestLink,
+  revokeTenantAccess,
   submitPaymentClaim,
-} from "../portal/tenant.ts";
+} from "../portal/index.ts";
 import {
   confirmMatch,
   getTransferInfo,
   importStatement,
   previewMatches,
   resolveBreak,
-} from "../reconciliation/reconciliation.ts";
-import { collections, depositsHeld, occupancy, receivables } from "../reports/reports.ts";
+} from "../reconciliation/index.ts";
+import { collections, depositsHeld, occupancy, receivables } from "../reports/index.ts";
 import {
   closeShift,
   handoverShift,
   openShift,
   reassignDiscrepancy,
   receiveHandover,
-} from "../shifts/shifts.ts";
-import { checkOut } from "../stay/checkout.ts";
-import { getFolio, postCharge, voidCharge } from "../stay/folio.ts";
-import { createRoomType, quote, setRate, updateRoomType } from "../stay/rates.ts";
+} from "../shifts/index.ts";
 import {
   cancelReservation,
   changeDates,
+  checkIn,
+  checkOut,
   confirmReservation,
   createReservation,
+  createRoomType,
+  exportResidenceNotice,
+  type GuestInput,
+  getFolio,
   getReservation,
   holdReservation,
+  listNotices,
   listReservations,
   markNoShow,
-} from "../stay/reservations.ts";
-import {
-  exportResidenceNotice,
-  listNotices,
   markNoticeSubmitted,
+  postCharge,
   prepareResidenceNotice,
-} from "../stay/residence-notices.ts";
-import { checkIn, type GuestInput, walkIn } from "../stay/stays.ts";
-import { getSummary, listItems, TODAY_CARDS } from "../today/today.ts";
+  quote,
+  setRate,
+  updateRoomType,
+  voidCharge,
+  walkIn,
+} from "../stay/index.ts";
+import { getSummary, listItems, TODAY_CARDS } from "../today/index.ts";
 import {
   bankTxn,
   COMMAND_INPUTS,

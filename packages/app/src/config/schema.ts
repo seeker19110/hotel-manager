@@ -1,6 +1,6 @@
 // Cấu hình môi trường (BASE-CFG-001/002/005, ADR-0002). Mọi đọc `process.env` của server đi qua module này.
 import { z } from "zod";
-import { PiiKeyError, parseKeyring } from "../crypto/pii.ts";
+import { PiiKeyError, parseKeyring } from "../crypto/index.ts";
 import { parseWebhookSecrets } from "./webhook-secrets.ts";
 
 /** Biến là bí mật: không bao giờ in giá trị, không được có tiền tố NEXT_PUBLIC_ (lọt vào bundle client). */

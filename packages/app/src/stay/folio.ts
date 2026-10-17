@@ -5,9 +5,9 @@ import { randomUUID } from "node:crypto";
 import { withTenant } from "@hm/db";
 import { authorize } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
-import type { Actor } from "../access/actor.ts";
-import { approvalRequired, registerApprovalExecutor } from "../approvals/approvals.ts";
-import { customerCredit } from "../payments/payments.ts";
+import type { Actor } from "../access/index.ts";
+import { approvalRequired, registerApprovalExecutor } from "../approvals/index.ts";
+import { customerCredit } from "../payments/index.ts";
 import { type CommandContext, CommandError } from "../pipeline/index.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

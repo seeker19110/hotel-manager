@@ -3,9 +3,10 @@
 //   · tên ADR `NNNN-slug` không trùng/hở số (ARC-ADR-002)
 //   · packages/domain không import hạ tầng I/O (ARC-MOD-003)
 //   · không vòng phụ thuộc MỚI giữa thư mục module của packages/app (ARC-MOD-004) — ratchet theo arch-guards.baseline.json
-//   · module của packages/app chỉ import module khác qua điểm công khai `<module>/index.ts` (ARC-MOD-005) — ratchet theo cùng tệp nền
+//   · module của packages/app chỉ import module khác qua điểm công khai `<module>/index.ts` (ARC-MOD-005) — cấm tuyệt đối, không còn nền
 //   · không dùng định dạng thời gian theo locale/toString ở mã chạy (BASE-DATA-006)
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import baseline from "./arch-guards.baseline.json" with { type: "json" };
@@ -357,42 +358,61 @@ function deepImportEdges(files: string[], srcDir: string): Map<string, Set<strin
   return edges;
 }
 
-describe("arch-guards — module chỉ import module khác qua index.ts (ARC-MOD-005, ratchet)", () => {
+describe("arch-guards — module chỉ import module khác qua index.ts (ARC-MOD-005, cấm tuyệt đối)", () => {
   const files = productTs(APP_SRC);
   const edges = deepImportEdges(files, APP_SRC);
-  const current = [...edges.keys()].sort();
-  const base = Object.entries(baseline.import_noi_bo).flatMap(([from, targets]) =>
-    targets.map((t) => `${from}->${t}`),
-  );
 
-  it("quét được các import chéo module (không rỗng)", () => {
-    expect(current.length).toBeGreaterThan(50);
+  it("quét được các import chéo module (không rỗng; đã qua index.ts nên đếm theo cạnh thư mục)", () => {
+    expect(moduleEdges(files, APP_SRC).size).toBeGreaterThan(80);
   });
 
-  it("không có import nội bộ mới ngoài danh sách nền (đi qua index.ts của module đích, KHÔNG thêm vào nền)", () => {
-    const added = current.filter((e) => !base.includes(e));
+  it("không có import tệp nội bộ của module khác — đi qua index.ts của module đích (không còn nền để nới)", () => {
     expect(
-      added.map((e) => `${e} (${[...(edges.get(e) ?? [])].slice(0, 3).join(", ")})`),
+      [...edges.keys()].sort().map((e) => `${e} (${[...(edges.get(e) ?? [])].slice(0, 3).join(", ")})`),
       "import tệp nội bộ của module khác",
     ).toEqual([]);
   });
 
-  it("danh sách nền không có mục thừa (đã chuyển sang index.ts thì xoá khỏi nền — ratchet chỉ co lại)", () => {
-    expect(base.filter((e) => !current.includes(e))).toEqual([]);
+  it("mọi module có mã chạy đều có index.ts (biên công khai)", () => {
+    const modules = readdirSync(APP_SRC).filter((n) => statSync(join(APP_SRC, n)).isDirectory());
+    const missing = modules.filter(
+      (m) => productTs(join(APP_SRC, m)).length > 0 && !readdirSync(join(APP_SRC, m)).includes("index.ts"),
+    );
+    expect(missing, "module thiếu index.ts").toEqual([]);
+    expect(modules.length).toBeGreaterThan(30);
   });
 
-  it("nền được sắp xếp và không trùng (diff gọn, dễ review)", () => {
-    for (const targets of Object.values(baseline.import_noi_bo))
-      expect(targets).toEqual([...new Set(targets)].sort());
-    expect(Object.keys(baseline.import_noi_bo)).toEqual(Object.keys(baseline.import_noi_bo).sort());
+  it("nền arch-guards không còn mục import_noi_bo (đã về 0, chỉ được giữ ở 0)", () => {
+    expect("import_noi_bo" in baseline).toBe(false);
   });
 
-  it("module đã có index.ts thì module khác không còn import tệp nội bộ của nó (đã gỡ hết)", () => {
-    for (const mod of ["actor-core", "pipeline"])
-      expect(
-        current.filter((e) => e.split("->")[1]?.startsWith(`${mod}/`)),
-        `${mod} có index.ts — import qua index.ts`,
-      ).toEqual([]);
+  it("bắt đúng: import tệp nội bộ bị phát hiện; index.ts, cùng module, tệp gốc src, ngoài src thì không", () => {
+    const dir = mkdtempSync(join(tmpdir(), "hm-arch-"));
+    try {
+      const put = (rel: string, src: string) => {
+        mkdirSync(dirname(join(dir, rel)), { recursive: true });
+        writeFileSync(join(dir, rel), src);
+        return join(dir, rel);
+      };
+      const x = put(
+        "a/x.ts",
+        'import { v } from "../b/inner.ts";\nimport { w } from "../b/index.ts";\nimport "./y.ts";',
+      );
+      const y = put(
+        "a/y.ts",
+        'export const y = await import("../b/deep/inner.ts");\nexport * from "../root.ts";',
+      );
+      const z = put(
+        "c/z.ts",
+        'import { q } from "zod";\nimport { r } from "../../outside.ts";\nexport { s } from "../a/index.ts";',
+      );
+      put("b/inner.ts", "export const v = 1;");
+      const got = deepImportEdges([x, y, z], dir);
+      expect([...got.keys()].sort()).toEqual(["a->b/deep/inner.ts", "a->b/inner.ts"]);
+      expect(deepImportEdges([], dir).size).toBe(0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

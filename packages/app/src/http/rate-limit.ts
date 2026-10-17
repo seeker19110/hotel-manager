@@ -4,8 +4,8 @@
 // RATE_LIMITED + `Retry-After` (số giây tới hết cửa sổ). Lỗi CSDL được ném lên (đóng an toàn: 5xx, không bỏ qua giới hạn).
 
 import { type Kysely, sql } from "kysely";
-import type { Actor } from "../access/actor.ts";
-import { emitSecurity, requestClient } from "../logging/security-events.ts";
+import type { Actor } from "../access/index.ts";
+import { emitSecurity, requestClient } from "../logging/index.ts";
 import { rateLimited, toProblem } from "../pipeline/index.ts";
 import { problemResponse } from "./command-route.ts";
 

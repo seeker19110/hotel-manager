@@ -5,10 +5,10 @@
 
 import { createHash } from "node:crypto";
 import { kibToBytes } from "@hm/domain";
-import type { Actor } from "../access/actor.ts";
-import { settle, unwrap } from "../files/staging.ts";
-import { IMPORT_LIMITS, prepareBatchUpload, uploadBatch } from "../import/import.ts";
-import { requestClient } from "../logging/security-events.ts";
+import type { Actor } from "../access/index.ts";
+import { settle, unwrap } from "../files/index.ts";
+import { IMPORT_LIMITS, prepareBatchUpload, uploadBatch } from "../import/index.ts";
+import { requestClient } from "../logging/index.ts";
 import { executeCommand, toProblem } from "../pipeline/index.ts";
 import {
   actorFromRequest,

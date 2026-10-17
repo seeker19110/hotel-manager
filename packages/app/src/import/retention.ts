@@ -6,7 +6,7 @@
 import { VN_UTC_OFFSET_MS } from "@hm/domain";
 import type { Kysely } from "kysely";
 import { sql } from "kysely";
-import type { ObjectStorage } from "../files/storage.ts";
+import type { ObjectStorage } from "../files/index.ts";
 
 export const IMPORT_ROW_RETENTION_DAYS = 30;
 const BATCH = 200;

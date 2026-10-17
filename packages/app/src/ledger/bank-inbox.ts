@@ -7,11 +7,7 @@ import { withTenant } from "@hm/db";
 import type { BreakReason } from "@hm/domain";
 import { msToSecondsExact } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
-import {
-  parseWebhookSecrets,
-  WEBHOOK_SECRET_MAX_COUNT,
-  WEBHOOK_SECRET_MIN_LENGTH,
-} from "../config/webhook-secrets.ts";
+import { parseWebhookSecrets, WEBHOOK_SECRET_MAX_COUNT, WEBHOOK_SECRET_MIN_LENGTH } from "../config/index.ts";
 import { currentTraceparent } from "../logging/index.ts";
 import { CommandError, canonicalJson } from "../pipeline/index.ts";
 
