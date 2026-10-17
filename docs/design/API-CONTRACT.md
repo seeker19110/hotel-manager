@@ -29,6 +29,8 @@
   "correlation_id": "…", "errors": [ { "path": "during.end", "field": "during.end", "code": "BEFORE_START" } ] }
 ```
 
+Trường tuỳ chọn theo mã (không có thì bỏ hẳn, không gửi `null`): `retry_after` (giây, mọi 429) · `alternatives` (`[{unit_id, code}]` — phòng cùng loại còn trống khi `ROOM_UNAVAILABLE` ở `allocation.createHold`, SPEC-inventory-allocation S-002) · `items` (danh sách bản ghi liên quan: allocation xung đột khi `BLOCK_CONFLICT`, gợi ý phòng ở `reservation.hold`) · `errors` (lỗi theo trường, 422).
+
 | Mã | HTTP | Khi nào |
 |---|---|---|
 | `VALIDATION_FAILED` | 422 | Schema/nghiệp vụ đầu vào sai: tiền không nguyên, khoảng `end ≤ start`, thiếu trường (JSON không parse được → 400 `MALFORMED_REQUEST`) |

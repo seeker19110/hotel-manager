@@ -258,3 +258,10 @@
 - Chọn: Làm hết trong 8 task T-501…T-508 (cùng luật D-023)
 - Lý do (tiêu chí chất lượng cuối): (1) đúng/an toàn: gồm rào transaction, retry có jitter, FK tường minh, sự kiện bảo mật còn thiếu — lỗi tiềm ẩn thật; (3) mỗi mục có Gate máy; ngân sách còn (vòng 33/130).
 - Đường lùi: Mỗi task một commit; revert theo task.
+
+### D-040 · 2026-10-17T07:25:15+00:00 · T-507: Problem gợi ý phòng thay thế — trường riêng 'alternatives' (SPEC-inventory S-002) hay dùng chung 'items' như reservation.hold?
+
+- Phương án: (1) Giữ cả hai: 'alternatives' cho allocation.createHold đúng spec, 'items' là danh sách chung (BLOCK_CONFLICT, reservation.hold); ghi API-CONTRACT · (2) Thống nhất về 'items' và sửa SPEC-inventory
+- Chọn: Giữ cả hai: 'alternatives' cho allocation.createHold đúng spec, 'items' là danh sách chung (BLOCK_CONFLICT, reservation.hold); ghi API-CONTRACT
+- Lý do (tiêu chí chất lượng cuối): (1) đúng spec đã ghi, không đổi hợp đồng reservation.hold đang có client dùng; (3) hai trường có kiểu khác nhau rõ ràng, tài liệu hoá trong API-CONTRACT §2.
+- Đường lùi: Đổi createHold trả 'items' và sửa S-002 + API-CONTRACT.
