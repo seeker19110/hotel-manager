@@ -252,6 +252,18 @@ export async function moveAllocation(
   input: { allocationId: string; toUnitId: string; at: Date; reason: string },
 ) {
   if (!input.reason.trim()) throw new CommandError("VALIDATION_FAILED", 422, "Cần ghi lý do chuyển phòng");
+  // Khoá cả phòng nguồn lẫn phòng đích theo id tăng dần (SPEC-inventory) — hai lệnh chuyển ngược chiều không thể khoá chéo.
+  const src = await sql<{ unit_id: string }>`
+    select unit_id from allocations where organization_id = ${ctx.actor.orgId} and id = ${input.allocationId} and active`.execute(
+    ctx.trx,
+  );
+  const srcUnit = src.rows[0]?.unit_id;
+  if (!srcUnit) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phân bổ phòng");
+  for (const unitId of [...new Set([srcUnit, input.toUnitId])].sort()) {
+    await sql`select 1 from units where organization_id = ${ctx.actor.orgId} and id = ${unitId} for update`.execute(
+      ctx.trx,
+    );
+  }
   const r = await sql<{
     property_id: string;
     unit_id: string;

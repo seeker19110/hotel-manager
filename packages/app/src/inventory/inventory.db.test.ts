@@ -357,6 +357,58 @@ describe("chuyển phòng nguyên tử", () => {
     return id;
   }
 
+  it("SPEC-inventory: chuyển phòng khoá cả hai phòng theo id tăng dần — phòng id cao chưa bị giữ khi còn đợi phòng id thấp", async () => {
+    for (const sourceIsLower of [true, false]) {
+      const [lo, hi] = [randomUUID(), randomUUID()].sort();
+      for (const [u, c] of [
+        [lo as string, `K${sourceIsLower ? "a" : "b"}1`],
+        [hi as string, `K${sourceIsLower ? "a" : "b"}2`],
+      ] as const) {
+        await sql`insert into units (id, organization_id, property_id, floor_id, code) values (${u}, ${A.orgId}, ${A.propertyId}, ${A.floorId}, ${c})`.execute(
+          t.admin,
+        );
+      }
+      const [from, to] = sourceIsLower ? [lo as string, hi as string] : [hi as string, lo as string];
+      const id = await stay(from, "23T14:00", "26T12:00");
+      let release!: () => void;
+      const gate = new Promise<void>((r) => {
+        release = r;
+      });
+      let locked!: () => void;
+      const lockedP = new Promise<void>((r) => {
+        locked = r;
+      });
+      // Người khác đang giữ khoá phòng id THẤP: lệnh chuyển phải đợi ở đó, chưa chạm phòng id cao.
+      const holder = t.admin.transaction().execute(async (trx) => {
+        await sql`select 1 from units where id = ${lo} for update`.execute(trx);
+        locked();
+        await gate;
+      });
+      await lockedP;
+      let done = false;
+      const move = run((ctx) =>
+        moveAllocation(ctx, { allocationId: id, toUnitId: to, at: H("24T10:00"), reason: "Đổi phòng" }).then(
+          (data) => ({ data }),
+        ),
+      ).then((r) => {
+        done = true;
+        return r;
+      });
+      try {
+        await new Promise((r) => setTimeout(r, 400));
+        expect(done).toBe(false);
+        const probe = await t.admin
+          .transaction()
+          .execute((trx) => sql`select 1 from units where id = ${hi} for update nowait`.execute(trx));
+        expect(probe.rows).toHaveLength(1);
+      } finally {
+        release(); // luôn nhả khoá giả lập kẻo test đỏ làm treo dọn dẹp
+        await holder;
+      }
+      expect((await move).status).toBe("committed");
+    }
+  });
+
   it("phòng đích trống → cũ thu hẹp tới lúc chuyển, mới ở phòng đích tới hết; phòng cũ thành bẩn", async () => {
     const [u1, u2] = [randomUUID(), randomUUID()];
     for (const [u, c] of [
