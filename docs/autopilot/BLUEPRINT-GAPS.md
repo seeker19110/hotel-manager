@@ -1,10 +1,10 @@
 # Khoảng trống blueprint sau đợt 6 (T-508, 2026-10-17)
 
 > Rà sau đợt 6 (T-501…T-507, nhánh `wip/wave6-final`; PR #21 CI 6/6 xanh trên `4f15b27`). `xt.py blueprint-status BLUEPRINT.md --strict`:
-> **đạt 267 · miễn 54 · mở 175** (đầu đợt 6: đạt 246 · mở 196; đầu T-508: đạt 249 · mở 193). Đợt 6 tick 21 mục: BASE-ERR-006, SEC-LOG-001, XC-UNITS-001 (T-501) +
-> 18 mục ở T-508, mỗi mục có `Bằng chứng:` kiểm bằng `scripts/check-blueprint-evidence.py` (267 mục `[x]` · 0 lỗi). Test chạy lại ở phiên rà: `pnpm test` 170 file / 2.346 test xanh
+> **đạt 264 · miễn 54 · mở 178** (đầu đợt 6: đạt 246 · mở 196; đầu T-508: đạt 249 · mở 193). Đợt 6 tick 21 mục: BASE-ERR-006, SEC-LOG-001, XC-UNITS-001 (T-501) +
+> 18 mục ở T-508, mỗi mục có `Bằng chứng:` kiểm bằng `scripts/check-blueprint-evidence.py` (264 mục `[x]` · 0 lỗi). Test chạy lại ở phiên rà: `pnpm test` 170 file / 2.346 test xanh
 > (unit 80 file / 1.450 + db 90 file / 896 — `pnpm test:db` chạy riêng, exit 0), E2E 59/59 (`E2E_PORT=3258`, exit 0).
-> Mở 175 = 46 cần người/hạ tầng + 110 đã `loop defer` đợt 4–5 + **19 thiếu trong repo chưa defer** (bảng 'Thiếu trong repo' bên dưới đã bỏ 21 mục đã tick).
+> Mở 178 = 46 cần người/hạ tầng + 110 đã `loop defer` đợt 4–5 + **22 thiếu trong repo chưa defer** (bảng 'Thiếu trong repo' bên dưới đã bỏ 21 mục đã tick).
 > **Không tick, có lý do:** `BE-API-008` (đồng thời cùng key chờ-rồi-replay, chưa phải 409), `QA-E2E-001` (ruleset `e2e` required chưa có hiệu lực trên GitHub — `rulesets` còn `[]`),
 > `PM-SPEC-004` và `WF-SDD-003` (nền spec-coverage còn 26 S-NNN). **Tick kèm lưu ý để phiên chính xác nhận:** `DB-MODEL-004` (52 FK nhóm A thiếu index là ngoại lệ có lý do — D-035),
 > `UX-STATE-001` (không Storybook; loading bị D-032 miễn ở trang có route con động/notFound/redirect), `DB-PERF-001` (EXPLAIN không ANALYZE), `XC-GREEN-007` (còn `notifications`/`inbox`/`worker_heartbeats` chưa có job dọn, chờ DPIA).
@@ -239,3 +239,10 @@ Còn thiếu, chưa defer (19, sau đợt 6): WF-DOC-001, WF-REVIEW-001, WF-TEAM
 | `XC-OSS-004` | chưa ước lượng | Không có SECURITY.md, không route /.well-known/security.txt (dịch vụ SaaS công khai, RFC 9116). Việc: SECURITY.md (phiên bản hỗ trợ, kênh GitHub PVR, SLA ≤ 14 ngày, công bố phối hợp) + route security.txt; bật PVR trong Settings là việc chủ dự án. Nhỏ. |
 | `XC-PERF-003` | chưa ước lượng | Không có file ngân sách máy đọc (lighthouserc, size-limit, k6 thresholds) và không job CI kiểm. Việc: size-limit cho bundle Next + lighthouserc budgets các màn chính (và k6 cho API lệnh), job CI đỏ khi vượt, test cổng. Vừa. |
 | `XC-PERF-004` | vừa | Đạt thêm (T-406): histogram `hm_http_request_duration_seconds` theo route/method/status + SLI p95 qua bucket. Còn: kịch bản k6/benchmark với threshold p(95)/p(99) kèm số mẫu. |
+
+## Bỏ tick theo D-041 (đạt một phần — tick lại khi đủ)
+| ID | Thiếu gì | Task đợt 7 |
+|---|---|---|
+| `UX-STATE-001` | Kiểm đòi Storybook 4 story/component; hiện có rào `route-states.test.mjs` (error/loading/empty theo route) nhưng không có Storybook | T-607 |
+| `DB-MODEL-004` | 52 FK nhóm A (cột người thao tác) chưa có index — đang là ngoại lệ D-035, Kiểm đòi đỏ khi > 0 | T-607 |
+| `XC-GREEN-007` | Bảng `notifications`, `inbox`, `worker_heartbeats` chưa có job dọn; chưa khớp yêu cầu pháp lý (chờ DPIA, RK-019) | T-607 + chủ dự án |

@@ -1,6 +1,6 @@
 # GO/NO-GO — Hotel Manager · ứng viên 0.1.0 (pilot) · 2026-10-17
 
-> Commit: nhánh `wip/wave6-final` (đợt 6 = T-501…T-507, xếp trên `main` sau PR #20; PR #21 đang mở) · Blueprint: `xt.py blueprint-status BLUEPRINT.md --strict` → MUST đạt 267 · miễn 54 · **mở 175** (156 chờ người đã `loop defer`, 19 thiếu trong repo → đợt 7) · CI: PR #10 #12 #13 #16 #17 #18 #19 #20 đã merge, mỗi PR 6/6 job xanh (kiểm bằng REST API 2026-10-17); PR #21 (đợt 6, head `4f15b27`) 6/6 xanh, chưa merge (chạm `merge_risk_paths` → người merge).
+> Commit: nhánh `wip/wave6-final` (đợt 6 = T-501…T-507, xếp trên `main` sau PR #20; PR #21 đang mở) · Blueprint: `xt.py blueprint-status BLUEPRINT.md --strict` → MUST đạt 264 · miễn 54 · **mở 178** (156 chờ người đã `loop defer`, 22 thiếu trong repo; D-041 bỏ tick 3 mục đạt một phần → đợt 7) · CI: PR #10 #12 #13 #16 #17 #18 #19 #20 đã merge, mỗi PR 6/6 job xanh (kiểm bằng REST API 2026-10-17); PR #21 (đợt 6, head `4f15b27`) 6/6 xanh, chưa merge (chạm `merge_risk_paths` → người merge).
 > Người kiểm: phiên autopilot (report-only, không deploy) · Phạm vi: web/PWA + worker + CSDL; không có mobile native.
 
 ## 1. Đếm
@@ -17,7 +17,7 @@
 |---|---|---|---|---|
 | 1 | BLOCKER | Build tái lập, không lỗi type/lint, không cờ giấu lỗi | PASS | job `quality` (build · typecheck · lint · test) xanh trên PR #10…#20 (đã merge) và PR #21 `4f15b27`; cổng `dev-task.sh gate` xanh ở mọi commit đợt 6 (hook PreToolUse); không `ignoreBuildErrors`/`continue-on-error` (`xt.py ci-check .github/workflows` ✓ 3 workflow) |
 | 2 | BLOCKER | Toàn bộ test xanh (unit/integration/E2E luồng chính) | PASS (PR #21 chờ merge) | CI: 6/6 job xanh (gồm `quality`, `e2e`) trên mọi PR đã merge và PR #21 `4f15b27`. Chạy lại 2026-10-17 trên `wip/w6h` (`f6ef72a`): `pnpm test` exit 0 — 170 file / **2.346 test** (unit 80 file / 1.450 + `pnpm test:db` 90 file / **896**, Postgres 17 thật); E2E `playwright test` (`E2E_PORT=3258`) exit 0 — **59/59** |
-| 3 | BLOCKER | Blueprint: 0 MUST mở; miễn trừ có lý do | FAIL | 175 MUST mở: 156 chờ người (46 hạ tầng/pháp lý + 110 `loop defer` đợt 4–5), 19 thiếu trong repo — liệt kê và đề xuất đợt 7 (T-601…T-609) ở `docs/autopilot/BLUEPRINT-GAPS.md`; `check-blueprint-evidence.py` 267 mục `[x]` · 0 lỗi |
+| 3 | BLOCKER | Blueprint: 0 MUST mở; miễn trừ có lý do | FAIL | 178 MUST mở: 156 chờ người (46 hạ tầng/pháp lý + 110 `loop defer` đợt 4–5), 19 thiếu trong repo — liệt kê và đề xuất đợt 7 (T-601…T-609) ở `docs/autopilot/BLUEPRINT-GAPS.md`; `check-blueprint-evidence.py` 267 mục `[x]` · 0 lỗi |
 | 4 | BLOCKER | Không secret trong repo và lịch sử git | PASS | job `ci:gitleaks` xanh trên PR #10…#20 và PR #21 `4f15b27` (quét toàn lịch sử; gitleaks không cài trong container nên không chạy cục bộ) |
 | 5 | BLOCKER | Phụ thuộc: 0 lỗ hổng cao; license trong allowlist | PASS | `pnpm audit --prod` → "No known vulnerabilities found" (chạy lại 2026-10-17); `pnpm licenses:check` → Apache-2.0, BSD-3-Clause, ISC, MIT, MIT OR Apache-2.0, MPL-2.0; job `dep-audit` xanh trên PR #21 |
 | 6 | BLOCKER | Kiểm quyền phía server; test vượt quyền xanh | PASS | `packages/app/src/http/authz-matrix.db.test.ts` (api1-bola / api5-bfla sinh từ registry, 24 test, chạy lại 2026-10-17), RLS mọi bảng `organization_id` (`tenancy.db.test.ts`) |
@@ -39,7 +39,7 @@
 ## 3. Bảng FAIL
 | # | Mức | Mục | Cách sửa đề xuất | Ai |
 |---|---|---|---|---|
-| 3 | BLOCKER | 175 MUST mở | 156: quyết định/hạ tầng của người (danh sách `loop defer`); 19: đợt 7 trong repo (T-601…T-609, `BLUEPRINT-GAPS.md`) — gồm 26 scenario S-NNN là tính năng chưa có (tạo tổ chức/cơ sở, mời thành viên, tồn nâng cao, PWA) | Người + autopilot |
+| 3 | BLOCKER | 178 MUST mở | 156: quyết định/hạ tầng của người (danh sách `loop defer`); 22: đợt 7 trong repo (T-601…T-609, `BLUEPRINT-GAPS.md`) — gồm 26 scenario S-NNN là tính năng chưa có (tạo tổ chức/cơ sở, mời thành viên, tồn nâng cao, PWA) | Người + autopilot |
 | 8–10 | BLOCKER | Rollback, backup, cảnh báo thật | Mua VPS tại VN + kho sao lưu khác máy, dựng Prometheus/Alertmanager, diễn tập | Chủ dự án |
 | 11 | BLOCKER | DPIA, pháp lý | DPIA, đối chiếu NĐ 13/2023, Luật BVDLCN 2025, NĐ 356/2025, TT 50/17/2024 (thông báo lưu trú) | Chủ dự án + pháp lý |
 | 12 | BLOCKER | Hiệu năng đo thật | Duyệt thêm job Lighthouse CI + k6 (T-608 chuẩn bị script/baseline trong repo; job CI cần duyệt) | Chủ dự án duyệt CI |
@@ -48,7 +48,7 @@
 | 15, 16, 19 | SHOULD/NICE | Diễn tập runbook, analytics, knip | Sau khi có môi trường staging | Người |
 
 ## 4. Kết luận
-**NO-GO** — 7 BLOCKER FAIL (blueprint 175 MUST mở, rollback/backup/cảnh báo thật, DPIA + pháp lý, hiệu năng đo thật, quyết định "Khi chạy thật"), phần lớn cần người: hạ tầng thật, pháp lý, duyệt CI, merge PR #21. Mã nguồn qua cổng: CI 6/6 trên PR #21, 2.346 test + E2E 59/59 xanh cục bộ; chưa phát hành được.
+**NO-GO** — 7 BLOCKER FAIL (blueprint 178 MUST mở, rollback/backup/cảnh báo thật, DPIA + pháp lý, hiệu năng đo thật, quyết định "Khi chạy thật"), phần lớn cần người: hạ tầng thật, pháp lý, duyệt CI, merge PR #21. Mã nguồn qua cổng: CI 6/6 trên PR #21, 2.346 test + E2E 59/59 xanh cục bộ; chưa phát hành được.
 Rủi ro còn lại được chấp nhận: TM-12 (hỗ trợ truy cập tạm thời — chờ F-015) — chưa có người ký.
 
 ## 5. Ký (con người, không phải agent)
