@@ -2,6 +2,7 @@
 // URL ký ≤ 5 phút, bucket riêng tư, buồng phòng xin file giấy tờ → 404 (TM-06, TM-07, IND-SAAS-003).
 import { randomBytes, randomUUID } from "node:crypto";
 import { withTenant } from "@hm/db";
+import { secondsToMs } from "@hm/domain";
 import { createTestDb, type SeededOrg, seedAuthUser, seedOrg, type TestDb, testS3Config } from "@hm/testkit";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -339,14 +340,24 @@ describe("đọc file (TM-06)", () => {
       httpStatus: 404,
       problem: { code: "NOT_FOUND" },
     });
-    // Hết hạn: ký lại cùng object với hạn 1 giây (hạn thấp nhất cho phép) rồi dùng sau mốc.
+    // Hết hạn: ký lại cùng object với hạn ngắn rồi dùng sau mốc. Mốc ký `X-Amz-Date` làm tròn xuống theo giây nên hạn 1 giây
+    // có thể còn < 1 giây khi tới bucket (CI chậm ⇒ 403 ngay lần đầu) — ký 3 giây và chờ theo đúng mốc hết hạn trong URL.
     const key = await sql<{
       storage_key: string;
     }>`select storage_key from files where id = ${r.data.fileId}`.execute(t.admin);
-    const shortLived = await storage.signedGetUrl(key.rows[0]?.storage_key as string, 1);
-    expect(new URL(shortLived).searchParams.get("X-Amz-Expires")).toBe("1");
+    const shortLived = await storage.signedGetUrl(key.rows[0]?.storage_key as string, 3);
+    const params = new URL(shortLived).searchParams;
+    expect(params.get("X-Amz-Expires")).toBe("3");
     expect((await fetch(shortLived)).status).toBe(200);
-    await new Promise((resolve) => setTimeout(resolve, 2_500));
+    const signedAt = Date.parse(
+      (params.get("X-Amz-Date") ?? "").replace(
+        /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/,
+        "$1-$2-$3T$4:$5:$6Z",
+      ),
+    );
+    expect(Number.isFinite(signedAt)).toBe(true);
+    const waitMs = signedAt + secondsToMs(3) + 1_500 - Date.now();
+    if (waitMs > 0) await new Promise((resolve) => setTimeout(resolve, waitMs));
     expect((await fetch(shortLived)).status).toBe(403);
   });
 });
