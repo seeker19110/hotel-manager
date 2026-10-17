@@ -60,6 +60,13 @@ describe("fillConfirmLabel", () => {
     expect(fillConfirmLabel("Thu {amount} cho P-1", { amount: "930.000 đ" })).toBe("Thu 930.000 đ cho P-1");
     expect(fillConfirmLabel("Thu {amount}", {})).toBe("Thu —");
     expect(fillConfirmLabel("Ghi {a}", { a: "{b}", b: "x" })).toBe("Ghi {b}");
+  });
+  it('tên ô trùng thuộc tính kế thừa của Object (constructor, toString, __proto__) → "—", không lộ mã hàm', () => {
+    for (const name of ["constructor", "toString", "hasOwnProperty", "valueOf"])
+      expect(fillConfirmLabel(`Xoá {${name}}`, {})).toBe("Xoá —");
+    expect(fillConfirmLabel("Xoá {__proto__}", {})).toBe("Xoá —");
+    // Giá trị rỗng do người dùng nhập vẫn là giá trị (không thay bằng "—")
+    expect(fillConfirmLabel("Ghi [{a}]", { a: "" })).toBe("Ghi []");
     expect(fillConfirmLabel("Không có chỗ thay", { a: "1" })).toBe("Không có chỗ thay");
   });
 });
