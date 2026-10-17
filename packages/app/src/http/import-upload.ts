@@ -15,6 +15,7 @@ import {
   correlationOf,
   type HttpDeps,
   json,
+  outdatedClientProblem,
   problemResponse,
   rejectInput,
   simpleProblem,
@@ -43,6 +44,9 @@ const invalid = (field: string, correlationId: string, req: Request, actor: Acto
 export async function handleImportUpload(req: Request, deps: HttpDeps): Promise<Response> {
   const correlationId = correlationOf(req);
   try {
+    // Client quá cũ (S-009): 426 trước phiên/đọc thân, như lệnh thường.
+    const outdated = outdatedClientProblem(req, deps, correlationId);
+    if (outdated) return outdated;
     const actor = await actorFromRequest(req, deps, correlationId);
     if (actor instanceof Response) return actor;
     const key = req.headers.get("idempotency-key") ?? "";

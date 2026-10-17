@@ -345,6 +345,20 @@
 - Lý do (tiêu chí chất lượng cuối): (1) an toàn: thống nhất với quy ước toàn hệ thống và API-CONTRACT (404 cho ngoài phạm vi); 403 chỉ khi đọc được tài nguyên nhưng không được thao tác.
 - Đường lùi: Trả 403 ở authorize cho inventory.
 
+### D-049 · 2026-10-17T11:37:45+00:00 · housekeeping S-016: bộ bỏ EXIF xoá cả Orientation — ảnh dọc hiển thị lệch chiều
+
+- Phương án: (1) Giữ thẻ Orientation: dựng lại APP1/eXIf/EXIF tối thiểu chỉ chứa Orientation từ giá trị gốc (lỗi parse ⇒ bỏ hẳn), không GPS/model/thời điểm; test Orientation 6 và 8 · (2) Xoay điểm ảnh rồi Orientation=1 (cần thư viện decode/encode mới) · (3) Lưu orientation ở cột CSDL, xoay bằng CSS (ảnh tải xuống vẫn lệch)
+- Chọn: Giữ thẻ Orientation: dựng lại APP1/eXIf/EXIF tối thiểu chỉ chứa Orientation từ giá trị gốc (lỗi parse ⇒ bỏ hẳn), không GPS/model/thời điểm; test Orientation 6 và 8
+- Lý do (tiêu chí chất lượng cuối): (1) đúng + an toàn: bản phục vụ hiển thị đúng chiều, không giữ metadata nhận dạng; (3) không thêm phụ thuộc, pixel không đổi.
+- Đường lùi: Quay về bỏ toàn bộ APP1 trong stripJpeg.
+
+### D-050 · 2026-10-17T11:37:45+00:00 · S-024 (housekeeping tải lại trạng thái trước khi cho bấm lại) mâu thuẫn SPEC-pwa S-006 (bấm lại được ngay khi có mạng)
+
+- Phương án: (1) Khi offline→online: router.refresh() rồi mới mở nút (khoá ~1 round-trip) — thoả cả hai · (2) S-006 thắng toàn cục, sửa S-024 · (3) S-024 thắng riêng cho form buồng phòng
+- Chọn: Khi offline→online: router.refresh() rồi mới mở nút (khoá ~1 round-trip) — thoả cả hai
+- Lý do (tiêu chí chất lượng cuối): (1) đúng: không thao tác trên trạng thái cũ, vẫn bấm lại được khi có mạng; (3) một cơ chế chung trong useCommand.
+- Đường lùi: Bỏ refresh khi online; sửa S-024.
+
 ### D-051 · 2026-10-17T12:35:00+00:00 · T-604/T-605: migration mới 0057/0058 đứng trước 0060 đã có trên main — Kysely mặc định từ chối migration chèn trước bản đã áp
 
 - Phương án: (1) Đổi số thành 0061 (T-604) và 0062 (T-605) để luôn đứng sau bản cuối trên main · (2) Bật `allowUnorderedMigrations` cho migrator

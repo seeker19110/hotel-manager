@@ -54,6 +54,7 @@ export function NoticeActions({
       </Button>
       <CommandStatus
         phase={exp.phase}
+        commandId={exp.commandId}
         problem={exp.problem}
         general={exp.phase === "error" ? problemText(exp.problem) : null}
         successText="Đã xuất file — tải trong vài phút."
@@ -88,6 +89,7 @@ export function NoticeActions({
           </Button>
           <CommandStatus
             phase={mark.phase}
+            commandId={mark.commandId}
             problem={mark.problem}
             general={mark.phase === "error" ? problemText(mark.problem) : null}
             successText="Đã ghi nhận đã nộp."

@@ -29,6 +29,7 @@
 | `/buong-phong` | trang | GET | SSR động | no-store (proxy) | nhân viên đã đăng nhập và chọn tổ chức (`withActor`); vai trò `tenant` bị chuyển sang `/portal`; quyền chi tiết kiểm lại ở server mỗi lệnh/truy vấn | Buồng phòng: việc dọn |
 | `/buong-phong/[id]` | trang | GET | SSR động | no-store (proxy) | nhân viên đã đăng nhập và chọn tổ chức (`withActor`); vai trò `tenant` bị chuyển sang `/portal`; quyền chi tiết kiểm lại ở server mỗi lệnh/truy vấn | Chi tiết việc dọn phòng |
 | `/su-co` | trang | GET | SSR động | no-store (proxy) | nhân viên đã đăng nhập và chọn tổ chức (`withActor`); vai trò `tenant` bị chuyển sang `/portal`; quyền chi tiết kiểm lại ở server mỗi lệnh/truy vấn | Phiếu sự cố/sửa chữa |
+| `/them` | trang | GET | SSR động | no-store (proxy) | nhân viên đã đăng nhập và chọn tổ chức (`withActor`); vai trò `tenant` bị chuyển sang `/portal`; liên kết hiện theo vai trò, quyền thật kiểm ở server | Thêm: các màn còn lại theo vai trò, cài ứng dụng (PWA), đăng xuất |
 | `/thong-bao` | trang | GET | SSR động | no-store (proxy) | nhân viên đã đăng nhập và chọn tổ chức (`withActor`); vai trò `tenant` bị chuyển sang `/portal`; quyền chi tiết kiểm lại ở server mỗi lệnh/truy vấn | Thông báo trong ứng dụng của người dùng |
 | `/chon-to-chuc` | trang | GET | SSR động | no-store (proxy) | người dùng đã đăng nhập (`currentSession`); chưa đăng nhập → `/dang-nhap` | Chọn tổ chức (và cơ sở) làm việc; chưa có tổ chức thì tạo tổ chức mới (`org.create`) |
 | `/bao-mat` | trang | GET | SSR động (nội dung phía client) | no-store (proxy) | người dùng đã đăng nhập (kiểm phía client qua `/api/v1/me`; chưa đăng nhập → nút đăng nhập); bật TOTP qua `/api/auth/two-factor/*` | Bảo mật tài khoản: bật xác thực hai lớp (TOTP) |
@@ -52,6 +53,7 @@
 | `/api/auth/[...all]` | API | GET, POST | động (`force-dynamic`) | no-store (proxy) | do Better Auth quyết định; cùng origin cho POST | Better Auth: đăng nhập, phiên, 2FA, OTP |
 | `/api/v1/[module]/[command]` | API | GET, POST | động (`force-dynamic`) | no-store (proxy) | phiên + `authorize()` + RLS; POST cần cùng origin và `Idempotency-Key` | Mọi command (POST) và query (GET) trong registry |
 | `/api/v1/commands/[id]` | API | GET | động (`force-dynamic`) | no-store (proxy) | phiên; chỉ người tạo hoặc quản lý | Tra kết quả command |
+| `/api/version` | API | GET | động (`force-dynamic`) | no-store (proxy) | công khai; chỉ trả phiên bản build + phiên bản client tối thiểu | `app.getVersion` (SPEC-pwa S-009) |
 | `/api/v1/me` | API | GET | động (`force-dynamic`) | no-store (proxy) | phiên (401 khi chưa đăng nhập) | Người dùng và tổ chức của họ |
 | `/api/v1/session/switchOrganization` | API | POST | động (`force-dynamic`) | no-store (proxy) | phiên + membership; cùng origin; `Idempotency-Key` | Đổi tổ chức/cơ sở đang chọn |
 | `/api/v1/files/upload` | API | POST | động (`force-dynamic`) | no-store (proxy) | phiên + quyền theo cơ sở (`owner_type` = `work_order` hoặc `payment_claim`); cùng origin; `Idempotency-Key` | Tải ảnh sự cố/chứng từ |

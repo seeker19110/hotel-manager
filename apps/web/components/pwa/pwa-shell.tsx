@@ -2,6 +2,8 @@
 // Vỏ PWA (SPEC-pwa): đăng ký SW, banner mất mạng, banner có bản mới. Chỉ chạy online — không cache trang/dữ liệu.
 import { SerwistProvider, useSerwist } from "@serwist/turbopack/react";
 import { type ReactNode, useEffect, useState, useSyncExternalStore } from "react";
+import { CLIENT_OUTDATED_TEXT } from "../command/app-version.ts";
+import { ReauthDialog } from "../command/reauth-dialog.tsx";
 import { Icon } from "../ui/icon.tsx";
 
 function subscribeOnline(cb: () => void): () => void {
@@ -63,6 +65,65 @@ function UpdateBanner() {
   );
 }
 
+// ───────── Client quá cũ (S-009) ─────────
+// Một lệnh nhận 426 CLIENT_OUTDATED ⇒ mọi form dừng ghi; banner toàn cục hiện câu + nút "Cập nhật" (đến khi tải lại trang).
+let outdated = false;
+const outdatedListeners = new Set<() => void>();
+
+/** Gọi khi server trả 426 CLIENT_OUTDATED. */
+export function reportClientOutdated(): void {
+  if (outdated) return;
+  outdated = true;
+  for (const l of outdatedListeners) l();
+}
+
+function subscribeOutdated(cb: () => void): () => void {
+  outdatedListeners.add(cb);
+  return () => outdatedListeners.delete(cb);
+}
+
+/** Cho SW đang chờ (nếu có) nắm quyền; false khi không cập nhật được SW (mạng/SW bị chặn) — khi đó tải lại trang vẫn lấy HTML + JS mới. */
+async function activateWaitingWorker(): Promise<boolean> {
+  try {
+    const reg = await navigator.serviceWorker?.getRegistration();
+    await reg?.update();
+    if (reg?.waiting) {
+      const changed = new Promise<void>((resolve) => {
+        navigator.serviceWorker.addEventListener("controllerchange", () => resolve(), { once: true });
+        setTimeout(resolve, 3_000);
+      });
+      reg.waiting.postMessage({ type: "SKIP_WAITING" });
+      await changed;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Nhận bản mới: có SW đang chờ ⇒ cho nó nắm quyền; rồi tải lại trang (HTML luôn lấy mới từ máy chủ, no-store). */
+export async function applyUpdate(): Promise<void> {
+  await activateWaitingWorker();
+  window.location.reload();
+}
+
+function OutdatedBanner() {
+  const isOutdated = useSyncExternalStore(
+    subscribeOutdated,
+    () => outdated,
+    () => false,
+  );
+  if (!isOutdated) return null;
+  return (
+    <div className="banner banner--warn" role="alert" data-testid="outdated-banner">
+      <p>{CLIENT_OUTDATED_TEXT}</p>
+      <button type="button" className="btn" onClick={() => void applyUpdate()}>
+        Cập nhật
+      </button>
+    </div>
+  );
+}
+
 export function PwaShell({ children }: { children: ReactNode }) {
   return (
     <SerwistProvider
@@ -75,6 +136,9 @@ export function PwaShell({ children }: { children: ReactNode }) {
     >
       <NetworkBanner />
       <UpdateBanner />
+      <OutdatedBanner />
+      <InstallCapture />
+      <ReauthDialog />
       {children}
     </SerwistProvider>
   );
@@ -106,4 +170,75 @@ export async function clearUserData(): Promise<void> {
   }
   sessionStorage.clear();
   localStorage.clear();
+}
+
+// ───────── Cài ứng dụng (S-002/S-003) ─────────
+// `beforeinstallprompt` chỉ bắn MỘT lần, thường trước khi trang "Thêm" dựng ⇒ bắt ở vỏ gốc và giữ lại. Safari iOS không có sự kiện
+// này: chỉ hướng dẫn bằng chữ + hình, không hiện nút cài giả.
+interface InstallPromptEvent extends Event {
+  prompt(): Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+}
+let installEvent: InstallPromptEvent | null = null;
+let installedFlag = false;
+const installListeners = new Set<() => void>();
+const notifyInstall = () => {
+  for (const l of installListeners) l();
+};
+
+function InstallCapture() {
+  useEffect(() => {
+    const onPrompt = (e: Event) => {
+      e.preventDefault(); // dùng nút "Cài ứng dụng" của mình thay vì thanh mặc định
+      installEvent = e as InstallPromptEvent;
+      notifyInstall();
+    };
+    const onInstalled = () => {
+      installEvent = null;
+      installedFlag = true;
+      notifyInstall();
+    };
+    window.addEventListener("beforeinstallprompt", onPrompt);
+    window.addEventListener("appinstalled", onInstalled);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onPrompt);
+      window.removeEventListener("appinstalled", onInstalled);
+    };
+  }, []);
+  return null;
+}
+
+export type InstallState = "unknown" | "installed" | "prompt" | "ios" | "unsupported";
+
+/** Máy iPhone/iPad (kể cả iPadOS giả danh Mac) — nơi không có `beforeinstallprompt`. */
+export function isIosDevice(ua: string, platform: string, touchPoints: number): boolean {
+  return /iphone|ipad|ipod/i.test(ua) || (platform === "MacIntel" && touchPoints > 1);
+}
+
+function installState(): InstallState {
+  const standalone =
+    window.matchMedia("(display-mode: standalone)").matches ||
+    (navigator as Navigator & { standalone?: boolean }).standalone === true;
+  if (standalone || installedFlag) return "installed";
+  if (installEvent) return "prompt";
+  if (isIosDevice(navigator.userAgent, navigator.platform, navigator.maxTouchPoints)) return "ios";
+  return "unsupported";
+}
+
+function subscribeInstall(cb: () => void): () => void {
+  installListeners.add(cb);
+  return () => installListeners.delete(cb);
+}
+
+export function useInstall(): { state: InstallState; install: () => Promise<void> } {
+  const state = useSyncExternalStore(subscribeInstall, installState, () => "unknown" as const);
+  const install = async () => {
+    const e = installEvent;
+    if (!e) return;
+    await e.prompt();
+    await e.userChoice.catch(() => null);
+    installEvent = null; // sự kiện chỉ dùng được một lần
+    notifyInstall();
+  };
+  return { state, install };
 }

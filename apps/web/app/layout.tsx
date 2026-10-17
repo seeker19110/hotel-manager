@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from "next";
 import { connection } from "next/server";
 import type { ReactNode } from "react";
 import { PwaShell } from "../components/pwa/pwa-shell.tsx";
+import { APP_VERSION } from "../lib/app-version.ts";
 import { BRAND_COLOR } from "../lib/brand.ts";
 
 export const metadata: Metadata = {
@@ -12,6 +13,8 @@ export const metadata: Metadata = {
   icons: { apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }] },
   appleWebApp: { capable: true, title: "Quản lý phòng", statusBarStyle: "default" },
   formatDetection: { telephone: false },
+  // S-009: phiên bản bản build của trang này; client gửi lại ở `X-App-Version` (components/command/app-version.ts).
+  other: { "hm-app-version": APP_VERSION },
 };
 
 export const viewport: Viewport = {

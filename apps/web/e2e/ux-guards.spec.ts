@@ -369,6 +369,7 @@ const ROUTES: Record<string, RouteSpec> = {
   "/thanh-vien": fixed("hotel", "/thanh-vien"),
   "/thong-bao": fixed("hotel", "/thong-bao"),
   "/thong-bao-luu-tru": fixed("hotel", "/thong-bao-luu-tru"),
+  "/them": fixed("hotel", "/them"),
   "/thu-tien": fixed("rental", "/thu-tien"),
 };
 

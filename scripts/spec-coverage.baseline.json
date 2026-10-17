@@ -1,13 +1,9 @@
 {
   "_ghi_chu": "Nền ratchet cho PM-SPEC-004/WF-SDD-003 (scripts/spec-coverage.mjs, kiểm ở scripts/process-docs.test.mjs). Mỗi spec Approved liệt kê S-NNN chưa có test nhắc ID. Scenario mới chưa có test và không có ở đây → test đỏ. Scenario đã có test mà còn ở đây → test đỏ đòi xoá (chỉ được co lại). Không thêm mục để làm xanh: gắn ID vào test hoặc viết test.",
   "specs": {
-    "housekeeping-maintenance": {
-      "uncovered": ["S-016", "S-024"],
-      "reason": "S-013 và S-017 đã có test (files.db.test.ts). Còn S-016: bộ bỏ EXIF xoá cả thẻ Orientation nên ảnh dọc chụp từ điện thoại có thể hiển thị lệch chiều — spec đòi giữ đúng chiều, chờ quyết cách xử lý (giữ riêng thẻ Orientation hoặc xoay điểm ảnh). S-024: SPEC-housekeeping đòi tải lại trạng thái từ máy chủ trước khi cho bấm lại, còn SPEC-pwa S-006 đòi nút bấm lại được ngay khi có mạng — hai spec mâu thuẫn, chờ quyết (PM-SPEC-004)."
-    },
     "pwa": {
-      "uncovered": ["S-002", "S-003", "S-007", "S-009", "S-012", "S-013", "S-014", "S-016"],
-      "reason": "S-017 và S-018 đã có E2E (pwa.spec.ts, rental.spec.ts). Còn lại là tính năng chưa có hoặc lệch spec, không thể gắn ID: S-002/S-003 chưa có nút/hướng dẫn cài (và cần thiết bị thật); S-007 đổi tổ chức đã xoá cache nhưng đăng xuất chưa trả Clear-Site-Data; S-009 chưa có 426 CLIENT_OUTDATED/X-App-Version; S-012 client hỏi lại 8 lần cách 1 giây rồi hiện nút Kiểm tra lại (spec: backoff 1-2-4 giây tối đa 30 giây + thông điệp RESULT_UNKNOWN kèm command_id); S-013 gặp 401 thì chuyển trang đăng nhập (spec: hộp đăng nhập lại, gửi lại cùng command_id); S-014 thanh điều hướng có tới 11 mục theo vai trò (spec: đúng 5 mục); S-016 cần ma trận thiết bị thật (PM-SPEC-004)."
+      "uncovered": ["S-002", "S-003", "S-016"],
+      "reason": "S-001, S-004…S-015, S-017…S-019 đã có test (pwa.spec.ts, pwa-commands.spec.ts, pwa-nav.spec.ts, rental.spec.ts…). Còn lại là phần BẮT BUỘC thiết bị thật, không thể kiểm bằng Playwright: S-002 (Chrome Android/desktop: hộp cài của trình duyệt, mở từ biểu tượng ở display-mode standalone, vào đúng màn mặc định theo vai trò) và S-003 (Safari iOS ≥ 16.4: hướng dẫn hiển thị đúng trên máy thật) — phần tự động (nút Cài ứng dụng khi có beforeinstallprompt, hướng dẫn iOS không có nút giả) đã có E2E tên \"cài ứng dụng (PWA-INSTALL, phần tự động)\" ở pwa-nav.spec.ts, cố ý KHÔNG gắn ID S-002/S-003 để scenario còn nằm ở nền cho tới khi có biên bản kiểm tay ở docs/qa/; S-016 ma trận 5 cấu hình thiết bị (iOS và chế độ đã cài kiểm tay, SPEC-pwa mục 7, Q-06 chưa có thiết bị) (PM-SPEC-004)."
     }
   }
 }

@@ -63,6 +63,10 @@ test("buồng phòng không thấy mục Thành viên và vào /thanh-vien bị 
   await expect(
     page.getByRole("navigation", { name: "Chức năng" }).getByRole("link", { name: "Thành viên" }),
   ).toHaveCount(0);
+  // Thanh dưới chỉ 5 điểm vào (SPEC-pwa S-014); các màn còn lại nằm ở "Thêm" — buồng phòng cũng không thấy ở đó.
+  await page.getByRole("navigation", { name: "Chức năng" }).getByRole("link", { name: "Thêm" }).click();
+  await expect(page).toHaveURL(/\/them$/);
+  await expect(page.getByRole("main").getByRole("link", { name: "Thành viên" })).toHaveCount(0);
   await page.goto("/thanh-vien");
   await expect(page.getByText("Chỉ chủ và quản lý xem được danh sách thành viên.")).toBeVisible();
   await expect(page.getByTestId("invite-form")).toHaveCount(0);
@@ -75,7 +79,8 @@ test("chủ: mời nhân viên → lời mời hiện ở danh sách chờ; mờ
 }) => {
   await context.addCookies(ownerCookies);
   await page.goto("/");
-  await page.getByRole("navigation", { name: "Chức năng" }).getByRole("link", { name: "Thành viên" }).click();
+  await page.getByRole("navigation", { name: "Chức năng" }).getByRole("link", { name: "Thêm" }).click();
+  await page.getByRole("main").getByRole("link", { name: "Thành viên" }).click();
   await expect(page).toHaveURL(/\/thanh-vien$/);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Thành viên");
   await expectAccessible(page);

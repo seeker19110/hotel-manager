@@ -243,6 +243,7 @@ export function CommandForm({
       ) : null}
       <CommandStatus
         phase={cmd.phase}
+        commandId={cmd.commandId}
         problem={cmd.problem}
         general={general}
         successText={successText}

@@ -964,6 +964,8 @@ describe("BE-API-009 — route không guard = danh sách công khai đã duyệt
     "health/route.ts": "liveness: chỉ trả {status:ok}, không dữ liệu",
     "ready/route.ts": "readiness cho hạ tầng: chỉ trạng thái các phụ thuộc, không dữ liệu nghiệp vụ",
     "metrics/route.ts": "Bearer token dẫn xuất từ bí mật (handleMetrics), 401 nếu thiếu/sai",
+    "version/route.ts":
+      "app.getVersion (SPEC-pwa S-009): chỉ trả phiên bản build + mức client tối thiểu, hằng số, không dữ liệu người dùng",
     "auth/[...all]/route.ts": "Better Auth: tự xác thực; khoá tạm, rate limit theo IP/tài khoản",
     "v1/webhooks/[provider]/[account]/route.ts": "chữ ký HMAC của nhà cung cấp (handleWebhook), không cookie",
     "v1/notifications/unsubscribe/route.ts":
@@ -1142,6 +1144,9 @@ describe("BASE-SEC-001 — entrypoint ngoài registry: đầu vào xấu → 4xx
       "health/route.ts": { none: "GET không tham số" },
       "ready/route.ts": { none: "GET không tham số" },
       "metrics/route.ts": { none: "GET không tham số; Bearer token so khớp hằng-thời-gian" },
+      "version/route.ts": {
+        none: "GET không tham số, công khai; chỉ trả hằng phiên bản build (SPEC-pwa §5)",
+      },
     };
     const routes = sourceFiles(["apps/web/app/api"], /^route\.ts$/).map((f) =>
       f.path.slice("apps/web/app/api/".length),

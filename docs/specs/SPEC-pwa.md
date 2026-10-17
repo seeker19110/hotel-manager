@@ -55,6 +55,7 @@ decisions: "D-002 (phiên chính tự duyệt câu hỏi chặn, 2026-10-16)"
 - Given đang mở form "Ghi nhận thanh toán" và mất mạng
 - When bấm "Xác nhận"
 - Then client không gửi request, hiện lỗi `OFFLINE` "Không có kết nối mạng. Thao tác chưa được gửi."; nút giữ trạng thái có thể bấm lại khi có mạng; không có toast "thành công"
+- And khi mạng trở lại: client gọi `router.refresh()` để tải lại trạng thái từ máy chủ rồi mới mở nút (khoá khoảng một lượt tải, tối đa 8 giây); lỗi `OFFLINE` cũ được gỡ; bấm lại gửi đúng một request (D-050; khớp SPEC-housekeeping-maintenance S-024)
 
 ### S-007 Đăng xuất / đổi tổ chức xoá cache
 - Given người dùng đã dùng ứng dụng (runtime cache, IndexedDB `hm-*`, `sessionStorage` có dữ liệu)
@@ -245,3 +246,4 @@ Index: `[organization_id, status]`, `[organization_id, created_at]`. Câu hỏi 
 |---|---|---|---|---|
 | 1 | 2026-10-15 | tạo | G3 cho F-009 | (chưa) |
 | 2 | 2026-10-15 | sửa theo review độc lập: trạng thái `GET /api/v1/commands/{command_id}` thống nhất `committed`/`in_progress`/`failed`, không tồn tại → 404 `COMMAND_NOT_FOUND` (S-010, mục 5, đo lường; thêm S-018, S-019); fixture S-014 đổi mẫu Hỗn hợp → `hotel`; ghi tham chiếu API-CONTRACT/INV-G5 (G5: spec không có câu hỏi DOMAIN-MODEL nào còn mở) | review O2, G8, G5 | (chưa) |
+| 3 | 2026-10-17 | S-006: khi mạng trở lại tải lại trạng thái (`router.refresh()`) rồi mới mở nút — thoả SPEC-housekeeping-maintenance S-024 | D-050 | (chưa) |

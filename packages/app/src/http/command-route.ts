@@ -1,5 +1,5 @@
 // Lớp HTTP cho command/query (API-CONTRACT §1–2; PLAN đợt 2 T-103). Không phụ thuộc Next: nhận Request, trả Response.
-// Thứ tự kiểm: phiên (401) → ngữ cảnh tổ chức (409 ORG_CONTEXT_REQUIRED kèm danh sách) → membership/MFA (resolveActor)
+// Thứ tự kiểm: phiên bản client (426) → phiên (401) → ngữ cảnh tổ chức (409 ORG_CONTEXT_REQUIRED kèm danh sách) → membership/MFA (resolveActor)
 // → Idempotency-Key (400) → JSON (400) → schema (422 + errors[]) → command pipeline (idempotency, audit, outbox).
 import { randomUUID } from "node:crypto";
 import type { Kysely } from "kysely";
@@ -35,6 +35,7 @@ import {
   unwrap,
 } from "../pipeline/index.ts";
 import type { AppServices } from "../server/index.ts";
+import { CLIENT_VERSION_HEADER, isClientOutdated } from "./client-version.ts";
 import { nfcDeep } from "./normalize.ts";
 import { retryAfterSeconds } from "./retry-after.ts";
 
@@ -56,6 +57,11 @@ export interface HttpDeps {
   secureCookies: boolean;
   services: AppServices;
   onUnexpectedError?(err: unknown, correlationId: string): void;
+  /**
+   * Phiên bản client web tối thiểu (SPEC-pwa S-009): command có `X-App-Version` thấp hơn ⇒ 426 CLIENT_OUTDATED, không ghi gì.
+   * Bỏ trống = không bắt buộc. Lấy từ `apps/web/package.json` (`hm.minClientVersion`), không phải biến môi trường.
+   */
+  minClientVersion?: string;
   /** Hạn mức lệnh mới/phút/tổ chức (T-401); bỏ trống = `COMMAND_QUOTA_PER_MINUTE`. Chỉ test đặt khác. */
   commandQuotaPerMinute?: number;
   /** Hạn mức lệnh mới/phút/thành viên; bỏ trống = `COMMAND_MEMBER_QUOTA_PER_MINUTE`. Chỉ test đặt khác. */
@@ -166,6 +172,16 @@ export function simpleProblem(
     { type: `https://hotel-manager.invalid/errors/${code}`, title, status, code, ...extra },
     correlationId,
   );
+}
+
+/**
+ * Client quá cũ (S-009): 426 CLIENT_OUTDATED hoặc null. Dùng chung cho command và hai route tải file (upload ảnh, nhập liệu) để
+ * mọi đường ghi dữ liệu từ trình duyệt kiểm phiên bản như nhau — gọi TRƯỚC phiên/CSDL/đọc thân.
+ */
+export function outdatedClientProblem(req: Request, deps: HttpDeps, correlationId: string): Response | null {
+  return isClientOutdated(req.headers.get(CLIENT_VERSION_HEADER), deps.minClientVersion)
+    ? simpleProblem("CLIENT_OUTDATED", 426, "Ứng dụng cần cập nhật để tiếp tục.", correlationId)
+    : null;
 }
 
 function readCookie(header: string | null, name: string): string | undefined {
@@ -341,6 +357,9 @@ async function runCommand<I, O, P>(
 ): Promise<Response> {
   const correlationId = correlationOf(req);
   try {
+    // Client quá cũ: trả 426 TRƯỚC mọi việc khác (không cần phiên, không đụng CSDL) để UI hiện nút "Cập nhật" (S-009).
+    const outdated = outdatedClientProblem(req, deps, correlationId);
+    if (outdated) return outdated;
     const actor = await actorFromRequest(req, deps, correlationId);
     if (actor instanceof Response) return actor;
     const key = req.headers.get("idempotency-key") ?? "";
@@ -427,6 +446,9 @@ async function runUserCommand<I, O>(
   deps: HttpDeps,
 ): Promise<Response> {
   const correlationId = correlationOf(req);
+  // S-009: lệnh cấp người dùng cũng là đường ghi từ trình duyệt — client quá cũ thì 426 trước phiên/CSDL, như command thường.
+  const outdated = outdatedClientProblem(req, deps, correlationId);
+  if (outdated) return outdated;
   const endpoint = { type: "endpoint", id: new URL(req.url).pathname };
   let userId: string | null = null;
   try {
