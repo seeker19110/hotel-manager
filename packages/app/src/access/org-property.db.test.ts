@@ -79,6 +79,13 @@ async function ownerWithOrg() {
   };
 }
 
+// Cửa sổ hạn mức cố định theo giờ UTC (app.rate_limit_hit): chạy sát ranh giới thì các lần gọi rơi vào hai cửa sổ và lần 11
+// không bị chặn. Còn < 60 s tới ranh giới ⇒ chờ qua ranh giới rồi mới bắt đầu.
+const awayFromHourEdge = async () => {
+  const toEdge = 3_600_000 - (Date.now() % 3_600_000);
+  if (toEdge < 60_000) await new Promise((r) => setTimeout(r, toEdge + 1_000));
+};
+
 describe("SPEC-access S-001: org.create + property.create với mặc định đúng", () => {
   it("S-001 tạo tổ chức: người tạo là owner (mọi cơ sở), audit + outbox organization.created cùng lúc", async () => {
     const user = await newUser();
@@ -495,6 +502,7 @@ describe("SPEC-access S-001: hạn mức org.create theo người dùng (IND-SAA
     ).rows[0]?.n ?? 0;
 
   it("10 tổ chức/giờ/người dùng: lần 11 (key mới) → 429 RATE_LIMITED + retry_after, không tạo tổ chức; người dùng khác không bị ảnh hưởng; replay key đã tạo vẫn 201 và không tính thêm", async () => {
+    await awayFromHourEdge();
     expect(ORG_CREATE_PER_USER_PER_HOUR).toBe(10);
     const user = await newUser();
     const other = await newUser();
@@ -528,7 +536,7 @@ describe("SPEC-access S-001: hạn mức org.create theo người dùng (IND-SAA
     // Người dùng khác: không ảnh hưởng.
     expect((await call("user", "org.create", other, { name: "Trọ của người khác" })).status).toBe(201);
     expect(await counted(other)).toBe(1);
-  });
+  }, 120_000);
 
   it("lệnh lỗi không tính vào hạn mức: tên sai (422) hoặc phiên không có người dùng trong CSDL (401) không làm tăng bộ đếm", async () => {
     const user = await newUser();
@@ -586,6 +594,7 @@ describe("sự kiện bảo mật của lệnh cấp người dùng (SEC-LOG-001
   });
 
   it("vượt hạn mức org.create → đúng một rate_limit.exceeded (không nhân đôi)", async () => {
+    await awayFromHourEdge();
     const user = await newUser();
     for (let i = 0; i < ORG_CREATE_PER_USER_PER_HOUR; i++)
       expect((await call("user", "org.create", user, { name: `Trọ ${i}` })).status).toBe(201);
@@ -593,5 +602,5 @@ describe("sự kiện bảo mật của lệnh cấp người dùng (SEC-LOG-001
       expect((await call("user", "org.create", user, { name: "Quá" })).status).toBe(429);
     });
     expect(ev.map((e) => e.event)).toEqual(["rate_limit.exceeded"]);
-  });
+  }, 120_000);
 });

@@ -323,3 +323,11 @@
 - Chọn: Giữ 409 SHIFT_NOT_OPEN, sửa SPEC-access S-025 (lần 3) cho khớp + test gắn S-025
 - Lý do (tiêu chí chất lượng cuối): (1) đúng: thiếu ca là trạng thái nghiệp vụ, không phải thiếu quyền — 403 làm lẫn hai nghĩa; mã đã nhất quán ở deposit/settlement/payment. (3) chỉ sửa tài liệu + một test.
 - Đường lùi: Đổi payment.confirm trả 403 khi không có ca mở, sửa S-028.
+
+### D-052 · 2026-10-17T13:10:00+00:00 · T-605: `org.create` không bị hạn mức (bộ đếm theo tổ chức/người suy ra từ key luôn bằng 0) — chặn thế nào?
+
+- Phương án: (1) 10 lần tạo thành công/giờ/người dùng qua `app.rate_limit_hit` (0053) trong bootstrap, cùng transaction; vượt → 429 RATE_LIMITED + `retry_after` · (2) Trần tổng số tổ chức mỗi người · (3) Chỉ dựa vào giới hạn IP của Better Auth
+- Chọn: 10 lần tạo thành công/giờ/người dùng qua `app.rate_limit_hit` (0053) trong bootstrap, cùng transaction; vượt → 429 RATE_LIMITED + `retry_after`
+- Lý do (tiêu chí chất lượng cuối): (1) an toàn: chặn tài khoản rác làm đầy CSDL, chỉ tính lượt thành công (lỗi rollback), replay không tính; (3) dùng cơ chế sẵn có, không thêm bảng/biến môi trường. (3) bị loại vì giới hạn IP chỉ áp `/api/auth/*`. Cửa sổ cố định theo giờ có thể lọt tới 2× sát ranh giới — chấp nhận.
+- Đường lùi: Đổi hằng `ORG_CREATE_PER_USER_PER_HOUR` hoặc bỏ lời gọi `rateLimitHit` trong bootstrap của `org.create`.
+- Khi chạy thật: chủ dự án xem lại mức 10/giờ và cân nhắc bật xác minh email khi đăng ký (`requireEmailVerification`, cần SMTP — chống chiếm trước email của nhân viên/người thuê được mời).
