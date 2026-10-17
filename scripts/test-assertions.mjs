@@ -37,6 +37,7 @@ export const SNAPSHOT_MATCHERS = new Set([
 /** Nơi khai helper khẳng định dùng chung: hạ tầng test (không phải mã sản phẩm — mã sản phẩm có `assert…` là guard, không phải khẳng định test). */
 export const SUPPORT_PATH = /^(packages\/testkit\/|apps\/[^/]+\/e2e\/)/;
 const TEST_MODIFIERS = new Set([
+  "for",
   "only",
   "skip",
   "todo",
@@ -187,32 +188,78 @@ export function matchParen(text, open) {
 }
 
 /**
+ * Tên khác của `it`/`test` trong repo: `const myTest = test.extend({...})` (Vitest/Playwright fixtures), chuỗi `.extend`
+ * và `import { test as base }`. `files` = {path → nội dung}; trả Set tên (không gồm `it`/`test`).
+ */
+export function testAliases(files) {
+  const known = new Set(["it", "test"]);
+  const aliases = new Set();
+  const texts = Object.values(files).map((src) => blank(src));
+  for (const text of texts)
+    for (const m of text.matchAll(/\b(?:it|test)\s+as\s+([A-Za-z_$][\w$]*)/g)) {
+      known.add(m[1]);
+      aliases.add(m[1]);
+    }
+  for (let changed = true; changed; ) {
+    changed = false;
+    for (const text of texts)
+      for (const m of text.matchAll(
+        /(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*(?::[^=\n]+)?=\s*([A-Za-z_$][\w$]*)\s*\.\s*extend\b/g,
+      )) {
+        if (known.has(m[2]) && !known.has(m[1])) {
+          known.add(m[1]);
+          aliases.add(m[1]);
+          changed = true;
+        }
+      }
+  }
+  return aliases;
+}
+
+/**
  * Các lời gọi khai báo test trong `src`: {name, line, body, kind}. `kind`: "test" (có hàm thân), "todo" (không có
  * thân thực thi), "dynamic" (không tìm được thân). `describe`/hook/`test.step`/`test.use`… không tính.
+ * Nhận cả `it.each(bảng)(…)`, `` it.each`bảng`(…) `` (tagged template), `it.for(bảng)(…)` và test khai qua alias
+ * (`aliases`, xem `testAliases`).
  */
-export function findTests(src) {
+export function findTests(src, aliases = new Set()) {
   const text = blank(src);
   const out = [];
-  const re = /(?<![\w$.])(it|test)((?:\s*\.\s*[A-Za-z]+)*)\s*(?:\(|<)/g;
+  const names = ["it", "test", ...[...aliases].map((a) => a.replace(/\$/g, "\\$"))].join("|");
+  const re = new RegExp(`(?<![\\w$.])(${names})((?:\\s*\\.\\s*[A-Za-z]+)*)\\s*(\\(|<|\`)`, "g");
   for (const m of text.matchAll(re)) {
     const mods = [...m[2].matchAll(/\.\s*([A-Za-z]+)/g)].map((x) => x[1]);
     // `test.describe`, `test.step`, `test.use`, `test.beforeEach`… không phải khai báo test.
     if (mods.some((x) => !TEST_MODIFIERS.has(x) && x !== "each")) continue;
-    let open = text.indexOf("(", m.index + m[0].length - 1);
-    if (open === -1) continue;
-    let close = matchParen(text, open);
-    if (close === -1) continue;
-    const isEach = mods.includes("each");
-    if (isEach) {
-      // it.each(bảng)("tên", fn): lời gọi thật là cặp ngoặc kế tiếp
-      const next = /^\s*\(/.exec(text.slice(close + 1));
+    const isEach = mods.includes("each") || mods.includes("for");
+    const tagged = m[3] === "`";
+    if (tagged && !isEach) continue;
+    let open;
+    let close;
+    if (tagged) {
+      // it.each`bảng`("tên", fn): bỏ qua template, lời gọi thật là cặp ngoặc ngay sau
+      const end = text.indexOf("`", m.index + m[0].length);
+      if (end === -1) continue;
+      const next = /^\s*\(/.exec(text.slice(end + 1));
       if (!next) continue;
-      open = close + 1 + next[0].length - 1;
+      open = end + 1 + next[0].length - 1;
       close = matchParen(text, open);
       if (close === -1) continue;
+    } else {
+      open = text.indexOf("(", m.index + m[0].length - 1);
+      if (open === -1) continue;
+      close = matchParen(text, open);
+      if (close === -1) continue;
+      if (isEach) {
+        // it.each(bảng)("tên", fn): lời gọi thật là cặp ngoặc kế tiếp
+        const next = /^\s*\(/.exec(text.slice(close + 1));
+        if (!next) continue;
+        open = close + 1 + next[0].length - 1;
+        close = matchParen(text, open);
+        if (close === -1) continue;
+      }
     }
     const args = text.slice(open + 1, close);
-    // Điều kiện kiểu `test.skip(cond, "lý do")` trong thân test: đối số đầu không phải tên test và không có hàm → bỏ.
     const line = src.slice(0, m.index).split("\n").length;
     const hasFn = /=>|\bfunction\b/.test(args);
     if (mods.includes("todo")) {
@@ -331,9 +378,9 @@ export function assertionHelpers(files) {
  * Đánh giá một file test: danh sách vi phạm {line, name, reason}. `reason` ∈ "no-assertion" | "snapshot-only" |
  * "todo" | "dynamic".
  */
-export function violationsIn(src, helpers = new Set()) {
+export function violationsIn(src, helpers = new Set(), aliases = new Set()) {
   const out = [];
-  for (const t of findTests(src)) {
+  for (const t of findTests(src, aliases)) {
     if (t.kind === "todo") {
       out.push({ line: t.line, name: t.name, reason: "todo" });
       continue;
@@ -350,6 +397,7 @@ export function scanRepo(root = ROOT) {
   const sourceFiles = walk(root, SOURCE_FILE);
   const contents = Object.fromEntries(sourceFiles.map((f) => [relative(root, f), readFileSync(f, "utf8")]));
   const helpers = assertionHelpers(contents);
+  const aliases = testAliases(contents);
   const supportDefs = Object.entries(contents)
     .filter(([rel]) => SUPPORT_PATH.test(rel) && !TEST_FILE.test(rel))
     .flatMap(([, src]) => collectDefs(src));
@@ -359,9 +407,9 @@ export function scanRepo(root = ROOT) {
   for (const [rel, src] of Object.entries(contents)) {
     if (!TEST_FILE.test(rel)) continue;
     files++;
-    tests += findTests(src).length;
+    tests += findTests(src, aliases).length;
     const local = helperFixpoint([...supportDefs, ...collectDefs(src)], helpers);
-    for (const v of violationsIn(src, local)) violations.push({ file: rel, ...v });
+    for (const v of violationsIn(src, local, aliases)) violations.push({ file: rel, ...v });
   }
-  return { violations, tests, files, helpers };
+  return { violations, tests, files, helpers, aliases };
 }

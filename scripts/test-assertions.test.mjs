@@ -8,6 +8,7 @@ import {
   findTests,
   helperFixpoint,
   scanRepo,
+  testAliases,
   violationsIn,
 } from "./test-assertions.mjs";
 
@@ -16,7 +17,7 @@ const BASELINE = {};
 
 // Tránh chuỗi thường chứa `${…}` (biome noTemplateCurlyInString): ghép từ hai nửa.
 const D = "$" + "{";
-const reasons = (src, helpers) => violationsIn(src, helpers).map((v) => v.reason);
+const reasons = (src, helpers, aliases) => violationsIn(src, helpers, aliases).map((v) => v.reason);
 
 describe("blank (lexer)", () => {
   it("xoá nội dung chuỗi, comment, template, regex nhưng giữ độ dài/dòng", () => {
@@ -66,6 +67,45 @@ describe("g", () => {
   it("file không có test → rỗng", () => {
     expect(findTests("")).toEqual([]);
     expect(findTests("export const x = 1;")).toEqual([]);
+  });
+});
+
+describe("findTests — dạng khai báo khác", () => {
+  it("it.each tagged template: tìm thấy thân và bắt test thiếu khẳng định", () => {
+    const bad = `it.each\`\n  a | b\n  ${D}1} | ${D}2}\n\`("a $a", ({ a }) => { foo(a); });`;
+    expect(findTests(bad)).toHaveLength(1);
+    expect(reasons(bad)).toEqual(["no-assertion"]);
+    const ok = `it.each\`\n  a\n  ${D}1}\n\`("a", ({ a }) => { expect(a).toBe(1); });`;
+    expect(reasons(ok)).toEqual([]);
+    expect(reasons('test.each`\n a\n`("x", async () => { await foo(); });')).toEqual(["no-assertion"]);
+  });
+  it("it.for / test.for (Vitest) được nhận, kể cả .only/.skip", () => {
+    expect(reasons('it.for([1, 2])("x %s", (n) => { foo(n); });')).toEqual(["no-assertion"]);
+    expect(reasons('test.for([1])("x", async (n, { expect }) => { expect(n).toBe(1); });')).toEqual([]);
+    expect(findTests('it.for([1])("x", (n) => { expect(n).toBe(1); });')).toHaveLength(1);
+  });
+  it("test khai qua test.extend (alias, chuỗi extend, import as)", () => {
+    const files = {
+      "a/fixtures.ts": "export const myTest = test.extend({ db: async ({}, use) => { await use(1); } });",
+      "a/more.ts": "export const deeper = myTest.extend({});",
+      "a/pw.ts": 'import { test as base } from "@playwright/test";\nexport const pwTest = base.extend({});',
+      "a/other.ts": "const notATest = something.extend({});",
+    };
+    expect([...testAliases(files)].sort()).toEqual(["base", "deeper", "myTest", "pwTest"]);
+    const aliases = testAliases(files);
+    expect(reasons('myTest("x", async ({ db }) => { await foo(db); });', new Set(), aliases)).toEqual([
+      "no-assertion",
+    ]);
+    expect(reasons('deeper.only("x", () => { foo(); });', new Set(), aliases)).toEqual(["no-assertion"]);
+    expect(
+      reasons('pwTest("x", async ({ page }) => { expect(page).toBeTruthy(); });', new Set(), aliases),
+    ).toEqual([]);
+    expect(reasons('notATest("x", () => { foo(); });', new Set(), aliases)).toEqual([]);
+    expect(reasons('myTest("x", () => { foo(); });')).toEqual([]); // không có alias → không nhận (đúng)
+  });
+  it("it.each(bảng) cũ vẫn chạy; tagged template không phải each thì bỏ qua", () => {
+    expect(reasons('it.each([[1]])("a", (x) => { foo(x); });')).toEqual(["no-assertion"]);
+    expect(findTests("it`x`;")).toEqual([]);
   });
 });
 
