@@ -22,32 +22,8 @@
       "reason": "S-013 và S-017 đã có test (files.db.test.ts). Còn S-016: bộ bỏ EXIF xoá cả thẻ Orientation nên ảnh dọc chụp từ điện thoại có thể hiển thị lệch chiều — spec đòi giữ đúng chiều, chờ quyết cách xử lý (giữ riêng thẻ Orientation hoặc xoay điểm ảnh). S-024: SPEC-housekeeping đòi tải lại trạng thái từ máy chủ trước khi cho bấm lại, còn SPEC-pwa S-006 đòi nút bấm lại được ngay khi có mạng — hai spec mâu thuẫn, chờ quyết (PM-SPEC-004)."
     },
     "inventory-allocation": {
-      "uncovered": [
-        "S-001",
-        "S-002",
-        "S-003",
-        "S-004",
-        "S-005",
-        "S-006",
-        "S-007",
-        "S-008",
-        "S-009",
-        "S-010",
-        "S-011",
-        "S-012",
-        "S-013",
-        "S-014",
-        "S-015",
-        "S-016",
-        "S-017",
-        "S-018",
-        "S-019",
-        "S-020",
-        "S-021",
-        "S-022",
-        "S-023"
-      ],
-      "reason": "Test tồn dùng ID bất biến INV-* (EXCLUDE, hold, block) thay vì S-NNN nên 23 scenario chưa truy được; cần ánh xạ S-NNN ↔ INV-* và gắn ID vào tên test (PM-SPEC-004)."
+      "uncovered": ["S-013", "S-017", "S-018", "S-019", "S-020", "S-021", "S-023"],
+      "reason": "16/23 đã có test (inventory.db.test.ts, inventory-spec.db.test.ts). 7 scenario còn lại là tính năng CHƯA CÓ trong mã nên không thể kiểm: S-013 `inventory.setUnitAvailability` (+ exceptions RELOCATION_REQUIRED cho allocation tương lai); S-017 job `inventory.detectOverdue` (STAY_OVERSTAY, RELOCATION_REQUIRED; check-in vào phòng quá hạn đã có ROOM_OCCUPIED ở stays.ts nhưng chưa có ngoại lệ/lịch 'Quá hạn trả'); S-018 `inventory.resizeAllocation` + EXTENSION_CONFLICT ghi sau rollback; S-019 cùng `resizeAllocation` (nửa đầu — hold chồng hợp đồng mở → ROOM_UNAVAILABLE — chạy được nhưng nửa sau cần lệnh này); S-020 `searchAvailability` loại phòng + createHold/check-in/bàn giao → ROOM_OCCUPIED khi LEASE_OVERSTAY còn mở (job lease.detectOverstay đã có, SPEC-lease S-015); S-021 query `inventory.getCalendar` (lọc tầng/loại, đoạn theo giờ địa phương, ẩn tên khách/tiền cho housekeeping); S-023 outbox cùng transaction cho MỌI command mục 5 — hiện chỉ `createHold` phát outbox (tên sự kiện trong spec §9 `allocation.hold_created` lệch mã `allocation.held`; các command còn lại chưa có sự kiện). Cần task riêng xây các lệnh/truy vấn trên rồi mới viết test (PM-SPEC-004)."
     },
     "pwa": {
       "uncovered": ["S-002", "S-003", "S-007", "S-009", "S-012", "S-013", "S-014", "S-016"],

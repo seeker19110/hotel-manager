@@ -21,6 +21,8 @@ export interface Problem {
   errors?: FieldError[];
   /** METER_READING_DECREASED: chỉ số đã duyệt trước (SPEC-metering S-005). */
   previous_value?: number;
+  /** ROOM_UNAVAILABLE của `inventory.createHold`: phòng cùng loại còn trống trong khoảng (SPEC-inventory S-002). */
+  alternatives?: { unit_id: string; code: string }[];
   /** UNRESOLVED_ANOMALIES / READINGS_INCOMPLETE: danh sách cần xử lý (S-008, S-009). */
   items?: Record<string, string | number | null>[];
   /** IMPORT_TOTALS_MISMATCH: tổng nguồn so với tổng file theo loại (SPEC-import S-013). */
@@ -46,6 +48,7 @@ export type ProblemExtensions = Partial<
     | "errors"
     | "previous_value"
     | "items"
+    | "alternatives"
     | "totals"
     | "retry_after"
   >

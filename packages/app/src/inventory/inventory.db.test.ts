@@ -60,7 +60,7 @@ afterAll(async () => {
 });
 
 describe("INV-I1 — không chồng phòng (kế hoạch §13)", () => {
-  it("100 lệnh song song giữ cùng phòng cùng khoảng → đúng 1 thành công, 99 ROOM_UNAVAILABLE", async () => {
+  it("SPEC-inventory S-005: 100 lệnh song song giữ cùng phòng cùng khoảng → đúng 1 thành công, 99 ROOM_UNAVAILABLE", async () => {
     const unit = randomUUID();
     await sql`insert into units (id, organization_id, property_id, floor_id, code) values (${unit}, ${A.orgId}, ${A.propertyId}, ${A.floorId}, 'R100')`.execute(
       t.admin,
@@ -106,7 +106,7 @@ describe("INV-I1 — không chồng phòng (kế hoạch §13)", () => {
 });
 
 describe("INV-I2 — [start, end)", () => {
-  it("khách sau nhận đúng lúc khách trước trả (đầu = cuối) → hợp lệ", async () => {
+  it("SPEC-inventory S-003: khách sau nhận đúng lúc khách trước trả (đầu = cuối) → hợp lệ, hai allocation cùng active", async () => {
     const r1 = await run((ctx) =>
       createHold(ctx, {
         unitId: unit2,
@@ -124,17 +124,22 @@ describe("INV-I2 — [start, end)", () => {
       }).then((data) => ({ data })),
     );
     expect([r1.status, r2.status]).toEqual(["committed", "committed"]);
+    expect(await activeCount(unit2)).toBe(2);
   });
 
-  it("kết thúc trước/bằng bắt đầu → VALIDATION_FAILED; khoảng mở chỉ cho hợp đồng", async () => {
-    const bad = await run((ctx) =>
-      createHold(ctx, {
-        unitId: unit2,
-        during: { start: H("13T12:00"), end: H("13T12:00") },
-        ttlMinutes: 15,
-      }).then((data) => ({ data })),
-    );
-    expect(bad).toMatchObject({ status: "failed", problem: { code: "VALIDATION_FAILED" } });
+  it("SPEC-inventory S-004: kết thúc trước/bằng bắt đầu, hold không có end → VALIDATION_FAILED; khoảng mở chỉ cho hợp đồng", async () => {
+    const before = await activeCount(unit2);
+    for (const during of [
+      { start: H("13T12:00"), end: H("13T12:00") }, // start = end
+      { start: H("13T12:00"), end: H("13T11:00") }, // start > end
+      { start: H("13T12:00"), end: null }, // hold không có end
+    ]) {
+      const bad = await run((ctx) =>
+        createHold(ctx, { unitId: unit2, during, ttlMinutes: 15 }).then((data) => ({ data })),
+      );
+      expect(bad).toMatchObject({ status: "failed", problem: { code: "VALIDATION_FAILED", status: 422 } });
+    }
+    expect(await activeCount(unit2)).toBe(before);
     await expect(
       sql`insert into allocations (id, organization_id, property_id, unit_id, kind, during)
           values (${randomUUID()}, ${A.orgId}, ${A.propertyId}, ${unit2}, 'stay', tstzrange(${H("20T00:00")}, null, '[)'))`.execute(
@@ -145,7 +150,7 @@ describe("INV-I2 — [start, end)", () => {
 });
 
 describe("INV-I3 — hold hết hạn nhả đúng một lần", () => {
-  it("hold hết hạn: lệnh mới dọn dưới khoá phòng rồi giữ được; hold cũ inactive lý do expired", async () => {
+  it("SPEC-inventory S-008: hold hết hạn: lệnh mới dọn dưới khoá phòng rồi giữ được; hold cũ inactive lý do expired, worker sau đó không ghi audit lần hai", async () => {
     const unit = randomUUID();
     await sql`insert into units (id, organization_id, property_id, floor_id, code) values (${unit}, ${A.orgId}, ${A.propertyId}, ${A.floorId}, 'R103')`.execute(
       t.admin,
@@ -179,6 +184,16 @@ describe("INV-I3 — hold hết hạn nhả đúng một lần", () => {
       { active: false, deactivated_reason: "expired" },
       { active: true, deactivated_reason: null },
     ]);
+    // Audit nhả hold cũ đúng 1 lần (do lệnh mới ghi); worker chạy sau đó không nhả/ghi thêm cho nó.
+    const oldHold = await sql<{ id: string }>`
+      select id from allocations where unit_id = ${unit} and not active`.execute(t.admin);
+    const oldId = oldHold.rows[0]?.id;
+    const expiredAudits = () =>
+      sql<{ n: number }>`select count(*)::int as n from audit_events
+                         where entity_id = ${oldId} and action = 'allocation.hold_expired'`.execute(t.admin);
+    expect((await expiredAudits()).rows[0]?.n).toBe(1);
+    await expireHolds(t.worker, H("14T09:00"));
+    expect((await expiredAudits()).rows[0]?.n).toBe(1);
   });
 
   it("job worker và lệnh nhả cùng lúc → hold chỉ nhả MỘT lần (một audit)", async () => {
@@ -222,41 +237,66 @@ describe("INV-I3 — hold hết hạn nhả đúng một lần", () => {
     ).rejects.toThrow(/không kích hoạt lại/);
   });
 
-  it("không ràng buộc/index nào của allocations dùng now()/current_timestamp", async () => {
+  it("SPEC-inventory S-010: không ràng buộc/index nào của allocations dùng now()/current_timestamp; EXCLUDE có WHERE (active)", async () => {
     const r = await sql<{ def: string }>`
       select pg_get_constraintdef(oid) as def from pg_constraint where conrelid = 'allocations'::regclass
       union all select pg_get_indexdef(indexrelid) from pg_index where indrelid = 'allocations'::regclass`.execute(
       t.admin,
     );
     for (const { def } of r.rows) expect(def).not.toMatch(/now\(\)|current_timestamp/i);
+    const ex = await sql<{ def: string }>`
+      select pg_get_constraintdef(oid) as def from pg_constraint
+      where conrelid = 'allocations'::regclass and contype = 'x'`.execute(t.admin);
+    expect(ex.rows).toHaveLength(1);
+    expect(ex.rows[0]?.def).toMatch(
+      /EXCLUDE USING gist .*organization_id WITH =.*unit_id WITH =.*during WITH &&.*WHERE \(?active\)?/,
+    );
   });
 
-  it("xác nhận hold đã hết hạn → HOLD_EXPIRED; còn hạn → thành stay, hết expires_at", async () => {
+  it("SPEC-inventory S-009: xác nhận hold đã hết hạn → HOLD_EXPIRED và hold được nhả (một audit); còn hạn → thành stay, hết expires_at", async () => {
     const unit = randomUUID();
     await sql`insert into units (id, organization_id, property_id, floor_id, code) values (${unit}, ${A.orgId}, ${A.propertyId}, ${A.floorId}, 'R105')`.execute(
       t.admin,
     );
-    const held = await run((ctx) =>
-      createHold(ctx, {
-        unitId: unit,
-        during: { start: H("21T14:00"), end: H("22T12:00") },
-        ttlMinutes: 15,
-        now: H("20T08:00"),
-      }).then((data) => ({ data })),
+    const hold = async (from: string, to: string) => {
+      const held = await run((ctx) =>
+        createHold(ctx, {
+          unitId: unit,
+          during: { start: H(from), end: H(to) },
+          ttlMinutes: 15,
+          now: H("20T08:00"),
+        }).then((data) => ({ data })),
+      );
+      if (held.status !== "committed") throw new Error("hold lỗi");
+      return held.data.allocationId;
+    };
+    const h1 = await hold("21T14:00", "22T12:00");
+    const late = await run((ctx) => confirmHold(ctx, h1, "stay", H("20T09:00")).then(() => ({ data: null })));
+    expect(late).toMatchObject({ status: "failed", problem: { code: "HOLD_EXPIRED", status: 409 } });
+    const rel = await sql<{ active: boolean; reason: string | null; audits: number }>`
+      select a.active, a.deactivated_reason as reason,
+             (select count(*)::int from audit_events where entity_id = a.id and action = 'allocation.hold_expired') as audits
+      from allocations a where a.id = ${h1}`.execute(t.admin);
+    expect(rel.rows[0]).toEqual({ active: false, reason: "expired", audits: 1 });
+    // Xác nhận lại hold đã nhả → không tìm thấy; worker chạy sau không ghi thêm audit cho nó.
+    const again = await run((ctx) =>
+      confirmHold(ctx, h1, "stay", H("20T09:00")).then(() => ({ data: null })),
     );
-    if (held.status !== "committed") throw new Error("hold lỗi");
-    const late = await run((ctx) =>
-      confirmHold(ctx, held.data.allocationId, "stay", H("20T09:00")).then(() => ({ data: null })),
+    expect(again).toMatchObject({ status: "failed", problem: { code: "NOT_FOUND" } });
+    await expireHolds(t.worker, H("20T10:00"));
+    const audits = await sql<{ n: number }>`
+      select count(*)::int as n from audit_events where entity_id = ${h1} and action = 'allocation.hold_expired'`.execute(
+      t.admin,
     );
-    expect(late).toMatchObject({ status: "failed", problem: { code: "HOLD_EXPIRED" } });
-    const ok = await run((ctx) =>
-      confirmHold(ctx, held.data.allocationId, "stay", H("20T08:05")).then(() => ({ data: null })),
-    );
+    expect(audits.rows[0]?.n).toBe(1);
+
+    const h2 = await hold("23T14:00", "24T12:00");
+    const ok = await run((ctx) => confirmHold(ctx, h2, "stay", H("20T08:05")).then(() => ({ data: null })));
     expect(ok.status).toBe("committed");
     const row = await sql<{
       kind: string;
       expires_at: Date | null;
-    }>`select kind, expires_at from allocations where id = ${held.data.allocationId}`.execute(t.admin);
+    }>`select kind, expires_at from allocations where id = ${h2}`.execute(t.admin);
     expect(row.rows[0]).toEqual({ kind: "stay", expires_at: null });
   });
 });
@@ -283,7 +323,12 @@ describe("chuyển phòng nguyên tử", () => {
     }
     const id = await stay(u1, "23T14:00", "26T12:00");
     const r = await run((ctx) =>
-      moveAllocation(ctx, { allocationId: id, toUnitId: u2, at: H("24T10:00") }).then((data) => ({ data })),
+      moveAllocation(ctx, {
+        allocationId: id,
+        toUnitId: u2,
+        at: H("24T10:00"),
+        reason: "Điều hoà hỏng",
+      }).then((data) => ({ data })),
     );
     expect(r.status).toBe("committed");
     const rows = await sql<{ unit_id: string; lo: Date; hi: Date }>`
@@ -300,7 +345,7 @@ describe("chuyển phòng nguyên tử", () => {
     expect(hk.rows[0]?.s).toBe("dirty");
   });
 
-  it("phòng đích bận → ROOM_UNAVAILABLE và allocation cũ KHÔNG đổi (rollback)", async () => {
+  it("SPEC-inventory S-016: phòng đích bận → ROOM_UNAVAILABLE và allocation cũ KHÔNG đổi; không việc dọn, không audit di chuyển (rollback)", async () => {
     const [u1, u2] = [randomUUID(), randomUUID()];
     for (const [u, c] of [
       [u1, "N1"],
@@ -313,7 +358,12 @@ describe("chuyển phòng nguyên tử", () => {
     const id = await stay(u1, "23T14:00", "26T12:00");
     await stay(u2, "25T00:00", "27T00:00");
     const r = await run((ctx) =>
-      moveAllocation(ctx, { allocationId: id, toUnitId: u2, at: H("24T10:00") }).then((data) => ({ data })),
+      moveAllocation(ctx, {
+        allocationId: id,
+        toUnitId: u2,
+        at: H("24T10:00"),
+        reason: "Điều hoà hỏng",
+      }).then((data) => ({ data })),
     );
     expect(r).toMatchObject({ status: "failed", problem: { code: "ROOM_UNAVAILABLE" } });
     const row = await sql<{
@@ -321,11 +371,16 @@ describe("chuyển phòng nguyên tử", () => {
       active: boolean;
     }>`select upper(during) as hi, active from allocations where id = ${id}`.execute(t.admin);
     expect(row.rows[0]).toEqual({ hi: H("26T12:00"), active: true });
+    const side = await sql<{ audits: number; tasks: number; hk: string }>`
+      select (select count(*)::int from audit_events where entity_id = ${id} and action = 'allocation.moved') as audits,
+             (select count(*)::int from tasks where unit_id = ${u1}) as tasks,
+             (select housekeeping_status from units where id = ${u1}) as hk`.execute(t.admin);
+    expect(side.rows[0]).toEqual({ audits: 0, tasks: 0, hk: "clean" });
   });
 });
 
 describe("block bảo trì", () => {
-  it("block đụng khách đã có → BLOCK_CONFLICT, block vẫn requested; khoảng trống → approved + allocation", async () => {
+  it("SPEC-inventory S-012: block đụng khách đã có → BLOCK_CONFLICT kèm danh sách allocation xung đột, không insert một phần, block vẫn requested; khoảng trống → approved + allocation", async () => {
     const u = randomUUID();
     await sql`insert into units (id, organization_id, property_id, floor_id, code) values (${u}, ${A.orgId}, ${A.propertyId}, ${A.floorId}, 'B1')`.execute(
       t.admin,
@@ -343,7 +398,25 @@ describe("block bảo trì", () => {
     );
     if (p1.status !== "committed") throw new Error("propose lỗi");
     const a1 = await run((ctx) => approveBlock(ctx, p1.data.blockId).then(() => ({ data: null })));
-    expect(a1).toMatchObject({ status: "failed", problem: { code: "BLOCK_CONFLICT" } });
+    expect(a1).toMatchObject({
+      status: "failed",
+      problem: {
+        code: "BLOCK_CONFLICT",
+        status: 409,
+        items: [
+          {
+            kind: "stay",
+            source_type: null,
+            source_id: null,
+            start: H("10T14:00").toISOString(),
+            end: H("12T12:00").toISOString(),
+          },
+        ],
+      },
+    });
+    const parts = await sql<{ n: number }>`
+      select count(*)::int as n from allocations where unit_id = ${u} and kind = 'block'`.execute(t.admin);
+    expect(parts.rows[0]?.n).toBe(0);
     const st = await sql<{ status: string }>`select status from blocks where id = ${p1.data.blockId}`.execute(
       t.admin,
     );
