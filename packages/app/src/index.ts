@@ -1,4 +1,4 @@
-export { qrMatrix, vndInWords } from "@hm/domain";
+export { isIsoDate, isoDateOr, qrMatrix, vndInWords } from "@hm/domain";
 export {
   AccessError,
   type Actor,
@@ -38,6 +38,11 @@ export {
 } from "./exports/exports.ts";
 export { handleFileUpload } from "./files/http.ts";
 export {
+  getTask as getHousekeepingTask,
+  listTasks as listHousekeepingTasks,
+  type TaskView,
+} from "./housekeeping/tasks.ts";
+export {
   type CommandDef,
   type HttpDeps,
   handleCommand,
@@ -47,11 +52,14 @@ export {
 } from "./http/command-route.ts";
 export { COMMANDS, findCommand, findQuery, QUERIES } from "./http/registry.ts";
 export { handleWebhook, type WebhookDeps } from "./http/webhook-route.ts";
+export { handleImportUpload } from "./import/http.ts";
+export { IMPORT_ROW_RETENTION_DAYS, type RetentionStats, runRetention } from "./import/retention.ts";
 export { listRooms, type PropertyRooms, type RoomRow } from "./inventory/rooms.ts";
 export { DEFAULT_REMINDER_DAYS, detectOverstay, remindExpiring } from "./lease/jobs.ts";
 export { getLease, type LeaseView } from "./lease/lease.ts";
 export { BANK_TXN_RECEIVED, BREAK_OPENED } from "./ledger/bank-inbox.ts";
 export { createLogger, type Logger } from "./logging/logger.ts";
+export { listWorkOrders, type WorkOrderView } from "./maintenance/work-orders.ts";
 export { readingRoute } from "./metering/meters.ts";
 export {
   createNotification,
@@ -66,7 +74,12 @@ export {
   FakeEmailSender,
 } from "./notifications/email.ts";
 export { handleUnsubscribe } from "./notifications/http.ts";
-export { unsubscribeKey, unsubscribeUrl } from "./notifications/preferences.ts";
+export {
+  listMyNotifications,
+  type NotificationItem,
+  unsubscribeKey,
+  unsubscribeUrl,
+} from "./notifications/preferences.ts";
 export {
   type ReminderStats,
   runReminders,
@@ -76,6 +89,16 @@ export {
 } from "./notifications/reminders.ts";
 export { MAX_ATTEMPTS, RETRY_BACKOFF_MINUTES, type SendStats, sendDueEmails } from "./notifications/send.ts";
 export { deliveryStatusLabel, maskEmail, render as renderNotification } from "./notifications/templates.ts";
+export {
+  collectMetrics,
+  handleMetrics,
+  handleReady,
+  metricsAuthorized,
+  metricsToken,
+  readiness,
+  renderPrometheus,
+  type Sample,
+} from "./observability/metrics.ts";
 export { getCommandResult } from "./pipeline/command.ts";
 export { handleGuestStay } from "./portal/guest-http.ts";
 export {
@@ -115,7 +138,12 @@ export {
 } from "./reports/reports.ts";
 export { serverContext } from "./server/context.ts";
 export { type AppServices, createServices, testServices } from "./server/services.ts";
+export { type FolioView, getFolio } from "./stay/folio.ts";
 export { expireHeldReservations } from "./stay/jobs.ts";
+export { type OpsProperty, opsProperties } from "./stay/properties.ts";
+export { type Quote, quote as quoteStay } from "./stay/rates.ts";
+export { getReservation, listReservations, type ReservationView } from "./stay/reservations.ts";
+export { listNotices, type NoticeListItem } from "./stay/residence-notices.ts";
 export {
   getSummary as getTodaySummary,
   listItems as listTodayItems,

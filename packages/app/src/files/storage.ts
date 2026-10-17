@@ -41,6 +41,14 @@ export class ObjectStorage {
     if (!res.ok && res.status !== 409) throw new Error(`Không tạo được bucket: HTTP ${res.status}`);
   }
 
+  /** Kiểm kho còn trả lời và bucket tồn tại (`/api/ready`). */
+  async ping(): Promise<void> {
+    const res = await this.#aws.fetch(`${this.#cfg.endpoint.replace(/\/$/, "")}/${this.#cfg.bucket}`, {
+      method: "HEAD",
+    });
+    if (!res.ok) throw new Error(`Kho object không sẵn sàng: HTTP ${res.status}`);
+  }
+
   async put(key: string, body: Uint8Array, contentType: string): Promise<void> {
     const res = await this.#aws.fetch(this.#url(key), {
       method: "PUT",

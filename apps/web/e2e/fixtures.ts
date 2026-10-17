@@ -46,3 +46,46 @@ export const GUEST_TOKEN_REVOKED = ["e2e", "khach", "thu", "hoi"].join("-").padE
 export const outboxFile = (port: number) => join(tmpdir(), `hm-e2e-${port}-outbox.jsonl`);
 /** Nơi seed ghi liên kết huỷ đăng ký ký số (cần khoá của server) cho test đọc. */
 export const unsubFile = (port: number) => join(tmpdir(), `hm-e2e-${port}-unsub.txt`);
+
+/** Khách sạn (T-223): chủ có TOTP, buồng phòng đăng nhập mật khẩu; phòng 101–103 đã dọn + kiểm, giá 600.000/700.000 đ. */
+export const ORG_HOTEL = "Khách sạn Biển (giả)";
+export const HOTEL_OWNER = {
+  email: "chu.khach.san@example.test",
+  password: ["e2e", "chu", "khach", "san"].join("-"),
+  name: "Chủ khách sạn (giả)",
+};
+export const HOTEL_HK = {
+  email: "buong.phong.ks@example.test",
+  password: ["e2e", "buong", "phong", "ks"].join("-"),
+  name: "Buồng phòng KS (giả)",
+};
+export const HOTEL_ROOMS = ["101", "102", "103"];
+export const HOTEL_WEEKDAY_PRICE = 600_000;
+export const HOTEL_WEEKEND_PRICE = 700_000;
+/** Tiêu đề thông báo mẫu seed sẵn cho chủ khách sạn (chuông có số chưa đọc ngay khi đăng nhập). */
+export const HOTEL_NOTIFICATION_TITLE = "Phiếu sự cố mẫu đã được giao";
+
+/** JPEG tối thiểu hợp lệ (dùng chung E2E tải ảnh: portal, sự cố khách sạn). */
+export const JPEG = Buffer.from([
+  0xff,
+  0xd8,
+  0xff,
+  0xe0,
+  0,
+  16,
+  ...Buffer.from("JFIF\0\x01\x01\0\0\x01\0\x01\0\0", "latin1"),
+  0xff,
+  0xda,
+  0,
+  8,
+  1,
+  1,
+  0,
+  0,
+  0x3f,
+  0,
+  0x12,
+  0x34,
+  0xff,
+  0xd9,
+]);

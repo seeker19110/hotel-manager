@@ -230,7 +230,7 @@ export async function storeGeneratedFile(
                        uploaded_by, scanned_at, delete_after)
     values (${id}, ${ctx.actor.orgId}, ${input.propertyId}, ${input.ownerType}, ${input.ownerId}, ${input.mime},
             ${input.bytes.byteLength}, ${sha256}, 'ready', ${key}, ${ctx.actor.membershipId}, now(),
-            current_date + ${input.deleteAfterDays}::int)`.execute(ctx.trx);
+            (now() at time zone 'UTC')::date + ${input.deleteAfterDays}::int)`.execute(ctx.trx);
   ctx.onRollback(() => deps.storage.delete(key));
   await deps.storage.put(key, input.bytes, input.mime);
   return { fileId: id };

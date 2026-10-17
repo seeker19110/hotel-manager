@@ -5,15 +5,18 @@
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
 import { Button } from "../ui/button.tsx";
-import { TextField } from "../ui/field.tsx";
-import { CONTEXT_CHANGED_CODE } from "./org-context.ts";
+import { SelectField, TextField } from "../ui/field.tsx";
+import { CommandStatus } from "./command-status.tsx";
 import { problemText, useCommand } from "./use-command.ts";
 
 export interface FieldSpec {
   name: string;
   label: string;
-  type?: "text" | "money" | "decimal" | "date" | "integer";
+  type?: "text" | "money" | "decimal" | "date" | "integer" | "select";
+  /** Lựa chọn của ô `select` (giá trị gửi lên là `value`). */
+  options?: { value: string; label: string }[];
   required?: boolean;
+  maxLength?: number;
   defaultValue?: string | number;
   hint?: string;
   /** Đặt giá trị vào đường dẫn lồng (vd `readings.electric`). */
@@ -46,6 +49,7 @@ export function CommandForm({
   successText,
   variant = "primary",
   testId,
+  className,
 }: {
   path: string;
   fields?: FieldSpec[];
@@ -54,6 +58,8 @@ export function CommandForm({
   successText: string;
   variant?: "primary" | "secondary";
   testId?: string;
+  /** Lớp CSS thêm cho nút gửi (vd `btn--large` cho màn buồng phòng trên điện thoại). */
+  className?: string;
 }) {
   const router = useRouter();
   const cmd = useCommand(path);
@@ -111,69 +117,57 @@ export function CommandForm({
     <form onSubmit={onSubmit} noValidate className="command-form" data-testid={testId}>
       {/* Khoá ô nhập khi thao tác trước chưa rõ kết quả: không sửa payload dưới key cũ (review lát 4 🟠2). */}
       <fieldset className="command-form__fields" disabled={cmd.locked}>
-        {fields.map((f) => (
-          <TextField
-            key={f.name}
-            name={f.name}
-            label={f.label}
-            hint={f.hint}
-            error={fieldError(f)}
-            type={f.type === "date" ? "date" : "text"}
-            inputMode={
-              f.type === "money" || f.type === "integer"
-                ? "numeric"
-                : f.type === "decimal"
-                  ? "decimal"
-                  : undefined
-            }
-            defaultValue={f.defaultValue}
-            required={f.required}
-          />
-        ))}
+        {fields.map((f) =>
+          f.type === "select" ? (
+            <SelectField
+              key={f.name}
+              name={f.name}
+              label={f.label}
+              hint={f.hint}
+              error={fieldError(f)}
+              options={f.options ?? []}
+              defaultValue={f.defaultValue}
+              required={f.required}
+            />
+          ) : (
+            <TextField
+              key={f.name}
+              name={f.name}
+              label={f.label}
+              hint={f.hint}
+              error={fieldError(f)}
+              type={f.type === "date" ? "date" : "text"}
+              inputMode={
+                f.type === "money" || f.type === "integer"
+                  ? "numeric"
+                  : f.type === "decimal"
+                    ? "decimal"
+                    : undefined
+              }
+              defaultValue={f.defaultValue}
+              required={f.required}
+              maxLength={f.maxLength}
+            />
+          ),
+        )}
       </fieldset>
-      <Button type="submit" variant={variant} loading={cmd.busy} disabled={cmd.locked}>
+      <Button
+        type="submit"
+        variant={variant}
+        loading={cmd.busy}
+        disabled={cmd.locked}
+        {...(className ? { className } : {})}
+      >
         {submitLabel}
       </Button>
-      {cmd.phase === "checking" ? (
-        <p className="command-form__status" role="status">
-          Đang kiểm tra kết quả…
-        </p>
-      ) : null}
-      {cmd.phase === "unknown" ? (
-        <div className="banner banner--warn" role="alert">
-          <p>
-            Chưa rõ máy chủ đã nhận thao tác này chưa. Bấm "Gửi lại" để gửi đúng thao tác này một lần nữa
-            (không bị ghi hai lần).
-          </p>
-          {cmd.problem ? <p>{problemText(cmd.problem)}</p> : null}
-          <Button variant="secondary" onClick={onResend}>
-            Gửi lại
-          </Button>
-        </div>
-      ) : null}
-      {cmd.phase === "processing" ? (
-        <div className="banner banner--info" role="status">
-          <p>Máy chủ vẫn đang xử lý thao tác này. Chờ một lát rồi kiểm tra lại — không gửi thao tác mới.</p>
-          <Button variant="secondary" onClick={onRecheck}>
-            Kiểm tra lại
-          </Button>
-        </div>
-      ) : null}
-      {general ? (
-        <p className="field__error" role="alert">
-          {general}
-        </p>
-      ) : null}
-      {cmd.phase === "error" && cmd.problem?.code === CONTEXT_CHANGED_CODE ? (
-        <Button variant="secondary" onClick={() => window.location.reload()}>
-          Tải lại trang
-        </Button>
-      ) : null}
-      {cmd.phase === "done" ? (
-        <p className="command-form__status command-form__status--ok" role="status">
-          {successText}
-        </p>
-      ) : null}
+      <CommandStatus
+        phase={cmd.phase}
+        problem={cmd.problem}
+        general={general}
+        successText={successText}
+        onResend={onResend}
+        onRecheck={onRecheck}
+      />
     </form>
   );
 }

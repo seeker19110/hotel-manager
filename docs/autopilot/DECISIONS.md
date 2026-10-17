@@ -52,7 +52,7 @@
 - Phương án: (1) Giữ nguyên, bắt thanh lý và ký hợp đồng mới · (2) Cho phụ lục sửa effective_to của phiên bản mở cuối · (3) Thêm cột superseded_on (chỉ NULL → ngày, đặt một lần bởi phụ lục, trigger chặn mọi đổi khác); điều khoản đã ký + SHA-256 giữ nguyên; hiệu lực thực = least(effective_to, superseded_on − 1)
 - Chọn: Thêm cột superseded_on (chỉ NULL → ngày, đặt một lần bởi phụ lục, trigger chặn mọi đổi khác); điều khoản đã ký + SHA-256 giữ nguyên; hiệu lực thực = least(effective_to, superseded_on − 1)
 - Lý do (tiêu chí chất lượng cuối): Giữ bất biến INV-G4 (điều khoản đã ký không đổi byte nào) mà vẫn đổi giá được; ràng buộc ở CSDL, có audit; phương án 2 phá băm điều khoản.
-- Đường lùi: Migration down bỏ cột; phụ lục đã tạo vẫn là phiên bản hợp lệ, chỉ cần chặn tạo mới.
+- Đường lùi: Migration down đóng phiên bản đã bị thay (`effective_to = superseded_on − 1`, tắt riêng trigger bất biến quanh đúng câu UPDATE đó, cùng transaction) rồi mới bỏ cột và dựng lại EXCLUDE; phụ lục đã tạo vẫn là phiên bản hợp lệ, chỉ cần chặn tạo mới (test `lease-supersede-down.db.test.ts`).
 
 ### D-008 · 2026-10-16T03:41:31+00:00 · Quản lý có được đặt giá dịch vụ (SPEC-metering nói có, ma trận quyền SPEC-access nói không)
 
@@ -140,3 +140,25 @@
 - Chọn: Xác thực lại = phiên đăng nhập ≤ 5 phút (session.createdAt, như auth_time/max_age OIDC; đăng nhập lại để làm mới); worker dựng lại actor của người yêu cầu lúc chạy và đọc bằng kết nối runtime trong ngữ cảnh người đó (RLS + phạm vi; thu hồi ⇒ failed FORBIDDEN); bản xuất tải được 15 phút, URL ký ≤ 5 phút (trần MAX_SIGNED_URL_SECONDS của repo); kế toán chỉ receivables/collections/deposits; org_full chỉ owner, ZIP CSV 25 bảng nghiệp vụ, bỏ identity_documents/files/memberships và cột bí mật/băm/khoá/số giấy tờ; 10 yêu cầu/giờ/người
 - Lý do (tiêu chí chất lượng cuối): Tiêu chí 1: không mở đường đọc dữ liệu rộng hơn người yêu cầu (worker không BYPASS, RLS quyết), không thêm endpoint xác thực mới tự viết; giữ trần URL ký 5 phút đã chốt; tiêu chí 3: dùng thời điểm đăng nhập có sẵn của Better Auth
 - Đường lùi: Hằng REAUTH_MAX_AGE_SECONDS/EXPORT_TTL_MINUTES/EXPORT_RATE_PER_HOUR/ORG_EXPORT_TABLES ở packages/app/src/exports/exports.ts; migration 0043 có down
+
+### D-020 · 2026-10-16T12:10:46+00:00 · Lưu 'cơ sở đang chọn' của session.switchOrganization ở đâu và hạn giữ dữ liệu nhập chạy thế nào (việc treo đợt 2)
+
+- Phương án: (1) Cookie riêng từng thiết bị cho cơ sở; xoá file bằng cách xoá hàng files · (2) Cột memberships.selected_property_id (theo người, mọi thiết bị) ghi qua hàm hẹp app.select_property kiểm phạm vi, chỉ là lựa chọn — mọi request vẫn resolveActor, ngoài phạm vi thì bỏ qua; hạn giữ: worker xoá object trước rồi đánh dấu files.status='deleted' (+deleted_at, giữ hàng để FK/audit), làm rỗng import_rows.raw/data của lô commit/huỷ quá 30 ngày theo ngày giờ cơ sở, qua hàm SECURITY DEFINER chỉ app_worker gọi
+- Chọn: Cột memberships.selected_property_id (theo người, mọi thiết bị) ghi qua hàm hẹp app.select_property kiểm phạm vi, chỉ là lựa chọn — mọi request vẫn resolveActor, ngoài phạm vi thì bỏ qua; hạn giữ: worker xoá object trước rồi đánh dấu files.status='deleted' (+deleted_at, giữ hàng để FK/audit), làm rỗng import_rows.raw/data của lô commit/huỷ quá 30 ngày theo ngày giờ cơ sở, qua hàm SECURITY DEFINER chỉ app_worker gọi
+- Lý do (tiêu chí chất lượng cuối): Tiêu chí 1: lựa chọn không thành quyền, kiểm phạm vi ở CSDL; giữ hàng files cho tham chiếu/audit thay vì xoá cứng; xoá object trước đánh dấu sau để chạy lại an toàn
+- Đường lùi: Migration 0045 có down (file đã xoá → rejected deleted_by_retention); bỏ đọc selected_property_id trong organizationContext
+
+### D-021 · 2026-10-16T12:18:01+00:00 · Bảo vệ /api/metrics 'chỉ nội bộ' khi chưa có môi trường thật và không thêm được biến môi trường mới (phiên không đọc được .env*)
+
+- Phương án: (1) Thêm METRICS_TOKEN vào schema + .env.example · (2) Bearer token dẫn xuất HKDF-SHA256 (nhãn hm-metrics-v1) từ BETTER_AUTH_SECRET, so sánh thời gian hằng, sai ⇒ 401; script scripts/metrics-token.mjs in token từ môi trường; số liệu chỉ tổng hợp toàn hệ thống (không nhãn tổ chức) qua hàm SECURITY DEFINER; /api/ready trả ok/fail/timeout từng thành phần, không chi tiết lỗi
+- Chọn: Bearer token dẫn xuất HKDF-SHA256 (nhãn hm-metrics-v1) từ BETTER_AUTH_SECRET, so sánh thời gian hằng, sai ⇒ 401; script scripts/metrics-token.mjs in token từ môi trường; số liệu chỉ tổng hợp toàn hệ thống (không nhãn tổ chức) qua hàm SECURITY DEFINER; /api/ready trả ok/fail/timeout từng thành phần, không chi tiết lỗi
+- Lý do (tiêu chí chất lượng cuối): Tiêu chí 1–3: không bí mật mới cần quản lý, không lộ dữ liệu tổ chức qua nhãn metric, theo mẫu khoá dẫn xuất đã có (huỷ đăng ký email); không đụng file .env* bị chặn
+- Đường lùi: Đổi metricsAuthorized sang so với METRICS_TOKEN riêng khi chủ dự án duyệt; migration 0046 có down
+- Khi chạy thật (đề xuất, chủ dự án quyết ở G7): Chặn /api/metrics ở reverse proxy chỉ cho IP Prometheus nội bộ; cân nhắc METRICS_TOKEN riêng để xoay độc lập với bí mật phiên
+
+### D-022 · 2026-10-16T13:22:41+00:00 · Rà blueprint đợt 3 (T-226): xử lý 373 MUST còn mở — miễn trừ nào chấp nhận, khoảng trống trong repo làm ngay hay để đợt sau
+
+- Phương án: (1) Làm ngay mọi khoảng trống nhỏ trong đợt 3 (mở rộng phạm vi PLAN) · (2) Tick 48 mục đạt có bằng chứng file git/CI (bỏ tham chiếu không được git theo dõi), chấp nhận 18 miễn trừ có dữ kiện + điều kiện mở lại, loop defer 46 mục cần người/production, lập docs/autopilot/BLUEPRINT-GAPS.md cho 261 mục thiếu làm đề xuất PLAN đợt 4
+- Chọn: Tick 48 mục đạt có bằng chứng file git/CI (bỏ tham chiếu không được git theo dõi), chấp nhận 18 miễn trừ có dữ kiện + điều kiện mở lại, loop defer 46 mục cần người/production, lập docs/autopilot/BLUEPRINT-GAPS.md cho 261 mục thiếu làm đề xuất PLAN đợt 4
+- Lý do (tiêu chí chất lượng cuối): Tiêu chí 2–3: không phình phạm vi đợt đã duyệt (D-009), giữ minh bạch — GO-NO-GO ghi NO-GO đúng thực tế; nhiều khoảng trống cần quyết của chủ dự án (giấy phép, kênh báo lỗ hổng, pháp lý)
+- Đường lùi: Mục [x]/[~] đổi lại [ ] bằng một commit; danh sách thiếu chỉ là đề xuất

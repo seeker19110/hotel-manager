@@ -81,3 +81,12 @@ export function exportHandlers(deps: ExportJobDeps): Record<string, (job: Outbox
 export function expireExportsJob(workerDb: Kysely<unknown>): () => Promise<number> {
   return () => expireExports(workerDb);
 }
+
+/** Nhịp worker (T-225): ghi `worker_heartbeats` — metric `hm_worker_heartbeat_age_seconds` cảnh báo worker treo/chết. */
+export async function workerHeartbeat(
+  workerDb: Kysely<unknown>,
+  name: string,
+  now: Date = new Date(),
+): Promise<void> {
+  await sql`select app.worker_heartbeat(${name}, ${now})`.execute(workerDb);
+}

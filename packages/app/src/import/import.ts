@@ -995,7 +995,7 @@ export async function commitBatch(
     where organization_id = ${ctx.actor.orgId} and id = ${b.id}`.execute(ctx.trx);
   // Hạn giữ file nguồn (đề xuất mục 10: 30 ngày sau commit/huỷ).
   await sql`
-    update files set delete_after = current_date + 30
+    update files set delete_after = (now() at time zone 'UTC')::date + 30
     where organization_id = ${ctx.actor.orgId} and owner_type = 'import_batch' and owner_id = ${b.id}`.execute(
     ctx.trx,
   );
@@ -1020,7 +1020,7 @@ export async function cancelBatch(ctx: CommandContext, input: { batchId: string;
     update import_batches set status = 'cancelled', cancelled_at = now(), cancel_reason = ${reason}
     where organization_id = ${ctx.actor.orgId} and id = ${b.id}`.execute(ctx.trx);
   await sql`
-    update files set delete_after = current_date + 30
+    update files set delete_after = (now() at time zone 'UTC')::date + 30
     where organization_id = ${ctx.actor.orgId} and owner_type = 'import_batch' and owner_id = ${b.id}`.execute(
     ctx.trx,
   );

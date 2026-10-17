@@ -113,6 +113,12 @@ describe("S-017 folio ví dụ bắt buộc (trước check-out)", () => {
       }),
     );
     const f = await getFolio(h.t.runtime, h.frontDesk, stayId);
+    // UI (T-223) cần cơ sở + booking của lượt ở để mở ca tiền mặt đúng cơ sở và quay về booking.
+    const owner = await sql<{ reservation_id: string }>`
+      select i.reservation_id from stays s join reservation_items i on i.id = s.reservation_item_id
+      where s.id = ${stayId}`.execute(h.t.admin);
+    expect(f.propertyId).toBe(h.org.propertyId);
+    expect(f.reservationId).toBe(owner.rows[0]?.reservation_id);
     expect(f.chargesTotal).toBe(1_430_000);
     expect(f.paidTotal).toBe(500_000);
     expect(f.balance).toBe(930_000);

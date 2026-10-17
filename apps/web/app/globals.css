@@ -428,3 +428,133 @@ body {
 .field textarea {
   resize: vertical;
 }
+
+/* Khách sạn + vận hành (PLAN đợt 3 T-223): chuông, thẻ "Hôm nay", lịch theo ngày, việc buồng phòng, form khách. */
+.app-nav .bell {
+  gap: var(--space-1);
+}
+.bell__count {
+  min-width: 1.5rem;
+  padding: 0 var(--space-1);
+  border-radius: 999px;
+  background: var(--c-danger);
+  color: #ffffff;
+  font-size: 0.875rem;
+  line-height: 1.5rem;
+  text-align: center;
+}
+.today-cards {
+  list-style: none;
+  margin: 0 0 var(--space-6);
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+.today-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--space-1);
+  min-height: 6rem;
+  height: 100%;
+  padding: var(--space-3);
+  border: 2px solid var(--c-border);
+  border-radius: var(--radius);
+  color: inherit;
+  text-decoration: none;
+}
+.today-card:hover {
+  border-color: var(--c-brand);
+}
+.today-card__label {
+  font-weight: 600;
+}
+.today-card__count {
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+.today-card__hint {
+  color: var(--c-text-muted);
+  font-size: 0.875rem;
+}
+.card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+.card__actions .command-form {
+  margin: 0;
+}
+.btn--large {
+  min-height: 56px;
+  width: 100%;
+  font-size: 1.125rem;
+}
+.day-block h2 {
+  font-size: 1.125rem;
+  margin: var(--space-4) 0 var(--space-2);
+}
+.day-rooms {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.day-rooms__item {
+  display: grid;
+  grid-template-columns: 4rem 1fr;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--touch);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+}
+.day-rooms__code {
+  font-weight: 700;
+  font-size: 1.125rem;
+}
+.pager {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-4);
+}
+.guest-block {
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  margin: 0 0 var(--space-3);
+}
+.guest-block legend {
+  font-weight: 700;
+  padding: 0 var(--space-2);
+}
+.countdown {
+  font-weight: 700;
+}
+.notice-ok {
+  color: #0b6b2e;
+  font-weight: 600;
+}
+.details-box > summary {
+  display: flex;
+  align-items: center;
+  min-height: var(--touch);
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--c-brand);
+}
+.notif--unread {
+  border-left: 6px solid var(--c-brand);
+}
+@media (min-width: 640px) {
+  .today-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
