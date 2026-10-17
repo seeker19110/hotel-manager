@@ -106,9 +106,13 @@ export function MfaEnroll() {
     );
   if (phase === "enabled")
     return (
-      <p role="status">
-        Xác thực hai lớp đã được bật cho tài khoản này. <a href="/chon-to-chuc">Chọn tổ chức để làm việc</a>.
-      </p>
+      <>
+        <p role="status">Xác thực hai lớp đã được bật cho tài khoản này.</p>
+        {/* Liên kết dạng nút: vùng chạm ≥ 44 px (UX-A11Y-001). */}
+        <a className="btn" href="/chon-to-chuc">
+          Chọn tổ chức để làm việc
+        </a>
+      </>
     );
   if (phase === "password")
     return (
