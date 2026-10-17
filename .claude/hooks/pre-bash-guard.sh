@@ -36,9 +36,10 @@ decision="$(json_field "$res" decision)"
 # `--no-verify` là chính câu hỏi "bỏ cổng?" → không chạy cổng, để người quyết.
 if [ "$(json_field "$res" commit)" = "true" ] && [ "$(json_field "$res" no_verify)" != "true" ]; then
   # Gốc cổng = repo NHẬN commit (`cd ../repo-khac && git commit`, `git -C …`), không mặc định gốc phiên: từng chạy
-  # cổng của dự án phiên cho commit ở repo khác (đỏ/xanh không liên quan). Repo git lồng trong dự án mà không có
-  # xt.yaml/.xtemplates riêng (submodule, apps/web) → vẫn dùng cổng của dự án. Repo NGOÀI dự án → hỏi người, không
-  # chạy cổng của nó: cổng là mã của repo đó (repo vừa clone) và hook chạy TRƯỚC bước hỏi quyền (AUD-SEC-015).
+  # cổng của dự án phiên cho commit ở repo khác (đỏ/xanh không liên quan). Chỉ tự chạy cổng của CHÍNH dự án: repo git
+  # lồng trong dự án mà không có xt.yaml/.xtemplates riêng (submodule, apps/web) → cổng của dự án. Repo NGOÀI dự án,
+  # hoặc repo lồng CÓ cổng riêng (repo bên thứ ba clone vào dự án) → hỏi người, không chạy cổng của nó: cổng là mã của
+  # repo đó và hook chạy TRƯỚC bước hỏi quyền (AUD-SEC-015).
   groot="$XT_ROOT"
   cdir="$(json_field "$res" commit_dir)"
   top=""
@@ -47,7 +48,11 @@ if [ "$(json_field "$res" commit)" = "true" ] && [ "$(json_field "$res" no_verif
   xroot="$(cd "$XT_ROOT" 2>/dev/null && pwd -P)" || xroot="$XT_ROOT"
   if [ -n "$top" ] && [ "$top" != "$xroot" ]; then
     case "$top/" in
-    "$xroot"/*) { [ -e "$top/xt.yaml" ] || [ -d "$top/.xtemplates" ]; } && groot="$top" ;;
+    "$xroot"/*)
+      if [ -e "$top/xt.yaml" ] || [ -d "$top/.xtemplates" ]; then
+        pretool_decision ask "Khung cần xác nhận: commit vào repo lồng có cổng riêng ($top) — cổng của repo đó không chạy tự động (là mã của repo đó); chạy cổng của nó trước rồi xác nhận"
+      fi
+      ;;
     *)
       # Dự án nằm TRONG repo cha (monorepo `apps/web`, phiên mở ở thư mục con): commit của chính dự án → cổng dự án.
       case "$xroot/" in
