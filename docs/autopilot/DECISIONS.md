@@ -287,3 +287,10 @@
 - Chọn: Giữ cả hai: 'alternatives' cho allocation.createHold đúng spec, 'items' là danh sách chung (BLOCK_CONFLICT, reservation.hold); ghi API-CONTRACT
 - Lý do (tiêu chí chất lượng cuối): (1) đúng spec đã ghi, không đổi hợp đồng reservation.hold đang có client dùng; (3) hai trường có kiểu khác nhau rõ ràng, tài liệu hoá trong API-CONTRACT §2.
 - Đường lùi: Đổi createHold trả 'items' và sửa S-002 + API-CONTRACT.
+
+### D-041 · 2026-10-17T08:39:48+00:00 · T-508: tick các mục MUST chỉ đạt một phần (UX-STATE-001 không có Storybook; DB-MODEL-004 còn 52 FK nhóm A thiếu index là ngoại lệ D-035 trong khi Kiểm đòi đỏ khi > 0; XC-GREEN-007 chưa khớp pháp lý vì DPIA chưa có; DB-PERF-001 EXPLAIN không ANALYZE)?
+
+- Phương án: (1) Chặt: bỏ tick UX-STATE-001, DB-MODEL-004, XC-GREEN-007 (đạt một phần, ghi GAPS); giữ DB-PERF-001 vì Kiểm chỉ đòi file explain + test chặn Seq Scan, đã đủ · (2) Giữ cả 4 tick kèm lưu ý
+- Chọn: Chặt: bỏ tick UX-STATE-001, DB-MODEL-004, XC-GREEN-007 (đạt một phần, ghi GAPS); giữ DB-PERF-001 vì Kiểm chỉ đòi file explain + test chặn Seq Scan, đã đủ
+- Lý do (tiêu chí chất lượng cuối): (1) đúng và an toàn: luật bằng chứng — tick chỉ khi Kiểm đạt đủ; cách hiểu chặt hơn. (2) đường lùi: tick lại khi có Storybook/index nhóm A/DPIA.
+- Đường lùi: Đổi [ ] thành [x] ở 3 dòng BLUEPRINT.md.

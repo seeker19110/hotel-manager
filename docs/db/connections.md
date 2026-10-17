@@ -34,10 +34,10 @@ Công thức: `30 × W + 20 × K ≤ 87` với W = số bản sao web, K = số 
 ## 3. Isolation và retry (DB-TX-002)
 
 - Mọi lệnh chạy trong **một transaction `READ COMMITTED`** (mặc định Postgres) qua `executeCommand` (`packages/app/src/pipeline/command.ts`); tính đúng của tiền/tồn dựa vào **khoá hàng tường minh** (`SELECT … FOR UPDATE`, thứ tự khoá cố định) và ràng buộc DB (`EXCLUDE`, `UNIQUE`, `CHECK`, trigger sổ cái), không dựa vào `SERIALIZABLE`.
-- Vì không dùng `REPEATABLE READ`/`SERIALIZABLE`, lỗi tuần tự hoá `40001` không xảy ra do isolation; vẫn bọc **retry toàn bộ transaction** khi gặp `40001` hoặc `40P01` (deadlock), tối đa `MAX_ATTEMPTS = 3` lần (hằng ở `command.ts`); lỗi nghiệp vụ không retry. Idempotency-Key bảo đảm lần chạy lại không ghi đôi.
+- Vì không dùng `REPEATABLE READ`/`SERIALIZABLE`, lỗi tuần tự hoá `40001` không xảy ra do isolation; vẫn bọc **retry toàn bộ transaction** khi gặp `40001` hoặc `40P01` (deadlock), bằng helper chung `retryAsync`/`withTenantRetry` (`packages/db/src/retry.ts`, `tenant.ts`): lệnh HTTP theo `REQUEST_TX_RETRY` (3 lần, lùi mũ + full jitter 25–250 ms, tổng ≤ 3 s), job nền theo `WORKER_TX_RETRY` (5 lần, ≤ 2 s mỗi lần chờ, tổng ≤ 15 s); lỗi nghiệp vụ không retry. Idempotency-Key bảo đảm lần chạy lại không ghi đôi.
 - Không có `BEGIN ISOLATION LEVEL …` nằm ngoài helper (grep trong mã = 0).
 - `statement_timeout` và `idle_in_transaction_session_timeout` đặt cho vai trò `app_runtime` (test `tenancy.db.test.ts`).
-- **Còn treo:** chưa có chờ lùi (backoff + jitter) giữa các lần retry, và transaction của worker (`withTenant` ngoài pipeline) chưa tự retry deadlock.
+- Rào máy: `packages/app/src/tx-guards.test.ts` (mức cô lập và mã 40001/40P01 chỉ nằm ở helper), `packages/db/src/retry.test.ts`, `packages/app/src/pipeline/command-pipeline-tx-retry.db.test.ts` (40001 thật).
 
 ## 4. Vacuum cho bảng ghi nhiều (DB-PERF-008)
 
@@ -66,4 +66,4 @@ Metric do `app.db_health_metrics()` (migration 0051, SECURITY DEFINER) qua `/api
 | `HmDbDeadTuplesHigh` | `hm_db_dead_tuples > 10.000` và `hm_db_dead_tuple_ratio > 0,2` trong 1 giờ | ticket | ngưỡng khởi điểm theo `autovacuum_vacuum_scale_factor` 0,2 mặc định; chỉnh sau pilot |
 
 ## Còn treo
-- Backoff + jitter giữa các lần retry deadlock và retry cho transaction của worker (DB-TX-002).
+- Không còn mục treo cho DB-TX-002 (đã có backoff + jitter và retry phía worker từ đợt 6, T-502).

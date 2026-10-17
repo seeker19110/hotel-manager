@@ -191,7 +191,7 @@ Sau mỗi lát: review độc lập (`reviewer`), sửa hết 🔴/🟠 kèm tes
 - [x] `T-505` Triển khai + hạn giữ: `deploy/compose.yaml` thêm service web/worker (image từ Dockerfile, `stop_grace_period` ≥ hạn chót dừng êm, vai trò CSDL + danh tính S3 riêng), bảng chính sách retention (log container, outbox đã phát, idempotency, notification_deliveries, lifecycle bucket) + job dọn bảng sự kiện có test (ARC-RES-009, SEC-INFRA-001, XC-GREEN-007) — Gate: `pnpm vitest run --project unit process-docs && pnpm vitest run --project db retention`
 - [x] `T-506` UI: đủ 4 trạng thái (đang tải/rỗng/lỗi/mặc định) cho mọi màn dữ liệu + rào đếm thiếu = 0, schema zod dùng chung client ↔ registry cho form, E2E hai người dùng không thấy dữ liệu của nhau, tag `@smoke` ≥ 3 (UX-STATE-001, FE-FORM-001, PRF-WEB-001, QA-E2E-001) — Gate: `pnpm --filter @hm/web exec playwright test ux-guards`
 - [x] `T-507` Kiến trúc + spec: `index.ts` cho mọi module `packages/app/src/*` (nền `import_noi_bo` về 0), gắn S-NNN vào test/viết test còn thiếu cho 4 spec (nền spec-coverage về rỗng) (ARC-MOD-005, PM-SPEC-004, WF-SDD-003) — Gate: `pnpm vitest run --project unit arch-guards process-docs`
-- [ ] `T-508` Rà blueprint đợt 6 + cập nhật GO-NO-GO — Gate: `python3 scripts/check-blueprint-evidence.py BLUEPRINT.md && python3 -m unittest discover -s scripts -p "test_*.py"`
+- [x] `T-508` Rà blueprint đợt 6 + cập nhật GO-NO-GO — Gate: `python3 scripts/check-blueprint-evidence.py BLUEPRINT.md && python3 -m unittest discover -s scripts -p "test_*.py"`
 
 ## Phụ thuộc ngoài
 | Việc | Bên ngoài | Kế hoạch B |
