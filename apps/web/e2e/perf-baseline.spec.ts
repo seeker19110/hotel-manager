@@ -9,18 +9,16 @@ import { execSync } from "node:child_process";
 import { readdirSync, readFileSync, readlinkSync, writeFileSync } from "node:fs";
 import { cpus, platform, release, totalmem } from "node:os";
 import { expect, test } from "@playwright/test";
+import { type Budgets, checkPageBudget, type PageStat, parseBudgets } from "./perf-budget.ts";
 import { loginStaff } from "./sessions.ts";
 
 test.describe.configure({ mode: "serial" });
 test.use({ serviceWorkers: "block" });
 
-interface Budget {
-  max_transfer_kb: number;
-  max_requests: number;
-}
-const budgets = JSON.parse(readFileSync(new URL("../../../perf/budgets.json", import.meta.url), "utf8")) as {
-  pages: Record<string, Budget>;
-};
+// Hàm kiểm ngân sách ở `./perf-budget.ts` (thuần, có unit test thêm 200 KB phải đỏ); spec chỉ đo và gọi hàm đó.
+const budgets: Budgets = parseBudgets(
+  JSON.parse(readFileSync(new URL("../../../perf/budgets.json", import.meta.url), "utf8")),
+);
 const OUT = process.env.PERF_BASELINE_OUT;
 const PUBLIC_PAGES = ["/dang-nhap", "/dang-nhap/nguoi-thue", "/offline"];
 const STAFF_PAGES = ["/chon-to-chuc", "/phong", "/buong-phong", "/su-co", "/thong-bao"];
@@ -32,13 +30,6 @@ const median = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.floor(xs.len
 const pct = (sorted: number[], p: number) =>
   sorted[Math.min(sorted.length - 1, Math.ceil((p / 100) * sorted.length) - 1)] as number;
 const round = (n: number, d = 1) => Math.round(n * 10 ** d) / 10 ** d;
-
-interface PageStat {
-  route: string;
-  requests: number;
-  transfer_kb: number;
-  js_kb: number;
-}
 
 let cookies: Awaited<ReturnType<typeof loginStaff>> = [];
 
@@ -105,12 +96,10 @@ for (const [authed, routes] of [
         js_kb: median(runs.map((r) => r.js_kb)),
       };
       results.push(stat);
-      const budget = budgets.pages[route];
-      expect(budget, `thiếu ngân sách cho ${route} trong perf/budgets.json`).toBeDefined();
-      expect(stat.transfer_kb, `${route}: KB truyền tải`).toBeLessThanOrEqual(
-        (budget as Budget).max_transfer_kb,
-      );
-      expect(stat.requests, `${route}: số request`).toBeLessThanOrEqual((budget as Budget).max_requests);
+      expect(
+        checkPageBudget(stat, budgets).map((v) => v.message),
+        "vượt perf/budgets.json",
+      ).toEqual([]);
     });
   }
 }
