@@ -35,6 +35,17 @@ describe("looksLikeCode — nhận ra code bị comment-out", () => {
     "});",
     "}",
     "console.log(x);",
+    'throw new Error("Không tìm thấy phòng");',
+    'const label = "Phòng trống";',
+    "await sendSms(phone, `Xin chào ${name}`);",
+    "return 'Đã thu đủ';",
+    '<Button variant="primary" onClick={save}>Lưu</Button>',
+    '<Button variant="primary" onClick={save} />',
+    "<Button",
+    'variant="primary"',
+    "</div>",
+    "</>",
+    "{items.map((i) => <li key={i} />)}",
   ])("%s → mã", (line) => {
     expect(looksLikeCode(line)).toBe(true);
   });
@@ -55,6 +66,11 @@ describe("looksLikeCode — nhận ra code bị comment-out", () => {
     "Nguồn: RFC 9110 §15.5;",
     "@param x giá trị đầu vào",
     "Note that foo(bar) is idempotent",
+    'Hiển thị "Phòng trống" khi không có khách;',
+    "Báo lỗi `không tìm thấy` rồi dừng;",
+    "<token> là mã một lần",
+    "Use <b> for bold text",
+    "x=1 mặc định",
   ])("%j → không phải mã", (line) => {
     expect(looksLikeCode(line)).toBe(false);
   });
@@ -63,7 +79,7 @@ describe("looksLikeCode — nhận ra code bị comment-out", () => {
 describe("commentLines — chỉ lấy comment thật", () => {
   it("gỡ ký hiệu // và /* * */; mỗi dòng của comment khối là một mục", () => {
     const src = "/**\n * const a = 1;\n * mô tả\n */\n// return b;\nconst z = 1; // await c();";
-    expect(commentLines(src)).toEqual([
+    expect(commentLines(src).map(({ line, text }) => ({ line, text }))).toEqual([
       { line: 2, text: "const a = 1;" },
       { line: 3, text: "mô tả" },
       { line: 5, text: "return b;" },
@@ -109,6 +125,50 @@ describe("commentedCodeIn", () => {
       'const s = "// return x;";',
     ].join("\n");
     expect(commentedCodeIn(src)).toEqual([]);
+  });
+  it("JSX comment-out {/* <Button … /> */} bị báo", () => {
+    const src = [
+      "export const A = () => (",
+      "  <div>",
+      '    {/* <Button variant="x" onClick={save} /> */}',
+      "  </div>",
+      ");",
+    ].join("\n");
+    expect(commentedCodeIn(src).map((h) => h.text)).toEqual(['<Button variant="x" onClick={save} />']);
+  });
+  it("code tiếng Việt trong chuỗi bị comment-out vẫn bị báo (// và /* */)", () => {
+    const src = [
+      '// throw new Error("Không tìm thấy phòng");',
+      '/* const label = "Phòng trống"; */',
+      "// await sendSms(phone, `Xin chào ${name}`);",
+    ].join("\n");
+    expect(commentedCodeIn(src).map((h) => h.line)).toEqual([1, 2, 3]);
+  });
+  it("khối @example và rào ``` trong JSDoc là tài liệu, không bị báo; hết khối thì lại kiểm", () => {
+    const src = [
+      "/**",
+      " * Tính tiền.",
+      " * @example",
+      " * const x = calc(1);",
+      " * await save(x);",
+      " * @param a số tiền",
+      " * const y = 2;",
+      " */",
+      "/**",
+      " * ```ts",
+      " * const z = 1;",
+      " * ```",
+      " * const w = 2;",
+      " */",
+      "// ```",
+      "// return 1;",
+      "// ```",
+    ].join("\n");
+    expect(commentedCodeIn(src).map((h) => h.line)).toEqual([7, 13]);
+  });
+  it("trạng thái @example không rò sang comment khác", () => {
+    const src = ["/** @example */", "const a = 1;", "// const b = 2;"].join("\n");
+    expect(commentedCodeIn(src).map((h) => h.line)).toEqual([3]);
   });
   it("mã trong chuỗi/template không bị báo; comment cuối dòng thì có", () => {
     expect(commentedCodeIn("const t = `\n// const a = 1;\n`;")).toEqual([]);
