@@ -47,7 +47,7 @@ Autopilot bắt đầu bằng `python3 .xtemplates/scripts/xt.py doctor --fix` (
 ## 7. Cổng
 - **Trước commit** (`/gate`): `.xtemplates/scripts/dev-task.sh gate` (đọc `xt.yaml`; commit qua `scripts/commit-gated.sh` — chỉ commit phần đã stage) → build · typecheck · lint · test xanh (lint nên gồm kiểm format); tự review diff; không rác/bí mật; conventional commit.
 - **Trước merge:** + toàn bộ test, nhánh cập nhật với `main`, tiêu chí chấp nhận trong SPEC, mục blueprint liên quan tick kèm bằng chứng, review (người hoặc `reviewer` model khác), CI xanh.
-- **Merge (chủ dự án quyết 2026-10-16):** merge từng lát — mỗi lát một PR; phiên chính merge khi CI xanh, review độc lập đã sửa hết 🔴/🟠 và nhánh cập nhật với `main`. `xt.yaml` `merge_autonomy: L2` (chủ dự án duyệt 2026-10-16): `xt.py merge-check` quyết — làn nhanh máy tự merge khi CI xanh; PR chạm `merge_risk_paths` (tiền, tồn, lưu trú, CSDL…) hoặc đường dẫn nhạy cảm của khung → người merge.
+- **Merge (chủ dự án quyết 2026-10-16, nâng L3 2026-10-17):** merge từng lát — mỗi lát một PR; `xt.yaml` `merge_autonomy: L3` (chủ dự án duyệt 2026-10-17): mở PR là bật auto-merge của GitHub (`gh pr merge <N> --auto --squash`), GitHub merge khi required check xanh; review độc lập đã sửa hết 🔴/🟠 và nhánh cập nhật với `main`. PR chạm `merge_risk_paths` (tiền, tồn, lưu trú, CSDL…) hoặc ngoại lệ cứng của khung (tiền, dữ liệu người dùng thật, auth, mật mã, bí mật) → người merge (`merge-check` trả `hard`).
 - **Phát hành (G7):** `python3 .xtemplates/scripts/xt.py blueprint-status BLUEPRINT.md --strict` = 0 MUST mở + `GO-NO-GO.md` không còn BLOCKER + chủ dự án đã quyết từng đề xuất "Khi chạy thật" trong `docs/autopilot/DECISIONS.md`.
 
 ## 8. Skill và subagent (Claude Code)

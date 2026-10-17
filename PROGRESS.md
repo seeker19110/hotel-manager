@@ -4,7 +4,7 @@
 
 ## Đang làm
 - Autopilot đợt 3 (`docs/autopilot/PLAN.md`, 26 task T-201…T-226, tự duyệt D-009; 130 vòng / 120 giờ). Xong: T-201…T-215. Lát 1–2 đã merge (PR #9); lát 3 (thông báo T-213…T-215) xong — PR + review.
-- Merge: `merge_autonomy: L2` + `merge_risk_paths` (tiền/tồn/lưu trú/CSDL → người merge). Hook/permission chưa vá (FB-009…020, chờ chủ dự án duyệt).
+- Merge: `merge_autonomy: L3` (từ 2026-10-17) + `merge_risk_paths` (tiền/tồn/lưu trú/CSDL → người merge). Hook/permission chưa vá (FB-009…020, chờ chủ dự án duyệt).
 
 ## Tiếp theo
 1. PR lát 3 (review độc lập, merge-check) → theo `loop status`: lát 4 portal T-216…T-219.
