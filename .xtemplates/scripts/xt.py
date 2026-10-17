@@ -910,7 +910,8 @@ def _verdict_loop_state(st: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if st.get("iterations", 0) >= st.get("max_iterations", 50):
         return {"verdict": "budget", "reason": f"đã chạm trần {st.get('max_iterations')} vòng"}
     deadline = st.get("deadline")
-    if deadline and now_iso() > deadline:
+    due = _parse_iso(deadline) if isinstance(deadline, str) else None
+    if due and _dt.datetime.now(_dt.timezone.utc) >= due:  # tới hạn là hết (`--hours 0`), so thời điểm, không so chuỗi
         return {"verdict": "budget", "reason": f"quá hạn {deadline}"}
     return None
 
@@ -2430,7 +2431,7 @@ def _doctor_xt_yaml(base: Path, fw: Path) -> List[Finding]:
         msg = "thiếu xt.yaml — dev-task.sh/cổng commit không có lệnh khai báo (LOOP-HARNESS-008)"
         return [Finding("xt-yaml", "error", msg, fix)]
     keys = {m[1]: m[2] for m in map(YAML_KEY_RE.match, p.read_text(encoding="utf-8").splitlines()) if m}
-    out = []
+    out = _doctor_gate_tools(keys)
     missing = [k for k in DOCTOR_YAML_KEYS if k not in keys]
     if missing:
         out.append(
@@ -2449,6 +2450,30 @@ def _doctor_xt_yaml(base: Path, fw: Path) -> List[Finding]:
             )
         )
     return out
+
+
+# Lệnh ở vị trí đầu một lệnh đơn trong chuỗi shell của `xt.yaml`; từ khoá/builtin của shell không phải công cụ.
+# Tên công cụ trọn token: không theo sau `=` (gán biến) hay `/` (công cụ theo đường dẫn `node_modules/.bin/x`, kiểm riêng
+# thì báo nhầm); lookahead một ký tự để không quay lui bậc hai trên token dài.
+GATE_CMD_RE = re.compile(r"(?:^|&&|\|\||[;|]|\bdo\b|\bthen\b)\s*([A-Za-z][\w.+-]*)(?![\w.+=/-])")
+QUOTED_RE = re.compile(r"'[^']*'|\"[^\"]*\"")  # `|`/`do` trong nháy không phải ranh giới lệnh
+GATE_MODULE_RE = re.compile(r"\bpython[0-9.]*\s+-m\s+([A-Za-z_][\w]*)")
+SHELL_BUILTINS = {"for", "do", "done", "if", "then", "else", "elif", "fi", "while", "until", "case", "esac", "in"}
+SHELL_BUILTINS |= {"exit", "export", "cd", "true", "false", "test", "echo", "printf", "set", "unset", "return"}
+
+
+def _doctor_gate_tools(keys: Dict[str, str]) -> List[Finding]:
+    """Công cụ/mô-đun mà lệnh cổng gọi nhưng không có trên máy (AUD-HAR-034: thiếu `shellcheck` chỉ biết khi cổng đỏ)."""
+    missing: List[str] = []
+    for k in DOCTOR_YAML_KEYS:
+        cmd = QUOTED_RE.sub("''", yaml_scalar(keys.get(k, "")))
+        tools = {t for t in GATE_CMD_RE.findall(cmd) if t not in SHELL_BUILTINS and not shutil.which(t)}
+        mods = {m for m in GATE_MODULE_RE.findall(cmd) if importlib.util.find_spec(m) is None}
+        missing += [f"{t} ({k})" for t in sorted(tools | mods)]
+    if not missing:
+        return []
+    msg = f"công cụ cổng không có trên máy: {', '.join(missing)} — cài trước khi chạy cổng (cổng sẽ đỏ)"
+    return [Finding("gate-tools", "warn", msg)]
 
 
 def _doctor_gitignore(base: Path) -> List[Finding]:
@@ -3690,6 +3715,9 @@ def _collect_candidates(base: Path, blueprint: str) -> List[Dict[str, str]]:
 
 
 def _feedback_collect(args: argparse.Namespace, base: Path) -> int:
+    if (base / "framework/00-method/conventions.md").is_file() and (base / "scripts/xt.py").is_file():
+        print("· Bỏ qua: đây là repo khung — phản hồi tự gom dành cho dự án đích (ADR-0010, AUD-HAR-048)")
+        return 0
     d = base / FEEDBACK_DIR
     seen = {e.get("source") for e in feedback_entries(d)} if d.is_dir() else set()
     added = []
@@ -3713,13 +3741,27 @@ def _feedback_list(args: argparse.Namespace, base: Path) -> int:
     return 0
 
 
+LOCAL_FEEDBACK_ID_RE = re.compile(r"T-\d+|loop")
+
+
+def _feedback_key(e: Dict[str, str], project: str) -> Tuple[str, str]:
+    """(loại, ID) — trừ ID cục bộ của từng dự án (`T-003`, `loop`, mọi `bi-chan`): gộp theo triệu chứng chuẩn hoá,
+    nếu không hai dự án khác lý do vẫn bị tính "đủ ngưỡng" (AUD-CODE-004); triệu chứng rỗng thì không gộp với ai."""
+    kind, fid = e.get("kind", "?"), e.get("id", "?")
+    if kind == "bi-chan" or LOCAL_FEEDBACK_ID_RE.fullmatch(fid):
+        symptom = " ".join(e.get("symptom", "").lower().split())[:120].strip("—- ")  # rỗng được ghi thành `—`
+        return kind, symptom or f"{project}:{fid}"
+    return kind, fid
+
+
 def feedback_aggregate(sources: List[Tuple[str, Path]]) -> List[Dict[str, Any]]:
-    """Gộp phản hồi nhiều dự án theo (loại, ID). `ready` = ≥ 2 dự án cùng báo hoặc có bước tái hiện (ADR-0010)."""
+    """Gộp phản hồi nhiều dự án theo (loại, ID) hoặc (loại, triệu chứng) với ID cục bộ. `ready` = ≥ 2 dự án cùng báo
+    hoặc có bước tái hiện (ADR-0010)."""
     groups: Dict[Tuple[str, str], Dict[str, Any]] = {}
     for project, d in sources:
         for e in feedback_entries(d) if d.is_dir() else []:
-            key = (e.get("kind", "?"), e.get("id", "?"))
-            g = groups.setdefault(key, {"kind": key[0], "id": key[1], "projects": [], "items": []})
+            key = _feedback_key(e, project)
+            g = groups.setdefault(key, {"kind": key[0], "id": e.get("id", "?"), "projects": [], "items": []})
             g["projects"] = sorted(set(g["projects"]) | {project})
             # FB có thể đã sửa tay sau `feedback add` → che lại trước khi ra PR nháp ở repo khung public (AUD-CFG-002).
             g["items"].append({"project": project, **{k: redact(v) if isinstance(v, str) else v for k, v in e.items()}})
@@ -3743,7 +3785,7 @@ def _feedback_aggregate(args: argparse.Namespace, base: Path) -> int:
         print(json.dumps(groups, ensure_ascii=False))
         return 0
     print(
-        "| Đủ ngưỡng | Loại | ID | Dự án | Triệu chứng (đầu tiên) | Cách khắc phục (đầu tiên) |\n|---|---|---|---|---|---|"
+        "| Đủ ngưỡng | Loại | ID | Dự án | Triệu chứng (mọi bản khác nhau) | Cách khắc phục (đầu tiên) |\n|---|---|---|---|---|---|"
     )
     for g in groups:
         first = g["items"][0]
@@ -3752,7 +3794,7 @@ def _feedback_aggregate(args: argparse.Namespace, base: Path) -> int:
             g["kind"],
             f"`{g['id']}`",
             ", ".join(g["projects"]),
-            first.get("symptom", "").replace("|", "\\|")[:160],
+            "; ".join(dict.fromkeys(i.get("symptom", "") for i in g["items"])).replace("|", "\\|")[:300],
             first.get("fix", "").replace("|", "\\|")[:160],
         ]
         print("| " + " | ".join(cells) + " |")

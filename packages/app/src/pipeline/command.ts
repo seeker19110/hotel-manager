@@ -21,7 +21,7 @@ import {
   type SecurityClient,
   securityEventForProblem,
 } from "../logging/index.ts";
-import { CommandError, type Problem, rateLimited, toProblem } from "./problem.ts";
+import { CommandError, idempotencyInProgress, type Problem, rateLimited, toProblem } from "./problem.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -274,6 +274,14 @@ export async function executeCommand<T>(
         db,
         { orgId: actor.orgId, actorId: actor.membershipId },
         async (trx) => {
+          // D-043 (BE-API-008): lần đầu cùng key còn chạy (chưa commit) giữ khoá này tới hết transaction ⇒ request đồng
+          // thời không chờ trên unique index (giữ kết nối CSDL) mà trả ngay 409 IDEMPOTENCY_IN_PROGRESS. Lần đầu đã commit
+          // (khoá đã nhả) ⇒ lấy được khoá, `on conflict` thấy hàng đã commit ⇒ replay như cũ.
+          const free = await sql<{ ok: boolean }>`
+          select pg_try_advisory_xact_lock(hashtextextended(${`idem:${actor.orgId}:${commandId}`}, 0)) as ok`.execute(
+            trx,
+          );
+          if (!free.rows[0]?.ok) throw idempotencyInProgress();
           const inserted = await sql<{ id: string }>`
           insert into idempotency_keys (id, organization_id, key, command, actor_person_id, request_hash, correlation_id)
           values (${randomUUID()}, ${actor.orgId}, ${commandId}, ${req.command}, ${actor.personId}, ${hash}, ${req.correlationId})
@@ -365,7 +373,9 @@ export async function executeCommand<T>(
   } catch (err) {
     if (
       err instanceof CommandError &&
-      (err.code === "IDEMPOTENCY_CONFLICT" || err.code === "MALFORMED_REQUEST")
+      (err.code === "IDEMPOTENCY_CONFLICT" ||
+        err.code === "IDEMPOTENCY_IN_PROGRESS" ||
+        err.code === "MALFORMED_REQUEST")
     )
       throw err;
     const problem = toProblem(err, req.correlationId);

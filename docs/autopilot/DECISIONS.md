@@ -251,6 +251,7 @@
 - Chọn: Migration mới: đổi FK NO ACTION không DEFERRABLE sang ON DELETE RESTRICT (cùng ngữ nghĩa khi không trì hoãn); FK DEFERRABLE giữ NO ACTION + ghi danh sách ngoại lệ có lý do trong rào; thêm index cho FK còn thiếu trừ nhóm có lý do (cột người thao tác bảng ít xoá) — rào ratchet về 0 hoặc ngoại lệ tường minh
 - Lý do (tiêu chí chất lượng cuối): (1) đúng: RESTRICT và NO ACTION chỉ khác khi FK trì hoãn được — đổi phần không trì hoãn giữ nguyên hành vi, làm hành động tường minh trong catalog; phương án 3 phá FK DEFERRABLE đang dựa vào kiểm cuối transaction. (3) kiểm máy được bằng catalog.
 - Đường lùi: Down của migration đổi lại NO ACTION (danh sách FK ghi cố định trong tệp migration 0051 — down chỉ hoàn nguyên đúng các FK đó), drop index đã thêm.
+- Ghi chú 2026-10-17 (T-610): nhóm A đã có index ở migration 0060 (`0060_fk_operator_indexes`); rào schema-guards không còn danh sách ngoại lệ FK thiếu index.
 
 ### D-036 · 2026-10-17T02:24:00+00:00 · Đợt 6: 26 MUST còn thiếu làm được trong repo — làm hết hay dừng?
 
@@ -336,3 +337,10 @@
 - Chọn: Giữ 404 NOT_FOUND (không lộ sự tồn tại tài nguyên ngoài phạm vi, D-030), sửa SPEC-inventory §3
 - Lý do (tiêu chí chất lượng cuối): (1) an toàn: thống nhất với quy ước toàn hệ thống và API-CONTRACT (404 cho ngoài phạm vi); 403 chỉ khi đọc được tài nguyên nhưng không được thao tác.
 - Đường lùi: Trả 403 ở authorize cho inventory.
+
+### D-051 · 2026-10-17T12:35:00+00:00 · T-604/T-605: migration mới 0057/0058 đứng trước 0060 đã có trên main — Kysely mặc định từ chối migration chèn trước bản đã áp
+
+- Phương án: (1) Đổi số thành 0061 (T-604) và 0062 (T-605) để luôn đứng sau bản cuối trên main · (2) Bật `allowUnorderedMigrations` cho migrator
+- Chọn: Đổi số thành 0061 (T-604) và 0062 (T-605) để luôn đứng sau bản cuối trên main
+- Lý do (tiêu chí chất lượng cuối): (1) đúng: CSDL đã áp 0060 sẽ báo lỗi sổ migration nếu nhận 0057; (3) giữ thứ tự tuyến tính đơn giản, không nới cấu hình migrator.
+- Đường lùi: Đổi tên file/khoá migration về số cũ khi chưa áp ở đâu.

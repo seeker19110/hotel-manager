@@ -1,4 +1,4 @@
-// Migration 0057 (T-604, SPEC-inventory S-017): hàm worker `app.stays_overdue` — `down` gỡ đúng hàm (lùi theo sổ, không đếm cứng),
+// Migration 0061 (T-604, SPEC-inventory S-017): hàm worker `app.stays_overdue` — `down` gỡ đúng hàm (lùi theo sổ, không đếm cứng),
 // `up` dựng lại; chỉ vai trò app_worker được gọi (hàm SECURITY DEFINER đọc xuyên tổ chức, phạm vi hẹp).
 import { createMigrator, migrations } from "@hm/db";
 import { sql } from "kysely";
@@ -23,7 +23,7 @@ const fnExists = async () =>
     )
   ).rows[0]?.n;
 
-describe("migration 0057 — app.stays_overdue", () => {
+describe("migration 0061 — app.stays_overdue", () => {
   it("up: hàm có mặt; worker gọi được (trả hàng rỗng khi chưa có lượt ở); runtime không có quyền thực thi", async () => {
     expect(await fnExists()).toBe(1);
     const r = await sql`select * from app.stays_overdue(now())`.execute(t.worker);
@@ -33,13 +33,13 @@ describe("migration 0057 — app.stays_overdue", () => {
     });
   });
 
-  it("down (lùi theo sổ tới 0057) gỡ hàm và giữ nguyên dữ liệu; up lại dựng lại hàm; 0057 đứng sau 0056 trong sổ", async () => {
-    const org = await seedOrg(t.admin, "KS lùi 0057");
+  it("down (lùi theo sổ tới 0061) gỡ hàm và giữ nguyên dữ liệu; up lại dựng lại hàm; 0061 đứng sau 0060 trong sổ", async () => {
+    const org = await seedOrg(t.admin, "KS lùi 0061");
     const m = createMigrator(t.admin);
     for (let guard = 0; guard < 50; guard++) {
       const r = await m.migrateDown();
       expect(r.error).toBeUndefined();
-      if (r.results?.[0]?.migrationName === "0057_stays_overdue") break;
+      if (r.results?.[0]?.migrationName === "0061_stays_overdue") break;
     }
     expect(await fnExists()).toBe(0);
     await expect(sql`select * from app.stays_overdue(now())`.execute(t.worker)).rejects.toMatchObject({
@@ -52,10 +52,10 @@ describe("migration 0057 — app.stays_overdue", () => {
 
     const up = await createMigrator(t.admin).migrateToLatest();
     expect(up.error).toBeUndefined();
-    expect(up.results?.[0]?.migrationName).toBe("0057_stays_overdue");
+    expect(up.results?.[0]?.migrationName).toBe("0061_stays_overdue");
     expect(await fnExists()).toBe(1);
     expect((await sql`select * from app.stays_overdue(now())`.execute(t.worker)).rows).toEqual([]);
     const keys = Object.keys(migrations);
-    expect(keys.indexOf("0057_stays_overdue")).toBe(keys.indexOf("0056_event_table_retention") + 1);
+    expect(keys.indexOf("0061_stays_overdue")).toBe(keys.indexOf("0060_fk_operator_indexes") + 1);
   });
 });

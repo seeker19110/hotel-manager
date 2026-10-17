@@ -3,12 +3,15 @@
 // - S-006 mất mạng: không gửi, báo OFFLINE; bấm lại được khi có mạng.
 // - S-010 hết thời gian chờ/mất phản hồi: "Đang kiểm tra kết quả…" → GET /api/v1/commands/{key}; đã commit ⇒ hiện kết quả
 //   từ server, KHÔNG gửi lần hai. S-012 đang xử lý ⇒ hỏi lại.
+// - BE-API-008 (D-043): 409 IDEMPOTENCY_IN_PROGRESS (lần đầu cùng key còn chạy) ⇒ đợi `Retry-After` rồi tra như "checking",
+//   KHÔNG gửi payload mới; lần đầu chưa commit nên GET chưa thấy lệnh (404) = vẫn đang chạy, không phải "server chưa nhận".
 // - S-011 server chưa nhận (404 COMMAND_NOT_FOUND) ⇒ bật "Gửi lại", gửi lại dùng CÙNG key.
 // Key giữ nguyên tới khi có kết quả chắc chắn; lỗi nghiệp vụ (4xx) ⇒ key mới cho lần sửa sau (tránh IDEMPOTENCY_CONFLICT).
 import { checkCommandInput } from "@hm/app/command-inputs";
 import { useCallback, useRef, useState } from "react";
 import { timedFetch } from "../../lib/fetch-timeout.ts";
 import { useOnline } from "../pwa/pwa-shell.tsx";
+import { IN_PROGRESS_CODE, retryAfterMs } from "./in-progress.ts";
 import { CONTEXT_CHANGED_CODE, CONTEXT_CHANGED_TEXT, orgContextHeaders } from "./org-context.ts";
 
 export interface ProblemLike {
@@ -80,43 +83,52 @@ export function useCommand<T = unknown>(path: string) {
     return null;
   }, []);
 
-  const check = useCallback(async (): Promise<T | null> => {
-    setPhase("checking");
-    let inProgress = false;
-    for (let i = 0; i < POLL_TRIES; i++) {
-      try {
-        const res = await timedFetch(`/api/v1/commands/${key.current}`, {
-          credentials: "same-origin",
-          cache: "no-store",
-          headers: orgContextHeaders(),
-        });
-        if (res.status === 401) {
-          window.location.assign("/dang-nhap");
-          return null;
-        }
-        if (
-          res.status === 409 &&
-          ((await res.json().catch(() => null)) as ProblemLike | null)?.code === CONTEXT_CHANGED_CODE
-        )
-          return fail(contextChanged());
-        if (res.status === 404) {
-          setPhase("unknown");
-          return null;
-        }
-        if (res.ok) {
-          const j = (await res.json()) as { status: string; data?: T; problem?: ProblemLike };
-          if (j.status === "committed") return finish(j.data as T);
-          if (j.status === "failed") return fail(j.problem ?? { code: "INTERNAL" });
-          inProgress = j.status === "in_progress";
-        }
-      } catch {
-        // vẫn mất mạng — thử lại sau
+  // `pending`: server vừa báo lệnh đang xử lý (409 IDEMPOTENCY_IN_PROGRESS) ⇒ đợi `waitMs` trước lần tra đầu, và 404 (lệnh chưa
+  // commit nên chưa thấy) nghĩa là còn chạy chứ không phải "server chưa nhận" — không bật "Gửi lại" sớm.
+  const check = useCallback(
+    async (pending?: { waitMs: number }): Promise<T | null> => {
+      setPhase("checking");
+      let inProgress = false;
+      if (pending) {
+        inProgress = true;
+        await sleep(pending.waitMs);
       }
-      await sleep(POLL_MS);
-    }
-    setPhase(inProgress ? "processing" : "unknown");
-    return null;
-  }, [finish, fail]);
+      for (let i = 0; i < POLL_TRIES; i++) {
+        try {
+          const res = await timedFetch(`/api/v1/commands/${key.current}`, {
+            credentials: "same-origin",
+            cache: "no-store",
+            headers: orgContextHeaders(),
+          });
+          if (res.status === 401) {
+            window.location.assign("/dang-nhap");
+            return null;
+          }
+          if (
+            res.status === 409 &&
+            ((await res.json().catch(() => null)) as ProblemLike | null)?.code === CONTEXT_CHANGED_CODE
+          )
+            return fail(contextChanged());
+          if (res.status === 404 && !pending) {
+            setPhase("unknown");
+            return null;
+          }
+          if (res.ok) {
+            const j = (await res.json()) as { status: string; data?: T; problem?: ProblemLike };
+            if (j.status === "committed") return finish(j.data as T);
+            if (j.status === "failed") return fail(j.problem ?? { code: "INTERNAL" });
+            inProgress = pending ? true : j.status === "in_progress";
+          }
+        } catch {
+          // vẫn mất mạng — thử lại sau
+        }
+        await sleep(pending ? pending.waitMs : POLL_MS);
+      }
+      setPhase(inProgress ? "processing" : "unknown");
+      return null;
+    },
+    [finish, fail],
+  );
 
   const post = useCallback(async (): Promise<T | null> => {
     setPhase("sending");
@@ -145,6 +157,9 @@ export function useCommand<T = unknown>(path: string) {
     if (res.ok) return finish(j?.data as T);
     // Tab khác đã đổi tổ chức: server không ghi gì — báo tải lại, KHÔNG gửi lại (S-013).
     if (res.status === 409 && j?.code === CONTEXT_CHANGED_CODE) return fail(contextChanged());
+    // Lần đầu cùng key còn đang xử lý: đợi Retry-After rồi tra kết quả theo key — không gửi payload mới, không tạo key mới.
+    if (res.status === 409 && j?.code === IN_PROGRESS_CODE)
+      return check({ waitMs: retryAfterMs(res.headers.get("retry-after")) });
     // Key đã dùng cho thao tác khác (vd thao tác trước đã ghi) ⇒ giữ key, tra và hiện kết quả thao tác đó, không tạo key mới.
     if (res.status >= 500 || j?.code === "IDEMPOTENCY_CONFLICT") {
       // Giữ mã tra cứu của lỗi 5xx để hiện cùng "Chưa rõ… Gửi lại" nếu tra kết quả không thấy lệnh.

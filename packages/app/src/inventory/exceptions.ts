@@ -79,7 +79,7 @@ export async function recordWorkerExceptionOpened(
  * MỖI booking đã xác nhận đứng sau allocation quá hạn trên cùng phòng → `RELOCATION_REQUIRED` (SPEC S-017, S-020; Q-09 hiểu chặt:
  * ngoại lệ quá hạn chưa có mốc giải quyết nên mọi booking bắt đầu từ lúc allocation kết thúc đều bị đụng, không chỉ cái kế tiếp).
  * "Đã xác nhận" = allocation `stay`/`lease` đang active (lượt ở `expected`/`in_house`, hợp đồng); hold chưa xác nhận không tính.
- * Cùng tiêu chí với `related_allocation_id` của `app.stays_overdue` (migration 0057). Trả các ngoại lệ vừa MỞ MỚI (đã có rồi thì
+ * Cùng tiêu chí với `related_allocation_id` của `app.stays_overdue` (migration 0061). Trả các ngoại lệ vừa MỞ MỚI (đã có rồi thì
  * bỏ qua) để người gọi ghi audit/outbox.
  */
 export async function openRelocationForNextBooking(

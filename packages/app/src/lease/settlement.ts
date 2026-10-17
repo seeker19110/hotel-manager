@@ -176,6 +176,7 @@ export async function prepareSettlement(
   if (fileIds.length > 0) {
     const f = await sql<{ id: string }>`
       select id from files where organization_id = ${ctx.actor.orgId} and owner_type in ('lease_settlement','handover')
+        and status = 'ready'
         and (property_id is null or property_id = ${lease.property_id}) and id = any(${fileIds}::uuid[])`.execute(
       ctx.trx,
     );

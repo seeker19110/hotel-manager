@@ -150,6 +150,7 @@ function seqScans(node: PlanNode, out: string[] = []): string[] {
 /** Tệp bằng chứng kế hoạch ở `docs/db/explain/` (DB-PERF-001) — danh sách đầy đủ; test cuối đòi thư mục khớp đúng tên này. */
 const EXPLAIN_DOCS = [
   "audit-list-action",
+  "audit-list-actor",
   "audit-list-correlation",
   "audit-list-default",
   "audit-list-entity",
@@ -507,6 +508,12 @@ describe("db-perf — danh sách audit (S-004, S-005)", () => {
       doc: "audit-list-action",
     },
     {
+      name: "người thao tác",
+      filter: () => ({ ...base, actorPersonId: A.ownerPersonId }),
+      expect: { audit_events: { cols: ["actor_person_id"] } },
+      doc: "audit-list-actor",
+    },
+    {
       name: "correlation",
       filter: { ...base, correlationId: "perf-1" },
       expect: { audit_events: { cols: ["correlation_id"] } },
@@ -524,15 +531,6 @@ describe("db-perf — danh sách audit (S-004, S-005)", () => {
       const q = await auditQuery(typeof c.filter === "function" ? c.filter() : c.filter);
       await expectIndexed([q], "runtime", { expect: c.expect, doc: c.doc });
     });
-
-  it("bộ lọc người thao tác: CHƯA có index (ghi nhận) — chỉ không Seq Scan; có index thì đỏ để chuyển sang AUDIT_CASES", async () => {
-    // Quyết định mở (xem báo cáo): thêm `ix_audit_actor_time (organization_id, actor_person_id, occurred_at DESC)` hay chấp nhận quét theo thời gian + Filter.
-    const q = await auditQuery({ ...base, actorPersonId: A.ownerPersonId });
-    await expectIndexed([q]);
-    const plan = await explainAs("runtime", q, false);
-    const keys = await indexKeys();
-    expect(selectiveProblems(plan, { audit_events: { cols: ["actor_person_id"] } }, keys)).not.toEqual([]);
-  });
 
   it("tự nhiên (seqscan bật, 30.000 dòng): danh sách mặc định và theo hành động dùng index, không Seq Scan audit_events", async () => {
     captured.length = 0;
