@@ -3,13 +3,25 @@
 import { randomUUID } from "node:crypto";
 import { authorize } from "@hm/domain";
 import { sql } from "kysely";
-import { type CommandContext, fieldError } from "../pipeline/index.ts";
+import { type CommandContext, CommandError, fieldError } from "../pipeline/index.ts";
 
 export async function createUnit(
   ctx: CommandContext,
-  input: { propertyId: string; floorName: string; code: string; capacity: number },
+  input: {
+    propertyId: string;
+    floorName: string;
+    code: string;
+    capacity: number;
+    /** V1 chỉ bán nguyên phòng (SPEC-access S-005): chỉ nhận `whole`; cột vẫn giữ trong schema để mở rộng sau. */
+    kind?: string;
+    parentUnitId?: string | null;
+  },
 ): Promise<{ unitId: string }> {
   authorize(ctx.actor, "unit.manage", { propertyId: input.propertyId });
+  if (input.kind !== undefined && input.kind !== "whole")
+    throw fieldError("kind", "INVALID", "Chỉ bán nguyên phòng (kind = whole)");
+  if (input.parentUnitId !== undefined && input.parentUnitId !== null)
+    throw fieldError("parent_unit_id", "INVALID", "Chưa hỗ trợ phòng con/giường");
   const code = input.code.trim();
   const floorName = input.floorName.trim();
   if (code.length < 1 || code.length > 20) throw fieldError("code", "INVALID", "Mã phòng 1–20 ký tự");
@@ -45,4 +57,39 @@ export async function createUnit(
     after: { code, floor: floorName, capacity: input.capacity },
   });
   return { unitId };
+}
+
+/**
+ * `unit.archive` (SPEC-access S-006, INV-G7): lưu trữ mềm — đặt `archived_at`, không xoá hàng (chứng từ/lịch sử còn tham chiếu).
+ * Phòng còn allocation đang hiệu lực kết thúc sau `now` (hoặc khoảng mở) → 409 UNIT_IN_USE; hold đã quá hạn chưa được worker
+ * nhả không tính là đang dùng.
+ */
+export async function archiveUnit(
+  ctx: CommandContext,
+  input: { unitId: string; now?: Date },
+): Promise<{ archivedAt: Date }> {
+  const now = input.now ?? new Date();
+  const r = await sql<{ property_id: string; archived_at: Date | null }>`
+    select property_id, archived_at from units
+    where organization_id = ${ctx.actor.orgId} and id = ${input.unitId} for update`.execute(ctx.trx);
+  const u = r.rows[0];
+  if (!u || u.archived_at) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phòng");
+  authorize(ctx.actor, "unit.manage", { propertyId: u.property_id });
+  const busy = await sql<{ n: number }>`
+    select count(*)::int as n from allocations
+    where organization_id = ${ctx.actor.orgId} and unit_id = ${input.unitId} and active
+      and (upper_inf(during) or upper(during) > ${now}) and (kind <> 'hold' or expires_at > ${now})`.execute(
+    ctx.trx,
+  );
+  if ((busy.rows[0]?.n ?? 0) > 0)
+    throw new CommandError("UNIT_IN_USE", 409, "Phòng còn lượt ở/giữ chỗ/hợp đồng đang hiệu lực");
+  await sql`update units set archived_at = ${now}, version = version + 1
+            where organization_id = ${ctx.actor.orgId} and id = ${input.unitId}`.execute(ctx.trx);
+  await ctx.audit({
+    action: "unit.archived",
+    entityType: "unit",
+    entityId: input.unitId,
+    propertyId: u.property_id,
+  });
+  return { archivedAt: now };
 }

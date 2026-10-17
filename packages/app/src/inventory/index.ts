@@ -8,4 +8,4 @@ export {
   type Interval,
   proposeBlock,
 } from "./inventory.ts";
-export { createUnit } from "./units.ts";
+export { archiveUnit, createUnit } from "./units.ts";
