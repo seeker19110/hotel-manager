@@ -581,6 +581,30 @@ body {
   font-weight: 600;
   color: var(--c-brand);
 }
+/* Thành viên (T-605): danh sách nhân viên kèm thao tác quản trị. */
+.member-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.member-list__item {
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+}
+.member-list__item h3 {
+  margin: 0 0 var(--space-1);
+  font-size: 1rem;
+}
+/* Email/tên dài (tới 320 ký tự, không có khoảng trắng để ngắt) xuống dòng thay vì đẩy trang cuộn ngang ở 320 px (UX-RESP-001). */
+.member-list__item,
+.choice-list > li {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 .notif--unread {
   border-left: 6px solid var(--c-brand);
 }

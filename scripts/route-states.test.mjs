@@ -22,6 +22,8 @@ const ERROR_GROUPS = [
   "thong-bao",
   "thong-bao-luu-tru",
   "lich-phong",
+  "thanh-vien",
+  "co-so",
 ];
 // `loading.tsx` bọc trang trong Suspense ⇒ Next đã stream 200 trước khi trang chạy xong, nên `notFound()` (404), lỗi máy chủ
 // (500) và `redirect()` (307) của TRANG ĐÓ và mọi route con đều thành 200 (đã đo: E2E 404 phiếu lạ/thẻ lạ đỏ khi có loading
@@ -35,6 +37,8 @@ const LOADING_GROUPS = [
   "thong-bao-luu-tru",
   "dat-phong/moi",
   "luu-tru/moi",
+  "thanh-vien",
+  "co-so",
   "portal/dien-nuoc",
   "portal/hop-dong",
   "portal/yeu-cau",
@@ -199,16 +203,19 @@ describe("đủ 4 trạng thái cho mọi màn dữ liệu (UX-STATE-001): số 
     expect(missing).toEqual([]);
   });
 
-  it("trang không phải màn dữ liệu chỉ là form đăng nhập/offline/huỷ đăng ký/liên kết khách (tự tải phía client)", () => {
+  it("trang không phải màn dữ liệu chỉ là form đăng nhập/offline/huỷ đăng ký/liên kết khách/lời mời (tự tải phía client)", () => {
     const nonData = pages(APP)
       .filter((d) => !isDataPage(readFileSync(join(d, "page.tsx"), "utf8")))
       .map((d) => d.slice(APP.length + 1))
       .sort();
     expect(nonData).toEqual([
+      "bao-mat",
+      "dang-ky",
       "dang-nhap",
       "dang-nhap/nguoi-thue",
       "huy-dang-ky",
       "khach/luot-o/[id]",
+      "loi-moi",
       "offline",
     ]);
   });

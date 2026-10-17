@@ -8,6 +8,8 @@ const SRC = new URL("../", import.meta.url);
 
 /** query → [file, hàm chứa câu SQL danh sách] (hàm đệm khi `list*` gọi qua helper). */
 const IMPL: Record<string, [string, string]> = {
+  "member.list": ["access/directory.ts", "listMembers"],
+  "property.list": ["access/directory.ts", "listProperties"],
   "reservation.list": ["stay/reservations.ts", "listReservations"],
   "stay.listNotices": ["stay/residence-notices.ts", "listNotices"],
   "housekeeping.listTasks": ["housekeeping/tasks.ts", "queryTasks"],
@@ -45,7 +47,7 @@ describe("list-limits — mọi query list* có trần số dòng (XC-PERF-006)"
   const listNames = Object.keys(QUERIES).filter((k) => /\.list[A-Z]?/.test(k) || /^[a-z]+\.list$/.test(k));
 
   it("registry có query list* (rào không rỗng) và mỗi query đã khai nơi cài đặt", () => {
-    expect(listNames.length).toBeGreaterThanOrEqual(14);
+    expect(listNames.length).toBeGreaterThanOrEqual(16);
     expect(listNames.filter((k) => !(k in IMPL))).toEqual([]);
     expect(Object.keys(IMPL).filter((k) => !(k in QUERIES))).toEqual([]);
   });

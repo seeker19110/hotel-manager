@@ -27,11 +27,11 @@ import { testServices } from "../server/services.ts";
 import { seedMember } from "../testing/helpers.ts";
 import { sampleInput } from "../testing/schema-sample.ts";
 import { REPO_ROOT, sourceFiles } from "../testing/source-scan.ts";
-import { type HttpDeps, handleCommand, handleQuery } from "./command-route.ts";
+import { type HttpDeps, handleCommand, handleQuery, handleUserCommand } from "./command-route.ts";
 import { handleFileUpload } from "./file-upload.ts";
 import { handleGuestStay } from "./guest-stay.ts";
 import { handleImportUpload } from "./import-upload.ts";
-import { COMMANDS, QUERIES } from "./registry.ts";
+import { COMMANDS, QUERIES, USER_COMMANDS } from "./registry.ts";
 import { handleSwitchOrganization } from "./switch-organization.ts";
 import { handleUnsubscribe } from "./unsubscribe.ts";
 import { handleWebhook } from "./webhook-route.ts";
@@ -58,6 +58,10 @@ const OVERRIDES: Record<string, (i: Ids) => Record<string, unknown>> = {
     amount: 1000,
     method: "cash",
   }),
+  // Mọi trường ngoài `property_id` đều tuỳ chọn nhưng cần ≥ 1 trường để đổi.
+  "property.update": (i) => ({ property_id: i.property_id, name: "Tên cơ sở mới" }),
+  // Không gửi membership_id = tự thu hồi phiên của mình (ai cũng được) — ma trận cần ca "thu hồi phiên NGƯỜI KHÁC".
+  "session.revokeAll": (i) => ({ membership_id: i.membership_id }),
   "billing.createPeriod": (i) => ({ property_id: i.property_id, month: "2026-11" }),
   // Phòng có hợp đồng nháp chưa kết thúc ⇒ chủ luôn nhận 409 UNIT_IN_USE (không bao giờ lưu trữ thật phòng dùng chung của
   // fixture — nếu không các lệnh khác dùng `unit_id` sẽ nhận 404 tuỳ thứ tự chạy).
@@ -452,6 +456,7 @@ const ALLOWED_2XX: Record<string, Allowed> = {
     "calendar.read_status",
     ["housekeeping", "maintenance", "accountant", "front_desk"],
   ],
+  "property.list": ["calendar.read_status", ["housekeeping", "maintenance", "accountant", "front_desk"]],
   "today.getSummary": ["calendar.read_status", ["housekeeping", "maintenance", "accountant", "front_desk"]],
   "today.listItems": ["calendar.read_guests", ["front_desk"]],
   "maintenance.listWorkOrders": [
@@ -491,6 +496,14 @@ const MUST_403: readonly (readonly [string, Action | null, readonly Role[]])[] =
     "lease.giveNotice",
   ].map((n) => [n, "lease.manage", ["accountant", "front_desk"]] as const),
   ["lease.close", "lease.approve_settlement", ["accountant", "front_desk"]],
+  ["member.invite", "member.invite_senior", ALL5],
+  ["member.list", "member.invite_staff", ALL5],
+  ["property.list", "calendar.read_status", ["tenant"]],
+  ["session.revokeAll", "session.revoke_other", ALL5],
+  ["member.updateRole", "member.change_role", ALL5],
+  ["member.updateScope", "member.change_role", ALL5],
+  ["property.create", "org.configure", ALL5],
+  ["property.update", "org.configure", ALL5],
   ["ledger.unlockPeriod", "period.unlock", ALL5],
   ["ledger.lockPeriod", "period.lock", ["housekeeping", "maintenance", "tenant", "front_desk"]],
   ["member.resetMfa", "member.change_role", ALL5],
@@ -1528,5 +1541,78 @@ describe("authz-matrix — thẻ api1-bola/api5-bfla có mặt trong bộ test",
     expect(text.match(/api1-bola/g)?.length).toBeGreaterThanOrEqual(2);
     expect(text.match(/api5-bfla/g)?.length).toBeGreaterThanOrEqual(2);
     void OWNER_PREFIX;
+  });
+});
+
+// ---------------------------------------------------------------- lệnh cấp người dùng (USER_COMMANDS)
+describe("api1-bola — lệnh cấp người dùng (org.create, member.acceptInvitation): cần phiên, không nhận ngữ cảnh tổ chức", () => {
+  const userCall = async (name: string, who: { user?: string; org?: string }, body: unknown) => {
+    const def = USER_COMMANDS[name];
+    const req = new Request("http://local.test/api/v1/x/y", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": randomUUID(),
+        ...(who.user ? { "x-test-user": who.user, "x-test-2fa": "1" } : {}),
+        ...(who.org ? { "x-org-id": who.org } : {}),
+      },
+      body: typeof body === "string" ? body : JSON.stringify(body),
+    });
+    const res = await handleUserCommand(def as never, req, deps);
+    const text = await res.text();
+    return { status: res.status, code: (JSON.parse(text) as { code?: string }).code ?? "ok", text };
+  };
+  const sample = (name: string) =>
+    sampleInput((USER_COMMANDS[name] as unknown as { input: never }).input, { ids: {} });
+
+  it("khoá registry = tên lệnh; có ít nhất org.create và member.acceptInvitation", () => {
+    for (const [k, d] of Object.entries(USER_COMMANDS)) expect(d.command).toBe(k);
+    expect(Object.keys(USER_COMMANDS)).toEqual(
+      expect.arrayContaining(["org.create", "member.acceptInvitation"]),
+    );
+  });
+
+  it("không phiên → 401 UNAUTHENTICATED, trước cả validate (thân rác)", async () => {
+    for (const name of Object.keys(USER_COMMANDS)) {
+      const r = await userCall(name, { org: A.orgId }, "{rác");
+      expect([r.status, r.code], name).toEqual([401, "UNAUTHENTICATED"]);
+    }
+  });
+
+  it("trường lạ (organization_id, role, user_id…) → 422 unrecognized_keys; không lệnh nào chạy", async () => {
+    for (const name of Object.keys(USER_COMMANDS)) {
+      for (const extra of ["organization_id", "role", "user_id", "membership_id"]) {
+        const r = await userCall(name, { user: outsider }, { ...sample(name), [extra]: B.orgId });
+        expect([r.status, r.code], `${name}+${extra}`).toEqual([422, "VALIDATION_FAILED"]);
+        expect(r.text).toContain("unrecognized_keys");
+      }
+    }
+  });
+
+  it("đầu vào xấu (sai kiểu, null, quá dài, NUL/Unicode lạ) ở từng trường → 4xx có kiểm soát, không 2xx, không 5xx", async () => {
+    const bad: string[] = [];
+    for (const name of Object.keys(USER_COMMANDS)) {
+      const base = sample(name) as Record<string, unknown>;
+      for (const key of Object.keys(base)) {
+        for (const evil of [null, 12345, { a: 1 }, "x".repeat(20_000), "\u202e\u0000💩", [] as unknown[]]) {
+          const r = await userCall(name, { user: outsider }, { ...base, [key]: evil });
+          if (r.status >= 500 || (r.status >= 200 && r.status < 300))
+            bad.push(`${name}.${key}=${JSON.stringify(evil)?.slice(0, 12)}: ${r.status}`);
+        }
+      }
+    }
+    expect(bad).toEqual([]);
+  });
+
+  it("X-Org-Id của tổ chức khác không đổi kết quả: org.create vẫn tạo tổ chức MỚI cho chính người gọi, không ghi vào tổ chức B", async () => {
+    const before = await rowsOf(B.orgId);
+    const r = await userCall(
+      "org.create",
+      { user: outsider, org: B.orgId },
+      { name: "Tổ chức của người ngoài" },
+    );
+    expect(r.status).toBe(201);
+    expect(r.text).not.toContain(B.orgId);
+    expect(await rowsOf(B.orgId)).toEqual(before);
   });
 });

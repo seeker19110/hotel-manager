@@ -23,6 +23,7 @@ import {
   SMOKE_USER,
   unsubFile,
 } from "./fixtures.ts";
+import { signInClick } from "./sign-in.ts";
 
 test.describe.configure({ mode: "serial" });
 // Spec dùng page.route: chặn service worker (SW của app có thể trả phản hồi trước khi route giả chặn được — tránh flaky).
@@ -78,10 +79,10 @@ test("S-022 đăng nhập OTP email: mã sai bị từ chối, nhân viên khôn
   const code = await otpFor(PORTAL_TENANT.email);
   await expectAccessible(page);
   await page.getByLabel("Mã đăng nhập 6 số").fill(code === "000000" ? "111111" : "000000");
-  await page.getByRole("button", { name: "Đăng nhập" }).click();
+  await signInClick(page);
   await expect(page.getByRole("alert").filter({ hasText: "Mã không đúng hoặc đã hết hạn." })).toBeVisible();
   await page.getByLabel("Mã đăng nhập 6 số").fill(code);
-  await page.getByRole("button", { name: "Đăng nhập" }).click();
+  await signInClick(page);
   await expect(page).toHaveURL(/\/chon-to-chuc$/);
   await expect(
     page.getByRole("button", { name: new RegExp(`${ORG_PORTAL_2.replace(/[()]/g, "\\$&")}.*Người thuê`) }),

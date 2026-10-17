@@ -386,6 +386,8 @@ describe("schema-guards — ràng buộc toàn vẹn (DB-MODEL-004 ON DELETE, DB
     account_userId_fkey:
       "CASCADE (Better Auth): tài khoản liên kết thuộc về người dùng đăng nhập, hết người dùng thì hết.",
     session_userId_fkey: "CASCADE (Better Auth): phiên đăng nhập chỉ tồn tại khi còn người dùng.",
+    revoked_session_user_id_fkey:
+      "CASCADE: dấu vết phiên bị thu hồi (chỉ băm token) thuộc về người dùng, xoá người dùng thì xoá luôn.",
     twoFactor_userId_fkey:
       "CASCADE (Better Auth): bí mật TOTP gắn với người dùng, xoá người dùng phải xoá luôn.",
     fk_property_scopes_memberships:

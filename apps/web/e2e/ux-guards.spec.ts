@@ -13,6 +13,7 @@ import { type BrowserContext, expect, type Locator, type Page, test } from "@pla
 import { confirmAction } from "./confirm.ts";
 import { GUEST_STAY_ID, GUEST_TOKEN, HOTEL_HK, ORG_HOTEL } from "./fixtures.ts";
 import { type Cookies, loginOwner, loginTenant } from "./sessions.ts";
+import { signInClick } from "./sign-in.ts";
 
 // `page.route` không chặn được request do service worker đã nắm (production bật SW): chặn SW để mock luôn có tác dụng.
 test.use({ serviceWorkers: "block" });
@@ -28,7 +29,7 @@ test.beforeAll(async ({ browser }, info) => {
   await page.goto("/dang-nhap");
   await page.getByLabel("Email").fill(HOTEL_HK.email);
   await page.getByLabel("Mật khẩu").fill(HOTEL_HK.password);
-  await page.getByRole("button", { name: "Đăng nhập" }).click();
+  await signInClick(page);
   await expect(page).toHaveURL(/\/chon-to-chuc$/);
   await page.getByRole("button", { name: ORG_HOTEL }).click();
   await expect(page).toHaveURL(/\/phong$/);
@@ -80,13 +81,21 @@ test("prefers-reduced-motion: spinner/chuyển động gần như tắt", async 
 });
 
 test("bàn phím: đăng nhập → chọn tổ chức → danh sách phòng không cần chuột", async ({ page }) => {
-  await page.goto("/dang-nhap");
-  await page.getByLabel("Email").focus();
-  await page.keyboard.type(HOTEL_HK.email);
-  await page.keyboard.press("Tab");
-  await expect(page.getByLabel("Mật khẩu")).toBeFocused();
-  await page.keyboard.type(HOTEL_HK.password);
-  await page.keyboard.press("Enter");
+  // Better Auth giới hạn /sign-in/email 20 lần/phút theo IP và chỉ đặt lại sau 60 s không có yêu cầu; bộ E2E đăng nhập nhiều
+  // lần liên tiếp nên gặp 429 thì đợi hết cửa sổ rồi thử lại (không tắt rào), như sessions.ts.
+  test.setTimeout(150_000);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await page.goto("/dang-nhap");
+    await page.getByLabel("Email").focus();
+    await page.keyboard.type(HOTEL_HK.email);
+    await page.keyboard.press("Tab");
+    await expect(page.getByLabel("Mật khẩu")).toBeFocused();
+    await page.keyboard.type(HOTEL_HK.password);
+    const signIn = page.waitForResponse((r) => r.url().endsWith("/api/auth/sign-in/email"));
+    await page.keyboard.press("Enter");
+    if ((await signIn).status() !== 429) break;
+    await page.waitForTimeout(61_000);
+  }
   await expect(page).toHaveURL(/\/chon-to-chuc$/);
   const org = page.getByRole("button", { name: ORG_HOTEL });
   for (let i = 0; i < 20 && !(await org.evaluate((el) => el === document.activeElement)); i++)
@@ -315,10 +324,13 @@ const firstOf = async (page: Page, list: string, prefix: string) => {
 // Mỗi route trong app/<…>/page.tsx PHẢI có mục ở đây (thêm trang mới mà quên ⇒ test dưới đỏ). Route động dùng dữ liệu seed E2E. */
 const ROUTES: Record<string, RouteSpec> = {
   "/": fixed("hotel", "/"),
+  "/bao-mat": fixed("hotel", "/bao-mat"),
   "/buong-phong": fixed("hotel", "/buong-phong"),
   "/buong-phong/[id]": { who: "hotel", urls: async (p) => [`/buong-phong/${await ensureTask(p)}`] },
   "/chi-so/[id]": { who: "rental", urls: async (p) => [`/chi-so/${await ensurePeriod(p)}`] },
   "/chon-to-chuc": fixed("hotel", "/chon-to-chuc"),
+  "/co-so": fixed("hotel", "/co-so"),
+  "/dang-ky": fixed("public", "/dang-ky"),
   "/dang-nhap": fixed("public", "/dang-nhap"),
   "/dang-nhap/nguoi-thue": fixed("public", "/dang-nhap/nguoi-thue"),
   "/dat-phong": fixed("hotel", "/dat-phong"),
@@ -336,6 +348,7 @@ const ROUTES: Record<string, RouteSpec> = {
   "/ky-thu": fixed("rental", "/ky-thu"),
   "/ky-thu/[id]": { who: "rental", urls: async (p) => [`/ky-thu/${await ensurePeriod(p)}`] },
   "/lich-phong": fixed("hotel", "/lich-phong"),
+  "/loi-moi": fixed("public", "/loi-moi#token=khong-hop-le"),
   "/luu-tru/[id]": { who: "hotel", urls: async (p) => [`/luu-tru/${await ensureStay(p)}`] },
   "/luu-tru/moi": fixed("hotel", "/luu-tru/moi"),
   "/offline": fixed("public", "/offline"),
@@ -353,6 +366,7 @@ const ROUTES: Record<string, RouteSpec> = {
   },
   "/portal/yeu-cau": fixed("tenant", "/portal/yeu-cau"),
   "/su-co": fixed("hotel", "/su-co"),
+  "/thanh-vien": fixed("hotel", "/thanh-vien"),
   "/thong-bao": fixed("hotel", "/thong-bao"),
   "/thong-bao-luu-tru": fixed("hotel", "/thong-bao-luu-tru"),
   "/thu-tien": fixed("rental", "/thu-tien"),
@@ -405,6 +419,33 @@ async function mockClaim(page: Page, delayMs = 0): Promise<string[]> {
   });
   return keys;
 }
+
+test("hộp xác nhận: đóng rồi mở lại ngay (sự kiện close của lần đóng cũ đến muộn) → xác nhận vẫn gửi đúng 1 lần", async ({
+  page,
+  context,
+  browser,
+  baseURL,
+}) => {
+  await asSession("tenant", browser, baseURL as string, context);
+  const keys = await mockClaim(page);
+  await page.goto("/portal");
+  await page.getByTestId("invoice").getByRole("link").first().click();
+  await page.getByRole("link", { name: "Thanh toán" }).click();
+  await expect(page).toHaveURL(/\/portal\/thanh-toan\//);
+  await page.getByRole("button", { name: "Tôi đã chuyển" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  // Đóng và mở lại trong CÙNG một task: sự kiện `close` của lần đóng tới sau khi hộp đã mở lại.
+  await page.evaluate(() => {
+    document.querySelector<HTMLDialogElement>("dialog.confirm-dialog")?.close();
+    [...document.querySelectorAll("button")].find((b) => b.textContent?.trim() === "Tôi đã chuyển")?.click();
+  });
+  await expect(dialog).toBeVisible();
+  await page.waitForTimeout(100);
+  await dialog.getByRole("button", { name: CLAIM_LABEL }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Đã ghi nhận báo chuyển" })).toBeVisible();
+  expect(keys).toHaveLength(1);
+});
 
 test("bàn phím (portal + hộp xác nhận): danh sách phiếu → thanh toán → Enter mở hộp → Esc/Quay lại không gửi → Enter xác nhận gửi đúng 1", async ({
   page,

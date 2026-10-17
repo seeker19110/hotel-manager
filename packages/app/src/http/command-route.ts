@@ -13,6 +13,7 @@ import {
   orgCookieName,
   requestedOrgId,
   resolveActor,
+  type UserCommandRequest,
 } from "../access/index.ts";
 import {
   type ActorRef,
@@ -23,6 +24,7 @@ import {
   withRequestTrace,
 } from "../logging/index.ts";
 import { observeHttp } from "../observability/index.ts";
+import type { CommandResult } from "../pipeline/index.ts";
 import {
   type CommandContext,
   executeCommand,
@@ -45,6 +47,11 @@ export interface HttpSession {
 export interface HttpDeps {
   db: Kysely<unknown>;
   getSession(headers: Headers): Promise<HttpSession | null>;
+  /**
+   * Gọi khi `getSession` trả null: request mang cookie của một phiên ĐÃ BỊ THU HỒI (`session.revokeAll`, đặt lại MFA)? ⇒ 401
+   * `SESSION_REVOKED` thay vì `UNAUTHENTICATED` (SPEC-access S-010). Bỏ trống = không phân biệt.
+   */
+  isSessionRevoked?(headers: Headers): Promise<boolean>;
   /** APP_BASE_URL là https → cookie `__Host-`. */
   secureCookies: boolean;
   services: AppServices;
@@ -79,6 +86,17 @@ export interface CommandDef<I, O, P = undefined> {
   ): Promise<{ data: O; httpStatus?: number }>;
 }
 
+/**
+ * Lệnh "cấp người dùng" (SPEC-access S-001 `org.create`, S-007/S-008 `member.acceptInvitation`): cần phiên đăng nhập nhưng KHÔNG cần
+ * (cũng không nhận) ngữ cảnh tổ chức — người gọi chưa là thành viên. `X-Org-Id` bị bỏ qua. Quyền là điều kiện của chính lệnh
+ * (vd. đúng email được mời), kiểm trong `run`; idempotency/audit/outbox vẫn đi qua pipeline (xem `access/provision.ts`).
+ */
+export interface UserCommandDef<I, O> {
+  command: string;
+  input: z.ZodType<I>;
+  run(req: UserCommandRequest, input: I, services: AppServices): Promise<CommandResult<O>>;
+}
+
 export interface QueryDef<I, O> {
   query: string;
   input: z.ZodType<I>;
@@ -90,6 +108,18 @@ export interface QueryDef<I, O> {
     meta: { correlationId: string },
   ): Promise<O>;
 }
+
+/**
+ * Lỗi của lệnh cấp người dùng KHÔNG được route ghi thêm sự kiện bảo mật `denied`: lỗi idempotency là hành vi bình thường của
+ * client retry (không phải bị từ chối quyền) và lỗi đã tự phát sự kiện riêng, mã ngắn, ở nơi sinh lỗi (`invitation.rejected` với
+ * lý do thật trong `accept-invitation.ts`) — ghi thêm sẽ nhân đôi/gây nhiễu. 429 do hạn mức của bootstrap thì KHÔNG nằm đây
+ * (không ai khác phát ⇒ route phát `rate_limit.exceeded` đúng một lần).
+ */
+const NO_ROUTE_DENIED_EVENT = new Set([
+  "IDEMPOTENCY_IN_PROGRESS",
+  "IDEMPOTENCY_CONFLICT",
+  "INVITATION_INVALID",
+]);
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const CORRELATION = /^[A-Za-z0-9._-]{8,64}$/;
@@ -197,6 +227,24 @@ export function rejectInput(
   });
 }
 
+/** 401 khi không có phiên hợp lệ: `SESSION_REVOKED` nếu cookie là của phiên đã bị thu hồi, ngược lại `UNAUTHENTICATED`. */
+async function noSession(
+  req: Request,
+  deps: HttpDeps,
+  correlationId: string,
+  endpoint: { type: string; id: string },
+): Promise<Response> {
+  const revoked = deps.isSessionRevoked ? await deps.isSessionRevoked(req.headers) : false;
+  const code = revoked ? "SESSION_REVOKED" : "UNAUTHENTICATED";
+  denied(req, correlationId, { status: 401, code }, null, endpoint);
+  return simpleProblem(
+    code,
+    401,
+    revoked ? "Phiên này đã bị đăng xuất. Vui lòng đăng nhập lại." : "Cần đăng nhập",
+    correlationId,
+  );
+}
+
 /** Actor của request hoặc Response lỗi (401/409/404/403) đã sẵn để trả. */
 export async function actorFromRequest(
   req: Request,
@@ -205,10 +253,7 @@ export async function actorFromRequest(
 ): Promise<Actor | Response> {
   const session = await deps.getSession(req.headers);
   const endpoint = { type: "endpoint", id: new URL(req.url).pathname };
-  if (!session) {
-    denied(req, correlationId, { status: 401, code: "UNAUTHENTICATED" }, null, endpoint);
-    return simpleProblem("UNAUTHENTICATED", 401, "Cần đăng nhập", correlationId);
-  }
+  if (!session) return noSession(req, deps, correlationId, endpoint);
   const orgId = requestedOrgId(
     req.headers.get(ORG_HEADER),
     readCookie(req.headers.get("cookie"), orgCookieName(deps.secureCookies)),
@@ -361,6 +406,87 @@ async function runCommand<I, O, P>(
     }
     return problemResponse(result.problem, correlationId);
   } catch (err) {
+    return unexpected(err, deps, correlationId);
+  }
+}
+
+/** POST lệnh cấp người dùng: phiên (401) → Idempotency-Key (400) → JSON (400) → schema (422) → `run`. Đo `hm_http_*`. */
+export function handleUserCommand<I, O>(
+  def: UserCommandDef<I, O>,
+  req: Request,
+  deps: HttpDeps,
+): Promise<Response> {
+  return observeHttp(routeOf(def.command), req.method, () =>
+    withRequestTrace(req, () => runUserCommand(def, req, deps)),
+  );
+}
+
+async function runUserCommand<I, O>(
+  def: UserCommandDef<I, O>,
+  req: Request,
+  deps: HttpDeps,
+): Promise<Response> {
+  const correlationId = correlationOf(req);
+  const endpoint = { type: "endpoint", id: new URL(req.url).pathname };
+  let userId: string | null = null;
+  try {
+    const session = await deps.getSession(req.headers);
+    if (!session) return await noSession(req, deps, correlationId, endpoint);
+    userId = session.user.id;
+    const actorRef: ActorRef = { authUserId: userId };
+    const key = req.headers.get("idempotency-key") ?? "";
+    if (!UUID.test(key)) {
+      return simpleProblem("MALFORMED_REQUEST", 400, "Thiếu hoặc sai Idempotency-Key (UUID)", correlationId);
+    }
+    let body: unknown;
+    try {
+      body = nfcDeep(await req.json());
+    } catch {
+      rejectInput(
+        req,
+        correlationId,
+        "input.deserialize_failed",
+        actorRef,
+        { type: "command", id: def.command },
+        "MALFORMED_REQUEST",
+      );
+      return simpleProblem("MALFORMED_REQUEST", 400, "Thân yêu cầu không phải JSON hợp lệ", correlationId);
+    }
+    const parsed = def.input.safeParse(body);
+    if (!parsed.success) {
+      rejectInput(
+        req,
+        correlationId,
+        "input.validation_failed",
+        actorRef,
+        { type: "command", id: def.command },
+        "VALIDATION_FAILED",
+      );
+      return validationProblem(parsed.error, correlationId);
+    }
+    const result = await def.run(
+      { db: deps.db, userId, key, payload: body, correlationId, client: requestClient(req.headers) },
+      parsed.data,
+      deps.services,
+    );
+    if (result.status === "committed") {
+      return json(
+        { command_id: result.commandId, status: "committed", data: result.data },
+        result.httpStatus,
+        correlationId,
+      );
+    }
+    return problemResponse(result.problem, correlationId);
+  } catch (err) {
+    const p = toProblem(err, correlationId);
+    if (p.status < 500) {
+      if (!NO_ROUTE_DENIED_EVENT.has(p.code))
+        denied(req, correlationId, p, userId ? { authUserId: userId } : null, {
+          type: "command",
+          id: def.command,
+        });
+      return problemResponse(p, correlationId);
+    }
     return unexpected(err, deps, correlationId);
   }
 }

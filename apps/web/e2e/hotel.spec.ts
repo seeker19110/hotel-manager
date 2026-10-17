@@ -8,6 +8,7 @@ import { type BrowserContext, expect, type Page, test } from "@playwright/test";
 import { expectAccessible } from "./a11y.ts";
 import { confirmAction } from "./confirm.ts";
 import { HOTEL_HK, HOTEL_NOTIFICATION_TITLE, HOTEL_OWNER, JPEG, ORG_HOTEL } from "./fixtures.ts";
+import { signInClick } from "./sign-in.ts";
 import { hotelTotpFile, totp } from "./totp.ts";
 
 test.describe.configure({ mode: "serial" });
@@ -30,7 +31,7 @@ test.beforeAll(async ({ browser }, info) => {
   await op.goto("/dang-nhap");
   await op.getByLabel("Email").fill(HOTEL_OWNER.email);
   await op.getByLabel("Mật khẩu").fill(HOTEL_OWNER.password);
-  await op.getByRole("button", { name: "Đăng nhập" }).click();
+  await signInClick(op);
   await op.getByLabel("Mã xác thực 6 số").fill(totp(secret));
   await op.getByRole("button", { name: "Xác nhận" }).click();
   await expect(op).toHaveURL(/\/chon-to-chuc$/);
@@ -44,7 +45,7 @@ test.beforeAll(async ({ browser }, info) => {
   await hp.goto("/dang-nhap");
   await hp.getByLabel("Email").fill(HOTEL_HK.email);
   await hp.getByLabel("Mật khẩu").fill(HOTEL_HK.password);
-  await hp.getByRole("button", { name: "Đăng nhập" }).click();
+  await signInClick(hp);
   await expect(hp).toHaveURL(/\/chon-to-chuc$/);
   await hp.getByRole("button", { name: ORG_HOTEL }).click();
   await expect(hp).toHaveURL(/\/phong$/);

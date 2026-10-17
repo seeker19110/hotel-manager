@@ -275,6 +275,7 @@ const deps = (over: Partial<Parameters<typeof startWorker>[0]>) =>
     sender: null,
     baseUrl: "http://localhost:3000",
     unsubscribeKey: Buffer.alloc(32),
+    invitationKey: Buffer.alloc(32),
     retentionInitialDelayMs: 60_000,
     ...over,
   }) as Parameters<typeof startWorker>[0];

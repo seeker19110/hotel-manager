@@ -16,6 +16,8 @@ export const OUTBOX_PAYLOAD_SCHEMAS = {
   "work_order.status_changed": z.looseObject({ work_order_id: id, status: z.string().min(1).max(40) }),
   "portal.tenant_invited": z.looseObject({ membership_id: id, person_id: id }),
   "export.requested": z.looseObject({ export_id: id }),
+  // T-605: email lời mời nhân viên (token dựng lại ở worker, không nằm trong payload).
+  "member.invited": z.looseObject({ invitation_id: id }),
   "bank_transaction.received": z.looseObject({ bank_transaction_id: id }),
   // T-405: thông báo account_security cho chính người bị đặt lại MFA.
   "member.mfa_reset": z.looseObject({ membership_id: id, by_membership_id: id }),

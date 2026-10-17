@@ -14,6 +14,7 @@ import {
   RENTAL_OWNER,
   SMOKE_USER,
 } from "./fixtures.ts";
+import { signInClick } from "./sign-in.ts";
 import { hotelTotpFile, totp, totpFile } from "./totp.ts";
 
 export type Cookies = Awaited<ReturnType<BrowserContext["cookies"]>>;
@@ -50,7 +51,7 @@ export function loginOwner(browser: Browser, baseURL: string, who: "rental" | "h
     await page.goto("/dang-nhap");
     await page.getByLabel("Email").fill(account.email);
     await page.getByLabel("Mật khẩu").fill(account.password);
-    await page.getByRole("button", { name: "Đăng nhập" }).click();
+    await signInClick(page);
     await page.getByLabel("Mã xác thực 6 số").fill(totp(secret));
     await page.getByRole("button", { name: "Xác nhận" }).click();
     await expect(page).toHaveURL(/\/chon-to-chuc$/, { timeout: 10_000 });
@@ -67,7 +68,7 @@ export function loginStaff(browser: Browser, baseURL: string, who: "main" | "hot
     await page.goto("/dang-nhap");
     await page.getByLabel("Email").fill(account.email);
     await page.getByLabel("Mật khẩu").fill(account.password);
-    await page.getByRole("button", { name: "Đăng nhập" }).click();
+    await signInClick(page);
     await expect(page).toHaveURL(/\/chon-to-chuc$/, { timeout: 10_000 });
     await page.getByRole("button", { name: org }).click();
     await expect(page).toHaveURL(/\/phong$/);
@@ -102,7 +103,7 @@ export function loginTenant(browser: Browser, baseURL: string): Promise<Cookies>
     await page.getByRole("button", { name: "Gửi mã" }).click();
     const code = await newOtpFor(PORTAL_TENANT.email, before);
     await page.getByLabel("Mã đăng nhập 6 số").fill(code);
-    await page.getByRole("button", { name: "Đăng nhập" }).click();
+    await signInClick(page);
     await expect(page).toHaveURL(/\/chon-to-chuc$/, { timeout: 10_000 });
     await page.getByRole("button", { name: new RegExp(`^${ORG_PORTAL.replace(/[()]/g, "\\$&")}`) }).click();
     await expect(page).toHaveURL(/\/portal$/);

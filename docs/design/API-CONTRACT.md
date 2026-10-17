@@ -37,6 +37,7 @@ Trường tuỳ chọn theo mã (không có thì bỏ hẳn, không gửi `null`
 | `VALIDATION_FAILED` | 422 | Schema/nghiệp vụ đầu vào sai: tiền không nguyên, khoảng `end ≤ start`, thiếu trường (JSON không parse được → 400 `MALFORMED_REQUEST`) |
 | `MALFORMED_REQUEST` | 400 | Body không phải JSON hợp lệ, thiếu `Idempotency-Key` |
 | `UNAUTHENTICATED` | 401 | Thiếu phiên hoặc phiên hết hạn |
+| `SESSION_REVOKED` | 401 | Phiên đã bị thu hồi (`session.revokeAll`, đặt lại MFA…): request mang cookie phiên đó nhận mã này thay vì `UNAUTHENTICATED`; đăng nhập lại tạo phiên mới bình thường (SPEC-access S-010) |
 | `REAUTH_REQUIRED` | 401 | Thao tác nhạy cảm (xuất dữ liệu, hoàn tiền vượt ngưỡng) cần xác thực lại hoặc MFA |
 | `FORBIDDEN` | 403 | Có membership nhưng không đủ quyền hoặc vượt hạn mức |
 | `NOT_FOUND` | 404 | Không tồn tại **hoặc** thuộc tổ chức/cơ sở khác (không phân biệt hai trường hợp, để không lộ thông tin) |
@@ -67,6 +68,7 @@ Bảng trên là **mã dùng chung**. Mã chỉ một tính năng dùng thì đ�
 
 | SPEC | Mã riêng |
 |---|---|
+| `SPEC-access-and-property.md` | `FEATURE_DISABLED` · `INVITATION_INVALID` · `LAST_OWNER` · `MFA_REQUIRED` · `ORG_CONTEXT_REQUIRED` · `PROPERTY_IN_USE` · `UNIT_CODE_TAKEN` · `UNIT_IN_USE` |
 | `SPEC-audit-reporting.md` | `EXPORT_NOT_READY` · `REPORT_RANGE_TOO_LARGE` |
 | `SPEC-import.md` | `IMPORT_CONFIRMATION_REQUIRED` · `IMPORT_HAS_ERRORS` · `IMPORT_TOTALS_MISMATCH` |
 | `SPEC-inventory-allocation.md` | `BLOCK_CONFLICT` |
