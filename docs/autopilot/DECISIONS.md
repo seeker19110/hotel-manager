@@ -258,3 +258,10 @@
 - Chọn: Làm hết trong 8 task T-501…T-508 (cùng luật D-023)
 - Lý do (tiêu chí chất lượng cuối): (1) đúng/an toàn: gồm rào transaction, retry có jitter, FK tường minh, sự kiện bảo mật còn thiếu — lỗi tiềm ẩn thật; (3) mỗi mục có Gate máy; ngân sách còn (vòng 33/130).
 - Đường lùi: Mỗi task một commit; revert theo task.
+
+### D-037 · 2026-10-17T04:44:22+00:00 · T-504: hạn mức tần suất upload/webhook (BE-REL-006) — giá trị và kiểu cửa sổ?
+
+- Phương án: (1) Cửa sổ cố định 60 s trong Postgres (khoá advisory): upload 30/phút/thành viên + 120/phút/tổ chức, import 10/30, webhook đã xác thực 600/phút/tài khoản, chữ ký sai 300/phút/nhà cung cấp; hằng số trong rate-limit.ts · (2) Cửa sổ trượt (log từng lượt) — chặt hơn ở ranh giới nhưng ghi nhiều hàng hơn · (3) Thêm biến môi trường cấu hình hạn mức
+- Chọn: Cửa sổ cố định 60 s trong Postgres (khoá advisory): upload 30/phút/thành viên + 120/phút/tổ chức, import 10/30, webhook đã xác thực 600/phút/tài khoản, chữ ký sai 300/phút/nhà cung cấp; hằng số trong rate-limit.ts
+- Lý do (tiêu chí chất lượng cuối): (1) an toàn: chặn trước khi đọc thân/quét/ghi object, bộ đếm chung giữa mọi tiến trình (test hai pool), lượt từ chối không tăng bộ đếm; ranh giới lọt tối đa 2× trong thời gian ngắn là chấp nhận được cho chống lạm dụng. (2) đường lùi: đổi hằng số. (3) không thêm biến môi trường (không cập nhật được .env.example).
+- Đường lùi: Đổi hằng trong packages/app/src/http/rate-limit.ts; muốn cửa sổ trượt thì thay hàm app.rate_limit_hit bằng migration mới.
