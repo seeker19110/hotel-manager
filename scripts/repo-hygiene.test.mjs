@@ -60,7 +60,12 @@ function relativeLinkTargets(md) {
   return out;
 }
 
-const DOC_FILES = ["README.md", "PROJECT.md", ...markdownFiles("docs", ["docs/autopilot/archive"])];
+const DOC_FILES = [
+  "README.md",
+  "RUNBOOK.md",
+  "PROJECT.md",
+  ...markdownFiles("docs", ["docs/autopilot/archive"]),
+];
 
 describe("relativeLinkTargets", () => {
   it.each([
@@ -229,5 +234,78 @@ describe("cấu hình repo", () => {
       expect(t, h).toMatch(new RegExp(`^## ${h}`, "m"));
     expect(t).toMatch(/Backup trước migrate/);
     expect(t).toMatch(/Đường lùi/);
+  });
+});
+
+// T-706 (PM-HANDOVER-002, D-056): gói bàn giao tồn tại và khớp nhau. Kiểm máy của `test -f README.md -a -f RUNBOOK.md -a -d docs/adr`,
+// thêm PROGRESS.md, sổ rủi ro, danh sách tài khoản (không bí mật); RUNBOOK.md ở gốc chỉ TRỎ tới docs/RUNBOOK.md (không nhân đôi);
+// "clean clone build" = job `quality` của CI (checkout sạch + `pnpm install --frozen-lockfile` + cổng gồm build), không workflow riêng.
+describe("gói bàn giao (PM-HANDOVER-002)", () => {
+  const isFile = (rel) => existsSync(join(ROOT, rel)) && statSync(join(ROOT, rel)).isFile();
+  const isDir = (rel) => existsSync(join(ROOT, rel)) && statSync(join(ROOT, rel)).isDirectory();
+
+  it.each([
+    "README.md",
+    "RUNBOOK.md",
+    "PROGRESS.md",
+    "docs/RUNBOOK.md",
+    "docs/RISKS.md",
+    "docs/handover/accounts.md",
+  ])("%s tồn tại và không rỗng", (f) => {
+    expect(isFile(f), f).toBe(true);
+    expect(read(f).trim().length, f).toBeGreaterThan(50);
+  });
+
+  it("docs/adr là thư mục có ít nhất một ADR đánh số", () => {
+    expect(isDir("docs/adr")).toBe(true);
+    expect(
+      readdirSync(join(ROOT, "docs/adr")).filter((n) => /^\d{4}-.+\.md$/.test(n)).length,
+    ).toBeGreaterThanOrEqual(1);
+  });
+
+  it("RUNBOOK.md ở gốc trỏ docs/RUNBOOK.md và không nhân đôi nội dung", () => {
+    const root = read("RUNBOOK.md");
+    expect(relativeLinkTargets(root)).toContain("docs/RUNBOOK.md");
+    expect(root.split("\n").length).toBeLessThanOrEqual(30);
+    // Không chép mục của runbook thật (mục đánh số `## N.`) sang bản gốc.
+    const realSections = [...read("docs/RUNBOOK.md").matchAll(/^## (\d+\. .+)$/gm)].map((m) => m[1]);
+    expect(realSections.length).toBeGreaterThan(3);
+    for (const h of realSections) expect(root, h).not.toContain(h);
+  });
+
+  it("mọi file trong gói bàn giao được README hoặc RUNBOOK.md ở gốc dẫn tới", () => {
+    const links = new Set([
+      ...relativeLinkTargets(read("README.md")),
+      ...relativeLinkTargets(read("RUNBOOK.md")),
+    ]);
+    const has = (t) => [...links].some((l) => l === t || l.startsWith(`${t}`));
+    for (const t of [
+      "docs/RUNBOOK.md",
+      "docs/adr",
+      "PROGRESS.md",
+      "docs/RISKS.md",
+      "docs/handover/accounts.md",
+    ])
+      expect(has(t), `README/RUNBOOK.md không dẫn tới ${t}`).toBe(true);
+    expect([...links].some((l) => l === "RUNBOOK.md" || l === "docs/RUNBOOK.md")).toBe(true);
+  });
+
+  it("danh sách tài khoản không chứa bí mật dạng giá trị", () => {
+    const t = read("docs/handover/accounts.md");
+    expect(t).not.toMatch(/(?:password|passwd|secret|token|api[_-]?key)\s*[:=]\s*\S{8,}/i);
+    expect(t).not.toMatch(/-----BEGIN [A-Z ]*PRIVATE KEY-----|postgres(?:ql)?:\/\/[^\s:@]+:[^\s@]+@/);
+  });
+
+  it("clean clone build = job quality của CI: checkout sạch → install --frozen-lockfile → cổng có build", () => {
+    const ci = read(".github/workflows/ci.yml");
+    const quality = /^ {2}quality:\n([\s\S]*?)(?=^ {2}[a-z][\w-]*:\n)/m.exec(ci)?.[1] ?? "";
+    expect(quality.length).toBeGreaterThan(0);
+    const at = (needle) => quality.indexOf(needle);
+    expect(at("actions/checkout")).toBeGreaterThan(-1);
+    expect(at("pnpm install --frozen-lockfile")).toBeGreaterThan(at("actions/checkout"));
+    expect(at("dev-task.sh gate")).toBeGreaterThan(at("pnpm install --frozen-lockfile"));
+    // Cổng (`gate` = build → typecheck → lint → test) chỉ có nghĩa nếu `build` trong xt.yaml là lệnh thật.
+    expect(xtYaml().build).toMatch(/pnpm .*build/);
+    expect(read(".xtemplates/scripts/dev-task.sh")).toMatch(/gate/);
   });
 });
