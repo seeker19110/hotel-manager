@@ -443,6 +443,38 @@ describe("docs/ops/SLO.md", () => {
   });
 });
 
+describe("cảnh báo sức khoẻ CSDL (T-503)", () => {
+  it("nhóm CSDL (DB-PERF-004/008): kết nối > 80%, tuổi XID ticket < page < 2^31 trừ ngưỡng từ chối, hàng chết — trên metric có thật", () => {
+    const rules = (parseYaml(read("deploy/prometheus/alerts.yml")).groups ?? []).flatMap(
+      (g) => g.rules ?? [],
+    );
+    const byName = Object.fromEntries(rules.map((r) => [r.alert, r]));
+    const conn = byName.HmDbConnectionsHigh;
+    expect(conn.expr).toMatch(/hm_db_connections\s*\/\s*hm_db_max_connections\s*>\s*0\.8\b/);
+    expect(conn.labels.severity).toBe("ticket");
+    const limit = (r) => Number(/>\s*(\d+)/.exec(r.expr)?.[1]);
+    const high = byName.HmDbXidAgeHigh;
+    const crit = byName.HmDbXidAgeCritical;
+    for (const r of [high, crit]) {
+      expect(r.expr).toContain("hm_db_xid_age");
+      expect(r.expr).toContain("hm_db_multixact_age");
+    }
+    expect(high.labels.severity).toBe("ticket");
+    expect(crit.labels.severity).toBe("page");
+    // PostgreSQL từ chối ghi khi còn 3 triệu giao dịch tới 2^31; cảnh báo ở 40 triệu còn lại (PostgreSQL 18 §24.1.5).
+    expect(limit(high)).toBeLessThan(limit(crit));
+    expect(limit(crit)).toBeLessThan(2 ** 31 - 40_000_000);
+    expect(limit(high)).toBeGreaterThan(200_000_000); // trên autovacuum_freeze_max_age mặc định
+    const dead = byName.HmDbDeadTuplesHigh;
+    expect(dead.expr).toContain("hm_db_dead_tuples");
+    expect(dead.expr).toContain("hm_db_dead_tuple_ratio");
+    for (const r of [conn, high, crit, dead]) {
+      const sec = r.annotations.runbook_section;
+      expect(read("docs/RUNBOOK.md"), `RUNBOOK thiếu mục "${sec}"`).toContain(`### ${sec}`);
+    }
+  });
+});
+
 describe("burn rate nhiều cửa sổ (OPS-SLO-004)", () => {
   const doc = parseYaml(read("deploy/prometheus/alerts.yml"));
   const slo = (doc.groups ?? []).find((g) => g.name === "hotel-manager.slo")?.rules ?? [];

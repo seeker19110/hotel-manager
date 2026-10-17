@@ -1,0 +1,19 @@
+# EXPLAIN truy vấn nóng "billing-preview" (DB-PERF-001) — sinh và so khớp bởi packages/app/src/db-perf.db.test.ts.
+# EXPLAIN (FORMAT JSON) trên Postgres thật, enable_seqscan = off (Seq Scan còn lại = không có index dùng được), vai trò và dữ liệu theo test.
+# Mỗi dòng: bảng · kiểu quét (Index gồm Index Only/Bitmap) [· index (cột khoá) · cột bị ràng buộc trong tiền tố khoá (bound) — chỉ khi truy vấn có cột chọn lọc].
+# Đổi truy vấn/index làm kế hoạch đổi → test đỏ; cập nhật có chủ đích: pnpm vitest run --project db db-perf -u
+
+-- select count(*)::int as n from lease_occupants where organization_id = $1 and lease_id = $ … #a21adb07
+lease_occupants · Index
+leases · Index
+
+-- select id, property_id, period_start::text, period_end::text, status from billing_periods  … #09fb16a6
+billing_periods · Index
+invoices · Index
+
+-- select l.id, l.unit_id, u.code as unit, l.billing_start_on::text, l.moved_out_on::text, l. … #d0795cbd
+leases · Index
+units · Index
+
+-- select settings->>'rounding' as rounding, settings->>'prorata' as prorata from properties  … #8333eba8
+properties · Index

@@ -127,6 +127,60 @@ groups:
           runbook_url: docs/RUNBOOK.md
           runbook_section: "3.6 Chênh lệch đối soát mở quá hạn"
 
+  - name: hotel-manager.csdl
+    rules:
+      # Sức khoẻ CSDL (T-503; DB-PERF-004/008). Metric do app.db_health_metrics (migration 0051). Ngưỡng là lựa chọn của đội (ghi nguồn ở
+      # docs/db/connections.md §6): 80% max_connections; tuổi XID 1,0 tỷ (ticket) và 1,8 tỷ (page) trên trần wraparound 2^31 ≈ 2,147 tỷ
+      # (PostgreSQL 18 §24.1.5, xác minh 2026-10-17: autovacuum_freeze_max_age mặc định 200 triệu; cảnh báo ở 40 triệu còn lại, từ chối
+      # ghi ở 3 triệu còn lại). Page cho XID vì cạn là CSDL ngừng nhận ghi (mất dịch vụ), không phải ngưỡng tài nguyên máy.
+      - alert: HmDbConnectionsHigh
+        expr: hm_db_connections / hm_db_max_connections > 0.8
+        for: 10m
+        labels:
+          severity: ticket
+          owner: van-hanh
+        annotations:
+          summary: "Số kết nối CSDL (numbackends) vượt 80% max_connections quá 10 phút"
+          description: "Gần cạn kết nối: tiến trình mới sẽ nhận 'too many clients'. Đối chiếu bảng ngân sách ở docs/db/connections.md §2 (số bản sao web/worker) trước khi nâng max_connections hoặc đặt PgBouncer."
+          runbook_url: docs/RUNBOOK.md
+          runbook_section: "3.2 CSDL đầy kết nối / chậm"
+
+      - alert: HmDbXidAgeHigh
+        expr: hm_db_xid_age > 1000000000 or hm_db_multixact_age > 1000000000
+        for: 30m
+        labels:
+          severity: ticket
+          owner: van-hanh
+        annotations:
+          summary: "Tuổi XID (hoặc multixact) của CSDL vượt 1,0 tỷ — autovacuum đóng băng đang không theo kịp"
+          description: "Mặc định autovacuum_freeze_max_age = 200 triệu nên tuổi bình thường không quá vài trăm triệu. Tìm giao dịch/slot sao chép treo giữ xmin và bảng không được vacuum (docs/RUNBOOK.md §3.10) trước khi chạm 2^31."
+          runbook_url: docs/RUNBOOK.md
+          runbook_section: "3.10 Tuổi XID cao (nguy cơ wraparound)"
+
+      - alert: HmDbXidAgeCritical
+        expr: hm_db_xid_age > 1800000000 or hm_db_multixact_age > 1800000000
+        for: 5m
+        labels:
+          severity: page
+          owner: van-hanh
+        annotations:
+          summary: "Tuổi XID (hoặc multixact) của CSDL vượt 1,8 tỷ — còn dưới 350 triệu giao dịch tới ngưỡng ngừng ghi"
+          description: "PostgreSQL cảnh báo ở 40 triệu còn lại và từ chối giao dịch mới ở 3 triệu còn lại (wraparound). Xử lý ngay theo runbook §3.10."
+          runbook_url: docs/RUNBOOK.md
+          runbook_section: "3.10 Tuổi XID cao (nguy cơ wraparound)"
+
+      - alert: HmDbDeadTuplesHigh
+        expr: hm_db_dead_tuples > 10000 and hm_db_dead_tuple_ratio > 0.2
+        for: 1h
+        labels:
+          severity: ticket
+          owner: backend
+        annotations:
+          summary: "Bảng có trên 10.000 hàng chết và hơn 20% hàng là hàng chết, kéo dài quá 1 giờ"
+          description: "Bloat: autovacuum không theo kịp hoặc bị chặn bởi giao dịch dài. Ngưỡng khởi điểm (10.000 hàng, 20% — mặc định autovacuum_vacuum_scale_factor), chỉnh sau khi có dữ liệu pilot. Nhãn table cho biết bảng nào."
+          runbook_url: docs/RUNBOOK.md
+          runbook_section: "3.11 Hàng chết (dead tuples) tăng"
+
   - name: hotel-manager.slo
     rules:
       # Khả dụng 99,9% (ngân sách lỗi 0,001): luồng lõi = /api/v1/* + /api/ready, lỗi = 5xx. Hệ số đốt 14,4 / 6 / 1 theo SRE Workbook.
