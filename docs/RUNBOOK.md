@@ -2,6 +2,7 @@
 
 > PLAN đợt 3 T-225. Tài liệu cho người trực vận hành. Mọi lệnh trong file này **chỉ dùng dữ liệu giả** khi diễn tập; trên dữ liệu thật phải theo điểm dừng của AGENTS §6 (người duyệt trước thao tác không đảo ngược).
 > Chưa có môi trường production: các mục "Khi chạy thật" là đề xuất, chờ chủ dự án quyết (xem `docs/autopilot/DECISIONS.md`, D-021).
+> Sự cố nghiêm trọng, thông báo vi phạm, lộ bí mật, khôi phục, deploy/rollback, SLO: xem **§8 Tài liệu vận hành liên quan** (T-308).
 
 ## 1. Bản đồ nhanh
 
@@ -26,12 +27,14 @@ node scripts/metrics-token.mjs
 Khi chạy thật (đề xuất D-021): chặn thêm `/api/metrics` ở reverse proxy (chỉ IP mạng nội bộ của Prometheus), không public.
 
 ## 2. Ngưỡng cảnh báo đề xuất
+Đã thành rule Prometheus (có `severity`, `owner`, `runbook_url`) ở [`deploy/prometheus/alerts.yml`](../deploy/prometheus/alerts.yml); bảng dưới giữ ý nghĩa từng chỉ số.
+
 
 | Metric | Cảnh báo | Ý nghĩa |
 |---|---|---|
 | `hm_outbox_oldest_unpublished_age_seconds` | > 300 trong 5 phút | Relay outbox đứng — thông báo/xuất/đối soát không chạy |
 | `hm_outbox_failing` | > 0 trong 15 phút | Có sự kiện phát lỗi lặp lại |
-| `increase(notification_dead_total[1h])` | > 0 | Email hết lượt thử (nhà cung cấp lỗi kéo dài hoặc địa chỉ sai hàng loạt) |
+| `delta(notification_dead_total[1h])` | > 0 | Email hết lượt thử (nhà cung cấp lỗi kéo dài hoặc địa chỉ sai hàng loạt). Metric là gauge số hàng `dead` (dù tên `_total`, `# TYPE counter` — sai, sẽ sửa ở nhánh khác): dùng `delta`, không dùng `increase` |
 | `hm_jobs_failed` | tăng | Job pg-boss lỗi (xem dead letter §6) |
 | `hm_export_jobs{status="failed"}` | tăng | Xuất dữ liệu lỗi (xem `export_jobs.failed_reason`) |
 | `hm_worker_heartbeat_age_seconds` | > 120 | Worker treo/chết |
@@ -65,6 +68,7 @@ Khi chạy thật (đề xuất D-021): chặn thêm `/api/metrics` ở reverse 
 ## 4. Sao lưu và khôi phục
 - Diễn tập PITR (dữ liệu giả, cluster tạm): `bash scripts/db-backup-restore-check.sh` — exit 0 = khôi phục đúng (so số dòng, Σ Nợ/Có, số policy RLS).
 - Khi chạy thật (chờ quyết — PROGRESS "Chờ người"): pgBackRest repo mã hoá ở **máy khác**, giữ khoá `PGBACKREST_REPO_CIPHER_PASS` ngoài máy chủ; diễn tập khôi phục định kỳ.
+- Lệnh khôi phục đầy đủ (pgBackRest PITR, kho file, dựng lại hạ tầng): [`docs/ops/runbooks/restore.md`](ops/runbooks/restore.md).
 - Khôi phục thật là thao tác không đảo ngược trên dữ liệu thật ⇒ người duyệt trước (AGENTS §6); khôi phục vào cluster mới, kiểm rồi mới chuyển ứng dụng sang.
 
 ## 5. Xoay khoá mã hoá giấy tờ (PII, D-004)
@@ -73,7 +77,7 @@ Khi chạy thật (đề xuất D-021): chặn thêm `/api/metrics` ở reverse 
 3. Mã hoá lại dần sang khoá mới: `reencryptIdentityDocuments` (packages/app/src/identity/identity.ts) theo từng tổ chức — chạy như job vận hành, có audit.
 4. Khi không còn bản mã dùng khoá cũ (`keyIdOf`), bỏ khoá cũ khỏi `HM_PII_KEYS`.
 5. **Không** xoay `HM_PII_INDEX_KEY` cùng lúc (đổi khoá blind index = tính lại toàn bộ index tìm kiếm).
-- Lộ khoá: coi dữ liệu giấy tờ đã lộ ⇒ quy trình sự cố dữ liệu cá nhân (pháp lý — chờ đối chiếu văn bản gốc, PROGRESS).
+- Lộ khoá: coi dữ liệu giấy tờ đã lộ ⇒ quy trình sự cố dữ liệu cá nhân ([`data-breach.md`](ops/runbooks/data-breach.md); pháp lý — chờ đối chiếu văn bản gốc, PROGRESS). Xoay mọi loại bí mật: [`secret-leak.md`](ops/runbooks/secret-leak.md).
 
 ## 6. Dead letter (pg-boss)
 - Job hết lượt thử (mặc định 5 lần, backoff) chuyển sang queue `outbox.dead_letter`.
@@ -84,7 +88,7 @@ Khi chạy thật (đề xuất D-021): chặn thêm `/api/metrics` ở reverse 
 - Job `runRetention` (worker, hằng ngày): xoá object file hết hạn (`files.delete_after`) rồi đánh dấu `deleted`; làm rỗng `import_rows.raw/data` 30 ngày sau commit/huỷ lô nhập.
 - Job `expireExports` (5 phút): bản xuất quá 15 phút ⇒ `expired`.
 - Lỗi xoá object ⇒ log `retention.file_delete_failed`, lượt sau thử lại (không đánh dấu `deleted` khi chưa xoá được).
-- Object mồ côi (T-303, D-025): tải lên, tải lô nhập, xuất thông báo lưu trú và bản xuất ghi object NGOÀI transaction lệnh qua dòng `files` ở `pending_scan` (`delete_after` = hôm nay + 2 ngày, giờ VN). Lệnh lỗi hoặc tiến trình sập giữa ghi object và chốt `ready` để lại object + dòng `pending_scan`; `runRetention` xoá object rồi đánh dấu `deleted` khi tới hạn (cùng đường với file `ready` hết hạn). Xem: `select id, owner_type, storage_key, delete_after from files where status = 'pending_scan' and delete_after < current_date;` — dòng tồn lâu hơn 2 ngày nghĩa là job hạn giữ không chạy (xem §8).
+- Object mồ côi (T-303, D-025): tải lên, tải lô nhập, xuất thông báo lưu trú và bản xuất ghi object NGOÀI transaction lệnh qua dòng `files` ở `pending_scan` (`delete_after` = hôm nay + 2 ngày, theo ngày UTC). Lệnh lỗi hoặc tiến trình sập giữa ghi object và chốt `ready` để lại object + dòng `pending_scan`; `runRetention` xoá object rồi đánh dấu `deleted` khi tới hạn (cùng đường với file `ready` hết hạn). Xem: `select id, owner_type, storage_key, delete_after from files where status = 'pending_scan' and delete_after < current_date;` — dòng tồn lâu hơn 2 ngày nghĩa là job hạn giữ không chạy (xem §8).
 
 ## 8. Worker (apps/worker) — khởi chạy, lịch, dừng
 - Chạy: `node apps/worker/src/index.ts` (Node 24). Biến: toàn bộ schema web (`DATABASE_URL` = vai trò `app_runtime`, dùng cho job xuất dữ liệu) **cộng `WORKER_DATABASE_URL`** = vai trò `app_worker` (relay outbox, job nền, pg-boss). Thiếu/sai biến ⇒ thoát mã 1, stderr nêu tên biến (không giá trị). Web cũng validate lúc khởi động (`apps/web/instrumentation.ts`).
@@ -98,3 +102,15 @@ Khi chạy thật (đề xuất D-021): chặn thêm `/api/metrics` ở reverse 
 - Căn cứ (tài liệu Caddy `reverse_proxy`, đọc 2026-10-16): Caddy mặc định bỏ qua `X-Forwarded-For` từ client không tin cậy và đặt/nối địa chỉ kết nối thật, nên hop phải nhất là địa chỉ Caddy thấy. Hop đầu là do client tự khai (giả được) nên không dùng.
 - Thêm lớp proxy/CDN (hoặc bật `trusted_proxies`) ⇒ hop phải nhất là địa chỉ của lớp đó: mọi khách chung một IP (giới hạn tần suất gộp chung, log sai nguồn). Phải sửa `forwardedClientIp` (đếm số hop tin cậy) và cập nhật mục này TRƯỚC khi đổi hạ tầng.
 - Chạy ứng dụng không qua proxy (cổng 3000 lộ ra ngoài) ⇒ client tự đặt được header ⇒ không an toàn; cổng web chỉ mở cho Caddy.
+
+## 10. Tài liệu vận hành liên quan
+| Cần làm | Tài liệu |
+|---|---|
+| Phân mức và xử lý sự cố (SEV1–4, thứ tự, thao tác cần người duyệt) | [`docs/ops/INCIDENT-RESPONSE.md`](ops/INCIDENT-RESPONSE.md) |
+| Vi phạm dữ liệu cá nhân (thời hạn thông báo, mẫu) | [`docs/ops/runbooks/data-breach.md`](ops/runbooks/data-breach.md) |
+| Lộ bí mật (xoay từng loại) | [`docs/ops/runbooks/secret-leak.md`](ops/runbooks/secret-leak.md) |
+| Khôi phục CSDL/file | [`docs/ops/runbooks/restore.md`](ops/runbooks/restore.md) |
+| Deploy, backup trước migrate, rollback | [`docs/ops/runbooks/deploy-rollback.md`](ops/runbooks/deploy-rollback.md) |
+| Mục tiêu dịch vụ, ngân sách lỗi | [`docs/ops/SLO.md`](ops/SLO.md) |
+| Rule cảnh báo | [`deploy/prometheus/alerts.yml`](../deploy/prometheus/alerts.yml) |
+| Mô hình đe doạ | [`docs/design/THREAT-MODEL.md`](design/THREAT-MODEL.md) |

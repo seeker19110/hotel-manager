@@ -23,3 +23,9 @@ playwright-report/
 # Python (scripts/)
 __pycache__/
 *.pyc
+
+# IDE / hệ điều hành (WF-GIT-010). Chưa có file cấu hình IDE dùng chung; nếu thêm thì mở lại bằng `!.vscode/<tên>`.
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

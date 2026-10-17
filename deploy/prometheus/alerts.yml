@@ -1,0 +1,108 @@
+# Rule cảnh báo Prometheus cho Hotel Manager (T-308; OPS-SLO-004/005). Tệp này CHỈ chứa rule trên metric đã có ở
+# packages/app/src/observability/metrics.ts. Chưa có metric HTTP nên chưa có rule burn rate — xem docs/ops/SLO.md §2.
+# Mỗi rule: labels.severity (page | ticket), labels.owner, annotations.runbook_url (đường dẫn tệp có thật trong repo,
+# tính từ gốc repo) + summary. scripts/ops-docs.test.mjs kiểm cấu trúc này; giữ YAML đơn giản (không anchor, không block scalar).
+# LƯU Ý LOẠI METRIC: `notification_dead_total` KHÔNG phải counter dù tên có hậu tố _total và /api/metrics khai `# TYPE ... counter`:
+# giá trị là SỐ HÀNG đang ở trạng thái `dead` tại thời điểm đọc (app.metrics_snapshot, migration 0046), tức gauge — giảm khi
+# hàng dead được gửi lại. Vì vậy dùng `delta()` (không dùng `increase()`/`rate()`, vốn coi mọi lần giảm là reset counter và báo giả).
+# Việc còn lại (nhánh khác, không sửa ở đây): đổi TYPE thành gauge trong packages/app/src/observability/metrics.ts (+ test) hoặc
+# đổi tên metric bỏ _total. Chừng nào chưa sửa, rule ở dưới đúng cho cả hai trường hợp vì chỉ dựa vào `delta()`.
+# Nạp: rule_files: [alerts.yml] trong prometheus.yml; scrape /api/metrics với Bearer token (docs/RUNBOOK.md §1).
+groups:
+  - name: hotel-manager.van-hanh
+    rules:
+      - alert: HmMetricsDown
+        expr: absent(hm_up)
+        for: 3m
+        labels:
+          severity: page
+          owner: van-hanh
+        annotations:
+          summary: "Không lấy được số liệu ứng dụng (web ngừng hoặc /api/metrics lỗi) quá 3 phút"
+          description: "Mất series hm_up: web không trả lời hoặc token metrics sai. Người dùng có thể không vào được hệ thống."
+          runbook_url: docs/RUNBOOK.md
+          runbook_section: "3.1 Web trả 5xx / /api/ready 503"
+
+      - alert: HmOutboxStalled
+        expr: hm_outbox_oldest_unpublished_age_seconds > 300
+        for: 5m
+        labels:
+          severity: page
+          owner: van-hanh
+        annotations:
+          summary: "Outbox đứng: sự kiện chưa phát cũ nhất quá 5 phút"
+          description: "Relay outbox không chạy: webhook thanh toán không được ghi, thông báo và xuất dữ liệu không đi."
+          runbook_url: docs/RUNBOOK.md
+          runbook_section: "3.3 Outbox đứng"
+
+      - alert: HmWorkerHeartbeatStale
+        expr: hm_worker_heartbeat_age_seconds > 120 or absent(hm_worker_heartbeat_age_seconds)
+        for: 3m
+        labels:
+          severity: page
+          owner: van-hanh
+        annotations:
+          summary: "Worker không có nhịp quá 120 giây (hoặc chưa từng báo nhịp)"
+          description: "Worker treo/chết: outbox, nhắc nợ, nhả giữ chỗ và job xuất không chạy."
+          runbook_url: docs/RUNBOOK.md
+          runbook_section: "3.3 Outbox đứng (bước 1: kiểm nhịp worker)"
+
+      - alert: HmOutboxFailing
+        expr: hm_outbox_failing > 0
+        for: 15m
+        labels:
+          severity: ticket
+          owner: backend
+        annotations:
+          summary: "Có sự kiện outbox đã thử phát nhưng lỗi lặp lại quá 15 phút"
+          description: "Xem outbox.last_error; sửa nguyên nhân, không sửa tay hàng outbox."
+          runbook_url: docs/RUNBOOK.md
+          runbook_section: "3.3 Outbox đứng (bước 2)"
+
+      - alert: HmNotificationDead
+        expr: delta(notification_dead_total[1h]) > 0
+        labels:
+          severity: ticket
+          owner: backend
+        annotations:
+          summary: "Số email hết lượt thử (dead) tăng ròng trong 1 giờ qua"
+          description: "Nhà cung cấp SMTP lỗi kéo dài hoặc địa chỉ nhận sai hàng loạt; owner/manager có thể gửi lại sau khi sửa. Metric là gauge số hàng dead: gửi lại làm giảm; nếu vừa có hàng dead mới vừa gửi lại hàng cũ trong cùng 1 giờ thì tăng ròng có thể bằng 0 — xem số dead hiện tại."
+          runbook_url: docs/RUNBOOK.md
+          runbook_section: "3.4 Email dead tăng"
+
+      - alert: HmJobsFailed
+        # hm_jobs_failed là gauge (số job đang failed): so sánh trực tiếp, `for` lọc nhiễu; không dùng increase().
+        expr: hm_jobs_failed > 0
+        for: 15m
+        labels:
+          severity: ticket
+          owner: backend
+        annotations:
+          summary: "Có job pg-boss ở trạng thái failed quá 15 phút"
+          description: "Job hết lượt thử chuyển dead letter; cần sửa nguyên nhân rồi phát lại với cùng data."
+          runbook_url: docs/RUNBOOK.md
+          runbook_section: "6 Dead letter (pg-boss)"
+
+      - alert: HmExportJobsFailed
+        expr: delta(hm_export_jobs{status="failed"}[1h]) > 0
+        labels:
+          severity: ticket
+          owner: backend
+        annotations:
+          summary: "Có job xuất dữ liệu mới chuyển failed trong 1 giờ qua"
+          description: "Xem export_jobs.failed_reason (FORBIDDEN, TOO_LARGE, INVALID, INTERNAL); người dùng tạo yêu cầu mới."
+          runbook_url: docs/RUNBOOK.md
+          runbook_section: "3.5 Xuất dữ liệu lỗi"
+
+      - alert: HmHoldsActiveUnusual
+        # avg_over_time(...[1d] offset 1d) = trung bình của 24 giờ liền trước 24 giờ gần nhất (cả ngày hôm trước), không phải cùng giờ.
+        expr: hm_holds_active > 2 * (avg_over_time(hm_holds_active[1d] offset 1d) + 10)
+        for: 1h
+        labels:
+          severity: ticket
+          owner: backend
+        annotations:
+          summary: "Số giữ chỗ đang hiệu lực gấp hơn đôi so với trung bình cả ngày hôm trước (cộng 10)"
+          description: "Ngưỡng khởi điểm (hệ số 2 so với trung bình cả ngày hôm trước, cộng 10), chỉnh sau khi có dữ liệu pilot. Có thể job nhả hold không chạy hoặc bị lạm dụng giữ phòng."
+          runbook_url: docs/RUNBOOK.md
+          runbook_section: "2 Ngưỡng cảnh báo đề xuất (hm_holds_active)"
