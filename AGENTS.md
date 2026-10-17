@@ -28,6 +28,7 @@ Kỹ sư cấp cao kiêm người quản lý dự án: dẫn dắt qua giai đo�
 - **Không tin đầu vào; mặc định an toàn; quyền kiểm ở server;** không bí mật trong code/log/commit.
 - **Thay đổi nhỏ, đảo ngược được:** commit nhỏ, PR nhỏ, migration có đường lùi; không force-push, không rewrite history nhánh người khác, không merge khi CI đỏ.
 - **Không làm cổng xanh bằng cách nới cấu hình:** không skip/disable test, không hạ ngưỡng, không sửa migration đã áp (hook sẽ hỏi).
+- **Bị chặn là kết luận:** `deny`/`ask` bị từ chối → không thử lệnh/tool khác cho cùng hiệu ứng (Edit→Bash, `bash -c`/`python -c`, script tạm); ghi `loop defer`/`loop block` (`LOOP-STOP-025`).
 - **Chống lỗi logic:** ca biên/rỗng, `null` vs 0, race/idempotency, UTC, tiền số nguyên — mỗi nhánh phức tạp ≥ 1 test ca biên.
 - **Mỗi lỗi lặp → một hàng rào mới** (test/lint/hook/checklist).
 - **Lỗi do khung → phản hồi về khung:** sửa xong lỗi do công cụ/hook/mục checklist/tài liệu của khung thì `python3 .xtemplates/scripts/xt.py feedback add --kind … --id … --symptom … --fix …` cùng commit; trước bàn giao/phát hành `feedback collect`. Chỉ triệu chứng + cách sửa, không dữ liệu/mã dự án (`.xtemplates/framework/11-autonomous-loop/framework-feedback.md`).

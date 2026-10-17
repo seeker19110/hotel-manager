@@ -1,7 +1,7 @@
 ---
 title: Kiểm thử & chất lượng
 kind: index
-updated: 2026-10-13
+updated: 2026-10-17
 ---
 
 # 14 — Kiểm thử & chất lượng
@@ -14,7 +14,7 @@ updated: 2026-10-13
 
 | File | Nội dung | Đọc khi nào |
 |---|---|---|
-| [`test-strategy.md`](test-strategy.md) | Bảng tầng test theo 12 hồ sơ, luật tất định/cách ly/flaky, nhãn bằng chứng, cổng required | G1–G2 khi viết mục "Kiểm thử" của `PROJECT.md`; G5 dựng CI; khi suite chậm/flaky |
+| [`test-strategy.md`](test-strategy.md) | Bảng tầng test theo 12 hồ sơ, phân loại test đỏ (4 nguyên nhân), chọn tầng theo rủi ro, ba mặt cắt ngang, luật tất định/cách ly/flaky, nhãn bằng chứng, cổng required | G1–G2 khi viết mục "Kiểm thử" của `PROJECT.md`; G5 dựng CI; khi suite chậm/flaky |
 | [`unit-and-logic-edge-cases.md`](unit-and-logic-edge-cases.md) | Bảng ca biên bắt buộc có test (rỗng/1/nhiều, null vs 0, off-by-one, tiền, chia 0, UTC/DST, race, idempotency, stale, all-or-nothing), property-based | G6 khi viết/review mọi logic nghiệp vụ; khi sửa bug logic |
 | [`integration-and-contract.md`](integration-and-contract.md) | DB thật bằng testcontainers, migration từ rỗng, test theo OpenAPI/operationId, authz BOLA/BFLA qua HTTP, Pact/oasdiff, webhook/queue, record/replay | G5–G6 cho backend/API; khi thêm dịch vụ ngoài; trước khi đổi hợp đồng |
 | [`e2e-and-accessibility.md`](e2e-and-accessibility.md) | Playwright desktop+mobile, axe `wcag22aa` trong mọi smoke, `forbidOnly/retries/trace`, flaky có hạn, mobile native | G6 khi có UI; G7 trước phát hành; khi E2E flaky |

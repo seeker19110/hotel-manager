@@ -3,7 +3,7 @@ title: Agent tự sửa CI/review: giới hạn, cấm, bằng chứng
 kind: module
 prefix: LOOP-CI
 applies_to: [all]
-updated: 2026-10-16
+updated: 2026-10-17
 ---
 
 # Agent tự sửa CI/review: giới hạn, cấm, bằng chứng
@@ -33,7 +33,7 @@ updated: 2026-10-16
 | Lỗi | Hành động | Cấm |
 |---|---|---|
 | Hạ tầng (runner mất mạng, timeout tải dependency, 5xx registry) | Re-run **1 lần**; vẫn đỏ → coi là lỗi thật | Re-run lần 2 "cho chắc" |
-| Test đỏ, tái hiện được local | Sửa code; nếu test sai so với SPEC → sửa test, nêu SPEC trong commit | `skip`, `xfail`, `.only`, xoá test |
+| Test đỏ, tái hiện được local | Phân loại trước ([`QA-STRAT-021`](../14-testing-quality/test-strategy.md)); bug thật → sửa code, giữ test; nếu test sai so với SPEC → sửa test, nêu SPEC trong commit | `skip`, `xfail`, `.only`, xoá test |
 | Test flake (đỏ/xanh ngẫu nhiên, không đổi code) | Ghi bằng chứng (run đỏ và xanh trên cùng commit) + mở issue; **gắn `@flaky`/cách ly khỏi cổng là nới cổng** → `loop defer`, người duyệt theo [`QA-STRAT-009`](../14-testing-quality/test-strategy.md) | Retry vô hạn trong CI; agent tự gắn `@flaky` trong vòng tự động |
 | Lint/format | Chạy formatter/linter fix cục bộ, commit riêng `style:` | Tắt rule, thêm `eslint-disable` diện rộng |
 | Typecheck | Sửa kiểu; không `any`/`@ts-ignore` để qua | Nới `strict` trong tsconfig |
