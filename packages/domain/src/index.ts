@@ -35,6 +35,7 @@ export {
   type RevenueAccount,
   rentLines,
 } from "./billing/engine.ts";
+export { isIsoDate, isoDateOr } from "./date/iso-date.ts";
 export {
   type Cell,
   csvCell,

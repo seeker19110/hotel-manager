@@ -1,4 +1,11 @@
-import { listReservations, listRooms, opsProperties, type ReservationView, serverContext } from "@hm/app";
+import {
+  isoDateOr,
+  listReservations,
+  listRooms,
+  opsProperties,
+  type ReservationView,
+  serverContext,
+} from "@hm/app";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { StatusBadge } from "../../components/ui/badge.tsx";
@@ -11,7 +18,6 @@ export const metadata: Metadata = { title: "Lịch phòng — Hotel Manager" };
 
 const DAYS = 7;
 const SHOWN = new Set(["held", "confirmed", "in_house", "checked_out"]);
-const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
 // SPEC-inventory-allocation §5: trên điện thoại là danh sách theo ngày (không timeline, không kéo thả); trạng thái có chữ + biểu tượng.
 export default async function CalendarPage({
@@ -29,7 +35,7 @@ export default async function CalendarPage({
     if (q.property_id && !property) notFound();
     if (!property)
       return <EmptyState title="Chưa có cơ sở khách sạn" text="Cơ sở nhà trọ dùng màn Hợp đồng và Phòng." />;
-    const from = q.from && ISO.test(q.from) ? q.from : property.businessDate;
+    const from = isoDateOr(q.from, property.businessDate);
     const to = addDays(from, DAYS);
     const [rooms, list] = await Promise.all([
       listRooms(db, actor),

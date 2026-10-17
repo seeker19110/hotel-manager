@@ -1,4 +1,4 @@
-import { listRooms, opsProperties, serverContext } from "@hm/app";
+import { isoDateOr, listRooms, opsProperties, serverContext } from "@hm/app";
 import type { Metadata } from "next";
 import { BookingForm } from "../../../components/hotel/booking-form.tsx";
 import { EmptyState, ErrorState } from "../../../components/ui/state.tsx";
@@ -7,8 +7,6 @@ import { withActor } from "../../../lib/page.tsx";
 import { safe } from "../../../lib/safe.ts";
 
 export const metadata: Metadata = { title: "Đặt phòng mới — Hotel Manager" };
-
-const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
 export default async function NewBookingPage({
   searchParams,
@@ -36,7 +34,7 @@ export default async function NewBookingPage({
     if (bookable.length === 0)
       return <EmptyState title="Chưa có phòng để đặt" text="Cơ sở cần có phòng đang hoạt động." />;
     const today = hotels[0]?.businessDate ?? new Date().toISOString().slice(0, 10);
-    const arrival = q.arrival && ISO.test(q.arrival) ? q.arrival : today;
+    const arrival = isoDateOr(q.arrival, today);
     const preferred =
       bookable.find((r) => r.unitId === q.unit) ?? bookable.find((r) => r.propertyId === q.property_id);
     return (

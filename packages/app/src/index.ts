@@ -1,4 +1,4 @@
-export { qrMatrix, vndInWords } from "@hm/domain";
+export { isIsoDate, isoDateOr, qrMatrix, vndInWords } from "@hm/domain";
 export {
   AccessError,
   type Actor,
