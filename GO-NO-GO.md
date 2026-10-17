@@ -26,7 +26,7 @@
 | 9 | BLOCKER | Backup bật và đã khôi phục thử | FAIL | Diễn tập PITR trên CI (`ci:backup-restore`, dữ liệu giả); chưa có kho sao lưu khác máy và chưa khôi phục thử từ backup thật |
 | 10 | BLOCKER | Giám sát + cảnh báo đã thử kích hoạt tới kênh trực | FAIL | `deploy/prometheus/alerts.yml` + `/api/metrics` có test; chưa có Prometheus/Alertmanager/kênh trực thật |
 | 11 | BLOCKER | Dữ liệu cá nhân: DPIA, đồng ý, chính sách riêng tư | FAIL | `docs/privacy/data-map.yaml`, ROPA khung; DPIA + pháp lý chưa có (chờ người, D-023) |
-| 12 | BLOCKER | Hiệu năng đạt ngưỡng hồ sơ đo thật | FAIL | Chưa có Lighthouse CI/k6 (cần đổi CI — đã defer); đợt 6 chỉ thêm bằng chứng EXPLAIN truy vấn nóng (`docs/db/explain/*.txt` khớp `db-perf.db.test.ts`, không Seq Scan trên bảng lớn) — không thay cho đo tải/Web Vitals |
+| 12 | BLOCKER | Hiệu năng đạt ngưỡng hồ sơ đo thật | FAIL | Chưa có Lighthouse CI/k6 (cần đổi CI — đã defer); đợt 6 chỉ thêm bằng chứng EXPLAIN truy vấn nóng (`docs/db/explain/*.txt` khớp `db-perf.db.test.ts`, không Seq Scan trên bảng lớn) — không thay cho đo tải/Web Vitals · T-608: script k6 (`perf/k6/`), `lighthouserc.json`, ngân sách trang `perf/budgets.json` (chặn trong E2E) và baseline cục bộ `docs/perf/baseline-web-2026-10-17.json` đã có — k6/Lighthouse **chưa đo** (không có công cụ), nên mục vẫn FAIL; xem mục "Số đo hiệu năng" |
 | 13 | BLOCKER | Tiếp cận: 0 vi phạm nghiêm trọng (axe AA) luồng chính | PASS | E2E 59/59 (2026-10-17) gọi `expectAccessible` (axe 0 serious/critical) ở mọi màn chính; `ux-guards.spec.ts` 320 px 33 route, bàn phím |
 | 14 | SHOULD | Release notes + CHANGELOG | PASS | `CHANGELOG.md` `[Unreleased]` đợt 1–6 |
 | 15 | SHOULD | Runbook được người không viết chạy thử | FAIL | Runbook đủ (`docs/RUNBOOK.md`, `docs/ops/runbooks/*`), `last_drilled` trống — cần người |
@@ -36,13 +36,25 @@
 | 19 | NICE | Dead code/dependency thừa đã rà | FAIL | Chưa chạy knip/depcheck |
 | 20 | BLOCKER | (fintech) Bất biến tiền/tồn trên Postgres thật | PASS | test `INV-*` trên Postgres 17 (ledger, payments, deposits, inventory, reconciliation) trong `pnpm test:db` 896 test xanh, `rounding-arch.test.ts`, `units-guards.test.ts`; đợt 6 thêm rào schema (`schema-guards.db.test.ts`: timestamptz, tiền bigint, FK RESTRICT/index, `organization_id` NOT NULL) |
 
+## 2b. Số đo hiệu năng (QA-PERF-006)
+Mọi số đo kèm đủ 5 trường: commit, môi trường, thiết bị/mạng mô phỏng, VU/thời lượng, ngày. Số **chưa đo** ghi rõ — không điền số ước lượng.
+| Số đo | Kết quả | Commit | Môi trường | Thiết bị/mạng | VU/thời lượng | Ngày |
+|---|---|---|---|---|---|---|
+| Độ trễ `GET /api/v1/today/getSummary` (1.000 mẫu) | p50 19,7 ms · p95 31,7 ms · p99 44,1 ms, 0 lỗi | `95bbecb` | `next start` production + Postgres 17 tạm cùng máy (4 lõi, 15,7 GB), không CDN | Chromium Pixel 7 qua loopback, không throttle | 1 VU tuần tự, 20,7 s | 2026-10-17 |
+| Trọng lượng trang 8 màn (phòng, buồng phòng, sự cố, thông báo, đăng nhập…) | 145,6–191,2 KB truyền tải, 8–12 request | `95bbecb` | như trên | Chromium Pixel 7, không cache, không throttle | 3 lần/trang, trung vị | 2026-10-17 |
+| CPU/RSS backend theo 1.000 yêu cầu | 9,85 s CPU · RSS 408 MB; kWh chưa đo | `95bbecb` | như trên | — | 1 VU, 1.000 yêu cầu | 2026-10-17 |
+| k6 tải (p95/p99, 200 phiên) | **chưa đo** — không có k6 | — | cần staging | — | — | — |
+| Lighthouse mobile (Performance, LCP, CLS, TBT) | **chưa đo** — không có lhci | — | cần build production + Chromium | mobile throttle mặc định | 3 lần, median | — |
+
+Chi tiết và cách tạo lại: `docs/perf/README.md`, `docs/perf/baseline-*.json`. Số cục bộ chỉ so tương đối giữa các lần chạy cùng môi trường, không thay k6/Lighthouse trên staging.
+
 ## 3. Bảng FAIL
 | # | Mức | Mục | Cách sửa đề xuất | Ai |
 |---|---|---|---|---|
 | 3 | BLOCKER | 178 MUST mở | 156: quyết định/hạ tầng của người (danh sách `loop defer`); 22: đợt 7 trong repo (T-601…T-609, `BLUEPRINT-GAPS.md`) — gồm 26 scenario S-NNN là tính năng chưa có (tạo tổ chức/cơ sở, mời thành viên, tồn nâng cao, PWA) | Người + autopilot |
 | 8–10 | BLOCKER | Rollback, backup, cảnh báo thật | Mua VPS tại VN + kho sao lưu khác máy, dựng Prometheus/Alertmanager, diễn tập | Chủ dự án |
 | 11 | BLOCKER | DPIA, pháp lý | DPIA, đối chiếu NĐ 13/2023, Luật BVDLCN 2025, NĐ 356/2025, TT 50/17/2024 (thông báo lưu trú) | Chủ dự án + pháp lý |
-| 12 | BLOCKER | Hiệu năng đo thật | Duyệt thêm job Lighthouse CI + k6 (T-608 chuẩn bị script/baseline trong repo; job CI cần duyệt) | Chủ dự án duyệt CI |
+| 12 | BLOCKER | Hiệu năng đo thật | Duyệt thêm job Lighthouse CI + k6 (T-608 chuẩn bị script/baseline trong repo; job CI cần duyệt) | Chủ dự án duyệt CI · T-608: script k6 (`perf/k6/`), `lighthouserc.json`, ngân sách trang `perf/budgets.json` (chặn trong E2E) và baseline cục bộ `docs/perf/baseline-web-2026-10-17.json` đã có — k6/Lighthouse **chưa đo** (không có công cụ), nên mục vẫn FAIL; xem mục "Số đo hiệu năng" |
 | 18 | BLOCKER | Đề xuất "Khi chạy thật" | Quyết từng mục trong DECISIONS.md (8 mục) | Chủ dự án |
 | — | (quy trình) | Merge PR #21 (đợt 6) | CI 6/6 xanh; chạm `merge_risk_paths` (tồn, tiền, CSDL…) → người merge theo `merge-check`; import ruleset GitHub để `e2e`/`quality` thành required (QA-E2E-001) | Chủ dự án merge |
 | 15, 16, 19 | SHOULD/NICE | Diễn tập runbook, analytics, knip | Sau khi có môi trường staging | Người |
