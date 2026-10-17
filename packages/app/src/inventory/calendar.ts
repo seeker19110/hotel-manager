@@ -182,8 +182,11 @@ export async function getCalendar(
       left join blocks bl on a.source_type = 'block' and bl.organization_id = a.organization_id and bl.id = a.source_id
       where a.organization_id = ${actor.orgId} and a.property_id = ${input.propertyId} and a.unit_id = any(${unitIds}::uuid[])
         and a.active and (a.kind <> 'hold' or a.expires_at > ${now})
-        and a.during && tstzrange((${input.from}::date)::timestamp at time zone ${tz},
-                                  (${input.to}::date)::timestamp at time zone ${tz}, '[)')
+        and (a.during && tstzrange((${input.from}::date)::timestamp at time zone ${tz},
+                                   (${input.to}::date)::timestamp at time zone ${tz}, '[)')
+             -- Đoạn quá hạn trả còn ngoại lệ mở luôn hiện (phòng thực tế còn người) dù khoảng xem bắt đầu sau giờ trả dự kiến.
+             or exists (select 1 from exceptions e where e.organization_id = a.organization_id and e.allocation_id = a.id
+                          and e.status = 'open' and e.type in ('STAY_OVERSTAY', 'LEASE_OVERSTAY')))
       order by lower(a.during), a.id`.execute(trx)
           ).rows;
     const byUnit = new Map<string, CalendarSegment[]>();

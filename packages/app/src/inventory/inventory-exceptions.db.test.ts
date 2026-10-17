@@ -735,6 +735,38 @@ describe("SPEC-inventory S-017 quá hạn chưa trả phòng (detectOverdue)", (
     );
     expect((await exceptionsOf(n2.allocationId)).map((e) => e.status)).toEqual(["resolved"]);
   });
+
+  it("S-017 lịch: khoảng xem bắt đầu SAU giờ trả dự kiến vẫn hiện đoạn 'Quá hạn trả' (ngoại lệ mở, bất kể khoảng xem); đoạn đã qua không có ngoại lệ thì không hiện; trả phòng xong thì đoạn biến mất", async () => {
+    const floor = await newFloor();
+    const unit = await freshUnit({ floorId: floor, code: "Q101" });
+    const calm = await freshUnit({ floorId: floor, code: "Q102" });
+    const s = await booking(unit, "2027-03-01", "2027-03-03", { checkedInAt: loc("2027-03-01T15:00") });
+    await booking(calm, "2027-03-01", "2027-03-03"); // chưa check-in: không phải quá hạn trả
+    const t0 = loc("2027-03-04T09:00"); // quá hạn trả từ 03/03 12:00 (+ ngưỡng 60 phút)
+    await detectOverdue(h.t.worker, t0);
+    const view = (from: string, to: string) =>
+      getCalendar(h.t.runtime, h.manager, { propertyId: h.org.propertyId, from, to, floorId: floor }, t0);
+
+    const late = await view("2027-03-04", "2027-03-07"); // bắt đầu sau giờ trả dự kiến
+    expect(late.rooms.map((r) => [r.code, r.segments.map((x) => [x.allocationId, x.overdue])])).toEqual([
+      ["Q101", [[s.allocationId, true]]],
+      ["Q102", []],
+    ]);
+    const edge = await view("2027-03-03", "2027-03-05"); // from ngay sau giờ trả (kết thúc 12:00 ngày 03 vẫn chồng ngày 03)
+    expect(edge.rooms[0]?.segments.map((x) => [x.allocationId, x.overdue])).toEqual([[s.allocationId, true]]);
+    const inside = await view("2027-03-01", "2027-03-05"); // khoảng xem chứa đoạn: chỉ một đoạn, không nhân đôi
+    expect(inside.rooms[0]?.segments).toHaveLength(1);
+
+    await okAs(h.t, h.manager, (ctx) =>
+      checkOut(ctx, {
+        stayId: s.stayId,
+        allowBalance: { debtorPersonId: s.bookerPersonId, dueDate: "2027-03-30" },
+        now: loc("2027-03-04T09:30"),
+      }),
+    );
+    const done = await view("2027-03-04", "2027-03-07");
+    expect(done.rooms.map((r) => r.segments)).toEqual([[], []]);
+  });
 });
 
 // ------------------------------------------------------------------------------------------------------------- S-018, S-019
