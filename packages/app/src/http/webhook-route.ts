@@ -34,6 +34,8 @@ export interface WebhookDeps {
   rateLimit?: { perAccount?: number; badSignature?: number };
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export const WEBHOOK_MAX_BYTES = kibToBytes(64);
 /** Đích của sự kiện bảo mật webhook: mẫu route, KHÔNG kèm mã tài khoản (đường dẫn thật). */
 const WEBHOOK_TARGET = { type: "endpoint", id: "/api/v1/webhooks/{provider}/{account}" };
@@ -83,6 +85,10 @@ export async function handleWebhook(
   if (provider !== "sim" || !deps.simSecret) {
     return simpleProblem("NOT_FOUND", 404, "Không có nhà cung cấp này", correlationId);
   }
+  // `account` là đoạn đường dẫn do kẻ gọi chọn: phải là UUID TRƯỚC khi đi tiếp (khoá bộ đếm, truy vấn) — chuỗi lạ/NUL từng làm
+  // Postgres lỗi → 500 (BASE-SEC-001). Không phải UUID ⇒ không thể là tài khoản nhận nào: 404, không lộ gì.
+  if (!UUID.test(account))
+    return simpleProblem("NOT_FOUND", 404, "Không tìm thấy tài khoản nhận", correlationId);
   // Danh sách khoá sai dạng (cấu hình đã bị schema chặn từ lúc khởi động) ⇒ đóng: coi như adapter tắt, không chấp nhận gì.
   let secrets: string[];
   try {

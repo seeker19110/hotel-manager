@@ -12,5 +12,6 @@ export { handleGuestStay } from "./guest-stay.ts";
 export { handleImportUpload } from "./import-upload.ts";
 export { COMMANDS, findCommand, findQuery, QUERIES } from "./registry.ts";
 export { DEFAULT_RETRY_AFTER_SECONDS, retryAfterSeconds, withRetryAfter } from "./retry-after.ts";
+export { handleSwitchOrganization, switchOrganizationInput } from "./switch-organization.ts";
 export { handleUnsubscribe } from "./unsubscribe.ts";
 export { handleWebhook, type WebhookDeps } from "./webhook-route.ts";

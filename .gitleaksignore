@@ -10,3 +10,7 @@ c295f4818229e5ea59054d91f8a37c9b9aff1ae1:tests/test_xs.py:generic-api-key:454
 
 # Bí mật phiên giả cho DB test tạm ở commit d9a9ca9 (notification-preferences.db.test.ts, T-214) — đã thay bằng chuỗi ghép lúc chạy; giữ để quét lịch sử PR #10 không đỏ.
 d9a9ca9b97a4741be33d0a297c23cd097bf1ffec:packages/app/src/notifications/notification-preferences.db.test.ts:generic-api-key:38
+
+# Mật khẩu giả trong test đầu vào xấu cho Better Auth ở commit 95bbecb (authz-matrix.db.test.ts, T-607) — đã thay bằng chuỗi ghép lúc chạy; giữ để quét lịch sử PR #24 không đỏ.
+95bbecbb4c3dda0d1f54d47dea896b4b3f34d033:packages/app/src/http/authz-matrix.db.test.ts:generic-api-key:1477
+95bbecbb4c3dda0d1f54d47dea896b4b3f34d033:packages/app/src/http/authz-matrix.db.test.ts:generic-api-key:1478
