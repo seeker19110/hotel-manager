@@ -49,7 +49,6 @@
     "ask": [
       "Bash(git merge *)",
       "Bash(git rebase *)",
-      "Bash(gh pr merge *)",
       "Bash(gh release *)",
       "Bash(npm publish*)",
       "Bash(docker push *)"
