@@ -89,3 +89,14 @@ export const JPEG = Buffer.from([
   0xff,
   0xd9,
 ]);
+
+/** Lời mời nhân viên (T-605): token dẫn xuất từ khoá của server nên seed ghi vào file cho test đọc (không đoán được từ ngoài). */
+export const INVITEE = {
+  email: "nhan.vien.moi@example.test",
+  name: "Nhân viên mới (giả)",
+  password: ["e2e", "nhan", "vien", "moi"].join("-"),
+};
+export const INVITEE_EXPIRED_EMAIL = "het.han@example.test";
+export const INVITEE_OTHER_EMAIL = "danh.cho.nguoi.khac@example.test";
+/** File JSON `{ valid, expired, other }` — token lời mời của ORG_HOTEL. */
+export const inviteTokensFile = (port: number) => join(tmpdir(), `hm-e2e-${port}-invites.json`);

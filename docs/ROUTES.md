@@ -31,6 +31,7 @@
 | `/chon-to-chuc` | trang | GET | SSR động | no-store (proxy) | người dùng đã đăng nhập (`currentSession`); chưa đăng nhập → `/dang-nhap` | Chọn tổ chức (và cơ sở) làm việc |
 | `/dang-nhap` | trang | GET | SSR động | no-store (proxy) | công khai (biểu mẫu; xác thực qua `/api/auth`) | Đăng nhập nhân viên (email, mật khẩu, TOTP) |
 | `/dang-nhap/nguoi-thue` | trang | GET | SSR động | no-store (proxy) | công khai (biểu mẫu; xác thực qua `/api/auth`) | Đăng nhập người thuê bằng mã OTP qua email |
+| `/loi-moi` | trang | GET | SSR động (nội dung phía client) | no-store (proxy) | công khai; token lời mời ở fragment `#token=` (không bao giờ gửi lên máy chủ), xoá khỏi thanh địa chỉ ngay khi mở; `noindex`, `no-referrer`; việc chấp nhận làm bằng POST `/api/v1/member/acceptInvitation` (cần đăng nhập đúng email được mời) | Nhận lời mời nhân viên: đăng nhập/đăng ký rồi chấp nhận |
 | `/portal` | trang | GET | SSR động | no-store (proxy) | chỉ vai trò `tenant` (`withPortal`); dữ liệu qua hàm `portal.*` + RLS | Portal người thuê: danh sách kỳ thu |
 | `/portal/phieu/[id]` | trang | GET | SSR động | no-store (proxy) | chỉ vai trò `tenant` (`withPortal`); dữ liệu qua hàm `portal.*` + RLS | Portal: chi tiết phiếu |
 | `/portal/thanh-toan/[id]` | trang | GET | SSR động | no-store (proxy) | chỉ vai trò `tenant` (`withPortal`); dữ liệu qua hàm `portal.*` + RLS | Portal: hướng dẫn thanh toán (QR, nội dung chuyển khoản) |

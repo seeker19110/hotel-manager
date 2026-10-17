@@ -199,7 +199,7 @@ describe("đủ 4 trạng thái cho mọi màn dữ liệu (UX-STATE-001): số 
     expect(missing).toEqual([]);
   });
 
-  it("trang không phải màn dữ liệu chỉ là form đăng nhập/offline/huỷ đăng ký/liên kết khách (tự tải phía client)", () => {
+  it("trang không phải màn dữ liệu chỉ là form đăng nhập/offline/huỷ đăng ký/liên kết khách/lời mời (tự tải phía client)", () => {
     const nonData = pages(APP)
       .filter((d) => !isDataPage(readFileSync(join(d, "page.tsx"), "utf8")))
       .map((d) => d.slice(APP.length + 1))
@@ -209,6 +209,7 @@ describe("đủ 4 trạng thái cho mọi màn dữ liệu (UX-STATE-001): số 
       "dang-nhap/nguoi-thue",
       "huy-dang-ky",
       "khach/luot-o/[id]",
+      "loi-moi",
       "offline",
     ]);
   });
