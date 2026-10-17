@@ -46,7 +46,8 @@ BEGIN
   ON CONFLICT (scope, subject, window_start) DO UPDATE SET hits = c.hits + 1
   RETURNING c.hits INTO n;
   DELETE FROM rate_limit_counters d WHERE d.ctid IN (
-    SELECT x.ctid FROM rate_limit_counters x WHERE x.window_start < p_now - interval '1 day' LIMIT 50);
+    SELECT x.ctid FROM rate_limit_counters x WHERE x.window_start < p_now - interval '1 day' LIMIT 50
+    FOR UPDATE SKIP LOCKED);
   RETURN QUERY SELECT true, n, 0;
 END $$;
 REVOKE ALL ON FUNCTION app.rate_limit_hit(text, text, integer, integer, timestamptz) FROM PUBLIC;
