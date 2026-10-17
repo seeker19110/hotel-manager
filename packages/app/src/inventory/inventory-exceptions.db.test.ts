@@ -685,6 +685,56 @@ describe("SPEC-inventory S-017 quá hạn chưa trả phòng (detectOverdue)", (
     await detectOverdue(h.t.worker, t0);
     expect(await exceptionsOf(s.allocationId)).toEqual([]);
   });
+
+  it("S-017 + S-013 chuỗi: quá hạn → phòng ngừng khai thác → check-out: RELOCATION_REQUIRED của booking kế tiếp KHÔNG bị đóng khi phòng còn out_of_service (STAY_OVERSTAY vẫn đóng)", async () => {
+    const unit = await freshUnit();
+    const s = await booking(unit, "2026-11-28", "2026-11-30", { checkedInAt: loc("2026-11-28T15:00") });
+    const next = await booking(unit, "2026-11-30", "2026-12-01");
+    const t0 = loc("2026-11-30T13:30");
+    await detectOverdue(h.t.worker, t0);
+    expect((await exceptionsOf(next.allocationId)).map((e) => [e.type, e.status, e.related])).toEqual([
+      ["RELOCATION_REQUIRED", "open", s.allocationId],
+    ]);
+    await okAs(h.t, h.manager, (ctx) =>
+      setUnitAvailability(ctx, {
+        unitId: unit,
+        availability: "out_of_service",
+        reason: "Ngập nước",
+        now: t0,
+      }),
+    );
+    expect((await exceptionsOf(next.allocationId)).map((e) => [e.type, e.status])).toEqual([
+      ["RELOCATION_REQUIRED", "open"],
+    ]); // dùng chung một ngoại lệ mở cho hai nguyên nhân
+
+    await okAs(h.t, h.manager, (ctx) =>
+      checkOut(ctx, {
+        stayId: s.stayId,
+        allowBalance: { debtorPersonId: s.bookerPersonId, dueDate: "2026-12-30" },
+        now: loc("2026-11-30T13:45"),
+      }),
+    );
+    expect(
+      (await exceptionsOf(s.allocationId)).filter((e) => e.type === "STAY_OVERSTAY").map((e) => e.status),
+    ).toEqual(["resolved"]);
+    expect((await exceptionsOf(next.allocationId)).map((e) => [e.type, e.status])).toEqual([
+      ["RELOCATION_REQUIRED", "open"], // phòng vẫn out_of_service ⇒ booking vẫn phải được dời
+    ]);
+
+    // Phòng hoạt động lại rồi mới trả phòng muộn ở lượt khác: ngoại lệ do quá hạn vẫn đóng như thường (đã có ca ở trên).
+    const other = await freshUnit();
+    const s2 = await booking(other, "2026-11-28", "2026-11-30", { checkedInAt: loc("2026-11-28T15:00") });
+    const n2 = await booking(other, "2026-11-30", "2026-12-01");
+    await detectOverdue(h.t.worker, t0);
+    await okAs(h.t, h.manager, (ctx) =>
+      checkOut(ctx, {
+        stayId: s2.stayId,
+        allowBalance: { debtorPersonId: s2.bookerPersonId, dueDate: "2026-12-30" },
+        now: loc("2026-11-30T13:45"),
+      }),
+    );
+    expect((await exceptionsOf(n2.allocationId)).map((e) => e.status)).toEqual(["resolved"]);
+  });
 });
 
 // ------------------------------------------------------------------------------------------------------------- S-018, S-019

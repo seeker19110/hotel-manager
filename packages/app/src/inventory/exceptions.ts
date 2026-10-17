@@ -112,12 +112,17 @@ export async function resolveOverstayExceptions(
   ctx: CommandContext,
   a: { allocationId: string; propertyId: string; resolution: string },
 ): Promise<string[]> {
+  // Một ngoại lệ mở mỗi (allocation, loại) dùng chung cho hai nguyên nhân (quá hạn và phòng ngừng khai thác — S-013): nếu phòng của
+  // booking đích còn `out_of_service` thì nguyên nhân thứ hai còn nguyên, trả phòng muộn không được làm booking mất nhắc.
   const r = await sql<{ id: string; type: ExceptionType }>`
     update exceptions set status = 'resolved', resolution = ${a.resolution}, resolved_by = ${ctx.actor.membershipId},
                           resolved_at = now(), version = version + 1
     where organization_id = ${ctx.actor.orgId} and status = 'open'
       and ((allocation_id = ${a.allocationId} and type in ('STAY_OVERSTAY', 'LEASE_OVERSTAY'))
-           or (related_allocation_id = ${a.allocationId} and type = 'RELOCATION_REQUIRED'))
+           or (related_allocation_id = ${a.allocationId} and type = 'RELOCATION_REQUIRED'
+               and not exists (select 1 from allocations t join units u on u.organization_id = t.organization_id and u.id = t.unit_id
+                               where t.organization_id = exceptions.organization_id and t.id = exceptions.allocation_id
+                                 and u.availability = 'out_of_service')))
     returning id, type`.execute(ctx.trx);
   for (const e of r.rows) {
     await ctx.audit({
