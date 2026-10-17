@@ -21,6 +21,14 @@ phiên bản theo [SemVer](https://semver.org/lang/vi/). Chưa có bản phát h
   thao tác không hoàn tác; đóng 36 mục blueprint (171/496 MUST đạt). Hồ sơ: README, `.editorconfig`,
   `.gitattributes`, `.nvmrc`, mẫu PR sản phẩm, threat model cập nhật, quy trình sự cố/runbook/SLO + rule cảnh báo Prometheus,
   sổ dữ liệu cá nhân (`docs/privacy/`) và sổ rủi ro; test kiểm link tài liệu và tài liệu vận hành.
+- Đợt 5 (`docs/autopilot/PLAN.md`, T-401…T-413) — vận hành bền: relay outbox claim → commit → gửi pg-boss → đánh dấu, payload job kiểm bằng
+  zod, lỗi vĩnh viễn vào dead letter ngay (metric + cảnh báo), `Retry-After` cho mọi 429, hạn mức lệnh theo tổ chức, webhook nhận nhiều khoá
+  khi xoay, trần tổng thời gian cho S3; web dừng êm khi SIGTERM và `fetch` phía trình duyệt có timeout; mặc định an toàn (bảng
+  `docs/design/SECURE-DEFAULTS.md`, https ở production, bind 127.0.0.1, CSP `base-uri 'none'`, `safeUrl`, quét bundle); ma trận quyền sinh từ
+  registry (`api1-bola`/`api5-bfla`); audit có IP đã cắt/UA, sự kiện đăng nhập/đăng xuất/MFA, xuất tổ chức kèm file đính kèm; metric HTTP,
+  burn rate nhiều cửa sổ, đối soát sổ hằng ngày; mật khẩu Argon2id (băm scrypt cũ tự nâng cấp); đơn vị tập trung, định dạng `Intl`, NFC cho
+  import; index cho FK nền, autovacuum riêng, EXPLAIN truy vấn nóng, trần danh sách; gỡ vòng phụ thuộc giữa module; UX (nút xác nhận nêu
+  đúng hành động, token màu một nguồn, 320 px mọi route, bàn phím, bấm đúp); đóng thêm 75 mục blueprint (246/496 MUST đạt).
 - Đợt 5, T-412 (tài liệu + quy trình máy kiểm): ADR-0004 chiến lược render + mục "Điều kiện xem lại" cho ADR-0001/0002, `docs/ROUTES.md`
   và `docs/architecture/{domains,resilience}.md` có test đối chiếu mã, PROJECT §5 theo ISO/IEC 25010:2023 và bảng phân loại dữ liệu,
   `SCOPE.md`, bảng phụ thuộc ở `docs/RISKS.md`, SPEC có frontmatter + lint tiêu chí + đối chiếu S-NNN ↔ test (ratchet), mẫu PR nâng cấp
