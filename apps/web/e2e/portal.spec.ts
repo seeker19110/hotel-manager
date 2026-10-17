@@ -24,6 +24,10 @@ import {
 
 test.describe.configure({ mode: "serial" });
 
+// page.route() không thấy request đi qua service worker của PWA (Playwright khuyên chặn SW khi chặn bắt request) —
+// trên CI SW đã kiểm soát trang thì lệnh đi thẳng tới server, bộ đếm route = 0. PWA được test riêng ở pwa.spec.ts.
+test.use({ serviceWorkers: "block" });
+
 const PORT = Number(process.env.E2E_PORT ?? 3100);
 
 /** Mã OTP mới nhất gửi tới `email` trong hộp thư giả. */
