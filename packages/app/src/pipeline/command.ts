@@ -4,13 +4,14 @@ import { createHash, randomUUID } from "node:crypto";
 import { withTenant } from "@hm/db";
 import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../actor-core/index.ts";
+import { currentTraceparent } from "../logging/index.ts";
 import { redact } from "../logging/logger.ts";
 import { appLogger } from "../logging/runtime.ts";
 import {
   auditSource,
+  type CommandSecurityInput,
   emitSecurity,
   type SecurityClient,
-  type SecurityEventInput,
   securityEventForProblem,
 } from "../logging/security-events.ts";
 import { CommandError, type Problem, rateLimited, toProblem } from "./problem.ts";
@@ -76,7 +77,7 @@ export interface CommandContext {
    * Sự kiện bảo mật của hành động THÀNH CÔNG (SEC-LOG-001): chỉ phát SAU khi transaction commit (không ghi "đã thu hồi" cho
    * thao tác rồi rollback; không phát lại khi replay cùng Idempotency-Key). Người thao tác/IP/UA/correlation tự gắn.
    */
-  security(e: Pick<SecurityEventInput, "event" | "target" | "reason">): void;
+  security(e: CommandSecurityInput): void;
 }
 
 export type CommandResult<T> =
@@ -290,10 +291,10 @@ export async function executeCommand<T>(
             async emit(e) {
               await sql`
               insert into outbox (id, organization_id, property_id, event_type, aggregate_type, aggregate_id, payload,
-                                  correlation_id, command_id, dedupe_key)
+                                  correlation_id, command_id, dedupe_key, traceparent)
               values (${randomUUID()}, ${actor.orgId}, ${e.propertyId ?? null}, ${e.eventType}, ${e.aggregateType ?? null},
                       ${e.aggregateId ?? null}, ${JSON.stringify(e.payload)}::jsonb, ${req.correlationId}, ${commandId},
-                      ${e.dedupeKey ?? null})`.execute(trx);
+                      ${e.dedupeKey ?? null}, ${currentTraceparent()})`.execute(trx);
             },
             onRollback: (fn) => {
               compensations.push(fn);
@@ -302,7 +303,7 @@ export async function executeCommand<T>(
               afterCommit.push(() =>
                 emitSecurity({
                   ...e,
-                  outcome: "success",
+                  outcome: e.outcome ?? "success",
                   actor,
                   client: req.client ?? null,
                   correlationId: req.correlationId,

@@ -104,6 +104,8 @@ export async function inviteTenant(
     propertyId: props[0] as string,
     payload: { membership_id: membershipId, person_id: input.personId },
   });
+  // Cấp quyền truy cập portal (vai `tenant`) — đối xứng với `portal.tenant_access_revoked`; chỉ id, không email.
+  ctx.security({ event: "portal.tenant_access_granted", target: { type: "membership", id: membershipId } });
   return { membershipId, created: true };
 }
 

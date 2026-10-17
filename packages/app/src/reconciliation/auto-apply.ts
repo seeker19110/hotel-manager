@@ -7,6 +7,7 @@ import { withTenant } from "@hm/db";
 import { type Kysely, sql, type Transaction } from "kysely";
 import { BREAK_OPENED, defaultAssignee, openBreak } from "../ledger/bank-inbox.ts";
 import { postEntry } from "../ledger/ledger.ts";
+import { currentTraceparent } from "../logging/index.ts";
 import { candidateInvoices, loadBankTxn, suggestFor } from "./matching.ts";
 
 export type AutoApplyResult =
@@ -42,9 +43,9 @@ async function outbox(
 ): Promise<void> {
   await sql`
     insert into outbox (id, organization_id, property_id, event_type, aggregate_type, aggregate_id, payload, correlation_id,
-                        dedupe_key)
+                        dedupe_key, traceparent)
     values (${randomUUID()}, ${orgId}, ${propertyId}, ${eventType}, ${aggregateType}, ${aggregateId},
-            ${JSON.stringify(payload)}::jsonb, ${correlationId}, ${`${eventType}:${aggregateId}`})
+            ${JSON.stringify(payload)}::jsonb, ${correlationId}, ${`${eventType}:${aggregateId}`}, ${currentTraceparent()})
     on conflict do nothing`.execute(trx);
 }
 

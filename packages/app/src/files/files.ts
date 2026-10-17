@@ -170,6 +170,23 @@ export async function prepareUpload(
   };
 }
 
+/**
+ * Sự kiện bảo mật của một lần tải file (SEC-LOG-001 "upload"): `file.uploaded` khi vào `ready`, `file.upload_rejected` (denied)
+ * khi quét an toàn từ chối (hàng `rejected` vẫn được giữ để truy vết). Chỉ phát SAU commit; không ghi tên file/nội dung/lý do tự do.
+ */
+function securityOfUpload(ctx: CommandContext, fileId: string, status: "ready" | "rejected"): void {
+  ctx.security(
+    status === "ready"
+      ? { event: "file.uploaded", target: { type: "file", id: fileId } }
+      : {
+          event: "file.upload_rejected",
+          outcome: "denied",
+          target: { type: "file", id: fileId },
+          reason: "SCAN_REJECTED",
+        },
+  );
+}
+
 export async function uploadFile(
   ctx: CommandContext,
   deps: FileDeps,
@@ -195,6 +212,7 @@ export async function uploadFile(
       propertyId: input.propertyId,
       after: { owner_type: input.ownerType, mime: p.mime, size_bytes: p.size },
     });
+    securityOfUpload(ctx, p.fileId, p.status);
     return { fileId: p.fileId, status: p.status, mime: p.mime };
   }
   const { mime, content } = inspectUpload(input);
@@ -223,6 +241,7 @@ export async function uploadFile(
     propertyId: input.propertyId,
     after: { owner_type: input.ownerType, mime, size_bytes: content.byteLength },
   });
+  securityOfUpload(ctx, id, status);
   return { fileId: id, status, mime };
 }
 

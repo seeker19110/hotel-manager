@@ -31,6 +31,15 @@ export const SECURITY_EVENTS = [
   "auth.password_changed",
   "auth.mfa_enabled",
   "auth.mfa_disabled",
+  // Còn thiếu của SEC-LOG-001 (T-501): cấp token, đổi quyền, upload, đổi cấu hình, lỗi validate/deserialize, lỗi TLS backend.
+  "guest_link.issued",
+  "portal.tenant_access_granted",
+  "config.changed",
+  "file.uploaded",
+  "file.upload_rejected",
+  "input.validation_failed",
+  "input.deserialize_failed",
+  "backend.tls_error",
 ] as const;
 export type SecurityEventName = (typeof SECURITY_EVENTS)[number];
 export type SecurityOutcome = "success" | "denied" | "failure";
@@ -62,6 +71,11 @@ export interface SecurityEventInput {
   correlationId?: string | null;
   log?: Logger;
 }
+
+/** Hành động thành công từ lệnh: `outcome` mặc định `success`; riêng upload bị quét từ chối ghi `denied` ở lệnh đã commit. */
+export type CommandSecurityInput = Pick<SecurityEventInput, "event" | "target" | "reason"> & {
+  outcome?: SecurityOutcome;
+};
 
 /** Bản ghi sự kiện bảo mật theo schema (kiểm bằng test, SEC-LOG-002). */
 export const securityRecordSchema = z.looseObject({
@@ -190,5 +204,8 @@ export function securityEventForProblem(p: { status: number; code: string }): Se
   if (p.status === 401) return "auth.unauthenticated";
   if (p.status === 403) return "authz.denied";
   if (p.status === 429) return "rate_limit.exceeded";
+  // File bị từ chối khi tải lên (quá lớn, loại không cho phép, quét mã độc) — trước 422 vì đây là sự kiện upload riêng.
+  if (p.code === "FILE_TOO_LARGE" || p.code === "FILE_TYPE_NOT_ALLOWED") return "file.upload_rejected";
+  if (p.status === 422 && p.code === "VALIDATION_FAILED") return "input.validation_failed";
   return null;
 }

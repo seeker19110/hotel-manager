@@ -6,7 +6,14 @@ import type { Kysely } from "kysely";
 import { z } from "zod";
 import { ingestBankEvent, parseWebhookSecrets, verifySimSignature } from "../ledger/bank-inbox.ts";
 import { rateLimited, toProblem } from "../pipeline/index.ts";
-import { correlationOf, json, problemResponse, simpleProblem, validationProblem } from "./command-route.ts";
+import {
+  correlationOf,
+  json,
+  problemResponse,
+  rejectInput,
+  simpleProblem,
+  validationProblem,
+} from "./command-route.ts";
 import {
   rateLimitHit,
   WEBHOOK_BAD_SIGNATURE_PER_MINUTE,
@@ -28,6 +35,8 @@ export interface WebhookDeps {
 }
 
 export const WEBHOOK_MAX_BYTES = kibToBytes(64);
+/** Đích của sự kiện bảo mật webhook: mẫu route, KHÔNG kèm mã tài khoản (đường dẫn thật). */
+const WEBHOOK_TARGET = { type: "endpoint", id: "/api/v1/webhooks/{provider}/{account}" };
 
 export const simPayload = z.strictObject({
   event_id: z.string().min(1).max(200),
@@ -120,10 +129,14 @@ export async function handleWebhook(
     try {
       parsedJson = JSON.parse(body);
     } catch {
+      rejectInput(req, correlationId, "input.deserialize_failed", null, WEBHOOK_TARGET, "MALFORMED_REQUEST");
       return simpleProblem("MALFORMED_REQUEST", 400, "Body không phải JSON", correlationId);
     }
     const parsed = simPayload.safeParse(parsedJson);
-    if (!parsed.success) return validationProblem(parsed.error, correlationId);
+    if (!parsed.success) {
+      rejectInput(req, correlationId, "input.validation_failed", null, WEBHOOK_TARGET, "VALIDATION_FAILED");
+      return validationProblem(parsed.error, correlationId);
+    }
     const p = parsed.data;
     const r = await ingestBankEvent(deps.db, {
       provider: "sim",

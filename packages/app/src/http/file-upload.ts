@@ -7,6 +7,7 @@
 import { createHash } from "node:crypto";
 import { type FileOwnerType, MAX_FILE_BYTES, prepareUpload, uploadFile } from "../files/files.ts";
 import { settle, unwrap } from "../files/staging.ts";
+import { requestClient } from "../logging/security-events.ts";
 import { executeCommand, toProblem } from "../pipeline/index.ts";
 import {
   actorFromRequest,
@@ -14,6 +15,7 @@ import {
   type HttpDeps,
   json,
   problemResponse,
+  rejectInput,
   simpleProblem,
 } from "./command-route.ts";
 import {
@@ -60,10 +62,13 @@ export async function handleFileUpload(req: Request, deps: HttpDeps): Promise<Re
     const q = new URL(req.url).searchParams;
     const ownerType = q.get("owner_type") as FileOwnerType | null;
     const propertyId = q.get("property_id") ?? "";
-    if (!ownerType || !OWNER_TYPES.includes(ownerType) || !UUID.test(propertyId))
+    const endpoint = { type: "endpoint", id: "/api/v1/files/upload" };
+    if (!ownerType || !OWNER_TYPES.includes(ownerType) || !UUID.test(propertyId)) {
+      rejectInput(req, correlationId, "input.validation_failed", actor, endpoint, "VALIDATION_FAILED");
       return simpleProblem("VALIDATION_FAILED", 422, "Dữ liệu không hợp lệ", correlationId, {
         errors: [{ path: "owner_type", field: "owner_type", code: "invalid" }],
       });
+    }
     const key = req.headers.get("idempotency-key") ?? "";
     if (!UUID.test(key))
       return simpleProblem("MALFORMED_REQUEST", 400, "Thiếu hoặc sai Idempotency-Key (UUID)", correlationId);
@@ -75,7 +80,10 @@ export async function handleFileUpload(req: Request, deps: HttpDeps): Promise<Re
     });
     if (limited) return limited;
     const bytes = await readCapped(req, MAX_FILE_BYTES);
-    if (!bytes) return simpleProblem("FILE_TOO_LARGE", 413, "File vượt dung lượng cho phép", correlationId);
+    if (!bytes) {
+      rejectInput(req, correlationId, "file.upload_rejected", actor, endpoint, "FILE_TOO_LARGE");
+      return simpleProblem("FILE_TOO_LARGE", 413, "File vượt dung lượng cho phép", correlationId);
+    }
     const input = { ownerType, propertyId: propertyId.toLowerCase(), bytes };
     // Quét + ghi object NGOÀI transaction lệnh (T-303). Lỗi của bước này được ném lại trong handler để pipeline vẫn ghi
     // kết quả `failed` + audit `denied` như khi chạy trong transaction.
@@ -92,6 +100,7 @@ export async function handleFileUpload(req: Request, deps: HttpDeps): Promise<Re
           sha256: createHash("sha256").update(bytes).digest("hex"),
         },
         correlationId,
+        client: requestClient(req.headers),
       },
       async (ctx) => ({
         data: await uploadFile(ctx, deps.services, { ...input, prepared: unwrap(prepared) }),

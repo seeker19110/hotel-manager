@@ -475,5 +475,11 @@ export async function updateSettings(ctx: CommandContext, input: SettingsInput) 
       send_window_end: end,
     },
   });
+  // Đổi cấu hình (SEC-LOG-001): ghi MỘT dòng log bảo mật; giá trị trước/sau nằm ở audit_events, không vào log.
+  ctx.security({
+    event: "config.changed",
+    target: { type: "notification_settings", id: input.propertyId },
+    reason: "notification.settings_updated",
+  });
   return { propertyId: input.propertyId, updated: true as const };
 }

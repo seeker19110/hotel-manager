@@ -54,6 +54,7 @@ import * as m0050 from "./0050_reconciliation_daily.ts";
 import * as m0051 from "./0051_fk_restrict_and_indexes.ts";
 import * as m0052 from "./0052_files_settlement_read.ts";
 import * as m0053 from "./0053_rate_limit_counters.ts";
+import * as m0054 from "./0054_outbox_traceparent.ts";
 
 export const migrations: Record<string, Migration> = {
   "0001_tenancy": m0001,
@@ -109,4 +110,5 @@ export const migrations: Record<string, Migration> = {
   "0051_fk_restrict_and_indexes": m0051,
   "0052_files_settlement_read": m0052,
   "0053_rate_limit_counters": m0053,
+  "0054_outbox_traceparent": m0054,
 };

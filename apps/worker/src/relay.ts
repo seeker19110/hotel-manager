@@ -2,6 +2,7 @@
 // → handler. Job mang organization_id (IND-SAAS-003); retry có backoff; quá giới hạn → dead letter; lỗi vĩnh viễn
 // (payload sai, lỗi nghiệp vụ 4xx) → dead letter ngay, không retry (BE-JOB-003).
 
+import { runJobWithTrace } from "@hm/app/logging";
 import { SECONDS_PER_DAY } from "@hm/app/units";
 import type { Kysely } from "kysely";
 import { sql } from "kysely";
@@ -16,6 +17,11 @@ export interface OutboxJob {
   aggregate_id: string | null;
   payload: Record<string, unknown>;
   correlation_id: string;
+  /**
+   * W3C `traceparent` của span đã ghi sự kiện (`outbox.traceparent`, migration 0054): consumer chạy job như span con của nó nên log
+   * của request và của job cùng `trace_id`. Thiếu/không hợp lệ ⇒ job mở trace mới. Job cũ trong queue chưa có trường này.
+   */
+  traceparent?: string | null;
 }
 
 /**
@@ -140,6 +146,7 @@ export async function relayOutbox(
     aggregate_id: string | null;
     payload: Record<string, unknown>;
     correlation_id: string;
+    traceparent: string | null;
   }>`select * from app.outbox_claim(${batch})`.execute(workerDb);
   for (const r of claimed.rows) {
     let error: string | null = null;
@@ -156,6 +163,7 @@ export async function relayOutbox(
         aggregate_id: r.aggregate_id,
         payload: r.payload,
         correlation_id: r.correlation_id,
+        traceparent: r.traceparent,
       };
       try {
         await boss.send(r.event_type, job, { id: r.id });
@@ -194,23 +202,27 @@ export async function startConsumers(
       { pollingIntervalSeconds: opts.pollingIntervalSeconds ?? 2 },
       async (jobs) => {
         for (const j of jobs) {
-          try {
-            await handler(j.data);
-          } catch (err) {
-            if (!isPermanentJobError(err)) throw err;
-            const message = String((err as Error).message).slice(0, 500);
-            // Gửi dead letter TRƯỚC khi hoàn tất job gốc: gửi lỗi ⇒ ném ⇒ pg-boss retry; id cố định ⇒ gửi lại là no-op.
-            await boss.send(
-              DEAD_LETTER_QUEUE,
-              { ...j.data, dead_letter: { kind: "permanent", message } },
-              { id: j.id },
-            );
-            opts.log?.("job.permanent_failure", {
-              event_type: name,
-              outbox_id: j.data?.outbox_id,
-              reason: message,
-            });
-          }
+          // Mỗi job một span riêng, nối tiếp trace của request sinh ra sự kiện: mọi log trong handler và log
+          // "job.permanent_failure" bên dưới mang cùng `trace_id`/`span_id`.
+          await runJobWithTrace(j.data?.traceparent, async () => {
+            try {
+              await handler(j.data);
+            } catch (err) {
+              if (!isPermanentJobError(err)) throw err;
+              const message = String((err as Error).message).slice(0, 500);
+              // Gửi dead letter TRƯỚC khi hoàn tất job gốc: gửi lỗi ⇒ ném ⇒ pg-boss retry; id cố định ⇒ gửi lại là no-op.
+              await boss.send(
+                DEAD_LETTER_QUEUE,
+                { ...j.data, dead_letter: { kind: "permanent", message } },
+                { id: j.id },
+              );
+              opts.log?.("job.permanent_failure", {
+                event_type: name,
+                outbox_id: j.data?.outbox_id,
+                reason: message,
+              });
+            }
+          });
         }
       },
     );

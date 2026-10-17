@@ -41,6 +41,14 @@ Nguồn IP: hop PHẢI NHẤT của `X-Forwarded-For` (do proxy tin cậy duy nh
 | `auth.password_changed` | Đổi mật khẩu: `success`; `failure` (`invalid_password`) | idem | idem |
 | `auth.mfa_enabled` | Hoàn tất đăng ký MFA lần đầu (`success`); mã xác minh sai (`failure`, `mfa_invalid`) | idem | idem |
 | `auth.mfa_disabled` | Tắt MFA: `success`; `failure` (`invalid_password`) | idem | idem |
+| `guest_link.issued` | Cấp liên kết khách (token xem lưu trú): `target` = id liên kết; **token không bao giờ vào log** (CSDL chỉ giữ băm) | `portal/guest.ts` `createGuestLink` | `logging/security-events-sec-log.db.test.ts` |
+| `portal.tenant_access_granted` | Cấp quyền portal cho người thuê (membership vai `tenant`, lần đầu; mời lại cùng người không phát lại): `target` = id membership, không email | `portal/access.ts` `inviteTenant` | idem |
+| `config.changed` | Đổi cấu hình (hiện: cấu hình thông báo/hạn lưu trú theo cơ sở): `target` = `notification_settings`/id cơ sở, `reason` = tên audit; giá trị trước/sau ở `audit_events`, không vào log | `notifications/preferences.ts` `updateSettings` | idem |
+| `file.uploaded` | Tải file lên thành công (`ready`; file nguồn của lô nhập): `target` = `file`/`import_batch` + id; không ghi tên file | `files/files.ts` `uploadFile`, `import/import.ts` `uploadBatch` | idem |
+| `file.upload_rejected` | Tải file bị từ chối: quét an toàn từ chối (`SCAN_REJECTED`, sau commit), quá lớn (`FILE_TOO_LARGE`), loại không cho phép (`FILE_TYPE_NOT_ALLOWED`) | `files/files.ts`, `http/file-upload.ts`, `http/import-upload.ts`, `pipeline/command.ts` | idem |
+| `input.validation_failed` | Đầu vào bị 422: sai schema ở biên HTTP (lệnh, truy vấn, upload, webhook) hoặc quy tắc nghiệp vụ `VALIDATION_FAILED`; chỉ mã lý do, **không** giá trị người dùng gửi | `http/command-route.ts` (`rejectInput`), `http/webhook-route.ts`, `pipeline/command.ts` | idem |
+| `input.deserialize_failed` | Thân yêu cầu không đọc được (không phải JSON/multipart hợp lệ, 400 `MALFORMED_REQUEST`) | idem | idem |
+| `backend.tls_error` | Lỗi TLS/chứng chỉ khi nối backend (CSDL, S3, SMTP…): nhận theo mã lỗi OpenSSL/Node (`CERT_HAS_EXPIRED`, `DEPTH_ZERO_SELF_SIGNED_CERT`, `ERR_TLS_*`…), `outcome = failure`, `reason` = mã | `logging/tls-errors.ts` (gọi từ `reportUnexpectedError`) | `logging/tls-errors.test.ts` |
 
 Sự kiện thành công (`ctx.security`) chỉ phát **sau commit**; lệnh bị rollback hoặc replay cùng `Idempotency-Key` không phát. Sự kiện từ chối của
 command phát một lần cho mỗi `Idempotency-Key`.
@@ -55,4 +63,8 @@ người đó còn membership hiệu lực, kèm `source_ip`/`user_agent` — ow
 **Audit "từ đâu".** `audit_events.source_ip` (đã cắt /24, /48; CSDL chặn dạng khác) và `user_agent` (≤ 200 ký tự, NFC) do pipeline lệnh ghi từ `requestClient`; việc của worker/hệ thống: `NULL`.
 Còn lại, đường ghi audit ngoài pipeline (truy vấn bị từ chối `person.read`/`portal.access_denied`, job worker) chưa có client ⇒ `NULL`.
 
-Chưa có (xem `docs/autopilot/BLUEPRINT-GAPS.md` mục `SEC-LOG-001`): cấp/thu hồi token, đổi cấu hình, upload, lỗi validate/deserialize.
+**Phạm vi của "cấp/thu hồi token" và "đổi vai/quyền" trong sản phẩm này.** Token do hệ thống cấp: liên kết khách (`guest_link.issued`/`guest_link.revoked`; link khách là token thật, chỉ băm được lưu). Phiên đăng nhập do Better Auth quản (`auth.login`/`auth.logout`). Quyền: ứng dụng chưa có lệnh đổi vai nhân viên (membership nhân viên do tạo tổ chức/seed); các thao tác đổi quyền truy cập hiện có là cấp/thu hồi quyền người thuê (`portal.tenant_access_granted`/`portal.tenant_access_revoked`) và đặt lại MFA (`member.mfa_reset`). Khi thêm lệnh đổi vai/quyền nhân viên phải thêm sự kiện (và dòng ở bảng trên) cùng lúc.
+
+**Cấu hình.** Mọi lệnh đổi cấu hình tổ chức/cơ sở phải gọi `ctx.security({ event: "config.changed", … })`. Bảng giá/loại phòng/dịch vụ là dữ liệu nghiệp vụ (audit_events), không phải cấu hình bảo mật.
+
+**Trace.** Mọi bản ghi phát ra trong request HTTP hoặc job worker có `trace_id` + `span_id` (W3C `traceparent`; xem `docs/design/API-CONTRACT.md` §Trace). Mọi bản ghi (kể cả sự kiện bảo mật) phải hợp lệ với `packages/app/src/logging/log-record.schema.json`.
