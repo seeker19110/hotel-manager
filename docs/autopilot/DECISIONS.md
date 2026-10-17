@@ -251,6 +251,7 @@
 - Chọn: Migration mới: đổi FK NO ACTION không DEFERRABLE sang ON DELETE RESTRICT (cùng ngữ nghĩa khi không trì hoãn); FK DEFERRABLE giữ NO ACTION + ghi danh sách ngoại lệ có lý do trong rào; thêm index cho FK còn thiếu trừ nhóm có lý do (cột người thao tác bảng ít xoá) — rào ratchet về 0 hoặc ngoại lệ tường minh
 - Lý do (tiêu chí chất lượng cuối): (1) đúng: RESTRICT và NO ACTION chỉ khác khi FK trì hoãn được — đổi phần không trì hoãn giữ nguyên hành vi, làm hành động tường minh trong catalog; phương án 3 phá FK DEFERRABLE đang dựa vào kiểm cuối transaction. (3) kiểm máy được bằng catalog.
 - Đường lùi: Down của migration đổi lại NO ACTION (danh sách FK ghi cố định trong tệp migration 0051 — down chỉ hoàn nguyên đúng các FK đó), drop index đã thêm.
+- Ghi chú 2026-10-17 (T-610): nhóm A đã có index ở migration 0060 (`0060_fk_operator_indexes`); rào schema-guards không còn danh sách ngoại lệ FK thiếu index.
 
 ### D-036 · 2026-10-17T02:24:00+00:00 · Đợt 6: 26 MUST còn thiếu làm được trong repo — làm hết hay dừng?
 

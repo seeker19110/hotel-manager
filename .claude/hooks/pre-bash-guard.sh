@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # pre-bash-guard.sh — PreToolUse hook (matcher: Bash). Ba việc, theo thứ tự:
 #  1) DENY lệnh phá huỷ / không đảo ngược (deny chặn cả ở bypassPermissions).
-#  2) ASK lệnh "hành động đối ngoại" (riêng `gh pr merge` qua `xt.py merge-check` → có thể ALLOW, ADR-0013), nới hàng rào, ghi file cổng/bí mật qua Bash (điểm dừng bắt buộc — 11-autonomous-loop).
+#  2) ASK (chỉ khi XT_GUARD_POLICY=strict; mặc định guard.py đổi ask nguy hiểm → deny, còn lại cho qua — ADR-0018) lệnh "hành động đối ngoại" (riêng `gh pr merge` qua `xt.py merge-check` → có thể ALLOW, ADR-0013), nới hàng rào, ghi file cổng/bí mật qua Bash (điểm dừng bắt buộc — 11-autonomous-loop).
 #  3) Khi là `git commit`: chạy cổng chất lượng qua dev-task.sh gate; đỏ → chặn (exit 2).
 # Phân tích lệnh nằm ở guard.py (tách theo token shell, chuẩn hoá wrapper/tuỳ chọn git — audit AUD-SEC-001…010).
-# Payload đi qua stdin, không qua argv. guard.py lỗi/thiếu python3 → cho qua (fail-open về luồng), trừ merge/`gh api`.
+# Payload đi qua stdin, không qua argv. guard.py lỗi/thiếu python3 → cho qua (fail-open về luồng); merge/`gh api` hỏi chỉ ở strict.
 set -uo pipefail
 . "$(dirname "$0")/_lib.sh"
 
@@ -16,17 +16,17 @@ merge_like() { [[ $payload =~ $merge_re ]]; }
 # Không có python3 thì guard không chạy (fail-open về luồng) — riêng merge/ghi GitHub vẫn hỏi người, vì settings không còn
 # luật ask cho `gh pr merge` (ADR-0013; AUD-SEC-021). In JSON bằng printf: _lib.sh cũng cần python3.
 if ! command -v python3 >/dev/null 2>&1; then
-  if merge_like; then
+  if merge_like && [ "${XT_GUARD_POLICY:-}" = strict ]; then
     printf '%s\n' '{"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "ask", "permissionDecisionReason": "Khung cần xác nhận: không có python3 nên guard không kiểm được merge/ghi GitHub"}}'
   fi
   exit 0
 fi
 # guard.py bị dời/xoá (vd `mv .claude/hooks/guard.py …`) không phải lỗi chạy: hàng rào đã bị gỡ → hỏi mọi lệnh tới khi
 # khôi phục (AUD-SEC-019). guard.py có mà lỗi giữa chừng → vẫn fail-open về luồng (ADR-0002).
-[ -f "$(dirname "$0")/guard.py" ] || pretool_decision ask "Khung cần xác nhận: thiếu .claude/hooks/guard.py — hàng rào không chạy; khôi phục (git checkout hoặc install.py) rồi làm tiếp"
+[ -f "$(dirname "$0")/guard.py" ] || ask_strict "Khung cần xác nhận: thiếu .claude/hooks/guard.py — hàng rào không chạy; khôi phục (git checkout hoặc install.py) rồi làm tiếp"
 res="$(printf '%s' "$payload" | CLAUDE_PROJECT_DIR="$XT_ROOT" python3 "$(dirname "$0")/guard.py" bash 2>/dev/null)" || res=""
 if [ -z "$res" ]; then # guard.py chết (lỗi cú pháp, bị kill): luồng đi tiếp, riêng merge/`gh api` hỏi (AUD-HAR-040)
-  merge_like && pretool_decision ask "Khung cần xác nhận: guard.py lỗi nên không kiểm được merge/ghi GitHub"
+  merge_like && ask_strict "Khung cần xác nhận: guard.py lỗi nên không kiểm được merge/ghi GitHub"
   exit 0
 fi
 decision="$(json_field "$res" decision)"
@@ -50,14 +50,14 @@ if [ "$(json_field "$res" commit)" = "true" ] && [ "$(json_field "$res" no_verif
     case "$top/" in
     "$xroot"/*)
       if [ -e "$top/xt.yaml" ] || [ -d "$top/.xtemplates" ]; then
-        pretool_decision ask "Khung cần xác nhận: commit vào repo lồng có cổng riêng ($top) — cổng của repo đó không chạy tự động (là mã của repo đó); chạy cổng của nó trước rồi xác nhận"
+        ask_strict "Khung cần xác nhận: commit vào repo lồng có cổng riêng ($top) — cổng của repo đó không chạy tự động (là mã của repo đó); chạy cổng của nó trước rồi xác nhận"
       fi
       ;;
     *)
       # Dự án nằm TRONG repo cha (monorepo `apps/web`, phiên mở ở thư mục con): commit của chính dự án → cổng dự án.
       case "$xroot/" in
       "$top"/*) ;;
-      *) pretool_decision ask "Khung cần xác nhận: commit vào repo ngoài dự án ($top) — cổng của repo đó không chạy tự động (là mã của repo đó); chạy cổng của nó trước rồi xác nhận" ;;
+      *) ask_strict "Khung cần xác nhận: commit vào repo ngoài dự án ($top) — cổng của repo đó không chạy tự động (là mã của repo đó); chạy cổng của nó trước rồi xác nhận" ;;
       esac
       ;;
     esac

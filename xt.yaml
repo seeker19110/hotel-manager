@@ -5,7 +5,7 @@
 # (`gate` = build → typecheck → lint → test; lint nên gồm kiểm format). Khoá khác (install, dev, e2e, migrate, init, smoke, audit…) là lệnh KHAI BÁO để agent ĐỌC và chạy trực tiếp; dev-task không chạy.
 # Mẫu theo stack (giữ MỘT bộ, xoá phần còn lại):
 #   Node:   lint: npm run lint · typecheck: npm run typecheck · test: npm test -- --run · build: npm run build · format: npm run format · format_file: npx --no-install prettier --write "{}"
-#   Python: lint: ruff check . · typecheck: pyright · test: pytest -q · build: "" · format: ruff format . · format_file: ruff format "{}"
+#   Python: lint: ruff check . · typecheck: pyright · test: pytest -q · build: "" · format: ruff format . · format_file: case "{}" in *.py) ruff format "{}" ;; esac
 #   Go:     lint: go vet ./... · typecheck: "" · test: go test ./... · build: go build ./... · format: gofmt -l -w . · format_file: gofmt -w "{}"
 lint: "pnpm lint && pnpm licenses:check && python3 .xtemplates/scripts/xt.py ci-check .github/workflows"
 typecheck: "pnpm typecheck"
@@ -13,8 +13,9 @@ test: "pnpm test"
 build: "pnpm build"
 format: "pnpm format"
 format_file: "pnpm exec biome format --write \"{}\""
-# Merge PR (ADR-0013/0014/0015, LOOP-STOP-022): L3 = mở PR là bật auto-merge của GitHub, merge khi required check xanh (cần bật "Allow auto-merge" + ruleset có required check);
-# L2 = máy chỉ tự merge làn nhanh (`xt.py merge-check`); L1 = người merge mọi PR.
+# Merge PR (ADR-0013/0014/0015, LOOP-STOP-022): L3 (mặc định) = mở PR là bật auto-merge của GitHub, merge khi required check
+# xanh (cần bật "Allow auto-merge" + ruleset có required check; ghi miễn trừ WF-REVIEW-007); L2 = máy chỉ tự merge làn nhanh
+# (`xt.py merge-check`); L1 = người merge mọi PR.
 # merge_risk_paths: glob thêm vào danh sách đường dẫn nhạy cảm (luôn để người merge), cách nhau dấu phẩy.
 # Chủ dự án duyệt L3 ngày 2026-10-17 (trước đó L2 từ 2026-10-16); nhóm tiền/tồn/lưu trú trong merge_risk_paths vẫn luôn để người merge (LOOP-STOP-005).
 merge_autonomy: L3

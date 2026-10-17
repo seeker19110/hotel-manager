@@ -179,7 +179,7 @@ describe("handleCommand — thứ tự kiểm và mã lỗi", () => {
     expect(body.errors).toEqual(expect.arrayContaining([expect.objectContaining({ path: "n" })]));
   });
 
-  it("thành công → {command_id, status, data}; gửi lại cùng key → cùng kết quả, chạy một lần; khác thân → 409", async () => {
+  it("thành công → {command_id, status, data}; gửi lại cùng key → cùng kết quả, chạy một lần; khác thân → 422", async () => {
     const key = randomUUID();
     const h = { ...ownerHeaders(), "idempotency-key": key };
     const r1 = await handleCommand(ECHO, post({ n: 21 }, h), deps);
@@ -194,6 +194,40 @@ describe("handleCommand — thứ tự kiểm và mã lỗi", () => {
     const r3 = await handleCommand(ECHO, post({ n: 22 }, h), deps);
     expect(r3.status).toBe(422);
     expect((await j(r3)).code).toBe("IDEMPOTENCY_CONFLICT");
+  });
+
+  it("BE-API-008 (D-043): HTTP — lần đầu còn giữ transaction → lần hai 409 IDEMPOTENCY_IN_PROGRESS + header Retry-After: 1; sau commit gửi lại → 200 replay", async () => {
+    const key = randomUUID();
+    const h = { ...ownerHeaders(), "idempotency-key": key };
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    let entered: () => void = () => {};
+    const inside = new Promise<void>((r) => {
+      entered = r;
+    });
+    const SLOW: CommandDef<{ n: number }, { doubled: number }> = {
+      ...ECHO,
+      run: async (ctx, i, svc, prepared) => {
+        entered();
+        await gate;
+        return ECHO.run(ctx, i, svc, prepared);
+      },
+    };
+    const first = handleCommand(SLOW, post({ n: 4 }, h), deps);
+    await inside;
+    const second = await handleCommand(ECHO, post({ n: 4 }, h), deps);
+    expect(second.status).toBe(409);
+    expect(second.headers.get("retry-after")).toBe("1");
+    expect(second.headers.get("content-type")).toContain("application/problem+json");
+    expect(await j(second)).toMatchObject({ code: "IDEMPOTENCY_IN_PROGRESS", status: 409, retry_after: 1 });
+    release();
+    expect((await first).status).toBe(200);
+    const replay = await handleCommand(ECHO, post({ n: 4 }, h), deps);
+    expect(replay.status).toBe(200);
+    expect(replay.headers.get("retry-after")).toBeNull();
+    expect(await j(replay)).toEqual({ command_id: key, status: "committed", data: { doubled: 8 } });
   });
 
   it("lỗi không dự kiến → 500 INTERNAL, không lộ chi tiết, gọi onUnexpectedError với correlation id", async () => {

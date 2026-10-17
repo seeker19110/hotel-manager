@@ -114,6 +114,12 @@ export function json(body: unknown, status: number, correlationId: string, probl
             "retry-after": String(retryAfterSeconds((body as { retry_after?: unknown } | null)?.retry_after)),
           }
         : {}),
+      // 409 IDEMPOTENCY_IN_PROGRESS (D-043): `retry_after` của problem → header, để client đợi rồi tra kết quả.
+      ...(status === 409 && (body as { code?: unknown } | null)?.code === "IDEMPOTENCY_IN_PROGRESS"
+        ? {
+            "retry-after": String(retryAfterSeconds((body as { retry_after?: unknown } | null)?.retry_after)),
+          }
+        : {}),
     },
   });
 }

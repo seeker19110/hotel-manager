@@ -1,4 +1,4 @@
-// POST /api/v1/files/upload?owner_type=work_order|payment_claim&property_id=<uuid> — tải ảnh/PDF (SPEC-portal S-008, Q-07).
+// POST /api/v1/files/upload?owner_type=work_order|payment_claim|lease_settlement&property_id=<uuid> — tải ảnh/PDF (SPEC-portal S-008, Q-07).
 // Thân yêu cầu là BYTE của file (không multipart), `Idempotency-Key` bắt buộc (tải lại cùng key → cùng fileId, không hai file).
 // Giới hạn tần suất theo thành viên/tổ chức (rate-limit.ts) → 429 + Retry-After.
 // Kiểm kích thước ngay khi đọc luồng (không nạp quá giới hạn vào bộ nhớ), phần còn lại do `uploadFile` (magic bytes, EXIF,
@@ -32,7 +32,7 @@ import {
 } from "./rate-limit.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const OWNER_TYPES: readonly FileOwnerType[] = ["work_order", "payment_claim"];
+const OWNER_TYPES: readonly FileOwnerType[] = ["work_order", "payment_claim", "lease_settlement"];
 
 /** Đọc thân tối đa `limit` byte; vượt → null (đã dừng đọc). */
 export async function readCapped(req: Request, limit: number): Promise<Uint8Array | null> {

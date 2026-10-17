@@ -6,6 +6,8 @@
 // - S-010 hết thời gian chờ/mất phản hồi: "Đang kiểm tra kết quả…" → GET /api/v1/commands/{key}; đã commit ⇒ hiện kết quả
 //   từ server, KHÔNG gửi lần hai. S-012 đang xử lý ⇒ hỏi lại theo backoff 1-2-4-8 s, tổng tối đa 30 s (nút "Gửi lại" khoá suốt
 //   thời gian chờ); quá hạn ⇒ RESULT_UNKNOWN kèm command_id, KHÔNG gửi lại.
+// - BE-API-008 (D-043): 409 IDEMPOTENCY_IN_PROGRESS (lần đầu cùng key còn chạy) ⇒ đợi `Retry-After` rồi tra như "checking",
+//   KHÔNG gửi payload mới; lần đầu chưa commit nên GET chưa thấy lệnh (404) = vẫn đang chạy, không phải "server chưa nhận".
 // - S-011 server chưa nhận (404 COMMAND_NOT_FOUND) ⇒ bật "Gửi lại", gửi lại dùng CÙNG key.
 // Key giữ nguyên tới khi có kết quả chắc chắn; lỗi nghiệp vụ (4xx) ⇒ key mới cho lần sửa sau (tránh IDEMPOTENCY_CONFLICT).
 import { checkCommandInput } from "@hm/app/command-inputs";
@@ -14,6 +16,7 @@ import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { timedFetch } from "../../lib/fetch-timeout.ts";
 import { reportClientOutdated, useOnline } from "../pwa/pwa-shell.tsx";
 import { appVersionHeaders, CLIENT_OUTDATED_CODE, CLIENT_OUTDATED_TEXT } from "./app-version.ts";
+import { IN_PROGRESS_CODE, retryAfterMs } from "./in-progress.ts";
 import { CONTEXT_CHANGED_CODE, CONTEXT_CHANGED_TEXT, orgContextHeaders } from "./org-context.ts";
 import { requestReauth, UNAUTHENTICATED_TEXT } from "./reauth.ts";
 import { recheckSchedule } from "./recheck.ts";
@@ -124,54 +127,63 @@ export function useCommand<T = unknown>(path: string) {
     return null;
   }, []);
 
-  const check = useCallback(async (): Promise<T | null> => {
-    setPhase("checking");
-    let inProgress = false;
-    const waits = recheckSchedule();
-    for (let i = 0; i <= waits.length; i++) {
-      try {
-        const res = await timedFetch(`/api/v1/commands/${key.current}`, {
-          credentials: "same-origin",
-          cache: "no-store",
-          headers: orgContextHeaders(),
-        });
-        if (res.status === 401) {
-          // S-013: phiên hết hạn lúc đang tra kết quả ⇒ đăng nhập lại rồi tra tiếp CÙNG command_id.
-          if (await requestReauth()) {
-            i--;
-            continue;
-          }
-          setPhase("unknown");
-          return null;
-        }
-        if (
-          res.status === 409 &&
-          ((await res.json().catch(() => null)) as ProblemLike | null)?.code === CONTEXT_CHANGED_CODE
-        )
-          return fail(contextChanged());
-        if (res.status === 404) {
-          setPhase("unknown");
-          return null;
-        }
-        if (res.ok) {
-          const j = (await res.json()) as { status: string; data?: T; problem?: ProblemLike };
-          if (j.status === "committed") return finish(j.data as T);
-          if (j.status === "failed") return fail(j.problem ?? { code: "INTERNAL" });
-          inProgress = j.status === "in_progress";
-        }
-      } catch {
-        // vẫn mất mạng — thử lại sau
+  // `pending`: server vừa báo lệnh đang xử lý (409 IDEMPOTENCY_IN_PROGRESS) ⇒ đợi `waitMs` trước lần tra đầu, và 404 (lệnh chưa
+  // commit nên chưa thấy) nghĩa là còn chạy chứ không phải "server chưa nhận" — không bật "Gửi lại" sớm.
+  const check = useCallback(
+    async (pending?: { waitMs: number }): Promise<T | null> => {
+      setPhase("checking");
+      let inProgress = false;
+      if (pending) {
+        inProgress = true;
+        await sleep(pending.waitMs);
       }
-      const wait = waits[i];
-      if (wait !== undefined) await sleep(wait);
-    }
-    if (inProgress) {
-      // S-012: quá hạn hỏi lại mà server vẫn báo đang xử lý ⇒ KHÔNG biết kết quả; khoá form, không cho gửi lại.
-      setProblem({ code: RESULT_UNKNOWN_CODE, detail: RESULT_UNKNOWN_TEXT, command_id: key.current ?? "" });
-      setPhase("processing");
-    } else setPhase("unknown");
-    return null;
-  }, [finish, fail]);
+      const waits = recheckSchedule();
+      for (let i = 0; i <= waits.length; i++) {
+        try {
+          const res = await timedFetch(`/api/v1/commands/${key.current}`, {
+            credentials: "same-origin",
+            cache: "no-store",
+            headers: orgContextHeaders(),
+          });
+          if (res.status === 401) {
+            // S-013: phiên hết hạn lúc đang tra kết quả ⇒ đăng nhập lại rồi tra tiếp CÙNG command_id.
+            if (await requestReauth()) {
+              i--;
+              continue;
+            }
+            setPhase("unknown");
+            return null;
+          }
+          if (
+            res.status === 409 &&
+            ((await res.json().catch(() => null)) as ProblemLike | null)?.code === CONTEXT_CHANGED_CODE
+          )
+            return fail(contextChanged());
+          if (res.status === 404 && !pending) {
+            setPhase("unknown");
+            return null;
+          }
+          if (res.ok) {
+            const j = (await res.json()) as { status: string; data?: T; problem?: ProblemLike };
+            if (j.status === "committed") return finish(j.data as T);
+            if (j.status === "failed") return fail(j.problem ?? { code: "INTERNAL" });
+            inProgress = pending ? true : j.status === "in_progress";
+          }
+        } catch {
+          // vẫn mất mạng — thử lại sau
+        }
+        const wait = waits[i];
+        if (wait !== undefined) await sleep(wait);
+      }
+      if (inProgress) {
+        // S-012: quá hạn hỏi lại mà server vẫn báo đang xử lý ⇒ KHÔNG biết kết quả; khoá form, không cho gửi lại.
+        setProblem({ code: RESULT_UNKNOWN_CODE, detail: RESULT_UNKNOWN_TEXT, command_id: key.current ?? "" });
+        setPhase("processing");
+      } else setPhase("unknown");
+      return null;
+    },
+    [finish, fail],
+  );
 
   const post = useCallback(
     async (afterReauth = false): Promise<T | null> => {
@@ -213,6 +225,9 @@ export function useCommand<T = unknown>(path: string) {
         (j?.code === CONTEXT_CHANGED_CODE || (afterReauth && j?.code === "ORG_CONTEXT_REQUIRED"))
       )
         return fail(contextChanged());
+      // Lần đầu cùng key còn đang xử lý: đợi Retry-After rồi tra kết quả theo key — không gửi payload mới, không tạo key mới.
+      if (res.status === 409 && j?.code === IN_PROGRESS_CODE)
+        return check({ waitMs: retryAfterMs(res.headers.get("retry-after")) });
       // Key đã dùng cho thao tác khác (vd thao tác trước đã ghi) ⇒ giữ key, tra và hiện kết quả thao tác đó, không tạo key mới.
       if (res.status >= 500 || j?.code === "IDEMPOTENCY_CONFLICT") {
         // Giữ mã tra cứu của lỗi 5xx để hiện cùng "Chưa rõ… Gửi lại" nếu tra kết quả không thấy lệnh.

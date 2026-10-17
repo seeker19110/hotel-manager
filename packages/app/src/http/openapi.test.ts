@@ -92,20 +92,24 @@ describe("openapi — mỗi command/query một thao tác đúng URL route thậ
     expect(JSON.stringify(spec.components.responses)).toContain("application/problem+json");
   });
 
-  it("BE-API-008 (D-034): mọi thao tác có Idempotency-Key khai 422 (cùng key khác payload), mô tả khớp 422 và không còn hứa 409; upload/webhook khai 429", () => {
+  it("BE-API-008 (D-034, D-043): mọi thao tác có Idempotency-Key khai 409 (đang xử lý) và 422 (cùng key khác payload), mô tả khớp 422 và không còn hứa 409; upload/webhook khai 429", () => {
     const withKey: string[] = [];
     for (const [path, item] of Object.entries(spec.paths))
       for (const [method, op] of Object.entries(item))
         if (op.parameters?.some((p) => p.$ref?.endsWith("/IdempotencyKey"))) {
           withKey.push(`${method} ${path}`);
           expect(op.responses["422"], `${method} ${path} thiếu 422`).toBeDefined();
+          expect(op.responses["409"], `${method} ${path} thiếu 409 (IDEMPOTENCY_IN_PROGRESS)`).toBeDefined();
         }
     expect(withKey.length).toBeGreaterThan(10);
     const text = JSON.stringify(spec);
     expect(text).toContain("khác payload → 422 IDEMPOTENCY_CONFLICT");
     expect(text).not.toMatch(/409 IDEMPOTENCY_CONFLICT/);
     expect(JSON.stringify(spec.components.responses.Error422)).toContain("IDEMPOTENCY_CONFLICT");
-    expect(JSON.stringify(spec.components.responses.Error409)).not.toContain("idempotency");
+    // D-043: 409 IDEMPOTENCY_IN_PROGRESS (lần đầu còn đang xử lý) + Retry-After; vẫn không hứa 409 cho khác payload.
+    expect(JSON.stringify(spec.components.responses.Error409)).toContain("IDEMPOTENCY_IN_PROGRESS");
+    expect(JSON.stringify(spec.components.responses.Error409)).toContain("Retry-After");
+    expect(JSON.stringify(spec.components.responses.Error409)).not.toContain("IDEMPOTENCY_CONFLICT");
     for (const [path, m] of [
       ["/api/v1/files/upload", "post"],
       ["/api/v1/import/upload", "post"],
