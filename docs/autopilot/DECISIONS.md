@@ -258,3 +258,11 @@
 - Chọn: Làm hết trong 8 task T-501…T-508 (cùng luật D-023)
 - Lý do (tiêu chí chất lượng cuối): (1) đúng/an toàn: gồm rào transaction, retry có jitter, FK tường minh, sự kiện bảo mật còn thiếu — lỗi tiềm ẩn thật; (3) mỗi mục có Gate máy; ngân sách còn (vòng 33/130).
 - Đường lùi: Mỗi task một commit; revert theo task.
+
+### D-039 · 2026-10-17T05:09:16+00:00 · T-505: số ngày giữ bảng sự kiện (XC-GREEN-007) khi DPIA chưa có?
+
+- Phương án: (1) outbox đã phát 90 ngày; idempotency xoá khi hết hạn; deliveries sent/suppressed 90 ngày, failed/dead 180 ngày; audit không xoá · (2) outbox 30 ngày (sát cửa sổ dedupe 30 ngày của nhắc hợp đồng) · (3) 180 ngày cho tất cả
+- Chọn: outbox đã phát 90 ngày; idempotency xoá khi hết hạn; deliveries sent/suppressed 90 ngày, failed/dead 180 ngày; audit không xoá
+- Lý do (tiêu chí chất lượng cuối): (1) đúng: lớn hơn mọi cửa sổ dedupe/điều tra hiện có, không xoá hàng chưa phát/chưa xong, audit giữ nguyên. (2) đường lùi: hằng trong retention/policy.ts + tài liệu RET-01…10 có test đồng bộ; DPIA quyết số cuối.
+- Đường lùi: Đổi hằng trong packages/app/src/retention/policy.ts và docs/ops/retention-policy.md.
+- Khi chạy thật (đề xuất, chủ dự án quyết ở G7): Chủ dự án + pháp lý chốt số ngày giữ theo DPIA (RK-019).
