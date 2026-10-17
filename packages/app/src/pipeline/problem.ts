@@ -28,7 +28,7 @@ export interface Problem {
   items?: Record<string, string | number | null>[];
   /** IMPORT_TOTALS_MISMATCH: tổng nguồn so với tổng file theo loại (SPEC-import S-013). */
   totals?: Record<string, { expected: number; actual: number; diff: number }>;
-  /** RATE_LIMITED (429): số giây nên đợi — lớp HTTP đặt thành header `Retry-After` (RFC 6585 §4, BE-REL-006). */
+  /** RATE_LIMITED (429) / IDEMPOTENCY_IN_PROGRESS (409): số giây nên đợi — lớp HTTP đặt thành header `Retry-After` (RFC 6585 §4, BE-REL-006). */
   retry_after?: number;
 }
 
@@ -60,6 +60,20 @@ export function rateLimited(message: string, retryAfterSeconds: number): Command
   return new CommandError("RATE_LIMITED", 429, message, {
     extensions: { retry_after: Math.max(1, Math.ceil(retryAfterSeconds)) },
   });
+}
+
+/**
+ * 409 IDEMPOTENCY_IN_PROGRESS (D-043, BE-API-008): request khác cùng Idempotency-Key đang xử lý, chưa commit. Trả ngay kèm
+ * `Retry-After` (giây) thay vì giữ kết nối CSDL chờ khoá; client đợi rồi tra kết quả theo key, KHÔNG gửi payload mới.
+ */
+export const IDEMPOTENCY_RETRY_AFTER_SECONDS = 1;
+export function idempotencyInProgress(): CommandError {
+  return new CommandError(
+    "IDEMPOTENCY_IN_PROGRESS",
+    409,
+    "Yêu cầu cùng Idempotency-Key đang được xử lý. Vui lòng đợi rồi kiểm tra kết quả.",
+    { extensions: { retry_after: IDEMPOTENCY_RETRY_AFTER_SECONDS } },
+  );
 }
 
 /** 422 VALIDATION_FAILED chỉ đúng một trường sai (SPEC-access S-001, SPEC-lease S-007/S-025). */
