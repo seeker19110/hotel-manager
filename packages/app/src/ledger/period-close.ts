@@ -7,7 +7,7 @@ import { authorize, generateMemoRef } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/index.ts";
 import { assertPropertyInOrg } from "../access/index.ts";
-import { type ApprovalRow, registerApprovalExecutor, requestApproval } from "../approvals/approvals.ts";
+import { type ApprovalRow, registerApprovalExecutor, requestApproval } from "../approvals/index.ts";
 import { type CommandContext, CommandError } from "../pipeline/index.ts";
 import { postEntry } from "./ledger.ts";
 

@@ -32,8 +32,8 @@ import {
 import { createUnit } from "../inventory/units.ts";
 import { activateLease, clearImportReadingsPending, recordImportHandover } from "../lease/handover.ts";
 import { createDraft, createPerson, signLease, submitForSignature } from "../lease/lease.ts";
-import { recordOpeningDebt, recordOpeningDeposit } from "../ledger/opening-balance.ts";
-import { importReading } from "../metering/meters.ts";
+import { recordOpeningDebt, recordOpeningDeposit } from "../ledger/index.ts";
+import { importReading } from "../metering/index.ts";
 import {
   type CommandContext,
   CommandError,

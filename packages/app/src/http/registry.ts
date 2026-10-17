@@ -5,7 +5,7 @@ import type { StatementMapping } from "@hm/domain";
 import { mibToBytes } from "@hm/domain";
 import { z } from "zod";
 import { resetMemberMfa } from "../access/index.ts";
-import { APPROVAL_KINDS, cancelApproval, decideApproval, requestApproval } from "../approvals/approvals.ts";
+import { APPROVAL_KINDS, cancelApproval, decideApproval, requestApproval } from "../approvals/index.ts";
 import { getEvent, listEvents } from "../audit/index.ts";
 import {
   createPeriod,
@@ -15,13 +15,13 @@ import {
   reopenPeriod,
   returnToDraft,
   submitForReview,
-} from "../billing/billing.ts";
+} from "../billing/index.ts";
 import {
   receiveDeposit,
   requestCreditRefund,
   requestDeduction,
   requestDepositRefund,
-} from "../deposits/deposits.ts";
+} from "../deposits/index.ts";
 import {
   downloadExport,
   EXPORT_KINDS,
@@ -29,7 +29,7 @@ import {
   listMyExports,
   requestExport,
   requestOrgExport,
-} from "../exports/exports.ts";
+} from "../exports/index.ts";
 import {
   assignTask,
   cancelTask,
@@ -41,7 +41,7 @@ import {
   startTask,
   verifyTask,
 } from "../housekeeping/tasks.ts";
-import { getIdentityDocument } from "../identity/identity.ts";
+import { getIdentityDocument } from "../identity/index.ts";
 import {
   cancelBatch,
   commitBatch,
@@ -67,7 +67,7 @@ import {
   updateDraft,
 } from "../lease/lease.ts";
 import { approveSettlement, closeLease, giveNotice, prepareSettlement } from "../lease/settlement.ts";
-import { financialSummary, issueAdjustment, lockPeriod, unlockPeriod } from "../ledger/period-close.ts";
+import { financialSummary, issueAdjustment, lockPeriod, unlockPeriod } from "../ledger/index.ts";
 import {
   assignWorkOrder,
   cancelWorkOrder,
@@ -86,7 +86,7 @@ import {
   recordReading,
   replaceMeter,
   setServicePrice,
-} from "../metering/meters.ts";
+} from "../metering/index.ts";
 import {
   getPreferences,
   listDeliveries,
@@ -96,14 +96,14 @@ import {
   retryDelivery,
   updatePreference,
   updateSettings,
-} from "../notifications/preferences.ts";
+} from "../notifications/index.ts";
 import {
   allocatePayment,
   collectCash,
   confirmPayment,
   recordPayment,
   reversePayment,
-} from "../payments/payments.ts";
+} from "../payments/index.ts";
 import { inviteTenant, revokeTenantAccess } from "../portal/access.ts";
 import { createGuestLink, revokeGuestLink } from "../portal/guest.ts";
 import {
@@ -124,14 +124,14 @@ import {
   previewMatches,
   resolveBreak,
 } from "../reconciliation/reconciliation.ts";
-import { collections, depositsHeld, occupancy, receivables } from "../reports/reports.ts";
+import { collections, depositsHeld, occupancy, receivables } from "../reports/index.ts";
 import {
   closeShift,
   handoverShift,
   openShift,
   reassignDiscrepancy,
   receiveHandover,
-} from "../shifts/shifts.ts";
+} from "../shifts/index.ts";
 import { checkOut } from "../stay/checkout.ts";
 import { getFolio, postCharge, voidCharge } from "../stay/folio.ts";
 import { createRoomType, quote, setRate, updateRoomType } from "../stay/rates.ts";

@@ -365,8 +365,8 @@ describe("arch-guards — module chỉ import module khác qua index.ts (ARC-MOD
     targets.map((t) => `${from}->${t}`),
   );
 
-  it("quét được các import chéo module (không rỗng)", () => {
-    expect(current.length).toBeGreaterThan(50);
+  it("quét được các import chéo module (không rỗng; đã qua index.ts nên đếm theo cạnh thư mục)", () => {
+    expect(moduleEdges(files, APP_SRC).size).toBeGreaterThan(80);
   });
 
   it("không có import nội bộ mới ngoài danh sách nền (đi qua index.ts của module đích, KHÔNG thêm vào nền)", () => {

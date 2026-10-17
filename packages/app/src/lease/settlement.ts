@@ -5,9 +5,9 @@
 import { randomUUID } from "node:crypto";
 import { authorize, generateMemoRef } from "@hm/domain";
 import { sql } from "kysely";
-import { postEntry } from "../ledger/ledger.ts";
+import { postEntry } from "../ledger/index.ts";
 import { type CommandContext, CommandError, fieldError } from "../pipeline/index.ts";
-import { openShiftOf } from "../shifts/shifts.ts";
+import { openShiftOf } from "../shifts/index.ts";
 import { type LeaseStatus, leaseAllocations, leaseInterval, lockLease, transition } from "./lease.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

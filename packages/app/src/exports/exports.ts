@@ -33,7 +33,7 @@ import {
   prepareGeneratedFile,
 } from "../files/index.ts";
 import { writeXlsx, zipStore } from "../import/index.ts";
-import { createNotification } from "../notifications/dispatch.ts";
+import { createNotification } from "../notifications/index.ts";
 import { type CommandContext, CommandError, rateLimited } from "../pipeline/index.ts";
 import {
   collections,
@@ -42,7 +42,7 @@ import {
   receivables,
   reportRange,
   validDate,
-} from "../reports/reports.ts";
+} from "../reports/index.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

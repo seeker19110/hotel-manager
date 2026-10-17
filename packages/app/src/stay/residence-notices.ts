@@ -14,7 +14,7 @@ import {
   storeGeneratedFile,
   type TabularMime,
 } from "../files/index.ts";
-import { revealDocNumber } from "../identity/identity.ts";
+import { revealDocNumber } from "../identity/index.ts";
 import { writeXlsx } from "../import/index.ts";
 import { type CommandContext, CommandError } from "../pipeline/index.ts";
 import type { AppServices } from "../server/index.ts";
