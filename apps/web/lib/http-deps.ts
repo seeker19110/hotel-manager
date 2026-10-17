@@ -7,7 +7,12 @@ export function httpDeps(): HttpDeps {
     db,
     getSession: async (headers) => {
       const s = await auth.api.getSession({ headers });
-      return s ? { user: { id: s.user.id, twoFactorEnabled: s.user.twoFactorEnabled } } : null;
+      return s
+        ? {
+            user: { id: s.user.id, twoFactorEnabled: s.user.twoFactorEnabled },
+            session: { createdAt: s.session.createdAt },
+          }
+        : null;
     },
     secureCookies: config.APP_BASE_URL.startsWith("https://"),
     services,

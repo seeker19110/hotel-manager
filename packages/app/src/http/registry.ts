@@ -4,6 +4,7 @@ import type { StatementMapping } from "@hm/domain";
 import { z } from "zod";
 import { resetMemberMfa } from "../access/mfa-recovery.ts";
 import { APPROVAL_KINDS, cancelApproval, decideApproval, requestApproval } from "../approvals/approvals.ts";
+import { getEvent, listEvents } from "../audit/events.ts";
 import {
   createPeriod,
   issuePeriod,
@@ -19,6 +20,14 @@ import {
   requestDeduction,
   requestDepositRefund,
 } from "../deposits/deposits.ts";
+import {
+  downloadExport,
+  EXPORT_KINDS,
+  getExportStatus,
+  listMyExports,
+  requestExport,
+  requestOrgExport,
+} from "../exports/exports.ts";
 import {
   assignTask,
   cancelTask,
@@ -113,6 +122,7 @@ import {
   previewMatches,
   resolveBreak,
 } from "../reconciliation/reconciliation.ts";
+import { collections, depositsHeld, occupancy, receivables } from "../reports/reports.ts";
 import {
   closeShift,
   handoverShift,
@@ -135,6 +145,7 @@ import {
 } from "../stay/reservations.ts";
 import { exportResidenceNotice, listNotices, markNoticeSubmitted } from "../stay/residence-notices.ts";
 import { checkIn, type GuestInput, walkIn } from "../stay/stays.ts";
+import { getSummary, listItems, TODAY_CARDS } from "../today/today.ts";
 import type { CommandDef, QueryDef } from "./command-route.ts";
 
 const uuid = z.uuid();
@@ -700,6 +711,46 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
       }),
       httpStatus: 201,
     }),
+  }),
+  "exports.request": defineCommand({
+    command: "exports.request",
+    input: z.strictObject({
+      kind: z.enum(EXPORT_KINDS),
+      format: z.enum(["csv", "xlsx"]),
+      property_id: z.string().max(64).optional(),
+      filters: z
+        .strictObject({
+          as_of: isoDate.optional(),
+          from: isoDate.optional(),
+          to: isoDate.optional(),
+          correlation_id: z.string().min(1).max(200).optional(),
+        })
+        .optional(),
+    }),
+    run: async (ctx, i) => ({
+      data: await requestExport(ctx, {
+        kind: i.kind,
+        format: i.format,
+        ...(i.property_id ? { propertyId: i.property_id } : {}),
+        filters: {
+          ...(i.filters?.as_of ? { asOf: i.filters.as_of } : {}),
+          ...(i.filters?.from ? { from: i.filters.from } : {}),
+          ...(i.filters?.to ? { to: i.filters.to } : {}),
+          ...(i.filters?.correlation_id ? { correlationId: i.filters.correlation_id } : {}),
+        },
+      }),
+      httpStatus: 202,
+    }),
+  }),
+  "exports.requestOrgExport": defineCommand({
+    command: "exports.requestOrgExport",
+    input: z.strictObject({}),
+    run: async (ctx) => ({ data: await requestOrgExport(ctx), httpStatus: 202 }),
+  }),
+  "exports.download": defineCommand({
+    command: "exports.download",
+    input: z.strictObject({ export_id: z.string().max(64) }),
+    run: async (ctx, i, svc) => ({ data: await downloadExport(ctx, svc, { exportId: i.export_id }) }),
   }),
   "portal.createGuestLink": defineCommand({
     command: "portal.createGuestLink",
@@ -1692,6 +1743,101 @@ export const QUERIES: Readonly<Record<string, AnyQuery>> = {
     query: "inventory.getUnitStatus",
     input: z.strictObject({ unit_id: uuid }),
     run: (db, actor, i: { unit_id: string }) => getUnitStatus(db, actor, i.unit_id),
+  },
+  "audit.listEvents": {
+    query: "audit.listEvents",
+    input: z.strictObject({
+      from: z.iso.datetime({ offset: true }).optional(),
+      to: z.iso.datetime({ offset: true }).optional(),
+      property_id: z.string().max(64).optional(),
+      actor_person_id: uuid.optional(),
+      entity_type: z.string().min(1).max(64).optional(),
+      entity_id: uuid.optional(),
+      action: z.string().min(1).max(100).optional(),
+      correlation_id: z.string().min(1).max(200).optional(),
+      order: z.enum(["asc", "desc"]).optional(),
+      cursor: z.string().max(500).optional(),
+      limit: z
+        .string()
+        .regex(/^\d{1,3}$/)
+        .optional(),
+    }),
+    run: (db, actor, i: Record<string, string | undefined>) =>
+      listEvents(db, actor, {
+        ...(i.from ? { from: new Date(i.from) } : {}),
+        ...(i.to ? { to: new Date(i.to) } : {}),
+        ...(i.property_id ? { propertyId: i.property_id } : {}),
+        ...(i.actor_person_id ? { actorPersonId: i.actor_person_id } : {}),
+        ...(i.entity_type ? { entityType: i.entity_type } : {}),
+        ...(i.entity_id ? { entityId: i.entity_id } : {}),
+        ...(i.action ? { action: i.action } : {}),
+        ...(i.correlation_id ? { correlationId: i.correlation_id } : {}),
+        ...(i.order ? { order: i.order as "asc" | "desc" } : {}),
+        ...(i.cursor ? { cursor: i.cursor } : {}),
+        ...(i.limit ? { limit: Number(i.limit) } : {}),
+      }),
+  },
+  "audit.getEvent": {
+    query: "audit.getEvent",
+    input: z.strictObject({ event_id: z.string().max(64) }),
+    run: (db, actor, i: { event_id: string }) => getEvent(db, actor, i.event_id),
+  },
+  "reports.receivables": {
+    query: "reports.receivables",
+    input: z.strictObject({ as_of: isoDate.optional(), property_id: z.string().max(64).optional() }),
+    run: (db, actor, i: { as_of?: string; property_id?: string }) =>
+      receivables(db, actor, {
+        ...(i.as_of ? { asOf: i.as_of } : {}),
+        ...(i.property_id ? { propertyId: i.property_id } : {}),
+      }),
+  },
+  "reports.collections": {
+    query: "reports.collections",
+    input: z.strictObject({ from: isoDate, to: isoDate, property_id: z.string().max(64).optional() }),
+    run: (db, actor, i: { from: string; to: string; property_id?: string }) =>
+      collections(db, actor, {
+        from: i.from,
+        to: i.to,
+        ...(i.property_id ? { propertyId: i.property_id } : {}),
+      }),
+  },
+  "reports.depositsHeld": {
+    query: "reports.depositsHeld",
+    input: z.strictObject({ property_id: z.string().max(64).optional() }),
+    run: (db, actor, i: { property_id?: string }) =>
+      depositsHeld(db, actor, i.property_id ? { propertyId: i.property_id } : {}),
+  },
+  "reports.occupancy": {
+    query: "reports.occupancy",
+    input: z.strictObject({ from: isoDate, to: isoDate, property_id: z.string().max(64).optional() }),
+    run: (db, actor, i: { from: string; to: string; property_id?: string }) =>
+      occupancy(db, actor, {
+        from: i.from,
+        to: i.to,
+        ...(i.property_id ? { propertyId: i.property_id } : {}),
+      }),
+  },
+  "exports.getStatus": {
+    query: "exports.getStatus",
+    input: z.strictObject({ export_id: z.string().max(64) }),
+    run: (db, actor, i: { export_id: string }) => getExportStatus(db, actor, i.export_id),
+  },
+  "exports.listMine": {
+    query: "exports.listMine",
+    input: z.strictObject({}),
+    run: (db, actor) => listMyExports(db, actor),
+  },
+  "today.getSummary": {
+    query: "today.getSummary",
+    input: z.strictObject({ property_id: z.string().max(64).optional() }),
+    run: (db, actor, i: { property_id?: string }) =>
+      getSummary(db, actor, i.property_id ? { propertyId: i.property_id } : {}),
+  },
+  "today.listItems": {
+    query: "today.listItems",
+    input: z.strictObject({ card: z.enum(TODAY_CARDS), property_id: z.string().max(64).optional() }),
+    run: (db, actor, i: { card: (typeof TODAY_CARDS)[number]; property_id?: string }) =>
+      listItems(db, actor, { card: i.card, ...(i.property_id ? { propertyId: i.property_id } : {}) }),
   },
   "portal.listMyInvoices": {
     query: "portal.listMyInvoices",
