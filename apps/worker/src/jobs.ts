@@ -5,8 +5,11 @@ import {
   applyBankTransaction,
   createLogger,
   dispatchNotification,
+  type ExportJobDeps,
+  expireExports,
   type Logger,
   NOTIFY_EVENT_TYPES,
+  runExportJob,
 } from "@hm/app";
 import { withTenant } from "@hm/db";
 import { type Kysely, sql } from "kysely";
@@ -60,4 +63,21 @@ export function notifyHandlers(
       },
     ]),
   );
+}
+
+/**
+ * `exports.run` (SPEC-audit-reporting S-015, S-017, S-018): handler cho sự kiện outbox `export.requested` — worker dựng lại
+ * quyền của người yêu cầu lúc chạy; giao lại không chạy lần hai (job không còn `queued`).
+ */
+export function exportHandlers(deps: ExportJobDeps): Record<string, (job: OutboxJob) => Promise<void>> {
+  return {
+    "export.requested": async (job: OutboxJob) => {
+      await runExportJob(deps, job);
+    },
+  };
+}
+
+/** Job định kỳ (T-225 lập lịch): bản xuất quá hạn tải ⇒ `expired`. */
+export function expireExportsJob(workerDb: Kysely<unknown>): () => Promise<number> {
+  return () => expireExports(workerDb);
 }

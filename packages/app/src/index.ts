@@ -16,10 +16,26 @@ export {
   selectOrganization,
   switchOrganization,
 } from "./access/org-context.ts";
+export {
+  type AuditEvent,
+  type AuditFilter,
+  getEvent as getAuditEvent,
+  listEvents as listAuditEvents,
+} from "./audit/events.ts";
 export { type Auth, createAuth } from "./auth/auth.ts";
 export { generatePeriods, type Preview, previewPeriod } from "./billing/billing.ts";
 export { loadConfig } from "./config/schema.ts";
 export { ERROR_CODES, type ErrorCode } from "./errors.ts";
+export {
+  downloadExport,
+  EXPORT_KINDS,
+  type ExportJobDeps,
+  type ExportStatus,
+  expireExports,
+  getExportStatus,
+  listMyExports,
+  runExportJob,
+} from "./exports/exports.ts";
 export { handleFileUpload } from "./files/http.ts";
 export {
   type CommandDef,
@@ -87,6 +103,24 @@ export {
   type RentalProperty,
   rentalProperties,
 } from "./rental/views.ts";
+export {
+  type CollectionsReport,
+  collections as reportCollections,
+  type DepositsReport,
+  depositsHeld as reportDepositsHeld,
+  type OccupancyRow,
+  occupancy as reportOccupancy,
+  type ReceivablesReport,
+  receivables as reportReceivables,
+} from "./reports/reports.ts";
 export { serverContext } from "./server/context.ts";
 export { type AppServices, createServices, testServices } from "./server/services.ts";
 export { expireHeldReservations } from "./stay/jobs.ts";
+export {
+  getSummary as getTodaySummary,
+  listItems as listTodayItems,
+  TODAY_CARDS,
+  type TodayCard,
+  type TodayItem,
+  type TodaySummary,
+} from "./today/today.ts";

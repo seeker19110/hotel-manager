@@ -519,7 +519,7 @@ interface ZipFile {
   data: Buffer;
 }
 
-function zipStore(files: ZipFile[]): Uint8Array {
+export function zipStore(files: ZipFile[]): Uint8Array {
   const DOS_DATE = 0x21; // 1980-01-01, cố định để đầu ra tất định
   const locals: Buffer[] = [];
   const centrals: Buffer[] = [];

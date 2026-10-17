@@ -42,6 +42,8 @@ import * as m0038 from "./0038_portal_access.ts";
 import * as m0039 from "./0039_tenant_rls_hardening.ts";
 import * as m0040 from "./0040_portal_tenant.ts";
 import * as m0041 from "./0041_guest_links.ts";
+import * as m0042 from "./0042_audit_read_scope.ts";
+import * as m0043 from "./0043_export_jobs.ts";
 
 export const migrations: Record<string, Migration> = {
   "0001_tenancy": m0001,
@@ -85,4 +87,6 @@ export const migrations: Record<string, Migration> = {
   "0039_tenant_rls_hardening": m0039,
   "0040_portal_tenant": m0040,
   "0041_guest_links": m0041,
+  "0042_audit_read_scope": m0042,
+  "0043_export_jobs": m0043,
 };
