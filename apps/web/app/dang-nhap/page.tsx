@@ -13,6 +13,11 @@ export default function LoginPage() {
           Tôi là người thuê
         </a>
       </p>
+      <p>
+        <a className="btn btn--secondary" href="/dang-ky">
+          Tạo tài khoản mới
+        </a>
+      </p>
     </main>
   );
 }

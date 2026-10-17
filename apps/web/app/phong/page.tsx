@@ -26,6 +26,11 @@ export default async function RoomsPage() {
         <ErrorState
           title="Cần bật xác thực hai lớp"
           text="Vai trò của bạn có quyền về tiền hoặc quản trị. Hãy bật xác thực hai lớp trước khi thao tác."
+          action={
+            <a className="btn" href="/bao-mat">
+              Bật xác thực hai lớp
+            </a>
+          }
         />
       </main>
     );
