@@ -31,8 +31,12 @@ const pii = createPiiCipher(devKeyring());
 /** Giờ địa phương Asia/Ho_Chi_Minh (UTC+7), dạng `YYYY-MM-DDTHH:MM` → thời điểm tuyệt đối. */
 const loc = (dt: string) => new Date(`${dt}:00+07:00`);
 
+/** Lễ tân riêng cho helper `booking`: file này tạo rất nhiều booking, dùng chung `h.frontDesk` sẽ chạm hạn mức 200 lệnh/phút/thành viên. */
+let bookingDesk: Actor;
+
 beforeAll(async () => {
   h = await seedHotel();
+  bookingDesk = await seedMember(h.t, h.org, "front_desk", { name: "Lễ tân đặt phòng" });
 }, 60_000);
 
 afterAll(async () => {
@@ -77,7 +81,7 @@ async function booking(
   o: { checkedInAt?: Date; booker?: string } = {},
 ): Promise<Booked> {
   seq += 1;
-  const d = await okAs(h.t, h.frontDesk, (ctx) =>
+  const d = await okAs(h.t, bookingDesk, (ctx) =>
     createReservation(ctx, {
       unitId,
       arrivalDate: arrival,
@@ -87,13 +91,13 @@ async function booking(
       booker: { fullName: o.booker ?? "Người đặt", phone: "0100000333" },
     }),
   );
-  await okAs(h.t, h.frontDesk, (ctx) => holdReservation(ctx, { reservationId: d.reservationId }));
-  const c = await okAs(h.t, h.frontDesk, (ctx) =>
+  await okAs(h.t, bookingDesk, (ctx) => holdReservation(ctx, { reservationId: d.reservationId }));
+  const c = await okAs(h.t, bookingDesk, (ctx) =>
     confirmReservation(ctx, { reservationId: d.reservationId }),
   );
   if (o.checkedInAt) {
     const at = o.checkedInAt;
-    await okAs(h.t, h.frontDesk, (ctx) =>
+    await okAs(h.t, bookingDesk, (ctx) =>
       checkIn(ctx, pii, {
         reservationId: d.reservationId,
         guests: [
@@ -669,7 +673,7 @@ describe("SPEC-inventory S-017 quá hạn chưa trả phòng (detectOverdue)", (
     const noShow = await booking(ghost, "2026-12-01", "2026-12-03"); // không check-in
     await detectOverdue(h.t.worker, loc("2026-12-03T14:00"));
     expect((await exceptionsOf(s.allocationId)).map((e) => [e.type, e.related])).toEqual([
-      ["STAY_OVERSTAY", hold.allocationId],
+      ["STAY_OVERSTAY", null], // hold chưa xác nhận không phải "booking kế tiếp" (cùng tiêu chí RELOCATION_REQUIRED)
     ]);
     expect(await exceptionsOf(hold.allocationId)).toEqual([]);
     expect(await exceptionsOf(noShow.allocationId)).toEqual([]);
@@ -917,6 +921,26 @@ describe("SPEC-inventory S-017 quá hạn chưa trả phòng (detectOverdue)", (
     );
     const done = await view("2027-03-04", "2027-03-07");
     expect(done.rooms.map((r) => r.segments)).toEqual([[], []]);
+  });
+
+  it("S-017: related_allocation_id của STAY_OVERSTAY cùng tiêu chí 'booking kế tiếp' với RELOCATION_REQUIRED — bỏ qua hold chưa xác nhận đứng trước, trỏ booking/hợp đồng đã xác nhận đầu tiên; chỉ có hold → null", async () => {
+    const unit = await freshUnit();
+    const s = await booking(unit, "2027-05-20", "2027-05-22", { checkedInAt: loc("2027-05-20T15:00") });
+    await okAs(h.t, h.frontDesk, (ctx) =>
+      createHold(ctx, {
+        unitId: unit,
+        during: { start: loc("2027-05-22T14:00"), end: loc("2027-05-23T12:00") },
+        ttlMinutes: 24 * 60 * 400,
+      }),
+    );
+    const r = await booking(unit, "2027-05-24", "2027-05-25");
+    await detectOverdue(h.t.worker, loc("2027-05-22T13:30"));
+    expect((await exceptionsOf(s.allocationId)).map((e) => [e.type, e.related])).toEqual([
+      ["STAY_OVERSTAY", r.allocationId],
+    ]);
+    expect((await exceptionsOf(r.allocationId)).map((e) => [e.type, e.related])).toEqual([
+      ["RELOCATION_REQUIRED", s.allocationId],
+    ]);
   });
 
   it("S-017/S-020: MỖI booking đã xác nhận (stay và lease) đứng sau allocation quá hạn nhận RELOCATION_REQUIRED, không chỉ booking kế tiếp; hold chưa xác nhận không nhận; chạy lại không nhân; trả phòng đóng tất cả", async () => {

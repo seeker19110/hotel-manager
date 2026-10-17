@@ -15,7 +15,7 @@ CREATE FUNCTION app.stays_overdue(p_now timestamptz)
   RETURNS TABLE (organization_id uuid, property_id uuid, stay_id uuid, allocation_id uuid, related_allocation_id uuid)
   LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
     SELECT s.organization_id, s.property_id, s.id, a.id,
-           (SELECT o.id FROM allocations o WHERE o.organization_id = a.organization_id AND o.unit_id = a.unit_id AND o.active
+           (SELECT o.id FROM allocations o WHERE o.organization_id = a.organization_id AND o.unit_id = a.unit_id AND o.active AND o.kind IN ('stay', 'lease')
               AND o.id <> a.id AND lower(o.during) >= upper(a.during) ORDER BY lower(o.during), o.id LIMIT 1)
     FROM stays s
     JOIN properties p ON p.organization_id = s.organization_id AND p.id = s.property_id
