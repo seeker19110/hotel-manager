@@ -6,7 +6,7 @@
 // Số liệu `hm_reconciliation_breaks_open` do /api/metrics đọc trực tiếp (`app.reconciliation_metrics`), không phụ thuộc job này;
 // rule cảnh báo ticket ở deploy/prometheus/alerts.yml. Đọc xuyên tổ chức qua hàm SECURITY DEFINER phạm vi hẹp (migration 0050).
 import { randomUUID } from "node:crypto";
-import { withTenant } from "@hm/db";
+import { withTenantRetry } from "@hm/db";
 import { type Kysely, sql } from "kysely";
 
 /** SLA xử lý một chênh lệch đối soát: 48 giờ kể từ lúc mở (đề xuất — chủ dự án chỉnh được khi có dữ liệu vận hành). */
@@ -50,7 +50,7 @@ export async function runReconciliationDaily(
   }>`select * from app.reconciliation_breaks_overdue(${now}, ${sla}, ${BREAK_BATCH})`.execute(workerDb);
   let flagged = 0;
   for (const b of overdue.rows) {
-    const ins = await withTenant(workerDb, { orgId: b.organization_id }, (trx) =>
+    const ins = await withTenantRetry(workerDb, { orgId: b.organization_id }, (trx) =>
       sql`
         insert into audit_events (id, organization_id, property_id, actor_type, action, entity_type, entity_id, after, correlation_id)
         select ${randomUUID()}, ${b.organization_id}, ${b.property_id}, 'worker', 'reconciliation.break_overdue',
@@ -74,7 +74,7 @@ export async function runReconciliationDaily(
       debit_total: d.debit_total,
       credit_total: d.credit_total,
     });
-    await withTenant(workerDb, { orgId: d.organization_id }, (trx) =>
+    await withTenantRetry(workerDb, { orgId: d.organization_id }, (trx) =>
       sql`
         insert into audit_events (id, organization_id, actor_type, action, entity_type, after, correlation_id)
         select ${randomUUID()}, ${d.organization_id}, 'worker', 'ledger.drift_detected', 'ledger',

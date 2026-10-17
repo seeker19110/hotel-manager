@@ -1,6 +1,7 @@
 // T-008 — command pipeline trên Postgres thật: INV-G5 (idempotency), INV-G6 (audit + outbox cùng transaction),
 // SEC-LOG-007 (audit append-only), DB-TX-002 (retry 40001), COMMAND_NOT_FOUND.
 import { randomUUID } from "node:crypto";
+import { REQUEST_TX_RETRY } from "@hm/db";
 import { createTestDb, type SeededOrg, seedAuthUser, seedOrg, type TestDb } from "@hm/testkit";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -70,7 +71,7 @@ afterAll(async () => {
 });
 
 describe("idempotency (INV-G5)", () => {
-  it("cùng key + cùng payload gửi 2 lần → một hiệu lực, lần 2 trả kết quả cũ", async () => {
+  it("SPEC-access S-021: cùng key + cùng payload gửi 2 lần → một hiệu lực, lần 2 trả kết quả cũ", async () => {
     const before = await counts(A.orgId);
     const key = randomUUID();
     const req = {
@@ -108,7 +109,7 @@ describe("idempotency (INV-G5)", () => {
     expect(after).toEqual({ a: before.a + 1, o: before.o + 1, p: before.p + 1 });
   });
 
-  it("cùng key + khác payload → 409 IDEMPOTENCY_CONFLICT", async () => {
+  it("SPEC-access S-021: cùng key + khác payload → 422 IDEMPOTENCY_CONFLICT", async () => {
     const key = randomUUID();
     await executeCommand(
       t.runtime,
@@ -123,7 +124,7 @@ describe("idempotency (INV-G5)", () => {
         { command: "person.create", idempotencyKey: key, payload: { name: "KH B" }, correlationId: "c" },
         createPerson("KH B"),
       ),
-    ).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT", status: 409 });
+    ).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT", status: 422 });
   });
 
   it("thiếu/sai Idempotency-Key → 400 MALFORMED_REQUEST", async () => {
@@ -210,6 +211,153 @@ describe("retry lỗi serialization (DB-TX-002)", () => {
     expect(r.status).toBe("committed");
     expect(calls).toBe(2);
     expect((await counts(A.orgId)).p).toBe(before.p + 1);
+  });
+});
+
+describe("retry lỗi transaction thật trên Postgres (DB-TX-002, ARC-RES-002)", () => {
+  /** Chốt chặn cho hai lệnh: cả hai đã giữ khoá đầu của mình thì mới cùng xin khoá thứ hai ⇒ deadlock thật. */
+  function barrier(n: number) {
+    let arrived = 0;
+    let open!: () => void;
+    const gate = new Promise<void>((r) => {
+      open = r;
+    });
+    return async () => {
+      if (++arrived === n) open();
+      await gate;
+    };
+  }
+
+  async function twoPersons(): Promise<[string, string]> {
+    const ids: [string, string] = [randomUUID(), randomUUID()];
+    for (const id of ids)
+      await sql`insert into persons (id, organization_id, full_name) values (${id}, ${A.orgId}, ${`KH khoá ${id.slice(0, 4)}`})`.execute(
+        t.admin,
+      );
+    return ids;
+  }
+
+  const lock = (ctx: CommandContext, id: string) =>
+    sql`select id from persons where organization_id = ${ctx.actor.orgId} and id = ${id} for update`.execute(
+      ctx.trx,
+    );
+
+  it("deadlock thật (40P01) giữa hai lệnh khoá chéo → nạn nhân tự chạy lại, cả hai commit; chờ có jitter trong trần", async () => {
+    const [p1, p2] = await twoPersons();
+    const before = await counts(A.orgId);
+    const waits: number[] = [];
+    const attempts = { x: 0, y: 0 };
+    const meet = barrier(2);
+    const run = (who: "x" | "y", first: string, second: string) =>
+      executeCommand(
+        t.runtime,
+        owner,
+        {
+          command: "person.create",
+          idempotencyKey: randomUUID(),
+          payload: { who },
+          correlationId: `c-dl-${who}`,
+          // Jitter xác định: random = 0,8 ⇒ chờ = 0,8 · min(250, 25) = 20 ms; hàm chờ ghi lại, không ngủ thật.
+          retry: { random: () => 0.8, sleep: async (ms) => void waits.push(ms) },
+        },
+        async (ctx) => {
+          const n = ++attempts[who];
+          await lock(ctx, first);
+          if (n === 1) await meet(); // chỉ lần đầu: lần chạy lại không còn đối thủ giữ khoá chéo
+          await lock(ctx, second);
+          return createPerson(`KH Deadlock ${who}`)(ctx);
+        },
+      );
+    const [rx, ry] = await Promise.all([run("x", p1, p2), run("y", p2, p1)]);
+    expect(rx.status).toBe("committed");
+    expect(ry.status).toBe("committed");
+    // Đúng một nạn nhân: tổng 3 lần chạy handler, một lần chờ.
+    expect(attempts.x + attempts.y).toBe(3);
+    expect(waits).toEqual([20]);
+    // Mỗi lệnh chỉ có MỘT hiệu lực dù handler của nạn nhân chạy 2 lần.
+    const after = await counts(A.orgId);
+    expect(after).toEqual({ a: before.a + 2, o: before.o + 2, p: before.p + 2 });
+  });
+
+  it("40001 mãi → chạy đúng maxAttempts lần rồi ném lỗi; transaction rollback, không để lại dấu vết", async () => {
+    const before = await counts(A.orgId);
+    const key = randomUUID();
+    let calls = 0;
+    const err = await executeCommand(
+      t.runtime,
+      owner,
+      { command: "person.create", idempotencyKey: key, payload: {}, correlationId: "c-40001-mai" },
+      async (ctx) => {
+        calls++;
+        await createPerson("KH Không bao giờ")(ctx);
+        throw Object.assign(new Error("could not serialize access"), { code: "40001" });
+      },
+    ).catch((e: unknown) => e);
+    // Không tiêm retry → chính sách mặc định REQUEST_TX_RETRY (chờ thật ≤ 250 ms mỗi lần): đúng số lần, không tác dụng phụ.
+    expect((err as { code?: string }).code).toBe("40001");
+    expect(calls).toBe(REQUEST_TX_RETRY.maxAttempts);
+    expect(await counts(A.orgId)).toEqual(before);
+    const k =
+      await sql`select 1 from idempotency_keys where organization_id = ${A.orgId} and key = ${key}`.execute(
+        t.admin,
+      );
+    expect(k.rows).toHaveLength(0);
+  });
+
+  it("lỗi vĩnh viễn (23505 / lỗi nghiệp vụ 422) → KHÔNG chạy lại, không chờ", async () => {
+    for (const make of [
+      () => Object.assign(new Error("duplicate"), { code: "23505" }),
+      () => new CommandError("VALIDATION_FAILED", 422, "sai dữ liệu"),
+    ]) {
+      const waits: number[] = [];
+      let calls = 0;
+      await executeCommand(
+        t.runtime,
+        owner,
+        {
+          command: "person.create",
+          idempotencyKey: randomUUID(),
+          payload: {},
+          correlationId: "c-vinh-vien",
+          retry: { sleep: async (ms) => void waits.push(ms) },
+        },
+        async () => {
+          calls++;
+          throw make();
+        },
+      ).catch(() => {});
+      expect(calls).toBe(1);
+      expect(waits).toEqual([]);
+    }
+  });
+
+  it("trần thời gian: đồng hồ tiêm cho thấy hết ngân sách → bỏ cuộc sớm, ít lần chạy hơn maxAttempts", async () => {
+    let clock = 0;
+    let calls = 0;
+    const err = await executeCommand(
+      t.runtime,
+      owner,
+      {
+        command: "person.create",
+        idempotencyKey: randomUUID(),
+        payload: {},
+        correlationId: "c-tran",
+        retry: {
+          policy: { maxAttempts: 10, baseDelayMs: 100, maxDelayMs: 100, maxElapsedMs: 150 },
+          random: () => 1,
+          now: () => clock,
+          sleep: async (ms) => {
+            clock += ms;
+          },
+        },
+      },
+      async () => {
+        calls++;
+        throw Object.assign(new Error("deadlock"), { code: "40P01" });
+      },
+    ).catch((e: unknown) => e);
+    expect((err as { code?: string }).code).toBe("40P01");
+    expect(calls).toBe(2); // lần 1 → chờ 100 (còn 150) → lần 2 → còn 50 ≤ 100 ⇒ dừng
   });
 });
 

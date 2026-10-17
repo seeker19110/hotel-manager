@@ -112,7 +112,11 @@ describe("logging — securityEventForProblem", () => {
     [{ status: 403, code: "MFA_REQUIRED" }, "authz.denied"],
     [{ status: 429, code: "RATE_LIMITED" }, "rate_limit.exceeded"],
     [{ status: 404, code: "NOT_FOUND" }, null],
-    [{ status: 422, code: "VALIDATION_FAILED" }, null],
+    [{ status: 422, code: "VALIDATION_FAILED" }, "input.validation_failed"],
+    [{ status: 413, code: "FILE_TOO_LARGE" }, "file.upload_rejected"],
+    [{ status: 415, code: "FILE_TYPE_NOT_ALLOWED" }, "file.upload_rejected"],
+    [{ status: 422, code: "OTHER" }, null],
+    [{ status: 422, code: "IDEMPOTENCY_CONFLICT" }, null],
     [{ status: 409, code: "IDEMPOTENCY_CONFLICT" }, null],
   ])("%j → %s", (p, name) => {
     expect(securityEventForProblem(p)).toBe(name);

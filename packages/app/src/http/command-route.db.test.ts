@@ -139,7 +139,7 @@ describe("handleCommand — thứ tự kiểm và mã lỗi", () => {
     expect(m.rows[0]?.o).toBe(A.orgId);
   });
 
-  it("tổ chức không phải thành viên → 404; vai trò cần MFA mà chưa bật → 403 MFA_REQUIRED", async () => {
+  it("SPEC-access S-011: tổ chức không phải thành viên → 404; vai trò cần MFA mà chưa bật → 403 MFA_REQUIRED", async () => {
     const r1 = await handleCommand(
       ECHO,
       post({ n: 1 }, { "x-test-user": housekeepingUser, "x-org-id": B.orgId }),
@@ -192,7 +192,7 @@ describe("handleCommand — thứ tự kiểm và mã lỗi", () => {
     }>`select count(*)::int as n from audit_events where command_id = ${key}`.execute(t.admin);
     expect(audits.rows[0]?.n).toBe(1);
     const r3 = await handleCommand(ECHO, post({ n: 22 }, h), deps);
-    expect(r3.status).toBe(409);
+    expect(r3.status).toBe(422);
     expect((await j(r3)).code).toBe("IDEMPOTENCY_CONFLICT");
   });
 

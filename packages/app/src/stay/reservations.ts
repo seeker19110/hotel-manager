@@ -15,12 +15,12 @@ import {
   repriceForDates,
 } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
-import type { Actor } from "../access/actor.ts";
-import { approvalRequired, registerApprovalExecutor } from "../approvals/approvals.ts";
-import { receiveDeposit } from "../deposits/deposits.ts";
-import { confirmHold, createHold, type Interval } from "../inventory/inventory.ts";
-import { postEntry } from "../ledger/ledger.ts";
-import { confirmPayment, type ManualBankTxn, recordPayment } from "../payments/payments.ts";
+import type { Actor } from "../access/index.ts";
+import { approvalRequired, registerApprovalExecutor } from "../approvals/index.ts";
+import { receiveDeposit } from "../deposits/index.ts";
+import { confirmHold, createHold, type Interval } from "../inventory/index.ts";
+import { postEntry } from "../ledger/index.ts";
+import { confirmPayment, type ManualBankTxn, recordPayment } from "../payments/index.ts";
 import { type CommandContext, CommandError } from "../pipeline/index.ts";
 import { loadRates, quoteIn, quoteProblem, staySettings } from "./rates.ts";
 
@@ -192,25 +192,6 @@ export async function createReservation(
   return { reservationId: id, number, roomTotal: q.roomTotal, nightlyPrices: q.nightlyPrices };
 }
 
-/** Phòng cùng loại còn trống trong khoảng (gợi ý khi ROOM_UNAVAILABLE — S-004). */
-async function suggestions(
-  trx: Transaction<unknown>,
-  orgId: string,
-  row: ReservationRow,
-  during: Interval,
-  now: Date,
-) {
-  const r = await sql<{ unit_id: string; code: string }>`
-    select u.id as unit_id, u.code from units u
-    where u.organization_id = ${orgId} and u.property_id = ${row.property_id} and u.room_type_id = ${row.room_type_id}
-      and u.id <> ${row.unit_id} and u.archived_at is null and u.availability = 'active'
-      and not exists (select 1 from allocations a where a.organization_id = u.organization_id and a.unit_id = u.id and a.active
-                        and (a.kind <> 'hold' or a.expires_at > ${now})
-                        and a.during && tstzrange(${during.start}, ${during.end}, '[)'))
-    order by u.code limit 5`.execute(trx);
-  return r.rows;
-}
-
 /** `reservation.hold` (S-003, S-004): draft → held, allocation `hold` có hạn; phòng bận → ROOM_UNAVAILABLE kèm gợi ý. */
 export async function holdReservation(
   ctx: CommandContext,
@@ -240,14 +221,13 @@ export async function holdReservation(
     });
   } catch (e) {
     if (e instanceof CommandError && e.code === "ROOM_UNAVAILABLE") {
-      const items = await suggestions(ctx.trx, ctx.actor.orgId, row, during, now);
+      // Gợi ý do `createHold` tính (một hàm duy nhất); `items` giữ để tương thích hợp đồng cũ của reservation.hold (D-040).
+      const alternatives = e.extensions.alternatives ?? [];
       throw new CommandError(
         "ROOM_UNAVAILABLE",
         409,
         "Phòng đã có người giữ trong thời gian này. Xem phòng gợi ý.",
-        {
-          extensions: { items },
-        },
+        { extensions: { alternatives, items: alternatives } },
       );
     }
     throw e;

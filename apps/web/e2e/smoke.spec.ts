@@ -11,7 +11,7 @@ import {
   SMOKE_USER,
 } from "./fixtures.ts";
 
-test("smoke: đăng nhập → chọn tổ chức → phòng của cơ sở được giao", async ({ page }) => {
+test("@smoke đăng nhập → chọn tổ chức → phòng của cơ sở được giao", async ({ page }) => {
   await page.goto("/phong");
   await expect(page).toHaveURL(/\/dang-nhap$/);
   await expectAccessible(page);
@@ -82,7 +82,7 @@ test("trang đã đăng nhập mang Cache-Control: no-store", async ({ page }) =
   }
 });
 
-test("session.switchOrganization: khác origin 403; thiếu key 400; tổ chức lạ 404; key trùng khác payload 409", async ({
+test("session.switchOrganization: khác origin 403; thiếu key 400; tổ chức lạ 404; key trùng khác payload 422", async ({
   page,
 }) => {
   const res = await page.request.post("/api/v1/session/switchOrganization", {

@@ -2,7 +2,7 @@
 // pg-boss: relay outbox cần nhịp vài giây (cron chỉ tới phút) và mọi job ở đây đã an toàn khi nhiều worker chạy song song
 // (SKIP LOCKED / khoá dedupe / idempotent) nên không cần "đúng một nơi chạy".
 // Mỗi job chạy TUẦN TỰ với chính nó (không chồng lượt); lỗi một lượt chỉ ghi log rồi chờ lượt sau, không làm sập worker.
-import type { Logger } from "@hm/app";
+import { type Logger, runJobWithTrace } from "@hm/app";
 
 export interface ScheduledJob {
   name: string;
@@ -45,13 +45,17 @@ export function startScheduler(
   const loops = jobs.map(async (job) => {
     if (job.initialDelayMs) await abortableSleep(job.initialDelayMs, signal);
     while (!signal.aborted) {
-      const t0 = Date.now();
-      try {
-        const result = await job.run();
-        log.debug("job.done", { job: job.name, ms: Date.now() - t0, result });
-      } catch (err) {
-        log.error("job.failed", { job: job.name, ms: Date.now() - t0, error: err });
-      }
+      // Mỗi lượt một trace mới (BASE-ERR-006): log của job (kể cả "job.done"/"job.failed") và outbox do lượt này ghi mang
+      // cùng `trace_id`; handler outbox sau đó nối tiếp trace này.
+      await runJobWithTrace(null, async () => {
+        const t0 = Date.now();
+        try {
+          const result = await job.run();
+          log.debug("job.done", { job: job.name, ms: Date.now() - t0, result });
+        } catch (err) {
+          log.error("job.failed", { job: job.name, ms: Date.now() - t0, error: err });
+        }
+      });
       await abortableSleep(jitter(job.everyMs), signal);
     }
   });

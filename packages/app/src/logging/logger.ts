@@ -1,15 +1,28 @@
 // Logger JSON có cấu trúc (BASE-ERR-005/006/007/008/009, SEC-LOG-001/002, SEC-SECRET-007, TM-06/TM-10).
 // Một dòng JSON mỗi sự kiện; `correlation_id` xuyên request/job; che bí mật và dữ liệu cá nhân trước khi ghi.
 // Mỗi bản ghi có `service`/`version`/`env` và `severity_number` theo OpenTelemetry Logs; lỗi theo `exception.*`.
+// Trong request/job: thêm `trace_id`/`span_id` (W3C Trace Context, trace.ts). Hình dạng bản ghi: `log-record.schema.json`.
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { traceLogFields } from "./trace.ts";
 
 export type LogLevel = "debug" | "info" | "warn" | "error";
 const ORDER: Record<LogLevel, number> = { debug: 10, info: 20, warn: 30, error: 40 };
 /** SeverityNumber của OTel Logs Data Model (DEBUG=5, INFO=9, WARN=13, ERROR=17). */
 const SEVERITY_NUMBER: Record<LogLevel, number> = { debug: 5, info: 9, warn: 13, error: 17 };
 /** Khoá do logger đặt — trường do mã gọi truyền vào không được ghi đè (chống giả mạo bản ghi). */
-const RESERVED = new Set(["ts", "level", "severity_number", "service", "version", "env", "category", "msg"]);
+const RESERVED = new Set([
+  "ts",
+  "level",
+  "severity_number",
+  "service",
+  "version",
+  "env",
+  "category",
+  "msg",
+  "trace_id",
+  "span_id",
+]);
 
 export const DEFAULT_SERVICE = "hotel-manager";
 
@@ -177,6 +190,8 @@ export function createLogger(opts: {
       version,
       env,
       ...(category ? { category } : {}),
+      // `trace_id`/`span_id` của request/job đang chạy (W3C traceparent, xem trace.ts); ngoài request/job thì không có.
+      ...traceLogFields(),
       // JSON.stringify escape CR/LF/ký tự điều khiển ⇒ chuỗi người dùng không tách được thành "dòng log giả".
       msg: maskString(msg),
       ...extras,

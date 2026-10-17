@@ -112,7 +112,7 @@ beforeEach(() => {
 });
 
 describe("hạn mức khi duyệt (SPEC-ledger S-014, S-033)", () => {
-  it("quản lý: hoàn 6.000.000 > 5.000.000 → APPROVAL_LIMIT_EXCEEDED; 4.000.000 → thực hiện đúng một lần", async () => {
+  it("SPEC-access S-026: quản lý: hoàn 6.000.000 > 5.000.000 → APPROVAL_LIMIT_EXCEEDED; 4.000.000 → thực hiện đúng một lần", async () => {
     const big = await request(frontDesk, { kind: "deposit_refund", amount: 6_000_000 });
     expect(await decide(manager, big)).toMatchObject({
       status: "failed",
@@ -146,7 +146,7 @@ describe("hạn mức khi duyệt (SPEC-ledger S-014, S-033)", () => {
     expect(await decide(frontDesk, notCheckout)).toMatchObject({ problem: { code: "FORBIDDEN" } });
   });
 
-  it("kế toán chỉ lập đề nghị, không duyệt; tự duyệt bị cấm kể cả owner", async () => {
+  it("SPEC-access S-026: kế toán chỉ lập đề nghị, không duyệt; tự duyệt bị cấm kể cả owner", async () => {
     const id = await request(frontDesk, { kind: "deposit_refund", amount: 100_000 });
     expect(await decide(accountant, id)).toMatchObject({ problem: { code: "FORBIDDEN" } });
     const mine = await request(owner, { kind: "adjustment", amount: 100_000 });

@@ -10,7 +10,7 @@
 //    lỗi tạm → `retrying` sau 1 ph, 5 ph, 30 ph, 2 giờ, 6 giờ (Q-05: 1 lần đầu + 5 lần thử lại) → lần 6 lỗi ⇒ `dead`.
 // Log chỉ có email đã che (`a***@example.com`).
 
-import { withTenant } from "@hm/db";
+import { spreadDelayMs, withTenantRetry } from "@hm/db";
 import { minutesToMs } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
 import { EmailSendError, type EmailSender } from "./email.ts";
@@ -19,6 +19,11 @@ import { maskEmail, type NotificationType, REQUIRED_TYPES, render, TemplateError
 
 /** Khoảng chờ trước lần thử lại thứ n (phút) — Q-05. */
 export const RETRY_BACKOFF_MINUTES = [1, 5, 30, 120, 360] as const;
+/**
+ * Jitter CỘNG THÊM (không sớm hơn mốc Q-05): lần chờ thực ∈ [mốc, mốc · 1,2] để loạt thư lỗi cùng lúc (nhà cung cấp sập rồi
+ * lên lại) không dội về cùng một phút (ARC-RES-002).
+ */
+export const RETRY_JITTER_RATIO = 0.2;
 /** Lần gửi đầu + 5 lần thử lại. */
 export const MAX_ATTEMPTS = RETRY_BACKOFF_MINUTES.length + 1;
 
@@ -56,7 +61,7 @@ async function prepare(
   fence: Date,
   opts: { baseUrl?: string; unsubscribeKey?: Buffer; now: Date },
 ): Promise<Outcome | null> {
-  return withTenant(workerDb, { orgId }, async (trx) => {
+  return withTenantRetry(workerDb, { orgId }, async (trx) => {
     const r = await sql<Row>`
       select n.id as notification_id, n.recipient_person_id, n.type, n.vars, p.email,
              exists (select 1 from notification_preferences np
@@ -134,10 +139,13 @@ export async function sendDueEmails(
     baseUrl?: string;
     unsubscribeKey?: Buffer;
     log?: SendLog;
+    /** Nguồn ngẫu nhiên ∈ [0, 1) cho jitter của lịch gửi lại (tiêm cho test); mặc định `Math.random`. */
+    random?: () => number;
   } = {},
 ): Promise<SendStats> {
   const now = opts.now ?? new Date();
   const log: SendLog = opts.log ?? (() => {});
+  const random = opts.random ?? Math.random;
   const stats: SendStats = { claimed: 0, sent: 0, retrying: 0, failed: 0, dead: 0, suppressed: 0, stale: 0 };
   const claimed = await sql<{ id: string; organization_id: string; attempts: number; locked_until: Date }>`
     select * from app.claim_due_deliveries(${now}, ${opts.limit ?? 50}, ${opts.perOrg ?? 10}, ${opts.lockSeconds ?? 120},
@@ -172,7 +180,7 @@ export async function sendDueEmails(
       error =
         err instanceof EmailSendError ? err : new EmailSendError("temporary", String((err as Error).message));
     }
-    const written = await withTenant(workerDb, { orgId: c.organization_id }, async (trx) => {
+    const written = await withTenantRetry(workerDb, { orgId: c.organization_id }, async (trx) => {
       const fence = sql`organization_id = ${c.organization_id} and id = ${c.id} and status = 'sending' and locked_until = ${c.locked_until}`;
       let r: { numAffectedRows?: bigint };
       if (result) {
@@ -192,7 +200,7 @@ export async function sendDueEmails(
         const wait: number = RETRY_BACKOFF_MINUTES[c.attempts - 1] ?? 360;
         r =
           await sql`update notification_deliveries set status = 'retrying', last_error_code = 'PROVIDER_TEMPORARY', locked_until = null,
-                         next_attempt_at = ${new Date(now.getTime() + minutesToMs(wait))}
+                         next_attempt_at = ${new Date(now.getTime() + spreadDelayMs(minutesToMs(wait), RETRY_JITTER_RATIO, random))}
                   where ${fence}`.execute(trx);
       }
       return Number(r.numAffectedRows ?? 0) > 0;

@@ -168,7 +168,7 @@ Fixture `ledger-basic`: phiếu I1 (trọ, L1) tổng 3.580.000 đ đã phát h�
 ### S-026 Gửi lại command tiền (INV-G5)
 - Given `payment.record` thành công với key K1
 - When gửi lại K1 cùng payload; timeout rồi gọi `GET /api/v1/commands/{id}`
-- Then 1 thanh toán; truy vấn trả kết quả gốc; K1 khác payload → 409 `IDEMPOTENCY_CONFLICT`
+- Then 1 thanh toán; truy vấn trả kết quả gốc; K1 khác payload → 422 `IDEMPOTENCY_CONFLICT`
 
 ### S-027 Khách trả tiền mặt lúc check-out ca đêm, lễ tân tự xác nhận (INV-F3b — đề xuất, chờ PO)
 - Given khách S1 (S-002) check-out ca đêm; phiếu folio I2 1.430.000 đã phát hành, ứng trước 500.000 đã phân bổ, còn **930.000**; F có ca đang mở (`shift.open` đầu ca 2.000.000)
@@ -298,7 +298,7 @@ Pilot cần kiểm soát tiền mặt theo ca nhưng chưa cần ca quầy đầ
 | `SHIFT_ALREADY_OPEN` | Mở ca khi đã có ca mở | 409 | Bạn đang có một ca đang mở. | S-034 |
 | `SHIFT_HAS_PENDING_PAYMENTS` | Đóng ca khi còn tiền mặt `pending` | 409 | Còn khoản tiền mặt chưa xác nhận trong ca. | S-034 |
 | `DOCUMENT_IMMUTABLE` | Sửa trực tiếp chứng từ đã phát hành (kể cả sau khi mở khoá kỳ) | 409 | Chứng từ đã phát hành, không sửa trực tiếp. Hãy tạo điều chỉnh. | S-023 |
-| `FORBIDDEN` / `NOT_FOUND` / `VALIDATION_FAILED` / `IDEMPOTENCY_CONFLICT` | dùng chung | 403/404/422/409 | như các SPEC khác | S-023, S-025, S-026, S-028 |
+| `FORBIDDEN` / `NOT_FOUND` / `VALIDATION_FAILED` / `IDEMPOTENCY_CONFLICT` | dùng chung | 403/404/422 | như các SPEC khác | S-023, S-025, S-026, S-028 |
 
 **Lý do break không phải mã lỗi API.** `HASH_MISMATCH`, `THIRD_PARTY_PAYER`, `WRONG_REFERENCE` (cùng `COMBINED`, `OVERPAID`, `UNMATCHED`) là giá trị của `reconciliation_breaks.reason`, hiển thị trong hàng chờ đối soát; chúng **không** xuất hiện trong `problem+json` và không có HTTP riêng. Mã lỗi API tương ứng chỉ là `INBOX_HASH_MISMATCH` (S-018).
 

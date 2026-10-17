@@ -10,6 +10,7 @@
 // `route="other", method="other", status="Nxx"` (tối đa 6 chuỗi: không bao giờ mất mẫu, không bao giờ phình bộ nhớ vì đầu vào của
 // kẻ tấn công). Tổng số chuỗi ≤ MAX_SERIES + OVERFLOW_SERIES.
 import { msToSecondsExact } from "@hm/domain";
+import { withRequestTrace } from "../logging/index.ts";
 import type { Sample } from "./metrics.ts";
 
 /** Biên histogram (giây). Có 0,8 và 1,5 để SLI "≤ 800 ms" (SLO-LAT) và "≤ 1,5 s" (SLO-HOLD) tính được bằng `le` (docs/ops/SLO.md). */
@@ -149,10 +150,14 @@ export async function observeHttp(
   }
 }
 
-/** Bọc một route handler của Next (`(req, ctx) => Response`) bằng `observeHttp` với mẫu route cố định. */
+/**
+ * Bọc một route handler của Next (`(req, ctx) => Response`) bằng `observeHttp` với mẫu route cố định, và đặt nó trong ngữ cảnh
+ * trace của request (`traceparent` đến/mới, mọi log mang `trace_id`/`span_id`, phản hồi trả lại `traceparent`).
+ */
 export function withHttpMetrics<A extends unknown[]>(
   route: string,
   handler: (req: Request, ...rest: A) => Response | Promise<Response>,
 ): (req: Request, ...rest: A) => Promise<Response> {
-  return (req, ...rest) => observeHttp(route, req.method, async () => handler(req, ...rest));
+  return (req, ...rest) =>
+    observeHttp(route, req.method, () => withRequestTrace(req, async () => handler(req, ...rest)));
 }

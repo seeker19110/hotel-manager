@@ -55,9 +55,10 @@ Quy tắc kèm theo:
   - Mọi lượt xem đều chạm server và CSDL; không hưởng lợi từ CDN cho HTML. Chấp nhận ở quy mô M; chưa đo LCP/TTFB thật (chưa có Lighthouse CI/RUM).
   - Trang công khai ít đổi (đăng nhập) vẫn render mỗi request.
   - Mất lợi thế `prefetch` tĩnh của Next cho điều hướng.
-- Việc còn mở: E2E đăng nhập hai người dùng khác nhau và xác nhận không thấy dữ liệu của nhau (PRF-WEB-001) mới có ở mức test CSDL cách ly tenant, chưa có ở mức giao diện.
+- Việc còn mở: chưa đo LCP/TTFB thật (xem trên). E2E hai người dùng khác tổ chức không thấy dữ liệu của nhau đã có ở mức giao diện (đợt 6, T-506).
 
 ### Xác nhận
+- E2E `apps/web/e2e/isolation.spec.ts`: hai nhân viên ở hai tổ chức không thấy cơ sở/mã tổ chức của nhau ở trang lẫn `/api/v1/me`, `Cache-Control` no-store/private, đổi người dùng trên cùng trình duyệt không lộ trang cũ, mượn phiên gọi vào tổ chức kia → 404.
 - E2E `apps/web/e2e/pwa.spec.ts` («S-005 trang và API mang Cache-Control: no-store») và `smoke.spec.ts` («trang đã đăng nhập mang Cache-Control: no-store»).
 - `packages/app/src/http/security.test.ts` kiểm `isCacheablePublicPath` và CSP nonce.
 - `scripts/process-docs.test.mjs`: `docs/ROUTES.md` khớp cây `apps/web/app`; ADR đủ mục bắt buộc.

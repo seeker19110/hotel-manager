@@ -1,11 +1,9 @@
 // Ngữ cảnh server dùng chung (khởi tạo lười khi request đầu tiên tới; build không cần env).
 import { Kysely, PostgresDialect } from "kysely";
-import { type Auth, createAuth } from "../auth/auth.ts";
-import { createSignInOtpSender } from "../auth/otp-mail.ts";
-import { type AppConfig, loadConfig } from "../config/schema.ts";
-import { createPool } from "../db/pool.ts";
-import { createLogger, type Logger } from "../logging/logger.ts";
-import { setAppLogger } from "../logging/runtime.ts";
+import { type Auth, createAuth, createSignInOtpSender } from "../auth/index.ts";
+import { type AppConfig, loadConfig } from "../config/index.ts";
+import { createPool } from "../db/index.ts";
+import { createLogger, type Logger, setAppLogger } from "../logging/index.ts";
 import { type AppServices, createServices } from "./services.ts";
 
 export interface ServerContext {

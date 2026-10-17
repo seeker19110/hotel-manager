@@ -5,6 +5,7 @@
 //   từ server, KHÔNG gửi lần hai. S-012 đang xử lý ⇒ hỏi lại.
 // - S-011 server chưa nhận (404 COMMAND_NOT_FOUND) ⇒ bật "Gửi lại", gửi lại dùng CÙNG key.
 // Key giữ nguyên tới khi có kết quả chắc chắn; lỗi nghiệp vụ (4xx) ⇒ key mới cho lần sửa sau (tránh IDEMPOTENCY_CONFLICT).
+import { checkCommandInput } from "@hm/app/command-inputs";
 import { useCallback, useRef, useState } from "react";
 import { timedFetch } from "../../lib/fetch-timeout.ts";
 import { useOnline } from "../pwa/pwa-shell.tsx";
@@ -26,6 +27,8 @@ export type CommandPhase = "idle" | "sending" | "checking" | "unknown" | "proces
 
 const POLL_MS = 1_000;
 const POLL_TRIES = 8;
+
+export const INVALID_INPUT_TEXT = "Dữ liệu chưa hợp lệ. Kiểm tra lại các ô đã nhập rồi gửi lại.";
 
 export const OFFLINE_TEXT = "Không có kết nối mạng. Thao tác chưa được gửi.";
 export const PENDING_TEXT =
@@ -167,6 +170,21 @@ export function useCommand<T = unknown>(path: string) {
         setProblem({ code: "PENDING_UNKNOWN", detail: PENDING_TEXT });
         return null;
       }
+      // Lưới an toàn cho mọi form (FE-FORM-001): kiểm bằng CHÍNH schema `input` của lệnh trong registry trước khi gửi.
+      // Chỉ với thao tác mới (key rỗng): gửi lại cùng payload đã qua kiểm ở lần đầu. Server vẫn validate lại.
+      if (!key.current) {
+        const issues = checkCommandInput(path, body);
+        if (issues && issues.length > 0) {
+          setProblem({
+            code: "VALIDATION_FAILED",
+            status: 422,
+            detail: INVALID_INPUT_TEXT,
+            errors: issues.map((i) => ({ field: i.field, code: "invalid" })),
+          });
+          setPhase("error");
+          return null;
+        }
+      }
       key.current ??= crypto.randomUUID();
       lastBody.current = body;
       inflight.current = true;
@@ -176,7 +194,7 @@ export function useCommand<T = unknown>(path: string) {
         inflight.current = false;
       }
     },
-    [online, post, offline],
+    [online, path, post, offline],
   );
 
   /** S-011: gửi lại đúng lệnh cũ, cùng Idempotency-Key. */

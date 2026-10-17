@@ -12,7 +12,7 @@
 import { createHash } from "node:crypto";
 import { withTenant } from "@hm/db";
 import { type Kysely, sql, type Transaction } from "kysely";
-import type { Actor } from "../access/actor.ts";
+import type { Actor } from "../access/index.ts";
 import { CommandError } from "../pipeline/index.ts";
 
 /** Hạn (ngày, giờ VN) của dòng staging — dư để lượt quét/ghi chậm hoặc replay không bị job hạn giữ xoá giữa chừng. */
@@ -52,7 +52,7 @@ export interface StageResult {
   key: string;
 }
 
-const conflict = (msg: string) => new CommandError("IDEMPOTENCY_CONFLICT", 409, msg);
+const conflict = (msg: string) => new CommandError("IDEMPOTENCY_CONFLICT", 422, msg);
 
 /** Chèn dòng staging bằng transaction ngắn trong ngữ cảnh người dùng (RLS: chỉ chính người tạo — migration 0047). */
 export async function stageFile(db: Kysely<unknown>, actor: Actor, spec: StageSpec): Promise<StageResult> {

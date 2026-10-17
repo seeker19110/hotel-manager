@@ -1,15 +1,31 @@
 // T-301 (không cần CSDL): lịch định kỳ có AbortSignal, xử lý tín hiệu SIGTERM/SIGINT, thiếu biến → exit ≠ 0 nêu tên biến.
 import { EventEmitter } from "node:events";
 import { createLogger, type ObjectStorage } from "@hm/app";
+import { assertLogRecords } from "@hm/app/testing/log-schema";
 import type { Kysely } from "kysely";
 import type { PgBoss } from "pg-boss";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { installShutdown, type ProcessLike, runMain, startWorker } from "./runtime.ts";
 import { abortableSleep, startScheduler } from "./scheduler.ts";
 
+// Mọi dòng log của mọi test đều phải hợp lệ với log-record.schema.json (BASE-ERR-006) — kiểm ở afterEach.
+const rawLogs: string[] = [];
+afterEach(() => {
+  const all = rawLogs.splice(0);
+  assertLogRecords(all);
+});
+
 function capture() {
   const lines: Record<string, unknown>[] = [];
-  const log = createLogger({ level: "debug", sink: { write: (l) => void lines.push(JSON.parse(l)) } });
+  const log = createLogger({
+    level: "debug",
+    sink: {
+      write: (l) => {
+        rawLogs.push(l);
+        lines.push(JSON.parse(l));
+      },
+    },
+  });
   return { lines, log };
 }
 

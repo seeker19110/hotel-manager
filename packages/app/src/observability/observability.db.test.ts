@@ -215,3 +215,89 @@ describe("metric HTTP của lớp lệnh/truy vấn (T-406)", () => {
     httpMetrics.reset();
   });
 });
+
+describe("sức khoẻ CSDL: kết nối, tuổi XID, hàng chết (T-503, DB-PERF-004/008)", () => {
+  const all = (samples: Awaited<ReturnType<typeof collectMetrics>>, name: string) =>
+    samples.filter((s) => s.name === name);
+
+  it("numbackends ≥ 1 và dưới max_connections; tuổi XID/multixact là số không âm dưới 2^31; không nhãn tổ chức", async () => {
+    const s = await collectMetrics(t.runtime, NOW);
+    const conns = value(s, "hm_db_connections") as number;
+    const max = value(s, "hm_db_max_connections") as number;
+    expect(conns).toBeGreaterThanOrEqual(1);
+    expect(max).toBeGreaterThan(conns);
+    for (const name of ["hm_db_xid_age", "hm_db_multixact_age"]) {
+      const v = value(s, name) as number;
+      expect(Number.isInteger(v), name).toBe(true);
+      expect(v, name).toBeGreaterThanOrEqual(0);
+      expect(v, name).toBeLessThan(2 ** 31);
+    }
+    expect(JSON.stringify(s)).not.toContain(A.orgId);
+  });
+
+  it("hàng chết theo bảng public: có chuỗi cho bảng lõi, tỉ lệ trong [0,1], chỉ nhãn `table`", async () => {
+    const s = await collectMetrics(t.runtime, NOW);
+    const dead = all(s, "hm_db_dead_tuples");
+    expect(dead.map((x) => x.labels?.table)).toEqual(
+      expect.arrayContaining(["outbox", "audit_events", "invoices"]),
+    );
+    for (const x of [...dead, ...all(s, "hm_db_dead_tuple_ratio")]) {
+      expect(Object.keys(x.labels ?? {})).toEqual(["table"]);
+      expect(x.value).toBeGreaterThanOrEqual(0);
+    }
+    for (const x of all(s, "hm_db_dead_tuple_ratio")) expect(x.value).toBeLessThanOrEqual(1);
+    // Mỗi bảng đúng một mẫu mỗi loại (không trùng chuỗi).
+    const tables = dead.map((x) => x.labels?.table);
+    expect(new Set(tables).size).toBe(tables.length);
+  });
+
+  it("đếm đúng hàng chết: xoá 600/1000 hàng (tắt autovacuum) → dead 600, tỉ lệ 0,6; bảng rỗng → tỉ lệ 0 (không chia cho 0)", async () => {
+    await sql`create table obs_dead (id int primary key, pad text) with (autovacuum_enabled = false)`.execute(
+      t.admin,
+    );
+    await sql`create table obs_empty (id int primary key) with (autovacuum_enabled = false)`.execute(t.admin);
+    try {
+      await sql`insert into obs_dead select g, 'x' from generate_series(1, 1000) g`.execute(t.admin);
+      await sql`delete from obs_dead where id <= 600`.execute(t.admin);
+      // Thống kê gửi lên bộ thu theo lô: ép đẩy ở phiên ghi rồi mới đọc từ kết nối khác.
+      await t.admin.connection().execute(async (c) => {
+        await sql`select pg_stat_force_next_flush()`.execute(c);
+        await sql`select 1`.execute(c);
+      });
+      const s = await collectMetrics(t.runtime, NOW);
+      expect(value(s, "hm_db_dead_tuples", ["table", "obs_dead"])).toBe(600);
+      expect(value(s, "hm_db_dead_tuple_ratio", ["table", "obs_dead"])).toBeCloseTo(0.6, 5);
+      expect(value(s, "hm_db_dead_tuples", ["table", "obs_empty"])).toBe(0);
+      expect(value(s, "hm_db_dead_tuple_ratio", ["table", "obs_empty"])).toBe(0);
+    } finally {
+      await sql`drop table obs_dead`.execute(t.admin);
+      await sql`drop table obs_empty`.execute(t.admin);
+    }
+  });
+
+  it("GET /api/metrics xuất đủ nhóm DB với TYPE gauge; vai trò worker cũng gọi được hàm; PUBLIC không có quyền", async () => {
+    const res = await handleMetrics(
+      new Request("http://x/api/metrics", { headers: { authorization: `Bearer ${metricsToken(SECRET)}` } }),
+      { db: t.runtime, secret: SECRET },
+    );
+    const text = await res.text();
+    for (const m of [
+      "hm_db_connections",
+      "hm_db_max_connections",
+      "hm_db_xid_age",
+      "hm_db_multixact_age",
+      "hm_db_dead_tuples",
+      "hm_db_dead_tuple_ratio",
+    ])
+      expect(text, m).toContain(`# TYPE ${m} gauge\n`);
+    expect(text).toContain("hm_metrics_db_ok 1");
+    expect((await sql`select * from app.db_health_metrics()`.execute(t.worker)).rows.length).toBeGreaterThan(
+      4,
+    );
+    const acl = await sql<{ acl: string | null }>`
+      select proacl::text as acl from pg_proc where oid = 'app.db_health_metrics()'::regprocedure`.execute(
+      t.admin,
+    );
+    expect(acl.rows[0]?.acl ?? "").not.toMatch(/(^|[{,])=X/); // `=X/owner` = quyền cho PUBLIC
+  });
+});

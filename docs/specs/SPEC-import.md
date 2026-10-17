@@ -197,7 +197,7 @@ Fixture `import-basic`: tổ chức T, cơ sở P1, chủ O, quản lý M (`impo
 | `FILE_TOO_LARGE` | Vượt giới hạn | 413 | File quá lớn. Tách thành nhiều file. | — |
 | `FILE_TYPE_NOT_ALLOWED` | Không phải XLSX/CSV UTF-8 | 415 | Chỉ nhận file .xlsx hoặc .csv (UTF-8). | — |
 | `INVALID_TRANSITION` | Huỷ/commit sai trạng thái | 409 | Không thể thực hiện với trạng thái hiện tại của lô nhập. | S-016, S-017 |
-| `FORBIDDEN` / `NOT_FOUND` / `VALIDATION_FAILED` / `IDEMPOTENCY_CONFLICT` | dùng chung | 403/404/422/409 | như các SPEC khác | S-015, S-017 |
+| `FORBIDDEN` / `NOT_FOUND` / `VALIDATION_FAILED` / `IDEMPOTENCY_CONFLICT` | dùng chung | 403/404/422 | như các SPEC khác | S-015, S-017 |
 
 ## 7. Yêu cầu phi chức năng của tính năng
 | Thuộc tính | Ngưỡng | Nguồn | Cách đo |

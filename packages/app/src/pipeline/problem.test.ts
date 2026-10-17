@@ -23,6 +23,16 @@ describe("toProblem (API-CONTRACT §2)", () => {
     expect(toProblem(pgError("23505"))).toMatchObject({ code: "DUPLICATE", status: 409 });
   });
 
+  it("UNIQUE có mã nghiệp vụ riêng theo tên ràng buộc (uq_units_code → UNIT_CODE_TAKEN); ràng buộc khác vẫn DUPLICATE", () => {
+    const unique = (constraint: string) => Object.assign(pgError("23505"), { constraint });
+    expect(toProblem(unique("uq_units_code"))).toMatchObject({ code: "UNIT_CODE_TAKEN", status: 409 });
+    expect(toProblem(unique("uq_khac"))).toMatchObject({ code: "DUPLICATE", status: 409 });
+    // Chỉ lớp 23505 mới đổi mã: cùng tên ràng buộc nhưng lớp khác không bị nhận nhầm.
+    expect(toProblem(Object.assign(pgError("23514"), { constraint: "uq_units_code" }))).toMatchObject({
+      code: "VALIDATION_FAILED",
+    });
+  });
+
   it("thiếu ngữ cảnh tổ chức và lỗi lạ → INTERNAL 500, không lộ chi tiết", () => {
     expect(toProblem(pgError("P0001", "TENANT_CONTEXT_MISSING"))).toMatchObject({
       code: "INTERNAL",

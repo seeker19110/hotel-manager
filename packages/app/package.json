@@ -10,7 +10,9 @@
     "./http": "./src/http/security.ts",
     "./units": "./src/units.ts",
     "./format": "./src/format.ts",
-    "./form-rules": "./src/http/form-rules.ts"
+    "./form-rules": "./src/http/form-rules.ts",
+    "./testing/log-schema": "./src/testing/log-schema.ts",
+    "./command-inputs": "./src/http/command-inputs.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"

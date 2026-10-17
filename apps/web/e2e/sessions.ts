@@ -3,13 +3,16 @@
 import { readFileSync } from "node:fs";
 import { type Browser, type BrowserContext, expect, type Page } from "@playwright/test";
 import {
+  HOTEL_HK,
   HOTEL_OWNER,
   ORG_HOTEL,
+  ORG_MAIN,
   ORG_PORTAL,
   ORG_RENTAL,
   outboxFile,
   PORTAL_TENANT,
   RENTAL_OWNER,
+  SMOKE_USER,
 } from "./fixtures.ts";
 import { hotelTotpFile, totp, totpFile } from "./totp.ts";
 
@@ -50,6 +53,21 @@ export function loginOwner(browser: Browser, baseURL: string, who: "rental" | "h
     await page.getByRole("button", { name: "Đăng nhập" }).click();
     await page.getByLabel("Mã xác thực 6 số").fill(totp(secret));
     await page.getByRole("button", { name: "Xác nhận" }).click();
+    await expect(page).toHaveURL(/\/chon-to-chuc$/, { timeout: 10_000 });
+    await page.getByRole("button", { name: org }).click();
+    await expect(page).toHaveURL(/\/phong$/);
+  });
+}
+
+/** Nhân viên đăng nhập bằng mật khẩu (không TOTP): buồng phòng Hoa Sen (ORG_MAIN) hoặc buồng phòng khách sạn Biển (ORG_HOTEL). */
+export function loginStaff(browser: Browser, baseURL: string, who: "main" | "hotel"): Promise<Cookies> {
+  const account = who === "main" ? SMOKE_USER : HOTEL_HK;
+  const org = who === "main" ? ORG_MAIN : ORG_HOTEL;
+  return withFreshPage(browser, baseURL, async (page) => {
+    await page.goto("/dang-nhap");
+    await page.getByLabel("Email").fill(account.email);
+    await page.getByLabel("Mật khẩu").fill(account.password);
+    await page.getByRole("button", { name: "Đăng nhập" }).click();
     await expect(page).toHaveURL(/\/chon-to-chuc$/, { timeout: 10_000 });
     await page.getByRole("button", { name: org }).click();
     await expect(page).toHaveURL(/\/phong$/);

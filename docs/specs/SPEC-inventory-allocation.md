@@ -212,7 +212,7 @@ Hợp đồng chi tiết: `docs/design/API-CONTRACT.md`. Mọi command nhận `I
 | UNIT_OUT_OF_SERVICE | Giữ/chuyển vào phòng ngừng khai thác | 409 | Phòng đang ngừng khai thác. | S-013 |
 | ROOM_OCCUPIED | Nhận khách vào phòng đang thực tế có người | 409 | Phòng vẫn còn khách chưa trả. | S-017, S-020 |
 | INVALID_TRANSITION | Chuyển trạng thái ngoài bảng | 409 | Thao tác không hợp lệ với trạng thái hiện tại. | — |
-| IDEMPOTENCY_CONFLICT | Cùng key khác nội dung | 409 | Thao tác trùng mã nhưng khác nội dung. Vui lòng tải lại. | S-006 |
+| IDEMPOTENCY_CONFLICT | Cùng key khác nội dung | 422 | Thao tác trùng mã nhưng khác nội dung. Vui lòng tải lại. | S-006 |
 | FORBIDDEN | Không đủ quyền (vd kỹ thuật duyệt block) | 403 | Bạn không có quyền thực hiện thao tác này. | S-011 |
 | NOT_FOUND | Tài nguyên khác tổ chức/ngoài phạm vi | 404 | Không tìm thấy dữ liệu. | S-022 |
 | VALIDATION_FAILED | Khoảng thời gian sai | 422 | Thời gian bắt đầu phải trước thời gian kết thúc. | S-004 |

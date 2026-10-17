@@ -187,7 +187,7 @@ Bối cảnh chung: tổ chức B, cơ sở `HS1` (múi giờ `Asia/Ho_Chi_Minh`
 | `PREFERENCE_REQUIRED` | Tắt loại bắt buộc | 422 | Loại thông báo này cần thiết cho tài khoản và không tắt được. | S-011 |
 | `LINK_EXPIRED` | Token huỷ đăng ký hết hạn | 410 | Liên kết đã hết hạn. Vui lòng đổi tuỳ chọn trong mục Tài khoản. | S-010 |
 | `DELIVERY_NOT_RETRYABLE` | Gửi lại delivery `sent`/`suppressed` | 409 | Thông báo này không cần gửi lại. | S-019 |
-| `IDEMPOTENCY_CONFLICT` | Cùng key khác thân | 409 | Yêu cầu bị trùng mã thao tác. Vui lòng tải lại. | — |
+| `IDEMPOTENCY_CONFLICT` | Cùng key khác thân | 422 | Yêu cầu bị trùng mã thao tác. Vui lòng tải lại. | — |
 | Mã nội bộ delivery | `RECIPIENT_INVALID`, `PROVIDER_TEMPORARY`, `TEMPLATE_ERROR`, `RATE_LIMITED` | — | Hiện trong lịch sử gửi dạng chữ: "Địa chỉ email không hợp lệ", "Nhà cung cấp tạm lỗi — đang thử lại"… | S-004, S-005 |
 
 ## 7. Yêu cầu phi chức năng của tính năng

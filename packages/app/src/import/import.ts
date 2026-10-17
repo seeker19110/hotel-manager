@@ -21,19 +21,26 @@ import {
   toCsv,
 } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
-import type { Actor } from "../access/actor.ts";
+import type { Actor } from "../access/index.ts";
 import {
   commitTabularFile,
   type FileDeps,
   type PreparedTabular,
   prepareTabularFile,
   storeTabularFile,
-} from "../files/files.ts";
-import { createUnit } from "../inventory/units.ts";
-import { activateLease, clearImportReadingsPending, recordImportHandover } from "../lease/handover.ts";
-import { createDraft, createPerson, signLease, submitForSignature } from "../lease/lease.ts";
-import { recordOpeningDebt, recordOpeningDeposit } from "../ledger/opening-balance.ts";
-import { importReading } from "../metering/meters.ts";
+} from "../files/index.ts";
+import { createUnit } from "../inventory/index.ts";
+import {
+  activateLease,
+  clearImportReadingsPending,
+  createDraft,
+  createPerson,
+  recordImportHandover,
+  signLease,
+  submitForSignature,
+} from "../lease/index.ts";
+import { recordOpeningDebt, recordOpeningDeposit } from "../ledger/index.ts";
+import { importReading } from "../metering/index.ts";
 import {
   type CommandContext,
   CommandError,
@@ -374,6 +381,8 @@ export async function uploadBatch(
       ...(input.fileName === undefined ? {} : { file_name: input.fileName.normalize("NFC") }),
     },
   });
+  // Upload (SEC-LOG-001): chỉ id lô, không tên file (có thể chứa tên người).
+  ctx.security({ event: "file.uploaded", target: { type: "import_batch", id: batchId } });
   return { batchId, rows: data.length };
 }
 

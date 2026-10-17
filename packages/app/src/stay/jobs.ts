@@ -1,6 +1,6 @@
 // Job nền của khách sạn (worker, actor_type=worker). Payload/kết quả chỉ id — không dữ liệu khách.
 import { randomUUID } from "node:crypto";
-import { withTenant } from "@hm/db";
+import { withTenantRetry } from "@hm/db";
 import { type Kysely, sql } from "kysely";
 
 /**
@@ -16,7 +16,7 @@ export async function expireHeldReservations(
     select * from app.due_held_reservations(${now}, ${limit})`.execute(workerDb);
   let n = 0;
   for (const d of due.rows) {
-    const changed = await withTenant(workerDb, { orgId: d.organization_id }, async (trx) => {
+    const changed = await withTenantRetry(workerDb, { orgId: d.organization_id }, async (trx) => {
       const r = await sql<{ allocation_id: string | null; property_id: string }>`
         select i.allocation_id, r.property_id from reservations r
         join reservation_items i on i.organization_id = r.organization_id and i.reservation_id = r.id

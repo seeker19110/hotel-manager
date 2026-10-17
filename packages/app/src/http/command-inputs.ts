@@ -1,0 +1,319 @@
+// Schema đầu vào của các command mà FORM ở trình duyệt gửi — MỘT nguồn cho cả hai phía (FE-FORM-001): `registry.ts` dùng
+// đúng các schema này làm `input` của lệnh (server validate lại mọi request), còn form (`apps/web/components/command/`, qua
+// `@hm/app/command-inputs`) kiểm cùng schema trước khi gửi để báo lỗi theo ô sớm. Module này CHỈ import `zod` và
+// `./form-rules.ts` (thuần) — không import mã server (CSDL, S3, xác thực) nên vào bundle trình duyệt được; có test chặn
+// import lạ (`command-inputs.test.ts`) và quét bundle `.next/static`. Phía client chỉ để báo lỗi sớm, không phải ranh giới tin cậy.
+import { z } from "zod";
+import { MONEY_MAX, nfcDeep } from "./form-rules.ts";
+
+export const uuid = z.uuid();
+export const money = z.number().int().nonnegative().max(MONEY_MAX);
+export const positiveMoney = z.number().int().positive().max(MONEY_MAX);
+export const bankTxn = z.strictObject({
+  ref: z.string().trim().min(1).max(100),
+  occurred_at: z.iso.datetime({ offset: true }),
+  description: z.string().max(500).optional(),
+});
+export const isoDate = z.iso.date();
+export const guest = z.strictObject({
+  person_id: uuid.optional(),
+  full_name: z.string().trim().min(1).max(200).optional(),
+  phone: z.string().trim().min(6).max(20).optional(),
+  email: z.email().max(320).optional(),
+  doc_type: z.enum(["cccd", "passport", "other"]),
+  doc_number: z.string().trim().min(5).max(40),
+  nationality: z.string().trim().length(2).optional(),
+});
+
+/** Schema đầu vào theo tên lệnh (`<module>.<command>`) của các lệnh có form ở web. */
+export const COMMAND_INPUTS = {
+  "billing.createPeriod": z.strictObject({
+    property_id: uuid,
+    month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
+  }),
+  "billing.issuePeriod": z.strictObject({
+    billing_period_id: uuid,
+    preview_hash: z.string().regex(/^[0-9a-f]{64}$/),
+  }),
+  "billing.returnToDraft": z.strictObject({
+    billing_period_id: uuid,
+    reason: z.string().trim().min(1).max(500),
+  }),
+  "billing.submitForReview": z.strictObject({ billing_period_id: uuid }),
+  "deposit.receive": z
+    .strictObject({
+      property_id: uuid,
+      lease_id: uuid.optional(),
+      reservation_id: uuid.optional(),
+      payer_person_id: uuid,
+      amount: positiveMoney,
+      method: z.enum(["cash", "bank_transfer"]),
+      receiving_account_id: uuid.optional(),
+      bank_txn: bankTxn.optional(),
+    })
+    .refine((i) => Boolean(i.lease_id) !== Boolean(i.reservation_id), {
+      message: "lease_id hoặc reservation_id",
+    }),
+  "housekeeping.cancelTask": z.strictObject({ task_id: uuid, reason: z.string().trim().min(1).max(1000) }),
+  "housekeeping.claimTask": z.strictObject({ task_id: uuid }),
+  "housekeeping.completeTask": z.strictObject({ task_id: uuid, note: z.string().max(2000).optional() }),
+  "housekeeping.createTask": z.strictObject({
+    unit_id: uuid,
+    kind: z.enum(["cleaning", "inspection"]),
+    priority: z.enum(["normal", "high", "urgent"]).optional(),
+    note: z.string().max(2000).optional(),
+  }),
+  "housekeeping.startTask": z.strictObject({ task_id: uuid }),
+  "housekeeping.verifyTask": z.strictObject({
+    task_id: uuid,
+    result: z.enum(["pass", "fail"]),
+    reason: z.string().trim().max(1000).optional(),
+  }),
+  "lease.activate": z.strictObject({ lease_id: uuid }),
+  "lease.giveNotice": z.strictObject({ lease_id: uuid, planned_move_out_on: isoDate }),
+  "lease.prepareSettlement": z.strictObject({
+    lease_id: uuid,
+    fees: z
+      .array(
+        z.strictObject({
+          amount: positiveMoney,
+          reason: z.string().max(500),
+          file_ids: z.array(uuid).max(20).optional(),
+        }),
+      )
+      .max(20),
+    deductions: z
+      .array(
+        z.strictObject({
+          invoice_id: uuid.nullable().optional(),
+          amount: positiveMoney,
+          reason: z.string().max(500),
+        }),
+      )
+      .max(50)
+      .optional(),
+  }),
+  "lease.recordHandover": z.strictObject({
+    lease_id: uuid,
+    kind: z.enum(["move_in", "move_out"]),
+    handed_over_on: isoDate,
+    readings: z.strictObject({
+      electric: z.number().nonnegative().optional(),
+      water: z.number().nonnegative().optional(),
+    }),
+    assets: z
+      .array(
+        z.strictObject({
+          name: z.string().max(100),
+          quantity: z.number().int(),
+          condition: z.string().max(200),
+          file_ids: z.array(uuid).max(20).optional(),
+        }),
+      )
+      .max(50),
+    keys_count: z.number().int().min(0).max(100),
+    photo_file_ids: z.array(uuid).max(20),
+    note: z.string().max(2000).optional(),
+    tenant_confirmation: z.strictObject({ method: z.enum(["in_person", "portal"]) }).optional(),
+  }),
+  "lease.sign": z.strictObject({ lease_id: uuid, signer_person_id: uuid, signed_on: isoDate.optional() }),
+  "lease.submitForSignature": z.strictObject({ lease_id: uuid }),
+  "maintenance.assignWorkOrder": z.strictObject({ work_order_id: uuid, assignee_membership_id: uuid }),
+  "maintenance.cancelWorkOrder": z.strictObject({
+    work_order_id: uuid,
+    reason: z.string().trim().min(1).max(1000),
+  }),
+  "maintenance.completeWorkOrder": z.strictObject({
+    work_order_id: uuid,
+    note: z.string().max(2000).optional(),
+    file_ids: z.array(uuid).max(5).default([]),
+  }),
+  "maintenance.createWorkOrder": z.strictObject({
+    unit_id: uuid,
+    title: z.string().trim().min(1).max(200),
+    description: z.string().trim().min(1).max(2000),
+    severity: z.enum(["low", "medium", "high", "critical"]),
+    file_ids: z.array(uuid).max(5).default([]),
+  }),
+  "maintenance.startWorkOrder": z.strictObject({ work_order_id: uuid }),
+  "maintenance.verifyWorkOrder": z.strictObject({ work_order_id: uuid }),
+  "meter.recordReading": z.strictObject({
+    meter_id: uuid,
+    billing_period_id: uuid,
+    value: z.number().nonnegative(),
+    read_on: isoDate.optional(),
+    photo_file_id: uuid.optional(),
+    base_version: z.number().int().positive().optional(),
+  }),
+  "notifications.markAllRead": z.strictObject({}),
+  "notifications.markRead": z.strictObject({ notification_id: uuid }),
+  "payment.collectCash": z.strictObject({ invoice_id: uuid, amount: positiveMoney }),
+  "payment.confirm": z.strictObject({
+    payment_id: uuid,
+    evidence: z
+      .strictObject({ bank_transaction_id: uuid.optional(), bank_txn: bankTxn.optional() })
+      .optional(),
+  }),
+  "portal.createRequest": z.strictObject({
+    unit_id: uuid,
+    title: z.string().trim().min(1).max(200),
+    description: z.string().trim().min(1).max(2000),
+    severity: z.enum(["low", "medium", "high", "critical"]).optional(),
+    file_ids: z.array(uuid).max(5).optional(),
+  }),
+  "portal.submitPaymentClaim": z.strictObject({
+    invoice_id: uuid,
+    amount: z.number().int(),
+    reference_code: z.string().trim().max(100).optional(),
+    proof_file_id: uuid.optional(),
+  }),
+  "reconciliation.resolveBreak": z.strictObject({
+    break_id: uuid,
+    resolution: z.string().trim().min(1).max(1000),
+  }),
+  "reservation.cancel": z.strictObject({
+    reservation_id: uuid,
+    reason: z.string().trim().min(1).max(1000),
+    cancellation_fee: money.optional(),
+  }),
+  "reservation.confirm": z.strictObject({
+    reservation_id: uuid,
+    payment: z
+      .strictObject({
+        amount: positiveMoney,
+        method: z.enum(["cash", "bank_transfer"]),
+        kind: z.enum(["advance", "security_deposit"]),
+        receiving_account_id: uuid.optional(),
+        bank_txn: bankTxn.optional(),
+      })
+      .optional(),
+  }),
+  "reservation.hold": z.strictObject({ reservation_id: uuid }),
+  "reservation.markNoShow": z.strictObject({
+    reservation_id: uuid,
+    reason: z.string().trim().min(1).max(1000),
+  }),
+  "reservation.create": z.strictObject({
+    unit_id: uuid,
+    arrival_date: isoDate,
+    departure_date: isoDate,
+    guests: z.number().int().min(1).max(50),
+    source: z.literal("direct"),
+    booker: z.union([
+      z.strictObject({ person_id: uuid }),
+      z.strictObject({
+        full_name: z.string().trim().min(1).max(200),
+        phone: z.string().trim().min(6).max(20),
+        email: z.email().max(320).optional(),
+      }),
+    ]),
+  }),
+  "shift.open": z.strictObject({ property_id: uuid, opening_cash: money }),
+  "stay.checkIn": z.strictObject({ reservation_id: uuid, guests: z.array(guest).min(1).max(50) }),
+  "stay.checkOut": z.strictObject({
+    stay_id: uuid,
+    payments: z
+      .array(
+        z.strictObject({
+          method: z.enum(["cash", "bank_transfer"]),
+          amount: positiveMoney,
+          receiving_account_id: uuid.optional(),
+          bank_txn: bankTxn.optional(),
+        }),
+      )
+      .max(10)
+      .optional(),
+    allow_balance: z
+      .strictObject({ approval_request_id: uuid.optional(), debtor_person_id: uuid, due_date: isoDate })
+      .optional(),
+    deposit_refund: z
+      .strictObject({
+        amount: positiveMoney,
+        method: z.enum(["cash", "bank_transfer"]),
+        receiving_account_id: uuid.optional(),
+      })
+      .optional(),
+    deposit_deduction: z
+      .strictObject({ amount: positiveMoney, reason: z.string().trim().min(1).max(1000) })
+      .optional(),
+  }),
+  "stay.markNoticeSubmitted": z.strictObject({
+    notice_id: uuid,
+    submitted_at: z.iso.datetime({ offset: true }),
+    channel: z.enum(["in_person", "online", "other"]),
+    evidence_file_id: uuid.optional(),
+  }),
+  "stay.postCharge": z.strictObject({
+    stay_id: uuid,
+    kind: z.enum(["service", "fee", "discount"]),
+    description: z.string().trim().min(1).max(500),
+    quantity: z.number().int().min(1).max(1000).default(1),
+    unit_price: positiveMoney,
+  }),
+  "stay.voidCharge": z.strictObject({ charge_id: uuid, reason: z.string().trim().min(1).max(1000) }),
+  "stay.walkIn": z.strictObject({
+    unit_id: uuid,
+    departure_date: isoDate,
+    guests: z.array(guest).min(1).max(50),
+  }),
+} as const;
+
+export interface FieldIssue {
+  /** Đường dẫn trường kiểu `a.b.0.c` ("" = lỗi cấp thân/đối tượng). */
+  field: string;
+  message: string;
+}
+
+/** Câu tiếng Việt cho một lỗi zod — không in `input` thô (có thể là dữ liệu cá nhân). */
+function issueText(i: z.core.$ZodIssue): string {
+  switch (i.code) {
+    case "invalid_type":
+      return i.input === undefined ? "Bắt buộc nhập" : "Giá trị không đúng loại";
+    case "too_small":
+      return i.origin === "string"
+        ? i.minimum === 1
+          ? "Bắt buộc nhập"
+          : `Cần ít nhất ${String(i.minimum)} ký tự`
+        : i.origin === "array"
+          ? `Cần ít nhất ${String(i.minimum)} mục`
+          : i.inclusive
+            ? `Phải từ ${String(i.minimum)} trở lên`
+            : `Phải lớn hơn ${String(i.minimum)}`;
+    case "too_big":
+      return i.origin === "string"
+        ? `Tối đa ${String(i.maximum)} ký tự`
+        : i.origin === "array"
+          ? `Tối đa ${String(i.maximum)} mục`
+          : `Phải từ ${String(i.maximum)} trở xuống`;
+    case "invalid_format":
+      return i.format === "email" ? "Email không hợp lệ" : "Định dạng không hợp lệ";
+    case "invalid_value":
+      return "Giá trị không nằm trong lựa chọn";
+    case "unrecognized_keys":
+      return "Có trường không được phép";
+    default:
+      return "Giá trị không hợp lệ";
+  }
+}
+
+/**
+ * Kiểm `body` bằng ĐÚNG schema `input` của lệnh server (`path` dạng `module/command`, như đường dẫn gọi API).
+ * Trả danh sách lỗi theo trường (rỗng = hợp lệ). Lệnh chưa có trong danh mục → `null` (không kiểm được phía client;
+ * server vẫn kiểm). Trả `null` thay vì "hợp lệ" để test bắt được form gọi lệnh chưa đăng ký.
+ */
+export function checkCommandInput(path: string, body: unknown): FieldIssue[] | null {
+  const name = path.replace("/", ".");
+  if (!Object.hasOwn(COMMAND_INPUTS, name)) return null;
+  const schema = (COMMAND_INPUTS as Record<string, z.ZodType>)[name];
+  if (!schema) return null;
+  // Cùng thứ tự với server (command-route): NFC rồi mới kiểm, để chuỗi gõ kiểu tổ hợp không bị chặn sai độ dài.
+  const r = schema.safeParse(nfcDeep(body));
+  if (r.success) return [];
+  // Mỗi trường một thông báo (lỗi đầu tiên) — người dùng sửa từng ô một, không cần chồng nhiều câu.
+  const out = new Map<string, FieldIssue>();
+  for (const i of r.error.issues) {
+    const field = i.path.map(String).join(".");
+    if (!out.has(field)) out.set(field, { field, message: issueText(i) });
+  }
+  return [...out.values()];
+}

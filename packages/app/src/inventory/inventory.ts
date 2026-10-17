@@ -4,7 +4,8 @@ import { randomUUID } from "node:crypto";
 import { withTenant } from "@hm/db";
 import { authorize, minutesToMs } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
-import type { Actor } from "../access/actor.ts";
+import type { Actor } from "../access/index.ts";
+import { createCleaningTask } from "../housekeeping/index.ts";
 import { type CommandContext, CommandError } from "../pipeline/index.ts";
 
 export interface Interval {
@@ -20,13 +21,18 @@ function rangeLiteral(i: Interval): string {
   return `[${i.start.toISOString()},${i.end ? i.end.toISOString() : ""})`;
 }
 
-async function lockUnit(
+export async function lockUnit(
   trx: Transaction<unknown>,
   orgId: string,
   unitId: string,
-): Promise<{ property_id: string; availability: string }> {
-  const r = await sql<{ property_id: string; availability: string; archived_at: Date | null }>`
-    select property_id, availability, archived_at from units where organization_id = ${orgId} and id = ${unitId} for update`.execute(
+): Promise<{ property_id: string; availability: string; room_type_id: string | null }> {
+  const r = await sql<{
+    property_id: string;
+    availability: string;
+    room_type_id: string | null;
+    archived_at: Date | null;
+  }>`
+    select property_id, availability, room_type_id, archived_at from units where organization_id = ${orgId} and id = ${unitId} for update`.execute(
     trx,
   );
   const u = r.rows[0];
@@ -55,6 +61,25 @@ function translateOverlap(err: unknown): never {
     throw new CommandError("ROOM_UNAVAILABLE", 409, "Phòng đã có người đặt trong khoảng thời gian này");
   }
   throw err;
+}
+
+/** Phòng cùng loại, cùng cơ sở, còn trống trong khoảng (đã trừ hold còn hạn, block, ngừng khai thác) — gợi ý khi ROOM_UNAVAILABLE. */
+async function alternativeUnits(
+  trx: Transaction<unknown>,
+  orgId: string,
+  unit: { id: string; property_id: string; room_type_id: string | null },
+  range: string,
+  now: Date,
+): Promise<{ unit_id: string; code: string }[]> {
+  if (!unit.room_type_id) return [];
+  const r = await sql<{ unit_id: string; code: string }>`
+    select u.id as unit_id, u.code from units u
+    where u.organization_id = ${orgId} and u.property_id = ${unit.property_id} and u.room_type_id = ${unit.room_type_id}
+      and u.id <> ${unit.id} and u.archived_at is null and u.availability = 'active'
+      and not exists (select 1 from allocations a where a.organization_id = u.organization_id and a.unit_id = u.id and a.active
+                        and (a.kind <> 'hold' or a.expires_at > ${now}) and a.during && ${range}::tstzrange)
+    order by u.code limit 5`.execute(trx);
+  return r.rows;
 }
 
 export interface CreateHoldInput {
@@ -105,9 +130,20 @@ export async function createHold(
     );
   } catch (err) {
     // Về lại savepoint để người gọi còn dùng được transaction (vd tìm phòng gợi ý — SPEC-reservation-stay S-004).
-    if ((err as { code?: string }).code === "23P01")
+    if ((err as { code?: string }).code === "23P01") {
       await sql`rollback to savepoint hold_insert`.execute(ctx.trx);
-    translateOverlap(err);
+      const alternatives = await alternativeUnits(
+        ctx.trx,
+        ctx.actor.orgId,
+        { id: input.unitId, property_id: unit.property_id, room_type_id: unit.room_type_id },
+        range,
+        now,
+      );
+      throw new CommandError("ROOM_UNAVAILABLE", 409, "Phòng đã có người đặt trong khoảng thời gian này", {
+        extensions: { alternatives },
+      });
+    }
+    throw err;
   }
   await ctx.audit({
     action: "allocation.held",
@@ -169,8 +205,27 @@ export async function confirmHold(
   authorize(ctx.actor, kind === "lease" ? "lease.manage" : "reservation.manage", {
     propertyId: row.property_id,
   });
-  if (row.expires_at.getTime() <= now.getTime())
-    throw new CommandError("HOLD_EXPIRED", 409, "Giữ chỗ đã hết hạn");
+  if (row.expires_at.getTime() <= now.getTime()) {
+    // Lệnh chính rollback nên việc nhả hold (đúng một lần, kèm audit như job worker — INV-I3) ghi ở transaction riêng.
+    const { orgId } = ctx.actor;
+    throw new CommandError("HOLD_EXPIRED", 409, "Giữ chỗ đã hết hạn", {
+      persist: async (trx, audit) => {
+        const released = await sql`
+          update allocations set active = false, deactivated_at = ${now}, deactivated_reason = 'expired'
+          where organization_id = ${orgId} and id = ${allocationId} and kind = 'hold' and active
+          returning id`.execute(trx);
+        if (released.rows[0]) {
+          await audit({
+            action: "allocation.hold_expired",
+            entityType: "allocation",
+            entityId: allocationId,
+            propertyId: row.property_id,
+          });
+        }
+        return {};
+      },
+    });
+  }
   try {
     await sql`savepoint confirm_hold`.execute(ctx.trx);
     await sql`update allocations set kind = ${kind}, expires_at = null
@@ -194,8 +249,21 @@ export async function confirmHold(
  */
 export async function moveAllocation(
   ctx: CommandContext,
-  input: { allocationId: string; toUnitId: string; at: Date },
+  input: { allocationId: string; toUnitId: string; at: Date; reason: string },
 ) {
+  if (!input.reason.trim()) throw new CommandError("VALIDATION_FAILED", 422, "Cần ghi lý do chuyển phòng");
+  // Khoá cả phòng nguồn lẫn phòng đích theo id tăng dần (SPEC-inventory) — hai lệnh chuyển ngược chiều không thể khoá chéo.
+  const src = await sql<{ unit_id: string }>`
+    select unit_id from allocations where organization_id = ${ctx.actor.orgId} and id = ${input.allocationId} and active`.execute(
+    ctx.trx,
+  );
+  const srcUnit = src.rows[0]?.unit_id;
+  if (!srcUnit) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phân bổ phòng");
+  for (const unitId of [...new Set([srcUnit, input.toUnitId])].sort()) {
+    await sql`select 1 from units where organization_id = ${ctx.actor.orgId} and id = ${unitId} for update`.execute(
+      ctx.trx,
+    );
+  }
   const r = await sql<{
     property_id: string;
     unit_id: string;
@@ -239,15 +307,26 @@ export async function moveAllocation(
   } catch (err) {
     translateOverlap(err);
   }
-  await sql`update units set housekeeping_status = 'dirty' where organization_id = ${ctx.actor.orgId} and id = ${a.unit_id}`.execute(
-    ctx.trx,
-  );
+  // Phòng cũ thành bẩn và có đúng một việc dọn mở (F-007) — cùng transaction với việc chuyển.
+  await createCleaningTask(ctx, {
+    propertyId: a.property_id,
+    unitId: a.unit_id,
+    sourceType: "move",
+    sourceId: newId,
+  });
   await ctx.audit({
     action: "allocation.moved",
     entityType: "allocation",
     entityId: input.allocationId,
     propertyId: a.property_id,
-    after: { from_unit: a.unit_id, to_unit: input.toUnitId, new_allocation: newId },
+    reason: input.reason,
+    before: { unit_id: a.unit_id, start: a.lo.toISOString(), end: a.hi ? a.hi.toISOString() : null },
+    after: {
+      unit_id: input.toUnitId,
+      effective_at: input.at.toISOString(),
+      old_end: input.at.toISOString(),
+      new_allocation: newId,
+    },
   });
   return { newAllocationId: newId };
 }
@@ -298,10 +377,33 @@ export async function approveBlock(ctx: CommandContext, blockId: string) {
               ${ctx.actor.membershipId})`.execute(ctx.trx);
   } catch (err) {
     if ((err as { code?: string }).code === "23P01") {
+      await sql`rollback to savepoint block_alloc`.execute(ctx.trx);
+      // Danh sách allocation đang chiếm khoảng (kind, nguồn, khoảng) để người duyệt biết cần chuyển ai (SPEC-inventory S-012).
+      const c = await sql<{
+        kind: string;
+        source_type: string | null;
+        source_id: string | null;
+        lo: Date;
+        hi: Date | null;
+      }>`
+        select kind, source_type, source_id, lower(during) as lo, upper(during) as hi from allocations
+        where organization_id = ${ctx.actor.orgId} and unit_id = ${b.unit_id} and active and during && ${b.period}::tstzrange
+        order by lower(during), id`.execute(ctx.trx);
       throw new CommandError(
         "BLOCK_CONFLICT",
         409,
         "Khoảng block đụng khách/hợp đồng đã có — cần tái bố trí trước",
+        {
+          extensions: {
+            items: c.rows.map((x) => ({
+              kind: x.kind,
+              source_type: x.source_type,
+              source_id: x.source_id,
+              start: x.lo.toISOString(),
+              end: x.hi ? x.hi.toISOString() : null,
+            })),
+          },
+        },
       );
     }
     throw err;
@@ -357,6 +459,7 @@ export async function getUnitStatus(
   housekeeping: string;
   availability: string;
   readyForArrival: boolean;
+  sellable: boolean;
 }> {
   if (!/^[0-9a-f-]{36}$/i.test(unitId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phòng");
   return withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
@@ -375,6 +478,8 @@ export async function getUnitStatus(
     return {
       unitId,
       ...s,
+      // Còn bán được: không có ai chiếm/giữ/chặn tại `at` và phòng đang khai thác — vệ sinh không ảnh hưởng (bẩn vẫn bán được).
+      sellable: s.occupancy === "vacant" && s.availability === "active",
       readyForArrival: s.occupancy === "vacant" && s.availability === "active" && clean,
     };
   });

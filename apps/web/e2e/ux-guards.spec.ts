@@ -17,6 +17,8 @@ import { type Cookies, loginOwner, loginTenant } from "./sessions.ts";
 // `page.route` không chặn được request do service worker đã nắm (production bật SW): chặn SW để mock luôn có tác dụng.
 test.use({ serviceWorkers: "block" });
 test.describe.configure({ mode: "serial" });
+// Spec dùng page.route: chặn service worker (SW của app có thể trả phản hồi trước khi route giả chặn được — tránh flaky).
+test.use({ serviceWorkers: "block" });
 
 let hkCookies: Cookies = [];
 

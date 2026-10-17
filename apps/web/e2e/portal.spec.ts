@@ -25,6 +25,8 @@ import {
 } from "./fixtures.ts";
 
 test.describe.configure({ mode: "serial" });
+// Spec dùng page.route: chặn service worker (SW của app có thể trả phản hồi trước khi route giả chặn được — tránh flaky).
+test.use({ serviceWorkers: "block" });
 
 // page.route() không thấy request đi qua service worker của PWA (Playwright khuyên chặn SW khi chặn bắt request) —
 // trên CI SW đã kiểm soát trang thì lệnh đi thẳng tới server, bộ đếm route = 0. PWA được test riêng ở pwa.spec.ts.
@@ -93,7 +95,7 @@ test.beforeEach(async ({ context }) => {
   if (sessionCookies.length > 0) await context.addCookies(sessionCookies);
 });
 
-test("S-001/S-021/S-022 Kỳ thu: một phiếu 3.580.000 đ 'Còn nợ'; kỳ nháp không hiện; header 'Tổ chức · Người thuê'; axe", async ({
+test("@smoke S-001/S-021/S-022 Kỳ thu: một phiếu 3.580.000 đ 'Còn nợ'; kỳ nháp không hiện; header 'Tổ chức · Người thuê'; axe", async ({
   page,
 }) => {
   await page.goto("/portal");

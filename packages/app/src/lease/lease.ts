@@ -6,8 +6,8 @@ import { createHash, randomUUID } from "node:crypto";
 import { withTenant } from "@hm/db";
 import { authorize, leaseMachine } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
-import type { Actor } from "../access/actor.ts";
-import { confirmHold, createHold, type Interval } from "../inventory/inventory.ts";
+import type { Actor } from "../access/index.ts";
+import { confirmHold, createHold, type Interval, lockUnit } from "../inventory/index.ts";
 import { type CommandContext, CommandError, canonicalJson, fieldError } from "../pipeline/index.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -535,11 +535,8 @@ export async function signLease(
   } else if (allocs.some((a) => a.kind === "hold" && a.deactivated_reason === "expired")) {
     throw new CommandError("HOLD_EXPIRED", 409, "Thời gian giữ phòng đã hết. Vui lòng giữ lại.");
   } else {
-    const u =
-      await sql`select 1 from units where organization_id = ${ctx.actor.orgId} and id = ${lease.unit_id} for update`.execute(
-        ctx.trx,
-      );
-    if (u.rows.length === 0) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phòng");
+    // Khoá phòng như mọi đường ghi allocation khác: phòng đã lưu trữ ⇒ NOT_FOUND (INV-G7).
+    await lockUnit(ctx.trx, ctx.actor.orgId, lease.unit_id);
     allocationId = randomUUID();
     try {
       await sql`savepoint lease_alloc`.execute(ctx.trx);

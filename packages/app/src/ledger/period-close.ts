@@ -5,9 +5,9 @@ import { randomUUID } from "node:crypto";
 import { withTenant } from "@hm/db";
 import { authorize, generateMemoRef } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
-import type { Actor } from "../access/actor.ts";
-import { assertPropertyInOrg } from "../access/scope.ts";
-import { type ApprovalRow, registerApprovalExecutor, requestApproval } from "../approvals/approvals.ts";
+import type { Actor } from "../access/index.ts";
+import { assertPropertyInOrg } from "../access/index.ts";
+import { type ApprovalRow, registerApprovalExecutor, requestApproval } from "../approvals/index.ts";
 import { type CommandContext, CommandError } from "../pipeline/index.ts";
 import { postEntry } from "./ledger.ts";
 

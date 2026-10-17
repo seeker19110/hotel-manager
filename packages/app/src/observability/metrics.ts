@@ -39,6 +39,16 @@ const HELP: Readonly<Record<string, [type: "gauge" | "counter" | "histogram", he
     "gauge",
     "Tuổi (giây) chênh lệch đối soát đang mở cũ nhất — so với SLA xử lý.",
   ],
+  // Sức khoẻ CSDL (T-503, `app.db_health_metrics` — migration 0051; DB-PERF-004/008).
+  hm_db_connections: ["gauge", "Số kết nối đang mở tới CSDL ứng dụng (pg_stat_database.numbackends)."],
+  hm_db_max_connections: ["gauge", "Trần kết nối của máy chủ Postgres (max_connections)."],
+  hm_db_xid_age: [
+    "gauge",
+    "Tuổi XID của CSDL, age(datfrozenxid) — wraparound ở 2^31 (≈ 2,147 tỷ); autovacuum đóng băng để kéo về.",
+  ],
+  hm_db_multixact_age: ["gauge", "Tuổi multixact của CSDL, mxid_age(datminmxid) — cùng ngưỡng 2^31 như XID."],
+  hm_db_dead_tuples: ["gauge", "Số hàng chết (n_dead_tup) theo bảng — chờ autovacuum dọn."],
+  hm_db_dead_tuple_ratio: ["gauge", "Tỉ lệ hàng chết / (sống + chết) theo bảng, 0 khi bảng rỗng."],
   // HTTP (T-406, observability/http-metrics.ts): đo ở lớp handler, lưu trong bộ nhớ từng bản web.
   hm_http_requests_total: ["counter", "Số request HTTP theo mẫu route, method, status."],
   hm_http_request_duration_seconds: [
@@ -112,9 +122,11 @@ export async function collectMetrics(db: Kysely<unknown>, now: Date = new Date()
   const rec = await sql<Row>`select name, labels, value from app.reconciliation_metrics(${now})`.execute(db);
   // Hàm riêng (0047): số job nằm trong dead letter — cảnh báo `HmDeadLetterJobs` (BE-JOB-004).
   const dead = await sql<{ n: string }>`select app.dead_letter_jobs()::text as n`.execute(db);
+  // Hàm riêng (0051): kết nối đang mở, tuổi XID/multixact, hàng chết theo bảng — cảnh báo `HmDb*` (DB-PERF-004/008).
+  const health = await sql<Row>`select name, labels, value from app.db_health_metrics()`.execute(db);
   return [
     { name: "hm_up", value: 1 },
-    ...[...r.rows, ...rec.rows].map((x) => ({
+    ...[...r.rows, ...rec.rows, ...health.rows].map((x) => ({
       name: x.name,
       labels: x.labels ?? {},
       value: Number(x.value),

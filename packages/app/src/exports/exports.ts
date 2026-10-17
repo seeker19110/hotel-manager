@@ -11,7 +11,7 @@
 //   giữ là số. Xuất toàn tổ chức (S-018): ZIP các CSV nghiệp vụ + file đính kèm đã `ready` (theo quyền người yêu cầu, có trần
 //   tổng dung lượng — T-405/IND-SAAS-007), không số giấy tờ, không ảnh giấy tờ tuỳ thân, bỏ cột bí mật.
 import { createHash, randomUUID } from "node:crypto";
-import { withTenant } from "@hm/db";
+import { withTenant, withTenantRetry } from "@hm/db";
 import {
   authorize,
   BYTES_PER_MIB,
@@ -24,12 +24,16 @@ import {
   secondsToMs,
 } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
-import { AccessError, type Actor, resolveActor } from "../access/actor.ts";
-import { listEvents } from "../audit/events.ts";
-import { commitGeneratedFile, prepareGeneratedFile } from "../files/files.ts";
-import { MAX_SIGNED_URL_SECONDS, type ObjectStorage } from "../files/storage.ts";
-import { writeXlsx, zipStore } from "../import/xlsx.ts";
-import { createNotification } from "../notifications/dispatch.ts";
+import { AccessError, type Actor, resolveActor } from "../access/index.ts";
+import { listEvents } from "../audit/index.ts";
+import {
+  commitGeneratedFile,
+  MAX_SIGNED_URL_SECONDS,
+  type ObjectStorage,
+  prepareGeneratedFile,
+} from "../files/index.ts";
+import { writeXlsx, zipStore } from "../import/index.ts";
+import { createNotification } from "../notifications/index.ts";
 import { type CommandContext, CommandError, rateLimited } from "../pipeline/index.ts";
 import {
   collections,
@@ -38,7 +42,7 @@ import {
   receivables,
   reportRange,
   validDate,
-} from "../reports/reports.ts";
+} from "../reports/index.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -859,7 +863,7 @@ async function transition(
   orgId: string,
   fn: (trx: Transaction<unknown>) => Promise<void>,
 ): Promise<void> {
-  await withTenant(workerDb, { orgId }, fn);
+  await withTenantRetry(workerDb, { orgId }, fn);
 }
 
 /**
@@ -874,7 +878,7 @@ export async function runExportJob(
   const orgId = job.organization_id;
   const id = job.payload.export_id;
   if (typeof id !== "string" || !UUID.test(id)) throw new Error("payload thiếu export_id");
-  const claimed = await withTenant(deps.workerDb, { orgId }, async (trx) => {
+  const claimed = await withTenantRetry(deps.workerDb, { orgId }, async (trx) => {
     const r = await sql<{
       id: string;
       kind: ExportKind | "org_full";

@@ -7,7 +7,7 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { authorize } from "@hm/domain";
 import { type Kysely, sql } from "kysely";
-import { emitSecurity, type SecurityClient, type SecurityEventName } from "../logging/security-events.ts";
+import { emitSecurity, type SecurityClient, type SecurityEventName } from "../logging/index.ts";
 import { type CommandContext, CommandError, rateLimited } from "../pipeline/index.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -71,6 +71,8 @@ export async function createGuestLink(
     propertyId: s.property_id,
     after: { stay_id: input.stayId, expires_at: s.expires_at.toISOString() },
   });
+  // Cấp token (SEC-LOG-001): chỉ id liên kết — token KHÔNG bao giờ vào log (chỉ băm nằm ở CSDL).
+  ctx.security({ event: "guest_link.issued", target: { type: "guest_access_link", id: linkId } });
   return { linkId, token, expiresAt: s.expires_at };
 }
 

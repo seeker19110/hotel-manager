@@ -7,9 +7,8 @@ import { SECONDS_PER_HOUR } from "@hm/domain";
 import { betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { emailOTP, twoFactor } from "better-auth/plugins";
-import { createPool } from "../db/pool.ts";
-import { appLogger } from "../logging/runtime.ts";
-import { requestClient, type SecurityClient } from "../logging/security-events.ts";
+import { createPool } from "../db/index.ts";
+import { appLogger, requestClient, type SecurityClient } from "../logging/index.ts";
 import { type AuthEventInput, correlationFrom, createAuthEvents } from "./auth-events.ts";
 import {
   clearFailures,

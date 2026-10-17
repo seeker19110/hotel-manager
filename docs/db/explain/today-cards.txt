@@ -1,0 +1,82 @@
+# EXPLAIN truy vấn nóng "today-cards" (DB-PERF-001) — sinh và so khớp bởi packages/app/src/db-perf.db.test.ts.
+# EXPLAIN (FORMAT JSON) trên Postgres thật, enable_seqscan = off (Seq Scan còn lại = không có index dùng được), vai trò và dữ liệu theo test.
+# Mỗi dòng: bảng · kiểu quét (Index gồm Index Only/Bitmap) [· index (cột khoá) · cột bị ràng buộc trong tiền tố khoá (bound) — chỉ khi truy vấn có cột chọn lọc].
+# Đổi truy vấn/index làm kế hoạch đổi → test đỏ; cập nhật có chủ đích: pnpm vitest run --project db db-perf -u
+
+-- select id, name, bd::text as bd from ( select p.id, p.name, p.timezone, app.business_date( … #715405e3
+properties · Index
+
+-- with pr as (select x.*, $1::uuid as org from ( select p.id, p.name, p.timezone, app.busine … #29ef4105
+billing_periods · Index
+invoices · Index
+properties · Index
+
+-- with pr as (select x.*, $1::uuid as org from ( select p.id, p.name, p.timezone, app.busine … #65786ef3
+billing_periods · Index
+invoices · Index
+properties · Index
+
+-- with pr as (select x.*, $1::uuid as org from ( select p.id, p.name, p.timezone, app.busine … #6fd03200
+properties · Index
+reservation_items · Index
+reservations · Index
+
+-- with pr as (select x.*, $1::uuid as org from ( select p.id, p.name, p.timezone, app.busine … #77584eeb
+properties · Index
+reservation_items · Index
+reservations · Index
+units · Index
+
+-- with pr as (select x.*, $1::uuid as org from ( select p.id, p.name, p.timezone, app.busine … #77ef2d19
+properties · Index
+units · Index
+
+-- with pr as (select x.*, $1::uuid as org from ( select p.id, p.name, p.timezone, app.busine … #a7447293
+properties · Index
+residence_notices · Index
+stays · Index
+units · Index
+
+-- with pr as (select x.*, $1::uuid as org from ( select p.id, p.name, p.timezone, app.busine … #a91d02a4
+properties · Index
+residence_notices · Index
+stays · Index
+units · Index
+
+-- with pr as (select x.*, $1::uuid as org from ( select p.id, p.name, p.timezone, app.busine … #b06eee73
+billing_periods · Index
+invoices · Index
+properties · Index
+
+-- with pr as (select x.*, $1::uuid as org from ( select p.id, p.name, p.timezone, app.busine … #b7602d86
+properties · Index
+reservation_items · Index
+reservations · Index
+stays · Index
+units · Index
+
+-- with pr as (select x.*, $1::uuid as org from ( select p.id, p.name, p.timezone, app.busine … #b7cad23b
+properties · Index
+units · Index
+work_orders · Index
+
+-- with pr as (select x.*, $1::uuid as org from ( select p.id, p.name, p.timezone, app.busine … #b80795df
+properties · Index
+units · Index
+
+-- with pr as (select x.*, $1::uuid as org from ( select p.id, p.name, p.timezone, app.busine … #de86a588
+properties · Index
+units · Index
+work_orders · Index
+
+-- with pr as (select x.*, $1::uuid as org from ( select p.id, p.name, p.timezone, app.busine … #f5750741
+properties · Index
+reservation_items · Index
+reservations · Index
+stays · Index
+units · Index
+
+-- with pr as (select x.*, $1::uuid as org from ( select p.id, p.name, p.timezone, app.busine … #fe70af55
+billing_periods · Index
+invoices · Index
+properties · Index

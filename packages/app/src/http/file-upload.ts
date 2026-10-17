@@ -1,11 +1,19 @@
 // POST /api/v1/files/upload?owner_type=work_order|payment_claim&property_id=<uuid> — tải ảnh/PDF (SPEC-portal S-008, Q-07).
 // Thân yêu cầu là BYTE của file (không multipart), `Idempotency-Key` bắt buộc (tải lại cùng key → cùng fileId, không hai file).
+// Giới hạn tần suất theo thành viên/tổ chức (rate-limit.ts) → 429 + Retry-After.
 // Kiểm kích thước ngay khi đọc luồng (không nạp quá giới hạn vào bộ nhớ), phần còn lại do `uploadFile` (magic bytes, EXIF,
 // quét mã độc, quyền theo cơ sở). Quét + ghi object chạy NGOÀI transaction lệnh (staging.ts). Phản hồi problem+json như mọi command.
 
 import { createHash } from "node:crypto";
-import { type FileOwnerType, MAX_FILE_BYTES, prepareUpload, uploadFile } from "../files/files.ts";
-import { settle, unwrap } from "../files/staging.ts";
+import {
+  type FileOwnerType,
+  MAX_FILE_BYTES,
+  prepareUpload,
+  settle,
+  unwrap,
+  uploadFile,
+} from "../files/index.ts";
+import { requestClient } from "../logging/index.ts";
 import { executeCommand, toProblem } from "../pipeline/index.ts";
 import {
   actorFromRequest,
@@ -13,8 +21,14 @@ import {
   type HttpDeps,
   json,
   problemResponse,
+  rejectInput,
   simpleProblem,
 } from "./command-route.ts";
+import {
+  enforceActorRateLimit,
+  FILE_UPLOAD_PER_MEMBER_PER_MINUTE,
+  FILE_UPLOAD_PER_ORG_PER_MINUTE,
+} from "./rate-limit.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const OWNER_TYPES: readonly FileOwnerType[] = ["work_order", "payment_claim"];
@@ -54,15 +68,28 @@ export async function handleFileUpload(req: Request, deps: HttpDeps): Promise<Re
     const q = new URL(req.url).searchParams;
     const ownerType = q.get("owner_type") as FileOwnerType | null;
     const propertyId = q.get("property_id") ?? "";
-    if (!ownerType || !OWNER_TYPES.includes(ownerType) || !UUID.test(propertyId))
+    const endpoint = { type: "endpoint", id: "/api/v1/files/upload" };
+    if (!ownerType || !OWNER_TYPES.includes(ownerType) || !UUID.test(propertyId)) {
+      rejectInput(req, correlationId, "input.validation_failed", actor, endpoint, "VALIDATION_FAILED");
       return simpleProblem("VALIDATION_FAILED", 422, "Dữ liệu không hợp lệ", correlationId, {
         errors: [{ path: "owner_type", field: "owner_type", code: "invalid" }],
       });
+    }
     const key = req.headers.get("idempotency-key") ?? "";
     if (!UUID.test(key))
       return simpleProblem("MALFORMED_REQUEST", 400, "Thiếu hoặc sai Idempotency-Key (UUID)", correlationId);
+    // Giới hạn tần suất TRƯỚC khi đọc thân/quét/ghi object (BE-REL-006): bộ đếm trong Postgres, đúng khi nhiều instance.
+    const limited = await enforceActorRateLimit(deps.db, actor, req, correlationId, {
+      scope: "file_upload",
+      perMember: deps.uploadRateLimit?.perMember ?? FILE_UPLOAD_PER_MEMBER_PER_MINUTE,
+      perOrg: deps.uploadRateLimit?.perOrg ?? FILE_UPLOAD_PER_ORG_PER_MINUTE,
+    });
+    if (limited) return limited;
     const bytes = await readCapped(req, MAX_FILE_BYTES);
-    if (!bytes) return simpleProblem("FILE_TOO_LARGE", 413, "File vượt dung lượng cho phép", correlationId);
+    if (!bytes) {
+      rejectInput(req, correlationId, "file.upload_rejected", actor, endpoint, "FILE_TOO_LARGE");
+      return simpleProblem("FILE_TOO_LARGE", 413, "File vượt dung lượng cho phép", correlationId);
+    }
     const input = { ownerType, propertyId: propertyId.toLowerCase(), bytes };
     // Quét + ghi object NGOÀI transaction lệnh (T-303). Lỗi của bước này được ném lại trong handler để pipeline vẫn ghi
     // kết quả `failed` + audit `denied` như khi chạy trong transaction.
@@ -79,6 +106,7 @@ export async function handleFileUpload(req: Request, deps: HttpDeps): Promise<Re
           sha256: createHash("sha256").update(bytes).digest("hex"),
         },
         correlationId,
+        client: requestClient(req.headers),
       },
       async (ctx) => ({
         data: await uploadFile(ctx, deps.services, { ...input, prepared: unwrap(prepared) }),

@@ -6,11 +6,11 @@
 import { randomUUID } from "node:crypto";
 import { authorize } from "@hm/domain";
 import { sql, type Transaction } from "kysely";
-import { type ApprovalRow, registerApprovalExecutor, requestApproval } from "../approvals/approvals.ts";
-import { postEntry } from "../ledger/ledger.ts";
-import { customerCredit, lockPerson, type ManualBankTxn, recordPayment } from "../payments/payments.ts";
+import { type ApprovalRow, registerApprovalExecutor, requestApproval } from "../approvals/index.ts";
+import { postEntry } from "../ledger/index.ts";
+import { customerCredit, lockPerson, type ManualBankTxn, recordPayment } from "../payments/index.ts";
 import { type CommandContext, CommandError } from "../pipeline/index.ts";
-import { openShiftOf } from "../shifts/shifts.ts";
+import { openShiftOf } from "../shifts/index.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

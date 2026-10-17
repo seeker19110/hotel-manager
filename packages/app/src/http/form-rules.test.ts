@@ -72,11 +72,11 @@ describe("fillConfirmLabel", () => {
 });
 
 describe("một nguồn quy tắc cho client và server", () => {
-  it("form ở trình duyệt và registry server cùng import form-rules; client không tự parse tay", () => {
+  it("form ở trình duyệt và schema dùng chung với registry server cùng import form-rules; client không tự parse tay", () => {
     const form = readFileSync(`${ROOT}apps/web/components/command/command-form.tsx`, "utf8");
-    const registry = readFileSync(`${ROOT}packages/app/src/http/registry.ts`, "utf8");
+    const inputs = readFileSync(`${ROOT}packages/app/src/http/command-inputs.ts`, "utf8");
     expect(form).toMatch(/from "@hm\/app\/form-rules"/);
-    expect(registry).toMatch(/from "\.\/form-rules\.ts"/);
+    expect(inputs).toMatch(/from "\.\/form-rules\.ts"/);
     expect(form).not.toMatch(/function parseMoney/);
   });
 

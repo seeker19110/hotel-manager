@@ -7,7 +7,7 @@
 // - Lưu trú: nhắc trong app cho lễ tân/quản lý (không tự gửi gì cho cơ quan nhà nước): một lần khi có hạn, "Khẩn" khi còn
 //   ≤ 30 phút, "Quá hạn" mỗi ngày kinh doanh tới khi đánh dấu đã nộp; chưa cấu hình hạn ⇒ cảnh báo cấu hình cho
 //   owner/manager mỗi ngày tối đa 1 lần (S-020).
-import { withTenant } from "@hm/db";
+import { withTenantRetry } from "@hm/db";
 import { type Kysely, sql } from "kysely";
 import { createNotification, type NewNotification } from "./dispatch.ts";
 import { TemplateError } from "./templates.ts";
@@ -77,7 +77,7 @@ async function createMany(
   log: ReminderLog,
 ): Promise<number> {
   if (items.length === 0) return 0;
-  return withTenant(workerDb, { orgId }, async (trx) => {
+  return withTenantRetry(workerDb, { orgId }, async (trx) => {
     let n = 0;
     for (const it of items) {
       try {
