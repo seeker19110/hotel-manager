@@ -369,7 +369,8 @@ describe("liên kết khách (guest_link.*) và 429 theo IP", () => {
     return { stayId: s.stayId, ...link };
   }
   const NOW = new Date("2026-10-21T03:00:00Z");
-  const ip = () => `198.51.${Math.floor(Math.random() * 250)}.${Math.floor(Math.random() * 250)}`;
+  // Octet cuối ≥ 1: log cắt IP về ".0" — octet cuối 0 làm IP đầy đủ trùng bản đã cắt và test "không lộ IP" đỏ ngẫu nhiên (1/250).
+  const ip = () => `198.51.${Math.floor(Math.random() * 250)}.${1 + Math.floor(Math.random() * 250)}`;
 
   it("sai bước hai 5 lần → guest_link.denied ×4 rồi guest_link.locked; sau đó truy cập link khoá → denied LINK_REVOKED; token/SĐT không vào log", async () => {
     const s = await stayWithLink();
