@@ -136,9 +136,11 @@ describe("scheduler", () => {
 
   it("abortableSleep(0) và đã abort đều resolve", async () => {
     const ac = new AbortController();
-    await abortableSleep(0, ac.signal);
+    await expect(abortableSleep(0, ac.signal)).resolves.toBeUndefined();
     ac.abort();
-    await abortableSleep(60_000, ac.signal);
+    const t0 = Date.now();
+    await expect(abortableSleep(60_000, ac.signal)).resolves.toBeUndefined();
+    expect(Date.now() - t0).toBeLessThan(2_000); // đã abort → không chờ 60 s
   });
 });
 

@@ -19,7 +19,8 @@
     "openapi": "node apps/web/scripts/openapi.mjs",
     "build:tokens": "node scripts/build-tokens.mjs",
     "check:tokens": "node scripts/build-tokens.mjs --check",
-    "gen:icons": "node apps/web/scripts/gen-icons.mjs"
+    "gen:icons": "node apps/web/scripts/gen-icons.mjs",
+    "check:contrast": "vitest run --project unit contrast"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",

@@ -281,6 +281,9 @@ ${await section("grants (bảng, cột, hàm, schema)", grants)}`;
 describe("schema-drift — ảnh chụp schema ↔ docs/db/schema.snapshot.txt (DB-MIG-001)", () => {
   it(`schema sau migrate khớp file đã commit; lệch → đỏ kèm diff. Cập nhật có chủ đích: ${REGEN}`, async () => {
     const actual = await schemaSnapshot(t.admin);
+    // Ảnh chụp phải có nội dung thật (đủ các mục, có bảng/hàm) — file rỗng/hỏng không được "khớp" một ảnh chụp rỗng.
+    expect(actual).toMatch(/^## tables \((\d{2,})\)$/m);
+    expect(actual).toMatch(/^## functions \((\d{2,})\)$/m);
     try {
       await expect(actual).toMatchFileSnapshot(SNAPSHOT_FILE);
     } catch (e) {

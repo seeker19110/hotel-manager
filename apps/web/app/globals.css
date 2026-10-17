@@ -81,6 +81,10 @@ body {
 .skip-link:focus {
   top: var(--space-2);
 }
+/* Skip-link nằm đè thanh tiêu đề cùng nền thương hiệu: vòng focus cam chỉ đạt 1,88:1 ở đó (UX-A11Y-002, SC 1.4.11) → vòng trắng. */
+.skip-link:focus-visible {
+  outline-color: var(--c-brand-contrast);
+}
 
 .app-header {
   display: flex;
