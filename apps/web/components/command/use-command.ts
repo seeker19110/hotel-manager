@@ -80,6 +80,12 @@ export function useCommand<T = unknown>(path: string) {
   const wasOnline = useRef(online);
   const key = useRef<string | null>(null);
   const lastBody = useRef<unknown>(null);
+  // Key đã từng vào check() (POST mất phản hồi/5xx/409 đang xử lý…): server CÓ THỂ đã ghi ⇒ không được bỏ key (kể cả khi 401
+  // lúc gửi lại rồi người dùng bấm "Để sau"), nếu không lần Lưu sau tạo key mới ⇒ ghi trùng. false = lượt gửi đầu, chưa rõ gì.
+  const uncertain = useRef(false);
+  // Đăng nhập lại tối đa một lần mỗi lượt gửi/gửi lại/tra (cookie không lưu được ⇒ không lặp hộp thoại vô hạn):
+  // none = chưa hỏi · ok = đã đăng nhập lại · declined = bấm "Để sau"/đã dùng hết lượt.
+  const reauth = useRef<"none" | "ok" | "declined">("none");
   // Đang có một lượt gửi/tra chạy: lần bấm thứ hai (bấm đúp, Enter lặp) bị bỏ qua — đúng 1 POST (UX-STATE-006, FE-FORM-007).
   // Không dựa vào `disabled` của nút vì state cập nhật sau sự kiện thứ hai trong cùng một nhịp.
   const inflight = useRef(false);
@@ -111,8 +117,31 @@ export function useCommand<T = unknown>(path: string) {
     return () => clearTimeout(t);
   }, [reconnecting, refreshPending]);
 
+  const askReauth = useCallback(async (): Promise<boolean> => {
+    if (reauth.current !== "none") return false;
+    const ok = await requestReauth();
+    reauth.current = ok ? "ok" : "declined";
+    return ok;
+  }, []);
+
+  /** 401 mà không đăng nhập lại được: key chưa rõ kết quả thì GIỮ (phase unknown, "Gửi lại" cùng key); lượt đầu thì bỏ. */
+  const unauthenticated = useCallback((): null => {
+    const p: ProblemLike = { code: "UNAUTHENTICATED", status: 401, detail: UNAUTHENTICATED_TEXT };
+    if (!uncertain.current) {
+      key.current = null;
+      setCommandId(null);
+      setProblem(p);
+      setPhase("error");
+      return null;
+    }
+    setProblem(p);
+    setPhase("unknown");
+    return null;
+  }, []);
+
   const finish = useCallback((d: T): T => {
     key.current = null;
+    uncertain.current = false;
     setCommandId(null);
     setData(d);
     setPhase("done");
@@ -121,6 +150,7 @@ export function useCommand<T = unknown>(path: string) {
 
   const fail = useCallback((p: ProblemLike): null => {
     key.current = null;
+    uncertain.current = false;
     setCommandId(null);
     setProblem(p);
     setPhase("error");
@@ -131,6 +161,7 @@ export function useCommand<T = unknown>(path: string) {
   // commit nên chưa thấy) nghĩa là còn chạy chứ không phải "server chưa nhận" — không bật "Gửi lại" sớm.
   const check = useCallback(
     async (pending?: { waitMs: number }): Promise<T | null> => {
+      uncertain.current = true;
       setPhase("checking");
       let inProgress = false;
       if (pending) {
@@ -147,18 +178,18 @@ export function useCommand<T = unknown>(path: string) {
           });
           if (res.status === 401) {
             // S-013: phiên hết hạn lúc đang tra kết quả ⇒ đăng nhập lại rồi tra tiếp CÙNG command_id.
-            if (await requestReauth()) {
+            if (await askReauth()) {
               i--;
               continue;
             }
-            setPhase("unknown");
-            return null;
+            return unauthenticated();
           }
-          if (
-            res.status === 409 &&
-            ((await res.json().catch(() => null)) as ProblemLike | null)?.code === CONTEXT_CHANGED_CODE
-          )
-            return fail(contextChanged());
+          if (res.status === 409) {
+            // Sau đăng nhập lại mà tổ chức đang chọn đã khác/mất ⇒ huỷ form như post() (S-013).
+            const code = ((await res.json().catch(() => null)) as ProblemLike | null)?.code;
+            if (code === CONTEXT_CHANGED_CODE || (reauth.current === "ok" && code === "ORG_CONTEXT_REQUIRED"))
+              return fail(contextChanged());
+          }
           if (res.status === 404 && !pending) {
             setPhase("unknown");
             return null;
@@ -182,7 +213,7 @@ export function useCommand<T = unknown>(path: string) {
       } else setPhase("unknown");
       return null;
     },
-    [finish, fail],
+    [finish, fail, askReauth, unauthenticated],
   );
 
   const post = useCallback(
@@ -213,8 +244,8 @@ export function useCommand<T = unknown>(path: string) {
       }
       if (res.status === 401) {
         // S-013: phiên hết hạn ⇒ hộp đăng nhập lại; xong thì gửi lại với CÙNG key (server chưa ghi gì ở lượt 401).
-        if (await requestReauth()) return post(true);
-        return fail({ code: "UNAUTHENTICATED", status: 401, detail: UNAUTHENTICATED_TEXT });
+        if (await askReauth()) return post(true);
+        return unauthenticated();
       }
       const j = (await res.json().catch(() => null)) as ({ data?: T } & ProblemLike) | null;
       if (res.ok) return finish(j?.data as T);
@@ -236,7 +267,7 @@ export function useCommand<T = unknown>(path: string) {
       }
       return fail(j ?? { code: "INTERNAL", status: res.status });
     },
-    [path, check, finish, fail],
+    [path, check, finish, fail, askReauth, unauthenticated],
   );
 
   /** Mất mạng: không gửi; KHÔNG bỏ key của thao tác đang chưa rõ kết quả. */
@@ -270,10 +301,14 @@ export function useCommand<T = unknown>(path: string) {
           return null;
         }
       }
-      key.current ??= crypto.randomUUID();
+      if (!key.current) {
+        key.current = crypto.randomUUID();
+        uncertain.current = false;
+      }
       setCommandId(key.current);
       lastBody.current = body;
       inflight.current = true;
+      reauth.current = "none";
       try {
         return await post();
       } finally {
@@ -289,6 +324,7 @@ export function useCommand<T = unknown>(path: string) {
     if (!online) return offline();
     if (!key.current) return null;
     inflight.current = true;
+    reauth.current = "none";
     try {
       return await post();
     } finally {
@@ -300,6 +336,7 @@ export function useCommand<T = unknown>(path: string) {
   const recheck = useCallback(async (): Promise<T | null> => {
     if (inflight.current || !key.current) return null;
     inflight.current = true;
+    reauth.current = "none";
     setProblem(null);
     try {
       return await check();

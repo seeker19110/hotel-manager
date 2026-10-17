@@ -16,6 +16,16 @@ test.beforeAll(async ({ browser }, info) => {
 
 const CREATE = "**/api/v1/maintenance/createWorkOrder";
 
+/** Phản hồi JSON giả cho `route.fulfill`. */
+const json = (status: number, body: unknown, headers: Record<string, string> = {}) => ({
+  status,
+  contentType: "application/json",
+  headers,
+  body: JSON.stringify(body),
+});
+const COMMANDS = "**/api/v1/commands/*";
+const LOST = "Phiên đăng nhập đã hết";
+
 /** Điền và gửi form báo sự cố (không ảnh). */
 async function submitIncident(page: Page, title: string): Promise<void> {
   await page.goto("/su-co");
@@ -226,6 +236,7 @@ test("S-012 lệnh đang xử lý: hỏi lại theo backoff 1-2-4-8-15 s (tổng
   await expect(page.getByTestId("result-unknown-id")).toHaveText(commandId);
   await expect(page.getByRole("button", { name: "Gửi lại" })).toHaveCount(0);
   expect(posts).toBe(1); // không gửi lại lệnh
+  const asksBefore = asks.length;
   // Khoảng cách giữa các lần hỏi ≈ 1, 2, 4, 8, 15 s (sai số 0,5 s về phía nhanh, 3 s về phía chậm).
   expect(asks).toHaveLength(6);
   const gaps = asks.slice(1).map((t, i) => (t - (asks[i] as number)) / 1000);
@@ -233,6 +244,20 @@ test("S-012 lệnh đang xử lý: hỏi lại theo backoff 1-2-4-8-15 s (tổng
     expect(gaps[i], `lần hỏi ${i + 2}`).toBeGreaterThanOrEqual(want - 0.5);
     expect(gaps[i], `lần hỏi ${i + 2}`).toBeLessThanOrEqual(want + 3);
   }
+
+  // D-043: từ RESULT_UNKNOWN bấm "Kiểm tra lại" mà server báo 404 (chưa thấy lệnh) ⇒ chuyển sang "unknown": bật "Gửi lại" cùng key.
+  await page.unroute("**/api/v1/commands/*");
+  let rechecks = 0;
+  await page.route("**/api/v1/commands/*", (r) => {
+    rechecks++;
+    return r.fulfill(json(404, { code: "COMMAND_NOT_FOUND", status: 404 }));
+  });
+  await unknown.getByRole("button", { name: "Kiểm tra lại" }).click();
+  await expect(page.getByRole("button", { name: "Gửi lại" })).toBeVisible();
+  await expect(page.getByTestId("result-unknown")).toHaveCount(0);
+  expect(rechecks).toBe(1);
+  expect(asks).toHaveLength(asksBefore); // lượt tra cũ đã dừng hẳn
+  expect(posts).toBe(1); // vẫn chưa tự gửi lại
 });
 
 /** Mở /su-co, điền form báo sự cố rồi GIỮ NGUYÊN trang (chưa bấm gửi) — để cho phiên hết hạn trước khi bấm. */
@@ -330,4 +355,142 @@ test("S-013 bấm 'Để sau': không gửi gì, báo phiên đã hết, form d�
   await expect(page.getByRole("alert").filter({ hasText: "Phiên đăng nhập đã hết" })).toBeVisible();
   await expect(form.getByLabel("Sự cố", { exact: true })).toBeEnabled();
   expect(posts).toBe(1);
+});
+
+// Review lát T-606 🟠1: key chưa rõ kết quả không được mất khi gửi lại gặp 401 rồi "Để sau" (nếu mất ⇒ Lưu tạo key mới ⇒ ghi trùng).
+test("S-013 + S-010: POST mất phản hồi ⇒ unknown; gửi lại gặp 401, 'Để sau' ⇒ GIỮ key, vẫn 'Gửi lại' được; lần sau mang CÙNG Idempotency-Key", async ({
+  page,
+  context,
+}) => {
+  await context.addCookies(hkCookies);
+  const keys: string[] = [];
+  await page.route(CREATE, (r) => {
+    keys.push(r.request().headers()["idempotency-key"] ?? "");
+    if (keys.length === 1) return r.abort("failed"); // server (giả định) đã ghi nhưng mất phản hồi
+    if (keys.length === 2) return r.fulfill(json(401, { code: "UNAUTHENTICATED", status: 401 }));
+    return r.fulfill(json(200, { command_id: keys[0], status: "committed", data: {} }));
+  });
+  await page.route(COMMANDS, (r) => r.fulfill(json(404, { code: "COMMAND_NOT_FOUND", status: 404 })));
+  await submitIncident(page, "Sự cố mất phản hồi rồi hết phiên");
+  const resend = page.getByRole("button", { name: "Gửi lại" });
+  await expect(resend).toBeVisible(); // unknown: key c1 được giữ
+
+  await resend.click(); // POST #2 ⇒ 401 ⇒ hộp đăng nhập lại
+  const dialog = page.getByTestId("reauth-dialog");
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "Để sau" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole("alert").filter({ hasText: LOST }).first()).toBeVisible();
+  await expect(resend).toBeVisible(); // KHÔNG rơi về "error" bỏ key: vẫn khoá form, chỉ cho gửi lại cùng thao tác
+  await expect(page.getByTestId("incident-form").getByLabel("Sự cố", { exact: true })).toBeDisabled();
+
+  await resend.click(); // POST #3
+  await expect(page.getByRole("status").filter({ hasText: "Đã ghi nhận sự cố" })).toBeVisible();
+  expect(keys).toHaveLength(3);
+  expect(new Set(keys).size).toBe(1);
+  expect(keys[0]).toMatch(/^[0-9a-f-]{36}$/);
+});
+
+// Review lát T-606 🟠2 (a): BE-API-008 / D-043.
+test("D-043 POST 409 IDEMPOTENCY_IN_PROGRESS (Retry-After: 1): đợi rồi tra theo key; GET 404 = vẫn chạy (không bật 'Gửi lại'); committed ⇒ hiện kết quả, đúng 1 POST", async ({
+  page,
+  context,
+}) => {
+  await context.addCookies(hkCookies);
+  let posts = 0;
+  const gets: string[] = [];
+  let key = "";
+  await page.route(CREATE, (r) => {
+    posts++;
+    key = r.request().headers()["idempotency-key"] ?? "";
+    return r.fulfill(json(409, { code: "IDEMPOTENCY_IN_PROGRESS", status: 409 }, { "retry-after": "1" }));
+  });
+  await page.route(COMMANDS, (r) => {
+    gets.push(r.request().url().split("/").at(-1) ?? "");
+    if (gets.length === 1) return r.fulfill(json(404, { code: "COMMAND_NOT_FOUND", status: 404 }));
+    return r.fulfill(json(200, { command_id: key, status: "committed", data: {} }));
+  });
+  await submitIncident(page, "Sự cố lệnh đang chạy");
+  await expect(page.getByText("Đang kiểm tra kết quả…")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Gửi lại" })).toHaveCount(0);
+  await expect(page.getByRole("status").filter({ hasText: "Đã ghi nhận sự cố" })).toBeVisible();
+  expect(posts).toBe(1);
+  expect(gets).toEqual([key, key]); // 404 rồi committed, cùng key
+  await expect(page.getByRole("button", { name: "Gửi lại" })).toHaveCount(0);
+});
+
+// Review lát T-606 🟠2 (b): S-013 trong lúc tra kết quả.
+test("S-013 phiên hết hạn lúc tra kết quả: GET 401 ⇒ hộp đăng nhập lại ⇒ tra tiếp CÙNG key ⇒ committed; không gửi lại POST", async ({
+  page,
+  context,
+}) => {
+  await context.addCookies(hkCookies);
+  let posts = 0;
+  let key = "";
+  const gets: string[] = [];
+  await page.route(CREATE, (r) => {
+    posts++;
+    key = r.request().headers()["idempotency-key"] ?? "";
+    return r.abort("failed");
+  });
+  await page.route(COMMANDS, (r) => {
+    gets.push(r.request().url().split("/").at(-1) ?? "");
+    if (gets.length === 1) return r.fulfill(json(401, { code: "UNAUTHENTICATED", status: 401 }));
+    return r.fulfill(json(200, { command_id: key, status: "committed", data: {} }));
+  });
+  await submitIncident(page, "Sự cố hết phiên lúc tra kết quả");
+  await reloginInDialog(page);
+  await expect(page.getByRole("status").filter({ hasText: "Đã ghi nhận sự cố" })).toBeVisible();
+  await expect(page.getByTestId("reauth-dialog")).toBeHidden();
+  expect(posts).toBe(1);
+  expect(gets).toEqual([key, key]);
+  expect(key).toMatch(/^[0-9a-f-]{36}$/);
+});
+
+// Review lát T-606 🟡3: như post() sau đăng nhập lại.
+test("S-013 tra kết quả: sau đăng nhập lại mà GET trả 409 ORG_CONTEXT_REQUIRED ⇒ huỷ form (CONTEXT_CHANGED), không 'Gửi lại'", async ({
+  page,
+  context,
+}) => {
+  await context.addCookies(hkCookies);
+  let posts = 0;
+  let gets = 0;
+  await page.route(CREATE, (r) => {
+    posts++;
+    return r.abort("failed");
+  });
+  await page.route(COMMANDS, (r) => {
+    gets++;
+    if (gets === 1) return r.fulfill(json(401, { code: "UNAUTHENTICATED", status: 401 }));
+    return r.fulfill(json(409, { code: "ORG_CONTEXT_REQUIRED", status: 409 }));
+  });
+  await submitIncident(page, "Sự cố mất ngữ cảnh lúc tra kết quả");
+  await reloginInDialog(page);
+  await expect(
+    page.getByRole("alert").filter({ hasText: "Bạn vừa đổi tổ chức ở tab khác" }).first(),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Tải lại trang" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Gửi lại" })).toHaveCount(0);
+  expect(posts).toBe(1);
+  expect(gets).toBe(2);
+});
+
+// Review lát T-606 🟡4: cookie không lưu được ⇒ GET vẫn 401 sau đăng nhập lại ⇒ không mở lại hộp thoại vô hạn.
+test("S-013 đăng nhập lại tối đa một lần mỗi lượt tra: GET vẫn 401 sau khi đăng nhập ⇒ dừng ở 'Gửi lại' + báo hết phiên, không lặp hộp thoại", async ({
+  page,
+  context,
+}) => {
+  await context.addCookies(hkCookies);
+  let gets = 0;
+  await page.route(CREATE, (r) => r.abort("failed"));
+  await page.route(COMMANDS, (r) => {
+    gets++;
+    return r.fulfill(json(401, { code: "UNAUTHENTICATED", status: 401 }));
+  });
+  await submitIncident(page, "Sự cố cookie không lưu được");
+  await reloginInDialog(page);
+  await expect(page.getByRole("alert").filter({ hasText: LOST }).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Gửi lại" })).toBeVisible();
+  await expect(page.getByTestId("reauth-dialog")).toBeHidden();
+  expect(gets).toBe(2); // một lần trước, một lần sau đăng nhập; không hỏi lần ba
 });
