@@ -2,7 +2,8 @@
 // Gửi command theo API-CONTRACT §1 (JSON + Idempotency-Key) với hành vi mạng của SPEC-pwa:
 // - S-006 mất mạng: không gửi, báo OFFLINE; bấm lại được khi có mạng.
 // - S-010 hết thời gian chờ/mất phản hồi: "Đang kiểm tra kết quả…" → GET /api/v1/commands/{key}; đã commit ⇒ hiện kết quả
-//   từ server, KHÔNG gửi lần hai. S-012 đang xử lý ⇒ hỏi lại.
+//   từ server, KHÔNG gửi lần hai. S-012 đang xử lý ⇒ hỏi lại theo backoff 1-2-4-8 s, tổng tối đa 30 s (nút "Gửi lại" khoá suốt
+//   thời gian chờ); quá hạn ⇒ RESULT_UNKNOWN kèm command_id, KHÔNG gửi lại.
 // - S-011 server chưa nhận (404 COMMAND_NOT_FOUND) ⇒ bật "Gửi lại", gửi lại dùng CÙNG key.
 // Key giữ nguyên tới khi có kết quả chắc chắn; lỗi nghiệp vụ (4xx) ⇒ key mới cho lần sửa sau (tránh IDEMPOTENCY_CONFLICT).
 import { checkCommandInput } from "@hm/app/command-inputs";
@@ -11,6 +12,7 @@ import { timedFetch } from "../../lib/fetch-timeout.ts";
 import { reportClientOutdated, useOnline } from "../pwa/pwa-shell.tsx";
 import { appVersionHeaders, CLIENT_OUTDATED_CODE, CLIENT_OUTDATED_TEXT } from "./app-version.ts";
 import { CONTEXT_CHANGED_CODE, CONTEXT_CHANGED_TEXT, orgContextHeaders } from "./org-context.ts";
+import { recheckSchedule } from "./recheck.ts";
 
 export interface ProblemLike {
   code: string;
@@ -20,14 +22,17 @@ export interface ProblemLike {
   errors?: { field: string; code: string }[];
   items?: Record<string, unknown>[];
   correlation_id?: string;
+  /** Mã thao tác (Idempotency-Key) — chỉ có ở `RESULT_UNKNOWN` (client) để người dùng đọc cho quản lý/hỗ trợ. */
+  command_id?: string;
 }
 
 // unknown: chưa biết server đã nhận (404/mất mạng khi tra) ⇒ chỉ "Gửi lại" cùng key; processing: server báo đang xử lý quá
 // lâu (S-012) ⇒ "Kiểm tra lại". Ở hai trạng thái này form bị khoá: không gửi payload khác dưới key cũ (review lát 4 🟠2).
 export type CommandPhase = "idle" | "sending" | "checking" | "unknown" | "processing" | "done" | "error";
 
-const POLL_MS = 1_000;
-const POLL_TRIES = 8;
+export const RESULT_UNKNOWN_CODE = "RESULT_UNKNOWN";
+export const RESULT_UNKNOWN_TEXT =
+  "Chưa xác định được kết quả. Đừng thao tác lại; kiểm tra lịch sử hoặc liên hệ quản lý.";
 
 export const INVALID_INPUT_TEXT = "Dữ liệu chưa hợp lệ. Kiểm tra lại các ô đã nhập rồi gửi lại.";
 
@@ -66,9 +71,12 @@ export function useCommand<T = unknown>(path: string) {
   const [phase, setPhase] = useState<CommandPhase>("idle");
   const [problem, setProblem] = useState<ProblemLike | null>(null);
   const [data, setData] = useState<T | null>(null);
+  // Mã thao tác đang gửi/tra (S-010 hiện rút gọn; S-012 RESULT_UNKNOWN hiện đủ để đọc cho quản lý).
+  const [commandId, setCommandId] = useState<string | null>(null);
 
   const finish = useCallback((d: T): T => {
     key.current = null;
+    setCommandId(null);
     setData(d);
     setPhase("done");
     return d;
@@ -76,6 +84,7 @@ export function useCommand<T = unknown>(path: string) {
 
   const fail = useCallback((p: ProblemLike): null => {
     key.current = null;
+    setCommandId(null);
     setProblem(p);
     setPhase("error");
     return null;
@@ -84,7 +93,8 @@ export function useCommand<T = unknown>(path: string) {
   const check = useCallback(async (): Promise<T | null> => {
     setPhase("checking");
     let inProgress = false;
-    for (let i = 0; i < POLL_TRIES; i++) {
+    const waits = recheckSchedule();
+    for (let i = 0; i <= waits.length; i++) {
       try {
         const res = await timedFetch(`/api/v1/commands/${key.current}`, {
           credentials: "same-origin",
@@ -113,9 +123,14 @@ export function useCommand<T = unknown>(path: string) {
       } catch {
         // vẫn mất mạng — thử lại sau
       }
-      await sleep(POLL_MS);
+      const wait = waits[i];
+      if (wait !== undefined) await sleep(wait);
     }
-    setPhase(inProgress ? "processing" : "unknown");
+    if (inProgress) {
+      // S-012: quá hạn hỏi lại mà server vẫn báo đang xử lý ⇒ KHÔNG biết kết quả; khoá form, không cho gửi lại.
+      setProblem({ code: RESULT_UNKNOWN_CODE, detail: RESULT_UNKNOWN_TEXT, command_id: key.current ?? "" });
+      setPhase("processing");
+    } else setPhase("unknown");
     return null;
   }, [finish, fail]);
 
@@ -193,6 +208,7 @@ export function useCommand<T = unknown>(path: string) {
         }
       }
       key.current ??= crypto.randomUUID();
+      setCommandId(key.current);
       lastBody.current = body;
       inflight.current = true;
       try {
@@ -221,6 +237,7 @@ export function useCommand<T = unknown>(path: string) {
   const recheck = useCallback(async (): Promise<T | null> => {
     if (inflight.current || !key.current) return null;
     inflight.current = true;
+    setProblem(null);
     try {
       return await check();
     } finally {
@@ -236,6 +253,7 @@ export function useCommand<T = unknown>(path: string) {
     phase,
     problem,
     data,
+    commandId,
     locked,
     busy: phase === "sending" || phase === "checking",
   };

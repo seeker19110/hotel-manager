@@ -3,6 +3,7 @@
 // nguyên khi thử lại), rồi gửi `portal/createRequest` với file_ids — cùng cơ chế chống gửi đúp/mất mạng của mọi command.
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
+import { ResultUnknown, shortCommandId } from "../command/command-status.tsx";
 import { problemText, useCommand } from "../command/use-command.ts";
 import { usePhotoUpload } from "../command/use-photo-upload.ts";
 import { Button } from "../ui/button.tsx";
@@ -125,6 +126,9 @@ export function RequestForm({ units }: { units: RentedUnit[] }) {
       {cmd.phase === "checking" ? (
         <p className="command-form__status" role="status">
           Đang kiểm tra kết quả…
+          {cmd.commandId ? (
+            <span className="command-form__id"> (mã {shortCommandId(cmd.commandId)})</span>
+          ) : null}
         </p>
       ) : null}
       {cmd.phase === "unknown" ? (
@@ -143,15 +147,10 @@ export function RequestForm({ units }: { units: RentedUnit[] }) {
         </div>
       ) : null}
       {cmd.phase === "processing" ? (
-        <div className="banner banner--info" role="status">
-          <p>Máy chủ vẫn đang xử lý yêu cầu. Chờ một lát rồi kiểm tra lại.</p>
-          <Button
-            variant="secondary"
-            onClick={() => void cmd.recheck().then((r) => r !== null && router.refresh())}
-          >
-            Kiểm tra lại
-          </Button>
-        </div>
+        <ResultUnknown
+          commandId={cmd.problem?.command_id || cmd.commandId || ""}
+          onRecheck={() => void cmd.recheck().then((r) => r !== null && router.refresh())}
+        />
       ) : null}
       {general ? (
         <p className="field__error" role="alert">

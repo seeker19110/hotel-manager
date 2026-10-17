@@ -262,6 +262,7 @@ export function BookingForm({
             )}
             <CommandStatus
               phase={create.phase}
+              commandId={create.commandId}
               problem={create.problem}
               general={general(create)}
               successText="Đã tạo đặt phòng."
@@ -270,6 +271,7 @@ export function BookingForm({
             />
             <CommandStatus
               phase={hold.phase}
+              commandId={hold.commandId}
               problem={hold.problem}
               general={general(hold)}
               successText="Đã giữ phòng — đang mở đặt phòng."

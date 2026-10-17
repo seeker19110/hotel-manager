@@ -135,6 +135,7 @@ export function IncidentForm({ rooms }: { rooms: IncidentRoom[] }) {
       ) : null}
       <CommandStatus
         phase={cmd.phase}
+        commandId={cmd.commandId}
         problem={cmd.problem}
         general={general}
         successText="Đã ghi nhận sự cố — trạng thái: Mới báo."

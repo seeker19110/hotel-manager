@@ -1,4 +1,4 @@
-// SPEC-pwa S-009: hành vi client của command — client quá cũ (426).
+// SPEC-pwa S-009, S-012: hành vi client của command — client quá cũ (426), hỏi lại kết quả theo backoff.
 // Dùng form báo sự cố của buồng phòng khách sạn (ORG_HOTEL); lệnh ghi được MOCK ở tầng mạng khi cần để không đổi dữ liệu spec khác.
 import { expect, type Page, test } from "@playwright/test";
 import { type Cookies, loginStaff } from "./sessions.ts";
@@ -87,4 +87,47 @@ test("S-009 client quá cũ: server THẬT trả 426 CLIENT_OUTDATED, không ghi
   await expect(page.getByTestId("outdated-banner")).toHaveCount(0);
   // Không có phiếu nào được ghi từ lần gửi bị 426.
   await expect(page.getByText(title)).toHaveCount(0);
+});
+
+test("S-012 lệnh đang xử lý: hỏi lại theo backoff 1-2-4-8-15 s (tổng 30 s), 'Gửi lại' khoá suốt thời gian chờ; quá hạn hiện RESULT_UNKNOWN kèm command_id", async ({
+  page,
+  context,
+}) => {
+  test.setTimeout(120_000);
+  await context.addCookies(hkCookies);
+  let posts = 0;
+  let commandId = "";
+  // Server đã nhận nhưng phản hồi bị mất (S-010) rồi luôn báo in_progress.
+  await page.route(CREATE, (r) => {
+    posts++;
+    commandId = r.request().headers()["idempotency-key"] ?? "";
+    return r.abort("failed");
+  });
+  const asks: number[] = [];
+  await page.route("**/api/v1/commands/*", (r) => {
+    asks.push(Date.now());
+    return r.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ command_id: commandId, status: "in_progress" }),
+    });
+  });
+  await submitIncident(page, "Sự cố đang xử lý mãi");
+  await expect(page.getByText("Đang kiểm tra kết quả…")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Gửi lại" })).toHaveCount(0);
+  const unknown = page.getByTestId("result-unknown");
+  await expect(unknown).toBeVisible({ timeout: 60_000 });
+  await expect(unknown).toContainText(
+    "Chưa xác định được kết quả. Đừng thao tác lại; kiểm tra lịch sử hoặc liên hệ quản lý.",
+  );
+  await expect(page.getByTestId("result-unknown-id")).toHaveText(commandId);
+  await expect(page.getByRole("button", { name: "Gửi lại" })).toHaveCount(0);
+  expect(posts).toBe(1); // không gửi lại lệnh
+  // Khoảng cách giữa các lần hỏi ≈ 1, 2, 4, 8, 15 s (sai số 0,5 s về phía nhanh, 3 s về phía chậm).
+  expect(asks).toHaveLength(6);
+  const gaps = asks.slice(1).map((t, i) => (t - (asks[i] as number)) / 1000);
+  for (const [i, want] of [1, 2, 4, 8, 15].entries()) {
+    expect(gaps[i], `lần hỏi ${i + 2}`).toBeGreaterThanOrEqual(want - 0.5);
+    expect(gaps[i], `lần hỏi ${i + 2}`).toBeLessThanOrEqual(want + 3);
+  }
 });
