@@ -193,6 +193,21 @@ Sau mỗi lát: review độc lập (`reviewer`), sửa hết 🔴/🟠 kèm tes
 - [x] `T-507` Kiến trúc + spec: `index.ts` cho mọi module `packages/app/src/*` (nền `import_noi_bo` về 0), gắn S-NNN vào test/viết test còn thiếu cho 4 spec (nền spec-coverage về rỗng) (ARC-MOD-005, PM-SPEC-004, WF-SDD-003) — Gate: `pnpm vitest run --project unit arch-guards process-docs`
 - [x] `T-508` Rà blueprint đợt 6 + cập nhật GO-NO-GO — Gate: `python3 scripts/check-blueprint-evidence.py BLUEPRINT.md && python3 -m unittest discover -s scripts -p "test_*.py"`
 
+## Đợt 7 — tính năng spec còn thiếu + rào còn lại (D-042; đề xuất T-508 ở `BLUEPRINT-GAPS.md`)
+
+Thứ tự: T-601 → T-603 (nhỏ) song song; T-604, T-605, T-606 (tính năng) song song theo module; T-607, T-610 rào; T-608 hiệu năng (job CI → người); T-609 rà cuối. Mỗi nhóm một PR, merge khi CI xanh + review độc lập hết 🔴/🟠 (chủ dự án duyệt 2026-10-17). Migration: T-604 0057, T-605 0058, T-602 0059, T-610 0060.
+
+- [ ] `T-601` Quyết D-xxx và sửa idempotency đồng thời: 409 khi hàng `in_progress` chưa commit (đúng chuẩn) hoặc giữ chờ-rồi-replay + sửa mục; OpenAPI ghi 422/409; sửa tên test cũ (BE-API-008) — Gate: `pnpm vitest run --project db command-pipeline command-route && pnpm vitest run --project unit openapi`
+- [ ] `T-602` Tải lên + đọc ảnh `lease_settlement` (thêm owner type, quyền ghi/đọc theo `lease_settlements_read`), test người không quyền → 404, URL ký ((spec lease)) — Gate: `pnpm vitest run --project db files lease-settlement && pnpm vitest run --project unit process-docs`
+- [ ] `T-603` Lệnh HTTP `unit.create`/`unit.archive` vào registry + authz-matrix + OpenAPI (S-005/S-006 access) — Gate: `pnpm vitest run --project db authz-matrix units && pnpm vitest run --project unit openapi`
+- [ ] `T-604` Tồn: `setUnitAvailability`, `resizeAllocation`, `searchAvailability`, `getCalendar`, job `detectOverdue`, outbox mọi command (quyết tên sự kiện) (S-013, S-017…S-021, S-023 inventory) — Gate: `pnpm vitest run --project db inventory && pnpm vitest run --project unit process-docs` (nền inventory về rỗng)`
+- [ ] `T-605` Truy cập: `org.create`/`property.create`/`property.update` (+ migration `PROPERTY_IN_USE`), `member.invite`/`acceptInvitation`/`updateRole`/`updateScope`, `session.revokeAll`; quyết S-025 (S-001…S-003, S-007, S-008, S-010, S-018, S-023, S-025 access) — Gate: `pnpm vitest run --project db access auth authz-matrix && pnpm vitest run --project unit process-docs`
+- [ ] `T-606` PWA/UI: `Clear-Site-Data`, 426 `CLIENT_OUTDATED`, backoff + `RESULT_UNKNOWN`, đăng nhập lại giữ `command_id`, điều hướng 5 mục; EXIF Orientation; quyết S-024 (phần cần thiết bị thật → người) (S-007, S-009, S-012…S-014 pwa; S-016, S-024 housekeeping) — Gate: `pnpm --filter @hm/web exec playwright test pwa && pnpm vitest run --project unit process-docs`
+- [ ] `T-607` Rào nhỏ còn lại: BASE-SEC-001 (khẳng định 4xx có kiểm soát + ca end < start), ARC-RES-005 (E2E hai bản sao web), WF-DOC-001/WF-TEAM-003/XC-GREEN-005 (`pr-policy`, không đổi workflow) (BASE-SEC-001, ARC-RES-005, WF-DOC-001, WF-TEAM-003, XC-GREEN-005) — Gate: `pnpm vitest run --project db authz-matrix && python3 -m unittest discover -s scripts -p "test_*.py"`
+- [ ] `T-608` Hiệu năng: script k6 + cấu hình Lighthouse + `docs/perf/baseline-*.json` trong repo (job CI cần chủ dự án duyệt — điểm dừng §6, `loop defer`) (XC-PERF-004, XC-GREEN-001, QA-PERF-006; GO-NO-GO #12) — Gate: `pnpm vitest run --project unit perf` (test cấu trúc/baseline)`
+- [ ] `T-610` CSDL: index cho 52 FK nhóm A (cột người thao tác, ngoại lệ D-035) — migration 0060, rào schema-guards FK thiếu index = 0 không ngoại lệ (DB-MODEL-004) — Gate: `pnpm vitest run --project db schema-guards migration-0060`
+- [ ] `T-609` Rà blueprint đợt 7 + GO-NO-GO (—) — Gate: `python3 scripts/check-blueprint-evidence.py BLUEPRINT.md && python3 -m unittest discover -s scripts -p "test_*.py"`
+
 ## Phụ thuộc ngoài
 | Việc | Bên ngoài | Kế hoạch B |
 |---|---|---|

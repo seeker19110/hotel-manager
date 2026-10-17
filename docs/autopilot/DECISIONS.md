@@ -294,3 +294,24 @@
 - Chọn: Chặt: bỏ tick UX-STATE-001, DB-MODEL-004, XC-GREEN-007 (đạt một phần, ghi GAPS); giữ DB-PERF-001 vì Kiểm chỉ đòi file explain + test chặn Seq Scan, đã đủ
 - Lý do (tiêu chí chất lượng cuối): (1) đúng và an toàn: luật bằng chứng — tick chỉ khi Kiểm đạt đủ; cách hiểu chặt hơn. (2) đường lùi: tick lại khi có Storybook/index nhóm A/DPIA.
 - Đường lùi: Đổi [ ] thành [x] ở 3 dòng BLUEPRINT.md.
+
+### D-042 · 2026-10-17T09:05:05+00:00 · Đợt 7: 8 MUST còn mở làm được trong repo + 26 S-NNN của spec đã Approved chưa có tính năng — làm hết hay dừng ở done-pending-human?
+
+- Phương án: (1) Làm hết theo T-601…T-610 (đề xuất T-508), mỗi nhóm một PR, cùng luật merge từng lát · (2) Dừng: đưa vào báo cáo cho người
+- Chọn: Làm hết theo T-601…T-610 (đề xuất T-508), mỗi nhóm một PR, cùng luật merge từng lát
+- Lý do (tiêu chí chất lượng cuối): (1) đúng: spec đã Approved là ý định đã ghi (org.create, member.invite, tồn…) — thiếu là lỗi sản phẩm, không phải phạm vi mới; D-036 làm hết; còn ngân sách (36/130 vòng, hạn 2026-10-21).
+- Đường lùi: Bỏ task chưa làm khỏi PLAN, ghi vào BLUEPRINT-GAPS.
+
+### D-043 · 2026-10-17T09:05:05+00:00 · BE-API-008: request đồng thời cùng Idempotency-Key khi lần đầu chưa commit — 409 ngay hay chờ khoá rồi replay?
+
+- Phương án: (1) 409 IDEMPOTENCY_IN_PROGRESS (Retry-After 1) khi hàng in_progress chưa commit — theo draft IETF httpapi-idempotency-key-header và Kiểm của mục · (2) Giữ chờ-rồi-replay (đúng 1 hiệu lực) và sửa mục
+- Chọn: 409 IDEMPOTENCY_IN_PROGRESS (Retry-After 1) khi hàng in_progress chưa commit — theo draft IETF httpapi-idempotency-key-header và Kiểm của mục
+- Lý do (tiêu chí chất lượng cuối): (1) đúng chuẩn đã ghi trong blueprint; không giữ kết nối CSDL chờ khoá (pool ≤ 20); client đã xử lý theo code + Retry-After. (2) đường lùi một nhánh trong pipeline.
+- Đường lùi: Bỏ nhánh 409, quay lại chờ khoá advisory.
+
+### D-044 · 2026-10-17T09:05:05+00:00 · UX-STATE-001 đòi Storybook 4 story/component; dự án dùng Server Component, 4 trạng thái theo route đã có rào máy (route-states.test.mjs) + E2E — thêm Storybook hay miễn?
+
+- Phương án: (1) Miễn [~] có lý do + điều kiện mở lại (khi có thư viện component client dùng chung); giữ rào route-states làm kiểm tương đương · (2) Thêm Storybook (phụ thuộc dev lớn, RSC còn thử nghiệm)
+- Chọn: Miễn [~] có lý do + điều kiện mở lại (khi có thư viện component client dùng chung); giữ rào route-states làm kiểm tương đương
+- Lý do (tiêu chí chất lượng cuối): (3) đơn giản, không thêm phụ thuộc lớn cho kiểm đã có máy tương đương; (2) đường lùi: thêm Storybook sau. Miễn cần chủ dự án xác nhận cùng các miễn trừ khác.
+- Đường lùi: Bỏ [~], thêm Storybook + script đếm story.
