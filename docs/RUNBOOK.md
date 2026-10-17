@@ -43,6 +43,9 @@ Khi chạy thật (đề xuất D-021): chặn thêm `/api/metrics` ở reverse 
 | `/api/ready` | 503 > 2 phút | Phụ thuộc hỏng (CSDL/kho/máy quét) |
 | burn rate khả dụng/độ trễ | xem `docs/ops/SLO.md` §2 | Đốt ngân sách lỗi nhanh (page) hoặc chậm (ticket) |
 | `hm_reconciliation_breaks_oldest_open_age_seconds` | > 48 giờ trong 1 giờ | Chênh lệch đối soát mở quá SLA (§3.6) |
+| `hm_db_connections / hm_db_max_connections` | > 80% trong 10 phút | Gần cạn kết nối CSDL (§3.2) |
+| `hm_db_xid_age`, `hm_db_multixact_age` | > 1,0 tỷ trong 30 phút (ticket); > 1,8 tỷ trong 5 phút (page) | Autovacuum đóng băng không theo kịp, nguy cơ wraparound ở 2^31 (§3.10) |
+| `hm_db_dead_tuples` và `hm_db_dead_tuple_ratio` | > 10.000 hàng và > 20% trong 1 giờ | Bloat: hàng chết chưa được dọn (§3.11) |
 
 ## 3. Sự cố thường gặp
 
@@ -53,6 +56,19 @@ Khi chạy thật (đề xuất D-021): chặn thêm `/api/metrics` ở reverse 
 ### 3.2 CSDL đầy kết nối / chậm
 - `select count(*), usename, state from pg_stat_activity group by 2,3;` — mỗi tiến trình ≤ 20 kết nối; tổng không vượt `max_connections`.
 - Truy vấn treo: `select pid, now()-query_start, left(query,120) from pg_stat_activity where state <> 'idle' order by 2 desc;` — huỷ bằng `pg_cancel_backend(pid)` (không `terminate` khi chưa rõ).
+
+### 3.10 Tuổi XID cao (nguy cơ wraparound)
+Cảnh báo `HmDbXidAgeHigh` (ticket, 1,0 tỷ) và `HmDbXidAgeCritical` (page, 1,8 tỷ) theo `hm_db_xid_age` = `age(datfrozenxid)`; trần là 2^31 ≈ 2,147 tỷ, PostgreSQL cảnh báo ở 40 triệu còn lại và từ chối giao dịch mới ở 3 triệu còn lại (PostgreSQL 18 §24.1.5, xác minh 2026-10-17).
+1. Bảng nào già nhất: `select c.oid::regclass, age(c.relfrozenxid) from pg_class c where c.relkind in ('r','m','t') order by 2 desc limit 10;`.
+2. Cái gì giữ vacuum lại: giao dịch dài `select pid, now()-xact_start, state, left(query,100) from pg_stat_activity where backend_xmin is not null order by age(backend_xmin) desc limit 5;`; giao dịch chuẩn bị bỏ quên `select * from pg_prepared_xacts;`; slot sao chép `select slot_name, age(xmin), age(catalog_xmin) from pg_replication_slots;`.
+3. Huỷ phiên treo bằng `pg_cancel_backend` (không `terminate` khi chưa rõ), rồi `VACUUM (FREEZE, VERBOSE) <bảng>;` bắt đầu từ bảng già nhất, ngoài giờ cao điểm nếu bảng lớn. Autovacuum vẫn phải bật (`SHOW autovacuum`).
+4. Cảnh báo `page` còn kéo dài mà tuổi tiếp tục tăng ⇒ khởi động sự cố SEV2 (docs/ops/INCIDENT-RESPONSE.md); tuyệt đối không tắt autovacuum.
+
+### 3.11 Hàng chết (dead tuples) tăng
+Cảnh báo `HmDbDeadTuplesHigh`: nhãn `table` cho bảng; xem `select relname, n_dead_tup, n_live_tup, last_autovacuum from pg_stat_user_tables order by n_dead_tup desc limit 10;`.
+1. Autovacuum có chạy không (`last_autovacuum` gần đây)? Không ⇒ tìm giao dịch dài giữ xmin như §3.10 bước 2.
+2. Bảng ghi nhiều đã có tham số riêng (migration 0048, docs/db/connections.md §4); bảng khác cần thì thêm `ALTER TABLE … SET (autovacuum_vacuum_scale_factor = …)` bằng migration mới.
+3. Cần dọn gấp: `VACUUM (VERBOSE, ANALYZE) <bảng>;` (không `FULL` — khoá bảng).
 
 ### 3.3 Outbox đứng (`hm_outbox_oldest_unpublished_age_seconds` tăng)
 1. Worker còn nhịp không (`hm_worker_heartbeat_age_seconds`)? Không ⇒ khởi động lại worker.
