@@ -3,8 +3,10 @@
 // (khoá có tiền tố tổ chức) → hàng `files`. Đọc: kiểm quyền TRƯỚC, rồi mới cấp URL ký ≤ 5 phút.
 
 import { createHash, randomUUID } from "node:crypto";
+import { withTenant } from "@hm/db";
 import { authorize } from "@hm/domain";
-import { sql } from "kysely";
+import { type Kysely, sql, type Transaction } from "kysely";
+import type { Actor } from "../access/actor.ts";
 import type { CommandContext } from "../pipeline/command.ts";
 import { CommandError } from "../pipeline/problem.ts";
 import { ScannerUnavailableError } from "./clamd.ts";
@@ -15,6 +17,7 @@ import {
   type MalwareScanner,
   stripImageMetadata,
 } from "./inspect.ts";
+import { finalizeStaged, stagedId, stageFile } from "./staging.ts";
 import { MAX_SIGNED_URL_SECONDS, type ObjectStorage } from "./storage.ts";
 
 export type FileOwnerType =
@@ -66,24 +69,36 @@ const UPLOAD_ACTION: Partial<Record<FileOwnerType, "identity.read" | "residence_
   residence_notice: "residence_notice.manage",
 };
 
-export async function uploadFile(
-  ctx: CommandContext,
-  deps: FileDeps,
-  input: { ownerType: FileOwnerType; ownerId?: string; propertyId: string; bytes: Uint8Array },
-): Promise<{ fileId: string; status: "ready" | "rejected"; mime: DetectedMime }> {
-  if (ctx.actor.role === "tenant") {
+export interface UploadInput {
+  ownerType: FileOwnerType;
+  ownerId?: string;
+  propertyId: string;
+  bytes: Uint8Array;
+}
+
+/** Kiểm quyền tải lên (vai trò + cơ sở của người thuê). Chạy ở bước prepare (transaction ngắn) VÀ lại trong lệnh. */
+async function assertUploadAllowed(
+  trx: Transaction<unknown>,
+  actor: Actor,
+  input: UploadInput,
+): Promise<void> {
+  if (actor.role === "tenant") {
     // Người thuê (portal, SPEC-portal S-008/S-010): chỉ ảnh sự cố/báo chuyển, chỉ cho cơ sở có hợp đồng mình đứng tên
     // (CSDL cũng chặn — 0038 `portal_files`).
     if (input.ownerType !== "work_order" && input.ownerType !== "payment_claim")
       throw new CommandError("FORBIDDEN", 403, "Bạn không có quyền tải loại file này");
     const own = await sql<{ ok: boolean }>`
-      select ${input.propertyId}::uuid in (select app.tenant_property_ids()) as ok`.execute(ctx.trx);
+      select ${input.propertyId}::uuid in (select app.tenant_property_ids()) as ok`.execute(trx);
     if (!own.rows[0]?.ok) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy cơ sở");
   } else {
-    authorize(ctx.actor, UPLOAD_ACTION[input.ownerType] ?? "work_order.create", {
+    authorize(actor, UPLOAD_ACTION[input.ownerType] ?? "work_order.create", {
       propertyId: input.propertyId,
     });
   }
+}
+
+/** Kích thước → magic bytes theo allowlist → bỏ EXIF. Thuần CPU, không I/O. */
+function inspectUpload(input: UploadInput): { mime: DetectedMime; content: Uint8Array } {
   if (input.bytes.byteLength === 0) throw new CommandError("VALIDATION_FAILED", 422, "File rỗng");
   if (input.bytes.byteLength > MAX_FILE_BYTES)
     throw new CommandError("FILE_TOO_LARGE", 413, "File vượt dung lượng cho phép");
@@ -91,14 +106,99 @@ export async function uploadFile(
   if (!mime || !ALLOW[input.ownerType].includes(mime)) {
     throw new CommandError("FILE_TYPE_NOT_ALLOWED", 415, "Định dạng file không được phép");
   }
-  let content: Uint8Array;
   try {
-    content = stripImageMetadata(input.bytes, mime);
+    return { mime, content: stripImageMetadata(input.bytes, mime) };
   } catch (err) {
     if (err instanceof CorruptFileError)
       throw new CommandError("FILE_TYPE_NOT_ALLOWED", 415, "File ảnh hỏng hoặc giả mạo");
     throw err;
   }
+}
+
+/** Kết quả bước prepare: object đã nằm trong kho (nếu sạch), dòng `files` đang `pending_scan` chờ lệnh chốt. */
+export interface PreparedUpload {
+  fileId: string;
+  mime: DetectedMime;
+  size: number;
+  status: "ready" | "rejected";
+  rejectReason: string | null;
+  ownerType: FileOwnerType;
+  propertyId: string;
+}
+
+/**
+ * Bước chuẩn bị NGOÀI transaction lệnh (T-303): kiểm quyền (transaction ngắn) → định dạng → dòng staging → quét → ghi object.
+ * Trong lúc quét/ghi không có kết nối CSDL nào bị giữ. Gọi trước `executeCommand`; truyền kết quả vào `uploadFile`.
+ */
+export async function prepareUpload(
+  db: Kysely<unknown>,
+  deps: FileDeps,
+  actor: Actor,
+  input: UploadInput,
+  idempotencyKey: string,
+): Promise<PreparedUpload> {
+  await withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, (trx) =>
+    assertUploadAllowed(trx, actor, input),
+  );
+  const { mime, content } = inspectUpload(input);
+  const id = stagedId(actor.orgId, actor.membershipId, `file.upload:${input.ownerType}`, idempotencyKey);
+  const base = {
+    fileId: id,
+    mime,
+    size: content.byteLength,
+    ownerType: input.ownerType,
+    propertyId: input.propertyId,
+  };
+  const staged = await stageFile(db, actor, {
+    id,
+    ownerType: input.ownerType,
+    ownerId: input.ownerId ?? null,
+    propertyId: input.propertyId,
+    mime,
+    size: content.byteLength,
+    sha256: createHash("sha256").update(content).digest("hex"),
+    exifStripped: mime.startsWith("image/"),
+  });
+  if (staged.state === "done" && staged.status !== "pending_scan")
+    return { ...base, status: staged.status, rejectReason: staged.rejectReason };
+  const scan = await scanOrFail(deps, input.bytes);
+  // File nhiễm KHÔNG được lưu nội dung; chỉ giữ metadata để truy vết.
+  if (scan.clean) await deps.storage.put(staged.key, content, mime);
+  return {
+    ...base,
+    status: scan.clean ? "ready" : "rejected",
+    rejectReason: scan.clean ? null : scan.reason,
+  };
+}
+
+export async function uploadFile(
+  ctx: CommandContext,
+  deps: FileDeps,
+  input: UploadInput & {
+    /** Từ `prepareUpload` (đường sản phẩm). Không có ⇒ đường cũ quét + ghi object NGAY TRONG transaction (chỉ cho test/gọi trực tiếp). */
+    prepared?: PreparedUpload;
+  },
+): Promise<{ fileId: string; status: "ready" | "rejected"; mime: DetectedMime }> {
+  await assertUploadAllowed(ctx.trx, ctx.actor, input);
+  const p = input.prepared;
+  if (p) {
+    if (p.ownerType !== input.ownerType || p.propertyId !== input.propertyId)
+      throw new Error("Bản chuẩn bị tải lên không khớp yêu cầu");
+    await finalizeStaged(ctx.trx, ctx.actor, p.fileId, {
+      status: p.status,
+      rejectReason: p.rejectReason,
+      deleteAfterDays: null,
+    });
+    await ctx.audit({
+      action: p.status === "ready" ? "file.uploaded" : "file.rejected",
+      entityType: "file",
+      entityId: p.fileId,
+      propertyId: input.propertyId,
+      after: { owner_type: input.ownerType, mime: p.mime, size_bytes: p.size },
+    });
+    return { fileId: p.fileId, status: p.status, mime: p.mime };
+  }
+  const { mime, content } = inspectUpload(input);
   const id = randomUUID();
   const key = `${ctx.actor.orgId}/${input.ownerType}/${id}`;
   const sha256 = createHash("sha256").update(content).digest("hex");
@@ -153,6 +253,60 @@ export async function storeTabularFile(
   ctx.onRollback(() => deps.storage.delete(key));
   await deps.storage.put(key, input.bytes, input.mime);
   return { fileId: id, sha256 };
+}
+
+/** Kết quả prepare của file nguồn lô nhập: object đã ghi, dòng `files` còn `pending_scan` chờ lệnh `import.upload` chốt. */
+export interface PreparedTabular {
+  fileId: string;
+  /** Id lô nhập dự kiến (cố định theo Idempotency-Key để dòng staging trỏ đúng lô). */
+  batchId: string;
+  sha256: string;
+  size: number;
+  mime: TabularMime;
+}
+
+/** Bước chuẩn bị NGOÀI transaction cho file CSV/XLSX (xem staging.ts). Máy quét báo nhiễm ⇒ 415, không ghi object. */
+export async function prepareTabularFile(
+  db: Kysely<unknown>,
+  deps: FileDeps,
+  actor: Actor,
+  input: { propertyId: string; bytes: Uint8Array; mime: TabularMime },
+  idempotencyKey: string,
+): Promise<PreparedTabular> {
+  const fileId = stagedId(actor.orgId, actor.membershipId, "import.file", idempotencyKey);
+  const batchId = stagedId(actor.orgId, actor.membershipId, "import.batch", idempotencyKey);
+  const sha256 = createHash("sha256").update(input.bytes).digest("hex");
+  const prepared: PreparedTabular = {
+    fileId,
+    batchId,
+    sha256,
+    size: input.bytes.byteLength,
+    mime: input.mime,
+  };
+  const staged = await stageFile(db, actor, {
+    id: fileId,
+    ownerType: "import_batch",
+    ownerId: batchId,
+    propertyId: input.propertyId,
+    mime: input.mime,
+    size: input.bytes.byteLength,
+    sha256,
+    exifStripped: false,
+  });
+  if (staged.state === "done") return prepared;
+  const scan = await scanOrFail(deps, input.bytes);
+  if (!scan.clean) throw new CommandError("FILE_TYPE_NOT_ALLOWED", 415, "File bị từ chối khi quét an toàn");
+  await deps.storage.put(staged.key, input.bytes, input.mime);
+  return prepared;
+}
+
+/** Chốt file nguồn đã chuẩn bị trong transaction lệnh (chỉ CSDL). */
+export async function commitTabularFile(
+  ctx: CommandContext,
+  prepared: PreparedTabular,
+): Promise<{ fileId: string; sha256: string }> {
+  await finalizeStaged(ctx.trx, ctx.actor, prepared.fileId, { status: "ready", deleteAfterDays: null });
+  return { fileId: prepared.fileId, sha256: prepared.sha256 };
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -234,4 +388,67 @@ export async function storeGeneratedFile(
   ctx.onRollback(() => deps.storage.delete(key));
   await deps.storage.put(key, input.bytes, input.mime);
   return { fileId: id };
+}
+
+export interface PreparedGenerated {
+  fileId: string;
+  /** Khoá object trong kho (có tiền tố tổ chức). */
+  key: string;
+  sha256: string;
+  size: number;
+  ownerType: "residence_notice" | "export_job";
+  ownerId: string;
+  propertyId: string | null;
+}
+
+/**
+ * Bước chuẩn bị NGOÀI transaction cho file hệ thống sinh (thông báo lưu trú, bản xuất): dòng staging → ghi object.
+ * `scope`/`idempotencyKey` quyết định id (Idempotency-Key của lệnh, hoặc id job với bản xuất) nên chạy lại ghi đè đúng object đó.
+ */
+export async function prepareGeneratedFile(
+  db: Kysely<unknown>,
+  deps: Pick<FileDeps, "storage">,
+  actor: Actor,
+  input: {
+    ownerType: PreparedGenerated["ownerType"];
+    ownerId: string;
+    propertyId: string | null;
+    bytes: Uint8Array;
+    mime: string;
+  },
+  idempotencyKey: string,
+): Promise<PreparedGenerated> {
+  const fileId = stagedId(actor.orgId, actor.membershipId, `generated:${input.ownerType}`, idempotencyKey);
+  const sha256 = createHash("sha256").update(input.bytes).digest("hex");
+  const staged = await stageFile(db, actor, {
+    id: fileId,
+    ownerType: input.ownerType,
+    ownerId: input.ownerId,
+    propertyId: input.propertyId,
+    mime: input.mime,
+    size: input.bytes.byteLength,
+    sha256,
+    exifStripped: false,
+  });
+  if (staged.state !== "done") await deps.storage.put(staged.key, input.bytes, input.mime);
+  return {
+    fileId,
+    key: staged.key,
+    sha256,
+    size: input.bytes.byteLength,
+    ownerType: input.ownerType,
+    ownerId: input.ownerId,
+    propertyId: input.propertyId,
+  };
+}
+
+/** Chốt file sinh sẵn trong một transaction (của lệnh hoặc của job): `ready` + hạn xoá (`"keep"` giữ hạn staging). */
+export async function commitGeneratedFile(
+  trx: Transaction<unknown>,
+  actor: Actor,
+  prepared: PreparedGenerated,
+  deleteAfterDays: number | "keep",
+): Promise<{ fileId: string }> {
+  await finalizeStaged(trx, actor, prepared.fileId, { status: "ready", deleteAfterDays });
+  return { fileId: prepared.fileId };
 }

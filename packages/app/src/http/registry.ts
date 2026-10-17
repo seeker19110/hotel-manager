@@ -143,7 +143,12 @@ import {
   listReservations,
   markNoShow,
 } from "../stay/reservations.ts";
-import { exportResidenceNotice, listNotices, markNoticeSubmitted } from "../stay/residence-notices.ts";
+import {
+  exportResidenceNotice,
+  listNotices,
+  markNoticeSubmitted,
+  prepareResidenceNotice,
+} from "../stay/residence-notices.ts";
 import { checkIn, type GuestInput, walkIn } from "../stay/stays.ts";
 import { getSummary, listItems, TODAY_CARDS } from "../today/today.ts";
 import type { CommandDef, QueryDef } from "./command-route.ts";
@@ -210,9 +215,9 @@ const toBankTxn = (b: z.infer<typeof bankTxn>) => ({
 
 /** Kiểu rộng cho danh mục (mỗi mục giữ schema riêng). */
 // biome-ignore lint/suspicious/noExplicitAny: danh mục không đồng nhất; mỗi mục tự gõ kiểu qua defineCommand
-type AnyCommand = CommandDef<any, any>;
+type AnyCommand = CommandDef<any, any, any>;
 
-function defineCommand<I, O>(def: CommandDef<I, O>): CommandDef<I, O> {
+function defineCommand<I, O, P = undefined>(def: CommandDef<I, O, P>): CommandDef<I, O, P> {
   return def;
 }
 
@@ -267,8 +272,8 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
     input: z.strictObject({ approval_request_id: uuid }),
     run: async (ctx, i) => ({ data: await cancelApproval(ctx, i.approval_request_id) }),
   }),
-  "roomType.create": defineCommand({
-    command: "roomType.create",
+  "room_type.create": defineCommand({
+    command: "room_type.create",
     input: z.strictObject({
       property_id: uuid,
       code: z.string().trim().min(1).max(20),
@@ -285,8 +290,8 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
       httpStatus: 201,
     }),
   }),
-  "roomType.update": defineCommand({
-    command: "roomType.update",
+  "room_type.update": defineCommand({
+    command: "room_type.update",
     input: z.strictObject({
       room_type_id: uuid,
       name: z.string().trim().min(1).max(100).optional(),
@@ -538,7 +543,12 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
   "stay.exportResidenceNotice": defineCommand({
     command: "stay.exportResidenceNotice",
     input: z.strictObject({ stay_id: uuid }),
-    run: async (ctx, i, svc) => ({ data: await exportResidenceNotice(ctx, svc, { stayId: i.stay_id }) }),
+    // Dựng file + ghi object NGOÀI transaction lệnh (T-303); lệnh chỉ chốt dòng `files` và cập nhật thông báo.
+    prepare: (db, actor, i, svc, meta) =>
+      prepareResidenceNotice(db, svc, actor, { stayId: i.stay_id }, meta.idempotencyKey),
+    run: async (ctx, i, svc, prepared) => ({
+      data: await exportResidenceNotice(ctx, svc, { stayId: i.stay_id, prepared }),
+    }),
   }),
   "stay.markNoticeSubmitted": defineCommand({
     command: "stay.markNoticeSubmitted",

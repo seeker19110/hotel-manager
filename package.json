@@ -13,7 +13,8 @@
     "format": "biome format --write .",
     "test": "vitest run",
     "test:db": "vitest run --project db",
-    "licenses:check": "node scripts/check-licenses.mjs"
+    "licenses:check": "node scripts/check-licenses.mjs",
+    "openapi": "node apps/web/scripts/openapi.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",

@@ -162,3 +162,38 @@
 - Chọn: Tick 48 mục đạt có bằng chứng file git/CI (bỏ tham chiếu không được git theo dõi), chấp nhận 18 miễn trừ có dữ kiện + điều kiện mở lại, loop defer 46 mục cần người/production, lập docs/autopilot/BLUEPRINT-GAPS.md cho 261 mục thiếu làm đề xuất PLAN đợt 4
 - Lý do (tiêu chí chất lượng cuối): Tiêu chí 2–3: không phình phạm vi đợt đã duyệt (D-009), giữ minh bạch — GO-NO-GO ghi NO-GO đúng thực tế; nhiều khoảng trống cần quyết của chủ dự án (giấy phép, kênh báo lỗ hổng, pháp lý)
 - Đường lùi: Mục [x]/[~] đổi lại [ ] bằng một commit; danh sách thiếu chỉ là đề xuất
+
+### D-023 · 2026-10-16T13:38:29+00:00 · Đợt 4: 261 mục MUST còn thiếu (BLUEPRINT-GAPS.md) — làm gì trong repo, phần nào là điểm dừng của người, sắp lát thế nào?
+
+- Phương án: (1) Làm mọi mục, kể cả sửa workflow CI/cấu hình cổng (coverage, forbidOnly, biome rule, Lighthouse, SAST, SBOM) ngay trong đợt · (2) Chỉ làm mục sửa được trong mã/tài liệu/test mà không đổi cấu hình cổng-CI-hook (bộ kiểm mới viết thành test chạy trong pnpm test sẵn có); cấu hình cổng/CI/hook, giấy phép, kênh SECURITY, pháp lý (DSAR/đồng ý), analytics → loop defer có đề xuất sẵn · (3) Dừng đợt 3, bàn giao 261 mục cho người
+- Chọn: Chỉ làm mục sửa được trong mã/tài liệu/test mà không đổi cấu hình cổng-CI-hook (bộ kiểm mới viết thành test chạy trong pnpm test sẵn có); cấu hình cổng/CI/hook, giấy phép, kênh SECURITY, pháp lý (DSAR/đồng ý), analytics → loop defer có đề xuất sẵn
+- Lý do (tiêu chí chất lượng cuối): (1) đúng và an toàn: AGENTS §6 coi đổi cấu hình cổng/CI/hook là điểm dừng bắt buộc — phương án 1 vi phạm; worker hiện chưa chạy thật (main chỉ in thông báo) và chưa xử lý SIGTERM là lỗi đúng-sai nên phải làm trước. (2) giữ đường lùi: DSAR/đồng ý phụ thuộc cơ sở pháp lý từng hoạt động xử lý (DPIA chờ người) — làm data map trước để người quyết. (3) kiểm máy được: rào mới viết thành test vitest/unittest nên chạy ngay trong cổng hiện có mà không đổi cấu hình. Phương án 3 bỏ việc làm được.
+- Đường lùi: Mỗi lát một PR riêng (7 runtime, 8 tài liệu/hồ sơ, 9 UX); bỏ lát nào thì revert PR đó; mục đã defer vẫn có đề xuất trong BLUEPRINT-GAPS.md để người bật sau.
+
+### D-024 · 2026-10-16T14:21:42+00:00 · T-301: pg-boss tự dựng schema pgboss nên app_worker cần quyền CREATE trên database — cấp quyền thế nào?
+
+- Phương án: (1) GRANT CREATE ON DATABASE cho app_worker (sửa bootstrap-roles.sql) · (2) Migration 0047 tạo sẵn schema pgboss AUTHORIZATION app_worker bằng vai trò owner; app_worker chỉ có quyền trong schema đó · (3) Chạy pg-boss bằng vai trò owner
+- Chọn: Migration 0047 tạo sẵn schema pgboss AUTHORIZATION app_worker bằng vai trò owner; app_worker chỉ có quyền trong schema đó
+- Lý do (tiêu chí chất lượng cuối): (1) an toàn: quyền tối thiểu — app_worker không được tạo schema tuỳ ý trong database (CREATE ON DATABASE cho phép tạo schema bất kỳ, kể cả che search_path); vai trò owner trong worker trái nguyên tắc NOBYPASSRLS. (3) đơn giản: một migration có đường lùi (DROP SCHEMA khi down chỉ nếu rỗng).
+- Đường lùi: Migration down xoá schema pgboss nếu rỗng; đổi sang phương án 1 bằng một GRANT.
+
+### D-025 · 2026-10-16T14:21:42+00:00 · T-303: đưa quét clamd + storage.put (và ghi file export) ra ngoài transaction lệnh, dọn object mồ côi thế nào?
+
+- Phương án: (1) A: dòng files staging pending_scan (transaction ngắn) → quét + put ngoài transaction → transaction lệnh chuyển ready/rejected; id/key suy từ Idempotency-Key; job hạn giữ dọn pending_scan quá hạn (migration 0047 sửa hàm hạn giữ) · (2) B: put trước transaction, xoá bù trong finally; sập tiến trình để lại object mồ côi, cần job quét bucket · (3) C: chỉ đưa bước quét ra ngoài, giữ put trong transaction
+- Chọn: A: dòng files staging pending_scan (transaction ngắn) → quét + put ngoài transaction → transaction lệnh chuyển ready/rejected; id/key suy từ Idempotency-Key; job hạn giữ dọn pending_scan quá hạn (migration 0047 sửa hàm hạn giữ)
+- Lý do (tiêu chí chất lượng cuối): (1) đúng và an toàn: retry S3 (T-302) có thể kéo put tới ~60 s > idle_in_transaction_session_timeout 30 s của app_runtime — C và hiện trạng làm Postgres cắt kết nối giữa lệnh; B để lại object mồ côi không ai dọn khi sập. A có bản ghi DB cho mọi object nên job hạn giữ dọn được, replay idempotent. (3) dùng trạng thái pending_scan đã có trong CHECK; áp cho cả export ở worker.
+- Đường lùi: Revert commit T-303 + migration down 0047 (khôi phục hàm hạn giữ của 0045); luồng cũ vẫn chạy được.
+
+### D-026 · 2026-10-16T14:21:42+00:00 · T-301: sự kiện outbox chưa có consumer — giữ ở hàng đợi hay đánh dấu đã phát? (sửa theo review lát 7)
+
+- Phương án: (1) Đánh dấu đã phát không sinh job cho MỌI event_type không consumer (consumer thêm sau/worker khác không nhận sự kiện cũ — sự kiện có thể MẤT khi triển khai lệch phiên bản) · (2) Tạo queue lười cho mọi event_type, job chất đống trong pgboss.job tới khi có consumer · (3) Để nguyên ở outbox không lùi (chặn đầu hàng vì claim lấy cũ nhất trước) · (4) Chỉ bỏ qua có chủ đích loại khai tường minh "chỉ để audit"; loại khác không consumer ⇒ không đánh dấu đã phát, `last_error = 'no_consumer'`, lùi lần thử (`outbox.available_at`, backoff trong `app.outbox_mark`), log `outbox.no_consumer`
+- Chọn: (4). Bản đầu chọn (1) — sửa theo review lát 7: (1) làm mất sự kiện khi hai worker lệch phiên bản (worker không có handler đánh dấu đã phát hàng mà worker kia đáng lẽ xử lý) và không để lại dấu vết
+- Lý do (tiêu chí chất lượng cuối): (1) đúng và an toàn: không mất sự kiện, hàng chưa xử lý còn đó để worker có consumer nhận và để cảnh báo `hm_outbox_unpublished`/`hm_outbox_oldest_unpublished_age_seconds`/`hm_outbox_failing` thấy. (3) bền: danh sách audit-only là hằng có comment (`AUDIT_ONLY_EVENT_TYPES`, `apps/worker/src/relay.ts`) + test quét mã chặn thêm event_type mà quên cả consumer lẫn khai báo; lùi `available_at` (migration 0047, chưa merge) giữ claim "cũ nhất trước" không kẹt đầu hàng; lỗi gửi pg-boss cũng được lùi (trước đó thử lại mỗi nhịp). Phương án 2 tích job không giới hạn.
+- Đường lùi: Migration 0047 down khôi phục `outbox_claim/outbox_mark` của 0003 và bỏ cột `available_at`; thêm event_type vào danh sách audit-only để dọn hàng `no_consumer` cũ (được đánh dấu đã phát ở lượt kế).
+
+### D-027 · 2026-10-16T14:28:08+00:00 · roomType.create/update luôn 422 vì idempotency_keys.command CHECK '^[a-z_]+(\.[a-zA-Z_]+)+$' (0003) không nhận đoạn đầu có chữ hoa — sửa tên lệnh hay nới CHECK?
+
+- Phương án: (1) Đổi tên lệnh thành room_type.create/update (khớp quy ước snake_case đoạn đầu của mọi lệnh khác + tên bảng room_types), thêm test mọi lệnh registry khớp CHECK · (2) Migration mới nới regex CHECK cho phép camelCase đoạn đầu
+- Chọn: Đổi tên lệnh thành room_type.create/update (khớp quy ước snake_case đoạn đầu của mọi lệnh khác + tên bảng room_types), thêm test mọi lệnh registry khớp CHECK
+- Lý do (tiêu chí chất lượng cuối): (1) đúng: mọi lệnh khác đều snake_case đoạn đầu; chưa client nào gọi roomType.* (UI chưa có màn loại phòng, lệnh luôn lỗi) nên đổi tên không phá ai. (3) đơn giản: không đụng schema; test registry ↔ CHECK chặn tái phát.
+- Đường lùi: Đổi lại tên trong registry + chạy pnpm openapi.

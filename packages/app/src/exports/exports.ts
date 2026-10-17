@@ -9,12 +9,13 @@
 //   (MAX_SIGNED_URL_SECONDS) và không quá hạn của bản xuất; audit `export.downloaded`.
 // - CSV/XLSX chống formula injection (S-016): ô chữ bắt đầu bằng = + - @ tab CR ⇒ thêm `'` (CSV); XLSX ghi kiểu chuỗi; số
 //   giữ là số. Xuất toàn tổ chức (S-018): ZIP các CSV nghiệp vụ, không ảnh/file, không số giấy tờ, bỏ cột bí mật.
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { withTenant } from "@hm/db";
 import { authorize } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
 import { AccessError, type Actor, resolveActor } from "../access/actor.ts";
 import { listEvents } from "../audit/events.ts";
+import { commitGeneratedFile, prepareGeneratedFile } from "../files/files.ts";
 import { MAX_SIGNED_URL_SECONDS, type ObjectStorage } from "../files/storage.ts";
 import { writeXlsx, zipStore } from "../import/xlsx.ts";
 import { createNotification } from "../notifications/dispatch.ts";
@@ -361,6 +362,7 @@ export async function downloadExport(
     entityId: job.id,
     ...(job.property_id ? { propertyId: job.property_id } : {}),
   });
+  ctx.security({ event: "export.downloaded", target: { type: "export_job", id: job.id } });
   return { url: await deps.storage.signedGetUrl(job.file_key, expiresIn), expiresIn };
 }
 
@@ -666,11 +668,12 @@ export async function runExportJob(
       property_id: string | null;
       requested_by: string;
       filters: Record<string, string>;
+      version: number;
     }>`
       update export_jobs set status = 'running', version = version + 1
       where organization_id = ${orgId} and id = ${id}
         and (status = 'queued' or (status = 'running' and updated_at < ${now}::timestamptz - interval '10 minutes'))
-      returning id, kind, format, property_id, requested_by, filters`.execute(trx);
+      returning id, kind, format, property_id, requested_by, filters, version`.execute(trx);
     return r.rows[0];
   });
   if (!claimed) return "skipped";
@@ -709,6 +712,8 @@ type Claimed = {
   property_id: string | null;
   requested_by: string;
   filters: Record<string, string>;
+  /** Tăng mỗi lần nhận job (`running`) ⇒ định danh lượt chạy; lượt chạy lại không đụng file của lượt trước. */
+  version: number;
 };
 
 async function produce(
@@ -757,18 +762,22 @@ async function produce(
     throw err;
   }
 
-  // File riêng tư, ghi trong ngữ cảnh người yêu cầu (policy `files` nhánh export_job); put lỗi ⇒ rollback hàng files.
-  const key = `${orgId}/export_job/${randomUUID()}`;
+  // File riêng tư, ghi trong ngữ cảnh người yêu cầu (policy `files` nhánh export_job). T-303: dòng staging (transaction ngắn)
+  // → `storage.put` KHÔNG giữ kết nối CSDL → chốt `ready` (transaction ngắn). id/khoá suy từ (id job, số lần nhận job = `version`):
+  // lượt chạy lại (job `running` bỏ dở > 10 phút được nhận lại, dữ liệu có thể đã đổi ⇒ sha256 khác) có file RIÊNG, không dính
+  // 409 của dòng staging lượt trước (review lát 7 🟡5). File của lượt bỏ dở là mồ côi: có dòng staging + `delete_after` → job hạn giữ dọn.
   const mime = MIME[claimed.format];
-  await withTenant(deps.db, { orgId, actorId: actor.membershipId }, async (trx) => {
-    await sql`
-      insert into files (id, organization_id, property_id, owner_type, owner_id, mime, size_bytes, sha256, status, storage_key,
-                         uploaded_by, scanned_at, delete_after)
-      values (${randomUUID()}, ${orgId}, ${claimed.property_id}, 'export_job', ${id}, ${mime}, ${bytes.byteLength},
-              ${createHash("sha256").update(bytes).digest("hex")}, 'ready', ${key}, ${actor.membershipId}, ${now},
-              (${now}::timestamptz at time zone 'Asia/Ho_Chi_Minh')::date + 2)`.execute(trx);
-    await deps.storage.put(key, bytes, mime);
-  });
+  const prepared = await prepareGeneratedFile(
+    deps.db,
+    deps,
+    actor,
+    { ownerType: "export_job", ownerId: id, propertyId: claimed.property_id, bytes, mime },
+    `${id}:run${claimed.version}`,
+  );
+  await withTenant(deps.db, { orgId, actorId: actor.membershipId }, (trx) =>
+    commitGeneratedFile(trx, actor, prepared, "keep"),
+  );
+  const key = prepared.key;
   const expiresAt = new Date(now.getTime() + EXPORT_TTL_MINUTES * 60_000);
   let hit = false;
   await transition(deps.workerDb, orgId, async (trx) => {

@@ -1571,7 +1571,8 @@ Loại: H (chỉ cột phát/thử lại đổi; worker xoá theo hạn)
 | dedupe_key | text | có | | Khoá chống tạo trùng của job định kỳ (vd `(lease_id, version_no, 30)`); SPEC-notifications chưa liệt kê cột, mục 7 |
 | published_at | timestamptz | có | | NULL = chưa chuyển cho pg-boss |
 | attempts | integer | không | mặc định `0` | |
-| last_error | text | có | | |
+| last_error | text | có | | Lỗi phát gần nhất; `no_consumer` = chưa worker nào có consumer cho event_type (D-026) |
+| available_at | timestamptz | không | mặc định `now()` (0047) | Lần thử kế tiếp sớm nhất; `app.outbox_mark` lùi theo backoff khi lỗi; `app.outbox_claim` bỏ qua hàng chưa tới hạn |
 
 - Khoá/index: `UNIQUE (organization_id, dedupe_key) WHERE dedupe_key IS NOT NULL`; `ix (id) WHERE published_at IS NULL` cho relay (`FOR UPDATE SKIP LOCKED`).
 - Ràng buộc đặc biệt: INSERT chung transaction với nghiệp vụ và `audit_events` (INV-G6); gửi ra ngoài làm sau COMMIT; transaction rollback ⇒ không có hàng. `app_worker` có policy riêng đọc các hàng `published_at IS NULL` mọi tổ chức để relay, và đặt `app.org_id` theo hàng trước khi làm việc tiếp (đề xuất, T-008).

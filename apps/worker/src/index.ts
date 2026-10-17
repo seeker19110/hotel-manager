@@ -1,4 +1,4 @@
-// Worker nền: outbox relay + consumer pg-boss (ARCHITECTURE container apps/worker).
+// Worker nền: outbox relay + consumer pg-boss + job định kỳ (ARCHITECTURE container apps/worker). Chạy thật: runtime.ts.
 export {
   detectOverstay,
   expireHeldReservations,
@@ -17,13 +17,22 @@ export {
   workerHeartbeat,
 } from "./jobs.ts";
 export { DEAD_LETTER_QUEUE, ensureQueues, type OutboxJob, relayOutbox, startConsumers } from "./relay.ts";
+export {
+  bootWorker,
+  installShutdown,
+  type RunningWorker,
+  runMain,
+  startWorker,
+  type WorkerDeps,
+} from "./runtime.ts";
 
-export function main(): void {
-  process.stdout.write(
-    "hotel-manager worker: dùng relayOutbox/startConsumers (T-008); khởi chạy thật ở G5 staging\n",
-  );
+import { runMain } from "./runtime.ts";
+
+/** Khởi chạy worker thật từ `process` (env, tín hiệu, mã thoát). */
+export function main(): Promise<void> {
+  return runMain(process);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  main();
+  void main();
 }

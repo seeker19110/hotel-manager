@@ -1,0 +1,30 @@
+{
+  "_ghi_chu": "Nền ratchet cho ARC-MOD-004 (arch-guards.test.ts). Mỗi mục là một cạnh phụ thuộc 'thư mục module -> thư mục module' nằm TRONG một vòng phụ thuộc đã có lúc lập nền (đợt 4, T-306). Cạnh nằm trong vòng mà không có ở đây → test đỏ (vòng mới). Mục hết nằm trong vòng → test đỏ đòi xoá khỏi danh sách (chỉ được co lại, không được phình ra). Không thêm mục để làm xanh: sửa phụ thuộc.",
+  "vong": {
+    "access<->pipeline": "access/actor.ts <-> pipeline/command.ts: kiểu Actor và AccessError dùng chung hai chiều. Cách gỡ: chuyển Actor/AccessError sang module nền (vd. packages/app/src/identity-core) mà cả hai cùng phụ thuộc.",
+    "http<->(exports|files|import|notifications|portal|server|stay)": "http/ vừa là lõi HTTP (command-route.ts: json/problem/actorFromRequest) vừa là danh mục lệnh (registry.ts import mọi module), trong khi route adapter của module (files/http.ts, import/http.ts, notifications/http.ts, portal/guest-http.ts, server/context.ts, stay/*) lại import lõi HTTP. Cách gỡ: tách lõi (command-route/problem/normalize) khỏi registry thành module riêng mà registry và các adapter cùng phụ thuộc một chiều."
+  },
+  "canh_trong_vong": [
+    "access->pipeline",
+    "exports->files",
+    "exports->import",
+    "exports->notifications",
+    "files->http",
+    "http->exports",
+    "http->import",
+    "http->notifications",
+    "http->portal",
+    "http->server",
+    "http->stay",
+    "import->files",
+    "import->http",
+    "notifications->http",
+    "pipeline->access",
+    "portal->files",
+    "portal->http",
+    "server->files",
+    "stay->files",
+    "stay->import",
+    "stay->server"
+  ]
+}

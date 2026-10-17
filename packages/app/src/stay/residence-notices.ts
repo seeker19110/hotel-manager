@@ -1,11 +1,19 @@
 // Thông báo lưu trú — nghĩa vụ của CƠ SỞ (SPEC-reservation-stay S-028…S-030, Q-13; SPEC-notifications S-014…S-021). Hệ thống
 // chỉ xuất file theo mẫu cơ sở cấu hình và ghi dấu vết; KHÔNG tự nộp cho cơ quan nhà nước. File chỉ gồm đúng các trường mẫu
 // yêu cầu (không ảnh giấy tờ, SĐT, ghi chú nội bộ, số tiền), riêng tư, link ký ≤ 5 phút, tự xoá sau hạn ngắn.
+import { createHash } from "node:crypto";
 import { withTenant } from "@hm/db";
 import { authorize, toCsv } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/actor.ts";
-import { getFileUrl, storeGeneratedFile } from "../files/files.ts";
+import {
+  commitGeneratedFile,
+  getFileUrl,
+  type PreparedGenerated,
+  prepareGeneratedFile,
+  storeGeneratedFile,
+  type TabularMime,
+} from "../files/files.ts";
 import { revealDocNumber } from "../identity/identity.ts";
 import { writeXlsx } from "../import/xlsx.ts";
 import type { CommandContext } from "../pipeline/command.ts";
@@ -88,27 +96,36 @@ function authorizeNotice(actor: Actor, propertyId: string): void {
   }
 }
 
-/**
- * `stay.exportResidenceNotice` (S-028, S-030): sinh file theo mẫu; thiếu trường bắt buộc → 422 kèm danh sách; chưa có mẫu →
- * 409 NOTICE_TEMPLATE_MISSING. `pending → exported`; xuất lại được (mỗi lần một audit, giữ `exported`/`submitted`).
- */
-export async function exportResidenceNotice(
-  ctx: CommandContext,
-  svc: Pick<AppServices, "pii" | "storage" | "scanner">,
-  input: { stayId: string },
-): Promise<{ noticeId: string; status: string; fileId: string; url: string; expiresIn: number }> {
-  if (!UUID.test(input.stayId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy dữ liệu");
+type NoticeSvc = Pick<AppServices, "pii" | "storage" | "scanner">;
+
+interface BuiltNotice {
+  notice: NoticeRow;
+  format: "csv" | "xlsx";
+  bytes: Uint8Array;
+  mime: string;
+  guests: number;
+}
+
+/** Đọc dữ liệu + dựng file thông báo — chỉ đọc CSDL, không I/O ngoài (dùng ở bước prepare VÀ trong lệnh). */
+async function buildNoticeFile(
+  trx: Transaction<unknown>,
+  actor: Actor,
+  svc: NoticeSvc,
+  stayId: string,
+  lock: boolean,
+): Promise<BuiltNotice> {
+  if (!UUID.test(stayId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy dữ liệu");
   const n = await sql<{ id: string }>`
-    select id from residence_notices where organization_id = ${ctx.actor.orgId} and stay_id = ${input.stayId}`.execute(
-    ctx.trx,
+    select id from residence_notices where organization_id = ${actor.orgId} and stay_id = ${stayId}`.execute(
+    trx,
   );
   if (!n.rows[0]) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy dữ liệu");
-  const notice = await readNotice(ctx.trx, ctx.actor, n.rows[0].id, true);
-  authorizeNotice(ctx.actor, notice.property_id);
+  const notice = await readNotice(trx, actor, n.rows[0].id, lock);
+  authorizeNotice(actor, notice.property_id);
   const cfg = await sql<{ t: unknown; tz: string; pname: string }>`
     select ns.residence_notice_template as t, p.timezone as tz, p.name as pname
     from properties p left join notification_settings ns on ns.organization_id = p.organization_id and ns.property_id = p.id
-    where p.organization_id = ${ctx.actor.orgId} and p.id = ${notice.property_id}`.execute(ctx.trx);
+    where p.organization_id = ${actor.orgId} and p.id = ${notice.property_id}`.execute(trx);
   const c = cfg.rows[0] as { t: unknown; tz: string; pname: string };
   const tpl = parseNoticeTemplate(c.t);
   if (!tpl)
@@ -126,7 +143,7 @@ export async function exportResidenceNotice(
            i.departure_date::text as departure, u.code as unit_code
     from stays s join reservation_items i on i.organization_id = s.organization_id and i.id = s.reservation_item_id
     join units u on u.organization_id = s.organization_id and u.id = s.unit_id
-    where s.organization_id = ${ctx.actor.orgId} and s.id = ${notice.stay_id}`.execute(ctx.trx);
+    where s.organization_id = ${actor.orgId} and s.id = ${notice.stay_id}`.execute(trx);
   const stay = s.rows[0];
   if (!stay) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy dữ liệu");
   const missing: { path: string; field: string; code: string }[] = [];
@@ -143,11 +160,11 @@ export async function exportResidenceNotice(
       left join lateral (select id, doc_type, nationality from identity_documents
                          where organization_id = pe.organization_id and person_id = pe.id and anonymized_at is null
                          order by created_at desc limit 1) d on true
-      where pe.organization_id = ${ctx.actor.orgId} and pe.id = ${personId}`.execute(ctx.trx);
+      where pe.organization_id = ${actor.orgId} and pe.id = ${personId}`.execute(trx);
     const g = p.rows[0];
     const needsDoc = tpl.fields.includes("doc_number");
     const docNumber =
-      needsDoc && g?.doc_id ? await revealDocNumber(ctx.trx, svc.pii, ctx.actor.orgId, g.doc_id) : null;
+      needsDoc && g?.doc_id ? await revealDocNumber(trx, svc.pii, actor.orgId, g.doc_id) : null;
     const value: Record<NoticeField, string | null> = {
       full_name: g?.full_name ?? null,
       nationality: g?.nationality ?? null,
@@ -174,15 +191,84 @@ export async function exportResidenceNotice(
     tpl.format === "csv"
       ? new TextEncoder().encode(toCsv(rows))
       : writeXlsx([{ name: "Thong bao luu tru", rows }]);
-  const { fileId } = await storeGeneratedFile(ctx, svc, {
-    ownerType: "residence_notice",
-    ownerId: notice.id,
-    propertyId: notice.property_id,
+  return {
+    notice,
+    format: tpl.format,
     bytes,
     mime:
       tpl.format === "csv" ? "text/csv" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    deleteAfterDays: 1,
-  });
+    guests: stay.persons.length,
+  };
+}
+
+/**
+ * Bước chuẩn bị NGOÀI transaction lệnh (T-303): dựng file trong transaction đọc ngắn rồi ghi object qua dòng staging
+ * (files/staging.ts). Lỗi nghiệp vụ (thiếu mẫu, thiếu trường, không quyền) ném ra như trong lệnh.
+ */
+export async function prepareResidenceNotice(
+  db: Kysely<unknown>,
+  svc: NoticeSvc,
+  actor: Actor,
+  input: { stayId: string },
+  idempotencyKey: string,
+): Promise<PreparedGenerated> {
+  const built = await withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, (trx) =>
+    buildNoticeFile(trx, actor, svc, input.stayId, false),
+  );
+  return prepareGeneratedFile(
+    db,
+    svc,
+    actor,
+    {
+      ownerType: "residence_notice",
+      ownerId: built.notice.id,
+      propertyId: built.notice.property_id,
+      bytes: built.bytes,
+      mime: built.mime,
+    },
+    idempotencyKey,
+  );
+}
+
+/**
+ * `stay.exportResidenceNotice` (S-028, S-030): sinh file theo mẫu; thiếu trường bắt buộc → 422 kèm danh sách; chưa có mẫu →
+ * 409 NOTICE_TEMPLATE_MISSING. `pending → exported`; xuất lại được (mỗi lần một audit, giữ `exported`/`submitted`).
+ */
+export async function exportResidenceNotice(
+  ctx: CommandContext,
+  svc: NoticeSvc,
+  input: {
+    stayId: string;
+    /** Từ `prepareResidenceNotice` (đường sản phẩm). Không có ⇒ đường cũ ghi object NGAY TRONG transaction. */
+    prepared?: PreparedGenerated;
+  },
+): Promise<{ noticeId: string; status: string; fileId: string; url: string; expiresIn: number }> {
+  const { notice, format, bytes, mime, guests } = await buildNoticeFile(
+    ctx.trx,
+    ctx.actor,
+    svc,
+    input.stayId,
+    true,
+  );
+  let fileId: string;
+  if (input.prepared) {
+    // Dữ liệu đổi giữa bước chuẩn bị và lệnh ⇒ file đã ghi không còn đúng: bắt thử lại thay vì chốt file lệch.
+    if (
+      input.prepared.ownerId !== notice.id ||
+      input.prepared.sha256 !== createHash("sha256").update(bytes).digest("hex")
+    )
+      throw new CommandError("VERSION_CONFLICT", 409, "Dữ liệu vừa thay đổi, vui lòng thử lại");
+    ({ fileId } = await commitGeneratedFile(ctx.trx, ctx.actor, input.prepared, 1));
+  } else {
+    ({ fileId } = await storeGeneratedFile(ctx, svc, {
+      ownerType: "residence_notice",
+      ownerId: notice.id,
+      propertyId: notice.property_id,
+      bytes,
+      mime: mime as TabularMime,
+      deleteAfterDays: 1,
+    }));
+  }
   const status = notice.status === "pending" ? "exported" : notice.status;
   await sql`
     update residence_notices set status = ${status}, exported_at = now(), exported_by = ${ctx.actor.membershipId},
@@ -194,7 +280,7 @@ export async function exportResidenceNotice(
     entityId: notice.id,
     propertyId: notice.property_id,
     before: { status: notice.status },
-    after: { status, file_id: fileId, format: tpl.format, guests: stay.persons.length },
+    after: { status, file_id: fileId, format, guests },
   });
   await ctx.emit({
     eventType: "stay.notice_exported",

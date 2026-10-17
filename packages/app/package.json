@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./config": "./src/config/schema.ts",
     "./http": "./src/http/security.ts"
   },
   "scripts": {

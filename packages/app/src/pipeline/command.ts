@@ -5,6 +5,13 @@ import { withTenant } from "@hm/db";
 import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/actor.ts";
 import { redact } from "../logging/logger.ts";
+import { appLogger } from "../logging/runtime.ts";
+import {
+  emitSecurity,
+  type SecurityClient,
+  type SecurityEventInput,
+  securityEventForProblem,
+} from "../logging/security-events.ts";
 import { CommandError, type Problem, toProblem } from "./problem.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -43,6 +50,11 @@ export interface CommandContext {
    * nghiệp vụ, lỗi commit, hay 40001/40P01 trước khi thử lại). Lỗi của hàm bù trừ được ghi log, không che lỗi gốc.
    */
   onRollback(fn: () => Promise<void>): void;
+  /**
+   * Sự kiện bảo mật của hành động THÀNH CÔNG (SEC-LOG-001): chỉ phát SAU khi transaction commit (không ghi "đã thu hồi" cho
+   * thao tác rồi rollback; không phát lại khi replay cùng Idempotency-Key). Người thao tác/IP/UA/correlation tự gắn.
+   */
+  security(e: Pick<SecurityEventInput, "event" | "target" | "reason">): void;
 }
 
 export type CommandResult<T> =
@@ -54,6 +66,8 @@ export interface CommandRequest {
   idempotencyKey: string | null | undefined;
   payload: unknown;
   correlationId: string;
+  /** IP/User-Agent của request, để gắn vào sự kiện bảo mật (không dùng cho nghiệp vụ). */
+  client?: SecurityClient;
 }
 
 /** JSON chuẩn hoá (khoá sắp xếp) để băm payload ổn định. */
@@ -130,54 +144,77 @@ export async function executeCommand<T>(
 
   for (let attempt = 1; ; attempt++) {
     const compensations: (() => Promise<void>)[] = [];
+    const afterCommit: (() => void)[] = [];
     try {
-      return await withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
-        const inserted = await sql<{ id: string }>`
+      const result = await withTenant(
+        db,
+        { orgId: actor.orgId, actorId: actor.membershipId },
+        async (trx) => {
+          const inserted = await sql<{ id: string }>`
           insert into idempotency_keys (id, organization_id, key, command, actor_person_id, request_hash, correlation_id)
           values (${randomUUID()}, ${actor.orgId}, ${commandId}, ${req.command}, ${actor.personId}, ${hash}, ${req.correlationId})
           on conflict (organization_id, key) do nothing
           returning id`.execute(trx);
-        if (inserted.rows.length === 0) {
-          const existing = await sql<StoredRow>`
+          if (inserted.rows.length === 0) {
+            const existing = await sql<StoredRow>`
             select status, request_hash, http_status, response from idempotency_keys
             where organization_id = ${actor.orgId} and key = ${commandId}`.execute(trx);
-          const row = existing.rows[0] as StoredRow;
-          if (!Buffer.from(row.request_hash).equals(hash)) {
-            throw new CommandError("IDEMPOTENCY_CONFLICT", 409, "Idempotency-Key đã dùng cho yêu cầu khác");
+            const row = existing.rows[0] as StoredRow;
+            if (!Buffer.from(row.request_hash).equals(hash)) {
+              throw new CommandError("IDEMPOTENCY_CONFLICT", 409, "Idempotency-Key đã dùng cho yêu cầu khác");
+            }
+            return replay<T>(commandId, row);
           }
-          return replay<T>(commandId, row);
-        }
 
-        const ctx: CommandContext = {
-          trx,
-          actor,
-          commandId,
-          correlationId: req.correlationId,
-          audit: (e) => auditRow(trx, actor, ids, e, "success"),
-          async emit(e) {
-            await sql`
+          const ctx: CommandContext = {
+            trx,
+            actor,
+            commandId,
+            correlationId: req.correlationId,
+            audit: (e) => auditRow(trx, actor, ids, e, "success"),
+            async emit(e) {
+              await sql`
               insert into outbox (id, organization_id, property_id, event_type, aggregate_type, aggregate_id, payload,
                                   correlation_id, command_id, dedupe_key)
               values (${randomUUID()}, ${actor.orgId}, ${e.propertyId ?? null}, ${e.eventType}, ${e.aggregateType ?? null},
                       ${e.aggregateId ?? null}, ${JSON.stringify(e.payload)}::jsonb, ${req.correlationId}, ${commandId},
                       ${e.dedupeKey ?? null})`.execute(trx);
-          },
-          onRollback: (fn) => {
-            compensations.push(fn);
-          },
-        };
-        const { data, httpStatus = 200 } = await handler(ctx);
-        await sql`
+            },
+            onRollback: (fn) => {
+              compensations.push(fn);
+            },
+            security: (e) => {
+              afterCommit.push(() =>
+                emitSecurity({
+                  ...e,
+                  outcome: "success",
+                  actor,
+                  client: req.client ?? null,
+                  correlationId: req.correlationId,
+                }),
+              );
+            },
+          };
+          const { data, httpStatus = 200 } = await handler(ctx);
+          await sql`
           update idempotency_keys set status = 'committed', http_status = ${httpStatus},
                  response = ${JSON.stringify({ data: redact(data) })}::jsonb, completed_at = now()
           where organization_id = ${actor.orgId} and key = ${commandId}`.execute(trx);
-        return { status: "committed", commandId, httpStatus, data, replayed: false } as CommandResult<T>;
-      });
+          return { status: "committed", commandId, httpStatus, data, replayed: false } as CommandResult<T>;
+        },
+      );
+      for (const fn of afterCommit) fn(); // emitSecurity không ném lỗi
+      return result;
     } catch (err) {
       for (const r of await Promise.allSettled(compensations.map((fn) => fn()))) {
         // Không che lỗi gốc, nhưng không im lặng: tác dụng phụ còn sót cần người/job dọn.
         if (r.status === "rejected")
-          console.error("[command] bù trừ thất bại", req.command, commandId, r.reason);
+          appLogger().error("bù trừ thất bại", {
+            command: req.command,
+            command_id: commandId,
+            correlation_id: req.correlationId,
+            err: r.reason,
+          });
       }
       const pgCode = (err as { code?: string }).code;
       if (pgCode && RETRYABLE.has(pgCode) && attempt < MAX_ATTEMPTS) continue;
@@ -221,6 +258,18 @@ export async function executeCommand<T>(
           if (p) finalProblem = p;
         }
       });
+      // Từ chối do xác thực/quyền/giới hạn tần suất → sự kiện bảo mật (một lần cho mỗi Idempotency-Key; replay không vào đây).
+      const securityEvent = securityEventForProblem(finalProblem);
+      if (securityEvent)
+        emitSecurity({
+          event: securityEvent,
+          outcome: "denied",
+          actor,
+          target: { type: "command", id: req.command },
+          reason: finalProblem.code,
+          client: req.client ?? null,
+          correlationId: req.correlationId,
+        });
       return {
         status: "failed",
         commandId,

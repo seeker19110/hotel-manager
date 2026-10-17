@@ -10,7 +10,7 @@
 | Web (Next.js) | `GET /api/health` | `200 {"status":"ok"}` — tiến trình còn sống |
 | Web + phụ thuộc | `GET /api/ready` | `200 {"status":"ready","checks":{"database":"ok","storage":"ok","scanner":"ok"}}`; thiếu ⇒ `503` kèm thành phần `fail`/`timeout` (không có chi tiết lỗi) |
 | Số liệu | `GET /api/metrics` + `Authorization: Bearer <token>` | Prometheus text 0.0.4 |
-| Worker | metric `hm_worker_heartbeat_age_seconds{worker=…}` | < 120 giây (worker gọi `workerHeartbeat` mỗi vòng — lập lịch ở bước triển khai) |
+| Worker | metric `hm_worker_heartbeat_age_seconds{worker=…}` | < 120 giây (worker ghi nhịp mỗi 30 giây, tên `worker`; §8) |
 | CSDL | Postgres 17, `max_connections=100`, pool ≤ 20/tiến trình | — |
 | Kho file | SeaweedFS (S3), bucket riêng tư, URL ký ≤ 5 phút | — |
 | Quét mã độc | clamd (ClamAV) nội bộ; dev/CI dùng bản giả EICAR | — |
@@ -51,7 +51,8 @@ Khi chạy thật (đề xuất D-021): chặn thêm `/api/metrics` ở reverse 
 ### 3.3 Outbox đứng (`hm_outbox_oldest_unpublished_age_seconds` tăng)
 1. Worker còn nhịp không (`hm_worker_heartbeat_age_seconds`)? Không ⇒ khởi động lại worker.
 2. Còn nhịp mà vẫn đứng: `select event_type, attempts, last_error from outbox where published_at is null order by created_at limit 20;` — `last_error` cho biết lỗi phát (pg-boss/kết nối).
-3. Không sửa tay hàng outbox; sửa nguyên nhân rồi để relay phát lại (idempotent: consumer dedupe).
+3. `last_error = 'no_consumer'`: worker đang chạy chưa có consumer cho event_type đó (triển khai lệch phiên bản hoặc quên thêm consumer) — xem §8.
+4. Không sửa tay hàng outbox; sửa nguyên nhân rồi để relay phát lại (idempotent: consumer dedupe). Hàng lỗi được lùi lần thử (`available_at`) nên có thể chờ tới 5 phút.
 
 ### 3.4 Email `dead` tăng
 1. `select last_error_code, count(*) from notification_deliveries where status = 'dead' group by 1;`
@@ -83,3 +84,17 @@ Khi chạy thật (đề xuất D-021): chặn thêm `/api/metrics` ở reverse 
 - Job `runRetention` (worker, hằng ngày): xoá object file hết hạn (`files.delete_after`) rồi đánh dấu `deleted`; làm rỗng `import_rows.raw/data` 30 ngày sau commit/huỷ lô nhập.
 - Job `expireExports` (5 phút): bản xuất quá 15 phút ⇒ `expired`.
 - Lỗi xoá object ⇒ log `retention.file_delete_failed`, lượt sau thử lại (không đánh dấu `deleted` khi chưa xoá được).
+- Object mồ côi (T-303, D-025): tải lên, tải lô nhập, xuất thông báo lưu trú và bản xuất ghi object NGOÀI transaction lệnh qua dòng `files` ở `pending_scan` (`delete_after` = hôm nay + 2 ngày, giờ VN). Lệnh lỗi hoặc tiến trình sập giữa ghi object và chốt `ready` để lại object + dòng `pending_scan`; `runRetention` xoá object rồi đánh dấu `deleted` khi tới hạn (cùng đường với file `ready` hết hạn). Xem: `select id, owner_type, storage_key, delete_after from files where status = 'pending_scan' and delete_after < current_date;` — dòng tồn lâu hơn 2 ngày nghĩa là job hạn giữ không chạy (xem §8).
+
+## 8. Worker (apps/worker) — khởi chạy, lịch, dừng
+- Chạy: `node apps/worker/src/index.ts` (Node 24). Biến: toàn bộ schema web (`DATABASE_URL` = vai trò `app_runtime`, dùng cho job xuất dữ liệu) **cộng `WORKER_DATABASE_URL`** = vai trò `app_worker` (relay outbox, job nền, pg-boss). Thiếu/sai biến ⇒ thoát mã 1, stderr nêu tên biến (không giá trị). Web cũng validate lúc khởi động (`apps/web/instrumentation.ts`).
+- Schema `pgboss` do migration 0047 tạo sẵn, thuộc `app_worker` (D-024); worker chạy pg-boss với `createSchema: false` nên vai trò worker KHÔNG cần `CREATE` trên CSDL — bảng của pg-boss tự dựng bên trong schema đó lần đầu. Migration down chỉ xoá được schema rỗng (còn bảng ⇒ lỗi có chủ đích; dừng worker và quyết định có bỏ hàng đợi hay không).
+- Lịch (vòng lặp trong tiến trình, mỗi job không chồng lượt, lỗi chỉ ghi log `job.failed`): relay outbox 2 giây · nhịp 30 giây · gửi email đến hạn 15 giây (bỏ nếu `SMTP_URL` là `smtp(s)://` — chưa có adapter, log `email.sender_unavailable`) · nhả hold 1 phút · nhắc 15 phút · tạo kỳ thu, hợp đồng (nhắc hết hạn, quá hạn ở) 1 giờ · hết hạn bản xuất 5 phút · hạn giữ import/file 24 giờ (lượt đầu sau 60 giây). Nhiều worker chạy song song an toàn (SKIP LOCKED, khoá dedupe).
+- Sự kiện outbox chưa có consumer (D-026, sửa theo review lát 7): chỉ loại khai tường minh "chỉ để audit" (`AUDIT_ONLY_EVENT_TYPES` ở `apps/worker/src/relay.ts`) được đánh dấu đã phát mà không sinh job. Loại KHÁC không có consumer ở worker này thì KHÔNG đánh dấu đã phát: `last_error = 'no_consumer'`, `attempts` tăng, `available_at` lùi (5 s · 2^lần, trần 5 phút) để không kẹt đầu hàng, log WARN `outbox.no_consumer {event_type, outbox_id}`. Worker có consumer (hoặc bản triển khai sau thêm consumer) nhận được sau khi hết thời gian lùi — không mất sự kiện khi triển khai lệch phiên bản. Cảnh báo dùng chỉ số sẵn có: `hm_outbox_unpublished`, `hm_outbox_oldest_unpublished_age_seconds`, `hm_outbox_failing`. Gặp `no_consumer` kéo dài: thêm consumer hoặc (nếu thật sự chỉ để audit) thêm event_type vào danh sách audit-only — test `outbox-event-types.test.ts` chặn quên; hàng cũ sẽ được đánh dấu đã phát ở lượt kế.
+- Dừng: SIGTERM/SIGINT ⇒ NGAY LẬP TỨC và song song: ngừng lập lịch (không lượt mới) + pg-boss ngừng lấy job mới; hai bên cùng chờ việc đang chạy tới MỘT hạn chót chung 25 giây → đóng pool pg-boss → đóng pool CSDL → thoát 0. Đồng hồ canh thoát mã 1 sau 35 giây (hạn chót + 10 giây). Tín hiệu lần hai ⇒ thoát ngay (mã 1). Đặt `terminationGracePeriod`/`stop_grace_period` ≥ 40 giây.
+
+## 9. Địa chỉ IP khách sau reverse proxy (X-Forwarded-For)
+- Ràng buộc triển khai: **đúng MỘT proxy tin cậy trước ứng dụng** — Caddy (`deploy/Caddyfile`), KHÔNG đặt `trusted_proxies`, KHÔNG có CDN/lớp proxy khác phía trước. Ứng dụng lấy hop **phải nhất** của `X-Forwarded-For` (`forwardedClientIp`, `packages/app/src/logging/security-events.ts` — nơi duy nhất đọc header) cho `source_ip` của log bảo mật (cắt /24 hoặc /48) và cho giới hạn tần suất liên kết khách.
+- Căn cứ (tài liệu Caddy `reverse_proxy`, đọc 2026-10-16): Caddy mặc định bỏ qua `X-Forwarded-For` từ client không tin cậy và đặt/nối địa chỉ kết nối thật, nên hop phải nhất là địa chỉ Caddy thấy. Hop đầu là do client tự khai (giả được) nên không dùng.
+- Thêm lớp proxy/CDN (hoặc bật `trusted_proxies`) ⇒ hop phải nhất là địa chỉ của lớp đó: mọi khách chung một IP (giới hạn tần suất gộp chung, log sai nguồn). Phải sửa `forwardedClientIp` (đếm số hop tin cậy) và cập nhật mục này TRƯỚC khi đổi hạ tầng.
+- Chạy ứng dụng không qua proxy (cổng 3000 lộ ra ngoài) ⇒ client tự đặt được header ⇒ không an toàn; cổng web chỉ mở cho Caddy.
