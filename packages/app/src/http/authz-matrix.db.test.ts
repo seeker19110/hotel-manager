@@ -22,12 +22,19 @@ import {
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createAuth } from "../auth/auth.ts";
+import { signSim } from "../ledger/bank-inbox.ts";
 import { testServices } from "../server/services.ts";
 import { seedMember } from "../testing/helpers.ts";
 import { sampleInput } from "../testing/schema-sample.ts";
 import { REPO_ROOT, sourceFiles } from "../testing/source-scan.ts";
 import { type HttpDeps, handleCommand, handleQuery } from "./command-route.ts";
+import { handleFileUpload } from "./file-upload.ts";
+import { handleGuestStay } from "./guest-stay.ts";
+import { handleImportUpload } from "./import-upload.ts";
 import { COMMANDS, QUERIES } from "./registry.ts";
+import { handleSwitchOrganization } from "./switch-organization.ts";
+import { handleUnsubscribe } from "./unsubscribe.ts";
+import { handleWebhook } from "./webhook-route.ts";
 
 // ---------------------------------------------------------------- danh mục sinh từ registry
 type Def = (typeof COMMANDS)[string] | (typeof QUERIES)[string];
@@ -931,7 +938,7 @@ describe("BE-API-009 — route không guard = danh sách công khai đã duyệt
     "v1/[module]/[command]/route.ts": /handleCommand|handleQuery/,
     "v1/commands/[id]/route.ts": /handleCommandStatus/,
     "v1/me/route.ts": /getSession/,
-    "v1/session/switchOrganization/route.ts": /getSession/,
+    "v1/session/switchOrganization/route.ts": /handleSwitchOrganization/,
     "v1/files/upload/route.ts": /handleFileUpload/,
     "v1/import/upload/route.ts": /handleImportUpload/,
   };
@@ -1024,6 +1031,462 @@ describe("BE-API-009 — route không guard = danh sách công khai đã duyệt
     });
     expect(guest.status).toBeGreaterThanOrEqual(400);
     expect(guest.status).toBeLessThan(500);
+  });
+});
+
+// ---------------------------------------------------------------- BASE-SEC-001: entrypoint NGOÀI registry (T-607)
+// Registry đã phủ ở trên (schema strict + đầu vào xấu cho từng mục). Phần còn lại là các route tự phân tích đầu vào:
+// upload, import-upload, webhook, huỷ đăng ký, liên kết khách, chọn tổ chức, Better Auth. Mỗi cái nhận đầu vào xấu
+// (sai kiểu, null, quá dài, Unicode lạ, quan hệ/định dạng sai) phải trả 4xx CÓ KIỂM SOÁT: không 2xx, không 5xx, thân là
+// problem+json (riêng Better Auth: JSON của thư viện) và không lộ stack/SQL.
+describe("BASE-SEC-001 — entrypoint ngoài registry: đầu vào xấu → 4xx có kiểm soát", () => {
+  const WEBHOOK_SECRET = "khoa-chi-dung-trong-test-base-sec-001-0123456789";
+  const LONG = "x".repeat(20_000);
+  const WEIRD = "‮\u0000💩\ud800"; // đảo chiều, NUL, emoji, surrogate lẻ
+  const WEIRD_HEADER = "é\u00ff¡"; // header chỉ nhận ByteString (≤ U+00FF): ký tự lạ trong phạm vi đó
+  const uuid = () => randomUUID();
+  let webhookAccount: string;
+
+  /** 4xx (không 2xx/5xx), không lộ chi tiết nội bộ; `problem` = phải là problem+json. */
+  async function expectControlled(res: Response, label: string, opts: { problem?: boolean } = {}) {
+    const text = await res.text();
+    expect(res.status, `${label}: ${res.status} ${text.slice(0, 160)}`).toBeGreaterThanOrEqual(400);
+    expect(res.status, `${label}: ${res.status} ${text.slice(0, 160)}`).toBeLessThan(500);
+    expect(text, label).not.toMatch(/stack|node_modules|select .* from|syntax error|at .*\(.*:\d+:\d+\)/i);
+    if (opts.problem !== false)
+      expect(res.headers.get("content-type") ?? "", label).toContain("application/problem+json");
+    return text;
+  }
+
+  beforeAll(async () => {
+    webhookAccount = uuid();
+    await sql`insert into receiving_accounts (id, organization_id, property_id, bank_code, account_number_masked, account_number, account_name)
+              values (${webhookAccount}, ${A.orgId}, ${A.propertyId}, 'VCB', '****0010', '1017590010', 'NGUYEN VAN A')`.execute(
+      t.admin,
+    );
+  });
+
+  const asOwner = (extra: Record<string, string> = {}) => ({
+    "x-test-user": A.ownerAuthUserId,
+    "x-test-2fa": "1",
+    "x-org-id": A.orgId,
+    ...extra,
+  });
+
+  it("mỗi route.ts có lớp validate đầu vào KHAI BÁO (schema/regex allowlist) hoặc không nhận đầu vào; route mới chưa khai báo → đỏ", () => {
+    const src = (f: string) => readFileSync(`${REPO_ROOT}packages/app/src/http/${f}`, "utf8");
+    /** route → [tệp chứa lớp validate, dấu vết bắt buộc]; `null` = không nhận đầu vào từ người gọi (kèm lý do). */
+    const GUARDS: Record<string, [string, RegExp] | { none: string }> = {
+      "v1/[module]/[command]/route.ts": [
+        "command-route.ts",
+        /def\.input\.safeParse\(body\)[\s\S]*def\.input\.safeParse\(params\)/,
+      ],
+      "v1/commands/[id]/route.ts": [
+        "../pipeline/command.ts",
+        /getCommandResult[\s\S]*UUID\.test\(commandId\)/,
+      ],
+      "v1/session/switchOrganization/route.ts": [
+        "switch-organization.ts",
+        /z\.strictObject\([\s\S]*safeParse/,
+      ],
+      "v1/files/upload/route.ts": ["file-upload.ts", /OWNER_TYPES\.includes[\s\S]*UUID\.test\(propertyId\)/],
+      "v1/import/upload/route.ts": ["import-upload.ts", /UUID\.test\(propertyId\)[\s\S]*kind\.length > 40/],
+      "v1/webhooks/[provider]/[account]/route.ts": [
+        "webhook-route.ts",
+        /z\.strictObject\([\s\S]*UUID\.test\(account\)/,
+      ],
+      "v1/notifications/unsubscribe/route.ts": ["unsubscribe.ts", /token\.length > 512/],
+      "v1/portal/guest/stays/[id]/route.ts": ["../portal/guest.ts", /TOKEN\.test\(input\.token\)/],
+      "auth/[...all]/route.ts": {
+        none: "Better Auth tự validate (schema zod của thư viện); đầu vào xấu kiểm ở mô tả 'Better Auth' dưới",
+      },
+      "v1/me/route.ts": { none: "GET không tham số; chỉ đọc phiên" },
+      "health/route.ts": { none: "GET không tham số" },
+      "ready/route.ts": { none: "GET không tham số" },
+      "metrics/route.ts": { none: "GET không tham số; Bearer token so khớp hằng-thời-gian" },
+    };
+    const routes = sourceFiles(["apps/web/app/api"], /^route\.ts$/).map((f) =>
+      f.path.slice("apps/web/app/api/".length),
+    );
+    expect(routes.sort()).toEqual(Object.keys(GUARDS).sort());
+    for (const [route, g] of Object.entries(GUARDS)) {
+      if ("none" in g) expect(g.none.length, route).toBeGreaterThan(10);
+      else expect(src(g[0]), route).toMatch(g[1]);
+    }
+  });
+
+  it("commands/{id}: id không phải UUID/Unicode/quá dài → 404 COMMAND_NOT_FOUND có kiểm soát", async () => {
+    const { handleCommandStatus } = await import("./command-route.ts");
+    for (const id of ["khong-phai-uuid", "", WEIRD, LONG, "00000000-0000-4000-8000-00000000000g"]) {
+      const res = await handleCommandStatus(
+        id,
+        new Request("http://local.test/c", { headers: asOwner() }),
+        deps,
+      );
+      expect(await expectControlled(res, `commands/${id.slice(0, 10)}`)).toContain("COMMAND_NOT_FOUND");
+      expect(res.status).toBe(404);
+    }
+  });
+
+  it("files/upload: owner_type/property_id sai (kiểu, Unicode, quá dài, thiếu), Idempotency-Key sai, thân quá lớn, file rác → 4xx", async () => {
+    const call = (qs: Record<string, string>, headers: Record<string, string>, body: BodyInit = "x") =>
+      handleFileUpload(
+        new Request(`http://local.test/api/v1/files/upload?${new URLSearchParams(qs)}`, {
+          method: "POST",
+          headers: { ...asOwner(), "idempotency-key": uuid(), ...headers },
+          body,
+        }),
+        deps,
+      );
+    const ok = { owner_type: "work_order", property_id: A.propertyId };
+    const cases: [string, Promise<Response>][] = [
+      ["owner_type thiếu", call({ property_id: A.propertyId }, {})],
+      ["owner_type lạ", call({ ...ok, owner_type: "lease" }, {})],
+      ["owner_type Unicode", call({ ...ok, owner_type: WEIRD }, {})],
+      ["owner_type quá dài", call({ ...ok, owner_type: LONG }, {})],
+      ["property_id không phải UUID", call({ ...ok, property_id: "không-phải-uuid" }, {})],
+      ["property_id Unicode", call({ ...ok, property_id: WEIRD }, {})],
+      ["property_id quá dài", call({ ...ok, property_id: LONG }, {})],
+      ["property_id rỗng", call({ ...ok, property_id: "" }, {})],
+      ["thiếu Idempotency-Key", call(ok, { "idempotency-key": "" })],
+      ["Idempotency-Key không phải UUID", call(ok, { "idempotency-key": WEIRD_HEADER })],
+      ["thân khai báo quá lớn", call(ok, { "content-length": "999999999" })],
+      ["thân rỗng", call(ok, {}, new Uint8Array())],
+      ["byte rác không phải ảnh/PDF", call(ok, {}, new Uint8Array([0, 1, 2, 3, 250, 251]))],
+    ];
+    for (const [label, p] of cases) await expectControlled(await p, `files/upload ${label}`);
+  });
+
+  it("import/upload: không phải multipart, multipart hỏng, thiếu file, property_id/kind/cutoff_on sai → 4xx", async () => {
+    const call = (init: { headers?: Record<string, string>; body: BodyInit }) =>
+      handleImportUpload(
+        new Request("http://local.test/api/v1/import/upload", {
+          method: "POST",
+          headers: { ...asOwner(), "idempotency-key": uuid(), ...init.headers },
+          body: init.body,
+        }),
+        deps,
+      );
+    const form = (f: Record<string, string | Blob | undefined>) => {
+      const fd = new FormData();
+      for (const [k, v] of Object.entries(f))
+        if (v !== undefined) typeof v === "string" ? fd.append(k, v) : fd.append(k, v, "x.csv");
+      return fd;
+    };
+    const csv = new Blob(["a,b\n1,2\n"], { type: "text/csv" });
+    const good = { file: csv, property_id: A.propertyId, kind: "rooms" } as const;
+    const cases: [string, Promise<Response>][] = [
+      ["JSON thay vì multipart", call({ headers: { "content-type": "application/json" }, body: "{}" })],
+      [
+        "multipart hỏng",
+        call({
+          headers: { "content-type": "multipart/form-data; boundary=zzz" },
+          body: "rác không có ranh giới",
+        }),
+      ],
+      ["thiếu file", call({ body: form({ property_id: A.propertyId, kind: "rooms" }) })],
+      ["file là chuỗi", call({ body: form({ ...good, file: "không phải file" }) })],
+      ["property_id không phải UUID", call({ body: form({ ...good, property_id: "abc" }) })],
+      ["property_id Unicode", call({ body: form({ ...good, property_id: WEIRD }) })],
+      ["thiếu property_id", call({ body: form({ file: csv, kind: "rooms" }) })],
+      ["kind quá dài", call({ body: form({ ...good, kind: "k".repeat(41) }) })],
+      ["kind lạ", call({ body: form({ ...good, kind: WEIRD }) })],
+      ["thiếu kind", call({ body: form({ file: csv, property_id: A.propertyId }) })],
+      ["cutoff_on quá dài", call({ body: form({ ...good, cutoff_on: "2026-01-01T00:00:00Z" }) })],
+      ["cutoff_on không phải ngày", call({ body: form({ ...good, cutoff_on: "hôm qua" }) })],
+      ["thiếu Idempotency-Key", call({ headers: { "idempotency-key": "" }, body: form(good) })],
+      ["thân khai báo quá lớn", call({ headers: { "content-length": "999999999" }, body: form(good) })],
+      [
+        "file rác nhị phân",
+        call({ body: form({ ...good, file: new Blob([new Uint8Array([0, 255, 1, 254])]) }) }),
+      ],
+    ];
+    for (const [label, p] of cases) await expectControlled(await p, `import/upload ${label}`);
+  });
+
+  it("webhooks: nhà cung cấp lạ, chữ ký/timestamp sai, thân không phải JSON, sai kiểu, null, quá dài, trường lạ, Unicode → 4xx", async () => {
+    const wdeps = { db: t.runtime, simSecret: WEBHOOK_SECRET };
+    const good = () => ({
+      event_id: `E-bs-${uuid()}`,
+      bank_txn_ref: `BS${uuid().replaceAll("-", "").slice(0, 12).toUpperCase()}`,
+      amount: 500_000,
+      occurred_at: "2026-10-15T03:00:00Z",
+    });
+    /** Gửi thân ĐÃ KÝ ĐÚNG — kiểm riêng lớp validate sau chữ ký. */
+    const signed = (raw: string, account = webhookAccount, provider = "sim") => {
+      const ts = String(Math.floor(Date.now() / 1000));
+      return handleWebhook(
+        provider,
+        account,
+        new Request(`http://local.test/api/v1/webhooks/${provider}/x`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-hm-timestamp": ts,
+            "x-hm-signature": signSim(WEBHOOK_SECRET, ts, raw, account),
+          },
+          body: raw,
+        }),
+        wdeps,
+      );
+    };
+    const cases: [string, Promise<Response>][] = [
+      ["nhà cung cấp lạ", signed(JSON.stringify(good()), webhookAccount, "khong-co")],
+      [
+        "thiếu chữ ký/timestamp",
+        handleWebhook(
+          "sim",
+          webhookAccount,
+          new Request("http://local.test/w", { method: "POST", body: "{}" }),
+          wdeps,
+        ),
+      ],
+      [
+        "chữ ký rác Unicode",
+        handleWebhook(
+          "sim",
+          webhookAccount,
+          new Request("http://local.test/w", {
+            method: "POST",
+            headers: { "x-hm-timestamp": "kh\u00f4ng-ph\u00e3i-s\u00f3", "x-hm-signature": "ab" },
+            body: JSON.stringify(good()),
+          }),
+          wdeps,
+        ),
+      ],
+      ["thân không phải JSON", signed("{rác")],
+      ["thân là null", signed("null")],
+      ["thân là mảng", signed("[]")],
+      ["thân là chuỗi", signed('"x"')],
+      ["event_id sai kiểu", signed(JSON.stringify({ ...good(), event_id: 12345 }))],
+      ["event_id null", signed(JSON.stringify({ ...good(), event_id: null }))],
+      ["event_id quá dài", signed(JSON.stringify({ ...good(), event_id: LONG }))],
+      ["bank_txn_ref rỗng", signed(JSON.stringify({ ...good(), bank_txn_ref: "   " }))],
+      [
+        "bank_txn_ref Unicode quá dài",
+        signed(JSON.stringify({ ...good(), bank_txn_ref: WEIRD.repeat(100) })),
+      ],
+      ["amount âm", signed(JSON.stringify({ ...good(), amount: -1 }))],
+      ["amount 0", signed(JSON.stringify({ ...good(), amount: 0 }))],
+      ["amount lẻ", signed(JSON.stringify({ ...good(), amount: 1.5 }))],
+      ["amount là chuỗi", signed(JSON.stringify({ ...good(), amount: "500000" }))],
+      [
+        "amount vượt số nguyên an toàn",
+        signed('{"event_id":"e","bank_txn_ref":"r","amount":1e300,"occurred_at":"2026-10-15T03:00:00Z"}'),
+      ],
+      ["occurred_at sai định dạng", signed(JSON.stringify({ ...good(), occurred_at: "hôm qua" }))],
+      ["occurred_at là số", signed(JSON.stringify({ ...good(), occurred_at: 1 }))],
+      ["description quá dài", signed(JSON.stringify({ ...good(), description: LONG }))],
+      ["balance_after là chuỗi", signed(JSON.stringify({ ...good(), balance_after: "1" }))],
+      ["trường lạ", signed(JSON.stringify({ ...good(), truong_la: "x" }))],
+      ["account không phải UUID", signed(JSON.stringify(good()), "không-phải-uuid")],
+      ["account Unicode quá dài", signed(JSON.stringify(good()), WEIRD.repeat(50))],
+      ["account UUID không tồn tại", signed(JSON.stringify(good()), uuid())],
+    ];
+    for (const [label, p] of cases) await expectControlled(await p, `webhook ${label}`);
+    // Đối chứng: thân đúng + chữ ký đúng → 200 (test không "xanh" vì từ chối mọi thứ).
+    const okRes = await signed(JSON.stringify(good()));
+    expect(okRes.status).toBe(200);
+  });
+
+  it("webhooks: thân vượt trần (khai báo lẫn thực tế) → 422", async () => {
+    const wdeps = { db: t.runtime, simSecret: WEBHOOK_SECRET };
+    const big = JSON.stringify({
+      event_id: "e",
+      bank_txn_ref: "r",
+      amount: 1,
+      occurred_at: "2026-10-15T03:00:00Z",
+      description: LONG.repeat(10),
+    });
+    const res = await handleWebhook(
+      "sim",
+      webhookAccount,
+      new Request("http://local.test/w", { method: "POST", body: big }),
+      wdeps,
+    );
+    expect(res.status).toBe(422);
+  });
+
+  it("notifications/unsubscribe: không phải JSON, token null/số/mảng/ngắn/quá dài/Unicode/giả → 4xx", async () => {
+    const udeps = { db: t.runtime, secret: "s".repeat(40) };
+    const post = (body: string) =>
+      handleUnsubscribe(
+        new Request("http://local.test/u", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body,
+        }),
+        udeps,
+      );
+    const bodies = [
+      "{rác",
+      "",
+      "null",
+      "[]",
+      '{"token":null}',
+      '{"token":12345678901}',
+      '{"token":["a"]}',
+      '{"token":{"a":1}}',
+      '{"token":""}',
+      '{"token":"ngan"}',
+      JSON.stringify({ token: LONG }),
+      JSON.stringify({ token: WEIRD.repeat(5) }),
+      JSON.stringify({ token: "gia-mao-nhung-du-dai-de-qua-do-dai-toi-thieu" }),
+      JSON.stringify({ token: "a".repeat(11) + ".b".repeat(40) }),
+    ];
+    for (const b of bodies) {
+      const res = await post(b).catch((e) => {
+        throw new Error(`unsubscribe ${b.slice(0, 30)}: ném lỗi ${String(e)}`);
+      });
+      await expectControlled(res, `unsubscribe ${b.slice(0, 30)}`);
+    }
+  });
+
+  it("portal/guest/stays/{id}: stayId không phải UUID, token/phone thiếu, sai kiểu, quá dài, Unicode → 4xx (không 5xx)", async () => {
+    let n = 0;
+    const call = (stayId: string, headers: Record<string, string>) =>
+      handleGuestStay(new Request("http://local.test/g", { headers }), stayId, {
+        db: t.runtime,
+        clientIp: `203.0.113.${(++n % 250) + 1}`, // IP khác nhau: không dính giới hạn tần suất của chính test
+      });
+    const tok = "a".repeat(43);
+    const cases: [string, string, Record<string, string>][] = [
+      ["stayId rác", "không-phải-uuid", { "x-guest-token": tok }],
+      ["stayId Unicode", WEIRD, { "x-guest-token": tok }],
+      ["stayId quá dài", LONG, { "x-guest-token": tok }],
+      ["stayId rỗng", "", { "x-guest-token": tok }],
+      ["thiếu token", uuid(), {}],
+      ["token rỗng", uuid(), { "x-guest-token": "" }],
+      ["token ngắn", uuid(), { "x-guest-token": "abc" }],
+      ["token quá dài", uuid(), { "x-guest-token": LONG }],
+      ["token Unicode", uuid(), { "x-guest-token": WEIRD_HEADER }],
+      ["token đúng dạng nhưng không tồn tại", uuid(), { "x-guest-token": tok }],
+      ["phone quá dài", uuid(), { "x-guest-token": tok, "x-guest-verify": LONG }],
+      ["phone chữ", uuid(), { "x-guest-token": tok, "x-guest-verify": "abcd" }],
+    ];
+    for (const [label, id, headers] of cases)
+      await expectControlled(await call(id, headers), `guest-stay ${label}`);
+  });
+
+  it("session/switchOrganization: không phiên 401; key sai 400; JSON hỏng 400; sai kiểu/null/quá dài/Unicode/trường lạ → 422; tổ chức lạ 404", async () => {
+    const sdeps = { db: t.runtime, secureCookies: false, getSession: deps.getSession };
+    const call = (body: string, headers: Record<string, string> = {}, user = A.ownerAuthUserId) =>
+      handleSwitchOrganization(
+        new Request("http://local.test/s", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-test-user": user,
+            "idempotency-key": uuid(),
+            ...headers,
+          },
+          body,
+        }),
+        sdeps,
+      );
+    const expectStatus = async (res: Response, status: number, label: string) => {
+      await expectControlled(res, label);
+      expect(res.status, label).toBe(status);
+    };
+    await expectStatus(
+      await handleSwitchOrganization(
+        new Request("http://local.test/s", {
+          method: "POST",
+          headers: { "idempotency-key": uuid() },
+          body: "{}",
+        }),
+        sdeps,
+      ),
+      401,
+      "không phiên",
+    );
+    await expectStatus(
+      await call(JSON.stringify({ organization_id: A.orgId }), { "idempotency-key": "" }),
+      400,
+      "thiếu key",
+    );
+    await expectStatus(
+      await call(JSON.stringify({ organization_id: A.orgId }), { "idempotency-key": "x" }),
+      400,
+      "key sai",
+    );
+    await expectStatus(await call("{rác"), 400, "JSON hỏng");
+    await expectStatus(await call(""), 400, "thân rỗng");
+    const unprocessable: [string, unknown][] = [
+      ["null", null],
+      ["mảng", []],
+      ["chuỗi", "x"],
+      ["thiếu organization_id", {}],
+      ["organization_id null", { organization_id: null }],
+      ["organization_id số", { organization_id: 12345 }],
+      ["organization_id không phải UUID", { organization_id: "abc" }],
+      ["organization_id quá dài", { organization_id: LONG }],
+      ["organization_id Unicode", { organization_id: WEIRD }],
+      ["property_id sai kiểu", { organization_id: A.orgId, property_id: 5 }],
+      ["property_id rỗng", { organization_id: A.orgId, property_id: "" }],
+      ["property_id không phải UUID", { organization_id: A.orgId, property_id: "abc" }],
+      ["trường lạ", { organization_id: A.orgId, role: "owner" }],
+    ];
+    for (const [label, body] of unprocessable)
+      await expectStatus(await call(JSON.stringify(body)), 422, `switchOrganization ${label}`);
+    // Người ngoài/tổ chức khác → 404 (không phân biệt); property_id: null hợp lệ.
+    await expectStatus(
+      await call(JSON.stringify({ organization_id: A.orgId }), {}, outsider),
+      404,
+      "người ngoài",
+    );
+    await expectStatus(await call(JSON.stringify({ organization_id: uuid() })), 404, "tổ chức lạ");
+    const ok = await call(JSON.stringify({ organization_id: A.orgId, property_id: null }));
+    expect(ok.status).toBe(200);
+    expect(ok.headers.get("set-cookie")).toMatch(/^hm_org=[0-9a-f-]{36}; Path=\/; HttpOnly; SameSite=Lax$/);
+  });
+
+  describe("Better Auth (/api/auth/*)", () => {
+    const BASE = "https://hm.example.vn";
+    let created: ReturnType<typeof createAuth>;
+    beforeAll(() => {
+      created = createAuth({
+        databaseUrl: t.runtimeUrl,
+        secret: "s".repeat(48),
+        baseURL: BASE,
+        ipRateLimit: false,
+      });
+    });
+    afterAll(async () => {
+      await created?.close();
+    });
+    const post = (path: string, body: string) =>
+      created.auth.handler(
+        new Request(`${BASE}/api/auth/${path}`, {
+          method: "POST",
+          headers: { "content-type": "application/json", origin: BASE },
+          body,
+        }),
+      );
+
+    it("sign-in/sign-up với email/mật khẩu sai kiểu, null, quá dài, Unicode, thân hỏng → 4xx", async () => {
+      const bodies = [
+        "{rác",
+        "",
+        "null",
+        "[]",
+        "{}",
+        '{"email":null,"password":null}',
+        '{"email":12345,"password":true}',
+        '{"email":["a"],"password":{"a":1}}',
+        JSON.stringify({ email: "khong-phai-email", password: "mat-khau-du-dai-12345" }),
+        JSON.stringify({ email: `${LONG}@example.test`, password: "mat-khau-du-dai-12345" }),
+        JSON.stringify({ email: "a@example.test", password: LONG }),
+        JSON.stringify({ email: `${WEIRD}@example.test`, password: WEIRD }),
+        JSON.stringify({ email: "a@example.test", password: "" }),
+        JSON.stringify({ email: "a@example.test", password: "ngan" }),
+      ];
+      for (const path of ["sign-in/email", "sign-up/email"])
+        for (const b of bodies) {
+          const res = await post(path, b);
+          await expectControlled(res, `auth ${path} ${b.slice(0, 30)}`, { problem: false });
+        }
+    });
   });
 });
 
