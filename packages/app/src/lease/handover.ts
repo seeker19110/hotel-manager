@@ -4,6 +4,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { hasMaxDecimals } from "@hm/domain";
 import { sql } from "kysely";
+import { assertNoOpenOverstay } from "../inventory/index.ts";
 import { type CommandContext, CommandError, canonicalJson, fieldError } from "../pipeline/index.ts";
 import {
   type LeaseStatus,
@@ -99,6 +100,8 @@ export async function recordHandover(
   // Ngày bàn giao hợp lệ với hợp đồng (review lát 2 🟠2, 🟠3): nhận phòng không sau ngày hết hạn phiên bản 1; trả phòng
   // không trước ngày nhận phòng.
   if (input.kind === "move_in") {
+    // Phòng còn hợp đồng/lượt ở quá hạn chưa trả → không bàn giao nhận phòng vào (SPEC-inventory S-020).
+    await assertNoOpenOverstay(ctx.trx, ctx.actor.orgId, lease.unit_id, lease.id);
     const v1 = await originalVersion(ctx, lease.id);
     if (v1.effective_to !== null && input.handedOverOn > v1.effective_to) {
       throw fieldError("handed_over_on", "AFTER_END", "Ngày nhận phòng sau ngày hết hạn hợp đồng");

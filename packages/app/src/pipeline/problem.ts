@@ -24,6 +24,8 @@ export interface Problem {
   previous_value?: number;
   /** ROOM_UNAVAILABLE của `inventory.createHold`: phòng cùng loại còn trống trong khoảng (SPEC-inventory S-002). */
   alternatives?: { unit_id: string; code: string }[];
+  /** ROOM_UNAVAILABLE của `inventory.resizeAllocation`: ngoại lệ `EXTENSION_CONFLICT` đã mở (ghi sau rollback — SPEC-inventory S-018). */
+  exception_id?: string;
   /** UNRESOLVED_ANOMALIES / READINGS_INCOMPLETE: danh sách cần xử lý (S-008, S-009). */
   items?: Record<string, string | number | null>[];
   /** IMPORT_TOTALS_MISMATCH: tổng nguồn so với tổng file theo loại (SPEC-import S-013). */
@@ -77,7 +79,7 @@ export type FailurePersist = (
   trx: Transaction<unknown>,
   /** Ghi audit trong `trx` như `ctx.audit` (kèm command_id, correlation_id, IP/UA của lệnh) — đừng chèn `audit_events` thô. */
   audit: (e: AuditInput) => Promise<void>,
-) => Promise<Partial<Pick<Problem, "approval_request_id" | "errors">>>;
+) => Promise<Partial<Pick<Problem, "approval_request_id" | "errors" | "exception_id">>>;
 
 /** Lỗi nghiệp vụ có mã — handler ném lớp này (hoặc AuthzError/TransitionError/AccessError). */
 export class CommandError extends Error {
