@@ -1,6 +1,13 @@
 // POST /api/v1/<module>/<command> — mọi command công khai đi qua một chỗ (API-CONTRACT §1; danh mục ở @hm/app COMMANDS);
 // GET /api/v1/<module>/<query> — query chỉ đọc (danh mục QUERIES).
-import { findCommand, findQuery, handleCommand, handleQuery } from "@hm/app";
+import {
+  findCommand,
+  findQuery,
+  findUserCommand,
+  handleCommand,
+  handleQuery,
+  handleUserCommand,
+} from "@hm/app";
 import { httpDeps } from "../../../../../lib/http-deps.ts";
 
 export const dynamic = "force-dynamic";
@@ -34,5 +41,7 @@ export async function POST(
 ) {
   const { module, command } = await params;
   const def = findCommand(module, command);
-  return def ? handleCommand(def, req, httpDeps()) : notFound();
+  if (def) return handleCommand(def, req, httpDeps());
+  const userDef = findUserCommand(module, command);
+  return userDef ? handleUserCommand(userDef, req, httpDeps()) : notFound();
 }

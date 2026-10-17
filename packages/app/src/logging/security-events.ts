@@ -40,6 +40,15 @@ export const SECURITY_EVENTS = [
   "input.validation_failed",
   "input.deserialize_failed",
   "backend.tls_error",
+  // Lời mời nhân viên (T-605, SPEC-access S-007/S-008): cấp token, cấp quyền khi chấp nhận, từ chối token không hợp lệ.
+  "member.invited",
+  "member.accepted",
+  "invitation.rejected",
+  // Đổi vai trò/phạm vi nhân viên (T-605, SPEC-access S-018; SEC-LOG-001 "đổi vai/quyền").
+  "member.role_changed",
+  "member.scope_changed",
+  // Thu hồi phiên (T-605, SPEC-access S-010): tự thu hồi hoặc owner/manager thu hồi phiên thành viên.
+  "session.revoked",
 ] as const;
 export type SecurityEventName = (typeof SECURITY_EVENTS)[number];
 export type SecurityOutcome = "success" | "denied" | "failure";

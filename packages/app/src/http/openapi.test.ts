@@ -92,6 +92,13 @@ describe("openapi — mỗi command/query một thao tác đúng URL route thậ
     expect(JSON.stringify(spec.components.responses)).toContain("application/problem+json");
   });
 
+  it("SPEC-access S-007: member.acceptInvitation khai 410 INVITATION_INVALID (và 429 của hạn mức); org.create khai 429 (hạn mức theo người dùng)", () => {
+    const accept = spec.paths["/api/v1/member/acceptInvitation"]?.post;
+    expect(JSON.stringify(accept?.responses["410"])).toContain("INVITATION_INVALID");
+    expect(accept?.responses["429"]).toBeDefined();
+    expect(spec.paths["/api/v1/org/create"]?.post?.responses["429"]).toBeDefined();
+  });
+
   it("BE-API-008 (D-034, D-043): mọi thao tác có Idempotency-Key khai 409 (đang xử lý) và 422 (cùng key khác payload), mô tả khớp 422 và không còn hứa 409; upload/webhook khai 429", () => {
     const withKey: string[] = [];
     for (const [path, item] of Object.entries(spec.paths))

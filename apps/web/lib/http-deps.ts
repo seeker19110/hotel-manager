@@ -1,5 +1,5 @@
 // Phụ thuộc HTTP của route handler (CSDL, phiên Better Auth, cookie an toàn) lấy từ ngữ cảnh server dùng chung.
-import { type HttpDeps, reportUnexpectedError, serverContext } from "@hm/app";
+import { type HttpDeps, isSessionRevoked, reportUnexpectedError, serverContext } from "@hm/app";
 import { MIN_CLIENT_VERSION } from "./app-version.ts";
 
 export function httpDeps(): HttpDeps {
@@ -15,6 +15,9 @@ export function httpDeps(): HttpDeps {
           }
         : null;
     },
+    // Tên cookie phiên do Better Auth quyết (tiền tố `__Host-` ở https): lấy từ ngữ cảnh của nó, không tự đoán.
+    isSessionRevoked: async (headers) =>
+      isSessionRevoked(db, (await auth.$context).authCookies.sessionToken.name, headers),
     minClientVersion: MIN_CLIENT_VERSION,
     secureCookies: config.APP_BASE_URL.startsWith("https://"),
     services,

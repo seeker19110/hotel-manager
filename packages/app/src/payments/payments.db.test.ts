@@ -404,6 +404,47 @@ describe("tiền mặt và ca (INV-F3b, S-027, S-028)", () => {
     await ok(run(manager, async (ctx) => ({ data: await confirmPayment(ctx, { paymentId }) })));
   });
 
+  it("S-025 (SPEC-access, D-045): lễ tân xác nhận tiền mặt do MÌNH nhận trong ca mở → confirmed + biên nhận; của người khác → 403; ca của mình đã đóng → 409 SHIFT_NOT_OPEN (thiếu ca là trạng thái nghiệp vụ, không phải thiếu quyền); mỗi lần từ chối ghi audit", async () => {
+    const guest = await person("Khách S-025");
+    const L = await member("front_desk");
+    const L2 = await member("front_desk");
+    const { shiftId } = await ok(
+      run(L, async (ctx) => ({ data: await openShift(ctx, { propertyId: A.propertyId, openingCash: 0 }) })),
+    );
+    await ok(
+      run(L2, async (ctx) => ({ data: await openShift(ctx, { propertyId: A.propertyId, openingCash: 0 }) })),
+    );
+    const mine = await ok(record(L, { method: "cash", amount: 500_000, payerPersonId: guest }));
+    const theirs = await ok(record(L2, { method: "cash", amount: 300_000, payerPersonId: guest }));
+    const confirmed = await ok(
+      run(L, async (ctx) => ({ data: await confirmPayment(ctx, { paymentId: mine.paymentId }) })),
+    );
+    expect(confirmed.receiptNo).toMatch(/^PT-\d{6}$/);
+    const other = await run(L, async (ctx) => ({
+      data: await confirmPayment(ctx, { paymentId: theirs.paymentId }),
+    }));
+    expect(other).toMatchObject({ status: "failed", problem: { code: "FORBIDDEN", status: 403 } });
+    // Ca của L đóng (đặt trực tiếp: lệnh đóng ca từ chối khi còn tiền mặt chưa xác nhận) rồi L ghi thêm khoản trong ca đó.
+    const late = await ok(record(L, { method: "cash", amount: 100_000, payerPersonId: guest }));
+    await sql`update shifts set status = 'closed', closed_by = opened_by, closed_at = now(), counted_cash = 0, expected_cash = 0
+              where id = ${shiftId}`.execute(t.admin);
+    const closed = await run(L, async (ctx) => ({
+      data: await confirmPayment(ctx, { paymentId: late.paymentId }),
+    }));
+    expect(closed).toMatchObject({ status: "failed", problem: { code: "SHIFT_NOT_OPEN", status: 409 } });
+    for (const failed of [other, closed]) {
+      const a = await sql<{ n: number }>`
+        select count(*)::int as n from audit_events where command_id = ${failed.commandId} and outcome = 'denied'`.execute(
+        t.admin,
+      );
+      expect(a.rows[0]?.n).toBe(1);
+    }
+    const st = await sql<{
+      status: string;
+    }>`select status from payments where id in (${theirs.paymentId}, ${late.paymentId})`.execute(t.admin);
+    expect(st.rows.every((r) => r.status === "pending")).toBe(true);
+  });
+
   it("đảo tiền mặt khi ca gốc đã đóng → dòng CASH đảo vào ca đang mở của người đảo; không có ca → SHIFT_NOT_OPEN", async () => {
     const guest = await person("Khách đảo");
     const giver = await member("front_desk");

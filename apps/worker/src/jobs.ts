@@ -3,8 +3,10 @@ import { randomUUID } from "node:crypto";
 import {
   type AutoApplyResult,
   applyBankTransaction,
+  buildInvitationMail,
   createLogger,
   dispatchNotification,
+  type EmailSender,
   type ExportJobDeps,
   expireExports,
   type Logger,
@@ -89,4 +91,38 @@ export async function workerHeartbeat(
   now: Date = new Date(),
 ): Promise<void> {
   await sql`select app.worker_heartbeat(${name}, ${now})`.execute(workerDb);
+}
+
+/** event_type outbox mà consumer lời mời nhân viên xử lý. */
+export const INVITATION_EVENT_TYPES = ["member.invited"] as const;
+
+/**
+ * `member.invited` (SPEC-access S-007): gửi email lời mời nhân viên. Token dựng lại từ khoá + id lời mời (không lưu ở đâu);
+ * lời mời đã dùng/thu hồi/quá hạn thì bỏ qua. Khoá idempotency của email = id lời mời ⇒ pg-boss giao lại không gửi hai thư.
+ * Lỗi tạm thời ném lại để pg-boss thử lại theo chính sách queue; địa chỉ không hợp lệ (vĩnh viễn) chỉ ghi log.
+ */
+export function invitationHandlers(
+  workerDb: Kysely<unknown>,
+  sender: EmailSender,
+  opts: { key: Buffer; baseUrl: string },
+  logger: Logger = createLogger({ bindings: { component: "member.invitation" } }),
+): Record<string, (job: OutboxJob) => Promise<void>> {
+  return {
+    "member.invited": async (job: OutboxJob) => {
+      const mail = await buildInvitationMail(workerDb, job, opts);
+      if (!mail) {
+        logger.info("invitation.mail_skipped", { outbox_id: job.outbox_id, reason: "not_pending" });
+        return;
+      }
+      try {
+        await sender.send(mail);
+      } catch (err) {
+        if ((err as { kind?: string }).kind === "permanent") {
+          logger.warn("invitation.mail_rejected", { outbox_id: job.outbox_id, reason: "RECIPIENT_INVALID" });
+          return;
+        }
+        throw err;
+      }
+    },
+  };
 }

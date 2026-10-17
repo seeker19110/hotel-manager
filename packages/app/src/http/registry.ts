@@ -4,7 +4,19 @@
 import type { StatementMapping } from "@hm/domain";
 import { mibToBytes } from "@hm/domain";
 import { z } from "zod";
-import { resetMemberMfa } from "../access/index.ts";
+import {
+  acceptInvitation,
+  createOrganization,
+  createProperty,
+  inviteMember,
+  listMembers,
+  listProperties,
+  resetMemberMfa,
+  revokeAllSessions,
+  updateMemberRole,
+  updateMemberScope,
+  updateProperty,
+} from "../access/index.ts";
 import { APPROVAL_KINDS, cancelApproval, decideApproval, requestApproval } from "../approvals/index.ts";
 import { getEvent, listEvents } from "../audit/index.ts";
 import {
@@ -183,7 +195,7 @@ import {
   positiveMoney,
   uuid,
 } from "./command-inputs.ts";
-import type { CommandDef, QueryDef } from "./command-route.ts";
+import type { CommandDef, QueryDef, UserCommandDef } from "./command-route.ts";
 
 const leaseTerms = z.strictObject({
   effective_from: z.iso.date(),
@@ -1479,6 +1491,83 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
       data: await resetMemberMfa(ctx, { membershipId: i.membership_id, reason: i.reason }),
     }),
   }),
+  "member.invite": defineCommand({
+    command: "member.invite",
+    input: COMMAND_INPUTS["member.invite"],
+    run: async (ctx, i, svc) => ({
+      data: await inviteMember(ctx, svc.invitationKey, {
+        email: i.email,
+        role: i.role,
+        propertyIds: i.property_ids,
+        limits: i.limits,
+      }),
+      httpStatus: 201,
+    }),
+  }),
+  "member.updateRole": defineCommand({
+    command: "member.updateRole",
+    input: COMMAND_INPUTS["member.updateRole"],
+    run: async (ctx, i) => ({
+      data: await updateMemberRole(ctx, {
+        membershipId: i.membership_id,
+        role: i.role,
+        ...(i.property_ids === undefined ? {} : { propertyIds: i.property_ids }),
+        reason: i.reason,
+      }),
+    }),
+  }),
+  "member.updateScope": defineCommand({
+    command: "member.updateScope",
+    input: COMMAND_INPUTS["member.updateScope"],
+    run: async (ctx, i) => ({
+      data: await updateMemberScope(ctx, {
+        membershipId: i.membership_id,
+        propertyIds: i.property_ids,
+        ...(i.all_properties === undefined ? {} : { allProperties: i.all_properties }),
+        reason: i.reason,
+      }),
+    }),
+  }),
+  "session.revokeAll": defineCommand({
+    command: "session.revokeAll",
+    input: COMMAND_INPUTS["session.revokeAll"],
+    run: async (ctx, i) => ({
+      data: await revokeAllSessions(
+        ctx,
+        i.membership_id === undefined ? {} : { membershipId: i.membership_id },
+      ),
+    }),
+  }),
+  "property.create": defineCommand({
+    command: "property.create",
+    input: COMMAND_INPUTS["property.create"],
+    run: async (ctx, i) => ({
+      data: await createProperty(ctx, {
+        name: i.name,
+        template: i.template,
+        ...(i.timezone === undefined ? {} : { timezone: i.timezone }),
+        ...(i.business_day_cutoff === undefined ? {} : { businessDayCutoff: i.business_day_cutoff }),
+        ...(i.check_in_time === undefined ? {} : { checkInTime: i.check_in_time }),
+        ...(i.check_out_time === undefined ? {} : { checkOutTime: i.check_out_time }),
+      }),
+      httpStatus: 201,
+    }),
+  }),
+  "property.update": defineCommand({
+    command: "property.update",
+    input: COMMAND_INPUTS["property.update"],
+    run: async (ctx, i) => ({
+      data: await updateProperty(ctx, {
+        propertyId: i.property_id,
+        ...(i.name === undefined ? {} : { name: i.name }),
+        ...(i.template === undefined ? {} : { template: i.template }),
+        ...(i.timezone === undefined ? {} : { timezone: i.timezone }),
+        ...(i.business_day_cutoff === undefined ? {} : { businessDayCutoff: i.business_day_cutoff }),
+        ...(i.check_in_time === undefined ? {} : { checkInTime: i.check_in_time }),
+        ...(i.check_out_time === undefined ? {} : { checkOutTime: i.check_out_time }),
+      }),
+    }),
+  }),
   "meter.acknowledgeAnomaly": defineCommand({
     command: "meter.acknowledgeAnomaly",
     input: z.strictObject({ reading_id: uuid, note: z.string().trim().min(1).max(1000) }),
@@ -1487,6 +1576,37 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
     }),
   }),
 };
+
+// biome-ignore lint/suspicious/noExplicitAny: danh mục không đồng nhất; mỗi mục tự gõ kiểu qua defineUserCommand
+type AnyUserCommand = UserCommandDef<any, any>;
+
+function defineUserCommand<I, O>(def: UserCommandDef<I, O>): UserCommandDef<I, O> {
+  return def;
+}
+
+/**
+ * Lệnh cấp người dùng (cần phiên, KHÔNG cần ngữ cảnh tổ chức — người gọi chưa là thành viên). Cùng URL `POST /api/v1/<module>/<command>`,
+ * cùng Idempotency-Key; không nằm trong `COMMANDS` vì mọi ca của ma trận quyền ở đó đều giả định có tổ chức (xem authz-matrix).
+ */
+export const USER_COMMANDS: Readonly<Record<string, AnyUserCommand>> = {
+  "member.acceptInvitation": defineUserCommand({
+    command: "member.acceptInvitation",
+    input: COMMAND_INPUTS["member.acceptInvitation"],
+    run: (req, i) => acceptInvitation(req, { token: i.token }),
+  }),
+  "org.create": defineUserCommand({
+    command: "org.create",
+    input: COMMAND_INPUTS["org.create"],
+    run: (req, i) => createOrganization(req, { name: i.name }),
+  }),
+};
+
+export function findUserCommand(module: string, command: string): AnyUserCommand | undefined {
+  if (!/^[a-z][a-zA-Z_]*$/.test(module) || !/^[a-zA-Z][a-zA-Z]*$/.test(command)) return undefined;
+  return Object.hasOwn(USER_COMMANDS, `${module}.${command}`)
+    ? USER_COMMANDS[`${module}.${command}`]
+    : undefined;
+}
 
 /** Tìm command theo đường dẫn `<module>/<command>`; tên chỉ gồm chữ/số để không lọt ký tự lạ. */
 export function findCommand(module: string, command: string): AnyCommand | undefined {
@@ -1499,6 +1619,16 @@ type AnyQuery = QueryDef<any, any>;
 
 /** Danh mục query công khai qua `GET /api/v1/<module>/<query>` — chỉ đọc. */
 export const QUERIES: Readonly<Record<string, AnyQuery>> = {
+  "member.list": {
+    query: "member.list",
+    input: z.strictObject({}),
+    run: (db, actor) => listMembers(db, actor),
+  },
+  "property.list": {
+    query: "property.list",
+    input: z.strictObject({}),
+    run: (db, actor) => listProperties(db, actor),
+  },
   "payment.getTransferInfo": {
     query: "payment.getTransferInfo",
     input: z.strictObject({ invoice_id: uuid, receiving_account_id: uuid.optional() }),

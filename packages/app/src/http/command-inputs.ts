@@ -25,6 +25,27 @@ export const guest = z.strictObject({
   nationality: z.string().trim().length(2).optional(),
 });
 
+/** Giờ trong ngày dạng HH:MM (00:00–23:59) — `business_day_cutoff`, giờ nhận/trả phòng (SPEC-access S-002). */
+const clockTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Giờ phải dạng HH:MM");
+/** Tên hiển thị: không ký tự NUL (Postgres từ chối byte 0x00 trong text ⇒ sẽ thành 500 nếu lọt vào CSDL). */
+const displayName = z
+  .string()
+  .trim()
+  .min(1)
+  .max(200)
+  .refine((v) => !v.includes("\u0000"), { message: "Không được chứa ký tự điều khiển" });
+const propertyName = displayName;
+const propertyTemplate = z.enum(["rental", "hotel", "mixed"]);
+const timezoneName = z.string().trim().min(1).max(64);
+
+const memberRole = z.enum(["owner", "manager", "front_desk", "accountant", "housekeeping", "maintenance"]);
+/** Hạn mức tiền của thành viên (bigint đồng ≥ 0; 0 = mọi khoản cần duyệt). */
+const memberLimits = z.strictObject({
+  discount: money.optional(),
+  refund: money.optional(),
+  price_override: money.optional(),
+});
+
 /** Schema đầu vào theo tên lệnh (`<module>.<command>`) của các lệnh có form ở web. */
 export const COMMAND_INPUTS = {
   "billing.createPeriod": z.strictObject({
@@ -152,6 +173,27 @@ export const COMMAND_INPUTS = {
   }),
   "notifications.markAllRead": z.strictObject({}),
   "notifications.markRead": z.strictObject({ notification_id: uuid }),
+  "member.acceptInvitation": z.strictObject({ token: z.string().min(1).max(200) }),
+  "member.invite": z.strictObject({
+    email: z.email().max(320),
+    role: memberRole,
+    property_ids: z.array(uuid).max(50).default([]),
+    limits: memberLimits.default({}),
+  }),
+  "member.updateRole": z.strictObject({
+    membership_id: uuid,
+    role: memberRole,
+    property_ids: z.array(uuid).max(50).optional(),
+    reason: z.string().trim().min(1).max(500),
+  }),
+  "member.updateScope": z.strictObject({
+    membership_id: uuid,
+    property_ids: z.array(uuid).max(50),
+    all_properties: z.boolean().optional(),
+    reason: z.string().trim().min(1).max(500),
+  }),
+  "session.revokeAll": z.strictObject({ membership_id: uuid.optional() }),
+  "org.create": z.strictObject({ name: displayName }),
   "payment.collectCash": z.strictObject({ invoice_id: uuid, amount: positiveMoney }),
   "payment.confirm": z.strictObject({
     payment_id: uuid,
@@ -172,6 +214,27 @@ export const COMMAND_INPUTS = {
     reference_code: z.string().trim().max(100).optional(),
     proof_file_id: uuid.optional(),
   }),
+  "property.create": z.strictObject({
+    name: propertyName,
+    template: propertyTemplate,
+    timezone: timezoneName.optional(),
+    business_day_cutoff: clockTime.optional(),
+    check_in_time: clockTime.optional(),
+    check_out_time: clockTime.optional(),
+  }),
+  "property.update": z
+    .strictObject({
+      property_id: uuid,
+      name: propertyName.optional(),
+      template: propertyTemplate.optional(),
+      timezone: timezoneName.optional(),
+      business_day_cutoff: clockTime.optional(),
+      check_in_time: clockTime.nullable().optional(),
+      check_out_time: clockTime.nullable().optional(),
+    })
+    .refine((i) => Object.keys(i).some((k) => k !== "property_id"), {
+      message: "Cần ít nhất một trường để đổi",
+    }),
   "reconciliation.resolveBreak": z.strictObject({
     break_id: uuid,
     resolution: z.string().trim().min(1).max(1000),

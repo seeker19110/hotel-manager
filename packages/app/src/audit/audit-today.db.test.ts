@@ -1,6 +1,6 @@
 // PLAN đợt 3 T-220 — nhật ký audit + "Hôm nay" trên Postgres thật (SPEC-audit-reporting S-001…S-008).
 import { randomUUID } from "node:crypto";
-import { seedIssuedInvoice } from "@hm/testkit";
+import { seedIssuedInvoice, setBusinessDayCutoffForTest } from "@hm/testkit";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Actor } from "../access/actor.ts";
@@ -381,17 +381,13 @@ describe("S-006…S-008 Hôm nay", () => {
   });
 
   it("S-008 giờ chốt ngày 04:00, lúc 01:30 ngày 21/10 giờ cơ sở → ngày kinh doanh 20/10", async () => {
-    await sql`update properties set business_day_cutoff = '04:00' where id = ${h.org.propertyId}`.execute(
-      h.t.admin,
-    );
+    await setBusinessDayCutoffForTest(h.t.admin, h.org.propertyId, "04:00");
     try {
       const s = await getSummary(h.t.runtime, h.manager, { now: vn("2026-10-21T01:30") });
       expect(s.properties[0]?.businessDate).toBe("2026-10-20");
       expect(s.cards.find((c) => c.key === "arrivals")?.count).toBe(3);
     } finally {
-      await sql`update properties set business_day_cutoff = '00:00' where id = ${h.org.propertyId}`.execute(
-        h.t.admin,
-      );
+      await setBusinessDayCutoffForTest(h.t.admin, h.org.propertyId, "00:00");
     }
   });
 });

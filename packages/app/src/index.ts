@@ -17,6 +17,14 @@ export {
   resolveActor,
 } from "./access/actor.ts";
 export {
+  buildInvitationMail,
+  invitationKey,
+  invitationToken,
+  isSessionRevoked,
+  listMembers,
+  listProperties,
+} from "./access/index.ts";
+export {
   ORG_HEADER,
   type OrgContext,
   organizationContext,

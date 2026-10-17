@@ -3,14 +3,26 @@
 import { spawn } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
 import { rmSync, writeFileSync } from "node:fs";
-import { createAuth, loadConfig, unsubscribeKey, unsubscribeUrl } from "@hm/app";
+import {
+  createAuth,
+  invitationKey,
+  invitationToken,
+  loadConfig,
+  unsubscribeKey,
+  unsubscribeUrl,
+} from "@hm/app";
 import { migrateToLatest } from "@hm/db";
 import { bootstrapRoles, type PgCluster, pgUrl, seedOrg, startPgCluster } from "@hm/testkit/setup";
 import { Kysely, PostgresDialect, sql } from "kysely";
 import pg from "pg";
 import { startFakeClamd, startFakeS3 } from "./fakes.ts";
 import {
+  INVITEE,
+  INVITEE_EXPIRED_EMAIL,
+  INVITEE_OTHER_EMAIL,
+  inviteTokensFile,
   MAIN_ROOMS,
+  ORG_HOTEL,
   ORG_MAIN,
   ORG_OTHER,
   ORG_RENTAL,
@@ -19,6 +31,7 @@ import {
   RENTAL_OWNER,
   RENTAL_TENANT,
   SMOKE_USER,
+  STAFF_TARGET,
   unsubFile,
 } from "./fixtures.ts";
 import { seedHotelOrg, signUpWithTotp } from "./hotel-seed.ts";
@@ -119,6 +132,49 @@ async function seedRental(db: Kysely<unknown>, auth: ReturnType<typeof createAut
   });
 }
 
+/** Ba lời mời nhân viên của ORG_HOTEL (còn hạn / hết hạn / dành cho email khác); token ghi vào file cho test đọc. */
+async function seedInvitations(
+  db: Kysely<unknown>,
+  auth: ReturnType<typeof createAuth>["auth"],
+  secret: string,
+): Promise<void> {
+  const org = await sql<{ id: string; property_id: string; membership_id: string }>`
+    select o.id, p.id as property_id, m.id as membership_id from organizations o
+    join properties p on p.organization_id = o.id
+    join memberships m on m.organization_id = o.id and m.role = 'owner'
+    where o.name = ${ORG_HOTEL} limit 1`.execute(db);
+  const o = org.rows[0];
+  if (!o) throw new Error("thiếu ORG_HOTEL để seed lời mời");
+  // Nhân viên buồng phòng đích của màn Thành viên (có mật khẩu để đăng nhập thật rồi bị thu hồi phiên).
+  const target = await auth.api.signUpEmail({ body: STAFF_TARGET });
+  const person = randomUUID();
+  const membership = randomUUID();
+  await sql`insert into persons (id, organization_id, full_name, email) values (${person}, ${o.id}, ${STAFF_TARGET.name}, ${STAFF_TARGET.email})`.execute(
+    db,
+  );
+  await sql`insert into memberships (id, organization_id, auth_user_id, person_id, role) values (${membership}, ${o.id}, ${target.user.id}, ${person}, 'housekeeping')`.execute(
+    db,
+  );
+  await sql`insert into property_scopes (id, organization_id, membership_id, property_id) values (${randomUUID()}, ${o.id}, ${membership}, ${o.property_id})`.execute(
+    db,
+  );
+  const key = invitationKey(secret);
+  const tokens: Record<string, string> = {};
+  for (const [name, email, expires] of [
+    ["valid", INVITEE.email, "now() + interval '7 days'"],
+    ["expired", INVITEE_EXPIRED_EMAIL, "now() - interval '1 minute'"],
+    ["other", INVITEE_OTHER_EMAIL, "now() + interval '7 days'"],
+  ] as const) {
+    const id = randomUUID();
+    const token = invitationToken(key, id);
+    tokens[name] = token;
+    await sql`insert into invitations (id, organization_id, email, role, property_ids, token_hash, expires_at, invited_by)
+              values (${id}, ${o.id}, ${email}, 'housekeeping', ${[o.property_id]}::uuid[], sha256(convert_to(${token}, 'UTF8')),
+                      ${sql.raw(expires)}, ${o.membership_id})`.execute(db);
+  }
+  writeFileSync(inviteTokensFile(PORT), JSON.stringify(tokens), { mode: 0o600 });
+}
+
 async function seed(adminUrl: string, runtimeUrl: string, secret: string): Promise<void> {
   const db = kysely(adminUrl);
   const { auth, close } = createAuth({
@@ -149,6 +205,7 @@ async function seed(adminUrl: string, runtimeUrl: string, secret: string): Promi
     await addStaff(db, other.orgId, user.id, other.propertyId);
     await seedRental(db, auth);
     await seedHotelOrg(db, auth, PORT);
+    await seedInvitations(db, auth, secret);
     const portal = await seedPortal(db);
     // Liên kết huỷ đăng ký ký số trong email nhắc quá hạn của người thuê An (SPEC-notifications S-010).
     writeFileSync(
@@ -233,6 +290,7 @@ async function stop(code: number): Promise<void> {
   rmSync(hotelTotpFile(PORT), { force: true });
   rmSync(outbox, { force: true });
   rmSync(unsubFile(PORT), { force: true });
+  rmSync(inviteTokensFile(PORT), { force: true });
   fakeS3.server.close();
   fakeClamd.server.close();
   await new Promise((r) => setTimeout(r, 500));

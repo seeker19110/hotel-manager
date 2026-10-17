@@ -7,7 +7,7 @@ import { REPO_ROOT, sourceFiles } from "../testing/source-scan.ts";
 import { COMMAND_INPUTS, checkCommandInput } from "./command-inputs.ts";
 import { validationProblem } from "./command-route.ts";
 import { MONEY_MAX } from "./form-rules.ts";
-import { COMMANDS, findCommand } from "./registry.ts";
+import { COMMANDS, findCommand, findUserCommand, USER_COMMANDS } from "./registry.ts";
 
 const UUID = "00000000-0000-4000-8000-000000000001";
 const fields = (r: ReturnType<typeof checkCommandInput>) => (r ?? []).map((i) => i.field).sort();
@@ -47,7 +47,10 @@ describe("registry dùng đúng schema dùng chung", () => {
   it("mọi khoá COMMAND_INPUTS là lệnh có thật và `input` là CÙNG đối tượng schema", () => {
     const keys = Object.keys(COMMAND_INPUTS);
     expect(keys.length).toBeGreaterThan(30);
-    for (const k of keys) expect(COMMANDS[k]?.input, k).toBe((COMMAND_INPUTS as Record<string, unknown>)[k]);
+    for (const k of keys)
+      expect((COMMANDS[k] ?? USER_COMMANDS[k])?.input, k).toBe(
+        (COMMAND_INPUTS as Record<string, unknown>)[k],
+      );
   });
 
   it("mọi lệnh web gọi (path=…, useCommand(…), hộp thoại khách) có trong registry VÀ có schema dùng chung", () => {
@@ -59,7 +62,8 @@ describe("registry dùng đúng schema dùng chung", () => {
       for (const line of f.text.split("\n")) {
         if (!/path=|path:|useCommand\(/.test(line)) continue;
         for (const m of line.matchAll(literal))
-          if (findCommand(m[1] as string, m[2] as string)) used.add(`${m[1]}.${m[2]}`);
+          if (findCommand(m[1] as string, m[2] as string) || findUserCommand(m[1] as string, m[2] as string))
+            used.add(`${m[1]}.${m[2]}`);
       }
     }
     expect(used.size).toBeGreaterThan(30);

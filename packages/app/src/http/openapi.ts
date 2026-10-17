@@ -7,7 +7,7 @@
 import { z } from "zod";
 import { ERROR_CODES } from "../errors.ts";
 import { IMPORT_KINDS } from "../import/index.ts";
-import { COMMANDS, QUERIES } from "./registry.ts";
+import { COMMANDS, QUERIES, USER_COMMANDS } from "./registry.ts";
 import { simPayload } from "./webhook-route.ts";
 
 export const API_CONTRACT_VERSION = "1.0.0";
@@ -100,18 +100,29 @@ function correlationHeader(): Json {
   };
 }
 
-function commandOperation(name: string, input: z.ZodType): Json {
+/** Phản hồi riêng của từng lệnh ngoài bộ chung (vd. chấp nhận lời mời: mọi lý do không hợp lệ đều trả cùng 410, không lộ trạng thái). */
+const COMMAND_EXTRA_RESPONSES: Record<string, Json> = {
+  "member.acceptInvitation": {
+    "410": errorResponse("INVITATION_INVALID — lời mời không còn hiệu lực (không phân biệt lý do)"),
+  },
+};
+
+/** `userScope` = lệnh cấp người dùng (cần phiên, KHÔNG nhận ngữ cảnh tổ chức — `USER_COMMANDS`). */
+function commandOperation(name: string, input: z.ZodType, userScope = false): Json {
   const module = name.split(".")[0] as string;
   return {
     operationId: name,
     tags: [module],
-    summary: name,
+    summary: userScope ? `${name} (cấp người dùng — không cần ngữ cảnh tổ chức)` : name,
     security: [{ sessionCookie: [] }],
-    parameters: [ref("IdempotencyKey"), ref("OrgId"), ref("OrgContext"), ref("AppVersion")],
+    parameters: userScope
+      ? [ref("IdempotencyKey"), ref("AppVersion")]
+      : [ref("IdempotencyKey"), ref("OrgId"), ref("OrgContext"), ref("AppVersion")],
     requestBody: { required: true, content: { "application/json": { schema: schemaOf(input) } } },
     responses: {
       "2XX": commandSuccess(),
       ...pick("400", "401", "403", "404", "409", "422", "426", "429", "500"),
+      ...(COMMAND_EXTRA_RESPONSES[name] ?? {}),
     },
   };
 }
@@ -477,6 +488,10 @@ export function buildOpenApi(): Json {
   for (const [name, def] of Object.entries(COMMANDS)) {
     const [module, command] = name.split(".") as [string, string];
     paths[`/api/v1/${module}/${command}`] = { post: commandOperation(name, def.input) };
+  }
+  for (const [name, def] of Object.entries(USER_COMMANDS)) {
+    const [module, command] = name.split(".") as [string, string];
+    paths[`/api/v1/${module}/${command}`] = { post: commandOperation(name, def.input, true) };
   }
   for (const [name, def] of Object.entries(QUERIES)) {
     const [module, query] = name.split(".") as [string, string];

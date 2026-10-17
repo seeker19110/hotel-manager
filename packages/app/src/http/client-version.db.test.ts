@@ -6,9 +6,10 @@ import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod";
 import { testServices } from "../server/services.ts";
-import { type CommandDef, type HttpDeps, handleCommand } from "./command-route.ts";
+import { type CommandDef, type HttpDeps, handleCommand, handleUserCommand } from "./command-route.ts";
 import { handleFileUpload } from "./file-upload.ts";
 import { handleImportUpload } from "./import-upload.ts";
+import { USER_COMMANDS } from "./registry.ts";
 
 let t: TestDb;
 let A: SeededOrg;
@@ -95,6 +96,35 @@ describe("S-009 client quá cũ", () => {
     delete open.minClientVersion;
     const res = await handleCommand(ECHO, post({ ...signedIn(), "x-app-version": "0.0.1" }), open);
     expect(res.status).toBe(200);
+  });
+});
+
+// Lệnh cấp người dùng (org.create…) cũng là đường ghi từ trình duyệt: client cũ bị chặn như command thường.
+describe("S-009 client quá cũ — lệnh cấp người dùng", () => {
+  it("org.create với X-App-Version thấp ⇒ 426 CLIENT_OUTDATED trước phiên, không tạo tổ chức", async () => {
+    const def = USER_COMMANDS["org.create"];
+    if (!def) throw new Error("thiếu org.create trong USER_COMMANDS");
+    const name = `Tổ chức cũ ${randomUUID().slice(0, 8)}`;
+    const req = (h: Record<string, string>) =>
+      new Request("http://local.test/api/v1/org/create", {
+        method: "POST",
+        headers: { "content-type": "application/json", "idempotency-key": randomUUID(), ...h },
+        body: JSON.stringify({ name }),
+      });
+    for (const h of [
+      { "x-app-version": "1.1.9" },
+      { "x-app-version": "0.0.1", "x-test-user": randomUUID() },
+    ]) {
+      const res = await handleUserCommand(def as never, req(h), deps);
+      expect(res.status).toBe(426);
+      expect(((await res.json()) as { code: string }).code).toBe("CLIENT_OUTDATED");
+    }
+    const n = await sql<{
+      n: number;
+    }>`select count(*)::int as n from organizations where name = ${name}`.execute(t.admin);
+    expect(n.rows[0]?.n).toBe(0);
+    // Không gửi header ⇒ không kiểm phiên bản (đi tiếp tới kiểm phiên: chưa đăng nhập ⇒ 401).
+    expect((await handleUserCommand(def as never, req({}), deps)).status).toBe(401);
   });
 });
 

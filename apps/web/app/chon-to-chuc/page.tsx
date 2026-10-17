@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { EmptyState } from "../../components/ui/state.tsx";
 import { currentSession } from "../../lib/session.ts";
+import { CreateOrganization } from "./create-organization.tsx";
 import { OrgChoice } from "./org-choice.tsx";
 
 export const metadata: Metadata = { title: "Chọn tổ chức — Hotel Manager" };
@@ -26,7 +27,14 @@ export default async function ChooseOrganizationPage() {
     <main id="main" className="page">
       <h1>Chọn tổ chức</h1>
       {orgs.length === 0 ? (
-        <EmptyState title="Bạn chưa thuộc tổ chức nào" text="Liên hệ chủ cơ sở để được mời vào tổ chức." />
+        <>
+          <EmptyState
+            title="Bạn chưa thuộc tổ chức nào"
+            text="Tạo tổ chức của bạn bên dưới, hoặc nhờ chủ cơ sở gửi lời mời vào tổ chức của họ."
+          />
+          <h2>Tạo tổ chức mới</h2>
+          <CreateOrganization />
+        </>
       ) : (
         <ul className="choice-list">
           {orgs.map((o) => (
@@ -41,6 +49,12 @@ export default async function ChooseOrganizationPage() {
           ))}
         </ul>
       )}
+      {orgs.length > 0 && orgs.some((o) => o.role !== "tenant") ? (
+        <details className="details-box">
+          <summary>Tạo tổ chức mới</summary>
+          <CreateOrganization />
+        </details>
+      ) : null}
     </main>
   );
 }

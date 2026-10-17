@@ -70,6 +70,8 @@ const MORE: readonly MoreItem[] = [
   { href: "/ky-thu", label: "Kỳ thu", roles: MONEY, kind: "rental" },
   { href: "/doi-soat", label: "Đối soát", roles: MONEY, kind: "rental" },
   { href: "/thong-bao", label: "Thông báo", roles: STAFF },
+  { href: "/co-so", label: "Cơ sở", roles: ["owner"] },
+  { href: "/thanh-vien", label: "Thành viên", roles: ["owner", "manager"] },
 ];
 
 /** Các màn trong trang "Thêm": mọi màn của vai trò mà thanh dưới chưa trỏ thẳng tới. */

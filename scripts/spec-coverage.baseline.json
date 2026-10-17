@@ -1,10 +1,6 @@
 {
   "_ghi_chu": "Nền ratchet cho PM-SPEC-004/WF-SDD-003 (scripts/spec-coverage.mjs, kiểm ở scripts/process-docs.test.mjs). Mỗi spec Approved liệt kê S-NNN chưa có test nhắc ID. Scenario mới chưa có test và không có ở đây → test đỏ. Scenario đã có test mà còn ở đây → test đỏ đòi xoá (chỉ được co lại). Không thêm mục để làm xanh: gắn ID vào test hoặc viết test.",
   "specs": {
-    "access-and-property": {
-      "uncovered": ["S-001", "S-002", "S-003", "S-007", "S-008", "S-010", "S-018", "S-023", "S-025"],
-      "reason": "17/26 đã gắn ID hoặc có test (S-005 kind chỉ nhận whole và S-006 unit.archive/UNIT_IN_USE đã thêm ở units.db.test.ts). 9 scenario còn lại là tính năng CHƯA CÓ trong mã nên không thể kiểm: lệnh org.create/property.create (S-001, S-002, S-003), member.invite/acceptInvitation + INVITATION_INVALID (S-007, S-008), session.revokeAll + SESSION_REVOKED (S-010), member.updateRole/updateScope/invite vai trò cao + audit lần bị từ chối (S-018), property.update + PROPERTY_IN_USE khi đổi múi giờ/giờ chốt (S-023; cần trigger/migration mới — chưa được giao số migration). S-025: spec đòi 403 FORBIDDEN khi xác nhận tiền mặt ngoài ca, mã hiện tại là 409 SHIFT_NOT_OPEN (SPEC-ledger-payments §6, S-028) — hai spec lệch nhau, chờ quyết (PM-SPEC-004)."
-    },
     "pwa": {
       "uncovered": ["S-002", "S-003", "S-016"],
       "reason": "S-001, S-004…S-015, S-017…S-019 đã có test (pwa.spec.ts, pwa-commands.spec.ts, pwa-nav.spec.ts, rental.spec.ts…). Còn lại là phần BẮT BUỘC thiết bị thật, không thể kiểm bằng Playwright: S-002 (Chrome Android/desktop: hộp cài của trình duyệt, mở từ biểu tượng ở display-mode standalone, vào đúng màn mặc định theo vai trò) và S-003 (Safari iOS ≥ 16.4: hướng dẫn hiển thị đúng trên máy thật) — phần tự động (nút Cài ứng dụng khi có beforeinstallprompt, hướng dẫn iOS không có nút giả) đã có E2E tên \"cài ứng dụng (PWA-INSTALL, phần tự động)\" ở pwa-nav.spec.ts, cố ý KHÔNG gắn ID S-002/S-003 để scenario còn nằm ở nền cho tới khi có biên bản kiểm tay ở docs/qa/; S-016 ma trận 5 cấu hình thiết bị (iOS và chế độ đã cài kiểm tay, SPEC-pwa mục 7, Q-06 chưa có thiết bị) (PM-SPEC-004)."
