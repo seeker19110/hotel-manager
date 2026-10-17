@@ -64,7 +64,16 @@ import {
   setExpectedTotals,
   validateBatch,
 } from "../import/index.ts";
-import { approveBlock, archiveUnit, createUnit, endBlock, getUnitStatus } from "../inventory/index.ts";
+import {
+  approveBlock,
+  archiveUnit,
+  createUnit,
+  endBlock,
+  getCalendar,
+  getUnitStatus,
+  searchAvailability,
+  setUnitAvailability,
+} from "../inventory/index.ts";
 import {
   activateLease,
   addOccupant,
@@ -830,6 +839,17 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
     command: "inventory.endBlock",
     input: z.strictObject({ block_id: uuid }),
     run: async (ctx, i) => ({ data: await endBlock(ctx, i.block_id) }),
+  }),
+  "inventory.setUnitAvailability": defineCommand({
+    command: "inventory.setUnitAvailability",
+    input: COMMAND_INPUTS["inventory.setUnitAvailability"],
+    run: async (ctx, i) => ({
+      data: await setUnitAvailability(ctx, {
+        unitId: i.unit_id,
+        availability: i.availability,
+        ...(i.reason !== undefined ? { reason: i.reason } : {}),
+      }),
+    }),
   }),
   "reservation.markNoShow": defineCommand({
     command: "reservation.markNoShow",
@@ -1743,6 +1763,71 @@ export const QUERIES: Readonly<Record<string, AnyQuery>> = {
     query: "inventory.getUnitStatus",
     input: z.strictObject({ unit_id: uuid }),
     run: (db, actor, i: { unit_id: string }) => getUnitStatus(db, actor, i.unit_id),
+  },
+  "inventory.getCalendar": {
+    query: "inventory.getCalendar",
+    input: z.strictObject({
+      property_id: uuid,
+      from: isoDate,
+      to: isoDate,
+      floor_id: uuid.optional(),
+      room_type_id: uuid.optional(),
+      limit: z
+        .string()
+        .regex(/^\d{1,3}$/)
+        .optional(),
+      cursor: z
+        .string()
+        .regex(/^\d{1,7}$/)
+        .optional(),
+    }),
+    run: (
+      db,
+      actor,
+      i: {
+        property_id: string;
+        from: string;
+        to: string;
+        floor_id?: string;
+        room_type_id?: string;
+        limit?: string;
+        cursor?: string;
+      },
+    ) =>
+      getCalendar(db, actor, {
+        propertyId: i.property_id,
+        from: i.from,
+        to: i.to,
+        ...(i.floor_id ? { floorId: i.floor_id } : {}),
+        ...(i.room_type_id ? { roomTypeId: i.room_type_id } : {}),
+        ...(i.limit ? { limit: Number(i.limit) } : {}),
+        ...(i.cursor ? { cursor: i.cursor } : {}),
+      }),
+  },
+  "inventory.searchAvailability": {
+    query: "inventory.searchAvailability",
+    input: z.strictObject({
+      property_id: uuid,
+      start: z.iso.datetime({ offset: true }),
+      end: z.iso.datetime({ offset: true }),
+      guests: z
+        .string()
+        .regex(/^\d{1,2}$/)
+        .optional(),
+      room_type_id: uuid.optional(),
+    }),
+    run: (
+      db,
+      actor,
+      i: { property_id: string; start: string; end: string; guests?: string; room_type_id?: string },
+    ) =>
+      searchAvailability(db, actor, {
+        propertyId: i.property_id,
+        start: new Date(i.start),
+        end: new Date(i.end),
+        ...(i.guests ? { guests: Number(i.guests) } : {}),
+        ...(i.room_type_id ? { roomTypeId: i.room_type_id } : {}),
+      }),
   },
   "audit.listEvents": {
     query: "audit.listEvents",

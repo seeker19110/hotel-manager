@@ -90,6 +90,11 @@ export const COMMAND_INPUTS = {
     result: z.enum(["pass", "fail"]),
     reason: z.string().trim().max(1000).optional(),
   }),
+  "inventory.setUnitAvailability": z.strictObject({
+    unit_id: uuid,
+    availability: z.enum(["active", "out_of_service"]),
+    reason: z.string().trim().max(1000).optional(),
+  }),
   "lease.activate": z.strictObject({ lease_id: uuid }),
   "lease.giveNotice": z.strictObject({ lease_id: uuid, planned_move_out_on: isoDate }),
   "lease.prepareSettlement": z.strictObject({

@@ -322,6 +322,83 @@ describe("S-011, S-013 phụ lục", () => {
   });
 });
 
+describe("SPEC-inventory S-020 phòng hợp đồng quá hạn: RELOCATION_REQUIRED, ROOM_OCCUPIED khi bàn giao, đóng ngoại lệ khi trả phòng", () => {
+  it("SPEC-inventory S-020: job lease.detectOverstay mở RELOCATION_REQUIRED cho booking đã xác nhận kế tiếp (không cho hold), chạy lại không nhân; bàn giao trả phòng đóng cả hai ngoại lệ", async () => {
+    const { leaseId, unitId } = await activeLease();
+    const next = randomUUID();
+    const hold = randomUUID();
+    await sql`insert into allocations (id, organization_id, property_id, unit_id, kind, during)
+              values (${next}, ${A.orgId}, ${A.propertyId}, ${unitId}, 'stay',
+                      tstzrange('2027-10-31T17:00:00Z', '2027-11-03T05:00:00Z', '[)'))`.execute(t.admin);
+    await sql`insert into allocations (id, organization_id, property_id, unit_id, kind, during, expires_at)
+              values (${hold}, ${A.orgId}, ${A.propertyId}, ${unitId}, 'hold',
+                      tstzrange('2027-11-10T07:00:00Z', '2027-11-11T05:00:00Z', '[)'), '2099-01-01T00:00:00Z')`.execute(
+      t.admin,
+    );
+    const at = new Date("2027-10-31T18:00:00Z");
+    await detectOverstay(t.worker, at);
+    await detectOverstay(t.worker, at);
+    const ex = (allocationId: string) =>
+      sql<{ type: string; status: string; related_allocation_id: string | null; resolution: string | null }>`
+        select type, status, related_allocation_id, resolution from exceptions where allocation_id = ${allocationId} order by type`.execute(
+        t.admin,
+      );
+    const leaseAlloc = (
+      await sql<{ id: string }>`select id from allocations where source_id = ${leaseId}`.execute(t.admin)
+    ).rows[0]?.id as string;
+    expect((await ex(next)).rows).toEqual([
+      { type: "RELOCATION_REQUIRED", status: "open", related_allocation_id: leaseAlloc, resolution: null },
+    ]);
+    expect((await ex(hold)).rows).toEqual([]);
+    expect((await ex(leaseAlloc)).rows.map((r) => [r.type, r.status])).toEqual([["LEASE_OVERSTAY", "open"]]);
+
+    await ok(
+      run(F, async (ctx) => ({
+        data: await recordHandover(
+          ctx,
+          await handoverInput(leaseId, { kind: "move_out", handedOverOn: "2027-11-01" }),
+        ),
+      })),
+    );
+    expect((await ex(leaseAlloc)).rows).toEqual([
+      { type: "LEASE_OVERSTAY", status: "resolved", related_allocation_id: next, resolution: "moved_out" },
+    ]);
+    expect((await ex(next)).rows.map((r) => [r.type, r.status])).toEqual([
+      ["RELOCATION_REQUIRED", "resolved"],
+    ]);
+    const audit = await sql<{ n: number }>`
+      select count(*)::int as n from audit_events where action = 'exception.resolved' and entity_id in
+        (select id from exceptions where allocation_id in (${leaseAlloc}, ${next}))`.execute(t.admin);
+    expect(audit.rows[0]?.n).toBe(2);
+  });
+
+  it("SPEC-inventory S-020: bàn giao nhận phòng (move_in) vào phòng còn hợp đồng cũ quá hạn chưa trả → 409 ROOM_OCCUPIED, không ghi biên bản; đóng ngoại lệ thì bàn giao được", async () => {
+    const unitId = await unitWithMeters();
+    const { leaseId } = await signedLease(unitId);
+    const prev = randomUUID();
+    await sql`insert into allocations (id, organization_id, property_id, unit_id, kind, source_type, source_id, during)
+              values (${prev}, ${A.orgId}, ${A.propertyId}, ${unitId}, 'lease', 'lease', ${randomUUID()},
+                      tstzrange('2026-01-01T00:00:00+07', '2026-11-01T00:00:00+07', '[)'))`.execute(t.admin);
+    const ex = randomUUID();
+    await sql`insert into exceptions (id, organization_id, property_id, type, allocation_id)
+              values (${ex}, ${A.orgId}, ${A.propertyId}, 'LEASE_OVERSTAY', ${prev})`.execute(t.admin);
+    const go = async () =>
+      run(F, async (ctx) => ({ data: await recordHandover(ctx, await handoverInput(leaseId)) }));
+    expect(await fails(go())).toMatchObject({ code: "ROOM_OCCUPIED", status: 409 });
+    const none = await sql<{
+      n: number;
+    }>`select count(*)::int as n from handovers where lease_id = ${leaseId}`.execute(t.admin);
+    expect(none.rows[0]?.n).toBe(0);
+    await sql`update exceptions set status = 'resolved', resolution = 'moved_out', resolved_by = ${M.membershipId}, resolved_at = now()
+              where id = ${ex}`.execute(t.admin);
+    await ok(go());
+    const done = await sql<{
+      n: number;
+    }>`select count(*)::int as n from handovers where lease_id = ${leaseId}`.execute(t.admin);
+    expect(done.rows[0]?.n).toBe(1);
+  });
+});
+
 describe("S-014, S-015 job", () => {
   it("S-014: nhắc hết hạn 30 ngày chạy 3 lần trong ngày → đúng 1 outbox (lease, phiên bản, 30)", async () => {
     const { leaseId } = await activeLease();

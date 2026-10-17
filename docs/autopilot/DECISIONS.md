@@ -324,6 +324,34 @@
 - Lý do (tiêu chí chất lượng cuối): (1) đúng: thiếu ca là trạng thái nghiệp vụ, không phải thiếu quyền — 403 làm lẫn hai nghĩa; mã đã nhất quán ở deposit/settlement/payment. (3) chỉ sửa tài liệu + một test.
 - Đường lùi: Đổi payment.confirm trả 403 khi không có ca mở, sửa S-028.
 
+### D-046 · 2026-10-17T11:04:47+00:00 · T-604: tên sự kiện giữ chỗ — spec §9 ghi allocation.hold_created, mã phát allocation.held
+
+- Phương án: (1) Sửa SPEC-inventory §9 thành allocation.held (khớp mã, không đụng sự kiện đã phát) · (2) Đổi mã thành allocation.hold_created (cần chuyển sự kiện cũ trong outbox)
+- Chọn: Sửa SPEC-inventory §9 thành allocation.held (khớp mã, không đụng sự kiện đã phát)
+- Lý do (tiêu chí chất lượng cuối): (3) đơn giản, không migrate dữ liệu; chưa có consumer ngoài phụ thuộc tên cũ.
+- Đường lùi: Đổi tên trong mã + AUDIT_ONLY_EVENT_TYPES.
+
+### D-047 · 2026-10-17T11:04:47+00:00 · T-604: resizeAllocation đang là lệnh HTTP cho manager nhưng không đồng bộ booking/hợp đồng/giá/folio
+
+- Phương án: (1) Hàm nội bộ, không đăng ký registry — chỉ lệnh nghiệp vụ (đổi ngày booking/gia hạn lượt ở/phụ lục) gọi; sửa SPEC-inventory §5 · (2) Giữ lệnh HTTP cho manager
+- Chọn: Hàm nội bộ, không đăng ký registry — chỉ lệnh nghiệp vụ (đổi ngày booking/gia hạn lượt ở/phụ lục) gọi; sửa SPEC-inventory §5
+- Lý do (tiêu chí chất lượng cuối): (1) an toàn dữ liệu: lệnh rời làm allocation lệch booking/folio (tiền); quyền và đồng bộ thuộc lệnh nghiệp vụ sở hữu. (2) đường lùi: đăng ký lại khi có nhu cầu.
+- Đường lùi: Đăng ký lại inventory.resizeAllocation trong registry + authz-matrix.
+
+### D-048 · 2026-10-17T11:04:47+00:00 · T-604: truy cập cơ sở khác trong cùng tổ chức — SPEC-inventory §3 ghi 403, quy ước authorize trả 404
+
+- Phương án: (1) Giữ 404 NOT_FOUND (không lộ sự tồn tại tài nguyên ngoài phạm vi, D-030), sửa SPEC-inventory §3 · (2) Đổi sang 403 theo spec
+- Chọn: Giữ 404 NOT_FOUND (không lộ sự tồn tại tài nguyên ngoài phạm vi, D-030), sửa SPEC-inventory §3
+- Lý do (tiêu chí chất lượng cuối): (1) an toàn: thống nhất với quy ước toàn hệ thống và API-CONTRACT (404 cho ngoài phạm vi); 403 chỉ khi đọc được tài nguyên nhưng không được thao tác.
+- Đường lùi: Trả 403 ở authorize cho inventory.
+
+### D-051 · 2026-10-17T12:35:00+00:00 · T-604/T-605: migration mới 0057/0058 đứng trước 0060 đã có trên main — Kysely mặc định từ chối migration chèn trước bản đã áp
+
+- Phương án: (1) Đổi số thành 0061 (T-604) và 0062 (T-605) để luôn đứng sau bản cuối trên main · (2) Bật `allowUnorderedMigrations` cho migrator
+- Chọn: Đổi số thành 0061 (T-604) và 0062 (T-605) để luôn đứng sau bản cuối trên main
+- Lý do (tiêu chí chất lượng cuối): (1) đúng: CSDL đã áp 0060 sẽ báo lỗi sổ migration nếu nhận 0057; (3) giữ thứ tự tuyến tính đơn giản, không nới cấu hình migrator.
+- Đường lùi: Đổi tên file/khoá migration về số cũ khi chưa áp ở đâu.
+
 ### D-052 · 2026-10-17T13:10:00+00:00 · T-605: `org.create` không bị hạn mức (bộ đếm theo tổ chức/người suy ra từ key luôn bằng 0) — chặn thế nào?
 
 - Phương án: (1) 10 lần tạo thành công/giờ/người dùng qua `app.rate_limit_hit` (0053) trong bootstrap, cùng transaction; vượt → 429 RATE_LIMITED + `retry_after` · (2) Trần tổng số tổ chức mỗi người · (3) Chỉ dựa vào giới hạn IP của Better Auth

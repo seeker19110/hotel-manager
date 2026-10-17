@@ -16,7 +16,7 @@ import {
 import { sql, type Transaction } from "kysely";
 import type { PiiCipher } from "../crypto/index.ts";
 import { type DocType, recordIdentityDocument } from "../identity/index.ts";
-import { confirmHold, createHold } from "../inventory/index.ts";
+import { assertNoOpenOverstay, confirmHold, createHold } from "../inventory/index.ts";
 import { type CommandContext, CommandError } from "../pipeline/index.ts";
 import { assertCapacity, loadRates, quoteProblem, staySettings } from "./rates.ts";
 import { readReservation, resolveBooker } from "./reservations.ts";
@@ -57,6 +57,8 @@ async function assertRoomReady(
     select id from stays where organization_id = ${ctx.actor.orgId} and unit_id = ${unitId} and status = 'in_house'
       ${exceptStayId ? sql`and id <> ${exceptStayId}` : sql``} limit 1`.execute(ctx.trx);
   if (occupied.rows[0]) throw new CommandError("ROOM_OCCUPIED", 409, "Phòng vẫn còn khách chưa trả.");
+  // Hợp đồng/lượt ở quá hạn chưa trả (ngoại lệ OVERSTAY đang mở) cũng là phòng còn người (SPEC-inventory S-017, S-020).
+  await assertNoOpenOverstay(ctx.trx, ctx.actor.orgId, unitId, exceptStayId);
   if (unit.availability !== "active")
     throw new CommandError("UNIT_OUT_OF_SERVICE", 409, "Phòng đang ngừng khai thác");
   const ready =
