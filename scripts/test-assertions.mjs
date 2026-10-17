@@ -63,9 +63,16 @@ const REGEX_PREV = new Set([..."(,=:[!&|?{};+-*%<>~^"]);
 /**
  * Thay nội dung chuỗi, template, comment, regex literal bằng khoảng trắng (giữ xuống dòng và độ dài) để tìm cú pháp
  * bằng regex/đếm ngoặc không bị nhiễu. Giữ nguyên dấu nháy mở/đóng của chuỗi để vị trí không đổi.
+ * `keepComments: true` giữ nguyên comment (chỉ xoá chuỗi/regex/template) — để trích comment thật, không lẫn chuỗi giống comment.
  */
-export function blank(src) {
+export function blank(src, { keepComments = false } = {}) {
+  return lex(src, keepComments).out.join("");
+}
+
+/** Lexer lõi của `blank`: trả {out: mảng ký tự đã làm trống, comments: [[bắt đầu, kết thúc)] của mọi comment thật}. */
+export function lex(src, keepComments = false) {
   const out = src.split("");
+  const comments = [];
   const n = src.length;
   const wipe = (a, b) => {
     for (let k = a; k < b; k++) if (out[k] !== "\n") out[k] = " ";
@@ -99,12 +106,14 @@ export function blank(src) {
       if (c === "/" && d === "/") {
         const e = src.indexOf("\n", k);
         const end = e === -1 ? n : e;
-        wipe(k, end);
+        comments.push([k, end]);
+        if (!keepComments) wipe(k, end);
         k = end;
       } else if (c === "/" && d === "*") {
         const e = src.indexOf("*/", k + 2);
         const end = e === -1 ? n : e + 2;
-        wipe(k, end);
+        comments.push([k, end]);
+        if (!keepComments) wipe(k, end);
         k = end;
       } else if (c === '"' || c === "'") {
         let e = k + 1;
@@ -159,7 +168,7 @@ export function blank(src) {
     return k;
   };
   code(0, false);
-  return out.join("");
+  return { out, comments };
 }
 
 /** Chỉ số `)` khớp với `(` tại `open` trong văn bản đã `blank`; -1 nếu mất cân bằng. */

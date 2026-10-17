@@ -214,7 +214,7 @@ Phân loại 169 mục mở: 12 làm trọn trong repo, 90 một phần (cần C
 
 - [x] `T-701` Tương phản token: test tính tỷ lệ WCAG cho mọi khối token `:root` trong `globals.css` (chữ ≥ 4.5:1, viền/focus ≥ 3:1), script `check:contrast`; theme sáng (D-054) (UX-DS-003, UX-A11Y-002) — Gate: `pnpm vitest run --project unit contrast`
 - [x] `T-702` Rào test có khẳng định: mỗi `it`/`test` có `expect`/`assert` (allowlist helper), snapshot không là khẳng định duy nhất (QA-COV-004) — Gate: `pnpm vitest run --project unit test-assertions`
-- [ ] `T-703` Rào mã chú thích bỏ dở: test quét code bị comment-out (cùng kiểu `no-console`, D-055) (QA-STATIC-005) — Gate: `pnpm vitest run --project unit no-console commented-code`
+- [x] `T-703` Rào mã chú thích bỏ dở: test quét code bị comment-out (cùng kiểu `no-console`, D-055) (QA-STATIC-005) — Gate: `pnpm vitest run --project unit no-console commented-code`
 - [ ] `T-704` Ngân sách hiệu năng: tách hàm kiểm ngân sách khỏi `perf-baseline.spec.ts`, unit test thêm 200 KB phải đỏ (XC-PERF-003) — Gate: `pnpm vitest run --project unit perf`
 - [ ] `T-705` Chính sách giấy phép: `license-policy.json` (allow/deny/review, ngoại lệ có package/reason/approved_by/expires), `check-licenses.mjs` đọc và đỏ khi ngoại lệ hết hạn (D-057) (CMP-LIC-002) — Gate: `pnpm vitest run --project unit check-licenses && pnpm licenses:check`
 - [ ] `T-706` Gói bàn giao: `RUNBOOK.md` ở gốc trỏ `docs/RUNBOOK.md`, rào repo-hygiene; job `quality` là clean clone build (D-056) (PM-HANDOVER-002) — Gate: `test -f README.md -a -f RUNBOOK.md -a -d docs/adr && pnpm vitest run --project unit repo-hygiene`
