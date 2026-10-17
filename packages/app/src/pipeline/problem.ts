@@ -128,6 +128,15 @@ const HINT_STATUS: Record<string, { status: number; title: string }> = {
   TENANT_CONTEXT_MISSING: { status: 500, title: "Thiếu ngữ cảnh tổ chức" },
 };
 
+/**
+ * Ràng buộc UNIQUE có mã nghiệp vụ riêng trong SPEC (thay cho `DUPLICATE` chung). Khoá theo TÊN ràng buộc ở CSDL nên mọi
+ * đường ghi (tạo phòng, nhập liệu…) đều trả cùng một mã.
+ */
+const UNIQUE_CODES: Record<string, { code: string; status: number; title: string }> = {
+  // SPEC-access-and-property S-004: mã phòng duy nhất theo cơ sở (không phân biệt hoa thường, bỏ khoảng trắng).
+  uq_units_code: { code: "UNIT_CODE_TAKEN", status: 409, title: "Mã phòng đã tồn tại trong cơ sở này" },
+};
+
 export function toProblem(err: unknown, correlationId?: string): Problem {
   const base = (code: string, status: number, title: string, detail?: string): Problem => ({
     type: `${TYPE_BASE}${code}`,
@@ -141,7 +150,9 @@ export function toProblem(err: unknown, correlationId?: string): Problem {
   if (err instanceof TransitionError)
     return { ...base(err.code, err.status, err.message), from: err.from, to: err.to };
   if (err instanceof AuthzError || err instanceof AccessError) return base(err.code, err.status, err.message);
-  const pg = err as { code?: string; hint?: string };
+  const pg = err as { code?: string; hint?: string; constraint?: string };
+  const unique = pg?.code === "23505" && pg.constraint ? UNIQUE_CODES[pg.constraint] : undefined;
+  if (unique) return base(unique.code, unique.status, unique.title);
   const hinted = typeof pg?.hint === "string" ? HINT_STATUS[pg.hint] : undefined;
   if (typeof pg?.code === "string" && hinted && pg.hint) {
     // Lỗi cấu hình hệ thống (thiếu ngữ cảnh) vẫn che như lỗi nội bộ; sổ lệch giữ mã theo SPEC.

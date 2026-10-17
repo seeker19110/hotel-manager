@@ -90,7 +90,7 @@ describe("bộ kiểm cách ly tenant dùng chung", () => {
     expect((await tenantTables(t.admin)).length).toBeGreaterThanOrEqual(8);
   });
 
-  it("ngữ cảnh A và B đều không thấy hàng của tổ chức khác ở bất kỳ bảng nào", async () => {
+  it("SPEC-access S-013: ngữ cảnh A và B đều không thấy hàng của tổ chức khác ở bất kỳ bảng nào", async () => {
     expect(await findIsolationLeaks(t.admin, t.runtime, A.orgId)).toEqual([]);
     expect(await findIsolationLeaks(t.admin, t.runtime, B.orgId)).toEqual([]);
   });

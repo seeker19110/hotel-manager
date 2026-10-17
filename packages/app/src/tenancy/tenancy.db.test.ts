@@ -88,14 +88,14 @@ describe("cách ly đọc/ghi giữa tổ chức (TM-01)", () => {
     expect(new Set(rows)).toEqual(new Set([A.orgId]));
   });
 
-  it("đọc theo id của B trong ngữ cảnh A → không thấy (không lộ tồn tại)", async () => {
+  it("SPEC-access S-013: đọc theo id của B trong ngữ cảnh A → không thấy (không lộ tồn tại)", async () => {
     const r = await withTenant(t.runtime, { orgId: A.orgId }, (trx) =>
       sql`select id from units where id = ${B.unitId}`.execute(trx),
     );
     expect(r.rows).toEqual([]);
   });
 
-  it("ghi hàng mang organization_id của B trong ngữ cảnh A → bị WITH CHECK chặn", async () => {
+  it("SPEC-access S-013: ghi hàng mang organization_id của B trong ngữ cảnh A → bị WITH CHECK chặn", async () => {
     await expect(
       withTenant(t.runtime, { orgId: A.orgId }, (trx) =>
         sql`insert into persons (id, organization_id, full_name) values (${randomUUID()}, ${B.orgId}, 'Giả mạo')`.execute(
@@ -135,7 +135,7 @@ describe("cách ly đọc/ghi giữa tổ chức (TM-01)", () => {
 });
 
 describe("FK ghép theo tổ chức (INV-G1)", () => {
-  it("phòng của A không thể trỏ tầng của B kể cả khi ghi bằng owner", async () => {
+  it("SPEC-access S-014: phòng của A không thể trỏ tầng của B kể cả khi ghi bằng owner", async () => {
     await expect(
       sql`insert into units (id, organization_id, property_id, floor_id, code)
           values (${randomUUID()}, ${A.orgId}, ${A.propertyId}, ${B.floorId}, '999')`.execute(t.admin),

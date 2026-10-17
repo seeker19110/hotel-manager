@@ -238,6 +238,19 @@ describe("đọc file (TM-06)", () => {
     expect(seen.rows[0]?.n).toBe(0);
   });
 
+  it("SPEC-access S-024: buồng phòng xin URL ảnh giấy tờ → 404, không cấp URL, lần từ chối vào audit (outcome=denied)", async () => {
+    const r = await upload(frontDesk, "identity_document", jpegWithExif());
+    if (r.status !== "committed") throw new Error(JSON.stringify(r));
+    const denied = await urlFor(housekeeping, r.data.fileId);
+    expect(denied).toMatchObject({ status: "failed", httpStatus: 404, problem: { code: "NOT_FOUND" } });
+    expect(JSON.stringify(denied)).not.toContain("X-Amz-Signature");
+    const audit = await sql<{ outcome: string; actor_person_id: string }>`
+      select outcome, actor_person_id from audit_events where command_id = ${denied.commandId}`.execute(
+      t.admin,
+    );
+    expect(audit.rows).toEqual([{ outcome: "denied", actor_person_id: housekeeping.personId }]);
+  });
+
   it("buồng phòng không tải ảnh giấy tờ lên được (không có quyền đọc giấy tờ)", async () => {
     expect(await upload(housekeeping, "identity_document", jpegWithExif())).toMatchObject({
       status: "failed",

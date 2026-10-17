@@ -70,7 +70,7 @@ afterAll(async () => {
 });
 
 describe("idempotency (INV-G5)", () => {
-  it("cùng key + cùng payload gửi 2 lần → một hiệu lực, lần 2 trả kết quả cũ", async () => {
+  it("SPEC-access S-021: cùng key + cùng payload gửi 2 lần → một hiệu lực, lần 2 trả kết quả cũ", async () => {
     const before = await counts(A.orgId);
     const key = randomUUID();
     const req = {
@@ -108,7 +108,7 @@ describe("idempotency (INV-G5)", () => {
     expect(after).toEqual({ a: before.a + 1, o: before.o + 1, p: before.p + 1 });
   });
 
-  it("cùng key + khác payload → 409 IDEMPOTENCY_CONFLICT", async () => {
+  it("SPEC-access S-021: cùng key + khác payload → 409 IDEMPOTENCY_CONFLICT", async () => {
     const key = randomUUID();
     await executeCommand(
       t.runtime,

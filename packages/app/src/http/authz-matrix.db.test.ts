@@ -347,7 +347,7 @@ describe("api1-bola — không phiên, tổ chức khác, id tài nguyên của 
     },
   };
 
-  it("api1-bola: chủ A cầm id thật của B → 404 (hoặc ngoại lệ có lý do), không ghi vào B, không lộ dữ liệu B", async () => {
+  it("SPEC-access S-013: api1-bola: chủ A cầm id thật của B → 404 (hoặc ngoại lệ có lý do), không ghi vào B, không lộ dữ liệu B", async () => {
     const before = await rowsOf(B.orgId);
     const bValues = new Set(Object.values(idsB));
     const bad: string[] = [];
@@ -758,7 +758,7 @@ describe("BE-AUTH-009 — user_id/person_id/organization_id trong thân KHÔNG �
     ]);
   });
 
-  it("gửi user_id/person_id/organization_id/role/membership_id không khai báo → 422, không lệnh nào chạy", async () => {
+  it("SPEC-access S-014: gửi user_id/person_id/organization_id/role/membership_id không khai báo → 422, không lệnh nào chạy", async () => {
     const bad: string[] = [];
     for (const e of ENTRIES) {
       const declared = new Set(

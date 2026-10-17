@@ -6,28 +6,16 @@
         "S-001",
         "S-002",
         "S-003",
-        "S-004",
         "S-005",
         "S-006",
         "S-007",
         "S-008",
-        "S-009",
         "S-010",
-        "S-011",
-        "S-012",
-        "S-013",
-        "S-014",
-        "S-015",
         "S-018",
-        "S-019",
-        "S-021",
-        "S-022",
         "S-023",
-        "S-024",
-        "S-025",
-        "S-026"
+        "S-025"
       ],
-      "reason": "Test của access/tenancy/auth kiểm hành vi theo tên mô tả và ma trận quyền sinh từ `matrix.ts`, chưa gắn ID S-NNN vào tên test; việc gắn ID và bổ sung test còn thiếu là việc của task sau (PM-SPEC-004)."
+      "reason": "15/26 đã gắn ID hoặc có test mới. 11 scenario còn lại là tính năng CHƯA CÓ trong mã nên không thể kiểm: lệnh org.create/property.create (S-001, S-002, S-003), unit.create với kind (S-005), unit.archive + UNIT_IN_USE (S-006), member.invite/acceptInvitation + INVITATION_INVALID (S-007, S-008), session.revokeAll + SESSION_REVOKED (S-010), member.updateRole/updateScope/invite vai trò cao + audit lần bị từ chối (S-018), trigger PROPERTY_IN_USE khi đổi múi giờ/giờ chốt (S-023). S-025: spec đòi 403 FORBIDDEN khi xác nhận tiền mặt ngoài ca, mã hiện tại là 409 SHIFT_NOT_OPEN (SPEC-ledger-payments §6) — hai spec lệch nhau, chờ quyết (PM-SPEC-004)."
     },
     "housekeeping-maintenance": {
       "uncovered": ["S-016", "S-024"],

@@ -101,7 +101,7 @@ describe("đăng nhập và cookie phiên (TM-02)", () => {
 });
 
 describe("khoá tạm theo tài khoản (access Q-07: 5 lần sai → 15 phút)", () => {
-  it("5 lần sai rồi đúng mật khẩu vẫn bị khoá; sau 15 phút đăng nhập lại được", async () => {
+  it("SPEC-access S-012: 5 lần sai rồi đúng mật khẩu vẫn bị khoá; sau 15 phút đăng nhập lại được", async () => {
     const email = `khoa+${randomUUID().slice(0, 8)}@example.test`;
     await signUp(email);
     for (let i = 0; i < 5; i++) {
@@ -117,6 +117,76 @@ describe("khoá tạm theo tài khoản (access Q-07: 5 lần sai → 15 phút)"
     expect((await post("/sign-in/email", { email, password: PASSWORD })).status).toBe(200);
   });
 
+  it("SPEC-access S-012: nhập sai mã TOTP vượt ngưỡng → 429 kèm Retry-After; lần trước ngưỡng chỉ là 401 chung", async () => {
+    const email = `totp+${randomUUID().slice(0, 8)}@example.test`;
+    const userId = await signUp(email);
+    await seedOrg(t.admin, "KS TOTP", "hotel", userId);
+    const first = await post("/sign-in/email", { email, password: PASSWORD });
+    const cookie = cookiesOf(first);
+    const enabled = await auth.api.enableTwoFactor({
+      body: { password: PASSWORD, method: "totp" },
+      headers: new Headers({ cookie }),
+    });
+    if (enabled.method !== "totp") throw new Error("cần phương thức TOTP");
+    const b32 = new URL(enabled.totpURI).searchParams.get("secret") ?? "";
+    const code = await createOTP(new TextDecoder().decode(base32.decode(b32))).totp();
+    expect((await post("/two-factor/verify-totp", { code }, cookie)).status).toBe(200);
+
+    // Không tiết lộ tài khoản có tồn tại: email lạ và sai mật khẩu cho cùng trạng thái + cùng mã lỗi.
+    const wrongPw = await post("/sign-in/email", { email, password: "khong-dung-mat-khau-1" });
+    const unknown = await post("/sign-in/email", {
+      email: `khong-co+${randomUUID().slice(0, 8)}@example.test`,
+      password: "khong-dung-mat-khau-1",
+    });
+    expect(unknown.status).toBe(wrongPw.status);
+    expect(((await unknown.json()) as { code?: string }).code).toBe(
+      ((await wrongPw.json()) as { code?: string }).code,
+    );
+
+    // Bản có giới hạn theo IP bật (mặc định production) dùng chung CSDL/khoá ký với bản test.
+    const limited = createAuth({
+      databaseUrl: t.runtimeUrl,
+      secret: "s".repeat(48),
+      baseURL: BASE,
+      now: () => clock,
+    });
+    try {
+      const call = (path: string, body: unknown, ck?: string) =>
+        limited.auth.handler(
+          new Request(`${BASE}/api/auth${path}`, {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              origin: BASE,
+              "x-forwarded-for": "203.0.113.77",
+              ...(ck ? { cookie: ck } : {}),
+            },
+            body: JSON.stringify(body),
+          }),
+        );
+      const challenge = await call("/sign-in/email", { email, password: PASSWORD });
+      expect(await challenge.json()).toMatchObject({ twoFactorRedirect: true });
+      const ck = cookiesOf(challenge);
+      const statuses: number[] = [];
+      let limitedRes: Response | undefined;
+      for (let i = 0; i < 12; i++) {
+        const r = await call("/two-factor/verify-totp", { code: "000000" }, ck);
+        statuses.push(r.status);
+        if (r.status === 429) {
+          limitedRes = r;
+          break;
+        }
+      }
+      expect(statuses.slice(0, -1).every((s) => s === 401 || s === 400)).toBe(true);
+      expect(statuses.at(-1)).toBe(429);
+      expect(
+        Number(limitedRes?.headers.get("retry-after") ?? limitedRes?.headers.get("x-retry-after")),
+      ).toBeGreaterThan(0);
+    } finally {
+      await limited.close();
+    }
+  });
+
   it("đăng nhập đúng xoá bộ đếm sai", async () => {
     const email = `dem+${randomUUID().slice(0, 8)}@example.test`;
     await signUp(email);
@@ -128,7 +198,7 @@ describe("khoá tạm theo tài khoản (access Q-07: 5 lần sai → 15 phút)"
 });
 
 describe("ngữ cảnh tổ chức và quyền (SPEC-access)", () => {
-  it("chủ chưa bật MFA → MFA_REQUIRED; bật TOTP → actor hợp lệ; đăng nhập lần sau đòi mã TOTP", async () => {
+  it("SPEC-access S-011: chủ chưa bật MFA → MFA_REQUIRED; bật TOTP → actor hợp lệ; đăng nhập lần sau đòi mã TOTP", async () => {
     const email = `chu+${randomUUID().slice(0, 8)}@example.test`;
     const userId = await signUp(email);
     const org = await seedOrg(t.admin, "KS MFA", "hotel", userId);
@@ -187,7 +257,7 @@ describe("ngữ cảnh tổ chức và quyền (SPEC-access)", () => {
     ).rejects.toBeInstanceOf(AccessError);
   });
 
-  it("thu hồi membership → request kế tiếp mất quyền ngay; listMyOrganizations không còn tổ chức đó", async () => {
+  it("SPEC-access S-009: thu hồi membership → request kế tiếp mất quyền ngay; listMyOrganizations không còn tổ chức đó", async () => {
     const org = await seedOrg(t.admin, "Trọ thu hồi", "rental");
     const email = `bp+${randomUUID().slice(0, 8)}@example.test`;
     const userId = await signUp(email);
