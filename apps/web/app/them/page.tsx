@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { InstallApp } from "../../components/pwa/install-app.tsx";
 import { LogoutButton } from "../../components/pwa/logout-button.tsx";
 import { MoreLinks } from "../../components/rental/app-nav.tsx";
+import { moreLinks } from "../../components/rental/nav-items.ts";
+import { EmptyState } from "../../components/ui/state.tsx";
 import { withActor } from "../../lib/page.tsx";
 
 export const metadata: Metadata = { title: "Thêm — Hotel Manager" };
@@ -12,7 +14,11 @@ export default async function MorePage() {
     <>
       <section aria-labelledby="man-khac" className="panel">
         <h2 id="man-khac">Màn khác</h2>
-        <MoreLinks role={actor.role} kinds={kinds} />
+        {moreLinks(actor.role, kinds).length === 0 ? (
+          <EmptyState title="Không có màn nào khác cho vai trò của bạn" />
+        ) : (
+          <MoreLinks role={actor.role} kinds={kinds} />
+        )}
       </section>
       <InstallApp />
       <section aria-labelledby="tai-khoan" className="panel">

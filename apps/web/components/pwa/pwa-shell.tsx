@@ -82,8 +82,8 @@ function subscribeOutdated(cb: () => void): () => void {
   return () => outdatedListeners.delete(cb);
 }
 
-/** Nhận bản mới: có SW đang chờ ⇒ cho nó nắm quyền; rồi tải lại trang (HTML luôn lấy mới từ máy chủ, no-store). */
-export async function applyUpdate(): Promise<void> {
+/** Cho SW đang chờ (nếu có) nắm quyền; false khi không cập nhật được SW (mạng/SW bị chặn) — khi đó tải lại trang vẫn lấy HTML + JS mới. */
+async function activateWaitingWorker(): Promise<boolean> {
   try {
     const reg = await navigator.serviceWorker?.getRegistration();
     await reg?.update();
@@ -95,9 +95,15 @@ export async function applyUpdate(): Promise<void> {
       reg.waiting.postMessage({ type: "SKIP_WAITING" });
       await changed;
     }
+    return true;
   } catch {
-    // không cập nhật được SW (mạng/SW bị chặn) — tải lại trang vẫn lấy HTML + JS mới
+    return false;
   }
+}
+
+/** Nhận bản mới: có SW đang chờ ⇒ cho nó nắm quyền; rồi tải lại trang (HTML luôn lấy mới từ máy chủ, no-store). */
+export async function applyUpdate(): Promise<void> {
+  await activateWaitingWorker();
   window.location.reload();
 }
 
