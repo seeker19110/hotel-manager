@@ -3,7 +3,7 @@ title: License mã nguồn mở, IP, dữ liệu huấn luyện, thương hiệu
 kind: module
 prefix: CMP-LIC
 applies_to: [all]
-updated: 2026-10-15
+updated: 2026-10-16
 ---
 
 # License mã nguồn mở, IP, dữ liệu huấn luyện, thương hiệu, điều khoản dịch vụ
@@ -65,6 +65,7 @@ updated: 2026-10-15
 - [ ] `CMP-LIC-017` **MAY** Dùng dịch vụ quét license/IP sâu (ScanCode toolkit, FOSSology) cho release lớn ngoài cổng CI nhanh. → Kiểm: báo cáo scan đính kèm release. · Nguồn: ScanCode toolkit 32.5.0 (Apache-2.0, xác minh PyPI 2026-10-13)
 - [ ] `CMP-LIC-018` **MAY** Chứng nhận OpenChain (ISO/IEC 5230) cho chương trình tuân thủ OSS. → Kiểm: tự đánh giá OpenChain. · Nguồn: ISO/IEC 5230:2020 (chưa xác minh phiên bản ngày 2026-10-13)
 - [ ] `CMP-LIC-019` **SHOULD** Dependency từng **đổi license** (nhất là copyleft → dễ dãi) trên mã có nhiều tác giả mà không có CLA/DCO: coi lần đổi là rủi ro chưa xác minh; dùng theo license chặt hơn (hoặc bản trước khi đổi) cho tới khi repo ghi bằng chứng đã xin đồng ý người giữ bản quyền. → Kiểm: PR thêm dependency ghi `git log --follow -- LICENSE*` và có/không CLA/DCO; ngoại lệ trong `license-policy.yaml` có `reason`. · Nguồn: `seeker19110/stored` 19 §1b (OpenCreator: GPL-3.0 → Apache-2.0, 22 tác giả, không CLA/DCO)
+- [ ] `CMP-LIC-020` **SHOULD** License của model/trọng số lấy từ **model card (hoặc LICENSE) của đúng repo** đang dùng, ghi **revision (commit hash)** và kích thước/biến thể đang dùng — không suy từ license của mã hay README; ghim revision khi tải; ghi điều kiện về doanh thu, lãnh thổ, đầu ra; đổi revision hoặc kích thước thì duyệt lại. → Kiểm: `docs/ai/<model>.md` có `revision`, `license_source_url`, `conditions`; loader ghim `revision=<sha>`. · Nguồn: `seeker19110/stored` 14 §3b (Audio8: README Apache-2.0 nhưng weights 0.1B theo Community License, trần doanh thu US$2M/năm), 14 §5b (Hunyuan3D 2.1 hạn chế lãnh thổ EU/UK/KR gồm output — (chưa xác minh), stored gắn `[UNVERIFIED]`), 18 §4c (PhoBERT base MIT, base-v2 AGPL-3.0); đọc 2026-10-16
 
 ## Bẫy thường gặp
 
@@ -76,6 +77,7 @@ updated: 2026-10-15
 - **ToS nói "chúng tôi có thể dùng dữ liệu của bạn cho mọi mục đích"** → vô hiệu theo luật người tiêu dùng VN/EU và mâu thuẫn Luật 91/2025.
 - **Đổi license gói giữa chừng** (Redis, Elastic, Terraform đã từng) → lockfile cũ ok, nâng phiên bản là vi phạm.
 - **Font "free for personal use"** trong sản phẩm thương mại.
+- **License của mã ≠ license của weights:** README ghi Apache-2.0 nhưng weights từng kích thước/revision theo license riêng (trần doanh thu, cấm lãnh thổ/đầu ra); cùng họ model, bản v2 đổi MIT → AGPL-3.0. Đọc model card đúng repo + revision (`CMP-LIC-020`).
 
 ## Cổng tự động
 
@@ -89,6 +91,7 @@ updated: 2026-10-15
 | Quét sâu/trùng mã | ScanCode toolkit 32.5.0 (Apache-2.0 AND CC-BY-4.0) · FOSSology (GPL-2.0) | `scancode -clpieu --json out.json .` | Release | báo cáo đính kèm |
 | REUSE | `reuse` 6.2.0 (Apache-2.0 AND GPL-3.0-or-later cho tool) | `reuse lint` | CI | pass |
 | DCO | DCO GitHub App / `commit --signoff` check | CI | PR ngoài | pass |
+| License model/trọng số | test đọc `docs/ai/<model>.md` + grep loader | kiểm có `revision`, `license_source_url`, `conditions` và `revision=` được ghim | CI (PR đổi model) | thiếu trường hoặc revision không ghim = đỏ |
 
 ## Nguồn
 
@@ -102,3 +105,4 @@ updated: 2026-10-15
 - Phiên bản công cụ (registry, 2026-10-13): scancode-toolkit 32.5.0 <https://pypi.org/pypi/scancode-toolkit/json>; pip-licenses 5.5.5 <https://pypi.org/pypi/pip-licenses/json>; reuse 6.2.0 <https://pypi.org/pypi/reuse/json>; license-checker-rseidelsohn 5.0.1 <https://registry.npmjs.org/license-checker-rseidelsohn/latest>; @cyclonedx/cyclonedx-npm 6.0.1 <https://registry.npmjs.org/@cyclonedx/cyclonedx-npm/latest>; syft v1.54.0 <https://github.com/anchore/syft/releases>.
 - Nghiên cứu nền: `research/2026-10-13-stored-catalog-extraction.md` §2.6 (SBOM + cổng license, exception có `approved_by`/`expires`), §3 (bẫy license không OSI, repo không LICENSE).
 - Catalog `seeker19110/stored` 19 §1b (OpenCreator/KrillinAI đổi GPL-3.0 → Apache-2.0 trên mã nhiều tác giả, không CLA/DCO) — đọc 2026-10-15.
+- Catalog `seeker19110/stored` 14 §3b (Audio8 0.1B Community License), §5b (Hunyuan3D — (chưa xác minh)), 18 §4c (PhoBERT base MIT vs base-v2 AGPL-3.0) — đọc 2026-10-16; model card từng repo chưa tra lại trực tiếp (chưa xác minh).

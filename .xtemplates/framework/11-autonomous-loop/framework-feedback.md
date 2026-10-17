@@ -3,7 +3,7 @@ title: Phản hồi về khung từ dự án đích
 kind: module
 prefix: LOOP-FB
 applies_to: [all]
-updated: 2026-10-15
+updated: 2026-10-16
 ---
 
 # Phản hồi về khung từ dự án đích
@@ -51,6 +51,7 @@ người duyệt → PR sửa khung theo từng nhóm đủ ngưỡng. Người 
 - [ ] `LOOP-FB-002` **SHOULD** Trước khi bàn giao phiên hoặc phát hành, chạy `xt.py feedback collect` để gom MUST bị miễn và lý do autopilot bị chặn (không tạo trùng). → Kiểm: lệnh exit 0 trong báo cáo cuối; mỗi `[~]` MUST trong blueprint có FB `mien-tru` tương ứng. · Nguồn: ADR-0010
 - [ ] `LOOP-FB-003` **MUST** Phản hồi không chứa bí mật, dữ liệu người dùng, tên khách hàng hay mã nguồn của dự án — chỉ triệu chứng, bước tái hiện tối thiểu, cách khắc phục; ghi qua `xt.py feedback` (gộp một dòng, `redact`) và người xem lại trước commit. → Kiểm: `gitleaks detect` sạch trên `docs/xtemplates-feedback/`; review PR có mục này. · Nguồn: ADR-0010, `CMP-VN-004`
 - [ ] `LOOP-FB-004` **SHOULD** Dự án đích muốn khung kéo phản hồi về thì đăng ký repo (`owner/repo`) trong `docs/ops/TARGETS.md` của repo khung, hoặc báo tay qua issue template "Phản hồi từ dự án đích". → Kiểm: repo có trong `TARGETS.md` hoặc có issue nhãn `feedback`. · Nguồn: ADR-0010
+- [ ] `LOOP-FB-005` **SHOULD** Routine hằng tuần đọc `.xtemplates/VERSION` (nhãn `<VERSION> (<git sha>)`) của mỗi đích trong `docs/ops/TARGETS.md` và ghi vào REPORT bảng **"đích × bản khung × số tuần chậm"** (so với bản khung hiện hành); đích chậm hơn 1 minor hoặc quá 4 tuần thì nêu rõ trong REPORT kèm đề xuất chạy lại `install.py`. Không cần đổi mã `xt.py`. → Kiểm: `docs/ops/feedback/REPORT-<ngày>.md` có bảng này, mỗi repo trong `TARGETS.md` một dòng. · Nguồn: `seeker19110/stored` 23 §4.2, §8 (X-Scanner adopt trước #287 nên thiếu `auto-complete-guard.sh`: drift khung ↔ đích; đọc 2026-10-16)
 
 ## Bẫy thường gặp
 
@@ -61,6 +62,7 @@ người duyệt → PR sửa khung theo từng nhóm đủ ngưỡng. Người 
 | Để dự án đích tự mở issue/PR vào repo khung bằng token | Token ghi chéo repo, rủi ro lộ quyền; trùng lặp | Khung kéo về (Routine), dự án chỉ commit trong repo mình |
 | Sửa khung theo một phản hồi đơn lẻ không tái hiện được | Khung đổi theo một ca đặc thù | Ngưỡng: ≥ 2 dự án hoặc có tái hiện |
 | Miễn MUST rồi quên | Khung không biết mục nào hay bị miễn | `feedback collect` trước bàn giao/phát hành |
+| Đích cài khung một lần rồi trôi (thiếu hook/mục mới) | Phản hồi về lỗi đã sửa ở bản mới; đích thiếu cổng mà không ai biết | Bảng "đích × bản khung × số tuần chậm" trong REPORT (`LOOP-FB-005`); đích chậm chạy lại `install.py` |
 
 ## Cổng tự động
 
@@ -70,8 +72,10 @@ người duyệt → PR sửa khung theo từng nhóm đủ ngưỡng. Người 
 | Gom tín hiệu máy | `xt.py feedback collect [--blueprint BLUEPRINT.md]` | Trước `/handover`, cuối autopilot | không tạo trùng (khoá `Nguồn: collect:…`) |
 | Gộp ở repo khung | `xt.py feedback aggregate --from <dự-án>=<thư-mục> … [--json]` | Routine hằng tuần của repo khung | ✅ khi ≥ 2 dự án hoặc có tái hiện |
 | Quét bí mật | `gitleaks detect` | CI của dự án đích và repo khung | 0 phát hiện |
+| Drift bản khung | Routine đọc `.xtemplates/VERSION` từng đích trong `docs/ops/TARGETS.md` (không cần mã mới) | Routine hằng tuần của repo khung | Chậm > 1 minor hoặc > 4 tuần = nêu trong REPORT |
 
 ## Nguồn
 
 - ADR-0010 (`docs/adr/0010-feedback-from-target-projects.md` của repo khung) — chủ repo yêu cầu 2026-10-15.
 - `scripts/xt.py` (`feedback_entries`, `write_feedback`, `feedback_aggregate`, `redact`) và `tests/test_xt_cli.py` `FeedbackTest` — đọc 2026-10-15.
+- Catalog `seeker19110/stored` 23 §4.2, §8 (X-Scanner: adoption pin SHA; thiếu `auto-complete-guard.sh` do adopt trước #287 — drift khung ↔ đích) — đọc 2026-10-16.

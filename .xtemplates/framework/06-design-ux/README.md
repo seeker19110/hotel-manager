@@ -1,14 +1,14 @@
 ---
 title: Thiết kế & UI/UX
 kind: index
-updated: 2026-10-13
+updated: 2026-10-16
 ---
 
 # 06 — Thiết kế & UI/UX
 
 > Yêu cầu kiểm được cho **mọi hồ sơ có giao diện** (web, mobile, desktop, site tĩnh, game): token và theme, tiếp cận WCAG 2.2 AA
 > + hướng dẫn nền tảng mobile, bốn trạng thái UI, microcopy tiếng Việt và chống dark pattern, mobile-first, UX cho tính năng AI,
-> chuyển động và chất lượng thị giác có cổng máy. Mảng này là "nhà" của a11y và của ngưỡng thiết kế; cách test E2E a11y ở
+> chuyển động và chất lượng thị giác có cổng máy, biểu đồ/KPI đúng số và đọc được. Mảng này là "nhà" của a11y và của ngưỡng thiết kế; cách test E2E a11y ở
 > `14-testing-quality/`, hiệu năng web ở `07-frontend/performance-web-vitals.md`. Đọc theo giai đoạn: G4 (thiết kế) đọc 1–2 +
 > 5; G6 (xây) đọc 3–4 + 7; tính năng AI đọc 6 trước khi làm UI.
 
@@ -21,6 +21,7 @@ updated: 2026-10-13
 | [`responsive-and-mobile-first.md`](responsive-and-mobile-first.md) | Reflow 320 px, breakpoint/container query, vùng chạm, safe area, bàn phím ảo, hover, Playwright desktop + mobile, thiết bị thật | G4 wireframe; mỗi màn hình mới; trước release mobile |
 | [`ai-ux.md`](ai-ux.md) | Nhãn AI (EU AI Act Art. 50), HAX G1–G18, streaming + Dừng, xác nhận trước side-effect, sửa/hoàn tác, phản hồi, sanitize output | Trước khi thiết kế bất kỳ tính năng dùng mô hình AI; review PR AI |
 | [`motion-and-visual-quality.md`](motion-and-visual-quality.md) | `prefers-reduced-motion`, chỉ animate transform/opacity, token motion, luật chống "AI slop" grep được, Lighthouse 4 category ≥ 0.9, visual regression 2 theme × zoom 4× | Thêm animation/chuyển trang; dựng landing/marketing; thiết lập cổng thị giác |
+| [`data-visualization.md`](data-visualization.md) | Số trên biểu đồ/KPI từ một hàm dữ liệu có test + fixture "trông hợp lý nhưng sai", bảng/mô tả thay thế, không mã hoá chỉ bằng màu (WCAG 1.1.1, 1.4.1, 1.4.11), trục từ 0, định dạng `vi-VN` | Thêm biểu đồ, thẻ KPI, dashboard, readout; review PR có số liệu hiển thị |
 
-**Prefix ID:** `UX-DS` · `UX-A11Y` · `UX-STATE` · `UX-CONTENT` · `UX-RESP` · `UX-AI` · `UX-VISUAL`. Ghép vào blueprint qua
+**Prefix ID:** `UX-DS` · `UX-A11Y` · `UX-STATE` · `UX-CONTENT` · `UX-RESP` · `UX-AI` · `UX-VISUAL` · `UX-VIZ`. Ghép vào blueprint qua
 `modules: [06-design-ux/*]` của hồ sơ; hồ sơ không có UI (API, CLI, thư viện) không ghép mảng này.

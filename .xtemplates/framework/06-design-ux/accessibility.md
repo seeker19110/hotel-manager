@@ -3,7 +3,7 @@ title: Tiếp cận (a11y) theo WCAG 2.2 AA và nền tảng mobile
 kind: module
 prefix: UX-A11Y
 applies_to: [web-app, mobile-app, desktop-app, static-site, game, monorepo]
-updated: 2026-10-14
+updated: 2026-10-16
 ---
 
 # Tiếp cận (a11y) theo WCAG 2.2 AA và nền tảng mobile
@@ -63,6 +63,7 @@ updated: 2026-10-14
 - [ ] `UX-A11Y-025` **SHOULD** Lỗi form liên kết với ô nhập (`aria-describedby`, `aria-invalid`), focus về ô lỗi đầu tiên (chi tiết ở [`../07-frontend/forms-and-validation.md`](../07-frontend/forms-and-validation.md)). → Kiểm: E2E submit form lỗi → `document.activeElement` là ô lỗi đầu.
 - [ ] `UX-A11Y-026` **MAY** Hỗ trợ `prefers-contrast: more` và chế độ "forced colors" (Windows High Contrast) không mất viền/icon. → Kiểm: `emulateMedia({ forcedColors: 'active' })` chụp ảnh so sánh.
 - [ ] `UX-A11Y-027` **MAY** Phụ đề/transcript cho media; mô tả âm thanh cho video quan trọng. → Kiểm: mọi `<video>` có `<track kind="captions">`. · Nguồn: WCAG 2.2 SC 1.2.2
+- [ ] `UX-A11Y-028` **SHOULD** Điều khiển đạt tương phản ≥ 3:1 (biên/icon) và chữ ≥ 4.5:1 ở các trạng thái **hover, focus-visible, active, selected**, ở **cả hai theme** (bổ sung cho `UX-A11Y-002` vốn kiểm trạng thái mặc định); trạng thái disabled được WCAG miễn. → Kiểm: Playwright `hover()`/`focus()` từng story/component rồi tính tỷ lệ từ computed style (màu chữ/viền so nền hiệu dụng) cho mỗi trạng thái × theme; dưới ngưỡng → đỏ. · Nguồn: WCAG 2.2 SC 1.4.3, 1.4.11; `seeker19110/stored` 06 §7d.2 (XIAS: README ghi "52/52" nhưng một ô harness đạt 2,92:1 < 3:1, chạy lại 49/52; đọc 2026-10-16)
 
 ## Bẫy thường gặp
 
@@ -76,6 +77,7 @@ updated: 2026-10-14
 - **Chỉ kiểm axe trên trang chủ**: lỗi nằm ở dialog, bước 3 của form, trạng thái lỗi. Quét sau mỗi bước trong E2E.
 - **Tin điểm Lighthouse 100 là đạt AA**: Lighthouse chỉ chạy một phần rule axe; không thay kiểm tay.
 - **Mobile: ẩn Dynamic Type để giữ layout** → chữ không phóng được; sửa layout, không khoá cỡ chữ.
+- **Chỉ kiểm tương phản ở trạng thái mặc định, hoặc tin con số công bố**: hover/focus/selected nhạt hơn nền mà bộ kiểm không chạm tới (XIAS công bố "52/52", tự chạy lại có ô 2,92:1 < 3:1). Chụp computed style từng trạng thái × theme (`UX-A11Y-028`).
 
 ## Cổng tự động
 
@@ -88,6 +90,7 @@ updated: 2026-10-14
 | Storybook `@storybook/addon-a11y` 10.6.2 (MIT) | `vitest --project=storybook` | CI | 0 vi phạm trên story |
 | Xcode Accessibility Inspector · Android Accessibility Scanner | audit thủ công theo kịch bản | Trước release (mobile) | 0 cảnh báo touch target/label |
 | Kiểm tay trình đọc màn hình | kịch bản luồng chính | Trước release (M/L) | biên bản trong `docs/a11y/` |
+| Tương phản theo trạng thái | Playwright `hover()`/`focus()` từng story + tính tỷ lệ từ computed style | CI | < 3:1 (biên/icon) hoặc < 4.5:1 (chữ) = đỏ; disabled bỏ qua |
 
 Tag `wcag22aa` của axe-core: kiểm danh sách tag hiện hành trong tài liệu axe-core trước khi cấu hình (tài liệu Playwright
 chỉ ví dụ tới `wcag21aa`).
@@ -103,3 +106,4 @@ chỉ ví dụ tới `wcag21aa`).
 - pa11y (LGPL-3.0-only, v10 cần Node ≥ 22.13): <https://github.com/pa11y/pa11y> — xác minh 2026-10-13.
 - Phiên bản npm `latest` (2026-10-13): axe-core 4.14.0 · @axe-core/playwright 4.13.0 · pa11y 10.0.0 · eslint-plugin-jsx-a11y 6.10.2 · @biomejs/biome 2.5.15 · lighthouse 13.5.0 · @lhci/cli 0.15.1.
 - Khung cũ `1b80fe4` `quality-supplements.md` Nhóm 2 mục 3 (a11y hai tầng, kiểm tay).
+- Catalog `seeker19110/stored` 06 §7d.2 (XIAS: tự chạy `accuracy_report` → 49/52, một ô 2,92:1) — đọc 2026-10-16.

@@ -44,7 +44,7 @@ Không tái hiện được → hạ thành `suy luận:` (và hạ mức nếu 
 ## 6. DỪNG CHỜ DUYỆT
 Trình ≤ 20 dòng: số phát hiện theo mức, 🔴 từng dòng, kế hoạch đợt (mỗi đợt ≤ 1 PR, 🔴 trước, bug có test tái hiện đỏ trước khi sửa).
 **Không sửa trước khi người duyệt** — trừ khi đang autopilot đã duyệt trước và phát hiện thuộc phạm vi PLAN.
-Đang autopilot mà cần người: `<XT> loop block --reason "audit: chờ duyệt kế hoạch sửa"`.
+Đang autopilot: phiên chính tự duyệt kế hoạch sửa theo tiêu chí chất lượng cuối (ADR-0008, ghi `loop decide`) rồi làm tiếp; phần cần người (điểm dừng về hành động) → `<XT> loop defer`, chỉ `loop block` khi mọi việc còn lại phụ thuộc nó (ADR-0009).
 
 ## 7. Hội tụ (sau duyệt)
 Mỗi đợt: test/Gate đỏ → sửa → `/gate` → PR → cập nhật phát hiện `đã sửa` (#PR) → `<XT> audit plan` → quét lại nhóm bị chạm.

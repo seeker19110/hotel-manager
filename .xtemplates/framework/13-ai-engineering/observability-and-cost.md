@@ -3,7 +3,7 @@ title: Quan sát & chi phí: trace OTel GenAI, token, gateway, failover
 kind: module
 prefix: AI-OBS
 applies_to: [ai-agent, agentic-system, data-ml, api-service, web-app]
-updated: 2026-10-14
+updated: 2026-10-16
 ---
 
 # Quan sát & chi phí: trace OTel GenAI, token, gateway, failover
@@ -72,6 +72,7 @@ instrumentation đang dùng trong ADR và kiểm lại khi nâng.
 - [ ] `AI-OBS-015` **SHOULD** Rate limit theo tenant ở gateway, tách khỏi rate limit của nhà cung cấp; cảnh báo khi một tenant chiếm > X% tổng token.
 - [ ] `AI-OBS-016` **MAY** Dùng nền tảng trace LLM chuyên biệt (`langfuse`) khi cần dataset/eval/annotation gắn trace; nếu đã có OTel backend, xuất song song qua OTLP.
 - [ ] `AI-OBS-017` **MAY** Đo carbon/điện năng ước tính theo token khi tổ chức có mục tiêu bền vững. · Nguồn: [`../18-cross-cutting/sustainability-and-efficiency.md`](../18-cross-cutting/sustainability-and-efficiency.md)
+- [ ] `AI-OBS-018` **SHOULD** (**MUST@L** khi luồng có dữ liệu cá nhân) `docs/ai/data-flows.md` liệt kê **mọi** lời gọi model — sinh, embed, rerank, judge/eval online, fine-tune, lưu artefact (checkpoint, trace, dataset) — kèm endpoint, bên xử lý, loại dữ liệu gửi đi, DPA/điều khoản. Thành phần khai là tự host được kiểm bằng cách khởi động và chạy luồng chính với **egress deny-all**; chức năng cần dịch vụ ngoài phải báo lỗi rõ (mã + tên dịch vụ/biến thiếu), không im lặng treo hay trả rỗng. → Kiểm: job CI mạng chặn (container `--network none` hoặc egress deny-all) chạy smoke luồng chính xanh; endpoint ngoài nào thấy trong log kết nối đều có trong `data-flows.md`. · Nguồn: `seeker19110/stored` 07 (case study Overmind: bản "self-host giữ trace trong mạng" nhưng chấm trace qua OpenRouter, train trên Modal, checkpoint lên S3), 10 §4d.2 (Hindsight chạy không cần key với `LLM_PROVIDER=none`, `reflect` trả 400 rõ ràng); đọc 2026-10-16
 
 ## Bẫy thường gặp
 
@@ -85,6 +86,7 @@ instrumentation đang dùng trong ADR và kiểm lại khi nâng.
 | Không có cooldown | Đập vào nhà cung cấp lỗi liên tục | Cooldown theo mã |
 | Key gốc trong app | Không thu hồi theo tenant được | Key ảo qua gateway |
 | Tin semconv "ổn định" | Thuộc tính đổi tên khi nâng | Pin + ADR |
+| Gọi là "self-host" nhưng trace/chấm điểm/checkpoint đi qua dịch vụ ngoài | Dữ liệu cá nhân rời mạng mà không ai biết; cam kết "dữ liệu ở VN/trong mạng" sai | `docs/ai/data-flows.md` + job egress deny-all (`AI-OBS-018`) |
 
 ## Cổng tự động
 
@@ -95,6 +97,7 @@ instrumentation đang dùng trong ADR và kiểm lại khi nâng.
 | Ngân sách | Test vượt hạn mức | CI | Chặn ở 100%, cảnh báo 80% |
 | Không nội dung trong log | Scanner trên log staging | CI/đêm | 0 prompt thô |
 | Chi phí khớp hoá đơn | Script đối chiếu tháng | Vận hành | ±5% |
+| Luồng dữ liệu ra ngoài | Job CI mạng chặn (container `--network none`/egress deny-all) chạy luồng chính | CI | Lỗi không rõ hoặc endpoint ngoài không có trong `data-flows.md` = đỏ |
 
 ## Nguồn
 
@@ -102,3 +105,4 @@ instrumentation đang dùng trong ADR và kiểm lại khi nâng.
 - PyPI: `langfuse` 4.17.0 (2026-10-05) <https://pypi.org/project/langfuse/> · `litellm` 1.105.0 (2026-10-11) <https://pypi.org/project/litellm/> — xác minh 2026-10-13.
 - `seeker19110/stored` mục 10 (gateway failover chỉ 401/403/429/quota; cooldown 401 → 300 s, 402/403/429 → 3600 s; `Retry-After` thắng; stream chỉ failover trước chunk đầu; `/health` 503) — đọc 2026-10-13 (`research/2026-10-13-stored-catalog-extraction.md`).
 - Anthropic API — `usage` và token cache (`cache_read_input_tokens`): <https://docs.claude.com/en/docs/build-with-claude/prompt-caching> — xác minh 2026-10-13.
+- Catalog `seeker19110/stored` 07 (Overmind: README "self-hosting keeps traces inside your network" lệch với code — OpenRouter, Modal, S3), 10 §4d.2 (Hindsight chạy không key, lỗi 400 rõ) — đọc 2026-10-16.

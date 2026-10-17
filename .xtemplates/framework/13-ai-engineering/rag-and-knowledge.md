@@ -3,7 +3,7 @@ title: RAG & tri thức: chunking, hybrid search, rerank, quyền, eval
 kind: module
 prefix: AI-RAG
 applies_to: [ai-agent, agentic-system, data-ml, api-service, web-app]
-updated: 2026-10-14
+updated: 2026-10-16
 ---
 
 # RAG & tri thức: chunking, hybrid search, rerank, quyền, eval
@@ -68,6 +68,7 @@ Context Precision · Context Recall · Context Entities Recall · Noise Sensitiv
 - [ ] `AI-RAG-016` **MAY** GraphRAG chỉ khi bộ eval multi-hop cho thấy classic + query decomposition thất bại; ghi ADR vì chi phí index/bảo trì cao. · Nguồn: stored 04
 - [ ] `AI-RAG-017` **MAY** Fine-tune embedding model trên cặp truy vấn–tài liệu của miền khi recall thấp sau khi đã tối ưu chunking/hybrid/rerank. · Nguồn: [`data-and-fine-tuning.md`](data-and-fine-tuning.md)
 - [ ] `AI-RAG-018` **MAY** Đánh giá người dùng (thumbs, sửa) được đưa về bộ eval offline theo pipeline đề xuất→duyệt, không tự động thành ground truth.
+- [ ] `AI-RAG-019` **MUST@L** Mỗi trích dẫn được kiểm tất định ở server trước khi trả: `doc_id` thuộc tập đoạn đã retrieve trong chính request đó, và đoạn trích nguyên văn (sau chuẩn hoá NFC cả hai phía) có trong đoạn nguồn; trích dẫn sai bị loại, hoặc câu trả lời bị hạ cấp (nhãn chưa xác minh nguồn / trả "không tìm thấy"). → Kiểm: fixture có `doc_id` lạ hoặc câu không có trong nguồn → bị loại; eval báo tỉ lệ trích dẫn hợp lệ (`valid_citations / citations`). · Nguồn: stored 08 §2c.2 (bảng kiểm "Xử lý hallucination": trích dẫn cũng có thể bịa)
 
 ## Bẫy thường gặp
 
@@ -81,6 +82,7 @@ Context Precision · Context Recall · Context Entities Recall · Noise Sensitiv
 | Cache theo truy vấn, bỏ quyền | Người dùng B nhận cache của A | Key cache gồm tập quyền |
 | Xoá tài liệu nhưng vector còn | Vi phạm quyền xoá dữ liệu | Xoá lan sang index + cache |
 | GraphRAG cho mọi thứ | Index đắt, bảo trì khó, lợi ích không đo | Chỉ multi-hop, có eval |
+| Tin `doc_id`/trích đoạn do model viết | Trích dẫn bịa hoặc lấy từ request khác trông như thật | Kiểm tất định ở server: `doc_id` ∈ tập đã retrieve của request, đoạn trích có trong nguồn (NFC) — `AI-RAG-019` |
 
 ## Cổng tự động
 
@@ -91,6 +93,7 @@ Context Precision · Context Recall · Context Entities Recall · Noise Sensitiv
 | Injection qua tài liệu | Bộ test tài liệu độc (≥ 10 mẫu) | CI | 0 tool call/hành vi lệch |
 | Xoá lan | Test xoá tài liệu → truy vấn | CI | 0 đoạn còn lại sau SLA |
 | Trần context | Log số đoạn/token | Vận hành | ≤ cấu hình |
+| Trích dẫn hợp lệ | Test fixture `doc_id` lạ / câu không có trong nguồn + metric `valid_citations / citations` trong eval | CI | Trích dẫn sai = bị loại; tỉ lệ hợp lệ không giảm quá ngưỡng baseline |
 
 ## Nguồn
 
@@ -99,3 +102,4 @@ Context Precision · Context Recall · Context Entities Recall · Noise Sensitiv
 - Anthropic, *Introducing Contextual Retrieval* (2024-09-19): <https://www.anthropic.com/news/contextual-retrieval> — xác minh 2026-10-13.
 - OWASP Top 10 for LLM Applications 2026 (LLM09 Vector and Embedding Weaknesses — bản 2025 là LLM08; LLM01 Prompt Injection): <https://github.com/GenAI-Security-Project/GenAI-LLM-Top10> — xác minh 2026-10-14; bảng đổi mã ở [`../12-security/ai-security.md`](../12-security/ai-security.md).
 - `seeker19110/stored` mục 04 (chunking, hybrid RRF, rerank 20–100 → 3–5, contextual retrieval, GraphRAG chỉ multi-hop, pgvector tới ~10–50M, lọc quyền trước) — đọc 2026-10-13 (`research/2026-10-13-stored-catalog-extraction.md`).
+- Catalog `seeker19110/stored` mục 08 §2c.2 (ô 08 "Xử lý hallucination": trích dẫn cũng có thể bịa → kiểm trích dẫn khớp đoạn nguồn; cho phép model trả "không biết"; structured output + validate schema) — đọc 2026-10-16.

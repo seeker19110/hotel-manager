@@ -3,7 +3,7 @@ title: Phân tích tĩnh: lint, type, complexity, dead code, trùng lặp, kiế
 kind: module
 prefix: QA-STATIC
 applies_to: [all]
-updated: 2026-10-14
+updated: 2026-10-16
 ---
 
 # Phân tích tĩnh: lint, type, complexity, dead code, trùng lặp, kiến trúc
@@ -56,6 +56,7 @@ Mặc định cho repo mới: **Biome + TypeScript strict + knip + jscpd + depen
 - [ ] `QA-STATIC-018` **MAY** Ngừng dùng 2026-10-14 — gộp vào [`LOOP-HARNESS-004`](../11-autonomous-loop/harness-files.md)/[`005`](../11-autonomous-loop/harness-files.md) (`PROGRESS.md` tươi bằng máy: SHA tổ tiên HEAD); hợp đồng repo kiểm bằng `xt.py validate`.
 - [ ] `QA-STATIC-019` **MAY** SonarQube Community Build tự host làm bảng tổng hợp khi đội > 1; không thay cổng CI.
 - [ ] `QA-STATIC-020` **MAY** Fitness function AST tự viết cho quy tắc riêng (vd mọi route có kiểm quyền; SQL chạm PII phải nhận context) khi lint sẵn không đủ.
+- [ ] `QA-STATIC-021` **SHOULD** Mỗi luật/cổng tự viết (semgrep, ESLint, script `check:*`) có fixture xấu phải fail và fixture tốt phải pass, chạy trong CI. Nâng thành **MUST@L** khi cổng nằm trong required check. → Kiểm: `semgrep --test`, ESLint `RuleTester`, script chạy trên `fixtures/bad.*` cho exit ≠ 0 và trên `fixtures/good.*` cho exit 0. · Nguồn: stored 06 §7f (self-test 205 luật), §7b (fixture "plausible-wrong")
 
 ## Bẫy thường gặp
 
@@ -68,6 +69,7 @@ Mặc định cho repo mới: **Biome + TypeScript strict + knip + jscpd + depen
 - **Hai type checker Python** (mypy + pyright) cho kết quả khác nhau. Cách tránh: chọn một, ghi ADR.
 - **Coi SonarQube là cổng** rồi bỏ lint/type cục bộ. Cách tránh: SonarQube là dashboard; cổng vẫn là CI job `gate`.
 - **Tối ưu non**: "tối ưu" chỗ chưa đo là điểm nghẽn. Cách tránh: đo trước ([`performance-and-load.md`](performance-and-load.md)).
+- **Luật/cổng tự viết chưa từng thấy đỏ** → xanh vì luật hỏng (regex sai, glob lệch), không phải vì mã sạch. Tránh: fixture xấu + fixture tốt chạy trong CI (`QA-STATIC-021`).
 
 ## Cổng tự động
 
@@ -85,6 +87,7 @@ Mặc định cho repo mới: **Biome + TypeScript strict + knip + jscpd + depen
 | vulture 2.16 / radon 6.0.1 | `vulture src --min-confidence 80` · `radon cc src -n C` | CI | 0 / không hàm mức C+ mới |
 | pre-commit 4.7.0 (MIT; xác minh PyPI 2026-10-12) | `pre-commit run --all-files` | hook + CI | 0 |
 | Baseline ratchet (tự viết) | `python3 scripts/static-ratchet.py --baseline docs/ops/static-baseline.json` | CI | không tăng |
+| Self-test luật tự viết | `semgrep --test` · ESLint `RuleTester` · script `check:*` chạy trên `fixtures/bad.*`/`good.*` | CI | bad → exit ≠ 0, good → exit 0 |
 
 ## Nguồn
 
@@ -93,3 +96,4 @@ Mặc định cho repo mới: **Biome + TypeScript strict + knip + jscpd + depen
 - import-linter: <https://import-linter.readthedocs.io/> (trang contract types trả 404 ngày 2026-10-13 — kiểm tài liệu phiên bản hiện hành)
 - Catalog `seeker19110/stored` 13 §4b–4c (stack quality gate, pre-commit (bản 4.7.0 xác minh PyPI 2026-10-12), hook `--no-verify`, uv/ruff thuộc OpenAI), 23 §2.5 (gate aggregator), 23 §3.3 (fitness function AST, coverage ratchet), 23 §4.5 (`validate_repo.py`) — đọc 2026-10-13.
 - Khung cũ X-stored `quality-supplements.md` Nhóm 2 mục 9 "Tối ưu mã nguồn" (nguyên tắc vàng, checklist dead code/trùng lặp/dep/bundle, khi nào không refactor), commit `1b80fe4` — đọc 2026-10-13.
+- Catalog `seeker19110/stored` mục 06 §7f (`usage:selftest`: 205 luật, mỗi luật bắt được lỗi trong fixture xấu, fixture tốt sạch), §7b (diagram-design: fixture "plausible-wrong" cho cổng kiểm) — đọc 2026-10-16.

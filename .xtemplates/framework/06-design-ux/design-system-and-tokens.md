@@ -3,7 +3,7 @@ title: Design system, token, typography, spacing, theme sáng/tối
 kind: module
 prefix: UX-DS
 applies_to: [web-app, mobile-app, desktop-app, static-site, game, monorepo]
-updated: 2026-10-14
+updated: 2026-10-16
 ---
 
 # Design system, token, typography, spacing, theme sáng/tối
@@ -59,6 +59,7 @@ updated: 2026-10-14
 - [ ] `UX-DS-016` **MAY** Dùng Style Dictionary (Apache-2.0) làm bộ sinh; ghim phiên bản trong lockfile. → Kiểm: `package.json` có `style-dictionary` ghim exact.
 - [ ] `UX-DS-017` **MAY** Hỗ trợ `prefers-contrast: more` bằng bộ token tương phản cao. → Kiểm: `emulateMedia({ contrast: 'more' })` đổi token.
 - [ ] `UX-DS-018` **MAY** Xuất token sang Penpot/Figma để designer và dev cùng một bộ. → Kiểm: file token được import trong dự án thiết kế; ngày đồng bộ ghi trong `docs/`.
+- [ ] `UX-DS-019` **MUST@L** Mã UI (nhất là do agent sinh) dùng component của design system khi đã có component tương ứng; không import primitive headless (Radix, Base UI…) ngoài thư mục `components/ui/**`; biến thể theo ý định được khai bằng luật lint (hành động phá huỷ dùng `destructive`, không `primary`). → Kiểm: ESLint `no-restricted-imports` (primitive headless) + `react/forbid-elements` cho `button|input|select|dialog` ngoài thư mục ui + luật ý định; CI 0 lỗi. · Nguồn: stored 06 §7f (Zen DS: 205 luật usage, `guidelines:check`, `usage:check`), §7d (XIAS `lint_intent`)
 
 ## Bẫy thường gặp
 
@@ -73,6 +74,7 @@ updated: 2026-10-14
   `vietnamese` và kiểm bằng ảnh.
 - **Token đặt tên theo màu** (`--blue-500` trong button) → đổi thương hiệu phải đổi tên khắp nơi.
 - **Hai nguồn sự thật**: designer sửa trong Figma, dev sửa trong CSS, không ai đồng bộ. Chốt một chiều: repo là gốc, công cụ thiết kế import.
+- **Agent dựng nút/hộp thoại từ primitive hoặc thẻ gốc** (`<button>`, `Dialog` của Radix import thẳng) vì "nhanh hơn" → lệch biến thể, focus, a11y so với component chuẩn; nút xoá mang màu `primary`. Tránh: luật lint cấm import/thẻ ngoài `components/ui/**` và luật ý định (`UX-DS-019`).
 
 ## Cổng tự động
 
@@ -85,6 +87,7 @@ updated: 2026-10-14
 | Storybook 10.6.2 (MIT) + `@storybook/addon-a11y` 10.6.2 | `storybook build` · `vitest --project=storybook` | CI | build xanh; a11y 0 vi phạm |
 | Playwright 1.64.0 (Apache-2.0) | test no-flash + ảnh chuỗi tiếng Việt + `emulateMedia` | CI E2E | ảnh khớp baseline |
 | axe-core 4.14.0 (MPL-2.0) qua `@axe-core/playwright` | quét `color-contrast` ở cả hai theme | CI E2E | 0 vi phạm |
+| ESLint (`no-restricted-imports`, `react/forbid-elements`) + luật ý định tự viết | `eslint . --max-warnings 0` | CI | 0 lỗi; fixture xấu phải đỏ (`QA-STATIC-021`) |
 
 Cách kiểm theme sáng/tối ở zoom lớn và chống "AI slop" → [`motion-and-visual-quality.md`](motion-and-visual-quality.md).
 Ngưỡng và cách chứng minh a11y → [`accessibility.md`](accessibility.md). Hiệu năng font (`font-display`, preload) →
@@ -100,3 +103,4 @@ Ngưỡng và cách chứng minh a11y → [`accessibility.md`](accessibility.md)
 - Phiên bản npm `latest` (registry.npmjs.org, 2026-10-13): tailwindcss 4.3.3 · shadcn 4.21.4 · @base-ui/react 1.9.0 · @mui/material 9.5.0 · @mantine/core 9.7.2 · @ark-ui/react 5.39.3 · storybook 10.6.2 · stylelint 17.16.0 · style-dictionary 5.6.1 · axe-core 4.14.0 · @playwright/test 1.64.0. Penpot: license MPL-2.0 (README GitHub, xác minh 2026-10-13); phiên bản mới nhất **(chưa xác minh)**.
 - Khung cũ X-stored commit `1b80fe4`: `styles/theme.css` (bộ token dark-blue/light, `--ring`, no-flash) và `docs/framework/quality-supplements.md` PHẦN 3.
 - Catalog `seeker19110/stored` mục 06 §1 (shadcn/ui + Base UI, Storybook), §2 (Penpot), đọc 2026-10-13; `research/2026-10-13-stored-catalog-extraction.md` §2.12.
+- Catalog `seeker19110/stored` mục 06 §7f (Zen Design System: 205 luật dùng component kiểm bằng máy, có plugin ESLint; `guidelines:check`, `usage:check`, self-test mỗi luật), §7d (XIAS: `lint_intent.mjs` — nút xoá không được mang màu primary) — đọc 2026-10-16.

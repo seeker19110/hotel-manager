@@ -19,9 +19,9 @@ argument-hint: "[compose|status|audit] [--profile p --industry i --scale M]"
 `<XT> blueprint-status BLUEPRINT.md [--strict]` — đếm đạt/miễn/chưa theo mức; `--strict` exit 1 khi còn MUST mở hoặc miễn trừ thiếu lý do. Dùng làm cổng phát hành (G7).
 
 ## audit (dự án có sẵn, hoặc định kỳ)
-1. Với từng mục `[ ]`: **grep cổng đang chạy** (CI, hook, config, test) — không tin README. Có bằng chứng → `[x]` kèm ghi chú bằng chứng (file:dòng, job CI); không áp dụng → `[~] — Miễn: <lý do>`; còn lại giữ `[ ]`.
+1. Với từng mục `[ ]`: **grep cổng đang chạy** (CI, hook, config, test) — không tin README. Có bằng chứng → `[x]` kèm ghi chú bằng chứng (file:dòng, job CI); không áp dụng → `[~] — Không áp dụng: <điều kiện>`; có áp dụng mà bỏ/hoãn → `[~] — Miễn: <lý do>` (MUST thêm `Duyệt: "<lời chủ dự án>" <ngày>` hoặc link, `LOOP-STOP-024`); còn lại giữ `[ ]`.
 2. Xuất báo cáo: bảng mục MUST mở → đề xuất task (mỗi task có Gate máy kiểm) → đưa vào PLAN.md.
 3. Phân loại bằng chứng: *đo được* / *suy luận* / *chưa biết* — không trình bày suy luận như đo được.
 
 ## Ghép lại khi khung cập nhật
-Chạy lại đúng lệnh `<XT> compose ... --out BLUEPRINT.md`: máy giữ trạng thái + ghi chú `— Bằng chứng/Miễn/Thiếu:` theo **ID**, mục mới vào ở `[ ]`. Đổi quy mô thì mục chuyển giữa hai file theo ID, giữ trạng thái. Xem `git diff BLUEPRINT.md BLUEPRINT-BACKLOG.md` trước khi commit.
+Chạy lại đúng lệnh `<XT> compose ... --out BLUEPRINT.md`: máy giữ trạng thái + ghi chú `— Bằng chứng/Miễn/Không áp dụng/Thiếu:` theo **ID**, mục mới vào ở `[ ]`. Đổi quy mô thì mục chuyển giữa hai file theo ID, giữ trạng thái. Xem `git diff BLUEPRINT.md BLUEPRINT-BACKLOG.md` trước khi commit.

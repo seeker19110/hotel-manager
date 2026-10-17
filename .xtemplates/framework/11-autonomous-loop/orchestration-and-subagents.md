@@ -3,7 +3,7 @@ title: Điều phối: subagent, worktree, song song, không lồng
 kind: module
 prefix: LOOP-ORCH
 applies_to: [all]
-updated: 2026-10-15
+updated: 2026-10-16
 ---
 
 # Điều phối: subagent, worktree, song song, không lồng
@@ -40,7 +40,8 @@ updated: 2026-10-15
 | Tra cứu phiên bản/chuẩn/luật nhiều mục, đọc tài liệu dài | `researcher` (read-only, có WebFetch) | Giữ context phiên chính gọn; trả bảng dữ kiện + URL + ngày |
 | Task có SPEC + Gate rõ, ≤ 1 ngày, không chạm điểm dừng | `executor` | Spec khép kín, máy kiểm được |
 | Review diff trước merge, diff > 200 dòng hoặc chạm auth/tiền/dữ liệu | `reviewer` (model khác) | Tránh cùng điểm mù; phát hiện phải có đường tái hiện |
-| Quyết định kiến trúc, chọn công nghệ, spec mâu thuẫn, điểm dừng bắt buộc | **Không tách** — phiên chính + người | Cần toàn cảnh và quyền quyết |
+| Quyết định kiến trúc, chọn công nghệ, spec mâu thuẫn | **Không tách** — phiên chính tự duyệt, ghi D-NNN (ADR-0008) | Cần toàn cảnh; subagent chỉ trả phương án |
+| Điểm dừng bắt buộc về hành động | **Không tách** — phiên chính + người | Hành động không đảo ngược/đối ngoại |
 | Việc nhỏ < 10 phút trong một file | Làm trực tiếp | Chi phí giao việc (handoff + đọc lại repo) lớn hơn việc |
 
 ### Mô hình nhánh khi song song

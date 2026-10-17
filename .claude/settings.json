@@ -108,6 +108,16 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "matcher": "mcp__.*(merge_pull_request|auto_merge).*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PROJECT_DIR}/.claude/hooks/pre-mcp-guard.sh\"",
+            "timeout": 120
+          }
+        ]
       }
     ],
     "PostToolUse": [

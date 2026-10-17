@@ -3,7 +3,7 @@ title: Bảo mật AI: prompt injection, tool allowlist, OWASP LLM/ASI/MCP
 kind: module
 prefix: SEC-AI
 applies_to: [ai-agent, agentic-system, data-ml, web-app, mobile-app, desktop-app, static-site, game, monorepo]
-updated: 2026-10-14
+updated: 2026-10-16
 ---
 
 # Bảo mật AI: prompt injection, tool allowlist, OWASP LLM/ASI/MCP
@@ -76,6 +76,7 @@ updated: 2026-10-14
 - [ ] `SEC-AI-024` **SHOULD** Agent nhận agent khác (A2A) xác thực bằng scheme đã khai (OAuth2/OIDC/mTLS), Agent Card ký số khi có; output agent khác coi như nội dung ngoài. → Kiểm: cấu hình security scheme; test message không chữ ký → từ chối. · Nguồn: ASI07; [`../13-ai-engineering/protocols-mcp-a2a.md`](../13-ai-engineering/protocols-mcp-a2a.md)
 - [ ] `SEC-AI-025` **MAY** Dùng guardrail OSS (NeMo Guardrails 0.24.1 Apache-2.0, LLM Guard MIT, Prompt Guard/Llama Guard) làm lớp phát hiện injection bổ sung — không thay cho quyền tool. → Kiểm: rail cấu hình input/output/tool-call; false positive đo. · Nguồn: catalog stored 12 §2; research AI §5.6
 - [ ] `SEC-AI-026` **MAY** Luật "luôn bật" của agent (không đổi quyền, không gỡ policy, nội dung ngoài là dữ liệu) đặt ở project scope và được nạp lại sau compaction. → Kiểm: hook SessionStart/compact tiêm lại; test transcript sau compaction còn luật. · Nguồn: catalog stored 12 §3h
+- [ ] `SEC-AI-027` **MUST@L** Text-to-SQL (SQL do model sinh): chạy bằng vai trò CSDL riêng — `default_transaction_read_only=on`, không `BYPASSRLS`, chịu RLS/tenant của người hỏi, có `statement_timeout` và trần số dòng; trước khi chạy, parse ra AST và chỉ chấp nhận khi là đúng một câu `SELECT`, chỉ dùng bảng/cột trong allowlist hoặc semantic layer, không có CTE ghi, không gọi hàm nguy hiểm (`pg_read_file`, `dblink`, `COPY`, `pg_sleep`). → Kiểm: bộ ca độc bị chặn **trước DB** (nhiều câu nối `;`, `WITH x AS (DELETE …)`, bảng ngoài allowlist, `tenant_id` của tenant khác); test kết nối bằng vai trò này rồi thử ghi → lỗi. · Nguồn: stored 15 (text-to-SQL: sqlglot, WrenAI, SQLBot)
 
 ## Bẫy thường gặp
 
@@ -91,6 +92,7 @@ updated: 2026-10-14
 10. **Scanner skill "best-effort" được coi là sandbox**: SkillSpector/skill-scanner tự ghi "not a sandbox"; agent-scan có thể *chạy* MCP stdio. Tránh: quét trong sandbox, đọc tay script.
 11. **Retry mù side effect** sau 504 → gửi hai lần/thanh toán hai lần. Tránh: outbox + read-back (`ARC-INT-011`), gateway chặn model gọi lại (`SEC-AI-017`).
 12. **Red team trên hệ thống không được phép** hoặc dùng skill tấn công không có câu ủy quyền. Chỉ trên hệ của mình/được ủy quyền (ranh giới sử dụng của khung).
+13. **Text-to-SQL chỉ dặn "chỉ SELECT" trong prompt** hoặc chỉ kiểm chuỗi bắt đầu bằng `SELECT` → `SELECT 1; DROP …`, `WITH x AS (DELETE … RETURNING *) SELECT …`, `pg_read_file`/`dblink` lọt qua; tenant khác đọc được nếu vai trò có `BYPASSRLS`. Tránh: AST allowlist + vai trò chỉ đọc chịu RLS (`SEC-AI-027`).
 
 ## Cổng tự động
 
@@ -105,6 +107,7 @@ updated: 2026-10-14
 | Redact trace/log | unit test + gitleaks trên mẫu trace | — | job test | lộ = đỏ |
 | Cross-user/tenant | test quyền tool | agent A ↔ dữ liệu B | job test | thành công = đỏ |
 | Guardrail OSS | NeMo Guardrails 0.24.1 / LLM Guard | rail input/output/tool-call, chế độ log trước | runtime | đo false positive |
+| Text-to-SQL | parser AST (vd sqlglot, MIT, ghim phiên bản vì commit breaking thường xuyên; theo stored 15, chưa xác minh lại) + vai trò Postgres riêng | bộ ca độc qua validator (không tới DB) + test ghi bằng vai trò đó | CI | ca độc lọt = đỏ; ghi được = đỏ |
 
 ## Nguồn
 
@@ -118,3 +121,4 @@ updated: 2026-10-14
 - NeMo Guardrails 0.24.1 (PyPI 2026-09-16) theo research AI §5.6 [F]; promptfoo, LLM Guard, garak v0.17.0, PyRIT v1.1.0 theo catalog 12 §2, §3d (2026-10-12).
 - Khung cũ X-stored `docs/specs/AI-HARNESS-AND-COMPANY-SPEC.md` §A4.5 (C5-FR-01…13, ánh xạ ASI), commit `1b80fe4`.
 - Catalog `seeker19110/stored` 12 §1, §3b, §3e, §3g (chỉ phần phòng thủ), §4 (7 quy tắc); 21 §8 (guardrail loop); 23 §4.5 (outbox, ranh giới output model); 10 §3b/§4 (RAG/memory) — đọc 2026-10-13.
+- Catalog `seeker19110/stored` mục 15, phần "Bổ sung: text-to-SQL, BI có AI & lớp metadata" (parse SQL do LLM sinh bằng sqlglot, chặn mọi lệnh không phải `SELECT` và bảng ngoài allowlist trước khi gửi DB; WrenAI engine kiểm SQL sinh ra; SQLBot tách workspace và phân quyền dữ liệu) — đọc 2026-10-16. Tên tham số vai trò Postgres (`default_transaction_read_only`, `BYPASSRLS`, `statement_timeout`) theo tài liệu PostgreSQL, (chưa xác minh lại ngày 2026-10-16).

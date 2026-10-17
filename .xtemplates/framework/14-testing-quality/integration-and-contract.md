@@ -3,7 +3,7 @@ title: Integration & contract test: DB thật, API contract, Pact, testcontainer
 kind: module
 prefix: QA-INT
 applies_to: [web-app, api-service, ai-agent, agentic-system, data-ml, monorepo, blockchain]
-updated: 2026-10-14
+updated: 2026-10-16
 ---
 
 # Integration & contract test: DB thật, API contract, Pact, testcontainers
@@ -52,6 +52,7 @@ updated: 2026-10-14
 - [ ] `QA-INT-017` **SHOULD** Contract test cho sự kiện: schema sự kiện đăng ký trong registry, kiểm tương thích backward trước khi publish. → Kiểm: job `schema-compat` exit 0.
 - [ ] `QA-INT-018` **MAY** Nightly gọi sandbox thật của nhà cung cấp (thanh toán, LLM) với ngân sách giới hạn, cập nhật cassette khi lệch.
 - [ ] `QA-INT-019` **MAY** Blockchain: fork test trên mainnet snapshot (Foundry `--fork-url`) cho tích hợp với hợp đồng ngoài.
+- [ ] `QA-INT-020` **SHOULD** Khi cài đặt một chuẩn có bộ test hoặc test vector chính thức (VietQR/EMVCo, XML hoá đơn điện tử, FHIR, ISO 20022, IDS của buildingSMART…), CI chạy bộ đó **ghim theo phiên bản/commit**; ca chưa đạt ghi trong `known-gaps.txt` kèm lý do, và file này **chỉ được giảm**. → Kiểm: CI đỏ khi có ca fail mới ngoài `known-gaps.txt` hoặc khi số dòng `known-gaps.txt` tăng so với nhánh chính. · Nguồn: `seeker19110/stored` 23 §4.4 (Dhcb-Tools: corpus IDS buildingSMART 334 ca ghim commit + `known-gaps.txt`; đọc 2026-10-16)
 
 ## Bẫy thường gặp
 
@@ -63,6 +64,7 @@ updated: 2026-10-14
 - **Test authz chỉ ở unit** (gọi hàm `can()`), bỏ middleware/route. Cách tránh: QA-INT-006 qua HTTP thật.
 - **Cổng authz-gate `continue-on-error`** khi đã có endpoint PII. Cách tránh: fitness function cho chính CI (`xt.py ci-check` + job `protection-guard`; xem Nguồn).
 - **Container mới cho mỗi test** → suite 40 phút. Cách tránh: QA-INT-013 reuse + cách ly dữ liệu.
+- **Cài chuẩn "theo đọc spec" rồi tuyên bố tuân thủ** mà không chạy bộ test/test vector chính thức → sai lệch chỉ lộ khi đối tác/cơ quan từ chối. Cách tránh: QA-INT-020 (ghim phiên bản + `known-gaps.txt` chỉ giảm).
 
 ## Cổng tự động
 
@@ -75,6 +77,7 @@ updated: 2026-10-14
 | `buf` (Apache-2.0; phiên bản **chưa xác minh**) | `buf breaking --against '.git#branch=main'` | CI PR | 0 breaking |
 | Script coverage theo operationId | `python3 scripts/check-api-test-coverage.py openapi.yaml junit.xml` (dự án tự viết) | CI | 100% |
 | `check_authz_tests` (tự viết theo mẫu qlkh) | mọi operationId chạm PII có test authz | CI | 0 thiếu |
+| Bộ test/vector chuẩn chính thức (ghim phiên bản) | job CI chạy bộ test của chuẩn, so với `known-gaps.txt` | CI PR | Ca fail mới ngoài known-gaps hoặc known-gaps tăng = đỏ |
 
 ## Nguồn
 
@@ -83,3 +86,4 @@ updated: 2026-10-14
 - RFC 9457 Problem Details: <https://www.rfc-editor.org/rfc/rfc9457> — xác minh 2026-10-13
 - OWASP API Security Top 10 2023: <https://api-security.owasp.org/> — xác minh 2026-10-13
 - Catalog `seeker19110/stored` 23 §3.3 (`check_authz_tests.py`, `ci_guard.py`, `run_smoke.sh`), 07 (record/replay) — đọc 2026-10-13.
+- Catalog `seeker19110/stored` 23 §4.4 (Dhcb-Tools: CI đối chiếu corpus chuẩn ghim commit — IDS buildingSMART 334 ca, BCF schema — với `known-gaps.txt`) — đọc 2026-10-16.
