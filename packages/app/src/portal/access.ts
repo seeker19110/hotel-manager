@@ -136,5 +136,9 @@ export async function revokeTenantAccess(
     after: { status: "revoked" },
     ...(input.reason?.trim() ? { reason: input.reason.trim().slice(0, 500) } : {}),
   });
+  ctx.security({
+    event: "portal.tenant_access_revoked",
+    target: { type: "membership", id: input.membershipId },
+  });
   return { membershipId: input.membershipId, status: "revoked" as const };
 }

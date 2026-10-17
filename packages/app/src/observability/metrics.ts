@@ -19,7 +19,9 @@ const HELP: Readonly<Record<string, [type: "gauge" | "counter", help: string]>> 
     "Tuổi (giây) sự kiện outbox chưa phát cũ nhất — độ trễ relay.",
   ],
   hm_outbox_failing: ["gauge", "Sự kiện outbox chưa phát đã thử ít nhất một lần."],
-  notification_dead_total: ["counter", "Lần gửi email đã hết lượt thử (dead)."],
+  // Giá trị là SỐ HÀNG đang ở trạng thái dead (có thể giảm khi hàng được xử lý/dọn) ⇒ gauge, không phải counter. Giữ nguyên
+  // tên (đuôi `_total` sai quy ước) để không vỡ `deploy/prometheus/alerts.yml`; đổi tên làm cùng lúc với luật cảnh báo.
+  notification_dead_total: ["gauge", "Số lần gửi email đang ở trạng thái dead (đã hết lượt thử)."],
   hm_notification_deliveries: ["gauge", "Lần gửi email theo trạng thái."],
   hm_export_jobs: ["gauge", "Job xuất dữ liệu theo trạng thái."],
   hm_holds_expired_total: ["counter", "Giữ chỗ đã hết hạn tự nhả."],

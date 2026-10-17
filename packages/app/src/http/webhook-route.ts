@@ -18,7 +18,7 @@ export interface WebhookDeps {
 
 export const WEBHOOK_MAX_BYTES = 64 * 1024;
 
-const simPayload = z.strictObject({
+export const simPayload = z.strictObject({
   event_id: z.string().min(1).max(200),
   bank_txn_ref: z.string().trim().min(1).max(100),
   amount: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),

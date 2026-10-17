@@ -209,7 +209,7 @@ Hợp đồng chi tiết: `docs/design/API-CONTRACT.md`. Mọi command nhận `I
 
 | Command/Query | Input chính | Output | Lỗi |
 |---|---|---|---|
-| `roomType.create` / `roomType.update`, `rate.set` | code, capacity / weekday_price, weekend_price | id | VALIDATION_FAILED, FORBIDDEN |
+| `room_type.create` / `room_type.update`, `rate.set` | code, capacity / weekday_price, weekend_price | id | VALIDATION_FAILED, FORBIDDEN |
 | `reservation.quote` (query) | room_type_id\|unit_id, arrival_date, departure_date, guests | nights, nightly_prices, room_total, policy | RATE_NOT_CONFIGURED, CAPACITY_EXCEEDED |
 | `reservation.create` | booker, unit_id, arrival_date, departure_date, guests, source | reservation_id (draft) | VALIDATION_FAILED, CAPACITY_EXCEEDED |
 | `reservation.hold` | reservation_id | allocation_id, expires_at | ROOM_UNAVAILABLE, UNIT_OUT_OF_SERVICE |

@@ -211,7 +211,7 @@ export async function quote(
   });
 }
 
-/** `roomType.create` — owner (ma trận "Loại phòng, bảng giá"). Mã trùng trong cơ sở → 422. */
+/** `room_type.create` — owner (ma trận "Loại phòng, bảng giá"). Mã trùng trong cơ sở → 422. */
 export async function createRoomType(
   ctx: CommandContext,
   input: { propertyId: string; code: string; name: string; capacity: number },
@@ -241,7 +241,7 @@ export async function createRoomType(
   return { roomTypeId: id };
 }
 
-/** `roomType.update` — đổi tên/sức chứa (không đổi booking đã có: sức chứa kiểm lúc tạo/check-in). */
+/** `room_type.update` — đổi tên/sức chứa (không đổi booking đã có: sức chứa kiểm lúc tạo/check-in). */
 export async function updateRoomType(
   ctx: CommandContext,
   input: { roomTypeId: string; name?: string; capacity?: number },

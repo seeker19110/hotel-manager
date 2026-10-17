@@ -6,9 +6,18 @@ import type { Kysely } from "kysely";
 import type { z } from "zod";
 import { AccessError, type Actor, listMyOrganizations, resolveActor } from "../access/actor.ts";
 import { ORG_CONTEXT_HEADER, ORG_HEADER, orgCookieName, requestedOrgId } from "../access/org-context.ts";
+import {
+  type ActorRef,
+  emitSecurity,
+  requestClient,
+  type SecurityEventName,
+  securityEventForProblem,
+} from "../logging/security-events.ts";
 import { type CommandContext, executeCommand, getCommandResult } from "../pipeline/command.ts";
 import { type Problem, toProblem } from "../pipeline/problem.ts";
+import { settle, unwrap } from "../pipeline/settled.ts";
 import type { AppServices } from "../server/services.ts";
+import { nfcDeep } from "./normalize.ts";
 
 export interface HttpSession {
   user: { id: string; twoFactorEnabled?: boolean | null | undefined };
@@ -25,10 +34,26 @@ export interface HttpDeps {
   onUnexpectedError?(err: unknown, correlationId: string): void;
 }
 
-export interface CommandDef<I, O> {
+export interface CommandDef<I, O, P = undefined> {
   command: string;
   input: z.ZodType<I>;
-  run(ctx: CommandContext, input: I, services: AppServices): Promise<{ data: O; httpStatus?: number }>;
+  /**
+   * Bước chuẩn bị NGOÀI transaction lệnh (T-303; quét mã độc, ghi object — xem files/staging.ts). Chạy trước `executeCommand`;
+   * kết quả đi vào `run`. Lỗi của bước này được ném lại TRONG `run` để pipeline vẫn ghi kết quả `failed` + audit `denied`.
+   */
+  prepare?(
+    db: Kysely<unknown>,
+    actor: Actor,
+    input: I,
+    services: AppServices,
+    meta: { idempotencyKey: string },
+  ): Promise<P>;
+  run(
+    ctx: CommandContext,
+    input: I,
+    services: AppServices,
+    prepared: P,
+  ): Promise<{ data: O; httpStatus?: number }>;
 }
 
 export interface QueryDef<I, O> {
@@ -92,6 +117,28 @@ export function correlationOf(req: Request): string {
   return c && CORRELATION.test(c) ? c : randomUUID();
 }
 
+/** Từ chối (401/403/429, hoặc 404 vì không thuộc tổ chức) → sự kiện bảo mật chuẩn hoá (SEC-LOG-001). */
+function denied(
+  req: Request,
+  correlationId: string,
+  p: { status: number; code: string },
+  actor: ActorRef | null,
+  target: { type: string; id: string },
+  event?: SecurityEventName | null,
+): void {
+  const name = event ?? securityEventForProblem(p);
+  if (!name) return;
+  emitSecurity({
+    event: name,
+    outcome: "denied",
+    actor,
+    target,
+    reason: p.code,
+    client: requestClient(req.headers),
+    correlationId,
+  });
+}
+
 /** Actor của request hoặc Response lỗi (401/409/404/403) đã sẵn để trả. */
 export async function actorFromRequest(
   req: Request,
@@ -99,7 +146,11 @@ export async function actorFromRequest(
   correlationId: string,
 ): Promise<Actor | Response> {
   const session = await deps.getSession(req.headers);
-  if (!session) return simpleProblem("UNAUTHENTICATED", 401, "Cần đăng nhập", correlationId);
+  const endpoint = { type: "endpoint", id: new URL(req.url).pathname };
+  if (!session) {
+    denied(req, correlationId, { status: 401, code: "UNAUTHENTICATED" }, null, endpoint);
+    return simpleProblem("UNAUTHENTICATED", 401, "Cần đăng nhập", correlationId);
+  }
   const orgId = requestedOrgId(
     req.headers.get(ORG_HEADER),
     readCookie(req.headers.get("cookie"), orgCookieName(deps.secureCookies)),
@@ -132,7 +183,19 @@ export async function actorFromRequest(
       authenticatedAt: session.session?.createdAt ? new Date(session.session.createdAt) : undefined,
     });
   } catch (err) {
-    if (err instanceof AccessError) return problemResponse(toProblem(err), correlationId);
+    if (err instanceof AccessError) {
+      const p = toProblem(err);
+      // 404 ở đây = không phải thành viên tổ chức được yêu cầu (dò tổ chức khác): vẫn ghi để phát hiện dò quét.
+      denied(
+        req,
+        correlationId,
+        p,
+        { authUserId: session.user.id, orgId },
+        endpoint,
+        p.status === 404 ? "authz.org_not_found" : null,
+      );
+      return problemResponse(p, correlationId);
+    }
     throw err;
   }
 }
@@ -152,8 +215,8 @@ function unexpected(err: unknown, deps: HttpDeps, correlationId: string): Respon
 }
 
 /** POST command: trả `{ command_id, status: "committed", data }` hoặc problem+json. */
-export async function handleCommand<I, O>(
-  def: CommandDef<I, O>,
+export async function handleCommand<I, O, P = undefined>(
+  def: CommandDef<I, O, P>,
   req: Request,
   deps: HttpDeps,
 ): Promise<Response> {
@@ -167,18 +230,31 @@ export async function handleCommand<I, O>(
     }
     let body: unknown;
     try {
-      body = await req.json();
+      body = nfcDeep(await req.json());
     } catch {
       return simpleProblem("MALFORMED_REQUEST", 400, "Thân yêu cầu không phải JSON hợp lệ", correlationId);
     }
     const parsed = def.input.safeParse(body);
     if (!parsed.success) return validationProblem(parsed.error, correlationId);
     const input = parsed.data;
+    const prep = def.prepare
+      ? await settle(() =>
+          (def.prepare as NonNullable<typeof def.prepare>)(deps.db, actor, input, deps.services, {
+            idempotencyKey: key,
+          }),
+        )
+      : undefined;
     const result = await executeCommand<O>(
       deps.db,
       actor,
-      { command: def.command, idempotencyKey: key, payload: body, correlationId },
-      (ctx) => def.run(ctx, input, deps.services),
+      {
+        command: def.command,
+        idempotencyKey: key,
+        payload: body,
+        correlationId,
+        client: requestClient(req.headers),
+      },
+      (ctx) => def.run(ctx, input, deps.services, (prep ? unwrap(prep) : undefined) as P),
     );
     if (result.status === "committed") {
       return json(
@@ -200,10 +276,12 @@ export async function handleQuery<I, O>(
   deps: HttpDeps,
 ): Promise<Response> {
   const correlationId = correlationOf(req);
+  let actorOf: Actor | null = null;
   try {
     const actor = await actorFromRequest(req, deps, correlationId);
     if (actor instanceof Response) return actor;
-    const params = Object.fromEntries(new URL(req.url).searchParams);
+    actorOf = actor;
+    const params = nfcDeep(Object.fromEntries(new URL(req.url).searchParams));
     const parsed = def.input.safeParse(params);
     if (!parsed.success) return validationProblem(parsed.error, correlationId);
     return json(
@@ -213,7 +291,10 @@ export async function handleQuery<I, O>(
     );
   } catch (err) {
     const p = toProblem(err, correlationId);
-    if (p.status < 500) return problemResponse(p, correlationId);
+    if (p.status < 500) {
+      denied(req, correlationId, p, actorOf, { type: "query", id: def.query });
+      return problemResponse(p, correlationId);
+    }
     return unexpected(err, deps, correlationId);
   }
 }

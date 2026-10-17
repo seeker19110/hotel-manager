@@ -6,7 +6,7 @@
 import { betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { emailOTP, twoFactor } from "better-auth/plugins";
-import pg from "pg";
+import { createPool } from "../db/pool.ts";
 import { clearFailures, DEFAULT_LOCKOUT, isLocked, type LockoutPolicy, recordFailure } from "./lockout.ts";
 
 export const ENABLED_PLUGINS = ["two-factor", "email-otp"] as const;
@@ -38,10 +38,8 @@ export interface AuthDeps {
 }
 
 export function createAuth(deps: AuthDeps) {
-  const pool = new pg.Pool({ connectionString: deps.databaseUrl, options: "-c search_path=auth", max: 10 });
-  pool.on("error", () => {
-    // Lỗi kết nối nhàn rỗi (DB khởi động lại…) — pool tự bỏ client hỏng; request kế tiếp mở kết nối mới.
-  });
+  // Lỗi kết nối nhàn rỗi (DB khởi động lại…) — pool tự bỏ client hỏng; request kế tiếp mở kết nối mới.
+  const pool = createPool(deps.databaseUrl, { options: "-c search_path=auth", max: 10 });
   const lockout = deps.lockout ?? DEFAULT_LOCKOUT;
   const now = deps.now ?? (() => new Date());
   const idleSeconds = (deps.sessionIdleHours ?? 12) * 3600;

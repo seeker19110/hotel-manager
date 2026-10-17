@@ -32,6 +32,8 @@ export async function runRetention(
   const now = opts.now ?? new Date();
   const log = opts.log ?? (() => {});
   const today = utcToday(now);
+  // Hạn là `delete_after <= today` (ngày UTC, cùng mốc nơi ghi `delete_after`) — dòng staging `pending_scan` tới hạn là đủ điều
+  // kiện xoá; `stageFile` (replay) dùng cùng phép so này để từ chối chốt lại dòng sắp bị dọn (review lát 7 🟡4).
   const purged = await sql<{ n: number }>`
     select app.purge_import_rows(${now}, ${IMPORT_ROW_RETENTION_DAYS}) as n`.execute(workerDb);
   const stats: RetentionStats = { rowsPurged: purged.rows[0]?.n ?? 0, filesDeleted: 0, filesFailed: 0 };

@@ -24,7 +24,9 @@ export {
 } from "./audit/events.ts";
 export { type Auth, createAuth } from "./auth/auth.ts";
 export { generatePeriods, type Preview, previewPeriod } from "./billing/billing.ts";
-export { loadConfig } from "./config/schema.ts";
+export { type AppConfig, ConfigError, loadConfig } from "./config/schema.ts";
+export { loadWorkerConfig, type WorkerConfig } from "./config/worker.ts";
+export { createPool } from "./db/pool.ts";
 export { ERROR_CODES, type ErrorCode } from "./errors.ts";
 export {
   downloadExport,
@@ -37,6 +39,7 @@ export {
   runExportJob,
 } from "./exports/exports.ts";
 export { handleFileUpload } from "./files/http.ts";
+export { ObjectStorage, StorageError } from "./files/storage.ts";
 export {
   getTask as getHousekeepingTask,
   listTasks as listHousekeepingTasks,
@@ -59,6 +62,13 @@ export { DEFAULT_REMINDER_DAYS, detectOverstay, remindExpiring } from "./lease/j
 export { getLease, type LeaseView } from "./lease/lease.ts";
 export { BANK_TXN_RECEIVED, BREAK_OPENED } from "./ledger/bank-inbox.ts";
 export { createLogger, type Logger } from "./logging/logger.ts";
+export { appLogger, setAppLogger } from "./logging/runtime.ts";
+export {
+  emitSecurity,
+  forwardedClientIp,
+  SECURITY_EVENTS,
+  type SecurityEventName,
+} from "./logging/security-events.ts";
 export { listWorkOrders, type WorkOrderView } from "./maintenance/work-orders.ts";
 export { readingRoute } from "./metering/meters.ts";
 export {
