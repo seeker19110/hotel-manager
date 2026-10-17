@@ -58,7 +58,7 @@ describe("quyền 'own'", () => {
   });
 });
 
-describe("hạn mức hoàn cọc (đã duyệt 2026-10-15)", () => {
+describe("hạn mức hoàn cọc (đã duyệt 2026-10-15; SPEC-access S-026)", () => {
   it.each([
     ["front_desk", 2_000_000, true, "ok"],
     ["front_desk", 2_000_001, true, "APPROVAL_LIMIT_EXCEEDED"],

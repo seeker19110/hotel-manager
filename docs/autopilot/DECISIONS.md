@@ -250,7 +250,7 @@
 - Phương án: (1) Migration mới: đổi FK NO ACTION không DEFERRABLE sang ON DELETE RESTRICT (cùng ngữ nghĩa khi không trì hoãn); FK DEFERRABLE giữ NO ACTION + ghi danh sách ngoại lệ có lý do trong rào; thêm index cho FK còn thiếu trừ nhóm có lý do (cột người thao tác bảng ít xoá) — rào ratchet về 0 hoặc ngoại lệ tường minh · (2) Miễn trừ DB-MODEL-004 · (3) Viết lại toàn bộ FK kể cả DEFERRABLE thành RESTRICT
 - Chọn: Migration mới: đổi FK NO ACTION không DEFERRABLE sang ON DELETE RESTRICT (cùng ngữ nghĩa khi không trì hoãn); FK DEFERRABLE giữ NO ACTION + ghi danh sách ngoại lệ có lý do trong rào; thêm index cho FK còn thiếu trừ nhóm có lý do (cột người thao tác bảng ít xoá) — rào ratchet về 0 hoặc ngoại lệ tường minh
 - Lý do (tiêu chí chất lượng cuối): (1) đúng: RESTRICT và NO ACTION chỉ khác khi FK trì hoãn được — đổi phần không trì hoãn giữ nguyên hành vi, làm hành động tường minh trong catalog; phương án 3 phá FK DEFERRABLE đang dựa vào kiểm cuối transaction. (3) kiểm máy được bằng catalog.
-- Đường lùi: Down của migration đổi lại NO ACTION (danh sách sinh từ catalog lúc up), drop index đã thêm.
+- Đường lùi: Down của migration đổi lại NO ACTION (danh sách FK ghi cố định trong tệp migration 0051 — down chỉ hoàn nguyên đúng các FK đó), drop index đã thêm.
 
 ### D-036 · 2026-10-17T02:24:00+00:00 · Đợt 6: 26 MUST còn thiếu làm được trong repo — làm hết hay dừng?
 
@@ -258,3 +258,32 @@
 - Chọn: Làm hết trong 8 task T-501…T-508 (cùng luật D-023)
 - Lý do (tiêu chí chất lượng cuối): (1) đúng/an toàn: gồm rào transaction, retry có jitter, FK tường minh, sự kiện bảo mật còn thiếu — lỗi tiềm ẩn thật; (3) mỗi mục có Gate máy; ngân sách còn (vòng 33/130).
 - Đường lùi: Mỗi task một commit; revert theo task.
+
+### D-037 · 2026-10-17T04:44:22+00:00 · T-504: hạn mức tần suất upload/webhook (BE-REL-006) — giá trị và kiểu cửa sổ?
+
+- Phương án: (1) Cửa sổ cố định 60 s trong Postgres (khoá advisory): upload 30/phút/thành viên + 120/phút/tổ chức, import 10/30, webhook đã xác thực 600/phút/tài khoản, chữ ký sai 300/phút/nhà cung cấp; hằng số trong rate-limit.ts · (2) Cửa sổ trượt (log từng lượt) — chặt hơn ở ranh giới nhưng ghi nhiều hàng hơn · (3) Thêm biến môi trường cấu hình hạn mức
+- Chọn: Cửa sổ cố định 60 s trong Postgres (khoá advisory): upload 30/phút/thành viên + 120/phút/tổ chức, import 10/30, webhook đã xác thực 600/phút/tài khoản, chữ ký sai 300/phút/nhà cung cấp; hằng số trong rate-limit.ts
+- Lý do (tiêu chí chất lượng cuối): (1) an toàn: chặn trước khi đọc thân/quét/ghi object, bộ đếm chung giữa mọi tiến trình (test hai pool), lượt từ chối không tăng bộ đếm; ranh giới lọt tối đa 2× trong thời gian ngắn là chấp nhận được cho chống lạm dụng. (2) đường lùi: đổi hằng số. (3) không thêm biến môi trường (không cập nhật được .env.example).
+- Đường lùi: Đổi hằng trong packages/app/src/http/rate-limit.ts; muốn cửa sổ trượt thì thay hàm app.rate_limit_hit bằng migration mới.
+
+### D-038 · 2026-10-17T05:09:16+00:00 · T-502: jitter cho lịch gửi lại email (ARC-RES-002) — full jitter hay cộng thêm?
+
+- Phương án: (1) Cộng thêm tối đa 20% (thực tế ∈ [mốc, 1,2·mốc]) — không bao giờ sớm hơn lịch Q-05 · (2) Full jitter [0, mốc] — rải đều hơn nhưng có thể gửi lại sớm hơn lịch đã hứa
+- Chọn: Cộng thêm tối đa 20% (thực tế ∈ [mốc, 1,2·mốc]) — không bao giờ sớm hơn lịch Q-05
+- Lý do (tiêu chí chất lượng cuối): (1) đúng: giữ lịch Q-05 (1/5/30/120/360 phút) đã ghi trong SPEC; vẫn tránh dồn cùng thời điểm. (3) đơn giản, một hằng RETRY_JITTER_RATIO.
+- Đường lùi: Đổi RETRY_JITTER_RATIO hoặc spreadDelayMs trong notifications.
+
+### D-039 · 2026-10-17T05:09:16+00:00 · T-505: số ngày giữ bảng sự kiện (XC-GREEN-007) khi DPIA chưa có?
+
+- Phương án: (1) outbox đã phát 90 ngày; idempotency xoá khi hết hạn; deliveries sent/suppressed 90 ngày, failed/dead 180 ngày; audit không xoá · (2) outbox 30 ngày (sát cửa sổ dedupe 30 ngày của nhắc hợp đồng) · (3) 180 ngày cho tất cả
+- Chọn: outbox đã phát 90 ngày; idempotency xoá khi hết hạn; deliveries sent/suppressed 90 ngày, failed/dead 180 ngày; audit không xoá
+- Lý do (tiêu chí chất lượng cuối): (1) đúng: lớn hơn mọi cửa sổ dedupe/điều tra hiện có, không xoá hàng chưa phát/chưa xong, audit giữ nguyên. (2) đường lùi: hằng trong retention/policy.ts + tài liệu RET-01…10 có test đồng bộ; DPIA quyết số cuối.
+- Đường lùi: Đổi hằng trong packages/app/src/retention/policy.ts và docs/ops/retention-policy.md.
+- Khi chạy thật (đề xuất, chủ dự án quyết ở G7): Chủ dự án + pháp lý chốt số ngày giữ theo DPIA (RK-019).
+
+### D-040 · 2026-10-17T07:25:15+00:00 · T-507: Problem gợi ý phòng thay thế — trường riêng 'alternatives' (SPEC-inventory S-002) hay dùng chung 'items' như reservation.hold?
+
+- Phương án: (1) Giữ cả hai: 'alternatives' cho allocation.createHold đúng spec, 'items' là danh sách chung (BLOCK_CONFLICT, reservation.hold); ghi API-CONTRACT · (2) Thống nhất về 'items' và sửa SPEC-inventory
+- Chọn: Giữ cả hai: 'alternatives' cho allocation.createHold đúng spec, 'items' là danh sách chung (BLOCK_CONFLICT, reservation.hold); ghi API-CONTRACT
+- Lý do (tiêu chí chất lượng cuối): (1) đúng spec đã ghi, không đổi hợp đồng reservation.hold đang có client dùng; (3) hai trường có kiểu khác nhau rõ ràng, tài liệu hoá trong API-CONTRACT §2.
+- Đường lùi: Đổi createHold trả 'items' và sửa S-002 + API-CONTRACT.

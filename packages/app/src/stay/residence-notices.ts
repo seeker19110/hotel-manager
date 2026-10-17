@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 import { withTenant } from "@hm/db";
 import { authorize, MS_PER_MINUTE, toCsv } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
-import type { Actor } from "../access/actor.ts";
+import type { Actor } from "../access/index.ts";
 import {
   commitGeneratedFile,
   getFileUrl,
@@ -13,11 +13,11 @@ import {
   prepareGeneratedFile,
   storeGeneratedFile,
   type TabularMime,
-} from "../files/files.ts";
-import { revealDocNumber } from "../identity/identity.ts";
-import { writeXlsx } from "../import/xlsx.ts";
+} from "../files/index.ts";
+import { revealDocNumber } from "../identity/index.ts";
+import { writeXlsx } from "../import/index.ts";
 import { type CommandContext, CommandError } from "../pipeline/index.ts";
-import type { AppServices } from "../server/services.ts";
+import type { AppServices } from "../server/index.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

@@ -3,7 +3,7 @@
 import { withTenant } from "@hm/db";
 import { authorize } from "@hm/domain";
 import { type Kysely, sql } from "kysely";
-import type { Actor } from "../access/actor.ts";
+import type { Actor } from "../access/index.ts";
 
 export interface OpsProperty {
   id: string;

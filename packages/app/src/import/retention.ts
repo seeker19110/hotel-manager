@@ -5,7 +5,7 @@
 // - Dòng nhập: làm rỗng `raw`/`data` (PII) của lô đã commit/huỷ quá `IMPORT_ROW_RETENTION_DAYS` ngày (ngày giờ cơ sở).
 import type { Kysely } from "kysely";
 import { sql } from "kysely";
-import type { ObjectStorage } from "../files/storage.ts";
+import type { ObjectStorage } from "../files/index.ts";
 
 export const IMPORT_ROW_RETENTION_DAYS = 30;
 const BATCH = 200;

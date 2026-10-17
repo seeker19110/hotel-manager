@@ -4,9 +4,9 @@
 import type { StatementMapping } from "@hm/domain";
 import { mibToBytes } from "@hm/domain";
 import { z } from "zod";
-import { resetMemberMfa } from "../access/mfa-recovery.ts";
-import { APPROVAL_KINDS, cancelApproval, decideApproval, requestApproval } from "../approvals/approvals.ts";
-import { getEvent, listEvents } from "../audit/events.ts";
+import { resetMemberMfa } from "../access/index.ts";
+import { APPROVAL_KINDS, cancelApproval, decideApproval, requestApproval } from "../approvals/index.ts";
+import { getEvent, listEvents } from "../audit/index.ts";
 import {
   createPeriod,
   issuePeriod,
@@ -15,13 +15,13 @@ import {
   reopenPeriod,
   returnToDraft,
   submitForReview,
-} from "../billing/billing.ts";
+} from "../billing/index.ts";
 import {
   receiveDeposit,
   requestCreditRefund,
   requestDeduction,
   requestDepositRefund,
-} from "../deposits/deposits.ts";
+} from "../deposits/index.ts";
 import {
   downloadExport,
   EXPORT_KINDS,
@@ -29,7 +29,7 @@ import {
   listMyExports,
   requestExport,
   requestOrgExport,
-} from "../exports/exports.ts";
+} from "../exports/index.ts";
 import {
   assignTask,
   cancelTask,
@@ -40,8 +40,8 @@ import {
   listTasks,
   startTask,
   verifyTask,
-} from "../housekeeping/tasks.ts";
-import { getIdentityDocument } from "../identity/identity.ts";
+} from "../housekeeping/index.ts";
+import { getIdentityDocument } from "../identity/index.ts";
 import {
   cancelBatch,
   commitBatch,
@@ -51,23 +51,28 @@ import {
   getTemplate,
   setExpectedTotals,
   validateBatch,
-} from "../import/import.ts";
-import { approveBlock, endBlock, getUnitStatus } from "../inventory/inventory.ts";
-import { activateLease, recordHandover, renewLease } from "../lease/handover.ts";
+} from "../import/index.ts";
+import { approveBlock, endBlock, getUnitStatus } from "../inventory/index.ts";
 import {
+  activateLease,
   addOccupant,
+  approveSettlement,
   cancelLease,
+  closeLease,
   createDraft,
   getLease,
   getPerson,
+  giveNotice,
   holdLease,
+  prepareSettlement,
+  recordHandover,
   removeOccupant,
+  renewLease,
   signLease,
   submitForSignature,
   updateDraft,
-} from "../lease/lease.ts";
-import { approveSettlement, closeLease, giveNotice, prepareSettlement } from "../lease/settlement.ts";
-import { financialSummary, issueAdjustment, lockPeriod, unlockPeriod } from "../ledger/period-close.ts";
+} from "../lease/index.ts";
+import { financialSummary, issueAdjustment, lockPeriod, unlockPeriod } from "../ledger/index.ts";
 import {
   assignWorkOrder,
   cancelWorkOrder,
@@ -78,7 +83,7 @@ import {
   proposeWorkOrderBlock,
   startWorkOrder,
   verifyWorkOrder,
-} from "../maintenance/work-orders.ts";
+} from "../maintenance/index.ts";
 import {
   acknowledgeAnomaly,
   installMeter,
@@ -86,7 +91,7 @@ import {
   recordReading,
   replaceMeter,
   setServicePrice,
-} from "../metering/meters.ts";
+} from "../metering/index.ts";
 import {
   getPreferences,
   listDeliveries,
@@ -96,75 +101,81 @@ import {
   retryDelivery,
   updatePreference,
   updateSettings,
-} from "../notifications/preferences.ts";
+} from "../notifications/index.ts";
 import {
   allocatePayment,
   collectCash,
   confirmPayment,
   recordPayment,
   reversePayment,
-} from "../payments/payments.ts";
-import { inviteTenant, revokeTenantAccess } from "../portal/access.ts";
-import { createGuestLink, revokeGuestLink } from "../portal/guest.ts";
+} from "../payments/index.ts";
 import {
+  createGuestLink,
   createRequest,
   getMyInvoice,
   getMyLease,
   getPaymentInstructions,
+  inviteTenant,
   listMyInvoices,
   listMyMeterReadings,
   listMyRequests,
   listPaymentClaims,
+  revokeGuestLink,
+  revokeTenantAccess,
   submitPaymentClaim,
-} from "../portal/tenant.ts";
+} from "../portal/index.ts";
 import {
   confirmMatch,
   getTransferInfo,
   importStatement,
   previewMatches,
   resolveBreak,
-} from "../reconciliation/reconciliation.ts";
-import { collections, depositsHeld, occupancy, receivables } from "../reports/reports.ts";
+} from "../reconciliation/index.ts";
+import { collections, depositsHeld, occupancy, receivables } from "../reports/index.ts";
 import {
   closeShift,
   handoverShift,
   openShift,
   reassignDiscrepancy,
   receiveHandover,
-} from "../shifts/shifts.ts";
-import { checkOut } from "../stay/checkout.ts";
-import { getFolio, postCharge, voidCharge } from "../stay/folio.ts";
-import { createRoomType, quote, setRate, updateRoomType } from "../stay/rates.ts";
+} from "../shifts/index.ts";
 import {
   cancelReservation,
   changeDates,
+  checkIn,
+  checkOut,
   confirmReservation,
   createReservation,
+  createRoomType,
+  exportResidenceNotice,
+  type GuestInput,
+  getFolio,
   getReservation,
   holdReservation,
+  listNotices,
   listReservations,
   markNoShow,
-} from "../stay/reservations.ts";
-import {
-  exportResidenceNotice,
-  listNotices,
   markNoticeSubmitted,
+  postCharge,
   prepareResidenceNotice,
-} from "../stay/residence-notices.ts";
-import { checkIn, type GuestInput, walkIn } from "../stay/stays.ts";
-import { getSummary, listItems, TODAY_CARDS } from "../today/today.ts";
+  quote,
+  setRate,
+  updateRoomType,
+  voidCharge,
+  walkIn,
+} from "../stay/index.ts";
+import { getSummary, listItems, TODAY_CARDS } from "../today/index.ts";
+import {
+  bankTxn,
+  COMMAND_INPUTS,
+  type guest,
+  isoDate,
+  money,
+  positiveMoney,
+  uuid,
+} from "./command-inputs.ts";
 import type { CommandDef, QueryDef } from "./command-route.ts";
-import { MONEY_MAX } from "./form-rules.ts";
 
-const uuid = z.uuid();
-const money = z.number().int().nonnegative().max(MONEY_MAX);
-const positiveMoney = z.number().int().positive().max(MONEY_MAX);
-const bankTxn = z.strictObject({
-  ref: z.string().trim().min(1).max(100),
-  occurred_at: z.iso.datetime({ offset: true }),
-  description: z.string().max(500).optional(),
-});
-const isoDate = z.iso.date();
 const leaseTerms = z.strictObject({
   effective_from: z.iso.date(),
   effective_to: z.iso.date().nullable(),
@@ -190,15 +201,6 @@ const toTerms = (t: z.infer<typeof leaseTerms>) => ({
     quantity: s.quantity,
     ...(s.unit_price === undefined ? {} : { unitPrice: s.unit_price }),
   })),
-});
-const guest = z.strictObject({
-  person_id: uuid.optional(),
-  full_name: z.string().trim().min(1).max(200).optional(),
-  phone: z.string().trim().min(6).max(20).optional(),
-  email: z.email().max(320).optional(),
-  doc_type: z.enum(["cccd", "passport", "other"]),
-  doc_number: z.string().trim().min(5).max(40),
-  nationality: z.string().trim().length(2).optional(),
 });
 const toGuest = (g: z.infer<typeof guest>): GuestInput => ({
   docType: g.doc_type,
@@ -327,21 +329,7 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
   }),
   "reservation.create": defineCommand({
     command: "reservation.create",
-    input: z.strictObject({
-      unit_id: uuid,
-      arrival_date: isoDate,
-      departure_date: isoDate,
-      guests: z.number().int().min(1).max(50),
-      source: z.literal("direct"),
-      booker: z.union([
-        z.strictObject({ person_id: uuid }),
-        z.strictObject({
-          full_name: z.string().trim().min(1).max(200),
-          phone: z.string().trim().min(6).max(20),
-          email: z.email().max(320).optional(),
-        }),
-      ]),
-    }),
+    input: COMMAND_INPUTS["reservation.create"],
     run: async (ctx, i) => ({
       data: await createReservation(ctx, {
         unitId: i.unit_id,
@@ -363,23 +351,12 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
   }),
   "reservation.hold": defineCommand({
     command: "reservation.hold",
-    input: z.strictObject({ reservation_id: uuid }),
+    input: COMMAND_INPUTS["reservation.hold"],
     run: async (ctx, i) => ({ data: await holdReservation(ctx, { reservationId: i.reservation_id }) }),
   }),
   "reservation.confirm": defineCommand({
     command: "reservation.confirm",
-    input: z.strictObject({
-      reservation_id: uuid,
-      payment: z
-        .strictObject({
-          amount: positiveMoney,
-          method: z.enum(["cash", "bank_transfer"]),
-          kind: z.enum(["advance", "security_deposit"]),
-          receiving_account_id: uuid.optional(),
-          bank_txn: bankTxn.optional(),
-        })
-        .optional(),
-    }),
+    input: COMMAND_INPUTS["reservation.confirm"],
     run: async (ctx, i) => ({
       data: await confirmReservation(ctx, {
         reservationId: i.reservation_id,
@@ -401,11 +378,7 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
   }),
   "reservation.cancel": defineCommand({
     command: "reservation.cancel",
-    input: z.strictObject({
-      reservation_id: uuid,
-      reason: z.string().trim().min(1).max(1000),
-      cancellation_fee: money.optional(),
-    }),
+    input: COMMAND_INPUTS["reservation.cancel"],
     run: async (ctx, i) => ({
       data: await cancelReservation(ctx, {
         reservationId: i.reservation_id,
@@ -433,14 +406,14 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
   }),
   "stay.checkIn": defineCommand({
     command: "stay.checkIn",
-    input: z.strictObject({ reservation_id: uuid, guests: z.array(guest).min(1).max(50) }),
+    input: COMMAND_INPUTS["stay.checkIn"],
     run: async (ctx, i, svc) => ({
       data: await checkIn(ctx, svc.pii, { reservationId: i.reservation_id, guests: i.guests.map(toGuest) }),
     }),
   }),
   "stay.walkIn": defineCommand({
     command: "stay.walkIn",
-    input: z.strictObject({ unit_id: uuid, departure_date: isoDate, guests: z.array(guest).min(1).max(50) }),
+    input: COMMAND_INPUTS["stay.walkIn"],
     run: async (ctx, i, svc) => ({
       data: await walkIn(ctx, svc.pii, {
         unitId: i.unit_id,
@@ -452,13 +425,7 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
   }),
   "stay.postCharge": defineCommand({
     command: "stay.postCharge",
-    input: z.strictObject({
-      stay_id: uuid,
-      kind: z.enum(["service", "fee", "discount"]),
-      description: z.string().trim().min(1).max(500),
-      quantity: z.number().int().min(1).max(1000).default(1),
-      unit_price: positiveMoney,
-    }),
+    input: COMMAND_INPUTS["stay.postCharge"],
     run: async (ctx, i) => ({
       data: await postCharge(ctx, {
         stayId: i.stay_id,
@@ -472,38 +439,12 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
   }),
   "stay.voidCharge": defineCommand({
     command: "stay.voidCharge",
-    input: z.strictObject({ charge_id: uuid, reason: z.string().trim().min(1).max(1000) }),
+    input: COMMAND_INPUTS["stay.voidCharge"],
     run: async (ctx, i) => ({ data: await voidCharge(ctx, { chargeId: i.charge_id, reason: i.reason }) }),
   }),
   "stay.checkOut": defineCommand({
     command: "stay.checkOut",
-    input: z.strictObject({
-      stay_id: uuid,
-      payments: z
-        .array(
-          z.strictObject({
-            method: z.enum(["cash", "bank_transfer"]),
-            amount: positiveMoney,
-            receiving_account_id: uuid.optional(),
-            bank_txn: bankTxn.optional(),
-          }),
-        )
-        .max(10)
-        .optional(),
-      allow_balance: z
-        .strictObject({ approval_request_id: uuid.optional(), debtor_person_id: uuid, due_date: isoDate })
-        .optional(),
-      deposit_refund: z
-        .strictObject({
-          amount: positiveMoney,
-          method: z.enum(["cash", "bank_transfer"]),
-          receiving_account_id: uuid.optional(),
-        })
-        .optional(),
-      deposit_deduction: z
-        .strictObject({ amount: positiveMoney, reason: z.string().trim().min(1).max(1000) })
-        .optional(),
-    }),
+    input: COMMAND_INPUTS["stay.checkOut"],
     run: async (ctx, i) => ({
       data: await checkOut(ctx, {
         stayId: i.stay_id,
@@ -555,12 +496,7 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
   }),
   "stay.markNoticeSubmitted": defineCommand({
     command: "stay.markNoticeSubmitted",
-    input: z.strictObject({
-      notice_id: uuid,
-      submitted_at: z.iso.datetime({ offset: true }),
-      channel: z.enum(["in_person", "online", "other"]),
-      evidence_file_id: uuid.optional(),
-    }),
+    input: COMMAND_INPUTS["stay.markNoticeSubmitted"],
     run: async (ctx, i) => ({
       data: await markNoticeSubmitted(ctx, {
         noticeId: i.notice_id,
@@ -572,12 +508,7 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
   }),
   "housekeeping.createTask": defineCommand({
     command: "housekeeping.createTask",
-    input: z.strictObject({
-      unit_id: uuid,
-      kind: z.enum(["cleaning", "inspection"]),
-      priority: z.enum(["normal", "high", "urgent"]).optional(),
-      note: z.string().max(2000).optional(),
-    }),
+    input: COMMAND_INPUTS["housekeeping.createTask"],
     run: async (ctx, i) => ({
       data: await createTask(ctx, {
         unitId: i.unit_id,
@@ -597,28 +528,24 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
   }),
   "housekeeping.claimTask": defineCommand({
     command: "housekeeping.claimTask",
-    input: z.strictObject({ task_id: uuid }),
+    input: COMMAND_INPUTS["housekeeping.claimTask"],
     run: async (ctx, i) => ({ data: await claimTask(ctx, { taskId: i.task_id }) }),
   }),
   "housekeeping.startTask": defineCommand({
     command: "housekeeping.startTask",
-    input: z.strictObject({ task_id: uuid }),
+    input: COMMAND_INPUTS["housekeeping.startTask"],
     run: async (ctx, i) => ({ data: await startTask(ctx, { taskId: i.task_id }) }),
   }),
   "housekeeping.completeTask": defineCommand({
     command: "housekeeping.completeTask",
-    input: z.strictObject({ task_id: uuid, note: z.string().max(2000).optional() }),
+    input: COMMAND_INPUTS["housekeeping.completeTask"],
     run: async (ctx, i) => ({
       data: await completeTask(ctx, { taskId: i.task_id, ...(i.note ? { note: i.note } : {}) }),
     }),
   }),
   "housekeeping.verifyTask": defineCommand({
     command: "housekeeping.verifyTask",
-    input: z.strictObject({
-      task_id: uuid,
-      result: z.enum(["pass", "fail"]),
-      reason: z.string().trim().max(1000).optional(),
-    }),
+    input: COMMAND_INPUTS["housekeeping.verifyTask"],
     run: async (ctx, i) => ({
       data: await verifyTask(ctx, {
         taskId: i.task_id,
@@ -629,18 +556,12 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
   }),
   "housekeeping.cancelTask": defineCommand({
     command: "housekeeping.cancelTask",
-    input: z.strictObject({ task_id: uuid, reason: z.string().trim().min(1).max(1000) }),
+    input: COMMAND_INPUTS["housekeeping.cancelTask"],
     run: async (ctx, i) => ({ data: await cancelTask(ctx, { taskId: i.task_id, reason: i.reason }) }),
   }),
   "maintenance.createWorkOrder": defineCommand({
     command: "maintenance.createWorkOrder",
-    input: z.strictObject({
-      unit_id: uuid,
-      title: z.string().trim().min(1).max(200),
-      description: z.string().trim().min(1).max(2000),
-      severity: z.enum(["low", "medium", "high", "critical"]),
-      file_ids: z.array(uuid).max(5).default([]),
-    }),
+    input: COMMAND_INPUTS["maintenance.createWorkOrder"],
     run: async (ctx, i) => ({
       data: await createWorkOrder(ctx, {
         unitId: i.unit_id,
@@ -654,7 +575,7 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
   }),
   "maintenance.assignWorkOrder": defineCommand({
     command: "maintenance.assignWorkOrder",
-    input: z.strictObject({ work_order_id: uuid, assignee_membership_id: uuid }),
+    input: COMMAND_INPUTS["maintenance.assignWorkOrder"],
     run: async (ctx, i) => ({
       data: await assignWorkOrder(ctx, {
         workOrderId: i.work_order_id,
@@ -664,16 +585,12 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
   }),
   "maintenance.startWorkOrder": defineCommand({
     command: "maintenance.startWorkOrder",
-    input: z.strictObject({ work_order_id: uuid }),
+    input: COMMAND_INPUTS["maintenance.startWorkOrder"],
     run: async (ctx, i) => ({ data: await startWorkOrder(ctx, { workOrderId: i.work_order_id }) }),
   }),
   "maintenance.completeWorkOrder": defineCommand({
     command: "maintenance.completeWorkOrder",
-    input: z.strictObject({
-      work_order_id: uuid,
-      note: z.string().max(2000).optional(),
-      file_ids: z.array(uuid).max(5).default([]),
-    }),
+    input: COMMAND_INPUTS["maintenance.completeWorkOrder"],
     run: async (ctx, i) => ({
       data: await completeWorkOrder(ctx, {
         workOrderId: i.work_order_id,
@@ -684,18 +601,12 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
   }),
   "maintenance.verifyWorkOrder": defineCommand({
     command: "maintenance.verifyWorkOrder",
-    input: z.strictObject({ work_order_id: uuid }),
+    input: COMMAND_INPUTS["maintenance.verifyWorkOrder"],
     run: async (ctx, i) => ({ data: await verifyWorkOrder(ctx, { workOrderId: i.work_order_id }) }),
   }),
   "portal.createRequest": defineCommand({
     command: "portal.createRequest",
-    input: z.strictObject({
-      unit_id: uuid,
-      title: z.string().trim().min(1).max(200),
-      description: z.string().trim().min(1).max(2000),
-      severity: z.enum(["low", "medium", "high", "critical"]).optional(),
-      file_ids: z.array(uuid).max(5).optional(),
-    }),
+    input: COMMAND_INPUTS["portal.createRequest"],
     run: async (ctx, i) => ({
       data: await createRequest(ctx, {
         unitId: i.unit_id,
@@ -709,12 +620,7 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
   }),
   "portal.submitPaymentClaim": defineCommand({
     command: "portal.submitPaymentClaim",
-    input: z.strictObject({
-      invoice_id: uuid,
-      amount: z.number().int(),
-      reference_code: z.string().trim().max(100).optional(),
-      proof_file_id: uuid.optional(),
-    }),
+    input: COMMAND_INPUTS["portal.submitPaymentClaim"],
     run: async (ctx, i) => ({
       data: await submitPaymentClaim(ctx, {
         invoiceId: i.invoice_id,
@@ -792,12 +698,12 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
   }),
   "notifications.markRead": defineCommand({
     command: "notifications.markRead",
-    input: z.strictObject({ notification_id: uuid }),
+    input: COMMAND_INPUTS["notifications.markRead"],
     run: async (ctx, i) => ({ data: await markRead(ctx, { notificationId: i.notification_id }) }),
   }),
   "notifications.markAllRead": defineCommand({
     command: "notifications.markAllRead",
-    input: z.strictObject({}),
+    input: COMMAND_INPUTS["notifications.markAllRead"],
     run: async (ctx) => ({ data: await markAllRead(ctx) }),
   }),
   "notifications.updatePreferences": defineCommand({
@@ -855,7 +761,7 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
   }),
   "maintenance.cancelWorkOrder": defineCommand({
     command: "maintenance.cancelWorkOrder",
-    input: z.strictObject({ work_order_id: uuid, reason: z.string().trim().min(1).max(1000) }),
+    input: COMMAND_INPUTS["maintenance.cancelWorkOrder"],
     run: async (ctx, i) => ({
       data: await cancelWorkOrder(ctx, { workOrderId: i.work_order_id, reason: i.reason }),
     }),
@@ -893,14 +799,14 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
   }),
   "reservation.markNoShow": defineCommand({
     command: "reservation.markNoShow",
-    input: z.strictObject({ reservation_id: uuid, reason: z.string().trim().min(1).max(1000) }),
+    input: COMMAND_INPUTS["reservation.markNoShow"],
     run: async (ctx, i) => ({
       data: await markNoShow(ctx, { reservationId: i.reservation_id, reason: i.reason }),
     }),
   }),
   "shift.open": defineCommand({
     command: "shift.open",
-    input: z.strictObject({ property_id: uuid, opening_cash: money }),
+    input: COMMAND_INPUTS["shift.open"],
     run: async (ctx, i) => ({
       data: await openShift(ctx, { propertyId: i.property_id, openingCash: i.opening_cash }),
       httpStatus: 201,
@@ -968,12 +874,7 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
   }),
   "payment.confirm": defineCommand({
     command: "payment.confirm",
-    input: z.strictObject({
-      payment_id: uuid,
-      evidence: z
-        .strictObject({ bank_transaction_id: uuid.optional(), bank_txn: bankTxn.optional() })
-        .optional(),
-    }),
+    input: COMMAND_INPUTS["payment.confirm"],
     run: async (ctx, i) => ({
       data: await confirmPayment(ctx, {
         paymentId: i.payment_id,
@@ -1008,7 +909,7 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
   }),
   "payment.collectCash": defineCommand({
     command: "payment.collectCash",
-    input: z.strictObject({ invoice_id: uuid, amount: positiveMoney }),
+    input: COMMAND_INPUTS["payment.collectCash"],
     run: async (ctx, i) => ({
       data: await collectCash(ctx, { invoiceId: i.invoice_id, amount: i.amount }),
       httpStatus: 201,
@@ -1023,20 +924,7 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
   }),
   "deposit.receive": defineCommand({
     command: "deposit.receive",
-    input: z
-      .strictObject({
-        property_id: uuid,
-        lease_id: uuid.optional(),
-        reservation_id: uuid.optional(),
-        payer_person_id: uuid,
-        amount: positiveMoney,
-        method: z.enum(["cash", "bank_transfer"]),
-        receiving_account_id: uuid.optional(),
-        bank_txn: bankTxn.optional(),
-      })
-      .refine((i) => Boolean(i.lease_id) !== Boolean(i.reservation_id), {
-        message: "lease_id hoặc reservation_id",
-      }),
+    input: COMMAND_INPUTS["deposit.receive"],
     run: async (ctx, i) => ({
       data: await receiveDeposit(ctx, {
         propertyId: i.property_id,
@@ -1164,7 +1052,7 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
   }),
   "reconciliation.resolveBreak": defineCommand({
     command: "reconciliation.resolveBreak",
-    input: z.strictObject({ break_id: uuid, resolution: z.string().trim().min(1).max(1000) }),
+    input: COMMAND_INPUTS["reconciliation.resolveBreak"],
     run: async (ctx, i) => ({
       data: await resolveBreak(ctx, { breakId: i.break_id, resolution: i.resolution }),
     }),
@@ -1276,7 +1164,7 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
   }),
   "lease.submitForSignature": defineCommand({
     command: "lease.submitForSignature",
-    input: z.strictObject({ lease_id: uuid }),
+    input: COMMAND_INPUTS["lease.submitForSignature"],
     run: async (ctx, i) => ({ data: await submitForSignature(ctx, { leaseId: i.lease_id }) }),
   }),
   "lease.hold": defineCommand({
@@ -1286,7 +1174,7 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
   }),
   "lease.sign": defineCommand({
     command: "lease.sign",
-    input: z.strictObject({ lease_id: uuid, signer_person_id: uuid, signed_on: isoDate.optional() }),
+    input: COMMAND_INPUTS["lease.sign"],
     run: async (ctx, i) => ({
       data: await signLease(ctx, {
         leaseId: i.lease_id,
@@ -1302,29 +1190,7 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
   }),
   "lease.recordHandover": defineCommand({
     command: "lease.recordHandover",
-    input: z.strictObject({
-      lease_id: uuid,
-      kind: z.enum(["move_in", "move_out"]),
-      handed_over_on: isoDate,
-      readings: z.strictObject({
-        electric: z.number().nonnegative().optional(),
-        water: z.number().nonnegative().optional(),
-      }),
-      assets: z
-        .array(
-          z.strictObject({
-            name: z.string().max(100),
-            quantity: z.number().int(),
-            condition: z.string().max(200),
-            file_ids: z.array(uuid).max(20).optional(),
-          }),
-        )
-        .max(50),
-      keys_count: z.number().int().min(0).max(100),
-      photo_file_ids: z.array(uuid).max(20),
-      note: z.string().max(2000).optional(),
-      tenant_confirmation: z.strictObject({ method: z.enum(["in_person", "portal"]) }).optional(),
-    }),
+    input: COMMAND_INPUTS["lease.recordHandover"],
     run: async (ctx, i) => ({
       data: await recordHandover(ctx, {
         leaseId: i.lease_id,
@@ -1347,7 +1213,7 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
   }),
   "lease.activate": defineCommand({
     command: "lease.activate",
-    input: z.strictObject({ lease_id: uuid }),
+    input: COMMAND_INPUTS["lease.activate"],
     run: async (ctx, i) => ({ data: await activateLease(ctx, { leaseId: i.lease_id }) }),
   }),
   "lease.renew": defineCommand({
@@ -1360,35 +1226,14 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
   }),
   "lease.giveNotice": defineCommand({
     command: "lease.giveNotice",
-    input: z.strictObject({ lease_id: uuid, planned_move_out_on: isoDate }),
+    input: COMMAND_INPUTS["lease.giveNotice"],
     run: async (ctx, i) => ({
       data: await giveNotice(ctx, { leaseId: i.lease_id, plannedMoveOutOn: i.planned_move_out_on }),
     }),
   }),
   "lease.prepareSettlement": defineCommand({
     command: "lease.prepareSettlement",
-    input: z.strictObject({
-      lease_id: uuid,
-      fees: z
-        .array(
-          z.strictObject({
-            amount: positiveMoney,
-            reason: z.string().max(500),
-            file_ids: z.array(uuid).max(20).optional(),
-          }),
-        )
-        .max(20),
-      deductions: z
-        .array(
-          z.strictObject({
-            invoice_id: uuid.nullable().optional(),
-            amount: positiveMoney,
-            reason: z.string().max(500),
-          }),
-        )
-        .max(50)
-        .optional(),
-    }),
+    input: COMMAND_INPUTS["lease.prepareSettlement"],
     run: async (ctx, i) => ({
       data: await prepareSettlement(ctx, {
         leaseId: i.lease_id,
@@ -1479,14 +1324,7 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
   }),
   "meter.recordReading": defineCommand({
     command: "meter.recordReading",
-    input: z.strictObject({
-      meter_id: uuid,
-      billing_period_id: uuid,
-      value: z.number().nonnegative(),
-      read_on: isoDate.optional(),
-      photo_file_id: uuid.optional(),
-      base_version: z.number().int().positive().optional(),
-    }),
+    input: COMMAND_INPUTS["meter.recordReading"],
     run: async (ctx, i) => ({
       data: await recordReading(ctx, {
         meterId: i.meter_id,
@@ -1524,7 +1362,7 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
   }),
   "billing.createPeriod": defineCommand({
     command: "billing.createPeriod",
-    input: z.strictObject({ property_id: uuid, month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/) }),
+    input: COMMAND_INPUTS["billing.createPeriod"],
     run: async (ctx, i) => {
       const r = await createPeriod(ctx, { propertyId: i.property_id, month: i.month });
       return { data: r, httpStatus: r.created ? 201 : 200 };
@@ -1532,19 +1370,19 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
   }),
   "billing.submitForReview": defineCommand({
     command: "billing.submitForReview",
-    input: z.strictObject({ billing_period_id: uuid }),
+    input: COMMAND_INPUTS["billing.submitForReview"],
     run: async (ctx, i) => ({ data: await submitForReview(ctx, { billingPeriodId: i.billing_period_id }) }),
   }),
   "billing.returnToDraft": defineCommand({
     command: "billing.returnToDraft",
-    input: z.strictObject({ billing_period_id: uuid, reason: z.string().trim().min(1).max(500) }),
+    input: COMMAND_INPUTS["billing.returnToDraft"],
     run: async (ctx, i) => ({
       data: await returnToDraft(ctx, { billingPeriodId: i.billing_period_id, reason: i.reason }),
     }),
   }),
   "billing.issuePeriod": defineCommand({
     command: "billing.issuePeriod",
-    input: z.strictObject({ billing_period_id: uuid, preview_hash: z.string().regex(/^[0-9a-f]{64}$/) }),
+    input: COMMAND_INPUTS["billing.issuePeriod"],
     run: async (ctx, i) => ({
       data: await issuePeriod(ctx, { billingPeriodId: i.billing_period_id, previewHash: i.preview_hash }),
       httpStatus: 201,

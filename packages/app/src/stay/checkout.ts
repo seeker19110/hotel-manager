@@ -6,10 +6,10 @@
 import { randomUUID } from "node:crypto";
 import { authorize, generateMemoRef, grantFor, isMatrixRole } from "@hm/domain";
 import { sql } from "kysely";
-import { registerApprovalExecutor } from "../approvals/approvals.ts";
-import { refundDepositAtCheckout, requestDeduction } from "../deposits/deposits.ts";
-import { createCleaningTask } from "../housekeeping/tasks.ts";
-import { postEntry } from "../ledger/ledger.ts";
+import { registerApprovalExecutor } from "../approvals/index.ts";
+import { refundDepositAtCheckout, requestDeduction } from "../deposits/index.ts";
+import { createCleaningTask } from "../housekeeping/index.ts";
+import { postEntry } from "../ledger/index.ts";
 import {
   allocatePayment,
   confirmPayment,
@@ -18,9 +18,9 @@ import {
   type ManualBankTxn,
   type PaymentRow,
   recordPayment,
-} from "../payments/payments.ts";
+} from "../payments/index.ts";
 import { type CommandContext, CommandError } from "../pipeline/index.ts";
-import { openShiftOf } from "../shifts/shifts.ts";
+import { openShiftOf } from "../shifts/index.ts";
 import { readStay } from "./folio.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

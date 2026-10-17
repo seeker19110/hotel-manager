@@ -172,17 +172,20 @@ describe("tải lên (TM-07)", () => {
     ["file thực thi ELF", Uint8Array.from([0x7f, 0x45, 0x4c, 0x46, 2, 1, 1, 0])],
     ["PDF cho phiếu sự cố (chỉ nhận ảnh)", ascii("%PDF-1.7\n%...")],
     ["JPEG hỏng (đầu đúng, thân sai)", Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x50])],
-  ])("%s → 415 FILE_TYPE_NOT_ALLOWED, không lưu gì", async (_name, bytes) => {
-    const before = await sql<{ n: number }>`select count(*)::int as n from files`.execute(t.admin);
-    const r = await upload(housekeeping, "work_order", bytes);
-    expect(r).toMatchObject({
-      status: "failed",
-      httpStatus: 415,
-      problem: { code: "FILE_TYPE_NOT_ALLOWED" },
-    });
-    const after = await sql<{ n: number }>`select count(*)::int as n from files`.execute(t.admin);
-    expect(after.rows[0]?.n).toBe(before.rows[0]?.n);
-  });
+  ])(
+    "SPEC-housekeeping S-013: %s → 415 FILE_TYPE_NOT_ALLOWED, không lưu gì (loại theo nội dung)",
+    async (_name, bytes) => {
+      const before = await sql<{ n: number }>`select count(*)::int as n from files`.execute(t.admin);
+      const r = await upload(housekeeping, "work_order", bytes);
+      expect(r).toMatchObject({
+        status: "failed",
+        httpStatus: 415,
+        problem: { code: "FILE_TYPE_NOT_ALLOWED" },
+      });
+      const after = await sql<{ n: number }>`select count(*)::int as n from files`.execute(t.admin);
+      expect(after.rows[0]?.n).toBe(before.rows[0]?.n);
+    },
+  );
 
   it("vượt 10 MB → 413 FILE_TOO_LARGE", async () => {
     const big = new Uint8Array(MAX_FILE_BYTES + 1);
@@ -235,6 +238,19 @@ describe("đọc file (TM-06)", () => {
     expect(seen.rows[0]?.n).toBe(0);
   });
 
+  it("SPEC-access S-024: buồng phòng xin URL ảnh giấy tờ → 404, không cấp URL, lần từ chối vào audit (outcome=denied)", async () => {
+    const r = await upload(frontDesk, "identity_document", jpegWithExif());
+    if (r.status !== "committed") throw new Error(JSON.stringify(r));
+    const denied = await urlFor(housekeeping, r.data.fileId);
+    expect(denied).toMatchObject({ status: "failed", httpStatus: 404, problem: { code: "NOT_FOUND" } });
+    expect(JSON.stringify(denied)).not.toContain("X-Amz-Signature");
+    const audit = await sql<{ outcome: string; actor_person_id: string }>`
+      select outcome, actor_person_id from audit_events where command_id = ${denied.commandId}`.execute(
+      t.admin,
+    );
+    expect(audit.rows).toEqual([{ outcome: "denied", actor_person_id: housekeeping.personId }]);
+  });
+
   it("buồng phòng không tải ảnh giấy tờ lên được (không có quyền đọc giấy tờ)", async () => {
     expect(await upload(housekeeping, "identity_document", jpegWithExif())).toMatchObject({
       status: "failed",
@@ -246,6 +262,31 @@ describe("đọc file (TM-06)", () => {
     const r = await upload(housekeeping, "work_order", jpegWithExif());
     if (r.status !== "committed") throw new Error("upload");
     expect(await urlFor(ownerB, r.data.fileId)).toMatchObject({ status: "failed", httpStatus: 404 });
+  });
+
+  it("SPEC-housekeeping S-017: URL ký ≤ 5 phút; hết hạn → bucket từ chối; tổ chức khác → 404; không ký → 403", async () => {
+    const r = await upload(housekeeping, "work_order", jpegWithExif());
+    if (r.status !== "committed") throw new Error("upload");
+    const u = await urlFor(owner, r.data.fileId);
+    if (u.status !== "committed") throw new Error("url");
+    expect(u.data.expiresIn).toBeLessThanOrEqual(300);
+    expect(new URL(u.data.url).searchParams.get("X-Amz-Expires")).toBe("300");
+    expect((await fetch(u.data.url)).status).toBe(200);
+    expect((await fetch(u.data.url.split("?")[0] as string)).status).toBe(403);
+    expect(await urlFor(ownerB, r.data.fileId)).toMatchObject({
+      status: "failed",
+      httpStatus: 404,
+      problem: { code: "NOT_FOUND" },
+    });
+    // Hết hạn: ký lại cùng object với hạn 1 giây (hạn thấp nhất cho phép) rồi dùng sau mốc.
+    const key = await sql<{
+      storage_key: string;
+    }>`select storage_key from files where id = ${r.data.fileId}`.execute(t.admin);
+    const shortLived = await storage.signedGetUrl(key.rows[0]?.storage_key as string, 1);
+    expect(new URL(shortLived).searchParams.get("X-Amz-Expires")).toBe("1");
+    expect((await fetch(shortLived)).status).toBe(200);
+    await new Promise((resolve) => setTimeout(resolve, 2_500));
+    expect((await fetch(shortLived)).status).toBe(403);
   });
 });
 

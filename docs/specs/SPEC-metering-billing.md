@@ -217,7 +217,7 @@ Fixture `billing-basic`: cơ sở P1 (`Asia/Ho_Chi_Minh`, làm tròn `HALF_UP_1`
 | `FORBIDDEN` | Không đủ quyền (thay công tơ; mở khoá kỳ không phải owner) | 403 | Bạn không có quyền thực hiện thao tác này. | S-007, S-012 |
 | `NOT_FOUND` | Không tồn tại/ngoài phạm vi | 404 | Không tìm thấy. | — |
 | `VALIDATION_FAILED` | Sai trường; mở khoá kỳ không có lý do | 422 | Dữ liệu chưa hợp lệ: xem từng trường. | S-012 |
-| `IDEMPOTENCY_CONFLICT` | Cùng key khác payload | 409 | Yêu cầu trùng mã nhưng khác nội dung. | S-015 |
+| `IDEMPOTENCY_CONFLICT` | Cùng key khác payload | 422 | Yêu cầu trùng mã nhưng khác nội dung. | S-015 |
 
 ## 7. Yêu cầu phi chức năng của tính năng
 | Thuộc tính | Ngưỡng | Nguồn | Cách đo |

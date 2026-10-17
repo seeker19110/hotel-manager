@@ -2,68 +2,20 @@
   "_ghi_chu": "Nền ratchet cho PM-SPEC-004/WF-SDD-003 (scripts/spec-coverage.mjs, kiểm ở scripts/process-docs.test.mjs). Mỗi spec Approved liệt kê S-NNN chưa có test nhắc ID. Scenario mới chưa có test và không có ở đây → test đỏ. Scenario đã có test mà còn ở đây → test đỏ đòi xoá (chỉ được co lại). Không thêm mục để làm xanh: gắn ID vào test hoặc viết test.",
   "specs": {
     "access-and-property": {
-      "uncovered": [
-        "S-001",
-        "S-002",
-        "S-003",
-        "S-004",
-        "S-005",
-        "S-006",
-        "S-007",
-        "S-008",
-        "S-009",
-        "S-010",
-        "S-011",
-        "S-012",
-        "S-013",
-        "S-014",
-        "S-015",
-        "S-018",
-        "S-019",
-        "S-021",
-        "S-022",
-        "S-023",
-        "S-024",
-        "S-025",
-        "S-026"
-      ],
-      "reason": "Test của access/tenancy/auth kiểm hành vi theo tên mô tả và ma trận quyền sinh từ `matrix.ts`, chưa gắn ID S-NNN vào tên test; việc gắn ID và bổ sung test còn thiếu là việc của task sau (PM-SPEC-004)."
+      "uncovered": ["S-001", "S-002", "S-003", "S-007", "S-008", "S-010", "S-018", "S-023", "S-025"],
+      "reason": "17/26 đã gắn ID hoặc có test (S-005 kind chỉ nhận whole và S-006 unit.archive/UNIT_IN_USE đã thêm ở units.db.test.ts). 9 scenario còn lại là tính năng CHƯA CÓ trong mã nên không thể kiểm: lệnh org.create/property.create (S-001, S-002, S-003), member.invite/acceptInvitation + INVITATION_INVALID (S-007, S-008), session.revokeAll + SESSION_REVOKED (S-010), member.updateRole/updateScope/invite vai trò cao + audit lần bị từ chối (S-018), property.update + PROPERTY_IN_USE khi đổi múi giờ/giờ chốt (S-023; cần trigger/migration mới — chưa được giao số migration). S-025: spec đòi 403 FORBIDDEN khi xác nhận tiền mặt ngoài ca, mã hiện tại là 409 SHIFT_NOT_OPEN (SPEC-ledger-payments §6, S-028) — hai spec lệch nhau, chờ quyết (PM-SPEC-004)."
     },
     "housekeeping-maintenance": {
-      "uncovered": ["S-013", "S-016", "S-017", "S-024"],
-      "reason": "Bốn scenario chưa có test nhắc ID (S-013, S-016, S-017, S-024); cần đối chiếu từng cái với test hiện có rồi gắn ID hoặc viết test (PM-SPEC-004)."
+      "uncovered": ["S-016", "S-024"],
+      "reason": "S-013 và S-017 đã có test (files.db.test.ts). Còn S-016: bộ bỏ EXIF xoá cả thẻ Orientation nên ảnh dọc chụp từ điện thoại có thể hiển thị lệch chiều — spec đòi giữ đúng chiều, chờ quyết cách xử lý (giữ riêng thẻ Orientation hoặc xoay điểm ảnh). S-024: SPEC-housekeeping đòi tải lại trạng thái từ máy chủ trước khi cho bấm lại, còn SPEC-pwa S-006 đòi nút bấm lại được ngay khi có mạng — hai spec mâu thuẫn, chờ quyết (PM-SPEC-004)."
     },
     "inventory-allocation": {
-      "uncovered": [
-        "S-001",
-        "S-002",
-        "S-003",
-        "S-004",
-        "S-005",
-        "S-006",
-        "S-007",
-        "S-008",
-        "S-009",
-        "S-010",
-        "S-011",
-        "S-012",
-        "S-013",
-        "S-014",
-        "S-015",
-        "S-016",
-        "S-017",
-        "S-018",
-        "S-019",
-        "S-020",
-        "S-021",
-        "S-022",
-        "S-023"
-      ],
-      "reason": "Test tồn dùng ID bất biến INV-* (EXCLUDE, hold, block) thay vì S-NNN nên 23 scenario chưa truy được; cần ánh xạ S-NNN ↔ INV-* và gắn ID vào tên test (PM-SPEC-004)."
+      "uncovered": ["S-013", "S-017", "S-018", "S-019", "S-020", "S-021", "S-023"],
+      "reason": "16/23 đã có test (inventory.db.test.ts, inventory-spec.db.test.ts). 7 scenario còn lại là tính năng CHƯA CÓ trong mã nên không thể kiểm: S-013 `inventory.setUnitAvailability` (+ exceptions RELOCATION_REQUIRED cho allocation tương lai); S-017 job `inventory.detectOverdue` (STAY_OVERSTAY, RELOCATION_REQUIRED; check-in vào phòng quá hạn đã có ROOM_OCCUPIED ở stays.ts nhưng chưa có ngoại lệ/lịch 'Quá hạn trả'); S-018 `inventory.resizeAllocation` + EXTENSION_CONFLICT ghi sau rollback; S-019 cùng `resizeAllocation` (nửa đầu — hold chồng hợp đồng mở → ROOM_UNAVAILABLE — chạy được nhưng nửa sau cần lệnh này); S-020 `searchAvailability` loại phòng + createHold/check-in/bàn giao → ROOM_OCCUPIED khi LEASE_OVERSTAY còn mở (job lease.detectOverstay đã có, SPEC-lease S-015); S-021 query `inventory.getCalendar` (lọc tầng/loại, đoạn theo giờ địa phương, ẩn tên khách/tiền cho housekeeping); S-023 outbox cùng transaction cho MỌI command mục 5 — hiện chỉ `createHold` phát outbox (tên sự kiện trong spec §9 `allocation.hold_created` lệch mã `allocation.held`; các command còn lại chưa có sự kiện). Cần task riêng xây các lệnh/truy vấn trên rồi mới viết test (PM-SPEC-004)."
     },
     "pwa": {
-      "uncovered": ["S-002", "S-003", "S-007", "S-009", "S-012", "S-013", "S-014", "S-016", "S-017", "S-018"],
-      "reason": "Mười scenario PWA (S-002, S-003, S-007, S-009, S-012…S-014, S-016…S-018) chưa có test E2E hoặc đơn vị nhắc ID; một phần cần thiết bị/trình duyệt thật (PM-SPEC-004)."
+      "uncovered": ["S-002", "S-003", "S-007", "S-009", "S-012", "S-013", "S-014", "S-016"],
+      "reason": "S-017 và S-018 đã có E2E (pwa.spec.ts, rental.spec.ts). Còn lại là tính năng chưa có hoặc lệch spec, không thể gắn ID: S-002/S-003 chưa có nút/hướng dẫn cài (và cần thiết bị thật); S-007 đổi tổ chức đã xoá cache nhưng đăng xuất chưa trả Clear-Site-Data; S-009 chưa có 426 CLIENT_OUTDATED/X-App-Version; S-012 client hỏi lại 8 lần cách 1 giây rồi hiện nút Kiểm tra lại (spec: backoff 1-2-4 giây tối đa 30 giây + thông điệp RESULT_UNKNOWN kèm command_id); S-013 gặp 401 thì chuyển trang đăng nhập (spec: hộp đăng nhập lại, gửi lại cùng command_id); S-014 thanh điều hướng có tới 11 mục theo vai trò (spec: đúng 5 mục); S-016 cần ma trận thiết bị thật (PM-SPEC-004)."
     }
   }
 }

@@ -17,6 +17,7 @@ import {
   loadWorkerConfig,
   type ObjectStorage,
   parseOutboxPayload,
+  purgeEventTables,
   remindExpiring,
   runReconciliationDaily,
   runReminders,
@@ -52,6 +53,8 @@ export interface Intervals {
   lease: number;
   exports: number;
   retention: number;
+  /** Dọn bảng sự kiện (outbox đã phát, idempotency hết hạn, lần gửi thông báo đã xong; T-505). */
+  eventsRetention: number;
   /** Đối soát hằng ngày (IND-FIN-006). */
   reconciliation: number;
 }
@@ -66,6 +69,7 @@ export const DEFAULT_INTERVALS: Intervals = {
   lease: HOUR,
   exports: 5 * MINUTE,
   retention: 24 * HOUR,
+  eventsRetention: HOUR, // xoá theo lô có trần; tồn đọng lớn được dọn dần qua các lượt
   reconciliation: 24 * HOUR,
 };
 
@@ -225,6 +229,14 @@ export async function startWorker(deps: WorkerDeps): Promise<WorkerHandle> {
       everyMs: iv.retention,
       initialDelayMs: deps.retentionInitialDelayMs ?? MINUTE,
       run: () => runRetention(workerDb, storage, { now: new Date(), log: (e, f) => log.info(e, f) }),
+    },
+    {
+      // Bảng sự kiện theo chính sách hạn giữ (docs/ops/retention-policy.md). Xoá theo lô qua hàm SECURITY DEFINER; an toàn khi
+      // nhiều worker chạy song song (SKIP LOCKED) và khi chạy lại (idempotent).
+      name: "events.retention",
+      everyMs: iv.eventsRetention,
+      initialDelayMs: deps.retentionInitialDelayMs ?? MINUTE,
+      run: () => purgeEventTables(workerDb, { now: new Date(), log: (e, f) => log.info(e, f) }),
     },
   ];
   const sender = deps.sender;

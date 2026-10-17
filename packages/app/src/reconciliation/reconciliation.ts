@@ -14,15 +14,10 @@ import {
   type StatementMapping,
 } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
-import type { Actor } from "../access/actor.ts";
-import { assertPropertyInOrg } from "../access/scope.ts";
-import { ingestInTx, openBreak, openHashMismatchBreak } from "../ledger/bank-inbox.ts";
-import {
-  type AllocationInput,
-  allocatePayment,
-  confirmPayment,
-  recordPayment,
-} from "../payments/payments.ts";
+import type { Actor } from "../access/index.ts";
+import { assertPropertyInOrg } from "../access/index.ts";
+import { ingestInTx, openBreak, openHashMismatchBreak } from "../ledger/index.ts";
+import { type AllocationInput, allocatePayment, confirmPayment, recordPayment } from "../payments/index.ts";
 import { type CommandContext, CommandError } from "../pipeline/index.ts";
 import { candidateInvoices, loadBankTxn, suggestFor } from "./matching.ts";
 

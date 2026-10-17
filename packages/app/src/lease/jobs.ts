@@ -2,8 +2,9 @@
 // chưa bàn giao trả (S-015, INV-I4 — không tự kết thúc allocation, mở ngoại lệ cho quản lý). Đọc xuyên tổ chức qua hàm
 // SECURITY DEFINER phạm vi hẹp; ghi trong ngữ cảnh từng tổ chức; chạy lại bao nhiêu lần cũng một hiệu lực.
 import { randomUUID } from "node:crypto";
-import { withTenant } from "@hm/db";
+import { withTenantRetry } from "@hm/db";
 import { type Kysely, sql } from "kysely";
+import { currentTraceparent } from "../logging/index.ts";
 
 export const DEFAULT_REMINDER_DAYS = [30, 7, 0] as const;
 
@@ -25,13 +26,13 @@ export async function remindExpiring(
   let created = 0;
   for (const r of due.rows) {
     const key = `lease.expiring:${r.lease_id}:${r.version_no}:${r.days_left}`;
-    const ins = await withTenant(workerDb, { orgId: r.organization_id }, (trx) =>
+    const ins = await withTenantRetry(workerDb, { orgId: r.organization_id }, (trx) =>
       sql<{ id: string }>`
         insert into outbox (id, organization_id, property_id, event_type, aggregate_type, aggregate_id, payload, correlation_id,
-                            dedupe_key)
+                            dedupe_key, traceparent)
         values (${randomUUID()}, ${r.organization_id}, ${r.property_id}, 'lease.expiring', 'lease', ${r.lease_id},
                 ${JSON.stringify({ lease_id: r.lease_id, version_no: r.version_no, days_left: r.days_left, effective_to: r.effective_to })}::jsonb,
-                ${`job:lease.remindExpiring:${now.toISOString()}`}, ${key})
+                ${`job:lease.remindExpiring:${now.toISOString()}`}, ${key}, ${currentTraceparent()})
         on conflict do nothing`.execute(trx),
     );
     created += Number(ins.numAffectedRows ?? 0);
@@ -50,14 +51,13 @@ export async function detectOverstay(workerDb: Kysely<unknown>, now: Date): Prom
   }>`select * from app.leases_overstaying(${now})`.execute(workerDb);
   let opened = 0;
   for (const r of rows.rows) {
-    await withTenant(workerDb, { orgId: r.organization_id }, async (trx) => {
+    const wasOpened = await withTenantRetry(workerDb, { orgId: r.organization_id }, async (trx) => {
       const id = randomUUID();
       const ins = await sql<{ id: string }>`
         insert into exceptions (id, organization_id, property_id, type, allocation_id, related_allocation_id)
         values (${id}, ${r.organization_id}, ${r.property_id}, 'LEASE_OVERSTAY', ${r.allocation_id}, ${r.related_allocation_id})
         on conflict do nothing returning id`.execute(trx);
-      if (!ins.rows[0]) return;
-      opened++;
+      if (!ins.rows[0]) return false;
       const correlation = `job:lease.detectOverstay:${now.toISOString()}`;
       await sql`
         insert into audit_events (id, organization_id, property_id, actor_type, action, entity_type, entity_id, after, correlation_id)
@@ -66,11 +66,14 @@ export async function detectOverstay(workerDb: Kysely<unknown>, now: Date): Prom
                 ${correlation})`.execute(trx);
       await sql`
         insert into outbox (id, organization_id, property_id, event_type, aggregate_type, aggregate_id, payload, correlation_id,
-                            dedupe_key)
+                            dedupe_key, traceparent)
         values (${randomUUID()}, ${r.organization_id}, ${r.property_id}, 'exception.opened', 'exception', ${id},
                 ${JSON.stringify({ exception_id: id, type: "LEASE_OVERSTAY", lease_id: r.lease_id })}::jsonb, ${correlation},
-                ${`exception.opened:${id}`})`.execute(trx);
+                ${`exception.opened:${id}`}, ${currentTraceparent()})`.execute(trx);
+      return true;
     });
+    // Đếm NGOÀI transaction: transaction có thể chạy lại (40001/40P01) nên không đổi biến ngoài bên trong.
+    if (wasOpened) opened++;
   }
   return opened;
 }

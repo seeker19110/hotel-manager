@@ -477,10 +477,10 @@ describe("INV-F4b, INV-G5, INV-G4", () => {
       n: number;
     }>`select count(*)::int as n from payments where payer_person_id = ${payer}`.execute(t.admin);
     expect(n.rows[0]?.n).toBe(1);
-    // Pipeline ném IDEMPOTENCY_CONFLICT (không lưu thành kết quả); lớp HTTP trả 409 problem.
+    // Pipeline ném IDEMPOTENCY_CONFLICT (không lưu thành kết quả); lớp HTTP trả 422 problem.
     await expect(run(K, fn, key, { ...body, amount: 2 })).rejects.toMatchObject({
       code: "IDEMPOTENCY_CONFLICT",
-      status: 409,
+      status: 422,
     });
   });
 

@@ -54,21 +54,7 @@ export {
   listTasks as listHousekeepingTasks,
   type TaskView,
 } from "./housekeeping/tasks.ts";
-export {
-  type CommandDef,
-  type HttpDeps,
-  handleCommand,
-  handleCommandStatus,
-  handleQuery,
-  type QueryDef,
-} from "./http/command-route.ts";
-export { handleFileUpload } from "./http/file-upload.ts";
-export { handleGuestStay } from "./http/guest-stay.ts";
-export { handleImportUpload } from "./http/import-upload.ts";
-export { COMMANDS, findCommand, findQuery, QUERIES } from "./http/registry.ts";
-export { DEFAULT_RETRY_AFTER_SECONDS, retryAfterSeconds, withRetryAfter } from "./http/retry-after.ts";
-export { handleUnsubscribe } from "./http/unsubscribe.ts";
-export { handleWebhook, type WebhookDeps } from "./http/webhook-route.ts";
+export * from "./http/index.ts";
 export { IMPORT_ROW_RETENTION_DAYS, type RetentionStats, runRetention } from "./import/retention.ts";
 export { listRooms, type PropertyRooms, type RoomRow } from "./inventory/rooms.ts";
 export { DEFAULT_REMINDER_DAYS, detectOverstay, remindExpiring } from "./lease/jobs.ts";
@@ -82,6 +68,20 @@ export {
   SECURITY_EVENTS,
   type SecurityEventName,
 } from "./logging/security-events.ts";
+export { reportBackendTlsError, tlsFailureCode } from "./logging/tls-errors.ts";
+export {
+  currentTrace,
+  currentTraceparent,
+  formatTraceparent,
+  newTraceContext,
+  parseTraceparent,
+  runJobWithTrace,
+  runWithTrace,
+  TRACEPARENT_HEADER,
+  type TraceContext,
+  traceForJob,
+  withRequestTrace,
+} from "./logging/trace.ts";
 export { reportRequestError, reportUnexpectedError } from "./logging/unexpected.ts";
 export { listWorkOrders, type WorkOrderView } from "./maintenance/work-orders.ts";
 export { readingRoute } from "./metering/meters.ts";
@@ -124,11 +124,7 @@ export {
   renderPrometheus,
   type Sample,
 } from "./observability/metrics.ts";
-export {
-  InvalidJobPayloadError,
-  OUTBOX_PAYLOAD_SCHEMAS,
-  parseOutboxPayload,
-} from "./outbox/payloads.ts";
+export * from "./outbox/index.ts";
 export { getCommandResult } from "./pipeline/command.ts";
 export { CommandError } from "./pipeline/problem.ts";
 export {
@@ -145,22 +141,7 @@ export {
   type ReconciliationDailyResult,
   runReconciliationDaily,
 } from "./reconciliation/daily.ts";
-export {
-  type BreakItem,
-  type LeaseExtras,
-  type LeaseListItem,
-  leaseExtras,
-  listBillingPeriods,
-  listLeases,
-  listOpenBreaks,
-  listOpenInvoices,
-  listPendingPayments,
-  type OpenInvoice,
-  type PendingPayment,
-  type PeriodListItem,
-  type RentalProperty,
-  rentalProperties,
-} from "./rental/views.ts";
+export * from "./rental/index.ts";
 export {
   type CollectionsReport,
   collections as reportCollections,
@@ -171,6 +152,16 @@ export {
   type ReceivablesReport,
   receivables as reportReceivables,
 } from "./reports/reports.ts";
+export {
+  DELIVERY_DONE_RETENTION_DAYS,
+  DELIVERY_FAILED_RETENTION_DAYS,
+  type EventPurgeStats,
+  IDEMPOTENCY_GRACE_DAYS,
+  OUTBOX_PUBLISHED_RETENTION_DAYS,
+  PURGE_BATCH,
+  PURGE_MAX_ROUNDS,
+  purgeEventTables,
+} from "./retention/index.ts";
 export { serverContext } from "./server/context.ts";
 export { type AppServices, createServices, testServices } from "./server/services.ts";
 export { type FolioView, getFolio } from "./stay/folio.ts";

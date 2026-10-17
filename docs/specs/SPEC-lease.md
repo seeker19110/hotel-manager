@@ -147,7 +147,7 @@ Dữ liệu nền chung (fixture `lease-basic`): cơ sở P1 (trọ, `Asia/Ho_Ch
 ### S-022 Gửi lại command (INV-G5)
 - Given `lease.sign` đã thành công với `Idempotency-Key`=K1
 - When gửi lại cùng K1 và cùng payload; rồi gửi K1 với người ký khác
-- Then lần 2 trả đúng kết quả cũ, không tạo allocation thứ hai; lần 3 lỗi 409 `IDEMPOTENCY_CONFLICT`
+- Then lần 2 trả đúng kết quả cũ, không tạo allocation thứ hai; lần 3 lỗi 422 `IDEMPOTENCY_CONFLICT`
 
 ### S-023 Giữ chỗ hợp đồng (`lease.hold`) có TTL riêng và nhận cọc giữ chỗ (đề xuất, chờ PO)
 - Given U101 trống từ 2026-11-01; hợp đồng L-H `draft`; TTL giữ chỗ hợp đồng của P1 = 48 giờ (mặc định đề xuất, cấu hình theo cơ sở, mục 10); đồng hồ 2026-10-18 10:00 giờ VN (03:00Z); F có ca đang mở
@@ -246,7 +246,7 @@ Dữ liệu nền chung (fixture `lease-basic`): cơ sở P1 (trọ, `Asia/Ho_Ch
 | `FORBIDDEN` | Không đủ quyền (vai trò đọc được tài nguyên nhưng không được thao tác) | 403 | Bạn không có quyền thực hiện thao tác này. | — |
 | `NOT_FOUND` | Không tồn tại, ngoài phạm vi hoặc vai trò không được đọc | 404 | Không tìm thấy. | S-009, S-010 |
 | `VALIDATION_FAILED` | Thiếu/sai trường; khấu trừ vượt AR còn mở | 422 | Dữ liệu chưa hợp lệ: xem từng trường. | S-007, S-025 |
-| `IDEMPOTENCY_CONFLICT` | Cùng key khác payload | 409 | Yêu cầu trùng mã nhưng khác nội dung. | S-022 |
+| `IDEMPOTENCY_CONFLICT` | Cùng key khác payload | 422 | Yêu cầu trùng mã nhưng khác nội dung. | S-022 |
 | `PERIOD_ISSUED` (mã chung, SPEC-metering-billing) | Phụ lục có `effective_from` ≤ ngày cuối kỳ thu đã phát hành | 409 | Kỳ đã phát hành. Dùng chứng từ điều chỉnh. | S-027 |
 | `PERIOD_LOCKED` | Quyết toán ghi vào kỳ đã khoá; phụ lục hồi tố vào kỳ/mốc đã khoá | 409 | Kỳ đã khoá. Cần chứng từ điều chỉnh có duyệt. | S-027 |
 

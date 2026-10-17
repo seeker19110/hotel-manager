@@ -106,6 +106,31 @@ test("S-004 mất mạng: điều hướng hiện trang offline + banner role=st
   await expect(page.getByTestId("network-banner")).toHaveCount(0);
 });
 
+test("S-017 Cache Storage bị trình duyệt xoá: mở lại khi có mạng vẫn tải bình thường, SW cài lại precache, không trắng trang", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await withActiveSw(page);
+  expect(await cachedPaths(page)).toContain("/offline");
+  // Mô phỏng trình duyệt thu hồi bộ nhớ: xoá mọi cache, và (như khi thu hồi toàn bộ dữ liệu trang) huỷ đăng ký SW.
+  await page.evaluate(async () => {
+    for (const k of await caches.keys()) await caches.delete(k);
+  });
+  expect(await cachedPaths(page)).toEqual([]);
+  await page.reload();
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await page.evaluate(async () => {
+    for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister();
+    for (const k of await caches.keys()) await caches.delete(k);
+  });
+  await page.reload();
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await expect.poll(() => cachedPaths(page), { timeout: 20_000 }).toContain("/offline");
+  expect(errors).toEqual([]);
+});
+
 test("S-015 tiếp cận: axe 0 serious/critical, vùng chạm ≥ 44px ở / và /offline", async ({ page }) => {
   for (const path of ["/", "/offline"]) {
     await page.goto(path);

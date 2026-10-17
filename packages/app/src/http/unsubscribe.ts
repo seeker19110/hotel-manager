@@ -2,7 +2,7 @@
 // Chỉ POST (trình quét liên kết trong email hay tự GET — không được đổi tuỳ chọn khi chỉ mở link); trang `/huy-dang-ky`
 // (T-219) hiện nút xác nhận rồi POST. Lỗi theo problem+json; token không bao giờ ghi log.
 import type { Kysely } from "kysely";
-import { unsubscribe, unsubscribeKey } from "../notifications/preferences.ts";
+import { unsubscribe, unsubscribeKey } from "../notifications/index.ts";
 import { CommandError } from "../pipeline/index.ts";
 import { correlationOf, json, simpleProblem } from "./command-route.ts";
 

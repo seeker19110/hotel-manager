@@ -1,7 +1,7 @@
 // E2E vòng tháng nhà trọ (PLAN đợt 2 T-117) với dữ liệu giả: chủ trọ đăng nhập có TOTP → ký hợp đồng → bàn giao + chỉ số đầu
 // → kích hoạt → tạo kỳ → chốt chỉ số theo tầng → xem trước 3.580.000 đ → gửi duyệt → phát hành → mở ca → thu tiền mặt →
-// nhận/xác nhận cọc → hàng chờ đối soát; axe + vùng chạm mỗi màn. Thêm SPEC-pwa S-006 (mất mạng), S-010/S-011 (hết thời gian
-// chờ, tra `GET /api/v1/commands/{id}`, gửi lại cùng key).
+// nhận/xác nhận cọc → hàng chờ đối soát; axe + vùng chạm mỗi màn. Thêm SPEC-pwa S-006 (mất mạng), S-010/S-011/S-018 (hết thời gian
+// chờ, tra `GET /api/v1/commands/{id}`, gửi lại cùng key; lệnh đã `failed`).
 import { readFileSync } from "node:fs";
 import { type BrowserContext, expect, type Page, test } from "@playwright/test";
 import { expectAccessible } from "./a11y.ts";
@@ -10,6 +10,8 @@ import { ORG_RENTAL, RENTAL_OWNER, RENTAL_TENANT, RENTAL_UNIT } from "./fixtures
 import { totp, totpFile } from "./totp.ts";
 
 test.describe.configure({ mode: "serial" });
+// Spec dùng page.route: chặn service worker (SW của app có thể trả phản hồi trước khi route giả chặn được — tránh flaky).
+test.use({ serviceWorkers: "block" });
 
 // page.route() không thấy request đi qua service worker của PWA (Playwright khuyên chặn SW khi chặn bắt request) —
 // trên CI SW đã kiểm soát trang thì lệnh đi thẳng tới server, bộ đếm route = 0. PWA được test riêng ở pwa.spec.ts.
@@ -45,7 +47,9 @@ test.beforeEach(async ({ context }) => {
 
 const status = (page: Page) => page.getByRole("status").filter({ hasNotText: "Đang" });
 
-test("vòng tháng: ký → bàn giao → kỳ thu 3.580.000 đ → phát hành → thu tiền mặt → cọc", async ({ page }) => {
+test("@smoke vòng tháng: ký → bàn giao → kỳ thu 3.580.000 đ → phát hành → thu tiền mặt → cọc", async ({
+  page,
+}) => {
   // Hợp đồng
   await page.goto("/hop-dong");
   await expectAccessible(page);
@@ -218,4 +222,39 @@ test("S-011: server chưa nhận lệnh → 404 COMMAND_NOT_FOUND → Gửi lạ
   expect(keys).toHaveLength(2);
   expect(keys[1]).toBe(keys[0]);
   await expect(page.getByTestId("period").filter({ hasText: "Kỳ 02/2099" })).toHaveCount(1);
+});
+
+test("S-018: lệnh đã commit nhưng thất bại nghiệp vụ, mất phản hồi → hiện đúng lỗi từ server, không 'đang kiểm tra', key mới khi thử lại", async ({
+  page,
+}) => {
+  await page.goto("/ky-thu");
+  await page.getByTestId("period").filter({ hasText: "Kỳ 02/2099" }).getByRole("link").click();
+  const keys: string[] = [];
+  let lookups = 0;
+  page.on("request", (r) => {
+    if (r.method() === "GET" && r.url().includes("/api/v1/commands/")) lookups++;
+  });
+  // Kỳ 02/2099 gửi duyệt khi kỳ 01/2099 chưa phát hành ⇒ server ghi kết quả `failed` (409 INVALID_TRANSITION: còn kỳ sớm hơn chưa phát hành) rồi phản hồi bị mất.
+  await page.route("**/api/v1/billing/submitForReview", async (route) => {
+    keys.push(route.request().headers()["idempotency-key"] ?? "");
+    await route.fetch();
+    await route.abort("failed");
+  });
+  await page.getByRole("button", { name: "Gửi duyệt" }).click();
+  const lockedMsg = /Còn kỳ \d{4}-\d{2} chưa phát hành — phát hành theo thứ tự\./;
+  await expect(page.getByRole("alert").filter({ hasText: lockedMsg })).toBeVisible();
+  expect(keys).toHaveLength(1);
+  expect(lookups).toBeGreaterThanOrEqual(1);
+  await expect(page.getByText("Đang kiểm tra kết quả…")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Gửi lại" })).toHaveCount(0);
+  await expect(page.getByText("Đã gửi duyệt — chờ phát hành.")).toHaveCount(0);
+  // Thử lại sau khi đổi nội dung ⇒ key mới (gửi lại key cũ chỉ trả lại đúng lỗi cũ).
+  await page.getByRole("button", { name: "Gửi duyệt" }).click();
+  await expect(page.getByRole("alert").filter({ hasText: lockedMsg })).toBeVisible();
+  expect(keys).toHaveLength(2);
+  expect(keys[1]).not.toBe(keys[0]);
+  // Không có bản ghi nào do lệnh thất bại: kỳ vẫn ở nháp.
+  await page.unroute("**/api/v1/billing/submitForReview");
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Gửi duyệt" })).toBeVisible();
 });

@@ -43,6 +43,9 @@ Khi chạy thật (đề xuất D-021): chặn thêm `/api/metrics` ở reverse 
 | `/api/ready` | 503 > 2 phút | Phụ thuộc hỏng (CSDL/kho/máy quét) |
 | burn rate khả dụng/độ trễ | xem `docs/ops/SLO.md` §2 | Đốt ngân sách lỗi nhanh (page) hoặc chậm (ticket) |
 | `hm_reconciliation_breaks_oldest_open_age_seconds` | > 48 giờ trong 1 giờ | Chênh lệch đối soát mở quá SLA (§3.9) |
+| `hm_db_connections / hm_db_max_connections` | > 80% trong 10 phút | Gần cạn kết nối CSDL (§3.2) |
+| `hm_db_xid_age`, `hm_db_multixact_age` | > 1,0 tỷ trong 30 phút (ticket); > 1,8 tỷ trong 5 phút (page) | Autovacuum đóng băng không theo kịp, nguy cơ wraparound ở 2^31 (§3.10) |
+| `hm_db_dead_tuples` và `hm_db_dead_tuple_ratio` | > 10.000 hàng và > 20% trong 1 giờ | Bloat: hàng chết chưa được dọn (§3.11) |
 
 ## 3. Sự cố thường gặp
 
@@ -84,6 +87,19 @@ Job worker `reconciliation.daily` (mỗi 24 giờ) ghi audit `reconciliation.bre
 2. Mỗi break có `assignee`: nhắc người đó xử lý (đóng có lý do ở màn đối soát). Không sửa tay bảng `reconciliation_breaks`.
 3. Sổ cái trôi (`ledger.drift_detected`): coi là SEV2 (tiền) — dừng ghi vào tổ chức đó, đối chiếu `journal_entries`/`journal_lines` theo [INCIDENT-RESPONSE](ops/INCIDENT-RESPONSE.md); không "vá" bằng bút toán tay khi chưa tìm nguyên nhân.
 
+### 3.10 Tuổi XID cao (nguy cơ wraparound)
+Cảnh báo `HmDbXidAgeHigh` (ticket, 1,0 tỷ) và `HmDbXidAgeCritical` (page, 1,8 tỷ) theo `hm_db_xid_age` = `age(datfrozenxid)`; trần là 2^31 ≈ 2,147 tỷ, PostgreSQL cảnh báo ở 40 triệu còn lại và từ chối giao dịch mới ở 3 triệu còn lại (PostgreSQL 18 §24.1.5, xác minh 2026-10-17).
+1. Bảng nào già nhất: `select c.oid::regclass, age(c.relfrozenxid) from pg_class c where c.relkind in ('r','m','t') order by 2 desc limit 10;`.
+2. Cái gì giữ vacuum lại: giao dịch dài `select pid, now()-xact_start, state, left(query,100) from pg_stat_activity where backend_xmin is not null order by age(backend_xmin) desc limit 5;`; giao dịch chuẩn bị bỏ quên `select * from pg_prepared_xacts;`; slot sao chép `select slot_name, age(xmin), age(catalog_xmin) from pg_replication_slots;`.
+3. Huỷ phiên treo bằng `pg_cancel_backend` (không `terminate` khi chưa rõ), rồi `VACUUM (FREEZE, VERBOSE) <bảng>;` bắt đầu từ bảng già nhất, ngoài giờ cao điểm nếu bảng lớn. Autovacuum vẫn phải bật (`SHOW autovacuum`).
+4. Cảnh báo `page` còn kéo dài mà tuổi tiếp tục tăng ⇒ khởi động sự cố SEV2 (docs/ops/INCIDENT-RESPONSE.md); tuyệt đối không tắt autovacuum.
+
+### 3.11 Hàng chết (dead tuples) tăng
+Cảnh báo `HmDbDeadTuplesHigh`: nhãn `table` cho bảng; xem `select relname, n_dead_tup, n_live_tup, last_autovacuum from pg_stat_user_tables order by n_dead_tup desc limit 10;`.
+1. Autovacuum có chạy không (`last_autovacuum` gần đây)? Không ⇒ tìm giao dịch dài giữ xmin như §3.10 bước 2.
+2. Bảng ghi nhiều đã có tham số riêng (migration 0048, docs/db/connections.md §4); bảng khác cần thì thêm `ALTER TABLE … SET (autovacuum_vacuum_scale_factor = …)` bằng migration mới.
+3. Cần dọn gấp: `VACUUM (VERBOSE, ANALYZE) <bảng>;` (không `FULL` — khoá bảng).
+
 ## 4. Sao lưu và khôi phục
 - Diễn tập PITR (dữ liệu giả, cluster tạm): `bash scripts/db-backup-restore-check.sh` — exit 0 = khôi phục đúng (so số dòng, Σ Nợ/Có, số policy RLS).
 - Khi chạy thật (chờ quyết — PROGRESS "Chờ người"): pgBackRest repo mã hoá ở **máy khác**, giữ khoá `PGBACKREST_REPO_CIPHER_PASS` ngoài máy chủ; diễn tập khôi phục định kỳ.
@@ -107,13 +123,14 @@ Job worker `reconciliation.daily` (mỗi 24 giờ) ghi audit `reconciliation.bre
 ## 7. Hạn giữ dữ liệu
 - Job `runRetention` (worker, hằng ngày): xoá object file hết hạn (`files.delete_after`) rồi đánh dấu `deleted`; làm rỗng `import_rows.raw/data` 30 ngày sau commit/huỷ lô nhập.
 - Job `expireExports` (5 phút): bản xuất quá 15 phút ⇒ `expired`.
+- Job `events.retention` (worker, mỗi giờ; T-505): dọn bảng sự kiện theo [`ops/retention-policy.md`](ops/retention-policy.md) — outbox đã phát quá 90 ngày, `idempotency_keys` hết hạn, `notification_deliveries` đã xong quá 90 ngày (`failed`/`dead` quá 180 ngày). Xoá theo lô (1000, tối đa 20 lô/bảng/lượt) qua hàm `app.purge_*` (migration 0056); log `retention.events_purge_failed {table}` khi một bảng lỗi (bảng khác vẫn dọn). `audit_events` không bao giờ bị dọn. Tồn đọng: `select count(*) from outbox where published_at < now() - interval '90 days'` phải về 0 sau vài lượt.
 - Lỗi xoá object ⇒ log `retention.file_delete_failed`, lượt sau thử lại (không đánh dấu `deleted` khi chưa xoá được).
 - Object mồ côi (T-303, D-025): tải lên, tải lô nhập, xuất thông báo lưu trú và bản xuất ghi object NGOÀI transaction lệnh qua dòng `files` ở `pending_scan` (`delete_after` = hôm nay + 2 ngày, theo ngày UTC). Lệnh lỗi hoặc tiến trình sập giữa ghi object và chốt `ready` để lại object + dòng `pending_scan`; `runRetention` xoá object rồi đánh dấu `deleted` khi tới hạn (cùng đường với file `ready` hết hạn). Xem: `select id, owner_type, storage_key, delete_after from files where status = 'pending_scan' and delete_after < current_date;` — dòng tồn lâu hơn 2 ngày nghĩa là job hạn giữ không chạy (xem §8).
 
 ## 8. Worker (apps/worker) — khởi chạy, lịch, dừng
 - Chạy: `node apps/worker/src/index.ts` (Node 24). Biến: toàn bộ schema web (`DATABASE_URL` = vai trò `app_runtime`, dùng cho job xuất dữ liệu) **cộng `WORKER_DATABASE_URL`** = vai trò `app_worker` (relay outbox, job nền, pg-boss). Thiếu/sai biến ⇒ thoát mã 1, stderr nêu tên biến (không giá trị). Web cũng validate lúc khởi động (`apps/web/instrumentation.ts`).
 - Schema `pgboss` do migration 0047 tạo sẵn, thuộc `app_worker` (D-024); worker chạy pg-boss với `createSchema: false` nên vai trò worker KHÔNG cần `CREATE` trên CSDL — bảng của pg-boss tự dựng bên trong schema đó lần đầu. Migration down chỉ xoá được schema rỗng (còn bảng ⇒ lỗi có chủ đích; dừng worker và quyết định có bỏ hàng đợi hay không).
-- Lịch (vòng lặp trong tiến trình, mỗi job không chồng lượt, lỗi chỉ ghi log `job.failed`): relay outbox 2 giây · nhịp 30 giây · gửi email đến hạn 15 giây (bỏ nếu `SMTP_URL` là `smtp(s)://` — chưa có adapter, log `email.sender_unavailable`) · nhả hold 1 phút · nhắc 15 phút · tạo kỳ thu, hợp đồng (nhắc hết hạn, quá hạn ở) 1 giờ · hết hạn bản xuất 5 phút · hạn giữ import/file 24 giờ (lượt đầu sau 60 giây) · đối soát hằng ngày `reconciliation.daily` 24 giờ (break mở quá SLA, sổ cái trôi; §3.9). Nhiều worker chạy song song an toàn (SKIP LOCKED, khoá dedupe).
+- Lịch (vòng lặp trong tiến trình, mỗi job không chồng lượt, lỗi chỉ ghi log `job.failed`): relay outbox 2 giây · nhịp 30 giây · gửi email đến hạn 15 giây (bỏ nếu `SMTP_URL` là `smtp(s)://` — chưa có adapter, log `email.sender_unavailable`) · nhả hold 1 phút · nhắc 15 phút · tạo kỳ thu, hợp đồng (nhắc hết hạn, quá hạn ở) 1 giờ · hết hạn bản xuất 5 phút · hạn giữ import/file 24 giờ (lượt đầu sau 60 giây) · dọn bảng sự kiện `events.retention` 1 giờ (lượt đầu sau 60 giây) · đối soát hằng ngày `reconciliation.daily` 24 giờ (break mở quá SLA, sổ cái trôi; §3.9). Nhiều worker chạy song song an toàn (SKIP LOCKED, khoá dedupe).
 - Relay outbox (T-401, ARC-INT-003/DB-TX-003): claim NGẮN → commit → `boss.send` → đánh dấu. `app.outbox_claim` đặt lease 60 giây (`available_at = now() + 60 s`) cho hàng lấy được rồi commit ngay; `boss.send` chạy NGOÀI transaction với job id = `outbox.id` (khoá chính `(name, id)` của pg-boss ⇒ gửi lại không tạo job thứ hai); `app.outbox_mark` đánh dấu đã phát hoặc lùi lần thử khi lỗi. Worker sập giữa gửi và đánh dấu ⇒ hết lease hàng được claim lại, gửi trùng là no-op ⇒ không mất, không trùng. Log `outbox.mark_failed` = không đánh dấu được (CSDL chập chờn), tự khỏi sau lease.
 - Sự kiện outbox chưa có consumer (D-026, sửa theo review lát 7): chỉ loại khai tường minh "chỉ để audit" (`AUDIT_ONLY_EVENT_TYPES` ở `apps/worker/src/relay.ts`) được đánh dấu đã phát mà không sinh job. Loại KHÁC không có consumer ở worker này thì KHÔNG đánh dấu đã phát: `last_error = 'no_consumer'`, `attempts` tăng, `available_at` lùi (5 s · 2^lần, trần 5 phút) để không kẹt đầu hàng, log WARN `outbox.no_consumer {event_type, outbox_id}`. Worker có consumer (hoặc bản triển khai sau thêm consumer) nhận được sau khi hết thời gian lùi — không mất sự kiện khi triển khai lệch phiên bản. Cảnh báo dùng chỉ số sẵn có: `hm_outbox_unpublished`, `hm_outbox_oldest_unpublished_age_seconds`, `hm_outbox_failing`. Gặp `no_consumer` kéo dài: thêm consumer hoặc (nếu thật sự chỉ để audit) thêm event_type vào danh sách audit-only — test `outbox-event-types.test.ts` chặn quên; hàng cũ sẽ được đánh dấu đã phát ở lượt kế.
 - Dừng: SIGTERM/SIGINT ⇒ NGAY LẬP TỨC và song song: ngừng lập lịch (không lượt mới) + pg-boss ngừng lấy job mới; hai bên cùng chờ việc đang chạy tới MỘT hạn chót chung 25 giây → đóng pool pg-boss → đóng pool CSDL → thoát 0. Đồng hồ canh thoát mã 1 sau 35 giây (hạn chót + 10 giây). Tín hiệu lần hai ⇒ thoát ngay (mã 1). Đặt `terminationGracePeriod`/`stop_grace_period` ≥ 40 giây.

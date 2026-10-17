@@ -9,8 +9,8 @@ import { createHmac, hkdfSync, randomUUID, timingSafeEqual } from "node:crypto";
 import { withTenant } from "@hm/db";
 import { authorize, daysToMs, epochSeconds, secondsToMs } from "@hm/domain";
 import { type Kysely, sql } from "kysely";
-import type { Actor } from "../access/actor.ts";
-import { assertPersonInOrg, assertPropertyInOrg } from "../access/scope.ts";
+import type { Actor } from "../access/index.ts";
+import { assertPersonInOrg, assertPropertyInOrg } from "../access/index.ts";
 import { type CommandContext, CommandError } from "../pipeline/index.ts";
 import {
   type DeliveryStatus,
@@ -474,6 +474,12 @@ export async function updateSettings(ctx: CommandContext, input: SettingsInput) 
       send_window_start: start,
       send_window_end: end,
     },
+  });
+  // Đổi cấu hình (SEC-LOG-001): ghi MỘT dòng log bảo mật; giá trị trước/sau nằm ở audit_events, không vào log.
+  ctx.security({
+    event: "config.changed",
+    target: { type: "notification_settings", id: input.propertyId },
+    reason: "notification.settings_updated",
   });
   return { propertyId: input.propertyId, updated: true as const };
 }

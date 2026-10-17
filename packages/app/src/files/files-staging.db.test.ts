@@ -334,8 +334,8 @@ describe("(c) replay cùng Idempotency-Key", () => {
     expect(d2.data.fileId).toBe(d1.data.fileId);
     expect(storage.puts).toBe(puts0 + 1);
     expect(scans).toBe(1);
-    // Cùng key, nội dung khác → 409.
-    expect((await handleFileUpload(req(new Uint8Array([...JPEG, 0])), deps)).status).toBe(409);
+    // Cùng key, nội dung khác → 422.
+    expect((await handleFileUpload(req(new Uint8Array([...JPEG, 0])), deps)).status).toBe(422);
   });
 });
 
@@ -356,7 +356,7 @@ describe("(d) dòng staging chỉ của chính người tạo", () => {
     expect(hack).toBe(0);
     expect((await rowOf(prepared.fileId))?.status).toBe("pending_scan");
 
-    // Qua hàm chốt của ứng dụng cũng bị từ chối (409), dòng không đổi.
+    // Qua hàm chốt của ứng dụng cũng bị từ chối (422), dòng không đổi.
     await expect(
       withTenant(t.runtime, as(fd.actor), (trx) =>
         finalizeStaged(trx, fd.actor, prepared.fileId, { status: "ready", deleteAfterDays: null }),

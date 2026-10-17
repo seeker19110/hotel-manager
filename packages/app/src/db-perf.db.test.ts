@@ -12,10 +12,15 @@
 //      ⇒ đỏ (ca âm ở "bộ đánh giá"). Bảng thật quá nhỏ nên planner hoà giá giữa các index: truy vấn folio chạy trên bảng bóng (schema `perf`,
 //      cùng cột + cùng index, 60.000 dòng đã ANALYZE) để lựa chọn index có nghĩa; audit dùng dữ liệu 30.000 dòng thật.
 //      Thẻ "today"/kỳ thu là truy vấn toàn tổ chức (lọc theo trạng thái, không theo khoá): chỉ kiểm không Seq Scan.
+//   2b. (T-503, DB-PERF-001) Bằng chứng kế hoạch nằm ở `docs/db/explain/<truy vấn>.txt`: mỗi truy vấn nóng có một tệp ghi bảng · kiểu quét
+//      (Index/Seq Scan) · tên index · cột bị ràng buộc trong tiền tố khoá — bản chuẩn hoá của EXPLAIN, không có chi phí/số hàng/thời gian
+//      (những thứ này dao động giữa các lần chạy) nên so khớp được. Test so khớp bằng `toMatchFileSnapshot`: đổi truy vấn/index làm kế
+//      hoạch đổi → đỏ kèm diff; cập nhật có chủ đích bằng `pnpm vitest run --project db db-perf -u` (CI không tự ghi tệp mới).
 //   3. Thêm kiểm chứng "tự nhiên" (seqscan bật) trên dữ liệu lớn hơn (30.000 dòng audit/outbox) cho ba truy vấn quét tuần tự đắt nhất.
 
-import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { createHash, randomUUID } from "node:crypto";
+import { readdirSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { withTenant } from "@hm/db";
 import { activateLease, createTestDb, type SeededOrg, seedLease, seedOrg, type TestDb } from "@hm/testkit";
 import { CompiledQuery, Kysely, PostgresDialect, sql } from "kysely";
@@ -140,6 +145,69 @@ function seqScans(node: PlanNode, out: string[] = []): string[] {
   if (node["Node Type"] === "Seq Scan" && node["Relation Name"]) out.push(node["Relation Name"]);
   for (const c of node.Plans ?? []) seqScans(c, out);
   return out;
+}
+
+/** Tệp bằng chứng kế hoạch ở `docs/db/explain/` (DB-PERF-001) — danh sách đầy đủ; test cuối đòi thư mục khớp đúng tên này. */
+const EXPLAIN_DOCS = [
+  "audit-list-action",
+  "audit-list-correlation",
+  "audit-list-default",
+  "audit-list-entity",
+  "audit-list-property",
+  "audit-list-time-range",
+  "billing-preview",
+  "deliveries-claim",
+  "deliveries-orgs-due",
+  "deliveries-sending-expired",
+  "folio-charges",
+  "folio-deposits",
+  "folio-invoices",
+  "folio-payments",
+  "outbox-claim",
+  "today-cards",
+] as const;
+type ExplainDoc = (typeof EXPLAIN_DOCS)[number];
+const EXPLAIN_DIR = fileURLToPath(new URL("../../../docs/db/explain/", import.meta.url));
+
+/**
+ * Bản chuẩn hoá của một kế hoạch: mỗi lần quét một dòng `bảng · Index|Seq Scan · index (khoá) · bound=cột bị ràng buộc trong tiền tố`.
+ * Gộp Index Scan/Index Only Scan/Bitmap thành "Index" (khác nhau theo visibility map/thống kê, không theo thiết kế index) và bỏ thứ tự
+ * nút/kiểu join/chi phí/số hàng/tham số — chỉ giữ cái nói lên truy vấn dùng index nào, cột nào.
+ * `detail = false` (truy vấn toàn tổ chức, không cột chọn lọc khai ở `expect`): bảng nhỏ nên planner hoà giá giữa các index chỉ theo
+ * `organization_id` — tên index khi đó là ngẫu nhiên, ghi vào tệp sẽ dao động ⇒ chỉ giữ `bảng · Index|Seq Scan`.
+ */
+function planSummary(plan: PlanNode, keys: Map<string, string[]>, detail = true): string[] {
+  const lines = new Set<string>();
+  for (const x of indexScans(plan)) {
+    const k = keys.get(x.index) ?? [];
+    lines.add(
+      detail
+        ? `${x.table} · Index · ${x.index} (${k.join(", ")}) · bound=${boundPrefix(k, x.cond).join(",") || "-"}`
+        : `${x.table} · Index`,
+    );
+  }
+  for (const r of seqScans(plan)) lines.add(`${r} · Seq Scan`);
+  return [...lines].sort();
+}
+
+/** Nhãn đoạn: đầu câu SQL (đọc được) + 8 hex băm toàn câu đã gộp khoảng trắng (phân biệt các câu cùng đầu; đổi câu ⇒ đổi nhãn ⇒ tệp phải cập nhật). */
+function queryLabel(sqlText: string): string {
+  const flat = sqlText.replace(/\s+/g, " ").trim();
+  return `${flat.slice(0, 90)} … #${createHash("sha1").update(flat).digest("hex").slice(0, 8)}`;
+}
+
+/** Nội dung tệp `docs/db/explain/<name>.txt`: đầu tệp giải thích cách sinh; mỗi truy vấn một đoạn (sắp theo nhãn rồi nội dung). */
+function explainDocText(name: string, sections: { label: string; lines: string[] }[]): string {
+  const body = sections
+    .map((x) => `-- ${x.label}\n${x.lines.join("\n")}\n`)
+    .sort()
+    .join("\n");
+  return `# EXPLAIN truy vấn nóng "${name}" (DB-PERF-001) — sinh và so khớp bởi packages/app/src/db-perf.db.test.ts.
+# EXPLAIN (FORMAT JSON) trên Postgres thật, enable_seqscan = off (Seq Scan còn lại = không có index dùng được), vai trò và dữ liệu theo test.
+# Mỗi dòng: bảng · kiểu quét (Index gồm Index Only/Bitmap) [· index (cột khoá) · cột bị ràng buộc trong tiền tố khoá (bound) — chỉ khi truy vấn có cột chọn lọc].
+# Đổi truy vấn/index làm kế hoạch đổi → test đỏ; cập nhật có chủ đích: pnpm vitest run --project db db-perf -u
+
+${body}`;
 }
 
 async function explainAs(
@@ -294,19 +362,24 @@ afterAll(async () => {
 async function expectIndexed(
   queries: { sql: string; params: unknown[] }[],
   role: "runtime" | "admin" = "runtime",
-  opts: { expect?: Expect; searchPath?: string } = {},
+  opts: { expect?: Expect; searchPath?: string; doc?: ExplainDoc } = {},
 ) {
   expect(queries.length).toBeGreaterThan(0);
-  const keys = opts.expect ? await indexKeys() : new Map<string, string[]>();
+  const keys = opts.expect || opts.doc ? await indexKeys() : new Map<string, string[]>();
   const bad: string[] = [];
+  const sections: { label: string; lines: string[] }[] = [];
   for (const q of queries) {
     const plan = await explainAs(role, q, false, opts.searchPath);
+    if (opts.doc)
+      sections.push({ label: queryLabel(q.sql), lines: planSummary(plan, keys, Boolean(opts.expect)) });
     const hit = seqScans(plan).filter((r) => BIG_TABLES.has(r));
     const head = q.sql.replace(/\s+/g, " ").slice(0, 160);
     if (hit.length > 0) bad.push(`${hit.join(",")} ← ${head}`);
     if (opts.expect) for (const p of selectiveProblems(plan, opts.expect, keys)) bad.push(`${p} ← ${head}`);
   }
   expect(bad).toEqual([]);
+  if (opts.doc)
+    await expect(explainDocText(opts.doc, sections)).toMatchFileSnapshot(`${EXPLAIN_DIR}${opts.doc}.txt`);
 }
 
 describe("db-perf — bộ đánh giá", () => {
@@ -387,7 +460,7 @@ describe("db-perf — today (S-006…S-008)", () => {
     for (const card of TODAY_CARDS) await listItems(capturing, owner, { card });
     const qs = selects();
     expect(qs.length).toBeGreaterThanOrEqual(TODAY_CARDS.length);
-    await expectIndexed(qs);
+    await expectIndexed(qs, "runtime", { doc: "today-cards" });
   });
 });
 
@@ -407,38 +480,49 @@ describe("db-perf — danh sách audit (S-004, S-005)", () => {
     name: string;
     filter: Parameters<typeof listEvents>[2] | (() => Parameters<typeof listEvents>[2]);
     expect: Expect;
+    doc: ExplainDoc;
   }[] = [
-    { name: "mặc định", filter: base, expect: { audit_events: { index: "ix_audit_org_time" } } },
+    {
+      name: "mặc định",
+      filter: base,
+      expect: { audit_events: { index: "ix_audit_org_time" } },
+      doc: "audit-list-default",
+    },
     {
       name: "cơ sở",
       filter: () => ({ ...base, propertyId: A.propertyId }),
       expect: { audit_events: { cols: ["property_id"], index: "ix_audit_property_time" } },
+      doc: "audit-list-property",
     },
     {
       name: "đối tượng",
       filter: { ...base, entityType: "perf", entityId },
       expect: { audit_events: { cols: ["entity_type", "entity_id"] } },
+      doc: "audit-list-entity",
     },
     {
       name: "hành động",
       filter: { ...base, action: "perf.event_b" },
       expect: { audit_events: { cols: ["action"] } },
+      doc: "audit-list-action",
     },
     {
       name: "correlation",
       filter: { ...base, correlationId: "perf-1" },
       expect: { audit_events: { cols: ["correlation_id"] } },
+      doc: "audit-list-correlation",
     },
     {
       name: "khoảng thời gian",
       filter: { ...base, from: new Date(Date.now() - 3_600_000), to: new Date() },
       expect: { audit_events: { cols: ["occurred_at"] } },
+      doc: "audit-list-time-range",
     },
   ];
   for (const c of AUDIT_CASES)
     it(`bộ lọc ${c.name}: không Seq Scan và dùng index theo cột chọn lọc`, async () => {
       const q = await auditQuery(typeof c.filter === "function" ? c.filter() : c.filter);
-      await expectIndexed([q], "runtime", { expect: c.expect });
+      await expectIndexed([q], "runtime", { expect: c.expect, doc: c.doc });
     });
 
   it("bộ lọc người thao tác: CHƯA có index (ghi nhận) — chỉ không Seq Scan; có index thì đỏ để chuyển sang AUDIT_CASES", async () => {
@@ -470,7 +554,7 @@ describe("db-perf — billing (S-001, kỳ thu)", () => {
     await previewPeriod(capturing, owner, { billingPeriodId });
     const qs = selects();
     expect(qs.length).toBeGreaterThan(3);
-    await expectIndexed(qs);
+    await expectIndexed(qs, "runtime", { doc: "billing-preview" });
   });
 });
 
@@ -478,9 +562,17 @@ describe("db-perf — billing (S-001, kỳ thu)", () => {
 const read = (rel: string) => readFileSync(new URL(rel, import.meta.url), "utf8");
 
 describe("db-perf — folio (S-017)", () => {
-  const FOLIO = [
+  const FOLIO: {
+    name: string;
+    table: string;
+    col: string;
+    sql: string;
+    print: string[];
+    doc: ExplainDoc;
+  }[] = [
     {
       name: "khoản phí theo lượt ở",
+      doc: "folio-charges",
       table: "charges",
       col: "stay_id",
       sql: "select id from charges where organization_id = $1 and stay_id = $2 order by business_date, created_at",
@@ -488,6 +580,7 @@ describe("db-perf — folio (S-017)", () => {
     },
     {
       name: "thanh toán theo đặt phòng",
+      doc: "folio-payments",
       table: "payments",
       col: "reservation_id",
       sql: "select id from payments where organization_id = $1 and reservation_id = $2 and purpose = 'receivable' order by created_at",
@@ -495,6 +588,7 @@ describe("db-perf — folio (S-017)", () => {
     },
     {
       name: "phiếu folio của lượt ở",
+      doc: "folio-invoices",
       table: "invoices",
       col: "stay_id",
       sql: "select id from invoices where organization_id = $1 and stay_id = $2 and kind = 'folio'",
@@ -502,6 +596,7 @@ describe("db-perf — folio (S-017)", () => {
     },
     {
       name: "cọc theo đặt phòng",
+      doc: "folio-deposits",
       table: "deposits",
       col: "reservation_id",
       sql: "select id from deposits where organization_id = $1 and reservation_id = $2",
@@ -516,6 +611,7 @@ describe("db-perf — folio (S-017)", () => {
       await expectIndexed([{ sql: f.sql, params: [A.orgId, U] }], "admin", {
         expect: { [f.table]: { cols: [f.col] } },
         searchPath: "perf, public",
+        doc: f.doc,
       });
   });
 });
@@ -542,7 +638,7 @@ describe("db-perf — claim outbox và thông báo (worker)", () => {
         },
       ],
       "admin",
-      { expect: { outbox: { index: "ix_outbox_unpublished" } } },
+      { expect: { outbox: { index: "ix_outbox_unpublished" } }, doc: "outbox-claim" },
     );
   });
 
@@ -559,13 +655,14 @@ describe("db-perf — claim outbox và thông báo (worker)", () => {
       "WHERE d.organization_id = o.organization_id AND d.status IN ('queued','retrying')",
     );
     const now = new Date();
-    const DELIVERIES: { sql: string; params: unknown[]; cols: string[]; index: string }[] = [
+    const DELIVERIES: { sql: string; params: unknown[]; cols: string[]; index: string; doc: ExplainDoc }[] = [
       {
         // Quét mọi tổ chức bằng Index Only Scan toàn index (điều kiện thời gian không ở đầu khoá — chủ ý, worker liệt kê tổ chức có việc).
         sql: "select distinct d.organization_id from notification_deliveries d where d.status in ('queued','retrying') and d.next_attempt_at <= $1::timestamptz",
         params: [now],
         cols: [],
         index: "ix_notification_deliveries_org_due",
+        doc: "deliveries-orgs-due",
       },
       {
         sql: `select d.id from notification_deliveries d
@@ -574,17 +671,20 @@ describe("db-perf — claim outbox và thông báo (worker)", () => {
         params: [A.orgId, now],
         cols: ["organization_id", "next_attempt_at"],
         index: "ix_notification_deliveries_org_due",
+        doc: "deliveries-claim",
       },
       {
         sql: "select d.id from notification_deliveries d where d.status = 'sending' and d.locked_until < $1::timestamptz",
         params: [now],
         cols: ["locked_until"],
         index: "ix_notification_deliveries_sending",
+        doc: "deliveries-sending-expired",
       },
     ];
     for (const d of DELIVERIES)
       await expectIndexed([{ sql: d.sql, params: d.params }], "admin", {
         expect: { notification_deliveries: { cols: d.cols, index: d.index } },
+        doc: d.doc,
       });
   });
 
@@ -623,5 +723,39 @@ describe("db-perf — autovacuum riêng cho bảng ghi nhiều (DB-PERF-008)", (
       setting: string;
     }>`select setting from pg_settings where name = 'autovacuum'`.execute(t.admin);
     expect(on.rows[0]?.setting).toBe("on");
+  });
+});
+
+describe("db-perf — bằng chứng EXPLAIN ở docs/db/explain (DB-PERF-001)", () => {
+  it("thư mục có đúng các tệp .txt đã khai (không thiếu, không mồ côi) và mỗi tệp có đầu giải thích + ít nhất một dòng quét", () => {
+    const files = readdirSync(EXPLAIN_DIR)
+      .filter((f) => f.endsWith(".txt"))
+      .sort();
+    expect(files).toEqual(EXPLAIN_DOCS.map((n) => `${n}.txt`));
+    for (const f of files) {
+      const text = readFileSync(`${EXPLAIN_DIR}${f}`, "utf8");
+      expect(text, f).toContain("(DB-PERF-001)");
+      expect(text, f).toMatch(/^[a-z_]+ · (Index|Seq Scan)/m);
+    }
+  });
+
+  it("bản chuẩn hoá bỏ chi phí/số hàng và thứ tự nút: hai kế hoạch cùng quét index nhưng khác join/chi phí cho cùng nội dung", () => {
+    const scan = (n: string, rows: number): PlanNode =>
+      ({
+        "Node Type": "Index Scan",
+        "Relation Name": "t",
+        "Index Name": n,
+        "Index Cond": "(a = 1)",
+        "Plan Rows": rows,
+      }) as PlanNode;
+    const keys = new Map([["ix_t_a", ["a"]]]);
+    const a = planSummary(
+      { "Node Type": "Nested Loop", Plans: [scan("ix_t_a", 1), scan("ix_t_a", 99)] },
+      keys,
+    );
+    const b = planSummary({ "Node Type": "Hash Join", Plans: [scan("ix_t_a", 7)] }, keys);
+    expect(a).toEqual(b);
+    expect(a).toEqual(["t · Index · ix_t_a (a) · bound=a"]);
+    expect(planSummary({ "Node Type": "Seq Scan", "Relation Name": "u" }, keys)).toEqual(["u · Seq Scan"]);
   });
 });

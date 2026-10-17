@@ -2,7 +2,7 @@
 // giao); không có quyền ghi nào ở đây — mọi thao tác đi qua command (`/api/v1/<module>/<command>`).
 import { withTenant } from "@hm/db";
 import { type Kysely, sql } from "kysely";
-import type { Actor } from "../access/actor.ts";
+import type { Actor } from "../access/index.ts";
 
 export interface LeaseListItem {
   id: string;
