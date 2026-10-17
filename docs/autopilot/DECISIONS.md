@@ -258,3 +258,10 @@
 - Chọn: Làm hết trong 8 task T-501…T-508 (cùng luật D-023)
 - Lý do (tiêu chí chất lượng cuối): (1) đúng/an toàn: gồm rào transaction, retry có jitter, FK tường minh, sự kiện bảo mật còn thiếu — lỗi tiềm ẩn thật; (3) mỗi mục có Gate máy; ngân sách còn (vòng 33/130).
 - Đường lùi: Mỗi task một commit; revert theo task.
+
+### D-038 · 2026-10-17T05:09:16+00:00 · T-502: jitter cho lịch gửi lại email (ARC-RES-002) — full jitter hay cộng thêm?
+
+- Phương án: (1) Cộng thêm tối đa 20% (thực tế ∈ [mốc, 1,2·mốc]) — không bao giờ sớm hơn lịch Q-05 · (2) Full jitter [0, mốc] — rải đều hơn nhưng có thể gửi lại sớm hơn lịch đã hứa
+- Chọn: Cộng thêm tối đa 20% (thực tế ∈ [mốc, 1,2·mốc]) — không bao giờ sớm hơn lịch Q-05
+- Lý do (tiêu chí chất lượng cuối): (1) đúng: giữ lịch Q-05 (1/5/30/120/360 phút) đã ghi trong SPEC; vẫn tránh dồn cùng thời điểm. (3) đơn giản, một hằng RETRY_JITTER_RATIO.
+- Đường lùi: Đổi RETRY_JITTER_RATIO hoặc spreadDelayMs trong notifications.
