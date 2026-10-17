@@ -1,6 +1,13 @@
 // T-705: chính sách giấy phép (CMP-LIC-002, D-057) — phán quyết theo license-policy.json, ngoại lệ có hạn.
 import { describe, expect, it } from "vitest";
-import { checkLicenses, isAllowed, loadPolicy, validatePolicy, verdict } from "./check-licenses.mjs";
+import {
+  checkLicenses,
+  isAllowed,
+  loadPolicy,
+  maxExpires,
+  validatePolicy,
+  verdict,
+} from "./check-licenses.mjs";
 
 const TODAY = "2026-10-17";
 const policy = (over = {}) => ({
@@ -34,6 +41,21 @@ describe("verdict / isAllowed (SPDX)", () => {
     ["MIT AND Zlib", "unknown"],
     ["UNKNOWN", "deny"],
     ["", "unknown"],
+    ["(MIT OR GPL-3.0-only) AND AGPL-3.0-only", "deny"],
+    ["(MIT OR Apache-2.0) AND Unicode-DFS-2016", "unknown"],
+    ["MIT OR (GPL-3.0-only AND ISC)", "allow"],
+    ["MIT OR GPL-3.0-only AND AGPL-3.0-only", "allow"], // AND chặt hơn OR: MIT OR (GPL AND AGPL)
+    ["(MIT OR Apache-2.0) AND ISC", "allow"],
+    ["((MIT))", "allow"],
+    ["Apache-2.0 WITH LLVM-exception", "unknown"],
+    ["MIT AND", "unknown"],
+    ["AND MIT", "unknown"],
+    ["MIT OR OR ISC", "unknown"],
+    ["(MIT", "unknown"],
+    ["MIT)", "unknown"],
+    ["()", "unknown"],
+    ["MIT ISC", "unknown"],
+    ["MIT WITH", "unknown"],
     ["  mit  ", "unknown"], // SPDX phân biệt hoa thường theo danh sách; chữ thường không được đoán
   ])("%j → %s", (expr, v) => {
     expect(verdict(expr, policy())).toBe(v);
@@ -81,6 +103,29 @@ describe("validatePolicy", () => {
       );
     },
   );
+  it("ngoại lệ cho giấy phép thuộc deny → lỗi (AGPL không gỡ được bằng ngoại lệ)", () => {
+    const e = ex({ package: "agpl", license: "AGPL-3.0-only" });
+    expect(validatePolicy(policy({ exceptions: [e] }), TODAY).join()).toMatch(/thuộc deny/);
+    const r = checkLicenses(pkgs("AGPL-3.0-only", "agpl"), policy({ exceptions: [e] }), TODAY);
+    expect(r.violations).toHaveLength(1);
+    expect(r.errors.join()).toMatch(/thuộc deny/);
+    const mixed = ex({ package: "m", license: "MIT AND AGPL-3.0-only" });
+    expect(validatePolicy(policy({ exceptions: [mixed] }), TODAY).join()).toMatch(/thuộc deny/);
+  });
+  it("expires tối đa 12 tháng kể từ hôm nay (UTC)", () => {
+    const at = (d) => validatePolicy(policy({ exceptions: [ex({ expires: d })] }), TODAY).join();
+    expect(at("2027-10-17")).toBe("");
+    expect(at("2027-10-18")).toMatch(/quá 12 tháng/);
+    expect(at("9999-12-31")).toMatch(/quá 12 tháng/);
+    expect(maxExpires("2028-02-29")).toBe("2029-02-28");
+    expect(maxExpires("2026-12-31")).toBe("2027-12-31");
+  });
+  it("ngoại lệ quá 12 tháng không có hiệu lực (gói vẫn bị chặn)", () => {
+    const e = ex({ package: "lg", expires: "9999-12-31" });
+    const r = checkLicenses(pkgs("LGPL-3.0-only", "lg"), policy({ exceptions: [e] }), TODAY);
+    expect(r.violations).toHaveLength(1);
+    expect(r.errors.join()).toMatch(/quá 12 tháng/);
+  });
   it("cấu trúc sai: không phải object, schema, danh sách, trùng/xung đột", () => {
     expect(validatePolicy(null)).toHaveLength(1);
     expect(validatePolicy([])).toHaveLength(1);
@@ -164,6 +209,24 @@ describe("license-policy.json thật của repo", () => {
   it("allow không chứa giấy phép copyleft/nguồn-mở-có-điều-kiện/không rõ (chỉ siết, không nới)", () => {
     for (const id of real.allow)
       expect(id, id).not.toMatch(/GPL|SSPL|BUSL|Elastic|UNKNOWN|UNLICENSED|NOASSERTION|-NC/);
+  });
+  it("tập allow ghim đúng 12 id hiện tại — thêm/bớt id phải sửa test này kèm quyết định (siết, không nới)", () => {
+    expect([...real.allow].sort()).toEqual(
+      [
+        "0BSD",
+        "Apache-2.0",
+        "BSD-2-Clause",
+        "BSD-3-Clause",
+        "BlueOak-1.0.0",
+        "CC-BY-4.0",
+        "CC0-1.0",
+        "ISC",
+        "MIT",
+        "MPL-2.0",
+        "Python-2.0",
+        "Unlicense",
+      ].sort(),
+    );
   });
   it("deny gồm AGPL (ADR-0002) và nhóm review gồm LGPL", () => {
     expect(real.deny).toContain("AGPL-3.0-only");

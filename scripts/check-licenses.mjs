@@ -8,6 +8,8 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 export const POLICY_FILE = fileURLToPath(new URL("../license-policy.json", import.meta.url));
+/** Ngoại lệ tối đa 12 tháng kể từ hôm nay (UTC): không có ngoại lệ "vĩnh viễn". */
+export const MAX_EXCEPTION_MONTHS = 12;
 export const EXCEPTION_FIELDS = ["package", "license", "reason", "approved_by", "expires"];
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -25,6 +27,15 @@ const validDate = (s) => {
 
 /** Ngày UTC hôm nay dạng YYYY-MM-DD. */
 export const todayUtc = (now = new Date()) => now.toISOString().slice(0, 10);
+
+/** Ngày muộn nhất được phép đặt `expires` (hôm nay + 12 tháng, kẹp cuối tháng), YYYY-MM-DD. */
+export function maxExpires(today) {
+  const [y, m, d] = today.split("-").map(Number);
+  const last = new Date(Date.UTC(y + MAX_EXCEPTION_MONTHS / 12, m, 0)).getUTCDate();
+  return new Date(Date.UTC(y + MAX_EXCEPTION_MONTHS / 12, m - 1, Math.min(d, last)))
+    .toISOString()
+    .slice(0, 10);
+}
 
 /**
  * Lỗi cấu trúc/hạn của chính sách: [] = hợp lệ. `today` = YYYY-MM-DD (UTC); ngoại lệ có `expires` < today là hết hạn.
@@ -63,7 +74,13 @@ export function validatePolicy(policy, today = todayUtc()) {
         if (!validDate(e.expires))
           errors.push(`${at}: expires phải là ngày YYYY-MM-DD hợp lệ (đang "${e.expires}")`);
         else if (e.expires < today) errors.push(`${at}: đã hết hạn ${e.expires} (hôm nay ${today})`);
+        else if (e.expires > maxExpires(today))
+          errors.push(
+            `${at}: expires ${e.expires} quá ${MAX_EXCEPTION_MONTHS} tháng (tối đa ${maxExpires(today)})`,
+          );
       }
+      if (nonEmptyString(e.license) && verdict(e.license, policy) === "deny")
+        errors.push(`${at}: giấy phép ${e.license} thuộc deny — không được ngoại lệ`);
       const key = `${e.package}\u0000${e.license}`;
       if (seen.has(key)) errors.push(`${at}: trùng ngoại lệ cho cùng gói và giấy phép`);
       seen.add(key);
@@ -73,6 +90,8 @@ export function validatePolicy(policy, today = todayUtc()) {
 }
 
 const RANK = { allow: 0, review: 1, unknown: 2, deny: 3 };
+const better = (a, b) => (RANK[a] <= RANK[b] ? a : b);
+const worse = (a, b) => (RANK[a] >= RANK[b] ? a : b);
 
 /** Phán quyết "allow" | "review" | "unknown" | "deny" cho một id SPDX đơn. */
 export function classify(id, policy) {
@@ -84,21 +103,53 @@ export function classify(id, policy) {
 }
 
 /**
- * Phán quyết cho biểu thức SPDX đơn giản: "A OR B" lấy vế TỐT nhất; "A AND B" lấy vế TỆ nhất; ngoặc bỏ qua
- * (không hỗ trợ lồng hỗn hợp — gặp thì rơi về "unknown" nhờ id lạ, an toàn theo hướng đỏ).
+ * Phán quyết cho biểu thức SPDX: parser đệ quy có ưu tiên (AND chặt hơn OR) và ngoặc. `A OR B` lấy vế TỐT nhất,
+ * `A AND B` lấy vế TỆ nhất. `X WITH Y` là một id nguyên (không có trong danh sách → "unknown"). Biểu thức sai cú pháp
+ * (ngoặc lệch, toán tử thiếu vế, rỗng, thừa token) → "unknown" — đỏ theo hướng an toàn.
  */
 export function verdict(expr, policy) {
-  const clean = expr.replace(/[()]/g, " ").replace(/\s+/g, " ").trim();
-  if (clean === "") return "unknown";
-  if (clean.includes(" OR ")) {
-    const vs = clean.split(" OR ").map((p) => verdict(p, policy));
-    return vs.reduce((a, b) => (RANK[a] <= RANK[b] ? a : b));
-  }
-  if (clean.includes(" AND ")) {
-    const vs = clean.split(" AND ").map((p) => verdict(p, policy));
-    return vs.reduce((a, b) => (RANK[a] >= RANK[b] ? a : b));
-  }
-  return classify(clean, policy);
+  const tokens = expr.match(/[()]|[^\s()]+/g) ?? [];
+  let i = 0;
+  const parseOr = () => {
+    let v = parseAnd();
+    while (v !== null && tokens[i] === "OR") {
+      i++;
+      const r = parseAnd();
+      v = r === null ? null : better(v, r);
+    }
+    return v;
+  };
+  const parseAnd = () => {
+    let v = parseAtom();
+    while (v !== null && tokens[i] === "AND") {
+      i++;
+      const r = parseAtom();
+      v = r === null ? null : worse(v, r);
+    }
+    return v;
+  };
+  const parseAtom = () => {
+    const t = tokens[i];
+    if (t === undefined || t === ")" || t === "AND" || t === "OR" || t === "WITH") return null;
+    if (t === "(") {
+      i++;
+      const v = parseOr();
+      if (v === null || tokens[i] !== ")") return null;
+      i++;
+      return v;
+    }
+    i++;
+    if (tokens[i] === "WITH") {
+      const ex = tokens[i + 1];
+      if (ex === undefined || ex === "(" || ex === ")" || ex === "AND" || ex === "OR" || ex === "WITH")
+        return null;
+      i += 2;
+      return classify(`${t} WITH ${ex}`, policy);
+    }
+    return classify(t, policy);
+  };
+  const v = parseOr();
+  return v === null || i !== tokens.length ? "unknown" : v;
 }
 
 /** Tương thích: giấy phép đạt theo chính sách (không xét ngoại lệ). `policy` mặc định = file ở gốc repo. */
@@ -126,14 +177,19 @@ export function checkLicenses(byLicense, policy, today = todayUtc()) {
     const v = verdict(license, policy);
     if (v === "allow") continue;
     for (const p of pkgs) {
-      const ex = valid.find(
-        (e) =>
-          e &&
-          e.package === p.name &&
-          e.license === license &&
-          validDate(e.expires ?? "") &&
-          e.expires >= today,
-      );
+      // deny không bao giờ được ngoại lệ; hạn/trần 12 tháng đã kiểm ở validatePolicy (errors → đỏ).
+      const ex =
+        v === "deny"
+          ? undefined
+          : valid.find(
+              (e) =>
+                e &&
+                e.package === p.name &&
+                e.license === license &&
+                validDate(e.expires ?? "") &&
+                e.expires >= today &&
+                e.expires <= maxExpires(today),
+            );
       if (ex && nonEmptyString(ex.reason) && nonEmptyString(ex.approved_by)) {
         used.add(ex);
         continue;
