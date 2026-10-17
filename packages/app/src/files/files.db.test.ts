@@ -156,6 +156,51 @@ describe("tải lên (TM-07)", () => {
     expect(body).not.toContain("GPS");
   });
 
+  it("SPEC-housekeeping-maintenance S-016: ảnh dọc (Orientation 6) lưu qua đường tải thật vẫn đúng chiều, chỉ còn thẻ Orientation, không GPS", async () => {
+    // TIFF little-endian: IFD0 có Orientation=6 + Model, kèm vùng dữ liệu chứa chuỗi GPS phía sau.
+    const tiff = new Uint8Array(120);
+    const v = new DataView(tiff.buffer);
+    tiff.set([0x49, 0x49], 0);
+    v.setUint16(2, 42, true);
+    v.setUint32(4, 8, true);
+    v.setUint16(8, 2, true);
+    v.setUint16(10, 0x0110, true); // Model
+    v.setUint16(12, 2, true);
+    v.setUint32(14, 9, true);
+    v.setUint32(18, 60, true);
+    v.setUint16(22, 0x0112, true); // Orientation
+    v.setUint16(24, 3, true);
+    v.setUint32(26, 1, true);
+    v.setUint16(30, 6, true);
+    tiff.set(ascii("PhoneXYZ\0"), 60);
+    tiff.set(ascii("GPSLatitude=21.0285"), 80);
+    const jpeg = Uint8Array.from([
+      0xff,
+      0xd8,
+      ...seg(0xe1, Uint8Array.from([...ascii("Exif\0\0"), ...tiff])),
+      ...seg(0xda, ascii("\x01\x01\0\0?\0")),
+      0x12,
+      0xff,
+      0xd9,
+    ]);
+    const r = await upload(housekeeping, "work_order", jpeg);
+    if (r.status !== "committed") throw new Error(JSON.stringify(r));
+    const u = await urlFor(owner, r.data.fileId);
+    if (u.status !== "committed") throw new Error(JSON.stringify(u));
+    const body = Buffer.from(await (await fetch(u.data.url)).arrayBuffer());
+    const text = body.toString("latin1");
+    expect(text).not.toMatch(/GPS|PhoneXYZ/);
+    // Đúng một APP1 Exif 34 byte: "MM", 42, IFD0 một mục 0x0112 SHORT ×1 = 6.
+    const at = body.indexOf(Buffer.from("Exif\0\0", "latin1"));
+    expect(at).toBeGreaterThan(0);
+    expect(body.readUInt16BE(at - 2)).toBe(34);
+    expect(body.subarray(at + 6, at + 8).toString("latin1")).toBe("MM");
+    expect(body.readUInt16BE(at + 6 + 8)).toBe(1);
+    expect(body.readUInt16BE(at + 6 + 10)).toBe(0x0112);
+    expect(body.readUInt16BE(at + 6 + 18)).toBe(6);
+    expect(body.indexOf(Buffer.from("Exif\0\0", "latin1"), at + 1)).toBe(-1);
+  });
+
   it("PNG có tEXt (lộ SĐT) → chunk metadata bị bỏ", async () => {
     const r = await upload(housekeeping, "work_order", pngWithText());
     if (r.status !== "committed") throw new Error(JSON.stringify(r));
