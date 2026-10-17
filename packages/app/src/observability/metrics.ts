@@ -55,13 +55,13 @@ const HELP: Readonly<Record<string, [type: "gauge" | "counter" | "histogram", he
     "gauge",
     "Tỉ lệ ngân sách email ngày (UTC) đã dùng của tổ chức dùng nhiều nhất (0…1; 0,8 cảnh báo, 0,9 bóp, 1 dừng).",
   ],
-  hm_email_budget_throttled_total: [
-    "counter",
-    "Lần gửi email bị hoãn vì bóp ngân sách (≥ 90%, loại không bắt buộc); đếm theo hàng còn lưu (90 ngày).",
+  hm_email_budget_throttled_today: [
+    "gauge",
+    "Số lần gửi email bị hoãn vì bóp ngân sách (≥ 90%, loại không bắt buộc) trong ngày UTC hiện tại, cộng mọi tổ chức.",
   ],
-  hm_email_budget_stopped_total: [
-    "counter",
-    "Lần gửi email bị hoãn vì hết ngân sách ngày (100%); đếm theo hàng còn lưu (90 ngày).",
+  hm_email_budget_stopped_today: [
+    "gauge",
+    "Số lần gửi email bị hoãn vì hết ngân sách (100%) trong ngày UTC hiện tại, cộng mọi tổ chức.",
   ],
   // HTTP (T-406, observability/http-metrics.ts): đo ở lớp handler, lưu trong bộ nhớ từng bản web.
   hm_http_requests_total: ["counter", "Số request HTTP theo mẫu route, method, status."],

@@ -1,5 +1,5 @@
 // Job định kỳ của worker.
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   type AutoApplyResult,
   applyBankTransaction,
@@ -98,6 +98,18 @@ export async function workerHeartbeat(
   await sql`select app.worker_heartbeat(${name}, ${now})`.execute(workerDb);
 }
 
+/**
+ * Id job xếp lại khi hoãn vì ngân sách: UUID dẫn xuất (SHA-256, dạng v8) từ `outbox_id` + mốc hẹn — cùng đầu vào cho cùng id nên
+ * handler chạy lại (hoàn tất job gốc lỗi giữa chừng) gửi lại là no-op ở pg-boss; khác mốc (hoãn thêm ngày nữa) cho id khác.
+ */
+export function deferredJobId(outboxId: string, retryAt: Date): string {
+  const h = createHash("sha256").update(`budget-defer:${outboxId}:${retryAt.toISOString()}`).digest();
+  h[6] = ((h[6] ?? 0) & 0x0f) | 0x80;
+  h[8] = ((h[8] ?? 0) & 0x3f) | 0x80;
+  const x = h.subarray(0, 16).toString("hex");
+  return `${x.slice(0, 8)}-${x.slice(8, 12)}-${x.slice(12, 16)}-${x.slice(16, 20)}-${x.slice(20, 32)}`;
+}
+
 /** event_type outbox mà consumer lời mời nhân viên xử lý. */
 export const INVITATION_EVENT_TYPES = ["member.invited"] as const;
 
@@ -105,13 +117,22 @@ export const INVITATION_EVENT_TYPES = ["member.invited"] as const;
  * `member.invited` (SPEC-access S-007): gửi email lời mời nhân viên. Token dựng lại từ khoá + id lời mời (không lưu ở đâu);
  * lời mời đã dùng/thu hồi/quá hạn thì bỏ qua. Khoá idempotency của email = id lời mời ⇒ pg-boss giao lại không gửi hai thư.
  * Lỗi tạm thời ném lại để pg-boss thử lại theo chính sách queue; địa chỉ không hợp lệ (vĩnh viễn) chỉ ghi log.
- * Ngân sách email ngày/tổ chức (OPS-COST-004): lời mời là loại giao dịch (còn được gửi ở mức bóp 90%); hết ngân sách (100%) ⇒ ném
- * `EmailBudgetDeferredError` — job không mất (pg-boss thử lại, hết lượt vào dead letter để redrive sau khi sang ngày, RUNBOOK §3.12).
+ * Ngân sách email ngày/tổ chức (OPS-COST-004): lời mời là loại giao dịch (còn được gửi ở mức bóp 90%); hết ngân sách (100%) ⇒ KHÔNG
+ * gọi nhà cung cấp, xếp lại CHÍNH job này (`opts.requeue`, pg-boss `startAfter` = đầu ngày UTC kế tiếp, id dẫn xuất ổn định từ
+ * `outbox_id` + mốc ⇒ chạy lại handler không tạo job thứ hai) rồi hoàn tất job hiện tại: không tiêu lượt thử/dead letter, tự gửi sau khi
+ * sang ngày. Không có `requeue` (test/đường khác) ⇒ ném `EmailBudgetDeferredError` để pg-boss thử lại theo chính sách queue.
  */
 export function invitationHandlers(
   workerDb: Kysely<unknown>,
   sender: EmailSender,
-  opts: { key: Buffer; baseUrl: string; now?: () => Date; dailyBudget?: number },
+  opts: {
+    key: Buffer;
+    baseUrl: string;
+    now?: () => Date;
+    dailyBudget?: number;
+    /** Xếp lại job với `startAfter`; `id` ổn định theo (outbox_id, mốc) để gọi lại là no-op. */
+    requeue?: (job: OutboxJob, startAfter: Date, id: string) => Promise<void>;
+  },
   logger: Logger = createLogger({ bindings: { component: "member.invitation" } }),
 ): Record<string, (job: OutboxJob) => Promise<void>> {
   return {
@@ -130,7 +151,16 @@ export function invitationHandlers(
         budget,
       });
       logEmailBudget((e, f) => logger.warn(e, f), job.organization_id, grant, budget);
-      if (grant.decision !== "send") throw new EmailBudgetDeferredError(nextBudgetDayStart(now));
+      if (grant.decision !== "send") {
+        const retryAt = nextBudgetDayStart(now);
+        if (!opts.requeue) throw new EmailBudgetDeferredError(retryAt);
+        await opts.requeue(job, retryAt, deferredJobId(job.outbox_id, retryAt));
+        logger.warn("invitation.mail_deferred", {
+          outbox_id: job.outbox_id,
+          retry_at: retryAt.toISOString(),
+        });
+        return;
+      }
       try {
         await sender.send(mail);
       } catch (err) {

@@ -92,6 +92,7 @@ curl -fsS https://<domain>/api/ready
    } finally { await db.destroy(); }
    process.exit(code);'
    ```
+   **Lùi code trước, migration sau:** với `0063_email_budget`, chạy `down` khi bản mới còn chạy ⇒ vòng gửi email dừng (không có hàm xin ngân sách) và `/api/metrics` trả 500 (thiếu `app.email_budget_metrics`). Triển khai lại bản trước rồi mới lùi migration; `down` xoá bảng bộ đếm `email_budget_days` (chỉ mất bộ đếm ngày, không mất thư).
    Mỗi lần chạy lùi **một** migration (đã thử trên cluster tạm: lùi `0046_observability`). Kysely không ném lỗi khi `down` hỏng mà trả `res.error`: lệnh trên in lỗi ra stderr và thoát mã 1 (mã 0 = lùi xong, hoặc không còn gì để lùi: `[]`); mã ≠ 0 thì dừng, đọc lỗi, không chạy lại khi chưa hiểu. Không dùng `migrateDownAll` ngoài test.
 3. Không đủ ⇒ khôi phục PITR về điểm `truoc_migrate_<phiên_bản>` ([restore](restore.md) mục B) — mất dữ liệu ghi sau điểm đó; cần người duyệt.
 

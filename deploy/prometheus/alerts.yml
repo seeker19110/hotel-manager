@@ -194,18 +194,19 @@ groups:
           owner: backend
         annotations:
           summary: "Một tổ chức đã dùng từ 80% ngân sách email trong ngày (từ 90% chỉ gửi loại bắt buộc)"
-          description: "Ngân sách email ngày/tổ chức là hằng EMAIL_DAILY_BUDGET_PER_ORG (packages/app/src/notifications/budget.ts). Từ 80% cảnh báo, từ 90% chỉ gửi loại bắt buộc/giao dịch và hoãn phần còn lại tới đầu ngày UTC kế tiếp. Có thể là vòng lặp chạy hoang hoặc tổ chức bị lạm dụng."
+          description: "Ngân sách email ngày/tổ chức là hằng EMAIL_DAILY_BUDGET_PER_ORG (packages/domain/src/notifications/email-budget.ts). Từ 80% cảnh báo, từ 90% chỉ gửi loại bắt buộc/giao dịch và hoãn phần còn lại tới đầu ngày UTC kế tiếp. Có thể là vòng lặp chạy hoang hoặc tổ chức bị lạm dụng."
           runbook_url: docs/RUNBOOK.md
           runbook_section: "3.12 Ngân sách email ngày"
 
       - alert: HmEmailBudgetExhausted
-        expr: hm_email_budget_used_ratio >= 1 or increase(hm_email_budget_stopped_total[15m]) > 0
+        # hm_email_budget_stopped_today là GAUGE (số lần hoãn vì hết ngân sách trong ngày UTC hiện tại, về 0 khi sang ngày): so sánh trực tiếp.
+        expr: hm_email_budget_used_ratio >= 1 or hm_email_budget_stopped_today > 0
         labels:
           severity: ticket
           owner: backend
         annotations:
           summary: "Một tổ chức đã hết ngân sách email trong ngày — việc gửi email của tổ chức đó bị dừng (hoãn, không mất)"
-          description: "Circuit breaker chi phí đã dừng gửi: lần gửi bị hoãn tới đầu ngày UTC kế tiếp; lời mời nhân viên vào thử lại/dead letter. Tìm nguồn phát sinh bất thường trước khi sang ngày kẻo hết ngân sách lại."
+          description: "Circuit breaker chi phí đã dừng gửi: lần gửi bị hoãn tới đầu ngày UTC kế tiếp; lời mời nhân viên được xếp lại tới đó. Tìm nguồn phát sinh bất thường trước khi sang ngày kẻo hết ngân sách lại."
           runbook_url: docs/RUNBOOK.md
           runbook_section: "3.12 Ngân sách email ngày"
 

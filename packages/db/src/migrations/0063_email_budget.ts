@@ -11,7 +11,9 @@
 //   Lượt bị hoãn không tăng `used` nên bảng không phình theo hàng đợi tồn.
 // - Bảng có `organization_id` nên bật RLS + FORCE như mọi bảng tổ chức; KHÔNG cấp quyền trực tiếp cho app_runtime/app_worker —
 //   chỉ đi qua hàm SECURITY DEFINER (chủ hàm bỏ qua RLS, như `app.claim_due_deliveries`).
-// - `app.email_budget_metrics(now, budget)`: số liệu tổng hợp toàn hệ thống (không nhãn tổ chức) cho /api/metrics.
+// - `app.email_budget_metrics(now, budget)`: số liệu tổng hợp toàn hệ thống (không nhãn tổ chức) cho /api/metrics, CHỈ của ngày UTC
+//   hiện tại và đều là GAUGE (tỉ lệ dùng lớn nhất, số lần hoãn vì bóp/dừng trong ngày): không lấy tổng các hàng còn lưu làm counter
+//   (dọn hàng cũ sẽ làm giảm ⇒ Prometheus coi là reset, `increase()` báo giả).
 // - Dọn dần: mỗi lần gọi xoá tối đa 50 hàng cũ hơn 90 ngày.
 import { type Kysely, sql } from "kysely";
 
@@ -80,9 +82,11 @@ CREATE FUNCTION app.email_budget_metrics(p_now timestamptz, p_budget integer)
            coalesce((SELECT max(b.used) FROM email_budget_days b WHERE b.day = (p_now AT TIME ZONE 'UTC')::date), 0)::double precision
              / greatest(p_budget, 1)
     UNION ALL
-    SELECT 'hm_email_budget_throttled_total'::text, '{}'::jsonb, coalesce(sum(b.throttled), 0)::double precision FROM email_budget_days b
+    SELECT 'hm_email_budget_throttled_today'::text, '{}'::jsonb, coalesce(sum(b.throttled), 0)::double precision
+      FROM email_budget_days b WHERE b.day = (p_now AT TIME ZONE 'UTC')::date
     UNION ALL
-    SELECT 'hm_email_budget_stopped_total'::text, '{}'::jsonb, coalesce(sum(b.stopped), 0)::double precision FROM email_budget_days b
+    SELECT 'hm_email_budget_stopped_today'::text, '{}'::jsonb, coalesce(sum(b.stopped), 0)::double precision
+      FROM email_budget_days b WHERE b.day = (p_now AT TIME ZONE 'UTC')::date
   $$;
 REVOKE ALL ON FUNCTION app.email_budget_metrics(timestamptz, integer) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION app.email_budget_metrics(timestamptz, integer) TO app_runtime, app_worker;

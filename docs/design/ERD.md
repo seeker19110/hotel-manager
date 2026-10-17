@@ -1819,6 +1819,7 @@ Hàm `SECURITY DEFINER` phạm vi hẹp (thay cho BYPASSRLS/policy rộng; mỗi
 `app.outbox_claim`/`app.outbox_mark` (relay của worker — 0003) · `app.expire_holds` (job — 0004) ·
 `app.receiving_account_owner` (định tuyến webhook ngân hàng — 0005) · `app.actor_role()` (RLS lớp 3 theo vai trò cho giấy tờ — 0006).
 `app.rate_limit_hit(scope, subject, limit, window_seconds, now)` (bộ đếm giới hạn tần suất dùng chung giữa instance cho tải file/nhập liệu/webhook — bảng toàn cục `rate_limit_counters`, khoá advisory theo (scope, subject), lượt bị từ chối không tăng bộ đếm — 0053).
+`app.email_budget_take(org, now, budget, warn_pct, throttle_pct, required)` (ngân sách email theo ngày UTC/tổ chức — OPS-COST-004: bảng `email_budget_days` (PK `organization_id` + `day`; `used`, `throttled`, `stopped`, `level`), RLS bật, KHÔNG cấp quyền trực tiếp cho app_runtime/app_worker, khoá hàng ⇒ tổng `used` không vượt ngân sách khi đồng thời) · `app.email_budget_metrics(now, budget)` (gauge ngày UTC hiện tại cho `/api/metrics`) — 0063.
 - Có thể thêm một bảng giới hạn tần suất (`rateLimit`) nếu cấu hình lưu rate limit trong DB để khoá tạm sau 5 lần sai (PLAN T-006, access Q-07); xác định ở T-006.
 
 Ràng buộc:

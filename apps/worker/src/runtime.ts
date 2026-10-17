@@ -175,7 +175,14 @@ export async function startWorker(deps: WorkerDeps): Promise<WorkerHandle> {
       ? invitationHandlers(
           workerDb,
           deps.sender,
-          { key: deps.invitationKey, baseUrl: deps.baseUrl },
+          {
+            key: deps.invitationKey,
+            baseUrl: deps.baseUrl,
+            // Hết ngân sách email ngày ⇒ xếp lại job tới đầu ngày UTC kế (không vào dead letter) — OPS-COST-004.
+            requeue: async (job, startAfter, id) => {
+              await boss.send("member.invited", job, { id, startAfter });
+            },
+          },
           log.child({ component: "member.invitation" }),
         )
       : {}),

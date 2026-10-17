@@ -154,7 +154,7 @@ describe("90%: chỉ loại bắt buộc", () => {
       "notification.email_budget_deferred_throttled",
     ]);
     expect(budgetEvents(thr.events, o)[0]?.fields).toMatchObject({
-      metric: "hm_email_budget_throttled_total",
+      metric: "hm_email_budget_throttled_today",
       used: 9,
       budget: 10,
     });
@@ -196,7 +196,7 @@ describe("100%: dừng, hoãn không mất, có metric/cảnh báo", () => {
     expect(ev).toHaveLength(3);
     expect(ev.every((e) => e.event === "notification.email_budget_deferred_stopped")).toBe(true);
     expect(ev[0]?.fields).toMatchObject({
-      metric: "hm_email_budget_stopped_total",
+      metric: "hm_email_budget_stopped_today",
       used: EMAIL_DAILY_BUDGET_PER_ORG,
     });
     expect(await row(o)).toMatchObject({ used: EMAIL_DAILY_BUDGET_PER_ORG, stopped: 3, level: 3 });
@@ -206,14 +206,19 @@ describe("100%: dừng, hoãn không mất, có metric/cảnh báo", () => {
     const s = await collectMetrics(t.runtime, NOW);
     const val = (n: string) => s.find((x) => x.name === n)?.value;
     expect(val("hm_email_budget_used_ratio")).toBe(1);
-    expect(val("hm_email_budget_stopped_total")).toBeGreaterThanOrEqual(3);
-    expect(val("hm_email_budget_throttled_total")).toBeGreaterThanOrEqual(2);
+    expect(val("hm_email_budget_stopped_today")).toBeGreaterThanOrEqual(3);
+    expect(val("hm_email_budget_throttled_today")).toBeGreaterThanOrEqual(2);
+    // Gauge theo ngày UTC: sang ngày khác (chưa có hàng) về 0 — không cộng dồn hàng cũ.
+    const later = await collectMetrics(t.runtime, new Date("2026-10-19T03:00:00Z"));
+    expect(later.find((x) => x.name === "hm_email_budget_stopped_today")?.value).toBe(0);
+    expect(later.find((x) => x.name === "hm_email_budget_throttled_today")?.value).toBe(0);
+    expect(later.find((x) => x.name === "hm_email_budget_used_ratio")?.value).toBe(0);
     // Không nhãn tổ chức (số liệu tổng hợp toàn hệ thống).
     expect(JSON.stringify(s)).not.toContain(o.orgId);
 
     // handleMetrics đọc theo giờ thật: dựng thêm hàng của ngày UTC hiện tại ở mức 100% để kiểm văn bản Prometheus.
-    await sql`insert into email_budget_days (organization_id, day, used, level) values (${o.orgId},
-              (now() at time zone 'utc')::date, ${EMAIL_DAILY_BUDGET_PER_ORG}, 3) on conflict do nothing`.execute(
+    await sql`insert into email_budget_days (organization_id, day, used, stopped, level) values (${o.orgId},
+              (now() at time zone 'utc')::date, ${EMAIL_DAILY_BUDGET_PER_ORG}, 5, 3) on conflict do nothing`.execute(
       t.admin,
     );
     const res = await handleMetrics(
@@ -223,8 +228,11 @@ describe("100%: dừng, hoãn không mất, có metric/cảnh báo", () => {
     const body = await res.text();
     expect(body).toContain("# TYPE hm_email_budget_used_ratio gauge");
     expect(body).toMatch(/^hm_email_budget_used_ratio 1$/m);
-    expect(body).toMatch(/^hm_email_budget_stopped_total \d+$/m);
-    expect(body).toContain("# TYPE hm_email_budget_stopped_total counter");
+    expect(body).toMatch(/^hm_email_budget_stopped_today [1-9]\d*$/m);
+    // Gauge của ngày UTC hiện tại (không phải counter lấy tổng hàng còn lưu: dọn hàng cũ sẽ làm giảm ⇒ reset giả).
+    expect(body).toContain("# TYPE hm_email_budget_stopped_today gauge");
+    expect(body).toContain("# TYPE hm_email_budget_throttled_today gauge");
+    expect(body).not.toContain("hm_email_budget_stopped_total");
   });
 
   it("có luật cảnh báo Prometheus cho 80% và 100% trên metric thật", () => {
@@ -235,7 +243,9 @@ describe("100%: dừng, hoãn không mất, có metric/cảnh báo", () => {
     expect(alerts).toMatch(
       /alert: HmEmailBudgetHigh\n\s+(?:#.*\n\s+)?expr: hm_email_budget_used_ratio >= 0\.8\n/,
     );
-    expect(alerts).toMatch(/alert: HmEmailBudgetExhausted\n\s+expr: hm_email_budget_used_ratio >= 1 or /);
+    expect(alerts).toMatch(
+      /alert: HmEmailBudgetExhausted\n\s+(?:#.*\n\s+)?expr: hm_email_budget_used_ratio >= 1 or hm_email_budget_stopped_today > 0\n/,
+    );
   });
 });
 

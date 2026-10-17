@@ -48,7 +48,7 @@ describe("rào: mọi đường gọi EmailSender.send phải xin ngân sách (O
   const files = [...sources(join(ROOT, "packages/app/src")), ...sources(join(ROOT, "apps/worker/src"))];
   // `sender.send(` / `emailSender.send(` / `mailer.send(` — gọi nhà cung cấp email (adapter tự định nghĩa ở email.ts thì không tính).
   const callers = files.filter((f) =>
-    /\b(?:sender|emailSender|mailer)\.send\(/.test(readFileSync(f, "utf8")),
+    /\b(?:sender|emailSender|mailer)\??\.send\(/.test(readFileSync(f, "utf8")),
   );
 
   it("tìm thấy đúng các đường gửi đã biết (vòng gửi thông báo + lời mời nhân viên)", () => {
@@ -62,7 +62,7 @@ describe("rào: mọi đường gọi EmailSender.send phải xin ngân sách (O
     (_n, f) => {
       const src = readFileSync(f as string, "utf8");
       const take = src.indexOf("takeEmailBudget(");
-      const send = src.search(/\b(?:sender|emailSender|mailer)\.send\(/);
+      const send = src.search(/\b(?:sender|emailSender|mailer)\??\.send\(/);
       expect(take, "không thấy takeEmailBudget(").toBeGreaterThan(-1);
       expect(take).toBeLessThan(send);
     },
