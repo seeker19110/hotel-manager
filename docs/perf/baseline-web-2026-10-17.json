@@ -1,0 +1,90 @@
+{
+  "schema": 1,
+  "kind": "web-resource-baseline",
+  "measured": true,
+  "date": "2026-10-17",
+  "commit": "95bbecb (+ thay đổi chưa commit)",
+  "environment": {
+    "description": "next start (bản build production) + Postgres 17 cluster tạm cùng máy (apps/web/e2e/server.ts); không CDN, không nén phía proxy; cùng máy với trình duyệt đo",
+    "os": "linux 6.18.44-fc-v139",
+    "node": "v24.22.0",
+    "cpu": "4 lõi Intel(R) Xeon(R) Processor @ 2.80GHz",
+    "memory_gb": 15.7
+  },
+  "device": {
+    "browser": "Chromium (Playwright), giả lập Pixel 7",
+    "network": "localhost, không throttle mạng, không throttle CPU",
+    "cache": "trình duyệt mới cho mỗi lần đo (không cache), service worker bị chặn",
+    "runs_per_page": 3,
+    "aggregation": "median"
+  },
+  "pages": [
+    {
+      "route": "/buong-phong",
+      "requests": 11,
+      "transfer_kb": 185.9,
+      "js_kb": 178.2
+    },
+    {
+      "route": "/chon-to-chuc",
+      "requests": 9,
+      "transfer_kb": 147.6,
+      "js_kb": 140.6
+    },
+    {
+      "route": "/dang-nhap",
+      "requests": 9,
+      "transfer_kb": 147.9,
+      "js_kb": 141
+    },
+    {
+      "route": "/dang-nhap/nguoi-thue",
+      "requests": 9,
+      "transfer_kb": 147.9,
+      "js_kb": 140.9
+    },
+    {
+      "route": "/offline",
+      "requests": 8,
+      "transfer_kb": 145.6,
+      "js_kb": 138.8
+    },
+    {
+      "route": "/phong",
+      "requests": 9,
+      "transfer_kb": 147.4,
+      "js_kb": 140.1
+    },
+    {
+      "route": "/su-co",
+      "requests": 12,
+      "transfer_kb": 191.2,
+      "js_kb": 181.4
+    },
+    {
+      "route": "/thong-bao",
+      "requests": 12,
+      "transfer_kb": 188.2,
+      "js_kb": 179.5
+    }
+  ],
+  "api": {
+    "route": "GET /api/v1/today/getSummary",
+    "vus": 1,
+    "duration_s": 20.7,
+    "samples": 1000,
+    "failed": 0,
+    "p50_ms": 19.68,
+    "p95_ms": 31.68,
+    "p99_ms": 44.06,
+    "note": "một VU tuần tự qua loopback — không phải tải đồng thời; k6 (perf/k6) mới đo tải"
+  },
+  "backend": {
+    "process": "tiến trình nghe cổng của next start (đọc /proc)",
+    "requests": 1000,
+    "cpu_ms_per_1000_requests": 9850,
+    "rss_mb_after": 408,
+    "kwh_per_1000_requests": null,
+    "kwh_note": "chưa đo — cần đồng hồ năng lượng/cgroup của VPS thật; CPU-giây là chỉ báo thay thế"
+  }
+}

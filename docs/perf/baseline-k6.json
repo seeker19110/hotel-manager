@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "kind": "k6-load-baseline",
+  "measured": false,
+  "reason": "chưa đo — k6 không có trong môi trường phát triển (container agent) và dự án không cài thêm công cụ khi chưa được duyệt; cần chạy trên máy/staging có k6 (xem docs/perf/README.md)",
+  "date": null,
+  "commit": null,
+  "scripts": [
+    "perf/k6/login-select-org.js",
+    "perf/k6/room-list.js",
+    "perf/k6/create-hold.js",
+    "perf/k6/collect-cash.js"
+  ],
+  "targets": {
+    "api_p95_ms": 800,
+    "api_p99_ms": 2000,
+    "hold_p95_ms": 1500,
+    "hold_p99_ms": 3000,
+    "http_req_failed_rate": 0.01,
+    "dataset": "100 tổ chức, 5.000 phòng, 200 phiên đồng thời (PROJECT.md §5)"
+  },
+  "results": null
+}
