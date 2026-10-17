@@ -1019,6 +1019,25 @@ describe("Dockerfile web/worker (BASE-SEC-006)", () => {
     for (const f of DOCKERFILES) expect(names).toContain(f.replace("deploy/", ""));
     expect(checkDir(join(ROOT, "deploy"))).toEqual([]);
   });
+  it.each(DOCKERFILES)(
+    "%s: mã ứng dụng do root sở hữu (chỉ đọc với user node); chỉ .next/cache của web ghi được",
+    (f) => {
+      const code = read(f)
+        .split("\n")
+        .filter((l) => !l.trim().startsWith("#"));
+      // COPY cây /app vào image runtime KHÔNG được chown cho node (user node chỉ đọc mã, không sửa được mã/node_modules).
+      for (const l of code.filter((x) => /^COPY\b/.test(x.trim()))) expect(l, l).not.toMatch(/--chown=/);
+      const chowns = code.filter((l) => /\bchown\b/.test(l));
+      if (f.includes("web")) {
+        expect(chowns).toHaveLength(1);
+        expect(chowns[0]).toMatch(/chown -R node:node \.next\/cache\s*$/);
+        // chown phải đứng sau WORKDIR /app/apps/web và trước USER node
+        const i = code.findIndex((l) => l === chowns[0]);
+        expect(code.findIndex((l) => /^WORKDIR \/app\/apps\/web/.test(l))).toBeLessThan(i);
+        expect(i).toBeLessThan(code.findIndex((l) => /^USER\s+node/.test(l)));
+      } else expect(chowns).toEqual([]);
+    },
+  );
   it(".dockerignore loại bí mật, lịch sử git và node_modules khỏi ngữ cảnh build", () => {
     const lines = read(".dockerignore")
       .split("\n")

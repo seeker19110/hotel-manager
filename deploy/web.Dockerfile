@@ -25,8 +25,10 @@ RUN pnpm --filter @hm/web build
 # `next.config.ts` cần `typescript` lúc chạy; thu nhỏ (chỉ phụ thuộc production) là việc sau, cần kiểm bằng build thật.
 FROM base AS runtime
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000
-COPY --from=build --chown=node:node /app /app
+# Mã và node_modules do root sở hữu (user `node` chỉ đọc): RCE trong ứng dụng không sửa được mã/phụ thuộc. Chỉ `.next/cache` ghi được.
+COPY --from=build /app /app
 WORKDIR /app/apps/web
+RUN mkdir -p .next/cache && chown -R node:node .next/cache
 USER node
 EXPOSE 3000
 # Không có bí mật trong image: DATABASE_URL, BETTER_AUTH_SECRET, S3_*, HM_PII_KEYS… chỉ nạp qua môi trường khi chạy
