@@ -154,6 +154,9 @@ describe("S-004 hai lễ tân giữ cùng phòng cuối (R-004)", () => {
     if (lost?.status !== "failed") throw new Error("phải có một lệnh thua");
     expect(lost.problem.code).toBe("ROOM_UNAVAILABLE");
     expect((lost.problem.items ?? []).length).toBeGreaterThan(0);
+    // D-040: mang cả `alternatives` (cùng nội dung với `items`, cùng một hàm tìm gợi ý như inventory.createHold).
+    expect((lost.problem.alternatives ?? []).length).toBeGreaterThan(0);
+    expect(lost.problem.alternatives).toEqual(lost.problem.items);
     const n = await sql<{
       n: number;
     }>`select count(*)::int as n from allocations where unit_id = ${unit} and active`.execute(h.t.admin);
