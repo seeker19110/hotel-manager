@@ -4,6 +4,7 @@
 // trên cùng trình duyệt không lộ trang của người trước; mượn phiên của mình để gọi vào tổ chức kia → từ chối, không ghi gì.
 // Chỉ ĐỌC (và một lệnh bị từ chối) nên không đổi dữ liệu của spec khác. Dữ liệu seed dùng chung ở `fixtures.ts`.
 import { expect, type Page, test } from "@playwright/test";
+import { expectAccessible } from "./a11y.ts";
 import { HOTEL_HK, MAIN_PROPERTY, ORG_HOTEL, ORG_MAIN, ORG_OTHER, SMOKE_USER } from "./fixtures.ts";
 import { type Cookies, loginStaff } from "./sessions.ts";
 
@@ -39,6 +40,8 @@ test("hai người dùng, hai tổ chức: trang /phong chỉ có cơ sở của
     await pb.goto("/phong");
     await expect(pa.getByRole("heading", { level: 2, name: MAIN_PROPERTY })).toBeVisible();
     await expect(pb.getByRole("heading", { level: 2, name: HOTEL_PROPERTY })).toBeVisible();
+    await expectAccessible(pa);
+    await expectAccessible(pb);
     const [orgA, orgB] = [await orgOf(pa), await orgOf(pb)];
     expect(orgA).toMatch(/^[0-9a-f-]{36}$/);
     expect(orgB).toMatch(/^[0-9a-f-]{36}$/);
