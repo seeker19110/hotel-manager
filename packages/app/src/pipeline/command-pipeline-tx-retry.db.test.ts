@@ -45,6 +45,14 @@ describe("withTenantRetry — 40001 thật (SERIALIZABLE write-skew)", () => {
     const meet = barrier(2);
     const attempts = { a: 0, b: 0 };
     const waits: number[] = [];
+    // Nạn nhân chạy lại SAU KHI bên kia commit xong (có trần 2 s để không treo nếu cả hai cùng bị huỷ): nếu chạy lại ngay
+    // trong lúc bên kia chưa commit, lần chạy lại lại đụng xung đột đọc/ghi và có thể hết lượt — test phụ thuộc thời gian.
+    const done: Record<"a" | "b", Promise<unknown>> = { a: Promise.resolve(), b: Promise.resolve() };
+    const afterOther = (who: "a" | "b") =>
+      Promise.race([
+        done[who === "a" ? "b" : "a"].catch(() => undefined),
+        new Promise((r) => setTimeout(r, 2_000)),
+      ]);
     const run = (who: "a" | "b") =>
       withTenantRetry(
         t.runtime,
@@ -63,9 +71,18 @@ describe("withTenantRetry — 40001 thật (SERIALIZABLE write-skew)", () => {
           );
           return seen.rows[0]?.n ?? -1;
         },
-        { isolationLevel: "serializable", random: () => 0.5, sleep: async (ms) => void waits.push(ms) },
+        {
+          isolationLevel: "serializable",
+          random: () => 0.5,
+          sleep: async (ms) => {
+            waits.push(ms);
+            await afterOther(who);
+          },
+        },
       );
-    const [ra, rb] = await Promise.all([run("a"), run("b")]);
+    done.a = run("a");
+    done.b = run("b");
+    const [ra, rb] = await Promise.all([done.a, done.b]);
     expect(attempts.a + attempts.b).toBe(3); // đúng một nạn nhân chạy lại một lần
     expect(waits).toHaveLength(1);
     expect(waits[0]).toBeGreaterThanOrEqual(0);

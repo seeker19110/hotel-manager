@@ -9,6 +9,14 @@
 > `PM-SPEC-004` và `WF-SDD-003` (nền spec-coverage còn 26 S-NNN). **Tick kèm lưu ý để phiên chính xác nhận:** `DB-MODEL-004` (52 FK nhóm A thiếu index là ngoại lệ có lý do — D-035),
 > `UX-STATE-001` (không Storybook; loading bị D-032 miễn ở trang có route con động/notFound/redirect), `DB-PERF-001` (EXPLAIN không ANALYZE), `XC-GREEN-007` (còn `notifications`/`inbox`/`worker_heartbeats` chưa có job dọn, chờ DPIA).
 
+## Kết quả đợt 7 (T-609, 2026-10-17)
+
+- `main` `8a6996e`: MUST **đạt 266 · miễn 55 · mở 175** — cả 175 đã `loop defer` chờ người (172 từ đợt 4–6 + `PM-SPEC-004`, `WF-SDD-003`, `BASE-SEC-001` tới khi PR #24 merge).
+- Đã merge: PR #22 (T-601 409 `IDEMPOTENCY_IN_PROGRESS` D-043, T-602 ảnh thanh lý, T-603 `unit.create`/`unit.archive`, T-610 index FK nhóm A).
+- PR mở, chờ người merge (chạm auth/tồn — `merge-check` HUMAN, ADR-0019): #24 (T-607 rào đầu vào xấu + T-608 script k6/Lighthouse; tick `BASE-SEC-001`, `SEC-WEB-002`, `ARC-RES-005`, `WF-DOC-001`, `QA-PERF-006`, `XC-PERF-004`, `XC-GREEN-001`), #26 (T-604 tồn, migration 0061), T-605 (truy cập, migration 0062) và T-606 (PWA) — số migration đổi để đứng sau 0060 (D-051).
+- Nền spec-coverage sau khi merge đủ: chỉ còn SPEC-pwa S-002, S-003, S-016 — bắt buộc thiết bị thật (Q-06) ⇒ `PM-SPEC-004`, `WF-SDD-003` chờ người (biên bản `docs/qa/`; `WF-SDD-003` cần thêm rào `pr-policy` = đổi CI).
+- 55 miễn trừ MUST thiếu `Duyệt:` của chủ dự án (LOOP-STOP-024) — người duyệt hoặc bỏ miễn trừ.
+
 ## Đề xuất đợt 7 (mỗi task một Gate; số migration do phiên chính cấp; quyết định chuyên môn → `loop decide`)
 
 **26 S-NNN còn trong `scripts/spec-coverage.baseline.json`** (đều là tính năng chưa có hoặc spec lệch spec/mã — không phải thiếu test đơn thuần):
