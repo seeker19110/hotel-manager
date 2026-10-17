@@ -644,6 +644,47 @@ describe("SPEC-inventory S-017 quá hạn chưa trả phòng (detectOverdue)", (
     await detectOverdue(h.t.worker, loc("2026-11-27T20:00"));
     expect((await exceptionsOf(s.allocationId)).filter((e) => e.status === "open")).toEqual([]);
   });
+
+  it("S-017 chuyển phòng rồi detectOverdue: chỉ allocation CUỐI của lượt ở (phòng mới) quá hạn; đoạn cũ đã thu về [lo, at) không báo STAY_OVERSTAY và booking sau đó trên phòng cũ không nhận RELOCATION_REQUIRED", async () => {
+    const oldUnit = await freshUnit();
+    const newUnit = await freshUnit();
+    const s = await booking(oldUnit, "2026-12-10", "2026-12-12", { checkedInAt: loc("2026-12-10T15:00") });
+    const moved = await okAs(h.t, h.manager, (ctx) =>
+      moveAllocation(ctx, {
+        allocationId: s.allocationId,
+        toUnitId: newUnit,
+        at: loc("2026-12-11T10:00"),
+        reason: "Điều hoà hỏng",
+      }),
+    );
+    const afterOnOld = await booking(oldUnit, "2026-12-11", "2026-12-12"); // đặt vào phòng cũ sau khi chuyển
+    const afterOnNew = await booking(newUnit, "2026-12-12", "2026-12-13"); // kế tiếp thật sự trên phòng mới
+    const t0 = loc("2026-12-12T13:00");
+
+    await detectOverdue(h.t.worker, t0);
+    expect(await exceptionsOf(s.allocationId)).toEqual([]);
+    expect(await exceptionsOf(afterOnOld.allocationId)).toEqual([]);
+    expect(await exceptionsOf(moved.newAllocationId)).toEqual([
+      expect.objectContaining({ type: "STAY_OVERSTAY", status: "open", related: afterOnNew.allocationId }),
+    ]);
+    expect(await exceptionsOf(afterOnNew.allocationId)).toEqual([
+      expect.objectContaining({
+        type: "RELOCATION_REQUIRED",
+        status: "open",
+        related: moved.newAllocationId,
+      }),
+    ]);
+    // Phòng cũ không bị coi là còn người: giữ chỗ vào phòng cũ không bị ROOM_OCCUPIED.
+    await okAs(h.t, h.frontDesk, (ctx) =>
+      createHold(ctx, {
+        unitId: oldUnit,
+        during: { start: loc("2026-12-20T14:00"), end: loc("2026-12-21T12:00") },
+        ttlMinutes: 15,
+      }),
+    );
+    await detectOverdue(h.t.worker, t0);
+    expect(await exceptionsOf(s.allocationId)).toEqual([]);
+  });
 });
 
 // ------------------------------------------------------------------------------------------------------------- S-018, S-019
