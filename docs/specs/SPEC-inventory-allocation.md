@@ -123,7 +123,7 @@ Fixture chung: tổ chức A, cơ sở P1 (`timezone=Asia/Ho_Chi_Minh`), phòng 
 
 ### S-018 Gia hạn đụng booking đã xác nhận (INV-I4)
 - Given `s1` trên `101` đến 17/10 12:00; booking `r2` đã `confirmed` trên `101` từ 17/10 14:00
-- When `inventory.resizeAllocation` `s1` đến 18/10 12:00
+- When lệnh nghiệp vụ gia hạn `s1` gọi `inventory.resizeAllocation` (hàm nội bộ) đến 18/10 12:00
 - Then `409 ROOM_UNAVAILABLE` kèm `exception_id` của một `exceptions` có `type='EXTENSION_CONFLICT'` (ghi ở transaction riêng sau rollback; `EXTENSION_CONFLICT` là loại ngoại lệ, không phải mã lỗi API); `s1` giữ nguyên; `r2` không đổi; không bỏ/hoãn constraint
 
 ### S-019 Hợp đồng không thời hạn (khoảng mở)
@@ -160,7 +160,7 @@ Fixture chung: tổ chức A, cơ sở P1 (`timezone=Asia/Ho_Chi_Minh`), phòng 
 | Song song | 100 lệnh tranh phòng; huỷ và gia hạn cùng lúc; chuyển phòng đồng thời vào cùng phòng đích | Tối đa 1 allocation hợp lệ; lệnh sau nhận `409`; khoá `units` theo thứ tự id tăng dần khi chạm 2 phòng | S-005, S-015, S-016 |
 | Mất mạng giữa chừng | Timeout sau commit `createHold` | Client gọi `GET /api/v1/commands/{command_id}`; không gửi hold mới; UI chỉ báo thành công sau phản hồi máy chủ | S-006 |
 | Thời gian/múi giờ | Giáp mốc `[start,end)`; `expires_at` đúng bằng `now` (coi là hết hạn); qua 00:00; hiển thị theo `properties.timezone` | Lưu UTC; so sánh `expires_at <= now()` = hết hạn | S-003, S-007, S-001 |
-| Quyền | Khác tổ chức; khác cơ sở; `maintenance` tự duyệt block; `housekeeping` xem tên khách | 404; 403 `FORBIDDEN`; lịch đã lọc trường | S-011, S-021, S-022 |
+| Quyền | Khác tổ chức; khác cơ sở ngoài phạm vi; `maintenance` tự duyệt block; `housekeeping` xem tên khách | 404 (cả hai, không lộ tài nguyên ngoài phạm vi — D-048; 403 `FORBIDDEN` chỉ khi đọc được mà không được thao tác); lịch đã lọc trường | S-011, S-021, S-022 |
 | Tiền/đơn vị | Chuyển phòng không làm mất/nhân đôi phí; lịch không hiển thị số tiền cho vai trò không được xem | Phí gắn `stay`/`lease`, không gắn phòng | S-015, S-021 |
 
 ## 4. Dữ liệu
@@ -183,7 +183,7 @@ Hợp đồng chi tiết: `docs/design/API-CONTRACT.md`. Mọi command nhận `I
 | `inventory.createHold` | property_id, unit_id, start, end, source_type, source_id?, ttl_minutes? | allocation_id, expires_at | ROOM_UNAVAILABLE (+alternatives), UNIT_OUT_OF_SERVICE, VALIDATION_FAILED, NOT_FOUND, IDEMPOTENCY_CONFLICT |
 | `inventory.releaseHold` | allocation_id, reason | — | INVALID_TRANSITION, NOT_FOUND |
 | `inventory.confirmHold` | allocation_id, kind (`stay`\|`lease`), source_id | allocation_id | HOLD_EXPIRED, INVALID_TRANSITION |
-| `inventory.resizeAllocation` | allocation_id, start?, end? | allocation | ROOM_UNAVAILABLE (+exception_id), VALIDATION_FAILED |
+| `inventory.resizeAllocation` (hàm nội bộ, D-047 — không đăng ký registry/HTTP) | allocation_id, start?, end? | allocation | ROOM_UNAVAILABLE (+exception_id), VALIDATION_FAILED. Chỉ lệnh nghiệp vụ sở hữu nguồn (đổi ngày booking, gia hạn lượt ở, phụ lục/báo trả hợp đồng) gọi, kèm đồng bộ nguồn/giá/folio và quyền của lệnh đó |
 | `inventory.moveAllocation` | allocation_id, to_unit_id, effective_at, reason | old_allocation, new_allocation | ROOM_UNAVAILABLE, UNIT_OUT_OF_SERVICE, VALIDATION_FAILED |
 | `inventory.endAllocation` | allocation_id, at | allocation | INVALID_TRANSITION |
 | `inventory.cancelAllocation` | allocation_id, reason | — | INVALID_TRANSITION |
@@ -230,7 +230,7 @@ Hợp đồng chi tiết: `docs/design/API-CONTRACT.md`. Mọi command nhận `I
 Không áp dụng — tính năng không dùng model.
 
 ## 9. Đo lường
-- `allocation.hold_created`, `allocation.hold_expired`, `allocation.conflict_rejected` (nguồn: R-004), `allocation.moved`, `block.approved`, `exception.opened` / `exception.resolved` → M-04 (sai lệch tồn), M-05 (tác vụ lõi theo `property_id`).
+- `allocation.held`, `allocation.hold_expired`, `allocation.conflict_rejected` (nguồn: R-004), `allocation.moved`, `block.approved`, `exception.opened` / `exception.resolved` → M-04 (sai lệch tồn), M-05 (tác vụ lõi theo `property_id`).
 
 ## 10. Câu hỏi mở (0 câu [chặn] trước khi Approved)
 - [x] Q-01 TTL mặc định của hold — [chặn T050] — hỏi: PO — đề xuất: 15 phút cho booking tại quầy, cấu hình theo cơ sở; giữ chỗ hợp đồng thuê (`lease.hold`, F-003) là allocation `hold` có TTL riêng 48 giờ (cấu hình theo cơ sở; xem SPEC-lease). Kế hoạch chỉ ghi "có hạn", chưa có số. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** 15 phút cho booking (`properties.hold_ttl_minutes`, đã có), 48 giờ cho giữ chỗ hợp đồng (`lease_hold_ttl_hours`).

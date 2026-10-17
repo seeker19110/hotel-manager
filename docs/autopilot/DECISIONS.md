@@ -315,3 +315,24 @@
 - Chọn: Miễn [~] có lý do + điều kiện mở lại (khi có thư viện component client dùng chung); giữ rào route-states làm kiểm tương đương
 - Lý do (tiêu chí chất lượng cuối): (3) đơn giản, không thêm phụ thuộc lớn cho kiểm đã có máy tương đương; (2) đường lùi: thêm Storybook sau. Miễn cần chủ dự án xác nhận cùng các miễn trừ khác.
 - Đường lùi: Bỏ [~], thêm Storybook + script đếm story.
+
+### D-046 · 2026-10-17T11:04:47+00:00 · T-604: tên sự kiện giữ chỗ — spec §9 ghi allocation.hold_created, mã phát allocation.held
+
+- Phương án: (1) Sửa SPEC-inventory §9 thành allocation.held (khớp mã, không đụng sự kiện đã phát) · (2) Đổi mã thành allocation.hold_created (cần chuyển sự kiện cũ trong outbox)
+- Chọn: Sửa SPEC-inventory §9 thành allocation.held (khớp mã, không đụng sự kiện đã phát)
+- Lý do (tiêu chí chất lượng cuối): (3) đơn giản, không migrate dữ liệu; chưa có consumer ngoài phụ thuộc tên cũ.
+- Đường lùi: Đổi tên trong mã + AUDIT_ONLY_EVENT_TYPES.
+
+### D-047 · 2026-10-17T11:04:47+00:00 · T-604: resizeAllocation đang là lệnh HTTP cho manager nhưng không đồng bộ booking/hợp đồng/giá/folio
+
+- Phương án: (1) Hàm nội bộ, không đăng ký registry — chỉ lệnh nghiệp vụ (đổi ngày booking/gia hạn lượt ở/phụ lục) gọi; sửa SPEC-inventory §5 · (2) Giữ lệnh HTTP cho manager
+- Chọn: Hàm nội bộ, không đăng ký registry — chỉ lệnh nghiệp vụ (đổi ngày booking/gia hạn lượt ở/phụ lục) gọi; sửa SPEC-inventory §5
+- Lý do (tiêu chí chất lượng cuối): (1) an toàn dữ liệu: lệnh rời làm allocation lệch booking/folio (tiền); quyền và đồng bộ thuộc lệnh nghiệp vụ sở hữu. (2) đường lùi: đăng ký lại khi có nhu cầu.
+- Đường lùi: Đăng ký lại inventory.resizeAllocation trong registry + authz-matrix.
+
+### D-048 · 2026-10-17T11:04:47+00:00 · T-604: truy cập cơ sở khác trong cùng tổ chức — SPEC-inventory §3 ghi 403, quy ước authorize trả 404
+
+- Phương án: (1) Giữ 404 NOT_FOUND (không lộ sự tồn tại tài nguyên ngoài phạm vi, D-030), sửa SPEC-inventory §3 · (2) Đổi sang 403 theo spec
+- Chọn: Giữ 404 NOT_FOUND (không lộ sự tồn tại tài nguyên ngoài phạm vi, D-030), sửa SPEC-inventory §3
+- Lý do (tiêu chí chất lượng cuối): (1) an toàn: thống nhất với quy ước toàn hệ thống và API-CONTRACT (404 cho ngoài phạm vi); 403 chỉ khi đọc được tài nguyên nhưng không được thao tác.
+- Đường lùi: Trả 403 ở authorize cho inventory.

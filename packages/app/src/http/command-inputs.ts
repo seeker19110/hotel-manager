@@ -69,14 +69,6 @@ export const COMMAND_INPUTS = {
     result: z.enum(["pass", "fail"]),
     reason: z.string().trim().max(1000).optional(),
   }),
-  "inventory.resizeAllocation": z
-    .strictObject({
-      allocation_id: uuid,
-      start: z.iso.datetime({ offset: true }).optional(),
-      // null = khoảng mở (chỉ allocation hợp đồng); vắng = giữ nguyên.
-      end: z.iso.datetime({ offset: true }).nullable().optional(),
-    })
-    .refine((i) => i.start !== undefined || i.end !== undefined, { message: "start hoặc end" }),
   "inventory.setUnitAvailability": z.strictObject({
     unit_id: uuid,
     availability: z.enum(["active", "out_of_service"]),

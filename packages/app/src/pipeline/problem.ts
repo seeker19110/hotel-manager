@@ -24,7 +24,7 @@ export interface Problem {
   previous_value?: number;
   /** ROOM_UNAVAILABLE của `inventory.createHold`: phòng cùng loại còn trống trong khoảng (SPEC-inventory S-002). */
   alternatives?: { unit_id: string; code: string }[];
-  /** ROOM_UNAVAILABLE của `inventory.resizeAllocation`: ngoại lệ `EXTENSION_CONFLICT` đã mở (ghi sau rollback — SPEC-inventory S-018). */
+  /** ROOM_UNAVAILABLE khi lệnh nghiệp vụ gia hạn/đổi khoảng qua `resizeAllocation` (hàm nội bộ, D-047): ngoại lệ `EXTENSION_CONFLICT` đã mở (ghi sau rollback — SPEC-inventory S-018). */
   exception_id?: string;
   /** UNRESOLVED_ANOMALIES / READINGS_INCOMPLETE: danh sách cần xử lý (S-008, S-009). */
   items?: Record<string, string | number | null>[];

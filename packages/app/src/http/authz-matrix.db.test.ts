@@ -62,10 +62,6 @@ const OVERRIDES: Record<string, (i: Ids) => Record<string, unknown>> = {
     locked_through: "2026-01-31",
     reason: "Chốt kỳ thử nghiệm",
   }),
-  "inventory.resizeAllocation": (i) => ({
-    allocation_id: i.allocation_id ?? randomUUID(),
-    start: "2026-11-05T14:00:00+07:00",
-  }),
   "inventory.getCalendar": (i) => ({ property_id: i.property_id, from: "2026-11-01", to: "2026-11-08" }),
   "inventory.searchAvailability": (i) => ({
     property_id: i.property_id,
@@ -561,7 +557,6 @@ const NO_PRECONDITION_FIXTURE = [
   "notifications.markRead",
   "inventory.approveBlock",
   "inventory.endBlock",
-  "inventory.resizeAllocation",
   "shift.close",
   "shift.handover",
   "shift.receiveHandover",

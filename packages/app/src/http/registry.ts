@@ -57,7 +57,6 @@ import {
   endBlock,
   getCalendar,
   getUnitStatus,
-  resizeAllocation,
   searchAvailability,
   setUnitAvailability,
 } from "../inventory/index.ts";
@@ -813,17 +812,6 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
         unitId: i.unit_id,
         availability: i.availability,
         ...(i.reason !== undefined ? { reason: i.reason } : {}),
-      }),
-    }),
-  }),
-  "inventory.resizeAllocation": defineCommand({
-    command: "inventory.resizeAllocation",
-    input: COMMAND_INPUTS["inventory.resizeAllocation"],
-    run: async (ctx, i) => ({
-      data: await resizeAllocation(ctx, {
-        allocationId: i.allocation_id,
-        ...(i.start !== undefined ? { start: new Date(i.start) } : {}),
-        ...(i.end !== undefined ? { end: i.end === null ? null : new Date(i.end) } : {}),
       }),
     }),
   }),
