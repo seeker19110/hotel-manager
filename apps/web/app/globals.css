@@ -281,29 +281,86 @@ body {
 }
 
 /* Khu nhà trọ (PLAN đợt 2 T-117): điều hướng, khối, thẻ, bảng dòng phiếu, form lệnh. */
+/* Thanh điều hướng dưới (SPEC-pwa S-014): tối đa 5 điểm vào, cố định ở đáy màn; `.page` chừa chỗ để không che nội dung. */
+.app-nav {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 10;
+  background: var(--c-bg);
+  border-top: 1px solid var(--c-border);
+  padding-bottom: env(safe-area-inset-bottom);
+}
 .app-nav ul {
   list-style: none;
   margin: 0;
-  padding: var(--space-2) var(--space-4);
+  padding: 0;
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
   max-width: 720px;
   margin-inline: auto;
 }
+.app-nav li {
+  flex: 1 1 0;
+  min-width: 0;
+}
 .app-nav a {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  min-height: var(--touch);
+  justify-content: center;
+  text-align: center;
+  min-height: 56px;
   min-width: var(--touch);
-  padding: 0 var(--space-3);
-  border-radius: var(--radius);
+  padding: 0 var(--space-1);
   color: var(--c-brand);
   font-weight: 600;
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
 }
 .app-nav a[aria-current="page"] {
   background: var(--c-info-bg);
   text-decoration: none;
+}
+.app-nav ~ .page {
+  padding-bottom: calc(56px + var(--space-6));
+}
+/* Thanh cơ sở đang thao tác + chuông (luôn dưới tiêu đề ứng dụng). */
+.scope-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  max-width: 720px;
+  margin-inline: auto;
+  padding: var(--space-1) var(--space-4);
+}
+.scope-bar__property {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.scope-bar__label {
+  color: var(--c-text-muted);
+  font-weight: 400;
+}
+.scope-bar .bell {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--touch);
+  min-width: var(--touch);
+  justify-content: center;
+  color: var(--c-brand);
+  border-radius: var(--radius);
+}
+.scope-bar .bell[aria-current="page"] {
+  background: var(--c-info-bg);
+}
+.more-links {
+  display: grid;
+  gap: var(--space-2);
+}
+.install-steps {
+  padding-left: var(--space-6);
+  line-height: 1.8;
 }
 .panel {
   margin: 0 0 var(--space-6);
@@ -461,9 +518,6 @@ body {
 }
 
 /* Khách sạn + vận hành (PLAN đợt 3 T-223): chuông, thẻ "Hôm nay", lịch theo ngày, việc buồng phòng, form khách. */
-.app-nav .bell {
-  gap: var(--space-1);
-}
 .bell__count {
   min-width: 1.5rem;
   padding: 0 var(--space-1);
@@ -621,4 +675,9 @@ body {
 }
 .icon {
   vertical-align: -0.125em;
+}
+.install-steps .icon {
+  vertical-align: middle;
+  width: 1.5em;
+  height: 1.5em;
 }

@@ -131,6 +131,7 @@ export function PwaShell({ children }: { children: ReactNode }) {
       <NetworkBanner />
       <UpdateBanner />
       <OutdatedBanner />
+      <InstallCapture />
       <ReauthDialog />
       {children}
     </SerwistProvider>
@@ -163,4 +164,75 @@ export async function clearUserData(): Promise<void> {
   }
   sessionStorage.clear();
   localStorage.clear();
+}
+
+// ───────── Cài ứng dụng (S-002/S-003) ─────────
+// `beforeinstallprompt` chỉ bắn MỘT lần, thường trước khi trang "Thêm" dựng ⇒ bắt ở vỏ gốc và giữ lại. Safari iOS không có sự kiện
+// này: chỉ hướng dẫn bằng chữ + hình, không hiện nút cài giả.
+interface InstallPromptEvent extends Event {
+  prompt(): Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+}
+let installEvent: InstallPromptEvent | null = null;
+let installedFlag = false;
+const installListeners = new Set<() => void>();
+const notifyInstall = () => {
+  for (const l of installListeners) l();
+};
+
+function InstallCapture() {
+  useEffect(() => {
+    const onPrompt = (e: Event) => {
+      e.preventDefault(); // dùng nút "Cài ứng dụng" của mình thay vì thanh mặc định
+      installEvent = e as InstallPromptEvent;
+      notifyInstall();
+    };
+    const onInstalled = () => {
+      installEvent = null;
+      installedFlag = true;
+      notifyInstall();
+    };
+    window.addEventListener("beforeinstallprompt", onPrompt);
+    window.addEventListener("appinstalled", onInstalled);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onPrompt);
+      window.removeEventListener("appinstalled", onInstalled);
+    };
+  }, []);
+  return null;
+}
+
+export type InstallState = "unknown" | "installed" | "prompt" | "ios" | "unsupported";
+
+/** Máy iPhone/iPad (kể cả iPadOS giả danh Mac) — nơi không có `beforeinstallprompt`. */
+export function isIosDevice(ua: string, platform: string, touchPoints: number): boolean {
+  return /iphone|ipad|ipod/i.test(ua) || (platform === "MacIntel" && touchPoints > 1);
+}
+
+function installState(): InstallState {
+  const standalone =
+    window.matchMedia("(display-mode: standalone)").matches ||
+    (navigator as Navigator & { standalone?: boolean }).standalone === true;
+  if (standalone || installedFlag) return "installed";
+  if (installEvent) return "prompt";
+  if (isIosDevice(navigator.userAgent, navigator.platform, navigator.maxTouchPoints)) return "ios";
+  return "unsupported";
+}
+
+function subscribeInstall(cb: () => void): () => void {
+  installListeners.add(cb);
+  return () => installListeners.delete(cb);
+}
+
+export function useInstall(): { state: InstallState; install: () => Promise<void> } {
+  const state = useSyncExternalStore(subscribeInstall, installState, () => "unknown" as const);
+  const install = async () => {
+    const e = installEvent;
+    if (!e) return;
+    await e.prompt();
+    await e.userChoice.catch(() => null);
+    installEvent = null; // sự kiện chỉ dùng được một lần
+    notifyInstall();
+  };
+  return { state, install };
 }

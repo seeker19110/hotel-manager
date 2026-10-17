@@ -1,5 +1,6 @@
 // Điểm công khai của module `http` (ARC-MOD-005): module khác và `@hm/app` chỉ import qua tệp này.
 
+export { CLEAR_SITE_DATA, withClearSiteData } from "./clear-site-data.ts";
 export { CLIENT_VERSION_HEADER, isClientOutdated } from "./client-version.ts";
 export {
   type CommandDef,

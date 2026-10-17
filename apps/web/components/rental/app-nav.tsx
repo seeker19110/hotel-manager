@@ -1,87 +1,79 @@
-// Điều hướng chính của nhân viên (nhà trọ + khách sạn + vận hành). Mục hiện theo vai trò và loại cơ sở trong phạm vi; quyền thật
-// vẫn kiểm ở server mỗi lần gọi — thanh này chỉ gọn cho điện thoại. Mục đang mở có aria-current. Chuông thông báo cuối thanh.
+// Điều hướng chính của nhân viên (SPEC-pwa S-014): thanh dưới với đúng các điểm vào của `primaryNav` (tối đa 5: Hôm nay ·
+// Phòng/Lịch · Thu tiền · Công việc · Thêm); thanh trên (dưới tiêu đề ứng dụng) luôn nêu cơ sở đang thao tác + chuông thông báo.
+// Mục đang mở có aria-current. Chi tiết mục theo vai trò: `nav-items.ts`.
 import { Icon } from "../ui/icon.tsx";
+import { activeKey, moreLinks, type NavKinds, primaryNav, type Role, scopeLabel } from "./nav-items.ts";
 
-type Role =
-  | "owner"
-  | "manager"
-  | "front_desk"
-  | "accountant"
-  | "housekeeping"
-  | "maintenance"
-  | (string & {});
-
-interface Item {
-  href: string;
-  label: string;
-  roles: readonly Role[];
-  /** Chỉ hiện khi có cơ sở thuộc loại này (bỏ qua = luôn hiện). */
-  kind?: "hotel" | "rental";
-}
-
-const STAFF = ["owner", "manager", "front_desk", "accountant", "housekeeping", "maintenance"] as const;
-const FRONT = ["owner", "manager", "front_desk"] as const;
-const MONEY = ["owner", "manager", "accountant"] as const;
-
-const ITEMS: readonly Item[] = [
-  { href: "/", label: "Hôm nay", roles: STAFF },
-  { href: "/lich-phong", label: "Lịch phòng", roles: [...FRONT, "accountant"], kind: "hotel" },
-  { href: "/dat-phong", label: "Đặt phòng", roles: [...FRONT, "accountant"], kind: "hotel" },
-  { href: "/buong-phong", label: "Buồng phòng", roles: [...FRONT, "housekeeping"] },
-  { href: "/su-co", label: "Sự cố", roles: [...FRONT, "housekeeping", "maintenance"] },
-  { href: "/thong-bao-luu-tru", label: "Thông báo lưu trú", roles: FRONT, kind: "hotel" },
-  { href: "/hop-dong", label: "Hợp đồng", roles: MONEY, kind: "rental" },
-  { href: "/ky-thu", label: "Kỳ thu", roles: MONEY, kind: "rental" },
-  { href: "/thu-tien", label: "Thu tiền", roles: [...MONEY, "front_desk"], kind: "rental" },
-  { href: "/doi-soat", label: "Đối soát", roles: MONEY, kind: "rental" },
-  { href: "/phong", label: "Phòng", roles: STAFF },
-];
-
-export interface NavKinds {
-  hotel: boolean;
-  rental: boolean;
-}
+export type { NavKinds } from "./nav-items.ts";
 
 export function AppNav({
   current,
   role,
   kinds = { hotel: true, rental: true },
   unread = 0,
+  propertyNames = [],
 }: {
   current: string;
   role: Role;
   kinds?: NavKinds;
   unread?: number;
+  propertyNames?: readonly string[];
 }) {
-  const items = ITEMS.filter((i) => i.roles.includes(role) && (i.kind === undefined || kinds[i.kind]));
+  const items = primaryNav(role, kinds);
+  const active = activeKey(items, current);
   return (
-    <nav aria-label="Chức năng" className="app-nav">
-      <ul>
-        {items.map((i) => (
-          <li key={i.href}>
-            <a href={i.href} aria-current={i.href === current ? "page" : undefined}>
-              {i.label}
-            </a>
-          </li>
-        ))}
-        <li>
-          <a
-            href="/thong-bao"
-            className="bell"
-            aria-current={current === "/thong-bao" ? "page" : undefined}
-            aria-label={unread > 0 ? `${unread} thông báo chưa đọc` : "Thông báo"}
-            data-testid="bell"
-            data-unread={unread}
-          >
-            <Icon name="bell" />
-            {unread > 0 ? (
-              <span className="bell__count" aria-hidden="true">
-                {unread > 99 ? "99+" : unread}
-              </span>
-            ) : null}
+    <>
+      <div className="scope-bar">
+        <p className="scope-bar__property" data-testid="scope-bar">
+          <span className="scope-bar__label">Cơ sở: </span>
+          {scopeLabel(propertyNames)}
+        </p>
+        <a
+          href="/thong-bao"
+          className="bell"
+          aria-current={current === "/thong-bao" ? "page" : undefined}
+          aria-label={unread > 0 ? `${unread} thông báo chưa đọc` : "Thông báo"}
+          data-testid="bell"
+          data-unread={unread}
+        >
+          <Icon name="bell" />
+          {unread > 0 ? (
+            <span className="bell__count" aria-hidden="true">
+              {unread > 99 ? "99+" : unread}
+            </span>
+          ) : null}
+        </a>
+      </div>
+      <nav aria-label="Chức năng" className="app-nav" data-testid="app-nav">
+        <ul>
+          {items.map((i) => (
+            <li key={i.key}>
+              <a
+                href={i.href}
+                aria-current={i.key === active && current !== "/thong-bao" ? "page" : undefined}
+              >
+                {i.label}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </nav>
+    </>
+  );
+}
+
+/** Các màn của vai trò mà thanh dưới chưa trỏ thẳng tới (trang "Thêm"). */
+export function MoreLinks({ role, kinds }: { role: Role; kinds?: NavKinds }) {
+  const items = moreLinks(role, kinds);
+  return (
+    <ul className="card-list more-links" data-testid="more-links">
+      {items.map((i) => (
+        <li key={i.href}>
+          <a className="btn btn--secondary" href={i.href}>
+            {i.label}
           </a>
         </li>
-      </ul>
-    </nav>
+      ))}
+    </ul>
   );
 }

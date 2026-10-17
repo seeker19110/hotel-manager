@@ -3,7 +3,7 @@ import { type Actor, listMyNotifications, opsProperties, serverContext } from "@
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { ORG_CONTEXT_META } from "../components/command/org-context.ts";
-import { AppNav } from "../components/rental/app-nav.tsx";
+import { AppNav, type NavKinds } from "../components/rental/app-nav.tsx";
 import { ErrorState } from "../components/ui/state.tsx";
 import { safe } from "./safe.ts";
 import { currentActor } from "./session.ts";
@@ -11,7 +11,7 @@ import { currentActor } from "./session.ts";
 export async function withActor(
   title: string,
   current: string,
-  render: (actor: Actor) => Promise<ReactNode>,
+  render: (actor: Actor, ctx: { kinds: NavKinds }) => Promise<ReactNode>,
 ): Promise<ReactNode> {
   const r = await currentActor();
   if (r.kind === "login") redirect("/dang-nhap");
@@ -51,10 +51,11 @@ export async function withActor(
         role={r.actor.role}
         kinds={kinds}
         unread={inbox.ok ? inbox.data.unreadCount : 0}
+        propertyNames={props.ok ? props.data.map((p) => p.name) : []}
       />
       <main id="main" className="page">
         <h1>{title}</h1>
-        {await render(r.actor)}
+        {await render(r.actor, { kinds })}
       </main>
     </>
   );

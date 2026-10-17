@@ -27,6 +27,7 @@
 | `/buong-phong` | trang | GET | SSR động | no-store (proxy) | nhân viên đã đăng nhập và chọn tổ chức (`withActor`); vai trò `tenant` bị chuyển sang `/portal`; quyền chi tiết kiểm lại ở server mỗi lệnh/truy vấn | Buồng phòng: việc dọn |
 | `/buong-phong/[id]` | trang | GET | SSR động | no-store (proxy) | nhân viên đã đăng nhập và chọn tổ chức (`withActor`); vai trò `tenant` bị chuyển sang `/portal`; quyền chi tiết kiểm lại ở server mỗi lệnh/truy vấn | Chi tiết việc dọn phòng |
 | `/su-co` | trang | GET | SSR động | no-store (proxy) | nhân viên đã đăng nhập và chọn tổ chức (`withActor`); vai trò `tenant` bị chuyển sang `/portal`; quyền chi tiết kiểm lại ở server mỗi lệnh/truy vấn | Phiếu sự cố/sửa chữa |
+| `/them` | trang | GET | SSR động | no-store (proxy) | nhân viên đã đăng nhập và chọn tổ chức (`withActor`); vai trò `tenant` bị chuyển sang `/portal`; liên kết hiện theo vai trò, quyền thật kiểm ở server | Thêm: các màn còn lại theo vai trò, cài ứng dụng (PWA), đăng xuất |
 | `/thong-bao` | trang | GET | SSR động | no-store (proxy) | nhân viên đã đăng nhập và chọn tổ chức (`withActor`); vai trò `tenant` bị chuyển sang `/portal`; quyền chi tiết kiểm lại ở server mỗi lệnh/truy vấn | Thông báo trong ứng dụng của người dùng |
 | `/chon-to-chuc` | trang | GET | SSR động | no-store (proxy) | người dùng đã đăng nhập (`currentSession`); chưa đăng nhập → `/dang-nhap` | Chọn tổ chức (và cơ sở) làm việc |
 | `/dang-nhap` | trang | GET | SSR động | no-store (proxy) | công khai (biểu mẫu; xác thực qua `/api/auth`) | Đăng nhập nhân viên (email, mật khẩu, TOTP) |
