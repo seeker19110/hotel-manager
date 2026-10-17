@@ -1,13 +1,16 @@
 "use client";
 // Gửi command theo API-CONTRACT §1 (JSON + Idempotency-Key) với hành vi mạng của SPEC-pwa:
-// - S-006 mất mạng: không gửi, báo OFFLINE; bấm lại được khi có mạng.
+// - S-006 mất mạng: không gửi, báo OFFLINE; bấm lại được khi có mạng — nhưng khi mạng vừa trở lại, `router.refresh()` tải lại
+//   trạng thái từ máy chủ rồi mới mở nút (khoá ~1 round-trip, tối đa RECONNECT_REFRESH_CAP_MS) để không thao tác trên màn đã cũ
+//   (SPEC-housekeeping-maintenance S-024; mâu thuẫn với S-006 đã giải ở D-050).
 // - S-010 hết thời gian chờ/mất phản hồi: "Đang kiểm tra kết quả…" → GET /api/v1/commands/{key}; đã commit ⇒ hiện kết quả
 //   từ server, KHÔNG gửi lần hai. S-012 đang xử lý ⇒ hỏi lại theo backoff 1-2-4-8 s, tổng tối đa 30 s (nút "Gửi lại" khoá suốt
 //   thời gian chờ); quá hạn ⇒ RESULT_UNKNOWN kèm command_id, KHÔNG gửi lại.
 // - S-011 server chưa nhận (404 COMMAND_NOT_FOUND) ⇒ bật "Gửi lại", gửi lại dùng CÙNG key.
 // Key giữ nguyên tới khi có kết quả chắc chắn; lỗi nghiệp vụ (4xx) ⇒ key mới cho lần sửa sau (tránh IDEMPOTENCY_CONFLICT).
 import { checkCommandInput } from "@hm/app/command-inputs";
-import { useCallback, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { timedFetch } from "../../lib/fetch-timeout.ts";
 import { reportClientOutdated, useOnline } from "../pwa/pwa-shell.tsx";
 import { appVersionHeaders, CLIENT_OUTDATED_CODE, CLIENT_OUTDATED_TEXT } from "./app-version.ts";
@@ -41,6 +44,9 @@ export const OFFLINE_TEXT = "Không có kết nối mạng. Thao tác chưa đư
 export const PENDING_TEXT =
   'Thao tác trước chưa rõ kết quả. Bấm "Gửi lại" để gửi đúng thao tác đó, hoặc tải lại trang để xem kết quả trước khi làm thao tác khác.';
 
+/** Trần chờ tải lại sau khi có mạng: mạng chập chờn không được khoá nút vô hạn (hết hạn thì mở, lệnh vẫn do server kiểm). */
+export const RECONNECT_REFRESH_CAP_MS = 8_000;
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export const SERVER_ERROR_TEXT =
@@ -64,6 +70,11 @@ const contextChanged = (): ProblemLike => ({
 
 export function useCommand<T = unknown>(path: string) {
   const online = useOnline();
+  const router = useRouter();
+  const [refreshPending, startRefresh] = useTransition();
+  // true từ lúc mạng trở lại đến khi `router.refresh()` xong (hoặc hết trần chờ).
+  const [reconnecting, setReconnecting] = useState(false);
+  const wasOnline = useRef(online);
   const key = useRef<string | null>(null);
   const lastBody = useRef<unknown>(null);
   // Đang có một lượt gửi/tra chạy: lần bấm thứ hai (bấm đúp, Enter lặp) bị bỏ qua — đúng 1 POST (UX-STATE-006, FE-FORM-007).
@@ -74,6 +85,28 @@ export function useCommand<T = unknown>(path: string) {
   const [data, setData] = useState<T | null>(null);
   // Mã thao tác đang gửi/tra (S-010 hiện rút gọn; S-012 RESULT_UNKNOWN hiện đủ để đọc cho quản lý).
   const [commandId, setCommandId] = useState<string | null>(null);
+
+  // S-024: offline → online ⇒ tải lại trạng thái từ máy chủ rồi mới mở nút. Lỗi "mất mạng" cũ không còn đúng nữa nên bỏ.
+  useEffect(() => {
+    if (online && !wasOnline.current) {
+      setReconnecting(true);
+      startRefresh(() => router.refresh());
+      if (problem?.code === "OFFLINE") {
+        setProblem(null);
+        if (!key.current) setPhase("idle");
+      }
+    }
+    wasOnline.current = online;
+  }, [online, router, problem]);
+  useEffect(() => {
+    if (!reconnecting) return;
+    if (!refreshPending) {
+      setReconnecting(false);
+      return;
+    }
+    const t = setTimeout(() => setReconnecting(false), RECONNECT_REFRESH_CAP_MS);
+    return () => clearTimeout(t);
+  }, [reconnecting, refreshPending]);
 
   const finish = useCallback((d: T): T => {
     key.current = null;
@@ -260,7 +293,12 @@ export function useCommand<T = unknown>(path: string) {
     }
   }, [check]);
 
-  const locked = phase === "sending" || phase === "checking" || phase === "unknown" || phase === "processing";
+  const locked =
+    phase === "sending" ||
+    phase === "checking" ||
+    phase === "unknown" ||
+    phase === "processing" ||
+    reconnecting;
   return {
     send,
     resend,
@@ -270,6 +308,8 @@ export function useCommand<T = unknown>(path: string) {
     data,
     commandId,
     locked,
+    /** Đang tải lại trạng thái sau khi có mạng (S-024). */
+    reconnecting,
     busy: phase === "sending" || phase === "checking",
   };
 }

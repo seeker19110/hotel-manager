@@ -156,7 +156,7 @@ Fixture chung: cơ sở P1, tầng 2 có phòng `201`, `202`; manager M, buồng
 ### S-024 Mất mạng ở pilot
 - Given H1 đang mở danh sách việc, thiết bị mất mạng
 - When H1 bấm "Hoàn tất"
-- Then UI báo "Mất kết nối — chưa ghi nhận", không hiển thị thành công, không tạo hàng chờ offline; có mạng lại thì tải lại trạng thái từ máy chủ trước khi cho bấm lại
+- Then UI báo "Mất kết nối — chưa ghi nhận", không hiển thị thành công, không tạo hàng chờ offline; khi có mạng lại, ứng dụng tải lại trạng thái từ máy chủ (`router.refresh()`) rồi MỚI mở nút "Hoàn tất" (nút khoá khoảng một lượt tải, tối đa 8 giây — không khoá mãi khi mạng chập chờn); sau đó bấm lại được ngay, theo đúng SPEC-pwa S-006 (D-050)
 
 ## 3. Ca biên
 | Nhóm | Ca cụ thể | Hành vi mong đợi | Scenario |
@@ -255,4 +255,4 @@ Không áp dụng — tính năng không dùng model.
 |---|---|---|---|---|
 | 1 | 2026-10-15 | tạo | G3 cho F-007 | (chờ) |
 | 2 | 2026-10-15 | sửa theo review độc lập: bảng lỗi mục 6 và bảng lệnh dùng `SELF_APPROVAL_FORBIDDEN` (403) cho tự nghiệm thu, khớp S-008, tách khỏi `INVALID_TRANSITION`; đóng Q-09 | review G2, G5 | (chờ) |
-| 3 | 2026-10-17 | S-016: giữ riêng thẻ `Orientation` (dựng lại khối EXIF tối thiểu) thay vì bỏ trắng khối EXIF | D-049 | (chờ) |
+| 3 | 2026-10-17 | S-016: giữ riêng thẻ `Orientation` (dựng lại khối EXIF tối thiểu) thay vì bỏ trắng khối EXIF; S-024: có mạng lại ⇒ tải lại trạng thái rồi mới mở nút (thoả cả SPEC-pwa S-006) | D-049, D-050 | (chờ) |

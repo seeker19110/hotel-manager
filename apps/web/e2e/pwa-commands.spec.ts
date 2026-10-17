@@ -130,6 +130,68 @@ test("S-009 tải ảnh: gửi X-App-Version đúng bản build; client cũ ⇒ 
   expect(createPosts).toBe(0); // chưa tới bước gửi lệnh: ảnh bị chặn thì phiếu không được tạo
 });
 
+// SPEC-housekeeping-maintenance S-024 + SPEC-pwa S-006 (D-050): có mạng lại ⇒ router.refresh() xong mới mở nút.
+test("S-024 (housekeeping) + S-006: offline ⇒ không gửi; có mạng lại ⇒ tải lại trạng thái từ máy chủ rồi MỚI mở nút; bấm được và đúng một request", async ({
+  page,
+  context,
+}) => {
+  await context.addCookies(hkCookies);
+  let posts = 0;
+  await page.route(CREATE, (r) => {
+    posts++;
+    return r.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        command_id: "00000000-0000-4000-8000-000000000002",
+        status: "committed",
+        data: {},
+      }),
+    });
+  });
+  await page.goto("/su-co");
+  const form = page.getByTestId("incident-form");
+  await form.getByLabel("Sự cố", { exact: true }).fill("Mất mạng rồi có lại");
+  await form.getByLabel("Mô tả").fill("Mô tả sự cố cho kiểm thử S-024.");
+  const submit = form.getByRole("button", { name: "Gửi báo sự cố" });
+
+  await context.setOffline(true);
+  await expect(page.getByTestId("network-banner")).toBeVisible();
+  await submit.click();
+  await expect(page.getByRole("alert").filter({ hasText: "Không có kết nối mạng" })).toBeVisible();
+  expect(posts).toBe(0);
+  await expect(page.getByText("Đã ghi nhận sự cố")).toHaveCount(0);
+
+  // Giữ phản hồi RSC của lần tải lại: trong lúc chờ, nút phải đang khoá.
+  let refreshes = 0;
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route(
+    (u) => u.pathname === "/su-co",
+    async (r) => {
+      if (r.request().headers().rsc === "1") {
+        refreshes++;
+        await gate;
+      }
+      await r.continue();
+    },
+  );
+  await context.setOffline(false);
+  await expect(page.getByTestId("network-banner")).toHaveCount(0);
+  await expect.poll(() => refreshes).toBe(1); // đã gọi router.refresh()
+  await expect(submit).toBeDisabled(); // chưa tải xong trạng thái ⇒ chưa cho bấm lại
+  expect(posts).toBe(0);
+  release();
+  await expect(submit).toBeEnabled();
+  // Thông báo "mất mạng" cũ không còn đúng ⇒ đã gỡ; vẫn bấm lại được (S-006) và đúng một request.
+  await expect(page.getByRole("alert").filter({ hasText: "Không có kết nối mạng" })).toHaveCount(0);
+  await submit.click();
+  await expect(page.getByRole("status").filter({ hasText: "Đã ghi nhận sự cố" })).toBeVisible();
+  expect(posts).toBe(1);
+});
+
 test("S-012 lệnh đang xử lý: hỏi lại theo backoff 1-2-4-8-15 s (tổng 30 s), 'Gửi lại' khoá suốt thời gian chờ; quá hạn hiện RESULT_UNKNOWN kèm command_id", async ({
   page,
   context,
