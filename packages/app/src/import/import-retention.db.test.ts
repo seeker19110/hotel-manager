@@ -160,6 +160,26 @@ describe("hạn giữ (job)", () => {
     expect(await runRetention(t.worker, storage)).toMatchObject({ filesDeleted: 1, filesFailed: 0 });
   });
 
+  it("mốc ngày là UTC (cùng mốc ghi delete_after): 17:00Z và 23:59Z ngày D−1 chưa xoá, 00:00Z ngày D thì xoá", async () => {
+    const id = randomUUID();
+    const k = `${A.orgId}/import_batch/${id}`;
+    await sql`insert into files (id, organization_id, property_id, owner_type, mime, size_bytes, sha256, storage_key, status, delete_after)
+              values (${id}, ${A.orgId}, ${A.propertyId}, 'import_batch', 'text/csv', 10, ${"c".repeat(64)}, ${k}, 'ready',
+                      '2026-10-17')`.execute(t.admin);
+    const status = async () =>
+      (await sql<{ status: string }>`select status from files where id = ${id}`.execute(t.admin)).rows[0]
+        ?.status;
+    // Với mốc +7h cũ, 17:00Z ngày 16 đã là 17/10 giờ VN ⇒ xoá sớm tới 7 giờ.
+    for (const at of ["2026-10-16T16:59:59Z", "2026-10-16T17:00:00Z", "2026-10-16T23:59:59Z"]) {
+      expect(await runRetention(t.worker, storage, { now: new Date(at) })).toMatchObject({ filesDeleted: 0 });
+      expect(await status()).toBe("ready");
+    }
+    expect(await runRetention(t.worker, storage, { now: new Date("2026-10-17T00:00:00Z") })).toMatchObject({
+      filesDeleted: 1,
+    });
+    expect(await status()).toBe("deleted");
+  });
+
   it("vai trò runtime không gọi được hàm hạn giữ", async () => {
     await expect(sql`select app.purge_import_rows(now(), 30)`.execute(t.runtime)).rejects.toThrow(
       /permission/,

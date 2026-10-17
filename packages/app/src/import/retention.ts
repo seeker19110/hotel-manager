@@ -16,9 +16,12 @@ export interface RetentionStats {
   filesFailed: number;
 }
 
-/** Ngày hôm nay theo giờ Việt Nam (mốc so với `files.delete_after`, vốn ghi bằng current_date của CSDL). */
-function vnToday(now: Date): string {
-  return new Date(now.getTime() + 7 * 3_600_000).toISOString().slice(0, 10);
+/**
+ * Ngày hôm nay theo UTC — cùng mốc với `files.delete_after` (mọi chỗ ghi dùng `(now() at time zone 'UTC')::date + n`).
+ * Trước đây so bằng ngày +7h trong khi ghi bằng ngày UTC ⇒ file bị xoá sớm tới 7 giờ (từ 17:00Z).
+ */
+function utcToday(now: Date): string {
+  return now.toISOString().slice(0, 10);
 }
 
 export async function runRetention(
@@ -28,7 +31,7 @@ export async function runRetention(
 ): Promise<RetentionStats> {
   const now = opts.now ?? new Date();
   const log = opts.log ?? (() => {});
-  const today = vnToday(now);
+  const today = utcToday(now);
   const purged = await sql<{ n: number }>`
     select app.purge_import_rows(${now}, ${IMPORT_ROW_RETENTION_DAYS}) as n`.execute(workerDb);
   const stats: RetentionStats = { rowsPurged: purged.rows[0]?.n ?? 0, filesDeleted: 0, filesFailed: 0 };
