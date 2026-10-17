@@ -221,7 +221,7 @@ Phân loại 169 mục mở: 12 làm trọn trong repo, 90 một phần (cần C
 - [ ] `T-707` Tiếp cận chặt: `expectAccessible` đòi 0 vi phạm axe (mọi mức), gọi ở mọi spec chính, sửa vi phạm lộ ra (UX-A11Y-001) — Gate: `pnpm --filter @hm/web exec playwright test`
 - [ ] `T-708` Lệch schema: test so `kysely_migration` ↔ file migration và snapshot schema (pg_catalog) ↔ file đã commit (DB-MIG-001) — Gate: `pnpm vitest run --project db schema-drift`
 - [ ] `T-709` Ngân sách email: theo ngày/tổ chức 80% cảnh báo · 90% bóp · 100% dừng, metric `/api/metrics`, phủ job nền (OPS-COST-004) — Gate: `pnpm vitest run --project db notification-budget`
-- [ ] `T-710` Rà blueprint đợt 8 + GO-NO-GO (—) — Gate: `python3 scripts/check-blueprint-evidence.py BLUEPRINT.md && python3 -m unittest discover -s scripts -p "test_*.py"`
+- [x] `T-710` Rà blueprint đợt 8 + GO-NO-GO (—) — Gate: `python3 scripts/check-blueprint-evidence.py BLUEPRINT.md && python3 -m unittest discover -s scripts -p "test_*.py"`
 
 ## Phụ thuộc ngoài
 | Việc | Bên ngoài | Kế hoạch B |
