@@ -15734,7 +15734,16 @@
         }
       },
       "Error409": {
-        "description": "Xung đột trạng thái/ngữ cảnh (ORG_CONTEXT_REQUIRED, CONTEXT_CHANGED…)",
+        "description": "Xung đột trạng thái/ngữ cảnh (ORG_CONTEXT_REQUIRED, CONTEXT_CHANGED…); hoặc IDEMPOTENCY_IN_PROGRESS (cùng Idempotency-Key, lần đầu còn đang xử lý chưa commit, D-043) kèm `Retry-After` — đợi rồi tra GET /api/v1/commands/{id}, không gửi payload mới",
+        "headers": {
+          "Retry-After": {
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Giây nên đợi — chỉ có với IDEMPOTENCY_IN_PROGRESS"
+          }
+        },
         "content": {
           "application/problem+json": {
             "schema": {
@@ -15788,7 +15797,7 @@
         "name": "Idempotency-Key",
         "in": "header",
         "required": true,
-        "description": "UUID do client sinh; cùng key + cùng payload → kết quả cũ; khác payload → 422 IDEMPOTENCY_CONFLICT. Lưu 7 ngày.",
+        "description": "UUID do client sinh; cùng key + cùng payload → kết quả cũ; khác payload → 422 IDEMPOTENCY_CONFLICT; lần đầu còn đang xử lý → 409 IDEMPOTENCY_IN_PROGRESS + Retry-After. Lưu 7 ngày.",
         "schema": {
           "type": "string",
           "format": "uuid"
