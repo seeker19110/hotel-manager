@@ -1,0 +1,10 @@
+# EXPLAIN truy vấn nóng "audit-list-entity" (DB-PERF-001) — sinh và so khớp bởi packages/app/src/db-perf.db.test.ts.
+# EXPLAIN (FORMAT JSON) trên Postgres thật, enable_seqscan = off (Seq Scan còn lại = không có index dùng được), vai trò và dữ liệu theo test.
+# Mỗi dòng: bảng · kiểu quét (Index gồm Index Only/Bitmap) [· index (cột khoá) · cột bị ràng buộc trong tiền tố khoá (bound) — chỉ khi truy vấn có cột chọn lọc].
+# Đổi truy vấn/index làm kế hoạch đổi → test đỏ; cập nhật có chủ đích: pnpm vitest run --project db db-perf -u
+
+-- select e.id, e.occurred_at, e.property_id, e.actor_type, e.actor_person_id, pe.full_name a … #e4a643f5
+audit_events · Index · ix_audit_entity (organization_id, entity_type, entity_id) · bound=organization_id,entity_type,entity_id
+persons · Index · uq_persons_org_id (organization_id, id) · bound=organization_id,id
+properties · Index · ix_properties_org_archived (organization_id, archived_at) · bound=organization_id
+properties · Index · uq_properties_org_id (organization_id, id) · bound=organization_id

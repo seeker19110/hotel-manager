@@ -1,0 +1,7 @@
+# EXPLAIN truy vấn nóng "deliveries-orgs-due" (DB-PERF-001) — sinh và so khớp bởi packages/app/src/db-perf.db.test.ts.
+# EXPLAIN (FORMAT JSON) trên Postgres thật, enable_seqscan = off (Seq Scan còn lại = không có index dùng được), vai trò và dữ liệu theo test.
+# Mỗi dòng: bảng · kiểu quét (Index gồm Index Only/Bitmap) [· index (cột khoá) · cột bị ràng buộc trong tiền tố khoá (bound) — chỉ khi truy vấn có cột chọn lọc].
+# Đổi truy vấn/index làm kế hoạch đổi → test đỏ; cập nhật có chủ đích: pnpm vitest run --project db db-perf -u
+
+-- select distinct d.organization_id from notification_deliveries d where d.status in ('queue … #865e7fdb
+notification_deliveries · Index · ix_notification_deliveries_org_due (organization_id, next_attempt_at, id) · bound=-
