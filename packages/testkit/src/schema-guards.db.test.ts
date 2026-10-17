@@ -1,5 +1,5 @@
-// PLAN đợt 4 T-306 + đợt 5 T-408 — rào catalog CSDL sau migrate (DB-MODEL-001/002/004/005, BASE-DATA-006): đọc information_schema/pg_catalog của
-// CSDL test đã chạy đủ migration, nên cột/khoá ngoại thêm bằng migration mới bị kiểm ngay.
+// PLAN đợt 4 T-306 + đợt 5 T-408 + đợt 6 T-503 — rào catalog CSDL sau migrate (DB-MODEL-001/002/004/005, BASE-DATA-006, IND-SAAS-001): đọc
+// information_schema/pg_catalog của CSDL test đã chạy đủ migration, nên cột/khoá ngoại/bảng thêm bằng migration mới bị kiểm ngay.
 import { type Kysely, sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createTestDb, type TestDb } from "./db.ts";
@@ -237,18 +237,18 @@ async function redundantIndexes(db: Kysely<unknown>): Promise<string[]> {
 /** Ngoại lệ có lý do (`bảng.index`). Rỗng = không có index thừa nào được phép. */
 const REDUNDANT_INDEX_ALLOWED: Record<string, string> = {};
 
-describe("schema-guards — khoá ngoại có index hỗ trợ (DB-MODEL-004, ratchet)", () => {
-  it("không có FK mới thiếu index (thêm index bằng migration mới — không thêm vào nền)", async () => {
+describe("schema-guards — khoá ngoại có index hỗ trợ (DB-MODEL-004; ngoại lệ có lý do ở schema-guards.baseline.json)", () => {
+  it("không có FK thiếu index ngoài ngoại lệ đã khai (thêm index bằng migration mới — không thêm vào danh sách ngoại lệ)", async () => {
     const missing = await fksWithoutIndex(t.admin);
     expect(missing.filter((k) => !(k in baseline.muc))).toEqual([]);
   });
 
-  it("nền không có mục thừa: FK đã có index/đã gỡ thì xoá khỏi nền (ratchet chỉ co lại)", async () => {
+  it("ngoại lệ không thừa: FK đã có index/đã gỡ thì xoá khỏi danh sách (chỉ co lại)", async () => {
     const missing = await fksWithoutIndex(t.admin);
     expect(Object.keys(baseline.muc).filter((k) => !missing.includes(k))).toEqual([]);
   });
 
-  it("mỗi mục nền gắn một lý do đã khai", async () => {
+  it("mỗi ngoại lệ gắn một lý do đã khai", async () => {
     const reasons = baseline.ly_do as Record<string, string>;
     for (const [k, code] of Object.entries(baseline.muc)) expect(reasons[code], k).toBeDefined();
     for (const reason of Object.values(reasons)) expect(reason.length).toBeGreaterThan(40);
@@ -361,11 +361,36 @@ describe("schema-guards — index thừa (DB-PERF-002)", () => {
   });
 });
 
+interface FkAction {
+  name: string;
+  tbl: string;
+  /** a = NO ACTION · r = RESTRICT · c = CASCADE · n = SET NULL · d = SET DEFAULT (`pg_constraint.confdeltype`). */
+  del: string;
+  deferrable: boolean;
+}
+async function loadFkActions(db: Kysely<unknown>): Promise<FkAction[]> {
+  const r = await sql<FkAction>`
+    select c.conname::text as name, c.conrelid::regclass::text as tbl, c.confdeltype::text as del, c.condeferrable as deferrable
+    from pg_constraint c join pg_namespace n on n.oid = c.connamespace
+    where c.contype = 'f' and n.nspname not in ('pg_catalog', 'information_schema')
+    order by 1`.execute(db);
+  return r.rows;
+}
+/** FK còn dùng NO ACTION (mặc định khi DDL không ghi hành động) — khai tường minh `RESTRICT` nếu không trì hoãn, hoặc có lý do. */
+const noAction = (fks: readonly FkAction[]) => fks.filter((f) => f.del === "a");
+/** Hành động khác NO ACTION/RESTRICT (đụng dữ liệu con khi xoá cha) — mỗi FK một lý do. */
+const cascading = (fks: readonly FkAction[]) => fks.filter((f) => f.del !== "a" && f.del !== "r");
+
 describe("schema-guards — ràng buộc toàn vẹn (DB-MODEL-004 ON DELETE, DB-MODEL-005)", () => {
-  /** Mọi FK còn lại dùng NO ACTION (mặc định, chặn xoá cha còn con). Chỉ hai ngoại lệ, mỗi cái một lý do. */
+  /** FK ĐƯỢC giữ NO ACTION (không ghi hành động tường minh): chỉ khoá DEFERRABLE — RESTRICT không trì hoãn được (D-035). */
+  const FK_NO_ACTION_ALLOWED: Record<string, string> = {
+    fk_blocks_work_order:
+      "NO ACTION DEFERRABLE INITIALLY DEFERRED: vòng block ↔ work_order (tạo cả hai trong một transaction), kiểm ở cuối transaction; RESTRICT không trì hoãn được.",
+    fk_work_orders_block:
+      "NO ACTION DEFERRABLE INITIALLY DEFERRED: nửa còn lại của vòng block ↔ work_order; RESTRICT không trì hoãn được.",
+  };
+  /** FK có hành động xoá khác RESTRICT (CASCADE…): chỉ ở đây, mỗi cái một lý do (không CASCADE/SET NULL lén vào dữ liệu tiền/tồn). */
   const FK_DELETE_ALLOWED: Record<string, string> = {
-    fk_memberships_auth_user:
-      "RESTRICT: không xoá tài khoản đăng nhập khi còn membership (ẩn danh hoá thay vì xoá).",
     account_userId_fkey:
       "CASCADE (Better Auth): tài khoản liên kết thuộc về người dùng đăng nhập, hết người dùng thì hết.",
     session_userId_fkey: "CASCADE (Better Auth): phiên đăng nhập chỉ tồn tại khi còn người dùng.",
@@ -375,15 +400,50 @@ describe("schema-guards — ràng buộc toàn vẹn (DB-MODEL-004 ON DELETE, DB
       "CASCADE: phạm vi cơ sở chỉ là bảng nối của membership, hết membership thì hết phạm vi.",
   };
 
-  it("hành động ON DELETE khác NO ACTION chỉ ở các FK đã khai kèm lý do (không CASCADE/SET NULL lén vào dữ liệu tiền/tồn)", async () => {
-    const r = await sql<{ name: string }>`
-      select conname as name from pg_constraint c join pg_namespace n on n.oid = c.connamespace
-      where c.contype = 'f' and c.confdeltype <> 'a' and n.nspname not in ('pg_catalog', 'information_schema')`.execute(
-      t.admin,
-    );
-    const names = r.rows.map((x) => x.name).sort();
+  it("mọi FK khai ON DELETE tường minh: NO ACTION chỉ ở khoá DEFERRABLE đã khai kèm lý do, còn lại RESTRICT (DB-MODEL-004)", async () => {
+    const fks = await loadFkActions(t.admin);
+    expect(fks.length).toBeGreaterThan(200); // catalog không rỗng
+    const na = noAction(fks);
+    expect(na.map((x) => x.name).sort()).toEqual(Object.keys(FK_NO_ACTION_ALLOWED).sort());
+    for (const f of na) expect(f.deferrable, `${f.name}: ngoại lệ NO ACTION phải DEFERRABLE`).toBe(true);
+    for (const reason of Object.values(FK_NO_ACTION_ALLOWED)) expect(reason.length).toBeGreaterThan(20);
+  });
+
+  it("hành động ON DELETE khác NO ACTION/RESTRICT chỉ ở các FK đã khai kèm lý do", async () => {
+    const names = cascading(await loadFkActions(t.admin))
+      .map((x) => x.name)
+      .sort();
     expect(names).toEqual(Object.keys(FK_DELETE_ALLOWED).sort());
     for (const reason of Object.values(FK_DELETE_ALLOWED)) expect(reason.length).toBeGreaterThan(20);
+  });
+
+  it("phát hiện đúng: FK không ghi hành động (NO ACTION) bị bắt, RESTRICT thì không, CASCADE vào danh sách kèm lý do", async () => {
+    await sql`create table sg_fp (id int primary key)`.execute(t.admin);
+    try {
+      await sql`create table sg_fc (id int primary key, p int, constraint fk_sg_fc foreign key (p) references sg_fp (id))`.execute(
+        t.admin,
+      );
+      expect(noAction(await loadFkActions(t.admin)).map((x) => x.name)).toContain("fk_sg_fc");
+      await sql`alter table sg_fc drop constraint fk_sg_fc, add constraint fk_sg_fc foreign key (p) references sg_fp (id) on delete restrict`.execute(
+        t.admin,
+      );
+      const after = await loadFkActions(t.admin);
+      expect(noAction(after).map((x) => x.name)).not.toContain("fk_sg_fc");
+      expect(cascading(after).map((x) => x.name)).not.toContain("fk_sg_fc");
+      await sql`alter table sg_fc drop constraint fk_sg_fc, add constraint fk_sg_fc foreign key (p) references sg_fp (id) on delete cascade`.execute(
+        t.admin,
+      );
+      expect(cascading(await loadFkActions(t.admin)).map((x) => x.name)).toContain("fk_sg_fc");
+      // Khoá DEFERRABLE: vẫn NO ACTION nhưng deferrable=true (chỉ hợp lệ khi nằm trong FK_NO_ACTION_ALLOWED).
+      await sql`alter table sg_fc drop constraint fk_sg_fc, add constraint fk_sg_fc foreign key (p) references sg_fp (id) deferrable initially deferred`.execute(
+        t.admin,
+      );
+      const def = (await loadFkActions(t.admin)).find((x) => x.name === "fk_sg_fc");
+      expect(def).toMatchObject({ del: "a", deferrable: true });
+    } finally {
+      await sql`drop table if exists sg_fc`.execute(t.admin);
+      await sql`drop table sg_fp`.execute(t.admin);
+    }
   });
 
   it("cột trạng thái/loại/phương thức (status, kind, type, method, role, purpose, source, severity, priority) đều có CHECK ∈ tập", async () => {
@@ -416,5 +476,70 @@ describe("schema-guards — ràng buộc toàn vẹn (DB-MODEL-004 ON DELETE, DB
       group by 1 order by 1`.execute(t.admin);
     const actual = Object.fromEntries(r.rows.map((x) => [x.t, x.n]));
     expect(actual).toEqual(baseline.nullable);
+  });
+});
+
+interface TableOrg {
+  table: string;
+  hasOrg: boolean;
+  orgNotNull: boolean;
+}
+/** Bảng thường (không view/partition con) ở schema public kèm: có cột `organization_id` không, và cột đó NOT NULL không. */
+async function publicTablesOrg(db: Kysely<unknown>): Promise<TableOrg[]> {
+  const r = await sql<{ table: string; has_org: boolean; org_not_null: boolean }>`
+    select c.relname::text as "table",
+           a.attname is not null as has_org,
+           coalesce(a.attnotnull, false) as org_not_null
+    from pg_class c
+    join pg_namespace n on n.oid = c.relnamespace
+    left join pg_attribute a on a.attrelid = c.oid and a.attname = 'organization_id' and not a.attisdropped
+    where n.nspname = 'public' and c.relkind in ('r', 'p') and not c.relispartition
+    order by 1`.execute(db);
+  return r.rows.map((x) => ({ table: x.table, hasOrg: x.has_org, orgNotNull: x.org_not_null }));
+}
+
+/** Bảng ở schema public KHÔNG có `organization_id` (IND-SAAS-001: mọi bảng nghiệp vụ có khoá tổ chức NOT NULL) — mỗi bảng một lý do. */
+const NO_ORG_ALLOWED: Record<string, string> = {
+  organizations:
+    "Bảng tổ chức gốc: `id` chính là khoá tổ chức; RLS lọc theo `id = app.current_org()` (tenancy.db.test.ts).",
+  worker_heartbeats:
+    "Nhịp tiến trình worker (0046): không phải dữ liệu tổ chức; RLS bật, không policy cho app_runtime — chỉ ghi qua hàm SECURITY DEFINER.",
+  guest_link_rate:
+    "Bộ đếm lần thử theo băm IP (0041) trước khi biết tổ chức của cổng khách: khoá `(ip_hash, window_start)`, không dữ liệu tổ chức/người; REVOKE khỏi PUBLIC, chỉ hàm app.guest_link_rate.",
+  kysely_migration: "Sổ migration của Kysely (hạ tầng migrator), không phải dữ liệu nghiệp vụ.",
+  kysely_migration_lock: "Khoá migrator của Kysely (hạ tầng), không phải dữ liệu nghiệp vụ.",
+};
+
+describe("schema-guards — bảng nghiệp vụ có organization_id NOT NULL (IND-SAAS-001)", () => {
+  it("mọi bảng ở schema public có `organization_id` NOT NULL, trừ ngoại lệ đã khai kèm lý do", async () => {
+    const tables = await publicTablesOrg(t.admin);
+    expect(tables.length).toBeGreaterThan(50); // catalog không rỗng
+    expect(tables.filter((x) => !x.hasOrg && !(x.table in NO_ORG_ALLOWED)).map((x) => x.table)).toEqual([]);
+    expect(tables.filter((x) => x.hasOrg && !x.orgNotNull).map((x) => x.table)).toEqual([]);
+  });
+
+  it("ngoại lệ không thừa: bảng đã khai phải còn tồn tại và vẫn không có organization_id; mỗi cái một lý do", async () => {
+    const byName = new Map((await publicTablesOrg(t.admin)).map((x) => [x.table, x]));
+    for (const [table, reason] of Object.entries(NO_ORG_ALLOWED)) {
+      expect(byName.get(table), `${table} không còn — xoá khỏi ngoại lệ`).toBeDefined();
+      expect(byName.get(table)?.hasOrg, `${table} đã có organization_id — xoá khỏi ngoại lệ`).toBe(false);
+      expect(reason.length, table).toBeGreaterThan(40);
+    }
+  });
+
+  it("phát hiện đúng: bảng thiếu organization_id bị bắt; có cột nhưng cho phép NULL cũng bị bắt; đủ NOT NULL thì hết", async () => {
+    await sql`create table sg_noorg (id int primary key)`.execute(t.admin);
+    try {
+      let rows = await publicTablesOrg(t.admin);
+      expect(rows.find((x) => x.table === "sg_noorg")).toMatchObject({ hasOrg: false });
+      await sql`alter table sg_noorg add column organization_id uuid`.execute(t.admin);
+      rows = await publicTablesOrg(t.admin);
+      expect(rows.find((x) => x.table === "sg_noorg")).toMatchObject({ hasOrg: true, orgNotNull: false });
+      await sql`alter table sg_noorg alter column organization_id set not null`.execute(t.admin);
+      rows = await publicTablesOrg(t.admin);
+      expect(rows.find((x) => x.table === "sg_noorg")).toMatchObject({ hasOrg: true, orgNotNull: true });
+    } finally {
+      await sql`drop table sg_noorg`.execute(t.admin);
+    }
   });
 });

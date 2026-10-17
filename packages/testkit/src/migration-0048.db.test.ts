@@ -15,8 +15,14 @@ const m0048 = () => {
 let t: TestDb;
 beforeAll(async () => {
   t = await createTestDb();
-  // Lùi 0050, 0049, 0048 (kiểm luôn `down` khớp phần up mới) để áp lại 0048 theo ý.
-  for (const expected of ["0050_reconciliation_daily", "0049_audit_source", NAME]) {
+  // Lùi 0052, 0051, 0050, 0049, 0048 (kiểm luôn `down` của từng migration khớp phần up mới) để áp lại 0048 theo ý.
+  for (const expected of [
+    "0052_files_settlement_read",
+    "0051_fk_restrict_and_indexes",
+    "0050_reconciliation_daily",
+    "0049_audit_source",
+    NAME,
+  ]) {
     const res = await createMigrator(t.admin).migrateDown();
     expect(res.error).toBeUndefined();
     expect(res.results?.[0]?.migrationName).toBe(expected);

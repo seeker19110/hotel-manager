@@ -51,6 +51,8 @@ import * as m0047 from "./0047_worker_schema_and_file_staging.ts";
 import * as m0048 from "./0048_fk_indexes_and_autovacuum.ts";
 import * as m0049 from "./0049_audit_source.ts";
 import * as m0050 from "./0050_reconciliation_daily.ts";
+import * as m0051 from "./0051_fk_restrict_and_indexes.ts";
+import * as m0052 from "./0052_files_settlement_read.ts";
 
 export const migrations: Record<string, Migration> = {
   "0001_tenancy": m0001,
@@ -103,4 +105,6 @@ export const migrations: Record<string, Migration> = {
   "0048_fk_indexes_and_autovacuum": m0048,
   "0049_audit_source": m0049,
   "0050_reconciliation_daily": m0050,
+  "0051_fk_restrict_and_indexes": m0051,
+  "0052_files_settlement_read": m0052,
 };
