@@ -3,13 +3,12 @@
 // phạm vi cơ sở kiểm bằng `authorize` (cơ sở ngoài phạm vi/tổ chức khác → 404). Màn /lich-phong hiện vẫn đọc booking
 // (`reservation.list` + `listRooms`) — truy vấn này là lịch ở tầng allocation (gồm hold, hợp đồng, block, quá hạn).
 import { withTenant } from "@hm/db";
-import { authorize, grantFor, isMatrixRole } from "@hm/domain";
+import { authorize, grantFor, isMatrixRole, MS_PER_DAY } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/index.ts";
 import { CommandError, fieldError } from "../pipeline/index.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const DAY_MS = 86_400_000;
 /** Q-05: tối đa 62 ngày mỗi lần xem lịch; phân trang theo phòng. */
 export const CALENDAR_MAX_DAYS = 62;
 export const CALENDAR_DEFAULT_ROOMS = 100;
@@ -99,7 +98,7 @@ export async function getCalendar(
   authorize(actor, "calendar.read_status", { propertyId: input.propertyId });
   if (!validDate(input.from)) throw fieldError("from", "invalid_date", "Ngày bắt đầu không hợp lệ");
   if (!validDate(input.to)) throw fieldError("to", "invalid_date", "Ngày kết thúc không hợp lệ");
-  const days = (Date.parse(`${input.to}T00:00:00Z`) - Date.parse(`${input.from}T00:00:00Z`)) / DAY_MS;
+  const days = (Date.parse(`${input.to}T00:00:00Z`) - Date.parse(`${input.from}T00:00:00Z`)) / MS_PER_DAY;
   if (days <= 0) throw fieldError("to", "invalid_range", "Khoảng ngày không hợp lệ");
   if (days > CALENDAR_MAX_DAYS)
     throw fieldError("to", "range_too_long", `Chỉ xem tối đa ${CALENDAR_MAX_DAYS} ngày mỗi lần`);
