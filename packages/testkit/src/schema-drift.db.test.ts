@@ -5,6 +5,11 @@
 //  2. Ảnh chụp schema chuẩn hoá (bảng, cột, ràng buộc, index, policy RLS, trigger, hàm, kiểu, quyền bảng) đọc từ pg_catalog sau
 //     migrate so với `docs/db/schema.snapshot.txt` (toMatchFileSnapshot). Lệch (sửa tay trên CSDL, hoặc migration mới mà chưa
 //     cập nhật file) → đỏ kèm diff. Cập nhật có chủ đích sau khi đã xem diff: `pnpm db:snapshot` (= vitest … schema-drift -u).
+//     Ảnh chụp gồm cả chủ sở hữu (bảng, hàm, schema; role đang kết nối ghi là `<admin>`) và mọi quyền: bảng, cột, EXECUTE hàm
+//     (kể cả mặc định PUBLIC khi ACL null), schema.
+// GIỚI HẠN: rào này phát hiện lệch so với KẾT QUẢ CỦA MIGRATION chạy trong CI (CSDL sạch), không thấy được CSDL môi trường chung
+//     (staging/prod) bị sửa tay — môi trường đó chưa có; khi có, cần chạy `schemaSnapshot` trên đó và so với file. Ảnh chụp đối
+//     chiếu Postgres 17 (khác major → báo rõ, không so).
 import { readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { migrateToLatest, migrations } from "@hm/db";
@@ -48,7 +53,9 @@ function diffNames(labelA: string, a: string[], labelB: string, b: string[]): st
 }
 
 async function ledger(db: Kysely<unknown>): Promise<string[]> {
-  const r = await sql<{ name: string }>`select name from public.kysely_migration order by name`.execute(db);
+  const r = await sql<{
+    name: string;
+  }>`select name from public.kysely_migration order by name collate "C"`.execute(db);
   return r.rows.map((x) => x.name);
 }
 
@@ -92,23 +99,38 @@ const NOT_EXT = (oidCol: string, classid: string) =>
     `not exists (select 1 from pg_depend d where d.classid = '${classid}'::regclass and d.objid = ${oidCol} and d.deptype = 'e')`,
   );
 
+/** Tên role đã chuẩn hoá để ảnh chụp không phụ thuộc máy: PUBLIC (oid 0), `<admin>` (role đang kết nối/migrate), còn lại theo tên. */
+const roleName = (col: string) =>
+  sql.raw(
+    `case when ${col} = 0 then 'PUBLIC' when pg_get_userbyid(${col}) = current_user then '<admin>' else pg_get_userbyid(${col}) end`,
+  );
+const grantOpt = sql.raw(`case when a.is_grantable then ' (grant option)' else '' end`);
+
 async function lines(q: ReturnType<typeof sql<{ l: string }>>, db: Kysely<unknown>): Promise<string[]> {
   return (await q.execute(db)).rows.map((r) => r.l).sort(byCodePoint);
 }
 const byCodePoint = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 /**
- * Ảnh chụp schema ổn định giữa các lần chạy/máy: chỉ dùng tên (không OID), sắp theo tên, không chủ sở hữu/thời gian/phiên bản.
+ * Ảnh chụp schema ổn định giữa các lần chạy/máy: chỉ dùng tên (không OID), sắp theo tên, gồm chủ sở hữu (chuẩn hoá) và ACL, không thời gian/phiên bản.
  * Mỗi mục một dòng (định nghĩa nhiều dòng như hàm được gộp, thụt lề) để diff đọc được.
  */
 async function schemaSnapshot(db: Kysely<unknown>): Promise<string> {
   const section = async (title: string, rows: string[]) =>
     `## ${title} (${rows.length})\n${rows.join("\n")}\n`;
 
+  const ver = Number(
+    (await sql<{ v: string }>`select current_setting('server_version_num') as v`.execute(db)).rows[0]?.v,
+  );
+  if (Math.floor(ver / 10000) !== 17)
+    throw new Error(
+      `Ảnh chụp schema chỉ đối chiếu trên Postgres 17 (server_version_num=${ver}): chạy ${REGEN} và test trên PG17 (docker compose/CI).`,
+    );
+
   const schemas = await lines(
     sql<{
       l: string;
-    }>`select n.nspname as l from pg_namespace n where ${USER_NS} and ${NOT_EXT("n.oid", "pg_namespace")}`,
+    }>`select n.nspname || ' owner=' || ${roleName("n.nspowner")} as l from pg_namespace n where ${USER_NS} and ${NOT_EXT("n.oid", "pg_namespace")}`,
     db,
   );
   const extensions = await lines(
@@ -129,12 +151,12 @@ async function schemaSnapshot(db: Kysely<unknown>): Promise<string> {
   );
   const tables = await lines(
     sql<{ l: string }>`
-      select n.nspname || '.' || c.relname || ' ' ||
+      select n.nspname || '.' || c.relname || ' owner=' || ${roleName("c.relowner")} || ' ' ||
         case c.relkind when 'r' then 'table' when 'p' then 'partitioned table' when 'v' then 'view' when 'm' then 'matview' when 'f' then 'foreign table' end
         || case when c.relpersistence = 'u' then ' unlogged' else '' end
         || case when c.relrowsecurity then ' rls' else '' end
         || case when c.relforcerowsecurity then ' force-rls' else '' end
-        || coalesce(' options(' || (select string_agg(o, ',' order by o) from unnest(c.reloptions) o) || ')', '') as l
+        || coalesce(' options(' || (select string_agg(o, ',' order by o collate "C") from unnest(c.reloptions) o) || ')', '') as l
       from pg_class c join pg_namespace n on n.oid = c.relnamespace
       where ${USER_NS} and c.relkind in ('r', 'p', 'v', 'm', 'f') and not c.relispartition and ${NOT_EXT("c.oid", "pg_class")}`,
     db,
@@ -191,25 +213,55 @@ async function schemaSnapshot(db: Kysely<unknown>): Promise<string> {
   // Hàm/thủ tục: định nghĩa đầy đủ (gồm SET search_path, SECURITY DEFINER, thân hàm), gộp thành một mục nhiều dòng.
   const functions = (
     await sql<{ k: string; d: string }>`
-      select n.nspname || '.' || p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')' as k, pg_get_functiondef(p.oid) as d
+      select n.nspname || '.' || p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ') owner=' || ${roleName("p.proowner")} as k, pg_get_functiondef(p.oid) as d
       from pg_proc p join pg_namespace n on n.oid = p.pronamespace
       where ${USER_NS} and p.prokind in ('f', 'p') and ${NOT_EXT("p.oid", "pg_proc")}`.execute(db)
   ).rows
     .map((r) => `-- ${r.k}\n${r.d.trimEnd()}`)
     .sort(byCodePoint);
-  // Quyền bảng cho role không phải chủ sở hữu (tên chủ sở hữu khác nhau theo máy nên bỏ); PUBLIC ghi là PUBLIC.
-  const grants = await lines(
-    sql<{ l: string }>`
-      select distinct n.nspname || '.' || c.relname || ' ' || coalesce(nullif(a.grantee::regrole::text, '-'), 'PUBLIC') || ' ' || a.privilege_type as l
-      from pg_class c
-      join pg_namespace n on n.oid = c.relnamespace
-      cross join lateral aclexplode(c.relacl) a
-      where ${USER_NS} and c.relkind in ('r', 'p', 'v', 'm', 'f') and a.grantee <> c.relowner and ${NOT_EXT("c.oid", "pg_class")}`,
-    db,
-  );
+  // Quyền (ACL) — ACL null = mặc định của Postgres (acldefault), nên EXECUTE mặc định của PUBLIC trên hàm cũng nằm trong ảnh chụp.
+  // Mỗi dòng: loại đối tượng · tên · role được cấp · quyền (· grant option). Chủ sở hữu ở mục tương ứng; `<admin>` = role migrate.
+  const grants = [
+    ...(await lines(
+      sql<{ l: string }>`
+        select 'table ' || n.nspname || '.' || c.relname || ' ' || ${roleName("a.grantee")} || ' ' || a.privilege_type || ${grantOpt} as l
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        cross join lateral aclexplode(coalesce(c.relacl, acldefault('r', c.relowner))) a
+        where ${USER_NS} and c.relkind in ('r', 'p', 'v', 'm', 'f') and ${NOT_EXT("c.oid", "pg_class")}`,
+      db,
+    )),
+    ...(await lines(
+      sql<{ l: string }>`
+        select 'column ' || n.nspname || '.' || c.relname || '.' || t.attname || ' ' || ${roleName("a.grantee")} || ' ' || a.privilege_type || ${grantOpt} as l
+        from pg_attribute t
+        join pg_class c on c.oid = t.attrelid
+        join pg_namespace n on n.oid = c.relnamespace
+        cross join lateral aclexplode(t.attacl) a
+        where ${USER_NS} and t.attacl is not null and not t.attisdropped and ${NOT_EXT("c.oid", "pg_class")}`,
+      db,
+    )),
+    ...(await lines(
+      sql<{ l: string }>`
+        select 'function ' || n.nspname || '.' || p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ') ' || ${roleName("a.grantee")} || ' ' || a.privilege_type || ${grantOpt} as l
+        from pg_proc p
+        join pg_namespace n on n.oid = p.pronamespace
+        cross join lateral aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+        where ${USER_NS} and p.prokind in ('f', 'p') and ${NOT_EXT("p.oid", "pg_proc")}`,
+      db,
+    )),
+    ...(await lines(
+      sql<{ l: string }>`
+        select 'schema ' || n.nspname || ' ' || ${roleName("a.grantee")} || ' ' || a.privilege_type || ${grantOpt} as l
+        from pg_namespace n
+        cross join lateral aclexplode(coalesce(n.nspacl, acldefault('n', n.nspowner))) a
+        where ${USER_NS} and ${NOT_EXT("n.oid", "pg_namespace")}`,
+      db,
+    )),
+  ].sort(byCodePoint);
 
   const header = `# Ảnh chụp schema CSDL sau migrateToLatest (DB-MIG-001) — SINH và so khớp bởi packages/testkit/src/schema-drift.db.test.ts.
-# Đọc từ pg_catalog (tên, không OID; sắp theo tên; không chủ sở hữu/phiên bản). Schema đổi (migration mới) mà file này không đổi theo → test đỏ.
+# Đọc từ pg_catalog (tên, không OID; sắp theo tên; chủ sở hữu chuẩn hoá <admin> = role migrate; chỉ Postgres 17). Schema đổi (migration mới) mà file này không đổi theo → test đỏ.
 # Cập nhật có chủ đích SAU KHI xem diff và xác nhận đúng ý migration: ${REGEN}
 `;
   return `${header}
@@ -223,7 +275,7 @@ ${await section("indexes", indexes)}
 ${await section("policies (RLS)", policies)}
 ${await section("triggers", triggers)}
 ${await section("functions", functions)}
-${await section("table grants (không gồm chủ sở hữu)", grants)}`;
+${await section("grants (bảng, cột, hàm, schema)", grants)}`;
 }
 
 describe("schema-drift — ảnh chụp schema ↔ docs/db/schema.snapshot.txt (DB-MIG-001)", () => {
@@ -260,13 +312,25 @@ describe("schema-drift — ảnh chụp schema ↔ docs/db/schema.snapshot.txt (
     expect(a).not.toMatch(/hm_t_[0-9a-f]{16}/);
   });
 
-  it("ảnh chụp NHẠY với lệch schema: thêm cột / bỏ index / tắt RLS / sửa hàm / thêm trigger đều làm ảnh chụp đổi", async () => {
+  it("ảnh chụp NHẠY với lệch schema: cột / RLS / index / hàm (thêm và sửa thân) / trigger / chủ sở hữu / GRANT cột, EXECUTE, schema", async () => {
     const base = await schemaSnapshot(t.admin);
     // DB riêng cho phần phá hoại để không ảnh hưởng test khác trong file.
     const probe = await createTestDb();
     try {
       const admin = probe.admin;
-      expect(await schemaSnapshot(admin)).toBe(base); // hai DB cùng template ⇒ cùng ảnh chụp
+      const run = async (q: string) => void (await sql.raw(q).execute(admin));
+      const snap = () => schemaSnapshot(admin);
+      /** Chạy `change`, ảnh chụp PHẢI đổi (và chứa `marker` nếu có); chạy `undo`, ảnh chụp PHẢI về đúng bản gốc. */
+      const sensitive = async (what: string, change: string[], undo: string[] | null, marker?: string) => {
+        for (const q of change) await run(q);
+        const changed = await snap();
+        expect(changed, `${what}: ảnh chụp không đổi`).not.toBe(base);
+        if (marker) expect(changed, `${what}: thiếu dấu vết`).toContain(marker);
+        if (!undo) return; // ACL đi theo chủ sở hữu nên không hoàn lại nguyên trạng được — chỉ kiểm có đổi
+        for (const q of undo) await run(q);
+        expect(await snap(), `${what}: hoàn lại mà ảnh chụp không về bản gốc`).toBe(base);
+      };
+      expect(await snap()).toBe(base); // hai DB cùng template ⇒ cùng ảnh chụp
       const tbl = (
         await sql<{
           t: string;
@@ -275,29 +339,89 @@ describe("schema-drift — ảnh chụp schema ↔ docs/db/schema.snapshot.txt (
         )
       ).rows[0]?.t as string;
       expect(tbl).toBeDefined();
+      const schema = tbl.split(".")[0] as string;
 
-      await sql.raw(`alter table ${tbl} add column drift_probe int`).execute(admin);
-      const withCol = await schemaSnapshot(admin);
-      expect(withCol).not.toBe(base);
-      expect(withCol).toContain("drift_probe integer");
-      await sql.raw(`alter table ${tbl} drop column drift_probe`).execute(admin);
-      expect(await schemaSnapshot(admin)).toBe(base); // hoàn lại ⇒ khớp lại
-
-      await sql.raw(`alter table ${tbl} disable row level security`).execute(admin);
-      expect(await schemaSnapshot(admin)).not.toBe(base);
-      await sql.raw(`alter table ${tbl} enable row level security`).execute(admin);
-      expect(await schemaSnapshot(admin)).toBe(base);
-
-      await sql.raw(`create index drift_probe_idx on ${tbl} ((1))`).execute(admin);
-      expect(await schemaSnapshot(admin)).toContain("drift_probe_idx");
-      await sql.raw(`drop index ${tbl.split(".")[0]}.drift_probe_idx`).execute(admin);
-
-      await sql`create function public.drift_probe_fn() returns int language sql as 'select 1'`.execute(
-        admin,
+      await sensitive(
+        "thêm cột",
+        [`alter table ${tbl} add column drift_probe int`],
+        [`alter table ${tbl} drop column drift_probe`],
+        "drift_probe integer",
       );
-      expect(await schemaSnapshot(admin)).toContain("public.drift_probe_fn()");
-      await sql`drop function public.drift_probe_fn()`.execute(admin);
-      expect(await schemaSnapshot(admin)).toBe(base);
+      await sensitive(
+        "tắt RLS",
+        [`alter table ${tbl} disable row level security`],
+        [`alter table ${tbl} enable row level security`],
+      );
+      await sensitive(
+        "thêm index",
+        [`create index drift_probe_idx on ${tbl} ((1))`],
+        [`drop index ${schema}.drift_probe_idx`],
+        "drift_probe_idx",
+      );
+
+      // Hàm mới, rồi sửa thân hàm CÓ SẴN (CREATE OR REPLACE: thêm một dòng chú thích vào thân) — cả hai phải làm ảnh chụp đổi.
+      await sensitive(
+        "thêm hàm",
+        ["create function public.drift_probe_fn() returns int language sql as 'select 1'"],
+        ["drop function public.drift_probe_fn()"],
+        "public.drift_probe_fn()",
+      );
+      const fn = (
+        await sql<{
+          id: string;
+          def: string;
+        }>`select p.oid::regprocedure::text as id, pg_get_functiondef(p.oid) as def
+          from pg_proc p join pg_namespace n on n.oid = p.pronamespace join pg_language l on l.oid = p.prolang
+          where n.nspname = 'app' and p.prokind = 'f' and l.lanname in ('sql', 'plpgsql') order by 1 limit 1`.execute(
+          admin,
+        )
+      ).rows[0];
+      expect(fn).toBeDefined();
+      const def = fn?.def ?? "";
+      const end = def.lastIndexOf("$function$");
+      expect(end).toBeGreaterThan(0);
+      const edited = `${def.slice(0, end)}\n-- drift_probe_body\n${def.slice(end)}`;
+      await sensitive("sửa thân hàm có sẵn", [edited], [def], "drift_probe_body");
+
+      await sensitive(
+        "thêm trigger",
+        [
+          "create function public.drift_probe_trg() returns trigger language plpgsql as 'begin return null; end'",
+          `create trigger drift_probe_trg after insert on ${tbl} for each statement execute function public.drift_probe_trg()`,
+        ],
+        [`drop trigger drift_probe_trg on ${tbl}`, "drop function public.drift_probe_trg()"],
+        "drift_probe_trg",
+      );
+
+      // GRANT: cột, EXECUTE hàm (cho role cụ thể và PUBLIC), thu hồi EXECUTE mặc định của PUBLIC, quyền schema.
+      await sensitive(
+        "GRANT cột",
+        ["grant update (debit, credit) on public.journal_lines to app_runtime"],
+        ["revoke update (debit, credit) on public.journal_lines from app_runtime"],
+        "column public.journal_lines.debit app_runtime UPDATE",
+      );
+      await sensitive(
+        "GRANT EXECUTE hàm cho role",
+        ["grant execute on function app.outbox_claim(integer) to app_runtime"],
+        ["revoke execute on function app.outbox_claim(integer) from app_runtime"],
+      );
+      await sensitive(
+        "thu hồi EXECUTE của PUBLIC",
+        ["revoke execute on function app.current_org() from public"],
+        ["grant execute on function app.current_org() to public"],
+      );
+      await sensitive(
+        "GRANT CREATE trên schema",
+        ["grant create on schema public to app_runtime"],
+        ["revoke create on schema public from app_runtime"],
+        "schema public app_runtime CREATE",
+      );
+      await sensitive(
+        "đổi chủ sở hữu bảng",
+        [`alter table ${tbl} owner to app_worker`],
+        null,
+        `${tbl} owner=app_worker`,
+      );
     } finally {
       await probe.drop();
     }

@@ -1,12 +1,12 @@
 # Ảnh chụp schema CSDL sau migrateToLatest (DB-MIG-001) — SINH và so khớp bởi packages/testkit/src/schema-drift.db.test.ts.
-# Đọc từ pg_catalog (tên, không OID; sắp theo tên; không chủ sở hữu/phiên bản). Schema đổi (migration mới) mà file này không đổi theo → test đỏ.
+# Đọc từ pg_catalog (tên, không OID; sắp theo tên; chủ sở hữu chuẩn hoá <admin> = role migrate; chỉ Postgres 17). Schema đổi (migration mới) mà file này không đổi theo → test đỏ.
 # Cập nhật có chủ đích SAU KHI xem diff và xác nhận đúng ý migration: pnpm db:snapshot
 
 ## schemas (4)
-app
-auth
-pgboss
-public
+app owner=<admin>
+auth owner=<admin>
+pgboss owner=app_worker
+public owner=pg_database_owner
 
 ## extensions (2)
 btree_gist
@@ -16,80 +16,80 @@ pgcrypto
 
 
 ## tables (74)
-auth.account table
-auth.login_throttle table
-auth.rateLimit table
-auth.revoked_session table
-auth.session table
-auth.twoFactor table
-auth.user table
-auth.verification table
-public.allocations table rls force-rls
-public.approval_requests table rls force-rls
-public.audit_events table rls force-rls options(autovacuum_analyze_scale_factor=0.02,autovacuum_vacuum_insert_scale_factor=0.05,autovacuum_vacuum_insert_threshold=5000)
-public.bank_transactions table rls force-rls
-public.billing_periods table rls force-rls
-public.blocks table rls force-rls
-public.charges table rls force-rls
-public.deposits table rls force-rls
-public.exceptions table rls force-rls
-public.export_jobs table rls force-rls
-public.files table rls force-rls
-public.floors table rls force-rls
-public.guest_access_links table rls force-rls
-public.guest_link_rate table
-public.handovers table rls force-rls
-public.idempotency_keys table rls force-rls options(autovacuum_analyze_scale_factor=0.02,autovacuum_vacuum_scale_factor=0.02,autovacuum_vacuum_threshold=200)
-public.identity_documents table rls force-rls
-public.import_batches table rls force-rls
-public.import_external_refs table rls force-rls
-public.import_rows table rls force-rls
-public.inbox table rls force-rls options(autovacuum_analyze_scale_factor=0.02,autovacuum_vacuum_scale_factor=0.02,autovacuum_vacuum_threshold=200)
-public.invitations table rls force-rls
-public.invoice_lines table rls force-rls
-public.invoices table rls force-rls
-public.journal_entries table rls force-rls
-public.journal_lines table rls force-rls options(autovacuum_analyze_scale_factor=0.02,autovacuum_vacuum_insert_scale_factor=0.05,autovacuum_vacuum_insert_threshold=5000)
-public.kysely_migration table
-public.kysely_migration_lock table
-public.lease_occupants table rls force-rls
-public.lease_settlements table rls force-rls
-public.lease_versions table rls force-rls
-public.leases table rls force-rls
-public.memberships table rls force-rls
-public.meter_events table rls force-rls
-public.meter_readings table rls force-rls
-public.meters table rls force-rls
-public.notification_deliveries table rls force-rls options(autovacuum_analyze_scale_factor=0.02,autovacuum_vacuum_scale_factor=0.02,autovacuum_vacuum_threshold=200)
-public.notification_preferences table rls force-rls
-public.notification_settings table rls force-rls
-public.notifications table rls force-rls options(autovacuum_analyze_scale_factor=0.02,autovacuum_vacuum_scale_factor=0.02,autovacuum_vacuum_threshold=200)
-public.organizations table rls force-rls
-public.outbox table rls force-rls options(autovacuum_analyze_scale_factor=0.02,autovacuum_vacuum_scale_factor=0.02,autovacuum_vacuum_threshold=200)
-public.payment_allocations table rls force-rls
-public.payment_claims table rls force-rls
-public.payments table rls force-rls
-public.period_locks table rls force-rls
-public.persons table rls force-rls
-public.properties table rls force-rls
-public.property_scopes table rls force-rls
-public.rate_limit_counters table
-public.rate_plans table rls force-rls
-public.receiving_accounts table rls force-rls
-public.reconciliation_breaks table rls force-rls
-public.reservation_items table rls force-rls
-public.reservations table rls force-rls
-public.residence_notices table rls force-rls
-public.room_types table rls force-rls
-public.service_prices table rls force-rls
-public.services table rls force-rls
-public.shift_discrepancies table rls force-rls
-public.shifts table rls force-rls
-public.stays table rls force-rls
-public.tasks table rls force-rls
-public.units table rls force-rls
-public.work_orders table rls force-rls
-public.worker_heartbeats table rls force-rls
+auth.account owner=<admin> table
+auth.login_throttle owner=<admin> table
+auth.rateLimit owner=<admin> table
+auth.revoked_session owner=<admin> table
+auth.session owner=<admin> table
+auth.twoFactor owner=<admin> table
+auth.user owner=<admin> table
+auth.verification owner=<admin> table
+public.allocations owner=<admin> table rls force-rls
+public.approval_requests owner=<admin> table rls force-rls
+public.audit_events owner=<admin> table rls force-rls options(autovacuum_analyze_scale_factor=0.02,autovacuum_vacuum_insert_scale_factor=0.05,autovacuum_vacuum_insert_threshold=5000)
+public.bank_transactions owner=<admin> table rls force-rls
+public.billing_periods owner=<admin> table rls force-rls
+public.blocks owner=<admin> table rls force-rls
+public.charges owner=<admin> table rls force-rls
+public.deposits owner=<admin> table rls force-rls
+public.exceptions owner=<admin> table rls force-rls
+public.export_jobs owner=<admin> table rls force-rls
+public.files owner=<admin> table rls force-rls
+public.floors owner=<admin> table rls force-rls
+public.guest_access_links owner=<admin> table rls force-rls
+public.guest_link_rate owner=<admin> table
+public.handovers owner=<admin> table rls force-rls
+public.idempotency_keys owner=<admin> table rls force-rls options(autovacuum_analyze_scale_factor=0.02,autovacuum_vacuum_scale_factor=0.02,autovacuum_vacuum_threshold=200)
+public.identity_documents owner=<admin> table rls force-rls
+public.import_batches owner=<admin> table rls force-rls
+public.import_external_refs owner=<admin> table rls force-rls
+public.import_rows owner=<admin> table rls force-rls
+public.inbox owner=<admin> table rls force-rls options(autovacuum_analyze_scale_factor=0.02,autovacuum_vacuum_scale_factor=0.02,autovacuum_vacuum_threshold=200)
+public.invitations owner=<admin> table rls force-rls
+public.invoice_lines owner=<admin> table rls force-rls
+public.invoices owner=<admin> table rls force-rls
+public.journal_entries owner=<admin> table rls force-rls
+public.journal_lines owner=<admin> table rls force-rls options(autovacuum_analyze_scale_factor=0.02,autovacuum_vacuum_insert_scale_factor=0.05,autovacuum_vacuum_insert_threshold=5000)
+public.kysely_migration owner=<admin> table
+public.kysely_migration_lock owner=<admin> table
+public.lease_occupants owner=<admin> table rls force-rls
+public.lease_settlements owner=<admin> table rls force-rls
+public.lease_versions owner=<admin> table rls force-rls
+public.leases owner=<admin> table rls force-rls
+public.memberships owner=<admin> table rls force-rls
+public.meter_events owner=<admin> table rls force-rls
+public.meter_readings owner=<admin> table rls force-rls
+public.meters owner=<admin> table rls force-rls
+public.notification_deliveries owner=<admin> table rls force-rls options(autovacuum_analyze_scale_factor=0.02,autovacuum_vacuum_scale_factor=0.02,autovacuum_vacuum_threshold=200)
+public.notification_preferences owner=<admin> table rls force-rls
+public.notification_settings owner=<admin> table rls force-rls
+public.notifications owner=<admin> table rls force-rls options(autovacuum_analyze_scale_factor=0.02,autovacuum_vacuum_scale_factor=0.02,autovacuum_vacuum_threshold=200)
+public.organizations owner=<admin> table rls force-rls
+public.outbox owner=<admin> table rls force-rls options(autovacuum_analyze_scale_factor=0.02,autovacuum_vacuum_scale_factor=0.02,autovacuum_vacuum_threshold=200)
+public.payment_allocations owner=<admin> table rls force-rls
+public.payment_claims owner=<admin> table rls force-rls
+public.payments owner=<admin> table rls force-rls
+public.period_locks owner=<admin> table rls force-rls
+public.persons owner=<admin> table rls force-rls
+public.properties owner=<admin> table rls force-rls
+public.property_scopes owner=<admin> table rls force-rls
+public.rate_limit_counters owner=<admin> table
+public.rate_plans owner=<admin> table rls force-rls
+public.receiving_accounts owner=<admin> table rls force-rls
+public.reconciliation_breaks owner=<admin> table rls force-rls
+public.reservation_items owner=<admin> table rls force-rls
+public.reservations owner=<admin> table rls force-rls
+public.residence_notices owner=<admin> table rls force-rls
+public.room_types owner=<admin> table rls force-rls
+public.service_prices owner=<admin> table rls force-rls
+public.services owner=<admin> table rls force-rls
+public.shift_discrepancies owner=<admin> table rls force-rls
+public.shifts owner=<admin> table rls force-rls
+public.stays owner=<admin> table rls force-rls
+public.tasks owner=<admin> table rls force-rls
+public.units owner=<admin> table rls force-rls
+public.work_orders owner=<admin> table rls force-rls
+public.worker_heartbeats owner=<admin> table rls force-rls
 
 ## columns (1025)
 auth.account.accessToken text
@@ -2672,7 +2672,7 @@ public.work_orders CREATE TRIGGER trg_work_orders_transition BEFORE UPDATE ON wo
 public.work_orders CREATE TRIGGER trg_work_orders_updated BEFORE UPDATE ON work_orders FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 
 ## functions (103)
--- app.actor_can_see_property(p uuid)
+-- app.actor_can_see_property(p uuid) owner=<admin>
 CREATE OR REPLACE FUNCTION app.actor_can_see_property(p uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -2689,7 +2689,7 @@ AS $function$
                    SELECT 1 FROM property_scopes ps
                    WHERE ps.organization_id = m.organization_id AND ps.membership_id = m.id AND ps.property_id = p))))
   $function$
--- app.actor_person_id()
+-- app.actor_person_id() owner=<admin>
 CREATE OR REPLACE FUNCTION app.actor_person_id()
  RETURNS uuid
  LANGUAGE sql
@@ -2701,7 +2701,7 @@ AS $function$
       AND m.organization_id = nullif(current_setting('app.org_id', true), '')::uuid
       AND m.status = 'active'
   $function$
--- app.actor_role()
+-- app.actor_role() owner=<admin>
 CREATE OR REPLACE FUNCTION app.actor_role()
  RETURNS text
  LANGUAGE sql
@@ -2713,7 +2713,7 @@ AS $function$
       AND m.organization_id = nullif(current_setting('app.org_id', true), '')::uuid
       AND m.status = 'active'
   $function$
--- app.allocation_guard()
+-- app.allocation_guard() owner=<admin>
 CREATE OR REPLACE FUNCTION app.allocation_guard()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -2725,7 +2725,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
--- app.approval_transition()
+-- app.approval_transition() owner=<admin>
 CREATE OR REPLACE FUNCTION app.approval_transition()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -2740,7 +2740,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
--- app.billing_period_guard()
+-- app.billing_period_guard() owner=<admin>
 CREATE OR REPLACE FUNCTION app.billing_period_guard()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -2774,7 +2774,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
--- app.billing_period_published(p_org uuid, p_id uuid)
+-- app.billing_period_published(p_org uuid, p_id uuid) owner=<admin>
 CREATE OR REPLACE FUNCTION app.billing_period_published(p_org uuid, p_id uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -2783,7 +2783,7 @@ CREATE OR REPLACE FUNCTION app.billing_period_published(p_org uuid, p_id uuid)
 AS $function$
     SELECT EXISTS (SELECT 1 FROM billing_periods WHERE organization_id = p_org AND id = p_id AND status IN ('issued','locked'))
   $function$
--- app.business_date(p_org uuid, p_property uuid, p_at timestamp with time zone)
+-- app.business_date(p_org uuid, p_property uuid, p_at timestamp with time zone) owner=<admin>
 CREATE OR REPLACE FUNCTION app.business_date(p_org uuid, p_property uuid, p_at timestamp with time zone DEFAULT now())
  RETURNS date
  LANGUAGE sql
@@ -2792,7 +2792,7 @@ AS $function$
     SELECT ((p_at AT TIME ZONE p.timezone) - p.business_day_cutoff)::date
     FROM properties p WHERE p.organization_id = p_org AND p.id = p_property
   $function$
--- app.charge_guard()
+-- app.charge_guard() owner=<admin>
 CREATE OR REPLACE FUNCTION app.charge_guard()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -2805,7 +2805,7 @@ BEGIN
   IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
   RETURN NEW;
 END $function$
--- app.check_allocation_by()
+-- app.check_allocation_by() owner=<admin>
 CREATE OR REPLACE FUNCTION app.check_allocation_by()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -2818,7 +2818,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
--- app.check_bank_auto_payment()
+-- app.check_bank_auto_payment() owner=<admin>
 CREATE OR REPLACE FUNCTION app.check_bank_auto_payment()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -2833,7 +2833,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
--- app.check_billing_period_lock()
+-- app.check_billing_period_lock() owner=<admin>
 CREATE OR REPLACE FUNCTION app.check_billing_period_lock()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -2850,7 +2850,7 @@ BEGIN
   END IF;
   RETURN NULL;
 END $function$
--- app.check_block_allocation()
+-- app.check_block_allocation() owner=<admin>
 CREATE OR REPLACE FUNCTION app.check_block_allocation()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -2867,7 +2867,7 @@ BEGIN
   END IF;
   RETURN NULL;
 END $function$
--- app.check_entry_balanced()
+-- app.check_entry_balanced() owner=<admin>
 CREATE OR REPLACE FUNCTION app.check_entry_balanced()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -2882,7 +2882,7 @@ BEGIN
   END IF;
   RETURN NULL;
 END $function$
--- app.check_invoice_total()
+-- app.check_invoice_total() owner=<admin>
 CREATE OR REPLACE FUNCTION app.check_invoice_total()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -2899,7 +2899,7 @@ BEGIN
   END IF;
   RETURN NULL;
 END $function$
--- app.check_last_owner()
+-- app.check_last_owner() owner=<admin>
 CREATE OR REPLACE FUNCTION app.check_last_owner()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -2911,7 +2911,7 @@ BEGIN
   END IF;
   RETURN NULL;
 END $function$
--- app.check_lease_representative()
+-- app.check_lease_representative() owner=<admin>
 CREATE OR REPLACE FUNCTION app.check_lease_representative()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -2932,7 +2932,7 @@ BEGIN
   END IF;
   RETURN NULL;
 END $function$
--- app.check_period_open()
+-- app.check_period_open() owner=<admin>
 CREATE OR REPLACE FUNCTION app.check_period_open()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -2946,7 +2946,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
--- app.check_property_not_in_use()
+-- app.check_property_not_in_use() owner=<admin>
 CREATE OR REPLACE FUNCTION app.check_property_not_in_use()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -2971,7 +2971,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
--- app.check_timezone()
+-- app.check_timezone() owner=<admin>
 CREATE OR REPLACE FUNCTION app.check_timezone()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -2982,7 +2982,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
--- app.claim_due_deliveries(p_now timestamp with time zone, p_limit integer, p_per_org integer, p_lock_seconds integer, p_max_attempts integer)
+-- app.claim_due_deliveries(p_now timestamp with time zone, p_limit integer, p_per_org integer, p_lock_seconds integer, p_max_attempts integer) owner=<admin>
 CREATE OR REPLACE FUNCTION app.claim_due_deliveries(p_now timestamp with time zone, p_limit integer, p_per_org integer, p_lock_seconds integer, p_max_attempts integer)
  RETURNS TABLE(id uuid, organization_id uuid, attempts integer, locked_until timestamp with time zone)
  LANGUAGE plpgsql
@@ -3027,7 +3027,7 @@ BEGIN
     FROM picked p WHERE d.id = p.id
   RETURNING d.id, d.organization_id, d.attempts, d.locked_until;
 END $function$
--- app.current_org()
+-- app.current_org() owner=<admin>
 CREATE OR REPLACE FUNCTION app.current_org()
  RETURNS uuid
  LANGUAGE plpgsql
@@ -3040,7 +3040,7 @@ BEGIN
   END IF;
   RETURN v::uuid;
 END $function$
--- app.db_health_metrics()
+-- app.db_health_metrics() owner=<admin>
 CREATE OR REPLACE FUNCTION app.db_health_metrics()
  RETURNS TABLE(name text, labels jsonb, value double precision)
  LANGUAGE plpgsql
@@ -3061,7 +3061,7 @@ BEGIN
     CASE WHEN s.n_live_tup + s.n_dead_tup = 0 THEN 0 ELSE s.n_dead_tup::double precision / (s.n_live_tup + s.n_dead_tup) END
     FROM pg_stat_user_tables s WHERE s.schemaname = 'public';
 END $function$
--- app.dead_letter_jobs()
+-- app.dead_letter_jobs() owner=<admin>
 CREATE OR REPLACE FUNCTION app.dead_letter_jobs()
  RETURNS bigint
  LANGUAGE plpgsql
@@ -3074,7 +3074,7 @@ BEGIN
   EXECUTE 'SELECT count(*) FROM pgboss.job WHERE name = ''outbox.dead_letter'' AND state IN (''created'', ''retry'', ''active'', ''failed'')' INTO n;
   RETURN n;
 END $function$
--- app.deposit_guard()
+-- app.deposit_guard() owner=<admin>
 CREATE OR REPLACE FUNCTION app.deposit_guard()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -3086,7 +3086,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
--- app.due_held_reservations(p_now timestamp with time zone, p_limit integer)
+-- app.due_held_reservations(p_now timestamp with time zone, p_limit integer) owner=<admin>
 CREATE OR REPLACE FUNCTION app.due_held_reservations(p_now timestamp with time zone, p_limit integer)
  RETURNS TABLE(reservation_id uuid, organization_id uuid)
  LANGUAGE sql
@@ -3100,7 +3100,7 @@ AS $function$
     ORDER BY r.held_until, r.id
     LIMIT least(greatest(p_limit, 1), 10000)
   $function$
--- app.expire_export_jobs(p_now timestamp with time zone)
+-- app.expire_export_jobs(p_now timestamp with time zone) owner=<admin>
 CREATE OR REPLACE FUNCTION app.expire_export_jobs(p_now timestamp with time zone)
  RETURNS integer
  LANGUAGE sql
@@ -3110,7 +3110,7 @@ AS $function$
     WITH x AS (UPDATE export_jobs SET status = 'expired' WHERE status = 'ready' AND expires_at <= p_now RETURNING 1)
     SELECT count(*)::int FROM x
   $function$
--- app.expire_holds(p_now timestamp with time zone, p_limit integer)
+-- app.expire_holds(p_now timestamp with time zone, p_limit integer) owner=<admin>
 CREATE OR REPLACE FUNCTION app.expire_holds(p_now timestamp with time zone, p_limit integer)
  RETURNS TABLE(allocation_id uuid, organization_id uuid)
  LANGUAGE sql
@@ -3128,7 +3128,7 @@ AS $function$
     FROM due WHERE a.id = due.id AND a.active
     RETURNING a.id, a.organization_id
   $function$
--- app.export_job_transition()
+-- app.export_job_transition() owner=<admin>
 CREATE OR REPLACE FUNCTION app.export_job_transition()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -3149,7 +3149,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
--- app.files_due_for_deletion(p_today date, p_limit integer)
+-- app.files_due_for_deletion(p_today date, p_limit integer) owner=<admin>
 CREATE OR REPLACE FUNCTION app.files_due_for_deletion(p_today date, p_limit integer)
  RETURNS TABLE(id uuid, organization_id uuid, storage_key text)
  LANGUAGE sql
@@ -3161,7 +3161,7 @@ AS $function$
     ORDER BY f.delete_after, f.id
     LIMIT least(greatest(p_limit, 1), 1000)
   $function$
--- app.forbid_mutation()
+-- app.forbid_mutation() owner=<admin>
 CREATE OR REPLACE FUNCTION app.forbid_mutation()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -3169,7 +3169,7 @@ AS $function$
 BEGIN
   RAISE EXCEPTION 'bảng % là append-only (%)', TG_TABLE_NAME, TG_OP USING ERRCODE = '55000', HINT = 'DOCUMENT_IMMUTABLE';
 END $function$
--- app.forbid_reactivation()
+-- app.forbid_reactivation() owner=<admin>
 CREATE OR REPLACE FUNCTION app.forbid_reactivation()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -3180,7 +3180,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
--- app.guest_link_attempt(p_id uuid, p_ok boolean, p_now timestamp with time zone)
+-- app.guest_link_attempt(p_id uuid, p_ok boolean, p_now timestamp with time zone) owner=<admin>
 CREATE OR REPLACE FUNCTION app.guest_link_attempt(p_id uuid, p_ok boolean, p_now timestamp with time zone)
  RETURNS boolean
  LANGUAGE plpgsql
@@ -3199,7 +3199,7 @@ BEGIN
    WHERE id = p_id RETURNING locked_at IS NOT NULL INTO locked;
   RETURN coalesce(locked, false);
 END $function$
--- app.guest_link_guard()
+-- app.guest_link_guard() owner=<admin>
 CREATE OR REPLACE FUNCTION app.guest_link_guard()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -3214,7 +3214,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
--- app.guest_link_rate(p_ip_hash bytea, p_now timestamp with time zone, p_record boolean)
+-- app.guest_link_rate(p_ip_hash bytea, p_now timestamp with time zone, p_record boolean) owner=<admin>
 CREATE OR REPLACE FUNCTION app.guest_link_rate(p_ip_hash bytea, p_now timestamp with time zone, p_record boolean)
  RETURNS integer
  LANGUAGE plpgsql
@@ -3233,7 +3233,7 @@ BEGIN
   SELECT failures INTO n FROM guest_link_rate WHERE ip_hash = p_ip_hash AND window_start = w;
   RETURN coalesce(n, 0);
 END $function$
--- app.guest_stay_view(p_link uuid)
+-- app.guest_stay_view(p_link uuid) owner=<admin>
 CREATE OR REPLACE FUNCTION app.guest_stay_view(p_link uuid)
  RETURNS jsonb
  LANGUAGE sql
@@ -3269,7 +3269,7 @@ AS $function$
                                      GROUP BY p.payer_person_id) u), 0))
     FROM st
   $function$
--- app.handover_guard()
+-- app.handover_guard() owner=<admin>
 CREATE OR REPLACE FUNCTION app.handover_guard()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -3287,7 +3287,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
--- app.handover_reading_guard()
+-- app.handover_reading_guard() owner=<admin>
 CREATE OR REPLACE FUNCTION app.handover_reading_guard()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -3300,7 +3300,7 @@ BEGIN
   IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
   RETURN NEW;
 END $function$
--- app.import_batch_guard()
+-- app.import_batch_guard() owner=<admin>
 CREATE OR REPLACE FUNCTION app.import_batch_guard()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -3331,7 +3331,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
--- app.import_row_guard()
+-- app.import_row_guard() owner=<admin>
 CREATE OR REPLACE FUNCTION app.import_row_guard()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -3348,7 +3348,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
--- app.inbox_immutable()
+-- app.inbox_immutable() owner=<admin>
 CREATE OR REPLACE FUNCTION app.inbox_immutable()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -3364,7 +3364,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
--- app.invitation_by_token(p_token_hash bytea)
+-- app.invitation_by_token(p_token_hash bytea) owner=<admin>
 CREATE OR REPLACE FUNCTION app.invitation_by_token(p_token_hash bytea)
  RETURNS TABLE(organization_id uuid, id uuid, email text, role text, status text, expires_at timestamp with time zone)
  LANGUAGE sql
@@ -3373,7 +3373,7 @@ CREATE OR REPLACE FUNCTION app.invitation_by_token(p_token_hash bytea)
 AS $function$
     SELECT i.organization_id, i.id, i.email, i.role, i.status, i.expires_at FROM invitations i WHERE i.token_hash = p_token_hash
   $function$
--- app.invoice_immutable()
+-- app.invoice_immutable() owner=<admin>
 CREATE OR REPLACE FUNCTION app.invoice_immutable()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -3390,7 +3390,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
--- app.lease_activation_guard()
+-- app.lease_activation_guard() owner=<admin>
 CREATE OR REPLACE FUNCTION app.lease_activation_guard()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -3405,7 +3405,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
--- app.lease_close_guard()
+-- app.lease_close_guard() owner=<admin>
 CREATE OR REPLACE FUNCTION app.lease_close_guard()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -3419,7 +3419,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
--- app.lease_expiry_candidates(p_org uuid, p_now timestamp with time zone)
+-- app.lease_expiry_candidates(p_org uuid, p_now timestamp with time zone) owner=<admin>
 CREATE OR REPLACE FUNCTION app.lease_expiry_candidates(p_org uuid, p_now timestamp with time zone)
  RETURNS TABLE(property_id uuid, property_name text, lease_id uuid, version_no integer, unit_code text, effective_to date, days_left integer, representative_person_id uuid)
  LANGUAGE sql
@@ -3438,7 +3438,7 @@ AS $function$
     WHERE l.organization_id = p_org AND l.status IN ('active','notice_given') AND v.effective_to IS NOT NULL
       AND (v.effective_to - (p_now AT TIME ZONE p.timezone)::date) = ANY (coalesce(ns.lease_expiry_offsets_days, '{30,7}'))
   $function$
--- app.lease_front_desk_guard()
+-- app.lease_front_desk_guard() owner=<admin>
 CREATE OR REPLACE FUNCTION app.lease_front_desk_guard()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -3452,7 +3452,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
--- app.lease_guard()
+-- app.lease_guard() owner=<admin>
 CREATE OR REPLACE FUNCTION app.lease_guard()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -3484,7 +3484,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
--- app.lease_occupant_guard()
+-- app.lease_occupant_guard() owner=<admin>
 CREATE OR REPLACE FUNCTION app.lease_occupant_guard()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -3496,7 +3496,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
--- app.lease_settlement_guard()
+-- app.lease_settlement_guard() owner=<admin>
 CREATE OR REPLACE FUNCTION app.lease_settlement_guard()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -3507,7 +3507,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
--- app.lease_version_guard()
+-- app.lease_version_guard() owner=<admin>
 CREATE OR REPLACE FUNCTION app.lease_version_guard()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -3533,7 +3533,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
--- app.leases_expiring(p_now timestamp with time zone, p_days integer[])
+-- app.leases_expiring(p_now timestamp with time zone, p_days integer[]) owner=<admin>
 CREATE OR REPLACE FUNCTION app.leases_expiring(p_now timestamp with time zone, p_days integer[])
  RETURNS TABLE(organization_id uuid, property_id uuid, lease_id uuid, version_no integer, effective_to date, days_left integer)
  LANGUAGE sql
@@ -3554,7 +3554,7 @@ AS $function$
                         WHERE x ~ '^[0-9]{1,4}$')
              ELSE p_days END)
   $function$
--- app.leases_overstaying(p_now timestamp with time zone)
+-- app.leases_overstaying(p_now timestamp with time zone) owner=<admin>
 CREATE OR REPLACE FUNCTION app.leases_overstaying(p_now timestamp with time zone)
  RETURNS TABLE(organization_id uuid, property_id uuid, lease_id uuid, allocation_id uuid, related_allocation_id uuid)
  LANGUAGE sql
@@ -3576,7 +3576,7 @@ AS $function$
       AND NOT EXISTS (SELECT 1 FROM handovers h WHERE h.organization_id = l.organization_id AND h.lease_id = l.id
                         AND h.kind = 'move_out' AND h.confirmed_at IS NOT NULL)
   $function$
--- app.ledger_drift()
+-- app.ledger_drift() owner=<admin>
 CREATE OR REPLACE FUNCTION app.ledger_drift()
  RETURNS TABLE(organization_id uuid, debit_total bigint, credit_total bigint)
  LANGUAGE sql
@@ -3588,7 +3588,7 @@ AS $function$
     GROUP BY l.organization_id
     HAVING sum(l.debit) <> sum(l.credit)
   $function$
--- app.list_my_organizations(p_auth_user_id uuid)
+-- app.list_my_organizations(p_auth_user_id uuid) owner=<admin>
 CREATE OR REPLACE FUNCTION app.list_my_organizations(p_auth_user_id uuid)
  RETURNS TABLE(organization_id uuid, organization_name text, membership_id uuid, role text)
  LANGUAGE sql
@@ -3601,7 +3601,7 @@ AS $function$
       AND m.valid_from <= now() AND (m.valid_to IS NULL OR m.valid_to > now())
     ORDER BY o.name
   $function$
--- app.locked_through(p_org uuid, p_property uuid)
+-- app.locked_through(p_org uuid, p_property uuid) owner=<admin>
 CREATE OR REPLACE FUNCTION app.locked_through(p_org uuid, p_property uuid)
  RETURNS date
  LANGUAGE sql
@@ -3610,7 +3610,7 @@ AS $function$
   SELECT max(locked_through) FROM period_locks
   WHERE organization_id = p_org AND property_id = p_property AND released_at IS NULL
 $function$
--- app.mark_file_deleted(p_id uuid, p_today date)
+-- app.mark_file_deleted(p_id uuid, p_today date) owner=<admin>
 CREATE OR REPLACE FUNCTION app.mark_file_deleted(p_id uuid, p_today date)
  RETURNS boolean
  LANGUAGE sql
@@ -3623,7 +3623,7 @@ AS $function$
       RETURNING 1)
     SELECT EXISTS (SELECT 1 FROM x)
   $function$
--- app.memberships_elsewhere(p_auth_user_id uuid, p_org uuid)
+-- app.memberships_elsewhere(p_auth_user_id uuid, p_org uuid) owner=<admin>
 CREATE OR REPLACE FUNCTION app.memberships_elsewhere(p_auth_user_id uuid, p_org uuid)
  RETURNS integer
  LANGUAGE sql
@@ -3633,7 +3633,7 @@ AS $function$
     SELECT count(*)::int FROM memberships m
     WHERE m.auth_user_id = p_auth_user_id AND m.organization_id <> p_org AND m.status <> 'revoked'
   $function$
--- app.meter_reading_accountant_guard()
+-- app.meter_reading_accountant_guard() owner=<admin>
 CREATE OR REPLACE FUNCTION app.meter_reading_accountant_guard()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -3645,7 +3645,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
--- app.meter_reading_period_guard()
+-- app.meter_reading_period_guard() owner=<admin>
 CREATE OR REPLACE FUNCTION app.meter_reading_period_guard()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -3668,7 +3668,7 @@ BEGIN
   IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
   RETURN NEW;
 END $function$
--- app.metrics_snapshot(p_now timestamp with time zone)
+-- app.metrics_snapshot(p_now timestamp with time zone) owner=<admin>
 CREATE OR REPLACE FUNCTION app.metrics_snapshot(p_now timestamp with time zone)
  RETURNS TABLE(name text, labels jsonb, value double precision)
  LANGUAGE plpgsql
@@ -3702,7 +3702,7 @@ BEGIN
   RETURN QUERY SELECT 'hm_worker_heartbeat_age_seconds'::text, jsonb_build_object('worker', w.name),
     extract(epoch FROM p_now - w.beat_at)::double precision FROM worker_heartbeats w;
 END $function$
--- app.next_number(p_org uuid, p_property uuid, p_key text)
+-- app.next_number(p_org uuid, p_property uuid, p_key text) owner=<admin>
 CREATE OR REPLACE FUNCTION app.next_number(p_org uuid, p_property uuid, p_key text)
  RETURNS bigint
  LANGUAGE sql
@@ -3712,7 +3712,7 @@ AS $function$
      WHERE organization_id = p_org AND id = p_property
     RETURNING (counters ->> p_key)::bigint
   $function$
--- app.notification_delivery_transition()
+-- app.notification_delivery_transition() owner=<admin>
 CREATE OR REPLACE FUNCTION app.notification_delivery_transition()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -3730,7 +3730,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
--- app.notification_guard()
+-- app.notification_guard() owner=<admin>
 CREATE OR REPLACE FUNCTION app.notification_guard()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -3744,7 +3744,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
--- app.otp_sign_in_allowed(p_email text)
+-- app.otp_sign_in_allowed(p_email text) owner=<admin>
 CREATE OR REPLACE FUNCTION app.otp_sign_in_allowed(p_email text)
  RETURNS boolean
  LANGUAGE sql
@@ -3759,7 +3759,7 @@ AS $function$
         AND NOT EXISTS (SELECT 1 FROM memberships m WHERE m.auth_user_id = u.id AND m.role <> 'tenant'
                           AND m.status IN ('invited','active','suspended')))
   $function$
--- app.outbox_claim(p_limit integer)
+-- app.outbox_claim(p_limit integer) owner=<admin>
 CREATE OR REPLACE FUNCTION app.outbox_claim(p_limit integer)
  RETURNS TABLE(id uuid, organization_id uuid, event_type text, aggregate_id uuid, payload jsonb, correlation_id text, traceparent text)
  LANGUAGE sql
@@ -3778,7 +3778,7 @@ AS $function$
     SELECT u.id, u.organization_id, u.event_type, u.aggregate_id, u.payload, u.correlation_id, u.traceparent
     FROM u ORDER BY u.created_at, u.id
   $function$
--- app.outbox_mark(p_id uuid, p_error text)
+-- app.outbox_mark(p_id uuid, p_error text) owner=<admin>
 CREATE OR REPLACE FUNCTION app.outbox_mark(p_id uuid, p_error text)
  RETURNS void
  LANGUAGE sql
@@ -3792,7 +3792,7 @@ AS $function$
                                ELSE now() + least(interval '5 minutes', make_interval(secs => 5 * power(2, least(attempts, 6)))) END
     WHERE id = p_id AND published_at IS NULL
   $function$
--- app.overdue_candidates(p_org uuid, p_now timestamp with time zone)
+-- app.overdue_candidates(p_org uuid, p_now timestamp with time zone) owner=<admin>
 CREATE OR REPLACE FUNCTION app.overdue_candidates(p_org uuid, p_now timestamp with time zone)
  RETURNS TABLE(property_id uuid, property_name text, invoice_id uuid, payer_person_id uuid, open_amount bigint, due_on date, period_start date, business_date date, local_date date)
  LANGUAGE sql
@@ -3811,7 +3811,7 @@ AS $function$
       AND (p_now AT TIME ZONE p.timezone)::time >= coalesce(ns.send_window_start, '08:00')
       AND (p_now AT TIME ZONE p.timezone)::time < coalesce(ns.send_window_end, '20:00')
   $function$
--- app.payment_claim_guard()
+-- app.payment_claim_guard() owner=<admin>
 CREATE OR REPLACE FUNCTION app.payment_claim_guard()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -3826,7 +3826,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
--- app.payment_guard()
+-- app.payment_guard() owner=<admin>
 CREATE OR REPLACE FUNCTION app.payment_guard()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -3852,7 +3852,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
--- app.payment_reservation_fixed()
+-- app.payment_reservation_fixed() owner=<admin>
 CREATE OR REPLACE FUNCTION app.payment_reservation_fixed()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -3863,7 +3863,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
--- app.period_lock_guard()
+-- app.period_lock_guard() owner=<admin>
 CREATE OR REPLACE FUNCTION app.period_lock_guard()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -3877,7 +3877,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
--- app.properties_due_period(p_now timestamp with time zone)
+-- app.properties_due_period(p_now timestamp with time zone) owner=<admin>
 CREATE OR REPLACE FUNCTION app.properties_due_period(p_now timestamp with time zone)
  RETURNS TABLE(organization_id uuid, property_id uuid, period_start date, period_end date)
  LANGUAGE sql
@@ -3891,7 +3891,7 @@ AS $function$
       AND NOT EXISTS (SELECT 1 FROM billing_periods b WHERE b.organization_id = p.organization_id AND b.property_id = p.id
                         AND b.period_start = m.s)
   $function$
--- app.property_staff(p_org uuid, p_property uuid, p_roles text[])
+-- app.property_staff(p_org uuid, p_property uuid, p_roles text[]) owner=<admin>
 CREATE OR REPLACE FUNCTION app.property_staff(p_org uuid, p_property uuid, p_roles text[])
  RETURNS SETOF uuid
  LANGUAGE sql
@@ -3903,7 +3903,7 @@ AS $function$
       AND (m.all_properties OR EXISTS (SELECT 1 FROM property_scopes ps WHERE ps.organization_id = m.organization_id
                                          AND ps.membership_id = m.id AND ps.property_id = p_property))
   $function$
--- app.purge_idempotency_keys(p_now timestamp with time zone, p_limit integer)
+-- app.purge_idempotency_keys(p_now timestamp with time zone, p_limit integer) owner=<admin>
 CREATE OR REPLACE FUNCTION app.purge_idempotency_keys(p_now timestamp with time zone, p_limit integer)
  RETURNS integer
  LANGUAGE sql
@@ -3920,7 +3920,7 @@ AS $function$
       DELETE FROM idempotency_keys k USING due WHERE k.id = due.id RETURNING 1)
     SELECT count(*)::int FROM x
   $function$
--- app.purge_import_rows(p_now timestamp with time zone, p_days integer)
+-- app.purge_import_rows(p_now timestamp with time zone, p_days integer) owner=<admin>
 CREATE OR REPLACE FUNCTION app.purge_import_rows(p_now timestamp with time zone, p_days integer)
  RETURNS integer
  LANGUAGE sql
@@ -3939,7 +3939,7 @@ AS $function$
       RETURNING 1)
     SELECT count(*)::int FROM x
   $function$
--- app.purge_notification_deliveries(p_now timestamp with time zone, p_done_days integer, p_failed_days integer, p_limit integer)
+-- app.purge_notification_deliveries(p_now timestamp with time zone, p_done_days integer, p_failed_days integer, p_limit integer) owner=<admin>
 CREATE OR REPLACE FUNCTION app.purge_notification_deliveries(p_now timestamp with time zone, p_done_days integer, p_failed_days integer, p_limit integer)
  RETURNS integer
  LANGUAGE sql
@@ -3959,7 +3959,7 @@ AS $function$
       DELETE FROM notification_deliveries d USING due WHERE d.id = due.id RETURNING 1)
     SELECT count(*)::int FROM x
   $function$
--- app.purge_outbox(p_now timestamp with time zone, p_days integer, p_limit integer)
+-- app.purge_outbox(p_now timestamp with time zone, p_days integer, p_limit integer) owner=<admin>
 CREATE OR REPLACE FUNCTION app.purge_outbox(p_now timestamp with time zone, p_days integer, p_limit integer)
  RETURNS integer
  LANGUAGE sql
@@ -3977,7 +3977,7 @@ AS $function$
       DELETE FROM outbox o USING due WHERE o.id = due.id RETURNING 1)
     SELECT count(*)::int FROM x
   $function$
--- app.rate_limit_hit(p_scope text, p_subject text, p_limit integer, p_window_seconds integer, p_now timestamp with time zone)
+-- app.rate_limit_hit(p_scope text, p_subject text, p_limit integer, p_window_seconds integer, p_now timestamp with time zone) owner=<admin>
 CREATE OR REPLACE FUNCTION app.rate_limit_hit(p_scope text, p_subject text, p_limit integer, p_window_seconds integer, p_now timestamp with time zone DEFAULT now())
  RETURNS TABLE(allowed boolean, used integer, retry_after integer)
  LANGUAGE plpgsql
@@ -4009,7 +4009,7 @@ BEGIN
     FOR UPDATE SKIP LOCKED);
   RETURN QUERY SELECT true, n, 0;
 END $function$
--- app.receiving_account_owner(p_id uuid)
+-- app.receiving_account_owner(p_id uuid) owner=<admin>
 CREATE OR REPLACE FUNCTION app.receiving_account_owner(p_id uuid)
  RETURNS TABLE(organization_id uuid, property_id uuid)
  LANGUAGE sql
@@ -4018,7 +4018,7 @@ CREATE OR REPLACE FUNCTION app.receiving_account_owner(p_id uuid)
 AS $function$
     SELECT r.organization_id, r.property_id FROM receiving_accounts r WHERE r.id = p_id AND r.active
   $function$
--- app.reconciliation_break_guard()
+-- app.reconciliation_break_guard() owner=<admin>
 CREATE OR REPLACE FUNCTION app.reconciliation_break_guard()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -4034,7 +4034,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
--- app.reconciliation_breaks_overdue(p_now timestamp with time zone, p_sla_hours integer, p_limit integer)
+-- app.reconciliation_breaks_overdue(p_now timestamp with time zone, p_sla_hours integer, p_limit integer) owner=<admin>
 CREATE OR REPLACE FUNCTION app.reconciliation_breaks_overdue(p_now timestamp with time zone, p_sla_hours integer, p_limit integer)
  RETURNS TABLE(organization_id uuid, property_id uuid, break_id uuid, assignee uuid, reason text, age_hours integer)
  LANGUAGE sql
@@ -4048,7 +4048,7 @@ AS $function$
     ORDER BY b.created_at, b.id
     LIMIT least(greatest(p_limit, 1), 5000)
   $function$
--- app.reconciliation_metrics(p_now timestamp with time zone)
+-- app.reconciliation_metrics(p_now timestamp with time zone) owner=<admin>
 CREATE OR REPLACE FUNCTION app.reconciliation_metrics(p_now timestamp with time zone)
  RETURNS TABLE(name text, labels jsonb, value double precision)
  LANGUAGE plpgsql
@@ -4062,7 +4062,7 @@ BEGIN
     coalesce(max(extract(epoch FROM p_now - created_at)), 0)::double precision
     FROM reconciliation_breaks WHERE status = 'open';
 END $function$
--- app.reminder_orgs()
+-- app.reminder_orgs() owner=<admin>
 CREATE OR REPLACE FUNCTION app.reminder_orgs()
  RETURNS SETOF uuid
  LANGUAGE sql
@@ -4071,7 +4071,7 @@ CREATE OR REPLACE FUNCTION app.reminder_orgs()
 AS $function$
     SELECT id FROM organizations WHERE status = 'active' ORDER BY id
   $function$
--- app.reservation_transition()
+-- app.reservation_transition() owner=<admin>
 CREATE OR REPLACE FUNCTION app.reservation_transition()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -4090,7 +4090,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
--- app.residence_notice_guard()
+-- app.residence_notice_guard() owner=<admin>
 CREATE OR REPLACE FUNCTION app.residence_notice_guard()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -4103,7 +4103,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
--- app.resolve_guest_link(p_hash bytea)
+-- app.resolve_guest_link(p_hash bytea) owner=<admin>
 CREATE OR REPLACE FUNCTION app.resolve_guest_link(p_hash bytea)
  RETURNS TABLE(id uuid, organization_id uuid, property_id uuid, stay_id uuid, reservation_id uuid, expires_at timestamp with time zone, revoked_at timestamp with time zone, locked_at timestamp with time zone, failed_attempts integer, phone_last4 text, second_factor boolean)
  LANGUAGE sql
@@ -4125,7 +4125,7 @@ AS $function$
     WHERE g.token_hash = p_hash
     LIMIT 1
   $function$
--- app.select_property(p_property uuid)
+-- app.select_property(p_property uuid) owner=<admin>
 CREATE OR REPLACE FUNCTION app.select_property(p_property uuid)
  RETURNS boolean
  LANGUAGE plpgsql
@@ -4139,7 +4139,7 @@ BEGIN
      AND status = 'active' AND selected_property_id IS DISTINCT FROM p_property;
   RETURN true;
 END $function$
--- app.set_updated_at()
+-- app.set_updated_at() owner=<admin>
 CREATE OR REPLACE FUNCTION app.set_updated_at()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -4149,7 +4149,7 @@ BEGIN
   NEW.version := OLD.version + 1;
   RETURN NEW;
 END $function$
--- app.shift_discrepancy_guard()
+-- app.shift_discrepancy_guard() owner=<admin>
 CREATE OR REPLACE FUNCTION app.shift_discrepancy_guard()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -4165,7 +4165,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
--- app.shift_guard()
+-- app.shift_guard() owner=<admin>
 CREATE OR REPLACE FUNCTION app.shift_guard()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -4181,7 +4181,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
--- app.stay_notice_candidates(p_org uuid, p_now timestamp with time zone)
+-- app.stay_notice_candidates(p_org uuid, p_now timestamp with time zone) owner=<admin>
 CREATE OR REPLACE FUNCTION app.stay_notice_candidates(p_org uuid, p_now timestamp with time zone)
  RETURNS TABLE(property_id uuid, property_name text, notice_id uuid, unit_code text, due_at timestamp with time zone, due_at_local text, level text, business_date date)
  LANGUAGE sql
@@ -4208,7 +4208,7 @@ AS $function$
       AND EXISTS (SELECT 1 FROM residence_notices rn WHERE rn.organization_id = p.organization_id AND rn.property_id = p.id
                     AND rn.status = 'pending' AND rn.due_at IS NULL)
   $function$
--- app.stay_transition()
+-- app.stay_transition() owner=<admin>
 CREATE OR REPLACE FUNCTION app.stay_transition()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -4225,7 +4225,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
--- app.stays_overdue(p_now timestamp with time zone)
+-- app.stays_overdue(p_now timestamp with time zone) owner=<admin>
 CREATE OR REPLACE FUNCTION app.stays_overdue(p_now timestamp with time zone)
  RETURNS TABLE(organization_id uuid, property_id uuid, stay_id uuid, allocation_id uuid, related_allocation_id uuid)
  LANGUAGE sql
@@ -4245,7 +4245,7 @@ AS $function$
                         AND l.source_id = a.source_id AND l.active AND l.kind = 'stay' AND l.id <> a.id
                         AND lower(l.during) >= upper(a.during))
   $function$
--- app.task_transition()
+-- app.task_transition() owner=<admin>
 CREATE OR REPLACE FUNCTION app.task_transition()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -4269,7 +4269,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
--- app.tenant_access_on_lease_close()
+-- app.tenant_access_on_lease_close() owner=<admin>
 CREATE OR REPLACE FUNCTION app.tenant_access_on_lease_close()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -4295,7 +4295,7 @@ BEGIN
   END IF;
   RETURN NULL;
 END $function$
--- app.tenant_meters()
+-- app.tenant_meters() owner=<admin>
 CREATE OR REPLACE FUNCTION app.tenant_meters()
  RETURNS TABLE(meter_id uuid, since date, until date)
  LANGUAGE sql
@@ -4310,7 +4310,7 @@ AS $function$
       AND l.representative_person_id = app.actor_person_id()
       AND l.status IN ('signed_awaiting_handover','active','notice_given','settling','closed')
   $function$
--- app.tenant_property_ids()
+-- app.tenant_property_ids() owner=<admin>
 CREATE OR REPLACE FUNCTION app.tenant_property_ids()
  RETURNS SETOF uuid
  LANGUAGE sql
@@ -4322,7 +4322,7 @@ AS $function$
       AND l.representative_person_id = app.actor_person_id()
       AND l.status IN ('signed_awaiting_handover','active','notice_given','settling','closed')
   $function$
--- app.tenant_rents_unit(p_unit uuid)
+-- app.tenant_rents_unit(p_unit uuid) owner=<admin>
 CREATE OR REPLACE FUNCTION app.tenant_rents_unit(p_unit uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -4338,7 +4338,7 @@ AS $function$
                           AND o.role IN ('primary','co_tenant')
                           AND (o.to_on IS NULL OR o.to_on >= (now() AT TIME ZONE p.timezone)::date))))
   $function$
--- app.unit_arrivals(p_property uuid, p_date date)
+-- app.unit_arrivals(p_property uuid, p_date date) owner=<admin>
 CREATE OR REPLACE FUNCTION app.unit_arrivals(p_property uuid, p_date date)
  RETURNS TABLE(unit_id uuid, arrival_at timestamp with time zone)
  LANGUAGE sql
@@ -4353,7 +4353,7 @@ AS $function$
       AND i.arrival_date = p_date AND app.actor_can_see_property(p_property)
     GROUP BY s.unit_id
   $function$
--- app.unsubscribe_email(p_org uuid, p_person uuid, p_type text, p_correlation text)
+-- app.unsubscribe_email(p_org uuid, p_person uuid, p_type text, p_correlation text) owner=<admin>
 CREATE OR REPLACE FUNCTION app.unsubscribe_email(p_org uuid, p_person uuid, p_type text, p_correlation text)
  RETURNS TABLE(organization_name text, changed boolean)
  LANGUAGE plpgsql
@@ -4385,7 +4385,7 @@ BEGIN
   END IF;
   RETURN QUERY SELECT o.name, prev IS DISTINCT FROM 'opted_out' FROM organizations o WHERE o.id = p_org;
 END $function$
--- app.work_order_transition()
+-- app.work_order_transition() owner=<admin>
 CREATE OR REPLACE FUNCTION app.work_order_transition()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -4408,7 +4408,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
--- app.worker_heartbeat(p_name text, p_now timestamp with time zone)
+-- app.worker_heartbeat(p_name text, p_now timestamp with time zone) owner=<admin>
 CREATE OR REPLACE FUNCTION app.worker_heartbeat(p_name text, p_now timestamp with time zone)
  RETURNS void
  LANGUAGE sql
@@ -4419,305 +4419,1147 @@ AS $function$
     ON CONFLICT (name) DO UPDATE SET beat_at = excluded.beat_at
   $function$
 
-## table grants (không gồm chủ sở hữu) (301)
-auth.account app_runtime DELETE
-auth.account app_runtime INSERT
-auth.account app_runtime SELECT
-auth.account app_runtime UPDATE
-auth.login_throttle app_runtime DELETE
-auth.login_throttle app_runtime INSERT
-auth.login_throttle app_runtime SELECT
-auth.login_throttle app_runtime UPDATE
-auth.rateLimit app_runtime DELETE
-auth.rateLimit app_runtime INSERT
-auth.rateLimit app_runtime SELECT
-auth.rateLimit app_runtime UPDATE
-auth.revoked_session app_runtime DELETE
-auth.revoked_session app_runtime INSERT
-auth.revoked_session app_runtime SELECT
-auth.session app_runtime DELETE
-auth.session app_runtime INSERT
-auth.session app_runtime SELECT
-auth.session app_runtime UPDATE
-auth.twoFactor app_runtime DELETE
-auth.twoFactor app_runtime INSERT
-auth.twoFactor app_runtime SELECT
-auth.twoFactor app_runtime UPDATE
-auth.user app_runtime DELETE
-auth.user app_runtime INSERT
-auth.user app_runtime SELECT
-auth.user app_runtime UPDATE
-auth.verification app_runtime DELETE
-auth.verification app_runtime INSERT
-auth.verification app_runtime SELECT
-auth.verification app_runtime UPDATE
-public.allocations app_runtime INSERT
-public.allocations app_runtime SELECT
-public.allocations app_runtime UPDATE
-public.allocations app_worker SELECT
-public.allocations app_worker UPDATE
-public.approval_requests app_runtime INSERT
-public.approval_requests app_runtime SELECT
-public.approval_requests app_runtime UPDATE
-public.audit_events app_runtime INSERT
-public.audit_events app_runtime SELECT
-public.audit_events app_worker INSERT
-public.audit_events app_worker SELECT
-public.bank_transactions app_runtime INSERT
-public.bank_transactions app_runtime SELECT
-public.bank_transactions app_worker INSERT
-public.bank_transactions app_worker SELECT
-public.billing_periods app_runtime INSERT
-public.billing_periods app_runtime SELECT
-public.billing_periods app_runtime UPDATE
-public.billing_periods app_worker INSERT
-public.billing_periods app_worker SELECT
-public.blocks app_runtime INSERT
-public.blocks app_runtime SELECT
-public.blocks app_runtime UPDATE
-public.blocks app_worker SELECT
-public.charges app_runtime INSERT
-public.charges app_runtime SELECT
-public.charges app_runtime UPDATE
-public.deposits app_runtime INSERT
-public.deposits app_runtime SELECT
-public.deposits app_runtime UPDATE
-public.exceptions app_runtime INSERT
-public.exceptions app_runtime SELECT
-public.exceptions app_runtime UPDATE
-public.exceptions app_worker INSERT
-public.exceptions app_worker SELECT
-public.export_jobs app_runtime INSERT
-public.export_jobs app_runtime SELECT
-public.export_jobs app_worker SELECT
-public.export_jobs app_worker UPDATE
-public.files app_runtime INSERT
-public.files app_runtime SELECT
-public.files app_runtime UPDATE
-public.floors app_runtime DELETE
-public.floors app_runtime INSERT
-public.floors app_runtime SELECT
-public.floors app_runtime UPDATE
-public.floors app_worker DELETE
-public.floors app_worker INSERT
-public.floors app_worker SELECT
-public.floors app_worker UPDATE
-public.guest_access_links app_runtime INSERT
-public.guest_access_links app_runtime SELECT
-public.guest_access_links app_runtime UPDATE
-public.handovers app_runtime INSERT
-public.handovers app_runtime SELECT
-public.handovers app_runtime UPDATE
-public.handovers app_worker SELECT
-public.idempotency_keys app_runtime INSERT
-public.idempotency_keys app_runtime SELECT
-public.idempotency_keys app_runtime UPDATE
-public.idempotency_keys app_worker DELETE
-public.idempotency_keys app_worker SELECT
-public.identity_documents app_runtime INSERT
-public.identity_documents app_runtime SELECT
-public.identity_documents app_runtime UPDATE
-public.import_batches app_runtime INSERT
-public.import_batches app_runtime SELECT
-public.import_batches app_runtime UPDATE
-public.import_external_refs app_runtime INSERT
-public.import_external_refs app_runtime SELECT
-public.import_rows app_runtime INSERT
-public.import_rows app_runtime SELECT
-public.import_rows app_runtime UPDATE
-public.inbox app_runtime INSERT
-public.inbox app_runtime SELECT
-public.inbox app_worker INSERT
-public.inbox app_worker SELECT
-public.invitations app_runtime DELETE
-public.invitations app_runtime INSERT
-public.invitations app_runtime SELECT
-public.invitations app_runtime UPDATE
-public.invitations app_worker DELETE
-public.invitations app_worker INSERT
-public.invitations app_worker SELECT
-public.invitations app_worker UPDATE
-public.invoice_lines app_runtime INSERT
-public.invoice_lines app_runtime SELECT
-public.invoices app_runtime INSERT
-public.invoices app_runtime SELECT
-public.invoices app_runtime UPDATE
-public.invoices app_worker SELECT
-public.invoices app_worker UPDATE
-public.journal_entries app_runtime INSERT
-public.journal_entries app_runtime SELECT
-public.journal_entries app_worker INSERT
-public.journal_entries app_worker SELECT
-public.journal_lines app_runtime INSERT
-public.journal_lines app_runtime SELECT
-public.journal_lines app_worker INSERT
-public.journal_lines app_worker SELECT
-public.lease_occupants app_runtime INSERT
-public.lease_occupants app_runtime SELECT
-public.lease_occupants app_runtime UPDATE
-public.lease_occupants app_worker SELECT
-public.lease_settlements app_runtime INSERT
-public.lease_settlements app_runtime SELECT
-public.lease_settlements app_runtime UPDATE
-public.lease_versions app_runtime INSERT
-public.lease_versions app_runtime SELECT
-public.lease_versions app_runtime UPDATE
-public.lease_versions app_worker SELECT
-public.leases app_runtime INSERT
-public.leases app_runtime SELECT
-public.leases app_runtime UPDATE
-public.leases app_worker SELECT
-public.memberships app_runtime DELETE
-public.memberships app_runtime INSERT
-public.memberships app_runtime SELECT
-public.memberships app_runtime UPDATE
-public.memberships app_worker DELETE
-public.memberships app_worker INSERT
-public.memberships app_worker SELECT
-public.memberships app_worker UPDATE
-public.meter_events app_runtime INSERT
-public.meter_events app_runtime SELECT
-public.meter_events app_worker SELECT
-public.meter_readings app_runtime INSERT
-public.meter_readings app_runtime SELECT
-public.meter_readings app_runtime UPDATE
-public.meter_readings app_worker SELECT
-public.meters app_runtime INSERT
-public.meters app_runtime SELECT
-public.meters app_runtime UPDATE
-public.meters app_worker SELECT
-public.notification_deliveries app_runtime SELECT
-public.notification_deliveries app_worker INSERT
-public.notification_deliveries app_worker SELECT
-public.notification_deliveries app_worker UPDATE
-public.notification_preferences app_runtime INSERT
-public.notification_preferences app_runtime SELECT
-public.notification_preferences app_runtime UPDATE
-public.notification_preferences app_worker SELECT
-public.notification_settings app_runtime INSERT
-public.notification_settings app_runtime SELECT
-public.notification_settings app_runtime UPDATE
-public.notification_settings app_worker SELECT
-public.notifications app_runtime SELECT
-public.notifications app_worker INSERT
-public.notifications app_worker SELECT
-public.organizations app_runtime DELETE
-public.organizations app_runtime INSERT
-public.organizations app_runtime SELECT
-public.organizations app_runtime UPDATE
-public.organizations app_worker DELETE
-public.organizations app_worker INSERT
-public.organizations app_worker SELECT
-public.organizations app_worker UPDATE
-public.outbox app_runtime INSERT
-public.outbox app_worker INSERT
-public.payment_allocations app_runtime INSERT
-public.payment_allocations app_runtime SELECT
-public.payment_allocations app_runtime UPDATE
-public.payment_allocations app_worker INSERT
-public.payment_allocations app_worker SELECT
-public.payment_claims app_runtime INSERT
-public.payment_claims app_runtime SELECT
-public.payment_claims app_runtime UPDATE
-public.payment_claims app_worker SELECT
-public.payments app_runtime INSERT
-public.payments app_runtime SELECT
-public.payments app_runtime UPDATE
-public.payments app_worker INSERT
-public.payments app_worker SELECT
-public.payments app_worker UPDATE
-public.period_locks app_runtime INSERT
-public.period_locks app_runtime SELECT
-public.period_locks app_worker SELECT
-public.persons app_runtime DELETE
-public.persons app_runtime INSERT
-public.persons app_runtime SELECT
-public.persons app_runtime UPDATE
-public.persons app_worker DELETE
-public.persons app_worker INSERT
-public.persons app_worker SELECT
-public.persons app_worker UPDATE
-public.properties app_runtime DELETE
-public.properties app_runtime INSERT
-public.properties app_runtime SELECT
-public.properties app_runtime UPDATE
-public.properties app_worker DELETE
-public.properties app_worker INSERT
-public.properties app_worker SELECT
-public.properties app_worker UPDATE
-public.property_scopes app_runtime DELETE
-public.property_scopes app_runtime INSERT
-public.property_scopes app_runtime SELECT
-public.property_scopes app_worker DELETE
-public.property_scopes app_worker INSERT
-public.property_scopes app_worker SELECT
-public.rate_plans app_runtime INSERT
-public.rate_plans app_runtime SELECT
-public.rate_plans app_runtime UPDATE
-public.rate_plans app_worker SELECT
-public.receiving_accounts app_runtime INSERT
-public.receiving_accounts app_runtime SELECT
-public.receiving_accounts app_runtime UPDATE
-public.receiving_accounts app_worker SELECT
-public.reconciliation_breaks app_runtime INSERT
-public.reconciliation_breaks app_runtime SELECT
-public.reconciliation_breaks app_runtime UPDATE
-public.reconciliation_breaks app_worker INSERT
-public.reconciliation_breaks app_worker SELECT
-public.reservation_items app_runtime INSERT
-public.reservation_items app_runtime SELECT
-public.reservation_items app_runtime UPDATE
-public.reservation_items app_worker SELECT
-public.reservation_items app_worker UPDATE
-public.reservations app_runtime INSERT
-public.reservations app_runtime SELECT
-public.reservations app_runtime UPDATE
-public.reservations app_worker SELECT
-public.reservations app_worker UPDATE
-public.residence_notices app_runtime INSERT
-public.residence_notices app_runtime SELECT
-public.residence_notices app_runtime UPDATE
-public.residence_notices app_worker SELECT
-public.room_types app_runtime DELETE
-public.room_types app_runtime INSERT
-public.room_types app_runtime SELECT
-public.room_types app_runtime UPDATE
-public.room_types app_worker DELETE
-public.room_types app_worker INSERT
-public.room_types app_worker SELECT
-public.room_types app_worker UPDATE
-public.service_prices app_runtime INSERT
-public.service_prices app_runtime SELECT
-public.service_prices app_runtime UPDATE
-public.service_prices app_worker SELECT
-public.services app_runtime INSERT
-public.services app_runtime SELECT
-public.services app_runtime UPDATE
-public.services app_worker SELECT
-public.shift_discrepancies app_runtime INSERT
-public.shift_discrepancies app_runtime SELECT
-public.shift_discrepancies app_runtime UPDATE
-public.shifts app_runtime INSERT
-public.shifts app_runtime SELECT
-public.shifts app_runtime UPDATE
-public.stays app_runtime INSERT
-public.stays app_runtime SELECT
-public.stays app_runtime UPDATE
-public.stays app_worker SELECT
-public.stays app_worker UPDATE
-public.tasks app_runtime INSERT
-public.tasks app_runtime SELECT
-public.tasks app_runtime UPDATE
-public.tasks app_worker SELECT
-public.units app_runtime DELETE
-public.units app_runtime INSERT
-public.units app_runtime SELECT
-public.units app_runtime UPDATE
-public.units app_worker DELETE
-public.units app_worker INSERT
-public.units app_worker SELECT
-public.units app_worker UPDATE
-public.work_orders app_runtime INSERT
-public.work_orders app_runtime SELECT
-public.work_orders app_runtime UPDATE
-public.work_orders app_worker SELECT
+## grants (bảng, cột, hàm, schema) (1143)
+column public.inbox.bank_transaction_id app_runtime UPDATE
+column public.inbox.bank_transaction_id app_worker UPDATE
+column public.inbox.process_error app_runtime UPDATE
+column public.inbox.process_error app_worker UPDATE
+column public.inbox.process_status app_runtime UPDATE
+column public.inbox.process_status app_worker UPDATE
+column public.inbox.processed_at app_runtime UPDATE
+column public.inbox.processed_at app_worker UPDATE
+column public.notification_deliveries.attempts app_runtime UPDATE
+column public.notification_deliveries.last_error_code app_runtime UPDATE
+column public.notification_deliveries.locked_until app_runtime UPDATE
+column public.notification_deliveries.next_attempt_at app_runtime UPDATE
+column public.notification_deliveries.status app_runtime UPDATE
+column public.notifications.read_at app_runtime UPDATE
+column public.period_locks.release_reason app_runtime UPDATE
+column public.period_locks.released_at app_runtime UPDATE
+column public.period_locks.released_by app_runtime UPDATE
+function app.actor_can_see_property(p uuid) <admin> EXECUTE
+function app.actor_can_see_property(p uuid) app_runtime EXECUTE
+function app.actor_can_see_property(p uuid) app_worker EXECUTE
+function app.actor_person_id() <admin> EXECUTE
+function app.actor_person_id() app_runtime EXECUTE
+function app.actor_person_id() app_worker EXECUTE
+function app.actor_role() <admin> EXECUTE
+function app.actor_role() app_runtime EXECUTE
+function app.actor_role() app_worker EXECUTE
+function app.allocation_guard() <admin> EXECUTE
+function app.allocation_guard() PUBLIC EXECUTE
+function app.approval_transition() <admin> EXECUTE
+function app.approval_transition() PUBLIC EXECUTE
+function app.billing_period_guard() <admin> EXECUTE
+function app.billing_period_guard() PUBLIC EXECUTE
+function app.billing_period_published(p_org uuid, p_id uuid) <admin> EXECUTE
+function app.billing_period_published(p_org uuid, p_id uuid) app_runtime EXECUTE
+function app.business_date(p_org uuid, p_property uuid, p_at timestamp with time zone) <admin> EXECUTE
+function app.business_date(p_org uuid, p_property uuid, p_at timestamp with time zone) PUBLIC EXECUTE
+function app.business_date(p_org uuid, p_property uuid, p_at timestamp with time zone) app_runtime EXECUTE
+function app.business_date(p_org uuid, p_property uuid, p_at timestamp with time zone) app_worker EXECUTE
+function app.charge_guard() <admin> EXECUTE
+function app.charge_guard() PUBLIC EXECUTE
+function app.check_allocation_by() <admin> EXECUTE
+function app.check_allocation_by() PUBLIC EXECUTE
+function app.check_bank_auto_payment() <admin> EXECUTE
+function app.check_bank_auto_payment() PUBLIC EXECUTE
+function app.check_billing_period_lock() <admin> EXECUTE
+function app.check_billing_period_lock() PUBLIC EXECUTE
+function app.check_block_allocation() <admin> EXECUTE
+function app.check_block_allocation() PUBLIC EXECUTE
+function app.check_entry_balanced() <admin> EXECUTE
+function app.check_entry_balanced() PUBLIC EXECUTE
+function app.check_invoice_total() <admin> EXECUTE
+function app.check_invoice_total() PUBLIC EXECUTE
+function app.check_last_owner() <admin> EXECUTE
+function app.check_last_owner() PUBLIC EXECUTE
+function app.check_lease_representative() <admin> EXECUTE
+function app.check_lease_representative() PUBLIC EXECUTE
+function app.check_period_open() <admin> EXECUTE
+function app.check_period_open() PUBLIC EXECUTE
+function app.check_property_not_in_use() <admin> EXECUTE
+function app.check_property_not_in_use() PUBLIC EXECUTE
+function app.check_timezone() <admin> EXECUTE
+function app.check_timezone() PUBLIC EXECUTE
+function app.claim_due_deliveries(p_now timestamp with time zone, p_limit integer, p_per_org integer, p_lock_seconds integer, p_max_attempts integer) <admin> EXECUTE
+function app.claim_due_deliveries(p_now timestamp with time zone, p_limit integer, p_per_org integer, p_lock_seconds integer, p_max_attempts integer) app_worker EXECUTE
+function app.current_org() <admin> EXECUTE
+function app.current_org() PUBLIC EXECUTE
+function app.current_org() app_runtime EXECUTE
+function app.current_org() app_worker EXECUTE
+function app.db_health_metrics() <admin> EXECUTE
+function app.db_health_metrics() app_runtime EXECUTE
+function app.db_health_metrics() app_worker EXECUTE
+function app.dead_letter_jobs() <admin> EXECUTE
+function app.dead_letter_jobs() app_runtime EXECUTE
+function app.dead_letter_jobs() app_worker EXECUTE
+function app.deposit_guard() <admin> EXECUTE
+function app.deposit_guard() PUBLIC EXECUTE
+function app.due_held_reservations(p_now timestamp with time zone, p_limit integer) <admin> EXECUTE
+function app.due_held_reservations(p_now timestamp with time zone, p_limit integer) app_worker EXECUTE
+function app.expire_export_jobs(p_now timestamp with time zone) <admin> EXECUTE
+function app.expire_export_jobs(p_now timestamp with time zone) app_worker EXECUTE
+function app.expire_holds(p_now timestamp with time zone, p_limit integer) <admin> EXECUTE
+function app.expire_holds(p_now timestamp with time zone, p_limit integer) app_worker EXECUTE
+function app.export_job_transition() <admin> EXECUTE
+function app.export_job_transition() PUBLIC EXECUTE
+function app.files_due_for_deletion(p_today date, p_limit integer) <admin> EXECUTE
+function app.files_due_for_deletion(p_today date, p_limit integer) app_worker EXECUTE
+function app.forbid_mutation() <admin> EXECUTE
+function app.forbid_mutation() PUBLIC EXECUTE
+function app.forbid_reactivation() <admin> EXECUTE
+function app.forbid_reactivation() PUBLIC EXECUTE
+function app.guest_link_attempt(p_id uuid, p_ok boolean, p_now timestamp with time zone) <admin> EXECUTE
+function app.guest_link_attempt(p_id uuid, p_ok boolean, p_now timestamp with time zone) app_runtime EXECUTE
+function app.guest_link_guard() <admin> EXECUTE
+function app.guest_link_guard() PUBLIC EXECUTE
+function app.guest_link_rate(p_ip_hash bytea, p_now timestamp with time zone, p_record boolean) <admin> EXECUTE
+function app.guest_link_rate(p_ip_hash bytea, p_now timestamp with time zone, p_record boolean) app_runtime EXECUTE
+function app.guest_stay_view(p_link uuid) <admin> EXECUTE
+function app.guest_stay_view(p_link uuid) app_runtime EXECUTE
+function app.handover_guard() <admin> EXECUTE
+function app.handover_guard() PUBLIC EXECUTE
+function app.handover_reading_guard() <admin> EXECUTE
+function app.handover_reading_guard() PUBLIC EXECUTE
+function app.import_batch_guard() <admin> EXECUTE
+function app.import_batch_guard() PUBLIC EXECUTE
+function app.import_row_guard() <admin> EXECUTE
+function app.import_row_guard() PUBLIC EXECUTE
+function app.inbox_immutable() <admin> EXECUTE
+function app.inbox_immutable() PUBLIC EXECUTE
+function app.invitation_by_token(p_token_hash bytea) <admin> EXECUTE
+function app.invitation_by_token(p_token_hash bytea) app_runtime EXECUTE
+function app.invoice_immutable() <admin> EXECUTE
+function app.invoice_immutable() PUBLIC EXECUTE
+function app.lease_activation_guard() <admin> EXECUTE
+function app.lease_activation_guard() PUBLIC EXECUTE
+function app.lease_close_guard() <admin> EXECUTE
+function app.lease_close_guard() PUBLIC EXECUTE
+function app.lease_expiry_candidates(p_org uuid, p_now timestamp with time zone) <admin> EXECUTE
+function app.lease_expiry_candidates(p_org uuid, p_now timestamp with time zone) app_worker EXECUTE
+function app.lease_front_desk_guard() <admin> EXECUTE
+function app.lease_front_desk_guard() PUBLIC EXECUTE
+function app.lease_guard() <admin> EXECUTE
+function app.lease_guard() PUBLIC EXECUTE
+function app.lease_occupant_guard() <admin> EXECUTE
+function app.lease_occupant_guard() PUBLIC EXECUTE
+function app.lease_settlement_guard() <admin> EXECUTE
+function app.lease_settlement_guard() PUBLIC EXECUTE
+function app.lease_version_guard() <admin> EXECUTE
+function app.lease_version_guard() PUBLIC EXECUTE
+function app.leases_expiring(p_now timestamp with time zone, p_days integer[]) <admin> EXECUTE
+function app.leases_expiring(p_now timestamp with time zone, p_days integer[]) app_worker EXECUTE
+function app.leases_overstaying(p_now timestamp with time zone) <admin> EXECUTE
+function app.leases_overstaying(p_now timestamp with time zone) app_worker EXECUTE
+function app.ledger_drift() <admin> EXECUTE
+function app.ledger_drift() app_worker EXECUTE
+function app.list_my_organizations(p_auth_user_id uuid) <admin> EXECUTE
+function app.list_my_organizations(p_auth_user_id uuid) app_runtime EXECUTE
+function app.locked_through(p_org uuid, p_property uuid) <admin> EXECUTE
+function app.locked_through(p_org uuid, p_property uuid) PUBLIC EXECUTE
+function app.locked_through(p_org uuid, p_property uuid) app_runtime EXECUTE
+function app.locked_through(p_org uuid, p_property uuid) app_worker EXECUTE
+function app.mark_file_deleted(p_id uuid, p_today date) <admin> EXECUTE
+function app.mark_file_deleted(p_id uuid, p_today date) app_worker EXECUTE
+function app.memberships_elsewhere(p_auth_user_id uuid, p_org uuid) <admin> EXECUTE
+function app.memberships_elsewhere(p_auth_user_id uuid, p_org uuid) app_runtime EXECUTE
+function app.meter_reading_accountant_guard() <admin> EXECUTE
+function app.meter_reading_accountant_guard() PUBLIC EXECUTE
+function app.meter_reading_period_guard() <admin> EXECUTE
+function app.meter_reading_period_guard() PUBLIC EXECUTE
+function app.metrics_snapshot(p_now timestamp with time zone) <admin> EXECUTE
+function app.metrics_snapshot(p_now timestamp with time zone) app_runtime EXECUTE
+function app.metrics_snapshot(p_now timestamp with time zone) app_worker EXECUTE
+function app.next_number(p_org uuid, p_property uuid, p_key text) <admin> EXECUTE
+function app.next_number(p_org uuid, p_property uuid, p_key text) PUBLIC EXECUTE
+function app.next_number(p_org uuid, p_property uuid, p_key text) app_runtime EXECUTE
+function app.notification_delivery_transition() <admin> EXECUTE
+function app.notification_delivery_transition() PUBLIC EXECUTE
+function app.notification_guard() <admin> EXECUTE
+function app.notification_guard() PUBLIC EXECUTE
+function app.otp_sign_in_allowed(p_email text) <admin> EXECUTE
+function app.otp_sign_in_allowed(p_email text) app_runtime EXECUTE
+function app.outbox_claim(p_limit integer) <admin> EXECUTE
+function app.outbox_claim(p_limit integer) app_worker EXECUTE
+function app.outbox_mark(p_id uuid, p_error text) <admin> EXECUTE
+function app.outbox_mark(p_id uuid, p_error text) app_worker EXECUTE
+function app.overdue_candidates(p_org uuid, p_now timestamp with time zone) <admin> EXECUTE
+function app.overdue_candidates(p_org uuid, p_now timestamp with time zone) app_worker EXECUTE
+function app.payment_claim_guard() <admin> EXECUTE
+function app.payment_claim_guard() PUBLIC EXECUTE
+function app.payment_guard() <admin> EXECUTE
+function app.payment_guard() PUBLIC EXECUTE
+function app.payment_reservation_fixed() <admin> EXECUTE
+function app.payment_reservation_fixed() PUBLIC EXECUTE
+function app.period_lock_guard() <admin> EXECUTE
+function app.period_lock_guard() PUBLIC EXECUTE
+function app.properties_due_period(p_now timestamp with time zone) <admin> EXECUTE
+function app.properties_due_period(p_now timestamp with time zone) app_worker EXECUTE
+function app.property_staff(p_org uuid, p_property uuid, p_roles text[]) <admin> EXECUTE
+function app.property_staff(p_org uuid, p_property uuid, p_roles text[]) app_worker EXECUTE
+function app.purge_idempotency_keys(p_now timestamp with time zone, p_limit integer) <admin> EXECUTE
+function app.purge_idempotency_keys(p_now timestamp with time zone, p_limit integer) app_worker EXECUTE
+function app.purge_import_rows(p_now timestamp with time zone, p_days integer) <admin> EXECUTE
+function app.purge_import_rows(p_now timestamp with time zone, p_days integer) app_worker EXECUTE
+function app.purge_notification_deliveries(p_now timestamp with time zone, p_done_days integer, p_failed_days integer, p_limit integer) <admin> EXECUTE
+function app.purge_notification_deliveries(p_now timestamp with time zone, p_done_days integer, p_failed_days integer, p_limit integer) app_worker EXECUTE
+function app.purge_outbox(p_now timestamp with time zone, p_days integer, p_limit integer) <admin> EXECUTE
+function app.purge_outbox(p_now timestamp with time zone, p_days integer, p_limit integer) app_worker EXECUTE
+function app.rate_limit_hit(p_scope text, p_subject text, p_limit integer, p_window_seconds integer, p_now timestamp with time zone) <admin> EXECUTE
+function app.rate_limit_hit(p_scope text, p_subject text, p_limit integer, p_window_seconds integer, p_now timestamp with time zone) app_runtime EXECUTE
+function app.receiving_account_owner(p_id uuid) <admin> EXECUTE
+function app.receiving_account_owner(p_id uuid) app_runtime EXECUTE
+function app.receiving_account_owner(p_id uuid) app_worker EXECUTE
+function app.reconciliation_break_guard() <admin> EXECUTE
+function app.reconciliation_break_guard() PUBLIC EXECUTE
+function app.reconciliation_breaks_overdue(p_now timestamp with time zone, p_sla_hours integer, p_limit integer) <admin> EXECUTE
+function app.reconciliation_breaks_overdue(p_now timestamp with time zone, p_sla_hours integer, p_limit integer) app_worker EXECUTE
+function app.reconciliation_metrics(p_now timestamp with time zone) <admin> EXECUTE
+function app.reconciliation_metrics(p_now timestamp with time zone) app_runtime EXECUTE
+function app.reconciliation_metrics(p_now timestamp with time zone) app_worker EXECUTE
+function app.reminder_orgs() <admin> EXECUTE
+function app.reminder_orgs() app_worker EXECUTE
+function app.reservation_transition() <admin> EXECUTE
+function app.reservation_transition() PUBLIC EXECUTE
+function app.residence_notice_guard() <admin> EXECUTE
+function app.residence_notice_guard() PUBLIC EXECUTE
+function app.resolve_guest_link(p_hash bytea) <admin> EXECUTE
+function app.resolve_guest_link(p_hash bytea) app_runtime EXECUTE
+function app.select_property(p_property uuid) <admin> EXECUTE
+function app.select_property(p_property uuid) app_runtime EXECUTE
+function app.set_updated_at() <admin> EXECUTE
+function app.set_updated_at() PUBLIC EXECUTE
+function app.shift_discrepancy_guard() <admin> EXECUTE
+function app.shift_discrepancy_guard() PUBLIC EXECUTE
+function app.shift_guard() <admin> EXECUTE
+function app.shift_guard() PUBLIC EXECUTE
+function app.stay_notice_candidates(p_org uuid, p_now timestamp with time zone) <admin> EXECUTE
+function app.stay_notice_candidates(p_org uuid, p_now timestamp with time zone) app_worker EXECUTE
+function app.stay_transition() <admin> EXECUTE
+function app.stay_transition() PUBLIC EXECUTE
+function app.stays_overdue(p_now timestamp with time zone) <admin> EXECUTE
+function app.stays_overdue(p_now timestamp with time zone) app_worker EXECUTE
+function app.task_transition() <admin> EXECUTE
+function app.task_transition() PUBLIC EXECUTE
+function app.tenant_access_on_lease_close() <admin> EXECUTE
+function app.tenant_access_on_lease_close() PUBLIC EXECUTE
+function app.tenant_meters() <admin> EXECUTE
+function app.tenant_meters() app_runtime EXECUTE
+function app.tenant_property_ids() <admin> EXECUTE
+function app.tenant_property_ids() app_runtime EXECUTE
+function app.tenant_rents_unit(p_unit uuid) <admin> EXECUTE
+function app.tenant_rents_unit(p_unit uuid) app_runtime EXECUTE
+function app.unit_arrivals(p_property uuid, p_date date) <admin> EXECUTE
+function app.unit_arrivals(p_property uuid, p_date date) app_runtime EXECUTE
+function app.unsubscribe_email(p_org uuid, p_person uuid, p_type text, p_correlation text) <admin> EXECUTE
+function app.unsubscribe_email(p_org uuid, p_person uuid, p_type text, p_correlation text) app_runtime EXECUTE
+function app.work_order_transition() <admin> EXECUTE
+function app.work_order_transition() PUBLIC EXECUTE
+function app.worker_heartbeat(p_name text, p_now timestamp with time zone) <admin> EXECUTE
+function app.worker_heartbeat(p_name text, p_now timestamp with time zone) app_worker EXECUTE
+schema app <admin> CREATE
+schema app <admin> USAGE
+schema app app_runtime USAGE
+schema app app_worker USAGE
+schema auth <admin> CREATE
+schema auth <admin> USAGE
+schema auth app_runtime USAGE
+schema pgboss app_worker CREATE
+schema pgboss app_worker USAGE
+schema public PUBLIC USAGE
+schema public pg_database_owner CREATE
+schema public pg_database_owner USAGE
+table auth.account <admin> DELETE
+table auth.account <admin> INSERT
+table auth.account <admin> MAINTAIN
+table auth.account <admin> REFERENCES
+table auth.account <admin> SELECT
+table auth.account <admin> TRIGGER
+table auth.account <admin> TRUNCATE
+table auth.account <admin> UPDATE
+table auth.account app_runtime DELETE
+table auth.account app_runtime INSERT
+table auth.account app_runtime SELECT
+table auth.account app_runtime UPDATE
+table auth.login_throttle <admin> DELETE
+table auth.login_throttle <admin> INSERT
+table auth.login_throttle <admin> MAINTAIN
+table auth.login_throttle <admin> REFERENCES
+table auth.login_throttle <admin> SELECT
+table auth.login_throttle <admin> TRIGGER
+table auth.login_throttle <admin> TRUNCATE
+table auth.login_throttle <admin> UPDATE
+table auth.login_throttle app_runtime DELETE
+table auth.login_throttle app_runtime INSERT
+table auth.login_throttle app_runtime SELECT
+table auth.login_throttle app_runtime UPDATE
+table auth.rateLimit <admin> DELETE
+table auth.rateLimit <admin> INSERT
+table auth.rateLimit <admin> MAINTAIN
+table auth.rateLimit <admin> REFERENCES
+table auth.rateLimit <admin> SELECT
+table auth.rateLimit <admin> TRIGGER
+table auth.rateLimit <admin> TRUNCATE
+table auth.rateLimit <admin> UPDATE
+table auth.rateLimit app_runtime DELETE
+table auth.rateLimit app_runtime INSERT
+table auth.rateLimit app_runtime SELECT
+table auth.rateLimit app_runtime UPDATE
+table auth.revoked_session <admin> DELETE
+table auth.revoked_session <admin> INSERT
+table auth.revoked_session <admin> MAINTAIN
+table auth.revoked_session <admin> REFERENCES
+table auth.revoked_session <admin> SELECT
+table auth.revoked_session <admin> TRIGGER
+table auth.revoked_session <admin> TRUNCATE
+table auth.revoked_session <admin> UPDATE
+table auth.revoked_session app_runtime DELETE
+table auth.revoked_session app_runtime INSERT
+table auth.revoked_session app_runtime SELECT
+table auth.session <admin> DELETE
+table auth.session <admin> INSERT
+table auth.session <admin> MAINTAIN
+table auth.session <admin> REFERENCES
+table auth.session <admin> SELECT
+table auth.session <admin> TRIGGER
+table auth.session <admin> TRUNCATE
+table auth.session <admin> UPDATE
+table auth.session app_runtime DELETE
+table auth.session app_runtime INSERT
+table auth.session app_runtime SELECT
+table auth.session app_runtime UPDATE
+table auth.twoFactor <admin> DELETE
+table auth.twoFactor <admin> INSERT
+table auth.twoFactor <admin> MAINTAIN
+table auth.twoFactor <admin> REFERENCES
+table auth.twoFactor <admin> SELECT
+table auth.twoFactor <admin> TRIGGER
+table auth.twoFactor <admin> TRUNCATE
+table auth.twoFactor <admin> UPDATE
+table auth.twoFactor app_runtime DELETE
+table auth.twoFactor app_runtime INSERT
+table auth.twoFactor app_runtime SELECT
+table auth.twoFactor app_runtime UPDATE
+table auth.user <admin> DELETE
+table auth.user <admin> INSERT
+table auth.user <admin> MAINTAIN
+table auth.user <admin> REFERENCES
+table auth.user <admin> SELECT
+table auth.user <admin> TRIGGER
+table auth.user <admin> TRUNCATE
+table auth.user <admin> UPDATE
+table auth.user app_runtime DELETE
+table auth.user app_runtime INSERT
+table auth.user app_runtime SELECT
+table auth.user app_runtime UPDATE
+table auth.verification <admin> DELETE
+table auth.verification <admin> INSERT
+table auth.verification <admin> MAINTAIN
+table auth.verification <admin> REFERENCES
+table auth.verification <admin> SELECT
+table auth.verification <admin> TRIGGER
+table auth.verification <admin> TRUNCATE
+table auth.verification <admin> UPDATE
+table auth.verification app_runtime DELETE
+table auth.verification app_runtime INSERT
+table auth.verification app_runtime SELECT
+table auth.verification app_runtime UPDATE
+table public.allocations <admin> DELETE
+table public.allocations <admin> INSERT
+table public.allocations <admin> MAINTAIN
+table public.allocations <admin> REFERENCES
+table public.allocations <admin> SELECT
+table public.allocations <admin> TRIGGER
+table public.allocations <admin> TRUNCATE
+table public.allocations <admin> UPDATE
+table public.allocations app_runtime INSERT
+table public.allocations app_runtime SELECT
+table public.allocations app_runtime UPDATE
+table public.allocations app_worker SELECT
+table public.allocations app_worker UPDATE
+table public.approval_requests <admin> DELETE
+table public.approval_requests <admin> INSERT
+table public.approval_requests <admin> MAINTAIN
+table public.approval_requests <admin> REFERENCES
+table public.approval_requests <admin> SELECT
+table public.approval_requests <admin> TRIGGER
+table public.approval_requests <admin> TRUNCATE
+table public.approval_requests <admin> UPDATE
+table public.approval_requests app_runtime INSERT
+table public.approval_requests app_runtime SELECT
+table public.approval_requests app_runtime UPDATE
+table public.audit_events <admin> DELETE
+table public.audit_events <admin> INSERT
+table public.audit_events <admin> MAINTAIN
+table public.audit_events <admin> REFERENCES
+table public.audit_events <admin> SELECT
+table public.audit_events <admin> TRIGGER
+table public.audit_events <admin> TRUNCATE
+table public.audit_events <admin> UPDATE
+table public.audit_events app_runtime INSERT
+table public.audit_events app_runtime SELECT
+table public.audit_events app_worker INSERT
+table public.audit_events app_worker SELECT
+table public.bank_transactions <admin> DELETE
+table public.bank_transactions <admin> INSERT
+table public.bank_transactions <admin> MAINTAIN
+table public.bank_transactions <admin> REFERENCES
+table public.bank_transactions <admin> SELECT
+table public.bank_transactions <admin> TRIGGER
+table public.bank_transactions <admin> TRUNCATE
+table public.bank_transactions <admin> UPDATE
+table public.bank_transactions app_runtime INSERT
+table public.bank_transactions app_runtime SELECT
+table public.bank_transactions app_worker INSERT
+table public.bank_transactions app_worker SELECT
+table public.billing_periods <admin> DELETE
+table public.billing_periods <admin> INSERT
+table public.billing_periods <admin> MAINTAIN
+table public.billing_periods <admin> REFERENCES
+table public.billing_periods <admin> SELECT
+table public.billing_periods <admin> TRIGGER
+table public.billing_periods <admin> TRUNCATE
+table public.billing_periods <admin> UPDATE
+table public.billing_periods app_runtime INSERT
+table public.billing_periods app_runtime SELECT
+table public.billing_periods app_runtime UPDATE
+table public.billing_periods app_worker INSERT
+table public.billing_periods app_worker SELECT
+table public.blocks <admin> DELETE
+table public.blocks <admin> INSERT
+table public.blocks <admin> MAINTAIN
+table public.blocks <admin> REFERENCES
+table public.blocks <admin> SELECT
+table public.blocks <admin> TRIGGER
+table public.blocks <admin> TRUNCATE
+table public.blocks <admin> UPDATE
+table public.blocks app_runtime INSERT
+table public.blocks app_runtime SELECT
+table public.blocks app_runtime UPDATE
+table public.blocks app_worker SELECT
+table public.charges <admin> DELETE
+table public.charges <admin> INSERT
+table public.charges <admin> MAINTAIN
+table public.charges <admin> REFERENCES
+table public.charges <admin> SELECT
+table public.charges <admin> TRIGGER
+table public.charges <admin> TRUNCATE
+table public.charges <admin> UPDATE
+table public.charges app_runtime INSERT
+table public.charges app_runtime SELECT
+table public.charges app_runtime UPDATE
+table public.deposits <admin> DELETE
+table public.deposits <admin> INSERT
+table public.deposits <admin> MAINTAIN
+table public.deposits <admin> REFERENCES
+table public.deposits <admin> SELECT
+table public.deposits <admin> TRIGGER
+table public.deposits <admin> TRUNCATE
+table public.deposits <admin> UPDATE
+table public.deposits app_runtime INSERT
+table public.deposits app_runtime SELECT
+table public.deposits app_runtime UPDATE
+table public.exceptions <admin> DELETE
+table public.exceptions <admin> INSERT
+table public.exceptions <admin> MAINTAIN
+table public.exceptions <admin> REFERENCES
+table public.exceptions <admin> SELECT
+table public.exceptions <admin> TRIGGER
+table public.exceptions <admin> TRUNCATE
+table public.exceptions <admin> UPDATE
+table public.exceptions app_runtime INSERT
+table public.exceptions app_runtime SELECT
+table public.exceptions app_runtime UPDATE
+table public.exceptions app_worker INSERT
+table public.exceptions app_worker SELECT
+table public.export_jobs <admin> DELETE
+table public.export_jobs <admin> INSERT
+table public.export_jobs <admin> MAINTAIN
+table public.export_jobs <admin> REFERENCES
+table public.export_jobs <admin> SELECT
+table public.export_jobs <admin> TRIGGER
+table public.export_jobs <admin> TRUNCATE
+table public.export_jobs <admin> UPDATE
+table public.export_jobs app_runtime INSERT
+table public.export_jobs app_runtime SELECT
+table public.export_jobs app_worker SELECT
+table public.export_jobs app_worker UPDATE
+table public.files <admin> DELETE
+table public.files <admin> INSERT
+table public.files <admin> MAINTAIN
+table public.files <admin> REFERENCES
+table public.files <admin> SELECT
+table public.files <admin> TRIGGER
+table public.files <admin> TRUNCATE
+table public.files <admin> UPDATE
+table public.files app_runtime INSERT
+table public.files app_runtime SELECT
+table public.files app_runtime UPDATE
+table public.floors <admin> DELETE
+table public.floors <admin> INSERT
+table public.floors <admin> MAINTAIN
+table public.floors <admin> REFERENCES
+table public.floors <admin> SELECT
+table public.floors <admin> TRIGGER
+table public.floors <admin> TRUNCATE
+table public.floors <admin> UPDATE
+table public.floors app_runtime DELETE
+table public.floors app_runtime INSERT
+table public.floors app_runtime SELECT
+table public.floors app_runtime UPDATE
+table public.floors app_worker DELETE
+table public.floors app_worker INSERT
+table public.floors app_worker SELECT
+table public.floors app_worker UPDATE
+table public.guest_access_links <admin> DELETE
+table public.guest_access_links <admin> INSERT
+table public.guest_access_links <admin> MAINTAIN
+table public.guest_access_links <admin> REFERENCES
+table public.guest_access_links <admin> SELECT
+table public.guest_access_links <admin> TRIGGER
+table public.guest_access_links <admin> TRUNCATE
+table public.guest_access_links <admin> UPDATE
+table public.guest_access_links app_runtime INSERT
+table public.guest_access_links app_runtime SELECT
+table public.guest_access_links app_runtime UPDATE
+table public.guest_link_rate <admin> DELETE
+table public.guest_link_rate <admin> INSERT
+table public.guest_link_rate <admin> MAINTAIN
+table public.guest_link_rate <admin> REFERENCES
+table public.guest_link_rate <admin> SELECT
+table public.guest_link_rate <admin> TRIGGER
+table public.guest_link_rate <admin> TRUNCATE
+table public.guest_link_rate <admin> UPDATE
+table public.handovers <admin> DELETE
+table public.handovers <admin> INSERT
+table public.handovers <admin> MAINTAIN
+table public.handovers <admin> REFERENCES
+table public.handovers <admin> SELECT
+table public.handovers <admin> TRIGGER
+table public.handovers <admin> TRUNCATE
+table public.handovers <admin> UPDATE
+table public.handovers app_runtime INSERT
+table public.handovers app_runtime SELECT
+table public.handovers app_runtime UPDATE
+table public.handovers app_worker SELECT
+table public.idempotency_keys <admin> DELETE
+table public.idempotency_keys <admin> INSERT
+table public.idempotency_keys <admin> MAINTAIN
+table public.idempotency_keys <admin> REFERENCES
+table public.idempotency_keys <admin> SELECT
+table public.idempotency_keys <admin> TRIGGER
+table public.idempotency_keys <admin> TRUNCATE
+table public.idempotency_keys <admin> UPDATE
+table public.idempotency_keys app_runtime INSERT
+table public.idempotency_keys app_runtime SELECT
+table public.idempotency_keys app_runtime UPDATE
+table public.idempotency_keys app_worker DELETE
+table public.idempotency_keys app_worker SELECT
+table public.identity_documents <admin> DELETE
+table public.identity_documents <admin> INSERT
+table public.identity_documents <admin> MAINTAIN
+table public.identity_documents <admin> REFERENCES
+table public.identity_documents <admin> SELECT
+table public.identity_documents <admin> TRIGGER
+table public.identity_documents <admin> TRUNCATE
+table public.identity_documents <admin> UPDATE
+table public.identity_documents app_runtime INSERT
+table public.identity_documents app_runtime SELECT
+table public.identity_documents app_runtime UPDATE
+table public.import_batches <admin> DELETE
+table public.import_batches <admin> INSERT
+table public.import_batches <admin> MAINTAIN
+table public.import_batches <admin> REFERENCES
+table public.import_batches <admin> SELECT
+table public.import_batches <admin> TRIGGER
+table public.import_batches <admin> TRUNCATE
+table public.import_batches <admin> UPDATE
+table public.import_batches app_runtime INSERT
+table public.import_batches app_runtime SELECT
+table public.import_batches app_runtime UPDATE
+table public.import_external_refs <admin> DELETE
+table public.import_external_refs <admin> INSERT
+table public.import_external_refs <admin> MAINTAIN
+table public.import_external_refs <admin> REFERENCES
+table public.import_external_refs <admin> SELECT
+table public.import_external_refs <admin> TRIGGER
+table public.import_external_refs <admin> TRUNCATE
+table public.import_external_refs <admin> UPDATE
+table public.import_external_refs app_runtime INSERT
+table public.import_external_refs app_runtime SELECT
+table public.import_rows <admin> DELETE
+table public.import_rows <admin> INSERT
+table public.import_rows <admin> MAINTAIN
+table public.import_rows <admin> REFERENCES
+table public.import_rows <admin> SELECT
+table public.import_rows <admin> TRIGGER
+table public.import_rows <admin> TRUNCATE
+table public.import_rows <admin> UPDATE
+table public.import_rows app_runtime INSERT
+table public.import_rows app_runtime SELECT
+table public.import_rows app_runtime UPDATE
+table public.inbox <admin> DELETE
+table public.inbox <admin> INSERT
+table public.inbox <admin> MAINTAIN
+table public.inbox <admin> REFERENCES
+table public.inbox <admin> SELECT
+table public.inbox <admin> TRIGGER
+table public.inbox <admin> TRUNCATE
+table public.inbox <admin> UPDATE
+table public.inbox app_runtime INSERT
+table public.inbox app_runtime SELECT
+table public.inbox app_worker INSERT
+table public.inbox app_worker SELECT
+table public.invitations <admin> DELETE
+table public.invitations <admin> INSERT
+table public.invitations <admin> MAINTAIN
+table public.invitations <admin> REFERENCES
+table public.invitations <admin> SELECT
+table public.invitations <admin> TRIGGER
+table public.invitations <admin> TRUNCATE
+table public.invitations <admin> UPDATE
+table public.invitations app_runtime DELETE
+table public.invitations app_runtime INSERT
+table public.invitations app_runtime SELECT
+table public.invitations app_runtime UPDATE
+table public.invitations app_worker DELETE
+table public.invitations app_worker INSERT
+table public.invitations app_worker SELECT
+table public.invitations app_worker UPDATE
+table public.invoice_lines <admin> DELETE
+table public.invoice_lines <admin> INSERT
+table public.invoice_lines <admin> MAINTAIN
+table public.invoice_lines <admin> REFERENCES
+table public.invoice_lines <admin> SELECT
+table public.invoice_lines <admin> TRIGGER
+table public.invoice_lines <admin> TRUNCATE
+table public.invoice_lines <admin> UPDATE
+table public.invoice_lines app_runtime INSERT
+table public.invoice_lines app_runtime SELECT
+table public.invoices <admin> DELETE
+table public.invoices <admin> INSERT
+table public.invoices <admin> MAINTAIN
+table public.invoices <admin> REFERENCES
+table public.invoices <admin> SELECT
+table public.invoices <admin> TRIGGER
+table public.invoices <admin> TRUNCATE
+table public.invoices <admin> UPDATE
+table public.invoices app_runtime INSERT
+table public.invoices app_runtime SELECT
+table public.invoices app_runtime UPDATE
+table public.invoices app_worker SELECT
+table public.invoices app_worker UPDATE
+table public.journal_entries <admin> DELETE
+table public.journal_entries <admin> INSERT
+table public.journal_entries <admin> MAINTAIN
+table public.journal_entries <admin> REFERENCES
+table public.journal_entries <admin> SELECT
+table public.journal_entries <admin> TRIGGER
+table public.journal_entries <admin> TRUNCATE
+table public.journal_entries <admin> UPDATE
+table public.journal_entries app_runtime INSERT
+table public.journal_entries app_runtime SELECT
+table public.journal_entries app_worker INSERT
+table public.journal_entries app_worker SELECT
+table public.journal_lines <admin> DELETE
+table public.journal_lines <admin> INSERT
+table public.journal_lines <admin> MAINTAIN
+table public.journal_lines <admin> REFERENCES
+table public.journal_lines <admin> SELECT
+table public.journal_lines <admin> TRIGGER
+table public.journal_lines <admin> TRUNCATE
+table public.journal_lines <admin> UPDATE
+table public.journal_lines app_runtime INSERT
+table public.journal_lines app_runtime SELECT
+table public.journal_lines app_worker INSERT
+table public.journal_lines app_worker SELECT
+table public.kysely_migration <admin> DELETE
+table public.kysely_migration <admin> INSERT
+table public.kysely_migration <admin> MAINTAIN
+table public.kysely_migration <admin> REFERENCES
+table public.kysely_migration <admin> SELECT
+table public.kysely_migration <admin> TRIGGER
+table public.kysely_migration <admin> TRUNCATE
+table public.kysely_migration <admin> UPDATE
+table public.kysely_migration_lock <admin> DELETE
+table public.kysely_migration_lock <admin> INSERT
+table public.kysely_migration_lock <admin> MAINTAIN
+table public.kysely_migration_lock <admin> REFERENCES
+table public.kysely_migration_lock <admin> SELECT
+table public.kysely_migration_lock <admin> TRIGGER
+table public.kysely_migration_lock <admin> TRUNCATE
+table public.kysely_migration_lock <admin> UPDATE
+table public.lease_occupants <admin> DELETE
+table public.lease_occupants <admin> INSERT
+table public.lease_occupants <admin> MAINTAIN
+table public.lease_occupants <admin> REFERENCES
+table public.lease_occupants <admin> SELECT
+table public.lease_occupants <admin> TRIGGER
+table public.lease_occupants <admin> TRUNCATE
+table public.lease_occupants <admin> UPDATE
+table public.lease_occupants app_runtime INSERT
+table public.lease_occupants app_runtime SELECT
+table public.lease_occupants app_runtime UPDATE
+table public.lease_occupants app_worker SELECT
+table public.lease_settlements <admin> DELETE
+table public.lease_settlements <admin> INSERT
+table public.lease_settlements <admin> MAINTAIN
+table public.lease_settlements <admin> REFERENCES
+table public.lease_settlements <admin> SELECT
+table public.lease_settlements <admin> TRIGGER
+table public.lease_settlements <admin> TRUNCATE
+table public.lease_settlements <admin> UPDATE
+table public.lease_settlements app_runtime INSERT
+table public.lease_settlements app_runtime SELECT
+table public.lease_settlements app_runtime UPDATE
+table public.lease_versions <admin> DELETE
+table public.lease_versions <admin> INSERT
+table public.lease_versions <admin> MAINTAIN
+table public.lease_versions <admin> REFERENCES
+table public.lease_versions <admin> SELECT
+table public.lease_versions <admin> TRIGGER
+table public.lease_versions <admin> TRUNCATE
+table public.lease_versions <admin> UPDATE
+table public.lease_versions app_runtime INSERT
+table public.lease_versions app_runtime SELECT
+table public.lease_versions app_runtime UPDATE
+table public.lease_versions app_worker SELECT
+table public.leases <admin> DELETE
+table public.leases <admin> INSERT
+table public.leases <admin> MAINTAIN
+table public.leases <admin> REFERENCES
+table public.leases <admin> SELECT
+table public.leases <admin> TRIGGER
+table public.leases <admin> TRUNCATE
+table public.leases <admin> UPDATE
+table public.leases app_runtime INSERT
+table public.leases app_runtime SELECT
+table public.leases app_runtime UPDATE
+table public.leases app_worker SELECT
+table public.memberships <admin> DELETE
+table public.memberships <admin> INSERT
+table public.memberships <admin> MAINTAIN
+table public.memberships <admin> REFERENCES
+table public.memberships <admin> SELECT
+table public.memberships <admin> TRIGGER
+table public.memberships <admin> TRUNCATE
+table public.memberships <admin> UPDATE
+table public.memberships app_runtime DELETE
+table public.memberships app_runtime INSERT
+table public.memberships app_runtime SELECT
+table public.memberships app_runtime UPDATE
+table public.memberships app_worker DELETE
+table public.memberships app_worker INSERT
+table public.memberships app_worker SELECT
+table public.memberships app_worker UPDATE
+table public.meter_events <admin> DELETE
+table public.meter_events <admin> INSERT
+table public.meter_events <admin> MAINTAIN
+table public.meter_events <admin> REFERENCES
+table public.meter_events <admin> SELECT
+table public.meter_events <admin> TRIGGER
+table public.meter_events <admin> TRUNCATE
+table public.meter_events <admin> UPDATE
+table public.meter_events app_runtime INSERT
+table public.meter_events app_runtime SELECT
+table public.meter_events app_worker SELECT
+table public.meter_readings <admin> DELETE
+table public.meter_readings <admin> INSERT
+table public.meter_readings <admin> MAINTAIN
+table public.meter_readings <admin> REFERENCES
+table public.meter_readings <admin> SELECT
+table public.meter_readings <admin> TRIGGER
+table public.meter_readings <admin> TRUNCATE
+table public.meter_readings <admin> UPDATE
+table public.meter_readings app_runtime INSERT
+table public.meter_readings app_runtime SELECT
+table public.meter_readings app_runtime UPDATE
+table public.meter_readings app_worker SELECT
+table public.meters <admin> DELETE
+table public.meters <admin> INSERT
+table public.meters <admin> MAINTAIN
+table public.meters <admin> REFERENCES
+table public.meters <admin> SELECT
+table public.meters <admin> TRIGGER
+table public.meters <admin> TRUNCATE
+table public.meters <admin> UPDATE
+table public.meters app_runtime INSERT
+table public.meters app_runtime SELECT
+table public.meters app_runtime UPDATE
+table public.meters app_worker SELECT
+table public.notification_deliveries <admin> DELETE
+table public.notification_deliveries <admin> INSERT
+table public.notification_deliveries <admin> MAINTAIN
+table public.notification_deliveries <admin> REFERENCES
+table public.notification_deliveries <admin> SELECT
+table public.notification_deliveries <admin> TRIGGER
+table public.notification_deliveries <admin> TRUNCATE
+table public.notification_deliveries <admin> UPDATE
+table public.notification_deliveries app_runtime SELECT
+table public.notification_deliveries app_worker INSERT
+table public.notification_deliveries app_worker SELECT
+table public.notification_deliveries app_worker UPDATE
+table public.notification_preferences <admin> DELETE
+table public.notification_preferences <admin> INSERT
+table public.notification_preferences <admin> MAINTAIN
+table public.notification_preferences <admin> REFERENCES
+table public.notification_preferences <admin> SELECT
+table public.notification_preferences <admin> TRIGGER
+table public.notification_preferences <admin> TRUNCATE
+table public.notification_preferences <admin> UPDATE
+table public.notification_preferences app_runtime INSERT
+table public.notification_preferences app_runtime SELECT
+table public.notification_preferences app_runtime UPDATE
+table public.notification_preferences app_worker SELECT
+table public.notification_settings <admin> DELETE
+table public.notification_settings <admin> INSERT
+table public.notification_settings <admin> MAINTAIN
+table public.notification_settings <admin> REFERENCES
+table public.notification_settings <admin> SELECT
+table public.notification_settings <admin> TRIGGER
+table public.notification_settings <admin> TRUNCATE
+table public.notification_settings <admin> UPDATE
+table public.notification_settings app_runtime INSERT
+table public.notification_settings app_runtime SELECT
+table public.notification_settings app_runtime UPDATE
+table public.notification_settings app_worker SELECT
+table public.notifications <admin> DELETE
+table public.notifications <admin> INSERT
+table public.notifications <admin> MAINTAIN
+table public.notifications <admin> REFERENCES
+table public.notifications <admin> SELECT
+table public.notifications <admin> TRIGGER
+table public.notifications <admin> TRUNCATE
+table public.notifications <admin> UPDATE
+table public.notifications app_runtime SELECT
+table public.notifications app_worker INSERT
+table public.notifications app_worker SELECT
+table public.organizations <admin> DELETE
+table public.organizations <admin> INSERT
+table public.organizations <admin> MAINTAIN
+table public.organizations <admin> REFERENCES
+table public.organizations <admin> SELECT
+table public.organizations <admin> TRIGGER
+table public.organizations <admin> TRUNCATE
+table public.organizations <admin> UPDATE
+table public.organizations app_runtime DELETE
+table public.organizations app_runtime INSERT
+table public.organizations app_runtime SELECT
+table public.organizations app_runtime UPDATE
+table public.organizations app_worker DELETE
+table public.organizations app_worker INSERT
+table public.organizations app_worker SELECT
+table public.organizations app_worker UPDATE
+table public.outbox <admin> DELETE
+table public.outbox <admin> INSERT
+table public.outbox <admin> MAINTAIN
+table public.outbox <admin> REFERENCES
+table public.outbox <admin> SELECT
+table public.outbox <admin> TRIGGER
+table public.outbox <admin> TRUNCATE
+table public.outbox <admin> UPDATE
+table public.outbox app_runtime INSERT
+table public.outbox app_worker INSERT
+table public.payment_allocations <admin> DELETE
+table public.payment_allocations <admin> INSERT
+table public.payment_allocations <admin> MAINTAIN
+table public.payment_allocations <admin> REFERENCES
+table public.payment_allocations <admin> SELECT
+table public.payment_allocations <admin> TRIGGER
+table public.payment_allocations <admin> TRUNCATE
+table public.payment_allocations <admin> UPDATE
+table public.payment_allocations app_runtime INSERT
+table public.payment_allocations app_runtime SELECT
+table public.payment_allocations app_runtime UPDATE
+table public.payment_allocations app_worker INSERT
+table public.payment_allocations app_worker SELECT
+table public.payment_claims <admin> DELETE
+table public.payment_claims <admin> INSERT
+table public.payment_claims <admin> MAINTAIN
+table public.payment_claims <admin> REFERENCES
+table public.payment_claims <admin> SELECT
+table public.payment_claims <admin> TRIGGER
+table public.payment_claims <admin> TRUNCATE
+table public.payment_claims <admin> UPDATE
+table public.payment_claims app_runtime INSERT
+table public.payment_claims app_runtime SELECT
+table public.payment_claims app_runtime UPDATE
+table public.payment_claims app_worker SELECT
+table public.payments <admin> DELETE
+table public.payments <admin> INSERT
+table public.payments <admin> MAINTAIN
+table public.payments <admin> REFERENCES
+table public.payments <admin> SELECT
+table public.payments <admin> TRIGGER
+table public.payments <admin> TRUNCATE
+table public.payments <admin> UPDATE
+table public.payments app_runtime INSERT
+table public.payments app_runtime SELECT
+table public.payments app_runtime UPDATE
+table public.payments app_worker INSERT
+table public.payments app_worker SELECT
+table public.payments app_worker UPDATE
+table public.period_locks <admin> DELETE
+table public.period_locks <admin> INSERT
+table public.period_locks <admin> MAINTAIN
+table public.period_locks <admin> REFERENCES
+table public.period_locks <admin> SELECT
+table public.period_locks <admin> TRIGGER
+table public.period_locks <admin> TRUNCATE
+table public.period_locks <admin> UPDATE
+table public.period_locks app_runtime INSERT
+table public.period_locks app_runtime SELECT
+table public.period_locks app_worker SELECT
+table public.persons <admin> DELETE
+table public.persons <admin> INSERT
+table public.persons <admin> MAINTAIN
+table public.persons <admin> REFERENCES
+table public.persons <admin> SELECT
+table public.persons <admin> TRIGGER
+table public.persons <admin> TRUNCATE
+table public.persons <admin> UPDATE
+table public.persons app_runtime DELETE
+table public.persons app_runtime INSERT
+table public.persons app_runtime SELECT
+table public.persons app_runtime UPDATE
+table public.persons app_worker DELETE
+table public.persons app_worker INSERT
+table public.persons app_worker SELECT
+table public.persons app_worker UPDATE
+table public.properties <admin> DELETE
+table public.properties <admin> INSERT
+table public.properties <admin> MAINTAIN
+table public.properties <admin> REFERENCES
+table public.properties <admin> SELECT
+table public.properties <admin> TRIGGER
+table public.properties <admin> TRUNCATE
+table public.properties <admin> UPDATE
+table public.properties app_runtime DELETE
+table public.properties app_runtime INSERT
+table public.properties app_runtime SELECT
+table public.properties app_runtime UPDATE
+table public.properties app_worker DELETE
+table public.properties app_worker INSERT
+table public.properties app_worker SELECT
+table public.properties app_worker UPDATE
+table public.property_scopes <admin> DELETE
+table public.property_scopes <admin> INSERT
+table public.property_scopes <admin> MAINTAIN
+table public.property_scopes <admin> REFERENCES
+table public.property_scopes <admin> SELECT
+table public.property_scopes <admin> TRIGGER
+table public.property_scopes <admin> TRUNCATE
+table public.property_scopes <admin> UPDATE
+table public.property_scopes app_runtime DELETE
+table public.property_scopes app_runtime INSERT
+table public.property_scopes app_runtime SELECT
+table public.property_scopes app_worker DELETE
+table public.property_scopes app_worker INSERT
+table public.property_scopes app_worker SELECT
+table public.rate_limit_counters <admin> DELETE
+table public.rate_limit_counters <admin> INSERT
+table public.rate_limit_counters <admin> MAINTAIN
+table public.rate_limit_counters <admin> REFERENCES
+table public.rate_limit_counters <admin> SELECT
+table public.rate_limit_counters <admin> TRIGGER
+table public.rate_limit_counters <admin> TRUNCATE
+table public.rate_limit_counters <admin> UPDATE
+table public.rate_plans <admin> DELETE
+table public.rate_plans <admin> INSERT
+table public.rate_plans <admin> MAINTAIN
+table public.rate_plans <admin> REFERENCES
+table public.rate_plans <admin> SELECT
+table public.rate_plans <admin> TRIGGER
+table public.rate_plans <admin> TRUNCATE
+table public.rate_plans <admin> UPDATE
+table public.rate_plans app_runtime INSERT
+table public.rate_plans app_runtime SELECT
+table public.rate_plans app_runtime UPDATE
+table public.rate_plans app_worker SELECT
+table public.receiving_accounts <admin> DELETE
+table public.receiving_accounts <admin> INSERT
+table public.receiving_accounts <admin> MAINTAIN
+table public.receiving_accounts <admin> REFERENCES
+table public.receiving_accounts <admin> SELECT
+table public.receiving_accounts <admin> TRIGGER
+table public.receiving_accounts <admin> TRUNCATE
+table public.receiving_accounts <admin> UPDATE
+table public.receiving_accounts app_runtime INSERT
+table public.receiving_accounts app_runtime SELECT
+table public.receiving_accounts app_runtime UPDATE
+table public.receiving_accounts app_worker SELECT
+table public.reconciliation_breaks <admin> DELETE
+table public.reconciliation_breaks <admin> INSERT
+table public.reconciliation_breaks <admin> MAINTAIN
+table public.reconciliation_breaks <admin> REFERENCES
+table public.reconciliation_breaks <admin> SELECT
+table public.reconciliation_breaks <admin> TRIGGER
+table public.reconciliation_breaks <admin> TRUNCATE
+table public.reconciliation_breaks <admin> UPDATE
+table public.reconciliation_breaks app_runtime INSERT
+table public.reconciliation_breaks app_runtime SELECT
+table public.reconciliation_breaks app_runtime UPDATE
+table public.reconciliation_breaks app_worker INSERT
+table public.reconciliation_breaks app_worker SELECT
+table public.reservation_items <admin> DELETE
+table public.reservation_items <admin> INSERT
+table public.reservation_items <admin> MAINTAIN
+table public.reservation_items <admin> REFERENCES
+table public.reservation_items <admin> SELECT
+table public.reservation_items <admin> TRIGGER
+table public.reservation_items <admin> TRUNCATE
+table public.reservation_items <admin> UPDATE
+table public.reservation_items app_runtime INSERT
+table public.reservation_items app_runtime SELECT
+table public.reservation_items app_runtime UPDATE
+table public.reservation_items app_worker SELECT
+table public.reservation_items app_worker UPDATE
+table public.reservations <admin> DELETE
+table public.reservations <admin> INSERT
+table public.reservations <admin> MAINTAIN
+table public.reservations <admin> REFERENCES
+table public.reservations <admin> SELECT
+table public.reservations <admin> TRIGGER
+table public.reservations <admin> TRUNCATE
+table public.reservations <admin> UPDATE
+table public.reservations app_runtime INSERT
+table public.reservations app_runtime SELECT
+table public.reservations app_runtime UPDATE
+table public.reservations app_worker SELECT
+table public.reservations app_worker UPDATE
+table public.residence_notices <admin> DELETE
+table public.residence_notices <admin> INSERT
+table public.residence_notices <admin> MAINTAIN
+table public.residence_notices <admin> REFERENCES
+table public.residence_notices <admin> SELECT
+table public.residence_notices <admin> TRIGGER
+table public.residence_notices <admin> TRUNCATE
+table public.residence_notices <admin> UPDATE
+table public.residence_notices app_runtime INSERT
+table public.residence_notices app_runtime SELECT
+table public.residence_notices app_runtime UPDATE
+table public.residence_notices app_worker SELECT
+table public.room_types <admin> DELETE
+table public.room_types <admin> INSERT
+table public.room_types <admin> MAINTAIN
+table public.room_types <admin> REFERENCES
+table public.room_types <admin> SELECT
+table public.room_types <admin> TRIGGER
+table public.room_types <admin> TRUNCATE
+table public.room_types <admin> UPDATE
+table public.room_types app_runtime DELETE
+table public.room_types app_runtime INSERT
+table public.room_types app_runtime SELECT
+table public.room_types app_runtime UPDATE
+table public.room_types app_worker DELETE
+table public.room_types app_worker INSERT
+table public.room_types app_worker SELECT
+table public.room_types app_worker UPDATE
+table public.service_prices <admin> DELETE
+table public.service_prices <admin> INSERT
+table public.service_prices <admin> MAINTAIN
+table public.service_prices <admin> REFERENCES
+table public.service_prices <admin> SELECT
+table public.service_prices <admin> TRIGGER
+table public.service_prices <admin> TRUNCATE
+table public.service_prices <admin> UPDATE
+table public.service_prices app_runtime INSERT
+table public.service_prices app_runtime SELECT
+table public.service_prices app_runtime UPDATE
+table public.service_prices app_worker SELECT
+table public.services <admin> DELETE
+table public.services <admin> INSERT
+table public.services <admin> MAINTAIN
+table public.services <admin> REFERENCES
+table public.services <admin> SELECT
+table public.services <admin> TRIGGER
+table public.services <admin> TRUNCATE
+table public.services <admin> UPDATE
+table public.services app_runtime INSERT
+table public.services app_runtime SELECT
+table public.services app_runtime UPDATE
+table public.services app_worker SELECT
+table public.shift_discrepancies <admin> DELETE
+table public.shift_discrepancies <admin> INSERT
+table public.shift_discrepancies <admin> MAINTAIN
+table public.shift_discrepancies <admin> REFERENCES
+table public.shift_discrepancies <admin> SELECT
+table public.shift_discrepancies <admin> TRIGGER
+table public.shift_discrepancies <admin> TRUNCATE
+table public.shift_discrepancies <admin> UPDATE
+table public.shift_discrepancies app_runtime INSERT
+table public.shift_discrepancies app_runtime SELECT
+table public.shift_discrepancies app_runtime UPDATE
+table public.shifts <admin> DELETE
+table public.shifts <admin> INSERT
+table public.shifts <admin> MAINTAIN
+table public.shifts <admin> REFERENCES
+table public.shifts <admin> SELECT
+table public.shifts <admin> TRIGGER
+table public.shifts <admin> TRUNCATE
+table public.shifts <admin> UPDATE
+table public.shifts app_runtime INSERT
+table public.shifts app_runtime SELECT
+table public.shifts app_runtime UPDATE
+table public.stays <admin> DELETE
+table public.stays <admin> INSERT
+table public.stays <admin> MAINTAIN
+table public.stays <admin> REFERENCES
+table public.stays <admin> SELECT
+table public.stays <admin> TRIGGER
+table public.stays <admin> TRUNCATE
+table public.stays <admin> UPDATE
+table public.stays app_runtime INSERT
+table public.stays app_runtime SELECT
+table public.stays app_runtime UPDATE
+table public.stays app_worker SELECT
+table public.stays app_worker UPDATE
+table public.tasks <admin> DELETE
+table public.tasks <admin> INSERT
+table public.tasks <admin> MAINTAIN
+table public.tasks <admin> REFERENCES
+table public.tasks <admin> SELECT
+table public.tasks <admin> TRIGGER
+table public.tasks <admin> TRUNCATE
+table public.tasks <admin> UPDATE
+table public.tasks app_runtime INSERT
+table public.tasks app_runtime SELECT
+table public.tasks app_runtime UPDATE
+table public.tasks app_worker SELECT
+table public.units <admin> DELETE
+table public.units <admin> INSERT
+table public.units <admin> MAINTAIN
+table public.units <admin> REFERENCES
+table public.units <admin> SELECT
+table public.units <admin> TRIGGER
+table public.units <admin> TRUNCATE
+table public.units <admin> UPDATE
+table public.units app_runtime DELETE
+table public.units app_runtime INSERT
+table public.units app_runtime SELECT
+table public.units app_runtime UPDATE
+table public.units app_worker DELETE
+table public.units app_worker INSERT
+table public.units app_worker SELECT
+table public.units app_worker UPDATE
+table public.work_orders <admin> DELETE
+table public.work_orders <admin> INSERT
+table public.work_orders <admin> MAINTAIN
+table public.work_orders <admin> REFERENCES
+table public.work_orders <admin> SELECT
+table public.work_orders <admin> TRIGGER
+table public.work_orders <admin> TRUNCATE
+table public.work_orders <admin> UPDATE
+table public.work_orders app_runtime INSERT
+table public.work_orders app_runtime SELECT
+table public.work_orders app_runtime UPDATE
+table public.work_orders app_worker SELECT
+table public.worker_heartbeats <admin> DELETE
+table public.worker_heartbeats <admin> INSERT
+table public.worker_heartbeats <admin> MAINTAIN
+table public.worker_heartbeats <admin> REFERENCES
+table public.worker_heartbeats <admin> SELECT
+table public.worker_heartbeats <admin> TRIGGER
+table public.worker_heartbeats <admin> TRUNCATE
+table public.worker_heartbeats <admin> UPDATE
