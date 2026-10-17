@@ -599,6 +599,12 @@ body {
   margin: 0 0 var(--space-1);
   font-size: 1rem;
 }
+/* Email/tên dài (tới 320 ký tự, không có khoảng trắng để ngắt) xuống dòng thay vì đẩy trang cuộn ngang ở 320 px (UX-RESP-001). */
+.member-list__item,
+.choice-list > li {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 .notif--unread {
   border-left: 6px solid var(--c-brand);
 }
