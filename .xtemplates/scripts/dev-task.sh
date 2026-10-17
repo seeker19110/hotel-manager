@@ -37,8 +37,23 @@ fi
 
 # --- 1) Lệnh KHAI BÁO (escape hatch cho mọi dự án đặc thù) --------------------
 yaml_has() { [ -f "$YAML" ] && grep -Eq "^$1:" "$YAML"; }
-yaml_get() { # giá trị khoá $1 trong xt.yaml; bỏ nháy chỉ khi bọc cả hai đầu ("..." hoặc '...')
-  grep -E "^$1:" "$YAML" | head -1 | sed -E "s/^$1:[[:space:]]*//; s/[[:space:]]+\$//; s/^\"(.*)\"\$/\\1/; s/^'(.*)'\$/\\1/"
+strip_comment() { # bỏ comment YAML: `#` ở đầu giá trị hoặc sau khoảng trắng, ngoài nháy (AUD-HAR-025)
+  local s="$1" out="" q="" c prev=" " i
+  for ((i = 0; i < ${#s}; i++)); do
+    c="${s:i:1}"
+    if [ -z "$q" ] && [ "$c" = "#" ] && { [ "$prev" = " " ] || [ "$prev" = $'\t' ]; }; then break; fi
+    if [ "$c" = "'" ] || [ "$c" = '"' ]; then
+      if [ -z "$q" ]; then q="$c"; elif [ "$q" = "$c" ]; then q=""; fi
+    fi
+    out+="$c"
+    prev="$c"
+  done
+  printf '%s' "$out"
+}
+yaml_get() { # giá trị khoá $1 trong xt.yaml; bỏ comment, rồi bỏ nháy chỉ khi bọc cả hai đầu ("..." hoặc '...')
+  local v
+  v="$(grep -E "^$1:" "$YAML" | head -1 | sed -E "s/^$1:[[:space:]]*//")"
+  strip_comment "$v" | sed -E "s/[[:space:]]+\$//; s/^\"(.*)\"\$/\\1/; s/^'(.*)'\$/\\1/"
 }
 declared_cmd() {
   # In ra lệnh khai báo cho $1 nếu có, ngược lại rỗng. xt.yaml (phẳng) ưu tiên hơn file bash.
@@ -142,6 +157,9 @@ run_task() { # $1=task -> chạy; 0 nếu ok hoặc no-op, khác 0 nếu lệnh 
 }
 
 # --- format-file: format ĐÚNG file vừa sửa (dùng cho auto-format hook) --------
+json_ok() { # $1=file → 0 nếu là JSON hợp lệ; không có python3 thì không kiểm được (coi như không hợp lệ: không giữ bản sao)
+  command -v python3 >/dev/null 2>&1 && python3 -c 'import json, sys; json.load(open(sys.argv[1], encoding="utf-8"))' "$1" >/dev/null 2>&1
+}
 declared_format_file() {
   if yaml_has format_file; then yaml_get format_file; return 0; fi
   [ -f "$DECL" ] || return 0
@@ -174,7 +192,19 @@ case "$TASK" in
     P="${2:-}"; [ -n "$P" ] || { log "format-file: thiếu path"; exit 0; }
     C="$(resolve_format_file "$P")"
     [ -n "$C" ] || { log "skip format-file: không có per-file formatter cho '$P'"; exit 0; }
-    log "format-file: $C  (\$1=$P)"; ( cd "$ROOT" && bash -c "$C" _ "$P" ) || true
+    log "format-file: $C  (\$1=$P)"
+    # Formatter khai báo cho ngôn ngữ khác (vd `ruff format {}` với file .json) có thể làm hỏng JSON — file JSON đang
+    # hợp lệ mà sau format không còn hợp lệ thì khôi phục bản trước (AUD-HAR-037).
+    F="$P"; case "$F" in /*) ;; *) F="$ROOT/$F" ;; esac
+    keep=""
+    case "$F" in
+      *.json | *.JSON) json_ok "$F" && keep="$(mktemp)" && { cp -p -- "$F" "$keep" || { rm -f -- "$keep"; keep=""; }; } ;;
+    esac
+    ( cd "$ROOT" && bash -c "$C" _ "$P" ) || true
+    if [ -n "$keep" ]; then
+      json_ok "$F" || { cp -p -- "$keep" "$F"; log "format-file: formatter làm hỏng JSON '$P' → khôi phục bản trước"; }
+      rm -f -- "$keep"
+    fi
     exit 0 ;;
   gate)
     rc=0

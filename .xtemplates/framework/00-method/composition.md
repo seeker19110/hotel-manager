@@ -49,7 +49,7 @@ python3 .xtemplates/scripts/xt.py blueprint-status BLUEPRINT.md --strict
 2. **Tick bằng bằng chứng**: chỉ đổi `[ ]` → `[x]` khi có bằng chứng máy (CI job, test, báo cáo scan, file cấu hình),
    ghi ở cuối dòng: `— Bằng chứng: <file:dòng | job CI | lệnh>`. Mục còn thiếu có thể ghi `— Thiếu: <việc cần làm>`.
    Ghi bằng chứng ở PR tương ứng.
-3. **Miễn trừ có lý do**: mục không áp dụng → `[~]` kèm `— Miễn: <lý do>` (vd "không có thanh toán"). Máy chặn miễn
+3. **Miễn trừ có lý do**: mục không áp dụng → `[~]` kèm `— Không áp dụng: <điều kiện>` (vd "không có thanh toán"); mục có áp dụng mà bỏ/hoãn → `— Miễn: <lý do>`, ở mức MUST thêm `Duyệt: "<lời chủ dự án>" <ngày>` hoặc link (`LOOP-STOP-024`). Máy chặn miễn
    trừ thiếu lý do.
 4. **Không sửa chữ của mục** trong blueprint dự án; muốn đổi yêu cầu → sửa khung (PR vào X-Templates) rồi ghép lại.
 5. **Ghép lại khi khung cập nhật**: chạy lại đúng lệnh `compose ... --out BLUEPRINT.md`. Khi file đã có, máy giữ ô trạng thái

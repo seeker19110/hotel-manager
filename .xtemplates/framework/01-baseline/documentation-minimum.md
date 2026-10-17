@@ -3,7 +3,7 @@ title: Tài liệu tối thiểu (README · runbook · ADR · CHANGELOG)
 kind: baseline
 prefix: BASE-DOC
 applies_to: [all]
-updated: 2026-10-14
+updated: 2026-10-16
 ---
 
 # Tài liệu tối thiểu (README · runbook · ADR · CHANGELOG)
@@ -52,6 +52,8 @@ updated: 2026-10-14
 - [ ] `BASE-DOC-014` **SHOULD** Tài liệu không chứa bí mật, dữ liệu người dùng thật, hay thông tin nội bộ nhạy cảm (IP nội bộ, tên máy chủ) dù repo riêng tư. → Kiểm: gitleaks quét `docs/`; review checklist. · Nguồn: OWASP Logging CS (data to exclude) áp cho tài liệu
 - [ ] `BASE-DOC-015` **MAY** Xuất bản docs bằng SSG (MkDocs/Zensical, Starlight, Docusaurus, Sphinx, mdBook) kèm `llms.txt` và bản `.md` cho mỗi trang (xem [`../18-cross-cutting/docs-for-ai-agents.md`](../18-cross-cutting/docs-for-ai-agents.md)). → Kiểm: `curl -f <site>/llms.txt`. · Nguồn: llms.txt v2
 - [ ] `BASE-DOC-016` **MAY** Giữ bằng chứng tách khỏi tuyên bố: `docs/evidence/<ngày>/` (hoặc `.autopilot/evidence/`) chứa output lệnh/báo cáo được trích dẫn trong tài liệu. → Kiểm: tài liệu "đã đạt X" link tới file bằng chứng. · Nguồn: catalog 23 §4.4; evidence-and-sources.md §2
+- [ ] `BASE-DOC-017` **SHOULD** Mọi con số công bố (README, ghi chú phát hành, trang giới thiệu: hiệu năng, độ chính xác, benchmark) trỏ tới **file kết quả đã commit** kèm điều kiện đo (phần cứng, phiên bản, cỡ mẫu); có test so con số trong tài liệu với file đó, lệch thì CI đỏ. → Kiểm: test kiểu `test_readme_numbers.py` chạy trong CI. · Nguồn: `seeker19110/stored` 17 §2c.2 (AnyJev: `tests/test_readme_numbers.py` kiểm bảng README khớp JSON đã commit; đọc 2026-10-16)
+- [ ] `BASE-DOC-018` **SHOULD** `docs/limitations.md` (hoặc mục "Giới hạn đã biết" trong README) ghi điều sản phẩm **không làm** và khi nào số liệu hết đúng; cập nhật khi đổi hành vi. → Kiểm: file tồn tại và README link tới nó. · Nguồn: `seeker19110/stored` 17 §2c.3 (AnyJev `docs/limitations.md`), 21 §10b (`SECURITY.md` tự khai giới hạn rõ); đọc 2026-10-16
 
 ## Bẫy thường gặp
 
@@ -63,6 +65,8 @@ updated: 2026-10-14
 - **Runbook viết trước sự cố và không bao giờ chạy thử.** Mỗi alert → một mục runbook đã diễn tập (xem [`../15-operations/incident-response.md`](../15-operations/incident-response.md)).
 - **Trộn tutorial với reference** → người học bị ngợp bảng tham số, người tra bị kể chuyện. Tách theo Diátaxis.
 - **Dán URL staging/IP nội bộ/khoá thử vào docs** — docs là nơi bí mật rò rỉ ít bị quét nhất. Quét docs như quét mã.
+- **Con số trong README không ai kiểm** (hiệu năng, độ chính xác) → trôi khỏi file kết quả sau vài lần đo lại. Test so số với file đã commit (`BASE-DOC-017`).
+- **Chỉ nói sản phẩm làm được gì**, không nói không làm gì và số liệu hết đúng khi nào → người dùng áp sai ngữ cảnh. `docs/limitations.md` (`BASE-DOC-018`).
 
 ## Cổng tự động
 
@@ -76,6 +80,8 @@ updated: 2026-10-14
 | Tươi | `xt.py progress-check`, `updated` > 365 ngày | `git merge-base --is-ancestor` | CI | lệch = đỏ / cảnh báo |
 | Sinh tài liệu API | OpenAPI generator / TypeDoc / Sphinx autodoc / `go doc` | generator + `git diff --exit-code` | CI | 0 diff |
 | Sơ đồ render | Mermaid CLI (MIT) / PlantUML (GPL/MIT tuỳ bản) | `mmdc -i … -o /dev/null` | CI | 0 lỗi |
+| Số công bố ↔ kết quả | test tự viết | `test_readme_numbers.py`: so con số trong README/ghi chú phát hành với file kết quả đã commit | CI | lệch = đỏ |
+| Giới hạn đã biết | script repo | kiểm `docs/limitations.md` tồn tại và README link tới nó | CI | thiếu = cảnh báo |
 
 ## Nguồn
 
@@ -89,3 +95,4 @@ updated: 2026-10-14
 - llms.txt v2 (cập nhật 2026-08-10): <https://llmstxt.org/> — xác minh 2026-10-13
 - lychee v0.24.2: <https://github.com/lycheeverse/lychee/releases/latest> — xác minh 2026-10-13; markdownlint-cli2 (MIT): <https://github.com/DavidAnson/markdownlint-cli2> — không có trang release ngày 2026-10-13, phiên bản **(chưa xác minh)**
 - Catalog `seeker19110/stored` 16 §2 (tài liệu tốt cho AI = tài liệu tốt cho người + markdown sạch), 21 §8 điểm 9 và 23 §2.1/§4.4 (PROGRESS ≤ 8 KB, freshness, bằng chứng tách khỏi tuyên bố), đọc 2026-10-13; khung cũ X-stored `project-completion.md`, `PROGRESS.md` (bài học nhật ký 376 dòng) commit `1b80fe4` theo [`../../research/2026-10-13-old-framework-analysis.md`](../../research/2026-10-13-old-framework-analysis.md).
+- Catalog `seeker19110/stored` 17 §2c.2–§2c.3 (AnyJev: `test_readme_numbers.py`, `docs/limitations.md`), 21 §10b (`SECURITY.md` tự khai giới hạn) — đọc 2026-10-16.

@@ -3,7 +3,7 @@ title: Quản lý bí mật: lưu, xoay, quét, phạm vi
 kind: module
 prefix: SEC-SECRET
 applies_to: [all]
-updated: 2026-10-14
+updated: 2026-10-16
 ---
 
 # Quản lý bí mật: lưu, xoay, quét, phạm vi
@@ -57,6 +57,7 @@ updated: 2026-10-14
 - [ ] `SEC-SECRET-019` **SHOULD** Webhook nhận từ bên ngoài có secret HMAC riêng cho từng đối tác và so sánh hằng thời gian. → Kiểm: test chữ ký sai → 401; dùng `hmac.compare_digest`/`crypto.timingSafeEqual`. · Nguồn: [`../08-backend/integrations-and-webhooks.md`](../08-backend/integrations-and-webhooks.md)
 - [ ] `SEC-SECRET-020` **MAY** Mã hoá file bí mật trong git bằng SOPS + age/KMS cho GitOps đội nhỏ; khoá giải mã vẫn ở KMS. → Kiểm: file `*.enc.yaml` giải mã được trong CI qua OIDC; không có bản rõ trong repo. · Nguồn: SOPS docs (MPL-2.0)
 - [ ] `SEC-SECRET-021` **MAY** Canary token (khoá giả có cảnh báo khi bị dùng) đặt trong repo/`.env.example`/image để phát hiện kẻ quét. → Kiểm: canary đã kích hoạt thử 1 lần. · Nguồn: kinh nghiệm vận hành (không có chuẩn)
+- [ ] `SEC-SECRET-022` **SHOULD** Secret trong cấu hình tích hợp do người dùng/tenant nhập (webhook, SMTP, ngân hàng, kênh thông báo) là **write-only**: API chỉ trả placeholder đã che (`has_secret: true`/`••••`), không bao giờ trả giá trị; khi request đổi host/URL/đích mà vẫn giữ placeholder thì server bỏ secret cũ và trả 422 buộc nhập lại, để người sửa được cấu hình không chuyển secret đã lưu sang đích do mình kiểm soát. → Kiểm: test PATCH đổi URL webhook (hoặc host SMTP) giữ nguyên placeholder → 422 và secret cũ không còn được dùng cho đích mới; GET không chứa giá trị secret. · Nguồn: `seeker19110/stored` 12 §3k (CHANGELOG v0.3.15 của ARTEX: vá lỗi che credential bị bypass — đổi địa chỉ giữ nguyên credential làm rò khoá; đọc 2026-10-16)
 
 ## Bẫy thường gặp
 
@@ -70,6 +71,7 @@ updated: 2026-10-14
 8. **Prompt chứa khoá** ("dùng API key sau để gọi…") → khoá vào transcript, trace, cache; prompt injection lấy được. Tránh: broker tại egress (`SEC-SECRET-017`).
 9. **Vault tự host không có đội vận hành** → unseal thủ công, không backup khoá unseal, Vault sập = toàn hệ sập. Dùng managed secrets khi chưa có năng lực.
 10. **Nhầm "mã hoá" với "quản lý"**: file mã hoá trong git (SOPS) vẫn cần xoay, inventory, audit; mất khoá giải mã = mất tất cả → sao lưu khoá KMS.
+11. **Cho đổi URL/host của tích hợp mà giữ secret đã lưu** (client gửi lại placeholder đã che) → người có quyền sửa cấu hình trỏ webhook/SMTP sang máy chủ của mình và nhận secret cũ. Tránh: `SEC-SECRET-022` (write-only; đổi đích thì bỏ secret, 422).
 
 ## Cổng tự động
 
@@ -84,6 +86,7 @@ updated: 2026-10-14
 | Redact log | unit test logger | log object chứa `password`, `token`, `authorization` | job test | giá trị thô xuất hiện = đỏ |
 | Khoá tĩnh quá hạn | script đọc inventory | so `last_rotated` + TTL với hôm nay | CI lịch tuần | quá hạn = cảnh báo → ticket |
 | Push protection | GitHub/GitLab secret scanning | cài đặt repo | nền tảng | bật |
+| Secret tích hợp write-only | test API tự viết | GET không trả giá trị secret; PATCH đổi URL/host giữ placeholder | job test | trả giá trị thô hoặc không phải 422 = đỏ |
 
 ## Nguồn
 
@@ -97,3 +100,4 @@ updated: 2026-10-14
 - NIST SP 800-218 SSDF v1.1 PS.1 (bảo vệ mã nguồn và bí mật): <https://csrc.nist.gov/pubs/sp/800/218/final> — xác minh 2026-10-13.
 - (chưa xác minh) HashiCorp Vault BSL 1.1 / OpenBao MPL-2.0, SOPS MPL-2.0, NIST SP 800-57, ISO/IEC 27001:2022 A.5.17 — chưa fetch lại ngày 2026-10-13; xác minh trước khi dẫn.
 - Catalog `seeker19110/stored` 12 §3 (quản lý secret, CI có AI), 23 §8.1 (ai-gateway fail-open), đọc 2026-10-13.
+- Catalog `seeker19110/stored` 12 §3k (ARTEX: bypass che credential khi đổi địa chỉ — chỉ lấy cơ chế phòng thủ, không dùng công cụ; hồ sơ cảnh báo dual-use), đọc 2026-10-16.

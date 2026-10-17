@@ -3,7 +3,7 @@ title: Kế hoạch & ước lượng: chia nhỏ, cổng, WIP, deadline thật
 kind: module
 prefix: PM-PLAN
 applies_to: [all]
-updated: 2026-10-14
+updated: 2026-10-16
 ---
 
 # Kế hoạch & ước lượng: chia nhỏ, cổng, WIP, deadline thật
@@ -21,7 +21,7 @@ updated: 2026-10-14
 3. **Giới hạn WIP.** Bắt đầu việc mới là quyết định kéo (pull) khi có năng lực rỗi; một người làm thì WIP ≤ 2, PR mở toàn repo ≤ 3 kể cả bot (catalog 23 §2.5).
 4. **Hạn thật ≠ hạn mong muốn.** Hạn thật có hậu quả bên ngoài (hợp đồng, luật, sự kiện); hạn mong muốn là mục tiêu nội bộ. Chỉ hạn thật mới được phép cắt phạm vi để giữ.
 5. **Ước lượng là khoảng có xác suất** (P50/P90), hoặc dự báo từ throughput lịch sử; con số đơn chỉ là P50 và phải ghi là P50.
-6. **Điểm dừng bắt buộc ghi trước**: thao tác không đảo ngược, tiền thật, dữ liệu người dùng thật, mâu thuẫn spec — liệt kê trong PLAN để vòng lặp tự dừng ([`../11-autonomous-loop/stop-points-and-escalation.md`](../11-autonomous-loop/stop-points-and-escalation.md)).
+6. **Điểm dừng bắt buộc ghi trước**: thao tác không đảo ngược, tiền thật, dữ liệu người dùng thật, publish/deploy, đổi cấu hình cổng — liệt kê trong PLAN để vòng lặp tự dừng; mâu thuẫn spec và duyệt PLAN do phiên chính tự quyết, ghi D-NNN (ADR-0008) ([`../11-autonomous-loop/stop-points-and-escalation.md`](../11-autonomous-loop/stop-points-and-escalation.md)).
 7. **Ngân sách bốn con số** cho mọi vòng lặp/đợt: số vòng tối đa, ngân sách (token/tiền), timeout mỗi lệnh, ngày hết hạn (catalog 21 §10).
 8. **PROGRESS là bàn giao cho phiên sau**: ≤8 KB, 4 mục, SHA là tổ tiên của HEAD; cũ hơn thì không tin.
 
@@ -43,7 +43,7 @@ updated: 2026-10-14
 - [ ] `PM-PLAN-002` **MUST@L** Mỗi task ≤1 ngày việc; task lớn hơn phải chia trước khi bắt đầu. → Kiểm: cột ước lượng P90 ≤ 1 ngày cho mọi task mở; review PLAN tại cổng.
 - [ ] `PM-PLAN-003` **MUST** Gate của task là lệnh chạy được trong repo, trả exit 0 khi đạt (test, lint, build, script kiểm, smoke). → Kiểm: `xt.py loop record --task T-NNN -- <gate>` tạo `.autopilot/evidence/T-NNN.json` với `exit_code: 0`; Gate dạng "đã review" không được chấp nhận.
 - [ ] `PM-PLAN-004` **MUST@L** Mỗi task trỏ về spec/yêu cầu (`F-NNN`/`S-NNN`/`RK-NNN`); không có task mồ côi. → Kiểm: `rg -n "T-[0-9]{3}" PLAN.md | rg -v "F-|S-|RK-|chore"` rỗng.
-- [ ] `PM-PLAN-005` **MUST** `PLAN.md` có mục "Điểm dừng bắt buộc" liệt kê thao tác cần người duyệt (xoá dữ liệu, migration phá vỡ, tiền thật, secret, dữ liệu người dùng thật, mâu thuẫn spec). → Kiểm: `rg -n "^## Điểm dừng bắt buộc" PLAN.md` và ≥4 dòng dưới mục.
+- [ ] `PM-PLAN-005` **MUST** `PLAN.md` có mục "Điểm dừng bắt buộc" liệt kê thao tác cần người duyệt (xoá dữ liệu, migration phá vỡ, tiền thật, secret, dữ liệu người dùng thật, publish/deploy); mâu thuẫn spec không thuộc danh sách — phiên chính tự quyết (ADR-0008). → Kiểm: `rg -n "^## Điểm dừng bắt buộc" PLAN.md` và ≥4 dòng dưới mục.
 - [ ] `PM-PLAN-006` **MUST** `docs/autopilot/PLAN.md` có mục "Ngân sách (4 con số)" theo [`LOOP-DESIGN-001`](../11-autonomous-loop/loop-design.md): số vòng tối đa, ngân sách token/tiền, timeout mỗi lệnh kiểm, ngày hết hạn. → Kiểm: `rg -n "^## Ngân sách" docs/autopilot/PLAN.md`; `xt.py loop init --plan docs/autopilot/PLAN.md --max-iterations N --hours H` dùng đúng số đó.
 - [ ] `PM-PLAN-007` **MUST@L** WIP giới hạn và ghi số: task "đang làm" ≤ 2 cho một người; PR mở toàn repo ≤ 3 (kể cả bot/draft); vượt thì không bắt đầu việc mới. → Kiểm: `gh pr list --state open --json number | jq length` ≤ 3; `PROGRESS.md` mục "Đang làm" ≤ 2 dòng.
 - [ ] `PM-PLAN-008` **MUST@L** Hạn thật và hạn mong muốn ghi riêng, mỗi hạn thật nêu hậu quả bên ngoài; trễ hạn thật xử lý bằng cắt phạm vi (xem `PM-PRIO-007`). → Kiểm: mục "Hạn" trong `PLAN.md` có hai bảng; hạn thật có cột "hậu quả".

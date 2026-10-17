@@ -3,7 +3,7 @@ title: CI/CD: job gate, required check, cache, bảo mật pipeline
 kind: module
 prefix: WF-CI
 applies_to: [all]
-updated: 2026-10-14
+updated: 2026-10-16
 ---
 
 # CI/CD: job gate, required check, cache, bảo mật pipeline
@@ -62,6 +62,7 @@ updated: 2026-10-14
 - [ ] `WF-CI-020` **SHOULD** Fitness function cho chính CI: script kiểm `permissions` có mặt, không `write-all`, mọi `uses:` ghim SHA, job gate không `continue-on-error`, required check ↔ job khớp. → Kiểm: `xt.py ci-check` exit 0 trong cổng `lint` (bản có sẵn của khung; required check ↔ job do `protection-guard`); test thay đổi xấu → đỏ. · Nguồn: catalog 23 §3.3
 - [ ] `WF-CI-021` **MAY** Preview deploy cho mỗi PR (URL trong PR) dùng environment riêng, dữ liệu giả, tự xoá khi đóng PR ([`environments-and-config.md`](environments-and-config.md)). → Kiểm: job preview + job cleanup on `closed`.
 - [ ] `WF-CI-022` **MAY** Agent tự sửa CI đỏ: trần số lần re-run/sửa (vd 3), cấm skip/disable test, cấm rewrite history; xem [`../11-autonomous-loop/self-healing-ci.md`](../11-autonomous-loop/self-healing-ci.md). → Kiểm: cấu hình trần; log số lần.
+- [ ] `WF-CI-023` **MUST@L** Workflow có trigger `pull_request` (cả PR cùng repo, không riêng fork) không tham chiếu `secrets.*` ngoài `GITHUB_TOKEN`, trừ job có `environment:` kèm required reviewers; job cần secret chỉ chạy khi push nhánh chính hoặc `workflow_dispatch`, và chạy công cụ từ thư mục sạch (không phải thư mục chứa code PR). Lý do: với autopilot, PR là code agent viết, có thể đã dính injection. → Kiểm: `xt.py ci-check` báo lỗi khi workflow có `pull_request` (hoặc `pull_request_target`) mà job không có `environment:` lại chứa `secrets.X`/`secrets[...]`/`secrets: inherit` (X ≠ `GITHUB_TOKEN`); ngoại lệ có chủ đích `# ci-check-allow: <lý do>` trên dòng đó; reviewer của environment kiểm trên GitHub, không kiểm được bằng máy. · Nguồn: stored 12 §3f (garak chỉ chạy khi push `main`/chạy tay, không trên `pull_request`, chạy trong thư mục trống)
 
 ## Bẫy thường gặp
 
@@ -76,6 +77,7 @@ updated: 2026-10-14
 - **Cron `0 0 * * *`.** Trễ/drop ở đầu giờ do tải chung. Phút lệch.
 - **`continue-on-error` trên secret scan "để CI xanh".** Lỗ hổng âm thầm. Cổng bảo mật fail-closed; sửa nguyên nhân.
 - **Lệnh CI khác lệnh hook.** Local xanh, CI đỏ (hoặc ngược lại). Một nguồn lệnh (`xt.yaml`), hook và CI cùng gọi.
+- **Secret trong job chạy trên `pull_request` "vì PR cùng repo là tin được".** PR fork không nhận secret, nhưng PR cùng repo (kể cả do agent mở) nhận; code PR chạy cạnh secret. Job cần secret chỉ chạy khi push nhánh chính/`workflow_dispatch`, chạy công cụ từ thư mục sạch (`WF-CI-023`).
 
 ## Cổng tự động
 
@@ -84,7 +86,7 @@ updated: 2026-10-14
 | actionlint (MIT) v1.7.12 | `actionlint` | pre-commit + CI | 0 lỗi |
 | zizmor (MIT) 1.30.1 | `zizmor --min-severity medium .github/workflows` | CI | 0 finding ≥ medium |
 | pinact / ratchet | `pinact run --check` | CI | 100% `uses:` ghim SHA (chi tiết [`../12-security/supply-chain.md`](../12-security/supply-chain.md)) |
-| `xt.py ci-check` | `xt.py ci-check` (đọc YAML workflow: `permissions`, ghim SHA, `timeout-minutes`, `continue-on-error`) | CI (trong `lint`) | 0 vi phạm |
+| `xt.py ci-check` | `xt.py ci-check` (đọc YAML workflow: `permissions`, ghim SHA, `timeout-minutes`, `continue-on-error`, secret trên `pull_request` — `WF-CI-023`) | CI (trong `lint`) | 0 vi phạm |
 | protection-guard | job trong `ci.yml`: `required_status_checks` của `.github/rulesets/main.json` ↔ tên job thật; API rules kiểm ruleset đang áp | CI required | Đỏ khi required check không khớp job; cảnh báo khi ruleset chưa hiệu lực (đổi `::warning` thành `exit 1` để ép) |
 | Thời gian cổng | đo `quality` end-to-end | CI | < 10–15 phút, cảnh báo khi vượt |
 | Cache | `actions/setup-node@<sha>` `cache: npm` · `actions/setup-python` `cache: pip` · `actions/setup-go` | CI | Hit ratio theo dõi |
@@ -103,3 +105,4 @@ updated: 2026-10-14
 - Phiên bản (Go proxy/PyPI, xác minh 2026-10-13): actionlint v1.7.12, zizmor 1.30.1, gitleaks v8.30.1. (chưa xác minh) pinact, ratchet.
 - Khung cũ X-stored commit `1b80fe4`: `.github/workflows/ci.yml` (quality, e2e, protection-guard; bài học "xanh rỗng" khi thiếu `package.json`), `release.yml`, `secret-scan.yml`; `research/2026-10-13-old-framework-analysis.md` §4 (0/20 action ghim SHA, thiếu `permissions`).
 - `research/2026-10-13-stored-catalog-extraction.md` §2.7, §2.11 (ma trận vệ sinh), §4; catalog `23-own-repos-lessons` §2.5, §3.3, §4.3, §8.1; `13-dev-stack-devops` §4b–4c.
+- Catalog `seeker19110/stored` mục 12 §3f (workflow red-team chạy garak với khoá API chỉ khi push `main` hoặc chạy tay, không bao giờ trên `pull_request`, chạy trong thư mục trống để file trong PR không đè gói công cụ) — đọc 2026-10-16.

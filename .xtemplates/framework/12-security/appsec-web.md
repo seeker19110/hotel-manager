@@ -3,7 +3,7 @@ title: AppSec web/API: injection, XSS, CSRF, SSRF, IDOR, header, CSP
 kind: module
 prefix: SEC-WEB
 applies_to: [web-app, api-service, ai-agent, agentic-system, data-ml, monorepo, blockchain, static-site]
-updated: 2026-10-14
+updated: 2026-10-16
 ---
 
 # AppSec web/API: injection, XSS, CSRF, SSRF, IDOR, header, CSP
@@ -68,6 +68,7 @@ updated: 2026-10-14
 - [ ] `SEC-WEB-024` **MAY** Ngừng dùng 2026-10-14 — gộp vào [`FE-SEC-012`](../07-frontend/client-security.md) (Trusted Types, MUST@M).
 - [ ] `SEC-WEB-025` **MAY** Ngừng dùng 2026-10-14 — gộp vào [`BASE-SEC-018`](../01-baseline/security-minimum.md) (`security.txt` RFC 9116) và [`BASE-SEC-009`](../01-baseline/security-minimum.md) (`SECURITY.md`, kênh báo lỗ hổng).
 - [ ] `SEC-WEB-026` **MAY** Fuzz endpoint parse dữ liệu phức tạp (file, XML, JSON lồng) bằng bộ fuzz của ngôn ngữ (go-fuzz, atheris, jazzer). → Kiểm: job fuzz theo lịch, corpus trong repo. · Nguồn: OpenSSF Scorecard check Fuzzing
+- [ ] `SEC-WEB-027` **MUST@L** Xuất CSV/XLSX vô hiệu hoá công thức: ô chuỗi do người dùng/đối tác cung cấp mà bắt đầu bằng `=`, `+`, `-`, `@`, tab (`\t`) hoặc CR (`\r`) được thêm tiền tố `'` (hoặc ghi kiểu text/chuỗi, không phải công thức) ở **một hàm xuất dùng chung**; OWASP nay liệt kê thêm LF và biến thể full-width (`＝ ＋ － ＠`). Số do hệ thống tính ghi bằng kiểu số, không đi qua nhánh chuỗi. → Kiểm: test xuất bản ghi có tên `=HYPERLINK("http://evil.example","x")` → ô trong file có `'=` (CSV) hoặc kiểu text (XLSX); test các ký tự đầu còn lại; test số âm thật không bị biến thành chuỗi. · Nguồn: OWASP CSV Injection; `seeker19110/stored` 23 §4.4, 12 §3 (Dhcb-Tools `SECURITY.md`: chặn CSV formula injection; đọc 2026-10-16)
 
 ## Bẫy thường gặp
 
@@ -81,6 +82,7 @@ updated: 2026-10-14
 8. **Rule Semgrep "miễn phí"** nhưng license cấm phân phối/host lại; dùng trong CI nội bộ thì được, đóng gói vào sản phẩm/skill công khai thì không. Tránh: ghi license rule vào SBOM/license gate ([`../16-compliance-privacy/licensing-and-ip.md`](../16-compliance-privacy/licensing-and-ip.md)).
 9. **Server Action/RPC là POST công khai**: framework fullstack (Next.js Server Actions, tRPC) vẫn cần auth + validate như REST (catalog 09 §1.4).
 10. **Mất header khi đổi tầng** (CDN/proxy mới ghi đè hoặc bỏ header). Tránh: test header chạy trên URL production sau mỗi deploy (smoke).
+11. **Xuất CSV/XLSX từ dữ liệu người dùng như văn bản trơn** → mở trong Excel/LibreOffice, ô `=HYPERLINK(…)` hoặc công thức DDE chạy thật (rò dữ liệu, mở liên kết); tiền tố `'` đơn lẻ có thể mất tác dụng khi Excel lưu lại file. Tránh: hàm xuất dùng chung theo `SEC-WEB-027`; file cho người xem trong Excel dùng thêm tab đầu ô; test payload.
 
 ## Cổng tự động
 
@@ -94,6 +96,7 @@ updated: 2026-10-14
 | Header/cookie | test HTTP tự viết (pytest/vitest/supertest) | đọc header trang chính + API | job test + smoke sau deploy | thiếu header = đỏ |
 | Quyền theo route | cổng route-perms tự viết (liệt kê route ↔ test quyền) | script đối chiếu router với `tests/security/` | CI | route thiếu test = đỏ |
 | Điểm tắt escape | grep allowlist | `rg "dangerouslySetInnerHTML\|innerHTML\|mark_safe"` so với `security/allowlist.txt` | pre-commit | điểm mới ngoài allowlist = đỏ |
+| CSV/XLSX injection | test tự viết (pytest/vitest) | xuất bản ghi có tên `=HYPERLINK(…)`, `+1+1`, `-2+3`, `@SUM(1)`, ô bắt đầu bằng tab/CR rồi đọc lại file | job test | ô công thức không bị vô hiệu = đỏ |
 
 ## Nguồn
 
@@ -106,3 +109,4 @@ updated: 2026-10-14
 - NIST SP 800-218 SSDF v1.1, PW.7 (review code), PW.8 (test): <https://csrc.nist.gov/pubs/sp/800/218/final> — xác minh 2026-10-13.
 - RFC 9116 `security.txt`: <https://www.rfc-editor.org/rfc/rfc9116> — (chưa fetch lại ngày 2026-10-13; số RFC theo kiến thức nền, xác minh trước khi dùng).
 - Catalog `seeker19110/stored` mục 09 §1.3–1.4 (base checklist Web: CSP/HSTS/CORS/SSRF; Next.js Server Action phải kiểm auth), đọc 2026-10-13.
+- OWASP CSV Injection: <https://owasp.org/www-community/attacks/CSV_Injection> — xác minh 2026-10-16 (danh sách ký tự đầu ô gồm `= + - @` tab CR LF và biến thể full-width; cảnh báo `'` có thể mất tác dụng khi Excel lưu lại; biện pháp bền với Excel: tab đầu ô trong trường có nháy kép). Catalog `seeker19110/stored` 23 §4.4, 12 §3 (đọc 2026-10-16).

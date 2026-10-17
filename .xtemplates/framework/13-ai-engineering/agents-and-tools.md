@@ -3,7 +3,7 @@ title: Agent & tool: ACI, allowlist, schema, HITL, memory
 kind: module
 prefix: AI-AGENT
 applies_to: [ai-agent, agentic-system, data-ml]
-updated: 2026-10-15
+updated: 2026-10-16
 ---
 
 # Agent & tool: ACI, allowlist, schema, HITL, memory
@@ -67,7 +67,7 @@ updated: 2026-10-15
 - [ ] `AI-AGENT-010` **MUST@L** Nhật ký hành động: tool, tham số (đã che PII), kết quả, người duyệt, trace id; lưu theo chính sách audit. → Kiểm: trace một phiên tái hiện được chuỗi hành động. · Nguồn: [`observability-and-cost.md`](observability-and-cost.md)
 - [ ] `AI-AGENT-011` **SHOULD** Lỗi tool trả về cho model có mã + gợi ý sửa ("thiếu `customer_id`, dùng `search_customer` trước") thay vì stack trace.
 - [ ] `AI-AGENT-012` **SHOULD** Tool trả về tóm tắt + ID, có phân trang; không trả bảng hàng nghìn dòng vào context. · Nguồn: [`../11-autonomous-loop/context-and-token-budget.md`](../11-autonomous-loop/context-and-token-budget.md)
-- [ ] `AI-AGENT-013` **SHOULD** Tool đọc khai `readOnly`/idempotent để model được gọi song song; tool ghi khai rõ tác dụng phụ (`external_side_effects`). · Nguồn: Anthropic tool use docs
+- [ ] `AI-AGENT-013` **MUST@L** Mỗi tool khai metadata máy đọc được: `readOnly`/idempotent (tool đọc được gọi song song), tác dụng phụ của tool ghi (`external_side_effects`), **`tier`** (T0–T4, xem "Mức tin cậy hành động") và **`cost_class`** (`free`/`compute`/`llm`/`gpu`); dựng catalog tool **thất bại** nếu thiếu trường. Tool khai `readOnly` phải qua **test hành vi** (chạy trên snapshot trạng thái rồi diff → không đổi); **không suy quyền từ tên tool** (`get_*`, `delete_*`) mà từ khai báo đã kiểm. → Kiểm: test dựng catalog với tool thiếu `tier`/`cost_class` → lỗi; test tool `readOnly` chạy trên snapshot DB/file → diff rỗng (tool tên `get_*` nhưng ghi trạng thái → đỏ). · Nguồn: Anthropic tool use docs; `seeker19110/stored` 07 (Overmind: `cost_class` bắt buộc ở catalog nhưng chặn theo tên/cờ tự khai nên `set_active_model` vẫn ghi đè trạng thái; đọc 2026-10-16)
 - [ ] `AI-AGENT-014` **SHOULD** Eval chọn tool: bộ ≥ 30 tình huống với tool đúng kỳ vọng; đổi mô tả tool → chạy lại. · Nguồn: [`evaluation.md`](evaluation.md)
 - [ ] `AI-AGENT-015` **SHOULD** Giới hạn tốc độ và giá trị theo tenant cho tool ghi (vd ≤ N email/giờ, ≤ X tiền/ngày) ở tầng tool, không ở prompt.
 - [ ] `AI-AGENT-016` **SHOULD** Giao diện xem trước/duyệt hành động cho người dùng cuối theo [`../06-design-ux/ai-ux.md`](../06-design-ux/ai-ux.md): hiển thị tool, tham số, hậu quả, nút huỷ.
@@ -75,6 +75,8 @@ updated: 2026-10-15
 - [ ] `AI-AGENT-018` **MAY** Memory tổ chức chia sẻ giữa agent chỉ qua RAG index có quyền, không qua file chung không kiểm soát.
 - [ ] `AI-AGENT-019` **SHOULD** Agent nhận lệnh qua kênh nhắn (chat, email, SMS) xác định **mức tin cậy theo người gửi** và kiểm ở hook trước mỗi lời gọi tool bằng code (không bằng prompt), ghi audit; kênh giả mạo được người gửi (email chưa qua SPF/DKIM/DMARC) nhận mức thấp nhất. → Kiểm: test gửi cùng yêu cầu từ người gửi tin cậy/không tin cậy → tool bị chặn ở mức thấp; dòng audit tương ứng. · Nguồn: `seeker19110/stored` 21 §10b (open-instinct: `beforeToolCall` 6 mức + `audit.jsonl`)
 - [ ] `AI-AGENT-020` **SHOULD** Memory phân loại theo CoALA (working · episodic · semantic · **procedural**); procedural memory (skill, luật, `AGENTS.md`, prompt hệ thống) chỉ đổi qua PR có review như code, agent không tự ghi. → Kiểm: tool ghi memory của agent không có quyền ghi vào thư mục skill/luật; đổi file đó đi qua CODEOWNERS. · Nguồn: Sumers và cộng sự, *Cognitive Architectures for Language Agents* (CoALA, 2023); `seeker19110/stored` 03 §8d
+- [ ] `AI-AGENT-021` **MUST@L** Xoá memory (cả theo yêu cầu quyền chủ thể dữ liệu, xem [`../16-compliance-privacy/consent-and-user-rights.md`](../16-compliance-privacy/consent-and-user-rights.md)) lan tới **mọi dữ liệu phái sinh** — entity, link/quan hệ, mental model/reflection, tóm tắt, embedding, cache — và **tạo lại** các tóm tắt còn lại từ nguồn đã trừ mục xoá. → Kiểm: test xoá memory nguồn → `recall`/`reflect` không còn trả fact đó; truy vấn trực tiếp các bảng phái sinh không còn tham chiếu tới nó. · Nguồn: `seeker19110/stored` 10 §4d.2 (Hindsight: schema 25 bảng, dữ liệu phái sinh nằm ở `entities`, `mental_models`, `memory_links`…; đọc 2026-10-16)
+- [ ] `AI-AGENT-022` **SHOULD** Bank memory phân vùng theo user/agent/dự án (không một bank chung cho tất cả); đo p95 recall theo kích thước bank và đặt **ngưỡng cảnh báo** (số memory/bank) trong cấu hình; vượt ngưỡng → tách bank hoặc đổi backend. → Kiểm: dashboard p95 recall theo kích thước bank; alert ở ngưỡng đã ghi. · Nguồn: `seeker19110/stored` 10 §4d.1, §4d.3 (Hindsight: recall 7 qps ở 33k memory → 1,9 qps ở 164k trên 4 vCPU; chính nhà phát triển khuyến nghị giữ bank dưới ~50k memory — số do họ đo, dự án tự đo lại; đọc 2026-10-16)
 
 ## Bẫy thường gặp
 
@@ -88,6 +90,9 @@ updated: 2026-10-15
 | Tool trả stack trace | Model "sửa" sai hướng | Lỗi có mã + gợi ý |
 | Tham số là tên tự do | Gửi nhầm người, cập nhật nhầm bản ghi | ID tra được |
 | Không trần bước | Chạy 400 lời gọi/5 phút | Trần bước/token/lặp |
+| Tool tên `get_*` nhưng ghi trạng thái; chặn theo tên/cờ tự khai | Quyền suy từ tên bị vượt; trạng thái bị ghi đè | Test hành vi trên snapshot + diff (`AI-AGENT-013`) |
+| Xoá memory nguồn mà entity/link/tóm tắt còn nguyên | Fact đã "xoá" vẫn được recall/reflect; DSAR không hoàn tất | Xoá lan + tạo lại tóm tắt (`AI-AGENT-021`) |
+| Một bank memory chung cho mọi user/agent | Recall chậm dần khi bank lớn; lẫn dữ liệu | Phân vùng + đo p95 theo kích thước (`AI-AGENT-022`) |
 
 ## Cổng tự động
 
@@ -99,6 +104,9 @@ updated: 2026-10-15
 | Idempotency | Test gọi trùng key | CI | 1 tác dụng |
 | Lặp/trần | Test agent lặp | CI | Dừng ≤ k = 3 lần cùng tool+tham số |
 | Eval chọn tool | Bộ ≥ 30 tình huống | CI khi đổi tool | Không giảm quá ngưỡng baseline |
+| Catalog tool | Test dựng catalog thiếu `tier`/`cost_class` | CI | Dựng thất bại |
+| Tool `readOnly` | Chạy trên snapshot trạng thái rồi diff | CI | Diff rỗng |
+| Xoá memory | Xoá nguồn → recall/reflect + bảng phái sinh | CI | Không còn fact |
 
 ## Nguồn
 
@@ -107,3 +115,4 @@ updated: 2026-10-15
 - `research/2026-10-13-ai-agent-research.md` §2 (allowlist tool+tham số, policy validator, HITL `waiting_approval` timeout huỷ, loop detection k = 3, ngân sách 5 chiều) — tổng hợp 2026-10-13.
 - `seeker19110/stored` mục 02 (ACI, ≤ 8 tool cho model nhỏ, memory đề xuất→duyệt→ghi, "prompt không phải cơ chế bảo mật"), mục 12 §1–2 — đọc 2026-10-13 (`research/2026-10-13-stored-catalog-extraction.md`).
 - Sumers và cộng sự, *Cognitive Architectures for Language Agents* (CoALA; working/episodic/semantic/procedural memory): <https://arxiv.org/abs/2309.02427> — đọc 2026-10-15. Catalog `seeker19110/stored` 03 §8d, 21 §10b (open-instinct: mức tin cậy theo người gửi ở `beforeToolCall`, `audit.jsonl`) — đọc 2026-10-15.
+- Catalog `seeker19110/stored` 07 (Overmind: `cost_class`, chặn theo tên), 10 §4d (Hindsight: 25 bảng, p95 recall theo kích thước bank) — đọc 2026-10-16.

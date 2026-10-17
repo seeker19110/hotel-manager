@@ -95,6 +95,7 @@ Nguồn: catalog `seeker19110/stored` 10 §4b (agentmemory), §4c (engram), 03 �
 - [ ] `LOOP-HARNESS-019` **SHOULD** Công cụ memory ngoài cho coding agent (agentmemory, claude-mem…) chỉ dùng để **tra cứu**, không thay `PROGRESS.md`/`TRAPS.md`/`PLAN.md`; tắt chèn tự động đầu phiên ở repo nhạy cảm, bind loopback, bật lọc bí mật trước khi lưu. → Kiểm: cấu hình công cụ (`auto-inject` tắt, bind `127.0.0.1`); `PROGRESS.md` vẫn qua `xt.py progress-check`. · Nguồn: `seeker19110/stored` 10 §4b (agentmemory)
 - [ ] `LOOP-HARNESS-020` **SHOULD** Mỗi lần chạy autopilot bắt đầu bằng audit khung đã cài và sửa phần an toàn trước khi lập kế hoạch: hook bắt buộc (SessionStart · PreCompact · PreToolUse · Stop) có trong settings và file hook (kể cả file chúng nạp) tồn tại, đúng cú pháp; `CLAUDE.md` import `AGENTS.md`; `xt.yaml` đủ khoá; `.autopilot/` bị gitignore; state không hỏng; khung `validate` xanh. Hook thiếu fail-open nên **không tự lộ** — chỉ máy kiểm mới thấy. Sửa tự động chỉ phần đảo ngược được; hook/settings là điểm dừng, để người cài lại. → Kiểm: `xt.py doctor --fix` exit 0 trước `loop init` (`loop init` cảnh báo trên stderr khi còn lỗi). · Nguồn: `scripts/xt.py` (`doctor_findings`), `.claude/hooks/_lib.sh` (fail-open) — đọc 2026-10-15
 - [ ] `LOOP-HARNESS-021` **SHOULD** Bổ sung cho `LOOP-HARNESS-019` khi dùng công cụ memory ngoài: (1) chỉ bật **một** công cụ (engram, claude-mem, agentmemory… cùng hook SessionStart/UserPromptSubmit và cùng chèn context mỗi lượt); (2) kho memory nằm **ngoài repo**, quyền chỉ chủ sở hữu, coi là dữ liệu nhạy cảm vì có công cụ lưu **nguyên văn prompt**; nội dung nhạy cảm bọc thẻ loại trừ của công cụ (vd `<private>…</private>`); (3) tính năng đồng bộ memory **vào repo** (vd `engram sync` ghi `.engram/`) tắt ở repo công khai, ở repo riêng thì thư mục đó phải qua quét bí mật trước commit. → Kiểm: `xt.py doctor` không có cảnh báo `memory` (đếm công cụ memory theo tên trong `enabledPlugins` cấp người dùng/dự án/cục bộ và MCP server ở `~/.claude.json` + `.mcp.json`, ≤ 1; `.engram/` không nằm trong git); `stat -c %a` thư mục kho memory = `700`; repo riêng: gitleaks quét `.engram/` = 0 phát hiện. · Nguồn: `seeker19110/stored` 10 §4c (engram: hook lưu prompt cục bộ và chèn chỉ thị mỗi lượt, Git Sync ghi `.engram/` vào repo, `<private>` lọc hai tầng)
+- [ ] `LOOP-HARNESS-022` **SHOULD** Phiên autopilot không người trực chạy trong sandbox mức hệ điều hành của host (ghi giới hạn trong workspace, mạng chặn mặc định + allowlist registry/git) hoặc trong devcontainer/VM có egress allowlist; guard hook không phải sandbox (chỉ thấy lệnh qua tool, không chặn tiến trình con hay mạng). Nâng thành **MUST@L** khi phiên chạy không người trực với quyền ghi và mạng. Tên khoá cấu hình sandbox cụ thể của Claude Code: (chưa xác minh) — đọc tài liệu hiện hành, không đoán tên. → Kiểm: từ trong phiên chạy `curl` tới domain ngoài allowlist → bị chặn; ghi lệnh + output làm bằng chứng (`loop record`); thử ghi ngoài workspace → bị từ chối. · Nguồn: stored 11 §3/§3b (`anthropics/sandbox-runtime`: Seatbelt/bubblewrap, proxy allowlist)
 
 ## Bẫy thường gặp
 
@@ -107,6 +108,7 @@ Nguồn: catalog `seeker19110/stored` 10 §4b (agentmemory), §4c (engram), 03 �
 | Commit `.autopilot/state.json` | Xung đột, vòng chạy của máy này đè máy kia | gitignore; mỗi máy `loop init` |
 | Agent "viết lại" todo/PLAN mỗi vòng | Tốn ~30 % token, mất lịch sử | Chỉ đổi trạng thái; kế hoạch mới = PR sửa PLAN |
 | `.framework-dropins`/file sinh để lại trong repo đích | Hook crash, CI đỏ khó hiểu | Script cài có bước dọn; validate repo |
+| Coi hook guard là sandbox | Tiến trình con, script tạm, `curl` ra mạng đi ngoài tầm hook | Sandbox OS hoặc devcontainer/VM có egress allowlist; thử `curl` ngoài allowlist phải bị chặn (`LOOP-HARNESS-022`) |
 
 ## Cổng tự động
 
@@ -119,6 +121,7 @@ Nguồn: catalog `seeker19110/stored` 10 §4b (agentmemory), §4c (engram), 03 �
 | Blueprint | `xt.py blueprint-status BLUEPRINT.md --strict` | Cổng phát hành G7 (dự án tự thêm vào CI khi phát hành) | 0 MUST mở |
 | Hợp đồng repo | `xt.py validate` (quy ước khung) | pre-commit + CI | 0 lỗi |
 | Hook | `bash -n .claude/hooks/*.sh && python3 -m unittest discover -s tests` | CI | xanh |
+| Sandbox phiên | `curl` tới domain ngoài allowlist từ trong phiên autopilot | Trước khi bật chạy không người trực | bị chặn; có evidence |
 
 ## Nguồn
 
@@ -129,3 +132,4 @@ Nguồn: catalog `seeker19110/stored` 10 §4b (agentmemory), §4c (engram), 03 �
 - `seeker19110/stored` mục 21 §2, §8 điểm 9; mục 23 §2.1, §2.4, §3.3, §4.5 (`runtime.yaml`, `check_status_freshness`, `validate_repo`, TRAPS) — đọc 2026-10-13.
 - Catalog `seeker19110/stored` 10 §4b (agentmemory: bind loopback, lọc bí mật, nên giữ vai tra cứu) — đọc 2026-10-15.
 - Catalog `seeker19110/stored` 10 §4c (engram: một binary Go + SQLite FTS5; hook lưu nguyên văn prompt, chèn chỉ thị mỗi lượt; Git Sync ghi `.engram/` vào repo; thẻ `<private>` lọc ở plugin và store) — đọc 2026-10-16.
+- Catalog `seeker19110/stored` mục 11 §3b (`anthropics/sandbox-runtime`, trước ở anthropic-experimental, 5,5k★, Apache-2.0: sandbox mức hệ điều hành không cần container — Seatbelt trên macOS, bubblewrap trên Linux; mạng chặn mặc định, chỉ mở domain allowlist qua proxy; beta research preview, định dạng config có thể đổi) và §3 — đọc 2026-10-16; tên khoá settings sandbox của Claude Code (chưa xác minh).

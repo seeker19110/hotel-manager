@@ -3,7 +3,7 @@ title: Spec-driven: spec là hợp đồng, tiêu chí chấp nhận, truy vết
 kind: module
 prefix: WF-SDD
 applies_to: [all]
-updated: 2026-10-15
+updated: 2026-10-16
 ---
 
 # Spec-driven: spec là hợp đồng, tiêu chí chấp nhận, truy vết
@@ -35,7 +35,7 @@ updated: 2026-10-15
 | Thay đổi API/schema | Spec kèm hợp đồng (OpenAPI/migration plan) và ADR nếu là quyết định kiến trúc | — |
 | Công cụ SDD cho agent | **Spec Kit** (MIT, trung lập, `specify`/`plan`/`tasks`/`implement`/`converge`) hoặc **OpenSpec** (MIT, nhẹ, change proposals); cả hai còn đổi nhanh — ghim phiên bản | Kiro (độc quyền, khoá AWS), BMAD (áp đặt quy trình) — chỉ khi đã chọn có ADR |
 | Nhiều agent song song | Spec + hợp đồng API sinh trước khi chia việc; mỗi agent một lát dọc có spec con | Chia việc trước khi có hợp đồng |
-| Spec mâu thuẫn code hiện có | Dừng, hỏi; quyết định ghi vào spec (phiên bản mới) hoặc ADR | Sửa code "cho khớp" rồi báo sau |
+| Spec mâu thuẫn code hiện có | Phiên chính tự quyết theo tiêu chí chất lượng cuối (ADR-0008), ghi D-NNN cạnh "Câu hỏi mở" của spec và cập nhật spec (phiên bản mới) hoặc ADR | Sửa code "cho khớp" mà không ghi quyết định |
 
 ## Checklist
 

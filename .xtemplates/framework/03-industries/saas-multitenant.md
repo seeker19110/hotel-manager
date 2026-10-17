@@ -4,7 +4,7 @@ kind: industry
 slug: saas-multitenant
 prefix: IND-SAAS
 modules: [16-compliance-privacy/*, 12-security/*, 08-backend/authn-authz, 08-backend/api-design, 08-backend/background-jobs-and-queues, 08-backend/caching, 08-backend/reliability-and-errors, 08-backend/integrations-and-webhooks, 09-database/data-modeling, 09-database/sensitive-data-and-access, 09-database/migrations, 09-database/backup-and-recovery, 09-database/indexing-and-query-performance, 05-architecture/resilience-and-scalability, 05-architecture/boundaries-and-modularity, 15-operations/slo-and-alerting, 15-operations/cost-management, 15-operations/deployment-strategies, 15-operations/observability, 14-testing-quality/performance-and-load, 14-testing-quality/integration-and-contract, 10-workflow/release-and-versioning]
-updated: 2026-10-13
+updated: 2026-10-16
 ---
 
 # Gói ngành: SaaS B2B đa tenant
@@ -119,6 +119,7 @@ tổ chức tài chính EU (ICT third-party) · NIS2 2022/2555.
 - [ ] `IND-SAAS-021` **SHOULD** Dữ liệu người dùng cuối của tenant chỉ dùng cho mục đích cung cấp dịch vụ; không huấn luyện model/phân tích chéo tenant nếu không có đồng ý ghi trong hợp đồng. → Kiểm: data map ghi mục đích; flag `training_opt_in` theo tenant. · Nguồn: GDPR Art. 28(3)(a); Luật 91/2025/QH15 Đ.37
 - [ ] `IND-SAAS-022` **MAY** Cho tenant quản lý khoá riêng (BYOK/HYOK). → Kiểm: tài liệu + test xoay khoá. · Nguồn: ISO/IEC 27018
 - [ ] `IND-SAAS-023` **MAY** Cung cấp audit log streaming (SIEM) cho tenant enterprise. → Kiểm: endpoint/integration có test. · Nguồn: SOC 2 CC7.2
+- [ ] `IND-SAAS-024` **SHOULD** Thành phần AI có **trạng thái thích nghi lúc chạy** (prior/hiệu chỉnh theo batch, ngưỡng động, hạn mức leo thang, semantic cache, memory bank) được khoá theo tenant (mỗi tenant một instance/khoá trạng thái) hoặc dùng cấu hình cố định (vd `prior=none`); không chia sẻ trạng thái giữa tenant. → Kiểm: test tenant A gửi 100 request lệch nhãn → đầu ra của tenant B cho cùng input không đổi (so trước/sau). · Nguồn: `seeker19110/stored` 17 §2c.5 (AnyJev: prior batch là trạng thái theo tiến trình; hệ đa tenant nên tách `Decider` theo tenant hoặc dùng `content_free`/`none`; đọc 2026-10-16)
 
 ## Cổng chất lượng tương đương
 
@@ -140,6 +141,7 @@ tổ chức tài chính EU (ICT third-party) · NIS2 2022/2555.
 - **Impersonation không log** → không chứng minh được với khách hàng/kiểm toán.
 - **Hợp đồng nói "dữ liệu ở VN"** nhưng log/analytics/LLM ở nước ngoài.
 - **SOC 2 Type I rồi dừng**: khách hàng doanh nghiệp yêu cầu Type II định kỳ.
+- **Thành phần AI "tự học" dùng chung giữa tenant** (prior hiệu chỉnh, ngưỡng động, semantic cache, memory bank) → request của tenant A làm đổi đầu ra của tenant B; vừa rò dữ liệu vừa không tái lập được. Khoá theo tenant hoặc cố định (`IND-SAAS-024`).
 
 ## Nguồn
 
@@ -153,3 +155,4 @@ tổ chức tài chính EU (ICT third-party) · NIS2 2022/2555.
 - ISO/IEC 27001:2022 (hết chuyển tiếp 31/10/2025): <https://www.iso.org/standard/27001>; ISO/IEC 27701:2025: <https://www.iso.org/standard/27701> — xác minh 2026-10-13.
 - EU Data Act 2023/2854 (áp dụng 12/09/2025); DORA 2022/2554 (17/01/2025); NIS2 2022/2555 — xác minh gián tiếp 2026-10-13 qua nguồn thứ cấp.
 - OWASP ASVS 5.0.0: <https://github.com/OWASP/ASVS/releases> — xác minh 2026-10-13.
+- Catalog `seeker19110/stored` 17 §2c.5 (AnyJev: prior batch theo tiến trình, tách theo tenant) — đọc 2026-10-16.

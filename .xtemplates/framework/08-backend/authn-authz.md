@@ -3,7 +3,7 @@ title: Xác thực, phiên, token, phân quyền (RBAC/ABAC), đa yếu tố
 kind: module
 prefix: BE-AUTH
 applies_to: [web-app, api-service, ai-agent, agentic-system, data-ml, monorepo, blockchain]
-updated: 2026-10-14
+updated: 2026-10-16
 ---
 
 # Xác thực, phiên, token, phân quyền (RBAC/ABAC), đa yếu tố
@@ -64,6 +64,7 @@ updated: 2026-10-14
 - [ ] `BE-AUTH-022` **MAY** Dùng pepper (khoá bí mật ngoài DB, trong vault/HSM) cho hash mật khẩu, kèm quy trình xoay. → Kiểm: pepper không nằm trong repo/DB; xem [`../12-security/secrets-management.md`](../12-security/secrets-management.md).
 - [ ] `BE-AUTH-023` **MAY** Sender-constrained token (DPoP RFC 9449 hoặc mTLS RFC 8705) cho API giá trị cao. → Kiểm: test dùng token với khoá DPoP khác → 401. · Nguồn: RFC 9700 §2.2.1
 - [ ] `BE-AUTH-024` **MAY** Bước xác thực theo rủi ro (thiết bị/vị trí mới → yêu cầu MFA), không dùng vị trí làm yếu tố xác thực. → Kiểm: test đăng nhập từ UA/IP mới → prompt MFA. · Nguồn: OWASP MFA Cheat Sheet
+- [ ] `BE-AUTH-025` **MUST@L** Nhận lời mời vào workspace/tenant chỉ sau khi **xác minh quyền sở hữu email bằng token** gửi tới đúng email đó (link/mã một lần trong thư mời); không suy từ việc đã có tài khoản đăng ký với email trùng, kể cả khi tài khoản ấy bị gắn `email_verified=true` bởi đường tự đăng ký. → Kiểm: test tạo tài khoản chưa xác minh trùng email người được mời → không có membership trong tenant; chỉ token từ thư mời mới nhận được lời mời. · Nguồn: `seeker19110/stored` 07 (Overmind tự host: `LocalSessionView` tạo tài khoản `email_verified=True` rồi `claim_pending_invites()` coi email trùng là bằng chứng sở hữu; đọc 2026-10-16)
 
 ## Bẫy thường gặp
 
@@ -77,6 +78,7 @@ updated: 2026-10-14
 - **Role explosion.** Thêm vai `editor_but_not_delete_v2` mỗi tuần. Chuyển sang ABAC/ReBAC khi quyền phụ thuộc object/quan hệ.
 - **`user_id` lấy từ body request.** Mass assignment đổi chủ bản ghi. `user_id` luôn từ token/phiên.
 - **Mâu thuẫn nguồn:** OWASP Session Management ghi entropy tối thiểu 64 bit nhưng khuyến nghị sinh ID ≥ 128 bit; khung chọn **128 bit** (an toàn hơn, rẻ) — ghi để không tranh cãi lại.
+- **"Email trùng = đúng người" khi nhận lời mời:** ai đăng ký trước bằng email của người được mời vào thẳng tenant. Cần token gửi tới email (`BE-AUTH-025`).
 
 ## Cổng tự động
 
@@ -107,3 +109,4 @@ updated: 2026-10-14
 - OWASP ASVS 5.0.0 chương V6 Authentication, V7 Session Management, V8 Authorization, V9 Self-contained Tokens, V10 OAuth and OIDC: <https://github.com/OWASP/ASVS/tree/master/5.0/en> — xác minh 2026-10-13
 - (chưa xác minh) OWASP Forgot Password Cheat Sheet — không fetch ngày 2026-10-13; nội dung mục 015 lấy theo NIST + Authentication Cheat Sheet.
 - `research/2026-10-13-stored-catalog-extraction.md` §2.5 (IDOR, Server Action), §2.11 (prompt không phải cơ chế bảo mật); catalog `09-engineering-checklists` §1.3 mục 4.4; `23-own-repos-lessons` §4.1 (API phải `validateAuth()` + user_id từ token).
+- Catalog `seeker19110/stored` 07 (Overmind: nhận lời mời theo email trùng với `email_verified=True` tự gán) — đọc 2026-10-16.

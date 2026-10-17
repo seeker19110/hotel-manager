@@ -3,7 +3,7 @@ title: Mô hình dữ liệu, chuẩn hoá, khoá, kiểu dữ liệu, soft-dele
 kind: module
 prefix: DB-MODEL
 applies_to: [web-app, api-service, ai-agent, agentic-system, data-ml, monorepo, blockchain, mobile-app, desktop-app, embedded-iot]
-updated: 2026-10-14
+updated: 2026-10-16
 ---
 
 # Mô hình dữ liệu, chuẩn hoá, khoá, kiểu dữ liệu, soft-delete, audit
@@ -61,7 +61,7 @@ updated: 2026-10-14
 - [ ] `DB-MODEL-013` **SHOULD** Trạng thái nghiệp vụ (đơn hàng, thanh toán) là máy trạng thái: bảng/CHECK liệt kê trạng thái, chuyển trạng thái kiểm ở một hàm/service duy nhất, lịch sử chuyển được ghi. → Kiểm: test chuyển trạng thái không hợp lệ bị từ chối; bảng `*_status_history`. · Nguồn: [`../01-baseline/data-correctness.md`](../01-baseline/data-correctness.md)
 - [ ] `DB-MODEL-014` **SHOULD** Cột JSONB có `CHECK` kiểu/khoá bắt buộc và GIN index khi truy vấn theo nội dung; schema JSON của cột commit trong repo. → Kiểm: `contracts/db/<table>.<col>.schema.json`; test chèn JSON sai bị từ chối. · Nguồn: PostgreSQL 18 JSON types
 - [ ] `DB-MODEL-015` **SHOULD** Bảng lớn theo thời gian (log, sự kiện, đo lường) phân vùng theo khoảng (range) ngay từ đầu khi dự kiến vượt bộ nhớ máy chủ; có chính sách xoá/lưu trữ phân vùng cũ. → Kiểm: `\d+` cho thấy partitioned table; job detach/drop phân vùng theo lịch. · Nguồn: PostgreSQL 18 §5.12 (partition khi bảng > RAM; vài nghìn partition là trần hợp lý)
-- [ ] `DB-MODEL-016` **SHOULD** Cột văn bản so sánh không phân biệt dấu/hoa thường (tên, email) có chiến lược rõ: `citext`, hoặc index trên `lower(unaccent(col))`. → Kiểm: test tìm "Nguyễn" khớp "nguyen" nếu nghiệp vụ yêu cầu; index biểu thức tồn tại. · Nguồn: [`search-and-vector.md`](search-and-vector.md)
+- [ ] `DB-MODEL-016` **SHOULD** Cột văn bản so sánh không phân biệt dấu/hoa thường (tên, email) có chiến lược rõ: `citext`, hoặc index trên `lower(f_unaccent(col))` với `f_unaccent` là hàm bọc **IMMUTABLE** gọi `public.unaccent('public.unaccent'::regdictionary, $1)` — `unaccent()` của extension là STABLE nên PostgreSQL từ chối nó trực tiếp trong index biểu thức và cột generated (xem [`search-and-vector.md`](search-and-vector.md)). → Kiểm: migration tạo index biểu thức chạy được trên Postgres thật; test tìm "Nguyễn" khớp "nguyen" nếu nghiệp vụ yêu cầu. · Nguồn: [`search-and-vector.md`](search-and-vector.md)
 - [ ] `DB-MODEL-017` **SHOULD** Dùng identity thay `serial`; sequence không được giả định liên tục (gap là bình thường); số thứ tự nghiệp vụ liên tục (hoá đơn) sinh bằng bảng đếm có khoá. → Kiểm: grep `serial` trong migration mới = 0; test số hoá đơn liên tục dưới đồng thời. · Nguồn: PostgreSQL 18 §5.3 Identity Columns
 - [ ] `DB-MODEL-018` **MAY** Bảng lịch sử append-only (event sourcing nhẹ) cho thực thể cần tái dựng trạng thái theo thời gian; trạng thái hiện tại là projection. → Kiểm: test tái dựng từ lịch sử = trạng thái hiện tại.
 - [ ] `DB-MODEL-019` **MAY** Dùng `GENERATED ALWAYS AS (...) STORED` cho cột dẫn xuất thay vì tính ở ứng dụng. → Kiểm: cột generated trong schema; không có code ghi cột đó.

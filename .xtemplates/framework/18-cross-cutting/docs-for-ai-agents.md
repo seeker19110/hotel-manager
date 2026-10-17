@@ -3,7 +3,7 @@ title: Tài liệu cho AI agent: AGENTS.md, CLAUDE.md, llms.txt, runtime.yaml, S
 kind: module
 prefix: XC-DOCAI
 applies_to: [all]
-updated: 2026-10-15
+updated: 2026-10-16
 ---
 
 # Tài liệu cho AI agent: AGENTS.md, CLAUDE.md, llms.txt, runtime.yaml, SCOPE.md
@@ -59,6 +59,7 @@ updated: 2026-10-15
 - [ ] `XC-DOCAI-017` **MAY** Bản đồ tri thức mã sinh bằng máy (code graph, catalog từ mã) gắn nhãn `EXTRACTED`/`INFERRED` và có cổng drift so với mã thật. → Kiểm: job sinh lại + `git diff --exit-code`. · Nguồn: catalog 16 §2c–2d, 23 §6.4
 - [ ] `XC-DOCAI-018` **SHOULD** Không bật đồng thời nhiều skill/plugin cùng chỉnh **giọng/hành vi trả lời** (vd ponytail + caveman + superpowers): nhiều prompt cùng ra lệnh về cách trả lời sẽ mâu thuẫn; mỗi vai chọn một pack, ghi trong `AGENTS.md`; plugin chạy binary ở hook phải ghim phiên bản, kiểm SHA và tắt telemetry (`DO_NOT_TRACK=1`). → Kiểm: danh sách plugin bật trong `.claude/settings.json` đối chiếu bảng vai trong `AGENTS.md`. · Nguồn: `seeker19110/stored` 20 §3g
 - [ ] `XC-DOCAI-019` **SHOULD** Khi cấp skill cho agent **theo stack dự án**, ưu tiên installer dò stack có **cổng xuất xứ** — manifest + SHA-256 từng file, review nội dung skill trước khi nạp (injection/supply-chain), cảnh báo hiện trước khi cài, và ghi `skills-lock.json` (source + commit + hash) — hơn chép tay hoặc plugin marketplace tự cập nhật (xem `XC-DOCAI-009`, [`SEC-SUPPLY-016`](../12-security/supply-chain.md)). Mẫu tham chiếu: autoskills (midudev). Nhưng license của nó là **CC BY-NC 4.0** (phi thương mại): chỉ gọi CLI đã xuất bản (`npx autoskills`) như **bước dev tuỳ chọn**, không đưa vào `dependencies` hay bước build phân phối, và **không vendor registry/mã** của nó vào sản phẩm phân phối/thương mại — CC BY-NC nằm trong nhóm cấm mặc định của [`CMP-LIC`](../16-compliance-privacy/licensing-and-ip.md). → Kiểm: nếu dùng, có `skills-lock.json` với `source` + `sha256` mỗi skill; `grep -riE "autoskills" package.json` không thấy ở `dependencies`/`devDependencies` và không ở bước build phát hành (chỉ ở script dev hoặc tài liệu); nhúng registry/mã thì `license-policy.yaml` có ngoại lệ kèm `reason` và luật sư duyệt. · Nguồn: `seeker19110/stored` 20 §3h (autoskills: dò stack, registry review hai tầng bằng model + SHA-256 + `skills-lock.json`, license CC BY-NC 4.0)
+- [ ] `XC-DOCAI-020` **SHOULD** Dự án để agent sinh UI có `DESIGN.md` theo spec DESIGN.md của `google-labs-code/design.md` (YAML front matter chứa token + văn xuôi giải thích; bản CLI đã đọc: `@google/design.md` 0.4.0, xác minh 2026-10-16 — **alpha; xác minh lại khi dùng**); phần token **sinh từ nguồn token gốc** (xem [`../06-design-ux/design-system-and-tokens.md`](../06-design-ux/design-system-and-tokens.md)) bằng script, không chép tay; không dùng/chép `DESIGN.md` của thương hiệu khác làm file của dự án. → Kiểm: `npx @google/design.md lint DESIGN.md` 0 lỗi; job sinh lại phần token + `git diff --exit-code` sạch. · Nguồn: `seeker19110/stored` 06 §7c (linter 0.4.0 chấm 11 `DESIGN.md` "chính chủ": chỉ 1/11 sạch hoàn toàn; đọc 2026-10-16)
 
 ## Bẫy thường gặp
 
@@ -73,6 +74,7 @@ updated: 2026-10-15
 - **`next dev` ghi đè `AGENTS.md`** — mất luật mà không ai thấy. Kiểm hash trong CI.
 - **llms.txt liệt kê 400 link không ghi chú** → agent không biết chọn. Nhóm, ghi chú một dòng, mục `Optional`.
 - **`AGENTS.md` ghi tên model/phiên AI** → lỗi thời sau một tháng và vi phạm quy ước khung. Ghi năng lực cần, không ghi tên.
+- **Chép `DESIGN.md` của thương hiệu khác** làm file dự án ("Copy it into your project root") → logo/màu/font có thể có quyền riêng, và file văn xuôi không có token thì không lint được. Tự viết theo spec, token sinh từ nguồn gốc (`XC-DOCAI-020`).
 
 ## Cổng tự động
 
@@ -88,6 +90,7 @@ updated: 2026-10-15
 | Vendor lock | script `verify-vendor` | so sha256 từng file với lock | CI | 0 lệch |
 | llms.txt | lychee v0.24.2 + curl | `curl -f /llms.txt`; `lychee llms.txt` | cron | 200; 0 link chết |
 | Markdown sạch | markdownlint-cli2 (MIT) | `markdownlint-cli2 "AGENTS.md" ".claude/**/*.md"` | CI | 0 |
+| `DESIGN.md` hợp lệ | `@google/design.md` (alpha) + script sinh token | `npx @google/design.md lint DESIGN.md`; sinh lại phần token rồi `git diff --exit-code` | CI | 0 lỗi; 0 diff |
 
 ## Nguồn
 
@@ -102,3 +105,4 @@ updated: 2026-10-15
 - Catalog `seeker19110/stored` 04 §4 (bộ file đa harness; `next dev` ghi đè), 16 §2–2d (llms.txt adoption 2–10 %, repomix `--sandbox`, EXTRACTED/INFERRED), 20 §1.5/§3b/§3c (SKILL.md tốt; vendor-with-lock; `SCOPE.md` + `.out-of-scope/`), 23 §3.1/§3.3/§4.3 (`runtime.yaml`, thang mức bền) theo [`../../research/2026-10-13-stored-catalog-extraction.md`](../../research/2026-10-13-stored-catalog-extraction.md), đọc 2026-10-13.
 - Catalog `seeker19110/stored` 20 §3g (bảng "Top Claude Code": chồng pack chỉnh giọng, impeccable chạy engine ở hook, `DO_NOT_TRACK`) — đọc 2026-10-15.
 - Catalog `seeker19110/stored` 20 §3h (midudev/autoskills: dò stack → cài skill từ registry vendor có review hai tầng bằng model + SHA-256 + `skills-lock.json`; license CC BY-NC 4.0 phi thương mại) — đọc 2026-10-15.
+- `google-labs-code/design.md` — spec DESIGN.md + CLI `@google/design.md`: <https://github.com/google-labs-code/design.md> · <https://www.npmjs.com/package/@google/design.md> — npm `latest` 0.4.0 (phát hành 2026-07-27) xác minh 2026-10-16; trạng thái alpha theo stored 06 §7c (chưa xác minh lại trên repo). Catalog `seeker19110/stored` 06 §7c, đọc 2026-10-16.
