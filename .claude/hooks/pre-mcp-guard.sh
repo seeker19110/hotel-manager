@@ -15,6 +15,8 @@ fi
 res="$(printf '%s' "$payload" | CLAUDE_PROJECT_DIR="$XT_ROOT" python3 "$(dirname "$0")/guard.py" mcp 2>/dev/null)" || res=""
 [ -n "$res" ] || ask_strict "Khung cần xác nhận: guard.py lỗi nên không kiểm được merge qua MCP"
 decision="$(json_field "$res" decision)"
+# deny: chính sách ADR-0018 đổi ask nguy hiểm (ngoại lệ cứng — ADR-0019) thành chặn.
+[ "$decision" = "deny" ] && pretool_decision deny "$(json_field "$res" reason)"
 [ "$decision" = "ask" ] && pretool_decision ask "Khung cần xác nhận: $(json_field "$res" reason)"
 # allow chỉ khi merge ghim `expectedHeadSha` và `xt.py merge-check` = merge cho đúng PR/repo (ADR-0014).
 [ "$decision" = "allow" ] && pretool_decision allow "Khung cho tự merge (ADR-0014) — $(json_field "$res" reason)"
