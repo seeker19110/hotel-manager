@@ -16,6 +16,7 @@ export interface ProblemLike {
   detail?: string;
   errors?: { field: string; code: string }[];
   items?: Record<string, unknown>[];
+  correlation_id?: string;
 }
 
 // unknown: chưa biết server đã nhận (404/mất mạng khi tra) ⇒ chỉ "Gửi lại" cùng key; processing: server báo đang xử lý quá
@@ -32,8 +33,16 @@ export const PENDING_TEXT =
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+export const SERVER_ERROR_TEXT =
+  "Hệ thống đang gặp lỗi, thao tác chưa thực hiện được. Vui lòng thử lại sau ít phút.";
+
+/** Lỗi 5xx: KHÔNG hiện `detail`/`title` từ server (phòng khi lớp nào đó lộ chi tiết nội bộ) — chỉ câu chung + mã tra cứu. */
 export function problemText(p: ProblemLike | null): string | null {
   if (!p) return null;
+  if ((p.status ?? 0) >= 500)
+    return p.correlation_id && /^[\w-]{1,64}$/.test(p.correlation_id)
+      ? `${SERVER_ERROR_TEXT} Mã tra cứu: ${p.correlation_id}.`
+      : SERVER_ERROR_TEXT;
   return p.detail || p.title || "Không thực hiện được. Vui lòng thử lại.";
 }
 
@@ -135,7 +144,11 @@ export function useCommand<T = unknown>(path: string) {
     // Tab khác đã đổi tổ chức: server không ghi gì — báo tải lại, KHÔNG gửi lại (S-013).
     if (res.status === 409 && j?.code === CONTEXT_CHANGED_CODE) return fail(contextChanged());
     // Key đã dùng cho thao tác khác (vd thao tác trước đã ghi) ⇒ giữ key, tra và hiện kết quả thao tác đó, không tạo key mới.
-    if (res.status >= 500 || j?.code === "IDEMPOTENCY_CONFLICT") return check();
+    if (res.status >= 500 || j?.code === "IDEMPOTENCY_CONFLICT") {
+      // Giữ mã tra cứu của lỗi 5xx để hiện cùng "Chưa rõ… Gửi lại" nếu tra kết quả không thấy lệnh.
+      if (res.status >= 500 && j) setProblem({ ...j, status: res.status });
+      return check();
+    }
     return fail(j ?? { code: "INTERNAL", status: res.status });
   }, [path, check, finish, fail]);
 

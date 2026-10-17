@@ -40,6 +40,7 @@ export default async function BreaksPage() {
             </p>
             <CommandForm
               path="reconciliation/resolveBreak"
+              confirm="Đóng chênh lệch đối soát với cách xử lý đã ghi; không mở lại được."
               fixed={{ break_id: b.id }}
               fields={[{ name: "resolution", label: "Cách xử lý (ghi rõ)", required: true }]}
               submitLabel="Đánh dấu đã xử lý"

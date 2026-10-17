@@ -68,6 +68,7 @@ export default async function PortalPaymentPage({ params }: { params: Promise<{ 
           <h2 id="da">Tôi đã chuyển</h2>
           <CommandForm
             path="portal/submitPaymentClaim"
+            confirm="Gửi báo đã chuyển khoản cho nhà trọ đối chiếu; không sửa được sau khi gửi."
             fixed={{ invoice_id: p.invoiceId }}
             fields={[
               {

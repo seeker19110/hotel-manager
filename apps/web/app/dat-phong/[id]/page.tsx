@@ -108,6 +108,7 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
             <h2 id="a-confirm">Xác nhận đặt phòng</h2>
             <CommandForm
               path="reservation/confirm"
+              confirm="Xác nhận đặt phòng không thu trước: phòng được giữ chắc cho khách, huỷ sau sẽ theo chính sách huỷ."
               fixed={{ reservation_id: id }}
               submitLabel="Xác nhận (chưa thu trước)"
               successText="Đã xác nhận đặt phòng."
@@ -117,6 +118,7 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
             {property ? <ShiftPanel property={property} /> : null}
             <CommandForm
               path="reservation/confirm"
+              confirm="Xác nhận đặt phòng và ghi khoản ứng trước tiền mặt vào ca đang mở; không xoá được, chỉ đảo bằng bút toán có duyệt."
               fixed={{ reservation_id: id, payment: { method: "cash", kind: "advance" } }}
               fields={[
                 {
@@ -154,6 +156,7 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
             <h2 id="a-cancel">Huỷ đặt phòng</h2>
             <CommandForm
               path="reservation/cancel"
+              confirm="Huỷ đặt phòng và nhả phòng; không khôi phục được."
               fixed={{ reservation_id: id }}
               fields={[
                 { name: "reason", label: "Lý do huỷ", required: true, maxLength: 1000 },
@@ -171,6 +174,7 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
             <h2 id="a-noshow">Khách không đến</h2>
             <CommandForm
               path="reservation/markNoShow"
+              confirm="Đánh dấu khách không đến và nhả phòng; không khôi phục được."
               fixed={{ reservation_id: id }}
               fields={[{ name: "reason", label: "Ghi chú", required: true, maxLength: 1000 }]}
               submitLabel="Đánh dấu không đến"

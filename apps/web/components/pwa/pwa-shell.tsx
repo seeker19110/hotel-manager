@@ -2,6 +2,7 @@
 // Vỏ PWA (SPEC-pwa): đăng ký SW, banner mất mạng, banner có bản mới. Chỉ chạy online — không cache trang/dữ liệu.
 import { SerwistProvider, useSerwist } from "@serwist/turbopack/react";
 import { type ReactNode, useEffect, useState, useSyncExternalStore } from "react";
+import { Icon } from "../ui/icon.tsx";
 
 function subscribeOnline(cb: () => void): () => void {
   window.addEventListener("online", cb);
@@ -27,7 +28,7 @@ export function NetworkBanner() {
   if (online) return null;
   return (
     <div className="banner banner--warn" role="status" aria-live="polite" data-testid="network-banner">
-      <span aria-hidden="true">⚠</span>
+      <Icon name="warning" />
       Mất kết nối — thao tác chưa được gửi
     </div>
   );

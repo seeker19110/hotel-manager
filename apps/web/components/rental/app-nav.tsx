@@ -1,5 +1,7 @@
 // Điều hướng chính của nhân viên (nhà trọ + khách sạn + vận hành). Mục hiện theo vai trò và loại cơ sở trong phạm vi; quyền thật
 // vẫn kiểm ở server mỗi lần gọi — thanh này chỉ gọn cho điện thoại. Mục đang mở có aria-current. Chuông thông báo cuối thanh.
+import { Icon } from "../ui/icon.tsx";
+
 type Role =
   | "owner"
   | "manager"
@@ -71,7 +73,7 @@ export function AppNav({
             data-testid="bell"
             data-unread={unread}
           >
-            <span aria-hidden="true">🔔</span>
+            <Icon name="bell" />
             {unread > 0 ? (
               <span className="bell__count" aria-hidden="true">
                 {unread > 99 ? "99+" : unread}
