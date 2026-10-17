@@ -212,8 +212,27 @@ test("buồng phòng (điện thoại): nhận → bắt đầu → xong, nút �
   await expect(page.getByTestId("task-status")).toHaveText(/Đã nhận/);
   await (await big("Bắt đầu dọn")).click();
   await expect(page.getByTestId("task-status")).toHaveText(/Đang làm/);
+  // Mất mạng khi bấm "Xong" (cơ chế SPEC-pwa S-006 trên màn buồng phòng): báo chưa gửi, không request, không báo thành công,
+  // trạng thái giữ nguyên; có mạng lại thì bấm được và đúng một request.
+  let completePosts = 0;
+  const countPost = (r: { method(): string; url(): string }) => {
+    if (r.method() === "POST" && r.url().includes("/api/v1/housekeeping/completeTask")) completePosts++;
+  };
+  page.on("request", countPost);
+  await context.setOffline(true);
+  await (await big("Xong")).click();
+  await expect(page.getByRole("alert").filter({ hasText: "Không có kết nối mạng" })).toHaveText(
+    "Không có kết nối mạng. Thao tác chưa được gửi.",
+  );
+  await expect(page.getByTestId("task-status")).toHaveText(/Đang làm/);
+  await expect(page.getByText("Đã xong — chờ nghiệm thu")).toHaveCount(0);
+  expect(completePosts).toBe(0);
+  await context.setOffline(false);
+  await expect(page.getByTestId("network-banner")).toHaveCount(0);
   await (await big("Xong")).click();
   await expect(page.getByTestId("task-status")).toHaveText(/Đã xong — chờ nghiệm thu/);
+  expect(completePosts).toBe(1);
+  page.off("request", countPost);
   // Buồng phòng không tự nghiệm thu: không có nút.
   await expect(page.getByRole("button", { name: /Đạt/ })).toHaveCount(0);
   await expectAccessible(page);

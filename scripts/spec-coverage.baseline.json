@@ -30,8 +30,8 @@
       "reason": "Test của access/tenancy/auth kiểm hành vi theo tên mô tả và ma trận quyền sinh từ `matrix.ts`, chưa gắn ID S-NNN vào tên test; việc gắn ID và bổ sung test còn thiếu là việc của task sau (PM-SPEC-004)."
     },
     "housekeeping-maintenance": {
-      "uncovered": ["S-013", "S-016", "S-017", "S-024"],
-      "reason": "Bốn scenario chưa có test nhắc ID (S-013, S-016, S-017, S-024); cần đối chiếu từng cái với test hiện có rồi gắn ID hoặc viết test (PM-SPEC-004)."
+      "uncovered": ["S-016", "S-024"],
+      "reason": "S-013 và S-017 đã có test (files.db.test.ts). Còn S-016: bộ bỏ EXIF xoá cả thẻ Orientation nên ảnh dọc chụp từ điện thoại có thể hiển thị lệch chiều — spec đòi giữ đúng chiều, chờ quyết cách xử lý (giữ riêng thẻ Orientation hoặc xoay điểm ảnh). S-024: SPEC-housekeeping đòi tải lại trạng thái từ máy chủ trước khi cho bấm lại, còn SPEC-pwa S-006 đòi nút bấm lại được ngay khi có mạng — hai spec mâu thuẫn, chờ quyết (PM-SPEC-004)."
     },
     "inventory-allocation": {
       "uncovered": [
