@@ -8,7 +8,8 @@
 import { checkCommandInput } from "@hm/app/command-inputs";
 import { useCallback, useRef, useState } from "react";
 import { timedFetch } from "../../lib/fetch-timeout.ts";
-import { useOnline } from "../pwa/pwa-shell.tsx";
+import { reportClientOutdated, useOnline } from "../pwa/pwa-shell.tsx";
+import { appVersionHeaders, CLIENT_OUTDATED_CODE, CLIENT_OUTDATED_TEXT } from "./app-version.ts";
 import { CONTEXT_CHANGED_CODE, CONTEXT_CHANGED_TEXT, orgContextHeaders } from "./org-context.ts";
 
 export interface ProblemLike {
@@ -129,6 +130,7 @@ export function useCommand<T = unknown>(path: string) {
           "content-type": "application/json",
           "idempotency-key": key.current as string,
           ...orgContextHeaders(),
+          ...appVersionHeaders(),
         },
         body: JSON.stringify(lastBody.current ?? {}),
         credentials: "same-origin",
@@ -136,6 +138,11 @@ export function useCommand<T = unknown>(path: string) {
     } catch {
       // Hết hạn (TimeoutError của timedFetch) hay mất mạng: chưa rõ server đã ghi chưa ⇒ tra theo Idempotency-Key, không gửi lại mù.
       return check();
+    }
+    // Client quá cũ (S-009): server không ghi gì ⇒ bỏ key, báo cập nhật (banner toàn cục có nút "Cập nhật").
+    if (res.status === 426) {
+      reportClientOutdated();
+      return fail({ code: CLIENT_OUTDATED_CODE, status: 426, detail: CLIENT_OUTDATED_TEXT });
     }
     if (res.status === 401) {
       window.location.assign("/dang-nhap");

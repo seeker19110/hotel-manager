@@ -47,6 +47,7 @@
 | `/api/auth/[...all]` | API | GET, POST | động (`force-dynamic`) | no-store (proxy) | do Better Auth quyết định; cùng origin cho POST | Better Auth: đăng nhập, phiên, 2FA, OTP |
 | `/api/v1/[module]/[command]` | API | GET, POST | động (`force-dynamic`) | no-store (proxy) | phiên + `authorize()` + RLS; POST cần cùng origin và `Idempotency-Key` | Mọi command (POST) và query (GET) trong registry |
 | `/api/v1/commands/[id]` | API | GET | động (`force-dynamic`) | no-store (proxy) | phiên; chỉ người tạo hoặc quản lý | Tra kết quả command |
+| `/api/version` | API | GET | động (`force-dynamic`) | no-store (proxy) | công khai; chỉ trả phiên bản build + phiên bản client tối thiểu | `app.getVersion` (SPEC-pwa S-009) |
 | `/api/v1/me` | API | GET | động (`force-dynamic`) | no-store (proxy) | phiên (401 khi chưa đăng nhập) | Người dùng và tổ chức của họ |
 | `/api/v1/session/switchOrganization` | API | POST | động (`force-dynamic`) | no-store (proxy) | phiên + membership; cùng origin; `Idempotency-Key` | Đổi tổ chức/cơ sở đang chọn |
 | `/api/v1/files/upload` | API | POST | động (`force-dynamic`) | no-store (proxy) | phiên + quyền theo cơ sở (`owner_type` = `work_order` hoặc `payment_claim`); cùng origin; `Idempotency-Key` | Tải ảnh sự cố/chứng từ |

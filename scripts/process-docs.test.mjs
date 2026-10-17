@@ -383,7 +383,7 @@ describe("API-CONTRACT.md (BASE-DOC-007)", () => {
   });
   it("mã riêng từng SPEC ở chỉ mục (trừ mã chỉ ở phía client) có trong ERROR_CODES", () => {
     const sec = section(md, /^2\. Lỗi/) ?? "";
-    const clientOnly = new Set(["CLIENT_OUTDATED", "NETWORK_TIMEOUT", "RESULT_UNKNOWN"]);
+    const clientOnly = new Set(["NETWORK_TIMEOUT", "RESULT_UNKNOWN"]);
     const missing = [];
     for (const line of sec.split("\n")) {
       const m = /^\| `SPEC-[a-z-]+\.md` \| (.*) \|$/.exec(line);

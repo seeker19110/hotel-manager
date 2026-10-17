@@ -1,5 +1,5 @@
 // Lớp HTTP cho command/query (API-CONTRACT §1–2; PLAN đợt 2 T-103). Không phụ thuộc Next: nhận Request, trả Response.
-// Thứ tự kiểm: phiên (401) → ngữ cảnh tổ chức (409 ORG_CONTEXT_REQUIRED kèm danh sách) → membership/MFA (resolveActor)
+// Thứ tự kiểm: phiên bản client (426) → phiên (401) → ngữ cảnh tổ chức (409 ORG_CONTEXT_REQUIRED kèm danh sách) → membership/MFA (resolveActor)
 // → Idempotency-Key (400) → JSON (400) → schema (422 + errors[]) → command pipeline (idempotency, audit, outbox).
 import { randomUUID } from "node:crypto";
 import type { Kysely } from "kysely";
@@ -33,6 +33,7 @@ import {
   unwrap,
 } from "../pipeline/index.ts";
 import type { AppServices } from "../server/index.ts";
+import { CLIENT_VERSION_HEADER, isClientOutdated } from "./client-version.ts";
 import { nfcDeep } from "./normalize.ts";
 import { retryAfterSeconds } from "./retry-after.ts";
 
@@ -49,6 +50,11 @@ export interface HttpDeps {
   secureCookies: boolean;
   services: AppServices;
   onUnexpectedError?(err: unknown, correlationId: string): void;
+  /**
+   * Phiên bản client web tối thiểu (SPEC-pwa S-009): command có `X-App-Version` thấp hơn ⇒ 426 CLIENT_OUTDATED, không ghi gì.
+   * Bỏ trống = không bắt buộc. Lấy từ `apps/web/package.json` (`hm.minClientVersion`), không phải biến môi trường.
+   */
+  minClientVersion?: string;
   /** Hạn mức lệnh mới/phút/tổ chức (T-401); bỏ trống = `COMMAND_QUOTA_PER_MINUTE`. Chỉ test đặt khác. */
   commandQuotaPerMinute?: number;
   /** Hạn mức lệnh mới/phút/thành viên; bỏ trống = `COMMAND_MEMBER_QUOTA_PER_MINUTE`. Chỉ test đặt khác. */
@@ -290,6 +296,10 @@ async function runCommand<I, O, P>(
 ): Promise<Response> {
   const correlationId = correlationOf(req);
   try {
+    // Client quá cũ: trả 426 TRƯỚC mọi việc khác (không cần phiên, không đụng CSDL) để UI hiện nút "Cập nhật" (S-009).
+    if (isClientOutdated(req.headers.get(CLIENT_VERSION_HEADER), deps.minClientVersion)) {
+      return simpleProblem("CLIENT_OUTDATED", 426, "Ứng dụng cần cập nhật để tiếp tục.", correlationId);
+    }
     const actor = await actorFromRequest(req, deps, correlationId);
     if (actor instanceof Response) return actor;
     const key = req.headers.get("idempotency-key") ?? "";

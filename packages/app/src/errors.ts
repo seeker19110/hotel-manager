@@ -73,6 +73,7 @@ export const ERROR_CODES = {
   PREFERENCE_REQUIRED: { status: 422, source: "SPEC-notifications §6" },
   DELIVERY_NOT_RETRYABLE: { status: 409, source: "SPEC-notifications §6" },
   LINK_REVOKED: { status: 410, source: "SPEC-portal §6" },
+  CLIENT_OUTDATED: { status: 426, source: "SPEC-pwa §6" },
   REPORT_RANGE_TOO_LARGE: { status: 422, source: "SPEC-audit-reporting §6" },
   EXPORT_NOT_READY: { status: 409, source: "SPEC-audit-reporting §6" },
   DUPLICATE: { status: 409, source: "unique 23505 chưa có mã nghiệp vụ riêng" },

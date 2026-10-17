@@ -1,4 +1,6 @@
 // Điểm công khai của module `http` (ARC-MOD-005): module khác và `@hm/app` chỉ import qua tệp này.
+
+export { CLIENT_VERSION_HEADER, isClientOutdated } from "./client-version.ts";
 export {
   type CommandDef,
   type HttpDeps,

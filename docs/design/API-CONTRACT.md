@@ -17,6 +17,7 @@
 - **Phân trang:** `?cursor=<opaque>&limit=<n>`, mặc định 50, tối đa 200. Phản hồi `{ "data": [...], "next_cursor": "..." | null }`.
 - **Rate limit:** theo người dùng và theo IP. Đăng nhập và link khách có giới hạn chặt hơn. Vượt giới hạn trả 429 kèm `Retry-After` (số giây, MỌI 429 của app — kể cả của Better Auth, khoá tài khoản — đều có; thân problem có thêm `retry_after`). Hạn mức lệnh ghi theo TỔ CHỨC (IND-SAAS-008): tối đa `COMMAND_QUOTA_PER_MINUTE` (600) lệnh mới/phút/tổ chức, vượt ⇒ 429 `RATE_LIMITED` và KHÔNG lưu kết quả (gửi lại cùng `Idempotency-Key` sau `Retry-After` chạy bình thường; replay key đã có không tốn hạn mức). Route không đi qua pipeline lệnh có hạn mức riêng bằng bộ đếm trong Postgres (dùng chung mọi instance, `app.rate_limit_hit`, BE-REL-006): tải file `files/upload` 30/phút/thành viên và 120/phút/tổ chức; `import/upload` 10 và 30; webhook ngân hàng đã xác thực chữ ký 600/phút/tài khoản; chữ ký webhook SAI 300/phút/nhà cung cấp (vượt ⇒ 429 thay cho 401, không ảnh hưởng webhook hợp lệ). Vượt ⇒ 429 `RATE_LIMITED` + `Retry-After` = số giây tới hết cửa sổ 60 giây.
 - **Trace (W3C Trace Context level 1):** mọi phản hồi của `/api/*` có header `traceparent` (`00-<trace-id>-<span-id>-<flags>`). Request đến có `traceparent` đúng chuẩn (chữ hex thường, version ≠ `ff`, id không toàn 0) thì server giữ `trace-id` và dùng `span-id` MỚI của mình; thiếu/sai ⇒ server sinh trace mới (không báo lỗi). `trace_id`/`span_id` được ghi vào mọi dòng log của request đó và của job worker sinh từ nó (`outbox.traceparent`). `tracestate` không dùng. `X-Correlation-Id` vẫn là mã tra cứu cho người dùng/hỗ trợ.
+- **Phiên bản client (SPEC-pwa S-009):** client web gửi `X-App-Version: <semver build>` kèm mỗi command (lấy từ `<meta name="hm-app-version">` của trang). Thấp hơn mức tối thiểu của server (`apps/web/package.json` → `hm.minClientVersion`, đọc được ở `GET /api/version`) hoặc không đúng semver ⇒ `426 CLIENT_OUTDATED`, kiểm TRƯỚC phiên/idempotency và không ghi gì. Không gửi header (script/API client) ⇒ không kiểm.
 - **Versioning:** tiền tố `/v1`. Thêm trường tuỳ chọn không đổi version. Thay đổi phá vỡ tạo `/v2` và gửi header `Deprecation` + `Sunset`.
 - **CSRF:** ghi bằng cookie phiên phải kiểm `Origin` và dùng SameSite=Lax. Không có endpoint ghi nào nhận `GET`.
 
@@ -96,6 +97,7 @@ Danh sách đầy đủ command/query nằm ở `apps/web/openapi.json` (sinh t�
 | GET | `/api/health` | Tiến trình còn sống (`{"status":"ok"}`); không cần phiên; không lộ phiên bản |
 | GET | `/api/ready` | CSDL + kho file + máy quét; 200 sẵn sàng, 503 kèm thành phần lỗi (không chi tiết) |
 | GET | `/api/metrics` | Prometheus text; `Authorization: Bearer <token dẫn xuất>`, chỉ nội bộ (RUNBOOK §1) |
+| GET | `/api/version` | Phiên bản build + `min_client_version` (công khai, không dữ liệu người dùng; SPEC-pwa S-009) |
 | GET | `/api/v1/me` | Người dùng, danh sách tổ chức/vai trò, tổ chức đang chọn |
 | GET | `/api/v1/commands/{command_id}` | Kết quả một command (chỉ người tạo hoặc quản lý xem được) |
 | POST | `/api/v1/session/switchOrganization` | Đổi tổ chức/cơ sở đang chọn (cần `Idempotency-Key`) |

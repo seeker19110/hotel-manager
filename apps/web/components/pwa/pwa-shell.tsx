@@ -2,6 +2,7 @@
 // Vỏ PWA (SPEC-pwa): đăng ký SW, banner mất mạng, banner có bản mới. Chỉ chạy online — không cache trang/dữ liệu.
 import { SerwistProvider, useSerwist } from "@serwist/turbopack/react";
 import { type ReactNode, useEffect, useState, useSyncExternalStore } from "react";
+import { CLIENT_OUTDATED_TEXT } from "../command/app-version.ts";
 import { Icon } from "../ui/icon.tsx";
 
 function subscribeOnline(cb: () => void): () => void {
@@ -63,6 +64,59 @@ function UpdateBanner() {
   );
 }
 
+// ───────── Client quá cũ (S-009) ─────────
+// Một lệnh nhận 426 CLIENT_OUTDATED ⇒ mọi form dừng ghi; banner toàn cục hiện câu + nút "Cập nhật" (đến khi tải lại trang).
+let outdated = false;
+const outdatedListeners = new Set<() => void>();
+
+/** Gọi khi server trả 426 CLIENT_OUTDATED. */
+export function reportClientOutdated(): void {
+  if (outdated) return;
+  outdated = true;
+  for (const l of outdatedListeners) l();
+}
+
+function subscribeOutdated(cb: () => void): () => void {
+  outdatedListeners.add(cb);
+  return () => outdatedListeners.delete(cb);
+}
+
+/** Nhận bản mới: có SW đang chờ ⇒ cho nó nắm quyền; rồi tải lại trang (HTML luôn lấy mới từ máy chủ, no-store). */
+export async function applyUpdate(): Promise<void> {
+  try {
+    const reg = await navigator.serviceWorker?.getRegistration();
+    await reg?.update();
+    if (reg?.waiting) {
+      const changed = new Promise<void>((resolve) => {
+        navigator.serviceWorker.addEventListener("controllerchange", () => resolve(), { once: true });
+        setTimeout(resolve, 3_000);
+      });
+      reg.waiting.postMessage({ type: "SKIP_WAITING" });
+      await changed;
+    }
+  } catch {
+    // không cập nhật được SW (mạng/SW bị chặn) — tải lại trang vẫn lấy HTML + JS mới
+  }
+  window.location.reload();
+}
+
+function OutdatedBanner() {
+  const isOutdated = useSyncExternalStore(
+    subscribeOutdated,
+    () => outdated,
+    () => false,
+  );
+  if (!isOutdated) return null;
+  return (
+    <div className="banner banner--warn" role="alert" data-testid="outdated-banner">
+      <p>{CLIENT_OUTDATED_TEXT}</p>
+      <button type="button" className="btn" onClick={() => void applyUpdate()}>
+        Cập nhật
+      </button>
+    </div>
+  );
+}
+
 export function PwaShell({ children }: { children: ReactNode }) {
   return (
     <SerwistProvider
@@ -75,6 +129,7 @@ export function PwaShell({ children }: { children: ReactNode }) {
     >
       <NetworkBanner />
       <UpdateBanner />
+      <OutdatedBanner />
       {children}
     </SerwistProvider>
   );

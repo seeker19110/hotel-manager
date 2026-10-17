@@ -12,7 +12,8 @@
     "./format": "./src/format.ts",
     "./form-rules": "./src/http/form-rules.ts",
     "./testing/log-schema": "./src/testing/log-schema.ts",
-    "./command-inputs": "./src/http/command-inputs.ts"
+    "./command-inputs": "./src/http/command-inputs.ts",
+    "./client-version": "./src/http/client-version.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"

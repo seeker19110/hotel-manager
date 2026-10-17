@@ -18,6 +18,9 @@
   ],
   "tags": [
     {
+      "name": "app"
+    },
+    {
       "name": "approval"
     },
     {
@@ -137,6 +140,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -179,6 +185,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -237,6 +246,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -275,6 +287,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -333,6 +348,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -376,6 +394,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -434,6 +455,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -520,6 +544,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -819,6 +846,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -861,6 +891,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -919,6 +952,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -961,6 +997,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -1019,6 +1058,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -1061,6 +1103,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -1193,6 +1238,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -1235,6 +1283,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -1293,6 +1344,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -1336,6 +1390,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -1394,6 +1451,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -1432,6 +1492,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -1565,6 +1628,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -1626,6 +1692,9 @@
           "422": {
             "$ref": "#/components/responses/Error422"
           },
+          "426": {
+            "$ref": "#/components/responses/Error426"
+          },
           "429": {
             "$ref": "#/components/responses/Error429"
           },
@@ -1683,6 +1752,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -1767,6 +1839,9 @@
           "422": {
             "$ref": "#/components/responses/Error422"
           },
+          "426": {
+            "$ref": "#/components/responses/Error426"
+          },
           "429": {
             "$ref": "#/components/responses/Error429"
           },
@@ -1824,6 +1899,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -1876,6 +1954,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -1934,6 +2015,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -1990,6 +2074,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -2048,6 +2135,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -2086,6 +2176,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -2283,6 +2376,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -2353,6 +2449,9 @@
           "422": {
             "$ref": "#/components/responses/Error422"
           },
+          "426": {
+            "$ref": "#/components/responses/Error426"
+          },
           "429": {
             "$ref": "#/components/responses/Error429"
           },
@@ -2410,6 +2509,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -2442,6 +2544,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -2638,6 +2743,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -2680,6 +2788,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -2738,6 +2849,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -2781,6 +2895,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -2839,6 +2956,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -2877,6 +2997,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -2935,6 +3058,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -2977,6 +3103,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -3035,6 +3164,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -3085,6 +3217,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -3318,6 +3453,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -3356,6 +3494,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -3414,6 +3555,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -3460,6 +3604,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -3592,6 +3739,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -3634,6 +3784,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -3692,6 +3845,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -3730,6 +3886,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -3788,6 +3947,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -3826,6 +3988,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -4106,6 +4271,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -4154,6 +4322,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -4350,6 +4521,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -4388,6 +4562,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -4446,6 +4623,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -4484,6 +4664,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -4542,6 +4725,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -4580,6 +4766,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -4712,6 +4901,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -4750,6 +4942,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -4808,6 +5003,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -4858,6 +5056,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -4916,6 +5117,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -4962,6 +5166,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -5020,6 +5227,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -5063,6 +5273,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -5121,6 +5334,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -5159,6 +5375,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -5217,6 +5436,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -5350,6 +5572,9 @@
           "422": {
             "$ref": "#/components/responses/Error422"
           },
+          "426": {
+            "$ref": "#/components/responses/Error426"
+          },
           "429": {
             "$ref": "#/components/responses/Error429"
           },
@@ -5481,6 +5706,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -5523,6 +5751,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -5581,6 +5812,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -5619,6 +5853,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -5677,6 +5914,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -5775,6 +6015,9 @@
           "422": {
             "$ref": "#/components/responses/Error422"
           },
+          "426": {
+            "$ref": "#/components/responses/Error426"
+          },
           "429": {
             "$ref": "#/components/responses/Error429"
           },
@@ -5832,6 +6075,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -5961,6 +6207,9 @@
           "422": {
             "$ref": "#/components/responses/Error422"
           },
+          "426": {
+            "$ref": "#/components/responses/Error426"
+          },
           "429": {
             "$ref": "#/components/responses/Error429"
           },
@@ -6018,6 +6267,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -6064,6 +6316,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -6122,6 +6377,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -6224,6 +6482,9 @@
           "422": {
             "$ref": "#/components/responses/Error422"
           },
+          "426": {
+            "$ref": "#/components/responses/Error426"
+          },
           "429": {
             "$ref": "#/components/responses/Error429"
           },
@@ -6281,6 +6542,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -6327,6 +6591,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -6385,6 +6652,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -6423,6 +6693,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -6481,6 +6754,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -6598,6 +6874,9 @@
           "422": {
             "$ref": "#/components/responses/Error422"
           },
+          "426": {
+            "$ref": "#/components/responses/Error426"
+          },
           "429": {
             "$ref": "#/components/responses/Error429"
           },
@@ -6655,6 +6934,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -6703,6 +6985,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -6761,6 +7046,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -6808,6 +7096,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -6866,6 +7157,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -6912,6 +7206,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -6970,6 +7267,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -7012,6 +7312,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -7070,6 +7373,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -7113,6 +7419,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -7171,6 +7480,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -7222,6 +7534,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -7280,6 +7595,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -7341,6 +7659,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -7556,6 +7877,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -7607,6 +7931,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -7665,6 +7992,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -7703,6 +8033,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -7761,6 +8094,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -7799,6 +8135,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -7912,6 +8251,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -7954,6 +8296,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -8012,6 +8357,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -8055,6 +8403,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -8187,6 +8538,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -8242,6 +8596,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -8300,6 +8657,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -8360,6 +8720,9 @@
           "422": {
             "$ref": "#/components/responses/Error422"
           },
+          "426": {
+            "$ref": "#/components/responses/Error426"
+          },
           "429": {
             "$ref": "#/components/responses/Error429"
           },
@@ -8417,6 +8780,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -8480,6 +8846,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -8788,6 +9157,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -8820,6 +9192,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -8878,6 +9253,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -8916,6 +9294,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -8974,6 +9355,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -9012,6 +9396,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -9144,6 +9531,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -9190,6 +9580,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -9248,6 +9641,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -9339,6 +9735,9 @@
           "422": {
             "$ref": "#/components/responses/Error422"
           },
+          "426": {
+            "$ref": "#/components/responses/Error426"
+          },
           "429": {
             "$ref": "#/components/responses/Error429"
           },
@@ -9396,6 +9795,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -9456,6 +9858,9 @@
           "422": {
             "$ref": "#/components/responses/Error422"
           },
+          "426": {
+            "$ref": "#/components/responses/Error426"
+          },
           "429": {
             "$ref": "#/components/responses/Error429"
           },
@@ -9513,6 +9918,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -9556,6 +9964,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -9614,6 +10025,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -9682,6 +10096,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -9906,6 +10323,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -9982,6 +10402,9 @@
           "422": {
             "$ref": "#/components/responses/Error422"
           },
+          "426": {
+            "$ref": "#/components/responses/Error426"
+          },
           "429": {
             "$ref": "#/components/responses/Error429"
           },
@@ -10039,6 +10462,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -10082,6 +10508,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -10214,6 +10643,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -10252,6 +10684,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -10310,6 +10745,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -10370,6 +10808,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -10718,6 +11159,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -10761,6 +11205,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -11023,6 +11470,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -11061,6 +11511,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -11119,6 +11572,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -11161,6 +11617,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -11219,6 +11678,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -11270,6 +11732,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -11328,6 +11793,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -11380,6 +11848,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -11438,6 +11909,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -11508,6 +11982,9 @@
           "422": {
             "$ref": "#/components/responses/Error422"
           },
+          "426": {
+            "$ref": "#/components/responses/Error426"
+          },
           "429": {
             "$ref": "#/components/responses/Error429"
           },
@@ -11565,6 +12042,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -11717,6 +12197,9 @@
           "422": {
             "$ref": "#/components/responses/Error422"
           },
+          "426": {
+            "$ref": "#/components/responses/Error426"
+          },
           "429": {
             "$ref": "#/components/responses/Error429"
           },
@@ -11867,6 +12350,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -11910,6 +12396,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -12401,6 +12890,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -12449,6 +12941,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -12507,6 +13002,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -12557,6 +13055,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -12615,6 +13116,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -12698,6 +13202,9 @@
           "422": {
             "$ref": "#/components/responses/Error422"
           },
+          "426": {
+            "$ref": "#/components/responses/Error426"
+          },
           "429": {
             "$ref": "#/components/responses/Error429"
           },
@@ -12755,6 +13262,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -12847,6 +13357,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -12979,6 +13492,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -13017,6 +13533,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -13185,6 +13704,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -13228,6 +13750,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -13397,6 +13922,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -13450,6 +13978,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -13508,6 +14039,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -13556,6 +14090,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -13614,6 +14151,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -13675,6 +14215,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -13820,6 +14363,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -13863,6 +14409,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -13921,6 +14470,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -13963,6 +14515,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -14021,6 +14576,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -14064,6 +14622,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -14122,6 +14683,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -14169,6 +14733,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -14227,6 +14794,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -14270,6 +14840,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -14328,6 +14901,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -14412,6 +14988,9 @@
           "422": {
             "$ref": "#/components/responses/Error422"
           },
+          "426": {
+            "$ref": "#/components/responses/Error426"
+          },
           "429": {
             "$ref": "#/components/responses/Error429"
           },
@@ -14469,6 +15048,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -14608,6 +15190,9 @@
           "422": {
             "$ref": "#/components/responses/Error422"
           },
+          "426": {
+            "$ref": "#/components/responses/Error426"
+          },
           "429": {
             "$ref": "#/components/responses/Error429"
           },
@@ -14665,6 +15250,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -14703,6 +15291,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -14927,6 +15518,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -14977,6 +15571,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -15035,6 +15632,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -15094,6 +15694,9 @@
           "422": {
             "$ref": "#/components/responses/Error422"
           },
+          "426": {
+            "$ref": "#/components/responses/Error426"
+          },
           "429": {
             "$ref": "#/components/responses/Error429"
           },
@@ -15151,6 +15754,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -15194,6 +15800,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -15252,6 +15861,9 @@
           },
           {
             "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
           }
         ],
         "requestBody": {
@@ -15339,6 +15951,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
           },
           "429": {
             "$ref": "#/components/responses/Error429"
@@ -15669,6 +16284,38 @@
           }
         }
       }
+    },
+    "/api/version": {
+      "get": {
+        "operationId": "app.getVersion",
+        "tags": ["app"],
+        "summary": "Phiên bản bản build và phiên bản client tối thiểu (SPEC-pwa S-009)",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Phiên bản hiện hành",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["version", "min_client_version"],
+                  "properties": {
+                    "version": {
+                      "type": "string"
+                    },
+                    "min_client_version": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -15753,6 +16400,16 @@
           }
         }
       },
+      "Error426": {
+        "description": "CLIENT_OUTDATED — `X-App-Version` thấp hơn mức tối thiểu; không ghi gì, client cần cập nhật (SPEC-pwa S-009)",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
       "Error429": {
         "description": "RATE_LIMITED — vượt giới hạn tần suất",
         "headers": {
@@ -15802,6 +16459,16 @@
         "schema": {
           "type": "string",
           "format": "uuid"
+        }
+      },
+      "AppVersion": {
+        "name": "X-App-Version",
+        "in": "header",
+        "required": false,
+        "description": "Phiên bản (semver) của bản build mà client web đang chạy; thấp hơn mức tối thiểu của server (`GET /api/version`) → 426 CLIENT_OUTDATED. Không gửi = client không tự khai (script/API) → không kiểm.",
+        "schema": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+"
         }
       },
       "OrgContext": {

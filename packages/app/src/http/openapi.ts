@@ -28,6 +28,9 @@ const ERROR_RESPONSES: Record<string, Json> = {
   "422": errorResponse(
     "VALIDATION_FAILED — kèm `errors[]` theo trường; hoặc IDEMPOTENCY_CONFLICT (cùng Idempotency-Key khác payload, D-034)",
   ),
+  "426": errorResponse(
+    "CLIENT_OUTDATED — `X-App-Version` thấp hơn mức tối thiểu; không ghi gì, client cần cập nhật (SPEC-pwa S-009)",
+  ),
   "429": {
     description: "RATE_LIMITED — vượt giới hạn tần suất",
     headers: { "Retry-After": { schema: { type: "integer", minimum: 0 }, description: "Giây nên đợi" } },
@@ -94,9 +97,12 @@ function commandOperation(name: string, input: z.ZodType): Json {
     tags: [module],
     summary: name,
     security: [{ sessionCookie: [] }],
-    parameters: [ref("IdempotencyKey"), ref("OrgId"), ref("OrgContext")],
+    parameters: [ref("IdempotencyKey"), ref("OrgId"), ref("OrgContext"), ref("AppVersion")],
     requestBody: { required: true, content: { "application/json": { schema: schemaOf(input) } } },
-    responses: { "2XX": commandSuccess(), ...pick("400", "401", "403", "404", "409", "422", "429", "500") },
+    responses: {
+      "2XX": commandSuccess(),
+      ...pick("400", "401", "403", "404", "409", "422", "426", "429", "500"),
+    },
   };
 }
 
@@ -166,6 +172,29 @@ const EXTRA_PATHS: Record<string, Json> = {
           },
         },
         ...pick("401", "404", "409", "500"),
+      },
+    },
+  },
+  "/api/version": {
+    get: {
+      operationId: "app.getVersion",
+      tags: ["app"],
+      summary: "Phiên bản bản build và phiên bản client tối thiểu (SPEC-pwa S-009)",
+      security: [],
+      responses: {
+        "200": {
+          description: "Phiên bản hiện hành",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["version", "min_client_version"],
+                properties: { version: { type: "string" }, min_client_version: { type: "string" } },
+              },
+            },
+          },
+        },
+        ...pick("500"),
       },
     },
   },
@@ -415,6 +444,7 @@ export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
   "v1/[module]/[command]/route.ts": { spec: "registry: mọi mục COMMANDS (POST) và QUERIES (GET)" },
   "v1/commands/[id]/route.ts": { spec: "/api/v1/commands/{id}" },
   "v1/me/route.ts": { spec: "/api/v1/me" },
+  "version/route.ts": { spec: "/api/version" },
   "v1/session/switchOrganization/route.ts": { spec: "/api/v1/session/switchOrganization" },
   "v1/notifications/unsubscribe/route.ts": { spec: "/api/v1/notifications/unsubscribe" },
   "v1/files/upload/route.ts": { spec: "/api/v1/files/upload" },
@@ -508,6 +538,14 @@ export function buildOpenApi(): Json {
           description:
             "CHỌN tổ chức trong số tổ chức người dùng có membership (không phải quyền; luôn đối chiếu membership)",
           schema: uuidSchema,
+        },
+        AppVersion: {
+          name: "X-App-Version",
+          in: "header",
+          required: false,
+          description:
+            "Phiên bản (semver) của bản build mà client web đang chạy; thấp hơn mức tối thiểu của server (`GET /api/version`) → 426 CLIENT_OUTDATED. Không gửi = client không tự khai (script/API) → không kiểm.",
+          schema: { type: "string", pattern: "^\\d+\\.\\d+\\.\\d+" },
         },
         OrgContext: {
           name: "X-Org-Context",
