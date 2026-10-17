@@ -49,6 +49,9 @@ Nguồn IP: hop PHẢI NHẤT của `X-Forwarded-For` (do proxy tin cậy duy nh
 | `input.validation_failed` | Đầu vào bị 422: sai schema ở biên HTTP (lệnh, truy vấn, upload, webhook) hoặc quy tắc nghiệp vụ `VALIDATION_FAILED`; chỉ mã lý do, **không** giá trị người dùng gửi | `http/command-route.ts` (`rejectInput`), `http/webhook-route.ts`, `pipeline/command.ts` | idem |
 | `input.deserialize_failed` | Thân yêu cầu không đọc được (không phải JSON/multipart hợp lệ, 400 `MALFORMED_REQUEST`) | idem | idem |
 | `backend.tls_error` | Lỗi TLS/chứng chỉ khi nối backend (CSDL, S3, SMTP…): nhận theo mã lỗi OpenSSL/Node (`CERT_HAS_EXPIRED`, `DEPTH_ZERO_SELF_SIGNED_CERT`, `ERR_TLS_*`…), `outcome = failure`, `reason` = mã | `logging/tls-errors.ts` (gọi từ `reportUnexpectedError`) | `logging/tls-errors.test.ts` |
+| `member.invited` | Cấp lời mời nhân viên (token 256 bit dẫn xuất, chỉ băm được lưu): `target` = id lời mời; **token/email không vào log** | `access/invitations.ts` `inviteMember` | `access/invitations.db.test.ts` |
+| `member.accepted` | Chấp nhận lời mời ⇒ cấp quyền (membership mới): `target` = id membership | `access/accept-invitation.ts` | idem |
+| `invitation.rejected` | Chấp nhận lời mời bị từ chối (410 `INVITATION_INVALID`): `reason` = `unknown_token` · `status_<accepted\|expired\|revoked>` · `expired` · `email_mismatch` — phản hồi cho client không phân biệt | `access/accept-invitation.ts` | idem |
 
 Sự kiện thành công (`ctx.security`) chỉ phát **sau commit**; lệnh bị rollback hoặc replay cùng `Idempotency-Key` không phát. Sự kiện từ chối của
 command phát một lần cho mỗi `Idempotency-Key`.

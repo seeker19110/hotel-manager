@@ -464,6 +464,7 @@ const MUST_403: readonly (readonly [string, Action | null, readonly Role[]])[] =
     "lease.giveNotice",
   ].map((n) => [n, "lease.manage", ["accountant", "front_desk"]] as const),
   ["lease.close", "lease.approve_settlement", ["accountant", "front_desk"]],
+  ["member.invite", "member.invite_senior", ALL5],
   ["property.create", "org.configure", ALL5],
   ["property.update", "org.configure", ALL5],
   ["ledger.unlockPeriod", "period.unlock", ALL5],
@@ -1059,11 +1060,14 @@ describe("api1-bola — lệnh cấp người dùng (org.create, member.acceptIn
     const text = await res.text();
     return { status: res.status, code: (JSON.parse(text) as { code?: string }).code ?? "ok", text };
   };
-  const sample = (name: string) => sampleInput((USER_COMMANDS[name] as { input: never }).input, { ids: {} });
+  const sample = (name: string) =>
+    sampleInput((USER_COMMANDS[name] as unknown as { input: never }).input, { ids: {} });
 
-  it("khoá registry = tên lệnh; có ít nhất org.create", () => {
+  it("khoá registry = tên lệnh; có ít nhất org.create và member.acceptInvitation", () => {
     for (const [k, d] of Object.entries(USER_COMMANDS)) expect(d.command).toBe(k);
-    expect(Object.keys(USER_COMMANDS)).toEqual(expect.arrayContaining(["org.create"]));
+    expect(Object.keys(USER_COMMANDS)).toEqual(
+      expect.arrayContaining(["org.create", "member.acceptInvitation"]),
+    );
   });
 
   it("không phiên → 401 UNAUTHENTICATED, trước cả validate (thân rác)", async () => {

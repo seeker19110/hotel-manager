@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { BANK_TXN_RECEIVED, NOTIFY_EVENT_TYPES } from "@hm/app";
 import { describe, expect, it } from "vitest";
+import { INVITATION_EVENT_TYPES } from "./jobs.ts";
 import { AUDIT_ONLY_EVENT_TYPES } from "./relay.ts";
 
 const APP_SRC = join(dirname(fileURLToPath(import.meta.url)), "../../../packages/app/src");
@@ -37,7 +38,12 @@ function emittedEventTypes(): Set<string> {
   return out;
 }
 
-const CONSUMED = new Set<string>([...NOTIFY_EVENT_TYPES, "export.requested", BANK_TXN_RECEIVED]);
+const CONSUMED = new Set<string>([
+  ...NOTIFY_EVENT_TYPES,
+  ...INVITATION_EVENT_TYPES,
+  "export.requested",
+  BANK_TXN_RECEIVED,
+]);
 
 describe("outbox — mọi event_type có consumer hoặc được khai 'chỉ để audit'", () => {
   const emitted = emittedEventTypes();

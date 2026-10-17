@@ -2,8 +2,8 @@
   "_ghi_chu": "Nền ratchet cho PM-SPEC-004/WF-SDD-003 (scripts/spec-coverage.mjs, kiểm ở scripts/process-docs.test.mjs). Mỗi spec Approved liệt kê S-NNN chưa có test nhắc ID. Scenario mới chưa có test và không có ở đây → test đỏ. Scenario đã có test mà còn ở đây → test đỏ đòi xoá (chỉ được co lại). Không thêm mục để làm xanh: gắn ID vào test hoặc viết test.",
   "specs": {
     "access-and-property": {
-      "uncovered": ["S-007", "S-008", "S-010", "S-018", "S-025"],
-      "reason": "21/26 đã gắn ID hoặc có test (T-605: org.create/property.create/property.update ở access/org-property.db.test.ts — S-001, S-002, S-003, S-023). 5 scenario còn lại: member.invite/acceptInvitation + INVITATION_INVALID (S-007, S-008), session.revokeAll + SESSION_REVOKED (S-010), member.updateRole/updateScope/invite vai trò cao + audit lần bị từ chối (S-018). S-025: spec đòi 403 FORBIDDEN khi xác nhận tiền mặt ngoài ca, mã hiện tại là 409 SHIFT_NOT_OPEN (SPEC-ledger-payments §6, S-028) — hai spec lệch nhau, chờ quyết (PM-SPEC-004)."
+      "uncovered": ["S-010", "S-018", "S-025"],
+      "reason": "23/26 đã gắn ID hoặc có test (T-605: org.create/property.create/property.update ở access/org-property.db.test.ts — S-001, S-002, S-003, S-023; member.invite/acceptInvitation ở access/invitations.db.test.ts — S-007, S-008). 3 scenario còn lại: session.revokeAll + SESSION_REVOKED (S-010), member.updateRole/updateScope/invite vai trò cao + audit lần bị từ chối (S-018). S-025: spec đòi 403 FORBIDDEN khi xác nhận tiền mặt ngoài ca, mã hiện tại là 409 SHIFT_NOT_OPEN (SPEC-ledger-payments §6, S-028) — hai spec lệch nhau, chờ quyết (PM-SPEC-004)."
     },
     "housekeeping-maintenance": {
       "uncovered": ["S-016", "S-024"],

@@ -7899,6 +7899,229 @@
         }
       }
     },
+    "/api/v1/member/acceptInvitation": {
+      "post": {
+        "operationId": "member.acceptInvitation",
+        "tags": ["member"],
+        "summary": "member.acceptInvitation (cấp người dùng — không cần ngữ cảnh tổ chức)",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  }
+                },
+                "required": ["token"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "2XX": {
+            "description": "Đã commit (HTTP 200, hoặc 201/202 tuỳ lệnh); gửi lại cùng Idempotency-Key trả đúng kết quả này",
+            "headers": {
+              "X-Correlation-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Mã tra cứu xuyên log/audit"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["command_id", "status", "data"],
+                  "properties": {
+                    "command_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "status": {
+                      "const": "committed"
+                    },
+                    "data": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/member/invite": {
+      "post": {
+        "operationId": "member.invite",
+        "tags": ["member"],
+        "summary": "member.invite",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/OrgId"
+          },
+          {
+            "$ref": "#/components/parameters/OrgContext"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "maxLength": 320,
+                    "format": "email"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": ["owner", "manager", "front_desk", "accountant", "housekeeping", "maintenance"]
+                  },
+                  "property_ids": {
+                    "default": [],
+                    "maxItems": 50,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  },
+                  "limits": {
+                    "default": {},
+                    "type": "object",
+                    "properties": {
+                      "discount": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "refund": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "price_override": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["email", "role"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "2XX": {
+            "description": "Đã commit (HTTP 200, hoặc 201/202 tuỳ lệnh); gửi lại cùng Idempotency-Key trả đúng kết quả này",
+            "headers": {
+              "X-Correlation-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Mã tra cứu xuyên log/audit"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["command_id", "status", "data"],
+                  "properties": {
+                    "command_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "status": {
+                      "const": "committed"
+                    },
+                    "data": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/member/resetMfa": {
       "post": {
         "operationId": "member.resetMfa",

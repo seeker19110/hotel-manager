@@ -36,9 +36,9 @@ CREATE TRIGGER trg_properties_in_use BEFORE UPDATE OF timezone, business_day_cut
   EXECUTE FUNCTION app.check_property_not_in_use();
 
 CREATE FUNCTION app.invitation_by_token(p_token_hash bytea)
-  RETURNS TABLE (organization_id uuid, id uuid, email text, status text, expires_at timestamptz)
+  RETURNS TABLE (organization_id uuid, id uuid, email text, role text, status text, expires_at timestamptz)
   LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
-    SELECT i.organization_id, i.id, i.email, i.status, i.expires_at FROM invitations i WHERE i.token_hash = p_token_hash
+    SELECT i.organization_id, i.id, i.email, i.role, i.status, i.expires_at FROM invitations i WHERE i.token_hash = p_token_hash
   $$;
 REVOKE ALL ON FUNCTION app.invitation_by_token(bytea) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION app.invitation_by_token(bytea) TO app_runtime;

@@ -4,7 +4,14 @@
 import type { StatementMapping } from "@hm/domain";
 import { mibToBytes } from "@hm/domain";
 import { z } from "zod";
-import { createOrganization, createProperty, resetMemberMfa, updateProperty } from "../access/index.ts";
+import {
+  acceptInvitation,
+  createOrganization,
+  createProperty,
+  inviteMember,
+  resetMemberMfa,
+  updateProperty,
+} from "../access/index.ts";
 import { APPROVAL_KINDS, cancelApproval, decideApproval, requestApproval } from "../approvals/index.ts";
 import { getEvent, listEvents } from "../audit/index.ts";
 import {
@@ -1437,6 +1444,19 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
       data: await resetMemberMfa(ctx, { membershipId: i.membership_id, reason: i.reason }),
     }),
   }),
+  "member.invite": defineCommand({
+    command: "member.invite",
+    input: COMMAND_INPUTS["member.invite"],
+    run: async (ctx, i, svc) => ({
+      data: await inviteMember(ctx, svc.invitationKey, {
+        email: i.email,
+        role: i.role,
+        propertyIds: i.property_ids,
+        limits: i.limits,
+      }),
+      httpStatus: 201,
+    }),
+  }),
   "property.create": defineCommand({
     command: "property.create",
     input: COMMAND_INPUTS["property.create"],
@@ -1488,6 +1508,11 @@ function defineUserCommand<I, O>(def: UserCommandDef<I, O>): UserCommandDef<I, O
  * cùng Idempotency-Key; không nằm trong `COMMANDS` vì mọi ca của ma trận quyền ở đó đều giả định có tổ chức (xem authz-matrix).
  */
 export const USER_COMMANDS: Readonly<Record<string, AnyUserCommand>> = {
+  "member.acceptInvitation": defineUserCommand({
+    command: "member.acceptInvitation",
+    input: COMMAND_INPUTS["member.acceptInvitation"],
+    run: (req, i) => acceptInvitation(req, { token: i.token }),
+  }),
   "org.create": defineUserCommand({
     command: "org.create",
     input: COMMAND_INPUTS["org.create"],

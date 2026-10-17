@@ -40,6 +40,10 @@ export const SECURITY_EVENTS = [
   "input.validation_failed",
   "input.deserialize_failed",
   "backend.tls_error",
+  // Lời mời nhân viên (T-605, SPEC-access S-007/S-008): cấp token, cấp quyền khi chấp nhận, từ chối token không hợp lệ.
+  "member.invited",
+  "member.accepted",
+  "invitation.rejected",
 ] as const;
 export type SecurityEventName = (typeof SECURITY_EVENTS)[number];
 export type SecurityOutcome = "success" | "denied" | "failure";

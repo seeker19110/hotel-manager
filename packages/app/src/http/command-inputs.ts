@@ -38,6 +38,14 @@ const propertyName = displayName;
 const propertyTemplate = z.enum(["rental", "hotel", "mixed"]);
 const timezoneName = z.string().trim().min(1).max(64);
 
+const memberRole = z.enum(["owner", "manager", "front_desk", "accountant", "housekeeping", "maintenance"]);
+/** Hạn mức tiền của thành viên (bigint đồng ≥ 0; 0 = mọi khoản cần duyệt). */
+const memberLimits = z.strictObject({
+  discount: money.optional(),
+  refund: money.optional(),
+  price_override: money.optional(),
+});
+
 /** Schema đầu vào theo tên lệnh (`<module>.<command>`) của các lệnh có form ở web. */
 export const COMMAND_INPUTS = {
   "billing.createPeriod": z.strictObject({
@@ -160,6 +168,13 @@ export const COMMAND_INPUTS = {
   }),
   "notifications.markAllRead": z.strictObject({}),
   "notifications.markRead": z.strictObject({ notification_id: uuid }),
+  "member.acceptInvitation": z.strictObject({ token: z.string().min(1).max(200) }),
+  "member.invite": z.strictObject({
+    email: z.email().max(320),
+    role: memberRole,
+    property_ids: z.array(uuid).max(50).default([]),
+    limits: memberLimits.default({}),
+  }),
   "org.create": z.strictObject({ name: displayName }),
   "payment.collectCash": z.strictObject({ invoice_id: uuid, amount: positiveMoney }),
   "payment.confirm": z.strictObject({

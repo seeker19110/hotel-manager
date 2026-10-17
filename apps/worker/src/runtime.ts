@@ -13,6 +13,7 @@ import {
   expireHeldReservations,
   FakeEmailSender,
   generatePeriods,
+  invitationKey,
   type Logger,
   loadWorkerConfig,
   type ObjectStorage,
@@ -32,6 +33,7 @@ import {
   expireExportsJob,
   expireHolds,
   exportHandlers,
+  invitationHandlers,
   notifyHandlers,
   workerHeartbeat,
 } from "./jobs.ts";
@@ -91,6 +93,8 @@ export interface WorkerDeps {
   log: Logger;
   baseUrl: string;
   unsubscribeKey: Buffer;
+  /** Khoá dựng token lời mời nhân viên (`invitationKey(BETTER_AUTH_SECRET)`) — consumer `member.invited`. */
+  invitationKey: Buffer;
   /** Tên ghi ở `worker_heartbeats` (khớp `^[a-z0-9][a-z0-9._-]{0,62}$`). */
   name?: string;
   /** Handler bổ sung cho event_type khác (mở rộng/test); trùng tên với handler sẵn có thì handler này thắng. */
@@ -162,6 +166,15 @@ export async function startWorker(deps: WorkerDeps): Promise<WorkerHandle> {
   const raw: Record<string, (job: OutboxJob) => Promise<unknown>> = {
     ...notifyHandlers(workerDb, log.child({ component: "notify.dispatch" })),
     ...exportHandlers({ db, workerDb, storage }),
+    // Không có bộ gửi ⇒ không có consumer: relay giữ sự kiện chưa phát (`no_consumer`) tới khi có bộ gửi, không mất lời mời.
+    ...(deps.sender
+      ? invitationHandlers(
+          workerDb,
+          deps.sender,
+          { key: deps.invitationKey, baseUrl: deps.baseUrl },
+          log.child({ component: "member.invitation" }),
+        )
+      : {}),
     [BANK_TXN_RECEIVED]: bankTransactionReceivedHandler(workerDb),
     ...deps.extraHandlers,
   };
@@ -343,6 +356,7 @@ export async function bootWorker(
       log,
       baseUrl: config.APP_BASE_URL,
       unsubscribeKey: unsubscribeKey(config.BETTER_AUTH_SECRET),
+      invitationKey: invitationKey(config.BETTER_AUTH_SECRET),
       // Tên nhịp cố định (không theo hostname): container khởi động lại đổi hostname sẽ để lại hàng nhịp cũ → cảnh báo treo giả.
       ...(opts.extraHandlers ? { extraHandlers: opts.extraHandlers } : {}),
       ...(opts.intervals ? { intervals: opts.intervals } : {}),
