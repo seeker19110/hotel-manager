@@ -319,6 +319,18 @@ export const COMMAND_INPUTS = {
     departure_date: isoDate,
     guests: z.array(guest).min(1).max(50),
   }),
+  // SPEC-access-and-property S-005/S-006 (`unit.manage`). Tầng/loại phòng theo sức chứa tự tạo nếu chưa có (units.ts).
+  "unit.archive": z.strictObject({ unit_id: uuid }),
+  "unit.create": z.strictObject({
+    property_id: uuid,
+    floor: z.string().trim().min(1).max(100),
+    code: z.string().trim().min(1).max(20),
+    capacity: z.number().int().min(1).max(50),
+    /** V1 chỉ bán nguyên phòng (S-005): `bed` → 422 VALIDATION_FAILED ở trường `kind`. */
+    kind: z.literal("whole").optional(),
+    /** V1 chưa có phòng con/giường: giá trị khác null bị `createUnit` từ chối 422 ở trường `parent_unit_id`. */
+    parent_unit_id: uuid.nullable().optional(),
+  }),
 } as const;
 
 export interface FieldIssue {

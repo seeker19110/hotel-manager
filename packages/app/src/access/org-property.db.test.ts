@@ -134,14 +134,24 @@ describe("SPEC-access S-001: org.create + property.create với mặc định đ
     expect(d.body.data?.organizationId).not.toBe(a.body.data?.organizationId);
   });
 
-  it("org.create song song cùng key → một tổ chức, cả hai nhận cùng kết quả", async () => {
+  it("org.create song song cùng key → một tổ chức; lần chưa xong trả 409 IDEMPOTENCY_IN_PROGRESS, gửi lại nhận cùng kết quả", async () => {
     const user = await newUser();
     const key = randomUUID();
     const rs = await Promise.all(
       [1, 2, 3].map(() => call("user", "org.create", user, { name: "Song song" }, { key })),
     );
-    for (const r of rs) expect(r.status).toBe(201);
-    expect(new Set(rs.map((r) => r.body.data?.organizationId)).size).toBe(1);
+    // D-043: request trùng key khi lần đầu chưa commit trả ngay 409, không chờ khoá; lần đã commit thì replay 201.
+    const ok = rs.filter((r) => r.status === 201);
+    expect(ok.length).toBeGreaterThanOrEqual(1);
+    for (const r of rs) {
+      if (r.status !== 201) {
+        expect(r.status).toBe(409);
+        expect(r.body.code).toBe("IDEMPOTENCY_IN_PROGRESS");
+      }
+    }
+    const again = await call("user", "org.create", user, { name: "Song song" }, { key });
+    expect(again.status).toBe(201);
+    expect(new Set([...ok, again].map((r) => r.body.data?.organizationId)).size).toBe(1);
     const n = await sql<{
       n: number;
     }>`select count(*)::int as n from organizations where created_by = ${user}`.execute(t.admin);

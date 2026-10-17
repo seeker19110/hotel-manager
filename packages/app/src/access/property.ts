@@ -2,7 +2,7 @@
 // - Chỉ owner (`org.configure`). Mặc định múi giờ `Asia/Ho_Chi_Minh`, tiền tệ `VND`, giờ chốt ngày 00:00 (Q-01).
 // - Múi giờ phải là tên IANA có trong `pg_timezone_names` (và có dấu `/`, như trigger 0001); giờ dạng HH:MM — sai ⇒ 422 chỉ đúng trường sai.
 // - Mẫu `mixed` chỉ khi `organizations.settings.feature_flags.mixed_template_enabled` bật ⇒ không thì 409 FEATURE_DISABLED.
-// - Đổi múi giờ/giờ chốt khi cơ sở đã có dữ liệu: trigger CSDL 0058 từ chối (PROPERTY_IN_USE) — không kiểm ở app thay trigger.
+// - Đổi múi giờ/giờ chốt khi cơ sở đã có dữ liệu: trigger CSDL 0062 từ chối (PROPERTY_IN_USE) — không kiểm ở app thay trigger.
 import { randomUUID } from "node:crypto";
 import { authorize } from "@hm/domain";
 import { sql } from "kysely";
@@ -160,7 +160,7 @@ export async function updateProperty(
   };
   const changed = (Object.keys(after) as (keyof typeof after)[]).filter((k) => after[k] !== was[k]);
   if (changed.length === 0) return { propertyId: input.propertyId, changed };
-  // Chỉ đặt cột ĐỔI THẬT: trigger PROPERTY_IN_USE (0058) cũng chỉ bắt khi giá trị khác, nhưng không đụng cột không đổi cho gọn.
+  // Chỉ đặt cột ĐỔI THẬT: trigger PROPERTY_IN_USE (0062) cũng chỉ bắt khi giá trị khác, nhưng không đụng cột không đổi cho gọn.
   await sql`
     update properties set name = ${after.name}, template = ${after.template}, timezone = ${after.timezone},
            business_day_cutoff = ${after.business_day_cutoff}::time, check_in_time = ${after.check_in_time}::time,

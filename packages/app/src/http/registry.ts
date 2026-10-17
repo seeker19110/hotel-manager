@@ -64,7 +64,7 @@ import {
   setExpectedTotals,
   validateBatch,
 } from "../import/index.ts";
-import { approveBlock, endBlock, getUnitStatus } from "../inventory/index.ts";
+import { approveBlock, archiveUnit, createUnit, endBlock, getUnitStatus } from "../inventory/index.ts";
 import {
   activateLease,
   addOccupant,
@@ -803,6 +803,28 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
       await approveBlock(ctx, i.block_id);
       return { data: { blockId: i.block_id, status: "approved" } };
     },
+  }),
+  "unit.create": defineCommand({
+    command: "unit.create",
+    input: COMMAND_INPUTS["unit.create"],
+    run: async (ctx, i) => ({
+      data: await createUnit(ctx, {
+        propertyId: i.property_id,
+        floorName: i.floor,
+        code: i.code,
+        capacity: i.capacity,
+        ...(i.kind === undefined ? {} : { kind: i.kind }),
+        ...(i.parent_unit_id === undefined ? {} : { parentUnitId: i.parent_unit_id }),
+      }),
+      httpStatus: 201,
+    }),
+  }),
+  "unit.archive": defineCommand({
+    command: "unit.archive",
+    input: COMMAND_INPUTS["unit.archive"],
+    run: async (ctx, i) => ({
+      data: { unitId: i.unit_id, ...(await archiveUnit(ctx, { unitId: i.unit_id })) },
+    }),
   }),
   "inventory.endBlock": defineCommand({
     command: "inventory.endBlock",

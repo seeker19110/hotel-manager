@@ -120,6 +120,9 @@
       "name": "today"
     },
     {
+      "name": "unit"
+    },
+    {
       "name": "webhooks"
     }
   ],
@@ -2512,7 +2515,7 @@
             "in": "query",
             "required": true,
             "schema": {
-              "enum": ["work_order", "payment_claim"]
+              "enum": ["work_order", "payment_claim", "lease_settlement"]
             }
           },
           {
@@ -16567,6 +16570,228 @@
         }
       }
     },
+    "/api/v1/unit/archive": {
+      "post": {
+        "operationId": "unit.archive",
+        "tags": ["unit"],
+        "summary": "unit.archive",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/OrgId"
+          },
+          {
+            "$ref": "#/components/parameters/OrgContext"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "unit_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "required": ["unit_id"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "2XX": {
+            "description": "Đã commit (HTTP 200, hoặc 201/202 tuỳ lệnh); gửi lại cùng Idempotency-Key trả đúng kết quả này",
+            "headers": {
+              "X-Correlation-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Mã tra cứu xuyên log/audit"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["command_id", "status", "data"],
+                  "properties": {
+                    "command_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "status": {
+                      "const": "committed"
+                    },
+                    "data": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/unit/create": {
+      "post": {
+        "operationId": "unit.create",
+        "tags": ["unit"],
+        "summary": "unit.create",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/OrgId"
+          },
+          {
+            "$ref": "#/components/parameters/OrgContext"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "property_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "floor": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  },
+                  "code": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20
+                  },
+                  "capacity": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 50
+                  },
+                  "kind": {
+                    "type": "string",
+                    "const": "whole"
+                  },
+                  "parent_unit_id": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": ["property_id", "floor", "code", "capacity"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "2XX": {
+            "description": "Đã commit (HTTP 200, hoặc 201/202 tuỳ lệnh); gửi lại cùng Idempotency-Key trả đúng kết quả này",
+            "headers": {
+              "X-Correlation-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Mã tra cứu xuyên log/audit"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["command_id", "status", "data"],
+                  "properties": {
+                    "command_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "status": {
+                      "const": "committed"
+                    },
+                    "data": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/webhooks/{provider}/{account}": {
       "post": {
         "operationId": "webhooks.receive",
@@ -16758,7 +16983,16 @@
         }
       },
       "Error409": {
-        "description": "Xung đột trạng thái/ngữ cảnh (ORG_CONTEXT_REQUIRED, CONTEXT_CHANGED…)",
+        "description": "Xung đột trạng thái/ngữ cảnh (ORG_CONTEXT_REQUIRED, CONTEXT_CHANGED…); hoặc IDEMPOTENCY_IN_PROGRESS (cùng Idempotency-Key, lần đầu còn đang xử lý chưa commit, D-043) kèm `Retry-After` — đợi rồi tra GET /api/v1/commands/{id}, không gửi payload mới",
+        "headers": {
+          "Retry-After": {
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Giây nên đợi — chỉ có với IDEMPOTENCY_IN_PROGRESS"
+          }
+        },
         "content": {
           "application/problem+json": {
             "schema": {
@@ -16812,7 +17046,7 @@
         "name": "Idempotency-Key",
         "in": "header",
         "required": true,
-        "description": "UUID do client sinh; cùng key + cùng payload → kết quả cũ; khác payload → 422 IDEMPOTENCY_CONFLICT. Lưu 7 ngày.",
+        "description": "UUID do client sinh; cùng key + cùng payload → kết quả cũ; khác payload → 422 IDEMPOTENCY_CONFLICT; lần đầu còn đang xử lý → 409 IDEMPOTENCY_IN_PROGRESS + Retry-After. Lưu 7 ngày.",
         "schema": {
           "type": "string",
           "format": "uuid"

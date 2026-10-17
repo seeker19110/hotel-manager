@@ -12,7 +12,7 @@
 - **Tiền:** `{ "amount": 3580000, "currency": "VND" }` với `amount` là số nguyên đồng. Server từ chối số thập phân bằng `VALIDATION_FAILED`.
 - **ID:** UUID v7. Mã hiển thị (số phiếu, số hợp đồng) là trường riêng, cấp theo cơ sở.
 - **Ngữ cảnh tổ chức:** header `X-Org-Id` chỉ để **chọn** tổ chức trong số tổ chức người dùng đã có membership. Server luôn đối chiếu với membership và không tin ID do client gửi. Trang web gửi kèm `X-Org-Context` = tổ chức trang đang hiển thị; khác tổ chức của request (tab khác đã chuyển) ⇒ `409 CONTEXT_CHANGED`, không ghi gì (SPEC-portal S-013).
-- **Idempotency:** mọi `POST` ghi bắt buộc có `Idempotency-Key: <uuid>`. Thiếu key thì trả 400 `MALFORMED_REQUEST`. Key lặp, cùng payload → trả kết quả cũ với cùng status. Key lặp, khác payload → 422 `IDEMPOTENCY_CONFLICT` (theo draft IETF httpapi-idempotency-key-header, D-034; client xử lý theo `code`, không theo status). Key được lưu 7 ngày.
+- **Idempotency:** mọi `POST` ghi bắt buộc có `Idempotency-Key: <uuid>`. Thiếu key thì trả 400 `MALFORMED_REQUEST`. Key lặp, cùng payload → trả kết quả cũ với cùng status. Key lặp, khác payload → 422 `IDEMPOTENCY_CONFLICT` (theo draft IETF httpapi-idempotency-key-header, D-034; client xử lý theo `code`, không theo status). Key lặp khi lần đầu còn đang xử lý (chưa commit) → 409 `IDEMPOTENCY_IN_PROGRESS` ngay, kèm `Retry-After: 1` (D-043; không giữ kết nối chờ) — client đợi rồi tra `GET /api/v1/commands/{key}`, không gửi payload mới. Key được lưu 7 ngày.
 - **Kết quả command:** `{ "command_id": "...", "status": "committed", "data": {...} }`. Tra lại bằng `GET /api/v1/commands/{command_id}` khi client bị timeout. Trạng thái chỉ gồm: `committed` (kèm `data`) · `in_progress` (đang chạy, client chờ rồi hỏi lại) · `failed` (kèm `problem`). Không tồn tại hoặc không phải của người hỏi → 404 `COMMAND_NOT_FOUND` — client mới được phép gửi lại với **cùng** `Idempotency-Key`.
 - **Phân trang:** `?cursor=<opaque>&limit=<n>`, mặc định 50, tối đa 200. Phản hồi `{ "data": [...], "next_cursor": "..." | null }`.
 - **Rate limit:** theo người dùng và theo IP. Đăng nhập và link khách có giới hạn chặt hơn. Vượt giới hạn trả 429 kèm `Retry-After` (số giây, MỌI 429 của app — kể cả của Better Auth, khoá tài khoản — đều có; thân problem có thêm `retry_after`). Hạn mức lệnh ghi theo TỔ CHỨC (IND-SAAS-008): tối đa `COMMAND_QUOTA_PER_MINUTE` (600) lệnh mới/phút/tổ chức, vượt ⇒ 429 `RATE_LIMITED` và KHÔNG lưu kết quả (gửi lại cùng `Idempotency-Key` sau `Retry-After` chạy bình thường; replay key đã có không tốn hạn mức). Route không đi qua pipeline lệnh có hạn mức riêng bằng bộ đếm trong Postgres (dùng chung mọi instance, `app.rate_limit_hit`, BE-REL-006): tải file `files/upload` 30/phút/thành viên và 120/phút/tổ chức; `import/upload` 10 và 30; webhook ngân hàng đã xác thực chữ ký 600/phút/tài khoản; chữ ký webhook SAI 300/phút/nhà cung cấp (vượt ⇒ 429 thay cho 401, không ảnh hưởng webhook hợp lệ). Vượt ⇒ 429 `RATE_LIMITED` + `Retry-After` = số giây tới hết cửa sổ 60 giây.
@@ -30,7 +30,7 @@
   "correlation_id": "…", "errors": [ { "path": "during.end", "field": "during.end", "code": "BEFORE_START" } ] }
 ```
 
-Trường tuỳ chọn theo mã (không có thì bỏ hẳn, không gửi `null`): `retry_after` (giây, mọi 429) · `alternatives` (`[{unit_id, code}]` — phòng cùng loại còn trống khi `ROOM_UNAVAILABLE` ở `allocation.createHold` và `reservation.hold`, SPEC-inventory-allocation S-002) · `items` (danh sách bản ghi liên quan: allocation xung đột khi `BLOCK_CONFLICT`, gợi ý phòng ở `reservation.hold` — cùng nội dung `alternatives`, giữ cho tương thích, D-040) · `errors` (lỗi theo trường, 422).
+Trường tuỳ chọn theo mã (không có thì bỏ hẳn, không gửi `null`): `retry_after` (giây, mọi 429 và 409 `IDEMPOTENCY_IN_PROGRESS`) · `alternatives` (`[{unit_id, code}]` — phòng cùng loại còn trống khi `ROOM_UNAVAILABLE` ở `allocation.createHold` và `reservation.hold`, SPEC-inventory-allocation S-002) · `items` (danh sách bản ghi liên quan: allocation xung đột khi `BLOCK_CONFLICT`, gợi ý phòng ở `reservation.hold` — cùng nội dung `alternatives`, giữ cho tương thích, D-040) · `errors` (lỗi theo trường, 422).
 
 | Mã | HTTP | Khi nào |
 |---|---|---|
@@ -42,6 +42,7 @@ Trường tuỳ chọn theo mã (không có thì bỏ hẳn, không gửi `null`
 | `FORBIDDEN` | 403 | Có membership nhưng không đủ quyền hoặc vượt hạn mức |
 | `NOT_FOUND` | 404 | Không tồn tại **hoặc** thuộc tổ chức/cơ sở khác (không phân biệt hai trường hợp, để không lộ thông tin) |
 | `IDEMPOTENCY_CONFLICT` | 422 | Key trùng, payload khác |
+| `IDEMPOTENCY_IN_PROGRESS` | 409 | Key trùng, lần đầu còn đang xử lý (chưa commit); kèm `Retry-After: 1` |
 | `ROOM_UNAVAILABLE` | 409 | Vi phạm INV-I1 |
 | `INVALID_TRANSITION` | 409 | Chuyển trạng thái ngoài bảng |
 | `VERSION_CONFLICT` | 409 | `base_version` cũ (optimistic lock) |

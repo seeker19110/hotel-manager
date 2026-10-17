@@ -24,7 +24,17 @@ const ERROR_RESPONSES: Record<string, Json> = {
   "401": errorResponse("UNAUTHENTICATED (cần đăng nhập) hoặc REAUTH_REQUIRED (cần xác thực lại)"),
   "403": errorResponse("FORBIDDEN — có membership nhưng không đủ quyền/hạn mức"),
   "404": errorResponse("NOT_FOUND — không tồn tại hoặc thuộc tổ chức/cơ sở khác (không phân biệt)"),
-  "409": errorResponse("Xung đột trạng thái/ngữ cảnh (ORG_CONTEXT_REQUIRED, CONTEXT_CHANGED…)"),
+  "409": {
+    description:
+      "Xung đột trạng thái/ngữ cảnh (ORG_CONTEXT_REQUIRED, CONTEXT_CHANGED…); hoặc IDEMPOTENCY_IN_PROGRESS (cùng Idempotency-Key, lần đầu còn đang xử lý chưa commit, D-043) kèm `Retry-After` — đợi rồi tra GET /api/v1/commands/{id}, không gửi payload mới",
+    headers: {
+      "Retry-After": {
+        schema: { type: "integer", minimum: 1 },
+        description: "Giây nên đợi — chỉ có với IDEMPOTENCY_IN_PROGRESS",
+      },
+    },
+    content: problemContent,
+  },
   "422": errorResponse(
     "VALIDATION_FAILED — kèm `errors[]` theo trường; hoặc IDEMPOTENCY_CONFLICT (cùng Idempotency-Key khác payload, D-034)",
   ),
@@ -288,7 +298,7 @@ const EXTRA_PATHS: Record<string, Json> = {
           name: "owner_type",
           in: "query",
           required: true,
-          schema: { enum: ["work_order", "payment_claim"] },
+          schema: { enum: ["work_order", "payment_claim", "lease_settlement"] },
         },
         { name: "property_id", in: "query", required: true, schema: uuidSchema },
       ],
@@ -505,7 +515,7 @@ export function buildOpenApi(): Json {
           in: "header",
           required: true,
           description:
-            "UUID do client sinh; cùng key + cùng payload → kết quả cũ; khác payload → 422 IDEMPOTENCY_CONFLICT. Lưu 7 ngày.",
+            "UUID do client sinh; cùng key + cùng payload → kết quả cũ; khác payload → 422 IDEMPOTENCY_CONFLICT; lần đầu còn đang xử lý → 409 IDEMPOTENCY_IN_PROGRESS + Retry-After. Lưu 7 ngày.",
           schema: uuidSchema,
         },
         OrgId: {

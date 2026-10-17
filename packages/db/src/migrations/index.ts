@@ -56,7 +56,8 @@ import * as m0052 from "./0052_files_settlement_read.ts";
 import * as m0053 from "./0053_rate_limit_counters.ts";
 import * as m0054 from "./0054_outbox_traceparent.ts";
 import * as m0056 from "./0056_event_table_retention.ts";
-import * as m0058 from "./0058_access_property.ts";
+import * as m0060 from "./0060_fk_operator_indexes.ts";
+import * as m0062 from "./0062_access_property.ts";
 
 export const migrations: Record<string, Migration> = {
   "0001_tenancy": m0001,
@@ -114,5 +115,6 @@ export const migrations: Record<string, Migration> = {
   "0053_rate_limit_counters": m0053,
   "0054_outbox_traceparent": m0054,
   "0056_event_table_retention": m0056,
-  "0058_access_property": m0058,
+  "0060_fk_operator_indexes": m0060,
+  "0062_access_property": m0062,
 };
