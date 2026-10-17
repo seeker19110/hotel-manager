@@ -151,7 +151,7 @@ Quy ước chung cho mọi scenario (kế hoạch §16; DOMAIN-MODEL INV-G1):
 ### S-025 Lễ tân xác nhận tiền mặt do chính mình nhận trong ca đang mở (INV-F3b, đề xuất chờ PO)
 - Given lễ tân L có ca `shifts` đang mở; L ghi nhận `payment.record` tiền mặt 500.000 (method `cash`); lễ tân L2 khác cũng có ca mở và ghi nhận tiền mặt 300.000
 - When L gọi `payment.confirm` cho khoản 500.000; rồi L gọi `payment.confirm` cho khoản 300.000 của L2; rồi L (đã đóng ca) xác nhận một khoản tiền mặt mới
-- Then lần 1 → `payment` `confirmed`, hệ thống sinh biên nhận, khoản vào đối chiếu đóng ca của L; lần 2 → `403 FORBIDDEN` (không phải tiền do L nhận); lần 3 → `403 FORBIDDEN` (không có ca đang mở); mỗi lần ghi `audit_events`
+- Then lần 1 → `payment` `confirmed`, hệ thống sinh biên nhận, khoản vào đối chiếu đóng ca của L; lần 2 → `403 FORBIDDEN` (không phải tiền do L nhận); lần 3 → `409 SHIFT_NOT_OPEN` (không có ca đang mở — trạng thái nghiệp vụ, không phải thiếu quyền; khớp SPEC-ledger-payments S-028, D-045); mỗi lần ghi `audit_events`
 
 ### S-026 Hạn mức hoàn/khấu trừ cọc theo vai trò (đề xuất chờ PO)
 - Given hạn mức mặc định: lễ tân 2.000.000 đ/lần (chỉ khi check-out), quản lý 5.000.000 đ/lần, owner không giới hạn, kế toán chỉ lập đề nghị; cọc khách sạn 3.000.000 đ
@@ -300,6 +300,7 @@ Ký hiệu: **Có** = được trong phạm vi cơ sở · **HM** = trong hạn 
 | IDEMPOTENCY_CONFLICT | Cùng key, khác nội dung | 422 | Thao tác trùng mã nhưng khác nội dung. Vui lòng tải lại. | S-021 |
 | VALIDATION_FAILED | Dữ liệu không hợp lệ | 422 | Thông tin chưa hợp lệ, xem các trường được đánh dấu. | S-002, S-005 |
 | RATE_LIMITED | Vượt ngưỡng thử | 429 | Bạn thử quá nhiều lần. Vui lòng đợi rồi thử lại. | S-012 |
+| SHIFT_NOT_OPEN | Xác nhận tiền mặt khi người thực hiện không có ca đang mở (mã dùng chung SPEC-ledger-payments §6) | 409 | Cần mở ca trước khi nhận hoặc chi tiền mặt. | S-025 |
 
 ## 7. Yêu cầu phi chức năng của tính năng
 | Thuộc tính | Ngưỡng | Nguồn | Cách đo |
@@ -344,3 +345,4 @@ Không áp dụng — tính năng không dùng model.
 |---|---|---|---|---|
 | 1 | 2026-10-15 | tạo | G3 cho F-001 | (chờ) |
 | 2 | 2026-10-15 | sửa theo review độc lập: bổ sung ma trận 5.3 (hợp đồng, giữ chỗ, bàn giao, quyết toán, công tơ, kỳ thu, cọc, hoàn ứng trước, ca, import, mời người thuê, link khách, `setUnitAvailability`, `resolveException`, thông báo, thông báo lưu trú); hạn mức hoàn/khấu trừ và quyền xác nhận tiền mặt của lễ tân (S-025, S-026, Q-11, Q-12); S-009 theo phiên Better Auth (ADR-0002); đóng Q-10 | review O5, R4, O11, G5 | (chờ) |
+| 3 | 2026-10-17 | S-025 lần 3: `403 FORBIDDEN` → `409 SHIFT_NOT_OPEN` cho khớp SPEC-ledger-payments S-028; thêm `SHIFT_NOT_OPEN` vào mục 6 | D-045: thiếu ca là trạng thái nghiệp vụ, không phải thiếu quyền | phiên chính (tự duyệt) |

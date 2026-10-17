@@ -315,3 +315,10 @@
 - Chọn: Miễn [~] có lý do + điều kiện mở lại (khi có thư viện component client dùng chung); giữ rào route-states làm kiểm tương đương
 - Lý do (tiêu chí chất lượng cuối): (3) đơn giản, không thêm phụ thuộc lớn cho kiểm đã có máy tương đương; (2) đường lùi: thêm Storybook sau. Miễn cần chủ dự án xác nhận cùng các miễn trừ khác.
 - Đường lùi: Bỏ [~], thêm Storybook + script đếm story.
+
+### D-045 · 2026-10-17T10:56:14+00:00 · S-025: lễ tân chưa mở/đã đóng ca xác nhận tiền mặt của chính mình — SPEC-access S-025 đòi 403 FORBIDDEN, SPEC-ledger-payments S-028 + mã trả 409 SHIFT_NOT_OPEN
+
+- Phương án: (1) Giữ 409 SHIFT_NOT_OPEN, sửa SPEC-access S-025 (lần 3) cho khớp + test gắn S-025 · (2) Đổi sang 403 FORBIDDEN theo SPEC-access, sửa ledger S-028 + test + API
+- Chọn: Giữ 409 SHIFT_NOT_OPEN, sửa SPEC-access S-025 (lần 3) cho khớp + test gắn S-025
+- Lý do (tiêu chí chất lượng cuối): (1) đúng: thiếu ca là trạng thái nghiệp vụ, không phải thiếu quyền — 403 làm lẫn hai nghĩa; mã đã nhất quán ở deposit/settlement/payment. (3) chỉ sửa tài liệu + một test.
+- Đường lùi: Đổi payment.confirm trả 403 khi không có ca mở, sửa S-028.
