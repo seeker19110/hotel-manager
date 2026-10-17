@@ -6,6 +6,7 @@
 import { authorize } from "@hm/domain";
 import { sql } from "kysely";
 import { type CommandContext, CommandError, fieldError } from "../pipeline/index.ts";
+import { revokeUserSessions } from "./sessions.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -57,10 +58,7 @@ export async function resetMemberMfa(
   await sql`update auth."user" set "twoFactorEnabled" = false, "updatedAt" = now() where id = ${target.auth_user_id}::uuid`.execute(
     ctx.trx,
   );
-  const s = await sql`delete from auth."session" where "userId" = ${target.auth_user_id}::uuid`.execute(
-    ctx.trx,
-  );
-  const sessionsRevoked = Number(s.numAffectedRows ?? 0);
+  const sessionsRevoked = await revokeUserSessions(ctx.trx, target.auth_user_id);
   await ctx.audit({
     action: "member.mfa_reset",
     entityType: "membership",

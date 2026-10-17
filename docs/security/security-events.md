@@ -54,6 +54,7 @@ Nguồn IP: hop PHẢI NHẤT của `X-Forwarded-For` (do proxy tin cậy duy nh
 | `invitation.rejected` | Chấp nhận lời mời bị từ chối (410 `INVITATION_INVALID`): `reason` = `unknown_token` · `status_<accepted\|expired\|revoked>` · `expired` · `email_mismatch` — phản hồi cho client không phân biệt | `access/accept-invitation.ts` | idem |
 | `member.role_changed` | Owner đổi vai trò nhân viên (lần thay đổi thật; đặt lại đúng vai trò cũ không phát): `target` = id membership, `reason` = vai trò mới; trước/sau + lý do ở `audit_events`. Lần thử bị từ chối ⇒ `authz.denied` + audit `member.role_change_denied` | `access/members.ts` `updateMemberRole` | `access/members.db.test.ts` |
 | `member.scope_changed` | Owner đổi phạm vi cơ sở của nhân viên: `target` = id membership. Lần thử bị từ chối ⇒ `authz.denied` + audit `member.scope_change_denied` | `access/members.ts` `updateMemberScope` | idem |
+| `session.revoked` | Thu hồi MỌI phiên của một tài khoản (`session.revokeAll`, tự mình hoặc owner/manager thu hồi nhân viên): `target` = id membership; số phiên ở `audit_events` (`session.revoked`). Request kế tiếp mang cookie phiên đó ⇒ 401 `SESSION_REVOKED` ⇒ `auth.unauthenticated` với `reason = SESSION_REVOKED` | `access/sessions.ts` `revokeAllSessions`; `http/command-route.ts` | `access/sessions.db.test.ts` |
 
 Sự kiện thành công (`ctx.security`) chỉ phát **sau commit**; lệnh bị rollback hoặc replay cùng `Idempotency-Key` không phát. Sự kiện từ chối của
 command phát một lần cho mỗi `Idempotency-Key`.

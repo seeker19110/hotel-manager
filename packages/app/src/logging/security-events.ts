@@ -47,6 +47,8 @@ export const SECURITY_EVENTS = [
   // Đổi vai trò/phạm vi nhân viên (T-605, SPEC-access S-018; SEC-LOG-001 "đổi vai/quyền").
   "member.role_changed",
   "member.scope_changed",
+  // Thu hồi phiên (T-605, SPEC-access S-010): tự thu hồi hoặc owner/manager thu hồi phiên thành viên.
+  "session.revoked",
 ] as const;
 export type SecurityEventName = (typeof SECURITY_EVENTS)[number];
 export type SecurityOutcome = "success" | "denied" | "failure";

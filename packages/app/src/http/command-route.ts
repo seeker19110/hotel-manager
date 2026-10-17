@@ -47,6 +47,11 @@ export interface HttpSession {
 export interface HttpDeps {
   db: Kysely<unknown>;
   getSession(headers: Headers): Promise<HttpSession | null>;
+  /**
+   * Gọi khi `getSession` trả null: request mang cookie của một phiên ĐÃ BỊ THU HỒI (`session.revokeAll`, đặt lại MFA)? ⇒ 401
+   * `SESSION_REVOKED` thay vì `UNAUTHENTICATED` (SPEC-access S-010). Bỏ trống = không phân biệt.
+   */
+  isSessionRevoked?(headers: Headers): Promise<boolean>;
   /** APP_BASE_URL là https → cookie `__Host-`. */
   secureCookies: boolean;
   services: AppServices;
@@ -204,6 +209,24 @@ export function rejectInput(
   });
 }
 
+/** 401 khi không có phiên hợp lệ: `SESSION_REVOKED` nếu cookie là của phiên đã bị thu hồi, ngược lại `UNAUTHENTICATED`. */
+async function noSession(
+  req: Request,
+  deps: HttpDeps,
+  correlationId: string,
+  endpoint: { type: string; id: string },
+): Promise<Response> {
+  const revoked = deps.isSessionRevoked ? await deps.isSessionRevoked(req.headers) : false;
+  const code = revoked ? "SESSION_REVOKED" : "UNAUTHENTICATED";
+  denied(req, correlationId, { status: 401, code }, null, endpoint);
+  return simpleProblem(
+    code,
+    401,
+    revoked ? "Phiên này đã bị đăng xuất. Vui lòng đăng nhập lại." : "Cần đăng nhập",
+    correlationId,
+  );
+}
+
 /** Actor của request hoặc Response lỗi (401/409/404/403) đã sẵn để trả. */
 export async function actorFromRequest(
   req: Request,
@@ -212,10 +235,7 @@ export async function actorFromRequest(
 ): Promise<Actor | Response> {
   const session = await deps.getSession(req.headers);
   const endpoint = { type: "endpoint", id: new URL(req.url).pathname };
-  if (!session) {
-    denied(req, correlationId, { status: 401, code: "UNAUTHENTICATED" }, null, endpoint);
-    return simpleProblem("UNAUTHENTICATED", 401, "Cần đăng nhập", correlationId);
-  }
+  if (!session) return noSession(req, deps, correlationId, endpoint);
   const orgId = requestedOrgId(
     req.headers.get(ORG_HEADER),
     readCookie(req.headers.get("cookie"), orgCookieName(deps.secureCookies)),
@@ -393,10 +413,7 @@ async function runUserCommand<I, O>(
   let userId: string | null = null;
   try {
     const session = await deps.getSession(req.headers);
-    if (!session) {
-      denied(req, correlationId, { status: 401, code: "UNAUTHENTICATED" }, null, endpoint);
-      return simpleProblem("UNAUTHENTICATED", 401, "Cần đăng nhập", correlationId);
-    }
+    if (!session) return await noSession(req, deps, correlationId, endpoint);
     userId = session.user.id;
     const actorRef: ActorRef = { authUserId: userId };
     const key = req.headers.get("idempotency-key") ?? "";

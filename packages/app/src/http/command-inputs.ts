@@ -187,6 +187,7 @@ export const COMMAND_INPUTS = {
     all_properties: z.boolean().optional(),
     reason: z.string().trim().min(1).max(500),
   }),
+  "session.revokeAll": z.strictObject({ membership_id: uuid.optional() }),
   "org.create": z.strictObject({ name: displayName }),
   "payment.collectCash": z.strictObject({ invoice_id: uuid, amount: positiveMoney }),
   "payment.confirm": z.strictObject({

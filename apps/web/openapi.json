@@ -14513,6 +14513,101 @@
         }
       }
     },
+    "/api/v1/session/revokeAll": {
+      "post": {
+        "operationId": "session.revokeAll",
+        "tags": ["session"],
+        "summary": "session.revokeAll",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/OrgId"
+          },
+          {
+            "$ref": "#/components/parameters/OrgContext"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "membership_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "2XX": {
+            "description": "Đã commit (HTTP 200, hoặc 201/202 tuỳ lệnh); gửi lại cùng Idempotency-Key trả đúng kết quả này",
+            "headers": {
+              "X-Correlation-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Mã tra cứu xuyên log/audit"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["command_id", "status", "data"],
+                  "properties": {
+                    "command_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "status": {
+                      "const": "committed"
+                    },
+                    "data": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/session/switchOrganization": {
       "post": {
         "operationId": "session.switchOrganization",

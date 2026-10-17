@@ -10,6 +10,7 @@ import {
   createProperty,
   inviteMember,
   resetMemberMfa,
+  revokeAllSessions,
   updateMemberRole,
   updateMemberScope,
   updateProperty,
@@ -1481,6 +1482,16 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
         ...(i.all_properties === undefined ? {} : { allProperties: i.all_properties }),
         reason: i.reason,
       }),
+    }),
+  }),
+  "session.revokeAll": defineCommand({
+    command: "session.revokeAll",
+    input: COMMAND_INPUTS["session.revokeAll"],
+    run: async (ctx, i) => ({
+      data: await revokeAllSessions(
+        ctx,
+        i.membership_id === undefined ? {} : { membershipId: i.membership_id },
+      ),
     }),
   }),
   "property.create": defineCommand({

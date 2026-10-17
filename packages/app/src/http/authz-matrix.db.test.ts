@@ -53,6 +53,8 @@ const OVERRIDES: Record<string, (i: Ids) => Record<string, unknown>> = {
   }),
   // Mọi trường ngoài `property_id` đều tuỳ chọn nhưng cần ≥ 1 trường để đổi.
   "property.update": (i) => ({ property_id: i.property_id, name: "Tên cơ sở mới" }),
+  // Không gửi membership_id = tự thu hồi phiên của mình (ai cũng được) — ma trận cần ca "thu hồi phiên NGƯỜI KHÁC".
+  "session.revokeAll": (i) => ({ membership_id: i.membership_id }),
   "billing.createPeriod": (i) => ({ property_id: i.property_id, month: "2026-11" }),
   "billing.issuePeriod": (i) => ({
     billing_period_id: i.billing_period_id ?? randomUUID(),
@@ -465,6 +467,7 @@ const MUST_403: readonly (readonly [string, Action | null, readonly Role[]])[] =
   ].map((n) => [n, "lease.manage", ["accountant", "front_desk"]] as const),
   ["lease.close", "lease.approve_settlement", ["accountant", "front_desk"]],
   ["member.invite", "member.invite_senior", ALL5],
+  ["session.revokeAll", "session.revoke_other", ALL5],
   ["member.updateRole", "member.change_role", ALL5],
   ["member.updateScope", "member.change_role", ALL5],
   ["property.create", "org.configure", ALL5],

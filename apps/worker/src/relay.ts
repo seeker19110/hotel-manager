@@ -60,6 +60,7 @@ export const AUDIT_ONLY_EVENT_TYPES: ReadonlySet<string> = new Set([
   "reservation.confirmed",
   "reservation.held",
   "reservation.no_show",
+  "session.revoked",
   "stay.checked_in",
   "stay.checked_out",
   "stay.notice_exported",

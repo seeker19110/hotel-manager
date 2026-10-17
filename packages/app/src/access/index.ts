@@ -17,3 +17,9 @@ export { createOrganization } from "./organization.ts";
 export { createProperty, updateProperty } from "./property.ts";
 export type { UserCommandRequest } from "./provision.ts";
 export { assertPersonInOrg, assertPropertyInOrg } from "./scope.ts";
+export {
+  isSessionRevoked,
+  revokeAllSessions,
+  revokeUserSessions,
+  sessionTokenFromCookie,
+} from "./sessions.ts";

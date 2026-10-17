@@ -61,8 +61,8 @@ async function call(name: string, user: string, body: unknown, org = A.orgId, ke
     body: (await res.json()) as Record<string, unknown> & { data?: Record<string, unknown> },
   };
 }
-const role = (u: string, m: string, body: Record<string, unknown> = {}) =>
-  call("member.updateRole", u, { membership_id: m, reason: "Điều chỉnh nhân sự", ...body });
+const role = (u: string, m: string, body: Record<string, unknown> = {}, org = A.orgId, key = randomUUID()) =>
+  call("member.updateRole", u, { membership_id: m, reason: "Điều chỉnh nhân sự", ...body }, org, key);
 const scope = (u: string, m: string, body: Record<string, unknown>) =>
   call("member.updateScope", u, { membership_id: m, reason: "Điều chỉnh phạm vi", ...body });
 
