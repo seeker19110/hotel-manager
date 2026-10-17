@@ -22,6 +22,7 @@ const ERROR_GROUPS = [
   "thong-bao",
   "thong-bao-luu-tru",
   "lich-phong",
+  "thanh-vien",
 ];
 // `loading.tsx` bọc trang trong Suspense ⇒ Next đã stream 200 trước khi trang chạy xong, nên `notFound()` (404), lỗi máy chủ
 // (500) và `redirect()` (307) của TRANG ĐÓ và mọi route con đều thành 200 (đã đo: E2E 404 phiếu lạ/thẻ lạ đỏ khi có loading
@@ -35,6 +36,7 @@ const LOADING_GROUPS = [
   "thong-bao-luu-tru",
   "dat-phong/moi",
   "luu-tru/moi",
+  "thanh-vien",
   "portal/dien-nuoc",
   "portal/hop-dong",
   "portal/yeu-cau",

@@ -35,6 +35,7 @@ const ITEMS: readonly Item[] = [
   { href: "/thu-tien", label: "Thu tiền", roles: [...MONEY, "front_desk"], kind: "rental" },
   { href: "/doi-soat", label: "Đối soát", roles: MONEY, kind: "rental" },
   { href: "/phong", label: "Phòng", roles: STAFF },
+  { href: "/thanh-vien", label: "Thành viên", roles: ["owner", "manager"] },
 ];
 
 export interface NavKinds {

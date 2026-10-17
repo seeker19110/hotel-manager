@@ -31,6 +31,8 @@ export interface FieldSpec {
   hint?: string;
   /** Đặt giá trị vào đường dẫn lồng (vd `readings.electric`). */
   path?: string;
+  /** Gói giá trị đã nhập thành mảng một phần tử (vd chọn một cơ sở cho `property_ids`); để trống = bỏ trường. */
+  array?: boolean;
 }
 
 function setPath(o: Record<string, unknown>, path: string, v: unknown) {
@@ -112,7 +114,7 @@ export function CommandForm({
         v = parseIntegerInput(raw);
         if (v === null) errs[f.name] = "Nhập số nguyên";
       }
-      setPath(body, f.path ?? f.name, v);
+      setPath(body, f.path ?? f.name, f.array ? [v] : v);
     }
     // Một nguồn schema với server: lỗi theo ô (đường dẫn trùng `path ?? name`) gắn vào ô; lỗi còn lại (ô ẩn/cấp thân) là lỗi chung.
     let general: string | null = null;

@@ -100,3 +100,10 @@ export const INVITEE_EXPIRED_EMAIL = "het.han@example.test";
 export const INVITEE_OTHER_EMAIL = "danh.cho.nguoi.khac@example.test";
 /** File JSON `{ valid, expired, other }` — token lời mời của ORG_HOTEL. */
 export const inviteTokensFile = (port: number) => join(tmpdir(), `hm-e2e-${port}-invites.json`);
+
+/** Nhân viên buồng phòng ORG_HOTEL dùng làm ĐÍCH của màn Thành viên (đổi vai/cơ sở, thu hồi phiên) — không dùng cho spec khác. */
+export const STAFF_TARGET = {
+  email: "nv.dich@example.test",
+  name: "Nhân viên đích (giả)",
+  password: ["e2e", "nv", "dich", "gia"].join("-"),
+};

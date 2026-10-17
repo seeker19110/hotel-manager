@@ -31,6 +31,7 @@ import {
   RENTAL_OWNER,
   RENTAL_TENANT,
   SMOKE_USER,
+  STAFF_TARGET,
   unsubFile,
 } from "./fixtures.ts";
 import { seedHotelOrg, signUpWithTotp } from "./hotel-seed.ts";
@@ -130,7 +131,11 @@ async function seedRental(db: Kysely<unknown>, auth: ReturnType<typeof createAut
 }
 
 /** Ba lời mời nhân viên của ORG_HOTEL (còn hạn / hết hạn / dành cho email khác); token ghi vào file cho test đọc. */
-async function seedInvitations(db: Kysely<unknown>, secret: string): Promise<void> {
+async function seedInvitations(
+  db: Kysely<unknown>,
+  auth: ReturnType<typeof createAuth>["auth"],
+  secret: string,
+): Promise<void> {
   const org = await sql<{ id: string; property_id: string; membership_id: string }>`
     select o.id, p.id as property_id, m.id as membership_id from organizations o
     join properties p on p.organization_id = o.id
@@ -138,6 +143,19 @@ async function seedInvitations(db: Kysely<unknown>, secret: string): Promise<voi
     where o.name = ${ORG_HOTEL} limit 1`.execute(db);
   const o = org.rows[0];
   if (!o) throw new Error("thiếu ORG_HOTEL để seed lời mời");
+  // Nhân viên buồng phòng đích của màn Thành viên (có mật khẩu để đăng nhập thật rồi bị thu hồi phiên).
+  const target = await auth.api.signUpEmail({ body: STAFF_TARGET });
+  const person = randomUUID();
+  const membership = randomUUID();
+  await sql`insert into persons (id, organization_id, full_name, email) values (${person}, ${o.id}, ${STAFF_TARGET.name}, ${STAFF_TARGET.email})`.execute(
+    db,
+  );
+  await sql`insert into memberships (id, organization_id, auth_user_id, person_id, role) values (${membership}, ${o.id}, ${target.user.id}, ${person}, 'housekeeping')`.execute(
+    db,
+  );
+  await sql`insert into property_scopes (id, organization_id, membership_id, property_id) values (${randomUUID()}, ${o.id}, ${membership}, ${o.property_id})`.execute(
+    db,
+  );
   const key = invitationKey(secret);
   const tokens: Record<string, string> = {};
   for (const [name, email, expires] of [
@@ -185,7 +203,7 @@ async function seed(adminUrl: string, runtimeUrl: string, secret: string): Promi
     await addStaff(db, other.orgId, user.id, other.propertyId);
     await seedRental(db, auth);
     await seedHotelOrg(db, auth, PORT);
-    await seedInvitations(db, secret);
+    await seedInvitations(db, auth, secret);
     const portal = await seedPortal(db);
     // Liên kết huỷ đăng ký ký số trong email nhắc quá hạn của người thuê An (SPEC-notifications S-010).
     writeFileSync(

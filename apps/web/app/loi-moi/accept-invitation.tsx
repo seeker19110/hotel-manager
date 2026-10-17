@@ -115,15 +115,18 @@ export function AcceptInvitation() {
   async function signOut() {
     setBusy(true);
     try {
-      await jsonPost("/api/auth/sign-out", {});
+      const r = await jsonPost("/api/auth/sign-out", {});
+      if (!r.ok && r.status !== 401) return setProblem("Chưa đăng xuất được. Thử lại.");
+      setWho(null);
+      setMode("login");
+      setError(undefined);
+      setProblem(undefined);
+      setPhase("anonymous");
     } catch {
-      // vẫn về màn đăng nhập; phiên cũ nếu còn sẽ được kiểm lại ở bước sau
+      setProblem("Chưa nhận được phản hồi. Kiểm tra mạng rồi thử lại.");
     } finally {
       setBusy(false);
     }
-    setWho(null);
-    setMode("login");
-    setPhase("anonymous");
   }
 
   async function accept() {
@@ -155,14 +158,21 @@ export function AcceptInvitation() {
       key.current = null;
       setPhase("done");
       await clearUserData();
+      // Chọn sẵn tổ chức vừa tham gia; không chọn được (mạng/lỗi) thì để người dùng tự chọn ở danh sách tổ chức.
+      let home = "/chon-to-chuc";
       if (organizationId) {
-        await jsonPost(
-          "/api/v1/session/switchOrganization",
-          { organization_id: organizationId },
-          crypto.randomUUID(),
-        ).catch(() => undefined);
+        try {
+          const sw = await jsonPost(
+            "/api/v1/session/switchOrganization",
+            { organization_id: organizationId },
+            crypto.randomUUID(),
+          );
+          if (sw.ok) home = "/";
+        } catch {
+          home = "/chon-to-chuc";
+        }
       }
-      window.location.assign(safeUrl("/") ?? "/");
+      window.location.assign(safeUrl(home) ?? "/chon-to-chuc");
     } catch {
       setProblem("Chưa nhận được phản hồi. Bấm lại để thử lần nữa — hệ thống không tạo hai lần.");
       setPhase("ready");
