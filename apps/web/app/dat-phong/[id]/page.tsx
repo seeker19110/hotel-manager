@@ -109,6 +109,7 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
             <CommandForm
               path="reservation/confirm"
               confirm="Xác nhận đặt phòng không thu trước: phòng được giữ chắc cho khách, huỷ sau sẽ theo chính sách huỷ."
+              confirmLabel={`Xác nhận đặt phòng ${b.number} (phòng ${room?.code ?? "—"}) không thu trước`}
               fixed={{ reservation_id: id }}
               submitLabel="Xác nhận (chưa thu trước)"
               successText="Đã xác nhận đặt phòng."
@@ -119,6 +120,7 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
             <CommandForm
               path="reservation/confirm"
               confirm="Xác nhận đặt phòng và ghi khoản ứng trước tiền mặt vào ca đang mở; không xoá được, chỉ đảo bằng bút toán có duyệt."
+              confirmLabel={`Xác nhận ${b.number} và thu ứng trước {advance}`}
               fixed={{ reservation_id: id, payment: { method: "cash", kind: "advance" } }}
               fields={[
                 {
@@ -157,6 +159,7 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
             <CommandForm
               path="reservation/cancel"
               confirm="Huỷ đặt phòng và nhả phòng; không khôi phục được."
+              confirmLabel={`Huỷ đặt phòng ${b.number} (phòng ${room?.code ?? "—"})`}
               fixed={{ reservation_id: id }}
               fields={[
                 { name: "reason", label: "Lý do huỷ", required: true, maxLength: 1000 },
@@ -175,6 +178,7 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
             <CommandForm
               path="reservation/markNoShow"
               confirm="Đánh dấu khách không đến và nhả phòng; không khôi phục được."
+              confirmLabel={`Đánh dấu ${b.number} (phòng ${room?.code ?? "—"}) khách không đến`}
               fixed={{ reservation_id: id }}
               fields={[{ name: "reason", label: "Ghi chú", required: true, maxLength: 1000 }]}
               submitLabel="Đánh dấu không đến"

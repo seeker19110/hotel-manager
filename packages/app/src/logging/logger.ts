@@ -51,6 +51,15 @@ const defaultVersion = () => {
 const SENSITIVE_KEY =
   /pass(word)?|secret|token|authorization|cookie|api[_-]?key|session|otp|cccd|cmnd|passport|id[_-]?number|document[_-]?number|identity/i;
 
+/**
+ * Khoá "chung" tên `key` (BASE-ERR-007): `key`, `api_key`, `S3_ACCESS_KEY_ID`, `accessKeyId`, `privateKey`, `signing-key`…
+ * Chỉ khớp khi `key` là một TỪ (ngăn bằng `_ . - khoảng trắng` hoặc đổi chữ hoa trong camelCase), nên `keyword`/`monkey` không bị che.
+ */
+const KEY_WORD = /(?:^|[_.\s-])keys?(?:$|[_.\s-])/i;
+const KEY_CAMEL = /[a-z0-9]Keys?(?![a-z])/;
+export const isSensitiveKey = (k: string): boolean =>
+  SENSITIVE_KEY.test(k) || KEY_WORD.test(k) || KEY_CAMEL.test(k);
+
 /** Giá trị chuỗi: che số giấy tờ (9 hoặc 12 chữ số), số điện thoại VN, email; giữ vài ký tự cuối để tra cứu. */
 // Ranh giới: không dính chữ/số/gạch nối hai bên — không che nhầm đoạn số bên trong UUID, mã băm, mã tham chiếu.
 const VN_PHONE = /(?<![\w-])(?:\+?84|0)(\d{2})\d{4}(\d{3})(?![\w-])/g;
@@ -103,7 +112,7 @@ export function redact(value: unknown, depth = 0): unknown {
   if (value && typeof value === "object") {
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(value)) {
-      out[k] = SENSITIVE_KEY.test(k) ? "***" : redact(v, depth + 1);
+      out[k] = isSensitiveKey(k) ? "***" : redact(v, depth + 1);
     }
     return out;
   }

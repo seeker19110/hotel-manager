@@ -2,7 +2,7 @@
 import { randomUUID } from "node:crypto";
 import { type Account, assertBalanced } from "@hm/domain";
 import { sql, type Transaction } from "kysely";
-import { CommandError } from "../pipeline/problem.ts";
+import { CommandError } from "../pipeline/index.ts";
 
 export type EntryType =
   | "invoice_issued"

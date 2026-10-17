@@ -27,8 +27,7 @@ import {
   readPeriod,
   unresolvedAnomalies,
 } from "../metering/meters.ts";
-import { type CommandContext, canonicalJson } from "../pipeline/command.ts";
-import { CommandError, fieldError } from "../pipeline/problem.ts";
+import { type CommandContext, CommandError, canonicalJson, fieldError } from "../pipeline/index.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

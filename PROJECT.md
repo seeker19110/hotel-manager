@@ -61,7 +61,7 @@ Mục tiêu pilot: ≥ 6 cơ sở (3 trọ, 2 khách sạn, 1 căn hộ dịch v
 
 Nỗ lực: các gói P0 trong backlog là 224/343 ngày công, tức **65% nằm ở Must**, vượt ngưỡng ≤ 60% mà khung khuyến nghị.
 
-> **Lệch kế hoạch gốc — cần chủ dự án chọn.** Kế hoạch §04/§19 để gia hạn/thanh lý đầy đủ, phân bổ thanh toán, khoá kỳ và portal mở rộng (hợp đồng, công tơ, tiến độ) ở **V1**, nghiệm thu tuần 13–16; pilot tuần 12 xử lý các việc đó bằng chứng từ tối thiểu có người duyệt. Bảng trên đang theo **backlog** (các gói T031, T032, T035, T040, T044 là P0 tuần 9–12). Hai nguồn của chính kế hoạch lệch nhau; **chủ dự án chọn theo backlog (2026-10-15)** — pilot đầy đủ hơn, rủi ro trễ cao hơn. Nếu trễ: cắt F-007, F-008, F-011 xuống tối thiểu trước; không cắt test tiền/tồn (kế hoạch §19).
+> **Lệch kế hoạch gốc — chủ dự án đã chọn (ghi ở [`SCOPE.md`](SCOPE.md)).** Kế hoạch §04/§19 để gia hạn/thanh lý đầy đủ, phân bổ thanh toán, khoá kỳ và portal mở rộng (hợp đồng, công tơ, tiến độ) ở **V1**, nghiệm thu tuần 13–16; pilot tuần 12 xử lý các việc đó bằng chứng từ tối thiểu có người duyệt. Bảng trên đang theo **backlog** (các gói T031, T032, T035, T040, T044 là P0 tuần 9–12). Hai nguồn của chính kế hoạch lệch nhau; **chủ dự án chọn theo backlog (2026-10-15)** — pilot đầy đủ hơn, rủi ro trễ cao hơn. Nếu trễ: cắt F-007, F-008, F-011 xuống tối thiểu trước; không cắt test tiền/tồn (kế hoạch §19).
 
 ### Không làm (Won't — trong V1)
 - Bán theo giường; bán theo loại phòng khi chưa gán phòng cụ thể. Lý do: MVP gán phòng ngay để bảo đảm chống trùng bằng constraint.
@@ -77,24 +77,39 @@ Nỗ lực: các gói P0 trong backlog là 224/343 ngày công, tức **65% nằ
 4. **R-004 Tranh chấp phòng cuối:** hai lễ tân cùng giữ một phòng trong cùng khoảng thời gian → đúng một người thành công, người còn lại nhận thông báo hết phòng.
 5. **R-005 Chuyển dữ liệu:** import phòng, người ở, số dư cọc/nợ đầu kỳ từ Excel → xem trước → xác nhận → đối chiếu tổng.
 
-## 5. Yêu cầu phi chức năng
-| Nhóm | Ngưỡng | Nguồn | Cách đo |
+## 5. Yêu cầu phi chức năng (theo đặc tính chất lượng ISO/IEC 25010:2023)
+Chín đặc tính của ISO/IEC 25010:2023; mỗi hàng có ngưỡng đo được hoặc ghi rõ "không áp dụng". Ngưỡng là mục tiêu nghiệm thu, chưa phải số đã đạt; số đã đo nằm ở `docs/ops/SLO.md` và kết quả CI.
+
+| Đặc tính (25010:2023) | Ngưỡng | Nguồn | Cách đo |
 |---|---|---|---|
-| Hiệu năng API | p95 < 800 ms cho API thường; p95 tạo giữ phòng < 1,5 s ở tải kiểm thử | Kế hoạch §17 | k6 với bộ dữ liệu 100 tổ chức, 5.000 phòng, 200 phiên đồng thời |
-| Hiệu năng web | LCP p75 < 2,5 s trên thiết bị và mạng mục tiêu | Kế hoạch §17; Core Web Vitals | Lighthouse CI + RUM |
-| Đồng thời | 100 lệnh tranh một phòng → tối đa 1 allocation; cùng payload gửi 100 lần → 1 hiệu lực | Kế hoạch §13 | test tích hợp trên Postgres thật |
-| Sẵn sàng | SLO 99,9%/tháng cho luồng server lõi (chưa phải SLA) | Kế hoạch §17 | uptime + error budget |
-| Phục hồi | Production: RPO DB ≤ 15 phút, RTO ≤ 4 giờ, file RPO ≤ 24 giờ — chỉ công bố sau diễn tập | Kế hoạch §17 | diễn tập restore |
-| Bảo mật | Khung blueprint M + ASVS 5.0.0 L2 cho luồng tiền/quyền | blueprint | CI + pentest có trọng tâm (tuần 21–22) |
-| Tiếp cận | WCAG 2.2 AA cho luồng chính; vùng chạm ≥ 44 CSS px | Kế hoạch §09 | axe trong E2E + kiểm tay |
-| Thiết bị | Safari iPhone (iOS ≥ 16.4), Chrome Android, Chrome/Edge desktop, chế độ cài PWA | Kế hoạch §10 | ma trận E2E + thiết bị thật |
-| Ngôn ngữ/định dạng | Tiếng Việt; VND số nguyên; múi giờ cơ sở (mặc định Asia/Ho_Chi_Minh) | Kế hoạch §12 | test đơn vị |
+| Hiệu năng (performance efficiency) | API thường p95 < 800 ms; tạo giữ phòng p95 < 1,5 s ở tải kiểm thử; web LCP p75 < 2,5 s trên thiết bị và mạng mục tiêu | Kế hoạch §17; Core Web Vitals | k6 với bộ dữ liệu 100 tổ chức, 5.000 phòng, 200 phiên đồng thời; Lighthouse CI + RUM (chưa có — `docs/autopilot/BLUEPRINT-GAPS.md`) |
+| Độ tin cậy (reliability) | SLO 99,9%/tháng cho luồng server lõi (chưa phải SLA); production: RPO DB ≤ 15 phút, RTO ≤ 4 giờ, RPO file ≤ 24 giờ — chỉ công bố sau diễn tập | Kế hoạch §17 | uptime + error budget (`docs/ops/SLO.md`); diễn tập restore (`scripts/db-backup-restore-check.sh`) |
+| Bảo mật (security) | ASVS 5.0.0 L2 cho luồng tiền/quyền; 0 truy cập chéo tổ chức | blueprint M; kế hoạch §16 | CI + bộ kiểm cách ly tenant + pentest có trọng tâm (tuần 21–22) |
+| Phù hợp chức năng (functional suitability) | 100 lệnh tranh một phòng → tối đa 1 allocation; cùng payload gửi 100 lần → 1 hiệu lực; tiền VND số nguyên; múi giờ cơ sở (mặc định Asia/Ho_Chi_Minh) | Kế hoạch §12, §13 | test tích hợp trên Postgres thật; test đơn vị |
+| Khả năng tương tác với người dùng (interaction capability) | WCAG 2.2 AA cho luồng chính; vùng chạm ≥ 44 CSS px; tiếng Việt | Kế hoạch §09, §12 | axe trong E2E + kiểm tay |
+| Tương thích (compatibility) | Cùng tồn tại với hạ tầng tự host (Postgres 17, SeaweedFS, Caddy) theo phiên bản ghim; webhook/CSV theo hợp đồng `docs/design/API-CONTRACT.md` | ADR-0002 | test hợp đồng + `apps/web/openapi.json` sinh từ nguồn |
+| Khả năng bảo trì (maintainability) | 0 vòng phụ thuộc mới giữa module `packages/app`; typecheck/lint 0 lỗi; mọi ADR đủ mục bắt buộc | ADR-0001 | `arch-guards.test.ts`, cổng `lint`/`typecheck`, `scripts/process-docs.test.mjs` |
+| Tính linh hoạt (flexibility) | Safari iPhone (iOS ≥ 16.4), Chrome Android, Chrome/Edge desktop, chế độ cài PWA | Kế hoạch §10 | ma trận E2E + thiết bị thật |
+| An toàn (safety) | Không áp dụng — V1 không điều khiển thiết bị vật lý (khoá thông minh/IoT nằm ngoài V1, mục "Không làm"); xem lại khi thêm IoT | PROJECT §3 | — |
 
 ## 6. Dữ liệu & pháp lý
 - **Dữ liệu cá nhân:** có. Dữ liệu cơ bản gồm họ tên, SĐT, email, địa chỉ. Ảnh/số CCCD và hộ chiếu được xếp là dữ liệu **nhạy cảm** theo NĐ 356/2025 [T — nguồn thứ cấp, chưa đối chiếu văn bản gốc; thiết kế vẫn bảo vệ ở mức nhạy cảm] → giảm thu thập, che, lưu file riêng tư, cấm cache offline.
+- **Phân loại dữ liệu** (BASE-SEC-013). Phân loại **theo từng cột** nằm ở [`docs/privacy/data-map.yaml`](docs/privacy/data-map.yaml) (mục đích, cơ sở pháp lý đề xuất, hạn giữ, nơi lưu, bên xử lý); test `packages/app/src/privacy/data-map.db.test.ts` đối chiếu với catalog CSDL — cột có tên mẫu PII chưa khai thì đỏ. Giá trị phân loại dùng trong sổ đó:
+
+| Lớp (`classification`) | Gồm | Xử lý bắt buộc | Ví dụ |
+|---|---|---|---|
+| `nhay_cam` | số và ảnh giấy tờ nhận dạng, số tài khoản nhận tiền | mã hoá AES-256-GCM tầng ứng dụng (D-004) hoặc file riêng tư ở bucket không công khai; chỉ hiển thị bản che; không vào log; không cache offline | `identity_documents.doc_number_enc`, ảnh giấy tờ |
+| `xac_thuc` | mật khẩu đã băm, secret TOTP, mã dự phòng, token và băm token | không bao giờ trả ra API/log; chỉ lưu dạng băm hoặc do Better Auth quản lý; xoay theo `docs/ops/runbooks/secret-leak.md` | `auth.account.password`, `guest_access_links.token_hash` |
+| `co_ban` | họ tên, SĐT, email, địa chỉ | RLS theo tổ chức; che SĐT/email trong log và thông báo; ẩn danh hoá khi xoá người (`persons.anonymized_at`) | `persons.full_name`, `persons.phone` |
+| không phải PII (`not_pii`) | cột trùng tên mẫu PII nhưng không chứa dữ liệu cá nhân, kèm lý do | không cần | khai ở mục `not_pii` của sổ |
+
+  Tối thiểu hoá: không lưu ảnh giấy tờ khi lưu trú (D-002); hạn giữ từng cột ghi ở sổ, nhiều hạn chưa chốt vì chờ DPIA (`docs/RISKS.md` RK-019).
 - **Tiền thật:** có ghi nhận tiền (QR chuyển khoản, tiền mặt, cọc). Hệ thống **không giữ tiền** và không chạm dữ liệu thẻ.
 - **Luật áp dụng** (danh sách xác minh ở `docs/research/2026-10-15-stack-va-phap-ly.md`): **tất cả ở mức [T], chưa đối chiếu văn bản gốc** — Luật BVDLCN 91/2025/QH15 + NĐ 356/2025/NĐ-CP (+ NĐ 330/2026 và NĐ 333/2026 mà blueprint trích, cần pháp lý đối chiếu); Luật Cư trú 68/2020/QH14 Đ.30 sửa bởi Luật 118/2025/QH15 (thông báo lưu trú); quy định khai báo tạm trú cho người nước ngoài; NĐ về hoá đơn điện tử (kế hoạch ghi NĐ 254/2026, cần đối chiếu); quy định giá bán điện cho người thuê nhà; Luật An ninh mạng 116/2025.
 - **DPIA:** bắt buộc trước khi dùng dữ liệu thật → `docs/DPIA.md` (việc của **người** — pháp lý soạn/duyệt, ngoài vòng tự động; chặn dữ liệu thật).
+
+### Dữ liệu test
+**Cấm** đưa dump/export dữ liệu production (hoặc dữ liệu thật của khách) vào repo, CI, staging hay máy dev. Fixture/seed chỉ dùng dữ liệu giả: email domain dành riêng (`example.test`…), SĐT dải mẫu `0100000NNN`. Danh sách cho phép và rào máy: [`docs/compliance/test-data.md`](docs/compliance/test-data.md).
 
 ## 7. Stack & kiến trúc (tóm tắt — chi tiết ở ADR-0001)
 Modular monolith TypeScript: Next.js (web + API) và một worker Node chạy chung codebase; PostgreSQL 17 **tự host** (sao lưu pgBackRest có PITR); đăng nhập + MFA bằng Better Auth trong app; file ở SeaweedFS; Caddy; email qua SMTP relay; SQL migrations; hàng đợi bền và outbox nằm trong Postgres. Chi tiết: ADR-0001 và ADR-0002 (tự host).
@@ -120,9 +135,11 @@ Modular monolith TypeScript: Next.js (web + API) và một worker Node chạy ch
 | Đại diện pilot | (chưa gán) | UAT, xác nhận số dư chuyển đổi |
 
 ## 10. Câu hỏi mở
-Danh sách đầy đủ ở mục "Câu hỏi mở" của từng SPEC. Các câu chặn chính:
-- [ ] Quy tắc prorata cho kỳ đầu/cuối lẻ ngày (theo ngày thực của tháng hay chia 30) — [chặn F-004] — hỏi: PO
-- [ ] Quy tắc làm tròn tiền (đến 1 đ hay 1.000 đ; làm tròn từng dòng hay tổng) — [chặn F-004/F-005] — hỏi: PO + kế toán
-- [ ] Giờ nhận/trả phòng và giờ chốt ngày kinh doanh mặc định — [chặn F-006] — hỏi: PO
-- [ ] Ghi nhận doanh thu (khi phát hành phiếu hay khi kỳ kết thúc) — [không chặn pilot, chặn báo cáo doanh thu] — hỏi: kế toán
-- [ ] Giấy phép mã nguồn của sản phẩm — [không chặn] — hỏi: chủ dự án
+Danh sách đầy đủ ở mục "Câu hỏi mở" của từng SPEC. Ba câu chặn pilot đã quyết (đóng theo PM-REQ-019):
+- [x] Quy tắc prorata cho kỳ đầu/cuối lẻ ngày (theo ngày thực của tháng hay chia 30) — F-004 — **Quyết 2026-10-15 (duyệt PLAN đợt 2, chủ dự án):** `actual_days` (giá × ngày tính / ngày thực của tháng, tính cả ngày đầu và cuối); đổi được sang `fixed_30` bằng `properties.settings.prorata`; chứng từ lưu quy tắc đã dùng (SPEC-metering-billing, `docs/autopilot/archive/PLAN-dot-2.md`)
+- [x] Quy tắc làm tròn tiền (đến 1 đ hay 1.000 đ; làm tròn từng dòng hay tổng) — F-004/F-005 — **Quyết 2026-10-15 (duyệt PLAN đợt 2, chủ dự án):** `HALF_UP_1` từng dòng, tổng = Σ dòng; đổi được sang `HALF_UP_1000` bằng `properties.settings.rounding`; chứng từ lưu quy tắc đã dùng
+- [x] Giờ nhận/trả phòng và giờ chốt ngày kinh doanh mặc định — F-006 — **Quyết D-002 (2026-10-16, phiên chính tự duyệt):** nhận 14:00, trả 12:00 khi cơ sở chưa đặt; giờ chốt ngày = `properties.business_day_cutoff` (SPEC-reservation-stay Q-01, SPEC-access-and-property Q-01/Q-03). Chủ dự án xem lại/đổi ý lúc nào cũng được; đổi giá trị không cần migration
+
+Còn mở, không chặn pilot:
+- [ ] Ghi nhận doanh thu (khi phát hành phiếu hay khi kỳ kết thúc) — chặn báo cáo doanh thu, không chặn pilot — hỏi: kế toán
+- [ ] Giấy phép mã nguồn của sản phẩm — hỏi: chủ dự án

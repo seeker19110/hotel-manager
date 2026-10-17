@@ -71,7 +71,7 @@ function pngWithText(): Uint8Array {
     0x1a,
     0x0a,
     ...pngChunk("IHDR", new Uint8Array(13)),
-    ...pngChunk("tEXt", ascii("Comment\0Chup tai phong 203, SDT 0912345678")),
+    ...pngChunk("tEXt", ascii("Comment\0Chup tai phong 203, SDT 0100005678")),
     ...pngChunk("IDAT", Uint8Array.from([1, 2, 3])),
     ...pngChunk("IEND", new Uint8Array()),
   ]);
@@ -162,7 +162,7 @@ describe("tải lên (TM-07)", () => {
     const u = await urlFor(owner, r.data.fileId);
     if (u.status !== "committed") throw new Error("url");
     const body = Buffer.from(await (await fetch(u.data.url)).arrayBuffer()).toString("latin1");
-    expect(body).not.toContain("0912345678");
+    expect(body).not.toContain("0100005678");
     expect(body).toContain("IDAT");
   });
 

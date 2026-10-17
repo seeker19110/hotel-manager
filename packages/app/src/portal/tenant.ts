@@ -6,10 +6,10 @@ import { withTenant } from "@hm/db";
 import { authorize, bankBin, buildVietQr } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/actor.ts";
+import { assertPropertyInOrg } from "../access/scope.ts";
 import type { FileDeps } from "../files/files.ts";
 import { createWorkOrder, type Severity } from "../maintenance/work-orders.ts";
-import type { CommandContext } from "../pipeline/command.ts";
-import { CommandError } from "../pipeline/problem.ts";
+import { type CommandContext, CommandError } from "../pipeline/index.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PHOTO_URL_SECONDS = 300;
@@ -439,6 +439,7 @@ export async function listPaymentClaims(
   if (input.propertyId !== undefined && !UUID.test(input.propertyId)) throw notFound();
   authorize(actor, "payment.record", input.propertyId ? { propertyId: input.propertyId } : {});
   return withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
+    if (input.propertyId) await assertPropertyInOrg(trx, actor.orgId, input.propertyId);
     const r = await sql<{
       id: string;
       property_id: string;

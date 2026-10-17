@@ -36,7 +36,7 @@ async function inHouse(opts: { advance?: boolean; deposit?: boolean } = {}) {
       departureDate: "2026-10-22",
       guests: 2,
       source: "direct",
-      booker: { fullName: "Khách folio", phone: "0911222333" },
+      booker: { fullName: "Khách folio", phone: "0100002333" },
     }),
   );
   await okAs(h.t, h.manager, (ctx) => holdReservation(ctx, { reservationId: d.reservationId }));
@@ -80,7 +80,7 @@ async function inHouse(opts: { advance?: boolean; deposit?: boolean } = {}) {
   const s = await okAs(h.t, h.frontDesk, (ctx) =>
     checkIn(ctx, pii, {
       reservationId: d.reservationId,
-      guests: [{ fullName: "Khách folio", phone: "0911222333", docType: "cccd", docNumber: "001099887766" }],
+      guests: [{ fullName: "Khách folio", phone: "0100002333", docType: "cccd", docNumber: "001099887766" }],
       now: new Date("2026-10-20T08:00:00Z"),
     }),
   );

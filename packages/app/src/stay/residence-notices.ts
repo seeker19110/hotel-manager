@@ -3,7 +3,7 @@
 // yêu cầu (không ảnh giấy tờ, SĐT, ghi chú nội bộ, số tiền), riêng tư, link ký ≤ 5 phút, tự xoá sau hạn ngắn.
 import { createHash } from "node:crypto";
 import { withTenant } from "@hm/db";
-import { authorize, toCsv } from "@hm/domain";
+import { authorize, MS_PER_MINUTE, toCsv } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/actor.ts";
 import {
@@ -16,8 +16,7 @@ import {
 } from "../files/files.ts";
 import { revealDocNumber } from "../identity/identity.ts";
 import { writeXlsx } from "../import/xlsx.ts";
-import type { CommandContext } from "../pipeline/command.ts";
-import { CommandError } from "../pipeline/problem.ts";
+import { type CommandContext, CommandError } from "../pipeline/index.ts";
 import type { AppServices } from "../server/services.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -314,7 +313,10 @@ export async function markNoticeSubmitted(
       extensions: { from: "submitted", to: "submitted" },
     });
   const now = input.now ?? new Date();
-  if (Number.isNaN(input.submittedAt.getTime()) || input.submittedAt.getTime() > now.getTime() + 60_000)
+  if (
+    Number.isNaN(input.submittedAt.getTime()) ||
+    input.submittedAt.getTime() > now.getTime() + MS_PER_MINUTE
+  )
     throw new CommandError("VALIDATION_FAILED", 422, "Thời điểm thông báo không được ở tương lai", {
       extensions: { errors: [{ path: "submitted_at", field: "submitted_at", code: "in_future" }] },
     });

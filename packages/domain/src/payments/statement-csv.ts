@@ -1,9 +1,10 @@
 // Đọc sao kê CSV có ánh xạ cột (SPEC-ledger S-019). Thuần, không I/O: CSV RFC 4180 (ngoặc kép, xuống dòng trong ô, BOM),
 // số tiền kiểu Việt Nam ("1.580.000", "1,580,000", "1.580.000,00"), ngày giờ địa phương Asia/Ho_Chi_Minh (+07:00).
 // Lỗi từng dòng được trả về theo dòng — không làm hỏng cả file.
+import { mibToBytes } from "../units/units.ts";
 
 export const STATEMENT_MAX_ROWS = 5000;
-export const STATEMENT_MAX_BYTES = 2 * 1024 * 1024;
+export const STATEMENT_MAX_BYTES = mibToBytes(2);
 
 export function parseCsv(text: string, delimiter?: string): string[][] {
   const src = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;

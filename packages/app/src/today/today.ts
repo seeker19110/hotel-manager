@@ -8,7 +8,7 @@
 import { withTenant } from "@hm/db";
 import { type Kysely, type RawBuilder, sql } from "kysely";
 import type { Actor } from "../access/actor.ts";
-import { CommandError } from "../pipeline/problem.ts";
+import { CommandError } from "../pipeline/index.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

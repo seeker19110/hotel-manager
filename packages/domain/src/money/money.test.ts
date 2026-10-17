@@ -102,3 +102,13 @@ describe("cân đối bút toán (INV-F1 tầng domain)", () => {
     ).toThrow(/nguyên/);
   });
 });
+
+describe("đơn giá lẻ (IND-FIN-001, ADR-0003) — không qua số thực", () => {
+  it("10,001 đ × 1 → 10 đ; 10,5 đ × 1 → 11 đ (nửa lên); 0,1 × 3 = 0 (không sai số float)", () => {
+    expect(lineAmount("1", "10.001")).toBe(10);
+    expect(lineAmount("1", "10.5")).toBe(11);
+    expect(lineAmount("3", "0.1")).toBe(0);
+    expect(lineAmount("30", "0.1")).toBe(3);
+    expect(lineAmount("0", "10.001")).toBe(0);
+  });
+});

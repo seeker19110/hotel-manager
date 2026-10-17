@@ -130,7 +130,7 @@ describe("S-003 danh sách việc theo tầng và ưu tiên", () => {
         departureDate: "2026-10-21",
         guests: 1,
         source: "direct",
-        booker: { fullName: "Khách Bí Mật", phone: "0977888999" },
+        booker: { fullName: "Khách Bí Mật", phone: "0100008999" },
       }),
     );
     await okAs(h.t, h.frontDesk, (ctx) => holdReservation(ctx, { reservationId: d.reservationId }));
@@ -145,7 +145,7 @@ describe("S-003 danh sách việc theo tầng và ưu tiên", () => {
     expect(ids.indexOf(t2)).toBeLessThan(ids.indexOf(t1));
     expect(list.find((x) => x.id === t2)?.arrivalToday).toBe(true);
     for (const row of list) expect(Object.keys(row).sort()).toEqual([...TASK_FIELDS].sort());
-    expect(JSON.stringify(list)).not.toMatch(/Khách Bí Mật|0977888999|600000/);
+    expect(JSON.stringify(list)).not.toMatch(/Khách Bí Mật|0100008999|600000/);
   });
 });
 
@@ -324,7 +324,7 @@ describe("S-010 sạch không có nghĩa là trống", () => {
       walkIn(ctx, createPiiCipher(devKeyring()), {
         unitId: u,
         departureDate: "2026-10-21",
-        guests: [{ fullName: "Khách", phone: "0901000999", docType: "cccd", docNumber: "001200300400" }],
+        guests: [{ fullName: "Khách", phone: "0100000999", docType: "cccd", docNumber: "001200300400" }],
         now: new Date("2026-10-20T08:00:00Z"),
       }),
     );

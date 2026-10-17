@@ -35,7 +35,7 @@ let ELEC: string;
 async function member(role: string, personId: string = randomUUID(), name = role): Promise<Actor> {
   const user = await seedAuthUser(t.admin, `${role}+${randomUUID().slice(0, 6)}@example.test`);
   const membership = randomUUID();
-  await sql`insert into persons (id, organization_id, full_name, phone) values (${personId}, ${A.orgId}, ${name}, '0901000000')
+  await sql`insert into persons (id, organization_id, full_name, phone) values (${personId}, ${A.orgId}, ${name}, '0100000000')
             on conflict (id) do nothing`.execute(t.admin);
   await sql`insert into memberships (id, organization_id, auth_user_id, person_id, role)
             values (${membership}, ${A.orgId}, ${user}, ${personId}, ${role})`.execute(t.admin);
@@ -46,7 +46,7 @@ async function member(role: string, personId: string = randomUUID(), name = role
   return resolveActor(t.runtime, { authUserId: user, orgId: A.orgId, twoFactorEnabled: true });
 }
 
-async function person(name: string, phone: string | null = "0912345678"): Promise<string> {
+async function person(name: string, phone: string | null = "0100005678"): Promise<string> {
   const id = randomUUID();
   await sql`insert into persons (id, organization_id, full_name, phone) values (${id}, ${A.orgId}, ${name}, ${phone})`.execute(
     t.admin,
@@ -385,7 +385,7 @@ describe("S-008…S-010 người ở, PII, quyền đọc", () => {
   });
 
   it("S-009: buồng phòng đọc hồ sơ người thuê → 404, không lộ dữ liệu, audit lần bị từ chối", async () => {
-    const a = await person("Người thuê PII", "0987654321");
+    const a = await person("Người thuê PII", "0100004321");
     await expect(getPerson(t.runtime, H, a)).rejects.toMatchObject({ code: "NOT_FOUND", status: 404 });
     const raw = await t.runtime.transaction().execute(async (trx) => {
       await sql`select set_config('app.org_id', ${A.orgId}, true), set_config('app.actor_id', ${H.membershipId}, true)`.execute(
@@ -402,7 +402,7 @@ describe("S-008…S-010 người ở, PII, quyền đọc", () => {
     expect(denied.rows[0]?.n).toBe(1);
     await expect(getPerson(t.runtime, F, a)).resolves.toMatchObject({
       full_name: "Người thuê PII",
-      phone: "0987654321",
+      phone: "0100004321",
     });
     // Buồng phòng vẫn đọc được hồ sơ của chính mình.
     await expect(getPerson(t.runtime, H, H.personId)).resolves.toMatchObject({ id: H.personId });

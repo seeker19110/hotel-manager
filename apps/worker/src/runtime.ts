@@ -16,7 +16,9 @@ import {
   type Logger,
   loadWorkerConfig,
   type ObjectStorage,
+  parseOutboxPayload,
   remindExpiring,
+  runReconciliationDaily,
   runReminders,
   runRetention,
   sendDueEmails,
@@ -50,6 +52,8 @@ export interface Intervals {
   lease: number;
   exports: number;
   retention: number;
+  /** Đối soát hằng ngày (IND-FIN-006). */
+  reconciliation: number;
 }
 
 export const DEFAULT_INTERVALS: Intervals = {
@@ -62,6 +66,7 @@ export const DEFAULT_INTERVALS: Intervals = {
   lease: HOUR,
   exports: 5 * MINUTE,
   retention: 24 * HOUR,
+  reconciliation: 24 * HOUR,
 };
 
 export const DEFAULT_STOP_TIMEOUT_MS = 25_000;
@@ -136,11 +141,14 @@ export async function startWorker(deps: WorkerDeps): Promise<WorkerHandle> {
   const iv = { ...DEFAULT_INTERVALS, ...deps.intervals };
   const stopTimeoutMs = deps.stopTimeoutMs ?? DEFAULT_STOP_TIMEOUT_MS;
 
-  // Handler của pg-boss: lỗi được log rồi ném lại để pg-boss retry/dead letter theo chính sách queue.
+  // Handler của pg-boss: validate payload theo event_type TRƯỚC khi chạy (BE-JOB-007; sai ⇒ lỗi vĩnh viễn, dead letter
+  // ngay); lỗi được log rồi ném lại — `startConsumers` phân loại: vĩnh viễn ⇒ dead letter không retry, còn lại ⇒ pg-boss
+  // retry/dead letter theo chính sách queue.
   const wrap =
     (type: string, h: (job: OutboxJob) => Promise<unknown>) =>
     async (job: OutboxJob): Promise<void> => {
       try {
+        parseOutboxPayload(type, job.payload);
         await h(job);
       } catch (err) {
         log.error("job.handler_failed", { event_type: type, outbox_id: job.outbox_id, error: err });
@@ -162,6 +170,7 @@ export async function startWorker(deps: WorkerDeps): Promise<WorkerHandle> {
   await ensureQueues(boss, eventTypes);
   await startConsumers(boss, handlers, {
     pollingIntervalSeconds: deps.pollingIntervalSeconds ?? 2,
+    log: (e, f) => log.warn(e, f),
   });
 
   const ac = new AbortController();
@@ -205,6 +214,12 @@ export async function startWorker(deps: WorkerDeps): Promise<WorkerHandle> {
         sequence([() => remindExpiring(workerDb, new Date()), () => detectOverstay(workerDb, new Date())]),
     },
     { name: "exports.expire", everyMs: iv.exports, run: expireExportsJob(workerDb) },
+    {
+      // Hằng ngày: break đối soát mở quá SLA + sổ cái trôi (IND-FIN-006). Chạy lại bao nhiêu lần/ngày vẫn một hiệu lực.
+      name: "reconciliation.daily",
+      everyMs: iv.reconciliation,
+      run: () => runReconciliationDaily(workerDb, new Date(), { log: (e, f) => log.error(e, f) }),
+    },
     {
       name: "import.retention",
       everyMs: iv.retention,

@@ -18,7 +18,7 @@ Cộng các trường chung của logger: `ts`, `service`, `version`, `env`.
 
 **IP:** không ghi IP đầy đủ, cũng không ghi băm trần (IPv4 chỉ 2^32 giá trị — băm không muối đảo ngược được trong vài giây). IP cắt đủ để gom
 theo mạng/nhà cung cấp, không định danh một thiết bị. Cần IP đầy đủ khi điều tra → nhật ký reverse proxy (hạn giữ ngắn, quyền hạn chế).
-Nguồn IP: hop PHẢI NHẤT của `X-Forwarded-For` (do proxy tin cậy duy nhất nối thêm; hop đầu do client tự khai nên không dùng) — ràng buộc triển khai ở RUNBOOK §9.
+Nguồn IP: hop PHẢI NHẤT của `X-Forwarded-For` (do proxy tin cậy duy nhất nối thêm; hop đầu do client tự khai nên không dùng) — ràng buộc triển khai ở RUNBOOK §11.
 
 ## Danh mục
 
@@ -35,9 +35,24 @@ Nguồn IP: hop PHẢI NHẤT của `X-Forwarded-For` (do proxy tin cậy duy nh
 | `guest_link.revoked` | Nhân viên thu hồi liên kết khách | `portal/guest.ts` `revokeGuestLink` | idem |
 | `guest_link.denied` | Liên kết khách bị từ chối (token sai, sai bước hai, đã thu hồi/khoá) — không ghi token | `portal/guest.ts` `guestGetStay` | idem |
 | `guest_link.locked` | Liên kết khách bị khoá do sai bước hai quá số lần | `portal/guest.ts` | idem |
+| `auth.login` | Đăng nhập: `success` (`reason` = `password` · `email_otp` · `mfa`), `failure` (`invalid_credentials` · `otp_invalid` · `otp_not_allowed` · `mfa_invalid`), `denied` (`account_locked`). Mật khẩu đúng nhưng còn bước hai (MFA) ⇒ CHƯA phát `success`; phát khi xác minh bước hai xong | `auth/auth.ts` hook → `auth/auth-events.ts` | `auth/auth-events.db.test.ts` |
+| `auth.logout` | Đăng xuất (phiên có thật) | idem | idem |
+| `auth.account_locked` | Lần sai khiến tài khoản bị khoá tạm (5 lần/15 phút) | idem | idem |
+| `auth.password_changed` | Đổi mật khẩu: `success`; `failure` (`invalid_password`) | idem | idem |
+| `auth.mfa_enabled` | Hoàn tất đăng ký MFA lần đầu (`success`); mã xác minh sai (`failure`, `mfa_invalid`) | idem | idem |
+| `auth.mfa_disabled` | Tắt MFA: `success`; `failure` (`invalid_password`) | idem | idem |
 
 Sự kiện thành công (`ctx.security`) chỉ phát **sau commit**; lệnh bị rollback hoặc replay cùng `Idempotency-Key` không phát. Sự kiện từ chối của
 command phát một lần cho mỗi `Idempotency-Key`.
 
-Chưa có (ngoài phạm vi đợt 4, cần hook Better Auth): đăng nhập thành công/thất bại, đăng xuất, đăng ký/đổi MFA, đổi mật khẩu — xem
-`docs/autopilot/BLUEPRINT-GAPS.md` mục `SEC-LOG-001`.
+**Sự kiện xác thực (T-405).** Phát từ hook Better Auth; `actor.user_id` + `target {type: "account", id}` là UUID người dùng (không email/tên). Không bao giờ
+ghi mật khẩu, OTP, mã TOTP. Đăng nhập sai với email lạ: `actor = null`, `target.id = null`. Ngoài log, các sự kiện **đã xác thực hoặc chuyển trạng thái**
+(đăng nhập thành công, đăng xuất, bật/tắt MFA, đổi mật khẩu, khoá tài khoản) được ghi `audit_events` (`action` = tên sự kiện, `entity_type = membership`) ở **mỗi tổ chức**
+người đó còn membership hiệu lực, kèm `source_ip`/`user_agent` — owner xem được "ai đăng nhập/đổi bảo mật ở đâu". Từng lần đăng nhập SAI chỉ ở log, không vào audit
+(ai biết email cũng gây được; bảng append-only sẽ bị làm đầy). Đổi mật khẩu/tắt MFA còn sinh sự kiện outbox `member.password_changed`/`member.mfa_disabled` ⇒ thông báo `account_security`
+(cùng `member.mfa_reset` khi owner đặt lại MFA) cho chính người đó.
+
+**Audit "từ đâu".** `audit_events.source_ip` (đã cắt /24, /48; CSDL chặn dạng khác) và `user_agent` (≤ 200 ký tự, NFC) do pipeline lệnh ghi từ `requestClient`; việc của worker/hệ thống: `NULL`.
+Còn lại, đường ghi audit ngoài pipeline (truy vấn bị từ chối `person.read`/`portal.access_denied`, job worker) chưa có client ⇒ `NULL`.
+
+Chưa có (xem `docs/autopilot/BLUEPRINT-GAPS.md` mục `SEC-LOG-001`): cấp/thu hồi token, đổi cấu hình, upload, lỗi validate/deserialize.

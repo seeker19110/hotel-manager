@@ -85,6 +85,7 @@ export default async function LeasePage({ params }: { params: Promise<{ id: stri
             <CommandForm
               path="lease/sign"
               confirm="Ký hợp đồng sẽ chốt điều khoản và giữ phòng; không sửa lại được — muốn đổi phải lập phụ lục."
+              confirmLabel={`Ký hợp đồng ${lease.number}`}
               fixed={{ lease_id: id, signer_person_id: lease.representative_person_id }}
               submitLabel="Ký hợp đồng"
               successText="Đã ký hợp đồng."
@@ -128,6 +129,7 @@ export default async function LeasePage({ params }: { params: Promise<{ id: stri
             <CommandForm
               path="lease/activate"
               confirm="Hợp đồng chuyển sang đang thuê và bắt đầu tính tiền theo kỳ."
+              confirmLabel={`Kích hoạt hợp đồng ${lease.number}`}
               fixed={{ lease_id: id }}
               submitLabel="Kích hoạt"
               successText="Hợp đồng đang hiệu lực."
@@ -142,6 +144,7 @@ export default async function LeasePage({ params }: { params: Promise<{ id: stri
               <CommandForm
                 path="deposit/receive"
                 confirm="Ghi nhận tiền cọc vào sổ; muốn sửa phải lập bút toán điều chỉnh có duyệt."
+                confirmLabel={`Nhận cọc {amount} cho ${lease.number}`}
                 fixed={{
                   property_id: lease.property_id,
                   lease_id: id,
@@ -177,6 +180,7 @@ export default async function LeasePage({ params }: { params: Promise<{ id: stri
             <CommandForm
               path="lease/giveNotice"
               confirm="Ghi nhận người thuê báo trả phòng; hợp đồng chuyển sang chờ trả, không rút lại được trên hệ thống."
+              confirmLabel={`Ghi nhận báo trả phòng ${x.unit} (${lease.number}) ngày {planned_move_out_on}`}
               fixed={{ lease_id: id }}
               fields={[
                 { name: "planned_move_out_on", label: "Ngày dự kiến trả", type: "date", required: true },
@@ -194,6 +198,7 @@ export default async function LeasePage({ params }: { params: Promise<{ id: stri
             <CommandForm
               path="lease/recordHandover"
               confirm="Bàn giao trả phòng chốt ngày trả và chỉ số cuối; hợp đồng chuyển sang quyết toán, không quay lại đang thuê."
+              confirmLabel={`Chốt trả phòng ${x.unit} (${lease.number}) ngày {handed_over_on}`}
               fixed={handoverFixed("move_out")}
               fields={[
                 { name: "handed_over_on", label: "Ngày trả phòng", type: "date", required: true },
@@ -223,6 +228,7 @@ export default async function LeasePage({ params }: { params: Promise<{ id: stri
             <CommandForm
               path="lease/prepareSettlement"
               confirm="Lập quyết toán từ chỉ số và công nợ hiện tại của hợp đồng."
+              confirmLabel={`Lập quyết toán ${lease.number}`}
               fixed={{ lease_id: id, fees: [] }}
               submitLabel="Lập quyết toán"
               successText="Đã lập quyết toán — chờ duyệt."

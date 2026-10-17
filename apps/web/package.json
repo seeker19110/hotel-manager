@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -H ${HOST:-127.0.0.1}",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -H ${HOST:-127.0.0.1}",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {

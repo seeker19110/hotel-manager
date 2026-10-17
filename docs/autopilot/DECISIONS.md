@@ -197,3 +197,64 @@
 - Chọn: Đổi tên lệnh thành room_type.create/update (khớp quy ước snake_case đoạn đầu của mọi lệnh khác + tên bảng room_types), thêm test mọi lệnh registry khớp CHECK
 - Lý do (tiêu chí chất lượng cuối): (1) đúng: mọi lệnh khác đều snake_case đoạn đầu; chưa client nào gọi roomType.* (UI chưa có màn loại phòng, lệnh luôn lỗi) nên đổi tên không phá ai. (3) đơn giản: không đụng schema; test registry ↔ CHECK chặn tái phát.
 - Đường lùi: Đổi lại tên trong registry + chạy pnpm openapi.
+
+### D-028 · 2026-10-16T15:18:24+00:00 · Đợt 5: 115 MUST còn thiếu làm được trong repo — phạm vi, thứ tự, cách chia lát?
+
+- Phương án: (1) Làm hết 115 trong một đợt 13 task, 3 lát (runtime/bảo mật, dữ liệu/CSDL/kiến trúc, UX/tài liệu), mục cần CI/người/pháp lý/hạ tầng đã defer · (2) Dừng ở đợt 4, bàn giao 115 mục · (3) Chỉ làm mục bảo mật/đúng-sai, để UX/tài liệu cho người
+- Chọn: Làm hết 115 trong một đợt 13 task, 3 lát (runtime/bảo mật, dữ liệu/CSDL/kiến trúc, UX/tài liệu), mục cần CI/người/pháp lý/hạ tầng đã defer
+- Lý do (tiêu chí chất lượng cuối): (1) đúng và an toàn: còn lỗi thật (relay gửi trong transaction, web chưa dừng êm, ma trận quyền chưa phủ toàn registry) nằm trong nhóm này — dừng là để lại rủi ro biết trước. (3) mọi mục có Gate máy kiểm; ngân sách còn (vòng 19/130). Phương án 3 bỏ việc làm được.
+- Đường lùi: Mỗi lát một PR; bỏ lát nào thì revert PR đó.
+
+### D-029 · 2026-10-16T16:17:33+00:00 · T-403: cookie phiên Better Auth dùng tiền tố __Host- (khi https) thay __Secure-?
+
+- Phương án: (1) __Host-hm.session_token: Secure, Path=/, không Domain (cookiePrefix + defaultCookieAttributes) · (2) Giữ __Secure- mặc định
+- Chọn: __Host-hm.session_token: Secure, Path=/, không Domain (cookiePrefix + defaultCookieAttributes)
+- Lý do (tiêu chí chất lượng cuối): (1) an toàn: __Host- chặn subdomain/đường dẫn khác ghi đè cookie phiên (cookie tossing) — chuẩn OWASP cho cookie phiên; Better Auth 1.7.9 hỗ trợ sạch, có test db. Hệ quả: đổi APP_BASE_URL http↔https làm mất phiên cũ (đã ghi RUNBOOK §8b) — chấp nhận được vì chưa có production.
+- Đường lùi: Bỏ cookiePrefix/defaultCookieAttributes trong auth.ts; người dùng đăng nhập lại một lần.
+
+### D-030 · 2026-10-16T16:17:34+00:00 · T-404: 4 truy vấn (report.financialSummary, reconciliation.previewMatches, payment.listClaims, notifications.listDeliveries) nhận bộ lọc/id của tổ chức khác trả 200 rỗng — đổi sang 404?
+
+- Phương án: (1) Giữ 200 rỗng (RLS lọc, không lộ dữ liệu; test khẳng định rỗng/0), ghi ngoại lệ có lý do · (2) Đổi sang 404 khi bộ lọc không thuộc tổ chức/phạm vi
+- Chọn: Đổi sang 404 khi bộ lọc không thuộc tổ chức/phạm vi
+- Lý do (tiêu chí chất lượng cuối): (1) đúng: quy ước dự án (SPEC-access-and-property, exports, reports) là cơ sở/đối tượng ngoài phạm vi ⇒ 404; 200 rỗng khiến người dùng tưởng không có dữ liệu thay vì sai cơ sở và là ngoại lệ phải nhớ. (3) thống nhất, test được bằng ma trận. Không lộ dữ liệu ở cả hai cách nên đổi rủi ro thấp.
+- Đường lùi: Bỏ kiểm phạm vi bộ lọc ở 4 truy vấn; ma trận đưa lại vào ngoại lệ.
+### D-032 · 2026-10-16T16:30:49+00:00 · T-411: loading.tsx ở nhóm route có [id]/notFound làm 404/500 thành HTTP 200 (streaming) — đặt loading ở đâu?
+
+- Phương án: (1) A: chỉ nhóm danh sách thuần (thu-tien, su-co, doi-soat, thong-bao, thong-bao-luu-tru); error.tsx mọi nhóm; test chặn loading ở nhóm có [id]/notFound · (2) B: loading mọi nhóm, chấp nhận 404/500 thành 200 · (3) C: chuyển trang danh sách vào route group (danh-sach) để có loading mà [id] không bị bọc
+- Chọn: A: chỉ nhóm danh sách thuần (thu-tien, su-co, doi-soat, thong-bao, thong-bao-luu-tru); error.tsx mọi nhóm; test chặn loading ở nhóm có [id]/notFound
+- Lý do (tiêu chí chất lượng cuối): (1) đúng: mã trạng thái HTTP đúng (404/500) là hợp đồng với client, metric SLO (T-406) và bảo mật (không lộ tồn tại qua 200); B phá điều đó. (3) đơn giản: C đổi cấu trúc file nhiều route để đổi lấy skeleton — lợi ích UX nhỏ so với rủi ro; A có rào test.
+- Đường lùi: Thêm loading.tsx theo C khi cần skeleton cho trang chi tiết.
+### D-031 · 2026-10-16T16:23:35+00:00 · T-410: thư viện Argon2id cho mật khẩu (Better Auth password.hash/verify)?
+
+- Phương án: (1) node:crypto argon2 dựng sẵn (Node ≥ 24.7; dự án ghim 24.22) + tự mã hoá chuỗi PHC $argon2id$v=19$m=19456,t=2,p=1$… và so sánh timingSafeEqual; băm scrypt cũ verify bằng hàm mặc định của Better Auth rồi băm lại khi đăng nhập · (2) @node-rs/argon2 2.2.2 (MIT, 0 dependency, binary napi dựng sẵn, có PHC + verify) · (3) argon2 (node-argon2) 0.45.1 (MIT, install script node-gyp-build)
+- Chọn: node:crypto argon2 dựng sẵn (Node ≥ 24.7; dự án ghim 24.22) + tự mã hoá chuỗi PHC $argon2id$v=19$m=19456,t=2,p=1$… và so sánh timingSafeEqual; băm scrypt cũ verify bằng hàm mặc định của Better Auth rồi băm lại khi đăng nhập
+- Lý do (tiêu chí chất lượng cuối): (1) an toàn chuỗi cung ứng: không thêm binary native/install script của bên thứ ba vào luồng xác thực; crypto.argon2 có trong Node 24 LTS, docs không đánh dấu experimental (nguồn nodejs.org/docs/latest-v24.x, 2026-10-16). Tham số OWASP m=19456 KiB, t=2, p=1 (cheatsheet, 2026-10-16). Phần tự viết chỉ là mã hoá/giải mã PHC + so sánh hằng thời gian — nhỏ, test được bằng vector. (3) ít phụ thuộc. Phương án 2 hợp lệ nếu crypto.argon2 có vấn đề.
+- Đường lùi: Đổi hàm hash/verify sang @node-rs/argon2 (cùng định dạng PHC nên băm đã lưu vẫn verify được).
+
+### D-033 · 2026-10-17T02:06:15+00:00 · Xuất toàn tổ chức (S-018, IND-SAAS-007): nhúng file đính kèm nào? SPEC S-018/Q-05 ghi 'không gồm file ảnh và số giấy tờ', blueprint IND-SAAS-007 đòi dữ liệu xuất được đầy đủ
+
+- Phương án: (1) Allowlist owner_type không chứa số giấy tờ: work_order, handover, meter_reading, task, payment_claim, lease_settlement; loại identity_document, residence_notice, import_batch, export_job (danh sách trong MANIFEST kèm lý do); cập nhật SPEC S-018/Q-05 · (2) Không nhúng file nào (giữ S-018 cũ), IND-SAAS-007 để mở · (3) Nhúng mọi file ready, chỉ loại identity_document (hiện trạng — lộ CCCD qua residence_notice/import_batch)
+- Chọn: Allowlist owner_type không chứa số giấy tờ: work_order, handover, meter_reading, task, payment_claim, lease_settlement; loại identity_document, residence_notice, import_batch, export_job (danh sách trong MANIFEST kèm lý do); cập nhật SPEC S-018/Q-05
+- Lý do (tiêu chí chất lượng cuối): (1) an toàn: số giấy tờ chỉ đi ra qua luồng thông báo lưu trú có kiểm soát; allowlist đóng mặc định (owner_type mới không tự lọt). Q-05 cấm số giấy tờ — ảnh công tơ/sự cố/biên bản không chứa số giấy tờ nên cho phép theo đúng mục đích quyền mang dữ liệu đi (IND-SAAS-007). (2) đường lùi: một hằng số.
+- Đường lùi: Đặt allowlist rỗng ⇒ quay về không nhúng file.
+
+### D-034 · 2026-10-17T02:23:29+00:00 · BE-API-008/ARC-INT-002: cùng Idempotency-Key khác payload hiện trả 409 IDEMPOTENCY_CONFLICT; chuẩn khung và draft IETF httpapi-idempotency-key-header đòi 422
+
+- Phương án: (1) Đổi sang 422 (giữ code IDEMPOTENCY_CONFLICT), cập nhật API-CONTRACT/OpenAPI/test; client xử lý theo code nên không vỡ · (2) Giữ 409, miễn trừ BE-API-008 có lý do
+- Chọn: Đổi sang 422 (giữ code IDEMPOTENCY_CONFLICT), cập nhật API-CONTRACT/OpenAPI/test; client xử lý theo code nên không vỡ
+- Lý do (tiêu chí chất lượng cuối): (3) theo chuẩn: draft IETF (httpapi-idempotency-key-header) ghi 422 khi tái dùng khoá với payload khác (chưa xác minh lại bản mới nhất — ghi nguồn khi sửa); use-command.ts xử lý theo code IDEMPOTENCY_CONFLICT chứ không theo status nên không vỡ client; chưa có client ngoài.
+- Đường lùi: Đổi lại status 409 ở một chỗ (pipeline/problem.ts).
+
+### D-035 · 2026-10-17T02:23:29+00:00 · DB-MODEL-004: ~240 FK mặc định NO ACTION (không ghi hành động) + 74 FK thiếu index trong nền — làm tường minh thế nào?
+
+- Phương án: (1) Migration mới: đổi FK NO ACTION không DEFERRABLE sang ON DELETE RESTRICT (cùng ngữ nghĩa khi không trì hoãn); FK DEFERRABLE giữ NO ACTION + ghi danh sách ngoại lệ có lý do trong rào; thêm index cho FK còn thiếu trừ nhóm có lý do (cột người thao tác bảng ít xoá) — rào ratchet về 0 hoặc ngoại lệ tường minh · (2) Miễn trừ DB-MODEL-004 · (3) Viết lại toàn bộ FK kể cả DEFERRABLE thành RESTRICT
+- Chọn: Migration mới: đổi FK NO ACTION không DEFERRABLE sang ON DELETE RESTRICT (cùng ngữ nghĩa khi không trì hoãn); FK DEFERRABLE giữ NO ACTION + ghi danh sách ngoại lệ có lý do trong rào; thêm index cho FK còn thiếu trừ nhóm có lý do (cột người thao tác bảng ít xoá) — rào ratchet về 0 hoặc ngoại lệ tường minh
+- Lý do (tiêu chí chất lượng cuối): (1) đúng: RESTRICT và NO ACTION chỉ khác khi FK trì hoãn được — đổi phần không trì hoãn giữ nguyên hành vi, làm hành động tường minh trong catalog; phương án 3 phá FK DEFERRABLE đang dựa vào kiểm cuối transaction. (3) kiểm máy được bằng catalog.
+- Đường lùi: Down của migration đổi lại NO ACTION (danh sách sinh từ catalog lúc up), drop index đã thêm.
+
+### D-036 · 2026-10-17T02:24:00+00:00 · Đợt 6: 26 MUST còn thiếu làm được trong repo — làm hết hay dừng?
+
+- Phương án: (1) Làm hết trong 8 task T-501…T-508 (cùng luật D-023) · (2) Dừng, bàn giao 26 mục
+- Chọn: Làm hết trong 8 task T-501…T-508 (cùng luật D-023)
+- Lý do (tiêu chí chất lượng cuối): (1) đúng/an toàn: gồm rào transaction, retry có jitter, FK tường minh, sự kiện bảo mật còn thiếu — lỗi tiềm ẩn thật; (3) mỗi mục có Gate máy; ngân sách còn (vòng 33/130).
+- Đường lùi: Mỗi task một commit; revert theo task.

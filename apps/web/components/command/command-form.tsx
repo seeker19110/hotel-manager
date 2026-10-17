@@ -3,9 +3,14 @@
 // lỗi chung role=alert, trạng thái "đang kiểm tra kết quả" role=status, nút "Gửi lại" khi chưa rõ server đã nhận (S-011).
 // Thành công ⇒ báo role=status rồi làm mới dữ liệu trang (Server Component) — không tự tạo kết quả phía client.
 // `confirm` (PLAN đợt 4 T-310, UX-STATE-008): thao tác không hoàn tác (ký, phát hành, thu tiền, trả phòng, huỷ…) mở hộp
-// thoại modal `<dialog>` nêu hậu quả; chỉ gửi khi bấm "Đồng ý" — Esc/"Quay lại" không gửi gì, focus trả về nút gửi.
+// thoại modal `<dialog>` nêu hậu quả; chỉ gửi khi bấm nút xác nhận — Esc/"Quay lại" không gửi gì, focus trả về nút gửi.
+// `confirmLabel` (đợt 5 T-411): nút xác nhận ghi ĐÚNG động từ + đối tượng ("Ký hợp đồng HD-000001", "Thu {amount}"); chỗ
+// `{tên_ô}` được thay bằng giá trị người dùng vừa nhập (ô tiền định dạng "930.000 đ") nên hộp nêu đúng số sắp ghi sổ.
+// Quy tắc đọc ô nhập dùng chung với schema server (`@hm/app/form-rules`, FE-FORM-001); server vẫn validate lại tất cả.
+import { fillConfirmLabel, parseDecimalInput, parseIntegerInput, parseMoneyInput } from "@hm/app/form-rules";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useId, useRef, useState } from "react";
+import { day, vnd } from "../../lib/format.ts";
 import { Button } from "../ui/button.tsx";
 import { SelectField, TextField } from "../ui/field.tsx";
 import { CommandStatus } from "./command-status.tsx";
@@ -35,13 +40,14 @@ function setPath(o: Record<string, unknown>, path: string, v: unknown) {
   cur[parts.at(-1) as string] = v;
 }
 
-/** Tiền nhập kiểu VN: chỉ chữ số, cho phép dấu chấm phân cách nghìn đúng nhóm 3 (3.580.000). */
-function parseMoney(s: string): number | null {
-  const t = s.trim();
-  if (/^\d+$/.test(t)) return Number(t);
-  if (/^\d{1,3}(\.\d{3})+$/.test(t)) return Number(t.replaceAll(".", ""));
-  return null;
-}
+type ConfirmProps =
+  | { confirm?: undefined; confirmLabel?: undefined }
+  | {
+      /** Thao tác không hoàn tác: câu nêu hậu quả hiện trong hộp xác nhận trước khi gửi. */
+      confirm: string;
+      /** Nhãn nút xác nhận = động từ + đối tượng; `{tên_ô}` được thay bằng giá trị đã nhập. */
+      confirmLabel: string;
+    };
 
 export function CommandForm({
   path,
@@ -53,7 +59,8 @@ export function CommandForm({
   testId,
   className,
   confirm,
-}: {
+  confirmLabel,
+}: ConfirmProps & {
   path: string;
   fields?: FieldSpec[];
   fixed?: Record<string, unknown>;
@@ -63,14 +70,13 @@ export function CommandForm({
   testId?: string;
   /** Lớp CSS thêm cho nút gửi (vd `btn--large` cho màn buồng phòng trên điện thoại). */
   className?: string;
-  /** Thao tác không hoàn tác: câu nêu hậu quả hiện trong hộp xác nhận trước khi gửi. */
-  confirm?: string;
 }) {
   const router = useRouter();
   const cmd = useCommand(path);
   const [local, setLocal] = useState<Record<string, string>>({});
   const dialogRef = useRef<HTMLDialogElement>(null);
   const pending = useRef<Record<string, unknown> | null>(null);
+  const [asking, setAsking] = useState("");
   const titleId = useId();
   const descId = useId();
 
@@ -79,6 +85,7 @@ export function CommandForm({
     const form = new FormData(e.currentTarget);
     const body: Record<string, unknown> = structuredClone(fixed);
     const errs: Record<string, string> = {};
+    const shown: Record<string, string> = {};
     for (const f of fields) {
       const raw = String(form.get(f.name) ?? "").trim();
       if (raw === "") {
@@ -86,14 +93,19 @@ export function CommandForm({
         continue;
       }
       let v: unknown = raw;
+      shown[f.name] = raw;
       if (f.type === "money") {
-        v = parseMoney(raw);
-        if (v === null) errs[f.name] = "Nhập số nguyên đồng, vd 3580000 hoặc 3.580.000";
+        const n = parseMoneyInput(raw);
+        v = n;
+        if (n === null) errs[f.name] = "Nhập số nguyên đồng, vd 3580000 hoặc 3.580.000";
+        else shown[f.name] = vnd(n);
       } else if (f.type === "decimal") {
-        v = /^\d+(\.\d{1,3})?$/.test(raw) ? Number(raw) : null;
+        v = parseDecimalInput(raw);
         if (v === null) errs[f.name] = "Số ≥ 0, tối đa 3 chữ số thập phân (dấu chấm)";
+      } else if (f.type === "date") {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) shown[f.name] = day(raw);
       } else if (f.type === "integer") {
-        v = /^\d+$/.test(raw) ? Number(raw) : null;
+        v = parseIntegerInput(raw);
         if (v === null) errs[f.name] = "Nhập số nguyên";
       }
       setPath(body, f.path ?? f.name, v);
@@ -104,6 +116,7 @@ export function CommandForm({
       // Đóng khi lỗi: chưa có hộp thoại thì không gửi (không bao giờ bỏ qua bước xác nhận).
       if (!dialogRef.current) return;
       pending.current = body;
+      setAsking(fillConfirmLabel(confirmLabel, shown));
       dialogRef.current.showModal();
       return;
     }
@@ -198,14 +211,14 @@ export function CommandForm({
           }}
         >
           <h2 id={titleId} className="confirm-dialog__title">
-            {submitLabel}?
+            {asking}?
           </h2>
           <p id={descId}>{confirm}</p>
           <div className="confirm-dialog__actions">
             <Button variant="secondary" onClick={() => dialogRef.current?.close()}>
               Quay lại
             </Button>
-            <Button onClick={onConfirm}>Đồng ý</Button>
+            <Button onClick={onConfirm}>{asking}</Button>
           </div>
         </dialog>
       ) : null}

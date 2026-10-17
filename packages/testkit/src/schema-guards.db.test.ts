@@ -1,6 +1,6 @@
-// PLAN đợt 4 T-306 — rào catalog CSDL sau migrate (DB-MODEL-001/002/004, BASE-DATA-006): đọc information_schema/pg_catalog của
+// PLAN đợt 4 T-306 + đợt 5 T-408 — rào catalog CSDL sau migrate (DB-MODEL-001/002/004/005, BASE-DATA-006): đọc information_schema/pg_catalog của
 // CSDL test đã chạy đủ migration, nên cột/khoá ngoại thêm bằng migration mới bị kiểm ngay.
-import { sql } from "kysely";
+import { type Kysely, sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createTestDb, type TestDb } from "./db.ts";
 import baseline from "./schema-guards.baseline.json" with { type: "json" };
@@ -128,34 +128,123 @@ describe("schema-guards — kiểu cột tiền (DB-MODEL-002)", () => {
   });
 });
 
-describe("schema-guards — khoá ngoại có index hỗ trợ (DB-MODEL-004, ratchet)", () => {
-  async function fksWithoutIndex(): Promise<string[]> {
-    const r = await sql<{ tbl: string; cols: string; indexed: boolean }>`
-      select c.conrelid::regclass::text as tbl,
-        (select string_agg(a.attname::text, ',' order by k.ord)
-           from unnest(c.conkey) with ordinality k(attnum, ord)
-           join pg_attribute a on a.attrelid = c.conrelid and a.attnum = k.attnum) as cols,
-        -- Có index hợp lệ, không một phần, mà các cột FK là tiền tố (theo tập) của khoá index.
-        exists (
-          select 1 from pg_index i
-          where i.indrelid = c.conrelid and i.indisvalid and i.indpred is null
-            and (string_to_array(i.indkey::text, ' ')::int[])[1:cardinality(c.conkey)] @> c.conkey::int[]
-        ) as indexed
-      from pg_constraint c join pg_namespace n on n.oid = c.connamespace
-      where c.contype = 'f' and n.nspname not in ('pg_catalog', 'information_schema')`.execute(t.admin);
-    return r.rows
-      .filter((x) => !x.indexed)
-      .map((x) => `${x.tbl}(${x.cols})`)
-      .sort();
-  }
+interface FkInfo {
+  tbl: string;
+  cols: string[];
+}
+interface IdxInfo {
+  tbl: string;
+  name: string;
+  /** Tên cột khoá (không gồm INCLUDE); biểu thức giữ nguyên văn. */
+  keys: string[];
+  /** Từng khoá: opclass/collation/thứ tự (DESC, NULLS FIRST) — hai index chỉ thay thế được nhau khi khớp hết. */
+  sig: string[];
+  pred: string | null;
+  valid: boolean;
+  unique: boolean;
+  hasInclude: boolean;
+  am: string;
+}
 
+async function loadFks(db: Kysely<unknown>): Promise<FkInfo[]> {
+  const r = await sql<{ tbl: string; cols: string[] }>`
+    select c.conrelid::regclass::text as tbl,
+      array(select a.attname::text from unnest(c.conkey) with ordinality k(attnum, ord)
+            join pg_attribute a on a.attrelid = c.conrelid and a.attnum = k.attnum order by k.ord) as cols
+    from pg_constraint c join pg_namespace n on n.oid = c.connamespace
+    where c.contype = 'f' and n.nspname not in ('pg_catalog', 'information_schema')`.execute(db);
+  return r.rows;
+}
+
+async function loadIndexes(db: Kysely<unknown>): Promise<IdxInfo[]> {
+  const r = await sql<{
+    tbl: string;
+    name: string;
+    keys: string[];
+    sig: string[];
+    pred: string | null;
+    valid: boolean;
+    unique: boolean;
+    has_include: boolean;
+    am: string;
+  }>`
+    select i.indrelid::regclass::text as tbl, ic.relname::text as name,
+      array(select case when k.attnum <> 0 then a.attname::text else pg_get_indexdef(i.indexrelid, k.ord::int, true) end
+            from unnest((string_to_array(i.indkey::text, ' ')::int2[])[1:i.indnkeyatts]) with ordinality k(attnum, ord)
+            left join pg_attribute a on a.attrelid = i.indrelid and a.attnum = k.attnum order by k.ord) as keys,
+      array(select (string_to_array(i.indclass::text, ' '))[k] || '/' || (string_to_array(i.indcollation::text, ' '))[k] || '/' || (string_to_array(i.indoption::text, ' '))[k]
+            from generate_series(1, i.indnkeyatts::int) k order by k) as sig,
+      pg_get_expr(i.indpred, i.indrelid) as pred,
+      i.indisvalid as valid, (i.indisunique or i.indisprimary or i.indisexclusion) as "unique",
+      i.indnatts > i.indnkeyatts as has_include, am.amname::text as am
+    from pg_index i
+    join pg_class ic on ic.oid = i.indexrelid join pg_am am on am.oid = ic.relam
+    join pg_class t on t.oid = i.indrelid join pg_namespace n on n.oid = t.relnamespace
+    where n.nspname not in ('pg_catalog', 'information_schema', 'pg_toast')`.execute(db);
+  return r.rows.map((x) => ({ ...x, hasInclude: x.has_include }));
+}
+
+/**
+ * Index `ix` phục vụ tra ngược FK `fk` (cha → con) khi:
+ *  (a) hợp lệ và hoặc không một phần, hoặc một phần với vị từ đúng `X IS NOT NULL` trên chính một cột FK (tra theo `X = $1` kéo theo
+ *      X không NULL nên planner dùng được index một phần đó);
+ *  (b) các cột FK là tiền tố (theo tập) của khoá index; hoặc index mở đầu bằng `organization_id` rồi tới các cột FK còn lại làm tiền tố
+ *      (FK ghép `(organization_id, property_id, X)`: `property_id` do cha `X` quyết định nên `(organization_id, X, …)` tra đủ chính xác).
+ */
+function covers(ix: IdxInfo, fk: FkInfo): boolean {
+  if (ix.tbl !== fk.tbl || !ix.valid) return false;
+  const notNull = fk.cols.filter((c) => c !== "organization_id").map((c) => `(${c} IS NOT NULL)`);
+  if (ix.pred !== null && !notNull.includes(ix.pred)) return false;
+  if (fk.cols.every((c) => ix.keys.slice(0, fk.cols.length).includes(c))) return true;
+  if (fk.cols.includes("organization_id") && ix.keys[0] === "organization_id") {
+    const rest = fk.cols.filter((c) => c !== "organization_id");
+    const key = rest.length > 1 ? rest.filter((c) => c !== "property_id") : rest;
+    const after = ix.keys.slice(1, 1 + key.length);
+    return key.length > 0 && key.every((c) => after.includes(c));
+  }
+  return false;
+}
+
+async function fksWithoutIndex(db: Kysely<unknown>): Promise<string[]> {
+  const [fks, idx] = await Promise.all([loadFks(db), loadIndexes(db)]);
+  return fks
+    .filter((fk) => !idx.some((ix) => covers(ix, fk)))
+    .map((fk) => `${fk.tbl}(${fk.cols.join(",")})`)
+    .sort();
+}
+
+/** Index thừa: một index khác cùng bảng/vị từ/kiểu sắp xếp mà khoá của nó là tiền tố khoá của index kia. Index unique/PK/exclusion
+ *  không bị coi là thừa (đang thực thi ràng buộc). */
+async function redundantIndexes(db: Kysely<unknown>): Promise<string[]> {
+  const idx = (await loadIndexes(db)).filter((x) => x.valid && x.am === "btree");
+  const out: string[] = [];
+  for (const i of idx) {
+    if (i.unique || i.hasInclude) continue;
+    const j = idx.find(
+      (o) =>
+        o.name !== i.name &&
+        o.tbl === i.tbl &&
+        o.pred === i.pred &&
+        o.keys.length >= i.keys.length &&
+        i.keys.every((k, n) => k === o.keys[n] && i.sig[n] === o.sig[n]) &&
+        (o.keys.length > i.keys.length || o.unique || o.name < i.name),
+    );
+    if (j) out.push(`${i.tbl}.${i.name} (${i.keys.join(",")}) ⊆ ${j.name} (${j.keys.join(",")})`);
+  }
+  return out.sort();
+}
+
+/** Ngoại lệ có lý do (`bảng.index`). Rỗng = không có index thừa nào được phép. */
+const REDUNDANT_INDEX_ALLOWED: Record<string, string> = {};
+
+describe("schema-guards — khoá ngoại có index hỗ trợ (DB-MODEL-004, ratchet)", () => {
   it("không có FK mới thiếu index (thêm index bằng migration mới — không thêm vào nền)", async () => {
-    const missing = await fksWithoutIndex();
+    const missing = await fksWithoutIndex(t.admin);
     expect(missing.filter((k) => !(k in baseline.muc))).toEqual([]);
   });
 
   it("nền không có mục thừa: FK đã có index/đã gỡ thì xoá khỏi nền (ratchet chỉ co lại)", async () => {
-    const missing = await fksWithoutIndex();
+    const missing = await fksWithoutIndex(t.admin);
     expect(Object.keys(baseline.muc).filter((k) => !missing.includes(k))).toEqual([]);
   });
 
@@ -171,16 +260,161 @@ describe("schema-guards — khoá ngoại có index hỗ trợ (DB-MODEL-004, ra
       t.admin,
     );
     try {
-      expect(await fksWithoutIndex()).toContain("sg_child(x,y)");
+      expect(await fksWithoutIndex(t.admin)).toContain("sg_child(x,y)");
       await sql`create index sg_partial on sg_child (x, y) where id > 0`.execute(t.admin);
-      expect(await fksWithoutIndex()).toContain("sg_child(x,y)");
+      expect(await fksWithoutIndex(t.admin)).toContain("sg_child(x,y)");
       await sql`create index sg_x on sg_child (x)`.execute(t.admin);
-      expect(await fksWithoutIndex()).toContain("sg_child(x,y)"); // chỉ phủ cột đầu
+      expect(await fksWithoutIndex(t.admin)).toContain("sg_child(x,y)"); // chỉ phủ cột đầu
       await sql`create index sg_yx on sg_child (y, x, id)`.execute(t.admin);
-      expect(await fksWithoutIndex()).not.toContain("sg_child(x,y)"); // {y,x} là tiền tố theo tập
+      expect(await fksWithoutIndex(t.admin)).not.toContain("sg_child(x,y)"); // {y,x} là tiền tố theo tập
     } finally {
       await sql`drop table sg_child`.execute(t.admin);
       await sql`drop table sg_parent`.execute(t.admin);
     }
+  });
+
+  it("phát hiện đúng: index một phần `X IS NOT NULL` và `(organization_id, X…)` phủ FK ghép (organization_id, property_id, X)", async () => {
+    await sql`create table sg_p (organization_id int, property_id int, id int, primary key (organization_id, property_id, id))`.execute(
+      t.admin,
+    );
+    await sql`create table sg_c (pk int primary key, organization_id int, property_id int, x int, y int,
+      constraint fk_sg_c foreign key (organization_id, property_id, x) references sg_p (organization_id, property_id, id))`.execute(
+      t.admin,
+    );
+    try {
+      const key = "sg_c(organization_id,property_id,x)";
+      expect(await fksWithoutIndex(t.admin)).toContain(key);
+      await sql`create index sg_c_part on sg_c (organization_id, property_id, x) where pk > 0`.execute(
+        t.admin,
+      );
+      expect(await fksWithoutIndex(t.admin)).toContain(key); // vị từ lạ ⇒ không tính
+      await sql`create index sg_c_org on sg_c (organization_id)`.execute(t.admin);
+      expect(await fksWithoutIndex(t.admin)).toContain(key); // thiếu cột x
+      await sql`create index sg_c_wrong on sg_c (organization_id, y, x)`.execute(t.admin);
+      expect(await fksWithoutIndex(t.admin)).toContain(key); // x không nằm ngay sau organization_id
+      await sql`create index sg_c_notnull on sg_c (organization_id, x) where x is not null`.execute(t.admin);
+      expect(await fksWithoutIndex(t.admin)).not.toContain(key); // (b) + vị từ X IS NOT NULL
+      await sql`drop index sg_c_notnull`.execute(t.admin);
+      expect(await fksWithoutIndex(t.admin)).toContain(key);
+      await sql`create index sg_c_plain on sg_c (organization_id, x, y)`.execute(t.admin);
+      expect(await fksWithoutIndex(t.admin)).not.toContain(key);
+      await sql`drop index sg_c_plain`.execute(t.admin);
+      await sql`create index sg_c_xnn on sg_c (organization_id, property_id, x) where x is not null`.execute(
+        t.admin,
+      );
+      expect(await fksWithoutIndex(t.admin)).not.toContain(key); // (a) một phần X IS NOT NULL trên đúng cột FK
+    } finally {
+      await sql`drop table sg_c`.execute(t.admin);
+      await sql`drop table sg_p`.execute(t.admin);
+    }
+  });
+});
+
+describe("schema-guards — index thừa (DB-PERF-002)", () => {
+  it("không index ixfk_* nào thừa: mọi FK nó phục vụ đã có index khác phục vụ (bỏ ixfk đó, đừng giữ)", async () => {
+    const [fks, idx] = await Promise.all([loadFks(t.admin), loadIndexes(t.admin)]);
+    const redundant: string[] = [];
+    for (const ix of idx.filter((x) => x.name.startsWith("ixfk_"))) {
+      const served = fks.filter((fk) => covers(ix, fk));
+      const others = (fk: FkInfo) => idx.some((o) => o.name !== ix.name && covers(o, fk));
+      if (served.length === 0 || served.every(others)) redundant.push(ix.name);
+    }
+    expect(redundant.sort()).toEqual([]);
+  });
+
+  it("không có hai index cùng bảng mà một cái là tiền tố cột của cái kia với cùng vị từ (ngoại lệ có lý do)", async () => {
+    const found = await redundantIndexes(t.admin);
+    expect(
+      found.filter((f) => !Object.keys(REDUNDANT_INDEX_ALLOWED).some((k) => f.startsWith(`${k} `))),
+    ).toEqual([]);
+    for (const [k, reason] of Object.entries(REDUNDANT_INDEX_ALLOWED)) {
+      expect(reason.length, k).toBeGreaterThan(20);
+      expect(
+        found.some((f) => f.startsWith(`${k} `)),
+        `${k} không còn thừa — xoá khỏi ngoại lệ`,
+      ).toBe(true);
+    }
+  });
+
+  it("phát hiện đúng: tiền tố cùng vị từ bị bắt; khác vị từ, unique, khác thứ tự sắp xếp thì không", async () => {
+    await sql`create table sg_r (id int primary key, a int, b int, c int)`.execute(t.admin);
+    try {
+      await sql`create index sg_r_a on sg_r (a)`.execute(t.admin);
+      expect(await redundantIndexes(t.admin)).toEqual([]);
+      await sql`create index sg_r_ab on sg_r (a, b)`.execute(t.admin);
+      expect((await redundantIndexes(t.admin)).map((x) => x.split(" ")[0])).toEqual(["sg_r.sg_r_a"]);
+      await sql`drop index sg_r_a`.execute(t.admin);
+      await sql`create index sg_r_a_part on sg_r (a) where b > 0`.execute(t.admin);
+      expect(await redundantIndexes(t.admin)).toEqual([]); // khác vị từ
+      await sql`drop index sg_r_a_part`.execute(t.admin);
+      await sql`create index sg_r_a_desc on sg_r (a desc)`.execute(t.admin);
+      expect(await redundantIndexes(t.admin)).toEqual([]); // khác thứ tự sắp xếp
+      await sql`drop index sg_r_a_desc`.execute(t.admin);
+      await sql`create unique index sg_r_uq_a on sg_r (a)`.execute(t.admin);
+      expect(await redundantIndexes(t.admin)).toEqual([]); // unique: đang thực thi ràng buộc
+      await sql`create index sg_r_dup1 on sg_r (c)`.execute(t.admin);
+      await sql`create index sg_r_dup2 on sg_r (c)`.execute(t.admin);
+      expect((await redundantIndexes(t.admin)).map((x) => x.split(" ")[0])).toEqual(["sg_r.sg_r_dup2"]); // trùng hệt: chỉ một cái bị bắt
+    } finally {
+      await sql`drop table sg_r`.execute(t.admin);
+    }
+  });
+});
+
+describe("schema-guards — ràng buộc toàn vẹn (DB-MODEL-004 ON DELETE, DB-MODEL-005)", () => {
+  /** Mọi FK còn lại dùng NO ACTION (mặc định, chặn xoá cha còn con). Chỉ hai ngoại lệ, mỗi cái một lý do. */
+  const FK_DELETE_ALLOWED: Record<string, string> = {
+    fk_memberships_auth_user:
+      "RESTRICT: không xoá tài khoản đăng nhập khi còn membership (ẩn danh hoá thay vì xoá).",
+    account_userId_fkey:
+      "CASCADE (Better Auth): tài khoản liên kết thuộc về người dùng đăng nhập, hết người dùng thì hết.",
+    session_userId_fkey: "CASCADE (Better Auth): phiên đăng nhập chỉ tồn tại khi còn người dùng.",
+    twoFactor_userId_fkey:
+      "CASCADE (Better Auth): bí mật TOTP gắn với người dùng, xoá người dùng phải xoá luôn.",
+    fk_property_scopes_memberships:
+      "CASCADE: phạm vi cơ sở chỉ là bảng nối của membership, hết membership thì hết phạm vi.",
+  };
+
+  it("hành động ON DELETE khác NO ACTION chỉ ở các FK đã khai kèm lý do (không CASCADE/SET NULL lén vào dữ liệu tiền/tồn)", async () => {
+    const r = await sql<{ name: string }>`
+      select conname as name from pg_constraint c join pg_namespace n on n.oid = c.connamespace
+      where c.contype = 'f' and c.confdeltype <> 'a' and n.nspname not in ('pg_catalog', 'information_schema')`.execute(
+      t.admin,
+    );
+    const names = r.rows.map((x) => x.name).sort();
+    expect(names).toEqual(Object.keys(FK_DELETE_ALLOWED).sort());
+    for (const reason of Object.values(FK_DELETE_ALLOWED)) expect(reason.length).toBeGreaterThan(20);
+  });
+
+  it("cột trạng thái/loại/phương thức (status, kind, type, method, role, purpose, source, severity, priority) đều có CHECK ∈ tập", async () => {
+    const r = await sql<{ key: string }>`
+      select c.table_name || '.' || c.column_name as key
+      from information_schema.columns c
+      where c.table_schema = 'public'
+        and c.column_name in ('status', 'kind', 'type', 'method', 'role', 'purpose', 'source', 'severity', 'priority')
+        and c.table_name in (select table_name from information_schema.tables where table_schema = 'public' and table_type = 'BASE TABLE')
+        and not exists (
+          select 1 from pg_constraint k join pg_attribute a on a.attrelid = k.conrelid and a.attnum = any (k.conkey)
+          where k.contype = 'c' and k.conrelid = (quote_ident(c.table_schema) || '.' || quote_ident(c.table_name))::regclass
+            and a.attname = c.column_name)
+      order by 1`.execute(t.admin);
+    expect(r.rows.map((x) => x.key)).toEqual([]);
+  });
+
+  it("số CHECK trong schema không giảm (bất biến đơn giản nằm ở CSDL, không chuyển sang app)", async () => {
+    const r = await sql<{ n: number }>`
+      select count(*)::int as n from pg_constraint c join pg_namespace s on s.oid = c.connamespace
+      where c.contype = 'c' and s.nspname = 'public'`.execute(t.admin);
+    expect(r.rows[0]?.n).toBeGreaterThanOrEqual(375);
+  });
+
+  it("số cột NULL theo bảng khớp nền ratchet (cột NULL mới/bớt phải sửa nền có chủ đích)", async () => {
+    const r = await sql<{ t: string; n: number }>`
+      select table_name as t, count(*)::int as n from information_schema.columns
+      where table_schema = 'public' and is_nullable = 'YES'
+        and table_name in (select table_name from information_schema.tables where table_schema = 'public' and table_type = 'BASE TABLE')
+      group by 1 order by 1`.execute(t.admin);
+    const actual = Object.fromEntries(r.rows.map((x) => [x.t, x.n]));
+    expect(actual).toEqual(baseline.nullable);
   });
 });

@@ -6,7 +6,11 @@
   "exports": {
     ".": "./src/index.ts",
     "./config": "./src/config/schema.ts",
-    "./http": "./src/http/security.ts"
+    "./logging": "./src/logging/index.ts",
+    "./http": "./src/http/security.ts",
+    "./units": "./src/units.ts",
+    "./format": "./src/format.ts",
+    "./form-rules": "./src/http/form-rules.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"

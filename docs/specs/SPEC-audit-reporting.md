@@ -1,3 +1,10 @@
+---
+status: Approved
+approved_by: "(chưa)"
+approved_at: "(chưa)"
+decisions: "D-002 (phiên chính tự duyệt câu hỏi chặn, 2026-10-16)"
+---
+
 # SPEC-audit-reporting — Nhật ký audit, màn "Hôm nay", báo cáo và xuất dữ liệu
 
 | Trường | Giá trị |
@@ -114,7 +121,7 @@ Dữ liệu mẫu (DOMAIN-MODEL §5): tổ chức B có cơ sở `HS1` (trọ) v
 ### S-018 Xuất toàn bộ dữ liệu tổ chức (cơ bản)
 - Given owner đã xác thực lại
 - When gọi `exports.requestOrgExport`
-- Then job tạo ZIP gồm CSV UTF-8 cho các thực thể nghiệp vụ của tổ chức B (không có dữ liệu tổ chức khác); không gồm file ảnh và số giấy tờ (Q-05); link có hạn; audit đủ như S-015
+- Then job tạo ZIP gồm CSV UTF-8 cho các thực thể nghiệp vụ của tổ chức B (không có dữ liệu tổ chức khác); có nhúng file đính kèm `ready` thuộc loại trong allowlist (`work_order`, `handover`, `meter_reading`, `task`, `payment_claim`, `lease_settlement`) trong phạm vi quyền người yêu cầu + `files/MANIFEST.csv`; KHÔNG gồm số giấy tờ, ảnh giấy tờ tuỳ thân, file thông báo lưu trú (`residence_notice`), file nguồn nhập liệu (`import_batch`), bản xuất cũ (`export_job`) và mọi loại không nằm trong allowlist — các file này chỉ được liệt kê ở MANIFEST kèm lý do (Q-05, D-033); link có hạn; audit đủ như S-015
 
 ### S-019 Phân trang và giới hạn khoảng thời gian
 - Given nhật ký có 50.000 sự kiện
@@ -199,9 +206,9 @@ Không áp dụng — tính năng không dùng model.
 - [x] Q-02 Báo cáo thu theo "ca" khi F-013 (ca quầy) là Should — [không chặn] — hỏi: PO — **đề xuất:** pilot nhóm theo ngày kinh doanh + người xác nhận; thêm nhóm theo ca khi T065 xong. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** nhóm theo ngày kinh doanh + phương thức + người xác nhận, kèm nhóm theo ca (`shifts` đã có từ đợt 2).
 - [x] Q-03 Nhóm tuổi nợ (0–30/31–60/>60 ngày) có cần không? — [không chặn] — hỏi: kế toán — **đề xuất:** pilot chỉ "số ngày quá hạn" từng phiếu. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** pilot chỉ "số ngày quá hạn" từng phiếu.
 - [x] Q-04 Mẫu số công suất: trừ phòng `blocked`/`out_of_service` hay không — [không chặn pilot; chặn T063] — hỏi: PO — **đề xuất:** phòng khả dụng = phòng `active` không bị block trong ngày; ghi công thức trên báo cáo. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** phòng khả dụng = phòng `active` không bị block trong ngày; công thức ghi trên báo cáo.
-- [x] Q-05 Xuất toàn bộ có gồm số giấy tờ/ảnh không (quyền mang dữ liệu vs dữ liệu nhạy cảm) — [không chặn bản cơ bản] — hỏi: pháp lý — **đề xuất:** bản cơ bản loại trừ; bản đủ (T085) chờ DPIA. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** bản cơ bản loại trừ số giấy tờ và ảnh; bản đủ chờ DPIA.
+- [x] Q-05 Xuất toàn bộ có gồm số giấy tờ/ảnh không (quyền mang dữ liệu vs dữ liệu nhạy cảm) — [không chặn bản cơ bản] — hỏi: pháp lý — **đề xuất:** bản cơ bản loại trừ; bản đủ (T085) chờ DPIA. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** bản cơ bản loại trừ số giấy tờ và ảnh; bản đủ chờ DPIA. — **Sửa 2026-10-17 (D-033, 2026-10-17):** allowlist đóng owner_type không chứa số giấy tờ (ảnh công tơ/sự cố/biên bản/chứng từ) được nhúng theo quyền mang dữ liệu đi (IND-SAAS-007); `identity_document`, `residence_notice` (CSV/XLSX chứa số giấy tờ đã giải mã), `import_batch`, `export_job` và loại mới KHÔNG nhúng, ghi MANIFEST kèm lý do. Đường lùi: allowlist rỗng ⇒ không nhúng file.
 - [x] Q-06 Cửa sổ xác thực lại và thời hạn link tải — [không chặn] — hỏi: Tech Lead + PO — **đề xuất:** xác thực lại trong 5 phút trước khi xuất; link 15 phút; file xoá sau 24 giờ. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** xác thực lại trong 5 phút trước khi xuất; link 15 phút; file xoá sau 24 giờ.
-- [x] Q-07 Bổ sung `export_jobs` vào DOMAIN-MODEL — đã đóng: có ở DOMAIN-MODEL §7 (v1.2). Danh sách trường `audit_events` còn chốt ở T014 (không chặn).
+- [x] Q-07 Bổ sung `export_jobs` vào DOMAIN-MODEL — đã đóng: có ở DOMAIN-MODEL §7 (v1.2). Danh sách trường `audit_events` còn chốt ở T014 (không chặn). — **Đóng 2026-10-15:** đã có trong DOMAIN-MODEL v1.2 (G4, sửa sau review độc lập); không cần quyết định riêng.
 - [x] Q-08 Thư viện ghi XLSX — [không chặn] — hỏi: Tech Lead — **đề xuất:** chọn ở T039 qua `/research` (giấy phép OSI, đang bảo trì, ghim phiên bản), ghi vào ADR mới; nếu chưa có thì pilot chỉ xuất CSV UTF-8 có BOM. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** dùng bộ ghi XLSX tự viết của T-115 (`packages/app/src/import/xlsx.ts`, không thêm thư viện); CSV UTF-8 có BOM.
 - [x] Q-09 Thời gian giữ `audit_events` — [không chặn] — hỏi: pháp lý — **đề xuất:** theo lịch retention ở DPIA (kế hoạch §16 "Vòng đời dữ liệu"); chưa xoá trong pilot. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** giữ, chưa xoá trong pilot; lịch retention theo DPIA.
 

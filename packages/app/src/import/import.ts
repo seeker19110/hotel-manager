@@ -10,6 +10,7 @@ import { withTenant } from "@hm/db";
 import {
   authorize,
   type Cell,
+  mibToBytes,
   type Parsed,
   parseCsv,
   parseImportDate,
@@ -33,13 +34,18 @@ import { activateLease, clearImportReadingsPending, recordImportHandover } from 
 import { createDraft, createPerson, signLease, submitForSignature } from "../lease/lease.ts";
 import { recordOpeningDebt, recordOpeningDeposit } from "../ledger/opening-balance.ts";
 import { importReading } from "../metering/meters.ts";
-import { type CommandContext, canonicalJson } from "../pipeline/command.ts";
-import { CommandError, fieldError, toProblem } from "../pipeline/problem.ts";
+import {
+  type CommandContext,
+  CommandError,
+  canonicalJson,
+  fieldError,
+  toProblem,
+} from "../pipeline/index.ts";
 import { readXlsx, writeXlsx, XlsxError } from "./xlsx.ts";
 
 /** Đề xuất SPEC-import mục 10 (chờ PO): 5 MB / 5.000 dòng; ô ≤ 500 ký tự. */
 export const IMPORT_LIMITS = {
-  bytes: 5 * 1024 * 1024,
+  bytes: mibToBytes(5),
   rows: 5000,
   cell: 500,
   previewRows: 200,
@@ -212,7 +218,7 @@ function detectTable(bytes: Uint8Array): {
 } {
   if (bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04) {
     try {
-      return { format: "xlsx", rows: readXlsx(bytes) };
+      return { format: "xlsx", rows: nfcRows(readXlsx(bytes)) };
     } catch (e) {
       if (e instanceof XlsxError)
         throw new CommandError("FILE_TYPE_NOT_ALLOWED", 415, "File XLSX hỏng hoặc không đọc được");
@@ -229,11 +235,28 @@ function detectTable(bytes: Uint8Array): {
     throw new CommandError("FILE_TYPE_NOT_ALLOWED", 415, "Chỉ nhận file .xlsx hoặc .csv (UTF-8).");
   return {
     format: "csv",
-    rows: parseCsv(text).map((r, i) => ({ rowNo: i + 1, cells: r.map((v) => ({ v, numeric: false })) })),
+    rows: nfcRows(
+      parseCsv(text).map((r, i) => ({ rowNo: i + 1, cells: r.map((v) => ({ v, numeric: false })) })),
+    ),
   };
 }
 
-type UploadBatchInput = { propertyId: string; kind: string; cutoffOn?: string; bytes: Uint8Array };
+/** Chuẩn hoá NFC mọi ô (kể cả dòng tiêu đề) ngay sau khi đọc file — Excel/CSV tiếng Việt hay ở dạng tổ hợp (BASE-DATA-002). */
+function nfcRows(rows: { rowNo: number; cells: Cell[] }[]): { rowNo: number; cells: Cell[] }[] {
+  return rows.map((r) => ({
+    rowNo: r.rowNo,
+    cells: r.cells.map((c) => ({ v: c.v.normalize("NFC"), numeric: c.numeric })),
+  }));
+}
+
+type UploadBatchInput = {
+  propertyId: string;
+  kind: string;
+  cutoffOn?: string;
+  bytes: Uint8Array;
+  /** Tên file người dùng đã qua `normalizeUploadName` (NFC, bỏ đường dẫn) — chỉ ghi vết audit. */
+  fileName?: string;
+};
 
 /** Kiểm quyền, kích thước, định dạng, tiêu đề — thuần CPU/không I/O; dùng ở bước prepare VÀ trong lệnh. */
 function inspectBatchUpload(actor: Actor, input: UploadBatchInput) {
@@ -343,7 +366,13 @@ export async function uploadBatch(
     entityType: "import_batch",
     entityId: batchId,
     propertyId: input.propertyId,
-    after: { kind, rows: data.length, format: table.format, file_sha256: file.sha256 },
+    after: {
+      kind,
+      rows: data.length,
+      format: table.format,
+      file_sha256: file.sha256,
+      ...(input.fileName === undefined ? {} : { file_name: input.fileName.normalize("NFC") }),
+    },
   });
   return { batchId, rows: data.length };
 }
@@ -393,11 +422,17 @@ class RowCtx {
   }
 }
 
+/** NFC cho dòng thô đã lưu (lô tải lên trước khi có chuẩn hoá lúc tải vẫn kiểm/ghi đúng dạng NFC). */
+function nfcRaw(raw: RawRow): RawRow {
+  return Object.fromEntries(Object.entries(raw).map(([k, c]) => [k, { ...c, v: c.v.normalize("NFC") }]));
+}
+
 function parseRow(
   kind: ImportKind,
-  raw: RawRow,
+  rawStored: RawRow,
   cutoffOn: string | null,
 ): { r: RowCtx; data: Record<string, unknown> } {
+  const raw = nfcRaw(rawStored);
   const r = new RowCtx(raw);
   const data: Record<string, unknown> = { external_id: r.text("external_id", 200) };
   switch (kind) {

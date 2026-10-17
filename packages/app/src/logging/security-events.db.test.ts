@@ -333,7 +333,7 @@ describe("liên kết khách (guest_link.*) và 429 theo IP", () => {
         departureDate: "2026-10-22",
         guests: 1,
         source: "direct",
-        booker: { fullName: "Khách SE", phone: "0912345678" },
+        booker: { fullName: "Khách SE", phone: "0100005678" },
       }),
     );
     await okAs(h.t, h.manager, (ctx) => holdReservation(ctx, { reservationId: d.reservationId }));
@@ -355,7 +355,7 @@ describe("liên kết khách (guest_link.*) và 429 theo IP", () => {
         guests: [
           {
             fullName: "Khách SE",
-            phone: "0912345678",
+            phone: "0100005678",
             docType: "cccd",
             docNumber: `0018${String(seq).padStart(8, "0")}`,
           },
@@ -403,7 +403,7 @@ describe("liên kết khách (guest_link.*) và 429 theo IP", () => {
     const text = lines.join("\n");
     expect(text).not.toContain(s.token);
     expect(text).not.toContain(from);
-    expect(text).not.toContain("0912345678");
+    expect(text).not.toContain("0100005678");
     lines = [];
     await guestGetStay(h.t.runtime, {
       token: s.token,

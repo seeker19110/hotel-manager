@@ -2,9 +2,9 @@
 // Chỉ POST (trình quét liên kết trong email hay tự GET — không được đổi tuỳ chọn khi chỉ mở link); trang `/huy-dang-ky`
 // (T-219) hiện nút xác nhận rồi POST. Lỗi theo problem+json; token không bao giờ ghi log.
 import type { Kysely } from "kysely";
-import { correlationOf, json, simpleProblem } from "../http/command-route.ts";
-import { CommandError } from "../pipeline/problem.ts";
-import { unsubscribe, unsubscribeKey } from "./preferences.ts";
+import { unsubscribe, unsubscribeKey } from "../notifications/preferences.ts";
+import { CommandError } from "../pipeline/index.ts";
+import { correlationOf, json, simpleProblem } from "./command-route.ts";
 
 export async function handleUnsubscribe(
   req: Request,
@@ -23,7 +23,8 @@ export async function handleUnsubscribe(
     const r = await unsubscribe(deps.db, unsubscribeKey(deps.secret), { token, correlationId });
     return json({ data: { type: r.type, message: r.message } }, 200, correlationId);
   } catch (err) {
-    if (err instanceof CommandError) return simpleProblem(err.code, err.status, err.message, correlationId);
+    if (err instanceof CommandError)
+      return simpleProblem(err.code, err.status, err.message, correlationId, err.extensions);
     throw err;
   }
 }

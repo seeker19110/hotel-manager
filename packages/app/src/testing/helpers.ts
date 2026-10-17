@@ -4,7 +4,7 @@ import type { SeededOrg, TestDb } from "@hm/testkit";
 import { seedAuthUser } from "@hm/testkit";
 import { sql } from "kysely";
 import { type Actor, resolveActor } from "../access/actor.ts";
-import { type CommandContext, type CommandResult, executeCommand } from "../pipeline/command.ts";
+import { type CommandContext, type CommandResult, executeCommand } from "../pipeline/index.ts";
 
 export interface MemberOptions {
   /** Cơ sở trong phạm vi (mặc định: cơ sở đầu của tổ chức); `all` = mọi cơ sở. */

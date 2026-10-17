@@ -1,24 +1,34 @@
 // Object storage S3-tương thích tự host (SeaweedFS — ADR-0002). Bucket riêng tư; đọc chỉ qua URL ký ngắn hạn.
 // PLAN đợt 4 T-302 (ARC-RES-001, BE-REL-001/003): mỗi lời gọi mạng có `AbortSignal.timeout` và retry ≤ 3 lần (lùi mũ + jitter,
-// tôn trọng `Retry-After`) — CHỈ thao tác idempotent (GET/HEAD/PUT theo key/DELETE); phương thức khác gọi đúng một lần.
+// tôn trọng `Retry-After`) — CHỈ thao tác idempotent (GET/HEAD/PUT theo key/DELETE); phương thức khác (POST…) gọi đúng một lần.
+// T-401 (BE-REL-003): một thao tác — gồm MỌI lần thử và thời gian chờ giữa chúng — có trần tổng `totalTimeoutMs`.
+import { secondsToMs } from "@hm/domain";
 import { AwsClient } from "aws4fetch";
 
 export interface StorageResilience {
   /** Trần thời gian MỖI lần gọi (ms). */
   timeoutMs: number;
+  /**
+   * Trần TỔNG cho một thao tác gồm mọi lần thử và thời gian chờ giữa chúng (ms). Mỗi lần gọi bị cắt còn phần thời gian còn
+   * lại; hết thì dừng ngay với lỗi, không thử tiếp. Mặc định 30 giây (< `idle_in_transaction_session_timeout` 30 s của
+   * app_runtime ở các đường còn gọi kho trong transaction, và < `stop_grace_period` của worker).
+   */
+  totalTimeoutMs: number;
   /** Số lần thử lại tối đa sau lần đầu (≤ 3). */
   maxRetries: number;
   /** Nền của lùi mũ (ms): chờ ≈ base·2^lần-thử-lại, nhân jitter ∈ [0,5; 1]. */
   baseDelayMs: number;
   /** Trần một lần chờ, kể cả khi `Retry-After` đòi lâu hơn (ms). */
   maxDelayMs: number;
-  /** Tiêm cho test: nguồn ngẫu nhiên ∈ [0,1) và hàm chờ. */
+  /** Tiêm cho test: nguồn ngẫu nhiên ∈ [0,1), hàm chờ và đồng hồ (ms). */
   random?: () => number;
   sleep?: (ms: number) => Promise<void>;
+  now?: () => number;
 }
 
 export const DEFAULT_RESILIENCE: StorageResilience = {
   timeoutMs: 15_000,
+  totalTimeoutMs: 30_000,
   maxRetries: 3,
   baseDelayMs: 200,
   maxDelayMs: 5_000,
@@ -57,7 +67,7 @@ function retryableStatus(status: number): boolean {
 export function parseRetryAfter(value: string | null, now: number = Date.now()): number | undefined {
   if (!value) return undefined;
   const v = value.trim();
-  if (/^\d+$/.test(v)) return Number(v) * 1000;
+  if (/^\d+$/.test(v)) return secondsToMs(Number(v));
   // Ngày HTTP luôn có tên thứ/tháng; chuỗi chỉ số/dấu ("-5") không phải ngày hợp lệ.
   const at = /[a-z]/i.test(v) ? Date.parse(v) : Number.NaN;
   return Number.isNaN(at) ? undefined : Math.max(0, at - now);
@@ -65,6 +75,70 @@ export function parseRetryAfter(value: string | null, now: number = Date.now()):
 
 /** URL ký tối đa 5 phút (ADR-0002, TM-06). */
 export const MAX_SIGNED_URL_SECONDS = 300;
+
+/**
+ * Một thao tác HTTP có kháng lỗi: ký lại MỖI lần thử (dấu thời gian mới), `AbortSignal.timeout` mỗi lần (≤ phần còn lại của
+ * trần tổng), thử lại lỗi tạm với lùi mũ + jitter, CHỈ với phương thức idempotent (POST… đúng một lần). `ok` quyết định phản
+ * hồi nào là thành công; còn lại → StorageError (4xx khác 408/429 không bao giờ thử lại). Hết `totalTimeoutMs` (kể cả thời gian
+ * chờ giữa các lần) ⇒ dừng với lỗi "quá tổng thời gian", không ngủ rồi mới phát hiện hết giờ.
+ */
+export async function resilientSend(
+  sign: (url: string, init: RequestInit) => Promise<Request>,
+  label: string,
+  url: string,
+  init: { method: string; body?: Uint8Array<ArrayBuffer>; headers?: Record<string, string> },
+  ok: (status: number) => boolean,
+  cfg: StorageResilience,
+): Promise<void> {
+  const retries = IDEMPOTENT.has(init.method) ? Math.min(cfg.maxRetries, MAX_RETRIES_CAP) : 0;
+  const random = cfg.random ?? Math.random;
+  const sleep = cfg.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  const now = cfg.now ?? Date.now;
+  const deadline = now() + cfg.totalTimeoutMs;
+  const overBudget = (last: StorageError) =>
+    new StorageError(`${label}: quá tổng thời gian ${cfg.totalTimeoutMs} ms`, {
+      retryable: true,
+      cause: last,
+      ...(last.status === undefined ? {} : { status: last.status }),
+    });
+  for (let attempt = 0; ; attempt++) {
+    let failure: StorageError;
+    let retryAfterMs: number | undefined;
+    const remaining = deadline - now();
+    // Ký ngoài `try`: lỗi ký là lỗi lập trình/cấu hình, không phải lỗi tạm — không thử lại.
+    const req = await sign(url, {
+      ...init,
+      signal: AbortSignal.timeout(Math.max(1, Math.min(cfg.timeoutMs, remaining))),
+    });
+    try {
+      const res = await fetch(req);
+      if (ok(res.status)) {
+        await res.body?.cancel();
+        return;
+      }
+      retryAfterMs = parseRetryAfter(res.headers.get("retry-after"));
+      await res.body?.cancel();
+      failure = new StorageError(`${label}: HTTP ${res.status}`, {
+        status: res.status,
+        retryable: retryableStatus(res.status),
+      });
+    } catch (err) {
+      const timedOut =
+        err instanceof DOMException && (err.name === "TimeoutError" || err.name === "AbortError");
+      failure = new StorageError(`${label}: ${timedOut ? "quá thời gian" : "lỗi kết nối"}`, {
+        retryable: true,
+        cause: err,
+      });
+    }
+    if (!failure.retryable || attempt >= retries) throw failure;
+    const exp = Math.min(cfg.baseDelayMs * 2 ** attempt, cfg.maxDelayMs);
+    const jittered = exp * (0.5 + random() * 0.5);
+    const wait = Math.min(Math.max(retryAfterMs ?? 0, jittered), cfg.maxDelayMs);
+    // Chờ xong còn chưa đủ thời gian cho một lần thử nữa ⇒ dừng luôn, không ngủ vô ích.
+    if (deadline - now() <= wait) throw overBudget(failure);
+    await sleep(wait);
+  }
+}
 
 export class ObjectStorage {
   readonly #aws: AwsClient;
@@ -85,51 +159,15 @@ export class ObjectStorage {
     });
   }
 
-  /**
-   * Một thao tác kho: ký lại MỖI lần thử (dấu thời gian mới), `AbortSignal.timeout` mỗi lần, thử lại lỗi tạm với lùi mũ + jitter.
-   * `ok` quyết định phản hồi nào là thành công; còn lại → StorageError (4xx khác 408/429 không bao giờ thử lại).
-   */
-  async #send(
+  /** Một thao tác kho — xem `resilientSend`. */
+  #send(
     label: string,
     url: string,
     init: { method: string; body?: Uint8Array<ArrayBuffer>; headers?: Record<string, string> },
     ok: (status: number) => boolean,
-    over: Partial<Pick<StorageResilience, "timeoutMs" | "maxRetries">> = {},
+    over: Partial<Pick<StorageResilience, "timeoutMs" | "maxRetries" | "totalTimeoutMs">> = {},
   ): Promise<void> {
-    const cfg = { ...this.#res, ...over };
-    const retries = IDEMPOTENT.has(init.method) ? Math.min(cfg.maxRetries, MAX_RETRIES_CAP) : 0;
-    const random = cfg.random ?? Math.random;
-    const sleep = cfg.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
-    for (let attempt = 0; ; attempt++) {
-      let failure: StorageError;
-      let retryAfterMs: number | undefined;
-      // Ký ngoài `try`: lỗi ký là lỗi lập trình/cấu hình, không phải lỗi tạm — không thử lại.
-      const req = await this.#aws.sign(url, { ...init, signal: AbortSignal.timeout(cfg.timeoutMs) });
-      try {
-        const res = await fetch(req);
-        if (ok(res.status)) {
-          await res.body?.cancel();
-          return;
-        }
-        retryAfterMs = parseRetryAfter(res.headers.get("retry-after"));
-        await res.body?.cancel();
-        failure = new StorageError(`${label}: HTTP ${res.status}`, {
-          status: res.status,
-          retryable: retryableStatus(res.status),
-        });
-      } catch (err) {
-        const timedOut =
-          err instanceof DOMException && (err.name === "TimeoutError" || err.name === "AbortError");
-        failure = new StorageError(`${label}: ${timedOut ? "quá thời gian" : "lỗi kết nối"}`, {
-          retryable: true,
-          cause: err,
-        });
-      }
-      if (!failure.retryable || attempt >= retries) throw failure;
-      const exp = Math.min(cfg.baseDelayMs * 2 ** attempt, cfg.maxDelayMs);
-      const jittered = exp * (0.5 + random() * 0.5);
-      await sleep(Math.min(Math.max(retryAfterMs ?? 0, jittered), cfg.maxDelayMs));
-    }
+    return resilientSend((u, i) => this.#aws.sign(u, i), label, url, init, ok, { ...this.#res, ...over });
   }
 
   #url(key: string): string {

@@ -1,3 +1,10 @@
+---
+status: Approved
+approved_by: "(chưa)"
+approved_at: "(chưa)"
+decisions: "D-002 (phiên chính tự duyệt câu hỏi chặn, 2026-10-16)"
+---
+
 # SPEC-reservation-stay — Khách sạn cơ bản: loại phòng, giá ngày/đêm, booking, nhận/trả phòng, folio
 
 | Trường | Giá trị |
@@ -276,7 +283,7 @@ Không áp dụng — tính năng không dùng model.
 - [x] Q-06 Đổi ngày: đêm mới lấy giá hiện hành hay giá snapshot — [không chặn] — hỏi: PO — đề xuất: đêm cũ giữ snapshot, đêm mới giá hiện hành, hiện chênh lệch trước khi lưu. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** đêm cũ giữ giá snapshot, đêm mới giá hiện hành; xem trước chênh lệch trước khi lưu.
 - [x] Q-07 Mốc được đánh no-show — [không chặn] — hỏi: PO — đề xuất: sau giờ chốt ngày của ngày đến, thao tác tay (không tự động ở pilot). — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** chỉ sau giờ chốt ngày của ngày đến, thao tác tay; không tự động ở pilot.
 - [x] Q-08 Trường thông tin khách bắt buộc khi check-in và có lưu ảnh giấy tờ không — [chặn] — hỏi: PO + pháp lý — đề xuất: họ tên, SĐT, loại + số giấy tờ (che khi hiển thị); không lưu ảnh mặc định (NĐ 356/2025, kế hoạch §15); khách nước ngoài thêm quốc tịch, hộ chiếu. Số giấy tờ lưu ở `identity_documents`. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002, D-004):** bắt buộc họ tên, SĐT, loại + số giấy tờ; khách nước ngoài thêm quốc tịch + số hộ chiếu; **không** lưu ảnh giấy tờ; số giấy tờ mã hoá AES-256-GCM tầng app + blind index, chỉ hiển thị 4 số cuối; tham số `properties.settings.required_guest_fields`.
-- [x] Q-09 Trạng thái `cancelled` và `no_show` cho `stays` — đã đóng: có ở DOMAIN-MODEL §4 (v1.2).
+- [x] Q-09 Trạng thái `cancelled` và `no_show` cho `stays` — đã đóng: có ở DOMAIN-MODEL §4 (v1.2). — **Đóng 2026-10-15:** đã có trong DOMAIN-MODEL v1.2 (G4, sửa sau review độc lập); không cần quyết định riêng.
 - [x] Q-10 Số đêm tối đa một booking ngắn hạn trước khi phải dùng hợp đồng — [không chặn] — hỏi: PO — đề xuất: 30 đêm. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** 30 đêm, tham số `properties.settings.max_nights`.
 - [x] Q-11 Thời điểm ghi phí phòng (`rate_plans` đã có ở DOMAIN-MODEL §7) — [không chặn] — hỏi: Tech Lead — đề xuất: ghi mọi đêm lúc check-in, điều chỉnh khi đổi ngày; phát hành phiếu lúc check-out. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** ghi phí mọi đêm lúc check-in (unique stay + `business_date`), điều chỉnh khi đổi ngày; phát hành folio lúc check-out.
 - [x] Q-12 Thuế/phí ở giá phòng (tax profile mặc định, giá đã gồm thuế?) — [chặn] — hỏi: kế toán — đề xuất: pilot coi giá niêm yết là giá cuối, không cộng thuế tự động, mỗi `charges` vẫn lưu `tax_profile_id`. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** giá niêm yết là giá cuối, không cộng thuế tự động; mỗi `charges` vẫn lưu `tax_profile_id` (NULL = không thuế riêng).

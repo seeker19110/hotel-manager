@@ -1,3 +1,10 @@
+---
+status: Approved
+approved_by: "(chưa)"
+approved_at: "(chưa)"
+decisions: "D-002 (phiên chính tự duyệt câu hỏi chặn, 2026-10-16)"
+---
+
 # SPEC-notifications — Thông báo trong app, email qua outbox và nhắc hạn
 
 | Trường | Giá trị |
@@ -205,7 +212,7 @@ Không áp dụng — tính năng không dùng model.
 - [x] Q-04 Lịch nhắc quá hạn mặc định — [không chặn] — hỏi: PO (quan sát T001) — **đề xuất:** +1, +3, +7 ngày sau hạn, cấu hình theo cơ sở, tối đa 1 nhắc/phiếu/ngày. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** +1, +3, +7 ngày sau hạn, tối đa 1 nhắc/phiếu/ngày, cấu hình ở `notification_settings`.
 - [x] Q-05 Tham số retry và rate limit — [không chặn] — hỏi: Tech Lead — **đề xuất:** 5 lần (1 ph, 5 ph, 30 ph, 2 giờ, 6 giờ); 10 email/giây/tổ chức; chỉnh theo giới hạn nhà cung cấp. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** 5 lần (1 ph, 5 ph, 30 ph, 2 giờ, 6 giờ); 10 email/giây/tổ chức.
 - [x] Q-06 Mốc nhắc hết hạn hợp đồng — [không chặn] — hỏi: PO — **đề xuất:** 30 và 7 ngày trước ngày kết thúc, gửi cho quản lý; người thuê nhận bản ngắn cùng mốc. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** 30 và 7 ngày trước ngày kết thúc, gửi quản lý; người thuê nhận bản ngắn cùng mốc.
-- [x] Q-07 Bổ sung `notifications`, `notification_deliveries`, `notification_preferences`, `notification_settings` vào DOMAIN-MODEL — đã đóng: có ở DOMAIN-MODEL §7 (v1.2).
+- [x] Q-07 Bổ sung `notifications`, `notification_deliveries`, `notification_preferences`, `notification_settings` vào DOMAIN-MODEL — đã đóng: có ở DOMAIN-MODEL §7 (v1.2). — **Đóng 2026-10-15:** đã có trong DOMAIN-MODEL v1.2 (G4, sửa sau review độc lập); không cần quyết định riêng.
 - [x] Q-08 Hạn thông báo lưu trú (23:00/08:00; 12 giờ cho khách nước ngoài) mới có nguồn thứ cấp [T] — [không chặn vì là cấu hình; chặn dùng làm giá trị mặc định khi pilot] — hỏi: pháp lý — **đề xuất:** để trống mặc định, cơ sở tự nhập khi onboarding cho tới khi pháp lý đối chiếu bản gốc. — **Quyết 2026-10-16 (PLAN đợt 3, phiên chính tự duyệt — D-002):** để trống mặc định, cơ sở tự nhập khi onboarding.
 
 ## 11. DoR / DoD

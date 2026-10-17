@@ -12,7 +12,7 @@ let h: Hotel;
 const pii = createPiiCipher(devKeyring());
 const AN: GuestInput = {
   fullName: "Nguyễn Văn An",
-  phone: "0912345678",
+  phone: "0100005678",
   docType: "cccd",
   docNumber: "001234567890",
 };
@@ -45,7 +45,7 @@ async function confirmedBooking(unitId: string, arrival = "2026-10-20", departur
       departureDate: departure,
       guests: 2,
       source: "direct",
-      booker: { fullName: "Người đặt", phone: "0987000111" },
+      booker: { fullName: "Người đặt", phone: "0100000111" },
     }),
   );
   await okAs(h.t, h.frontDesk, (ctx) => holdReservation(ctx, { reservationId: d.reservationId }));
@@ -198,7 +198,7 @@ describe("S-010/S-011 chuyển trạng thái không hợp lệ", () => {
         departureDate: "2026-10-21",
         guests: 1,
         source: "direct",
-        booker: { fullName: "X", phone: "0900000001" },
+        booker: { fullName: "X", phone: "0100000001" },
       }),
     );
     expect(

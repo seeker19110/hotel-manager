@@ -3,9 +3,11 @@
 // giới hạn số entry/kích thước; chỉ đọc workbook, rels, sharedStrings và sheet ĐẦU TIÊN — mọi phần khác (macro, liên kết
 // ngoài, drawing…) không bao giờ được mở. Công thức `<f>` luôn bị bỏ qua: chỉ dùng giá trị đã lưu `<v>`, không tính lại.
 // Ghi: workbook hợp lệ tối thiểu, ZIP method 0 (store) + CRC32; chuỗi dùng inlineStr nên không cần sharedStrings.
+
 import { Buffer } from "node:buffer";
 import { crc32, inflateRawSync } from "node:zlib";
 import type { Cell } from "@hm/domain";
+import { mibToBytes } from "@hm/domain";
 
 export class XlsxError extends Error {}
 
@@ -19,8 +21,8 @@ export interface XlsxLimits {
 
 export const DEFAULT_XLSX_LIMITS: XlsxLimits = {
   maxEntries: 2000,
-  maxEntryBytes: 20 * 1024 * 1024,
-  maxTotalBytes: 50 * 1024 * 1024,
+  maxEntryBytes: mibToBytes(20),
+  maxTotalBytes: mibToBytes(50),
 };
 
 const DEFAULT_MAX_CELLS = 1_000_000;
@@ -465,7 +467,7 @@ function esc(s: string): string {
       cp === 0xfffe ||
       cp === 0xffff
     ) {
-      out += "�";
+      out += "\uFFFD";
     } else out += ch;
   }
   return out;

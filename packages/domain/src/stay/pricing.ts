@@ -1,6 +1,7 @@
 // Giá lưu trú ngắn hạn thuần (SPEC-reservation-stay S-001, S-002, S-008, S-016; Q-02/Q-03/Q-06/Q-10 — PLAN đợt 3 D-002).
 // Một đơn vị "đêm" theo ngày kinh doanh: đêm d tính từ giờ nhận ngày d đến giờ trả ngày d+1. Giá mỗi đêm = giá cuối tuần nếu
 // thứ của d thuộc `weekendNights` (ISO 1 = thứ Hai … 7 = Chủ nhật), còn lại giá ngày thường; tiền là số nguyên đồng.
+import { MS_PER_DAY } from "../units/units.ts";
 
 export interface RateVersion {
   effectiveFrom: string;
@@ -43,7 +44,7 @@ function parse(d: string): number {
 }
 
 export function addDays(d: string, n: number): string {
-  return new Date(parse(d) + n * 86_400_000).toISOString().slice(0, 10);
+  return new Date(parse(d) + n * MS_PER_DAY).toISOString().slice(0, 10);
 }
 
 /** Thứ ISO (1 = thứ Hai … 7 = Chủ nhật) của một ngày lịch. */
@@ -58,7 +59,7 @@ export function nightsOf(arrival: string, departure: string, maxNights = DEFAULT
   const b = parse(departure);
   if (b <= a) throw new QuoteRuleError({ code: "VALIDATION_FAILED", reason: "departure_not_after_arrival" });
   // Hai mốc 00:00 UTC: hiệu luôn là bội đúng của một ngày (không có giờ mùa hè ở UTC).
-  const n = (b - a) / 86_400_000;
+  const n = (b - a) / MS_PER_DAY;
   if (n > maxNights) throw new QuoteRuleError({ code: "MAX_NIGHTS_EXCEEDED", maxNights });
   return Array.from({ length: n }, (_, i) => addDays(arrival, i));
 }

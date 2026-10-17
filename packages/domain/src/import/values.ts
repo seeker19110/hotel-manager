@@ -1,6 +1,7 @@
 // Đọc giá trị ô của file import (SPEC-import S-018, S-019, S-020). THUẦN: không I/O, không node:*.
 // Nguyên tắc: không đoán ý người nhập — dạng nào không khớp mẫu chặt thì trả mã lỗi dòng, không tự sửa.
 // Tiền luôn là số nguyên đồng; số thập phân (chỉ số công tơ) giữ dạng chuỗi, không qua số thực.
+import { MS_PER_DAY } from "../units/units.ts";
 
 /** Một ô đã đọc. `numeric` = ô số thật của XLSX (CSV luôn `false`). */
 export interface Cell {
@@ -64,7 +65,7 @@ export function parseImportVnd(cell: Cell | undefined, opts?: { allowZero?: bool
 
 const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const EXCEL_MAX_SERIAL = 2958465; // 9999-12-31
-const DAY_MS = 86_400_000;
+const DAY_MS = MS_PER_DAY;
 
 function isLeap(y: number): boolean {
   return (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;

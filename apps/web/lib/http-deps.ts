@@ -1,5 +1,5 @@
 // Phụ thuộc HTTP của route handler (CSDL, phiên Better Auth, cookie an toàn) lấy từ ngữ cảnh server dùng chung.
-import { type HttpDeps, serverContext } from "@hm/app";
+import { type HttpDeps, reportUnexpectedError, serverContext } from "@hm/app";
 
 export function httpDeps(): HttpDeps {
   const { db, auth, config, log, services } = serverContext();
@@ -16,8 +16,7 @@ export function httpDeps(): HttpDeps {
     },
     secureCookies: config.APP_BASE_URL.startsWith("https://"),
     services,
-    onUnexpectedError: (err, correlationId) =>
-      // `err` là Error ⇒ logger ghi exception.type/message/stacktrace (đã che bí mật/PII), cause đệ quy.
-      log.error("lỗi không dự kiến", { correlation_id: correlationId, err }),
+    // Ghi loại, thông điệp, stack, cause + correlation_id (đã che bí mật/PII) — xem logging/unexpected.ts.
+    onUnexpectedError: (err, correlationId) => reportUnexpectedError(log, err, correlationId),
   };
 }

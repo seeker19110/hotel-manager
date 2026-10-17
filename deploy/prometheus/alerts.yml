@@ -1,12 +1,11 @@
-# Rule cảnh báo Prometheus cho Hotel Manager (T-308; OPS-SLO-004/005). Tệp này CHỈ chứa rule trên metric đã có ở
-# packages/app/src/observability/metrics.ts. Chưa có metric HTTP nên chưa có rule burn rate — xem docs/ops/SLO.md §2.
+# Rule cảnh báo Prometheus cho Hotel Manager (T-308, T-406; OPS-SLO-004/005). Tệp này CHỈ chứa rule trên metric đã có ở
+# packages/app/src/observability/metrics.ts + http-metrics.ts. Nhóm `hotel-manager.slo` là burn rate nhiều cửa sổ cho SLO khả dụng 99,9%
+# và độ trễ 95% ≤ 800 ms (docs/ops/SLO.md §2): mỗi rule yêu cầu CẢ cửa sổ dài lẫn ngắn cùng vượt (hết sự cố thì tắt nhanh).
 # Mỗi rule: labels.severity (page | ticket), labels.owner, annotations.runbook_url (đường dẫn tệp có thật trong repo,
 # tính từ gốc repo) + summary. scripts/ops-docs.test.mjs kiểm cấu trúc này; giữ YAML đơn giản (không anchor, không block scalar).
-# LƯU Ý LOẠI METRIC: `notification_dead_total` KHÔNG phải counter dù tên có hậu tố _total và /api/metrics khai `# TYPE ... counter`:
-# giá trị là SỐ HÀNG đang ở trạng thái `dead` tại thời điểm đọc (app.metrics_snapshot, migration 0046), tức gauge — giảm khi
+# LƯU Ý LOẠI METRIC: `notification_dead_total` là GAUGE dù tên có hậu tố _total (metrics.ts khai `# TYPE ... gauge`):
+# giá trị là SỐ HÀNG đang ở trạng thái `dead` tại thời điểm đọc (app.metrics_snapshot, migration 0046) — giảm khi
 # hàng dead được gửi lại. Vì vậy dùng `delta()` (không dùng `increase()`/`rate()`, vốn coi mọi lần giảm là reset counter và báo giả).
-# Việc còn lại (nhánh khác, không sửa ở đây): đổi TYPE thành gauge trong packages/app/src/observability/metrics.ts (+ test) hoặc
-# đổi tên metric bỏ _total. Chừng nào chưa sửa, rule ở dưới đúng cho cả hai trường hợp vì chỉ dựa vào `delta()`.
 # Nạp: rule_files: [alerts.yml] trong prometheus.yml; scrape /api/metrics với Bearer token (docs/RUNBOOK.md §1).
 groups:
   - name: hotel-manager.van-hanh
@@ -83,6 +82,18 @@ groups:
           runbook_url: docs/RUNBOOK.md
           runbook_section: "6 Dead letter (pg-boss)"
 
+      - alert: HmDeadLetterJobs
+        expr: hm_dead_letter_jobs > 0
+        for: 10m
+        labels:
+          severity: ticket
+          owner: backend
+        annotations:
+          summary: "Có job nằm trong dead letter (outbox.dead_letter) quá 10 phút"
+          description: "Job hết lượt thử hoặc lỗi vĩnh viễn (payload sai, lỗi nghiệp vụ 4xx) chờ người xử lý; sửa nguyên nhân rồi redrive theo runbook."
+          runbook_url: docs/RUNBOOK.md
+          runbook_section: "6 Dead letter (pg-boss)"
+
       - alert: HmExportJobsFailed
         expr: delta(hm_export_jobs{status="failed"}[1h]) > 0
         labels:
@@ -106,3 +117,88 @@ groups:
           description: "Ngưỡng khởi điểm (hệ số 2 so với trung bình cả ngày hôm trước, cộng 10), chỉnh sau khi có dữ liệu pilot. Có thể job nhả hold không chạy hoặc bị lạm dụng giữ phòng."
           runbook_url: docs/RUNBOOK.md
           runbook_section: "2 Ngưỡng cảnh báo đề xuất (hm_holds_active)"
+
+  - name: hotel-manager.doi-soat
+    rules:
+      - alert: HmReconciliationBreaksOverSla
+        expr: hm_reconciliation_breaks_oldest_open_age_seconds > 172800
+        for: 1h
+        labels:
+          severity: ticket
+          owner: backend
+        annotations:
+          summary: "Có chênh lệch đối soát mở quá 48 giờ (SLA xử lý)"
+          description: "Có người chịu trách nhiệm (assignee) nhưng chưa đóng; job hằng ngày ghi audit reconciliation.break_overdue. Xem hm_reconciliation_breaks_open để biết số lượng."
+          runbook_url: docs/RUNBOOK.md
+          runbook_section: "3.9 Chênh lệch đối soát mở quá hạn"
+
+  - name: hotel-manager.slo
+    rules:
+      # Khả dụng 99,9% (ngân sách lỗi 0,001): luồng lõi = /api/v1/* + /api/ready, lỗi = 5xx. Hệ số đốt 14,4 / 6 / 1 theo SRE Workbook.
+      # Chỉ báo khi cửa sổ dài có ≥ 30 request (tránh báo vì vài request đêm khuya).
+      - alert: HmAvailabilityBurnFast
+        expr: '(sum(rate(hm_http_requests_total{route=~"/api/v1/.*|/api/ready",status=~"5.."}[1h])) / sum(rate(hm_http_requests_total{route=~"/api/v1/.*|/api/ready"}[1h])) > 14.4 * 0.001) and (sum(rate(hm_http_requests_total{route=~"/api/v1/.*|/api/ready",status=~"5.."}[5m])) / sum(rate(hm_http_requests_total{route=~"/api/v1/.*|/api/ready"}[5m])) > 14.4 * 0.001) and sum(increase(hm_http_requests_total{route=~"/api/v1/.*|/api/ready"}[1h])) > 30'
+        labels:
+          severity: page
+          owner: van-hanh
+        annotations:
+          summary: "Đốt ngân sách khả dụng nhanh (14,4×) trên cả 1 giờ và 5 phút — hết ngân sách 30 ngày trong ~2 ngày"
+          description: "Tỷ lệ 5xx của luồng lõi vượt 1,44% ở cả hai cửa sổ. Xem docs/ops/SLO.md §2 và tra log theo correlation_id."
+          runbook_url: docs/RUNBOOK.md
+          runbook_section: "3.1 Web trả 5xx / /api/ready 503"
+
+      - alert: HmAvailabilityBurnMedium
+        expr: '(sum(rate(hm_http_requests_total{route=~"/api/v1/.*|/api/ready",status=~"5.."}[6h])) / sum(rate(hm_http_requests_total{route=~"/api/v1/.*|/api/ready"}[6h])) > 6 * 0.001) and (sum(rate(hm_http_requests_total{route=~"/api/v1/.*|/api/ready",status=~"5.."}[30m])) / sum(rate(hm_http_requests_total{route=~"/api/v1/.*|/api/ready"}[30m])) > 6 * 0.001) and sum(increase(hm_http_requests_total{route=~"/api/v1/.*|/api/ready"}[6h])) > 30'
+        labels:
+          severity: ticket
+          owner: backend
+        annotations:
+          summary: "Đốt ngân sách khả dụng 6× trên cả 6 giờ và 30 phút"
+          description: "Tỷ lệ 5xx luồng lõi vượt 0,6% ở cả hai cửa sổ. Giai đoạn pilot xếp ticket (không trực 24/7) — nâng lên page khi có lịch trực (docs/ops/SLO.md §2)."
+          runbook_url: docs/RUNBOOK.md
+          runbook_section: "3.1 Web trả 5xx / /api/ready 503"
+
+      - alert: HmAvailabilityBurnSlow
+        expr: '(sum(rate(hm_http_requests_total{route=~"/api/v1/.*|/api/ready",status=~"5.."}[3d])) / sum(rate(hm_http_requests_total{route=~"/api/v1/.*|/api/ready"}[3d])) > 1 * 0.001) and (sum(rate(hm_http_requests_total{route=~"/api/v1/.*|/api/ready",status=~"5.."}[6h])) / sum(rate(hm_http_requests_total{route=~"/api/v1/.*|/api/ready"}[6h])) > 1 * 0.001) and sum(increase(hm_http_requests_total{route=~"/api/v1/.*|/api/ready"}[3d])) > 30'
+        labels:
+          severity: ticket
+          owner: backend
+        annotations:
+          summary: "Đốt ngân sách khả dụng 1× trên cả 3 ngày và 6 giờ — sẽ cạn ngân sách trong kỳ nếu giữ nguyên"
+          description: "Tỷ lệ 5xx luồng lõi vượt 0,1% (đúng bằng SLO) ở cả hai cửa sổ."
+          runbook_url: docs/RUNBOOK.md
+          runbook_section: "3.1 Web trả 5xx / /api/ready 503"
+
+      # Độ trễ: 95% yêu cầu API ≤ 800 ms (ngân sách chậm 0,05; bucket le="0.8"). Hệ số đốt cùng 14,4 / 6 / 1.
+      - alert: HmLatencyBurnFast
+        expr: '(1 - sum(rate(hm_http_request_duration_seconds_bucket{route=~"/api/v1/.*",le="0.8"}[1h])) / sum(rate(hm_http_request_duration_seconds_count{route=~"/api/v1/.*"}[1h])) > 14.4 * 0.05) and (1 - sum(rate(hm_http_request_duration_seconds_bucket{route=~"/api/v1/.*",le="0.8"}[5m])) / sum(rate(hm_http_request_duration_seconds_count{route=~"/api/v1/.*"}[5m])) > 14.4 * 0.05) and sum(increase(hm_http_request_duration_seconds_count{route=~"/api/v1/.*"}[1h])) > 30'
+        labels:
+          severity: page
+          owner: van-hanh
+        annotations:
+          summary: "Độ trễ đốt ngân sách nhanh (14,4×): trên 72% yêu cầu API chậm hơn 800 ms ở cả 1 giờ và 5 phút"
+          description: "API gần như không dùng được. Kiểm CSDL (§3.2), kết nối đầy, khoá treo."
+          runbook_url: docs/RUNBOOK.md
+          runbook_section: "3.2 CSDL đầy kết nối / chậm"
+
+      - alert: HmLatencyBurnMedium
+        expr: '(1 - sum(rate(hm_http_request_duration_seconds_bucket{route=~"/api/v1/.*",le="0.8"}[6h])) / sum(rate(hm_http_request_duration_seconds_count{route=~"/api/v1/.*"}[6h])) > 6 * 0.05) and (1 - sum(rate(hm_http_request_duration_seconds_bucket{route=~"/api/v1/.*",le="0.8"}[30m])) / sum(rate(hm_http_request_duration_seconds_count{route=~"/api/v1/.*"}[30m])) > 6 * 0.05) and sum(increase(hm_http_request_duration_seconds_count{route=~"/api/v1/.*"}[6h])) > 30'
+        labels:
+          severity: ticket
+          owner: backend
+        annotations:
+          summary: "Độ trễ đốt ngân sách 6×: trên 30% yêu cầu API chậm hơn 800 ms ở cả 6 giờ và 30 phút"
+          description: "p95 đã vượt 800 ms kéo dài. Xem truy vấn chậm (§3.2)."
+          runbook_url: docs/RUNBOOK.md
+          runbook_section: "3.2 CSDL đầy kết nối / chậm"
+
+      - alert: HmLatencyBurnSlow
+        expr: '(1 - sum(rate(hm_http_request_duration_seconds_bucket{route=~"/api/v1/.*",le="0.8"}[3d])) / sum(rate(hm_http_request_duration_seconds_count{route=~"/api/v1/.*"}[3d])) > 1 * 0.05) and (1 - sum(rate(hm_http_request_duration_seconds_bucket{route=~"/api/v1/.*",le="0.8"}[6h])) / sum(rate(hm_http_request_duration_seconds_count{route=~"/api/v1/.*"}[6h])) > 1 * 0.05) and sum(increase(hm_http_request_duration_seconds_count{route=~"/api/v1/.*"}[3d])) > 30'
+        labels:
+          severity: ticket
+          owner: backend
+        annotations:
+          summary: "Độ trễ đốt ngân sách 1× trên cả 3 ngày và 6 giờ: hơn 5% yêu cầu API chậm hơn 800 ms"
+          description: "p95 > 800 ms đúng bằng ngưỡng SLO ở cả hai cửa sổ."
+          runbook_url: docs/RUNBOOK.md
+          runbook_section: "3.2 CSDL đầy kết nối / chậm"

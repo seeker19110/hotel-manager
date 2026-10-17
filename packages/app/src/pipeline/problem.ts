@@ -1,7 +1,7 @@
 // Lỗi nghiệp vụ → application/problem+json (RFC 9457) theo API-CONTRACT §2.
 import { AuthzError, TransitionError } from "@hm/domain";
 import type { Transaction } from "kysely";
-import { AccessError } from "../access/actor.ts";
+import { AccessError } from "../actor-core/index.ts";
 
 export interface Problem {
   type: string;
@@ -25,6 +25,8 @@ export interface Problem {
   items?: Record<string, string | number | null>[];
   /** IMPORT_TOTALS_MISMATCH: tổng nguồn so với tổng file theo loại (SPEC-import S-013). */
   totals?: Record<string, { expected: number; actual: number; diff: number }>;
+  /** RATE_LIMITED (429): số giây nên đợi — lớp HTTP đặt thành header `Retry-After` (RFC 6585 §4, BE-REL-006). */
+  retry_after?: number;
 }
 
 export interface FieldError {
@@ -37,9 +39,24 @@ export interface FieldError {
 export type ProblemExtensions = Partial<
   Pick<
     Problem,
-    "approval_request_id" | "payment_id" | "from" | "to" | "errors" | "previous_value" | "items" | "totals"
+    | "approval_request_id"
+    | "payment_id"
+    | "from"
+    | "to"
+    | "errors"
+    | "previous_value"
+    | "items"
+    | "totals"
+    | "retry_after"
   >
 >;
+
+/** 429 RATE_LIMITED kèm số giây nên đợi (≥ 1) — mọi 429 của app đi qua đây để có `Retry-After`. */
+export function rateLimited(message: string, retryAfterSeconds: number): CommandError {
+  return new CommandError("RATE_LIMITED", 429, message, {
+    extensions: { retry_after: Math.max(1, Math.ceil(retryAfterSeconds)) },
+  });
+}
 
 /** 422 VALIDATION_FAILED chỉ đúng một trường sai (SPEC-access S-001, SPEC-lease S-007/S-025). */
 export function fieldError(field: string, code: string, message: string): CommandError {

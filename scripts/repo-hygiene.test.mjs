@@ -67,7 +67,7 @@ describe("relativeLinkTargets", () => {
     ["[a](docs/x.md)", ["docs/x.md"]],
     ["[a](docs/x.md#muc)", ["docs/x.md"]],
     ["[a](#chi-anchor)", []],
-    ["[a](https://owasp.org/x) [b](mailto:a@b.vn)", []],
+    ["[a](https://owasp.org/x) [b](mailto:a@example.test)", []],
     ["[a](<docs/có dấu.md>)", ["docs/có dấu.md"]],
     ['[a](x.md "tiêu đề")', ["x.md"]],
     ["[id]: ../y.md", ["../y.md"]],

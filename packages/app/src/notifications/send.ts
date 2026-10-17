@@ -9,7 +9,9 @@
 //    `stale`, không đếm/log như kết quả; `sending` quá hạn về `retrying` có chờ lùi): `sent` · lỗi vĩnh viễn → `failed RECIPIENT_INVALID` (không thử lại) ·
 //    lỗi tạm → `retrying` sau 1 ph, 5 ph, 30 ph, 2 giờ, 6 giờ (Q-05: 1 lần đầu + 5 lần thử lại) → lần 6 lỗi ⇒ `dead`.
 // Log chỉ có email đã che (`a***@example.com`).
+
 import { withTenant } from "@hm/db";
+import { minutesToMs } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
 import { EmailSendError, type EmailSender } from "./email.ts";
 import { unsubscribeUrl } from "./preferences.ts";
@@ -190,7 +192,7 @@ export async function sendDueEmails(
         const wait: number = RETRY_BACKOFF_MINUTES[c.attempts - 1] ?? 360;
         r =
           await sql`update notification_deliveries set status = 'retrying', last_error_code = 'PROVIDER_TEMPORARY', locked_until = null,
-                         next_attempt_at = ${new Date(now.getTime() + wait * 60_000)}
+                         next_attempt_at = ${new Date(now.getTime() + minutesToMs(wait))}
                   where ${fence}`.execute(trx);
       }
       return Number(r.numAffectedRows ?? 0) > 0;

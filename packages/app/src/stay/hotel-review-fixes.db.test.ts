@@ -81,7 +81,7 @@ async function stay(opts: { departure?: string; advance?: boolean; unitId?: stri
       guests: [
         {
           fullName: "Khách hồi quy",
-          phone: "0912000111",
+          phone: "0100000111",
           docType: "cccd",
           docNumber: `0010${String(seq).padStart(8, "0")}`,
         },
@@ -120,7 +120,7 @@ describe("R1 trả sớm không tính đêm chưa ở", () => {
       walkIn(ctx, pii, {
         unitId: s.unitId,
         departureDate: "2026-10-23",
-        guests: [{ fullName: "Khách mới", phone: "0977000111", docType: "cccd", docNumber: "001299887766" }],
+        guests: [{ fullName: "Khách mới", phone: "0100000111", docType: "cccd", docNumber: "001299887766" }],
         now: new Date("2026-10-21T08:00:00Z"),
       }),
     );
@@ -332,7 +332,7 @@ describe("R5 cơ sở bắt buộc tiền khi xác nhận", () => {
           departureDate: "2026-11-02",
           guests: 1,
           source: "direct",
-          booker: { fullName: "Khách R5", phone: "0966000555" },
+          booker: { fullName: "Khách R5", phone: "0100000555" },
         }),
       );
       await okAs(h.t, h.manager, (ctx) => holdReservation(ctx, { reservationId: d.reservationId }));
@@ -434,7 +434,7 @@ describe("R7 vượt hạn mức → yêu cầu duyệt + executor", () => {
         departureDate: "2026-11-06",
         guests: 1,
         source: "direct",
-        booker: { fullName: "Khách huỷ", phone: "0966000777" },
+        booker: { fullName: "Khách huỷ", phone: "0100000777" },
       }),
     );
     await okAs(h.t, L, (ctx) => holdReservation(ctx, { reservationId: d.reservationId }));
@@ -466,7 +466,7 @@ describe("R9 hết hạn giữ phát hiện lúc xác nhận có audit", () => {
         departureDate: "2026-11-11",
         guests: 1,
         source: "direct",
-        booker: { fullName: "Khách hết giữ", phone: "0966000888" },
+        booker: { fullName: "Khách hết giữ", phone: "0100000888" },
       }),
     );
     await okAs(h.t, h.manager, (ctx) => holdReservation(ctx, { reservationId: d.reservationId }));

@@ -19,8 +19,7 @@ import {
   type PaymentRow,
   recordPayment,
 } from "../payments/payments.ts";
-import type { CommandContext } from "../pipeline/command.ts";
-import { CommandError } from "../pipeline/problem.ts";
+import { type CommandContext, CommandError } from "../pipeline/index.ts";
 import { openShiftOf } from "../shifts/shifts.ts";
 import { readStay } from "./folio.ts";
 

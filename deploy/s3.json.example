@@ -1,8 +1,14 @@
 {
+  "_ghi_chu": "Sao thành deploy/secrets/s3.json (0600, không commit). MỖI service một danh tính riêng (SEC-INFRA-001): thu hồi/xoay khoá của web không động tới worker. Cả hai chỉ chạm một bucket, không wildcard. Xem deploy/README.md.",
   "identities": [
     {
-      "name": "hotel-manager-app",
-      "credentials": [{ "accessKey": "ĐIỀN", "secretKey": "ĐIỀN" }],
+      "name": "hotel-manager-web",
+      "credentials": [{ "accessKey": "ĐIỀN-web", "secretKey": "ĐIỀN-web" }],
+      "actions": ["Read:hm-files", "Write:hm-files", "List:hm-files"]
+    },
+    {
+      "name": "hotel-manager-worker",
+      "credentials": [{ "accessKey": "ĐIỀN-worker", "secretKey": "ĐIỀN-worker" }],
       "actions": ["Read:hm-files", "Write:hm-files", "List:hm-files"]
     }
   ]

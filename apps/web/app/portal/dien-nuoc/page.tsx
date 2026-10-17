@@ -1,4 +1,5 @@
 import { listMyMeterReadings, serverContext } from "@hm/app";
+import { safeUrl } from "@hm/app/http";
 import type { Metadata } from "next";
 import { EmptyState } from "../../../components/ui/state.tsx";
 import { day, METER_LABEL } from "../../../lib/format.ts";
@@ -22,8 +23,13 @@ export default async function PortalMetersPage() {
               {METER_LABEL[r.kind] ?? r.kind}: {new Intl.NumberFormat("vi-VN").format(r.value)}
             </p>
             <p className="card__meta">Ngày {day(r.readOn)}</p>
-            {r.photoUrl ? (
-              <a className="btn btn--secondary" href={r.photoUrl} target="_blank" rel="noopener noreferrer">
+            {safeUrl(r.photoUrl) ? (
+              <a
+                className="btn btn--secondary"
+                href={safeUrl(r.photoUrl) as string}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
                 Xem ảnh công tơ ngày {day(r.readOn)}
               </a>
             ) : null}
