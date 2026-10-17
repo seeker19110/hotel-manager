@@ -125,6 +125,20 @@ type Builder = (vars: Vars) => Omit<Rendered, "emailText"> & { emailLines: strin
 const BUILDERS: Readonly<Record<NotificationType, Builder>> = {
   account_security: (v) => {
     const org = str(v, "orgName");
+    if (v.kind === "tenant_invited") {
+      // Lời mời vào cổng người thuê (SPEC-portal S-014): đăng nhập bằng mã gửi về chính email này (không mật khẩu).
+      return {
+        title: `${org} mời bạn vào cổng người thuê`,
+        body: "Bạn có thể xem kỳ thu, hợp đồng và gửi yêu cầu. Đăng nhập bằng email này — mã đăng nhập gửi qua email.",
+        link: "/dang-nhap",
+        emailSubject: `${org} mời bạn vào cổng người thuê`,
+        emailLines: [
+          `${org} đã mời bạn vào cổng người thuê để xem kỳ thu, hợp đồng và gửi yêu cầu.`,
+          "Đăng nhập bằng địa chỉ email này; hệ thống sẽ gửi mã đăng nhập mỗi lần.",
+          "Nếu bạn không thuê phòng ở đây, hãy bỏ qua email này.",
+        ],
+      };
+    }
     const action = str(v, "action");
     return {
       title: `${org}: ${action}`,

@@ -8,6 +8,11 @@ export default function LoginPage() {
     <main id="main" className="page">
       <h1>Đăng nhập</h1>
       <LoginForm />
+      <p>
+        <a className="btn btn--secondary" href="/dang-nhap/nguoi-thue">
+          Tôi là người thuê
+        </a>
+      </p>
     </main>
   );
 }

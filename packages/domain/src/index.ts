@@ -65,6 +65,7 @@ export {
   roundVnd,
   sumVnd,
 } from "./money/money.ts";
+export { QR_MAX_BYTES, qrMatrix } from "./payments/qr.ts";
 export {
   BREAK_REASONS,
   type BreakReason,
@@ -89,6 +90,7 @@ export {
   type StatementRow,
 } from "./payments/statement-csv.ts";
 export { BANK_BINS, bankBin, buildVietQr, crc16CcittFalse, type VietQrInput } from "./payments/vietqr.ts";
+export { vndInWords } from "./payments/vnd-words.ts";
 export {
   billingPeriodMachine,
   bookingMachine,

@@ -1,0 +1,19 @@
+import type { Metadata } from "next";
+import { GuestStay } from "./guest-stay.tsx";
+
+export const metadata: Metadata = {
+  title: "Lượt ở của bạn — Hotel Manager",
+  // Mã liên kết nằm ở fragment (#t=…) nên không vào log/Referer; vẫn tắt Referer để chắc chắn không lộ gì sang trang khác.
+  referrer: "no-referrer",
+  robots: { index: false, follow: false },
+};
+
+export default async function GuestStayPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return (
+    <main id="main" className="page">
+      <h1>Lượt ở của bạn</h1>
+      <GuestStay stayId={id} />
+    </main>
+  );
+}
