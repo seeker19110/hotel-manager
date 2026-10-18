@@ -39,6 +39,7 @@ export function resolveAppVersion(
   let dir = cwd;
   for (let i = 0; i < 8; i++) {
     try {
+      // nosemgrep: hm-path-traversal-dynamic -- `dir` đi ngược từ process.cwd(), tên tệp cố định `package.json`, không từ đầu vào ngoài.
       const pkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf8")) as {
         name?: unknown;
         version?: unknown;

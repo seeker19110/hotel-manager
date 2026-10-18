@@ -15,7 +15,7 @@ owner: (chưa gán — Tech Lead)
 Mất/hỏng dữ liệu (xoá nhầm, migration sai, ghi nhầm hàng loạt, ransomware, đĩa hỏng) hoặc diễn tập định kỳ (mỗi quý, do người **không phải** tác giả runbook thực hiện — ghi tên vào `last_drilled`).
 
 ## Điều kiện trước
-- Có bản sao lưu: `docker compose -f deploy/compose.yaml exec postgres pgbackrest --stanza=hm info` liệt kê full/diff và dải WAL; lưu nhãn sao lưu và điểm thời gian đích (giờ UTC) vào dòng thời gian.
+- Có bản sao lưu: `docker compose -f deploy/compose.yaml exec -u postgres postgres pgbackrest --stanza=hm info` liệt kê full/diff và dải WAL; lưu nhãn sao lưu và điểm thời gian đích (giờ UTC) vào dòng thời gian.
 - Có `deploy/secrets/pgbackrest.conf` (mẫu `deploy/pgbackrest.conf.example`: `repo1-type=s3`, `repo1-cipher-type=aes-256-cbc`, `repo1-cipher-pass`) và **khoá repo** `PGBACKREST_REPO_CIPHER_PASS` từ kho bí mật ngoài máy chủ. Mất khoá = mất bản sao lưu.
 - Snapshot ngay trước thao tác theo [INCIDENT-RESPONSE §4](../INCIDENT-RESPONSE.md): nếu cluster hiện tại còn chạy, tạo điểm `select pg_create_restore_point('truoc_khoi_phuc_<mã>')`. Điểm này nằm SAU sự cố nên chỉ dùng để quay về trạng thái ngay trước lúc khôi phục, **không** làm đích cứu dữ liệu (xem B).
 - Đích khôi phục: thời điểm trước sự cố (giờ UTC) hoặc điểm `truoc_migrate_<phiên_bản>` có trước sự cố; ghi vào dòng thời gian.
@@ -63,7 +63,7 @@ Các bước:
 4. Khởi động Postgres trên volume mới; chờ thoát recovery: `select pg_is_in_recovery()` → `f` (script chờ ≤ 120 giây):
    ```bash
    docker compose -f deploy/compose.yaml -f deploy/compose.restore.yaml up -d postgres
-   docker compose -f deploy/compose.yaml -f deploy/compose.restore.yaml exec postgres psql -U postgres -Atc "select pg_is_in_recovery()"
+   docker compose -f deploy/compose.yaml -f deploy/compose.restore.yaml exec -u postgres postgres psql -U postgres -Atc "select pg_is_in_recovery()"
    ```
    Từ đây **luôn** truyền cả hai `-f` (quên tệp phủ ⇒ compose gắn lại volume cũ).
 5. Đặt lại mật khẩu role ứng dụng nếu cluster mới: `packages/db/sql/bootstrap-roles.sql` (tạo `app_runtime`, `app_worker`, giới hạn thời gian) rồi `ALTER ROLE … PASSWORD …` từ kho bí mật. Rồi sang mục Xác minh trước khi bật ứng dụng.

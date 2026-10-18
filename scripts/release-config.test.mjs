@@ -191,7 +191,8 @@ describe("WF-REL-003 — tag bất biến, Release kèm artefact + checksum", ()
         expect(r.calls).toBe(1);
       },
     );
-    it("quality không bao giờ xuất hiện → hết giờ, exit 1", () => {
+    // WAIT_LOOPS vòng × 2 tiến trình giả (gh, sleep) — vượt 5 s mặc định khi máy tải nặng; timeout riêng, không đổi logic.
+    it("quality không bao giờ xuất hiện → hết giờ, exit 1", { timeout: 30_000 }, () => {
       const r = exec(["none:"]);
       expect(r.status).toBe(1);
       expect(r.calls).toBe(WAIT_LOOPS);

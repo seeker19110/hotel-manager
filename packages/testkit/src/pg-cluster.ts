@@ -6,14 +6,14 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const PG_BIN = process.env.PG_BIN ?? "/usr/lib/postgresql/17/bin";
+export const PG_BIN = process.env.PG_BIN ?? "/usr/lib/postgresql/17/bin";
 
 export interface PgCluster {
   adminUrl: string;
   stop(): void;
 }
 
-async function freePort(): Promise<number> {
+export async function freePort(): Promise<number> {
   return new Promise((resolve, reject) => {
     const srv = createServer();
     srv.once("error", reject);
@@ -26,13 +26,14 @@ async function freePort(): Promise<number> {
 }
 
 /** initdb/pg_ctl không chạy dưới root: khi là root thì chạy qua user `postgres`. */
-function asPg(cmd: string, args: string[]): void {
+export function asPg(cmd: string, args: string[]): string {
   const isRoot = process.getuid?.() === 0;
   const [bin, argv] = isRoot ? ["runuser", ["-u", "postgres", "--", cmd, ...args]] : [cmd, args];
   const res = spawnSync(bin, argv, { encoding: "utf8" });
   if (res.status !== 0) {
     throw new Error(`${cmd} lỗi (exit ${res.status}): ${res.stderr || res.stdout}`);
   }
+  return res.stdout;
 }
 
 export async function startPgCluster(): Promise<PgCluster> {

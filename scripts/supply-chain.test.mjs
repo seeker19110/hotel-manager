@@ -53,12 +53,13 @@ describe("dependabot.yml ↔ manifest thật (BASE-DEP-007, OPS-MAINT-001)", () 
     for (const eco of need) expect(byEco(eco), `thiếu ${eco}`).toHaveLength(1);
   });
 
-  it("không khai hệ sinh thái không có manifest (pip, gomod…)", () => {
-    const known = new Set(["npm", "github-actions", "docker", "docker-compose"]);
+  it("không khai hệ sinh thái không có manifest; manifest pip nào cũng có mục dependabot (gomod… thì chưa có)", () => {
+    const known = new Set(["npm", "github-actions", "docker", "docker-compose", "pip"]);
     for (const u of cfg.updates) expect(known.has(u["package-ecosystem"]), u["package-ecosystem"]).toBe(true);
-    expect(
-      find(".", (n) => ["requirements.txt", "requirements-dev.txt", "pyproject.toml", "go.mod"].includes(n)),
-    ).toEqual([]);
+    expect(find(".", (n) => ["pyproject.toml", "go.mod"].includes(n))).toEqual([]);
+    const pipManifests = find(".", (n) => ["requirements.txt", "requirements-dev.txt"].includes(n));
+    for (const f of pipManifests) expect(dirsOf("pip"), f).toContain(dirOf(f));
+    for (const d of dirsOf("pip")) expect(pipManifests.map(dirOf), d).toContain(d);
   });
 
   it("thư mục khai báo phủ mọi Dockerfile và compose", () => {
