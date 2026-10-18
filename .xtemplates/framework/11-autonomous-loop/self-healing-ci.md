@@ -16,8 +16,9 @@ updated: 2026-10-17
 
 1. **Sửa nguyên nhân, không sửa cổng** (P8, `AGENTS.md` §3): test đỏ → sửa code; chỉ sửa test khi test sai so với
    SPEC và nói rõ trong commit. Skip/disable test, gắn `@flaky`/cách ly test, hạ ngưỡng coverage, nới lint = thay đổi
-   cấu hình cổng → điểm dừng. Agent sửa lỗi không được làm yếu chính bài kiểm của đoạn code nó sửa: `pre-edit-guard.sh`
-   hỏi khi lần sửa một file test **đã có** thêm skip/only/xfail/`@flaky` hoặc bớt assertion.
+   cấu hình cổng → cấm (`AGENTS.md` §3). Agent sửa lỗi không được làm yếu chính bài kiểm của đoạn code nó sửa: `pre-edit-guard.sh`
+   đánh dấu lần sửa một file test **đã có** thêm skip/only/xfail/`@flaky` hoặc bớt assertion (mặc định cho chạy — ADR-0018; `XT_GUARD_POLICY=strict` thì hỏi) — hook không
+   chặn nên kỷ luật này là của agent, review và CI đỡ.
 2. **Đọc log trước khi sửa**: không đoán lỗi từ tên job; lấy đúng dòng lỗi (stack trace, assertion) rồi mới sửa.
 3. **Trần rõ ràng**: re-run tối đa 1 lần cho lỗi nghi flake; cùng chữ ký lỗi tối đa 3 lần sửa (máy chặn qua
    `same_failure_count`, xem [`loop-design.md`](loop-design.md)); vượt → `blocked`, người xem.
@@ -55,13 +56,13 @@ updated: 2026-10-17
 
 ## Checklist
 
-- [ ] `LOOP-CI-001` **MUST** Không skip/disable/xoá test, không hạ ngưỡng coverage, không tắt rule lint/type để cổng xanh. → Kiểm: diff không chứa `skip(`, `xfail`, `.only(`, `eslint-disable` mới, thay đổi `coverageThreshold`/`strict`; hook `pre-edit-guard.sh` hỏi khi chạm file cấu hình cổng và khi sửa file test đã có mà thêm skip/only/xfail/`@flaky` hoặc bớt assertion. · Nguồn: `AGENTS.md` §3
+- [ ] `LOOP-CI-001` **MUST** Không skip/disable/xoá test, không hạ ngưỡng coverage, không tắt rule lint/type để cổng xanh. → Kiểm: diff không chứa `skip(`, `xfail`, `.only(`, `eslint-disable` mới, thay đổi `coverageThreshold`/`strict`; hook `pre-edit-guard.sh` đánh dấu khi chạm file cấu hình cổng và khi sửa file test đã có mà thêm skip/only/xfail/`@flaky` hoặc bớt assertion (mặc định cho chạy — ADR-0018; `XT_GUARD_POLICY=strict` thì hỏi). · Nguồn: `AGENTS.md` §3
 - [ ] `LOOP-CI-002` **MUST@L** Re-run CI tối đa 1 lần cho mỗi lần đỏ nghi do hạ tầng; đỏ lần hai được xử lý như lỗi thật. → Kiểm: log autopilot/PROGRESS ghi số lần re-run mỗi run ID ≤ 1.
 - [ ] `LOOP-CI-003` **MAY** Ngừng dùng 2026-10-14 — gộp vào [`LOOP-DESIGN-005`](loop-design.md) (cùng chữ ký lỗi lặp 3 lần → `blocked`).
 - [ ] `LOOP-CI-004` **MUST** Không force-push, không rebase/rewrite history nhánh người khác, không empty commit để kích CI. → Kiểm: `.claude/settings.json` deny `git push --force*`; `pre-bash-guard.sh` chặn; `git log` không có commit rỗng (`git log --format=%H --diff-filter=A`… hoặc `git show --stat` rỗng). · Nguồn: [`../10-workflow/git-and-branching.md`](../10-workflow/git-and-branching.md)
 - [ ] `LOOP-CI-005` **MUST@L** Trước mỗi lần sửa, agent trích đúng dòng lỗi từ log CI (assertion/stack trace) vào PROGRESS hoặc commit message; không sửa theo tên job. → Kiểm: commit `fix:` dẫn dòng lỗi hoặc link job log.
 - [ ] `LOOP-CI-006` **MUST@L** Secret scan hoặc SAST đỏ → dừng và hỏi người; không thêm allowlist/ignore để qua. → Kiểm: `loop block --reason` được gọi; diff không sửa file cấu hình scanner. · Nguồn: [`../12-security/secrets-management.md`](../12-security/secrets-management.md)
-- [ ] `LOOP-CI-007` **MUST@L** Không sửa migration đã áp ở môi trường chung; chỉ thêm migration mới. → Kiểm: `pre-edit-guard.sh` hỏi khi sửa file migration có sẵn; diff không chạm migration cũ. · Nguồn: [`../09-database/migrations.md`](../09-database/migrations.md)
+- [ ] `LOOP-CI-007` **MUST@L** Không sửa migration đã áp ở môi trường chung; chỉ thêm migration mới. → Kiểm: diff không chạm migration cũ; `pre-edit-guard.sh` đánh dấu khi sửa file migration có sẵn (mặc định cho chạy — ADR-0018; `XT_GUARD_POLICY=strict` thì hỏi). · Nguồn: [`../09-database/migrations.md`](../09-database/migrations.md)
 - [ ] `LOOP-CI-008` **MUST** Workflow chạy agent chỉ kích hoạt bởi người (kiểm `author_association` hoặc nhãn do người gắn), không chạy với secret trên PR từ fork. → Kiểm: file workflow có điều kiện `if:` kiểm actor; `pull_request_target` không cấp secret cho code fork. · Nguồn: `research/2026-10-13-ai-agent-research.md` §3; stored 21 §9
 - [ ] `LOOP-CI-009` **MUST@L** Job có agent dùng `permissions:` tối thiểu; job ghi (commit/comment) tách khỏi job đọc/suy luận. → Kiểm: workflow có khối `permissions:` tường minh; job chạy model không có `contents: write`. · Nguồn: stored 21 §9 (safe-outputs)
 - [ ] `LOOP-CI-010` **MUST@L** Chạy headless không dùng `--bare`; có `--max-turns` và `--max-budget-usd`. → Kiểm: lệnh trong workflow; JSON kết quả có `total_cost_usd` ≤ trần. · Nguồn: Claude Code headless docs
@@ -92,7 +93,7 @@ updated: 2026-10-17
 
 | Việc | Công cụ → lệnh | Đặt ở đâu | Ngưỡng |
 |---|---|---|---|
-| Chặn nới cổng | `pre-edit-guard.sh` (ask khi sửa eslint/tsconfig/coverage/workflows/migration, và khi test đã có bị thêm skip/only/xfail/`@flaky` hoặc bớt assertion); grep diff `skip(|xfail|\.only\(|eslint-disable` | PreToolUse Edit/Write/MultiEdit; job CI | 0 vi phạm không giải thích |
+| Chặn nới cổng | `pre-edit-guard.sh` (đánh dấu khi sửa eslint/tsconfig/coverage/workflows/migration, và khi test đã có bị thêm skip/only/xfail/`@flaky` hoặc bớt assertion — mặc định cho chạy, `strict` thì ask); grep diff `skip(|xfail|\.only\(|eslint-disable` | PreToolUse Edit/Write/MultiEdit; job CI | 0 vi phạm không giải thích |
 | Chặn lệnh phá huỷ | `pre-bash-guard.sh` deny `push --force`, `reset --hard`, `clean`; `settings.json` deny | PreToolUse Bash | Deny |
 | Trần sửa cùng lỗi | `xt.py loop status --json` → `blocked` | Stop hook `stop-guard.sh` | `same_failure_count` ≥ 3 |
 | Trần chi phí headless | `claude -p … --max-turns N --max-budget-usd X --output-format json` | Workflow | `total_cost_usd` ≤ X |

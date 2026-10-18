@@ -11,9 +11,8 @@ set -uo pipefail
 . "$(dirname "$0")/_lib.sh"
 
 payload="$(cat)"
-res="$(printf '%s' "$payload" | CLAUDE_PROJECT_DIR="$XT_ROOT" python3 "$(dirname "$0")/guard.py" edit 2>/dev/null)" || exit 0
-decision="$(json_field "$res" decision)"
-if [ "$decision" = "deny" ] || [ "$decision" = "ask" ]; then
-  pretool_decision "$decision" "$(json_field "$res" reason)"
+guard_fields edit <<<"$payload" || exit 0
+if [ "$XG_DECISION" = "deny" ] || [ "$XG_DECISION" = "ask" ]; then
+  pretool_decision "$XG_DECISION" "$XG_REASON"
 fi
 exit 0

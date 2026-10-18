@@ -9,5 +9,5 @@ set -uo pipefail
 
 payload="$(cat)"
 XT="$(xt_py)" || exit 0
-printf '%s' "$payload" | python3 "$XT" loop checkpoint >/dev/null 2>&1 || true
+printf '%s' "$payload" | py_run "$XT" loop checkpoint >/dev/null 2>&1 || true
 exit 0

@@ -51,13 +51,18 @@ function jobNames(wfs) {
   return names;
 }
 
-/** Workflow có chạy trên MỌI pull_request vào main (không lọc `paths`/`paths-ignore`/nhánh khác)? */
+/**
+ * Workflow có chạy trên MỌI pull_request vào main (không lọc `paths`/`paths-ignore`/nhánh khác)? `pull_request_target`
+ * cũng tính (merge-gate của khung: workflow lấy từ nhánh mặc định, vẫn báo check trên head của PR).
+ */
+const PR_EVENTS = ["pull_request", "pull_request_target"];
 function runsOnEveryPr(wf) {
   const on = wf.on;
-  if (typeof on === "string") return on === "pull_request";
-  if (Array.isArray(on)) return on.includes("pull_request");
-  if (!on || !("pull_request" in on)) return false;
-  const pr = on.pull_request ?? {};
+  if (typeof on === "string") return PR_EVENTS.includes(on);
+  if (Array.isArray(on)) return on.some((e) => PR_EVENTS.includes(e));
+  const event = PR_EVENTS.find((e) => on && e in on);
+  if (!event) return false;
+  const pr = on[event] ?? {};
   if (pr.paths || pr["paths-ignore"] || pr["branches-ignore"]) return false;
   return !pr.branches || pr.branches.includes("main");
 }
@@ -137,12 +142,16 @@ const WAVE9_GATES = [
 ];
 /** Cổng có từ trước đợt 9; `quality` gom gate/e2e/backup-restore/workflow-lint/onboarding-smoke (T-807). */
 const BASE_GATES = ["quality", "protection-guard", "gitleaks", "dep-audit"];
+/** Cổng của khung X-Templates 3.0.0: `merge-gate` đỏ khi PR ngoại lệ cứng đang bật auto-merge (ADR-0023 của khung). */
+const FRAMEWORK_GATES = ["merge-gate"];
 
 describe("WF-CI-001 — job gom quality + ruleset khớp job thật", () => {
   const ruleset = JSON.parse(read(".github/rulesets/main.json"));
 
-  it("ruleset đòi cổng nền (quality · protection-guard · gitleaks · dep-audit) + mọi cổng PR của đợt 9", () => {
-    expect(requiredContexts(ruleset).sort()).toEqual([...BASE_GATES, ...WAVE9_GATES].sort());
+  it("ruleset đòi cổng nền (quality · protection-guard · gitleaks · dep-audit) + mọi cổng PR của đợt 9 + merge-gate", () => {
+    expect(requiredContexts(ruleset).sort()).toEqual(
+      [...BASE_GATES, ...WAVE9_GATES, ...FRAMEWORK_GATES].sort(),
+    );
   });
 
   it("không context trùng lặp trong ruleset", () => {
@@ -320,13 +329,33 @@ describe("D-065 — ruleset gom mọi job chạy trên mọi PR vào main", () =
 describe("WF-CI-004 — zizmor + không nội suy input không tin cậy vào run:", () => {
   const wfs = workflows();
 
-  it("không workflow nào dùng pull_request_target hoặc workflow_run", () => {
+  const triggers = (wf) =>
+    typeof wf.on === "string" ? [wf.on] : Array.isArray(wf.on) ? wf.on : Object.keys(wf.on ?? {});
+
+  it("không workflow nào dùng workflow_run; pull_request_target chỉ ở merge-gate.yml của khung (D-069)", () => {
     for (const [f, wf] of Object.entries(wfs)) {
-      const on =
-        typeof wf.on === "string" ? [wf.on] : Array.isArray(wf.on) ? wf.on : Object.keys(wf.on ?? {});
-      expect(on, f).not.toContain("pull_request_target");
-      expect(on, f).not.toContain("workflow_run");
+      expect(triggers(wf), f).not.toContain("workflow_run");
+      if (f !== "merge-gate.yml") expect(triggers(wf), f).not.toContain("pull_request_target");
     }
+  });
+
+  it("merge-gate.yml (pull_request_target) không checkout code PR, chỉ quyền đọc, không secret", () => {
+    const f = "merge-gate.yml";
+    const wf = wfs[f];
+    const text = read(`${WORKFLOW_DIR}/${f}`);
+    expect(triggers(wf)).toEqual(["pull_request_target"]);
+    expect(wf.permissions).toEqual({ contents: "read" });
+    for (const [key, job] of Object.entries(wf.jobs)) {
+      for (const level of Object.values(job.permissions ?? {})) expect(level, key).toBe("read");
+      for (const step of job.steps ?? []) {
+        if (String(step.uses ?? "").startsWith("actions/checkout@")) {
+          expect(step.with?.ref, key).toBeUndefined();
+          expect(step.with?.["persist-credentials"], key).toBe(false);
+        }
+      }
+    }
+    expect(text).not.toMatch(/secrets\./);
+    expect(text).not.toMatch(/pull_request\.head\.(ref|repo)/);
   });
 
   it("không có biểu thức Actions nằm thẳng trong run: (đi qua env:)", () => {

@@ -25,7 +25,7 @@ fi
 XT="$(xt_py)" || true
 if [ -n "${XT:-}" ] && [ -f "$XT_ROOT/.autopilot/state.json" ]; then
   ctx+="===== Autopilot =====
-$(python3 "$XT" loop status 2>/dev/null || echo 'không đọc được trạng thái')
+$(py_run "$XT" loop status 2>/dev/null || echo 'không đọc được trạng thái')
 
 "
 fi

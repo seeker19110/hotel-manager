@@ -3,7 +3,7 @@ title: E2E & a11y: Playwright/axe, mobile, flaky, trace
 kind: module
 prefix: QA-E2E
 applies_to: [web-app, mobile-app, desktop-app, static-site, game, monorepo]
-updated: 2026-10-14
+updated: 2026-10-18
 ---
 
 # E2E & a11y: Playwright/axe, mobile, flaky, trace
@@ -52,6 +52,13 @@ updated: 2026-10-14
 - [ ] `QA-E2E-017` **SHOULD** Visual regression chỉ cho component ổn định (design system), ngưỡng diff ghi rõ, review ảnh như code. → Kiểm: `toHaveScreenshot` với `maxDiffPixelRatio` ghi trong config.
 - [ ] `QA-E2E-018` **MAY** Chạy E2E đa trình duyệt (WebKit/Firefox) ở nightly.
 - [ ] `QA-E2E-019` **MAY** Dùng agent/LLM để **sinh** kịch bản E2E từ spec, người review rồi commit; không dùng agent chạy trực tiếp làm cổng.
+- [ ] `QA-E2E-020` **SHOULD** Chia shard song song: `fullyParallel: true` (shard cân bằng ở mức từng test, không phải từng file) + ma trận CI `--shard=<i>/<N>` với `fail-fast: false`; chọn N sao cho shard chậm nhất ≈ ngân sách thời gian (`QA-E2E-026`); báo cáo blob của mọi shard gộp một lần bằng `merge-reports`. → Kiểm: `playwright.config` có `fullyParallel: true` và `reporter: process.env.CI ? 'blob' : 'html'`; workflow có `strategy.matrix.shardIndex` + job gộp `needs: [e2e]` chạy `npx playwright merge-reports`; thời gian job shard chậm nhất ≤ ngân sách. · Nguồn: Playwright docs test-sharding (xác minh 2026-10-18)
+- [ ] `QA-E2E-021` **SHOULD** Build một lần, mọi shard dùng lại: job build riêng đẩy artifact (bản build/preview), shard tải về và khởi động từ bản build — không build lại ở từng shard, không chạy dev server; cài trình duyệt theo `QA-E2E-012`. → Kiểm: workflow có job `build` + `actions/upload-artifact`; job shard có `needs: [build]` và không có bước `build`; `webServer.command` trỏ lệnh serve bản build.
+- [ ] `QA-E2E-022` **SHOULD** Đăng nhập một lần cho mỗi worker: project `setup` đăng nhập qua giao diện rồi lưu `storageState` (`playwright/.auth/`, vào `.gitignore`) — **mỗi worker một tài khoản test riêng**, không dùng chung một tài khoản cho mọi worker (`QA-E2E-006`, mục Bẫy); mọi project test dùng `storageState` + `dependencies: ['setup']`; dữ liệu nền tạo qua API/seed (`QA-E2E-006`), giao diện chỉ dùng cho bước đang kiểm. → Kiểm: config có project `setup` (`testMatch: /.*\.setup\.ts/`) và `storageState`; tài khoản/file trạng thái khác nhau theo `workerIndex`; `.gitignore` có `playwright/.auth`; chỉ spec đăng nhập đi qua form đăng nhập. · Nguồn: Playwright docs auth (xác minh 2026-10-18)
+- [ ] `QA-E2E-023` **SHOULD** Chọn test theo ảnh hưởng ở PR: PR chỉ chạy `@smoke` + spec của luồng bị đổi (khai lệnh ở `xt.yaml` `e2e_affected`; Gate mỗi task của autopilot cũng chỉ chạy spec của lát đó), còn suite đầy đủ chạy khi push `main`, trước deploy/phát hành và nightly (autopilot: `loop verify` chỉ chạy lại Gate của từng task nên PLAN phải có task cuối với Gate là lệnh `e2e` đầy đủ); PR chạm vùng dùng chung (thành phần lõi, config, lockfile, workflow, schema) → chạy đầy đủ. Job bỏ qua báo `skipped` được `quality` chấp nhận (`WF-CI-017`); không bao giờ để bản deploy đi qua mà thiếu lần chạy đầy đủ xanh. → Kiểm: workflow tính tập spec từ `git diff` và có ca "chạm lockfile → đầy đủ"; push `main` chạy đầy đủ; deploy `needs` job e2e đầy đủ; PLAN có task cuối Gate = `e2e` đầy đủ.
+- [ ] `QA-E2E-024` **SHOULD** Đỏ sớm, huỷ phần thừa: `@smoke` chạy thành job riêng trước và đỏ thì huỷ phần còn lại (`--max-failures`), huỷ run cũ cùng nhánh (`concurrency` + `cancel-in-progress: true`). → Kiểm: workflow có `concurrency.cancel-in-progress: true` cho nhánh PR; lệnh CI có `--max-failures=<n>` hoặc `maxFailures` trong config. · Nguồn: Playwright docs test-parallel (xác minh 2026-10-18)
+- [ ] `QA-E2E-025` **SHOULD** Bớt việc thừa trong từng test: timeout ngắn theo đo (`expect.timeout`, `actionTimeout` ≤ 10 s; không nâng timeout toàn cục để che test chậm), chờ theo sự kiện (`QA-E2E-007`), chặn tài nguyên không liên quan (ảnh, font, analytics) bằng `route`, tắt animation (`reducedMotion`). → Kiểm: `playwright.config` có `expect.timeout` và `use.actionTimeout` ≤ 10 000; fixture chặn host analytics; không có `timeout` toàn cục > 60 000 mà thiếu comment lý do.
+- [ ] `QA-E2E-026` **SHOULD** Có ngân sách thời gian và đo mỗi run: mặc định PR ≤ 5 phút đồng hồ khi đã shard (trần cứng `QA-E2E-013` ≤ 10), suite đầy đủ ≤ 15 phút; mỗi run in p50/p95 và 10 test chậm nhất vào step summary; vượt ngân sách hai run liên tiếp thì mở task tối ưu (tăng shard, tách test, đẩy xuống integration). Không chữa chậm bằng cách bỏ test hay tăng retry. → Kiểm: step summary có bảng thời gian (từ `--reporter=json`); `docs/ops/` có bảng thời gian theo tuần; có task tối ưu khi vượt.
 
 ## Bẫy thường gặp
 
@@ -64,6 +71,9 @@ updated: 2026-10-14
 - **Lighthouse CI làm cổng a11y duy nhất** — repo đứng yên từ 2025-06-26, chấm trang đơn. Cách tránh: axe trong E2E là cổng chính.
 - **Agent điều khiển browser làm cổng** (browser-use, TesterArmy…): không tất định, có công cụ bật telemetry mặc định (catalog 11). Cách tránh: chỉ sinh test, người duyệt.
 - **Bỏ mobile viewport** vì "responsive rồi". Cách tránh: QA-E2E-002 bắt buộc 2 project.
+- **Tăng tốc bằng cách bỏ test hoặc nâng retry/timeout** → cổng xanh nhưng hồi quy lọt. Cách tránh: tăng shard, build một lần, đăng nhập một lần, chọn test theo ảnh hưởng (QA-E2E-020…023); không bao giờ để deploy đi qua mà thiếu lần chạy đầy đủ.
+- **Chọn test theo ảnh hưởng nhưng bỏ sót vùng dùng chung** (lockfile, config, thành phần lõi) → PR đổi nền mà chỉ chạy vài spec. Cách tránh: danh sách vùng chạy đầy đủ trong QA-E2E-023, suite đầy đủ trên `main`.
+- **Đăng nhập qua giao diện ở mọi test** → mỗi test mất vài giây thừa nhân với hàng trăm test. Cách tránh: QA-E2E-022.
 
 ## Cổng tự động
 
@@ -75,11 +85,17 @@ updated: 2026-10-14
 | `pa11y-ci` 5.0.0 | `pa11y-ci --sitemap https://staging/sitemap.xml` | CI nightly (static-site) | 0 error |
 | Artifact | `actions/upload-artifact` (ghim SHA) `playwright-report/`, `test-results/` | CI `if: failure()` | retention ≥ 14 ngày |
 | Cache browser | `actions/cache` `~/.cache/ms-playwright` | CI | cache hit → bỏ `install --with-deps` |
+| Shard + gộp báo cáo | `npx playwright test --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}` · `npx playwright merge-reports --reporter html ./all-blob-reports` | CI job `e2e` (matrix) + job gộp | shard chậm nhất ≤ ngân sách (QA-E2E-026) |
+| Đỏ sớm | `--max-failures=<n>` · `concurrency: cancel-in-progress: true` | CI | huỷ run cũ, dừng khi đỏ |
+| Ngân sách thời gian | `--reporter=json` → bảng p50/p95 + 10 test chậm nhất vào `$GITHUB_STEP_SUMMARY` | CI | PR ≤ 5 phút (cứng ≤ 10), đầy đủ ≤ 15 |
 | XCUITest / Espresso | `xcodebuild test -destination 'platform=iOS Simulator,name=iPhone SE'` · `./gradlew connectedCheck` | CI mobile | 0 fail |
 
 ## Nguồn
 
 - Playwright test configuration (`forbidOnly`, `retries`, `workers`, `trace: 'on-first-retry'`): <https://playwright.dev/docs/test-configuration> — xác minh 2026-10-13
+- Playwright sharding (`--shard=x/y`, blob reporter + `merge-reports`, `fullyParallel` để shard cân bằng theo từng test, ví dụ ma trận `fail-fast: false`): <https://playwright.dev/docs/test-sharding> — xác minh 2026-10-18. Trang không nêu phiên bản cho blob reporter/`merge-reports` (chưa xác minh phiên bản).
+- Playwright auth (`storageState`, project `setup` + `dependencies`, thư mục `playwright/.auth` vào `.gitignore`): <https://playwright.dev/docs/auth> — xác minh 2026-10-18.
+- Playwright parallelism (`fullyParallel`, `--max-failures`/`maxFailures`; trang không nêu số `workers` mặc định): <https://playwright.dev/docs/test-parallel> — xác minh 2026-10-18.
 - Phiên bản (npm, xác minh 2026-10-13): `@playwright/test` 1.64.0, `@axe-core/playwright` 4.13.0, `pa11y-ci` 5.0.0.
 - Lighthouse CI commit cuối 2025-06-26: <https://github.com/GoogleChrome/lighthouse-ci/commits/main> — xác minh 2026-10-13
 - WCAG 2.2: <https://www.w3.org/TR/WCAG22/> — xác minh 2026-10-13

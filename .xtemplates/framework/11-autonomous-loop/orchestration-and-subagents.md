@@ -3,7 +3,7 @@ title: Điều phối: subagent, worktree, song song, không lồng
 kind: module
 prefix: LOOP-ORCH
 applies_to: [all]
-updated: 2026-10-16
+updated: 2026-10-17
 ---
 
 # Điều phối: subagent, worktree, song song, không lồng
@@ -91,7 +91,7 @@ lệnh + exit code · còn treo). Thiếu `acceptance_criteria` → không giao.
 | Reviewer cùng model, nhận cả lý luận của executor | Cùng điểm mù, review "xanh" rỗng | Model khác; chỉ đưa diff + SPEC |
 | Giao task spec hở để "subagent tự lấp" | Subagent bịa yêu cầu, làm việc khác hẳn | Spec hở → phiên chính quyết D-NNN trước khi giao; subagent trả câu hỏi về, không tự lấp |
 | Mở 10 subagent song song trên máy 8 GB | OOM, timeout giả, chữ ký lỗi nhiễu | Trần 5; giảm khi máy yếu |
-| Subagent được quyền push/publish | Hành động đối ngoại không qua điểm dừng | Chỉ phiên chính push, qua hook `ask` |
+| Subagent được quyền push/publish | Hành động đối ngoại không qua điểm dừng | Chỉ phiên chính push/publish, qua hook guard (deny việc không đảo ngược) và `loop defer` cho việc cần người |
 | Đưa transcript subagent nguyên văn vào context chính | Context phình, compaction sớm | Báo cáo ≤ 25 dòng, link file/log |
 
 ## Cổng tự động
