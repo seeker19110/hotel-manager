@@ -1,6 +1,6 @@
 # GO/NO-GO — Hotel Manager · ứng viên 0.1.0 (pilot) · 2026-10-18 (rà đợt 9, T-808)
 
-> Commit: `main` `b2d992d` (đợt 3–9 đã merge; đợt 9: PR #39 T-807 · #41 T-801 · #42 T-802 · #43 T-803 · #44 T-806 · #45 T-805 · #46 T-804) + nhánh `wip/w9h` (T-808: ruleset 28 required check, rà blueprint) · Blueprint `xt.py blueprint-status BLUEPRINT.md --strict` → MUST đạt 336 · miễn 55 · **mở 105** (đầu đợt 9: đạt 282 · mở 159; đợt 9 đóng 54) · 55 miễn trừ MUST đã có `Duyệt:` của chủ dự án (PR #38, 2026-10-17) · CI: mọi PR đợt 9 đã merge xanh đủ job; `loop verify` trên `main` chưa chạy lại ở T-808 (Gate của task: `check-blueprint-evidence.py` + unittest).
+> Commit: `main` `79afb9d` (đợt 3–9 đã merge; đợt 9: PR #39 T-807 · #41 T-801 · #42 T-802 · #43 T-803 · #44 T-806 · #45 T-805 · #46 T-804 · #47 T-808; sửa sau verify: #48 T-707 · #50 T-207 · #51 T-226/T-801; #49 khung 3.0.0) · Blueprint `xt.py blueprint-status BLUEPRINT.md --strict` → MUST đạt 337 · miễn 54 · **mở 105** (đầu đợt 9: đạt 282 · mở 159) · miễn trừ MUST có `Duyệt:` của chủ dự án (PR #38, 2026-10-17; SEC-SUPPLY-009 hết miễn ở #49) · `loop verify` trên `main` 79afb9d: XANH (71 Gate + 1 lệnh kiểm blueprint, 2026-10-18).
 > Người kiểm: phiên autopilot (report-only, không deploy) · Phạm vi: web/PWA + worker + CSDL; không có mobile native.
 
 ## 1. Đếm
