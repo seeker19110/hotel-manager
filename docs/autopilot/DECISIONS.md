@@ -423,3 +423,11 @@
 - Chọn: 67 mục MUST 'một phần' cần CI/file cổng/công cụ, chia 7 lát theo chủ đề (pr-policy+lịch sử, chuỗi cung ứng, quét bảo mật, frontend perf/test, chất lượng test, API/vận hành, phát hành/DX); bỏ 4 mục cần biến môi trường mới và 19 mục pháp lý
 - Lý do (tiêu chí chất lượng cuối): (1) đúng phạm vi người duyệt; (3) mỗi lát một PR có test/CI chứng minh; công cụ chọn tự host, giấy phép OSI, action ghim SHA (ci-check); phụ thuộc mới theo license-policy.json
 - Đường lùi: Revert PR của lát tương ứng; cấu hình cổng trở về bản trước
+
+### D-060 · 2026-10-18T00:08:36+00:00 · T-802: chọn công cụ chuỗi cung ứng
+
+- Phương án: (1) grype (anchore/scan-action, only-fixed, chặn high/critical; lỗ hổng chưa có bản sửa theo dõi trong VULN-SLA.md) + SBOM CycloneDX 1.6 tự sinh (scripts/sbom.mjs) + syft cho image + new-deps chỉ chặn phụ thuộc trực tiếp · (2) trivy + cdxgen, chặn cả lỗ hổng chưa có bản sửa
+- Chọn: grype (anchore/scan-action, only-fixed, chặn high/critical; lỗ hổng chưa có bản sửa theo dõi trong VULN-SLA.md) + SBOM CycloneDX 1.6 tự sinh (scripts/sbom.mjs) + syft cho image + new-deps chỉ chặn phụ thuộc trực tiếp
+- Lý do (tiêu chí chất lượng cuối): (3) ít phụ thuộc, OSI, action ghim SHA; chặn cái sửa được, theo dõi cái chưa sửa được có SLA — không đỏ vĩnh viễn vì việc ngoài tầm
+- Đường lùi: Đổi only-fixed=false hoặc thay action quét
+- Khi chạy thật (đề xuất, chủ dự án quyết ở G7): Chủ dự án quyết ngoại lệ giấy phép LGPL-3.0 của @img/sharp-libvips (dynamic link, dùng cho tối ưu ảnh Next) khi mở rộng licenses:check quét toàn workspace (148 gói)
