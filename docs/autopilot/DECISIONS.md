@@ -423,3 +423,11 @@
 - Chọn: 67 mục MUST 'một phần' cần CI/file cổng/công cụ, chia 7 lát theo chủ đề (pr-policy+lịch sử, chuỗi cung ứng, quét bảo mật, frontend perf/test, chất lượng test, API/vận hành, phát hành/DX); bỏ 4 mục cần biến môi trường mới và 19 mục pháp lý
 - Lý do (tiêu chí chất lượng cuối): (1) đúng phạm vi người duyệt; (3) mỗi lát một PR có test/CI chứng minh; công cụ chọn tự host, giấy phép OSI, action ghim SHA (ci-check); phụ thuộc mới theo license-policy.json
 - Đường lùi: Revert PR của lát tương ứng; cấu hình cổng trở về bản trước
+
+### D-062 · 2026-10-18T00:10:24+00:00 · T-801: lychee/oasdiff không tải được qua proxy — dùng công cụ nào để kiểm liên kết và breaking change OpenAPI; luật breaking API chặt tới đâu?
+
+- Phương án: (1) Tự viết script Node (scripts/check-external-links.mjs) kiểm liên kết (cache + thử lại) và so OpenAPI với nhánh gốc (scripts/check-openapi-breaking.mjs); breaking bắt buộc bump MAJOR + 'BREAKING CHANGE:' · (2) Chờ người cho phép tải binary lychee/oasdiff · (3) Bỏ kiểm, ghi miễn trừ
+- Chọn: Tự viết script Node (scripts/check-external-links.mjs) kiểm liên kết (cache + thử lại) và so OpenAPI với nhánh gốc (scripts/check-openapi-breaking.mjs); breaking bắt buộc bump MAJOR + 'BREAKING CHANGE:'
+- Lý do (tiêu chí chất lượng cuối): Chạy được ngay trong repo, có unittest, không thêm phụ thuộc nhị phân; luật chặt an toàn hơn cho client
+- Đường lùi: Thay script bằng lychee/oasdiff trong cùng job khi proxy cho phép; nới luật bằng sửa scripts/check-openapi-breaking.mjs
+- Khi chạy thật (đề xuất, chủ dự án quyết ở G7): Cân nhắc thay bằng lychee/oasdiff bản ghim checksum khi CI ra mạng được
