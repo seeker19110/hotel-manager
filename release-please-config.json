@@ -1,0 +1,15 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "release-type": "node",
+  "bootstrap-sha": "e22ad57730eaf7ed15e338d8789b90e62038a4d4",
+  "bump-minor-pre-major": true,
+  "include-component-in-tag": false,
+  "include-v-in-tag": true,
+  "draft": true,
+  "skip-changelog": true,
+  "packages": {
+    ".": {
+      "package-name": "hotel-manager"
+    }
+  }
+}

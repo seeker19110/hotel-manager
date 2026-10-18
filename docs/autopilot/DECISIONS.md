@@ -424,6 +424,13 @@
 - Lý do (tiêu chí chất lượng cuối): (1) đúng phạm vi người duyệt; (3) mỗi lát một PR có test/CI chứng minh; công cụ chọn tự host, giấy phép OSI, action ghim SHA (ci-check); phụ thuộc mới theo license-policy.json
 - Đường lùi: Revert PR của lát tương ứng; cấu hình cổng trở về bản trước
 
+### D-060 · 2026-10-18T00:08:06+00:00 · WF-REVIEW-007: thay đổi .github/.claude/.githooks có bắt buộc người merge (thêm vào merge_risk_paths) không?
+
+- Phương án: (1) Giữ CODEOWNERS (@seeker19110) nhưng không thêm vào merge_risk_paths; WF-REVIEW-007 chưa tick, chờ chủ dự án quyết · (2) Thêm .github/*, .claude/*, .githooks/* vào merge_risk_paths (mọi PR CI/công cụ phải người merge)
+- Chọn: Giữ CODEOWNERS (@seeker19110) nhưng không thêm vào merge_risk_paths; WF-REVIEW-007 chưa tick, chờ chủ dự án quyết
+- Lý do (tiêu chí chất lượng cuối): (2) đường lùi: chủ dự án đã duyệt đợt 9 sửa CI/công cụ và muốn tự merge từng lát; thêm vào merge_risk_paths đổi chính sách merge (điểm dừng) nên để chủ dự án quyết
+- Đường lùi: Thêm glob vào merge_risk_paths trong xt.yaml
+
 ### D-062 · 2026-10-18T00:10:24+00:00 · T-801: lychee/oasdiff không tải được qua proxy — dùng công cụ nào để kiểm liên kết và breaking change OpenAPI; luật breaking API chặt tới đâu?
 
 - Phương án: (1) Tự viết script Node (scripts/check-external-links.mjs) kiểm liên kết (cache + thử lại) và so OpenAPI với nhánh gốc (scripts/check-openapi-breaking.mjs); breaking bắt buộc bump MAJOR + 'BREAKING CHANGE:' · (2) Chờ người cho phép tải binary lychee/oasdiff · (3) Bỏ kiểm, ghi miễn trừ
