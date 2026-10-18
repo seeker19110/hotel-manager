@@ -2,7 +2,7 @@
 <!-- Tiêu đề PR: `<type>(scope): mô tả`, ≤ 72 ký tự (CI kiểm). Mỗi lát một PR. -->
 
 ## Mục tiêu / SPEC
-<!-- Vì sao làm. Link SPEC (`docs/specs/…`, mã S-NNN), task PLAN (T-NNN), ADR/quyết định (D-NNN), issue. -->
+<!-- Vì sao làm. Link SPEC (`docs/specs/…`, mã S-NNN), task PLAN (T-NNN), ADR/quyết định (D-NNN), issue — thiếu mục tiêu hoặc ID/link thì job `pr-policy` đỏ (WF-REVIEW-002). -->
 
 ## Thay đổi
 <!-- Gồm những gì, đọc từ đâu trước; phần cố ý không làm. -->
@@ -10,13 +10,14 @@
 ## Bằng chứng cổng
 <!-- Chỉ xin review khi cổng đã xanh (WF-REVIEW-001): reviewer được từ chối review PR đỏ. -->
 - [ ] `.xtemplates/scripts/dev-task.sh gate` exit 0 (build · typecheck · lint · test) — dán dòng kết quả hoặc link job CI `quality`
+<!-- Tick ít nhất một dòng và ghi THÊM lệnh + exit code thật hoặc link lượt chạy CI (`pr-policy` không tính chữ có sẵn của mẫu). -->
 - [ ] Test mới cho mọi thay đổi hành vi, gồm ca biên (rỗng/null/0, lỗi I/O, thời gian, Unicode); sửa lỗi có test đỏ trước, xanh sau
 - [ ] Bất biến tiền/tồn (`INV-*`) đụng tới: test trên Postgres thật (`pnpm vitest run --project db <mẫu>`)
 - [ ] E2E (`pnpm --filter @hm/web exec playwright test`) nếu đổi luồng giao diện, hoặc "không áp dụng — lý do"
 - [ ] CI xanh: `quality`, `e2e`, `backup-restore`, `gitleaks`, `dep-audit` — link lượt chạy: …
 
 ## Tiêu chí chấp nhận
-<!-- Chép từng tiêu chí của SPEC/task (S-NNN) và trỏ bằng chứng (test, file, ảnh chụp) cho từng dòng; PR `feat:` liệt kê bản đồ S-NNN → test (WF-SDD-003). -->
+<!-- Chép từng tiêu chí của SPEC/task (S-NNN) và trỏ bằng chứng (test, file, ảnh chụp) cho từng dòng. PR `feat:` BẮT BUỘC có bản đồ scenario → test (WF-SDD-003, `pr-policy` kiểm): mỗi dòng dạng `- [x] S-001 → `đường/dẫn/file.test.ts` (tên test)`; đường dẫn phải có thật. Không có scenario: `không áp dụng — lý do: …`. -->
 - [ ] …
 
 ## Docs cập nhật / không cần
@@ -33,7 +34,7 @@
 - [ ] Mục blueprint liên quan tick kèm `Bằng chứng:` (`python3 scripts/check-blueprint-evidence.py BLUEPRINT.md`) — bằng chứng: …
 
 ## Refactor / perf — bảng trước–sau
-<!-- Chỉ cho PR `refactor:`/`perf:` (XC-GREEN-005): không trộn tính năng, không đổi hành vi công khai; số test không đổi trừ test mới thêm. Còn lại ghi "không áp dụng". -->
+<!-- Chỉ cho PR `refactor:`/`perf:` (XC-GREEN-005): không trộn tính năng, không đổi hành vi công khai; số test không đổi trừ test mới thêm (`pr-policy` kiểm hàng "Số test": không giảm; tăng thì diff phải có file test). Còn lại ghi "không áp dụng". -->
 | Số đo | Trước | Sau |
 |---|---|---|
 | Dòng mã (vùng sửa) | | |
@@ -49,7 +50,8 @@
 - [ ] Cột PII mới đã khai trong `docs/privacy/data-map.yaml`
 
 ## Rủi ro
-<!-- Ảnh hưởng nếu sai (tiền/tồn/dữ liệu cá nhân/quyền), phạm vi, cách phát hiện, cách tắt/quay lại. -->
+<!-- Ảnh hưởng nếu sai (tiền/tồn/dữ liệu cá nhân/quyền), phạm vi, cách phát hiện, cách tắt/quay lại (rollback) — thiếu cách quay lại thì `pr-policy` đỏ (WF-REVIEW-002). -->
+<!-- Chạm tiền/tồn/dữ liệu người dùng/auth/mật mã (đường dẫn trong `merge_risk_paths` của xt.yaml): gắn nhãn `risk:money` · `risk:data` · `risk:auth` · `risk:crypto` (LOOP-STOP-005); PR đó do người merge. -->
 
 ## Checklist bảo mật
 - [ ] Quyền kiểm ở server (`authorize()` + RLS), tài nguyên ngoài phạm vi trả 404, không tin `organization_id`/`property_id` từ client

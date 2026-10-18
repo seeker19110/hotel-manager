@@ -1,0 +1,66 @@
+name: PR policy
+
+# Chính sách PR bằng máy (WF-REVIEW-002, WF-SDD-003, WF-TEAM-003, XC-GREEN-005, LOOP-STOP-005) + rào so với nhánh gốc
+# (DB-MIG-003, ARC-ADR-004, STD-PROC-003) + trạng thái dự án/liên kết nội bộ (BASE-DOC-008, BASE-DOC-006, WF-DOC-002).
+# Workflow riêng để nhãn/sửa mô tả PR chạy lại job này mà không huỷ cổng chính (`quality`, `e2e`) của ci.yml.
+# `fetch-depth: 0`: cần lịch sử đầy đủ để so `origin/<base>...HEAD` và kiểm SHA trong PROGRESS.md là tổ tiên của HEAD.
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-policy-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  pr-policy:
+    name: pr-policy
+    # PR của Dependabot do bot mở, không theo mẫu PR của sản phẩm.
+    if: github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24.22.0"
+      # Tiêu đề, mô tả, nhãn là dữ liệu không tin cậy: chỉ đi qua biến môi trường vào file, không nội suy vào lệnh.
+      - name: Ghi tiêu đề + mô tả PR ra file
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          printf '%s' "$PR_BODY" > "$RUNNER_TEMP/pr-body.md"
+          printf '%s\n\n%s\n' "$PR_TITLE" "$PR_BODY" > "$RUNNER_TEMP/pr-text.txt"
+      - name: Chính sách PR — tiêu đề, mô tả, map scenario→test, nhãn risk, bảng trước–sau (pr-policy.py --strict)
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          BASE_REF: ${{ github.base_ref }}
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: >-
+          python3 scripts/pr-policy.py --base "origin/$BASE_REF" --title "$PR_TITLE"
+          --body-file "$RUNNER_TEMP/pr-body.md" --labels "$PR_LABELS" --strict
+      - name: Test unit của chính sách (Python)
+        run: python3 -m unittest discover -s scripts -p "test_*.py"
+      - name: PROGRESS.md — ≤ 8 KB, đủ 4 mục, SHA bàn giao là tổ tiên HEAD
+        run: python3 .xtemplates/scripts/xt.py progress-check
+      - name: Liên kết nội bộ trong mọi tài liệu Markdown trỏ tới file có thật
+        run: python3 .xtemplates/scripts/check-links.py
+      - name: Migration đã có ở nhánh gốc không bị sửa/xoá; file mới đánh số sau bản cuối
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: node scripts/check-migrations-immutable.mjs --base "origin/$BASE_REF"
+      - name: ADR accepted không bị sửa nội dung
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: node scripts/check-adr-immutable.mjs --base "origin/$BASE_REF"
+      - name: Hợp đồng API — phá vỡ phải tăng MAJOR + BREAKING CHANGE
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: node scripts/check-openapi-breaking.mjs --base "origin/$BASE_REF" --extra-file "$RUNNER_TEMP/pr-text.txt"
