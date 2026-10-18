@@ -25,7 +25,8 @@ jobs:
     timeout-minutes: 20
     services:
       postgres:
-        image: postgres:17.11
+        # Cùng tag + digest với deploy/postgres/Dockerfile (BASE-DEP-008: ghim digest; scripts/check-image-pins.mjs kiểm).
+        image: postgres:17.11-trixie@sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3
         env:
           POSTGRES_PASSWORD: postgres
         ports: ["5432:5432"]
@@ -50,8 +51,26 @@ jobs:
       # T-011: object storage tự host (ADR-0002) cho test file riêng tư — binary kiểm SHA-256 trong script.
       - name: SeaweedFS cho test file (PLAN T-011)
         run: DEV_ENV_OPT_DIR="$RUNNER_TEMP" DEV_ENV_BIN_DIR="$HOME/.local/bin" bash scripts/dev-env-setup.sh --only weed && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      # SEC-SECRET-007: toàn bộ log của cổng được ghi ra file, gitleaks quét TRƯỚC khi lưu làm artifact; có bí mật → đỏ, không lưu.
       - name: Cổng chuẩn — đúng lệnh trong xt.yaml
-        run: .xtemplates/scripts/dev-task.sh gate
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/ci-logs"
+          .xtemplates/scripts/dev-task.sh gate 2>&1 | tee "$RUNNER_TEMP/ci-logs/gate.log"
+      - name: Cài gitleaks (ghim phiên bản, kiểm SHA-256)
+        if: always()
+        run: DEV_ENV_OPT_DIR="$RUNNER_TEMP" DEV_ENV_BIN_DIR="$HOME/.local/bin" bash scripts/dev-env-setup.sh --only gitleaks && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: gitleaks quét log CI (SEC-SECRET-007)
+        id: log-scan
+        if: always()
+        run: gitleaks dir "$RUNNER_TEMP/ci-logs" --no-banner --redact --verbose
+      - name: Lưu log CI (đã quét sạch bí mật)
+        if: always() && steps.log-scan.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ci-logs-gate
+          path: ${{ runner.temp }}/ci-logs/
+          retention-days: 14
       - name: Tiêu đề PR theo Conventional Commits, ≤ 72 ký tự
         if: github.event_name == 'pull_request'
         env:
@@ -61,13 +80,16 @@ jobs:
             && [ "${#TITLE}" -le 72 ] || { echo "::error::Tiêu đề PR phải dạng '<type>(scope): mô tả' và ≤ 72 ký tự: $TITLE"; exit 1; }
 
   # E2E (SPEC-pwa, PLAN T-013/T-014): build production + e2e/server.ts (Postgres service + seed giả) + Playwright Chromium.
+  # timeout 40: E2E chạy CẢ HAI project (mobile + desktop, T-804); đo cục bộ desktop một mình 5,5 phút/95 test (1 worker) →
+  # hai project ≈ 11 phút + cài/build/khởi động ≈ 20 phút, runner chậm hơn → cần dư. Không phải nới ngưỡng chất lượng.
   e2e:
     name: e2e
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 40
     services:
       postgres:
-        image: postgres:17.11
+        # Cùng tag + digest với deploy/postgres/Dockerfile (BASE-DEP-008: ghim digest; scripts/check-image-pins.mjs kiểm).
+        image: postgres:17.11-trixie@sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3
         env:
           POSTGRES_PASSWORD: postgres
         ports: ["5432:5432"]
@@ -92,8 +114,17 @@ jobs:
         run: pnpm --filter web exec playwright install --with-deps chromium
       - name: E2E — pwa + smoke
         run: pnpm --filter web exec playwright test
-      - name: Lưu trace khi đỏ (dữ liệu giả)
+      # SEC-SECRET-007: trace/ảnh chụp của Playwright có thể chứa cookie, header, giá trị form — gitleaks quét (cả bên trong
+      # trace.zip) TRƯỚC khi lưu; có bí mật → đỏ, không lưu.
+      - name: Cài gitleaks (ghim phiên bản, kiểm SHA-256)
         if: failure()
+        run: DEV_ENV_OPT_DIR="$RUNNER_TEMP" DEV_ENV_BIN_DIR="$HOME/.local/bin" bash scripts/dev-env-setup.sh --only gitleaks && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: gitleaks quét trace Playwright (SEC-SECRET-007)
+        id: trace-scan
+        if: failure()
+        run: gitleaks dir apps/web/test-results --max-archive-depth 3 --no-banner --redact --verbose
+      - name: Lưu trace khi đỏ (dữ liệu giả, đã quét sạch bí mật)
+        if: failure() && steps.trace-scan.outcome == 'success'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: playwright-traces

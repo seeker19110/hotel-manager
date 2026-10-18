@@ -286,14 +286,14 @@ const READY_MARKER = "E2E_SERVER_READY";
 async function announceReady(): Promise<void> {
   const deadline = Date.now() + 120_000;
   while (!stopping && Date.now() < deadline) {
-    try {
-      const r = await fetch(`${BASE_URL}/api/health`, { signal: AbortSignal.timeout(2_000) });
-      if (r.ok) {
-        process.stdout.write(`${READY_MARKER} ${BASE_URL}\n`);
-        return;
-      }
-    } catch {
-      // chưa nghe cổng — thử lại
+    // Cổng chưa nghe → fetch từ chối → `null` → thử lại.
+    const r = await fetch(`${BASE_URL}/api/health`, { signal: AbortSignal.timeout(2_000) }).then(
+      (res) => res,
+      () => null,
+    );
+    if (r?.ok) {
+      process.stdout.write(`${READY_MARKER} ${BASE_URL}\n`);
+      return;
     }
     await new Promise((r) => setTimeout(r, 250));
   }

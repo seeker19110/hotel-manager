@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Hook commit-msg (BASE-REPO-005): commit message phải theo Conventional Commits 1.0.0, dòng đầu ≤ 72 ký tự.
+# Bật một lần sau khi clone: `git config core.hooksPath .githooks`. Cùng luật chạy lại trong CI trên MỌI commit của PR
+# (.github/workflows/commit-lint.yml) và ở scripts/commit-gated.sh — bỏ hook local (`--no-verify`) vẫn bị CI chặn.
+set -euo pipefail
+root="$(git rev-parse --show-toplevel)"
+exec node "$root/scripts/commit-lint.mjs" --file "${1:?thiếu đường dẫn COMMIT_EDITMSG}"

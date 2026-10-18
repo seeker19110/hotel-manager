@@ -1,0 +1,35 @@
+name: Commit lint
+
+# BASE-REPO-005: mọi commit của PR theo Conventional Commits 1.0.0, dòng đầu ≤ 72 ký tự (cùng luật với hook local
+# `.githooks/commit-msg`). Commit của Dependabot bỏ qua — tiêu đề PR (squash) vẫn do job `quality` của ci.yml kiểm.
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: commit-lint-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  commit-lint:
+    name: commit-lint
+    if: github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+      - name: Mọi commit của PR (base..head), bỏ commit merge
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node scripts/commit-lint.mjs --range "$BASE_SHA..$HEAD_SHA"

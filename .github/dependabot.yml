@@ -1,29 +1,75 @@
 version: 2
+# Cập nhật phụ thuộc tự động, có nhịp (BASE-DEP-007, OPS-MAINT-001): mọi hệ sinh thái có manifest trong repo, lịch tuần
+# (thứ Hai, giờ Việt Nam), gom nhóm minor+patch thành một PR, trần PR mở, `cooldown` 14 ngày (không nâng bản mới phát hành
+# chưa đủ hai tuần — luật bản phát hành ≥ 2 tuần; cập nhật bảo mật không bị cooldown). Bản major không gom: mỗi bản một PR
+# theo mẫu `.github/PULL_REQUEST_TEMPLATE/major-upgrade.md`. Chính sách đầy đủ: docs/ops/DEPENDENCY-POLICY.md.
+# Test khoá cấu hình này với manifest thật: scripts/supply-chain.test.mjs (đủ `package-ecosystem`, `groups`, trần PR, lịch tuần).
 updates:
+  # pnpm workspace (pnpm-lock.yaml ở gốc) — Dependabot dùng hệ sinh thái `npm` cho pnpm; thêm tools/lhci (Lighthouse CI,
+  # `npm ci` theo package-lock.json — tách khỏi workspace vì giấy phép "BSD" không SPDX của một phụ thuộc chuyển tiếp).
+  - package-ecosystem: npm
+    directories: ["/", "/tools/lhci"]
+    schedule:
+      interval: weekly
+      day: monday
+      time: "03:00"
+      timezone: Asia/Ho_Chi_Minh
+    open-pull-requests-limit: 3
+    cooldown:
+      default-days: 14
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+    groups:
+      npm-minor-patch:
+        update-types: ["minor", "patch"]
   # Nâng SHA của action đã ghim (uses: owner/repo@<sha> # vX.Y.Z); gom nhóm để không phình WIP.
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
       day: monday
+      time: "03:00"
+      timezone: Asia/Ho_Chi_Minh
     open-pull-requests-limit: 2
+    cooldown:
+      default-days: 14
+    commit-message:
+      prefix: "ci(deps)"
     groups:
       actions:
         patterns: ["*"]
-  # Công cụ cổng (ruff, mypy) khoá kèm hash ở requirements-dev.txt — gom một PR mỗi tuần.
-  - package-ecosystem: pip
-    directory: /
+  # Dockerfile (deploy/postgres/Dockerfile, deploy/web.Dockerfile, deploy/worker.Dockerfile): nâng tag + digest của image nền.
+  - package-ecosystem: docker
+    directories:
+      - /deploy
+      - /deploy/postgres
     schedule:
       interval: weekly
       day: monday
+      time: "03:00"
+      timezone: Asia/Ho_Chi_Minh
     open-pull-requests-limit: 2
+    cooldown:
+      default-days: 14
+    commit-message:
+      prefix: "build(deps)"
     groups:
-      dev-tools:
+      docker-images:
         patterns: ["*"]
-  # Lighthouse CI (tools/lhci, npm ci có package-lock.json) — tách khỏi pnpm workspace; gom một PR mỗi tuần.
-  - package-ecosystem: npm
-    directory: /tools/lhci
+  # Image trong compose (deploy/compose.yaml: seaweedfs, caddy) — cùng digest với bản quét lỗ hổng ở supply-chain.yml.
+  - package-ecosystem: docker-compose
+    directory: /deploy
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 1
+      time: "03:00"
+      timezone: Asia/Ho_Chi_Minh
+    open-pull-requests-limit: 2
+    cooldown:
+      default-days: 14
+    commit-message:
+      prefix: "build(deps)"
+    groups:
+      compose-images:
+        patterns: ["*"]
