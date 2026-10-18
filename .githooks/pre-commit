@@ -3,6 +3,8 @@
 # và `.xtemplates/scripts/dev-task.sh gate`. Cài tự động bởi `pnpm install` (script `prepare` → scripts/install-git-hooks.mjs).
 #   1. File đang bị .gitignore không được vào commit (chặn `git add -f` artefact build, .env*, node_modules…).
 #   2. biome check (format + lint + import) trên file đã stage, 0 cảnh báo (cùng cờ `--error-on-warnings` với `pnpm lint` ở CI — FE-BUILD-004).
+#   3. Bí mật trong thay đổi đã stage (WF-GIT-010): `gitleaks git --staged` khi máy có gitleaks; chưa cài → cảnh báo và cho qua,
+#      job `gitleaks` của CI (secret-scan.yml) vẫn quét toàn lịch sử và chặn merge.
 set -eu
 
 root=$(git rev-parse --show-toplevel)
@@ -20,4 +22,13 @@ if [ -x "$biome" ]; then
   "$biome" check --staged --no-errors-on-unmatched --error-on-warnings --colors=off
 else
   echo "pre-commit: chưa có node_modules (chạy pnpm install) — bỏ qua biome; CI vẫn kiểm." >&2
+fi
+
+if command -v gitleaks >/dev/null 2>&1; then
+  if ! gitleaks git --staged --no-banner --redact --exit-code 1 "$root" >&2; then
+    echo "pre-commit: gitleaks thấy bí mật trong thay đổi đã stage — gỡ bí mật (đổi luôn bí mật đã lộ), không commit." >&2
+    exit 1
+  fi
+else
+  echo "pre-commit: chưa cài gitleaks — bỏ qua quét bí mật cục bộ; CI (secret-scan.yml) vẫn chặn." >&2
 fi

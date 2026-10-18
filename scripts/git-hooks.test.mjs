@@ -302,3 +302,57 @@ describe("BASE-REPO-002 — repo thật không chứa artefact/bí mật bị ig
       expect(g).toContain(rule);
   });
 });
+
+describe("WF-GIT-010 — hook quét bí mật trong thay đổi đã stage", () => {
+  /** gitleaks giả: ghi đối số vào `args.txt`, thoát với mã cho trước. PATH chỉ thêm thư mục giả lên đầu. */
+  function fakeGitleaks(d, code) {
+    const bin = join(d, ".fakebin");
+    mkdirSync(bin);
+    writeFileSync(join(bin, "gitleaks"), `#!/bin/sh\necho "$@" > "${join(d, "args.txt")}"\nexit ${code}\n`, {
+      mode: 0o755,
+    });
+    return { PATH: `${bin}:${process.env.PATH}` };
+  }
+  const commitEnv = (d, env) => sh(d, "git", ["commit", "-q", "-m", "test: x"], { env });
+
+  it("gitleaks báo bí mật (exit 1) → commit bị chặn, nêu lý do", () => {
+    const d = sandbox();
+    const env = fakeGitleaks(d, 1);
+    writeFileSync(join(d, "a.ts"), GOOD);
+    stage(d, "a.ts");
+    const r = commitEnv(d, env);
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toContain("gitleaks thấy bí mật");
+    expect(readFileSync(join(d, "args.txt"), "utf8")).toMatch(/^git --staged .*--redact/);
+  });
+
+  it("gitleaks sạch (exit 0) → commit qua", () => {
+    const d = sandbox();
+    const env = fakeGitleaks(d, 0);
+    writeFileSync(join(d, "a.ts"), GOOD);
+    stage(d, "a.ts");
+    expect(commitEnv(d, env).status).toBe(0);
+    expect(existsSync(join(d, "args.txt"))).toBe(true);
+  });
+
+  it("máy chưa cài gitleaks → cảnh báo, không chặn (CI vẫn quét toàn lịch sử)", () => {
+    const d = sandbox();
+    writeFileSync(join(d, "a.ts"), GOOD);
+    stage(d, "a.ts");
+    // PATH tối thiểu: có git/sh/node nhưng không có gitleaks.
+    const dirsOnPath = (process.env.PATH ?? "").split(":").filter((p) => !existsSync(join(p, "gitleaks")));
+    const r = commitEnv(d, { PATH: dirsOnPath.join(":") });
+    expect(r.status).toBe(0);
+    expect(r.stderr).toContain("chưa cài gitleaks");
+  });
+
+  it("CI quét toàn lịch sử bằng gitleaks (fetch-depth 0); .env không nằm trong git", () => {
+    const wf = readFileSync(join(ROOT, ".github/workflows/secret-scan.yml"), "utf8");
+    expect(wf).toMatch(/gitleaks\/gitleaks-action@[0-9a-f]{40}/);
+    expect(wf).toMatch(/fetch-depth: 0/);
+    const tracked = sh(ROOT, "git", ["ls-files", "--", ".env", ".env.*", "*.pem", "*.key"])
+      .stdout.split("\n")
+      .filter(Boolean);
+    expect(tracked.filter((f) => f !== ".env.example")).toEqual([]);
+  });
+});

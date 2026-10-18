@@ -18,9 +18,10 @@ const SECRET_VALUE_PATTERNS: readonly [string, RegExp][] = [
 
 describe("mẫu giá trị bí mật (hồi quy của chính bộ quét)", () => {
   it.each([
-    ["sk_live", "const k='sk_live_abcdefgh12345678'"],
+    // Chuỗi giả ghép lúc chạy để gitleaks không coi là khoá thật (WF-GIT-010); bộ quét vẫn thấy chuỗi đầy đủ.
+    ["sk_live", `const k='${["sk", "live", "abcdefgh12345678"].join("_")}'`],
     ["service_role", 'role:"service_role"'],
-    ["AKIA", "id=AKIAABCDEFGHIJKLMNOP;"],
+    ["AKIA", `id=${"AKIA"}${"ABCDEFGHIJKLMNOP"};`],
     ["PEM", "-----BEGIN RSA PRIVATE KEY-----"],
     ["PEM", "-----BEGIN PRIVATE KEY-----"],
     ["url-mat-khau", 'u="postgres://app:mk123@db:5432/hm"'],

@@ -14,3 +14,9 @@ d9a9ca9b97a4741be33d0a297c23cd097bf1ffec:packages/app/src/notifications/notifica
 # Mật khẩu giả trong test đầu vào xấu cho Better Auth ở commit 95bbecb (authz-matrix.db.test.ts, T-607) — đã thay bằng chuỗi ghép lúc chạy; giữ để quét lịch sử PR #24 không đỏ.
 95bbecbb4c3dda0d1f54d47dea896b4b3f34d033:packages/app/src/http/authz-matrix.db.test.ts:generic-api-key:1477
 95bbecbb4c3dda0d1f54d47dea896b4b3f34d033:packages/app/src/http/authz-matrix.db.test.ts:generic-api-key:1478
+
+# Chuỗi giả trong test (mẫu hồi quy của bộ quét bí mật và khoá giả của bản giả lập webhook) ở commit 54005de/6327e00 — đã thay bằng
+# chuỗi ghép lúc chạy (2026-10-18, WF-GIT-010); giữ để quét TOÀN lịch sử (`gitleaks git --log-opts="--all"`, job lịch tuần) không đỏ.
+54005dec88487861edb11b4049602e1fcfa77787:packages/app/src/config/secure-defaults-bundle.test.ts:aws-access-token:23
+54005dec88487861edb11b4049602e1fcfa77787:packages/app/src/config/secure-defaults-bundle.test.ts:stripe-access-token:21
+6327e0006e27c47d9851888e41755bf8f5a700f7:packages/app/src/reconciliation/reconciliation.db.test.ts:generic-api-key:30
