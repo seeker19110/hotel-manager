@@ -4,7 +4,7 @@
 // `lease` mới — chồng ⇒ ROOM_UNAVAILABLE. Mốc giờ allocation: 00:00 giờ cơ sở của ngày hiệu lực → 00:00 của (ngày hết hạn + 1).
 import { createHash, randomUUID } from "node:crypto";
 import { withTenant } from "@hm/db";
-import { authorize, leaseMachine } from "@hm/domain";
+import { authorize, blankToNull, leaseMachine } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/index.ts";
 import { confirmHold, createHold, type Interval, lockUnit } from "../inventory/index.ts";
@@ -105,7 +105,7 @@ export async function createPerson(
   const fullName = input.fullName.trim();
   if (fullName.length < 1 || fullName.length > 200)
     throw fieldError("full_name", "INVALID", "Họ tên 1–200 ký tự");
-  const phone = input.phone?.trim() || null;
+  const phone = blankToNull(input.phone);
   if (phone !== null && !/^\+?[0-9 .()-]{6,20}$/.test(phone))
     throw fieldError("phone", "INVALID", "Số điện thoại không hợp lệ");
   const personId = randomUUID();

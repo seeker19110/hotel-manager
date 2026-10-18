@@ -13,7 +13,7 @@
 | `packages/db` | `kysely`, `pg` | `@hm/app`, `@hm/domain` |
 | `packages/testkit` | các gói trên, chỉ dùng trong test | được import từ mã sản phẩm |
 
-Thư mục của `packages/domain/src` (quy tắc thuần): `access` (ma trận quyền, `authorize`) · `billing` (engine kỳ thu, làm tròn) · `date` (ngày ISO: `isIsoDate`, `isoDateOr`) · `format` (định dạng hiển thị qua `Intl`: tiền, ngày) · `import` (kiểm giá trị dòng import) · `money` (tiền số nguyên) · `payments` (đối soát thuần, QR, sao kê CSV) · `state` (máy trạng thái) · `stay` (giá lưu trú, thông báo lưu trú) · `units` (hằng đơn vị byte/thời gian, ADR-0003).
+Thư mục của `packages/domain/src` (quy tắc thuần): `access` (ma trận quyền, `authorize`) · `billing` (engine kỳ thu, làm tròn) · `date` (ngày ISO: `isIsoDate`, `isoDateOr`) · `format` (định dạng hiển thị qua `Intl`: tiền, ngày) · `import` (kiểm giá trị dòng import) · `money` (tiền số nguyên) · `payments` (đối soát thuần, QR, sao kê CSV) · `state` (máy trạng thái) · `stay` (giá lưu trú, thông báo lưu trú) · `text` (chuỗi tuỳ chọn: thiếu ≠ rỗng ≠ 0 — `blankToNull`, `firstNonBlank`, `keepIfUndefined`) · `units` (hằng đơn vị byte/thời gian, ADR-0003).
 
 ## 2. Thư mục `packages/app/src/*` ↔ miền
 Miền theo ranh giới của ADR-0001 (kế hoạch §11); cột "Tầng" dùng ở mục 3. Việc gán thư mục vào miền theo mục đích thực tế của mã.

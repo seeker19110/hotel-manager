@@ -242,6 +242,7 @@ describe("BASE-SEC-004 — production bắt TLS cho mọi kênh mạng", () => {
 describe("BASE-SEC-010 — bind 127.0.0.1 mặc định, không mở cổng CSDL/cache ra ngoài", () => {
   const scripts = (JSON.parse(read("apps/web/package.json")) as { scripts: Record<string, string> }).scripts;
 
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: chủ ý: tên test mô tả cú pháp shell `${HOST:-…}` của script, không phải template literal
   it.each(["dev", "start"])("script `%s` của web bind ${HOST:-127.0.0.1} (không phải 0.0.0.0)", (name) => {
     expect(scripts[name]).toMatch(/-H \$\{HOST:-127\.0\.0\.1\}/);
     expect(scripts[name]).not.toContain("0.0.0.0");

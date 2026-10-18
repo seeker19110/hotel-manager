@@ -15,12 +15,15 @@ const executablePath =
 export default defineConfig({
   testDir: "./e2e",
   timeout: 60_000,
-  retries: 0,
+  // QA-E2E-005 / QA-STRAT-008: CI cấm `test.only` lọt vào (forbidOnly), thử lại ≤ 2 lần, lấy trace ở lần thử lại đầu;
+  // workers cố định (1: mọi spec dùng chung một server + một Postgres seed).
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 2 : 0,
   workers: 1,
   reporter: [["list"]],
   use: {
     baseURL: BASE_URL,
-    trace: "retain-on-failure",
+    trace: "on-first-retry",
     launchOptions: executablePath ? { executablePath } : {},
   },
   projects: [{ name: "chromium-mobile", use: { ...devices["Pixel 7"] } }],

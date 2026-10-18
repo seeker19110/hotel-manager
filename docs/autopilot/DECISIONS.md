@@ -218,18 +218,20 @@
 - Chọn: Đổi sang 404 khi bộ lọc không thuộc tổ chức/phạm vi
 - Lý do (tiêu chí chất lượng cuối): (1) đúng: quy ước dự án (SPEC-access-and-property, exports, reports) là cơ sở/đối tượng ngoài phạm vi ⇒ 404; 200 rỗng khiến người dùng tưởng không có dữ liệu thay vì sai cơ sở và là ngoại lệ phải nhớ. (3) thống nhất, test được bằng ma trận. Không lộ dữ liệu ở cả hai cách nên đổi rủi ro thấp.
 - Đường lùi: Bỏ kiểm phạm vi bộ lọc ở 4 truy vấn; ma trận đưa lại vào ngoại lệ.
-### D-032 · 2026-10-16T16:30:49+00:00 · T-411: loading.tsx ở nhóm route có [id]/notFound làm 404/500 thành HTTP 200 (streaming) — đặt loading ở đâu?
 
-- Phương án: (1) A: chỉ nhóm danh sách thuần (thu-tien, su-co, doi-soat, thong-bao, thong-bao-luu-tru); error.tsx mọi nhóm; test chặn loading ở nhóm có [id]/notFound · (2) B: loading mọi nhóm, chấp nhận 404/500 thành 200 · (3) C: chuyển trang danh sách vào route group (danh-sach) để có loading mà [id] không bị bọc
-- Chọn: A: chỉ nhóm danh sách thuần (thu-tien, su-co, doi-soat, thong-bao, thong-bao-luu-tru); error.tsx mọi nhóm; test chặn loading ở nhóm có [id]/notFound
-- Lý do (tiêu chí chất lượng cuối): (1) đúng: mã trạng thái HTTP đúng (404/500) là hợp đồng với client, metric SLO (T-406) và bảo mật (không lộ tồn tại qua 200); B phá điều đó. (3) đơn giản: C đổi cấu trúc file nhiều route để đổi lấy skeleton — lợi ích UX nhỏ so với rủi ro; A có rào test.
-- Đường lùi: Thêm loading.tsx theo C khi cần skeleton cho trang chi tiết.
 ### D-031 · 2026-10-16T16:23:35+00:00 · T-410: thư viện Argon2id cho mật khẩu (Better Auth password.hash/verify)?
 
 - Phương án: (1) node:crypto argon2 dựng sẵn (Node ≥ 24.7; dự án ghim 24.22) + tự mã hoá chuỗi PHC $argon2id$v=19$m=19456,t=2,p=1$… và so sánh timingSafeEqual; băm scrypt cũ verify bằng hàm mặc định của Better Auth rồi băm lại khi đăng nhập · (2) @node-rs/argon2 2.2.2 (MIT, 0 dependency, binary napi dựng sẵn, có PHC + verify) · (3) argon2 (node-argon2) 0.45.1 (MIT, install script node-gyp-build)
 - Chọn: node:crypto argon2 dựng sẵn (Node ≥ 24.7; dự án ghim 24.22) + tự mã hoá chuỗi PHC $argon2id$v=19$m=19456,t=2,p=1$… và so sánh timingSafeEqual; băm scrypt cũ verify bằng hàm mặc định của Better Auth rồi băm lại khi đăng nhập
 - Lý do (tiêu chí chất lượng cuối): (1) an toàn chuỗi cung ứng: không thêm binary native/install script của bên thứ ba vào luồng xác thực; crypto.argon2 có trong Node 24 LTS, docs không đánh dấu experimental (nguồn nodejs.org/docs/latest-v24.x, 2026-10-16). Tham số OWASP m=19456 KiB, t=2, p=1 (cheatsheet, 2026-10-16). Phần tự viết chỉ là mã hoá/giải mã PHC + so sánh hằng thời gian — nhỏ, test được bằng vector. (3) ít phụ thuộc. Phương án 2 hợp lệ nếu crypto.argon2 có vấn đề.
 - Đường lùi: Đổi hàm hash/verify sang @node-rs/argon2 (cùng định dạng PHC nên băm đã lưu vẫn verify được).
+
+### D-032 · 2026-10-16T16:30:49+00:00 · T-411: loading.tsx ở nhóm route có [id]/notFound làm 404/500 thành HTTP 200 (streaming) — đặt loading ở đâu?
+
+- Phương án: (1) A: chỉ nhóm danh sách thuần (thu-tien, su-co, doi-soat, thong-bao, thong-bao-luu-tru); error.tsx mọi nhóm; test chặn loading ở nhóm có [id]/notFound · (2) B: loading mọi nhóm, chấp nhận 404/500 thành 200 · (3) C: chuyển trang danh sách vào route group (danh-sach) để có loading mà [id] không bị bọc
+- Chọn: A: chỉ nhóm danh sách thuần (thu-tien, su-co, doi-soat, thong-bao, thong-bao-luu-tru); error.tsx mọi nhóm; test chặn loading ở nhóm có [id]/notFound
+- Lý do (tiêu chí chất lượng cuối): (1) đúng: mã trạng thái HTTP đúng (404/500) là hợp đồng với client, metric SLO (T-406) và bảo mật (không lộ tồn tại qua 200); B phá điều đó. (3) đơn giản: C đổi cấu trúc file nhiều route để đổi lấy skeleton — lợi ích UX nhỏ so với rủi ro; A có rào test.
+- Đường lùi: Thêm loading.tsx theo C khi cần skeleton cho trang chi tiết.
 
 ### D-033 · 2026-10-17T02:06:15+00:00 · Xuất toàn tổ chức (S-018, IND-SAAS-007): nhúng file đính kèm nào? SPEC S-018/Q-05 ghi 'không gồm file ảnh và số giấy tờ', blueprint IND-SAAS-007 đòi dữ liệu xuất được đầy đủ
 
@@ -438,6 +440,15 @@
 - Lý do (tiêu chí chất lượng cuối): Chạy được ngay trong repo, có unittest, không thêm phụ thuộc nhị phân; luật chặt an toàn hơn cho client
 - Đường lùi: Thay script bằng lychee/oasdiff trong cùng job khi proxy cho phép; nới luật bằng sửa scripts/check-openapi-breaking.mjs
 - Khi chạy thật (đề xuất, chủ dự án quyết ở G7): Cân nhắc thay bằng lychee/oasdiff bản ghim checksum khi CI ra mạng được
+
+### D-063 · 2026-10-18T00:13:50+00:00 · T-805 QA-COV-008: 'PR diff cấu hình cổng cần reviewer' — thực thi bằng gì trong repo?
+
+- Phương án: (1) Thêm vitest/playwright config, biome.json, tsconfig, xt.yaml vào merge_risk_paths (merge-check trả hard, người merge) + job coverage-ratchet · (2) Chỉ dựa CODEOWNERS + required review (cần người bật ruleset) · (3) Chỉ job coverage-ratchet, agent vẫn tự merge
+- Chọn: Thêm vitest/playwright config, biome.json, tsconfig, xt.yaml vào merge_risk_paths (merge-check trả hard, người merge) + job coverage-ratchet
+- Lý do (tiêu chí chất lượng cuối): Chặt nhất chạy được ngay trong repo, khớp chữ MUST; ratchet chặn hạ ngưỡng còn merge_risk_paths chặn nới cấu hình khác; giảm tự chủ merge chỉ ở file cổng
+- Đường lùi: Bỏ các glob cấu hình khỏi merge_risk_paths trong xt.yaml
+- Khi chạy thật (đề xuất, chủ dự án quyết ở G7): Thêm CODEOWNERS cho các file cấu hình cổng và bật required review ở ruleset
+- Bổ sung sau review (2026-10-18): thêm vào merge_risk_paths cả `scripts/check-coverage-ratchet.mjs`, `scripts/fix-requires-test.mjs`, `.github/workflows/test-quality.yml` (đường nới ngưỡng ngoài vitest.config) + rào cấm cờ `--coverage.thresholds*` trong workflow; KHÔNG thêm `.github/workflows/*` chung (ADR-0018 của khung: sửa CI cho chạy, lớp đỡ là review độc lập + required check của ruleset).
 
 ### D-065 · 2026-10-18T00:38:43+00:00 · Đợt 9: job cổng mới (pr-policy, commit-lint, new-deps, sbom, image-scan, coverage, coverage-ratchet, fix-requires-test, sast, dast, openapi, schema-compat…) chưa là required check nên chưa chặn auto-merge; đổi ruleset trên GitHub là điểm dừng của người — xử lý thế nào?
 

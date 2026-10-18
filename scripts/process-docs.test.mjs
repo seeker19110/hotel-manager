@@ -1032,7 +1032,7 @@ describe("Dockerfile web/worker (BASE-SEC-006)", () => {
         expect(chowns).toHaveLength(1);
         expect(chowns[0]).toMatch(/chown -R node:node \.next\/cache\s*$/);
         // chown phải đứng sau WORKDIR /app/apps/web và trước USER node
-        const i = code.findIndex((l) => l === chowns[0]);
+        const i = code.indexOf(chowns[0]);
         expect(code.findIndex((l) => /^WORKDIR \/app\/apps\/web/.test(l))).toBeLessThan(i);
         expect(i).toBeLessThan(code.findIndex((l) => /^USER\s+node/.test(l)));
       } else expect(chowns).toEqual([]);
@@ -1127,7 +1127,7 @@ describe("tách danh tính S3 web/worker (SEC-INFRA-001)", () => {
 /** Khối văn bản của một service trong compose (từ `  <tên>:` tới service kế/khoá cấp 0); null nếu không có. */
 function composeService(text, name) {
   const lines = text.split("\n");
-  const start = lines.findIndex((l) => l === `  ${name}:`);
+  const start = lines.indexOf(`  ${name}:`);
   if (start < 0) return null;
   const body = [];
   for (const l of lines.slice(start + 1)) {

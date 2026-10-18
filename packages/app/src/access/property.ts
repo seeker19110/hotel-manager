@@ -4,7 +4,7 @@
 // - Mẫu `mixed` chỉ khi `organizations.settings.feature_flags.mixed_template_enabled` bật ⇒ không thì 409 FEATURE_DISABLED.
 // - Đổi múi giờ/giờ chốt khi cơ sở đã có dữ liệu: trigger CSDL 0062 từ chối (PROPERTY_IN_USE) — không kiểm ở app thay trigger.
 import { randomUUID } from "node:crypto";
-import { authorize } from "@hm/domain";
+import { authorize, keepIfUndefined } from "@hm/domain";
 import { sql } from "kysely";
 import { type CommandContext, CommandError, fieldError } from "../pipeline/index.ts";
 
@@ -137,8 +137,10 @@ export async function updateProperty(
     throw fieldError("name", "INVALID", "Tên 1–200 ký tự");
   if (input.timezone !== undefined) await assertTimezone(ctx, input.timezone);
   if (input.businessDayCutoff !== undefined) assertClock("business_day_cutoff", input.businessDayCutoff);
-  if (input.checkInTime) assertClock("check_in_time", input.checkInTime);
-  if (input.checkOutTime) assertClock("check_out_time", input.checkOutTime);
+  if (input.checkInTime !== undefined && input.checkInTime !== null)
+    assertClock("check_in_time", input.checkInTime);
+  if (input.checkOutTime !== undefined && input.checkOutTime !== null)
+    assertClock("check_out_time", input.checkOutTime);
   if (input.template !== undefined && input.template !== before.template)
     await assertTemplateAllowed(ctx, input.template);
 
@@ -147,8 +149,8 @@ export async function updateProperty(
     template: input.template ?? before.template,
     timezone: input.timezone ?? before.timezone,
     business_day_cutoff: input.businessDayCutoff ?? before.cutoff,
-    check_in_time: input.checkInTime === undefined ? before.check_in : input.checkInTime,
-    check_out_time: input.checkOutTime === undefined ? before.check_out : input.checkOutTime,
+    check_in_time: keepIfUndefined(input.checkInTime, before.check_in),
+    check_out_time: keepIfUndefined(input.checkOutTime, before.check_out),
   };
   const was = {
     name: before.name,

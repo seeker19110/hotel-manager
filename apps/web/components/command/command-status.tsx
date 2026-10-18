@@ -3,6 +3,7 @@
 // server đã nhận (role=alert + "Gửi lại" cùng key), server còn đang xử lý ("Kiểm tra lại"), lỗi chung (role=alert), đổi tổ chức
 // ở tab khác ("Tải lại trang"), thành công (role=status — chỉ sau phản hồi máy chủ). Quá 30 s mà lệnh vẫn "đang xử lý" ⇒
 // RESULT_UNKNOWN (S-012): câu cố định + mã thao tác đầy đủ, KHÔNG có nút gửi lại.
+import { firstNonEmpty } from "../../lib/text.ts";
 import { Button } from "../ui/button.tsx";
 import { CONTEXT_CHANGED_CODE } from "./org-context.ts";
 import { type CommandPhase, type ProblemLike, problemText, RESULT_UNKNOWN_TEXT } from "./use-command.ts";
@@ -71,7 +72,10 @@ export function CommandStatus({
         </div>
       ) : null}
       {phase === "processing" ? (
-        <ResultUnknown commandId={problem?.command_id || commandId || ""} onRecheck={onRecheck} />
+        <ResultUnknown
+          commandId={firstNonEmpty(problem?.command_id, commandId) ?? ""}
+          onRecheck={onRecheck}
+        />
       ) : null}
       {general ? (
         <p className="field__error" role="alert">

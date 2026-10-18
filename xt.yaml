@@ -19,9 +19,12 @@ format_file: "pnpm exec biome format --write \"{}\""
 # merge_risk_paths: glob thêm vào danh sách đường dẫn nhạy cảm (luôn để người merge), cách nhau dấu phẩy.
 # Chủ dự án duyệt L3 ngày 2026-10-17 (trước đó L2 từ 2026-10-16); nhóm tiền/tồn/lưu trú trong merge_risk_paths vẫn luôn để người merge (LOOP-STOP-005).
 merge_autonomy: L3
-merge_risk_paths: "*/ledger/*, */money/*, */deposits/*, */reconciliation/*, */shifts/*, */lease/*, */stay/*, */rental/*, */approvals/*, */identity/*, */access/*, */tenancy/*, */inventory/*, */metering/*, */notifications/*, */thu-tien/*, */ky-thu/*, */doi-soat/*, */hop-dong/*, */chi-so/*, */webhooks/*, apps/web/app/api/*, packages/db/*"
+merge_risk_paths: "*/ledger/*, */money/*, */deposits/*, */reconciliation/*, */shifts/*, */lease/*, */stay/*, */rental/*, */approvals/*, */identity/*, */access/*, */tenancy/*, */inventory/*, */metering/*, */notifications/*, */thu-tien/*, */ky-thu/*, */doi-soat/*, */hop-dong/*, */chi-so/*, */webhooks/*, apps/web/app/api/*, packages/db/*, *vitest.config.*, *playwright.config.*, biome.json*, tsconfig.base.json, */tsconfig.json, xt.yaml, scripts/check-coverage-ratchet.mjs, scripts/fix-requires-test.mjs, .github/workflows/test-quality.yml"
 # Tuỳ chọn, agent đọc và chạy trực tiếp (dev-task không chạy): e2e, audit (dependency), perf (k6/lighthouse), migrate (áp migration local), install, dev, init, smoke
 e2e: "pnpm --filter @hm/web exec playwright test"
 audit: "pnpm audit --prod"
+dev: "pnpm --filter @hm/web dev"
+# Không có lệnh migrate rời: migration áp tự động bởi migrateToLatest khi khởi động (e2e/server.ts, packages/testkit) — để trống = không có (XC-DX-002).
+migrate: ""
 install: "pnpm install --frozen-lockfile"
 init: "bash scripts/dev-env-setup.sh && pnpm install --frozen-lockfile"

@@ -51,7 +51,7 @@
 
 ## Rủi ro
 <!-- Ảnh hưởng nếu sai (tiền/tồn/dữ liệu cá nhân/quyền), phạm vi, cách phát hiện, cách tắt/quay lại (rollback) — thiếu cách quay lại thì `pr-policy` đỏ (WF-REVIEW-002). -->
-<!-- Chạm tiền/tồn/dữ liệu người dùng/auth/mật mã (đường dẫn trong `merge_risk_paths` của xt.yaml): gắn nhãn `risk:money` · `risk:data` · `risk:auth` · `risk:crypto` (LOOP-STOP-005); PR đó do người merge. -->
+<!-- Chạm tiền/tồn/dữ liệu người dùng/auth/mật mã (đường dẫn trong `merge_risk_paths` của xt.yaml): gắn nhãn `risk:money` · `risk:data` · `risk:auth` · `risk:crypto` · `risk:gate` (cấu hình cổng, D-063) (LOOP-STOP-005); PR đó do người merge. -->
 
 ## Checklist bảo mật
 - [ ] Quyền kiểm ở server (`authorize()` + RLS), tài nguyên ngoài phạm vi trả 404, không tin `organization_id`/`property_id` từ client

@@ -9,7 +9,9 @@ import { COMMANDS, USER_COMMANDS } from "../http/registry.ts";
 import { createLogger } from "../logging/logger.ts";
 import { setAppLogger } from "../logging/runtime.ts";
 import { testServices } from "../server/services.ts";
+import { ownerOf, runAs } from "../testing/helpers.ts";
 import { ORG_CREATE_PER_USER_PER_HOUR } from "./organization.ts";
+import { updateProperty } from "./property.ts";
 
 let t: TestDb;
 let deps: HttpDeps;
@@ -356,6 +358,64 @@ describe("SPEC-access S-023: đổi múi giờ/giờ chốt khi cơ sở đã c�
     );
     expect(a.rows[0]?.before).toMatchObject({ timezone: "Asia/Ho_Chi_Minh", business_day_cutoff: "00:00" });
     expect(a.rows[0]?.after).toMatchObject({ timezone: "Asia/Bangkok", business_day_cutoff: "04:00" });
+  });
+
+  it('giờ nhận/trả phòng tuỳ chọn: undefined = giữ nguyên, null = xoá, "" = từ chối (BASE-DATA-003)', async () => {
+    const { user, org } = await ownerWithOrg();
+    const property_id = await propertyOf(org, user);
+    const times = async () =>
+      (
+        await sql<{ i: string | null; o: string | null }>`
+          select to_char(check_in_time, 'HH24:MI') as i, to_char(check_out_time, 'HH24:MI') as o
+          from properties where id = ${property_id}`.execute(t.admin)
+      ).rows[0];
+    const upd = (body: Record<string, unknown>) =>
+      call("org", "property.update", user, { property_id, ...body }, { org });
+    expect((await upd({ check_in_time: "14:00", check_out_time: "12:00" })).status).toBe(200);
+    expect(await times()).toEqual({ i: "14:00", o: "12:00" });
+    // undefined: không gửi trường → giữ nguyên
+    expect((await upd({ name: "CS đổi tên" })).status).toBe(200);
+    expect(await times()).toEqual({ i: "14:00", o: "12:00" });
+    // null: xoá đúng trường được gửi, trường kia giữ
+    const cleared = await upd({ check_in_time: null });
+    expect(cleared.status).toBe(200);
+    expect((cleared.body.data as unknown as { changed: string[] }).changed).toEqual(["check_in_time"]);
+    expect(await times()).toEqual({ i: null, o: "12:00" });
+    // "": không phải "thiếu" — bị từ chối, dữ liệu không đổi
+    expect((await upd({ check_out_time: "" })).status).toBe(422);
+    expect(await times()).toEqual({ i: null, o: "12:00" });
+  });
+
+  it('updateProperty gọi thẳng (không qua HTTP/schema): checkInTime/checkOutTime "" hoặc sai dạng → 422, dữ liệu không đổi; null/undefined không bị chặn', async () => {
+    const org = await seedOrg(t.admin, "KS giờ rỗng");
+    const owner = await ownerOf(t, org);
+    const times = async () =>
+      (
+        await sql<{ i: string | null; o: string | null }>`
+          select to_char(check_in_time, 'HH24:MI') as i, to_char(check_out_time, 'HH24:MI') as o
+          from properties where id = ${org.propertyId}`.execute(t.admin)
+      ).rows[0];
+    const upd = (input: { checkInTime?: string | null; checkOutTime?: string | null }) =>
+      runAs(t, owner, (ctx) => updateProperty(ctx, { propertyId: org.propertyId, ...input }));
+    expect(await upd({ checkInTime: "14:00", checkOutTime: "12:00" })).toMatchObject({ status: "committed" });
+    const cases: [string, { checkInTime?: string; checkOutTime?: string }][] = [
+      ["check_in_time", { checkInTime: "" }],
+      ["check_out_time", { checkOutTime: "" }],
+      ["check_in_time", { checkInTime: "24:00" }],
+      ["check_out_time", { checkOutTime: "9:5" }],
+    ];
+    for (const [field, input] of cases) {
+      const r = await upd(input);
+      expect(r, JSON.stringify(input)).toMatchObject({
+        status: "failed",
+        httpStatus: 422,
+        problem: { errors: [{ field }] },
+      });
+      expect(await times()).toEqual({ i: "14:00", o: "12:00" });
+    }
+    expect(await upd({ checkInTime: null })).toMatchObject({ status: "committed" });
+    expect(await times()).toEqual({ i: null, o: "12:00" });
+    expect(await upd({})).toMatchObject({ status: "committed", data: { changed: [] } });
   });
 
   it("không đổi gì (cùng giá trị) → 200, changed rỗng, không audit/outbox mới", async () => {
