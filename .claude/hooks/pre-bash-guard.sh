@@ -46,8 +46,9 @@ decision="$XG_DECISION"
 [ "$decision" = "deny" ] && pretool_decision deny "$XG_REASON"
 
 # ---- 3) Cổng trước commit (chạy TRƯỚC khi hỏi người — ask không được bỏ cổng, AUD-HAR-013) ----
-# `--no-verify` là chính câu hỏi "bỏ cổng?" → không chạy cổng, để người quyết.
-if [ "$XG_COMMIT" = "true" ] && [ "$XG_NO_VERIFY" != "true" ]; then
+# `--no-verify` (hoặc `-c core.hooksPath=…`) chỉ tắt git hook, KHÔNG tắt cổng của khung: mặc định (không hỏi người, ADR-0018)
+# vẫn chạy cổng — trước đây bỏ cổng lặng lẽ (rà stored 2026-10-18). Chỉ `XT_GUARD_POLICY=strict` để người quyết (hỏi).
+if [ "$XG_COMMIT" = "true" ] && { [ "$XG_NO_VERIFY" != "true" ] || [ "${XT_GUARD_POLICY:-}" != "strict" ]; }; then
   # Gốc cổng = repo NHẬN commit (`cd ../repo-khac && git commit`, `git -C …`), không mặc định gốc phiên: từng chạy
   # cổng của dự án phiên cho commit ở repo khác (đỏ/xanh không liên quan). Chỉ tự chạy cổng của CHÍNH dự án: repo git
   # lồng trong dự án mà không có xt.yaml/.xtemplates riêng (submodule, apps/web) → cổng của dự án. Repo NGOÀI dự án,

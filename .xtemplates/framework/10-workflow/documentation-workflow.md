@@ -3,7 +3,7 @@ title: Tài liệu sống: ADR, runbook, docs-as-code, tươi bằng máy
 kind: module
 prefix: WF-DOC
 applies_to: [all]
-updated: 2026-10-14
+updated: 2026-10-18
 ---
 
 # Tài liệu sống: ADR, runbook, docs-as-code, tươi bằng máy
@@ -60,6 +60,7 @@ updated: 2026-10-14
 - [ ] `WF-DOC-016` **SHOULD** Bàn giao phiên/người (handover) ghi vào `PROGRESS.md` mục "Bàn giao": đang dở gì, bước tiếp theo, lệnh để tiếp tục, cái gì chưa xác minh. → Kiểm: mục "Bàn giao" không rỗng khi có việc dở ([`team-and-wip.md`](team-and-wip.md)); định dạng và độ tươi theo [`LOOP-HARNESS-004`](../11-autonomous-loop/harness-files.md)/[`005`](../11-autonomous-loop/harness-files.md).
 - [ ] `WF-DOC-017` **MAY** Site tài liệu build từ `docs/` (MkDocs/Docusaurus/VitePress) với search và link check; deploy preview cho PR docs. → Kiểm: job build docs + preview URL.
 - [ ] `WF-DOC-018` **MAY** `llms.txt`/`docs-for-ai` tóm tắt kiến trúc cho agent, sinh từ chỉ mục; kiểm tươi như tài liệu khác. → Kiểm: file sinh, diff rỗng trong CI; xem [`../18-cross-cutting/docs-for-ai-agents.md`](../18-cross-cutting/docs-for-ai-agents.md).
+- [ ] `WF-DOC-019` **SHOULD** Lệnh cài **ghim phiên bản** trong README/docs/`SKILL.md` (`npx x@v`, `uvx x@v`, `pip install x==v`, `npm i x@v`, `cargo install x --version v`, `go install m@v`) phải trỏ **bản đã phát hành** — bản chưa tag làm lệnh cài đầu tiên của người dùng lỗi. → Kiểm: script trích lệnh bằng regex rồi hỏi registry (200 = có, 404 = không): npm `https://registry.npmjs.org/<pkg>/<ver>`, PyPI `https://pypi.org/pypi/<pkg>/<ver>/json`, crates.io `https://crates.io/api/v1/crates/<c>/<v>` (phải gửi `User-Agent`, thiếu thì 403), Go `https://proxy.golang.org/<mod>/@v/<v>.info` (đường dẫn **module**, không phải package của `go install …/cmd/x@v`; chữ hoa mã hoá `!x` — hoặc `go list -m <mod>@<v>`); chạy ở PR đổi docs + nightly. · Nguồn: các URL registry (kiểm bằng curl 2026-10-18); `seeker19110/stored` 19 §1d (rà 2026-10-18)
 
 ## Bẫy thường gặp
 
@@ -79,6 +80,7 @@ updated: 2026-10-14
 |---|---|---|---|
 | Link check | lychee 0.24.2 (MIT/Apache-2.0) `lychee --no-progress --cache --max-cache-age 1d docs/ README.md` hoặc `python3 scripts/check-links.py` | CI | Nội bộ 0 lỗi; ngoài 0 lỗi trừ allowlist |
 | docs-consistency | script quét backtick path trong `*.md` ↔ filesystem; danh sách tên cũ | CI | 0 |
+| Lệnh cài ghim bản | script trích `x@v`/`==v`/`--version v` rồi `curl` registry, 404 = đỏ (`WF-DOC-019`) | CI PR đổi docs + nightly | 0 bản chưa phát hành |
 | progress-check | `xt.py progress-check` (luật ở [`LOOP-HARNESS-004`](../11-autonomous-loop/harness-files.md)/[`005`](../11-autonomous-loop/harness-files.md)) | pre-push + CI | Exit 0 |
 | markdownlint-cli2 (MIT) 0.23.3 | `markdownlint-cli2 "**/*.md"` | pre-commit + CI | 0 lỗi |
 | Reference docs | `docs:generate && git diff --exit-code docs/reference` | CI | Diff rỗng |
@@ -96,3 +98,4 @@ updated: 2026-10-14
 - Phiên bản (crates.io/npm, xác minh 2026-10-13): lychee 0.24.2, markdownlint-cli2 0.23.3. (chưa xác minh) cspell, typos, MkDocs/Docusaurus/VitePress.
 - Khung cũ X-stored commit `1b80fe4`: `scripts/check-docs-consistency.sh` + job `docs-consistency`; `research/2026-10-13-old-framework-analysis.md` §3b (PROGRESS mâu thuẫn, README liệt kê lỗi thời), §4.
 - `research/2026-10-13-stored-catalog-extraction.md` §2.7 (SHA tổ tiên HEAD, `validate_repo.py`), §2.11 (`/hoc` thang mức bền), §4 (PROGRESS ≤ 8 KB, 4 mục), §5 (giữ đính chính); catalog `21-autonomous-workflows` §8 mục 9; `23-own-repos-lessons` §2.4, §4.3, §4.5; `16-docs-tools` (docs-for-AI, theo research §2.14).
+- Registry kiểm bằng curl 2026-10-18: npm `registry.npmjs.org/<pkg>/<ver>`, PyPI `pypi.org/pypi/<pkg>/<ver>/json`, crates.io `crates.io/api/v1/crates/<c>/<v>` (cần `User-Agent`), Go `proxy.golang.org/<mod>/@v/<v>.info`. Catalog `seeker19110/stored` 19 §1d — rà 2026-10-18.

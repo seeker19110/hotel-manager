@@ -3,7 +3,7 @@ title: Eval: offline/online, pass^k, negative control, record/replay, judge
 kind: module
 prefix: AI-EVAL
 applies_to: [ai-agent, agentic-system, data-ml, api-service, web-app]
-updated: 2026-10-16
+updated: 2026-10-18
 ---
 
 # Eval: offline/online, pass^k, negative control, record/replay, judge
@@ -73,6 +73,7 @@ updated: 2026-10-16
 - [ ] `AI-EVAL-017` **MAY** A/B online với guardrail dừng sớm khi biến thể mới giảm chỉ số an toàn.
 - [ ] `AI-EVAL-018` **MUST@L** Thống kê trong eval: báo cáo ghi `n`, số lần chạy/seed và khoảng tin cậy 95% (Wilson cho tỉ lệ, hoặc bootstrap); chỉ kết luận "A tốt hơn B" hay "có regression" khi chênh lệch vượt khoảng tin cậy hoặc qua kiểm định cặp trên cùng ca; ngưỡng cổng CI phải lớn hơn nhiễu đo từ ≥ 3 lần chạy baseline; leaderboard ghi cách xếp hạng (theo điểm hay theo nhóm hoà). → Kiểm: schema báo cáo eval có `n`, `runs`, `ci_low`, `ci_high` (thiếu → báo cáo bị từ chối); file baseline ghi ≥ 3 lần chạy và độ lệch; ngưỡng cổng > độ lệch đó. · Nguồn: stored 08 §2f.1 (thống kê cho eval), stored 17 §2c.3 (AnyJev: n = 300, một seed; hạng nhóm 5 so với hạng điểm 10/168)
 - [ ] `AI-EVAL-019` **SHOULD** LLM dùng để phân loại/định tuyến (chọn 1 trong K, có/không, chấm thang) được eval **theo từng tác vụ** với: accuracy; tỉ lệ đổi đáp án khi đảo thứ tự lựa chọn; sai số hiệu chuẩn (ECE); tỉ lệ quyết định tự động được ở mức sai mục tiêu (coverage@risk). Có ngưỡng "tự quyết / chuyển người"; phần leo thang sang đường đắt (suy luận dài, model lớn, người) có trần và mỗi lần leo thang được ghi lại; đầu ra mang nhãn đường xử lý (`primary`/`fallback`/`escalated`). Không có xác suất token (API đóng) → structured output + eval trên tập có nhãn. Nâng thành **MUST@L** khi quyết định được tự động hoá (không người duyệt từng ca). → Kiểm: báo cáo eval có 4 số trên **mỗi** tác vụ (không gộp); cấu hình ngưỡng + trần leo thang; log có trường `route`; test đảo thứ tự lựa chọn. · Nguồn: stored 17 §2c.3 (AnyJev: coverage ở sai ≤ 5% của Qwen3-8B trên tác vụ nhị phân `injection` sụp 0,313 → 0,013, dù cùng kỹ thuật tăng accuracy ở các ô 20 lựa chọn), §2c.5
+- [ ] `AI-EVAL-020` **SHOULD** Bảng so sánh thành phần trong ADR/research chỉ đặt cạnh nhau số **cùng benchmark, cùng metric, cùng cấu hình**; mỗi số ghi nguồn `vendor` hay `tự đo`; quyết định dựa trên số tự đo (xem `PM-RISK-014`, `XC-PERF-009`). Ví dụ: LongMemEval báo cả QA accuracy (judge GPT-4o) lẫn Recall@k/NDCG@k của retrieval (arXiv:2410.10813), LoCoMo QA dùng F1 partial match (arXiv:2402.17753, ACL 2024; repo CC BY-NC 4.0) — R@5 của một bên ≠ độ đúng QA của bên kia. → Kiểm: bảng có cột `benchmark | metric | điều kiện | nguồn`; lint đỏ khi hàng so sánh khác benchmark/metric. · Nguồn: `seeker19110/stored` 10 §4b (rà 2026-10-18); <https://arxiv.org/abs/2410.10813>, <https://arxiv.org/abs/2402.17753>
 
 ## Bẫy thường gặp
 
@@ -109,3 +110,4 @@ updated: 2026-10-16
 - OWASP Top 10 for LLM Applications 2026 cho bộ red-team (04/08/2026; mã đổi so với 2025 — bảng ở [`../12-security/ai-security.md`](../12-security/ai-security.md)): <https://github.com/GenAI-Security-Project/GenAI-LLM-Top10> — xác minh 2026-10-14. Agentic Top 10 2026: <https://genai.owasp.org/> — (chưa xác minh — 403 ngày 2026-10-13).
 - Catalog `seeker19110/stored` mục 08 §2f.1 (xác suất thống kê cơ bản là bắt buộc để làm eval đúng: cỡ mẫu, khoảng tin cậy, so A/B, phương sai giữa các lần chạy LLM), mục 17 §2c.3 (AnyJev: n = 300, một seed; "hạng 5/149" là hạng theo nhóm hoà, xếp theo điểm là 10/168) — đọc 2026-10-16.
 - Catalog `seeker19110/stored` mục 17 §2c.3, §2c.5 (AnyJev: đọc quyết định có kiểu kèm xác suất; "tự quyết được ở sai ≤ 5%" không đồng đều giữa tác vụ; API đóng không có log-prob thì dùng structured output + eval riêng; cap leo thang giới hạn số quyết định, không giới hạn thời gian từng quyết định) — đọc 2026-10-16.
+- LongMemEval (QA accuracy judge GPT-4o + Recall@k/NDCG@k retrieval): <https://arxiv.org/abs/2410.10813> · LoCoMo (QA F1 partial match, ACL 2024; repo CC BY-NC 4.0): <https://arxiv.org/abs/2402.17753> — xác minh 2026-10-18 (số liệu arXiv v1 khác bản ACL: xem `research/2026-10-18-stored-delta-extraction.md`). Catalog `seeker19110/stored` 10 §4b — rà 2026-10-18.

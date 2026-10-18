@@ -3,7 +3,7 @@ title: Agent & tool: ACI, allowlist, schema, HITL, memory
 kind: module
 prefix: AI-AGENT
 applies_to: [ai-agent, agentic-system, data-ml]
-updated: 2026-10-16
+updated: 2026-10-18
 ---
 
 # Agent & tool: ACI, allowlist, schema, HITL, memory
@@ -77,6 +77,7 @@ updated: 2026-10-16
 - [ ] `AI-AGENT-020` **SHOULD** Memory phân loại theo CoALA (working · episodic · semantic · **procedural**); procedural memory (skill, luật, `AGENTS.md`, prompt hệ thống) chỉ đổi qua PR có review như code, agent không tự ghi. → Kiểm: tool ghi memory của agent không có quyền ghi vào thư mục skill/luật; đổi file đó đi qua CODEOWNERS. · Nguồn: Sumers và cộng sự, *Cognitive Architectures for Language Agents* (CoALA, 2023); `seeker19110/stored` 03 §8d
 - [ ] `AI-AGENT-021` **MUST@L** Xoá memory (cả theo yêu cầu quyền chủ thể dữ liệu, xem [`../16-compliance-privacy/consent-and-user-rights.md`](../16-compliance-privacy/consent-and-user-rights.md)) lan tới **mọi dữ liệu phái sinh** — entity, link/quan hệ, mental model/reflection, tóm tắt, embedding, cache — và **tạo lại** các tóm tắt còn lại từ nguồn đã trừ mục xoá. → Kiểm: test xoá memory nguồn → `recall`/`reflect` không còn trả fact đó; truy vấn trực tiếp các bảng phái sinh không còn tham chiếu tới nó. · Nguồn: `seeker19110/stored` 10 §4d.2 (Hindsight: schema 25 bảng, dữ liệu phái sinh nằm ở `entities`, `mental_models`, `memory_links`…; đọc 2026-10-16)
 - [ ] `AI-AGENT-022` **SHOULD** Bank memory phân vùng theo user/agent/dự án (không một bank chung cho tất cả); đo p95 recall theo kích thước bank và đặt **ngưỡng cảnh báo** (số memory/bank) trong cấu hình; vượt ngưỡng → tách bank hoặc đổi backend. → Kiểm: dashboard p95 recall theo kích thước bank; alert ở ngưỡng đã ghi. · Nguồn: `seeker19110/stored` 10 §4d.1, §4d.3 (Hindsight: recall 7 qps ở 33k memory → 1,9 qps ở 164k trên 4 vCPU; chính nhà phát triển khuyến nghị giữ bank dưới ~50k memory — số do họ đo, dự án tự đo lại; đọc 2026-10-16)
+- [ ] `AI-AGENT-023` **SHOULD** Tool **ghi/sửa** của agent trên tài nguyên của người/agent khác nhận `expected_version`; lệch → `CONFLICT` kèm trạng thái hiện tại, **không ghi**; mỗi lần ghi tạo **phiên bản mới**, không ghi đè. Cùng nguyên lý [`BE-API-014`](../08-backend/api-design.md) (`If-Match`) và [`DB-TX-014`](../09-database/transactions-and-consistency.md) (optimistic locking). → Kiểm: test gọi tool với version cũ → `CONFLICT`, dữ liệu không đổi; số phiên bản +1 sau mỗi lần ghi. · Nguồn: `seeker19110/stored` 19 §1d, §1b (rà 2026-10-18)
 
 ## Bẫy thường gặp
 
@@ -116,3 +117,4 @@ updated: 2026-10-16
 - `seeker19110/stored` mục 02 (ACI, ≤ 8 tool cho model nhỏ, memory đề xuất→duyệt→ghi, "prompt không phải cơ chế bảo mật"), mục 12 §1–2 — đọc 2026-10-13 (`research/2026-10-13-stored-catalog-extraction.md`).
 - Sumers và cộng sự, *Cognitive Architectures for Language Agents* (CoALA; working/episodic/semantic/procedural memory): <https://arxiv.org/abs/2309.02427> — đọc 2026-10-15. Catalog `seeker19110/stored` 03 §8d, 21 §10b (open-instinct: mức tin cậy theo người gửi ở `beforeToolCall`, `audit.jsonl`) — đọc 2026-10-15.
 - Catalog `seeker19110/stored` 07 (Overmind: `cost_class`, chặn theo tên), 10 §4d (Hindsight: 25 bảng, p95 recall theo kích thước bank) — đọc 2026-10-16.
+- Catalog `seeker19110/stored` 19 §1d, §1b (tool ghi nhận `expected_version`, `CONFLICT` kèm trạng thái hiện tại, phiên bản mới mỗi lần ghi) — rà 2026-10-18.

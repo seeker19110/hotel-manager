@@ -1,7 +1,7 @@
 ---
 title: Mẫu tài liệu
 kind: index
-updated: 2026-10-14
+updated: 2026-10-18
 ---
 
 # Mẫu tài liệu
@@ -29,4 +29,6 @@ updated: 2026-10-14
 | [`API-CONTRACT.md`](API-CONTRACT.md) | `docs/api/API-CONTRACT-<slug>.md` — endpoint, schema, lỗi RFC 9457, versioning (`Deprecation`/`Sunset`), phân trang, idempotency, ví dụ chạy được | G3–G4 · trước khi chia việc; `PM-SPEC-005`, `BE-API-*` |
 | [`AGENTS.md`](AGENTS.md) | `AGENTS.md` của dự án đích — luật vận hành cho mọi AI agent (Claude Code, Codex, Gemini CLI, Cursor…); `install.py` copy-if-absent | G5 · dựng nền harness |
 | [`CLAUDE.md`](CLAUDE.md) | `CLAUDE.md` của dự án đích — chỉ import `AGENTS.md` + phần riêng cho Claude Code (hook, skill) | G5 · dựng nền harness |
+| [`PULL-REQUEST.md`](PULL-REQUEST.md) | `.github/pull_request_template.md` của dự án đích — mục tiêu + link, bằng chứng exit code, rủi ro/đường lùi, nhãn `risk:`, migration, phụ thuộc mới, hỗ trợ AI; `install.py --with-github` copy-if-absent | Mọi PR · `WF-GIT-014`, `WF-REVIEW-002` |
+| [`dependabot.yml`](dependabot.yml) | `.github/dependabot.yml` của dự án đích — chỉ hệ `github-actions` (thêm hệ theo manifest thật), gom nhóm, cooldown 14 ngày; `install.py --with-github` copy-if-absent | G5 · `BASE-DEP-007` |
 | [`xt.yaml`](xt.yaml) | `xt.yaml` — lệnh chuẩn của dự án cho hook và agent; YAML phẳng, không suy diễn từ văn xuôi. `dev-task.sh` chỉ chạy `format · lint · typecheck · test · build · format_file` (`gate` = build→typecheck→lint→test); khoá khác (`install`, `dev`, `e2e`, `migrate`, `init`, `smoke`, `audit`…) agent đọc và chạy trực tiếp | G5 · `dev-task.sh gate`; `LOOP-HARNESS-008` |

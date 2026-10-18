@@ -144,6 +144,16 @@ loop_noop() { # $1=task $2=lệnh -> true (kèm log) nếu autopilot đang chạ
   log "ĐỎ: autopilot đang chạy mà '$1' $why — khai lệnh thật trong xt.yaml (LOOP-HARNESS-008, ADR-0011); cổng rỗng không phải bằng chứng xanh"
 }
 
+# Lệnh xt.yaml do model viết được: qua guard của dự án trước khi chạy (LOOP-STOP-027). Không có python3/xt.py cạnh
+# script này → chạy như cũ (fail-open về luồng; dự án chưa cài harness).
+guard_ok() { # $1=lệnh -> 0 nếu được chạy
+  local xt; xt="$(dirname "$0")/xt.py"
+  [ -f "$xt" ] && command -v python3 >/dev/null 2>&1 || return 0
+  # Chỉ exit 126 (guard cấm) là chặn; xt.py sập (python cũ…) → chạy như cũ (fail-open về luồng, ADR-0002).
+  CLAUDE_PROJECT_DIR="$ROOT" python3 "$xt" guard-check -- "$1"
+  [ "$?" -ne 126 ]
+}
+
 RAN=0
 run_task() { # $1=task -> chạy; 0 nếu ok hoặc no-op, khác 0 nếu lệnh fail hoặc no-op trong autopilot
   local cmd; cmd="$(resolve "$1")"
@@ -151,6 +161,7 @@ run_task() { # $1=task -> chạy; 0 nếu ok hoặc no-op, khác 0 nếu lệnh 
   if [ -z "$cmd" ]; then log "skip: chưa cấu hình/dò được '$1'"; return 0; fi
   RAN=$((RAN + 1))
   log "run [$1]: $cmd"
+  guard_ok "$cmd" || return 126
   # pipefail cho chính lệnh khai báo: `set -o pipefail` ở trên không truyền vào `bash -c` mới, nên
   # `test | tee log` từng xanh giả khi test đỏ.
   ( cd "$ROOT" && bash -o pipefail -c "$cmd" )
@@ -200,6 +211,7 @@ case "$TASK" in
     case "$F" in
       *.json | *.JSON) json_ok "$F" && keep="$(mktemp)" && { cp -p -- "$F" "$keep" || { rm -f -- "$keep"; keep=""; }; } ;;
     esac
+    guard_ok "$C" || exit 0 # format_file bị guard cấm: không format, không chặn lượt sửa (PostToolUse)
     ( cd "$ROOT" && bash -c "$C" _ "$P" ) || true
     if [ -n "$keep" ]; then
       json_ok "$F" || { cp -p -- "$keep" "$F"; log "format-file: formatter làm hỏng JSON '$P' → khôi phục bản trước"; }

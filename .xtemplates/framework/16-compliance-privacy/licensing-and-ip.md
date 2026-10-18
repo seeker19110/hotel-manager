@@ -3,7 +3,7 @@ title: License mã nguồn mở, IP, dữ liệu huấn luyện, thương hiệu
 kind: module
 prefix: CMP-LIC
 applies_to: [all]
-updated: 2026-10-16
+updated: 2026-10-18
 ---
 
 # License mã nguồn mở, IP, dữ liệu huấn luyện, thương hiệu, điều khoản dịch vụ
@@ -66,6 +66,7 @@ updated: 2026-10-16
 - [ ] `CMP-LIC-018` **MAY** Chứng nhận OpenChain (ISO/IEC 5230) cho chương trình tuân thủ OSS. → Kiểm: tự đánh giá OpenChain. · Nguồn: ISO/IEC 5230:2020 (chưa xác minh phiên bản ngày 2026-10-13)
 - [ ] `CMP-LIC-019` **SHOULD** Dependency từng **đổi license** (nhất là copyleft → dễ dãi) trên mã có nhiều tác giả mà không có CLA/DCO: coi lần đổi là rủi ro chưa xác minh; dùng theo license chặt hơn (hoặc bản trước khi đổi) cho tới khi repo ghi bằng chứng đã xin đồng ý người giữ bản quyền. → Kiểm: PR thêm dependency ghi `git log --follow -- LICENSE*` và có/không CLA/DCO; ngoại lệ trong `license-policy.yaml` có `reason`. · Nguồn: `seeker19110/stored` 19 §1b (OpenCreator: GPL-3.0 → Apache-2.0, 22 tác giả, không CLA/DCO)
 - [ ] `CMP-LIC-020` **SHOULD** License của model/trọng số lấy từ **model card (hoặc LICENSE) của đúng repo** đang dùng, ghi **revision (commit hash)** và kích thước/biến thể đang dùng — không suy từ license của mã hay README; ghim revision khi tải; ghi điều kiện về doanh thu, lãnh thổ, đầu ra; đổi revision hoặc kích thước thì duyệt lại. → Kiểm: `docs/ai/<model>.md` có `revision`, `license_source_url`, `conditions`; loader ghim `revision=<sha>`. · Nguồn: `seeker19110/stored` 14 §3b (Audio8: README Apache-2.0 nhưng weights 0.1B theo Community License, trần doanh thu US$2M/năm), 14 §5b (Hunyuan3D 2.1 hạn chế lãnh thổ EU/UK/KR gồm output — (chưa xác minh), stored gắn `[UNVERIFIED]`), 18 §4c (PhoBERT base MIT, base-v2 AGPL-3.0); đọc 2026-10-16
+- [ ] `CMP-LIC-021` **SHOULD** Thành phần **tải lúc cài/chạy** — engine/binary, image mà app tự `pull`, model/weights tải lần đầu, script `postinstall` — nằm ngoài lockfile/SBOM nên khai riêng ở `THIRD_PARTY_NOTICES` (xem `CMP-LIC-001`): SPDX id, phiên bản/digest, sha256. License không-OSI ở tầng dưới phải nêu dù gói bọc ngoài là MIT/Apache (vd agentmemory Apache-2.0 nhưng engine iii là ELv2); license của model/weights theo `CMP-LIC-020`. Dùng SBOM có hồ sơ AI/Dataset (SPDX 3.0.1 profiles AI, Dataset) hoặc CycloneDX 1.7 ML-BOM cho model/dataset. → Kiểm: script `rg -n 'curl |wget |docker pull|image:|from_pretrained|hf_hub_download|snapshot_download'` trên mã/compose + `npm query ':attr(scripts,[postinstall])'`; mỗi host/tên khớp phải có một dòng trong NOTICES, thiếu → đỏ. · Nguồn: `seeker19110/stored` 10 §4b (rà 2026-10-18); agentmemory `package.json` "license": "Apache-2.0" <https://github.com/rohitg00/agentmemory>, iii README mục License (`engine/` ELv2, SDK Apache-2.0) <https://github.com/iii-hq/iii> — đọc 2026-10-18; SPDX 3.0.1 <https://spdx.github.io/spdx-spec/v3.0.1/>; CycloneDX ML-BOM <https://cyclonedx.org/capabilities/mlbom/>
 
 ## Bẫy thường gặp
 
@@ -106,3 +107,4 @@ updated: 2026-10-16
 - Nghiên cứu nền: `research/2026-10-13-stored-catalog-extraction.md` §2.6 (SBOM + cổng license, exception có `approved_by`/`expires`), §3 (bẫy license không OSI, repo không LICENSE).
 - Catalog `seeker19110/stored` 19 §1b (OpenCreator/KrillinAI đổi GPL-3.0 → Apache-2.0 trên mã nhiều tác giả, không CLA/DCO) — đọc 2026-10-15.
 - Catalog `seeker19110/stored` 14 §3b (Audio8 0.1B Community License), §5b (Hunyuan3D — (chưa xác minh)), 18 §4c (PhoBERT base MIT vs base-v2 AGPL-3.0) — đọc 2026-10-16; model card từng repo chưa tra lại trực tiếp (chưa xác minh).
+- SPDX 3.0.1 (profiles AI, Dataset): <https://spdx.github.io/spdx-spec/v3.0.1/> · CycloneDX 1.7 ML-BOM: <https://cyclonedx.org/capabilities/mlbom/> — xác minh 2026-10-18. Catalog `seeker19110/stored` 10 §4b (license tầng dưới: agentmemory Apache-2.0, engine iii ELv2) — rà 2026-10-18.
