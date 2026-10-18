@@ -28,3 +28,20 @@ updated: 2026-10-18
 | Ngày | Thay đổi | Lý do |
 |---|---|---|
 | 2026-10-18 | Lập ngân sách 300 kB (đo 271,24 kB) | T-804, FE-PERF-004 |
+
+## Ngân sách tài nguyên (XC-GREEN-002)
+
+Số liệu và trần ở [`perf/resource-budgets.json`](../perf/resource-budgets.json); vượt là đỏ.
+
+| Tài nguyên | Trần | Số đo (2026-10-18) | Máy kiểm |
+|---|---|---|---|
+| Image `postgres` (+ pgBackRest) | 550 MB | 455,8 MB | job `image-scan` → `scripts/check-image-size.mjs` |
+| Image nền web/worker `node-base` | 285 MB | 234,7 MB | như trên |
+| Image `seaweedfs` | 640 MB | 529,2 MB | như trên |
+| Image `caddy` | 80 MB | 66,3 MB | như trên |
+| Số job CI mỗi PR (tính cả matrix) | 40 | 34 | `scripts/perf-budget-resources.test.mjs` |
+| Timeout một job | 45 phút | lớn nhất 40 | như trên |
+| Tổng timeout các job mỗi PR | 600 phút | 535 | như trên |
+| JS client (gzip), trang | xem các mục trên | — | `bundle-size`, `lighthouse`, `perf/budgets.json` |
+
+Số đo image là `imageSize` trong báo cáo grype của CI trên `main` 251f605; trần = số đo × 1,2 làm tròn lên. Nới trần phải ghi lý do trong PR và cập nhật bảng này. Chi phí hạ tầng theo đơn vị chức năng (chi phí/kWh) cần nhà cung cấp hạ tầng thật — hiện chỉ có ngân sách email (OPS-COST-004); cảnh báo chi phí hosting là việc khi có VPS.
