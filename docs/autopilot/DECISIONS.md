@@ -431,3 +431,11 @@
 - Lý do (tiêu chí chất lượng cuối): Chạy được ngay trong repo, có unittest, không thêm phụ thuộc nhị phân; luật chặt an toàn hơn cho client
 - Đường lùi: Thay script bằng lychee/oasdiff trong cùng job khi proxy cho phép; nới luật bằng sửa scripts/check-openapi-breaking.mjs
 - Khi chạy thật (đề xuất, chủ dự án quyết ở G7): Cân nhắc thay bằng lychee/oasdiff bản ghim checksum khi CI ra mạng được
+
+### D-065 · 2026-10-18T00:38:43+00:00 · Đợt 9: job cổng mới (pr-policy, commit-lint, new-deps, sbom, image-scan, coverage, coverage-ratchet, fix-requires-test, sast, dast, openapi, schema-compat…) chưa là required check nên chưa chặn auto-merge; đổi ruleset trên GitHub là điểm dừng của người — xử lý thế nào?
+
+- Phương án: (1) Mỗi lát giữ job, KHÔNG sửa .github/rulesets/main.json; một PR cuối đợt (T-808) gom mọi context mới vào main.json (chỉ job chạy trên MỌI PR, không lọc paths); dòng Bằng chứng ghi 'chặn merge khi ruleset được import (người)'; defer việc import · (2) Mỗi lát tự thêm context vào main.json · (3) Bỏ tick các mục cho tới khi ruleset được import
+- Chọn: Mỗi lát giữ job, KHÔNG sửa .github/rulesets/main.json; một PR cuối đợt (T-808) gom mọi context mới vào main.json (chỉ job chạy trên MỌI PR, không lọc paths); dòng Bằng chứng ghi 'chặn merge khi ruleset được import (người)'; defer việc import
+- Lý do (tiêu chí chất lượng cuối): Tránh xung đột main.json giữa 6 lát; job đỏ vẫn hiện trên PR và review độc lập chặn merge tay; tick ghi đúng mức chặn thật; import ruleset là việc người
+- Đường lùi: Xoá context khỏi main.json ở PR cuối; bỏ ghi chú trong Bằng chứng
+- Khi chạy thật (đề xuất, chủ dự án quyết ở G7): Chủ dự án import .github/rulesets/main.json sau khi mọi job mới xanh ít nhất một lần trên PR
