@@ -3,7 +3,7 @@ title: Cổng chất lượng tối thiểu (lint · format · type · test · C
 kind: baseline
 prefix: BASE-GATE
 applies_to: [all]
-updated: 2026-10-14
+updated: 2026-10-18
 ---
 
 # Cổng chất lượng tối thiểu (lint · format · type · test · CI)
@@ -32,7 +32,7 @@ updated: 2026-10-14
 | Formatter + linter | JS/TS: **Biome 2.5.x** (một công cụ) hoặc oxlint + Prettier · Python: **ruff** (format + lint) + **pyright** · Go: `gofmt`/`go vet` + `golangci-lint` · Rust: `rustfmt` + `clippy -D warnings` · .NET: `dotnet format` + analyzers `TreatWarningsAsErrors`. | Dự án có sẵn: giữ công cụ hiện có, chỉ thêm cổng; đổi công cụ là PR riêng (brownfield). |
 | Kiểm kiểu | Ngôn ngữ có kiểu: bật chế độ nghiêm (`strict`, `noUncheckedIndexedAccess`; pyright `strict`; `-Wall -Werror`). | Ngôn ngữ động không có type-checker → thay bằng validate dữ liệu ở biên + test. |
 | Test chạy ở cổng commit? | Hook commit chạy **test nhanh liên quan** (lint-staged/`--changed`); **toàn bộ** test ở CI. | Suite < 30 s thì chạy hết cả ở hook. |
-| Một job hay nhiều job required? | **Một job gom** (`quality`) chạy các cổng chất lượng (tuần tự/song song bên trong). Ruleset của khung đòi **4 required check**: `quality`, `protection-guard` (đối chiếu ruleset ↔ job thật), `gitleaks` (quét bí mật) và `dep-audit` (lỗ hổng phụ thuộc); mỗi check phải là job có thật. | Monorepo lớn: job theo package nhưng vẫn một job tổng hợp luôn chạy (`quality`) làm required. |
+| Một job hay nhiều job required? | **Một job gom** (`quality`) chạy các cổng chất lượng (tuần tự/song song bên trong). Ruleset của khung đòi **5 required check**: `quality`, `protection-guard` (đối chiếu ruleset ↔ job thật), `gitleaks` (quét bí mật), `dep-audit` (lỗ hổng phụ thuộc) và `merge-gate` (PR ngoại lệ cứng không auto-merge được, ADR-0023); mỗi check phải là job có thật. | Monorepo lớn: job theo package nhưng vẫn một job tổng hợp luôn chạy (`quality`) làm required. |
 | Coverage có là cổng không? | **Ratchet**: không được giảm so với nhánh mặc định; ngưỡng tuyệt đối do [`../14-testing-quality/coverage-and-mutation.md`](../14-testing-quality/coverage-and-mutation.md) quyết. | Repo mới chưa có baseline: đặt ratchet từ 0, không đặt 80% giả. |
 
 ## Checklist

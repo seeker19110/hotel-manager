@@ -3,7 +3,7 @@ title: CI/CD: job gate, required check, cache, bảo mật pipeline
 kind: module
 prefix: WF-CI
 applies_to: [all]
-updated: 2026-10-16
+updated: 2026-10-18
 ---
 
 # CI/CD: job gate, required check, cache, bảo mật pipeline
@@ -16,7 +16,8 @@ updated: 2026-10-16
 ## Nguyên tắc
 
 1. **Một cổng chất lượng, một tên.** `quality` (gate aggregator) gom mọi job cổng; thêm job mới không phải sửa ruleset;
-   ruleset đòi đúng 4 required check `quality` · `protection-guard` · `gitleaks` · `dep-audit`, mỗi cái là job có thật; đổi tên job có guard bắt.
+   ruleset đòi đúng 5 required check `quality` · `protection-guard` · `gitleaks` · `dep-audit` · `merge-gate`, mỗi cái là job có thật; đổi tên job có guard bắt.
+   `merge-gate` (ADR-0023) đứng riêng ngoài `quality`: chạy trên `pull_request_target` bằng mã nhánh mặc định để PR không sửa được nó.
 2. **CI là nguồn sự thật của "xanh".** Hook local có thể bị bỏ qua; mọi lint/format/type/test/scan đều chạy lại
    ở CI với cùng lệnh (đọc từ `xt.yaml`/`package.json`, không viết lại).
 3. **Quyền tối thiểu, fail-closed.** `permissions: contents: read` cấp workflow; job cần ghi tự nâng; không
@@ -40,7 +41,7 @@ updated: 2026-10-16
 
 ## Checklist
 
-- [ ] `WF-CI-001` **MUST** Có job `quality` gom mọi cổng chất lượng (một job luôn chạy; nếu tách job con thì `needs` mọi job cổng và fail khi bất kỳ job con không `success`). Ruleset đòi đúng 4 required check `quality` · `protection-guard` · `gitleaks` · `dep-audit`; mỗi context phải là job có thật, `protection-guard` đối chiếu tên ([`git-and-branching.md`](git-and-branching.md)). → Kiểm: `.github/rulesets/main.json` có đúng 3 context đó; `protection-guard` đỏ khi context không khớp job nào trong `.github/workflows/`; nếu tách job con, `quality` có `if: always()` kiểm `needs`. · Nguồn: catalog 23 §2.5 (gate aggregator ADR-0003), 13 §4b
+- [ ] `WF-CI-001` **MUST** Có job `quality` gom mọi cổng chất lượng (một job luôn chạy; nếu tách job con thì `needs` mọi job cổng và fail khi bất kỳ job con không `success`). Ruleset đòi đúng 5 required check `quality` · `protection-guard` · `gitleaks` · `dep-audit` · `merge-gate` (job `merge-gate` chạy trên `pull_request_target` bằng mã nhánh mặc định, không gộp vào `quality` — ADR-0023); mỗi context phải là job có thật, `protection-guard` đối chiếu tên ([`git-and-branching.md`](git-and-branching.md)). → Kiểm: `.github/rulesets/main.json` có đúng 5 context đó; `protection-guard` đỏ khi context không khớp job nào trong `.github/workflows/`; nếu tách job con, `quality` có `if: always()` kiểm `needs`. · Nguồn: catalog 23 §2.5 (gate aggregator ADR-0003), 13 §4b
 - [ ] `WF-CI-002` **MUST@L** CI chạy lại mọi kiểm của hook local (lint, format check, type, test, secret scan) bằng **cùng lệnh** từ một nguồn (`xt.yaml`/`package.json`/`Makefile`), không viết lệnh khác trong YAML. → Kiểm: diff lệnh hook ↔ CI = cùng script; `pre-commit run --all-files` hoặc `scripts/dev-task.sh gate` trong CI. · Nguồn: pre-commit docs (CI), catalog 23 §4.3 (`/gate` đọc động job CI)
 - [ ] `WF-CI-003` **MUST** `permissions:` khai báo tường minh ở cấp workflow với mặc định `contents: read`; job cần ghi (release, comment) tự nâng tối thiểu; không dùng `write-all`. → Kiểm: actionlint/zizmor không cảnh báo thiếu permissions; grep `permissions: write-all` = 0. · Nguồn: GitHub Security hardening for Actions
 - [ ] `WF-CI-004` **MUST** Không nội suy input không tin cậy (`github.event.pull_request.title/body`, branch name, issue) trực tiếp vào `run:`; đưa qua `env:` và quote; `pull_request_target`/`workflow_run` không checkout code PR. → Kiểm: zizmor `template-injection`/`dangerous-triggers` = 0 finding. · Nguồn: GitHub Security hardening (script injection)

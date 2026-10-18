@@ -42,7 +42,7 @@ updated: 2026-10-16
 
 **Context** đi đường riêng: đầy → compaction tự nén (PreCompact → `xt.py loop checkpoint` ghi task đang làm, lệnh kiểm
 cuối + exit code, file chưa commit, lỗi lặp vào `.autopilot/state.json`; SessionStart(compact) in lại qua `loop status`)
-rồi chạy tiếp. Áp dụng khi `loop init --single-session` (trần vòng tự tính `max(20, 4 × task chưa làm)`).
+rồi chạy tiếp. Áp dụng khi `loop init --single-session` (trần vòng tự tính `max(40, 8 × task chưa làm)`).
 
 Ngưỡng 80/100 tương ứng circuit breaker 80/90/100 của stored 21 §10; 90% là mốc cảnh báo nếu harness có đo chi phí thật.
 

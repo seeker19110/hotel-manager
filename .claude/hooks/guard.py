@@ -6,6 +6,8 @@ Dùng (payload JSON của Claude Code trên stdin, kết quả JSON trên stdout
                      "commit_dir": "<thư mục git commit chạy, rỗng nếu không biết>"}
   guard.py edit   → {"decision": "deny"|"ask"|"", "reason": "..."}  (file bí mật/cổng/migration; test ĐÃ CÓ bị làm yếu)
   guard.py mcp    → {"decision": "allow"|"ask"|"", "reason": "..."}  (tool MCP merge PR: allow chỉ khi merge-check cho phép)
+  guard.py <mode> nul → cùng kết quả, dạng `ok\0<decision>\0<reason>\0<commit>\0<no_verify>\0<commit_dir>\0` để hook đọc
+                     bằng `read -d ''` (bash 3.2 được), khỏi sinh thêm tiến trình python chỉ để tách trường JSON.
 
 Vì sao Python thay regex trong bash (audit 2026-10-14, AUD-SEC-001…010):
 - tách lệnh theo token shell (`shlex`): `|`/`;` trong nháy không phải ranh giới, thân heredoc là dữ liệu;
@@ -26,6 +28,7 @@ import posixpath
 import re
 import shlex
 import subprocess
+import urllib.parse
 import sys
 import tempfile
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
@@ -254,9 +257,29 @@ def _test_weakening(rel: str, root: str, tool_input: Optional[Dict[str, object]]
     return weakens_test(old, new)
 
 
+# Công tắc tắt hook ghi qua Edit/Write vào settings/`.env`/rc (AUD-SEC-046) — như `hook_bypass` cho Bash.
+BYPASS_ON_RE = re.compile(r'"disableAllHooks"\s*:\s*true|\b(?:CLAUDE_CODE_SIMPLE|CLAUDE_CODE_SAFE_MODE)\b["\']?\s*[:=]')
+
+
+def _bypass_edit(path: str, tool_input: Optional[Dict[str, object]]) -> str:
+    """Công tắc tắt hook trong nội dung MỚI ghi vào file cấu hình (settings*.json, `.env`, rc của shell); không thì ''."""
+    b = posixpath.basename(path)
+    if not tool_input or not (b.endswith((".json", ".env")) or b in RC_FILES):
+        return ""
+    texts = [_text(tool_input.get("new_string")), _text(tool_input.get("content"))]
+    edits = tool_input.get("edits")
+    if isinstance(edits, list):
+        texts += [_text(e.get("new_string")) for e in edits if isinstance(e, dict)]
+    m = BYPASS_ON_RE.search("\n".join(texts))
+    return m.group(0) if m else ""
+
+
 def edit_decision(path: str, root: str, tool_input: Optional[Dict[str, object]] = None) -> Tuple[str, str]:
     rel = rel_path(path, root)
     kind = path_kind(rel, root)
+    bypass = _bypass_edit(path, tool_input)
+    if bypass:
+        return "deny", f"Không ghi công tắc tắt hook (`{bypass}`) vào {rel} — hàng rào của khung (ADR-0018)."
     if kind == "capability":
         return "ask", "Sửa cấu hình " + CAPABILITY_WHY.format(rel) + "."
     if kind == "secret":
@@ -451,13 +474,37 @@ def _strip_prefixes(argv: List[str]) -> List[str]:
     return a
 
 
+# Cấu hình làm `git push` đẩy nhiều nhánh/nhánh chính mà lệnh không ghi refspec (AUD-SEC-047): `push.default=matching`,
+# `remote.<r>.push`, `remote.<r>.mirror`. Đặt qua `git -c` → `normalize` chèn PUSH_CONFIG_FLAG sau lệnh con.
+PUSH_CONFIG_RE = re.compile(r"(push\.default|remote\..+\.(push|mirror))(=.*)?", re.I)
+# Giá trị làm push lan ra nhiều nhánh: `push.default=matching`, `remote.<r>.mirror=true`, `remote.<r>.push=<bất kỳ>`
+# (`simple`/`current`/`upstream`/`nothing` chỉ đẩy nhánh hiện tại — luật refspec đã xét).
+PUSH_SPREAD_RE = re.compile(r"push\.default=matching|remote\..+\.mirror=(true|yes|on|1)|remote\..+\.push=.*", re.I)
+PUSH_CONFIG_FLAG = "--xt-push-config"
+
+
+def _push_spread_opt(opt: str, nxt: str) -> bool:
+    """Tuỳ chọn toàn cục đặt cấu hình push lan nhiều nhánh: `-c k=v`, `-ck=v` (viết liền), `--config-env[=]k=ENV` —
+    giá trị nằm trong biến môi trường, guard không đọc được → khoá push nào cũng tính (review #97)."""
+    if opt in ("-c", "--config-env") or opt.startswith("--config-env="):
+        val = nxt if opt in ("-c", "--config-env") else opt.split("=", 1)[1]
+        env = opt.startswith("--config-env")
+        return bool((PUSH_CONFIG_RE if env else PUSH_SPREAD_RE).fullmatch(val))
+    return opt.startswith("-c") and len(opt) > 2 and bool(PUSH_SPREAD_RE.fullmatch(opt[2:]))
+
+
 def _strip_git_global_opts(a: List[str]) -> List[str]:
-    """`git -C p -c k=v --no-pager sub …` → `git sub …` (tuỳ chọn có giá trị ăn thêm một token)."""
+    """`git -C p -c k=v --no-pager sub …` → `git sub …` (tuỳ chọn có giá trị ăn thêm một token); `-c` cấu hình push →
+    `git sub --xt-push-config …`."""
     rest = a[1:]
     i = 0
+    push_cfg = False
     while i < len(rest) and rest[i].startswith("-"):
+        nxt = rest[i + 1] if i + 1 < len(rest) else ""
+        push_cfg = push_cfg or _push_spread_opt(rest[i], nxt)
         i += 2 if rest[i] in GIT_OPTS_WITH_VALUE else 1
-    return ["git", *rest[i:]]
+    out = ["git", *rest[i:]]
+    return [*out[:2], PUSH_CONFIG_FLAG, *out[2:]] if push_cfg and out[1:2] == ["push"] else out
 
 
 def _git_C_dirs(argv: List[str]) -> List[str]:
@@ -601,10 +648,44 @@ def _current_branch(cwd: Optional[str]) -> str:
     return r.stdout.strip() if r.returncode == 0 else ""
 
 
+PUSH_ALL_WHY = (
+    "push --all/--tags đẩy mọi nhánh/tag (gồm nhánh chính, tag phát hành; refspec glob/`:`/cấu hình push) — người duyệt"
+)
+GIT_CONFIG_READ = {
+    "--get",
+    "--get-all",
+    "--get-regexp",
+    "--list",
+    "-l",
+    "get",
+    "list",
+    "--unset",
+    "--unset-all",
+    "unset",
+}
+
+
+def _git_config(args: List[str]) -> Tuple[str, str]:
+    """config: đặt `push.default`/`remote.<r>.push|mirror` = push nhánh chính ngầm cho mọi `git push` sau (AUD-SEC-047)."""
+    if set(args) & GIT_CONFIG_READ:
+        return "", ""
+    pos = [a for a in _positionals(args) if a not in ("set", "--add")]
+    if pos[:1] and PUSH_SPREAD_RE.fullmatch("=".join(pos[:2]) if len(pos) > 1 else pos[0] + "=true"):
+        return "ask", f"đặt cấu hình push — {PUSH_ALL_WHY}"
+    return "", ""
+
+
+def _git_remote(args: List[str]) -> Tuple[str, str]:
+    """remote add --mirror=push: mọi `git push` tới remote đó là `--mirror` (ghi đè/xoá nhánh chính)."""
+    if args[:1] == ["add"] and any(a.startswith("--mirror") for a in args):
+        return "ask", f"remote --mirror — {PUSH_ALL_WHY}"
+    return "", ""
+
+
 def _push_ref_rule(ref: str, deleting: bool, cwd: Optional[str] = None) -> Tuple[str, str]:
     """Một refspec của push: đích là nhánh chính → deny nếu xoá, ask nếu đẩy thẳng. Đích `HEAD`/`@` = nhánh hiện tại."""
     dst = ref.split(":", 1)[1] if ":" in ref else ref
-    dst = dst.removeprefix("refs/heads/")
+    dst = dst.removeprefix("refs/").removeprefix("heads/")  # git phân giải `heads/main` thành refs/heads/main
     if dst in ("HEAD", "@"):
         dst = _current_branch(cwd)
     if dst not in MAIN_BRANCHES:
@@ -618,12 +699,14 @@ def _git_push(args: List[str], cwd: Optional[str] = None) -> Tuple[str, str]:
     """push: deny --force/--mirror/+refspec và xoá nhánh chính; ask khi đẩy thẳng nhánh chính — kể cả khi không có
     refspec hoặc đích là `HEAD` mà nhánh hiện tại (ở `cwd`) là nhánh chính — và khi `--all`/`--tags` (mọi nhánh/tag)."""
     flags = _short_flags(args)
-    force = any(x.startswith("--force") or x == "--mirror" for x in args) or "f" in flags
+    force = any(x.startswith("--force") and x != "--force-if-includes" or x == "--mirror" for x in args) or "f" in flags
     refs = _positionals(args, ("-o", "--push-option", "--repo", "--receive-pack", "--exec"))
     if force or any(r.startswith("+") for r in refs):
         return "deny", "push --force/--mirror/+refspec ghi đè lịch sử"
-    if "--all" in args or "--tags" in args:
-        return "ask", "push --all/--tags đẩy mọi nhánh/tag (gồm nhánh chính, tag phát hành) — người duyệt"
+    spread = any("*" in r or r == ":" for r in refs[1:])  # refspec glob, `:` = matching (AUD-SEC-047)
+    spread = spread or (PUSH_CONFIG_FLAG in args and not refs[1:])  # cấu hình push chỉ có hiệu lực khi không có refspec
+    if spread or {"--all", "--branches", "--tags"} & set(args):
+        return "ask", PUSH_ALL_WHY
     deleting = "--delete" in args or "d" in flags
     for r in refs[1:] or ["HEAD"]:  # không refspec: đẩy nhánh hiện tại
         verdict = _push_ref_rule(r, deleting, cwd)
@@ -703,12 +786,14 @@ GIT_RULES: Dict[str, GitRule] = {
     "restore": _git_restore,
     "stash": _git_stash,
     "branch": _git_branch,
+    "config": _git_config,
+    "remote": _git_remote,
 }
 
 
 # git nhận tuỳ chọn dài viết tắt (`reset --ha`, `push --mirr`, `clean --fo`): viết tắt của tuỳ chọn nguy hiểm → coi là
 # tuỳ chọn đó (AUD-SEC-023). Thứ tự: ngắn trước, để `--forc` thành `--force`.
-GIT_DANGER_LONG = ("--all", "--hard", "--tags", "--force", "--delete", "--mirror", "--discard-changes")
+GIT_DANGER_LONG = ("--all", "--hard", "--tags", "--force", "--delete", "--mirror", "--branches", "--discard-changes")
 
 
 def _git_long(a: str) -> str:
@@ -764,21 +849,27 @@ ASK_CMDS: Dict[str, Optional[Tuple[str, ...]]] = {
 GH_ASK = {("release",), ("secret",), ("workflow", "run"), ("variable", "set"), ("variable", "delete")}
 GH_ASK |= {("repo", "edit"), ("repo", "sync"), ("repo", "rename"), ("repo", "archive"), ("repo", "delete")}
 GH_ASK |= {("repo", "set-default")}  # đổi repo mà `gh pr merge`/`{owner}/{repo}` trỏ tới, như `-R` (AUD-SEC-030)
-GH_DESTROY = {("secret",), ("repo", "delete"), ("repo", "archive")}
+GH_DESTROY = {("secret",), ("repo", "delete"), ("repo", "archive"), ("release", "delete")}
 # Lệnh con huỷ/xoá hạ tầng không đảo ngược: vẫn ask ở bộ luật, nhưng mang lý do DESTROY_ASK để `apply_policy` chặn.
 DESTROY_CMDS: Dict[str, Tuple[str, ...]] = {
     "kubectl": ("delete",),
     "terraform": ("destroy",),
     "tofu": ("destroy",),
-    "pulumi": ("destroy",),
+    "pulumi": ("destroy", "down"),
 }
+# `terraform|tofu apply -destroy` = destroy (AUD-SEC-048); `plan -destroy` chỉ in kế hoạch.
+APPLY_DESTROY = {"-destroy", "--destroy", "-destroy=true", "--destroy=true"}
 INFO_ONLY = {"--version", "-v", "version", "--help", "-h", "help"}
 
 
 EXTERNAL_ASK = "hành động đối ngoại/triển khai thật (điểm dừng bắt buộc)"
 DESTROY_ASK = "huỷ/xoá repo, bí mật hoặc hạ tầng (không đảo ngược)"
-# Ngoại lệ cứng (ADR-0016): tiền/dữ liệu thật/auth/mật mã/bí mật luôn người merge — ADR-0019 giữ chặn dưới ADR-0018.
+# Ngoại lệ cứng (ADR-0016): tiền/dữ liệu thật/auth/mật mã/bí mật người merge — ADR-0019 giữ chặn dưới ADR-0018; nhánh
+# đích commit `merge_hard_exceptions: auto` thì merge-check không trả `hard` (ADR-0020).
 HARD_ASK = "ngoại lệ cứng (LOOP-STOP-005): người merge"
+# Merge/bật auto-merge mà guard không đọc được `hard` (merge-check lỗi, repo khác, PR không rõ số, graphql) → chặn như
+# ngoại lệ cứng: không xác minh được thì không cho qua (AUD-SEC-044/045).
+UNVERIFIED_ASK = "không xác minh được ngoại lệ cứng (ADR-0019): người merge"
 # Cờ của `gh pr merge` ăn thêm một token giá trị — không bóc thì giá trị bị hiểu là số PR.
 GH_MERGE_VALUE_FLAGS: Tuple[str, ...] = (
     *("--match-head-commit", "-b", "--body", "-F", "--body-file", "-t", "--subject"),
@@ -821,6 +912,22 @@ def _flag_value(args: List[str], flag: str) -> Optional[str]:
     return None
 
 
+# Như `py_run` của _lib.sh: chạy xt.py bằng import để dùng bytecode cache (chạy như script thì biên dịch lại ~4.000 dòng
+# mỗi lần); sys.path[0] = thư mục của file, không lấy cwd.
+IMPORT_RUNNER = (
+    "import sys; d, _, f = sys.argv[1].rpartition('/'); sys.path[0] = d or '.'; sys.argv = sys.argv[1:]; "
+    "sys.exit(__import__(f[:-3]).main())"
+)
+
+
+def pycache_prefix() -> str:
+    """Thư mục cache bytecode ngoài dự án (như `_lib.sh`): giữ `PYTHONPYCACHEPREFIX` có sẵn, nếu không thì XDG/~/.cache."""
+    if os.environ.get("PYTHONPYCACHEPREFIX"):
+        return os.environ["PYTHONPYCACHEPREFIX"]
+    base = os.environ.get("XDG_CACHE_HOME") or os.path.join(os.path.expanduser("~"), ".cache")
+    return os.path.join(base, "xtemplates", "pycache")
+
+
 def merge_check(selector: List[str], root: str) -> Dict[str, object]:
     """Chạy `xt.py merge-check --json` cài CÙNG khung với hook này (không theo PATH/biến môi trường agent đặt được)."""
     here = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -832,9 +939,17 @@ def merge_check(selector: List[str], root: str) -> Dict[str, object]:
         ),
         "",
     )
-    cmd = [sys.executable, xt, "merge-check", "--json", *(["--pr", selector[0]] if selector else [])]
+    cmd = [
+        sys.executable,
+        "-c",
+        IMPORT_RUNNER,
+        xt,
+        "merge-check",
+        "--json",
+        *(["--pr", selector[0]] if selector else []),
+    ]
     try:
-        env = dict(os.environ, CLAUDE_PROJECT_DIR=root)
+        env = dict(os.environ, CLAUDE_PROJECT_DIR=root, PYTHONPYCACHEPREFIX=pycache_prefix())
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=MERGE_CHECK_TIMEOUT, env=env, check=False)
         data: Dict[str, object] = json.loads(r.stdout)
     except (OSError, subprocess.SubprocessError, ValueError):
@@ -845,26 +960,25 @@ def merge_check(selector: List[str], root: str) -> Dict[str, object]:
 def gh_pr_merge_rule(args: List[str], root: str) -> Tuple[str, str]:
     """`gh pr merge` (ADR-0013): mặc định hỏi người; `allow` chỉ khi `xt.py merge-check` = merge VÀ lệnh ghim đúng
     head đã kiểm (`--match-head-commit`). `--admin` (vượt ruleset) và `--repo` (repo khác) luôn hỏi."""
+    selector = _positionals(args, GH_MERGE_VALUE_FLAGS)
+    repo = _flag_value(args, "-R") or _flag_value(args, "--repo") or next((a[2:] for a in args if a[:2] == "-R"), "")
+    if args and set(args) - set(selector) == {"--disable-auto"}:  # tắt auto-merge: LOOP-STOP-005 đòi, không chặn
+        return "ask", f"{EXTERNAL_ASK} — tắt auto-merge"
     if "--auto" in args and not any(a.startswith("--admin") for a in args):
         flags = sorted({a.split("=", 1)[0] for a in args if a.startswith("-")} - MERGE_ALLOW_FLAGS - {"--auto"})
-        selector = _positionals(args, GH_MERGE_VALUE_FLAGS)
-        if flags or len(selector) > 1 or not all(MERGE_SELECTOR_RE.fullmatch(s) for s in selector):
-            return "ask", f"{EXTERNAL_ASK} — bật auto-merge chỉ nhận số PR/nhánh và cờ merge thường"
-        return _auto_merge_verdict(selector[:1], root)
+        if flags or repo:
+            return _merge_ask(
+                f"{EXTERNAL_ASK} — bật auto-merge chỉ nhận số PR/nhánh và cờ merge thường", selector, root, repo
+            )
+        return _auto_merge_verdict(selector, root)
     sha = _flag_value(args, "--match-head-commit")
     if sum(a == "--match-head-commit" or a.startswith("--match-head-commit=") for a in args) > 1:
         sha = None  # gh lấy lần cuối, guard đã kiểm lần đầu — hai pin là không pin
-    other_repo = any(a == "-R" or a.startswith(("-R", "--repo")) for a in args)
-    if not sha or any(a.startswith("--admin") for a in args) or other_repo:
-        return (
-            "ask",
-            f"{EXTERNAL_ASK} — tự merge cần `--match-head-commit <sha>` từ `xt.py merge-check`, không --admin/--repo",
-        )
     flags = sorted({a.split("=", 1)[0] for a in args if a.startswith("-")} - MERGE_ALLOW_FLAGS)
-    selector = _positionals(args, GH_MERGE_VALUE_FLAGS)
-    if flags or len(selector) > 1 or not all(MERGE_SELECTOR_RE.fullmatch(s) for s in selector):
-        return "ask", f"{EXTERNAL_ASK} — tự merge chỉ nhận số PR/nhánh và cờ {', '.join(sorted(MERGE_ALLOW_FLAGS))}"
-    return _merge_verdict(selector[:1], sha, root)
+    if not sha or flags or repo:
+        why = "tự merge cần `--match-head-commit <sha>` từ `xt.py merge-check`, chỉ cờ"
+        return _merge_ask(f"{EXTERNAL_ASK} — {why} {', '.join(sorted(MERGE_ALLOW_FLAGS))}", selector, root, repo)
+    return _merge_verdict(selector, sha, root)
 
 
 def _rm_rule(args: List[str], root: str = "", cwd: Optional[str] = None) -> Tuple[str, str]:
@@ -1035,10 +1149,7 @@ def _gh_api_writes(args: List[str]) -> bool:
     fields = _gh_api_field_values(args)
     has_input = any(a.split("=", 1)[0] == "--input" for a in args)
     if _positionals(args, GH_API_VALUE_FLAGS)[:1] == ["graphql"]:
-        indirect = has_input or any("$(" in a or "`" in a for a in args)
-        return (
-            indirect or any(v.partition("=")[2].startswith("@") for v in fields) or "mutation" in " ".join(args).lower()
-        )
+        return _graphql_opaque(args) or "mutation" in " ".join(args).lower()
     if len(set(methods)) > 1:
         return True
     return (methods[-1] if methods else ("POST" if fields or has_input else "GET")) != "GET"  # AUD-SEC-029
@@ -1057,16 +1168,14 @@ def _auto_merge_verdict(selector: List[str], root: str, repo: str = "") -> Tuple
     """Bật auto-merge của GitHub (ADR-0015): allow khi `merge_autonomy` ≥ L3, PR còn mở, không phải PR chồng (nhắm nhánh
     khác nhánh mặc định), không thuộc ngoại lệ cứng (`hard`, ADR-0016) và (MCP) đúng repo. GitHub vẫn chỉ merge khi
     required check/ruleset đạt; không ghim head."""
-    d = merge_check(selector, root)
+    d, gate = _hard_gate(selector, root, repo)
+    if gate[0]:  # tiền/dữ liệu thật/auth/mật mã/bí mật người merge kể cả L3 (ADR-0016, AUD-HAR-042; trừ ADR-0020)
+        return gate
     level = d.get("autonomy")
     if not isinstance(level, int) or level < 3:
         return "ask", f"{EXTERNAL_ASK} — bật auto-merge chỉ khi xt.yaml `merge_autonomy` ≥ L3 (ADR-0015)"
-    if d.get("verdict") in ("closed", "lỗi") or d.get("stacked"):
+    if d.get("verdict") == "closed" or d.get("stacked"):
         return "ask", f"{EXTERNAL_ASK} — không bật auto-merge: PR {d.get('verdict')}/PR chồng (nhắm nhánh sắp bị xoá)"
-    if d.get("hard"):  # tiền/dữ liệu thật/auth/mật mã/bí mật luôn người merge, kể cả L3 (ADR-0016, AUD-HAR-042)
-        return "ask", f"{EXTERNAL_ASK} — {HARD_ASK}, không bật auto-merge: {_hard_reasons(d)}"
-    if repo and str(d.get("repo", "")).lower() != repo.lower():
-        return "ask", f"{EXTERNAL_ASK} — merge-check kiểm repo {d.get('repo') or '?'}, không phải {repo}"
     return "allow", f"merge_autonomy L{level}: bật auto-merge (GitHub merge khi required check xanh)"
 
 
@@ -1075,28 +1184,39 @@ def _mcp_auto_merge(tool_input: Dict[str, object], root: str) -> Tuple[str, str]
     ok = not set(tool_input) - MCP_AUTO_KEYS and type(n) is int and n > 0
     ok = ok and isinstance(owner, str) and isinstance(repo, str)
     if not ok or tool_input.get("mergeMethod", "SQUASH") not in ("SQUASH", "MERGE", "REBASE"):
-        return "ask", f"{EXTERNAL_ASK} — bật auto-merge qua MCP cần owner/repo/pullNumber hợp lệ"
+        return _mcp_merge_ask(
+            f"{EXTERNAL_ASK} — bật auto-merge qua MCP cần owner/repo/pullNumber hợp lệ", tool_input, root
+        )
     return _auto_merge_verdict([str(n)], root, f"{owner}/{repo}")
 
 
 def mcp_decision(tool_name: str, tool_input: Dict[str, object], root: str) -> Tuple[str, str]:
     if not MCP_MERGE_RE.fullmatch(tool_name):
         return "", ""
+    if "disable" in tool_name:  # tắt auto-merge: LOOP-STOP-005 đòi khi chạm ngoại lệ cứng — không chặn
+        return "ask", f"{EXTERNAL_ASK} — tắt auto-merge qua MCP ({tool_name})"
+    # Chỉ server GitHub chính (`mcp__github__…`): server khác cùng tên tool có thể trỏ host khác với repo merge-check đọc.
+    if not tool_name.startswith("mcp__github__"):
+        return "ask", f"{EXTERNAL_ASK} — {UNVERIFIED_ASK}: merge qua server MCP khác ({tool_name})"
     if tool_name == "mcp__github__enable_pr_auto_merge":
         return _mcp_auto_merge(tool_input, root)
-    ask = "ask", f"{EXTERNAL_ASK} — merge PR qua MCP ({tool_name}) cần `expectedHeadSha` + `xt.py merge-check` = merge"
+    ask = f"{EXTERNAL_ASK} — merge PR qua MCP ({tool_name}) cần `expectedHeadSha` + `xt.py merge-check` = merge"
     n, sha = tool_input.get("pullNumber"), tool_input.get("expectedHeadSha")
     owner, repo = tool_input.get("owner"), tool_input.get("repo")
-    # Chỉ server GitHub chính (`mcp__github__…`): server khác cùng tên tool có thể trỏ host khác với repo merge-check đọc.
-    if tool_name != "mcp__github__merge_pull_request" or set(tool_input) - MCP_MERGE_KEYS:
-        return ask
-    if not (type(n) is int and n > 0 and isinstance(sha, str) and sha):
-        return ask
-    if not (isinstance(owner, str) and isinstance(repo, str)):
-        return ask
-    if tool_input.get("merge_method", "squash") not in MERGE_METHODS:
-        return ask
-    return _merge_verdict([str(n)], sha, root, f"{owner}/{repo}")
+    ok = tool_name == "mcp__github__merge_pull_request" and not set(tool_input) - MCP_MERGE_KEYS
+    ok = ok and type(n) is int and n > 0 and isinstance(sha, str) and bool(sha)
+    ok = ok and isinstance(owner, str) and isinstance(repo, str)
+    if not ok or tool_input.get("merge_method", "squash") not in MERGE_METHODS:
+        return _mcp_merge_ask(ask, tool_input, root)
+    return _merge_verdict([str(n)], str(sha), root, f"{owner}/{repo}")
+
+
+def _mcp_merge_ask(why: str, tool_input: Dict[str, object], root: str) -> Tuple[str, str]:
+    """Tool MCP merge mà guard không tự cho phép: vẫn kiểm `hard` khi đọc được PR (số nguyên dương + owner/repo)."""
+    n, owner, repo = tool_input.get("pullNumber"), tool_input.get("owner"), tool_input.get("repo")
+    if type(n) is int and n > 0 and isinstance(owner, str) and isinstance(repo, str):
+        return _merge_ask(why, [str(n)], root, f"{owner}/{repo}")
+    return "ask", f"{EXTERNAL_ASK} — {UNVERIFIED_ASK}: tool MCP merge không rõ PR/repo"
 
 
 def _hard_reasons(d: Dict[str, object]) -> str:
@@ -1104,20 +1224,46 @@ def _hard_reasons(d: Dict[str, object]) -> str:
     return "; ".join(str(x) for x in raw) if isinstance(raw, list) else str(raw)
 
 
+def _hard_gate(selector: List[str], root: str, repo: str = "") -> Tuple[Dict[str, object], Tuple[str, str]]:
+    """(kết quả merge-check, chặn): `hard` → ask mang `HARD_ASK`; không xác minh được — selector lạ (URL, nhiều PR),
+    merge-check không trả `hard` (lỗi mạng/không đọc được PR), repo khác repo merge-check kiểm — → ask mang
+    `UNVERIFIED_ASK`; cả hai thành deny ở chính sách mặc định (ADR-0019). Không ngoại lệ cứng → ('', '')."""
+    if len(selector) > 1 or not all(MERGE_SELECTOR_RE.fullmatch(s) for s in selector):
+        return {}, ("ask", f"{EXTERNAL_ASK} — {UNVERIFIED_ASK}: PR không rõ ({' '.join(selector)[:80]})")
+    d = merge_check(selector, root)
+    if d.get("hard"):  # ADR-0019: kiểm trước verdict để chính sách ADR-0018 chặn thay vì cho qua
+        return d, ("ask", f"{EXTERNAL_ASK} — {HARD_ASK}: {_hard_reasons(d)}")
+    raw = d.get("reasons")
+    if "hard" not in d:
+        why = "; ".join(str(x) for x in raw) if isinstance(raw, list) else ""
+        return d, ("ask", f"{EXTERNAL_ASK} — {UNVERIFIED_ASK}: merge-check {d.get('verdict')}: {why}")
+    if repo and str(d.get("repo", "")).lower() != repo.lower():
+        return d, (
+            "ask",
+            f"{EXTERNAL_ASK} — {UNVERIFIED_ASK}: merge-check kiểm repo {d.get('repo') or '?'}, không phải {repo}",
+        )
+    return d, ("", "")
+
+
+def _merge_ask(why: str, selector: List[str], root: str, repo: str = "") -> Tuple[str, str]:
+    """Merge mà guard không tự cho phép (thiếu ghim, cờ lạ, repo khác…): ask `why` — trừ khi chạm/không xác minh được
+    ngoại lệ cứng thì ask mang dấu chặn (AUD-SEC-044)."""
+    gate = _hard_gate(selector, root, repo)[1]
+    return gate if gate[0] else ("ask", why)
+
+
 def _merge_verdict(selector: List[str], sha: str, root: str, repo: str = "") -> Tuple[str, str]:
     """`allow` khi `xt.py merge-check` (PR theo selector; rỗng = nhánh hiện tại) trả merge, head đã kiểm = `sha` (và repo
-    trùng nếu có), không thuộc ngoại lệ cứng (`hard` → ask mang `HARD_ASK`, mặc định thành deny — ADR-0019); không thì ask."""
-    d = merge_check(selector, root)
+    trùng nếu có), không thuộc/không mù ngoại lệ cứng (`_hard_gate` — mặc định thành deny, ADR-0019); không thì ask."""
+    d, gate = _hard_gate(selector, root, repo)
+    if gate[0]:
+        return gate
     raw = d.get("reasons")
     reasons = "; ".join(str(x) for x in raw) if isinstance(raw, list) else ""
-    if d.get("hard"):  # ADR-0019: kiểm trước verdict để chính sách ADR-0018 chặn thay vì cho qua
-        return "ask", f"{EXTERNAL_ASK} — {HARD_ASK}: {_hard_reasons(d)}"
     if d.get("verdict") != "merge":
         return "ask", f"{EXTERNAL_ASK} — merge-check: {d.get('verdict')}: {reasons}"
     if d.get("head") != sha:
         return "ask", f"{EXTERNAL_ASK} — head đã kiểm {d.get('head')} khác {sha}"
-    if repo and str(d.get("repo", "")).lower() != repo.lower():
-        return "ask", f"{EXTERNAL_ASK} — merge-check kiểm repo {d.get('repo') or '?'}, không phải {repo}"
     return "allow", f"merge-check: {reasons}"
 
 
@@ -1126,29 +1272,127 @@ def _gh_api_merge_rule(args: List[str], root: str) -> Tuple[str, str]:
     merge_method=…]`, mỗi khoá một lần, không `@file`) mà merge-check cho phép (LOOP-STOP-022)."""
     ask = "ask", f"{EXTERNAL_ASK} — `gh api` ghi lên GitHub (merge/cấu hình phải qua lệnh có kiểm)"
     pos = _positionals(args, GH_API_VALUE_FLAGS)
-    m = REST_MERGE_PATH_RE.fullmatch(pos[0]) if len(pos) == 1 else None
+    m = REST_MERGE_PATH_RE.fullmatch(pos[0]) if len(pos) == 1 else None  # dạng chuẩn: không giải mã
     pairs = [v.partition("=") for v in _gh_api_field_values(args)]
     fields = {k: v for k, _, v in pairs}
     flags = {a.split("=", 1)[0] for a in args if a.startswith("-")} - {"-X", "--method", "-f", "--raw-field"}
-    if not m or _gh_api_methods(args) != ["PUT"] or flags or len(fields) != len(pairs) or not fields.get("sha"):
+    bad = not m or _gh_api_methods(args) != ["PUT"] or flags or len(fields) != len(pairs) or not fields.get("sha")
+    if bad or set(fields) - {"sha", "merge_method"} or fields.get("merge_method", "squash") not in MERGE_METHODS:
+        return _gh_api_merge_like(args, pos, ask, root)
+    return _merge_verdict([m[1]], fields["sha"], root) if m else ask
+
+
+# Merge/bật auto-merge qua `gh api`: REST `repos/<chủ>/<repo>/pulls/N/merge` (cả `{owner}/{repo}`), mutation graphql.
+ANY_REST_MERGE_RE = re.compile(r"/?repos/([^/\s]+/[^/\s]+)/pulls/(\d+)/merge/?")
+GRAPHQL_MERGE_RE = re.compile(r"\b(mergePullRequest|enablePullRequestAutoMerge)\b")
+
+
+def _api_path(p: str) -> str:
+    """Đường dẫn REST như GitHub hiểu: giải mã `%xx`, bỏ query/fragment (`…/%6Derge?x=1` = `…/merge`)."""
+    return urllib.parse.unquote(p.split("?", 1)[0].split("#", 1)[0])
+
+
+def _graphql_opaque(args: List[str]) -> bool:
+    """Query graphql guard không đọc được tại chỗ: `--input`, trường `@file`, giá trị là cả một biến shell (`query=$Q`),
+    thay lệnh (`$(…)`, backtick). `$n` bên trong query là biến GraphQL — đọc được, không tính."""
+    pairs = [v.partition("=") for v in _gh_api_field_values(args)]
+    indirect = any(a.split("=", 1)[0] == "--input" for a in args) or any("$(" in a or "`" in a for a in args)
+    return indirect or any(v.startswith("@") or (k == "query" and v.startswith("$")) for k, _, v in pairs)
+
+
+def _gh_api_merge_like(args: List[str], pos: List[str], ask: Tuple[str, str], root: str) -> Tuple[str, str]:
+    """`gh api` ghi không đúng dạng merge REST có kiểm: là merge (REST/graphql) → vẫn kiểm `hard` (AUD-SEC-044);
+    graphql merge không ánh xạ được số PR → chặn như không xác minh được; ghi khác → `ask` (đối ngoại)."""
+    if pos[:1] == ["graphql"]:  # mutation merge, hoặc query guard không đọc được (`@file`, `--input`, biến)
+        if GRAPHQL_MERGE_RE.search(" ".join(args)) or _graphql_opaque(args):
+            return "ask", f"{EXTERNAL_ASK} — {UNVERIFIED_ASK}: merge qua graphql (không đọc được số PR/nội dung)"
         return ask
-    if set(fields) - {"sha", "merge_method"} or fields.get("merge_method", "squash") not in MERGE_METHODS:
+    m = ANY_REST_MERGE_RE.fullmatch(_api_path(pos[0])) if len(pos) == 1 else None
+    if not m:
         return ask
-    return _merge_verdict([m[1]], fields["sha"], root)
+    repo = "" if m[1] == "{owner}/{repo}" else m[1]
+    return _merge_ask(ask[1], [m[2]], root, repo)
+
+
+GH_REPO_FLAGS = ("-R", "--repo")
+
+
+def _gh_lift_repo(args: List[str]) -> List[str]:
+    """`gh -R o/r pr merge …` / `gh --repo=o/r …`: chuyển cờ repo đứng TRƯỚC lệnh con ra sau (`pr merge … -R o/r`) để
+    luật của lệnh con thấy repo (review #97: từng lọt cổng ngoại lệ cứng)."""
+    moved: List[str] = []
+    while args[:1] and args[0].split("=", 1)[0] in GH_REPO_FLAGS or args[:1] and args[0][:2] == "-R":
+        a = args[0]
+        if a in GH_REPO_FLAGS:
+            moved, args = [*moved, "-R", *args[1:2]], args[2:]
+        else:
+            moved, args = [*moved, "-R", a.split("=", 1)[1] if "=" in a else a[2:]], args[1:]
+    return [*args, *moved]
 
 
 def _external_rule(name: str, args: List[str], root: str) -> Tuple[str, str]:
     """Hành động đối ngoại/triển khai thật → ask; `gh pr merge` qua `xt.py merge-check` (ADR-0013)."""
+    if name == "gh":
+        args = _gh_lift_repo(args)
     if name == "gh" and args[:2] == ["pr", "merge"] and not set(args[2:]) & HELP_FLAGS:
         return gh_pr_merge_rule(args[2:], root)
     if name == "gh" and args[:1] == ["pr"] and "merge" in args[2:4]:  # `gh pr -R o/r merge`: cờ repo của `pr`
-        return "ask", f"{EXTERNAL_ASK} — `gh pr <cờ> merge` (repo khác) không tự merge"
+        i = args.index("merge", 2)
+        selector, repo = _pr_flag_merge(args, i)
+        return _merge_ask(f"{EXTERNAL_ASK} — `gh pr <cờ> merge` không tự merge", selector, root, repo)
     if name == "gh" and args[:2] in (["alias", "set"], ["alias", "import"]):
         return "ask", "gh alias đặt lệnh tắt — guard không thấy lệnh thật khi alias chạy"
     if name == "gh" and args[:1] == ["api"] and _gh_api_writes(args[1:]):
-        return _gh_api_merge_rule(args[1:], root)
+        return ("ask", DESTROY_ASK) if _gh_api_destroy(args[1:]) else _gh_api_merge_rule(args[1:], root)
     verdict = _publish_rule(name, args)
     return verdict if verdict[0] else egress_rule(name, args, root)
+
+
+# `gh api` huỷ repo/nhánh chính (AUD-SEC-048): DELETE repo hay ref nhánh chính, PATCH `archived=true` — như `gh repo
+# delete|archive`; PATCH `private=`/`visibility=` hoặc thân `--input` — như `gh repo edit --visibility`.
+GH_API_REPO_RE = re.compile(r"/?repos/[^/\s]+/[^/\s]+/?")
+GH_API_MAIN_REF_RE = re.compile(r"/?repos/[^/\s]+/[^/\s]+/git/refs/heads/(main|master)/?")
+
+
+# Ghi lên bí mật, quyền, bảo vệ nhánh, ruleset, webhook, chuyển chủ repo (review #97) — như `gh secret`/đổi ruleset.
+GH_API_GUARDED_RE = re.compile(
+    r"/?(repos|orgs)/[^/\s]+(/[^/\s]+)?/(actions|dependabot|codespaces)/secrets(/.*)?"
+    r"|/?repos/[^/\s]+/[^/\s]+/(branches/[^\s]+/protection(/.*)?|rulesets(/.*)?|hooks(/.*)?|collaborators/.+|transfer)/?"
+    r"|/?orgs/[^/\s]+/(rulesets|hooks|members|memberships)(/.*)?"
+    # review #97 lần 2: environment (bí mật/biến/luật bảo vệ), deploy key, khoá SSH/GPG của tài khoản, biến Actions
+    r"|/?repos/[^/\s]+/[^/\s]+/(environments/[^/\s]+(/.*)?|keys(/.*)?|actions/variables(/.*)?)/?"
+    r"|/?orgs/[^/\s]+/actions/variables(/.*)?|/?user/(keys|gpg_keys|ssh_signing_keys)(/.*)?"
+)
+# Mutation graphql huỷ/chuyển repo — như `gh repo delete|archive`.
+GRAPHQL_DESTROY_RE = re.compile(r"\b(deleteRepository|transferRepository|archiveRepository)\b")
+
+
+def _gh_api_destroy(args: List[str]) -> bool:
+    pos = _positionals(args, GH_API_VALUE_FLAGS)
+    methods = _gh_api_methods(args)
+    implicit = "POST" if _gh_api_field_values(args) or any(a.split("=", 1)[0] == "--input" for a in args) else "GET"
+    method, path = (methods[-1] if methods else implicit), (_api_path(pos[0]) if len(pos) == 1 else "")
+    if (
+        method != "GET"
+        and GH_API_GUARDED_RE.fullmatch(path)
+        or path == "graphql"
+        and GRAPHQL_DESTROY_RE.search(" ".join(args))
+    ):
+        return True
+    if method == "DELETE":
+        return bool(GH_API_REPO_RE.fullmatch(path) or GH_API_MAIN_REF_RE.fullmatch(path))
+    fields = [v.replace(" ", "").lower() for v in _gh_api_field_values(args)]
+    # Như `gh repo edit --visibility <bất kỳ>`: đổi `private`/`visibility` (kể cả sang private) là chặn; thân `--input`
+    # không đọc được tại chỗ nên không xác minh được → chặn như `archived=true`.
+    exposes = any(v == "archived=true" or v.startswith(("private=", "visibility=")) for v in fields)
+    opaque = any(a.split("=", 1)[0] == "--input" for a in args)
+    return method == "PATCH" and (exposes or opaque) and bool(GH_API_REPO_RE.fullmatch(path))
+
+
+def _pr_flag_merge(args: List[str], i: int) -> Tuple[List[str], str]:
+    """(selector, repo) của `gh pr <cờ…> merge <selector> …`: repo từ `-R`/`--repo` trước hoặc sau `merge`."""
+    repo = _flag_value(args, "-R") or _flag_value(args, "--repo") or next((a[2:] for a in args if a[:2] == "-R"), "")
+    return _positionals(args[i + 1 :], GH_MERGE_VALUE_FLAGS), repo
 
 
 def _publish_rule(name: str, args: List[str]) -> Tuple[str, str]:
@@ -1163,11 +1407,14 @@ def _publish_rule(name: str, args: List[str]) -> Tuple[str, str]:
     if name == "gh":
         hit = tuple(args[:1]) in GH_ASK or tuple(args[:2]) in GH_ASK
         destroy = tuple(args[:1]) in GH_DESTROY or tuple(args[:2]) in GH_DESTROY
+        destroy = destroy or (args[:2] == ["repo", "edit"] and any(a.startswith("--visibility") for a in args))
         return ("ask", DESTROY_ASK if destroy else EXTERNAL_ASK) if hit else ("", "")
     if name not in ASK_CMDS:
         return "", ""
     subs = ASK_CMDS[name]
     words = set(_positionals(args)) | {a for a in args if a.startswith("--")}
+    if name in ("terraform", "tofu") and "apply" in words and set(args) & APPLY_DESTROY:
+        words.add("destroy")
     if words & set(DESTROY_CMDS.get(name, ())):
         return "ask", DESTROY_ASK
     return ("ask", EXTERNAL_ASK) if subs is None or words & set(subs) else ("", "")
@@ -1796,6 +2043,66 @@ def _inplace_targets(name: str, args: List[str]) -> List[str]:
     return []
 
 
+def _url_name(u: str) -> str:
+    """Tên file mà `curl -O`/`wget` lưu: phần cuối đường dẫn của URL (bỏ query/fragment)."""
+    path = u.split("://", 1)[-1].split("?", 1)[0].split("#", 1)[0]
+    return posixpath.basename(path.rstrip("/")) if "/" in path else ""
+
+
+def _curl_outputs(args: List[str]) -> List[str]:
+    """Đích ghi của curl: `-o f`, `--output f|=f`, cờ gộp `-sSo f`; `-O`/`--remote-name` = tên cuối URL (AUD-SEC-049)."""
+    out = _flag_values(args, ("--output",))
+    remote = "--remote-name" in args or "--remote-name-all" in args
+    for i, a in enumerate(args):
+        for j, c in enumerate(a[1:] if a.startswith("-") and not a.startswith("--") else "", 1):
+            remote = remote or c == "O"
+            if c in CURL_SHORT_VALUE:
+                if c == "o":
+                    out.append(a[j + 1 :] or (args[i + 1] if i + 1 < len(args) else ""))
+                break
+    names = [_url_name(u) for u in args if "://" in u] if remote else []
+    d = (_flag_values(args, ("--output-dir",)) or [""])[-1]  # `--output-dir D` ghép với tên của `-O`/`-o`
+    return [posixpath.join(d, f) for f in out + names] if d else out + names
+
+
+def _wget_outputs(args: List[str]) -> List[str]:
+    """Đích ghi của wget: `-O f`/`-qO f`/`--output-document=f`; không có thì tên cuối của từng URL (AUD-SEC-049)."""
+    out = _flag_values(args, ("-O", "--output-document"))
+    out += [
+        args[i + 1] for i, a in enumerate(args[:-1]) if a[:1] == "-" and a[1:2] != "-" and len(a) > 2 and a[-1] == "O"
+    ]
+    d = (_flag_values(args, ("-P", "--directory-prefix")) or [""])[-1]
+    names = out or [_url_name(u) for u in args if "://" in u]
+    return [posixpath.join(d, f) for f in names] if d else names
+
+
+def _rsync_dest(args: List[str]) -> List[str]:
+    pos = _positionals(args, REMOTE_VALUE_FLAGS)
+    return pos[-1:] if len(pos) >= 2 and ":" not in pos[-1] else []
+
+
+def _patch_targets(args: List[str]) -> List[str]:
+    """patch [tuỳ chọn] [file gốc [file patch]]: file gốc bị sửa tại chỗ; `-o f` ghi ra f."""
+    pos = _positionals(args, ("-i", "-o", "-d", "-B", "-r", "-z", "-V", "-D", "-F", "-g", "--output", "--input"))
+    return pos[:1] + _flag_values(args, ("-o", "--output"))
+
+
+FILE_WRITERS: Dict[str, Callable[[List[str]], List[str]]] = {
+    "curl": _curl_outputs,
+    "wget": _wget_outputs,
+    "rsync": _rsync_dest,
+    "patch": _patch_targets,
+}
+
+
+def _git_file_targets(n: List[str]) -> List[str]:
+    """File mà `git checkout <rev> -- f`/`git restore -s <rev> f` ghi đè từ commit khác — chỉ xét bí mật: khôi phục file
+    cổng/hàng rào bằng git là đường lùi chuẩn, không chặn."""
+    if n[:2] in (["git", "checkout"], ["git", "restore"]):
+        return _positionals(n[2:], ("-s", "--source", "-b", "-B", "--orphan", "--conflict", "--pathspec-from-file"))
+    return []
+
+
 def write_targets(n: List[str], argv: List[str]) -> List[str]:
     """File mà lệnh có thể ghi/xoá: chuyển hướng, `sed -i`/`perl -i`, `tee`, cp/mv/install/ln, truncate/rm, `git rm/mv`."""
     out = [argv[i + 1] for i, t in enumerate(argv[:-1]) if t in REDIRECTS]
@@ -1810,6 +2117,8 @@ def write_targets(n: List[str], argv: List[str]) -> List[str]:
         return out + _positionals(args)  # `-f` của rm là cờ, không ăn giá trị (từng nuốt đường dẫn)
     if name == "truncate":
         return out + _positionals(args, ("-s", "--size", "-r", "--reference"))
+    if name in FILE_WRITERS:
+        return out + FILE_WRITERS[name](args)
     return out + _inplace_targets(name, args)
 
 
@@ -1838,12 +2147,28 @@ def _commit_flag_args(args: List[str]) -> List[str]:
     return out
 
 
+# Hàng rào của harness (AUD-SEC-046): Bash ghi đè/xoá/dời = gỡ hàng rào mà không để lại diff đọc được → chặn. Sửa hook
+# bằng Edit/Write vẫn được (ADR-0018: sửa cấu hình hook cho chạy, nêu lý do); khôi phục bằng `git checkout -- <file>`.
+FENCE_PATTERNS = (".claude/hooks/*", ".claude/settings.json", ".claude/settings.local.json")
+FENCE_DIRS = {".claude", ".claude/hooks"}
+FENCE_WHY = "ghi/xoá hàng rào qua Bash ({}) — tắt hook của khung; sửa bằng Edit/Write, khôi phục bằng git checkout"
+
+
+def _is_fence(target: str, root: str) -> bool:
+    if not target or target.startswith("/dev/"):
+        return False
+    rel = rel_path(target, root).rstrip("/")
+    return rel in FENCE_DIRS or _match_any(rel, FENCE_PATTERNS)
+
+
 def _write_asks(n: List[str], argv: List[str], root: str) -> List[str]:
-    """Câu hỏi xác nhận cho file bí mật/cổng/migration mà lệnh có thể ghi (bỏ qua /dev/*)."""
+    """Câu hỏi xác nhận cho file hàng rào/bí mật/cổng/migration mà lệnh có thể ghi (bỏ qua /dev/*)."""
     asks: List[str] = []
     for target in write_targets(n, argv):
         kind = _target_kind(target, root)
-        if kind == "secret":
+        if _is_fence(target, root):
+            asks.append(FENCE_WHY.format(target))
+        elif kind == "secret":
             asks.append(f"ghi file bí mật qua Bash: {target}")
         elif kind in ("gate", "migration"):
             asks.append(f"sửa cấu hình cổng/CI/harness/migration qua Bash ({target}) — nói rõ lý do")
@@ -1853,7 +2178,8 @@ def _write_asks(n: List[str], argv: List[str], root: str) -> List[str]:
             asks.append(CAPABILITY_WHY.format(f"ghi {target} qua Bash"))
         elif _existing_test(target, root):
             asks.append(f"sửa/xoá test ĐÃ CÓ qua Bash ({target}) — làm yếu test là nới cổng (LOOP-CI-001)")
-    return asks
+    secrets = [t for t in _git_file_targets(n) if _target_kind(t, root) == "secret"]
+    return asks + [f"ghi file bí mật qua Bash (git lấy từ commit khác): {t}" for t in secrets]
 
 
 def _target_kind(target: str, root: str) -> str:
@@ -1990,17 +2316,29 @@ def _heredoc_scripts(cmd: str, pred: Callable[[List[str]], bool] = _stdin_shell)
     lines = cmd.replace("\\\n", "").split("\n")
     i = 0
     while i < len(lines):
-        delims = [m.group(2) for m in HEREDOC_RE.finditer(lines[i])]
         opener, i = lines[i], i + 1
-        for d in delims:
+        for m in HEREDOC_RE.finditer(opener):
             body: List[str] = []
-            while i < len(lines) and lines[i].strip() != d:
+            while i < len(lines) and lines[i].strip() != m.group(2):
                 body.append(lines[i])
                 i += 1
             i += 1
-            if any(pred(c) for c in split_commands(tokenize(opener))):
+            if any(pred(c) for c in split_commands(tokenize(_pipeline_at(opener, m.start())))):
                 out.append("\n".join(body))
     return out
+
+
+# Ranh giới giữa các pipeline trên một dòng: `;`, `&&`, `||`, `&` đứng riêng (không phải `&>`, `>&`, `|&`).
+LIST_SEP_RE = re.compile(r";|&&|\|\||(?<![>|&])&(?![>&])")
+
+
+def _pipeline_at(line: str, pos: int) -> str:
+    """Pipeline chứa vị trí `pos` của dòng: heredoc chỉ đi vào lệnh của pipeline đó (`cat <<E | bash` → bash chạy thân),
+    không vào lệnh khác trên cùng dòng (`python3 a.py; git commit -F - <<E` — thân là dữ liệu của commit)."""
+    seps = [(s.start(), s.end()) for s in LIST_SEP_RE.finditer(line)]
+    start = max((e for s, e in seps if e <= pos), default=0)
+    end = min((s for s, e in seps if s >= pos), default=len(line))
+    return line[start:end]
 
 
 def _echoed_scripts(src: List[str]) -> List[str]:
@@ -2044,6 +2382,48 @@ def _backtick_scripts(cmd: str) -> List[str]:
     return out
 
 
+def _dollar_scripts(cmd: str) -> List[str]:
+    """Thân `$(…)` ngoài nháy đơn — kể cả trong nháy kép (`git commit -m "$(rm -rf ~)"`), nơi shlex coi là chữ; bỏ
+    `$((…))` (số học)."""
+    out: List[str] = []
+    quote, i = "", 0
+    while i < len(cmd):
+        c = cmd[i]
+        if c == "\\" and quote != "'":
+            i += 2
+            continue
+        if c in "'\"" and quote in ("", c) and (c == '"' or quote != '"'):
+            quote = "" if quote == c else c
+        elif quote != "'" and cmd.startswith("$(", i) and not cmd.startswith("$((", i):
+            depth, j = 1, i + 2
+            while j < len(cmd) and depth:
+                depth += {"(": 1, ")": -1}.get(cmd[j], 0)
+                j += 1
+            out.append(cmd[i + 2 : j - 1])
+            i = j
+            continue
+        i += 1
+    return out
+
+
+def _expanded_heredocs(cmd: str) -> List[str]:
+    """Thân heredoc có dấu kết KHÔNG nháy (`<<A`): bash thay `$(…)`/backtick trong thân trước khi đưa vào lệnh."""
+    out: List[str] = []
+    lines = cmd.replace("\\\n", "").split("\n")
+    i = 0
+    while i < len(lines):
+        opener, i = lines[i], i + 1
+        for m in HEREDOC_RE.finditer(opener):
+            body: List[str] = []
+            while i < len(lines) and lines[i].strip() != m.group(2):
+                body.append(lines[i])
+                i += 1
+            i += 1
+            if not m.group(1):
+                out.append("\n".join(body))
+    return out
+
+
 def _eval_scripts(tokens: List[str]) -> List[str]:
     """`eval '<lệnh>'`: shell ghép các đối số rồi chạy như một dòng lệnh."""
     return [" ".join(n[1:]) for c in split_commands(tokens) for n in [normalize(c)] if n[:1] == ["eval"] and n[1:]]
@@ -2053,7 +2433,8 @@ def _nested_scripts(cmd: str, tokens: List[str]) -> List[str]:
     """Lệnh chạy lồng (AUD-SEC-017): `sh -c '…'`, heredoc/here-string vào shell, `echo/printf '…' | sh`, `eval '…'`,
     backtick."""
     out = [s for c in split_commands(tokens) for s in [_shell_c_script(c)] if s]
-    out += _eval_scripts(tokens) + _backtick_scripts(strip_heredocs(cmd))
+    out += _eval_scripts(tokens) + _backtick_scripts(strip_heredocs(cmd)) + _dollar_scripts(strip_heredocs(cmd))
+    out += [s for body in _expanded_heredocs(cmd) for s in _dollar_scripts(body) + _backtick_scripts(body)]
     for pipe in pipelines(tokens):
         for up, down in zip(pipe, pipe[1:]):
             src = normalize(up)
@@ -2232,9 +2613,30 @@ def interp_write_asks(cmd: str, tokens: List[str], root: str) -> List[str]:
             continue
         for lit in STR_LITERAL_RE.findall(script):
             kind = path_kind(rel_path(lit, root), root) if ("/" in lit or "." in lit) and lit not in ("..",) else ""
-            if kind in GUARDED_KINDS:
+            direct = _direct_write(script, lit)
+            if direct and _is_fence(lit, root):
+                asks.append(FENCE_WHY.format(f"{lit} — script trình thông dịch"))
+            elif direct and kind == "secret":  # AUD-SEC-049: dấu chặn như chuyển hướng, không chỉ hỏi
+                asks.append(f"ghi file bí mật qua Bash (script trình thông dịch): {lit}")
+            elif kind in GUARDED_KINDS:
                 asks.append(f"script trình thông dịch ghi/xoá {lit} ({kind}) — dùng đúng công cụ hoặc người duyệt")
     return asks
+
+
+# Đường dẫn là đối số của chính lời gọi ghi/xoá (`open('.env','w')`, `os.remove('…')`, `Path('…').write_text(`,
+# `shutil.copy(a, '…')`, `fs.writeFileSync('…'`): chỉ khi đó mới CHẶN — script chỉ nhắc tên file (ghi file khác) vẫn
+# theo hỏi/cho qua, tránh chặn oan script sửa tài liệu/test có nhắc `.env` hay `.claude/hooks/…`.
+DIRECT_WRITE_FMT = (
+    r"open\(\s*{q}\s*,\s*(?:mode\s*=\s*)?['\"][rbt]?[wax+]"
+    r"|(?:\bos\.(?:remove|unlink|rename|replace|truncate)|\bshutil\.\w+|writeFile\w*|appendFile\w*|unlinkSync|rmSync"
+    r"|renameSync|copyFile\w*|File\.write|IO\.write|file_put_contents|\bunlink)\(\s*(?:[^)]*,\s*)?{q}"
+    r"|Path\(\s*{q}\s*\)\s*\.(?:write_text|write_bytes|unlink|rename|replace|touch|open)\("
+)
+
+
+def _direct_write(script: str, lit: str) -> bool:
+    q = "['\"]" + re.escape(lit) + "['\"]"
+    return bool(re.search(DIRECT_WRITE_FMT.format(q=q), script))
 
 
 CURL_FILE_FLAGS = {"-T", "--upload-file", "--post-file", "--body-file"}  # giá trị là đường dẫn file
@@ -2354,6 +2756,7 @@ DANGER_MARKERS = (
     "xoá thay đổi đã cất",
     DESTROY_ASK,
     HARD_ASK,
+    UNVERIFIED_ASK,
     "container có quyền máy chủ",
     "xoá thư mục gắn từ máy",
     "tắt hook của khung",
@@ -2383,8 +2786,18 @@ def _failure_decision(mode: str, payload: object, cmd: object) -> Dict[str, obje
     if (mode == "mcp" and isinstance(payload, dict)) or (
         mode == "bash" and isinstance(cmd, str) and MERGE_CMD_RE.search(cmd)
     ):
-        return {"decision": "ask", "reason": "guard lỗi khi kiểm merge/ghi GitHub — cần người xác nhận"}
+        return {"decision": "ask", "reason": f"guard lỗi khi kiểm merge/ghi GitHub — {UNVERIFIED_ASK}"}
     return {"decision": ""}
+
+
+NUL_FIELDS = ("decision", "reason", "commit", "no_verify", "commit_dir")
+
+
+def _sh_field(v: object) -> str:
+    """Giá trị cho hook bash: bool → `true`/`false` (như `json_field` cũ), thiếu → rỗng; NUL trong chuỗi bị bỏ."""
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    return "" if v is None else str(v).replace("\0", "")
 
 
 def main() -> int:
@@ -2415,7 +2828,10 @@ def main() -> int:
     # strict = hành vi cũ (hỏi): chỉ chặt hơn, không phải công tắc tắt hook.
     if os.environ.get("XT_GUARD_POLICY") != "strict":
         out = apply_policy(out)
-    sys.stdout.write(json.dumps(out, ensure_ascii=False))
+    if sys.argv[2:3] == ["nul"]:
+        sys.stdout.write("".join(f"{v}\0" for v in ["ok", *(_sh_field(out.get(k)) for k in NUL_FIELDS)]))
+    else:
+        sys.stdout.write(json.dumps(out, ensure_ascii=False))
     return 0
 
 

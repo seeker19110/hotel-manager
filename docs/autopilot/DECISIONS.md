@@ -499,3 +499,10 @@
 - Lý do (tiêu chí chất lượng cuối): MUST FE-BUILD-001 thắng tiện lợi; 'BSD' chung chung vẫn là họ giấy phép đã cho phép; ngoại lệ hẹp đúng gói+phiên bản, có hạn rà lại; lockfile gốc có integrity, đi qua SBOM/grype/new-deps
 - Đường lùi: Gỡ exception trong license-policy.json và @lhci/cli khỏi package.json; quay lại tools/lhci
 - Khi chạy thật (đề xuất, chủ dự án quyết ở G7): Chủ dự án xác nhận ngoại lệ BSD của parse-cache-control khi rà giấy phép trước phát hành
+
+### D-069 · 2026-10-18T06:01:19+00:00 · Khung 3.0.0 cài .github/workflows/merge-gate.yml dùng pull_request_target, trái luật WF-CI-004 của dự án (test cấm + zizmor dangerous-triggers đỏ). Nhận hay bỏ?
+
+- Phương án: (1) Nhận merge-gate: chú thích zizmor ignore có lý do ở đúng dòng trigger; test đổi từ cấm hẳn sang chỉ cho merge-gate.yml kèm kiểm cấu trúc (không ref: ở checkout, permissions chỉ read, không secrets.); thêm merge-gate vào required checks · (2) Bỏ merge-gate.yml, giữ cấm pull_request_target; dựa vào luật tắt auto-merge trước mỗi push (ADR-0025 của khung)
+- Chọn: Nhận merge-gate: chú thích zizmor ignore có lý do ở đúng dòng trigger; test đổi từ cấm hẳn sang chỉ cho merge-gate.yml kèm kiểm cấu trúc (không ref: ở checkout, permissions chỉ read, không secrets.); thêm merge-gate vào required checks
+- Lý do (tiêu chí chất lượng cuối): Đúng và an toàn (tiêu chí 1): dự án có ngoại lệ cứng về tiền/lưu trú; auto-merge của GitHub không ghim head nên không có merge-gate thì PR vô hại bật auto-merge rồi push commit chạm ledger vẫn tự merge — luật lời không chặn được. Rủi ro của pull_request_target là chạy code PR với quyền ghi/secret; merge-gate không checkout code PR, token chỉ đọc, không secret, và test mới giữ đúng các bất biến đó máy kiểm thay cho lệnh cấm chung.
+- Đường lùi: Xoá .github/workflows/merge-gate.yml, bỏ merge-gate khỏi .github/rulesets/main.json + FRAMEWORK_GATES, khôi phục test cấm pull_request_target

@@ -1,7 +1,7 @@
 ---
 title: Vòng lặp tự động (autopilot)
 kind: index
-updated: 2026-10-16
+updated: 2026-10-18
 ---
 
 # 11 — Vòng lặp tự động (autopilot)
@@ -55,7 +55,7 @@ updated: 2026-10-16
 **Pha 2 — vòng lặp có bằng chứng**
 
 9. `<XT> loop init --plan docs/autopilot/PLAN.md --blueprint BLUEPRINT.md --single-session [--hours <H>]` → tạo
-   `.autopilot/state.json` (gitignore; `max_same_failure: 3`; trần vòng tự tính `max(20, 4 × task chưa làm)`, hoặc
+   `.autopilot/state.json` (gitignore; `max_same_failure: 3`; trần vòng tự tính `max(40, 8 × task chưa làm)`, hoặc
    `--max-iterations <N>`). **Một phiên đến khi xong** (ADR-0009): phiên mở bằng `claude --permission-mode auto`
    (settings dự án không đặt được; Stop hook cảnh báo nếu phiên đang ở chế độ hỏi quyền).
 10. **Mỗi vòng**: `<XT> loop status --json` → verdict `continue` kèm task do máy chọn (task `[ ]` đầu tiên chưa `defer`) → làm task → chạy Gate
@@ -63,25 +63,25 @@ updated: 2026-10-16
     `exit_code`, `cmd`, `head`, 40 dòng cuối).
 11. Exit 0 → tick `[x]` trong PLAN, commit nhỏ (conventional) qua cổng commit, push nhánh làm việc, cập nhật
     `PROGRESS.md` (≤ 8 KB). **Lát xong** (task hoặc nhóm task chạy được) → mở PR của lát (nhánh riêng từ nhánh đích mới
-    nhất; phụ thuộc PR chưa merge thì chồng lên nhánh đó — `LOOP-DESIGN-020`, ADR-0014) → ở `merge_autonomy: L3` bật auto-merge ngay
-    (`gh pr merge <N> --auto --squash` / MCP `enable_pr_auto_merge`, ADR-0015) trừ PR `merge-check` báo `hard` (ngoại lệ
+    nhất; phụ thuộc PR chưa merge thì chồng lên nhánh đó — `LOOP-DESIGN-020`, ADR-0014) → ở `merge_autonomy: L3` merge theo làn: chạy `<XT> pr next --pr <N>`, làm đúng `do`, review xong ghi
+    `<XT> pr reviewed` (`LOOP-STOP-022`, ADR-0024/0025) trừ PR `merge-check` báo `hard` (ngoại lệ
     cứng, ADR-0016 → `loop defer`); dưới L3 `<XT> merge-check --pr <N>` →
     làm đúng `next` (`merge` = lệnh merge ghim head; `human` = `loop defer`); vòng sau chạy lại `merge-check` cho PR còn
     mở, theo FIFO; PR chồng chỉ merge sau khi đổi đích về nhánh mặc định và merge nhánh đó vào (`LOOP-DESIGN-020`). Exit ≠ 0 → sửa; cùng chữ ký lỗi lần 2 → đổi cách tiếp cận (ghi PROGRESS); lần 3 → máy đặt
-    `blocked`. Không skip test, không nới cổng (hook `pre-edit-guard.sh` sẽ hỏi).
+    `blocked`. Không skip test, không nới cổng (`AGENTS.md` §3 — hook không chặn việc này, ADR-0018).
 12. **Stop hook quyết**: `stop-guard.sh` gọi `<XT> loop hook-stop`; verdict `continue`/`verify` → trả
     `{"decision":"block","reason":"[autopilot vòng i/N] …"}` và tăng `iterations` (agent làm tiếp); `done`/`blocked`/
     `budget` → `active=false`, cho dừng. `verify` nghĩa là có task tick mà thiếu/khác bằng chứng — chạy lại `loop record`;
     đủ bằng chứng mà chưa kiểm lại cuối → chạy `<XT> loop verify` (mọi Gate trên cây hiện tại, `LOOP-DESIGN-022`).
 13. **Việc cần người không chặn cả vòng**: `<XT> loop defer --task <T-NNN|ID blueprint> --reason "..."` rồi làm việc
     độc lập khác; hết việc tự làm được → verdict `done-pending-human` (Stop hook cho dừng một lần, gom mọi việc cho người).
-    **Điểm dừng bắt buộc về hành động** (thao tác không đảo ngược, tiền thật, dữ liệu người dùng thật, đổi quyền/cấu hình cổng,
-    hành động đối ngoại; mâu thuẫn spec **không** còn là điểm dừng — tự quyết, ghi D-NNN): `<XT> loop block --reason "..."` rồi dừng — chỉ khi **mọi** việc còn lại phụ thuộc nó (còn việc khác thì `defer`); hook `pre-bash-guard.sh`/
-    `pre-edit-guard.sh` deny/ask là lưới thứ hai. Người đọc lý do, xử lý, rồi `loop resume --reason "..."` để tiếp (giữ số vòng và bằng chứng; `loop init` lại chỉ khi đổi PLAN/ngân sách).
+    **Điểm dừng bắt buộc về hành động** (merge PR ngoại lệ cứng khi `merge_hard_exceptions: human`, tiền thật, dữ liệu người dùng thật, đăng ký dịch vụ trả phí/nhập
+    khoá thật — ADR-0018/0019, D-023; deploy/publish, sửa cổng kèm lý do thì cho chạy; mâu thuẫn spec **không** còn là điểm dừng — tự quyết, ghi D-NNN): `<XT> loop block --reason "..."` rồi dừng — chỉ khi **mọi** việc còn lại phụ thuộc nó (còn việc khác thì `defer`); hook `pre-bash-guard.sh`/
+    `pre-edit-guard.sh` deny việc không đảo ngược là lưới thứ hai. Người đọc lý do, xử lý, rồi `loop resume --reason "..."` để tiếp (giữ số vòng và bằng chứng; `loop init` lại chỉ khi đổi PLAN/ngân sách).
 14. **Context đầy** → compaction tự nén, không bàn giao: hook PreCompact ghi checkpoint (`<XT> loop checkpoint`), SessionStart(compact) in lại
     `loop status` (task đang làm, lệnh kiểm cuối, file chưa commit, việc chờ người). **Gần hết trần máy** (≥ 80% vòng/giờ/tiền):
     ghi "Bàn giao phiên" vào PROGRESS (chỗ dở, bước kế tiếp, SHA), commit + push, để Stop hook kết thúc (`/handover`).
-15. **Kết thúc**: `done` = mọi task có bằng chứng xanh và `<XT> blueprint-status BLUEPRINT.md --strict` (cổng phát hành G7) không còn MUST mở
+15. **Kết thúc**: `done` = mọi task có bằng chứng xanh và `<XT> blueprint-status BLUEPRINT.md --strict --run` (cổng phát hành G7) không còn MUST mở, không lệnh `— Kiểm:` đỏ
     → `GO-NO-GO.md` (PR của lát cuối; PR đã merge, PR `merge-check` = `human` liệt kê chờ người), báo cáo ≤ 20 dòng (đã làm · bằng chứng · quyết định tự duyệt D-NNN · còn treo · đề xuất). `done-pending-human` → báo cáo như `done` + danh sách việc chờ người (ID, lý do, cách làm),
     người xử lý rồi `loop resume`. `blocked`/`budget` → báo lý do + bước kế tiếp, không khai "xong".
 
@@ -90,7 +90,7 @@ updated: 2026-10-16
 | Lệnh | Làm gì |
 |---|---|
 | `doctor [--fix] [--json]` | Audit khung đã cài trước autopilot; `--fix` sửa phần an toàn (không đụng hook/settings); exit 1 khi còn lỗi ✗ |
-| `loop init --plan P [--blueprint B] [--max-iterations N] [--hours H] [--single-session]` | Tạo `.autopilot/state.json`, bật vòng; `--single-session`: trần vòng `max(20, 4 × task chưa làm)` (mặc định 50) |
+| `loop init --plan P [--blueprint B] [--max-iterations N] [--hours H] [--single-session]` | Tạo `.autopilot/state.json`, bật vòng; `--single-session`: trần vòng `max(40, 8 × task chưa làm)` (mặc định 100) |
 | `loop status [--json]` | Verdict: `inactive` · `continue` · `verify` · `blocked` · `budget` · `done` · `done-pending-human`; kèm chế độ, việc chờ người, cảnh báo quyền, checkpoint |
 | `loop defer --task ID --reason "..."` | Việc cần người (T-NNN hoặc ID blueprint): bỏ qua, làm việc khác; `loop resume` đưa lại hàng làm |
 | `loop checkpoint` | Dùng bởi PreCompact hook: ghi vị trí làm việc vào state; luôn exit 0 (exit 2 sẽ chặn nén) |
@@ -100,6 +100,9 @@ updated: 2026-10-16
 | `loop resume [--reason "..."]` | Sau khi người xử lý `blocked`/`done-pending-human`: bỏ chặn, đưa việc `defer` lại hàng làm, giữ số vòng và bằng chứng, đặt lại đếm lỗi lặp (`loop init` lại chỉ khi đổi PLAN/ngân sách) |
 | `loop stop` | Tắt vòng (`active=false`) |
 | `merge-check [--pr N] [--json]` | Quyết thời điểm merge PR đã mở (ADR-0013/0014): `merge` · `wait` · `update` · `fix` · `human` · `closed` kèm `next`; exit 0 chỉ khi `merge` |
+| `grant-check GROUP [KHOÁ=GIÁ_TRỊ …] [--plan F] [--json]` | Việc production có nằm trong mục Ủy quyền production của PLAN.md không (ADR-0022): exit 0 trong ủy quyền, 1 ngoài hoặc thiếu mục → `loop defer`, 2 tham số sai |
+| `merge-gate [--pr N] [--head SHA] [--json]` | Required check `merge-gate` (ADR-0023): exit 1 khi `merge-check` báo `hard` trên head hiện tại mà PR đang bật auto-merge (auto-merge không ghim head); `hard` không auto-merge → exit 0 kèm cảnh báo (người merge tay); 2 lỗi đọc PR; 3 head khác `--head` |
+| `merge-watch [--pr N] [--interval 30] [--max-minutes 240]` | Gọi `merge-check` định kỳ (ADR-0021), chạy nền tới khi verdict ≠ `wait`: exit 0 đã merge/`merge`, 1 cần hành động, 2 lỗi đọc PR 3 lần liền, 3 hết giờ |
 | `loop hook-stop` | Dùng bởi Stop hook; đọc stdin JSON (ghi `permission_mode`, cảnh báo chế độ hỏi quyền), quyết block/cho dừng; fail-open khi lỗi |
 | `progress-check [file]` | Kiểm `PROGRESS.md`: ≤ 8192 byte, 4 mục, SHA ở Bàn giao là tổ tiên HEAD và của nhánh chính (luật: [`LOOP-HARNESS-004`/`005`](harness-files.md)) |
 | `ci-check [dir]` | Fitness function cho workflow GitHub Actions (`permissions`, ghim SHA, `timeout-minutes`, không `continue-on-error`, không secret ngoài `GITHUB_TOKEN` trong job chạy trên `pull_request`) |

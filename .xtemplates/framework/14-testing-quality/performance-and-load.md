@@ -3,7 +3,7 @@ title: Hiệu năng & tải: k6/Locust, ngưỡng p95, Lighthouse, ngân sách
 kind: module
 prefix: QA-PERF
 applies_to: [web-app, api-service, ai-agent, agentic-system, data-ml, monorepo, blockchain, static-site, mobile-app, desktop-app, embedded-iot]
-updated: 2026-10-14
+updated: 2026-10-17
 ---
 
 # Hiệu năng & tải: k6/Locust, ngưỡng p95, Lighthouse, ngân sách
@@ -59,7 +59,7 @@ updated: 2026-10-14
 - **Load test một endpoint GET cache được** → đẹp giả. Cách tránh: scenario theo luồng, có ghi (QA-PERF-010).
 - **Ngưỡng p95 không có điều kiện** (bao nhiêu VU? dữ liệu bao nhiêu hàng?). Cách tránh: XC-PERF-001, QA-PERF-006.
 - **Load test đánh vào production** gây sự cố thật. Cách tránh: QA-PERF-007 cấm ở CI.
-- **Hạ ngưỡng cho xanh** thay vì sửa. Cách tránh: hook hỏi khi sửa `lighthouserc`/`thresholds`; QA-PERF-015 chỉ cho `warn` có hạn.
+- **Hạ ngưỡng cho xanh** thay vì sửa. Cách tránh: lý do ghi ở commit/PR khi sửa `lighthouserc`/`thresholds` (hook đánh dấu, `strict` thì hỏi); QA-PERF-015 chỉ cho `warn` có hạn.
 - **Benchmark trên runner chia sẻ** nhiễu lớn → đỏ/xanh ngẫu nhiên. Cách tránh: so tương đối với baseline chạy cùng runner, ngưỡng 10%, lặp nhiều lần; runner riêng cho benchmark quan trọng.
 - **k6 là AGPL-3.0** — chỉ ảnh hưởng khi phân phối k6 sửa đổi; dùng để test không sao, nhưng ghi nhận trong kiểm kê license. Cách tránh: [`../16-compliance-privacy/licensing-and-ip.md`](../16-compliance-privacy/licensing-and-ip.md).
 - **Lighthouse CI đứng yên từ 06/2025** nhưng vẫn là cổng chặn merge của hai repo chủ kho. Cách tránh: ghim phiên bản, theo dõi thay thế (QA-PERF-016).

@@ -1,6 +1,6 @@
 ---
 name: gate
-description: Chạy cổng chất lượng trước commit/merge (build · typecheck · lint · test, trong đó lint nên gồm kiểm format; qua scripts/dev-task.sh) và xuất Báo cáo xác thực; có mục ❌ thì KHÔNG commit/merge. Dùng trước khi commit, trước khi mở/merge PR, hoặc khi người dùng gõ /gate, "kiểm tra trước khi commit".
+description: Chạy cổng chất lượng trước commit/merge (build · typecheck · lint · test, trong đó lint nên gồm kiểm format; qua dev-task.sh của khung — `.xtemplates/scripts/` ở dự án đích, `scripts/` ở repo khung) và xuất Báo cáo xác thực; có mục ❌ thì KHÔNG commit/merge. Dùng trước khi commit, trước khi mở/merge PR, hoặc khi người dùng gõ /gate, "kiểm tra trước khi commit".
 argument-hint: "[commit|merge]"
 ---
 
@@ -8,7 +8,7 @@ argument-hint: "[commit|merge]"
 
 `<FW>` = `.xtemplates/framework` trong dự án đích, hoặc `framework` trong repo khung. `<XT>` = `python3 .xtemplates/scripts/xt.py` (hoặc `python3 scripts/xt.py`).
 
-`<DT>` = `scripts/dev-task.sh` (hoặc `.xtemplates/scripts/dev-task.sh`). Lệnh thật của dự án nằm ở `xt.yaml` (ưu tiên) → `.claude/project-commands.sh` → tự dò (package.json/pyproject/go.mod/Cargo.toml/Makefile). **Không suy diễn lệnh từ văn xuôi**; nếu `xt.yaml` thiếu khoá, đề xuất thêm.
+`<DT>` = `.xtemplates/scripts/dev-task.sh` ở dự án đích (ưu tiên, như hook), `scripts/dev-task.sh` ở repo khung. Lệnh thật của dự án nằm ở `xt.yaml` (ưu tiên) → `.claude/project-commands.sh` → tự dò (package.json/pyproject/go.mod/Cargo.toml/Makefile). **Không suy diễn lệnh từ văn xuôi**; nếu `xt.yaml` thiếu khoá, đề xuất thêm.
 
 ## Cổng commit
 1. `<DT> gate` (build → typecheck → lint → test; `lint` nên gồm kiểm format, format không phải bước riêng; đỏ một cái là dừng). Đọc output thật.
@@ -20,7 +20,7 @@ argument-hint: "[commit|merge]"
 5. Đối chiếu tiêu chí chấp nhận trong SPEC + mục blueprint liên quan (tick kèm bằng chứng).
 6. Nếu đổi schema: migration có phiên bản + đường lùi. Nếu đổi API: hợp đồng + CHANGELOG.
 7. Rà bảo mật nhanh: quyền kiểm ở server, không lộ dữ liệu, không nới cấu hình cổng.
-8. CI xanh trên head hiện tại; review (người hoặc `reviewer` model khác) đã xong.
+8. CI xanh trên head hiện tại; PR làn chuẩn: review (người hoặc `reviewer` model khác) sạch ở head hiện tại (làn nhanh không chờ review — `LOOP-STOP-022`).
 
 ## Báo cáo xác thực (xuất nguyên dạng)
 ```

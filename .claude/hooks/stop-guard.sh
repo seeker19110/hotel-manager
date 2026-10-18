@@ -10,5 +10,5 @@ payload="$(cat)"
 # Đang trong lượt do chính Stop hook kích (stop_hook_active=true) vẫn phải kiểm lại bằng chứng —
 # xt.py tự đếm vòng và có trần, nên không cần thoát sớm ở đây.
 XT="$(xt_py)" || exit 0
-printf '%s' "$payload" | python3 "$XT" loop hook-stop 2>/dev/null || exit 0
+printf '%s' "$payload" | py_run "$XT" loop hook-stop 2>/dev/null || exit 0
 exit 0

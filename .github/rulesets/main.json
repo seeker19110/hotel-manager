@@ -58,7 +58,8 @@
           { "context": "image-scan (caddy)" },
           { "context": "coverage" },
           { "context": "coverage-ratchet" },
-          { "context": "fix-requires-test" }
+          { "context": "fix-requires-test" },
+          { "context": "merge-gate" }
         ]
       }
     }

@@ -39,21 +39,23 @@ python3 .xtemplates/scripts/xt.py list industries
 # Ghép blueprint: web app cho thương mại điện tử, quy mô production
 python3 .xtemplates/scripts/xt.py compose --profile web-app --industry ecommerce --scale M --out BLUEPRINT.md
 
-# Theo dõi tiến độ; --strict trả exit 1 nếu còn MUST chưa đạt (dùng làm cổng phát hành)
-python3 .xtemplates/scripts/xt.py blueprint-status BLUEPRINT.md --strict
+# Theo dõi tiến độ; --strict trả exit 1 nếu còn MUST chưa đạt; --run chạy lại lệnh `— Kiểm:` của mục đã tick (cổng phát hành)
+python3 .xtemplates/scripts/xt.py blueprint-status BLUEPRINT.md --strict --run
 ```
 
 ## Dùng blueprint thế nào
 
 1. **Commit `BLUEPRINT.md` vào repo dự án** (G1). Đây là phạm vi chất lượng đã thống nhất.
-2. **Tick bằng bằng chứng**: chỉ đổi `[ ]` → `[x]` khi có bằng chứng máy (CI job, test, báo cáo scan, file cấu hình),
-   ghi ở cuối dòng: `— Bằng chứng: <file:dòng | job CI | lệnh>`. Mục còn thiếu có thể ghi `— Thiếu: <việc cần làm>`.
-   Ghi bằng chứng ở PR tương ứng.
+2. **Tick bằng bằng chứng máy chạy lại được** (`LOOP-DESIGN-023`): chỉ đổi `[ ]` → `[x]` khi phần "→ Kiểm" của mục
+   chạy được bằng lệnh, và ghi lệnh đó ở cuối dòng: `— Kiểm: \`<lệnh exit 0 = đạt>\`` — một cặp backtick, nhiều lệnh gộp bằng `&&` (vd `— Kiểm: \`test -f .env.example && git check-ignore -q .env\``).
+   `blueprint-status --run` và `loop verify` chạy lại mọi lệnh này; đỏ = mục **chưa đạt** dù đã tick. Mục không có cách
+   kiểm bằng lệnh (tài liệu, quyết định) ghi `— Bằng chứng: <file:dòng | URL job CI>`; `--run` liệt kê số MUST tick kiểu
+   này để reviewer soát. Mục còn thiếu có thể ghi `— Thiếu: <việc cần làm>`. Ghi bằng chứng ở PR tương ứng.
 3. **Miễn trừ có lý do**: mục không áp dụng → `[~]` kèm `— Không áp dụng: <điều kiện>` (vd "không có thanh toán"); mục có áp dụng mà bỏ/hoãn → `— Miễn: <lý do>`, ở mức MUST thêm `Duyệt: "<lời chủ dự án>" <ngày>` hoặc link (`LOOP-STOP-024`). Máy chặn miễn
    trừ thiếu lý do.
 4. **Không sửa chữ của mục** trong blueprint dự án; muốn đổi yêu cầu → sửa khung (PR vào X-Templates) rồi ghép lại.
 5. **Ghép lại khi khung cập nhật**: chạy lại đúng lệnh `compose ... --out BLUEPRINT.md`. Khi file đã có, máy giữ ô trạng thái
-   và ghi chú cuối dòng (`— Bằng chứng:` / `— Miễn:` / `— Thiếu:`) theo **ID**; mục mới vào ở `[ ]`, mục đã bỏ khỏi khung biến mất.
+   và ghi chú cuối dòng (`— Kiểm:` / `— Bằng chứng:` / `— Miễn:` / `— Thiếu:`) theo **ID**; mục mới vào ở `[ ]`, mục đã bỏ khỏi khung biến mất.
    Xem diff trước khi commit.
 6. **Hai file** (ADR-0012 của repo khung): `--out BLUEPRINT.md` ghi `BLUEPRINT.md` chỉ chứa MUST ở quy mô đã chọn và
    `BLUEPRINT-BACKLOG.md` chứa SHOULD/MAY. Agent đọc file chính mỗi vòng; backlog không chặn "xong", làm khi còn ngân

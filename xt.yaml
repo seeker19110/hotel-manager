@@ -13,10 +13,15 @@ test: "pnpm test"
 build: "pnpm build"
 format: "pnpm format"
 format_file: "pnpm exec biome format --write \"{}\""
-# Merge PR (ADR-0013/0014/0015, LOOP-STOP-022): L3 (mặc định) = mở PR là bật auto-merge của GitHub, merge khi required check
+# Sàn M/L (LOOP-HARNESS-023, `xt.py doctor` báo `gate-floor`; `loop verify` CHẠY các lệnh sàn): kiểm format không ghi file,
+# test có ngưỡng coverage (ngưỡng ở `coverage.thresholds` của vitest.config.ts; project `db` cần Postgres như job `coverage` CI).
+# Lệnh kiểm không ghi vào repo: báo cáo coverage ra `mktemp -d`.
+format_check: "pnpm exec biome format ."
+coverage: "pnpm exec vitest run --coverage --coverage.reportsDirectory=\"$(mktemp -d)\""
+# Merge PR (ADR-0013/0014/0015, LOOP-STOP-022): L3 (mặc định) = bật auto-merge của GitHub (làn nhanh khi mở, làn chuẩn sau review sạch — ADR-0024), merge khi required check
 # xanh (cần bật "Allow auto-merge" + ruleset có required check; ghi miễn trừ WF-REVIEW-007); L2 = máy chỉ tự merge làn nhanh
 # (`xt.py merge-check`); L1 = người merge mọi PR.
-# merge_risk_paths: glob thêm vào danh sách đường dẫn nhạy cảm (luôn để người merge), cách nhau dấu phẩy.
+# merge_risk_paths: glob thêm vào danh sách đường dẫn nhạy cảm (ngoại lệ cứng, người merge — `merge_hard_exceptions` mặc định human), cách nhau dấu phẩy.
 # Chủ dự án duyệt L3 ngày 2026-10-17 (trước đó L2 từ 2026-10-16); nhóm tiền/tồn/lưu trú trong merge_risk_paths vẫn luôn để người merge (LOOP-STOP-005).
 merge_autonomy: L3
 merge_risk_paths: "*/ledger/*, */money/*, */deposits/*, */reconciliation/*, */shifts/*, */lease/*, */stay/*, */rental/*, */approvals/*, */identity/*, */access/*, */tenancy/*, */inventory/*, */metering/*, */notifications/*, */thu-tien/*, */ky-thu/*, */doi-soat/*, */hop-dong/*, */chi-so/*, */webhooks/*, apps/web/app/api/*, packages/db/*, *vitest.config.*, *playwright.config.*, biome.json*, tsconfig.base.json, */tsconfig.json, xt.yaml, scripts/check-coverage-ratchet.mjs, scripts/fix-requires-test.mjs, .github/workflows/test-quality.yml"

@@ -3,7 +3,7 @@ title: Phản hồi về khung từ dự án đích
 kind: module
 prefix: LOOP-FB
 applies_to: [all]
-updated: 2026-10-16
+updated: 2026-10-17
 ---
 
 # Phản hồi về khung từ dự án đích
@@ -42,7 +42,7 @@ updated: 2026-10-16
 
 Luồng: dự án đích `xt.py feedback add` / `xt.py feedback collect` → `docs/xtemplates-feedback/FB-NNN.md` (commit trong
 repo dự án) → Routine của repo khung hằng tuần clone các repo trong `docs/ops/TARGETS.md`, chạy
-`xt.py feedback aggregate --from <dự-án>=<thư-mục> …` → PR nháp `docs/ops/feedback/REPORT-<ngày>.md` vào repo khung →
+`xt.py feedback aggregate --from <dự-án>=<gốc repo hoặc docs/xtemplates-feedback> …` (thư mục không có → cảnh báo, bỏ qua) → PR nháp `docs/ops/feedback/REPORT-<ngày>.md` vào repo khung →
 người duyệt → PR sửa khung theo từng nhóm đủ ngưỡng. Người báo tay: issue template "Phản hồi từ dự án đích".
 
 ## Checklist
@@ -70,12 +70,12 @@ người duyệt → PR sửa khung theo từng nhóm đủ ngưỡng. Người 
 |---|---|---|---|
 | Ghi phản hồi | `xt.py feedback add --kind … --id … --symptom … --fix …` | Agent/người khi sửa lỗi do khung | exit 2 khi thiếu triệu chứng/cách sửa hoặc loại lạ |
 | Gom tín hiệu máy | `xt.py feedback collect [--blueprint BLUEPRINT.md]` | Trước `/handover`, cuối autopilot | không tạo trùng (khoá `Nguồn: collect:…`) |
-| Gộp ở repo khung | `xt.py feedback aggregate --from <dự-án>=<thư-mục> … [--json]` | Routine hằng tuần của repo khung | ✅ khi ≥ 2 dự án hoặc có tái hiện |
+| Gộp ở repo khung | `xt.py feedback aggregate --from <dự-án>=<gốc repo> … [--json]` | Routine hằng tuần của repo khung | ✅ khi ≥ 2 dự án hoặc có tái hiện |
 | Quét bí mật | `gitleaks detect` | CI của dự án đích và repo khung | 0 phát hiện |
 | Drift bản khung | Routine đọc `.xtemplates/VERSION` từng đích trong `docs/ops/TARGETS.md` (không cần mã mới) | Routine hằng tuần của repo khung | Chậm > 1 minor hoặc > 4 tuần = nêu trong REPORT |
 
 ## Nguồn
 
 - ADR-0010 (`docs/adr/0010-feedback-from-target-projects.md` của repo khung) — chủ repo yêu cầu 2026-10-15.
-- `scripts/xt.py` (`feedback_entries`, `write_feedback`, `feedback_aggregate`, `redact`) và `tests/test_xt_cli.py` `FeedbackTest` — đọc 2026-10-15.
+- `scripts/xt.py` (`feedback_entries`, `write_feedback`, `feedback_aggregate`, `redact`, `redact_feedback` — che cả tên người dùng trong đường dẫn home) và `tests/test_xt_cli.py` `FeedbackTest` — đọc 2026-10-15.
 - Catalog `seeker19110/stored` 23 §4.2, §8 (X-Scanner: adoption pin SHA; thiếu `auto-complete-guard.sh` do adopt trước #287 — drift khung ↔ đích) — đọc 2026-10-16.
