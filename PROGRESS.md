@@ -1,6 +1,6 @@
 # PROGRESS.md — Hotel Manager
 ## Đang làm
-- Đợt 10 xong (T-901…T-909): PR #59 SBOM vào Release · #64 gitleaks ở pre-commit · #65 luật Semgrep + quét PII log E2E · #62 xoay mật khẩu role CSDL · #63 ngân sách image/thời gian CI · #66 i18n (`messages/vi.json`, `t()`, kiểm tệp dịch, ratchet). #67 T-906/T-907 k6 nightly chặn production + Lighthouse 6 URL · #68 T-904b login luân phiên chạy bằng role gốc, giữ chủ sở hữu bảng pg-boss (người merge 2026-10-18). `blueprint-status --strict`: MUST đạt 341 · miễn 55 · **mở 105** (BLUEPRINT-GAPS 'Kết quả đợt 10': tick 4, 6 mục làm xong phần repo nhưng cần staging/Release thật/ruleset). GO-NO-GO: NO-GO (7 BLOCKER, cần người). Autopilot `done-pending-human`.
+- Đợt 10 xong (T-901…T-909): PR #59 SBOM vào Release · #64 gitleaks ở pre-commit · #65 luật Semgrep + quét PII log E2E · #62 xoay mật khẩu role CSDL · #63 ngân sách image/thời gian CI · #66 i18n (`messages/vi.json`, `t()`, kiểm tệp dịch, ratchet). #67 T-906/T-907 k6 nightly chặn production + Lighthouse 6 URL · #68 T-904b login luân phiên chạy bằng role gốc, giữ chủ sở hữu bảng pg-boss (người merge 2026-10-18). `blueprint-status --strict`: MUST đạt 341 · miễn/không áp dụng 59 · **mở 101** (đợt 11 T-1001: LOOP-OPT-001…004 của khung 3.4 `[~]` có điều kiện, D-074) (BLUEPRINT-GAPS 'Kết quả đợt 10': tick 4, 6 mục làm xong phần repo nhưng cần staging/Release thật/ruleset). GO-NO-GO: NO-GO (7 BLOCKER, cần người). Autopilot `done-pending-human`.
 - Trước đó: đợt 9 (T-801…T-808), `loop verify` XANH trên 79afb9d.
 
 ## Tiếp theo

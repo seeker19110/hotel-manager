@@ -250,6 +250,10 @@ Nguồn: `BLUEPRINT-GAPS.md` mục "Kết quả đợt 9 (b)". Phạm vi đã du
 - [x] `T-908` i18n: chuỗi người dùng thấy ra `messages/vi.json`, lint chặn chuỗi literal trong JSX, script so khoá/tham số ICU/HTML lạ (XC-I18N-001, XC-I18N-009) — Gate: `pnpm vitest run --project unit i18n && pnpm lint`
 - [x] `T-909` Rà blueprint đợt 10 + GO-NO-GO (—) — Gate: `python3 scripts/check-blueprint-evidence.py BLUEPRINT.md && python3 -m unittest discover -s scripts -p "test_*.py"`
 
+## Đợt 11 — MUST mới của khung 3.4 (2026-10-18; D-074)
+
+- [x] `T-1001` LOOP-OPT-001…004 (vòng tối ưu hiệu năng): `[~] Không áp dụng` có điều kiện — PLAN chưa có task tối ưu; test rào ép Gate đúng vòng khi có task tối ưu thật — Gate: `pnpm vitest run --project unit perf-optimization-tasks && python3 scripts/check-blueprint-evidence.py BLUEPRINT.md`
+
 ## Phụ thuộc ngoài
 | Việc | Bên ngoài | Kế hoạch B |
 |---|---|---|
