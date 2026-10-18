@@ -3,7 +3,7 @@ title: Tài liệu tối thiểu (README · runbook · ADR · CHANGELOG)
 kind: baseline
 prefix: BASE-DOC
 applies_to: [all]
-updated: 2026-10-16
+updated: 2026-10-18
 ---
 
 # Tài liệu tối thiểu (README · runbook · ADR · CHANGELOG)
@@ -52,7 +52,7 @@ updated: 2026-10-16
 - [ ] `BASE-DOC-014` **SHOULD** Tài liệu không chứa bí mật, dữ liệu người dùng thật, hay thông tin nội bộ nhạy cảm (IP nội bộ, tên máy chủ) dù repo riêng tư. → Kiểm: gitleaks quét `docs/`; review checklist. · Nguồn: OWASP Logging CS (data to exclude) áp cho tài liệu
 - [ ] `BASE-DOC-015` **MAY** Xuất bản docs bằng SSG (MkDocs/Zensical, Starlight, Docusaurus, Sphinx, mdBook) kèm `llms.txt` và bản `.md` cho mỗi trang (xem [`../18-cross-cutting/docs-for-ai-agents.md`](../18-cross-cutting/docs-for-ai-agents.md)). → Kiểm: `curl -f <site>/llms.txt`. · Nguồn: llms.txt v2
 - [ ] `BASE-DOC-016` **MAY** Giữ bằng chứng tách khỏi tuyên bố: `docs/evidence/<ngày>/` (hoặc `.autopilot/evidence/`) chứa output lệnh/báo cáo được trích dẫn trong tài liệu. → Kiểm: tài liệu "đã đạt X" link tới file bằng chứng. · Nguồn: catalog 23 §4.4; evidence-and-sources.md §2
-- [ ] `BASE-DOC-017` **SHOULD** Mọi con số công bố (README, ghi chú phát hành, trang giới thiệu: hiệu năng, độ chính xác, benchmark) trỏ tới **file kết quả đã commit** kèm điều kiện đo (phần cứng, phiên bản, cỡ mẫu); có test so con số trong tài liệu với file đó, lệch thì CI đỏ. → Kiểm: test kiểu `test_readme_numbers.py` chạy trong CI. · Nguồn: `seeker19110/stored` 17 §2c.2 (AnyJev: `tests/test_readme_numbers.py` kiểm bảng README khớp JSON đã commit; đọc 2026-10-16)
+- [ ] `BASE-DOC-017` **SHOULD** Mọi con số công bố (README, ghi chú phát hành, trang giới thiệu: hiệu năng, độ chính xác, benchmark) trỏ tới **file kết quả đã commit** kèm điều kiện đo (phần cứng, phiên bản, cỡ mẫu); có test so con số trong tài liệu với file đó, lệch thì CI đỏ. Cùng luật cho **tuyên bố năng lực** ("accessible", "offline", "no telemetry"): có bằng chứng đo kèm link, hoặc ghi chưa kiểm vào `docs/limitations.md` (`BASE-DOC-018`); số trong README có thể do CI sinh, đặt giữa marker `<!-- ci:value:NAME -->…<!-- /ci:value -->` từ file kết quả đã commit (ghi ngày, commit, n). → Kiểm: test kiểu `test_readme_numbers.py` chạy trong CI, hoặc job sinh lại phần marker rồi `git diff --exit-code`. · Nguồn: `seeker19110/stored` 17 §2c.2 (AnyJev: `tests/test_readme_numbers.py` kiểm bảng README khớp JSON đã commit; đọc 2026-10-16), 06 §7d–7e (README khai 52/52, tự chạy 49; FigCraft `docs/gaps.md`; rà 2026-10-18)
 - [ ] `BASE-DOC-018` **SHOULD** `docs/limitations.md` (hoặc mục "Giới hạn đã biết" trong README) ghi điều sản phẩm **không làm** và khi nào số liệu hết đúng; cập nhật khi đổi hành vi. → Kiểm: file tồn tại và README link tới nó. · Nguồn: `seeker19110/stored` 17 §2c.3 (AnyJev `docs/limitations.md`), 21 §10b (`SECURITY.md` tự khai giới hạn rõ); đọc 2026-10-16
 
 ## Bẫy thường gặp

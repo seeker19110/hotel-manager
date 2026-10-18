@@ -18,6 +18,11 @@ Luật: `<FW>/00-method/evidence-and-sources.md` (13 luật). Không chọn theo
    - Trạng thái repo: archive? đổi tên? license đổi? telemetry mặc định? Đọc `install.sh`/hook trước khi khuyên cài.
    - Chuẩn/luật: trang chuẩn (owasp.org, w3.org, ietf.org), văn bản luật (vanban.chinhphu.vn, eur-lex), số hiệu đầy đủ + ngày hiệu lực.
    - Giấy phép: OSI? SSPL/BSL/ELv2/AGPL → cảnh báo. "Free" hỏi 3 câu: được xuất bản không, dùng thương mại không, xuất dữ liệu ra được không.
+   - **Đánh giá nguồn bên thứ ba** (repo/skill/gói; mục "Đánh giá" của PR: `<FW>/12-security/supply-chain.md` `SEC-SUPPLY-027`):
+     - "Chính chủ" qua hai phép thử: ai viết (`git log --format='%an %s'`), đúng spec không (chạy linter/validator của spec — phiên chính, trong sandbox; `researcher` chỉ đọc, không chạy mã repo lạ). Một tên nhiều repo → liệt kê hết, nói rõ đã chọn repo nào.
+     - License: `git log --follow -- LICENSE*` và cả license tầng dưới (engine/binary tải lúc chạy).
+     - Con số tự công bố (số test, cổng, benchmark) → đếm (đọc) hoặc chạy lại trong sandbox, ghi "tuyên bố → tự đo" (chưa chạy: "tuyên bố → chưa tự đo"). Đọc `docs/gaps.md`/known-issues trước README.
+     - Huy hiệu `img.shields.io/badge/...` là chữ tĩnh, không phải số đo. Link cùng tham số `?fpr=`/`?pc=`/`?ref=` = danh mục affiliate. Ảnh chụp không phải bằng chứng bền: ghi commit SHA đã đọc.
 4. **So sánh theo tiêu chí có trọng số** (đúng › an toàn › ít hơn › kiểm được › nhanh — P3): trưởng thành, cộng đồng/bảo trì, giấy phép, chi phí vận hành, khớp đội, lock-in, bảo mật đã biết. Benchmark tự công bố không phải bằng chứng.
 5. **Đề xuất:** mặc định + lý do + 1–2 thay thế + điều kiện đổi; ghi ADR (`/adr`) nếu là quyết định lớn.
 

@@ -90,7 +90,7 @@ updated: 2026-10-18
 | Lệnh | Làm gì |
 |---|---|
 | `doctor [--fix] [--json]` | Audit khung đã cài trước autopilot; `--fix` sửa phần an toàn (không đụng hook/settings); exit 1 khi còn lỗi ✗ |
-| `loop init --plan P [--blueprint B] [--max-iterations N] [--hours H] [--single-session]` | Tạo `.autopilot/state.json`, bật vòng; `--single-session`: trần vòng `max(40, 8 × task chưa làm)` (mặc định 100) |
+| `loop init --plan P [--blueprint B] [--max-iterations N] [--hours H] [--single-session] [--force]` | Tạo `.autopilot/state.json`, bật vòng; `--single-session`: trần vòng `max(40, 8 × task chưa làm)` (mặc định 100); vòng khác còn chạy → exit 2 trừ `--force` (`LOOP-HARNESS-024`) |
 | `loop status [--json]` | Verdict: `inactive` · `continue` · `verify` · `blocked` · `budget` · `done` · `done-pending-human`; kèm chế độ, việc chờ người, cảnh báo quyền, checkpoint |
 | `loop defer --task ID --reason "..."` | Việc cần người (T-NNN hoặc ID blueprint): bỏ qua, làm việc khác; `loop resume` đưa lại hàng làm |
 | `loop checkpoint` | Dùng bởi PreCompact hook: ghi vị trí làm việc vào state; luôn exit 0 (exit 2 sẽ chặn nén) |

@@ -1,0 +1,20 @@
+# dependabot.yml — mẫu cho dự án đích (`install.py --with-github` chép vào `.github/dependabot.yml`, copy-if-absent).
+# Chỉ có hệ sinh thái chắc chắn tồn tại sau khi cài: GitHub Actions (`merge-gate.yml` ghim action theo SHA). Thêm một khối
+# `updates` cho mỗi manifest thật của dự án (npm cho npm/pnpm/yarn, pip/uv, gomod, cargo, docker…) — khai hệ sinh thái mà
+# repo không có manifest thì Dependabot báo lỗi ở mỗi lượt chạy. Luật: BASE-DEP-007 (cập nhật có nhịp, gom nhóm, trần PR).
+version: 2
+updates:
+  # Nâng SHA của action đã ghim (uses: owner/repo@<sha> # vX.Y.Z); gom nhóm để không phình WIP.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 2
+    # Không nâng bản phát hành chưa đủ hai tuần (cập nhật bảo mật không bị cooldown). BASE-DEP-016 nêu 3–7 ngày làm ví dụ;
+    # mẫu chọn 14 cho action vì action chạy với token của CI — bản bị rút/tiêm mã thường lộ ra trong tuần đầu.
+    cooldown:
+      default-days: 14
+    groups:
+      actions:
+        patterns: ["*"]

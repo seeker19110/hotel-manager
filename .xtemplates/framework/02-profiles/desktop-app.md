@@ -4,7 +4,7 @@ kind: profile
 slug: desktop-app
 prefix: PRF-DESK
 modules: [04-standards/*, 05-architecture/*, 06-design-ux/*, 07-frontend/*, 08-backend/*, 09-database/*, 10-workflow/*, 11-autonomous-loop/*, 12-security/*, 14-testing-quality/*, 15-operations/*, 16-compliance-privacy/*, 17-product-project/*, 18-cross-cutting/*]
-updated: 2026-10-13
+updated: 2026-10-18
 ---
 
 # Hồ sơ: Ứng dụng desktop (Electron/Tauri/native)
@@ -73,6 +73,7 @@ Xác minh ngày **2026-10-13** — **xác minh lại trước khi dùng**.
 - [ ] `PRF-DESK-015` **SHOULD** Deep link/giao thức tùy chỉnh (`myapp://`) validate URL đầu vào như dữ liệu không tin cậy; không tự động chạy hành động phá hủy từ link. → Kiểm: test fuzz URL vào handler; hành động nhạy cảm đòi xác nhận.
 - [ ] `PRF-DESK-016` **MAY** Phân phối qua store/package manager (Microsoft Store, Mac App Store, winget, Homebrew cask, Flathub, Snap) với manifest tự động cập nhật từ CI. → Kiểm: manifest sinh từ release workflow.
 - [ ] `PRF-DESK-017` **MAY** Hỗ trợ cài đặt im lặng và cấu hình doanh nghiệp (MSI `/quiet`, policy/MDM, proxy hệ thống) khi bán cho tổ chức. → Kiểm: tài liệu + test cài im lặng trên VM.
+- [ ] `PRF-DESK-018` **MUST** Helper nâng quyền (PolicyKit/`pkexec`, sudoers, launchd/`SMAppService`, dịch vụ Windows) chỉ nhận **danh sách hành động định sẵn** với tham số đã validate; cấm helper `exec "$@"`/`sh -c` chạy lệnh tuỳ ý (`pkexec` "does no validation of the ARGUMENTS"). Linux: mỗi tác vụ một action polkit với `org.freedesktop.policykit.exec.path` là đường dẫn đầy đủ; action phá huỷ không dùng `auth_admin_keep`/`auth_self_keep` (`*_keep` giữ uỷ quyền "brief period" nên các lần kiểm sau cùng action đều thành công kể cả khi tham số khác). macOS: helper XPC đặt `NSXPCConnection.setCodeSigningRequirement` trước `resume()` (macOS 13+); `SMJobBless` deprecated từ 13.0 → `SMAppService`. → Kiểm: `rg -n 'exec "\$@"|sh -c "\$'` trên helper = 0; test gọi lệnh ngoài allowlist → từ chối; file `.policy` không có `auth_admin_keep`/`auth_self_keep` cho action phá huỷ. · Nguồn: polkit(8), pkexec(1), Apple `setCodeSigningRequirement` (xem mục Nguồn); `seeker19110/stored` 13 §6e (CleanMyLinux: helper `exec "$@"` + `auth_self_keep`; rà 2026-10-18)
 
 ## Cổng chất lượng tương đương
 
@@ -109,3 +110,4 @@ Xác minh ngày **2026-10-13** — **xác minh lại trước khi dùng**.
 - Phiên bản npm (`electron`, `@tauri-apps/cli`, `electron-builder`, `electron-updater`, `@electron-forge/cli`, `@sentry/electron`, `vite`, `react`, `svelte`, `typescript`, `vitest`, `@playwright/test`, `@biomejs/biome`), endoflife.date `rust`, swift.org — xác minh 2026-10-13.
 - (chưa xác minh) `tauri-driver`, Sentry Rust SDK, keyring/keytar, Sparkle/Squirrel, WinUI/.NET — không tra ngày 2026-10-13.
 - Catalog: Inno Setup + Authenticode (23 §4.4), telemetry mặc định (§2.6) — `research/2026-10-13-stored-catalog-extraction.md`; khung cũ KHUNG-3 C3 (commit `1b80fe4`).
+- polkit(8): <https://www.freedesktop.org/software/polkit/docs/latest/polkit.8.html> · pkexec(1): <https://www.freedesktop.org/software/polkit/docs/latest/pkexec.1.html> · Apple `NSXPCConnection.setCodeSigningRequirement(_:)` (macOS 13+): <https://developer.apple.com/documentation/foundation/nsxpcconnection/setcodesigningrequirement(_:)> — xác minh 2026-10-18. Catalog `seeker19110/stored` 13 §6e — rà 2026-10-18.

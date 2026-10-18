@@ -41,3 +41,6 @@ merge_hard_exceptions: human
 e2e: ""
 e2e_affected: ""
 audit: ""
+# claude_min_version: phiên bản Claude Code tối thiểu (vd 2.1.200) — `xt.py doctor` cảnh báo khi thấp hơn (LOOP-HARNESS-026).
+# Tổ chức ép thật bằng managed settings `requiredMinimumVersion`. Trống = không kiểm.
+claude_min_version: ""

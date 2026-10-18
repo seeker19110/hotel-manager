@@ -28,6 +28,9 @@ merge_risk_paths: "*/ledger/*, */money/*, */deposits/*, */reconciliation/*, */sh
 # Tuỳ chọn, agent đọc và chạy trực tiếp (dev-task không chạy): e2e, audit (dependency), perf (k6/lighthouse), migrate (áp migration local), install, dev, init, smoke
 e2e: "pnpm --filter @hm/web exec playwright test"
 audit: "pnpm audit --prod"
+# claude_min_version: phiên bản Claude Code tối thiểu (vd 2.1.200) — `xt.py doctor` cảnh báo khi thấp hơn (LOOP-HARNESS-026).
+# Tổ chức ép thật bằng managed settings `requiredMinimumVersion`. Trống = không kiểm.
+claude_min_version: ""
 dev: "pnpm --filter @hm/web dev"
 # Không có lệnh migrate rời: migration áp tự động bởi migrateToLatest khi khởi động (e2e/server.ts, packages/testkit) — để trống = không có (XC-DX-002).
 migrate: ""

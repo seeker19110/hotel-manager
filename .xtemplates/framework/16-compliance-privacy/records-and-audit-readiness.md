@@ -3,7 +3,7 @@ title: Hồ sơ tuân thủ, audit trail, bằng chứng, chính sách, đào t�
 kind: module
 prefix: CMP-AUDIT
 applies_to: [all]
-updated: 2026-10-14
+updated: 2026-10-18
 ---
 
 # Hồ sơ tuân thủ, audit trail, bằng chứng, chính sách, đào tạo
@@ -62,6 +62,7 @@ bằng chứng → owner → tần suất) và `evidence/<YYYY-MM>/` do CI/job �
 - [ ] `CMP-AUDIT-017` **SHOULD** Lịch tuân thủ (calendar) tập trung: hạn nộp ĐGTĐ, cập nhật hồ sơ 6 tháng, rà quyền quý, pentest năm, gia hạn chứng chỉ, mốc luật mới — có nhắc tự động. → Kiểm: file `docs/compliance/calendar.yaml` + job nhắc. · Nguồn: thực hành nội bộ
 - [ ] `CMP-AUDIT-018` **MAY** Dùng nền tảng GRC tự động thu bằng chứng (OSS: ví dụ các công cụ tự host có giấy phép OSI) thay script riêng; ghi cảnh báo telemetry/license nếu có. → Kiểm: ADR chọn công cụ với license. · Nguồn: thực hành nội bộ
 - [ ] `CMP-AUDIT-019` **MAY** Mô phỏng kiểm toán (mock audit) 1 tháng trước kỳ chính thức bằng checklist của khung. → Kiểm: báo cáo mock audit. · Nguồn: thực hành nội bộ
+- [ ] `CMP-AUDIT-020` **MAY** Điểm/huy hiệu tuân thủ do **chính công cụ tự chấm** trên repo của nó (vd GESF tự chấm "100% (A)") chỉ là tín hiệu tư vấn, **không vào cột bằng chứng** của [`GO-NO-GO`](../templates/GO-NO-GO.md) hay hồ sơ tuân thủ; bằng chứng là kết quả chạy độc lập (CI, quét bên thứ ba, người kiểm). Scorecard cũng chỉ đo điều nó định nghĩa (check CI-Tests chỉ hỏi CI có chạy test, không kiểm README đúng). → Kiểm: GO-NO-GO không dẫn badge tự chấm làm bằng chứng. · Nguồn: `seeker19110/stored` 09 §2b (rà 2026-10-18); OpenSSF Scorecard <https://github.com/ossf/scorecard>
 
 ## Bẫy thường gặp
 
@@ -96,3 +97,4 @@ bằng chứng → owner → tần suất) và `evidence/<YYYY-MM>/` do CI/job �
 - HIPAA 45 CFR §164.316 (lưu tài liệu 6 năm): <https://www.hhs.gov/hipaa/for-professionals/security/laws-regulations/index.html> — xác minh 2026-10-13.
 - gitleaks v8.30.1, syft v1.54.0: <https://github.com/gitleaks/gitleaks/releases>, <https://github.com/anchore/syft/releases> — xác minh 2026-10-13 (qua kết quả tìm kiếm GitHub).
 - Nghiên cứu nền: `research/2026-10-13-stored-catalog-extraction.md` §2.14 (bằng chứng tách khỏi tuyên bố, `docs/bang-chung/<ngày>/`).
+- OpenSSF Scorecard (check CI-Tests chỉ hỏi CI có chạy test): <https://github.com/ossf/scorecard> — đọc 2026-10-18. Catalog `seeker19110/stored` 09 §2b (GESF tự chấm "100% (A)") — rà 2026-10-18.

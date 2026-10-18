@@ -3,7 +3,7 @@ title: Điều phối: subagent, worktree, song song, không lồng
 kind: module
 prefix: LOOP-ORCH
 applies_to: [all]
-updated: 2026-10-17
+updated: 2026-10-18
 ---
 
 # Điều phối: subagent, worktree, song song, không lồng
@@ -80,6 +80,7 @@ lệnh + exit code · còn treo). Thiếu `acceptance_criteria` → không giao.
 - [ ] `LOOP-ORCH-015` **SHOULD** Khi cần đa dạng phương án (thiết kế, cách sửa bug khó), chạy ≥ 2 subagent **ngữ cảnh tách biệt** rồi phiên chính so sánh; chỉ cho việc mở, vì tốn ~5–10× chi phí. · Nguồn: stored 21 §6
 - [ ] `LOOP-ORCH-016` **MAY** Ghi topology điều phối (ai giao ai, giới hạn song song, tool bị ẩn) vào ADR khi dự án ≥ M chạy autopilot thường xuyên. · Nguồn: [`../05-architecture/decision-records.md`](../05-architecture/decision-records.md)
 - [ ] `LOOP-ORCH-017` **MAY** Đo tỉ lệ task subagent bị phiên chính bác (Gate đỏ khi chạy lại) theo tuần; > 20% → siết spec/handoff trước khi tăng song song.
+- [ ] `LOOP-ORCH-018` **SHOULD** Trước `loop decide` duyệt PLAN, `reviewer` (model khác) rà phần Gate của PLAN: lệnh kiểm **hành vi theo SPEC** ([`QA-STRAT-023`](../14-testing-quality/test-strategy.md): test viết từ SPEC, không từ code) và **không chứa lệnh đối ngoại/phá huỷ** ([`LOOP-STOP-027`](stop-points-and-escalation.md)). → Kiểm: mục D-NNN "Duyệt PLAN" trong `docs/autopilot/DECISIONS.md` dẫn kết quả reviewer. · Nguồn: `seeker19110/stored` 01 §3g.3 (rà 2026-10-18)
 
 ## Bẫy thường gặp
 
@@ -111,3 +112,4 @@ lệnh + exit code · còn treo). Thiếu `acceptance_criteria` → không giao.
 - Anthropic, *How we built our multi-agent research system* (ngữ cảnh tách biệt, chi phí ~15× token, chỉ cho việc rộng): <https://www.anthropic.com/engineering/multi-agent-research-system> — theo `research/2026-10-13-ai-agent-research.md` §2.3 [F].
 - `seeker19110/stored` mục 21 §6 (giới hạn song song, hợp đồng giao diện trước), mục 23 §4.3 (chọn worker 2 trục), §4.4 (subagent không lồng, điều phối = phiên chính), §4.5 (trần 5 đồng thời, mô hình nhánh A/B, thất bại 2× đổi cách, 3× hỏi người) — đọc 2026-10-13.
 - Handoff schema (depth ≤ 3, concurrent ≤ 8, scopes ⊆ parent, `trust_level: untrusted`): `research/2026-10-13-ai-agent-research.md` §2.3 — khung này siết chặt hơn (depth 1, đồng thời ≤ 5) theo stored 23.
+- Catalog `seeker19110/stored` 01 §3g.3 (reviewer rà Gate của PLAN trước khi duyệt) — rà 2026-10-18.

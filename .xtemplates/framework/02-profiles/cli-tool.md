@@ -4,7 +4,7 @@ kind: profile
 slug: cli-tool
 prefix: PRF-CLI
 modules: [04-standards/*, 05-architecture/*, 08-backend/reliability-and-errors, 10-workflow/*, 11-autonomous-loop/*, 12-security/*, 14-testing-quality/*, 15-operations/observability, 15-operations/maintenance-and-lifecycle, 16-compliance-privacy/*, 17-product-project/*, 18-cross-cutting/*]
-updated: 2026-10-14
+updated: 2026-10-18
 ---
 
 # Hồ sơ: Công cụ dòng lệnh
@@ -73,6 +73,7 @@ Xác minh ngày **2026-10-13** — **xác minh lại trước khi dùng**. Chọ
 - [ ] `PRF-CLI-018` **SHOULD** Phân phối qua package manager phổ biến của nền tảng đích (Homebrew tap, scoop/winget, apt/rpm, `npx`/`uvx`) với manifest sinh tự động từ release. → Kiểm: formula/manifest cập nhật cùng tag; smoke install trong CI.
 - [ ] `PRF-CLI-019` **MAY** Shell completion (bash/zsh/fish/pwsh) sinh từ parser; man page sinh từ cùng nguồn `--help`. → Kiểm: `cmd completion zsh` xuất file hợp lệ; test man page build.
 - [ ] `PRF-CLI-020` **MAY** Chế độ cho AI agent: `--json` đầy đủ, `--non-interactive`, thông điệp lỗi có cấu trúc, `--help` ngắn gọn đủ để model gọi đúng (xem [`../18-cross-cutting/docs-for-ai-agents.md`](../18-cross-cutting/docs-for-ai-agents.md)). → Kiểm: test chạy dưới `CI=1` + stdin đóng qua mọi lệnh.
+- [ ] `PRF-CLI-021` **SHOULD** CLI tự nâng quyền hoặc cài helper nâng quyền (sudo re-exec, `pkexec`, drop-in sudoers) chỉ nhận **hành động định sẵn** với tham số đã validate; không `exec "$@"`/`sh -c` chạy lệnh tuỳ ý; chi tiết polkit/macOS ở [`PRF-DESK-018`](desktop-app.md). → Kiểm: như `PRF-DESK-018`. · Nguồn: polkit(8), pkexec(1) <https://www.freedesktop.org/software/polkit/docs/latest/pkexec.1.html>; `seeker19110/stored` 13 §6e (rà 2026-10-18)
 
 ## Cổng chất lượng tương đương
 
@@ -109,3 +110,4 @@ Xác minh ngày **2026-10-13** — **xác minh lại trước khi dùng**. Chọ
 - Phiên bản: endoflife.date `go`, `rust`, `python`, `nodejs`; crates.io `clap`, `cargo-dist`, `cargo-deny`; npm `commander`, `@oclif/core`, `tsdown`, `tsup`, `size-limit`, `vitest`, `@biomejs/biome`; PyPI `typer`, `click`, `uv`, `hatch`, `pip-audit` — xác minh 2026-10-13.
 - (chưa xác minh) `cobra`, `hyperfine`, `golangci-lint`, `ruff`/`pyright` phiên bản, `insta`, `testscript`, `syrupy`, `fast-check`/`proptest`/`hypothesis`, Bun — không tra ngày 2026-10-13.
 - Catalog: §2.6 (checksum, cấm `curl | sh`, telemetry mặc định), §3 — `research/2026-10-13-stored-catalog-extraction.md`; khung cũ KHUNG-3 C6 (commit `1b80fe4`).
+- pkexec(1) / polkit(8) (chi tiết ở `PRF-DESK-018`): <https://www.freedesktop.org/software/polkit/docs/latest/pkexec.1.html> — xác minh 2026-10-18. Catalog `seeker19110/stored` 13 §6e — rà 2026-10-18.
