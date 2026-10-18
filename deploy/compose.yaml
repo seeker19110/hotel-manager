@@ -32,11 +32,27 @@ services:
       - archive_command=pgbackrest --stanza=hm archive-push %p
       - -c
       - max_wal_senders=3
+      # DB-SEC-003: chỉ hostssl + scram-sha-256 (deploy/postgres/pg_hba.conf), TLS ≥ 1.2; chứng chỉ máy chủ ở deploy/secrets/ (deploy/README.md).
+      - -c
+      - hba_file=/etc/postgresql/pg_hba.conf
+      - -c
+      - password_encryption=scram-sha-256
+      - -c
+      - ssl=on
+      - -c
+      - ssl_cert_file=/etc/postgresql/tls/server.crt
+      - -c
+      - ssl_key_file=/etc/postgresql/tls/server.key
+      - -c
+      - ssl_min_protocol_version=TLSv1.2
     secrets:
       - postgres_password
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./secrets/pgbackrest.conf:/etc/pgbackrest/pgbackrest.conf:ro
+      - ./postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+      - ./secrets/pg-server.crt:/etc/postgresql/tls/server.crt:ro
+      - ./secrets/pg-server.key:/etc/postgresql/tls/server.key:ro
     # backend: chỉ trong máy; backup_egress: đường ra cho pgBackRest đẩy WAL/backup tới kho S3/SFTP ở máy khác.
     logging: *default-logging
     networks: [backend, backup_egress]
@@ -102,6 +118,9 @@ services:
     # HM_PII_KEYS, HM_PII_KEY_ID, HM_PII_INDEX_KEY, CLAMD_HOST, SMTP_URL, SIM_WEBHOOK_SECRET. File nằm ngoài git.
     env_file:
       - ./secrets/web.env
+    # CA ký chứng chỉ CSDL cho `sslrootcert=/run/secrets/pg-ca.crt` trong DATABASE_URL (`sslmode=verify-full`, DB-SEC-003).
+    volumes:
+      - ./secrets/pg-ca.crt:/run/secrets/pg-ca.crt:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -143,6 +162,9 @@ services:
     # S3_SECRET_ACCESS_KEY (danh tính worker, KHÁC web), HM_PII_KEYS, HM_PII_KEY_ID, HM_PII_INDEX_KEY, CLAMD_HOST, SMTP_URL.
     env_file:
       - ./secrets/worker.env
+    # CA ký chứng chỉ CSDL cho `sslrootcert=/run/secrets/pg-ca.crt` trong DATABASE_URL/WORKER_DATABASE_URL (DB-SEC-003).
+    volumes:
+      - ./secrets/pg-ca.crt:/run/secrets/pg-ca.crt:ro
     depends_on:
       postgres:
         condition: service_healthy

@@ -446,3 +446,4 @@
 - Lý do (tiêu chí chất lượng cuối): Tránh xung đột main.json giữa 6 lát; job đỏ vẫn hiện trên PR và review độc lập chặn merge tay; tick ghi đúng mức chặn thật; import ruleset là việc người
 - Đường lùi: Xoá context khỏi main.json ở PR cuối; bỏ ghi chú trong Bằng chứng
 - Khi chạy thật (đề xuất, chủ dự án quyết ở G7): Chủ dự án import .github/rulesets/main.json sau khi mọi job mới xanh ít nhất một lần trên PR
+

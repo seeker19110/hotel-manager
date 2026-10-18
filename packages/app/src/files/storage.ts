@@ -160,6 +160,31 @@ export async function resilientSend(
   );
 }
 
+/** Trần độ dài khoá object (byte UTF-8), thấp hơn giới hạn của S3; khoá thật chỉ ~100 byte. */
+const MAX_KEY_BYTES = 1000;
+
+/**
+ * Khoá object hợp lệ: không rỗng, không bắt đầu/kết thúc bằng `/`, không đoạn rỗng/`.`/`..`, không `\\` hay ký tự điều khiển (kể cả NUL).
+ * `new URL` gộp đoạn `..` nên khoá `a/../../bucket-khac/x` sẽ thoát khỏi bucket (BASE-SEC-007: chặn `../` ở biên kho).
+ * Khoá do máy sinh (tiền tố tổ chức + UUID) nên vi phạm = lỗi lập trình hoặc dữ liệu bị sửa: ném lỗi, không âm thầm sửa.
+ */
+export function assertSafeObjectKey(key: string): void {
+  const bad =
+    key.length === 0 ||
+    new TextEncoder().encode(key).length > MAX_KEY_BYTES ||
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: cố ý chặn ký tự điều khiển/NUL trong khoá
+    /[\\\u0000-\u001f\u007f]/.test(key) ||
+    key.split("/").some((part) => part === "" || part === "." || part === "..");
+  if (bad) {
+    throw new StorageError(
+      "Khoá object không hợp lệ (đoạn rỗng/`.`/`..`, `\\`, ký tự điều khiển hoặc quá dài)",
+      {
+        retryable: false,
+      },
+    );
+  }
+}
+
 export class ObjectStorage {
   readonly #aws: AwsClient;
   readonly #cfg: StorageConfig;
@@ -191,6 +216,7 @@ export class ObjectStorage {
   }
 
   #url(key: string): string {
+    assertSafeObjectKey(key);
     const k = key
       .split("/")
       .map((p) => encodeURIComponent(p))

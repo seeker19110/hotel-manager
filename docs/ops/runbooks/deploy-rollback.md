@@ -30,10 +30,10 @@ docker compose -f deploy/compose.yaml ps
 
 ### 2. Backup trước migrate (bắt buộc khi có migration mới)
 ```bash
-docker compose -f deploy/compose.yaml exec postgres pgbackrest --stanza=hm check
-docker compose -f deploy/compose.yaml exec postgres pgbackrest --stanza=hm --type=incr backup
-docker compose -f deploy/compose.yaml exec postgres pgbackrest --stanza=hm info   # ghi nhãn bản vừa tạo
-docker compose -f deploy/compose.yaml exec postgres psql -U postgres -d <db> -c "select pg_create_restore_point('truoc_migrate_<phiên_bản>')"
+docker compose -f deploy/compose.yaml exec -u postgres postgres pgbackrest --stanza=hm check
+docker compose -f deploy/compose.yaml exec -u postgres postgres pgbackrest --stanza=hm --type=incr backup
+docker compose -f deploy/compose.yaml exec -u postgres postgres pgbackrest --stanza=hm info   # ghi nhãn bản vừa tạo
+docker compose -f deploy/compose.yaml exec -u postgres postgres psql -U postgres -d <db> -c "select pg_create_restore_point('truoc_migrate_<phiên_bản>')"
 ```
 Không tiếp tục nếu `check`/`backup` lỗi. Điểm khôi phục `truoc_migrate_<phiên_bản>` là đường lùi chắc chắn (xem [restore](restore.md) mục B).
 

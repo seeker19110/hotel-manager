@@ -50,6 +50,10 @@ jobs:
       # T-011: object storage tự host (ADR-0002) cho test file riêng tư — binary kiểm SHA-256 trong script.
       - name: SeaweedFS cho test file (PLAN T-011)
         run: DEV_ENV_OPT_DIR="$RUNNER_TEMP" DEV_ENV_BIN_DIR="$HOME/.local/bin" bash scripts/dev-env-setup.sh --only weed && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      # DB-SEC-003: test connection-tls.db.test.ts tự initdb cluster Postgres 17 nạp deploy/postgres/pg_hba.conf (hostssl + scram) —
+      # cần binary PG 17 (service container chỉ phục vụ TEST_DATABASE_URL). Không tạo cluster mặc định (xem script).
+      - name: PostgreSQL 17 binary cho test TLS CSDL (DB-SEC-003)
+        run: bash scripts/dev-env-setup.sh --only postgres
       - name: Cổng chuẩn — đúng lệnh trong xt.yaml
         run: .xtemplates/scripts/dev-task.sh gate
       - name: Tiêu đề PR theo Conventional Commits, ≤ 72 ký tự

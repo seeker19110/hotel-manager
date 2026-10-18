@@ -11,3 +11,4 @@ export {
   seedReservation,
 } from "./factory.ts";
 export { type PgCluster, startPgCluster } from "./pg-cluster.ts";
+export { type PgTlsCluster, startPgTlsCluster } from "./pg-tls-cluster.ts";
