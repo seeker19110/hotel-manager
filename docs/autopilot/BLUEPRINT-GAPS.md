@@ -9,6 +9,67 @@
 > `PM-SPEC-004` và `WF-SDD-003` (nền spec-coverage còn 26 S-NNN). **Tick kèm lưu ý để phiên chính xác nhận:** `DB-MODEL-004` (52 FK nhóm A thiếu index là ngoại lệ có lý do — D-035),
 > `UX-STATE-001` (không Storybook; loading bị D-032 miễn ở trang có route con động/notFound/redirect), `DB-PERF-001` (EXPLAIN không ANALYZE), `XC-GREEN-007` (còn `notifications`/`inbox`/`worker_heartbeats` chưa có job dọn, chờ DPIA).
 
+## Kết quả đợt 9 (T-808, 2026-10-18)
+
+`main` `b2d992d` (PR #39 T-807 · #41 T-801 · #42 T-802 · #43 T-803 · #44 T-806 · #45 T-805 · #46 T-804). `xt.py blueprint-status BLUEPRINT.md --strict`: MUST **đạt 336 · miễn 55 · mở 105** (trước đợt 9: đạt 282 · mở 159 → đóng 54). 55 miễn trừ đã có `Duyệt:` của chủ dự án (PR #38, "Duyệt tất cả 55 miễn trừ", 2026-10-17) — không còn lỗi LOOP-STOP-024. `check-blueprint-evidence.py`: 336 mục `[x]` · 0 lỗi.
+
+**Đã đóng theo lát (54):** T-807 7 (BASE-REPO-002, WF-CI-001, WF-CI-004, WF-REL-001, XC-DOCAI-004, XC-DX-001, XC-DX-006) · T-801 8 (BASE-DOC-006, BASE-DOC-008, DB-MIG-003, STD-PROC-003, WF-DOC-002, WF-REVIEW-002, WF-TEAM-003, XC-GREEN-005) · T-806 5 (BE-API-001, OPS-DEPLOY-003, OPS-OBS-001, OPS-SLO-001, STD-API-008) · T-802 9 (BASE-DEP-003, BASE-DEP-006, BASE-DEP-008, BASE-DEP-009, BASE-REPO-005, OPS-MAINT-001, OPS-MAINT-003, OPS-MAINT-004, SEC-SECRET-007) · T-803 4 (BASE-SEC-007, DB-SEC-003, SEC-WEB-001, SEC-WEB-004) · T-805 10 (BASE-DATA-003, BASE-GATE-003, QA-COV-001, QA-COV-002, QA-COV-008, QA-E2E-005, QA-INT-007, QA-STRAT-005, QA-STRAT-008, XC-DX-002) · T-804 11 (FE-BUILD-003, FE-BUILD-004, FE-PERF-002, FE-PERF-004, FE-TEST-001, FE-TEST-002, FE-TEST-003, FE-TEST-006, PRF-WEB-006, PRF-WEB-010, UX-RESP-008).
+
+**Ruleset (D-065, T-808):** `.github/rulesets/main.json` gồm **28** required check = 4 cổng nền (`quality`, `protection-guard`, `gitleaks`, `dep-audit`) + **24** cổng đợt 9 chạy trên mọi PR vào `main` (không lọc `paths`): `commit-lint`, `pr-policy`, `new-deps`, `openapi`, `prometheus-rules`, `otel-collector`, `schema-compat`, `fe-typecheck`, `fe-lint`, `bundle-size`, `lighthouse`, `unit-deterministic`, `e2e-repeat`, `regression`, `sast`, `dast`, `sbom`, `image-scan (postgres)`, `image-scan (node-base)`, `image-scan (seaweedfs)`, `image-scan (caddy)`, `coverage`, `coverage-ratchet`, `fix-requires-test`. Không thêm: job đã gom vào `quality` (gate, e2e, backup-restore, workflow-lint, onboarding-smoke) và job chỉ chạy theo lịch/push/issue (external-links, eol-check, dor-check, release-please, assets). Job có `if:` bỏ qua (commit-lint/pr-policy với bot, coverage khi `edited`) trả `skipped`, GitHub tính là qua. Test `scripts/ci-gates.test.mjs` khoá: mỗi context là job chạy trên mọi PR; mỗi job PR phải có trong ruleset hoặc nằm trong `needs` của `quality`; `protection-guard` bung ma trận `image-scan`. **Ruleset chưa có hiệu lực cho tới khi người import.**
+
+### 105 MUST còn mở
+
+| Loại | Số | Ý nghĩa |
+|---|---|---|
+| (a) cần người / hạ tầng / pháp lý / GitHub / quyết định | **95** | bảng "Việc chờ người" bên dưới |
+| (b) còn làm được trong repo | **10** | bảng "Đề xuất đợt 10" bên dưới (không làm trong T-808) |
+
+#### (a) Việc chờ người, gộp theo nhóm hành động
+
+| # | Nhóm | Mục (số) | Việc cần làm (từng bước) |
+|---|---|---|---|
+| 1 | Ruleset / required checks | BASE-REPO-008, BASE-REPO-013, WF-GIT-001, WF-GIT-002, WF-REVIEW-001, WF-REVIEW-005, QA-E2E-001, QA-STRAT-002 (8) | 1) Mở một PR bất kỳ, đợi đủ 28 job xanh ít nhất một lần (D-065). 2) Settings → Rules → Rulesets → New → Import → `.github/rulesets/main.json`. 3) Settings → General → Pull Requests: chỉ cho squash, bật *Allow auto-merge*, tắt merge commit/rebase (PR #5, #8, #9 từng merge kiểu merge commit). 4) Kiểm: `gh api repos/seeker19110/hotel-manager/rules/branches/main` có `deletion`, `non_fast_forward`, `pull_request`, `required_status_checks`. 5) Báo phiên chính để tick. |
+| 2 | Nhãn / quyền GitHub | LOOP-STOP-005, OPS-MAINT-005, BASE-DEP-007, WF-REVIEW-007, XC-OSS-005 (5) | 1) Tạo nhãn `risk:money`, `risk:data`, `risk:auth`, `risk:crypto`, `risk:gate`, `major` (pr-policy gắn/kiểm nhãn). 2) Bật Dependabot (version + security updates) rồi đợi PR bot đầu tiên (≤ 30 ngày) cho BASE-DEP-007. 3) Quyết D-060: thêm `.github/*`, `.claude/*`, `.githooks/*` vào `merge_risk_paths` (xt.yaml) hay giữ CODEOWNERS; bật `require_code_owner_review` và `required_approving_review_count ≥ 1` chỉ khi có tài khoản thứ hai (hiện solo + merge L3). |
+| 3 | Phát hành: secret + Actions + tag | WF-REL-003, BASE-REPO-006, STD-PROC-002 (3) | 1) Tạo GitHub App/PAT (contents + pull-requests) → secret `RELEASE_PLEASE_TOKEN` (Settings → Secrets → Actions). 2) Settings → Actions → General → bật *Allow GitHub Actions to create and approve pull requests*. 3) Import `.github/rulesets/tags.json` (cấm xoá/cập nhật `v*`). 4) Merge Release PR do release-please tạo → tag `v0.1.0` annotated + Release có tarball + `SHA256SUMS`. |
+| 4 | Hạ tầng VPS / staging / production | BASE-ERR-011, STD-SEC-007, FE-PERF-001, WF-ENV-006, WF-ENV-008, WF-ENV-010, WF-ENV-012, WF-REL-004, WF-REL-007, SEC-INFRA-003, SEC-LOG-006, SEC-SECRET-005, OPS-DEPLOY-001, OPS-DEPLOY-002, OPS-DEPLOY-004, OPS-IAC-001, PRF-WEB-008, PRF-WEB-009, PM-PRIO-003, IND-SAAS-011, IND-SAAS-014 (21) | 1) Chọn/mua VPS đặt tại VN + domain + registry image (ADR-0002). 2) Tạo GitHub environment `production` (reviewer ≠ người kích, chỉ nhánh `main`/tag), kho bí mật (Docker secrets/sops). 3) Dựng staging giống production; GlitchTip (lỗi + source map riêng tư), kho log tập trung + NTP, tường lửa chỉ 80/443 + SSH khoá. 4) Phiên chính viết pipeline deploy theo digest + smoke sau deploy + rollback; người diễn tập rollback < 15 phút và migration trên bản sao. 5) Thu thập RUM/CrUX 28 ngày cho FE-PERF-001. |
+| 5 | Sao lưu khác máy, khôi phục, giám sát | DB-BACKUP-001, DB-BACKUP-002, DB-BACKUP-003, DB-BACKUP-004, OPS-DR-003, OPS-DR-004, OPS-DR-007, OPS-DR-008, OPS-SLO-006, WF-DOC-008, IND-SAAS-013, IND-SAAS-015, IND-FIN-011 (13) | 1) Chốt RPO/RTO (đề xuất ở PROJECT.md §5: DB 15 phút/4 giờ, file 24 giờ). 2) Tạo kho sao lưu khác máy/nhà cung cấp (bucket mã hoá, writer chỉ `PutObject`, vai trò xoá riêng có MFA), điền `deploy/pgbackrest.conf.example`, cất khoá `PGBACKREST_REPO_CIPHER_PASS` riêng (escrow). 3) Dựng Prometheus + Alertmanager + kênh trực (`deploy/prometheus/alerts.yml`); bắn thử từng alert → ghi `docs/ops/alert-drills.md`. 4) Người không phải tác giả diễn tập khôi phục (cả một tenant) → `docs/ops/restore-drills.md`, `last_drilled` các runbook. 5) Kho WORM ≥ 10 năm cho chứng từ + NTP trên VPS; chốt gói/SLO theo gói (F-015). |
+| 6 | Pháp lý / quyền riêng tư | PM-RISK-007, CMP-INTL-002, CMP-INTL-006, CMP-VN-004, CMP-VN-006, CMP-AUDIT-003, CMP-AUDIT-007, CMP-AUDIT-010, IND-SAAS-010, OPS-IR-010, STD-PRIV-005, XC-GREEN-007 (12) | 1) Pháp lý đối chiếu văn bản gốc (NĐ 13/2023, Luật BVDLCN 2025, NĐ 356/2025, TT 50/17/2024) — hiện chỉ có nguồn thứ cấp. 2) Soạn/duyệt DPIA + hồ sơ chuyển dữ liệu, chốt số ngày giữ theo loại dữ liệu (RK-019) và `legal_basis` Art. 9. 3) Soạn DPA mẫu + danh sách sub-processor; chỉ định đầu mối pháp lý/DPO cho runbook sự cố; tabletop vi phạm dữ liệu ≥ 1 lần/năm có biên bản. |
+| 7 | Bàn giao tài khoản / gia hạn | PM-HANDOVER-004, PM-HANDOVER-005, PM-HANDOVER-009 (3) | Khi mua VPS/domain/SMTP: chuyển ownership bằng cơ chế nền tảng, lập `docs/handover/renewals.md` (hạn, chủ gia hạn, nhắc ≥ 30 ngày) và checklist offboarding; xoay mọi secret sau bàn giao. |
+| 8 | LICENSE / SECURITY / cộng đồng | BASE-REPO-004, CMP-LIC-001, XC-OSS-001, BASE-SEC-009, XC-OSS-004 (5) | 1) Quyết giấy phép mã nguồn (Proprietary + chủ sở hữu hay OSI) và repo public/private. 2) Cung cấp địa chỉ liên hệ báo lỗ hổng, bật Settings → Security → Private vulnerability reporting. 3) Phiên chính viết `LICENSE`, `license` trong package.json, `SECURITY.md` + `security.txt`, `CONTRIBUTING.md`/CoC/SUPPORT, `THIRD_PARTY_NOTICES` (CI diff = 0). |
+| 9 | Ngoại lệ có hạn cần duyệt | CMP-LIC-004 (1) | Duyệt hoặc bác từng ngoại lệ ở bảng "Ngoại lệ có hạn" bên dưới; riêng `sbom_exceptions` LGPL là điều kiện để tick CMP-LIC-004. |
+| 10 | Thiết bị thật / kiểm tay | STD-A11Y-004, PM-SPEC-004, WF-SDD-003 (3) | Kiểm tay SPEC-pwa S-002/S-003/S-016 (Chrome Android, Safari iOS ≥ 16.4, ma trận 5 thiết bị) và luồng chính bằng bàn phím + trình đọc màn hình; ghi biên bản vào `docs/qa/` và `GO-NO-GO.md` (người, ngày, luồng, kết quả); rồi xoá S-NNN khỏi `scripts/spec-coverage.baseline.json`. |
+| 11 | Quyết định sản phẩm / pháp lý rồi mới code | CMP-RIGHTS-001, CMP-RIGHTS-004, CMP-RIGHTS-007, CMP-VN-001, CMP-VN-007, CMP-INTL-007, CMP-PRIV-005, CMP-AUDIT-002, STD-PRIV-004, IND-SAAS-006, IND-SAAS-008, IND-SAAS-009, UX-CONTENT-005, PM-METRIC-003, PM-METRIC-005, PM-METRIC-006 (16) | 1) CMP-RIGHTS-001: chốt danh mục mục đích đồng ý + văn bản (pháp lý) — mở khoá cụm quyền chủ thể (đồng ý/rút/xoá/DSAR/xoá tài khoản/xoá tenant, ~10 mục; agent làm trong repo sau khi có danh mục). 2) IND-SAAS-009 (F-015, truy cập hỗ trợ tạm, chạm auth → người merge). 3) F-015 gói/giá (quota theo gói, UX-CONTENT-005 luồng đăng ký/huỷ). 4) PM-METRIC-003: chọn `track()` có schema hay đo từ `audit_events` (kèm miễn). |
+| 12 | Duyệt thêm biến môi trường | BASE-CFG-002, FE-BUILD-005, DB-SEC-002 (3) | Duyệt thêm vào `.env.example` `WORKER_DATABASE_URL` và `MIGRATION_DATABASE_URL` (settings chặn agent sửa `.env*`); sau đó agent đưa `process.env` còn lại (proxy.ts, serwist route, pwa-shell) vào schema, tách client/server, test build thiếu env. |
+| 13 | Hook / ADR của khung | ARC-ADR-004, XC-DOCAI-005 (2) | CI so ADR accepted đã có (T-801); phần "hook ask khi sửa ADR" và grep `curl … \| sh` khớp chuỗi trong `.claude/hooks/guard.py` thuộc hook (agent không được sửa): người sửa `guard.py` (ghép chuỗi regex) hoặc ghi miễn có `Duyệt:` (ADR-0018 của khung bỏ lớp hỏi). |
+
+SMTP relay (D-010) và ClamAV (D-003): không còn MUST mở phụ thuộc trực tiếp; vẫn là điều kiện chạy thật (DECISIONS "Khi chạy thật") — người cài/chọn trên VPS.
+
+#### (b) Còn làm được trong repo — đề xuất đợt 10 (chưa làm; mỗi lát một PR)
+
+| Mục | Việc | Ghi chú / quyết định cần |
+|---|---|---|
+| XC-GREEN-002 | Ngân sách kích thước image (`docker image inspect` trong `image-scan`) + trần thời gian CI mỗi PR | `loop decide` chọn ngưỡng; bundle đã có (T-804) |
+| QA-PERF-002, QA-PERF-007 | Job k6 `schedule` + `workflow_dispatch` dựng app như `e2e`, `thresholds` p95/lỗi (`perf/k6/lib.js` đã có), `BASE_URL` từ env, bước CI chặn domain production | Kiểm nói "staging": cần `loop decide` chấp nhận môi trường CI tạm tới khi có VPS |
+| PRF-WEB-005 | Nâng `lighthouserc.json` từ 3 lên ≥ 5 URL chính (cần phiên seed qua script puppeteer cho trang sau đăng nhập) | Kèm người import ruleset (nhóm 1) để `lighthouse` là required; CWV field là FE-PERF-001 |
+| CMP-LIC-003 | Đính `sbom.cdx.json` vào Release assets (`release.yml` job `assets`) + test cấu trúc | SBOM sinh mỗi build đã có (T-802) |
+| XC-I18N-001, XC-I18N-009 | Tách chuỗi UI/lỗi/email ra `messages/vi.json`, lint chặn chuỗi literal, script so khoá/tham số ICU | Lớn; cần `loop decide` chọn thư viện (giấy phép qua `license-policy.json`) |
+| DB-SEC-004 | Runbook xoay mật khẩu role CSDL không downtime + diễn tập trên cluster tạm (test) | Không cần biến mới |
+| CMP-PRIV-008 | Luật Semgrep cấm log nguyên object người dùng (sửa `pipeline/command.ts:180`) + quét log server E2E bằng bộ phát hiện PII | Phần "log staging" thay bằng log E2E tới khi có staging |
+| WF-GIT-010 | `gitleaks protect --staged` trong `.githooks/pre-commit` (bỏ qua có cảnh báo khi chưa cài) + test | CI toàn lịch sử đã có |
+
+Chuẩn bị không tick được (làm kèm lát trên nếu rảnh): `docs/ops/RPO-RTO.md` + `BACKUP-SCOPE` bản nháp chờ ký, `docs/compliance/vendors.yaml` + CI chặn SDK mới thiếu dòng, `docs/ops/incidents/` + mẫu POST-MORTEM, CHANGELOG ngày cho `docs/privacy/`.
+
+#### Ngoại lệ có hạn cần chủ dự án duyệt hoặc gia hạn
+
+| Ngoại lệ | Nơi | Hạn | Việc |
+|---|---|---|---|
+| `@img/sharp-libvips-linux-x64` LGPL-3.0-or-later (liên kết động, qua sharp của Next) | `license-policy.json` `sbom_exceptions` (D-061) | 2026-12-31 | Duyệt hoặc thay sharp; quá hạn → `sbom` đỏ |
+| `parse-cache-control@1.0.1` giấy phép khai "BSD" (qua `@lhci/cli`, chỉ CI) | `license-policy.json` `exceptions` (D-068) | 2027-04-18 | Xác nhận khi rà giấy phép trước phát hành |
+| `.grype.yaml` 4 luật hạn 7 ngày (GO-2026-6612, GO-2026-6604 …) | D-067, `docs/ops/VULN-SLA.md` | **2026-10-25** | Có image vá thì gỡ luật; chưa có thì gia hạn ≤ 7 ngày với lý do. **Quá hạn → `image-scan` đỏ trên mọi PR; khi ruleset đã import đây là required check ⇒ chặn mọi merge** |
+| `.grype.yaml` 21 luật hạn 30 ngày (Go stdlib, zlib, npm của node) | D-067 | **2026-11-01** | như trên (≤ 30 ngày) |
+
+Rủi ro khi import ruleset: 24 cổng mới là required — `lighthouse`, `e2e-repeat`, `dast`, `image-scan` phụ thuộc mạng/đồng hồ nên có thể đỏ ngẫu nhiên hoặc theo hạn ngoại lệ; nếu cần, bỏ tạm context khỏi `main.json` (đường lùi D-065) thay vì nới ngưỡng.
+
 ## Kết quả đợt 8 (T-710, 2026-10-17)
 
 - Phân loại 169 MUST mở (sau đợt 7): **12** làm trọn được trong repo · **90** làm được một phần nhưng chưa tick được (32 cần sửa workflow/thêm job CI, 21 cần sửa file cổng — `playwright.config`/`vitest.config`/`xt.yaml`/`biome.json`/tsconfig/`dependabot.yml`/`AGENTS.md`/hook, 14 cần phụ thuộc/công cụ mới — Testing Library, spectral, SAST, ZAP, trivy, SBOM, lhci, size-limit, promtool, Collector, 4 cần biến môi trường mới, 19 cần DPIA/pháp lý/kinh doanh) · **67** cần người/hạ tầng thật/GitHub.

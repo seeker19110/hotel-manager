@@ -1,5 +1,6 @@
 // T-807: rào cấu trúc cho cổng CI — khoá cấu hình mà chỉ CI mới chứng minh được bằng job xanh
-// (WF-CI-001 job gom `quality` + ruleset đúng 4 check, WF-CI-004 zizmor + không nội suy input không tin cậy, XC-DX-001 onboarding-smoke).
+// (WF-CI-001 job gom `quality` + ruleset khớp job thật, D-065 ruleset gom mọi cổng PR của đợt 9,
+// WF-CI-004 zizmor + không nội suy input không tin cậy, XC-DX-001 onboarding-smoke).
 import { spawnSync } from "node:child_process";
 import {
   cpSync,
@@ -31,12 +32,49 @@ function workflows() {
   return out;
 }
 
-/** Tên check của mọi job (`name:` hoặc khoá job) — đúng cách GitHub đặt context. */
+const MATRIX_NAME = ["$", "{{ matrix.name }}"].join("");
+
+/** Context của một job: `name:` (hoặc khoá job); job ma trận → mỗi phần tử `matrix.include[].name` một context. */
+function jobContexts(key, job) {
+  const label = String(job.name ?? key);
+  if (!label.includes(MATRIX_NAME)) return [label];
+  const include = job.strategy?.matrix?.include ?? [];
+  return include.map((m) => label.replace(MATRIX_NAME, String(m.name)));
+}
+
+/** Tên check của mọi job — đúng cách GitHub đặt context. */
 function jobNames(wfs) {
   const names = new Set();
   for (const wf of Object.values(wfs))
-    for (const [key, job] of Object.entries(wf.jobs ?? {})) names.add(job.name ?? key);
+    for (const [key, job] of Object.entries(wf.jobs ?? {}))
+      for (const c of jobContexts(key, job)) names.add(c);
   return names;
+}
+
+/** Workflow có chạy trên MỌI pull_request vào main (không lọc `paths`/`paths-ignore`/nhánh khác)? */
+function runsOnEveryPr(wf) {
+  const on = wf.on;
+  if (typeof on === "string") return on === "pull_request";
+  if (Array.isArray(on)) return on.includes("pull_request");
+  if (!on || !("pull_request" in on)) return false;
+  const pr = on.pull_request ?? {};
+  if (pr.paths || pr["paths-ignore"] || pr["branches-ignore"]) return false;
+  return !pr.branches || pr.branches.includes("main");
+}
+
+/** `if:` của job loại hẳn sự kiện pull_request (chỉ push/lịch/chạy tay/issue)? */
+const skipsPullRequest = (job) =>
+  /event_name\s*==\s*'(push|schedule|workflow_dispatch|issues)'/.test(String(job.if ?? ""));
+
+/** Context của mọi job chạy trên mọi PR vào main (job có `if:` bỏ qua → kết quả skipped, GitHub tính là qua). */
+function prContexts(wfs) {
+  const out = new Set();
+  for (const wf of Object.values(wfs)) {
+    if (!runsOnEveryPr(wf)) continue;
+    for (const [key, job] of Object.entries(wf.jobs ?? {}))
+      if (!skipsPullRequest(job)) for (const c of jobContexts(key, job)) out.add(c);
+  }
+  return out;
 }
 
 const requiredContexts = (ruleset) =>
@@ -70,16 +108,46 @@ afterAll(() => {
 const ci = parse(read(`${WORKFLOW_DIR}/ci.yml`));
 const stepRun = (job, namePart) => job.steps.find((s) => String(s.name ?? "").includes(namePart))?.run;
 
-describe("WF-CI-001 — job gom quality + ruleset đúng 4 required check", () => {
+/** Cổng đợt 9 (T-801…T-807) chạy trên mọi PR — D-065: phải có trong ruleset để chặn merge khi người import. */
+const WAVE9_GATES = [
+  "commit-lint",
+  "pr-policy",
+  "new-deps",
+  "openapi",
+  "prometheus-rules",
+  "otel-collector",
+  "schema-compat",
+  "fe-typecheck",
+  "fe-lint",
+  "bundle-size",
+  "lighthouse",
+  "unit-deterministic",
+  "e2e-repeat",
+  "regression",
+  "sast",
+  "dast",
+  "sbom",
+  "image-scan (postgres)",
+  "image-scan (node-base)",
+  "image-scan (seaweedfs)",
+  "image-scan (caddy)",
+  "coverage",
+  "coverage-ratchet",
+  "fix-requires-test",
+];
+/** Cổng có từ trước đợt 9; `quality` gom gate/e2e/backup-restore/workflow-lint/onboarding-smoke (T-807). */
+const BASE_GATES = ["quality", "protection-guard", "gitleaks", "dep-audit"];
+
+describe("WF-CI-001 — job gom quality + ruleset khớp job thật", () => {
   const ruleset = JSON.parse(read(".github/rulesets/main.json"));
 
-  it("ruleset đòi đúng quality · protection-guard · gitleaks · dep-audit", () => {
-    expect(requiredContexts(ruleset).sort()).toEqual([
-      "dep-audit",
-      "gitleaks",
-      "protection-guard",
-      "quality",
-    ]);
+  it("ruleset đòi cổng nền (quality · protection-guard · gitleaks · dep-audit) + mọi cổng PR của đợt 9", () => {
+    expect(requiredContexts(ruleset).sort()).toEqual([...BASE_GATES, ...WAVE9_GATES].sort());
+  });
+
+  it("không context trùng lặp trong ruleset", () => {
+    const all = requiredContexts(ruleset);
+    expect(new Set(all).size).toBe(all.length);
   });
 
   it("mỗi required check là một job có thật trong .github/workflows/", () => {
@@ -141,10 +209,110 @@ describe("WF-CI-001 — job gom quality + ruleset đúng 4 required check", () =
       expect(r.stdout).toContain("khong-co-job");
     });
 
+    it("context của job ma trận (có dấu cách) khớp theo từng phần tử", () => {
+      const ok = sandbox(() => {});
+      expect(ok.status).toBe(0);
+      const bad = sandbox((d) => {
+        const p = join(d, ".github/rulesets/main.json");
+        const rs = JSON.parse(readFileSync(p, "utf8"));
+        const rule = rs.rules.find((x) => x.type === "required_status_checks");
+        rule.parameters.required_status_checks.push({ context: "image-scan (khong-co)" });
+        writeFileSync(p, JSON.stringify(rs));
+      });
+      expect(bad.status).toBe(1);
+      expect(bad.stdout).toContain("image-scan (khong-co)");
+      expect(bad.stdout).not.toContain("image-scan (postgres)");
+    });
+
     it("xoá workflow chứa job của một context → exit 1", () => {
       const r = sandbox((d) => rmSync(join(d, WORKFLOW_DIR, "dep-audit.yml")));
       expect(r.status).toBe(1);
       expect(r.stdout).toContain("dep-audit");
+    });
+  });
+});
+
+describe("D-065 — ruleset gom mọi job chạy trên mọi PR vào main", () => {
+  const wfs = workflows();
+  const ruleset = JSON.parse(read(".github/rulesets/main.json"));
+  const required = new Set(requiredContexts(ruleset));
+  const aggregated = new Set(ci.jobs.quality.needs);
+  const prJobs = prContexts(wfs);
+
+  it("mỗi context trong main.json là job có thật chạy trên pull_request tới main, không lọc paths", () => {
+    for (const c of required) expect(prJobs.has(c), `${c} không chạy trên mọi PR`).toBe(true);
+  });
+
+  it("mỗi job chạy trên mọi PR có trong main.json, trừ job đã gom vào quality (needs)", () => {
+    for (const c of prJobs)
+      if (!aggregated.has(c))
+        expect(required.has(c), `${c} chạy trên PR nhưng chưa là required check`).toBe(true);
+  });
+
+  it("job gom vào quality không bị đòi lặp trong ruleset", () => {
+    for (const c of aggregated) {
+      expect(prJobs.has(c), c).toBe(true);
+      expect(required.has(c), c).toBe(false);
+    }
+  });
+
+  it("job chỉ chạy theo lịch/push/chạy tay/issue không bao giờ là required check", () => {
+    for (const c of ["external-links", "eol-check", "dor-check", "release-please", "assets"]) {
+      expect(jobNames(wfs).has(c), `${c} không tồn tại`).toBe(true);
+      expect(required.has(c), c).toBe(false);
+    }
+  });
+
+  it("nhóm cổng đợt 9 đều có mặt và là job PR thật", () => {
+    expect(WAVE9_GATES.length).toBe(24);
+    for (const c of WAVE9_GATES) {
+      expect(required.has(c), `${c} thiếu trong main.json`).toBe(true);
+      expect(prJobs.has(c), c).toBe(true);
+    }
+  });
+
+  describe("bộ dò đúng ca biên", () => {
+    const wf = (on, jobs) => ({ on, jobs });
+    const job = { "runs-on": "ubuntu-24.04" };
+
+    it("lọc paths / paths-ignore / nhánh khác main → không chạy trên mọi PR", () => {
+      expect(runsOnEveryPr(wf({ pull_request: { branches: ["main"] } }, {}))).toBe(true);
+      expect(runsOnEveryPr(wf({ pull_request: null }, {}))).toBe(true);
+      expect(runsOnEveryPr(wf("pull_request", {}))).toBe(true);
+      expect(runsOnEveryPr(wf(["push", "pull_request"], {}))).toBe(true);
+      expect(runsOnEveryPr(wf({ pull_request: { paths: ["apps/**"] } }, {}))).toBe(false);
+      expect(runsOnEveryPr(wf({ pull_request: { "paths-ignore": ["docs/**"] } }, {}))).toBe(false);
+      expect(runsOnEveryPr(wf({ pull_request: { branches: ["release"] } }, {}))).toBe(false);
+      expect(runsOnEveryPr(wf({ schedule: [{ cron: "0 0 * * 1" }] }, {}))).toBe(false);
+      expect(runsOnEveryPr(wf({ push: { branches: ["main"] } }, {}))).toBe(false);
+    });
+
+    it("job có if: chỉ push/lịch bị loại; if: theo hành động PR vẫn tính", () => {
+      expect(skipsPullRequest({ ...job, if: "github.event_name == 'push'" })).toBe(true);
+      expect(skipsPullRequest({ ...job, if: "github.event_name == 'schedule'" })).toBe(true);
+      expect(skipsPullRequest({ ...job, if: "github.event_name == 'pull_request'" })).toBe(false);
+      expect(skipsPullRequest({ ...job, if: "github.actor != 'dependabot[bot]'" })).toBe(false);
+      expect(skipsPullRequest(job)).toBe(false);
+    });
+
+    it("job ma trận → một context cho mỗi phần tử; ma trận rỗng → không context", () => {
+      const m = {
+        ...job,
+        name: `scan (${MATRIX_NAME})`,
+        strategy: { matrix: { include: [{ name: "a" }, { name: "b" }] } },
+      };
+      expect(jobContexts("scan", m)).toEqual(["scan (a)", "scan (b)"]);
+      expect(jobContexts("scan", { ...m, strategy: undefined })).toEqual([]);
+      expect(jobContexts("k", job)).toEqual(["k"]);
+      expect(jobContexts("k", { ...job, name: "tên riêng" })).toEqual(["tên riêng"]);
+    });
+
+    it("prContexts bỏ workflow lọc paths và job if: push", () => {
+      const got = prContexts({
+        a: wf({ pull_request: null }, { ok: job, only_push: { ...job, if: "github.event_name == 'push'" } }),
+        b: wf({ pull_request: { paths: ["x/**"] } }, { filtered: job }),
+      });
+      expect([...got]).toEqual(["ok"]);
     });
   });
 });

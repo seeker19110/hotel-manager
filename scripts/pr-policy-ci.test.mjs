@@ -2,7 +2,7 @@
 // (BASE-DOC-006, BASE-DOC-008, DB-MIG-003, ARC-ADR-004, WF-DOC-002, STD-PROC-003, WF-SDD-003, WF-TEAM-003, XC-GREEN-005,
 // WF-REVIEW-002, LOOP-STOP-005). Job xanh trên PR là bằng chứng chạy thật; test này giữ để không ai gỡ/nới bước.
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
@@ -138,17 +138,14 @@ describe("job pr-policy là job thật (protection-guard khớp ruleset)", () =>
     const required = ruleset.rules
       .filter((r) => r.type === "required_status_checks")
       .flatMap((r) => r.parameters.required_status_checks.map((c) => c.context));
-    const all = [
-      "ci.yml",
-      "dep-audit.yml",
-      "secret-scan.yml",
-      "pr-policy.yml",
-      "link-check.yml",
-      "dor-check.yml",
-    ]
+    const all = readdirSync(`${ROOT}.github/workflows`)
+      .filter((f) => /\.ya?ml$/.test(f))
       .map((f) => read(`.github/workflows/${f}`))
       .join("\n");
-    for (const ctx of required) expect(all, ctx).toMatch(new RegExp(`(^  ${ctx}:|name: ${ctx})`, "m"));
+    const esc = (c) => c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    // Context của job ma trận (`image-scan (postgres)`) do scripts/ci-gates.test.mjs kiểm sau khi bung ma trận.
+    for (const ctx of required.filter((c) => !c.includes("(")))
+      expect(all, ctx).toMatch(new RegExp(`(^  ${esc(ctx)}:|name: ${esc(ctx)}$)`, "m"));
     expect(all).toMatch(/name: pr-policy/);
   });
 });
