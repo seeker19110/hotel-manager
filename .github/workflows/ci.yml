@@ -120,6 +120,11 @@ jobs:
         run: pnpm --filter web exec playwright install --with-deps chromium
       - name: E2E — pwa + smoke
         run: pnpm --filter web exec playwright test
+      # CMP-PRIV-008 (D-072): log server của lượt E2E (apps/web/e2e-logs, dữ liệu giả) không được chứa PII chưa che — thay cho
+      # quét log staging tới khi có staging. Chạy cả khi E2E đỏ để log lỗi cũng được quét.
+      - name: Quét PII trong log server E2E (CMP-PRIV-008)
+        if: ${{ !cancelled() }}
+        run: node scripts/pii-log-scan.mjs apps/web/e2e-logs
       # SEC-SECRET-007: trace/ảnh chụp của Playwright có thể chứa cookie, header, giá trị form — gitleaks quét (cả bên trong
       # trace.zip) TRƯỚC khi lưu; có bí mật → đỏ, không lưu.
       - name: Cài gitleaks (ghim phiên bản, kiểm SHA-256)

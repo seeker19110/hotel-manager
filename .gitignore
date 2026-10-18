@@ -21,6 +21,8 @@ deploy/secrets/
 
 # Playwright
 test-results/
+# Log server của lượt E2E (apps/web/e2e/server.ts) — CI quét PII rồi bỏ.
+e2e-logs/
 playwright-report/
 
 # Python (scripts/)

@@ -34,8 +34,8 @@ jobs:
           echo "$RUNNER_TEMP/semgrep/bin" >> "$GITHUB_PATH"
       - name: Luật đỏ khi mẫu xấu lọt, xanh khi mẫu tốt (semgrep --test)
         run: semgrep --test security/semgrep --metrics=off --disable-version-check
-      - name: Quét mã nguồn — đỏ ở mọi phát hiện (injection SQL/lệnh/đường dẫn, XSS sink)
-        run: semgrep scan --config security/semgrep/hm-injection.yml --metrics=off --disable-version-check --error
+      - name: Quét mã nguồn — đỏ ở mọi phát hiện (injection SQL/lệnh/đường dẫn, XSS sink, PII vào log)
+        run: semgrep scan --config security/semgrep/hm-injection.yml --config security/semgrep/hm-privacy.yml --metrics=off --disable-version-check --error
 
   dast:
     name: dast
