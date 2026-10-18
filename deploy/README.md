@@ -34,6 +34,20 @@ Khi cấp: sinh hai cặp khoá khác nhau, đặt `S3_ACCESS_KEY_ID`/`S3_SECRET
 | `PGBACKREST_REPO_CIPHER_PASS`, khoá repo S3 sao lưu | sao lưu PITR | ghi repo sao lưu khác máy | `secret-leak.md` (không đảo ngược, cần người duyệt) |
 | `BETTER_AUTH_SECRET`, `HM_PII_KEYS`, `HM_PII_INDEX_KEY` | phiên, mã hoá giấy tờ | trong ứng dụng, không phải token bên thứ ba | `secret-leak.md`, RUNBOOK §5 |
 
+## Kết nối CSDL qua TLS (DB-SEC-003)
+`postgres/pg_hba.conf` chỉ có `hostssl … scram-sha-256` (TCP) và `local … peer` cho role `postgres` trong container; không `trust`/`password`/`md5`, không `host`/`hostnossl`, nên `sslmode=disable` bị từ chối. Compose bật `ssl=on`, `ssl_min_protocol_version=TLSv1.2`, `password_encryption=scram-sha-256`. Ứng dụng ở production **bắt buộc** `?sslmode=verify-full` khi CSDL ở máy khác (`DATABASE_URL`, `WORKER_DATABASE_URL`; loopback được miễn) — thiếu thì khởi động báo `ConfigError`.
+
+Cấp chứng chỉ một lần (CA riêng, tên máy chủ = tên service `postgres`), đặt vào `deploy/secrets/` (bị `.gitignore`):
+```sh
+cd deploy/secrets
+openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -keyout pg-ca.key -out pg-ca.crt -subj "/CN=hm-db-ca" -days 825
+openssl req -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -keyout pg-server.key -out pg-server.csr -subj "/CN=postgres"
+printf 'subjectAltName=DNS:postgres\n' > pg-san.cnf
+openssl x509 -req -in pg-server.csr -CA pg-ca.crt -CAkey pg-ca.key -CAcreateserial -out pg-server.crt -days 825 -extfile pg-san.cnf
+chown 999:999 pg-server.key && chmod 600 pg-server.key   # Postgres đòi khoá riêng 0600 thuộc người dùng postgres
+```
+Đặt `DATABASE_URL=postgres://app_runtime:…@postgres:5432/<db>?sslmode=verify-full&sslrootcert=/run/secrets/pg-ca.crt` (worker tương tự cho `WORKER_DATABASE_URL`). Giữ `pg-ca.key` ngoài máy chủ. Chưa chạy bằng Docker thật; bằng chứng tự động: `packages/app/src/db/connection-tls.db.test.ts` (Postgres 17 thật nạp đúng `pg_hba.conf` này) và `scripts/security-scan.test.mjs`.
+
 ## Biến môi trường của web và worker (T-505)
 Compose chỉ ghi thẳng biến không bí mật (`NODE_ENV`, `APP_BASE_URL`, `S3_ENDPOINT`, `S3_BUCKET`, lấy từ `HM_DOMAIN`/`HM_FILES_DOMAIN` của `deploy/.env`). Bí mật nằm ở hai file riêng, ngoài git, mỗi service một file để khoá/vai trò không dùng chung. Tên biến theo schema `packages/app/src/config/schema.ts` và `worker.ts` — không có biến mới.
 

@@ -471,6 +471,8 @@
 - Đường lùi: Gỡ skipLibCheck khi happy-dom/@types/node khớp; đổi sang jsdom nếu chủ dự án duyệt MIT-0
 - Khi chạy thật (đề xuất, chủ dự án quyết ở G7): Chủ dự án quyết MIT-0 nếu muốn jsdom thay happy-dom
 
+
+
 ### D-067 · 2026-10-18T01:17:15+00:00 · T-802 image-scan: lỗ hổng high/critical có bản sửa thượng nguồn nhưng chưa có image vá (Go stdlib/x-net trong caddy & seaweedfs, npm đi kèm node, zlib alpine của caddy) — xử lý thế nào?
 
 - Phương án: (1) Ngoại lệ CÓ HẠN trong .grype.yaml (đúng mã+gói+phiên bản; critical ≤ 7 ngày, high ≤ 30 ngày), theo dõi ở VULN-SLA.md; xoá npm khỏi runtime web/worker; zlib caddy: ngoại lệ 14 ngày (caddy là Go thuần, không dùng zlib hệ thống); kiểm hạn ở job image-scan (PR + hằng tuần), KHÔNG ở unit test (cổng không phụ thuộc ngày chạy) · (2) Image dẫn xuất FROM caddy/seaweedfs + apk upgrade (đổi compose sang build:) · (3) Hạ severity-cutoff/tắt only-fixed

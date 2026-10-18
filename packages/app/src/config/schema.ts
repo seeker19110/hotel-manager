@@ -31,6 +31,43 @@ export function isInsecureRemoteUrl(value: string): boolean {
   }
 }
 
+/** Máy loopback của CSDL (sau khi bỏ ngoặc IPv6): E2E/CI một máy được miễn TLS. */
+const DB_LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
+
+/**
+ * URL CSDL tới máy KHÁC (không loopback, không socket) mà thiếu `sslmode=verify-full`? (DB-SEC-003: kết nối CSDL qua TLS có
+ * xác minh chứng chỉ; `require`/`prefer`/`disable` không xác minh máy chủ nên không đủ.) URL không đọc được → coi là không an toàn.
+ *
+ * Phải đọc URL GIỐNG driver (`pg-connection-string`), nếu không cổng bị qua mặt: driver lấy giá trị CUỐI của tham số lặp và
+ * `?host=` ghi đè hostname. Nên: `sslmode` phải xuất hiện đúng một lần; `hostaddr` bị cấm; `?host=` chỉ chấp nhận là đường dẫn
+ * socket tuyệt đối khi hostname URL rỗng (kể cả kèm verify-full cũng từ chối: một cách viết duy nhất); hostname rỗng không kèm socket → không rõ máy nào (rơi về `PGHOST`) nên không miễn.
+ */
+export function isDbUrlWithoutVerifiedTls(value: string): boolean {
+  try {
+    const u = new URL(value);
+    if (u.protocol !== "postgres:" && u.protocol !== "postgresql:") return true;
+    const params = u.searchParams;
+    if (params.has("hostaddr")) return true;
+    const hostParams = params.getAll("host");
+    if (hostParams.length > 1) return true;
+    if (hostParams.length === 1) {
+      // Socket Unix qua `?host=/đường/dẫn` chỉ hợp lệ khi URL không nêu máy nào (nếu không, driver bỏ hostname và đi nơi khác).
+      return !(u.hostname === "" && (hostParams[0] ?? "").startsWith("/"));
+    }
+    const host = decodeURIComponent(u.hostname).replace(/^\[(.+)\]$/, "$1");
+    if (host.startsWith("/") || DB_LOOPBACK_HOSTS.has(host)) return false;
+    return !isVerifiedTls(params);
+  } catch {
+    return true;
+  }
+}
+
+/** `sslmode` xuất hiện đúng một lần và bằng `verify-full` (lặp tham số = không rõ driver dùng giá trị nào). */
+function isVerifiedTls(params: URLSearchParams): boolean {
+  const modes = params.getAll("sslmode");
+  return modes.length === 1 && modes[0] === "verify-full";
+}
+
 /**
  * Tiền tố biến "công khai" — framework nhúng giá trị vào bundle client (Next `NEXT_PUBLIC_`, Vite, Expo…).
  * Dự án hiện KHÔNG dùng biến công khai nào (BASE-CFG-008): mọi khoá trong `envSchema` là server-only.
@@ -100,6 +137,13 @@ export const envSchema = z
         if (isInsecureRemoteUrl(env[k]))
           ctx.addIssue({ code: "custom", path: [k], message: "phải là https:// ở production" });
       }
+      // DB-SEC-003: CSDL ở máy khác (container `postgres`) chỉ qua TLS có xác minh chứng chỉ; loopback (E2E/CI một máy) được miễn.
+      if (isDbUrlWithoutVerifiedTls(env.DATABASE_URL))
+        ctx.addIssue({
+          code: "custom",
+          path: ["DATABASE_URL"],
+          message: "production tới máy khác dùng ?sslmode=verify-full (DB-SEC-003)",
+        });
       // smtp:// thuần gửi mật khẩu/thư không mã hoá: chỉ smtps://, fake:// hoặc smtp:// ép STARTTLS (`requireTLS=true`).
       if (env.SMTP_URL.startsWith("smtp://") && !/[?&]requireTLS=true(?:&|$)/.test(env.SMTP_URL)) {
         ctx.addIssue({

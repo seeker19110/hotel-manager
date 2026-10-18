@@ -1,0 +1,10 @@
+# Semgrep (job sast): bỏ phụ thuộc/sinh ra và mẫu dương của chính bộ luật (fixture security/semgrep/hm-injection.* chạy bằng `semgrep --test`).
+node_modules/
+.next/
+dist/
+coverage/
+test-results/
+playwright-report/
+.git/
+security/semgrep/*.ts
+security/semgrep/*.tsx

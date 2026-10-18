@@ -1,0 +1,146 @@
+# Luật SAST của dự án (Semgrep OSS, chạy offline — không tải bộ luật từ registry). Job `sast` trong .github/workflows/security-scan.yml
+# chạy `semgrep scan --error` và đỏ ở MỌI phát hiện. Bao phủ: BASE-SEC-007, SEC-WEB-001 (injection SQL/lệnh/đường dẫn), SEC-WEB-004 (XSS).
+# Mỗi luật có test dương/âm cạnh luật: security/semgrep/hm-injection.ts|tsx (`semgrep --test security/semgrep`) — scripts/security-scan.test.mjs kiểm đủ cặp.
+# Allowlist = `paths.exclude` bên dưới, tối thiểu và có lý do; thêm điểm cần rà soát → nêu lý do trong PR.
+rules:
+  - id: hm-sql-raw-dynamic
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      sql.raw với chuỗi dựng động (nối chuỗi/nội suy) = nguy cơ SQL injection. Dùng template `sql` của Kysely với `${giá trị}` (tham số hoá)
+      hoặc `sql.ref/sql.id` cho tên cột/bảng.
+    metadata: {blueprint: [BASE-SEC-007, SEC-WEB-001], cwe: "CWE-89"}
+    patterns:
+      - pattern: sql.raw($ARG)
+      - pattern-not: sql.raw("...")
+      - pattern-not: "sql.raw(`...`)"
+    paths:
+      exclude:
+        - "**/packages/db/src/migrations/"   # migration chạy DDL cố định lúc triển khai, không nhận đầu vào người dùng
+        - "**/*.test.ts"
+        - "**/*.test.mjs"
+        - "**/e2e/"                         # server/seed E2E (dữ liệu giả, không nhận đầu vào)
+        - "**/packages/testkit/"               # hạ tầng test: tạo DB tạm, tên do mã sinh
+  - id: hm-sql-raw-template-interpolation
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: sql.raw với template có nội suy `${…}` = nối chuỗi vào SQL. Dùng template `sql` tham số hoá.
+    metadata: {blueprint: [BASE-SEC-007, SEC-WEB-001], cwe: "CWE-89"}
+    patterns:
+      - pattern: "sql.raw(`...${$X}...`)"
+    paths:
+      exclude:
+        - "**/packages/db/src/migrations/"
+        - "**/*.test.ts"
+        - "**/*.test.mjs"
+        - "**/e2e/"
+        - "**/packages/testkit/"
+  - id: hm-pg-query-concat
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: Truy vấn pg nối chuỗi/nội suy từ biến. Dùng `$1, $2…` và mảng tham số, hoặc template `sql` của Kysely.
+    metadata: {blueprint: [BASE-SEC-007, SEC-WEB-001], cwe: "CWE-89"}
+    pattern-either:
+      - pattern: "$DB.query(`...${$X}...`, ...)"
+      - pattern: $DB.query($A + $B, ...)
+      - pattern: $DB.query($A.concat(...), ...)
+      - pattern: $DB.unsafe(...)
+    paths:
+      exclude:
+        - "**/packages/db/src/migrations/"
+        - "**/*.test.ts"
+        - "**/*.test.mjs"
+        - "**/e2e/"
+        - "**/packages/testkit/"
+  - id: hm-child-process-shell
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      Lệnh hệ thống qua shell (exec/execSync, hoặc spawn/execFile với shell:true) = nguy cơ command injection. Dùng execFile/spawn
+      dạng mảng đối số, không shell.
+    metadata: {blueprint: [BASE-SEC-007, SEC-WEB-001], cwe: "CWE-78"}
+    pattern-either:
+      - pattern: exec(...)
+      - pattern: execSync(...)
+      - patterns:
+          - pattern-either:
+              - pattern: $CP.exec(...)
+              - pattern: $CP.execSync(...)
+          - metavariable-regex:
+              metavariable: $CP
+              regex: ^(child_process|cp|childProcess|proc)$
+      - pattern: "spawn(..., {..., shell: true, ...})"
+      - pattern: "spawnSync(..., {..., shell: true, ...})"
+      - pattern: "execFile(..., {..., shell: true, ...})"
+      - pattern: "execFileSync(..., {..., shell: true, ...})"
+    paths:
+      exclude:
+        - "**/*.test.ts"
+        - "**/*.test.mjs"
+        - "**/*.spec.ts"
+        - "**/e2e/"
+  - id: hm-code-eval
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: eval/new Function thực thi chuỗi như mã — không dùng.
+    metadata: {blueprint: [BASE-SEC-007], cwe: "CWE-95"}
+    pattern-either:
+      - pattern: eval(...)
+      - pattern: new Function(...)
+    paths:
+      exclude:
+        - "**/*.test.ts"
+        - "**/*.test.mjs"
+  - id: hm-xss-html-sink
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      Điểm tắt escape HTML (dangerouslySetInnerHTML, innerHTML/outerHTML, insertAdjacentHTML, document.write). Mặc định React đã escape;
+      nếu thật sự cần thì qua sanitizer allowlist, ghi lý do và thêm vào allowlist có review của luật này.
+    metadata: {blueprint: [SEC-WEB-004], cwe: "CWE-79"}
+    pattern-either:
+      - pattern: <$EL dangerouslySetInnerHTML={...} />
+      - pattern: $X.innerHTML = $Y
+      - pattern: $X.outerHTML = $Y
+      - pattern: $X.insertAdjacentHTML(...)
+      - pattern: document.write(...)
+      - pattern: document.writeln(...)
+    paths:
+      exclude:
+        - "**/*.test.ts"
+        - "**/*.test.tsx"
+        - "**/*.test.mjs"
+  - id: hm-path-traversal-dynamic
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      Đọc/ghi file với đường dẫn dựng từ biến. Chuẩn hoá bằng `resolveInside(gốc, đường dẫn)` (kiểm realpath nằm trong thư mục cho phép,
+      chặn `../`) hoặc dùng khoá object sinh ngẫu nhiên.
+    metadata: {blueprint: [BASE-SEC-007], cwe: "CWE-22"}
+    patterns:
+      - pattern-either:
+          - pattern: $FS.readFile($P, ...)
+          - pattern: $FS.readFileSync($P, ...)
+          - pattern: $FS.writeFile($P, ...)
+          - pattern: $FS.writeFileSync($P, ...)
+          - pattern: $FS.createReadStream($P, ...)
+          - pattern: $FS.createWriteStream($P, ...)
+          - pattern: $FS.unlink($P, ...)
+          - pattern: $FS.rm($P, ...)
+          - pattern: $FS.rmSync($P, ...)
+      - metavariable-pattern:
+          metavariable: $P
+          pattern-either:
+            - pattern: path.join(...)
+            - pattern: path.resolve(...)
+            - pattern: join(...)
+            - pattern: resolve(...)
+            - pattern: "`...${$X}...`"
+            - pattern: $A + $B
+    paths:
+      exclude:
+        - "**/*.test.ts"
+        - "**/*.test.mjs"
+        - "**/e2e/"
+        - "**/packages/testkit/"
+        - "**/scripts/"

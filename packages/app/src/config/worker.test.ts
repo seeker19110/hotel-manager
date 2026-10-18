@@ -56,4 +56,37 @@ describe("loadWorkerConfig", () => {
     const keys = issues({}).map((i) => i.key);
     expect(keys).toEqual(expect.arrayContaining(["APP_BASE_URL", "DATABASE_URL", "WORKER_DATABASE_URL"]));
   });
+
+  describe("DB-SEC-003 — production: WORKER_DATABASE_URL tới máy khác cần sslmode=verify-full", () => {
+    const prod = {
+      ...valid,
+      NODE_ENV: "production",
+      CLAMD_HOST: "clamd",
+      HM_PII_KEYS: `1:${Buffer.alloc(32, 7).toString("base64")}`,
+      HM_PII_KEY_ID: "1",
+      HM_PII_INDEX_KEY: Buffer.alloc(32, 9).toString("base64"),
+      APP_BASE_URL: "https://hm.example.test",
+      S3_ENDPOINT: "https://files.example.test",
+    };
+
+    it.each([
+      "postgres://wk:bi-mat-wk@postgres:5432/db",
+      "postgres://wk:bi-mat-wk@postgres:5432/db?sslmode=require",
+      "postgres://wk:bi-mat-wk@postgres:5432/db?sslmode=verify-full&sslmode=no-verify",
+      "postgres://wk:bi-mat-wk@localhost:5432/db?host=db.remote.example",
+      "postgres:///db?host=10.0.0.5",
+    ])("%s → lỗi nêu tên biến, không lộ mật khẩu", (url) => {
+      const found = issues({ ...prod, WORKER_DATABASE_URL: url });
+      expect(found.map((i) => i.key)).toEqual(["WORKER_DATABASE_URL"]);
+      expect(JSON.stringify(found)).not.toContain("bi-mat-wk");
+    });
+
+    it("verify-full hoặc loopback → qua; ngoài production không bị siết", () => {
+      expect(
+        issues({ ...prod, WORKER_DATABASE_URL: "postgres://wk:x@postgres/db?sslmode=verify-full" }),
+      ).toEqual([]);
+      expect(issues(prod)).toEqual([]); // loopback (localhost) trong `valid`
+      expect(issues({ ...valid, WORKER_DATABASE_URL: "postgres://wk:x@postgres/db" })).toEqual([]);
+    });
+  });
 });

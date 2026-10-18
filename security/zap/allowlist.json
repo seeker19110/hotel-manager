@@ -1,0 +1,4 @@
+{
+  "$comment": "Ngoại lệ có duyệt cho cổng ZAP (scripts/zap-gate.mjs): mỗi mục {pluginid, reason, approvedBy, date}. Rỗng = mọi cảnh báo mức Medium trở lên làm job đỏ. Thêm mục = nêu lý do trong PR.",
+  "allow": []
+}
