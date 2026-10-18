@@ -132,6 +132,9 @@ describe("isUnasserted / isSourceAvailable", () => {
     ["Elastic License 2.0", true],
     ["Commons Clause", true],
     ["MIT OR BUSL-1.1", true],
+    ["BSL-1.1", true],
+    ["BSL-1.0", false], // Boost Software License (permissive), không phải Business Source License
+    ["MIT AND BSL-1.0", false],
     ["Apache-2.0", false],
     ["MIT", false],
   ])("isSourceAvailable(%s) = %s", (s, want) => expect(isSourceAvailable(s)).toBe(want));
@@ -171,6 +174,12 @@ describe("analyzeSbom", () => {
     const expired = analyzeSbom(bom, { exceptions: [EX({ expires: "2026-10-16" })], today: TODAY });
     expect(expired.errors.join()).toMatch(/đã hết hạn/);
     expect(expired.unasserted).toHaveLength(1);
+  });
+  it("BSL-1.0 (Boost, gói Debian glibc/sed) không bị coi là source-available", () => {
+    const bom = bomOf(lib("libc6", [{ license: { id: "BSL-1.0" } }]));
+    const r = analyzeSbom(bom, { today: TODAY });
+    expect(r.sourceAvailable).toEqual([]);
+    expect(r.errors).toEqual([]);
   });
   it("source-available: đỏ nếu không có ngoại lệ; ngoại lệ thiếu ADR vẫn đỏ; có ADR thì đạt", () => {
     const bom = bomOf(lib("db", [{ license: { id: "BUSL-1.1" } }]));

@@ -29,7 +29,9 @@ const UNASSERTED = new Set(["NOASSERTION", "UNKNOWN", "NONE"]);
 /** Giấy phép source-available/không phải OSI: chỉ dùng kèm quyết định (ADR) — CMP-LIC-004. */
 export const SOURCE_AVAILABLE = [
   /^BUSL-/i,
-  /^BSL-1/i,
+  // Business Source License (MariaDB) hay ghi "BSL-1.1". KHÔNG khớp `BSL-1.0`: đó là Boost Software License (SPDX, permissive,
+  // có trong debian/copyright của glibc/sed) — khớp nhầm làm `image-scan (postgres|node-base)` đỏ ở T-802.
+  /^BSL-1\.1/i,
   /^SSPL-/i,
   /^Elastic-/i,
   /^ELv2$/i,
