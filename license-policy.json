@@ -1,5 +1,5 @@
 {
-  "$comment": "Chính sách giấy phép phụ thuộc (CMP-LIC-002, BASE-DEP-005, ADR-0002 'không AGPL'; D-057). Theo SPDX id. Gói có giấy phép KHÔNG nằm trong `allow` → đỏ (deny/review/không xác định đều đỏ, khác nhau ở thông báo). Ngoại lệ phải có đủ package/license/reason/approved_by/expires (YYYY-MM-DD, tính tới hết ngày đó theo UTC); hết hạn hoặc thiếu trường → scripts/check-licenses.mjs đỏ. Đọc bằng scripts/check-licenses.mjs; thêm vào `allow` cần quyết định ghi ở docs/autopilot/DECISIONS.md.",
+  "$comment": "Chính sách giấy phép phụ thuộc (CMP-LIC-002, BASE-DEP-005, ADR-0002 'không AGPL'; D-057). Theo SPDX id. Gói có giấy phép KHÔNG nằm trong `allow` → đỏ (deny/review/không xác định đều đỏ, khác nhau ở thông báo). Ngoại lệ phải có đủ package/license/reason/approved_by/expires (YYYY-MM-DD, tính tới hết ngày đó theo UTC); hết hạn hoặc thiếu trường → scripts/check-licenses.mjs đỏ. Đọc bằng scripts/check-licenses.mjs; thêm vào `allow` cần quyết định ghi ở docs/autopilot/DECISIONS.md. `sbom_exceptions` (CMP-LIC-004): ngoại lệ cho thành phần SBOM có giấy phép NOASSERTION/UNKNOWN hoặc source-available — cùng 5 trường như `exceptions`, source-available còn phải ghi ADR-NNNN trong reason; đọc bằng scripts/sbom-check.mjs.",
   "schema": 1,
   "allow": [
     "MIT",
@@ -43,5 +43,6 @@
     "CC-BY-SA-4.0",
     "OFL-1.1"
   ],
-  "exceptions": []
+  "exceptions": [],
+  "sbom_exceptions": []
 }

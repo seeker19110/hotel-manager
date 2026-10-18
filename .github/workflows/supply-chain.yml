@@ -1,0 +1,126 @@
+name: Supply chain
+
+# SBOM + quét lỗ hổng (BASE-DEP-009, OPS-MAINT-004, CMP-LIC-003, CMP-LIC-004; docs/ops/VULN-SLA.md):
+#  · sbom: SBOM CycloneDX của phụ thuộc npm (scripts/sbom.mjs) → kiểm giấy phép (scripts/sbom-check.mjs: ≥ 99% có giấy phép,
+#    không NOASSERTION/UNKNOWN/source-available ngoài ngoại lệ có hạn) → grype quét SBOM, đỏ khi có lỗ hổng high/critical có bản sửa.
+#  · image-scan: mỗi image triển khai (postgres+pgBackRest build từ deploy/postgres, image nền của web/worker, seaweedfs, caddy):
+#    SBOM bằng syft → cùng bước kiểm giấy phép → grype quét OS + gói, đỏ khi có high/critical có bản sửa.
+# Chạy mỗi PR, push main, HẰNG TUẦN (quét lại SBOM với cơ sở dữ liệu lỗ hổng mới) và chạy tay. SBOM lưu làm artifact 90 ngày.
+# `only-fixed`: lỗ hổng chưa có bản sửa không chặn build (không ai sửa được) mà vào báo cáo artifact + SLA theo dõi ở VULN-SLA.md.
+# Danh sách image ở `matrix` phải khớp deploy/ (scripts/supply-chain.test.mjs kiểm).
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  sbom:
+    name: sbom
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24.22.0"
+          cache: pnpm
+      - name: Cài phụ thuộc (lockfile đóng băng, không chạy script)
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: SBOM CycloneDX của phụ thuộc npm
+        run: node scripts/sbom.mjs --out sbom/npm.cdx.json --timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      - name: Kiểm giấy phép trong SBOM (CMP-LIC-003/004)
+        run: node scripts/sbom-check.mjs sbom/npm.cdx.json
+      - name: Quét lỗ hổng theo SBOM (grype, đỏ khi high/critical có bản sửa)
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
+        with:
+          sbom: sbom/npm.cdx.json
+          fail-build: "true"
+          severity-cutoff: high
+          only-fixed: "true"
+          output-format: json
+          output-file: sbom/npm.grype.json
+      - name: Lưu SBOM và báo cáo quét
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sbom-npm
+          path: sbom/
+          retention-days: 90
+
+  image-scan:
+    name: image-scan (${{ matrix.name }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Build tại chỗ từ Dockerfile của repo (base ghim digest + pgBackRest từ PGDG).
+          - name: postgres
+            build: deploy/postgres
+            ref: hm-postgres:scan
+          # Image nền của web/worker (deploy/web.Dockerfile, deploy/worker.Dockerfile) — web/worker chưa build thật trong CI.
+          - name: node-base
+            ref: node:24.22.0-trixie-slim@sha256:7f486cabe892bff8fef04c0f7da8dba84a560be3e4e2740b7a86afc57ebec315
+          - name: seaweedfs
+            ref: chrislusf/seaweedfs:4.48@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d
+          - name: caddy
+            ref: caddy:2.11.7-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24.22.0"
+      - name: Build image từ Dockerfile của repo
+        if: matrix.build != ''
+        env:
+          BUILD_DIR: ${{ matrix.build }}
+          IMAGE_REF: ${{ matrix.ref }}
+        run: docker build --tag "$IMAGE_REF" "$BUILD_DIR"
+      - name: Kéo image đã ghim digest
+        if: matrix.build == ''
+        env:
+          IMAGE_REF: ${{ matrix.ref }}
+        run: docker pull "$IMAGE_REF"
+      - name: SBOM CycloneDX của image (syft)
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        env:
+          # Binary Go (seaweedfs, caddy): tra giấy phép module từ proxy công khai để SBOM có trường license.
+          SYFT_GOLANG_SEARCH_REMOTE_LICENSES: "true"
+          SYFT_GOLANG_USE_PROXY: "true"
+        with:
+          image: ${{ matrix.ref }}
+          format: cyclonedx-json
+          output-file: sbom/${{ matrix.name }}.cdx.json
+          upload-artifact: "false"
+          upload-release-assets: "false"
+      - name: Kiểm giấy phép trong SBOM (CMP-LIC-003/004)
+        run: node scripts/sbom-check.mjs "sbom/${{ matrix.name }}.cdx.json"
+      - name: Quét lỗ hổng image + hệ điều hành (grype, đỏ khi high/critical có bản sửa)
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
+        with:
+          image: ${{ matrix.ref }}
+          fail-build: "true"
+          severity-cutoff: high
+          only-fixed: "true"
+          output-format: json
+          output-file: sbom/${{ matrix.name }}.grype.json
+      - name: Lưu SBOM và báo cáo quét
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sbom-image-${{ matrix.name }}
+          path: sbom/
+          retention-days: 90
