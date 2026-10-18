@@ -1,8 +1,8 @@
 # Bỏ qua CÓ HẠN các lỗ hổng high/critical đã có bản sửa ở thượng nguồn nhưng CHƯA có image vá (T-802; docs/ops/VULN-SLA.md).
 # Mỗi luật: đúng 1 mã lỗ hổng + đúng gói/phiên bản (nâng gói/image thì luật tự hết khớp) + `reason` có "hạn rà lại: YYYY-MM-DD"
-# (≤ 30 ngày, critical ≤ 7 ngày) và mã nằm ở bảng "Theo dõi" của VULN-SLA.md — scripts/supply-chain.test.mjs kiểm; quá hạn → test đỏ.
+# (≤ 30 ngày, critical ≤ 7 ngày) và mã nằm ở bảng "Theo dõi" của VULN-SLA.md — scripts/grype-ignore-check.mjs kiểm ở job image-scan (mỗi PR + hằng tuần); quá hạn → job đỏ.
 # Không có ngoại lệ ngầm: tắt `only-fixed`/hạ `severity-cutoff` bị cấm; gỡ luật ngay khi có image vá (grype-config không nằm ở workflow:
-# grype tự đọc tệp này ở thư mục gốc repo). D-NNN do phiên chính ghi bằng `xt.py loop decide` (xem câu hỏi mở của PR).
+# grype tự đọc tệp này ở thư mục gốc repo). Quyết định: D-067 (docs/autopilot/DECISIONS.md).
 ignore:
   - vulnerability: GO-2026-6612
     reason: "Go stdlib 1.26.8 trong /usr/bin/caddy và /usr/bin/weed (Caddy 2.11.7, SeaweedFS 4.48); sửa ở Go 1.26.9, image thượng nguồn chưa dựng lại (hạn rà lại: 2026-10-25)"

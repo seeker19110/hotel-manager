@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 import { deployFiles, findUnpinned } from "./check-image-pins.mjs";
+import { checkGrypeIgnore, dayNumber, parseGrypeIgnore, parseTracked } from "./grype-ignore-check.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const read = (rel) => readFileSync(join(ROOT, rel), "utf8");
@@ -325,9 +326,6 @@ describe(".grype.yaml: bỏ qua lỗ hổng chỉ khi có hạn, có theo dõi, 
   const cfg = yml(".grype.yaml");
   const rules = cfg.ignore;
   const sla = read("docs/ops/VULN-SLA.md");
-  const today = new Date().toISOString().slice(0, 10);
-  const horizon = new Date(`${today}T00:00:00Z`);
-  horizon.setUTCDate(horizon.getUTCDate() + 30); // VULN-SLA: ngoại lệ ≤ 30 ngày
   const dueOf = (r) => /hạn rà lại: (\d{4}-\d{2}-\d{2})/.exec(r.reason ?? "")?.[1];
 
   it("mỗi luật: đúng một mã, gói + phiên bản + loại cụ thể, không bỏ qua cả gói", () => {
@@ -345,29 +343,23 @@ describe(".grype.yaml: bỏ qua lỗ hổng chỉ khi có hạn, có theo dõi, 
     );
     expect(new Set(keys).size).toBe(keys.length);
   });
-  it("mỗi luật có 'hạn rà lại' hợp lệ, chưa quá hạn, ≤ 30 ngày kể từ hôm nay", () => {
+  it("mỗi luật có 'hạn rà lại' đúng định dạng và là ngày thật (kiểm HẠN nằm ở job image-scan, D-067)", () => {
     for (const r of rules) {
       const due = dueOf(r);
       expect(due, `${r.vulnerability} thiếu "hạn rà lại: YYYY-MM-DD"`).toBeTruthy();
-      expect(new Date(`${due}T00:00:00Z`).toISOString().slice(0, 10), r.vulnerability).toBe(due);
-      expect(due >= today, `${r.vulnerability} đã quá hạn ${due} — nâng image hoặc quyết định lại`).toBe(
-        true,
-      );
-      expect(due <= horizon.toISOString().slice(0, 10), `${r.vulnerability} hạn ${due} quá 30 ngày`).toBe(
-        true,
-      );
+      expect(dayNumber(due), `${r.vulnerability} ngày ${due} không hợp lệ`).not.toBeNull();
     }
   });
+  it("bộ đọc của grype-ignore-check khớp parser YAML thật trên .grype.yaml", () => {
+    expect(parseGrypeIgnore(read(".grype.yaml"))).toEqual(rules);
+  });
   it("mọi mã được bỏ qua đều nằm ở bảng Theo dõi của VULN-SLA.md", () => {
-    const tracked = sla.slice(sla.indexOf("## Theo dõi"));
-    for (const r of rules) {
-      const id = r.vulnerability;
-      // Bảng viết gọn "GO-2026-6603, 6605, …": chấp nhận mã đầy đủ hoặc số cuối của mã GO-.
-      const short = /^GO-\d{4}-(\d+)$/.exec(id)?.[1];
-      const found =
-        tracked.includes(id) || (short !== undefined && new RegExp(`\\b${short}\\b`).test(tracked));
-      expect(found, `${id} chưa có trong bảng Theo dõi`).toBe(true);
-    }
+    const tracked = parseTracked(sla);
+    for (const r of rules)
+      expect(tracked.has(r.vulnerability), `${r.vulnerability} chưa có trong bảng Theo dõi`).toBe(true);
+    // Mức Critical đọc được từ bảng (cơ sở của trần 7 ngày).
+    expect(tracked.get("GO-2026-6612")).toBe("critical");
+    expect(tracked.get("GO-2026-6603")).toBe("high");
   });
   it("workflow không nới: cutoff high, only-fixed, fail-build; không có grype-config/continue-on-error", () => {
     const wf = read(".github/workflows/supply-chain.yml");
@@ -393,5 +385,83 @@ describe(".grype.yaml: bỏ qua lỗ hổng chỉ khi có hạn, có theo dõi, 
       expect(runtime, f).toContain("/usr/local/bin/npm");
       expect(rm, `${f}: xoá npm phải trước USER node`).toBeLessThan(runtime.indexOf("USER node"));
     }
+  });
+});
+
+// ---------------------------------------------------------------- grype-ignore-check: hạn với "hôm nay" cố định (không đọc đồng hồ)
+describe("scripts/grype-ignore-check.mjs (D-067): kiểm hạn ngoại lệ grype", () => {
+  const SLA = [
+    "## Theo dõi (lỗ hổng chưa có bản sửa)",
+    "| Image / gói | Mã (mức) | Sửa ở | Hạn rà lại | Ghi chú |",
+    "|---|---|---|---|---|",
+    "| `a` | GO-2026-1001 (Critical), GO-2026-1002 (Critical) | x | 2026-10-25 | y |",
+    "| `a` | GO-2026-2001, 2002, 2003 (High) | x | 2026-11-01 | y |",
+    "| `b` | CVE-2026-9001 (High) | x | 2026-11-01 | y |",
+  ].join("\n");
+  const rule = (id, due, extra = {}) => ({
+    vulnerability: id,
+    reason: due === null ? "không có hạn" : `lý do (hạn rà lại: ${due})`,
+    package: { name: "stdlib", version: "go1.26.8", type: "go-module", ...extra },
+  });
+  const run = (rules, today, sla = SLA) => checkGrypeIgnore({ rules, sla, today });
+
+  it("hợp lệ: critical đúng 7 ngày, high 14 ngày, hạn đúng ngày hôm nay", () => {
+    expect(
+      run([rule("GO-2026-1001", "2026-10-25"), rule("GO-2026-2002", "2026-11-01")], "2026-10-18"),
+    ).toEqual([]);
+    expect(run([rule("GO-2026-2001", "2026-10-18")], "2026-10-18")).toEqual([]); // hạn = hôm nay: chưa quá
+    expect(run([rule("CVE-2026-9001", "2026-11-17")], "2026-10-18")).toEqual([]); // đúng 30 ngày
+  });
+  it("quá hạn (hôm nay > hạn) → lỗi, kể cả quá 1 ngày", () => {
+    const e = run([rule("GO-2026-1001", "2026-10-25")], "2026-10-26");
+    expect(e).toHaveLength(1);
+    expect(e[0]).toMatch(/GO-2026-1001.*quá hạn rà lại 2026-10-25/);
+  });
+  it("xa hơn 30 ngày → lỗi; critical xa hơn 7 ngày → lỗi", () => {
+    expect(run([rule("CVE-2026-9001", "2026-11-18")], "2026-10-18")[0]).toMatch(/xa quá 30 ngày/);
+    const e = run([rule("GO-2026-1001", "2026-10-26")], "2026-10-18");
+    expect(e[0]).toMatch(/xa quá 7 ngày.*Critical/);
+    expect(run([rule("GO-2026-2001", "2026-10-26")], "2026-10-18")).toEqual([]); // cùng hạn nhưng mức High → ≤ 30 ngày
+  });
+  it("thiếu hạn hoặc ngày không có thật (2026-02-30) → lỗi", () => {
+    expect(run([rule("GO-2026-2001", null)], "2026-10-18")[0]).toMatch(/thiếu "hạn rà lại/);
+    expect(run([rule("GO-2026-2001", "2026-02-30")], "2026-10-18")[0]).toMatch(/không hợp lệ: 2026-02-30/);
+  });
+  it("mã không có trong bảng Theo dõi (hoặc bảng rỗng/không có mục) → lỗi", () => {
+    expect(run([rule("GO-2026-7777", "2026-10-25")], "2026-10-18")[0]).toMatch(
+      /chưa có trong bảng "Theo dõi"/,
+    );
+    expect(run([rule("GO-2026-2001", "2026-10-25")], "2026-10-18", "")[0]).toMatch(/chưa có trong bảng/);
+    // Số trần chỉ hợp lệ khi đứng sau mã GO- đầy đủ: 1001 là Critical ở dòng khác, không bị hiểu thành High.
+    expect(parseTracked(SLA).get("GO-2026-2003")).toBe("high");
+    expect(parseTracked(SLA).get("GO-2026-1001")).toBe("critical");
+  });
+  it("thiếu package.name/version/type, mã sai định dạng, --today sai, danh sách luật rỗng → lỗi", () => {
+    expect(run([rule("GO-2026-2001", "2026-10-25", { version: "" })], "2026-10-18")[0]).toMatch(
+      /thiếu package\.version/,
+    );
+    expect(run([rule("lung-tung", "2026-10-25")], "2026-10-18").join("\n")).toMatch(
+      /mã lỗ hổng không hợp lệ/,
+    );
+    expect(run([rule("GO-2026-2001", "2026-10-25")], "18/10/2026")[0]).toMatch(/--today không hợp lệ/);
+    expect(run([], "2026-10-18")[0]).toMatch(/không có luật ignore/);
+  });
+  it("bộ đọc từ chối dòng lạ thay vì đoán; dayNumber loại ngày không có thật", () => {
+    expect(() =>
+      parseGrypeIgnore("ignore:\n  - vulnerability: GO-2026-1\n    mat-ma: x: y: z\n    ???\n"),
+    ).toThrow(/dòng 3/);
+    expect(() => parseGrypeIgnore("ignore:\n    reason: x\n")).toThrow(/dòng 2/);
+    expect(dayNumber("2026-02-29")).toBeNull();
+    expect(dayNumber("2028-02-29")).not.toBeNull();
+    expect(dayNumber(undefined)).toBeNull();
+  });
+  it("job image-scan gọi script kiểm hạn TRƯỚC bước grype, không continue-on-error", () => {
+    const s = steps(yml(".github/workflows/supply-chain.yml"), "image-scan");
+    const iCheck = s.findIndex((x) => (x.run ?? "").trim() === "node scripts/grype-ignore-check.mjs");
+    const iGrype = s.findIndex((x) => x.uses?.startsWith("anchore/scan-action@"));
+    expect(iCheck).toBeGreaterThan(-1);
+    expect(iGrype).toBeGreaterThan(iCheck);
+    expect(s[iCheck]["continue-on-error"]).toBeUndefined();
+    expect(s[iCheck].if).toBeUndefined(); // chạy mọi lần (PR + hằng tuần), không điều kiện
   });
 });

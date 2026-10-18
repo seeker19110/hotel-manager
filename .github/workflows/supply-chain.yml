@@ -117,6 +117,8 @@ jobs:
         env:
           IMAGE_NAME: ${{ matrix.name }}
         run: node scripts/sbom-check.mjs "sbom/${IMAGE_NAME}.cdx.json"
+      - name: Kiểm hạn ngoại lệ .grype.yaml (D-067; quá hạn hoặc thiếu theo dõi → đỏ)
+        run: node scripts/grype-ignore-check.mjs
       - name: Quét lỗ hổng image + hệ điều hành (grype, đỏ khi high/critical có bản sửa)
         uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
         with:

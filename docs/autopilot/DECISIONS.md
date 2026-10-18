@@ -454,3 +454,11 @@
 - Lý do (tiêu chí chất lượng cuối): Tránh xung đột main.json giữa 6 lát; job đỏ vẫn hiện trên PR và review độc lập chặn merge tay; tick ghi đúng mức chặn thật; import ruleset là việc người
 - Đường lùi: Xoá context khỏi main.json ở PR cuối; bỏ ghi chú trong Bằng chứng
 - Khi chạy thật (đề xuất, chủ dự án quyết ở G7): Chủ dự án import .github/rulesets/main.json sau khi mọi job mới xanh ít nhất một lần trên PR
+
+### D-067 · 2026-10-18T01:17:15+00:00 · T-802 image-scan: lỗ hổng high/critical có bản sửa thượng nguồn nhưng chưa có image vá (Go stdlib/x-net trong caddy & seaweedfs, npm đi kèm node, zlib alpine của caddy) — xử lý thế nào?
+
+- Phương án: (1) Ngoại lệ CÓ HẠN trong .grype.yaml (đúng mã+gói+phiên bản; critical ≤ 7 ngày, high ≤ 30 ngày), theo dõi ở VULN-SLA.md; xoá npm khỏi runtime web/worker; zlib caddy: ngoại lệ 14 ngày (caddy là Go thuần, không dùng zlib hệ thống); kiểm hạn ở job image-scan (PR + hằng tuần), KHÔNG ở unit test (cổng không phụ thuộc ngày chạy) · (2) Image dẫn xuất FROM caddy/seaweedfs + apk upgrade (đổi compose sang build:) · (3) Hạ severity-cutoff/tắt only-fixed
+- Chọn: Ngoại lệ CÓ HẠN trong .grype.yaml (đúng mã+gói+phiên bản; critical ≤ 7 ngày, high ≤ 30 ngày), theo dõi ở VULN-SLA.md; xoá npm khỏi runtime web/worker; zlib caddy: ngoại lệ 14 ngày (caddy là Go thuần, không dùng zlib hệ thống); kiểm hạn ở job image-scan (PR + hằng tuần), KHÔNG ở unit test (cổng không phụ thuộc ngày chạy)
+- Lý do (tiêu chí chất lượng cuối): Không sửa được từ repo (thượng nguồn chưa build lại); ngoại lệ hẹp tự hết khớp khi nâng; image dẫn xuất đổi cách triển khai mà Go stdlib vẫn phải ngoại lệ; hạ ngưỡng bị cấm
+- Đường lùi: Xoá luật trong .grype.yaml khi có image vá; bỏ RUN rm npm trong deploy/*.Dockerfile
+- Khi chạy thật (đề xuất, chủ dự án quyết ở G7): Chủ dự án theo dõi bảng 'Theo dõi' của VULN-SLA.md; cân nhắc image dẫn xuất nếu thượng nguồn chậm quá hạn
