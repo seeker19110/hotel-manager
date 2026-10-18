@@ -430,3 +430,11 @@
 - Chọn: Giữ CODEOWNERS (@seeker19110) nhưng không thêm vào merge_risk_paths; WF-REVIEW-007 chưa tick, chờ chủ dự án quyết
 - Lý do (tiêu chí chất lượng cuối): (2) đường lùi: chủ dự án đã duyệt đợt 9 sửa CI/công cụ và muốn tự merge từng lát; thêm vào merge_risk_paths đổi chính sách merge (điểm dừng) nên để chủ dự án quyết
 - Đường lùi: Thêm glob vào merge_risk_paths trong xt.yaml
+
+### D-061 · 2026-10-18T00:08:36+00:00 · T-802: chọn công cụ chuỗi cung ứng
+
+- Phương án: (1) grype (anchore/scan-action, only-fixed, chặn high/critical; lỗ hổng chưa có bản sửa theo dõi trong VULN-SLA.md) + SBOM CycloneDX 1.6 tự sinh (scripts/sbom.mjs) + syft cho image + new-deps chỉ chặn phụ thuộc trực tiếp · (2) trivy + cdxgen, chặn cả lỗ hổng chưa có bản sửa
+- Chọn: grype (anchore/scan-action, only-fixed, chặn high/critical; lỗ hổng chưa có bản sửa theo dõi trong VULN-SLA.md) + SBOM CycloneDX 1.6 tự sinh (scripts/sbom.mjs) + syft cho image + new-deps chỉ chặn phụ thuộc trực tiếp
+- Lý do (tiêu chí chất lượng cuối): (3) ít phụ thuộc, OSI, action ghim SHA; chặn cái sửa được, theo dõi cái chưa sửa được có SLA — không đỏ vĩnh viễn vì việc ngoài tầm
+- Đường lùi: Đổi only-fixed=false hoặc thay action quét
+- Khi chạy thật (đề xuất, chủ dự án quyết ở G7): Chủ dự án quyết ngoại lệ giấy phép LGPL-3.0 của @img/sharp-libvips (dynamic link, dùng cho tối ưu ảnh Next) khi mở rộng licenses:check quét toàn workspace (148 gói)

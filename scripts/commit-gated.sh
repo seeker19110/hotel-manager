@@ -16,6 +16,8 @@ if git -C "$root" diff --cached --quiet; then
   echo "✗ Chưa stage gì — git add <file…> trước." >&2
   exit 1
 fi
+# Conventional Commits 1.0.0, dòng đầu ≤ 72 ký tự (BASE-REPO-005) — kiểm trước khi tốn thời gian chạy cổng.
+node "$root/scripts/commit-lint.mjs" --message "$msg" >&2 || exit 1
 log="$(mktemp)"
 if ! NEXT_TELEMETRY_DISABLED=1 "$root/.xtemplates/scripts/dev-task.sh" gate >"$log" 2>&1; then
   tail -40 "$log" >&2

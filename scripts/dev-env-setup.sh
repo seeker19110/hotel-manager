@@ -11,6 +11,9 @@ NODE_SHA256="cc2f601cee82d9a5a233302fe307abc600727035fd7d2c3a3571755989e95008"
 PNPM_VERSION="12.11.2"
 WEED_VERSION="4.48"
 WEED_SHA256="4a7d108384d044d95212d1342cdda9533fa55842c1c9b41f606ca3c8a9561124"
+# gitleaks (quét log CI tìm bí mật — SEC-SECRET-007): binary linux_x64 từ GitHub release, kiểm SHA-256 (checksums.txt của release v8.30.1).
+GITLEAKS_VERSION="8.30.1"
+GITLEAKS_SHA256="551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
 PG_MAJOR="17"
 PGDG_KEY_FPR="B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8"
 
@@ -65,6 +68,19 @@ install_weed() {
   ln -sf "$dest/weed" "$BIN_DIR/weed"
 }
 
+install_gitleaks() {
+  local dest="${OPT_DIR}/gitleaks-${GITLEAKS_VERSION}"
+  if [ ! -x "$dest/gitleaks" ]; then
+    curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" -o "$tmp/gitleaks.tgz"
+    echo "${GITLEAKS_SHA256}  $tmp/gitleaks.tgz" | sha256sum -c --quiet -
+    $SUDO mkdir -p "$dest"
+    $SUDO tar -xzf "$tmp/gitleaks.tgz" -C "$dest" gitleaks
+    log "đã cài gitleaks ${GITLEAKS_VERSION}"
+  fi
+  mkdir -p "$BIN_DIR"
+  ln -sf "$dest/gitleaks" "$BIN_DIR/gitleaks"
+}
+
 install_node() {
   local dest="${OPT_DIR}/node-v${NODE_VERSION}"
   if [ ! -x "$dest/bin/node" ]; then
@@ -84,12 +100,14 @@ install_node() {
   ln -sf "$dest/bin/pnpm" "$BIN_DIR/pnpm"
 }
 
-# --only <thành phần,...>: cài một phần (vd CI chỉ cần `--only weed`). Mặc định: tất cả.
+# --only <thành phần,...>: cài một phần (vd CI chỉ cần `--only weed`). Mặc định: postgres, weed, node (gitleaks chỉ khi gọi tên).
 only="all"
 if [ "${1:-}" = "--only" ]; then only="${2:?thiếu danh sách sau --only}"; fi
 want() { [ "$only" = "all" ] || [[ ",$only," == *",$1,"* ]]; }
+want_named() { [[ ",$only," == *",$1,"* ]]; }
 
 want postgres && install_postgres
 want weed && install_weed
 want node && install_node
+want_named gitleaks && install_gitleaks
 log "xong — chạy scripts/dev-env-check.sh để kiểm. Cần ${BIN_DIR} đứng trước các node khác trong PATH."

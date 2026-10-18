@@ -1,0 +1,44 @@
+name: PR dependencies
+
+# BASE-DEP-006: PR thêm phụ thuộc trực tiếp mới (so pnpm-lock.yaml với nhánh gốc) mà mục "## Phụ thuộc mới" của mô tả PR
+# không khai đủ `tên · giấy phép · lý do · phương án thay thế đã xét` → đỏ. Chạy lại khi sửa mô tả PR (types: edited).
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-deps-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  new-deps:
+    name: new-deps
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24.22.0"
+          cache: pnpm
+      - name: Cài phụ thuộc (lockfile đóng băng, không chạy script)
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Lockfile của nhánh gốc
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          git fetch --no-tags --depth=1 origin "$BASE_REF"
+          git show FETCH_HEAD:pnpm-lock.yaml > "$RUNNER_TEMP/base-lock.yaml"
+      - name: So phụ thuộc mới với mô tả PR
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          printf '%s' "$PR_BODY" > "$RUNNER_TEMP/pr-body.md"
+          node scripts/new-deps-check.mjs --base-lock "$RUNNER_TEMP/base-lock.yaml" --body-file "$RUNNER_TEMP/pr-body.md"
