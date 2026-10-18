@@ -15,8 +15,10 @@ Quy tắc:
   (mục "Refactor / perf" của mẫu PR: ít nhất một hàng có cả cột Trước và Sau).
 - WF-TEAM-003 (DoR): PR `feat:`/`fix:` phải nêu ID (S-NNN, T-NNN, D-NNN, F-NNN, #NNN) ở mục "Mục tiêu / SPEC"; SPEC bị
   sửa trong PR mà đã Approved thì không được còn câu hỏi `[chặn]` chưa tick (dùng `check-blocking-questions.py`).
-- WF-REVIEW-002: mô tả PR (khi có `--body-file`) phải có mục tiêu + link spec/issue, cách đã xác minh (lệnh + exit code hoặc
-  link CI — không tính phần chữ có sẵn của mẫu), rủi ro + cách rollback.
+- WF-REVIEW-002: mô tả PR (khi có `--body-file`) phải có mục tiêu + link spec/issue, cách đã xác minh (`exit 0` hoặc link
+  lượt chạy CI — không tính phần chữ có sẵn của mẫu; `exit 1` không phải bằng chứng), rủi ro + cách rollback.
+  Mẫu nâng cấp MAJOR (`.github/PULL_REQUEST_TEMPLATE/major-upgrade.md`) có mục tương đương và được nhận: "Gói và phiên bản"
+  + "Đã đọc changelog" ≈ mục tiêu/link; "Kiểm chứng" ≈ "Bằng chứng cổng"; "Triển khai và đường lùi" ≈ cách rollback.
 - WF-SDD-003: PR `feat:` có bản đồ scenario → test ở mục "Tiêu chí chấp nhận" (dòng có S-NNN/AC-NN và đường dẫn test có thật),
   hoặc ghi "không áp dụng — lý do: …".
 - XC-GREEN-005 (bổ sung): PR `refactor:`/`perf:` điền hàng "Số test" (trước/sau); số test không giảm, tăng thì diff phải có file test.
@@ -35,6 +37,8 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+MAIN_TEMPLATE = ".github/pull_request_template.md"
+UPGRADE_TEMPLATE = ".github/PULL_REQUEST_TEMPLATE/major-upgrade.md"
 
 TITLE = re.compile(r"^(?P<type>[a-z]+)(?:\([^)]+\))?!?: \S")
 TYPES = {"feat", "fix", "docs", "style", "refactor", "perf", "test", "build", "ci", "chore", "revert"}
@@ -145,9 +149,9 @@ def meaningful(text: str) -> str:
     return re.sub(r"[\s\-*•…\.]", "", re.sub(r"\[[ xX]\]", "", text))
 
 
-def template_labels(section_name: str, root: Path = ROOT) -> list[str]:
-    """Nhãn có sẵn (chữ cố định) của các dòng checklist trong mục `section_name` của mẫu PR."""
-    path = root / ".github" / "pull_request_template.md"
+def template_labels(section_name: str, root: Path = ROOT, template: str = MAIN_TEMPLATE) -> list[str]:
+    """Nhãn có sẵn (chữ cố định) của các dòng checklist trong mục `section_name` của một mẫu PR."""
+    path = root / template
     if not path.exists():
         return []
     out = []
@@ -158,16 +162,80 @@ def template_labels(section_name: str, root: Path = ROOT) -> list[str]:
     return out
 
 
+def has_heading(body: str, heading: str) -> bool:
+    return re.search(rf"^## {re.escape(heading)}", body, re.M) is not None
+
+
+def is_upgrade_body(body: str) -> bool:
+    """Mô tả theo mẫu nâng cấp MAJOR: có 'Gói và phiên bản' và không có 'Mục tiêu / SPEC' của mẫu chính."""
+    return has_heading(body, "Gói và phiên bản") and not has_heading(body, "Mục tiêu / SPEC")
+
+
+def filled_value(body: str, heading: str, key: str, root: Path = ROOT, template: str = UPGRADE_TEMPLATE) -> str:
+    """Phần người điền ở dòng `- <key>…: …` của mẫu (bỏ nhãn cố định của mẫu); chưa điền → '' (chữ `…` là chỗ trống)."""
+    tpl = None
+    path = root / template
+    if path.exists():
+        tpl = next(
+            (ln.strip() for ln in section(path.read_text(encoding="utf-8"), heading).splitlines() if ln.strip().startswith(f"- {key}")),
+            None,
+        )
+    for line in section(body, heading).splitlines():
+        line = line.strip()
+        if not line.startswith(f"- {key}"):
+            continue
+        if tpl and "…" in tpl:
+            pre, _, suf = tpl.partition("…")
+            if line.startswith(pre):
+                rest = line[len(pre) :]
+                if suf and rest.endswith(suf):
+                    rest = rest[: -len(suf)]
+                return rest.strip(" …")
+        return line.split(":", 1)[1].strip(" …") if ":" in line else ""
+    return ""
+
+
+def upgrade_goal_problem(body: str, root: Path = ROOT) -> str | None:
+    """Mẫu nâng cấp MAJOR: gói + 'từ → đến' có số phiên bản + lý do nâng + nguồn changelog. Đạt → None, thiếu → lý do."""
+    pkg = filled_value(body, "Gói và phiên bản", "Gói / thành phần", root)
+    ver = filled_value(body, "Gói và phiên bản", "Từ → đến", root)
+    why = filled_value(body, "Gói và phiên bản", "Lý do nâng", root)
+    if len(meaningful(pkg)) < 2 or not re.search(r"\d", ver) or len(meaningful(why)) < 8:
+        return "mẫu nâng cấp: điền 'Gói và phiên bản' (gói, từ → đến có số phiên bản, lý do nâng) — thay cho 'Mục tiêu / SPEC'"
+    src = filled_value(body, "Đã đọc changelog / hướng dẫn nâng cấp", "Nguồn", root)
+    if not (LINK_OR_ID.search(src) or "chưa xác minh" in src.lower()):
+        return "mẫu nâng cấp: mục 'Nguồn' (changelog/hướng dẫn nâng cấp) thiếu link hoặc '(chưa xác minh)'"
+    return None
+
+
+def _strip_template_text(line: str, labels: list[str]) -> str:
+    """Bỏ chữ có sẵn của mẫu khỏi một dòng đã tick: nhãn nguyên văn, rồi phần đầu dòng trùng đầu nhãn (nhãn bị cắt/sửa đuôi)."""
+    for label in sorted(labels, key=len, reverse=True):
+        line = line.replace(label, "")
+    for label in labels:
+        n = 0
+        while n < min(len(line), len(label)) and line[n] == label[n]:
+            n += 1
+        if n >= 12:
+            return line[n:]
+    return line
+
+
+EXIT_ZERO = re.compile(r"\bexit(?:\s+code)?\s*[:=]?\s*0\b", re.I)
+
+
 def has_verification(body: str, root: Path = ROOT) -> bool:
-    """Mục 'Bằng chứng cổng' có dòng đã tick kèm lệnh + exit code hoặc link — ngoài phần chữ cố định của mẫu."""
-    text = " ".join(
-        re.sub(r"^\s*- \[x\]\s*", "", line, flags=re.I)
-        for line in section(body, "Bằng chứng cổng").splitlines()
-        if re.match(r"^\s*- \[x\]", line, re.I)
-    )
-    for label in sorted(template_labels("Bằng chứng cổng", root), key=len, reverse=True):
-        text = text.replace(label, "")
-    return bool(re.search(r"\bexit(?:\s+code)?\s*[:=]?\s*\d+|https?://\S+", text, re.I))
+    """Mục 'Bằng chứng cổng' (mẫu nâng cấp: 'Kiểm chứng') có dòng đã tick kèm `exit 0` hoặc link lượt chạy — ngoài chữ có sẵn
+    của mẫu. `exit 1`/exit khác 0 không phải bằng chứng xanh."""
+    sources = (("Bằng chứng cổng", MAIN_TEMPLATE), ("Kiểm chứng", UPGRADE_TEMPLATE))
+    parts = []
+    for heading, template in sources:
+        labels = template_labels(heading, root, template)
+        for line in section(body, heading).splitlines():
+            if re.match(r"^\s*- \[x\]", line, re.I):
+                parts.append(_strip_template_text(re.sub(r"^\s*- \[x\]\s*", "", line, flags=re.I), labels))
+    text = " ".join(parts)
+    return bool(EXIT_ZERO.search(text) or re.search(r"https?://\S+", text))
 
 
 def test_counts(body: str) -> tuple[int, int] | None:
@@ -192,8 +260,13 @@ def check_body(
     files = [f.strip() for f in (files or []) if f.strip()]
     kind = pr_type(title) if title is not None else None
 
+    upgrade = is_upgrade_body(body)
     goal = section(body, "Mục tiêu / SPEC")
-    if len(meaningful(goal)) < 12:
+    if upgrade:
+        problem = upgrade_goal_problem(body, root)
+        if problem:
+            warns.append(("WF-REVIEW-002", problem))
+    elif len(meaningful(goal)) < 12:
         warns.append(("WF-REVIEW-002", "mục 'Mục tiêu / SPEC' còn trống — nêu mục tiêu và link spec/issue"))
     elif kind not in ("feat", "fix") and not LINK_OR_ID.search(goal):
         warns.append(("WF-REVIEW-002", "mục 'Mục tiêu / SPEC' thiếu link/ID spec hoặc issue (S-NNN, T-NNN, D-NNN, #issue, URL)"))
@@ -202,12 +275,16 @@ def check_body(
         warns.append(
             (
                 "WF-REVIEW-002",
-                "mục 'Bằng chứng cổng': tick và ghi lệnh + exit code hoặc link CI (không tính chữ có sẵn của mẫu)",
+                "mục 'Bằng chứng cổng' (mẫu nâng cấp: 'Kiểm chứng'): tick và ghi `exit 0` thật hoặc link lượt chạy CI "
+                "(không tính chữ có sẵn của mẫu; exit khác 0 không phải bằng chứng)",
             )
         )
 
     risk = section(body, "Rủi ro")
-    if len(meaningful(risk)) < 20 or not ROLLBACK.search(risk):
+    rollback_text = risk
+    if upgrade:  # mẫu nâng cấp ghi đường lùi ở mục 'Triển khai và đường lùi'
+        rollback_text += " " + filled_value(body, "Triển khai và đường lùi", "Đường lùi", root)
+    if len(meaningful(risk)) < 20 or not ROLLBACK.search(rollback_text):
         warns.append(("WF-REVIEW-002", "mục 'Rủi ro' phải nêu rủi ro và cách rollback/quay lại"))
 
     if kind == "feat":

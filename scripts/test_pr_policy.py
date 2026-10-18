@@ -1,6 +1,7 @@
 import importlib.util
 import io
 import re
+import sys
 import tempfile
 import unittest
 from contextlib import redirect_stdout
@@ -10,7 +11,9 @@ _spec = importlib.util.spec_from_file_location("pr_policy", Path(__file__).with_
 mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(mod)
 
-TEMPLATE = (Path(__file__).resolve().parent.parent / ".github" / "pull_request_template.md").read_text(encoding="utf-8")
+REPO = Path(__file__).resolve().parent.parent
+TEMPLATE = (REPO / ".github" / "pull_request_template.md").read_text(encoding="utf-8")
+UPGRADE = (REPO / ".github" / "PULL_REQUEST_TEMPLATE" / "major-upgrade.md").read_text(encoding="utf-8")
 
 
 def codes(warns):
@@ -221,6 +224,121 @@ class ReviewBodyTest(unittest.TestCase):
         for ok in ("Sai thì chặn nhầm PR hợp lệ; quay lại bằng revert.", "Ảnh hưởng nhỏ — khôi phục từ bản sao lưu PITR."):
             with self.subTest(risk=ok):
                 self.assertEqual(self.run_body(full(risk=ok)), [])
+
+
+class VerificationEvidenceTest(unittest.TestCase):
+    """🟡4: chỉ `exit 0` hoặc link lượt chạy, ngoài chữ có sẵn của mẫu; exit khác 0 không phải bằng chứng."""
+
+    LINE = TEMPLATE.split("## Bằng chứng cổng")[1].split("\n- [ ] ", 1)[1].split("\n", 1)[0]  # dòng gate của mẫu
+
+    def gate(self, text):
+        return f"## Bằng chứng cổng\n{text}\n\n## Rủi ro\n"
+
+    def test_tick_dong_mau_roi_ghi_da_chay_van_do(self):
+        self.assertFalse(mod.has_verification(self.gate(f"- [x] {self.LINE} đã chạy")))
+        # nhãn bị cắt đuôi nhưng vẫn mang chữ `exit 0` có sẵn của mẫu
+        self.assertFalse(mod.has_verification(self.gate("- [x] `.xtemplates/scripts/dev-task.sh gate` exit 0 đã chạy")))
+        self.assertFalse(mod.has_verification(self.gate(f"- [x] {self.LINE}")))
+
+    def test_exit_khac_0_khong_phai_bang_chung(self):
+        for text in ("gate exit 1", "gate exit code 2", "exit 10", "exit 01", "exit code ?", "exit -1"):
+            with self.subTest(text=text):
+                self.assertFalse(mod.has_verification(self.gate(f"- [x] {text}")))
+
+    def test_exit_0_hoac_link_thi_dat(self):
+        for text in ("gate exit 0", "gate exit code 0", "gate exit: 0", "CI https://github.com/o/r/actions/runs/1"):
+            with self.subTest(text=text):
+                self.assertTrue(mod.has_verification(self.gate(f"- [x] {text}")))
+        self.assertTrue(mod.has_verification(self.gate(f"- [x] {self.LINE}: exit 0")))
+        self.assertTrue(mod.has_verification(self.gate("- [x] `.xtemplates/scripts/dev-task.sh gate` exit 0 — kết quả exit 0 lúc 10:00")))
+
+    def test_chua_tick_thi_khong_tinh(self):
+        self.assertFalse(mod.has_verification(self.gate("- [ ] gate exit 0 https://example.test/x")))
+        self.assertFalse(mod.has_verification(""))
+
+
+def fill_upgrade(text=UPGRADE, **skip):
+    """Điền mẫu nâng cấp MAJOR đúng hướng dẫn (bỏ qua các khoá trong `skip` để thử thiếu)."""
+    edits = {
+        "pkg": ("- Gói / thành phần: …", "- Gói / thành phần: next"),
+        "ver": ("- Từ → đến (ghim đúng phiên bản, không dải): … → …", "- Từ → đến (ghim đúng phiên bản, không dải): 15.5.4 → 16.0.1"),
+        "why": (
+            "- Lý do nâng (lỗ hổng, hết hỗ trợ — ghi ngày EOL —, tính năng cần): …",
+            "- Lý do nâng (lỗ hổng, hết hỗ trợ — ghi ngày EOL —, tính năng cần): bản 15 hết hỗ trợ ngày 2026-11-01",
+        ),
+        "src": ("- Nguồn: …", "- Nguồn: https://nextjs.org/docs/app/guides/upgrading"),
+        "gate": (
+            "- [ ] `.xtemplates/scripts/dev-task.sh gate` exit 0 — dán kết quả/link CI",
+            "- [x] `.xtemplates/scripts/dev-task.sh gate` exit 0 — dán kết quả/link CI: https://github.com/o/r/actions/runs/7",
+        ),
+        "back": (
+            "migration có `down`): …",
+            "migration có `down`): revert PR này rồi ghim lại 15.5.4",
+        ),
+        "risk": ("## Rủi ro\n", "## Rủi ro\nBuild/route lỗi nếu API đổi; phát hiện qua E2E, tắt bằng revert.\n"),
+    }
+    for key, (a, b) in edits.items():
+        if key not in skip:
+            assert a in text, a
+            text = text.replace(a, b, 1)
+    return text
+
+
+class MajorUpgradeTemplateTest(unittest.TestCase):
+    """🟠2: mẫu `major-upgrade.md` điền đủ phải qua `--strict`; để trống thì đỏ."""
+
+    TITLE = "chore(deps): nâng next lên 16"
+    FILES = ["package.json", "pnpm-lock.yaml"]
+
+    def warns(self, text):
+        return mod.check(self.FILES, self.TITLE, text, [self.TITLE], labels=["major"]) + mod.check_body(text, self.TITLE, self.FILES)
+
+    def cli_rc(self, text):
+        with tempfile.TemporaryDirectory() as d:
+            f = Path(d) / "pr.md"
+            f.write_text(text, encoding="utf-8")
+            old = sys.stdin
+            sys.stdin = io.StringIO("\n".join(self.FILES) + "\n")
+            try:
+                with redirect_stdout(io.StringIO()):
+                    return mod.main(["--files", "-", "--title", self.TITLE, "--body-file", str(f), "--labels", "major", "--strict"])
+            finally:
+                sys.stdin = old
+
+    def test_dien_du_thi_qua_strict(self):
+        self.assertEqual(self.warns(fill_upgrade()), [])
+        self.assertEqual(self.cli_rc(fill_upgrade()), 0)
+
+    def test_de_trong_thi_do(self):
+        w = self.warns(UPGRADE)
+        self.assertGreaterEqual(codes(w).count("WF-REVIEW-002"), 3)  # mục tiêu, bằng chứng, rủi ro/rollback
+        self.assertEqual(self.cli_rc(UPGRADE), 1)
+
+    def test_thieu_tung_muc_thi_do(self):
+        for missing in ("pkg", "ver", "why", "src", "gate", "risk"):
+            with self.subTest(missing=missing):
+                self.assertIn("WF-REVIEW-002", codes(self.warns(fill_upgrade(**{missing: True}))))
+                self.assertEqual(self.cli_rc(fill_upgrade(**{missing: True})), 1)
+
+    def test_duong_lui_o_muc_trien_khai_duoc_tinh_la_rollback(self):
+        text = fill_upgrade(risk=True).replace("## Rủi ro\n", "## Rủi ro\nBuild/route lỗi nếu API đổi; phát hiện qua E2E.\n", 1)
+        self.assertEqual(self.warns(text), [])  # rollback nằm ở 'Đường lùi', rủi ro ở 'Rủi ro'
+        self.assertIn("WF-REVIEW-002", codes(self.warns(fill_upgrade(risk=True, back=True))))  # không ở đâu cả → đỏ
+
+    def test_nguon_chua_xac_minh_duoc_chap_nhan(self):
+        text = fill_upgrade(src=True).replace("- Nguồn: …", "- Nguồn: (chưa xác minh)", 1)
+        self.assertEqual(self.warns(text), [])
+
+    def test_chu_co_san_cua_mau_khong_tinh_la_da_dien(self):
+        # tick sẵn dòng gate mà không ghi thêm gì → vẫn đỏ; nhãn "Đường lùi" có chữ revert của mẫu không tính là rollback
+        text = fill_upgrade(gate=True).replace("- [ ] `.xtemplates", "- [x] `.xtemplates", 1)
+        self.assertIn("WF-REVIEW-002", codes(self.warns(text)))
+        self.assertIn("WF-REVIEW-002", codes(self.warns(fill_upgrade(back=True, risk=True))))
+
+    def test_mau_chinh_khong_bi_anh_huong(self):
+        self.assertTrue(mod.is_upgrade_body(UPGRADE))
+        self.assertFalse(mod.is_upgrade_body(TEMPLATE))
+        self.assertFalse(mod.is_upgrade_body(fill_upgrade() + "\n## Mục tiêu / SPEC\nx"))
 
 
 class ScenarioMapTest(unittest.TestCase):
