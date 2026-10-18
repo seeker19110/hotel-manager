@@ -5,7 +5,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { parse } from "yaml";
+import { parse, parseAllDocuments } from "yaml";
 import { deployFiles, findUnpinned } from "./check-image-pins.mjs";
 import { checkGrypeIgnore, dayNumber, parseGrypeIgnore, parseTracked } from "./grype-ignore-check.mjs";
 
@@ -465,4 +465,28 @@ describe("scripts/grype-ignore-check.mjs (D-067): kiểm hạn ngoại lệ gryp
     expect(s[iCheck]["continue-on-error"]).toBeUndefined();
     expect(s[iCheck].if).toBeUndefined(); // chạy mọi lần (PR + hằng tuần), không điều kiện
   });
+});
+
+// Bản vá gián tiếp của @lhci/cli (T-804): grype `--fail-on high --only-fixed` đỏ nếu lockfile còn bản có lỗ hổng sửa được.
+describe("pnpm overrides — bản vá cho phụ thuộc gián tiếp (grype --only-fixed)", () => {
+  const overrides = yml("pnpm-workspace.yaml").overrides;
+  // pnpm-lock.yaml gồm hai tài liệu YAML (env lockfile, rồi lockfile chính) — lấy tài liệu có `packages`.
+  const lockPackages = parseAllDocuments(read("pnpm-lock.yaml"))
+    .map((d) => d.toJS())
+    .flatMap((d) => Object.keys(d?.packages ?? {}));
+  const versionsOf = (name) =>
+    lockPackages.filter((k) => k.startsWith(`${name}@`)).map((k) => k.slice(name.length + 1));
+  const cases = [
+    ["tmp", "tmp@<0.2.6", "0.2.6", "GHSA-ph9p-34f9-6g65"],
+    ["basic-ftp", "basic-ftp@<6.2.1", "6.2.1", "GHSA-c475-qrg2-pj4r"],
+    ["uuid", "uuid@<11.1.1", "11.1.1", "GHSA-w5hq-g745-h8pq"],
+  ];
+  for (const [name, selector, fixed, ghsa] of cases) {
+    it(`${name}: override ghim ${fixed} (${ghsa}) và lockfile chỉ còn bản đã vá`, () => {
+      expect(overrides[selector]).toBe(fixed);
+      const found = versionsOf(name);
+      expect(found.length).toBeGreaterThan(0);
+      expect(found).toEqual([fixed]);
+    });
+  }
 });

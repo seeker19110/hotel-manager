@@ -29,3 +29,12 @@ allowBuilds:
   '@swc/core': false
 # @scarf/scarf (kéo theo @stoplight/spectral-cli) chỉ gửi telemetry cài đặt — không chạy.
   '@scarf/scarf': false
+# Bản vá cho phụ thuộc gián tiếp của @lhci/cli (devDependency, chỉ chạy trên CI) mà grype (job `sbom`, --fail-on high --only-fixed)
+# báo có bản sửa. Ghim phiên bản cụ thể đã phát hành ≥ 2 tuần (docs/ops/DEPENDENCY-POLICY.md); gỡ khi @lhci/cli tự nâng.
+#  - tmp@<0.2.6 (0.0.33 qua inquirer/external-editor, 0.1.0 trực tiếp): GHSA-ph9p-34f9-6g65 (high), GHSA-52f5-9888-hmc6 (low)
+#  - basic-ftp@<6.2.1 (qua proxy-agent/get-uri): GHSA-c475-qrg2-pj4r (high)
+#  - uuid@<11.1.1 (8.3.2): GHSA-w5hq-g745-h8pq (medium)
+overrides:
+  'tmp@<0.2.6': 0.2.6
+  'basic-ftp@<6.2.1': 6.2.1
+  'uuid@<11.1.1': 11.1.1
