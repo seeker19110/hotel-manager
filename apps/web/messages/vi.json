@@ -1,0 +1,70 @@
+{
+  "role.owner": {
+    "message": "Chủ sở hữu",
+    "description": "Nhãn vai trò `owner` trong màn quản trị thành viên (danh sách, chọn vai trò khi mời/đổi)."
+  },
+  "role.manager": {
+    "message": "Quản lý",
+    "description": "Nhãn vai trò `manager` trong màn quản trị thành viên (danh sách, chọn vai trò khi mời/đổi)."
+  },
+  "role.front_desk": {
+    "message": "Lễ tân",
+    "description": "Nhãn vai trò `front_desk` trong màn quản trị thành viên (danh sách, chọn vai trò khi mời/đổi)."
+  },
+  "role.accountant": {
+    "message": "Kế toán",
+    "description": "Nhãn vai trò `accountant` trong màn quản trị thành viên (danh sách, chọn vai trò khi mời/đổi)."
+  },
+  "role.housekeeping": {
+    "message": "Buồng phòng",
+    "description": "Nhãn vai trò `housekeeping` trong màn quản trị thành viên (danh sách, chọn vai trò khi mời/đổi)."
+  },
+  "role.maintenance": {
+    "message": "Kỹ thuật",
+    "description": "Nhãn vai trò `maintenance` trong màn quản trị thành viên (danh sách, chọn vai trò khi mời/đổi)."
+  },
+  "role.tenant": {
+    "message": "Người thuê",
+    "description": "Nhãn vai trò `tenant` trong màn quản trị thành viên (danh sách, chọn vai trò khi mời/đổi)."
+  },
+  "org_picker.role.owner": {
+    "message": "Chủ",
+    "description": "Nhãn vai trò `owner` ngắn, hiện dưới tên tổ chức ở màn chọn tổ chức sau đăng nhập."
+  },
+  "org_picker.role.manager": {
+    "message": "Quản lý",
+    "description": "Nhãn vai trò `manager` ngắn, hiện dưới tên tổ chức ở màn chọn tổ chức sau đăng nhập."
+  },
+  "org_picker.role.front_desk": {
+    "message": "Lễ tân",
+    "description": "Nhãn vai trò `front_desk` ngắn, hiện dưới tên tổ chức ở màn chọn tổ chức sau đăng nhập."
+  },
+  "org_picker.role.accountant": {
+    "message": "Kế toán",
+    "description": "Nhãn vai trò `accountant` ngắn, hiện dưới tên tổ chức ở màn chọn tổ chức sau đăng nhập."
+  },
+  "org_picker.role.housekeeping": {
+    "message": "Buồng phòng",
+    "description": "Nhãn vai trò `housekeeping` ngắn, hiện dưới tên tổ chức ở màn chọn tổ chức sau đăng nhập."
+  },
+  "org_picker.role.maintenance": {
+    "message": "Kỹ thuật",
+    "description": "Nhãn vai trò `maintenance` ngắn, hiện dưới tên tổ chức ở màn chọn tổ chức sau đăng nhập."
+  },
+  "org_picker.role.tenant": {
+    "message": "Người thuê",
+    "description": "Nhãn vai trò `tenant` ngắn, hiện dưới tên tổ chức ở màn chọn tổ chức sau đăng nhập."
+  },
+  "member_status.active": {
+    "message": "Đang hoạt động",
+    "description": "Trạng thái thành viên `active` trong danh sách thành viên."
+  },
+  "member_status.suspended": {
+    "message": "Tạm khoá",
+    "description": "Trạng thái thành viên `suspended` trong danh sách thành viên."
+  },
+  "member_status.invited": {
+    "message": "Đã mời",
+    "description": "Trạng thái thành viên `invited` trong danh sách thành viên."
+  }
+}
