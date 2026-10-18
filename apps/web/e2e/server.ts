@@ -2,7 +2,8 @@
 // role → migrate → seed giả → `next start`. Dừng (SIGTERM) thì xoá DB/cluster tạm. Chạy bằng `node` (bỏ kiểu TS).
 import { spawn } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
-import { rmSync, writeFileSync } from "node:fs";
+import { createWriteStream, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   createAuth,
   invitationKey,
@@ -274,11 +275,30 @@ const appEnv: NodeJS.ProcessEnv = {
 loadConfig(appEnv);
 const replicaEnv: NodeJS.ProcessEnv = { ...appEnv, APP_BASE_URL: `http://127.0.0.1:${REPLICA_PORT}` };
 loadConfig(replicaEnv);
-const startNext = (port: number, env: NodeJS.ProcessEnv) =>
-  spawn("pnpm", ["exec", "next", "start", "--hostname", "127.0.0.1", "--port", String(port)], {
-    stdio: "inherit",
+/**
+ * Log của app (stdout/stderr của `next start`) vừa in ra như cũ vừa ghi vào `e2e-logs/server-<cổng>.log` để CI quét PII
+ * sau lượt E2E (CMP-PRIV-008, `scripts/pii-log-scan.mjs`). Thư mục nằm ngoài `test-results/` vì Playwright xoá thư mục đó
+ * lúc bắt đầu chạy; đã có trong .gitignore.
+ */
+const LOG_DIR = join(import.meta.dirname, "..", "e2e-logs");
+const startNext = (port: number, env: NodeJS.ProcessEnv) => {
+  mkdirSync(LOG_DIR, { recursive: true });
+  const log = createWriteStream(join(LOG_DIR, `server-${port}.log`), { flags: "w" });
+  const child = spawn("pnpm", ["exec", "next", "start", "--hostname", "127.0.0.1", "--port", String(port)], {
+    stdio: ["inherit", "pipe", "pipe"],
     env,
   });
+  child.stdout?.on("data", (chunk: Buffer) => {
+    process.stdout.write(chunk);
+    log.write(chunk);
+  });
+  child.stderr?.on("data", (chunk: Buffer) => {
+    process.stderr.write(chunk);
+    log.write(chunk);
+  });
+  child.once("close", () => log.end());
+  return child;
+};
 const next = startNext(PORT, appEnv);
 // Lighthouse CI (lighthouserc.json) chỉ đo server chính: E2E_NO_REPLICA=1 bỏ bản sao thứ hai cho đỡ tranh CPU (chỉ dùng ở đây).
 const replica = process.env.E2E_NO_REPLICA === "1" ? undefined : startNext(REPLICA_PORT, replicaEnv);
