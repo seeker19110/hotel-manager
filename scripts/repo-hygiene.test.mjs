@@ -169,12 +169,28 @@ describe(".nvmrc", () => {
   it("nằm trong engines.node", () => {
     expect(satisfies(nvmrc, pkg.engines.node)).toBe(true);
   });
-  it("bằng node-version của mọi job trong ci.yml", () => {
-    const versions = [
-      ...read(".github/workflows/ci.yml").matchAll(/node-version:\s*["']?([\d.]+)["']?/g),
-    ].map((m) => m[1]);
-    expect(versions.length).toBeGreaterThan(0);
-    for (const v of versions) expect(v).toBe(nvmrc);
+  it("mọi workflow dùng đúng .nvmrc: `node-version-file: .nvmrc`, không ghi cứng `node-version:` (PRF-WEB-010)", () => {
+    const dir = join(ROOT, ".github/workflows");
+    let setups = 0;
+    for (const f of readdirSync(dir).filter((n) => n.endsWith(".yml"))) {
+      const text = readFileSync(join(dir, f), "utf8");
+      expect(text, `${f} ghi cứng node-version`).not.toMatch(/^\s*node-version:/m);
+      const uses = [...text.matchAll(/uses:\s*actions\/setup-node@/g)].length;
+      const files = [...text.matchAll(/^\s*node-version-file:\s*\.nvmrc\s*$/gm)].length;
+      expect(files, `${f}: mỗi setup-node phải có node-version-file: .nvmrc`).toBe(uses);
+      setups += uses;
+    }
+    expect(setups).toBeGreaterThan(0);
+  });
+  it("pnpm/action-setup không ghi cứng version (đọc `packageManager` của package.json)", () => {
+    const dir = join(ROOT, ".github/workflows");
+    for (const f of readdirSync(dir).filter((n) => n.endsWith(".yml"))) {
+      const text = readFileSync(join(dir, f), "utf8");
+      expect(text, `${f}: pnpm/action-setup ghi cứng version`).not.toMatch(
+        /pnpm\/action-setup@[^\n]*\n\s+with:\n(?:\s+[\w-]+:[^\n]*\n)*?\s+version:/,
+      );
+    }
+    expect(JSON.parse(read("package.json")).packageManager).toMatch(/^pnpm@\d+\.\d+\.\d+$/);
   });
   it("bằng NODE_VERSION của scripts/dev-env-setup.sh", () => {
     expect(/^NODE_VERSION="([\d.]+)"/m.exec(read("scripts/dev-env-setup.sh"))?.[1]).toBe(nvmrc);

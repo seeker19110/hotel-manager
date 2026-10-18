@@ -465,6 +465,16 @@ describe("OPS-DEPLOY-003 — schema-compat (bản N−1 trên schema N)", () => 
     expect(pg).toBeGreaterThan(0);
     expect(pg).toBeLessThan(job.indexOf("pnpm vitest run --project db"));
   });
+
+  it("workflow: cài binary PG 17 (DB-SEC-003) trước khi chạy project db — connection-tls.db.test.ts của nhánh nền cần initdb", () => {
+    const wf = read(".github/workflows/api-ops.yml");
+    const job = wf.slice(wf.indexOf("  schema-compat:"));
+    const setup = job.indexOf("bash scripts/dev-env-setup.sh --only postgres");
+    expect(setup).toBeGreaterThan(0);
+    expect(setup).toBeLessThan(job.indexOf("pnpm vitest run --project db"));
+    // Chạy từ checkout của PR (gốc), không từ .n-1: script dev-env-setup của PR là bản được kiểm.
+    expect(job.slice(job.lastIndexOf("- name:", setup), setup)).not.toContain("working-directory");
+  });
 });
 
 // ───────────────────────── workflow + công cụ ghim ─────────────────────────

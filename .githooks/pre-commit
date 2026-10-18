@@ -2,7 +2,7 @@
 # pre-commit của dự án (XC-DX-006, BASE-REPO-002): NHANH (< 30 s) vì chỉ xét file ĐÃ STAGE; cổng đầy đủ là việc của CI
 # và `.xtemplates/scripts/dev-task.sh gate`. Cài tự động bởi `pnpm install` (script `prepare` → scripts/install-git-hooks.mjs).
 #   1. File đang bị .gitignore không được vào commit (chặn `git add -f` artefact build, .env*, node_modules…).
-#   2. biome check (format + lint + import) trên file đã stage.
+#   2. biome check (format + lint + import) trên file đã stage, 0 cảnh báo (cùng cờ `--error-on-warnings` với `pnpm lint` ở CI — FE-BUILD-004).
 set -eu
 
 root=$(git rev-parse --show-toplevel)
@@ -17,7 +17,7 @@ fi
 
 biome="$root/node_modules/.bin/biome"
 if [ -x "$biome" ]; then
-  "$biome" check --staged --no-errors-on-unmatched --colors=off
+  "$biome" check --staged --no-errors-on-unmatched --error-on-warnings --colors=off
 else
   echo "pre-commit: chưa có node_modules (chạy pnpm install) — bỏ qua biome; CI vẫn kiểm." >&2
 fi

@@ -107,3 +107,13 @@ export const STAFF_TARGET = {
   name: "Nhân viên đích (giả)",
   password: ["e2e", "nv", "dich", "gia"].join("-"),
 };
+
+/**
+ * Cổng của server mà project đang chạy: mỗi project (mobile, desktop) có server + CSDL seed riêng (playwright.config.ts) vì các
+ * luồng E2E ghi dữ liệu một lần (đăng ký, nhận lời mời, thu tiền…) — tệp tạm của seed khoá theo cổng này.
+ */
+export function portOf(baseURL: string | undefined): number {
+  const port = Number(new URL(baseURL ?? "http://invalid.test").port);
+  if (!Number.isInteger(port) || port <= 0) throw new Error(`baseURL không có cổng: ${String(baseURL)}`);
+  return port;
+}

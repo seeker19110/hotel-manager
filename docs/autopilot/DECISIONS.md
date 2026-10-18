@@ -474,6 +474,14 @@
 - Đường lùi: Xoá context khỏi main.json ở PR cuối; bỏ ghi chú trong Bằng chứng
 - Khi chạy thật (đề xuất, chủ dự án quyết ở G7): Chủ dự án import .github/rulesets/main.json sau khi mọi job mới xanh ít nhất một lần trên PR
 
+### D-066 · 2026-10-18T01:16:12+00:00 · T-804: (a) FE-TEST-001 'getByTestId ≤ 10%' áp cho test nào? (b) FE-BUILD-003 có giữ skipLibCheck không? (c) hook pre-commit dùng husky hay .githooks của T-807?
+
+- Phương án: (1) (a) chỉ test Testing Library — E2E Playwright đọc giá trị qua test id là hợp lệ; (b) giữ skipLibCheck có lý do (d.ts happy-dom lệch @types/node 24), test khoá không có .d.ts tự viết; (c) bỏ husky, dồn 'biome check --staged' vào .githooks/pre-commit của T-807 (một cơ chế, không đặt core.hooksPath) · (2) Áp ≤10% cho cả E2E và refactor; bỏ skipLibCheck bằng cách đổi sang jsdom (MIT-0 cần thêm vào license-policy)
+- Chọn: (a) chỉ test Testing Library — E2E Playwright đọc giá trị qua test id là hợp lệ; (b) giữ skipLibCheck có lý do (d.ts happy-dom lệch @types/node 24), test khoá không có .d.ts tự viết; (c) bỏ husky, dồn 'biome check --staged' vào .githooks/pre-commit của T-807 (một cơ chế, không đặt core.hooksPath)
+- Lý do (tiêu chí chất lượng cuối): Đúng tinh thần mục (truy vấn theo vai trò trong test component); jsdom kéo giấy phép mới cần chủ dự án; hai cơ chế hook xung đột (bộ cài T-807 bỏ qua khi có core.hooksPath)
+- Đường lùi: Gỡ skipLibCheck khi happy-dom/@types/node khớp; đổi sang jsdom nếu chủ dự án duyệt MIT-0
+- Khi chạy thật (đề xuất, chủ dự án quyết ở G7): Chủ dự án quyết MIT-0 nếu muốn jsdom thay happy-dom
+
 
 
 ### D-067 · 2026-10-18T01:17:15+00:00 · T-802 image-scan: lỗ hổng high/critical có bản sửa thượng nguồn nhưng chưa có image vá (Go stdlib/x-net trong caddy & seaweedfs, npm đi kèm node, zlib alpine của caddy) — xử lý thế nào?
@@ -483,3 +491,11 @@
 - Lý do (tiêu chí chất lượng cuối): Không sửa được từ repo (thượng nguồn chưa build lại); ngoại lệ hẹp tự hết khớp khi nâng; image dẫn xuất đổi cách triển khai mà Go stdlib vẫn phải ngoại lệ; hạ ngưỡng bị cấm
 - Đường lùi: Xoá luật trong .grype.yaml khi có image vá; bỏ RUN rm npm trong deploy/*.Dockerfile
 - Khi chạy thật (đề xuất, chủ dự án quyết ở G7): Chủ dự án theo dõi bảng 'Theo dõi' của VULN-SLA.md; cân nhắc image dẫn xuất nếu thượng nguồn chậm quá hạn
+
+### D-068 · 2026-10-18T01:41:43+00:00 · T-804: @lhci/cli kéo parse-cache-control@1.0.1 khai giấy phép 'BSD' (không có SPDX id) → licenses:check đỏ. Dùng lockfile riêng tools/lhci hay ngoại lệ giấy phép?
+
+- Phương án: (1) Ngoại lệ có hạn cho đúng parse-cache-control@1.0.1 ('BSD' — mọi biến thể BSD đều thuộc allow), giữ MỘT lockfile pnpm (FE-BUILD-001 MUST), @lhci/cli vào devDependencies gốc · (2) Lockfile npm riêng tools/lhci (vi phạm FE-BUILD-001 'một lockfile') · (3) Bỏ Lighthouse CI
+- Chọn: Ngoại lệ có hạn cho đúng parse-cache-control@1.0.1 ('BSD' — mọi biến thể BSD đều thuộc allow), giữ MỘT lockfile pnpm (FE-BUILD-001 MUST), @lhci/cli vào devDependencies gốc
+- Lý do (tiêu chí chất lượng cuối): MUST FE-BUILD-001 thắng tiện lợi; 'BSD' chung chung vẫn là họ giấy phép đã cho phép; ngoại lệ hẹp đúng gói+phiên bản, có hạn rà lại; lockfile gốc có integrity, đi qua SBOM/grype/new-deps
+- Đường lùi: Gỡ exception trong license-policy.json và @lhci/cli khỏi package.json; quay lại tools/lhci
+- Khi chạy thật (đề xuất, chủ dự án quyết ở G7): Chủ dự án xác nhận ngoại lệ BSD của parse-cache-control khi rà giấy phép trước phát hành

@@ -12,18 +12,25 @@ export async function accessibilityProblems(page: Page): Promise<string[]> {
     (v) => `axe ${v.id} [${v.impact}]: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`,
   );
 
+  // Vùng chạm 44 px chỉ áp cho thiết bị cảm ứng (con trỏ thô); desktop vẫn quét axe đủ mọi mức (PRF-WEB-006).
   const small = await page.evaluate(() =>
-    [...document.querySelectorAll<HTMLElement>("a[href], button, input, select, textarea, [role='button']")]
-      .filter((el) => el.getClientRects().length > 0)
-      .map((el) => {
-        const b = el.getBoundingClientRect();
-        return {
-          el: `${el.tagName.toLowerCase()} "${el.textContent?.trim().slice(0, 30)}"`,
-          w: b.width,
-          h: b.height,
-        };
-      })
-      .filter((x) => x.w < 44 || x.h < 44),
+    !window.matchMedia("(pointer: coarse)").matches
+      ? []
+      : [
+          ...document.querySelectorAll<HTMLElement>(
+            "a[href], button, input, select, textarea, [role='button']",
+          ),
+        ]
+          .filter((el) => el.getClientRects().length > 0)
+          .map((el) => {
+            const b = el.getBoundingClientRect();
+            return {
+              el: `${el.tagName.toLowerCase()} "${el.textContent?.trim().slice(0, 30)}"`,
+              w: b.width,
+              h: b.height,
+            };
+          })
+          .filter((x) => x.w < 44 || x.h < 44),
   );
   for (const x of small) problems.push(`vùng chạm < 44 × 44 CSS px: ${x.el} (${x.w} × ${x.h})`);
   return problems;

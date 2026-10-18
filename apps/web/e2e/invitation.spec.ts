@@ -3,12 +3,16 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import { expectAccessible } from "./a11y.ts";
-import { HOTEL_HK, INVITEE, INVITEE_EXPIRED_EMAIL, inviteTokensFile, ORG_HOTEL } from "./fixtures.ts";
+import { HOTEL_HK, INVITEE, INVITEE_EXPIRED_EMAIL, inviteTokensFile, ORG_HOTEL, portOf } from "./fixtures.ts";
 import { signInClick } from "./sign-in.ts";
 
 test.describe.configure({ mode: "serial" });
 
-const PORT = Number(process.env.E2E_PORT ?? 3100);
+// Cổng của server của project đang chạy (mỗi project có server riêng) — đặt trước mọi test của tệp.
+let PORT = Number.NaN; // NaN đến khi beforeAll gán: quên gán thì đọc tệp "…-NaN" và đỏ ngay
+test.beforeAll(({ browserName: _ }, info) => {
+  PORT = portOf(info.project.use.baseURL);
+});
 const tokens = () =>
   JSON.parse(readFileSync(inviteTokensFile(PORT), "utf8")) as Record<"valid" | "expired" | "other", string>;
 const PASSWORD = INVITEE.password;

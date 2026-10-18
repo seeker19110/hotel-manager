@@ -2,7 +2,7 @@
   "schema": 1,
   "kind": "lighthouse-baseline",
   "measured": false,
-  "reason": "chưa đo — @lhci/cli/lighthouse không có trong môi trường phát triển (container agent), không cài thêm phụ thuộc khi chưa được duyệt; cấu hình ở lighthouserc.json, chạy bằng `npx @lhci/cli@0.15.1 autorun` (xem docs/perf/README.md)",
+  "reason": "chưa đo — @lhci/cli/lighthouse không có trong môi trường phát triển (container agent), không cài thêm phụ thuộc khi chưa được duyệt; cấu hình ở lighthouserc.json, chạy bằng `tools/lhci/node_modules/.bin/lhci autorun` sau `npm ci --prefix tools/lhci` (@lhci/cli 0.15.1) (xem docs/perf/README.md)",
   "date": null,
   "commit": null,
   "config": "lighthouserc.json",
@@ -12,7 +12,7 @@
     "lcp_ms_max": 2500,
     "cls_max": 0.1,
     "tbt_ms_max": 300,
-    "runs": 3,
+    "runs": 5,
     "aggregation": "median",
     "form_factor": "mobile (mặc định của lhci: throttle 4G + CPU chậm)"
   },

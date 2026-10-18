@@ -1,18 +1,19 @@
 {
   "ci": {
     "collect": {
-      "numberOfRuns": 3,
+      "numberOfRuns": 5,
       "url": [
         "http://127.0.0.1:3100/dang-nhap",
         "http://127.0.0.1:3100/dang-nhap/nguoi-thue",
         "http://127.0.0.1:3100/offline"
       ],
-      "startServerCommand": "node apps/web/e2e/server.ts",
-      "startServerReadyPattern": "Ready in",
+      "startServerCommand": "pnpm --filter @hm/web exec node e2e/server.ts",
+      "startServerReadyPattern": "E2E_SERVER_READY",
       "startServerReadyTimeout": 300000,
       "settings": {
         "formFactor": "mobile",
-        "chromeFlags": "--no-sandbox --headless=new"
+        "throttlingMethod": "simulate",
+        "chromeFlags": "--no-sandbox --headless=new --disable-dev-shm-usage"
       }
     },
     "assert": {

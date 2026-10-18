@@ -43,7 +43,15 @@
     "CC-BY-SA-4.0",
     "OFL-1.1"
   ],
-  "exceptions": [],
+  "exceptions": [
+    {
+      "package": "parse-cache-control",
+      "license": "BSD",
+      "reason": "giấy phép khai 'BSD' không ghi biến thể; mọi biến thể BSD (2/3-Clause) đều thuộc allow; phụ thuộc gián tiếp của @lhci/cli (devDependency, chỉ chạy CI) — D-068",
+      "approved_by": "phiên chính (D-068); chờ chủ dự án xác nhận",
+      "expires": "2027-04-18"
+    }
+  ],
   "sbom_exceptions": [
     {
       "package": "@img/sharp-libvips-linux-x64",

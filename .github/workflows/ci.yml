@@ -44,7 +44,7 @@ jobs:
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24.22.0"
+          node-version-file: .nvmrc
           cache: pnpm
       - name: Cài phụ thuộc (lockfile đóng băng — BASE-DEP-002)
         run: pnpm install --frozen-lockfile
@@ -84,10 +84,12 @@ jobs:
             && [ "${#TITLE}" -le 72 ] || { echo "::error::Tiêu đề PR phải dạng '<type>(scope): mô tả' và ≤ 72 ký tự: $TITLE"; exit 1; }
 
   # E2E (SPEC-pwa, PLAN T-013/T-014): build production + e2e/server.ts (Postgres service + seed giả) + Playwright Chromium.
+  # timeout 40: E2E chạy CẢ HAI project (mobile + desktop, T-804); đo cục bộ desktop một mình 5,5 phút/95 test (1 worker) →
+  # hai project ≈ 11 phút + cài/build/khởi động ≈ 20 phút, runner chậm hơn → cần dư. Không phải nới ngưỡng chất lượng.
   e2e:
     name: e2e
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 40
     services:
       postgres:
         # Cùng tag + digest với deploy/postgres/Dockerfile (BASE-DEP-008: ghim digest; scripts/check-image-pins.mjs kiểm).
@@ -108,7 +110,7 @@ jobs:
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24.22.0"
+          node-version-file: .nvmrc
           cache: pnpm
       - name: Cài phụ thuộc (lockfile đóng băng)
         run: pnpm install --frozen-lockfile
@@ -146,7 +148,7 @@ jobs:
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24.22.0"
+          node-version-file: .nvmrc
           cache: pnpm
       - name: Cài phụ thuộc (lockfile đóng băng)
         run: pnpm install --frozen-lockfile

@@ -12,6 +12,9 @@
     "isolatedModules": true,
     "erasableSyntaxOnly": true,
     "verbatimModuleSyntax": true,
+    // Lý do skipLibCheck (FE-BUILD-003): repo KHÔNG có tệp .d.ts tự viết (rào ở scripts/frontend-build.test.mjs) nên cờ này chỉ bỏ qua
+    // .d.ts của bên thứ ba — cụ thể d.ts của happy-dom (môi trường test component) không khớp @types/node 24 (UnderlyingDefaultSource).
+    // Lỗi trong mã của dự án vẫn bị bắt đầy đủ. Bỏ cờ khi happy-dom/@types/node hết lệch.
     "skipLibCheck": true,
     "esModuleInterop": true,
     "resolveJsonModule": true,

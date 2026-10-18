@@ -5,7 +5,7 @@ version: 2
 # theo mẫu `.github/PULL_REQUEST_TEMPLATE/major-upgrade.md`. Chính sách đầy đủ: docs/ops/DEPENDENCY-POLICY.md.
 # Test khoá cấu hình này với manifest thật: scripts/supply-chain.test.mjs (đủ `package-ecosystem`, `groups`, trần PR, lịch tuần).
 updates:
-  # pnpm workspace (pnpm-lock.yaml ở gốc) — Dependabot dùng hệ sinh thái `npm` cho pnpm.
+  # pnpm workspace (pnpm-lock.yaml ở gốc, MỘT lockfile — FE-BUILD-001) — Dependabot dùng hệ sinh thái `npm` cho pnpm.
   - package-ecosystem: npm
     directory: /
     schedule:
