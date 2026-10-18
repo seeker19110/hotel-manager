@@ -439,6 +439,14 @@
 - Đường lùi: Thay script bằng lychee/oasdiff trong cùng job khi proxy cho phép; nới luật bằng sửa scripts/check-openapi-breaking.mjs
 - Khi chạy thật (đề xuất, chủ dự án quyết ở G7): Cân nhắc thay bằng lychee/oasdiff bản ghim checksum khi CI ra mạng được
 
+### D-064 · 2026-10-18T00:27:40+00:00 · T-806: otelcol-contrib 0.161.0 không có file checksum chính thức cho gói contrib — ghim SHA-256 tự đo có chấp nhận được? Job schema-compat (~6 phút) chạy mỗi PR hay theo lịch?
+
+- Phương án: (1) Chấp nhận SHA-256 tự đo (trust-on-first-use, ghim cứng, đổi bản phải đo lại có review) + schema-compat chạy mỗi PR · (2) Không ghim, tải bản mới nhất · (3) schema-compat chạy theo lịch để PR nhanh hơn
+- Chọn: Chấp nhận SHA-256 tự đo (trust-on-first-use, ghim cứng, đổi bản phải đo lại có review) + schema-compat chạy mỗi PR
+- Lý do (tiêu chí chất lượng cuối): Ghim cứng vẫn chặn tráo binary sau lần đo; OPS-DEPLOY-003 cần chặn vỡ N-1 TRƯỚC merge nên phải chạy trên PR; 6 phút song song với e2e không kéo dài tổng thời gian CI đáng kể
+- Đường lùi: Đổi trigger schema-compat sang schedule trong .github/workflows/api-ops.yml; thay SHA trong scripts/ops-tools.sh
+- Khi chạy thật (đề xuất, chủ dự án quyết ở G7): Xác minh otelcol-contrib bằng chữ ký cosign của bản phát hành (hoặc build từ nguồn) trước khi dùng collector ở môi trường thật
+
 ### D-065 · 2026-10-18T00:38:43+00:00 · Đợt 9: job cổng mới (pr-policy, commit-lint, new-deps, sbom, image-scan, coverage, coverage-ratchet, fix-requires-test, sast, dast, openapi, schema-compat…) chưa là required check nên chưa chặn auto-merge; đổi ruleset trên GitHub là điểm dừng của người — xử lý thế nào?
 
 - Phương án: (1) Mỗi lát giữ job, KHÔNG sửa .github/rulesets/main.json; một PR cuối đợt (T-808) gom mọi context mới vào main.json (chỉ job chạy trên MỌI PR, không lọc paths); dòng Bằng chứng ghi 'chặn merge khi ruleset được import (người)'; defer việc import · (2) Mỗi lát tự thêm context vào main.json · (3) Bỏ tick các mục cho tới khi ruleset được import

@@ -12,6 +12,7 @@
     "build": "pnpm --recursive --filter \"./apps/*\" run build",
     "typecheck": "pnpm -r run typecheck",
     "lint": "biome ci .",
+    "lint:openapi": "spectral lint apps/web/openapi.json --ruleset .spectral.yaml --fail-severity=warn",
     "format": "biome format --write .",
     "test": "vitest run",
     "test:db": "vitest run --project db",
@@ -25,6 +26,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
+    "@stoplight/spectral-cli": "6.16.3",
     "@types/node": "24.19.2",
     "@types/pg": "8.23.1",
     "typescript": "7.0.2",

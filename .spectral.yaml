@@ -1,0 +1,27 @@
+# Ruleset lint hợp đồng API (BE-API-001). Nền: bộ rule OpenAPI chuẩn của Spectral; rule riêng khoá quy ước ở docs/design/API-CONTRACT.md.
+# Chạy: `pnpm lint:openapi` (cũng trong cổng `pnpm lint`). Mọi cảnh báo là lỗi (--fail-severity=warn).
+extends: ["spectral:oas"]
+rules:
+  # Mỗi thao tác phải có operationId duy nhất và ít nhất một tag (sinh client, nhóm tài liệu).
+  operation-operationId: error
+  operation-tags: error
+  operation-description: off
+  info-contact: off
+  # Mỗi thao tác phải mô tả ít nhất một phản hồi lỗi 4xx (mã lỗi là một phần hợp đồng — BE-API-001).
+  hm-operation-has-error-response:
+    description: Thao tác dưới /api/v1 phải khai báo ít nhất một phản hồi 4xx/default (/api/version là điểm công khai chỉ đọc, không có lỗi nghiệp vụ).
+    severity: error
+    given: "$.paths[?(@property.startsWith('/api/v1/'))][get,post,put,patch,delete]"
+    then:
+      field: responses
+      function: schema
+      functionOptions:
+        schema:
+          type: object
+          anyOf:
+            - required: [default]
+            # Không phải mọi khoá đều thuộc 1xx/2xx/3xx/5xx ⇒ có ít nhất một 4xx (hoặc 4XX). Khoá mở rộng `x-*` (OpenAPI cho phép
+            # trong đối tượng Responses) không phải mã phản hồi nên không được tính là "không phải 4xx".
+            - not:
+                propertyNames:
+                  pattern: "^([1235]([0-9][0-9]|XX)|x-.*)$"
