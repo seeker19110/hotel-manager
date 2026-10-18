@@ -3,8 +3,9 @@
 // Biến môi trường (xem docs/perf/README.md):
 //   BASE_URL            bắt buộc; host phải nằm trong K6_ALLOWED_HOSTS (QA-PERF-007: KHÔNG tải vào production)
 //   K6_ALLOWED_HOSTS    mặc định "localhost,127.0.0.1,[::1]"; staging thêm vào đây có chủ đích
-//   K6_PROFILE          smoke (mặc định, 1 VU × 30 s) | load (tăng dần tới K6_VUS, mặc định 200 — PROJECT.md §5) | spike
-//   K6_VUS, K6_DURATION chỉnh quy mô profile load/smoke
+//   K6_PROFILE          smoke (mặc định, 1 VU × 30 s) | load (tăng dần tới LOAD_VUS, mặc định 200 — PROJECT.md §5) | spike
+//   LOAD_VUS, LOAD_DURATION chỉnh quy mô profile load/smoke (`k6 run -e LOAD_VUS=…`). KHÔNG dùng tên K6_VUS/K6_DURATION: k6 coi mọi
+//                       biến K6_<tuỳ chọn> — kể cả truyền bằng -e — là tuỳ chọn gốc và ĐÈ toàn bộ `scenarios` (thử thật k6 2.3.0, 2026-10-18).
 import http from "k6/http";
 
 export const BASE_URL = (__ENV.BASE_URL || "").replace(/\/+$/, "");
@@ -15,7 +16,7 @@ export const LIMITS = { apiP95Ms: 800, apiP99Ms: 2000, holdP95Ms: 1500, holdP99M
 /** Dừng ngay nếu BASE_URL thiếu hoặc không thuộc danh sách host cho phép (mặc định chỉ máy cục bộ). */
 export function assertSafeTarget() {
   if (!BASE_URL) throw new Error("Thiếu BASE_URL (ví dụ http://127.0.0.1:3100)");
-  const m = /^https?:\/\/([^/:]+|\[[^\]]+\])(?::\d+)?(?:\/|$)/.exec(BASE_URL);
+  const m = /^https?:\/\/([^/:@?#[\]]+|\[[^\]]+\])(?::\d+)?(?:\/|$)/.exec(BASE_URL);
   if (!m) throw new Error(`BASE_URL không hợp lệ: ${BASE_URL}`);
   const allowed = (__ENV.K6_ALLOWED_HOSTS || "localhost,127.0.0.1,[::1]").split(",").map((s) => s.trim());
   if (!allowed.includes(m[1])) {
@@ -28,7 +29,7 @@ export function assertSafeTarget() {
 /** Cấu hình scenario theo K6_PROFILE cho hàm `exec`. */
 export function scenarios(exec) {
   const profile = __ENV.K6_PROFILE || "smoke";
-  const vus = Number(__ENV.K6_VUS || 200);
+  const vus = Number(__ENV.LOAD_VUS || 200);
   if (profile === "load") {
     return {
       [exec]: {
@@ -37,7 +38,7 @@ export function scenarios(exec) {
         startVUs: 1,
         stages: [
           { duration: "1m", target: Math.max(1, Math.round(vus / 4)) },
-          { duration: __ENV.K6_DURATION || "5m", target: vus },
+          { duration: __ENV.LOAD_DURATION || "5m", target: vus },
           { duration: "1m", target: 0 },
         ],
         gracefulRampDown: "30s",
@@ -66,8 +67,8 @@ export function scenarios(exec) {
     [exec]: {
       executor: "constant-vus",
       exec,
-      vus: Number(__ENV.K6_VUS || 1),
-      duration: __ENV.K6_DURATION || "30s",
+      vus: Number(__ENV.LOAD_VUS || 1),
+      duration: __ENV.LOAD_DURATION || "30s",
     },
   };
 }

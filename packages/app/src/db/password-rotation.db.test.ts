@@ -124,6 +124,9 @@ beforeAll(async () => {
     join(dir, "bootstrap-roles.sql"),
   ]);
   adminPool = new pg.Pool({ host: dir, port, user: "postgres", database: "postgres", max: 2 });
+  // Dừng cluster (`pg_ctl stop -m fast`) cắt kết nối rảnh của pool admin (57P01); pool phát lại lỗi đó — không có listener
+  // thì thành uncaught exception làm cả lượt Vitest đỏ dù mọi test xanh (onboarding-smoke, PR #67).
+  adminPool.on("error", () => {});
   admin = new Kysely<unknown>({ dialect: new PostgresDialect({ pool: adminPool }) });
   await migrateToLatest(admin);
   orgA = (await seedOrg(admin, "Rotation A")).orgId;

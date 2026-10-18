@@ -128,14 +128,14 @@ describe("perf: kịch bản k6 — luồng nóng, ngưỡng theo phân vị, an
     );
   });
 
-  it("scenario theo K6_PROFILE: smoke (mặc định), load (ramping-vus tới K6_VUS), spike (ramping-arrival-rate)", () => {
+  it("scenario theo K6_PROFILE: smoke (mặc định), load (ramping-vus tới LOAD_VUS), spike (ramping-arrival-rate)", () => {
     const s = (env) => loadLib(env).scenarios("run").run;
     expect(s({})).toMatchObject({ executor: "constant-vus", vus: 1, duration: "30s", exec: "run" });
-    const load = s({ K6_PROFILE: "load", K6_VUS: "200" });
+    const load = s({ K6_PROFILE: "load", LOAD_VUS: "200" });
     expect(load.executor).toBe("ramping-vus");
     expect(Math.max(...load.stages.map((x) => x.target))).toBe(200);
     expect(load.stages.at(-1).target).toBe(0);
-    expect(s({ K6_PROFILE: "load", K6_VUS: "0" }).stages[0].target).toBeGreaterThanOrEqual(1); // biên 0
+    expect(s({ K6_PROFILE: "load", LOAD_VUS: "0" }).stages[0].target).toBeGreaterThanOrEqual(1); // biên 0
     expect(s({ K6_PROFILE: "spike" }).executor).toBe("ramping-arrival-rate");
     expect(s({ K6_PROFILE: "khong-co" }).executor).toBe("constant-vus"); // lạ → smoke an toàn
   });
@@ -386,10 +386,10 @@ describe("perf: ngân sách trang + baseline (XC-GREEN-001, QA-PERF-006)", () =>
     expect(sec).toContain(`p99 ${f(web.api.p99_ms)} ms`);
   });
 
-  it("đợt 9 (D-059, chủ dự án duyệt 2026-10-17): lhci chỉ chạy trong job `lighthouse`; k6 chưa có workflow (cần staging)", () => {
+  it("lhci chỉ chạy trong job `lighthouse` (đợt 9, D-059); k6 chỉ chạy trong perf-nightly.yml (đợt 10, D-072 — không trên PR)", () => {
     for (const n of readdirSync(join(ROOT, ".github/workflows"))) {
       const text = read(`.github/workflows/${n}`);
-      expect(text, n).not.toMatch(/\bk6 run\b/i);
+      if (n !== "perf-nightly.yml") expect(text, n).not.toMatch(/\bk6 run\b/i);
       if (n !== "frontend-quality.yml") expect(text, n).not.toMatch(/lhci|lighthouse-ci/i);
     }
     expect(read(".github/workflows/frontend-quality.yml")).toMatch(/^ {2}lighthouse:\n/m);

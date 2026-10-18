@@ -14,6 +14,10 @@ WEED_SHA256="4a7d108384d044d95212d1342cdda9533fa55842c1c9b41f606ca3c8a9561124"
 # gitleaks (quét log CI tìm bí mật — SEC-SECRET-007): binary linux_x64 từ GitHub release, kiểm SHA-256 (checksums.txt của release v8.30.1).
 GITLEAKS_VERSION="8.30.1"
 GITLEAKS_SHA256="551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+# k6 (load test nightly — QA-PERF-002, .github/workflows/perf-nightly.yml): tarball linux-amd64 từ GitHub release, kiểm SHA-256
+# (k6-v2.3.0-checksums.txt, phát hành 2026-09-21, đối chiếu băm tự tính 2026-10-18). Giấy phép AGPL-3.0: chỉ chạy để đo, không phân phối.
+K6_VERSION="2.3.0"
+K6_SHA256="39c3117b6af817592dcd0ce4242105c0a7af10948c2a425306f0be8f7a8a8ab1"
 PG_MAJOR="17"
 PGDG_KEY_FPR="B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8"
 
@@ -81,6 +85,19 @@ install_gitleaks() {
   ln -sf "$dest/gitleaks" "$BIN_DIR/gitleaks"
 }
 
+install_k6() {
+  local dest="${OPT_DIR}/k6-${K6_VERSION}"
+  if [ ! -x "$dest/k6" ]; then
+    curl -fsSL "https://github.com/grafana/k6/releases/download/v${K6_VERSION}/k6-v${K6_VERSION}-linux-amd64.tar.gz" -o "$tmp/k6.tgz"
+    echo "${K6_SHA256}  $tmp/k6.tgz" | sha256sum -c --quiet -
+    $SUDO mkdir -p "$dest"
+    $SUDO tar -xzf "$tmp/k6.tgz" -C "$dest" --strip-components=1 "k6-v${K6_VERSION}-linux-amd64/k6"
+    log "đã cài k6 ${K6_VERSION}"
+  fi
+  mkdir -p "$BIN_DIR"
+  ln -sf "$dest/k6" "$BIN_DIR/k6"
+}
+
 install_node() {
   local dest="${OPT_DIR}/node-v${NODE_VERSION}"
   if [ ! -x "$dest/bin/node" ]; then
@@ -100,7 +117,7 @@ install_node() {
   ln -sf "$dest/bin/pnpm" "$BIN_DIR/pnpm"
 }
 
-# --only <thành phần,...>: cài một phần (vd CI chỉ cần `--only weed`). Mặc định: postgres, weed, node (gitleaks chỉ khi gọi tên).
+# --only <thành phần,...>: cài một phần (vd CI chỉ cần `--only weed`). Mặc định: postgres, weed, node (gitleaks, k6 chỉ khi gọi tên).
 only="all"
 if [ "${1:-}" = "--only" ]; then only="${2:?thiếu danh sách sau --only}"; fi
 want() { [ "$only" = "all" ] || [[ ",$only," == *",$1,"* ]]; }
@@ -110,4 +127,5 @@ want postgres && install_postgres
 want weed && install_weed
 want node && install_node
 want_named gitleaks && install_gitleaks
+want_named k6 && install_k6
 log "xong — chạy scripts/dev-env-check.sh để kiểm. Cần ${BIN_DIR} đứng trước các node khác trong PATH."

@@ -41,11 +41,11 @@ Không có ngưỡng nào dùng trung bình (`avg<`) — chỉ phân vị (XC-PE
 | `create-hold.js` | `reservation.create` → `reservation.hold` | `K6_COOKIE` (lễ tân/quản lý, đã qua MFA), `ORG_ID`, `UNIT_IDS` |
 | `collect-cash.js` | `payment.collectCash` trên hoá đơn đã phát hành | `K6_COOKIE`, `ORG_ID`, `INVOICE_IDS` (+ ca quầy đang mở), `AMOUNT` |
 
-Dùng chung `perf/k6/lib.js`: `BASE_URL` bắt buộc và **phải nằm trong `K6_ALLOWED_HOSTS`** (mặc định chỉ `localhost,127.0.0.1,[::1]`; QA-PERF-007 — không tải vào production; thêm host staging có chủ đích). `K6_PROFILE=smoke` (mặc định, 1 VU × 30 s) · `load` (tăng dần tới `K6_VUS`, mặc định 200 phiên đồng thời) · `spike` (`ramping-arrival-rate`, QA-PERF-012).
+Dùng chung `perf/k6/lib.js`: `BASE_URL` bắt buộc và **phải nằm trong `K6_ALLOWED_HOSTS`** (mặc định chỉ `localhost,127.0.0.1,[::1]`; QA-PERF-007 — không tải vào production; thêm host staging có chủ đích). `K6_PROFILE=smoke` (mặc định, 1 VU × 30 s) · `load` (tăng dần tới `LOAD_VUS`, mặc định 200 phiên đồng thời) · `spike` (`ramping-arrival-rate`, QA-PERF-012).
 
 ```bash
 k6 run -e BASE_URL=http://127.0.0.1:3100 -e K6_COOKIE="…" -e ORG_ID=… -e PROPERTY_ID=… perf/k6/room-list.js
-k6 run -e K6_PROFILE=load -e K6_VUS=200 … perf/k6/create-hold.js
+k6 run -e K6_PROFILE=load -e LOAD_VUS=200 … perf/k6/create-hold.js
 ```
 
 Dữ liệu đo tải theo `PROJECT.md` §5: 100 tổ chức, 5.000 phòng, 200 phiên — **seeder cho cỡ này chưa có** (việc kế tiếp; dùng `@hm/testkit` `seedOrg`). Giấy phép k6: AGPL-3.0 — chỉ dùng để đo, không phân phối bản sửa (ghi trong kiểm kê giấy phép).
@@ -76,5 +76,5 @@ Mỗi file có `date`, `commit`, môi trường, thiết bị/mạng, số mẫu
 
 1. **PR, job `e2e` (đã có):** `perf-baseline.spec.ts` chạy cùng bộ E2E, chặn khi vượt `perf/budgets.json` — **không cần đổi workflow**.
 2. **PR, job `lighthouse` (đã có):** `pnpm install --frozen-lockfile && pnpm build && pnpm exec lhci autorun` (3 URL × 5 lần, `error` theo `lighthouserc.json`), tải `.lighthouseci/` làm artifact.
-3. **Nightly trên staging, job mới `k6`:** `k6 run -e K6_PROFILE=load -e BASE_URL=$STAGING_URL perf/k6/*.js` (cần secret `K6_COOKIE`, host staging trong `K6_ALLOWED_HOSTS`); fail khi vượt `thresholds`; weekly `K6_DURATION=30m` (soak, QA-PERF-011).
+3. **Nightly (đã có, đợt 10 — D-072): `.github/workflows/perf-nightly.yml` job `k6`** chạy `perf/k6/room-list.js` (`K6_PROFILE=load`, 20 VU × 3 phút) hằng đêm và chạy tay, trên app dựng tạm trong runner như job `e2e` (Postgres service, seed giả), đỏ khi vượt `thresholds`; đích chỉ loopback (`scripts/k6-target-guard.mjs` + `assertSafeTarget`, QA-PERF-007). Khi có staging: đổi `BASE_URL`/`K6_ALLOWED_HOSTS` sang host staging (`*.staging.*`), thêm kịch bản ghi (`create-hold.js`) với phiên riêng; weekly `LOAD_DURATION=30m` (soak, QA-PERF-011) vẫn chờ staging.
 4. Ghi kết quả đầu tiên vào `docs/perf/baseline-k6.json` / `baseline-lighthouse.json` và mục hiệu năng của `GO-NO-GO.md` (kèm 5 trường: commit, môi trường, thiết bị/mạng, VU/thời lượng, ngày).

@@ -13,6 +13,7 @@ import {
   HOTEL_WEEKDAY_PRICE,
   HOTEL_WEEKEND_PRICE,
   ORG_HOTEL,
+  perfSeedFile,
 } from "./fixtures.ts";
 import { hotelTotpFile, totp } from "./totp.ts";
 
@@ -71,6 +72,14 @@ export async function seedHotelOrg(db: Kysely<unknown>, auth: Auth, port: number
                     ${org.ownerMembershipId})`.execute(db);
 
   // Buồng phòng: đăng nhập email + mật khẩu (vai trò không bắt buộc MFA), chỉ cơ sở này.
+  const units = await sql<{
+    id: string;
+  }>`select id from units where organization_id = ${org.orgId} order by code`.execute(db);
+  writeFileSync(
+    perfSeedFile(port),
+    JSON.stringify({ org_id: org.orgId, property_id: org.propertyId, unit_ids: units.rows.map((u) => u.id) }),
+    { mode: 0o600 },
+  );
   const { user: hk } = await auth.api.signUpEmail({ body: HOTEL_HK });
   const person = randomUUID();
   const membership = randomUUID();
