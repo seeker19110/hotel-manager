@@ -24,9 +24,14 @@ else
   echo "pre-commit: chưa có node_modules (chạy pnpm install) — bỏ qua biome; CI vẫn kiểm." >&2
 fi
 
-if command -v gitleaks >/dev/null 2>&1; then
-  if ! gitleaks git --staged --no-banner --redact --exit-code 1 "$root" >&2; then
-    echo "pre-commit: gitleaks thấy bí mật trong thay đổi đã stage — gỡ bí mật (đổi luôn bí mật đã lộ), không commit." >&2
+# HM_GITLEAKS_BIN: đường dẫn gitleaks khác `gitleaks` trên PATH (test dùng bản giả / đường không tồn tại để mô phỏng "chưa cài").
+gitleaks_bin="${HM_GITLEAKS_BIN:-gitleaks}"
+if command -v "$gitleaks_bin" >/dev/null 2>&1; then
+  if "$gitleaks_bin" git --staged --no-banner --redact --exit-code 1 "$root" >&2; then
+    :
+  else
+    code=$?
+    echo "pre-commit: gitleaks thấy bí mật trong thay đổi đã stage hoặc báo lỗi (exit $code) — gỡ bí mật (đổi luôn bí mật đã lộ), không commit." >&2
     exit 1
   fi
 else

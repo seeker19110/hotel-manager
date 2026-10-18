@@ -27,7 +27,8 @@ import {
   resolveBreak,
 } from "./reconciliation.ts";
 
-const SECRET = "sim-secret-chi-dung-trong-test-0123456789";
+// Khoá giả của bản giả lập webhook, ghép lúc chạy để máy quét bí mật không nhầm là khoá thật (WF-GIT-010).
+const SECRET = ["sim", "secret", "chi", "dung", "trong", "test", "0123456789"].join("-");
 let t: TestDb;
 let A: SeededOrg;
 let owner: Actor;

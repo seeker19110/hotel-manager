@@ -311,7 +311,7 @@ describe("WF-GIT-010 — hook quét bí mật trong thay đổi đã stage", () 
     writeFileSync(join(bin, "gitleaks"), `#!/bin/sh\necho "$@" > "${join(d, "args.txt")}"\nexit ${code}\n`, {
       mode: 0o755,
     });
-    return { PATH: `${bin}:${process.env.PATH}` };
+    return { HM_GITLEAKS_BIN: join(bin, "gitleaks") };
   }
   const commitEnv = (d, env) => sh(d, "git", ["commit", "-q", "-m", "test: x"], { env });
 
@@ -323,7 +323,10 @@ describe("WF-GIT-010 — hook quét bí mật trong thay đổi đã stage", () 
     const r = commitEnv(d, env);
     expect(r.status).not.toBe(0);
     expect(r.stderr).toContain("gitleaks thấy bí mật");
-    expect(readFileSync(join(d, "args.txt"), "utf8")).toMatch(/^git --staged .*--redact/);
+    expect(r.stderr).toContain("exit 1");
+    expect(readFileSync(join(d, "args.txt"), "utf8")).toMatch(
+      /^git --staged --no-banner --redact --exit-code 1 \S+\n$/,
+    );
   });
 
   it("gitleaks sạch (exit 0) → commit qua", () => {
@@ -339,9 +342,8 @@ describe("WF-GIT-010 — hook quét bí mật trong thay đổi đã stage", () 
     const d = sandbox();
     writeFileSync(join(d, "a.ts"), GOOD);
     stage(d, "a.ts");
-    // PATH tối thiểu: có git/sh/node nhưng không có gitleaks.
-    const dirsOnPath = (process.env.PATH ?? "").split(":").filter((p) => !existsSync(join(p, "gitleaks")));
-    const r = commitEnv(d, { PATH: dirsOnPath.join(":") });
+    // Trỏ tới đường không tồn tại thay vì gỡ thư mục khỏi PATH (gitleaks cài chung /usr/bin với git thì gỡ thư mục làm mất git).
+    const r = commitEnv(d, { HM_GITLEAKS_BIN: join(d, "khong-co", "gitleaks") });
     expect(r.status).toBe(0);
     expect(r.stderr).toContain("chưa cài gitleaks");
   });
