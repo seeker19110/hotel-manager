@@ -20,6 +20,7 @@ const waitRun = release.jobs.assets.steps.find((s) => String(s.name).startsWith(
 const WAIT_LOOPS = Number(/seq 1 (\d+)/.exec(waitRun)?.[1]);
 const WAIT_SLEEP_S = Number(/sleep (\d+)/.exec(waitRun)?.[1]);
 const WAIT_MARGIN_MIN = 15; // hàng đợi runner + quality chạy lại
+const SBOM_BUDGET_MIN = 20; // checkout + cài + SBOM npm + 4 image sau khi quality xanh (CMP-LIC-003)
 const stepText = (job) => job.steps.map((s) => `${s.name ?? ""}\n${s.run ?? ""}`).join("\n----\n");
 
 /**
@@ -147,7 +148,7 @@ describe("WF-REL-003 — tag bất biến, Release kèm artefact + checksum", ()
       expect(windowMin).toBeGreaterThanOrEqual(
         slowestChild + ci.jobs.quality["timeout-minutes"] + WAIT_MARGIN_MIN,
       );
-      expect(release.jobs.assets["timeout-minutes"]).toBeGreaterThan(windowMin);
+      expect(release.jobs.assets["timeout-minutes"]).toBeGreaterThanOrEqual(windowMin + SBOM_BUDGET_MIN);
     });
   });
 
@@ -220,7 +221,7 @@ describe("CMP-LIC-003 — SBOM CycloneDX lưu cùng Release", () => {
     expect(Object.keys(listed).sort()).toEqual(matrix.map((m) => m.name).sort());
     for (const m of matrix) {
       if (m.build) {
-        expect(imageRun).toContain(`docker build --tag ${listed[m.name]} ${m.build}`);
+        expect(imageRun).toMatch(new RegExp(`^ *docker build --tag ${listed[m.name]} ${m.build}$`, "m"));
       } else {
         expect(listed[m.name]).toBe(m.ref);
         expect(m.ref).toMatch(/@sha256:[0-9a-f]{64}$/);
@@ -236,6 +237,23 @@ describe("CMP-LIC-003 — SBOM CycloneDX lưu cùng Release", () => {
     expect(at("dist/sbom.cdx.json")).toBeLessThan(at("> SHA256SUMS"));
     expect(at("sbom-image-")).toBeLessThan(at("> SHA256SUMS"));
     expect(text).toContain('gh release upload "$TAG" dist/*');
+  });
+
+  it("token quyền ghi chỉ ở hai bước dùng gh; không ở cấp job, không ở bước cài/SBOM/build (mã bên thứ ba)", () => {
+    expect(assets.env).not.toHaveProperty("GH_TOKEN");
+    const withToken = assets.steps.filter((s) => s.env?.GH_TOKEN).map((s) => String(s.name));
+    expect(withToken).toEqual([
+      expect.stringMatching(/^Đợi check quality/),
+      expect.stringMatching(/^Đính artefact rồi công khai/),
+    ]);
+    for (const s of assets.steps.filter((s) => /gh /.test(String(s.run ?? ""))))
+      expect(s.env?.GH_TOKEN, String(s.name)).toBeTruthy();
+  });
+
+  it("đọc danh sách image qua fd 3 (docker/syft không nuốt stdin) và đếm đủ 4 SBOM image sau vòng lặp", () => {
+    expect(imageRun).toContain("while read -r name ref <&3; do");
+    expect(imageRun).toContain("done 3<<'IMAGES'");
+    expect(imageRun).toMatch(/\[ "\$\(find dist -name 'sbom-image-\*\.cdx\.json' \| wc -l\)" -eq 4 \]/);
   });
 
   it("syft tải bằng action ghim cùng SHA với supply-chain.yml", () => {

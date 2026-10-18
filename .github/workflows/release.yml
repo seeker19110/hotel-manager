@@ -55,8 +55,9 @@ jobs:
     permissions:
       contents: write
       checks: read
+    # GH_TOKEN (quyền ghi contents) KHÔNG đặt ở cấp job: pnpm install, scripts/sbom.mjs, syft tải về và docker build chạy mã bên thứ ba
+    # không được thấy nó — chỉ hai bước dùng `gh` (đợi quality, đính artefact) mới có (review PR #59).
     env:
-      GH_TOKEN: ${{ github.token }}
       REPO: ${{ github.repository }}
       TAG: ${{ needs.release-please.outputs.tag_name }}
       RELEASE_SHA: ${{ needs.release-please.outputs.sha }}
@@ -66,6 +67,8 @@ jobs:
           ref: ${{ needs.release-please.outputs.sha }}
           persist-credentials: false
       - name: Đợi check quality của commit phát hành (đỏ → không công khai)
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           for i in $(seq 1 80); do
@@ -102,16 +105,18 @@ jobs:
         run: |
           set -euo pipefail
           docker build --tag hm-postgres:release deploy/postgres
-          while read -r name ref; do
+          while read -r name ref <&3; do
             [ "$ref" = "hm-postgres:release" ] || docker pull "$ref"
             "$SYFT" scan "$ref" -o "cyclonedx-json=dist/sbom-image-$name.cdx.json"
             node scripts/sbom-check.mjs "dist/sbom-image-$name.cdx.json"
-          done <<'IMAGES'
+          done 3<<'IMAGES'
           postgres hm-postgres:release
           node-base node:24.22.0-trixie-slim@sha256:7f486cabe892bff8fef04c0f7da8dba84a560be3e4e2740b7a86afc57ebec315
           seaweedfs chrislusf/seaweedfs:4.48@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d
           caddy caddy:2.11.7-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f
           IMAGES
+          # Phải đủ 4 SBOM image (vòng lặp không được dừng sớm âm thầm).
+          [ "$(find dist -name 'sbom-image-*.cdx.json' | wc -l)" -eq 4 ]
       - name: Đóng gói mã nguồn + SHA256SUMS (gồm SBOM)
         run: |
           set -euo pipefail
@@ -120,6 +125,8 @@ jobs:
           git archive --format=tar.gz --prefix="$name/" -o "dist/$name.tar.gz" "$RELEASE_SHA"
           (cd dist && sha256sum ./*.tar.gz ./*.cdx.json > SHA256SUMS && sha256sum -c SHA256SUMS)
       - name: Đính artefact rồi công khai Release (tạo tag đúng commit đã qua quality)
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           gh release upload "$TAG" dist/* --repo "$REPO" --clobber
