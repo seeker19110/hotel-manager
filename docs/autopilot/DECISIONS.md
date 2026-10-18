@@ -423,3 +423,10 @@
 - Chọn: 67 mục MUST 'một phần' cần CI/file cổng/công cụ, chia 7 lát theo chủ đề (pr-policy+lịch sử, chuỗi cung ứng, quét bảo mật, frontend perf/test, chất lượng test, API/vận hành, phát hành/DX); bỏ 4 mục cần biến môi trường mới và 19 mục pháp lý
 - Lý do (tiêu chí chất lượng cuối): (1) đúng phạm vi người duyệt; (3) mỗi lát một PR có test/CI chứng minh; công cụ chọn tự host, giấy phép OSI, action ghim SHA (ci-check); phụ thuộc mới theo license-policy.json
 - Đường lùi: Revert PR của lát tương ứng; cấu hình cổng trở về bản trước
+
+### D-060 · 2026-10-18T00:08:06+00:00 · WF-REVIEW-007: thay đổi .github/.claude/.githooks có bắt buộc người merge (thêm vào merge_risk_paths) không?
+
+- Phương án: (1) Giữ CODEOWNERS (@seeker19110) nhưng không thêm vào merge_risk_paths; WF-REVIEW-007 chưa tick, chờ chủ dự án quyết · (2) Thêm .github/*, .claude/*, .githooks/* vào merge_risk_paths (mọi PR CI/công cụ phải người merge)
+- Chọn: Giữ CODEOWNERS (@seeker19110) nhưng không thêm vào merge_risk_paths; WF-REVIEW-007 chưa tick, chờ chủ dự án quyết
+- Lý do (tiêu chí chất lượng cuối): (2) đường lùi: chủ dự án đã duyệt đợt 9 sửa CI/công cụ và muốn tự merge từng lát; thêm vào merge_risk_paths đổi chính sách merge (điểm dừng) nên để chủ dự án quyết
+- Đường lùi: Thêm glob vào merge_risk_paths trong xt.yaml
