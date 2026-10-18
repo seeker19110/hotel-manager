@@ -36,3 +36,6 @@ dev: "pnpm --filter @hm/web dev"
 migrate: ""
 install: "pnpm install --frozen-lockfile"
 init: "bash scripts/dev-env-setup.sh && pnpm install --frozen-lockfile"
+# ai_attribution: forbid = guard chặn commit mà message ghi tên model hay URL phiên AI (`Claude-Session:`, `Claude Opus …`)
+# — LOOP-HARNESS-027. Trống/allow = không kiểm (trailer `Co-authored-by: Claude <…>` chung luôn được).
+ai_attribution: ""
