@@ -1,8 +1,9 @@
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { checkDir, deployFiles, findUnpinned } from "./check-image-pins.mjs";
+import { checkDir, checkWorkflows, deployFiles, findUnpinned, workflowFiles } from "./check-image-pins.mjs";
 
 const DEPLOY = fileURLToPath(new URL("../deploy", import.meta.url));
+const WORKFLOWS = fileURLToPath(new URL("../.github/workflows", import.meta.url));
 const D = `sha256:${"a".repeat(64)}`;
 
 describe("findUnpinned", () => {
@@ -31,5 +32,29 @@ describe("deploy/", () => {
 
   it("mọi image ghim digest sha256", () => {
     expect(checkDir(DEPLOY)).toEqual([]);
+  });
+});
+
+describe("findUnpinned — biểu thức workflow", () => {
+  it("mặc định `${{ … }}` bị coi là chưa ghim; với skipExpressions thì bỏ qua, image thật vẫn bị bắt", () => {
+    const yml = "      image: ${{matrix.ref}}\n      image: postgres:17\n";
+    expect(findUnpinned(yml)).toEqual(["${{matrix.ref}}", "postgres:17"]);
+    expect(findUnpinned(yml, { skipExpressions: true })).toEqual(["postgres:17"]);
+  });
+  it("service image của workflow ghim digest thì sạch", () => {
+    expect(
+      findUnpinned(`    services:\n      postgres:\n        image: postgres:17.11-trixie@${D}\n`),
+    ).toEqual([]);
+  });
+});
+
+describe(".github/workflows", () => {
+  it("có workflow để kiểm", () => {
+    const names = workflowFiles(WORKFLOWS).map((f) => f.slice(WORKFLOWS.length + 1));
+    expect(names).toContain("ci.yml");
+  });
+
+  it("service/container image trong workflow ghim digest sha256 (BASE-DEP-008)", () => {
+    expect(checkWorkflows(WORKFLOWS)).toEqual([]);
   });
 });

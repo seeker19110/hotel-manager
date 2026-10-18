@@ -9,7 +9,8 @@
 | `postgres/Dockerfile` | Postgres 17 + pgBackRest |
 | `Caddyfile` | TLS tự động, HSTS, chuyển tiếp tới `web:3000` và kho file |
 | `s3.json.example`, `pgbackrest.conf.example` | mẫu bí mật; bản thật ở `deploy/secrets/` (bị `.gitignore`) |
-| `prometheus/alerts.yml` | rule cảnh báo (xem [`docs/ops/SLO.md`](../docs/ops/SLO.md)) |
+| `prometheus/alerts.yml`, `prometheus/alerts.test.yml` | rule cảnh báo (xem [`docs/ops/SLO.md`](../docs/ops/SLO.md)) và test của chúng (`promtool test rules`, CI job `prometheus-rules`) |
+| `otel/collector.yaml` | OTel Collector (bản contrib): đọc file log JSON của container, gắn Resource `service.name`/`service.version`/`deployment.environment`, giữ cả dòng không parse được (nhãn `unparsed`). Kiểm: `otelcol-contrib validate` + `node scripts/otel-collector-e2e.mjs` (CI job `otel-collector`). Chưa có service Collector trong compose — chạy cùng máy chủ khi chọn nơi lưu log lâu dài |
 
 ## Danh tính theo service (BASE-SEC-006, SEC-INFRA-001)
 Mỗi service chạy với danh tính riêng, quyền tối thiểu; không dùng chung khoá giữa web và worker. Hai danh tính S3 có cùng tập hành động vì cả hai đều đọc/ghi/xoá object trong bucket file (web: tải lên, URL ký; worker: tệp xuất, dọn file hết hạn) — tách để xoay và thu hồi độc lập, và để nhật ký của SeaweedFS phân biệt được bên thao tác.

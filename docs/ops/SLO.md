@@ -49,7 +49,7 @@ SLO 99,9%/30 ngày ⇒ ngân sách lỗi **0,1%** ≈ **43 phút** không khả 
 | `HmAvailabilityBurnMedium` / `HmLatencyBurnMedium` | 6× | 6 giờ / 30 phút | **ticket** (đề xuất của kế hoạch đợt 5; SRE Workbook xếp page — nâng lên khi có lịch trực) | > 0,6% | > 30% |
 | `HmAvailabilityBurnSlow` / `HmLatencyBurnSlow` | 1× | 3 ngày / 6 giờ | **ticket** | > 0,1% | > 5% |
 
-  Không có cảnh báo page kiểu ngưỡng tài nguyên (`cpu > 80%`). Chưa thử kích hoạt tới kênh thật (`OPS-SLO-006`); `promtool test rules` là việc kế tiếp (cần `promtool` — chưa có trong CI).
+  Không có cảnh báo page kiểu ngưỡng tài nguyên (`cpu > 80%`). Chưa thử kích hoạt tới kênh thật (`OPS-SLO-006`); Cú pháp và hành vi rule được CI kiểm bằng `promtool check rules` + `promtool test rules deploy/prometheus/alerts.test.yml` (job `prometheus-rules`, ca báo lẫn không báo cho mọi cảnh báo `page`); truy vấn PromQL trong §1 được kiểm cú pháp bằng `node scripts/check-slo-promql.mjs`.
 - Số mẫu tối thiểu và ngưỡng khởi điểm, chỉnh sau pilot 4 tuần.
 
 ## 3. Chính sách khi cạn ngân sách

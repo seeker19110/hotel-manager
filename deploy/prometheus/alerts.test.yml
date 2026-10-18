@@ -1,0 +1,287 @@
+# Test đơn vị cho deploy/prometheus/alerts.yml — chạy bằng `promtool test rules deploy/prometheus/alerts.test.yml` (OPS-SLO-001/004).
+# CI: job `prometheus-rules` (.github/workflows/api-ops.yml); cục bộ: `bash scripts/ops-tools.sh run promtool test rules deploy/prometheus/alerts.test.yml`.
+# Mỗi ca có cả hướng "báo" lẫn "không báo" (ngưỡng, ít request, cửa sổ ngắn) để rule không thể bị nới/hỏng mà vẫn xanh.
+rule_files:
+  - alerts.yml
+
+evaluation_interval: 1m
+
+tests:
+  # --- Khả dụng: đốt nhanh (14,4×, ngưỡng 1,44% 5xx) ---
+  - name: availability-burn-fast-fires-at-4.8-percent-5xx
+    interval: 1m
+    input_series:
+      - series: 'hm_http_requests_total{route="/api/v1/commands",method="POST",status="200"}'
+        values: "0+100x70"
+      - series: 'hm_http_requests_total{route="/api/v1/commands",method="POST",status="500"}'
+        values: "0+5x70"
+    alert_rule_test:
+      - eval_time: 70m
+        alertname: HmAvailabilityBurnFast
+        exp_alerts:
+          - exp_labels:
+              severity: page
+              owner: van-hanh
+            exp_annotations:
+              summary: "Đốt ngân sách khả dụng nhanh (14,4×) trên cả 1 giờ và 5 phút — hết ngân sách 30 ngày trong ~2 ngày"
+              description: "Tỷ lệ 5xx của luồng lõi vượt 1,44% ở cả hai cửa sổ. Xem docs/ops/SLO.md §2 và tra log theo correlation_id."
+              runbook_url: docs/RUNBOOK.md
+              runbook_section: "3.1 Web trả 5xx / /api/ready 503"
+
+  - name: availability-burn-fast-silent-at-0.05-percent-5xx
+    interval: 1m
+    input_series:
+      - series: 'hm_http_requests_total{route="/api/v1/commands",method="POST",status="200"}'
+        values: "0+1000x70"
+      - series: 'hm_http_requests_total{route="/api/v1/commands",method="POST",status="500"}'
+        values: "0+0.5x70"
+    alert_rule_test:
+      - eval_time: 70m
+        alertname: HmAvailabilityBurnFast
+        exp_alerts: []
+
+  # Biên: tỷ lệ lỗi 50% nhưng chỉ ~12 request/giờ (< 30) → không báo (tránh báo vì vài request đêm khuya).
+  - name: availability-burn-fast-silent-when-fewer-than-30-requests
+    interval: 1m
+    input_series:
+      - series: 'hm_http_requests_total{route="/api/v1/commands",method="POST",status="200"}'
+        values: "0+0.1x70"
+      - series: 'hm_http_requests_total{route="/api/v1/commands",method="POST",status="500"}'
+        values: "0+0.1x70"
+    alert_rule_test:
+      - eval_time: 70m
+        alertname: HmAvailabilityBurnFast
+        exp_alerts: []
+
+  # Biên: lỗi đã hết ở cửa sổ ngắn (5 phút cuối sạch) → cửa sổ dài còn vượt nhưng không báo.
+  - name: availability-burn-fast-silent-when-short-window-recovered
+    interval: 1m
+    input_series:
+      - series: 'hm_http_requests_total{route="/api/v1/commands",method="POST",status="200"}'
+        values: "0+100x30 3000+100x40"
+      - series: 'hm_http_requests_total{route="/api/v1/commands",method="POST",status="500"}'
+        values: "0+20x30 600+0x40"
+    alert_rule_test:
+      - eval_time: 70m
+        alertname: HmAvailabilityBurnFast
+        exp_alerts: []
+
+  # Biên: route ngoài luồng lõi (/api/metrics) không tính vào SLI khả dụng.
+  - name: availability-burn-fast-ignores-non-core-routes
+    interval: 1m
+    input_series:
+      - series: 'hm_http_requests_total{route="/api/metrics",method="GET",status="200"}'
+        values: "0+100x70"
+      - series: 'hm_http_requests_total{route="/api/metrics",method="GET",status="500"}'
+        values: "0+50x70"
+    alert_rule_test:
+      - eval_time: 70m
+        alertname: HmAvailabilityBurnFast
+        exp_alerts: []
+
+  # --- Độ trễ: đốt nhanh (14,4×, ngưỡng 72% chậm hơn 800 ms) ---
+  - name: latency-burn-fast-fires-when-90-percent-slower-than-800ms
+    interval: 1m
+    input_series:
+      - series: 'hm_http_request_duration_seconds_bucket{route="/api/v1/commands",method="POST",status="200",le="0.8"}'
+        values: "0+10x70"
+      - series: 'hm_http_request_duration_seconds_count{route="/api/v1/commands",method="POST",status="200"}'
+        values: "0+100x70"
+    alert_rule_test:
+      - eval_time: 70m
+        alertname: HmLatencyBurnFast
+        exp_alerts:
+          - exp_labels:
+              severity: page
+              owner: van-hanh
+            exp_annotations:
+              summary: "Độ trễ đốt ngân sách nhanh (14,4×): trên 72% yêu cầu API chậm hơn 800 ms ở cả 1 giờ và 5 phút"
+              description: "API gần như không dùng được. Kiểm CSDL (§3.2), kết nối đầy, khoá treo."
+              runbook_url: docs/RUNBOOK.md
+              runbook_section: "3.2 CSDL đầy kết nối / chậm"
+
+  - name: latency-burn-fast-silent-when-99-percent-within-800ms
+    interval: 1m
+    input_series:
+      - series: 'hm_http_request_duration_seconds_bucket{route="/api/v1/commands",method="POST",status="200",le="0.8"}'
+        values: "0+99x70"
+      - series: 'hm_http_request_duration_seconds_count{route="/api/v1/commands",method="POST",status="200"}'
+        values: "0+100x70"
+    alert_rule_test:
+      - eval_time: 70m
+        alertname: HmLatencyBurnFast
+        exp_alerts: []
+
+  # --- Vận hành: mất số liệu, outbox đứng, email dead ---
+  - name: metrics-down-fires-after-3m-of-absence-not-before
+    interval: 1m
+    input_series:
+      - series: "hm_up"
+        values: "1 1 1 stale"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: HmMetricsDown
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: HmMetricsDown
+        exp_alerts:
+          - exp_labels:
+              severity: page
+              owner: van-hanh
+            exp_annotations:
+              summary: "Không lấy được số liệu ứng dụng (web ngừng hoặc /api/metrics lỗi) quá 3 phút"
+              description: "Mất series hm_up: web không trả lời hoặc token metrics sai. Người dùng có thể không vào được hệ thống."
+              runbook_url: docs/RUNBOOK.md
+              runbook_section: "3.1 Web trả 5xx / /api/ready 503"
+
+  - name: metrics-up-keeps-metrics-down-silent
+    interval: 1m
+    input_series:
+      - series: "hm_up"
+        values: "1x20"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: HmMetricsDown
+        exp_alerts: []
+
+  - name: outbox-stalled-needs-300s-for-5m
+    interval: 1m
+    input_series:
+      - series: "hm_outbox_oldest_unpublished_age_seconds"
+        values: "600x20"
+      - series: "hm_up"
+        values: "1x20"
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: HmOutboxStalled
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: HmOutboxStalled
+        exp_alerts:
+          - exp_labels:
+              severity: page
+              owner: van-hanh
+            exp_annotations:
+              summary: "Outbox đứng: sự kiện chưa phát cũ nhất quá 5 phút"
+              description: "Relay outbox không chạy: webhook thanh toán không được ghi, thông báo và xuất dữ liệu không đi."
+              runbook_url: docs/RUNBOOK.md
+              runbook_section: "3.3 Outbox đứng"
+
+  # Biên: đúng 300 giây không vượt ngưỡng (so sánh `>`, không phải `>=`).
+  - name: outbox-age-exactly-300s-is-not-stalled
+    interval: 1m
+    input_series:
+      - series: "hm_outbox_oldest_unpublished_age_seconds"
+        values: "300x20"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: HmOutboxStalled
+        exp_alerts: []
+
+  - name: notification-dead-is-a-gauge-uses-delta
+    interval: 1m
+    input_series:
+      - series: "notification_dead_total"
+        values: "0x30 3x40"
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: HmNotificationDead
+        exp_alerts: []
+      - eval_time: 60m
+        alertname: HmNotificationDead
+        exp_alerts:
+          - exp_labels:
+              severity: ticket
+              owner: backend
+            exp_annotations:
+              summary: "Số email hết lượt thử (dead) tăng ròng trong 1 giờ qua"
+              description: "Nhà cung cấp SMTP lỗi kéo dài hoặc địa chỉ nhận sai hàng loạt; owner/manager có thể gửi lại sau khi sửa. Metric là gauge số hàng dead: gửi lại làm giảm; nếu vừa có hàng dead mới vừa gửi lại hàng cũ trong cùng 1 giờ thì tăng ròng có thể bằng 0 — xem số dead hiện tại."
+              runbook_url: docs/RUNBOOK.md
+              runbook_section: "3.4 Email dead tăng"
+
+  # --- Worker: nhịp quá 120 s, hoặc chưa từng báo nhịp (absent) ---
+  - name: worker-heartbeat-stale-fires-over-120s-and-when-absent
+    interval: 1m
+    input_series:
+      - series: "hm_worker_heartbeat_age_seconds"
+        values: "10x5 200x15"
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: HmWorkerHeartbeatStale
+        exp_alerts: []
+      - eval_time: 15m
+        alertname: HmWorkerHeartbeatStale
+        exp_alerts:
+          - exp_labels:
+              severity: page
+              owner: van-hanh
+            exp_annotations:
+              summary: "Worker không có nhịp quá 120 giây (hoặc chưa từng báo nhịp)"
+              description: "Worker treo/chết: outbox, nhắc nợ, nhả giữ chỗ và job xuất không chạy."
+              runbook_url: docs/RUNBOOK.md
+              runbook_section: "3.3 Outbox đứng (bước 1: kiểm nhịp worker)"
+
+  - name: worker-heartbeat-absent-series-fires
+    interval: 1m
+    input_series:
+      - series: "hm_up"
+        values: "1x10"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: HmWorkerHeartbeatStale
+        exp_alerts:
+          - exp_labels:
+              severity: page
+              owner: van-hanh
+            exp_annotations:
+              summary: "Worker không có nhịp quá 120 giây (hoặc chưa từng báo nhịp)"
+              description: "Worker treo/chết: outbox, nhắc nợ, nhả giữ chỗ và job xuất không chạy."
+              runbook_url: docs/RUNBOOK.md
+              runbook_section: "3.3 Outbox đứng (bước 1: kiểm nhịp worker)"
+
+  # Biên: nhịp đúng 120 s không phải quá hạn.
+  - name: worker-heartbeat-exactly-120s-is-fresh
+    interval: 1m
+    input_series:
+      - series: "hm_worker_heartbeat_age_seconds"
+        values: "120x15"
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: HmWorkerHeartbeatStale
+        exp_alerts: []
+
+  # --- XID wraparound: vượt 1,8 tỷ (page); đúng 1,8 tỷ chưa báo ---
+  - name: db-xid-age-critical-over-1.8-billion
+    interval: 1m
+    input_series:
+      - series: "hm_db_xid_age"
+        values: "1900000000x15"
+      - series: "hm_db_multixact_age"
+        values: "5x15"
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: HmDbXidAgeCritical
+        exp_alerts: []
+      - eval_time: 12m
+        alertname: HmDbXidAgeCritical
+        exp_alerts:
+          - exp_labels:
+              severity: page
+              owner: van-hanh
+            exp_annotations:
+              summary: "Tuổi XID (hoặc multixact) của CSDL vượt 1,8 tỷ — còn dưới 350 triệu giao dịch tới ngưỡng ngừng ghi"
+              description: "PostgreSQL cảnh báo ở 40 triệu còn lại và từ chối giao dịch mới ở 3 triệu còn lại (wraparound). Xử lý ngay theo runbook §3.10."
+              runbook_url: docs/RUNBOOK.md
+              runbook_section: "3.10 Tuổi XID cao (nguy cơ wraparound)"
+
+  - name: db-xid-age-exactly-1.8-billion-is-not-critical
+    interval: 1m
+    input_series:
+      - series: "hm_db_xid_age"
+        values: "1800000000x15"
+      - series: "hm_db_multixact_age"
+        values: "1800000000x15"
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: HmDbXidAgeCritical
+        exp_alerts: []
