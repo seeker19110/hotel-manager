@@ -5,8 +5,12 @@ import { join } from "node:path";
 
 const PINNED = /@sha256:[0-9a-f]{64}$/;
 
-/** Trả về các tham chiếu image chưa ghim digest trong nội dung một file. */
-export function findUnpinned(text) {
+/**
+ * Trả về các tham chiếu image chưa ghim digest trong nội dung một file.
+ * `skipExpressions`: bỏ qua giá trị là biểu thức workflow (`${{ matrix.x }}`) — dùng cho .github/workflows, nơi image thật
+ * nằm ở khoá `ref:` của matrix và được supply-chain.test.mjs kiểm riêng.
+ */
+export function findUnpinned(text, { skipExpressions = false } = {}) {
   const refs = [];
   // Multi-stage: `FROM <tên stage đã khai báo>` không phải image ngoài.
   const stages = new Set();
@@ -16,6 +20,7 @@ export function findUnpinned(text) {
     const m =
       /^(?:-\s*)?image:\s*["']?([^"'\s]+)["']?$/.exec(line) ??
       /^FROM\s+(?:--platform=\S+\s+)?(\S+)/i.exec(line);
+    if (m && skipExpressions && m[1].includes("${{")) continue;
     if (m && m[1] !== "scratch" && !stages.has(m[1].toLowerCase()) && !PINNED.test(m[1])) refs.push(m[1]);
     if (stage?.[1]) stages.add(stage[1].toLowerCase());
   }
@@ -36,4 +41,18 @@ export function deployFiles(dir) {
 
 export function checkDir(dir) {
   return deployFiles(dir).flatMap((f) => findUnpinned(readFileSync(f, "utf8")).map((ref) => `${f}: ${ref}`));
+}
+
+/** Workflow GitHub (`*.yml`/`*.yaml`) dưới một thư mục: image của `services:`/`container:` cũng phải ghim digest (BASE-DEP-008). */
+export function workflowFiles(dir) {
+  return readdirSync(dir, { withFileTypes: true })
+    .filter((e) => e.isFile() && /\.ya?ml$/.test(e.name))
+    .map((e) => join(dir, e.name))
+    .sort();
+}
+
+export function checkWorkflows(dir) {
+  return workflowFiles(dir).flatMap((f) =>
+    findUnpinned(readFileSync(f, "utf8"), { skipExpressions: true }).map((ref) => `${f}: ${ref}`),
+  );
 }

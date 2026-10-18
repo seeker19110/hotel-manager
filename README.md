@@ -60,7 +60,7 @@ pnpm install --frozen-lockfile
 
 ```bash
 # lint (gồm kiểm format, giấy phép phụ thuộc, workflow CI)
-pnpm lint && pnpm licenses:check && python3 .xtemplates/scripts/xt.py ci-check .github/workflows
+pnpm lint && pnpm lint:openapi && pnpm licenses:check && python3 .xtemplates/scripts/xt.py ci-check .github/workflows
 # typecheck
 pnpm typecheck
 # test (Vitest: project unit + db; db dùng Postgres 17 thật)

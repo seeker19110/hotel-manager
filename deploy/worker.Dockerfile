@@ -27,6 +27,9 @@ FROM base AS runtime
 ENV NODE_ENV=production
 # Mã và node_modules do root sở hữu (user `node` chỉ đọc); worker không ghi gì vào cây mã.
 COPY --from=deps /app /app
+# Không dùng npm lúc chạy (CMD gọi thẳng node): xoá npm đi kèm image nền để runtime không mang theo phụ thuộc của npm
+# (undici, brace-expansion… — `.grype.yaml` chỉ bỏ qua chúng ở image nền, T-802). Build/deps vẫn dùng npm ở stage trước.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 USER node
 # Không có bí mật trong image: DATABASE_URL, WORKER_DATABASE_URL, S3_*, SMTP_URL, HM_PII_KEYS… chỉ nạp qua môi trường khi chạy.
 # Worker dùng vai trò CSDL `app_worker` và danh tính S3 RIÊNG của worker (deploy/README.md). Không mở cổng.

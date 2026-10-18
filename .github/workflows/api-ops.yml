@@ -1,0 +1,124 @@
+name: API và vận hành
+
+# Kiểm hợp đồng API và cấu hình vận hành bằng công cụ thật (T-806): spectral (BE-API-001), promtool (OPS-SLO-001),
+# OTel Collector (OPS-OBS-001), test bản N−1 trên schema N (OPS-DEPLOY-003). Công cụ nhị phân cài bằng scripts/ops-tools.sh
+# (phiên bản + SHA-256 ghim một chỗ). Kiểm breaking-change OpenAPI nằm ở job `pr-policy` (scripts/check-openapi-breaking.mjs).
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # BE-API-001: spec OpenAPI 3.1 là nguồn sự thật; lint bằng Spectral với ruleset trong repo (.spectral.yaml), cảnh báo cũng là lỗi.
+  openapi:
+    name: openapi
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24.22.0"
+          cache: pnpm
+      - name: Cài phụ thuộc (lockfile đóng băng)
+        run: pnpm install --frozen-lockfile
+      - name: Spectral lint apps/web/openapi.json
+        run: pnpm lint:openapi
+
+  # OPS-SLO-001: rule cảnh báo + SLO. `check rules` (cú pháp), `test rules` (rule báo/không báo đúng), truy vấn SLI trong SLO.md.
+  prometheus-rules:
+    name: prometheus-rules
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24.22.0"
+      - name: Cài promtool (ghim phiên bản + SHA-256)
+        run: bash scripts/ops-tools.sh install promtool && echo "$(bash scripts/ops-tools.sh path)" >> "$GITHUB_PATH"
+      - name: promtool check rules
+        run: promtool check rules deploy/prometheus/alerts.yml
+      - name: promtool test rules
+        run: promtool test rules deploy/prometheus/alerts.test.yml
+      - name: Truy vấn PromQL trong docs/ops/SLO.md
+        run: node scripts/check-slo-promql.mjs
+
+  # OPS-OBS-001: cấu hình Collector hợp lệ (validate) và chạy thật trên log mẫu — dòng rác vẫn lưu với nhãn `unparsed`.
+  otel-collector:
+    name: otel-collector
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24.22.0"
+      - name: Cài otelcol-contrib (ghim phiên bản + SHA-256)
+        run: bash scripts/ops-tools.sh install otelcol-contrib && echo "$(bash scripts/ops-tools.sh path)" >> "$GITHUB_PATH"
+      - name: otelcol-contrib validate
+        run: otelcol-contrib validate --config deploy/otel/collector.yaml
+      - name: Collector chạy thật — resource, severity, dòng rác, truy vấn theo service.name
+        run: node scripts/otel-collector-e2e.mjs
+
+  # OPS-DEPLOY-003: code nhánh nền (N−1) chạy trên schema của PR (N). Migration PR thêm không được làm hỏng code đang chạy
+  # (expand → migrate → contract). Loại hai nhóm test mà đối tượng kiểm là CHÍNH schema/chuỗi migration chứ không phải code chạy trên nó:
+  # `schema-drift` (khẳng định schema N khác ảnh chụp của N−1) và `migration-*` (lùi cả chuỗi migration, gõ cứng migration cuối của N−1
+  # nên migration mới của PR làm đỏ oan; chúng chạy ở job `gate` của PR trên chính migration N). Các file nền của test ratchet
+  # (schema-guards.baseline.json, data-map.yaml) được `overlay` chép từ PR — xem scripts/schema-compat.mjs.
+  schema-compat:
+    name: schema-compat
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:17.11-trixie@sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: .n-1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24.22.0"
+          cache: pnpm
+      - name: SeaweedFS cho test file (như job gate)
+        run: DEV_ENV_OPT_DIR="$RUNNER_TEMP" DEV_ENV_BIN_DIR="$HOME/.local/bin" bash scripts/dev-env-setup.sh --only weed && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Migration của PR chép đè lên code nền (và kiểm migration đã áp còn nguyên)
+        run: node scripts/schema-compat.mjs overlay .n-1 .
+      - name: Cài phụ thuộc của nhánh nền
+        working-directory: .n-1
+        run: pnpm install --frozen-lockfile
+      - name: Test CSDL của bản N−1 trên schema N
+        working-directory: .n-1
+        run: pnpm vitest run --project db --exclude "**/schema-drift.db.test.ts" --exclude "**/migration-*.db.test.ts"

@@ -30,10 +30,10 @@ docker compose -f deploy/compose.yaml ps
 
 ### 2. Backup trước migrate (bắt buộc khi có migration mới)
 ```bash
-docker compose -f deploy/compose.yaml exec postgres pgbackrest --stanza=hm check
-docker compose -f deploy/compose.yaml exec postgres pgbackrest --stanza=hm --type=incr backup
-docker compose -f deploy/compose.yaml exec postgres pgbackrest --stanza=hm info   # ghi nhãn bản vừa tạo
-docker compose -f deploy/compose.yaml exec postgres psql -U postgres -d <db> -c "select pg_create_restore_point('truoc_migrate_<phiên_bản>')"
+docker compose -f deploy/compose.yaml exec -u postgres postgres pgbackrest --stanza=hm check
+docker compose -f deploy/compose.yaml exec -u postgres postgres pgbackrest --stanza=hm --type=incr backup
+docker compose -f deploy/compose.yaml exec -u postgres postgres pgbackrest --stanza=hm info   # ghi nhãn bản vừa tạo
+docker compose -f deploy/compose.yaml exec -u postgres postgres psql -U postgres -d <db> -c "select pg_create_restore_point('truoc_migrate_<phiên_bản>')"
 ```
 Không tiếp tục nếu `check`/`backup` lỗi. Điểm khôi phục `truoc_migrate_<phiên_bản>` là đường lùi chắc chắn (xem [restore](restore.md) mục B).
 
@@ -47,7 +47,7 @@ const db = new Kysely({ dialect: new PostgresDialect({ pool: new pg.Pool({ conne
 try { await migrateToLatest(db); } finally { await db.destroy(); }'
 ```
 (Đã thử trên cluster tạm: áp 46 migration, không lỗi.) **Khoá bảng (RK-021):** migration có `CREATE INDEX`/`ALTER TABLE` khoá bảng đích (0048 xây ~58 index). Chạy **ngoài giờ cao điểm**, sau khi kiểm không còn giao dịch dài (`select pid, now()-xact_start, state, left(query,60) from pg_stat_activity where xact_start is not null order by 2 desc`). Migration phải tự đặt `lock_timeout` (0048: 5 s, cục bộ trong transaction của migrator, trả lại giá trị cũ sau khi xong); nếu báo `canceling statement due to lock timeout` thì transaction đã hoàn tác sạch — chờ giao dịch dài kết thúc rồi chạy lại, không tăng timeout. Bảng lớn (hàng trăm nghìn dòng trở lên): tạo index bằng `CREATE INDEX CONCURRENTLY` ngoài migrator rồi mới đánh dấu migration.
-Quy tắc: migration mới là file mới, **không sửa migration đã áp**; thay đổi phá vỡ dùng expand → contract qua hai lần phát hành.
+Quy tắc: migration mới là file mới, **không sửa migration đã áp**; thay đổi phá vỡ dùng expand → contract qua hai lần phát hành. Migration có `DROP COLUMN`/`RENAME COLUMN`/`ALTER COLUMN … TYPE`/`DROP TABLE`/`ALTER TABLE … RENAME TO` hoặc `.dropColumn()`/`.renameColumn()`/`.dropTable()`/`.renameTo()` của Kysely (từ 0047, phần `up`) phải mang dấu `-- expand-contract: contract sau expand ở release vX.Y.Z — <lý do>` (gạch `-`/`–`/`—`; rào `arch-guards.test.ts`; release phải là bản đã có mục `## [X.Y.Z]` trong `CHANGELOG.md`); CI job `schema-compat` chạy test CSDL của nhánh nền (N−1) trên schema của PR (N), kèm file nền ratchet của PR (`scripts/schema-compat.mjs`).
 
 ### 4. Triển khai ứng dụng (chờ Dockerfile)
 ```bash

@@ -1,5 +1,5 @@
 // PLAN đợt 4 T-306 — rào cấu trúc chạy trong `pnpm test` (không đổi cấu hình cổng/CI):
-//   · lint migration mới: cấm DROP COLUMN / RENAME COLUMN / ALTER COLUMN … TYPE trừ khi đánh dấu expand-contract (DB-MIG-008, OPS-DEPLOY-003)
+//   · lint migration mới: cấm DROP COLUMN / RENAME COLUMN / ALTER COLUMN … TYPE / DROP TABLE / RENAME TO / .dropColumn()… trừ khi đánh dấu expand-contract (DB-MIG-008, OPS-DEPLOY-003)
 //   · tên ADR `NNNN-slug` không trùng/hở số (ARC-ADR-002)
 //   · packages/domain không import hạ tầng I/O (ARC-MOD-003)
 //   · không vòng phụ thuộc MỚI giữa thư mục module của packages/app (ARC-MOD-004) — ratchet theo arch-guards.baseline.json
@@ -28,30 +28,62 @@ const productTs = (dir: string) => walk(dir).filter((f) => /\.tsx?$/.test(f) && 
 
 /** Migration có số > ngưỡng mới bị lint. Ngưỡng = số lớn nhất lúc viết rào (0046); 0001…0046 đã áp, không đụng. */
 const LINT_FROM = 47;
-const MARKER = /--\s*expand-contract:\s*\S{3,}/;
+/**
+ * Dấu `contract` (OPS-DEPLOY-003): `-- expand-contract: contract sau expand ở release vX.Y.Z — <lý do>` (gạch ngang `-`, `–` hoặc `—`).
+ * Phải ghi release đã phát hành bước expand (code cũ không còn đọc cột) và lý do; thiếu một trong hai → không được chấp nhận.
+ * Nhóm 1 = số phiên bản. Mã nguồn được chuẩn hoá NFC trước khi so (dấu tiếng Việt tổ hợp/dựng sẵn đều khớp).
+ */
+const MARKER =
+  /--\s*expand-contract:\s*contract\s+sau\s+expand\s+ở\s+release\s+v?(\d+\.\d+\.\d+)\s+[-–—]\s+\S{3,}/;
 const FORBIDDEN: [string, RegExp][] = [
   ["DROP COLUMN", /\bDROP\s+COLUMN\b/i],
   ["RENAME COLUMN", /\bRENAME\s+COLUMN\b/i],
   ["ALTER COLUMN … TYPE", /\bALTER\s+COLUMN\s+("[^"]+"|\w+)\s+(?:SET\s+DATA\s+)?TYPE\b/i],
+  ["DROP TABLE", /\bDROP\s+TABLE\b/i],
+  ["Kysely .dropColumn()", /\.\s*dropColumn\s*\(/],
+  ["Kysely .renameColumn()", /\.\s*renameColumn\s*\(/],
+  ["Kysely .dropTable()", /\.\s*dropTable\s*\(/],
+  ["Kysely .renameTo()", /\.\s*renameTo\s*\(/],
 ];
+/** Câu lệnh nhiều dòng `ALTER TABLE … RENAME TO …`: vị trí (chỉ số trong chuỗi) của cụm `RENAME TO` — dòng đó là dòng được kiểm dấu. */
+const RENAME_TABLE = /\bALTER\s+TABLE\b[^;]*?(\bRENAME\s+TO\b)/gi;
+
+/** Phiên bản đã phát hành theo CHANGELOG (`## [X.Y.Z]`, bỏ `Unreleased`). Nguồn duy nhất: tag git không có trong clone nông của CI. */
+function releasedVersions(changelog: string): Set<string> {
+  return new Set([...changelog.matchAll(/^##\s+\[v?(\d+\.\d+\.\d+)\]/gm)].map((m) => m[1] as string));
+}
 
 /**
  * Vi phạm trong mã nguồn một migration. Phần `DOWN` (đường lùi) được bỏ qua — đảo `ADD COLUMN` bằng `DROP COLUMN` là đúng.
- * Một câu lệnh cấm được chấp nhận khi dòng đó hoặc dòng không-trống ngay phía trên có `-- expand-contract: <lý do>`.
+ * Một câu lệnh cấm được chấp nhận khi dòng đó hoặc dòng không-trống ngay phía trên có dấu `MARKER` (kèm release của bước expand).
+ * `released` (nếu có): release trong dấu phải là bản đã phát hành (CHANGELOG) — không được viện một release chưa có.
  */
-function lintMigration(source: string): string[] {
-  const up = source.replace(/const\s+DOWN\s*=\s*`[\s\S]*?`;/, "");
+function lintMigration(source: string, released?: Set<string>): string[] {
+  const up = source.normalize("NFC").replace(/const\s+DOWN\s*=\s*`[\s\S]*?`;/, "");
   const lines = up.split("\n");
   const found: string[] = [];
+  const hits: [number, string][] = [];
   lines.forEach((line, i) => {
-    for (const [label, re] of FORBIDDEN) {
-      if (!re.test(line)) continue;
-      let prev = i - 1;
-      while (prev >= 0 && (lines[prev] ?? "").trim() === "") prev--;
-      const marked = MARKER.test(line) || MARKER.test(lines[prev] ?? "");
-      if (!marked) found.push(`dòng ${i + 1}: ${label} không có "-- expand-contract: <lý do>"`);
-    }
+    for (const [label, re] of FORBIDDEN) if (re.test(line)) hits.push([i, label]);
   });
+  for (const m of up.matchAll(RENAME_TABLE)) {
+    const at = m.index + m[0].length - (m[1] as string).length;
+    hits.push([up.slice(0, at).split("\n").length - 1, "ALTER TABLE … RENAME TO"]);
+  }
+  for (const [i, label] of hits.sort((a, b) => a[0] - b[0])) {
+    const line = lines[i] ?? "";
+    let prev = i - 1;
+    while (prev >= 0 && (lines[prev] ?? "").trim() === "") prev--;
+    const marker = MARKER.exec(line) ?? MARKER.exec(lines[prev] ?? "");
+    if (!marker)
+      found.push(
+        `dòng ${i + 1}: ${label} không có "-- expand-contract: contract sau expand ở release vX.Y.Z — <lý do>"`,
+      );
+    else if (released && !released.has(marker[1] as string))
+      found.push(
+        `dòng ${i + 1}: ${label} viện release v${marker[1]} chưa có trong CHANGELOG.md (chưa phát hành)`,
+      );
+  }
   return found;
 }
 
@@ -67,11 +99,53 @@ describe("arch-guards — lint migration mới (DB-MIG-008, OPS-DEPLOY-003)", ()
     expect(LINT_FROM).toBe(47);
   });
 
-  it(`migration số ≥ ${LINT_FROM} không có DROP/RENAME COLUMN, ALTER COLUMN TYPE nếu không đánh dấu expand-contract`, () => {
+  it(`migration số ≥ ${LINT_FROM} không có DROP/RENAME COLUMN/TABLE, ALTER COLUMN TYPE nếu không đánh dấu expand-contract (release đã phát hành)`, () => {
+    const released = releasedVersions(readFileSync(join(ROOT, "CHANGELOG.md"), "utf8"));
     const bad = files
       .filter((f) => migrationNumber(f) >= LINT_FROM)
-      .flatMap((f) => lintMigration(readFileSync(join(dir, f), "utf8")).map((m) => `${f}: ${m}`));
+      .flatMap((f) => lintMigration(readFileSync(join(dir, f), "utf8"), released).map((m) => `${f}: ${m}`));
     expect(bad).toEqual([]);
+  });
+
+  it("lint bắt thêm DROP TABLE, ALTER TABLE … RENAME TO (nhiều dòng) và API Kysely tương ứng; dấu hợp lệ thì qua", () => {
+    const ok = "-- expand-contract: contract sau expand ở release v0.3.0 — bảng cũ không còn được đọc";
+    expect(lintMigration("DROP TABLE old_t;")).toHaveLength(1);
+    expect(lintMigration("drop   table if exists old_t;")).toHaveLength(1);
+    expect(lintMigration("ALTER TABLE a RENAME TO b;")).toHaveLength(1);
+    expect(lintMigration("ALTER TABLE a\n  RENAME   TO b;")).toHaveLength(1);
+    expect(lintMigration("ALTER TABLE a ADD COLUMN c int;\nALTER INDEX i RENAME TO j;")).toEqual([]);
+    for (const call of [".dropColumn('x')", ".renameColumn('x', 'y')", ".dropTable('t')", ".renameTo('t2')"])
+      expect(lintMigration(`await db.schema.alterTable('t')\n  ${call}\n  .execute();`), call).toHaveLength(
+        1,
+      );
+    expect(lintMigration(`${ok}\nDROP TABLE old_t;`)).toEqual([]);
+    expect(lintMigration(`ALTER TABLE a\n  RENAME TO b; ${ok}`)).toEqual([]);
+    expect(lintMigration(`${ok}\nALTER TABLE a\n  RENAME TO b;`)).toHaveLength(1); // dấu phải sát dòng có RENAME TO, không chỉ trước ALTER TABLE
+    // Đường lùi DOWN của bảng (DROP TABLE đảo CREATE TABLE) được bỏ qua.
+    expect(
+      lintMigration("const UP = `CREATE TABLE t (id int);`;\nconst DOWN = `\nDROP TABLE t;\n`;"),
+    ).toEqual([]);
+  });
+
+  it("dấu contract: chấp nhận gạch `-`, `–`, `—`; chuẩn hoá NFC (tổ hợp = dựng sẵn); release phải có trong CHANGELOG", () => {
+    const body = (dash: string, text = "cột cũ không còn được đọc") =>
+      `ALTER TABLE t DROP COLUMN a; -- expand-contract: contract sau expand ở release v1.2.3 ${dash} ${text}`;
+    for (const dash of ["-", "–", "—"]) expect(lintMigration(body(dash)), dash).toEqual([]);
+    expect(lintMigration(body("_"))).toHaveLength(1);
+    expect(lintMigration(body("—", "ab"))).toHaveLength(1); // lý do quá ngắn
+    const decomposed = body("—").normalize("NFD");
+    expect(decomposed).not.toBe(body("—"));
+    expect(lintMigration(decomposed)).toEqual([]);
+    const released = releasedVersions(
+      "## [Unreleased]\n\n## [1.2.3] - 2026-11-01\n\n## [v1.0.0] - 2026-10-01\n",
+    );
+    expect([...released].sort()).toEqual(["1.0.0", "1.2.3"]);
+    expect(lintMigration(body("—"), released)).toEqual([]);
+    expect(lintMigration(body("—").replace("1.2.3", "9.9.9"), released)[0]).toMatch(
+      /v9\.9\.9 chưa có trong CHANGELOG/,
+    );
+    expect(releasedVersions("## [Unreleased]\n")).toEqual(new Set());
+    expect(lintMigration(body("—"), new Set())).toHaveLength(1); // chưa có bản phát hành nào ⇒ chưa được contract
   });
 
   it("lint bắt đúng: cấm, đánh dấu hợp lệ, đường lùi DOWN, chữ hoa/thường, nhiều khoảng trắng", () => {
@@ -82,19 +156,25 @@ describe("arch-guards — lint migration mới (DB-MIG-008, OPS-DEPLOY-003)", ()
     expect(
       lintMigration("ALTER TABLE t ADD COLUMN a int;\nALTER TABLE t ALTER COLUMN a SET NOT NULL;"),
     ).toEqual([]);
-    expect(lintMigration("ALTER TABLE t DROP COLUMN a; -- expand-contract: bước contract của #123")).toEqual(
-      [],
-    );
+    const ok = "expand-contract: contract sau expand ở release v0.3.0 — cột cũ không còn được đọc";
+    expect(lintMigration(`ALTER TABLE t DROP COLUMN a; -- ${ok}`)).toEqual([]);
+    expect(lintMigration(`-- ${ok}\n\nALTER TABLE t DROP COLUMN a;`)).toEqual([]);
+    // Dấu thiếu release của bước expand / thiếu lý do / không phải bước contract / ở xa câu lệnh → vẫn đỏ.
+    expect(lintMigration("-- expand-contract:\nALTER TABLE t DROP COLUMN a;")).toHaveLength(1);
+    expect(
+      lintMigration("-- expand-contract: bước contract của #123\nALTER TABLE t DROP COLUMN a;"),
+    ).toHaveLength(1);
     expect(
       lintMigration(
-        "-- expand-contract: cột cũ đã không còn được đọc từ 0.3\n\nALTER TABLE t DROP COLUMN a;",
+        "-- expand-contract: contract sau expand ở release v0.3 — x\nALTER TABLE t DROP COLUMN a;",
       ),
-    ).toEqual([]);
-    // Dấu không kèm lý do, hoặc ở xa câu lệnh → vẫn đỏ.
-    expect(lintMigration("-- expand-contract:\nALTER TABLE t DROP COLUMN a;")).toHaveLength(1);
-    expect(lintMigration("-- expand-contract: lý do\nSELECT 1;\nALTER TABLE t DROP COLUMN a;")).toHaveLength(
-      1,
-    );
+    ).toHaveLength(1);
+    expect(
+      lintMigration(
+        "-- expand-contract: contract sau expand ở release v0.3.0 —\nALTER TABLE t DROP COLUMN a;",
+      ),
+    ).toHaveLength(1);
+    expect(lintMigration(`-- ${ok}\nSELECT 1;\nALTER TABLE t DROP COLUMN a;`)).toHaveLength(1);
     // Đường lùi được bỏ qua; nhưng DROP ở UP trước DOWN vẫn bị bắt.
     expect(
       lintMigration(

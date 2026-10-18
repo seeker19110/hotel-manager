@@ -398,8 +398,12 @@ describe("BASE-GATE-003: lint 0 cảnh báo, gồm kiểm format, nằm trong c�
     expect(pkg.scripts.lint).toMatch(/^biome ci .*--error-on-warnings/);
   });
   it("cổng xt.yaml chạy pnpm lint (qua dev-task.sh gate) và CI chạy đúng cổng đó", () => {
-    expect(read("xt.yaml")).toMatch(/^lint: "pnpm lint\b/m);
-    expect(read(".github/workflows/ci.yml")).toMatch(/run: \.xtemplates\/scripts\/dev-task\.sh gate/);
+    // `pnpm lint` (có --error-on-warnings, khoá ở test trên) phải là lệnh ĐẦU của `lint:` trong xt.yaml, đứng độc lập (không phải `pnpm lint:openapi`).
+    expect(read("xt.yaml")).toMatch(/^lint: "pnpm lint && /m);
+    // CI chạy đúng cổng đó: dòng lệnh `dev-task.sh gate` nằm trong khối `run:` của job (có thể nhiều dòng, qua tee ghi log).
+    expect(read(".github/workflows/ci.yml")).toMatch(
+      /^\s+(run: )?\.xtemplates\/scripts\/dev-task\.sh gate\b/m,
+    );
   });
   it("mọi biome-ignore có lý do (≥ 10 ký tự sau dấu hai chấm)", () => {
     const bad = [];

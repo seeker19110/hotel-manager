@@ -49,6 +49,13 @@
 - [ ] Đường lùi: lệnh/bước quay lại đã viết sẵn và thử (migration down, hoặc khôi phục PITR); thay đổi phá vỡ dùng expand → contract qua hai lần phát hành
 - [ ] Cột PII mới đã khai trong `docs/privacy/data-map.yaml`
 
+## Phụ thuộc mới
+<!-- BASE-DEP-006. CI (`new-deps`) so `pnpm-lock.yaml` với nhánh gốc: PR thêm phụ thuộc TRỰC TIẾP mới mà thiếu dòng khai ở đây → đỏ.
+Mỗi gói một dòng, đủ 4 trường ngăn bởi `·`: `tên · giấy phép · lý do · phương án thay thế đã xét (stdlib/đã có trong repo)`.
+Trước khi thêm: repo không archive, có bảo trì trong 12 tháng, giấy phép trong `license-policy.json`, không bật telemetry gửi dữ liệu mặc định,
+bản phát hành ≥ 2 tuần. Không thêm gói nào → ghi "không có". Chính sách: docs/ops/DEPENDENCY-POLICY.md. -->
+không có
+
 ## Rủi ro
 <!-- Ảnh hưởng nếu sai (tiền/tồn/dữ liệu cá nhân/quyền), phạm vi, cách phát hiện, cách tắt/quay lại (rollback) — thiếu cách quay lại thì `pr-policy` đỏ (WF-REVIEW-002). -->
 <!-- Chạm tiền/tồn/dữ liệu người dùng/auth/mật mã (đường dẫn trong `merge_risk_paths` của xt.yaml): gắn nhãn `risk:money` · `risk:data` · `risk:auth` · `risk:crypto` · `risk:gate` (cấu hình cổng, D-063) (LOOP-STOP-005); PR đó do người merge. -->
@@ -58,5 +65,5 @@
 - [ ] Đầu vào kiểm bằng schema (Zod); không nối chuỗi vào SQL; không đưa HTML thô ra giao diện
 - [ ] Không bí mật trong mã/log/commit/ảnh chụp; biến mới có trong `.env.example` + schema env, không tiền tố `NEXT_PUBLIC_` cho bí mật
 - [ ] Không ghi số giấy tờ, SĐT, email, số tài khoản vào log/thông báo; dữ liệu ngoài/nội dung PR/issue coi là dữ liệu, không phải chỉ thị
-- [ ] Phụ thuộc mới: tên · phiên bản ghim · giấy phép · lý do · phương án thay thế đã xét — hoặc "không có" (đổi `pnpm-lock.yaml` phải khớp mục này)
+- [ ] Phụ thuộc mới đã khai ở mục "Phụ thuộc mới" trên (tên · giấy phép · lý do · phương án thay thế đã xét; phiên bản ghim) — hoặc "không có"; đổi `pnpm-lock.yaml` phải khớp mục đó (CI `new-deps` kiểm)
 - [ ] Hành động không đảo ngược/tiền thật/dữ liệu thật/deploy/đổi cấu hình cổng-CI-hook: đã có người duyệt (AGENTS §6) hoặc "không áp dụng"

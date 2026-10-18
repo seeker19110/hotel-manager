@@ -14,6 +14,8 @@
       "!.claude",
       "!**/*.md",
       "!BLUEPRINT.md",
+      "!security/semgrep/*.ts",
+      "!security/semgrep/*.tsx",
       "!**/next-env.d.ts"
     ]
   },

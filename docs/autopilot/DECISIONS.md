@@ -433,6 +433,14 @@
 - Lý do (tiêu chí chất lượng cuối): (2) đường lùi: chủ dự án đã duyệt đợt 9 sửa CI/công cụ và muốn tự merge từng lát; thêm vào merge_risk_paths đổi chính sách merge (điểm dừng) nên để chủ dự án quyết
 - Đường lùi: Thêm glob vào merge_risk_paths trong xt.yaml
 
+### D-061 · 2026-10-18T00:08:36+00:00 · T-802: chọn công cụ chuỗi cung ứng
+
+- Phương án: (1) grype (anchore/scan-action, only-fixed, chặn high/critical; lỗ hổng chưa có bản sửa theo dõi trong VULN-SLA.md) + SBOM CycloneDX 1.6 tự sinh (scripts/sbom.mjs) + syft cho image + new-deps chỉ chặn phụ thuộc trực tiếp · (2) trivy + cdxgen, chặn cả lỗ hổng chưa có bản sửa
+- Chọn: grype (anchore/scan-action, only-fixed, chặn high/critical; lỗ hổng chưa có bản sửa theo dõi trong VULN-SLA.md) + SBOM CycloneDX 1.6 tự sinh (scripts/sbom.mjs) + syft cho image + new-deps chỉ chặn phụ thuộc trực tiếp
+- Lý do (tiêu chí chất lượng cuối): (3) ít phụ thuộc, OSI, action ghim SHA; chặn cái sửa được, theo dõi cái chưa sửa được có SLA — không đỏ vĩnh viễn vì việc ngoài tầm
+- Đường lùi: Đổi only-fixed=false hoặc thay action quét
+- Khi chạy thật (đề xuất, chủ dự án quyết ở G7): Chủ dự án quyết ngoại lệ giấy phép LGPL-3.0 của @img/sharp-libvips (dynamic link, dùng cho tối ưu ảnh Next) khi mở rộng licenses:check quét toàn workspace (148 gói)
+
 ### D-062 · 2026-10-18T00:10:24+00:00 · T-801: lychee/oasdiff không tải được qua proxy — dùng công cụ nào để kiểm liên kết và breaking change OpenAPI; luật breaking API chặt tới đâu?
 
 - Phương án: (1) Tự viết script Node (scripts/check-external-links.mjs) kiểm liên kết (cache + thử lại) và so OpenAPI với nhánh gốc (scripts/check-openapi-breaking.mjs); breaking bắt buộc bump MAJOR + 'BREAKING CHANGE:' · (2) Chờ người cho phép tải binary lychee/oasdiff · (3) Bỏ kiểm, ghi miễn trừ
@@ -450,6 +458,14 @@
 - Khi chạy thật (đề xuất, chủ dự án quyết ở G7): Thêm CODEOWNERS cho các file cấu hình cổng và bật required review ở ruleset
 - Bổ sung sau review (2026-10-18): thêm vào merge_risk_paths cả `scripts/check-coverage-ratchet.mjs`, `scripts/fix-requires-test.mjs`, `.github/workflows/test-quality.yml` (đường nới ngưỡng ngoài vitest.config) + rào cấm cờ `--coverage.thresholds*` trong workflow; KHÔNG thêm `.github/workflows/*` chung (ADR-0018 của khung: sửa CI cho chạy, lớp đỡ là review độc lập + required check của ruleset).
 
+### D-064 · 2026-10-18T00:27:40+00:00 · T-806: otelcol-contrib 0.161.0 không có file checksum chính thức cho gói contrib — ghim SHA-256 tự đo có chấp nhận được? Job schema-compat (~6 phút) chạy mỗi PR hay theo lịch?
+
+- Phương án: (1) Chấp nhận SHA-256 tự đo (trust-on-first-use, ghim cứng, đổi bản phải đo lại có review) + schema-compat chạy mỗi PR · (2) Không ghim, tải bản mới nhất · (3) schema-compat chạy theo lịch để PR nhanh hơn
+- Chọn: Chấp nhận SHA-256 tự đo (trust-on-first-use, ghim cứng, đổi bản phải đo lại có review) + schema-compat chạy mỗi PR
+- Lý do (tiêu chí chất lượng cuối): Ghim cứng vẫn chặn tráo binary sau lần đo; OPS-DEPLOY-003 cần chặn vỡ N-1 TRƯỚC merge nên phải chạy trên PR; 6 phút song song với e2e không kéo dài tổng thời gian CI đáng kể
+- Đường lùi: Đổi trigger schema-compat sang schedule trong .github/workflows/api-ops.yml; thay SHA trong scripts/ops-tools.sh
+- Khi chạy thật (đề xuất, chủ dự án quyết ở G7): Xác minh otelcol-contrib bằng chữ ký cosign của bản phát hành (hoặc build từ nguồn) trước khi dùng collector ở môi trường thật
+
 ### D-065 · 2026-10-18T00:38:43+00:00 · Đợt 9: job cổng mới (pr-policy, commit-lint, new-deps, sbom, image-scan, coverage, coverage-ratchet, fix-requires-test, sast, dast, openapi, schema-compat…) chưa là required check nên chưa chặn auto-merge; đổi ruleset trên GitHub là điểm dừng của người — xử lý thế nào?
 
 - Phương án: (1) Mỗi lát giữ job, KHÔNG sửa .github/rulesets/main.json; một PR cuối đợt (T-808) gom mọi context mới vào main.json (chỉ job chạy trên MỌI PR, không lọc paths); dòng Bằng chứng ghi 'chặn merge khi ruleset được import (người)'; defer việc import · (2) Mỗi lát tự thêm context vào main.json · (3) Bỏ tick các mục cho tới khi ruleset được import
@@ -457,3 +473,13 @@
 - Lý do (tiêu chí chất lượng cuối): Tránh xung đột main.json giữa 6 lát; job đỏ vẫn hiện trên PR và review độc lập chặn merge tay; tick ghi đúng mức chặn thật; import ruleset là việc người
 - Đường lùi: Xoá context khỏi main.json ở PR cuối; bỏ ghi chú trong Bằng chứng
 - Khi chạy thật (đề xuất, chủ dự án quyết ở G7): Chủ dự án import .github/rulesets/main.json sau khi mọi job mới xanh ít nhất một lần trên PR
+
+
+
+### D-067 · 2026-10-18T01:17:15+00:00 · T-802 image-scan: lỗ hổng high/critical có bản sửa thượng nguồn nhưng chưa có image vá (Go stdlib/x-net trong caddy & seaweedfs, npm đi kèm node, zlib alpine của caddy) — xử lý thế nào?
+
+- Phương án: (1) Ngoại lệ CÓ HẠN trong .grype.yaml (đúng mã+gói+phiên bản; critical ≤ 7 ngày, high ≤ 30 ngày), theo dõi ở VULN-SLA.md; xoá npm khỏi runtime web/worker; zlib caddy: ngoại lệ 14 ngày (caddy là Go thuần, không dùng zlib hệ thống); kiểm hạn ở job image-scan (PR + hằng tuần), KHÔNG ở unit test (cổng không phụ thuộc ngày chạy) · (2) Image dẫn xuất FROM caddy/seaweedfs + apk upgrade (đổi compose sang build:) · (3) Hạ severity-cutoff/tắt only-fixed
+- Chọn: Ngoại lệ CÓ HẠN trong .grype.yaml (đúng mã+gói+phiên bản; critical ≤ 7 ngày, high ≤ 30 ngày), theo dõi ở VULN-SLA.md; xoá npm khỏi runtime web/worker; zlib caddy: ngoại lệ 14 ngày (caddy là Go thuần, không dùng zlib hệ thống); kiểm hạn ở job image-scan (PR + hằng tuần), KHÔNG ở unit test (cổng không phụ thuộc ngày chạy)
+- Lý do (tiêu chí chất lượng cuối): Không sửa được từ repo (thượng nguồn chưa build lại); ngoại lệ hẹp tự hết khớp khi nâng; image dẫn xuất đổi cách triển khai mà Go stdlib vẫn phải ngoại lệ; hạ ngưỡng bị cấm
+- Đường lùi: Xoá luật trong .grype.yaml khi có image vá; bỏ RUN rm npm trong deploy/*.Dockerfile
+- Khi chạy thật (đề xuất, chủ dự án quyết ở G7): Chủ dự án theo dõi bảng 'Theo dõi' của VULN-SLA.md; cân nhắc image dẫn xuất nếu thượng nguồn chậm quá hạn

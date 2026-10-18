@@ -10,6 +10,7 @@ import {
   ConfigError,
   ENV_KEYS,
   envSchema,
+  isDbUrlWithoutVerifiedTls,
   isInsecureRemoteUrl,
   loadConfig,
   PUBLIC_ENV_PREFIXES,
@@ -236,6 +237,76 @@ describe("BASE-SEC-004 — production bắt TLS cho mọi kênh mạng", () => {
       .filter((f) => re.test(f.text))
       .map((f) => f.path);
     expect(hits).toEqual([]);
+  });
+});
+
+describe("DB-SEC-003 — production: CSDL ở máy khác chỉ qua TLS xác minh chứng chỉ (sslmode=verify-full)", () => {
+  const prod = {
+    ...MINIMAL,
+    NODE_ENV: "production",
+    CLAMD_HOST: "clamd",
+    HM_PII_KEYS: `1:${Buffer.alloc(32, 7).toString("base64")}`,
+    HM_PII_KEY_ID: "1",
+    HM_PII_INDEX_KEY: Buffer.alloc(32, 9).toString("base64"),
+    APP_BASE_URL: "https://hm.example.test",
+    S3_ENDPOINT: "https://files.example.test",
+  };
+  const dbIssues = (url: string) => {
+    try {
+      loadConfig({ ...prod, DATABASE_URL: url });
+      return [] as string[];
+    } catch (e) {
+      return (e as ConfigError).issues.map((i) => i.key);
+    }
+  };
+
+  it.each([
+    ["postgres://u:p@postgres:5432/hm"],
+    ["postgres://u:p@postgres:5432/hm?sslmode=require"],
+    ["postgres://u:p@postgres:5432/hm?sslmode=verify-ca"],
+    ["postgres://u:p@postgres:5432/hm?sslmode=prefer"],
+    ["postgres://u:p@pg-primary/hm?sslmode=VERIFY-FULL"],
+    ["postgres://u:p@pg-primary/hm?x=sslmode%3Dverify-full"],
+    // Qua mặt cổng bằng tham số lặp / host ghi đè (driver lấy giá trị CUỐI; `?host=` thắng hostname).
+    ["postgres://u:p@postgres:5432/hm?sslmode=verify-full&sslmode=no-verify"],
+    ["postgres://u:p@postgres:5432/hm?sslmode=verify-full&sslmode=disable"],
+    ["postgres://u:p@postgres:5432/hm?sslmode=no-verify&sslmode=verify-full"],
+    ["postgres://u:p@localhost:5432/hm?host=db.remote.example"],
+    ["postgres://u:p@localhost:5432/hm?host=/var/run/postgresql"],
+    ["postgres:///hm?host=10.0.0.5"],
+    ["postgres:///hm?host=/var/run/postgresql&host=10.0.0.5"],
+    ["postgres://u:p@pg-primary/hm?sslmode=verify-full&host=db.remote.example"],
+    ["postgres://u:p@pg-primary/hm?sslmode=verify-full&hostaddr=10.0.0.5"],
+    ["postgres://u:p@localhost/hm?hostaddr=10.0.0.5"],
+    ["postgres:///hm"],
+  ])("production + %s → từ chối, nêu tên DATABASE_URL, không lộ mật khẩu", (url) => {
+    expect(dbIssues(url)).toEqual(["DATABASE_URL"]);
+    expect(() => loadConfig({ ...prod, DATABASE_URL: url })).not.toThrow(/:p@/);
+  });
+
+  it.each([
+    ["postgres://u:p@postgres:5432/hm?sslmode=verify-full&sslrootcert=/run/secrets/pg-ca.crt"],
+    ["postgresql://u:p@pg-primary/hm?sslmode=verify-full"],
+    ["postgres://u:p@localhost:5432/hm"],
+    ["postgres://u:p@127.0.0.1:5432/hm"],
+    ["postgres://u:p@[::1]:5432/hm"],
+    ["postgres:///hm?host=/var/run/postgresql"],
+    ["postgres://%2Fvar%2Frun%2Fpostgresql/hm"],
+  ])("production + %s → chấp nhận (verify-full, loopback hoặc socket Unix)", (url) => {
+    expect(dbIssues(url)).toEqual([]);
+  });
+
+  it("dev/test không bị siết: máy khác, không sslmode vẫn qua", () => {
+    expect(() => loadConfig({ ...MINIMAL, DATABASE_URL: "postgres://u:p@postgres:5432/hm" })).not.toThrow();
+    expect(() =>
+      loadConfig({ ...MINIMAL, NODE_ENV: "test", DATABASE_URL: "postgres://u:p@postgres:5432/hm" }),
+    ).not.toThrow();
+  });
+
+  it("isDbUrlWithoutVerifiedTls: URL không đọc được → coi là không an toàn (đóng khi lỗi)", () => {
+    expect(isDbUrlWithoutVerifiedTls("khong-phai-url")).toBe(true);
+    expect(isDbUrlWithoutVerifiedTls("")).toBe(true);
+    expect(isDbUrlWithoutVerifiedTls("mysql://u:p@localhost/hm")).toBe(true);
   });
 });
 
