@@ -33,6 +33,8 @@ describe("XC-I18N-009 — kiểm tệp dịch", () => {
       "Chào {tên}",
       "Mã '{code}' sai",
       "Giá {n, number}",
+      "Chào { name }",
+      "Chào {name }",
     ])
       expect(() => messageArgs(bad), bad).toThrow();
   });
@@ -119,7 +121,7 @@ describe("XC-I18N-001 — chuỗi viết thẳng chỉ được giảm (ratchet)
       cwd: ROOT,
       encoding: "utf8",
     });
-    // CI checkout đủ lịch sử (fetch-depth: 0) nên có origin/main; thiếu ref trong CI = rào bị vô hiệu → đỏ, không bỏ qua.
+    // Job gate checkout đủ lịch sử (fetch-depth: 0) và đặt I18N_REQUIRE_BASE=1: thiếu ref ở đó = rào bị vô hiệu → đỏ, không bỏ qua. Job khác (checkout nông) và máy dev: bỏ qua.
     if (ref.status !== 0) {
       expect(
         process.env.CI,

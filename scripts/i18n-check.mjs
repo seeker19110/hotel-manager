@@ -28,6 +28,8 @@ export function messageArgs(message) {
     if (!/^\w+$/.test(el.value)) throw new Error(`tên tham số "${el.value}" phải khớp ^\\w+$`);
     names.add(el.value);
   }
+  // `{ name }` (khoảng trắng) parser chấp nhận nhưng runtime chỉ thay `{tên}` sát ngoặc.
+  if (/[{}]/.test(message.replace(/\{\w+\}/g, ""))) throw new Error("tham số phải viết sát ngoặc {tên}");
   return [...names].sort();
 }
 
@@ -75,6 +77,7 @@ export function checkCatalogs(catalogs, source = SOURCE_LOCALE) {
       if (locale === source) srcArgs[key] = args;
       else if (
         key in src &&
+        srcArgs[key] !== undefined &&
         JSON.stringify(args) !== JSON.stringify(srcArgs[key] ?? safeArgs(src[key].message))
       )
         errors.push(
