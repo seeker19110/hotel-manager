@@ -1,0 +1,48 @@
+# Luật quyền riêng tư của dự án (CMP-PRIV-008: không ghi PII vào log/trace/crash report). Semgrep OSS, offline; job `sast` của
+# .github/workflows/security-scan.yml chạy `semgrep scan --error`, đỏ ở mọi phát hiện. Test dương/âm: security/semgrep/hm-privacy.ts.
+# Logger (packages/app/src/logging/logger.ts) đã che email/SĐT/CCCD/token theo giá trị và khoá nhạy cảm theo tên, nhưng KHÔNG che được
+# họ tên, địa chỉ, nội dung tin nhắn… nằm trong một object người dùng/request. Luật này cấm đưa nguyên object đó vào log: log ID
+# (`person_id`, `stay_id`…) và trường đã chọn.
+rules:
+  - id: hm-log-pii-object
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      Không đưa nguyên object người dùng/request vào log (CMP-PRIV-008): họ tên, địa chỉ, nội dung tin nhắn không bị logger che.
+      Log ID (vd `person_id: user.id`) hoặc trường không phải PII đã chọn.
+    metadata: {blueprint: [CMP-PRIV-008], cwe: "CWE-532"}
+    patterns:
+      - pattern-either:
+          - pattern: '$LOG.$LEVEL("...", {..., $KEY: $VALUE, ...})'
+          - pattern: '$LOG.$LEVEL("...", $VALUE)'
+      - metavariable-regex:
+          metavariable: $LEVEL
+          regex: ^(debug|info|warn|error|security|trace|fatal|log)$
+      - metavariable-regex:
+          metavariable: $VALUE
+          # Định danh hoặc truy cập thuộc tính kết thúc bằng tên object chứa PII (không khớp `user.id`, `req.method`).
+          regex: ^([\w$]+\.)*(user|users|person|persons|people|guest|guests|tenant|tenants|customer|customers|member|members|account|profile|contact|occupant|occupants|invitee|recipient|req|request|body|payload|headers|formData|input)$
+    paths:
+      exclude:
+        - "**/*.test.ts"
+        - "**/*.test.mjs"
+        - "**/packages/testkit/"
+  - id: hm-log-pii-field
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      Không log trường PII (họ tên, địa chỉ, ngày sinh, nội dung tin nhắn; `<người>.name/phone/email`) — CMP-PRIV-008. Log ID thay thế.
+    metadata: {blueprint: [CMP-PRIV-008], cwe: "CWE-532"}
+    patterns:
+      - pattern: '$LOG.$LEVEL("...", {..., $KEY: $VALUE, ...})'
+      - metavariable-regex:
+          metavariable: $LEVEL
+          regex: ^(debug|info|warn|error|security|trace|fatal|log)$
+      - metavariable-regex:
+          metavariable: $VALUE
+          regex: ^(([\w$]+\.)*(fullName|full_name|displayName|display_name|address|birthDate|birth_date|dob|messageBody|message_body)|([\w$]+\.)*(user|person|guest|tenant|customer|member|contact|occupant|invitee|recipient)\.(name|phone|email))$
+    paths:
+      exclude:
+        - "**/*.test.ts"
+        - "**/*.test.mjs"
+        - "**/packages/testkit/"
