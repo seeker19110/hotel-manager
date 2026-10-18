@@ -65,13 +65,28 @@ class EvidenceTest(unittest.TestCase):
         bp.write_text("- [x] `A-1` **MUST** x\n")
         self.assertEqual(mod.main(["x", str(bp)]), 1)
 
-    def test_khong_ap_dung_can_dieu_kien(self):
-        ok = "- [~] `A-1` **MUST** x — Không áp dụng: không có biểu đồ (`scripts/no-charts.test.mjs`)"
+    def test_khong_ap_dung_can_dieu_kien_kiem_duoc(self):
+        ok = "- [~] `A-1` **MUST** x — Không áp dụng: không có biểu đồ, khoá bằng `packages/a.test.ts`"
         self.assertEqual(self.check(ok), [])
-        self.assertEqual(
-            self.check("- [~] `A-1` **MUST** x — Không áp dụng:"),
-            [(1, "A-1", "miễn trừ thiếu '— Miễn: <lý do>' hoặc '— Không áp dụng: <điều kiện>'")],
+        bad = [
+            "- [~] `A-1` **MUST** x — Không áp dụng:",
+            "- [~] `A-2` **MUST** x — Không áp dụng: —",
+            "- [~] `A-3` **MUST** x — Không áp dụng: .",
+            "- [~] `A-4` **MUST** x — Không áp dụng: không có biểu đồ",
+            "- [~] `A-5` **MUST** x — Không áp dụng: không có, xem `packages/khong-co.ts`",
+        ]
+        self.assertEqual([i for _, i, _ in self.check("\n".join(bad))], ["A-1", "A-2", "A-3", "A-4", "A-5"])
+
+    def test_khong_ghep_mien_va_khong_ap_dung(self):
+        # Các ca review PR #55 chạy lọt cả hai cổng (Miễn MUST không cần Duyệt).
+        text = "\n".join(
+            [
+                "- [~] `B-1` **MUST** x — Không áp dụng: — Miễn: hoãn sang V2",
+                "- [~] `B-2` **MUST** x — Miễn: — Không áp dụng: x",
+                "- [~] `B-3` **MUST** x — Không áp dụng: x `packages/a.test.ts` — Miễn: y",
+            ]
         )
+        self.assertEqual([i for _, i, _ in self.check(text)], ["B-1", "B-2", "B-3"])
 
 
 class RepoBlueprintTest(unittest.TestCase):
