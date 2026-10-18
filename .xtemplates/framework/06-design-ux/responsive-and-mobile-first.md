@@ -3,7 +3,7 @@ title: Responsive, mobile-first, vùng chạm, bố cục
 kind: module
 prefix: UX-RESP
 applies_to: [web-app, mobile-app, desktop-app, static-site, game, monorepo]
-updated: 2026-10-14
+updated: 2026-10-18
 ---
 
 # Responsive, mobile-first, vùng chạm, bố cục
@@ -56,6 +56,7 @@ updated: 2026-10-14
 - [ ] `UX-RESP-018` **SHOULD** Ảnh có `srcset`/`sizes` hoặc component ảnh của framework để mobile không tải ảnh desktop. → Kiểm: Lighthouse audit `uses-responsive-images` không có cảnh báo (chi tiết ở [`../07-frontend/performance-web-vitals.md`](../07-frontend/performance-web-vitals.md)).
 - [ ] `UX-RESP-019` **MAY** Hỗ trợ màn hình gập/đa cửa sổ (viewport segments) và PWA display-mode. → Kiểm: story/E2E với viewport 1/2 màn.
 - [ ] `UX-RESP-020` **MAY** Dùng `prefers-reduced-data` để giảm media nặng. → Kiểm: `emulateMedia` tương ứng giảm tải ảnh.
+- [ ] `UX-RESP-021` **SHOULD** Quy ước breakpoint **theo nền tảng** ghi vào token/tài liệu của dự án: Android/Compose dùng window size classes theo chiều rộng — compact < 600 dp, medium 600–839, expanded 840–1199, large 1200–1599, extra-large ≥ 1600 (large/extra-large phải bật `currentWindowAdaptiveInfo(supportLargeAndXLargeWidth = true)`); iOS chọn layout theo **size class** (compact/regular), không theo loại thiết bị hay hướng xoay, và đổi tab bar ↔ sidebar khi đủ rộng; web dùng token `UX-RESP-012`. → Kiểm: mã layout native dựa trên `WindowSizeClass`/`horizontalSizeClass`; grep không có so khớp tên/mẫu thiết bị (`UIDevice.current.model`, `Build.MODEL`) để chọn bố cục. · Nguồn: Android Developers — Use window size classes (đọc 2026-10-18, trang cập nhật 2026-09-22) <https://developer.android.com/develop/ui/compose/layouts/adaptive/use-window-size-classes>; Apple HIG — Layout "Determine layout based on size classes, not device type or orientation" (đọc 2026-10-18) <https://developer.apple.com/design/human-interface-guidelines/layout>
 
 ## Bẫy thường gặp
 
