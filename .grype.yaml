@@ -1,0 +1,159 @@
+# Bỏ qua CÓ HẠN các lỗ hổng high/critical đã có bản sửa ở thượng nguồn nhưng CHƯA có image vá (T-802; docs/ops/VULN-SLA.md).
+# Mỗi luật: đúng 1 mã lỗ hổng + đúng gói/phiên bản (nâng gói/image thì luật tự hết khớp) + `reason` có "hạn rà lại: YYYY-MM-DD"
+# (≤ 30 ngày, critical ≤ 7 ngày) và mã nằm ở bảng "Theo dõi" của VULN-SLA.md — scripts/supply-chain.test.mjs kiểm; quá hạn → test đỏ.
+# Không có ngoại lệ ngầm: tắt `only-fixed`/hạ `severity-cutoff` bị cấm; gỡ luật ngay khi có image vá (grype-config không nằm ở workflow:
+# grype tự đọc tệp này ở thư mục gốc repo). D-NNN do phiên chính ghi bằng `xt.py loop decide` (xem câu hỏi mở của PR).
+ignore:
+  - vulnerability: GO-2026-6612
+    reason: "Go stdlib 1.26.8 trong /usr/bin/caddy và /usr/bin/weed (Caddy 2.11.7, SeaweedFS 4.48); sửa ở Go 1.26.9, image thượng nguồn chưa dựng lại (hạn rà lại: 2026-10-25)"
+    package:
+      name: stdlib
+      version: go1.26.8
+      type: go-module
+  - vulnerability: GO-2026-6604
+    reason: "Go stdlib 1.26.8 trong /usr/bin/caddy và /usr/bin/weed (Caddy 2.11.7, SeaweedFS 4.48); sửa ở Go 1.26.9, image thượng nguồn chưa dựng lại (hạn rà lại: 2026-10-25)"
+    package:
+      name: stdlib
+      version: go1.26.8
+      type: go-module
+  - vulnerability: GO-2026-6603
+    reason: "Go stdlib 1.26.8 trong /usr/bin/caddy và /usr/bin/weed (Caddy 2.11.7, SeaweedFS 4.48); sửa ở Go 1.26.9, image thượng nguồn chưa dựng lại (hạn rà lại: 2026-11-01)"
+    package:
+      name: stdlib
+      version: go1.26.8
+      type: go-module
+  - vulnerability: GO-2026-6611
+    reason: "Go stdlib 1.26.8 trong /usr/bin/caddy và /usr/bin/weed (Caddy 2.11.7, SeaweedFS 4.48); sửa ở Go 1.26.9, image thượng nguồn chưa dựng lại (hạn rà lại: 2026-11-01)"
+    package:
+      name: stdlib
+      version: go1.26.8
+      type: go-module
+  - vulnerability: GO-2026-6617
+    reason: "Go stdlib 1.26.8 trong /usr/bin/caddy và /usr/bin/weed (Caddy 2.11.7, SeaweedFS 4.48); sửa ở Go 1.26.9, image thượng nguồn chưa dựng lại (hạn rà lại: 2026-11-01)"
+    package:
+      name: stdlib
+      version: go1.26.8
+      type: go-module
+  - vulnerability: GO-2026-6610
+    reason: "Go stdlib 1.26.8 trong /usr/bin/caddy và /usr/bin/weed (Caddy 2.11.7, SeaweedFS 4.48); sửa ở Go 1.26.9, image thượng nguồn chưa dựng lại (hạn rà lại: 2026-11-01)"
+    package:
+      name: stdlib
+      version: go1.26.8
+      type: go-module
+  - vulnerability: GO-2026-6608
+    reason: "Go stdlib 1.26.8 trong /usr/bin/caddy và /usr/bin/weed (Caddy 2.11.7, SeaweedFS 4.48); sửa ở Go 1.26.9, image thượng nguồn chưa dựng lại (hạn rà lại: 2026-11-01)"
+    package:
+      name: stdlib
+      version: go1.26.8
+      type: go-module
+  - vulnerability: GO-2026-6607
+    reason: "Go stdlib 1.26.8 trong /usr/bin/caddy và /usr/bin/weed (Caddy 2.11.7, SeaweedFS 4.48); sửa ở Go 1.26.9, image thượng nguồn chưa dựng lại (hạn rà lại: 2026-11-01)"
+    package:
+      name: stdlib
+      version: go1.26.8
+      type: go-module
+  - vulnerability: GO-2026-6609
+    reason: "Go stdlib 1.26.8 trong /usr/bin/caddy và /usr/bin/weed (Caddy 2.11.7, SeaweedFS 4.48); sửa ở Go 1.26.9, image thượng nguồn chưa dựng lại (hạn rà lại: 2026-11-01)"
+    package:
+      name: stdlib
+      version: go1.26.8
+      type: go-module
+  - vulnerability: GO-2026-6613
+    reason: "Go stdlib 1.26.8 trong /usr/bin/caddy và /usr/bin/weed (Caddy 2.11.7, SeaweedFS 4.48); sửa ở Go 1.26.9, image thượng nguồn chưa dựng lại (hạn rà lại: 2026-11-01)"
+    package:
+      name: stdlib
+      version: go1.26.8
+      type: go-module
+  - vulnerability: GO-2026-6605
+    reason: "Go stdlib 1.26.8 trong /usr/bin/caddy và /usr/bin/weed (Caddy 2.11.7, SeaweedFS 4.48); sửa ở Go 1.26.9, image thượng nguồn chưa dựng lại (hạn rà lại: 2026-11-01)"
+    package:
+      name: stdlib
+      version: go1.26.8
+      type: go-module
+  - vulnerability: GO-2026-6612
+    reason: "golang.org/x/net v0.59.0 trong caddy 2.11.7 (/usr/bin/caddy); sửa ở 0.60.0, image thượng nguồn chưa dựng lại (hạn rà lại: 2026-10-25)"
+    package:
+      name: golang.org/x/net
+      version: v0.59.0
+      type: go-module
+  - vulnerability: GO-2026-6603
+    reason: "golang.org/x/net v0.59.0 trong caddy 2.11.7 (/usr/bin/caddy); sửa ở 0.60.0, image thượng nguồn chưa dựng lại (hạn rà lại: 2026-11-01)"
+    package:
+      name: golang.org/x/net
+      version: v0.59.0
+      type: go-module
+  - vulnerability: GO-2026-6611
+    reason: "golang.org/x/net v0.59.0 trong caddy 2.11.7 (/usr/bin/caddy); sửa ở 0.60.0, image thượng nguồn chưa dựng lại (hạn rà lại: 2026-11-01)"
+    package:
+      name: golang.org/x/net
+      version: v0.59.0
+      type: go-module
+  - vulnerability: GO-2026-6617
+    reason: "golang.org/x/net v0.59.0 trong caddy 2.11.7 (/usr/bin/caddy); sửa ở 0.60.0, image thượng nguồn chưa dựng lại (hạn rà lại: 2026-11-01)"
+    package:
+      name: golang.org/x/net
+      version: v0.59.0
+      type: go-module
+  - vulnerability: GO-2026-6610
+    reason: "golang.org/x/net v0.59.0 trong caddy 2.11.7 (/usr/bin/caddy); sửa ở 0.60.0, image thượng nguồn chưa dựng lại (hạn rà lại: 2026-11-01)"
+    package:
+      name: golang.org/x/net
+      version: v0.59.0
+      type: go-module
+  - vulnerability: GO-2026-6612
+    reason: "golang.org/x/net v0.58.0 trong SeaweedFS 4.48 (/usr/bin/weed); sửa ở 0.60.0, image thượng nguồn chưa dựng lại (hạn rà lại: 2026-10-25)"
+    package:
+      name: golang.org/x/net
+      version: v0.58.0
+      type: go-module
+  - vulnerability: GO-2026-6603
+    reason: "golang.org/x/net v0.58.0 trong SeaweedFS 4.48 (/usr/bin/weed); sửa ở 0.60.0, image thượng nguồn chưa dựng lại (hạn rà lại: 2026-11-01)"
+    package:
+      name: golang.org/x/net
+      version: v0.58.0
+      type: go-module
+  - vulnerability: GO-2026-6611
+    reason: "golang.org/x/net v0.58.0 trong SeaweedFS 4.48 (/usr/bin/weed); sửa ở 0.60.0, image thượng nguồn chưa dựng lại (hạn rà lại: 2026-11-01)"
+    package:
+      name: golang.org/x/net
+      version: v0.58.0
+      type: go-module
+  - vulnerability: GO-2026-6617
+    reason: "golang.org/x/net v0.58.0 trong SeaweedFS 4.48 (/usr/bin/weed); sửa ở 0.60.0, image thượng nguồn chưa dựng lại (hạn rà lại: 2026-11-01)"
+    package:
+      name: golang.org/x/net
+      version: v0.58.0
+      type: go-module
+  - vulnerability: GO-2026-6610
+    reason: "golang.org/x/net v0.58.0 trong SeaweedFS 4.48 (/usr/bin/weed); sửa ở 0.60.0, image thượng nguồn chưa dựng lại (hạn rà lại: 2026-11-01)"
+    package:
+      name: golang.org/x/net
+      version: v0.58.0
+      type: go-module
+  - vulnerability: CVE-2026-85091
+    reason: "zlib 1.3.2-r0 của Alpine 3.23 trong caddy 2.11.7 và SeaweedFS 4.48; sửa ở 1.3.2-r1, image thượng nguồn chưa dựng lại (hạn rà lại: 2026-11-01)"
+    package:
+      name: zlib
+      version: 1.3.2-r0
+      type: apk
+  - vulnerability: GHSA-rfgv-xxqx-mfg5
+    reason: "undici 6.28.0 nằm trong npm đi kèm node:24.22.0 (không phải phụ thuộc của dự án); runtime web/worker xoá npm; sửa ở 6.28.1, node 24.22.0 là bản mới nhất (hạn rà lại: 2026-11-01)"
+    package:
+      name: undici
+      version: 6.28.0
+      type: npm
+      location: "/usr/local/lib/node_modules/npm/**"
+  - vulnerability: GHSA-6j4f-fj2g-mc7p
+    reason: "brace-expansion 5.0.9 nằm trong npm đi kèm node:24.22.0 (không phải phụ thuộc của dự án); runtime web/worker xoá npm; sửa ở 5.0.11, node 24.22.0 là bản mới nhất (hạn rà lại: 2026-11-01)"
+    package:
+      name: brace-expansion
+      version: 5.0.9
+      type: npm
+      location: "/usr/local/lib/node_modules/npm/**"
+  - vulnerability: GHSA-qhr7-859c-m2p7
+    reason: "brace-expansion 5.0.9 nằm trong npm đi kèm node:24.22.0 (không phải phụ thuộc của dự án); runtime web/worker xoá npm; sửa ở 5.0.11, node 24.22.0 là bản mới nhất (hạn rà lại: 2026-11-01)"
+    package:
+      name: brace-expansion
+      version: 5.0.9
+      type: npm
+      location: "/usr/local/lib/node_modules/npm/**"

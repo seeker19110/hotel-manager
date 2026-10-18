@@ -319,3 +319,79 @@ describe("tài liệu chính sách", () => {
       expect(existsSync(join(ROOT, f)), f).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------- .grype.yaml: ngoại lệ có hạn (VULN-SLA.md)
+describe(".grype.yaml: bỏ qua lỗ hổng chỉ khi có hạn, có theo dõi, đúng gói/phiên bản", () => {
+  const cfg = yml(".grype.yaml");
+  const rules = cfg.ignore;
+  const sla = read("docs/ops/VULN-SLA.md");
+  const today = new Date().toISOString().slice(0, 10);
+  const horizon = new Date(`${today}T00:00:00Z`);
+  horizon.setUTCDate(horizon.getUTCDate() + 30); // VULN-SLA: ngoại lệ ≤ 30 ngày
+  const dueOf = (r) => /hạn rà lại: (\d{4}-\d{2}-\d{2})/.exec(r.reason ?? "")?.[1];
+
+  it("mỗi luật: đúng một mã, gói + phiên bản + loại cụ thể, không bỏ qua cả gói", () => {
+    expect(Array.isArray(rules) && rules.length > 0).toBe(true);
+    for (const r of rules) {
+      expect(r.vulnerability, JSON.stringify(r)).toMatch(
+        /^(GO-\d{4}-\d+|CVE-\d{4}-\d+|GHSA(-[a-z0-9]{4}){3})$/,
+      );
+      for (const f of ["name", "version", "type"])
+        expect(r.package?.[f], `${r.vulnerability}.${f}`).toBeTruthy();
+      expect(Object.keys(r).sort(), r.vulnerability).toEqual(["package", "reason", "vulnerability"]);
+    }
+    const keys = rules.map(
+      (r) => `${r.vulnerability}|${r.package.name}|${r.package.version}|${r.package.location ?? ""}`,
+    );
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+  it("mỗi luật có 'hạn rà lại' hợp lệ, chưa quá hạn, ≤ 30 ngày kể từ hôm nay", () => {
+    for (const r of rules) {
+      const due = dueOf(r);
+      expect(due, `${r.vulnerability} thiếu "hạn rà lại: YYYY-MM-DD"`).toBeTruthy();
+      expect(new Date(`${due}T00:00:00Z`).toISOString().slice(0, 10), r.vulnerability).toBe(due);
+      expect(due >= today, `${r.vulnerability} đã quá hạn ${due} — nâng image hoặc quyết định lại`).toBe(
+        true,
+      );
+      expect(due <= horizon.toISOString().slice(0, 10), `${r.vulnerability} hạn ${due} quá 30 ngày`).toBe(
+        true,
+      );
+    }
+  });
+  it("mọi mã được bỏ qua đều nằm ở bảng Theo dõi của VULN-SLA.md", () => {
+    const tracked = sla.slice(sla.indexOf("## Theo dõi"));
+    for (const r of rules) {
+      const id = r.vulnerability;
+      // Bảng viết gọn "GO-2026-6603, 6605, …": chấp nhận mã đầy đủ hoặc số cuối của mã GO-.
+      const short = /^GO-\d{4}-(\d+)$/.exec(id)?.[1];
+      const found =
+        tracked.includes(id) || (short !== undefined && new RegExp(`\\b${short}\\b`).test(tracked));
+      expect(found, `${id} chưa có trong bảng Theo dõi`).toBe(true);
+    }
+  });
+  it("workflow không nới: cutoff high, only-fixed, fail-build; không có grype-config/continue-on-error", () => {
+    const wf = read(".github/workflows/supply-chain.yml");
+    expect(wf).not.toMatch(/continue-on-error/);
+    expect(wf).not.toMatch(/^\s*config:/m);
+    const scans = Object.values(parse(wf).jobs)
+      .flatMap((j) => j.steps)
+      .filter((s) => String(s.uses ?? "").startsWith("anchore/scan-action@"));
+    expect(scans).toHaveLength(2);
+    for (const s of scans) {
+      expect(s.with["severity-cutoff"]).toBe("high");
+      expect(s.with["only-fixed"]).toBe("true");
+      expect(s.with["fail-build"]).toBe("true");
+    }
+  });
+  it("luật npm (location /usr/local/lib/node_modules/npm) có điều kiện: runtime web/worker xoá npm trước USER node", () => {
+    expect(rules.some((r) => r.package.location?.startsWith("/usr/local/lib/node_modules/npm"))).toBe(true);
+    for (const f of ["deploy/web.Dockerfile", "deploy/worker.Dockerfile"]) {
+      const runtime = read(f).split(/^FROM .* AS runtime$/m)[1];
+      expect(runtime, f).toBeTruthy();
+      const rm = runtime.indexOf("rm -rf /usr/local/lib/node_modules/npm");
+      expect(rm, `${f}: runtime phải xoá npm`).toBeGreaterThanOrEqual(0);
+      expect(runtime, f).toContain("/usr/local/bin/npm");
+      expect(rm, `${f}: xoá npm phải trước USER node`).toBeLessThan(runtime.indexOf("USER node"));
+    }
+  });
+});

@@ -33,4 +33,15 @@ Tính từ lúc lỗ hổng xuất hiện trên một lượt quét (CI đỏ ho
 
 ## Theo dõi (lỗ hổng chưa có bản sửa)
 
-_Không có._
+_Không có lỗ hổng "chưa ai sửa"._ Dưới đây là ngoại lệ có hạn (`.grype.yaml`) cho lỗ hổng high/critical **đã có bản sửa ở thượng nguồn nhưng image
+đang ghim chưa được dựng lại** (không có tag mới cùng dòng phiên bản; tra Docker Hub 2026-10-18). Mỗi mã trong `.grype.yaml` phải có mặt ở bảng này
+và `reason` ghi hạn rà lại; `scripts/supply-chain.test.mjs` đỏ khi quá hạn. Đến hạn: nâng image nếu đã có bản vá (gỡ luật), không thì quyết định lại.
+
+| Image / gói | Mã (mức) | Sửa ở | Hạn rà lại | Giảm nhẹ / ghi chú |
+|---|---|---|---|---|
+| `caddy:2.11.7-alpine` — Go stdlib 1.26.8, `golang.org/x/net` v0.59.0 trong `/usr/bin/caddy` | GO-2026-6612 (Critical), GO-2026-6604 (Critical) | Go 1.26.9, x/net 0.60.0 | 2026-10-25 | Chờ Caddy dựng lại với Go 1.26.9; Caddy chỉ nghe sau mạng nội bộ compose + cổng 80/443, không chạy mã người dùng |
+| `caddy:2.11.7-alpine` — như trên | GO-2026-6603, 6605, 6607, 6608, 6609, 6610, 6611, 6613, 6617 (High) | Go 1.26.9, x/net 0.60.0 | 2026-11-01 | như trên |
+| `chrislusf/seaweedfs:4.48` — Go stdlib 1.26.8, `golang.org/x/net` v0.58.0 trong `/usr/bin/weed` | GO-2026-6612 (Critical) | Go 1.26.9, x/net 0.60.0 | 2026-10-25 | S3 chỉ qua mạng nội bộ compose, không công bố cổng ra ngoài; chờ SeaweedFS 4.49+ |
+| `chrislusf/seaweedfs:4.48` — như trên | GO-2026-6603, 6605, 6607, 6608, 6609, 6610, 6611, 6613, 6617 (High) | Go 1.26.9, x/net 0.60.0 | 2026-11-01 | như trên |
+| `caddy:2.11.7-alpine`, `chrislusf/seaweedfs:4.48` — zlib 1.3.2-r0 (Alpine 3.23) | CVE-2026-85091 (High) | zlib 1.3.2-r1 | 2026-11-01 | Có thể sửa bằng image dẫn xuất `apk upgrade zlib`; chưa làm vì đổi cách triển khai (câu hỏi mở của PR) |
+| `node:24.22.0-trixie-slim` — npm đi kèm (`/usr/local/lib/node_modules/npm`): undici 6.28.0, brace-expansion 5.0.9 | GHSA-rfgv-xxqx-mfg5, GHSA-6j4f-fj2g-mc7p, GHSA-qhr7-859c-m2p7 (High) | undici 6.28.1, brace-expansion 5.0.11 | 2026-11-01 | Không phải phụ thuộc của dự án; stage runtime của web/worker xoá npm (`deploy/*.Dockerfile`) nên không có trong image chạy thật |
