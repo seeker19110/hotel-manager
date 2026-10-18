@@ -199,3 +199,47 @@ describe("WF-REL-003 — tag bất biến, Release kèm artefact + checksum", ()
     });
   });
 });
+
+describe("CMP-LIC-003 — SBOM CycloneDX lưu cùng Release", () => {
+  const assets = release.jobs.assets;
+  const text = stepText(assets);
+  const supply = parse(read(".github/workflows/supply-chain.yml"));
+  const matrix = supply.jobs["image-scan"].strategy.matrix.include;
+  const imageRun = assets.steps.find((s) => String(s.name).startsWith("SBOM CycloneDX của image")).run;
+  // Danh sách image là thân heredoc `<<'IMAGES'` … `IMAGES` (dòng "tên ref").
+  const heredoc = /<<'IMAGES'\n([\s\S]*?)\nIMAGES/.exec(imageRun)?.[1] ?? "";
+  const listed = Object.fromEntries(heredoc.split("\n").map((l) => l.trim().split(/\s+/)));
+
+  it("sinh SBOM npm toàn workspace vào dist/ và kiểm giấy phép theo license-policy.json", () => {
+    expect(text).toContain("node scripts/sbom.mjs --out dist/sbom.cdx.json");
+    expect(text).toContain("node scripts/sbom-check.mjs --policy license-policy.json dist/sbom.cdx.json");
+    expect(text).toContain("pnpm install --frozen-lockfile --ignore-scripts");
+  });
+
+  it("SBOM image cho đúng danh sách image của supply-chain.yml (build tại chỗ với image tự build)", () => {
+    expect(Object.keys(listed).sort()).toEqual(matrix.map((m) => m.name).sort());
+    for (const m of matrix) {
+      if (m.build) {
+        expect(imageRun).toContain(`docker build --tag ${listed[m.name]} ${m.build}`);
+      } else {
+        expect(listed[m.name]).toBe(m.ref);
+        expect(m.ref).toMatch(/@sha256:[0-9a-f]{64}$/);
+      }
+    }
+    expect(imageRun).toContain('-o "cyclonedx-json=dist/sbom-image-$name.cdx.json"');
+    expect(imageRun).toContain('node scripts/sbom-check.mjs "dist/sbom-image-$name.cdx.json"');
+  });
+
+  it("SBOM nằm trong SHA256SUMS và được đính lên Release trước khi công khai", () => {
+    const at = (s) => text.indexOf(s);
+    expect(text).toMatch(/sha256sum [^\n]*\.\/\*\.cdx\.json[^\n]*> SHA256SUMS/);
+    expect(at("dist/sbom.cdx.json")).toBeLessThan(at("> SHA256SUMS"));
+    expect(at("sbom-image-")).toBeLessThan(at("> SHA256SUMS"));
+    expect(text).toContain('gh release upload "$TAG" dist/*');
+  });
+
+  it("syft tải bằng action ghim cùng SHA với supply-chain.yml", () => {
+    const sha = (yml) => /anchore\/sbom-action[^@]*@([0-9a-f]{40})/.exec(yml)?.[1];
+    expect(sha(read(".github/workflows/release.yml"))).toBe(sha(read(".github/workflows/supply-chain.yml")));
+  });
+});
