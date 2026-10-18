@@ -171,6 +171,7 @@ jobs:
           jobs=$(python3 - <<'PY'
           import glob, re
           names = set()
+          token = "$" + "{{ matrix.name }}"
           for f in glob.glob(".github/workflows/*.yml"):
               txt = open(f, encoding="utf-8").read()
               m = re.search(r"^jobs:\n(.*)", txt, re.S | re.M)
@@ -178,14 +179,21 @@ jobs:
               for jm in re.finditer(r"^  ([A-Za-z0-9_-]+):\n((?:    .*\n|\n)*)", m.group(1), re.M):
                   key, body = jm.group(1), jm.group(2)
                   nm = re.search(r"^    name:\s*(.+?)\s*$", body, re.M)
-                  names.add(nm.group(1).strip('"\'') if nm else key)
+                  label = nm.group(1).strip('"\'') if nm else key
+                  if token in label:
+                      # Job ma trận: GitHub đặt context theo từng phần tử `matrix.include[].name`.
+                      sm = re.search(r"^    strategy:\n((?:      .*\n|\n)*)", body, re.M)
+                      for im in re.finditer(r"^\s+- name:\s*(\S+)\s*$", sm.group(1) if sm else "", re.M):
+                          names.add(label.replace(token, im.group(1)))
+                  else:
+                      names.add(label)
           print("\n".join(sorted(names)))
           PY
           )
           fail=0
-          for c in $(python3 -c "import json;[print(x['context']) for r in json.load(open('.github/rulesets/main.json'))['rules'] if r['type']=='required_status_checks' for x in r['parameters']['required_status_checks']]"); do
-            grep -qx "$c" <<<"$jobs" || { echo "::error::Required check '$c' không khớp job nào trong .github/workflows/"; fail=1; }
-          done
+          while IFS= read -r c; do
+            grep -Fxq -- "$c" <<<"$jobs" || { echo "::error::Required check '$c' không khớp job nào trong .github/workflows/"; fail=1; }
+          done < <(python3 -c "import json;[print(x['context']) for r in json.load(open('.github/rulesets/main.json'))['rules'] if r['type']=='required_status_checks' for x in r['parameters']['required_status_checks']]")
           [ "$fail" = 0 ] && echo "OK — mọi required check đều là job có thật."
           exit $fail
       - name: Ruleset trên nhánh mặc định đang hiệu lực? (cảnh báo)

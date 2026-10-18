@@ -34,7 +34,31 @@
           { "context": "quality" },
           { "context": "protection-guard" },
           { "context": "gitleaks" },
-          { "context": "dep-audit" }
+          { "context": "dep-audit" },
+          { "context": "commit-lint" },
+          { "context": "pr-policy" },
+          { "context": "new-deps" },
+          { "context": "openapi" },
+          { "context": "prometheus-rules" },
+          { "context": "otel-collector" },
+          { "context": "schema-compat" },
+          { "context": "fe-typecheck" },
+          { "context": "fe-lint" },
+          { "context": "bundle-size" },
+          { "context": "lighthouse" },
+          { "context": "unit-deterministic" },
+          { "context": "e2e-repeat" },
+          { "context": "regression" },
+          { "context": "sast" },
+          { "context": "dast" },
+          { "context": "sbom" },
+          { "context": "image-scan (postgres)" },
+          { "context": "image-scan (node-base)" },
+          { "context": "image-scan (seaweedfs)" },
+          { "context": "image-scan (caddy)" },
+          { "context": "coverage" },
+          { "context": "coverage-ratchet" },
+          { "context": "fix-requires-test" }
         ]
       }
     }
