@@ -7,7 +7,7 @@
         "http://127.0.0.1:3100/dang-nhap/nguoi-thue",
         "http://127.0.0.1:3100/offline"
       ],
-      "startServerCommand": "node apps/web/e2e/server.ts",
+      "startServerCommand": "pnpm --filter @hm/web exec node e2e/server.ts",
       "startServerReadyPattern": "Ready in",
       "startServerReadyTimeout": 300000,
       "settings": {

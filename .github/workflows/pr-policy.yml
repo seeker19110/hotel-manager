@@ -35,7 +35,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24.22.0"
+          node-version-file: .nvmrc
       # Tiêu đề, mô tả, nhãn là dữ liệu không tin cậy: chỉ đi qua biến môi trường vào file, không nội suy vào lệnh.
       - name: Ghi tiêu đề + mô tả PR ra file
         env:

@@ -202,6 +202,29 @@ describe("XC-DX-006 — hook nhanh, chỉ file thay đổi", () => {
     expect(commit(d).status).toBe(0);
   });
 
+  it("FE-BUILD-004: cảnh báo biome (suppression thừa) trên file đã stage cũng chặn commit — cùng cờ với `pnpm lint`", () => {
+    const d = sandbox();
+    writeFileSync(
+      join(d, "warn.ts"),
+      "// biome-ignore lint/suspicious/noExplicitAny: không dùng\nexport const value = 1;\n",
+    );
+    stage(d, "warn.ts");
+    const r = commit(d);
+    expect(r.status).not.toBe(0);
+    expect(r.stderr + r.stdout).toMatch(/suppressions\/unused|warning/i);
+    writeFileSync(join(d, "warn.ts"), GOOD);
+    stage(d, "warn.ts");
+    expect(commit(d).status).toBe(0);
+  });
+
+  it("FE-BUILD-004: hook dự án dùng `biome check --staged --error-on-warnings`; không còn .husky/hooks:install", () => {
+    const hook = readFileSync(join(ROOT, ".githooks/pre-commit"), "utf8");
+    expect(hook).toMatch(/check --staged .*--error-on-warnings/);
+    expect(existsSync(join(ROOT, ".husky"))).toBe(false);
+    const scripts = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")).scripts;
+    expect(scripts["hooks:install"]).toBeUndefined();
+  });
+
   it("chỉ xét file đã stage: file sai format chưa stage không cản commit", () => {
     const d = sandbox();
     writeFileSync(join(d, "ok.ts"), GOOD);

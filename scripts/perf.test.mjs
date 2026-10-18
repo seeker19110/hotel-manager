@@ -380,11 +380,13 @@ describe("perf: ngân sách trang + baseline (XC-GREEN-001, QA-PERF-006)", () =>
     expect(sec).toContain(`p99 ${f(web.api.p99_ms)} ms`);
   });
 
-  it("không đổi workflow CI để chạy k6/lhci khi chưa được duyệt (điểm dừng §6): workflow không nhắc k6/lhci", () => {
+  it("đợt 9 (D-059, chủ dự án duyệt 2026-10-17): lhci chỉ chạy trong job `lighthouse`; k6 chưa có workflow (cần staging)", () => {
     for (const n of readdirSync(join(ROOT, ".github/workflows"))) {
       const text = read(`.github/workflows/${n}`);
-      expect(text, n).not.toMatch(/\bk6 run\b|lhci|lighthouse-ci/i);
+      expect(text, n).not.toMatch(/\bk6 run\b/i);
+      if (n !== "frontend-quality.yml") expect(text, n).not.toMatch(/lhci|lighthouse-ci/i);
     }
-    expect(doc).toMatch(/Đề xuất job CI \(cần chủ dự án duyệt/);
+    expect(read(".github/workflows/frontend-quality.yml")).toMatch(/^ {2}lighthouse:\n/m);
+    expect(doc).toMatch(/## 5\. Job CI/);
   });
 });

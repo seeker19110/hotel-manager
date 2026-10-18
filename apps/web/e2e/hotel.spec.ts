@@ -7,13 +7,17 @@ import { readFileSync } from "node:fs";
 import { type BrowserContext, expect, type Page, test } from "@playwright/test";
 import { expectAccessible } from "./a11y.ts";
 import { confirmAction } from "./confirm.ts";
-import { HOTEL_HK, HOTEL_NOTIFICATION_TITLE, HOTEL_OWNER, JPEG, ORG_HOTEL } from "./fixtures.ts";
+import { HOTEL_HK, HOTEL_NOTIFICATION_TITLE, HOTEL_OWNER, JPEG, ORG_HOTEL, portOf } from "./fixtures.ts";
 import { signInClick } from "./sign-in.ts";
 import { hotelTotpFile, totp } from "./totp.ts";
 
 test.describe.configure({ mode: "serial" });
 
-const PORT = Number(process.env.E2E_PORT ?? 3100);
+// Cổng của server của project đang chạy (mỗi project có server riêng) — đặt trước mọi test của tệp.
+let PORT = Number(process.env.E2E_PORT ?? 3100);
+test.beforeAll(({ browserName: _ }, info) => {
+  PORT = portOf(info.project.use.baseURL);
+});
 const vnd = (n: number) => `${new Intl.NumberFormat("vi-VN").format(n)} đ`;
 const GUEST = { name: "Khách E2E (giả)", phone: "0100000077", doc: "079123456789" };
 const UUID_URL = /\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;

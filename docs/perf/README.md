@@ -52,7 +52,9 @@ Dữ liệu đo tải theo `PROJECT.md` §5: 100 tổ chức, 5.000 phòng, 200 
 
 ## 3. Lighthouse CI (`lighthouserc.json`)
 
-3 URL công khai (`/dang-nhap`, `/dang-nhap/nguoi-thue`, `/offline`) trên server E2E (`node apps/web/e2e/server.ts`, cần `pnpm build` trước), `numberOfRuns: 3`, `aggregationMethod: median`, mobile (throttle mặc định của lhci — không tắt). Màn nhân viên (`/phong`…) cần đăng nhập: bổ sung `puppeteerScript` khi được duyệt thêm phụ thuộc. Chạy: `npx @lhci/cli@0.15.1 autorun` (repo lhci không commit từ 2025-06-26 — theo dõi phương án thay thế mỗi 6 tháng, QA-PERF-016).
+3 URL công khai (`/dang-nhap`, `/dang-nhap/nguoi-thue`, `/offline`) trên server E2E (`pnpm --filter @hm/web exec node e2e/server.ts`, cần `pnpm build` trước), `numberOfRuns: 3`, `aggregationMethod: median`, mobile (throttle mặc định của lhci — không tắt). Job CI `lighthouse` (`.github/workflows/frontend-quality.yml`) chạy `npx @lhci/cli@0.15.1 autorun` trên PR và main, đỏ khi vi phạm assert mức `error`; báo cáo lưu artifact `lighthouse-report`. Màn nhân viên (`/phong`…) cần đăng nhập: bổ sung `puppeteerScript` khi được duyệt thêm phụ thuộc (PRF-WEB-005 đòi ≥ 5 URL và required check — chưa đạt). Repo lhci không commit từ 2025-06-26 — theo dõi phương án thay thế mỗi 6 tháng (QA-PERF-016).
+
+Số đo cục bộ 2026-10-18 (Chromium 1194, máy chia sẻ tải ~12 trên 4 lõi — **không** phải số chuẩn): lần đầu 3 URL × 3 run, `/dang-nhap` Performance 0,79/0,71/0,99 (median 0,79 → đỏ, TBT lên 2 228 ms ở run tải nặng); chạy lại riêng `/dang-nhap` 5 run: median đạt mọi assert. Runner CI chuyên dụng ít nhiễu hơn; **theo dõi lượt CI đầu tiên**, nếu vẫn dao động thì tối ưu trang, không hạ ngưỡng.
 
 ## 4. Baseline (`docs/perf/baseline-*.json`)
 
@@ -70,9 +72,9 @@ cd apps/web && PERF_BASELINE_OUT=../../docs/perf/baseline-web-$(date +%F).json p
 
 Mỗi file có `date`, `commit`, môi trường, thiết bị/mạng, số mẫu (QA-PERF-006); test `perf` từ chối file đã `measured: true` mà thiếu trường. kWh/1.000 yêu cầu **chưa đo** (cần đồng hồ/cgroup của VPS) — CPU-giây là chỉ báo thay thế (XC-GREEN-001). Số cục bộ chỉ so tương đối giữa các lần chạy cùng môi trường.
 
-## 5. Đề xuất job CI (cần chủ dự án duyệt — đổi workflow là điểm dừng AGENTS §6; chưa làm)
+## 5. Job CI (1 đã có từ đợt 9 — `lighthouse`; còn lại là đề xuất)
 
 1. **PR, job `e2e` (đã có):** `perf-baseline.spec.ts` chạy cùng bộ E2E, chặn khi vượt `perf/budgets.json` — **không cần đổi workflow**.
-2. **PR, job mới `lighthouse`:** `pnpm build && npx @lhci/cli@0.15.1 autorun` (3 URL, `error` theo `lighthouserc.json`), tải `.lighthouseci/` làm artifact.
+2. **PR, job `lighthouse` (đã có):** `pnpm build && npx @lhci/cli@0.15.1 autorun` (3 URL, `error` theo `lighthouserc.json`), tải `.lighthouseci/` làm artifact.
 3. **Nightly trên staging, job mới `k6`:** `k6 run -e K6_PROFILE=load -e BASE_URL=$STAGING_URL perf/k6/*.js` (cần secret `K6_COOKIE`, host staging trong `K6_ALLOWED_HOSTS`); fail khi vượt `thresholds`; weekly `K6_DURATION=30m` (soak, QA-PERF-011).
 4. Ghi kết quả đầu tiên vào `docs/perf/baseline-k6.json` / `baseline-lighthouse.json` và mục hiệu năng của `GO-NO-GO.md` (kèm 5 trường: commit, môi trường, thiết bị/mạng, VU/thời lượng, ngày).

@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import { type BrowserContext, expect, type Page, test } from "@playwright/test";
 import { expectAccessible } from "./a11y.ts";
 import { confirmAction } from "./confirm.ts";
-import { ORG_RENTAL, RENTAL_OWNER, RENTAL_TENANT, RENTAL_UNIT } from "./fixtures.ts";
+import { ORG_RENTAL, portOf, RENTAL_OWNER, RENTAL_TENANT, RENTAL_UNIT } from "./fixtures.ts";
 import { signInClick } from "./sign-in.ts";
 import { totp, totpFile } from "./totp.ts";
 
@@ -18,7 +18,11 @@ test.use({ serviceWorkers: "block" });
 // trên CI SW đã kiểm soát trang thì lệnh đi thẳng tới server, bộ đếm route = 0. PWA được test riêng ở pwa.spec.ts.
 test.use({ serviceWorkers: "block" });
 
-const PORT = Number(process.env.E2E_PORT ?? 3100);
+// Cổng của server của project đang chạy (mỗi project có server riêng) — đặt trước mọi test của tệp.
+let PORT = Number(process.env.E2E_PORT ?? 3100);
+test.beforeAll(({ browserName: _ }, info) => {
+  PORT = portOf(info.project.use.baseURL);
+});
 
 async function login(page: Page) {
   const { secret } = JSON.parse(readFileSync(totpFile(PORT), "utf8")) as { secret: string };

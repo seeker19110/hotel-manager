@@ -1,0 +1,8 @@
+[
+  {
+    "name": "JS client (toàn bộ chunk của apps/web, gzip)",
+    "path": "apps/web/.next/static/chunks/**/*.js",
+    "gzip": true,
+    "limit": "300 kB"
+  }
+]

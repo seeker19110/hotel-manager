@@ -20,6 +20,7 @@ import {
   PORTAL_MEMO,
   PORTAL_TENANT,
   PORTAL_UNIT,
+  portOf,
   SMOKE_USER,
   unsubFile,
 } from "./fixtures.ts";
@@ -33,7 +34,11 @@ test.use({ serviceWorkers: "block" });
 // trên CI SW đã kiểm soát trang thì lệnh đi thẳng tới server, bộ đếm route = 0. PWA được test riêng ở pwa.spec.ts.
 test.use({ serviceWorkers: "block" });
 
-const PORT = Number(process.env.E2E_PORT ?? 3100);
+// Cổng của server của project đang chạy (mỗi project có server riêng) — đặt trước mọi test của tệp.
+let PORT = Number(process.env.E2E_PORT ?? 3100);
+test.beforeAll(({ browserName: _ }, info) => {
+  PORT = portOf(info.project.use.baseURL);
+});
 
 /** Mã OTP mới nhất gửi tới `email` trong hộp thư giả. */
 async function otpFor(email: string): Promise<string> {

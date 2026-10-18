@@ -11,6 +11,7 @@ import {
   ORG_RENTAL,
   outboxFile,
   PORTAL_TENANT,
+  portOf,
   RENTAL_OWNER,
   SMOKE_USER,
 } from "./fixtures.ts";
@@ -18,7 +19,6 @@ import { signInClick } from "./sign-in.ts";
 import { hotelTotpFile, totp, totpFile } from "./totp.ts";
 
 export type Cookies = Awaited<ReturnType<BrowserContext["cookies"]>>;
-const PORT = Number(process.env.E2E_PORT ?? 3100);
 
 async function withFreshPage(
   browser: Browser,
@@ -45,7 +45,8 @@ async function withFreshPage(
 export function loginOwner(browser: Browser, baseURL: string, who: "rental" | "hotel"): Promise<Cookies> {
   const account = who === "rental" ? RENTAL_OWNER : HOTEL_OWNER;
   const org = who === "rental" ? ORG_RENTAL : ORG_HOTEL;
-  const file = who === "rental" ? totpFile(PORT) : hotelTotpFile(PORT);
+  const port = portOf(baseURL);
+  const file = who === "rental" ? totpFile(port) : hotelTotpFile(port);
   return withFreshPage(browser, baseURL, async (page) => {
     const { secret } = JSON.parse(readFileSync(file, "utf8")) as { secret: string };
     await page.goto("/dang-nhap");
@@ -75,8 +76,8 @@ export function loginStaff(browser: Browser, baseURL: string, who: "main" | "hot
   });
 }
 
-const mailsTo = (email: string) =>
-  readFileSync(outboxFile(PORT), "utf8")
+const mailsTo = (baseURL: string, email: string) =>
+  readFileSync(outboxFile(portOf(baseURL)), "utf8")
     .trim()
     .split("\n")
     .filter(Boolean)
@@ -84,9 +85,9 @@ const mailsTo = (email: string) =>
     .filter((m) => m.to === email);
 
 /** Mã OTP của thư MỚI gửi tới `email` (thư thứ `before + 1` trở đi) — không lấy nhầm mã của lần đăng nhập trước. */
-async function newOtpFor(email: string, before: number): Promise<string> {
+async function newOtpFor(baseURL: string, email: string, before: number): Promise<string> {
   for (let i = 0; i < 60; i++) {
-    const mine = mailsTo(email);
+    const mine = mailsTo(baseURL, email);
     const code = mine.length > before ? /\b(\d{6})\b/.exec(mine.at(-1)?.text ?? "")?.[1] : undefined;
     if (code) return code;
     await new Promise((r) => setTimeout(r, 250));
@@ -99,9 +100,9 @@ export function loginTenant(browser: Browser, baseURL: string): Promise<Cookies>
   return withFreshPage(browser, baseURL, async (page) => {
     await page.goto("/dang-nhap/nguoi-thue");
     await page.getByLabel("Email").fill(PORTAL_TENANT.email);
-    const before = mailsTo(PORTAL_TENANT.email).length;
+    const before = mailsTo(baseURL, PORTAL_TENANT.email).length;
     await page.getByRole("button", { name: "Gửi mã" }).click();
-    const code = await newOtpFor(PORTAL_TENANT.email, before);
+    const code = await newOtpFor(baseURL, PORTAL_TENANT.email, before);
     await page.getByLabel("Mã đăng nhập 6 số").fill(code);
     await signInClick(page);
     await expect(page).toHaveURL(/\/chon-to-chuc$/, { timeout: 10_000 });

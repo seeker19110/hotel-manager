@@ -454,3 +454,11 @@
 - Lý do (tiêu chí chất lượng cuối): Tránh xung đột main.json giữa 6 lát; job đỏ vẫn hiện trên PR và review độc lập chặn merge tay; tick ghi đúng mức chặn thật; import ruleset là việc người
 - Đường lùi: Xoá context khỏi main.json ở PR cuối; bỏ ghi chú trong Bằng chứng
 - Khi chạy thật (đề xuất, chủ dự án quyết ở G7): Chủ dự án import .github/rulesets/main.json sau khi mọi job mới xanh ít nhất một lần trên PR
+
+### D-066 · 2026-10-18T01:16:12+00:00 · T-804: (a) FE-TEST-001 'getByTestId ≤ 10%' áp cho test nào? (b) FE-BUILD-003 có giữ skipLibCheck không? (c) hook pre-commit dùng husky hay .githooks của T-807?
+
+- Phương án: (1) (a) chỉ test Testing Library — E2E Playwright đọc giá trị qua test id là hợp lệ; (b) giữ skipLibCheck có lý do (d.ts happy-dom lệch @types/node 24), test khoá không có .d.ts tự viết; (c) bỏ husky, dồn 'biome check --staged' vào .githooks/pre-commit của T-807 (một cơ chế, không đặt core.hooksPath) · (2) Áp ≤10% cho cả E2E và refactor; bỏ skipLibCheck bằng cách đổi sang jsdom (MIT-0 cần thêm vào license-policy)
+- Chọn: (a) chỉ test Testing Library — E2E Playwright đọc giá trị qua test id là hợp lệ; (b) giữ skipLibCheck có lý do (d.ts happy-dom lệch @types/node 24), test khoá không có .d.ts tự viết; (c) bỏ husky, dồn 'biome check --staged' vào .githooks/pre-commit của T-807 (một cơ chế, không đặt core.hooksPath)
+- Lý do (tiêu chí chất lượng cuối): Đúng tinh thần mục (truy vấn theo vai trò trong test component); jsdom kéo giấy phép mới cần chủ dự án; hai cơ chế hook xung đột (bộ cài T-807 bỏ qua khi có core.hooksPath)
+- Đường lùi: Gỡ skipLibCheck khi happy-dom/@types/node khớp; đổi sang jsdom nếu chủ dự án duyệt MIT-0
+- Khi chạy thật (đề xuất, chủ dự án quyết ở G7): Chủ dự án quyết MIT-0 nếu muốn jsdom thay happy-dom
