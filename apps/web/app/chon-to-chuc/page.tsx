@@ -2,21 +2,12 @@ import { listMyOrganizations, serverContext } from "@hm/app";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { EmptyState } from "../../components/ui/state.tsx";
+import { ORG_PICKER_ROLE_LABEL } from "../../lib/roles.ts";
 import { currentSession } from "../../lib/session.ts";
 import { CreateOrganization } from "./create-organization.tsx";
 import { OrgChoice } from "./org-choice.tsx";
 
 export const metadata: Metadata = { title: "Chọn tổ chức — Hotel Manager" };
-
-const ROLE_LABEL: Record<string, string> = {
-  owner: "Chủ",
-  manager: "Quản lý",
-  front_desk: "Lễ tân",
-  accountant: "Kế toán",
-  housekeeping: "Buồng phòng",
-  maintenance: "Kỹ thuật",
-  tenant: "Người thuê",
-};
 
 // SPEC-access-and-property S-020: chọn ngữ cảnh trong số tổ chức có membership.
 export default async function ChooseOrganizationPage() {
@@ -42,7 +33,7 @@ export default async function ChooseOrganizationPage() {
               <OrgChoice
                 organizationId={o.organizationId}
                 label={o.organizationName}
-                meta={ROLE_LABEL[o.role] ?? o.role}
+                meta={ORG_PICKER_ROLE_LABEL[o.role] ?? o.role}
                 home={o.role === "tenant" ? "/portal" : "/phong"}
               />
             </li>

@@ -528,3 +528,10 @@
 - Lý do (tiêu chí chất lượng cuối): Có giá trị ngay (bắt hồi quy hiệu năng/PII), an toàn (không đụng production, dữ liệu giả), đường lùi rõ: đổi BASE_URL sang staging khi có
 - Đường lùi: Đổi BASE_URL/secret sang staging thật; hoặc tắt schedule
 - Khi chạy thật (đề xuất, chủ dự án quyết ở G7): Khi có staging: đặt BASE_URL của workflow k6 tới staging (biến môi trường repo, không phải domain production)
+
+### D-073 · 2026-10-18T12:18:58+00:00 · XC-I18N-001/009: 2.329 chuỗi tiếng Việt viết thẳng trong 190 tệp (UI, lỗi, email; đo bằng scripts/i18n-literals.mjs, ước ban đầu ~6.000 gồm cả mã không phải giao diện); làm thế nào trong đợt 10?
+
+- Phương án: (1) Hạ tầng + chặn tăng: messages/vi.json + hàm t() + validator khoá/ICU/tham số/HTML (XC-I18N-009, chạy CI) + lint ratchet: số chuỗi literal theo file chỉ được giảm, chuỗi mới phải qua t(); chuyển trước nhóm nhỏ (thông báo lỗi chung) làm mẫu; XC-I18N-001 chưa tick tới khi baseline = 0 · (2) Chuyển toàn bộ ~6.000 chuỗi ngay trong một lát · (3) Hoãn cả hai mục
+- Chọn: Hạ tầng + chặn tăng: messages/vi.json + hàm t() + validator khoá/ICU/tham số/HTML (XC-I18N-009, chạy CI) + lint ratchet: số chuỗi literal theo file chỉ được giảm, chuỗi mới phải qua t(); chuyển trước nhóm nhỏ (thông báo lỗi chung) làm mẫu; XC-I18N-001 chưa tick tới khi baseline = 0
+- Lý do (tiêu chí chất lượng cuối): Đúng và an toàn: không đụng hàng loạt UI/tiền trong một PR; ngăn nợ tăng ngay (ratchet như coverage); XC-I18N-009 đạt thật; đường chuyển dần rõ ràng, test được
+- Đường lùi: Bỏ rào ratchet và messages/ (không ảnh hưởng runtime ngoài các chuỗi đã chuyển)
