@@ -117,7 +117,8 @@ WAIVER_RE = re.compile(r"(?:[—–-]|\()\s*Miễn\s*:\s*[^\s)]")
 # `Duyệt: "<trích nguyên văn>" <YYYY-MM-DD>` hoặc link tới comment/issue. Im lặng không phải duyệt.
 NA_RE = re.compile(r"(?:[—–-]|\()\s*Không áp dụng\s*:\s*[^\s)]")
 APPROVAL_RE = re.compile(r"Duyệt\s*:\s*(?:[\"“][^\"”]{3,}[\"”]\s*\(?\d{4}-\d{2}-\d{2}|https?://\S+)")
-LOOSE_NOTE_RE = re.compile(r"\s(?:[—–-]{1,2}\s*|\()(?:Bằng chứng|Miễn|Không áp dụng|Thiếu|Kiểm)\s*:.*$")
+# `·` cũng là dấu ghi chú: dự án hay nối `· Bằng chứng: …` sau `· Nguồn:` như chữ của khung (hotel-manager, 3.1.0).
+LOOSE_NOTE_RE = re.compile(r"\s(?:[—–-]{1,2}\s*|·\s*|\()(?:Bằng chứng|Miễn|Không áp dụng|Thiếu|Kiểm)\s*:.*$")
 # Lệnh kiểm máy của mục `[x]` trong blueprint dự án: `— Kiểm: `<lệnh>`` ở phần ghi chú (sau `· Nguồn:` cuối) —
 # `blueprint-status --run`/`loop verify` chạy lại, exit ≠ 0 = mục chưa đạt dù đã tick (LOOP-DESIGN-023). Chữ của mục
 # dùng `→ Kiểm:` (mũi tên) nên không nhầm với ghi chú của dự án.
@@ -736,9 +737,12 @@ def _carried_note(old_line: str, new_line: str) -> str:
     return nm.group(0) if nm else ""
 
 
-def carry_states(old: str, new: str, framework_ids: Optional[Set[str]] = None) -> Tuple[str, int]:
+def carry_states(
+    old: str, new: str, framework_ids: Optional[Set[str]] = None, dropped: Optional[List[str]] = None
+) -> Tuple[str, int]:
     """Chuyển ô trạng thái + ghi chú (— Bằng chứng/Miễn/Thiếu: …) từ blueprint cũ sang bản ghép mới theo ID.
-    Có `framework_ids`: mục cũ có ID KHÔNG thuộc khung (mục riêng của dự án) được giữ nguyên ở cuối, không mất im lặng."""
+    Có `framework_ids`: mục cũ có ID KHÔNG thuộc khung (mục riêng của dự án) được giữ nguyên ở cuối, không mất im lặng.
+    Có `dropped`: thêm ID mục `[x]`/`[~]` mà chữ đổi và không tìm được ghi chú để mang theo — người gọi cảnh báo."""
     prev: Dict[str, Tuple[str, str]] = {}
     for line in unicodedata.normalize("NFC", old).splitlines():
         m = ITEM_RE.match(line)
@@ -752,6 +756,8 @@ def carry_states(old: str, new: str, framework_ids: Optional[Set[str]] = None) -
         if m and m["id"] in prev:
             state, old_line = prev[m["id"]]
             note = _carried_note(old_line, line)
+            if dropped is not None and state != " " and not note and old_line[5:] != line[5:]:
+                dropped.append(m["id"])
             if (state, note) != (" ", ""):
                 line = f"- [{state}]{line[5:]}{note}"
                 kept += 1
@@ -3848,11 +3854,18 @@ def _carry_into(fw: Path, olds: List[Path], main: str, backlog: Optional[str]) -
     file khi đổi quy mô vẫn giữ trạng thái; mục riêng của dự án về cuối file chính."""
     fw_ids = {it.id for d in load_docs(fw)[0] for it in d.items}
     old = "\n".join(p.read_text(encoding="utf-8") for p in olds)
-    main, kept = carry_states(old, main, fw_ids)
+    dropped: List[str] = []
+    main, kept = carry_states(old, main, fw_ids, dropped)
     if backlog is not None:
-        backlog, kept_bl = carry_states(old, backlog)
+        backlog, kept_bl = carry_states(old, backlog, dropped=dropped)
         kept += kept_bl
     print(f"↺ Giữ trạng thái {kept} mục theo ID từ bản cũ", file=sys.stderr)
+    if dropped:
+        print(
+            f"⚠ {len(dropped)} mục [x]/[~] đổi chữ mà không mang được ghi chú (Bằng chứng/Kiểm/Miễn) — so với bản cũ, "
+            f"ghi lại: {', '.join(dropped)}",
+            file=sys.stderr,
+        )
     own = [m["id"] for m in map(ITEM_RE.match, main.splitlines()) if m and m["id"] not in fw_ids]
     if own:
         print(f"↺ Giữ {len(own)} mục riêng của dự án ở cuối: {', '.join(own[:10])}", file=sys.stderr)
