@@ -3,7 +3,8 @@
 
 - Mục `[x]` phải có `Bằng chứng:` kèm ≥ 1 tham chiếu trong dấu backtick: đường dẫn trong repo (file/thư mục tồn tại; cho phép
   hậu tố `#…` chỉ phần trong file) hoặc job CI dạng `ci:<job>` (job có thật trong `.github/workflows/*.yml`).
-- Mục `[~]` phải có `— Miễn: <lý do>` không rỗng.
+- Mục `[~]` phải có `— Miễn: <lý do>` hoặc `— Không áp dụng: <điều kiện>` không rỗng (hai nghĩa của `[~]`, LOOP-STOP-024
+  của khung: "Không áp dụng" = mục không áp vào dự án, agent ghi được; "Miễn" MUST cần `Duyệt:` — `blueprint-status --strict`).
 Thoát 1 nếu có mục vi phạm; in từng dòng lỗi (số dòng, mã mục, lý do).
 """
 from __future__ import annotations
@@ -35,9 +36,10 @@ def problems(text: str, root: Path, jobs: set[str]) -> list[tuple[int, str, str]
             continue
         item = m.group("id")
         if m.group("state") == "~":
-            reason = line.split("— Miễn:", 1)[1].strip() if "— Miễn:" in line else ""
+            key = next((k for k in ("— Miễn:", "— Không áp dụng:") if k in line), "")
+            reason = line.split(key, 1)[1].strip() if key else ""
             if not reason:
-                out.append((n, item, "miễn trừ thiếu '— Miễn: <lý do>'"))
+                out.append((n, item, "miễn trừ thiếu '— Miễn: <lý do>' hoặc '— Không áp dụng: <điều kiện>'"))
             continue
         if m.group("state") != "x":
             continue
