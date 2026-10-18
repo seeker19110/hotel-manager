@@ -1,9 +1,19 @@
 // Cluster PostgreSQL 17 tạm cho test DB-SEC-003: TLS bật, pg_hba.conf là CHÍNH `deploy/postgres/pg_hba.conf` (hostssl + scram-sha-256),
 // chứng chỉ do CA tạm ký bằng openssl (SAN localhost + 127.0.0.1). Chỉ dùng cho test; xoá khi dừng.
 import { execFileSync } from "node:child_process";
-import { chmodSync, chownSync, copyFileSync, existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  chownSync,
+  copyFileSync,
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import pg from "pg";
 import { asPg, freePort, PG_BIN } from "./pg-cluster.ts";
 
 const HBA_SOURCE = new URL("../../../deploy/postgres/pg_hba.conf", import.meta.url).pathname;
@@ -17,8 +27,11 @@ export interface PgTlsCluster {
   url(opts: { sslmode: string; rootCert?: boolean; password?: string }): string;
   /** Đường dẫn bản sao pg_hba.conf mà cluster đang nạp (copy nguyên văn của deploy/postgres/pg_hba.conf). */
   hbaFile: string;
-  /** Các dòng pg_hba mà MÁY CHỦ đang áp dụng (hỏi `pg_hba_file_rules` qua socket Unix, role postgres + peer): loại + phương thức. */
-  hbaRules(): { type: string; method: string }[];
+  /**
+   * Các dòng pg_hba mà MÁY CHỦ đang áp dụng (hỏi `pg_hba_file_rules` qua hostssl + SCRAM, `verify-full` với CA tạm): loại + phương thức.
+   * Không dùng socket Unix: dòng `local … peer` của deploy/ chỉ khớp khi người dùng hệ điều hành tên `postgres` (CI chạy bằng user khác).
+   */
+  hbaRules(): Promise<{ type: string; method: string }[]>;
   stop(): void;
 }
 
@@ -106,6 +119,19 @@ export async function startPgTlsCluster(): Promise<PgTlsCluster> {
     "-c",
     `SET password_encryption = 'scram-sha-256'; CREATE ROLE tls_probe LOGIN PASSWORD '${PROBE_PASSWORD}'`,
   ]);
+  asPg(join(PG_BIN, "psql"), [
+    "-h",
+    dir,
+    "-p",
+    String(port),
+    "-U",
+    "postgres",
+    "-v",
+    "ON_ERROR_STOP=1",
+    "-c",
+    // Chỉ đọc cấu hình hba (mặc định chỉ superuser): cấp đúng hai quyền cho role thăm dò thay vì nâng lên superuser.
+    "GRANT EXECUTE ON FUNCTION pg_hba_file_rules() TO tls_probe; GRANT SELECT ON pg_hba_file_rules TO tls_probe",
+  ]);
   ctl(["stop"], []);
   // Bước 2: cấu hình như production — TLS ≥ 1.2, hba_file của deploy/, SCRAM.
   ctl(
@@ -123,29 +149,25 @@ export async function startPgTlsCluster(): Promise<PgTlsCluster> {
   return {
     caFile: ca,
     hbaFile: hba,
-    hbaRules() {
-      const out = asPg(join(PG_BIN, "psql"), [
-        "-h",
-        dir,
-        "-p",
-        String(port),
-        "-U",
-        "postgres",
-        "-v",
-        "ON_ERROR_STOP=1",
-        "-At",
-        "-F",
-        "|",
-        "-c",
-        "select type, auth_method from pg_hba_file_rules where error is null order by rule_number",
-      ]);
-      return out
-        .split("\n")
-        .filter((l) => l.trim() !== "")
-        .map((l) => {
-          const [type = "", method = ""] = l.split("|");
-          return { type, method };
-        });
+    async hbaRules() {
+      const client = new pg.Client({
+        host: "127.0.0.1",
+        port,
+        user: "tls_probe",
+        password: PROBE_PASSWORD,
+        database: "postgres",
+        ssl: { ca: readFileSync(ca, "utf8"), servername: "localhost" },
+        connectionTimeoutMillis: 10_000,
+      });
+      await client.connect();
+      try {
+        const r = await client.query<{ type: string; method: string }>(
+          "select type, auth_method as method from pg_hba_file_rules where error is null order by rule_number",
+        );
+        return r.rows.map(({ type, method }) => ({ type, method }));
+      } finally {
+        await client.end();
+      }
     },
     url({ sslmode, rootCert = true, password = PROBE_PASSWORD }) {
       const q = new URLSearchParams({ sslmode });

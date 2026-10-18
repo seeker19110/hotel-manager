@@ -94,7 +94,7 @@ describe("DB-SEC-003 — Postgres thật với deploy/postgres/pg_hba.conf", () 
     await client.end().catch(() => undefined);
   });
 
-  it("máy chủ báo đúng các dòng pg_hba của deploy/: chỉ local peer và hostssl scram-sha-256", () => {
+  it("máy chủ báo đúng các dòng pg_hba của deploy/: chỉ local peer và hostssl scram-sha-256", async () => {
     const declared = readFileSync(new URL("../../../../deploy/postgres/pg_hba.conf", import.meta.url), "utf8")
       .split("\n")
       .map((l) => l.trim())
@@ -103,7 +103,7 @@ describe("DB-SEC-003 — Postgres thật với deploy/postgres/pg_hba.conf", () 
         const cols = l.split(/\s+/);
         return { type: cols[0] ?? "", method: cols[cols.length - 1] ?? "" };
       });
-    const live = cluster.hbaRules();
+    const live = await cluster.hbaRules();
     expect(live).toEqual(declared); // máy chủ thật nạp đúng nội dung (không phải so hai bản sao tệp)
     expect(live).toEqual([
       { type: "local", method: "peer" },
