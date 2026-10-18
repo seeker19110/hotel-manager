@@ -1,0 +1,132 @@
+# OpenTelemetry Collector (bản contrib) cho log ứng dụng — OPS-OBS-001. Nhận log JSON một dòng của web/worker
+# (packages/app/src/logging/logger.ts; hình dạng ở log-record.schema.json) từ file log container Docker, parse thành
+# OTel Logs Data Model, gắn Resource ở Collector, KHÔNG bỏ dòng không parse được (gắn thuộc tính `unparsed`).
+#
+# Biến môi trường (chỉ của Collector, có mặc định; KHÔNG phải biến của ứng dụng):
+#   HM_LOG_INCLUDE      glob file log (mặc định: file json-file của mọi container Docker trên máy)
+#   HM_OTEL_STATE_DIR   thư mục lưu offset đọc file (mặc định /var/lib/otelcol) — khởi động lại không mất/lặp dòng
+#   HM_LOG_EXPORT_PATH  file JSON Lines đầu ra (mặc định /var/log/hm-otel/logs.jsonl; xoay vòng theo kích thước/tuổi)
+#   HM_DEPLOYMENT_ENV   giá trị `deployment.environment` cho dòng KHÔNG có trường `env` (mặc định production)
+# Kiểm: `otelcol-contrib validate --config deploy/otel/collector.yaml` và `node scripts/otel-collector-e2e.mjs` (CI: job `otel-collector`).
+# Chọn nơi lưu/tra cứu lâu dài (Loki/OpenSearch/…) là quyết định triển khai: thêm exporter OTLP vào pipeline `logs` bên dưới.
+extensions:
+  file_storage:
+    directory: ${env:HM_OTEL_STATE_DIR:-/var/lib/otelcol}
+    create_directory: true
+
+receivers:
+  # `file_log` = tên mới của receiver `filelog` (bản 0.161 cảnh báo alias cũ).
+  file_log/app:
+    include:
+      - "${env:HM_LOG_INCLUDE:-/var/lib/docker/containers/*/*-json.log}"
+    start_at: beginning
+    storage: file_storage
+    include_file_path: true
+    operators:
+      # 1) Lớp bọc của Docker json-file ({"log":"…\n","stream":…,"time":…}) → body = nội dung dòng log.
+      - type: container
+        id: docker
+        format: docker
+        add_metadata_from_filepath: false
+      # 2) Chỉ thử parse JSON khi dòng trông như object; lỗi parse vẫn đi tiếp (on_error: send), không bị bỏ.
+      - type: json_parser
+        id: parse_json
+        if: 'body matches "^\\s*\\{"'
+        parse_from: body
+        on_error: send
+      # 3) Không có trường `service` sau bước 2 ⇒ dòng rác/JSON hỏng: giữ nguyên body, gắn nhãn unparsed.
+      - type: add
+        id: mark_unparsed
+        if: 'attributes["service"] == nil'
+        field: attributes["unparsed"]
+        value: "true"
+      # 4) Dòng đã parse: ánh xạ sang OTel (resource semconv, body, severity, thời điểm, trace context).
+      - type: move
+        id: resource_service
+        if: 'attributes["service"] != nil'
+        from: attributes["service"]
+        to: resource["service.name"]
+      - type: move
+        id: resource_version
+        if: 'attributes["version"] != nil'
+        from: attributes["version"]
+        to: resource["service.version"]
+      - type: move
+        id: resource_env
+        if: 'attributes["env"] != nil'
+        from: attributes["env"]
+        to: resource["deployment.environment"]
+      - type: move
+        id: body_msg
+        if: 'attributes["msg"] != nil'
+        from: attributes["msg"]
+        to: body
+      - type: severity_parser
+        id: severity
+        if: 'attributes["severity_number"] != nil'
+        parse_from: attributes["severity_number"]
+        mapping:
+          debug: 5
+          info: 9
+          warn: 13
+          error: 17
+      - type: time_parser
+        id: timestamp
+        if: 'attributes["ts"] != nil'
+        parse_from: attributes["ts"]
+        layout_type: gotime
+        layout: "2006-01-02T15:04:05.000Z07:00"
+        on_error: send
+      - type: trace_parser
+        id: trace
+        if: 'attributes["trace_id"] != nil'
+        trace_id:
+          parse_from: attributes["trace_id"]
+        span_id:
+          parse_from: attributes["span_id"]
+        on_error: send
+  # Đường OTLP cho tiến trình muốn gửi trực tiếp (loopback, không phơi ra mạng ngoài).
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 127.0.0.1:4317
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 256
+    spike_limit_mib: 64
+  # Resource ở Collector: `insert` chỉ điền khi dòng chưa có (dòng JSON hợp lệ đã mang service/version/env của chính nó);
+  # nhờ đó dòng rác vẫn truy vấn được theo service.name.
+  resource/app:
+    attributes:
+      - key: service.name
+        value: hotel-manager
+        action: insert
+      - key: service.version
+        value: unknown
+        action: insert
+      - key: deployment.environment
+        value: ${env:HM_DEPLOYMENT_ENV:-production}
+        action: insert
+  batch:
+    timeout: 2s
+
+exporters:
+  file/logs:
+    path: ${env:HM_LOG_EXPORT_PATH:-/var/log/hm-otel/logs.jsonl}
+    rotation:
+      max_megabytes: 100
+      max_days: 14
+      max_backups: 10
+
+service:
+  extensions: [file_storage]
+  pipelines:
+    logs:
+      receivers: [file_log/app, otlp]
+      processors: [memory_limiter, resource/app, batch]
+      exporters: [file/logs]
+  telemetry:
+    metrics:
+      level: none

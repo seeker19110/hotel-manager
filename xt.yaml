@@ -7,7 +7,7 @@
 #   Node:   lint: npm run lint · typecheck: npm run typecheck · test: npm test -- --run · build: npm run build · format: npm run format · format_file: npx --no-install prettier --write "{}"
 #   Python: lint: ruff check . · typecheck: pyright · test: pytest -q · build: "" · format: ruff format . · format_file: case "{}" in *.py) ruff format "{}" ;; esac
 #   Go:     lint: go vet ./... · typecheck: "" · test: go test ./... · build: go build ./... · format: gofmt -l -w . · format_file: gofmt -w "{}"
-lint: "pnpm lint && pnpm licenses:check && python3 .xtemplates/scripts/xt.py ci-check .github/workflows"
+lint: "pnpm lint && pnpm lint:openapi && pnpm licenses:check && python3 .xtemplates/scripts/xt.py ci-check .github/workflows"
 typecheck: "pnpm typecheck"
 test: "pnpm test"
 build: "pnpm build"

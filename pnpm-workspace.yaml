@@ -27,3 +27,5 @@ minimumReleaseAgeExclude:
 allowBuilds:
   esbuild: false
   '@swc/core': false
+# @scarf/scarf (kéo theo @stoplight/spectral-cli) chỉ gửi telemetry cài đặt — không chạy.
+  '@scarf/scarf': false
