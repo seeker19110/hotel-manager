@@ -251,6 +251,7 @@ const RUNBOOKS = {
   "docs/ops/runbooks/secret-leak.md": ["Từng loại bí mật"],
   "docs/ops/runbooks/restore.md": ["Điều kiện trước", "Hoàn tác / đường lùi"],
   "docs/ops/runbooks/deploy-rollback.md": ["Điều kiện trước", "Backup trước migrate", "Rollback", "Hoàn tác"],
+  "docs/ops/runbooks/db-password-rotation.md": ["Điều kiện trước", "Hoàn tác / đường lùi"],
 };
 
 describe("runbook có đủ mục bắt buộc", () => {

@@ -168,6 +168,7 @@ Web chạy vai trò CSDL `app_runtime` và danh tính S3 `hotel-manager-web`; wo
 | Phân mức và xử lý sự cố (SEV1–4, thứ tự, thao tác cần người duyệt) | [`docs/ops/INCIDENT-RESPONSE.md`](ops/INCIDENT-RESPONSE.md) |
 | Vi phạm dữ liệu cá nhân (thời hạn thông báo, mẫu) | [`docs/ops/runbooks/data-breach.md`](ops/runbooks/data-breach.md) |
 | Lộ bí mật (xoay từng loại) | [`docs/ops/runbooks/secret-leak.md`](ops/runbooks/secret-leak.md) |
+| Xoay mật khẩu role CSDL không downtime | [`docs/ops/runbooks/db-password-rotation.md`](ops/runbooks/db-password-rotation.md) |
 | Khôi phục CSDL/file | [`docs/ops/runbooks/restore.md`](ops/runbooks/restore.md) |
 | Deploy, backup trước migrate, rollback | [`docs/ops/runbooks/deploy-rollback.md`](ops/runbooks/deploy-rollback.md) |
 | Mục tiêu dịch vụ, ngân sách lỗi | [`docs/ops/SLO.md`](ops/SLO.md) |
