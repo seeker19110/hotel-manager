@@ -7,6 +7,7 @@
 // `source_ip` là IP đã cắt: IPv4 → /24 (`a.b.c.0`), IPv6 → /48 (`x:y:z::`): đủ để nhận ra mạng/nhà cung cấp và gom đợt tấn
 // công, không đủ để định danh một thiết bị. Cần IP đầy đủ khi điều tra → lấy ở nhật ký reverse proxy (hạn giữ ngắn riêng).
 import { isIPv4, isIPv6 } from "node:net";
+import { blankToNull } from "@hm/domain";
 import { z } from "zod";
 import type { Logger } from "./logger.ts";
 import { appLogger } from "./runtime.ts";
@@ -164,7 +165,7 @@ export function sanitizeUserAgent(raw: string | null | undefined): string | null
     .normalize("NFC")
     .trim();
   const cut = Array.from(ua).slice(0, USER_AGENT_MAX).join("").trim();
-  return cut || null;
+  return blankToNull(cut);
 }
 
 /** IP (xem `forwardedClientIp`) + User-Agent đã làm sạch (`sanitizeUserAgent`). */

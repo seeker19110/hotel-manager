@@ -104,6 +104,7 @@ describe("pr-deps.yml (BASE-DEP-006)", () => {
     expect(text).toMatch(/node scripts\/new-deps-check\.mjs --base-lock/);
     expect(text).not.toMatch(/\$\{\{/);
     const bodyStep = steps(wf, "new-deps").find((s) => (s.run ?? "").includes("new-deps-check"));
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: chủ ý: so khớp biểu thức workflow `${{ … }}` nguyên văn, không phải template literal
     expect(bodyStep.env.PR_BODY).toBe("${{ github.event.pull_request.body }}");
   });
   it("mẫu PR có mục '## Phụ thuộc mới' với định dạng 4 trường", () => {

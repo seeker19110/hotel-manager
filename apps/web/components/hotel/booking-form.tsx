@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { timedFetch } from "../../lib/fetch-timeout.ts";
 import { vnd } from "../../lib/format.ts";
+import { firstNonEmpty } from "../../lib/text.ts";
 import { CommandStatus } from "../command/command-status.tsx";
 import { orgContextHeaders } from "../command/org-context.ts";
 import { problemText, useCommand } from "../command/use-command.ts";
@@ -83,7 +84,7 @@ export function BookingForm({
         title?: string;
       } | null;
       if (!res.ok || !j?.data)
-        setQuoteError(j?.detail || j?.title || "Không báo giá được. Vui lòng thử lại.");
+        setQuoteError(firstNonEmpty(j?.detail, j?.title) ?? "Không báo giá được. Vui lòng thử lại.");
       else setQuote(j.data);
     } catch {
       setQuoteError("Không có kết nối mạng. Chưa báo giá được.");

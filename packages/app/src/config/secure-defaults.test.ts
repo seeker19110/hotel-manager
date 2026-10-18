@@ -313,6 +313,7 @@ describe("DB-SEC-003 — production: CSDL ở máy khác chỉ qua TLS xác minh
 describe("BASE-SEC-010 — bind 127.0.0.1 mặc định, không mở cổng CSDL/cache ra ngoài", () => {
   const scripts = (JSON.parse(read("apps/web/package.json")) as { scripts: Record<string, string> }).scripts;
 
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: chủ ý: tên test mô tả cú pháp shell `${HOST:-…}` của script, không phải template literal
   it.each(["dev", "start"])("script `%s` của web bind ${HOST:-127.0.0.1} (không phải 0.0.0.0)", (name) => {
     expect(scripts[name]).toMatch(/-H \$\{HOST:-127\.0\.0\.1\}/);
     expect(scripts[name]).not.toContain("0.0.0.0");

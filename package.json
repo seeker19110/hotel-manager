@@ -11,7 +11,7 @@
     "prepare": "test -f scripts/install-git-hooks.mjs && node scripts/install-git-hooks.mjs || true",
     "build": "pnpm --recursive --filter \"./apps/*\" run build",
     "typecheck": "pnpm -r run typecheck",
-    "lint": "biome ci .",
+    "lint": "biome ci --error-on-warnings .",
     "lint:openapi": "spectral lint apps/web/openapi.json --ruleset .spectral.yaml --fail-severity=warn",
     "format": "biome format --write .",
     "test": "vitest run",
@@ -29,8 +29,9 @@
     "@stoplight/spectral-cli": "6.16.3",
     "@types/node": "24.19.2",
     "@types/pg": "8.23.1",
+    "@vitest/coverage-v8": "5.0.3",
     "typescript": "7.0.2",
-    "vitest": "5.0.4",
+    "vitest": "5.0.3",
     "yaml": "2.9.1"
   }
 }

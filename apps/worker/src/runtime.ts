@@ -360,6 +360,7 @@ export async function bootWorker(
       boss,
       storage: createServices(config).storage,
       sender:
+        // biome-ignore lint/nursery/useNullishCoalescing: opts.sender null = chủ ý tắt gửi thư, undefined = tự chọn theo cấu hình — `??` sẽ gộp hai trường hợp (BASE-DATA-003)
         opts.sender !== undefined
           ? opts.sender
           : config.SMTP_URL.startsWith("fake://")

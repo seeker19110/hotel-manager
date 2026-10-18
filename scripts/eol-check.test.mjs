@@ -34,6 +34,7 @@ describe("parseImageRef", () => {
     ["localhost:5000/team/app", { name: "app", tag: "" }],
     ["node", { name: "node", tag: "" }],
     ["scratch", null],
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: chủ ý: tham chiếu image dạng biến shell `${IMAGE}` là dữ liệu của test
     ["${IMAGE}", null],
   ])("%s", (ref, want) => expect(parseImageRef(ref)).toEqual(want));
 });

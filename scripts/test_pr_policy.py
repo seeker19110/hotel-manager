@@ -431,6 +431,27 @@ class RiskLabelTest(unittest.TestCase):
         self.assertEqual(len(self.warn(["apps/web/app/api/v1/x/route.ts"], [])), 1)
         self.assertEqual(len(self.warn(["packages/db/src/x.ts"], [])), 1)
 
+    def test_cau_hinh_cong_can_nhan_gate(self):
+        for f in (
+            "vitest.config.ts",
+            "apps/web/playwright.config.ts",
+            "biome.json",
+            "tsconfig.base.json",
+            "apps/web/tsconfig.json",
+            "xt.yaml",
+            "scripts/check-coverage-ratchet.mjs",
+            "scripts/fix-requires-test.mjs",
+            ".github/workflows/test-quality.yml",
+        ):
+            with self.subTest(f=f):
+                w = self.warn([f], [])
+                self.assertEqual(len(w), 1)
+                self.assertIn("risk:gate", w[0])
+                self.assertEqual(self.warn([f], ["risk:gate"]), [])
+
+    def test_gan_gate_nhung_khong_phai_file_cong(self):
+        self.assertEqual(self.warn(["scripts/check-coverage.mjs", "docs/xt.yaml.md", "apps/web/app/tsconfig.json.bak"], []), [])
+
     def test_khong_cham_vung_nhay_cam(self):
         self.assertEqual(self.warn(["scripts/a.mjs", "docs/x.md", "README.md", "ledger.md"], []), [])
         self.assertEqual(self.warn([], []), [])
@@ -449,7 +470,10 @@ class RiskLabelTest(unittest.TestCase):
                 if m:
                     self.assertIn(m.group(1), known)
                 else:
-                    self.assertTrue(glob.rstrip("*").startswith(prefixes) or glob.rstrip("*") in prefixes, glob)
+                    files = {g for gs in mod.RISK_FILES.values() for g in gs}
+                    self.assertTrue(
+                        glob.rstrip("*").startswith(prefixes) or glob.rstrip("*") in prefixes or glob in files, glob
+                    )
 
     def test_cli_labels(self):
         import sys

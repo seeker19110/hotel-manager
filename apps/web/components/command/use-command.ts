@@ -14,6 +14,7 @@ import { checkCommandInput } from "@hm/app/command-inputs";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { timedFetch } from "../../lib/fetch-timeout.ts";
+import { firstNonEmpty } from "../../lib/text.ts";
 import { reportClientOutdated, useOnline } from "../pwa/pwa-shell.tsx";
 import { appVersionHeaders, CLIENT_OUTDATED_CODE, CLIENT_OUTDATED_TEXT } from "./app-version.ts";
 import { IN_PROGRESS_CODE, retryAfterMs } from "./in-progress.ts";
@@ -62,7 +63,7 @@ export function problemText(p: ProblemLike | null): string | null {
     return p.correlation_id && /^[\w-]{1,64}$/.test(p.correlation_id)
       ? `${SERVER_ERROR_TEXT} Mã tra cứu: ${p.correlation_id}.`
       : SERVER_ERROR_TEXT;
-  return p.detail || p.title || "Không thực hiện được. Vui lòng thử lại.";
+  return firstNonEmpty(p.detail, p.title) ?? "Không thực hiện được. Vui lòng thử lại.";
 }
 
 const contextChanged = (): ProblemLike => ({

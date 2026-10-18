@@ -37,6 +37,7 @@ describe("looksLikeCode — nhận ra code bị comment-out", () => {
     "console.log(x);",
     'throw new Error("Không tìm thấy phòng");',
     'const label = "Phòng trống";',
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: chủ ý: chuỗi mẫu chứa `${…}` là dữ liệu của test, không phải template literal
     "await sendSms(phone, `Xin chào ${name}`);",
     "return 'Đã thu đủ';",
     '<Button variant="primary" onClick={save}>Lưu</Button>',
@@ -140,6 +141,7 @@ describe("commentedCodeIn", () => {
     const src = [
       '// throw new Error("Không tìm thấy phòng");',
       '/* const label = "Phòng trống"; */',
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: chủ ý: chuỗi mẫu chứa `${…}` là dữ liệu của test, không phải template literal
       "// await sendSms(phone, `Xin chào ${name}`);",
     ].join("\n");
     expect(commentedCodeIn(src).map((h) => h.line)).toEqual([1, 2, 3]);
