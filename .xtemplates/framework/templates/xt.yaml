@@ -44,3 +44,6 @@ audit: ""
 # claude_min_version: phiên bản Claude Code tối thiểu (vd 2.1.200) — `xt.py doctor` cảnh báo khi thấp hơn (LOOP-HARNESS-026).
 # Tổ chức ép thật bằng managed settings `requiredMinimumVersion`. Trống = không kiểm.
 claude_min_version: ""
+# ai_attribution: forbid = guard chặn commit mà message ghi tên model hay URL phiên AI (`Claude-Session:`, `Claude Opus …`)
+# — LOOP-HARNESS-027. Trống/allow = không kiểm (trailer `Co-authored-by: Claude <…>` chung luôn được).
+ai_attribution: ""

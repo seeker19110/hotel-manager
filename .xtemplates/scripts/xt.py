@@ -75,6 +75,8 @@ import posixpath
 import re
 import shlex
 import shutil
+import stat
+import statistics
 import subprocess
 import tempfile
 import sys
@@ -1634,10 +1636,10 @@ FENCE_RE = re.compile(r"^\s*(```|~~~)")
 GIT_TIMEOUT = 60  # giây; git treo (ổ mạng, khoá index) không được làm treo cổng — BASE-ERR-004
 
 
-def _git(cwd: Path, *args: str) -> "subprocess.CompletedProcess[str]":
+def _git(cwd: Path, *args: str, env: Optional[Dict[str, str]] = None) -> "subprocess.CompletedProcess[str]":
     cmd = ["git", "-C", str(cwd), *args]
     try:
-        return subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=GIT_TIMEOUT)
+        return subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=GIT_TIMEOUT, env=env)
     except subprocess.TimeoutExpired:
         return subprocess.CompletedProcess(cmd, 124, "", f"git quá {GIT_TIMEOUT} s")
 
@@ -5039,6 +5041,336 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     return 1 if errors else 0
 
 
+PERF_MIN_RUNS = 10  # benchstat khuyên ≥ 10 lần/benchmark
+PERF_ALPHA = 0.05
+PERF_MIN_EFFECT = 0.02  # sàn 2 %: ngưỡng cảnh báo của Mozilla cho benchmark nhiễu
+PERF_DIFF_HEAD = "diff --git "
+PERF_DIFF_PLAIN = "diff --git a/"
+PERF_ODD_NAME = "(tên có ký tự đặc biệt)"
+PERF_GIT_ENV = ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR", "GIT_OBJECT_DIRECTORY")
+PERF_UNTRACKED = ("ls-files", "-z", "--others", "--exclude-per-directory=.gitignore")
+PERF_UNTRACKED_MAX = 1 << 20  # đọc tối đa 1 MiB mỗi file chưa theo dõi khi quét dòng đáng ngờ
+PERF_SUSPECT_RE = re.compile(
+    r"lru_cache|functools\.cache\b|@cache\b|memoi[sz]e|time\.sleep\(|"
+    r"(?:perf_counter|process_time|monotonic|time\.time|performance\.now|Date\.now)(?:_ns)?\s*=(?!=)|"
+    r"patch\(\s*[\"']time\.|setattr\(\s*time\b|_getframe|inspect\.stack|-O3"
+)
+
+
+def perf_load(path: str) -> List[float]:
+    """Mẫu đo từ file: mảng JSON, `{"samples": [...]}` hoặc các số cách nhau bằng khoảng trắng/dấu phẩy."""
+    text = Path(path).read_text(encoding="utf-8")
+    try:
+        data: Any = json.loads(text)
+    except ValueError:
+        data = None
+    if isinstance(data, dict):
+        data = data.get("samples")
+    if not isinstance(data, list):
+        data = [t for t in re.split(r"[\s,]+", text.strip()) if t]
+    out: List[float] = []
+    for v in data:
+        try:
+            x = float(v)
+        except (TypeError, ValueError):
+            raise ValueError(f"{path}: không phải số: {v!r}") from None
+        if not math.isfinite(x):
+            raise ValueError(f"{path}: giá trị không hữu hạn: {v!r}")
+        out.append(x)
+    return out
+
+
+def _mean_ranks(sorted_vals: List[float]) -> Tuple[Dict[float, float], float]:
+    """Hạng trung bình của từng giá trị (đã sắp) và tổng Σ(t³ − t) của các nhóm trùng để hiệu chỉnh phương sai."""
+    ranks: Dict[float, float] = {}
+    tie_term, i, n = 0.0, 0, len(sorted_vals)
+    while i < n:
+        j = i
+        while j < n and sorted_vals[j] == sorted_vals[i]:
+            j += 1
+        ranks[sorted_vals[i]] = (i + 1 + j) / 2
+        tie_term += (j - i) ** 3 - (j - i)
+        i = j
+    return ranks, tie_term
+
+
+def mann_whitney_p(a: List[float], b: List[float]) -> float:
+    """p hai phía của kiểm định Mann-Whitney U (xấp xỉ chuẩn, hiệu chỉnh trùng hạng và liên tục) (benchstat dùng cùng kiểm định)."""
+    n1, n2 = len(a), len(b)
+    n = n1 + n2
+    ranks, tie_term = _mean_ranks(sorted(a + b))
+    u1 = sum(ranks[x] for x in a) - n1 * (n1 + 1) / 2
+    var = n1 * n2 / 12 * ((n + 1) - tie_term / (n * (n - 1)))
+    if var <= 0:  # mọi giá trị bằng nhau
+        return 1.0
+    z = max(abs(u1 - n1 * n2 / 2) - 0.5, 0.0) / math.sqrt(var)
+    return math.erfc(z / math.sqrt(2))
+
+
+def _rel_change(before: float, after: float) -> float:
+    if before:
+        return (after - before) / abs(before)
+    return 0.0 if after == before else math.copysign(math.inf, after - before)
+
+
+def perf_compare(
+    before: List[float],
+    after: List[float],
+    higher_is_better: bool = False,
+    alpha: float = PERF_ALPHA,
+    min_effect: float = PERF_MIN_EFFECT,
+    min_runs: int = PERF_MIN_RUNS,
+    exact: bool = False,
+) -> Dict[str, Any]:
+    """So hai bộ mẫu đo. `improved`/`regressed` chỉ khi khác biệt có ý nghĩa (p < alpha) VÀ đủ lớn: ≥ max(min_effect,
+    MAD/trung vị của bộ trước) — nhiễu của chính máy đo là sàn. `exact`: đại lượng tất định (số lệnh, byte), không cần p."""
+    need = 1 if exact else min_runs
+    doc: Dict[str, Any] = {"runs_before": len(before), "runs_after": len(after), "exact": exact}
+    if min(len(before), len(after)) < need:
+        doc["verdict"] = "insufficient"
+        doc["reason"] = f"cần ≥ {need} mẫu mỗi bên"
+        return doc
+    mb, ma = statistics.median(before), statistics.median(after)
+    mad = statistics.median([abs(x - mb) for x in before])
+    delta = _rel_change(mb, ma)
+    gain = delta if higher_is_better else -delta
+    threshold = min_effect if exact or not mb else max(min_effect, mad / abs(mb))
+    p = None if exact else mann_whitney_p(before, after)
+    significant = p is None or p < alpha
+    doc.update(median_before=mb, median_after=ma, change=delta, p=p, threshold=threshold)
+    if significant and gain > 0 and gain >= threshold:
+        doc["verdict"] = "improved"
+    elif significant and gain < 0 and -gain >= threshold:
+        doc["verdict"] = "regressed"
+    else:
+        doc["verdict"] = "neutral"
+    return doc
+
+
+def _perf_report(doc: Dict[str, Any]) -> str:
+    if doc["verdict"] == "insufficient":
+        return f"? thiếu mẫu: {doc['reason']} (trước {doc['runs_before']}, sau {doc['runs_after']})"
+    p = "tất định" if doc["p"] is None else f"p={doc['p']:.4f}"
+    return (
+        f"{doc['verdict']}: trung vị {doc['median_before']:.6g} → {doc['median_after']:.6g} "
+        f"({doc['change']:+.2%}, ngưỡng {doc['threshold']:.2%}, {p}, {doc['runs_before']}/{doc['runs_after']} mẫu)"
+    )
+
+
+def _perf_run(cmd: List[str], timeout: float) -> int:
+    """Chạy `cmd` trong nhóm tiến trình riêng và giết cả nhóm khi xong, quá giờ hoặc bị Ctrl-C — tiến trình nền/cháu không
+    được sống tiếp làm nhiễu lần đo sau. (SIGTERM gửi thẳng cho xt.py không được bắt: giới hạn đã biết.)"""
+    proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    try:
+        return proc.wait(timeout=timeout)
+    finally:
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(proc.pid, 9)
+        proc.wait()
+
+
+def perf_sample(cmd: List[str], runs: int, warmup: int, timeout: float) -> List[float]:
+    """Chạy `cmd` warmup + runs lần, trả thời gian tường (giây) của các lần đo; lệnh thoát khác 0 → RuntimeError."""
+    out: List[float] = []
+    for i in range(warmup + runs):
+        t0 = time.perf_counter()
+        try:
+            rc = _perf_run(cmd, timeout)
+        except subprocess.TimeoutExpired:
+            raise RuntimeError(f"lệnh quá {timeout:g} s ở lần {i + 1}") from None
+        if rc != 0:
+            raise RuntimeError(f"lệnh thoát {rc} ở lần {i + 1} — không đo trên lệnh lỗi")
+        if i >= warmup:
+            out.append(time.perf_counter() - t0)
+    return out
+
+
+def _perf_env() -> Dict[str, str]:
+    """Môi trường cho git của `perf`: bỏ biến trỏ repo/worktree/index khác — đặt sẵn chúng là lái guard sang một clone sạch."""
+    return {k: v for k, v in os.environ.items() if k not in PERF_GIT_ENV}
+
+
+def _perf_git(base: Path, *args: str) -> str:
+    r = _git(base, *args, env=_perf_env())
+    if r.returncode != 0:
+        raise RuntimeError(f"git {args[0]} lỗi: {r.stderr.strip() or r.returncode}")
+    return r.stdout
+
+
+def _perf_git_names(base: Path, *args: str) -> List[str]:
+    return [n for n in _perf_git(base, *args).split("\0") if n]
+
+
+def _perf_diff_lines(text: str) -> List[Tuple[str, str]]:
+    """Dòng thêm của `git diff --unified=0` kèm file; tên bị git quote (có `"`, `\\`, ký tự điều khiển) ghi là PERF_ODD_NAME."""
+    added: List[Tuple[str, str]] = []
+    cur = ""
+    for line in text.splitlines():
+        if line.startswith(PERF_DIFF_HEAD):  # tên từ tiêu đề (`a/P b/P`, không đổi tên) để file bị XOÁ cũng được tính
+            rest = line[len(PERF_DIFF_PLAIN) :]
+            cur = rest[: (len(rest) - 3) // 2] if line.startswith(PERF_DIFF_PLAIN) else PERF_ODD_NAME
+        elif cur and line.startswith("+") and not line.startswith("+++ "):
+            added.append((cur, line[1:]))
+    return added
+
+
+def _perf_untracked_text(path: Path) -> str:
+    """Thứ git sẽ commit: symlink → chuỗi đích (không đi theo: có thể trỏ FIFO/thiết bị/file ngoài repo); file thường → ≤ 1 MiB; còn lại rỗng."""
+    mode = os.lstat(path).st_mode
+    if stat.S_ISLNK(mode):
+        return os.readlink(path)
+    if not stat.S_ISREG(mode):
+        return ""
+    with open(path, "rb") as fh:
+        return fh.read(PERF_UNTRACKED_MAX).decode("utf-8", "replace")
+
+
+def _perf_untracked_lines(base: Path, names: List[str]) -> List[Tuple[str, str]]:
+    out: List[Tuple[str, str]] = []
+    for name in names:
+        try:
+            text = _perf_untracked_text(base / name)
+        except OSError:  # file biến mất giữa hai lệnh git: vẫn tính là file đổi, không có dòng để quét
+            continue
+        out.extend((name, ln) for ln in text.splitlines())
+    return out
+
+
+def _perf_is_ignore_file(path: str) -> bool:
+    return path.rpartition("/")[2] == ".gitignore"
+
+
+def perf_diff(base: Path, ref: str) -> Tuple[List[str], List[Tuple[str, str]]]:
+    """(file đổi gồm file chưa theo dõi, [(file, dòng thêm)]) của worktree so với `ref`. Tên file lấy từ `--name-only -z`
+    (không phụ thuộc tiền tố diff hay cách quote). File chưa theo dõi chỉ lọc theo `.gitignore` đã có ở `ref` — có `.gitignore`
+    đổi/mới thì kiểm khoá trên MỌI file chưa theo dõi (perf_guard còn báo ⚠); `core.excludesFile`/`.git/info/exclude` đổi được
+    mà không để dấu nên không dùng."""
+    names = _perf_git_names(base, "diff", "--name-only", "-z", "--no-renames", "--no-ext-diff", ref, "--")
+    untracked = _perf_git_names(base, *PERF_UNTRACKED)
+    scanned = untracked
+    if any(
+        _perf_is_ignore_file(f) for f in names + untracked
+    ):  # luật ignore đổi trong lượt này: không tin nó để giấu file
+        untracked = _perf_git_names(base, "ls-files", "-z", "--others")
+    text = _perf_git(
+        base,
+        *("diff", "--unified=0", "--no-color", "--no-renames", "--no-ext-diff", "--no-textconv"),
+        *("--src-prefix=a/", "--dst-prefix=b/", ref, "--"),
+    )
+    return names + untracked, _perf_diff_lines(text) + _perf_untracked_lines(base, scanned)
+
+
+def perf_known(base: Path) -> List[str]:
+    """File đang theo dõi + chưa theo dõi: để báo glob khoá không khớp gì (gõ sai = tắt khoá lặng lẽ)."""
+    return _perf_git_names(base, "ls-files", "-z") + _perf_git_names(base, *PERF_UNTRACKED)
+
+
+def perf_match(path: str, glob: str) -> bool:
+    """Khớp kiểu fnmatch (`*` đi qua `/`: khoá `bench/*` khoá cả cây) và `**/` nhận cả không thư mục con; bỏ `./` đầu."""
+    glob = glob.removeprefix("./")
+    return fnmatch.fnmatch(path, glob) or fnmatch.fnmatch(path, glob.replace("**/", ""))
+
+
+def perf_guard(files: List[str], added: List[Tuple[str, str]], locked: List[str]) -> Tuple[List[str], List[str]]:
+    """(file khoá bị đụng, dòng thêm đáng ngờ) — bộ đo/test tương đương không phải thứ agent được sửa để 'đạt'."""
+    touched = [f for f in files if any(perf_match(f, g) for g in locked)]
+    suspect = [
+        f"{f}: đổi luật ignore — có thể giấu file mới trong vùng khoá"
+        for f in files
+        if f.rpartition("/")[2] == ".gitignore"
+    ]
+    suspect += [f"{f}: {t.strip()[:120]}" for f, t in added if PERF_SUSPECT_RE.search(t)]
+    return touched, suspect
+
+
+def perf_cmd_of(path: str) -> Any:
+    """`cmd` đã ghi trong file mẫu của `perf sample` (không có → None)."""
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+    except ValueError:
+        return None
+    return data.get("cmd") if isinstance(data, dict) else None
+
+
+def _perf_compare_cmd(args: argparse.Namespace) -> int:
+    cb, ca = perf_cmd_of(args.before), perf_cmd_of(args.after)
+    if cb is not None and ca is not None and cb != ca:
+        print(f"✗ hai file đo hai lệnh khác nhau: {cb} ≠ {ca} — không so được", file=sys.stderr)
+        return 2
+    try:
+        before, after = perf_load(args.before), perf_load(args.after)
+    except ValueError as exc:
+        print(f"✗ {exc}", file=sys.stderr)
+        return 2
+    doc = perf_compare(before, after, args.higher_is_better, args.alpha, args.min_effect, args.min_runs, args.exact)
+    print(json.dumps(doc, ensure_ascii=False) if args.json else _perf_report(doc))
+    ok = doc["verdict"] == "improved" or (args.no_regress and doc["verdict"] == "neutral")
+    return 0 if ok else 1
+
+
+def _perf_sample_cmd(args: argparse.Namespace) -> int:
+    cmd = args.cmd[1:] if args.cmd[:1] == ["--"] else args.cmd
+    if not cmd:
+        print("✗ thiếu lệnh cần đo: xt.py perf sample --out F -- <lệnh>", file=sys.stderr)
+        return 2
+    try:
+        samples = perf_sample(cmd, args.runs, args.warmup, args.timeout)
+    except RuntimeError as exc:
+        print(f"✗ {exc}", file=sys.stderr)
+        return 1
+    sha = _git(Path.cwd(), "rev-parse", "HEAD", env=_perf_env())  # thư mục đang đo (worktree gốc ≠ CLAUDE_PROJECT_DIR)
+    doc = {
+        "samples": samples,
+        "unit": "s",
+        "cmd": cmd,
+        "runs": args.runs,
+        "warmup": args.warmup,
+        "commit": sha.stdout.strip() if sha.returncode == 0 else "",
+        "python": sys.version.split()[0],
+        "platform": sys.platform,
+    }
+    Path(args.out).write_text(json.dumps(doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print(f"✓ {len(samples)} mẫu → {args.out} (trung vị {statistics.median(samples):.6g} s)")
+    return 0
+
+
+def perf_repo() -> Path:
+    """Gốc repo git của thư mục ĐANG ĐỨNG — không phải `project_dir()`: chạy bằng `xt.py` của worktree gốc, guard vẫn phải
+    rà cây agent sửa chứ không rà chính worktree sạch đó."""
+    r = _git(Path.cwd(), "rev-parse", "--show-toplevel", env=_perf_env())
+    if r.returncode != 0:
+        raise RuntimeError(f"không ở trong repo git: {r.stderr.strip() or r.returncode}")
+    return Path(r.stdout.strip())
+
+
+def _perf_guard_cmd(args: argparse.Namespace) -> int:
+    locked: List[str] = args.locked or []
+    try:
+        base = perf_repo()
+        files, added = perf_diff(base, args.base)
+        known = perf_known(base) if locked else []
+    except RuntimeError as exc:
+        print(f"✗ {exc}", file=sys.stderr)
+        return 2
+    dead = [g for g in locked if not any(perf_match(f, g) for f in known + files)]
+    if dead:  # glob gõ sai khớp không file nào = khoá bị tắt lặng lẽ
+        print(f"✗ --locked không khớp file nào trong repo: {', '.join(dead)}", file=sys.stderr)
+        return 2
+    touched, suspect = perf_guard(files, added, locked)
+    for f in touched:
+        print(f"✗ đụng file khoá (bộ đo/test tương đương): {f}")
+    for s in suspect:
+        print(f"⚠ đáng ngờ (cache/sleep/đổi đồng hồ/soi stack/đổi ignore) — reviewer phải rà: {s}")
+    if not touched and not suspect:
+        print(f"✓ {len(files)} file đổi, không đụng file khoá, không dòng đáng ngờ")
+    return 1 if touched or (suspect and args.strict) else 0
+
+
+def cmd_perf(args: argparse.Namespace) -> int:
+    handlers = {"compare": _perf_compare_cmd, "sample": _perf_sample_cmd, "guard": _perf_guard_cmd}
+    return handlers[args.perf_cmd](args)
+
+
 def cmd_stats(args: argparse.Namespace) -> int:
     docs, _ = load_docs(args.framework)
     by_kind: Dict[str, int] = {}
@@ -5051,6 +5383,18 @@ def cmd_stats(args: argparse.Namespace) -> int:
     print("Mục theo mức:   " + ", ".join(f"{k}={v}" for k, v in levels.items()))
     print(f"Tổng mục:       {sum(levels.values())}")
     return 0
+
+
+def _positive_int(value: str) -> int:
+    if not value.isdigit() or int(value) < 1:
+        raise argparse.ArgumentTypeError(f"cần số nguyên ≥ 1, không phải {value!r}")
+    return int(value)
+
+
+def _nonneg_int(value: str) -> int:
+    if not value.isdigit():
+        raise argparse.ArgumentTypeError(f"cần số nguyên ≥ 0, không phải {value!r}")
+    return int(value)
 
 
 def _defer_id(value: str) -> str:
@@ -5271,6 +5615,31 @@ def build_parser() -> argparse.ArgumentParser:
     pdr.add_argument("--fix", action="store_true", help="sửa an toàn, đảo ngược được (không đụng hook/settings)")
     pdr.add_argument("--json", action="store_true")
     pdr.set_defaults(fn=cmd_doctor)
+    pp = sub.add_parser("perf", help="đo và so hiệu năng có thống kê, chặn gian lận số đo (LOOP-OPT-*)")
+    ppsub = pp.add_subparsers(dest="perf_cmd", required=True)
+    pc = ppsub.add_parser("compare", help="so hai bộ mẫu: improved/regressed/neutral/insufficient (exit 0 = improved)")
+    pc.add_argument("before")
+    pc.add_argument("after")
+    pc.add_argument(
+        "--higher-is-better", action="store_true", help="đại lượng càng cao càng tốt (mặc định càng thấp càng tốt)"
+    )
+    pc.add_argument("--alpha", type=float, default=PERF_ALPHA)
+    pc.add_argument("--min-effect", type=float, default=PERF_MIN_EFFECT, help="sàn thay đổi tương đối (mặc định 0.02)")
+    pc.add_argument("--min-runs", type=_positive_int, default=PERF_MIN_RUNS)
+    pc.add_argument("--exact", action="store_true", help="đại lượng tất định (số lệnh, byte): không cần kiểm định")
+    pc.add_argument("--no-regress", action="store_true", help="cổng chống hồi quy: neutral cũng exit 0")
+    pc.add_argument("--json", action="store_true")
+    psa = ppsub.add_parser("sample", help="chạy lệnh nhiều lần, ghi thời gian tường ra file mẫu")
+    psa.add_argument("--out", required=True)
+    psa.add_argument("--runs", type=_positive_int, default=PERF_MIN_RUNS)
+    psa.add_argument("--warmup", type=_nonneg_int, default=2)
+    psa.add_argument("--timeout", type=float, default=300.0)
+    psa.add_argument("cmd", nargs=argparse.REMAINDER)
+    pgu = ppsub.add_parser("guard", help="diff so với --base không được đụng file khoá; báo dòng đáng ngờ")
+    pgu.add_argument("--base", required=True, help="ref gốc (vd origin/main)")
+    pgu.add_argument("--locked", action="append", metavar="GLOB", help="file khoá (lặp được): bộ đo, test tương đương")
+    pgu.add_argument("--strict", action="store_true", help="dòng đáng ngờ cũng làm exit 1")
+    pp.set_defaults(fn=cmd_perf)
     sub.add_parser("stats").set_defaults(fn=cmd_stats)
     return p
 

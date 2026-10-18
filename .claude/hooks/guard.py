@@ -2462,6 +2462,144 @@ def _scan_commit(args: List[str], res: Dict[str, object], asks: List[str]) -> Op
     return None
 
 
+# Ghi công AI trong commit (LOOP-HARNESS-027): repo khai `ai_attribution: forbid` trong xt.yaml (repo khung: AGENTS.md §3)
+# → commit mà message có tên model hay URL phiên AI bị chặn. Message = `-m`/`--message`, file của `-F`/`--file`, thân
+# heredoc trong cùng lệnh Bash (`-F - <<E`, `-m "$(cat <<E …)"` — tokenize bỏ thân heredoc nên đọc từ chuỗi gốc).
+AI_ATTRIBUTION_RE = re.compile(
+    r"claude-session\s*:|claude\.ai/code/session_|"
+    r"\bclaude(?:[\s_-]+[\d.]+)*[\s_-]+(?:opus|sonnet|haiku|fable|instant)\b",  # `Claude Opus 5`, `claude-3-5-sonnet`
+    re.I,
+)
+AI_ATTRIBUTION_KEY_RE = re.compile(r"^ai_attribution:[ \t]*([\"']?)forbid\1[ \t]*(?:#.*)?$", re.M)
+COMMIT_TEXT_MAX = 1 << 16  # đọc tối đa 64 KiB mỗi file (xt.yaml, file message)
+COMMIT_MSG_OPTS = {"-m": "m", "--message": "m", "--trailer": "m", "--author": "m", "-F": "F", "--file": "F"}
+
+
+def _read_head(path: str) -> str:
+    """Tối đa COMMIT_TEXT_MAX ký tự đầu FILE THƯỜNG; không đọc được/FIFO/thiết bị → rỗng (fail-open, không treo hook)."""
+    if not os.path.isfile(path):
+        return ""
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            return f.read(COMMIT_TEXT_MAX)
+    except OSError:
+        return ""
+
+
+def _commit_msg_args(args: List[str]) -> List[Tuple[str, str]]:
+    """(loại, giá trị) của message trong đối số `git commit`: `m` = chữ, `F` = đường dẫn file (`-am"x"`, `--file=f`)."""
+    out: List[Tuple[str, str]] = []
+    for i, x in enumerate(args):
+        nxt = args[i + 1] if i + 1 < len(args) else ""
+        key, sep, val = x.partition("=")
+        m = COMMIT_SHORT_VALUE_RE.match(x)
+        if x in COMMIT_MSG_OPTS:
+            out.append((COMMIT_MSG_OPTS[x], nxt))
+        elif key in ("--message", "--file", "--trailer", "--author") and sep:
+            out.append((COMMIT_MSG_OPTS[key], val))
+        elif m and m.group(2) in "mF" and not x.startswith("--"):
+            out.append((m.group(2), x[m.end() :] or nxt))
+    return out
+
+
+# `git [cờ toàn cục…] commit`: `-C "a b"`, `-c k=v`, `--no-pager`, `--git-dir=…` (văn bản thô — `$(cat <<E` chưa đóng nháy).
+# Các nhánh tách bạch (giá trị không nháy không mở đầu bằng nháy) — trùng nhau thì backtrack hàm mũ (CodeQL, #125).
+GIT_COMMIT_TEXT_RE = re.compile(
+    r"(?<![\w-])git(?:\s+(?:-[Cc]\s+(?:\"[^\"]*\"|'[^']*'|[^\s\"']\S*)|--[\w-]+(?:=\S+)?|-[pP]))*\s+commit\b"
+)
+GIT_TOP_MAX = 64  # số cấp thư mục cha tối đa khi tìm xt.yaml
+COMMIT_LINE_MAX = 4096  # regex quanh heredoc trên dòng mở: mỗi phía tối đa chừng này để thời gian có trần (review #125)
+
+
+def _unquoted_seps(line: str) -> List[Tuple[int, int]]:
+    """Vị trí `;`/`&&`/`||`/`&` nằm NGOÀI nháy: `git commit -m "fix: a; b" -m "$(cat <<E` vẫn là một pipeline."""
+    seps: List[Tuple[int, int]] = []
+    i, q, n = 0, "", len(line)
+    while i < n:
+        c = line[i]
+        if q == "'":
+            q = "" if c == "'" else q
+        elif c == "\\":
+            i += 2
+            continue
+        elif q:
+            q = "" if c == '"' else q
+        elif c in "'\"":
+            q = c
+        else:
+            sep = LIST_SEP_RE.match(line, i)
+            if sep:
+                seps.append(sep.span())
+                i = sep.end()
+                continue
+        i += 1
+    return seps
+
+
+def _commit_window(line: str, pos: int, seps: List[Tuple[int, int]]) -> str:
+    """Pipeline chứa heredoc ở `pos` (tách theo dấu nối ngoài nháy), cắt còn ≤ COMMIT_LINE_MAX mỗi phía QUANH heredoc —
+    lệnh commit thường ngay trước heredoc, nên tiền tố dài (`X=…4 KiB… git commit -F - <<E`) không đẩy nó ra ngoài."""
+    start = max((e for s, e in seps if e <= pos), default=0)
+    end = min((s for s, e in seps if s >= pos), default=len(line))
+    return line[max(start, pos - COMMIT_LINE_MAX) : min(end, pos + COMMIT_LINE_MAX)]
+
+
+def _heredoc_bodies(cmd: str) -> List[str]:
+    """Thân heredoc thuộc pipeline có `git commit` (`git commit -F - <<E`, `-m "$(cat <<E`, `cat <<E | git commit -F -`);
+    heredoc của lệnh khác trong cùng chuỗi (`python3 - <<E …; git commit`) là dữ liệu của lệnh đó, không quét."""
+    out: List[str] = []
+    lines, i = cmd.replace("\\\n", "").split("\n"), 0  # nối dòng `\` như shell (`git commit \` ↵ `-F - <<E`)
+    while i < len(lines):
+        opener = lines[i]
+        seps = _unquoted_seps(opener) if "<<" in opener else []  # một lần mỗi dòng, không mỗi heredoc
+        for m in HEREDOC_RE.finditer(opener):
+            body: List[str] = []
+            i += 1
+            while i < len(lines) and lines[i].strip() != m.group(2):
+                body.append(lines[i])
+                i += 1
+            if GIT_COMMIT_TEXT_RE.search(_commit_window(opener, m.start(), seps)):
+                out.append("\n".join(body))
+        i += 1
+    return out
+
+
+def _xt_yaml_for(d: str) -> str:
+    """`xt.yaml` gần nhất từ `d` đi lên (đường dẫn thật — symlink theo git), dừng ở gốc repo (thư mục có `.git`, tính cả
+    nó): dự án trong repo cha (monorepo `apps/web`) và commit từ thư mục con đều thấy khoá. Không có → rỗng."""
+    cur = os.path.realpath(d)
+    for _ in range(GIT_TOP_MAX):
+        if os.path.isfile(os.path.join(cur, "xt.yaml")):
+            return os.path.join(cur, "xt.yaml")
+        parent = os.path.dirname(cur)
+        if os.path.exists(os.path.join(cur, ".git")) or parent == cur:
+            break
+        cur = parent
+    return ""
+
+
+def ai_attribution(cmd: str, commands: List[Tuple[List[str], Optional[str]]], root: str) -> str:
+    """Lý do chặn khi lệnh commit vào repo cấm ghi công AI mà message chứa tên model/URL phiên; không thì rỗng.
+    Chỉ xét `git commit` qua Bash, message thấy được lúc quyết định — không thấy: `echo … | git commit -F -`, file `-F`
+    do lệnh trước trong chuỗi tạo, commit qua tool MCP/`git merge -m`/`git tag -m` (LOOP-HARNESS-027)."""
+    for argv, here in commands:
+        n = normalize(argv)
+        gdir = (_git_dir(argv, here) if n[:2] == ["git", "commit"] else None) or root
+        if n[:2] != ["git", "commit"] or not AI_ATTRIBUTION_KEY_RE.search(_read_head(_xt_yaml_for(gdir))):
+            continue
+        # `-F` tương đối tính từ thư mục git chạy (sau `-C`), như git.
+        texts = [v if k == "m" else _read_head(posixpath.join(gdir, v)) for k, v in _commit_msg_args(n[2:])]
+        hit = next(
+            (m.group(0) for t in [*texts, *_heredoc_bodies(cmd)] for m in [AI_ATTRIBUTION_RE.search(t)] if m), ""
+        )
+        if hit:
+            return (
+                f"Commit ghi công AI bị khung chặn (`{hit}` — xt.yaml `ai_attribution: forbid`, LOOP-HARNESS-027): bỏ "
+                "dòng tên model/URL phiên khỏi message rồi commit lại."
+            )
+    return ""
+
+
 def _track_exports(res: Dict[str, object], argv: List[str], n: List[str]) -> Tuple[str, ...]:
     """Biến đã `export`/`declare` ở lệnh trước trong cùng chuỗi (`export X=1; cmd`), cộng lệnh hiện tại nếu là export."""
     prev = res.get("exported")
@@ -2986,11 +3124,11 @@ def bash_decision(cmd: str, root: str, cwd: Optional[str] = None, depth: int = 0
         res.update(decision="deny", reason=nested_deny)
         return res
     commands = _commands_with_cwd(tokens, cwd or root)
-    for argv, here in commands:
-        deny_reason = _scan_command(argv, root, res, asks, here)
-        if deny_reason:
-            res.update(decision="deny", reason=deny_reason)
-            return res
+    deny_reason = next((r for argv, here in commands if (r := _scan_command(argv, root, res, asks, here))), "")
+    deny_reason = deny_reason or (ai_attribution(cmd, commands, root) if res["commit"] else "")
+    if deny_reason:
+        res.update(decision="deny", reason=deny_reason)
+        return res
     res.pop("exported", None)
     allow = res.pop("allow", "")
     # `allow` bỏ hỏi cho CẢ lệnh Bash → chỉ khi merge đứng một mình và trơn (không gì shell còn mở rộng/chạy thêm).
