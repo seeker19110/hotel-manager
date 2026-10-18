@@ -27,6 +27,9 @@ FROM base AS runtime
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000
 # Mã và node_modules do root sở hữu (user `node` chỉ đọc): RCE trong ứng dụng không sửa được mã/phụ thuộc. Chỉ `.next/cache` ghi được.
 COPY --from=build /app /app
+# Không dùng npm lúc chạy (CMD gọi thẳng node): xoá npm đi kèm image nền để runtime không mang theo phụ thuộc của npm
+# (undici, brace-expansion… — `.grype.yaml` chỉ bỏ qua chúng ở image nền, T-802). Build/deps vẫn dùng npm ở stage trước.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 WORKDIR /app/apps/web
 RUN mkdir -p .next/cache && chown -R node:node .next/cache
 USER node
