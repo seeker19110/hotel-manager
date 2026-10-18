@@ -65,6 +65,14 @@ class EvidenceTest(unittest.TestCase):
         bp.write_text("- [x] `A-1` **MUST** x\n")
         self.assertEqual(mod.main(["x", str(bp)]), 1)
 
+    def test_khong_ap_dung_can_dieu_kien(self):
+        ok = "- [~] `A-1` **MUST** x — Không áp dụng: không có biểu đồ (`scripts/no-charts.test.mjs`)"
+        self.assertEqual(self.check(ok), [])
+        self.assertEqual(
+            self.check("- [~] `A-1` **MUST** x — Không áp dụng:"),
+            [(1, "A-1", "miễn trừ thiếu '— Miễn: <lý do>' hoặc '— Không áp dụng: <điều kiện>'")],
+        )
+
 
 class RepoBlueprintTest(unittest.TestCase):
     """BLUEPRINT.md thật của repo phải sạch: job `pr-policy` chạy unittest này, nên PR làm hỏng bằng chứng (vd tên trigger

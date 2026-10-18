@@ -506,3 +506,10 @@
 - Chọn: Nhận merge-gate: chú thích zizmor ignore có lý do ở đúng dòng trigger; test đổi từ cấm hẳn sang chỉ cho merge-gate.yml kèm kiểm cấu trúc (không ref: ở checkout, permissions chỉ read, không secrets.); thêm merge-gate vào required checks
 - Lý do (tiêu chí chất lượng cuối): Đúng và an toàn (tiêu chí 1): dự án có ngoại lệ cứng về tiền/lưu trú; auto-merge của GitHub không ghim head nên không có merge-gate thì PR vô hại bật auto-merge rồi push commit chạm ledger vẫn tự merge — luật lời không chặn được. Rủi ro của pull_request_target là chạy code PR với quyền ghi/secret; merge-gate không checkout code PR, token chỉ đọc, không secret, và test mới giữ đúng các bất biến đó máy kiểm thay cho lệnh cấm chung.
 - Đường lùi: Xoá .github/workflows/merge-gate.yml, bỏ merge-gate khỏi .github/rulesets/main.json + FRAMEWORK_GATES, khôi phục test cấm pull_request_target
+
+### D-070 · 2026-10-18T09:55:33+00:00 · UX-VIZ-002 (MUST mới của khung 3.1.0, biểu đồ có bảng/mô tả thay thế, không mã hoá chỉ bằng màu): áp dụng hay không cho V1?
+
+- Phương án: (1) Không áp dụng: app không có biểu đồ (báo cáo dạng bảng; SVG chỉ icon/QR), khoá điều kiện bằng test rào · (2) Miễn (hoãn) chờ chủ dự án duyệt · (3) Làm ngay: dựng hạ tầng biểu đồ a11y dù chưa có biểu đồ
+- Chọn: Không áp dụng: app không có biểu đồ (báo cáo dạng bảng; SVG chỉ icon/QR), khoá điều kiện bằng test rào
+- Lý do (tiêu chí chất lượng cuối): Đúng thực trạng (grep không có thư viện/thành phần biểu đồ; SPEC/PROJECT không yêu cầu biểu đồ); LOOP-STOP-024 cho agent ghi 'Không áp dụng' với điều kiện kiểm được; test scripts/no-charts.test.mjs đỏ ngay khi thêm biểu đồ nên không mất mục
+- Đường lùi: Bỏ [~] UX-VIZ-002 về [ ] và làm mục khi có biểu đồ đầu tiên (test rào sẽ báo)
