@@ -32,6 +32,13 @@ services:
       - archive_command=pgbackrest --stanza=hm archive-push %p
       - -c
       - max_wal_senders=3
+      # DB-SEC-004: log truy vấn không in tham số (giá trị bind có thể là PII/bí mật) — không log câu lệnh, cắt tham số cả khi lỗi.
+      - -c
+      - log_statement=none
+      - -c
+      - log_parameter_max_length=0
+      - -c
+      - log_parameter_max_length_on_error=0
       # DB-SEC-003: chỉ hostssl + scram-sha-256 (deploy/postgres/pg_hba.conf), TLS ≥ 1.2; chứng chỉ máy chủ ở deploy/secrets/ (deploy/README.md).
       - -c
       - hba_file=/etc/postgresql/pg_hba.conf
