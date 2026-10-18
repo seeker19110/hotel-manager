@@ -11,7 +11,7 @@
 
 ## Kết quả đợt 10 (T-909, 2026-10-18)
 
-`main` sau PR #59 T-901 · #64 T-902 · #65 T-903 · #62 T-904 · #63 T-905 · #66 T-908; **chờ người merge:** #67 T-906/T-907 (`risk:auth`, `risk:gate`; CI xanh, review sạch) và #68 T-904b (`risk:data`). `xt.py blueprint-status BLUEPRINT.md --strict` trên `main`: MUST **đạt 340 · miễn 55 · mở 106**; sau khi merge #67: **đạt 341 · mở 105** (trước đợt 10, khung 3.0: đạt 337 · miễn 54 · mở 105; khung 3.3 thêm mục MUST nên tổng khác). Tick 4: WF-GIT-010 (T-902), DB-SEC-004 (T-904), XC-I18N-009 (T-908), QA-PERF-007 (T-906, nằm trong #67).
+`main` sau PR #59 T-901 · #64 T-902 · #65 T-903 · #62 T-904 · #63 T-905 · #66 T-908; #67 T-906/T-907 · #68 T-904b (người merge). `xt.py blueprint-status BLUEPRINT.md --strict`: MUST **đạt 341 · miễn 55 · mở 105** (trước đợt 10, khung 3.0: đạt 337 · miễn 54 · mở 105; khung 3.3 thêm mục MUST nên tổng khác). Tick 4: WF-GIT-010 (T-902), DB-SEC-004 (T-904), XC-I18N-009 (T-908), QA-PERF-007 (T-906, nằm trong #67).
 
 **Làm xong phần trong repo nhưng KHÔNG tick (6) — phần còn lại cần người/hạ tầng, đã `loop defer`:**
 

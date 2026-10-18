@@ -1,6 +1,6 @@
 # GO/NO-GO — Hotel Manager · ứng viên 0.1.0 (pilot) · 2026-10-18 (rà đợt 10, T-909)
 
-> Đợt 10 (T-901…T-909): PR #59 · #62 · #63 · #64 · #65 · #66 đã merge; #67 (T-906/T-907, `risk:auth`/`risk:gate`) và #68 (T-904b, `risk:data`) xanh, review sạch, chờ người merge. Blueprint trên `main`: MUST đạt 340 · miễn 55 · **mở 106** (sau #67: 341 · mở 105) (chi tiết: `docs/autopilot/BLUEPRINT-GAPS.md` "Kết quả đợt 10"). `loop verify`: xem PROGRESS.md.
+> Đợt 10 (T-901…T-909): PR #59 · #62 · #63 · #64 · #65 · #66 · #67 · #68 · #70 đã merge. Blueprint: MUST đạt 341 · miễn 55 · **mở 105** (chi tiết: `docs/autopilot/BLUEPRINT-GAPS.md` "Kết quả đợt 10"). `loop verify`: xem PROGRESS.md.
 > Bản đợt 9 — Commit: `main` `79afb9d` (đợt 3–9 đã merge; đợt 9: PR #39 T-807 · #41 T-801 · #42 T-802 · #43 T-803 · #44 T-806 · #45 T-805 · #46 T-804 · #47 T-808; sửa sau verify: #48 T-707 · #50 T-207 · #51 T-226/T-801; #49 khung 3.0.0) · Blueprint `xt.py blueprint-status BLUEPRINT.md --strict` → MUST đạt 337 · miễn 54 · **mở 105** (đầu đợt 9: đạt 282 · mở 159) · miễn trừ MUST có `Duyệt:` của chủ dự án (PR #38, 2026-10-17; SEC-SUPPLY-009 hết miễn ở #49) · `loop verify` trên `main` 79afb9d: XANH (71 Gate + 1 lệnh kiểm blueprint, 2026-10-18).
 > Người kiểm: phiên autopilot (report-only, không deploy) · Phạm vi: web/PWA + worker + CSDL; không có mobile native.
 
