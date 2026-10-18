@@ -69,39 +69,47 @@ export async function startS3Server(): Promise<S3Server> {
   const [master, volume, filer, s3, masterGrpc, volumeGrpc, filerGrpc, s3Grpc] = await freePorts(8);
   const logFile = join(dir, "weed.log");
   const log = openSync(logFile, "w");
-  const proc: ChildProcess = spawn(
-    process.env.WEED_BIN ?? "weed",
-    [
-      // glog mặc định ghi tệp vào /tmp — để trong `dir` (xoá khi dừng).
-      `-logdir=${dir}`,
-      "server",
-      "-ip=127.0.0.1",
-      "-ip.bind=127.0.0.1",
-      `-dir=${dir}`,
-      `-master.port=${master}`,
-      `-master.port.grpc=${masterGrpc}`,
-      `-volume.port=${volume}`,
-      `-volume.port.grpc=${volumeGrpc}`,
-      "-filer",
-      `-filer.port=${filer}`,
-      `-filer.port.grpc=${filerGrpc}`,
-      "-s3",
-      `-s3.port=${s3}`,
-      `-s3.port.grpc=${s3Grpc}`,
-      `-s3.config=${join(dir, "s3.json")}`,
-      // Tắt dịch vụ phụ có cổng mặc định CỐ ĐỊNH (Iceberg 8181, Lance 9101 từ SeaweedFS 4.x): hai lượt test song song
-      // (hoặc một `weed` mồ côi) giữ cổng đó làm `weed` mới thoát ngay ⇒ "SeaweedFS không khởi động được".
-      "-s3.port.iceberg=0",
-      "-s3.port.lance=0",
-      // Socket Unix mặc định là /tmp/seaweedfs-<dịch vụ>-<cổng>.sock, sót lại mỗi lần `weed` bị kill — để trong `dir`.
-      `-filer.localSocket=${join(dir, "filer.sock")}`,
-      `-s3.localSocket=${join(dir, "s3.sock")}`,
-      // Test không gửi thống kê ra ngoài (mặc định bật, gửi tới telemetry.seaweedfs.com).
-      "-master.telemetry=false",
-    ],
-    { stdio: ["ignore", log, log] },
-  );
-  closeSync(log);
+  let proc: ChildProcess;
+  try {
+    proc = spawn(
+      process.env.WEED_BIN || "weed",
+      [
+        // glog mặc định ghi tệp vào /tmp — để trong `dir` (xoá khi dừng).
+        `-logdir=${dir}`,
+        "server",
+        "-ip=127.0.0.1",
+        "-ip.bind=127.0.0.1",
+        `-dir=${dir}`,
+        `-master.port=${master}`,
+        `-master.port.grpc=${masterGrpc}`,
+        `-volume.port=${volume}`,
+        `-volume.port.grpc=${volumeGrpc}`,
+        "-filer",
+        `-filer.port=${filer}`,
+        `-filer.port.grpc=${filerGrpc}`,
+        "-s3",
+        `-s3.port=${s3}`,
+        `-s3.port.grpc=${s3Grpc}`,
+        `-s3.config=${join(dir, "s3.json")}`,
+        // Tắt dịch vụ phụ có cổng mặc định CỐ ĐỊNH (Iceberg 8181, Lance 9101 từ SeaweedFS 4.x): hai lượt test song song
+        // (hoặc một `weed` mồ côi) giữ cổng đó làm `weed` mới thoát ngay ⇒ "SeaweedFS không khởi động được".
+        "-s3.port.iceberg=0",
+        "-s3.port.lance=0",
+        // Socket Unix HTTP của filer/s3 mặc định là /tmp/seaweedfs-<dịch vụ>-<cổng>.sock, sót lại mỗi lần `weed` bị kill —
+        // để trong `dir`. Socket gRPC (/tmp/seaweedfs-*-grpc-<cổng>.sock) viết cứng trong binary, không dời được (vô hại).
+        `-filer.localSocket=${join(dir, "filer.sock")}`,
+        `-s3.localSocket=${join(dir, "s3.sock")}`,
+        // Test không gửi thống kê ra ngoài (mặc định bật, gửi tới telemetry.seaweedfs.com).
+        "-master.telemetry=false",
+      ],
+      { stdio: ["ignore", log, log] },
+    );
+  } catch (e) {
+    rmSync(dir, { recursive: true, force: true });
+    throw e;
+  } finally {
+    closeSync(log);
+  }
   let exited = false;
   proc.once("exit", () => {
     exited = true;
@@ -121,7 +129,10 @@ export async function startS3Server(): Promise<S3Server> {
     await new Promise((r) => setTimeout(r, 250));
   }
   if (exited) {
-    const tail = readFileSync(logFile, "utf8").split("\n").slice(-15).join("\n");
+    // Ưu tiên dòng lỗi của glog (F…/E…) và lỗi parse cờ (in đầu bảng usage); không có thì lấy đuôi log.
+    const lines = readFileSync(logFile, "utf8").split("\n").filter(Boolean);
+    const errs = lines.filter((l) => /^[FE]\d{4} |invalid value|flag provided but not defined/.test(l));
+    const tail = (errs.length > 0 ? errs : lines).slice(-15).join("\n");
     rmSync(dir, { recursive: true, force: true });
     throw new Error(
       `SeaweedFS không khởi động được — chạy \`bash scripts/dev-env-setup.sh --only weed\` (PLAN T-001). Log weed:\n${tail}`,

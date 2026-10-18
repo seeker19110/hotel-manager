@@ -20,7 +20,7 @@ describe("s3-server — SeaweedFS tạm cho test", () => {
     for (const p of ports) expect(p).toBeGreaterThan(0);
   });
 
-  it("không gửi telemetry ra ngoài, log và socket nằm trong thư mục tạm", () => {
+  it("không gửi telemetry ra ngoài; log glog và socket HTTP filer/s3 nằm trong thư mục tạm", () => {
     expect(src).toContain('"-master.telemetry=false"');
     expect(src).toMatch(/`-logdir=\$\{dir\}`/);
     expect(src).toMatch(/-filer\.localSocket=\$\{join\(dir,/);
