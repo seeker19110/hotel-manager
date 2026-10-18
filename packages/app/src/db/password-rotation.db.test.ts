@@ -197,34 +197,78 @@ describe("DB-SEC-004 — xoay mật khẩu role ứng dụng không downtime", (
     expect((await probe(next, orgA)).orgs).toEqual([orgA]);
   });
 
-  it("login luân phiên không có quyền vượt role gốc: không superuser/BYPASSRLS/CREATEROLE, không SET ROLE sang role gốc", async () => {
+  it("login luân phiên không có quyền vượt role gốc: không superuser/BYPASSRLS/CREATEROLE/REPLICATION; phiên chạy bằng role gốc", async () => {
     const r = await sql<{
       rolname: string;
       rolsuper: boolean;
       rolbypassrls: boolean;
       rolcreaterole: boolean;
+      rolreplication: boolean;
     }>`
-      select rolname, rolsuper, rolbypassrls, rolcreaterole from pg_roles where rolname like 'app_runtime_%' order by rolname`.execute(
+      select rolname, rolsuper, rolbypassrls, rolcreaterole, rolreplication from pg_roles where rolname like 'app_runtime_%' order by rolname`.execute(
       admin,
     );
+    const none = { rolsuper: false, rolbypassrls: false, rolcreaterole: false, rolreplication: false };
     expect(r.rows).toEqual([
-      { rolname: "app_runtime_a", rolsuper: false, rolbypassrls: false, rolcreaterole: false },
-      { rolname: "app_runtime_b", rolsuper: false, rolbypassrls: false, rolcreaterole: false },
+      { rolname: "app_runtime_a", ...none },
+      { rolname: "app_runtime_b", ...none },
     ]);
     const c = await tcpPool("app_runtime_a", "next-pass-not-a-secret").connect();
     try {
-      await expect(c.query("set role app_runtime")).rejects.toThrow(/permission denied/);
+      // `ALTER ROLE … SET role = <base>`: quyền, RLS, sở hữu đối tượng theo role gốc; đăng nhập theo login.
+      const who = await c.query<{ cu: string; su: string }>("select current_user as cu, session_user as su");
+      expect(who.rows[0]).toEqual({ cu: "app_runtime", su: "app_runtime_a" });
+      // Không nhảy sang role nào khác ngoài role gốc, kể cả superuser.
+      await expect(c.query("set role postgres")).rejects.toThrow(/permission denied/);
+      await expect(c.query("set role app_worker")).rejects.toThrow(/permission denied/);
     } finally {
       c.release();
+    }
+    // Không ADMIN OPTION: login không cấp tiếp được quyền của role gốc.
+    const g = await sql<{ admin_option: boolean; set_option: boolean }>`
+      select m.admin_option, m.set_option from pg_auth_members m
+      join pg_roles r on r.oid = m.roleid join pg_roles u on u.oid = m.member
+      where r.rolname = 'app_runtime' and u.rolname = 'app_runtime_a'`.execute(admin);
+    expect(g.rows).toEqual([{ admin_option: false, set_option: true }]);
+  });
+
+  it("đối tượng do login tạo thuộc role gốc: bảng trong schema pgboss tạo bằng app_worker_a vẫn sửa được bằng app_worker_b sau lần xoay", async () => {
+    await setPassword("app_worker", "w-old-pass-not-a-secret");
+    expect(rotate("app_worker", "app_worker_a")).toBe(0);
+    await setPassword("app_worker_a", "w-a-pass-not-a-secret");
+    const a = await tcpPool("app_worker_a", "w-a-pass-not-a-secret").connect();
+    try {
+      await a.query("create table pgboss.rot_probe (id int)");
+      const owner = await a.query<{ o: string }>(
+        "select tableowner as o from pg_tables where schemaname = 'pgboss' and tablename = 'rot_probe'",
+      );
+      expect(owner.rows[0]?.o).toBe("app_worker");
+    } finally {
+      a.release();
+    }
+    // Xoay sang _b, tắt _a: pg-boss (đổi lược đồ khi nâng phiên bản) vẫn ALTER được bảng đã có.
+    expect(rotate("app_worker", "app_worker_b")).toBe(0);
+    await setPassword("app_worker_b", "w-b-pass-not-a-secret");
+    await sql.raw("ALTER ROLE app_worker_a NOLOGIN").execute(admin);
+    const b = await tcpPool("app_worker_b", "w-b-pass-not-a-secret").connect();
+    try {
+      await b.query("alter table pgboss.rot_probe add column note text");
+      await b.query("drop table pgboss.rot_probe");
+      const t = await b.query<{ statement_timeout: string }>("show statement_timeout");
+      expect(t.rows[0]?.statement_timeout).toBe("2min");
+    } finally {
+      b.release();
     }
   });
 
   it("script từ chối base/login lạ (không tạo role, psql exit ≠ 0)", async () => {
-    expect(rotate("app_runtime", "app_worker_a")).not.toBe(0);
+    expect(rotate("app_runtime", "app_runtime_c")).not.toBe(0);
     expect(rotate("postgres", "postgres_a")).not.toBe(0);
     const r = await sql<{
       n: number;
-    }>`select count(*)::int as n from pg_roles where rolname in ('app_worker_a','postgres_a')`.execute(admin);
+    }>`select count(*)::int as n from pg_roles where rolname in ('app_runtime_c','postgres_a')`.execute(
+      admin,
+    );
     expect(r.rows[0]?.n).toBe(0);
   });
 

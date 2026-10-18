@@ -66,7 +66,7 @@ Các bước:
    docker compose -f deploy/compose.yaml -f deploy/compose.restore.yaml exec -u postgres postgres psql -U postgres -Atc "select pg_is_in_recovery()"
    ```
    Từ đây **luôn** truyền cả hai `-f` (quên tệp phủ ⇒ compose gắn lại volume cũ).
-5. Đặt lại mật khẩu role ứng dụng nếu cluster mới: `packages/db/sql/bootstrap-roles.sql` (tạo `app_runtime`, `app_worker`, giới hạn thời gian) rồi `ALTER ROLE … PASSWORD …` từ kho bí mật. Rồi sang mục Xác minh trước khi bật ứng dụng.
+5. Đặt lại mật khẩu role ứng dụng nếu cluster mới: `packages/db/sql/bootstrap-roles.sql` (tạo `app_runtime`, `app_worker`, giới hạn thời gian) rồi `ALTER ROLE … PASSWORD …` từ kho bí mật. Production đang dùng login luân phiên (`app_runtime_a|_b`, `app_worker_a|_b`) thì chạy lại `packages/db/sql/rotate-login.sql` cho login đang dùng và đặt mật khẩu bằng `\password` (bước 1–2 của [`db-password-rotation.md`](db-password-rotation.md)). Rồi sang mục Xác minh trước khi bật ứng dụng.
 
 #### Phương án cuối: ghi đè tại chỗ bằng `--delta` (KHÔNG đảo ngược — bắt buộc người duyệt)
 Chỉ khi không thể dùng volume mới (đĩa/volume không đủ chỗ). `--delta` ghi đè thẳng thư mục dữ liệu hiện tại: file lệch với bản sao lưu bị sửa/xoá, dữ liệu ghi sau điểm đích mất vĩnh viễn (AGENTS §6). Người duyệt (chủ dự án/Tech Lead) ghi tên và giờ duyệt vào dòng thời gian **trước** khi chạy; sao nguyên volume cũ trước, và chỉ làm khi Postgres đã dừng:
