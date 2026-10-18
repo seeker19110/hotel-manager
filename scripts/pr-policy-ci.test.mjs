@@ -59,9 +59,41 @@ describe("pr-policy.yml", () => {
     expect(job).toMatch(/node scripts\/check-adr-immutable\.mjs --base "origin\/\$BASE_REF"/);
     expect(job).toMatch(/node scripts\/check-openapi-breaking\.mjs --base "origin\/\$BASE_REF" --extra-file/);
   });
-  it("không continue-on-error; PR bot (dependabot) được bỏ qua rõ ràng", () => {
+  it("không continue-on-error", () => {
     expect(yml).not.toContain("continue-on-error");
-    expect(job).toContain("github.actor != 'dependabot[bot]'");
+  });
+  it("bỏ qua PR của bot theo TÁC GIẢ PR (dependabot + github-actions/release-please), không theo github.actor", () => {
+    const jobIf = (/^ {4}if: >-\n((?: {6}.*\n)+)/m.exec(job)?.[1] ?? "").replace(/\s+/g, " ");
+    expect(jobIf).toContain("github.event.pull_request.user.login != 'dependabot[bot]'");
+    expect(jobIf).toContain("github.event.pull_request.user.login != 'github-actions[bot]'");
+    expect(yml).not.toContain("github.actor");
+  });
+  it("chạy trên MỌI PR vào main: không lọc paths/branches-ignore ở cấp workflow; bỏ qua chỉ bằng if ở cấp job (D-065)", () => {
+    const trigger = /^on:\n((?: {2}.*\n|\n)+)/m.exec(yml)?.[1] ?? "";
+    expect(trigger).toContain("pull_request:");
+    expect(trigger).not.toMatch(/\bpaths(?:-ignore)?:|branches-ignore:|tags(?:-ignore)?:/);
+    expect(job).toMatch(/^ {4}if: /m);
+  });
+  it("dòng Bằng chứng của mục blueprint dựa vào job pr-policy nêu mức chặn thật (D-065)", () => {
+    const bp = read("BLUEPRINT.md").split("\n");
+    const items = [
+      "BASE-DOC-006",
+      "BASE-DOC-008",
+      "STD-PROC-003",
+      "DB-MIG-003",
+      "WF-REVIEW-002",
+      "WF-DOC-002",
+      "WF-TEAM-003",
+      "XC-GREEN-005",
+    ];
+    for (const id of items) {
+      const line = bp.find((l) => l.startsWith(`- [x] \`${id}\``)) ?? "";
+      const evidence = line.split("Bằng chứng:")[1] ?? "";
+      expect(evidence, id).toContain("ci:pr-policy");
+      expect(evidence, id).toContain(
+        "job đỏ trên PR; chặn merge khi ruleset .github/rulesets/main.json được import — D-065",
+      );
+    }
   });
   it("mọi script mà workflow gọi đều có thật", () => {
     for (const m of yml.matchAll(/scripts\/[\w.-]+\.(?:py|mjs)|\.xtemplates\/scripts\/[\w.-]+\.py/g)) {

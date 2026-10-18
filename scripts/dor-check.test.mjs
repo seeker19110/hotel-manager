@@ -46,6 +46,23 @@ describe("mẫu issue task.md", () => {
   });
 });
 
+describe("mẫu issue bug.md (mọi mẫu issue đều có DoR để nhãn ready kiểm được)", () => {
+  const body = read(".github/ISSUE_TEMPLATE/bug.md").replace(/^---[\s\S]*?---\n/, "");
+  it("thân mẫu nguyên bản CHƯA Ready; chỉ tick mục DoR thì Ready; tick mục ngoài DoR không đủ", () => {
+    expect(unmetDor(body).length).toBeGreaterThanOrEqual(3);
+    expect(dorSection(body) ?? "").toContain("- [ ]");
+    const tickDor = (m) => m.replaceAll("- [ ]", "- [x]");
+    expect(unmetDor(body.replace(/## Definition of Ready[\s\S]*?(?=\n## )/, tickDor))).toEqual([]);
+    // tick mục ngoài DoR ("Mức ảnh hưởng") không làm Ready
+    const outside = body.replace(/## Mức ảnh hưởng[\s\S]*?(?=\n## )/, tickDor);
+    expect(unmetDor(outside)).toEqual(unmetDor(body));
+  });
+  it("mọi mẫu issue trong .github/ISSUE_TEMPLATE có mục Definition of Ready", () => {
+    for (const f of ["bug.md", "task.md"])
+      expect(dorSection(read(`.github/ISSUE_TEMPLATE/${f}`)), f).not.toBeNull();
+  });
+});
+
 describe("CLI", () => {
   const run = (body) => {
     try {
@@ -71,6 +88,9 @@ describe("CLI", () => {
 
 describe("workflow dor-check.yml", () => {
   const yml = read(".github/workflows/dor-check.yml");
+  it("id job trùng tên job `dor-check` (Bằng chứng blueprint ghi ci:dor-check)", () => {
+    expect(yml).toMatch(/^ {2}dor-check:\n {4}name: dor-check\n/m);
+  });
   it("chạy khi issue được gán nhãn/sửa; quyền tối thiểu; thân issue qua env, không nội suy vào run", () => {
     expect(yml).toMatch(/issues:\s*\n\s+types:\s*\[labeled, edited\]/);
     expect(yml).toMatch(/permissions:\s*\n\s+contents: read\s*\n\s+issues: write/);
