@@ -94,6 +94,11 @@ describe("k6-target-guard — chặn đích production", () => {
     ["http://127.0.0.1:3100", "localhost", /không nằm trong/],
     ["ftp://127.0.0.1", "127.0.0.1", /không hợp lệ/],
     ["", "127.0.0.1", /không hợp lệ/],
+    // userinfo/?/# làm "host" trông như staging trong khi host thật là domain production.
+    ["https://staging-x@example.com/", "staging-x@example.com", /không hợp lệ/],
+    ["https://example.com?.staging.", "example.com?.staging.", /không hợp lệ/],
+    ["https://example.com#.staging.", "example.com#.staging.", /không hợp lệ/],
+    ["http://staging-x@127.0.0.1:18080", "staging-x@127.0.0.1", /không hợp lệ/],
   ])("chặn %s (cho phép %s)", (url, allowed, why) => expect(targetProblem(url, allowed)).toMatch(why));
 
   it("CLI: exit 0 với loopback, exit 1 với domain thật", () => {

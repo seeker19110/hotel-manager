@@ -16,7 +16,7 @@ export const LIMITS = { apiP95Ms: 800, apiP99Ms: 2000, holdP95Ms: 1500, holdP99M
 /** Dừng ngay nếu BASE_URL thiếu hoặc không thuộc danh sách host cho phép (mặc định chỉ máy cục bộ). */
 export function assertSafeTarget() {
   if (!BASE_URL) throw new Error("Thiếu BASE_URL (ví dụ http://127.0.0.1:3100)");
-  const m = /^https?:\/\/([^/:]+|\[[^\]]+\])(?::\d+)?(?:\/|$)/.exec(BASE_URL);
+  const m = /^https?:\/\/([^/:@?#[\]]+|\[[^\]]+\])(?::\d+)?(?:\/|$)/.exec(BASE_URL);
   if (!m) throw new Error(`BASE_URL không hợp lệ: ${BASE_URL}`);
   const allowed = (__ENV.K6_ALLOWED_HOSTS || "localhost,127.0.0.1,[::1]").split(",").map((s) => s.trim());
   if (!allowed.includes(m[1])) {

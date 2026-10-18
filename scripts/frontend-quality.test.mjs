@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { authConfig } from "./lhci-auth-config.mjs";
+import { redirectedRuns, scrub } from "./lhci-verify.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const read = (rel) => readFileSync(join(ROOT, rel), "utf8");
@@ -129,6 +130,25 @@ describe("FE-PERF-002 / PRF-WEB-005 — Lighthouse CI", () => {
     expect(cfg.collect.url).toEqual(rc.collect.url);
     expect(cfg.assert).toEqual(rc.assert); // không nới ngưỡng
     expect(() => authConfig(JSON.parse(read("lighthouserc.json")), "")).toThrow(/thiếu cookie/);
+  });
+  it("lượt đo bị chuyển về /dang-nhap (phiên hỏng) làm job đỏ; cookie bị che trước khi lưu artifact", () => {
+    const run = (requestedUrl, finalDisplayedUrl) => ({ requestedUrl, finalDisplayedUrl });
+    expect(redirectedRuns([run("http://127.0.0.1:3100/phong", "http://127.0.0.1:3100/phong/")])).toEqual([]);
+    expect(
+      redirectedRuns([run("http://127.0.0.1:3100/phong", "http://127.0.0.1:3100/dang-nhap")]),
+    ).toHaveLength(1);
+    expect(redirectedRuns([{ requestedUrl: "http://127.0.0.1:3100/" }])).toHaveLength(1);
+    const at = (needle) => jobs.lighthouse.indexOf(needle);
+    expect(at("node scripts/lhci-verify.mjs .lighthouseci")).toBeGreaterThan(at("pnpm exec lhci autorun"));
+    expect(at("node scripts/lhci-verify.mjs --scrub .lighthouseci")).toBeLessThan(
+      at("name: lighthouse-report"),
+    );
+    const cookie = ["__Host-hm.session_token=SECRET1234", "hm_org=abcdef123"].join("; ");
+    const lhr = JSON.stringify({ configSettings: { extraHeaders: { Cookie: cookie } }, x: cookie });
+    const out = scrub(lhr, cookie);
+    expect(out).not.toContain("SECRET1234");
+    expect(out).not.toContain("abcdef123");
+    expect(JSON.parse(out).configSettings.extraHeaders).toEqual({});
   });
   it("assert mức error: Performance ≥ 0,9, LCP ≤ 2500, CLS ≤ 0,1; mọi assert có aggregationMethod median (trừ unsized-images)", () => {
     const a = rc.assert.assertions;

@@ -133,11 +133,15 @@ jobs:
           export CHROME_PATH
           node scripts/lhci-auth-config.mjs "$RUNNER_TEMP/lighthouserc.auth.json"
           pnpm exec lhci autorun --config="$RUNNER_TEMP/lighthouserc.auth.json"
+          node scripts/lhci-verify.mjs .lighthouseci
       - name: Dừng app (xoá DB tạm)
         if: always()
         run: |
           kill -TERM "$(cat "$RUNNER_TEMP/lhci-server.pid")" 2>/dev/null || true
           sleep 3
+      - name: Che cookie phiên trong báo cáo Lighthouse
+        if: always()
+        run: node scripts/lhci-verify.mjs --scrub .lighthouseci
       - name: Lưu báo cáo Lighthouse
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
