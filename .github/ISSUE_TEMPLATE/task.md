@@ -12,7 +12,7 @@ labels: ["task"]
 - [ ] …
 
 ## Definition of Ready
-<!-- Gán nhãn `ready` chỉ khi đủ các mục. Chưa đủ → hỏi, chưa code (WF-TEAM-003). -->
+<!-- Gán nhãn `ready` chỉ khi đủ các mục. Chưa đủ → hỏi, chưa code (WF-TEAM-003). Workflow `dor-check.yml` gỡ nhãn `ready` nếu còn mục chưa tick. -->
 - [ ] Tiêu chí chấp nhận đo được, mỗi tiêu chí có ID
 - [ ] Không còn câu hỏi mở chặn việc (hoặc đã có quyết định D-NNN / câu trả lời của người)
 - [ ] Phụ thuộc đã xác định (task/PR trước, dịch vụ ngoài, quyền cần người duyệt)

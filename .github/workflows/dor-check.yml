@@ -1,0 +1,38 @@
+name: Definition of Ready
+
+# Nhãn `ready` của issue chỉ hợp lệ khi checklist Definition of Ready (mẫu .github/ISSUE_TEMPLATE/task.md) đã tick hết
+# (WF-TEAM-003): thiếu thì gỡ nhãn và ghi lý do. Thân issue là dữ liệu không tin cậy — chỉ đi qua biến môi trường.
+on:
+  issues:
+    types: [labeled, edited]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  dor:
+    name: dor-check
+    if: contains(github.event.issue.labels.*.name, 'ready')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24.22.0"
+      - name: Kiểm checklist DoR
+        id: dor
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: node scripts/dor-check.mjs 2> "$RUNNER_TEMP/dor.txt"
+      - name: Gỡ nhãn ready vì DoR chưa đủ
+        if: failure() && steps.dor.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          { echo 'Gỡ nhãn `ready`: Definition of Ready chưa đủ (WF-TEAM-003).'; echo; sed 's/^/- /' "$RUNNER_TEMP/dor.txt"; } > "$RUNNER_TEMP/comment.md"
+          gh issue edit "$ISSUE_NUMBER" --remove-label ready
+          gh issue comment "$ISSUE_NUMBER" --body-file "$RUNNER_TEMP/comment.md"
