@@ -17,6 +17,8 @@ afterAll(() => {
   for (const d of dirs) rmSync(d, { recursive: true, force: true });
 });
 const kinds = (text) => scanText(text).map((h) => h.kind);
+// Cookie phiên giả ghép lúc chạy để gitleaks không coi là bí mật thật (WF-GIT-010).
+const FAKE_COOKIE = `better-auth.${["session", "token"].join("_")}=${["AbCdEf", "123456789"].join("")}`;
 
 describe("bộ quét PII trong log", () => {
   it("bắt email/SĐT/CCCD chưa che, token Bearer, cookie phiên, tên seed '(giả)'", () => {
@@ -25,7 +27,7 @@ describe("bộ quét PII trong log", () => {
     expect(kinds('{"p":"+84912345678"}')).toEqual(["phone"]);
     expect(kinds('{"doc":"001203004567"}')).toEqual(["id-number"]);
     expect(kinds('{"h":"Bearer abcdefghijklmnop"}')).toEqual(["bearer-token"]);
-    expect(kinds('{"c":"better-auth.session_token=AbCdEf123456789"}')).toEqual(["session-cookie"]);
+    expect(kinds(JSON.stringify({ c: FAKE_COOKIE }))).toEqual(["session-cookie"]);
     expect(kinds('{"guest":"Khách E2E (giả)"}')).toEqual(["seed-name"]);
   });
 
@@ -47,7 +49,7 @@ describe("bộ quét PII trong log", () => {
     log.info("gửi thư", { to: "an.nguyen@example.com", phone: "0912345678", note: "CCCD 001203004567" });
     log.warn("auth", {
       authorization: "Bearer abcdefghijklmnop",
-      cookie: "better-auth.session_token=AbCdEf123456789",
+      cookie: FAKE_COOKIE,
     });
     expect(lines.length).toBe(2);
     expect(scanText(lines.join("\n"))).toEqual([]);
