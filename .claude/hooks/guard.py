@@ -298,8 +298,8 @@ def edit_decision(path: str, root: str, tool_input: Optional[Dict[str, object]] 
         )
     if kind == "evidence":
         return "ask", (
-            f"Ghi tay bằng chứng/trạng thái autopilot ({rel}) = bằng chứng giả (P1). Dùng `xt.py loop record/…`; "
-            "chỉ sửa tay khi người yêu cầu."
+            f"Ghi tay bằng chứng/trạng thái autopilot ({rel}) = bằng chứng giả (P1, ADR-0026). Dùng `xt.py loop …`/"
+            "`xt.py pr reviewed`; cần sửa tay thì người làm."
         )
     if kind == "migration" and os.path.exists(os.path.join(root, rel)):
         return "ask", (
@@ -324,18 +324,93 @@ HEREDOC_RE = re.compile(r"(?<!<)<<(?!<)-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
 WORD_END = set(" \t\r\n;&|()<>")
 
 
-def strip_heredocs(cmd: str) -> str:
-    """Bỏ thân heredoc (dữ liệu, không phải lệnh) — giữ dòng mở heredoc."""
+def _quote_states(line: str, q: str) -> Tuple[List[str], str]:
+    """Trạng thái từng ký tự của dòng: "" ngoài nháy, `'`/`"`/`` ` `` trong nháy/backtick, `#` trong comment; `q` = trạng
+    thái mang từ dòng trước, trả trạng thái cuối dòng (comment hết ở cuối dòng)."""
+    out: List[str] = []
+    i = 0
+    while i < len(line):
+        c = line[i]
+        if not q and c == "#" and (i == 0 or line[i - 1] in WORD_END):  # comment: `# don't` không mở nháy
+            out += ["#"] * (len(line) - i)
+            break
+        out.append(q)
+        if q == "'":
+            q = "" if c == "'" else q
+        elif c == "\\":
+            out.append(q)
+            i += 2
+            continue
+        elif q:
+            q = "" if c == q else q
+        elif c in "'\"`":
+            q = c
+        i += 1
+    return out, q
+
+
+def _unquoted_positions(line: str, q: str) -> Tuple[List[bool], str]:
+    """Với từng ký tự của dòng: có nằm NGOÀI nháy/backtick/comment không. `<<` trong `sh -c "…"`/backtick thuộc script
+    lồng, không phải heredoc của lệnh ngoài."""
+    states, q = _quote_states(line, q)
+    return [not st for st in states], q
+
+
+def _heredocs(cmd: str) -> List[Tuple[str, "re.Match[str]", List[str]]]:
+    """(dòng mở, match, thân) của mọi heredoc có thể thật: bỏ `<<` trong comment/nháy đơn (không bao giờ mở heredoc);
+    giữ trong nháy kép/backtick (`-m "$(cat <<'EOF'`). Không thấy dấu kết → thân là phần còn lại, như bash."""
+    out: List[Tuple[str, "re.Match[str]", List[str]]] = []
     lines = cmd.split("\n")
+    q, i = "", 0
+    while i < len(lines):
+        line, i = lines[i], i + 1
+        states, q = _quote_states(line, q)
+        for m in HEREDOC_RE.finditer(line):
+            if states[m.start()] in ("#", "'"):
+                continue
+            # không thấy dấu kết: như bash, thân là phần còn lại (`bash <<E` ↵ `rm -rf ~` vẫn chạy)
+            end = next((j for j in range(i, len(lines)) if lines[j].strip() == m.group(2)), len(lines))
+            out.append((line, m, lines[i:end]))
+            i = end + 1
+    return out
+
+
+def join_continuations(cmd: str) -> str:
+    """Nối dòng như bash: `\\` + xuống dòng chỉ là nối dòng khi dãy `\\` liền trước dài LẺ — `\\\\` + xuống dòng là
+    gạch chéo đã escape rồi xuống dòng thật (`sh -c "docker \\\\` ↵ `run …"`: shell trong mới nối thành `docker run`).
+    Duyệt một lượt (không regex lặp lồng: dãy `\\` dài không làm thời gian bậc hai)."""
+    out: List[str] = []
+    i, n = 0, len(cmd)
+    while i < n:
+        j = i
+        while j < n and cmd[j] == "\\":
+            j += 1
+        if j == i:
+            out.append(cmd[i])
+            i += 1
+        elif j < n and cmd[j] == "\n" and (j - i) % 2:
+            out.append(cmd[i : j - 1])
+            i = j + 1
+        else:
+            out.append(cmd[i:j])
+            i = j
+    return "".join(out)
+
+
+def strip_heredocs(cmd: str) -> str:
+    """Bỏ thân heredoc (dữ liệu, không phải lệnh) — giữ dòng mở heredoc. Chỉ `<<` ngoài nháy/backtick mở heredoc của
+    lệnh ngoài; `<<` trong chuỗi lồng (`sh -c "bash <<E …"`) giữ nguyên để script lồng được quét cả thân."""
     out: List[str] = []
     pending: List[str] = []
-    for line in lines:
+    q = ""
+    for line in cmd.split("\n"):
         if pending:
             if line.strip() == pending[0]:
                 pending.pop(0)
             continue
         out.append(line)
-        pending = [m.group(2) for m in HEREDOC_RE.finditer(line)]
+        free, q = _unquoted_positions(line, q)
+        pending = [m.group(2) for m in HEREDOC_RE.finditer(line) if free[m.start()]]
     return "\n".join(out)
 
 
@@ -365,7 +440,7 @@ def strip_comments(cmd: str) -> str:
 
 
 def tokenize(cmd: str) -> List[str]:
-    cmd = strip_heredocs(cmd.replace("\\\n", ""))
+    cmd = strip_heredocs(join_continuations(cmd))
     lex = shlex.shlex(strip_comments(cmd), posix=True, punctuation_chars="();<>|&\n")
     lex.whitespace = " \t\r"
     lex.whitespace_split = True
@@ -614,15 +689,34 @@ def _dangerous_rm_target(t: str) -> bool:
 # --------------------------------------------------------------------------- luật
 
 
+SCRIPT_LANG_RE = re.compile(r"(python|ruby|perl|node)[0-9.]*")
+SCRIPT_FILE_RE = re.compile(r"[\w./-]+\.(py|rb|pl|js|mjs|cjs)")
+DATA_MODULES = {
+    "json.tool"
+}  # `python3 -m json.tool`: chỉ định dạng JSON — module khác (code, pdb, runpy, pip…) chạy được stdin
+
+
+def _runs_stdin(argv: List[str]) -> bool:
+    """Lệnh sau ống có chạy stdin như mã không. Chỉ nới theo danh sách cho phép (fail-closed): python/ruby/perl/node mà đối
+    số ĐẦU là file script (`python3 parse.py`) hoặc `python3 -m json.tool` → stdin là dữ liệu; còn lại — `-c`/`-e` (mã có
+    thể `exec(sys.stdin.read())`, `"$(cat)"`), cờ có giá trị (`-W ignore`), shell, `sudo` → coi là chạy mã (`xargs python3 -c` đã được `normalize` bỏ tiền tố `xargs`)."""
+    n = normalize(argv)
+    if not n:
+        return False
+    if SCRIPT_LANG_RE.fullmatch(n[0]):
+        args = n[1:]
+        if args[:1] and SCRIPT_FILE_RE.fullmatch(args[0]):
+            return False
+        return not (args[:1] == ["-m"] and args[1:2] and args[1] in DATA_MODULES)
+    return n[0] in INTERPRETERS or n[0] == "sudo"
+
+
 def remote_exec(cmd: str, tokens: List[str]) -> Optional[str]:
     """curl/wget đưa thẳng vào trình thông dịch: `curl … | sh`, `sh -c "$(curl …)"`, `bash <(curl …)`."""
     for group in pipelines(tokens):
-        names = [normalize(c)[0] if normalize(c) else "" for c in group]
-        for i, name in enumerate(names):
-            if name in FETCHERS and any(
-                re.fullmatch(r"(python|ruby|perl|node)[0-9.]*|" + "|".join(INTERPRETERS), m) or m == "sudo"
-                for m in names[i + 1 :]
-            ):
+        for i, c in enumerate(group):
+            n = normalize(c)
+            if n and n[0] in FETCHERS and any(_runs_stdin(x) for x in group[i + 1 :]):
                 return "curl|sh"
     for c in split_commands(tokens):
         n = normalize(c)
@@ -1050,6 +1144,18 @@ def _find_rule(args: List[str], root: str, cwd: Optional[str]) -> Tuple[str, str
         return "deny", "find -delete không lọc trên /, ~, ., .git — xoá cả cây"
     outside = [r for r in roots if _outside_project(r, root, cwd)]
     return ("ask", f"find xoá file ngoài thư mục dự án ({outside[0]})") if outside else ("", "")
+
+
+def _find_delete_roots(args: List[str]) -> List[str]:
+    """Gốc của `find … -delete` / `-exec rm|shred|unlink …`: lệnh xoá file dưới các gốc này (reviewer #132)."""
+    i = 0
+    while i < len(args) and not args[i].startswith(("-", "(", "!")):
+        i += 1
+    deleting = "-delete" in args[i:] or any(
+        a in FIND_EXEC and k + 1 < len(args) and posixpath.basename(args[k + 1]) in ("rm", "shred", "unlink")
+        for k, a in enumerate(args)
+    )
+    return (args[:i] or ["."]) if deleting else []
 
 
 FIND_NO_FILTER = {"-delete", "-depth", "-print", "-xdev", "-mount", "-ignore_readdir_race", "-mindepth", "-maxdepth"}
@@ -2333,6 +2439,8 @@ def write_targets(n: List[str], argv: List[str]) -> List[str]:
         return out + _copy_targets(name, args)
     if name in ("rm", "unlink", "shred"):
         return out + _positionals(args)  # `-f` của rm là cờ, không ăn giá trị (từng nuốt đường dẫn)
+    if name == "find":
+        return out + _find_delete_roots(args)
     if name == "truncate":
         return out + _positionals(args, ("-s", "--size", "-r", "--reference"))
     if name in FILE_WRITERS:
@@ -2536,11 +2644,17 @@ def _unquoted_seps(line: str) -> List[Tuple[int, int]]:
     return seps
 
 
+def _segment_at(line: str, pos: int, seps: List[Tuple[int, int]]) -> Tuple[int, int]:
+    """(đầu, cuối) của pipeline chứa `pos`, tách theo dấu nối ngoài nháy/escape (`seps` từ `_unquoted_seps`)."""
+    start = max((e for s, e in seps if e <= pos), default=0)
+    end = min((s for s, e in seps if s >= pos), default=len(line))
+    return start, end
+
+
 def _commit_window(line: str, pos: int, seps: List[Tuple[int, int]]) -> str:
     """Pipeline chứa heredoc ở `pos` (tách theo dấu nối ngoài nháy), cắt còn ≤ COMMIT_LINE_MAX mỗi phía QUANH heredoc —
     lệnh commit thường ngay trước heredoc, nên tiền tố dài (`X=…4 KiB… git commit -F - <<E`) không đẩy nó ra ngoài."""
-    start = max((e for s, e in seps if e <= pos), default=0)
-    end = min((s for s, e in seps if s >= pos), default=len(line))
+    start, end = _segment_at(line, pos, seps)
     return line[max(start, pos - COMMIT_LINE_MAX) : min(end, pos + COMMIT_LINE_MAX)]
 
 
@@ -2548,19 +2662,9 @@ def _heredoc_bodies(cmd: str) -> List[str]:
     """Thân heredoc thuộc pipeline có `git commit` (`git commit -F - <<E`, `-m "$(cat <<E`, `cat <<E | git commit -F -`);
     heredoc của lệnh khác trong cùng chuỗi (`python3 - <<E …; git commit`) là dữ liệu của lệnh đó, không quét."""
     out: List[str] = []
-    lines, i = cmd.replace("\\\n", "").split("\n"), 0  # nối dòng `\` như shell (`git commit \` ↵ `-F - <<E`)
-    while i < len(lines):
-        opener = lines[i]
-        seps = _unquoted_seps(opener) if "<<" in opener else []  # một lần mỗi dòng, không mỗi heredoc
-        for m in HEREDOC_RE.finditer(opener):
-            body: List[str] = []
-            i += 1
-            while i < len(lines) and lines[i].strip() != m.group(2):
-                body.append(lines[i])
-                i += 1
-            if GIT_COMMIT_TEXT_RE.search(_commit_window(opener, m.start(), seps)):
-                out.append("\n".join(body))
-        i += 1
+    for opener, m, body in _heredocs(join_continuations(cmd)):  # nối dòng `\` như shell (`git commit \` ↵ `-F - <<E`)
+        if GIT_COMMIT_TEXT_RE.search(_commit_window(opener, m.start(), _unquoted_seps(opener))):
+            out.append("\n".join(body))
     return out
 
 
@@ -2685,9 +2789,22 @@ def _shell_script_arg(n: List[str]) -> Tuple[bool, Optional[str]]:
     return has_c, None if has_s and not has_c else script
 
 
+def _find_exec_argvs(n: List[str]) -> List[List[str]]:
+    """Lệnh con của `find … -exec|-execdir|-ok|-okdir <lệnh> … ;|+` — nó thừa hưởng stdin của find."""
+    out: List[List[str]] = []
+    for i, a in enumerate(n):
+        if a in ("-exec", "-execdir", "-ok", "-okdir"):
+            sub = list(itertools.takewhile(lambda x: x not in (";", "\\;", "+"), n[i + 1 :]))
+            out.append(sub)
+    return out
+
+
 def _stdin_shell(argv: List[str]) -> bool:
-    """Shell đọc script từ stdin: tên shell, không `-c`, không file script (bỏ chuyển hướng `<<E`, `< f` cùng đích)."""
+    """Shell đọc script từ stdin: tên shell, không `-c`, không file script (bỏ chuyển hướng `<<E`, `< f` cùng đích);
+    cả shell chạy qua `find -exec` (thừa hưởng stdin của find: `find . -exec bash \\; <<E`)."""
     n = normalize(argv)
+    if n and n[0] == "find":
+        return any(_stdin_shell(sub) for sub in _find_exec_argvs(n))
     if not n or n[0] not in SHELLS:
         return False
     rest = [a for i, a in enumerate(n) if not _is_redirect(a) and not (i > 0 and _is_redirect(n[i - 1]))]
@@ -2708,32 +2825,15 @@ def _shell_c_script(argv: List[str]) -> Optional[str]:
 def _heredoc_scripts(cmd: str, pred: Callable[[List[str]], bool] = _stdin_shell) -> List[str]:
     """Thân heredoc đưa vào shell (`bash <<'E'` … `E`; `pred` chọn lệnh nhận) — là lệnh, không phải dữ liệu."""
     out: List[str] = []
-    lines = cmd.replace("\\\n", "").split("\n")
-    i = 0
-    while i < len(lines):
-        opener, i = lines[i], i + 1
-        for m in HEREDOC_RE.finditer(opener):
-            body: List[str] = []
-            while i < len(lines) and lines[i].strip() != m.group(2):
-                body.append(lines[i])
-                i += 1
-            i += 1
-            if any(pred(c) for c in split_commands(tokenize(_pipeline_at(opener, m.start())))):
-                out.append("\n".join(body))
+    for opener, m, body in _heredocs(join_continuations(cmd)):
+        start, end = _segment_at(opener, m.start(), _unquoted_seps(opener))
+        if any(pred(c) for c in split_commands(tokenize(opener[start:end]))):
+            out.append("\n".join(body))
     return out
 
 
 # Ranh giới giữa các pipeline trên một dòng: `;`, `&&`, `||`, `&` đứng riêng (không phải `&>`, `>&`, `|&`).
 LIST_SEP_RE = re.compile(r";|&&|\|\||(?<![>|&])&(?![>&])")
-
-
-def _pipeline_at(line: str, pos: int) -> str:
-    """Pipeline chứa vị trí `pos` của dòng: heredoc chỉ đi vào lệnh của pipeline đó (`cat <<E | bash` → bash chạy thân),
-    không vào lệnh khác trên cùng dòng (`python3 a.py; git commit -F - <<E` — thân là dữ liệu của commit)."""
-    seps = [(s.start(), s.end()) for s in LIST_SEP_RE.finditer(line)]
-    start = max((e for s, e in seps if e <= pos), default=0)
-    end = min((s for s, e in seps if s >= pos), default=len(line))
-    return line[start:end]
 
 
 def _echoed_scripts(src: List[str]) -> List[str]:
@@ -2804,7 +2904,7 @@ def _dollar_scripts(cmd: str) -> List[str]:
 def _expanded_heredocs(cmd: str) -> List[str]:
     """Thân heredoc có dấu kết KHÔNG nháy (`<<A`): bash thay `$(…)`/backtick trong thân trước khi đưa vào lệnh."""
     out: List[str] = []
-    lines = cmd.replace("\\\n", "").split("\n")
+    lines = join_continuations(cmd).split("\n")
     i = 0
     while i < len(lines):
         opener, i = lines[i], i + 1
@@ -3013,6 +3113,8 @@ def interp_write_asks(cmd: str, tokens: List[str], root: str) -> List[str]:
                 asks.append(FENCE_WHY.format(f"{lit} — script trình thông dịch"))
             elif direct and kind == "secret":  # AUD-SEC-049: dấu chặn như chuyển hướng, không chỉ hỏi
                 asks.append(f"ghi file bí mật qua Bash (script trình thông dịch): {lit}")
+            elif direct and kind == "evidence":  # ADR-0026: như ghi tay qua chuyển hướng
+                asks.append(f"ghi/xoá tay bằng chứng autopilot qua script trình thông dịch: {lit}")
             elif kind in GUARDED_KINDS:
                 asks.append(f"script trình thông dịch ghi/xoá {lit} ({kind}) — dùng đúng công cụ hoặc người duyệt")
     return asks
@@ -3158,6 +3260,7 @@ DANGER_MARKERS = (
     "tắt hook của khung",
     "bỏ qua hook của dự án",
     "ghi file bí mật qua Bash",
+    "tay bằng chứng",  # ghi/xoá tay `.autopilot/` = bằng chứng giả (ADR-0026)
 )
 
 
