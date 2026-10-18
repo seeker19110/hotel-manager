@@ -124,9 +124,9 @@ describe("XC-I18N-001 — chuỗi viết thẳng chỉ được giảm (ratchet)
     // Job gate checkout đủ lịch sử (fetch-depth: 0) và đặt I18N_REQUIRE_BASE=1: thiếu ref ở đó = rào bị vô hiệu → đỏ, không bỏ qua. Job khác (checkout nông) và máy dev: bỏ qua.
     if (ref.status !== 0) {
       expect(
-        process.env.CI,
-        "CI phải có origin/main để so baseline (checkout fetch-depth: 0)",
-      ).toBeUndefined();
+        process.env.I18N_REQUIRE_BASE,
+        "job gate (I18N_REQUIRE_BASE=1) phải có origin/main để so baseline (checkout fetch-depth: 0)",
+      ).not.toBe("1");
       return;
     }
     const main = spawnSync("git", ["show", "origin/main:scripts/i18n-literal-baseline.json"], {
@@ -138,6 +138,13 @@ describe("XC-I18N-001 — chuỗi viết thẳng chỉ được giảm (ratchet)
     const now = JSON.parse(readFileSync(BASELINE, "utf8"));
     const raised = Object.entries(now).filter(([f, n]) => n > (before[f] ?? 0));
     expect(raised).toEqual([]);
+  });
+
+  it("job gate có lịch sử và bật so baseline (fetch-depth: 0 + I18N_REQUIRE_BASE)", () => {
+    const ci = readFileSync(join(ROOT, ".github/workflows/ci.yml"), "utf8");
+    const gate = ci.split(/^ {2}gate:\n/m)[1].split(/^ {2}[a-z-]+:\n/m)[0];
+    expect(gate).toMatch(/I18N_REQUIRE_BASE: "1"/);
+    expect(gate).toMatch(/fetch-depth: 0/);
   });
 
   it("tệp đã chuyển (lib/roles.ts) không còn chuỗi viết thẳng", () => {
