@@ -24,7 +24,7 @@ Lệnh:
   loop stop [--reason TEXT]     Tắt vòng lặp.
   loop stats [--json] [--all]   Số đo vòng từ .autopilot/runs.jsonl: lần chạy/task, xanh lần đầu, task cần ≥ 3 lần.
   pr next [--pr N] [--json]     Merge theo làn: MỘT bước kế cho PR đã mở (bật/tắt auto-merge, rà, merge ghim head…).
-  pr reviewed --pr N --head SHA (--clean|--blocking)
+  pr reviewed --pr N --head SHA (--clean|--blocking) --reviewer-model M --author-model M
                                 Ghi kết quả review ở commit đã rà vào .autopilot/reviews.json (ADR-0025).
   loop hook-stop                Dùng cho Stop hook của Claude Code: đọc JSON stdin, quyết định cho dừng hay chạy tiếp.
   progress-check [FILE]         PROGRESS.md: ≤ 8 KB, đúng 4 mục, SHA ở Bàn giao phiên là tổ tiên HEAD và có trên nhánh chính.
@@ -4837,7 +4837,8 @@ def _pr_next_review(
         return act(
             "review",
             f"làn chuẩn: rà {since} (merge nhánh đích: `git show --remerge-diff`), rồi `xt.py pr reviewed`",
-            f"giao reviewer (model khác) rà {since}; xong: xt.py pr reviewed --pr {n} --head {head} --clean|--blocking",
+            f"giao reviewer (model khác) rà {since}; xong: xt.py pr reviewed --pr {n} --head {head} --clean|--blocking"
+            " --reviewer-model <M> --author-model <M>",
         )
     if not last.get("clean"):
         if auto_merge:
@@ -4890,28 +4891,63 @@ def _pr_next_final(d: Dict[str, Any], auto_merge: bool, strict: bool, act: PrAct
     )
 
 
+MODEL_FAMILY_RE = re.compile(r"opus|sonnet|haiku|fable|mythos|gpt|gemini|codex|grok|llama|qwen|deepseek|mistral", re.I)
+
+
+def model_family(name: str) -> str:
+    """Họ model để so "khác model": `claude-opus-5-5`/`Opus 5.5`/`opus` → `opus`; tên lạ → chữ thường bỏ số và dấu."""
+    m = MODEL_FAMILY_RE.search(name)
+    return m.group(0).lower() if m else re.sub(r"[^a-z]+", "", name.lower())
+
+
+def _review_models_error(args: argparse.Namespace) -> Optional[str]:
+    """Review sạch phải do model KHÁC người viết (LOOP-STOP-022): khai cả hai, cùng họ thì từ chối."""
+    if not args.clean:
+        return None
+    if not (args.reviewer_model and args.author_model):
+        return "--clean cần --reviewer-model và --author-model (LOOP-STOP-022: reviewer phải khác model người viết)"
+    if not model_family(args.reviewer_model) or not model_family(args.author_model):
+        return "không nhận diện được tên model (cần chữ, vd sonnet, claude-opus-5-5)"
+    if model_family(args.reviewer_model) == model_family(args.author_model):
+        return (
+            f"reviewer ({args.reviewer_model}) cùng họ model với người viết ({args.author_model}) — "
+            "giao reviewer model khác rồi ghi lại (LOOP-STOP-022)"
+        )
+    return None
+
+
+def _pr_reviewed(args: argparse.Namespace, base: Path) -> int:
+    if not FULL_SHA_RE.fullmatch(args.head):
+        print(
+            "✗ --head phải là SHA đủ 40 ký tự (git rev-parse <commit>) — review gắn với đúng commit đã rà",
+            file=sys.stderr,
+        )
+        return 2
+    err = _review_models_error(args)
+    if err:
+        print(f"✗ {err}", file=sys.stderr)
+        return 2
+    data = read_reviews(base)
+    num = PR_REF_RE.fullmatch(str(args.pr).strip())  # 7 · #7 · …/pull/7[/files][#…]: cùng khoá số PR với `pr next`
+    if num is None:
+        print(f"✗ --pr phải là số PR, #N hoặc URL …/pull/N — không phải {args.pr!r}", file=sys.stderr)
+        return 2
+    key = str(int(num[1] or num[2]))  # 08, chữ số Unicode → "8": cùng khoá `str(number)` của REST
+    rec = _pr_record(data, key)
+    reviews = [r for r in rec.get("reviews", []) if isinstance(r, dict)]
+    entry = {"head": args.head, "clean": args.clean, "at": now_iso()}
+    entry.update({k: v for k, v in (("reviewer_model", args.reviewer_model), ("author_model", args.author_model)) if v})
+    reviews.append(entry)
+    data[key] = {**rec, "reviews": reviews}
+    _write_reviews(base, data)
+    print(f"✓ PR #{key}: review {'sạch' if args.clean else 'còn lỗi chặn'} ở {args.head[:7]}")
+    return 0
+
+
 def cmd_pr(args: argparse.Namespace) -> int:
     base = project_dir()
     if args.pr_cmd == "reviewed":
-        if not FULL_SHA_RE.fullmatch(args.head):
-            print(
-                "✗ --head phải là SHA đủ 40 ký tự (git rev-parse <commit>) — review gắn với đúng commit đã rà",
-                file=sys.stderr,
-            )
-            return 2
-        data = read_reviews(base)
-        num = PR_REF_RE.fullmatch(str(args.pr).strip())  # 7 · #7 · …/pull/7[/files][#…]: cùng khoá số PR với `pr next`
-        if num is None:
-            print(f"✗ --pr phải là số PR, #N hoặc URL …/pull/N — không phải {args.pr!r}", file=sys.stderr)
-            return 2
-        key = str(int(num[1] or num[2]))  # 08, chữ số Unicode → "8": cùng khoá `str(number)` của REST
-        rec = _pr_record(data, key)
-        reviews = [r for r in rec.get("reviews", []) if isinstance(r, dict)]
-        reviews.append({"head": args.head, "clean": args.clean, "at": now_iso()})
-        data[key] = {**rec, "reviews": reviews}
-        _write_reviews(base, data)
-        print(f"✓ PR #{key}: review {'sạch' if args.clean else 'còn lỗi chặn'} ở {args.head[:7]}")
-        return 0
+        return _pr_reviewed(args, base)
     try:
         pr = load_pr(args)
     except PrInputError as exc:
@@ -5484,6 +5520,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--clean", dest="clean", action="store_true", help="không còn lỗi chặn; mục nên sửa đã sửa/trả lời"
     )
     pres.add_argument("--blocking", dest="clean", action="store_false", help="còn lỗi chặn")
+    prv.add_argument("--reviewer-model", help="model đã review (vd sonnet) — bắt buộc với --clean")
+    prv.add_argument("--author-model", help="model viết PR/phiên chính (vd opus) — bắt buộc với --clean")
     ppr.set_defaults(fn=cmd_pr)
     pq = sub.add_parser("merge-gate", help="required check: đỏ khi PR ngoại lệ cứng đang bật auto-merge (ADR-0023)")
     pq.add_argument("--pr", help="số/URL/nhánh của PR (mặc định PR của nhánh hiện tại)")
