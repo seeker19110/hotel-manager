@@ -1,6 +1,6 @@
 // Đăng nhập dùng chung cho E2E rào UX: mỗi tài khoản đăng nhập MỘT lần rồi dùng lại cookie (Better Auth giới hạn tần suất
 // `/two-factor/*` và gửi OTP theo IP). Gặp giới hạn (429) thì đợi rồi thử lại, không bỏ qua rào.
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { type Browser, type BrowserContext, expect, type Page } from "@playwright/test";
 import {
   HOTEL_HK,
@@ -13,8 +13,11 @@ import {
   PORTAL_TENANT,
   portOf,
   RENTAL_OWNER,
+  type SessionKind,
   SMOKE_USER,
+  sessionCacheFile,
 } from "./fixtures.ts";
+import { keepSavedSession } from "./session-verdict.ts";
 import { signInClick } from "./sign-in.ts";
 import { hotelTotpFile, totp, totpFile } from "./totp.ts";
 
@@ -109,4 +112,39 @@ export function loginTenant(browser: Browser, baseURL: string): Promise<Cookies>
     await page.getByRole("button", { name: new RegExp(`^${ORG_PORTAL.replace(/[()]/g, "\\$&")}`) }).click();
     await expect(page).toHaveURL(/\/portal$/);
   });
+}
+
+/** Phiên còn hiệu lực ở server hiện tại (file cũ của server đã chết/đổi CSDL ⇒ không dùng). */
+async function stillValid(browser: Browser, baseURL: string, cookies: Cookies): Promise<boolean> {
+  const ctx = await browser.newContext({ baseURL });
+  try {
+    await ctx.addCookies(cookies);
+    const res = await ctx.request.get("/api/auth/get-session");
+    return keepSavedSession(res.status(), res.ok() ? await res.json() : undefined);
+  } finally {
+    await ctx.close();
+  }
+}
+
+/**
+ * Đăng nhập MỘT lần cho cả vòng đời server (không phải vòng đời worker): Playwright dựng worker mới sau mỗi test đỏ, mỗi lần
+ * `--repeat-each` và mỗi nhóm serial — bộ nhớ trong tiến trình mất, đăng nhập lại mỗi lần sẽ vượt giới hạn gửi OTP (3/phút/IP) và
+ * `/two-factor/*`. Cookie lưu ở tệp tạm khoá theo cổng, kiểm còn hiệu lực rồi mới dùng; không còn hiệu lực thì đăng nhập lại.
+ */
+export async function cachedSession(kind: SessionKind, browser: Browser, baseURL: string): Promise<Cookies> {
+  const file = sessionCacheFile(portOf(baseURL), kind);
+  try {
+    const saved = JSON.parse(readFileSync(file, "utf8")) as Cookies;
+    if (saved.length > 0 && (await stillValid(browser, baseURL, saved))) return saved;
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== "ENOENT" && !(e instanceof SyntaxError)) throw e;
+  }
+  const fresh =
+    kind === "tenant"
+      ? await loginTenant(browser, baseURL)
+      : kind === "staff-hotel"
+        ? await loginStaff(browser, baseURL, "hotel")
+        : await loginOwner(browser, baseURL, kind);
+  writeFileSync(file, JSON.stringify(fresh), { mode: 0o600 });
+  return fresh;
 }

@@ -30,8 +30,10 @@ import {
   outboxFile,
   RENTAL_OWNER,
   RENTAL_TENANT,
+  SESSION_KINDS,
   SMOKE_USER,
   STAFF_TARGET,
+  sessionCacheFile,
   unsubFile,
 } from "./fixtures.ts";
 import { seedHotelOrg, signUpWithTotp } from "./hotel-seed.ts";
@@ -310,6 +312,7 @@ async function stop(code: number): Promise<void> {
   rmSync(outbox, { force: true });
   rmSync(unsubFile(PORT), { force: true });
   rmSync(inviteTokensFile(PORT), { force: true });
+  for (const kind of SESSION_KINDS) rmSync(sessionCacheFile(PORT, kind), { force: true });
   fakeS3.server.close();
   fakeClamd.server.close();
   await new Promise((r) => setTimeout(r, 500));

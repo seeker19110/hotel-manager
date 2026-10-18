@@ -13,8 +13,8 @@ import { type BrowserContext, expect, type Locator, type Page, test } from "@pla
 import { accessibilityProblems } from "./a11y.ts";
 import { confirmAction } from "./confirm.ts";
 import { GUEST_STAY_ID, GUEST_TOKEN, HOTEL_HK, ORG_HOTEL } from "./fixtures.ts";
-import { type Cookies, loginOwner, loginTenant } from "./sessions.ts";
-import { signInClick } from "./sign-in.ts";
+import { hydrated } from "./hydration.ts";
+import { type Cookies, cachedSession } from "./sessions.ts";
 
 // `page.route` không chặn được request do service worker đã nắm (production bật SW): chặn SW để mock luôn có tác dụng.
 test.use({ serviceWorkers: "block" });
@@ -24,18 +24,9 @@ test.use({ serviceWorkers: "block" });
 
 let hkCookies: Cookies = [];
 
+// Phiên dùng lại giữa các worker (sessions.ts `cachedSession`): worker mới không được đăng nhập lại — gửi OTP bị giới hạn 3 lần/phút.
 test.beforeAll(async ({ browser }, info) => {
-  const ctx = await browser.newContext({ baseURL: info.project.use.baseURL as string });
-  const page = await ctx.newPage();
-  await page.goto("/dang-nhap");
-  await page.getByLabel("Email").fill(HOTEL_HK.email);
-  await page.getByLabel("Mật khẩu").fill(HOTEL_HK.password);
-  await signInClick(page);
-  await expect(page).toHaveURL(/\/chon-to-chuc$/);
-  await page.getByRole("button", { name: ORG_HOTEL }).click();
-  await expect(page).toHaveURL(/\/phong$/);
-  hkCookies = await ctx.cookies();
-  await ctx.close();
+  hkCookies = await cachedSession("staff-hotel", browser, info.project.use.baseURL as string);
 });
 
 /** Phần tử tràn ra ngoài mép phải khung nhìn — rỗng khi không cuộn ngang; dùng để báo đúng thủ phạm khi đỏ. */
@@ -188,18 +179,15 @@ test("lỗi 5xx: chỉ câu chung + mã tra cứu, không lộ chi tiết nội 
 // ───────────────────────────── helpers ─────────────────────────────
 
 type Who = "public" | "hotel" | "rental" | "tenant";
-const sessions: Partial<Record<Exclude<Who, "public">, Cookies>> = {};
 async function asSession(
   who: Who,
-  browser: Parameters<typeof loginTenant>[0],
+  browser: Parameters<typeof cachedSession>[1],
   baseURL: string,
   context: BrowserContext,
 ) {
   await context.clearCookies();
   if (who === "public") return;
-  sessions[who] ??=
-    who === "tenant" ? await loginTenant(browser, baseURL) : await loginOwner(browser, baseURL, who);
-  await context.addCookies(sessions[who] as Cookies);
+  await context.addCookies(await cachedSession(who, browser, baseURL));
 }
 
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
@@ -438,6 +426,7 @@ test("hộp xác nhận: đóng rồi mở lại ngay (sự kiện close của l
   await page.getByTestId("invoice").getByRole("link").first().click();
   await page.getByRole("link", { name: "Thanh toán" }).click();
   await expect(page).toHaveURL(/\/portal\/thanh-toan\//);
+  await hydrated(page.getByTestId("claim-form"));
   await page.getByRole("button", { name: "Tôi đã chuyển" }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
@@ -471,6 +460,7 @@ test("bàn phím (portal + hộp xác nhận): danh sách phiếu → thanh toá
   await expect(page).toHaveURL(/\/portal\/thanh-toan\//);
 
   const submit = page.getByRole("button", { name: "Tôi đã chuyển" });
+  await hydrated(page.getByTestId("claim-form"));
   await tabTo(page, page.getByLabel("Số tiền đã chuyển (đồng)"));
   await page.keyboard.press("Tab");
   await expect(submit).toBeFocused();
@@ -520,6 +510,7 @@ test("hộp xác nhận: nút ghi đúng hành động + đối tượng (không
   const id = await firstOf(page, "/portal", "/portal/phieu/");
   await page.goto(`/portal/thanh-toan/${id}`);
   await page.getByLabel("Số tiền đã chuyển (đồng)").fill("930.000");
+  await hydrated(page.getByTestId("claim-form"));
   await page.getByRole("button", { name: "Tôi đã chuyển" }).click();
   const dialog = page.getByRole("dialog");
   // Số tiền người dùng vừa nhập hiện trong nút xác nhận.

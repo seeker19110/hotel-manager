@@ -44,6 +44,15 @@ export const GUEST_TOKEN_EXPIRED = ["e2e", "khach", "het", "han"].join("-").padE
 export const GUEST_TOKEN_REVOKED = ["e2e", "khach", "thu", "hoi"].join("-").padEnd(43, "z");
 /** Tên file hộp thư giả (SMTP_URL fake://file) — nơi server ghi mã OTP cho test đọc. */
 export const outboxFile = (port: number) => join(tmpdir(), `hm-e2e-${port}-outbox.jsonl`);
+/**
+ * Phiên đăng nhập dùng lại giữa các lần Playwright khởi động lại worker (`sessions.ts` `cachedSession`): worker mới (sau test
+ * đỏ, `--repeat-each`, nhóm serial) mất bộ nhớ trong tiến trình, mà gửi OTP chỉ 3 lần/phút theo IP — đăng nhập lại mỗi lần là 429.
+ * Server xoá các file này khi tắt (cùng vòng đời với CSDL chứa phiên).
+ */
+export const SESSION_KINDS = ["tenant", "rental", "hotel", "staff-hotel"] as const;
+export type SessionKind = (typeof SESSION_KINDS)[number];
+export const sessionCacheFile = (port: number, kind: SessionKind) =>
+  join(tmpdir(), `hm-e2e-${port}-session-${kind}.json`);
 /** Nơi seed ghi liên kết huỷ đăng ký ký số (cần khoá của server) cho test đọc. */
 export const unsubFile = (port: number) => join(tmpdir(), `hm-e2e-${port}-unsub.txt`);
 
