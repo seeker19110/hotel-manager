@@ -27,6 +27,12 @@ Lệnh:
   pr reviewed --pr N --head SHA (--clean|--blocking) --reviewer-model M --author-model M
                                 Ghi kết quả review ở commit đã rà vào .autopilot/reviews.json (ADR-0025).
   loop hook-stop                Dùng cho Stop hook của Claude Code: đọc JSON stdin, quyết định cho dừng hay chạy tiếp.
+  contrast FILE.css... [--pairs F] [--require-on a,b] [--json]
+                                Tương phản WCAG của cặp token (`--X`/`--X-foreground`, `--on-X`, cặp tường minh) ở mọi
+                                theme; thiếu token chữ cho `--primary` cũng đỏ (UX-DS-003/020).
+  vendor-check [--dirs a,b] [--allow X] [--strict] [--json]
+                                Thư mục vendor có LICENSE/NOTICE/SOURCE, không điều khoản hạn chế; dò Preline/Commons
+                                Clause/CC BY-NC… trong package.json + ghi nguồn (CMP-LIC-022).
   progress-check [FILE]         PROGRESS.md: ≤ 8 KB, đúng 4 mục, SHA ở Bàn giao phiên là tổ tiên HEAD và có trên nhánh chính.
   ci-check [DIR]                Fitness function cho workflow CI (permissions, ghim SHA, timeout, continue-on-error, secret trên PR).
   audit plan [--blueprint F] [--status F] [--json]
@@ -4399,6 +4405,388 @@ def cmd_ci_check(args: argparse.Namespace) -> int:
     return 1 if bad else 0
 
 
+# --------------------------------------------------------------------------- contrast (UX-DS-003, UX-DS-020)
+
+CSS_COMMENT_RE = re.compile(r"/\*.*?\*/", re.S)
+CSS_DECL_RE = re.compile(r"(--[\w-]+)\s*:\s*([^;{}]+)")
+# Một selector gốc: không có tổ hợp con cháu (`.dark .card` là khối của component), chỉ `:root`/`html`/`body`/`*`/`:host`
+# và/hoặc lớp/thuộc tính chọn theme (`.dark`, `.light`, `.theme-x`, `[data-theme=…]`); `:not(…)` bị bỏ khi phân loại.
+CSS_ROOT_PART_RE = re.compile(r"(?:(?::root|html|body|\*|:host))?(?:\.[\w-]+|\[[^\]]*\]|:[\w-]+(?:\([^)]*\))?)*")
+CSS_ROOT_HEAD_RE = re.compile(r"(?::root|html|body|\*|:host)")
+CSS_THEME_HINT_RE = re.compile(r"\.(?:dark|light)(?![\w-])|\.theme-[\w-]+|\[data-(?:theme|mode|color-scheme)")
+CSS_DARK_RE = re.compile(
+    r"\.(?:dark|theme-dark)(?![\w-])|\[data-(?:theme|mode|color-scheme)\s*[~|^$*]?=\s*[\"']?dark", re.I
+)
+CSS_SKIP_CTX_RE = re.compile(r"prefers-contrast|forced-colors|print|prefers-reduced")
+# Token chữ đi kèm token nền `--X`: `--X-foreground`, `--X-fg`, `--on-X`, `--text-on-X` (shadcn, Material, Radix…).
+ON_TOKEN_PATTERNS = (r"--(.+)-foreground", r"--(.+)-fg", r"--on-(.+)", r"--text-on-(.+)")
+BARE_HSL_RE = re.compile(r"[\d.]+(?:deg)?\s+[\d.]+%\s+[\d.]+%")
+CONTRAST_TEXT_MIN = 4.5
+CONTRAST_UI_MIN = 3.0
+CONTRAST_REQUIRE_ON = "primary,destructive"
+RGB = Tuple[float, float, float, float]  # r, g, b, alpha — đều 0..1
+
+
+def _css_blocks(text: str, ctx: str = "") -> List[Tuple[str, str, str]]:
+    """(ngữ cảnh at-rule, selector, thân) của mọi khối quy tắc; vào trong `@media`/`@layer`/`@supports`; thân `@theme` /
+    `@theme inline` của Tailwind v4 là khai báo token gốc (selector `:root`)."""
+    out: List[Tuple[str, str, str]] = []
+    pos = 0
+    while True:
+        i = text.find("{", pos)
+        if i < 0:
+            return out
+        depth, j = 1, i + 1
+        while j < len(text) and depth:
+            depth += {"{": 1, "}": -1}.get(text[j], 0)
+            j += 1
+        prelude = text[pos:i].rsplit(";", 1)[-1].rsplit("}", 1)[-1].strip()
+        body = text[i + 1 : j - 1]
+        if prelude.split(" ")[0] == "@theme":
+            out.append((ctx, ":root", body))
+        elif prelude.startswith("@"):
+            out += _css_blocks(body, f"{ctx} {prelude}".strip())
+        else:
+            out.append((ctx, prelude, body))
+        pos = j
+
+
+def _theme_kind(selector: str) -> str:
+    """`dark` / `light` nếu selector là khối gốc của theme đó, rỗng nếu là khối của component (`.btn`, `.dark .card`)."""
+    kinds: Set[str] = set()
+    for part in (p.strip() for p in selector.split(",")):
+        plain = re.sub(r":not\([^)]*\)", "", part)
+        if not plain or re.search(r"[\s>+~]", part) or not CSS_ROOT_PART_RE.fullmatch(plain):
+            continue
+        if CSS_ROOT_HEAD_RE.match(plain) or CSS_THEME_HINT_RE.search(plain):
+            kinds.add("dark" if CSS_DARK_RE.search(plain) else "light")
+    return "dark" if "dark" in kinds else ("light" if kinds else "")
+
+
+def css_themes(text: str) -> Dict[str, Dict[str, str]]:
+    """Token màu theo theme: `light` = mọi khối gốc (`:root`, `html`, `[data-theme=light]`, `@theme`…) gộp theo thứ tự;
+    `dark` = light phủ các khối tối (`.dark`, `[data-theme=dark]`, `@media (prefers-color-scheme: dark)`) — chỉ khi có
+    khối tối."""
+    light: Dict[str, str] = {}
+    dark: Dict[str, str] = {}
+    for ctx, sel, body in _css_blocks(CSS_COMMENT_RE.sub("", text)):
+        kind = _theme_kind(sel)
+        if CSS_SKIP_CTX_RE.search(ctx) or not kind:
+            continue
+        target = dark if kind == "dark" or re.search(r"prefers-color-scheme:\s*dark", ctx) else light
+        for name, value in CSS_DECL_RE.findall(body):
+            target[name] = value.replace("!important", "").strip()
+    return {"light": light, **({"dark": {**light, **dark}} if dark else {})}
+
+
+def _css_vars(value: str, env: Dict[str, str], depth: int = 0) -> str:
+    """Thay `var(--x[, dự phòng])` bằng giá trị trong `env` (đệ quy, tối đa 8 tầng); không thấy → dự phòng hoặc giữ nguyên."""
+    pat = re.compile(r"var\(\s*(--[\w-]+)\s*(?:,\s*((?:[^()]|\([^()]*\))*))?\)")
+
+    def sub(m: "re.Match[str]") -> str:
+        got = env.get(m.group(1), m.group(2))
+        return _css_vars(got, env, depth + 1) if got is not None and depth < 8 else m.group(0)
+
+    return pat.sub(sub, value)
+
+
+def _oklch_to_rgb(lightness: float, chroma: float, hue: float) -> Tuple[float, float, float]:
+    a = chroma * math.cos(math.radians(hue))
+    b = chroma * math.sin(math.radians(hue))
+    l_ = (lightness + 0.3963377774 * a + 0.2158037573 * b) ** 3
+    m_ = (lightness - 0.1055613458 * a - 0.0638541728 * b) ** 3
+    s_ = (lightness - 0.0894841775 * a - 1.2914855480 * b) ** 3
+    lin = (
+        4.0767416621 * l_ - 3.3077115913 * m_ + 0.2309699292 * s_,
+        -1.2684380046 * l_ + 2.6097574011 * m_ - 0.3413193965 * s_,
+        -0.0041960863 * l_ - 0.7034186147 * m_ + 1.7076147010 * s_,
+    )
+    enc = [
+        12.92 * c if c <= 0.0031308 else 1.055 * c ** (1 / 2.4) - 0.055 for c in (max(0.0, min(1.0, x)) for x in lin)
+    ]
+    return enc[0], enc[1], enc[2]
+
+
+def _hsl_to_rgb(h: float, s: float, light: float) -> Tuple[float, float, float]:
+    def ch(n: float) -> float:
+        k = (n + h / 30) % 12
+        return light - s * min(light, 1 - light) * max(-1.0, min(k - 3, 9 - k, 1.0))
+
+    return ch(0), ch(8), ch(4)
+
+
+def _css_num(tok: str, scale: float = 1.0) -> float:
+    """Số CSS: `50%` → 0.5·scale, `0.5` → 0.5 (scale chỉ áp cho phần trăm)."""
+    return float(tok[:-1]) / 100 * scale if tok.endswith("%") else float(tok.removesuffix("deg"))
+
+
+def _color_args(value: str) -> Tuple[str, List[str]]:
+    m = re.fullmatch(r"([a-z]+)\(([^()]*)\)", value.strip().lower())
+    if not m:
+        return "", []
+    return m.group(1), [t for t in re.split(r"[\s,/]+", m.group(2).strip()) if t]
+
+
+def _hex_color(value: str) -> Optional[RGB]:
+    h = value.lstrip("#")
+    if not re.fullmatch(r"[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8}", h):
+        return None
+    if len(h) <= 4:
+        h = "".join(c * 2 for c in h)
+    v = [int(h[i : i + 2], 16) / 255 for i in range(0, len(h), 2)]
+    return v[0], v[1], v[2], v[3] if len(v) == 4 else 1.0
+
+
+def _func_color(value: str) -> Optional[RGB]:
+    fn, a = _color_args(value)
+    alpha = _css_num(a[3]) if len(a) > 3 else 1.0
+    try:
+        if fn in ("rgb", "rgba") and len(a) >= 3:
+            r, g, b = (_css_num(t, 1.0) if t.endswith("%") else float(t) / 255 for t in a[:3])
+            return r, g, b, alpha
+        if fn in ("hsl", "hsla") and len(a) >= 3:
+            return (*_hsl_to_rgb(_css_num(a[0]), _css_num(a[1]), _css_num(a[2])), alpha)[:3] + (alpha,)
+        if fn == "oklch" and len(a) >= 3:
+            return (*_oklch_to_rgb(_css_num(a[0]), _css_num(a[1], 0.4), _css_num(a[2])), alpha)[:3] + (alpha,)
+    except ValueError:
+        return None
+    return None
+
+
+def parse_css_color(value: str, env: Dict[str, str]) -> Optional[RGB]:
+    """Màu CSS → (r, g, b, alpha) 0..1: `#hex`, `rgb()`, `hsl()` (kể cả bộ ba trần `0 0% 100%` của shadcn), `oklch()`,
+    `white`/`black`/`transparent`, `var()` đã thay. Dạng khác (`color-mix`, `lab`, `color()`) → None (bỏ qua)."""
+    v = _css_vars(value, env).strip()
+    if v.startswith("#"):
+        return _hex_color(v)
+    if BARE_HSL_RE.fullmatch(v):
+        return _func_color(f"hsl({v})")
+    named = {"white": (1.0, 1.0, 1.0, 1.0), "black": (0.0, 0.0, 0.0, 1.0), "transparent": (0.0, 0.0, 0.0, 0.0)}
+    return named.get(v.lower()) or _func_color(v)
+
+
+def relative_luminance(c: RGB) -> float:
+    def lin(x: float) -> float:
+        return x / 12.92 if x <= 0.04045 else ((x + 0.055) / 1.055) ** 2.4
+
+    return 0.2126 * lin(c[0]) + 0.7152 * lin(c[1]) + 0.0722 * lin(c[2])
+
+
+def contrast_ratio(fg: RGB, bg: RGB) -> float:
+    """Tỷ lệ tương phản WCAG 2.x; chữ trong suốt một phần được trộn lên nền (nền phải đặc)."""
+    a = fg[3]
+    mixed = (fg[0] * a + bg[0] * (1 - a), fg[1] * a + bg[1] * (1 - a), fg[2] * a + bg[2] * (1 - a), 1.0)
+    hi, lo = sorted((relative_luminance(mixed), relative_luminance(bg)), reverse=True)
+    return (hi + 0.05) / (lo + 0.05)
+
+
+def _on_base(name: str) -> Optional[str]:
+    """`--primary-foreground` → `--primary`; không phải tên token chữ đi kèm → None."""
+    for pat in ON_TOKEN_PATTERNS:
+        m = re.fullmatch(pat, name)
+        if m:
+            return f"--{m.group(1)}"
+    return None
+
+
+def read_contrast_pairs(text: str) -> List[Tuple[str, str, float]]:
+    """File cặp tường minh: mỗi dòng `FG on BG [min N]` (`#` mở comment); tên có hoặc không có `--`."""
+    out: List[Tuple[str, str, float]] = []
+    for raw in text.splitlines():
+        m = re.fullmatch(r"\s*(\S+)\s+on\s+(\S+)(?:\s+min\s+([\d.]+))?\s*", raw.split("#", 1)[0])
+        if m:
+            fg, bg = (n if n.startswith("--") else f"--{n}" for n in (m.group(1), m.group(2)))
+            out.append((fg, bg, float(m.group(3) or CONTRAST_TEXT_MIN)))
+    return out
+
+
+def auto_contrast_pairs(env: Dict[str, str]) -> List[Tuple[str, str, float]]:
+    """Cặp suy ra từ tên: `--X-foreground|--X-fg|--on-X|--text-on-X` trên `--X`; `--foreground` trên `--background`;
+    `--ring` (viền focus) trên `--background` ≥ 3:1."""
+    pairs = [(n, b, CONTRAST_TEXT_MIN) for n in sorted(env) for b in [_on_base(n)] if b and b in env]
+    for pre in ("--", "--color-"):  # shadcn (`--foreground`) và Tailwind v4 `@theme` (`--color-foreground`)
+        if f"{pre}foreground" in env and f"{pre}background" in env:
+            pairs.append((f"{pre}foreground", f"{pre}background", CONTRAST_TEXT_MIN))
+    if "--ring" in env and "--background" in env:
+        pairs.append(("--ring", "--background", CONTRAST_UI_MIN))
+    return pairs
+
+
+def missing_on_tokens(env: Dict[str, str], require: List[str], pairs: List[Tuple[str, str, float]]) -> List[str]:
+    """Token nền hành động (`--primary`, `--destructive`…) không có token chữ đi kèm và không có cặp tường minh nào
+    lấy nó làm nền — agent sẽ tự đặt chữ trắng (UX-DS-020)."""
+    covered = {b for n in env for b in [_on_base(n)] if b} | {p[1] for p in pairs}
+    return [f"--{r}" for r in require if f"--{r}" in env and f"--{r}" not in covered]
+
+
+def _contrast_theme(theme: str, env: Dict[str, str], pairs: List[Tuple[str, str, float]]) -> List[Dict[str, object]]:
+    rows: List[Dict[str, object]] = []
+    for fg, bg, floor in pairs:
+        if fg not in env or bg not in env:
+            continue
+        cf, cb = parse_css_color(env[fg], env), parse_css_color(env[bg], env)
+        row: Dict[str, object] = {"theme": theme, "fg": fg, "bg": bg, "min": floor}
+        if cf is None or cb is None or cb[3] < 1.0:
+            rows.append({**row, "status": "skip", "why": "màu không đọc được hoặc nền trong suốt"})
+            continue
+        ratio = contrast_ratio(cf, cb)
+        rows.append({**row, "status": "ok" if ratio >= floor else "fail", "ratio": math.floor(ratio * 100) / 100})
+    return rows
+
+
+def contrast_check(
+    css: str, pairs_text: str = "", require_on: str = CONTRAST_REQUIRE_ON
+) -> Tuple[List[Dict[str, object]], List[str]]:
+    """(kết quả từng cặp theo theme, token nền hành động thiếu token chữ). Cặp tường minh được cộng vào cặp tự suy."""
+    explicit = read_contrast_pairs(pairs_text)
+    themes = css_themes(css)
+    rows: List[Dict[str, object]] = []
+    for theme, env in themes.items():
+        auto = auto_contrast_pairs(env)
+        pairs = auto + [p for p in explicit if p[:2] not in [a[:2] for a in auto]]
+        rows += _contrast_theme(theme, env, pairs)
+    last = list(themes.values())[-1]
+    wanted = [r.strip() for r in require_on.split(",") if r.strip()]
+    return rows, missing_on_tokens(last, wanted, explicit)
+
+
+def cmd_contrast(args: argparse.Namespace) -> int:
+    css = "\n".join(Path(f).read_text(encoding="utf-8", errors="replace") for f in args.files)
+    pairs_text = Path(args.pairs).read_text(encoding="utf-8", errors="replace") if args.pairs else ""
+    rows, missing = contrast_check(css, pairs_text, args.require_on)
+    judged = [r for r in rows if r["status"] != "skip"]
+    bad = [r for r in rows if r["status"] == "fail"]
+    if args.json:
+        print(json.dumps({"pairs": rows, "missing_on": missing}, ensure_ascii=False, indent=2))
+    else:
+        for r in rows:
+            mark = {"ok": "✓", "fail": "✗", "skip": "–"}[str(r["status"])]
+            tail = f"{r['ratio']}:1 (cần ≥ {r['min']})" if "ratio" in r else str(r["why"])
+            print(f"{mark} [{r['theme']}] {r['fg']} trên {r['bg']}  {tail}")
+        for m in missing:
+            print(f"✗ {m}: không có token chữ đi kèm (--on-…/…-foreground) — agent sẽ tự đặt chữ trắng/đen (UX-DS-020)")
+    if not judged:
+        print(
+            "✗ Không có cặp nào để kiểm: khai cặp tường minh bằng --pairs hoặc đặt tên theo --X/--X-foreground.",
+            file=sys.stderr,
+        )
+        return 1
+    if not args.json:
+        print(f"{len(judged)} cặp đã kiểm, {len(bad)} đỏ, {len(missing)} thiếu token chữ.")
+    return 1 if bad or missing else 0
+
+
+# --------------------------------------------------------------------------- vendor-check (CMP-LIC-022)
+
+VENDOR_DIRS = ("vendor", "third_party", "third-party", "external")
+VENDOR_NOTICE_RE = re.compile(r"(LICEN[CS]E|COPYING|NOTICE|SOURCE|ORIGIN|README\.vendor)", re.I)
+VENDOR_RISKY_RE = re.compile(r"Commons Clause|Non-?Commercial|Fair Use License|\bBUSL\b|\bSSPL\b|Elastic License", re.I)
+NPM_ALIAS_RE = re.compile(r"npm:((?:@[^/@]+/)?[^@]+)")
+VENDOR_WATCHLIST = DEFAULT_FRAMEWORK / "16-compliance-privacy" / "ui-vendor-watchlist.json"
+VENDOR_READ_BYTES = 16384
+NPM_DEP_KEYS = ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies")
+
+
+def _vendor_notices(d: Path) -> List[Path]:
+    try:
+        return sorted(p for p in d.iterdir() if p.is_file() and VENDOR_NOTICE_RE.match(p.name))
+    except OSError:  # symlink treo, không đủ quyền: không có file ghi nguồn đọc được
+        return []
+
+
+def _read_head(p: Path) -> str:
+    with p.open("rb") as fh:
+        return fh.read(VENDOR_READ_BYTES).decode("utf-8", "replace")
+
+
+def vendor_dir_problems(base: Path, name: str) -> List[str]:
+    """Mỗi mục trong thư mục vendor phải có LICENSE/NOTICE/SOURCE (hoặc có file ở chính thư mục vendor cho file lẻ) và
+    văn bản license không mang điều khoản hạn chế (Commons Clause, phi thương mại, Fair Use, BUSL, SSPL…)."""
+    root = base / name
+    if not root.is_dir():
+        return []
+    shared = _vendor_notices(root)
+    out: List[str] = []
+    for child in sorted(root.iterdir()):
+        if child in shared:
+            continue
+        notices = _vendor_notices(child) if child.is_dir() else shared
+        if not notices:
+            out.append(f"{name}/{child.name}: không có LICENSE/NOTICE/SOURCE ghi nguồn và license của mã vendor")
+    for note in sorted({p for c in root.iterdir() if c.is_dir() for p in _vendor_notices(c)} | set(shared)):
+        hit = VENDOR_RISKY_RE.search(_read_head(note))
+        if hit:
+            out.append(
+                f"{note.relative_to(base)}: license có điều khoản hạn chế ('{hit.group(0)}') — rà trước khi dùng"
+            )
+    return out
+
+
+def _package_jsons(base: Path) -> List[Path]:
+    """`package.json` ở gốc và hai cấp dưới (apps/*, packages/*), bỏ `node_modules`/`.git`."""
+    found = [base / "package.json", *sorted(base.glob("*/package.json")), *sorted(base.glob("*/*/package.json"))]
+    return [p for p in found if p.is_file() and not {"node_modules", ".git"} & set(p.relative_to(base).parts)]
+
+
+def _npm_deps(files: List[Path]) -> Set[str]:
+    """Tên gói trong mọi nhóm phụ thuộc; bí danh `"x": "npm:preline@3"` tính theo gói thật."""
+    names: Set[str] = set()
+    for f in files:
+        try:
+            data = json.loads(f.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        for k in NPM_DEP_KEYS:
+            for n, v in (data.get(k) if isinstance(data.get(k), dict) else {}).items():
+                alias = NPM_ALIAS_RE.match(str(v))
+                names |= {n, alias.group(1)} if alias else {n}
+    return names
+
+
+def vendor_watch_hits(base: Path, entries: List[Dict[str, Any]], dirs: Tuple[str, ...]) -> List[Dict[str, Any]]:
+    """Mục trong danh sách theo dõi (`ui-vendor-watchlist.json`) xuất hiện trong `package.json` (tên gói, kể cả bí danh
+    `npm:`) hoặc trong văn bản ghi nguồn: `package.json`, NOTICE/LICENSE/SOURCE ở gốc và trong thư mục vendor — không đọc
+    mã vendor (chậm, và nhắc tên một thư viện trong mã không phải là dùng nó)."""
+    pkgs = _package_jsons(base)
+    deps = _npm_deps(pkgs)
+    texts = [*pkgs, *_vendor_notices(base)]
+    for d in dirs:
+        root = base / d
+        if root.is_dir():
+            texts += _vendor_notices(root) + [
+                n for c in sorted(root.iterdir()) if c.is_dir() for n in _vendor_notices(c)
+            ]
+    blob = "\n".join(_read_head(p) for p in texts)
+    hits = []
+    for e in entries:
+        pkg = next((n for n in deps for pat in e.get("npm", []) if fnmatch.fnmatchcase(n, pat)), "")
+        pat_text = next((t for t in e.get("text", []) if re.search(t, blob, re.I)), "")
+        if pkg or pat_text:
+            hits.append({**e, "found": pkg or pat_text})
+    return hits
+
+
+def cmd_vendor_check(args: argparse.Namespace) -> int:
+    base = project_dir()
+    asked = tuple(d.strip() for d in args.dirs.split(",") if d.strip()) if args.dirs else VENDOR_DIRS
+    outside = [d for d in asked if not (base / d).resolve().is_relative_to(base.resolve())]
+    dirs = tuple(d.rstrip("/") for d in asked if d not in outside)
+    allowed = {a.strip().lower() for a in (args.allow or "").split(",") if a.strip()}
+    watch = json.loads(VENDOR_WATCHLIST.read_text(encoding="utf-8")) if VENDOR_WATCHLIST.is_file() else {"entries": []}
+    problems = [p for d in dirs for p in vendor_dir_problems(base, d)]
+    hits = [h for h in vendor_watch_hits(base, watch["entries"], dirs) if h["name"].lower() not in allowed]
+    errors = [f"--dirs {d}: nằm ngoài dự án" for d in outside] + problems
+    errors += [f"{h['name']} ({h['license']}): {h['why']}" for h in hits if h["level"] == "deny"]
+    warns = [f"{h['name']} ({h['license']}): {h['why']}" for h in hits if h["level"] != "deny"]
+    if args.json:
+        print(
+            json.dumps({"errors": errors, "warnings": warns, "checked": watch.get("checked", "")}, ensure_ascii=False)
+        )
+    else:
+        print("\n".join([*(f"✗ {e}" for e in errors), *(f"⚠ {w}" for w in warns)]) or "✓ vendor UI: không vấn đề.")
+    return 1 if errors or (warns and args.strict) else 0
+
+
 def cmd_audit(args: argparse.Namespace) -> int:
     root = project_dir()
     if args.audit_cmd == "plan":
@@ -5621,6 +6009,20 @@ def build_parser() -> argparse.ArgumentParser:
     pci = sub.add_parser("ci-check")
     pci.add_argument("dir", nargs="?", help="thư mục workflow (mặc định .github/workflows, không có thì bỏ qua)")
     pci.set_defaults(fn=cmd_ci_check)
+    pct = sub.add_parser("contrast", help="tương phản WCAG của cặp token màu trong CSS, mọi theme (UX-DS-003/020)")
+    pct.add_argument("files", nargs="+", help="file CSS có custom properties (`:root`, `.dark`, `[data-theme=dark]`)")
+    pct.add_argument("--pairs", help="file cặp tường minh: mỗi dòng `FG on BG [min N]`")
+    pct.add_argument("--require-on", default=CONTRAST_REQUIRE_ON, help="token nền phải có token chữ đi kèm (phẩy)")
+    pct.add_argument("--json", action="store_true")
+    pct.set_defaults(fn=cmd_contrast)
+    pvc = sub.add_parser(
+        "vendor-check", help="mã UI vendor có ghi nguồn + license, không dính license hạn chế (CMP-LIC-022)"
+    )
+    pvc.add_argument("--dirs", help="thư mục vendor, phẩy (mặc định vendor,third_party,third-party,external)")
+    pvc.add_argument("--allow", help="tên mục trong danh sách theo dõi đã được chủ dự án duyệt (phẩy) — ghi lý do ở PR")
+    pvc.add_argument("--strict", action="store_true", help="cảnh báo cũng làm exit 1")
+    pvc.add_argument("--json", action="store_true")
+    pvc.set_defaults(fn=cmd_vendor_check)
     pau = sub.add_parser("audit")
     asub = pau.add_subparsers(dest="audit_cmd", required=True)
     aplan = asub.add_parser("plan")

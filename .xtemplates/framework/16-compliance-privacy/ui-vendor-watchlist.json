@@ -1,0 +1,63 @@
+{
+  "checked": "2026-10-18",
+  "note": "Danh sách theo dõi mã/template UI có license không thuần OSI. Dữ kiện đọc từ LICENSE của repo gốc ngày `checked`; license đổi theo thời gian — đối chiếu lại trước khi dựa vào (CMP-LIC-013). Thêm mục: đủ name, license, level (deny|warn), why, source; npm = mẫu tên gói (fnmatch), text = regex (nên là URL repo/trang, không phải từ trần) tìm trong package.json/NOTICE/LICENSE/SOURCE ở gốc và thư mục vendor.",
+  "entries": [
+    {
+      "name": "Preline",
+      "license": "MIT + Preline UI Fair Use License (song song)",
+      "level": "warn",
+      "why": "dòng đầu LICENSE ghi hai bộ điều khoản; bộ Fair Use không phải license OSI và (theo stored 2026-10-18) hạn chế làm sản phẩm cạnh tranh — đọc bản LICENSE đang dùng trước khi đưa vào sản phẩm thương mại",
+      "npm": [
+        "preline"
+      ],
+      "text": [
+        "htmlstreamofficial/preline",
+        "Preline UI Fair Use"
+      ],
+      "source": "https://raw.githubusercontent.com/htmlstreamofficial/preline/main/LICENSE"
+    },
+    {
+      "name": "magic-portfolio",
+      "license": "CC BY-NC 4.0",
+      "level": "deny",
+      "why": "template Once UI cấm dùng thương mại (phi thương mại, không OSI) dù thư viện core là MIT; không đưa vào sản phẩm thương mại",
+      "npm": [
+        "magic-portfolio"
+      ],
+      "text": [
+        "once-ui-system/magic-portfolio"
+      ],
+      "source": "https://raw.githubusercontent.com/once-ui-system/magic-portfolio/main/LICENSE"
+    },
+    {
+      "name": "React Bits",
+      "license": "MIT + Commons Clause",
+      "level": "warn",
+      "why": "Commons Clause cấm bán, cấp phép lại hoặc phân phối lại chính các component/công cụ; dùng trong sản phẩm thương mại vẫn được — không đóng gói lại thành thư viện/kit",
+      "npm": [
+        "react-bits",
+        "@react-bits/*"
+      ],
+      "text": [
+        "DavidHDev/react-bits",
+        "react-bits\\.dev"
+      ],
+      "source": "https://raw.githubusercontent.com/DavidHDev/react-bits/main/LICENSE.md"
+    },
+    {
+      "name": "Tailwind Plus",
+      "license": "thương mại (Tailwind UI)",
+      "level": "warn",
+      "why": "mã mua theo license thương mại: không đưa vào repo mở hay kit chia sẻ lại; giữ hoá đơn/ghi nguồn; trạng thái bán cho khách mới chưa xác minh từ trang chính thức (2026-10-18)",
+      "npm": [
+        "@tailwindplus/*",
+        "@tailwindui/*"
+      ],
+      "text": [
+        "tailwindcss\\.com/plus",
+        "tailwindui\\.com"
+      ],
+      "source": "https://tailwindcss.com/plus"
+    }
+  ]
+}

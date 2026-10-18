@@ -1,7 +1,7 @@
 ---
 title: Frontend
 kind: index
-updated: 2026-10-13
+updated: 2026-10-18
 ---
 
 # 07 — Frontend
@@ -20,8 +20,9 @@ updated: 2026-10-13
 | [`client-security.md`](client-security.md) | XSS sink + DOMPurify, strict CSP nonce/hash + `strict-dynamic`, Trusted Types, token không ở localStorage, `NEXT_PUBLIC_`/`VITE_` chỉ công khai, source map, SRI, clickjacking | Trước khi render HTML/Markdown/AI output; thiết lập CSP; review PR chạm env/token |
 | [`forms-and-validation.md`](forms-and-validation.md) | Một schema client+server (Zod/Valibot/Standard Schema), lỗi `aria-describedby` + focus, `autocomplete`, cho dán OTP, giữ dữ liệu, autosave, upload magic bytes/tiến độ/huỷ, IME tiếng Việt | Mỗi form mới; luồng đăng ký/thanh toán/upload |
 | [`frontend-testing.md`](frontend-testing.md) | Testing Library (`getByRole` trước), Vitest browser mode/Storybook test, visual regression trong container, Playwright desktop + mobile + axe, chính sách flaky, MSW dùng chung | G5 dựng bộ test; khi test flaky; trước khi thêm E2E |
+| [`starter-layouts.md`](starter-layouts.md) | Starter layout theo loại dự án (landing, SaaS dashboard, React Native, Flutter): nguồn MIT còn bảo trì, license không thuần OSI (Preline, CC BY-NC, Commons Clause), mẫu ngừng cập nhật, quy trình kéo starter qua cổng | G2–G4 chọn khởi đầu; G6 khi dựng khung giao diện |
 | [`build-and-tooling.md`](build-and-tooling.md) | Node 24 LTS ghim, lockfile, TypeScript 7 strict, Biome/ESLint+oxlint, knip/jscpd, env schema client/server, không `ignoreBuildErrors`, source map, browserslist, một job `quality` | G5 scaffold; nâng cấp tool chain; áp khung lên dự án có sẵn |
 
-**Prefix ID:** `FE-RENDER` · `FE-STATE` · `FE-PERF` · `FE-SEC` · `FE-FORM` · `FE-TEST` · `FE-BUILD`. Hồ sơ không có frontend
+**Prefix ID:** `FE-RENDER` · `FE-STATE` · `FE-PERF` · `FE-SEC` · `FE-FORM` · `FE-TEST` · `FE-START` · `FE-BUILD`. Hồ sơ không có frontend
 web (API, CLI, thư viện, data) không ghép mảng này; hồ sơ mobile/desktop native dùng các mục đánh dấu áp dụng cho shell/WebView
 và cổng tương đương trong hồ sơ.

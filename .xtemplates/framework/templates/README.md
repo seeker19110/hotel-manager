@@ -27,6 +27,7 @@ updated: 2026-10-18
 | [`GO-NO-GO.md`](GO-NO-GO.md) | `docs/GO-NO-GO-<v>.md` — BLOCKER/SHOULD/NICE, mỗi mục PASS/FAIL/N/A + bằng chứng file:dòng, "Evidence or FAIL", con người ký | G7 · cổng G7; `PM-HANDOVER-006` |
 | [`RELEASE-NOTES.md`](RELEASE-NOTES.md) | `docs/RELEASE-NOTES-<v>.md` — cho người dùng: cần làm gì, mới/thay đổi/sửa/bảo mật/ngừng hỗ trợ, lỗi đã biết | G7 · mỗi phát hành; `WF-REL-*` |
 | [`API-CONTRACT.md`](API-CONTRACT.md) | `docs/api/API-CONTRACT-<slug>.md` — endpoint, schema, lỗi RFC 9457, versioning (`Deprecation`/`Sunset`), phân trang, idempotency, ví dụ chạy được | G3–G4 · trước khi chia việc; `PM-SPEC-005`, `BE-API-*` |
+| [`ui-gates/`](ui-gates/README.md) | `scripts/verify-render.mjs` của dự án web — cổng đo bản render (axe, tràn ngang 320/280 px, tương phản theo trạng thái) | G6–G7 · `UX-A11Y-028/029` |
 | [`AGENTS.md`](AGENTS.md) | `AGENTS.md` của dự án đích — luật vận hành cho mọi AI agent (Claude Code, Codex, Gemini CLI, Cursor…); `install.py` copy-if-absent | G5 · dựng nền harness |
 | [`CLAUDE.md`](CLAUDE.md) | `CLAUDE.md` của dự án đích — chỉ import `AGENTS.md` + phần riêng cho Claude Code (hook, skill) | G5 · dựng nền harness |
 | [`PULL-REQUEST.md`](PULL-REQUEST.md) | `.github/pull_request_template.md` của dự án đích — mục tiêu + link, bằng chứng exit code, rủi ro/đường lùi, nhãn `risk:`, migration, phụ thuộc mới, hỗ trợ AI; `install.py --with-github` copy-if-absent | Mọi PR · `WF-GIT-014`, `WF-REVIEW-002` |
