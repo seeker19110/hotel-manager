@@ -8,6 +8,7 @@
     "node": ">=24.11.0 <25"
   },
   "scripts": {
+    "prepare": "test -f scripts/install-git-hooks.mjs && node scripts/install-git-hooks.mjs || true",
     "build": "pnpm --recursive --filter \"./apps/*\" run build",
     "typecheck": "pnpm -r run typecheck",
     "lint": "biome ci .",
