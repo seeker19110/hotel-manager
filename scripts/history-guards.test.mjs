@@ -1,7 +1,13 @@
 // DB-MIG-003 (migration đã có không được sửa) + ARC-ADR-004 (ADR accepted chỉ đổi dòng status/superseded) + git-history.
 // Hàm thuần kiểm bằng dữ liệu dựng sẵn; đường git kiểm bằng repo tạm (scripts/git-test-repo.mjs). CI chạy các script này ở job `pr-policy`.
 import { afterEach, describe, expect, it } from "vitest";
-import { checkAgainst as checkAdr, findAdrViolations, isAccepted, statusOf } from "./check-adr-immutable.mjs";
+import {
+  changedLines,
+  checkAgainst as checkAdr,
+  findAdrViolations,
+  isAccepted,
+  statusOf,
+} from "./check-adr-immutable.mjs";
 import {
   checkAgainst as checkMig,
   findMigrationViolations,
@@ -109,8 +115,48 @@ describe("findAdrViolations", () => {
       ),
     ).toEqual([]);
   });
-  it("accepted: thêm dòng liên kết 'superseded by' → đạt", () => {
-    expect(run(baseText, diffOf("+> Đã bị thay thế bởi [ADR-0010](0010-y.md)."))).toEqual([]);
+  it("accepted: thêm dòng liên kết 'Bị thay bởi ADR-…' / 'Superseded by ADR-…' hoặc khoá superseded-by → đạt", () => {
+    expect(run(baseText, diffOf("+Bị thay bởi ADR-0010 (0010-y.md)."))).toEqual([]);
+    expect(run(baseText, diffOf("+> Superseded by ADR-0010."))).toEqual([]);
+    const withKey = baseText.replace("---\n#", "superseded-by: ADR-0010\n---\n#");
+    expect(run(withKey, diffOf("+superseded-by: ADR-0010"))).toEqual([]);
+  });
+  it("accepted: dòng nội dung chỉ NHẮC 'thay thế'/'superseded' (chuỗi con) vẫn là sửa nội dung → đỏ", () => {
+    for (const line of [
+      "+Quyết định mới này thay thế toàn bộ phần hosting ở trên.",
+      "+Đã bị thay thế bởi [ADR-0010](0010-y.md).",
+      "-Không dùng API superseded của thư viện.",
+      "+Bị thay bởi quyết định miệng, không có ADR.",
+      "+Ghi chú: supersedes ADR-0001",
+    ]) {
+      const v = run(baseText, diffOf(line));
+      expect(v, line).toHaveLength(1);
+      expect(v[0]).toContain("sửa nội dung");
+    }
+  });
+  it("accepted: khoá status/superseded-by ngoài frontmatter (trong thân) là sửa nội dung → đỏ", () => {
+    const head = `${baseText}\nstatus: accepted — đã đổi ý trong thân\n`;
+    const diff =
+      "diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -6,0 +7,2 @@\n+\n+status: accepted — đã đổi ý trong thân\n";
+    expect(run(head, diff)[0]).toContain("sửa nội dung");
+    const inFront = "diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -3,0 +4 @@\n+superseded-by: ADR-0010\n";
+    expect(run(baseText.replace("---\n#", "superseded-by: ADR-0010\n---\n#"), inFront)).toEqual([]);
+  });
+  it("accepted: dòng nội dung bị xoá bắt đầu bằng '--' (diff hiện '---') không bị nhầm với header → đỏ", () => {
+    const diff =
+      "diff --git a/x b/x\nindex 1..2 100644\n--- a/x\n+++ b/x\n@@ -6 +5,0 @@\n--- Quyết định cốt lõi\n";
+    const v = run(baseText, diff);
+    expect(v).toHaveLength(1);
+    expect(v[0]).toContain("sửa nội dung");
+    const added = "diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -6,0 +7 @@\n+++ thêm dòng bắt đầu bằng ++\n";
+    expect(run(baseText, added)[0]).toContain("sửa nội dung");
+  });
+  it("header diff (trước hunk đầu tiên) không bị tính là dòng đổi", () => {
+    expect(changedLines("diff --git a/x b/x\n--- a/x\n+++ b/x\n")).toEqual([]);
+    expect(changedLines("--- a/x\n+++ b/x\n@@ -1 +1 @@\n-a\n+b\n\\ No newline at end of file\n")).toEqual([
+      { sign: "-", text: "a", line: 1 },
+      { sign: "+", text: "b", line: 1 },
+    ]);
   });
   it("accepted: sửa nội dung → đỏ", () => {
     const v = run(baseText.replace("quyết định", "khác"), diffOf("-Nội dung quyết định.", "+Nội dung khác."));

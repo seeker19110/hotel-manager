@@ -3,8 +3,13 @@
 import { argValue, changedEntries, git, isMain, refExists, showAt } from "./git-history.mjs";
 
 export const ADR_DIR = "docs/adr";
-/** Dòng được phép đổi ở ADR accepted: trạng thái, trạng thái triển khai, liên kết thay thế. */
-const ALLOWED_LINE = /^\s*(?:status|implementation-status)\s*:|superseded|supersedes|bị thay|thay thế/i;
+/**
+ * Dòng được phép đổi ở ADR accepted — khớp CẢ DÒNG, không khớp chuỗi con:
+ * - khoá frontmatter `status:` / `implementation-status:` / `superseded-by:` (chỉ trong khối `---` đầu file nếu ADR có frontmatter);
+ * - dòng liên kết bắt đầu bằng "Bị thay bởi ADR-…" / "Superseded by ADR-…" (cho phép tiền tố trích dẫn `> `).
+ */
+const ALLOWED_KEY = /^\s*(?:status|implementation-status|superseded-by)\s*:/i;
+const ALLOWED_LINK = /^\s*(?:>\s*)?(?:Bị thay bởi|Superseded by) ADR-/i;
 /** Trạng thái hợp lệ sau khi đã accepted (không lùi về proposed/draft). */
 const AFTER_ACCEPTED = /^(?:accepted|superseded|deprecated|rejected)\b/i;
 
@@ -18,12 +23,43 @@ export function statusOf(text) {
 
 export const isAccepted = (status) => status !== null && /^accepted\b/.test(status);
 
-/** Các dòng thêm/bớt trong diff `-U0` (bỏ header). */
+/** Dải dòng (1-based, gồm hai đầu, kể cả hai dòng `---`) của frontmatter trong `text`; không có frontmatter → null. */
+export function frontmatterRange(text) {
+  const lines = text.split("\n").map((l) => l.replace(/\r$/, ""));
+  if (lines[0] !== "---") return null;
+  const end = lines.indexOf("---", 1);
+  return end === -1 ? null : { lo: 1, hi: end + 1 };
+}
+
+/**
+ * Các dòng thêm/bớt trong diff `-U0`: [{ sign: "+"|"-", text, line }] (`line` = số dòng 1-based ở bên cũ/mới).
+ * Header (`diff --git`, `---`, `+++`, `index`…) nhận biết theo VỊ TRÍ — mọi thứ trước hunk `@@` đầu tiên —
+ * nên dòng nội dung bắt đầu bằng `--`/`++` (vd. xoá dòng `-- ghi chú`, diff hiện `--- ghi chú`) vẫn được tính.
+ */
 export function changedLines(diff) {
-  const lines = diff.split("\n");
-  return lines
-    .filter((l) => (l.startsWith("+") && !l.startsWith("+++")) || (l.startsWith("-") && !l.startsWith("---")))
-    .map((l) => l.slice(1));
+  const out = [];
+  let inHunk = false;
+  let oldNo = 0;
+  let newNo = 0;
+  for (const l of diff.split("\n")) {
+    const h = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(l);
+    if (h) {
+      inHunk = true;
+      oldNo = Number(h[1]);
+      newNo = Number(h[2]);
+    } else if (inHunk && l.startsWith("-")) out.push({ sign: "-", text: l.slice(1), line: oldNo++ });
+    else if (inHunk && l.startsWith("+")) out.push({ sign: "+", text: l.slice(1), line: newNo++ });
+  }
+  return out;
+}
+
+/** Dòng đổi có thuộc nhóm được phép (xem ALLOWED_KEY/ALLOWED_LINK) không. `ranges` = dải frontmatter của bản cũ/mới. */
+function isAllowedChange(c, ranges) {
+  if (c.text.trim() === "") return true;
+  if (ALLOWED_LINK.test(c.text)) return true;
+  if (!ALLOWED_KEY.test(c.text)) return false;
+  const range = c.sign === "-" ? ranges.base : ranges.head;
+  return range === null || (c.line >= range.lo && c.line <= range.hi);
 }
 
 /**
@@ -40,7 +76,10 @@ export function findAdrViolations({ path, baseText, headText, diff }) {
       `${path}: ADR đã accepted chỉ được chuyển sang accepted/superseded/deprecated/rejected (nay: ${next ?? "thiếu status"})`,
     );
   }
-  const bad = changedLines(diff).filter((l) => l.trim() !== "" && !ALLOWED_LINE.test(l));
+  const ranges = { base: frontmatterRange(baseText), head: frontmatterRange(headText) };
+  const bad = changedLines(diff)
+    .filter((c) => !isAllowedChange(c, ranges))
+    .map((c) => c.text);
   if (bad.length) {
     violations.push(
       `${path}: ADR đã accepted bị sửa nội dung (${bad.length} dòng, vd ${JSON.stringify(bad[0].slice(0, 60))}) — chỉ được đổi dòng status/superseded; quyết định mới = ADR mới`,
