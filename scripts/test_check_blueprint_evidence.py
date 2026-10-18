@@ -66,5 +66,15 @@ class EvidenceTest(unittest.TestCase):
         self.assertEqual(mod.main(["x", str(bp)]), 1)
 
 
+class RepoBlueprintTest(unittest.TestCase):
+    """BLUEPRINT.md thật của repo phải sạch: job `pr-policy` chạy unittest này, nên PR làm hỏng bằng chứng (vd tên trigger
+    trong `…` bị hiểu là đường dẫn — PR #49) đỏ ngay ở PR thay vì chỉ lộ ra khi `loop verify`."""
+
+    def test_blueprint_cua_repo_khong_loi(self):
+        root = Path(__file__).resolve().parent.parent
+        text = (root / "BLUEPRINT.md").read_text(encoding="utf-8")
+        self.assertEqual(mod.problems(text, root, mod.ci_jobs(root)), [])
+
+
 if __name__ == "__main__":
     unittest.main()
