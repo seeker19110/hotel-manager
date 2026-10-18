@@ -283,7 +283,7 @@ loadConfig(replicaEnv);
 const LOG_DIR = join(import.meta.dirname, "..", "e2e-logs");
 const startNext = (port: number, env: NodeJS.ProcessEnv) => {
   mkdirSync(LOG_DIR, { recursive: true });
-  const log = createWriteStream(join(LOG_DIR, `server-${port}.log`), { flags: "a" });
+  const log = createWriteStream(join(LOG_DIR, `server-${port}.log`), { flags: "w" });
   const child = spawn("pnpm", ["exec", "next", "start", "--hostname", "127.0.0.1", "--port", String(port)], {
     stdio: ["inherit", "pipe", "pipe"],
     env,
@@ -296,7 +296,7 @@ const startNext = (port: number, env: NodeJS.ProcessEnv) => {
     process.stderr.write(chunk);
     log.write(chunk);
   });
-  child.once("exit", () => log.end());
+  child.once("close", () => log.end());
   return child;
 };
 const next = startNext(PORT, appEnv);

@@ -60,13 +60,34 @@ describe("bộ quét PII trong log", () => {
     dirs.push(d);
     const run = () => spawnSync("node", [join(ROOT, "scripts/pii-log-scan.mjs"), d], { encoding: "utf8" });
     expect(run().status).toBe(2);
-    writeFileSync(join(d, "server-3100.log"), '{"msg":"ok","person_id":"x"}\n');
+    writeFileSync(join(d, "server-3100.log"), '{"service":"web","msg":"ok","person_id":"x"}\n');
     expect(run().status).toBe(0);
-    writeFileSync(join(d, "server-3300.log"), '{"msg":"lộ","to":"an.nguyen@example.com"}\n');
+    writeFileSync(join(d, "server-3300.log"), '{"service":"web","msg":"lộ","to":"an.nguyen@example.com"}\n');
     const r = run();
     expect(r.status).toBe(1);
     expect(r.stderr).toContain("server-3300.log:1: PII chưa che (email)");
     expect(r.stderr + r.stdout).not.toContain("an.nguyen");
+  });
+
+  it("CLI: tệp rỗng/không có dòng log của app, hay đường dẫn không tồn tại → exit 2 (không no-op xanh)", () => {
+    const d = mkdtempSync(join(tmpdir(), "pii-log-"));
+    dirs.push(d);
+    const run = (...a) =>
+      spawnSync("node", [join(ROOT, "scripts/pii-log-scan.mjs"), ...a], { encoding: "utf8" });
+    writeFileSync(join(d, "server-3100.log"), "");
+    expect(run(d).status).toBe(2);
+    writeFileSync(join(d, "server-3100.log"), "Ready in 300ms\n");
+    expect(run(d).status).toBe(2);
+    expect(run(join(d, "khong-co")).status).toBe(2);
+  });
+
+  it("thêm dạng SĐT có dấu, Bearer viết thường, CCCD dính tiền tố; mã tham chiếu không báo nhầm", () => {
+    expect(kinds('{"p":"0912 345 678"}')).toEqual(["phone"]);
+    expect(kinds('{"p":"0912.345.678"}')).toEqual(["phone"]);
+    expect(kinds('{"p":"+84 912 345 678"}')).toEqual(["phone"]);
+    expect(kinds('{"h":"bearer abcdefghijklmnop"}')).toEqual(["bearer-token"]);
+    expect(kinds('{"d":"CCCD001203004567"}')).toEqual(["id-number"]);
+    expect(kinds('{"amount":1430000,"ms":1760778000000}')).toEqual([]);
   });
 });
 
@@ -76,6 +97,7 @@ describe("nối vào CI", () => {
     const e2e = ci.split(/^ {2}e2e:\n/m)[1].split(/^ {2}[a-z-]+:\n/m)[0];
     const at = (s) => e2e.indexOf(s);
     expect(at("node scripts/pii-log-scan.mjs apps/web/e2e-logs")).toBeGreaterThan(at("playwright test"));
+    expect(e2e).not.toMatch(/pii-log-scan[^\n]*\|\|/);
     expect(e2e).toMatch(/Quét PII[^\n]*\n\s+if: \$\{\{ !cancelled\(\) \}\}/);
     const server = read("apps/web/e2e/server.ts");
     expect(server).toMatch(/LOG_DIR = join\(import\.meta\.dirname, "\.\.", "e2e-logs"\)/);
@@ -88,11 +110,21 @@ describe("nối vào CI", () => {
     expect(wf).toMatch(/semgrep scan [^\n]*--config security\/semgrep\/hm-privacy\.yml [^\n]*--error/);
     const rules = read("security/semgrep/hm-privacy.yml");
     const ids = [...rules.matchAll(/^ {2}- id: (hm-[a-z0-9-]+)$/gm)].map((m) => m[1]);
-    expect(ids).toEqual(["hm-log-pii-object", "hm-log-pii-field"]);
+    expect(ids).toEqual([
+      "hm-log-pii-object",
+      "hm-log-pii-object-fn",
+      "hm-log-pii-field",
+      "hm-log-pii-field-fn",
+      "hm-log-pii-key",
+      "hm-log-pii-key-fn",
+      "hm-log-pii-spread",
+      "hm-log-pii-spread-fn",
+    ]);
     const fixture = read("security/semgrep/hm-privacy.ts");
     for (const id of ids) {
       expect(fixture).toMatch(new RegExp(`// ruleid: ${id}\\b`));
-      expect(fixture).toMatch(new RegExp(`// ok: ${id}\\b`));
+      if (!id.endsWith("-fn") || id === "hm-log-pii-object-fn")
+        expect(fixture).toMatch(new RegExp(`// ok: ${id}\\b`));
     }
   });
 });

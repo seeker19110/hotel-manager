@@ -8,20 +8,39 @@ rules:
     languages: [typescript, javascript]
     severity: ERROR
     message: >-
-      Không đưa nguyên object người dùng/request vào log (CMP-PRIV-008): họ tên, địa chỉ, nội dung tin nhắn không bị logger che.
-      Log ID (vd `person_id: user.id`) hoặc trường không phải PII đã chọn.
+      Không đưa nguyên object người dùng/request vào log (CMP-PRIV-008): họ tên, địa chỉ, nội dung tin nhắn không bị logger che. Log ID (vd `person_id: user.id`) hoặc trường không phải PII đã chọn.
     metadata: {blueprint: [CMP-PRIV-008], cwe: "CWE-532"}
     patterns:
       - pattern-either:
-          - pattern: '$LOG.$LEVEL("...", {..., $KEY: $VALUE, ...})'
-          - pattern: '$LOG.$LEVEL("...", $VALUE)'
+          - pattern: '$LOG.$LEVEL($MSG, {..., $KEY: $VALUE, ...})'
+          - pattern: '$LOG.$LEVEL($MSG, $VALUE)'
       - metavariable-regex:
           metavariable: $LEVEL
           regex: ^(debug|info|warn|error|security|trace|fatal|log)$
       - metavariable-regex:
           metavariable: $VALUE
-          # Định danh hoặc truy cập thuộc tính kết thúc bằng tên object chứa PII (không khớp `user.id`, `req.method`).
-          regex: ^([\w$]+\.)*(user|users|person|persons|people|guest|guests|tenant|tenants|customer|customers|member|members|account|profile|contact|occupant|occupants|invitee|recipient|req|request|body|payload|headers|formData|input)$
+          regex: '^([\w$]+!?(\?\.|\.))*(user|users|person|persons|people|guest|guests|tenant|tenants|customer|customers|member|members|account|profile|contact|occupant|occupants|invitee|recipient|actor|owner|staff|booker|holder|resident|residents|membership|invitation|req|request|body|payload|headers|formData|input|query|data)!?$|^[\w$.?!]+\[["\''](user|users|person|persons|people|guest|guests|tenant|tenants|customer|customers|member|members|account|profile|contact|occupant|occupants|invitee|recipient|actor|owner|staff|booker|holder|resident|residents|membership|invitation|req|request|body|payload|headers|formData|input|query|data)["\'']\]!?$'
+    paths:
+      exclude:
+        - "**/*.test.ts"
+        - "**/*.test.mjs"
+        - "**/packages/testkit/"
+  - id: hm-log-pii-object-fn
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      Không đưa nguyên object người dùng/request vào log (CMP-PRIV-008): họ tên, địa chỉ, nội dung tin nhắn không bị logger che. Log ID (vd `person_id: user.id`) hoặc trường không phải PII đã chọn.
+    metadata: {blueprint: [CMP-PRIV-008], cwe: "CWE-532"}
+    patterns:
+      - pattern-either:
+          - pattern: '$F($MSG, {..., $KEY: $VALUE, ...})'
+          - pattern: '$F($MSG, $VALUE)'
+      - metavariable-regex:
+          metavariable: $F
+          regex: ^(log|logger|warn|emit)$
+      - metavariable-regex:
+          metavariable: $VALUE
+          regex: '^([\w$]+!?(\?\.|\.))*(user|users|person|persons|people|guest|guests|tenant|tenants|customer|customers|member|members|account|profile|contact|occupant|occupants|invitee|recipient|actor|owner|staff|booker|holder|resident|residents|membership|invitation|req|request|body|payload|headers|formData|input|query|data)!?$|^[\w$.?!]+\[["\''](user|users|person|persons|people|guest|guests|tenant|tenants|customer|customers|member|members|account|profile|contact|occupant|occupants|invitee|recipient|actor|owner|staff|booker|holder|resident|residents|membership|invitation|req|request|body|payload|headers|formData|input|query|data)["\'']\]!?$'
     paths:
       exclude:
         - "**/*.test.ts"
@@ -34,13 +53,114 @@ rules:
       Không log trường PII (họ tên, địa chỉ, ngày sinh, nội dung tin nhắn; `<người>.name/phone/email`) — CMP-PRIV-008. Log ID thay thế.
     metadata: {blueprint: [CMP-PRIV-008], cwe: "CWE-532"}
     patterns:
-      - pattern: '$LOG.$LEVEL("...", {..., $KEY: $VALUE, ...})'
+      - pattern-either:
+          - pattern: '$LOG.$LEVEL($MSG, {..., $KEY: $VALUE, ...})'
       - metavariable-regex:
           metavariable: $LEVEL
           regex: ^(debug|info|warn|error|security|trace|fatal|log)$
       - metavariable-regex:
           metavariable: $VALUE
-          regex: ^(([\w$]+\.)*(fullName|full_name|displayName|display_name|address|birthDate|birth_date|dob|messageBody|message_body)|([\w$]+\.)*(user|person|guest|tenant|customer|member|contact|occupant|invitee|recipient)\.(name|phone|email))$
+          regex: '^([\w$]+!?(\?\.|\.))*(fullName|full_name|displayName|display_name|legalName|legal_name|guestName|guest_name|address|birthDate|birth_date|dob|messageBody|message_body)!?$|^[\w$.?!]+\[["''"](fullName|full_name|displayName|display_name|legalName|legal_name|guestName|guest_name|address|birthDate|birth_date|dob|messageBody|message_body)["''"]\]!?$|^([\w$]+!?(\?\.|\.))*(user|person|guest|tenant|customer|member|contact|occupant|invitee|recipient|actor|owner|staff|booker|holder|resident)!?(\?\.|\.)(name|phone|email)!?$'
+    paths:
+      exclude:
+        - "**/*.test.ts"
+        - "**/*.test.mjs"
+        - "**/packages/testkit/"
+  - id: hm-log-pii-field-fn
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      Không log trường PII (họ tên, địa chỉ, ngày sinh, nội dung tin nhắn; `<người>.name/phone/email`) — CMP-PRIV-008. Log ID thay thế.
+    metadata: {blueprint: [CMP-PRIV-008], cwe: "CWE-532"}
+    patterns:
+      - pattern-either:
+          - pattern: '$F($MSG, {..., $KEY: $VALUE, ...})'
+      - metavariable-regex:
+          metavariable: $F
+          regex: ^(log|logger|warn|emit)$
+      - metavariable-regex:
+          metavariable: $VALUE
+          regex: '^([\w$]+!?(\?\.|\.))*(fullName|full_name|displayName|display_name|legalName|legal_name|guestName|guest_name|address|birthDate|birth_date|dob|messageBody|message_body)!?$|^[\w$.?!]+\[["''"](fullName|full_name|displayName|display_name|legalName|legal_name|guestName|guest_name|address|birthDate|birth_date|dob|messageBody|message_body)["''"]\]!?$|^([\w$]+!?(\?\.|\.))*(user|person|guest|tenant|customer|member|contact|occupant|invitee|recipient|actor|owner|staff|booker|holder|resident)!?(\?\.|\.)(name|phone|email)!?$'
+    paths:
+      exclude:
+        - "**/*.test.ts"
+        - "**/*.test.mjs"
+        - "**/packages/testkit/"
+  - id: hm-log-pii-key
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      Không đặt khoá log là trường PII (họ tên, địa chỉ, ngày sinh, nội dung tin nhắn) — CMP-PRIV-008. Log ID thay thế.
+    metadata: {blueprint: [CMP-PRIV-008], cwe: "CWE-532"}
+    patterns:
+      - pattern-either:
+          - pattern: '$LOG.$LEVEL($MSG, {..., $KEY: $VALUE, ...})'
+      - metavariable-regex:
+          metavariable: $LEVEL
+          regex: ^(debug|info|warn|error|security|trace|fatal|log)$
+      - metavariable-regex:
+          metavariable: $KEY
+          regex: '^(fullName|full_name|displayName|display_name|legalName|legal_name|guestName|guest_name|address|birthDate|birth_date|dob|messageBody|message_body)$'
+    paths:
+      exclude:
+        - "**/*.test.ts"
+        - "**/*.test.mjs"
+        - "**/packages/testkit/"
+  - id: hm-log-pii-key-fn
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      Không đặt khoá log là trường PII (họ tên, địa chỉ, ngày sinh, nội dung tin nhắn) — CMP-PRIV-008. Log ID thay thế.
+    metadata: {blueprint: [CMP-PRIV-008], cwe: "CWE-532"}
+    patterns:
+      - pattern-either:
+          - pattern: '$F($MSG, {..., $KEY: $VALUE, ...})'
+      - metavariable-regex:
+          metavariable: $F
+          regex: ^(log|logger|warn|emit)$
+      - metavariable-regex:
+          metavariable: $KEY
+          regex: '^(fullName|full_name|displayName|display_name|legalName|legal_name|guestName|guest_name|address|birthDate|birth_date|dob|messageBody|message_body)$'
+    paths:
+      exclude:
+        - "**/*.test.ts"
+        - "**/*.test.mjs"
+        - "**/packages/testkit/"
+  - id: hm-log-pii-spread
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      Không spread object người dùng/request vào log (CMP-PRIV-008). Log ID hoặc trường đã chọn.
+    metadata: {blueprint: [CMP-PRIV-008], cwe: "CWE-532"}
+    patterns:
+      - pattern-either:
+          - pattern: '$LOG.$LEVEL($MSG, {..., ...$VALUE, ...})'
+      - metavariable-regex:
+          metavariable: $LEVEL
+          regex: ^(debug|info|warn|error|security|trace|fatal|log)$
+      - metavariable-regex:
+          metavariable: $VALUE
+          regex: '^([\w$]+!?(\?\.|\.))*(user|users|person|persons|people|guest|guests|tenant|tenants|customer|customers|member|members|account|profile|contact|occupant|occupants|invitee|recipient|actor|owner|staff|booker|holder|resident|residents|membership|invitation|req|request|body|payload|headers|formData|input|query|data)!?$|^[\w$.?!]+\[["\''](user|users|person|persons|people|guest|guests|tenant|tenants|customer|customers|member|members|account|profile|contact|occupant|occupants|invitee|recipient|actor|owner|staff|booker|holder|resident|residents|membership|invitation|req|request|body|payload|headers|formData|input|query|data)["\'']\]!?$'
+    paths:
+      exclude:
+        - "**/*.test.ts"
+        - "**/*.test.mjs"
+        - "**/packages/testkit/"
+  - id: hm-log-pii-spread-fn
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      Không spread object người dùng/request vào log (CMP-PRIV-008). Log ID hoặc trường đã chọn.
+    metadata: {blueprint: [CMP-PRIV-008], cwe: "CWE-532"}
+    patterns:
+      - pattern-either:
+          - pattern: '$F($MSG, {..., ...$VALUE, ...})'
+      - metavariable-regex:
+          metavariable: $F
+          regex: ^(log|logger|warn|emit)$
+      - metavariable-regex:
+          metavariable: $VALUE
+          regex: '^([\w$]+!?(\?\.|\.))*(user|users|person|persons|people|guest|guests|tenant|tenants|customer|customers|member|members|account|profile|contact|occupant|occupants|invitee|recipient|actor|owner|staff|booker|holder|resident|residents|membership|invitation|req|request|body|payload|headers|formData|input|query|data)!?$|^[\w$.?!]+\[["\''](user|users|person|persons|people|guest|guests|tenant|tenants|customer|customers|member|members|account|profile|contact|occupant|occupants|invitee|recipient|actor|owner|staff|booker|holder|resident|residents|membership|invitation|req|request|body|payload|headers|formData|input|query|data)["\'']\]!?$'
     paths:
       exclude:
         - "**/*.test.ts"

@@ -4,7 +4,7 @@
 // bắt phần lọt: email/SĐT/CCCD chưa che, token Bearer/cookie phiên, và tên người/cơ sở seed (mọi tên seed E2E có hậu tố "(giả)").
 // Thoát 1 khi có phát hiện; in vị trí + loại, KHÔNG in nguyên giá trị.
 // Dùng: node scripts/pii-log-scan.mjs <tệp|thư mục> [...]
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { isMain } from "./is-main.mjs";
 
@@ -16,10 +16,14 @@ const DETECTORS = [
     keep: (m) => !/^[A-Za-z0-9._%+-]\*\*\*$/.test(m[1]),
   },
   // SĐT VN đủ số (logger che thành `0xx****yyy`).
-  { kind: "phone", re: /(?<![\w-])(?:\+?84|0)\d{9}(?![\w-])/g },
+  {
+    kind: "phone",
+    re: /(?<![\w-])(?:\(\+?84\)|\+?84|0)[ .-]?\d{2,3}[ .-]?\d{3}[ .-]?\d{3,4}(?![\w-])/g,
+    keep: (m) => m[0].replace(/\D/g, "").length >= 10 && m[0].replace(/\D/g, "").length <= 11,
+  },
   // CCCD 12 số (CMND 9 số trùng dạng số tiền/kích thước nên không quét ở đây — logger đã che theo cả khoá lẫn giá trị).
-  { kind: "id-number", re: /(?<![\w.-])\d{12}(?![\w.-])/g },
-  { kind: "bearer-token", re: /\b(?:Bearer|Basic)\s+(?!\*\*\*)[A-Za-z0-9._~+/=-]{8,}/g },
+  { kind: "id-number", re: /(?<![\d.-])\d{12}(?![\w.-])/g },
+  { kind: "bearer-token", re: /\b(?:Bearer|Basic)\s+(?!\*\*\*)[A-Za-z0-9._~+/=-]{8,}/gi },
   { kind: "session-cookie", re: /session_token=(?!\*\*\*)[^\s;,"]{8,}/g },
   { kind: "seed-name", re: /[^\s"{}[\]:,]{1,40}(?: [^\s"{}[\]:,]{1,40}){0,4} \(giả\)/gu },
 ];
@@ -35,11 +39,19 @@ export function scanText(text) {
   return out;
 }
 
+/** Dòng log JSON của app luôn có khoá "service" (logger.ts): tệp rỗng/không có dòng nào = lớp quét thành no-op. */
+const hasAppLogLine = (text) => /"service"\s*:/.test(text);
+
 const files = (p) => (statSync(p).isDirectory() ? readdirSync(p).flatMap((n) => files(join(p, n))) : [p]);
 
 function main(argv) {
   if (argv.length === 0) {
     console.error("dùng: pii-log-scan.mjs <tệp|thư mục> [...]");
+    return 2;
+  }
+  const missing = argv.filter((p) => !existsSync(p));
+  if (missing.length > 0) {
+    console.error(`pii-log-scan: không có đường dẫn ${missing.join(", ")}`);
     return 2;
   }
   const targets = argv.flatMap(files).filter((f) => f.endsWith(".log"));
@@ -51,7 +63,14 @@ function main(argv) {
   }
   let hits = 0;
   for (const f of targets) {
-    for (const h of scanText(readFileSync(f, "utf8"))) {
+    const text = readFileSync(f, "utf8");
+    if (!hasAppLogLine(text)) {
+      console.error(
+        `${f}: không có dòng log JSON nào của app (khoá "service") — log server không được ghi? Quét tệp rỗng không chứng minh gì`,
+      );
+      return 2;
+    }
+    for (const h of scanText(text)) {
       hits++;
       console.error(`${f}:${h.line}: PII chưa che (${h.kind})`);
     }
