@@ -1,11 +1,12 @@
 # PROGRESS.md — Hotel Manager
 ## Đang làm
-- Đợt 9 xong (T-801…T-808, PR #39 #41–#47) + sửa sau verify: #48 T-707 (E2E dùng lại phiên OTP, chờ hydrate), #49 khung 3.0.0 (người), #50 T-207 (SeaweedFS tạm khai cổng gRPC tường minh — `weed` suy cổng HTTP+10000 không kiểm trống), #51 T-226/T-801 (bằng chứng SEC-SUPPLY-009 + rào `RepoBlueprintTest`). **`loop verify` XANH trên `main` 79afb9d (71 Gate + 1 lệnh kiểm blueprint, 2026-10-18).** `blueprint-status --strict`: MUST đạt 337 · miễn 54 · **mở 105** — 95 chờ người, 10 làm được trong repo (BLUEPRINT-GAPS 'Kết quả đợt 9'). GO-NO-GO: NO-GO (7 BLOCKER). Autopilot `done-pending-human`.
+- Đợt 10 xong (T-901…T-909): PR #59 SBOM vào Release · #64 gitleaks ở pre-commit · #65 luật Semgrep + quét PII log E2E · #62 xoay mật khẩu role CSDL · #63 ngân sách image/thời gian CI · #66 i18n (`messages/vi.json`, `t()`, kiểm tệp dịch, ratchet). **Chờ người merge (CI xanh, review sạch):** #67 T-906/T-907 k6 nightly chặn production + Lighthouse 6 URL (`risk:auth`, `risk:gate`) · #68 T-904b login luân phiên chạy bằng role gốc, giữ chủ sở hữu bảng pg-boss (`risk:data`). `blueprint-status --strict` trên `main`: MUST đạt 340 · miễn 55 · **mở 106** (sau #67: 341 · 105) (BLUEPRINT-GAPS 'Kết quả đợt 10': tick 4, 6 mục làm xong phần repo nhưng cần staging/Release thật/ruleset). GO-NO-GO: NO-GO (7 BLOCKER, cần người). Autopilot `done-pending-human`.
+- Trước đó: đợt 9 (T-801…T-808), `loop verify` XANH trên 79afb9d.
 
 ## Tiếp theo
 1. Người (theo nhóm, từng bước ở BLUEPRINT-GAPS): ① import `.github/rulesets/main.json` (28 check) + `tags.json`, tắt merge commit, bật auto-merge ② nhãn `risk:*`/`major`, Dependabot, quyết D-060 ③ secret `RELEASE_PLEASE_TOKEN` + Actions tạo PR, merge Release PR ④ VPS/domain/staging/secret store ⑤ sao lưu khác máy + Prometheus/Alertmanager + RPO/RTO ⑥ pháp lý DPIA/DPO/DPA ⑦ LICENSE + SECURITY.md + PVR ⑧ kiểm tay thiết bị/a11y ⑨ quyết IND-SAAS-009, CMP-RIGHTS-001, PM-METRIC-003 ⑩ duyệt `WORKER_DATABASE_URL`/`MIGRATION_DATABASE_URL` ⑪ SMTP, ClamAV ⑫ quyết 18 đề xuất "Khi chạy thật" (GO-NO-GO 4b).
 2. **Hạn gấp:** `.grype.yaml` 4 luật hết hạn 2026-10-25 (21 luật 2026-11-01) — quá hạn thì `image-scan` đỏ mọi PR; duyệt/gia hạn `@img/sharp-libvips-linux-x64` LGPL (2026-12-31), `parse-cache-control` BSD (2027-04-18).
-3. Đợt 10 (agent, 10 mục): XC-GREEN-002 ngân sách image/CI · QA-PERF-002/007 k6 nightly · PRF-WEB-005 ≥ 5 URL · CMP-LIC-003 SBOM vào Release · XC-I18N-001/009 · DB-SEC-004 · CMP-PRIV-008 · WF-GIT-010.
+3. Người: merge #67 và #68; sau merge #67 chạy `perf-nightly` bằng `workflow_dispatch` một lần (bằng chứng QA-PERF-002 khi có staging); 6 mục đợt 10 chờ hạ tầng: CMP-LIC-003 (Release thật), CMP-PRIV-008/QA-PERF-002 (staging), XC-GREEN-002 (ngân sách chi phí VPS), PRF-WEB-005 (required check + CWV thực địa), XC-I18N-001 (chuyển dần 2329 chuỗi).
 4. Sau khi người xử lý: `python3 .xtemplates/scripts/xt.py loop resume --reason "..."`.
 
 ## Quyết định

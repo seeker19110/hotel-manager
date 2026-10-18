@@ -9,6 +9,23 @@
 > `PM-SPEC-004` và `WF-SDD-003` (nền spec-coverage còn 26 S-NNN). **Tick kèm lưu ý để phiên chính xác nhận:** `DB-MODEL-004` (52 FK nhóm A thiếu index là ngoại lệ có lý do — D-035),
 > `UX-STATE-001` (không Storybook; loading bị D-032 miễn ở trang có route con động/notFound/redirect), `DB-PERF-001` (EXPLAIN không ANALYZE), `XC-GREEN-007` (còn `notifications`/`inbox`/`worker_heartbeats` chưa có job dọn, chờ DPIA).
 
+## Kết quả đợt 10 (T-909, 2026-10-18)
+
+`main` sau PR #59 T-901 · #64 T-902 · #65 T-903 · #62 T-904 · #63 T-905 · #66 T-908; **chờ người merge:** #67 T-906/T-907 (`risk:auth`, `risk:gate`; CI xanh, review sạch) và #68 T-904b (`risk:data`). `xt.py blueprint-status BLUEPRINT.md --strict` trên `main`: MUST **đạt 340 · miễn 55 · mở 106**; sau khi merge #67: **đạt 341 · mở 105** (trước đợt 10, khung 3.0: đạt 337 · miễn 54 · mở 105; khung 3.3 thêm mục MUST nên tổng khác). Tick 4: WF-GIT-010 (T-902), DB-SEC-004 (T-904), XC-I18N-009 (T-908), QA-PERF-007 (T-906, nằm trong #67).
+
+**Làm xong phần trong repo nhưng KHÔNG tick (6) — phần còn lại cần người/hạ tầng, đã `loop defer`:**
+
+| Mục | Đã làm (PR) | Còn thiếu để tick |
+|---|---|---|
+| CMP-LIC-003 | #59: job `assets` của `release.yml` sinh SBOM CycloneDX (workspace + image) và đính vào Release | Một Release thật có tệp SBOM (cần `RELEASE_PLEASE_TOKEN` + merge Release PR — nhóm 3) |
+| CMP-PRIV-008 | #65: luật Semgrep `hm-log-pii-*` (job `sast`), bộ quét PII trên log server E2E (job `e2e`, đỏ khi log rỗng) | "Log staging" thật quét sạch (chưa có staging — nhóm 4; D-072) |
+| XC-GREEN-002 | #63: trần kích thước image trong `image-scan`, ngân sách thời gian job CI (`docs/PERF-BUDGET.md`, `perf/resource-budgets.json`) | Ngân sách chi phí hạ tầng + cảnh báo chi phí ở nhà cung cấp (VPS — nhóm 4) |
+| QA-PERF-002 | #67: workflow k6 nightly + `workflow_dispatch`, `thresholds` p95/lỗi, đỏ khi vượt | Chạy trên staging (Kiểm đòi staging; hiện đích là app tạm trong runner — D-072). Sau merge: chạy `workflow_dispatch` một lần, ghi URL lượt chạy |
+| PRF-WEB-005 | #67: Lighthouse 6 URL (3 sau đăng nhập), Performance ≥ 0.9 mức error, đỏ khi bị chuyển về /dang-nhap | Job `lighthouse` thành required check (import ruleset — nhóm 1) + CWV p75 thực địa (người dùng thật — sau pilot) |
+| XC-I18N-001 | #66: `apps/web/messages/vi.json`, `t()`, ratchet chuỗi viết thẳng (2329 chuỗi / 190 tệp, chỉ được giảm; job gate so với `main`) | Chuyển hết 2329 chuỗi còn lại (nhiều đợt; ratchet chặn tăng) — đề xuất làm dần theo màn khi sửa |
+
+**Còn treo sau review (🟢, không chặn):** ratchet i18n bỏ sót vài dạng JSX (`{n} phòng`, `//` trong chữ JSX); luật Semgrep chưa bắt `log.child({ user })`, `JSON.stringify(user)`; bộ quét log báo nhầm mã tham chiếu 12 chữ số; `stop()` của server E2E chưa chờ tiến trình con `close` (mất vài dòng log cuối khi dừng).
+
 ## Kết quả đợt 9 (T-808, 2026-10-18)
 
 `main` `b2d992d` (PR #39 T-807 · #41 T-801 · #42 T-802 · #43 T-803 · #44 T-806 · #45 T-805 · #46 T-804). `xt.py blueprint-status BLUEPRINT.md --strict`: MUST **đạt 336 · miễn 55 · mở 105** (trước đợt 9: đạt 282 · mở 159 → đóng 54). 55 miễn trừ đã có `Duyệt:` của chủ dự án (PR #38, "Duyệt tất cả 55 miễn trừ", 2026-10-17) — không còn lỗi LOOP-STOP-024. `check-blueprint-evidence.py`: 336 mục `[x]` · 0 lỗi.
