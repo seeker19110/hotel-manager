@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""`pr-policy` — kiểm chính sách PR bằng máy (WF-DOC-001, WF-TEAM-003, XC-GREEN-005; PLAN đợt 7 T-607).
+"""`pr-policy` — kiểm chính sách PR bằng máy (WF-DOC-001, WF-TEAM-003, XC-GREEN-005; PLAN đợt 7 T-607; đợt 9 T-801:
+WF-REVIEW-002, WF-SDD-003, LOOP-STOP-005 và nối vào CI — job `pr-policy` ở .github/workflows/pr-policy.yml).
 
 Mặc định CHỈ CẢNH BÁO (exit 0, in `CẢNH BÁO [mã] …`); `--strict` → exit 1 nếu có cảnh báo. Không gọi mạng/GitHub.
 
 Dùng:
-  python3 scripts/pr-policy.py --base origin/main [--title "feat(x): …"] [--body-file pr.md] [--strict]
+  python3 scripts/pr-policy.py --base origin/main [--title "feat(x): …"] [--body-file pr.md] [--labels "a,b"] [--strict]
   git diff --name-only main...HEAD | python3 scripts/pr-policy.py --files - --title "…" --body-file pr.md
 
 Quy tắc:
@@ -14,6 +15,15 @@ Quy tắc:
   (mục "Refactor / perf" của mẫu PR: ít nhất một hàng có cả cột Trước và Sau).
 - WF-TEAM-003 (DoR): PR `feat:`/`fix:` phải nêu ID (S-NNN, T-NNN, D-NNN, F-NNN, #NNN) ở mục "Mục tiêu / SPEC"; SPEC bị
   sửa trong PR mà đã Approved thì không được còn câu hỏi `[chặn]` chưa tick (dùng `check-blocking-questions.py`).
+- WF-REVIEW-002: mô tả PR (khi có `--body-file`) phải có mục tiêu + link spec/issue, cách đã xác minh (`exit 0` hoặc link
+  lượt chạy CI — không tính phần chữ có sẵn của mẫu; `exit 1` không phải bằng chứng), rủi ro + cách rollback.
+  Mẫu nâng cấp MAJOR (`.github/PULL_REQUEST_TEMPLATE/major-upgrade.md`) có mục tương đương và được nhận: "Gói và phiên bản"
+  + "Đã đọc changelog" ≈ mục tiêu/link; "Kiểm chứng" ≈ "Bằng chứng cổng"; "Triển khai và đường lùi" ≈ cách rollback.
+- WF-SDD-003: PR `feat:` có bản đồ scenario → test ở mục "Tiêu chí chấp nhận" (dòng có S-NNN/AC-NN và đường dẫn test có thật),
+  hoặc ghi "không áp dụng — lý do: …".
+- XC-GREEN-005 (bổ sung): PR `refactor:`/`perf:` điền hàng "Số test" (trước/sau); số test không giảm, tăng thì diff phải có file test.
+- LOOP-STOP-005: (khi có `--labels`) PR chạm đường dẫn tiền/dữ liệu/auth/mật mã (nguồn: `merge_risk_paths` của xt.yaml) phải có
+  nhãn `risk:money|data|auth|crypto` tương ứng. Review bắt buộc của người cần ruleset GitHub — ngoài phạm vi script.
 - Tiêu đề PR: Conventional Commits, ≤ 72 ký tự (cùng luật với job CI hiện có).
 """
 
@@ -27,6 +37,8 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+MAIN_TEMPLATE = ".github/pull_request_template.md"
+UPGRADE_TEMPLATE = ".github/PULL_REQUEST_TEMPLATE/major-upgrade.md"
 
 TITLE = re.compile(r"^(?P<type>[a-z]+)(?:\([^)]+\))?!?: \S")
 TYPES = {"feat", "fix", "docs", "style", "refactor", "perf", "test", "build", "ci", "chore", "revert"}
@@ -41,6 +53,34 @@ PUBLIC_SURFACE = (
     re.compile(r"^\.env\.example$"),
 )
 ID_REF = re.compile(r"\b(?:S-\d{3}|T-\d{3,4}|D-\d{3}|F-\d{3}|Q-\d+)\b|(?<!\w)#\d+\b")
+LINK_OR_ID = re.compile(ID_REF.pattern + r"|https?://\S+")
+
+# LOOP-STOP-005: nhãn risk theo thành phần đường dẫn. Nguồn sự thật của danh sách đường dẫn nhạy cảm là `merge_risk_paths`
+# trong xt.yaml (test_pr_policy.py kiểm mọi mục ở đó đều có nhãn). Khớp theo tên thư mục trong đường dẫn.
+RISK_DIRS = {
+    "risk:money": ("ledger", "money", "deposits", "reconciliation", "shifts", "thu-tien", "ky-thu", "doi-soat"),
+    "risk:auth": ("identity", "access", "approvals", "tenancy"),
+    "risk:data": (
+        "lease",
+        "stay",
+        "rental",
+        "inventory",
+        "metering",
+        "notifications",
+        "hop-dong",
+        "chi-so",
+        "webhooks",
+    ),
+    "risk:crypto": ("crypto",),
+}
+# Đường dẫn gốc (tiền tố) cũng nhạy cảm: API công khai và toàn bộ lớp CSDL.
+RISK_PREFIXES = {
+    "risk:data": ("apps/web/app/api/", "packages/db/"),
+}
+TEST_FILE = re.compile(r"\.(?:test|spec)\.[a-z]+$|(?:^|/)test_[^/]+\.py$")
+TEST_REF = re.compile(r"[\w@./-]+\.(?:test|spec)\.(?:ts|tsx|mjs|py)\b|(?:[\w@.-]+/)*test_\w+\.py\b")
+SCENARIO_REF = re.compile(r"\b(?:S-\d{3}|AC-\d+)\b")
+ROLLBACK = re.compile(r"rollback|roll back|quay lại|quay về|hoàn tác|revert|khôi phục|cách tắt|tắt (?:cờ|tính năng)", re.I)
 
 
 def load_blocking_checker():
@@ -90,12 +130,202 @@ def filled_before_after(body: str) -> bool:
     return False
 
 
+def risk_labels(files: list[str]) -> dict[str, list[str]]:
+    """Nhãn risk bắt buộc → các file gây ra (rỗng nếu không chạm vùng nhạy cảm)."""
+    need: dict[str, list[str]] = {}
+    for f in files:
+        parts = f.strip().split("/")
+        for label, dirs in RISK_DIRS.items():
+            if any(p in dirs for p in parts[:-1]):
+                need.setdefault(label, []).append(f)
+        for label, prefixes in RISK_PREFIXES.items():
+            if any(f.startswith(p) for p in prefixes):
+                need.setdefault(label, []).append(f)
+    return need
+
+
+def meaningful(text: str) -> str:
+    """Chữ thật của một mục (bỏ khoảng trắng, dấu liệt kê, `…`, dấu chấm)."""
+    return re.sub(r"[\s\-*•…\.]", "", re.sub(r"\[[ xX]\]", "", text))
+
+
+def template_labels(section_name: str, root: Path = ROOT, template: str = MAIN_TEMPLATE) -> list[str]:
+    """Nhãn có sẵn (chữ cố định) của các dòng checklist trong mục `section_name` của một mẫu PR."""
+    path = root / template
+    if not path.exists():
+        return []
+    out = []
+    for line in section(path.read_text(encoding="utf-8"), section_name).splitlines():
+        m = re.match(r"^\s*- \[[ x]\]\s*(.+)$", line, re.I)
+        if m:
+            out.append(m.group(1).strip())
+    return out
+
+
+def has_heading(body: str, heading: str) -> bool:
+    return re.search(rf"^## {re.escape(heading)}", body, re.M) is not None
+
+
+def is_upgrade_body(body: str) -> bool:
+    """Mô tả theo mẫu nâng cấp MAJOR: có 'Gói và phiên bản' và không có 'Mục tiêu / SPEC' của mẫu chính."""
+    return has_heading(body, "Gói và phiên bản") and not has_heading(body, "Mục tiêu / SPEC")
+
+
+def filled_value(body: str, heading: str, key: str, root: Path = ROOT, template: str = UPGRADE_TEMPLATE) -> str:
+    """Phần người điền ở dòng `- <key>…: …` của mẫu (bỏ nhãn cố định của mẫu); chưa điền → '' (chữ `…` là chỗ trống)."""
+    tpl = None
+    path = root / template
+    if path.exists():
+        tpl = next(
+            (ln.strip() for ln in section(path.read_text(encoding="utf-8"), heading).splitlines() if ln.strip().startswith(f"- {key}")),
+            None,
+        )
+    for line in section(body, heading).splitlines():
+        line = line.strip()
+        if not line.startswith(f"- {key}"):
+            continue
+        if tpl and "…" in tpl:
+            pre, _, suf = tpl.partition("…")
+            if line.startswith(pre):
+                rest = line[len(pre) :]
+                if suf and rest.endswith(suf):
+                    rest = rest[: -len(suf)]
+                return rest.strip(" …")
+        return line.split(":", 1)[1].strip(" …") if ":" in line else ""
+    return ""
+
+
+def upgrade_goal_problem(body: str, root: Path = ROOT) -> str | None:
+    """Mẫu nâng cấp MAJOR: gói + 'từ → đến' có số phiên bản + lý do nâng + nguồn changelog. Đạt → None, thiếu → lý do."""
+    pkg = filled_value(body, "Gói và phiên bản", "Gói / thành phần", root)
+    ver = filled_value(body, "Gói và phiên bản", "Từ → đến", root)
+    why = filled_value(body, "Gói và phiên bản", "Lý do nâng", root)
+    if len(meaningful(pkg)) < 2 or not re.search(r"\d", ver) or len(meaningful(why)) < 8:
+        return "mẫu nâng cấp: điền 'Gói và phiên bản' (gói, từ → đến có số phiên bản, lý do nâng) — thay cho 'Mục tiêu / SPEC'"
+    src = filled_value(body, "Đã đọc changelog / hướng dẫn nâng cấp", "Nguồn", root)
+    if not (LINK_OR_ID.search(src) or "chưa xác minh" in src.lower()):
+        return "mẫu nâng cấp: mục 'Nguồn' (changelog/hướng dẫn nâng cấp) thiếu link hoặc '(chưa xác minh)'"
+    return None
+
+
+def _strip_template_text(line: str, labels: list[str]) -> str:
+    """Bỏ chữ có sẵn của mẫu khỏi một dòng đã tick: nhãn nguyên văn, rồi phần đầu dòng trùng đầu nhãn (nhãn bị cắt/sửa đuôi)."""
+    for label in sorted(labels, key=len, reverse=True):
+        line = line.replace(label, "")
+    for label in labels:
+        n = 0
+        while n < min(len(line), len(label)) and line[n] == label[n]:
+            n += 1
+        if n >= 12:
+            return line[n:]
+    return line
+
+
+EXIT_ZERO = re.compile(r"\bexit(?:\s+code)?\s*[:=]?\s*0\b", re.I)
+
+
+def has_verification(body: str, root: Path = ROOT) -> bool:
+    """Mục 'Bằng chứng cổng' (mẫu nâng cấp: 'Kiểm chứng') có dòng đã tick kèm `exit 0` hoặc link lượt chạy — ngoài chữ có sẵn
+    của mẫu. `exit 1`/exit khác 0 không phải bằng chứng xanh."""
+    sources = (("Bằng chứng cổng", MAIN_TEMPLATE), ("Kiểm chứng", UPGRADE_TEMPLATE))
+    parts = []
+    for heading, template in sources:
+        labels = template_labels(heading, root, template)
+        for line in section(body, heading).splitlines():
+            if re.match(r"^\s*- \[x\]", line, re.I):
+                parts.append(_strip_template_text(re.sub(r"^\s*- \[x\]\s*", "", line, flags=re.I), labels))
+    text = " ".join(parts)
+    return bool(EXIT_ZERO.search(text) or re.search(r"https?://\S+", text))
+
+
+def test_counts(body: str) -> tuple[int, int] | None:
+    """(trước, sau) của hàng 'Số test' trong bảng trước–sau; thiếu/không phải số → None."""
+    for line in section(body, "Refactor / perf").splitlines():
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if len(cells) >= 3 and cells[0].lower().startswith("số test"):
+            nums = [re.sub(r"[.,\s]", "", c) for c in cells[1:3]]
+            if all(n.isdigit() for n in nums):
+                return int(nums[0]), int(nums[1])
+    return None
+
+
+def check_body(
+    body: str,
+    title: str | None = None,
+    files: list[str] | None = None,
+    root: Path = ROOT,
+) -> list[tuple[str, str]]:
+    """Kiểm độ đầy đủ của mô tả PR (WF-REVIEW-002, WF-SDD-003, XC-GREEN-005 số test). Chỉ gọi khi có nội dung mô tả."""
+    warns: list[tuple[str, str]] = []
+    files = [f.strip() for f in (files or []) if f.strip()]
+    kind = pr_type(title) if title is not None else None
+
+    upgrade = is_upgrade_body(body)
+    goal = section(body, "Mục tiêu / SPEC")
+    if upgrade:
+        problem = upgrade_goal_problem(body, root)
+        if problem:
+            warns.append(("WF-REVIEW-002", problem))
+    elif len(meaningful(goal)) < 12:
+        warns.append(("WF-REVIEW-002", "mục 'Mục tiêu / SPEC' còn trống — nêu mục tiêu và link spec/issue"))
+    elif kind not in ("feat", "fix") and not LINK_OR_ID.search(goal):
+        warns.append(("WF-REVIEW-002", "mục 'Mục tiêu / SPEC' thiếu link/ID spec hoặc issue (S-NNN, T-NNN, D-NNN, #issue, URL)"))
+
+    if not has_verification(body, root):
+        warns.append(
+            (
+                "WF-REVIEW-002",
+                "mục 'Bằng chứng cổng' (mẫu nâng cấp: 'Kiểm chứng'): tick và ghi `exit 0` thật hoặc link lượt chạy CI "
+                "(không tính chữ có sẵn của mẫu; exit khác 0 không phải bằng chứng)",
+            )
+        )
+
+    risk = section(body, "Rủi ro")
+    rollback_text = risk
+    if upgrade:  # mẫu nâng cấp ghi đường lùi ở mục 'Triển khai và đường lùi'
+        rollback_text += " " + filled_value(body, "Triển khai và đường lùi", "Đường lùi", root)
+    if len(meaningful(risk)) < 20 or not ROLLBACK.search(rollback_text):
+        warns.append(("WF-REVIEW-002", "mục 'Rủi ro' phải nêu rủi ro và cách rollback/quay lại"))
+
+    if kind == "feat":
+        ac = section(body, "Tiêu chí chấp nhận")
+        waiver = re.search(r"không áp dụng\s*[—-]\s*lý do:\s*(\S.{6,})", ac, re.I)
+        mapped = []
+        for line in ac.splitlines():
+            if SCENARIO_REF.search(line):
+                mapped += TEST_REF.findall(line)
+        if not mapped and not waiver:
+            warns.append(
+                (
+                    "WF-SDD-003",
+                    "PR feat: mục 'Tiêu chí chấp nhận' phải liệt kê bản đồ S-NNN → đường dẫn test "
+                    "(hoặc 'không áp dụng — lý do: …')",
+                )
+            )
+        missing = [t for t in dict.fromkeys(mapped) if t not in files and not (root / t).exists()]
+        if missing:
+            warns.append(("WF-SDD-003", f"bản đồ scenario → test trỏ tới file không có trong repo/diff: {', '.join(missing[:3])}"))
+
+    if kind in ("refactor", "perf"):
+        counts = test_counts(body)
+        if counts is None:
+            warns.append(("XC-GREEN-005", f"PR {kind}: điền hàng 'Số test' (trước và sau, là số) ở bảng trước–sau"))
+        else:
+            before, after = counts
+            if after < before:
+                warns.append(("XC-GREEN-005", f"PR {kind}: số test giảm ({before} → {after}) — refactor không được bỏ test"))
+            elif after > before and not any(TEST_FILE.search(f) for f in files):
+                warns.append(("XC-GREEN-005", f"PR {kind}: số test tăng ({before} → {after}) nhưng diff không có file test"))
+    return warns
+
+
 def check(
     files: list[str],
     title: str | None = None,
     body: str | None = None,
     commits: list[str] | None = None,
     root: Path = ROOT,
+    labels: list[str] | None = None,
 ) -> list[tuple[str, str]]:
     warns: list[tuple[str, str]] = []
     files = [f.strip() for f in files if f.strip()]
@@ -142,6 +372,14 @@ def check(
             text = path.read_text(encoding="utf-8")
             if blocking.APPROVED.search(text) and blocking.open_blocking(text):
                 warns.append(("WF-TEAM-003", f"{f}: SPEC đã Approved nhưng còn câu hỏi [chặn] chưa tick"))
+
+    # LOOP-STOP-005: chỉ kiểm khi biết nhãn (CI truyền --labels; chạy cục bộ không có nhãn thì bỏ qua).
+    if labels is not None:
+        have = {label.strip() for label in labels}
+        for label, causes in risk_labels(files).items():
+            if label not in have:
+                shown = ", ".join(causes[:2]) + (" …" if len(causes) > 2 else "")
+                warns.append(("LOOP-STOP-005", f"PR chạm vùng nhạy cảm ({shown}) — gắn nhãn '{label}'; người merge (merge-check HUMAN)"))
     return warns
 
 
@@ -156,6 +394,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--files", help="'-' = đọc danh sách file đổi từ stdin (mỗi dòng một đường dẫn)")
     ap.add_argument("--title", help="tiêu đề PR")
     ap.add_argument("--body-file", help="file chứa mô tả PR (theo mẫu .github/pull_request_template.md)")
+    ap.add_argument("--labels", help="nhãn của PR, cách nhau dấu phẩy ('' = không có nhãn); bỏ qua cờ này = không kiểm nhãn risk")
     ap.add_argument("--strict", action="store_true", help="có cảnh báo → exit 1")
     args = ap.parse_args(argv)
 
@@ -167,7 +406,10 @@ def main(argv: list[str] | None = None) -> int:
     else:
         ap.error("cần --base hoặc --files -")
     body = Path(args.body_file).read_text(encoding="utf-8") if args.body_file else None
-    warns = check(files, args.title, body, commits)
+    labels = None if args.labels is None else [x for x in args.labels.split(",") if x.strip()]
+    warns = check(files, args.title, body, commits, labels=labels)
+    if body is not None:
+        warns += check_body(body, args.title, files)
     for code, msg in warns:
         print(f"CẢNH BÁO [{code}] {msg}")
     if not warns:

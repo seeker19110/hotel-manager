@@ -1,0 +1,33 @@
+name: Link check
+
+# Kiểm liên kết NGOÀI trong tài liệu theo lịch (BASE-DOC-006, WF-DOC-002): cache thành công 7 ngày, thử lại có lùi,
+# loại trừ domain chặn bot ở scripts/link-check.config.json. Link chết → job đỏ (cảnh báo cho người bảo trì, không chặn merge).
+# Liên kết nội bộ chặn merge ở job `quality` (scripts/repo-hygiene.test.mjs) và `pr-policy` (check-links.py).
+on:
+  schedule:
+    - cron: "23 3 * * 3"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  external-links:
+    name: external-links
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24.22.0"
+      - name: Cache kết quả link đã ổn
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache/link-check.json
+          key: link-check-${{ github.run_id }}
+          restore-keys: link-check-
+      - name: Kiểm liên kết ngoài
+        run: node scripts/check-external-links.mjs

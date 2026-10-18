@@ -1,0 +1,7 @@
+{
+  "_ghi_chu": "Cấu hình scripts/check-external-links.mjs (WF-DOC-002): excludeHosts = tên hoặc *.hậu-tố (kể cả miền con); excludePatterns = regex trên URL. Chỉ loại domain chặn bot/đăng nhập, ghi lý do; không loại để làm xanh link chết.",
+  "cacheDays": 7,
+  "retries": 2,
+  "excludeHosts": ["linkedin.com", "facebook.com", "x.com", "twitter.com", "zalo.me"],
+  "excludePatterns": []
+}
