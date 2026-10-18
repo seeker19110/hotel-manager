@@ -45,6 +45,12 @@ describe("QA-COV-001: coverage nhánh cho unit + db, lưu artifact", () => {
     expect(body).toMatch(/path: coverage\//);
     expect(body).toMatch(/if-no-files-found: error/);
   });
+  it("job coverage cài binary PostgreSQL 17 (test TLS CSDL tự initdb) TRƯỚC bước vitest", () => {
+    const body = job("coverage");
+    const pg = body.indexOf("scripts/dev-env-setup.sh --only postgres");
+    expect(pg).toBeGreaterThan(0);
+    expect(pg).toBeLessThan(body.indexOf("vitest run --coverage"));
+  });
   it("workflow chạy trên pull_request và push main; không continue-on-error", () => {
     expect(workflow).toMatch(/^on:\n {2}push:\n {4}branches: \[main\]\n {2}pull_request:/m);
     expect(workflow).not.toMatch(/continue-on-error/);

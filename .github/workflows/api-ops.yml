@@ -114,6 +114,10 @@ jobs:
           cache: pnpm
       - name: SeaweedFS cho test file (như job gate)
         run: DEV_ENV_OPT_DIR="$RUNNER_TEMP" DEV_ENV_BIN_DIR="$HOME/.local/bin" bash scripts/dev-env-setup.sh --only weed && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      # DB-SEC-003: connection-tls.db.test.ts tự initdb cluster PG 17 (hostssl + scram) — cần binary PG 17 như job `gate`
+      # (service container chỉ phục vụ TEST_DATABASE_URL).
+      - name: PostgreSQL 17 binary cho test TLS CSDL (DB-SEC-003)
+        run: bash scripts/dev-env-setup.sh --only postgres
       - name: Migration của PR chép đè lên code nền (và kiểm migration đã áp còn nguyên)
         run: node scripts/schema-compat.mjs overlay .n-1 .
       - name: Cài phụ thuộc của nhánh nền

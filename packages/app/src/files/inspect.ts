@@ -112,11 +112,21 @@ function stripJpeg(b: Uint8Array): Uint8Array {
     if (len < 2 || i + 2 + len > b.length) throw new CorruptFileError("JPEG hỏng");
     if (marker === 0xda) {
       // Dữ liệu entropy sau SOS: tìm EOI thật (0xFF 0xD9; 0xFF00 và RSTn là dữ liệu). Có thể có nhiều scan (progressive).
+      // `indexOf` chạy native: nhảy thẳng tới từng 0xFF thay vì duyệt từng byte trong JS (10 MB entropy ≈ vài ms, kể cả
+      // khi mã bị đo coverage v8 — vòng từng byte bị chèn bộ đếm nhánh nên chậm gấp nhiều lần).
       let j = i + 2 + len;
-      for (; j + 1 < b.length; j++) {
-        if (b[j] !== 0xff) continue;
+      while (j + 1 < b.length) {
+        const f = b.indexOf(0xff, j);
+        if (f < 0 || f + 1 >= b.length) {
+          j = b.length;
+          break;
+        }
+        j = f;
         const m = b[j + 1] as number;
-        if (m === 0x00 || (m >= 0xd0 && m <= 0xd7) || m === 0xff) continue;
+        if (m === 0x00 || (m >= 0xd0 && m <= 0xd7) || m === 0xff) {
+          j++;
+          continue;
+        }
         break;
       }
       if (j + 1 >= b.length) throw new CorruptFileError("JPEG thiếu EOI");
