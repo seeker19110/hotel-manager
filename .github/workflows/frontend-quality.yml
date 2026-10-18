@@ -79,7 +79,8 @@ jobs:
     name: lighthouse
     needs: [typecheck, lint]
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    # 6 URL × 5 lần đo (PRF-WEB-005).
+    timeout-minutes: 35
     services:
       postgres:
         image: postgres:17.11-trixie@sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3
@@ -105,13 +106,38 @@ jobs:
       - run: pnpm build
       - name: Chromium (Playwright, đúng bản đã ghim) cho Lighthouse
         run: pnpm --filter @hm/web exec playwright install --with-deps chromium
-      - name: lhci autorun (5 lần, median; đỏ khi vi phạm assert mức error)
+      # PRF-WEB-005: 6 URL chính (3 công khai + 3 trang sau đăng nhập của chủ khách sạn giả). Server dựng một lần, phiên lấy bằng
+      # e2e/perf-session-env.ts (như k6 nightly), lhci đo với header Cookie từ config sinh tạm (scripts/lhci-auth-config.mjs).
+      # Trang sau đăng nhập đứng TRƯỚC trong lighthouserc.json: ghé trang đăng nhập làm phiên đo mất hiệu lực (thử thật 2026-10-18).
+      - name: Khởi động app (Postgres service + seed giả, như job e2e)
+        working-directory: apps/web
         env:
           E2E_NO_REPLICA: "1"
+          E2E_PORT: "3100"
+        run: |
+          nohup node e2e/server.ts > "$RUNNER_TEMP/lhci-server.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/lhci-server.pid"
+          for _ in $(seq 1 120); do
+            curl -fsS "http://127.0.0.1:3100/api/health" > /dev/null && exit 0
+            sleep 2
+          done
+          echo "::error::App không lên trong 240 giây"; tail -n 50 "$RUNNER_TEMP/lhci-server.log"; exit 1
+      - name: Phiên đăng nhập cho trang sau đăng nhập
+        working-directory: apps/web
+        env:
+          E2E_PORT: "3100"
+        run: node e2e/perf-session-env.ts >> "$GITHUB_ENV"
+      - name: lhci autorun (5 lần, median; đỏ khi vi phạm assert mức error)
         run: |
           CHROME_PATH="$(pnpm --filter @hm/web exec node -p "require('@playwright/test').chromium.executablePath()")"
           export CHROME_PATH
-          pnpm exec lhci autorun
+          node scripts/lhci-auth-config.mjs "$RUNNER_TEMP/lighthouserc.auth.json"
+          pnpm exec lhci autorun --config="$RUNNER_TEMP/lighthouserc.auth.json"
+      - name: Dừng app (xoá DB tạm)
+        if: always()
+        run: |
+          kill -TERM "$(cat "$RUNNER_TEMP/lhci-server.pid")" 2>/dev/null || true
+          sleep 3
       - name: Lưu báo cáo Lighthouse
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
