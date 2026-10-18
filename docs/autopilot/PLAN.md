@@ -236,6 +236,20 @@ Chủ dự án duyệt "Duyệt CI + công cụ" (sửa `.github/workflows`, pla
 - [x] `T-807` Phát hành + DX: release, changelog, hook git, tài liệu cho agent (WF-CI-001, WF-CI-004, WF-REL-001, WF-REL-003, XC-DX-001, XC-DX-006, BASE-REPO-002, XC-DOCAI-004, XC-DOCAI-005, WF-REVIEW-007) — đã tick 7/10; chưa tick: WF-REL-003 (ruleset tag + Release thật cần chủ dự án import/phát hành), XC-DOCAI-005 (grep `curl … | sh` khớp chuỗi trong `.claude/hooks/guard.py`), WF-REVIEW-007 (cần quyết `merge_risk_paths` thêm `.github/*`…) — Gate: `pnpm vitest run --project unit && python3 .xtemplates/scripts/xt.py ci-check .github/workflows && python3 scripts/check-blueprint-evidence.py BLUEPRINT.md`
 - [x] `T-808` Rà blueprint đợt 9 + GO-NO-GO (—) — Gate: `python3 scripts/check-blueprint-evidence.py BLUEPRINT.md && python3 -m unittest discover -s scripts -p "test_*.py"`
 
+## Đợt 10 — 10 mục MUST còn làm được trong repo (người dùng "làm theo đề xuất", 2026-10-18; D-071)
+
+Nguồn: `BLUEPRINT-GAPS.md` mục "Kết quả đợt 9 (b)". Phạm vi đã duyệt ở D-059 ("Duyệt CI + công cụ"). Mỗi lát một PR; công cụ mới theo `license-policy.json`; chỉ tick mục khi tiêu chí "Kiểm:" thoả đủ, phần chạy trên CI chứng minh bằng job xanh. "Staging" trong Kiểm của QA-PERF-002/CMP-PRIV-008 thay bằng môi trường CI tạm dựng như job `e2e` cho tới khi có VPS (D-072); không tick phần cần staging thật.
+
+- [ ] `T-901` SBOM vào Release: job `assets` của `release.yml` sinh `sbom.cdx.json` (CycloneDX, workspace + image) và đính vào Release; test cấu trúc (CMP-LIC-003) — Gate: `pnpm vitest run --project unit release-config supply-chain && python3 .xtemplates/scripts/xt.py ci-check .github/workflows`
+- [ ] `T-902` Secret scan ở hook: `.githooks/pre-commit` chạy `gitleaks git --staged` khi có gitleaks (thiếu → cảnh báo, CI vẫn chặn); test hook (WF-GIT-010) — Gate: `pnpm vitest run --project unit git-hooks`
+- [ ] `T-903` Không PII trong log: luật Semgrep cấm log nguyên object người dùng/lỗi thô, sửa chỗ vi phạm; bộ quét PII trên log server của lượt E2E (CMP-PRIV-008) — Gate: `pnpm vitest run --project unit logging pii-log security-scan`
+- [ ] `T-904` Xoay mật khẩu role CSDL không downtime: runbook + diễn tập tự động trên cluster tạm (pool đang mở vẫn chạy, kết nối mới dùng mật khẩu mới), log truy vấn không in tham số (DB-SEC-004) — Gate: `pnpm vitest run --project db password-rotation && pnpm vitest run --project unit ops-docs`
+- [ ] `T-905` Ngân sách tài nguyên: trần kích thước image (`docker image inspect`) trong `image-scan`, trần thời gian job CI (`timeout-minutes` có ngân sách ghi ở `docs/PERF-BUDGET.md`), test khoá (XC-GREEN-002) — Gate: `pnpm vitest run --project unit perf-budget supply-chain ci-gates && python3 .xtemplates/scripts/xt.py ci-check .github/workflows`
+- [ ] `T-906` Load test tự động: workflow k6 `schedule` nightly + `workflow_dispatch`, dựng app như `e2e`, `thresholds` p95/tỷ lệ lỗi, `BASE_URL` từ env, bước chặn domain production (QA-PERF-002, QA-PERF-007) — Gate: `pnpm vitest run --project unit perf && python3 .xtemplates/scripts/xt.py ci-check .github/workflows`
+- [ ] `T-907` Lighthouse ≥ 5 URL chính (gồm trang sau đăng nhập qua phiên seed), Performance ≥ 0.9 chặn (PRF-WEB-005) — Gate: `pnpm vitest run --project unit frontend-quality`
+- [ ] `T-908` i18n: chuỗi người dùng thấy ra `messages/vi.json`, lint chặn chuỗi literal trong JSX, script so khoá/tham số ICU/HTML lạ (XC-I18N-001, XC-I18N-009) — Gate: `pnpm vitest run --project unit i18n && pnpm lint`
+- [ ] `T-909` Rà blueprint đợt 10 + GO-NO-GO (—) — Gate: `python3 scripts/check-blueprint-evidence.py BLUEPRINT.md && python3 -m unittest discover -s scripts -p "test_*.py"`
+
 ## Phụ thuộc ngoài
 | Việc | Bên ngoài | Kế hoạch B |
 |---|---|---|

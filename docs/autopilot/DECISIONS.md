@@ -513,3 +513,18 @@
 - Chọn: Không áp dụng: app không có biểu đồ (báo cáo dạng bảng; SVG chỉ icon/QR), khoá điều kiện bằng test rào
 - Lý do (tiêu chí chất lượng cuối): Đúng thực trạng (grep không có thư viện/thành phần biểu đồ; SPEC/PROJECT không yêu cầu biểu đồ); LOOP-STOP-024 cho agent ghi 'Không áp dụng' với điều kiện kiểm được; test scripts/no-charts.test.mjs đỏ khi thêm gói biểu đồ (danh sách + mẫu tên chart/plot/sparkline/graph) hoặc giao diện vẽ svg/canvas, thanh style inline, meter/progress, role=img ngoài icon/QR (mở rộng sau review PR #55); còn lọt: biểu đồ vẽ trong chính icon.tsx/qr-code.tsx hoặc bằng className CSS thuần không style — chấp nhận, review PR bắt
 - Đường lùi: Bỏ [~] UX-VIZ-002 về [ ] và làm mục khi có biểu đồ đầu tiên (test rào sẽ báo)
+
+### D-071 · 2026-10-18T11:52:12+00:00 · Duyệt PLAN đợt 10 (T-901…T-909, 10 mục MUST làm được trong repo)
+
+- Phương án: (1) Làm cả 10 mục theo 8 lát, mỗi lát một PR, thứ tự nhỏ→lớn (SBOM, hook, log PII, xoay mật khẩu, ngân sách, k6, Lighthouse, i18n) · (2) Chỉ làm 6 mục nhỏ, để i18n/k6/Lighthouse cho người
+- Chọn: Làm cả 10 mục theo 8 lát, mỗi lát một PR, thứ tự nhỏ→lớn (SBOM, hook, log PII, xoay mật khẩu, ngân sách, k6, Lighthouse, i18n)
+- Lý do (tiêu chí chất lượng cuối): Người dùng yêu cầu làm theo đề xuất 10 mục; thứ tự nhỏ→lớn cho PR sớm vào main, i18n lớn nhất để cuối; mỗi lát có Gate máy kiểm
+- Đường lùi: Dừng ở lát bất kỳ; lát chưa merge thì đóng PR
+
+### D-072 · 2026-10-18T11:52:12+00:00 · QA-PERF-002/CMP-PRIV-008 đòi chạy trên staging nhưng chưa có VPS/staging
+
+- Phương án: (1) Dùng môi trường CI tạm dựng như job e2e (CSDL seed, dữ liệu giả) làm đích nightly/quét log; không tick phần 'staging' nếu Kiểm đòi staging thật · (2) Hoãn cả hai mục chờ staging
+- Chọn: Dùng môi trường CI tạm dựng như job e2e (CSDL seed, dữ liệu giả) làm đích nightly/quét log; không tick phần 'staging' nếu Kiểm đòi staging thật
+- Lý do (tiêu chí chất lượng cuối): Có giá trị ngay (bắt hồi quy hiệu năng/PII), an toàn (không đụng production, dữ liệu giả), đường lùi rõ: đổi BASE_URL sang staging khi có
+- Đường lùi: Đổi BASE_URL/secret sang staging thật; hoặc tắt schedule
+- Khi chạy thật (đề xuất, chủ dự án quyết ở G7): Khi có staging: đặt BASE_URL của workflow k6 tới staging (biến môi trường repo, không phải domain production)
