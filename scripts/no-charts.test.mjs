@@ -5,10 +5,51 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const CHART_LIBS =
-  /^(recharts|chart\.js|react-chartjs-2|echarts|echarts-for-react|apexcharts|react-apexcharts|plotly\.js|react-plotly\.js|highcharts|victory|uplot|d3|d3-.+|@visx\/.+|@nivo\/.+|@tremor\/.+|@mui\/x-charts|@observablehq\/plot|vega|vega-lite|react-vega)$/;
+// Tên gói đã biết (kèm biến thể `-…`) + mẫu chung cho mọi gói có đoạn tên chart(s)/plot(s)/sparkline(s)/graph… (thư viện
+// biểu đồ tự vẽ SVG/canvas bên trong nên quét `<svg>` không bắt được — tên gói là lớp chặn chính).
+const CHART_LIBS = new RegExp(
+  "^(?:" +
+    [
+      "recharts",
+      "chart\\.js",
+      "react-chartjs-2",
+      "echarts",
+      "echarts-for-react",
+      "echarts-gl",
+      "apexcharts",
+      "react-apexcharts",
+      "plotly\\.js",
+      "react-plotly\\.js",
+      "highcharts",
+      "victory",
+      "uplot",
+      "d3",
+      "chartist",
+      "c3",
+      "billboard\\.js",
+      "zingchart",
+      "lightweight-charts",
+      "@visx\\/.+",
+      "@nivo\\/.+",
+      "@tremor\\/.+",
+      "@mui\\/x-charts",
+      "@observablehq\\/plot",
+      "vega",
+      "vega-lite",
+      "react-vega",
+      "@antv\\/.+",
+      "@unovis\\/.+",
+      "@amcharts\\/.+",
+    ].join("|") +
+    ")(?:-.+)?$" +
+    "|(?:^|[@/.-])(?:charts?|chartjs|plots?|sparklines?|vchart|graphs?)(?:[/.-]|$)",
+);
 // SVG không phải biểu đồ: icon (thư viện icon nội bộ) và mã QR (ảnh máy quét).
 const SVG_ALLOWED = new Set(["apps/web/components/ui/icon.tsx", "apps/web/components/portal/qr-code.tsx"]);
+
+// Dạng vẽ: SVG/canvas, và biểu đồ không dùng SVG — thanh độ rộng theo dữ liệu (`style={…}`: cả app hiện không có style
+// inline), `<meter>`/`<progress>`, phần tử `role="img"`.
+const DRAWN = /<(?:svg|canvas|meter|progress)\b|\bstyle=\{|role=["']img/;
 
 const manifests = [
   "package.json",
@@ -21,7 +62,7 @@ const walk = (dir) =>
     if (n === "node_modules" || n.startsWith(".")) return [];
     return statSync(p).isDirectory()
       ? walk(p)
-      : /\.(tsx|ts|jsx|js|mdx)$/.test(n) && !/\.test\./.test(n)
+      : /\.(tsx|ts|jsx|js|mjs|cjs|mts|mdx)$/.test(n) && !/\.test\./.test(n)
         ? [p]
         : [];
   });
@@ -36,7 +77,12 @@ describe("UX-VIZ-002 không áp dụng: không có biểu đồ", () => {
   it("không package nào của workspace phụ thuộc thư viện biểu đồ", () => {
     const found = manifests.flatMap((f) => {
       const pkg = JSON.parse(readFileSync(f, "utf8"));
-      const deps = { ...pkg.dependencies, ...pkg.devDependencies, ...pkg.peerDependencies };
+      const deps = {
+        ...pkg.dependencies,
+        ...pkg.devDependencies,
+        ...pkg.peerDependencies,
+        ...pkg.optionalDependencies,
+      };
       return Object.keys(deps)
         .filter((n) => CHART_LIBS.test(n))
         .map((n) => `${f}: ${n}`);
@@ -44,9 +90,22 @@ describe("UX-VIZ-002 không áp dụng: không có biểu đồ", () => {
     expect(found).toEqual([]);
   });
 
-  it("giao diện không vẽ <svg>/<canvas> ngoài icon và mã QR", () => {
-    const files = ["apps/web/app", "apps/web/components", "apps/web/lib"].flatMap(walk);
-    const found = files.filter((f) => !SVG_ALLOWED.has(f) && /<(svg|canvas)\b/.test(readFileSync(f, "utf8")));
+  it("bộ quét giao diện bắt biểu đồ SVG/canvas và biểu đồ vẽ bằng div/CSS", () => {
+    for (const t of [
+      "<svg viewBox>",
+      "<canvas />",
+      "<meter value={1} />",
+      "<progress />",
+      'role="img"',
+      "style={{ width }}",
+    ])
+      expect(t).toMatch(DRAWN);
+    expect('<table className="report">').not.toMatch(DRAWN);
+  });
+
+  it("giao diện không vẽ <svg>/<canvas>, thanh style/meter/progress, role=img ngoài icon và mã QR", () => {
+    const files = ["apps/web/app", "apps/web/components", "apps/web/lib", "apps/web/src"].flatMap(walk);
+    const found = files.filter((f) => !SVG_ALLOWED.has(f) && DRAWN.test(readFileSync(f, "utf8")));
     expect(found).toEqual([]);
     for (const f of SVG_ALLOWED) expect(statSync(f).isFile()).toBe(true);
   });
