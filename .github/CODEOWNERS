@@ -1,0 +1,42 @@
+# CODEOWNERS (WF-REVIEW-007, XC-DOCAI-005): vùng nhạy cảm luôn có code owner; file điều khiển agent được review như mã.
+# Dòng sau thắng dòng trước. Chủ dự án là owner duy nhất; bật `require_code_owner_review` ở ruleset khi có tài khoản thứ hai
+# (BLUEPRINT-GAPS.md WF-REVIEW-007).
+* @seeker19110
+
+# Hướng dẫn và cấu hình agent (điều khiển hành vi của mọi người clone repo)
+/AGENTS.md @seeker19110
+/CLAUDE.md @seeker19110
+/.claude/ @seeker19110
+/.cursor/ @seeker19110
+/.githooks/ @seeker19110
+
+# CI, ruleset, phụ thuộc, chuỗi cung ứng
+/.github/ @seeker19110
+/xt.yaml @seeker19110
+/biome.json @seeker19110
+/vitest.config.ts @seeker19110
+/license-policy.json @seeker19110
+/pnpm-lock.yaml @seeker19110
+/deploy/ @seeker19110
+
+# Xác thực, phân quyền, mật mã, dữ liệu cá nhân
+/packages/app/src/auth/ @seeker19110
+/packages/app/src/access/ @seeker19110
+/packages/app/src/identity/ @seeker19110
+/packages/app/src/crypto/ @seeker19110
+/packages/app/src/privacy/ @seeker19110
+/docs/privacy/ @seeker19110
+
+# Tiền, tồn phòng, lưu trú
+/packages/app/src/ledger/ @seeker19110
+/packages/app/src/payments/ @seeker19110
+/packages/app/src/deposits/ @seeker19110
+/packages/app/src/reconciliation/ @seeker19110
+/packages/app/src/billing/ @seeker19110
+/packages/app/src/shifts/ @seeker19110
+/packages/app/src/stay/ @seeker19110
+/packages/app/src/inventory/ @seeker19110
+/packages/domain/ @seeker19110
+
+# CSDL: migration, RLS, vai trò
+/packages/db/ @seeker19110
