@@ -424,7 +424,7 @@
 - Lý do (tiêu chí chất lượng cuối): (1) đúng phạm vi người duyệt; (3) mỗi lát một PR có test/CI chứng minh; công cụ chọn tự host, giấy phép OSI, action ghim SHA (ci-check); phụ thuộc mới theo license-policy.json
 - Đường lùi: Revert PR của lát tương ứng; cấu hình cổng trở về bản trước
 
-### D-060 · 2026-10-18T00:08:36+00:00 · T-802: chọn công cụ chuỗi cung ứng
+### D-061 · 2026-10-18T00:08:36+00:00 · T-802: chọn công cụ chuỗi cung ứng
 
 - Phương án: (1) grype (anchore/scan-action, only-fixed, chặn high/critical; lỗ hổng chưa có bản sửa theo dõi trong VULN-SLA.md) + SBOM CycloneDX 1.6 tự sinh (scripts/sbom.mjs) + syft cho image + new-deps chỉ chặn phụ thuộc trực tiếp · (2) trivy + cdxgen, chặn cả lỗ hổng chưa có bản sửa
 - Chọn: grype (anchore/scan-action, only-fixed, chặn high/critical; lỗ hổng chưa có bản sửa theo dõi trong VULN-SLA.md) + SBOM CycloneDX 1.6 tự sinh (scripts/sbom.mjs) + syft cho image + new-deps chỉ chặn phụ thuộc trực tiếp
