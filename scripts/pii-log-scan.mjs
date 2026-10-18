@@ -22,7 +22,9 @@ const DETECTORS = [
     keep: (m) => m[0].replace(/\D/g, "").length >= 10 && m[0].replace(/\D/g, "").length <= 11,
   },
   // CCCD 12 số (CMND 9 số trùng dạng số tiền/kích thước nên không quét ở đây — logger đã che theo cả khoá lẫn giá trị).
-  { kind: "id-number", re: /(?<![\d.-])\d{12}(?![\w.-])/g },
+  // Không dính chữ/số hai bên (trace_id/span_id hex có thể kết thúc bằng 12 chữ số sau một chữ cái — báo nhầm ngẫu nhiên trên
+  // CI, PR #72), trừ tiền tố giấy tờ viết liền ("CCCD001203004567").
+  { kind: "id-number", re: /(?:(?<![\w.-])|(?<=(?:CCCD|CMND|cccd|cmnd)))\d{12}(?![\w.-])/g },
   { kind: "bearer-token", re: /\b(?:Bearer|Basic)\s+(?!\*\*\*)[A-Za-z0-9._~+/=-]{8,}/gi },
   { kind: "session-cookie", re: /session_token=(?!\*\*\*)[^\s;,"]{8,}/g },
   { kind: "seed-name", re: /[^\s"{}[\]:,]{1,40}(?: [^\s"{}[\]:,]{1,40}){0,4} \(giả\)/gu },
