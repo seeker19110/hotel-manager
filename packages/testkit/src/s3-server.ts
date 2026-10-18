@@ -129,10 +129,11 @@ export async function startS3Server(): Promise<S3Server> {
     await new Promise((r) => setTimeout(r, 250));
   }
   if (exited) {
-    // Ưu tiên dòng lỗi của glog (F…/E…) và lỗi parse cờ (in đầu bảng usage); không có thì lấy đuôi log.
+    // Dòng lỗi của glog (F…/E…) và lỗi parse cờ (in ĐẦU bảng usage) cộng 5 dòng cuối (panic của Go không có tiền tố
+    // F/E; weed 4.48 lần nào cũng ghi một dòng E vô hại về IAM nên chỉ lấy dòng lỗi có thể che mất nguyên nhân thật).
     const lines = readFileSync(logFile, "utf8").split("\n").filter(Boolean);
     const errs = lines.filter((l) => /^[FE]\d{4} |invalid value|flag provided but not defined/.test(l));
-    const tail = (errs.length > 0 ? errs : lines).slice(-15).join("\n");
+    const tail = [...new Set([...errs.slice(-10), ...lines.slice(-5)])].join("\n");
     rmSync(dir, { recursive: true, force: true });
     throw new Error(
       `SeaweedFS không khởi động được — chạy \`bash scripts/dev-env-setup.sh --only weed\` (PLAN T-001). Log weed:\n${tail}`,
