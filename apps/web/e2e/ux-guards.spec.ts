@@ -632,6 +632,10 @@ test("bàn phím: thu tiền (trang Thu tiền) — mọi nút/ô nhập tới �
 }) => {
   await asSession("rental", browser, baseURL as string, context);
   await page.goto("/thu-tien");
+  // Chờ trạng thái sẵn sàng thật trước vòng Tab: form đã hydrate và không fieldset nào đang khoá (`cmd.locked` bật khi
+  // hook tra lại lệnh dở/đang kết nối lại ngay sau khi tải trang) — ô trong fieldset disabled không nhận focus.
+  for (const form of await page.locator("main form").all()) await hydrated(form);
+  await expect(page.locator("main fieldset[disabled]")).toHaveCount(0);
   const targets = page.locator("main").locator("button, input, select, a[href]");
   const n = await targets.count();
   const seen = new Set<string>();
