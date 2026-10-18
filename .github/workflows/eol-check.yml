@@ -1,0 +1,25 @@
+name: EOL check
+
+# BASE-DEP-003, OPS-MAINT-003: hằng tuần đối chiếu phiên bản Node/Next.js/PostgreSQL/Caddy/Debian đang dùng (đọc từ .nvmrc,
+# package.json, Dockerfile, compose, service image) với https://endoflife.date/api. Đỏ khi đã EOL (Node: còn ≤ 90 ngày);
+# cảnh báo khi còn < 6 tháng. Không chạy trên PR (phụ thuộc mạng ngoài) — chạy tay: workflow_dispatch.
+on:
+  schedule:
+    - cron: "37 5 * * 2"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  eol-check:
+    name: eol-check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24.22.0"
+      - name: Đối chiếu endoflife.date
+        run: node scripts/eol-check.mjs
