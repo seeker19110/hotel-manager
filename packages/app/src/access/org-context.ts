@@ -2,6 +2,7 @@
 // số tổ chức người dùng có membership — mọi request vẫn tra membership (resolveActor), không tin ID client gửi.
 import { randomUUID } from "node:crypto";
 import { withTenant } from "@hm/db";
+import { firstNonBlank } from "@hm/domain";
 import { type Kysely, sql } from "kysely";
 import { hashPayload } from "../pipeline/index.ts";
 import { listMyOrganizations, type MyOrganization, type Role } from "./actor.ts";
@@ -33,7 +34,7 @@ export function requestedOrgId(
   headerValue: string | null | undefined,
   cookieValue: string | null | undefined,
 ) {
-  return headerValue?.trim() || cookieValue?.trim() || null;
+  return firstNonBlank(headerValue, cookieValue);
 }
 
 export interface OrgContext {

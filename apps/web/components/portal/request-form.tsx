@@ -3,6 +3,7 @@
 // nguyên khi thử lại), rồi gửi `portal/createRequest` với file_ids — cùng cơ chế chống gửi đúp/mất mạng của mọi command.
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
+import { firstNonEmpty } from "../../lib/text.ts";
 import { ResultUnknown, shortCommandId } from "../command/command-status.tsx";
 import { problemText, useCommand } from "../command/use-command.ts";
 import { usePhotoUpload } from "../command/use-photo-upload.ts";
@@ -148,7 +149,7 @@ export function RequestForm({ units }: { units: RentedUnit[] }) {
       ) : null}
       {cmd.phase === "processing" ? (
         <ResultUnknown
-          commandId={cmd.problem?.command_id || cmd.commandId || ""}
+          commandId={firstNonEmpty(cmd.problem?.command_id, cmd.commandId) ?? ""}
           onRecheck={() => void cmd.recheck().then((r) => r !== null && router.refresh())}
         />
       ) : null}

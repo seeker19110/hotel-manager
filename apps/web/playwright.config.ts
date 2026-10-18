@@ -23,13 +23,16 @@ const DETERMINISTIC = { locale: "vi-VN", timezoneId: "UTC" } as const;
 export default defineConfig({
   testDir: "./e2e",
   timeout: 60_000,
-  retries: 0,
+  // QA-E2E-005 / QA-STRAT-008: CI cấm `test.only` lọt vào (forbidOnly), thử lại ≤ 2 lần, lấy trace ở lần thử lại đầu;
+  // workers cố định (1: mọi spec dùng chung một server + một Postgres seed).
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 2 : 0,
   workers: 1,
   reporter: [["list"]],
   use: {
     ...DETERMINISTIC,
     baseURL: BASE_URL,
-    trace: "retain-on-failure",
+    trace: "on-first-retry",
     launchOptions: executablePath ? { executablePath } : {},
   },
   // Hai project (FE-TEST-002, PRF-WEB-006, UX-RESP-008): luồng chính chạy trên điện thoại (Pixel 7, mobile-first) VÀ máy tính để bàn.

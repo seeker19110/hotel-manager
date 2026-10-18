@@ -216,7 +216,7 @@ describe("FE-BUILD-003 / FE-BUILD-004 — build nghiêm, lint 0 cảnh báo", ()
     expect(needsOf(jobs.lighthouse)).toEqual(expect.arrayContaining(["typecheck", "lint"]));
   });
   it("lint = biome ci --error-on-warnings (một cấu hình biome.json), job fe-lint chạy pnpm lint", () => {
-    expect(JSON.parse(read("package.json")).scripts.lint).toBe("biome ci . --error-on-warnings");
+    expect(JSON.parse(read("package.json")).scripts.lint).toBe("biome ci --error-on-warnings .");
     expect(jobs.lint).toMatch(/run: pnpm lint/);
     expect(existsSync(join(ROOT, "biome.json"))).toBe(true);
   });
@@ -235,16 +235,16 @@ describe("FE-BUILD-003 / FE-BUILD-004 — build nghiêm, lint 0 cảnh báo", ()
 });
 
 describe("FE-TEST-006 — rào PR fix kèm test + job regression", () => {
-  const fix = read(".github/workflows/fix-has-test.yml");
-  it("workflow riêng nhẹ chạy lại khi sửa tiêu đề PR (edited), fetch-depth 0, tiêu đề đi qua env", () => {
-    expect(fix).toMatch(/types: \[opened, synchronize, reopened, edited\]/);
-    expect(fix).toMatch(/fetch-depth: 0/);
-    expect(fix).toMatch(/TITLE: \$\{\{ github\.event\.pull_request\.title \}\}/);
-    expect(fix).toMatch(/run: node scripts\/check-fix-has-test\.mjs "\$TITLE" "\$BASE_REF"/);
-    expect(fix).not.toMatch(/run:[^\n]*\$\{\{/);
+  const tq = read(".github/workflows/test-quality.yml");
+  it("rào PR fix nằm ở job fix-requires-test của test-quality.yml (T-805), chạy lại khi sửa tiêu đề PR (edited)", () => {
+    expect(tq).toMatch(/types: \[opened, synchronize, reopened, edited\]/);
+    expect(tq).toMatch(/fix-requires-test:\n {4}name: fix-requires-test/);
+    expect(tq).toMatch(/TITLE: \$\{\{ github\.event\.pull_request\.title \}\}/);
+    expect(tq).toMatch(/node scripts\/fix-requires-test\.mjs --title "\$TITLE"/);
+    expect(existsSync(join(ROOT, ".github/workflows/fix-has-test.yml"))).toBe(false); // không trùng lặp rào
   });
-  it("job regression chạy test component + rào truy vấn; không còn bước fix-has-test (đã tách)", () => {
+  it("job regression chạy test component + rào truy vấn; không chứa bước kiểm PR fix (đã tách sang test-quality.yml)", () => {
     expect(jobs.regression).toMatch(/pnpm vitest run --project unit apps\/web\/components/);
-    expect(jobs.regression).not.toMatch(/check-fix-has-test/);
+    expect(jobs.regression).not.toMatch(/fix-has-test|fix-requires-test/);
   });
 });

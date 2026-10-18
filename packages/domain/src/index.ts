@@ -127,4 +127,5 @@ export {
   sumNights,
   weekendNightsSetting,
 } from "./stay/pricing.ts";
+export { blankToNull, firstNonBlank, keepIfUndefined } from "./text/optional.ts";
 export * from "./units/units.ts";

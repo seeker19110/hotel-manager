@@ -35,11 +35,13 @@ describe("deploy/", () => {
   });
 });
 
+// biome-ignore lint/suspicious/noTemplateCurlyInString: chủ ý: dữ liệu mẫu là biểu thức workflow `${{ … }}`, không phải template literal
+const WORKFLOW_EXPR = "${{matrix.ref}}";
+
 describe("findUnpinned — biểu thức workflow", () => {
   it("mặc định biểu thức workflow bị coi là chưa ghim; với skipExpressions thì bỏ qua, image thật vẫn bị bắt", () => {
-    const expr = `${"$"}{{matrix.ref}}`; // ghép: tránh chuỗi thường chứa `${…}` (biome noTemplateCurlyInString)
-    const yml = `      image: ${expr}\n      image: postgres:17\n`;
-    expect(findUnpinned(yml)).toEqual([expr, "postgres:17"]);
+    const yml = `      image: ${WORKFLOW_EXPR}\n      image: postgres:17\n`;
+    expect(findUnpinned(yml)).toEqual([WORKFLOW_EXPR, "postgres:17"]);
     expect(findUnpinned(yml, { skipExpressions: true })).toEqual(["postgres:17"]);
   });
   it("service image của workflow ghim digest thì sạch", () => {

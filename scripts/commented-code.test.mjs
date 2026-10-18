@@ -2,9 +2,6 @@
 import { describe, expect, it } from "vitest";
 import { commentedCodeIn, commentLines, looksLikeCode, scanRepo } from "./commented-code.mjs";
 
-// Tránh chuỗi thường chứa `${…}` (biome noTemplateCurlyInString): ghép từ hai nửa.
-const INTERP = "$" + "{name}";
-
 /** Ngoại lệ có lý do — chỉ được co (ratchet). Khoá `file:dòng` không bền nên ghi theo `file` + nội dung. Hiện 0. */
 const BASELINE = {};
 
@@ -40,7 +37,8 @@ describe("looksLikeCode — nhận ra code bị comment-out", () => {
     "console.log(x);",
     'throw new Error("Không tìm thấy phòng");',
     'const label = "Phòng trống";',
-    `await sendSms(phone, \`Xin chào ${INTERP}\`);`,
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: chủ ý: chuỗi mẫu chứa `${…}` là dữ liệu của test, không phải template literal
+    "await sendSms(phone, `Xin chào ${name}`);",
     "return 'Đã thu đủ';",
     '<Button variant="primary" onClick={save}>Lưu</Button>',
     '<Button variant="primary" onClick={save} />',
@@ -143,7 +141,8 @@ describe("commentedCodeIn", () => {
     const src = [
       '// throw new Error("Không tìm thấy phòng");',
       '/* const label = "Phòng trống"; */',
-      `// await sendSms(phone, \`Xin chào ${INTERP}\`);`,
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: chủ ý: chuỗi mẫu chứa `${…}` là dữ liệu của test, không phải template literal
+      "// await sendSms(phone, `Xin chào ${name}`);",
     ].join("\n");
     expect(commentedCodeIn(src).map((h) => h.line)).toEqual([1, 2, 3]);
   });

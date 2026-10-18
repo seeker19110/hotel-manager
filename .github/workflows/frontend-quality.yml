@@ -180,8 +180,8 @@ jobs:
           path: apps/web/test-results/
           retention-days: 7
 
-  # FE-TEST-006: test component (tầng thấp nhất) của giao diện. Rào "PR fix phải kèm test" ở workflow riêng `fix-has-test.yml`
-  # (cần `edited` để đổi tiêu đề PR chạy lại — workflow này không lắng nghe sự kiện đó).
+  # FE-TEST-006: test component (tầng thấp nhất) của giao diện. Rào "PR fix phải kèm test" là job `fix-requires-test`
+  # của `test-quality.yml` (T-805; lắng nghe `edited` để đổi tiêu đề PR chạy lại — workflow này không lắng nghe sự kiện đó).
   regression:
     name: regression
     runs-on: ubuntu-24.04

@@ -10,6 +10,22 @@ Object.assign(process.env, DETERMINISTIC_ENV);
 // `// @vitest-environment happy-dom`); mạng và `next/navigation` được giả trong từng test (FE-TEST-001/003).
 export default defineConfig({
   test: {
+    // Coverage v8 cho unit + db (QA-COV-001/002): có `branches`; ngưỡng là sàn ratchet — chỉ được tăng (QA-COV-008:
+    // hạ ngưỡng / thêm `exclude` để "cho xanh" cần lý do ghi trong PR; file này nằm trong `merge_risk_paths` của xt.yaml
+    // nên PR đổi nó luôn do người merge). Chỉ chạy khi có `--coverage` (job `coverage` của CI).
+    coverage: {
+      provider: "v8",
+      reportsDirectory: "coverage",
+      reporter: ["text-summary", "json-summary", "lcov"],
+      include: [
+        "packages/*/src/**/*.ts",
+        "apps/worker/src/**/*.ts",
+        "apps/web/src/**/*.ts",
+        "apps/web/lib/**/*.ts",
+      ],
+      exclude: ["**/*.test.ts", "**/*.d.ts", "packages/testkit/**", "packages/app/src/testing/**"],
+      thresholds: { lines: 94.8, branches: 83.8, functions: 96.0, statements: 92.1 },
+    },
     projects: [
       {
         // tsconfig của apps/web để `jsx: preserve` cho Next; test cần JSX đã biên dịch (runtime tự động của React 19).

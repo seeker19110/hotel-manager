@@ -176,10 +176,10 @@ describe("FE-SEC-002 — rào: không render/điều hướng URL động ngoài
     expect(bad("window.location.assign(next)")).toEqual(["next"]);
     expect(bad("router.push(returnTo)")).toEqual(["returnTo"]);
     expect(bad("location.href = params.get('u')")).toEqual(["params.get('u')"]);
-    // Tránh chuỗi thường chứa `${…}` (biome noTemplateCurlyInString): ghép từ hai nửa.
-    const interp = (name: string) => `$${"{"}${name}}`;
-    expect(bad(`<a href={\`${interp("base")}/x\`}>`)).toEqual([`\`${interp("base")}/x\``]);
-    expect(bad(`<a href={\`/hop-dong/${interp("id")}\`}>`)).toEqual([]);
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: chủ ý: chuỗi mẫu chứa `${…}` là dữ liệu của test, không phải template literal
+    expect(bad("<a href={`${base}/x`}>")).toEqual(["`${base}/x`"]);
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: chủ ý: chuỗi mẫu chứa `${…}` là dữ liệu của test, không phải template literal
+    expect(bad("<a href={`/hop-dong/${id}`}>")).toEqual([]);
     expect(bad("<a href={safeUrl(u) as string}>")).toEqual([]);
     expect(bad('window.location.assign("/dang-nhap")')).toEqual([]);
     expect(bad('redirect("/phong")')).toEqual([]);

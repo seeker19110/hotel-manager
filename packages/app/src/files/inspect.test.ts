@@ -80,6 +80,26 @@ describe("stripImageMetadata — JPEG", () => {
     );
   });
 
+  it("dữ liệu entropy kết thúc bằng 0xFF lẻ hoặc chỉ có 0xFF00/RST mà không có EOI → CorruptFileError", () => {
+    const head = Array.from(jpeg().subarray(0, -9)); // tới hết SOS header, trước dữ liệu entropy
+    const lone = Uint8Array.from([...head, 0x12, 0x34, 0xff]);
+    const stuffedOnly = Uint8Array.from([...head, 0x12, 0xff, 0x00, 0xff, 0xd3, 0x56]);
+    const noEntropy = Uint8Array.from(head);
+    for (const bad of [lone, stuffedOnly, noEntropy]) {
+      expect(() => stripImageMetadata(bad, "image/jpeg")).toThrow(CorruptFileError);
+    }
+  });
+
+  it("0xFF 0xFF đệm trong dữ liệu entropy rồi EOI vẫn tìm đúng EOI", () => {
+    const head = Array.from(jpeg().subarray(0, -9));
+    const out = stripImageMetadata(
+      Uint8Array.from([...head, 0x12, 0xff, 0xff, 0xff, 0xd9, 0xaa, 0xbb]),
+      "image/jpeg",
+    );
+    expect(Array.from(out.subarray(-3))).toEqual([0xff, 0xff, 0xd9]);
+    expect(text(out)).not.toMatch(/Exif|GPS/);
+  });
+
   it("10 MB không chặn event loop (< 250 ms)", () => {
     const body = new Uint8Array(10 * 1024 * 1024).fill(0x11);
     const big = Uint8Array.from([...Array.from(jpeg().subarray(0, -2))]);

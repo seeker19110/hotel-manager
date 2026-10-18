@@ -104,7 +104,8 @@ describe("pr-deps.yml (BASE-DEP-006)", () => {
     expect(text).toMatch(/node scripts\/new-deps-check\.mjs --base-lock/);
     expect(text).not.toMatch(/\$\{\{/);
     const bodyStep = steps(wf, "new-deps").find((s) => (s.run ?? "").includes("new-deps-check"));
-    expect(bodyStep.env.PR_BODY).toBe(`${"$"}{{ github.event.pull_request.body }}`);
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: chủ ý: so khớp biểu thức workflow `${{ … }}` nguyên văn, không phải template literal
+    expect(bodyStep.env.PR_BODY).toBe("${{ github.event.pull_request.body }}");
   });
   it("mẫu PR có mục '## Phụ thuộc mới' với định dạng 4 trường", () => {
     const t = read(".github/pull_request_template.md");
@@ -477,7 +478,7 @@ describe("pnpm overrides — bản vá cho phụ thuộc gián tiếp (grype --o
   const versionsOf = (name) =>
     lockPackages.filter((k) => k.startsWith(`${name}@`)).map((k) => k.slice(name.length + 1));
   const cases = [
-    ["tmp", "tmp@<0.2.6", "0.2.6", "GHSA-ph9p-34f9-6g65"],
+    ["tmp", "tmp@<0.2.7", "0.2.7", "GHSA-7c78-jf6q-g5cm"],
     ["basic-ftp", "basic-ftp@<6.2.1", "6.2.1", "GHSA-c475-qrg2-pj4r"],
     ["uuid", "uuid@<11.1.1", "11.1.1", "GHSA-w5hq-g745-h8pq"],
   ];

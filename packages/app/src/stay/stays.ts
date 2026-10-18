@@ -5,6 +5,7 @@
 import { randomUUID } from "node:crypto";
 import {
   authorize,
+  blankToNull,
   type NightPrice,
   nightsOf,
   parseStayNoticeDeadline,
@@ -88,7 +89,7 @@ async function recordGuests(
   let isForeign = false;
   for (const [i, g] of guests.entries()) {
     const path = `guests.${i}`;
-    const given = g.nationality?.trim().toUpperCase() || null;
+    const given = blankToNull(g.nationality)?.toUpperCase() ?? null;
     if (given !== null && !/^[A-Z]{2}$/.test(given))
       throw fieldError(`${path}.nationality`, "invalid", "Quốc tịch phải là mã ISO 2 chữ cái");
     let personId: string;

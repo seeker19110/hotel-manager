@@ -150,6 +150,7 @@ const rssMb = (pid: number) =>
 test("độ trễ API (p50/p95/p99, số mẫu) và CPU/RSS backend theo 1.000 yêu cầu — chỉ ghi khi PERF_BASELINE_OUT", async ({
   browser,
 }, info) => {
+  // biome-ignore lint/suspicious/noSkippedTests: bỏ qua có điều kiện — lý do nằm ngay trong lời gọi (đo đầy đủ chỉ khi đặt PERF_BASELINE_OUT)
   test.skip(!OUT, "chế độ đo đầy đủ chỉ chạy khi đặt PERF_BASELINE_OUT");
   test.setTimeout(180_000);
   const baseURL = info.project.use.baseURL as string;

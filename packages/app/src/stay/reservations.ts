@@ -6,6 +6,7 @@ import { randomUUID } from "node:crypto";
 import { withTenant } from "@hm/db";
 import {
   authorize,
+  blankToNull,
   bookingMachine,
   generateMemoRef,
   grantFor,
@@ -58,7 +59,7 @@ export async function resolveBooker(ctx: CommandContext, b: BookerInput, path = 
   const phone = b.phone?.trim() ?? "";
   if (!/^\+?[0-9 .()-]{6,20}$/.test(phone))
     throw fieldError(`${path}.phone`, "invalid", "Số điện thoại không hợp lệ");
-  const email = b.email?.trim().toLowerCase() || null;
+  const email = blankToNull(b.email)?.toLowerCase() ?? null;
   if (email !== null && !/^[^\s@]{1,64}@[^\s@]{1,255}$/.test(email))
     throw fieldError(`${path}.email`, "invalid", "Email không hợp lệ");
   const id = randomUUID();

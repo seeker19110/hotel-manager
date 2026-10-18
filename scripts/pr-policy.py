@@ -23,13 +23,14 @@ Quy tắc:
   hoặc ghi "không áp dụng — lý do: …".
 - XC-GREEN-005 (bổ sung): PR `refactor:`/`perf:` điền hàng "Số test" (trước/sau); số test không giảm, tăng thì diff phải có file test.
 - LOOP-STOP-005: (khi có `--labels`) PR chạm đường dẫn tiền/dữ liệu/auth/mật mã (nguồn: `merge_risk_paths` của xt.yaml) phải có
-  nhãn `risk:money|data|auth|crypto` tương ứng. Review bắt buộc của người cần ruleset GitHub — ngoài phạm vi script.
+  nhãn `risk:money|data|auth|crypto|gate` tương ứng (`risk:gate` = cấu hình cổng chất lượng/CI, D-063). Review bắt buộc của người cần ruleset GitHub — ngoài phạm vi script.
 - Tiêu đề PR: Conventional Commits, ≤ 72 ký tự (cùng luật với job CI hiện có).
 """
 
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import importlib.util
 import re
 import subprocess
@@ -76,6 +77,20 @@ RISK_DIRS = {
 # Đường dẫn gốc (tiền tố) cũng nhạy cảm: API công khai và toàn bộ lớp CSDL.
 RISK_PREFIXES = {
     "risk:data": ("apps/web/app/api/", "packages/db/"),
+}
+# Cấu hình cổng chất lượng/CI (QA-COV-008, D-063): khớp glob (fnmatch) trên cả đường dẫn.
+RISK_FILES = {
+    "risk:gate": (
+        "*vitest.config.*",
+        "*playwright.config.*",
+        "biome.json*",
+        "tsconfig.base.json",
+        "*/tsconfig.json",
+        "xt.yaml",
+        "scripts/check-coverage-ratchet.mjs",
+        "scripts/fix-requires-test.mjs",
+        ".github/workflows/test-quality.yml",
+    ),
 }
 TEST_FILE = re.compile(r"\.(?:test|spec)\.[a-z]+$|(?:^|/)test_[^/]+\.py$")
 TEST_REF = re.compile(r"[\w@./-]+\.(?:test|spec)\.(?:ts|tsx|mjs|py)\b|(?:[\w@.-]+/)*test_\w+\.py\b")
@@ -140,6 +155,9 @@ def risk_labels(files: list[str]) -> dict[str, list[str]]:
                 need.setdefault(label, []).append(f)
         for label, prefixes in RISK_PREFIXES.items():
             if any(f.startswith(p) for p in prefixes):
+                need.setdefault(label, []).append(f)
+        for label, globs in RISK_FILES.items():
+            if any(fnmatch.fnmatchcase(f.strip(), g) for g in globs):
                 need.setdefault(label, []).append(f)
     return need
 

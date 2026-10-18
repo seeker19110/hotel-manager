@@ -2,7 +2,7 @@
 // code chỉ dọn hold hết hạn dưới khoá phòng (INV-I3), dịch lỗi 23P01 → ROOM_UNAVAILABLE và ghi audit/outbox.
 import { randomUUID } from "node:crypto";
 import { withTenant } from "@hm/db";
-import { authorize, minutesToMs } from "@hm/domain";
+import { authorize, keepIfUndefined, minutesToMs } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/index.ts";
 import { createCleaningTask } from "../housekeeping/index.ts";
@@ -793,7 +793,7 @@ export async function resizeAllocation(
   if (a.kind === "hold" && a.expires_at && a.expires_at.getTime() <= now.getTime())
     throw new CommandError("HOLD_EXPIRED", 409, "Giữ chỗ đã hết hạn");
   const start = input.start ?? a.lo;
-  const end = input.end === undefined ? a.hi : input.end;
+  const end = keepIfUndefined(input.end, a.hi);
   if (end === null && a.kind !== "lease")
     throw new CommandError(
       "VALIDATION_FAILED",
