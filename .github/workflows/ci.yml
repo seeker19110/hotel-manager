@@ -48,8 +48,26 @@ jobs:
       # T-011: object storage tự host (ADR-0002) cho test file riêng tư — binary kiểm SHA-256 trong script.
       - name: SeaweedFS cho test file (PLAN T-011)
         run: DEV_ENV_OPT_DIR="$RUNNER_TEMP" DEV_ENV_BIN_DIR="$HOME/.local/bin" bash scripts/dev-env-setup.sh --only weed && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      # SEC-SECRET-007: toàn bộ log của cổng được ghi ra file, gitleaks quét TRƯỚC khi lưu làm artifact; có bí mật → đỏ, không lưu.
       - name: Cổng chuẩn — đúng lệnh trong xt.yaml
-        run: .xtemplates/scripts/dev-task.sh gate
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/ci-logs"
+          .xtemplates/scripts/dev-task.sh gate 2>&1 | tee "$RUNNER_TEMP/ci-logs/gate.log"
+      - name: Cài gitleaks (ghim phiên bản, kiểm SHA-256)
+        if: always()
+        run: DEV_ENV_OPT_DIR="$RUNNER_TEMP" DEV_ENV_BIN_DIR="$HOME/.local/bin" bash scripts/dev-env-setup.sh --only gitleaks && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: gitleaks quét log CI (SEC-SECRET-007)
+        id: log-scan
+        if: always()
+        run: gitleaks dir "$RUNNER_TEMP/ci-logs" --no-banner --redact --verbose
+      - name: Lưu log CI (đã quét sạch bí mật)
+        if: always() && steps.log-scan.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ci-logs-quality
+          path: ${{ runner.temp }}/ci-logs/
+          retention-days: 14
       - name: Tiêu đề PR theo Conventional Commits, ≤ 72 ký tự
         if: github.event_name == 'pull_request'
         env:
