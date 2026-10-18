@@ -478,3 +478,11 @@
 - Lý do (tiêu chí chất lượng cuối): Không sửa được từ repo (thượng nguồn chưa build lại); ngoại lệ hẹp tự hết khớp khi nâng; image dẫn xuất đổi cách triển khai mà Go stdlib vẫn phải ngoại lệ; hạ ngưỡng bị cấm
 - Đường lùi: Xoá luật trong .grype.yaml khi có image vá; bỏ RUN rm npm trong deploy/*.Dockerfile
 - Khi chạy thật (đề xuất, chủ dự án quyết ở G7): Chủ dự án theo dõi bảng 'Theo dõi' của VULN-SLA.md; cân nhắc image dẫn xuất nếu thượng nguồn chậm quá hạn
+
+### D-068 · 2026-10-18T01:41:43+00:00 · T-804: @lhci/cli kéo parse-cache-control@1.0.1 khai giấy phép 'BSD' (không có SPDX id) → licenses:check đỏ. Dùng lockfile riêng tools/lhci hay ngoại lệ giấy phép?
+
+- Phương án: (1) Ngoại lệ có hạn cho đúng parse-cache-control@1.0.1 ('BSD' — mọi biến thể BSD đều thuộc allow), giữ MỘT lockfile pnpm (FE-BUILD-001 MUST), @lhci/cli vào devDependencies gốc · (2) Lockfile npm riêng tools/lhci (vi phạm FE-BUILD-001 'một lockfile') · (3) Bỏ Lighthouse CI
+- Chọn: Ngoại lệ có hạn cho đúng parse-cache-control@1.0.1 ('BSD' — mọi biến thể BSD đều thuộc allow), giữ MỘT lockfile pnpm (FE-BUILD-001 MUST), @lhci/cli vào devDependencies gốc
+- Lý do (tiêu chí chất lượng cuối): MUST FE-BUILD-001 thắng tiện lợi; 'BSD' chung chung vẫn là họ giấy phép đã cho phép; ngoại lệ hẹp đúng gói+phiên bản, có hạn rà lại; lockfile gốc có integrity, đi qua SBOM/grype/new-deps
+- Đường lùi: Gỡ exception trong license-policy.json và @lhci/cli khỏi package.json; quay lại tools/lhci
+- Khi chạy thật (đề xuất, chủ dự án quyết ở G7): Chủ dự án xác nhận ngoại lệ BSD của parse-cache-control khi rà giấy phép trước phát hành

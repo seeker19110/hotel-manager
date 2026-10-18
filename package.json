@@ -27,6 +27,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
+    "@lhci/cli": "0.15.1",
     "@size-limit/file": "14.1.0",
     "@stoplight/spectral-cli": "6.16.3",
     "@types/node": "24.19.2",

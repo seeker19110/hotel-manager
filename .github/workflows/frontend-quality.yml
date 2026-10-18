@@ -105,16 +105,13 @@ jobs:
       - run: pnpm build
       - name: Chromium (Playwright, đúng bản đã ghim) cho Lighthouse
         run: pnpm --filter @hm/web exec playwright install --with-deps chromium
-      # lhci nằm ở tools/lhci (npm ci, package-lock.json có integrity), không ở pnpm workspace gốc — xem docs/perf/README.md §3.
-      - name: Cài Lighthouse CI (npm ci, không chạy script cài đặt)
-        run: npm ci --ignore-scripts --no-audit --no-fund --prefix tools/lhci
       - name: lhci autorun (5 lần, median; đỏ khi vi phạm assert mức error)
         env:
           E2E_NO_REPLICA: "1"
         run: |
           CHROME_PATH="$(pnpm --filter @hm/web exec node -p "require('@playwright/test').chromium.executablePath()")"
           export CHROME_PATH
-          tools/lhci/node_modules/.bin/lhci autorun
+          pnpm exec lhci autorun
       - name: Lưu báo cáo Lighthouse
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

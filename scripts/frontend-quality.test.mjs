@@ -1,5 +1,6 @@
 // T-804: khoá cấu hình chất lượng frontend (FE-TEST-002/003, FE-PERF-002/004, PRF-WEB-006, XC-GREEN-002, UX-RESP-008,
 // FE-BUILD-003/004). Phần chỉ chứng minh được khi job CI chạy → test cấu trúc đọc file cấu hình/workflow; mỗi luật có ca ĐỎ.
+import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -126,18 +127,31 @@ describe("FE-PERF-002 / PRF-WEB-005 — Lighthouse CI", () => {
     expect(server).toMatch(/process\.env\.E2E_NO_REPLICA === "1"/);
     expect(jobs.lighthouse).toMatch(/E2E_NO_REPLICA: "1"/);
   });
-  it("job lighthouse chạy lhci autorun (đỏ khi vi phạm), không continue-on-error; lhci 0.15.1 cài bằng npm ci có lockfile", () => {
-    expect(jobs.lighthouse).toMatch(/npm ci --ignore-scripts [^\n]*--prefix tools\/lhci/);
-    expect(jobs.lighthouse).toMatch(/tools\/lhci\/node_modules\/\.bin\/lhci autorun/);
-    expect(jobs.lighthouse).not.toMatch(/npx/);
+  it("job lighthouse chạy lhci autorun (đỏ khi vi phạm), không continue-on-error; lhci 0.15.1 trong pnpm workspace gốc (MỘT lockfile)", () => {
+    expect(jobs.lighthouse).toMatch(/pnpm install --frozen-lockfile/);
+    expect(jobs.lighthouse).toMatch(/pnpm exec lhci autorun/);
+    expect(jobs.lighthouse).not.toMatch(/npx|npm ci|tools\/lhci/);
     expect(workflow).not.toMatch(/continue-on-error/);
-    const pkg = JSON.parse(read("tools/lhci/package.json"));
-    expect(pkg.devDependencies).toEqual({ "@lhci/cli": "0.15.1" });
-    const lock = JSON.parse(read("tools/lhci/package-lock.json"));
-    expect(lock.lockfileVersion).toBeGreaterThanOrEqual(3);
-    expect(lock.packages["node_modules/@lhci/cli"].version).toBe("0.15.1");
-    for (const [name, p] of Object.entries(lock.packages))
-      if (name !== "") expect(p.integrity, name).toMatch(/^sha(256|384|512)-/);
+    const pkg = JSON.parse(read("package.json"));
+    expect(pkg.devDependencies["@lhci/cli"]).toBe("0.15.1");
+    expect(read("pnpm-lock.yaml")).toMatch(/'?@lhci\/cli@0\.15\.1'?:/);
+    expect(existsSync(join(ROOT, "tools/lhci/package.json"))).toBe(false);
+    expect(existsSync(join(ROOT, "tools/lhci/package-lock.json"))).toBe(false);
+  });
+  it("FE-BUILD-001: đúng MỘT lockfile được commit (pnpm-lock.yaml) — không package-lock/yarn.lock ở đâu cả", () => {
+    const tracked = execFileSync("git", ["ls-files"], { cwd: ROOT, encoding: "utf8" })
+      .split("\n")
+      .filter((f) => /(^|\/)(package-lock\.json|pnpm-lock\.yaml|yarn\.lock|npm-shrinkwrap\.json)$/.test(f));
+    expect(tracked).toEqual(["pnpm-lock.yaml"]);
+  });
+  it("ngoại lệ giấy phép BSD của lhci: đúng parse-cache-control@1.0.1, có hạn, định danh D-068", () => {
+    const policy = JSON.parse(read("license-policy.json"));
+    expect(policy.exceptions).toHaveLength(1);
+    const [ex] = policy.exceptions;
+    expect(ex).toMatchObject({ package: "parse-cache-control", license: "BSD", expires: "2027-04-18" });
+    expect(ex.reason).toContain("D-068");
+    expect(ex.approved_by).toContain("D-068");
+    expect(read("pnpm-lock.yaml")).toMatch(/parse-cache-control@1\.0\.1/);
   });
 });
 
