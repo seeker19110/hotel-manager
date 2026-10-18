@@ -4,7 +4,9 @@
 - Mục `[x]` phải có `Bằng chứng:` kèm ≥ 1 tham chiếu trong dấu backtick: đường dẫn trong repo (file/thư mục tồn tại; cho phép
   hậu tố `#…` chỉ phần trong file) hoặc job CI dạng `ci:<job>` (job có thật trong `.github/workflows/*.yml`).
 - Mục `[~]` phải có `— Miễn: <lý do>` hoặc `— Không áp dụng: <điều kiện>` không rỗng (hai nghĩa của `[~]`, LOOP-STOP-024
-  của khung: "Không áp dụng" = mục không áp vào dự án, agent ghi được; "Miễn" MUST cần `Duyệt:` — `blueprint-status --strict`).
+  của khung: "Không áp dụng" = mục không áp vào dự án, agent ghi được, nhưng phải là điều kiện kiểm được — bắt đầu bằng chữ
+  và trỏ ≥ 1 file có thật trong `…` (test/rào khoá điều kiện); "Miễn" MUST cần `Duyệt:` — `blueprint-status --strict`).
+  Một dòng không được có cả hai dấu. Chỉ nhận em-dash "— " (chặt hơn khung, vốn nhận cả `-`, `–`, `(`).
 Thoát 1 nếu có mục vi phạm; in từng dòng lỗi (số dòng, mã mục, lý do).
 """
 from __future__ import annotations
@@ -36,9 +38,18 @@ def problems(text: str, root: Path, jobs: set[str]) -> list[tuple[int, str, str]
             continue
         item = m.group("id")
         if m.group("state") == "~":
-            key = next((k for k in ("— Miễn:", "— Không áp dụng:") if k in line), "")
-            reason = line.split(key, 1)[1].strip() if key else ""
-            if not reason:
+            has_waiver, has_na = "— Miễn:" in line, "— Không áp dụng:" in line
+            if has_waiver and has_na:
+                # Một mục chỉ một nghĩa: ghép hai dấu từng lọt `blueprint-status --strict` (bỏ qua `Duyệt:`) — review PR #55.
+                out.append((n, item, "'[~]' có cả '— Miễn:' lẫn '— Không áp dụng:' — chọn một"))
+            elif has_na:
+                cond = line.split("— Không áp dụng:", 1)[1].strip()
+                refs = [r.split("#", 1)[0] for r in TICK.findall(cond)]
+                if not cond[:1].isalpha() or not any(r and (root / r).exists() for r in refs):
+                    out.append(
+                        (n, item, "'— Không áp dụng:' cần điều kiện bằng chữ kèm `đường/dẫn` tới file kiểm có thật")
+                    )
+            elif not (line.split("— Miễn:", 1)[1].strip() if has_waiver else ""):
                 out.append((n, item, "miễn trừ thiếu '— Miễn: <lý do>' hoặc '— Không áp dụng: <điều kiện>'"))
             continue
         if m.group("state") != "x":

@@ -511,5 +511,5 @@
 
 - Phương án: (1) Không áp dụng: app không có biểu đồ (báo cáo dạng bảng; SVG chỉ icon/QR), khoá điều kiện bằng test rào · (2) Miễn (hoãn) chờ chủ dự án duyệt · (3) Làm ngay: dựng hạ tầng biểu đồ a11y dù chưa có biểu đồ
 - Chọn: Không áp dụng: app không có biểu đồ (báo cáo dạng bảng; SVG chỉ icon/QR), khoá điều kiện bằng test rào
-- Lý do (tiêu chí chất lượng cuối): Đúng thực trạng (grep không có thư viện/thành phần biểu đồ; SPEC/PROJECT không yêu cầu biểu đồ); LOOP-STOP-024 cho agent ghi 'Không áp dụng' với điều kiện kiểm được; test scripts/no-charts.test.mjs đỏ ngay khi thêm biểu đồ nên không mất mục
+- Lý do (tiêu chí chất lượng cuối): Đúng thực trạng (grep không có thư viện/thành phần biểu đồ; SPEC/PROJECT không yêu cầu biểu đồ); LOOP-STOP-024 cho agent ghi 'Không áp dụng' với điều kiện kiểm được; test scripts/no-charts.test.mjs đỏ khi thêm gói biểu đồ (danh sách + mẫu tên chart/plot/sparkline/graph) hoặc giao diện vẽ svg/canvas, thanh style inline, meter/progress, role=img ngoài icon/QR (mở rộng sau review PR #55); còn lọt: biểu đồ vẽ trong chính icon.tsx/qr-code.tsx hoặc bằng className CSS thuần không style — chấp nhận, review PR bắt
 - Đường lùi: Bỏ [~] UX-VIZ-002 về [ ] và làm mục khi có biểu đồ đầu tiên (test rào sẽ báo)
