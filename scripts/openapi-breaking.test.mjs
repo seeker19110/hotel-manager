@@ -262,6 +262,36 @@ describe("deref / diffSchema biên", () => {
     diffSchema({}, { type: "string" }, {}, { type: ["string", "null"] }, "response", "w", out);
     expect(out).toHaveLength(1);
   });
+  it("response hẹp → `{}` (mọi kiểu) là phá vỡ; request nới thành `{}` thì không; `{}` → `{}` không", () => {
+    const flagged = (dir, o, n) => {
+      const out = [];
+      diffSchema({}, o, {}, n, dir, "w", out);
+      return out;
+    };
+    expect(flagged("response", { type: "string" }, {})).toEqual([expect.stringContaining("schema mở")]);
+    expect(flagged("response", { type: "string" }, { description: "chỉ chú thích" })).toHaveLength(1);
+    expect(flagged("response", { enum: ["a", "b"] }, {})).toHaveLength(1); // hẹp bằng enum, không kiểu
+    expect(
+      flagged("response", { type: "object", properties: { a: { type: "string" } } }, {}).some((m) =>
+        m.includes("schema mở"),
+      ),
+    ).toBe(true);
+    expect(flagged("response", { $ref: "#/x" }, { type: "string" })).toEqual([]); // $ref hỏng → {} → không so được, không đỏ nhầm
+    expect(flagged("response", {}, {})).toEqual([]);
+    expect(flagged("response", { description: "a" }, { description: "b" })).toEqual([]);
+    expect(flagged("response", {}, { type: "string" })).toEqual([]); // response siết lại thì an toàn
+    expect(flagged("request", { type: "string" }, {})).toEqual([]);
+  });
+  it("response: thuộc tính/phần tử mảng hẹp → `{}` cũng bị bắt, kèm vị trí", () => {
+    const out = breakingOf((d) => {
+      d.components.schemas.Item.properties.state = {};
+    });
+    expect(out.some((m) => m.includes(".state") && m.includes("schema mở"))).toBe(true);
+    const arr = breakingOf((d) => {
+      d.paths[PATH].get.responses[200] = ok({ type: "array", items: {} });
+    });
+    expect(arr.some((m) => m.includes("[]") && m.includes("schema mở"))).toBe(false); // gốc là $ref Item, không phải mảng
+  });
   it("pattern: request đổi → đỏ; thêm minLength ở request → đỏ; response bỏ minLength → đỏ", () => {
     const out = [];
     diffSchema(
@@ -409,6 +439,24 @@ describe("CLI (repo tạm)", () => {
     r.write("apps/web/openapi.json", `${JSON.stringify(doc)}\n`);
     r.commit("feat!: bỏ đường dẫn\n\nBREAKING CHANGE: bỏ /api/v1/items");
     expect(run(r.dir).code).toBe(0);
+  });
+  it("openapi.json bị xoá ở HEAD → thông báo rõ + mã 1 (không ENOENT); JSON hỏng → mã 1", () => {
+    const r = makeRepo();
+    repos.push(r);
+    r.write("apps/web/openapi.json", `${JSON.stringify(base())}\n`);
+    r.commit("chore: nền");
+    r.branch("feature");
+    r.remove("apps/web/openapi.json");
+    r.commit("chore: xoá hợp đồng");
+    const gone = run(r.dir);
+    expect(gone.code).toBe(1);
+    expect(gone.out).toContain("đã bị xoá ở HEAD");
+    expect(gone.out).not.toContain("ENOENT");
+    r.write("apps/web/openapi.json", "{ không phải json");
+    r.commit("chore: hỏng");
+    const broken = run(r.dir);
+    expect(broken.code).toBe(1);
+    expect(broken.out).toContain("không phải JSON hợp lệ");
   });
   it("ghi chú PR (--extra-file) cũng tính là xác nhận; nhánh gốc không tồn tại → mã 2", () => {
     const r = makeRepo();

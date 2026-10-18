@@ -4,7 +4,7 @@
 //   --extra-file: tiêu đề PR + dòng trống + mô tả PR (squash merge lấy tiêu đề/mô tả làm commit). Test: scripts/openapi-breaking.test.mjs.
 // Không dùng công cụ ngoài: bộ quy tắc dưới đây là TẬP CON của oasdiff (xoá đường dẫn/phương thức/tham số bắt buộc/trường phản hồi,
 // thêm yêu cầu bắt buộc, đổi kiểu/định dạng/enum/ràng buộc theo hướng request hoặc response, đổi xác thực).
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { argValue, git, isMain, refExists, showAt } from "./git-history.mjs";
 
 const METHODS = ["get", "put", "post", "delete", "options", "head", "patch", "trace"];
@@ -27,6 +27,21 @@ const typeSet = (t) => new Set(t === undefined ? [] : Array.isArray(t) ? t : [t]
 const covers = (set, t) => set.has(t) || (t === "integer" && set.has("number"));
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const defined = (v) => v !== undefined;
+/** Từ khoá chỉ chú thích: schema chỉ có các khoá này (hoặc `{}`) chấp nhận MỌI giá trị. */
+const ANNOTATION_ONLY = new Set([
+  "description",
+  "title",
+  "example",
+  "examples",
+  "default",
+  "deprecated",
+  "readOnly",
+  "writeOnly",
+  "externalDocs",
+  "xml",
+  "nullable",
+]);
+const isOpenSchema = (s) => Object.keys(s).every((k) => ANNOTATION_ONLY.has(k));
 const LOWER = ["minLength", "minimum", "minItems", "exclusiveMinimum", "minProperties"];
 const UPPER = ["maxLength", "maximum", "maxItems", "exclusiveMaximum", "maxProperties"];
 
@@ -55,6 +70,10 @@ export function diffSchema(oldDoc, oldS, newDoc, newS, dir, where, out, seen = n
         `kiểu ${req ? "request hẹp lại" : "response mở rộng"} (${[...ot].join("|")} → ${[...nt].join("|")})`,
       );
   } else if (req && !ot.size && nt.size) flag(`request thêm ràng buộc kiểu ${[...nt].join("|")}`);
+
+  // Response đang hẹp (có kiểu/enum/thuộc tính…) mà thành `{}`: client có thể nhận kiểu lạ → phá vỡ. (Request nới ra là an toàn.)
+  if (!req && isOpenSchema(n) && !isOpenSchema(o))
+    flag("response mở rộng thành schema mở {} (nhận kiểu bất kỳ)");
 
   if (req ? defined(n.format) && n.format !== o.format : defined(o.format) && n.format !== o.format) {
     flag(`đổi format (${o.format ?? "—"} → ${n.format ?? "—"})`);
@@ -259,14 +278,25 @@ function main() {
     process.stdout.write(`✓ ${file} chưa có ở ${base} — không có hợp đồng cũ để so.\n`);
     return 0;
   }
+  if (!existsSync(file)) {
+    process.stderr.write(
+      `✗ ${file} có ở ${base} nhưng đã bị xoá ở HEAD — xoá hợp đồng API công khai là thay đổi phá vỡ; giữ file (hoặc đổi --file nếu chuyển chỗ).\n`,
+    );
+    return 1;
+  }
   const texts = commitTexts(base);
   const extra = argValue(process.argv, "--extra-file");
   if (extra) texts.push(readFileSync(extra, "utf8"));
-  const { breaking, problems } = evaluate({
-    oldDoc: JSON.parse(baseText),
-    newDoc: JSON.parse(readFileSync(file, "utf8")),
-    texts,
-  });
+  let oldDoc;
+  let newDoc;
+  try {
+    oldDoc = JSON.parse(baseText);
+    newDoc = JSON.parse(readFileSync(file, "utf8"));
+  } catch (e) {
+    process.stderr.write(`✗ ${file} không phải JSON hợp lệ (ở ${base} hoặc HEAD): ${e.message}\n`);
+    return 1;
+  }
+  const { breaking, problems } = evaluate({ oldDoc, newDoc, texts });
   for (const b of breaking) process.stdout.write(`  phá vỡ: ${b}\n`);
   for (const p of problems) process.stderr.write(`✗ ${p}\n`);
   if (!problems.length) {
