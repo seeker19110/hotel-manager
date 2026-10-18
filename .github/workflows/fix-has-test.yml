@@ -1,0 +1,37 @@
+name: Fix has test
+
+# FE-TEST-006: PR có tiêu đề `fix:` phải chạm ít nhất một file test (tái hiện lỗi đỏ trước, xanh sau).
+# Workflow riêng, nhẹ, có `edited`: đổi tiêu đề PR (vd thêm/bớt `fix:`) chạy lại rào này mà không chạy lại cổng chất lượng nặng
+# của `frontend-quality.yml`. Không có `paths`: chạy trên MỌI PR vào main để làm được required check sau này.
+# `fetch-depth: 0`: cần `origin/<base>...HEAD` để liệt kê file đổi.
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fix-has-test-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  fix-has-test:
+    name: fix-has-test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+      # Tiêu đề PR là dữ liệu không tin cậy: chỉ đi qua biến môi trường, không nội suy vào lệnh.
+      - name: PR fix phải chạm file test
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          BASE_REF: origin/${{ github.base_ref }}
+        run: node scripts/check-fix-has-test.mjs "$TITLE" "$BASE_REF"

@@ -1,7 +1,8 @@
 // Rào truy vấn Testing Library (FE-TEST-001; PLAN đợt 9 T-804). Thay cho `eslint-plugin-testing-library` (repo dùng Biome,
 // không có ESLint): quét mọi file `*.test.tsx` có import `@testing-library/*` và đòi
-//   1. prefer-screen-queries — truy vấn qua `screen.…`/`within(…)`, KHÔNG lấy `getBy…` ra từ kết quả `render(…)`;
-//   2. no-container — không đụng `container`/`baseElement` (đi vòng qua truy vấn theo vai trò/nhãn);
+//   1. prefer-screen-queries — truy vấn qua `screen.…`/`within(…)`, KHÔNG lấy `getBy…` ra từ kết quả `render(…)` (destructure
+//      hoặc `const view = render(…); view.getByRole(…)`);
+//   2. no-container — không đụng `container`/`baseElement` (cả `view.container`; đi vòng qua truy vấn theo vai trò/nhãn);
 //   3. getByTestId chỉ khi không có lựa chọn khác: mỗi lần dùng có chú thích `// testid: <lý do>` ở cùng dòng hoặc dòng trên,
 //      và tỷ lệ `…ByTestId` / tổng truy vấn ≤ 10% (MAX_TESTID_RATIO).
 // Dùng lexer của `test-assertions.mjs` để chuỗi/comment không gây nhiễu.
@@ -14,8 +15,11 @@ const QUERY =
   /\b(?:get|query|find)(?:All)?By(Role|LabelText|PlaceholderText|Text|DisplayValue|AltText|Title|TestId)\b/g;
 const DESTRUCTURED_FROM_RENDER =
   /\{[^{}]*\b(?:get|query|find)(?:All)?By\w+[^{}]*\}\s*=\s*(?:await\s+)?render(?:Hook)?\s*\(/;
+/** `const view = render(…)` — tên được gán kết quả render (để bắt `view.getByRole(…)`). */
+const RENDER_RESULT_NAME =
+  /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:await\s+)?render(?:Hook)?\s*\(/g;
 const CONTAINER_USE =
-  /\{[^{}]*\b(?:container|baseElement)\b[^{}]*\}\s*=\s*render\s*\(|\b(?:container|baseElement)\s*\./;
+  /\{[^{}]*\b(?:container|baseElement)\b[^{}]*\}\s*=\s*render\s*\(|\b(?:container|baseElement)\s*\.|\.\s*(?:container|baseElement)\b/;
 const TESTID_NOTE = /\/\/\s*testid:\s*\S.{2,}/;
 
 /** Có dùng Testing Library không (chỉ các file này chịu rào). */
@@ -47,6 +51,16 @@ export function violationsIn(src) {
       rule: "prefer-screen-queries",
       text: "lấy truy vấn từ kết quả render()",
     });
+  for (const nm of clean.matchAll(RENDER_RESULT_NAME)) {
+    const name = (nm[1] ?? "").replaceAll("$", "\\$");
+    const use = new RegExp(`(?<![\\w$])${name}\\s*\\.\\s*(?:get|query|find)(?:All)?By\\w+`).exec(clean);
+    if (use)
+      out.push({
+        line: lineOf(use.index),
+        rule: "prefer-screen-queries",
+        text: `truy vấn qua kết quả render() (${nm[1]}.…), dùng screen`,
+      });
+  }
   const cm = CONTAINER_USE.exec(clean);
   if (cm) out.push({ line: lineOf(cm.index), rule: "no-container", text: "dùng container/baseElement" });
   cleanLines.forEach((line, i) => {

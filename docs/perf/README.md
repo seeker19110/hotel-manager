@@ -18,7 +18,7 @@ updated: 2026-10-17
   "hold_p95_ms": 1500,
   "hold_p99_ms": 3000,
   "http_req_failed_rate": 0.01,
-  "lighthouse": { "performance": 0.9, "accessibility": 0.9, "lcp_ms": 2500, "cls": 0.1, "tbt_ms": 300, "runs": 3 }
+  "lighthouse": { "performance": 0.9, "accessibility": 0.9, "lcp_ms": 2500, "cls": 0.1, "tbt_ms": 300, "runs": 5 }
 }
 ```
 
@@ -27,7 +27,7 @@ updated: 2026-10-17
 | API thường p95 / p99 | < 800 ms / < 2 000 ms | k6 `thresholds` (`abortOnFail` ở tỷ lệ lỗi) | `perf/k6/lib.js` (`LIMITS`) |
 | Tạo giữ phòng p95 / p99 | < 1,5 s / < 3 s | k6 | `perf/k6/create-hold.js` |
 | Tỷ lệ lỗi HTTP | < 1% (409/422 nghiệp vụ không tính) | k6 `http_req_failed` | `perf/k6/lib.js` |
-| Lighthouse mobile (3 lần, median) | Performance ≥ 0,9 · Accessibility ≥ 0,9 · LCP ≤ 2 500 ms · CLS ≤ 0,1 → `error`; TBT ≤ 300 ms, Best Practices/SEO ≥ 0,9 → `warn` | `lhci assert` | `lighthouserc.json` |
+| Lighthouse mobile (5 lần, median) | Performance ≥ 0,9 · Accessibility ≥ 0,9 · LCP ≤ 2 500 ms · CLS ≤ 0,1 → `error`; TBT ≤ 300 ms, Best Practices/SEO ≥ 0,9 → `warn` | `lhci assert` | `lighthouserc.json` |
 | Trọng lượng trang / số request (build production, Pixel 7, không cache) | ngân sách từng màn = baseline × 1,3 | E2E `apps/web/e2e/perf-baseline.spec.ts` (job `e2e` hiện có, không cần đổi workflow) | `perf/budgets.json` |
 
 Không có ngưỡng nào dùng trung bình (`avg<`) — chỉ phân vị (XC-PERF-004). Assertion Lighthouse mới đặt `warn` trước, siết `error` sau khi ổn định (QA-PERF-015): TBT, Best Practices, SEO đang `warn`, **đề xuất siết `error` sau 4 tuần có số đo thật (không muộn hơn 2026-12-31)**; không xoá assertion để cho xanh.
@@ -52,7 +52,7 @@ Dữ liệu đo tải theo `PROJECT.md` §5: 100 tổ chức, 5.000 phòng, 200 
 
 ## 3. Lighthouse CI (`lighthouserc.json`)
 
-3 URL công khai (`/dang-nhap`, `/dang-nhap/nguoi-thue`, `/offline`) trên server E2E (`pnpm --filter @hm/web exec node e2e/server.ts`, cần `pnpm build` trước), `numberOfRuns: 3`, `aggregationMethod: median`, mobile (throttle mặc định của lhci — không tắt). Job CI `lighthouse` (`.github/workflows/frontend-quality.yml`) chạy `npx @lhci/cli@0.15.1 autorun` trên PR và main, đỏ khi vi phạm assert mức `error`; báo cáo lưu artifact `lighthouse-report`. Màn nhân viên (`/phong`…) cần đăng nhập: bổ sung `puppeteerScript` khi được duyệt thêm phụ thuộc (PRF-WEB-005 đòi ≥ 5 URL và required check — chưa đạt). Repo lhci không commit từ 2025-06-26 — theo dõi phương án thay thế mỗi 6 tháng (QA-PERF-016).
+3 URL công khai (`/dang-nhap`, `/dang-nhap/nguoi-thue`, `/offline`) trên server E2E (`pnpm --filter @hm/web exec node e2e/server.ts`, cần `pnpm build` trước), `numberOfRuns: 5` (median loại bớt run nhiễu; ngưỡng giữ nguyên), `aggregationMethod: median`, mobile, `throttlingMethod: "simulate"` (mặc định của lhci, ghi tường minh — không tắt throttle), Chromium chạy với `--disable-dev-shm-usage` (`/dev/shm` nhỏ trên runner). `startServerReadyPattern` = `E2E_SERVER_READY`, dấu hiệu `e2e/server.ts` in sau khi `/api/health` của server CHÍNH trả 200 ("Ready in" của Next in cả cho bản sao nên không đủ); job đặt `E2E_NO_REPLICA=1` để không chạy bản sao thứ hai. Job CI `lighthouse` (`.github/workflows/frontend-quality.yml`) chạy `lhci autorun` của `tools/lhci` (`@lhci/cli@0.15.1`, Apache-2.0; `npm ci` theo `package-lock.json` có integrity — tách khỏi pnpm workspace vì phụ thuộc chuyển tiếp `parse-cache-control` khai giấy phép "BSD" không có SPDX id, `pnpm licenses:check` từ chối và dự án không thêm ngoại lệ) trên PR và main, đỏ khi vi phạm assert mức `error`; báo cáo lưu artifact `lighthouse-report`. Màn nhân viên (`/phong`…) cần đăng nhập: bổ sung `puppeteerScript` khi được duyệt thêm phụ thuộc (PRF-WEB-005 đòi ≥ 5 URL và required check — chưa đạt). Repo lhci không commit từ 2025-06-26 — theo dõi phương án thay thế mỗi 6 tháng (QA-PERF-016).
 
 Số đo cục bộ 2026-10-18 (Chromium 1194, máy chia sẻ tải ~12 trên 4 lõi — **không** phải số chuẩn): lần đầu 3 URL × 3 run, `/dang-nhap` Performance 0,79/0,71/0,99 (median 0,79 → đỏ, TBT lên 2 228 ms ở run tải nặng); chạy lại riêng `/dang-nhap` 5 run: median đạt mọi assert. Runner CI chuyên dụng ít nhiễu hơn; **theo dõi lượt CI đầu tiên**, nếu vẫn dao động thì tối ưu trang, không hạ ngưỡng.
 
@@ -75,6 +75,6 @@ Mỗi file có `date`, `commit`, môi trường, thiết bị/mạng, số mẫu
 ## 5. Job CI (1 đã có từ đợt 9 — `lighthouse`; còn lại là đề xuất)
 
 1. **PR, job `e2e` (đã có):** `perf-baseline.spec.ts` chạy cùng bộ E2E, chặn khi vượt `perf/budgets.json` — **không cần đổi workflow**.
-2. **PR, job `lighthouse` (đã có):** `pnpm build && npx @lhci/cli@0.15.1 autorun` (3 URL, `error` theo `lighthouserc.json`), tải `.lighthouseci/` làm artifact.
+2. **PR, job `lighthouse` (đã có):** `pnpm build && npm ci --prefix tools/lhci && tools/lhci/node_modules/.bin/lhci autorun` (3 URL × 5 lần, `error` theo `lighthouserc.json`), tải `.lighthouseci/` làm artifact.
 3. **Nightly trên staging, job mới `k6`:** `k6 run -e K6_PROFILE=load -e BASE_URL=$STAGING_URL perf/k6/*.js` (cần secret `K6_COOKIE`, host staging trong `K6_ALLOWED_HOSTS`); fail khi vượt `thresholds`; weekly `K6_DURATION=30m` (soak, QA-PERF-011).
 4. Ghi kết quả đầu tiên vào `docs/perf/baseline-k6.json` / `baseline-lighthouse.json` và mục hiệu năng của `GO-NO-GO.md` (kèm 5 trường: commit, môi trường, thiết bị/mạng, VU/thời lượng, ngày).

@@ -171,8 +171,8 @@ describe("perf: kịch bản k6 — luồng nóng, ngưỡng theo phân vị, an
 describe("perf: Lighthouse CI — ngưỡng theo hồ sơ web-app, không tắt throttle, không nới", () => {
   const a = lhrc.ci.assert.assertions;
 
-  it("3 URL, numberOfRuns 3, mobile, trung vị, lưu cục bộ (không đẩy dữ liệu ra ngoài)", () => {
-    expect(lhrc.ci.collect.numberOfRuns).toBe(3);
+  it("3 URL, numberOfRuns 5, mobile, trung vị, lưu cục bộ (không đẩy dữ liệu ra ngoài)", () => {
+    expect(lhrc.ci.collect.numberOfRuns).toBe(5);
     expect(lhrc.ci.collect.url.length).toBeGreaterThanOrEqual(3);
     expect(new Set(lhrc.ci.collect.url).size).toBe(lhrc.ci.collect.url.length);
     expect(lhrc.ci.collect.settings.formFactor).toBe("mobile");
@@ -180,8 +180,14 @@ describe("perf: Lighthouse CI — ngưỡng theo hồ sơ web-app, không tắt 
     for (const u of lhrc.ci.collect.url) expect(u).toMatch(/^http:\/\/127\.0\.0\.1:3100\//);
   });
 
-  it("FE-PERF-018: không tắt/ghi đè throttling", () => {
-    const text = JSON.stringify(lhrc);
+  it("FE-PERF-018: không tắt/ghi đè throttling (throttlingMethod chỉ được là `simulate` — mặc định của lhci)", () => {
+    const settings = lhrc.ci.collect.settings;
+    expect(settings.throttlingMethod).toBe("simulate");
+    const { throttlingMethod: _kept, ...rest } = settings;
+    const text = JSON.stringify({
+      ...lhrc,
+      ci: { ...lhrc.ci, collect: { ...lhrc.ci.collect, settings: rest } },
+    });
     expect(text).not.toMatch(
       /throttlingMethod|disableThrottling|"throttling"|cpuSlowdownMultiplier|screenEmulation|preset/i,
     );

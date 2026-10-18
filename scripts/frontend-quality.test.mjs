@@ -54,6 +54,11 @@ describe("FE-TEST-002 / PRF-WEB-006 / UX-RESP-008 — E2E hai project + axe", ()
     expect(cfg).toMatch(/baseURL: DESKTOP_URL/);
     for (const f of ["hotel", "members", "rental", "invitation", "portal"])
       expect(read(`apps/web/e2e/${f}.spec.ts`), f).toMatch(/portOf\(info\.project\.use\.baseURL\)/);
+    // Spec không rơi lặng lẽ về cổng mặc định khi quên gán PORT ở beforeAll: khởi tạo NaN, không đọc E2E_PORT.
+    for (const f of ["hotel", "members", "rental", "invitation", "portal"])
+      expect(read(`apps/web/e2e/${f}.spec.ts`), f).toMatch(/^let PORT = Number\.NaN;/m);
+    for (const f of readdirSync(join(ROOT, "apps/web/e2e")).filter((n) => n.endsWith(".spec.ts")))
+      expect(read(`apps/web/e2e/${f}`), f).not.toMatch(/process\.env\.E2E_PORT/);
     expect(read("apps/web/e2e/sessions.ts")).not.toMatch(/process\.env\.E2E_PORT/);
   });
   it("job e2e của ci.yml chạy playwright test KHÔNG ghim --project (nên chạy cả hai)", () => {
@@ -95,8 +100,8 @@ describe("FE-TEST-003 — test tất định", () => {
 
 describe("FE-PERF-002 / PRF-WEB-005 — Lighthouse CI", () => {
   const rc = JSON.parse(read("lighthouserc.json")).ci;
-  it("3 lần chạy, median, ≥ 3 URL, mobile", () => {
-    expect(rc.collect.numberOfRuns).toBe(3);
+  it("5 lần chạy (median loại run nhiễu), ≥ 3 URL, mobile", () => {
+    expect(rc.collect.numberOfRuns).toBe(5);
     expect(rc.collect.url.length).toBeGreaterThanOrEqual(3);
     expect(rc.collect.settings.formFactor).toBe("mobile");
   });
@@ -110,9 +115,29 @@ describe("FE-PERF-002 / PRF-WEB-005 — Lighthouse CI", () => {
     for (const [k, v] of Object.entries(a))
       if (k !== "unsized-images") expect(v[1].aggregationMethod).toBe("median");
   });
-  it("job lighthouse chạy lhci autorun (đỏ khi vi phạm), không continue-on-error", () => {
-    expect(jobs.lighthouse).toMatch(/@lhci\/cli@0\.15\.1 autorun/);
+  it("ổn định, KHÔNG nới ngưỡng: throttle `simulate` (mặc định, ghi tường minh), --disable-dev-shm-usage, đợi dấu hiệu server chính", () => {
+    expect(rc.collect.settings.throttlingMethod).toBe("simulate");
+    expect(rc.collect.settings.chromeFlags).toContain("--disable-dev-shm-usage");
+    expect(rc.collect.startServerReadyPattern).toBe("E2E_SERVER_READY");
+    // Dấu hiệu do e2e/server.ts in SAU khi /api/health của server chính trả 200 (không phải "Ready in" của Next — bản sao cũng in).
+    const server = read("apps/web/e2e/server.ts");
+    expect(server).toContain('"E2E_SERVER_READY"');
+    expect(server).toMatch(/\$\{BASE_URL\}\/api\/health/);
+    expect(server).toMatch(/process\.env\.E2E_NO_REPLICA === "1"/);
+    expect(jobs.lighthouse).toMatch(/E2E_NO_REPLICA: "1"/);
+  });
+  it("job lighthouse chạy lhci autorun (đỏ khi vi phạm), không continue-on-error; lhci 0.15.1 cài bằng npm ci có lockfile", () => {
+    expect(jobs.lighthouse).toMatch(/npm ci --ignore-scripts [^\n]*--prefix tools\/lhci/);
+    expect(jobs.lighthouse).toMatch(/tools\/lhci\/node_modules\/\.bin\/lhci autorun/);
+    expect(jobs.lighthouse).not.toMatch(/npx/);
     expect(workflow).not.toMatch(/continue-on-error/);
+    const pkg = JSON.parse(read("tools/lhci/package.json"));
+    expect(pkg.devDependencies).toEqual({ "@lhci/cli": "0.15.1" });
+    const lock = JSON.parse(read("tools/lhci/package-lock.json"));
+    expect(lock.lockfileVersion).toBeGreaterThanOrEqual(3);
+    expect(lock.packages["node_modules/@lhci/cli"].version).toBe("0.15.1");
+    for (const [name, p] of Object.entries(lock.packages))
+      if (name !== "") expect(p.integrity, name).toMatch(/^sha(256|384|512)-/);
   });
 });
 
@@ -195,10 +220,17 @@ describe("FE-BUILD-003 / FE-BUILD-004 — build nghiêm, lint 0 cảnh báo", ()
   });
 });
 
-describe("FE-TEST-006 — job regression", () => {
-  it("fetch-depth 0, kiểm PR fix chạm file test, chạy test component", () => {
-    expect(jobs.regression).toMatch(/fetch-depth: 0/);
-    expect(jobs.regression).toMatch(/node scripts\/check-fix-has-test\.mjs/);
+describe("FE-TEST-006 — rào PR fix kèm test + job regression", () => {
+  const fix = read(".github/workflows/fix-has-test.yml");
+  it("workflow riêng nhẹ chạy lại khi sửa tiêu đề PR (edited), fetch-depth 0, tiêu đề đi qua env", () => {
+    expect(fix).toMatch(/types: \[opened, synchronize, reopened, edited\]/);
+    expect(fix).toMatch(/fetch-depth: 0/);
+    expect(fix).toMatch(/TITLE: \$\{\{ github\.event\.pull_request\.title \}\}/);
+    expect(fix).toMatch(/run: node scripts\/check-fix-has-test\.mjs "\$TITLE" "\$BASE_REF"/);
+    expect(fix).not.toMatch(/run:[^\n]*\$\{\{/);
+  });
+  it("job regression chạy test component + rào truy vấn; không còn bước fix-has-test (đã tách)", () => {
     expect(jobs.regression).toMatch(/pnpm vitest run --project unit apps\/web\/components/);
+    expect(jobs.regression).not.toMatch(/check-fix-has-test/);
   });
 });

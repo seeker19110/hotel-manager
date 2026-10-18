@@ -100,7 +100,7 @@ describe("CommandForm", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("ô tiền sai định dạng: lỗi theo ô, không gửi; số 0 hợp lệ không bị coi là rỗng", async () => {
+  it("ô tiền sai định dạng: lỗi theo ô, không gửi", async () => {
     setup({
       path: "payment/collectCash",
       fields: [{ name: "amount", label: "Số tiền", type: "money", required: true }],
@@ -109,6 +109,23 @@ describe("CommandForm", () => {
     await userEvent.click(screen.getByRole("button", { name: "Tạo việc" }));
     expect((await screen.findByRole("alert")).textContent).toContain("Nhập số nguyên đồng");
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('ô tiền nhập "0" (bắt buộc, schema cho phép 0): không có role=alert, thân gửi opening_cash là số 0 (không rỗng, không chuỗi)', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { data: {} }));
+    setup({
+      path: "shift/open",
+      fixed: { property_id: UNIT },
+      fields: [{ name: "opening_cash", label: "Tiền đầu ca", type: "money", required: true }],
+    });
+    await userEvent.type(screen.getByLabelText("Tiền đầu ca"), "0");
+    await userEvent.click(screen.getByRole("button", { name: "Tạo việc" }));
+    expect((await screen.findByRole("status")).textContent).toBe("Đã tạo việc.");
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(String(initOf(0).body));
+    expect(body).toEqual({ property_id: UNIT, opening_cash: 0 });
+    expect(typeof body.opening_cash).toBe("number");
   });
 
   it("bấm đúp: đúng một POST (UX-STATE-006) và nút khoá khi đang gửi", async () => {

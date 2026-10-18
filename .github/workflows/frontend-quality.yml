@@ -14,7 +14,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -74,7 +74,7 @@ jobs:
       - name: size-limit (đỏ khi vượt ngân sách)
         run: pnpm size
 
-  # FE-PERF-002, PRF-WEB-005: Lighthouse mobile, 3 lần chạy lấy median, assert `error` (lighthouserc.json). Server = e2e/server.ts.
+  # FE-PERF-002, PRF-WEB-005: Lighthouse mobile, 5 lần chạy lấy median, assert `error` (lighthouserc.json). Server = e2e/server.ts.
   lighthouse:
     name: lighthouse
     needs: [typecheck, lint]
@@ -105,11 +105,16 @@ jobs:
       - run: pnpm build
       - name: Chromium (Playwright, đúng bản đã ghim) cho Lighthouse
         run: pnpm --filter @hm/web exec playwright install --with-deps chromium
-      - name: lhci autorun (3 lần, median; đỏ khi vi phạm assert mức error)
+      # lhci nằm ở tools/lhci (npm ci, package-lock.json có integrity), không ở pnpm workspace gốc — xem docs/perf/README.md §3.
+      - name: Cài Lighthouse CI (npm ci, không chạy script cài đặt)
+        run: npm ci --ignore-scripts --no-audit --no-fund --prefix tools/lhci
+      - name: lhci autorun (5 lần, median; đỏ khi vi phạm assert mức error)
+        env:
+          E2E_NO_REPLICA: "1"
         run: |
           CHROME_PATH="$(pnpm --filter @hm/web exec node -p "require('@playwright/test').chromium.executablePath()")"
           export CHROME_PATH
-          npx --yes @lhci/cli@0.15.1 autorun
+          tools/lhci/node_modules/.bin/lhci autorun
       - name: Lưu báo cáo Lighthouse
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -178,7 +183,8 @@ jobs:
           path: apps/web/test-results/
           retention-days: 7
 
-  # FE-TEST-006: mỗi PR `fix` phải kèm test tái hiện; chạy luôn test component (tầng thấp nhất) của giao diện.
+  # FE-TEST-006: test component (tầng thấp nhất) của giao diện. Rào "PR fix phải kèm test" ở workflow riêng `fix-has-test.yml`
+  # (cần `edited` để đổi tiêu đề PR chạy lại — workflow này không lắng nghe sự kiện đó).
   regression:
     name: regression
     runs-on: ubuntu-24.04
@@ -194,11 +200,5 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: PR fix phải chạm file test
-        if: github.event_name == 'pull_request'
-        env:
-          TITLE: ${{ github.event.pull_request.title }}
-          BASE_REF: origin/${{ github.base_ref }}
-        run: node scripts/check-fix-has-test.mjs "$TITLE" "$BASE_REF"
       - name: Test component (Testing Library) + rào truy vấn
         run: pnpm vitest run --project unit apps/web/components testing-library-rules

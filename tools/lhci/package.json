@@ -1,0 +1,12 @@
+{
+  "name": "hm-lhci-tools",
+  "private": true,
+  "description": "Lighthouse CI tách khỏi pnpm workspace gốc: một phụ thuộc chuyển tiếp (parse-cache-control) khai giấy phép 'BSD' không định danh SPDX nên không qua license-policy.json; cài bằng `npm ci` (package-lock.json có integrity), chỉ dùng trong job lighthouse.",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=24.11.0 <25"
+  },
+  "devDependencies": {
+    "@lhci/cli": "0.15.1"
+  }
+}

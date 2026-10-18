@@ -278,14 +278,33 @@ const startNext = (port: number, env: NodeJS.ProcessEnv) =>
     env,
   });
 const next = startNext(PORT, appEnv);
-const replica = startNext(REPLICA_PORT, replicaEnv);
+// Lighthouse CI (lighthouserc.json) chỉ đo server chính: E2E_NO_REPLICA=1 bỏ bản sao thứ hai cho đỡ tranh CPU (chỉ dùng ở đây).
+const replica = process.env.E2E_NO_REPLICA === "1" ? undefined : startNext(REPLICA_PORT, replicaEnv);
+
+/** Dấu hiệu RIÊNG của server chính (lhci `startServerReadyPattern`): "Ready in" của Next in cả cho bản sao nên không đủ. */
+const READY_MARKER = "E2E_SERVER_READY";
+async function announceReady(): Promise<void> {
+  const deadline = Date.now() + 120_000;
+  while (!stopping && Date.now() < deadline) {
+    try {
+      const r = await fetch(`${BASE_URL}/api/health`, { signal: AbortSignal.timeout(2_000) });
+      if (r.ok) {
+        process.stdout.write(`${READY_MARKER} ${BASE_URL}\n`);
+        return;
+      }
+    } catch {
+      // chưa nghe cổng — thử lại
+    }
+    await new Promise((r) => setTimeout(r, 250));
+  }
+}
 
 let stopping = false;
 async function stop(code: number): Promise<void> {
   if (stopping) return;
   stopping = true;
   next.kill("SIGTERM");
-  replica.kill("SIGTERM");
+  replica?.kill("SIGTERM");
   rmSync(totpFile(PORT), { force: true });
   rmSync(hotelTotpFile(PORT), { force: true });
   rmSync(outbox, { force: true });
@@ -307,3 +326,4 @@ async function stop(code: number): Promise<void> {
 process.on("SIGTERM", () => void stop(0));
 process.on("SIGINT", () => void stop(0));
 next.on("exit", (code) => void stop(code ?? 1));
+void announceReady();

@@ -17,6 +17,22 @@ describe("prefer-screen-queries", () => {
       "prefer-screen-queries",
     ]);
   });
+  it("gán kết quả render() cho biến rồi gọi view.getByRole(…) → đỏ (kể cả await/let, truy vấn All/find)", () => {
+    expect(rules("const view = render(<A />);\nview.getByRole('button');")).toEqual([
+      "prefer-screen-queries",
+    ]);
+    expect(rules("let v = await render(<A />); await v.findAllByText('x');")).toEqual([
+      "prefer-screen-queries",
+    ]);
+    expect(rules("const $r = render(<A />); $r.queryByLabelText('x');")).toEqual(["prefer-screen-queries"]);
+  });
+  it("view.rerender/unmount, hoặc biến khác không phải kết quả render → xanh", () => {
+    expect(rules("const view = render(<A />); view.rerender(<A />); view.unmount();")).toEqual([]);
+    expect(rules("const view = render(<A />); other.getByRole('button'); screen.getByRole('x');")).toEqual(
+      [],
+    );
+    expect(rules("const el = screen.getByRole('b'); el.getByRole('c');")).toEqual([]);
+  });
   it("dùng screen, hoặc chỉ lấy `unmount`/`rerender` từ render() → xanh", () => {
     expect(rules("render(<A />); screen.getByRole('button');")).toEqual([]);
     expect(rules("const { unmount, rerender } = render(<A />);")).toEqual([]);
@@ -32,6 +48,12 @@ describe("no-container", () => {
     expect(rules("const x = container.querySelector('.a');")).toEqual(["no-container"]);
     expect(rules("const { container } = render(<A />);")).toEqual(["no-container"]);
     expect(rules("expect(baseElement.firstChild).toBeTruthy();")).toEqual(["no-container"]);
+  });
+  it("view.container / view.baseElement (không gọi tiếp phương thức) cũng đỏ", () => {
+    expect(rules("const view = render(<A />); expect(view.container).toBeTruthy();")).toEqual([
+      "no-container",
+    ]);
+    expect(rules("const root = view.baseElement;")).toEqual(["no-container"]);
   });
   it("biến tên khác (vd `containers`, `btn.querySelector`) → xanh", () => {
     expect(rules("const containers = []; btn.querySelector('.spinner');")).toEqual([]);

@@ -9,7 +9,7 @@ import { signInClick } from "./sign-in.ts";
 test.describe.configure({ mode: "serial" });
 
 // Cổng của server của project đang chạy (mỗi project có server riêng) — đặt trước mọi test của tệp.
-let PORT = Number(process.env.E2E_PORT ?? 3100);
+let PORT = Number.NaN; // NaN đến khi beforeAll gán: quên gán thì đọc tệp "…-NaN" và đỏ ngay
 test.beforeAll(({ browserName: _ }, info) => {
   PORT = portOf(info.project.use.baseURL);
 });
