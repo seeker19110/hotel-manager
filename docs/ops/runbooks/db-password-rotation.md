@@ -22,24 +22,26 @@ owner: (chưa gán — Tech Lead)
 
 ## Các bước
 1. **Tạo/bật login mới** (login đang KHÔNG dùng; lần đầu chọn `_b`):
-   `psql -v base=app_runtime -v login=app_runtime_b -f packages/db/sql/rotate-login.sql`
-   Script chỉ nhận `app_runtime|app_worker` và `<base>_a|<base>_b`; login mới không superuser, không `BYPASSRLS`, kế thừa quyền của `<base>` (`GRANT … WITH INHERIT TRUE, SET FALSE`) và chép giới hạn thời gian của `<base>` (`statement_timeout`, `lock_timeout`, `idle_in_transaction_session_timeout`). Chạy lại an toàn.
-2. **Đặt mật khẩu mới**: trong psql, `\password app_runtime_b` (nhập 2 lần, không hiện trên màn hình). Lưu ngay vào kho bí mật.
-3. **Triển khai lần lượt** từng bản với `DATABASE_URL` dùng `app_runtime_b` + mật khẩu mới. Trong lúc này bản cũ vẫn mở kết nối mới bằng login cũ bình thường.
+   `docker compose -f deploy/compose.yaml exec -T -u postgres postgres psql -U postgres -d <db> -v base=app_runtime -v login=app_runtime_b -f - < packages/db/sql/rotate-login.sql`
+   Script chỉ nhận `app_runtime|app_worker` và `<base>_a|<base>_b`; login mới không superuser, không `BYPASSRLS`, không `REPLICATION`, không ADMIN OPTION, chép `CONNECTION LIMIT`/`VALID UNTIL` và giới hạn thời gian của `<base>` (`statement_timeout`, `lock_timeout`, `idle_in_transaction_session_timeout`). Phiên của login chạy với `role = <base>` (`GRANT … WITH INHERIT TRUE, SET TRUE` + `ALTER ROLE <login> SET role`): `current_user` là role gốc nên đối tượng tạo ra (bảng pg-boss trong schema `pgboss`) thuộc `<base>`, lần xoay sau vẫn sửa được. Chạy lại an toàn.
+2. **Đặt mật khẩu mới**: `docker compose -f deploy/compose.yaml exec -u postgres postgres psql -U postgres -d <db>` rồi `\password app_runtime_b` (nhập 2 lần, không hiện trên màn hình, psql gửi băm SCRAM). Lưu ngay vào kho bí mật.
+3. **Triển khai lần lượt** từng bản với URL mới: `app_runtime` → `DATABASE_URL` ở `deploy/secrets/web.env` **và** `deploy/secrets/worker.env` (job xuất dữ liệu của worker); `app_worker` → `WORKER_DATABASE_URL` ở `deploy/secrets/worker.env`. Trong lúc này bản cũ vẫn mở kết nối mới bằng login cũ bình thường. Kết nối mới bị trễ trong lúc khởi động lại một bản nhưng bản còn lại vẫn phục vụ — không downtime chỉ khi có ≥ 2 bản (web); worker một bản thì job chậm lại vài giây, không mất job (outbox, pg-boss giữ hàng đợi).
 4. **Tắt login cũ** khi mọi bản đã chạy bằng login mới: `ALTER ROLE app_runtime NOLOGIN;` (lần sau: `ALTER ROLE app_runtime_a NOLOGIN;`). Truy vấn đang chạy không bị cắt.
-5. **Dọn phiên còn lại của login cũ** (sau bước 4, khi chắc không còn bản nào dùng): `select pg_terminate_backend(pid) from pg_stat_activity where usename = 'app_runtime';` — pool của ứng dụng bỏ kết nối bị cắt (`packages/app/src/db/pool.ts` bắt lỗi kết nối rảnh; worker ghi `pool.idle_error`) và mở kết nối mới bằng login mới.
+5. **Dọn phiên còn lại của login cũ** (sau bước 4, khi chắc không còn bản nào dùng): `select pg_terminate_backend(pid) from pg_stat_activity where usename = 'app_runtime';` (`usename` là login, không phải role gốc; lần sau thay bằng `app_runtime_a`/`app_runtime_b`, với worker là `app_worker`/`app_worker_a`/`app_worker_b`) — pool của ứng dụng bỏ kết nối bị cắt (`packages/app/src/db/pool.ts` bắt lỗi kết nối rảnh; worker ghi `pool.idle_error`) và mở kết nối mới bằng login mới.
 6. Lặp lại cho `app_worker`. Lần xoay sau đổi chiều (`_b` → `_a`).
 
 ## Xác minh
 - `select usename, count(*) from pg_stat_activity where usename like 'app_%' group by 1;` chỉ còn login mới.
 - Đăng nhập bằng login cũ bị từ chối: `role "app_runtime" is not permitted to log in`.
 - `/api/health` của từng bản trả 200; không có cảnh báo lỗi 5xx tăng ([`SLO.md`](../SLO.md)).
-- Diễn tập tự động (chạy trong CI, project `db`): `pnpm vitest run --project db password-rotation` — bản cũ và mới chạy song song, tắt login cũ không cắt kết nối đang mở, login mới cùng RLS và `statement_timeout`, không `SET ROLE` sang role gốc, script từ chối tên lạ.
+- `select rolname, rolconfig from pg_roles where rolname like 'app_%\_%';` — login luân phiên có `role=<base>` và đủ giới hạn thời gian.
+- Diễn tập tự động (chạy trong CI, project `db`): `pnpm vitest run --project db password-rotation` — bản cũ và mới chạy song song, tắt login cũ không cắt kết nối đang mở, login mới cùng RLS và `statement_timeout`, `current_user` là role gốc, không `SET ROLE` sang role khác, bảng pg-boss tạo bằng `app_worker_a` vẫn `ALTER` được bằng `app_worker_b`, script từ chối tên lạ.
 
 ## Hoàn tác / đường lùi
 - Trước bước 4: chỉ cần triển khai lại bản dùng login cũ; login mới để `NOLOGIN` (`ALTER ROLE app_runtime_b NOLOGIN;`).
 - Sau bước 4 mà bản mới lỗi: `ALTER ROLE app_runtime LOGIN;` (mật khẩu cũ vẫn còn nếu chưa đổi) rồi triển khai lại bản cũ.
-- Không `DROP ROLE` login luân phiên (lần xoay sau dùng lại); nếu thật cần bỏ: `REASSIGN OWNED`/`DROP OWNED` không cần vì login không sở hữu đối tượng.
+- Không `DROP ROLE` login luân phiên (lần xoay sau dùng lại). Login không sở hữu đối tượng (phiên chạy bằng role gốc); kiểm trước khi bỏ: `select count(*) from pg_class where relowner = '<login>'::regrole;` = 0, khác 0 thì `REASSIGN OWNED BY <login> TO <base>` trước.
+- Rủi ro log: lỗi xác thực in tên login (`DETAIL`), không in mật khẩu; `\password` gửi băm nên mật khẩu không vào log truy vấn hay lịch sử shell.
 
 ## Liên hệ và leo thang
 - Người trực vận hành → Tech Lead. Nghi lộ mật khẩu: SEV1 theo [`INCIDENT-RESPONSE.md`](../INCIDENT-RESPONSE.md) và [`secret-leak.md`](secret-leak.md).
