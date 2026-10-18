@@ -3,7 +3,9 @@ name: Release
 # Phát hành (WF-REL-001, WF-REL-003): release-please đọc Conventional Commits trên main, mở/cập nhật "Release PR" (SemVer tự sinh,
 # không sửa tay phiên bản). Người merge Release PR → release-please tạo GitHub Release ở dạng NHÁP (chưa có tag công bố); job `assets`
 # chờ check `quality` của chính commit phát hành xanh, đính artefact + SHA256SUMS rồi mới công khai → tag `vX.Y.Z` chỉ xuất hiện
-# trên commit đã qua `quality`. Tag `v*` bất biến nhờ `.github/rulesets/tags.json` (chủ dự án import).
+# trên commit đã qua `quality`. Release kèm SBOM CycloneDX (CMP-LIC-003): `sbom.cdx.json` (phụ thuộc npm toàn workspace, kiểm
+# giấy phép theo license-policy.json) và `sbom-image-<tên>.cdx.json` cho từng image triển khai (cùng danh sách `matrix` của
+# supply-chain.yml — scripts/release-config.test.mjs khoá), đều nằm trong SHA256SUMS. Tag `v*` bất biến nhờ `.github/rulesets/tags.json` (chủ dự án import).
 # Cần bật Settings → Actions → "Allow GitHub Actions to create and approve pull requests".
 # Token: PR do GITHUB_TOKEN tạo KHÔNG kích hoạt workflow khác → Release PR không có CI, check bắt buộc đứng "Expected". Chủ dự án có thể
 # cấp secret `RELEASE_PLEASE_TOKEN` (GitHub App/PAT, quyền contents + pull-requests) để Release PR chạy CI; chưa có thì dùng
@@ -48,12 +50,14 @@ jobs:
     needs: release-please
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 95
+    # Cửa sổ đợi quality (80 phút) + SBOM npm và 4 image (≤ 20 phút).
+    timeout-minutes: 110
     permissions:
       contents: write
       checks: read
+    # GH_TOKEN (quyền ghi contents) KHÔNG đặt ở cấp job: pnpm install, scripts/sbom.mjs, syft tải về và docker build chạy mã bên thứ ba
+    # không được thấy nó — chỉ hai bước dùng `gh` (đợi quality, đính artefact) mới có (review PR #59).
     env:
-      GH_TOKEN: ${{ github.token }}
       REPO: ${{ github.repository }}
       TAG: ${{ needs.release-please.outputs.tag_name }}
       RELEASE_SHA: ${{ needs.release-please.outputs.sha }}
@@ -63,6 +67,8 @@ jobs:
           ref: ${{ needs.release-please.outputs.sha }}
           persist-credentials: false
       - name: Đợi check quality của commit phát hành (đỏ → không công khai)
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           for i in $(seq 1 80); do
@@ -76,14 +82,51 @@ jobs:
             sleep 60
           done
           echo "::error::Hết thời gian đợi check quality"; exit 1
-      - name: Đóng gói mã nguồn + SHA256SUMS
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+      - name: Cài phụ thuộc (lockfile đóng băng, không chạy script)
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: SBOM CycloneDX của phụ thuộc npm + kiểm giấy phép (CMP-LIC-003)
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          node scripts/sbom.mjs --out dist/sbom.cdx.json --timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          node scripts/sbom-check.mjs --policy license-policy.json dist/sbom.cdx.json
+      - uses: anchore/sbom-action/download-syft@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        id: syft
+      - name: SBOM CycloneDX của image triển khai + kiểm giấy phép
+        env:
+          SYFT: ${{ steps.syft.outputs.cmd }}
+          # Binary Go (seaweedfs, caddy): tra giấy phép module từ proxy công khai để SBOM có trường license.
+          SYFT_GOLANG_SEARCH_REMOTE_LICENSES: "true"
+          SYFT_GOLANG_USE_PROXY: "true"
+        run: |
+          set -euo pipefail
+          docker build --tag hm-postgres:release deploy/postgres
+          while read -r name ref <&3; do
+            [ "$ref" = "hm-postgres:release" ] || docker pull "$ref"
+            "$SYFT" scan "$ref" -o "cyclonedx-json=dist/sbom-image-$name.cdx.json"
+            node scripts/sbom-check.mjs "dist/sbom-image-$name.cdx.json"
+          done 3<<'IMAGES'
+          postgres hm-postgres:release
+          node-base node:24.22.0-trixie-slim@sha256:7f486cabe892bff8fef04c0f7da8dba84a560be3e4e2740b7a86afc57ebec315
+          seaweedfs chrislusf/seaweedfs:4.48@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d
+          caddy caddy:2.11.7-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f
+          IMAGES
+          # Phải đủ 4 SBOM image (vòng lặp không được dừng sớm âm thầm).
+          [ "$(find dist -name 'sbom-image-*.cdx.json' | wc -l)" -eq 4 ]
+      - name: Đóng gói mã nguồn + SHA256SUMS (gồm SBOM)
         run: |
           set -euo pipefail
           name="hotel-manager-${TAG#v}"
           mkdir -p dist
           git archive --format=tar.gz --prefix="$name/" -o "dist/$name.tar.gz" "$RELEASE_SHA"
-          (cd dist && sha256sum "$name.tar.gz" > SHA256SUMS && sha256sum -c SHA256SUMS)
+          (cd dist && sha256sum ./*.tar.gz ./*.cdx.json > SHA256SUMS && sha256sum -c SHA256SUMS)
       - name: Đính artefact rồi công khai Release (tạo tag đúng commit đã qua quality)
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           gh release upload "$TAG" dist/* --repo "$REPO" --clobber
