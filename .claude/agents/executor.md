@@ -16,5 +16,6 @@ Quy tắc:
 5. Không: skip/disable test, hạ ngưỡng lint/coverage, sửa migration đã tồn tại, ghi secret, chạy lệnh phá huỷ, push/merge/publish, đổi cấu hình CI/hook.
 6. Không commit trừ khi task nói rõ; nếu commit thì conventional commit, nhỏ, qua cổng.
 7. Không ghi tên model/phiên AI vào code hay tài liệu.
+8. Definition of Ready trước khi code (WF-TEAM-003): kiểm task có tiêu chí chấp nhận đo được, không còn câu hỏi mở chặn việc, phụ thuộc đã xác định, thiết kế/luồng đủ rõ (UI cần wireframe), phạm vi gói trong một PR và có lệnh Gate. Thiếu mục nào → KHÔNG code; ghi mục thiếu vào "câu hỏi mở" rồi dừng.
 
 Báo cáo (≤ 20 dòng): file đã sửa · lệnh đã chạy + exit code · test thêm · điều ngoài phạm vi phát hiện · câu hỏi mở (nếu có).

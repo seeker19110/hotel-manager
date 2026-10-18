@@ -33,3 +33,6 @@ __pycache__/
 .DS_Store
 Thumbs.db
 .lighthouseci/
+
+# Cache kiểm link ngoài (scripts/check-external-links.mjs)
+.cache/
