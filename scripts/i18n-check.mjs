@@ -19,16 +19,25 @@ const UNSAFE = /<\s*\/?\s*[a-z][^>]*>|javascript:|on\w+\s*=/i;
 /** Tên tham số của một message ICU (đệ quy qua plural/select). Ném lỗi khi sai cú pháp. */
 export function messageArgs(message) {
   const names = new Set();
-  const walk = (els) => {
-    for (const el of els) {
-      if (el.type !== TYPE.literal && el.type !== TYPE.pound && el.value) names.add(el.value);
-      if (el.options) for (const o of Object.values(el.options)) walk(o.value);
-      if (el.children) walk(el.children);
-    }
-  };
-  walk(parse(message, { ignoreTag: true }));
+  // Runtime `t()` (apps/web/lib/i18n.ts) chỉ thay `{tên}` ASCII — cổng chỉ nhận đúng tập con đó, không nhận plural/select/
+  // number/date, dấu nháy đơn (ICU coi là thoát) hay tên tham số có dấu; hỗ trợ thêm ở runtime thì nới ở đây cùng lúc.
+  if (message.includes("'")) throw new Error("dấu nháy đơn (ICU thoát) chưa được hỗ trợ");
+  for (const el of parse(message, { ignoreTag: true })) {
+    if (el.type === TYPE.literal) continue;
+    if (el.type !== TYPE.argument) throw new Error("chỉ hỗ trợ literal và {tham_số} đơn giản");
+    if (!/^\w+$/.test(el.value)) throw new Error(`tên tham số "${el.value}" phải khớp ^\\w+$`);
+    names.add(el.value);
+  }
   return [...names].sort();
 }
+
+const safeArgs = (message) => {
+  try {
+    return messageArgs(message);
+  } catch {
+    return undefined; // nguồn sai cú pháp đã báo ở vòng nguồn
+  }
+};
 
 /** Lỗi của bộ tệp dịch: { locale: { key: { message, description } } } → mảng chuỗi lỗi. */
 export function checkCatalogs(catalogs, source = SOURCE_LOCALE) {
@@ -44,9 +53,16 @@ export function checkCatalogs(catalogs, source = SOURCE_LOCALE) {
     if (!entry.description?.trim())
       errors.push(`${source}:${key}: thiếu description (ngữ cảnh cho người dịch)`);
   }
-  for (const [locale, cat] of Object.entries(catalogs)) {
+  const ordered = Object.entries(catalogs).sort(([a], [b]) =>
+    a === source ? -1 : b === source ? 1 : a < b ? -1 : 1,
+  );
+  for (const [locale, cat] of ordered) {
     for (const [key, entry] of Object.entries(cat)) {
-      if (typeof entry?.message !== "string") continue;
+      if (typeof entry?.message !== "string" || !entry.message.trim()) {
+        if (locale !== source) errors.push(`${locale}:${key}: message phải là chuỗi không rỗng`);
+        else if (typeof entry?.message === "string") errors.push(`${locale}:${key}: message rỗng`);
+        continue;
+      }
       if (!(key in src)) errors.push(`${locale}:${key}: khoá không có trong nguồn ${source}`);
       if (UNSAFE.test(entry.message)) errors.push(`${locale}:${key}: có HTML/script lạ`);
       let args;
@@ -59,9 +75,11 @@ export function checkCatalogs(catalogs, source = SOURCE_LOCALE) {
       if (locale === source) srcArgs[key] = args;
       else if (
         key in src &&
-        JSON.stringify(args) !== JSON.stringify(srcArgs[key] ?? messageArgs(src[key].message))
+        JSON.stringify(args) !== JSON.stringify(srcArgs[key] ?? safeArgs(src[key].message))
       )
-        errors.push(`${locale}:${key}: tham số [${args}] khác nguồn [${srcArgs[key]}]`);
+        errors.push(
+          `${locale}:${key}: tham số [${args}] khác nguồn [${srcArgs[key] ?? safeArgs(src[key].message)}]`,
+        );
     }
     if (locale !== source)
       for (const key of Object.keys(src))
@@ -101,6 +119,24 @@ export function loadCatalogs(dir = MESSAGES_DIR) {
   );
 }
 
+/** Khoá dựng động `tOr(\`tiền.tố.${r}\`)`: mọi giá trị trong ROLES/STATUSES (roles.ts) phải có khoá thật trong nguồn. */
+export function roleKeyErrors(src, rolesTs) {
+  const errors = [];
+  const list = (name) =>
+    [...(rolesTs.match(new RegExp(`const ${name} = \\[([^\\]]*)\\]`))?.[1] ?? "").matchAll(/"([^"]+)"/g)].map(
+      (m) => m[1],
+    );
+  for (const [prefix, names] of [
+    ["role.", list("ROLES")],
+    ["org_picker.role.", list("ROLES")],
+    ["member_status.", list("STATUSES")],
+  ]) {
+    if (names.length === 0) errors.push(`roles.ts: không đọc được danh sách cho tiền tố ${prefix}`);
+    for (const n of names) if (!(`${prefix}${n}` in src)) errors.push(`thiếu khoá ${prefix}${n} (roles.ts)`);
+  }
+  return errors;
+}
+
 function main() {
   const catalogs = loadCatalogs();
   const errors = checkCatalogs(catalogs);
@@ -111,6 +147,7 @@ function main() {
   for (const [p, f] of prefixes)
     if (!Object.keys(src).some((k) => k.startsWith(p)))
       errors.push(`${relative(ROOT, f)}: tiền tố "${p}" không có khoá nào`);
+  errors.push(...roleKeyErrors(src, readFileSync(join(ROOT, "apps/web/lib/roles.ts"), "utf8")));
   for (const e of errors) console.error(e);
   console.log(
     `[i18n-check] ${Object.keys(catalogs).length} locale · ${Object.keys(src).length} khoá · ${errors.length} lỗi`,

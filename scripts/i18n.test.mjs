@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { t, tOr } from "../apps/web/lib/i18n.ts";
 import { ROLE_LABEL, STATUS_LABEL } from "../apps/web/lib/roles.ts";
-import { checkCatalogs, loadCatalogs, messageArgs } from "./i18n-check.mjs";
+import { checkCatalogs, loadCatalogs, messageArgs, roleKeyErrors } from "./i18n-check.mjs";
 import { BASELINE, countLiterals, regressions, scan } from "./i18n-literals.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
@@ -23,10 +23,44 @@ describe("XC-I18N-009 — kiểm tệp dịch", () => {
   });
 
   it("tham số ICU: lấy đúng tên, kể cả trong plural/select; sai cú pháp → ném lỗi", () => {
-    expect(
-      messageArgs("Xin chào {name}, còn {count, plural, one {# phòng} other {# phòng}} cho {room}"),
-    ).toEqual(["count", "name", "room"]);
+    expect(messageArgs("Xin chào {name}, phòng {room} còn {count}")).toEqual(["count", "name", "room"]);
     expect(() => messageArgs("Thiếu ngoặc {name")).toThrow();
+  });
+
+  it("chỉ nhận tập con mà t() hiển thị được: plural/select, tên có dấu, dấu nháy đơn bị từ chối", () => {
+    for (const bad of [
+      "Còn {n, plural, one {# phòng} other {# phòng}}",
+      "Chào {tên}",
+      "Mã '{code}' sai",
+      "Giá {n, number}",
+    ])
+      expect(() => messageArgs(bad), bad).toThrow();
+  });
+
+  it("message không phải chuỗi/rỗng ở locale dịch là lỗi; nguồn sai ICU không làm ném lỗi dù en đứng trước", () => {
+    expect(checkCatalogs({ vi: { a: entry("A") }, en: { a: null } })).toContain(
+      "en:a: message phải là chuỗi không rỗng",
+    );
+    expect(checkCatalogs({ vi: { a: entry("A") }, en: { a: { msg: "x" } } })).toContain(
+      "en:a: message phải là chuỗi không rỗng",
+    );
+    expect(checkCatalogs({ vi: { a: entry("A") }, en: { a: entry("  ") } })).toContain(
+      "en:a: message phải là chuỗi không rỗng",
+    );
+    expect(checkCatalogs({ vi: { a: entry("Sai {") }, en: { a: entry("x") } })).toEqual(
+      expect.arrayContaining([expect.stringMatching(/^vi:a: sai cú pháp ICU/)]),
+    );
+  });
+
+  it("mọi vai trò và trạng thái đều có nhãn thật (không rơi về mã thô)", () => {
+    for (const r of ["owner", "manager", "front_desk", "accountant", "housekeeping", "maintenance", "tenant"])
+      expect(ROLE_LABEL[r], r).not.toBe(r);
+    for (const st of ["active", "suspended", "invited"]) expect(STATUS_LABEL[st], st).not.toBe(st);
+    const roles = readFileSync(join(ROOT, "apps/web/lib/roles.ts"), "utf8");
+    const vi = loadCatalogs().vi;
+    expect(roleKeyErrors(vi, roles)).toEqual([]);
+    const { "role.tenant": _x, ...thieu } = vi;
+    expect(roleKeyErrors(thieu, roles)).toEqual(["thiếu khoá role.tenant (roles.ts)"]);
   });
 
   it("bắt: thiếu mô tả, thiếu khoá ở locale dịch, khoá lạ, tham số đổi tên/mất, sai ICU, HTML/script chèn vào", () => {
@@ -81,6 +115,18 @@ describe("XC-I18N-001 — chuỗi viết thẳng chỉ được giảm (ratchet)
   });
 
   it("baseline không được nới so với main (chỉ hạ hoặc xoá dòng)", () => {
+    const ref = spawnSync("git", ["rev-parse", "--verify", "--quiet", "origin/main"], {
+      cwd: ROOT,
+      encoding: "utf8",
+    });
+    // CI checkout đủ lịch sử (fetch-depth: 0) nên có origin/main; thiếu ref trong CI = rào bị vô hiệu → đỏ, không bỏ qua.
+    if (ref.status !== 0) {
+      expect(
+        process.env.CI,
+        "CI phải có origin/main để so baseline (checkout fetch-depth: 0)",
+      ).toBeUndefined();
+      return;
+    }
     const main = spawnSync("git", ["show", "origin/main:scripts/i18n-literal-baseline.json"], {
       cwd: ROOT,
       encoding: "utf8",
