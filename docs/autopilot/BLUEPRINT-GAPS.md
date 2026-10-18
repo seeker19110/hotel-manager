@@ -65,7 +65,7 @@ Ngoài tầm agent (chủ dự án): import ruleset GitHub (QA-E2E-001, BASE-REP
 > Chưa rà ở đợt 5: các ID ngoài danh sách của T-401…T-412 (chỉ quét nhanh theo từ khoá; chưa rà SEC-LOG-*/OPS-OBS-*/WF-*/PM-* khác, nên rà ở đợt sau). Mục có Kiểm đòi thao tác trên GitHub/VPS (nhãn, ruleset, quét cổng) không tick.
 
 
-## Cần người / production (46 mục — đã loop defer)
+## Cần người / production (47 mục — đã loop defer)
 
 | Mã | Cần gì |
 |---|---|
@@ -110,6 +110,7 @@ Ngoài tầm agent (chủ dự án): import ruleset GitHub (QA-E2E-001, BASE-REP
 | `WF-ENV-012` | Chưa có cấu hình prod. Phần dấu vết thay đổi cấu hình/secret manager/IaC history cần môi trường production (VPS, secret store) do chủ dự án chọn. deploy/compose.yaml là điểm khởi đầu cho IaC. |
 | `WF-GIT-001` | Mọi commit first-parent của main đều đi qua PR (#1…#9). Nhưng ruleset chưa hiệu lực (API rules trả []) và repo còn cho merge commit (PR #9, #8, #5 merge kiểu merge commit). Cần chủ dự án import ruleset và tắt merge commit trong Settings. |
 | `WF-GIT-002` | .github/rulesets/main.json đủ deletion, non_fast_forward, pull_request (squash, resolve thread), required_status_checks, bypass_actors []. Nhưng GET /repos/seeker19110/hotel-manager/rules/branches/main trả []. Cần chủ dự án import. |
+| `WF-REL-001` | Release PR do release-please tạo bằng `GITHUB_TOKEN` không kích hoạt CI nên check bắt buộc đứng "Expected". Cần chủ dự án tạo GitHub App hoặc PAT (quyền contents + pull-requests) và đặt secret `RELEASE_PLEASE_TOKEN` ở Settings → Secrets → Actions (`release.yml` tự dùng nếu có; chưa có thì người đóng rồi mở lại Release PR trước khi merge — README, mục Phát hành). Agent không tạo secret. |
 | `WF-REL-004` | RUNBOOK chưa có mục rollback. Chưa có cơ chế deploy (image app, VPS) nên chưa viết được lệnh lùi thật, cũng chưa diễn tập được. Cần VPS/staging. Phần viết trước được: mục rollback (bản trước, đổi tag image, migration expand/contract). |
 | `WF-REL-007` | Chưa có deploy nên chưa có job smoke sau deploy. Đã có sẵn smoke E2E (apps/web/e2e/smoke.spec.ts), /api/ready, /api/metrics và ngưỡng trong RUNBOOK để dùng sau. Cần VPS + pipeline deploy. |
 | `WF-REVIEW-005` | .github/rulesets/main.json đã có required_review_thread_resolution: true. Nhưng GET repos/…/rulesets và rules/branches/main đều trả [], tức ruleset chưa hiệu lực. Cần chủ dự án import ruleset (đổi ruleset là điểm dừng §6). |

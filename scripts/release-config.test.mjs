@@ -15,6 +15,11 @@ afterAll(() => {
   for (const d of dirs) rmSync(d, { recursive: true, force: true });
 });
 const release = parse(read(".github/workflows/release.yml"));
+const ci = parse(read(".github/workflows/ci.yml"));
+const waitRun = release.jobs.assets.steps.find((s) => String(s.name).startsWith("Đợi check quality")).run;
+const WAIT_LOOPS = Number(/seq 1 (\d+)/.exec(waitRun)?.[1]);
+const WAIT_SLEEP_S = Number(/sleep (\d+)/.exec(waitRun)?.[1]);
+const WAIT_MARGIN_MIN = 15; // hàng đợi runner + quality chạy lại
 const stepText = (job) => job.steps.map((s) => `${s.name ?? ""}\n${s.run ?? ""}`).join("\n----\n");
 
 /**
@@ -52,6 +57,18 @@ describe("WF-REL-001 — phiên bản SemVer sinh tự động từ Conventional
       .find((u) => u.startsWith("googleapis/release-please-action@"));
     expect(uses).toMatch(/@[0-9a-f]{40}$/);
     expect(release.on.push.branches).toEqual(["main"]);
+  });
+
+  it("release-please đọc token riêng nếu có, rơi về github.token (không ép secret, không tạo secret mới)", () => {
+    const step = rp.steps.find((s) => s.id === "rp");
+    expect(step.with.token).toMatch(/^\$\{\{ secrets\.RELEASE_PLEASE_TOKEN \|\| github\.token \}\}$/);
+    expect(release.on.pull_request).toBeUndefined(); // secret chỉ đọc ở sự kiện push/dispatch (WF-CI-023)
+    expect(release.on.pull_request_target).toBeUndefined();
+    const readme = read("README.md");
+    const section = /^## Phát hành[^\n]*\n([\s\S]*?)(?=^## |$(?![\s\S]))/m.exec(readme)?.[1] ?? "";
+    expect(section).toContain("RELEASE_PLEASE_TOKEN");
+    expect(section).toMatch(/đóng rồi mở lại Release PR/);
+    expect(read("docs/autopilot/BLUEPRINT-GAPS.md")).toContain("RELEASE_PLEASE_TOKEN");
   });
 
   it("quyền tối thiểu: mặc định rỗng; chỉ job release-please được ghi contents + pull-requests", () => {
@@ -121,8 +138,20 @@ describe("WF-REL-003 — tag bất biến, Release kèm artefact + checksum", ()
     expect(release.jobs.assets.env.RELEASE_SHA).toContain("needs.release-please.outputs.sha");
   });
 
+  describe("cửa sổ đợi quality đủ dài cho job con chậm nhất", () => {
+    it("loops × sleep > timeout lớn nhất của job con + timeout của quality + biên; timeout job assets > cửa sổ", () => {
+      const needs = [ci.jobs.quality.needs].flat();
+      expect(needs).toContain("onboarding-smoke");
+      const slowestChild = Math.max(...needs.map((n) => ci.jobs[n]["timeout-minutes"]));
+      const windowMin = (WAIT_LOOPS * WAIT_SLEEP_S) / 60;
+      expect(windowMin).toBeGreaterThanOrEqual(
+        slowestChild + ci.jobs.quality["timeout-minutes"] + WAIT_MARGIN_MIN,
+      );
+      expect(release.jobs.assets["timeout-minutes"]).toBeGreaterThan(windowMin);
+    });
+  });
+
   describe("bước đợi quality chạy thật với gh giả", () => {
-    const run = release.jobs.assets.steps.find((s) => String(s.name).startsWith("Đợi check quality")).run;
     const fakeGh = (states) => {
       const d = mkdtempSync(join(tmpdir(), "rel-"));
       dirs.push(d);
@@ -139,7 +168,7 @@ describe("WF-REL-003 — tag bất biến, Release kèm artefact + checksum", ()
     };
     const exec = (states) => {
       const d = fakeGh(states);
-      const r = spawnSync("bash", ["-c", run], {
+      const r = spawnSync("bash", ["-c", waitRun], {
         env: { ...process.env, PATH: `${d}:${process.env.PATH}`, REPO: "o/r", RELEASE_SHA: "abc" },
         encoding: "utf8",
       });
@@ -165,7 +194,7 @@ describe("WF-REL-003 — tag bất biến, Release kèm artefact + checksum", ()
     it("quality không bao giờ xuất hiện → hết giờ, exit 1", () => {
       const r = exec(["none:"]);
       expect(r.status).toBe(1);
-      expect(r.calls).toBe(50);
+      expect(r.calls).toBe(WAIT_LOOPS);
     });
   });
 });

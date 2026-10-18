@@ -5,6 +5,10 @@ name: Release
 # chờ check `quality` của chính commit phát hành xanh, đính artefact + SHA256SUMS rồi mới công khai → tag `vX.Y.Z` chỉ xuất hiện
 # trên commit đã qua `quality`. Tag `v*` bất biến nhờ `.github/rulesets/tags.json` (chủ dự án import).
 # Cần bật Settings → Actions → "Allow GitHub Actions to create and approve pull requests".
+# Token: PR do GITHUB_TOKEN tạo KHÔNG kích hoạt workflow khác → Release PR không có CI, check bắt buộc đứng "Expected". Chủ dự án có thể
+# cấp secret `RELEASE_PLEASE_TOKEN` (GitHub App/PAT, quyền contents + pull-requests) để Release PR chạy CI; chưa có thì dùng
+# `github.token` và người đóng rồi mở lại Release PR trước khi merge (README, mục Phát hành). Workflow này không chạy trên pull_request
+# nên đọc secret ở đây không vi phạm WF-CI-023.
 on:
   push:
     branches: [main]
@@ -32,16 +36,19 @@ jobs:
       - id: rp
         uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || github.token }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
   # Chỉ chạy khi vừa có Release (nháp). Đợi `quality` của commit phát hành, đính tarball + SHA256SUMS, rồi công khai.
+  # Cửa sổ đợi (80 × 60 s = 80 phút) phải lớn hơn timeout lớn nhất của job con trong `needs` của `quality` + timeout của chính
+  # `quality` + biên (hàng đợi runner); `scripts/release-config.test.mjs` khoá bất đẳng thức này. Timeout job > cửa sổ đợi.
   assets:
     name: assets
     needs: release-please
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 95
     permissions:
       contents: write
       checks: read
@@ -58,7 +65,7 @@ jobs:
       - name: Đợi check quality của commit phát hành (đỏ → không công khai)
         run: |
           set -euo pipefail
-          for i in $(seq 1 50); do
+          for i in $(seq 1 80); do
             state=$(gh api "repos/$REPO/commits/$RELEASE_SHA/check-runs?check_name=quality" \
               --jq '[.check_runs[] | select(.app.slug == "github-actions")] | sort_by(.started_at) | last | (.status // "none") + ":" + (.conclusion // "")')
             echo "quality @ $RELEASE_SHA → $state (lần $i)"
@@ -66,7 +73,7 @@ jobs:
               completed:success) exit 0 ;;
               completed:*) echo "::error::quality không success trên commit phát hành: $state"; exit 1 ;;
             esac
-            sleep 45
+            sleep 60
           done
           echo "::error::Hết thời gian đợi check quality"; exit 1
       - name: Đóng gói mã nguồn + SHA256SUMS

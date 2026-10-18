@@ -5,6 +5,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   statSync,
@@ -24,12 +25,10 @@ afterAll(() => {
   for (const d of dirs) rmSync(d, { recursive: true, force: true });
 });
 
+/** Cô lập khỏi cấu hình git của máy dev (toàn cục/hệ thống có thể đặt core.hooksPath). */
+const ISO = { GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" };
 const sh = (cwd, cmd, args, opts = {}) =>
-  spawnSync(cmd, args, {
-    cwd,
-    encoding: "utf8",
-    env: { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", ...opts.env },
-  });
+  spawnSync(cmd, args, { cwd, encoding: "utf8", env: { ...process.env, ...ISO, ...opts.env } });
 
 /** Repo tạm: git init + cấu hình dự án (hook, biome, .gitignore) + node_modules của repo thật (symlink). */
 function sandbox({ install = true } = {}) {
@@ -64,17 +63,17 @@ describe("XC-DX-006 — hook tự cài", () => {
 
   it("chạy lại an toàn: unchanged; stub cũ thì updated", () => {
     const d = sandbox();
-    expect(installHooks(d).status).toBe("unchanged");
+    expect(installHooks(d, ISO).status).toBe("unchanged");
     writeFileSync(join(d, ".git/hooks/pre-commit"), `#!/bin/sh\n${MARKER}\nexit 0 # bản cũ\n`);
-    expect(installHooks(d).status).toBe("updated");
-    expect(installHooks(d).status).toBe("unchanged");
+    expect(installHooks(d, ISO).status).toBe("updated");
+    expect(installHooks(d, ISO).status).toBe("unchanged");
   });
 
   it("không đè hook của công cụ khác", () => {
     const d = sandbox({ install: false });
     mkdirSync(join(d, ".git/hooks"), { recursive: true });
     writeFileSync(join(d, ".git/hooks/pre-commit"), "#!/bin/sh\necho của-công-cụ-khác\n");
-    expect(installHooks(d).status).toBe("foreign-hook");
+    expect(installHooks(d, ISO).status).toBe("foreign-hook");
     expect(readFileSync(join(d, ".git/hooks/pre-commit"), "utf8")).toContain("của-công-cụ-khác");
   });
 
@@ -84,10 +83,78 @@ describe("XC-DX-006 — hook tự cài", () => {
     mkdirSync(join(d, "scripts"));
     cpSync(INSTALLER_SRC, join(d, "scripts/install-git-hooks.mjs"));
     const env = { GIT_CEILING_DIRECTORIES: tmpdir() }; // không để git đi ngược lên repo khác
-    expect(installHooks(d, env).status).toBe("no-git");
+    expect(installHooks(d, { ...ISO, ...env }).status).toBe("no-git");
     const r = sh(d, "node", ["scripts/install-git-hooks.mjs"], { env });
     expect(r.status).toBe(0);
     expect(existsSync(join(d, ".git"))).toBe(false);
+  });
+
+  describe("không ghi vào thư mục hooks dùng chung (skip-hooks-path)", () => {
+    const snapshot = (dir) => (existsSync(dir) ? readdirSync(dir).sort() : null);
+
+    it("core.hooksPath đặt ở cấu hình repo → không ghi gì, báo skip-hooks-path, cảnh báo stderr, exit 0", () => {
+      const d = sandbox({ install: false });
+      const shared = mkdtempSync(join(tmpdir(), "shared-hooks-"));
+      dirs.push(shared);
+      writeFileSync(join(shared, "pre-commit"), "#!/bin/sh\necho của-người-dùng\n");
+      sh(d, "git", ["config", "core.hooksPath", shared]);
+      expect(installHooks(d, ISO)).toEqual({ status: "skip-hooks-path", path: shared });
+      expect(readFileSync(join(shared, "pre-commit"), "utf8")).toContain("của-người-dùng");
+      expect(snapshot(shared)).toEqual(["pre-commit"]);
+      const r = sh(d, "node", ["scripts/install-git-hooks.mjs"]);
+      expect(r.status).toBe(0);
+      expect(r.stderr).toContain("core.hooksPath");
+      expect(readFileSync(join(shared, "pre-commit"), "utf8")).not.toContain("hm-managed-hook");
+      expect(existsSync(join(d, ".git/hooks/pre-commit"))).toBe(false);
+    });
+
+    it("core.hooksPath đặt toàn cục (GIT_CONFIG_GLOBAL trỏ file tạm) → không ghi gì", () => {
+      const d = sandbox({ install: false });
+      const shared = mkdtempSync(join(tmpdir(), "global-hooks-"));
+      const cfg = join(shared, "gitconfig");
+      dirs.push(shared);
+      writeFileSync(cfg, `[core]\n\thooksPath = ${join(shared, "hooks")}\n`);
+      const env = { ...ISO, GIT_CONFIG_GLOBAL: cfg };
+      expect(installHooks(d, env).status).toBe("skip-hooks-path");
+      expect(snapshot(join(shared, "hooks"))).toBeNull(); // thư mục chung không bị tạo
+      const r = sh(d, "node", ["scripts/install-git-hooks.mjs"], { env });
+      expect(r.status).toBe(0);
+      expect(r.stderr).toContain("skip");
+      expect(snapshot(join(shared, "hooks"))).toBeNull();
+      expect(existsSync(join(d, ".git/hooks/pre-commit"))).toBe(false);
+    });
+
+    it("core.hooksPath tương đối (.githooks) cũng bị bỏ qua — người dùng đã tự chọn", () => {
+      const d = sandbox({ install: false });
+      sh(d, "git", ["config", "core.hooksPath", ".githooks"]);
+      expect(installHooks(d, ISO).status).toBe("skip-hooks-path");
+      expect(existsSync(join(d, ".git/hooks/pre-commit"))).toBe(false);
+    });
+
+    it("không đặt hooksPath: hooks nằm trong git-common-dir → vẫn cài; worktree phụ dùng chung stub của repo chính", () => {
+      const d = sandbox({ install: false });
+      expect(installHooks(d, ISO).status).toBe("installed");
+      writeFileSync(join(d, "a.ts"), GOOD);
+      stage(d, "a.ts");
+      expect(commit(d).status).toBe(0);
+      const wt = `${d}-wt`;
+      dirs.push(wt);
+      expect(sh(d, "git", ["worktree", "add", "-q", "-b", "wip/wt", wt]).status).toBe(0);
+      expect(installHooks(wt, ISO)).toMatchObject({
+        status: "unchanged",
+        path: join(d, ".git/hooks/pre-commit"),
+      });
+    });
+
+    it("thư mục hooks là symlink ra ngoài .git → bỏ qua, không ghi vào đích", () => {
+      const d = sandbox({ install: false });
+      const outside = mkdtempSync(join(tmpdir(), "outside-hooks-"));
+      dirs.push(outside);
+      rmSync(join(d, ".git/hooks"), { recursive: true, force: true });
+      symlinkSync(outside, join(d, ".git/hooks"));
+      expect(installHooks(d, ISO).status).toBe("skip-hooks-path");
+      expect(snapshot(outside)).toEqual([]);
+    });
   });
 
   it("stub im lặng khi cây làm việc không có .githooks/pre-commit (nhánh cũ)", () => {

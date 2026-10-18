@@ -12,14 +12,15 @@ SaaS web/PWA giúp chủ trọ, nhà nghỉ, khách sạn nhỏ ở Việt Nam q
 ## Bắt đầu nhanh (3 lệnh, từ clone sạch đến test xanh)
 
 ```bash
-bash scripts/dev-env-setup.sh
+bash scripts/dev-env-setup.sh && export PATH="$HOME/.local/bin:$PATH"
 pnpm install --frozen-lockfile
 pnpm test
 ```
 
 Lệnh 1 cài PostgreSQL 17 + pgBackRest, SeaweedFS, Node và pnpm (Ubuntu 24.04 x86_64, cần root hoặc sudo; máy đã có đủ công cụ
-đúng phiên bản thì bỏ qua); lệnh 2 cài phụ thuộc và tự cài hook git `pre-commit` (xem [Hook git](#hook-git)). Không bước tay nào khác,
-không cần bí mật. CI chạy đúng 3 lệnh này ở job `onboarding-smoke` trên runner mới và ghi thời gian vào tóm tắt job.
+đúng phiên bản thì bỏ qua) vào `~/.local/bin` rồi đặt thư mục đó lên đầu `PATH` của phiên shell hiện tại (máy mới chưa có trong `PATH`;
+muốn giữ cho các phiên sau thì thêm dòng `export` vào `~/.profile`); lệnh 2 cài phụ thuộc và tự cài hook git `pre-commit` (xem [Hook git](#hook-git)). Không bước tay nào khác,
+không cần bí mật. CI chạy đúng khối lệnh này, nguyên văn, trong một shell ở job `onboarding-smoke` trên runner mới và ghi thời gian vào tóm tắt job.
 
 ## Yêu cầu môi trường
 
@@ -112,6 +113,10 @@ Giấy phép mã nguồn và kênh báo lỗ hổng: chưa có (chờ chủ dự
 `.git/hooks/pre-commit`, logic ở [`.githooks/pre-commit`](.githooks/pre-commit)). Hook chỉ xét **file đã stage** nên chạy dưới 30 giây:
 chặn file đang bị `.gitignore` (kể cả `git add -f`), rồi `biome check --staged`. Cổng đầy đủ (build, typecheck, lint, test) để CI và
 `.xtemplates/scripts/dev-task.sh gate`. Đã có hook của công cụ khác thì script giữ nguyên và báo; cài lại tay: `node scripts/install-git-hooks.mjs`.
+Mọi worktree của cùng repo dùng chung một stub `.git/hooks/pre-commit`; stub thoát 0 (không làm gì) nếu nhánh/worktree không có
+`.githooks/pre-commit`. Nếu `core.hooksPath` đã được đặt (cấu hình repo, toàn cục hoặc hệ thống) hoặc thư mục hooks nằm ngoài `.git` của
+repo thì script **không ghi gì** (tránh sửa hook dùng chung của bạn) và cảnh báo trên stderr (trạng thái `skip-hooks-path`): tự gọi
+`.githooks/pre-commit` từ hook của bạn hoặc đặt `git config core.hooksPath .githooks` cho repo này.
 
 ## Phát hành
 
@@ -121,3 +126,8 @@ trong PR tính năng. Người merge Release PR → Release nháp → job `asset
 mã nguồn + `SHA256SUMS`, rồi công khai và tạo tag `vX.Y.Z`. Tag `v*` bất biến nhờ ruleset [`tags.json`](.github/rulesets/tags.json)
 (chủ dự án import một lần ở Settings → Rules → Rulesets, cùng `main.json`). Ghi chú phát hành nằm ở nội dung Release; `CHANGELOG.md`
 vẫn do người viết.
+
+**Release PR và CI.** PR do `GITHUB_TOKEN` tạo không kích hoạt workflow khác, nên khi chưa có token riêng Release PR không có CI và
+check bắt buộc (`quality`…) đứng "Expected — waiting". Khi chưa có token riêng: **người đóng rồi mở lại Release PR** (sự kiện do
+người tạo kích hoạt CI) và đợi check xanh trước khi merge. Chủ dự án có thể cấp GitHub App hoặc PAT (quyền contents + pull-requests)
+làm secret `RELEASE_PLEASE_TOKEN`; workflow tự dùng nó nếu có (không cần đổi mã) và Release PR chạy CI ngay.

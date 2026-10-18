@@ -243,11 +243,28 @@ describe("XC-DX-001 — onboarding-smoke chạy đúng ≤ 3 lệnh ở đầu R
   });
 
   const job = ci.jobs["onboarding-smoke"];
-  it("job onboarding-smoke chạy đúng các lệnh README theo thứ tự trên runner mới", () => {
+  it("job onboarding-smoke chạy ĐÚNG Y khối lệnh README (nguyên văn, một shell) trên runner mới, không bước PATH/env ẩn", () => {
     expect(job).toBeTruthy();
     expect(job["runs-on"]).toBe("ubuntu-24.04");
-    const runs = job.steps.filter((s) => String(s.name ?? "").startsWith("Lệnh")).map((s) => s.run.trim());
-    expect(runs).toEqual(commands);
+    const measure = (st) => /ONBOARD_T0|GITHUB_STEP_SUMMARY/.test(String(st.run ?? ""));
+    const runs = job.steps.filter((st) => st.run && !measure(st));
+    expect(runs).toHaveLength(1);
+    expect(
+      runs[0].run
+        .split("\n")
+        .map((l) => l.trim())
+        .filter(Boolean),
+    ).toEqual(commands);
+    expect(runs[0].shell).toBeUndefined(); // shell mặc định của runner = shell người dùng gõ lệnh
+    for (const st of job.steps) expect(String(st.run ?? "")).not.toMatch(/GITHUB_PATH/);
+    expect(JSON.stringify(job.env ?? {})).not.toContain("PATH");
+  });
+
+  it("dòng lệnh 1 tự đưa ~/.local/bin (nơi dev-env-setup.sh cài node/pnpm) lên PATH: máy mới không cần bước tay", () => {
+    expect(commands[0]).toMatch(
+      /^bash scripts\/dev-env-setup\.sh && export PATH="\$HOME\/\.local\/bin:\$PATH"$/,
+    );
+    expect(read("scripts/dev-env-setup.sh")).toMatch(/BIN_DIR="\$\{DEV_ENV_BIN_DIR:-\$HOME\/\.local\/bin\}"/);
   });
 
   it("job không dùng setup-node/pnpm-action (môi trường do chính lệnh 1 dựng) và có đo thời gian", () => {
