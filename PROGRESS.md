@@ -1,12 +1,12 @@
 # PROGRESS.md — Hotel Manager
 ## Đang làm
-- Đợt 10 xong (T-901…T-909): PR #59 SBOM vào Release · #64 gitleaks ở pre-commit · #65 luật Semgrep + quét PII log E2E · #62 xoay mật khẩu role CSDL · #63 ngân sách image/thời gian CI · #66 i18n (`messages/vi.json`, `t()`, kiểm tệp dịch, ratchet). #67 T-906/T-907 k6 nightly chặn production + Lighthouse 6 URL · #68 T-904b login luân phiên chạy bằng role gốc, giữ chủ sở hữu bảng pg-boss (người merge 2026-10-18). `blueprint-status --strict`: MUST đạt 341 · miễn/không áp dụng 59 · **mở 101** (đợt 11 T-1001: LOOP-OPT-001…004 của khung 3.4 `[~]` có điều kiện, D-074) (BLUEPRINT-GAPS 'Kết quả đợt 10': tick 4, 6 mục làm xong phần repo nhưng cần staging/Release thật/ruleset). GO-NO-GO: NO-GO (7 BLOCKER, cần người). Autopilot `done-pending-human`.
-- Trước đó: đợt 9 (T-801…T-808), `loop verify` XANH trên 79afb9d.
+- Đợt 12 (D-075, 2026-10-19 — gia cố rào treo sau review đợt 10): đã merge #76 T-1101 Semgrep bắt `JSON.stringify(<người>)`/`log.child({ user })` · #77 T-1102 server E2E chờ Next đóng để log đủ dòng cuối · #79 T-1105 test rate-limit không đỏ khi vắt ranh giới phút · **#78 T-1103** ratchet i18n bắt `{n} phòng` + 26 đoạn sang `t()` — CI xanh trừ `pr-policy` (thiếu nhãn `risk:money`/`risk:data`), chạm `thu-tien`/`ky-thu`/`hop-dong` ⇒ **người merge** (D-076, `loop defer`).
+- Trước đó: đợt 10–11 xong (#59…#75). `blueprint-status --strict`: MUST đạt 341 · miễn/không áp dụng 59 · **mở 101** — đều cần người (BLUEPRINT-GAPS 'Kết quả đợt 9 (a)'). GO-NO-GO: NO-GO (7 BLOCKER). Autopilot `done-pending-human`.
 
 ## Tiếp theo
-1. Người (theo nhóm, từng bước ở BLUEPRINT-GAPS): ① import `.github/rulesets/main.json` (28 check) + `tags.json`, tắt merge commit, bật auto-merge ② nhãn `risk:*`/`major`, Dependabot, quyết D-060 ③ secret `RELEASE_PLEASE_TOKEN` + Actions tạo PR, merge Release PR ④ VPS/domain/staging/secret store ⑤ sao lưu khác máy + Prometheus/Alertmanager + RPO/RTO ⑥ pháp lý DPIA/DPO/DPA ⑦ LICENSE + SECURITY.md + PVR ⑧ kiểm tay thiết bị/a11y ⑨ quyết IND-SAAS-009, CMP-RIGHTS-001, PM-METRIC-003 ⑩ duyệt `WORKER_DATABASE_URL`/`MIGRATION_DATABASE_URL` ⑪ SMTP, ClamAV ⑫ quyết 18 đề xuất "Khi chạy thật" (GO-NO-GO 4b).
-2. **Hạn gấp:** `.grype.yaml` 4 luật hết hạn 2026-10-25 (21 luật 2026-11-01) — quá hạn thì `image-scan` đỏ mọi PR; duyệt/gia hạn `@img/sharp-libvips-linux-x64` LGPL (2026-12-31), `parse-cache-control` BSD (2027-04-18).
-3. Người: `git stash drop stash@{0}` ở repo chính rồi `loop resume` + `loop verify` (WF-GIT-010 đỏ chỉ do stash cục bộ); sau merge #67 chạy `perf-nightly` bằng `workflow_dispatch` một lần (bằng chứng QA-PERF-002 khi có staging); 6 mục đợt 10 chờ hạ tầng: CMP-LIC-003 (Release thật), CMP-PRIV-008/QA-PERF-002 (staging), XC-GREEN-002 (ngân sách chi phí VPS), PRF-WEB-005 (required check + CWV thực địa), XC-I18N-001 (chuyển dần 2329 chuỗi).
+1. Người (theo nhóm, từng bước ở BLUEPRINT-GAPS): ① import `.github/rulesets/main.json` (28 check) + `tags.json`, tắt merge commit, bật auto-merge ② tạo nhãn `risk:*`/`major` (rồi gắn `risk:money`+`risk:data` cho #78 và merge), Dependabot, quyết D-060 ③ secret `RELEASE_PLEASE_TOKEN` + Actions tạo PR, merge Release PR ④ VPS/domain/staging/secret store ⑤ sao lưu khác máy + Prometheus/Alertmanager + RPO/RTO ⑥ pháp lý DPIA/DPO/DPA ⑦ LICENSE + SECURITY.md + PVR ⑧ kiểm tay thiết bị/a11y ⑨ quyết IND-SAAS-009, CMP-RIGHTS-001, PM-METRIC-003 ⑩ duyệt `WORKER_DATABASE_URL`/`MIGRATION_DATABASE_URL` ⑪ SMTP, ClamAV ⑫ quyết 18 đề xuất "Khi chạy thật" (GO-NO-GO 4b).
+2. **Hạn gấp:** `.grype.yaml` 4 luật hết hạn 2026-10-25 (21 luật 2026-11-01) — quá hạn thì `image-scan` đỏ mọi PR. Rà 2026-10-19: digest đang ghim caddy 2.11.7-alpine và seaweedfs 4.48 vẫn là bản mới nhất (chưa có Go 1.26.9) ⇒ chưa gỡ được; đã hẹn tự kiểm lại 2026-10-24 (gỡ luật nếu có image vá, không thì gia hạn ≤ 7 ngày). Duyệt/gia hạn `@img/sharp-libvips-linux-x64` LGPL (2026-12-31), `parse-cache-control` BSD (2027-04-18).
+3. Người: sau merge #67 chạy `perf-nightly` bằng `workflow_dispatch` một lần (bằng chứng QA-PERF-002 khi có staging); 6 mục đợt 10 chờ hạ tầng: CMP-LIC-003, CMP-PRIV-008/QA-PERF-002 (staging), XC-GREEN-002, PRF-WEB-005, XC-I18N-001 (chuyển dần 2321 chuỗi).
 4. Sau khi người xử lý: `python3 .xtemplates/scripts/xt.py loop resume --reason "..."`.
 
 ## Quyết định
@@ -24,6 +24,7 @@
 - D-065 required check đợt 9 gom một lần ở T-808 (`main.json` 28 context); import là việc người.
 - D-066 FE-TEST-001 chỉ test Testing Library; giữ `skipLibCheck` có lý do; bỏ husky, một hook `.githooks`.
 - D-067 ngoại lệ grype CÓ HẠN (critical ≤ 7 ngày, high ≤ 30 ngày) + VULN-SLA; kiểm hạn ở job, không ở unit test.
+- D-075 đợt 12 chỉ gia cố rào đã ghi treo; D-076 bộ đếm i18n chặt hơn ⇒ chuyển chuỗi chứ không nới baseline.
 - D-068 ngoại lệ giấy phép `parse-cache-control` BSD (hạn 2027-04-18); giữ MỘT lockfile pnpm.
 - Nợ chấp nhận: pháp lý trong `docs/research/` chỉ có nguồn thứ cấp — đối chiếu văn bản gốc trước khi dùng dữ liệu thật.
 - Bài học: `set -o pipefail` với `loop record`; test DB `pnpm vitest run --project db <mẫu>`; sau mỗi merge `main` chạy lại `pnpm test` (rào mới đụng nhau); `merge-check` có thể báo xanh khi job chính chưa có check run (FB-096); E2E đăng nhập qua `signInClick`; `page.route` cần `serviceWorkers: "block"`; mốc `delete_after` theo ngày UTC; migration mới đánh số sau bản cuối trên `main`; job có tên chứa dấu cách (ma trận) cần `while read` khi duyệt context.
@@ -31,6 +32,6 @@
 - Bài học đợt 5–8: Better Auth `/sign-in/email` 20 lần/phút theo IP; `<dialog>` phát `close` sau một task (`onClose` chỉ xoá trạng thái khi hộp thật sự đóng); chạy lại job CI dùng payload sự kiện cũ (cần push mới); test giá trị ngẫu nhiên phải loại ca biên (IP octet 0); không so thời gian tuyệt đối (so tương đối); hai lát song song có thể đụng nhau qua rào mới.
 
 ## Bàn giao phiên
-- `main` = `b2d992d` (đợt 3–9 đã merge); T-808 ở nhánh `wip/w9h`, chưa push. Worktree `../hm-w9*` không còn việc dở.
-- Lệnh kiểm nhanh: `.xtemplates/scripts/dev-task.sh gate` · `pnpm test:db` · `E2E_PORT=<cổng riêng> pnpm --filter @hm/web exec playwright test` · `bash scripts/db-backup-restore-check.sh`. Container mới: `bash scripts/dev-env-setup.sh` rồi `pnpm install --frozen-lockfile`.
-- Đang chặn: chờ người (mục *Tiếp theo* 1–2). Autopilot: `blocked` (một phiên).
+- `main` = `f2262da` (#76, #79, #77 đã merge). Còn mở: #78 (`claude/pensive-goodall-su2muq-t1103`, đã cập nhật với main, người merge) và #80 (tài liệu đợt 12); worktree `../hm-w12{a,b,c,d}`.
+- Lệnh kiểm nhanh: `.xtemplates/scripts/dev-task.sh gate` · `pnpm test:db` · `E2E_PORT=<cổng riêng> pnpm --filter @hm/web exec playwright test` · `bash scripts/db-backup-restore-check.sh`. Container mới: `bash scripts/dev-env-setup.sh && bash scripts/dev-env-setup.sh --only gitleaks` rồi `pnpm install --frozen-lockfile` (thiếu gitleaks ⇒ `loop verify` đỏ ở WF-GIT-010, exit 127). Không chạy E2E song song với `loop verify` (T-402 đỏ do tranh CPU).
+- Đang chặn: chờ người (mục *Tiếp theo* 1–2). Autopilot: `done-pending-human` (một phiên).

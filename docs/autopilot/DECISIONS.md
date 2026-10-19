@@ -542,3 +542,17 @@
 - Chọn: Không áp dụng có điều kiện: PLAN chưa có task tối ưu (ngân sách hiệu năng CI xanh); test rào đỏ khi PLAN thêm task tối ưu mà Gate không lấy script từ commit gốc/không có mục tiêu số
 - Lý do (tiêu chí chất lượng cuối): Đúng thực trạng: mọi ngân sách (bundle, Lighthouse, image, thời gian CI, k6 thresholds) đang xanh nên LOOP-OPT-001 cấm mở task tối ưu; dựng task mẫu là tối ưu không có số (trái chính LOOP-OPT-001). Test rào scripts/perf-optimization-tasks.test.mjs giữ điều kiện và ép Gate đúng vòng khi có task thật
 - Đường lùi: Bỏ [~] LOOP-OPT-001…004 về [ ] khi có task tối ưu đầu tiên (test rào báo); khi đó viết scripts/perf-gate.sh theo optimization-loop.md
+
+### D-075 · 2026-10-19T01:22:40+00:00 · Duyệt PLAN đợt 12 (T-1101…T-1104): mọi MUST còn mở cần người; phần agent còn làm được trong repo là các mục 🟢 treo sau review đợt 10
+
+- Phương án: (1) Làm 3 lát gia cố CMP-PRIV-008/XC-I18N-001 đã ghi treo (Semgrep bắt log.child/JSON.stringify object người; E2E server chờ tiến trình con đóng trước khi kết thúc để không mất log; ratchet i18n bắt chữ JSX có biểu thức/'//') + rà PROGRESS/GAPS; mỗi lát một PR · (2) Dừng ở done-pending-human, không làm thêm · (3) Chuyển hàng loạt chuỗi i18n (XC-I18N-001) sang messages/vi.json
+- Chọn: Làm 3 lát gia cố CMP-PRIV-008/XC-I18N-001 đã ghi treo (Semgrep bắt log.child/JSON.stringify object người; E2E server chờ tiến trình con đóng trước khi kết thúc để không mất log; ratchet i18n bắt chữ JSX có biểu thức/'//') + rà PROGRESS/GAPS; mỗi lát một PR
+- Lý do (tiêu chí chất lượng cuối): Đúng và an toàn: lấp lỗ rào đã biết (PII lọt log, ratchet bỏ sót) mà không đụng tiền/auth; nhỏ, test được, đảo ngược được. Chuyển i18n hàng loạt rủi ro UI cao, D-073 đã chọn chuyển dần theo màn
+- Đường lùi: Revert từng PR; luật Semgrep/ratchet mới chỉ thêm phát hiện
+
+### D-076 · 2026-10-19T01:27:27+00:00 · T-1103: bộ đếm i18n mới bắt thêm 26 chuỗi JSX dạng '{x} chữ' ở 16 tệp; rào 'baseline không nới so với main' cấm nâng ngưỡng
+
+- Phương án: (1) Chuyển đúng 26 đoạn đó sang t() trong cùng PR (hiển thị giữ nguyên); 5 tệp thuộc merge_risk_paths (thu-tien, ky-thu, hop-dong) nên PR do người merge · (2) Nới rào: cho nâng baseline khi script đếm đổi trong cùng PR · (3) Hoãn T-1103
+- Chọn: Chuyển đúng 26 đoạn đó sang t() trong cùng PR (hiển thị giữ nguyên); 5 tệp thuộc merge_risk_paths (thu-tien, ky-thu, hop-dong) nên PR do người merge
+- Lý do (tiêu chí chất lượng cuối): Đúng và an toàn: không nới cổng (AGENTS §4), bộ đếm chặt hơn và nợ i18n giảm thật; đổi chỉ là chuỗi hiển thị giống hệt. Phương án 2 mở kẽ nới ratchet; phương án 3 để lỗ rào đã biết
+- Đường lùi: Đóng/revert PR; bộ đếm cũ và baseline cũ vẫn ở main
