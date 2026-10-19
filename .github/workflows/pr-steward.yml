@@ -1,7 +1,8 @@
 name: pr-steward
 
 # Quản PR không cần phiên agent (ADR-0027, D-054): PR đủ tiêu chuẩn theo "merge theo làn" (ADR-0024/0025) phải vào nhánh
-# chính kể cả khi phiên agent đã dừng, container khởi động lại hay PR do phiên khác mở. Job gọi `xt.py pr steward --apply`:
+# chính kể cả khi phiên agent đã dừng, container khởi động lại hay PR do phiên khác mở. Job gọi `xt.py pr steward --apply`
+# (chỉ khi nhánh đích có required check — T-1107, xem bước steward):
 # với MỌI PR đang mở → `pr next` (cùng luật với phiên agent: làn chuẩn cần review sạch ở đúng head — review đọc từ comment
 # `pr reviewed` đã đăng lên PR) → bật auto-merge / merge ghim head / tắt auto-merge khi cần. Việc cần người hoặc agent
 # (review, sửa, cập nhật nhánh, ngoại lệ cứng) chỉ ghi vào bản tóm tắt của run.
@@ -62,12 +63,25 @@ jobs:
           GH_TOKEN: ${{ secrets.XT_STEWARD_TOKEN || github.token }}
           GH_REPO: ${{ github.repository }}
           PR: ${{ inputs.pr || github.event.issue.number || '' }}
+          BASE: ${{ github.event.repository.default_branch }}
         run: |
           set -uo pipefail
           xt=scripts/xt.py
           [ -f "$xt" ] || xt=.xtemplates/scripts/xt.py # dự án đích cài khung vào .xtemplates/
+          # Auto-merge của GitHub chỉ chờ CI khi nhánh đích có required check; không có thì GitHub merge NGAY lúc bật (#84, #85
+          # vào main khi e2e/lighthouse còn chạy, trước khi có ruleset). Đếm số context required (rule có danh sách rỗng = 0);
+          # 0 hoặc không đọc được rule ⇒ chỉ báo, không --apply; phiên agent vẫn merge ghim head khi merge-check = merge (T-1107).
+          apply=(--apply)
+          if ! required=$(gh api "repos/$GH_REPO/rules/branches/$BASE" \
+            --jq '[.[] | select(.type == "required_status_checks") | .parameters.required_status_checks | length] | add // 0' 2>/dev/null); then
+            apply=()
+            echo "::warning::không đọc được rule của $BASE — pr-steward chỉ báo, không bật auto-merge/merge"
+          elif ! [[ "$required" =~ ^[1-9][0-9]*$ ]]; then
+            apply=()
+            echo "::warning::$BASE chưa có required status check — pr-steward chỉ báo, không bật auto-merge/merge (import .github/rulesets/main.json)"
+          fi
           if [ -n "$PR" ]; then
-            python3 "$xt" pr steward --apply --repo "$GH_REPO" --pr "$PR"
+            python3 "$xt" pr steward "${apply[@]}" --repo "$GH_REPO" --pr "$PR"
           else
-            python3 "$xt" pr steward --apply --repo "$GH_REPO"
+            python3 "$xt" pr steward "${apply[@]}" --repo "$GH_REPO"
           fi
