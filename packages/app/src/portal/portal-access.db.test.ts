@@ -193,7 +193,7 @@ describe("S-014 mời người thuê, không tính quota nhân viên", () => {
   });
 });
 
-describe("AUD-SEC-001 — quyền người thuê chỉ có hiệu lực khi email đã chứng minh bằng OTP (D-081)", () => {
+describe("AUD-SEC-001 — quyền người thuê chỉ hiệu lực khi email chứng minh bằng OTP, tài khoản chỉ-tenant chỉ vào bằng OTP (D-081)", () => {
   const actorOf = async (cookie: string) => {
     const s = await auth.api.getSession({ headers: new Headers({ cookie }) });
     return resolveActor(t.runtime, {
@@ -210,12 +210,12 @@ describe("AUD-SEC-001 — quyền người thuê chỉ có hiệu lực khi emai
         where u.email = ${email} and a."providerId" = 'credential'`.execute(t.admin)
     ).rows[0]?.n;
 
-  it("kẻ gian đăng ký trước bằng email nạn nhân: dù được mời, phiên mật khẩu của hắn không thành người thuê; nạn nhân OTP xong thì mật khẩu, phiên và 2FA đang chờ của hắn bị gỡ", async () => {
+  it("kẻ gian đăng ký trước bằng email nạn nhân (có 2FA, có thử thách bước hai chờ sẵn): sau lời mời hắn không tạo được phiên nào bằng mật khẩu/TOTP; nạn nhân vào bằng OTP thì mọi thứ của hắn biến mất", async () => {
     const v = await tenantPerson(A, "Người thuê Dung");
     const email = "dung.victim@example.test";
     const pw = "Kẻ-gian-12345";
     expect((await post("/sign-up/email", { name: "Kẻ gian", email, password: pw })).status).toBe(200);
-    // Kẻ gian bật 2FA rồi giữ sẵn một thử thách bước hai đang chờ (cookie sống 10 phút).
+    // Kẻ gian bật 2FA rồi giữ sẵn một thử thách bước hai chưa dùng (cookie sống 10 phút).
     let cookie = cookiesOf(await post("/sign-in/email", { email, password: pw }));
     const enable = await post("/two-factor/enable", { password: pw }, cookie);
     const { totpURI } = (await enable.json()) as { totpURI: string };
@@ -223,29 +223,39 @@ describe("AUD-SEC-001 — quyền người thuê chỉ có hiệu lực khi emai
     const v1 = await post("/two-factor/verify-totp", { code: await createOTP(secret).totp() }, cookie);
     cookie = cookiesOf(v1) || cookie;
     await post("/sign-out", {}, cookie);
+    // Phiên đầy đủ (qua TOTP) có sẵn trước lời mời: chưa xác minh email ⇒ không có quyền người thuê.
+    const step1 = cookiesOf(await post("/sign-in/email", { email, password: pw }));
+    const early = cookiesOf(
+      await post("/two-factor/verify-totp", { code: await createOTP(secret).totp() }, step1),
+    );
     const challenge = cookiesOf(await post("/sign-in/email", { email, password: pw }));
-    cookie = ""; // phiên cũ đã đăng xuất; lấy phiên mới sau khi có 2FA bên dưới
 
     await okAs(t, owner, (ctx) => inviteTenant(ctx, { personId: v.personId, email }));
-    // Chưa chứng minh email ⇒ phiên mật khẩu của kẻ gian KHÔNG có quyền người thuê (kể cả qua bước hai đang chờ).
-    const step2 = await post("/two-factor/verify-totp", { code: await createOTP(secret).totp() }, challenge);
-    expect(step2.status).toBe(200);
-    await expect(actorOf(cookiesOf(step2))).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(actorOf(early)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    // Từ lúc là tài khoản chỉ-tenant: không phiên nào ngoài OTP — mật khẩu và thử thách TOTP chờ sẵn đều bị từ chối.
+    expect((await post("/sign-in/email", { email, password: pw })).ok).toBe(false);
+    const blocked = await post(
+      "/two-factor/verify-totp",
+      { code: await createOTP(secret).totp() },
+      challenge,
+    );
+    expect(blocked.ok).toBe(false);
 
-    // Nạn nhân chứng minh hộp thư bằng OTP: tài khoản chỉ còn là người thuê ⇒ mọi thứ của kẻ gian bị gỡ.
+    // Nạn nhân chứng minh hộp thư bằng OTP.
     await post("/email-otp/send-verification-otp", { email, type: "sign-in" });
     const ok = await post("/sign-in/email-otp", { email, otp: otps.get(email) as string });
     expect(ok.status).toBe(200);
     expect(await actorOf(cookiesOf(ok))).toMatchObject({ role: "tenant", personId: v.personId });
     expect(await credentials(email)).toBe(0);
-    expect(await auth.api.getSession({ headers: new Headers({ cookie: cookiesOf(step2) }) })).toBeNull();
+    expect(await auth.api.getSession({ headers: new Headers({ cookie: early }) })).toBeNull();
+    // Thử thách TOTP cũ vẫn không dùng được sau khi nạn nhân đã vào.
+    expect(
+      (await post("/two-factor/verify-totp", { code: await createOTP(secret).totp() }, challenge)).ok,
+    ).toBe(false);
     expect((await post("/sign-in/email", { email, password: pw })).ok).toBe(false);
-    // Thử thách bước hai cũ không còn dùng được nữa.
-    const again = await post("/two-factor/verify-totp", { code: await createOTP(secret).totp() }, challenge);
-    expect(again.ok).toBe(false);
   });
 
-  it("kẻ gian tự lập tổ chức (owner) để chặn OTP: lời mời vẫn thành công nhưng quyền người thuê không bao giờ hiệu lực với phiên mật khẩu của hắn", async () => {
+  it("kẻ gian tự lập tổ chức (owner) để chặn OTP: lời mời vẫn thành công nhưng phiên mật khẩu của hắn không bao giờ có quyền người thuê; tổ chức nạn nhân không lộ trong danh sách", async () => {
     const v = await tenantPerson(A, "Người thuê Hà");
     const email = "ha.victim@example.test";
     const pw = "Kẻ-gian-99999";
@@ -253,26 +263,31 @@ describe("AUD-SEC-001 — quyền người thuê chỉ có hiệu lực khi emai
     const uid = (
       await sql<{ id: string }>`select id from auth."user" where email = ${email}`.execute(t.admin)
     ).rows[0]?.id as string;
-    await seedOrg(t.admin, "Tổ chức của kẻ gian", "hotel", uid); // seedAuthUser đã tạo user; seedOrg chỉ gắn owner
+    await seedOrg(t.admin, "Tổ chức của kẻ gian", "hotel", uid); // owner active ở tổ chức khác
     await sql`update auth."user" set "emailVerified" = false where id = ${uid}`.execute(t.admin);
     await okAs(t, owner, (ctx) => inviteTenant(ctx, { personId: v.personId, email }));
     const login = await post("/sign-in/email", { email, password: pw });
-    expect(login.status).toBe(200);
+    expect(login.status).toBe(200); // còn vai nhân viên ⇒ vẫn đăng nhập mật khẩu được (tổ chức của chính hắn)
     await expect(actorOf(cookiesOf(login))).rejects.toMatchObject({ code: "NOT_FOUND" });
+    const orgs = await listMyOrganizations(t.runtime, uid);
+    expect(orgs.some((o) => o.organizationId === A.orgId)).toBe(false);
     // OTP không gửi cho tài khoản còn vai nhân viên ⇒ nạn nhân không "xác minh hộ" được (từ chối dịch vụ, không rò dữ liệu).
     otps.delete(email);
     await post("/email-otp/send-verification-otp", { email, type: "sign-in" });
     expect(otps.has(email)).toBe(false);
   });
 
-  it("người thuê hợp lệ (mời mới, chưa từng có tài khoản) vào bằng OTP như cũ; mật khẩu nhân viên đã xác minh không bị đụng", async () => {
+  it("email đã xác minh (chủ hộp thư thật, vai nhân viên): giữ mật khẩu và quyền người thuê hiệu lực; người thuê hợp lệ vào bằng OTP như cũ", async () => {
     const w = await tenantPerson(A, "Người thuê Em");
     const email = "em.staff@example.test";
     const pw = "Mật-khẩu-12345";
     await post("/sign-up/email", { name: "Em", email, password: pw });
-    await sql`update auth."user" set "emailVerified" = true where email = ${email}`.execute(t.admin);
+    const uid = (
+      await sql<{ id: string }>`select id from auth."user" where email = ${email}`.execute(t.admin)
+    ).rows[0]?.id as string;
+    await seedOrg(t.admin, "Tổ chức của Em", "hotel", uid);
+    await sql`update auth."user" set "emailVerified" = true where id = ${uid}`.execute(t.admin);
     await okAs(t, owner, (ctx) => inviteTenant(ctx, { personId: w.personId, email }));
-    // Đã xác minh (chủ hộp thư thật) ⇒ giữ mật khẩu và quyền người thuê hiệu lực ngay.
     const login = await post("/sign-in/email", { email, password: pw });
     expect(login.status).toBe(200);
     expect(await actorOf(cookiesOf(login))).toMatchObject({ role: "tenant", personId: w.personId });
@@ -374,6 +389,7 @@ describe("S-012/S-013 hai ngữ cảnh", () => {
         u: string;
       }>`select auth_user_id as u from memberships where id = ${r.membershipId}`.execute(t.admin)
     ).rows[0]?.u as string;
+    await asVerified(uid);
     const pB = randomUUID();
     await sql`insert into persons (id, organization_id, full_name) values (${pB}, ${B.orgId}, 'Chi')`.execute(
       t.admin,

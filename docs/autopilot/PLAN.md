@@ -277,7 +277,7 @@ Mọi MUST còn mở vẫn cần người. Đợt này lấp hai lỗ 🟢 treo 
 
 ## Đợt 14 — sửa 🔴/🟠 của audit 2026-10-19 (D-079; docs/ops/AUDIT-STATUS.md)
 
-- [x] `T-1301` AUD-SEC-001 (🔴): quyền người thuê chỉ có hiệu lực khi `auth.user.emailVerified` (`resolveActor`); email chỉ được xác minh qua OTP gửi tới hộp thư, và lúc đó nếu tài khoản chỉ còn là người thuê thì hook xoá credential + TOTP + yếu tố hai đang chờ + phiên cũ (D-081, thay D-079/D-080); `inviteTenant` giữ nguyên; test DB: kẻ đăng ký trước, kẻ tự lập tổ chức, tài khoản đã xác minh (PR ngoại lệ cứng — người merge) — Gate: `pnpm vitest run --project db packages/app/src/portal/portal-access`
+- [x] `T-1301` AUD-SEC-001 (🔴): quyền người thuê chỉ có hiệu lực khi `auth.user.emailVerified` (`resolveActor`); email chỉ được xác minh qua OTP gửi tới hộp thư (Better Auth tự gỡ mật khẩu/phiên lúc đó); tài khoản chỉ còn là người thuê chỉ có phiên qua `/sign-in/email-otp` (hook `session.create.before` — chặn mật khẩu, thử thách TOTP chờ sẵn, cửa sổ đua); `listMyOrganizations` ẩn tổ chức của tenant chưa xác minh (D-081, thay D-079/D-080); `inviteTenant` giữ nguyên; test DB: kẻ đăng ký trước, kẻ tự lập tổ chức, tài khoản đã xác minh (PR ngoại lệ cứng — người merge) — Gate: `pnpm vitest run --project db packages/app/src/portal/portal-access`
 
 ## Phụ thuộc ngoài
 | Việc | Bên ngoài | Kế hoạch B |

@@ -25,13 +25,17 @@ export async function listMyOrganizations(
   db: Kysely<unknown>,
   authUserId: string,
 ): Promise<MyOrganization[]> {
+  // Tenant chưa chứng minh email không thấy tổ chức nào (cùng điều kiện với resolveActor — AUD-SEC-001, D-081).
   const r = await sql<{
     organization_id: string;
     organization_name: string;
     membership_id: string;
     role: Role;
   }>`
-    select * from app.list_my_organizations(${authUserId}::uuid)`.execute(db);
+    select o.* from app.list_my_organizations(${authUserId}::uuid) o
+    where o.role <> 'tenant' or exists (select 1 from auth."user" u where u.id = ${authUserId}::uuid and u."emailVerified")`.execute(
+    db,
+  );
   return r.rows.map((x) => ({
     organizationId: x.organization_id,
     organizationName: x.organization_name,

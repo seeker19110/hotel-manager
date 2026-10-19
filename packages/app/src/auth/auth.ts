@@ -131,34 +131,13 @@ export function createAuth(deps: AuthDeps) {
       "BETTER_AUTH_TELEMETRY phải tắt: dự án tự host, không gửi telemetry ra ngoài (ADR-0002).",
     );
 
-  /**
-   * AUD-SEC-001 (D-081): ngay khi email được xác minh (OTP gửi tới hộp thư) mà tài khoản chỉ còn là người thuê (`otp_sign_in_allowed`,
-   * xuyên tổ chức), bỏ mọi thứ kẻ đăng ký trước bằng email này có thể giữ: mật khẩu, TOTP, yếu tố hai đang chờ, phiên cũ. Chạy
-   * trong MỘT giao dịch; lỗi ⇒ ném (đăng nhập OTP thất bại — an toàn hơn để lại mật khẩu). Nhân viên không bao giờ qua OTP nên không bị đụng.
-   */
-  const sealVerifiedTenant = async (userId: string, email: string): Promise<void> => {
-    const c = await pool.connect();
-    try {
-      await c.query("begin");
-      const del = await c.query(
-        `delete from auth.account where "userId" = $1 and "providerId" = 'credential' and app.otp_sign_in_allowed($2)`,
-        [userId, email],
-      );
-      if ((del.rowCount ?? 0) > 0) {
-        await c.query(`delete from auth."twoFactor" where "userId" = $1`, [userId]);
-        await c.query(`update auth."user" set "twoFactorEnabled" = false where id = $1`, [userId]);
-        await c.query(`delete from auth.verification where value = $1`, [userId]);
-        await c.query(`delete from auth.session where "userId" = $1`, [userId]);
-      }
-      await c.query("commit");
-    } catch (error) {
-      await c.query("rollback").catch((rollbackError: unknown) => {
-        appLogger().warn("auth.seal_rollback_failed", { error: rollbackError });
-      });
-      throw error;
-    } finally {
-      c.release();
-    }
+  /** Tài khoản chỉ còn là người thuê (xuyên tổ chức): `app.otp_sign_in_allowed`. */
+  const tenantOnlyUser = async (userId: string): Promise<boolean> => {
+    const r = await pool.query<{ ok: boolean }>(
+      `select app.otp_sign_in_allowed(u.email) as ok from auth."user" u where u.id = $1`,
+      [userId],
+    );
+    return r.rows[0]?.ok === true;
   };
 
   const events = createAuthEvents(pool);
@@ -222,11 +201,15 @@ export function createAuth(deps: AuthDeps) {
     },
     telemetry: { enabled: false },
     databaseHooks: {
-      user: {
-        update: {
-          after: async (user) => {
-            if (user?.emailVerified === true && typeof user.id === "string" && typeof user.email === "string")
-              await sealVerifiedTenant(user.id, user.email);
+      session: {
+        create: {
+          // AUD-SEC-001 (D-081): tài khoản chỉ còn là người thuê chỉ được có phiên qua OTP gửi tới hộp thư — không bao giờ qua mật khẩu,
+          // thử thách TOTP đang chờ hay bất kỳ đường nào khác. Đóng mọi cửa sổ đua với bước Better Auth tự gỡ mật khẩu/phiên lúc OTP
+          // xác minh email (người đăng ký trước bằng email nạn nhân không giữ/tạo được phiên người thuê của nạn nhân).
+          before: async (session, context) => {
+            if (context?.path === "/sign-in/email-otp") return;
+            if (typeof session.userId === "string" && (await tenantOnlyUser(session.userId)))
+              throw new APIError("FORBIDDEN", { message: "tenant sign-in requires email OTP" });
           },
         },
       },
