@@ -7,15 +7,16 @@
 // `confirmLabel` (đợt 5 T-411): nút xác nhận ghi ĐÚNG động từ + đối tượng ("Ký hợp đồng HD-000001", "Thu {amount}"); chỗ
 // `{tên_ô}` được thay bằng giá trị người dùng vừa nhập (ô tiền định dạng "930.000 đ") nên hộp nêu đúng số sắp ghi sổ.
 // Quy tắc đọc ô nhập dùng chung với schema server (`@hm/app/form-rules`, FE-FORM-001); sau khi đọc ô, thân lệnh được kiểm
-// bằng CHÍNH schema `input` của lệnh trong registry (`@hm/app/command-inputs`) và lỗi gắn đúng ô theo đường dẫn trường;
+// bằng CHÍNH schema `input` của lệnh trong registry (`@hm/app/command-inputs`, nạp trễ khi gửi — `command-inputs-lazy.ts`)
+// và lỗi gắn đúng ô theo đường dẫn trường;
 // server vẫn validate lại tất cả.
-import { checkCommandInput } from "@hm/app/command-inputs";
 import { fillConfirmLabel, parseDecimalInput, parseIntegerInput, parseMoneyInput } from "@hm/app/form-rules";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useId, useRef, useState } from "react";
 import { day, vnd } from "../../lib/format.ts";
 import { Button } from "../ui/button.tsx";
 import { SelectField, TextField } from "../ui/field.tsx";
+import { checkCommandInputLazy, prefetchCommandInputs } from "./command-inputs-lazy.ts";
 import { CommandStatus } from "./command-status.tsx";
 import { INVALID_INPUT_TEXT, problemText, useCommand } from "./use-command.ts";
 
@@ -119,7 +120,7 @@ export function CommandForm({
     // Một nguồn schema với server: lỗi theo ô (đường dẫn trùng `path ?? name`) gắn vào ô; lỗi còn lại (ô ẩn/cấp thân) là lỗi chung.
     let general: string | null = null;
     if (Object.keys(errs).length === 0) {
-      for (const issue of checkCommandInput(path, body) ?? []) {
+      for (const issue of (await checkCommandInputLazy(path, body)) ?? []) {
         const f = fields.find((x) => (x.path ?? x.name) === issue.field);
         if (f) errs[f.name] ??= issue.message;
         else general ??= INVALID_INPUT_TEXT;
@@ -130,7 +131,7 @@ export function CommandForm({
     if (Object.keys(errs).length > 0 || general) return;
     if (confirm) {
       // Đóng khi lỗi: chưa có hộp thoại thì không gửi (không bao giờ bỏ qua bước xác nhận).
-      if (!dialogRef.current) return;
+      if (!dialogRef.current || dialogRef.current.open) return; // bấm gửi hai lần khi đang tải schema: chỉ mở một hộp
       pending.current = body;
       setAsking(fillConfirmLabel(confirmLabel, shown));
       dialogRef.current.showModal();
@@ -171,7 +172,14 @@ export function CommandForm({
     (cmd.phase === "error" && !fields.some((f) => fieldError(f)) ? problemText(cmd.problem) : null);
 
   return (
-    <form onSubmit={onSubmit} noValidate className="command-form" data-testid={testId}>
+    <form
+      onSubmit={onSubmit}
+      onFocusCapture={prefetchCommandInputs}
+      onPointerEnter={prefetchCommandInputs}
+      noValidate
+      className="command-form"
+      data-testid={testId}
+    >
       {/* Khoá ô nhập khi thao tác trước chưa rõ kết quả: không sửa payload dưới key cũ (review lát 4 🟠2). */}
       <fieldset className="command-form__fields" disabled={cmd.locked}>
         {fields.map((f) =>

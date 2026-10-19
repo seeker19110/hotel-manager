@@ -20,12 +20,18 @@ describe("module schema an toàn cho client", () => {
     expect(readFileSync(`${REPO_ROOT}packages/app/src/http/form-rules.ts`, "utf8")).not.toMatch(/^import\s/m);
   });
 
-  it("package.json xuất ./command-inputs; form ở web import qua export đó, không tự đào vào src", () => {
+  it("package.json xuất ./command-inputs; form ở web nạp (trễ) qua export đó, không tự đào vào src", () => {
     const pkg = JSON.parse(readFileSync(`${REPO_ROOT}packages/app/package.json`, "utf8"));
     expect(pkg.exports["./command-inputs"]).toBe("./src/http/command-inputs.ts");
-    const form = readFileSync(`${REPO_ROOT}apps/web/components/command/command-form.tsx`, "utf8");
-    const hook = readFileSync(`${REPO_ROOT}apps/web/components/command/use-command.ts`, "utf8");
-    for (const src of [form, hook]) expect(src).toMatch(/from "@hm\/app\/command-inputs"/);
+    // Nạp trễ (LCP /thong-bao): chỉ `command-inputs-lazy.ts` tải registry, qua export của gói; form và hook đi qua module đó.
+    const dir = `${REPO_ROOT}apps/web/components/command/`;
+    const lazy = readFileSync(`${dir}command-inputs-lazy.ts`, "utf8");
+    expect(lazy).toMatch(/import\("@hm\/app\/command-inputs"\)/);
+    for (const f of ["command-form.tsx", "use-command.ts"]) {
+      const src = readFileSync(`${dir}${f}`, "utf8");
+      expect(src).toMatch(/from "\.\/command-inputs-lazy\.ts"/);
+      expect(src).not.toMatch(/packages\/app\/src|from "@hm\/app\/command-inputs"/);
+    }
   });
 
   it.skipIf(!existsSync(`${REPO_ROOT}apps/web/.next/static`))(

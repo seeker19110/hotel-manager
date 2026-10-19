@@ -10,13 +10,13 @@
 //   KHÔNG gửi payload mới; lần đầu chưa commit nên GET chưa thấy lệnh (404) = vẫn đang chạy, không phải "server chưa nhận".
 // - S-011 server chưa nhận (404 COMMAND_NOT_FOUND) ⇒ bật "Gửi lại", gửi lại dùng CÙNG key.
 // Key giữ nguyên tới khi có kết quả chắc chắn; lỗi nghiệp vụ (4xx) ⇒ key mới cho lần sửa sau (tránh IDEMPOTENCY_CONFLICT).
-import { checkCommandInput } from "@hm/app/command-inputs";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { timedFetch } from "../../lib/fetch-timeout.ts";
 import { firstNonEmpty } from "../../lib/text.ts";
 import { reportClientOutdated, useOnline } from "../pwa/pwa-shell.tsx";
 import { appVersionHeaders, CLIENT_OUTDATED_CODE, CLIENT_OUTDATED_TEXT } from "./app-version.ts";
+import { checkCommandInputLazy } from "./command-inputs-lazy.ts";
 import { IN_PROGRESS_CODE, retryAfterMs } from "./in-progress.ts";
 import { CONTEXT_CHANGED_CODE, CONTEXT_CHANGED_TEXT, orgContextHeaders } from "./org-context.ts";
 import { requestReauth, UNAUTHENTICATED_TEXT } from "./reauth.ts";
@@ -290,7 +290,14 @@ export function useCommand<T = unknown>(path: string) {
       // Lưới an toàn cho mọi form (FE-FORM-001): kiểm bằng CHÍNH schema `input` của lệnh trong registry trước khi gửi.
       // Chỉ với thao tác mới (key rỗng): gửi lại cùng payload đã qua kiểm ở lần đầu. Server vẫn validate lại.
       if (!key.current) {
-        const issues = checkCommandInput(path, body);
+        // Giữ khoá trong lúc chờ tải schema (nạp trễ): bấm gửi lần hai lúc này không tạo thêm lệnh với key khác.
+        inflight.current = true;
+        let issues: Awaited<ReturnType<typeof checkCommandInputLazy>>;
+        try {
+          issues = await checkCommandInputLazy(path, body);
+        } finally {
+          inflight.current = false;
+        }
         if (issues && issues.length > 0) {
           setProblem({
             code: "VALIDATION_FAILED",
