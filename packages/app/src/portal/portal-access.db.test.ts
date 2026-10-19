@@ -1,6 +1,8 @@
 // PLAN đợt 3 T-216 — người thuê vào portal trên Postgres thật + Better Auth thật (SPEC-portal S-005, S-012…S-015;
 // D-005, D-011, D-016).
 import { randomUUID } from "node:crypto";
+import { base32 } from "@better-auth/utils/base32";
+import { createOTP } from "@better-auth/utils/otp";
 import {
   activateLease,
   createTestDb,
@@ -97,6 +99,12 @@ afterAll(async () => {
   await t?.drop();
 });
 
+/** Mô phỏng người thuê đã vào bằng OTP (email được chứng minh) — D-081: quyền người thuê chỉ hiệu lực khi `emailVerified`. */
+const asVerified = async (userId: string): Promise<string> => {
+  await sql`update auth."user" set "emailVerified" = true where id = ${userId}`.execute(t.admin);
+  return userId;
+};
+
 const staffCount = async (orgId: string) =>
   (
     await sql<{ n: number }>`
@@ -185,40 +193,59 @@ describe("S-014 mời người thuê, không tính quota nhân viên", () => {
   });
 });
 
-describe("AUD-SEC-001 — không chiếm trước email người thuê bằng đăng ký mật khẩu", () => {
-  it("kẻ gian đăng ký mật khẩu với email nạn nhân rồi chủ trọ mời: mật khẩu và phiên của kẻ gian bị vô hiệu, chỉ OTP vào được", async () => {
+describe("AUD-SEC-001 — quyền người thuê chỉ có hiệu lực khi email đã chứng minh bằng OTP (D-081)", () => {
+  const actorOf = async (cookie: string) => {
+    const s = await auth.api.getSession({ headers: new Headers({ cookie }) });
+    return resolveActor(t.runtime, {
+      authUserId: s?.user.id,
+      orgId: A.orgId,
+      twoFactorEnabled: Boolean(s?.user.twoFactorEnabled),
+    });
+  };
+  const credentials = async (email: string) =>
+    (
+      await sql<{
+        n: number;
+      }>`select count(*)::int as n from auth."account" a join auth."user" u on u.id = a."userId"
+        where u.email = ${email} and a."providerId" = 'credential'`.execute(t.admin)
+    ).rows[0]?.n;
+
+  it("kẻ gian đăng ký trước bằng email nạn nhân: dù được mời, phiên mật khẩu của hắn không thành người thuê; nạn nhân OTP xong thì mật khẩu, phiên và 2FA đang chờ của hắn bị gỡ", async () => {
     const v = await tenantPerson(A, "Người thuê Dung");
     const email = "dung.victim@example.test";
     const pw = "Kẻ-gian-12345";
-    const signUp = await post("/sign-up/email", { name: "Kẻ gian", email, password: pw });
-    expect(signUp.status).toBe(200);
-    const attackerCookie = cookiesOf(await post("/sign-in/email", { email, password: pw }));
+    expect((await post("/sign-up/email", { name: "Kẻ gian", email, password: pw })).status).toBe(200);
+    // Kẻ gian bật 2FA rồi giữ sẵn một thử thách bước hai đang chờ (cookie sống 10 phút).
+    let cookie = cookiesOf(await post("/sign-in/email", { email, password: pw }));
+    const enable = await post("/two-factor/enable", { password: pw }, cookie);
+    const { totpURI } = (await enable.json()) as { totpURI: string };
+    const secret = new TextDecoder().decode(base32.decode(new URL(totpURI).searchParams.get("secret") ?? ""));
+    const v1 = await post("/two-factor/verify-totp", { code: await createOTP(secret).totp() }, cookie);
+    cookie = cookiesOf(v1) || cookie;
+    await post("/sign-out", {}, cookie);
+    const challenge = cookiesOf(await post("/sign-in/email", { email, password: pw }));
+    cookie = ""; // phiên cũ đã đăng xuất; lấy phiên mới sau khi có 2FA bên dưới
+
     await okAs(t, owner, (ctx) => inviteTenant(ctx, { personId: v.personId, email }));
-    // Phiên đã có của kẻ gian không còn dùng được.
-    expect(await auth.api.getSession({ headers: new Headers({ cookie: attackerCookie }) })).toBeNull();
-    // Mật khẩu của kẻ gian không còn đăng nhập được.
-    expect((await post("/sign-in/email", { email, password: pw })).ok).toBe(false);
-    const creds = await sql<{ n: number }>`
-      select count(*)::int as n from auth."account" a join auth."user" u on u.id = a."userId"
-      where u.email = ${email} and a."providerId" = 'credential'`.execute(t.admin);
-    expect(creds.rows[0]?.n).toBe(0);
-    // Người thuê thật vẫn vào được bằng OTP.
+    // Chưa chứng minh email ⇒ phiên mật khẩu của kẻ gian KHÔNG có quyền người thuê (kể cả qua bước hai đang chờ).
+    const step2 = await post("/two-factor/verify-totp", { code: await createOTP(secret).totp() }, challenge);
+    expect(step2.status).toBe(200);
+    await expect(actorOf(cookiesOf(step2))).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    // Nạn nhân chứng minh hộp thư bằng OTP: tài khoản chỉ còn là người thuê ⇒ mọi thứ của kẻ gian bị gỡ.
     await post("/email-otp/send-verification-otp", { email, type: "sign-in" });
     const ok = await post("/sign-in/email-otp", { email, otp: otps.get(email) as string });
     expect(ok.status).toBe(200);
+    expect(await actorOf(cookiesOf(ok))).toMatchObject({ role: "tenant", personId: v.personId });
+    expect(await credentials(email)).toBe(0);
+    expect(await auth.api.getSession({ headers: new Headers({ cookie: cookiesOf(step2) }) })).toBeNull();
+    expect((await post("/sign-in/email", { email, password: pw })).ok).toBe(false);
+    // Thử thách bước hai cũ không còn dùng được nữa.
+    const again = await post("/two-factor/verify-totp", { code: await createOTP(secret).totp() }, challenge);
+    expect(again.ok).toBe(false);
   });
 
-  it("tài khoản đã xác minh email, hoặc đã có quyền ở tổ chức khác, giữ nguyên mật khẩu khi được mời làm người thuê", async () => {
-    const w = await tenantPerson(A, "Người thuê Em");
-    const email = "em.staff@example.test";
-    const pw = "Mật-khẩu-12345";
-    await post("/sign-up/email", { name: "Em", email, password: pw });
-    await sql`update auth."user" set "emailVerified" = true where email = ${email}`.execute(t.admin);
-    await okAs(t, owner, (ctx) => inviteTenant(ctx, { personId: w.personId, email }));
-    expect((await post("/sign-in/email", { email, password: pw })).status).toBe(200);
-  });
-
-  it("kẻ gian tự lập tổ chức (vai owner) để giữ mật khẩu: lời mời bị từ chối 409, không cấp tenant, mật khẩu không bị đụng", async () => {
+  it("kẻ gian tự lập tổ chức (owner) để chặn OTP: lời mời vẫn thành công nhưng quyền người thuê không bao giờ hiệu lực với phiên mật khẩu của hắn", async () => {
     const v = await tenantPerson(A, "Người thuê Hà");
     const email = "ha.victim@example.test";
     const pw = "Kẻ-gian-99999";
@@ -226,34 +253,30 @@ describe("AUD-SEC-001 — không chiếm trước email người thuê bằng đ
     const uid = (
       await sql<{ id: string }>`select id from auth."user" where email = ${email}`.execute(t.admin)
     ).rows[0]?.id as string;
-    await seedOrg(t.admin, "Tổ chức của kẻ gian", "hotel", uid); // owner active ở tổ chức khác
-    expect(await codeOf(runAs(t, owner, (ctx) => inviteTenant(ctx, { personId: v.personId, email })))).toBe(
-      "DUPLICATE",
-    );
-    const m = await sql<{ n: number }>`
-      select count(*)::int as n from memberships where organization_id = ${A.orgId} and auth_user_id = ${uid}`.execute(
-      t.admin,
-    );
-    expect(m.rows[0]?.n).toBe(0);
-    expect((await post("/sign-in/email", { email, password: pw })).status).toBe(200);
+    await seedOrg(t.admin, "Tổ chức của kẻ gian", "hotel", uid); // seedAuthUser đã tạo user; seedOrg chỉ gắn owner
+    await sql`update auth."user" set "emailVerified" = false where id = ${uid}`.execute(t.admin);
+    await okAs(t, owner, (ctx) => inviteTenant(ctx, { personId: v.personId, email }));
+    const login = await post("/sign-in/email", { email, password: pw });
+    expect(login.status).toBe(200);
+    await expect(actorOf(cookiesOf(login))).rejects.toMatchObject({ code: "NOT_FOUND" });
+    // OTP không gửi cho tài khoản còn vai nhân viên ⇒ nạn nhân không "xác minh hộ" được (từ chối dịch vụ, không rò dữ liệu).
+    otps.delete(email);
+    await post("/email-otp/send-verification-otp", { email, type: "sign-in" });
+    expect(otps.has(email)).toBe(false);
   });
 
-  it("lời mời cũ (bản chưa vá) đã gắn tenant vào tài khoản kẻ gian: mời lại cùng người dọn mật khẩu và phiên", async () => {
-    const v = await tenantPerson(A, "Người thuê Khoa");
-    const email = "khoa.victim@example.test";
-    const pw = "Kẻ-gian-55555";
-    await post("/sign-up/email", { name: "Kẻ gian", email, password: pw });
-    const uid = (
-      await sql<{ id: string }>`select id from auth."user" where email = ${email}`.execute(t.admin)
-    ).rows[0]?.id as string;
-    await sql`update persons set email = ${email} where id = ${v.personId}`.execute(t.admin);
-    await sql`insert into memberships (id, organization_id, auth_user_id, person_id, role, status)
-              values (${randomUUID()}, ${A.orgId}, ${uid}, ${v.personId}, 'tenant', 'active')`.execute(
-      t.admin,
-    );
-    const again = await okAs(t, owner, (ctx) => inviteTenant(ctx, { personId: v.personId, email }));
-    expect(again.created).toBe(false);
-    expect((await post("/sign-in/email", { email, password: pw })).ok).toBe(false);
+  it("người thuê hợp lệ (mời mới, chưa từng có tài khoản) vào bằng OTP như cũ; mật khẩu nhân viên đã xác minh không bị đụng", async () => {
+    const w = await tenantPerson(A, "Người thuê Em");
+    const email = "em.staff@example.test";
+    const pw = "Mật-khẩu-12345";
+    await post("/sign-up/email", { name: "Em", email, password: pw });
+    await sql`update auth."user" set "emailVerified" = true where email = ${email}`.execute(t.admin);
+    await okAs(t, owner, (ctx) => inviteTenant(ctx, { personId: w.personId, email }));
+    // Đã xác minh (chủ hộp thư thật) ⇒ giữ mật khẩu và quyền người thuê hiệu lực ngay.
+    const login = await post("/sign-in/email", { email, password: pw });
+    expect(login.status).toBe(200);
+    expect(await actorOf(cookiesOf(login))).toMatchObject({ role: "tenant", personId: w.personId });
+    expect(await credentials(email)).toBe(1);
   });
 });
 
@@ -330,7 +353,7 @@ describe("S-005 người thuê gọi API nhân viên", () => {
       }>`select auth_user_id as u from memberships where id = ${r.membershipId}`.execute(t.admin)
     ).rows[0]?.u as string;
     const tenant = await resolveActor(t.runtime, {
-      authUserId: uid,
+      authUserId: await asVerified(uid),
       orgId: A.orgId,
       twoFactorEnabled: false,
     });
@@ -406,7 +429,7 @@ describe("S-015 thu hồi / hết hạn xem lại", () => {
       revokeTenantAccess(ctx, { membershipId: r.membershipId, reason: "Đã chuyển đi" }),
     );
     await expect(
-      resolveActor(t.runtime, { authUserId: uid, orgId: A.orgId, twoFactorEnabled: false }),
+      resolveActor(t.runtime, { authUserId: await asVerified(uid), orgId: A.orgId, twoFactorEnabled: false }),
     ).rejects.toBeInstanceOf(AccessError);
     expect(await listMyOrganizations(t.runtime, uid)).toEqual([]);
     expect(
@@ -429,6 +452,7 @@ describe("S-015 thu hồi / hết hạn xem lại", () => {
         u: string;
       }>`select auth_user_id as u from memberships where id = ${r.membershipId}`.execute(t.admin)
     ).rows[0]?.u as string;
+    await asVerified(uid);
     // Đóng hợp đồng: bỏ qua các bước quyết toán (đã có test riêng) — tắt tạm trigger chặn trong transaction admin;
     // trigger hạn xem lại (đang kiểm) vẫn chạy.
     const close = async (leaseId: string) =>
@@ -447,7 +471,13 @@ describe("S-015 thu hồi / hết hạn xem lại", () => {
     );
     expect(v.rows[0]?.days).toBe(30);
     expect(
-      (await resolveActor(t.runtime, { authUserId: uid, orgId: A.orgId, twoFactorEnabled: false })).role,
+      (
+        await resolveActor(t.runtime, {
+          authUserId: await asVerified(uid),
+          orgId: A.orgId,
+          twoFactorEnabled: false,
+        })
+      ).role,
     ).toBe("tenant");
 
     await sql`update organizations set settings = settings || '{"tenant_readonly_days": 0}'::jsonb where id = ${A.orgId}`.execute(
@@ -462,6 +492,7 @@ describe("S-015 thu hồi / hết hạn xem lại", () => {
         u: string;
       }>`select auth_user_id as u from memberships where id = ${r2.membershipId}`.execute(t.admin)
     ).rows[0]?.u as string;
+    await asVerified(uid2);
     await close(h2.leaseId);
     await expect(
       resolveActor(t.runtime, { authUserId: uid2, orgId: A.orgId, twoFactorEnabled: false }),
@@ -497,7 +528,7 @@ describe("RLS: người thuê không đọc dữ liệu nội bộ của tổ ch
       }>`select auth_user_id as u from memberships where id = ${r.membershipId}`.execute(t.admin)
     ).rows[0]?.u as string;
     const tenant = await resolveActor(t.runtime, {
-      authUserId: uid,
+      authUserId: await asVerified(uid),
       orgId: A.orgId,
       twoFactorEnabled: false,
     });

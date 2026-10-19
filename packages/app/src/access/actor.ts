@@ -58,6 +58,8 @@ export async function resolveActor(
   const UUID = /^[0-9a-f-]{36}$/i;
   if (!UUID.test(input.orgId)) throw new AccessError("NOT_FOUND", "Không tìm thấy tổ chức");
 
+  // AUD-SEC-001 (D-081): quyền người thuê chỉ có hiệu lực khi email đã được chứng minh (OTP gửi tới hộp thư). Đăng ký mật khẩu không
+  // xác minh email, nên kẻ lập tài khoản trước bằng email nạn nhân không dùng được lời mời dành cho nạn nhân (`u."emailVerified"` bên dưới).
   const row = await withTenant(db, { orgId: input.orgId }, async (trx) => {
     const r = await sql<{
       id: string;
@@ -73,9 +75,11 @@ export async function resolveActor(
              array_remove(array_agg(ps.property_id), null)::text[] as property_ids
       from memberships m
       join organizations o on o.id = m.organization_id
+      join auth."user" u on u.id = m.auth_user_id
       left join property_scopes ps on ps.membership_id = m.id and ps.organization_id = m.organization_id
       where m.auth_user_id = ${authUserId}::uuid and m.status = 'active'
         and m.valid_from <= now() and (m.valid_to is null or m.valid_to > now())
+        and (m.role <> 'tenant' or u."emailVerified")
       group by m.id, o.settings`.execute(trx);
     return r.rows[0];
   });

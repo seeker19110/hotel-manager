@@ -131,6 +131,36 @@ export function createAuth(deps: AuthDeps) {
       "BETTER_AUTH_TELEMETRY phải tắt: dự án tự host, không gửi telemetry ra ngoài (ADR-0002).",
     );
 
+  /**
+   * AUD-SEC-001 (D-081): ngay khi email được xác minh (OTP gửi tới hộp thư) mà tài khoản chỉ còn là người thuê (`otp_sign_in_allowed`,
+   * xuyên tổ chức), bỏ mọi thứ kẻ đăng ký trước bằng email này có thể giữ: mật khẩu, TOTP, yếu tố hai đang chờ, phiên cũ. Chạy
+   * trong MỘT giao dịch; lỗi ⇒ ném (đăng nhập OTP thất bại — an toàn hơn để lại mật khẩu). Nhân viên không bao giờ qua OTP nên không bị đụng.
+   */
+  const sealVerifiedTenant = async (userId: string, email: string): Promise<void> => {
+    const c = await pool.connect();
+    try {
+      await c.query("begin");
+      const del = await c.query(
+        `delete from auth.account where "userId" = $1 and "providerId" = 'credential' and app.otp_sign_in_allowed($2)`,
+        [userId, email],
+      );
+      if ((del.rowCount ?? 0) > 0) {
+        await c.query(`delete from auth."twoFactor" where "userId" = $1`, [userId]);
+        await c.query(`update auth."user" set "twoFactorEnabled" = false where id = $1`, [userId]);
+        await c.query(`delete from auth.verification where value = $1`, [userId]);
+        await c.query(`delete from auth.session where "userId" = $1`, [userId]);
+      }
+      await c.query("commit");
+    } catch (error) {
+      await c.query("rollback").catch((rollbackError: unknown) => {
+        appLogger().warn("auth.seal_rollback_failed", { error: rollbackError });
+      });
+      throw error;
+    } finally {
+      c.release();
+    }
+  };
+
   const events = createAuthEvents(pool);
   /** Phát sự kiện xác thực; mọi lỗi đã được nuốt ở `record` (không làm hỏng luồng đăng nhập). */
   const record = (ctx: HookCtx, e: Omit<AuthEventInput, "client" | "correlationId">) =>
@@ -191,6 +221,16 @@ export function createAuth(deps: AuthDeps) {
       },
     },
     telemetry: { enabled: false },
+    databaseHooks: {
+      user: {
+        update: {
+          after: async (user) => {
+            if (user?.emailVerified === true && typeof user.id === "string" && typeof user.email === "string")
+              await sealVerifiedTenant(user.id, user.email);
+          },
+        },
+      },
+    },
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
         if (OTP_BLOCKED_PATHS.has(ctx.path)) throw new APIError("NOT_FOUND", { message: "Không hỗ trợ" });

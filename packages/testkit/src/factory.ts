@@ -19,7 +19,7 @@ export async function seedAuthUser(
   email: string,
   id: string = randomUUID(),
 ): Promise<string> {
-  await sql`insert into auth."user" (id, name, email, "emailVerified") values (${id}, ${email}, ${email}, false)`.execute(
+  await sql`insert into auth."user" (id, name, email, "emailVerified") values (${id}, ${email}, ${email}, true)`.execute(
     admin,
   );
   return id;
