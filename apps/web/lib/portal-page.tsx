@@ -1,11 +1,13 @@
 // Khung trang portal người thuê (SPEC-portal S-005, S-012, S-015): chỉ vai trò `tenant`; tiêu đề luôn hiện "Tổ chức · Người thuê".
 // Quyền thật ở server (hàm portal.* chỉ cho tenant + RLS) — khung này chỉ điều hướng.
+
 import { type Actor, listMyOrganizations, serverContext } from "@hm/app";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { ORG_CONTEXT_META } from "../components/command/org-context.ts";
 import { PortalNav } from "../components/portal/portal-nav.tsx";
 import { ErrorState } from "../components/ui/state.tsx";
+import { t } from "./i18n.ts";
 import { currentActor, currentSession } from "./session.ts";
 
 export const PORTAL_LOGIN = "/dang-nhap/nguoi-thue";
@@ -48,7 +50,7 @@ export async function withPortal(
       <PortalNav current={current} />
       <main id="main" className="page">
         <p className="portal-context" data-testid="portal-context">
-          {orgName} · Người thuê
+          {t("portal.context", { org: orgName })}
         </p>
         <h1>{title}</h1>
         {await render({ actor, orgName })}

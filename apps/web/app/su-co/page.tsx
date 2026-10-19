@@ -5,6 +5,7 @@ import { IncidentForm } from "../../components/hotel/incident-form.tsx";
 import { StatusBadge } from "../../components/ui/badge.tsx";
 import { EmptyState, ErrorState } from "../../components/ui/state.tsx";
 import { dateTime, SEVERITY, WORK_ORDER_STATUS } from "../../lib/format.ts";
+import { t } from "../../lib/i18n.ts";
 import { withActor } from "../../lib/page.tsx";
 import { safe } from "../../lib/safe.ts";
 
@@ -119,8 +120,10 @@ export default async function IncidentsPage() {
                         Phòng {w.unitCode}: {w.title}
                       </p>
                       <p className="card__meta">
-                        Mức độ {SEVERITY[w.severity]?.toLowerCase() ?? w.severity} · báo lúc{" "}
-                        {dateTime(w.createdAt)}
+                        {t("workorder.list.meta", {
+                          severity: SEVERITY[w.severity]?.toLowerCase() ?? w.severity,
+                          createdAt: dateTime(w.createdAt),
+                        })}
                         {w.photoFileIds.length > 0 ? ` · ${w.photoFileIds.length} ảnh đính kèm` : ""}
                       </p>
                       <p className="card__meta">{w.description}</p>

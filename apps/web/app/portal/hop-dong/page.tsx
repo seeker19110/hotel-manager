@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Money } from "../../../components/portal/money.tsx";
 import { EmptyState } from "../../../components/ui/state.tsx";
 import { day, LEASE_STATUS } from "../../../lib/format.ts";
+import { t } from "../../../lib/i18n.ts";
 import { withPortal } from "../../../lib/portal-page.tsx";
 
 export const metadata: Metadata = { title: "Hợp đồng — Hotel Manager" };
@@ -16,9 +17,7 @@ export default async function PortalLeasePage() {
       <ul className="card-list">
         {leases.map((l) => (
           <li key={l.id} className="card" data-testid="lease">
-            <p className="card__title">
-              Hợp đồng {l.number} — Phòng {l.unitCode}
-            </p>
+            <p className="card__title">{t("portal.lease.title", { number: l.number, unit: l.unitCode })}</p>
             <dl className="facts">
               <dt>Trạng thái</dt>
               <dd>{LEASE_STATUS[l.status] ?? l.status}</dd>
@@ -26,7 +25,10 @@ export default async function PortalLeasePage() {
                 <>
                   <dt>Điều khoản</dt>
                   <dd data-testid="lease-version">
-                    v{l.currentVersion.versionNo} — hiệu lực từ {day(l.currentVersion.effectiveFrom)}
+                    {t("portal.lease.version", {
+                      version: l.currentVersion.versionNo,
+                      from: day(l.currentVersion.effectiveFrom),
+                    })}
                   </dd>
                   <dt>Giá thuê</dt>
                   <dd>

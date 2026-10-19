@@ -2,10 +2,12 @@
 // Đặt phòng 3 bước ngắn (SPEC-reservation-stay §5): báo giá (tổng giá + chính sách luôn hiện) → tạo booking + giữ phòng →
 // (trang chi tiết) xác nhận. Chỉ báo thành công sau phản hồi máy chủ; tạo và giữ là hai command, mỗi lệnh một Idempotency-Key.
 // Giữ phòng thất bại (vd. phòng bận) thì booking nháp đã tạo được dùng lại — không tạo thêm bản nháp thứ hai.
+
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { timedFetch } from "../../lib/fetch-timeout.ts";
 import { vnd } from "../../lib/format.ts";
+import { t } from "../../lib/i18n.ts";
 import { firstNonEmpty } from "../../lib/text.ts";
 import { CommandStatus } from "../command/command-status.tsx";
 import { orgContextHeaders } from "../command/org-context.ts";
@@ -204,7 +206,8 @@ export function BookingForm({
           <div data-testid="quote" role="status">
             <table className="lines">
               <caption>
-                {quote.nights} đêm — tổng <strong data-testid="quote-total">{vnd(quote.roomTotal)}</strong>
+                {t("booking.quote.total", { nights: quote.nights })}{" "}
+                <strong data-testid="quote-total">{vnd(quote.roomTotal)}</strong>
               </caption>
               <thead>
                 <tr>

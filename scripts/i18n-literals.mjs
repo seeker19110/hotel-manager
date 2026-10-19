@@ -34,9 +34,10 @@ export function countLiterals(src) {
   let n = 0;
   for (const m of code.matchAll(/"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'|`(?:\\.|[^`\\])*`/g))
     if (VI.test(m[0])) n++;
-  // JSX text: giữa `>` và `<`/`{`, không phải trong chuỗi (đã đếm ở trên) — bỏ chuỗi trước khi tìm.
+  // JSX text: giữa `>` hoặc `}` (chữ đứng sau một biểu thức, vd `{n} phòng`) và `<`/`{`, không phải trong chuỗi (đã đếm ở trên) —
+  // bỏ chuỗi trước khi tìm. `(?<!\$)` để không bắt mảnh template `${`.
   const noStrings = code.replace(/"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'|`(?:\\.|[^`\\])*`/g, '""');
-  for (const m of noStrings.matchAll(/>([^<>{}]+)[<{]/g)) if (VI.test(m[1])) n++;
+  for (const m of noStrings.matchAll(/[>}]([^<>{}]+)(?<!\$)[<{]/g)) if (VI.test(m[1])) n++;
   return n;
 }
 

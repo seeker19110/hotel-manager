@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { CommandForm } from "../../../components/command/command-form.tsx";
 import { EmptyState, ErrorState } from "../../../components/ui/state.tsx";
 import { month, PERIOD_STATUS, vnd, vndUnitPrice } from "../../../lib/format.ts";
+import { t } from "../../../lib/i18n.ts";
 import { withActor } from "../../../lib/page.tsx";
 
 export const metadata: Metadata = { title: "Kỳ thu — xem trước — Hotel Manager" };
@@ -56,7 +57,7 @@ export default async function PeriodPage({ params }: { params: Promise<{ id: str
             pv.items.map((i) => (
               <table key={i.lease_id} className="lines" data-testid="preview-room">
                 <caption>
-                  Phòng {i.unit} — tổng <strong>{vnd(i.total)}</strong>
+                  {t("billing.preview.room_total", { unit: i.unit })} <strong>{vnd(i.total)}</strong>
                 </caption>
                 <thead>
                   <tr>

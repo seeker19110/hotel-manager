@@ -12,6 +12,7 @@ import { StatusBadge } from "../../components/ui/badge.tsx";
 import { Icon } from "../../components/ui/icon.tsx";
 import { EmptyState, ErrorState } from "../../components/ui/state.tsx";
 import { addDays, BOOKING_STATUS, day, weekdayDay } from "../../lib/format.ts";
+import { t } from "../../lib/i18n.ts";
 import { withActor } from "../../lib/page.tsx";
 import { safe } from "../../lib/safe.ts";
 
@@ -75,7 +76,7 @@ export default async function CalendarPage({
           </nav>
         ) : null}
         <p className="card__meta">
-          {property.name} · từ {day(from)} đến {day(addDays(to, -1))}
+          {t("calendar.range", { property: property.name, from: day(from), to: day(addDays(to, -1)) })}
         </p>
         <nav aria-label="Chuyển tuần" className="pager">
           <a className="btn btn--secondary" href={link(addDays(from, -DAYS))}>

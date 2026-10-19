@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { CommandForm } from "../../components/command/command-form.tsx";
 import { EmptyState } from "../../components/ui/state.tsx";
 import { day, vnd } from "../../lib/format.ts";
+import { t } from "../../lib/i18n.ts";
 import { withActor } from "../../lib/page.tsx";
 
 export const metadata: Metadata = { title: "Thu tiền — Hotel Manager" };
@@ -80,7 +81,7 @@ export default async function CollectPage() {
                     {i.payer}
                   </p>
                   <p className="card__meta">
-                    Ngày {day(i.business_date)} · tổng {vnd(i.total)} · còn{" "}
+                    {t("payment.invoice.meta", { date: day(i.business_date), total: vnd(i.total) })}{" "}
                     <strong data-testid="open-amount">{vnd(i.open_amount)}</strong>
                   </p>
                   {shiftOpen.get(i.property_id) ? (
