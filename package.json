@@ -26,6 +26,7 @@
     "size": "size-limit"
   },
   "devDependencies": {
+    "@babel/parser": "7.29.9",
     "@biomejs/biome": "2.5.15",
     "@formatjs/icu-messageformat-parser": "3.5.20",
     "@lhci/cli": "0.15.1",

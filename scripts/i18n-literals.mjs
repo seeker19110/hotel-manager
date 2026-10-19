@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 // Ratchet chuỗi viết thẳng (XC-I18N-001, D-073): đếm chuỗi tiếng Việt (có dấu) viết thẳng trong mã người dùng thấy — JSX text và
-// literal "…"/'…'/`…` — theo từng tệp. Số đếm chỉ được GIẢM so với `scripts/i18n-literal-baseline.json`; tệp chưa có trong baseline
-// phải = 0 (chuỗi mới đi qua `t()` của apps/web/lib/i18n.ts). Bỏ chú thích, test, e2e. Chuyển xong một tệp thì hạ baseline
-// (`node scripts/i18n-literals.mjs --write`) trong cùng PR. Mục tiêu: baseline rỗng.
+// literal "…"/'…'/`…` — theo từng tệp, trên AST (D-078; trước đó regex đếm lệch sau template lồng). Số đếm chỉ được GIẢM so với
+// `scripts/i18n-literal-baseline.json`; tệp chưa có trong baseline phải = 0 (chuỗi mới đi qua `t()` của apps/web/lib/i18n.ts).
+// Bỏ chú thích, test, e2e. Chuyển xong một tệp thì hạ baseline (`node scripts/i18n-literals.mjs --write`) trong cùng PR. Mục
+// tiêu: baseline rỗng.
 // Dùng: node scripts/i18n-literals.mjs [--write]
 import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isMain } from "./is-main.mjs";
+import { parseSource, walk } from "./ts-ast.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 export const BASELINE = join(ROOT, "scripts/i18n-literal-baseline.json");
@@ -20,24 +22,18 @@ export const SCOPE = [
 ];
 const VI = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i;
 
-/** Bỏ chú thích // và /* *\/ (giữ chuỗi): đủ cho đếm, không phải trình phân tích đầy đủ. */
-export function stripComments(src) {
-  return src.replace(
-    /("(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'|`(?:\\.|[^`\\])*`)|\/\*[\s\S]*?\*\/|\/\/[^\n]*/g,
-    (m, str) => (str ? m : " "),
-  );
-}
-
-/** Số chuỗi tiếng Việt viết thẳng trong một đoạn mã. */
-export function countLiterals(src) {
-  const code = stripComments(src);
+/** Số chuỗi tiếng Việt viết thẳng trong một tệp: mỗi StringLiteral, mỗi template literal (một lần dù nhiều đoạn quanh `${…}`) và
+ * mỗi đoạn chữ JSX (chữ trước và sau `{n}` là hai đoạn) có dấu tiếng Việt. Chú thích không phải nút AST nên không bị đếm. */
+export function countLiterals(src, file) {
   let n = 0;
-  for (const m of code.matchAll(/"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'|`(?:\\.|[^`\\])*`/g))
-    if (VI.test(m[0])) n++;
-  // JSX text: giữa `>` hoặc `}` (chữ đứng sau một biểu thức, vd `{n} phòng`) và `<`/`{`, không phải trong chuỗi (đã đếm ở trên) —
-  // bỏ chuỗi trước khi tìm. `(?<!\$)` để không bắt mảnh template `${`.
-  const noStrings = code.replace(/"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'|`(?:\\.|[^`\\])*`/g, '""');
-  for (const m of noStrings.matchAll(/[>}]([^<>{}]+)(?<!\$)[<{]/g)) if (VI.test(m[1])) n++;
+  walk(parseSource(src, file).program, (node) => {
+    if (
+      (node.type === "StringLiteral" && VI.test(node.value)) ||
+      (node.type === "JSXText" && VI.test(node.value)) ||
+      (node.type === "TemplateLiteral" && node.quasis.some((q) => VI.test(q.value.raw)))
+    )
+      n++;
+  });
   return n;
 }
 
@@ -57,7 +53,7 @@ export function scan(root = ROOT) {
   const out = {};
   for (const d of SCOPE)
     for (const f of files(join(root, d))) {
-      const n = countLiterals(readFileSync(f, "utf8"));
+      const n = countLiterals(readFileSync(f, "utf8"), f);
       if (n > 0) out[relative(root, f)] = n;
     }
   return Object.fromEntries(Object.entries(out).sort(([a], [b]) => a.localeCompare(b)));
@@ -70,6 +66,20 @@ export function regressions(current, baseline) {
     .map(
       ([f, n]) =>
         `${f}: ${n} chuỗi viết thẳng > ngưỡng ${baseline[f] ?? 0} — dùng t() và khoá trong apps/web/messages/vi.json`,
+    );
+}
+
+/**
+ * Dòng baseline bị nâng so với `before` (baseline trên main) mà vượt số đếm của chính tệp đó trên main (`countOnBase(f)`, tệp
+ * chưa có trên main → 0). Bộ đếm không đổi thì main đã qua ratchet nên số đếm trên main ≤ baseline của main ⇒ mọi lần nâng đều
+ * bị bắt; chỉ khi bộ đếm chặt hơn (D-078) mới nâng được, và chỉ tới đúng số chuỗi đã có sẵn trên main — PR không thể vừa đổi
+ * bộ đếm vừa thêm chuỗi.
+ */
+export function unjustifiedRaises(now, before, countOnBase) {
+  return Object.entries(now)
+    .filter(([f, n]) => n > (before[f] ?? 0) && n > countOnBase(f))
+    .map(
+      ([f, n]) => `${f}: baseline ${before[f] ?? 0} → ${n} nhưng trên main chỉ có ${countOnBase(f)} chuỗi`,
     );
 }
 
