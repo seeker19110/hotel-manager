@@ -45,6 +45,7 @@ describe("rulesetProblems — rule đang áp so với .github/rulesets/main.json
       "pull_request cho kiểu merge khác squash",
       'thiếu required check "quality" so với main.json',
       'required check "readme-smoke" không có trong main.json',
+      "required_status_checks không bật strict (nhánh phải cập nhật trước merge)",
     ]);
   });
 
@@ -58,6 +59,17 @@ describe("rulesetProblems — rule đang áp so với .github/rulesets/main.json
     ]);
     expect(errs.length).toBeGreaterThan(4);
   });
+
+  it("bản code bật strict mà rule đang áp tắt ⇒ lỗi", () => {
+    const live = code.rules.map((r) =>
+      r.type === "required_status_checks"
+        ? { ...r, parameters: { ...r.parameters, strict_required_status_checks_policy: false } }
+        : r,
+    );
+    expect(rulesetProblems(live, code)).toEqual([
+      "required_status_checks không bật strict (nhánh phải cập nhật trước merge)",
+    ]);
+  });
 });
 
 describe("bypassProblems", () => {
@@ -70,6 +82,12 @@ describe("bypassProblems", () => {
         { name: "d", target: "tag", enforcement: "active", bypass_actors: [{ actor_id: 5 }] },
       ]),
     ).toEqual(['ruleset "b" có bypass_actors (1)']);
+  });
+
+  it("không đọc được bypass_actors (token thiếu quyền) ⇒ lỗi, không coi là rỗng", () => {
+    expect(bypassProblems([{ name: "main", target: "branch", enforcement: "active" }])).toEqual([
+      'ruleset "main": không đọc được bypass_actors (token thiếu quyền quản trị?)',
+    ]);
   });
 });
 
@@ -117,10 +135,25 @@ describe("sbomCoverage (D-077: chỉ tính gói, bỏ file/operating-system)", (
 
 describe("checksumProblems", () => {
   const sha = (s) => createHash("sha256").update(s).digest("hex");
-  it("khớp ⇒ rỗng; lệch ⇒ báo tên tệp; tệp không tải về thì bỏ qua", () => {
-    const files = { "a.json": Buffer.from("A"), "b.json": Buffer.from("B") };
-    const sums = `${sha("A")}  a.json\n${sha("X")}  b.json\n${sha("C")}  c.tar.gz\n`;
-    expect(checksumProblems(sums, files)).toEqual(["b.json: SHA-256 không khớp SHA256SUMS"]);
-    expect(checksumProblems(`${sha("A")}  a.json\n`, files)).toEqual([]);
+  const files = { "a.json": Buffer.from("A"), "b.json": Buffer.from("B") };
+
+  it("dạng của release.yml (`<hex>  ./tên`) và dạng `*tên` đều được đọc; khớp ⇒ rỗng", () => {
+    expect(
+      checksumProblems(`${sha("A")}  ./a.json\n${sha("B")} *b.json\n${sha("C")}  ./c.tar.gz\n`, files),
+    ).toEqual([]);
+  });
+
+  it("băm lệch ⇒ báo tên tệp (kể cả khi tên có ./)", () => {
+    expect(checksumProblems(`${sha("A")}  ./a.json\n${sha("X")}  ./b.json\n`, files)).toEqual([
+      "b.json: SHA-256 không khớp SHA256SUMS",
+    ]);
+  });
+
+  it("tệp tải về không có dòng trong SHA256SUMS (hoặc SHA256SUMS rỗng) ⇒ lỗi, không bỏ qua im lặng", () => {
+    expect(checksumProblems(`${sha("A")}  ./a.json\n`, files)).toEqual(["b.json: không có trong SHA256SUMS"]);
+    expect(checksumProblems("", files)).toEqual([
+      "a.json: không có trong SHA256SUMS",
+      "b.json: không có trong SHA256SUMS",
+    ]);
   });
 });

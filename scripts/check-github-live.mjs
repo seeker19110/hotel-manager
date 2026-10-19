@@ -37,17 +37,37 @@ export function rulesetProblems(liveRules, codeRuleset) {
   const code = new Set(contextsOf(codeRuleset.rules ?? []));
   for (const c of code) if (!live.has(c)) out.push(`thiếu required check "${c}" so với main.json`);
   for (const c of live) if (!code.has(c)) out.push(`required check "${c}" không có trong main.json`);
+  const strictCode = (codeRuleset.rules ?? []).some(
+    (r) => r.type === "required_status_checks" && r.parameters?.strict_required_status_checks_policy === true,
+  );
+  const strictLive = liveRules.some(
+    (r) => r.type === "required_status_checks" && r.parameters?.strict_required_status_checks_policy === true,
+  );
+  if (strictCode && !strictLive)
+    out.push("required_status_checks không bật strict (nhánh phải cập nhật trước merge)");
   return out;
 }
 
-/** Ruleset nhánh (target=branch, đang active) có ai được bypass không. */
+/**
+ * Ruleset nhánh (target=branch, đang active) có ai được bypass không. GitHub chỉ trả `bypass_actors` cho token có quyền
+ * quản trị: thiếu trường ⇒ không kiểm được ⇒ lỗi (không coi là rỗng).
+ */
 export function bypassProblems(rulesets) {
   return rulesets
-    .filter((r) => r.target === "branch" && r.enforcement === "active" && (r.bypass_actors ?? []).length > 0)
-    .map((r) => `ruleset "${r.name}" có bypass_actors (${r.bypass_actors.length})`);
+    .filter((r) => r.target === "branch" && r.enforcement === "active")
+    .flatMap((r) =>
+      !Array.isArray(r.bypass_actors)
+        ? [`ruleset "${r.name}": không đọc được bypass_actors (token thiếu quyền quản trị?)`]
+        : r.bypass_actors.length > 0
+          ? [`ruleset "${r.name}" có bypass_actors (${r.bypass_actors.length})`]
+          : [],
+    );
 }
 
-/** Dòng `git log --first-parent --format=%s` không phải squash PR "… (#N)". */
+/**
+ * Dòng `git log --first-parent --format=%s` không phải squash PR "… (#N)". Chỉ nhìn tiêu đề: commit đẩy thẳng mang hậu tố
+ * giả vẫn lọt — lớp chặn thật là rule `pull_request` của ruleset (kiểm bằng `ruleset`).
+ */
 export function nonSquashSubjects(subjects) {
   return subjects.filter((s) => s.trim() && !/\(#\d+\)$/.test(s.trim()));
 }
@@ -66,12 +86,20 @@ export function sbomCoverage(cdx) {
   return { licensed: pkgs.filter((c) => (c.licenses ?? []).length > 0).length, total: pkgs.length };
 }
 
-/** Dòng `SHA256SUMS` ("<hex>  <tên>") không khớp nội dung tải về. */
+/**
+ * So `SHA256SUMS` ("<hex>  [*][./]<tên>", dạng `sha256sum`) với tệp đã tải: mỗi tệp tải về phải có dòng trong SHA256SUMS
+ * và băm khớp. Tên chuẩn hoá bỏ `./` (release.yml ghi `./sbom.cdx.json`).
+ */
 export function checksumProblems(sums, files) {
+  const listed = new Map();
+  for (const line of sums.split("\n").filter((l) => l.trim())) {
+    const m = line.trim().match(/^([0-9a-f]{64})\s+\*?(?:\.\/)?(.+)$/i);
+    if (m) listed.set(m[2], m[1].toLowerCase());
+  }
   const out = [];
-  for (const line of sums.split("\n").filter(Boolean)) {
-    const [hex, name] = line.split(/\s+\*?/);
-    if (name in files && createHash("sha256").update(files[name]).digest("hex") !== hex)
+  for (const [name, buf] of Object.entries(files)) {
+    if (!listed.has(name)) out.push(`${name}: không có trong SHA256SUMS`);
+    else if (createHash("sha256").update(buf).digest("hex") !== listed.get(name))
       out.push(`${name}: SHA-256 không khớp SHA256SUMS`);
   }
   return out;
@@ -114,20 +142,20 @@ function checkRelease(tag) {
   const assets = Object.fromEntries(rel.assets.map((a) => [a.name, a]));
   if (!assets["sbom.cdx.json"]) out.push(`${rel.tag_name} thiếu sbom.cdx.json`);
   if (!assets.SHA256SUMS) return [...out, `${rel.tag_name} thiếu SHA256SUMS`];
-  const files = {};
-  for (const name of Object.keys(assets).filter((n) => n.endsWith(".cdx.json") || n === "SHA256SUMS"))
-    files[name] = gh(`repos/${REPO}/releases/assets/${assets[name].id}`, "application/octet-stream");
-  out.push(...checksumProblems(files.SHA256SUMS.toString("utf8"), files));
-  let licensed = 0;
-  let total = 0;
-  for (const [name, buf] of Object.entries(files)) {
-    if (!name.endsWith(".cdx.json")) continue;
-    const c = sbomCoverage(JSON.parse(buf.toString("utf8")));
-    licensed += c.licensed;
-    total += c.total;
+  const fetch = (name) => gh(`repos/${REPO}/releases/assets/${assets[name].id}`, "application/octet-stream");
+  const sboms = Object.fromEntries(
+    Object.keys(assets)
+      .filter((n) => n.endsWith(".cdx.json"))
+      .map((n) => [n, fetch(n)]),
+  );
+  out.push(...checksumProblems(fetch("SHA256SUMS").toString("utf8"), sboms));
+  // Ngưỡng 99% xét TỪNG SBOM: cộng gộp có thể che một SBOM thấp.
+  for (const [name, buf] of Object.entries(sboms)) {
+    const { licensed, total } = sbomCoverage(JSON.parse(buf.toString("utf8")));
+    console.log(`[check-github-live] ${rel.tag_name} ${name}: license ${licensed}/${total} gói`);
+    if (total === 0 || licensed / total < 0.99)
+      out.push(`${name}: license có ở ${licensed}/${total} gói (< 99%)`);
   }
-  console.log(`[check-github-live] ${rel.tag_name}: license ${licensed}/${total} gói`);
-  if (total === 0 || licensed / total < 0.99) out.push(`license có ở ${licensed}/${total} gói (< 99%)`);
   return out;
 }
 
