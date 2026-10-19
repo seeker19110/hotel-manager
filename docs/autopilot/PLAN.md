@@ -254,6 +254,16 @@ Nguồn: `BLUEPRINT-GAPS.md` mục "Kết quả đợt 9 (b)". Phạm vi đã du
 
 - [x] `T-1001` LOOP-OPT-001…004 (vòng tối ưu hiệu năng): `[~] Không áp dụng` có điều kiện — PLAN chưa có task tối ưu; test rào ép Gate đúng vòng khi có task tối ưu thật — Gate: `pnpm vitest run --project unit perf-optimization-tasks && python3 scripts/check-blueprint-evidence.py BLUEPRINT.md`
 
+## Đợt 12 — gia cố rào đã ghi treo sau review đợt 10 (2026-10-19; D-075)
+
+Mọi MUST còn mở cần người (BLUEPRINT-GAPS 'Kết quả đợt 9 (a)'); đợt này chỉ lấp các lỗ 🟢 đã biết của rào CMP-PRIV-008/XC-I18N-001. Không tick mục mới (phần còn thiếu của hai mục vẫn cần staging/chuyển chuỗi). Mỗi lát một PR.
+
+- [x] `T-1101` Semgrep PII: bắt object người/request đưa vào log qua `JSON.stringify(...)` và qua logger con (`log.child({ user })`); fixture xấu/tốt (CMP-PRIV-008) — Gate: `semgrep --test security/semgrep --metrics=off --disable-version-check && semgrep scan --config security/semgrep/hm-privacy.yml --metrics=off --disable-version-check --error && pnpm vitest run --project unit pii-log`
+- [x] `T-1102` Server E2E: `stop()` chờ tiến trình con `close` (có trần thời gian) và log được ghi xong trước khi thoát, để bộ quét PII thấy cả dòng cuối; test khoá (CMP-PRIV-008) — Gate: `pnpm vitest run --project unit pii-log e2e-guards`
+- [x] `T-1103` Ratchet i18n bắt chữ JSX trộn biểu thức (`{n} phòng`) và chữ JSX chứa `//`; baseline cập nhật theo bộ đếm mới (không thêm chuỗi) (XC-I18N-001) — Gate: `pnpm vitest run --project unit i18n`
+- [x] `T-1105` Sửa test DB đỏ ngẫu nhiên ở CI PR #77: `webhook-rate-limit.db.test.ts` gọi bộ đếm cửa sổ cố định 60 s bằng đồng hồ thật, chạy vắt ranh giới phút thì đếm về 0 ("lượt 2: used 1"); `beforeEach` chờ qua ranh giới khi còn < 5 s + test ca biên hàm chờ — Gate: `pnpm vitest run --project db webhook-rate-limit`
+- [x] `T-1104` Rà đợt 12: PROGRESS, BLUEPRINT-GAPS (—) — Gate: `python3 scripts/check-blueprint-evidence.py BLUEPRINT.md`
+
 ## Phụ thuộc ngoài
 | Việc | Bên ngoài | Kế hoạch B |
 |---|---|---|

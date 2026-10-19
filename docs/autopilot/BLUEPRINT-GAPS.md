@@ -9,6 +9,19 @@
 > `PM-SPEC-004` và `WF-SDD-003` (nền spec-coverage còn 26 S-NNN). **Tick kèm lưu ý để phiên chính xác nhận:** `DB-MODEL-004` (52 FK nhóm A thiếu index là ngoại lệ có lý do — D-035),
 > `UX-STATE-001` (không Storybook; loading bị D-032 miễn ở trang có route con động/notFound/redirect), `DB-PERF-001` (EXPLAIN không ANALYZE), `XC-GREEN-007` (còn `notifications`/`inbox`/`worker_heartbeats` chưa có job dọn, chờ DPIA).
 
+## Kết quả đợt 12 (T-1104, 2026-10-19; D-075, D-076)
+
+Không tick mục mới: MUST mở vẫn **101**, đều cần người (bảng 'Kết quả đợt 9 (a)'; nhóm 2 thêm: gắn `risk:money`+`risk:data` cho #78 rồi merge). Đợt này lấp 🟢 treo sau review đợt 10:
+
+| Task | PR | Kết quả |
+|---|---|---|
+| T-1101 | #76 (đã merge) | Semgrep `hm-log-pii-stringify(-fn)`, `hm-log-pii-child`: `JSON.stringify(<người/request>)` trong lời gọi log và object người gắn vào logger con bị chặn; fixture xấu/tốt, đột biến bị bắt |
+| T-1102 | #77 | Server E2E chờ Next đóng stdio + log ghi xong (trần 10 s) — log có cả `web.shutdown_*` |
+| T-1103 | #78 (**người merge**) | Ratchet i18n bắt chữ JSX sau biểu thức; 26 đoạn sang `t()` (24 khoá), baseline chỉ giảm; CI xanh trừ `pr-policy` (nhãn `risk:*` chưa có) |
+| T-1105 | #79 | Test `webhook-rate-limit.db` không đỏ khi chạy vắt ranh giới phút (làm `gate` của #77 đỏ) |
+
+**Còn treo (🟢, review #78):** lookbehind `(?<!\$)` bỏ sót chữ JSX kết thúc bằng `$`; test bộ đếm nên `toBe(3)` và có ca template lồng; tách chuỗi bằng regex không hiểu template lồng nên tệp TS thuần (`exports.ts`, `stay/*.ts`) có đoạn "chữ JSX" giả (tổng không đổi); vài khoá dịch là mảnh câu quanh `<strong>`, tên tham số `t()` không được kiểm kiểu; chữ JSX chứa `//` vẫn bị coi là chú thích. Đề xuất: khi chuyển chuỗi theo màn (XC-I18N-001) đổi bộ đếm sang trình phân tích TSX thật và khoá kiểu tham số.
+
 ## Kết quả đợt 10 (T-909, 2026-10-18)
 
 `main` sau PR #59 T-901 · #64 T-902 · #65 T-903 · #62 T-904 · #63 T-905 · #66 T-908; #67 T-906/T-907 · #68 T-904b (người merge). `xt.py blueprint-status BLUEPRINT.md --strict`: MUST **đạt 341 · miễn 55 · mở 105** (trước đợt 10, khung 3.0: đạt 337 · miễn 54 · mở 105; khung 3.3 thêm mục MUST nên tổng khác). Tick 4: WF-GIT-010 (T-902), DB-SEC-004 (T-904), XC-I18N-009 (T-908), QA-PERF-007 (T-906, nằm trong #67).
