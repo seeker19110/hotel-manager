@@ -32,6 +32,6 @@
 - Bài học đợt 5–8: Better Auth `/sign-in/email` 20 lần/phút theo IP; `<dialog>` phát `close` sau một task (`onClose` chỉ xoá trạng thái khi hộp thật sự đóng); chạy lại job CI dùng payload sự kiện cũ (cần push mới); test giá trị ngẫu nhiên phải loại ca biên (IP octet 0); không so thời gian tuyệt đối (so tương đối); hai lát song song có thể đụng nhau qua rào mới.
 
 ## Bàn giao phiên
-- `main` sau #97; PR mở: T-1203 (rà đợt 13). Lần trước: live check 2026-10-19: ruleset/squash/tags/release đạt, chưa có ruleset tag, nhãn `major`, LICENSE.
+- `main` = `2d19e04` (sau #97); PR mở: #98 (T-1203). Lần trước: live check 2026-10-19: ruleset/squash/tags/release đạt, chưa có ruleset tag, nhãn `major`, LICENSE.
 - Lệnh kiểm nhanh: `.xtemplates/scripts/dev-task.sh gate` · `pnpm test:db` · `E2E_PORT=<cổng riêng> pnpm --filter @hm/web exec playwright test` · `bash scripts/db-backup-restore-check.sh`. Container mới: `bash scripts/dev-env-setup.sh && bash scripts/dev-env-setup.sh --only gitleaks` rồi `pnpm install --frozen-lockfile`; semgrep: `python3 -m venv <thư mục tạm>/sg && <…>/sg/bin/pip install --require-hashes -r security/semgrep/requirements.txt` rồi đưa `<…>/sg/bin` vào PATH (thiếu gitleaks/semgrep ⇒ `loop verify` đỏ exit 127 ở WF-GIT-010/T-1101). Không chạy E2E song song với `loop verify` (T-402 đỏ do tranh CPU).
 - Đang chặn: chờ người (mục *Tiếp theo* 1–3; xác nhận việc viết lại lịch sử `main` có chủ ý — ruleset nay chặn force-push). Autopilot: `done-pending-human` (một phiên).
