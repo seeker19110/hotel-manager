@@ -32,6 +32,28 @@ async function tenantProperties(ctx: CommandContext, personId: string): Promise<
     .filter((p) => ctx.actor.allProperties || ctx.actor.propertyIds.includes(p));
 }
 
+/** Thông báo 409 khi email đã gắn với tài khoản khác (dùng chung để không nhân đôi chuỗi viết thẳng). */
+const EMAIL_TAKEN = "Email này đã gắn với tài khoản khác trong tổ chức";
+
+/**
+ * Tài khoản có sẵn mà email chưa xác minh (mọi tài khoản mật khẩu đều vậy — chưa có luồng xác minh) không chứng minh người giữ mật
+ * khẩu là chủ hộp thư: kẻ gian đăng ký trước bằng email nạn nhân rồi chờ được mời (AUD-SEC-001). Gọi SAU khi vai `tenant` đã được
+ * cấp trong cùng giao dịch: `app.otp_sign_in_allowed` (xuyên tổ chức) true ⇒ tài khoản chỉ còn là người thuê ⇒ bỏ mật khẩu + phiên,
+ * người thuê vào bằng OTP gửi tới hộp thư (D-011/D-016). Còn vai nhân viên ở đâu đó ⇒ không phân biệt được nhân viên thật với kẻ
+ * tự lập tổ chức để giữ mật khẩu ⇒ TỪ CHỐI mời (409, giao dịch quay lui — không cấp gì): chủ trọ báo người thuê dùng email khác.
+ */
+async function sealUnverifiedAccount(ctx: CommandContext, userId: string, email: string): Promise<void> {
+  const only = await sql<{ ok: boolean }>`select app.otp_sign_in_allowed(${email}) as ok`.execute(ctx.trx);
+  if (!only.rows[0]?.ok)
+    throw new CommandError("DUPLICATE", 409, EMAIL_TAKEN, {
+      extensions: { errors: [{ path: "email", field: "email", code: "taken" }] },
+    });
+  await sql`delete from auth."account" where "userId" = ${userId} and "providerId" = 'credential'`.execute(
+    ctx.trx,
+  );
+  await sql`delete from auth."session" where "userId" = ${userId}`.execute(ctx.trx);
+}
+
 /** `portal.inviteTenant` (S-014). */
 export async function inviteTenant(
   ctx: CommandContext,
@@ -49,7 +71,9 @@ export async function inviteTenant(
   if (!p.rows[0]) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy người thuê");
 
   const existingUser = await sql<{ id: string; verified: boolean }>`
-    select id, "emailVerified" as verified from auth."user" where email = ${email}`.execute(ctx.trx);
+    select id, "emailVerified" as verified from auth."user" where email = ${email} for update`.execute(
+    ctx.trx,
+  );
   let userId = existingUser.rows[0]?.id;
   const unverifiedExisting = Boolean(userId) && existingUser.rows[0]?.verified === false;
   if (userId) {
@@ -57,10 +81,13 @@ export async function inviteTenant(
       select id, role, person_id from memberships where organization_id = ${ctx.actor.orgId} and auth_user_id = ${userId}
         and status in ('invited','active','suspended')`.execute(ctx.trx);
     const cur = m.rows[0];
-    if (cur?.role === "tenant" && cur.person_id === input.personId)
+    if (cur?.role === "tenant" && cur.person_id === input.personId) {
+      // Lời mời cũ có thể do bản chưa vá cấp cho tài khoản kẻ khác lập trước: dọn lại (AUD-SEC-001).
+      if (unverifiedExisting) await sealUnverifiedAccount(ctx, userId as string, email);
       return { membershipId: cur.id, created: false };
+    }
     if (cur)
-      throw new CommandError("DUPLICATE", 409, "Email này đã gắn với tài khoản khác trong tổ chức", {
+      throw new CommandError("DUPLICATE", 409, EMAIL_TAKEN, {
         extensions: { errors: [{ path: "email", field: "email", code: "taken" }] },
       });
   }
@@ -90,18 +117,8 @@ export async function inviteTenant(
             values (${membershipId}, ${ctx.actor.orgId}, ${userId}, ${input.personId}, 'tenant', 'active')`.execute(
     ctx.trx,
   );
-  // AUD-SEC-001: tài khoản đã có theo email nhưng email chưa được chứng minh (đăng ký mật khẩu mở, không đòi xác minh) có thể
-  // do kẻ khác lập trước. Nếu giờ nó chỉ còn là tài khoản người thuê (không nhân viên ở tổ chức nào — hàm kiểm xuyên tổ chức),
-  // bỏ mật khẩu + phiên đang có: người thuê chỉ vào bằng OTP gửi tới hộp thư (D-011/D-016). Nhân viên giữ nguyên mật khẩu.
-  if (unverifiedExisting) {
-    const only = await sql<{ ok: boolean }>`select app.otp_sign_in_allowed(${email}) as ok`.execute(ctx.trx);
-    if (only.rows[0]?.ok) {
-      await sql`delete from auth."account" where "userId" = ${userId} and "providerId" = 'credential'`.execute(
-        ctx.trx,
-      );
-      await sql`delete from auth."session" where "userId" = ${userId}`.execute(ctx.trx);
-    }
-  }
+  // AUD-SEC-001: tài khoản có sẵn theo email nhưng email chưa được chứng minh (đăng ký mật khẩu mở) có thể do kẻ khác lập trước.
+  if (unverifiedExisting) await sealUnverifiedAccount(ctx, userId as string, email);
   await ctx.audit({
     action: "portal.tenant_invited",
     entityType: "membership",

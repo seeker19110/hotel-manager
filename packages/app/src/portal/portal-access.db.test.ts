@@ -218,22 +218,42 @@ describe("AUD-SEC-001 — không chiếm trước email người thuê bằng đ
     expect((await post("/sign-in/email", { email, password: pw })).status).toBe(200);
   });
 
-  it("nhân viên (email chưa xác minh) của tổ chức khác được mời làm người thuê ở A: giữ mật khẩu, không bị khoá khỏi tổ chức của mình", async () => {
-    const x = await tenantPerson(A, "Người thuê Giang");
-    const email = "giang.manager@example.test";
-    const pw = "Mật-khẩu-67890";
-    await post("/sign-up/email", { name: "Giang", email, password: pw });
+  it("kẻ gian tự lập tổ chức (vai owner) để giữ mật khẩu: lời mời bị từ chối 409, không cấp tenant, mật khẩu không bị đụng", async () => {
+    const v = await tenantPerson(A, "Người thuê Hà");
+    const email = "ha.victim@example.test";
+    const pw = "Kẻ-gian-99999";
+    expect((await post("/sign-up/email", { name: "Kẻ gian", email, password: pw })).status).toBe(200);
     const uid = (
       await sql<{ id: string }>`select id from auth."user" where email = ${email}`.execute(t.admin)
     ).rows[0]?.id as string;
-    const personB = randomUUID();
-    await sql`insert into persons (id, organization_id, full_name, email) values (${personB}, ${B.orgId}, 'Giang', ${email})`.execute(
+    await seedOrg(t.admin, "Tổ chức của kẻ gian", "hotel", uid); // owner active ở tổ chức khác
+    expect(await codeOf(runAs(t, owner, (ctx) => inviteTenant(ctx, { personId: v.personId, email })))).toBe(
+      "DUPLICATE",
+    );
+    const m = await sql<{ n: number }>`
+      select count(*)::int as n from memberships where organization_id = ${A.orgId} and auth_user_id = ${uid}`.execute(
       t.admin,
     );
-    await sql`insert into memberships (id, organization_id, auth_user_id, person_id, role, all_properties)
-              values (${randomUUID()}, ${B.orgId}, ${uid}, ${personB}, 'manager', false)`.execute(t.admin);
-    await okAs(t, owner, (ctx) => inviteTenant(ctx, { personId: x.personId, email }));
+    expect(m.rows[0]?.n).toBe(0);
     expect((await post("/sign-in/email", { email, password: pw })).status).toBe(200);
+  });
+
+  it("lời mời cũ (bản chưa vá) đã gắn tenant vào tài khoản kẻ gian: mời lại cùng người dọn mật khẩu và phiên", async () => {
+    const v = await tenantPerson(A, "Người thuê Khoa");
+    const email = "khoa.victim@example.test";
+    const pw = "Kẻ-gian-55555";
+    await post("/sign-up/email", { name: "Kẻ gian", email, password: pw });
+    const uid = (
+      await sql<{ id: string }>`select id from auth."user" where email = ${email}`.execute(t.admin)
+    ).rows[0]?.id as string;
+    await sql`update persons set email = ${email} where id = ${v.personId}`.execute(t.admin);
+    await sql`insert into memberships (id, organization_id, auth_user_id, person_id, role, status)
+              values (${randomUUID()}, ${A.orgId}, ${uid}, ${v.personId}, 'tenant', 'active')`.execute(
+      t.admin,
+    );
+    const again = await okAs(t, owner, (ctx) => inviteTenant(ctx, { personId: v.personId, email }));
+    expect(again.created).toBe(false);
+    expect((await post("/sign-in/email", { email, password: pw })).ok).toBe(false);
   });
 });
 

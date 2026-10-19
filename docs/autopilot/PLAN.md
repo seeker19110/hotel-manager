@@ -277,7 +277,7 @@ Mọi MUST còn mở vẫn cần người. Đợt này lấp hai lỗ 🟢 treo 
 
 ## Đợt 14 — sửa 🔴/🟠 của audit 2026-10-19 (D-079; docs/ops/AUDIT-STATUS.md)
 
-- [x] `T-1301` AUD-SEC-001 (🔴): `portal.inviteTenant` không để kẻ đăng ký mật khẩu trước giữ quyền vào portal của người thuê: tài khoản chưa xác minh email mà chỉ còn là người thuê (xuyên tổ chức) bị xoá credential + session; nhân viên/tài khoản đã xác minh giữ nguyên; test DB đỏ trước (PR ngoại lệ cứng — người merge) — Gate: `pnpm vitest run --project db packages/app/src/portal/portal-access`
+- [x] `T-1301` AUD-SEC-001 (🔴): `portal.inviteTenant` không để kẻ đăng ký mật khẩu trước giữ quyền vào portal của người thuê: tài khoản chưa xác minh email mà chỉ còn là người thuê (xuyên tổ chức) bị xoá credential + session, còn vai nhân viên ở đâu đó ⇒ 409 không cấp tenant (D-080 thay D-079 phần này); tài khoản đã xác minh giữ nguyên; test DB đỏ trước (PR ngoại lệ cứng — người merge) — Gate: `pnpm vitest run --project db packages/app/src/portal/portal-access`
 
 ## Phụ thuộc ngoài
 | Việc | Bên ngoài | Kế hoạch B |
