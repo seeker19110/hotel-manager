@@ -262,6 +262,7 @@ Mọi MUST còn mở cần người (BLUEPRINT-GAPS 'Kết quả đợt 9 (a)');
 - [x] `T-1102` Server E2E: `stop()` chờ tiến trình con `close` (có trần thời gian) và log được ghi xong trước khi thoát, để bộ quét PII thấy cả dòng cuối; test khoá (CMP-PRIV-008) — Gate: `pnpm vitest run --project unit pii-log e2e-guards`
 - [x] `T-1103` Ratchet i18n bắt chữ JSX trộn biểu thức (`{n} phòng`) và chữ JSX chứa `//`; baseline cập nhật theo bộ đếm mới (không thêm chuỗi) (XC-I18N-001) — Gate: `pnpm vitest run --project unit i18n`
 - [x] `T-1105` Sửa test DB đỏ ngẫu nhiên ở CI PR #77: `webhook-rate-limit.db.test.ts` gọi bộ đếm cửa sổ cố định 60 s bằng đồng hồ thật, chạy vắt ranh giới phút thì đếm về 0 ("lượt 2: used 1"); `beforeEach` chờ qua ranh giới khi còn < 5 s + test ca biên hàm chờ — Gate: `pnpm vitest run --project db webhook-rate-limit`
+- [x] `T-1106` `loop verify` cuối đỏ ở WF-GIT-010: lịch sử `main` bị viết lại nên fingerprint `.gitleaksignore` của 3 chuỗi giả trong test (54005de, 6327e00) không còn khớp — thêm fingerprint theo commit mới 8a6996e (cùng chuỗi, không nới luật); ghi cách cài semgrep cho container mới (Gate T-1101 exit 127 khi thiếu) — Gate: `gitleaks git --log-opts=--all --no-banner --redact . && pnpm vitest run --project unit git-hooks`
 - [x] `T-1104` Rà đợt 12: PROGRESS, BLUEPRINT-GAPS (—) — Gate: `python3 scripts/check-blueprint-evidence.py BLUEPRINT.md`
 
 ## Phụ thuộc ngoài
