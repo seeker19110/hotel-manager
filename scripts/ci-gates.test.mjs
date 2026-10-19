@@ -72,10 +72,14 @@ const skipsPullRequest = (job) =>
   /event_name\s*==\s*'(push|schedule|workflow_dispatch|issues)'/.test(String(job.if ?? ""));
 
 /**
- * `if:` của job phụ thuộc HÀNH ĐỘNG của sự kiện PR (`edited`, `changes`…)? Job required mà bị bỏ qua ở một hành động sẽ sinh check-run
- * `skipped` mới nhất cùng SHA, GitHub tính là qua và có thể che lần chạy đỏ trước đó (AUD-CI-001).
+ * `if:` (của job HOẶC của bước) phụ thuộc HÀNH ĐỘNG của sự kiện PR (`edited`, `changes`…)? Job required bị bỏ qua ở một hành động
+ * sinh check-run `skipped` mới nhất cùng SHA (GitHub tính là qua); bước test bị bỏ qua làm job xanh mà không chạy gì — cả hai che
+ * lần chạy đỏ trước đó (AUD-CI-001). Nhận cả cú pháp ngoặc `github.event['action']` và không phân biệt hoa thường (biểu thức
+ * GitHub không phân biệt). Giới hạn: không lần theo output của job khác (`needs.x.outputs`) — rào cấu trúc không chặn hết được.
  */
-const skipsOnEventAction = (job) => /github\.event\.(action|changes)\b/.test(String(job.if ?? ""));
+const ACTION_COND = /github\.event(?:\.|\[\s*['"])\s*(?:action|changes)\b/i;
+const skipsOnEventAction = (job) =>
+  [job.if, ...(job.steps ?? []).map((st) => st?.if)].some((c) => ACTION_COND.test(String(c ?? "")));
 
 /** Context của mọi job chạy trên mọi PR vào main (job có `if:` bỏ qua → kết quả skipped, GitHub tính là qua). */
 function prContexts(wfs) {
@@ -283,6 +287,17 @@ describe("D-065 — ruleset gom mọi job chạy trên mọi PR vào main", () =
           bad.push(`${key}: if: ${job.if}`);
     }
     expect(bad).toEqual([]);
+  });
+
+  it("bộ dò if: bắt cả `if:` cấp bước, cú pháp ngoặc và chữ hoa (review Opus #102)", () => {
+    expect(
+      skipsOnEventAction({
+        steps: [{ run: "x" }, { if: "github.event.action != 'edited'", run: "pnpm test" }],
+      }),
+    ).toBe(true);
+    expect(skipsOnEventAction({ if: "github.event['action'] != 'edited'" })).toBe(true);
+    expect(skipsOnEventAction({ if: "github.event.ACTION != 'edited'" })).toBe(true);
+    expect(skipsOnEventAction({ steps: [{ if: "always()" }, { run: "x" }] })).toBe(false);
   });
 
   it("bộ dò if: theo hành động bắt đúng các dạng che coverage (kể cả `!github.event.changes`)", () => {
