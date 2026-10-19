@@ -47,6 +47,12 @@ describe("XC-I18N-009 — kiểm tệp dịch", () => {
       expect(() => messageArgs(bad), bad).toThrow();
   });
 
+  it("khoá trùng thuộc tính Object.prototype không bị coi là có trong nguồn (review #98)", () => {
+    expect(checkCatalogs({ vi: { a: entry("A") }, en: { a: entry("A"), toString: entry("z") } })).toContain(
+      "en:toString: khoá không có trong nguồn vi",
+    );
+  });
+
   it("message không phải chuỗi/rỗng ở locale dịch là lỗi; nguồn sai ICU không làm ném lỗi dù en đứng trước", () => {
     expect(checkCatalogs({ vi: { a: entry("A") }, en: { a: null } })).toContain(
       "en:a: message phải là chuỗi không rỗng",
@@ -88,15 +94,23 @@ describe("XC-I18N-009 — kiểm tệp dịch", () => {
     );
     // Khoá trùng tên thuộc tính của Object.prototype: không sập, báo "không có trong nguồn" ở sourceErrors.
     expect(errs('t("toString");')).toEqual([]);
+    expect(
+      tCallErrors('import type * as I from "./i18n.ts";\nimport type i18n from "./i18n.ts";', "u.ts", src),
+    ).toEqual([]);
   });
 
   it("sourceErrors gom lỗi khoá lạ và tham số t() từ tệp thật trên đĩa (main() dùng hàm này)", () => {
     const root = mkdtempSync(join(tmpdir(), "i18n-src-"));
     try {
       const f = join(root, "page.tsx");
-      writeFileSync(f, 'import { t } from "./lib/i18n.ts";\nt("a.hi", { name: 1 });\nt("toString");\n');
+      writeFileSync(
+        f,
+        'import { t, tOr } from "./lib/i18n.ts";\nt("a.hi", { name: 1 });\nt("toString");\ntOr(`zz.$' +
+          '{x}`, "-");\n',
+      );
       expect(sourceErrors([f], { "a.hi": entry("Chào {name}, còn {n} phòng") }, root)).toEqual([
         'page.tsx: t("toString") không có trong nguồn',
+        'page.tsx: tiền tố "zz." không có khoá nào',
         'page.tsx:2: t("a.hi") thiếu tham số {n}',
       ]);
     } finally {

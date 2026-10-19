@@ -67,7 +67,7 @@ export function checkCatalogs(catalogs, source = SOURCE_LOCALE) {
         else if (typeof entry?.message === "string") errors.push(`${locale}:${key}: message rỗng`);
         continue;
       }
-      if (!(key in src)) errors.push(`${locale}:${key}: khoá không có trong nguồn ${source}`);
+      if (!Object.hasOwn(src, key)) errors.push(`${locale}:${key}: khoá không có trong nguồn ${source}`);
       if (UNSAFE.test(entry.message)) errors.push(`${locale}:${key}: có HTML/script lạ`);
       let args;
       try {
@@ -78,7 +78,7 @@ export function checkCatalogs(catalogs, source = SOURCE_LOCALE) {
       }
       if (locale === source) srcArgs[key] = args;
       else if (
-        key in src &&
+        Object.hasOwn(src, key) &&
         srcArgs[key] !== undefined &&
         JSON.stringify(args) !== JSON.stringify(srcArgs[key] ?? safeArgs(src[key].message))
       )
@@ -88,7 +88,7 @@ export function checkCatalogs(catalogs, source = SOURCE_LOCALE) {
     }
     if (locale !== source)
       for (const key of Object.keys(src))
-        if (!(key in cat)) errors.push(`${locale}:${key}: thiếu khoá của nguồn`);
+        if (!Object.hasOwn(cat, key)) errors.push(`${locale}:${key}: thiếu khoá của nguồn`);
   }
   return errors;
 }
@@ -135,7 +135,11 @@ export function tCallErrors(text, file, src) {
   const locals = new Set();
   const errors = [];
   for (const node of ast.program.body)
-    if (node.type === "ImportDeclaration" && /(^|\/)i18n(\.ts)?$/.test(node.source.value))
+    if (
+      node.type === "ImportDeclaration" &&
+      node.importKind !== "type" && // `import type …` không gọi được t()
+      /(^|\/)i18n(\.ts)?$/.test(node.source.value)
+    )
       for (const sp of node.specifiers)
         if (sp.type === "ImportSpecifier") {
           if ((sp.imported.name ?? sp.imported.value) === "t") locals.add(sp.local.name);
@@ -212,7 +216,8 @@ export function roleKeyErrors(src, rolesTs) {
     ["member_status.", list("STATUSES")],
   ]) {
     if (names.length === 0) errors.push(`roles.ts: không đọc được danh sách cho tiền tố ${prefix}`);
-    for (const n of names) if (!(`${prefix}${n}` in src)) errors.push(`thiếu khoá ${prefix}${n} (roles.ts)`);
+    for (const n of names)
+      if (!Object.hasOwn(src, `${prefix}${n}`)) errors.push(`thiếu khoá ${prefix}${n} (roles.ts)`);
   }
   return errors;
 }
