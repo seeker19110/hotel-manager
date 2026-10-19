@@ -1,6 +1,6 @@
 # PROGRESS.md — Hotel Manager
 ## Đang làm
-- Đợt 12 (D-075, 2026-10-19 — gia cố rào treo sau review đợt 10): #76 T-1101 Semgrep bắt `JSON.stringify(<người>)`/`log.child({ user })` (đã merge) · #77 T-1102 server E2E chờ Next đóng để log đủ dòng cuối · #79 T-1105 test rate-limit không đỏ khi vắt ranh giới phút (đã port vào #77) · **#78 T-1103** ratchet i18n bắt `{n} phòng` + 26 đoạn sang `t()` — CI xanh trừ `pr-policy` (thiếu nhãn `risk:money`/`risk:data`), chạm `thu-tien`/`ky-thu`/`hop-dong` ⇒ **người merge** (D-076, `loop defer`).
+- Đợt 12 (D-075, 2026-10-19 — gia cố rào treo sau review đợt 10): đã merge #76 T-1101 Semgrep bắt `JSON.stringify(<người>)`/`log.child({ user })` · #77 T-1102 server E2E chờ Next đóng để log đủ dòng cuối · #79 T-1105 test rate-limit không đỏ khi vắt ranh giới phút · **#78 T-1103** ratchet i18n bắt `{n} phòng` + 26 đoạn sang `t()` — CI xanh trừ `pr-policy` (thiếu nhãn `risk:money`/`risk:data`), chạm `thu-tien`/`ky-thu`/`hop-dong` ⇒ **người merge** (D-076, `loop defer`).
 - Trước đó: đợt 10–11 xong (#59…#75). `blueprint-status --strict`: MUST đạt 341 · miễn/không áp dụng 59 · **mở 101** — đều cần người (BLUEPRINT-GAPS 'Kết quả đợt 9 (a)'). GO-NO-GO: NO-GO (7 BLOCKER). Autopilot `done-pending-human`.
 
 ## Tiếp theo
@@ -32,6 +32,6 @@
 - Bài học đợt 5–8: Better Auth `/sign-in/email` 20 lần/phút theo IP; `<dialog>` phát `close` sau một task (`onClose` chỉ xoá trạng thái khi hộp thật sự đóng); chạy lại job CI dùng payload sự kiện cũ (cần push mới); test giá trị ngẫu nhiên phải loại ca biên (IP octet 0); không so thời gian tuyệt đối (so tương đối); hai lát song song có thể đụng nhau qua rào mới.
 
 ## Bàn giao phiên
-- `main` = `4f4be1e` (#76). Nhánh lát: `claude/pensive-goodall-su2muq-t1102` (#77), `-t1103` (#78), `-t1105` (#79); worktree `../hm-w12{a,b,c,d}`.
+- `main` = `f2262da` (#76, #79, #77 đã merge). Còn mở: #78 (`claude/pensive-goodall-su2muq-t1103`, đã cập nhật với main, người merge) và #80 (tài liệu đợt 12); worktree `../hm-w12{a,b,c,d}`.
 - Lệnh kiểm nhanh: `.xtemplates/scripts/dev-task.sh gate` · `pnpm test:db` · `E2E_PORT=<cổng riêng> pnpm --filter @hm/web exec playwright test` · `bash scripts/db-backup-restore-check.sh`. Container mới: `bash scripts/dev-env-setup.sh && bash scripts/dev-env-setup.sh --only gitleaks` rồi `pnpm install --frozen-lockfile` (thiếu gitleaks ⇒ `loop verify` đỏ ở WF-GIT-010, exit 127). Không chạy E2E song song với `loop verify` (T-402 đỏ do tranh CPU).
 - Đang chặn: chờ người (mục *Tiếp theo* 1–2). Autopilot: `done-pending-human` (một phiên).

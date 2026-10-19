@@ -16,9 +16,9 @@ Không tick mục mới: MUST mở vẫn **101**, đều cần người (bảng 
 | Task | PR | Kết quả |
 |---|---|---|
 | T-1101 | #76 (đã merge) | Semgrep `hm-log-pii-stringify(-fn)`, `hm-log-pii-child`: `JSON.stringify(<người/request>)` trong lời gọi log và object người gắn vào logger con bị chặn; fixture xấu/tốt, đột biến bị bắt |
-| T-1102 | #77 | Server E2E chờ Next đóng stdio + log ghi xong (trần 10 s) — log có cả `web.shutdown_*` |
+| T-1102 | #77 (đã merge) | Server E2E chờ Next đóng stdio + log ghi xong (trần 10 s) — log có cả `web.shutdown_*` |
 | T-1103 | #78 (**người merge**) | Ratchet i18n bắt chữ JSX sau biểu thức; 26 đoạn sang `t()` (24 khoá), baseline chỉ giảm; CI xanh trừ `pr-policy` (nhãn `risk:*` chưa có) |
-| T-1105 | #79 | Test `webhook-rate-limit.db` không đỏ khi chạy vắt ranh giới phút (làm `gate` của #77 đỏ) |
+| T-1105 | #79 (đã merge) | Test `webhook-rate-limit.db` không đỏ khi chạy vắt ranh giới phút (làm `gate` của #77 đỏ) |
 
 **Còn treo (🟢, review #78):** lookbehind `(?<!\$)` bỏ sót chữ JSX kết thúc bằng `$`; test bộ đếm nên `toBe(3)` và có ca template lồng; tách chuỗi bằng regex không hiểu template lồng nên tệp TS thuần (`exports.ts`, `stay/*.ts`) có đoạn "chữ JSX" giả (tổng không đổi); vài khoá dịch là mảnh câu quanh `<strong>`, tên tham số `t()` không được kiểm kiểu; chữ JSX chứa `//` vẫn bị coi là chú thích. Đề xuất: khi chuyển chuỗi theo màn (XC-I18N-001) đổi bộ đếm sang trình phân tích TSX thật và khoá kiểu tham số.
 
