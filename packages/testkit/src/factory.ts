@@ -18,8 +18,13 @@ export async function seedAuthUser(
   admin: Kysely<unknown>,
   email: string,
   id: string = randomUUID(),
+  /**
+   * Mặc định `true` để seed người thuê/nhân viên dùng được ngay (D-081: quyền người thuê cần email đã xác minh). Production: đăng ký mật
+   * khẩu cho `false` — test cần đúng thực tế truyền `false` hoặc đi qua `/sign-up/email` thật.
+   */
+  verified = true,
 ): Promise<string> {
-  await sql`insert into auth."user" (id, name, email, "emailVerified") values (${id}, ${email}, ${email}, true)`.execute(
+  await sql`insert into auth."user" (id, name, email, "emailVerified") values (${id}, ${email}, ${email}, ${verified})`.execute(
     admin,
   );
   return id;

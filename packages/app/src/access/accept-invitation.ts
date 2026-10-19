@@ -92,6 +92,11 @@ export async function acceptInvitation(
       for (const p of row.property_ids)
         await sql`insert into property_scopes (id, organization_id, membership_id, property_id)
                   values (gen_random_uuid(), ${orgId}, ${membershipId}, ${p})`.execute(trx);
+      // Token mời chỉ gửi tới hộp thư được mời và người nhận phải đăng nhập ĐÚNG email đó ⇒ nhận lời mời là bằng chứng sở hữu hộp thư
+      // (đăng ký mật khẩu không xác minh email). Nhân viên nhờ vậy dùng được vai người thuê ở tổ chức khác (S-012; AUD-SEC-001, D-081).
+      await sql`update auth."user" set "emailVerified" = true, "updatedAt" = now() where id = ${req.userId}`.execute(
+        trx,
+      );
       await sql`update invitations set status = 'accepted', accepted_at = now(), membership_id = ${membershipId},
                        person_id = ${personId}
                 where organization_id = ${orgId} and id = ${inv.id}`.execute(trx);

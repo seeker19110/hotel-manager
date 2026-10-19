@@ -209,7 +209,7 @@ export function createAuth(deps: AuthDeps) {
           before: async (session, context) => {
             if (context?.path === "/sign-in/email-otp") return;
             if (typeof session.userId === "string" && (await tenantOnlyUser(session.userId)))
-              throw new APIError("FORBIDDEN", { message: "tenant sign-in requires email OTP" });
+              throw new APIError("UNAUTHORIZED", { message: "Invalid email or password" }); // cùng phản hồi mật khẩu sai: không lộ tài khoản là người thuê
           },
         },
       },

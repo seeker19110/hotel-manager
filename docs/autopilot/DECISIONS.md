@@ -598,3 +598,10 @@
 - Chọn: Bỏ hook dọn; thêm databaseHooks.session.create.before: tài khoản chỉ-còn-tenant (otp_sign_in_allowed) chỉ tạo phiên qua /sign-in/email-otp; giữ cổng emailVerified ở resolveActor; ẩn tổ chức của tenant chưa xác minh khỏi listMyOrganizations
 - Lý do (tiêu chí chất lượng cuối): Đúng và an toàn: chặn tại điểm tạo phiên đóng mọi đường (mật khẩu, TOTP chờ sẵn, đua) bằng một điều kiện, không phụ thuộc thứ tự nội bộ của Better Auth; đơn giản hơn khoá chung. Tài khoản cũ đã verified còn credential cũng bị chặn phiên vì cùng điều kiện (không cần migration dọn). Thay phần hook của D-081; giữ cổng emailVerified.
 - Đường lùi: Revert PR #100
+
+### D-083 · 2026-10-19T17:28:05+00:00 · S-012 sau D-082: nhân viên đăng ký mật khẩu luôn emailVerified=false nên không dùng được vai người thuê ở tổ chức khác (review Opus). Cho nhân viên đường chứng minh hộp thư thế nào?
+
+- Phương án: (1) Nhận lời mời nhân viên bằng token gửi email (đã bắt buộc đăng nhập đúng email) đặt emailVerified=true · (2) Sửa SPEC S-012: nhân viên không được là người thuê · (3) Luồng OTP xác minh riêng cho nhân viên
+- Chọn: Nhận lời mời nhân viên bằng token gửi email (đã bắt buộc đăng nhập đúng email) đặt emailVerified=true
+- Lý do (tiêu chí chất lượng cuối): Đúng và an toàn: token 256 bit chỉ gửi tới hộp thư được mời nên nhận lời mời là bằng chứng sở hữu tương đương OTP; không đổi SPEC, không luồng mới; kẻ squat email người thuê không có token nhân viên của nạn nhân. Chủ trọ tự đăng ký (org.create) vẫn chưa xác minh — dùng được vai người thuê ở tổ chức khác chỉ sau khi nhận một lời mời nhân viên; chấp nhận. Seed test: tham số verified, mặc định true.
+- Đường lùi: Bỏ dòng update emailVerified ở accept-invitation
