@@ -4,8 +4,9 @@ name: pr-steward
 # chính kể cả khi phiên agent đã dừng, container khởi động lại hay PR do phiên khác mở. Job gọi `xt.py pr steward --apply`
 # (chỉ khi nhánh đích có required check — T-1107, xem bước steward):
 # với MỌI PR đang mở → `pr next` (cùng luật với phiên agent: làn chuẩn cần review sạch ở đúng head — review đọc từ comment
-# `pr reviewed` đã đăng lên PR) → bật auto-merge / merge ghim head / tắt auto-merge khi cần. Việc cần người hoặc agent
-# (review, sửa, cập nhật nhánh, ngoại lệ cứng) chỉ ghi vào bản tóm tắt của run.
+# `pr reviewed` đã đăng lên PR) → bật auto-merge / merge ghim head / tắt auto-merge khi cần / cập nhật nhánh tụt sau nhánh
+# đích (D-061 của khung, chỉ khi có XT_STEWARD_TOKEN). Việc cần người hoặc agent (review, sửa, ngoại lệ cứng) chỉ ghi vào
+# bản tóm tắt của run.
 #
 # An toàn: không trigger `pull_request*`, job chỉ checkout NHÁNH MẶC ĐỊNH (không code của PR) và chạy `xt.py` ở đó;
 # `issue_comment` chỉ chạy khi comment mang dấu review của OWNER/COLLABORATOR/MEMBER (MEMBER: `xt.py` hỏi quyền ghi repo
@@ -14,7 +15,8 @@ name: pr-steward
 # `xt-standard-lane` để giữ chặt (cần review sạch ở head) kể cả khi diff thu nhỏ sau đó.
 # Token: `XT_STEWARD_TOKEN` (fine-grained PAT hoặc GitHub App: contents + pull requests: write) nếu có — merge do token
 # này làm sẽ kích workflow `push` trên nhánh chính; không có thì dùng GITHUB_TOKEN (merge vẫn vào, nhưng GitHub không
-# chạy workflow `push` cho commit do GITHUB_TOKEN tạo). Repo phải bật Settings → General → "Allow auto-merge".
+# chạy workflow `push` cho commit do GITHUB_TOKEN tạo; cũng không chạy `pull_request` cho commit cập nhật nhánh — nên
+# không có XT_STEWARD_TOKEN thì steward không tự cập nhật nhánh, chỉ báo). Repo phải bật Settings → General → "Allow auto-merge".
 on:
   schedule:
     - cron: "*/10 * * * *"
@@ -63,6 +65,7 @@ jobs:
           GH_TOKEN: ${{ secrets.XT_STEWARD_TOKEN || github.token }}
           GH_REPO: ${{ github.repository }}
           PR: ${{ inputs.pr || github.event.issue.number || '' }}
+          XT_STEWARD_UPDATE: ${{ secrets.XT_STEWARD_TOKEN != '' && 'on' || 'off' }}
           BASE: ${{ github.event.repository.default_branch }}
         run: |
           set -uo pipefail

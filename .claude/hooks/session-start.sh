@@ -31,8 +31,18 @@ $(py_run "$XT" loop status 2>/dev/null || echo 'không đọc được trạng t
 fi
 
 if git -C "$XT_ROOT" rev-parse --git-dir >/dev/null 2>&1; then
+  branch="$(git -C "$XT_ROOT" branch --show-current 2>/dev/null)"
+  # Tên repo: đuôi URL remote origin (bỏ .git), không có remote thì tên thư mục gốc (LOOP-HARNESS-028).
+  repo="$(git -C "$XT_ROOT" remote get-url origin 2>/dev/null | sed -e 's#/*$##' -e 's#\.git$##' -e 's#.*[/:]##')"
+  [ -n "$repo" ] || repo="$(basename "$XT_ROOT")"
+  if [ -n "$branch" ] && [ "$branch" != "main" ] && [ "$branch" != "master" ]; then
+    name_hint="Tên phiên: \"$repo — $branch\" — đặt ngay nếu phiên chưa mang tên này (Claude Code: /rename; phiên cloud: tool set_session_title)."
+  else
+    name_hint="Tên phiên: \"$repo — <nhánh>\" — tạo nhánh làm việc (<type>/<mô-tả-ngắn>) rồi đặt tên phiên (Claude Code: /rename; phiên cloud: tool set_session_title)."
+  fi
   ctx+="===== Git =====
-Branch: $(git -C "$XT_ROOT" branch --show-current 2>/dev/null)
+Branch: $branch
+$name_hint
 Chưa commit: $(git -C "$XT_ROOT" status --short 2>/dev/null | wc -l | tr -d ' ') file
 $(git -C "$XT_ROOT" log --oneline -3 2>/dev/null)
 

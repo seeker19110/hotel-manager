@@ -69,4 +69,5 @@ Autopilot bắt đầu bằng `python3 .xtemplates/scripts/xt.py doctor --fix` (
 - Đặt tên / kiến trúc / thư viện chính và lý do: [ĐIỀN hoặc trỏ ADR]
 - Môi trường & secrets: [ĐIỀN cách nạp — không ghi giá trị]
 - UI (bỏ nếu không có giao diện): hướng thiết kế lấy từ `DESIGN.md` của dự án, skill chỉ là bộ lọc; màu/khoảng cách/cỡ chữ lấy từ token; mỗi nền đặc có token chữ đi kèm (`--on-*`/`*-foreground`) và cặp đó trong file `--pairs`; chỉ báo xong việc UI khi `python3 .xtemplates/scripts/xt.py contrast <theme.css> --pairs <file>` xanh (`UX-DS-003`, `UX-DS-020`).
+- Tên phiên: `<Tên repo> — <tên nhánh>` (nhánh do agent tự đặt `<type>/<mô-tả-ngắn>`; Claude Code `/rename`, phiên cloud `set_session_title`; hook SessionStart in gợi ý — `LOOP-HARNESS-028`).
 - Giao tiếp: tiếng Việt có dấu, ngắn, dẫn đầu bằng kết quả; báo cáo cuối việc: đã làm · bằng chứng · quyết định tự duyệt (D-NNN) · còn treo · đề xuất.

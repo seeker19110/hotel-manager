@@ -3397,6 +3397,12 @@ def _merge_blockers(pr: Dict[str, Any]) -> Optional[Tuple[str, List[str]]]:
         return "fix", ["reviewer yêu cầu sửa"]
     if pr.get("mergeStateStatus") == "BEHIND":
         return "update", ["nhánh tụt sau nhánh đích — cập nhật rồi chờ CI chạy lại"]
+    missing = [str(m) for m in pr.get("missingRequired") or []]
+    if missing:  # mọi check đã xong mà check bắt buộc vẫn vắng: sẽ không bao giờ tự xuất hiện
+        return "human", [
+            f"ruleset đòi check bắt buộc không có trên head: {', '.join(missing)} — thêm job đúng tên đó vào workflow hoặc "
+            "bỏ khỏi ruleset (GitHub báo BLOCKED vì thiếu check; ruleset còn đòi review thì vẫn cần người duyệt)"
+        ]
     if pr.get("mergeable") != "MERGEABLE":
         return "wait", ["GitHub chưa tính xong mergeable"]
     return None
@@ -3451,7 +3457,7 @@ def merge_decision(
     base, head = pr.get("baseRefName") or "main", pr.get("headRefOid", "")
     nxt = {
         "merge": f"gh pr merge {n} --squash --match-head-commit {head}",
-        "update": f"git fetch origin {base} && git merge origin/{base} && git push (hoặc gh pr update-branch {n})",
+        "update": f"gh api -X PUT repos/{{owner}}/{{repo}}/pulls/{n}/update-branch -f expected_head_sha={head} (hoặc git merge origin/{base} && git push)",
         "wait": "chờ rồi chạy lại merge-check",
         "fix": "sửa, push, chạy lại merge-check",
         "human": "để người merge; báo cáo lý do",
@@ -3466,6 +3472,7 @@ def merge_decision(
         # L3 (ADR-0015, ADR-0024): guard cho bật auto-merge của GitHub (làn chuẩn sau review sạch, làn nhanh khi mở) — trừ PR chồng (nhắm nhánh sắp bị xoá).
         "autonomy": autonomy,
         "stacked": _stacked_blocker(pr) is not None,
+        "base_merge_of": [str(x) for x in pr.get("baseMergeOf") or [] if isinstance(x, str)],
         "hard": hard,  # ngoại lệ cứng: guard không bật auto-merge (ADR-0016)
         "hard_waived": waived,  # ngoại lệ cứng chủ dự án cho máy merge (ADR-0020) — chỉ để người đọc lại
         "reasons": reasons,
@@ -3742,9 +3749,10 @@ def _member_can_write(repo: str, assoc: object, login: object) -> Optional[str]:
     return None
 
 
-def _review_decision(reviews: List[Dict[str, Any]], merge_state: str) -> str:
+def _review_decision(reviews: List[Dict[str, Any]], merge_state: str, missing_checks: bool = False) -> str:
     """Như `reviewDecision` của GraphQL: review mới nhất của mỗi người (bỏ COMMENTED; DISMISSED xoá). REST không cho biết
-    ruleset/branch protection đòi review, nên `mergeable_state` BLOCKED (GitHub tính cả protection cổ điển) → cần người."""
+    ruleset/branch protection đòi review, nên `mergeable_state` BLOCKED (GitHub tính cả protection cổ điển) → cần người —
+    trừ khi đã biết BLOCKED vì thiếu check bắt buộc (`missing_checks`), không phải vì review."""
     latest: Dict[str, str] = {}
     for rv in reviews:
         user, st = (rv.get("user") or {}).get("login"), str(rv.get("state", "")).upper()
@@ -3753,9 +3761,96 @@ def _review_decision(reviews: List[Dict[str, Any]], merge_state: str) -> str:
     states = set(latest.values())
     if "CHANGES_REQUESTED" in states:
         return "CHANGES_REQUESTED"
-    if merge_state == "BLOCKED":
+    if merge_state == "BLOCKED" and not missing_checks:
         return "REVIEW_REQUIRED"
     return "APPROVED" if "APPROVED" in states else ""
+
+
+def _required_checks(repo: str, branch: str) -> List[str]:
+    """Tên check bắt buộc của nhánh theo ruleset (REST `rules/branches`); không đọc được → [] (không suy ra gì)."""
+    try:
+        rules = _gh_items(f"{repo}/rules/branches/{urllib.parse.quote(branch, safe='')}")
+    except PrInputError:
+        return []
+    out: List[str] = []
+    for r in rules:
+        params = r.get("parameters") if r.get("type") == "required_status_checks" else None
+        for c in (params or {}).get("required_status_checks") or []:
+            if isinstance(c, dict) and c.get("context") and c["context"] not in out:
+                out.append(str(c["context"]))
+    return out
+
+
+BASE_MERGE_HOPS = 5  # số lần "cập nhật nhánh" liên tiếp tối đa được lần ngược khi mang review sang head mới
+COMPARE_FILES_MAX = 300  # REST compare cắt danh sách file ở 300: nhiều hơn thì không mang review sang
+_CHAIN_CACHE: Dict[Tuple[str, str, str], List[str]] = {}
+
+
+def _pr_change_set(repo: str, base_sha: str, sha: str) -> Optional[Set[Tuple[str, str, str, str]]]:
+    """Thay đổi của nhánh so với nhánh đích (compare ba chấm: tính từ merge-base) dạng {(file, file cũ, trạng thái, blob
+    SHA)}; không đọc được hoặc bị cắt → None."""
+    try:
+        cmp = _gh_one(f"{repo}/compare/{base_sha}...{sha}")
+    except PrInputError:
+        return None
+    files = [f for f in cmp.get("files") or [] if isinstance(f, dict)]
+    if not files or len(files) >= COMPARE_FILES_MAX:
+        return None
+    return {
+        (str(f.get("filename")), str(f.get("previous_filename") or ""), str(f.get("status")), str(f.get("sha")))
+        for f in files
+    }
+
+
+def _base_touches(repo: str, old_head: str, base_sha: str, names: Set[str]) -> bool:
+    """Nhánh đích, kể từ merge-base với head cũ, có chạm file nào của PR không (compare `old_head...base_sha`). Có chạm
+    thì merge giữ nguyên blob phía PR vẫn có thể đã gỡ thay đổi của nhánh đích (giải xung đột "giữ bản của mình") — không
+    mang review (review #153). Lỗi đọc hoặc danh sách bị cắt → coi như có chạm."""
+    try:
+        cmp = _gh_one(f"{repo}/compare/{old_head}...{base_sha}")
+    except PrInputError:
+        return True
+    files = [f for f in cmp.get("files") or [] if isinstance(f, dict)]
+    if len(files) >= COMPARE_FILES_MAX:
+        return True
+    return any({str(f.get("filename")), str(f.get("previous_filename") or "")} & names for f in files)
+
+
+def _commit_parents(repo: str, sha: str) -> List[str]:
+    try:
+        got = _gh_one(f"{repo}/commits/{sha}").get("parents") or []
+    except PrInputError:
+        return []
+    return [str(x.get("sha")) for x in got if isinstance(x, dict)]
+
+
+def _base_merge_chain(repo: str, base_sha: str, head: str) -> List[str]:
+    """Các head trước đó mà head hiện tại chỉ là "cập nhật nhánh" sạch của chúng (ADR-0027, D-061): head là merge commit,
+    cha đầu là head cũ, và thay đổi của PR so với nhánh đích (file + blob SHA) giữ nguyên — merge không sửa gì trong phần
+    của PR, không giải xung đột — và nhánh đích không chạm file nào của PR (`_base_touches`). Review sạch ở head cũ khi đó
+    vẫn đúng cho head mới. Lỗi đọc → [] (phải rà lại). Chỉ hỏi `compare` khi head là merge commit (`merge-watch` gọi 30
+    giây/lần); chuỗi tìm được nhớ theo (repo, base, head) trong tiến trình."""
+    key = (repo, base_sha, head)
+    if key in _CHAIN_CACHE:
+        return _CHAIN_CACHE[key]
+    chain: List[str] = []
+    cur, cur_set = head, None
+    while base_sha and len(chain) < BASE_MERGE_HOPS:
+        parents = _commit_parents(repo, cur)
+        if len(parents) != 2:
+            break
+        cur_set = cur_set if cur_set is not None else _pr_change_set(repo, base_sha, cur)
+        if cur_set is None or _pr_change_set(repo, base_sha, parents[0]) != cur_set:
+            break
+        names = {x for f in cur_set for x in f[:2] if x}
+        # cả nhánh đích hiện tại lẫn cha thứ hai thật của merge (không phụ thuộc `base.sha` của API còn cũ — review #153)
+        if _base_touches(repo, parents[0], base_sha, names) or _base_touches(repo, parents[0], parents[1], names):
+            break
+        chain.append(parents[0])
+        cur = parents[0]
+    if chain:  # SHA bất biến: chuỗi đã tìm được không đổi; [] có thể do lỗi đọc nên không nhớ
+        _CHAIN_CACHE[key] = chain
+    return chain
 
 
 def _pr_rest(pr_arg: Optional[str]) -> Dict[str, Any]:
@@ -3805,6 +3900,13 @@ def _pr_rest(pr_arg: Optional[str]) -> Dict[str, Any]:
     mergeable = pr.get("mergeable")  # REST: true · false · null (GitHub đang tính)
     raw_base = pr.get("base")
     base: Dict[str, Any] = raw_base if isinstance(raw_base, dict) else {}
+    # BLOCKED có thể vì ruleset đòi check mà head không có (không workflow nào sinh) — không phải thiếu review.
+    seen = {str(c.get("name") or c.get("context")) for c in rollup}
+    missing = (
+        [c for c in _required_checks(repo, str(base.get("ref") or "main")) if c not in seen]
+        if merge_state == "BLOCKED"
+        else []
+    )
     base_repo: Dict[str, Any] = base["repo"] if isinstance(base.get("repo"), dict) else {}
     # Đáy của phép so khoá/ủy quyền = merge-base (diff ba chấm như danh sách file), chỉ hỏi khi có file cần so.
     gated = any(isinstance(f, dict) and _gated_file(f) for f in files)
@@ -3834,7 +3936,10 @@ def _pr_rest(pr_arg: Optional[str]) -> Dict[str, Any]:
         "isDraft": bool(pr.get("draft")),
         "mergeable": "MERGEABLE" if mergeable is True else "CONFLICTING" if mergeable is False else "UNKNOWN",
         "mergeStateStatus": merge_state,
-        "reviewDecision": _review_decision(reviews, merge_state),
+        "reviewDecision": _review_decision(reviews, merge_state, bool(missing)),
+        **({"missingRequired": missing} if missing else {}),
+        # Head là "cập nhật nhánh" sạch của các head này (mới → cũ): review sạch ở chúng mang sang head hiện tại.
+        **({"baseMergeOf": chain} if (chain := _base_merge_chain(repo, str(base.get("sha", "")), sha)) else {}),
         "headRefOid": sha,
         "labels": [{"name": lb.get("name", "")} for lb in pr.get("labels") or [] if isinstance(lb, dict)],
         "statusCheckRollup": rollup,
@@ -5382,7 +5487,8 @@ def _pr_next_review(
 ) -> Optional[Dict[str, Any]]:
     """Làn chuẩn (1)/(4)/(6): chỉ đi tiếp khi review sạch ở đúng head hiện tại."""
     n, head = d.get("pr", ""), str(d.get("head", ""))
-    if last is None or last.get("head") != head:
+    carried = last is not None and last.get("clean") and last.get("head") in (d.get("base_merge_of") or [])
+    if last is None or (last.get("head") != head and not carried):
         since = f"{last.get('head')}..{head}" if last else "cả PR"
         if auto_merge:
             return act("disable-auto-merge", f"head {head[:7]} chưa được rà mà auto-merge đang bật", disable)
@@ -5625,7 +5731,25 @@ def _steward_command(out: Dict[str, Any], repo: str) -> List[List[str]]:
         return [auto, merge] if out.get("fallback") else [auto]
     if action == "disable-auto-merge":
         return [["gh", "pr", "merge", n, "--disable-auto"]]
+    if action == "update" and _steward_can_update():  # tụt sau nhánh đích: GitHub tạo merge commit, ghim head đang thấy
+        return [_update_branch_cmd(repo, n, head)]
     return []
+
+
+def _steward_can_update() -> bool:
+    """`XT_STEWARD_UPDATE=off` (workflow chạy bằng GITHUB_TOKEN): commit cập nhật nhánh do GITHUB_TOKEN tạo không kích
+    workflow `pull_request` → head mới không có check, PR kẹt chờ check bắt buộc (review #153) — chỉ báo. Không đặt biến
+    mà đang chạy trong GitHub Actions (workflow `pr-steward.yml` cũ của dự án đích, chưa chép bản mới) → coi như `off`."""
+    flag = os.environ.get("XT_STEWARD_UPDATE", "").strip().lower()
+    if flag in ("on", "true", "1", "yes"):
+        return True
+    if flag:  # off/false/0/no và mọi giá trị lạ: chiều chặt (review #154)
+        return False
+    return os.environ.get("GITHUB_ACTIONS", "").strip().lower() != "true"
+
+
+def _update_branch_cmd(repo: str, n: str, head: str) -> List[str]:
+    return ["gh", "api", "-X", "PUT", f"{repo}/pulls/{n}/update-branch", "-f", f"expected_head_sha={head}"]
 
 
 def _steward_run(cmds: List[List[str]]) -> str:
@@ -5681,10 +5805,25 @@ def _steward_one(pr_arg: str, repo: str, base: Path, apply: bool, gh_repo: List[
             if out["action"] != "disable-auto-merge":  # tắt auto-merge (giữ PR lại) vẫn chạy
                 return out
     cmds = [c[:3] + gh_repo + c[3:] if c[:3] == ["gh", "pr", "merge"] else c for c in _steward_command(out, repo)]
-    cmds = cmds if apply else []
+    return _steward_apply(out, d, repo, cmds if apply else [])
+
+
+def _steward_apply(out: Dict[str, Any], d: Dict[str, Any], repo: str, cmds: List[List[str]]) -> Dict[str, Any]:
+    can_update = _steward_can_update()
+    if out["action"] == "update" and not can_update:
+        out["why"] = (
+            f"{out.get('why', '')} — steward chạy bằng GITHUB_TOKEN không cập nhật nhánh (CI không chạy trên head mới);"
+            " đặt XT_STEWARD_TOKEN"
+        )
     if cmds:
         err = _steward_run(cmds)
         out.update(applied=not err, **({"error": err} if err else {}))
+        # Tụt sau nhánh đích mà auto-merge đang bật: vừa tắt xong thì cập nhật nhánh luôn trong lượt này.
+        if not err and out["action"] == "disable-auto-merge" and d.get("verdict") == "update" and can_update:
+            up_err = _steward_run([_update_branch_cmd(repo, str(d["pr"]), str(out["head"]))])
+            out["then"] = "update" + (f" ✗ {up_err}" if up_err else " ✓")
+            if up_err:
+                out["error"] = up_err
     return out
 
 
@@ -5693,7 +5832,8 @@ REPO_SLUG_RE = re.compile(r"[\w.-]+/[\w.-]+")
 
 def cmd_pr_steward(args: argparse.Namespace) -> int:
     """Quản PR không cần phiên agent (ADR-0027): mọi PR mở (hoặc `--pr`) → `pr next`; `--apply` thì tự bật/tắt
-    auto-merge, merge ghim head. Việc cần người/agent (review, sửa, cập nhật nhánh) chỉ báo."""
+    auto-merge, merge ghim head, cập nhật nhánh tụt sau nhánh đích (trừ khi `XT_STEWARD_UPDATE=off`). Việc cần
+    người/agent (review, sửa) chỉ báo."""
     if args.repo and not REPO_SLUG_RE.fullmatch(args.repo):
         print(f"✗ --repo phải dạng owner/repo, không phải {args.repo!r}", file=sys.stderr)
         return 2
@@ -5711,7 +5851,8 @@ def cmd_pr_steward(args: argparse.Namespace) -> int:
     target = (lambda n: f"https://github.com/{args.repo}/pull/{n}") if args.repo else (lambda n: n)
     results = [_steward_one(target(n), repo, project_dir(), args.apply, gh_repo) for n in nums]
     lines = [
-        f"#{r['pr']} {r['action']}{' ✓' if r.get('applied') else ''}{' ✗ ' + r['error'] if r.get('error') else ''}"
+        f"#{r['pr']} {r['action']}{' ✓' if r.get('applied') else ''}{' → ' + r['then'] if r.get('then') else ''}"
+        f"{' ✗ ' + r['error'] if r.get('error') and not r.get('then') else ''}"
         f" — {r['why']}{' ⚠ ' + r['warn'] if r.get('warn') else ''}"
         for r in results
     ]

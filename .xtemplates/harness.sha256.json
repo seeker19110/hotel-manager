@@ -9,7 +9,7 @@
   ".claude/hooks/pre-compact.sh": "d3e0e24d6c87a32094bdd47f25075d57a07f34fc5614286af3134f52e64b69b8",
   ".claude/hooks/pre-edit-guard.sh": "6554aa874433576d8c8cf96435889abc1d250b7867ff6c53237fa1b0f3b55c93",
   ".claude/hooks/pre-mcp-guard.sh": "a3bffc29e4a6ea6876dfe6b1383eda29d8201aa7e1ccda1c3368e6441a87c4a3",
-  ".claude/hooks/session-start.sh": "4922fd5d0486c911884ca0b46d1b212b3c8975939bd9b87f7201ec90d378aff5",
+  ".claude/hooks/session-start.sh": "ee3add909da18dd702bd1dfaf9cc6a8dfad014775b979880fdbce88bdb90862a",
   ".claude/hooks/stop-guard.sh": "939668879dd4789fe0a1a7cf9243f100cbab04e4dd827f9c3448666d3d485f34",
   ".claude/skills/adr/SKILL.md": "6956c80e99464223ed14d6995099370041daa6e7becda66b776cbc28402312ec",
   ".claude/skills/audit/SKILL.md": "cad115d8302efa140f50085fb1a1c426a926038272c66e9537d83b914a2479b9",
