@@ -1,0 +1,72 @@
+name: pr-steward
+
+# Quản PR không cần phiên agent (ADR-0027, D-054): PR đủ tiêu chuẩn theo "merge theo làn" (ADR-0024/0025) phải vào nhánh
+# chính kể cả khi phiên agent đã dừng, container khởi động lại hay PR do phiên khác mở. Job gọi `xt.py pr steward --apply`:
+# với MỌI PR đang mở → `pr next` (cùng luật với phiên agent: làn chuẩn cần review sạch ở đúng head — review đọc từ comment
+# `pr reviewed` đã đăng lên PR) → bật auto-merge / merge ghim head / tắt auto-merge khi cần. Việc cần người hoặc agent
+# (review, sửa, cập nhật nhánh, ngoại lệ cứng) chỉ ghi vào bản tóm tắt của run.
+#
+# An toàn: không trigger `pull_request*`, job chỉ checkout NHÁNH MẶC ĐỊNH (không code của PR) và chạy `xt.py` ở đó;
+# `issue_comment` chỉ chạy khi comment mang dấu review của OWNER/COLLABORATOR. PR từ fork hoặc của tác giả không có quyền
+# ghi repo không bao giờ được steward tự merge (chỉ báo — người merge). PR từng vào làn chuẩn được gắn nhãn
+# `xt-standard-lane` để giữ chặt (cần review sạch ở head) kể cả khi diff thu nhỏ sau đó.
+# Token: `XT_STEWARD_TOKEN` (fine-grained PAT hoặc GitHub App: contents + pull requests: write) nếu có — merge do token
+# này làm sẽ kích workflow `push` trên nhánh chính; không có thì dùng GITHUB_TOKEN (merge vẫn vào, nhưng GitHub không
+# chạy workflow `push` cho commit do GITHUB_TOKEN tạo). Repo phải bật Settings → General → "Allow auto-merge".
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: "Chỉ PR này (số); để trống = mọi PR mở"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-steward
+  cancel-in-progress: false
+
+jobs:
+  steward:
+    name: pr-steward
+    # issue_comment: chỉ comment trên PR, mang dấu review, của người có quyền ghi repo (dấu giả của người ngoài bỏ qua).
+    if: >-
+      github.event_name != 'issue_comment' || (
+        github.event.issue.pull_request &&
+        contains(github.event.comment.body, 'xt-review v1') &&
+        contains(fromJSON('["OWNER","COLLABORATOR"]'), github.event.comment.author_association)
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # merge
+      pull-requests: write # bật/tắt auto-merge, đọc PR
+      issues: write # đọc comment review; gắn nhãn xt-standard-lane
+      checks: read # merge-check đọc check-run
+      statuses: read # và commit status
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0 # merge-check đọc xt.yaml đã commit ở origin/<nhánh đích>
+
+      - name: pr steward — bật auto-merge / merge ghim head cho PR đủ tiêu chuẩn
+        env:
+          GH_TOKEN: ${{ secrets.XT_STEWARD_TOKEN || github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR: ${{ inputs.pr || github.event.issue.number || '' }}
+        run: |
+          set -uo pipefail
+          xt=scripts/xt.py
+          [ -f "$xt" ] || xt=.xtemplates/scripts/xt.py # dự án đích cài khung vào .xtemplates/
+          if [ -n "$PR" ]; then
+            python3 "$xt" pr steward --apply --repo "$GH_REPO" --pr "$PR"
+          else
+            python3 "$xt" pr steward --apply --repo "$GH_REPO"
+          fi
