@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { createTestDb, type SeededOrg, seedOrg, type TestDb } from "@hm/testkit";
 import { Kysely, PostgresDialect, sql } from "kysely";
 import pg from "pg";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { signSim } from "../ledger/bank-inbox.ts";
 import { rateLimitHit } from "./rate-limit.ts";
 import { handleWebhook } from "./webhook-route.ts";
@@ -42,6 +42,21 @@ const hits = async (scope: string, subject: string): Promise<number> =>
     await sql<{ n: number }>`select coalesce(sum(hits), 0)::int as n from rate_limit_counters
       where scope = ${scope} and subject = ${subject}`.execute(t.admin)
   ).rows[0]?.n ?? 0;
+
+/**
+ * Cửa sổ cố định 60 s theo đồng hồ thật: test gọi `now()` mà chạy vắt qua ranh giới phút thì bộ đếm về 0 giữa chừng
+ * (CI đỏ "lượt 2: used 1"). Còn < 5 s tới ranh giới thì chờ sang cửa sổ mới — mỗi test ở đây chạy dưới 5 s.
+ */
+const WINDOW_MS = 60_000;
+const EDGE_MARGIN_MS = 5_000;
+function msUntilSafeWindow(nowMs: number): number {
+  const left = WINDOW_MS - (nowMs % WINDOW_MS);
+  return left < EDGE_MARGIN_MS ? left + 50 : 0;
+}
+beforeEach(async () => {
+  const wait = msUntilSafeWindow(Date.now());
+  if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+});
 
 beforeAll(async () => {
   t = await createTestDb();
@@ -216,5 +231,17 @@ describe("webhook — giới hạn tần suất (BE-REL-006)", () => {
       t.admin,
     );
     expect(after.rows[0]?.n).toBe(before.rows[0]?.n);
+  });
+});
+
+describe("msUntilSafeWindow — tránh ranh giới cửa sổ", () => {
+  it("giữa cửa sổ ⇒ 0; sát ranh giới ⇒ chờ qua ranh giới; đúng ranh giới ⇒ 0", () => {
+    const base = Date.UTC(2026, 9, 19, 1, 46, 0);
+    expect(msUntilSafeWindow(base + 30_000)).toBe(0);
+    expect(msUntilSafeWindow(base + 54_999)).toBe(0);
+    expect(msUntilSafeWindow(base + 55_001)).toBe(4_999 + 50);
+    expect(msUntilSafeWindow(base + 59_999)).toBe(1 + 50);
+    expect(msUntilSafeWindow(base)).toBe(0);
+    expect((base + 59_999 + msUntilSafeWindow(base + 59_999)) % WINDOW_MS).toBe(50);
   });
 });
