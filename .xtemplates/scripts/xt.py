@@ -30,7 +30,7 @@ Lệnh:
   contrast FILE.css... [--pairs F] [--require-on a,b] [--json]
                                 Tương phản WCAG của cặp token (`--X`/`--X-foreground`, `--on-X`, cặp tường minh) ở mọi
                                 theme; thiếu token chữ cho `--primary` cũng đỏ (UX-DS-003/020).
-  vendor-check [--dirs a,b] [--allow X] [--strict] [--json]
+  vendor-check [--dirs a,b] [--allow X] [--own a,b] [--strict] [--json]
                                 Thư mục vendor có LICENSE/NOTICE/SOURCE, không điều khoản hạn chế; dò Preline/Commons
                                 Clause/CC BY-NC… trong package.json + ghi nguồn (CMP-LIC-022).
   progress-check [FILE]         PROGRESS.md: ≤ 8 KB, đúng 4 mục, SHA ở Bàn giao phiên là tổ tiên HEAD và có trên nhánh chính.
@@ -4791,7 +4791,16 @@ def cmd_contrast(args: argparse.Namespace) -> int:
 
 VENDOR_DIRS = ("vendor", "third_party", "third-party", "external")
 VENDOR_NOTICE_RE = re.compile(r"(LICEN[CS]E|COPYING|NOTICE|SOURCE|ORIGIN|README\.vendor)", re.I)
-VENDOR_RISKY_RE = re.compile(r"Commons Clause|Non-?Commercial|Fair Use License|\bBUSL\b|\bSSPL\b|Elastic License", re.I)
+VENDOR_RISKY_RE = re.compile(
+    r"Commons Clause|Non-?Commercial|\bCC[- ]BY(?:[- ]SA)?[- ]NC\b|Fair Use License|Tailwind (?:Plus|UI) License"
+    r"|\bBUSL\b|\bSSPL\b|Elastic License",
+    re.I,
+)
+VENDOR_SOURCE_RE = re.compile(
+    r"(SOURCE|ORIGIN)S?(\.\w+)?", re.I
+)  # file ghi nguồn tự viết: phải có `License:` và URL nguồn
+SKILLS_DIR = ".claude/skills"  # skill chép từ kho khác (UX-DS-022); skill của khung (manifest) và `--own` được bỏ qua
+HARNESS_MANIFEST = ".xtemplates/harness.sha256.json"
 NPM_ALIAS_RE = re.compile(r"npm:((?:@[^/@]+/)?[^@]+)")
 VENDOR_WATCHLIST = DEFAULT_FRAMEWORK / "16-compliance-privacy" / "ui-vendor-watchlist.json"
 VENDOR_READ_BYTES = 16384
@@ -4810,25 +4819,56 @@ def _read_head(p: Path) -> str:
         return fh.read(VENDOR_READ_BYTES).decode("utf-8", "replace")
 
 
-def vendor_dir_problems(base: Path, name: str) -> List[str]:
+def _harness_skills(base: Path) -> Set[str]:
+    """Tên skill do khung cài (`.claude/skills/<tên>/…` trong manifest của `install.py`) — không phải mã vendor."""
+    try:
+        files = json.loads((base / HARNESS_MANIFEST).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return set()
+    prefix = f"{SKILLS_DIR}/"
+    return {k[len(prefix) :].split("/")[0] for k in files if isinstance(files, dict) and k.startswith(prefix)}
+
+
+def vendor_dir_problems(base: Path, name: str, own: Set[str]) -> List[str]:
     """Mỗi mục trong thư mục vendor phải có LICENSE/NOTICE/SOURCE (hoặc có file ở chính thư mục vendor cho file lẻ) và
-    văn bản license không mang điều khoản hạn chế (Commons Clause, phi thương mại, Fair Use, BUSL, SSPL…)."""
+    văn bản license không mang điều khoản hạn chế (Commons Clause, phi thương mại, Fair Use, BUSL, SSPL…). `own`: mục tự
+    viết, không phải vendor (bỏ qua)."""
     root = base / name
     if not root.is_dir():
         return []
     shared = _vendor_notices(root)
     out: List[str] = []
     for child in sorted(root.iterdir()):
-        if child in shared:
+        if child in shared or child.name in own:
             continue
         notices = _vendor_notices(child) if child.is_dir() else shared
         if not notices:
             out.append(f"{name}/{child.name}: không có LICENSE/NOTICE/SOURCE ghi nguồn và license của mã vendor")
-    for note in sorted({p for c in root.iterdir() if c.is_dir() for p in _vendor_notices(c)} | set(shared)):
+    for note in sorted(
+        {p for c in root.iterdir() if c.is_dir() and c.name not in own for p in _vendor_notices(c)} | set(shared)
+    ):
         hit = VENDOR_RISKY_RE.search(_read_head(note))
         if hit:
             out.append(
                 f"{note.relative_to(base)}: license có điều khoản hạn chế ('{hit.group(0)}') — rà trước khi dùng"
+            )
+    return out
+
+
+def vendor_source_gaps(base: Path, name: str, own: Set[str]) -> List[str]:
+    """File SOURCE/ORIGIN tự viết thiếu dòng `License:` hoặc URL nguồn — cảnh báo (exit 1 khi `--strict`)."""
+    root = base / name
+    if not root.is_dir():
+        return []
+    notes = [n for c in sorted(root.iterdir()) if c.is_dir() and c.name not in own for n in _vendor_notices(c)]
+    out = []
+    for note in [*_vendor_notices(root), *notes]:
+        text = _read_head(note) if VENDOR_SOURCE_RE.fullmatch(note.name) else ""
+        if text and not (
+            re.search(r"^\s*[-*]?\s*[*_]*License[*_]*\s*:", text, re.I | re.M) and re.search(r"https?://", text)
+        ):
+            out.append(
+                f"{note.relative_to(base)}: ghi nguồn thiếu dòng `License:` hoặc URL repo gốc (kèm commit, ngày)"
             )
     return out
 
@@ -4881,14 +4921,17 @@ def cmd_vendor_check(args: argparse.Namespace) -> int:
     base = project_dir()
     asked = tuple(d.strip() for d in args.dirs.split(",") if d.strip()) if args.dirs else VENDOR_DIRS
     outside = [d for d in asked if not (base / d).resolve().is_relative_to(base.resolve())]
-    dirs = tuple(d.rstrip("/") for d in asked if d not in outside)
+    dirs = tuple(posixpath.normpath(d) for d in asked if d not in outside)
     allowed = {a.strip().lower() for a in (args.allow or "").split(",") if a.strip()}
+    own_names = {o.strip() for o in (args.own or "").split(",") if o.strip()}
+    own = {d: own_names | (_harness_skills(base) if d == SKILLS_DIR else set()) for d in dirs}
     watch = json.loads(VENDOR_WATCHLIST.read_text(encoding="utf-8")) if VENDOR_WATCHLIST.is_file() else {"entries": []}
-    problems = [p for d in dirs for p in vendor_dir_problems(base, d)]
+    problems = [p for d in dirs for p in vendor_dir_problems(base, d, own[d])]
     hits = [h for h in vendor_watch_hits(base, watch["entries"], dirs) if h["name"].lower() not in allowed]
     errors = [f"--dirs {d}: nằm ngoài dự án" for d in outside] + problems
     errors += [f"{h['name']} ({h['license']}): {h['why']}" for h in hits if h["level"] == "deny"]
     warns = [f"{h['name']} ({h['license']}): {h['why']}" for h in hits if h["level"] != "deny"]
+    warns += [g for d in dirs for g in vendor_source_gaps(base, d, own[d])]
     if args.json:
         print(
             json.dumps({"errors": errors, "warnings": warns, "checked": watch.get("checked", "")}, ensure_ascii=False)
@@ -6388,6 +6431,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     pvc.add_argument("--dirs", help="thư mục vendor, phẩy (mặc định vendor,third_party,third-party,external)")
     pvc.add_argument("--allow", help="tên mục trong danh sách theo dõi đã được chủ dự án duyệt (phẩy) — ghi lý do ở PR")
+    pvc.add_argument("--own", help="mục tự viết trong các --dirs, không phải vendor (phẩy) — vd skill riêng của dự án")
     pvc.add_argument("--strict", action="store_true", help="cảnh báo cũng làm exit 1")
     pvc.add_argument("--json", action="store_true")
     pvc.set_defaults(fn=cmd_vendor_check)
