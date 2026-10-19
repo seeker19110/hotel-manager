@@ -282,6 +282,10 @@ Mọi MUST còn mở vẫn cần người. Đợt này lấp hai lỗ 🟢 treo 
 | SMTP relay, ClamAV thật | chủ dự án chọn/cài trên VPS | `FakeEmailSender`, clamd giả trong dev/CI; contract test |
 | Môi trường agent | kho PGDG, GitHub releases | `scripts/dev-env-setup.sh` |
 
+## Đợt 14c — cổng CI (audit 2026-10-19, AUD-CI-001)
+
+- [x] `T-1303` Job `coverage` không còn bị bỏ qua khi PR `edited` (check-run `skipped` mới nhất cùng SHA có thể đè lên lần chạy đỏ, GitHub tính là qua); test khoá cấu trúc cập nhật (PR đổi cấu hình cổng — nêu lý do) — Gate: `pnpm vitest run --project unit scripts/test-quality && python3 .xtemplates/scripts/xt.py ci-check .github/workflows`
+
 ## Ước lượng (agent + review người)
 | Task | P50 | P90 |
 |---|---|---|
@@ -289,7 +293,3 @@ Mọi MUST còn mở vẫn cần người. Đợt này lấp hai lỗ 🟢 treo 
 | T-202, T-204, T-205, T-207, T-208, T-211, T-212, T-213, T-215, T-216, T-220, T-221, T-222, T-225 | 1 ngày | 1,5 ngày |
 | T-209, T-217, T-219, T-223 | 1,5 ngày | 2,5 ngày |
 Tổng P50 khoảng 24 ngày, P85 khoảng 34 ngày. Không dùng con số P50 làm ngày hứa.
-
-## Đợt 14c — cổng CI (audit 2026-10-19, AUD-CI-001)
-
-- [x] `T-1303` Job `coverage` không còn bị bỏ qua khi PR `edited` (check-run `skipped` mới nhất cùng SHA có thể đè lên lần chạy đỏ, GitHub tính là qua); test khoá cấu trúc cập nhật (PR đổi cấu hình cổng — nêu lý do) — Gate: `pnpm vitest run --project unit scripts/test-quality && python3 .xtemplates/scripts/xt.py ci-check .github/workflows`
