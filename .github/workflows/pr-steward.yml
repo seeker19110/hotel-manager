@@ -62,12 +62,22 @@ jobs:
           GH_TOKEN: ${{ secrets.XT_STEWARD_TOKEN || github.token }}
           GH_REPO: ${{ github.repository }}
           PR: ${{ inputs.pr || github.event.issue.number || '' }}
+          BASE: ${{ github.event.repository.default_branch }}
         run: |
           set -uo pipefail
           xt=scripts/xt.py
           [ -f "$xt" ] || xt=.xtemplates/scripts/xt.py # dự án đích cài khung vào .xtemplates/
+          # Auto-merge của GitHub chỉ chờ CI khi nhánh đích có required check. Chưa import ruleset (.github/rulesets/main.json)
+          # thì GitHub merge NGAY lúc bật — #84, #85 đã vào main khi e2e/lighthouse còn chạy. Không có rule (hoặc không đọc
+          # được) ⇒ chỉ báo, không --apply; phiên agent vẫn merge ghim head khi merge-check = merge (T-1107).
+          required=$(gh api "repos/$GH_REPO/rules/branches/$BASE" --jq '[.[] | select(.type == "required_status_checks")] | length' 2>/dev/null) || required=0
+          apply=(--apply)
+          if ! [[ "$required" =~ ^[1-9][0-9]*$ ]]; then
+            apply=()
+            echo "::warning::$BASE chưa có required status check — pr-steward chỉ báo, không bật auto-merge/merge (import .github/rulesets/main.json)"
+          fi
           if [ -n "$PR" ]; then
-            python3 "$xt" pr steward --apply --repo "$GH_REPO" --pr "$PR"
+            python3 "$xt" pr steward "${apply[@]}" --repo "$GH_REPO" --pr "$PR"
           else
-            python3 "$xt" pr steward --apply --repo "$GH_REPO"
+            python3 "$xt" pr steward "${apply[@]}" --repo "$GH_REPO"
           fi
