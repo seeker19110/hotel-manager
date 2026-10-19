@@ -9,6 +9,23 @@
 > `PM-SPEC-004` và `WF-SDD-003` (nền spec-coverage còn 26 S-NNN). **Tick kèm lưu ý để phiên chính xác nhận:** `DB-MODEL-004` (52 FK nhóm A thiếu index là ngoại lệ có lý do — D-035),
 > `UX-STATE-001` (không Storybook; loading bị D-032 miễn ở trang có route con động/notFound/redirect), `DB-PERF-001` (EXPLAIN không ANALYZE), `XC-GREEN-007` (còn `notifications`/`inbox`/`worker_heartbeats` chưa có job dọn, chờ DPIA).
 
+## Sau phát hành v0.2.0 (T-1108, 2026-10-19; D-077)
+
+Chủ dự án import ruleset `main` (khớp `.github/rulesets/main.json`: 29 required check, `pull_request` chỉ squash + resolve thread, `bypass_actors: []`) và phát hành **v0.2.0** (#88; Release có tarball, SBOM npm + 4 image, `SHA256SUMS`). MUST **đạt 351 · mở 91** (trước: 341 · 101). Lệnh kiểm đọc GitHub thật: `scripts/check-github-live.mjs` (`ruleset` · `squash-history` · `tags` · `release`), test `scripts/check-github-live.test.mjs`.
+
+| Tick (10) | Lệnh Kiểm |
+|---|---|
+| BASE-REPO-008, WF-GIT-002, WF-REVIEW-005 | `node scripts/check-github-live.mjs ruleset` |
+| BASE-REPO-013 | + quy ước `AGENTS.md` §4 |
+| WF-GIT-001 | + `squash-history` (63 commit first-parent đều squash PR) |
+| WF-REVIEW-001 | + `quality` trong main.json, mục "CI xanh" trong PR template |
+| QA-E2E-001 | + `e2e` trong `needs` của `quality` (`ci-gates`), 7 test @smoke |
+| QA-STRAT-002 | + `xt.py ci-check` (cấm continue-on-error) |
+| STD-PROC-002 | `tags` (v0.2.0, v2.0.0 đều SemVer) |
+| CMP-LIC-003 | `release` — license 1487/1491 gói (D-077: không tính mục file/OS của SBOM image) |
+
+**Chưa tick, lý do:** WF-REL-003 (chưa có ruleset tag `v*` — import `.github/rulesets/tags.json`); BASE-REPO-006 (tag `v0.2.0` là tag thường, mục đòi annotated — cần bước tạo tag annotated trước khi release-please tạo Release); WF-REVIEW-007/LOOP-STOP-005 (`require_code_owner_review: false`, D-060 chờ chủ dự án). Tag `v2.0.0` mồ côi (commit 55de4d1 không còn trong lịch sử `main` sau khi viết lại) — đề xuất người xoá.
+
 ## Kết quả đợt 12 (T-1104, 2026-10-19; D-075, D-076)
 
 Không tick mục mới: MUST mở vẫn **101**, đều cần người (bảng 'Kết quả đợt 9 (a)'; nhóm 2 thêm: gắn `risk:money`+`risk:data` cho #78 rồi merge). Đợt này lấp 🟢 treo sau review đợt 10:

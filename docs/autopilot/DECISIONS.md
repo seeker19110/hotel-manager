@@ -556,3 +556,10 @@
 - Chọn: Chuyển đúng 26 đoạn đó sang t() trong cùng PR (hiển thị giữ nguyên); 5 tệp thuộc merge_risk_paths (thu-tien, ky-thu, hop-dong) nên PR do người merge
 - Lý do (tiêu chí chất lượng cuối): Đúng và an toàn: không nới cổng (AGENTS §4), bộ đếm chặt hơn và nợ i18n giảm thật; đổi chỉ là chuỗi hiển thị giống hệt. Phương án 2 mở kẽ nới ratchet; phương án 3 để lỗ rào đã biết
 - Đường lùi: Đóng/revert PR; bộ đếm cũ và baseline cũ vẫn ở main
+
+### D-077 · 2026-10-19T08:07:09+00:00 · CMP-LIC-003 'license không null ≥ 99%': SBOM image (syft) liệt kê cả mục type=file (hàng nghìn tệp trong image) và operating-system, không có trường license — tính tỉ lệ trên tập nào?
+
+- Phương án: (1) Tính trên component là gói (library/application/framework…), bỏ type file và operating-system: v0.2.0 đạt 1487/1491 ≈ 99,7% · (2) Tính trên mọi component kể cả file: v0.2.0 chỉ 2–73% với image — không bao giờ đạt nếu không bỏ mục file khỏi SBOM
+- Chọn: Tính trên component là gói (library/application/framework…), bỏ type file và operating-system: v0.2.0 đạt 1487/1491 ≈ 99,7%
+- Lý do (tiêu chí chất lượng cuối): Đúng ý NTIA Minimum Elements: license là thuộc tính của thành phần phần mềm (gói), mục file chỉ là danh mục tệp/băm; vẫn giữ mục file trong SBOM để truy vết. Lệnh kiểm ghi rõ tập tính và ngưỡng
+- Đường lùi: Đổi bộ lọc trong scripts/check-github-live.mjs (sbomCoverage) và bỏ tick CMP-LIC-003
