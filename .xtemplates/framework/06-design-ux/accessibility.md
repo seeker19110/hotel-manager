@@ -3,7 +3,7 @@ title: Tiếp cận (a11y) theo WCAG 2.2 AA và nền tảng mobile
 kind: module
 prefix: UX-A11Y
 applies_to: [web-app, mobile-app, desktop-app, static-site, game, monorepo]
-updated: 2026-10-18
+updated: 2026-10-19
 ---
 
 # Tiếp cận (a11y) theo WCAG 2.2 AA và nền tảng mobile
@@ -37,7 +37,7 @@ updated: 2026-10-18
 ## Checklist
 
 - [ ] `UX-A11Y-001` **MUST** Mọi trang/màn hình qua quét axe-core với tag `wcag2a`, `wcag2aa`, `wcag21aa`, `wcag22aa` không có vi phạm (`violations.length === 0`). → Kiểm: `@axe-core/playwright` trong mọi smoke test E2E; CI đỏ nếu vi phạm. · Nguồn: WCAG 2.2 AA
-- [ ] `UX-A11Y-002` **MUST** Tương phản chữ ≥ 4.5:1 (chữ lớn ≥ 3:1); thành phần UI và trạng thái (viền input, icon, focus) ≥ 3:1 với nền kề. → Kiểm: `xt.py contrast` trên token (`UX-DS-003`) + axe rule `color-contrast` ở cả hai theme. · Nguồn: WCAG 2.2 SC 1.4.3, 1.4.11
+- [ ] `UX-A11Y-002` **MUST** Tương phản chữ ≥ 4.5:1 (chữ lớn ≥ 3:1 — chữ lớn chỉ khi ≥ 24 px, hoặc ≥ 18,66 px **và** đậm; chữ thường 18–23 px vẫn cần 4.5:1); thành phần UI và trạng thái (viền input, icon, focus) ≥ 3:1 với nền kề. → Kiểm: `xt.py contrast` trên token (`UX-DS-003`) + axe rule `color-contrast` ở cả hai theme. · Nguồn: WCAG 2.2 SC 1.4.3, 1.4.11
 - [ ] `UX-A11Y-003` **MUST** Toàn bộ chức năng dùng được bằng bàn phím; không bẫy focus (trừ dialog modal có Esc để thoát). → Kiểm: E2E luồng chính chỉ dùng `keyboard.press('Tab'|'Enter'|'Escape')`; axe rule `focus-order-semantics`. · Nguồn: WCAG 2.2 SC 2.1.1, 2.1.2
 - [ ] `UX-A11Y-004` **MUST@L** Phần tử nhận focus không bị che hoàn toàn bởi header/footer dính hay banner cookie. → Kiểm: E2E Tab qua trang có sticky header, `boundingBox` của phần tử focus không nằm trọn dưới sticky element. · Nguồn: WCAG 2.2 SC 2.4.11
 - [ ] `UX-A11Y-005` **MUST@L** Chỉ báo focus nhìn thấy trên mọi điều khiển, không `outline: none` mà không thay thế. → Kiểm: stylelint cấm `outline: none|0` không kèm `:focus-visible` thay thế; ảnh snapshot trạng thái focus. · Nguồn: WCAG 2.2 SC 2.4.7
@@ -78,6 +78,7 @@ updated: 2026-10-18
 - **Chỉ kiểm axe trên trang chủ**: lỗi nằm ở dialog, bước 3 của form, trạng thái lỗi. Quét sau mỗi bước trong E2E.
 - **Tin điểm Lighthouse 100 là đạt AA**: Lighthouse chỉ chạy một phần rule axe; không thay kiểm tay.
 - **Mobile: ẩn Dynamic Type để giữ layout** → chữ không phóng được; sửa layout, không khoá cỡ chữ.
+- **Coi chữ 18 px là "chữ lớn"**: WCAG định nghĩa 18 pt (≈ 24 px) hoặc 14 pt đậm (≈ 18,66 px); bộ luật/script ghi "18px+" (vd `anti-slop`) báo PASS cho chữ 18–23 px chỉ đạt 3:1. Cặp khai `min 3` trong `--pairs` của `xt.py contrast` chỉ dành cho chữ đạt định nghĩa này (`UX-A11Y-002`).
 - **Chỉ kiểm tương phản ở trạng thái mặc định, hoặc tin con số công bố**: hover/focus/selected nhạt hơn nền mà bộ kiểm không chạm tới (XIAS công bố "52/52", tự chạy lại có ô 2,92:1 < 3:1). Chụp computed style từng trạng thái × theme (`UX-A11Y-028`).
 
 ## Cổng tự động
