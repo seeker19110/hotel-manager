@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import { t, tOr } from "../apps/web/lib/i18n.ts";
 import { ROLE_LABEL, STATUS_LABEL } from "../apps/web/lib/roles.ts";
 import { checkCatalogs, loadCatalogs, messageArgs, roleKeyErrors } from "./i18n-check.mjs";
-import { BASELINE, countLiterals, regressions, scan } from "./i18n-literals.mjs";
+import { BASELINE, countLiterals, regressions, scan, unjustifiedRaises } from "./i18n-literals.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const node = (script, ...args) =>
@@ -112,11 +112,27 @@ describe("XC-I18N-001 — chuỗi viết thẳng chỉ được giảm (ratchet)
 
   it("chữ JSX đứng sau một biểu thức `{…}` cũng được đếm; mảnh template `${` thì không", () => {
     expect(countLiterals("<span>{n} phòng</span>")).toBe(1);
-    expect(countLiterals("<p>Giữ {a} (còn {m} phút)</p>")).toBeGreaterThanOrEqual(2);
+    expect(countLiterals("<p>Giữ {a} (còn {m} phút)</p>")).toBe(3);
     // chỉ một chuỗi (template) — mảnh ` còn ` sau `${a}` không bị đếm thêm như chữ JSX
     expect(countLiterals(["const s = `$", "{a} còn $", "{b}`;"].join(""))).toBe(1);
     expect(countLiterals("<span>{n} rooms</span>")).toBe(0);
     expect(countLiterals("<span>{n}</span>")).toBe(0);
+  });
+
+  it("đếm trên AST: template lồng, chữ JSX kết thúc bằng `$`, `//` trong chữ JSX, ép kiểu `<T>` ở .ts (review #78)", () => {
+    // Template lồng: ngoài + trong + chuỗi 'hết', và chuỗi SAU nó vẫn được đếm (regex cũ lệch cặp nháy từ đây).
+    const nested = [
+      "const s = `Phòng $",
+      "{a ? `còn $",
+      "{b}` : 'hết'} trống`;",
+      '\nconst z = "Đã lưu";',
+    ].join("");
+    expect(countLiterals(nested)).toBe(4);
+    expect(countLiterals(["<p>Giá $", "{price}</p>"].join(""))).toBe(1);
+    expect(countLiterals("<p>Xem https://a.vn để biết</p>")).toBe(1);
+    expect(countLiterals('const x = <string>"Lỗi";', "a.ts")).toBe(1);
+    expect(countLiterals("// Phòng\n/* Lễ tân */\nconst a = 1;")).toBe(0);
+    expect(() => countLiterals("const = ;", "hỏng.ts")).toThrow(/hỏng\.ts: không phân tích được/);
   });
 
   it("không tệp nào tăng so với baseline; tệp mới = 0", () => {
@@ -146,8 +162,23 @@ describe("XC-I18N-001 — chuỗi viết thẳng chỉ được giảm (ratchet)
     if (main.status !== 0) return; // baseline chưa có trên main (PR đầu tiên) — không có gì để so
     const before = JSON.parse(main.stdout);
     const now = JSON.parse(readFileSync(BASELINE, "utf8"));
-    const raised = Object.entries(now).filter(([f, n]) => n > (before[f] ?? 0));
-    expect(raised).toEqual([]);
+    // Nâng chỉ hợp lệ tới số đếm (bộ đếm hiện tại) của chính tệp trên origin/main — xem unjustifiedRaises.
+    const onMain = (f) => {
+      const r = spawnSync("git", ["show", `origin/main:${f}`], { cwd: ROOT, encoding: "utf8" });
+      return r.status === 0 ? countLiterals(r.stdout, f) : 0;
+    };
+    expect(unjustifiedRaises(now, before, onMain)).toEqual([]);
+  });
+
+  it("unjustifiedRaises: hạ/giữ luôn được; nâng chỉ tới số đếm trên main; tệp mới trên main = 0", () => {
+    const count = { "a.tsx": 5, "b.tsx": 3 };
+    const onMain = (f) => count[f] ?? 0;
+    expect(unjustifiedRaises({ "a.tsx": 4, "b.tsx": 3 }, { "a.tsx": 4, "b.tsx": 3 }, onMain)).toEqual([]);
+    expect(unjustifiedRaises({ "a.tsx": 5 }, { "a.tsx": 4 }, onMain)).toEqual([]);
+    expect(unjustifiedRaises({ "a.tsx": 6 }, { "a.tsx": 4 }, onMain)).toEqual([
+      "a.tsx: baseline 4 → 6 nhưng trên main chỉ có 5 chuỗi",
+    ]);
+    expect(unjustifiedRaises({ "c.tsx": 1 }, {}, onMain)).toHaveLength(1);
   });
 
   it("job gate có lịch sử và bật so baseline (fetch-depth: 0 + I18N_REQUIRE_BASE)", () => {

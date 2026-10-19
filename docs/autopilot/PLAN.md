@@ -267,6 +267,14 @@ Mọi MUST còn mở cần người (BLUEPRINT-GAPS 'Kết quả đợt 9 (a)');
 - [x] `T-1108` Tick blueprint sau khi có ruleset `main` + Release v0.2.0: `scripts/check-github-live.mjs` (ruleset đang áp == `.github/rulesets/main.json`, lịch sử squash, tag SemVer, Release có SBOM ≥ 99% gói có license + SHA256SUMS khớp; D-077) làm lệnh Kiểm cho BASE-REPO-008/013, WF-GIT-001/002, WF-REVIEW-001/005, QA-E2E-001, QA-STRAT-002, STD-PROC-002, CMP-LIC-003 — Gate: `pnpm vitest run --project unit check-github-live && python3 scripts/check-blueprint-evidence.py BLUEPRINT.md`
 - [x] `T-1104` Rà đợt 12: PROGRESS, BLUEPRINT-GAPS (—) — Gate: `python3 scripts/check-blueprint-evidence.py BLUEPRINT.md`
 
+## Đợt 13 — bộ đếm i18n bằng AST, kiểm tham số t() (2026-10-19; D-078)
+
+Mọi MUST còn mở vẫn cần người. Đợt này lấp hai lỗ 🟢 treo sau review #78 (XC-I18N-001/XC-I18N-009); không tick mục mới.
+
+- [x] `T-1201` Bộ đếm chuỗi viết thẳng (`scripts/i18n-literals.mjs`) đổi từ regex sang AST (`@babel/parser`, plugin typescript + jsx; helper `scripts/ts-ast.mjs`): đếm StringLiteral, TemplateLiteral (một lần mỗi literal) và JSXText có dấu tiếng Việt, chú thích tự loại; baseline theo bộ đếm mới; rào "không nới so với main" chỉ cho nâng một tệp tới đúng số đếm của chính tệp đó trên `origin/main` (XC-I18N-001) — Gate: `pnpm vitest run --project unit scripts/i18n && node scripts/i18n-literals.mjs`
+- [ ] `T-1202` `scripts/i18n-check.mjs` kiểm mọi `t("khoá", {…})` trong `apps/web`: tham số truyền vào khớp đúng tập tham số ICU của khoá (thiếu → người dùng thấy `{ten}` thô; thừa → gõ nhầm tên), đối số thứ hai không phải object literal là lỗi (XC-I18N-009) — Gate: `pnpm vitest run --project unit scripts/i18n && node scripts/i18n-check.mjs`
+- [ ] `T-1203` Rà đợt 13: PROGRESS, BLUEPRINT-GAPS (—) — Gate: `python3 scripts/check-blueprint-evidence.py BLUEPRINT.md`
+
 ## Phụ thuộc ngoài
 | Việc | Bên ngoài | Kế hoạch B |
 |---|---|---|

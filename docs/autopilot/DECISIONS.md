@@ -563,3 +563,10 @@
 - Chọn: Tính trên component là gói (library/application/framework…), bỏ type file và operating-system: v0.2.0 đạt 1487/1491 ≈ 99,7%
 - Lý do (tiêu chí chất lượng cuối): Đúng ý NTIA Minimum Elements: license là thuộc tính của thành phần phần mềm (gói), mục file chỉ là danh mục tệp/băm; vẫn giữ mục file trong SBOM để truy vết. Lệnh kiểm ghi rõ tập tính và ngưỡng
 - Đường lùi: Đổi bộ lọc trong scripts/check-github-live.mjs (sbomCoverage) và bỏ tick CMP-LIC-003
+
+### D-078 · 2026-10-19T11:27:43+00:00 · Duyệt PLAN đợt 13 (T-1201…T-1203): mọi MUST còn mở cần người; phần agent còn làm được là mục 🟢 treo sau review #78 (bộ đếm i18n bằng regex đếm sai, tham số t() không được kiểm)
+
+- Phương án: (1) Làm 2 lát: T-1201 đổi bộ đếm chuỗi viết thẳng sang trình phân tích AST (@babel/parser, plugin typescript+jsx), baseline chỉ được nâng tới đúng số đếm của chính mã trên main; T-1202 kiểm tham số mọi t('khoá', {…}) khớp tham số ICU của khoá; T-1203 rà PROGRESS/GAPS · (2) Chỉ vá regex (lookbehind $, template lồng) và giữ baseline · (3) Không làm, kết thúc phiên ở done-pending-human
+- Chọn: Làm 2 lát: T-1201 đổi bộ đếm chuỗi viết thẳng sang trình phân tích AST (@babel/parser, plugin typescript+jsx), baseline chỉ được nâng tới đúng số đếm của chính mã trên main; T-1202 kiểm tham số mọi t('khoá', {…}) khớp tham số ICU của khoá; T-1203 rà PROGRESS/GAPS
+- Lý do (tiêu chí chất lượng cuối): Đúng và an toàn: prototype AST đếm 2363 so với 2321 của regex (11 tệp regex đếm thiếu do template lồng làm lệch cặp nháy ⇒ chuỗi mới ở các tệp đó lọt ratchet). Regex không thể hiểu template lồng (lỗ gốc), vá thêm là chắp vá. Nâng baseline chỉ tới số đếm trên cây origin/main nên không cho thêm chuỗi nào (khác phương án 2 bị loại ở D-076: PR không thể vừa đổi bộ đếm vừa thêm chuỗi). @babel/parser MIT, đã có trong lockfile (qua vitest coverage), ổn định; API JS của TypeScript 7 còn 'unstable'. T-1202 chặn lỗi hiển thị '{ten}' thô cho người dùng.
+- Đường lùi: Revert từng PR: bộ đếm regex và baseline cũ trở lại; gỡ @babel/parser khỏi devDependencies
