@@ -77,6 +77,15 @@ describe("useCommand", () => {
     expect(result.current.problem?.errors?.map((e) => e.field)).toEqual(["unit_id"]);
   });
 
+  it("bấm gửi hai lần lúc đang tải schema (nạp trễ): chỉ MỘT lệnh, một key", async () => {
+    fetchMock.mockResolvedValue(json(200, { ok: true }));
+    const { result } = renderHook(() => useCommand("housekeeping/createTask"));
+    await act(async () => {
+      await Promise.all([result.current.send(body), result.current.send(body)]);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("mất mạng trình duyệt: không gửi, báo OFFLINE", async () => {
     vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
     const { result } = renderHook(() => useCommand("housekeeping/createTask"));
