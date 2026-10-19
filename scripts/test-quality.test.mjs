@@ -61,10 +61,9 @@ describe("QA-COV-001: coverage nhánh cho unit + db, lưu artifact", () => {
     expect(on).toMatch(/^ {4}branches: \[main\]$/m);
     expect(on).toMatch(/^ {4}types: \[opened, synchronize, reopened, edited\]$/m);
   });
-  it("job nặng (coverage) bỏ qua khi chỉ sửa tiêu đề/mô tả; ratchet + fix-requires-test không bị bỏ qua", () => {
-    expect(job("coverage")).toMatch(/^ {4}if: github\.event\.action != 'edited'$/m);
-    expect(job("coverage-ratchet")).not.toMatch(/edited/);
-    expect(job("fix-requires-test")).not.toMatch(/edited/);
+  it("không job nào bị bỏ qua khi sửa tiêu đề/mô tả (AUD-CI-001): check-run `skipped` đến sau không được che lần chạy đỏ cùng SHA", () => {
+    for (const name of ["coverage", "coverage-ratchet", "fix-requires-test"])
+      expect(job(name), name).not.toMatch(/edited/);
   });
   it("edited có nhóm concurrency riêng — không huỷ coverage đang chạy của lần đẩy mã", () => {
     expect(workflow).toMatch(/^ {2}group: .*github\.event\.action == 'edited' && 'edited' \|\| 'code'/m);
