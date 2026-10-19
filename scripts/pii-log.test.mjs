@@ -122,6 +122,9 @@ describe("nối vào CI", () => {
       "hm-log-pii-key-fn",
       "hm-log-pii-spread",
       "hm-log-pii-spread-fn",
+      "hm-log-pii-stringify",
+      "hm-log-pii-stringify-fn",
+      "hm-log-pii-child",
     ]);
     const fixture = read("security/semgrep/hm-privacy.ts");
     for (const id of ids) {

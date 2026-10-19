@@ -81,3 +81,38 @@ logger("b", { guest_name: stay.guest_name });
 logger("b", { ...user });
 // ok: hm-log-pii-spread
 log.info("b", { ...{ job: "x" } });
+
+// --- JSON.stringify object người trong lời gọi log (chuỗi JSON né được che theo tên khoá) ---
+declare const childLog: { child(b: Record<string, unknown>): typeof log };
+// ruleid: hm-log-pii-stringify
+log.info("đăng nhập", { u: JSON.stringify(user) });
+// ruleid: hm-log-pii-stringify
+log.error(`lỗi ${JSON.stringify(req.body)}`);
+// ruleid: hm-log-pii-stringify
+log.info("b", { u: JSON.stringify(ctx.user, null, 2) });
+// ruleid: hm-log-pii-stringify-fn
+logger("b", { g: JSON.stringify(guest) });
+// ok: hm-log-pii-stringify
+log.info("b", { ids: JSON.stringify([user.id, guest.id]) });
+// ok: hm-log-pii-stringify
+log.info("job", { meta: JSON.stringify(job) });
+// ok: hm-log-pii-stringify-fn
+logger("b", { ids: JSON.stringify({ person_id: user.id }) });
+
+// --- Logger con: bindings gắn vào mọi dòng log sau đó ---
+// ruleid: hm-log-pii-child
+childLog.child({ user });
+// ruleid: hm-log-pii-child
+childLog.child({ actor: ctx.user! });
+// ruleid: hm-log-pii-child
+childLog.child({ ...req });
+// ruleid: hm-log-pii-child
+childLog.child({ n: guest.name });
+// ruleid: hm-log-pii-child
+childLog.child({ n: row.guestName });
+// ruleid: hm-log-pii-child
+childLog.child({ u: JSON.stringify(user) });
+// ok: hm-log-pii-child
+childLog.child({ component: "notify.dispatch", person_id: user.id });
+// ok: hm-log-pii-child
+childLog.child({ correlation_id: "c-1" });
