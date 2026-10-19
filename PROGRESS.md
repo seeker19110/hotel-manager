@@ -1,13 +1,13 @@
 # PROGRESS.md — Hotel Manager
 ## Đang làm
 - Đợt 12 xong (D-075/D-076, 2026-10-19), đã merge: #76 Semgrep chặn `JSON.stringify(<người>)`/`log.child({ user })` · #77 server E2E log đủ dòng cuối · #78 ratchet i18n bắt `{n} phòng` + 26 đoạn sang `t()` (người merge) · #79 test rate-limit vắt ranh giới phút · #82 fingerprint gitleaks sau khi viết lại `main`. Chủ dự án nâng khung 3.5.1 (#84), 3.6.0 (#85).
-- #86 T-1107 steward chỉ `--apply` khi nhánh đích có required check (FB-134). Chủ dự án import ruleset `main` (29 check); #88 phát hành **v0.2.0** (Release + SBOM + SHA256SUMS). T-1108 tick 10 MUST bằng `scripts/check-github-live.mjs` (D-077).
+- #86 T-1107 steward chỉ `--apply` khi nhánh đích có required check (FB-134). Chủ dự án import ruleset `main` (29 check); #88 phát hành **v0.2.0** (Release + SBOM + SHA256SUMS). T-1108 tick 10 MUST bằng `scripts/check-github-live.mjs` (D-077, #90). Chủ dự án: khung 3.7.0/3.7.1 (#91, #92), #93 perf LCP `/thong-bao`, đóng Release PR #89 không merge.
 - Trước đó: đợt 10–11 xong (#59…#75). `blueprint-status --strict`: MUST đạt 351 · miễn/không áp dụng 59 · **mở 91** — đều cần người (BLUEPRINT-GAPS 'Kết quả đợt 9 (a)'). GO-NO-GO: NO-GO (7 BLOCKER). Autopilot `done-pending-human`.
 
 ## Tiếp theo
 1. Người (theo nhóm, từng bước ở BLUEPRINT-GAPS): ① import `.github/rulesets/tags.json` (cấm xoá/dời tag `v*`, WF-REL-003) ② nhãn `major`, Dependabot, quyết D-060 ③ BASE-REPO-006 cần tag annotated (release-please tạo tag thường) — quyết bước tạo tag; xoá tag mồ côi `v2.0.0` ④ VPS/domain/staging/secret store ⑤ sao lưu khác máy + Prometheus/Alertmanager + RPO/RTO ⑥ pháp lý DPIA/DPO/DPA ⑦ LICENSE + SECURITY.md + PVR ⑧ kiểm tay thiết bị/a11y ⑨ quyết IND-SAAS-009, CMP-RIGHTS-001, PM-METRIC-003 ⑩ duyệt `WORKER_DATABASE_URL`/`MIGRATION_DATABASE_URL` ⑪ SMTP, ClamAV ⑫ quyết 18 đề xuất "Khi chạy thật" (GO-NO-GO 4b).
 2. **Hạn gấp:** `.grype.yaml` 4 luật hết hạn 2026-10-25 (21 luật 2026-11-01) — quá hạn thì `image-scan` đỏ mọi PR. Rà 2026-10-19: digest đang ghim caddy 2.11.7-alpine và seaweedfs 4.48 vẫn là bản mới nhất (chưa có Go 1.26.9) ⇒ chưa gỡ được; đã hẹn tự kiểm lại 2026-10-24 (gỡ luật nếu có image vá, không thì gia hạn ≤ 7 ngày). Duyệt/gia hạn `@img/sharp-libvips-linux-x64` LGPL (2026-12-31), `parse-cache-control` BSD (2027-04-18).
-3. Người xác nhận: lịch sử `main` trên GitHub đã bị viết lại (bản clone mới thấy `forced update`, `origin/main` còn 54 commit, các SHA cũ như 54005de không còn) — nếu không chủ ý thì kiểm tra; ruleset cấm force-push (nhóm ①) chặn việc này về sau.
+3. **Người — `release-please` đỏ trên `main` từ #93** (`Error adding to tree`, chạy lại 1 lần vẫn đỏ): token đọc được nhưng không ghi được ⇒ nhiều khả năng secret `RELEASE_PLEASE_TOKEN` thiếu **Contents: Read and write** (README, mục Phát hành). Sửa quyền hoặc xoá secret, rồi chạy lại workflow `Release`; xoá nhánh mồ côi `release-please--branches--main--components--hotel-manager` nếu không cần.
 4. Người: sau merge #67 chạy `perf-nightly` bằng `workflow_dispatch` một lần (bằng chứng QA-PERF-002 khi có staging); 5 mục đợt 10 chờ hạ tầng: CMP-PRIV-008/QA-PERF-002 (staging), XC-GREEN-002, PRF-WEB-005, XC-I18N-001 (chuyển dần 2321 chuỗi).
 5. Sau khi người xử lý: `python3 .xtemplates/scripts/xt.py loop resume --reason "..."`.
 
@@ -19,11 +19,9 @@
 - 2026-10-17 Chủ dự án duyệt: "Duyệt tất cả 55 miễn trừ" (PR #38); "Duyệt CI + công cụ" (đợt 9).
 - 2026-10-18 D-059 phạm vi đợt 9 (67 mục MUST, 7 lát; bỏ 4 mục biến môi trường và 19 mục pháp lý).
 - D-060 WF-REVIEW-007: giữ CODEOWNERS, không thêm `.github/*` vào `merge_risk_paths` — chờ chủ dự án.
-- D-061 chuỗi cung ứng: grype only-fixed + SBOM CycloneDX tự sinh + syft; new-deps chỉ phụ thuộc trực tiếp.
-- D-062 liên kết ngoài/OpenAPI breaking: script Node tự viết (không lychee/oasdiff); breaking phải bump MAJOR.
+- D-061 grype only-fixed + SBOM CycloneDX + syft · D-062 link/OpenAPI breaking bằng script Node, breaking bump MAJOR.
 - D-063 cấu hình cổng (vitest/playwright/biome/tsconfig/xt.yaml…) vào `merge_risk_paths` + job coverage-ratchet.
-- D-064 otelcol-contrib ghim SHA-256 tự đo; `schema-compat` chạy mỗi PR.
-- D-065 required check đợt 9 gom một lần ở T-808 (`main.json` 28 context); import là việc người.
+- D-064 otelcol-contrib ghim SHA-256; `schema-compat` mỗi PR · D-065 required check gom ở `main.json`, import là việc người.
 - D-066 FE-TEST-001 chỉ test Testing Library; giữ `skipLibCheck` có lý do; bỏ husky, một hook `.githooks`.
 - D-067 ngoại lệ grype CÓ HẠN (critical ≤ 7 ngày, high ≤ 30 ngày) + VULN-SLA; kiểm hạn ở job, không ở unit test.
 - D-075 đợt 12 chỉ gia cố rào đã ghi treo; D-076 bộ đếm i18n chặt hơn ⇒ chuyển chuỗi chứ không nới baseline.
@@ -34,6 +32,6 @@
 - Bài học đợt 5–8: Better Auth `/sign-in/email` 20 lần/phút theo IP; `<dialog>` phát `close` sau một task (`onClose` chỉ xoá trạng thái khi hộp thật sự đóng); chạy lại job CI dùng payload sự kiện cũ (cần push mới); test giá trị ngẫu nhiên phải loại ca biên (IP octet 0); không so thời gian tuyệt đối (so tương đối); hai lát song song có thể đụng nhau qua rào mới.
 
 ## Bàn giao phiên
-- `main` = `7c1fe5e` (v0.2.0 + khung 3.7.0 #91). PR mở: #90 (T-1108), #89 Release PR 0.3.0 (release-please, người quyết phát hành).
+- `main` = `106237d` (khung 3.7.1, #93). Không còn PR mở; live check 2026-10-19: ruleset/squash/tags/release đạt, chưa có ruleset tag, nhãn `major`, LICENSE.
 - Lệnh kiểm nhanh: `.xtemplates/scripts/dev-task.sh gate` · `pnpm test:db` · `E2E_PORT=<cổng riêng> pnpm --filter @hm/web exec playwright test` · `bash scripts/db-backup-restore-check.sh`. Container mới: `bash scripts/dev-env-setup.sh && bash scripts/dev-env-setup.sh --only gitleaks` rồi `pnpm install --frozen-lockfile`; semgrep: `python3 -m venv <thư mục tạm>/sg && <…>/sg/bin/pip install --require-hashes -r security/semgrep/requirements.txt` rồi đưa `<…>/sg/bin` vào PATH (thiếu gitleaks/semgrep ⇒ `loop verify` đỏ exit 127 ở WF-GIT-010/T-1101). Không chạy E2E song song với `loop verify` (T-402 đỏ do tranh CPU).
-- Đang chặn: chờ người (mục *Tiếp theo* 1–2). Autopilot: `done-pending-human` (một phiên).
+- Đang chặn: chờ người (mục *Tiếp theo* 1–3; xác nhận việc viết lại lịch sử `main` có chủ ý — ruleset nay chặn force-push). Autopilot: `done-pending-human` (một phiên).

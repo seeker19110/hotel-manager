@@ -129,5 +129,7 @@ vẫn do người viết.
 
 **Release PR và CI.** PR do `GITHUB_TOKEN` tạo không kích hoạt workflow khác, nên khi chưa có token riêng Release PR không có CI và
 check bắt buộc (`quality`…) đứng "Expected — waiting". Khi chưa có token riêng: **người đóng rồi mở lại Release PR** (sự kiện do
-người tạo kích hoạt CI) và đợi check xanh trước khi merge. Chủ dự án có thể cấp GitHub App hoặc PAT (quyền contents + pull-requests)
-làm secret `RELEASE_PLEASE_TOKEN`; workflow tự dùng nó nếu có (không cần đổi mã) và Release PR chạy CI ngay.
+người tạo kích hoạt CI) và đợi check xanh trước khi merge. Chủ dự án có thể cấp GitHub App hoặc PAT fine-grained (chỉ repo này;
+**Contents: Read and write** + **Pull requests: Read and write**) làm secret `RELEASE_PLEASE_TOKEN`; workflow tự dùng nó nếu có (không
+cần đổi mã) và Release PR chạy CI ngay. Job `release-please` đỏ với `Error adding to tree: <sha>` nghĩa là token đọc được repo nhưng
+không ghi được (thiếu Contents: write) — sửa quyền token, hoặc xoá secret để quay về `GITHUB_TOKEN`, rồi chạy lại workflow `Release`.
