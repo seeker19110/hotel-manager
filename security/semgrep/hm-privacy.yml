@@ -166,3 +166,63 @@ rules:
         - "**/*.test.ts"
         - "**/*.test.mjs"
         - "**/packages/testkit/"
+  - id: hm-log-pii-stringify
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      Không log `JSON.stringify(<object người dùng/request>)` (CMP-PRIV-008): chuỗi JSON đi qua logger dưới dạng một giá trị, che theo tên khoá không áp được nên họ tên, địa chỉ, nội dung tin nhắn lọt nguyên. Log ID hoặc trường không phải PII đã chọn.
+    metadata: {blueprint: [CMP-PRIV-008], cwe: "CWE-532"}
+    patterns:
+      - pattern-either:
+          - pattern: '$LOG.$LEVEL(..., <... JSON.stringify($VALUE, ...) ...>, ...)'
+      - metavariable-regex:
+          metavariable: $LEVEL
+          regex: ^(debug|info|warn|error|security|trace|fatal|log)$
+      - metavariable-regex:
+          metavariable: $VALUE
+          regex: '^([\w$]+!?(\?\.|\.))*(user|users|person|persons|people|guest|guests|tenant|tenants|customer|customers|member|members|account|profile|contact|occupant|occupants|invitee|recipient|actor|owner|staff|booker|holder|resident|residents|membership|invitation|req|request|body|payload|headers|formData|input|query|data)!?$|^[\w$.?!]+\[["\''](user|users|person|persons|people|guest|guests|tenant|tenants|customer|customers|member|members|account|profile|contact|occupant|occupants|invitee|recipient|actor|owner|staff|booker|holder|resident|residents|membership|invitation|req|request|body|payload|headers|formData|input|query|data)["\'']\]!?$'
+    paths:
+      exclude:
+        - "**/*.test.ts"
+        - "**/*.test.mjs"
+        - "**/packages/testkit/"
+  - id: hm-log-pii-stringify-fn
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      Không log `JSON.stringify(<object người dùng/request>)` (CMP-PRIV-008): chuỗi JSON đi qua logger dưới dạng một giá trị, che theo tên khoá không áp được nên họ tên, địa chỉ, nội dung tin nhắn lọt nguyên. Log ID hoặc trường không phải PII đã chọn.
+    metadata: {blueprint: [CMP-PRIV-008], cwe: "CWE-532"}
+    patterns:
+      - pattern-either:
+          - pattern: '$F(..., <... JSON.stringify($VALUE, ...) ...>, ...)'
+      - metavariable-regex:
+          metavariable: $F
+          regex: ^(log|logger|warn|emit)$
+      - metavariable-regex:
+          metavariable: $VALUE
+          regex: '^([\w$]+!?(\?\.|\.))*(user|users|person|persons|people|guest|guests|tenant|tenants|customer|customers|member|members|account|profile|contact|occupant|occupants|invitee|recipient|actor|owner|staff|booker|holder|resident|residents|membership|invitation|req|request|body|payload|headers|formData|input|query|data)!?$|^[\w$.?!]+\[["\''](user|users|person|persons|people|guest|guests|tenant|tenants|customer|customers|member|members|account|profile|contact|occupant|occupants|invitee|recipient|actor|owner|staff|booker|holder|resident|residents|membership|invitation|req|request|body|payload|headers|formData|input|query|data)["\'']\]!?$'
+    paths:
+      exclude:
+        - "**/*.test.ts"
+        - "**/*.test.mjs"
+        - "**/packages/testkit/"
+  - id: hm-log-pii-child
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      Không gắn object người dùng/request hoặc trường PII vào logger con (`log.child({ ... })`, CMP-PRIV-008): bindings đi vào MỌI dòng log sau đó. Gắn ID (vd `person_id: user.id`).
+    metadata: {blueprint: [CMP-PRIV-008], cwe: "CWE-532"}
+    patterns:
+      - pattern-either:
+          - pattern: '$LOG.child({..., $KEY: $VALUE, ...})'
+          - pattern: '$LOG.child({..., ...$VALUE, ...})'
+          - pattern: '$LOG.child($VALUE)'
+          - pattern: '$LOG.child({..., $KEY: <... JSON.stringify($VALUE, ...) ...>, ...})'
+      - metavariable-regex:
+          metavariable: $VALUE
+          regex: '^([\w$]+!?(\?\.|\.))*(user|users|person|persons|people|guest|guests|tenant|tenants|customer|customers|member|members|account|profile|contact|occupant|occupants|invitee|recipient|actor|owner|staff|booker|holder|resident|residents|membership|invitation|req|request|body|payload|headers|formData|input|query|data)!?$|^[\w$.?!]+\[["\''](user|users|person|persons|people|guest|guests|tenant|tenants|customer|customers|member|members|account|profile|contact|occupant|occupants|invitee|recipient|actor|owner|staff|booker|holder|resident|residents|membership|invitation|req|request|body|payload|headers|formData|input|query|data)["\'']\]!?$|^([\w$]+!?(\?\.|\.))*(fullName|full_name|displayName|display_name|legalName|legal_name|guestName|guest_name|address|birthDate|birth_date|dob|messageBody|message_body)!?$|^[\w$.?!]+\[["''"](fullName|full_name|displayName|display_name|legalName|legal_name|guestName|guest_name|address|birthDate|birth_date|dob|messageBody|message_body)["''"]\]!?$|^([\w$]+!?(\?\.|\.))*(user|person|guest|tenant|customer|member|contact|occupant|invitee|recipient|actor|owner|staff|booker|holder|resident)!?(\?\.|\.)(name|phone|email)!?$'
+    paths:
+      exclude:
+        - "**/*.test.ts"
+        - "**/*.test.mjs"
+        - "**/packages/testkit/"
