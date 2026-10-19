@@ -272,7 +272,7 @@ Mọi MUST còn mở cần người (BLUEPRINT-GAPS 'Kết quả đợt 9 (a)');
 Mọi MUST còn mở vẫn cần người. Đợt này lấp hai lỗ 🟢 treo sau review #78 (XC-I18N-001/XC-I18N-009); không tick mục mới.
 
 - [x] `T-1201` Bộ đếm chuỗi viết thẳng (`scripts/i18n-literals.mjs`) đổi từ regex sang AST (`@babel/parser`, plugin typescript + jsx; helper `scripts/ts-ast.mjs`): đếm StringLiteral, TemplateLiteral (một lần mỗi literal) và JSXText có dấu tiếng Việt, chú thích tự loại; baseline theo bộ đếm mới; rào "không nới so với main" chỉ cho nâng một tệp tới đúng số đếm của chính tệp đó trên `origin/main` (XC-I18N-001) — Gate: `pnpm vitest run --project unit scripts/i18n && node scripts/i18n-literals.mjs`
-- [ ] `T-1202` `scripts/i18n-check.mjs` kiểm mọi `t("khoá", {…})` trong `apps/web`: tham số truyền vào khớp đúng tập tham số ICU của khoá (thiếu → người dùng thấy `{ten}` thô; thừa → gõ nhầm tên), đối số thứ hai không phải object literal là lỗi (XC-I18N-009) — Gate: `pnpm vitest run --project unit scripts/i18n && node scripts/i18n-check.mjs`
+- [x] `T-1202` `scripts/i18n-check.mjs` kiểm mọi `t("khoá", {…})` trong `apps/web`: tham số truyền vào khớp đúng tập tham số ICU của khoá (thiếu → người dùng thấy `{ten}` thô; thừa → gõ nhầm tên), đối số thứ hai không phải object literal là lỗi (XC-I18N-009) — Gate: `pnpm vitest run --project unit scripts/i18n && node scripts/i18n-check.mjs`
 - [ ] `T-1203` Rà đợt 13: PROGRESS, BLUEPRINT-GAPS (—) — Gate: `python3 scripts/check-blueprint-evidence.py BLUEPRINT.md`
 
 ## Phụ thuộc ngoài

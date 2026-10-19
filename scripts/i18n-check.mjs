@@ -3,13 +3,15 @@
 //  · nguồn `vi`: mọi khoá có `description` (ngữ cảnh cho người dịch — XC-I18N-001);
 //  · mọi locale: `message` đúng cú pháp ICU (parser của formatjs), cùng tập tham số với nguồn, không thẻ HTML/script/`javascript:`;
 //    thiếu khoá so với nguồn → lỗi (chưa có cơ chế fallback khai báo);
-//  · mã nguồn: mọi khoá `t("…")` đều có trong nguồn (khoá dựng động `tOr(\`…\`)` kiểm theo tiền tố).
+//  · mã nguồn: mọi khoá `t("…")` đều có trong nguồn (khoá dựng động `tOr(\`…\`)` kiểm theo tiền tố); mỗi lời gọi `t` (import từ
+//    lib/i18n) truyền đúng tập tham số `{tên}` của khoá — thiếu thì người dùng thấy `{tên}` thô, thừa là gõ nhầm (đọc trên AST, D-078).
 // Thoát 1 khi có lỗi. Dùng: node scripts/i18n-check.mjs
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse, TYPE } from "@formatjs/icu-messageformat-parser";
 import { isMain } from "./is-main.mjs";
+import { parseSource, walk } from "./ts-ast.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 export const MESSAGES_DIR = join(ROOT, "apps/web/messages");
@@ -114,6 +116,62 @@ export function usedKeys(files) {
   return { exact, prefixes };
 }
 
+const propName = (p) =>
+  p.type === "ObjectProperty" && !p.computed
+    ? p.key.type === "Identifier"
+      ? p.key.name
+      : p.key.type === "StringLiteral"
+        ? p.key.value
+        : null
+    : null;
+
+/**
+ * Lỗi tham số của các lời gọi `t(...)` trong một tệp. Chỉ xét tên cục bộ của `t` import từ module `…/i18n(.ts)` (biến `t` khác
+ * không bị bắt nhầm). Khoá phải là chuỗi viết thẳng (khoá động dùng `tOr`); đối số thứ hai (nếu có) phải là object literal với
+ * khoá tĩnh, và tập khoá phải đúng bằng tập tham số ICU của message nguồn. Khoá không có trong nguồn do `usedKeys` báo.
+ */
+export function tCallErrors(text, file, src) {
+  const ast = parseSource(text, file);
+  const locals = new Set();
+  for (const node of ast.program.body)
+    if (node.type === "ImportDeclaration" && /(^|\/)i18n(\.ts)?$/.test(node.source.value))
+      for (const sp of node.specifiers)
+        if (sp.type === "ImportSpecifier" && (sp.imported.name ?? sp.imported.value) === "t")
+          locals.add(sp.local.name);
+  const errors = [];
+  if (locals.size === 0) return errors;
+  walk(ast.program, (node) => {
+    if (node.type !== "CallExpression" || node.callee.type !== "Identifier" || !locals.has(node.callee.name))
+      return;
+    const at = `${file}:${node.loc.start.line}`;
+    const [keyArg, paramsArg] = node.arguments;
+    if (keyArg?.type !== "StringLiteral") {
+      errors.push(`${at}: t() cần khoá viết thẳng "…" (khoá dựng động dùng tOr)`);
+      return;
+    }
+    const key = keyArg.value;
+    if (!(key in src)) return;
+    let got = [];
+    if (paramsArg) {
+      const names = paramsArg.type === "ObjectExpression" ? paramsArg.properties.map(propName) : [null];
+      if (names.includes(null)) {
+        errors.push(
+          `${at}: t("${key}") — tham số phải là object literal với khoá tĩnh (không spread/biến/khoá tính)`,
+        );
+        return;
+      }
+      got = names;
+    }
+    const want = messageArgs(src[key].message);
+    const missing = want.filter((n) => !got.includes(n));
+    const extra = got.filter((n) => !want.includes(n));
+    if (missing.length)
+      errors.push(`${at}: t("${key}") thiếu tham số ${missing.map((n) => `{${n}}`).join(", ")}`);
+    if (extra.length) errors.push(`${at}: t("${key}") thừa tham số ${extra.join(", ")} (message không có)`);
+  });
+  return errors;
+}
+
 export function loadCatalogs(dir = MESSAGES_DIR) {
   return Object.fromEntries(
     readdirSync(dir)
@@ -144,12 +202,14 @@ function main() {
   const catalogs = loadCatalogs();
   const errors = checkCatalogs(catalogs);
   const src = catalogs[SOURCE_LOCALE] ?? {};
-  const { exact, prefixes } = usedKeys(sourceFiles(join(ROOT, "apps/web")));
+  const files = sourceFiles(join(ROOT, "apps/web"));
+  const { exact, prefixes } = usedKeys(files);
   for (const [k, f] of exact)
     if (!(k in src)) errors.push(`${relative(ROOT, f)}: t("${k}") không có trong nguồn`);
   for (const [p, f] of prefixes)
     if (!Object.keys(src).some((k) => k.startsWith(p)))
       errors.push(`${relative(ROOT, f)}: tiền tố "${p}" không có khoá nào`);
+  for (const f of files) errors.push(...tCallErrors(readFileSync(f, "utf8"), relative(ROOT, f), src));
   errors.push(...roleKeyErrors(src, readFileSync(join(ROOT, "apps/web/lib/roles.ts"), "utf8")));
   for (const e of errors) console.error(e);
   console.log(

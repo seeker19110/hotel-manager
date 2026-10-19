@@ -25,12 +25,14 @@ const VI = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềế
 /** Số chuỗi tiếng Việt viết thẳng trong một tệp: mỗi StringLiteral, mỗi template literal (một lần dù nhiều đoạn quanh `${…}`) và
  * mỗi đoạn chữ JSX (chữ trước và sau `{n}` là hai đoạn) có dấu tiếng Việt. Chú thích không phải nút AST nên không bị đếm. */
 export function countLiterals(src, file) {
+  // Giá trị đã giải mã (`\u00f2` trong template là `cooked`) và chuẩn NFC (chữ tổ hợp `o` + dấu huyền vẫn là "ò").
+  const vi = (s) => s != null && VI.test(s.normalize("NFC"));
   let n = 0;
   walk(parseSource(src, file).program, (node) => {
     if (
-      (node.type === "StringLiteral" && VI.test(node.value)) ||
-      (node.type === "JSXText" && VI.test(node.value)) ||
-      (node.type === "TemplateLiteral" && node.quasis.some((q) => VI.test(q.value.raw)))
+      (node.type === "StringLiteral" && vi(node.value)) ||
+      (node.type === "JSXText" && vi(node.value)) ||
+      (node.type === "TemplateLiteral" && node.quasis.some((q) => vi(q.value.cooked ?? q.value.raw)))
     )
       n++;
   });

@@ -1,14 +1,15 @@
 // XC-I18N-001 / XC-I18N-009 (D-073): chuỗi người dùng thấy nằm trong apps/web/messages/<locale>.json; tệp dịch được kiểm (khoá, cú
 // pháp ICU, tham số, HTML lạ) trong CI (job quality chạy unit); chuỗi viết thẳng chỉ được giảm (ratchet theo tệp).
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { t, tOr } from "../apps/web/lib/i18n.ts";
 import { ROLE_LABEL, STATUS_LABEL } from "../apps/web/lib/roles.ts";
-import { checkCatalogs, loadCatalogs, messageArgs, roleKeyErrors } from "./i18n-check.mjs";
-import { BASELINE, countLiterals, regressions, scan, unjustifiedRaises } from "./i18n-literals.mjs";
+import { checkCatalogs, loadCatalogs, messageArgs, roleKeyErrors, tCallErrors } from "./i18n-check.mjs";
+import { BASELINE, countLiterals, regressions, SCOPE, scan, unjustifiedRaises } from "./i18n-literals.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const node = (script, ...args) =>
@@ -52,6 +53,27 @@ describe("XC-I18N-009 — kiểm tệp dịch", () => {
     expect(checkCatalogs({ vi: { a: entry("Sai {") }, en: { a: entry("x") } })).toEqual(
       expect.arrayContaining([expect.stringMatching(/^vi:a: sai cú pháp ICU/)]),
     );
+  });
+
+  it("tham số t(): đúng tập {tên} của khoá; thiếu/thừa/không phải object literal/khoá động đều là lỗi (T-1202)", () => {
+    const src = { "a.hi": entry("Chào {name}, còn {n} phòng"), "a.plain": entry("Đã lưu") };
+    const file = (body) => `import { t } from "../lib/i18n.ts";\n${body}`;
+    const errs = (body, name = "x.tsx") => tCallErrors(file(body), name, src);
+    expect(errs('t("a.hi", { name: u, n: 2 }); t("a.plain");')).toEqual([]);
+    expect(errs('t("a.hi", { "name": u, n });')).toEqual([]); // khoá chuỗi + viết tắt
+    expect(errs('t("a.hi", { name: u });')).toEqual(['x.tsx:2: t("a.hi") thiếu tham số {n}']);
+    expect(errs('t("a.hi");')).toEqual(['x.tsx:2: t("a.hi") thiếu tham số {n}, {name}']);
+    expect(errs('t("a.plain", { nam: 1 });')).toEqual([
+      'x.tsx:2: t("a.plain") thừa tham số nam (message không có)',
+    ]);
+    expect(errs('t("a.hi", params);')[0]).toMatch(/object literal với khoá tĩnh/);
+    expect(errs('t("a.hi", { ...p });')[0]).toMatch(/object literal với khoá tĩnh/);
+    expect(errs('t("a.hi", { [k]: 1, n: 2 });')[0]).toMatch(/object literal với khoá tĩnh/);
+    expect(errs(["t(`a.$", "{x}`);"].join(""))[0]).toMatch(/khoá viết thẳng/);
+    expect(errs('t("khong.co");')).toEqual([]); // khoá lạ do usedKeys/main() báo, không báo hai lần
+    // Tên cục bộ khác (import as) vẫn được kiểm; `t` không import từ i18n thì không bị bắt nhầm.
+    expect(tCallErrors('import { t as tr } from "./i18n.ts";\ntr("a.hi");', "y.ts", src)).toHaveLength(1);
+    expect(tCallErrors('const t = (x) => x;\nt("a.hi");', "z.ts", src)).toEqual([]);
   });
 
   it("mọi vai trò và trạng thái đều có nhãn thật (không rơi về mã thô)", () => {
@@ -132,7 +154,23 @@ describe("XC-I18N-001 — chuỗi viết thẳng chỉ được giảm (ratchet)
     expect(countLiterals("<p>Xem https://a.vn để biết</p>")).toBe(1);
     expect(countLiterals('const x = <string>"Lỗi";', "a.ts")).toBe(1);
     expect(countLiterals("// Phòng\n/* Lễ tân */\nconst a = 1;")).toBe(0);
+    // Thuộc tính JSX, kiểu literal, template viết bằng escape, chữ tổ hợp (NFD) — review #96.
+    expect(countLiterals('<button title="Đóng" />')).toBe(1);
+    expect(countLiterals('type K = "Phòng" | "Đã";', "k.ts")).toBe(2);
+    expect(countLiterals("const s = `Ph\\u00f2ng $" + "{x}`;", "e.ts")).toBe(1);
+    expect(countLiterals('const s = "Pho\u0300ng";', "n.ts")).toBe(1);
     expect(() => countLiterals("const = ;", "hỏng.ts")).toThrow(/hỏng\.ts: không phân tích được/);
+  });
+
+  it("scan đọc tệp .ts không bật jsx (ép kiểu `<T>x` hợp lệ) — tên tệp được truyền vào bộ đếm", () => {
+    const root = mkdtempSync(join(tmpdir(), "i18n-scan-"));
+    try {
+      for (const d of SCOPE) mkdirSync(join(root, d), { recursive: true });
+      writeFileSync(join(root, "packages/app/src/a.ts"), 'export const x = <string>"Lỗi";\n');
+      expect(scan(root)).toEqual({ "packages/app/src/a.ts": 1 });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it("không tệp nào tăng so với baseline; tệp mới = 0", () => {
@@ -142,7 +180,7 @@ describe("XC-I18N-001 — chuỗi viết thẳng chỉ được giảm (ratchet)
     expect(regressions({ "x.tsx": 2 }, { "x.tsx": 3 })).toEqual([]);
   });
 
-  it("baseline không được nới so với main (chỉ hạ hoặc xoá dòng)", () => {
+  it("baseline chỉ được hạ, hoặc nâng tới đúng số đếm của tệp trên main (bộ đếm chặt hơn — D-078)", () => {
     const ref = spawnSync("git", ["rev-parse", "--verify", "--quiet", "origin/main"], {
       cwd: ROOT,
       encoding: "utf8",
