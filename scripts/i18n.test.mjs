@@ -106,7 +106,17 @@ describe("XC-I18N-001 — chuỗi viết thẳng chỉ được giảm (ratchet)
       'const d = <p className="x">Đã lưu {n} phòng</p>;',
       ["const e = `Còn $", "{x} đ`;"].join(""),
     ].join("\n");
-    expect(countLiterals(src)).toBe(3);
+    // "Lễ tân", `Còn ${x} đ`, "Đã lưu " và " phòng" (JSX text trước và sau biểu thức `{n}` là hai đoạn)
+    expect(countLiterals(src)).toBe(4);
+  });
+
+  it("chữ JSX đứng sau một biểu thức `{…}` cũng được đếm; mảnh template `${` thì không", () => {
+    expect(countLiterals("<span>{n} phòng</span>")).toBe(1);
+    expect(countLiterals("<p>Giữ {a} (còn {m} phút)</p>")).toBeGreaterThanOrEqual(2);
+    // chỉ một chuỗi (template) — mảnh ` còn ` sau `${a}` không bị đếm thêm như chữ JSX
+    expect(countLiterals(["const s = `$", "{a} còn $", "{b}`;"].join(""))).toBe(1);
+    expect(countLiterals("<span>{n} rooms</span>")).toBe(0);
+    expect(countLiterals("<span>{n}</span>")).toBe(0);
   });
 
   it("không tệp nào tăng so với baseline; tệp mới = 0", () => {

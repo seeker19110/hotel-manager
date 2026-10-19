@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { CommandForm, type FieldSpec } from "../../components/command/command-form.tsx";
 import { EmptyState, ErrorState } from "../../components/ui/state.tsx";
 import { day } from "../../lib/format.ts";
+import { t } from "../../lib/i18n.ts";
 import { withActor } from "../../lib/page.tsx";
 import { ROLE_LABEL, STAFF_ALL, STAFF_LOW, STATUS_LABEL } from "../../lib/roles.ts";
 import { safe } from "../../lib/safe.ts";
@@ -81,7 +82,7 @@ export default async function MembersPage() {
                   {i.properties.length > 0
                     ? ` · ${i.properties.map((p) => p.name).join(", ")}`
                     : " · Tất cả cơ sở"}{" "}
-                  · hết hạn {day(i.expiresAt.slice(0, 10))}
+                  {t("member.invitation.expires", { date: day(i.expiresAt.slice(0, 10)) })}
                 </li>
               ))}
             </ul>

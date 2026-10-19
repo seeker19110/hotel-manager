@@ -66,5 +66,97 @@
   "member_status.invited": {
     "message": "Đã mời",
     "description": "Trạng thái thành viên `invited` trong danh sách thành viên."
+  },
+  "property.list.meta": {
+    "message": "{template} · múi giờ {timezone} · chốt ngày {cutoff}",
+    "description": "Dòng mô tả một cơ sở trong danh sách cơ sở: mẫu cơ sở, múi giờ và giờ chốt ngày kinh doanh."
+  },
+  "booking.detail.title": {
+    "message": "{number} — Phòng {room}",
+    "description": "Tiêu đề trang chi tiết đặt phòng: số đặt phòng và mã phòng (— khi chưa gán phòng)."
+  },
+  "booking.detail.stay": {
+    "message": "{arrival} → {departure} ({nights} đêm, {guests} khách)",
+    "description": "Khoảng ở của đặt phòng ở trang chi tiết: ngày đến, ngày đi, số đêm, số khách."
+  },
+  "booking.list.title": {
+    "message": "{number} · Phòng {room} · {booker}",
+    "description": "Tiêu đề thẻ đặt phòng trong danh sách: số đặt phòng, mã phòng (— khi chưa gán), tên người đặt."
+  },
+  "booking.list.meta": {
+    "message": "{arrival} → {departure} · {nights} đêm · {total}",
+    "description": "Dòng phụ thẻ đặt phòng trong danh sách: ngày đến, ngày đi, số đêm, tiền phòng đã định dạng."
+  },
+  "lease.list.title": {
+    "message": "Phòng {unit} — {tenant}",
+    "description": "Tiêu đề thẻ hợp đồng trong danh sách: mã phòng và tên người thuê."
+  },
+  "lease.list.meta": {
+    "message": "{number} · {property} · từ {start} · {rent}/tháng",
+    "description": "Dòng phụ thẻ hợp đồng trong danh sách: số hợp đồng, cơ sở, ngày bắt đầu tính tiền, tiền thuê tháng đã định dạng."
+  },
+  "billing.preview.room_total": {
+    "message": "Phòng {unit} — tổng",
+    "description": "Đầu bảng xem trước kỳ thu cho một phòng; số tiền tổng (đã định dạng) hiện ngay sau, in đậm."
+  },
+  "billing.period.title": {
+    "message": "Kỳ {month} — {property}",
+    "description": "Tiêu đề thẻ kỳ thu trong danh sách: tháng của kỳ và tên cơ sở."
+  },
+  "billing.period.meta": {
+    "message": "{invoices} phiếu · {total}",
+    "description": "Dòng phụ thẻ kỳ thu trong danh sách: số phiếu thu và tổng tiền đã định dạng."
+  },
+  "calendar.range": {
+    "message": "{property} · từ {from} đến {to}",
+    "description": "Dòng khoảng ngày đang xem ở lịch phòng: tên cơ sở, ngày đầu và ngày cuối (đã định dạng)."
+  },
+  "home.business_date": {
+    "message": "{property}: ngày kinh doanh {date}",
+    "description": "Dòng ngày kinh doanh hiện tại của từng cơ sở ở trang chủ."
+  },
+  "portal.lease.title": {
+    "message": "Hợp đồng {number} — Phòng {unit}",
+    "description": "Tiêu đề thẻ hợp đồng ở cổng người thuê: số hợp đồng và mã phòng."
+  },
+  "portal.lease.version": {
+    "message": "v{version} — hiệu lực từ {from}",
+    "description": "Phiên bản điều khoản hiện hành ở cổng người thuê: số phiên bản và ngày hiệu lực (đã định dạng)."
+  },
+  "portal.request.title": {
+    "message": "{title} — Phòng {unit}",
+    "description": "Tiêu đề thẻ yêu cầu ở cổng người thuê: tiêu đề yêu cầu và mã phòng."
+  },
+  "workorder.list.meta": {
+    "message": "Mức độ {severity} · báo lúc {createdAt}",
+    "description": "Dòng phụ thẻ sự cố trong danh sách: mức độ (viết thường) và thời điểm báo (đã định dạng)."
+  },
+  "member.invitation.expires": {
+    "message": "· hết hạn {date}",
+    "description": "Hạn hiệu lực của lời mời trong danh sách lời mời đang chờ; đứng sau vai trò và phạm vi cơ sở."
+  },
+  "payment.invoice.meta": {
+    "message": "Ngày {date} · tổng {total} · còn",
+    "description": "Dòng phụ phiếu thu: ngày kinh doanh và tổng tiền; số còn nợ (in đậm) hiện ngay sau."
+  },
+  "booking.quote.total": {
+    "message": "{nights} đêm — tổng",
+    "description": "Đầu bảng báo giá ở form đặt phòng: số đêm; tổng tiền phòng (đã định dạng) hiện ngay sau, in đậm."
+  },
+  "booking.hold.until": {
+    "message": "Giữ phòng đến {until}",
+    "description": "Hạn giữ phòng tuyệt đối (đã định dạng), luôn hiện bằng chữ."
+  },
+  "booking.hold.countdown": {
+    "message": "(còn {minutes} phút {seconds} giây)",
+    "description": "Đếm ngược còn lại của hạn giữ phòng: số phút và số giây (2 chữ số)."
+  },
+  "booking.hold.expired": {
+    "message": "— đã hết hạn giữ phòng",
+    "description": "Thông báo khi hạn giữ phòng đã qua; đứng sau một khoảng trắng trong thẻ in đậm."
+  },
+  "portal.context": {
+    "message": "{org} · Người thuê",
+    "description": "Dòng ngữ cảnh đầu trang cổng người thuê: tên tổ chức."
   }
 }

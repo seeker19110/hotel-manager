@@ -2,6 +2,7 @@ import { getTodaySummary, serverContext } from "@hm/app";
 import type { Metadata } from "next";
 import { EmptyState, ErrorState } from "../components/ui/state.tsx";
 import { CARD_LABEL, dateTime, day, vnd } from "../lib/format.ts";
+import { t } from "../lib/i18n.ts";
 import { withActor } from "../lib/page.tsx";
 import { safe } from "../lib/safe.ts";
 import { currentSession } from "../lib/session.ts";
@@ -71,7 +72,7 @@ export default async function HomePage({
         <ul className="card-list" aria-label="Ngày kinh doanh">
           {s.properties.map((p) => (
             <li key={p.id} className="card__meta" data-testid="business-date">
-              {p.name}: ngày kinh doanh {day(p.businessDate)}
+              {t("home.business_date", { property: p.name, date: day(p.businessDate) })}
             </li>
           ))}
         </ul>

@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { StatusBadge } from "../../components/ui/badge.tsx";
 import { EmptyState, ErrorState } from "../../components/ui/state.tsx";
 import { addDays, BOOKING_STATUS, day, vnd } from "../../lib/format.ts";
+import { t } from "../../lib/i18n.ts";
 import { withActor } from "../../lib/page.tsx";
 import { safe } from "../../lib/safe.ts";
 
@@ -85,10 +86,19 @@ export default async function BookingsPage({
               <li key={b.id} className="card" data-testid="booking">
                 <a href={`/dat-phong/${b.id}`} className="card__link">
                   <span className="card__title">
-                    {b.number} · Phòng {code.get(b.unitId) ?? "—"} · {b.bookerName}
+                    {t("booking.list.title", {
+                      number: b.number,
+                      room: code.get(b.unitId) ?? "—",
+                      booker: b.bookerName,
+                    })}
                   </span>
                   <span className="card__meta">
-                    {day(b.arrivalDate)} → {day(b.departureDate)} · {b.nights} đêm · {vnd(b.roomTotal)}
+                    {t("booking.list.meta", {
+                      arrival: day(b.arrivalDate),
+                      departure: day(b.departureDate),
+                      nights: b.nights,
+                      total: vnd(b.roomTotal),
+                    })}
                   </span>
                   <StatusBadge status={b.status} label={BOOKING_STATUS[b.status] ?? b.status} />
                 </a>

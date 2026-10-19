@@ -8,6 +8,7 @@ import { ShiftPanel } from "../../../components/hotel/shift-panel.tsx";
 import { StatusBadge } from "../../../components/ui/badge.tsx";
 import { ErrorState } from "../../../components/ui/state.tsx";
 import { BOOKING_STATUS, dateTime, day, vnd } from "../../../lib/format.ts";
+import { t } from "../../../lib/i18n.ts";
 import { withActor } from "../../../lib/page.tsx";
 import { safe } from "../../../lib/safe.ts";
 
@@ -35,9 +36,7 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
     return (
       <>
         <section aria-labelledby="tt" className="panel">
-          <h2 id="tt">
-            {b.number} — Phòng {room?.code ?? "—"}
-          </h2>
+          <h2 id="tt">{t("booking.detail.title", { number: b.number, room: room?.code ?? "—" })}</h2>
           <dl className="facts">
             <dt>Trạng thái</dt>
             <dd>
@@ -51,7 +50,12 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
             <dd>{b.bookerName}</dd>
             <dt>Ở từ</dt>
             <dd>
-              {day(b.arrivalDate)} → {day(b.departureDate)} ({b.nights} đêm, {b.guests} khách)
+              {t("booking.detail.stay", {
+                arrival: day(b.arrivalDate),
+                departure: day(b.departureDate),
+                nights: b.nights,
+                guests: b.guests,
+              })}
             </dd>
             <dt>Tiền phòng</dt>
             <dd data-testid="room-total">{vnd(b.roomTotal)}</dd>

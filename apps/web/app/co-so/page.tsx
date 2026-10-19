@@ -2,6 +2,7 @@ import { listProperties, serverContext } from "@hm/app";
 import type { Metadata } from "next";
 import { CommandForm } from "../../components/command/command-form.tsx";
 import { EmptyState, ErrorState } from "../../components/ui/state.tsx";
+import { t } from "../../lib/i18n.ts";
 import { withActor } from "../../lib/page.tsx";
 import { safe } from "../../lib/safe.ts";
 
@@ -39,8 +40,11 @@ export default async function PropertiesPage() {
               <li key={p.propertyId} className="member-list__item" data-testid="property">
                 <h2>{p.name}</h2>
                 <p>
-                  {TEMPLATE_LABEL[p.template] ?? p.template} · múi giờ {p.timezone} · chốt ngày{" "}
-                  {p.businessDayCutoff}
+                  {t("property.list.meta", {
+                    template: TEMPLATE_LABEL[p.template] ?? p.template,
+                    timezone: p.timezone,
+                    cutoff: p.businessDayCutoff,
+                  })}
                   {p.checkInTime ? ` · nhận phòng ${p.checkInTime}` : ""}
                   {p.checkOutTime ? ` · trả phòng ${p.checkOutTime}` : ""}
                 </p>

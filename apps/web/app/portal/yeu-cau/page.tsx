@@ -2,6 +2,7 @@ import { getMyLease, listMyRequests, serverContext } from "@hm/app";
 import type { Metadata } from "next";
 import { RequestForm } from "../../../components/portal/request-form.tsx";
 import { EmptyState } from "../../../components/ui/state.tsx";
+import { t } from "../../../lib/i18n.ts";
 import { withPortal } from "../../../lib/portal-page.tsx";
 
 export const metadata: Metadata = { title: "Yêu cầu — Hotel Manager" };
@@ -43,7 +44,7 @@ export default async function PortalRequestsPage() {
               {requests.map((r) => (
                 <li key={r.id} className="card" data-testid="request">
                   <p className="card__title">
-                    {r.title} — Phòng {r.unitCode}
+                    {t("portal.request.title", { title: r.title, unit: r.unitCode })}
                   </p>
                   <p className="card__meta">Cập nhật {r.updatedAtLocal}</p>
                   <span className="badge" data-status={r.status}>

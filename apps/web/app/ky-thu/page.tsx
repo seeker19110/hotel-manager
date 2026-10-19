@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { CommandForm } from "../../components/command/command-form.tsx";
 import { EmptyState } from "../../components/ui/state.tsx";
 import { month, PERIOD_STATUS, vnd } from "../../lib/format.ts";
+import { t } from "../../lib/i18n.ts";
 import { withActor } from "../../lib/page.tsx";
 
 export const metadata: Metadata = { title: "Kỳ thu — Hotel Manager" };
@@ -47,10 +48,10 @@ export default async function PeriodsPage() {
                 <li key={b.id} className="card" data-testid="period">
                   <a href={`/ky-thu/${b.id}`} className="card__link">
                     <span className="card__title">
-                      Kỳ {month(b.period_start)} — {b.property}
+                      {t("billing.period.title", { month: month(b.period_start), property: b.property })}
                     </span>
                     <span className="card__meta">
-                      {b.invoices} phiếu · {vnd(b.total)}
+                      {t("billing.period.meta", { invoices: b.invoices, total: vnd(b.total) })}
                     </span>
                     <span className="badge" data-status={b.status}>
                       {PERIOD_STATUS[b.status] ?? b.status}
