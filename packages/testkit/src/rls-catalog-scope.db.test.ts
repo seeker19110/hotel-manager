@@ -19,6 +19,8 @@ let fdA: string; // front_desk gán cơ sở A
 let owner: string;
 let tenantA: string; // người thuê có hợp đồng ở A
 let tenantNone: string; // người thuê chưa có hợp đồng
+let coTenant: string; // người ở co_tenant của hợp đồng ở A (không phải đại diện)
+let occupantOnly: string; // chỉ là người ở (occupant) — không có quyền xem
 let seeded: SeededOrg;
 
 const TABLES = ["properties", "floors", "room_types", "units"] as const;
@@ -78,6 +80,22 @@ beforeAll(async () => {
     effectiveFrom: "2026-09-01",
   });
   await activateLease(t.admin, { org: seeded, leaseId, effectiveFrom: "2026-09-01" });
+  const leaseRow = (
+    await sql<{ unit_id: string }>`select unit_id from leases where id = ${leaseId}`.execute(t.admin)
+  ).rows[0];
+  expect(leaseRow).toBeDefined();
+  for (const [role, label] of [
+    ["co_tenant", "co"],
+    ["occupant", "occ"],
+  ] as const) {
+    const m = await member("tenant");
+    await sql`insert into lease_occupants (id, organization_id, property_id, lease_id, person_id, role, is_representative, from_on)
+              values (${randomUUID()}, ${orgId}, ${propA}, ${leaseId}, ${m.personId}, ${role}, false, '2026-09-01')`.execute(
+      t.admin,
+    );
+    if (label === "co") coTenant = m.id;
+    else occupantOnly = m.id;
+  }
 }, 120_000);
 
 afterAll(async () => {
@@ -158,6 +176,82 @@ describe("AUD-DATA-001 — người thuê chỉ thấy cơ sở có hợp đồn
         (await sql`update units set code = 'HACK' where id = ${unitA}`.execute(trx)).numAffectedRows,
     );
     expect(upd).toBe(0n);
+  });
+});
+
+describe("người thuê không ghi được vào danh mục", () => {
+  it("INSERT/UPDATE/DELETE của tenant bị chặn trên cả 4 bảng (kể cả cơ sở mình thuê)", async () => {
+    const stmts: Record<
+      string,
+      [ins: ReturnType<typeof sql>, upd: ReturnType<typeof sql>, del: ReturnType<typeof sql>]
+    > = {
+      properties: [
+        sql`insert into properties (id, organization_id, name, template) values (${randomUUID()}, ${orgId}, 'X', 'hotel')`,
+        sql`update properties set name = 'HACK' where id = ${propA}`,
+        sql`delete from properties where id = ${propA}`,
+      ],
+      floors: [
+        sql`insert into floors (id, organization_id, property_id, name) values (${randomUUID()}, ${orgId}, ${propA}, 'X')`,
+        sql`update floors set name = 'HACK' where property_id = ${propA}`,
+        sql`delete from floors where property_id = ${propA}`,
+      ],
+      room_types: [
+        sql`insert into room_types (id, organization_id, property_id, code, name, capacity) values (${randomUUID()}, ${orgId}, ${propA}, 'Z', 'Z', 1)`,
+        sql`update room_types set name = 'HACK' where property_id = ${propA}`,
+        sql`delete from room_types where property_id = ${propA}`,
+      ],
+      units: [
+        sql`insert into units (id, organization_id, property_id, floor_id, room_type_id, code)
+            select ${randomUUID()}, ${orgId}, ${propA}, floor_id, room_type_id, 'Z-9' from units where id = ${unitA}`,
+        sql`update units set code = 'HACK' where property_id = ${propA}`,
+        sql`delete from units where property_id = ${propA}`,
+      ],
+    };
+    for (const [tbl, [ins, upd, del]] of Object.entries(stmts)) {
+      await expect(
+        as(tenantA, (trx) => ins.execute(trx)),
+        `insert ${tbl}`,
+      ).rejects.toThrow();
+      expect(
+        await as(tenantA, async (trx) => (await upd.execute(trx)).numAffectedRows),
+        `update ${tbl}`,
+      ).toBe(0n);
+      expect(
+        await as(tenantA, async (trx) => (await del.execute(trx)).numAffectedRows),
+        `delete ${tbl}`,
+      ).toBe(0n);
+    }
+  });
+});
+
+describe("người ở trong hợp đồng", () => {
+  it("co_tenant thấy cơ sở của hợp đồng (báo sự cố được); occupant thuần không thấy", async () => {
+    expect(await rows(coTenant, "units", propA)).toBeGreaterThan(0);
+    expect(await rows(coTenant, "units", propB)).toBe(0);
+    expect(await rows(occupantOnly, "units", propA)).toBe(0);
+  });
+});
+
+describe("hiệu năng: kiểm theo tập, không theo từng dòng (review #101)", () => {
+  it("đọc ~1500 phòng bằng owner/front_desk/tenant: trung vị < 200 ms (kiểm từng dòng bằng hàm SECURITY DEFINER ≈ 0,35 ms/dòng ≈ 500 ms)", async () => {
+    await sql`insert into units (id, organization_id, property_id, floor_id, room_type_id, code)
+              select gen_random_uuid(), ${orgId}, ${propA}, u.floor_id, u.room_type_id, 'P-' || g
+              from units u, generate_series(1, 1500) g where u.id = ${unitA}`.execute(t.admin);
+    for (const [who, actor] of [
+      ["owner", owner],
+      ["front_desk", fdA],
+      ["tenant", tenantA],
+    ] as const) {
+      const times: number[] = [];
+      for (let i = 0; i < 5; i++) {
+        const t0 = performance.now();
+        const n = await rows(actor, "units", propA);
+        times.push(performance.now() - t0);
+        expect(n, who).toBeGreaterThan(1500);
+      }
+      times.sort((a, b) => a - b);
+      expect(times[2] as number, `${who} trung vị ms`).toBeLessThan(200);
+    }
   });
 });
 
