@@ -1,12 +1,13 @@
 // CMP-PRIV-008: không PII trong log. (1) luật Semgrep cấm đưa nguyên object người dùng/request hoặc trường họ tên/địa chỉ vào log
 // (security/semgrep/hm-privacy.yml, job `sast`); (2) bộ quét PII trên log server của lượt E2E (scripts/pii-log-scan.mjs, job `e2e`,
 // D-072 thay cho log staging). Logger che email/SĐT/CCCD/token: bản ghi do chính logger sinh phải qua bộ quét sạch.
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, describe, expect, it } from "vitest";
+import { teeChildLog, waitClosed } from "../apps/web/e2e/child-log.ts";
 import { createLogger } from "../packages/app/src/logging/logger.ts";
 import { scanText } from "./pii-log-scan.mjs";
 
@@ -105,6 +106,10 @@ describe("nối vào CI", () => {
     const server = read("apps/web/e2e/server.ts");
     expect(server).toMatch(/LOG_DIR = join\(import\.meta\.dirname, "\.\.", "e2e-logs"\)/);
     expect(server).toContain('stdio: ["inherit", "pipe", "pipe"]');
+    expect(server).toMatch(
+      /await waitClosed\(\[nextClosed, \.\.\.\(replicaRun \? \[replicaRun\.closed\] : \[\]\)\], \d[\d_]*\)/,
+    );
+    expect(server).not.toMatch(/setTimeout\(r, 500\)/);
     expect(read(".gitignore")).toMatch(/^e2e-logs\/$/m);
   });
 
@@ -132,5 +137,44 @@ describe("nối vào CI", () => {
       if (!id.endsWith("-fn") || id === "hm-log-pii-object-fn")
         expect(fixture).toMatch(new RegExp(`// ok: ${id}\\b`));
     }
+  });
+});
+
+describe("server E2E: log ghi đủ tới dòng cuối khi dừng (bộ quét PII không bỏ sót)", () => {
+  // Tiến trình con in một dòng KHI nhận SIGTERM rồi mới thoát — như Next in log lúc tắt.
+  const LATE =
+    "process.on('SIGTERM',()=>setTimeout(()=>{console.log('dong-cuoi');process.exit(0)},150));console.log('san-sang');setInterval(()=>{},1000)";
+  const startTee = (code) => {
+    const dir = mkdtempSync(join(tmpdir(), "hm-tee-"));
+    dirs.push(dir);
+    const file = join(dir, "server.log");
+    const child = spawn(process.execPath, ["-e", code], { stdio: ["ignore", "pipe", "pipe"] });
+    return { child, file, ...teeChildLog(child, file) };
+  };
+  const ready = (child) => new Promise((r) => child.stdout.once("data", r));
+
+  it("chờ `closed` ⇒ tệp log có cả dòng in sau SIGTERM", async () => {
+    const { child, file, closed } = startTee(LATE);
+    await ready(child);
+    child.kill("SIGTERM");
+    expect(await waitClosed([closed], 5_000)).toBe(true);
+    expect(readFileSync(file, "utf8")).toMatch(/san-sang\n[\s\S]*dong-cuoi\n/);
+  });
+
+  it("tiến trình không chịu thoát ⇒ waitClosed trả false đúng hạn, không treo", async () => {
+    const { child, closed } = startTee(
+      "process.on('SIGTERM',()=>{});console.log('x');setInterval(()=>{},1000)",
+    );
+    await ready(child);
+    child.kill("SIGTERM");
+    const t0 = Date.now();
+    expect(await waitClosed([closed], 300)).toBe(false);
+    expect(Date.now() - t0).toBeLessThan(2_000);
+    child.kill("SIGKILL");
+    expect(await waitClosed([closed], 5_000)).toBe(true);
+  });
+
+  it("danh sách rỗng ⇒ true ngay", async () => {
+    expect(await waitClosed([], 10)).toBe(true);
   });
 });
