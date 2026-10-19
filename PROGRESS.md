@@ -1,6 +1,6 @@
 # PROGRESS.md — Hotel Manager
 ## Đang làm
-- Đợt 12 xong (D-075/D-076, 2026-10-19), đã merge: #76 Semgrep chặn `JSON.stringify(<người>)`/`log.child({ user })` · #77 server E2E log đủ dòng cuối · #78 ratchet i18n bắt `{n} phòng` + 26 đoạn sang `t()` (người merge) · #79 test rate-limit vắt ranh giới phút · #82 fingerprint gitleaks sau khi viết lại `main`. Chủ dự án nâng khung 3.5.1 (#84), 3.6.0 (#85).
+- Đợt 13 (D-078, 2026-10-19): #96 bộ đếm chuỗi i18n trên AST (`@babel/parser`, 2363 chuỗi thật, rào chỉ nâng tới số đếm trên main) · #97 `i18n-check` kiểm tham số `t()`. Đợt 12 (D-075/D-076) đã merge #76–#79, #82. **Đợt mới dùng `loop resume`, không `loop init`** (init xoá defer + làm cũ mọi bằng chứng — FB-149).
 - #86 T-1107 steward chỉ `--apply` khi nhánh đích có required check (FB-134). Chủ dự án import ruleset `main` (29 check); #88 phát hành **v0.2.0** (Release + SBOM + SHA256SUMS). T-1108 tick 10 MUST bằng `scripts/check-github-live.mjs` (D-077, #90). Chủ dự án: khung 3.7.0/3.7.1 (#91, #92), #93 perf LCP `/thong-bao`, đóng Release PR #89 không merge.
 - Trước đó: đợt 10–11 xong (#59…#75). `blueprint-status --strict`: MUST đạt 351 · miễn/không áp dụng 59 · **mở 91** — đều cần người (BLUEPRINT-GAPS 'Kết quả đợt 9 (a)'). GO-NO-GO: NO-GO (7 BLOCKER). Autopilot `done-pending-human`.
 
@@ -32,6 +32,6 @@
 - Bài học đợt 5–8: Better Auth `/sign-in/email` 20 lần/phút theo IP; `<dialog>` phát `close` sau một task (`onClose` chỉ xoá trạng thái khi hộp thật sự đóng); chạy lại job CI dùng payload sự kiện cũ (cần push mới); test giá trị ngẫu nhiên phải loại ca biên (IP octet 0); không so thời gian tuyệt đối (so tương đối); hai lát song song có thể đụng nhau qua rào mới.
 
 ## Bàn giao phiên
-- `main` = `106237d` (khung 3.7.1, #93). Không còn PR mở; live check 2026-10-19: ruleset/squash/tags/release đạt, chưa có ruleset tag, nhãn `major`, LICENSE.
+- `main` = `2d19e04` (sau #97); PR mở: #98 (T-1203). Lần trước: live check 2026-10-19: ruleset/squash/tags/release đạt, chưa có ruleset tag, nhãn `major`, LICENSE.
 - Lệnh kiểm nhanh: `.xtemplates/scripts/dev-task.sh gate` · `pnpm test:db` · `E2E_PORT=<cổng riêng> pnpm --filter @hm/web exec playwright test` · `bash scripts/db-backup-restore-check.sh`. Container mới: `bash scripts/dev-env-setup.sh && bash scripts/dev-env-setup.sh --only gitleaks` rồi `pnpm install --frozen-lockfile`; semgrep: `python3 -m venv <thư mục tạm>/sg && <…>/sg/bin/pip install --require-hashes -r security/semgrep/requirements.txt` rồi đưa `<…>/sg/bin` vào PATH (thiếu gitleaks/semgrep ⇒ `loop verify` đỏ exit 127 ở WF-GIT-010/T-1101). Không chạy E2E song song với `loop verify` (T-402 đỏ do tranh CPU).
 - Đang chặn: chờ người (mục *Tiếp theo* 1–3; xác nhận việc viết lại lịch sử `main` có chủ ý — ruleset nay chặn force-push). Autopilot: `done-pending-human` (một phiên).

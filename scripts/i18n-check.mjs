@@ -67,7 +67,7 @@ export function checkCatalogs(catalogs, source = SOURCE_LOCALE) {
         else if (typeof entry?.message === "string") errors.push(`${locale}:${key}: message rỗng`);
         continue;
       }
-      if (!(key in src)) errors.push(`${locale}:${key}: khoá không có trong nguồn ${source}`);
+      if (!Object.hasOwn(src, key)) errors.push(`${locale}:${key}: khoá không có trong nguồn ${source}`);
       if (UNSAFE.test(entry.message)) errors.push(`${locale}:${key}: có HTML/script lạ`);
       let args;
       try {
@@ -78,7 +78,7 @@ export function checkCatalogs(catalogs, source = SOURCE_LOCALE) {
       }
       if (locale === source) srcArgs[key] = args;
       else if (
-        key in src &&
+        Object.hasOwn(src, key) &&
         srcArgs[key] !== undefined &&
         JSON.stringify(args) !== JSON.stringify(srcArgs[key] ?? safeArgs(src[key].message))
       )
@@ -88,7 +88,7 @@ export function checkCatalogs(catalogs, source = SOURCE_LOCALE) {
     }
     if (locale !== source)
       for (const key of Object.keys(src))
-        if (!(key in cat)) errors.push(`${locale}:${key}: thiếu khoá của nguồn`);
+        if (!Object.hasOwn(cat, key)) errors.push(`${locale}:${key}: thiếu khoá của nguồn`);
   }
   return errors;
 }
@@ -133,12 +133,22 @@ const propName = (p) =>
 export function tCallErrors(text, file, src) {
   const ast = parseSource(text, file);
   const locals = new Set();
-  for (const node of ast.program.body)
-    if (node.type === "ImportDeclaration" && /(^|\/)i18n(\.ts)?$/.test(node.source.value))
-      for (const sp of node.specifiers)
-        if (sp.type === "ImportSpecifier" && (sp.imported.name ?? sp.imported.value) === "t")
-          locals.add(sp.local.name);
   const errors = [];
+  for (const node of ast.program.body)
+    if (
+      node.type === "ImportDeclaration" &&
+      node.importKind !== "type" && // `import type …` không gọi được t()
+      /(^|\/)i18n(\.ts)?$/.test(node.source.value)
+    )
+      for (const sp of node.specifiers)
+        if (sp.type === "ImportSpecifier") {
+          if ((sp.imported.name ?? sp.imported.value) === "t") locals.add(sp.local.name);
+        }
+        // `import * as i18n` / import mặc định: `i18n.t(...)` không kiểm được tham số → bắt dùng `import { t }`.
+        else
+          errors.push(
+            `${file}:${node.loc.start.line}: import lib/i18n bằng tên — dùng \`import { t }\` để kiểm tham số t()`,
+          );
   if (locals.size === 0) return errors;
   walk(ast.program, (node) => {
     if (node.type !== "CallExpression" || node.callee.type !== "Identifier" || !locals.has(node.callee.name))
@@ -150,7 +160,7 @@ export function tCallErrors(text, file, src) {
       return;
     }
     const key = keyArg.value;
-    if (!(key in src)) return;
+    if (!Object.hasOwn(src, key)) return;
     let got = [];
     if (paramsArg) {
       const names = paramsArg.type === "ObjectExpression" ? paramsArg.properties.map(propName) : [null];
@@ -169,6 +179,19 @@ export function tCallErrors(text, file, src) {
       errors.push(`${at}: t("${key}") thiếu tham số ${missing.map((n) => `{${n}}`).join(", ")}`);
     if (extra.length) errors.push(`${at}: t("${key}") thừa tham số ${extra.join(", ")} (message không có)`);
   });
+  return errors;
+}
+
+/** Lỗi phía mã nguồn: khoá `t("…")` không có trong nguồn, tiền tố `tOr` không có khoá, tham số `t()` sai (`tCallErrors`). */
+export function sourceErrors(files, src, root = ROOT) {
+  const errors = [];
+  const { exact, prefixes } = usedKeys(files);
+  for (const [k, f] of exact)
+    if (!Object.hasOwn(src, k)) errors.push(`${relative(root, f)}: t("${k}") không có trong nguồn`);
+  for (const [p, f] of prefixes)
+    if (!Object.keys(src).some((k) => k.startsWith(p)))
+      errors.push(`${relative(root, f)}: tiền tố "${p}" không có khoá nào`);
+  for (const f of files) errors.push(...tCallErrors(readFileSync(f, "utf8"), relative(root, f), src));
   return errors;
 }
 
@@ -193,7 +216,8 @@ export function roleKeyErrors(src, rolesTs) {
     ["member_status.", list("STATUSES")],
   ]) {
     if (names.length === 0) errors.push(`roles.ts: không đọc được danh sách cho tiền tố ${prefix}`);
-    for (const n of names) if (!(`${prefix}${n}` in src)) errors.push(`thiếu khoá ${prefix}${n} (roles.ts)`);
+    for (const n of names)
+      if (!Object.hasOwn(src, `${prefix}${n}`)) errors.push(`thiếu khoá ${prefix}${n} (roles.ts)`);
   }
   return errors;
 }
@@ -202,14 +226,7 @@ function main() {
   const catalogs = loadCatalogs();
   const errors = checkCatalogs(catalogs);
   const src = catalogs[SOURCE_LOCALE] ?? {};
-  const files = sourceFiles(join(ROOT, "apps/web"));
-  const { exact, prefixes } = usedKeys(files);
-  for (const [k, f] of exact)
-    if (!(k in src)) errors.push(`${relative(ROOT, f)}: t("${k}") không có trong nguồn`);
-  for (const [p, f] of prefixes)
-    if (!Object.keys(src).some((k) => k.startsWith(p)))
-      errors.push(`${relative(ROOT, f)}: tiền tố "${p}" không có khoá nào`);
-  for (const f of files) errors.push(...tCallErrors(readFileSync(f, "utf8"), relative(ROOT, f), src));
+  errors.push(...sourceErrors(sourceFiles(join(ROOT, "apps/web")), src));
   errors.push(...roleKeyErrors(src, readFileSync(join(ROOT, "apps/web/lib/roles.ts"), "utf8")));
   for (const e of errors) console.error(e);
   console.log(

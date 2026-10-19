@@ -9,6 +9,17 @@
 > `PM-SPEC-004` và `WF-SDD-003` (nền spec-coverage còn 26 S-NNN). **Tick kèm lưu ý để phiên chính xác nhận:** `DB-MODEL-004` (52 FK nhóm A thiếu index là ngoại lệ có lý do — D-035),
 > `UX-STATE-001` (không Storybook; loading bị D-032 miễn ở trang có route con động/notFound/redirect), `DB-PERF-001` (EXPLAIN không ANALYZE), `XC-GREEN-007` (còn `notifications`/`inbox`/`worker_heartbeats` chưa có job dọn, chờ DPIA).
 
+## Kết quả đợt 13 (T-1203, 2026-10-19; D-078)
+
+Không tick mục mới: MUST mở vẫn **91**, đều cần người (bảng 'Kết quả đợt 9 (a)'). Đợt này lấp hai lỗ 🟢 treo sau review #78:
+
+| Task | PR | Kết quả |
+|---|---|---|
+| T-1201 | #96 (đã merge) | Bộ đếm chuỗi viết thẳng đếm trên AST (`@babel/parser`, `scripts/ts-ast.mjs`) thay regex: 2363 chuỗi thật so với 2321 regex đếm được (11 tệp đếm thiếu sau template lồng). Baseline ghi lại không đổi tệp nguồn; rào chỉ cho nâng một tệp tới đúng số đếm của nó trên `origin/main` (review: không lỗ — đổi tên/di chuyển tệp, tệp mới, tệp bị xoá đều bị chặn) |
+| T-1202 | #97 (đã merge) | `i18n-check` kiểm mọi lời gọi `t()` (import từ `lib/i18n`): khoá viết thẳng, tham số là object literal đúng tập `{tên}` của message; bộ đếm dùng giá trị template đã giải mã + NFC (gợi ý review #96) |
+
+**T-1203** thêm gợi ý review #97: `Object.hasOwn` (khoá `toString` không làm sập script), từ chối `import * as`/mặc định của lib/i18n, `sourceErrors` có test. **Còn treo (🟢):** lời gọi `t` qua biến gán lại (`const q = t`) hoặc che tên (`function f(t)`) không kiểm/báo nhầm — repo không dùng; chuỗi tiếng Việt ở vị trí directive không đếm (vô hại); decorator chưa bật plugin (repo chưa dùng — script sẽ đỏ, không đếm sai thầm lặng). **Lưu ý vận hành:** `loop init` cho đợt mới làm mọi bằng chứng cũ thành "của vòng trước" và xoá danh sách defer — đợt sau dùng `loop resume` (đợt này phải chạy lại 104 Gate cũ, tất cả xanh, và defer lại 91 mục).
+
 ## Sau phát hành v0.2.0 (T-1108, 2026-10-19; D-077)
 
 Chủ dự án import ruleset `main` (khớp `.github/rulesets/main.json`: 29 required check, `pull_request` chỉ squash + resolve thread, `bypass_actors: []`) và phát hành **v0.2.0** (#88; Release có tarball, SBOM npm + 4 image, `SHA256SUMS`). MUST **đạt 351 · mở 91** (trước: 341 · 101). Lệnh kiểm đọc GitHub thật: `scripts/check-github-live.mjs` (`ruleset` · `squash-history` · `tags` · `release`), test `scripts/check-github-live.test.mjs`.
