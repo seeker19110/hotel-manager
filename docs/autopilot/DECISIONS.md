@@ -535,3 +535,10 @@
 - Chọn: Hạ tầng + chặn tăng: messages/vi.json + hàm t() + validator khoá/ICU/tham số/HTML (XC-I18N-009, chạy CI) + lint ratchet: số chuỗi literal theo file chỉ được giảm, chuỗi mới phải qua t(); chuyển trước nhóm nhỏ (thông báo lỗi chung) làm mẫu; XC-I18N-001 chưa tick tới khi baseline = 0
 - Lý do (tiêu chí chất lượng cuối): Đúng và an toàn: không đụng hàng loạt UI/tiền trong một PR; ngăn nợ tăng ngay (ratchet như coverage); XC-I18N-009 đạt thật; đường chuyển dần rõ ràng, test được
 - Đường lùi: Bỏ rào ratchet và messages/ (không ảnh hưởng runtime ngoài các chuỗi đã chuyển)
+
+### D-074 · 2026-10-18T23:27:38+00:00 · LOOP-OPT-001…004 (MUST mới của khung 3.4, vòng tối ưu hiệu năng do máy quyết): áp dụng thế nào khi PLAN chưa có task tối ưu?
+
+- Phương án: (1) Không áp dụng có điều kiện: PLAN chưa có task tối ưu (ngân sách hiệu năng CI xanh); test rào đỏ khi PLAN thêm task tối ưu mà Gate không lấy script từ commit gốc/không có mục tiêu số · (2) Dựng sẵn scripts/perf-gate.sh + PERF-LOG.md và một task tối ưu mẫu · (3) Miễn chờ chủ dự án duyệt
+- Chọn: Không áp dụng có điều kiện: PLAN chưa có task tối ưu (ngân sách hiệu năng CI xanh); test rào đỏ khi PLAN thêm task tối ưu mà Gate không lấy script từ commit gốc/không có mục tiêu số
+- Lý do (tiêu chí chất lượng cuối): Đúng thực trạng: mọi ngân sách (bundle, Lighthouse, image, thời gian CI, k6 thresholds) đang xanh nên LOOP-OPT-001 cấm mở task tối ưu; dựng task mẫu là tối ưu không có số (trái chính LOOP-OPT-001). Test rào scripts/perf-optimization-tasks.test.mjs giữ điều kiện và ép Gate đúng vòng khi có task thật
+- Đường lùi: Bỏ [~] LOOP-OPT-001…004 về [ ] khi có task tối ưu đầu tiên (test rào báo); khi đó viết scripts/perf-gate.sh theo optimization-loop.md
