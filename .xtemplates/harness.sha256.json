@@ -4,7 +4,7 @@
   ".claude/agents/reviewer.md": "0e1a80af8e646a2be7fcef6f37a83df5ecf30b970e542f766161d7e4aa7b1c2e",
   ".claude/hooks/_lib.sh": "573591e18515c789c0977d3bb231cf9cbc19d26969072083947cc8df7db480c9",
   ".claude/hooks/auto-format.sh": "77b66366cf89c2577f2e0397346c2f438fda171629bba458477b016910767345",
-  ".claude/hooks/guard.py": "cc186d9e4001a89ade31b218aa62f2a52327412a62064f9e5b60b1f9e6f553f5",
+  ".claude/hooks/guard.py": "2b13c3d8add1aa522ee5fa02f8d7095202b61b8147bb50fc80cbfb7e84276f40",
   ".claude/hooks/pre-bash-guard.sh": "6cb2322ced71dcd7498c12f80612735805d69a5f1b2df4a405278489267eaf35",
   ".claude/hooks/pre-compact.sh": "d3e0e24d6c87a32094bdd47f25075d57a07f34fc5614286af3134f52e64b69b8",
   ".claude/hooks/pre-edit-guard.sh": "6554aa874433576d8c8cf96435889abc1d250b7867ff6c53237fa1b0f3b55c93",
