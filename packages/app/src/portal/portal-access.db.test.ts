@@ -185,6 +185,58 @@ describe("S-014 mời người thuê, không tính quota nhân viên", () => {
   });
 });
 
+describe("AUD-SEC-001 — không chiếm trước email người thuê bằng đăng ký mật khẩu", () => {
+  it("kẻ gian đăng ký mật khẩu với email nạn nhân rồi chủ trọ mời: mật khẩu và phiên của kẻ gian bị vô hiệu, chỉ OTP vào được", async () => {
+    const v = await tenantPerson(A, "Người thuê Dung");
+    const email = "dung.victim@example.test";
+    const pw = "Kẻ-gian-12345";
+    const signUp = await post("/sign-up/email", { name: "Kẻ gian", email, password: pw });
+    expect(signUp.status).toBe(200);
+    const attackerCookie = cookiesOf(await post("/sign-in/email", { email, password: pw }));
+    await okAs(t, owner, (ctx) => inviteTenant(ctx, { personId: v.personId, email }));
+    // Phiên đã có của kẻ gian không còn dùng được.
+    expect(await auth.api.getSession({ headers: new Headers({ cookie: attackerCookie }) })).toBeNull();
+    // Mật khẩu của kẻ gian không còn đăng nhập được.
+    expect((await post("/sign-in/email", { email, password: pw })).ok).toBe(false);
+    const creds = await sql<{ n: number }>`
+      select count(*)::int as n from auth."account" a join auth."user" u on u.id = a."userId"
+      where u.email = ${email} and a."providerId" = 'credential'`.execute(t.admin);
+    expect(creds.rows[0]?.n).toBe(0);
+    // Người thuê thật vẫn vào được bằng OTP.
+    await post("/email-otp/send-verification-otp", { email, type: "sign-in" });
+    const ok = await post("/sign-in/email-otp", { email, otp: otps.get(email) as string });
+    expect(ok.status).toBe(200);
+  });
+
+  it("tài khoản đã xác minh email, hoặc đã có quyền ở tổ chức khác, giữ nguyên mật khẩu khi được mời làm người thuê", async () => {
+    const w = await tenantPerson(A, "Người thuê Em");
+    const email = "em.staff@example.test";
+    const pw = "Mật-khẩu-12345";
+    await post("/sign-up/email", { name: "Em", email, password: pw });
+    await sql`update auth."user" set "emailVerified" = true where email = ${email}`.execute(t.admin);
+    await okAs(t, owner, (ctx) => inviteTenant(ctx, { personId: w.personId, email }));
+    expect((await post("/sign-in/email", { email, password: pw })).status).toBe(200);
+  });
+
+  it("nhân viên (email chưa xác minh) của tổ chức khác được mời làm người thuê ở A: giữ mật khẩu, không bị khoá khỏi tổ chức của mình", async () => {
+    const x = await tenantPerson(A, "Người thuê Giang");
+    const email = "giang.manager@example.test";
+    const pw = "Mật-khẩu-67890";
+    await post("/sign-up/email", { name: "Giang", email, password: pw });
+    const uid = (
+      await sql<{ id: string }>`select id from auth."user" where email = ${email}`.execute(t.admin)
+    ).rows[0]?.id as string;
+    const personB = randomUUID();
+    await sql`insert into persons (id, organization_id, full_name, email) values (${personB}, ${B.orgId}, 'Giang', ${email})`.execute(
+      t.admin,
+    );
+    await sql`insert into memberships (id, organization_id, auth_user_id, person_id, role, all_properties)
+              values (${randomUUID()}, ${B.orgId}, ${uid}, ${personB}, 'manager', false)`.execute(t.admin);
+    await okAs(t, owner, (ctx) => inviteTenant(ctx, { personId: x.personId, email }));
+    expect((await post("/sign-in/email", { email, password: pw })).status).toBe(200);
+  });
+});
+
 describe("Đăng nhập OTP email (D-011, D-016)", () => {
   it("người thuê nhận mã → đăng nhập → resolveActor tenant; OTP lưu băm; mã sai 3 lần thì mã đúng cũng hết hiệu lực", async () => {
     const c = await tenantPerson(A, "Người thuê Cúc");
