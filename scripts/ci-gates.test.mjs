@@ -71,6 +71,12 @@ function runsOnEveryPr(wf) {
 const skipsPullRequest = (job) =>
   /event_name\s*==\s*'(push|schedule|workflow_dispatch|issues)'/.test(String(job.if ?? ""));
 
+/**
+ * `if:` của job phụ thuộc HÀNH ĐỘNG của sự kiện PR (`edited`, `changes`…)? Job required mà bị bỏ qua ở một hành động sẽ sinh check-run
+ * `skipped` mới nhất cùng SHA, GitHub tính là qua và có thể che lần chạy đỏ trước đó (AUD-CI-001).
+ */
+const skipsOnEventAction = (job) => /github\.event\.(action|changes)\b/.test(String(job.if ?? ""));
+
 /** Context của mọi job chạy trên mọi PR vào main (job có `if:` bỏ qua → kết quả skipped, GitHub tính là qua). */
 function prContexts(wfs) {
   const out = new Set();
@@ -263,6 +269,28 @@ describe("D-065 — ruleset gom mọi job chạy trên mọi PR vào main", () =
       expect(prJobs.has(c), c).toBe(true);
       expect(required.has(c), c).toBe(false);
     }
+  });
+
+  it("không job required nào bị bỏ qua theo hành động của sự kiện PR (edited/changes): skipped đến sau che lần chạy đỏ (AUD-CI-001)", () => {
+    const bad = [];
+    for (const wf of Object.values(wfs)) {
+      if (!runsOnEveryPr(wf)) continue;
+      for (const [key, job] of Object.entries(wf.jobs ?? {}))
+        if (
+          skipsOnEventAction(job) &&
+          jobContexts(key, job).some((c) => required.has(c) || aggregated.has(c))
+        )
+          bad.push(`${key}: if: ${job.if}`);
+    }
+    expect(bad).toEqual([]);
+  });
+
+  it("bộ dò if: theo hành động bắt đúng các dạng che coverage (kể cả `!github.event.changes`)", () => {
+    expect(skipsOnEventAction({ if: "github.event.action != 'edited'" })).toBe(true);
+    expect(skipsOnEventAction({ if: ["$", "{{ !github.event.changes }}"].join("") })).toBe(true);
+    expect(skipsOnEventAction({ if: "github.event_name == 'pull_request'" })).toBe(false);
+    expect(skipsOnEventAction({ if: "github.actor != 'dependabot[bot]'" })).toBe(false);
+    expect(skipsOnEventAction({})).toBe(false);
   });
 
   it("job chỉ chạy theo lịch/push/chạy tay/issue không bao giờ là required check", () => {
