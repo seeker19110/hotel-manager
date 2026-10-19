@@ -8,7 +8,14 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { t, tOr } from "../apps/web/lib/i18n.ts";
 import { ROLE_LABEL, STATUS_LABEL } from "../apps/web/lib/roles.ts";
-import { checkCatalogs, loadCatalogs, messageArgs, roleKeyErrors, tCallErrors } from "./i18n-check.mjs";
+import {
+  checkCatalogs,
+  loadCatalogs,
+  messageArgs,
+  roleKeyErrors,
+  sourceErrors,
+  tCallErrors,
+} from "./i18n-check.mjs";
 import { BASELINE, countLiterals, regressions, SCOPE, scan, unjustifiedRaises } from "./i18n-literals.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
@@ -74,6 +81,27 @@ describe("XC-I18N-009 — kiểm tệp dịch", () => {
     // Tên cục bộ khác (import as) vẫn được kiểm; `t` không import từ i18n thì không bị bắt nhầm.
     expect(tCallErrors('import { t as tr } from "./i18n.ts";\ntr("a.hi");', "y.ts", src)).toHaveLength(1);
     expect(tCallErrors('const t = (x) => x;\nt("a.hi");', "z.ts", src)).toEqual([]);
+    // Module tên gần giống không bị bắt nhầm; import namespace/mặc định của lib/i18n bị từ chối (review #97).
+    expect(tCallErrors('import { t } from "next-i18n";\nt("a.hi");', "w.ts", src)).toEqual([]);
+    expect(tCallErrors('import * as i18n from "../lib/i18n.ts";\ni18n.t("a.hi");', "v.ts", src)[0]).toMatch(
+      /import \{ t \}/,
+    );
+    // Khoá trùng tên thuộc tính của Object.prototype: không sập, báo "không có trong nguồn" ở sourceErrors.
+    expect(errs('t("toString");')).toEqual([]);
+  });
+
+  it("sourceErrors gom lỗi khoá lạ và tham số t() từ tệp thật trên đĩa (main() dùng hàm này)", () => {
+    const root = mkdtempSync(join(tmpdir(), "i18n-src-"));
+    try {
+      const f = join(root, "page.tsx");
+      writeFileSync(f, 'import { t } from "./lib/i18n.ts";\nt("a.hi", { name: 1 });\nt("toString");\n');
+      expect(sourceErrors([f], { "a.hi": entry("Chào {name}, còn {n} phòng") }, root)).toEqual([
+        'page.tsx: t("toString") không có trong nguồn',
+        'page.tsx:2: t("a.hi") thiếu tham số {n}',
+      ]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it("mọi vai trò và trạng thái đều có nhãn thật (không rơi về mã thô)", () => {
