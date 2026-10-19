@@ -2,7 +2,7 @@
 // role → migrate → seed giả → `next start`. Dừng (SIGTERM) thì xoá DB/cluster tạm. Chạy bằng `node` (bỏ kiểu TS).
 import { spawn } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
-import { createWriteStream, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   createAuth,
@@ -16,6 +16,7 @@ import { migrateToLatest } from "@hm/db";
 import { bootstrapRoles, type PgCluster, pgUrl, seedOrg, startPgCluster } from "@hm/testkit/setup";
 import { Kysely, PostgresDialect, sql } from "kysely";
 import pg from "pg";
+import { teeChildLog, waitClosed } from "./child-log.ts";
 import { startFakeClamd, startFakeS3 } from "./fakes.ts";
 import {
   INVITEE,
@@ -283,25 +284,16 @@ loadConfig(replicaEnv);
 const LOG_DIR = join(import.meta.dirname, "..", "e2e-logs");
 const startNext = (port: number, env: NodeJS.ProcessEnv) => {
   mkdirSync(LOG_DIR, { recursive: true });
-  const log = createWriteStream(join(LOG_DIR, `server-${port}.log`), { flags: "w" });
   const child = spawn("pnpm", ["exec", "next", "start", "--hostname", "127.0.0.1", "--port", String(port)], {
     stdio: ["inherit", "pipe", "pipe"],
     env,
   });
-  child.stdout?.on("data", (chunk: Buffer) => {
-    process.stdout.write(chunk);
-    log.write(chunk);
-  });
-  child.stderr?.on("data", (chunk: Buffer) => {
-    process.stderr.write(chunk);
-    log.write(chunk);
-  });
-  child.once("close", () => log.end());
-  return child;
+  return { child, closed: teeChildLog(child, join(LOG_DIR, `server-${port}.log`)).closed };
 };
-const next = startNext(PORT, appEnv);
+const { child: next, closed: nextClosed } = startNext(PORT, appEnv);
 // Lighthouse CI (lighthouserc.json) chỉ đo server chính: E2E_NO_REPLICA=1 bỏ bản sao thứ hai cho đỡ tranh CPU (chỉ dùng ở đây).
-const replica = process.env.E2E_NO_REPLICA === "1" ? undefined : startNext(REPLICA_PORT, replicaEnv);
+const replicaRun = process.env.E2E_NO_REPLICA === "1" ? undefined : startNext(REPLICA_PORT, replicaEnv);
+const replica = replicaRun?.child;
 
 /** Dấu hiệu RIÊNG của server chính (lhci `startServerReadyPattern`): "Ready in" của Next in cả cho bản sao nên không đủ. */
 const READY_MARKER = "E2E_SERVER_READY";
@@ -335,7 +327,10 @@ async function stop(code: number): Promise<void> {
   for (const kind of SESSION_KINDS) rmSync(sessionCacheFile(PORT, kind), { force: true });
   fakeS3.server.close();
   fakeClamd.server.close();
-  await new Promise((r) => setTimeout(r, 500));
+  // Chờ Next đóng stdio và log ghi xong: thoát sớm thì mất dòng log cuối, bộ quét PII không thấy (CMP-PRIV-008).
+  const closedInTime = await waitClosed([nextClosed, ...(replicaRun ? [replicaRun.closed] : [])], 10_000);
+  if (!closedInTime)
+    process.stderr.write("[e2e-server] tiến trình Next chưa đóng sau 10 s — log có thể thiếu dòng cuối\n");
   try {
     const s = kysely(serverUrl);
     await sql.raw(`DROP DATABASE IF EXISTS ${dbName} WITH (FORCE)`).execute(s);
