@@ -47,3 +47,6 @@ claude_min_version: ""
 # ai_attribution: forbid = guard chặn commit mà message ghi tên model hay URL phiên AI (`Claude-Session:`, `Claude Opus …`)
 # — LOOP-HARNESS-027. Trống/allow = không kiểm (trailer `Co-authored-by: Claude <…>` chung luôn được).
 ai_attribution: ""
+# pr_title_check: off = `merge-check` không đòi tiêu đề PR dạng `<type>(scope): mô tả` ≤ 72 ký tự (dự án không theo
+# Conventional Commits). Trống = kiểm; PR của bot (`…[bot]`) và `Revert "…"` của GitHub luôn được miễn.
+pr_title_check: ""
