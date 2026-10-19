@@ -289,3 +289,7 @@ Mọi MUST còn mở vẫn cần người. Đợt này lấp hai lỗ 🟢 treo 
 | T-202, T-204, T-205, T-207, T-208, T-211, T-212, T-213, T-215, T-216, T-220, T-221, T-222, T-225 | 1 ngày | 1,5 ngày |
 | T-209, T-217, T-219, T-223 | 1,5 ngày | 2,5 ngày |
 Tổng P50 khoảng 24 ngày, P85 khoảng 34 ngày. Không dùng con số P50 làm ngày hứa.
+
+## Đợt 14b — RLS danh mục theo cơ sở (audit 2026-10-19, AUD-DATA-001/002; quyết định D-079 ở #100)
+
+- [x] `T-1302` Migration 0064: policy RESTRICTIVE `property_scope` + `portal_no_*` cho `properties/floors/room_types/units` — nhân viên chỉ thấy/ghi cơ sở trong phạm vi (`actor_can_see_property`), người thuê chỉ ĐỌC cơ sở mình thuê (đại diện hoặc người ở primary/co_tenant), không có actor (worker/đăng nhập) không đổi; test DB đỏ trước (PR chạm `packages/db` — người merge) — Gate: `pnpm vitest run --project db packages/testkit/src/rls-catalog-scope packages/app/src/http/units-http packages/app/src/http/authz-matrix packages/app/src/maintenance/hk-maintenance-review-fixes`

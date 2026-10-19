@@ -2365,7 +2365,7 @@ public.work_orders uq_work_orders_org_id :: CREATE UNIQUE INDEX uq_work_orders_o
 public.work_orders work_orders_pkey :: CREATE UNIQUE INDEX work_orders_pkey ON public.work_orders USING btree (id)
 public.worker_heartbeats worker_heartbeats_pkey :: CREATE UNIQUE INDEX worker_heartbeats_pkey ON public.worker_heartbeats USING btree (name)
 
-## policies (RLS) (155)
+## policies (RLS) (171)
 public.allocations portal_deny_read RESTRICTIVE SELECT to app_runtime using ((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
 public.allocations tenant_isolation PERMISSIVE ALL to public using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
 public.approval_requests tenant_isolation PERMISSIVE ALL to public using (((organization_id = app.current_org()) AND ((requested_by = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid) OR ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text, 'accountant'::text])) AND app.actor_can_see_property(property_id))))) check (((organization_id = app.current_org()) AND ((requested_by = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid) OR ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id)))))
@@ -2416,6 +2416,10 @@ CASE
     WHEN (owner_type = 'lease_settlement'::text) THEN ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'accountant'::text])) AND app.actor_can_see_property(property_id))
     ELSE false
 END)) check ((organization_id = app.current_org()))
+public.floors portal_no_delete RESTRICTIVE DELETE to app_runtime using ((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
+public.floors portal_no_insert RESTRICTIVE INSERT to app_runtime check ((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
+public.floors portal_no_update RESTRICTIVE UPDATE to app_runtime using ((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false))) check ((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
+public.floors property_scope RESTRICTIVE ALL to app_runtime using (app.property_visible(property_id)) check (app.property_visible(property_id))
 public.floors tenant_isolation PERMISSIVE ALL to public using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
 public.guest_access_links guest_links_insert PERMISSIVE INSERT to app_runtime check (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id) AND (created_by = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid)))
 public.guest_access_links guest_links_read PERMISSIVE SELECT to app_runtime using (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id)))
@@ -2519,6 +2523,10 @@ public.persons persons_delete PERMISSIVE DELETE to public using ((organization_i
 public.persons persons_insert PERMISSIVE INSERT to public check ((organization_id = app.current_org()))
 public.persons persons_read PERMISSIVE SELECT to public using (((organization_id = app.current_org()) AND ((NULLIF(current_setting('app.actor_id'::text, true), ''::text) IS NULL) OR (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text, 'accountant'::text])) OR (id = app.actor_person_id()))))
 public.persons persons_update PERMISSIVE UPDATE to public using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
+public.properties portal_no_delete RESTRICTIVE DELETE to app_runtime using ((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
+public.properties portal_no_insert RESTRICTIVE INSERT to app_runtime check ((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
+public.properties portal_no_update RESTRICTIVE UPDATE to app_runtime using ((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false))) check ((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
+public.properties property_scope RESTRICTIVE ALL to app_runtime using (app.property_visible(id)) check (app.property_visible(id))
 public.properties tenant_isolation PERMISSIVE ALL to public using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
 public.property_scopes portal_deny_read RESTRICTIVE SELECT to app_runtime using ((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
 public.property_scopes tenant_isolation PERMISSIVE ALL to public using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
@@ -2539,6 +2547,10 @@ public.reservations reservations_system PERMISSIVE UPDATE to app_worker using ((
 public.reservations reservations_write PERMISSIVE ALL to app_runtime using (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id))) check (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id)))
 public.residence_notices residence_notices_read PERMISSIVE SELECT to public using (((organization_id = app.current_org()) AND ((NULLIF(current_setting('app.actor_id'::text, true), ''::text) IS NULL) OR ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id)))))
 public.residence_notices residence_notices_write PERMISSIVE ALL to app_runtime using (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id))) check (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id)))
+public.room_types portal_no_delete RESTRICTIVE DELETE to app_runtime using ((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
+public.room_types portal_no_insert RESTRICTIVE INSERT to app_runtime check ((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
+public.room_types portal_no_update RESTRICTIVE UPDATE to app_runtime using ((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false))) check ((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
+public.room_types property_scope RESTRICTIVE ALL to app_runtime using (app.property_visible(property_id)) check (app.property_visible(property_id))
 public.room_types tenant_isolation PERMISSIVE ALL to public using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
 public.service_prices service_prices_read PERMISSIVE SELECT to public using ((organization_id = app.current_org()))
 public.service_prices service_prices_write PERMISSIVE ALL to app_runtime using (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text])) AND app.actor_can_see_property(property_id))) check (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text])) AND app.actor_can_see_property(property_id)))
@@ -2556,6 +2568,10 @@ public.stays stays_write PERMISSIVE ALL to app_runtime using (((organization_id 
 public.tasks tasks_insert PERMISSIVE INSERT to app_runtime check (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text, 'housekeeping'::text, 'maintenance'::text])) AND app.actor_can_see_property(property_id)))
 public.tasks tasks_read PERMISSIVE SELECT to public using (((organization_id = app.current_org()) AND ((NULLIF(current_setting('app.actor_id'::text, true), ''::text) IS NULL) OR ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text, 'housekeeping'::text, 'maintenance'::text])) AND app.actor_can_see_property(property_id)))))
 public.tasks tasks_update PERMISSIVE UPDATE to app_runtime using (((organization_id = app.current_org()) AND app.actor_can_see_property(property_id) AND ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text])) OR ((app.actor_role() = 'housekeeping'::text) AND ((assignee_membership_id = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid) OR (status = 'open'::text)))))) check (((organization_id = app.current_org()) AND app.actor_can_see_property(property_id) AND ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text])) OR ((app.actor_role() = 'housekeeping'::text) AND (assignee_membership_id = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid)))))
+public.units portal_no_delete RESTRICTIVE DELETE to app_runtime using ((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
+public.units portal_no_insert RESTRICTIVE INSERT to app_runtime check ((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
+public.units portal_no_update RESTRICTIVE UPDATE to app_runtime using ((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false))) check ((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
+public.units property_scope RESTRICTIVE ALL to app_runtime using (app.property_visible(property_id)) check (app.property_visible(property_id))
 public.units tenant_isolation PERMISSIVE ALL to public using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
 public.work_orders work_orders_insert PERMISSIVE INSERT to app_runtime check (((organization_id = app.current_org()) AND (((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text, 'housekeeping'::text, 'maintenance'::text])) AND app.actor_can_see_property(property_id) AND (reporter_membership_id = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid)) OR ((app.actor_role() = 'tenant'::text) AND (source = 'tenant'::text) AND (reporter_person_id = app.actor_person_id())))))
 public.work_orders work_orders_read PERMISSIVE SELECT to public using (((organization_id = app.current_org()) AND ((NULLIF(current_setting('app.actor_id'::text, true), ''::text) IS NULL) OR ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text, 'housekeeping'::text, 'maintenance'::text])) AND app.actor_can_see_property(property_id)) OR ((app.actor_role() = 'tenant'::text) AND (reporter_person_id = app.actor_person_id())))))
@@ -2688,7 +2704,7 @@ public.units CREATE TRIGGER trg_units_updated BEFORE UPDATE ON units FOR EACH RO
 public.work_orders CREATE TRIGGER trg_work_orders_transition BEFORE UPDATE ON work_orders FOR EACH ROW EXECUTE FUNCTION app.work_order_transition()
 public.work_orders CREATE TRIGGER trg_work_orders_updated BEFORE UPDATE ON work_orders FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 
-## functions (105)
+## functions (106)
 -- app.actor_can_see_property(p uuid) owner=<admin>
 CREATE OR REPLACE FUNCTION app.actor_can_see_property(p uuid)
  RETURNS boolean
@@ -3977,6 +3993,26 @@ AS $function$
       AND (m.all_properties OR EXISTS (SELECT 1 FROM property_scopes ps WHERE ps.organization_id = m.organization_id
                                          AND ps.membership_id = m.id AND ps.property_id = p_property))
   $function$
+-- app.property_visible(p uuid) owner=<admin>
+CREATE OR REPLACE FUNCTION app.property_visible(p uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+    SELECT CASE
+      WHEN nullif(current_setting('app.actor_id', true), '') IS NULL THEN true
+      WHEN app.actor_role() IN ('tenant','guest') THEN app.actor_role() = 'tenant' AND app.actor_person_id() IS NOT NULL AND EXISTS (
+        SELECT 1 FROM leases l
+        WHERE l.organization_id = app.current_org() AND l.property_id = p
+          AND l.status IN ('signed_awaiting_handover','active','notice_given','settling','closed')
+          AND (l.representative_person_id = app.actor_person_id()
+               OR EXISTS (SELECT 1 FROM lease_occupants o
+                          WHERE o.organization_id = l.organization_id AND o.lease_id = l.id AND o.person_id = app.actor_person_id()
+                            AND o.role IN ('primary','co_tenant'))))
+      ELSE app.actor_can_see_property(p)
+    END
+  $function$
 -- app.purge_idempotency_keys(p_now timestamp with time zone, p_limit integer) owner=<admin>
 CREATE OR REPLACE FUNCTION app.purge_idempotency_keys(p_now timestamp with time zone, p_limit integer)
  RETURNS integer
@@ -4493,7 +4529,7 @@ AS $function$
     ON CONFLICT (name) DO UPDATE SET beat_at = excluded.beat_at
   $function$
 
-## grants (bảng, cột, hàm, schema) (1156)
+## grants (bảng, cột, hàm, schema) (1158)
 column public.inbox.bank_transaction_id app_runtime UPDATE
 column public.inbox.bank_transaction_id app_worker UPDATE
 column public.inbox.process_error app_runtime UPDATE
@@ -4677,6 +4713,8 @@ function app.properties_due_period(p_now timestamp with time zone) <admin> EXECU
 function app.properties_due_period(p_now timestamp with time zone) app_worker EXECUTE
 function app.property_staff(p_org uuid, p_property uuid, p_roles text[]) <admin> EXECUTE
 function app.property_staff(p_org uuid, p_property uuid, p_roles text[]) app_worker EXECUTE
+function app.property_visible(p uuid) <admin> EXECUTE
+function app.property_visible(p uuid) app_runtime EXECUTE
 function app.purge_idempotency_keys(p_now timestamp with time zone, p_limit integer) <admin> EXECUTE
 function app.purge_idempotency_keys(p_now timestamp with time zone, p_limit integer) app_worker EXECUTE
 function app.purge_import_rows(p_now timestamp with time zone, p_days integer) <admin> EXECUTE
