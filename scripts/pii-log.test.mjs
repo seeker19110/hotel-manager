@@ -87,6 +87,9 @@ describe("bộ quét PII trong log", () => {
     expect(kinds('{"p":"+84 912 345 678"}')).toEqual(["phone"]);
     expect(kinds('{"h":"bearer abcdefghijklmnop"}')).toEqual(["bearer-token"]);
     expect(kinds('{"d":"CCCD001203004567"}')).toEqual(["id-number"]);
+    // trace_id/span_id hex kết thúc bằng 12 chữ số sau một chữ cái: không phải CCCD (báo nhầm trên CI, PR #72).
+    expect(kinds('{"trace_id":"4bf92f3577b34da6a3c0e123456789012"}')).toEqual([]);
+    expect(kinds('{"span_id":"b123456789012"}')).toEqual([]);
     expect(kinds('{"amount":1430000,"ms":1760778000000}')).toEqual([]);
   });
 });
