@@ -224,6 +224,41 @@ describe("người thuê không ghi được vào danh mục", () => {
   });
 });
 
+describe("trạng thái hợp đồng quyết định người thuê có thấy cơ sở không", () => {
+  async function tenantWithLease(status: "draft" | "pending_signature"): Promise<string> {
+    const au = randomUUID();
+    const personId = randomUUID();
+    const id = randomUUID();
+    await seedAuthUser(t.admin, `lease-${status}-${id.slice(0, 6)}@example.test`, au);
+    await sql`insert into persons (id, organization_id, full_name) values (${personId}, ${orgId}, ${status})`.execute(
+      t.admin,
+    );
+    await sql`insert into memberships (id, organization_id, auth_user_id, person_id, role, all_properties)
+              values (${id}, ${orgId}, ${au}, ${personId}, 'tenant', false)`.execute(t.admin);
+    const { leaseId } = await seedLease(t.admin, {
+      orgId,
+      propertyId: propA,
+      representativePersonId: personId,
+      effectiveFrom: "2026-09-01",
+    });
+    if (status !== "draft") {
+      await t.admin.transaction().execute(async (trx) => {
+        await sql`update lease_versions set signed_at = now(), terms_hash = ${"0".repeat(64)}, terms_snapshot = '{}'
+                  where lease_id = ${leaseId}`.execute(trx);
+        await sql`update leases set status = 'pending_signature' where id = ${leaseId}`.execute(trx);
+      });
+    }
+    return id;
+  }
+
+  it("pending_signature → thấy cơ sở của hợp đồng (portal getMyLease hiện hợp đồng chờ ký); draft (chưa gửi ký) → không thấy gì", async () => {
+    const pending = await tenantWithLease("pending_signature");
+    expect(await rows(pending, "units", propA)).toBeGreaterThan(0);
+    expect(await rows(pending, "units", propB)).toBe(0);
+    expect(await rows(await tenantWithLease("draft"), "units", propA)).toBe(0);
+  });
+});
+
 describe("người ở trong hợp đồng", () => {
   it("co_tenant thấy cơ sở của hợp đồng (báo sự cố được); occupant thuần không thấy", async () => {
     expect(await rows(coTenant, "units", propA)).toBeGreaterThan(0);

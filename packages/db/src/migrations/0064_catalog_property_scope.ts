@@ -8,6 +8,9 @@
 // Hiệu năng (review #101: kiểm từng dòng bằng hàm SECURITY DEFINER chậm ~350 lần trên 500 phòng): policy so `cột IN (SELECT
 // app.visible_property_ids())` — hàm trả TẬP cơ sở nhìn thấy (vài dòng), planner đánh giá một lần cho cả câu lệnh (hashed subplan).
 // `app_worker` không đổi (job nền không có actor người).
+// Giới hạn đã biết: một CÂU LỆNH duy nhất vừa chèn `properties` vừa chèn bảng con (CTE) bị chặn, vì hàm STABLE dùng snapshot của câu
+// lệnh và chưa thấy cơ sở vừa chèn; app chèn từng câu riêng (property.ts), đừng viết onboarding bằng CTE. `portal_no_insert` là lớp
+// đỡ thứ hai (WITH CHECK của `property_scope` đã chặn tenant/guest).
 import { type Kysely, sql } from "kysely";
 
 const TABLES: ReadonlyArray<[table: string, col: string]> = [
