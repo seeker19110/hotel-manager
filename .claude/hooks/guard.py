@@ -1448,6 +1448,9 @@ def _mcp_auto_merge(tool_input: Dict[str, object], root: str) -> Tuple[str, str]
 
 
 def mcp_decision(tool_name: str, tool_input: Dict[str, object], root: str) -> Tuple[str, str]:
+    hit = mcp_attribution(tool_name, tool_input, root)
+    if hit:
+        return "deny", hit
     if not MCP_MERGE_RE.fullmatch(tool_name):
         return "", ""
     if "disable" in tool_name:  # tắt auto-merge: LOOP-STOP-005 đòi khi chạm ngoại lệ cứng — không chặn
@@ -2870,12 +2873,13 @@ def _commit_window(line: str, pos: int, seps: List[Tuple[int, int]]) -> str:
     return line[max(start, pos - COMMIT_LINE_MAX) : min(end, pos + COMMIT_LINE_MAX)]
 
 
-def _heredoc_bodies(cmd: str) -> List[str]:
-    """Thân heredoc thuộc pipeline có `git commit` (`git commit -F - <<E`, `-m "$(cat <<E`, `cat <<E | git commit -F -`);
-    heredoc của lệnh khác trong cùng chuỗi (`python3 - <<E …; git commit`) là dữ liệu của lệnh đó, không quét."""
+def _heredoc_bodies(cmd: str, pat: "re.Pattern[str]" = GIT_COMMIT_TEXT_RE) -> List[str]:
+    """Thân heredoc thuộc pipeline có `git commit` (`git commit -F - <<E`, `-m "$(cat <<E`, `cat <<E | git commit -F -`)
+    — hay lệnh khớp `pat` (`gh pr create --body-file - <<E`); heredoc của lệnh khác trong cùng chuỗi
+    (`python3 - <<E …; git commit`) là dữ liệu của lệnh đó, không quét."""
     out: List[str] = []
     for opener, m, body in _heredocs(join_continuations(cmd)):  # nối dòng `\` như shell (`git commit \` ↵ `-F - <<E`)
-        if GIT_COMMIT_TEXT_RE.search(_commit_window(opener, m.start(), _unquoted_seps(opener))):
+        if pat.search(_commit_window(opener, m.start(), _unquoted_seps(opener))):
             out.append("\n".join(body))
     return out
 
@@ -2894,26 +2898,86 @@ def _xt_yaml_for(d: str) -> str:
     return ""
 
 
+# `gh pr create|edit|merge` (D-057): tiêu đề/thân PR và tiêu đề/thân commit squash (`merge --subject/--body`).
+GH_PR_TEXT_RE = re.compile(r"(?<![\w-])gh\s+pr(?:\s+(?:-R|--repo)(?:\s+|=)\S+)?\s+(?:create|edit|merge)\b")
+GH_PR_TEXT_OPTS = {"-t": "m", "--title": "m", "--subject": "m", "-b": "m", "--body": "m", "-F": "F", "--body-file": "F"}
+
+
+def _gh_pr_text_args(args: List[str]) -> Optional[List[Tuple[str, str]]]:
+    """(loại, giá trị) của tiêu đề/thân trong `gh pr …` (sau `pr`, bỏ `-R/--repo x`); không phải create/edit/merge → None."""
+    rest = list(args)
+    while rest[:1] in (["-R"], ["--repo"]) or rest[:1] and rest[0].startswith("--repo="):
+        rest = rest[2:] if rest[0] in ("-R", "--repo") else rest[1:]
+    if rest[:1] not in (["create"], ["edit"], ["merge"]):
+        return None
+    out: List[Tuple[str, str]] = []
+    for i, x in enumerate(rest[1:], 1):
+        nxt = rest[i + 1] if i + 1 < len(rest) else ""
+        key, sep, val = x.partition("=")
+        if x in GH_PR_TEXT_OPTS:
+            out.append((GH_PR_TEXT_OPTS[x], nxt))
+        elif sep and key in GH_PR_TEXT_OPTS:
+            out.append((GH_PR_TEXT_OPTS[key], val))
+        elif x[:2] in ("-t", "-b", "-F") and len(x) > 2:  # `-tfeat: x` (pflag)
+            out.append((GH_PR_TEXT_OPTS[x[:2]], x[2:]))
+    return out
+
+
+def _attribution_target(
+    argv: List[str], here: Optional[str], root: str
+) -> Optional[Tuple[str, List[Tuple[str, str]], str]]:
+    """(thư mục, cặp (loại, giá trị), loại lệnh) khi argv là `git commit` hoặc `gh pr create|edit|merge`; không → None."""
+    n = normalize(argv)
+    if n[:2] == ["git", "commit"]:
+        return _git_dir(argv, here) or root, _commit_msg_args(n[2:]), "commit"
+    pairs = _gh_pr_text_args(n[2:]) if n[:2] == ["gh", "pr"] else None
+    return (here or root, pairs, "pr") if pairs is not None else None
+
+
 def ai_attribution(cmd: str, commands: List[Tuple[List[str], Optional[str]]], root: str) -> str:
     """Lý do chặn khi lệnh commit vào repo cấm ghi công AI mà message chứa tên model/URL phiên; không thì rỗng.
-    Chỉ xét `git commit` qua Bash, message thấy được lúc quyết định — không thấy: `echo … | git commit -F -`, file `-F`
-    do lệnh trước trong chuỗi tạo, commit qua tool MCP/`git merge -m`/`git tag -m` (LOOP-HARNESS-027)."""
+    Xét `git commit` và `gh pr create|edit|merge` qua Bash, chữ thấy được lúc quyết định — không thấy: `echo … | git
+    commit -F -`, file `-F` do lệnh trước trong chuỗi tạo, `git merge -m`/`git tag -m` (tool MCP: `mcp_attribution`)
+    (LOOP-HARNESS-027)."""
     for argv, here in commands:
-        n = normalize(argv)
-        gdir = (_git_dir(argv, here) if n[:2] == ["git", "commit"] else None) or root
-        if n[:2] != ["git", "commit"] or not AI_ATTRIBUTION_KEY_RE.search(_read_head(_xt_yaml_for(gdir))):
+        target = _attribution_target(argv, here, root)
+        if target is None or not AI_ATTRIBUTION_KEY_RE.search(_read_head(_xt_yaml_for(target[0]))):
             continue
+        gdir, pairs, kind = target
         # `-F` tương đối tính từ thư mục git chạy (sau `-C`), như git.
-        texts = [v if k == "m" else _read_head(posixpath.join(gdir, v)) for k, v in _commit_msg_args(n[2:])]
-        hit = next(
-            (m.group(0) for t in [*texts, *_heredoc_bodies(cmd)] for m in [AI_ATTRIBUTION_RE.search(t)] if m), ""
-        )
+        texts = [v if k == "m" else _read_head(posixpath.join(gdir, v)) for k, v in pairs]
+        bodies = _heredoc_bodies(cmd, GIT_COMMIT_TEXT_RE if kind == "commit" else GH_PR_TEXT_RE)
+        hit = next((m.group(0) for t in [*texts, *bodies] for m in [AI_ATTRIBUTION_RE.search(t)] if m), "")
         if hit:
+            what = "Commit" if kind == "commit" else "PR"
             return (
-                f"Commit ghi công AI bị khung chặn (`{hit}` — xt.yaml `ai_attribution: forbid`, LOOP-HARNESS-027): bỏ "
-                "dòng tên model/URL phiên khỏi message rồi commit lại."
+                f"{what} ghi công AI bị khung chặn (`{hit}` — xt.yaml `ai_attribution: forbid`, LOOP-HARNESS-027): bỏ "
+                "dòng tên model/URL phiên khỏi message/tiêu đề/thân rồi chạy lại."
             )
     return ""
+
+
+# Tool MCP ghi chữ lên PR/lịch sử git (LOOP-HARNESS-027, D-057): tiêu đề/thân PR, message commit (kể cả commit squash
+# của merge). Khoá đọc từ `xt.yaml` của dự án (repo đích của tool là chuỗi owner/repo, không có thư mục để dò).
+MCP_TEXT_RE = re.compile(
+    r"mcp__.+__(create_pull_request|update_pull_request|create_or_update_file|push_files|delete_file|merge_pull_request)"
+)
+MCP_TEXT_KEYS = ("title", "body", "message", "commit_title", "commit_message")
+
+
+def mcp_attribution(tool_name: str, tool_input: Dict[str, object], root: str) -> str:
+    """Lý do chặn khi tool MCP ghi PR/commit mang tên model/URL phiên ở dự án `ai_attribution: forbid`; không thì rỗng.
+    URL phiên do chính máy chủ MCP gắn thêm sau khi hook cho qua thì guard không thấy — CI/review là lớp sau."""
+    if not MCP_TEXT_RE.fullmatch(tool_name) or not AI_ATTRIBUTION_KEY_RE.search(_read_head(_xt_yaml_for(root))):
+        return ""
+    texts = [v for v in (tool_input.get(k) for k in MCP_TEXT_KEYS) if isinstance(v, str)]
+    hit = next((m.group(0) for t in texts for m in [AI_ATTRIBUTION_RE.search(t)] if m), "")
+    if not hit:
+        return ""
+    return (
+        f"Ghi công AI qua {tool_name} bị khung chặn (`{hit}` — xt.yaml `ai_attribution: forbid`, LOOP-HARNESS-027): "
+        "bỏ dòng tên model/URL phiên khỏi tiêu đề/thân/message rồi gọi lại."
+    )
 
 
 def _track_exports(res: Dict[str, object], argv: List[str], n: List[str]) -> Tuple[str, ...]:
@@ -3858,7 +3922,9 @@ def bash_decision(
         return res
     commands = _commands_with_cwd(tokens, cwd or root)
     deny_reason = next((r for argv, here in commands if (r := _scan_command(argv, root, res, asks, here))), "")
-    deny_reason = deny_reason or (ai_attribution(cmd, commands, root) if res["commit"] else "")
+    deny_reason = deny_reason or (
+        ai_attribution(cmd, commands, root) if res["commit"] or GH_PR_TEXT_RE.search(cmd) else ""
+    )
     if deny_reason:
         res.update(decision="deny", reason=deny_reason)
         return res
@@ -3913,8 +3979,9 @@ MERGE_CMD_RE = re.compile(r"\bgh\s+(pr\b.*\bmerge|api)\b", re.S)
 
 def _failure_decision(mode: str, payload: object, cmd: object) -> Dict[str, object]:
     """Quyết định khi guard ném lỗi: fail-open về luồng (ADR-0002), trừ merge/`gh api` và tool MCP merge (payload đọc
-    được — stdin rác không phải lời gọi tool, LOOP-HARNESS-018) → hỏi."""
-    if (mode == "mcp" and isinstance(payload, dict)) or (
+    được — stdin rác không phải lời gọi tool, LOOP-HARNESS-018) → hỏi; tool MCP ghi PR/commit khác cho qua (D-057)."""
+    tool = payload.get("tool_name") if isinstance(payload, dict) else None
+    if (mode == "mcp" and isinstance(tool, str) and MCP_MERGE_RE.fullmatch(tool)) or (
         mode == "bash" and isinstance(cmd, str) and MERGE_CMD_RE.search(cmd)
     ):
         return {"decision": "ask", "reason": f"guard lỗi khi kiểm merge/ghi GitHub — {UNVERIFIED_ASK}"}
