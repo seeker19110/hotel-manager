@@ -23,6 +23,12 @@ d9a9ca9b97a4741be33d0a297c23cd097bf1ffec:packages/app/src/notifications/notifica
 54005dec88487861edb11b4049602e1fcfa77787:packages/app/src/config/secure-defaults-bundle.test.ts:stripe-access-token:21
 6327e0006e27c47d9851888e41755bf8f5a700f7:packages/app/src/reconciliation/reconciliation.db.test.ts:generic-api-key:30
 
+# Lịch sử `main` được viết lại (2026-10-18/19): cùng ba chuỗi giả ở trên (54005de, 6327e00) nay nằm trong commit 8a6996e (#25).
+# Không phải chuỗi mới — chỉ fingerprint đổi theo SHA mới; giữ dòng cũ cho bản sao còn lịch sử cũ (T-1106).
+8a6996e485bb48443d7d805bff80464563deca15:packages/app/src/config/secure-defaults-bundle.test.ts:aws-access-token:23
+8a6996e485bb48443d7d805bff80464563deca15:packages/app/src/config/secure-defaults-bundle.test.ts:stripe-access-token:21
+8a6996e485bb48443d7d805bff80464563deca15:packages/app/src/reconciliation/reconciliation.db.test.ts:generic-api-key:30
+
 # Cookie phiên giả trong test của PR T-903 (commit đầu của PR, scripts/pii-log.test.mjs) — đã thay bằng chuỗi ghép lúc chạy ở commit sau (WF-GIT-010).
 050abd86c597ba47c9610b013f1a572c33d2a988:scripts/pii-log.test.mjs:generic-api-key:28
 050abd86c597ba47c9610b013f1a572c33d2a988:scripts/pii-log.test.mjs:generic-api-key:50
