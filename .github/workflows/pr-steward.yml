@@ -7,7 +7,8 @@ name: pr-steward
 # (review, sửa, cập nhật nhánh, ngoại lệ cứng) chỉ ghi vào bản tóm tắt của run.
 #
 # An toàn: không trigger `pull_request*`, job chỉ checkout NHÁNH MẶC ĐỊNH (không code của PR) và chạy `xt.py` ở đó;
-# `issue_comment` chỉ chạy khi comment mang dấu review của OWNER/COLLABORATOR. PR từ fork hoặc của tác giả không có quyền
+# `issue_comment` chỉ chạy khi comment mang dấu review của OWNER/COLLABORATOR/MEMBER (MEMBER: `xt.py` hỏi quyền ghi repo
+# trước khi tin dấu). PR từ fork hoặc của tác giả không có quyền
 # ghi repo không bao giờ được steward tự merge (chỉ báo — người merge). PR từng vào làn chuẩn được gắn nhãn
 # `xt-standard-lane` để giữ chặt (cần review sạch ở head) kể cả khi diff thu nhỏ sau đó.
 # Token: `XT_STEWARD_TOKEN` (fine-grained PAT hoặc GitHub App: contents + pull requests: write) nếu có — merge do token
@@ -40,7 +41,7 @@ jobs:
       github.event_name != 'issue_comment' || (
         github.event.issue.pull_request &&
         contains(github.event.comment.body, 'xt-review v1') &&
-        contains(fromJSON('["OWNER","COLLABORATOR"]'), github.event.comment.author_association)
+        contains(fromJSON('["OWNER","COLLABORATOR","MEMBER"]'), github.event.comment.author_association)
       )
     runs-on: ubuntu-latest
     timeout-minutes: 10

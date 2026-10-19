@@ -3190,8 +3190,8 @@ def doctor_fix(findings: List[Finding]) -> Tuple[List[str], List[Finding]]:
 # --------------------------------------------------------------------------- merge-check (ADR-0013)
 
 MERGE_FIELDS = (
-    "number,title,state,isDraft,mergeable,mergeStateStatus,reviewDecision,headRefOid,labels,statusCheckRollup,files,"
-    "autoMergeRequest"
+    "number,title,author,state,isDraft,mergeable,mergeStateStatus,reviewDecision,headRefOid,labels,statusCheckRollup,"
+    "files,autoMergeRequest"
 )
 FAST_LANE_MAX_LINES = 150  # vị từ làn nhanh, 11-autonomous-loop/stop-points-and-escalation.md
 GH_TIMEOUT = 60
@@ -3735,6 +3735,13 @@ def _pr_target(pr_arg: Optional[str]) -> Tuple[str, str]:
     return repo, str(found[0].get("number", ""))
 
 
+def _member_can_write(repo: str, assoc: object, login: object) -> Optional[str]:
+    """Trả "true" khi tác giả là MEMBER của org có quyền ghi repo (steward tin như COLLABORATOR); khác → None."""
+    if str(assoc or "").upper() == "MEMBER" and login and repo_writer(repo, str(login)):
+        return "true"
+    return None
+
+
 def _review_decision(reviews: List[Dict[str, Any]], merge_state: str) -> str:
     """Như `reviewDecision` của GraphQL: review mới nhất của mỗi người (bỏ COMMENTED; DISMISSED xoá). REST không cho biết
     ruleset/branch protection đòi review, nên `mergeable_state` BLOCKED (GitHub tính cả protection cổ điển) → cần người."""
@@ -3811,6 +3818,7 @@ def _pr_rest(pr_arg: Optional[str]) -> Dict[str, Any]:
         for k, v in (
             ("author", user.get("login")),
             ("authorAssociation", pr.get("author_association")),
+            ("authorCanWrite", _member_can_write(repo, pr.get("author_association"), user.get("login"))),
             ("headRepo", head_repo.get("full_name")),
             ("repo", base_repo.get("full_name")),
             ("baseRefName", base.get("ref")),
@@ -5147,10 +5155,18 @@ def _print_doctor(base: Path, findings: List[Finding], fixed: List[str], fixing:
         print(f"✓ Sẵn sàng cho autopilot: {tail}")
 
 
+def pr_title_check_off(base: Path, ref: str) -> bool:
+    """`pr_title_check: off` chỉ có hiệu lực khi cả xt.yaml đã commit ở `ref` (nhánh đích) lẫn cây làm việc đều `off`:
+    PR không tự tắt được luật tiêu đề cho chính nó bằng cách sửa xt.yaml trên nhánh của nó — như `merge_autonomy`."""
+    return (
+        _committed_xt_keys(base, ref).get("pr_title_check") == "off" and _xt_keys(base).get("pr_title_check") == "off"
+    )
+
+
 def _merge_eval(pr: Dict[str, Any]) -> Tuple[Dict[str, Any], List[str]]:
     """(quyết định, ghi chú cấu hình) của `merge-check` cho PR đã đọc — dùng chung với `merge-gate`."""
     ref = f"origin/{pr.get('baseRefName') or 'main'}"
-    if _xt_keys(project_dir()).get("pr_title_check") == "off":  # dự án không theo Conventional Commits (review #140)
+    if pr_title_check_off(project_dir(), ref):  # dự án không theo Conventional Commits (review #140)
         pr = {k: v for k, v in pr.items() if k != "title"}
     autonomy, notes = merge_autonomy_level(project_dir(), ref)
     hard_auto, hard_notes = merge_hard_mode(project_dir(), ref)
@@ -5359,12 +5375,19 @@ def review_comment_body(head: str, clean: bool) -> str:
     return f"Review ở `{head[:7]}`: {text}.\n\n<!-- xt-review v1 head={head} verdict={verdict} -->"
 
 
-def published_reviews(comments: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Review đã đăng trên PR, theo thứ tự thời gian: [{"head", "clean", "at"}] từ comment của người có quyền ghi."""
+def _comment_login(c: Dict[str, Any]) -> str:
+    user = c.get("user")
+    return str(user.get("login") or "") if isinstance(user, dict) else ""
+
+
+def published_reviews(comments: List[Dict[str, Any]], writers: Optional[Set[str]] = None) -> List[Dict[str, Any]]:
+    """Review đã đăng trên PR, theo thứ tự thời gian: [{"head", "clean", "at"}] từ comment của người có quyền ghi —
+    OWNER/COLLABORATOR, hoặc MEMBER của org mà `writers` (đã hỏi quyền repo) xác nhận có quyền ghi."""
     out = []
     for c in comments:
         m = REVIEW_MARK_RE.search(str(c.get("body") or ""))
-        if m and str(c.get("author_association", "")).upper() in TRUSTED_ASSOCIATIONS:
+        assoc = str(c.get("author_association", "")).upper()
+        if m and (assoc in TRUSTED_ASSOCIATIONS or (assoc == "MEMBER" and _comment_login(c) in (writers or set()))):
             out.append({"head": m[1], "clean": m[2] == "clean", "at": str(c.get("created_at", ""))})
     return sorted(out, key=lambda r: r["at"])
 
@@ -5373,9 +5396,43 @@ def _published_marks(repo: str, n: str) -> List[Dict[str, Any]]:
     """Review đã đăng trên PR; không đọc được comment (token thiếu quyền, mạng) → [] — thiếu dấu chỉ làm PR làn chuẩn
     chờ review (chặt hơn), không làm merge-check lỗi."""
     try:
-        return published_reviews(_gh_items(f"{repo}/issues/{n}/comments?per_page=100"))
+        comments = _gh_items(f"{repo}/issues/{n}/comments?per_page=100")
     except PrInputError:
         return []
+    members = {
+        _comment_login(c)
+        for c in comments
+        if str(c.get("author_association", "")).upper() == "MEMBER" and REVIEW_MARK_RE.search(str(c.get("body") or ""))
+    }
+    return published_reviews(comments, {u for u in members if u and repo_writer(repo, u)})
+
+
+WRITE_PERMISSIONS = {"admin", "write"}  # REST `permission` (cũ): maintain tính là write, triage là read
+WRITE_ROLES = {"admin", "maintain", "write"}  # REST `role_name`
+WRITER_TTL = (
+    300.0  # giây — merge-watch hỏi 30 giây/lần: không hỏi lại quyền mỗi lượt, thu hồi quyền có hiệu lực sau ≤ 5 phút
+)
+_WRITER_CACHE: Dict[Tuple[str, str], Tuple[float, bool]] = {}
+
+
+def repo_writer(repo: str, login: str) -> bool:
+    """`login` có quyền ghi repo? Cho MEMBER của org — `author_association` không nói quyền repo (repo thuộc org: chủ
+    repo thường là MEMBER, không phải OWNER/COLLABORATOR). Không hỏi được (token thiếu quyền, mạng) → False (chặt), không
+    nhớ kết quả lỗi. Token cần đọc được quyền cộng tác viên (GITHUB_TOKEN của Actions đọc được — quyền metadata)."""
+    now, key = time.monotonic(), (repo, login)
+    hit = _WRITER_CACHE.get(key)
+    if hit and now - hit[0] < WRITER_TTL:
+        return hit[1]
+    try:
+        got = _gh_one(f"{repo}/collaborators/{urllib.parse.quote(login, safe='')}/permission")
+    except PrInputError:
+        return False
+    ok = (
+        str(got.get("permission", "")).lower() in WRITE_PERMISSIONS
+        or str(got.get("role_name", "")).lower() in WRITE_ROLES
+    )
+    _WRITER_CACHE[key] = (now, ok)
+    return ok
 
 
 def _iso_key(at: object) -> str:
@@ -5549,7 +5606,7 @@ def steward_untrusted(pr: Dict[str, Any]) -> str:
     if pr.get("headRepo") and pr.get("repo") and pr["headRepo"] != pr["repo"]:
         return f"PR từ fork {pr['headRepo']} — người merge"
     author, assoc = str(pr.get("author", "")), str(pr.get("authorAssociation", "")).upper()
-    if assoc in TRUSTED_ASSOCIATIONS or author in TRUSTED_BOTS:
+    if assoc in TRUSTED_ASSOCIATIONS or author in TRUSTED_BOTS or pr.get("authorCanWrite") == "true":
         return ""
     return f"tác giả {author or '?'} ({assoc or 'không rõ'}) không có quyền ghi repo — người merge"
 
@@ -5573,7 +5630,13 @@ def _steward_one(pr_arg: str, repo: str, base: Path, apply: bool, gh_repo: List[
         return {**out, "action": "defer-human", "why": why_not}
     if apply and d["lane"] == "chuẩn" and not _standard_seen(pr):
         n = str(d["pr"])
-        _steward_run([["gh", "api", "-X", "POST", f"{repo}/issues/{n}/labels", "-f", f"labels[]={STANDARD_LABEL}"]])
+        label_err = _steward_run(
+            [["gh", "api", "-X", "POST", f"{repo}/issues/{n}/labels", "-f", f"labels[]={STANDARD_LABEL}"]]
+        )
+        if label_err:  # không nhãn: push sau có thể hạ PR về làn nhanh — không bật/merge lượt này, báo đỏ ra summary
+            out["warn"] = f"không gắn được nhãn {STANDARD_LABEL}: {label_err} — lượt sau thử lại"
+            if out["action"] != "disable-auto-merge":  # tắt auto-merge (giữ PR lại) vẫn chạy
+                return out
     cmds = [c[:3] + gh_repo + c[3:] if c[:3] == ["gh", "pr", "merge"] else c for c in _steward_command(out, repo)]
     cmds = cmds if apply else []
     if cmds:
@@ -5606,7 +5669,7 @@ def cmd_pr_steward(args: argparse.Namespace) -> int:
     results = [_steward_one(target(n), repo, project_dir(), args.apply, gh_repo) for n in nums]
     lines = [
         f"#{r['pr']} {r['action']}{' ✓' if r.get('applied') else ''}{' ✗ ' + r['error'] if r.get('error') else ''}"
-        f" — {r['why']}"
+        f" — {r['why']}{' ⚠ ' + r['warn'] if r.get('warn') else ''}"
         for r in results
     ]
     if args.json:
@@ -5617,7 +5680,7 @@ def cmd_pr_steward(args: argparse.Namespace) -> int:
     if summary:
         with open(summary, "a", encoding="utf-8") as fh:
             fh.write("## pr-steward\n\n" + "".join(f"- {ln}\n" for ln in lines or ["không có PR mở"]))
-    return 1 if any(r.get("error") or r["action"] == "error" for r in results) else 0
+    return 1 if any(r.get("error") or r.get("warn") or r["action"] == "error" for r in results) else 0
 
 
 def cmd_pr(args: argparse.Namespace) -> int:
