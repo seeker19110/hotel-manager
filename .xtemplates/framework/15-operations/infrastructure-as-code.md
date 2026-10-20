@@ -3,7 +3,7 @@ title: IaC: Terraform/Pulumi/compose, drift, review, policy-as-code
 kind: module
 prefix: OPS-IAC
 applies_to: [web-app, api-service, ai-agent, agentic-system, data-ml, monorepo, blockchain, static-site]
-updated: 2026-10-15
+updated: 2026-10-20
 ---
 
 # IaC: Terraform/Pulumi/compose, drift, review, policy-as-code
@@ -41,7 +41,7 @@ updated: 2026-10-15
 - [ ] `OPS-IAC-003` **MUST** State ở backend từ xa có **khoá** (locking), **versioning**, **mã hoá at-rest**, quyền đọc/ghi hẹp (chỉ identity CI + admin); `.tfstate*` trong `.gitignore`. → Kiểm: cấu hình backend trong code; `git ls-files | grep tfstate` = 0; bucket có versioning + encryption (checkov). · Nguồn: Terraform docs — state locking; [`../12-security/secrets-management.md`](../12-security/secrets-management.md)
 - [ ] `OPS-IAC-004` **MUST** Không bí mật trong IaC/compose: giá trị nhạy cảm lấy từ kho bí mật (data source) hoặc biến CI; output nhạy cảm đánh dấu `sensitive = true`. → Kiểm: checkov `CKV_SECRET_*` = 0; gitleaks quét thư mục `infra/`; grep `password = "` = 0. · Nguồn: OWASP Secrets Mgmt CS
 - [ ] `OPS-IAC-005` **MUST@L** Policy-as-code chạy trên mỗi PR hạ tầng (checkov trên code + conftest/OPA trên plan JSON): chặn public storage, IAM wildcard, cổng mở `0.0.0.0/0` cho port quản trị, thiếu mã hoá, thiếu tag bắt buộc, thiếu log. → Kiểm: job policy là required check; `checkov -d infra --quiet --compact` = 0 HIGH/CRITICAL; `conftest test plan.json -p policy/` = 0 deny. · Nguồn: catalog stored 12 §3 (OPA/conftest); CIS Benchmark cloud
-- [ ] `OPS-IAC-006` **MUST** Hành động phá huỷ (plan có `destroy`/`replace` tài nguyên có dữ liệu: CSDL, bucket, volume, queue) cần người duyệt riêng và `prevent_destroy`/deletion protection trên tài nguyên dữ liệu. → Kiểm: `lifecycle { prevent_destroy = true }` hoặc `deletion_protection = true` trên CSDL/bucket; CI đọc plan JSON, có `delete` tài nguyên dữ liệu → yêu cầu label `approved-destroy`. · Nguồn: P8; AGENTS.md §5 (điểm dừng bắt buộc về hành động)
+- [ ] `OPS-IAC-006` **MUST** Hành động phá huỷ (plan có `destroy`/`replace` tài nguyên có dữ liệu: CSDL, bucket, volume, queue) cần người duyệt riêng và `prevent_destroy`/deletion protection trên tài nguyên dữ liệu. → Kiểm: `lifecycle { prevent_destroy = true }` hoặc `deletion_protection = true` trên CSDL/bucket; CI đọc plan JSON, có `delete` tài nguyên dữ liệu → yêu cầu label `approved-destroy`. · Nguồn: P8; AGENTS.md mục Điểm dừng bắt buộc về hành động
 - [ ] `OPS-IAC-007` **MUST@L** Mỗi môi trường (dev/staging/prod) có state riêng, tài khoản/dự án cloud riêng, identity apply riêng; không dùng `-var env=prod` trên cùng state. → Kiểm: cấu trúc `envs/<env>/` hoặc workspace + backend key khác nhau; account id khác nhau. · Nguồn: [`../10-workflow/environments-and-config.md`](../10-workflow/environments-and-config.md)
 - [ ] `OPS-IAC-008` **MUST@L** Phiên bản tool và provider/module ghim: `required_version`, `required_providers` với ràng buộc + lockfile (`.terraform.lock.hcl` commit); module từ registry ghim phiên bản, từ git ghim commit. → Kiểm: lockfile commit; `rg 'source = "git::' infra | grep -v ref=` = 0; CI `init -lockfile=readonly`. · Nguồn: Terraform/OpenTofu docs (dependency lock); [`../12-security/supply-chain.md`](../12-security/supply-chain.md)
 - [ ] `OPS-IAC-009` **MUST@L** Format + validate + lint trong pre-commit và CI (`fmt -check`, `validate`, tflint/pulumi lint, hadolint cho Dockerfile, `docker compose config` cho compose). → Kiểm: job lint hạ tầng là required check. · Nguồn: P9

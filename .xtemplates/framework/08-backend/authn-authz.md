@@ -3,7 +3,8 @@ title: Xác thực, phiên, token, phân quyền (RBAC/ABAC), đa yếu tố
 kind: module
 prefix: BE-AUTH
 applies_to: [web-app, api-service, ai-agent, agentic-system, data-ml, monorepo, blockchain]
-updated: 2026-10-16
+essential: [BE-AUTH-003@auth, BE-AUTH-006@jwt, BE-AUTH-008@oauth, BE-AUTH-015@reset]
+updated: 2026-10-20
 ---
 
 # Xác thực, phiên, token, phân quyền (RBAC/ABAC), đa yếu tố
@@ -11,6 +12,11 @@ updated: 2026-10-16
 > **Nhà duy nhất** của khung cho xác thực, phiên, token, OAuth/OIDC, passkey, MFA và phân quyền. Module khác
 > (`12-security/appsec-web`, hồ sơ, gói ngành) chỉ nêu lớp lỗ hổng rồi trỏ về đây. Áp dụng cho mọi hệ có
 > người dùng hoặc client cần định danh.
+>
+> **Mục thiết yếu** (frontmatter `essential`, ADR-0030 — `docs/adr/0030-essential-items-not-capped-at-m.md` của
+> repo khung): ở quy mô M, `BE-AUTH-003` (dự án có đăng nhập — `--feature auth`), `BE-AUTH-006` (`jwt`), `BE-AUTH-008`
+> (`oauth`) và `BE-AUTH-015` (`reset`) là MUST khi `xt.py compose` bật fact tương ứng, dù ghi `MUST@L`; không bật thì
+> như cũ.
 
 ## Nguyên tắc
 
@@ -98,15 +104,15 @@ updated: 2026-10-16
 - RFC 9106 Argon2 (khuyến nghị Argon2id): <https://www.rfc-editor.org/rfc/rfc9106> — xác minh 2026-10-13
 - NIST SP 800-63B-4 Digital Identity Guidelines: Authentication and Authenticator Management (8/15 ký tự, ≥64, không composition rule, không rotation, blocklist, ≤100 lần thử): <https://pages.nist.gov/800-63-4/sp800-63b.html> — xác minh 2026-10-13
 - OWASP Session Management Cheat Sheet: <https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html> — xác minh 2026-10-13
-- OWASP Authentication Cheat Sheet: <https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html> — xác minh 2026-10-13
+- OWASP Authentication Cheat Sheet (phản hồi chung, thời gian phản hồi xấp xỉ nhau, chống tấn công tự động): <https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html> — xác minh 2026-10-20
 - OWASP Authorization Cheat Sheet (deny by default, ABAC/ReBAC, IDOR, test): <https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html> — xác minh 2026-10-13
 - OWASP Multifactor Authentication Cheat Sheet: <https://cheatsheetseries.owasp.org/cheatsheets/Multifactor_Authentication_Cheat_Sheet.html> — xác minh 2026-10-13
-- RFC 8725 JSON Web Token Best Current Practices (BCP 225): <https://www.rfc-editor.org/rfc/rfc8725> — xác minh 2026-10-13
+- RFC 8725 JSON Web Token Best Current Practices (BCP 225; §3.1 kiểm thuật toán, `none`; §3.9 `aud`): <https://www.rfc-editor.org/rfc/rfc8725> — xác minh 2026-10-20
 - RFC 9700 Best Current Practice for OAuth 2.0 Security (BCP 240): <https://www.rfc-editor.org/rfc/rfc9700> — xác minh 2026-10-13
 - OAuth 2.1 draft-ietf-oauth-v2-1-16 (03/09/2026, **vẫn là Internet-Draft**, chưa RFC): <https://datatracker.ietf.org/doc/draft-ietf-oauth-v2-1/> — xác minh 2026-10-13
 - W3C Web Authentication Level 3 — Recommendation 25/08/2026: <https://www.w3.org/TR/webauthn-3/> — xác minh 2026-10-13
 - RFC 6238 TOTP (bước 30 giây, không chấp nhận OTP dùng lại): <https://www.rfc-editor.org/rfc/rfc6238> — xác minh 2026-10-13
 - OWASP ASVS 5.0.0 chương V6 Authentication, V7 Session Management, V8 Authorization, V9 Self-contained Tokens, V10 OAuth and OIDC: <https://github.com/OWASP/ASVS/tree/master/5.0/en> — xác minh 2026-10-13
-- (chưa xác minh) OWASP Forgot Password Cheat Sheet — không fetch ngày 2026-10-13; nội dung mục 015 lấy theo NIST + Authentication Cheat Sheet.
+- OWASP Forgot Password Cheat Sheet (thông báo như nhau dù tài khoản có hay không, thời gian đồng đều; token sinh bằng thuật toán an toàn mật mã, đủ dài, lưu an toàn, dùng một lần, hết hạn): <https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html> — xác minh 2026-10-20
 - `research/2026-10-13-stored-catalog-extraction.md` §2.5 (IDOR, Server Action), §2.11 (prompt không phải cơ chế bảo mật); catalog `09-engineering-checklists` §1.3 mục 4.4; `23-own-repos-lessons` §4.1 (API phải `validateAuth()` + user_id từ token).
 - Catalog `seeker19110/stored` 07 (Overmind: nhận lời mời theo email trùng với `email_verified=True` tự gán) — đọc 2026-10-16.

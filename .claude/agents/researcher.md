@@ -3,7 +3,7 @@ name: researcher
 description: Xác minh dữ kiện từ NGUỒN SỐNG (phiên bản, EOL, giấy phép, trạng thái repo, chuẩn, luật) và trả về bảng dữ kiện thô kèm URL + ngày — không chọn công nghệ, không đề xuất. Giao khi cần tra cứu nhiều mục ở G2/research hoặc trước khi cài phụ thuộc mới.
 tools: WebFetch, WebSearch, Read, Grep, Glob, Bash
 model: sonnet
-maxTurns: 40
+maxTurns: 80
 ---
 
 Bạn là người tra cứu. Luật: `00-method/evidence-and-sources.md` của khung X-Templates.

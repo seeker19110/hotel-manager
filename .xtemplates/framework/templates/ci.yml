@@ -1,0 +1,275 @@
+# CI mẫu cho dự án đích — `install.py --with-github` chép vào `.github/workflows/ci.yml` (copy-if-absent: dự án đã có
+# ci.yml thì giữ nguyên, bản khung ghi `ci.yml.xtemplates-new` để gộp tay). KHÔNG phụ thuộc stack: mọi lệnh lấy từ
+# `xt.yaml` qua `.xtemplates/scripts/dev-task.sh <task>` (WF-CI-002); toolchain/phụ thuộc cài bằng khoá `setup:` của xt.yaml
+# (vd `setup: npm ci`, `setup: pip install -r requirements.txt`) — runner ubuntu-latest đã có node/python/go/java.
+# Fan-out/fan-in (WF-CI-024): build · typecheck · lint · test (shard) · coverage (gộp) · checks chạy song song; `quality`
+# (required check của ruleset) TỔNG HỢP mọi job con với `if: always()` (WF-CI-001). `protection-guard` (required check
+# riêng) đối chiếu ruleset ↔ job. `gitleaks` ở secret-scan.yml, `merge-gate` ở merge-gate.yml; `dep-audit` (phụ thuộc
+# ngôn ngữ) dự án tự viết — hoặc bỏ khỏi `.github/rulesets/main.json`.
+# Thêm job con: thêm tên vào `quality.needs`. Đổi tên job là required check: sửa ruleset cùng PR (protection-guard đỏ).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    # `edited`: sửa tiêu đề PR thì chạy lại bước kiểm tiêu đề.
+    types: [opened, synchronize, reopened, edited]
+
+# Mặc định tối thiểu cho MỌI job (GITHUB_TOKEN chỉ đọc). Job nào cần hơn tự khai ở job-level.
+permissions:
+  contents: read
+
+# PR: push mới hủy run cũ cùng PR. `main`: mỗi commit một group riêng (run_id), không hủy — giữ bằng chứng CI từng commit.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Số shard của `test` khi xt.yaml khai đủ `test_list` · `test_unit` · `test_combine` (dev-task.sh test-shard/test-combine);
+  # thiếu một khoá → một shard chạy `dev-task.sh test` (không cần khai gì).
+  TEST_SHARDS: "4"
+  # Sàn số id test mà `test_list` phải liệt kê (tổng, trước khi chia): liệt kê hỏng/rỗng thì đỏ thay vì xanh với 0 test.
+  XT_MIN_TESTS: "1"
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: setup — khoá `setup:` của xt.yaml (vắng = bỏ qua)
+        run: bash .xtemplates/scripts/dev-task.sh setup
+      - name: build — đúng lệnh trong xt.yaml
+        run: bash .xtemplates/scripts/dev-task.sh build
+
+  typecheck:
+    name: typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: setup — khoá `setup:` của xt.yaml (vắng = bỏ qua)
+        run: bash .xtemplates/scripts/dev-task.sh setup
+      - name: typecheck — đúng lệnh trong xt.yaml
+        run: bash .xtemplates/scripts/dev-task.sh typecheck
+
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: setup — khoá `setup:` của xt.yaml (vắng = bỏ qua)
+        run: bash .xtemplates/scripts/dev-task.sh setup
+      - name: lint — đúng lệnh trong xt.yaml (nên gồm kiểm format)
+        run: bash .xtemplates/scripts/dev-task.sh lint
+
+  # Quyết định chia test: đủ ba khoá `test_list` · `test_unit` · `test_combine` trong xt.yaml → TEST_SHARDS shard + job
+  # `coverage` gộp; không thì một shard chạy `test`. Đọc khoá như dev-task.sh (YAML phẳng); đọc lệch thì dev-task đỏ.
+  test-plan:
+    name: test-plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      sharded: ${{ steps.plan.outputs.sharded }}
+      shards: ${{ steps.plan.outputs.shards }}
+      total: ${{ steps.plan.outputs.total }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: plan
+        name: Chia shard theo xt.yaml
+        run: |
+          python3 - <<'PY'
+          import json, os, re, sys
+          try:
+              text = open("xt.yaml", encoding="utf-8").read()
+          except OSError:
+              text = ""
+          keys = {}
+          for line in text.splitlines():
+              m = re.match(r"([A-Za-z0-9_]+):[ \t]*(.*)$", line)
+              if m and m.group(1) not in keys:
+                  keys[m.group(1)] = re.sub(r"(^|\s)#.*$", "", m.group(2)).strip().strip("\"'").strip()
+          sharded = all(keys.get(k) for k in ("test_list", "test_unit", "test_combine"))
+          raw = os.environ.get("TEST_SHARDS", "")
+          if not re.fullmatch(r"[1-9][0-9]?", raw):
+              print(f"::error::TEST_SHARDS phải là số 1..99 (đang là {raw!r})")
+              sys.exit(1)
+          n = int(raw) if sharded else 1
+          out = {"sharded": "true" if sharded else "false", "shards": json.dumps(list(range(1, n + 1))), "total": str(n)}
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+              fh.write("".join(f"{k}={v}\n" for k, v in out.items()))
+          print(out)
+          PY
+
+  test:
+    name: test ${{ matrix.shard }}/${{ needs.test-plan.outputs.total }}
+    needs: [test-plan]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false # shard khác vẫn chạy hết để thấy mọi chỗ đỏ; kết quả gộp của job vẫn là `failure`
+      matrix:
+        shard: ${{ fromJSON(needs.test-plan.outputs.shards) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: setup — khoá `setup:` của xt.yaml (vắng = bỏ qua)
+        run: bash .xtemplates/scripts/dev-task.sh setup
+      - name: test — một shard (`test-shard`, coverage ghi vào thư mục tạm) hoặc cả `test`
+        env:
+          SHARD: ${{ matrix.shard }}
+          TOTAL: ${{ needs.test-plan.outputs.total }}
+          SHARDED: ${{ needs.test-plan.outputs.sharded }}
+        run: |
+          set -euo pipefail
+          if [ "$SHARDED" = true ]; then
+            bash .xtemplates/scripts/dev-task.sh test-shard "$SHARD" "$TOTAL" "$RUNNER_TEMP/cov"
+          else
+            bash .xtemplates/scripts/dev-task.sh test
+          fi
+      # `test_unit` ghi dữ liệu coverage vào "$XT_COV_DIR"; file bắt đầu bằng `.` → cần `include-hidden-files`.
+      - if: needs.test-plan.outputs.sharded == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-${{ matrix.shard }}
+          path: ${{ runner.temp }}/cov/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
+
+  # Luôn có (bước bị điều kiện bỏ qua, không phải job): job `skipped` sẽ làm `quality` đỏ. Không chia shard → ngưỡng
+  # coverage nằm trong chính lệnh `test` của xt.yaml.
+  coverage:
+    name: coverage
+    needs: [test-plan, test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - if: needs.test-plan.outputs.sharded != 'true'
+        name: Không chia shard — coverage nằm trong `test`
+        run: echo "xt.yaml không khai đủ test_list/test_unit/test_combine — job test đã chạy cả lệnh test."
+      - if: needs.test-plan.outputs.sharded == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - if: needs.test-plan.outputs.sharded == 'true'
+        name: setup — khoá `setup:` của xt.yaml (vắng = bỏ qua)
+        run: bash .xtemplates/scripts/dev-task.sh setup
+      - if: needs.test-plan.outputs.sharded == 'true'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: coverage-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/cov
+      - if: needs.test-plan.outputs.sharded == 'true'
+        name: Gộp coverage mọi shard, đòi ngưỡng của `test_combine` trong xt.yaml
+        run: bash .xtemplates/scripts/dev-task.sh test-combine "$RUNNER_TEMP/cov"
+
+  checks:
+    name: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # PROGRESS.md: SHA bàn giao phải là tổ tiên HEAD (doctor kiểm)
+      # D-096: job `lint`/`test` in "skip" và xanh khi xt.yaml để rỗng → `quality` xanh mà không chạy gì. Bước này đỏ
+      # (mọi `delivery_phase`) tới khi xt.yaml khai lệnh thật cho `lint` và `test`; typecheck/build rỗng vẫn được.
+      - name: Cổng bắt buộc đã khai — `lint` và `test` trong xt.yaml không rỗng/no-op
+        run: bash .xtemplates/scripts/dev-task.sh require lint test
+      - name: Khung đã cài còn nguyên — `xt.py doctor` (đỏ khi có lỗi; cảnh báo không chặn)
+        run: python3 .xtemplates/scripts/xt.py doctor
+      - name: Workflow (ghim SHA, quyền, timeout, secret trên PR) + cấu hình xt.yaml — `xt.py ci-check`
+        run: python3 .xtemplates/scripts/xt.py ci-check
+      # Miễn như `merge-check`: `pr_title_check: off` trong xt.yaml, PR của bot, `Revert "…"` của GitHub.
+      - name: Tiêu đề PR theo Conventional Commits, ≤ 72 ký tự (thành tiêu đề squash)
+        if: github.event_name == 'pull_request'
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          if grep -Eq "^pr_title_check:[[:space:]]*[\"']?off" xt.yaml 2>/dev/null || [[ "$AUTHOR" == *"[bot]" ]] || [[ "$TITLE" == 'Revert "'* ]]; then
+            echo "Bỏ qua kiểm tiêu đề (pr_title_check: off / bot / revert)."; exit 0
+          fi
+          if ! printf '%s' "$TITLE" | grep -Eq '^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9._/-]+\))?!?: .+$' \
+            || [ "${#TITLE}" -gt 72 ]; then
+            echo "::error::Tiêu đề PR phải dạng '<type>(scope): mô tả' và ≤ 72 ký tự: $TITLE"; exit 1
+          fi
+
+  # Required check `quality` (ruleset `.github/rulesets/main.json`): job TỔNG HỢP của mọi job con ở trên (WF-CI-001).
+  # `always()` — không phải `!cancelled()`: run bị huỷ thì `quality` vẫn chạy và ĐỎ (job con `cancelled`/`skipped` ≠
+  # `success`). Với `!cancelled()`, run bị huỷ làm `quality` thành `skipped`, mà required check `skipped` được GitHub tính
+  # là ĐẠT → auto-merge có thể merge mã chưa qua test. Job matrix: `needs.<job>.result` là kết quả gộp.
+  quality:
+    name: quality
+    needs: [build, typecheck, lint, test-plan, test, coverage, checks]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    env:
+      RESULTS: ${{ toJSON(needs) }}
+    steps:
+      - name: Mọi job con phải `success`
+        run: |
+          python3 - <<'PY'
+          import json, os, sys
+          needs = json.loads(os.environ["RESULTS"])
+          bad = {job: v.get("result") for job, v in needs.items() if v.get("result") != "success"}
+          for job, v in sorted(needs.items()):
+              print(f"{job}={v.get('result')}")
+          if not needs or bad:
+              print(f"::error::Job con không `success`: {bad or 'không có job con nào'}")
+              sys.exit(1)
+          PY
+
+  # Hàng rào cho hàng rào: (1) mọi required check trong ruleset mẫu phải là job có thật (chặn khoá-nhánh-do-đổi-tên-job;
+  # `dep-audit` chưa có job → đỏ tới khi dự án viết job đó hoặc bỏ khỏi ruleset); (2) ruleset trên nhánh mặc định có đang
+  # hiệu lực không — chỉ CẢNH BÁO (không đỏ) để repo mới chưa import vẫn merge được.
+  protection-guard:
+    name: protection-guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Required check trong ruleset ↔ job có thật
+        run: |
+          set -euo pipefail
+          if [ ! -f .github/rulesets/main.json ]; then
+            echo "::warning::Không có .github/rulesets/main.json — không có required check để đối chiếu."; exit 0
+          fi
+          jobs=$(python3 - <<'PY'
+          import glob, re
+          names = set()
+          for f in glob.glob(".github/workflows/*.yml") + glob.glob(".github/workflows/*.yaml"):
+              txt = open(f, encoding="utf-8").read()
+              m = re.search(r"^jobs:\n(.*)", txt, re.S | re.M)
+              if not m: continue
+              for jm in re.finditer(r"^  ([A-Za-z0-9_-]+):\n((?:    .*\n|\n)*)", m.group(1), re.M):
+                  key, body = jm.group(1), jm.group(2)
+                  nm = re.search(r"^    name:\s*(.+?)\s*$", body, re.M)
+                  names.add(nm.group(1).strip('"\'') if nm else key)
+          print("\n".join(sorted(names)))
+          PY
+          )
+          fail=0
+          for c in $(python3 -c "import json;[print(x['context']) for r in json.load(open('.github/rulesets/main.json'))['rules'] if r['type']=='required_status_checks' for x in r['parameters']['required_status_checks']]"); do
+            grep -qx "$c" <<<"$jobs" || { echo "::error::Required check '$c' không khớp job nào trong .github/workflows/"; fail=1; }
+          done
+          [ "$fail" = 0 ] && echo "OK — mọi required check đều là job có thật."
+          exit $fail
+      - name: Ruleset trên nhánh mặc định đang hiệu lực? (cảnh báo)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -uo pipefail
+          rules=$(curl -sS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$REPO/rules/branches/$BRANCH" || echo "[]")
+          for t in pull_request required_status_checks deletion non_fast_forward; do
+            if ! python3 -c "import json,sys; r=json.loads(sys.argv[1]); sys.exit(0 if any(x.get('type')==sys.argv[2] for x in r) else 1)" "$rules" "$t"; then
+              echo "::warning::Nhánh $BRANCH chưa có rule '$t' — import .github/rulesets/main.json (Settings → Rules → Rulesets → Import)."
+            fi
+          done
+          echo "Đã kiểm ruleset (cảnh báo nếu thiếu)."

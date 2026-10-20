@@ -1,7 +1,7 @@
 ---
 title: Phương pháp audit
 kind: method
-updated: 2026-10-14
+updated: 2026-10-20
 ---
 
 # Phương pháp audit
@@ -18,6 +18,7 @@ updated: 2026-10-14
 | Trước phát hành lớn / cổng G7 | Toàn bộ, `--strict` | Còn 🔴 mở → không phát hành |
 | Định kỳ (gợi ý: mỗi quý, hoặc sau ~50 PR) | Chỉ nhóm có thay đổi (§6) | `xt.py audit plan` liệt kê nhóm cần quét lại |
 | Sau sự cố / post-mortem | Nhóm liên quan | Phát hiện thành hàng rào máy (test, lint, Gate) |
+| **Sau mỗi mốc** của `PLAN.md` khi chạy autopilot (lát/nhóm lát xong — `loop status` báo `milestone_done`, ADR-0029) | Chỉ nhóm mà `xt.py audit plan --status …` suy ra từ diff kể từ SHA quét trước (§6), **không** toàn bộ | 🔴/🟠 thành task mới trong PLAN **trước** khi sang mốc kế; mốc kế chỉ bắt đầu khi không còn 🔴 mở. Pha build (`delivery_phase: build`, `milestone_audit: g7`): không quét theo mốc — gom về audit delta trước G7, `release-check` (`phase`, `review_debt`) chặn tới khi trả (ADR-0033) |
 
 ## 2. Bước -1: đọc repo thật, không audit "khung trống"
 
@@ -75,8 +76,9 @@ Mỗi phát hiện là **một dòng** trong bảng "Phát hiện" của `docs/o
    thành `suy luận` hoặc `bác bỏ`. Đây là chốt chặn ảo giác quan trọng nhất của audit.
 5. **Ghi** — cập nhật `AUDIT-STATUS.md` (nhóm đã quét + SHA, bảng phát hiện) và `AUDIT-REPORT-<ngày>.md`;
    `xt.py audit check docs/ops/AUDIT-STATUS.md` phải exit 0 (schema đúng).
-6. **DỪNG CHỜ DUYỆT** — trình kế hoạch sửa theo đợt (mỗi đợt ≤ 1 PR, bug có test tái hiện trước khi sửa). Không sửa
-   trước khi người duyệt, trừ khi đang trong autopilot đã duyệt trước và phát hiện thuộc phạm vi PLAN.
+6. **Duyệt kế hoạch sửa** — trình kế hoạch theo đợt (mỗi đợt ≤ 1 PR, bug có test tái hiện trước khi sửa); phiên chính tự
+   duyệt theo tiêu chí chất lượng cuối (ADR-0008, `xt.py loop decide` → D-NNN — có hay không chạy autopilot), báo người
+   tóm tắt rồi làm tiếp, người đổi ý lúc nào cũng được; không sửa lặng lẽ trước khi có kế hoạch đã ghi.
 7. **Hội tụ** — sửa → `/gate` → quét lại nhóm liên quan → lặp tới khi `xt.py audit check --strict` exit 0.
 
 ## 6. Quét lại theo thay đổi
@@ -85,11 +87,13 @@ Mỗi phát hiện là **một dòng** trong bảng "Phát hiện" của `docs/o
 và ánh xạ file đổi sang nhóm (workflow → 8, lockfile/manifest → 7, test → 4, migration → 10, tài liệu → 9,
 `AGENTS.md`/`xt.yaml`/`.claude/` → 13, mã nguồn → 1·2·3·12). SHA không còn là tổ tiên HEAD (rebase/squash) → quét lại
 nhóm đó từ đầu. Nhóm không đổi giữ kết quả cũ, nhưng phát hiện `chấp nhận` vẫn bị kiểm hạn.
+Nhóm sổ ghi **N/A** được đối chiếu lại với tín hiệu repo hiện tại (REC-07): repo nay có UI/CSDL… thì `audit plan` liệt kê
+"N/A→áp dụng: …" và `audit check --strict` đỏ tới khi quét nhóm đó (đổi trạng thái) hoặc ghi `Giải trình: <lý do>` ở Ghi chú.
 
 ## 7. Definition of Complete
 
 Audit **xong** khi và chỉ khi `xt.py audit check docs/ops/AUDIT-STATUS.md --strict` exit 0:
-mọi nhóm `đã quét` (SHA tổ tiên HEAD) hoặc `N/A` có lý do · không còn 🔴/🟠 `mở` · mọi `chấp nhận` có chủ và còn hạn.
+mọi nhóm `đã quét` (SHA tổ tiên HEAD và có trên nhánh chính) hoặc `N/A` có lý do · không còn 🔴/🟠 `mở` · mọi `chấp nhận` có chủ và còn hạn.
 Báo cáo cuối: đã quét gì · số phát hiện theo mức/trạng thái · bằng chứng (lệnh + exit code) · nợ 🟢 còn lại có chủ.
 
 ## 8. Bẫy
@@ -97,7 +101,9 @@ Báo cáo cuối: đã quét gì · số phát hiện theo mức/trạng thái �
 - Liệt kê "best practice" chung chung thay vì lỗi có thật trong repo này → mỗi phát hiện phải trỏ file:dòng hoặc lệnh.
 - Tin miễn trừ cũ: miễn trừ viết khi CI chưa cài gì có thể sai khi CI đã cài công cụ — `audit plan` đánh dấu, người xác minh.
 - Ghi SHA của nhánh PR vào cột SHA: squash-merge xoá commit đó, sổ trên nhánh chính hỏng (`audit check` đỏ). Ghi SHA
-  **trên nhánh chính** mà lần quét dựa vào (thường là base của nhánh audit); thay đổi sau đó tự hiện ở "Quét lại".
+  **trên nhánh chính** mà lần quét dựa vào (thường là base của nhánh audit, `git merge-base HEAD origin/main`); thay
+  đổi sau đó tự hiện ở "Quét lại". Máy đỡ: `audit check` đỏ khi SHA quét chưa nằm trên nhánh chính (cùng luật và biến
+  `XT_PROGRESS_BASE` với `progress-check`; repo không có remote thì bỏ qua).
 - Coverage từ test chạy qua subprocess bị đếm thiếu → ghi rõ cách đo, đừng kết luận "0% không test".
 - Công cụ không cài được → `chưa biết`, không phải "đạt".
 - Sửa trong lúc audit làm lẫn bằng chứng → audit xong, duyệt, rồi mới sửa theo đợt.

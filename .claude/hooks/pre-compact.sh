@@ -8,6 +8,8 @@ set -uo pipefail
 . "$(dirname "$0")/_lib.sh"
 
 payload="$(cat)"
+# Chưa `loop init` (không có state.json): `loop checkpoint` là no-op → không khởi động python (T-1711).
+[ -f "$XT_ROOT/.autopilot/state.json" ] || exit 0
 XT="$(xt_py)" || exit 0
 printf '%s' "$payload" | py_run "$XT" loop checkpoint >/dev/null 2>&1 || true
 exit 0
