@@ -2,7 +2,7 @@
 # pre-bash-guard.sh — PreToolUse hook (matcher: Bash). Ba việc, theo thứ tự:
 #  1) DENY lệnh phá huỷ / không đảo ngược (deny chặn cả ở bypassPermissions).
 #  2) ASK (chỉ khi XT_GUARD_POLICY=strict; mặc định guard.py đổi ask nguy hiểm → deny, còn lại cho qua — ADR-0018) lệnh "hành động đối ngoại" (riêng `gh pr merge` qua `xt.py merge-check` → có thể ALLOW, ADR-0013), nới hàng rào, ghi file cổng/bí mật qua Bash (điểm dừng bắt buộc — 11-autonomous-loop).
-#  3) Khi là `git commit`: chạy cổng chất lượng qua dev-task.sh gate; đỏ → chặn (exit 2).
+#  3) Khi là `git commit`: chạy cổng chất lượng qua dev-task.sh gate (gate-fast khi xt.yaml `commit_gate: fast`); đỏ → chặn (exit 2).
 # Phân tích lệnh nằm ở guard.py (tách theo token shell, chuẩn hoá wrapper/tuỳ chọn git — audit AUD-SEC-001…010).
 # Payload đi qua stdin, không qua argv. guard.py lỗi/thiếu python3 → cho qua (fail-open về luồng), trừ merge: không kiểm
 # được ngoại lệ cứng → chặn (strict: hỏi) — ADR-0019, AUD-SEC-045.
@@ -45,6 +45,19 @@ fi
 decision="$XG_DECISION"
 [ "$decision" = "deny" ] && pretool_decision deny "$XG_REASON"
 
+gate_config_changed() { # $1=gốc repo → 0 nếu file đổi so với HEAD (đã/chưa stage, file mới) là cấu hình cổng
+  local f
+  while IFS= read -r f; do
+    case "$f" in
+    xt.yaml | .claude/settings.json | .claude/hooks/pre-bash-guard.sh | scripts/dev-task.sh | \
+      .xtemplates/scripts/dev-task.sh | scripts/xt.py | .xtemplates/scripts/xt.py | ruff.toml | */ruff.toml | .ruff.toml | */.ruff.toml | pyproject.toml | \
+      */pyproject.toml | .coveragerc | */.coveragerc | requirements*.txt | */requirements*.txt) return 0 ;;
+    esac
+  done < <(git -C "$1" -c core.quotePath=false diff --no-renames --relative --name-only HEAD -- 2>/dev/null
+    git -C "$1" -c core.quotePath=false ls-files --others --exclude-standard 2>/dev/null)
+  return 1
+}
+
 # ---- 3) Cổng trước commit (chạy TRƯỚC khi hỏi người — ask không được bỏ cổng, AUD-HAR-013) ----
 # `--no-verify` (hoặc `-c core.hooksPath=…`) chỉ tắt git hook, KHÔNG tắt cổng của khung: mặc định (không hỏi người, ADR-0018)
 # vẫn chạy cổng — trước đây bỏ cổng lặng lẽ (rà stored 2026-10-18). Chỉ `XT_GUARD_POLICY=strict` để người quyết (hỏi).
@@ -83,9 +96,31 @@ if [ "$XG_COMMIT" = "true" ] && { [ "$XG_NO_VERIFY" != "true" ] || [ "${XT_GUARD
     [ -x "$g" ] && { gate="$g"; break; }
   done
   if [ -n "$gate" ]; then
+    # `commit_gate: fast` (xt.yaml của repo nhận commit) → cổng nhanh: format/lint/typecheck + test liên quan file đổi;
+    # cổng đầy đủ (`dev-task.sh gate`, ngưỡng coverage) chạy ở bước mở PR và CI. Vắng/giá trị khác → đầy đủ như trước.
+    # Đọc `commit_gate` bằng chính xt.py của khung cài cùng hook này (`commit-gate`: cùng cách đọc khoá với `doctor`/
+    # `ci-check` — bỏ comment, dòng trùng lấy dòng cuối; AUD-XFEAT-017), không grep riêng. Không chạy được/giá trị lạ → full.
+    task="gate"
+    hooks="$(cd "$(dirname "$0")" && pwd)"
+    for x in "$hooks/../../.xtemplates/scripts/xt.py" "$hooks/../../scripts/xt.py"; do
+      [ -f "$x" ] || continue
+      [ -f "$groot/xt.yaml" ] && [ "$(CLAUDE_PROJECT_DIR="$groot" py_run "$x" commit-gate 2>/dev/null)" = fast ] && task="gate-fast"
+      break
+    done
+    # `commit_gate` đọc từ cây làm việc: commit đổi chính cấu hình cổng (xt.yaml → fast, ruff/coverage, dev-task.sh, xt.py
+    # chọn test của gate-fast — AUD-TEST-013, hook này) không được tự hạ cổng cho nó → file đổi so với HEAD (như
+    # XT_CHANGED_FILES; --no-renames giữ cả tên cũ) đụng cấu hình cổng thì chạy cổng đầy đủ.
+    # Không hạ cổng nhưng cũng không chạy lại ngưỡng coverage lẫn `build` (131 s so với 4,5 s; 49 % commit đụng danh sách này — PLAN-3.12
+    # T-1713): cổng nhanh chạy MỌI lớp test qua `test_list`/`test_unit` song song, không coverage; chưa khai hai khoá đó → `test`.
+    if [ "$task" = "gate-fast" ] && gate_config_changed "$groot"; then
+      export XT_GATE_ALL_TESTS=1
+      echo "🔒 Commit đụng cấu hình cổng nên cổng nhanh chạy MỌI lớp test (test_list/test_unit, không ngưỡng coverage; chưa khai hai khoá đó thì chạy 'test' đầy đủ) — coverage ở cổng trước PR/CI." >&2
+    elif [ "$task" = "gate-fast" ]; then
+      echo "⚡ Commit nhanh (commit_gate: fast): format/lint/typecheck + test liên quan file đổi; cổng đầy đủ (scripts/dev-task.sh gate) chạy ở bước mở PR/CI." >&2
+    fi
     # stdout của cổng sang stderr: stdout của hook chỉ được chứa JSON quyết định.
-    if ! CLAUDE_PROJECT_DIR="$groot" "$gate" gate >&2; then
-      echo "❌ Cổng trước commit ĐỎ (build/typecheck/lint/test) ở $groot. Sửa rồi commit lại." >&2
+    if ! CLAUDE_PROJECT_DIR="$groot" "$gate" "$task" >&2; then
+      echo "❌ Cổng trước commit ĐỎ ($task: build/typecheck/lint/test) ở $groot. Sửa rồi commit lại." >&2
       exit 2
     fi
   fi

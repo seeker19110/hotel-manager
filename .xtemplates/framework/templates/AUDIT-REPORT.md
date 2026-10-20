@@ -1,13 +1,13 @@
 ---
 title: Mẫu AUDIT-REPORT
 kind: template
-updated: 2026-10-14
+updated: 2026-10-20
 ---
 
 # Mẫu AUDIT-REPORT.md — báo cáo một lần audit
 
 > **Ai viết:** phiên chạy `/audit`, sau khi quét xong và **trước** khi sửa. **Giai đoạn:** G0 brownfield, G7, định kỳ.
-> **Cổng dùng:** người duyệt kế hoạch sửa ở §5 (skill `/audit` bước dừng chờ duyệt); sổ máy đọc là
+> **Cổng dùng:** phiên chính tự duyệt kế hoạch sửa ở §5 (ADR-0008, D-NNN; skill `/audit` bước 6); sổ máy đọc là
 > [`AUDIT-STATUS.md`](AUDIT-STATUS.md). Phương pháp: [`../00-method/audit.md`](../00-method/audit.md).
 > **Luật:** mỗi phát hiện ở đây trùng ID với `AUDIT-STATUS.md`; 🔴/🟠 có đường tái hiện từng bước và đã qua xác minh đối kháng;
 > không liệt kê "best practice" chung chung không trỏ được file:dòng hay lệnh.
@@ -40,7 +40,7 @@ Output rút gọn của `xt.py audit plan`: stack dò được, nhóm áp dụng
 - **Xác minh đối kháng:** <ai, tái hiện được hay không>
 - **Đề xuất sửa:** <nhỏ nhất đủ đúng> · **Gate:** `<lệnh>`
 
-## 5. Kế hoạch sửa theo đợt (chờ duyệt)
+## 5. Kế hoạch sửa theo đợt (tự duyệt — D-NNN)
 | Đợt | Phát hiện | PR dự kiến | Gate của đợt |
 |---|---|---|---|
 | 1 | <ID…> (🔴 trước) | <tiêu đề conventional> | `<lệnh>` |

@@ -3,7 +3,7 @@ title: Git, nhánh, commit, PR nhỏ, lịch sử sạch
 kind: module
 prefix: WF-GIT
 applies_to: [all]
-updated: 2026-10-14
+updated: 2026-10-20
 ---
 
 # Git, nhánh, commit, PR nhỏ, lịch sử sạch
@@ -46,7 +46,7 @@ updated: 2026-10-14
 - [ ] `WF-GIT-006` **MUST@L** PR nhỏ: mục tiêu ≤ 400 dòng thay đổi (không tính lockfile/snapshot/sinh mã); vượt → tách hoặc ghi lý do trong PR và reviewer chấp nhận rõ ràng. → Kiểm: job CI tính `git diff --shortstat` loại trừ file sinh → cảnh báo > 400, đỏ > 1000 nếu không có nhãn `large-change-approved`. · Nguồn: SmartBear/Cisco (200–400 LOC), Google eng-practices Small CLs
 - [ ] `WF-GIT-007` **MUST@L** Nhánh sống ngắn: tích hợp về `main` ≤ vài ngày; nhánh > 7 ngày không hoạt động bị cảnh báo/đóng; việc dở dùng feature flag ([`environments-and-config.md`](environments-and-config.md)). → Kiểm: job tuần liệt kê nhánh/PR > 7 ngày và đăng cảnh báo. · Nguồn: Trunk Based Development, DORA Working in small batches
 - [ ] `WF-GIT-008` **MUST@L** Hook local (pre-commit: lint/format/type nhanh; commit-msg: commitlint) cài tự động khi `install`; mọi kiểm ở hook chạy lại ở CI vì hook có thể bị `--no-verify`. → Kiểm: `package.json`/`pre-commit-config` có hook; CI chạy cùng lệnh; test commit sai format local bị chặn. · Nguồn: pre-commit docs; catalog 13 §4c
-- [ ] `WF-GIT-009` **MUST@L** Không rewrite history nhánh người khác, không force-push nhánh đã có PR mở có review (dùng `--force-with-lease` chỉ trên nhánh của mình trước review); không empty commit để kích CI. → Kiểm: ruleset chặn force-push `main`; review PR không có commit rỗng (`git log --format=%h --diff-filter=A` so với `--stat` rỗng). · Nguồn: AGENTS.md §3
+- [ ] `WF-GIT-009` **MUST@L** Không rewrite history nhánh người khác, không force-push nhánh đã có PR mở có review (dùng `--force-with-lease` chỉ trên nhánh của mình trước review); không empty commit để kích CI. → Kiểm: ruleset chặn force-push `main`; review PR không có commit rỗng (`git log --format=%h --diff-filter=A` so với `--stat` rỗng). · Nguồn: AGENTS.md mục Luật bất biến
 - [ ] `WF-GIT-010` **MUST** `.gitignore` đủ (build, env, secrets, IDE, OS); không commit `.env`, khoá, dump dữ liệu; secret scan ở hook + CI toàn lịch sử theo [`../12-security/secrets-management.md`](../12-security/secrets-management.md). → Kiểm: `gitleaks git --log-opts="--all"` sạch; `.env` không có trong `git ls-files`.
 - [ ] `WF-GIT-011` **MUST@L** Ít nhất một approval từ người khác tác giả khi repo có ≥ 2 người; `dismiss_stale_reviews_on_push: true`; vùng nhạy cảm (`.github/`, auth, payment, migration, CI/hook) có CODEOWNERS và `require_code_owner_review`. → Kiểm: ruleset `required_approving_review_count ≥ 1` + CODEOWNERS có mục cho các đường dẫn; guard kiểm số người cộng tác ≥ 2 → approval ≥ 1. · Nguồn: GitHub CODEOWNERS, khung cũ `CONTRIBUTING.md` (lý do 0 approval khi một người)
 - [ ] `WF-GIT-012` **MUST@L** Commit và tag phát hành được ký (SSH/GPG/S/MIME) và ruleset `required_signatures`; vigilant mode cho maintainer. → Kiểm: `git log --show-signature -5 main` toàn "Good signature"/Verified; ruleset có rule. · Nguồn: GitHub commit signature verification

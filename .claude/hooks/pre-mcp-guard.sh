@@ -10,7 +10,11 @@ set -uo pipefail
 
 payload="$(cat)"
 disable_re='"tool_name"[[:space:]]*:[[:space:]]*"[^"]*disable'
-[[ $payload =~ $disable_re ]] && exit 0
+# Lối tắt chỉ khi payload có ĐÚNG MỘT khoá `"tool_name"` (khoá lồng trong `tool_input` của tool merge từng né guard —
+# AUD-SEC-066); có hơn một → guard đọc `tool_name` cấp đầu từ JSON đã parse.
+tool_key_re='"tool_name"[[:space:]]*:'
+after_first="${payload#*\"tool_name\"}"
+[[ $payload =~ $disable_re ]] && ! [[ $after_first =~ $tool_key_re ]] && exit 0
 merge_re='"tool_name"[[:space:]]*:[[:space:]]*"[^"]*(merge_pull_request|auto_merge)'
 open=""
 [[ $payload =~ $merge_re ]] || open=1
