@@ -131,6 +131,15 @@ export function createAuth(deps: AuthDeps) {
       "BETTER_AUTH_TELEMETRY phải tắt: dự án tự host, không gửi telemetry ra ngoài (ADR-0002).",
     );
 
+  /** Tài khoản chỉ còn là người thuê (xuyên tổ chức): `app.otp_sign_in_allowed`. */
+  const tenantOnlyUser = async (userId: string): Promise<boolean> => {
+    const r = await pool.query<{ ok: boolean }>(
+      `select app.otp_sign_in_allowed(u.email) as ok from auth."user" u where u.id = $1`,
+      [userId],
+    );
+    return r.rows[0]?.ok === true;
+  };
+
   const events = createAuthEvents(pool);
   /** Phát sự kiện xác thực; mọi lỗi đã được nuốt ở `record` (không làm hỏng luồng đăng nhập). */
   const record = (ctx: HookCtx, e: Omit<AuthEventInput, "client" | "correlationId">) =>
@@ -191,6 +200,20 @@ export function createAuth(deps: AuthDeps) {
       },
     },
     telemetry: { enabled: false },
+    databaseHooks: {
+      session: {
+        create: {
+          // AUD-SEC-001 (D-081): tài khoản chỉ còn là người thuê chỉ được có phiên qua OTP gửi tới hộp thư — không bao giờ qua mật khẩu,
+          // thử thách TOTP đang chờ hay bất kỳ đường nào khác. Đóng mọi cửa sổ đua với bước Better Auth tự gỡ mật khẩu/phiên lúc OTP
+          // xác minh email (người đăng ký trước bằng email nạn nhân không giữ/tạo được phiên người thuê của nạn nhân).
+          before: async (session, context) => {
+            if (context?.path === "/sign-in/email-otp") return;
+            if (typeof session.userId === "string" && (await tenantOnlyUser(session.userId)))
+              throw new APIError("UNAUTHORIZED", { message: "Invalid email or password" }); // cùng phản hồi mật khẩu sai: không lộ tài khoản là người thuê
+          },
+        },
+      },
+    },
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
         if (OTP_BLOCKED_PATHS.has(ctx.path)) throw new APIError("NOT_FOUND", { message: "Không hỗ trợ" });
