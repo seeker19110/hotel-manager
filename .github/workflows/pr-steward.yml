@@ -26,15 +26,13 @@ name: pr-steward
 # thứ tự, re-run sau restart không lặp tác dụng phụ. Lịch 10 phút là lưới bù. Dự án đích đặt tên workflow CI khác thì
 # sửa danh sách `workflows:` (tên không khớp = không bao giờ kích). Hai trigger này đều chạy trên nhánh mặc định, không
 # code của PR (như `issue_comment`); job không tải artifact của run kích nó.
+# Dự án này KHÔNG dùng `workflow_run` (D-069, `scripts/ci-gates.test.mjs`): chỉ schedule · issue_comment · check_suite · dispatch.
 on:
   schedule:
     - cron: "*/10 * * * *"
   issue_comment: # zizmor: ignore[dangerous-triggers] — chỉ checkout nhánh mặc định, không chạy code PR; comment phải mang dấu review của người có quyền ghi
     types: [created]
   check_suite:
-    types: [completed]
-  workflow_run: # zizmor: ignore[dangerous-triggers] — chỉ checkout nhánh mặc định, không chạy code PR, không tải artifact của run kích nó
-    workflows: [CI, merge-gate]
     types: [completed]
   workflow_dispatch:
     inputs:

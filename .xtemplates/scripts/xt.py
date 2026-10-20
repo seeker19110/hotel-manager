@@ -2379,7 +2379,7 @@ def tick_plan_task(base: Path, st: Dict[str, Any], task: str, cmd_str: str) -> b
     gate = next((t.get("gate") for t in _plan_tasks(base, st) if t["id"] == task), None)
     if not gate or not same_command(cmd_str, gate):
         return False
-    plan = base / str(st.get("plan") or "")
+    plan = (base / str(st.get("plan") or "")).resolve()  # PLAN là symlink → ghi file thật, giữ liên kết (review #191)
     with plan.open(encoding="utf-8", newline="") as fh:  # giữ nguyên CRLF của file (review #191)
         text = fh.read()
     new, n = re.subn(rf"^- \[ \] `{re.escape(task)}`", f"- [x] `{task}`", text, count=1, flags=re.M)
@@ -4181,7 +4181,7 @@ VERSION_CHECK_TIMEOUT = 10
 
 
 def _json_values(text: str) -> List[Any]:
-    """Các giá trị JSON liền nhau (`gh api --paginate` in mỗi trang một mảng: `[…][…]`); hỏng → ValueError."""
+    """Các giá trị JSON liền nhau (mỗi trang một mảng `[…]`); hỏng → ValueError."""
     dec, rest, out = json.JSONDecoder(), text.strip(), []
     while rest:
         val, end = dec.raw_decode(rest)
@@ -4194,10 +4194,15 @@ def latest_framework_tag() -> Optional[Tuple[int, int, int]]:
     """Tag `vX.Y.Z` mới nhất của repo khung qua `gh api` (REST, mọi trang, host github.com). Fail-open: không có gh, lỗi
     mạng/quyền, thân không phải UTF-8/JSON (trang chặn của proxy) → None — `doctor` là bước đầu của `/autopilot`."""
     repo = os.environ.get("XT_FRAMEWORK_REPO") or FRAMEWORK_REPO
-    cmd = ["gh", "api", "--hostname", "github.com", "--paginate", f"repos/{repo}/tags?per_page=100"]
-    try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=VERSION_CHECK_TIMEOUT)
-        pages = _json_values(r.stdout) if r.returncode == 0 else []
+    pages: List[Any] = []
+    try:  # phân trang tự làm bằng `page=N` (FB-001: `--paginate` đi theo Link tới `repositories/{id}` bị proxy chặn)
+        for n in range(1, GH_MAX_PAGES + 1):
+            cmd = ["gh", "api", "--hostname", "github.com", f"repos/{repo}/tags?per_page=100&page={n}"]
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=VERSION_CHECK_TIMEOUT)
+            got = _json_values(r.stdout) if r.returncode == 0 else []
+            pages.extend(got)
+            if not got or _gh_page_len(got[-1]) < 100:
+                break
     except (OSError, subprocess.SubprocessError, ValueError):  # ValueError gồm UnicodeDecodeError, JSONDecodeError
         return None
     tags = [t for page in pages if isinstance(page, list) for t in page]
@@ -4985,10 +4990,10 @@ def _touches_hard_key(
     return False
 
 
-def _gh_api(path: str, paginate: bool = False) -> List[Any]:
-    """`gh api` (REST, không GraphQL — phiên Claude Code chặn GraphQL) → danh sách giá trị JSON; `--paginate` in mỗi
-    trang một giá trị liền nhau (`[…][…]`) nên đọc lần lượt. `{owner}`/`{repo}`/`{branch}` do gh thay theo repo hiện tại."""
-    cmd = ["gh", "api", *(["--paginate"] if paginate else []), path]
+def _gh_api_once(path: str) -> List[Any]:
+    """Một lần `gh api` (REST, không GraphQL — phiên Claude Code chặn GraphQL) → danh sách giá trị JSON liền nhau.
+    `{owner}`/`{repo}`/`{branch}` do gh thay theo repo hiện tại."""
+    cmd = ["gh", "api", path]
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=GH_TIMEOUT)
     except (OSError, subprocess.TimeoutExpired) as exc:
@@ -5001,6 +5006,37 @@ def _gh_api(path: str, paginate: bool = False) -> List[Any]:
         out.append(val)
         rest = rest[end:].lstrip()
     return out
+
+
+GH_MAX_PAGES = 50  # trần an toàn: 50 trang × per_page — API lặp trang cũng không thành vòng vô hạn
+
+
+def _gh_page_len(val: Any) -> int:
+    """Số phần tử của một trang: mảng → len; object có mảng con (`check_runs`, `statuses`) → len mảng dài nhất."""
+    if isinstance(val, list):
+        return len(val)
+    if isinstance(val, dict):
+        return max((len(v) for v in val.values() if isinstance(v, list)), default=0)
+    return 0
+
+
+def _gh_api(path: str, paginate: bool = False) -> List[Any]:
+    """REST qua `gh api` → danh sách giá trị JSON (mỗi trang một giá trị). Phân trang TỰ LÀM bằng `page=N` trên chính
+    đường `repos/<chủ>/<repo>/…` (FB-001 của X-Company): `gh api --paginate` đi theo header Link tới
+    `repositories/{id}/…` mà proxy của phiên Claude Code từ chối (403) nên `merge-check` hỏng với PR > 30 check/commit.
+    Dừng khi trang ngắn hơn `per_page` (30 mặc định của GitHub hoặc giá trị trong `path`) hoặc rỗng."""
+    if not paginate:
+        return _gh_api_once(path)
+    m = re.search(r"[?&]per_page=(\d+)", path)
+    per_page = int(m.group(1)) if m else 30
+    sep = "&" if "?" in path else "?"
+    pages: List[Any] = []
+    for n in range(1, GH_MAX_PAGES + 1):
+        got = _gh_api_once(f"{path}{sep}page={n}")
+        pages.extend(got)
+        if not got or _gh_page_len(got[-1]) < per_page:
+            break
+    return pages
 
 
 def _gh_one(path: str) -> Dict[str, Any]:
@@ -8631,9 +8667,16 @@ def _file_sha256(path: Path) -> Optional[str]:
         return hashlib.file_digest(fh, "sha256").hexdigest()
 
 
+def _manifest_hex(value: object) -> Optional[str]:
+    """Hex của một hash trong manifest: `sha256:<hex>` (install.py từ 3.11.1 — tiền tố chặn rule `generic-api-key` của
+    gitleaks) hoặc hex trần (manifest cũ); không phải chuỗi → None (khác mọi hash). Cùng luật `install.manifest_hash`
+    — dự án đích chỉ có bản sao xt.py, không có install.py để import."""
+    return value.removeprefix("sha256:") if isinstance(value, str) else None
+
+
 def _drift_files(base: Path, files: Dict[str, Any]) -> List[Dict[str, str]]:
-    """File trong manifest: thiếu → `missing`; hash khác hash khung đã cài → `modified` (tuỳ chỉnh của dự án; file gốc
-    `DRIFT_OWN_FILES` do dự án sở hữu thì không báo — T-1732);
+    """File trong manifest: thiếu → `missing`; hash khác hash khung đã cài (`_manifest_hex`: nhận `sha256:<hex>` lẫn hex
+    trần) → `modified` (tuỳ chỉnh của dự án; file gốc `DRIFT_OWN_FILES` do dự án sở hữu thì không báo — T-1732);
     đường tuyệt đối/`..`/không phải file thường → `invalid`, không đọc (PR #173)."""
     out = []
     for rel, digest in sorted(files.items()):
@@ -8646,7 +8689,7 @@ def _drift_files(base: Path, files: Dict[str, Any]) -> List[Dict[str, str]]:
             continue
         if have is None:
             out.append(_drift("file", "invalid", rel, f"{rel!r} không phải file thường trong dự án — không đọc"))
-        elif have != digest and rel not in DRIFT_OWN_FILES:
+        elif have != _manifest_hex(digest) and rel not in DRIFT_OWN_FILES:
             out.append(
                 _drift("file", "modified", rel, f"{rel} khác bản khung đã cài (tuỳ chỉnh của dự án — giữ khi nâng)")
             )

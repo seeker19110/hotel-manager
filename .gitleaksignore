@@ -32,3 +32,7 @@ d9a9ca9b97a4741be33d0a297c23cd097bf1ffec:packages/app/src/notifications/notifica
 # Cookie phiên giả trong test của PR T-903 (commit đầu của PR, scripts/pii-log.test.mjs) — đã thay bằng chuỗi ghép lúc chạy ở commit sau (WF-GIT-010).
 050abd86c597ba47c9610b013f1a572c33d2a988:scripts/pii-log.test.mjs:generic-api-key:28
 050abd86c597ba47c9610b013f1a572c33d2a988:scripts/pii-log.test.mjs:generic-api-key:50
+# Hash sha256 trần của manifest khung X-Templates 3.11.0 (commit đầu PR nâng khung) — gitleaks `generic-api-key` bắt nhầm
+# dòng `".github/workflows/secret-scan.yml": "<64 hex>"`. Khung 3.11.1 ghi `sha256:<hex>` nên commit sau không còn khớp.
+3d1981cfbc7a86f46c13c25cc766b82eda98ed9a:.xtemplates/harness.sha256.json:generic-api-key:33
+3d1981cfbc7a86f46c13c25cc766b82eda98ed9a:.xtemplates/manifest.json:generic-api-key:34

@@ -189,7 +189,7 @@ SURROGATE_RE = re.compile("[\ud800-\udfff]")
 
 
 def clean_text(s: str) -> str:
-    return SURROGATE_RE.sub("�", s).replace("\0", " ")
+    return SURROGATE_RE.sub("\ufffd", s).replace("\0", " ")  # escape: không ghi U+FFFD thật
 
 
 def clean_payload(v: Any) -> Any:
