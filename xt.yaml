@@ -42,9 +42,9 @@ ai_attribution: ""
 
 # Khoá mới của khung (bản 3.11.0 (0ac396b)) — bật bằng cách bỏ "# "; vắng khoá = hành vi cũ
 # setup: ""             # cài phụ thuộc trước mỗi job CI (npm ci · pip install …); trống = bỏ qua
-# commit_gate: fast
-# test_fast: ""         # test liên quan file đổi (XT_CHANGED_FILES, mỗi dòng một file); trống → test
+commit_gate: fast
+test_fast: "pnpm exec vitest related --run --project unit --passWithNoTests $XT_CHANGED_FILES"  # test unit liên quan file đổi; test db/e2e ở CI
 # merge_hard_exceptions: human
-# delivery_phase: build
+delivery_phase: build
 # e2e_affected: ""      # chỉ spec của lát đang làm (Gate mỗi task); trống = e2e
 # pr_title_check: ""    # off = không đòi tiêu đề PR `<type>(scope): mô tả` ≤ 72 ký tự
