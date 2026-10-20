@@ -45,6 +45,6 @@ ai_attribution: ""
 # commit_gate: fast
 # test_fast: ""         # test liên quan file đổi (XT_CHANGED_FILES, mỗi dòng một file); trống → test
 # merge_hard_exceptions: human
-# delivery_phase: build
+delivery_phase: build
 # e2e_affected: ""      # chỉ spec của lát đang làm (Gate mỗi task); trống = e2e
 # pr_title_check: ""    # off = không đòi tiêu đề PR `<type>(scope): mô tả` ≤ 72 ký tự
