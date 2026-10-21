@@ -601,7 +601,11 @@ describe("sổ rủi ro ↔ PLAN (PM-RISK-003)", () => {
         .split("|")
         .map((c) => c.trim()),
     );
-  const block = section(plan, /^Rủi ro ↔ task đợt 5/) ?? "";
+  // Bảng rủi ro ↔ task thuộc PLAN đợt 3–14; sau khi đợt đó vào `archive/`, bảng và dòng task được kiểm trong CHÍNH file chứa
+  // bảng (PLAN hiện hành hoặc kế hoạch đã lưu) — không nới: thiếu bảng ở mọi nơi vẫn đỏ.
+  const owner =
+    [plan, ...walk("docs/autopilot/archive").map(read)].find((t) => section(t, /^Rủi ro ↔ task đợt 5/)) ?? "";
+  const block = section(owner, /^Rủi ro ↔ task đợt 5/) ?? "";
 
   it("PLAN có bảng rủi ro ↔ task và xếp RK đầu của lát 10 ở dòng task đầu", () => {
     const rows = block.split("\n").filter((l) => /^\| `T-\d{3}` \|/.test(l));
@@ -611,11 +615,11 @@ describe("sổ rủi ro ↔ PLAN (PM-RISK-003)", () => {
   });
   it("mọi RK-NNN nhắc trong PLAN có trong sổ rủi ro", () => {
     const ids = new Set(riskRows.map((r) => r[0]));
-    for (const m of plan.matchAll(/\bRK-\d{3}\b/g)) expect(ids.has(m[0]), m[0]).toBe(true);
+    for (const m of `${plan}\n${owner}`.matchAll(/\bRK-\d{3}\b/g)) expect(ids.has(m[0]), m[0]).toBe(true);
   });
   it("mọi task nêu trong bảng có dòng task trong PLAN", () => {
     for (const m of block.matchAll(/^\| `(T-\d{3})` \|/gm))
-      expect(plan, m[1]).toMatch(new RegExp(`^- \\[.\\] \`${m[1]}\``, "m"));
+      expect(owner, m[1]).toMatch(new RegExp(`^- \\[.\\] \`${m[1]}\``, "m"));
   });
   it("rủi ro Cao × Cao nào cũng có chỗ đứng trong PLAN (task hoặc ghi là việc của người)", () => {
     for (const r of riskRows.filter((x) => x[2] === "Cao" && x[3] === "Cao"))
