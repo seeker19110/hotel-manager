@@ -1,5 +1,5 @@
 # dependabot.yml — mẫu cho dự án đích (`install.py --with-github` chép vào `.github/dependabot.yml`, copy-if-absent).
-# Chỉ có hệ sinh thái chắc chắn tồn tại sau khi cài: GitHub Actions (`merge-gate.yml` ghim action theo SHA). Thêm một khối
+# Chỉ có hệ sinh thái chắc chắn tồn tại sau khi cài: GitHub Actions (`ci.yml`, `secret-scan.yml` ghim action theo SHA). Thêm một khối
 # `updates` cho mỗi manifest thật của dự án (npm cho npm/pnpm/yarn, pip/uv, gomod, cargo, docker…) — khai hệ sinh thái mà
 # repo không có manifest thì Dependabot báo lỗi ở mỗi lượt chạy. Luật: BASE-DEP-007 (cập nhật có nhịp, gom nhóm, trần PR).
 version: 2

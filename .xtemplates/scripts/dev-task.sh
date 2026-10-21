@@ -16,7 +16,7 @@
 # Task hỗ trợ: format | lint | typecheck | test | build | gate | gate-fast | test-shard | test-combine | test-weights |
 #   test-mode | e2e-mode | e2e | require | setup
 #   gate = chạy tuần tự build→typecheck→lint→test (cái nào phân giải được), đỏ 1 cái → fail. Cổng đầy đủ: CI, bước
-#          mở PR, `xt.py loop record` dùng đúng lệnh này.
+#          mở PR, `xt.py loop record` dùng đúng lệnh này. Khai `test_floor` (lệnh, chỉ khai báo) → chạy thêm sau `test`.
 #   gate-fast = cổng commit nhanh (`commit_gate: fast` trong xt.yaml): format_check→lint→typecheck→test_fast. test_fast
 #          nhận danh sách file đã đổi so với HEAD (staged + chưa staged + file mới chưa ignore) qua biến
 #          XT_CHANGED_FILES (mỗi dòng một file); test_fast trống/no-op hoặc không biết file đổi (không phải repo git,
@@ -439,8 +439,10 @@ case "$TASK" in
     exit 0 ;;
   gate)
     rc=0
-    guard_turn build typecheck lint test || exit 126
-    for t in build typecheck lint test; do
+    # test_floor (T-1812): khoá có lệnh → chạy sau `test` (vd sàn Python như job CI py311); vắng/rỗng → không chạy.
+    FLOOR=""; [ -n "$(declared_cmd test_floor)" ] && FLOOR=test_floor
+    guard_turn build typecheck lint test $FLOOR || exit 126
+    for t in build typecheck lint test $FLOOR; do
       run_task "$t" || { rc=1; log "GATE ĐỎ ở '$t' → dừng"; break; }
     done
     gate_report "$rc" GATE ;;

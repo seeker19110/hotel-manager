@@ -6,9 +6,10 @@
 # protection-guard chạy CÙNG LÚC, không job lập kế hoạch tuần tự đứng trước — matrix tĩnh, mỗi shard tự đọc xt.yaml
 # (`dev-task.sh test-mode`/`e2e-mode`); khoá chưa khai thì job in lý do rồi xanh (riêng `lint`/`test` rỗng → `checks` đỏ,
 # D-096). `quality` (required check của ruleset) TỔNG HỢP mọi job con với `if: always()` (WF-CI-001).
-# Ruleset mẫu (D-116, D-117) chỉ đòi 3 check: `quality`, `gitleaks` (secret-scan.yml), `merge-gate` (merge-gate.yml), không
-# đòi "up to date" — PR merge song song, lỗi kết hợp hai PR bị CI trên push `main` bắt. `protection-guard` (đối chiếu
-# ruleset ↔ job) là job con của `quality`. Thêm job con (vd `dep-audit` theo ngôn ngữ): thêm tên vào `quality.needs`.
+# Ruleset mẫu (D-116, D-117, D-122) chỉ đòi 2 check: `quality`, `gitleaks` (secret-scan.yml), không đòi "up to date" — PR
+# merge song song, lỗi kết hợp hai PR bị CI trên push `main` bắt (merge của steward cần `XT_STEWARD_TOKEN` mới kích push,
+# xem pr-steward.yml). `protection-guard` (đối chiếu ruleset ↔ job) là job con của `quality`. Thêm job con (vd
+# `dep-audit` theo ngôn ngữ): thêm tên vào `quality.needs`.
 # Đổi tên job là required check: sửa ruleset cùng PR (protection-guard đỏ).
 # Tăng song song khi chậm: thêm số vào `matrix.shard` của `test`/`e2e` (WF-CI-025 — đo trước, shard rỗng thì đỏ).
 name: CI

@@ -3,7 +3,7 @@ title: Thiết kế vòng lặp: 4 con số, tiêu chí dừng máy kiểm, bằ
 kind: module
 prefix: LOOP-DESIGN
 applies_to: [all]
-updated: 2026-10-20
+updated: 2026-10-21
 ---
 
 # Thiết kế vòng lặp: 4 con số, tiêu chí dừng máy kiểm, bằng chứng
@@ -54,7 +54,8 @@ updated: 2026-10-20
 | `done` | Mọi task có bằng chứng xanh đúng Gate và blueprint 0 MUST mở (blueprint khai ở `loop init` phải tồn tại; biến mất giữa chừng thì PLAN là nguồn sự thật và lý do verdict ghi rõ blueprint không được kiểm) | Cho dừng, `active=false` |
 
 Mặc định khuyến nghị: `--max-iterations` 60–100 cho một PLAN ≤ 10 task; `--hours` ≤ 16; headless thêm `--max-turns`
-và `--max-budget-usd`. Tăng trần chỉ bằng `loop init` lại có chủ đích, không sửa tay `state.json`.
+và `--max-budget-usd` (cùng `--permission-mode` và `--settings .claude/settings.json` tường minh). Tăng trần chỉ bằng
+`loop init` lại có chủ đích, không sửa tay `state.json`.
 
 ## Checklist
 
@@ -91,7 +92,7 @@ và `--max-budget-usd`. Tăng trần chỉ bằng `loop init` lại có chủ đ
 | Dùng `<promise>COMPLETE</promise>` hoặc `/goal` làm điều kiện dừng duy nhất | Model tự khai xong; `/goal` là model nhỏ **chỉ đọc hội thoại**, không chạy tool, không đọc file | Stop hook đọc `.autopilot/` (xt.py); `/goal` chỉ là lớp bổ sung |
 | Tick `[x]` rồi mới chạy test, hoặc chạy test bằng tay không qua `loop record` | Verdict `verify` kẹt vòng; không có bằng chứng | Luôn `loop record` với đúng chuỗi Gate |
 | Sửa lệnh Gate trong PLAN cho khớp lệnh "dễ xanh" | Bằng chứng đúng cú pháp nhưng sai nội dung | Đổi Gate phải ghi lý do ở PROGRESS; `pre-edit-guard.sh` hỏi khi sửa cấu hình cổng |
-| `claude -p --bare` trong CI | Mất hook, skill, CLAUDE.md → mọi cổng của khung biến mất | CI dùng `-p` không `--bare`, hoặc truyền `--settings` tường minh |
+| `claude -p --bare` trong CI, hoặc dựa vào mặc định của `-p` | Mất hook, skill, CLAUDE.md → mọi cổng của khung biến mất; docs ghi `--bare` sẽ thành mặc định của `-p`, và từ 2.1.302 `-p` khởi đầu ở `default` | CI dùng `-p` không `--bare`, truyền `--settings .claude/settings.json` và `--permission-mode` tường minh |
 | Đặt `permissions.defaultMode: auto` trong `.claude/settings.json` của dự án | Bị bỏ qua; vẫn hỏi quyền | Đặt ở settings người dùng/managed hoặc cờ `--permission-mode auto` |
 | Runaway: một tool lỗi bị gọi hàng trăm lần | Đốt ngân sách, không tiến triển | Chữ ký lỗi 3 lần → blocked; trần vòng; cap 8 lần chặn liên tiếp |
 | "Context anxiety": agent vội kết luận xong khi context đầy | Code dở, tài liệu thiếu | Bàn giao theo `context-and-token-budget.md`; verdict không cho dừng khi còn task |
@@ -111,7 +112,7 @@ và `--max-budget-usd`. Tăng trần chỉ bằng `loop init` lại có chủ đ
 | Cổng bằng chứng mức task | qua `.claude/hooks/task-completed.sh` | TaskCompleted hook, chỉ khi vòng đang bật | exit 2 (task không được đánh dấu xong) khi `T-NNN` trong subject chưa có evidence xanh đúng Gate (AUTO-02, D-068); lỗi hook → cho qua |
 | Cổng báo cáo subagent | qua `.claude/hooks/subagent-stop.sh` | SubagentStop hook | `decision: block` một lần khi báo cáo `executor`/`executor-deep` thiếu lệnh + exit code (AUTO-02); chỉ khớp mẫu chữ — giới hạn ở [`harness-files.md`](harness-files.md#giới-hạn-đã-biết-của-guard-và-hook) |
 | `xt.py blueprint-status` | `xt.py blueprint-status BLUEPRINT.md --strict --run` | Cổng phát hành G7 (dự án tự thêm vào CI khi phát hành) | 0 MUST mở, 0 lệnh `— Kiểm:` đỏ (`LOOP-DESIGN-023`), 0 miễn trừ không hợp lệ (MUST `Miễn` cần `Duyệt:` — `LOOP-STOP-024`) |
-| Headless | `claude -p ... --max-turns N --max-budget-usd X --output-format json` | CI/Routine | dừng cứng theo trần |
+| Headless | `claude -p ... --permission-mode dontAsk --settings .claude/settings.json --max-turns N --max-budget-usd X --output-format json` (`auto` thay `dontAsk` khi cần phân loại thay allowlist; chi tiết: [`self-healing-ci.md`](self-healing-ci.md)) | CI/Routine | dừng cứng theo trần |
 | Test hook | `python3 -m unittest discover -s tests` | pre-commit, CI | Mọi test loop/hook xanh |
 
 ## Nguồn
@@ -119,7 +120,7 @@ và `--max-budget-usd`. Tăng trần chỉ bằng `loop init` lại có chủ đ
 - Mã nguồn `scripts/xt.py` (lệnh `loop init/status/record/block/resume/stop/hook-stop`, `loop_verdict`, `failure_signature`, `max_same_failure=3`, `max_iterations=50`) — đọc 2026-10-13.
 - Claude Code docs — hooks (Stop, `stop_hook_active`, exit 2/`decision: block`): <https://code.claude.com/docs/en/hooks> · hooks guide "Stop hook hits the block cap" (8 lần liên tiếp không có tool call): <https://code.claude.com/docs/en/hooks-guide> · env `CLAUDE_CODE_STOP_HOOK_BLOCK_CAP` (mặc định 8, `0` = tắt cap): <https://code.claude.com/docs/en/env-vars> — xác minh 2026-10-13.
 - Claude Code docs — `/goal` (model nhỏ đánh giá, "doesn't run commands or read files independently"): <https://code.claude.com/docs/en/goal> — xác minh 2026-10-13.
-- Claude Code docs — headless (`--bare` bỏ hook/skill/CLAUDE.md; `--max-turns`, `--max-budget-usd`, `total_cost_usd`): <https://code.claude.com/docs/en/headless> — xác minh 2026-10-13.
+- Claude Code docs — headless (`--bare` bỏ hook/skill/CLAUDE.md và "will become the default for `-p` in a future release"; `--settings`, `--permission-mode`, `--max-turns`, `--max-budget-usd`, `total_cost_usd`): <https://code.claude.com/docs/en/headless.md> · permission modes (`-p` khởi đầu `default` từ 2.1.302): <https://code.claude.com/docs/en/permission-modes.md> — xác minh 2026-10-21 (trước đó 2026-10-13; `research/2026-10-21-next-level-speed-automation-quality.md` §4.1).
 - Anthropic, *Effective harnesses for long-running agents* (2025-11-26): <https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents> · *Harness design for long-running application development* (2026-03-24): <https://www.anthropic.com/engineering/harness-design-long-running-apps> — theo `research/2026-10-13-ai-agent-research.md` §3.4 [F].
 - `seeker19110/stored` mục 03 §6 (checklist 9 điểm), §8c; mục 21 §1, §8, §10; mục 23 §2.2 (ba cổng máy), §6.1 — đọc 2026-10-13 (`research/2026-10-13-stored-catalog-extraction.md`).
 - Anthropic, *The AI-native SDLC playbook* (2026-08-21), stage 6 Maintain: script tất định theo dõi production, `bands.yaml` (baseline 30 ngày, luật Western Electric; 1σ log · 2σ chẩn đoán với tool hạn chế · 3σ đề xuất PR/runbook), chẩn đoán ghi thành `intent.md` mới; "the agent may act up to the production gate and cannot pass it". Đây là hướng dẫn, chưa kèm số đo hiệu quả: <https://claude.com/blog/the-ai-native-sdlc-playbook> — xác minh 2026-10-16 (`seeker19110/stored` mục 21 §10c).

@@ -1,74 +1,24 @@
 name: merge-gate
 
-# Required check `merge-gate` (ADR-0023, D-029): auto-merge của GitHub không ghim head — bật auto-merge cho PR vô hại rồi
-# push commit chạm ngoại lệ cứng (đổi grant trong PLAN.md, khoá `merge_hard_exceptions`, nhãn `risk:`…) thì GitHub vẫn
-# merge khi check xanh. Job này chạy `xt.py merge-gate` trên head hiện tại: đỏ khi `merge-check` báo `hard` VÀ PR đang
-# bật auto-merge; `hard` mà không auto-merge thì xanh kèm cảnh báo (người merge tay).
-#
-# `pull_request_target` có chủ đích: workflow và `xt.py` lấy từ NHÁNH MẶC ĐỊNH (GitHub, từ 2025-11-07), nên PR không sửa
-# được chính job/lệnh kiểm nó (với `pull_request`, PR đổi file này hoặc `scripts/xt.py` là tắt được cổng). Job KHÔNG
-# checkout/chạy code của PR — chỉ đọc PR qua REST bằng GITHUB_TOKEN chỉ đọc; không secret nào khác (WF-CI-004, WF-CI-023).
+# STUB TẠM (D-122, ADR-0036): máy không bật auto-merge của GitHub nữa — mọi merge của máy ghim head sau `merge-check`, nên
+# required check `merge-gate` (ADR-0023) hết lý do tồn tại. Job này chỉ giữ context `merge-gate` mà ruleset SỐNG của ba
+# repo đã cài còn đòi: luôn xanh, không kiểm gì, không phải bằng chứng CI (`NON_CI_CHECKS`, AUD-HAR-058).
+# Gỡ: chủ repo bỏ context khỏi ruleset sống ở cả ba repo, kiểm `gh api repos/<o>/<r>/rules/branches/main` không còn
+# `merge-gate`, rồi T-1834 xoá file này. Xoá trước khi gỡ ruleset = mọi PR treo "Expected — merge-gate".
+# Giữ `pull_request` TRẦN: thêm `branches:`/`paths:`/`types:` thì PR không khớp lọc (vd đổi nhánh đích) thiếu check-run
+# trên head → treo. Không checkout, không action ngoài, không secret, token chỉ đọc (WF-CI-004, WF-CI-023).
 on:
-  pull_request_target: # zizmor: ignore[dangerous-triggers] — không checkout/chạy code PR, token chỉ đọc, không secret
-    # auto_merge_enabled/disabled: bật auto-merge trên PR `hard` → đỏ ngay; người tắt auto-merge để merge tay → xanh lại.
-    # labeled/unlabeled: nhãn `risk:` là ngoại lệ cứng. edited: đổi nhánh đích (PR chồng về `main`).
-    types: [opened, synchronize, reopened, edited, labeled, unlabeled, auto_merge_enabled, auto_merge_disabled]
+  pull_request:
 
 permissions:
   contents: read
-
-# Sự kiện mới của cùng PR thay run cũ — run mới nhất trên head là kết quả GitHub tính cho required check.
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
 
 jobs:
   merge-gate:
     name: merge-gate
     runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: read # checkout nhánh đích, REST contents (PLAN.md ở đáy/đầu PR)
-      pull-requests: read # PR, file, review
-      checks: read # merge-check đọc check-run của head
-      statuses: read # và commit status
+    timeout-minutes: 1
     steps:
-      # Không `ref:` — `pull_request_target` checkout commit cuối của nhánh mặc định (github.sha), không phải code PR.
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Có `origin/<nhánh đích>` (merge-check đọc `merge_hard_exceptions` đã commit ở đó, ADR-0020)
-        env:
-          BASE_REF: ${{ github.event.pull_request.base.ref }}
+      - name: Stub giữ context required check (D-122) — luôn xanh
         run: |
-          set -uo pipefail
-          # PR nhắm nhánh khác nhánh mặc định (PR chồng): lấy nhánh đó; không lấy được → merge-check coi như `human` (chặt hơn).
-          git rev-parse --verify --quiet "refs/remotes/origin/$BASE_REF" >/dev/null \
-            || git fetch --no-tags --depth=1 origin "+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF" \
-            || echo "::warning::Không lấy được origin/$BASE_REF — merge_hard_exceptions tính là human"
-          git log -1 --format="origin/$BASE_REF = %H" "origin/$BASE_REF" || true
-
-      - name: merge-gate trên head hiện tại của PR (mã xt.py của nhánh mặc định)
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          PR: ${{ github.event.pull_request.number }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          set -uo pipefail
-          xt=scripts/xt.py
-          [ -f "$xt" ] || xt=.xtemplates/scripts/xt.py # dự án đích cài khung vào .xtemplates/
-          for i in 1 2 3 4 5; do
-            python3 "$xt" merge-gate --pr "$PR" --head "$HEAD_SHA"
-            rc=$?
-            [ "$rc" -ne 3 ] && break # 3 = REST chưa thấy head của sự kiện (hoặc đã có push mới hơn)
-            sleep 10
-          done
-          case "$rc" in
-            0) exit 0 ;;
-            1) echo "::error::PR ngoại lệ cứng đang bật auto-merge — tắt auto-merge, người merge tay (ADR-0023)" ;;
-            3) echo "::error::Head của PR khác $HEAD_SHA sau 5 lần thử — run của push mới hơn sẽ quyết" ;;
-            *) echo "::error::Không đọc được PR (exit $rc) — không xác minh được thì đỏ; chạy lại job" ;;
-          esac
-          exit 1
+          echo "merge-gate là stub tạm (D-122, ADR-0036): máy chỉ merge ghim head; T-1834 xoá khi ruleset sống đã gỡ context"

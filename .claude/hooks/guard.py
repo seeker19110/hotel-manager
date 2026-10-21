@@ -5,7 +5,8 @@ Dùng (payload JSON của Claude Code trên stdin, kết quả JSON trên stdout
   guard.py bash   → {"decision": "deny"|"ask"|"", "reason": "...", "commit": true|false, "no_verify": true|false,
                      "commit_dir": "<thư mục git commit chạy, rỗng nếu không biết>"}
   guard.py edit   → {"decision": "deny"|"ask"|"", "reason": "..."}  (file bí mật/cổng/migration; test ĐÃ CÓ bị làm yếu)
-  guard.py mcp    → {"decision": "allow"|"ask"|"", "reason": "..."}  (tool MCP merge PR: allow chỉ khi merge-check cho phép)
+  guard.py mcp    → {"decision": "deny"|"allow"|"ask"|"", "reason": "..."}  (tool MCP merge PR: allow chỉ khi
+                     merge-check cho phép; tool bật auto-merge → deny ở mọi mức tự chủ và mọi chính sách — ADR-0036)
   guard.py <mode> nul → cùng kết quả, dạng `ok\0<decision>\0<reason>\0<commit>\0<no_verify>\0<commit_dir>\0` để hook đọc
                      bằng `read -d ''` (bash 3.2 được), khỏi sinh thêm tiến trình python chỉ để tách trường JSON.
 
@@ -1348,12 +1349,18 @@ DESTROY_ASK = "huỷ/xoá repo, bí mật hoặc hạ tầng (không đảo ngư
 # Ngoại lệ cứng (ADR-0016): tiền/dữ liệu thật/auth/mật mã/bí mật người merge — ADR-0019 giữ chặn dưới ADR-0018; nhánh
 # đích commit `merge_hard_exceptions: auto` thì merge-check không trả `hard` (ADR-0020).
 HARD_ASK = "ngoại lệ cứng (LOOP-STOP-005): người merge"
-# Merge/bật auto-merge mà guard không đọc được `hard` (merge-check lỗi, repo khác, PR không rõ số, graphql) → chặn như
-# ngoại lệ cứng: không xác minh được thì không cho qua (AUD-SEC-044/045).
+# Merge mà guard không đọc được `hard` (merge-check lỗi, repo khác, PR không rõ số, graphql) → chặn như ngoại lệ cứng:
+# không xác minh được thì không cho qua (AUD-SEC-044/045).
 UNVERIFIED_ASK = "không xác minh được ngoại lệ cứng (ADR-0019): người merge"
-# Merge ghim head/bật auto-merge khi `merge-check` báo chưa có review hợp lệ ở head (`eligible`/`auto_merge_ok` false —
-# ADR-0028; pha build hoãn review nên không rơi vào đây, ADR-0031) → chặn ở chính sách mặc định (AUD-DOC-054).
+# Merge khi `merge-check` báo chưa có review hợp lệ ở head (`eligible` false — ADR-0028; pha build hoãn review nên không
+# rơi vào đây, ADR-0031) → chặn ở chính sách mặc định (AUD-DOC-054).
 REVIEW_MISSING_ASK = "chưa có review hợp lệ ở head (ADR-0028)"
+# Bật auto-merge của GitHub (`gh pr merge --auto`, graphql `enablePullRequestAutoMerge`, tool MCP `enable…auto_merge`):
+# GitHub merge khi check xanh mà không ghim head đã đánh giá → deny phẳng ở mọi mức tự chủ, mọi PR, mọi chính sách (kể
+# cả strict), không gọi merge-check (ADR-0036 §3). Tắt auto-merge vẫn cho qua. Chuỗi là dấu của mã `AUTO_MERGE_ENABLE`.
+AUTO_MERGE_WHY = (
+    "bật auto-merge của GitHub (không ghim head) — máy chỉ merge ghim head sau `xt.py merge-check` (ADR-0036)"
+)
 # Cờ của `gh pr merge` ăn thêm một token giá trị — không bóc thì giá trị bị hiểu là số PR.
 GH_MERGE_VALUE_FLAGS: Tuple[str, ...] = (
     *("--match-head-commit", "-b", "--body", "-F", "--body-file", "-t", "--subject"),
@@ -1449,20 +1456,24 @@ def merge_check(selector: List[str], root: str) -> Dict[str, object]:
     return data
 
 
+def _gh_auto_flag(args: List[str]) -> bool:
+    """Cờ bật auto-merge của `gh pr merge` (`--auto`, cả dạng gán `--auto=…`) ở bất kỳ vị trí nào — kể cả là giá trị
+    của cờ khác (`-b --auto`): chặn thừa an toàn hơn đoán sai cách gh tách cờ."""
+    return any(a == "--auto" or a.startswith("--auto=") for a in args)
+
+
 def gh_pr_merge_rule(args: List[str], root: str) -> Tuple[str, str]:
     """`gh pr merge` (ADR-0013): mặc định hỏi người; `allow` chỉ khi `xt.py merge-check` = merge VÀ lệnh ghim đúng
-    head đã kiểm (`--match-head-commit`). `--admin` (vượt ruleset) và `--repo` (repo khác) luôn hỏi."""
+    head đã kiểm (`--match-head-commit`). `--admin` (vượt ruleset) và `--repo` (repo khác) luôn hỏi. Bật auto-merge
+    (`--auto`, mọi vị trí cờ, kể cả kèm `--admin`/`-R`) → deny phẳng, không gọi merge-check (ADR-0036 §3)."""
     selector = _positionals(args, GH_MERGE_VALUE_FLAGS)
     repo = _flag_value(args, "-R") or _flag_value(args, "--repo") or next((a[2:] for a in args if a[:2] == "-R"), "")
-    if args and set(args) - set(selector) == {"--disable-auto"}:  # tắt auto-merge: LOOP-STOP-005 đòi, không chặn
+    # Tắt auto-merge (chỉ người bật được): máy phải tắt được — `pr next`/steward `disable-auto-merge` (ADR-0036,
+    # LOOP-STOP-005) — không chặn.
+    if args and set(args) - set(selector) == {"--disable-auto"}:
         return "ask", f"{EXTERNAL_ASK} — tắt auto-merge"
-    if "--auto" in args and not any(a.startswith("--admin") for a in args):
-        flags = sorted({a.split("=", 1)[0] for a in args if a.startswith("-")} - MERGE_ALLOW_FLAGS - {"--auto"})
-        if flags or repo:
-            return _merge_ask(
-                f"{EXTERNAL_ASK} — bật auto-merge chỉ nhận số PR/nhánh và cờ merge thường", selector, root, repo
-            )
-        return _auto_merge_verdict(selector, root)
+    if _gh_auto_flag(args):
+        return "deny", AUTO_MERGE_WHY
     sha = _flag_value(args, "--match-head-commit")
     if sum(a == "--match-head-commit" or a.startswith("--match-head-commit=") for a in args) > 1:
         sha = None  # gh lấy lần cuối, guard đã kiểm lần đầu — hai pin là không pin
@@ -1783,41 +1794,12 @@ def _gh_api_writes(args: List[str]) -> bool:
     return (methods[-1] if methods else ("POST" if fields or has_input else "GET")) != "GET"  # AUD-SEC-029
 
 
-# Tool MCP merge/bật auto-merge PR (vd `mcp__github__merge_pull_request`). Merge ghim `expectedHeadSha` mà merge-check
-# cho phép → allow (ADR-0014); bật auto-merge (không ghim head) chỉ allow ở `merge_autonomy` L3 (ADR-0015), dưới L3 hỏi.
+# Tool MCP merge PR (vd `mcp__github__merge_pull_request`): merge ghim `expectedHeadSha` mà merge-check cho phép → allow
+# (ADR-0014). Tool bật auto-merge (tên có `enable` và `auto_merge`, mọi server, mọi input) → deny phẳng, không gọi
+# merge-check (ADR-0036 §3). Regex vẫn khớp `auto_merge`: tool bật/tắt đi qua guard; guard lỗi thì chặn
+# (`_failure_decision`).
 MCP_MERGE_RE = re.compile(r"mcp__.+__\w*(merge_pull_request|auto_merge)\w*")
 MCP_MERGE_KEYS = {"owner", "repo", "pullNumber", "expectedHeadSha", "merge_method", "commit_title", "commit_message"}
-
-
-MCP_AUTO_KEYS = {"owner", "repo", "pullNumber", "mergeMethod"}
-
-
-def _auto_merge_verdict(selector: List[str], root: str, repo: str = "") -> Tuple[str, str]:
-    """Bật auto-merge của GitHub (ADR-0015): allow khi `merge_autonomy` ≥ L3, PR còn mở, không phải PR chồng (nhắm nhánh
-    khác nhánh mặc định), không thuộc ngoại lệ cứng (`hard`, ADR-0016) và (MCP) đúng repo. GitHub vẫn chỉ merge khi
-    required check/ruleset đạt; không ghim head."""
-    d, gate = _hard_gate(selector, root, repo)
-    if gate[0]:  # tiền/dữ liệu thật/auth/mật mã/bí mật người merge kể cả L3 (ADR-0016, AUD-HAR-042; trừ ADR-0020)
-        return gate
-    level = d.get("autonomy")
-    if not isinstance(level, int) or level < 3:
-        return "ask", f"{EXTERNAL_ASK} — bật auto-merge chỉ khi xt.yaml `merge_autonomy` ≥ L3 (ADR-0015)"
-    if d.get("verdict") == "closed" or d.get("stacked"):
-        return "ask", f"{EXTERNAL_ASK} — không bật auto-merge: PR {d.get('verdict')}/PR chồng (nhắm nhánh sắp bị xoá)"
-    if d.get("auto_merge_ok") is False:  # làn chuẩn: chỉ bật sau review sạch ở head (ADR-0024/0028)
-        return "ask", f"{EXTERNAL_ASK} — {REVIEW_MISSING_ASK}: {d.get('review')} — `xt.py pr next` rồi bật auto-merge"
-    return "allow", f"merge_autonomy L{level}: bật auto-merge (GitHub merge khi required check xanh)"
-
-
-def _mcp_auto_merge(tool_input: Dict[str, object], root: str) -> Tuple[str, str]:
-    n, owner, repo = tool_input.get("pullNumber"), tool_input.get("owner"), tool_input.get("repo")
-    ok = not set(tool_input) - MCP_AUTO_KEYS and type(n) is int and n > 0
-    ok = ok and isinstance(owner, str) and isinstance(repo, str)
-    if not ok or tool_input.get("mergeMethod", "SQUASH") not in ("SQUASH", "MERGE", "REBASE"):
-        return _mcp_merge_ask(
-            f"{EXTERNAL_ASK} — bật auto-merge qua MCP cần owner/repo/pullNumber hợp lệ", tool_input, root
-        )
-    return _auto_merge_verdict([str(n)], root, f"{owner}/{repo}")
 
 
 # Dấu review trên PR mà steward/`pr next` tin (ADR-0027) — chỉ `xt.py pr reviewed` đăng (gọi `gh api` từ tiến trình
@@ -1860,13 +1842,13 @@ def mcp_decision(tool_name: str, tool_input: Dict[str, object], root: str) -> Tu
         return "deny", hit
     if not MCP_MERGE_RE.fullmatch(tool_name):
         return "", ""
-    if "disable" in tool_name:  # tắt auto-merge: LOOP-STOP-005 đòi khi chạm ngoại lệ cứng — không chặn
+    if "enable" in tool_name and "auto_merge" in tool_name:  # bật auto-merge: chặn phẳng (ADR-0036 §3)
+        return "deny", f"Lệnh bị khung chặn ({AUTO_MERGE_WHY}): {tool_name}"
+    if "disable" in tool_name:  # tắt auto-merge do người bật: máy phải tắt được (ADR-0036, LOOP-STOP-005) — không chặn
         return "ask", f"{EXTERNAL_ASK} — tắt auto-merge qua MCP ({tool_name})"
     # Chỉ server GitHub chính (`mcp__github__…`): server khác cùng tên tool có thể trỏ host khác với repo merge-check đọc.
     if not tool_name.startswith("mcp__github__"):
         return "ask", f"{EXTERNAL_ASK} — {UNVERIFIED_ASK}: merge qua server MCP khác ({tool_name})"
-    if tool_name == "mcp__github__enable_pr_auto_merge":
-        return _mcp_auto_merge(tool_input, root)
     ask = f"{EXTERNAL_ASK} — merge PR qua MCP ({tool_name}) cần `expectedHeadSha` + `xt.py merge-check` = merge"
     n, sha = tool_input.get("pullNumber"), tool_input.get("expectedHeadSha")
     owner, repo = tool_input.get("owner"), tool_input.get("repo")
@@ -1957,7 +1939,11 @@ def _merge_verdict(selector: List[str], sha: str, root: str, repo: str = "") -> 
 
 def _gh_api_merge_rule(args: List[str], root: str) -> Tuple[str, str]:
     """`gh api` ghi → ask; trừ merge REST ghim head (`-X PUT repos/{owner}/{repo}/pulls/N/merge -f sha=… [-f
-    merge_method=…]`, mỗi khoá một lần, không `@file`) mà merge-check cho phép (LOOP-STOP-022)."""
+    merge_method=…]`, mỗi khoá một lần, không `@file`) mà merge-check cho phép (LOOP-STOP-022). Bật auto-merge qua
+    graphql (`enablePullRequestAutoMerge`, ở endpoint nào cũng vậy — `gh api /graphql` cũng tới GraphQL) → deny phẳng
+    (ADR-0036 §3)."""
+    if GRAPHQL_AUTO_MERGE_RE.search(" ".join(args)):
+        return "deny", AUTO_MERGE_WHY
     ask = "ask", f"{EXTERNAL_ASK} — `gh api` ghi lên GitHub (merge/cấu hình phải qua lệnh có kiểm)"
     pos = _positionals(args, GH_API_VALUE_FLAGS)
     m = REST_MERGE_PATH_RE.fullmatch(pos[0]) if len(pos) == 1 else None  # dạng chuẩn: không giải mã
@@ -1970,9 +1956,11 @@ def _gh_api_merge_rule(args: List[str], root: str) -> Tuple[str, str]:
     return _merge_verdict([m[1]], fields["sha"], root) if m else ask
 
 
-# Merge/bật auto-merge qua `gh api`: REST `repos/<chủ>/<repo>/pulls/N/merge` (cả `{owner}/{repo}`), mutation graphql.
+# Merge qua `gh api`: REST `repos/<chủ>/<repo>/pulls/N/merge` (cả `{owner}/{repo}`), mutation graphql. Bật auto-merge
+# (`enablePullRequestAutoMerge`) → deny phẳng (ADR-0036 §3); tắt (`disablePullRequestAutoMerge`) là ghi thường.
 ANY_REST_MERGE_RE = re.compile(r"/?repos/([^/\s]+/[^/\s]+)/pulls/(\d+)/merge/?")
-GRAPHQL_MERGE_RE = re.compile(r"\b(mergePullRequest|enablePullRequestAutoMerge)\b")
+GRAPHQL_MERGE_RE = re.compile(r"\bmergePullRequest\b")
+GRAPHQL_AUTO_MERGE_RE = re.compile(r"\benablePullRequestAutoMerge\b")
 
 
 def _api_path(p: str) -> str:
@@ -1991,7 +1979,9 @@ def _graphql_opaque(args: List[str]) -> bool:
 def _gh_api_merge_like(args: List[str], pos: List[str], ask: Tuple[str, str], root: str) -> Tuple[str, str]:
     """`gh api` ghi không đúng dạng merge REST có kiểm: là merge (REST/graphql) → vẫn kiểm `hard` (AUD-SEC-044);
     graphql merge không ánh xạ được số PR → chặn như không xác minh được; ghi khác → `ask` (đối ngoại)."""
-    if pos[:1] == ["graphql"]:  # mutation merge, hoặc query guard không đọc được (`@file`, `--input`, biến)
+    # Endpoint graphql ở mọi dạng `gh api` nhận: `graphql`, `/graphql`, `https://api.github.com/graphql` — dạng `/graphql`
+    # từng rơi xuống nhánh REST và thành `ask` thường (T-1806 câu hỏi mở 2, 2026-10-21).
+    if len(pos) == 1 and _api_path(pos[0]).rstrip("/").rsplit("/", 1)[-1] == "graphql":  # mutation merge, hoặc query mờ
         if GRAPHQL_MERGE_RE.search(" ".join(args)) or _graphql_opaque(args):
             return "ask", f"{EXTERNAL_ASK} — {UNVERIFIED_ASK}: merge qua graphql (không đọc được số PR/nội dung)"
         return ask
@@ -2025,9 +2015,7 @@ def _external_rule(name: str, args: List[str], root: str) -> Tuple[str, str]:
     if name == "gh" and args[:2] == ["pr", "merge"] and not set(args[2:]) & HELP_FLAGS:
         return gh_pr_merge_rule(args[2:], root)
     if name == "gh" and args[:1] == ["pr"] and "merge" in args[2:4]:  # `gh pr -R o/r merge`: cờ repo của `pr`
-        i = args.index("merge", 2)
-        selector, repo = _pr_flag_merge(args, i)
-        return _merge_ask(f"{EXTERNAL_ASK} — `gh pr <cờ> merge` không tự merge", selector, root, repo)
+        return _pr_flag_merge_rule(args, root)
     if name == "gh" and args[:2] in (["alias", "set"], ["alias", "import"]):
         return "ask", "gh alias đặt lệnh tắt — guard không thấy lệnh thật khi alias chạy"
     if name == "gh" and args[:1] == ["api"] and _gh_api_writes(args[1:]):
@@ -2063,7 +2051,7 @@ def _gh_api_destroy(args: List[str]) -> bool:
     if (
         method != "GET"
         and GH_API_GUARDED_RE.fullmatch(path)
-        or path == "graphql"
+        or path.rstrip("/").rsplit("/", 1)[-1] == "graphql"  # cả `/graphql`, URL đầy đủ (review #198)
         and GRAPHQL_DESTROY_RE.search(" ".join(args))
     ):
         return True
@@ -2075,6 +2063,15 @@ def _gh_api_destroy(args: List[str]) -> bool:
     exposes = any(v == "archived=true" or v.startswith(("private=", "visibility=")) for v in fields)
     opaque = any(a.split("=", 1)[0] == "--input" for a in args)
     return method == "PATCH" and (exposes or opaque) and bool(GH_API_REPO_RE.fullmatch(path))
+
+
+def _pr_flag_merge_rule(args: List[str], root: str) -> Tuple[str, str]:
+    """`gh pr <cờ…> merge …` (`gh pr -R o/r merge 7`): bật auto-merge → deny phẳng (ADR-0036 §3); còn lại không tự
+    merge — vẫn kiểm `hard`/review như merge thiếu ghim."""
+    if _gh_auto_flag(args[1:]):
+        return "deny", AUTO_MERGE_WHY
+    selector, repo = _pr_flag_merge(args, args.index("merge", 2))
+    return _merge_ask(f"{EXTERNAL_ASK} — `gh pr <cờ> merge` không tự merge", selector, root, repo)
 
 
 def _pr_flag_merge(args: List[str], i: int) -> Tuple[List[str], str]:
@@ -5811,6 +5808,7 @@ REASON_CODES: Tuple[Tuple[str, str], ...] = (
     ("xoá thư mục gắn từ máy", "WIPE_OUTSIDE"),
     ("xoá thay đổi đã cất", "STASH_DROP"),
     (DESTROY_ASK, "DESTROY"),
+    (AUTO_MERGE_WHY, "AUTO_MERGE_ENABLE"),  # bật auto-merge: deny phẳng ở mọi chính sách (ADR-0036)
     (HARD_ASK, "HARD_EXCEPTION"),
     (UNVERIFIED_ASK, "UNVERIFIED"),
     (REVIEW_MISSING_ASK, "REVIEW_MISSING"),
