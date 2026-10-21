@@ -148,7 +148,7 @@ Cảnh báo `HmEmailBudgetHigh` (≥ 80%) / `HmEmailBudgetExhausted` (100%); met
 
 ## 9. Web — bind, https, cấu hình hiệu lực (T-403)
 - `pnpm --filter @hm/web start` (và `dev`) mặc định bind **127.0.0.1** (`next start -H ${HOST:-127.0.0.1}`). Caddy chuyển tiếp tới web; chạy web trong container sau Caddy thì đặt `HOST=0.0.0.0` ở **môi trường container** (mạng backend nội bộ, không publish cổng ra host) — không đặt trên máy có cổng mở Internet.
-- `NODE_ENV=production`: `APP_BASE_URL` và `S3_ENDPOINT` phải `https://` (loopback được miễn), `SMTP_URL` phải `smtps://` hoặc `smtp://…?requireTLS=true` (hoặc `fake://` = không gửi thư). Sai → tiến trình không lên, log nêu **tên biến** và lý do, không giá trị.
+- `NODE_ENV=production`: `APP_BASE_URL` và `S3_ENDPOINT` phải `https://` (loopback được miễn), `SMTP_URL` **bắt buộc đặt tường minh** (không còn mặc định `fake://local` — AUD-CFG-001) và phải `smtps://` hoặc `smtp://…?requireTLS=true` (hoặc `fake://` = cố ý không gửi thư). Sai → tiến trình không lên, log nêu **tên biến** và lý do, không giá trị.
 - Lúc khởi động web in một dòng log `config.effective` (bí mật thành `***`); đối chiếu với bảng mặc định [`docs/design/SECURE-DEFAULTS.md`](design/SECURE-DEFAULTS.md) khi nghi cấu hình lệch.
 - Lỗi render/route chưa bắt ghi log `lỗi render/route không dự kiến` (mẫu route, `digest`, stack; không cookie/đường dẫn thật).
 - Cookie phiên khi https mang tiền tố `__Host-hm.` (trình duyệt buộc Secure, Path=/, không Domain). Đổi `APP_BASE_URL` giữa http↔https ⇒ mọi phiên cũ mất hiệu lực (tên cookie đổi): người dùng đăng nhập lại.

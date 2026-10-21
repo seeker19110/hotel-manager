@@ -215,12 +215,18 @@ export function redactConfig(config: AppConfig): Record<string, unknown> {
  */
 export function loadConfig(env: Record<string, string | undefined>): AppConfig {
   const parsed = envSchema.safeParse(env);
-  if (!parsed.success) {
-    const issues = parsed.error.issues.map((i) => ({
+  // AUD-CFG-001: mặc định `fake://local` NUỐT mọi thư (OTP người thuê, lời mời). Production quên đặt biến thì vẫn lên mà không
+  // ai nhận được thư — nên production phải đặt SMTP_URL tường minh (`fake://…` vẫn được khi cố ý, như E2E).
+  const smtpMissing =
+    env.NODE_ENV === "production" && (env.SMTP_URL ?? "") === ""
+      ? [{ key: "SMTP_URL", reason: "bắt buộc ở production (đặt smtps://… hoặc fake://local tường minh)" }]
+      : [];
+  if (!parsed.success || smtpMissing.length > 0) {
+    const issues = (parsed.success ? [] : parsed.error.issues).map((i) => ({
       key: String(i.path[0] ?? "?"),
       reason: i.code === "invalid_type" ? "thiếu hoặc sai kiểu" : i.message,
     }));
-    throw new ConfigError(issues);
+    throw new ConfigError([...issues, ...smtpMissing.filter((m) => !issues.some((i) => i.key === m.key))]);
   }
   const config = { ...parsed.data } as AppConfig;
   Object.defineProperties(config, {

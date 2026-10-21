@@ -72,6 +72,7 @@ beforeAll(async () => {
     env: {
       ...process.env,
       NODE_ENV: "production",
+      SMTP_URL: "fake://local",
       NEXT_TELEMETRY_DISABLED: "1",
       APP_BASE_URL: BASE,
       DATABASE_URL: t.runtimeUrl,

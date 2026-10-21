@@ -61,6 +61,7 @@ describe("loadWorkerConfig", () => {
     const prod = {
       ...valid,
       NODE_ENV: "production",
+      SMTP_URL: "smtps://relay.example.test:465",
       CLAMD_HOST: "clamd",
       HM_PII_KEYS: `1:${Buffer.alloc(32, 7).toString("base64")}`,
       HM_PII_KEY_ID: "1",
