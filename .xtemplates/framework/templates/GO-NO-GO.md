@@ -1,7 +1,7 @@
 ---
 title: Mẫu GO-NO-GO
 kind: template
-updated: 2026-10-16
+updated: 2026-10-19
 ---
 
 # Mẫu GO-NO-GO.md — báo cáo phát hành
@@ -18,6 +18,7 @@ updated: 2026-10-16
 > Người kiểm: <tên/agent> (report-only) · Phạm vi: <web/mobile/API — bỏ phần không áp dụng, ghi lý do>
 
 ## 1. Đếm
+> Phần máy: `xt.py release-check --json` (blueprint `--strict --run` · sổ audit `--strict` · kiểm lại cuối · cây git · đề xuất "Khi chạy thật") → dán `verdict` và từng hàng FAIL vào mục 3; NO-GO của máy là NO-GO. Người vẫn ký mục 5.
 | Mức | PASS | FAIL | N/A |
 |---|---|---|---|
 | BLOCKER | | | |

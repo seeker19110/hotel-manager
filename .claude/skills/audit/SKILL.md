@@ -1,10 +1,10 @@
 ---
 name: audit
-description: Audit toàn diện dự án (hoặc chính repo khung) theo blueprint + 13 nhóm (kiến trúc, bảo mật, chất lượng mã, test, hiệu năng, a11y/UX, phụ thuộc, CI/CD, tài liệu, dữ liệu, cấu hình, thống nhất chéo tính năng, harness agent) với máy đỡ — `xt.py audit plan` dò phạm vi/công cụ/bằng chứng cũ, `xt.py audit check` kiểm sổ; xác minh đối kháng mọi 🔴/🟠; quét lại theo diff; DỪNG CHỜ DUYỆT trước khi sửa. Dùng khi người dùng muốn rà lỗi toàn diện, kiểm tra toàn bộ, hoàn thiện dự án, nhận dự án có sẵn, trước phát hành, hoặc gõ /audit.
+description: Audit toàn diện dự án (hoặc chính repo khung) theo blueprint + 13 nhóm (kiến trúc, bảo mật, chất lượng mã, test, hiệu năng, a11y/UX, phụ thuộc, CI/CD, tài liệu, dữ liệu, cấu hình, thống nhất chéo tính năng, harness agent) với máy đỡ — `xt.py audit plan` dò phạm vi/công cụ/bằng chứng cũ, `xt.py audit check` kiểm sổ; xác minh đối kháng mọi 🔴/🟠; quét lại theo diff; phiên chính tự duyệt kế hoạch sửa (ADR-0008) rồi mới sửa. Dùng khi người dùng muốn rà lỗi toàn diện, kiểm tra toàn bộ, hoàn thiện dự án, nhận dự án có sẵn, trước phát hành, hoặc gõ /audit.
 argument-hint: "[full|delta|group:<MÃ>|resume]"
 ---
 
-# /audit — bằng chứng trước, sửa sau khi duyệt
+# /audit — bằng chứng trước, sửa sau khi duyệt kế hoạch
 
 Phương pháp đầy đủ (nhóm, mức, schema phát hiện, Definition of Complete): `<FW>/00-method/audit.md`.
 `<FW>` = `.xtemplates/framework` ở dự án đích, `framework` ở repo khung. `<XT>` = `python3 .xtemplates/scripts/xt.py` (hoặc `python3 scripts/xt.py`).
@@ -20,7 +20,7 @@ Chạy `<XT> audit plan` (thêm `--json` khi cần xử lý máy). Từ output:
 - Ghi nhóm `N/A`/`rút gọn` kèm lý do vào sổ; **không** quét nhóm N/A, không bịa phát hiện cho mã không tồn tại.
 - Công cụ **thiếu** của nhóm áp dụng: cài được nhanh (pip/npm/binary chính chủ, phiên bản ghim) thì cài và chạy; không được → bằng chứng nhóm đó là `chưa biết:` + cần gì để đo.
 - Mục "Bằng chứng/miễn trừ blueprint trỏ file đã đổi" → mở từng mục, xác minh lại; sai → phát hiện nhóm 13 (HAR).
-- Nhóm 13 (harness): chạy `<XT> doctor --json` trước — mỗi lỗi ✗ là một phát hiện có sẵn đường tái hiện (không `--fix` trong lúc audit: sửa chờ duyệt).
+- Nhóm 13 (harness): chạy `<XT> doctor --json` trước — mỗi lỗi ✗ là một phát hiện có sẵn đường tái hiện (không `--fix` trong lúc audit: sửa sau khi phiên chính duyệt kế hoạch ở §6).
 - Repo khung (`REPO KHUNG`): trọng tâm nhóm 9 (quy ước, ID, link, nguồn có ngày, tài liệu lệch mã) và 13 (hook, install, lệnh `xt.py`).
 
 ## 2. Blueprint
@@ -41,10 +41,8 @@ Không tái hiện được → hạ thành `suy luận:` (và hạ mức nếu 
 - Viết `docs/ops/AUDIT-REPORT-<ngày>.md`: tóm tắt đếm, phạm vi (output rút gọn `audit plan`), lệnh đã chạy + exit, chi tiết 🔴/🟠 (tái hiện từng bước), kế hoạch sửa theo đợt, nợ 🟢 có chủ.
 - `<XT> audit check docs/ops/AUDIT-STATUS.md` phải exit 0. Commit `docs(audit): …` (không sửa mã trong commit này).
 
-## 6. DỪNG CHỜ DUYỆT
-Trình ≤ 20 dòng: số phát hiện theo mức, 🔴 từng dòng, kế hoạch đợt (mỗi đợt ≤ 1 PR, 🔴 trước, bug có test tái hiện đỏ trước khi sửa).
-**Không sửa trước khi người duyệt** — trừ khi đang autopilot đã duyệt trước và phát hiện thuộc phạm vi PLAN.
-Đang autopilot: phiên chính tự duyệt kế hoạch sửa theo tiêu chí chất lượng cuối (ADR-0008, ghi `loop decide`) rồi làm tiếp; phần cần người (điểm dừng về hành động) → `<XT> loop defer`, chỉ `loop block` khi mọi việc còn lại phụ thuộc nó (ADR-0009).
+## 6. Duyệt kế hoạch sửa — phiên chính tự duyệt
+Trình ≤ 20 dòng: số phát hiện theo mức, 🔴 từng dòng, kế hoạch đợt (mỗi đợt ≤ 1 PR, 🔴 trước, bug có test tái hiện đỏ trước khi sửa). Phiên chính tự duyệt theo tiêu chí chất lượng cuối (ADR-0008, `<XT> loop decide` → D-NNN; `<FW>/11-autonomous-loop/stop-points-and-escalation.md` — có hay không chạy autopilot), báo người tóm tắt rồi làm tiếp; người đổi ý lúc nào cũng được. Phần cần người (điểm dừng về hành động) → `<XT> loop defer`, chỉ `loop block` khi mọi việc còn lại phụ thuộc nó. Không sửa lặng lẽ trước khi có kế hoạch đã ghi.
 
 ## 7. Hội tụ (sau duyệt)
 Mỗi đợt: test/Gate đỏ → sửa → `/gate` → PR → cập nhật phát hiện `đã sửa` (#PR) → `<XT> audit plan` → quét lại nhóm bị chạm.
