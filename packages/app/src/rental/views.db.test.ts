@@ -72,6 +72,15 @@ describe("payment.collectCash", () => {
       data: await openShift(ctx, { propertyId: A.propertyId, openingCash: 0 }),
     }));
     expect((await rentalProperties(t.runtime, O))[0]).toMatchObject({ id: A.propertyId, open_shift: true });
+    // AUD-XFEAT-002: tháng mặc định của ô "Tháng" theo múi giờ cơ sở (không +7h cố định ở trang).
+    const tz = (
+      await sql<{
+        m: string;
+      }>`select to_char(now() at time zone p.timezone, 'YYYY-MM') as m from properties p where id = ${A.propertyId}`.execute(
+        t.admin,
+      )
+    ).rows[0]?.m;
+    expect((await rentalProperties(t.runtime, O))[0]?.local_month).toBe(tz);
     const over = await run(O, async (ctx) => ({
       data: await collectCash(ctx, { invoiceId: inv.invoiceId, amount: 3_580_001 }),
     }));

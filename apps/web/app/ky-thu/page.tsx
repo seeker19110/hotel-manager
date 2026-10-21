@@ -1,5 +1,4 @@
 import { listBillingPeriods, rentalProperties, serverContext } from "@hm/app";
-import { VN_UTC_OFFSET_MS } from "@hm/app/units";
 import type { Metadata } from "next";
 import { CommandForm } from "../../components/command/command-form.tsx";
 import { EmptyState } from "../../components/ui/state.tsx";
@@ -8,11 +7,6 @@ import { t } from "../../lib/i18n.ts";
 import { withActor } from "../../lib/page.tsx";
 
 export const metadata: Metadata = { title: "Kỳ thu — Hotel Manager" };
-
-/** Tháng hiện tại theo giờ Việt Nam (mặc định ô "Tháng"). */
-function currentMonth(): string {
-  return new Date(Date.now() + VN_UTC_OFFSET_MS).toISOString().slice(0, 7);
-}
 
 export default async function PeriodsPage() {
   return withActor("Kỳ thu", "/ky-thu", async (actor) => {
@@ -30,7 +24,7 @@ export default async function PeriodsPage() {
               path="billing/createPeriod"
               fixed={{ property_id: p.id }}
               fields={[
-                { name: "month", label: "Tháng (YYYY-MM)", required: true, defaultValue: currentMonth() },
+                { name: "month", label: "Tháng (YYYY-MM)", required: true, defaultValue: p.local_month },
               ]}
               submitLabel="Tạo kỳ"
               successText="Đã có kỳ thu cho tháng này."
