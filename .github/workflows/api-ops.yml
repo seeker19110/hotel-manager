@@ -1,7 +1,8 @@
 name: API và vận hành
 
 # Kiểm hợp đồng API và cấu hình vận hành bằng công cụ thật (T-806): spectral (BE-API-001), promtool (OPS-SLO-001),
-# OTel Collector (OPS-OBS-001), test bản N−1 trên schema N (OPS-DEPLOY-003). Công cụ nhị phân cài bằng scripts/ops-tools.sh
+# OTel Collector (OPS-OBS-001), test bản N−1 trên schema N (OPS-DEPLOY-003;
+# pha build: chỉ push main — D-084). Công cụ nhị phân cài bằng scripts/ops-tools.sh
 # (phiên bản + SHA-256 ghim một chỗ). Kiểm breaking-change OpenAPI nằm ở job `pr-policy` (scripts/check-openapi-breaking.mjs).
 on:
   pull_request:
@@ -84,7 +85,7 @@ jobs:
   # (expand → migrate → contract). Loại hai nhóm test mà đối tượng kiểm là CHÍNH schema/chuỗi migration chứ không phải code chạy trên nó:
   # `schema-drift` (khẳng định schema N khác ảnh chụp của N−1) và `migration-*` (lùi cả chuỗi migration, gõ cứng migration cuối của N−1
   # nên migration mới của PR làm đỏ oan; chúng chạy ở job `gate` của PR trên chính migration N). Các file nền của test ratchet
-  # (schema-guards.baseline.json, data-map.yaml) được `overlay` chép từ PR — xem scripts/schema-compat.mjs.
+  # (schema-guards.baseline.json, data-map.yaml) được `overlay` chép từ PR (trên push: từ commit được push) — xem scripts/schema-compat.mjs.
   schema-compat:
     name: schema-compat
     # D-084: hoãn tới pha harden — không chạy trên PR (không required), vẫn chạy trên push main; khôi phục khi delivery_phase: harden.
