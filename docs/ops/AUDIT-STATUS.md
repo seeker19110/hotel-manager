@@ -1,6 +1,6 @@
 # AUDIT-STATUS — Hotel Manager
 
-> Cập nhật: 2026-10-19 · Báo cáo gần nhất: `docs/ops/AUDIT-REPORT-2026-10-19.md`
+> Cập nhật: 2026-10-21 · Báo cáo gần nhất: `docs/ops/AUDIT-REPORT-2026-10-19.md`
 
 ## Nhóm
 
@@ -11,7 +11,7 @@
 | 3 | CODE | Chất lượng mã | rút gọn | 12f55e560085 | 2026-10-19 | gate xanh (biome/tsc); đã rà catch/any/tiền/thời gian; chưa chạy mã chết/trùng lặp (thiếu công cụ) |
 | 4 | TEST | Kiểm thử | rút gọn | 12f55e560085 | 2026-10-19 | 3783 test xanh; INV-* đều có test DB; chưa đo assert yếu ở mức từng test, chưa mutation |
 | 5 | PERF | Hiệu năng | rút gọn | 12f55e560085 | 2026-10-19 | chưa đo thời gian thật (không k6/lighthouse); N+1 suy luận bằng AST |
-| 6 | A11Y | A11y & UX | chưa quét |  |  | chưa quét; cần axe/trình duyệt |
+| 6 | A11Y | A11y & UX | rút gọn | 79049fc6b0ed | 2026-10-21 | đã: axe (@axe-core/playwright) 0 vi phạm trên MỌI route `app/**/page.tsx` ở 320 px (mobile + desktop), bàn phím (đăng nhập → tổ chức → phòng có thanh điều hướng, portal, hộp xác nhận, kỳ thu, thu tiền), `prefers-reduced-motion`, `aria-invalid`/`aria-describedby`, chữ có dấu — `ux-guards.spec.ts` 32/32 (T-1501); duyệt tay 19 màn trên dev tìm ra `/phong` thiếu thanh điều hướng (sửa #115); chưa: trình đọc màn hình thật + thiết bị thật (STD-A11Y-004, việc người) |
 | 7 | DEP | Phụ thuộc | rút gọn | 12f55e560085 | 2026-10-19 | grype-ignore-check đạt; chưa chạy pnpm audit/osv-scanner |
 | 8 | CI | CI/CD | đã quét | 12f55e560085 | 2026-10-19 | ci-check đạt; 29 context ruleset khớp job; thiếu zizmor/actionlint |
 | 9 | DOC | Tài liệu | đã quét | 12f55e560085 | 2026-10-19 | link, D-NNN, env, bảng, ERD kiểm bằng script |
