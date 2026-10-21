@@ -1,53 +1,38 @@
-# xt.yaml — lệnh chuẩn của dự án cho agent và hook (YAML PHẲNG `task: lệnh`, do .xtemplates/scripts/dev-task.sh đọc).
-# Agent KHÔNG suy diễn lệnh từ văn xuôi; đọc file này. Để trống "" = không có; thiếu khoá = tự dò (package.json/pyproject/go.mod/Cargo.toml/Makefile).
-# Khi autopilot đang chạy, lint/test để "" hoặc lệnh không kiểm gì (true, :, exit 0, echo …) = cổng ĐỎ (ADR-0011): điền ở task đầu PLAN.
-# Quy mô M/L còn có SÀN (LOOP-HARNESS-023, `xt.py doctor` báo `gate-floor`; `loop verify` CHẠY các lệnh sàn và đỏ khi thiếu/đỏ):
-# format_check + coverage luôn có; typecheck khi stack có kiểm kiểu (build với Go/Rust); e2e khi hồ sơ có UI. Lệnh thật, không no-op.
-# Nhà của bộ khoá: LOOP-HARNESS-008 (framework/11-autonomous-loop/harness-files.md). `scripts/dev-task.sh` CHỈ chạy các khoá format · lint · typecheck · test · build · format_file
-# (`gate` = build → typecheck → lint → test; lint nên gồm kiểm format). Khoá khác (install, dev, e2e, migrate, init, smoke, audit…) là lệnh KHAI BÁO để agent ĐỌC và chạy trực tiếp; dev-task không chạy.
-# Mẫu theo stack (giữ MỘT bộ, xoá phần còn lại):
-#   Node:   lint: npm run lint · typecheck: npm run typecheck · test: npm test -- --run · build: npm run build · format: npm run format · format_file: npx --no-install prettier --write "{}"
-#           format_check: npx --no-install prettier --check . · coverage: npx --no-install vitest run --coverage (ngưỡng ở `test.coverage.thresholds`)
-#   Python: lint: ruff check . · typecheck: pyright · test: pytest -q · build: "" · format: ruff format . · format_file: case "{}" in *.py) ruff format "{}" ;; esac
-#           format_check: ruff format --check . · coverage: COVERAGE_FILE="$(mktemp)" PYTHONDONTWRITEBYTECODE=1 pytest -p no:cacheprovider --cov --cov-fail-under=80
-#   Go:     lint: go vet ./... · typecheck: "" · test: go test ./... · build: go build ./... · format: gofmt -l -w . · format_file: gofmt -w "{}"
-#           format_check: test -z "$(gofmt -l .)" · coverage: f="$(mktemp)" && go test -coverprofile="$f" ./... && go tool cover -func="$f" | awk '/^total:/{exit ($3+0 < 80)}'
+# xt.yaml — lệnh chuẩn của dự án (YAML PHẲNG `task: lệnh`), nguồn duy nhất cho agent, hook và CI; agent không suy diễn
+# lệnh từ văn xuôi. "" = không có; thiếu khoá = tự dò từ manifest. Nhà của bộ khoá, sàn M/L, mẫu theo stack
+# (Node/Python/Go): .xtemplates/framework/11-autonomous-loop/harness-files.md §Khoá của xt.yaml (LOOP-HARNESS-008/023).
+# gate = build → typecheck → lint → test (CI chạy đúng vậy); gate-fast = format_check → lint → typecheck → test_fast.
+# Autopilot đang chạy mà lint/test rỗng hay no-op (true, :, echo …) = cổng ĐỎ (ADR-0011); CI mẫu đỏ tới khi có lệnh thật.
 lint: ""
 typecheck: ""
 test: ""
 build: ""
 format: ""
-# Sàn M/L (LOOP-HARNESS-023): kiểm format không ghi file, và test có ngưỡng coverage (đỏ khi dưới ngưỡng). Lệnh kiểm
-# không được ghi vào repo (artefact coverage ra `mktemp`) và không được có `|| true`.
-format_check: ""
-coverage: ""
-format_file: ""
-# Merge PR (ADR-0013/0014/0015, LOOP-STOP-022): L3 (mặc định) = bật auto-merge của GitHub (làn nhanh khi mở, làn chuẩn sau review sạch — ADR-0024), merge khi required check
-# xanh (cần bật "Allow auto-merge" + ruleset có required check; ghi miễn trừ WF-REVIEW-007); L2 = máy chỉ tự merge làn nhanh
-# (`xt.py merge-check`); L1 = người merge mọi PR.
-# merge_risk_paths: glob thêm vào danh sách đường dẫn nhạy cảm (ngoại lệ cứng), cách nhau dấu phẩy; `merge-check` lấy
-# hợp của cây làm việc và bản đã commit ở nhánh đích (checkout cũ không làm rơi glob). `merge_autonomy`: `merge-check`
-# dùng mức THẤP hơn giữa cây làm việc và nhánh đích — nâng mức phải qua PR đã merge (PR đó được quyết ở mức cũ).
-# merge_hard_exceptions: ngoại lệ cứng (tiền, dữ liệu người dùng thật, auth, mật mã, bí mật, merge_risk_paths) — human (mặc
-# định) = người merge (ADR-0016); auto = agent merge như PR khác khi CI xanh (ADR-0020). Đọc ở nhánh đích đã commit, không
-# ở cây làm việc; PR đổi khoá này luôn người merge — merge PR đó là lời chủ dự án chấp nhận rủi ro (LOOP-STOP-005).
+setup: ""             # cài phụ thuộc trước mỗi job CI (npm ci · pip install …); trống = bỏ qua
+format_check: ""      # sàn M/L: kiểm format không ghi file, đỏ khi lệch
+coverage: ""          # sàn M/L: test có ngưỡng coverage; artefact ra mktemp, không `|| true`
+format_file: ""       # format MỘT file (hook PostToolUse), `{}` = đường dẫn; trống = mẫu dựng sẵn của khung
+# commit_gate: hook trước `git commit` — fast = gate-fast · full = gate; diff đụng cấu hình cổng → mọi lớp test
+commit_gate: fast
+test_fast: ""         # test liên quan file đổi (XT_CHANGED_FILES, mỗi dòng một file); trống → test
+# CI chia shard khi khai đủ ba khoá: test_list (in mỗi dòng một id) · test_unit (chạy id "$1", coverage vào "$XT_COV_DIR"
+# nếu có) · test_combine (gộp coverage, đòi ngưỡng); không khai → một job chạy test.
+# test_list: ""
+# test_unit: ""
+# test_combine: ""
+# merge_autonomy: L3 = máy bật auto-merge/merge theo làn · L2 = chỉ làn nhanh · L1 = người merge (ADR-0015)
 merge_autonomy: L3
-merge_risk_paths: ""
+merge_risk_paths: ""          # glob thêm vào đường dẫn nhạy cảm (ngoại lệ cứng), cách nhau dấu phẩy
+# merge_hard_exceptions: human = người merge ngoại lệ cứng (ADR-0016) · auto = máy merge khi CI xanh (ADR-0020)
 merge_hard_exceptions: human
-# Tuỳ chọn, agent đọc và chạy trực tiếp (dev-task không chạy): e2e, audit (dependency), perf (k6/lighthouse), migrate (áp migration local), install, dev, init, smoke
-# e2e_affected: lệnh chạy CHỈ spec của lát/PR đang làm (vd `npx playwright test --grep @smoke e2e/<luồng>.spec.ts`); Gate mỗi task
-# dùng nó; suite đầy đủ `e2e` chạy khi push main / trước phát hành, và PLAN có task cuối Gate = `e2e` (`loop verify` chỉ
-# chạy lại Gate của từng task — QA-E2E-023). Trống = chạy `e2e` đầy đủ.
-e2e: ""
-e2e_affected: ""
-audit: ""
-# claude_min_version: phiên bản Claude Code tối thiểu (vd 2.1.200) — `xt.py doctor` cảnh báo khi thấp hơn (LOOP-HARNESS-026).
-# Tổ chức ép thật bằng managed settings `requiredMinimumVersion`. Trống = không kiểm.
-claude_min_version: ""
-# ai_attribution: forbid = guard chặn commit mà message ghi tên model hay URL phiên AI (`Claude-Session:`, `Claude Opus …`)
-# — LOOP-HARNESS-027. Trống/allow = không kiểm (trailer `Co-authored-by: Claude <…>` chung luôn được).
-ai_attribution: ""
-# pr_title_check: off = `merge-check` không đòi tiêu đề PR dạng `<type>(scope): mô tả` ≤ 72 ký tự (dự án không theo
-# Conventional Commits). Trống = kiểm; PR của bot (`…[bot]`) và `Revert "…"` của GitHub luôn được miễn. `off` chỉ có hiệu
-# lực khi đã ở nhánh đích (PR không tự tắt luật cho chính nó).
-pr_title_check: ""
+# delivery_phase: build = PR làn chuẩn chỉ cần CI xanh, review ghi nợ · harden = review sạch ở head (ADR-0031)
+delivery_phase: build
+# review_identity: ""         # chỉ dấu review của tài khoản này mở được merge (T-1508)
+# author_model_family: ""     # họ model tác giả và reviewer phải khác nhau (ci-check kiểm)
+# reviewer_model_family: ""
+e2e: ""               # agent chạy trực tiếp (dev-task không chạy): suite E2E đầy đủ
+e2e_affected: ""      # chỉ spec của lát đang làm (Gate mỗi task); trống = e2e
+audit: ""             # audit phụ thuộc (npm audit · pip-audit …)
+claude_min_version: ""   # doctor cảnh báo khi Claude Code thấp hơn (LOOP-HARNESS-026)
+ai_attribution: ""    # forbid = guard chặn commit/PR ghi tên model hay URL phiên AI (LOOP-HARNESS-027)
+pr_title_check: ""    # off = không đòi tiêu đề PR `<type>(scope): mô tả` ≤ 72 ký tự

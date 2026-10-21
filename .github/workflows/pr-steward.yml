@@ -17,11 +17,23 @@ name: pr-steward
 # này làm sẽ kích workflow `push` trên nhánh chính; không có thì dùng GITHUB_TOKEN (merge vẫn vào, nhưng GitHub không
 # chạy workflow `push` cho commit do GITHUB_TOKEN tạo; cũng không chạy `pull_request` cho commit cập nhật nhánh — nên
 # không có XT_STEWARD_TOKEN thì steward không tự cập nhật nhánh, chỉ báo). Repo phải bật Settings → General → "Allow auto-merge".
+#
+# Theo sự kiện (AUTO-05, T-1517): xét lại PR ngay khi check xong thay vì chờ lịch — `workflow_run` khi workflow `CI` (job
+# `quality`) hoặc `merge-gate` chạy xong (check của GitHub Actions; `check_suite` KHÔNG kích workflow cho check suite do
+# Actions tạo — chống đệ quy), `check_suite: completed` cho check của app ngoài (CI bên thứ ba). Payload chỉ chọn PR
+# (`pull_requests`; trống khi push lên nhánh đích hay PR từ fork → xét mọi PR mở); head, auto-merge, check, review luôn
+# đọc lại từ GitHub, và `xt.py` đọc lại PR ngay trước mỗi hành động — khoá (repo, PR, head, hành động): sự kiện lặp, sai
+# thứ tự, re-run sau restart không lặp tác dụng phụ. Lịch 10 phút là lưới bù. Dự án đích đặt tên workflow CI khác thì
+# sửa danh sách `workflows:` (tên không khớp = không bao giờ kích). Hai trigger này đều chạy trên nhánh mặc định, không
+# code của PR (như `issue_comment`); job không tải artifact của run kích nó.
+# Dự án này KHÔNG dùng `workflow_run` (D-069, `scripts/ci-gates.test.mjs`): chỉ schedule · issue_comment · check_suite · dispatch.
 on:
   schedule:
     - cron: "*/10 * * * *"
-  issue_comment:
+  issue_comment: # zizmor: ignore[dangerous-triggers] — chỉ checkout nhánh mặc định, không chạy code PR; comment phải mang dấu review của người có quyền ghi
     types: [created]
+  check_suite:
+    types: [completed]
   workflow_dispatch:
     inputs:
       pr:
@@ -32,8 +44,11 @@ on:
 permissions:
   contents: read
 
+# Nhóm theo PR của sự kiện (lịch/không gắn PR: `all`): GitHub chỉ giữ MỘT lượt chờ mỗi nhóm — nhóm chung thì sự kiện
+# của PR khác thay mất lượt đang chờ. Lượt `all` có thể chạy song song lượt của một PR: an toàn vì mỗi hành động đọc lại
+# trạng thái PR ngay trước khi làm (bật khi đã bật, head đã đổi, PR đã merge → bỏ qua).
 concurrency:
-  group: pr-steward
+  group: pr-steward-${{ inputs.pr || github.event.issue.number || github.event.check_suite.pull_requests[0].number || github.event.workflow_run.pull_requests[0].number || 'all' }}
   cancel-in-progress: false
 
 jobs:
@@ -44,7 +59,10 @@ jobs:
       github.event_name != 'issue_comment' || (
         github.event.issue.pull_request &&
         contains(github.event.comment.body, 'xt-review v1') &&
-        contains(fromJSON('["OWNER","COLLABORATOR","MEMBER"]'), github.event.comment.author_association)
+        (
+          contains(fromJSON('["OWNER","COLLABORATOR","MEMBER"]'), github.event.comment.author_association) ||
+          (vars.XT_REVIEW_IDENTITY != '' && github.event.comment.user.login == vars.XT_REVIEW_IDENTITY)
+        )
       )
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -67,6 +85,7 @@ jobs:
           PR: ${{ inputs.pr || github.event.issue.number || '' }}
           XT_STEWARD_UPDATE: ${{ secrets.XT_STEWARD_TOKEN != '' && 'on' || 'off' }}
           BASE: ${{ github.event.repository.default_branch }}
+          EVENT: ${{ github.event_name }}
         run: |
           set -uo pipefail
           xt=scripts/xt.py
@@ -85,6 +104,8 @@ jobs:
           fi
           if [ -n "$PR" ]; then
             python3 "$xt" pr steward "${apply[@]}" --repo "$GH_REPO" --pr "$PR"
+          elif [ "${EVENT:-}" = check_suite ] || [ "${EVENT:-}" = workflow_run ]; then
+            python3 "$xt" pr steward "${apply[@]}" --repo "$GH_REPO" --event "$GITHUB_EVENT_PATH"
           else
             python3 "$xt" pr steward "${apply[@]}" --repo "$GH_REPO"
           fi

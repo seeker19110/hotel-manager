@@ -39,3 +39,13 @@ init: "bash scripts/dev-env-setup.sh && pnpm install --frozen-lockfile"
 # ai_attribution: forbid = guard chặn commit mà message ghi tên model hay URL phiên AI (`Claude-Session:`, `Claude Opus …`)
 # — LOOP-HARNESS-027. Trống/allow = không kiểm (trailer `Co-authored-by: Claude <…>` chung luôn được).
 ai_attribution: ""
+
+# Khoá mới của khung (bản 3.11.0 (0ac396b)) — bật bằng cách bỏ "# "; vắng khoá = hành vi cũ
+# setup: ""             # cài phụ thuộc trước mỗi job CI (npm ci · pip install …); trống = bỏ qua
+commit_gate: fast
+# test_fast: test unit liên quan file đổi; test db/e2e ở CI
+test_fast: "pnpm exec vitest related --run --project unit --passWithNoTests $XT_CHANGED_FILES"
+# merge_hard_exceptions: human
+delivery_phase: build
+# e2e_affected: ""      # chỉ spec của lát đang làm (Gate mỗi task); trống = e2e
+# pr_title_check: ""    # off = không đòi tiêu đề PR `<type>(scope): mô tả` ≤ 72 ký tự

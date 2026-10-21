@@ -10,9 +10,9 @@ ctx=""
 if [ -f "$XT_ROOT/PROGRESS.md" ]; then
   # Chỉ lấy các mục "Đang làm / Tiếp theo / Quyết định / Bàn giao" (và tiêu đề), cắt 8 KB.
   # Chuẩn hoá NFC trước awk: PROGRESS.md dạng NFD (soạn trên macOS) không khớp tên mục → mất cả 4 mục.
-  prog="$(python3 -c 'import sys, unicodedata; sys.stdout.write(unicodedata.normalize("NFC", sys.stdin.read()))' \
+  prog="$(python3 -I -c 'import sys, unicodedata; sys.stdout.write(unicodedata.normalize("NFC", sys.stdin.read()))' \
     < "$XT_ROOT/PROGRESS.md" 2>/dev/null | awk '
-    /^## /{keep = ($0 ~ /Đang làm|Tiếp theo|Quyết định|Bàn giao|Kế hoạch/)}
+    /^## /{keep = ($0 ~ /Đang làm|Tiếp theo|Quyết định|Bàn giao/)}
     NR==1 || keep {print}
   ' | utf8_head 8192)"
   [ -n "$prog" ] || prog="$(utf8_head 8192 < "$XT_ROOT/PROGRESS.md")"
@@ -49,7 +49,8 @@ $(git -C "$XT_ROOT" log --oneline -3 2>/dev/null)
 "
 fi
 
-ctx+="Luật vận hành: đọc AGENTS.md ở gốc dự án (và .xtemplates/framework/11-autonomous-loop/README.md khi chạy autopilot). Khi người dùng nhắn \"tiếp tục\": nối tiếp mục Đang làm/Bàn giao ở trên, không hỏi lại điều đã có trong file."
+fw="framework"; [ -d "$XT_ROOT/.xtemplates/framework" ] && fw=".xtemplates/framework"
+ctx+="Luật vận hành: AGENTS.md ở gốc dự án (Claude Code đã nạp qua CLAUDE.md; agent khác tự đọc); chạy autopilot thì đọc thêm $fw/11-autonomous-loop/README.md. Khi người dùng nhắn \"tiếp tục\": nối tiếp mục Đang làm/Bàn giao ở trên, không hỏi lại điều đã có trong file."
 
 context_output SessionStart "$ctx"
 exit 0

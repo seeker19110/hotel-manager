@@ -1,7 +1,7 @@
 ---
 title: Vòng đời dự án và các cổng
 kind: method
-updated: 2026-10-15
+updated: 2026-10-20
 ---
 
 # Vòng đời dự án và các cổng
@@ -20,7 +20,7 @@ updated: 2026-10-15
 | G4 | **Thiết kế (Design)** | Kiến trúc, dữ liệu, giao diện, mối đe doạ? | Sơ đồ C4 mức 1–2; schema; hợp đồng API; threat model; wireframe/tokens | Threat model có biện pháp cho mỗi mối đe doạ mức cao |
 | G5 | **Dựng nền (Scaffold)** | Hàng rào chất lượng đã chạy chưa? | Repo + CI (lint/type/test/scan) + môi trường + secrets + observability tối thiểu | CI xanh trên commit rỗng tính năng; cổng commit chặn được lỗi |
 | G6 | **Xây (Build)** | Tính năng đã chạy đúng chưa? | Code + test theo từng lát dọc (vertical slice); mỗi lát một PR | PR qua cổng merge; blueprint tick theo bằng chứng |
-| G7 | **Kiểm & phát hành (Verify & Release)** | Đủ tốt để người thật dùng chưa? | Báo cáo GO/NO-GO; E2E luồng chính; bảo mật; hiệu năng; a11y; tài liệu; kế hoạch rollback | `xt.py blueprint-status --strict` = 0 MUST mở; 0 mục BLOCKER |
+| G7 | **Kiểm & phát hành (Verify & Release)** | Đủ tốt để người thật dùng chưa? | Báo cáo GO/NO-GO; E2E luồng chính; bảo mật; hiệu năng; a11y; tài liệu; kế hoạch rollback | `xt.py release-check` GO (gom `blueprint-status --strict --run`, sổ audit `--strict`, kiểm lại cuối); 0 mục BLOCKER |
 | G8 | **Vận hành & tiến hoá (Operate)** | Có chạy ổn và tốt dần lên không? | SLO + cảnh báo; runbook; quy trình sự cố; post-mortem; lịch bảo trì phụ thuộc | Cảnh báo đã thử kích hoạt; backup đã thử khôi phục |
 
 ## Quy tắc chung của cổng
@@ -32,6 +32,14 @@ updated: 2026-10-15
 5. **Dự án có sẵn**: G0 = đọc repo (stack thật, cấu trúc, CI, test, nợ kỹ thuật) → G1 sinh blueprint → audit theo [`audit.md`](audit.md)
    blueprint với hiện trạng (mục nào đã đạt có bằng chứng thì tick) → các GĐ sau chỉ làm phần còn thiếu, tăng dần,
    **không áp đặt stack mới**.
+6. **Chất lượng theo pha — nhanh ở G6, tin cậy ở G7** (ADR-0029): G5 đặt **sàn máy** (năm cổng + MUST sàn về bảo mật,
+   cấu hình, dữ liệu, phân quyền — thứ sai từ đầu thì làm lại cả hệ); G6 chạy **nhanh trên sàn đó**: cổng commit + PR mỗi
+   lát + review theo làn, **không** audit toàn repo mỗi PR, **không** tối ưu khi chưa có số ([`../11-autonomous-loop/optimization-loop.md`](../11-autonomous-loop/optimization-loop.md)),
+   UI "đủ dùng" theo MUST của quy mô; audit **theo delta ở mỗi mốc** của PLAN ở pha harden — pha build gom về trước G7, ADR-0033 ([`audit.md`](audit.md) §1) và **toàn diện ở G7**
+   (`xt.py release-check` gom blueprint `--strict --run`, sổ audit `--strict`, kiểm lại cuối, cây git → GO/NO-GO máy đọc;
+   người ký `GO-NO-GO.md`). Chỉ G7 mới đòi E2E đầy đủ, kiểm tải, diễn tập rollback/khôi phục. Không phải hạ chuẩn:
+   cùng tiêu chí cuối, khác **thời điểm** kiểm. Máy merge theo pha bằng khoá `delivery_phase: build|harden` của `xt.yaml`
+   — build hoãn review thành nợ, G7 đòi harden và hết nợ (ADR-0031 của repo khung).
 
 ## Quy mô S/M/L — làm nhẹ đi chứ không bỏ
 

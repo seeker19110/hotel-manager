@@ -1,14 +1,12 @@
 ---
 name: review
-description: Review diff/PR theo checklist của khung (đúng nghiệp vụ, ca biên, bảo mật, lỗi logic, thống nhất, test) — phát hiện là CLAIM phải có đường tái hiện; reviewer khác model với người viết. Dùng trước khi merge, khi người dùng hỏi "có bug không", "rà nhanh diff", hoặc gõ /review.
+description: Review diff/PR theo checklist của khung (đúng nghiệp vụ, ca biên, bảo mật, lỗi logic, thống nhất, test) — phát hiện là CLAIM phải có đường tái hiện; reviewer khác HỌ model với người viết. Dùng khi `xt.py pr next` trả `review`, khi người dùng hỏi "có bug không", "rà nhanh diff", hoặc gõ /review.
 argument-hint: "[PR number | branch | path]"
 ---
 
 # /review — review như người gác cổng, không như người viết
 
-`<FW>` = `.xtemplates/framework` trong dự án đích, hoặc `framework` trong repo khung. `<XT>` = `python3 .xtemplates/scripts/xt.py` (hoặc `python3 scripts/xt.py`).
-
-Giao cho subagent `reviewer` (model khác với executor) khi diff > 200 dòng; phiên chính tổng hợp.
+Reviewer khác **họ** model với người viết (`LOOP-ORCH-005`): subagent `reviewer`, hoặc `reviewer-alt` khi người viết cùng họ với `reviewer`; không kết luận được → INCONCLUSIVE (`xt.py pr reviewed --inconclusive`). Trong autopilot chỉ giao khi `xt.py pr next` trả `review` (máy đã biết PR nào cần); ngoài autopilot khi người dùng yêu cầu. Phiên chính tổng hợp.
 
 ## Thứ tự rà
 1. **Đúng việc:** diff làm đúng SPEC/task? có sửa nhầm chỗ khác? phạm vi phình?
