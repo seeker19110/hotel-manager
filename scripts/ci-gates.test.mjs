@@ -278,7 +278,12 @@ describe("D-084/D-085 — cổng hoãn tới pha harden", () => {
     const manualOnly = new Set();
     for (const wf of Object.values(wfs))
       for (const [key, job] of Object.entries(wf.jobs ?? {}))
-        if (String(job.if ?? "").trim() === "github.event_name == 'workflow_dispatch'")
+        if (
+          String(job.if ?? "").trim() === "github.event_name == 'workflow_dispatch'" &&
+          wf.on &&
+          typeof wf.on === "object" &&
+          "workflow_dispatch" in wf.on // không có trigger ⇒ không chạy được cả tay (review #109)
+        )
           for (const c of jobContexts(key, job)) manualOnly.add(c);
     for (const c of DEFERRED_TO_HARDEN)
       expect(manualOnly.has(c), `${c} còn chạy ngoài workflow_dispatch`).toBe(true);
