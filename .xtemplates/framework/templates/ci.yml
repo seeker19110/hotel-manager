@@ -2,25 +2,22 @@
 # ci.yml thì giữ nguyên, bản khung ghi `ci.yml.xtemplates-new` để gộp tay). KHÔNG phụ thuộc stack: mọi lệnh lấy từ
 # `xt.yaml` qua `.xtemplates/scripts/dev-task.sh <task>` (WF-CI-002); toolchain/phụ thuộc cài bằng khoá `setup:` của xt.yaml
 # (vd `setup: npm ci`, `setup: pip install -r requirements.txt`) — runner ubuntu-latest đã có node/python/go/java.
-# Tối thiểu + song song tối đa (WF-CI-025, D-115): build · typecheck · lint · test (shard) · e2e (shard) · checks ·
-# protection-guard chạy CÙNG LÚC, không job lập kế hoạch tuần tự đứng trước — matrix tĩnh, mỗi shard tự đọc xt.yaml
-# (`dev-task.sh test-mode`/`e2e-mode`); khoá chưa khai thì job in lý do rồi xanh (riêng `lint`/`test` rỗng → `checks` đỏ,
-# D-096). `quality` (required check của ruleset) TỔNG HỢP mọi job con với `if: always()` (WF-CI-001).
+# Tối thiểu số job, song song tối đa trong số đó (ADR-0039, D-128, WF-CI-025): `gate` (một lần cài phụ thuộc,
+# `dev-task.sh gate-par` = typecheck ∥ lint ∥ build → test kèm coverage chạy nền cùng lúc TRONG job, rồi kiểm của khung) ·
+# `e2e` (job dài) — hai job không `needs`, bắt đầu cùng lúc · `quality` (TỔNG HỢP với `if: always()`, WF-CI-001, kèm bước
+# protection-guard). Các repo cùng tài khoản dùng chung trần job đồng thời: job ngắn tách riêng làm job dài xếp hàng chờ
+# runner — không tách lại build/typecheck/lint/test thành job riêng.
 # Ruleset mẫu (D-116, D-117, D-122) chỉ đòi 2 check: `quality`, `gitleaks` (secret-scan.yml), không đòi "up to date" — PR
 # merge song song, lỗi kết hợp hai PR bị CI trên push `main` bắt (merge của steward cần `XT_STEWARD_TOKEN` mới kích push,
-# xem pr-steward.yml). `protection-guard` (đối chiếu ruleset ↔ job) là job con của `quality`. Thêm job con (vd
-# `dep-audit` theo ngôn ngữ): thêm tên vào `quality.needs`.
-# Đổi tên job là required check: sửa ruleset cùng PR (protection-guard đỏ).
-# Tăng song song khi chậm: thêm số vào `matrix.shard` của `test`/`e2e` (WF-CI-025 — đo trước, shard rỗng thì đỏ).
+# xem pr-steward.yml). Thêm kiểm ngắn (vd `dep-audit` theo ngôn ngữ): thêm BƯỚC vào `gate`; thêm job dài và độc lập
+# (DAST, Lighthouse…): thêm job và tên nó vào `quality.needs` — không thêm required check.
+# Đổi tên job là required check: sửa ruleset cùng PR (bước protection-guard của `quality` đỏ).
 name: CI
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-    # `edited`: sửa tiêu đề PR thì chạy lại bước kiểm tiêu đề.
-    types: [opened, synchronize, reopened, edited]
+  push: { branches: [main] }
+  # `edited`: sửa tiêu đề PR thì chạy lại bước kiểm tiêu đề.
+  pull_request: { branches: [main], types: [opened, synchronize, reopened, edited] }
 
 # Mặc định tối thiểu cho MỌI job (GITHUB_TOKEN chỉ đọc). Job nào cần hơn tự khai ở job-level.
 permissions:
@@ -31,159 +28,35 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-env:
-  # Sàn số id test mà `test_list` phải liệt kê (tổng, trước khi chia): liệt kê hỏng/rỗng thì đỏ thay vì xanh với 0 test.
-  XT_MIN_TESTS: "1"
-
 jobs:
-  build:
-    name: build
+  # Một job cho mọi kiểm ngắn: `gate-par` chạy cùng các lệnh của cổng cục bộ `dev-task.sh gate` nhưng các nhóm độc lập
+  # song song trong job (log từng nhóm in lại nguyên khối; nhóm nào đỏ thì bước đỏ). Nhóm ghi chung file (vd typecheck
+  # sinh mã mà build đọc) → đổi bước thành `dev-task.sh gate` (tuần tự). Coverage: ngưỡng nằm trong chính lệnh `test` của
+  # xt.yaml (vd `--fail-under`) — `gate-par` chạy `test` (và `test_floor` nếu khai), không chia shard;
+  # `test_list`/`test_unit`/`test_combine` chỉ dùng khi đo thấy `gate` là đường dài nhất và tách test ra job riêng.
+  gate:
+    name: gate
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: setup — khoá `setup:` của xt.yaml (vắng = bỏ qua)
-        run: bash .xtemplates/scripts/dev-task.sh setup
-      - name: build — đúng lệnh trong xt.yaml
-        run: bash .xtemplates/scripts/dev-task.sh build
-
-  typecheck:
-    name: typecheck
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: setup — khoá `setup:` của xt.yaml (vắng = bỏ qua)
-        run: bash .xtemplates/scripts/dev-task.sh setup
-      - name: typecheck — đúng lệnh trong xt.yaml
-        run: bash .xtemplates/scripts/dev-task.sh typecheck
-
-  lint:
-    name: lint
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: setup — khoá `setup:` của xt.yaml (vắng = bỏ qua)
-        run: bash .xtemplates/scripts/dev-task.sh setup
-      - name: lint — đúng lệnh trong xt.yaml (nên gồm kiểm format)
-        run: bash .xtemplates/scripts/dev-task.sh lint
-
-  # Matrix TĨNH (không job `test-plan` tuần tự đứng trước): `test-mode` = `shard` khi xt.yaml khai đủ `test_list` ·
-  # `test_unit` · `test_combine` → mỗi shard chạy phần của nó, coverage gộp ở job `coverage`; `whole` → shard 1 chạy cả
-  # `test`, shard khác bỏ qua sau checkout (vài giây).
-  test:
-    name: test ${{ matrix.shard }}/${{ strategy.job-total }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false # shard khác vẫn chạy hết để thấy mọi chỗ đỏ; kết quả gộp của job vẫn là `failure`
-      matrix:
-        shard: [1, 2, 3, 4]
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - id: mode
-        name: test-mode — chia shard hay chạy cả `test` (đọc xt.yaml)
-        run: |
-          set -euo pipefail
-          mode="$(bash .xtemplates/scripts/dev-task.sh test-mode)"
-          echo "mode=$mode" >> "$GITHUB_OUTPUT"
-          echo "test-mode: $mode"
-      - if: steps.mode.outputs.mode == 'shard' || matrix.shard == 1
-        name: setup — khoá `setup:` của xt.yaml (vắng = bỏ qua)
-        run: bash .xtemplates/scripts/dev-task.sh setup
-      - if: steps.mode.outputs.mode == 'shard'
-        name: test — một shard (`test-shard`, coverage ghi vào thư mục tạm)
-        env:
-          SHARD: ${{ matrix.shard }}
-          TOTAL: ${{ strategy.job-total }}
-        run: bash .xtemplates/scripts/dev-task.sh test-shard "$SHARD" "$TOTAL" "$RUNNER_TEMP/cov"
-      - if: steps.mode.outputs.mode == 'whole' && matrix.shard == 1
-        name: test — cả lệnh `test` (xt.yaml không khai chia shard)
-        run: bash .xtemplates/scripts/dev-task.sh test
-      # `test_unit` ghi dữ liệu coverage vào "$XT_COV_DIR"; file bắt đầu bằng `.` → cần `include-hidden-files`.
-      - if: steps.mode.outputs.mode == 'shard'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: coverage-${{ matrix.shard }}
-          path: ${{ runner.temp }}/cov/
-          include-hidden-files: true
-          if-no-files-found: error
-          retention-days: 1
-
-  # Luôn có (bước bị điều kiện bỏ qua, không phải job): job `skipped` sẽ làm `quality` đỏ. Không chia shard → ngưỡng
-  # coverage nằm trong chính lệnh `test` của xt.yaml.
-  coverage:
-    name: coverage
-    needs: [test]
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - id: mode
-        name: test-mode — có chia shard không (đọc xt.yaml)
-        run: |
-          set -euo pipefail
-          mode="$(bash .xtemplates/scripts/dev-task.sh test-mode)"
-          echo "mode=$mode" >> "$GITHUB_OUTPUT"
-      - if: steps.mode.outputs.mode == 'whole'
-        name: Không chia shard — coverage nằm trong `test`
-        run: echo "xt.yaml không khai đủ test_list/test_unit/test_combine — job test đã chạy cả lệnh test."
-      - if: steps.mode.outputs.mode == 'shard'
-        name: setup — khoá `setup:` của xt.yaml (vắng = bỏ qua)
-        run: bash .xtemplates/scripts/dev-task.sh setup
-      - if: steps.mode.outputs.mode == 'shard'
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          pattern: coverage-*
-          merge-multiple: true
-          path: ${{ runner.temp }}/cov
-      - if: steps.mode.outputs.mode == 'shard'
-        name: Gộp coverage mọi shard, đòi ngưỡng của `test_combine` trong xt.yaml
-        run: bash .xtemplates/scripts/dev-task.sh test-combine "$RUNNER_TEMP/cov"
-
-  # E2E (QA-E2E-001, QA-E2E-029): chạy CÙNG LÚC với các job khác, không `needs: build` — lệnh `e2e` tự build và phục vụ
-  # (vd `webServer` của Playwright). `e2e-mode`: `off` (chưa khai `e2e`) → bỏ qua; `shard` (lệnh dùng $XT_SHARD, vd
-  # `npx playwright test --shard=${XT_SHARD:-1/1}`) → mỗi shard một phần; `whole` → shard 1 chạy cả suite.
-  e2e:
-    name: e2e ${{ matrix.shard }}/${{ strategy.job-total }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2]
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - id: mode
-        name: e2e-mode — có suite E2E không, chia shard được không (đọc xt.yaml)
-        run: |
-          set -euo pipefail
-          mode="$(bash .xtemplates/scripts/dev-task.sh e2e-mode)"
-          echo "mode=$mode" >> "$GITHUB_OUTPUT"
-          echo "e2e-mode: $mode"
-      - if: steps.mode.outputs.mode == 'shard' || (steps.mode.outputs.mode == 'whole' && matrix.shard == 1)
-        name: setup — khoá `setup:` của xt.yaml (vắng = bỏ qua)
-        run: bash .xtemplates/scripts/dev-task.sh setup
-      - if: steps.mode.outputs.mode == 'shard' || (steps.mode.outputs.mode == 'whole' && matrix.shard == 1)
-        name: e2e — `e2e_setup` rồi `e2e` với XT_SHARD=I/N
-        env:
-          SHARD: ${{ matrix.shard }}
-          TOTAL: ${{ strategy.job-total }}
-        run: bash .xtemplates/scripts/dev-task.sh e2e "$SHARD" "$TOTAL"
-
-  checks:
-    name: checks
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # PROGRESS.md: SHA bàn giao phải là tổ tiên HEAD (doctor kiểm)
-      # D-096: job `lint`/`test` in "skip" và xanh khi xt.yaml để rỗng → `quality` xanh mà không chạy gì. Bước này đỏ
-      # (mọi `delivery_phase`) tới khi xt.yaml khai lệnh thật cho `lint` và `test`; typecheck/build rỗng vẫn được.
+          persist-credentials: false
+      # D-096: `dev-task.sh gate-par` bỏ qua (`skip`, xanh) task để rỗng → `quality` xanh mà không chạy gì. Bước này đỏ (mọi
+      # `delivery_phase`) tới khi xt.yaml khai lệnh thật cho `lint` và `test`; typecheck/build rỗng vẫn được. Đặt trước
+      # `setup` để đỏ sớm, không tốn thời gian cài phụ thuộc.
       - name: Cổng bắt buộc đã khai — `lint` và `test` trong xt.yaml không rỗng/no-op
         run: bash .xtemplates/scripts/dev-task.sh require lint test
+      - name: setup — khoá `setup:` của xt.yaml (vắng = bỏ qua)
+        run: bash .xtemplates/scripts/dev-task.sh setup
+      - name: gate-par — typecheck ∥ lint ∥ build → test (kèm ngưỡng coverage của `test`) đúng lệnh trong xt.yaml
+        run: bash .xtemplates/scripts/dev-task.sh gate-par
+      # Sàn M/L (LOOP-HARNESS-023): khoá sàn khai riêng trong xt.yaml (`format_check`, `coverage`, kiểm kiểu theo stack) —
+      # trước chỉ `loop verify` chạy nên CI xanh khi sàn đỏ (AUD-XFEAT-020). Lệnh trùng lệnh của gate-par bỏ qua; `e2e` có
+      # job riêng; quy mô S/không blueprint → không áp; khoá thiếu chỉ cảnh báo (như doctor).
+      - name: Sàn Gate M/L — `xt.py floor --run` (khoá sàn đã khai đỏ → bước đỏ)
+        run: python3 .xtemplates/scripts/xt.py floor --run --skip e2e
       - name: Khung đã cài còn nguyên — `xt.py doctor` (đỏ khi có lỗi; cảnh báo không chặn)
         run: python3 .xtemplates/scripts/xt.py doctor
       - name: Workflow (ghim SHA, quyền, timeout, secret trên PR) + cấu hình xt.yaml — `xt.py ci-check`
@@ -203,43 +76,60 @@ jobs:
             echo "::error::Tiêu đề PR phải dạng '<type>(scope): mô tả' và ≤ 72 ký tự: $TITLE"; exit 1
           fi
 
-  # Required check `quality` (ruleset `.github/rulesets/main.json`): job TỔNG HỢP của mọi job con ở trên (WF-CI-001).
-  # `always()` — không phải `!cancelled()`: run bị huỷ thì `quality` vẫn chạy và ĐỎ (job con `cancelled`/`skipped` ≠
-  # `success`). Với `!cancelled()`, run bị huỷ làm `quality` thành `skipped`, mà required check `skipped` được GitHub tính
-  # là ĐẠT → auto-merge có thể merge mã chưa qua test. Job matrix: `needs.<job>.result` là kết quả gộp.
+  # E2E (QA-E2E-001, QA-E2E-029): chạy CÙNG LÚC với `gate`, không `needs` — lệnh `e2e` tự build và phục vụ (vd `webServer`
+  # của Playwright). `e2e-mode`: `off` (chưa khai `e2e`) → bỏ qua; `shard` (lệnh dùng $XT_SHARD, vd
+  # `npx playwright test --shard=${XT_SHARD:-1/1}`) → mỗi shard một phần; `whole` → shard 1 chạy cả suite.
+  e2e:
+    name: e2e ${{ matrix.shard }}/${{ strategy.job-total }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false # shard khác vẫn chạy hết để thấy mọi chỗ đỏ; kết quả gộp của job vẫn là `failure`
+      matrix:
+        # Một shard. Thêm shard (vd [1, 2]) chỉ khi đo thấy e2e là đường dài nhất của CI (WF-CI-025, ADR-0039).
+        shard: [1]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: mode
+        name: e2e-mode — có suite E2E không, chia shard được không (đọc xt.yaml)
+        run: |
+          set -euo pipefail
+          mode="$(bash .xtemplates/scripts/dev-task.sh e2e-mode)"
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "e2e-mode: $mode"
+      - if: steps.mode.outputs.mode == 'shard' || (steps.mode.outputs.mode == 'whole' && matrix.shard == 1)
+        name: setup — khoá `setup:` của xt.yaml (vắng = bỏ qua)
+        run: bash .xtemplates/scripts/dev-task.sh setup
+      - if: steps.mode.outputs.mode == 'shard' || (steps.mode.outputs.mode == 'whole' && matrix.shard == 1)
+        name: e2e — `e2e_setup` rồi `e2e` với XT_SHARD=I/N
+        env:
+          SHARD: ${{ matrix.shard }}
+          TOTAL: ${{ strategy.job-total }}
+        run: bash .xtemplates/scripts/dev-task.sh e2e "$SHARD" "$TOTAL"
+
+  # Required check `quality` (ruleset `.github/rulesets/main.json`): TỔNG HỢP mọi job con (WF-CI-001). `always()` — không
+  # phải `!cancelled()`: run bị huỷ thì `quality` vẫn chạy và ĐỎ (job con `cancelled`/`skipped` ≠ `success`). Với
+  # `!cancelled()`, run bị huỷ làm `quality` thành `skipped`, mà required check `skipped` được GitHub tính là ĐẠT →
+  # auto-merge có thể merge mã chưa qua test. Job matrix: `needs.<job>.result` là kết quả gộp.
+  # Bước protection-guard — hàng rào cho hàng rào: (1) mọi required check trong ruleset mẫu phải là job có thật (chặn
+  # khoá-nhánh-do-đổi-tên-job; context thêm tay mà chưa có job → đỏ tới khi viết job đó hoặc bỏ khỏi ruleset); (2) ruleset
+  # trên nhánh mặc định có đang hiệu lực không — chỉ CẢNH BÁO (không đỏ) để repo mới chưa import vẫn merge được. API
+  # `rules/branches` chỉ cần quyền đọc metadata mà GITHUB_TOKEN luôn có — `contents: read` của workflow là đủ.
   quality:
     name: quality
-    needs: [build, typecheck, lint, test, coverage, e2e, checks, protection-guard]
+    needs: [gate, e2e]
     if: ${{ always() }}
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 5
     env:
       RESULTS: ${{ toJSON(needs) }}
     steps:
-      - name: Mọi job con phải `success`
-        run: |
-          python3 - <<'PY'
-          import json, os, sys
-          needs = json.loads(os.environ["RESULTS"])
-          bad = {job: v.get("result") for job, v in needs.items() if v.get("result") != "success"}
-          for job, v in sorted(needs.items()):
-              print(f"{job}={v.get('result')}")
-          if not needs or bad:
-              print(f"::error::Job con không `success`: {bad or 'không có job con nào'}")
-              sys.exit(1)
-          PY
-
-  # Hàng rào cho hàng rào: (1) mọi required check trong ruleset mẫu phải là job có thật (chặn khoá-nhánh-do-đổi-tên-job;
-  # context thêm tay mà chưa có job → đỏ tới khi viết job đó hoặc bỏ khỏi ruleset); (2) ruleset trên nhánh mặc định có đang
-  # hiệu lực không — chỉ CẢNH BÁO (không đỏ) để repo mới chưa import vẫn merge được. Job con của `quality` (D-117): lỗi
-  # nó chặn là PR treo chờ check không có — fail-closed — nên không cần là required check riêng.
-  protection-guard:
-    name: protection-guard
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Required check trong ruleset ↔ job có thật
+        with:
+          persist-credentials: false
+      - name: protection-guard — required check trong ruleset ↔ job có thật
         run: |
           set -euo pipefail
           if [ ! -f .github/rulesets/main.json ]; then
@@ -265,7 +155,7 @@ jobs:
           done
           [ "$fail" = 0 ] && echo "OK — mọi required check đều là job có thật."
           exit $fail
-      - name: Ruleset trên nhánh mặc định đang hiệu lực? (cảnh báo)
+      - name: protection-guard — ruleset trên nhánh mặc định đang hiệu lực? (cảnh báo)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
@@ -280,3 +170,17 @@ jobs:
             fi
           done
           echo "Đã kiểm ruleset (cảnh báo nếu thiếu)."
+      # `always()`: bước tổng hợp chạy cả khi bước protection-guard đỏ hay checkout lỗi — log luôn nêu job con nào đỏ.
+      - name: Mọi job con phải `success`
+        if: ${{ always() }}
+        run: |
+          python3 - <<'PY'
+          import json, os, sys
+          needs = json.loads(os.environ["RESULTS"])
+          bad = {job: v.get("result") for job, v in needs.items() if v.get("result") != "success"}
+          for job, v in sorted(needs.items()):
+              print(f"{job}={v.get('result')}")
+          if not needs or bad:
+              print(f"::error::Job con không `success`: {bad or 'không có job con nào'}")
+              sys.exit(1)
+          PY
