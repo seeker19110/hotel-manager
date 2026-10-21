@@ -55,6 +55,8 @@ jobs:
   # FE-PERF-004, XC-GREEN-002: ngân sách bundle JS gzip (.size-limit.json; lý do ở docs/PERF-BUDGET.md). Đỏ khi vượt.
   build-size:
     name: bundle-size
+    # D-084: hoãn tới pha harden — không chạy trên PR (không required), vẫn chạy trên push main; khôi phục khi delivery_phase: harden.
+    if: github.event_name == 'push'
     needs: [typecheck, lint]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -77,6 +79,8 @@ jobs:
   # FE-PERF-002, PRF-WEB-005: Lighthouse mobile, 5 lần chạy lấy median, assert `error` (lighthouserc.json). Server = e2e/server.ts.
   lighthouse:
     name: lighthouse
+    # D-084: hoãn tới pha harden — không chạy trên PR (không required), vẫn chạy trên push main; khôi phục khi delivery_phase: harden.
+    if: github.event_name == 'push'
     needs: [typecheck, lint]
     runs-on: ubuntu-24.04
     # 6 URL × 5 lần đo (PRF-WEB-005).
@@ -174,6 +178,8 @@ jobs:
   # FE-TEST-002, PRF-WEB-006, UX-RESP-008, FE-TEST-003: E2E luồng chính lặp 3 lần trên CẢ HAI project (mobile + desktop).
   e2e-repeat:
     name: e2e-repeat
+    # D-084: hoãn tới pha harden — không chạy trên PR (không required), vẫn chạy trên push main; khôi phục khi delivery_phase: harden.
+    if: github.event_name == 'push'
     needs: [typecheck, lint]
     runs-on: ubuntu-24.04
     timeout-minutes: 30

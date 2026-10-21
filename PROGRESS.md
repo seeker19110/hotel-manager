@@ -2,7 +2,7 @@
 ## Đang làm
 - Audit toàn bộ 2026-10-19 (#99: `docs/ops/AUDIT-STATUS.md`, 1🔴 4🟠 22🟢, A11Y chưa quét). Đợt 14 sửa 🔴/🟠, **đều chờ người merge (ngoại lệ cứng, review Opus sạch)**: #100 SEC-001 (D-081…D-083: quyền người thuê cần email xác minh OTP; tài khoản chỉ-tenant chỉ vào bằng OTP) · #101 DATA-001/002 (migration 0064 RLS danh mục theo cơ sở) · #102 CI-001 (coverage chạy khi sửa mô tả PR + rào chung). Thứ tự gợi ý: #100 → #101 → #102 → #99. HAR-001 (XC-OSS-007) cần chủ dự án quyết. Đợt 13 (D-078): #96–#98 đã merge.
 - Đợt 13 (D-078): #96–#98 đã merge (bộ đếm i18n trên AST, kiểm tham số `t()`). Đợt 12 (D-075/D-076): #76–#79, #82. **Đợt mới dùng `loop resume`, không `loop init`** (FB-149).
-- Phát hành v0.2.0 (#88); ruleset `main` 29 check đã import; `release-please` đỏ do secret `RELEASE_PLEASE_TOKEN` thiếu quyền ghi (người sửa — README, mục Phát hành).
+- Phát hành v0.2.0 (#88); ruleset `main` 29 check đã import (D-084: hạ còn 17 ở pha build, 12 cổng hoãn tới harden — người import lại `main.json`); `release-please` đỏ do secret `RELEASE_PLEASE_TOKEN` thiếu quyền ghi (người sửa — README, mục Phát hành).
 
 ## Tiếp theo
 1. Người (theo nhóm, từng bước ở BLUEPRINT-GAPS): ① import `.github/rulesets/tags.json` (cấm xoá/dời tag `v*`, WF-REL-003) ② nhãn `major`, Dependabot, quyết D-060 ③ BASE-REPO-006 cần tag annotated (release-please tạo tag thường) — quyết bước tạo tag; xoá tag mồ côi `v2.0.0` ④ VPS/domain/staging/secret store ⑤ sao lưu khác máy + Prometheus/Alertmanager + RPO/RTO ⑥ pháp lý DPIA/DPO/DPA ⑦ LICENSE + SECURITY.md + PVR ⑧ kiểm tay thiết bị/a11y ⑨ quyết IND-SAAS-009, CMP-RIGHTS-001, PM-METRIC-003 ⑩ duyệt `WORKER_DATABASE_URL`/`MIGRATION_DATABASE_URL` ⑪ SMTP, ClamAV ⑫ quyết 18 đề xuất "Khi chạy thật" (GO-NO-GO 4b).

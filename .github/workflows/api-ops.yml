@@ -39,6 +39,8 @@ jobs:
   # OPS-SLO-001: rule cảnh báo + SLO. `check rules` (cú pháp), `test rules` (rule báo/không báo đúng), truy vấn SLI trong SLO.md.
   prometheus-rules:
     name: prometheus-rules
+    # D-084: hoãn tới pha harden — không chạy trên PR (không required), vẫn chạy trên push main; khôi phục khi delivery_phase: harden.
+    if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -60,6 +62,8 @@ jobs:
   # OPS-OBS-001: cấu hình Collector hợp lệ (validate) và chạy thật trên log mẫu — dòng rác vẫn lưu với nhãn `unparsed`.
   otel-collector:
     name: otel-collector
+    # D-084: hoãn tới pha harden — không chạy trên PR (không required), vẫn chạy trên push main; khôi phục khi delivery_phase: harden.
+    if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -83,7 +87,9 @@ jobs:
   # (schema-guards.baseline.json, data-map.yaml) được `overlay` chép từ PR — xem scripts/schema-compat.mjs.
   schema-compat:
     name: schema-compat
-    if: github.event_name == 'pull_request'
+    # D-084: hoãn tới pha harden — không chạy trên PR (không required), vẫn chạy trên push main; khôi phục khi delivery_phase: harden.
+    # Trên push: N−1 = commit trước push (`github.event.before`).
+    if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     services:
@@ -105,7 +111,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          ref: ${{ github.event.pull_request.base.sha }}
+          ref: ${{ github.event.pull_request.base.sha || github.event.before }}
           path: .n-1
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0

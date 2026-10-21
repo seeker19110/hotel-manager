@@ -449,11 +449,14 @@ describe("OPS-DEPLOY-003 — schema-compat (bản N−1 trên schema N)", () => 
     expect(overlay(copy, ROOT)).toBe(0);
   });
 
-  it("workflow: chỉ chạy trên PR, checkout nền theo base.sha, overlay trước, chạy project db và loại đúng schema-drift", () => {
+  it("workflow: checkout nền theo base.sha (PR) hoặc commit trước push, overlay trước, chạy project db và loại đúng schema-drift", () => {
     const wf = read(".github/workflows/api-ops.yml");
     const job = wf.slice(wf.indexOf("  schema-compat:"));
-    expect(job).toContain("if: github.event_name == 'pull_request'");
-    expect(job).toContain(`ref: ${["$", "{{ github.event.pull_request.base.sha }}"].join("")}`);
+    // D-084: pha build chỉ chạy trên push main (hoãn khỏi PR tới harden — scripts/ci-gates.test.mjs).
+    expect(job).toContain("if: github.event_name == 'push'");
+    expect(job).toContain(
+      `ref: ${["$", "{{ github.event.pull_request.base.sha || github.event.before }}"].join("")}`,
+    );
     expect(job.indexOf("schema-compat.mjs overlay .n-1 .")).toBeGreaterThan(0);
     expect(job.indexOf("overlay")).toBeLessThan(job.indexOf("pnpm install --frozen-lockfile"));
     expect(job).toContain(

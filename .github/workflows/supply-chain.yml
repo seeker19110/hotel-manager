@@ -29,6 +29,8 @@ concurrency:
 jobs:
   sbom:
     name: sbom
+    # D-084: hoãn tới pha harden — không chạy trên PR (không required), vẫn chạy push main/lịch/chạy tay; khôi phục khi delivery_phase: harden.
+    if: github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -65,6 +67,8 @@ jobs:
 
   image-scan:
     name: image-scan (${{ matrix.name }})
+    # D-084: hoãn tới pha harden — không chạy trên PR (không required), vẫn chạy push main/lịch/chạy tay; khôi phục khi delivery_phase: harden.
+    if: github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
