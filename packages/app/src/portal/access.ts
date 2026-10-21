@@ -18,15 +18,20 @@ function fieldError(path: string, code: string, message: string): CommandError {
   });
 }
 
-/** Cơ sở của hợp đồng còn hiệu lực mà người này đứng tên (đại diện / người thuê chung chưa rời) — trong phạm vi actor. */
+/** Cơ sở của hợp đồng còn hiệu lực mà người này đứng tên (đại diện / người thuê chung chưa rời) — trong phạm vi actor.
+ *  "Chưa rời" so `to_on` với ngày địa phương của CƠ SỞ (`properties.timezone`), không phải `current_date` của phiên
+ *  CSDL (UTC) — AUD-XFEAT-002. */
 async function tenantProperties(ctx: CommandContext, personId: string): Promise<string[]> {
   const r = await sql<{ property_id: string }>`
     select distinct l.property_id from leases l
+    join properties p on p.organization_id = l.organization_id and p.id = l.property_id
     where l.organization_id = ${ctx.actor.orgId} and l.status in ('signed_awaiting_handover','active','notice_given','settling')
       and (l.representative_person_id = ${personId}
            or exists (select 1 from lease_occupants o where o.organization_id = l.organization_id and o.lease_id = l.id
                         and o.person_id = ${personId} and o.role in ('primary','co_tenant')
-                        and (o.to_on is null or o.to_on >= current_date)))`.execute(ctx.trx);
+                        and (o.to_on is null or o.to_on >= (now() at time zone p.timezone)::date)))`.execute(
+    ctx.trx,
+  );
   return r.rows
     .map((x) => x.property_id)
     .filter((p) => ctx.actor.allProperties || ctx.actor.propertyIds.includes(p));
