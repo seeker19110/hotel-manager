@@ -53,7 +53,7 @@ function jobNames(wfs) {
 
 /**
  * Workflow có chạy trên MỌI pull_request vào main (không lọc `paths`/`paths-ignore`/nhánh khác)? `pull_request_target`
- * cũng tính (merge-gate của khung: workflow lấy từ nhánh mặc định, vẫn báo check trên head của PR).
+ * cũng tính (workflow lấy từ nhánh mặc định, vẫn báo check trên head của PR) — dù WF-CI-004 cấm trigger đó.
  */
 const PR_EVENTS = ["pull_request", "pull_request_target"];
 function runsOnEveryPr(wf) {
@@ -162,17 +162,17 @@ const DEFERRED_TO_HARDEN = [
 /** Cổng có từ trước đợt 9; `quality` gom gate/e2e/backup-restore/workflow-lint/onboarding-smoke (T-807). */
 const BASE_GATES = ["quality", "gitleaks"]; // protection-guard, dep-audit: hoãn tới harden (D-086)
 /**
- * Khung 3.13.0 (ADR-0036): máy chỉ merge ghim head, `merge-gate` thành stub `pull_request` luôn xanh — không còn là
- * required check trong main.json; ruleset SỐNG còn context đó tới khi chủ dự án gỡ, rồi stub mới được xoá.
+ * Khung 3.13.0 (ADR-0036): máy chỉ merge ghim head nên `merge-gate` hết lý do tồn tại. Chủ dự án đã gỡ context khỏi
+ * ruleset sống (2026-10-21) rồi mới xoá workflow stub — xoá trước thì mọi PR treo "Expected — merge-gate".
  */
 const FRAMEWORK_GATES = [];
-/** Job chạy trên PR nhưng không phải bằng chứng CI (stub của khung) — không đòi trong main.json. */
-const NON_CI_STUBS = new Set(["merge-gate"]);
+/** Cổng đã gỡ hẳn: không còn job, không còn trong main.json — vẫn đếm để không cổng nào biến mất lặng lẽ. */
+const RETIRED_GATES = ["merge-gate"];
 
 describe("WF-CI-001 — job gom quality + ruleset khớp job thật", () => {
   const ruleset = JSON.parse(read(".github/rulesets/main.json"));
 
-  it("ruleset đòi cổng nền (quality · gitleaks) + cổng PR của đợt 9 còn chạy, không đòi stub merge-gate", () => {
+  it("ruleset đòi cổng nền (quality · gitleaks) + cổng PR của đợt 9 còn chạy, không đòi cổng đã gỡ", () => {
     expect(requiredContexts(ruleset).sort()).toEqual(
       [...BASE_GATES, ...WAVE9_GATES, ...FRAMEWORK_GATES].sort(),
     );
@@ -315,7 +315,7 @@ describe("D-065 — ruleset gom mọi job chạy trên mọi PR vào main", () =
 
   it("mỗi job chạy trên mọi PR có trong main.json, trừ job đã gom vào quality (needs)", () => {
     for (const c of prJobs)
-      if (!aggregated.has(c) && !NON_CI_STUBS.has(c))
+      if (!aggregated.has(c))
         expect(required.has(c), `${c} chạy trên PR nhưng chưa là required check`).toBe(true);
   });
 
@@ -367,14 +367,14 @@ describe("D-065 — ruleset gom mọi job chạy trên mọi PR vào main", () =
   });
 
   it("nhóm cổng đợt 9 đều có mặt và là job PR thật", () => {
-    // 29 cổng (nền 4 + đợt 9 24 + khung 1) = còn required + hoãn tới harden (D-084…D-086) + stub khung (ADR-0036):
+    // 29 cổng (nền 4 + đợt 9 24 + khung 1) = còn required + hoãn tới harden (D-084…D-086) + đã gỡ (ADR-0036):
     // không cổng nào bị bỏ lặng lẽ.
     expect(
       BASE_GATES.length +
         WAVE9_GATES.length +
         FRAMEWORK_GATES.length +
         DEFERRED_TO_HARDEN.length +
-        NON_CI_STUBS.size,
+        RETIRED_GATES.length,
     ).toBe(29);
     for (const c of WAVE9_GATES) {
       expect(required.has(c), `${c} thiếu trong main.json`).toBe(true);
@@ -441,25 +441,18 @@ describe("WF-CI-004 — zizmor + không nội suy input không tin cậy vào ru
     }
   });
 
-  it("merge-gate.yml là stub pull_request trần: không checkout, chỉ quyền đọc, không secret", () => {
-    const f = "merge-gate.yml";
-    const wf = wfs[f];
-    const text = read(`${WORKFLOW_DIR}/${f}`);
-    expect(triggers(wf)).toEqual(["pull_request"]);
-    expect(wf.on.pull_request ?? null).toBeNull(); // lọc branches/paths/types ⇒ PR không khớp treo "Expected"
-    expect(text).not.toMatch(/actions\/checkout@/);
-    expect(wf.permissions).toEqual({ contents: "read" });
-    for (const [key, job] of Object.entries(wf.jobs)) {
-      for (const level of Object.values(job.permissions ?? {})) expect(level, key).toBe("read");
-      for (const step of job.steps ?? []) {
-        if (String(step.uses ?? "").startsWith("actions/checkout@")) {
-          expect(step.with?.ref, key).toBeUndefined();
-          expect(step.with?.["persist-credentials"], key).toBe(false);
-        }
-      }
+  it("cổng đã gỡ (merge-gate, ADR-0036) không còn workflow, job hay context trong main.json", () => {
+    const ruleset = JSON.parse(read(".github/rulesets/main.json"));
+    const jobs = new Set(
+      Object.values(wfs).flatMap((wf) =>
+        Object.entries(wf.jobs ?? {}).flatMap(([k, job]) => jobContexts(k, job)),
+      ),
+    );
+    for (const g of RETIRED_GATES) {
+      expect(wfs[`${g}.yml`], g).toBeUndefined();
+      expect(jobs.has(g), g).toBe(false);
+      expect(requiredContexts(ruleset), g).not.toContain(g);
     }
-    expect(text).not.toMatch(/secrets\./);
-    expect(text).not.toMatch(/pull_request\.head\.(ref|repo)/);
   });
 
   it("không có biểu thức Actions nằm thẳng trong run: (đi qua env:)", () => {

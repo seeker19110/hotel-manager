@@ -3,7 +3,7 @@
 - 2026-10-21: khung 3.12.0 — `ci.yml`: `typecheck`/`lint` song song với `gate` (build → test: test quét bundle cần `.next`), e2e 6 shard; ruleset giữ (đã tối thiểu).
 - 2026-10-21: đã merge #99–#104, #108. Audit 2026-10-19 (`docs/ops/AUDIT-STATUS.md`) hết 🔴/🟠, A11Y chưa quét; HAR-001 (XC-OSS-007) cần chủ dự án quyết.
 - **Đợt mới dùng `loop resume`, không `loop init`** (FB-149). Lịch sử đợt 12–13: `docs/autopilot/DECISIONS.md`.
-- Phát hành v0.2.0 (#88). D-084…D-086: ruleset `main` còn 3 required check (quality, gitleaks, merge-gate; strict tắt); 26 cổng hoãn tới harden chỉ chạy tay; E2E song song + 4 shard. `release-please` đỏ do secret `RELEASE_PLEASE_TOKEN` thiếu quyền ghi (người sửa — README, mục Phát hành).
+- Phát hành v0.2.0 (#88). D-084…D-086: ruleset `main` còn 2 required check (quality, gitleaks; strict tắt — merge-gate gỡ 2026-10-21, ADR-0036 của khung); 26 cổng hoãn tới harden chỉ chạy tay; E2E song song + 4 shard. `release-please` đỏ do secret `RELEASE_PLEASE_TOKEN` thiếu quyền ghi (người sửa — README, mục Phát hành).
 
 ## Tiếp theo
 1. Người (theo nhóm, từng bước ở BLUEPRINT-GAPS): ① import `.github/rulesets/tags.json` (cấm xoá/dời tag `v*`, WF-REL-003) ② nhãn `major`, Dependabot, quyết D-060 ③ BASE-REPO-006 cần tag annotated (release-please tạo tag thường) — quyết bước tạo tag; xoá tag mồ côi `v2.0.0` ④ VPS/domain/staging/secret store ⑤ sao lưu khác máy + Prometheus/Alertmanager + RPO/RTO ⑥ pháp lý DPIA/DPO/DPA ⑦ LICENSE + SECURITY.md + PVR ⑧ kiểm tay thiết bị/a11y ⑨ quyết IND-SAAS-009, CMP-RIGHTS-001, PM-METRIC-003 ⑩ duyệt `WORKER_DATABASE_URL`/`MIGRATION_DATABASE_URL` ⑪ SMTP, ClamAV ⑫ quyết 18 đề xuất "Khi chạy thật" (GO-NO-GO 4b).
