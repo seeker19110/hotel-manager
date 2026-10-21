@@ -1,5 +1,6 @@
 // T-202 (D-004): mã hoá số giấy tờ tầng app — AES-256-GCM có key_id, AAD ràng hàng, blind index, xoay khoá.
 import { randomBytes } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   createPiiCipher,
@@ -61,6 +62,13 @@ describe("createPiiCipher", () => {
     bad[bad.length - 1] = (bad[bad.length - 1] as number) ^ 1;
     expect(() => pii.decrypt(bad, "row-1")).toThrow(PiiKeyError);
     expect(() => pii.decrypt(Buffer.alloc(5), "row-1")).toThrow(PiiKeyError);
+  });
+
+  it("AUD-SEC-002: cipher/decipher GCM ghim authTagLength 16 (không nhận tag ngắn nếu sau này đổi cách cắt buffer)", () => {
+    const src = readFileSync(new URL("./pii.ts", import.meta.url), "utf8");
+    const calls = src.match(/create(?:Dec|C)ipheriv\("aes-256-gcm"[^;]*;/g) ?? [];
+    expect(calls).toHaveLength(2);
+    for (const c of calls) expect(c).toMatch(/authTagLength: TAG_BYTES/);
   });
 
   it("sai khoá (keyring khác) → không giải mã được", () => {
