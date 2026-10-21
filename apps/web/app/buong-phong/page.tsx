@@ -57,7 +57,7 @@ export default async function HousekeepingPage() {
                           <span className="card__meta">
                             {t.priority !== "normal" ? `${PRIORITY[t.priority] ?? t.priority} · ` : ""}
                             {t.arrivalToday && t.expectedArrivalAt
-                              ? `Khách đến hôm nay lúc ${dateTime(t.expectedArrivalAt)} · `
+                              ? `Khách đến hôm nay lúc ${dateTime(t.expectedArrivalAt, p.timezone)} · `
                               : ""}
                             {t.assigneeName ? `Người làm: ${t.assigneeName}` : "Chưa có người nhận"}
                           </span>

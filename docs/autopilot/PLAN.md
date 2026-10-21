@@ -1,32 +1,30 @@
-# docs/autopilot/PLAN.md — Hotel Manager · Đợt 15: hoàn thiện ở dev trước production
+# docs/autopilot/PLAN.md — Hotel Manager · Đợt 16: hoàn thiện ở dev — phần còn lại của audit 🟢
 
-> **Cổng duyệt: phiên chính tự duyệt 2026-10-21** (AGENTS §5; D-087, D-088 ở `docs/autopilot/DECISIONS.md`). Chủ dự án (2026-10-21): "trước hết chạy dev, hoàn thiện trước mới lên production".
-> Kế hoạch đợt 1–2 và đợt 3–14 lưu ở `archive/` (`PLAN-dot-3-14.md`: 110 task, mọi task đã có bằng chứng xanh ở các phiên trước).
-> Nền: PR #115 (`pnpm dev:up`, sửa điều hướng `/phong`, CSP dev) — chờ người merge (ngoại lệ cứng). Đợt này xếp chồng trên nhánh của #115.
+> **Cổng duyệt: phiên chính tự duyệt 2026-10-21** (AGENTS §5; D-089 ở `docs/autopilot/DECISIONS.md`). Tiếp đợt 15 (`archive/PLAN-dot-15.md`, PR #116 chờ người merge); xếp chồng cùng nhánh (D-088).
 
 ## Tóm tắt cổng duyệt (≤ 30 dòng)
-- **Mục tiêu:** đóng mọi phát hiện 🟢 còn mở của audit 2026-10-19 làm được trong repo, quét nhóm A11Y (nhóm duy nhất "chưa quét"), và cho môi trường dev giữ file tải lên giữa các lần chạy. Không đụng hạ tầng/production.
-- **Blueprint:** MUST đạt 351 · miễn 59 · mở 91 (đều cần người — BLUEPRINT-GAPS). Đợt này không nhắm tick MUST mới; mục tiêu là sổ audit sạch hơn và trải nghiệm đúng.
-- **Stack:** giữ nguyên (ADR-0001). Không thêm phụ thuộc.
-- **Task:** 9 (T-1501…T-1509), 3 lát. Mỗi task một Gate máy kiểm; sửa lỗi có test đỏ trước.
-- **Rủi ro:** (R1) đổi cách tính "hôm nay" ở quyền portal là auth/tenancy ⇒ ngoại lệ cứng, người merge; (R2) bắt buộc `SMTP_URL` ở production làm hỏng cấu hình đang chạy — chưa có production, E2E đặt tường minh; (R3) một nhánh duy nhất ⇒ PR #115 lớn dần (D-088).
-- **Điểm dừng:** merge PR ngoại lệ cứng (người); không SMTP/ClamAV/VPS thật.
-- **Ngân sách:** `--single-session` (trần vòng tự tính) · 1800 s/lệnh · 24 giờ.
+- **Mục tiêu:** đóng các phát hiện 🟢 còn mở của audit 2026-10-19 làm được trong repo: múi giờ hiển thị/"hôm nay" theo cơ sở, rào CSDL theo vai trò cho ghi hồ sơ người và phiếu thu (phòng thủ chiều sâu), N+1 khi xem trước kỳ thu, tài liệu lệch mã.
+- **Không làm (lý do ở D-089):** AUD-SEC-003 bác bỏ — ma trận SPEC-access xếp đảo thanh toán vào "Phân bổ tiền, điều chỉnh có lý do" (= `payment.allocate`); AUD-DATA-005/006, AUD-PERF-002 (ghi theo dòng, chưa đo được hại), AUD-XFEAT-005 phần mã `DUPLICATE` (đổi mã lỗi là breaking API); AUD-HAR-001 chờ chủ dự án.
+- **Stack:** giữ nguyên; không thêm phụ thuộc. Migration mới 0065 (chỉ thêm policy, có `down`).
+- **Task:** 6 (T-1601…T-1606), 2 lát. Sửa lỗi có test đỏ trước.
+- **Rủi ro:** (R1) policy RESTRICTIVE mới chặn nhầm luồng hợp lệ (worker, nhập liệu, check-in tạo khách) — chạy toàn bộ test DB; (R2) gom truy vấn kỳ thu đổi kết quả tiền — so khớp từng đồng với bản cũ trên cùng dữ liệu.
+- **Điểm dừng:** PR chạm CSDL/tiền ⇒ người merge.
+- **Ngân sách:** `--single-session` · 1800 s/lệnh · 24 giờ.
 
 ## Mục tiêu của kế hoạch này
-Khi xong: `pnpm dev:up` giữ ảnh tải lên qua SeaweedFS bền; sổ `docs/ops/AUDIT-STATUS.md` có nhóm A11Y đã quét và các phát hiện 🟢 đã sửa chuyển "đã sửa" kèm bằng chứng; người thuê không mất/không giữ quyền lệch 7 giờ quanh nửa đêm.
+Khi xong: mọi giờ hiển thị và mốc "hôm nay" theo `properties.timezone`; vai buồng phòng/kỹ thuật/người thuê không ghi được hồ sơ người hay phiếu thu ngay ở tầng CSDL; xem trước kỳ thu của cơ sở N hợp đồng dùng số truy vấn không tăng theo N; ADR/AGENTS khớp mã.
 
 ## Ngân sách (4 con số)
 - Số vòng tối đa: bỏ trống (`--single-session`)
 - Ngân sách: ≤ 60 USD token
-- Timeout mỗi lệnh Gate: 1800 s (`XT_RECORD_TIMEOUT`, mặc định)
+- Timeout mỗi lệnh Gate: 1800 s
 - Hạn chót: 24 giờ kể từ `loop init` (`--hours 24`)
 
 ## Hạn
 | Loại | Ngày | Hậu quả nếu trễ | Cách xử lý khi trễ |
 |---|---|---|---|
 | Hạn thật | chưa có | — | — |
-| Hạn mong muốn | 2026-10-22 | nội bộ | cắt lát 3 trước |
+| Hạn mong muốn | 2026-10-22 | nội bộ | cắt T-1604 trước |
 
 ## Ủy quyền production
 - grant: payments | mode=sandbox | max_per_txn=0 | refund=false
@@ -37,35 +35,25 @@ Khi xong: `pnpm dev:up` giữ ảnh tải lên qua SeaweedFS bền; sổ `docs/o
 - grant: secrets | read_values=false
 
 ## Điểm dừng bắt buộc về hành động
-- Merge PR ngoại lệ cứng (auth/mật mã/tiền/CSDL — `merge-check` trả `hard`): người merge.
-- SMTP/ClamAV/VPS/tên miền/secret thật; gửi email ra ngoài.
+- Merge PR chạm `packages/db/*`, tiền, auth (ngoại lệ cứng): người merge.
 
 ## Thứ tự & lý do
-1. **Lát 1 — quét A11Y + cấu hình an toàn** (T-1501…T-1503): nhóm audit duy nhất chưa quét; hai sửa nhỏ một hàm.
-2. **Lát 2 — thống nhất chéo tính năng** (T-1504…T-1506): lỗi đúng/sai thật cho người dùng (quyền lệch múi giờ, danh sách cắt im lặng, 401 thiếu mã tra cứu).
-3. **Lát 3 — dev bền + tài liệu + rà đợt** (T-1507…T-1509).
+1. **Lát 1 — múi giờ và tài liệu** (T-1601, T-1602, T-1605): nhỏ, độc lập file.
+2. **Lát 2 — CSDL và hiệu năng** (T-1603, T-1604, T-1606): rủi ro cao hơn, tầng sâu, chạy song song vì khác file.
 
 ## Task
 
-> Gate chạy bằng `set -o pipefail; python3 .xtemplates/scripts/xt.py loop record --task T-xxx -- '<Gate>'`. E2E dùng cổng riêng, không chạy song song với `loop verify`.
+### Lát 1 — Múi giờ và tài liệu
+- [x] `T-1601` AUD-XFEAT-003 + AUD-XFEAT-005 (phần định dạng số): mọi lời gọi `dateTime(…)` trong `apps/web` truyền múi giờ của cơ sở liên quan (không dựa mặc định); `portal/dien-nuoc` dùng helper định dạng chung thay `Intl.NumberFormat` gọi thẳng; rào: `dateTime` bắt buộc tham số múi giờ, không tự dựng Intl ngoài `lib/format.ts` (files: apps/web/app/, apps/web/lib/, apps/web/components/) — Gate: `pnpm vitest run --project unit apps/web/components && pnpm --filter @hm/web exec tsc -p tsconfig.json`
+- [x] `T-1602` AUD-XFEAT-002 (phần còn lại): `reports.receivables` tính "hôm nay" theo `properties.timezone` của từng cơ sở (bỏ +7h cố định), `/ky-thu` lấy tháng mặc định theo cơ sở đang xem; test DB: cơ sở múi giờ khác ngày UTC cho đúng số ngày quá hạn (files: packages/app/src/reports/, apps/web/app/ky-thu/) — Gate: `pnpm vitest run --project db packages/app/src/reports`
+- [ ] `T-1605` Tài liệu: AUD-DOC-002 (ADR-0003 ghi `@serwist/turbopack` thay mục Serwist của ADR-0001, đổi dòng trạng thái ADR-0001, SPEC-pwa/research trỏ ADR mới), AUD-HAR-002 (AGENTS.md §9: dev/CI không cần Docker — `scripts/dev-env-setup.sh`, `pnpm dev:up`), AUD-SEC-003 → "bác bỏ" kèm lý do ở sổ audit (files: docs/adr/, docs/specs/SPEC-pwa.md, docs/research/, AGENTS.md, docs/ops/AUDIT-STATUS.md) — Gate: `pnpm vitest run --project unit scripts && python3 .xtemplates/scripts/xt.py audit check docs/ops/AUDIT-STATUS.md`
 
-### Lát 1 — Quét A11Y và cấu hình an toàn
-- [x] `T-1501` Nhóm 6 A11Y của audit: chạy axe trên MỌI route (E2E 320 px của `ux-guards.spec.ts`) + bàn phím; ghi `docs/ops/AUDIT-STATUS.md` nhóm 6 "đã quét" kèm SHA, phạm vi đã/chưa (trình đọc màn hình thật là việc người — STD-A11Y-004); phát hiện mới vào bảng (files: docs/ops/AUDIT-STATUS.md) — Gate: `E2E_PORT=3320 pnpm --filter @hm/web exec playwright test ux-guards && python3 .xtemplates/scripts/xt.py audit check docs/ops/AUDIT-STATUS.md`
-- [x] `T-1502` AUD-CFG-001: production không còn mặc định `SMTP_URL=fake://local` — thiếu biến ở production thì khởi động lỗi nêu tên biến; dev/test giữ mặc định; `fake://` ở production chỉ khi đặt tường minh (E2E); test đỏ trước (files: packages/app/src/config/) — Gate: `pnpm vitest run --project unit packages/app/src/config`
-- [x] `T-1503` AUD-SEC-002: `createDecipheriv(…, { authTagLength: 16 })` (và cipher) ở `pii.ts`; test: tag cắt ngắn bị từ chối (files: packages/app/src/crypto/) — Gate: `pnpm vitest run --project unit packages/app/src/crypto`
-
-### Lát 2 — Thống nhất chéo tính năng
-- [x] `T-1504` AUD-XFEAT-002 (phần quyền): `portal/access.ts` `tenantProperties` so `lease_occupants.to_on` với ngày địa phương của CƠ SỞ (`properties.timezone`) thay `current_date` (UTC của phiên CSDL); test DB: người ở cùng rời ngày D — lúc 23:30 giờ VN ngày D còn quyền, 00:30 ngày D+1 hết quyền (exec: deep; files: packages/app/src/portal/) — Gate: `pnpm vitest run --project db packages/app/src/portal/portal-access`
-- [x] `T-1505` AUD-XFEAT-001: `reservation.list` trần 200 thành hằng `RESERVATION_LIST_LIMIT` (export); `/dat-phong` và `/lich-phong` hiện thông báo "đang hiện N đặt phòng đầu — thu hẹp khoảng ngày" khi chạm trần; test unit thông báo + `list-limits` vẫn xanh (files: packages/app/src/stay/reservations.ts, apps/web/app/dat-phong/, apps/web/app/lich-phong/, apps/web/components/) — Gate: `pnpm vitest run --project unit packages/app/src/http/list-limits apps/web/components`
-- [x] `T-1506` AUD-XFEAT-004: `GET /api/v1/me` 401 có `correlation_id` + header `x-correlation-id` như mọi route; test (files: apps/web/app/api/v1/me/, packages/app/src/http/) — Gate: `pnpm vitest run --project unit packages/app/src/http`
-
-### Lát 3 — Dev bền, tài liệu, rà đợt
-- [x] `T-1507` Dev: `pnpm dev:up` dùng SeaweedFS bền ở `.dev/s3` khi có `weed` (`startS3Server({ dir })` giữ dữ liệu, không xoá khi dừng), không có `weed` thì về S3 giả trong bộ nhớ kèm cảnh báo; test testkit cho tuỳ chọn `dir` (files: packages/testkit/src/s3-server.ts, apps/web/scripts/dev-stack.ts, README.md) — Gate: `pnpm vitest run --project unit packages/testkit/src/s3-server && pnpm --filter @hm/web exec tsc -p tsconfig.json`
-- [x] `T-1508` Tài liệu lệch mã: AUD-DOC-001 (README 0.2.0, compose có web+worker), AUD-DOC-003 (`INV-L*`), AUD-DOC-004 (`APPROVAL_NOT_EXECUTABLE` vào API-CONTRACT), AUD-ARCH-001 (trần pool RUNBOOK), AUD-CI-002 (chú thích khôi phục `commit-lint` theo tác giả PR) (files: README.md, docs/, packages/app/src/reports/reports.ts, .github/workflows/commit-lint.yml) — Gate: `python3 .xtemplates/scripts/xt.py ci-check .github/workflows && pnpm vitest run --project unit scripts`
-- [x] `T-1509` Rà đợt 15: `AUDIT-STATUS.md` chuyển các phát hiện đã sửa sang "đã sửa" kèm PR; PROGRESS (sau: T-1501, T-1502, T-1503, T-1504, T-1505, T-1506, T-1507, T-1508; files: docs/ops/AUDIT-STATUS.md, PROGRESS.md) — Gate: `python3 .xtemplates/scripts/xt.py audit check docs/ops/AUDIT-STATUS.md && python3 .xtemplates/scripts/xt.py progress-check`
+### Lát 2 — CSDL và hiệu năng
+- [ ] `T-1603` AUD-DATA-003 + AUD-DATA-004: migration 0065 thêm policy RESTRICTIVE theo `app.actor_role()` — `persons` INSERT/UPDATE chỉ owner/manager/front_desk/accountant (và đường worker/không actor giữ nguyên như 0064); `payments` ghi và `shift_discrepancies` INSERT chỉ vai được ghi nhận thanh toán theo ma trận SPEC-access; `down` gỡ đúng các policy; test DB đỏ trước: housekeeping/maintenance/tenant INSERT `persons`/`payments` = lỗi RLS, các vai hợp lệ và luồng sẵn có (check-in tạo khách, nhập liệu, worker) vẫn xanh (exec: deep; files: packages/db/src/migrations/, packages/testkit/src/) — Gate: `pnpm vitest run --project db packages/testkit/src/migration-0065 packages/app/src/http/authz-matrix packages/app/src/payments packages/app/src/stay`
+- [ ] `T-1604` AUD-PERF-001: `billing` `buildPreview` gom truy vấn theo lô (hợp đồng, công tơ, chỉ số, giá) thay vòng lặp mỗi hợp đồng; test DB: cơ sở 1 và 20 hợp đồng (điện + nước) — số truy vấn không tăng theo số hợp đồng (đếm qua log query của Kysely) và kết quả xem trước trùng từng đồng với bản cũ (exec: deep; files: packages/app/src/billing/, packages/app/src/metering/) — Gate: `pnpm vitest run --project db packages/app/src/billing`
+- [ ] `T-1606` Rà đợt 16: sổ audit (đã sửa / bác bỏ / còn mở có lý do), PROGRESS (sau: T-1601, T-1602, T-1603, T-1604, T-1605; files: docs/ops/AUDIT-STATUS.md, PROGRESS.md) — Gate: `python3 .xtemplates/scripts/xt.py audit check docs/ops/AUDIT-STATUS.md && python3 .xtemplates/scripts/xt.py progress-check`
 
 ## Phụ thuộc ngoài
 | Việc | Bên ngoài | Kế hoạch B |
 |---|---|---|
-| Merge #115 và PR đợt này | chủ dự án (ngoại lệ cứng) | đợt xếp chồng trên cùng nhánh |
-| Trình đọc màn hình thật, thiết bị thật | người kiểm tay (STD-A11Y-004) | axe + bàn phím trong E2E |
+| Merge #116 và PR đợt này | chủ dự án (ngoại lệ cứng) | xếp chồng cùng nhánh (D-088) |

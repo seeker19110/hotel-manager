@@ -401,6 +401,7 @@ export async function cancelTask(ctx: CommandContext, input: { taskId: string; r
 /** Danh sách trường cho phép của một việc — KHÔNG có tên/SĐT khách, giấy tờ, tiền (S-003, S-020; test so khớp). */
 export const TASK_FIELDS = [
   "id",
+  "propertyId",
   "unitId",
   "unitCode",
   "floor",
@@ -419,6 +420,8 @@ export const TASK_FIELDS = [
 
 export interface TaskView {
   id: string;
+  /** Cơ sở của việc — trang chi tiết lấy múi giờ cơ sở để hiển thị giờ (AUD-XFEAT-003). */
+  propertyId: string;
   unitId: string;
   unitCode: string;
   floor: string;
@@ -486,6 +489,7 @@ async function queryTasks(
     limit 500`.execute(trx);
   return r.rows.map((x) => ({
     id: x.id,
+    propertyId: where.propertyId,
     unitId: x.unit_id,
     unitCode: x.unit_code,
     floor: x.floor,

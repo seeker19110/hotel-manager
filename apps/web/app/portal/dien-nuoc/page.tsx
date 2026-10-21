@@ -2,7 +2,7 @@ import { listMyMeterReadings, serverContext } from "@hm/app";
 import { safeUrl } from "@hm/app/http";
 import type { Metadata } from "next";
 import { EmptyState } from "../../../components/ui/state.tsx";
-import { day, METER_LABEL } from "../../../lib/format.ts";
+import { day, decimal, METER_LABEL } from "../../../lib/format.ts";
 import { withPortal } from "../../../lib/portal-page.tsx";
 
 export const metadata: Metadata = { title: "Điện nước — Hotel Manager" };
@@ -20,7 +20,7 @@ export default async function PortalMetersPage() {
         {rows.map((r) => (
           <li key={r.id} className="card" data-testid="reading">
             <p className="card__title">
-              {METER_LABEL[r.kind] ?? r.kind}: {new Intl.NumberFormat("vi-VN").format(r.value)}
+              {METER_LABEL[r.kind] ?? r.kind}: {decimal(r.value)}
             </p>
             <p className="card__meta">Ngày {day(r.readOn)}</p>
             {safeUrl(r.photoUrl) ? (

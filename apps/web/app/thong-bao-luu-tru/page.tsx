@@ -45,8 +45,8 @@ export default async function NoticesPage() {
                       {n.isForeign ? " · khách nước ngoài" : ""}
                     </p>
                     <p className="card__meta">
-                      {n.dueAt ? `Hạn nộp ${dateTime(n.dueAt)}` : "Chưa cấu hình hạn nộp"}
-                      {n.submittedAt ? ` · đã nộp ${dateTime(n.submittedAt)}` : ""}
+                      {n.dueAt ? `Hạn nộp ${dateTime(n.dueAt, p.timezone)}` : "Chưa cấu hình hạn nộp"}
+                      {n.submittedAt ? ` · đã nộp ${dateTime(n.submittedAt, p.timezone)}` : ""}
                     </p>
                     <StatusBadge status={n.status} label={NOTICE_STATUS[n.status] ?? n.status} />
                     {n.overdue ? (
