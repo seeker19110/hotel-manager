@@ -12,7 +12,7 @@
 | Web + phụ thuộc (readiness) | `GET /api/ready` | `200 {"status":"ready","checks":{"database":"ok","storage":"ok","scanner":"ok"}}`; thiếu ⇒ `503` kèm thành phần `fail`/`timeout` (không có chi tiết lỗi) |
 | Số liệu | `GET /api/metrics` + `Authorization: Bearer <token>` | Prometheus text 0.0.4; có `hm_http_requests_total` và `hm_http_request_duration_seconds` (theo mẫu route/method/status), `hm_metrics_db_ok` (0 = CSDL lỗi lượt scrape đó) |
 | Worker | metric `hm_worker_heartbeat_age_seconds{worker=…}` | < 120 giây (worker ghi nhịp mỗi 30 giây, tên `worker`; §8) |
-| CSDL | Postgres 17, `max_connections=100`, pool ≤ 20/tiến trình | — |
+| CSDL | Postgres 17, `max_connections=100`; web: pool ứng dụng ≤ 20 + pool auth ≤ 10 (tổng ≤ 30/tiến trình), trần từng pool ở [`docs/db/connections.md`](db/connections.md) | — |
 | Kho file | SeaweedFS (S3), bucket riêng tư, URL ký ≤ 5 phút | — |
 | Quét mã độc | clamd (ClamAV) nội bộ; dev/CI dùng bản giả EICAR | — |
 

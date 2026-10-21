@@ -1,7 +1,7 @@
 # Hotel Manager
 
 SaaS web/PWA giúp chủ trọ, nhà nghỉ, khách sạn nhỏ ở Việt Nam quản lý phòng, hợp đồng, kỳ thu, cọc, công nợ và lưu trú ngắn hạn
-**đúng tiền, đúng phòng**. Trạng thái: pre-release `0.1.0`, chưa có môi trường production, chưa dùng dữ liệu thật
+**đúng tiền, đúng phòng**. Trạng thái: `0.2.0` (pre-release), chưa có môi trường production, chưa dùng dữ liệu thật
 (xem [`PROGRESS.md`](PROGRESS.md) và [`CHANGELOG.md`](CHANGELOG.md)).
 
 - Vấn đề, người dùng, phạm vi MVP, chỉ số: [`PROJECT.md`](PROJECT.md)
@@ -57,7 +57,7 @@ pnpm install --frozen-lockfile
 - Web (Next.js) chạy tay: `pnpm --filter @hm/web dev` với biến môi trường tự đặt và CSDL đã áp migration (`packages/db/src/migrations`).
 - Chạy thử trọn luồng với dữ liệu giả: lệnh E2E bên dưới tự dựng Postgres tạm, seed, build và khởi động web.
 - Worker (`apps/worker`): tiến trình chạy thật — `node apps/worker/src/index.ts` (Node 24; relay outbox, consumer pg-boss, job định kỳ; dừng êm khi nhận SIGTERM). Cần thêm `WORKER_DATABASE_URL` (vai trò `app_worker`); lịch và cách dừng ở [`docs/RUNBOOK.md`](docs/RUNBOOK.md) §8.
-- Đóng gói: [`deploy/web.Dockerfile`](deploy/web.Dockerfile) và [`deploy/worker.Dockerfile`](deploy/worker.Dockerfile) (chưa build thật trên máy có Docker; compose chưa có service ứng dụng).
+- Đóng gói: [`deploy/web.Dockerfile`](deploy/web.Dockerfile) và [`deploy/worker.Dockerfile`](deploy/worker.Dockerfile) ; `deploy/compose.yaml` có service `web` và `worker` (chưa triển khai lên VPS).
 
 ## Kiểm tra (cổng chất lượng)
 

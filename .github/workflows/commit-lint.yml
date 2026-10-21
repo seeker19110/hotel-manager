@@ -18,7 +18,7 @@ concurrency:
 jobs:
   commit-lint:
     name: commit-lint
-    # D-086: hoãn tới pha harden — chỉ chạy tay (workflow_dispatch); khôi phục khi delivery_phase: harden. Khi khôi phục: if: github.actor != 'dependabot[bot]'.
+    # D-086: hoãn tới pha harden — chỉ chạy tay (workflow_dispatch); khôi phục khi delivery_phase: harden. Khi khôi phục: xét TÁC GIẢ PR như pr-policy.yml (AUD-CI-002), không xét người kích hoạt: if: github.event.pull_request.user.login != 'dependabot[bot]'.
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 5

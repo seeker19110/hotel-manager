@@ -49,6 +49,7 @@ Trường tuỳ chọn theo mã (không có thì bỏ hẳn, không gửi `null`
 | `VERSION_CONFLICT` | 409 | `base_version` cũ (optimistic lock) |
 | `OVER_ALLOCATION` | 409 | Vi phạm INV-F2 |
 | `PERIOD_LOCKED` | 409 | Ghi vào kỳ/ca đã khoá |
+| `APPROVAL_NOT_EXECUTABLE` | 409 | Duyệt yêu cầu mà loại yêu cầu chưa có bộ thực hiện; không ghi gì |
 | `LINK_EXPIRED` | 410 | Link khách/xuất dữ liệu đã hết hạn |
 | `FILE_TOO_LARGE` | 413 | File vượt giới hạn |
 | `FILE_TYPE_NOT_ALLOWED` | 415 | MIME/magic bytes không trong allowlist |
