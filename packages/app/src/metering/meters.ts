@@ -109,6 +109,38 @@ export async function priceAt(
   return r.rows[0] ? Number(r.rows[0].p) : null;
 }
 
+/**
+ * `priceAt` theo lô (AUD-PERF-001): đơn giá hiệu lực cho nhiều cặp (dịch vụ, ngày) bằng MỘT truy vấn. Khoá kết quả
+ * `priceKey(serviceId, on)`; cùng điều kiện hiệu lực với `priceAt` (ràng buộc không chồng ⇒ tối đa một giá mỗi cặp).
+ */
+export async function pricesAt(
+  trx: Transaction<unknown>,
+  orgId: string,
+  wanted: { serviceId: string; on: string }[],
+): Promise<Map<string, number | null>> {
+  const out = new Map<string, number | null>();
+  for (const w of wanted) out.set(priceKey(w.serviceId, w.on), null);
+  const pairs = [...out.keys()].map((k) => k.split("|") as [string, string]);
+  if (pairs.length === 0) return out;
+  const r = await sql<{ i: number; p: string }>`
+    select x.i::int as i, sp.unit_price::text as p
+    from unnest(${pairs.map((x) => x[0])}::uuid[], ${pairs.map((x) => x[1])}::date[]) with ordinality as x(service_id, on_date, i)
+    join service_prices sp on sp.organization_id = ${orgId} and sp.service_id = x.service_id
+      and sp.effective_from <= x.on_date and (sp.effective_to is null or sp.effective_to >= x.on_date)`.execute(
+    trx,
+  );
+  const seen = new Set<number>();
+  for (const row of r.rows) {
+    if (seen.has(row.i)) continue;
+    seen.add(row.i);
+    const [serviceId, on] = pairs[row.i - 1] as [string, string];
+    out.set(priceKey(serviceId, on), Number(row.p));
+  }
+  return out;
+}
+
+export const priceKey = (serviceId: string, on: string): string => `${serviceId}|${on}`;
+
 // ---------- Công tơ ----------
 
 /** `meter.install`: công tơ mới cho phòng (một công tơ đang dùng mỗi loại). */
@@ -340,50 +372,109 @@ export async function periodConsumptionText(
   orgId: string,
   readingId: string,
 ): Promise<string> {
-  const r = await sql<{ meter_id: string; value: string; read_on: string }>`
-    select meter_id, value::text, read_on::text from meter_readings where organization_id = ${orgId} and id = ${readingId}`.execute(
-    trx,
-  );
-  const end = r.rows[0];
-  if (!end) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy chỉ số");
-  let meterId = end.meter_id;
-  let value = end.value;
-  let before = end.read_on;
-  let excludeId: string | null = readingId;
-  let total = "0";
+  return (await periodConsumptionTexts(trx, orgId, [readingId])).get(readingId) as string;
+}
+
+/**
+ * `periodConsumptionText` theo lô (AUD-PERF-001): lượng tiêu thụ của nhiều chỉ số bằng số truy vấn KHÔNG phụ thuộc số chỉ số —
+ * 1 truy vấn đọc chỉ số cuối + mỗi bước lùi (≤ 5, theo chuỗi thay công tơ) tối đa 3 truy vấn cho mọi chỉ số còn dở. Cùng quy
+ * tắc với bản đơn lẻ: lùi về chỉ số đã duyệt trước trên cùng công tơ (bỏ chỉ số tháo công tơ); không có thì qua sự kiện thay
+ * công tơ sang công tơ cũ; không có sự kiện thì từ chỉ số lắp.
+ */
+export async function periodConsumptionTexts(
+  trx: Transaction<unknown>,
+  orgId: string,
+  readingIds: string[],
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const ids = [...new Set(readingIds)];
+  if (ids.length === 0) return out;
+  const r = await sql<{ id: string; meter_id: string; value: string; read_on: string }>`
+    select id, meter_id, value::text, read_on::text from meter_readings
+    where organization_id = ${orgId} and id = any(${ids}::uuid[])`.execute(trx);
+  const ends = new Map(r.rows.map((x) => [x.id, x]));
+  interface Walk {
+    readingId: string;
+    meterId: string;
+    value: string;
+    before: string;
+    excludeId: string | null;
+    total: string;
+  }
+  let pending: Walk[] = ids.map((id) => {
+    const end = ends.get(id);
+    if (!end) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy chỉ số");
+    return {
+      readingId: id,
+      meterId: end.meter_id,
+      value: end.value,
+      before: end.read_on,
+      excludeId: id,
+      total: "0",
+    };
+  });
   // total + (value − prev) viết bằng phép trừ thập phân: total − (prev − value).
-  const add = (prev: string) => decimalSub(total, decimalSub(prev, value));
-  for (let hop = 0; hop < 5; hop++) {
-    const prev = await sql<{ value: string }>`
-      select value::text from meter_readings
-      where organization_id = ${orgId} and meter_id = ${meterId} and status = 'approved' and read_on <= ${before}::date
-        and id is distinct from ${excludeId}::uuid and source <> 'replacement'
-      order by read_on desc, value desc, created_at desc limit 1`.execute(trx);
-    if (prev.rows[0]) return add(prev.rows[0].value);
+  const add = (w: Walk, prev: string) => decimalSub(w.total, decimalSub(prev, w.value));
+  for (let hop = 0; hop < 5 && pending.length > 0; hop++) {
+    const prev = await sql<{ i: number; value: string }>`
+      select x.i::int as i, p.value
+      from unnest(${pending.map((w) => w.meterId)}::uuid[], ${pending.map((w) => w.before)}::date[],
+                  ${pending.map((w) => w.excludeId)}::uuid[]) with ordinality as x(meter_id, before, exclude_id, i)
+      cross join lateral (
+        select r.value::text as value from meter_readings r
+        where r.organization_id = ${orgId} and r.meter_id = x.meter_id and r.status = 'approved' and r.read_on <= x.before
+          and r.id is distinct from x.exclude_id and r.source <> 'replacement'
+        order by r.read_on desc, r.value desc, r.created_at desc limit 1) p`.execute(trx);
+    const prevBy = new Map(prev.rows.map((x) => [x.i - 1, x.value]));
+    const rest: Walk[] = [];
+    for (const [i, w] of pending.entries()) {
+      const v = prevBy.get(i);
+      if (v !== undefined) out.set(w.readingId, add(w, v));
+      else rest.push(w);
+    }
+    pending = rest;
+    if (rest.length === 0) break;
     const ev = await sql<{
+      new_meter_id: string;
       meter_id: string;
       old_final_value: string;
       new_initial_value: string;
       occurred_on: string;
     }>`
-      select meter_id, old_final_value::text, new_initial_value::text, occurred_on::text from meter_events
-      where organization_id = ${orgId} and new_meter_id = ${meterId}`.execute(trx);
-    const e = ev.rows[0];
-    if (!e) {
-      const m = await sql<{
-        v: string;
-      }>`select initial_value::text as v from meters where organization_id = ${orgId} and id = ${meterId}`.execute(
+      select new_meter_id, meter_id, old_final_value::text, new_initial_value::text, occurred_on::text from meter_events
+      where organization_id = ${orgId} and new_meter_id = any(${[...new Set(rest.map((w) => w.meterId))]}::uuid[])`.execute(
+      trx,
+    );
+    const evBy = new Map<string, (typeof ev.rows)[number]>();
+    for (const e of ev.rows) if (!evBy.has(e.new_meter_id)) evBy.set(e.new_meter_id, e);
+    const noEvent = [...new Set(rest.filter((w) => !evBy.has(w.meterId)).map((w) => w.meterId))];
+    const initial = new Map<string, string>();
+    if (noEvent.length > 0) {
+      const m = await sql<{ id: string; v: string }>`
+        select id, initial_value::text as v from meters where organization_id = ${orgId} and id = any(${noEvent}::uuid[])`.execute(
         trx,
       );
-      return add(m.rows[0]?.v ?? "0");
+      for (const x of m.rows) initial.set(x.id, x.v);
     }
-    total = add(e.new_initial_value);
-    meterId = e.meter_id;
-    value = e.old_final_value;
-    before = e.occurred_on;
-    excludeId = null;
+    pending = [];
+    for (const w of rest) {
+      const e = evBy.get(w.meterId);
+      if (!e) {
+        out.set(w.readingId, add(w, initial.get(w.meterId) ?? "0"));
+        continue;
+      }
+      pending.push({
+        readingId: w.readingId,
+        total: add(w, e.new_initial_value),
+        meterId: e.meter_id,
+        value: e.old_final_value,
+        before: e.occurred_on,
+        excludeId: null,
+      });
+    }
   }
-  throw new Error("chuỗi thay công tơ quá dài");
+  if (pending.length > 0) throw new Error("chuỗi thay công tơ quá dài");
+  return out;
 }
 
 /** Trung bình tiêu thụ của `ANOMALY.history` kỳ ngay trước (cùng phòng, cùng loại); thiếu dữ liệu ⇒ null (không cảnh báo). */

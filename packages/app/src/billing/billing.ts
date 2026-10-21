@@ -21,8 +21,9 @@ import type { Actor } from "../access/index.ts";
 import { lockPeriod, postEntry, unlockPeriod } from "../ledger/index.ts";
 import {
   missingReadings,
-  periodConsumptionText,
-  priceAt,
+  periodConsumptionTexts,
+  priceKey,
+  pricesAt,
   readPeriod,
   unresolvedAnomalies,
 } from "../metering/index.ts";
@@ -113,6 +114,22 @@ interface LeaseSvc {
   unit_price?: number;
 }
 
+interface LeaseVersionRow {
+  id: string;
+  from: string;
+  to: string | null;
+  rent: string;
+  services: LeaseSvc[];
+}
+
+interface ServiceRow {
+  id: string;
+  name: string;
+  kind: string;
+  revenue_account: RevenueAccount;
+  meter_kind: string | null;
+}
+
 /** Ảnh chụp số liệu kỳ → engine thuần. Cùng số liệu ⇒ cùng `preview_hash` (S-004). */
 export async function buildPreview(
   trx: Transaction<unknown>,
@@ -139,73 +156,154 @@ export async function buildPreview(
       and l.status in ('active','notice_given','settling','closed')
       and l.billing_start_on <= ${p.period_end}::date and (l.moved_out_on is null or l.moved_out_on >= ${p.period_start}::date)
     order by u.code, l.id`.execute(trx);
-  const items: PreviewItem[] = [];
-  for (const l of leases.rows) {
-    const lastDay = l.moved_out_on && l.moved_out_on < p.period_end ? l.moved_out_on : p.period_end;
-    const versions = await sql<{
-      id: string;
-      from: string;
-      to: string | null;
-      rent: string;
-      services: LeaseSvc[];
-    }>`
+  // AUD-PERF-001: số liệu của MỌI hợp đồng trong kỳ đọc theo lô (số truy vấn cố định, không theo số hợp đồng/công tơ) rồi
+  // tính trong bộ nhớ — cùng điều kiện lọc/thứ tự như bản đọc từng hợp đồng trước đây; tiền vẫn do engine thuần tính.
+  const lastDayOf = (l: (typeof leases.rows)[number]) =>
+    l.moved_out_on && l.moved_out_on < p.period_end ? l.moved_out_on : p.period_end;
+  const leaseIds = leases.rows.map((l) => l.id);
+  const versionsBy = new Map<string, LeaseVersionRow[]>();
+  if (leaseIds.length > 0) {
+    const versions = await sql<LeaseVersionRow & { lease_id: string }>`
       -- Ngày cuối hiệu lực THỰC (phiên bản không thời hạn bị phụ lục thay — D-007).
-      select id, effective_from::text as "from", effective_until::text as "to", rent_amount::text as rent, services
-      from lease_versions where organization_id = ${orgId} and lease_id = ${l.id} and signed_at is not null
-      order by version_no`.execute(trx);
-    if (versions.rows.length === 0) continue;
+      select lease_id, id, effective_from::text as "from", effective_until::text as "to", rent_amount::text as rent, services
+      from lease_versions where organization_id = ${orgId} and lease_id = any(${leaseIds}::uuid[]) and signed_at is not null
+      order by lease_id, version_no`.execute(trx);
+    for (const { lease_id, ...v } of versions.rows) {
+      const list = versionsBy.get(lease_id) ?? [];
+      list.push(v);
+      versionsBy.set(lease_id, list);
+    }
+  }
+  const billed = leases.rows.flatMap((l) => {
+    const versions = versionsBy.get(l.id);
+    if (!versions || versions.length === 0) return [];
+    const lastDay = lastDayOf(l);
     const atEnd =
-      [...versions.rows].reverse().find((v) => v.from <= lastDay && (v.to === null || v.to >= lastDay)) ??
-      (versions.rows.at(-1) as (typeof versions.rows)[number]);
-    const svcIds = atEnd.services.map((s) => s.service_id);
-    const svcRows =
-      svcIds.length === 0
-        ? []
-        : (
-            await sql<{
-              id: string;
-              name: string;
-              kind: string;
-              revenue_account: RevenueAccount;
-              meter_kind: string | null;
-            }>`
-              select id, name, kind, revenue_account, meter_kind from services
-              where organization_id = ${orgId} and id = any(${svcIds}::uuid[])`.execute(trx)
-          ).rows;
+      [...versions].reverse().find((v) => v.from <= lastDay && (v.to === null || v.to >= lastDay)) ??
+      (versions.at(-1) as LeaseVersionRow);
+    return [{ l, versions, lastDay, atEnd }];
+  });
+  const svcIds = [...new Set(billed.flatMap((b) => b.atEnd.services.map((s) => s.service_id)))];
+  const svcById = new Map<string, ServiceRow>();
+  if (svcIds.length > 0) {
+    const svcRows = await sql<ServiceRow>`
+      select id, name, kind, revenue_account, meter_kind from services
+      where organization_id = ${orgId} and id = any(${svcIds}::uuid[])`.execute(trx);
+    for (const s of svcRows.rows) svcById.set(s.id, s);
+  }
+  const prices = await pricesAt(
+    trx,
+    orgId,
+    billed.flatMap((b) =>
+      b.atEnd.services
+        .filter((term) => term.unit_price === undefined && svcById.has(term.service_id))
+        .map((term) => ({ serviceId: term.service_id, on: b.lastDay })),
+    ),
+  );
+  const hasMetered = billed.some((b) =>
+    b.atEnd.services.some((term) => svcById.get(term.service_id)?.kind === "metered"),
+  );
+  // Lượng theo khoảng của TỪNG hợp đồng (review lát 3 🔴1): trả phòng trong kỳ mà biên bản trả có chỉ số ⇒ cuối = chỉ số
+  // bàn giao trả (phần sau đó là của phòng trống/người kế tiếp); còn lại cuối = chỉ số kỳ. Đầu luôn là chỉ số đã duyệt liền
+  // trước điểm cuối (gồm chỉ số bàn giao nhận phòng nếu vào giữa kỳ) — periodConsumptionTexts.
+  const movedOutIds = billed
+    .filter((b) => b.l.moved_out_on && b.l.moved_out_on <= p.period_end)
+    .map((b) => b.l.id);
+  const moveOutReading = new Map<string, string>();
+  if (hasMetered && movedOutIds.length > 0) {
+    const r = await sql<{ lease_id: string; kind: string; id: string }>`
+      select distinct on (h.lease_id, m.kind) h.lease_id, m.kind, r.id from meter_readings r
+      join handovers h on h.organization_id = r.organization_id and h.id = r.handover_id
+      join meters m on m.organization_id = r.organization_id and m.id = r.meter_id
+      where r.organization_id = ${orgId} and h.lease_id = any(${movedOutIds}::uuid[]) and h.kind = 'move_out' and r.status = 'approved'
+      order by h.lease_id, m.kind, (m.removed_on is null) desc, r.read_on desc, r.created_at desc`.execute(
+      trx,
+    );
+    for (const x of r.rows) moveOutReading.set(`${x.lease_id}|${x.kind}`, x.id);
+  }
+  const periodReading = new Map<string, string>();
+  if (hasMetered) {
+    const unitIds = [...new Set(billed.map((b) => b.l.unit_id))];
+    const r = await sql<{ unit_id: string; kind: string; id: string }>`
+      select distinct on (m.unit_id, m.kind) m.unit_id, m.kind, r.id
+      from meter_readings r join meters m on m.organization_id = r.organization_id and m.id = r.meter_id
+      where r.organization_id = ${orgId} and r.billing_period_id = ${p.id} and r.source = 'period'
+        and m.unit_id = any(${unitIds}::uuid[])
+      order by m.unit_id, m.kind, (m.removed_on is null) desc, r.read_on desc, r.created_at desc`.execute(
+      trx,
+    );
+    for (const x of r.rows) periodReading.set(`${x.unit_id}|${x.kind}`, x.id);
+  }
+  const readingFor = (b: (typeof billed)[number], s: ServiceRow): string | undefined => {
+    if (s.meter_kind === null) return undefined;
+    const out =
+      b.l.moved_out_on && b.l.moved_out_on <= p.period_end
+        ? moveOutReading.get(`${b.l.id}|${s.meter_kind}`)
+        : undefined;
+    return out ?? periodReading.get(`${b.l.unit_id}|${s.meter_kind}`);
+  };
+  const consumption = await periodConsumptionTexts(
+    trx,
+    orgId,
+    billed.flatMap((b) =>
+      b.atEnd.services.flatMap((term) => {
+        const s = svcById.get(term.service_id);
+        const rid = s?.kind === "metered" ? readingFor(b, s) : undefined;
+        return rid ? [rid] : [];
+      }),
+    ),
+  );
+  // Phí một lần (S-016): đúng một lần — ở kỳ chứa ngày bắt đầu áp dụng = max(ngày bắt đầu tính tiền, hiệu lực của phiên bản
+  // đầu tiên có dịch vụ này) — nên phí thêm bằng phụ lục cũng được tính (review lát 3 🟠5); đã có khoản phải thu (chưa huỷ)
+  // cho hợp đồng + dịch vụ ở kỳ khác thì bỏ qua.
+  const oneTimeDue = (b: (typeof billed)[number], s: ServiceRow): boolean => {
+    const intro =
+      b.versions.find((v) => v.services.some((x) => x.service_id === s.id))?.from ?? b.l.billing_start_on;
+    const startOn = intro > b.l.billing_start_on ? intro : b.l.billing_start_on;
+    return startOn >= p.period_start && startOn <= p.period_end;
+  };
+  const oneTime = billed.flatMap((b) =>
+    b.atEnd.services.flatMap((term) => {
+      const s = svcById.get(term.service_id);
+      return s?.kind === "one_time" && oneTimeDue(b, s) ? [{ leaseId: b.l.id, serviceId: s.id }] : [];
+    }),
+  );
+  const charged = new Set<string>();
+  if (oneTime.length > 0) {
+    const r = await sql<{ lease_id: string; service_id: string }>`
+      select distinct lease_id, service_id from charges
+      where organization_id = ${orgId} and lease_id = any(${[...new Set(oneTime.map((x) => x.leaseId))]}::uuid[])
+        and service_id = any(${[...new Set(oneTime.map((x) => x.serviceId))]}::uuid[])
+        and voided_at is null and billing_period_id is distinct from ${p.id}::uuid`.execute(trx);
+    for (const x of r.rows) charged.add(`${x.lease_id}|${x.service_id}`);
+  }
+  const occupants = new Map<string, number>();
+  if (billed.length > 0) {
+    const r = await sql<{ i: number; n: number }>`
+      select x.i::int as i, (
+        select count(*)::int from lease_occupants o
+        where o.organization_id = ${orgId} and o.lease_id = x.lease_id
+          and o.from_on <= x.last_day and (o.to_on is null or o.to_on >= x.last_day)) as n
+      from unnest(${billed.map((b) => b.l.id)}::uuid[], ${billed.map((b) => b.lastDay)}::date[])
+        with ordinality as x(lease_id, last_day, i)`.execute(trx);
+    for (const x of r.rows) occupants.set((billed[x.i - 1] as (typeof billed)[number]).l.id, x.n);
+  }
+
+  const items: PreviewItem[] = [];
+  for (const b of billed) {
+    const { l, versions, lastDay, atEnd } = b;
     const metered: MeteredInput[] = [];
     const fixed: FixedServiceInput[] = [];
     const readingBySvc = new Map<string, string>();
     const missing: string[] = [];
     for (const term of atEnd.services) {
-      const s = svcRows.find((x) => x.id === term.service_id);
+      const s = svcById.get(term.service_id);
       if (!s) continue;
+      const priceNum = term.unit_price !== undefined ? undefined : prices.get(priceKey(s.id, lastDay));
       const price =
-        term.unit_price !== undefined
-          ? String(term.unit_price)
-          : await priceAt(trx, orgId, s.id, lastDay).then((v) => (v === null ? null : String(v)));
+        term.unit_price !== undefined ? String(term.unit_price) : priceNum == null ? null : String(priceNum);
       if (s.kind === "metered") {
-        // Lượng theo khoảng của TỪNG hợp đồng (review lát 3 🔴1): trả phòng trong kỳ mà biên bản trả có chỉ số ⇒ cuối = chỉ
-        // số bàn giao trả (phần sau đó là của phòng trống/người kế tiếp); còn lại cuối = chỉ số kỳ. Đầu luôn là chỉ số đã
-        // duyệt liền trước điểm cuối (gồm chỉ số bàn giao nhận phòng nếu vào giữa kỳ) — periodConsumptionText.
-        const moveOut =
-          l.moved_out_on && l.moved_out_on <= p.period_end
-            ? await sql<{ id: string }>`
-                select r.id from meter_readings r
-                join handovers h on h.organization_id = r.organization_id and h.id = r.handover_id
-                join meters m on m.organization_id = r.organization_id and m.id = r.meter_id
-                where r.organization_id = ${orgId} and h.lease_id = ${l.id} and h.kind = 'move_out' and r.status = 'approved'
-                  and m.kind = ${s.meter_kind}
-                order by (m.removed_on is null) desc, r.read_on desc, r.created_at desc limit 1`.execute(trx)
-            : null;
-        const rd =
-          moveOut?.rows[0] !== undefined
-            ? moveOut
-            : await sql<{ id: string }>`
-                select r.id from meter_readings r join meters m on m.organization_id = r.organization_id and m.id = r.meter_id
-                where r.organization_id = ${orgId} and r.billing_period_id = ${p.id} and r.source = 'period'
-                  and m.unit_id = ${l.unit_id} and m.kind = ${s.meter_kind}
-                order by (m.removed_on is null) desc, r.read_on desc, r.created_at desc limit 1`.execute(trx);
-        const readingId = rd.rows[0]?.id;
+        const readingId = readingFor(b, s);
         if (!readingId) {
           missing.push(s.meter_kind as string);
           continue;
@@ -215,26 +313,11 @@ export async function buildPreview(
           serviceId: s.id,
           name: s.name,
           revenueAccount: s.revenue_account,
-          quantity: await periodConsumptionText(trx, orgId, readingId),
+          quantity: consumption.get(readingId) as string,
           unitPrice: price,
         });
       } else {
-        // Phí một lần (S-016): đúng một lần — ở kỳ chứa ngày bắt đầu áp dụng = max(ngày bắt đầu tính tiền, hiệu lực của phiên
-        // bản đầu tiên có dịch vụ này) — nên phí thêm bằng phụ lục cũng được tính (review lát 3 🟠5); đã có khoản phải thu
-        // (chưa huỷ) cho hợp đồng + dịch vụ ở kỳ khác thì bỏ qua.
-        if (s.kind === "one_time") {
-          const intro =
-            versions.rows.find((v) => v.services.some((x) => x.service_id === s.id))?.from ??
-            l.billing_start_on;
-          const startOn = intro > l.billing_start_on ? intro : l.billing_start_on;
-          if (startOn < p.period_start || startOn > p.period_end) continue;
-          const charged = await sql`
-            select 1 from charges where organization_id = ${orgId} and lease_id = ${l.id} and service_id = ${s.id}
-              and voided_at is null and billing_period_id is distinct from ${p.id}::uuid limit 1`.execute(
-            trx,
-          );
-          if (charged.rows.length > 0) continue;
-        }
+        if (s.kind === "one_time" && (!oneTimeDue(b, s) || charged.has(`${l.id}|${s.id}`))) continue;
         fixed.push({
           serviceId: s.id,
           name: s.name,
@@ -245,18 +328,15 @@ export async function buildPreview(
         });
       }
     }
-    const occ = await sql<{ n: number }>`
-      select count(*)::int as n from lease_occupants where organization_id = ${orgId} and lease_id = ${l.id}
-        and from_on <= ${lastDay}::date and (to_on is null or to_on >= ${lastDay}::date)`.execute(trx);
     const r = computeLeaseInvoice({
       periodStart: p.period_start,
       periodEnd: p.period_end,
       billingStartOn: l.billing_start_on,
       movedOutOn: l.moved_out_on,
-      versions: versions.rows.map((v) => ({ id: v.id, from: v.from, to: v.to, rentAmount: Number(v.rent) })),
+      versions: versions.map((v) => ({ id: v.id, from: v.from, to: v.to, rentAmount: Number(v.rent) })),
       metered,
       services: fixed,
-      occupantsAtEnd: occ.rows[0]?.n ?? 0,
+      occupantsAtEnd: occupants.get(l.id) ?? 0,
       rounding,
       prorata,
     });
