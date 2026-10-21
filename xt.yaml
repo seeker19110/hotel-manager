@@ -49,3 +49,6 @@ test_fast: "pnpm exec vitest related --run --project unit --passWithNoTests $XT_
 delivery_phase: build
 # e2e_affected: ""      # chỉ spec của lát đang làm (Gate mỗi task); trống = e2e
 # pr_title_check: ""    # off = không đòi tiêu đề PR `<type>(scope): mô tả` ≤ 72 ký tự
+
+# Khoá mới của khung (bản 3.12.0 (5b8b8a6)) — bật bằng cách bỏ "# "; vắng khoá = hành vi cũ
+# e2e_setup: ""         # trước e2e: cài trình duyệt (vd npx playwright install --with-deps chromium)

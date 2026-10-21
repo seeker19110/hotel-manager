@@ -242,9 +242,12 @@ describe("quét bí mật (SEC-SECRET-007)", () => {
   const at = (pred) => q.findIndex(pred);
 
   it("cổng ghi log ra file (pipefail), gitleaks quét log, chỉ lưu artifact khi quét sạch", () => {
-    const gate = q[at((s) => (s.run ?? "").includes("dev-task.sh gate"))];
+    // Job `gate` = build → test (typecheck, lint ở job riêng chạy cùng lúc — khung 3.12.0); cả nhóm lệnh ghi qua tee.
+    const gate = q[at((s) => (s.run ?? "").includes("dev-task.sh test"))];
     expect(gate.shell).toBe("bash");
-    expect(gate.run).toMatch(/dev-task\.sh gate 2>&1 \| tee "\$RUNNER_TEMP\/ci-logs\/gate\.log"/);
+    expect(gate.run).toMatch(
+      /\{ \.xtemplates\/scripts\/dev-task\.sh build && \.xtemplates\/scripts\/dev-task\.sh test; \} 2>&1 \| tee "\$RUNNER_TEMP\/ci-logs\/gate\.log"/,
+    );
     const scan = q[at((s) => s.id === "log-scan")];
     expect(scan.run).toMatch(/^gitleaks dir "\$RUNNER_TEMP\/ci-logs"/);
     expect(scan.if).toBe("always()");
@@ -252,7 +255,7 @@ describe("quét bí mật (SEC-SECRET-007)", () => {
       q[at((s) => s.uses?.startsWith("actions/upload-artifact@") && s.with?.name === "ci-logs-gate")];
     expect(up.if).toContain("steps.log-scan.outcome == 'success'");
     expect(at((s) => s.id === "log-scan")).toBeGreaterThan(
-      at((s) => (s.run ?? "").includes("dev-task.sh gate")),
+      at((s) => (s.run ?? "").includes("dev-task.sh test")),
     );
     expect(q.indexOf(up)).toBeGreaterThan(q.indexOf(scan));
   });

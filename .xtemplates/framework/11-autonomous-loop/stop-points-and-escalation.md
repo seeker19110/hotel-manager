@@ -3,7 +3,7 @@ title: Điểm dừng bắt buộc, mức tin cậy T0–T4, leo thang
 kind: module
 prefix: LOOP-STOP
 applies_to: [all]
-updated: 2026-10-20
+updated: 2026-10-21
 ---
 
 # Điểm dừng bắt buộc, mức tin cậy T0–T4, leo thang
@@ -245,7 +245,7 @@ tên workflow CI khác thì sửa `workflows:` (tên không khớp = không bao 
 | `xt.py loop defer` | `xt.py loop defer --task ID --reason …` | Agent khi việc cần người mà còn việc khác làm được | verdict `done-pending-human` khi hết việc tự làm |
 | `xt.py loop decide` | `xt.py loop decide --question … --option … --option … --choice N --why … --revert …` | Phiên chính ở điểm quyết định | exit 2 khi < 2 phương án, chọn không khớp, thiếu lý do/đường lùi |
 | Phân làn | `xt.py merge-check` (`merge_lane_reasons`: file PR + đường dẫn + nhãn `risk:`) | Phiên agent, `merge-gate`, `pr-steward` | 5 điều kiện; mặc định làn chuẩn |
-| Ruleset | `.github/rulesets/main.json` | GitHub | PR bắt buộc, required check `quality` + `protection-guard` + `gitleaks` + `dep-audit` + `merge-gate` (ADR-0023), không bypass |
+| Ruleset | `.github/rulesets/main.json` | GitHub | PR bắt buộc, required check `quality` + `gitleaks` + `merge-gate` (ADR-0023; repo khung thêm `protection-guard`, `dep-audit`; dự án đích không đòi "up to date" — D-116, D-117), không bypass |
 
 ## Nguồn
 

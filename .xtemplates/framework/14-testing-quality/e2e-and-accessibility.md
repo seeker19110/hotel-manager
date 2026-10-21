@@ -3,7 +3,7 @@ title: E2E & a11y: Playwright/axe, mobile, flaky, trace
 kind: module
 prefix: QA-E2E
 applies_to: [web-app, mobile-app, desktop-app, static-site, game, monorepo]
-updated: 2026-10-18
+updated: 2026-10-21
 ---
 
 # E2E & a11y: Playwright/axe, mobile, flaky, trace
@@ -61,6 +61,7 @@ updated: 2026-10-18
 - [ ] `QA-E2E-026` **SHOULD** Có ngân sách thời gian và đo mỗi run: mặc định PR ≤ 5 phút đồng hồ khi đã shard (trần cứng `QA-E2E-013` ≤ 10), suite đầy đủ ≤ 15 phút; mỗi run in p50/p95 và 10 test chậm nhất vào step summary; vượt ngân sách hai run liên tiếp thì mở task tối ưu (tăng shard, tách test, đẩy xuống integration). Không chữa chậm bằng cách bỏ test hay tăng retry. → Kiểm: step summary có bảng thời gian (từ `--reporter=json`); `docs/ops/` có bảng thời gian theo tuần; có task tối ưu khi vượt.
 - [ ] `QA-E2E-027` **MAY** Test có **bước agent** (browser agent): job required chỉ **phát lại cache đã kiểm** (cache chỉ ghi sau khi bước xác minh pass; phát lại không gọi model) và không có khoá model; cache miss/stale = đỏ (như `--strict-cache` của tester-army/e2e), cache làm mới ở job riêng ngoài đường merge; luồng tiền/quyền vẫn assert bằng locator. → Kiểm: job required không có secret API model; test cố ý làm hỏng cache → đỏ. · Nguồn: tester-army/e2e docs/cache.mdx <https://github.com/tester-army/e2e> (đọc 2026-10-18)
 - [ ] `QA-E2E-028` **SHOULD** E2E chỉ dùng tài khoản/dữ liệu **tổng hợp**; video, download, cache agent và log **không che** giá trị đã gõ, nên quét `playwright-report/`, `test-results/` và thư mục cache agent bằng `gitleaks dir <path>` (gitleaks ≥ 8.19; `detect`/`protect` deprecated) **trước** `actions/upload-artifact` (`QA-E2E-008`, [`WF-CI-019`](../10-workflow/ci-cd-pipeline.md)) hoặc commit. → Kiểm: bước `gitleaks dir` đứng trước `actions/upload-artifact` trong workflow; `rg` email/SĐT thật trong fixture = 0. · Nguồn: tester-army/e2e docs/security.mdx ("Neither is masked"); gitleaks README <https://github.com/gitleaks/gitleaks> (đọc 2026-10-18)
+- [ ] `QA-E2E-029` **SHOULD** Khởi đầu tối thiểu ở dự án đích: một lệnh `e2e` trong `xt.yaml` chạy `@smoke` luồng chính (`QA-E2E-001`) kèm axe (`QA-E2E-003`), project `desktop` (thêm `mobile` ở L — `QA-E2E-002`), `fullyParallel: true`, `forbidOnly`/`retries`/`trace` theo `QA-E2E-005`, chia shard bằng `--shard=${XT_SHARD:-1/1}` (matrix mẫu 2 shard cần ≥ 2 test — `QA-E2E-001` đã đòi ≥ 3 `@smoke` — để không shard nào rỗng); cài trình duyệt ở `e2e_setup`; job `e2e` của CI mẫu chạy cùng lúc với test (không `needs: build` — lệnh `e2e` tự build và phục vụ). Gộp báo cáo blob, build một lần, đăng nhập theo worker, chọn theo ảnh hưởng, cache trình duyệt, nightly đa trình duyệt (`QA-E2E-012`, `-018`, `-020`…`-023`) thêm khi thời gian PR vượt ngân sách `QA-E2E-026`, không thêm từ đầu. → Kiểm: `xt.yaml` có `e2e` chứa `XT_SHARD`; `dev-task.sh e2e-mode` in `shard`; job `e2e` của CI xanh ở cả hai shard. · Nguồn: [`../10-workflow/ci-cd-pipeline.md`](../10-workflow/ci-cd-pipeline.md) `WF-CI-025`; Playwright docs test-sharding (xác minh 2026-10-18); D-115
 
 ## Bẫy thường gặp
 

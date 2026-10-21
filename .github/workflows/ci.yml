@@ -16,10 +16,50 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # Cổng chuẩn: đúng lệnh trong xt.yaml (build · typecheck · lint · test) qua dev-task.sh.
-  # Ruleset `.github/rulesets/main.json` đòi đúng 4 check: quality (job gom ở cuối file, `needs` mọi job cổng), protection-guard,
-  # gitleaks (secret-scan.yml), dep-audit (dep-audit.yml). Job cổng con (gate, e2e, backup-restore, workflow-lint,
-  # onboarding-smoke) không đứng riêng trong ruleset: `quality` đỏ khi bất kỳ job con không `success` (WF-CI-001).
+  # Cổng chuẩn: đúng lệnh trong xt.yaml qua dev-task.sh, chia job chạy CÙNG LÚC (fan-out, WF-CI-024/025 của khung 3.12.0):
+  # `typecheck` · `lint` (job nhẹ, không service) và `gate` = build → test. Build và test KHÔNG tách: test quét bundle client
+  # (client-bundle, secure-defaults-bundle, command-inputs) đọc `apps/web/.next/static` và tự bỏ qua khi chưa build — tách là
+  # âm thầm hạ cổng. Typecheck không cần sản phẩm build (đã thử, exit 0). Đo trước khi tách: `gate` nối tiếp 3m50s.
+  # Ruleset `.github/rulesets/main.json` đòi 3 check: quality (job gom ở cuối file, `needs` mọi job cổng), gitleaks
+  # (secret-scan.yml), merge-gate (D-086). Job cổng con không đứng riêng trong ruleset: `quality` đỏ khi bất kỳ job con
+  # không `success` (WF-CI-001).
+  typecheck:
+    name: typecheck
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Cài phụ thuộc (lockfile đóng băng — BASE-DEP-002)
+        run: pnpm install --frozen-lockfile
+      - name: typecheck — đúng lệnh trong xt.yaml
+        run: .xtemplates/scripts/dev-task.sh typecheck
+
+  lint:
+    name: lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Cài phụ thuộc (lockfile đóng băng — BASE-DEP-002)
+        run: pnpm install --frozen-lockfile
+      - name: lint — đúng lệnh trong xt.yaml
+        run: .xtemplates/scripts/dev-task.sh lint
+
+  # build → test (job giữ tên `gate` — test cấu trúc CI và log artifact `ci-logs-gate` trỏ tên này).
   gate:
     name: gate
     runs-on: ubuntu-24.04
@@ -59,11 +99,11 @@ jobs:
       - name: PostgreSQL 17 binary cho test TLS CSDL (DB-SEC-003)
         run: bash scripts/dev-env-setup.sh --only postgres
       # SEC-SECRET-007: toàn bộ log của cổng được ghi ra file, gitleaks quét TRƯỚC khi lưu làm artifact; có bí mật → đỏ, không lưu.
-      - name: Cổng chuẩn — đúng lệnh trong xt.yaml
+      - name: Cổng chuẩn — build rồi test, đúng lệnh trong xt.yaml (typecheck, lint ở job riêng chạy cùng lúc)
         shell: bash
         run: |
           mkdir -p "$RUNNER_TEMP/ci-logs"
-          .xtemplates/scripts/dev-task.sh gate 2>&1 | tee "$RUNNER_TEMP/ci-logs/gate.log"
+          { .xtemplates/scripts/dev-task.sh build && .xtemplates/scripts/dev-task.sh test; } 2>&1 | tee "$RUNNER_TEMP/ci-logs/gate.log"
       - name: Cài gitleaks (ghim phiên bản, kiểm SHA-256)
         if: always()
         run: DEV_ENV_OPT_DIR="$RUNNER_TEMP" DEV_ENV_BIN_DIR="$HOME/.local/bin" bash scripts/dev-env-setup.sh --only gitleaks && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
@@ -87,8 +127,9 @@ jobs:
             && [ "${#TITLE}" -le 72 ] || { echo "::error::Tiêu đề PR phải dạng '<type>(scope): mô tả' và ≤ 72 ký tự: $TITLE"; exit 1; }
 
   # E2E (SPEC-pwa, PLAN T-013/T-014): build production + e2e/server.ts (Postgres service + seed giả) + Playwright Chromium.
-  # Song song tối đa: 4 shard (mỗi runner Postgres + cặp server riêng), trong shard hai project mobile/desktop chạy cùng lúc
-  # (apps/web/playwright.config.ts). timeout 40 giữ nguyên (mỗi shard vẫn cài/build/khởi động đủ) — không nới ngưỡng chất lượng.
+  # Song song tối đa: 6 shard (mỗi runner Postgres + cặp server riêng), trong shard hai project mobile/desktop chạy cùng lúc
+  # (apps/web/playwright.config.ts). 4 → 6 (khung 3.12.0, WF-CI-025): với 4 shard, e2e (1/4) 4m22s là đường găng của cả CI
+  # (shard chia theo file, 14 spec); 6 shard ≈ 2–3 spec mỗi shard. timeout 40 giữ nguyên — không nới ngưỡng chất lượng.
   e2e:
     name: e2e (${{ matrix.name }})
     runs-on: ubuntu-24.04
@@ -97,10 +138,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: "1/4", shard: "1/4" }
-          - { name: "2/4", shard: "2/4" }
-          - { name: "3/4", shard: "3/4" }
-          - { name: "4/4", shard: "4/4" }
+          - { name: "1/6", shard: "1/6" }
+          - { name: "2/6", shard: "2/6" }
+          - { name: "3/6", shard: "3/6" }
+          - { name: "4/6", shard: "4/6" }
+          - { name: "5/6", shard: "5/6" }
+          - { name: "6/6", shard: "6/6" }
     services:
       postgres:
         # Cùng tag + digest với deploy/postgres/Dockerfile (BASE-DEP-008: ghim digest; scripts/check-image-pins.mjs kiểm).
@@ -280,7 +323,7 @@ jobs:
   quality:
     name: quality
     if: ${{ always() }}
-    needs: [gate, e2e, backup-restore, workflow-lint, onboarding-smoke]
+    needs: [typecheck, lint, gate, e2e, backup-restore, workflow-lint, onboarding-smoke]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

@@ -30,7 +30,9 @@ delivery_phase: build
 # review_identity: ""         # chỉ dấu review của tài khoản này mở được merge (T-1508)
 # author_model_family: ""     # họ model tác giả và reviewer phải khác nhau (ci-check kiểm)
 # reviewer_model_family: ""
-e2e: ""               # agent chạy trực tiếp (dev-task không chạy): suite E2E đầy đủ
+# CI tối thiểu, song song tối đa (D-115): job e2e của CI chạy cùng lúc với test; khoá rỗng = bỏ qua có log.
+e2e: ""               # suite E2E, CI chạy (`dev-task.sh e2e I N`); dùng $XT_SHARD để chia shard, vd npx playwright test --shard=${XT_SHARD:-1/1}
+e2e_setup: ""         # trước e2e: cài trình duyệt (vd npx playwright install --with-deps chromium)
 e2e_affected: ""      # chỉ spec của lát đang làm (Gate mỗi task); trống = e2e
 audit: ""             # audit phụ thuộc (npm audit · pip-audit …)
 claude_min_version: ""   # doctor cảnh báo khi Claude Code thấp hơn (LOOP-HARNESS-026)
