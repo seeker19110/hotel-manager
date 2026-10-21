@@ -63,7 +63,12 @@ describe("pr-policy.yml", () => {
     expect(yml).not.toContain("continue-on-error");
   });
   it("bỏ qua PR của bot theo TÁC GIẢ PR (dependabot + github-actions/release-please), không theo github.actor", () => {
-    const jobIf = (/^ {4}if: >-\n((?: {6}.*\n)+)/m.exec(job)?.[1] ?? "").replace(/\s+/g, " ");
+    // D-086 (pha build): job chỉ chạy tay, điều kiện bỏ qua bot giữ trong chú thích "Khi khôi phục" để trả lại ở harden.
+    const jobIf = (
+      /^ {4}if: >-\n((?: {6}.*\n)+)/m.exec(job)?.[1] ??
+      /^ {4}# Khi khôi phục: (if: .*\n(?: {4}# .*\n)*)/m.exec(job)?.[1] ??
+      ""
+    ).replace(/[\s#]+/g, " ");
     expect(jobIf).toContain("github.event.pull_request.user.login != 'dependabot[bot]'");
     expect(jobIf).toContain("github.event.pull_request.user.login != 'github-actions[bot]'");
     expect(yml).not.toContain("github.actor");

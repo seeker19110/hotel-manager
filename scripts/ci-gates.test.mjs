@@ -125,9 +125,9 @@ const ci = parse(read(`${WORKFLOW_DIR}/ci.yml`));
 const stepRun = (job, namePart) => job.steps.find((s) => String(s.name ?? "").includes(namePart))?.run;
 
 /** Cổng đợt 9 (T-801…T-807) chạy trên mọi PR — D-065: phải có trong ruleset để chặn merge khi người import. */
-const WAVE9_GATES = ["commit-lint", "pr-policy", "fe-typecheck", "fe-lint"];
+const WAVE9_GATES = []; // đợt 9 hoãn hết tới harden (D-084/D-085/D-086)
 /**
- * D-084 + D-085 (chủ dự án, pha build): cổng hoãn tới pha harden — không required, không chạy trên PR/push/lịch, chỉ chạy tay
+ * D-084 + D-085 + D-086 (chủ dự án, pha build): cổng hoãn tới pha harden — không required, không chạy trên PR/push/lịch, chỉ chạy tay
  * (`if: github.event_name == 'workflow_dispatch'`). Đặt `delivery_phase: harden` trong xt.yaml ⇒ test đỏ tới khi trả hết về
  * WAVE9_GATES + ruleset + trigger cũ.
  */
@@ -152,9 +152,15 @@ const DEFERRED_TO_HARDEN = [
   "schema-compat",
   "prometheus-rules",
   "otel-collector",
+  "protection-guard",
+  "dep-audit",
+  "commit-lint",
+  "pr-policy",
+  "fe-typecheck",
+  "fe-lint",
 ];
 /** Cổng có từ trước đợt 9; `quality` gom gate/e2e/backup-restore/workflow-lint/onboarding-smoke (T-807). */
-const BASE_GATES = ["quality", "protection-guard", "gitleaks", "dep-audit"];
+const BASE_GATES = ["quality", "gitleaks"]; // protection-guard, dep-audit: hoãn tới harden (D-086)
 /** Cổng của khung X-Templates 3.0.0: `merge-gate` đỏ khi PR ngoại lệ cứng đang bật auto-merge (ADR-0023 của khung). */
 const FRAMEWORK_GATES = ["merge-gate"];
 
@@ -247,9 +253,9 @@ describe("WF-CI-001 — job gom quality + ruleset khớp job thật", () => {
     });
 
     it("xoá workflow chứa job của một context → exit 1", () => {
-      const r = sandbox((d) => rmSync(join(d, WORKFLOW_DIR, "dep-audit.yml")));
+      const r = sandbox((d) => rmSync(join(d, WORKFLOW_DIR, "secret-scan.yml")));
       expect(r.status).toBe(1);
-      expect(r.stdout).toContain("dep-audit");
+      expect(r.stdout).toContain("gitleaks");
     });
   });
 });
@@ -356,8 +362,10 @@ describe("D-065 — ruleset gom mọi job chạy trên mọi PR vào main", () =
   });
 
   it("nhóm cổng đợt 9 đều có mặt và là job PR thật", () => {
-    // 24 cổng đợt 9 = còn required + hoãn tới harden (D-084/D-085): không cổng nào bị bỏ lặng lẽ.
-    expect(WAVE9_GATES.length + DEFERRED_TO_HARDEN.length).toBe(24);
+    // 29 cổng (nền 4 + đợt 9 24 + khung 1) = còn required + hoãn tới harden (D-084…D-086): không cổng nào bị bỏ lặng lẽ.
+    expect(BASE_GATES.length + WAVE9_GATES.length + FRAMEWORK_GATES.length + DEFERRED_TO_HARDEN.length).toBe(
+      29,
+    );
     for (const c of WAVE9_GATES) {
       expect(required.has(c), `${c} thiếu trong main.json`).toBe(true);
       expect(prJobs.has(c), c).toBe(true);

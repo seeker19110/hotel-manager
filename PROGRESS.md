@@ -2,7 +2,7 @@
 ## Đang làm
 - 2026-10-21: đã merge hết PR mở — #99 audit, #100 SEC-001, #104 bước expand cho 0064, #101 DATA-001/002 (migration 0064 RLS danh mục), #102 CI-001, #103 docs, #108 D-084. Audit 2026-10-19 (`docs/ops/AUDIT-STATUS.md`) hết 🔴/🟠, A11Y chưa quét; HAR-001 (XC-OSS-007) cần chủ dự án quyết. Không còn PR mở.
 - **Đợt mới dùng `loop resume`, không `loop init`** (FB-149). Lịch sử đợt 12–13: `docs/autopilot/DECISIONS.md`.
-- Phát hành v0.2.0 (#88). D-084/D-085: ruleset `main` còn 9 required check (người sửa trên GitHub); 20 cổng hoãn tới harden chỉ chạy tay. `release-please` đỏ do secret `RELEASE_PLEASE_TOKEN` thiếu quyền ghi (người sửa — README, mục Phát hành).
+- Phát hành v0.2.0 (#88). D-084…D-086: ruleset `main` còn 3 required check (quality, gitleaks, merge-gate; strict tắt); 26 cổng hoãn tới harden chỉ chạy tay; E2E song song + 4 shard. `release-please` đỏ do secret `RELEASE_PLEASE_TOKEN` thiếu quyền ghi (người sửa — README, mục Phát hành).
 
 ## Tiếp theo
 1. Người (theo nhóm, từng bước ở BLUEPRINT-GAPS): ① import `.github/rulesets/tags.json` (cấm xoá/dời tag `v*`, WF-REL-003) ② nhãn `major`, Dependabot, quyết D-060 ③ BASE-REPO-006 cần tag annotated (release-please tạo tag thường) — quyết bước tạo tag; xoá tag mồ côi `v2.0.0` ④ VPS/domain/staging/secret store ⑤ sao lưu khác máy + Prometheus/Alertmanager + RPO/RTO ⑥ pháp lý DPIA/DPO/DPA ⑦ LICENSE + SECURITY.md + PVR ⑧ kiểm tay thiết bị/a11y ⑨ quyết IND-SAAS-009, CMP-RIGHTS-001, PM-METRIC-003 ⑩ duyệt `WORKER_DATABASE_URL`/`MIGRATION_DATABASE_URL` ⑪ SMTP, ClamAV ⑫ quyết 18 đề xuất "Khi chạy thật" (GO-NO-GO 4b).
@@ -24,7 +24,7 @@
 - D-066 FE-TEST-001 chỉ test Testing Library; giữ `skipLibCheck` có lý do; bỏ husky, một hook `.githooks`.
 - D-067 ngoại lệ grype CÓ HẠN (critical ≤ 7 ngày, high ≤ 30 ngày) + VULN-SLA; kiểm hạn ở job, không ở unit test.
 - D-075 đợt 12 chỉ gia cố rào đã ghi treo; D-076 bộ đếm i18n chặt hơn ⇒ chuyển chuỗi chứ không nới baseline.
-- D-084/D-085 (chủ dự án 2026-10-21): pha build hoãn 20 cổng (hiệu năng, quét image/SBOM/DAST/SAST, coverage/ratchet, hồi quy, OpenAPI, new-deps, schema-compat…) — chỉ chạy tay; `ci-gates.test.mjs` đỏ khi `delivery_phase: harden` còn cổng hoãn. PR ngoại lệ cứng: không bật auto-merge (`merge-gate` đỏ).
+- D-084…D-086 (chủ dự án 2026-10-21): pha build hoãn 26 cổng (hiệu năng, quét image/SBOM/DAST/SAST, coverage/ratchet, hồi quy, OpenAPI, new-deps, schema-compat…) — chỉ chạy tay; `ci-gates.test.mjs` đỏ khi `delivery_phase: harden` còn cổng hoãn.
 - D-068 ngoại lệ giấy phép `parse-cache-control` BSD (hạn 2027-04-18); giữ MỘT lockfile pnpm.
 - Nợ chấp nhận: pháp lý trong `docs/research/` chỉ có nguồn thứ cấp — đối chiếu văn bản gốc trước khi dùng dữ liệu thật.
 - Bài học: `set -o pipefail` với `loop record`; test DB `pnpm vitest run --project db <mẫu>`; sau mỗi merge `main` chạy lại `pnpm test` (rào mới đụng nhau); `merge-check` có thể báo xanh khi job chính chưa có check run (FB-096); E2E đăng nhập qua `signInClick`; `page.route` cần `serviceWorkers: "block"`; mốc `delete_after` theo ngày UTC; migration mới đánh số sau bản cuối trên `main`; job có tên chứa dấu cách (ma trận) cần `while read` khi duyệt context.
