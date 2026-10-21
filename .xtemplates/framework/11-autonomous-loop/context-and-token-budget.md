@@ -3,7 +3,7 @@ title: Ngân sách context/token, compaction, bàn giao phiên
 kind: module
 prefix: LOOP-CTX
 applies_to: [all]
-updated: 2026-10-16
+updated: 2026-10-21
 ---
 
 # Ngân sách context/token, compaction, bàn giao phiên
@@ -60,7 +60,7 @@ Ngưỡng 80/100 tương ứng circuit breaker 80/90/100 của stored 21 §10; 9
 |---|---|---|
 | `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | Cửa sổ tính compaction tự động (100 000–1 000 000 token) | Đặt thấp để compaction sớm hơn trên phiên dài |
 | `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` | % context kích compaction (1–100), chỉ hạ, không nâng | Kết hợp PreCompact hook ghi checkpoint |
-| `MAX_THINKING_TOKENS` | Trần token suy nghĩ mỗi lượt | Hạ cho task cơ học; giữ cho thiết kế/debug |
+| `MAX_THINKING_TOKENS` | Ngân sách token suy nghĩ cố định (extended thinking) | Giới hạn: `=0` **không** tắt được thinking trên Opus 5.5/Sonnet 5.5/Haiku 5.5/Fable (model tự chọn độ sâu theo `effort`) — chỉnh mức suy nghĩ bằng `effort` ở frontmatter agent (`LOOP-CTX-014`), không bằng biến này |
 | PreCompact hook (`manual`/`auto`) | Chạy script trước khi nén; có thể chặn bằng exit 2 | Dùng để ghi PROGRESS trước khi mất chi tiết |
 
 ## Checklist
@@ -78,7 +78,7 @@ Ngưỡng 80/100 tương ứng circuit breaker 80/90/100 của stored 21 §10; 9
 - [ ] `LOOP-CTX-011` **SHOULD** Prompt hệ thống/luật/tool schema đứng trước và ổn định; nội dung biến đổi append phía sau để tận dụng prompt cache; đo `cache_read_input_tokens` > 0 trước khi tin cache có tác dụng. · Nguồn: [`../13-ai-engineering/llm-app-foundations.md`](../13-ai-engineering/llm-app-foundations.md)
 - [ ] `LOOP-CTX-012` **MAY** Ngừng dùng 2026-10-15 — thay bằng `LOOP-CTX-019` (ADR-0009: vượt ngân sách thì thu hẹp phạm vi, không chia phiên).
 - [ ] `LOOP-CTX-013` **SHOULD** Skill/tài liệu khung nạp theo tầng (progressive disclosure): chỉ `description` thường trực, nội dung khi gọi; SKILL.md < 500 dòng. · Nguồn: Agent Skills spec
-- [ ] `LOOP-CTX-014` **SHOULD** Mức suy nghĩ (`MAX_THINKING_TOKENS`/effort) đặt theo loại task: thấp cho cơ học (format, rename, boilerplate), cao cho thiết kế/debug khó; ghi trong PLAN khi khác mặc định.
+- [ ] `LOOP-CTX-014` **SHOULD** Mức suy nghĩ (`effort`) đặt theo loại task: thấp cho cơ học (format, rename, boilerplate), cao cho thiết kế/debug khó; ghi trong PLAN khi khác mặc định. Đặt ở frontmatter `effort` của subagent (`low`/`medium`/`high`/`xhigh`/`max`, ghi đè effort phiên) thay vì đổi giữa phiên: đổi effort giữa phiên làm mất prompt cache ở hầu hết model (riêng Opus 5.5/Sonnet 5.5/Haiku 5.5/Fable 5.1 qua API key hoặc thuê bao giữ cache theo mặc định; Bedrock/Vertex/gateway thì không), và `MAX_THINKING_TOKENS=0` không tắt được thinking trên model 5.5/Fable. · Nguồn: Claude Code model-config, prompt-caching, sub-agents docs
 - [ ] `LOOP-CTX-015` **MAY** Đo chất lượng theo phiên (tỉ lệ Gate xanh lần đầu, số lần `verify`) so với độ dài phiên; nếu giảm sau N vòng → hạ ngưỡng bàn giao từ 80% xuống thấp hơn.
 - [ ] `LOOP-CTX-016` **MAY** Dùng `CLAUDE_CODE_AUTO_COMPACT_WINDOW`/`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` để nén sớm trên phiên autopilot dài, kèm PreCompact checkpoint. · Nguồn: Claude Code env-vars docs
 - [ ] `LOOP-CTX-017` **MUST** Bàn giao chỉ khi chạm ≥ 80% **trần máy** (vòng/giờ/tiền), không vì context: context đầy → compaction có checkpoint rồi làm tiếp; khi bàn giao: chỗ dở + bước kế tiếp + SHA vào PROGRESS, commit + push, không mở task mới. → Kiểm: `.claude/settings.json` có hook `PreCompact`; PROGRESS "Bàn giao phiên" chỉ cập nhật khi `loop status --json` `iterations/max_iterations` ≥ 0.8 hoặc verdict `budget`. · Nguồn: ADR-0009, stored 21 §10
@@ -120,6 +120,7 @@ Ngưỡng 80/100 tương ứng circuit breaker 80/90/100 của stored 21 §10; 9
 - Claude Code hooks reference — PreCompact (`trigger`, exit 2 chặn nén), SessionStart (`source: compact`), `permission_mode` trong input Stop: <https://code.claude.com/docs/en/hooks.md> — xác minh 2026-10-15.
 - Harness thật: `.claude/hooks/pre-compact.sh`, `.claude/hooks/session-start.sh` (nạp 4 mục PROGRESS, cắt 8 KB), `.claude/skills/handover/SKILL.md`, `scripts/xt.py` (`output_tail` 40 dòng, `max_iterations`, `deadline`) — đọc 2026-10-13.
 - Claude Code docs — env vars `CLAUDE_CODE_AUTO_COMPACT_WINDOW` (100 000–1 000 000), `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` (1–100, chỉ hạ), `MAX_THINKING_TOKENS`: <https://code.claude.com/docs/en/env-vars> · hooks PreCompact: <https://code.claude.com/docs/en/hooks> · headless `--max-turns`/`--max-budget-usd`/`total_cost_usd`: <https://code.claude.com/docs/en/headless> — xác minh 2026-10-13 (`research/2026-10-13-claude-code-hooks-skills.md`).
+- Claude Code docs — effort và thinking (`MAX_THINKING_TOKENS=0` không tắt được thinking trên Opus 5.5/Sonnet 5.5/Haiku 5.5/Fable): <https://code.claude.com/docs/en/model-config.md> · prompt cache (đổi effort giữa phiên làm mất cache ở hầu hết model; ngoại lệ 5.5/Fable 5.1): <https://code.claude.com/docs/en/prompt-caching.md> · frontmatter `effort` của subagent: <https://code.claude.com/docs/en/sub-agents.md> — xác minh 2026-10-21 (`research/2026-10-21-next-level-speed-automation-quality.md` §4.1).
 - Anthropic, *Effective context engineering for AI agents* (2025-09-29): <https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents> — theo `research/2026-10-13-ai-agent-research.md` §1 [F].
 - Agent Skills spec (progressive disclosure, SKILL.md < 500 dòng): <https://agentskills.io/specification> — xác minh 2026-10-13 (`research/2026-10-13-ai-agent-research.md` §4).
 - `seeker19110/stored` mục 03 §6 (trạng thái trên đĩa, PROGRESS ≤ 8 KB), §8b (think-in-code, chế độ context), mục 21 §10 (circuit breaker 80/90/100, ước lượng token ×1.5) — đọc 2026-10-13.

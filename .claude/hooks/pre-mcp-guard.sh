@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# pre-mcp-guard.sh — PreToolUse hook (matcher: tool MCP merge PR, ghi PR/commit). Hỏi người (AUD-SEC-020), trừ merge ghim
-# `expectedHeadSha` mà `xt.py merge-check` = merge (ADR-0014) và bật auto-merge ở `merge_autonomy` L3 (ADR-0015).
+# pre-mcp-guard.sh — PreToolUse hook (matcher: tool MCP merge PR, bật/tắt auto-merge, ghi PR/commit). Hỏi người
+# (AUD-SEC-020), trừ merge ghim `expectedHeadSha` mà `xt.py merge-check` = merge (ADR-0014). Tool bật auto-merge luôn bị
+# chặn — mọi mức tự chủ, mọi PR, cả XT_GUARD_POLICY=strict; máy chỉ merge ghim head (ADR-0036).
 # Quyết định ở guard.py (`mcp`); thiếu python3, thiếu guard.py hoặc guard.py lỗi → không kiểm được ngoại lệ cứng: chặn
-# (XT_GUARD_POLICY=strict: hỏi) — ADR-0019, AUD-SEC-045; riêng tool tắt auto-merge cho qua (LOOP-STOP-005 đòi).
+# (XT_GUARD_POLICY=strict: hỏi) — ADR-0019, AUD-SEC-045; riêng tool tắt auto-merge cho qua: auto-merge chỉ người bật
+# được, máy phải tắt được (`pr next`/steward `disable-auto-merge` — ADR-0036, LOOP-STOP-005).
 # Tool ghi PR/commit (tạo/sửa PR, commit file): guard chặn ghi công AI (LOOP-HARNESS-027); guard không chạy được thì
 # cho qua — không phải hành động nguy hiểm (fail-open về luồng, ADR-0002, D-057).
 set -uo pipefail
@@ -10,11 +12,13 @@ set -uo pipefail
 
 payload="$(cat)"
 disable_re='"tool_name"[[:space:]]*:[[:space:]]*"[^"]*disable'
+enable_re='"tool_name"[[:space:]]*:[[:space:]]*"[^"]*enable'
 # Lối tắt chỉ khi payload có ĐÚNG MỘT khoá `"tool_name"` (khoá lồng trong `tool_input` của tool merge từng né guard —
-# AUD-SEC-066); có hơn một → guard đọc `tool_name` cấp đầu từ JSON đã parse.
+# AUD-SEC-066); có hơn một → guard đọc `tool_name` cấp đầu từ JSON đã parse. Tên vừa có `enable` vừa có `disable`
+# không được đi lối tắt: bật auto-merge luôn bị guard deny (ADR-0036).
 tool_key_re='"tool_name"[[:space:]]*:'
 after_first="${payload#*\"tool_name\"}"
-[[ $payload =~ $disable_re ]] && ! [[ $after_first =~ $tool_key_re ]] && exit 0
+[[ $payload =~ $disable_re ]] && ! [[ $payload =~ $enable_re ]] && ! [[ $after_first =~ $tool_key_re ]] && exit 0
 merge_re='"tool_name"[[:space:]]*:[[:space:]]*"[^"]*(merge_pull_request|auto_merge)'
 open=""
 [[ $payload =~ $merge_re ]] || open=1
@@ -33,7 +37,8 @@ if ! guard_fields mcp <<<"$payload"; then
   [ -n "$open" ] && exit 0
   fence_closed "Khung cần xác nhận: guard.py lỗi nên không kiểm được merge qua MCP"
 fi
-# deny: chính sách ADR-0018 đổi ask nguy hiểm (ngoại lệ cứng — ADR-0019) thành chặn.
+# deny: luật chặn thẳng (bật auto-merge — ADR-0036) hoặc chính sách ADR-0018 đổi ask nguy hiểm (ngoại lệ cứng — ADR-0019)
+# thành chặn.
 [ "$XG_DECISION" = "deny" ] && pretool_decision deny "$XG_REASON"
 [ "$XG_DECISION" = "ask" ] && pretool_decision ask "Khung cần xác nhận: $XG_REASON"
 # allow chỉ khi merge ghim `expectedHeadSha` và `xt.py merge-check` = merge cho đúng PR/repo (ADR-0014).

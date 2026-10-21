@@ -3,7 +3,7 @@ title: Agent tự sửa CI/review: giới hạn, cấm, bằng chứng
 kind: module
 prefix: LOOP-CI
 applies_to: [all]
-updated: 2026-10-20
+updated: 2026-10-21
 ---
 
 # Agent tự sửa CI/review: giới hạn, cấm, bằng chứng
@@ -82,8 +82,9 @@ Nguồn trong `research/` ghi ngày rà lại; "chưa xác minh" không phải b
 
 | Hạng mục | Quy định |
 |---|---|
-| Lệnh | `claude -p "..." --max-turns N --max-budget-usd X --output-format json`; **không** `--bare` (mất hook/CLAUDE.md/skill) |
-| Hook trong CI | Truyền `--settings` trỏ `.claude/settings.json` của repo; kiểm `system/init` có `plugin_errors`/`mcp_server_errors` rỗng |
+| Lệnh | `claude -p "..." --permission-mode dontAsk --allowedTools "<danh sách>" --settings .claude/settings.json --max-turns N --max-budget-usd X --output-format json`; **không** `--bare` (mất hook/CLAUDE.md/skill) |
+| Chế độ quyền | Luôn truyền `--permission-mode` tường minh: `dontAsk` (CI khoá chặt — lệnh ngoài `--allowedTools`/`permissions.allow` bị từ chối, không treo chờ người) hoặc `auto` (bộ phân loại duyệt; thêm `--permission-prompts none` để việc cần hỏi bị từ chối thay vì chờ). Từ 2.1.302 `-p` khởi đầu ở `default` (Manual): lệnh cần duyệt bị từ chối nếu không có gì duyệt |
+| Hook trong CI | Truyền `--settings .claude/settings.json` của repo tường minh: docs ghi `--bare` "will become the default for `-p` in a future release" (bỏ hook/CLAUDE.md/skill) — không dựa vào mặc định của bản CLI; kiểm `system/init` có `plugin_errors`/`mcp_server_errors` rỗng |
 | Quyền job | `permissions:` tối thiểu; job đọc tách job ghi (chỉ job ghi có `contents: write`/`pull-requests: write`) |
 | Kích hoạt | Chỉ khi actor là người (`author_association` ∈ OWNER/MEMBER/COLLABORATOR) hoặc nhãn do người gắn; không chạy trên PR từ fork với secret |
 | Action | Pin theo SHA 40 ký tự; `claude-code-action@v1` dùng OIDC/WIF thay API key tĩnh khi nền tảng hỗ trợ |
@@ -100,8 +101,8 @@ Nguồn trong `research/` ghi ngày rà lại; "chưa xác minh" không phải b
 - [ ] `LOOP-CI-007` **MUST@L** Không sửa migration đã áp ở môi trường chung; chỉ thêm migration mới. → Kiểm: diff không chạm migration cũ; `pre-edit-guard.sh` đánh dấu khi sửa file migration có sẵn (mặc định cho chạy — ADR-0018; `XT_GUARD_POLICY=strict` thì hỏi). · Nguồn: [`../09-database/migrations.md`](../09-database/migrations.md)
 - [ ] `LOOP-CI-008` **MUST** Workflow chạy agent chỉ kích hoạt bởi người (kiểm `author_association` hoặc nhãn do người gắn), không chạy với secret trên PR từ fork. → Kiểm: file workflow có điều kiện `if:` kiểm actor; `pull_request_target` không cấp secret cho code fork. · Nguồn: `research/2026-10-13-ai-agent-research.md` §3; stored 21 §9
 - [ ] `LOOP-CI-009` **MUST@L** Job có agent dùng `permissions:` tối thiểu; job ghi (commit/comment) tách khỏi job đọc/suy luận. → Kiểm: workflow có khối `permissions:` tường minh; job chạy model không có `contents: write`. · Nguồn: stored 21 §9 (safe-outputs)
-- [ ] `LOOP-CI-010` **MUST@L** Chạy headless không dùng `--bare`; có `--max-turns` và `--max-budget-usd`. → Kiểm: lệnh trong workflow; JSON kết quả có `total_cost_usd` ≤ trần. · Nguồn: Claude Code headless docs
-- [ ] `LOOP-CI-011` **MUST@L** PR do agent mở dẫn link run CI xanh và lệnh Gate đã chạy; không ghi "đã test" bằng lời. → Kiểm: mô tả PR có URL run + exit code; `reviewer` từ chối PR thiếu link. · Nguồn: `AGENTS.md` mục Luật bất biến
+- [ ] `LOOP-CI-010` **MUST@L** Chạy headless không dùng `--bare`, truyền `--permission-mode` và `--settings .claude/settings.json` tường minh; có `--max-turns` và `--max-budget-usd`. → Kiểm: lệnh trong workflow; JSON kết quả có `total_cost_usd` ≤ trần. · Nguồn: Claude Code headless docs, permission-modes docs
+- [ ] `LOOP-CI-011` **MUST@L** PR do agent mở dẫn link run CI xanh và lệnh Gate đã chạy; không ghi "đã test" bằng lời. Link run CI chỉ sống ≤ 90 ngày (retention log/artifact của GitHub Actions): số đo cần giữ lâu hơn (thời lượng, số run, kết quả) chụp vào `docs/ops/`. → Kiểm: mô tả PR có URL run + exit code; `reviewer` từ chối PR thiếu link. · Nguồn: `AGENTS.md` mục Luật bất biến; `research/2026-10-21-next-level-speed-automation-quality.md` CL-8 (retention 90 ngày, §4.2)
 - [ ] `LOOP-CI-012` **SHOULD** Test nghi flake: agent ghi bằng chứng (run đỏ và xanh trên cùng commit) và mở issue; việc gắn `@flaky`/cách ly khỏi cổng là nới cổng nên đi qua người duyệt (`loop defer`), không tự làm trong vòng tự động; không retry nhiều lần trong CI để che. → Kiểm: issue có hai run ID cùng SHA; commit thêm `@flaky` có người duyệt PR. · Nguồn: [`../14-testing-quality/test-strategy.md`](../14-testing-quality/test-strategy.md) (`QA-STRAT-009`)
 - [ ] `LOOP-CI-013` **SHOULD** Sửa lint/format đi commit riêng `style:`; sửa logic đi commit `fix:` để review tách bạch.
 - [ ] `LOOP-CI-014` **SHOULD** Kiểm `system/init` của phiên headless: `plugin_errors`/`mcp_server_errors` không rỗng → fail job sớm thay vì chạy thiếu cổng. · Nguồn: Claude Code headless docs
@@ -120,7 +121,7 @@ Nguồn trong `research/` ghi ngày rà lại; "chưa xác minh" không phải b
 | Sửa kỳ vọng của test cho khớp code sai, hoặc gắn `@flaky` cho test đỏ thật | Cổng xanh nhưng hồi quy lọt; lỗi bị "hợp thức hoá" | Hook hỏi khi test đã có bị bớt assertion/thêm skip; flake phải có hai run cùng SHA |
 | Empty commit để kích lại CI | Lịch sử rác, ẩn lỗi cấu hình | Cấm theo `AGENTS.md` mục Luật bất biến; hook `pre-bash-guard` deny `git commit --allow-empty`; dùng re-run của CI |
 | Agent chạy trên PR từ fork với secret | Prompt injection từ PR lấy token | Kiểm actor; tách job ghi |
-| `--bare` trong CI "cho nhanh" | Mất hook deny/ask, mất CLAUDE.md | Không `--bare`; truyền `--settings` |
+| `--bare` trong CI "cho nhanh", hoặc dựa vào mặc định của `-p` | Mất hook deny/ask, mất CLAUDE.md; mặc định của `-p` đổi theo bản CLI (2.1.302 → `default`; `--bare` sắp thành mặc định) | Không `--bare`; truyền `--settings` và `--permission-mode` tường minh |
 | Thêm bí mật vào allowlist scanner để qua | Lộ bí mật được "hợp thức hoá" | Secret scan đỏ → dừng, xoay khoá |
 | Sửa migration đã áp cho "khớp" | Môi trường lệch, không rollback được | Chỉ thêm migration mới |
 | Nâng dependency major để hết CVE | Breaking change lặng lẽ | Minor/patch tự nâng; major → hỏi |
@@ -133,7 +134,7 @@ Nguồn trong `research/` ghi ngày rà lại; "chưa xác minh" không phải b
 | Chặn lệnh phá huỷ | `pre-bash-guard.sh` deny `push --force`, `reset --hard`, `clean`; `settings.json` deny | PreToolUse Bash | Deny |
 | Trần sửa cùng lỗi | `xt.py loop status --json` → `blocked` | Stop hook `stop-guard.sh` | `same_failure_count` ≥ 3 |
 | Phân loại lỗi CI + ngân sách episode | `xt.py loop ci-triage --run <id> --json` | Trước mỗi lần sửa CI | re-run ≤ 1; cùng chữ ký 3 lần → `defer`; secret/SAST → `block` |
-| Trần chi phí headless | `claude -p … --max-turns N --max-budget-usd X --output-format json` | Workflow | `total_cost_usd` ≤ X |
+| Trần chi phí headless | `claude -p … --permission-mode dontAsk --settings .claude/settings.json --max-turns N --max-budget-usd X --output-format json` | Workflow | `total_cost_usd` ≤ X |
 | Cổng commit | `scripts/dev-task.sh gate-fast` khi `xt.yaml` `commit_gate: fast` (lint · typecheck · test liên quan), ngược lại `gate` | Hook trước `git commit` | Exit 0 |
 | Cổng đầy đủ | `scripts/dev-task.sh gate` (build · typecheck · lint · test + ngưỡng của dự án) | Một lần trước khi đẩy/mở PR; job CI `quality` | Exit 0 |
 | Pin action | Linter workflow (vd `zizmor`/`actionlint`) | CI | 0 action chưa pin |
@@ -141,7 +142,7 @@ Nguồn trong `research/` ghi ngày rà lại; "chưa xác minh" không phải b
 ## Nguồn
 
 - `AGENTS.md` mục Luật bất biến (không nới cổng, không force-push, không empty commit, không merge khi CI đỏ) và harness `.claude/hooks/pre-bash-guard.sh`, `pre-edit-guard.sh`, `.claude/settings.json` (deny/ask) — đọc 2026-10-13.
-- Claude Code docs — headless (`--bare` bỏ hook/skill/CLAUDE.md; `--max-turns`, `--max-budget-usd`, `--output-format json`, `system/init` với `plugin_errors`/`mcp_server_errors`): <https://code.claude.com/docs/en/headless> · GitHub Actions (`claude-code-action@v1`, OIDC): <https://code.claude.com/docs/en/github-actions> — xác minh 2026-10-13 (`research/2026-10-13-claude-code-hooks-skills.md`).
+- Claude Code docs — headless (`--bare` bỏ hook/skill/CLAUDE.md và "will become the default for `-p` in a future release"; nạp cấu hình bằng `--settings`; `--permission-mode`/`--allowedTools`; `--max-turns`, `--max-budget-usd`, `--output-format json`, `system/init` với `plugin_errors`/`mcp_server_errors`): <https://code.claude.com/docs/en/headless.md> · permission modes (`-p` khởi đầu `default` từ 2.1.302; `dontAsk` từ chối mọi lệnh cần duyệt): <https://code.claude.com/docs/en/permission-modes.md> · GitHub Actions (`claude-code-action@v1`, OIDC): <https://code.claude.com/docs/en/github-actions> — xác minh 2026-10-21 (`research/2026-10-21-next-level-speed-automation-quality.md` §4.1; trước đó 2026-10-13, `research/2026-10-13-claude-code-hooks-skills.md`).
 - GitHub docs — `permissions` của `GITHUB_TOKEN` và rủi ro `pull_request_target`: <https://docs.github.com/en/actions/security-for-github-actions/security-guides/automatic-token-authentication> · <https://docs.github.com/en/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions> — xác minh 2026-10-13.
 - `seeker19110/stored` mục 21 §9 (self-healing CI: trần re-run, cấm skip test, safe-outputs tách job ghi, `author_association`), mục 23 §2.6 (DORA baseline trước tự trị) — đọc 2026-10-13 (`research/2026-10-13-stored-catalog-extraction.md`).
 - Anthropic, *The AI-native SDLC playbook* (2026-08-21), stage 4 Test: hook chặn agent sửa file test trong task sửa lỗi để vòng kiểm không bị làm yếu; ví dụ stage 6 lại cho agent cách ly test flaky qua cổng review — khung chọn luật chặt hơn (cách ly = điểm dừng): <https://claude.com/blog/the-ai-native-sdlc-playbook> — xác minh 2026-10-16 (`seeker19110/stored` mục 21 §10c).

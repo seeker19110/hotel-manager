@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # pre-bash-guard.sh — PreToolUse hook (matcher: Bash). Ba việc, theo thứ tự:
-#  1) DENY lệnh phá huỷ / không đảo ngược (deny chặn cả ở bypassPermissions).
+#  1) DENY lệnh phá huỷ / không đảo ngược và bật auto-merge của GitHub (`gh pr merge --auto`, ADR-0036) — deny chặn cả ở
+#     bypassPermissions.
 #  2) ASK (chỉ khi XT_GUARD_POLICY=strict; mặc định guard.py đổi ask nguy hiểm → deny, còn lại cho qua — ADR-0018) lệnh "hành động đối ngoại" (riêng `gh pr merge` qua `xt.py merge-check` → có thể ALLOW, ADR-0013), nới hàng rào, ghi file cổng/bí mật qua Bash (điểm dừng bắt buộc — 11-autonomous-loop).
 #  3) Khi là `git commit`: chạy cổng chất lượng qua dev-task.sh gate (gate-fast khi xt.yaml `commit_gate: fast`); đỏ → chặn (exit 2).
 # Phân tích lệnh nằm ở guard.py (tách theo token shell, chuẩn hoá wrapper/tuỳ chọn git — audit AUD-SEC-001…010).
@@ -13,7 +14,8 @@ payload="$(cat)"
 # Lệnh merge/ghi GitHub trong payload (regex của bash, không cần grep/python3): `gh  pr merge`, `gh\tpr`, `gh pr -R o/r
 # merge` (AUD-SEC-031). JSON mã hoá tab thành `\t`.
 merge_re='gh([[:space:]]|\\t)+(pr([[:space:]]|\\t).*merge|api)'
-# `--disable-auto` (tắt auto-merge) là việc LOOP-STOP-005 đòi khi chạm ngoại lệ cứng — không chặn kể cả khi guard vắng.
+# `--disable-auto` (tắt auto-merge): auto-merge chỉ người bật được, máy phải tắt được (`pr next`/steward
+# `disable-auto-merge` — ADR-0036, LOOP-STOP-005) — không chặn kể cả khi guard vắng; `--auto` (bật) vẫn rơi vào chặn.
 # Chỉ đúng dạng `gh pr merge <số> --disable-auto` cả lệnh (chuỗi `--disable-auto` trong `--body` không tính — review #97).
 disable_re='"command"[[:space:]]*:[[:space:]]*"[[:space:]]*gh[[:space:]]+pr[[:space:]]+merge[[:space:]]+[0-9]+[[:space:]]+--disable-auto[[:space:]]*"'
 merge_like() { [[ $payload =~ $merge_re ]] && ! [[ $payload =~ $disable_re ]]; }

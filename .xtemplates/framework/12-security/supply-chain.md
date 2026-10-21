@@ -3,7 +3,7 @@ title: Chuỗi cung ứng: ghim, SBOM, chữ ký, SLSA, Scorecard, Dependabot
 kind: module
 prefix: SEC-SUPPLY
 applies_to: [all]
-updated: 2026-10-18
+updated: 2026-10-21
 ---
 
 # Chuỗi cung ứng: ghim, SBOM, chữ ký, SLSA, Scorecard, Dependabot
@@ -83,6 +83,7 @@ updated: 2026-10-18
 8. **SBOM sinh một lần rồi quên.** SBOM có giá trị khi được quét lại khi có CVE mới. Tránh: lưu SBOM theo phiên bản + quét tuần.
 9. **Trivy/scanner tải từ `install.sh` không checksum** → chính công cụ bảo mật là vector tấn công. Tránh: `SEC-SUPPLY-005`.
 10. **Ký nhưng không verify.** `cosign sign` xong mà deploy không `cosign verify` → chữ ký chỉ để trang trí. Tránh: `SEC-SUPPLY-013` phần admission.
+11. **Coi action quét mã là "mã nguồn mở" vì công cụ bên dưới MIT.** `gitleaks-action` theo **EULA độc quyền**, không phải MIT như gitleaks CLI: repo thuộc Organization Account phải có secret `GITLEAKS_LICENSE`, cấm dùng như một phần dịch vụ; gitleaks CLI đã "feature complete" (chỉ vá bảo mật). Mẫu `framework/templates/secret-scan.yml` dùng action này — dự án đích thuộc tổ chức cấp license hoặc thay bằng CLI (MIT) tải binary ghim phiên bản + SHA256 (`SEC-SUPPLY-005`). Chi tiết license: [`../16-compliance-privacy/licensing-and-ip.md`](../16-compliance-privacy/licensing-and-ip.md) (xác minh 2026-10-21: research §4.2).
 
 ## Cổng tự động
 
@@ -112,6 +113,7 @@ updated: 2026-10-18
 - OWASP MCP Top 10 (MCP01–MCP10, living document, CC BY-NC-SA 4.0): <https://github.com/OWASP/www-project-mcp-top-10> — xác minh 2026-10-13.
 - CycloneDX 1.7 (2025-10-21; ECMA-424): <https://cyclonedx.org/specification/overview/>; SPDX 3.0; ISO/IEC 5962:2021 tương ứng SPDX 2.2.1: <https://spdx.dev/use/specifications/> — xác minh 2026-10-13 (đính chính 2026-10-14: bản trước ghi như thể ISO/IEC 5962:2021 là SPDX 3.0).
 - Phiên bản tool (tag xác minh 2026-10-13, trang GitHub không hiện năm): syft v1.54.1, cosign v3.1.3, conftest v0.71.1, OSV-Scanner v2.7.0 (12/10/2026 theo catalog 12 §3d), checkov 3.3.28 + pip-audit 2.10.1 + zizmor 1.30.1 (PyPI, 2026-10-13); Renovate AGPL-3.0 (LICENSE fetch 2026-10-13), 44.151.5 theo catalog 13 (2026-10-12).
+- `gitleaks-action` EULA (Organization Account cần `GITLEAKS_LICENSE`): <https://raw.githubusercontent.com/gitleaks/gitleaks-action/master/LICENSE.txt>; gitleaks CLI MIT "feature complete": <https://github.com/gitleaks/gitleaks> — xác minh 2026-10-21 qua `research/2026-10-21-next-level-speed-automation-quality.md` §4.2 (CL-9).
 - Catalog `seeker19110/stored` 12 §3 (7 quy tắc, supply chain, CI có AI), 23 §8.1 (ma trận vệ sinh), 20 §3b (vendor-with-lock), đọc 2026-10-13. Sự cố tj-actions/changed-files 2025 và Trivy CVE-2026-33634: ghi theo catalog, (chưa xác minh lại nguồn gốc ngày 2026-10-13).
 - Catalog `seeker19110/stored` 12 §3j (số commit do bot ghi timestamp, bảng thống kê README sai), 12 §3k (ARTEX: tool dual-use bị lạm dụng, tác giả gỡ, sao dồn về mirror) — đọc 2026-10-15.
 - Catalog `seeker19110/stored` README §22–§27, 08 §2d.1–2d.3 (hai phép thử "chính chủ", license tầng dưới, repo trùng tên, số tự công bố, SHA đã đọc) — rà 2026-10-18; quy trình ở `/research` (`.claude/skills/research/SKILL.md`).

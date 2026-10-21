@@ -1,7 +1,7 @@
 ---
 title: Vòng lặp tự động (autopilot)
 kind: index
-updated: 2026-10-20
+updated: 2026-10-21
 ---
 
 # 11 — Vòng lặp tự động (autopilot)
@@ -78,7 +78,7 @@ template và `AGENTS.md` chỉ tóm tắt và liên kết, không chép bảng/n
     chạy nền và khi thoát in sẵn kết quả `pr next`; mỗi khi PR đổi (push, CI, review) lại `pr next`. Reviewer **chỉ khi** `pr next` trả
     `review` — khác **họ** model với người viết ([`LOOP-ORCH-005`](orchestration-and-subagents.md); không kết luận được →
     `<XT> pr reviewed --inconclusive` rồi giao reviewer khác); ghi `<XT> pr reviewed` theo lệnh máy in (đăng lên PR để
-    `pr-steward` làm thay khi không còn phiên — ADR-0027). Cần push thêm → tự tắt auto-merge trước, gói sửa vào một commit.
+    `pr-steward` làm thay khi không còn phiên — ADR-0027). Cần push thêm → gói sửa vào một commit (máy chỉ merge head đã đánh giá — ADR-0036).
     Luật làn, ngoại lệ cứng, pha build: [`LOOP-STOP-022`](stop-points-and-escalation.md), ADR-0024/0025/0031/0033.
 13. **Stop hook quyết** (`stop-guard.sh` → `<XT> loop hook-stop`): `continue`/`verify` → trả `block` kèm lý do, agent làm
     tiếp (`verify` = task tick mà thiếu/khác bằng chứng, hoặc chưa chạy `<XT> loop verify --all` trên cây cuối —

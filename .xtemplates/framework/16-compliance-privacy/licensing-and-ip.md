@@ -3,7 +3,7 @@ title: License mã nguồn mở, IP, dữ liệu huấn luyện, thương hiệu
 kind: module
 prefix: CMP-LIC
 applies_to: [all]
-updated: 2026-10-19
+updated: 2026-10-21
 ---
 
 # License mã nguồn mở, IP, dữ liệu huấn luyện, thương hiệu, điều khoản dịch vụ
@@ -80,6 +80,7 @@ updated: 2026-10-19
 - **Đổi license gói giữa chừng** (Redis, Elastic, Terraform đã từng) → lockfile cũ ok, nâng phiên bản là vi phạm.
 - **Font "free for personal use"** trong sản phẩm thương mại.
 - **License của mã ≠ license của weights:** README ghi Apache-2.0 nhưng weights từng kích thước/revision theo license riêng (trần doanh thu, cấm lãnh thổ/đầu ra); cùng họ model, bản v2 đổi MIT → AGPL-3.0. Đọc model card đúng repo + revision (`CMP-LIC-020`).
+- **Action CI "miễn phí" nhưng theo EULA độc quyền:** `gitleaks-action` (khác gitleaks CLI MIT) buộc repo thuộc Organization Account có `GITLEAKS_LICENSE` và cấm dùng như một phần dịch vụ; repo cá nhân không cần. Mẫu `framework/templates/secret-scan.yml` cài sang dự án đích dùng action này → dự án thuộc tổ chức cấp license hoặc chạy CLI (MIT) ghim phiên bản + SHA256 ([`../12-security/supply-chain.md`](../12-security/supply-chain.md) `SEC-SUPPLY-005`). Đọc LICENSE của chính action, không chỉ của công cụ bên dưới (xác minh 2026-10-21: research §4.2).
 
 ## Cổng tự động
 
@@ -106,6 +107,7 @@ updated: 2026-10-19
 - EU AI Act Art. 53 (GPAI: bản quyền, tóm tắt dữ liệu): xem [`ai-regulation.md`](ai-regulation.md); Directive (EU) 2019/790 Art. 4 (TDM opt-out) — (chưa xác minh trực tiếp EUR-Lex ngày 2026-10-13).
 - Phiên bản công cụ (registry, 2026-10-13): scancode-toolkit 32.5.0 <https://pypi.org/pypi/scancode-toolkit/json>; pip-licenses 5.5.5 <https://pypi.org/pypi/pip-licenses/json>; reuse 6.2.0 <https://pypi.org/pypi/reuse/json>; license-checker-rseidelsohn 5.0.1 <https://registry.npmjs.org/license-checker-rseidelsohn/latest>; @cyclonedx/cyclonedx-npm 6.0.1 <https://registry.npmjs.org/@cyclonedx/cyclonedx-npm/latest>; syft v1.54.0 <https://github.com/anchore/syft/releases>.
 - Nghiên cứu nền: `research/2026-10-13-stored-catalog-extraction.md` §2.6 (SBOM + cổng license, exception có `approved_by`/`expires`), §3 (bẫy license không OSI, repo không LICENSE).
+- `gitleaks-action` LICENSE.txt (EULA độc quyền; Organization Account cần `GITLEAKS_LICENSE`): <https://raw.githubusercontent.com/gitleaks/gitleaks-action/master/LICENSE.txt> — xác minh 2026-10-21 qua `research/2026-10-21-next-level-speed-automation-quality.md` §4.2 (CL-9).
 - Catalog `seeker19110/stored` 19 §1b (OpenCreator/KrillinAI đổi GPL-3.0 → Apache-2.0 trên mã nhiều tác giả, không CLA/DCO) — đọc 2026-10-15.
 - Catalog `seeker19110/stored` 14 §3b (Audio8 0.1B Community License), §5b (Hunyuan3D — (chưa xác minh)), 18 §4c (PhoBERT base MIT vs base-v2 AGPL-3.0) — đọc 2026-10-16; model card từng repo chưa tra lại trực tiếp (chưa xác minh).
 - SPDX 3.0.1 (profiles AI, Dataset): <https://spdx.github.io/spdx-spec/v3.0.1/> · CycloneDX 1.7 ML-BOM: <https://cyclonedx.org/capabilities/mlbom/> — xác minh 2026-10-18. Catalog `seeker19110/stored` 10 §4b (license tầng dưới: agentmemory Apache-2.0, engine iii ELv2) — rà 2026-10-18.
