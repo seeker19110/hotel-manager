@@ -60,11 +60,14 @@ describe("ngân sách CI mỗi PR", () => {
       const wf = parse(read(`.github/workflows/${f}`));
       const on = wf.on ?? wf[true] ?? {};
       if (!("pull_request" in on) && !("pull_request_target" in on)) return [];
-      return Object.entries(wf.jobs).map(([id, j]) => ({
-        id: `${f}:${id}`,
-        runs: j.strategy?.matrix?.include?.length ?? 1,
-        timeout: j["timeout-minutes"],
-      }));
+      // Job hoãn tới harden (D-085: `if` chỉ workflow_dispatch) không chạy trên PR — không tính vào ngân sách PR.
+      return Object.entries(wf.jobs)
+        .filter(([, j]) => String(j.if ?? "").trim() !== "github.event_name == 'workflow_dispatch'")
+        .map(([id, j]) => ({
+          id: `${f}:${id}`,
+          runs: j.strategy?.matrix?.include?.length ?? 1,
+          timeout: j["timeout-minutes"],
+        }));
     });
   const ci = budgets.ci_per_pr;
 

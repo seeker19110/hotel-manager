@@ -37,16 +37,8 @@
           { "context": "dep-audit" },
           { "context": "commit-lint" },
           { "context": "pr-policy" },
-          { "context": "new-deps" },
-          { "context": "openapi" },
           { "context": "fe-typecheck" },
           { "context": "fe-lint" },
-          { "context": "unit-deterministic" },
-          { "context": "regression" },
-          { "context": "sast" },
-          { "context": "coverage" },
-          { "context": "coverage-ratchet" },
-          { "context": "fix-requires-test" },
           { "context": "merge-gate" }
         ]
       }

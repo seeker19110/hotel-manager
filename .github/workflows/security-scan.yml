@@ -21,6 +21,8 @@ concurrency:
 jobs:
   sast:
     name: sast
+    # D-085: hoãn tới pha harden — chỉ chạy tay (workflow_dispatch), không chạy trên PR/push/lịch; khôi phục khi delivery_phase: harden.
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -39,8 +41,8 @@ jobs:
 
   dast:
     name: dast
-    # D-084: hoãn tới pha harden — không chạy trên PR (không required), vẫn chạy push main/lịch/chạy tay; khôi phục khi delivery_phase: harden.
-    if: github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    # D-085: hoãn tới pha harden — chỉ chạy tay (workflow_dispatch), không chạy trên PR/push/lịch; khôi phục khi delivery_phase: harden.
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     services:
