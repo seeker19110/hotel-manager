@@ -161,13 +161,18 @@ const DEFERRED_TO_HARDEN = [
 ];
 /** Cổng có từ trước đợt 9; `quality` gom gate/e2e/backup-restore/workflow-lint/onboarding-smoke (T-807). */
 const BASE_GATES = ["quality", "gitleaks"]; // protection-guard, dep-audit: hoãn tới harden (D-086)
-/** Cổng của khung X-Templates 3.0.0: `merge-gate` đỏ khi PR ngoại lệ cứng đang bật auto-merge (ADR-0023 của khung). */
-const FRAMEWORK_GATES = ["merge-gate"];
+/**
+ * Khung 3.13.0 (ADR-0036): máy chỉ merge ghim head, `merge-gate` thành stub `pull_request` luôn xanh — không còn là
+ * required check trong main.json; ruleset SỐNG còn context đó tới khi chủ dự án gỡ, rồi stub mới được xoá.
+ */
+const FRAMEWORK_GATES = [];
+/** Job chạy trên PR nhưng không phải bằng chứng CI (stub của khung) — không đòi trong main.json. */
+const NON_CI_STUBS = new Set(["merge-gate"]);
 
 describe("WF-CI-001 — job gom quality + ruleset khớp job thật", () => {
   const ruleset = JSON.parse(read(".github/rulesets/main.json"));
 
-  it("ruleset đòi cổng nền (quality · protection-guard · gitleaks · dep-audit) + mọi cổng PR của đợt 9 + merge-gate", () => {
+  it("ruleset đòi cổng nền (quality · gitleaks) + cổng PR của đợt 9 còn chạy, không đòi stub merge-gate", () => {
     expect(requiredContexts(ruleset).sort()).toEqual(
       [...BASE_GATES, ...WAVE9_GATES, ...FRAMEWORK_GATES].sort(),
     );
@@ -310,7 +315,7 @@ describe("D-065 — ruleset gom mọi job chạy trên mọi PR vào main", () =
 
   it("mỗi job chạy trên mọi PR có trong main.json, trừ job đã gom vào quality (needs)", () => {
     for (const c of prJobs)
-      if (!aggregated.has(c))
+      if (!aggregated.has(c) && !NON_CI_STUBS.has(c))
         expect(required.has(c), `${c} chạy trên PR nhưng chưa là required check`).toBe(true);
   });
 
@@ -362,10 +367,15 @@ describe("D-065 — ruleset gom mọi job chạy trên mọi PR vào main", () =
   });
 
   it("nhóm cổng đợt 9 đều có mặt và là job PR thật", () => {
-    // 29 cổng (nền 4 + đợt 9 24 + khung 1) = còn required + hoãn tới harden (D-084…D-086): không cổng nào bị bỏ lặng lẽ.
-    expect(BASE_GATES.length + WAVE9_GATES.length + FRAMEWORK_GATES.length + DEFERRED_TO_HARDEN.length).toBe(
-      29,
-    );
+    // 29 cổng (nền 4 + đợt 9 24 + khung 1) = còn required + hoãn tới harden (D-084…D-086) + stub khung (ADR-0036):
+    // không cổng nào bị bỏ lặng lẽ.
+    expect(
+      BASE_GATES.length +
+        WAVE9_GATES.length +
+        FRAMEWORK_GATES.length +
+        DEFERRED_TO_HARDEN.length +
+        NON_CI_STUBS.size,
+    ).toBe(29);
     for (const c of WAVE9_GATES) {
       expect(required.has(c), `${c} thiếu trong main.json`).toBe(true);
       expect(prJobs.has(c), c).toBe(true);
@@ -424,18 +434,20 @@ describe("WF-CI-004 — zizmor + không nội suy input không tin cậy vào ru
   const triggers = (wf) =>
     typeof wf.on === "string" ? [wf.on] : Array.isArray(wf.on) ? wf.on : Object.keys(wf.on ?? {});
 
-  it("không workflow nào dùng workflow_run; pull_request_target chỉ ở merge-gate.yml của khung (D-069)", () => {
+  it("không workflow nào dùng workflow_run hay pull_request_target (D-069, ADR-0036 của khung)", () => {
     for (const [f, wf] of Object.entries(wfs)) {
       expect(triggers(wf), f).not.toContain("workflow_run");
-      if (f !== "merge-gate.yml") expect(triggers(wf), f).not.toContain("pull_request_target");
+      expect(triggers(wf), f).not.toContain("pull_request_target");
     }
   });
 
-  it("merge-gate.yml (pull_request_target) không checkout code PR, chỉ quyền đọc, không secret", () => {
+  it("merge-gate.yml là stub pull_request trần: không checkout, chỉ quyền đọc, không secret", () => {
     const f = "merge-gate.yml";
     const wf = wfs[f];
     const text = read(`${WORKFLOW_DIR}/${f}`);
-    expect(triggers(wf)).toEqual(["pull_request_target"]);
+    expect(triggers(wf)).toEqual(["pull_request"]);
+    expect(wf.on.pull_request ?? null).toBeNull(); // lọc branches/paths/types ⇒ PR không khớp treo "Expected"
+    expect(text).not.toMatch(/actions\/checkout@/);
     expect(wf.permissions).toEqual({ contents: "read" });
     for (const [key, job] of Object.entries(wf.jobs)) {
       for (const level of Object.values(job.permissions ?? {})) expect(level, key).toBe("read");
