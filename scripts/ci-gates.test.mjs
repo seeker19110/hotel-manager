@@ -69,7 +69,8 @@ function runsOnEveryPr(wf) {
 
 /** `if:` của job loại hẳn sự kiện pull_request (chỉ push/lịch/chạy tay/issue)? */
 const skipsPullRequest = (job) =>
-  /event_name\s*==\s*'(push|schedule|workflow_dispatch|issues)'/.test(String(job.if ?? ""));
+  /event_name\s*==\s*'(push|schedule|workflow_dispatch|issues)'/.test(String(job.if ?? "")) &&
+  !/pull_request/.test(String(job.if ?? "")); // `== 'push' || == 'pull_request'` vẫn chạy trên PR (review Sonnet #108)
 
 /**
  * `if:` (của job HOẶC của bước) phụ thuộc HÀNH ĐỘNG của sự kiện PR (`edited`, `changes`…)? Job required bị bỏ qua ở một hành động
@@ -129,26 +130,32 @@ const WAVE9_GATES = [
   "pr-policy",
   "new-deps",
   "openapi",
-  "prometheus-rules",
-  "otel-collector",
-  "schema-compat",
   "fe-typecheck",
   "fe-lint",
-  "bundle-size",
-  "lighthouse",
   "unit-deterministic",
-  "e2e-repeat",
   "regression",
   "sast",
+  "coverage",
+  "coverage-ratchet",
+  "fix-requires-test",
+];
+/**
+ * D-084 (chủ dự án, pha build): cổng hoãn tới pha harden — không chạy trên PR, không required, vẫn chạy trên push main (và lịch/chạy
+ * tay nếu workflow có) để còn tín hiệu. Đặt `delivery_phase: harden` trong xt.yaml ⇒ test đỏ tới khi trả hết về WAVE9_GATES + ruleset.
+ */
+const DEFERRED_TO_HARDEN = [
+  "bundle-size",
+  "lighthouse",
+  "e2e-repeat",
   "dast",
   "sbom",
   "image-scan (postgres)",
   "image-scan (node-base)",
   "image-scan (seaweedfs)",
   "image-scan (caddy)",
-  "coverage",
-  "coverage-ratchet",
-  "fix-requires-test",
+  "schema-compat",
+  "prometheus-rules",
+  "otel-collector",
 ];
 /** Cổng có từ trước đợt 9; `quality` gom gate/e2e/backup-restore/workflow-lint/onboarding-smoke (T-807). */
 const BASE_GATES = ["quality", "protection-guard", "gitleaks", "dep-audit"];
@@ -251,6 +258,40 @@ describe("WF-CI-001 — job gom quality + ruleset khớp job thật", () => {
   });
 });
 
+describe("D-084 — cổng hoãn tới pha harden", () => {
+  const wfs = workflows();
+  const required = new Set(requiredContexts(JSON.parse(read(".github/rulesets/main.json"))));
+  const prJobs = prContexts(wfs);
+  const phase = /^delivery_phase:\s*(\S+)/m.exec(read("xt.yaml"))?.[1];
+
+  it("pha harden: không còn cổng hoãn — trả về WAVE9_GATES, ruleset và trigger pull_request", () => {
+    if (phase === "harden") expect(DEFERRED_TO_HARDEN).toEqual([]);
+    else expect(phase).toBe("build");
+  });
+
+  it("cổng hoãn là job có thật, không required, không chạy trên PR", () => {
+    const names = jobNames(wfs);
+    for (const c of DEFERRED_TO_HARDEN) {
+      expect(names.has(c), `không có job ${c}`).toBe(true);
+      expect(required.has(c), `${c} còn trong ruleset`).toBe(false);
+      expect(prJobs.has(c), `${c} còn chạy trên PR`).toBe(false);
+    }
+  });
+
+  it("cổng hoãn vẫn chạy trên push main (giữ tín hiệu sau merge)", () => {
+    const onPushMain = new Set();
+    for (const wf of Object.values(wfs)) {
+      const push = wf.on?.push;
+      if (!wf.on || !("push" in wf.on) || (push?.branches && !push.branches.includes("main"))) continue;
+      for (const [key, job] of Object.entries(wf.jobs ?? {}))
+        if (/event_name\s*==\s*'push'/.test(String(job.if ?? "push")))
+          for (const c of jobContexts(key, job)) onPushMain.add(c);
+    }
+    for (const c of DEFERRED_TO_HARDEN)
+      expect(onPushMain.has(c), `${c} không chạy trên push main`).toBe(true);
+  });
+});
+
 describe("D-065 — ruleset gom mọi job chạy trên mọi PR vào main", () => {
   const wfs = workflows();
   const ruleset = JSON.parse(read(".github/rulesets/main.json"));
@@ -316,7 +357,8 @@ describe("D-065 — ruleset gom mọi job chạy trên mọi PR vào main", () =
   });
 
   it("nhóm cổng đợt 9 đều có mặt và là job PR thật", () => {
-    expect(WAVE9_GATES.length).toBe(24);
+    // 24 cổng đợt 9 = còn required + hoãn tới harden (D-084): không cổng nào bị bỏ lặng lẽ.
+    expect(WAVE9_GATES.length + DEFERRED_TO_HARDEN.length).toBe(24);
     for (const c of WAVE9_GATES) {
       expect(required.has(c), `${c} thiếu trong main.json`).toBe(true);
       expect(prJobs.has(c), c).toBe(true);

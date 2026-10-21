@@ -1,7 +1,8 @@
 name: API và vận hành
 
 # Kiểm hợp đồng API và cấu hình vận hành bằng công cụ thật (T-806): spectral (BE-API-001), promtool (OPS-SLO-001),
-# OTel Collector (OPS-OBS-001), test bản N−1 trên schema N (OPS-DEPLOY-003). Công cụ nhị phân cài bằng scripts/ops-tools.sh
+# OTel Collector (OPS-OBS-001), test bản N−1 trên schema N (OPS-DEPLOY-003;
+# pha build: chỉ push main — D-084). Công cụ nhị phân cài bằng scripts/ops-tools.sh
 # (phiên bản + SHA-256 ghim một chỗ). Kiểm breaking-change OpenAPI nằm ở job `pr-policy` (scripts/check-openapi-breaking.mjs).
 on:
   pull_request:
@@ -39,6 +40,8 @@ jobs:
   # OPS-SLO-001: rule cảnh báo + SLO. `check rules` (cú pháp), `test rules` (rule báo/không báo đúng), truy vấn SLI trong SLO.md.
   prometheus-rules:
     name: prometheus-rules
+    # D-084: hoãn tới pha harden — không chạy trên PR (không required), vẫn chạy trên push main; khôi phục khi delivery_phase: harden.
+    if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -60,6 +63,8 @@ jobs:
   # OPS-OBS-001: cấu hình Collector hợp lệ (validate) và chạy thật trên log mẫu — dòng rác vẫn lưu với nhãn `unparsed`.
   otel-collector:
     name: otel-collector
+    # D-084: hoãn tới pha harden — không chạy trên PR (không required), vẫn chạy trên push main; khôi phục khi delivery_phase: harden.
+    if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -80,10 +85,12 @@ jobs:
   # (expand → migrate → contract). Loại hai nhóm test mà đối tượng kiểm là CHÍNH schema/chuỗi migration chứ không phải code chạy trên nó:
   # `schema-drift` (khẳng định schema N khác ảnh chụp của N−1) và `migration-*` (lùi cả chuỗi migration, gõ cứng migration cuối của N−1
   # nên migration mới của PR làm đỏ oan; chúng chạy ở job `gate` của PR trên chính migration N). Các file nền của test ratchet
-  # (schema-guards.baseline.json, data-map.yaml) được `overlay` chép từ PR — xem scripts/schema-compat.mjs.
+  # (schema-guards.baseline.json, data-map.yaml) được `overlay` chép từ PR (trên push: từ commit được push) — xem scripts/schema-compat.mjs.
   schema-compat:
     name: schema-compat
-    if: github.event_name == 'pull_request'
+    # D-084: hoãn tới pha harden — không chạy trên PR (không required), vẫn chạy trên push main; khôi phục khi delivery_phase: harden.
+    # Trên push: N−1 = commit trước push (`github.event.before`).
+    if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     services:
@@ -105,7 +112,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          ref: ${{ github.event.pull_request.base.sha }}
+          ref: ${{ github.event.pull_request.base.sha || github.event.before }}
           path: .n-1
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0

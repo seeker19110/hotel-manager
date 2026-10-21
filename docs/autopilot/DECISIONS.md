@@ -605,3 +605,10 @@
 - Chọn: Nhận lời mời nhân viên bằng token gửi email (đã bắt buộc đăng nhập đúng email) đặt emailVerified=true
 - Lý do (tiêu chí chất lượng cuối): Đúng và an toàn: token 256 bit chỉ gửi tới hộp thư được mời nên nhận lời mời là bằng chứng sở hữu tương đương OTP; không đổi SPEC, không luồng mới; kẻ squat email người thuê không có token nhân viên của nạn nhân. Chủ trọ tự đăng ký (org.create) vẫn chưa xác minh — dùng được vai người thuê ở tổ chức khác chỉ sau khi nhận một lời mời nhân viên; chấp nhận. Seed test: tham số verified, mặc định true.
 - Đường lùi: Bỏ dòng update emailVerified ở accept-invitation
+
+### D-084 · 2026-10-21T01:48:44+00:00 · Chủ dự án yêu cầu bỏ bớt check merge chưa cần ở pha build, chờ harden: hoãn cổng nào và hoãn thế nào để không mất tín hiệu?
+
+- Phương án: (1) Chỉ bỏ khỏi ruleset, job vẫn chạy trên PR · (2) Hoãn 12 cổng (lighthouse, bundle-size, e2e-repeat, dast, sbom, image-scan x4, schema-compat, prometheus-rules, otel-collector): bỏ khỏi ruleset, không chạy trên PR, vẫn chạy push main/lịch; rào ci-gates đỏ khi delivery_phase: harden mà còn cổng hoãn · (3) Tắt hẳn các job đó
+- Chọn: Hoãn 12 cổng (lighthouse, bundle-size, e2e-repeat, dast, sbom, image-scan x4, schema-compat, prometheus-rules, otel-collector): bỏ khỏi ruleset, không chạy trên PR, vẫn chạy push main/lịch; rào ci-gates đỏ khi delivery_phase: harden mà còn cổng hoãn
+- Lý do (tiêu chí chất lượng cuối): Theo yêu cầu chủ dự án (2026-10-21). Phương án 1 không giảm ma sát: merge-check của khung coi mọi check đỏ là chặn, và rào D-065 đòi job chạy trên PR phải required. Phương án 2 giữ tín hiệu trên main, đường lùi rõ, và máy bắt khôi phục khi sang harden. Cổng giữ lại (17): kiểm mã, test, bảo mật cơ bản (gitleaks, dep-audit, sast), coverage, chính sách PR. Cổng hoãn là hiệu năng, quét image/SBOM/DAST và tương thích triển khai N−1 — chỉ có nghĩa khi có staging/production; image-scan còn có ngoại lệ grype hết hạn 2026-10-25 sẽ đỏ mọi PR.
+- Đường lùi: Trả 12 context về .github/rulesets/main.json + WAVE9_GATES, gỡ if: push của các job (schema-compat về pull_request), DEFERRED_TO_HARDEN rỗng, người import lại ruleset.
