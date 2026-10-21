@@ -18,7 +18,7 @@ import { type Kysely, sql } from "kysely";
 
 const NO_ACTOR = `(SELECT nullif(current_setting('app.actor_id', true), '')) IS NULL`;
 const STAFF_WRITE = `coalesce((SELECT app.actor_role()) IN ('owner','manager','front_desk','accountant'), false)`;
-const MONEY = `(${NO_ACTOR} OR ${STAFF_WRITE})`;
+const PAYMENT_WRITE = `(${NO_ACTOR} OR ${STAFF_WRITE})`;
 // D-090: INSERT `persons` chỉ owner/manager/front_desk (accountant không có đường tạo hồ sơ người); UPDATE (gồm SELECT … FOR
 // UPDATE của `lockPerson`) thêm accountant. Cả hai giữ ngoại lệ bootstrap (membership của actor chưa tồn tại).
 const personFn = (name: string, roles: string) => `CREATE FUNCTION app.${name}() RETURNS boolean
@@ -38,9 +38,9 @@ ${personFn("actor_may_update_person", "'owner','manager','front_desk','accountan
 
 CREATE POLICY persons_role_insert ON persons AS RESTRICTIVE FOR INSERT TO app_runtime WITH CHECK (${PERSON_INSERT});
 CREATE POLICY persons_role_update ON persons AS RESTRICTIVE FOR UPDATE TO app_runtime USING (${PERSON_UPDATE}) WITH CHECK (${PERSON_UPDATE});
-CREATE POLICY payments_role_insert ON payments AS RESTRICTIVE FOR INSERT TO app_runtime WITH CHECK ${MONEY};
-CREATE POLICY payments_role_update ON payments AS RESTRICTIVE FOR UPDATE TO app_runtime USING ${MONEY} WITH CHECK ${MONEY};
-CREATE POLICY discrepancies_role_insert ON shift_discrepancies AS RESTRICTIVE FOR INSERT TO app_runtime WITH CHECK ${MONEY};
+CREATE POLICY payments_role_insert ON payments AS RESTRICTIVE FOR INSERT TO app_runtime WITH CHECK ${PAYMENT_WRITE};
+CREATE POLICY payments_role_update ON payments AS RESTRICTIVE FOR UPDATE TO app_runtime USING ${PAYMENT_WRITE} WITH CHECK ${PAYMENT_WRITE};
+CREATE POLICY discrepancies_role_insert ON shift_discrepancies AS RESTRICTIVE FOR INSERT TO app_runtime WITH CHECK ${PAYMENT_WRITE};
 `;
 
 const DOWN = `
