@@ -158,5 +158,9 @@
   "portal.context": {
     "message": "{org} · Người thuê",
     "description": "Dòng ngữ cảnh đầu trang cổng người thuê: tên tổ chức."
+  },
+  "rooms.title": {
+    "message": "Phòng",
+    "description": "Tiêu đề màn danh sách phòng (/phong) khi đang tải."
   }
 }

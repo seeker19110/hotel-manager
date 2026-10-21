@@ -34,10 +34,13 @@ export function requiresSameOrigin(pathname: string): boolean {
 export function buildCsp(nonce: string, opts: { dev?: boolean } = {}): string {
   if (!/^[A-Za-z0-9+/=_-]{16,}$/.test(nonce)) throw new Error("nonce không hợp lệ");
   const script = [`'self'`, `'nonce-${nonce}'`, `'strict-dynamic'`, ...(opts.dev ? [`'unsafe-eval'`] : [])];
+  // Dev: `next dev` chèn <style> không nonce (nút chỉ báo, lớp báo lỗi) — bị chặn thì lớp báo lỗi vỡ và console ngập lỗi CSP.
+  // Có nonce thì trình duyệt bỏ qua 'unsafe-inline', nên dev bỏ nonce ở style-src. Production giữ nonce, không 'unsafe-inline'.
+  const style = opts.dev ? `'self' 'unsafe-inline'` : `'self' 'nonce-${nonce}'`;
   return [
     "default-src 'self'",
     `script-src ${script.join(" ")}`,
-    `style-src 'self' 'nonce-${nonce}'`,
+    `style-src ${style}`,
     "img-src 'self' blob: data:",
     "font-src 'self'",
     "connect-src 'self'",

@@ -95,6 +95,8 @@ test("bàn phím: đăng nhập → chọn tổ chức → danh sách phòng kh�
   await expect(org).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/\/phong$/);
+  // Trang đầu sau khi chọn tổ chức có thanh điều hướng (trước đây thiếu — người dùng kẹt ở danh sách phòng).
+  await expect(page.getByTestId("app-nav").getByRole("link", { name: "Công việc" })).toBeVisible();
 });
 
 test("lỗi 5xx đường thật: POST 500 → tra lệnh 404 → 'Chưa rõ… Gửi lại' + mã tra cứu, không lộ chi tiết", async ({
