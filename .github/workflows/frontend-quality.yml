@@ -1,8 +1,9 @@
 name: Frontend quality
 
 # Chất lượng frontend (PLAN đợt 9, T-804): build nghiêm theo thứ tự typecheck + lint → build, ngân sách bundle, Lighthouse CI,
-# test tất định (TZ cố định, lặp 3 lần), E2E lặp trên hai project, rào hồi quy. Chạy trên PR và main; các job này là
-# check phụ (ruleset `.github/rulesets/main.json` do người duyệt thêm vào required — xem docs/perf/README.md).
+# test tất định (TZ cố định, lặp 3 lần), E2E lặp trên hai project, rào hồi quy. Chạy trên PR và main (bundle-size,
+# lighthouse, e2e-repeat: chỉ push main ở pha build — D-084); các job này là check phụ (ruleset
+# `.github/rulesets/main.json` do người duyệt thêm vào required — xem docs/perf/README.md).
 
 on:
   push:

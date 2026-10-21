@@ -69,7 +69,8 @@ function runsOnEveryPr(wf) {
 
 /** `if:` của job loại hẳn sự kiện pull_request (chỉ push/lịch/chạy tay/issue)? */
 const skipsPullRequest = (job) =>
-  /event_name\s*==\s*'(push|schedule|workflow_dispatch|issues)'/.test(String(job.if ?? ""));
+  /event_name\s*==\s*'(push|schedule|workflow_dispatch|issues)'/.test(String(job.if ?? "")) &&
+  !/pull_request/.test(String(job.if ?? "")); // `== 'push' || == 'pull_request'` vẫn chạy trên PR (review Sonnet #108)
 
 /**
  * `if:` (của job HOẶC của bước) phụ thuộc HÀNH ĐỘNG của sự kiện PR (`edited`, `changes`…)? Job required bị bỏ qua ở một hành động

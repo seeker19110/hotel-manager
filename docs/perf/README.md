@@ -75,6 +75,6 @@ Mỗi file có `date`, `commit`, môi trường, thiết bị/mạng, số mẫu
 ## 5. Job CI (1 đã có từ đợt 9 — `lighthouse`; còn lại là đề xuất)
 
 1. **PR, job `e2e` (đã có):** `perf-baseline.spec.ts` chạy cùng bộ E2E, chặn khi vượt `perf/budgets.json` — **không cần đổi workflow**.
-2. **PR, job `lighthouse` (đã có):** `pnpm install --frozen-lockfile && pnpm build && pnpm exec lhci autorun` (3 URL × 5 lần, `error` theo `lighthouserc.json`), tải `.lighthouseci/` làm artifact.
+2. **Push main, job `lighthouse` (đã có; PR: hoãn tới pha harden, D-084):** `pnpm install --frozen-lockfile && pnpm build && pnpm exec lhci autorun` (3 URL × 5 lần, `error` theo `lighthouserc.json`), tải `.lighthouseci/` làm artifact.
 3. **Nightly (đã có, đợt 10 — D-072): `.github/workflows/perf-nightly.yml` job `k6`** chạy `perf/k6/room-list.js` (`K6_PROFILE=load`, 20 VU × 3 phút) hằng đêm và chạy tay, trên app dựng tạm trong runner như job `e2e` (Postgres service, seed giả), đỏ khi vượt `thresholds`; đích chỉ loopback (`scripts/k6-target-guard.mjs` + `assertSafeTarget`, QA-PERF-007). Khi có staging: đổi `BASE_URL`/`K6_ALLOWED_HOSTS` sang host staging (`*.staging.*`), thêm kịch bản ghi (`create-hold.js`) với phiên riêng; weekly `LOAD_DURATION=30m` (soak, QA-PERF-011) vẫn chờ staging.
 4. Ghi kết quả đầu tiên vào `docs/perf/baseline-k6.json` / `baseline-lighthouse.json` và mục hiệu năng của `GO-NO-GO.md` (kèm 5 trường: commit, môi trường, thiết bị/mạng, VU/thời lượng, ngày).
