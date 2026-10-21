@@ -5,6 +5,9 @@ import { authorize } from "@hm/domain";
 import { sql } from "kysely";
 import { type CommandContext, CommandError, fieldError } from "../pipeline/index.ts";
 
+/** Thông báo 404 chung (cơ sở/phòng ngoài tầm nhìn không phân biệt với không tồn tại). */
+const NOT_FOUND_MSG = "Không tìm thấy phòng";
+
 export async function createUnit(
   ctx: CommandContext,
   input: {
@@ -29,6 +32,13 @@ export async function createUnit(
     throw fieldError("floor", "INVALID", "Tên tầng 1–100 ký tự");
   if (!Number.isInteger(input.capacity) || input.capacity < 1 || input.capacity > 50)
     throw fieldError("capacity", "OUT_OF_RANGE", "Sức chứa 1–50");
+  // Cơ sở ngoài tầm nhìn (tổ chức khác, id lạ, hoặc ngoài phạm vi) → 404 như trước: RLS danh mục (0064) sẽ chặn INSERT … RETURNING
+  // bằng lỗi quyền (403) trước khi khoá ngoại kịp báo, nên tra cơ sở trước.
+  const prop =
+    await sql`select 1 from properties where organization_id = ${ctx.actor.orgId} and id = ${input.propertyId}`.execute(
+      ctx.trx,
+    );
+  if (prop.rows.length === 0) throw new CommandError("NOT_FOUND", 404, NOT_FOUND_MSG);
   const floor = await sql<{ id: string }>`
     insert into floors (id, organization_id, property_id, name, sort_order)
     values (${randomUUID()}, ${ctx.actor.orgId}, ${input.propertyId}, ${floorName},
@@ -73,7 +83,7 @@ export async function archiveUnit(
     select property_id, archived_at from units
     where organization_id = ${ctx.actor.orgId} and id = ${input.unitId} for update`.execute(ctx.trx);
   const u = r.rows[0];
-  if (!u || u.archived_at) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phòng");
+  if (!u || u.archived_at) throw new CommandError("NOT_FOUND", 404, NOT_FOUND_MSG);
   authorize(ctx.actor, "unit.manage", { propertyId: u.property_id });
   const busy = await sql<{ n: number }>`
     select count(*)::int as n from allocations
