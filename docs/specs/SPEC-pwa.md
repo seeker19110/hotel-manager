@@ -15,7 +15,7 @@ decisions: "D-002 (phiên chính tự duyệt câu hỏi chặn, 2026-10-16)"
 | Chủ spec | (chưa gán) · Duyệt bởi (chưa) ngày (chưa) |
 | Hồ sơ/quy mô | web-app / M |
 | Ngày | 2026-10-15 |
-| Phụ thuộc | ADR-0001 (Next.js 16.4.x, Serwist `@serwist/next` 9.5.x), ARCHITECTURE (luồng command, `GET /api/v1/commands/{command_id}`; API-CONTRACT "Kết quả command"), DOMAIN-MODEL INV-G5, SPEC-access-and-property (đăng xuất, đổi tổ chức), SPEC-portal |
+| Phụ thuộc | ADR-0001 (Next.js 16.4.x), ADR-0005 (Serwist `@serwist/turbopack` 9.5.x), ARCHITECTURE (luồng command, `GET /api/v1/commands/{command_id}`; API-CONTRACT "Kết quả command"), DOMAIN-MODEL INV-G5, SPEC-access-and-property (đăng xuất, đổi tổ chức), SPEC-portal |
 
 ## 1. User story
 - Là **lễ tân/quản lý dùng điện thoại**, tôi muốn cài ứng dụng lên màn hình chính và mở nhanh như app, để thao tác tại phòng/quầy mà không cần tìm trang web.
@@ -150,7 +150,7 @@ decisions: "D-002 (phiên chính tự duyệt câu hỏi chặn, 2026-10-16)"
 | Query | `app.getVersion` (`GET /api/version`) | Phiên bản build + phiên bản client tối thiểu |
 | Command | `session.logout` | Thu hồi phiên, trả `Clear-Site-Data` |
 
-- Cấu hình Serwist (đề xuất cho T041): precache manifest do `@serwist/next` sinh; runtime: điều hướng `NetworkOnly` + fallback `/offline`; `/api/*` và miền object storage `NetworkOnly` (không đăng ký route cache); không bật `skipWaiting`/`clientsClaim` tự động; `navigationPreload` bật.
+- Cấu hình Serwist (đề xuất cho T041): precache manifest do `@serwist/turbopack` sinh (ADR-0005); runtime: điều hướng `NetworkOnly` + fallback `/offline`; `/api/*` và miền object storage `NetworkOnly` (không đăng ký route cache); không bật `skipWaiting`/`clientsClaim` tự động; `navigationPreload` bật.
 - Trạng thái UI:
 
 | Trạng thái | Biểu hiện |

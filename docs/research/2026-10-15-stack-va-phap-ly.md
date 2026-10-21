@@ -26,7 +26,7 @@
 | Kysely | 0.29.6 (16/09/2026), MIT, node ≥ 22 | registry npm | F |
 | Drizzle ORM / kit | 0.45.4 / 0.31.11; có `pgPolicy` cho RLS; tstzrange/EXCLUDE: X | registry npm · https://orm.drizzle.team/docs/rls | F/X |
 | Prisma | tag `latest` = 8.0.0-rc.23 (rc); kiểu không hỗ trợ phải dùng `Unsupported` | registry npm · docs Prisma | F |
-| Serwist `@serwist/next` | 9.5.13 (04/10/2026), MIT; next-pwa dừng ở 5.6.0 (2022) | registry npm | F |
+| Serwist `@serwist/next` (mã dùng `@serwist/turbopack` cùng phiên bản — ADR-0005, 2026-10-21) | 9.5.13 (04/10/2026), MIT; next-pwa dừng ở 5.6.0 (2022) | registry npm | F |
 | Vitest | 5.0.4, MIT | registry npm | F |
 | Playwright | 1.64.1, Apache-2.0 | registry npm | F |
 | fast-check | 4.10.2, MIT | registry npm | F |
