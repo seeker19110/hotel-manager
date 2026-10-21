@@ -161,13 +161,16 @@ const DEFERRED_TO_HARDEN = [
 ];
 /** Cổng có từ trước đợt 9; `quality` gom gate/e2e/backup-restore/workflow-lint/onboarding-smoke (T-807). */
 const BASE_GATES = ["quality", "gitleaks"]; // protection-guard, dep-audit: hoãn tới harden (D-086)
-/** Cổng của khung X-Templates 3.0.0: `merge-gate` đỏ khi PR ngoại lệ cứng đang bật auto-merge (ADR-0023 của khung). */
-const FRAMEWORK_GATES = ["merge-gate"];
+/** Cổng của khung X-Templates: không còn (ADR-0036 của khung, 3.13.0) — máy chỉ merge ghim head nên bỏ `merge-gate`. */
+const FRAMEWORK_GATES = [];
+/** Job chạy trên PR nhưng KHÔNG phải required check: stub `merge-gate` của khung 3.13.0 luôn xanh, chỉ giữ context cho
+ * ruleset sống tới khi chủ dự án gỡ (rồi khung xoá stub). */
+const NON_REQUIRED_PR_JOBS = new Set(["merge-gate"]);
 
 describe("WF-CI-001 — job gom quality + ruleset khớp job thật", () => {
   const ruleset = JSON.parse(read(".github/rulesets/main.json"));
 
-  it("ruleset đòi cổng nền (quality · protection-guard · gitleaks · dep-audit) + mọi cổng PR của đợt 9 + merge-gate", () => {
+  it("ruleset đòi cổng nền (quality · gitleaks) + mọi cổng PR của đợt 9, không còn merge-gate (ADR-0036 khung)", () => {
     expect(requiredContexts(ruleset).sort()).toEqual(
       [...BASE_GATES, ...WAVE9_GATES, ...FRAMEWORK_GATES].sort(),
     );
@@ -310,7 +313,7 @@ describe("D-065 — ruleset gom mọi job chạy trên mọi PR vào main", () =
 
   it("mỗi job chạy trên mọi PR có trong main.json, trừ job đã gom vào quality (needs)", () => {
     for (const c of prJobs)
-      if (!aggregated.has(c))
+      if (!aggregated.has(c) && !NON_REQUIRED_PR_JOBS.has(c))
         expect(required.has(c), `${c} chạy trên PR nhưng chưa là required check`).toBe(true);
   });
 
@@ -362,9 +365,10 @@ describe("D-065 — ruleset gom mọi job chạy trên mọi PR vào main", () =
   });
 
   it("nhóm cổng đợt 9 đều có mặt và là job PR thật", () => {
-    // 29 cổng (nền 4 + đợt 9 24 + khung 1) = còn required + hoãn tới harden (D-084…D-086): không cổng nào bị bỏ lặng lẽ.
+    // 28 cổng (nền 4 + đợt 9 24; khung 0 — `merge-gate` bỏ có chủ đích theo ADR-0036 của khung 3.13.0) = còn required +
+    // hoãn tới harden (D-084…D-086): không cổng nào bị bỏ lặng lẽ.
     expect(BASE_GATES.length + WAVE9_GATES.length + FRAMEWORK_GATES.length + DEFERRED_TO_HARDEN.length).toBe(
-      29,
+      28,
     );
     for (const c of WAVE9_GATES) {
       expect(required.has(c), `${c} thiếu trong main.json`).toBe(true);
@@ -424,30 +428,24 @@ describe("WF-CI-004 — zizmor + không nội suy input không tin cậy vào ru
   const triggers = (wf) =>
     typeof wf.on === "string" ? [wf.on] : Array.isArray(wf.on) ? wf.on : Object.keys(wf.on ?? {});
 
-  it("không workflow nào dùng workflow_run; pull_request_target chỉ ở merge-gate.yml của khung (D-069)", () => {
+  it("không workflow nào dùng workflow_run hay pull_request_target (D-069; khung 3.13.0 bỏ pull_request_target)", () => {
     for (const [f, wf] of Object.entries(wfs)) {
       expect(triggers(wf), f).not.toContain("workflow_run");
-      if (f !== "merge-gate.yml") expect(triggers(wf), f).not.toContain("pull_request_target");
+      expect(triggers(wf), f).not.toContain("pull_request_target");
     }
   });
 
-  it("merge-gate.yml (pull_request_target) không checkout code PR, chỉ quyền đọc, không secret", () => {
+  it("merge-gate.yml là stub của khung 3.13.0: pull_request trần, không checkout/uses, chỉ quyền đọc, không secret", () => {
     const f = "merge-gate.yml";
     const wf = wfs[f];
     const text = read(`${WORKFLOW_DIR}/${f}`);
-    expect(triggers(wf)).toEqual(["pull_request_target"]);
+    expect(triggers(wf)).toEqual(["pull_request"]);
     expect(wf.permissions).toEqual({ contents: "read" });
     for (const [key, job] of Object.entries(wf.jobs)) {
       for (const level of Object.values(job.permissions ?? {})) expect(level, key).toBe("read");
-      for (const step of job.steps ?? []) {
-        if (String(step.uses ?? "").startsWith("actions/checkout@")) {
-          expect(step.with?.ref, key).toBeUndefined();
-          expect(step.with?.["persist-credentials"], key).toBe(false);
-        }
-      }
+      for (const step of job.steps ?? []) expect(step.uses, key).toBeUndefined();
     }
     expect(text).not.toMatch(/secrets\./);
-    expect(text).not.toMatch(/pull_request\.head\.(ref|repo)/);
   });
 
   it("không có biểu thức Actions nằm thẳng trong run: (đi qua env:)", () => {
