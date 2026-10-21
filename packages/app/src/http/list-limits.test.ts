@@ -2,6 +2,7 @@
 // yêu cầu không thể kéo về 10⁶ dòng. Thêm query `list*` mới mà quên khai ở đây → đỏ; hàm khai nhưng mất `limit` → đỏ.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { RESERVATION_LIST_LIMIT } from "../stay/reservations.ts";
 import { QUERIES } from "./registry.ts";
 
 const SRC = new URL("../", import.meta.url);
@@ -75,6 +76,15 @@ describe("list-limits — mọi query list* có trần số dòng (XC-PERF-006)"
     expect(notif?.safeParse({ limit: "100" }).success).toBe(true);
     expect(notif?.safeParse({ limit: "101" }).success).toBe(false);
     expect(notif?.safeParse({ limit: "0" }).success).toBe(false);
+  });
+
+  it("trần đặt bằng hằng số (không literal) vẫn trong ngưỡng: RESERVATION_LIST_LIMIT ≤ 500 và chính là LIMIT của SQL", () => {
+    expect(RESERVATION_LIST_LIMIT).toBeGreaterThan(0);
+    expect(RESERVATION_LIST_LIMIT).toBeLessThanOrEqual(500);
+    // Chuỗi `limit ${RESERVATION_LIST_LIMIT}` nguyên văn trong SQL (ghép để biome không coi là template quên dấu `).
+    expect(bodyOf("stay/reservations.ts", "listReservations")).toContain(
+      ["limit $", "{RESERVATION_LIST_LIMIT}"].join(""),
+    );
   });
 
   it("bắt đúng: thân hàm không có LIMIT bị phát hiện", () => {

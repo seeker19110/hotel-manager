@@ -3,6 +3,7 @@ import {
   listReservations,
   listRooms,
   opsProperties,
+  RESERVATION_LIST_LIMIT,
   type ReservationView,
   serverContext,
 } from "@hm/app";
@@ -10,7 +11,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { StatusBadge } from "../../components/ui/badge.tsx";
 import { Icon } from "../../components/ui/icon.tsx";
-import { EmptyState, ErrorState } from "../../components/ui/state.tsx";
+import { EmptyState, ErrorState, TruncatedNotice } from "../../components/ui/state.tsx";
 import { addDays, BOOKING_STATUS, day, weekdayDay } from "../../lib/format.ts";
 import { t } from "../../lib/i18n.ts";
 import { withActor } from "../../lib/page.tsx";
@@ -61,6 +62,7 @@ export default async function CalendarPage({
     const link = (f: string) => `/lich-phong?property_id=${property.id}&from=${f}`;
     return (
       <>
+        <TruncatedNotice shown={list.data.length} limit={RESERVATION_LIST_LIMIT} />
         {hotels.length > 1 ? (
           <nav aria-label="Chọn cơ sở" className="pager">
             {hotels.map((p) => (
