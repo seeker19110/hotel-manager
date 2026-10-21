@@ -108,10 +108,18 @@ describe("SPEC-access S-007: mời thành viên và chấp nhận", () => {
     expect(days).toBeCloseTo(7, 1);
     expect(inv.rows[0]?.token_hash.length).toBe(32);
 
-    const user = await seedAuthUser(t.admin, email.toUpperCase());
+    // Tài khoản đăng ký mật khẩu chưa xác minh email (đúng production); nhận lời mời bằng token gửi tới hộp thư = bằng chứng sở hữu.
+    const user = await seedAuthUser(t.admin, email.toUpperCase(), undefined, false);
     const before = await memberCount();
     const r = await accept(user, token);
     expect(r.status, JSON.stringify(r.body)).toBe(200);
+    expect(
+      (
+        await sql<{ v: boolean }>`select "emailVerified" as v from auth."user" where id = ${user}`.execute(
+          t.admin,
+        )
+      ).rows[0]?.v,
+    ).toBe(true);
     expect(await memberCount()).toBe(before + 1);
     const m = await sql<{
       role: string;

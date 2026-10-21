@@ -275,6 +275,10 @@ Mọi MUST còn mở vẫn cần người. Đợt này lấp hai lỗ 🟢 treo 
 - [x] `T-1202` `scripts/i18n-check.mjs` kiểm mọi `t("khoá", {…})` trong `apps/web`: tham số truyền vào khớp đúng tập tham số ICU của khoá (thiếu → người dùng thấy `{ten}` thô; thừa → gõ nhầm tên), đối số thứ hai không phải object literal là lỗi (XC-I18N-009) — Gate: `pnpm vitest run --project unit scripts/i18n && node scripts/i18n-check.mjs`
 - [x] `T-1203` Rà đợt 13: PROGRESS, BLUEPRINT-GAPS; gợi ý 🟢 review #97 (`Object.hasOwn` cho khoá, từ chối import namespace/mặc định của lib/i18n, `sourceErrors` có test, test neo tên module) (XC-I18N-009) — Gate: `pnpm vitest run --project unit scripts/i18n && node scripts/i18n-check.mjs && python3 scripts/check-blueprint-evidence.py BLUEPRINT.md`
 
+## Đợt 14 — sửa 🔴/🟠 của audit 2026-10-19 (D-079; docs/ops/AUDIT-STATUS.md)
+
+- [x] `T-1301` AUD-SEC-001 (🔴): quyền người thuê chỉ có hiệu lực khi `auth.user.emailVerified` (`resolveActor`); email chỉ được xác minh qua OTP gửi tới hộp thư (Better Auth tự gỡ mật khẩu/phiên lúc đó); tài khoản chỉ còn là người thuê chỉ có phiên qua `/sign-in/email-otp` (hook `session.create.before` — chặn mật khẩu, thử thách TOTP chờ sẵn, cửa sổ đua); `listMyOrganizations` ẩn tổ chức của tenant chưa xác minh; nhận lời mời nhân viên bằng token gửi email = bằng chứng sở hữu hộp thư (đặt `emailVerified`) để nhân viên dùng được vai người thuê (S-012) (D-081/D-082, thay D-079/D-080); `inviteTenant` giữ nguyên; test DB: kẻ đăng ký trước, kẻ tự lập tổ chức, tài khoản đã xác minh (PR ngoại lệ cứng — người merge) — Gate: `pnpm vitest run --project db packages/app/src/portal/portal-access`
+
 ## Phụ thuộc ngoài
 | Việc | Bên ngoài | Kế hoạch B |
 |---|---|---|
