@@ -1175,6 +1175,14 @@ def _push_ref_rule(ref: str, deleting: bool, cwd: Optional[str] = None) -> Tuple
 
 
 PUSH_VALUE_OPTS = ("-o", "--push-option", "--repo", "--receive-pack", "--exec")
+VERDICT_RANK = {"deny": 2, "ask": 1}
+
+
+def _stricter(a: Tuple[str, str], b: Tuple[str, str]) -> Tuple[str, str]:
+    """Quyết định chặt hơn (deny > ask > cho qua; hoà → `a`). Dùng khi token không đọc được một nghĩa: shlex trả `>` cho
+    cả chuyển hướng lẫn `'>'` trong nháy (tên ref hợp lệ) — `git push origin 2>&1` phải xét như không có refspec,
+    `git push origin '>' main` phải xét `main` (AUD-SEC-102)."""
+    return b if VERDICT_RANK.get(b[0], 0) > VERDICT_RANK.get(a[0], 0) else a
 
 
 def _git_push(args: List[str], cwd: Optional[str] = None) -> Tuple[str, str]:
@@ -1291,8 +1299,8 @@ def git_rules(n: List[str], cwd: Optional[str] = None) -> Tuple[str, str]:
     if len(n) < 2:
         return "", ""
     args = [_git_long(a) for a in n[2:]]
-    if n[1] == "push":
-        return _git_push(args, cwd)
+    if n[1] == "push":  # AUD-SEC-102: `git push origin 2>&1` trên nhánh chính — chuyển hướng không phải refspec
+        return _stricter(_git_push(args, cwd), _git_push(_drop_redirects(args), cwd))
     rule = GIT_RULES.get(n[1])
     return rule(args) if rule else ("", "")
 

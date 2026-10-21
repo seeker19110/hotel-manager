@@ -16,9 +16,9 @@ updated: 2026-10-21
 ## Nguyên tắc
 
 1. **Một cổng chất lượng, một tên.** `quality` (gate aggregator) gom mọi job cổng; thêm job mới không phải sửa ruleset;
-   ruleset đòi đúng 2 required check `quality` · `gitleaks`, mỗi cái là job có thật (`protection-guard`
-   và `dep-audit` là job con của `quality`; repo khung giữ thêm hai context đó riêng — D-116, D-117); đổi tên job có
-   `protection-guard` bắt. Không có required check `merge-gate`: máy chỉ merge ghim head sau `merge-check` ở đúng head và
+   ruleset đòi đúng 2 required check `quality` · `gitleaks`, mỗi cái là job có thật (`protection-guard` là bước của
+   `quality` ở mẫu dự án đích, `dep-audit` là bước/job con dưới `quality`; repo khung giữ thêm hai context đó riêng —
+   D-116, D-117, ADR-0039); đổi tên job có `protection-guard` bắt. Không có required check `merge-gate`: máy chỉ merge ghim head sau `merge-check` ở đúng head và
    không bật auto-merge, nên không còn gì để cổng đó chặn (ADR-0036; stub xanh giữ context tới khi chủ repo gỡ khỏi ruleset sống).
 2. **CI là nguồn sự thật của "xanh".** Hook local có thể bị bỏ qua; mọi lint/format/type/test/scan đều chạy lại
    ở CI với cùng lệnh (đọc từ `xt.yaml`/`package.json`, không viết lại).
@@ -33,7 +33,7 @@ updated: 2026-10-21
 
 | Câu hỏi | Chọn | Ghi chú |
 |---|---|---|
-| Cấu trúc workflow | `ci.yml`: job con song song (lint, type, test, build, scan…) → job `quality` `if: always()`, `needs: [...]` kiểm `needs.*.result == 'success'` (fan-out/fan-in, mục dưới) | Không thêm required check rời cho từng job con (ruleset lệch tên); ruleset giữ 2 tên cố định `quality`, `gitleaks`; không đòi "up to date" (`strict: false`) để PR merge song song, lớp đỡ là CI chạy lại trên push `main` (`BASE-GATE-007`, D-116) |
+| Cấu trúc workflow | `ci.yml`: ít job nhất — kiểm ngắn (build, type, lint, test + coverage, kiểm khung…) gộp một job `gate` và chạy song song **trong job** (`dev-task.sh gate-par`, D-128), job dài và độc lập (e2e, DAST…) riêng → job `quality` `if: always()`, `needs: [...]` kiểm `needs.*.result == 'success'` (ADR-0039; fan-out/fan-in chỉ giữa các job dài, mục dưới) | Không thêm required check rời cho từng job con (ruleset lệch tên); ruleset giữ 2 tên cố định `quality`, `gitleaks`; không đòi "up to date" (`strict: false`) để PR merge song song, lớp đỡ là CI chạy lại trên push `main` (`BASE-GATE-007`, D-116) |
 | Trigger | `pull_request` + `push: branches: [main]` + `merge_group` (nếu merge queue) + `schedule` có offset phút | `pull_request_target` chỉ khi thật cần quyền và **không checkout code PR** |
 | Cache | `actions/setup-*` cache built-in theo lockfile; `actions/cache` cho browser/tool với key `hashFiles(lockfile)` | Cache theo nhánh/ngày (miss liên tục) |
 | Ghim action | Full commit SHA + comment version; Dependabot `github-actions` cập nhật | Tag `@v4` chỉ cho action chính chủ GitHub nếu chấp nhận rủi ro — ghi ADR |
@@ -44,7 +44,10 @@ updated: 2026-10-21
 ## Fan-out/fan-in: song song mà vẫn một required check
 
 Cổng chạy nối tiếp (build → typecheck → lint → test) trong một job có wall time = tổng các bước. Tách thành job song
-song (**fan-out**) rồi gom về một job tổng hợp (**fan-in**) giữ nguyên tên required check:
+song (**fan-out**) rồi gom về một job tổng hợp (**fan-in**) giữ nguyên tên required check. Mỗi job tốn checkout, cài phụ
+thuộc và một runner; khi các repo cùng tài khoản dùng chung trần job đồng thời, nhiều job ngắn làm job dài nhất xếp hàng
+chờ runner (ADR-0039: ~17 job đẩy cùng lúc, `e2e` bắt đầu trễ ~5 phút). Nên chỉ tách khi **đo** thấy một bước là đường dài
+nhất và runner không bị trần — mẫu dự án đích không tách (mục dưới); repo khung tách vì bộ test dài:
 
 1. **Một job mỗi task của cổng**, mỗi job gọi đúng lệnh của nguồn lệnh chung (`dev-task.sh lint`, `npm run lint`…) —
    không viết lệnh khác trong YAML (`WF-CI-002`). Mọi job cùng bước chuẩn bị (checkout, runtime, cài theo lockfile).
@@ -66,29 +69,29 @@ song (**fan-out**) rồi gom về một job tổng hợp (**fan-in**) giữ nguy
    thời gian đo được chỉ khi shard chậm nhất chênh rõ (repo khung: `k mod N` cho 4 shard 63/58/80/164 s tổng trọng số,
    LPT 91/91/91/92 s — D-095).
 
-Dự án đích không phải tự viết (`WF-CI-024`, `WF-CI-001`): `install.py --with-github` cài mẫu không phụ thuộc stack
-[`../templates/ci.yml`](../templates/ci.yml) (lệnh lấy từ `xt.yaml`) và
+Dự án đích không phải tự viết (`WF-CI-025`, `WF-CI-001`): `install.py --with-github` cài mẫu không phụ thuộc stack
+[`../templates/ci.yml`](../templates/ci.yml) (lệnh lấy từ `xt.yaml`, 3 job — ADR-0039) và
 [`../templates/secret-scan.yml`](../templates/secret-scan.yml); `dep-audit` vẫn do dự án viết theo ngôn ngữ. CD (deploy)
 không có mẫu — dự án tự viết theo `WF-CI-012`/`WF-CI-013` khi có môi trường deploy.
 
-## Khởi đầu tối thiểu, song song tối đa (dự án đích — D-115)
+## Khởi đầu tối thiểu số job (dự án đích — ADR-0039)
 
 Lúc triển khai ban đầu dự án chỉ cần **điền lệnh** vào `xt.yaml`; mẫu đã có đủ khung chạy, mọi phần chưa khai thì bỏ qua
-có log thay vì phải viết YAML:
+có log thay vì phải viết YAML. Mẫu có đúng 3 job; **song song tối đa trong số job tối thiểu** (D-128): `gate` và `e2e`
+không `needs`, bắt đầu cùng lúc, và các nhóm độc lập trong `gate` chạy nền song song trong job:
 
-| Giai đoạn | Khai trong `xt.yaml` | CI chạy |
+| Job | Chạy gì | Ghi chú |
 |---|---|---|
-| Ngày đầu | `lint`, `test` (bắt buộc — `checks` đỏ tới khi có, D-096), `setup` nếu cần cài phụ thuộc; import ruleset mẫu | `build` · `typecheck` · `lint` · `test` (shard 1 chạy cả `test`) · `checks` · `protection-guard` · `quality` — cùng lúc; ruleset đòi 3 check đều có job, không đòi "up to date" nên PR xanh merge song song (D-116, D-117) |
-| Có giao diện | `e2e` (`@smoke` luồng chính, dùng `$XT_SHARD`), `e2e_setup` | thêm `e2e` ×2 shard, chạy cùng lúc với test (`QA-E2E-029`) |
-| Test chậm (đo được) | `test_list` · `test_unit` · `test_combine` (· `test_weights`) | `test` ×4 shard + `coverage` gộp; thêm số vào `matrix.shard` khi shard chậm nhất vượt ngân sách |
+| `gate` | `require lint test` (đỏ tới khi `lint`, `test` có lệnh thật — D-096) → `setup` → `dev-task.sh gate-par` (typecheck ∥ lint ∥ build → test, ngưỡng coverage nằm trong lệnh `test`; `test_floor` sau `test` nếu khai) → `xt.py doctor` → `xt.py ci-check` → tiêu đề PR | Một lần cài phụ thuộc; cùng lệnh với cổng cục bộ `dev-task.sh gate` nhưng nhóm độc lập chạy cùng lúc — wall time ≈ nhóm dài nhất, log từng nhóm in nguyên khối, nhóm nào đỏ thì bước đỏ (các nhóm khác vẫn chạy hết). Nhóm ghi chung file (vd typecheck sinh mã mà build đọc) → dùng `dev-task.sh gate` tuần tự |
+| `e2e` | `e2e-mode` → `setup` → `e2e_setup` + `e2e` với `$XT_SHARD` (`matrix.shard: [1]`); chưa khai `e2e` → bỏ qua có log | Chạy cùng lúc với `gate`, không `needs`; thêm shard chỉ khi đo thấy e2e là đường dài nhất (`QA-E2E-029`) |
+| `quality` | `needs: [gate, e2e]`, `if: always()`, đỏ khi job con ≠ `success`; bước protection-guard đối chiếu ruleset ↔ job và cảnh báo khi ruleset chưa hiệu lực | Required check; ruleset mẫu chỉ đòi `quality` + `gitleaks` (`secret-scan.yml`), không đòi "up to date" nên PR xanh merge song song (D-116, D-117) |
 
-Song song tối đa nghĩa là **đường găng = job chậm nhất**: không job lập kế hoạch đứng trước fan-out (matrix tĩnh, mỗi shard
-tự đọc `xt.yaml` — shard thừa thoát sau checkout vài giây, rẻ hơn một job tuần tự), `e2e` không `needs: build` (tự build
-qua lệnh `e2e`; chuyển sang build một lần — `QA-E2E-021` — khi build chiếm phần lớn thời gian shard). Chỉ còn hai bước nối
-tiếp, đều là fan-in bắt buộc: `coverage` (gộp dữ liệu mọi shard để đòi đúng ngưỡng) và `quality` (một required check thay
-cho từng job — `WF-CI-001`); trong một shard, `test-shard` chạy các đơn vị test song song theo số CPU. Phần chỉ đáng khi lớn
-— cache theo lockfile, gộp báo cáo blob, chọn test theo ảnh hưởng, nightly, đa trình duyệt — thêm khi số đo đòi, không thêm
-từ đầu.
+Thêm kiểm ngắn (audit phụ thuộc, workflow-lint…) = thêm **bước** vào `gate`; thêm kiểm dài và độc lập (DAST, Lighthouse,
+e2e nhiều trình duyệt) = thêm job và đưa tên vào `quality.needs` — không thêm required check. Dự án đã có CI riêng gộp job
+ngắn vào `gate` theo cùng cách, không bỏ kiểm nào. Đường găng = job chậm nhất: `e2e` không `needs: build` (tự build qua lệnh
+`e2e`; build một lần — `QA-E2E-021` — khi build chiếm phần lớn thời gian). Phần chỉ đáng khi lớn — cache theo lockfile, gộp
+báo cáo blob, chọn test theo ảnh hưởng, tách test thành shard (`test_list` · `test_unit` · `test_combine`), nightly, đa
+trình duyệt — thêm khi số đo đòi, không thêm từ đầu.
 
 ## Checklist
 
@@ -115,8 +118,8 @@ từ đầu.
 - [ ] `WF-CI-021` **MAY** Preview deploy cho mỗi PR (URL trong PR) dùng environment riêng, dữ liệu giả, tự xoá khi đóng PR ([`environments-and-config.md`](environments-and-config.md)). → Kiểm: job preview + job cleanup on `closed`.
 - [ ] `WF-CI-022` **MAY** Agent tự sửa CI đỏ: trần số lần re-run/sửa (vd 3), cấm skip/disable test, cấm rewrite history; xem [`../11-autonomous-loop/self-healing-ci.md`](../11-autonomous-loop/self-healing-ci.md). → Kiểm: cấu hình trần; log số lần.
 - [ ] `WF-CI-023` **MUST@L** Workflow có trigger `pull_request` (cả PR cùng repo, không riêng fork) không tham chiếu `secrets.*` ngoài `GITHUB_TOKEN`, trừ job có `environment:` kèm required reviewers; job cần secret chỉ chạy khi push nhánh chính hoặc `workflow_dispatch`, và chạy công cụ từ thư mục sạch (không phải thư mục chứa code PR). Lý do: với autopilot, PR là code agent viết, có thể đã dính injection. → Kiểm: `xt.py ci-check` báo lỗi khi workflow có `pull_request` (hoặc `pull_request_target`) mà job không có `environment:` lại chứa `secrets.X`/`secrets[...]`/`secrets: inherit` (X ≠ `GITHUB_TOKEN`); ngoại lệ có chủ đích `# ci-check-allow: <lý do>` trên dòng đó; reviewer của environment kiểm trên GitHub, không kiểm được bằng máy. · Nguồn: stored 12 §3f (garak chỉ chạy khi push `main`/chạy tay, không trên `pull_request`, chạy trong thư mục trống)
-- [ ] `WF-CI-024` **SHOULD** Cổng CI chạy song song theo mô hình fan-out/fan-in khi có ≥ 2 bước độc lập dài: mỗi task của cổng một job gọi đúng lệnh chung, test chia shard (liệt kê đơn vị test một cách, chia xác định — phần tử k vào shard `k mod N` hoặc tham lam theo trọng số đo được commit trong repo, file trọng số hỏng → đỏ — shard rỗng/tổng dưới sàn → đỏ), coverage gộp ở job riêng với đúng ngưỡng cổng local, job tổng hợp `quality` `if: always()` `needs` mọi job con. → Kiểm: test của repo đọc workflow — mọi task của cổng có job, `quality.needs` = mọi job con, `quality.if` có `always()` không có `cancelled()`; hợp các shard == tập đơn vị test của discover; job gộp coverage đòi ngưỡng như cổng local. · Nguồn: GitHub Troubleshooting required status checks (job bị bỏ qua do điều kiện báo "Success"), Workflow syntax (`jobs.<id>.needs`, `always()`, `strategy.matrix`)
-- [ ] `WF-CI-025` **SHOULD** Dự án đích khởi đầu bằng CI mẫu tối thiểu, song song tối đa: mọi job cổng (build, typecheck, lint, test, e2e, checks) chạy cùng lúc, không job lập kế hoạch tuần tự đứng trước fan-out (matrix tĩnh; mỗi shard tự đọc `xt.yaml` qua `dev-task.sh test-mode`/`e2e-mode` và bỏ qua phần không áp dụng có log); `e2e` không chờ `build`; phần tối ưu (cache, gộp báo cáo, chọn theo ảnh hưởng, thêm shard) chỉ thêm khi đo thấy cổng vượt ngân sách (`WF-CI-009`, `QA-E2E-026`). Khoá chưa khai không được thành "CI xanh rỗng" cho `lint`/`test` (D-096). → Kiểm: `.github/workflows/ci.yml` không có job nào mà mọi job cổng `needs`; `quality.needs` gồm `e2e`; test của repo khung `CiTemplateTest` (matrix tĩnh, không `test-plan`, `e2e` không `needs`). · Nguồn: GitHub Workflow syntax (`strategy.job-total`, `jobs.<id>.needs`) — xác minh 2026-10-21; D-115
+- [ ] `WF-CI-024` **SHOULD** Cổng CI chỉ chạy song song theo mô hình fan-out/fan-in giữa các bước **dài** độc lập, đo được là đường dài nhất (kiểm ngắn gộp một job — ADR-0039): mỗi bước dài tách ra một job gọi đúng lệnh chung, test (khi tách) chia shard (liệt kê đơn vị test một cách, chia xác định — phần tử k vào shard `k mod N` hoặc tham lam theo trọng số đo được commit trong repo, file trọng số hỏng → đỏ — shard rỗng/tổng dưới sàn → đỏ), coverage gộp ở job riêng với đúng ngưỡng cổng local, job tổng hợp `quality` `if: always()` `needs` mọi job con; đo thời gian job trước khi thêm job hay shard. → Kiểm: test của repo đọc workflow — mọi task của cổng có job hoặc bước, `quality.needs` = mọi job con, `quality.if` có `always()` không có `cancelled()`; hợp các shard == tập đơn vị test của discover; job gộp coverage đòi ngưỡng như cổng local. · Nguồn: GitHub Troubleshooting required status checks (job bị bỏ qua do điều kiện báo "Success"), Workflow syntax (`jobs.<id>.needs`, `always()`, `strategy.matrix`)
+- [ ] `WF-CI-025` **SHOULD** Dự án đích khởi đầu bằng CI mẫu tối thiểu số job (ADR-0039): kiểm ngắn (build, typecheck, lint, test kèm coverage, `require`, doctor, ci-check, tiêu đề PR, audit…) gộp một job `gate` chạy `dev-task.sh gate-par` (nhóm độc lập typecheck ∥ lint ∥ build → test song song **trong job**, D-128); job dài và độc lập (`e2e` với `matrix.shard: [1]`, DAST, Lighthouse…) chạy cùng lúc với `gate`, không job lập kế hoạch tuần tự đứng trước (mỗi shard tự đọc `xt.yaml` qua `dev-task.sh e2e-mode` và bỏ qua phần không áp dụng có log); `quality` gom mọi job (`needs`, `if: always()`) và chạy protection-guard như một bước; song song chỉ giữa các job dài — thêm job, shard hay phần tối ưu (cache, gộp báo cáo, chọn theo ảnh hưởng) chỉ khi đo thấy chúng là đường dài nhất hoặc cổng vượt ngân sách (`WF-CI-009`, `QA-E2E-026`). Khoá chưa khai không được thành "CI xanh rỗng" cho `lint`/`test` (D-096). → Kiểm: `.github/workflows/ci.yml` không có job riêng cho build/typecheck/lint/test/coverage/checks; mọi job khác nằm trong `quality.needs`; ruleset chỉ đòi `quality` + `gitleaks`; test của repo khung `CiTemplateTest` (3 job `gate` · `e2e` · `quality`, `gate`/`e2e` không `needs`, `gate` chạy `gate-par`), `DevTaskGateParTest`. · Nguồn: GitHub Workflow syntax (`strategy.job-total`, `jobs.<id>.needs`) — xác minh 2026-10-21; D-115, D-127, D-128, ADR-0039
 
 ## Bẫy thường gặp
 
@@ -143,7 +146,7 @@ từ đầu.
 | zizmor (MIT) 1.30.1 | `zizmor --min-severity medium .github/workflows` | CI | 0 finding ≥ medium |
 | pinact / ratchet | `pinact run --check` | CI | 100% `uses:` ghim SHA (chi tiết [`../12-security/supply-chain.md`](../12-security/supply-chain.md)) |
 | `xt.py ci-check` | `xt.py ci-check` (đọc YAML workflow: `permissions`, ghim SHA, `timeout-minutes`, `continue-on-error`, secret trên `pull_request` — `WF-CI-023`) | CI (trong `lint`) | 0 vi phạm |
-| protection-guard | job trong `ci.yml`: `required_status_checks` của `.github/rulesets/main.json` ↔ tên job thật; API rules kiểm ruleset đang áp | CI required | Đỏ khi required check không khớp job; cảnh báo khi ruleset chưa hiệu lực (đổi `::warning` thành `exit 1` để ép) |
+| protection-guard | bước của job `quality` trong `ci.yml` mẫu (repo khung: job riêng): `required_status_checks` của `.github/rulesets/main.json` ↔ tên job thật; API rules kiểm ruleset đang áp | CI required | Đỏ khi required check không khớp job; cảnh báo khi ruleset chưa hiệu lực (đổi `::warning` thành `exit 1` để ép) |
 | Thời gian cổng | đo `quality` end-to-end | CI | < 10–15 phút, cảnh báo khi vượt |
 | Cache | `actions/setup-node@<sha>` `cache: npm` · `actions/setup-python` `cache: pip` · `actions/setup-go` | CI | Hit ratio theo dõi |
 | OIDC | `permissions: id-token: write` + provider action | CD | Không khoá dài hạn |

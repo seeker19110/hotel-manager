@@ -1383,6 +1383,85 @@ def _unknown_after_note(unknown: Dict[str, List[str]]) -> List[str]:
     return [f"⚠ `sau:` trỏ ID không có trong PLAN (không chặn — kiểm gõ nhầm): {pairs}"] if unknown else []
 
 
+def _direct_block(t: Dict[str, Any], cyc: set[str], deferred: Dict[str, Any]) -> Optional[str]:
+    """Lý do `t` tự bị chặn (chu trình `sau:`, ghi chú hỏng, đã defer); None nếu không."""
+    if t["id"] in cyc:
+        return "trên chu trình `sau:`"
+    if t.get("bad_links"):
+        return f"ghi chú `sau:`/`files:` không đọc được: {', '.join(t['bad_links'])}"
+    if t["id"] in deferred:
+        info = deferred[t["id"]]
+        return f"đã defer: {info.get('reason', '') if isinstance(info, dict) else info}"
+    return None
+
+
+def _plan_blocked(opens: List[Dict[str, Any]], deferred: Dict[str, Any], cyc: set[str]) -> Dict[str, str]:
+    """{ID: lý do} của task mở bị chặn, theo thứ tự PLAN; chặn lan sang task chờ dependency mở bị chặn."""
+    ids = {t["id"] for t in opens}
+    blocked: Dict[str, str] = {}
+    for t in opens:
+        reason = _direct_block(t, cyc, deferred)
+        if reason:
+            blocked[t["id"]] = reason
+    changed = True
+    while changed:
+        changed = False
+        for t in opens:
+            deps = [d for d in t["after"] if d in ids and d in blocked]
+            if t["id"] not in blocked and deps:
+                blocked[t["id"]] = f"chờ {', '.join(deps)} bị chặn"
+                changed = True
+    return {t["id"]: blocked[t["id"]] for t in opens if t["id"] in blocked}
+
+
+def _plan_level(tid: str, deps: Dict[str, List[str]], memo: Dict[str, int]) -> int:
+    """Tầng phụ thuộc: 0 nếu không có dependency mở trong file, else 1 + max tầng các dependency."""
+    if tid not in memo:
+        memo[tid] = 1 + max((_plan_level(d, deps, memo) for d in deps[tid]), default=-1)
+    return memo[tid]
+
+
+def _fits_group(t: Dict[str, Any], group: List[Dict[str, Any]], max_parallel: int) -> bool:
+    """`t` vào được nhóm: còn chỗ, không ai thiếu `files:`, `files:` đôi một không giao."""
+    if len(group) >= max_parallel or not t["files"] or not all(g["files"] for g in group):
+        return False
+    return not any(_path_overlap(f, h) for g in group for f in t["files"] for h in g["files"])
+
+
+def _pack_level(level_tasks: List[Dict[str, Any]], max_parallel: int) -> List[List[Dict[str, Any]]]:
+    """Xếp tham lam (first-fit, theo thứ tự PLAN) task cùng tầng thành nhóm chạy song song."""
+    groups: List[List[Dict[str, Any]]] = []
+    for t in level_tasks:
+        target = next((g for g in groups if _fits_group(t, g, max_parallel)), None)
+        if target is None:
+            groups.append([t])
+        else:
+            target.append(t)
+    return groups
+
+
+def plan_waves(tasks: List[Dict[str, Any]], deferred: Dict[str, Any], max_parallel: int = 5) -> Dict[str, Any]:
+    """Chia task `[ ]` thành đợt song song: mỗi `sau:` trong file đã đóng hoặc thuộc đợt trước; trong đợt, nhóm có
+    `files:` không giao (task thiếu `files:` đứng riêng), ≤ max_parallel. Task chu trình/bad_links/defer → `blocked`."""
+    opens = [t for t in tasks if t["state"] in PLAN_OPEN_STATES]
+    blocked = _plan_blocked(opens, deferred, set(plan_cycle_nodes(tasks)))
+    live = [t for t in opens if t["id"] not in blocked]
+    ids = {t["id"] for t in live}
+    deps = {t["id"]: [d for d in t["after"] if d in ids] for t in live}
+    memo: Dict[str, int] = {}
+    levels = {t["id"]: _plan_level(t["id"], deps, memo) for t in live}
+    waves: List[Dict[str, Any]] = []
+    for lv in sorted(set(levels.values())):
+        for group in _pack_level([t for t in live if levels[t["id"]] == lv], max_parallel):
+            waves.append(
+                {
+                    "wave": len(waves) + 1,
+                    "tasks": [{k: t[k] for k in ("id", "title", "tier", "files")} for t in group],
+                }
+            )
+    return {"waves": waves, "blocked": [{"id": k, "reason": v} for k, v in blocked.items()]}
+
+
 def _plan_tasks(base: Path, st: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Task của PLAN khai trong state; không có state/PLAN → [] (fail-open cho chỗ gọi)."""
     plan = base / str(st.get("plan") or "")
@@ -1683,88 +1762,50 @@ def failure_signature(task: str, code: int, output: str) -> str:
     return hashlib.sha256(f"{task}|{code}|{norm}".encode()).hexdigest()[:16]
 
 
-# Ký tự shell còn "sống" (bị bung) khi đứng ngoài nháy; trong nháy kép chỉ `$`, backtick, `\\`, `!` còn sống; trong nháy
-# đơn không gì sống. `echo '$X'` ≠ `echo "$X"` ≠ `echo $X` dù shlex.split cho cùng token (REC-01, T-1502).
-SHELL_LIVE_OUTSIDE = frozenset("$`\\!*?[~{}")
-SHELL_LIVE_DOUBLE = frozenset("$`\\!")
-SHELL_OPERATORS = frozenset(";&|<>()\n")  # ngoài nháy là toán tử điều khiển/chuyển hướng (ranh giới token, review #167)
-
-
-def _shell_quoted_char(c: str, nxt: str, quote: str, cur: List[Tuple[str, bool]]) -> Tuple[str, int]:
-    """Một ký tự trong nháy: trả (nháy đang mở sau ký tự này, số ký tự ăn thêm). Nháy đơn: mọi thứ là chữ; nháy kép:
-    backslash trước nháy kép, `$`, backtick, backslash là escape; còn lại `$`/backtick/backslash/`!` còn sống."""
-    if c == quote:
-        return "", 0
+def _canon_piece(cmd: str, i: int, quote: str) -> Tuple[str, str]:
+    """(đoạn chép nguyên văn từ `i`, nháy đang mở sau đoạn) — ký tự không phải khoảng trắng ngoài nháy. Nháy đơn: không
+    escape; nháy kép và ngoài nháy: `\\` chép kèm ký tự sau (`\\"` không đóng nháy, `\\ ` không phải khoảng trắng)."""
+    c = cmd[i]
     if quote == "'":
-        cur.append((c, False))
-    elif c == "\\" and nxt and nxt in '"$`\\':
-        cur.append((nxt, False))
-        return quote, 1
-    else:
-        cur.append((c, c in SHELL_LIVE_DOUBLE))
-    return quote, 0
+        return c, "" if c == "'" else quote
+    if c == "\\":
+        return cmd[i : i + 2], quote
+    if quote == '"':
+        return c, "" if c == '"' else quote
+    return c, c if c in "'\"" else ""
 
 
-def _shell_op_token(
-    c: str, tokens: List[Tuple[Tuple[str, bool], ...]], cur: List[Tuple[str, bool]], has: bool, fd_ok: bool, in_op: bool
-) -> None:
-    """Toán tử điều khiển/chuyển hướng ngoài nháy `c` thành token "sống": ký tự toán tử liền nhau gộp một token (`&>` ≠ `& >`);
-    từ toàn chữ số KHÔNG nháy dính ngay trước `<`/`>` là số fd của chuyển hướng (`2>f` ≠ `2 >f`; `'2'>f` thì không)."""
-    if in_op:
-        tokens[-1] += ((c, True),)
-    elif fd_ok and c in "<>":
-        tokens.append(tuple(cur) + ((c, True),))
-    else:
-        if has:  # kể cả token rỗng có nháy (`''`): là một đối số, `a ''|b` ≠ `a |b`
-            tokens.append(tuple(cur))
-        tokens.append(((c, True),))
-
-
-def shell_identity(cmd: str) -> List[Tuple[Tuple[str, bool], ...]]:
-    """Danh sách token, mỗi token là chuỗi (ký tự, còn sống?) theo đúng ngữ nghĩa nháy của bash: hai lệnh cùng danh sách
-    thì bash chạy cùng một việc. Nháy lệch → ValueError (như shlex)."""
-    tokens: List[Tuple[Tuple[str, bool], ...]] = []
-    cur: List[Tuple[str, bool]] = []
-    quote = ""  # "", "'" hoặc '"'
-    has_token = in_op = quoted = False  # quoted: token hiện tại có phần trong nháy/escape → không phải số fd
-    i = 0
+def canonical_command(cmd: str) -> str:
+    """Dạng chuẩn để so hai lệnh Gate (REC-01, AUD-CODE-014): **nháy có nghĩa** (`$X` ≠ `"$X"` ≠ `'$X'`, `X=1 cmd` ≠
+    `'X=1' cmd`), mỗi dãy space/tab NGOÀI nháy thành một dấu cách (bỏ ở hai đầu), mọi ký tự khác giữ nguyên — kể cả vị
+    trí khoảng trắng cạnh toán tử (`2>f` ≠ `2 >f`, `{fd}>f` ≠ `{fd} >f`), xuống dòng và NBSP (bash chỉ tách từ theo IFS
+    space/tab/newline). Từ `<<` ngoài nháy (heredoc, here-string) phần còn lại so nguyên văn: khoảng trắng trong thân
+    heredoc là dữ liệu. Nháy lệch → ValueError (như shlex)."""
+    out: List[str] = []
+    quote, blank, i = "", False, 0
     while i < len(cmd):
-        c, nxt = cmd[i], cmd[i + 1 : i + 2]
-        i += 1
-        was_op = False
-        if quote:
-            quote, extra = _shell_quoted_char(c, nxt, quote, cur)
-            i += extra
-        elif c in "'\"":
-            quote, has_token, quoted = c, True, True
-        elif c == "\\" and nxt:
-            cur.append((nxt, False))
-            has_token = quoted = True
-            i += 1
-        elif c in SHELL_OPERATORS:
-            fd_ok = bool(cur) and not quoted and all(ch.isdigit() for ch, _ in cur)
-            _shell_op_token(c, tokens, cur, has_token, fd_ok, in_op)
-            cur, has_token, quoted, was_op = [], False, False, True
-        elif c.isspace():
-            if has_token:
-                tokens.append(tuple(cur))
-            cur, has_token, quoted = [], False, False
-        else:
-            cur.append((c, c in SHELL_LIVE_OUTSIDE or (c == "#" and not has_token)))  # `#` đầu từ mở comment
-            has_token = True
-        in_op = was_op
+        if not quote and cmd[i] in " \t":
+            blank, i = True, i + 1
+            continue
+        if blank and out:
+            out.append(" ")
+        blank = False
+        if not quote and cmd.startswith("<<", i):
+            return "".join(out) + cmd[i:].rstrip(" \t")
+        piece, quote = _canon_piece(cmd, i, quote)
+        out.append(piece)
+        i += len(piece)
     if quote:
         raise ValueError("No closing quotation")
-    if has_token:
-        tokens.append(tuple(cur))
-    return tokens
+    return "".join(out)
 
 
 def same_command(a: str, b: str) -> bool:
-    """So lệnh theo token shell GIỮ ngữ nghĩa nháy: khoảng trắng/nháy khác nhau mà bash chạy cùng việc → cùng lệnh;
-    `'$X'` (chữ) ≠ `"$X"` (bung) (T-1502). Nháy lệch → so chuỗi đã bỏ khoảng trắng hai đầu."""
+    """Hai lệnh là một khi `canonical_command` bằng nhau: chỉ khoảng trắng ASCII ngoài nháy là tự do; nháy, toán tử,
+    heredoc, NBSP đều có nghĩa (T-1502 → AUD-CODE-014: token identity cũ coi `test -n $X` ≡ `test -n "$X"` nên evidence
+    lệnh xanh giả được tick và `loop verify` khử trùng lặp bỏ Gate đỏ). Nháy lệch → so chuỗi đã bỏ khoảng trắng hai đầu."""
     try:
-        return shell_identity(a) == shell_identity(b)
+        return canonical_command(a) == canonical_command(b)
     except ValueError:
         return a.strip() == b.strip()
 
@@ -3668,6 +3709,9 @@ def _doctor_runtime() -> List[Finding]:
     return out
 
 
+APP_DIRS = ("xt_app", "app")  # gói máy chủ + giao diện tĩnh của `xt.py app`, cài cạnh xt.py (ADR-0038)
+
+
 def _doctor_scripts() -> List[Finding]:
     out = []
     if not (SCRIPT_DIR / "dev-task.sh").is_file():
@@ -3677,6 +3721,11 @@ def _doctor_scripts() -> List[Finding]:
     if framework_version() == "unknown":
         out.append(
             Finding("scripts", "warn", f"thiếu file VERSION của khung — không biết bản đang cài; {INSTALL_HINT}")
+        )
+    missing = [d for d in APP_DIRS if not (SCRIPT_DIR / d).is_dir()]
+    if missing:  # app tuỳ chọn (ADR-0038): thiếu chỉ tắt `xt.py app`, vòng tự động không cần
+        out.append(
+            Finding("app", "warn", f"thiếu {', '.join(missing)} cạnh xt.py — `xt.py app` không chạy; {INSTALL_HINT}")
         )
     return out
 
@@ -3960,6 +4009,68 @@ def gate_floor_commands(base: Path) -> List[Tuple[str, str]]:
     """[(khoá, lệnh)] sàn đã khai hợp lệ — `loop verify` chạy lại; khoá thiếu đã nằm ở `gate_floor_issues`."""
     need, keys = gate_floor_keys(base)
     return [(k, keys[k]) for k, _ in need if not gate_noop(keys.get(k) or "")]
+
+
+GATE_PAR_KEYS = ("build", "typecheck", "lint", "test", "test_floor")  # lệnh `dev-task.sh gate`/`gate-par` đã chạy
+
+
+def floor_plan(base: Path, skip: Sequence[str] = ()) -> List[Tuple[str, str, str]]:
+    """[(khoá, lệnh, lý do bỏ qua hoặc "")] sàn M/L đã khai: bỏ khoá trong `skip` (CI mẫu: `e2e` có job riêng) và lệnh
+    trùng một lệnh của `gate`/`gate-par` (vd `coverage` = `test`) — không chạy hai lần."""
+    keys = gate_floor_keys(base)[1]
+    out: List[Tuple[str, str, str]] = []
+    for key, cmd in gate_floor_commands(base):
+        dup = next((g for g in GATE_PAR_KEYS if g != key and same_command(cmd, keys.get(g) or "")), "")
+        why = "--skip" if key in skip else (f"trùng `{dup}` của gate" if dup else "")
+        out.append((key, cmd, why))
+    return out
+
+
+def _floor_run(base: Path, plan: List[Tuple[str, str, str]], timeout: int) -> List[Dict[str, Any]]:
+    rows: List[Dict[str, Any]] = []
+    for key, cmd, why in plan:
+        if why:
+            rows.append({"key": key, "cmd": redact(cmd), "skipped": why})
+            continue
+        print(f"[xt] floor `{key}`: {redact(cmd)}", file=sys.stderr, flush=True)
+        code, out = run_gate_shell(cmd, base, timeout)
+        print(out, end="" if out.endswith("\n") else "\n", file=sys.stderr)
+        rows.append({"key": key, "cmd": redact(cmd), "exit_code": code})
+    return rows
+
+
+def cmd_floor(args: argparse.Namespace) -> int:
+    """`xt.py floor [--run] [--skip KEY]… [--strict] [--json]` (AUD-XFEAT-020): sàn Gate M/L (LOOP-HARNESS-023) mà trước
+    đây chỉ `loop verify` chạy — CI mẫu (job `gate`) chạy `floor --run --skip e2e` sau `gate-par` để khoá sàn khai riêng
+    (`format_check`, `coverage`) đỏ thì CI đỏ. Lệnh sàn qua guard và bắt `Ran 0 tests` (`run_gate_shell`). Exit 1 khi
+    lệnh sàn đỏ, hoặc khi thiếu khoá sàn và có `--strict` (thiếu mà không `--strict` chỉ cảnh báo như `doctor`); quy mô
+    S/không blueprint → không áp, exit 0."""
+    base = project_dir()
+    scale = blueprint_scale(base)[0]
+    missing = gate_floor_issues(base)
+    plan = floor_plan(base, args.skip or [])
+    timeout = _record_timeout()
+    if timeout is None:
+        return 2
+    rows = _floor_run(base, plan, timeout) if args.run else []
+    red = [r for r in rows if r.get("exit_code", 0) != 0]
+    rc = 1 if red or (missing and args.strict) else 0
+    if args.json:
+        print(
+            json.dumps({"scale": scale, "missing": missing, "plan": [list(x) for x in plan], "runs": rows, "exit": rc})
+        )
+        return rc
+    if scale not in ("M", "L"):
+        print(f"floor: không áp (quy mô {scale or 'không rõ'} — sàn chỉ ở M/L, LOOP-HARNESS-023)")
+        return 0
+    for m in missing:
+        print(f"{'✗' if args.strict else '⚠'} {m}")
+    for key, cmd, why in plan:
+        r = next((x for x in rows if x["key"] == key), None)
+        state = f"bỏ qua ({why})" if why else ("chưa chạy" if r is None else f"exit {r['exit_code']}")
+        print(f"{'✗' if r and r.get('exit_code', 0) else '·'} {key}: {state} — {redact(cmd)}")
+    print(f"floor: {'ĐỎ' if rc else 'xanh'}")
+    return rc
 
 
 def _doctor_gate_floor(base: Path) -> List[Finding]:
@@ -5302,8 +5413,9 @@ def rest_rollup(runs: List[Dict[str, Any]], statuses: List[Dict[str, Any]]) -> L
     ]
 
 
-def _pr_rest(pr_arg: Optional[str]) -> Dict[str, Any]:
-    """Dựng JSON dạng `gh pr view --json MERGE_FIELDS` chỉ bằng REST — `merge_decision` dùng nguyên như trước."""
+def _pr_rest(pr_arg: Optional[str], local_check: bool = True) -> Dict[str, Any]:
+    """Dựng JSON dạng `gh pr view --json MERGE_FIELDS` chỉ bằng REST — `merge_decision` dùng nguyên như trước.
+    `local_check=False` (app chỉ đọc, ADR-0038): không kiểm xung đột cục bộ (`git fetch` + `merge-tree` ghi ref/object)."""
     repo, n = _pr_target(pr_arg)
     pr = _gh_one(f"{repo}/pulls/{n}")
     head = pr.get("head")
@@ -5341,7 +5453,7 @@ def _pr_rest(pr_arg: Optional[str]) -> Dict[str, Any]:
     # GitHub chưa tính xong / báo xung đột → kiểm cục bộ để biết ngay sạch hay xung đột ở file nào (không đợi `wait`).
     conflicts = (
         local_merge_conflicts(str(base.get("ref") or ""), str(base.get("sha") or ""), sha, str(n))
-        if mergeable is not True
+        if mergeable is not True and local_check
         else None
     )
     raw_user = pr.get("user")
@@ -5449,9 +5561,13 @@ def _backlog_path(out: Path) -> Path:
     return out.with_name(f"{out.stem}-BACKLOG{out.suffix}")
 
 
-def _carry_into(fw: Path, olds: List[Path], main: str, backlog: Optional[str]) -> Tuple[str, Optional[str]]:
+def _carry_merge(
+    fw: Path, olds: List[Path], main: str, backlog: Optional[str]
+) -> Tuple[str, Optional[str], Dict[str, Any]]:
     """Ghép lại: giữ tick/miễn trừ/bằng chứng theo ID từ mọi file cũ (bản một file hoặc chính + backlog), mục chuyển
-    file khi đổi quy mô vẫn giữ trạng thái; mục riêng của dự án về cuối file chính."""
+    file khi đổi quy mô vẫn giữ trạng thái; mục riêng của dự án về cuối file chính. Không in gì; trả thêm
+    `{"kept": int, "stale": [id], "dropped": [id], "own": [id]}` — `kept` = số mục `carry_states` mang trạng thái/ghi chú
+    sang trừ mục đổi chữ yêu cầu (`stale`), đúng số in ở dòng `↺ Giữ trạng thái`."""
     fw_ids = {it.id for d in load_docs(fw)[0] for it in d.items}
     old = "\n".join(p.read_text(encoding="utf-8") for p in olds)
     dropped: List[str] = []
@@ -5460,7 +5576,16 @@ def _carry_into(fw: Path, olds: List[Path], main: str, backlog: Optional[str]) -
     if backlog is not None:
         backlog, kept_bl = carry_states(old, backlog, dropped=dropped, stale=stale)
         kept += kept_bl
-    print(f"↺ Giữ trạng thái {kept - len(stale)} mục theo ID từ bản cũ", file=sys.stderr)
+    own = [m["id"] for m in map(ITEM_RE.match, main.splitlines()) if m and m["id"] not in fw_ids]
+    return main, backlog, {"kept": kept - len(stale), "stale": stale, "dropped": dropped, "own": own}
+
+
+def _report_carry(info: Dict[str, Any]) -> None:
+    """stderr: kết quả `_carry_merge` (giữ trạng thái, mục đổi chữ, mục mất ghi chú, mục riêng của dự án)."""
+    stale: List[str] = info["stale"]
+    dropped: List[str] = info["dropped"]
+    own: List[str] = info["own"]
+    print(f"↺ Giữ trạng thái {info['kept']} mục theo ID từ bản cũ", file=sys.stderr)
     if stale:
         print(
             f"⚠ {len(stale)} mục đổi chữ yêu cầu — đã đặt lại [ ] kèm `— Cũ (rev …)`, "
@@ -5473,10 +5598,8 @@ def _carry_into(fw: Path, olds: List[Path], main: str, backlog: Optional[str]) -
             f"ghi lại: {', '.join(dropped)}",
             file=sys.stderr,
         )
-    own = [m["id"] for m in map(ITEM_RE.match, main.splitlines()) if m and m["id"] not in fw_ids]
     if own:
         print(f"↺ Giữ {len(own)} mục riêng của dự án ở cuối: {', '.join(own[:10])}", file=sys.stderr)
-    return main, backlog
 
 
 def _report_essential(features: List[str], scale: str, promoted: List[str]) -> None:
@@ -5510,26 +5633,84 @@ def _old_features(path: Path) -> List[str]:
     return [f for f in _as_list(meta.get("features")) if f in FEATURE_FACTS]
 
 
-def _warn_dropped_features(args: argparse.Namespace, out_path: Path, feats: List[str], promoted: List[str]) -> None:
-    """stderr: ghép lại bỏ fact mà bản cũ đã bật → mục thiết yếu của fact đó rơi về SHOULD (ADR-0030); im lặng nếu không bỏ."""
+def _warn_dropped_features(
+    src: Tuple[Path, str, List[str], str, bool], extra: List[str], out_path: Path, feats: List[str], promoted: List[str]
+) -> None:
+    """stderr: ghép lại bỏ fact mà bản cũ đã bật → mục thiết yếu của fact đó rơi về SHOULD (ADR-0030); im lặng nếu không bỏ.
+    `src` = (framework, profile, industries, scale, include_may) như `compose`."""
     old = _old_features(out_path)
     dropped = [f for f in old if f not in feats]
     if not dropped:
         return
-    ordered, _ = _compose_sources(args.framework, args.profile, args.industry or [], args.add or [])
-    lost = [i for i in essential_promoted(ordered, args.scale, old) if i not in promoted]
+    framework, profile, industries, scale, _include_may = src
+    ordered, _ = _compose_sources(framework, profile, industries, extra)
+    lost = [i for i in essential_promoted(ordered, scale, old) if i not in promoted]
     print(
         f"⚠ bỏ feature {', '.join(dropped)}: {len(lost)} mục về SHOULD" + (f" ({', '.join(lost)})" if lost else ""),
         file=sys.stderr,
     )
 
 
-def cmd_compose(args: argparse.Namespace) -> int:
-    out_path = Path(args.out) if args.out else None
-    bl_path = _backlog_path(out_path or Path("BLUEPRINT.md"))
-    src = (args.framework, args.profile, args.industry or [], args.scale, args.include_may)
+def compose_write(
+    framework: Path,
+    profile: str,
+    industries: List[str],
+    scale: str,
+    include_may: bool,
+    out_path: Path,
+    extra: Optional[List[str]] = None,
+    features: Optional[List[str]] = None,
+    full: bool = False,
+    quiet: bool = False,
+) -> Dict[str, Any]:
+    """Đường ghi của `compose --out` (CLI và `POST /api/blueprint` dùng chung): ghép, giữ tick/miễn trừ theo ID từ
+    `out_path` + `<tên>-BACKLOG.md` cũ, ghi nguyên tử. Lỗi như `compose`/`compose_split` (SystemExit). Trả
+    `{"written": [Path], "kept", "dropped", "stale" (int), "promoted": [id]}`: `kept` = số mục mang được trạng thái/ghi
+    chú từ bản cũ trừ mục đổi chữ (số của dòng `↺ Giữ trạng thái`), `dropped` = số mục `[x]`/`[~]` đổi chữ mà không mang
+    được ghi chú, `stale` = số mục đổi chữ yêu cầu bị đặt lại `[ ]`; không có bản cũ → 0. `quiet`: không in stderr."""
+    extra = extra or []
+    feats = features or []
+    bl_path = _backlog_path(out_path)
+    src = (framework, profile, industries, scale, include_may)
     backlog: Optional[str] = None
+    promoted: List[str] = []
+    if full:
+        main = compose(*src, extra=extra, features=feats, promoted=promoted)
+    else:
+        main, backlog = compose_split(*src, extra=extra, backlog_name=bl_path.name, features=feats, promoted=promoted)
+    if not quiet:
+        _report_essential(norm_features(feats), scale, promoted)
+        _warn_dropped_features(src, extra, out_path, norm_features(feats), promoted)
+    olds = [p for p in (out_path, bl_path) if p.exists()]
+    info: Dict[str, Any] = {"kept": 0, "stale": [], "dropped": []}
+    if olds:
+        main, backlog, info = _carry_merge(framework, olds, main, backlog)
+        if not quiet:
+            _report_carry(info)
+    write_atomic(out_path, main)
+    written = [out_path]
+    if backlog is not None:
+        write_atomic(bl_path, backlog)
+        written.append(bl_path)
+    return {
+        "written": written,
+        "kept": int(info["kept"]),
+        "dropped": len(info["dropped"]),
+        "stale": len(info["stale"]),
+        "promoted": promoted,
+    }
+
+
+def cmd_compose(args: argparse.Namespace) -> int:
+    src = (args.framework, args.profile, args.industry or [], args.scale, args.include_may)
     feats = args.feature or []
+    if args.out:
+        res = compose_write(*src, Path(args.out), extra=args.add or [], features=feats, full=args.full)
+        bl_name = _backlog_path(Path(args.out)).name
+        print(f"✓ Đã ghi {args.out}" + (f" + {bl_name}" if len(res["written"]) > 1 else ""))
+        return 0
+    bl_path = _backlog_path(Path("BLUEPRINT.md"))
+    backlog: Optional[str] = None
     promoted: List[str] = []
     if args.full:
         main = compose(*src, extra=args.add or [], features=feats, promoted=promoted)
@@ -5538,20 +5719,10 @@ def cmd_compose(args: argparse.Namespace) -> int:
             *src, extra=args.add or [], backlog_name=bl_path.name, features=feats, promoted=promoted
         )
     _report_essential(norm_features(feats), args.scale, promoted)
-    if out_path is None:
-        sys.stdout.write(main)
-        if backlog is not None:
-            n = sum(1 for ln in backlog.splitlines() if ITEM_RE.match(ln))
-            print(f"ℹ {n} mục SHOULD/MAY không in — dùng --out (ghi kèm {bl_path.name}) hoặc --full", file=sys.stderr)
-        return 0
-    _warn_dropped_features(args, out_path, norm_features(feats), promoted)
-    olds = [p for p in (out_path, bl_path) if p.exists()]
-    if olds:
-        main, backlog = _carry_into(args.framework, olds, main, backlog)
-    write_atomic(out_path, main)
+    sys.stdout.write(main)
     if backlog is not None:
-        write_atomic(bl_path, backlog)
-    print(f"✓ Đã ghi {args.out}" + (f" + {bl_path.name}" if backlog is not None else ""))
+        n = sum(1 for ln in backlog.splitlines() if ITEM_RE.match(ln))
+        print(f"ℹ {n} mục SHOULD/MAY không in — dùng --out (ghi kèm {bl_path.name}) hoặc --full", file=sys.stderr)
     return 0
 
 
@@ -6345,6 +6516,43 @@ def cmd_loop(args: argparse.Namespace) -> int:
     base = project_dir()
     handler = LOOP_HANDLERS.get(args.loop_cmd)
     return handler(args, base) if handler else 2
+
+
+def _plan_waves_print(out: Dict[str, Any]) -> None:
+    """In văn bản: mỗi đợt một dòng, mỗi task bị chặn một dòng, một dòng tổng."""
+    n = 0
+    for w in out["waves"]:
+        names = [t["id"] + (" (deep)" if t["tier"] == "deep" else "") for t in w["tasks"]]
+        n += len(names)
+        print(f"Đợt {w['wave']} ({len(names)} task): {' · '.join(names)}")
+    for b in out["blocked"]:
+        print(f"⛔ {b['id']} — {b['reason']}")
+    print(f"{n + len(out['blocked'])} task mở → {len(out['waves'])} đợt ({len(out['blocked'])} bị chặn)")
+
+
+def _plan_waves(args: argparse.Namespace, base: Path) -> int:
+    if args.max < 1:
+        print("✗ --max phải ≥ 1", file=sys.stderr)
+        return 2
+    st = read_state(base) or {}
+    plan = base / (args.plan or str(st.get("plan") or "docs/autopilot/PLAN.md"))
+    if not plan.is_file():
+        print(f"✗ Không thấy PLAN: {plan}", file=sys.stderr)
+        return 2
+    out = plan_waves(parse_plan(plan), _deferred(st), args.max)
+    if args.json:
+        print(json.dumps(out, ensure_ascii=False))
+    else:
+        _plan_waves_print(out)
+    return 0
+
+
+PLAN_HANDLERS: Dict[str, Callable[[argparse.Namespace, Path], int]] = {"waves": _plan_waves}
+
+
+def cmd_plan(args: argparse.Namespace) -> int:
+    handler = PLAN_HANDLERS.get(args.plan_cmd)
+    return handler(args, project_dir()) if handler else 2
 
 
 CHANGELOG_GROUPS = ("Added", "Changed", "Deprecated", "Removed", "Fixed", "Security")
@@ -9750,6 +9958,97 @@ def framework_version() -> str:
         return "unknown"
 
 
+def _port_arg(text: str) -> int:
+    try:
+        value = int(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"cổng phải là số nguyên 0–65535: {text!r}") from None
+    if not 0 <= value <= 65535:
+        raise argparse.ArgumentTypeError(f"cổng phải trong 0–65535: {value}")
+    return value
+
+
+def _app_smoke(srv: Any, token: str) -> int:
+    """Gọi mọi route GET của server bằng `http.client` (có token + Host); 200 hết → 0, ngược lại 1.
+
+    Smoke gọi mọi GET, không bỏ route nào: route có tham số bắt buộc lấy query mẫu từ `SMOKE` của module api
+    (`srv.smoke`, SPEC-app §2.4)."""
+    import http.client
+    import threading
+
+    srv.quiet = True
+    port = int(srv.server_address[1])
+    thread = threading.Thread(target=srv.serve_forever, daemon=True)
+    thread.start()
+    bad = 0
+    try:
+        for method, path in sorted(srv.routes):
+            if method != "GET":
+                continue
+            conn = http.client.HTTPConnection("127.0.0.1", port, timeout=30)
+            try:
+                query = srv.smoke.get(path, "")
+                conn.request(
+                    "GET",
+                    f"{path}?{query}" if query else path,
+                    headers={"X-XT-Token": token, "Host": f"127.0.0.1:{port}", "Connection": "close"},
+                )
+                status = conn.getresponse().status
+            finally:
+                conn.close()
+            bad += status != 200
+            print(f"{'✓' if status == 200 else '✗'} {path} {status}")
+    finally:
+        srv.shutdown()
+        srv.server_close()
+        thread.join(5)
+    return 1 if bad else 0
+
+
+def _app_serve(srv: Any, token: str, open_browser: bool) -> int:
+    url = f"http://127.0.0.1:{srv.server_address[1]}/#t={token}"
+    print(url, flush=True)
+    print("Ctrl-C để dừng.", flush=True)
+    if open_browser:
+        import webbrowser
+
+        try:
+            webbrowser.open(url)
+        except Exception as exc:  # trình duyệt không mở được không làm hỏng app
+            print(f"⚠ không mở được trình duyệt ({exc}); mở URL trên thủ công", flush=True)
+    try:
+        srv.serve_forever()
+    except KeyboardInterrupt:  # Ctrl-C là cách dừng app bình thường: thoát sạch, exit 0
+        print("Đã dừng app.", flush=True)
+    finally:
+        srv.server_close()
+    return 0
+
+
+def cmd_app(args: argparse.Namespace) -> int:
+    """`xt.py app [--port N] [--no-open] [--smoke]`: app cục bộ (ADR-0038); `xt_app` import lười."""
+    if str(SCRIPT_DIR) not in sys.path:
+        sys.path.insert(0, str(SCRIPT_DIR))
+    from xt_app import server
+
+    base = project_dir()
+    os.chdir(base)  # `gh`/`git` của API PR đọc repo theo cwd — đặt về gốc dự án như các API khác (`ctx.base`)
+    try:
+        srv, token = server.make_server(
+            xt=sys.modules[__name__],
+            base=base,
+            framework=args.framework,
+            static_root=SCRIPT_DIR / "app",
+            port=0 if args.smoke else args.port,
+        )
+    except OSError as exc:
+        print(f"✗ không khởi động được app: {exc}", file=sys.stderr)
+        return 2
+    if args.smoke:
+        return _app_smoke(srv, token)
+    return _app_serve(srv, token, not args.no_open)
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="xt.py",
@@ -9943,6 +10242,13 @@ def build_parser() -> argparse.ArgumentParser:
     pcx.add_argument("--plan", help="PLAN đọc (mặc định: PLAN của vòng, rồi docs/autopilot/PLAN.md)")
     pcx.add_argument("--json", action="store_true")
     pcx.set_defaults(fn=cmd_context)
+    ppl = sub.add_parser("plan", help="đọc PLAN: chia task mở thành đợt song song (T-1901)")
+    ppsub = ppl.add_subparsers(dest="plan_cmd", required=True)
+    pw = ppsub.add_parser("waves", help="xếp task `[ ]` thành đợt song song (không cần vòng đang bật)")
+    pw.add_argument("--plan", help="PLAN đọc (mặc định: PLAN của vòng, rồi docs/autopilot/PLAN.md)")
+    pw.add_argument("--max", type=int, default=5, help="số task tối đa mỗi đợt (mặc định 5)")
+    pw.add_argument("--json", action="store_true")
+    pw.set_defaults(fn=cmd_plan)
     plp = sub.add_parser("loop")
     lsub = plp.add_subparsers(dest="loop_cmd", required=True)
     li = lsub.add_parser("init")
@@ -10026,6 +10332,15 @@ def build_parser() -> argparse.ArgumentParser:
     pp = sub.add_parser("progress-check")
     pp.add_argument("file", nargs="?", default="PROGRESS.md")
     pp.set_defaults(fn=cmd_progress_check)
+    pfl = sub.add_parser(
+        "floor",
+        help="sàn Gate M/L (format_check, coverage…): liệt kê, `--run` chạy — CI mẫu sau gate-par (AUD-XFEAT-020)",
+    )
+    pfl.add_argument("--run", action="store_true", help="chạy lệnh sàn đã khai (qua guard, như loop verify)")
+    pfl.add_argument("--skip", action="append", metavar="KEY", help="bỏ khoá sàn này (CI mẫu: e2e có job riêng)")
+    pfl.add_argument("--strict", action="store_true", help="thiếu khoá sàn cũng exit 1 (mặc định chỉ cảnh báo)")
+    pfl.add_argument("--json", action="store_true")
+    pfl.set_defaults(fn=cmd_floor)
     pci = sub.add_parser("ci-check")
     pci.add_argument("dir", nargs="?", help="thư mục workflow (mặc định .github/workflows, không có thì bỏ qua)")
     pci.set_defaults(fn=cmd_ci_check)
@@ -10110,6 +10425,11 @@ def build_parser() -> argparse.ArgumentParser:
     pgu.add_argument("--strict", action="store_true", help="dòng đáng ngờ cũng làm exit 1")
     pp.set_defaults(fn=cmd_perf)
     sub.add_parser("stats").set_defaults(fn=cmd_stats)
+    pap = sub.add_parser("app", help="app cục bộ xem/soạn trên trình duyệt (127.0.0.1, token mỗi lần chạy)")
+    pap.add_argument("--port", type=_port_arg, default=0, help="cổng 0–65535 (mặc định 0 = hệ điều hành chọn)")
+    pap.add_argument("--no-open", action="store_true", help="không tự mở trình duyệt")
+    pap.add_argument("--smoke", action="store_true", help="tự gọi mọi route GET rồi thoát (0 = tất cả 200)")
+    pap.set_defaults(fn=cmd_app)
     return p
 
 
