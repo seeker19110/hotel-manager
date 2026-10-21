@@ -286,6 +286,10 @@ Mọi MUST còn mở vẫn cần người. Đợt này lấp hai lỗ 🟢 treo 
 | SMTP relay, ClamAV thật | chủ dự án chọn/cài trên VPS | `FakeEmailSender`, clamd giả trong dev/CI; contract test |
 | Môi trường agent | kho PGDG, GitHub releases | `scripts/dev-env-setup.sh` |
 
+## Đợt 14c — cổng CI (audit 2026-10-19, AUD-CI-001)
+
+- [x] `T-1303` Job `coverage` không còn bị bỏ qua khi PR `edited` (check-run `skipped` mới nhất cùng SHA có thể đè lên lần chạy đỏ, GitHub tính là qua); test khoá cấu trúc cập nhật (PR đổi cấu hình cổng — nêu lý do) — Gate: `pnpm vitest run --project unit scripts/test-quality && python3 .xtemplates/scripts/xt.py ci-check .github/workflows`
+
 ## Ước lượng (agent + review người)
 | Task | P50 | P90 |
 |---|---|---|

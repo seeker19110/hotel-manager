@@ -4,7 +4,8 @@ name: Test quality
 # (QA-STRAT-005). Cấu trúc khoá bởi scripts/test-quality.test.mjs. Kiểm OpenAPI phá vỡ hợp đồng ở lát T-801
 # (scripts/check-openapi-breaking.mjs, D-062), không dùng oasdiff (action mặc định gửi spec + telemetry ra ngoài).
 # Chạy trên MỌI PR vào main (không lọc `paths`). Job mới chưa là required check: đỏ trên PR, chặn merge khi ruleset
-# .github/rulesets/main.json được import (D-065). `edited` = sửa tiêu đề/mô tả PR → chạy lại ratchet/fix-requires-test.
+# .github/rulesets/main.json được import (D-065). `edited` = sửa tiêu đề/mô tả PR → chạy lại MỌI job, kể cả `coverage`
+# (AUD-CI-001: nếu bỏ qua, check-run `skipped` mới nhất cùng SHA có thể đè lên lần chạy đỏ và GitHub tính là qua).
 on:
   push:
     branches: [main]
@@ -24,7 +25,6 @@ jobs:
   # Unit + db (Postgres 17 thật) với coverage v8 có `branches`; vitest đỏ khi thấp hơn coverage.thresholds trong vitest.config.ts.
   coverage:
     name: coverage
-    if: github.event.action != 'edited'
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     services:
