@@ -3,7 +3,7 @@ title: Repo, phiên bản và lịch sử thay đổi
 kind: baseline
 prefix: BASE-REPO
 applies_to: [all]
-updated: 2026-10-14
+updated: 2026-10-20
 ---
 
 # Repo, phiên bản và lịch sử thay đổi
@@ -46,7 +46,7 @@ updated: 2026-10-14
 - [ ] `BASE-REPO-010` **SHOULD** Thay đổi gây **breaking** phải xuất hiện ở ba nơi nhất quán: commit `!`/`BREAKING CHANGE:`, mục CHANGELOG, và bump MAJOR (SemVer) hoặc ghi chú deprecation (CalVer). → Kiểm: test CI so khớp: có commit `!` kể từ tag trước ⇒ phiên bản mới có MAJOR tăng. · Nguồn: Conventional Commits FAQ; SemVer 2.0.0 §8
 - [ ] `BASE-REPO-011` **SHOULD** `README.md` ở gốc nêu một dòng mô tả, cách chạy, cách test, và trỏ tới `CHANGELOG.md`, `LICENSE`, tài liệu; nội dung tối thiểu theo [`documentation-minimum.md`](documentation-minimum.md). → Kiểm: script kiểm tồn tại các heading bắt buộc trong README. · Nguồn: OpenSSF Badge `documentation_basics`
 - [ ] `BASE-REPO-012` **SHOULD** Commit nhỏ, một thay đổi logic mỗi commit; PR < ~400 dòng thay đổi trừ khi là sinh mã/đổi tên hàng loạt (ghi rõ trong mô tả PR). → Kiểm: CI cảnh báo khi `git diff --shortstat base..head` vượt ngưỡng đã đặt trong repo. · Nguồn: P8 (principles.md)
-- [ ] `BASE-REPO-013` **MUST** Không force-push và không rewrite lịch sử (`rebase`, `amend`, `reset`) trên **nhánh dùng chung** (nhánh chính, nhánh có người/agent khác làm, nhánh đã có PR được review); chỉ rewrite nhánh cá nhân chưa chia sẻ — quy tắc chi tiết ở [`WF-GIT-009`](../10-workflow/git-and-branching.md). → Kiểm: ruleset theo Kiểm của `BASE-REPO-008`; quy ước nhánh dùng chung ghi trong `CONTRIBUTING.md`/`AGENTS.md`. · Nguồn: P8; AGENTS.md §3
+- [ ] `BASE-REPO-013` **MUST** Không force-push và không rewrite lịch sử (`rebase`, `amend`, `reset`) trên **nhánh dùng chung** (nhánh chính, nhánh có người/agent khác làm, nhánh đã có PR được review); chỉ rewrite nhánh cá nhân chưa chia sẻ — quy tắc chi tiết ở [`WF-GIT-009`](../10-workflow/git-and-branching.md). → Kiểm: ruleset theo Kiểm của `BASE-REPO-008`; quy ước nhánh dùng chung ghi trong `CONTRIBUTING.md`/`AGENTS.md`. · Nguồn: P8; AGENTS.md mục Luật bất biến
 - [ ] `BASE-REPO-014` **SHOULD** File lớn/nhị phân (model, media, dataset) không commit thẳng; dùng Git LFS hoặc kho artefact có địa chỉ và checksum trong repo. → Kiểm: hook chặn file > ngưỡng (vd 1 MB) không thuộc `.gitattributes` `filter=lfs`; `git lfs ls-files` liệt kê file lớn. · Nguồn: Scorecard Binary-Artifacts
 - [ ] `BASE-REPO-015` **SHOULD** Ghi `CODEOWNERS` (hoặc tương đương) cho vùng mã nhạy cảm (auth, thanh toán, migration, CI) để review bắt buộc đúng người. → Kiểm: file `.github/CODEOWNERS` tồn tại và hợp lệ (GitHub báo lỗi cú pháp ở tab Code owners). · Nguồn: GitHub CODEOWNERS
 - [ ] `BASE-REPO-016` **MAY** Ký commit/tag (SSH hoặc GPG, hoặc Sigstore gitsign) và bật "require signed commits" trên nhánh mặc định với quy mô L. → Kiểm: `git log --show-signature -1` hiển thị chữ ký hợp lệ; ruleset có `required_signatures`. · Nguồn: GitHub rulesets
