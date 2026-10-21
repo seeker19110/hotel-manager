@@ -1,7 +1,8 @@
 # xt.yaml — lệnh chuẩn của dự án (YAML PHẲNG `task: lệnh`), nguồn duy nhất cho agent, hook và CI; agent không suy diễn
 # lệnh từ văn xuôi. "" = không có; thiếu khoá = tự dò từ manifest. Nhà của bộ khoá, sàn M/L, mẫu theo stack
 # (Node/Python/Go): .xtemplates/framework/11-autonomous-loop/harness-files.md §Khoá của xt.yaml (LOOP-HARNESS-008/023).
-# gate = build → typecheck → lint → test (CI chạy đúng vậy); gate-fast = format_check → lint → typecheck → test_fast.
+# gate = build → typecheck → lint → test (CI mẫu chạy cùng lệnh qua gate-par: typecheck ∥ lint ∥ build → test song song
+# trong job `gate`, ADR-0039/D-128); gate-fast = format_check → lint → typecheck → test_fast.
 # Autopilot đang chạy mà lint/test rỗng hay no-op (true, :, echo …) = cổng ĐỎ (ADR-0011); CI mẫu đỏ tới khi có lệnh thật.
 lint: ""
 typecheck: ""
@@ -15,8 +16,9 @@ format_file: ""       # format MỘT file (hook PostToolUse), `{}` = đường d
 # commit_gate: hook trước `git commit` — fast = gate-fast · full = gate; diff đụng cấu hình cổng → mọi lớp test
 commit_gate: fast
 test_fast: ""         # test liên quan file đổi (XT_CHANGED_FILES, mỗi dòng một file); trống → test
-# CI chia shard khi khai đủ ba khoá: test_list (in mỗi dòng một id) · test_unit (chạy id "$1", coverage vào "$XT_COV_DIR"
-# nếu có) · test_combine (gộp coverage, đòi ngưỡng); không khai → một job chạy test.
+# Ngưỡng coverage của CI mẫu nằm trong `test` (job `gate` chạy nó). Chia shard (chỉ khi đo thấy test là đường dài nhất
+# và CI tách test ra job riêng; gate-fast cũng dùng khi diff đụng cấu hình cổng): test_list (in mỗi dòng một id) ·
+# test_unit (chạy id "$1", coverage vào "$XT_COV_DIR" nếu có) · test_combine (gộp coverage, đòi ngưỡng).
 # test_list: ""
 # test_unit: ""
 # test_combine: ""
@@ -30,7 +32,7 @@ delivery_phase: build
 # review_identity: ""         # chỉ dấu review của tài khoản này mở được merge (T-1508)
 # author_model_family: ""     # họ model tác giả và reviewer phải khác nhau (ci-check kiểm)
 # reviewer_model_family: ""
-# CI tối thiểu, song song tối đa (D-115): job e2e của CI chạy cùng lúc với test; khoá rỗng = bỏ qua có log.
+# CI mẫu 3 job (ADR-0039): job e2e chạy cùng lúc với job gate; khoá rỗng = bỏ qua có log.
 e2e: ""               # suite E2E, CI chạy (`dev-task.sh e2e I N`); dùng $XT_SHARD để chia shard, vd npx playwright test --shard=${XT_SHARD:-1/1}
 e2e_setup: ""         # trước e2e: cài trình duyệt (vd npx playwright install --with-deps chromium)
 e2e_affected: ""      # chỉ spec của lát đang làm (Gate mỗi task); trống = e2e

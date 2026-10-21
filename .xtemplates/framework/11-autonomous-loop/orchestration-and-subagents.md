@@ -53,6 +53,11 @@ updated: 2026-10-21
 | **A — một nhánh, task = commit** (mặc định) | Mọi subagent làm trên nhánh `feat/<mảng>`; mỗi task một commit; phiên chính gom | Task nối tiếp hoặc chạm file chung |
 | **B — worktree mỗi task** | Subagent khai `isolation: worktree` (Claude Code tạo worktree riêng); mỗi task một nhánh, PR riêng; merge FIFO | Task độc lập file, muốn chạy ≥ 2 executor đồng thời |
 
+Xếp đợt bằng máy: `xt.py plan waves [--plan P] [--max N] [--json]` chia task mở của PLAN thành đợt — trong một đợt mọi
+`sau:` đã thoả, `files:` đôi một không giao (cùng phép so của `loop next`), ≤ N task (mặc định 5), task thiếu `files:`
+đứng riêng; task trên chu trình, ghi chú hỏng hoặc đã defer vào mục bị chặn kèm lý do. Không cần vòng đang chạy; đợt
+nhiều task chạy theo mô hình B, đợt một task theo mô hình A.
+
 Giới hạn: ≤ 5 subagent đồng thời (stored 23 §4.5; RAM/IO máy và ngân sách context phiên chính), độ sâu lồng = 1
 (`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1` hoặc không cấp tool `Agent` cho subagent — cách thứ hai là cách repo
 này đang dùng: `tools:` của năm agent trong `.claude/agents/` không có `Agent`).
