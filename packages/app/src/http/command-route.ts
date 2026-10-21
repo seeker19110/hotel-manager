@@ -130,6 +130,8 @@ const NO_ROUTE_DENIED_EVENT = new Set([
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const CORRELATION = /^[A-Za-z0-9._-]{8,64}$/;
 const NO_STORE = { "cache-control": "no-store" };
+/** Tiêu đề 401 chung (command, query, /api/v1/me — AUD-XFEAT-004). */
+export const UNAUTHENTICATED_TITLE = "Cần đăng nhập";
 
 export function json(body: unknown, status: number, correlationId: string, problem = false): Response {
   return new Response(JSON.stringify(body), {
@@ -256,7 +258,7 @@ async function noSession(
   return simpleProblem(
     code,
     401,
-    revoked ? "Phiên này đã bị đăng xuất. Vui lòng đăng nhập lại." : "Cần đăng nhập",
+    revoked ? "Phiên này đã bị đăng xuất. Vui lòng đăng nhập lại." : UNAUTHENTICATED_TITLE,
     correlationId,
   );
 }
