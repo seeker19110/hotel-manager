@@ -20,9 +20,9 @@ jobs:
   # `typecheck` · `lint` (job nhẹ, không service) và `gate` = build → test. Build và test KHÔNG tách: test quét bundle client
   # (client-bundle, secure-defaults-bundle, command-inputs) đọc `apps/web/.next/static` và tự bỏ qua khi chưa build — tách là
   # âm thầm hạ cổng. Typecheck không cần sản phẩm build (đã thử, exit 0). Đo trước khi tách: `gate` nối tiếp 3m50s.
-  # Ruleset `.github/rulesets/main.json` đòi 3 check: quality (job gom ở cuối file, `needs` mọi job cổng), gitleaks
-  # (secret-scan.yml), merge-gate (D-086). Job cổng con không đứng riêng trong ruleset: `quality` đỏ khi bất kỳ job con
-  # không `success` (WF-CI-001).
+  # Ruleset `.github/rulesets/main.json` đòi 2 check: quality (job gom ở cuối file, `needs` mọi job cổng), gitleaks
+  # (secret-scan.yml); merge-gate đã gỡ (ADR-0036 của khung). Job cổng con không đứng riêng trong ruleset: `quality` đỏ
+  # khi bất kỳ job con không `success` (WF-CI-001).
   typecheck:
     name: typecheck
     runs-on: ubuntu-24.04
