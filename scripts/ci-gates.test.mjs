@@ -125,25 +125,21 @@ const ci = parse(read(`${WORKFLOW_DIR}/ci.yml`));
 const stepRun = (job, namePart) => job.steps.find((s) => String(s.name ?? "").includes(namePart))?.run;
 
 /** Cổng đợt 9 (T-801…T-807) chạy trên mọi PR — D-065: phải có trong ruleset để chặn merge khi người import. */
-const WAVE9_GATES = [
-  "commit-lint",
-  "pr-policy",
+const WAVE9_GATES = ["commit-lint", "pr-policy", "fe-typecheck", "fe-lint"];
+/**
+ * D-084 + D-085 (chủ dự án, pha build): cổng hoãn tới pha harden — không required, không chạy trên PR/push/lịch, chỉ chạy tay
+ * (`if: github.event_name == 'workflow_dispatch'`). Đặt `delivery_phase: harden` trong xt.yaml ⇒ test đỏ tới khi trả hết về
+ * WAVE9_GATES + ruleset + trigger cũ.
+ */
+const DEFERRED_TO_HARDEN = [
   "new-deps",
   "openapi",
-  "fe-typecheck",
-  "fe-lint",
   "unit-deterministic",
   "regression",
   "sast",
   "coverage",
   "coverage-ratchet",
   "fix-requires-test",
-];
-/**
- * D-084 (chủ dự án, pha build): cổng hoãn tới pha harden — không chạy trên PR, không required, vẫn chạy trên push main (và lịch/chạy
- * tay nếu workflow có) để còn tín hiệu. Đặt `delivery_phase: harden` trong xt.yaml ⇒ test đỏ tới khi trả hết về WAVE9_GATES + ruleset.
- */
-const DEFERRED_TO_HARDEN = [
   "bundle-size",
   "lighthouse",
   "e2e-repeat",
@@ -258,7 +254,7 @@ describe("WF-CI-001 — job gom quality + ruleset khớp job thật", () => {
   });
 });
 
-describe("D-084 — cổng hoãn tới pha harden", () => {
+describe("D-084/D-085 — cổng hoãn tới pha harden", () => {
   const wfs = workflows();
   const required = new Set(requiredContexts(JSON.parse(read(".github/rulesets/main.json"))));
   const prJobs = prContexts(wfs);
@@ -278,17 +274,14 @@ describe("D-084 — cổng hoãn tới pha harden", () => {
     }
   });
 
-  it("cổng hoãn vẫn chạy trên push main (giữ tín hiệu sau merge)", () => {
-    const onPushMain = new Set();
-    for (const wf of Object.values(wfs)) {
-      const push = wf.on?.push;
-      if (!wf.on || !("push" in wf.on) || (push?.branches && !push.branches.includes("main"))) continue;
+  it("cổng hoãn chỉ chạy tay — không push/lịch (D-085: main không đỏ vì cổng chưa cần)", () => {
+    const manualOnly = new Set();
+    for (const wf of Object.values(wfs))
       for (const [key, job] of Object.entries(wf.jobs ?? {}))
-        if (/event_name\s*==\s*'push'/.test(String(job.if ?? "push")))
-          for (const c of jobContexts(key, job)) onPushMain.add(c);
-    }
+        if (String(job.if ?? "").trim() === "github.event_name == 'workflow_dispatch'")
+          for (const c of jobContexts(key, job)) manualOnly.add(c);
     for (const c of DEFERRED_TO_HARDEN)
-      expect(onPushMain.has(c), `${c} không chạy trên push main`).toBe(true);
+      expect(manualOnly.has(c), `${c} còn chạy ngoài workflow_dispatch`).toBe(true);
   });
 });
 
@@ -357,7 +350,7 @@ describe("D-065 — ruleset gom mọi job chạy trên mọi PR vào main", () =
   });
 
   it("nhóm cổng đợt 9 đều có mặt và là job PR thật", () => {
-    // 24 cổng đợt 9 = còn required + hoãn tới harden (D-084): không cổng nào bị bỏ lặng lẽ.
+    // 24 cổng đợt 9 = còn required + hoãn tới harden (D-084/D-085): không cổng nào bị bỏ lặng lẽ.
     expect(WAVE9_GATES.length + DEFERRED_TO_HARDEN.length).toBe(24);
     for (const c of WAVE9_GATES) {
       expect(required.has(c), `${c} thiếu trong main.json`).toBe(true);

@@ -1,13 +1,14 @@
 name: Frontend quality
 
 # Chất lượng frontend (PLAN đợt 9, T-804): build nghiêm theo thứ tự typecheck + lint → build, ngân sách bundle, Lighthouse CI,
-# test tất định (TZ cố định, lặp 3 lần), E2E lặp trên hai project, rào hồi quy. Chạy trên PR và main (bundle-size,
-# lighthouse, e2e-repeat: chỉ push main ở pha build — D-084); các job này là check phụ (ruleset
+# test tất định (TZ cố định, lặp 3 lần), E2E lặp trên hai project, rào hồi quy. Chạy trên PR và main (pha build:
+# chỉ typecheck + lint chạy trên PR/main, job còn lại chỉ chạy tay — D-085); các job này là check phụ (ruleset
 # `.github/rulesets/main.json` do người duyệt thêm vào required — xem docs/perf/README.md).
 
 on:
   push:
     branches: [main]
+  workflow_dispatch: {}
   pull_request:
     branches: [main]
 
@@ -56,8 +57,8 @@ jobs:
   # FE-PERF-004, XC-GREEN-002: ngân sách bundle JS gzip (.size-limit.json; lý do ở docs/PERF-BUDGET.md). Đỏ khi vượt.
   build-size:
     name: bundle-size
-    # D-084: hoãn tới pha harden — không chạy trên PR (không required), vẫn chạy trên push main; khôi phục khi delivery_phase: harden.
-    if: github.event_name == 'push'
+    # D-085: hoãn tới pha harden — chỉ chạy tay (workflow_dispatch), không chạy trên PR/push/lịch; khôi phục khi delivery_phase: harden.
+    if: github.event_name == 'workflow_dispatch'
     needs: [typecheck, lint]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -80,8 +81,8 @@ jobs:
   # FE-PERF-002, PRF-WEB-005: Lighthouse mobile, 5 lần chạy lấy median, assert `error` (lighthouserc.json). Server = e2e/server.ts.
   lighthouse:
     name: lighthouse
-    # D-084: hoãn tới pha harden — không chạy trên PR (không required), vẫn chạy trên push main; khôi phục khi delivery_phase: harden.
-    if: github.event_name == 'push'
+    # D-085: hoãn tới pha harden — chỉ chạy tay (workflow_dispatch), không chạy trên PR/push/lịch; khôi phục khi delivery_phase: harden.
+    if: github.event_name == 'workflow_dispatch'
     needs: [typecheck, lint]
     runs-on: ubuntu-24.04
     # 6 URL × 5 lần đo (PRF-WEB-005).
@@ -158,6 +159,8 @@ jobs:
   # FE-TEST-003: unit chạy 3 lần liên tiếp với TZ/LANG cố định (vitest.config.ts) phải cùng kết quả.
   unit-deterministic:
     name: unit-deterministic
+    # D-085: hoãn tới pha harden — chỉ chạy tay (workflow_dispatch), không chạy trên PR/push/lịch; khôi phục khi delivery_phase: harden.
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -179,8 +182,8 @@ jobs:
   # FE-TEST-002, PRF-WEB-006, UX-RESP-008, FE-TEST-003: E2E luồng chính lặp 3 lần trên CẢ HAI project (mobile + desktop).
   e2e-repeat:
     name: e2e-repeat
-    # D-084: hoãn tới pha harden — không chạy trên PR (không required), vẫn chạy trên push main; khôi phục khi delivery_phase: harden.
-    if: github.event_name == 'push'
+    # D-085: hoãn tới pha harden — chỉ chạy tay (workflow_dispatch), không chạy trên PR/push/lịch; khôi phục khi delivery_phase: harden.
+    if: github.event_name == 'workflow_dispatch'
     needs: [typecheck, lint]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -221,6 +224,8 @@ jobs:
   # của `test-quality.yml` (T-805; lắng nghe `edited` để đổi tiêu đề PR chạy lại — workflow này không lắng nghe sự kiện đó).
   regression:
     name: regression
+    # D-085: hoãn tới pha harden — chỉ chạy tay (workflow_dispatch), không chạy trên PR/push/lịch; khôi phục khi delivery_phase: harden.
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
