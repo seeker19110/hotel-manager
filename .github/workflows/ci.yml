@@ -16,54 +16,24 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # Cổng chuẩn: đúng lệnh trong xt.yaml qua dev-task.sh, chia job chạy CÙNG LÚC (fan-out, WF-CI-024/025 của khung 3.12.0):
-  # `typecheck` · `lint` (job nhẹ, không service) và `gate` = build → test. Build và test KHÔNG tách: test quét bundle client
-  # (client-bundle, secure-defaults-bundle, command-inputs) đọc `apps/web/.next/static` và tự bỏ qua khi chưa build — tách là
-  # âm thầm hạ cổng. Typecheck không cần sản phẩm build (đã thử, exit 0). Đo trước khi tách: `gate` nối tiếp 3m50s.
-  # Ruleset `.github/rulesets/main.json` đòi 3 check: quality (job gom ở cuối file, `needs` mọi job cổng), gitleaks
-  # (secret-scan.yml), merge-gate (D-086). Job cổng con không đứng riêng trong ruleset: `quality` đỏ khi bất kỳ job con
-  # không `success` (WF-CI-001).
-  typecheck:
-    name: typecheck
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - name: Cài phụ thuộc (lockfile đóng băng — BASE-DEP-002)
-        run: pnpm install --frozen-lockfile
-      - name: typecheck — đúng lệnh trong xt.yaml
-        run: .xtemplates/scripts/dev-task.sh typecheck
-
-  lint:
-    name: lint
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - name: Cài phụ thuộc (lockfile đóng băng — BASE-DEP-002)
-        run: pnpm install --frozen-lockfile
-      - name: lint — đúng lệnh trong xt.yaml
-        run: .xtemplates/scripts/dev-task.sh lint
-
-  # build → test (job giữ tên `gate` — test cấu trúc CI và log artifact `ci-logs-gate` trỏ tên này).
+  # Ít job nhất mà không bỏ kiểm nào (ADR-0039 của khung 3.13, D-127): job ngắn gộp vào MỘT job `gate` — zizmor
+  # (workflow-lint), typecheck, lint, build → test, diễn tập PITR (backup-restore); trong job các nhóm độc lập chạy song song
+  # (D-128, xem bước "Cổng chuẩn song song"). Số đo PR #112 trước khi gộp: gate 3m30s, typecheck 25s, lint 23s, workflow-lint
+  # 9s, backup-restore 49s — mỗi job tốn checkout + cài phụ thuộc + một runner, các repo cùng tài khoản chung trần job đồng
+  # thời nên job ngắn làm e2e xếp hàng. Ước tính `gate`: tuần tự ≈ 4m30s–5m; song song ≈ 4m–4m15s (đường dài = cài đặt +
+  # typecheck + build → test).
+  # Giữ riêng: `e2e` (6 shard, không `needs` — nhận runner ngay) và `onboarding-smoke` (~3 phút trên runner mới, chính nó
+  # là phép đo "clone sạch → test"; gộp vào gate thì gate ≈ 7m30s, thành đường dài nhất và mất tính "runner mới").
+  # Build và test KHÔNG tách: test quét bundle client (client-bundle, secure-defaults-bundle, command-inputs) đọc
+  # `apps/web/.next/static` và tự bỏ qua khi chưa build.
+  # Ruleset `.github/rulesets/main.json` đòi 2 check: quality (job gom ở cuối file, `needs` mọi job PR của ci.yml) và gitleaks
+  # (secret-scan.yml). Job con không đứng riêng trong ruleset: `quality` đỏ khi bất kỳ job con không `success` (WF-CI-001).
   gate:
     name: gate
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    # Trần thời gian (không phải ngưỡng chất lượng): gate 20 + phần việc gộp thêm; zizmor và PITR có trần riêng trong nhóm
+    # (`timeout 5m`/`timeout 15m`, như job cũ).
+    timeout-minutes: 30
     services:
       postgres:
         # Cùng tag + digest với deploy/postgres/Dockerfile (BASE-DEP-008: ghim digest; scripts/check-image-pins.mjs kiểm).
@@ -95,15 +65,64 @@ jobs:
       - name: SeaweedFS cho test file (PLAN T-011)
         run: DEV_ENV_OPT_DIR="$RUNNER_TEMP" DEV_ENV_BIN_DIR="$HOME/.local/bin" bash scripts/dev-env-setup.sh --only weed && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       # DB-SEC-003: test connection-tls.db.test.ts tự initdb cluster Postgres 17 nạp deploy/postgres/pg_hba.conf (hostssl + scram) —
-      # cần binary PG 17 (service container chỉ phục vụ TEST_DATABASE_URL). Không tạo cluster mặc định (xem script).
+      # cần binary PG 17 (service container chỉ phục vụ TEST_DATABASE_URL). Không tạo cluster mặc định (xem script). Cùng bước
+      # cài pgBackRest cho nhóm PITR.
       - name: PostgreSQL 17 binary cho test TLS CSDL (DB-SEC-003)
         run: bash scripts/dev-env-setup.sh --only postgres
-      # SEC-SECRET-007: toàn bộ log của cổng được ghi ra file, gitleaks quét TRƯỚC khi lưu làm artifact; có bí mật → đỏ, không lưu.
-      - name: Cổng chuẩn — build rồi test, đúng lệnh trong xt.yaml (typecheck, lint ở job riêng chạy cùng lúc)
+      # D-128 (song song tối đa trong số job tối thiểu): các nhóm độc lập chạy nền CÙNG LÚC trong job này, mỗi nhóm log riêng
+      # (in khi nhóm xong, theo thứ tự xong), `wait` từng PID, đỏ nếu bất kỳ nhóm nào đỏ. Nhóm chọn theo đọc mã, không đoán:
+      # - zizmor (WF-CI-004, trước là job `workflow-lint`): ghim phiên bản + hash ở `.github/requirements-zizmor.txt`, offline,
+      #   mọi finding đều đỏ; chỉ đọc `.github/workflows`.
+      # - typecheck → build → test: typecheck KHÔNG chạy cùng build — `next build` ghi `apps/web/next-env.d.ts` (import
+      #   `.next/types/routes.d.ts`) và có thể ghi tsconfig.json, mà `tsc -p apps/web/tsconfig.json` include `next-env.d.ts`.
+      #   Build và test không tách: test quét bundle client trong `apps/web/.next/static`, tự bỏ qua khi chưa build.
+      # - lint (biome · spectral · licenses · ci-check): chỉ đọc; biome bỏ `.next`, `next-env.d.ts` và file gitignore (vcs),
+      #   spectral đọc `apps/web/openapi.json` đã commit (build/test không ghi).
+      # - PITR (PLAN T-012, ADR-0002; trước là job `backup-restore`): cluster tạm trong `mktemp -d`, cổng ngẫu nhiên, repo
+      #   pgBackRest cục bộ mã hoá, dữ liệu giả — không đụng service 5432 hay cluster TLS của test. Trần 15 phút như job cũ.
+      # SEC-SECRET-007: log mọi nhóm nằm trong ci-logs, gitleaks quét TRƯỚC khi lưu làm artifact; có bí mật → đỏ, không lưu.
+      - name: Cổng chuẩn song song — zizmor ∥ (typecheck → build → test) ∥ lint ∥ PITR, đúng lệnh trong xt.yaml
         shell: bash
         run: |
-          mkdir -p "$RUNNER_TEMP/ci-logs"
-          { .xtemplates/scripts/dev-task.sh build && .xtemplates/scripts/dev-task.sh test; } 2>&1 | tee "$RUNNER_TEMP/ci-logs/gate.log"
+          set +e # tự gom exit của từng nhóm; pipefail (mặc định của shell bash trên Actions) giữ trong subshell
+          L="$RUNNER_TEMP/ci-logs"
+          mkdir -p "$L"
+          pids=() names=()
+          (
+            timeout 5m python3 -m venv "$RUNNER_TEMP/zizmor-venv" &&
+              timeout 5m "$RUNNER_TEMP/zizmor-venv/bin/pip" install --quiet --require-hashes -r .github/requirements-zizmor.txt &&
+              timeout 5m "$RUNNER_TEMP/zizmor-venv/bin/zizmor" --offline --no-progress .github/workflows
+          ) >"$L/zizmor.log" 2>&1 &
+          pids+=($!) names+=(zizmor)
+          (
+            .xtemplates/scripts/dev-task.sh lint
+          ) >"$L/lint.log" 2>&1 &
+          pids+=($!) names+=(lint)
+          (
+            timeout 15m bash scripts/db-backup-restore-check.sh
+          ) >"$L/pitr.log" 2>&1 &
+          pids+=($!) names+=(pitr)
+          (
+            .xtemplates/scripts/dev-task.sh typecheck >"$L/typecheck.log" 2>&1 &&
+              { .xtemplates/scripts/dev-task.sh build && .xtemplates/scripts/dev-task.sh test; } 2>&1 | tee "$RUNNER_TEMP/ci-logs/gate.log" >/dev/null
+          ) &
+          pids+=($!) names+=(gate)
+          # `wait <PID>` từng nhóm (không `wait -n`: nhóm đã xong trước lời gọi có thể bị bỏ sót → vòng lặp không dứt). Nhóm ngắn
+          # đứng trước nên log in gần lúc nhóm xong; nhóm dài nhất (gate) cuối.
+          fail=0
+          for i in "${!pids[@]}"; do
+            wait "${pids[$i]}"
+            rc=$?
+            name="${names[$i]}"
+            echo "::group::$name — exit $rc"
+            if [ "$name" = gate ]; then cat "$L/typecheck.log" "$L/gate.log" 2>/dev/null; else cat "$L/$name.log"; fi
+            echo "::endgroup::"
+            if [ "$rc" -ne 0 ]; then
+              echo "::error::Nhóm $name đỏ (exit $rc)"
+              fail=1
+            fi
+          done
+          exit "$fail"
       - name: Cài gitleaks (ghim phiên bản, kiểm SHA-256)
         if: always()
         run: DEV_ENV_OPT_DIR="$RUNNER_TEMP" DEV_ENV_BIN_DIR="$HOME/.local/bin" bash scripts/dev-env-setup.sh --only gitleaks && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
@@ -196,28 +215,6 @@ jobs:
           path: apps/web/test-results/
           retention-days: 7
 
-  # Diễn tập sao lưu/khôi phục PITR (PLAN T-012, ADR-0002): Postgres 17 + pgBackRest từ kho PGDG (kiểm khoá), repo
-  # cục bộ mã hoá, dữ liệu giả — chặn hỏng âm thầm của đường khôi phục.
-  backup-restore:
-    name: backup-restore
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - name: Cài phụ thuộc (lockfile đóng băng)
-        run: pnpm install --frozen-lockfile
-      - name: PostgreSQL 17 + pgBackRest
-        run: bash scripts/dev-env-setup.sh --only postgres
-      - name: Diễn tập PITR
-        run: bash scripts/db-backup-restore-check.sh
-
   protection-guard:
     name: protection-guard
     # D-086: hoãn tới pha harden — chỉ chạy tay (workflow_dispatch); khôi phục khi delivery_phase: harden.
@@ -275,23 +272,6 @@ jobs:
           done
           echo "Đã kiểm ruleset (cảnh báo nếu thiếu)."
 
-  # Lint workflow bằng zizmor (WF-CI-004): template-injection, dangerous-triggers… Bản ghim kèm hash ở
-  # `.github/requirements-zizmor.txt`; chạy offline (không cần token), mọi finding đều đỏ.
-  workflow-lint:
-    name: workflow-lint
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Cài zizmor (ghim phiên bản + hash)
-        run: |
-          python3 -m venv "$RUNNER_TEMP/zizmor-venv"
-          "$RUNNER_TEMP/zizmor-venv/bin/pip" install --quiet --require-hashes -r .github/requirements-zizmor.txt
-      - name: zizmor — 0 finding trên .github/workflows
-        run: '"$RUNNER_TEMP/zizmor-venv/bin/zizmor" --offline --no-progress .github/workflows'
-
   # Onboarding (XC-DX-001): clone sạch → đúng 3 lệnh ở đầu README → test xanh, trên runner mới, có đo thời gian.
   # Bước chạy PHẢI trùng nguyên văn khối lệnh "Bắt đầu nhanh" của README (test scripts/ci-gates.test.mjs khoá).
   # Không dùng setup-node/pnpm-action: chính dev-env-setup.sh cài Node + pnpm.
@@ -323,7 +303,7 @@ jobs:
   quality:
     name: quality
     if: ${{ always() }}
-    needs: [typecheck, lint, gate, e2e, backup-restore, workflow-lint, onboarding-smoke]
+    needs: [gate, e2e, onboarding-smoke]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

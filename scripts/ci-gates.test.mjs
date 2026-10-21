@@ -159,7 +159,8 @@ const DEFERRED_TO_HARDEN = [
   "fe-typecheck",
   "fe-lint",
 ];
-/** Cổng có từ trước đợt 9; `quality` gom gate/e2e/backup-restore/workflow-lint/onboarding-smoke (T-807). */
+/** Cổng có từ trước đợt 9; `quality` gom gate/e2e/onboarding-smoke (T-807; ADR-0039 của khung: typecheck, lint, workflow-lint,
+ * backup-restore gộp thành bước của `gate`). */
 const BASE_GATES = ["quality", "gitleaks"]; // protection-guard, dep-audit: hoãn tới harden (D-086)
 /** Cổng của khung X-Templates: không còn (ADR-0036 của khung, 3.13.0) — máy chỉ merge ghim head nên bỏ `merge-gate`. */
 const FRAMEWORK_GATES = [];
@@ -190,9 +191,155 @@ describe("WF-CI-001 — job gom quality + ruleset khớp job thật", () => {
     const q = ci.jobs.quality;
     expect(String(q.if)).toMatch(/always\(\)/);
     const gates = Object.keys(ci.jobs).filter((k) => k !== "quality" && k !== "protection-guard");
-    expect(gates.length).toBeGreaterThan(3);
+    // ADR-0039 của khung (ít job nhất, không bỏ kiểm): trước là > 3 job con (7); nay đúng 3 — job ngắn gộp vào `gate`,
+    // còn e2e (shard) và onboarding-smoke (runner mới, ~3 phút). Khoá danh sách để thêm job phải sửa test có chủ đích.
+    expect(gates.sort()).toEqual(["e2e", "gate", "onboarding-smoke"]);
     expect([...q.needs].sort()).toEqual(gates.sort());
     expect(q.steps.some((s) => String(s.env?.NEEDS ?? "").includes("toJSON(needs)"))).toBe(true);
+  });
+
+  describe("ADR-0039 + D-128 — job ngắn gộp vào gate, nhóm độc lập chạy song song, không bỏ kiểm nào", () => {
+    const gate = ci.jobs.gate;
+    const par = gate.steps.find((st) => String(st.name ?? "").includes("song song"));
+    const idx = (pred) => gate.steps.findIndex(pred);
+    const runHas = (needle) => (st) => String(st.run ?? "").includes(needle);
+
+    it("không còn job typecheck/lint/workflow-lint/backup-restore riêng trong ci.yml", () => {
+      for (const k of ["typecheck", "lint", "workflow-lint", "backup-restore"])
+        expect(ci.jobs[k], k).toBeUndefined();
+    });
+
+    it("một bước song song chứa đủ lệnh của các job cũ, sau cài phụ thuộc và cài PG17 + pgBackRest", () => {
+      expect(par, "thiếu bước song song").toBeTruthy();
+      expect(par.shell).toBe("bash");
+      for (const n of [
+        "--require-hashes -r .github/requirements-zizmor.txt",
+        'zizmor" --offline --no-progress .github/workflows',
+        ".xtemplates/scripts/dev-task.sh typecheck",
+        ".xtemplates/scripts/dev-task.sh lint",
+        ".xtemplates/scripts/dev-task.sh build",
+        ".xtemplates/scripts/dev-task.sh test",
+        "timeout 15m bash scripts/db-backup-restore-check.sh",
+      ])
+        expect(par.run, n).toContain(n);
+      const at = gate.steps.indexOf(par);
+      expect(at).toBeGreaterThan(idx(runHas("pnpm install --frozen-lockfile")));
+      expect(at).toBeGreaterThan(idx(runHas("dev-env-setup.sh --only postgres")));
+      expect(at).toBeGreaterThan(idx(runHas("dev-env-setup.sh --only weed")));
+    });
+
+    it("typecheck nối tiếp TRƯỚC build trong cùng nhóm (next build ghi next-env.d.ts mà tsc đọc), build → test không tách", () => {
+      expect(par.run).toMatch(
+        /dev-task\.sh typecheck [^\n]*&&\s*\n\s*\{ \.xtemplates\/scripts\/dev-task\.sh build && \.xtemplates\/scripts\/dev-task\.sh test; \}/,
+      );
+    });
+
+    it("mỗi nhóm chạy nền và được ghi PID; gom bằng wait từng PID (không wait -n), exit theo nhóm đỏ", () => {
+      expect(par.run.match(/^\s*\) [^\n]*&$|^\s*\) &$/gm)).toHaveLength(4);
+      expect(par.run.match(/^\s*pids\+=\(\$!\) names\+=\(\w+\)$/gm)).toHaveLength(4);
+      expect(par.run).toMatch(/^\s*wait "\$\{pids\[\$i\]\}"$/m);
+      expect(par.run).not.toMatch(/^\s*wait -n/m); // wait -n bỏ sót nhóm đã xong trước lời gọi → vòng lặp không dứt
+      expect(par.run).toMatch(/exit "\$fail"\s*$/);
+    });
+
+    it("không bước nào của gate bỏ qua lỗi (continue-on-error) và bước cổng không có if: che", () => {
+      expect(gate["continue-on-error"]).toBeUndefined();
+      for (const st of gate.steps) expect(st["continue-on-error"], st.name).toBeUndefined();
+      expect(par.if).toBeUndefined();
+    });
+
+    it("e2e (ma trận shard) và onboarding-smoke không needs — chạy cùng lúc với gate", () => {
+      expect(ci.jobs.e2e.needs).toBeUndefined();
+      expect(ci.jobs["onboarding-smoke"].needs).toBeUndefined();
+      expect(ci.jobs.e2e.strategy.matrix.include.length).toBeGreaterThan(1);
+    });
+
+    describe("chạy thật bước song song với lệnh giả", () => {
+      // Lệnh giả: mỗi task ghi tên vào ran.txt; FAIL=<task> làm task đó exit 3. Python giả dựng venv có pip/zizmor giả
+      // (không mạng). Chạy như Actions: `bash --noprofile --norc -eo pipefail`.
+      const sandbox = () => {
+        const d = tmp();
+        const w = (rel, body) => {
+          mkdirSync(join(d, rel, ".."), { recursive: true });
+          writeFileSync(join(d, rel), body, { mode: 0o755 });
+        };
+        const task = (name, extra = "") =>
+          `echo ${name} >> "$SANDBOX/ran.txt"\n${extra}\necho "log-${name}"\n[ "\${FAIL:-}" = ${name} ] && exit 3\nexit 0\n`;
+        // lint và pitr chờ nhau: chỉ xanh khi chạy CÙNG LÚC (tuần tự → hết 5 s chờ → đỏ).
+        const meet = (me, other) =>
+          `touch "$SANDBOX/${me}.started"; for _ in $(seq 50); do [ -f "$SANDBOX/${other}.started" ] && break; sleep 0.1; done; [ -f "$SANDBOX/${other}.started" ] || { echo "không song song"; exit 9; }`;
+        w(
+          ".xtemplates/scripts/dev-task.sh",
+          `#!/usr/bin/env bash\nt="$1"\necho "$t" >> "$SANDBOX/ran.txt"\n[ "$t" = lint ] && { ${meet("lint", "pitr")}; }\necho "log-$t"\n[ "\${FAIL:-}" = "$t" ] && exit 3\nexit 0\n`,
+        );
+        w("scripts/db-backup-restore-check.sh", task("pitr", meet("pitr", "lint")));
+        w(
+          "bin/python3",
+          `#!/usr/bin/env bash\nv="$3"; mkdir -p "$v/bin"\nprintf '#!/usr/bin/env bash\\nexit 0\\n' > "$v/bin/pip"\nprintf '#!/usr/bin/env bash\\necho zizmor >> "$SANDBOX/ran.txt"; echo log-zizmor; [ "\${FAIL:-}" = zizmor ] && exit 3; exit 0\\n' > "$v/bin/zizmor"\nchmod +x "$v/bin/pip" "$v/bin/zizmor"\n`,
+        );
+        mkdirSync(join(d, "rt"));
+        return d;
+      };
+      const exec = (fail) => {
+        const d = sandbox();
+        const r = spawnSync("bash", ["--noprofile", "--norc", "-eo", "pipefail", "-c", par.run], {
+          cwd: d,
+          encoding: "utf8",
+          timeout: 30_000, // không treo test nếu bộ gom lặp mãi
+          env: {
+            ...process.env,
+            PATH: `${join(d, "bin")}:${process.env.PATH}`,
+            RUNNER_TEMP: join(d, "rt"),
+            SANDBOX: d,
+            FAIL: fail ?? "",
+          },
+        });
+        const ran = existsSync(join(d, "ran.txt"))
+          ? readFileSync(join(d, "ran.txt"), "utf8").trim().split("\n")
+          : [];
+        return { ...r, ran, logs: join(d, "rt", "ci-logs") };
+      };
+
+      it("mọi nhóm xanh → exit 0; đủ 6 lệnh chạy, lint ∥ PITR thật sự cùng lúc, log từng nhóm được in", () => {
+        const r = exec();
+        expect(r.status, `${r.error} ${r.stdout} ${r.stderr}`).toBe(0);
+        expect([...r.ran].sort()).toEqual(["build", "lint", "pitr", "test", "typecheck", "zizmor"]);
+        expect(r.ran.indexOf("typecheck")).toBeLessThan(r.ran.indexOf("build"));
+        expect(r.ran.indexOf("build")).toBeLessThan(r.ran.indexOf("test"));
+        for (const n of ["zizmor", "gate", "lint", "pitr"])
+          expect(r.stdout).toContain(`::group::${n} — exit 0`);
+        for (const n of ["zizmor", "typecheck", "build", "test", "lint", "pitr"])
+          expect(r.stdout).toContain(`log-${n}`);
+        expect(readFileSync(join(r.logs, "gate.log"), "utf8")).toContain("log-test");
+      });
+
+      it.each(["zizmor", "lint", "pitr", "test"])(
+        "nhóm chứa %s đỏ → exit 1, nêu tên nhóm, các nhóm khác vẫn chạy hết",
+        (fail) => {
+          const r = exec(fail);
+          expect(r.status).toBe(1);
+          const name = fail === "test" ? "gate" : fail;
+          expect(r.stdout).toContain(`::error::Nhóm ${name} đỏ (exit 3)`);
+          expect([...r.ran].sort()).toEqual(["build", "lint", "pitr", "test", "typecheck", "zizmor"]);
+        },
+      );
+
+      it("typecheck đỏ → build/test không chạy (giữ thứ tự), nhóm gate đỏ, exit 1", () => {
+        const r = exec("typecheck");
+        expect(r.status).toBe(1);
+        expect(r.ran).not.toContain("build");
+        expect(r.ran).not.toContain("test");
+        expect(r.stdout).toContain("::error::Nhóm gate đỏ");
+        expect(r.stdout).toContain("log-typecheck");
+      });
+
+      it("build đỏ → test không chạy, exit 1 (pipefail qua tee)", () => {
+        const r = exec("build");
+        expect(r.status).toBe(1);
+        expect(r.ran).not.toContain("test");
+        expect(r.stdout).toContain("::error::Nhóm gate đỏ");
+      });
+    });
   });
 
   const gather = stepRun(ci.jobs.quality, "success");
@@ -483,8 +630,9 @@ jobs:
     ).toBe(true);
   });
 
-  it("job workflow-lint chạy zizmor ghim phiên bản + hash trên .github/workflows, không bỏ qua lỗi", () => {
-    const job = ci.jobs["workflow-lint"];
+  // ADR-0039 của khung: zizmor là bước của job `gate` (job `workflow-lint` riêng đã gộp) — cùng kiểm, đổi nơi đặt.
+  it("job gate chạy zizmor ghim phiên bản + hash trên .github/workflows, không bỏ qua lỗi", () => {
+    const job = ci.jobs.gate;
     expect(job).toBeTruthy();
     expect(job["continue-on-error"]).toBeUndefined();
     const text = job.steps.map((s) => `${s.run ?? ""}\n${s["continue-on-error"] ?? ""}`).join("\n");
