@@ -50,8 +50,12 @@ pnpm install --frozen-lockfile
 - Cấu hình: sao `.env.example` thành `.env` (không commit) và thay giá trị giả; biến được kiểm bằng schema lúc khởi động
   (`packages/app/src/config/schema.ts`) — thiếu biến thì dừng ngay và nêu tên. Production bắt buộc đặt khoá PII
   (`HM_PII_KEYS`…) và máy quét `CLAMD_HOST`.
-- Web (Next.js, phát triển): `pnpm --filter @hm/web dev`. Cần CSDL đã áp migration (`packages/db/src/migrations`; chưa có lệnh
-  `migrate` riêng — test và E2E tự áp lên CSDL tạm).
+- **Dev một lệnh:** `pnpm dev:up` (thêm `--worker` để chạy cả worker). Lệnh dựng Postgres 17 bền ở `.dev/pg` (cổng
+  `DEV_PG_PORT`, mặc định 54329), áp migration, seed dữ liệu giả **một lần**, chạy S3/clamd giả trong tiến trình rồi `next dev`
+  ở `http://127.0.0.1:3000` (`DEV_PORT`). Tài khoản giả in ra khi khởi động; mã TOTP của chủ khách sạn giả: `pnpm dev:up --totp`;
+  mã OTP người thuê ghi ở `.dev/outbox.jsonl`. Dừng Postgres: `pnpm dev:up --stop`; xoá sạch: `pnpm dev:up --reset`. Ảnh tải
+  lên chỉ giữ trong bộ nhớ (mất khi dừng). Cần `scripts/dev-env-setup.sh` trước và `pnpm install`.
+- Web (Next.js) chạy tay: `pnpm --filter @hm/web dev` với biến môi trường tự đặt và CSDL đã áp migration (`packages/db/src/migrations`).
 - Chạy thử trọn luồng với dữ liệu giả: lệnh E2E bên dưới tự dựng Postgres tạm, seed, build và khởi động web.
 - Worker (`apps/worker`): tiến trình chạy thật — `node apps/worker/src/index.ts` (Node 24; relay outbox, consumer pg-boss, job định kỳ; dừng êm khi nhận SIGTERM). Cần thêm `WORKER_DATABASE_URL` (vai trò `app_worker`); lịch và cách dừng ở [`docs/RUNBOOK.md`](docs/RUNBOOK.md) §8.
 - Đóng gói: [`deploy/web.Dockerfile`](deploy/web.Dockerfile) và [`deploy/worker.Dockerfile`](deploy/worker.Dockerfile) (chưa build thật trên máy có Docker; compose chưa có service ứng dụng).

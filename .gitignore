@@ -38,3 +38,6 @@ Thumbs.db
 
 # Cache kiểm link ngoài (scripts/check-external-links.mjs)
 .cache/
+
+# Môi trường dev một lệnh (pnpm dev:up): CSDL, bí mật, tài khoản giả
+.dev/

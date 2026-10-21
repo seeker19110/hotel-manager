@@ -39,6 +39,12 @@ describe("buildCsp — parse header và assert từng directive (FE-SEC-003)", (
     expect(dev["script-src"]).not.toContain("'unsafe-inline'");
   });
 
+  it("dev cho style inline của next dev (không nonce — nonce làm trình duyệt bỏ 'unsafe-inline'); production thì không", () => {
+    const dev = parseCsp(buildCsp(NONCE, { dev: true }));
+    expect(dev["style-src"]).toEqual(["'self'", "'unsafe-inline'"]);
+    expect(prod["style-src"]).toEqual(["'self'", `'nonce-${NONCE}'`]);
+  });
+
   it("object-src 'none', base-uri 'none', frame-ancestors 'none', form-action 'self', default-src 'self'", () => {
     expect(prod["object-src"]).toEqual(["'none'"]);
     expect(prod["base-uri"]).toEqual(["'none'"]);
