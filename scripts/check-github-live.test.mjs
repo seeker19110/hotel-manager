@@ -15,6 +15,15 @@ import {
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const code = JSON.parse(readFileSync(join(ROOT, ".github/rulesets/main.json"), "utf8"));
+/** Bản code bật strict (pha harden; D-086 tắt ở pha build) — để kiểm nhánh so strict của `rulesetProblems`. */
+const strictCode = {
+  ...code,
+  rules: code.rules.map((r) =>
+    r.type === "required_status_checks"
+      ? { ...r, parameters: { ...r.parameters, strict_required_status_checks_policy: true } }
+      : r,
+  ),
+};
 
 describe("rulesetProblems — rule đang áp so với .github/rulesets/main.json", () => {
   it("rule đúng như bản code ⇒ không lỗi", () => {
@@ -45,8 +54,10 @@ describe("rulesetProblems — rule đang áp so với .github/rulesets/main.json
       "pull_request cho kiểu merge khác squash",
       'thiếu required check "quality" so với main.json',
       'required check "readme-smoke" không có trong main.json',
-      "required_status_checks không bật strict (nhánh phải cập nhật trước merge)",
     ]);
+    expect(rulesetProblems(live, strictCode)).toContain(
+      "required_status_checks không bật strict (nhánh phải cập nhật trước merge)",
+    );
   });
 
   it("không có rule nào ⇒ thiếu đủ 4 loại và mọi required check", () => {
@@ -66,7 +77,7 @@ describe("rulesetProblems — rule đang áp so với .github/rulesets/main.json
         ? { ...r, parameters: { ...r.parameters, strict_required_status_checks_policy: false } }
         : r,
     );
-    expect(rulesetProblems(live, code)).toEqual([
+    expect(rulesetProblems(live, strictCode)).toEqual([
       "required_status_checks không bật strict (nhánh phải cập nhật trước merge)",
     ]);
   });
