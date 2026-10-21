@@ -294,7 +294,8 @@ describe("D-065 — ruleset gom mọi job chạy trên mọi PR vào main", () =
   const wfs = workflows();
   const ruleset = JSON.parse(read(".github/rulesets/main.json"));
   const required = new Set(requiredContexts(ruleset));
-  const aggregated = new Set(ci.jobs.quality.needs);
+  // Context của job gom vào quality (job ma trận như `e2e (1/4)` → mỗi shard một context).
+  const aggregated = new Set(ci.jobs.quality.needs.flatMap((k) => jobContexts(k, ci.jobs[k])));
   const prJobs = prContexts(wfs);
 
   it("mỗi context trong main.json là job có thật chạy trên pull_request tới main, không lọc paths", () => {

@@ -260,7 +260,7 @@ describe("quét bí mật (SEC-SECRET-007)", () => {
   it("trace Playwright: gitleaks quét (cả trong zip) trước khi lưu artifact; chỉ lưu khi quét sạch", () => {
     const e = steps(ci, "e2e");
     const iScan = e.findIndex((s) => s.id === "trace-scan");
-    const iUp = e.findIndex((s) => s.with?.name === "playwright-traces");
+    const iUp = e.findIndex((s) => String(s.with?.name ?? "").startsWith("playwright-traces"));
     expect(iScan).toBeGreaterThan(-1);
     expect(e.some((s) => (s.run ?? "").includes("dev-env-setup.sh --only gitleaks"))).toBe(true);
     expect(e[iScan].run).toMatch(/^gitleaks dir apps\/web\/test-results .*--max-archive-depth \d/);

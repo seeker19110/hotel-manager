@@ -86,12 +86,20 @@ jobs:
             && [ "${#TITLE}" -le 72 ] || { echo "::error::Tiêu đề PR phải dạng '<type>(scope): mô tả' và ≤ 72 ký tự: $TITLE"; exit 1; }
 
   # E2E (SPEC-pwa, PLAN T-013/T-014): build production + e2e/server.ts (Postgres service + seed giả) + Playwright Chromium.
-  # timeout 40: E2E chạy CẢ HAI project (mobile + desktop, T-804); đo cục bộ desktop một mình 5,5 phút/95 test (1 worker) →
-  # hai project ≈ 11 phút + cài/build/khởi động ≈ 20 phút, runner chậm hơn → cần dư. Không phải nới ngưỡng chất lượng.
+  # Song song tối đa: 4 shard (mỗi runner Postgres + cặp server riêng), trong shard hai project mobile/desktop chạy cùng lúc
+  # (apps/web/playwright.config.ts). timeout 40 giữ nguyên (mỗi shard vẫn cài/build/khởi động đủ) — không nới ngưỡng chất lượng.
   e2e:
-    name: e2e
+    name: e2e (${{ matrix.name }})
     runs-on: ubuntu-24.04
     timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: "1/4", shard: "1/4" }
+          - { name: "2/4", shard: "2/4" }
+          - { name: "3/4", shard: "3/4" }
+          - { name: "4/4", shard: "4/4" }
     services:
       postgres:
         # Cùng tag + digest với deploy/postgres/Dockerfile (BASE-DEP-008: ghim digest; scripts/check-image-pins.mjs kiểm).
@@ -118,8 +126,10 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Chromium cho Playwright (đúng bản của @playwright/test đã ghim)
         run: pnpm --filter web exec playwright install --with-deps chromium
-      - name: E2E — pwa + smoke
-        run: pnpm --filter web exec playwright test
+      - name: E2E — pwa + smoke (một shard)
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: pnpm --filter web exec playwright test --shard="$SHARD"
       # CMP-PRIV-008 (D-072): log server của lượt E2E (apps/web/e2e-logs, dữ liệu giả) không được chứa PII chưa che — thay cho
       # quét log staging tới khi có staging. Chạy cả khi E2E đỏ để log lỗi cũng được quét.
       - name: Quét PII trong log server E2E (CMP-PRIV-008)
@@ -138,7 +148,7 @@ jobs:
         if: failure() && steps.trace-scan.outcome == 'success'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: playwright-traces
+          name: playwright-traces-${{ strategy.job-index }}
           path: apps/web/test-results/
           retention-days: 7
 

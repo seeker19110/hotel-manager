@@ -53,7 +53,7 @@ describe("FE-TEST-002 / PRF-WEB-006 / UX-RESP-008 — E2E hai project + axe", ()
   it("mỗi project có server + CSDL riêng: hai webServer, hai baseURL khác nhau (luồng ghi một lần không đụng nhau)", () => {
     expect(cfg.match(/command: "[^"]*node e2e\/server\.ts"/g)).toHaveLength(2);
     expect(cfg).toMatch(/DESKTOP_PORT = PORT \+ 200/);
-    expect(cfg).toMatch(/name: "mobile", use: \{[^}]*baseURL: BASE_URL/);
+    expect(cfg).toMatch(/name: "mobile", workers: 1, use: \{[^}]*baseURL: BASE_URL/);
     expect(cfg).toMatch(/baseURL: DESKTOP_URL/);
     for (const f of ["hotel", "members", "rental", "invitation", "portal"])
       expect(read(`apps/web/e2e/${f}.spec.ts`), f).toMatch(/portOf\(info\.project\.use\.baseURL\)/);
@@ -64,9 +64,14 @@ describe("FE-TEST-002 / PRF-WEB-006 / UX-RESP-008 — E2E hai project + axe", ()
       expect(read(`apps/web/e2e/${f}`), f).not.toMatch(/process\.env\.E2E_PORT/);
     expect(read("apps/web/e2e/sessions.ts")).not.toMatch(/process\.env\.E2E_PORT/);
   });
-  it("job e2e của ci.yml chạy playwright test KHÔNG ghim --project (nên chạy cả hai)", () => {
+  it("job e2e của ci.yml chạy playwright test KHÔNG ghim --project (nên chạy cả hai), chia shard theo ma trận", () => {
     const ci = read(".github/workflows/ci.yml");
-    expect(ci).toMatch(/run: pnpm --filter web exec playwright test\s*$/m);
+    expect(ci).toMatch(/run: pnpm --filter web exec playwright test --shard="\$SHARD"\s*$/m);
+    expect(ci).not.toMatch(/exec playwright test[^\n]*--project/);
+  });
+  it("song song tối đa an toàn: hai project chạy cùng lúc, mỗi project 1 worker (CSDL seed + giới hạn theo IP dùng chung)", () => {
+    expect(cfg).toMatch(/^ {2}workers: 2,$/m);
+    expect(cfg.match(/workers: 1,/g)).toHaveLength(2);
   });
   it("job e2e-repeat chạy cả hai project với --repeat-each=3", () => {
     expect(jobs["e2e-repeat"]).toMatch(

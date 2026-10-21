@@ -23,11 +23,13 @@ const DETERMINISTIC = { locale: "vi-VN", timezoneId: "UTC" } as const;
 export default defineConfig({
   testDir: "./e2e",
   timeout: 60_000,
-  // QA-E2E-005 / QA-STRAT-008: CI cấm `test.only` lọt vào (forbidOnly), thử lại ≤ 2 lần, lấy trace ở lần thử lại đầu;
-  // workers cố định (1: mọi spec dùng chung một server + một Postgres seed).
+  // QA-E2E-005 / QA-STRAT-008: CI cấm `test.only` lọt vào (forbidOnly), thử lại ≤ 2 lần, lấy trace ở lần thử lại đầu.
+  // Song song tối đa an toàn: hai project chạy CÙNG LÚC (mỗi project server + CSDL seed riêng) nhưng mỗi project 1 worker —
+  // trong một project mọi spec dùng chung một CSDL seed và chung giới hạn đăng nhập/OTP theo IP. CI chia thêm shard theo
+  // runner (`--shard`, job `e2e` trong .github/workflows/ci.yml): mỗi runner một Postgres + cặp server riêng.
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: 1,
+  workers: 2,
   reporter: [["list"]],
   use: {
     ...DETERMINISTIC,
@@ -38,9 +40,10 @@ export default defineConfig({
   // Hai project (FE-TEST-002, PRF-WEB-006, UX-RESP-008): luồng chính chạy trên điện thoại (Pixel 7, mobile-first) VÀ máy tính để bàn.
   // Số đo trọng lượng trang (`perf-baseline`, ngân sách `perf/budgets.json`) chỉ định nghĩa cho thiết bị di động nên không chạy ở desktop.
   projects: [
-    { name: "mobile", use: { ...devices["Pixel 7"], baseURL: BASE_URL } },
+    { name: "mobile", workers: 1, use: { ...devices["Pixel 7"], baseURL: BASE_URL } },
     {
       name: "desktop",
+      workers: 1,
       use: { ...devices["Desktop Chrome"], baseURL: DESKTOP_URL },
       testIgnore: /perf-baseline\.spec\.ts$/,
     },
