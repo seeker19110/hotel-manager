@@ -211,7 +211,8 @@ describe("unit.archive qua HTTP (SPEC-access S-006, INV-G7)", () => {
     const u = await room("AR-PERM");
     for (const role of ["front_desk", "accountant", "housekeeping", "maintenance", "tenant"]) {
       const r = await run(ARCHIVE, { unit_id: u }, { user: users[role] as string, org: A.orgId });
-      expect(r.status, role).toBe(403);
+      // Người thuê chưa có hợp đồng ở cơ sở này: RLS giấu phòng (0064) ⇒ 404; trước đó 403. Chấp nhận cả hai (bản N−1 trên schema N).
+      expect(role === "tenant" ? [403, 404] : [403], role).toContain(r.status);
     }
     expect((await run(ARCHIVE, { unit_id: u }, { org: A.orgId })).status).toBe(401);
     expect(await archivedAt(u)).toBeNull();

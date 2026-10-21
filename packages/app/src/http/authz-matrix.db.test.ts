@@ -98,6 +98,21 @@ function bodyFor(e: Entry, ids: Ids, withOptionalIds = false): Record<string, un
 }
 
 // ---------------------------------------------------------------- fixture
+/**
+ * Lệnh nạp phòng/loại phòng/cơ sở trước khi kiểm quyền. Migration 0064 (RLS danh mục theo cơ sở) giấu đối tượng khỏi người thuê
+ * ngoài cơ sở đó ⇒ 404 thay 403. Bản N−1 chạy trên schema N (job `schema-compat`) nên test chấp nhận CẢ HAI mã; cả hai đều là
+ * từ chối, không ghi gì.
+ */
+const TENANT_HIDDEN = new Set([
+  "room_type.update",
+  "rate.set",
+  "meter.install",
+  "unit.archive",
+  "lease.createDraft",
+  "reservation.create",
+  "stay.walkIn",
+  "inventory.setUnitAvailability",
+]);
 type Role = "housekeeping" | "maintenance" | "tenant" | "accountant" | "front_desk";
 const LOW_ROLES: readonly Role[] = ["housekeeping", "maintenance", "tenant", "accountant", "front_desk"];
 
@@ -673,7 +688,8 @@ describe("api5-bfla — vai trò thấp không gọi được chức năng của
         if (action)
           expect(grantFor(action, role as MatrixRole), `${name}: ${role} phải 'no' ở ${action}`).toBe("no");
         const r = results.get(key(name, role));
-        if (r?.status !== 403) bad.push(`${name} (${role}): ${r?.status} ${r?.code}`);
+        const okStatus = role === "tenant" && TENANT_HIDDEN.has(name) ? [403, 404] : [403];
+        if (!okStatus.includes(r?.status as number)) bad.push(`${name} (${role}): ${r?.status} ${r?.code}`);
       }
     }
     expect(bad).toEqual([]);
