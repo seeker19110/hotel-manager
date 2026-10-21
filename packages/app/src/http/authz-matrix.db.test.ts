@@ -98,11 +98,7 @@ function bodyFor(e: Entry, ids: Ids, withOptionalIds = false): Record<string, un
 }
 
 // ---------------------------------------------------------------- fixture
-/**
- * Lệnh nạp phòng/loại phòng/cơ sở trước khi kiểm quyền. Migration 0064 (RLS danh mục theo cơ sở) giấu đối tượng khỏi người thuê
- * ngoài cơ sở đó ⇒ 404 thay 403. Bản N−1 chạy trên schema N (job `schema-compat`) nên test chấp nhận CẢ HAI mã; cả hai đều là
- * từ chối, không ghi gì.
- */
+/** Lệnh nạp phòng/loại phòng/cơ sở trước khi kiểm quyền: người thuê ngoài cơ sở nhận 404 vì RLS giấu danh mục (migration 0064). */
 const TENANT_HIDDEN = new Set([
   "room_type.update",
   "rate.set",
@@ -688,8 +684,10 @@ describe("api5-bfla — vai trò thấp không gọi được chức năng của
         if (action)
           expect(grantFor(action, role as MatrixRole), `${name}: ${role} phải 'no' ở ${action}`).toBe("no");
         const r = results.get(key(name, role));
-        const okStatus = role === "tenant" && TENANT_HIDDEN.has(name) ? [403, 404] : [403];
-        if (!okStatus.includes(r?.status as number)) bad.push(`${name} (${role}): ${r?.status} ${r?.code}`);
+        // AUD-DATA-001 (0064): người thuê không có hợp đồng ở cơ sở của đối tượng thì RLS giấu luôn phòng/loại phòng ⇒ lệnh dành
+        // cho nhân viên trả 404 (không lộ sự tồn tại) thay vì 403; vẫn bị từ chối và không ghi gì.
+        const want = role === "tenant" && TENANT_HIDDEN.has(name) ? 404 : 403;
+        if (r?.status !== want) bad.push(`${name} (${role}): ${r?.status} ${r?.code}`);
       }
     }
     expect(bad).toEqual([]);
