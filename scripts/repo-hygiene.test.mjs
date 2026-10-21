@@ -319,7 +319,7 @@ describe("gói bàn giao (PM-HANDOVER-002)", () => {
     const at = (needle) => gateJob.indexOf(needle);
     expect(at("actions/checkout")).toBeGreaterThan(-1);
     expect(at("pnpm install --frozen-lockfile")).toBeGreaterThan(at("actions/checkout"));
-    // Job `gate` = build → test (typecheck, lint ở job riêng chạy cùng lúc — khung 3.12.0).
+    // Job `gate` (ADR-0039, D-128): build → test nối sau typecheck trong một nhóm; zizmor, lint, PITR là nhóm nền chạy cùng lúc.
     expect(at("dev-task.sh build")).toBeGreaterThan(at("pnpm install --frozen-lockfile"));
     expect(at("dev-task.sh test")).toBeGreaterThan(at("dev-task.sh build"));
     // Cổng chỉ có nghĩa nếu `build` trong xt.yaml là lệnh thật.
