@@ -1,7 +1,7 @@
 # PROGRESS.md — Hotel Manager
 ## Đang làm
-- 2026-10-21: nâng khung 3.11.1 → 3.12.0 (CI/E2E/ruleset tối thiểu, song song tối đa — ADR-0034 của khung): `ci.yml` tách `typecheck`/`lint` khỏi `gate` (gate = build → test: test quét bundle cần `.next`), e2e 4 → 6 shard; ruleset đã đúng mức tối thiểu (3 check, không strict) — giữ nguyên.
-- 2026-10-21: đã merge hết PR mở — #99 audit, #100 SEC-001, #104 bước expand cho 0064, #101 DATA-001/002 (migration 0064 RLS danh mục), #102 CI-001, #103 docs, #108 D-084. Audit 2026-10-19 (`docs/ops/AUDIT-STATUS.md`) hết 🔴/🟠, A11Y chưa quét; HAR-001 (XC-OSS-007) cần chủ dự án quyết. Không còn PR mở.
+- 2026-10-21: khung 3.12.0 — `ci.yml`: `typecheck`/`lint` song song với `gate` (build → test: test quét bundle cần `.next`), e2e 6 shard; ruleset giữ (đã tối thiểu).
+- 2026-10-21: đã merge #99–#104, #108. Audit 2026-10-19 (`docs/ops/AUDIT-STATUS.md`) hết 🔴/🟠, A11Y chưa quét; HAR-001 (XC-OSS-007) cần chủ dự án quyết.
 - **Đợt mới dùng `loop resume`, không `loop init`** (FB-149). Lịch sử đợt 12–13: `docs/autopilot/DECISIONS.md`.
 - Phát hành v0.2.0 (#88). D-084…D-086: ruleset `main` còn 3 required check (quality, gitleaks, merge-gate; strict tắt); 26 cổng hoãn tới harden chỉ chạy tay; E2E song song + 4 shard. `release-please` đỏ do secret `RELEASE_PLEASE_TOKEN` thiếu quyền ghi (người sửa — README, mục Phát hành).
 
