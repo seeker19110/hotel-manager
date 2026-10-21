@@ -242,7 +242,7 @@ describe("quét bí mật (SEC-SECRET-007)", () => {
   const at = (pred) => q.findIndex(pred);
 
   it("cổng ghi log ra file (pipefail), gitleaks quét log, chỉ lưu artifact khi quét sạch", () => {
-    // Job `gate` = build → test (typecheck, lint ở job riêng chạy cùng lúc — khung 3.12.0); cả nhóm lệnh ghi qua tee.
+    // Job `gate` (ADR-0039, D-128): nhóm nền typecheck → build → test (zizmor, lint, PITR là nhóm song song); build → test ghi qua tee.
     const gate = q[at((s) => (s.run ?? "").includes("dev-task.sh test"))];
     expect(gate.shell).toBe("bash");
     expect(gate.run).toMatch(

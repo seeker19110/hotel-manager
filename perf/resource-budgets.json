@@ -8,7 +8,7 @@
   },
   "ci_per_pr": {
     "max_jobs": 40,
-    "measured_jobs": 11,
+    "measured_jobs": 10,
     "max_job_timeout_min": 45,
     "max_total_timeout_min": 600,
     "measured_total_timeout_min": 260
