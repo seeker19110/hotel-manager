@@ -1,15 +1,15 @@
 # PROGRESS.md — Hotel Manager
 ## Đang làm
-- 2026-10-21 (chủ dự án: hoàn thiện ở dev trước production): `pnpm dev:up` — Postgres bền `.dev/`, migrate, seed giả, S3/clamd giả, `next dev` (+`--worker`); duyệt 19 màn: sửa `/phong` thiếu thanh điều hướng (rào `page-shell.test.tsx`), CSP dev chặn style của `next dev`, tắt `agentRules` của Next.
-- Audit 2026-10-19 (`docs/ops/AUDIT-STATUS.md`) hết 🔴/🟠, A11Y chưa quét; HAR-001 (XC-OSS-007) cần chủ dự án quyết.
-- **Đợt mới dùng `loop resume`, không `loop init`** (FB-149). Lịch sử đợt 12–13: `docs/autopilot/DECISIONS.md`.
-- Phát hành v0.2.0 (#88). D-084…D-086: ruleset `main` còn 2 required check (quality, gitleaks; strict tắt — merge-gate gỡ 2026-10-21, ADR-0036 của khung); 26 cổng hoãn tới harden chỉ chạy tay; E2E song song + 4 shard. `release-please` đỏ do secret `RELEASE_PLEASE_TOKEN` thiếu quyền ghi (người sửa — README, mục Phát hành).
+- 2026-10-21 đợt 15 (hoàn thiện ở dev trước production; đợt 3–14 ở `archive/`; D-087, D-088): `pnpm dev:up` (Postgres + SeaweedFS bền ở `.dev/`, seed giả, `--worker`); quét A11Y (axe mọi route); sửa 🟢 audit: SMTP_URL bắt buộc ở production, GCM tag 16, quyền người ở cùng theo múi giờ cơ sở, báo danh sách đặt phòng bị cắt, 401 `/me` có mã tra cứu, tài liệu lệch mã. Tất cả trên PR #115 (một nhánh — D-088), **người merge** (ngoại lệ cứng).
+- Audit (`docs/ops/AUDIT-STATUS.md`): 🔴/🟠 đã sửa trừ AUD-HAR-001 (XC-OSS-007, chủ dự án quyết); 12 🟢 còn mở (hiệu năng N+1, múi giờ báo cáo, phân trang…).
+- Đợt mới: `loop resume` nếu còn `.autopilot/state.json`; container mới không có state ⇒ PLAN mới + `loop init` (FB-149).
+- Phát hành v0.2.0 (#88). D-084…D-086: ruleset `main` 2 required check (quality, gitleaks; strict tắt); 26 cổng hoãn tới harden chỉ chạy tay. `release-please` đỏ — xem *Tiếp theo* 3.
 
 ## Tiếp theo
 1. Người (theo nhóm, từng bước ở BLUEPRINT-GAPS): ① import `.github/rulesets/tags.json` (cấm xoá/dời tag `v*`, WF-REL-003) ② nhãn `major`, Dependabot, quyết D-060 ③ BASE-REPO-006 cần tag annotated (release-please tạo tag thường) — quyết bước tạo tag; xoá tag mồ côi `v2.0.0` ④ VPS/domain/staging/secret store ⑤ sao lưu khác máy + Prometheus/Alertmanager + RPO/RTO ⑥ pháp lý DPIA/DPO/DPA ⑦ LICENSE + SECURITY.md + PVR ⑧ kiểm tay thiết bị/a11y ⑨ quyết IND-SAAS-009, CMP-RIGHTS-001, PM-METRIC-003 ⑩ duyệt `WORKER_DATABASE_URL`/`MIGRATION_DATABASE_URL` ⑪ SMTP, ClamAV ⑫ quyết 18 đề xuất "Khi chạy thật" (GO-NO-GO 4b).
 2. **Hạn gấp:** `.grype.yaml` 4 luật hết hạn 2026-10-25 (21 luật 2026-11-01) — `image-scan` nay chỉ chạy tay (D-085) — gỡ/gia hạn trước harden. Rà 2026-10-19: caddy 2.11.7/seaweedfs 4.48 chưa có bản Go 1.26.9; hẹn kiểm lại 2026-10-24 (có image vá → gỡ luật, không → gia hạn ≤ 7 ngày). Duyệt/gia hạn `@img/sharp-libvips-linux-x64` LGPL (2026-12-31), `parse-cache-control` BSD (2027-04-18).
 3. **Người — `release-please` đỏ trên `main` từ #93** (`Error adding to tree`, chạy lại 1 lần vẫn đỏ): token đọc được nhưng không ghi được ⇒ nhiều khả năng secret `RELEASE_PLEASE_TOKEN` thiếu **Contents: Read and write** (README, mục Phát hành). Sửa quyền hoặc xoá secret, rồi chạy lại workflow `Release`; xoá nhánh mồ côi `release-please--branches--main--components--hotel-manager` nếu không cần.
-4. Người: sau merge #67 chạy `perf-nightly` bằng `workflow_dispatch` một lần (bằng chứng QA-PERF-002 khi có staging); 5 mục đợt 10 chờ hạ tầng: CMP-PRIV-008/QA-PERF-002 (staging), XC-GREEN-002, PRF-WEB-005, XC-I18N-001 (chuyển dần 2321 chuỗi).
+4. Người: chạy `perf-nightly` (`workflow_dispatch`) một lần khi có staging (QA-PERF-002); chờ hạ tầng: CMP-PRIV-008, XC-GREEN-002, PRF-WEB-005; XC-I18N-001 chuyển dần ~2357 chuỗi.
 5. Sau khi người xử lý: `python3 .xtemplates/scripts/xt.py loop resume --reason "..."`.
 
 ## Quyết định
