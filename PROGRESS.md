@@ -1,8 +1,8 @@
 # PROGRESS.md — Hotel Manager
 ## Đang làm
-- Đợt 13 (D-078, 2026-10-19): #96 bộ đếm chuỗi i18n trên AST (`@babel/parser`, 2363 chuỗi thật, rào chỉ nâng tới số đếm trên main) · #97 `i18n-check` kiểm tham số `t()`. Đợt 12 (D-075/D-076) đã merge #76–#79, #82. **Đợt mới dùng `loop resume`, không `loop init`** (init xoá defer + làm cũ mọi bằng chứng — FB-149).
-- #86 T-1107 steward chỉ `--apply` khi nhánh đích có required check (FB-134). Chủ dự án import ruleset `main` (29 check); #88 phát hành **v0.2.0** (Release + SBOM + SHA256SUMS). T-1108 tick 10 MUST bằng `scripts/check-github-live.mjs` (D-077, #90). Chủ dự án: khung 3.7.0/3.7.1 (#91, #92), #93 perf LCP `/thong-bao`, đóng Release PR #89 không merge.
-- Trước đó: đợt 10–11 xong (#59…#75). `blueprint-status --strict`: MUST đạt 351 · miễn/không áp dụng 59 · **mở 91** — đều cần người (BLUEPRINT-GAPS 'Kết quả đợt 9 (a)'). GO-NO-GO: NO-GO (7 BLOCKER). Autopilot `done-pending-human`.
+- Audit toàn bộ 2026-10-19 (#99: `docs/ops/AUDIT-STATUS.md`, 1🔴 4🟠 22🟢, A11Y chưa quét). Đợt 14 sửa 🔴/🟠, **đều chờ người merge (ngoại lệ cứng, review Opus sạch)**: #100 SEC-001 (D-081…D-083: quyền người thuê cần email xác minh OTP; tài khoản chỉ-tenant chỉ vào bằng OTP) · #101 DATA-001/002 (migration 0064 RLS danh mục theo cơ sở) · #102 CI-001 (coverage chạy khi sửa mô tả PR + rào chung). Thứ tự gợi ý: #100 → #101 → #102 → #99. HAR-001 (XC-OSS-007) cần chủ dự án quyết. Đợt 13 (D-078): #96–#98 đã merge.
+- Đợt 13 (D-078): #96–#98 đã merge (bộ đếm i18n trên AST, kiểm tham số `t()`). Đợt 12 (D-075/D-076): #76–#79, #82. **Đợt mới dùng `loop resume`, không `loop init`** (FB-149).
+- Phát hành v0.2.0 (#88); ruleset `main` 29 check đã import; `release-please` đỏ do secret `RELEASE_PLEASE_TOKEN` thiếu quyền ghi (người sửa — README, mục Phát hành).
 
 ## Tiếp theo
 1. Người (theo nhóm, từng bước ở BLUEPRINT-GAPS): ① import `.github/rulesets/tags.json` (cấm xoá/dời tag `v*`, WF-REL-003) ② nhãn `major`, Dependabot, quyết D-060 ③ BASE-REPO-006 cần tag annotated (release-please tạo tag thường) — quyết bước tạo tag; xoá tag mồ côi `v2.0.0` ④ VPS/domain/staging/secret store ⑤ sao lưu khác máy + Prometheus/Alertmanager + RPO/RTO ⑥ pháp lý DPIA/DPO/DPA ⑦ LICENSE + SECURITY.md + PVR ⑧ kiểm tay thiết bị/a11y ⑨ quyết IND-SAAS-009, CMP-RIGHTS-001, PM-METRIC-003 ⑩ duyệt `WORKER_DATABASE_URL`/`MIGRATION_DATABASE_URL` ⑪ SMTP, ClamAV ⑫ quyết 18 đề xuất "Khi chạy thật" (GO-NO-GO 4b).
@@ -17,7 +17,6 @@
 - 2026-10-16 Chủ dự án: merge từng lát, PR mỗi lát. 2026-10-17 merge L3 (AGENTS §7): nhánh riêng, merge khi CI xanh + review hết 🔴/🟠; PR ngoại lệ cứng (auth/tiền/tồn, `merge-check` HUMAN) do người merge (ADR-0019).
 - 2026-10-17 Đợt 4–8 (D-023…D-058): worker runtime, Argon2id, 422 idempotency, FK RESTRICT, rate limit, miễn Storybook; S-025 409, `allocation.held`, EXIF Orientation, migration 0061/0062; D-053 phạm vi · D-054 một theme · D-055 rào test thay lint · D-056 `quality` = clean clone · D-057 `license-policy.json` · D-058 ngân sách email UTC.
 - 2026-10-17 Chủ dự án duyệt: "Duyệt tất cả 55 miễn trừ" (PR #38); "Duyệt CI + công cụ" (đợt 9).
-- 2026-10-18 D-059 phạm vi đợt 9 (67 mục MUST, 7 lát; bỏ 4 mục biến môi trường và 19 mục pháp lý).
 - D-060 WF-REVIEW-007: giữ CODEOWNERS, không thêm `.github/*` vào `merge_risk_paths` — chờ chủ dự án.
 - D-061 grype only-fixed + SBOM CycloneDX + syft · D-062 link/OpenAPI breaking bằng script Node, breaking bump MAJOR.
 - D-063 cấu hình cổng (vitest/playwright/biome/tsconfig/xt.yaml…) vào `merge_risk_paths` + job coverage-ratchet.
@@ -32,6 +31,6 @@
 - Bài học đợt 5–8: Better Auth `/sign-in/email` 20 lần/phút theo IP; `<dialog>` phát `close` sau một task (`onClose` chỉ xoá trạng thái khi hộp thật sự đóng); chạy lại job CI dùng payload sự kiện cũ (cần push mới); test giá trị ngẫu nhiên phải loại ca biên (IP octet 0); không so thời gian tuyệt đối (so tương đối); hai lát song song có thể đụng nhau qua rào mới.
 
 ## Bàn giao phiên
-- `main` = `2d19e04` (sau #97); PR mở: #98 (T-1203). Lần trước: live check 2026-10-19: ruleset/squash/tags/release đạt, chưa có ruleset tag, nhãn `major`, LICENSE.
+- `main` = `12f55e5` (sau #98); PR mở: #99 audit, #100/#101/#102 sửa (chờ người merge). Lần trước: live check 2026-10-19: ruleset/squash/tags/release đạt, chưa có ruleset tag, nhãn `major`, LICENSE.
 - Lệnh kiểm nhanh: `.xtemplates/scripts/dev-task.sh gate` · `pnpm test:db` · `E2E_PORT=<cổng riêng> pnpm --filter @hm/web exec playwright test` · `bash scripts/db-backup-restore-check.sh`. Container mới: `bash scripts/dev-env-setup.sh && bash scripts/dev-env-setup.sh --only gitleaks` rồi `pnpm install --frozen-lockfile`; semgrep: `python3 -m venv <thư mục tạm>/sg && <…>/sg/bin/pip install --require-hashes -r security/semgrep/requirements.txt` rồi đưa `<…>/sg/bin` vào PATH (thiếu gitleaks/semgrep ⇒ `loop verify` đỏ exit 127 ở WF-GIT-010/T-1101). Không chạy E2E song song với `loop verify` (T-402 đỏ do tranh CPU).
 - Đang chặn: chờ người (mục *Tiếp theo* 1–3; xác nhận việc viết lại lịch sử `main` có chủ ý — ruleset nay chặn force-push). Autopilot: `done-pending-human` (một phiên).
