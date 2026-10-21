@@ -626,3 +626,17 @@
 - Chọn: Hoãn tới harden protection-guard, dep-audit, commit-lint, pr-policy, fe-typecheck, fe-lint (chỉ chạy tay); ruleset 3 check; tắt strict (nhánh không phải cập nhật với main)
 - Lý do (tiêu chí chất lượng cuối): Đúng lựa chọn của chủ dự án. Phương án 1 trái rào D-065 (job chạy trên PR phải required) và merge-check của khung vẫn coi check đỏ là chặn. quality vẫn chạy build/typecheck/lint/toàn bộ test + E2E nên typecheck/lint frontend không mất hẳn; gitleaks giữ lớp bí mật; merge-gate giữ lớp chặn auto-merge PR ngoại lệ cứng. Tắt strict bớt vòng update-branch + chạy lại CI sau mỗi merge. Đánh đổi: không kiểm mẫu PR/commit message/phụ thuộc lỗ hổng/khớp ruleset trên PR.
 - Đường lùi: Gỡ if: workflow_dispatch của 6 job (commit-lint, pr-policy lấy lại if trong chú thích 'Khi khôi phục'), trả context vào main.json + BASE_GATES/WAVE9_GATES, strict true, người sửa ruleset trên GitHub; delivery_phase: harden buộc khôi phục.
+
+### D-087 · 2026-10-21T19:18:09+00:00 · Duyệt PLAN đợt 15 (hoàn thiện ở dev trước production): 9 task, 3 lát — quét A11Y, sửa 🟢 audit làm được trong repo, SeaweedFS bền cho dev?
+
+- Phương án: (1) Duyệt PLAN 9 task như viết · (2) Chỉ quét A11Y + sửa tài liệu, để sửa mã sang đợt harden · (3) Mở rộng: chuyển 2359 chuỗi i18n (XC-I18N-001) trong đợt này
+- Chọn: Duyệt PLAN 9 task như viết
+- Lý do (tiêu chí chất lượng cuối): Đúng và an toàn: các sửa đều có test đỏ trước, nhỏ, đảo ngược được; đóng lỗi người dùng thật thấy (quyền lệch múi giờ, danh sách cắt im lặng) trước production theo yêu cầu chủ dự án. Phương án 2 để lỗi đúng/sai tồn tại lâu hơn; phương án 3 phình phạm vi (nhiều đợt, ratchet đã chặn tăng).
+- Đường lùi: Revert từng commit task; PLAN cũ ở archive/PLAN-dot-3-14.md
+
+### D-088 · 2026-10-21T19:18:09+00:00 · Chỉ được đẩy lên một nhánh (claude/trusting-johnson-t1ylka) trong khi luật 'mỗi lát một PR' và PR #115 đang chờ người merge — tổ chức PR đợt 15 thế nào?
+
+- Phương án: (1) Xếp chồng commit từng task lên nhánh của #115, PR #115 lớn dần, mô tả PR liệt kê task · (2) Commit cục bộ, chỉ đẩy khi #115 đã merge (nhánh khởi lại từ main) · (3) Tạo nhánh mới cho mỗi lát
+- Chọn: Xếp chồng commit từng task lên nhánh của #115, PR #115 lớn dần, mô tả PR liệt kê task
+- Lý do (tiêu chí chất lượng cuối): Ràng buộc phiên: chỉ được đẩy lên nhánh được giao (phương án 3 trái lệnh). Phương án 2 giữ việc chỉ ở container tạm — mất khi container bị thu hồi (vi phạm 'đẩy để giữ'). Phương án 1 giữ việc an toàn trên remote, mỗi task một commit nên review/revert theo commit được; đánh đổi: PR > 150 dòng.
+- Đường lùi: Sau khi #115 merge: nhánh khởi lại từ main, các lát chưa merge tách PR riêng

@@ -1,4 +1,4 @@
-// PLAN đợt 3 T-221 — báo cáo (SPEC-audit-reporting S-009…S-012, S-019; INV-L*; D-018).
+// PLAN đợt 3 T-221 — báo cáo (SPEC-audit-reporting S-009…S-012, S-019; INV-F*; D-018).
 // - Mỗi báo cáo là MỘT câu SQL (một snapshot kể cả ở READ COMMITTED) — chi tiết, tổng và số dư sổ phụ đọc cùng thời
 //   điểm; tổng tính ở CSDL, VND số nguyên; trả "số liệu tại" (`asOf`).
 // - Công nợ tại ngày chốt d: mỗi phiếu = Σ(Nợ − Có) các dòng AR gắn phiếu đó, bút toán ngày ≤ d (gồm phân bổ, đảo, điều

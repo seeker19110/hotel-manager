@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { t } from "../../lib/i18n.ts";
 
 /** Đang tải: khung xương + chữ cho trình đọc màn hình (không chỉ hiệu ứng hình). */
 export function LoadingState({ label = "Đang tải…", rows = 3 }: { label?: string; rows?: number }) {
@@ -30,6 +31,19 @@ export function ErrorState({ title, text, action }: { title: string; text: strin
       <p className="state__title">{title}</p>
       <p className="state__text">{text}</p>
       {action}
+    </div>
+  );
+}
+
+/**
+ * Danh sách bị cắt ở trần của truy vấn (AUD-XFEAT-001): `shown` = số dòng nhận được, `limit` = trần SQL. Chạm trần ⇒ có thể còn
+ * dòng bị bỏ — báo rõ thay vì im lặng (lịch phòng thiếu đặt phòng trông như phòng trống). Chưa chạm trần ⇒ không hiện gì.
+ */
+export function TruncatedNotice({ shown, limit }: { shown: number; limit: number }) {
+  if (shown < limit) return null;
+  return (
+    <div className="state" role="status">
+      <p className="state__text">{t("list.truncated", { n: limit })}</p>
     </div>
   );
 }

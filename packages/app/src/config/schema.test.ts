@@ -79,6 +79,7 @@ describe("khoá mã hoá số giấy tờ (D-004, T-202)", () => {
       issuesOf({
         ...valid,
         NODE_ENV: "production",
+        SMTP_URL: "smtps://relay.example.test:465",
         CLAMD_HOST: "clamav",
         HM_PII_KEYS: `1:${key}`,
         HM_PII_KEY_ID: "1",

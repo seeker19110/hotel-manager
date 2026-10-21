@@ -12,7 +12,7 @@
 | Web + phụ thuộc (readiness) | `GET /api/ready` | `200 {"status":"ready","checks":{"database":"ok","storage":"ok","scanner":"ok"}}`; thiếu ⇒ `503` kèm thành phần `fail`/`timeout` (không có chi tiết lỗi) |
 | Số liệu | `GET /api/metrics` + `Authorization: Bearer <token>` | Prometheus text 0.0.4; có `hm_http_requests_total` và `hm_http_request_duration_seconds` (theo mẫu route/method/status), `hm_metrics_db_ok` (0 = CSDL lỗi lượt scrape đó) |
 | Worker | metric `hm_worker_heartbeat_age_seconds{worker=…}` | < 120 giây (worker ghi nhịp mỗi 30 giây, tên `worker`; §8) |
-| CSDL | Postgres 17, `max_connections=100`, pool ≤ 20/tiến trình | — |
+| CSDL | Postgres 17, `max_connections=100`; web: pool ứng dụng ≤ 20 + pool auth ≤ 10 (tổng ≤ 30/tiến trình), trần từng pool ở [`docs/db/connections.md`](db/connections.md) | — |
 | Kho file | SeaweedFS (S3), bucket riêng tư, URL ký ≤ 5 phút | — |
 | Quét mã độc | clamd (ClamAV) nội bộ; dev/CI dùng bản giả EICAR | — |
 
@@ -148,7 +148,7 @@ Cảnh báo `HmEmailBudgetHigh` (≥ 80%) / `HmEmailBudgetExhausted` (100%); met
 
 ## 9. Web — bind, https, cấu hình hiệu lực (T-403)
 - `pnpm --filter @hm/web start` (và `dev`) mặc định bind **127.0.0.1** (`next start -H ${HOST:-127.0.0.1}`). Caddy chuyển tiếp tới web; chạy web trong container sau Caddy thì đặt `HOST=0.0.0.0` ở **môi trường container** (mạng backend nội bộ, không publish cổng ra host) — không đặt trên máy có cổng mở Internet.
-- `NODE_ENV=production`: `APP_BASE_URL` và `S3_ENDPOINT` phải `https://` (loopback được miễn), `SMTP_URL` phải `smtps://` hoặc `smtp://…?requireTLS=true` (hoặc `fake://` = không gửi thư). Sai → tiến trình không lên, log nêu **tên biến** và lý do, không giá trị.
+- `NODE_ENV=production`: `APP_BASE_URL` và `S3_ENDPOINT` phải `https://` (loopback được miễn), `SMTP_URL` **bắt buộc đặt tường minh** (không còn mặc định `fake://local` — AUD-CFG-001) và phải `smtps://` hoặc `smtp://…?requireTLS=true` (hoặc `fake://` = cố ý không gửi thư). Sai → tiến trình không lên, log nêu **tên biến** và lý do, không giá trị.
 - Lúc khởi động web in một dòng log `config.effective` (bí mật thành `***`); đối chiếu với bảng mặc định [`docs/design/SECURE-DEFAULTS.md`](design/SECURE-DEFAULTS.md) khi nghi cấu hình lệch.
 - Lỗi render/route chưa bắt ghi log `lỗi render/route không dự kiến` (mẫu route, `digest`, stack; không cookie/đường dẫn thật).
 - Cookie phiên khi https mang tiền tố `__Host-hm.` (trình duyệt buộc Secure, Path=/, không Domain). Đổi `APP_BASE_URL` giữa http↔https ⇒ mọi phiên cũ mất hiệu lực (tên cookie đổi): người dùng đăng nhập lại.

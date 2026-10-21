@@ -162,5 +162,9 @@
   "rooms.title": {
     "message": "Phòng",
     "description": "Tiêu đề màn danh sách phòng (/phong) khi đang tải."
+  },
+  "list.truncated": {
+    "message": "Đang hiện {n} mục đầu tiên, có thể còn mục khác. Thu hẹp khoảng ngày để xem đủ.",
+    "description": "Thông báo khi danh sách (đặt phòng, lịch phòng) chạm trần số dòng của truy vấn; {n} = trần."
   }
 }

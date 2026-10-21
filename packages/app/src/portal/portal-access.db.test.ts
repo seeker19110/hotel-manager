@@ -193,6 +193,58 @@ describe("S-014 mời người thuê, không tính quota nhân viên", () => {
   });
 });
 
+describe("AUD-XFEAT-002 — người ở cùng đã rời: ngày hiệu lực theo múi giờ CƠ SỞ, không theo current_date của phiên CSDL", () => {
+  /** Tổ chức riêng (đổi múi giờ trước khi có dữ liệu dùng cơ sở) + người thuê chung (không đại diện) rời ngày `toOn`. */
+  async function coTenantLeaving(tz: string, toOn: string) {
+    const org = await seedOrg(t.admin, `Nhà trọ múi giờ ${tz}`);
+    await sql`update properties set timezone = ${tz} where id = ${org.propertyId}`.execute(t.admin);
+    const rep = await tenantPerson(org, "Đại diện");
+    const personId = randomUUID();
+    await sql`insert into persons (id, organization_id, full_name) values (${personId}, ${org.orgId}, 'Người ở cùng')`.execute(
+      t.admin,
+    );
+    await sql`insert into lease_occupants (id, organization_id, property_id, lease_id, person_id, role, is_representative, from_on, to_on)
+              values (${randomUUID()}, ${org.orgId}, ${org.propertyId}, ${rep.leaseId}, ${personId}, 'co_tenant', false,
+                      '2026-09-01', ${toOn}::date)`.execute(t.admin);
+    const o = await ownerOf(t, org);
+    return codeOf(
+      runAs(t, o, (ctx) => inviteTenant(ctx, { personId, email: `ct-${personId.slice(0, 8)}@example.test` })),
+    );
+  }
+  const localDate = async (tz: string, plusDays = 0) =>
+    (
+      await sql<{
+        d: string;
+      }>`select ((now() at time zone ${tz})::date + ${plusDays}::int)::text as d`.execute(t.admin)
+    ).rows[0]?.d as string;
+
+  it("Asia/Ho_Chi_Minh: rời hôm nay (ngày VN) → còn quyền; rời hôm qua (ngày VN) → hết quyền (404)", async () => {
+    expect(await coTenantLeaving("Asia/Ho_Chi_Minh", await localDate("Asia/Ho_Chi_Minh"))).toBe("COMMITTED");
+    expect(await coTenantLeaving("Asia/Ho_Chi_Minh", await localDate("Asia/Ho_Chi_Minh", -1))).toBe(
+      "NOT_FOUND",
+    );
+  });
+
+  it("múi giờ lệch xa: ngày địa phương khác current_date của phiên → quyết theo ngày địa phương", async () => {
+    // Tại mọi thời điểm, ít nhất một trong hai (+14 / −11) có ngày địa phương khác current_date (UTC) của phiên.
+    const r = (
+      await sql<{ tz: string; local: string; session: string }>`
+        select tz, (now() at time zone tz)::date::text as local, current_date::text as session
+        from (values ('Pacific/Kiritimati'), ('Pacific/Pago_Pago')) v(tz)
+        where (now() at time zone tz)::date <> current_date order by tz limit 1`.execute(t.admin)
+    ).rows[0];
+    expect(r).toBeDefined();
+    const { tz, local, session } = r as { tz: string; local: string; session: string };
+    if (local > session) {
+      // Địa phương đã sang ngày mới: rời "hôm qua theo địa phương" (= hôm nay theo phiên) → hết quyền.
+      expect(await coTenantLeaving(tz, session)).toBe("NOT_FOUND");
+    } else {
+      // Địa phương còn ở ngày cũ: rời "hôm nay theo địa phương" (= hôm qua theo phiên) → còn quyền.
+      expect(await coTenantLeaving(tz, local)).toBe("COMMITTED");
+    }
+  });
+});
+
 describe("AUD-SEC-001 — quyền người thuê chỉ hiệu lực khi email chứng minh bằng OTP, tài khoản chỉ-tenant chỉ vào bằng OTP (D-081)", () => {
   const actorOf = async (cookie: string) => {
     const s = await auth.api.getSession({ headers: new Headers({ cookie }) });

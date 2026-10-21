@@ -174,6 +174,7 @@ describe("BASE-SEC-004 — production bắt TLS cho mọi kênh mạng", () => {
   const prod = {
     ...MINIMAL,
     NODE_ENV: "production",
+    SMTP_URL: "smtps://relay.example.test:465",
     CLAMD_HOST: "clamd",
     HM_PII_KEYS: `1:${Buffer.alloc(32, 7).toString("base64")}`,
     HM_PII_KEY_ID: "1",
@@ -213,6 +214,14 @@ describe("BASE-SEC-004 — production bắt TLS cho mọi kênh mạng", () => {
     expect(issuesOf({ ...MINIMAL, APP_BASE_URL: "http://app.example.test" })).toEqual([]);
   });
 
+  it("AUD-CFG-001: production không đặt SMTP_URL (hoặc để trống) → lỗi nêu tên; dev/test vẫn mặc định fake://local", () => {
+    const { SMTP_URL: _omit, ...noSmtp } = prod;
+    expect(issuesOf(noSmtp)).toEqual(["SMTP_URL"]);
+    expect(issuesOf({ ...noSmtp, SMTP_URL: "" })).toEqual(["SMTP_URL"]);
+    expect(loadConfig({ ...MINIMAL }).SMTP_URL).toBe("fake://local");
+    expect(loadConfig({ ...MINIMAL, NODE_ENV: "test" }).SMTP_URL).toBe("fake://local");
+  });
+
   it("SMTP production: smtps://, smtp://…?requireTLS=true, fake:// được; smtp:// trần thì không", () => {
     expect(issuesOf({ ...prod, SMTP_URL: "smtps://u:p@example.test:465" })).toEqual([]);
     expect(issuesOf({ ...prod, SMTP_URL: "smtp://relay.example.test:587?requireTLS=true" })).toEqual([]);
@@ -244,6 +253,7 @@ describe("DB-SEC-003 — production: CSDL ở máy khác chỉ qua TLS xác minh
   const prod = {
     ...MINIMAL,
     NODE_ENV: "production",
+    SMTP_URL: "smtps://relay.example.test:465",
     CLAMD_HOST: "clamd",
     HM_PII_KEYS: `1:${Buffer.alloc(32, 7).toString("base64")}`,
     HM_PII_KEY_ID: "1",

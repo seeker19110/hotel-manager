@@ -48,7 +48,7 @@ export const ERROR_CODES = {
   PROPERTY_IN_USE: { status: 409, source: "SPEC-access-and-property §6" },
   FEATURE_DISABLED: { status: 409, source: "SPEC-access-and-property §6" },
   INVITATION_INVALID: { status: 410, source: "SPEC-access-and-property §6" },
-  APPROVAL_NOT_EXECUTABLE: { status: 409, source: "PLAN đợt 2 T-102 (loại chưa có executor)" },
+  APPROVAL_NOT_EXECUTABLE: { status: 409, source: "contract" },
   WEBHOOK_SIGNATURE_INVALID: { status: 401, source: "API-CONTRACT §3" },
   LEDGER_UNBALANCED: { status: 500, source: "SPEC-ledger-payments §6" },
   INBOX_HASH_MISMATCH: { status: 409, source: "SPEC-ledger-payments §6" },

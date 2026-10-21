@@ -76,7 +76,7 @@ export function createPiiCipher(ring: PiiKeyring): PiiCipher {
     encrypt(plaintext, aad) {
       const key = ring.keys.get(ring.currentKeyId) as Buffer;
       const iv = randomBytes(IV_BYTES);
-      const c = createCipheriv("aes-256-gcm", key, iv);
+      const c = createCipheriv("aes-256-gcm", key, iv, { authTagLength: TAG_BYTES });
       c.setAAD(Buffer.from(aad, "utf8"));
       const body = Buffer.concat([c.update(plaintext, "utf8"), c.final()]);
       return Buffer.concat([Buffer.from([ring.currentKeyId]), iv, c.getAuthTag(), body]);
@@ -86,7 +86,9 @@ export function createPiiCipher(ring: PiiKeyring): PiiCipher {
       if (buf.length < 1 + IV_BYTES + TAG_BYTES) throw new PiiKeyError("ciphertext hỏng");
       const key = ring.keys.get(buf[0] as number);
       if (!key) throw new PiiKeyError(`không có khoá key_id=${buf[0]}`);
-      const d = createDecipheriv("aes-256-gcm", key, buf.subarray(1, 1 + IV_BYTES));
+      const d = createDecipheriv("aes-256-gcm", key, buf.subarray(1, 1 + IV_BYTES), {
+        authTagLength: TAG_BYTES,
+      });
       d.setAAD(Buffer.from(aad, "utf8"));
       d.setAuthTag(buf.subarray(1 + IV_BYTES, 1 + IV_BYTES + TAG_BYTES));
       try {

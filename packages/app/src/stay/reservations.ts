@@ -763,6 +763,9 @@ export async function changeDates(
 }
 
 /** `reservation.list` (query): booking của cơ sở có ngày ở giao khoảng [from, to), lọc trạng thái; tối đa 200 dòng. */
+/** Trần số dòng của `reservation.list` (XC-PERF-006); UI báo "đang hiện N mục đầu" khi chạm trần (AUD-XFEAT-001). */
+export const RESERVATION_LIST_LIMIT = 200;
+
 export async function listReservations(
   db: Kysely<unknown>,
   actor: Actor,
@@ -790,7 +793,7 @@ export async function listReservations(
       where r.organization_id = ${actor.orgId} and r.property_id = ${input.propertyId}
         and i.arrival_date < ${input.to}::date and i.departure_date > ${input.from}::date
         ${input.status ? sql`and r.status = ${input.status}` : sql``}
-      order by i.arrival_date, r.number limit 200`.execute(trx);
+      order by i.arrival_date, r.number limit ${RESERVATION_LIST_LIMIT}`.execute(trx);
     return r.rows.map(viewOf);
   });
 }

@@ -91,6 +91,9 @@ export function publicSecretNames(names: readonly string[]): string[] {
 const optional = <T extends z.ZodType>(s: T) =>
   z.preprocess((v) => (v === "" ? undefined : v), s.optional()) as unknown as z.ZodOptional<T>;
 
+/** Lý do chung khi biến bắt buộc ở production bị thiếu (khoá PII, SMTP_URL — AUD-CFG-001). */
+const REQUIRED_IN_PRODUCTION = "bắt buộc ở production";
+
 export const envSchema = z
   .object({
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -164,7 +167,7 @@ export const envSchema = z
     if (pii.every((v) => v === undefined)) {
       if (env.NODE_ENV === "production") {
         for (const k of ["HM_PII_KEYS", "HM_PII_KEY_ID", "HM_PII_INDEX_KEY"] as const)
-          ctx.addIssue({ code: "custom", path: [k], message: "bắt buộc ở production" });
+          ctx.addIssue({ code: "custom", path: [k], message: REQUIRED_IN_PRODUCTION });
       }
       return;
     }
@@ -215,12 +218,18 @@ export function redactConfig(config: AppConfig): Record<string, unknown> {
  */
 export function loadConfig(env: Record<string, string | undefined>): AppConfig {
   const parsed = envSchema.safeParse(env);
-  if (!parsed.success) {
-    const issues = parsed.error.issues.map((i) => ({
+  // AUD-CFG-001: mặc định `fake://local` NUỐT mọi thư (OTP người thuê, lời mời). Production quên đặt biến thì vẫn lên mà không
+  // ai nhận được thư — nên production phải đặt SMTP_URL tường minh (`fake://…` vẫn được khi cố ý, như E2E).
+  const smtpMissing =
+    env.NODE_ENV === "production" && (env.SMTP_URL ?? "") === ""
+      ? [{ key: "SMTP_URL", reason: REQUIRED_IN_PRODUCTION }]
+      : [];
+  if (!parsed.success || smtpMissing.length > 0) {
+    const issues = (parsed.success ? [] : parsed.error.issues).map((i) => ({
       key: String(i.path[0] ?? "?"),
       reason: i.code === "invalid_type" ? "thiếu hoặc sai kiểu" : i.message,
     }));
-    throw new ConfigError(issues);
+    throw new ConfigError([...issues, ...smtpMissing.filter((m) => !issues.some((i) => i.key === m.key))]);
   }
   const config = { ...parsed.data } as AppConfig;
   Object.defineProperties(config, {

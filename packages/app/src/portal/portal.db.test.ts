@@ -217,7 +217,12 @@ describe("S-006 hợp đồng và cọc", () => {
       currentVersion: { versionNo: 1, rentAmount: 3_000_000 },
       deposit: { amount: 3_000_000, balance: 3_000_000, label: "Cọc — không phải tiền đã trả cho phiếu" },
     });
-    expect(JSON.stringify(l)).not.toMatch(/doc_number|cccd|passport/i);
+    // Bỏ UUID trước khi so: id ngẫu nhiên có thể tình cờ chứa chuỗi hex "cccd" (từng làm test đỏ ngẫu nhiên, 2026-10-21).
+    const text = JSON.stringify(l).replace(
+      /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi,
+      "<uuid>",
+    );
+    expect(text).not.toMatch(/doc_number|cccd|passport/i);
   });
 });
 

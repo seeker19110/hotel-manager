@@ -12,3 +12,4 @@ export {
 } from "./factory.ts";
 export { asPg, freePort, PG_BIN, type PgCluster, startPgCluster } from "./pg-cluster.ts";
 export { type PgTlsCluster, startPgTlsCluster } from "./pg-tls-cluster.ts";
+export { type S3Server, type S3TestConfig, startS3Server } from "./s3-server.ts";

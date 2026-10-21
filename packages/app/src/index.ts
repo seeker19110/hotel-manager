@@ -187,7 +187,12 @@ export { type FolioView, getFolio } from "./stay/folio.ts";
 export { expireHeldReservations } from "./stay/jobs.ts";
 export { type OpsProperty, opsProperties } from "./stay/properties.ts";
 export { type Quote, quote as quoteStay } from "./stay/rates.ts";
-export { getReservation, listReservations, type ReservationView } from "./stay/reservations.ts";
+export {
+  getReservation,
+  listReservations,
+  RESERVATION_LIST_LIMIT,
+  type ReservationView,
+} from "./stay/reservations.ts";
 export { listNotices, type NoticeListItem } from "./stay/residence-notices.ts";
 export {
   getSummary as getTodaySummary,
