@@ -640,3 +640,17 @@
 - Chọn: Xếp chồng commit từng task lên nhánh của #115, PR #115 lớn dần, mô tả PR liệt kê task
 - Lý do (tiêu chí chất lượng cuối): Ràng buộc phiên: chỉ được đẩy lên nhánh được giao (phương án 3 trái lệnh). Phương án 2 giữ việc chỉ ở container tạm — mất khi container bị thu hồi (vi phạm 'đẩy để giữ'). Phương án 1 giữ việc an toàn trên remote, mỗi task một commit nên review/revert theo commit được; đánh đổi: PR > 150 dòng.
 - Đường lùi: Sau khi #115 merge: nhánh khởi lại từ main, các lát chưa merge tách PR riêng
+
+### D-089 · 2026-10-21T21:15:34+00:00 · Duyệt PLAN đợt 16 (phần còn lại của audit 🟢): 6 task; bác bỏ AUD-SEC-003, để lại AUD-DATA-005/006, AUD-PERF-002, mã DUPLICATE?
+
+- Phương án: (1) Duyệt PLAN 6 task như viết, các mục để lại ghi lý do ở sổ audit · (2) Làm cả AUD-PERF-002 và đổi mã DUPLICATE thống nhất · (3) Dừng, chờ chủ dự án merge #116
+- Chọn: Duyệt PLAN 6 task như viết, các mục để lại ghi lý do ở sổ audit
+- Lý do (tiêu chí chất lượng cuối): Đúng và an toàn: rào CSDL theo vai trò và múi giờ là lỗi đúng/sai thật trước production; N+1 kỳ thu có hại đo được (≈1.300 round-trip/100 phòng). Đổi mã DUPLICATE là breaking API (tiêu chí 2 giữ đường lùi); AUD-PERF-002 chưa đo được hại; AUD-SEC-003 bị ma trận SPEC-access bác (đảo = điều chỉnh có lý do = payment.allocate). Phương án 3 bỏ phí thời gian khi còn việc tự làm được.
+- Đường lùi: Revert từng commit task; migration 0065 có down
+
+### D-090 · 2026-10-21T21:26:20+00:00 · T-1603: policy RESTRICTIVE ghi persons — ngoại lệ lúc khởi tạo (actor chưa có membership) và accountant có được INSERT persons không?
+
+- Phương án: (1) Giữ ngoại lệ khởi tạo; accountant chỉ UPDATE (lockPerson), không INSERT · (2) Giữ ngoại lệ; accountant được cả INSERT/UPDATE · (3) Đổi thứ tự khởi tạo (membership trước person) để bỏ ngoại lệ
+- Chọn: Giữ ngoại lệ khởi tạo; accountant chỉ UPDATE (lockPerson), không INSERT
+- Lý do (tiêu chí chất lượng cuối): Đúng và an toàn — cách hiểu chặt hơn: không đường mã nào cho accountant tạo người, chỉ cần UPDATE/khoá hàng; ngoại lệ khởi tạo chỉ mở khi membership của actor chưa tồn tại (org.create, acceptInvitation), đổi thứ tự khởi tạo đụng FK person_id và luồng auth — rủi ro hơn lợi ích (tiêu chí 2).
+- Đường lùi: Thêm accountant lại vào điều kiện INSERT của 0065 (migration mới)

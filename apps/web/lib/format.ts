@@ -58,9 +58,24 @@ const WEEKDAY = ["Chủ nhật", "Thứ hai", "Thứ ba", "Thứ tư", "Thứ n�
 /** `YYYY-MM-DD` → "Thứ ba 21/10/2026". */
 export const weekdayDay = (d: string) => `${WEEKDAY[new Date(`${d}T00:00:00Z`).getUTCDay()]} ${day(d)}`;
 
-/** Thời điểm theo múi giờ cơ sở (mặc định Asia/Ho_Chi_Minh — múi giờ của mọi cơ sở pilot): "14:05 16/10/2026". */
-export const dateTime = (d: Date, timeZone = "Asia/Ho_Chi_Minh") =>
+/** Múi giờ mặc định của cơ sở (`properties.timezone` mặc định — DOMAIN-MODEL INV-G2). */
+export const DEFAULT_TIME_ZONE = "Asia/Ho_Chi_Minh";
+
+/**
+ * Thời điểm theo múi giờ CỦA CƠ SỞ: "14:05 16/10/2026". Múi giờ bắt buộc (AUD-XFEAT-003): trước đây mặc định ngầm VN nên
+ * cơ sở đặt múi giờ khác hiển thị sai giờ — typecheck nay bắt mọi chỗ quên truyền.
+ */
+export const dateTime = (d: Date, timeZone: string) =>
   new Intl.DateTimeFormat("vi-VN", { dateStyle: "short", timeStyle: "short", timeZone }).format(d);
+
+/** Múi giờ chung của các cơ sở trong phạm vi (thông báo cấp tổ chức); các cơ sở khác múi giờ nhau ⇒ mặc định. */
+export function commonTimeZone(properties: readonly { timezone: string }[]): string {
+  const zones = new Set(properties.map((p) => p.timezone));
+  return zones.size === 1 ? ([...zones][0] as string) : DEFAULT_TIME_ZONE;
+}
+
+/** Số đo (chỉ công tơ…) theo kiểu Việt Nam: 1.350 — dùng thay `new Intl.NumberFormat` rải rác (AUD-XFEAT-005). */
+export const decimal = (n: number) => new Intl.NumberFormat("vi-VN").format(n);
 
 export const BOOKING_STATUS: Record<string, string> = {
   draft: "Nháp",

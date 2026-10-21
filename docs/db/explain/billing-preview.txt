@@ -3,10 +3,6 @@
 # Mỗi dòng: bảng · kiểu quét (Index gồm Index Only/Bitmap) [· index (cột khoá) · cột bị ràng buộc trong tiền tố khoá (bound) — chỉ khi truy vấn có cột chọn lọc].
 # Đổi truy vấn/index làm kế hoạch đổi → test đỏ; cập nhật có chủ đích: pnpm vitest run --project db db-perf -u
 
--- select count(*)::int as n from lease_occupants where organization_id = $1 and lease_id = $ … #a21adb07
-lease_occupants · Index
-leases · Index
-
 -- select id, property_id, period_start::text, period_end::text, status from billing_periods  … #09fb16a6
 billing_periods · Index
 invoices · Index
@@ -17,3 +13,7 @@ units · Index
 
 -- select settings->>'rounding' as rounding, settings->>'prorata' as prorata from properties  … #8333eba8
 properties · Index
+
+-- select x.i::int as i, ( select count(*)::int from lease_occupants o where o.organization_i … #af910e4d
+lease_occupants · Index
+leases · Index

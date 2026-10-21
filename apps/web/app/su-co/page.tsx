@@ -122,7 +122,7 @@ export default async function IncidentsPage() {
                       <p className="card__meta">
                         {t("workorder.list.meta", {
                           severity: SEVERITY[w.severity]?.toLowerCase() ?? w.severity,
-                          createdAt: dateTime(w.createdAt),
+                          createdAt: dateTime(w.createdAt, p.timezone),
                         })}
                         {w.photoFileIds.length > 0 ? ` · ${w.photoFileIds.length} ảnh đính kèm` : ""}
                       </p>

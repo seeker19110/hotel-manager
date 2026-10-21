@@ -4,7 +4,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Money } from "../../../../components/portal/money.tsx";
 import { EmptyState } from "../../../../components/ui/state.tsx";
-import { localTime, withPortal } from "../../../../lib/portal-page.tsx";
+import { dateTime } from "../../../../lib/format.ts";
+import { withPortal } from "../../../../lib/portal-page.tsx";
 
 export const metadata: Metadata = { title: "Chi tiết phiếu — Hotel Manager" };
 
@@ -78,7 +79,7 @@ export default async function PortalInvoicePage({ params }: { params: Promise<{ 
                   className="card"
                   data-testid="allocation"
                 >
-                  <Money value={a.amount} /> · xác nhận {localTime(a.allocatedAt)}
+                  <Money value={a.amount} /> · xác nhận {dateTime(a.allocatedAt, inv.timeZone)}
                 </li>
               ))}
             </ul>

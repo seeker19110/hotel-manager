@@ -1,9 +1,9 @@
-import { listMyNotifications, serverContext } from "@hm/app";
+import { listMyNotifications, opsProperties, serverContext } from "@hm/app";
 import type { Metadata } from "next";
 import { CommandForm } from "../../components/command/command-form.tsx";
 import { Icon } from "../../components/ui/icon.tsx";
 import { EmptyState, ErrorState } from "../../components/ui/state.tsx";
-import { dateTime } from "../../lib/format.ts";
+import { commonTimeZone, dateTime } from "../../lib/format.ts";
 import { withActor } from "../../lib/page.tsx";
 import { safe } from "../../lib/safe.ts";
 
@@ -42,7 +42,12 @@ function linkOf(type: string, link: string | null): string | null {
 // SPEC-notifications S-017: hộp thông báo trong app, số chưa đọc ở chuông, thông báo mới đọc qua aria-live="polite".
 export default async function InboxPage() {
   return withActor("Thông báo", "/thong-bao", async (actor) => {
-    const r = await safe(listMyNotifications(serverContext().db, actor, { limit: 50 }));
+    const [r, props] = await Promise.all([
+      safe(listMyNotifications(serverContext().db, actor, { limit: 50 })),
+      safe(opsProperties(serverContext().db, actor)),
+    ]);
+    // Thông báo cấp tổ chức: giờ theo múi giờ chung của các cơ sở trong phạm vi (khác nhau ⇒ mặc định).
+    const timeZone = commonTimeZone(props.ok ? props.data : []);
     if (!r.ok)
       return (
         <ErrorState
@@ -84,7 +89,7 @@ export default async function InboxPage() {
                   <p className="card__title">{n.title}</p>
                   <p className="card__meta">
                     <Icon name={SEVERITY_ICON[n.severity] ?? "info"} />{" "}
-                    {SEVERITY_LABEL[n.severity] ?? n.severity} · {dateTime(n.createdAt)}
+                    {SEVERITY_LABEL[n.severity] ?? n.severity} · {dateTime(n.createdAt, timeZone)}
                     {n.readAt ? " · đã đọc" : " · chưa đọc"}
                   </p>
                   <p>{n.body}</p>

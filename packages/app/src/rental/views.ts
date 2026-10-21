@@ -98,6 +98,8 @@ export interface RentalProperty {
   id: string;
   name: string;
   open_shift: boolean;
+  /** Tháng hiện tại theo múi giờ của cơ sở (`YYYY-MM`) — mặc định ô "Tháng" khi tạo kỳ (AUD-XFEAT-002). */
+  local_month: string;
 }
 
 /** Cơ sở cho thuê trong phạm vi + người xem có đang mở ca tiền mặt ở đó không. */
@@ -106,7 +108,8 @@ export async function rentalProperties(db: Kysely<unknown>, actor: Actor): Promi
     const r = await sql<RentalProperty>`
       select p.id, p.name,
              exists (select 1 from shifts s where s.organization_id = p.organization_id and s.property_id = p.id
-                       and s.opened_by = ${actor.membershipId} and s.status = 'open') as open_shift
+                       and s.opened_by = ${actor.membershipId} and s.status = 'open') as open_shift,
+             to_char(now() at time zone p.timezone, 'YYYY-MM') as local_month
       from properties p where p.organization_id = ${actor.orgId} and p.template in ('rental','mixed') and p.archived_at is null
         and (${actor.allProperties} or p.id = any(${[...actor.propertyIds]}::uuid[]))
       order by p.name`.execute(trx);

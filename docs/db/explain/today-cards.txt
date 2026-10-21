@@ -3,7 +3,7 @@
 # Mỗi dòng: bảng · kiểu quét (Index gồm Index Only/Bitmap) [· index (cột khoá) · cột bị ràng buộc trong tiền tố khoá (bound) — chỉ khi truy vấn có cột chọn lọc].
 # Đổi truy vấn/index làm kế hoạch đổi → test đỏ; cập nhật có chủ đích: pnpm vitest run --project db db-perf -u
 
--- select id, name, bd::text as bd from ( select p.id, p.name, p.timezone, app.business_date( … #715405e3
+-- select id, name, timezone, bd::text as bd from ( select p.id, p.name, p.timezone, app.busi … #fb60f674
 properties · Index
 
 -- with pr as (select x.*, $1::uuid as org from ( select p.id, p.name, p.timezone, app.busine … #29ef4105

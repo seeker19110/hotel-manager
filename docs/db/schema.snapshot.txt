@@ -2365,7 +2365,7 @@ public.work_orders uq_work_orders_org_id :: CREATE UNIQUE INDEX uq_work_orders_o
 public.work_orders work_orders_pkey :: CREATE UNIQUE INDEX work_orders_pkey ON public.work_orders USING btree (id)
 public.worker_heartbeats worker_heartbeats_pkey :: CREATE UNIQUE INDEX worker_heartbeats_pkey ON public.worker_heartbeats USING btree (name)
 
-## policies (RLS) (171)
+## policies (RLS) (176)
 public.allocations portal_deny_read RESTRICTIVE SELECT to app_runtime using ((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
 public.allocations tenant_isolation PERMISSIVE ALL to public using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
 public.approval_requests tenant_isolation PERMISSIVE ALL to public using (((organization_id = app.current_org()) AND ((requested_by = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid) OR ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text, 'accountant'::text])) AND app.actor_can_see_property(property_id))))) check (((organization_id = app.current_org()) AND ((requested_by = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid) OR ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id)))))
@@ -2511,6 +2511,8 @@ public.payment_claims payment_claims_tenant_insert PERMISSIVE INSERT to app_runt
 public.payments payments_checkout_allocate PERMISSIVE UPDATE to app_runtime using (((organization_id = app.current_org()) AND (app.actor_role() = 'front_desk'::text) AND app.actor_can_see_property(property_id) AND (reservation_id IS NOT NULL) AND (status = 'confirmed'::text) AND (purpose = 'receivable'::text))) check (((organization_id = app.current_org()) AND (app.actor_role() = 'front_desk'::text) AND app.actor_can_see_property(property_id) AND (reservation_id IS NOT NULL) AND (status = 'confirmed'::text) AND (purpose = 'receivable'::text)))
 public.payments payments_read PERMISSIVE SELECT to public using (((organization_id = app.current_org()) AND ((recorded_by = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid) OR ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'accountant'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id)))))
 public.payments payments_record PERMISSIVE INSERT to public check (((organization_id = app.current_org()) AND (recorded_by = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid) AND app.actor_can_see_property(property_id)))
+public.payments payments_role_insert RESTRICTIVE INSERT to app_runtime check (((( SELECT NULLIF(current_setting('app.actor_id'::text, true), ''::text) AS "nullif") IS NULL) OR COALESCE((( SELECT app.actor_role() AS actor_role) = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text, 'accountant'::text])), false)))
+public.payments payments_role_update RESTRICTIVE UPDATE to app_runtime using (((( SELECT NULLIF(current_setting('app.actor_id'::text, true), ''::text) AS "nullif") IS NULL) OR COALESCE((( SELECT app.actor_role() AS actor_role) = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text, 'accountant'::text])), false))) check (((( SELECT NULLIF(current_setting('app.actor_id'::text, true), ''::text) AS "nullif") IS NULL) OR COALESCE((( SELECT app.actor_role() AS actor_role) = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text, 'accountant'::text])), false)))
 public.payments payments_system_insert PERMISSIVE INSERT to app_worker check (((organization_id = app.current_org()) AND (source = 'bank_auto'::text)))
 public.payments payments_system_read PERMISSIVE SELECT to app_worker using ((organization_id = app.current_org()))
 public.payments payments_system_update PERMISSIVE UPDATE to app_worker using (((organization_id = app.current_org()) AND (source = 'bank_auto'::text))) check (((organization_id = app.current_org()) AND (source = 'bank_auto'::text)))
@@ -2522,6 +2524,8 @@ public.period_locks portal_deny_read RESTRICTIVE SELECT to app_runtime using ((N
 public.persons persons_delete PERMISSIVE DELETE to public using ((organization_id = app.current_org()))
 public.persons persons_insert PERMISSIVE INSERT to public check ((organization_id = app.current_org()))
 public.persons persons_read PERMISSIVE SELECT to public using (((organization_id = app.current_org()) AND ((NULLIF(current_setting('app.actor_id'::text, true), ''::text) IS NULL) OR (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text, 'accountant'::text])) OR (id = app.actor_person_id()))))
+public.persons persons_role_insert RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_may_insert_person() AS actor_may_insert_person))
+public.persons persons_role_update RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_may_update_person() AS actor_may_update_person)) check (( SELECT app.actor_may_update_person() AS actor_may_update_person))
 public.persons persons_update PERMISSIVE UPDATE to public using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
 public.properties portal_no_delete RESTRICTIVE DELETE to app_runtime using ((NOT COALESCE((( SELECT app.actor_role() AS actor_role) = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
 public.properties portal_no_insert RESTRICTIVE INSERT to app_runtime check ((NOT COALESCE((( SELECT app.actor_role() AS actor_role) = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
@@ -2558,6 +2562,7 @@ public.services services_read PERMISSIVE SELECT to public using ((organization_i
 public.services services_write PERMISSIVE ALL to app_runtime using (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text])) AND app.actor_can_see_property(property_id))) check (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text])) AND app.actor_can_see_property(property_id)))
 public.shift_discrepancies discrepancies_insert PERMISSIVE INSERT to public check (((organization_id = app.current_org()) AND (status = 'open'::text)))
 public.shift_discrepancies discrepancies_read PERMISSIVE SELECT to public using (((organization_id = app.current_org()) AND ((responsible_membership_id = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid) OR ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'accountant'::text])) AND app.actor_can_see_property(property_id)))))
+public.shift_discrepancies discrepancies_role_insert RESTRICTIVE INSERT to app_runtime check (((( SELECT NULLIF(current_setting('app.actor_id'::text, true), ''::text) AS "nullif") IS NULL) OR COALESCE((( SELECT app.actor_role() AS actor_role) = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text, 'accountant'::text])), false)))
 public.shift_discrepancies discrepancies_update PERMISSIVE UPDATE to public using (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text])) AND app.actor_can_see_property(property_id))) check ((organization_id = app.current_org()))
 public.shifts shifts_open PERMISSIVE INSERT to public check (((organization_id = app.current_org()) AND (opened_by = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid)))
 public.shifts shifts_read PERMISSIVE SELECT to public using (((organization_id = app.current_org()) AND ((opened_by = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid) OR (handed_to = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid) OR ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'accountant'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id)))))
@@ -2704,7 +2709,7 @@ public.units CREATE TRIGGER trg_units_updated BEFORE UPDATE ON units FOR EACH RO
 public.work_orders CREATE TRIGGER trg_work_orders_transition BEFORE UPDATE ON work_orders FOR EACH ROW EXECUTE FUNCTION app.work_order_transition()
 public.work_orders CREATE TRIGGER trg_work_orders_updated BEFORE UPDATE ON work_orders FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 
-## functions (107)
+## functions (109)
 -- app.actor_can_see_property(p uuid) owner=<admin>
 CREATE OR REPLACE FUNCTION app.actor_can_see_property(p uuid)
  RETURNS boolean
@@ -2721,6 +2726,28 @@ AS $function$
              OR (p IS NOT NULL AND EXISTS (
                    SELECT 1 FROM property_scopes ps
                    WHERE ps.organization_id = m.organization_id AND ps.membership_id = m.id AND ps.property_id = p))))
+  $function$
+-- app.actor_may_insert_person() owner=<admin>
+CREATE OR REPLACE FUNCTION app.actor_may_insert_person()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+    SELECT nullif(current_setting('app.actor_id', true), '') IS NULL
+           OR coalesce(app.actor_role() IN ('owner','manager','front_desk'), false)
+           OR NOT EXISTS (SELECT 1 FROM memberships m WHERE m.id = nullif(current_setting('app.actor_id', true), '')::uuid)
+  $function$
+-- app.actor_may_update_person() owner=<admin>
+CREATE OR REPLACE FUNCTION app.actor_may_update_person()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+    SELECT nullif(current_setting('app.actor_id', true), '') IS NULL
+           OR coalesce(app.actor_role() IN ('owner','manager','front_desk','accountant'), false)
+           OR NOT EXISTS (SELECT 1 FROM memberships m WHERE m.id = nullif(current_setting('app.actor_id', true), '')::uuid)
   $function$
 -- app.actor_person_id() owner=<admin>
 CREATE OR REPLACE FUNCTION app.actor_person_id()
@@ -4541,7 +4568,7 @@ AS $function$
     ON CONFLICT (name) DO UPDATE SET beat_at = excluded.beat_at
   $function$
 
-## grants (bảng, cột, hàm, schema) (1160)
+## grants (bảng, cột, hàm, schema) (1164)
 column public.inbox.bank_transaction_id app_runtime UPDATE
 column public.inbox.bank_transaction_id app_worker UPDATE
 column public.inbox.process_error app_runtime UPDATE
@@ -4562,6 +4589,10 @@ column public.period_locks.released_by app_runtime UPDATE
 function app.actor_can_see_property(p uuid) <admin> EXECUTE
 function app.actor_can_see_property(p uuid) app_runtime EXECUTE
 function app.actor_can_see_property(p uuid) app_worker EXECUTE
+function app.actor_may_insert_person() <admin> EXECUTE
+function app.actor_may_insert_person() app_runtime EXECUTE
+function app.actor_may_update_person() <admin> EXECUTE
+function app.actor_may_update_person() app_runtime EXECUTE
 function app.actor_person_id() <admin> EXECUTE
 function app.actor_person_id() app_runtime EXECUTE
 function app.actor_person_id() app_worker EXECUTE

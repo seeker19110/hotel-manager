@@ -13,7 +13,7 @@
 
 import { withTenant } from "@hm/db";
 import { authorize, MS_PER_DAY, VN_UTC_OFFSET_MS } from "@hm/domain";
-import { type Kysely, sql } from "kysely";
+import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/index.ts";
 import { CommandError } from "../pipeline/index.ts";
 
@@ -107,15 +107,28 @@ export interface ReceivablesReport {
   generatedAt: Date;
 }
 
-/** `reports.receivables` (S-009): công nợ tại ngày chốt `asOf` (mặc định hôm nay giờ VN). */
+/**
+ * Ngày "hôm nay" mặc định của báo cáo theo múi giờ CƠ SỞ (AUD-XFEAT-002; INV-G2): các cơ sở trong phạm vi cùng một ngày địa
+ * phương ⇒ ngày đó; khác ngày nhau (múi giờ khác) ⇒ giờ VN như trước — người dùng chọn cơ sở hoặc `as_of` để rõ ràng.
+ */
+async function localToday(trx: Transaction<unknown>, actor: Actor, propertyId?: string): Promise<string> {
+  const r = await sql<{ d: string }>`
+    select distinct (now() at time zone pr.timezone)::date::text as d from (${scope(actor, propertyId)}) pr`.execute(
+    trx,
+  );
+  return r.rows.length === 1 ? (r.rows[0] as { d: string }).d : today();
+}
+
+/** `reports.receivables` (S-009): công nợ tại ngày chốt `asOf` (mặc định hôm nay theo múi giờ cơ sở — `localToday`). */
 export async function receivables(
   db: Kysely<unknown>,
   actor: Actor,
   input: { asOf?: string; propertyId?: string } = {},
 ): Promise<ReceivablesReport> {
   authorizeMoney(actor, input.propertyId);
-  const asOf = validDate(input.asOf ?? today(), "as_of");
+  if (input.asOf !== undefined) validDate(input.asOf, "as_of");
   return withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
+    const asOf = input.asOf ?? (await localToday(trx, actor, input.propertyId));
     const r = await sql<{
       rows: {
         invoice_id: string;

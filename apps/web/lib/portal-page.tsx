@@ -59,12 +59,4 @@ export async function withPortal(
   );
 }
 
-/** Thời điểm theo múi giờ Việt Nam (mọi cơ sở của pilot dùng Asia/Ho_Chi_Minh). */
-export const localTime = (d: Date) =>
-  new Intl.DateTimeFormat("vi-VN", {
-    dateStyle: "short",
-    timeStyle: "short",
-    timeZone: "Asia/Ho_Chi_Minh",
-  }).format(d);
-
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

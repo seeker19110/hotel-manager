@@ -1,5 +1,5 @@
 ---
-status: proposed — phần hosting, xác thực, lưu file, sao lưu bị thay bởi ADR-0002
+status: proposed — phần hosting, xác thực, lưu file, sao lưu bị thay bởi ADR-0002; dòng PWA (Serwist) bị thay bởi ADR-0005
 implementation-status: not-started
 date: 2026-10-15
 decision-makers: chủ dự án (chờ duyệt ở cổng PLAN)

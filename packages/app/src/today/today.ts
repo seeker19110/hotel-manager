@@ -58,7 +58,7 @@ export interface TodayItem {
 }
 
 export interface TodaySummary {
-  properties: { id: string; name: string; businessDate: string }[];
+  properties: { id: string; name: string; businessDate: string; timezone: string }[];
   cards: { key: TodayCard; label: string; count: number; amount?: number }[];
   asOf: Date;
 }
@@ -176,8 +176,8 @@ export async function getSummary(
   await assertInScope(db, actor, input.propertyId);
   const now = input.now ?? new Date();
   return withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
-    const p = await sql<{ id: string; name: string; bd: string }>`
-      select id, name, bd::text as bd from (${props(actor, now, input.propertyId)}) x order by name, id`.execute(
+    const p = await sql<{ id: string; name: string; bd: string; timezone: string }>`
+      select id, name, timezone, bd::text as bd from (${props(actor, now, input.propertyId)}) x order by name, id`.execute(
       trx,
     );
     const out: TodaySummary["cards"] = [];
@@ -195,7 +195,7 @@ export async function getSummary(
       });
     }
     return {
-      properties: p.rows.map((x) => ({ id: x.id, name: x.name, businessDate: x.bd })),
+      properties: p.rows.map((x) => ({ id: x.id, name: x.name, businessDate: x.bd, timezone: x.timezone })),
       cards: out,
       asOf: now,
     };

@@ -1,7 +1,7 @@
 import { getTodaySummary, serverContext } from "@hm/app";
 import type { Metadata } from "next";
 import { EmptyState, ErrorState } from "../components/ui/state.tsx";
-import { CARD_LABEL, dateTime, day, vnd } from "../lib/format.ts";
+import { CARD_LABEL, commonTimeZone, dateTime, day, vnd } from "../lib/format.ts";
 import { t } from "../lib/i18n.ts";
 import { withActor } from "../lib/page.tsx";
 import { safe } from "../lib/safe.ts";
@@ -102,7 +102,7 @@ export default async function HomePage({
             })}
           </ul>
         )}
-        <p className="card__meta">Số liệu tại {dateTime(s.asOf)}</p>
+        <p className="card__meta">Số liệu tại {dateTime(s.asOf, commonTimeZone(s.properties))}</p>
         {FRONT_ROLES.includes(actor.role) ? (
           <p className="pager">
             <a className="btn" href="/dat-phong/moi">

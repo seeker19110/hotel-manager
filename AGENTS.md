@@ -50,6 +50,6 @@ Máy chia ba nhóm, không hỏi người: **máy chặn** (không đảo ngư�
 ## 9. Quy ước riêng của dự án
 - Cấu trúc thư mục: `apps/web` (Next.js) · `apps/worker` (pg-boss, outbox) · `packages/domain` (quy tắc thuần, không I/O) · `packages/app` (command/query) · `packages/db` (Kysely, migration, RLS) · `packages/testkit` · tài liệu ở `docs/` (specs, design, adr, research, autopilot).
 - Kiến trúc/thư viện: `docs/adr/0001-modular-monolith-typescript-postgres.md`. Thuật ngữ và tên bảng: **chỉ** theo `docs/design/DOMAIN-MODEL.md`. Bất biến tiền/tồn (`INV-*`) phải có test trên Postgres thật; không thay constraint DB bằng kiểm tra ở app.
-- Môi trường & secrets: biến môi trường validate bằng schema lúc khởi động; mẫu ở `.env.example`; dev/CI dùng Postgres 17 + SeaweedFS bằng Docker (tự host, ADR-0002), không dùng dữ liệu thật, không tạo tài khoản trả phí khi chưa được duyệt.
+- Môi trường & secrets: biến môi trường validate bằng schema lúc khởi động; mẫu ở `.env.example`; dev/CI dùng Postgres 17 + SeaweedFS tự host, không cần Docker (ADR-0002): máy dev cài bằng `scripts/dev-env-setup.sh` rồi `pnpm dev:up`; CI dùng service container, không dùng dữ liệu thật, không tạo tài khoản trả phí khi chưa được duyệt.
 - Tên phiên **bắt buộc, đặt ngay đầu phiên**: `<Tên repo> — <tên nhánh>` (`LOOP-HARNESS-028`).
 - Giao tiếp: tiếng Việt có dấu, ngắn, dẫn đầu bằng kết quả; báo cáo cuối: đã làm · bằng chứng · D-NNN · còn treo · đề xuất.

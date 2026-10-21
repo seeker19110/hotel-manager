@@ -107,6 +107,25 @@ afterAll(async () => {
   await h?.t.drop();
 });
 
+describe("AUD-XFEAT-002: ngày chốt mặc định theo múi giờ cơ sở", () => {
+  it("cơ sở đặt múi giờ khác: asOf mặc định = ngày địa phương của cơ sở đó (không phải +7h cố định)", async () => {
+    // Múi giờ có ngày địa phương KHÁC ngày VN ở thời điểm chạy (luôn có một trong hai: +14 hoặc −11).
+    const tz = (
+      await sql<{ tz: string; d: string }>`
+        select tz, (now() at time zone tz)::date::text as d from unnest(array['Pacific/Kiritimati','Pacific/Pago_Pago']) tz
+        where (now() at time zone tz)::date <> (now() at time zone 'Asia/Ho_Chi_Minh')::date limit 1`.execute(
+        h.t.admin,
+      )
+    ).rows[0] as { tz: string; d: string };
+    const prop = randomUUID();
+    await sql`insert into properties (id, organization_id, name, template, timezone)
+              values (${prop}, ${h.org.orgId}, 'CS múi giờ khác', 'rental', ${tz.tz})`.execute(h.t.admin);
+    const r = await receivables(h.t.runtime, h.owner, { propertyId: prop });
+    expect(r.asOf).toBe(tz.d);
+    expect(r.asOf).not.toBe(TODAY);
+  });
+});
+
 describe("S-009 công nợ — tổng = chi tiết = số dư AR", () => {
   it("hôm nay: 101 còn 1.580.000 quá hạn 5 ngày, 203 còn 930.000; tổng 2.510.000 = AR; cọc không trừ", async () => {
     const r = await receivables(h.t.runtime, h.owner, {});

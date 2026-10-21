@@ -1,7 +1,7 @@
 # PROGRESS.md — Hotel Manager
 ## Đang làm
-- 2026-10-21 đợt 15 (hoàn thiện ở dev trước production; đợt 3–14 ở `archive/`; D-087, D-088): `pnpm dev:up` (Postgres + SeaweedFS bền ở `.dev/`, seed giả, `--worker`); quét A11Y (axe mọi route); sửa 🟢 audit: SMTP_URL bắt buộc ở production, GCM tag 16, quyền người ở cùng theo múi giờ cơ sở, báo danh sách đặt phòng bị cắt, 401 `/me` có mã tra cứu, tài liệu lệch mã. Tất cả trên PR #115 (một nhánh — D-088), **người merge** (ngoại lệ cứng).
-- Audit (`docs/ops/AUDIT-STATUS.md`): 🔴/🟠 đã sửa trừ AUD-HAR-001 (XC-OSS-007, chủ dự án quyết); 12 🟢 còn mở (hiệu năng N+1, múi giờ báo cáo, phân trang…).
+- 2026-10-21 đợt 15 (D-087, D-088): `pnpm dev:up` (Postgres + SeaweedFS bền ở `.dev/`), quét A11Y, sửa 🟢 audit (SMTP_URL production, GCM tag, quyền theo múi giờ, danh sách bị cắt, 401 `/me`). PR #116 (+ đợt 16, một nhánh), **người merge**.
+- 2026-10-21 đợt 16 (D-089, D-090): giờ/"hôm nay" theo múi giờ cơ sở, RLS ghi persons/payments theo vai (0065), xem trước kỳ thu theo lô (24/328 → 17/17 truy vấn), ADR-0005. Audit: 🔴/🟠 đã sửa trừ AUD-HAR-001 (chủ dự án); 🟢 còn 4 có lý do.
 - Đợt mới: `loop resume` nếu còn `.autopilot/state.json`; container mới không có state ⇒ PLAN mới + `loop init` (FB-149).
 - Phát hành v0.2.0 (#88). D-084…D-086: ruleset `main` 2 required check (quality, gitleaks; strict tắt); 26 cổng hoãn tới harden chỉ chạy tay. `release-please` đỏ — xem *Tiếp theo* 3.
 

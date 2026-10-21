@@ -1,10 +1,10 @@
-import { getHousekeepingTask, serverContext } from "@hm/app";
+import { getHousekeepingTask, opsProperties, serverContext } from "@hm/app";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { CommandForm } from "../../../components/command/command-form.tsx";
 import { StatusBadge } from "../../../components/ui/badge.tsx";
 import { ErrorState } from "../../../components/ui/state.tsx";
-import { dateTime, PRIORITY, TASK_KIND, TASK_STATUS } from "../../../lib/format.ts";
+import { DEFAULT_TIME_ZONE, dateTime, PRIORITY, TASK_KIND, TASK_STATUS } from "../../../lib/format.ts";
 import { withActor } from "../../../lib/page.tsx";
 import { safe } from "../../../lib/safe.ts";
 
@@ -23,6 +23,9 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
       return <ErrorState title="Không xem được việc" text={r.message} />;
     }
     const t = r.data;
+    const props = await safe(opsProperties(serverContext().db, actor));
+    const timeZone =
+      (props.ok ? props.data.find((p) => p.id === t.propertyId)?.timezone : undefined) ?? DEFAULT_TIME_ZONE;
     const lead = ["owner", "manager"].includes(actor.role);
     const mine = t.assigneeMembershipId === actor.membershipId;
     const canClaim = t.status === "open" && ["housekeeping", "owner", "manager"].includes(actor.role);
@@ -51,7 +54,7 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
             {t.arrivalToday && t.expectedArrivalAt ? (
               <>
                 <dt>Khách đến</dt>
-                <dd>Hôm nay lúc {dateTime(t.expectedArrivalAt)}</dd>
+                <dd>Hôm nay lúc {dateTime(t.expectedArrivalAt, timeZone)}</dd>
               </>
             ) : null}
             {t.note ? (

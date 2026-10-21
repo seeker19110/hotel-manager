@@ -126,6 +126,11 @@ export async function getMyInvoice(
         }>`
           select kind, description, quantity::text, unit_price::text, amount::text from invoice_lines
           where organization_id = ${actor.orgId} and invoice_id = ${i.id} order by line_no`.execute(trx);
+        // Múi giờ của cơ sở để hiển thị giờ xác nhận (AUD-XFEAT-003); người thuê đọc được cơ sở mình thuê (RLS 0064).
+        const tz = await sql<{ timezone: string }>`
+          select timezone from properties where organization_id = ${actor.orgId} and id = ${i.property_id}`.execute(
+          trx,
+        );
         const allocs = await sql<{ amount: string; created_at: Date }>`
           select amount::text, created_at from payment_allocations
           where organization_id = ${actor.orgId} and invoice_id = ${i.id} and reversed_at is null order by created_at`.execute(
@@ -141,6 +146,7 @@ export async function getMyInvoice(
             amount: Number(l.amount),
           })),
           allocations: allocs.rows.map((a) => ({ amount: Number(a.amount), allocatedAt: a.created_at })),
+          timeZone: tz.rows[0]?.timezone ?? "Asia/Ho_Chi_Minh",
         };
       })
     : null;
