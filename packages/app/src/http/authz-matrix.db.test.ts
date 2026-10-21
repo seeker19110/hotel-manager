@@ -1029,7 +1029,13 @@ describe("BE-API-009 — route không guard = danh sách công khai đã duyệt
       if (!/actorFromRequest\(/.test(text) && inner) text = fnBody(inner);
       expect(text, fn).toMatch(/actorFromRequest\(/);
     }
-    expect(routes.find((r) => r.rel === "v1/me/route.ts")?.text).toMatch(/if \(!s\)[\s\S]{0,200}401/);
+    // /api/v1/me: route lấy phiên (getSession) và giao cho handleMe; handleMe trả 401 khi không có người dùng (AUD-XFEAT-004).
+    const me = routes.find((r) => r.rel === "v1/me/route.ts")?.text ?? "";
+    expect(me).toMatch(/getSession\(/);
+    expect(me).toMatch(/return handleMe\(req,/);
+    expect(readFileSync(new URL("./me-route.ts", import.meta.url), "utf8")).toMatch(
+      /if \(!user\) return simpleProblem\("UNAUTHENTICATED", 401,/,
+    );
   });
 
   it("không phiên → upload/trạng thái lệnh 401 (gọi hàm xử lý thật)", async () => {

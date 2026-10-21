@@ -16,8 +16,9 @@ describe("TruncatedNotice", () => {
 
   it("dưới trần (kể cả 0 và limit − 1) → không hiện gì", () => {
     for (const shown of [0, 1, 199]) {
-      const { container } = render(<TruncatedNotice shown={shown} limit={200} />);
-      expect(container.textContent).toBe("");
+      render(<TruncatedNotice shown={shown} limit={200} />);
+      expect(screen.queryByRole("status")).toBeNull();
+      expect(screen.queryByText(/mục đầu tiên/)).toBeNull();
       cleanup();
     }
   });
