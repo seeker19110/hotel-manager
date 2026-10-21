@@ -827,8 +827,9 @@ describe("xt.yaml ↔ package.json, CI (XC-DOCAI-003, chỉ đọc)", () => {
         if (m) expect(rootScripts[m[1]], `${k}: pnpm ${m[1]}`).toBeTruthy();
       }
   });
-  it("CI chạy cổng bằng dev-task.sh gate (đọc xt.yaml), và ci-check workflow có trong xt.yaml lint", () => {
-    expect(ci).toContain(".xtemplates/scripts/dev-task.sh gate");
+  it("CI chạy đủ task của cổng (build · typecheck · lint · test) bằng dev-task.sh (đọc xt.yaml), và ci-check workflow có trong xt.yaml lint", () => {
+    for (const t of ["build", "typecheck", "lint", "test"])
+      expect(ci).toContain(`.xtemplates/scripts/dev-task.sh ${t}`);
     expect(xt.lint).toContain("xt.py ci-check .github/workflows");
   });
   it("e2e: CI chạy cùng lệnh (tên package `web` ≡ `@hm/web`)", () => {

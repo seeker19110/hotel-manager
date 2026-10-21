@@ -13,7 +13,8 @@
 #      Ngoại lệ (ADR-0011): autopilot đang chạy (.autopilot/state.json "active": true) mà `lint`/`test`
 #      rỗng hoặc là lệnh không kiểm gì (true, :, exit 0, echo …) → ĐỎ. Cổng rỗng không phải bằng chứng.
 #
-# Task hỗ trợ: format | lint | typecheck | test | build | gate | gate-fast | test-shard | test-combine | test-weights | require | setup
+# Task hỗ trợ: format | lint | typecheck | test | build | gate | gate-fast | test-shard | test-combine | test-weights |
+#   test-mode | e2e-mode | e2e | require | setup
 #   gate = chạy tuần tự build→typecheck→lint→test (cái nào phân giải được), đỏ 1 cái → fail. Cổng đầy đủ: CI, bước
 #          mở PR, `xt.py loop record` dùng đúng lệnh này.
 #   gate-fast = cổng commit nhanh (`commit_gate: fast` trong xt.yaml): format_check→lint→typecheck→test_fast. test_fast
@@ -36,6 +37,12 @@
 #          Actions in `::error::` nêu khoá cần điền và ví dụ theo stack. typecheck/build rỗng vẫn được (không bắt buộc).
 #   setup = cài toolchain/phụ thuộc cho job CI (mẫu `framework/templates/ci.yml`): chạy khoá `setup` (vd `npm ci`). Chỉ
 #          lệnh khai báo, không tự dò; vắng/rỗng → log "không khai setup", exit 0; guard cấm lệnh → exit 126.
+#   CI mẫu (D-115 — job song song, không job lập kế hoạch tuần tự; mọi lệnh vẫn là khoá của xt.yaml, qua guard):
+#   test-mode = in `shard` khi khai đủ lệnh thật `test_list` · `test_unit` · `test_combine`, không thì `whole` (job `test`
+#          shard 1 chạy cả `test`, shard khác bỏ qua; job `coverage` gộp chỉ khi `shard`).
+#   e2e-mode = in `off` (`e2e` rỗng/no-op), `shard` (lệnh `e2e` dùng $XT_SHARD) hoặc `whole` (chỉ shard 1 chạy cả suite).
+#   e2e [I N] = suite E2E: `e2e_setup` (cài trình duyệt…) rồi `e2e` với XT_SHARD="I/N" (mặc định 1/1 — agent chạy tay
+#          được); `off` → bỏ qua exit 0; `whole` mà I > 1 → bỏ qua (không chạy trùng cả suite N lần).
 #
 # Dùng: scripts/dev-task.sh <task>
 set -uo pipefail
@@ -52,7 +59,7 @@ YAML="$ROOT/xt.yaml"
 log() { printf '[dev-task] %s\n' "$*" >&2; }
 
 if [ -z "$TASK" ]; then
-  log "thiếu tên task. Dùng: dev-task.sh format|lint|typecheck|test|build|gate|gate-fast|test-shard|test-combine|test-weights|require|setup"
+  log "thiếu tên task. Dùng: dev-task.sh format|lint|typecheck|test|build|gate|gate-fast|test-shard|test-combine|test-weights|test-mode|e2e-mode|e2e|require|setup"
   exit 2
 fi
 
@@ -339,6 +346,39 @@ require_tasks() { # $@=task → 0 nếu mọi task phân giải ra lệnh thật
   return "$bad"
 }
 
+# --- CI mẫu (D-115): chế độ test/e2e cho matrix tĩnh — mỗi shard tự quyết, không job lập kế hoạch tuần tự -------------
+test_mode() { # in shard|whole — cùng điều kiện với test-shard/test-combine (chỉ lệnh khai báo, không no-op)
+  local k c
+  for k in test_list test_unit test_combine; do
+    c="$(declared_cmd "$k")"
+    if [ -z "$c" ] || is_noop "$c"; then echo whole; return 0; fi
+  done
+  echo shard
+}
+e2e_mode() { # in off|shard|whole
+  local c; c="$(resolve e2e)"
+  if is_noop "$c"; then echo off; return 0; fi
+  case "$c" in *XT_SHARD*) echo shard ;; *) echo whole ;; esac
+}
+shard_args_ok() { # $1=I $2=N → 0 nếu 1 ≤ I ≤ N (số)
+  [[ "$1" =~ ^[1-9][0-9]{0,5}$ && "$2" =~ ^[1-9][0-9]{0,5}$ ]] && [ "$1" -le "$2" ]
+}
+e2e_run() { # $1=I $2=N (mặc định 1 1)
+  local i="${1:-1}" n="${2:-1}" mode
+  shard_args_ok "$i" "$n" || { log "e2e: cần 1 ≤ I ≤ N (nhận I='$i' N='$n')"; return 2; }
+  mode="$(e2e_mode)"
+  case "$mode" in
+    off) log "e2e: chưa khai 'e2e' trong xt.yaml (hoặc là lệnh không kiểm gì) — bỏ qua"; return 0 ;;
+    whole)
+      if [ "$i" -gt 1 ]; then log "e2e $i/$n: lệnh 'e2e' không dùng \$XT_SHARD — shard 1 chạy cả suite, shard này bỏ qua"; return 0; fi
+      n=1 ;;
+  esac
+  export XT_SHARD="$i/$n"
+  guard_turn e2e_setup e2e || return 126
+  run_task e2e_setup || return $?
+  run_task e2e
+}
+
 # --- format-file: format ĐÚNG file vừa sửa (dùng cho auto-format hook) --------
 json_ok() { # $1=file → 0 nếu là JSON hợp lệ; không có python3 thì không kiểm được (coi như không hợp lệ: không giữ bản sao)
   command -v python3 >/dev/null 2>&1 && python3 -c 'import json, sys; json.load(open(sys.argv[1], encoding="utf-8"))' "$1" >/dev/null 2>&1
@@ -425,6 +465,12 @@ case "$TASK" in
     test_combine "${2:-}"; exit $? ;;
   test-weights)
     test_weights; exit $? ;;
+  test-mode)
+    test_mode; exit $? ;;
+  e2e-mode)
+    e2e_mode; exit $? ;;
+  e2e)
+    e2e_run "${2:-1}" "${3:-1}"; exit $? ;;
   require)
     shift; require_tasks "$@"; exit $? ;;
   setup)
@@ -434,5 +480,5 @@ case "$TASK" in
     guard_ok "$C" || exit 126
     ( cd "$ROOT" && bash -o pipefail -c "$C" ); exit $? ;;
   *)
-    log "task không hợp lệ: '$TASK' (format|lint|typecheck|test|build|gate|gate-fast|test-shard|test-combine|test-weights|require|setup)"; exit 2 ;;
+    log "task không hợp lệ: '$TASK' (format|lint|typecheck|test|build|gate|gate-fast|test-shard|test-combine|test-weights|test-mode|e2e-mode|e2e|require|setup)"; exit 2 ;;
 esac

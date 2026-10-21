@@ -27,15 +27,15 @@
     ".claude/skills/review/SKILL.md": "sha256:0584e6d45be72eaed6af7caf487c243afa0bd37419e2b8d59ebb37eea3ea9918",
     ".github/dependabot.yml": "sha256:ad735a5eea0f448625bf60d57b04741db78c0d8fdc56e6f0fa527b8129243746",
     ".github/pull_request_template.md": "sha256:0862569adcda309374932f739a291ff1b37ce53299cdd4dba698ceed9830b50a",
-    ".github/rulesets/main.json": "sha256:764bd580d99bd406a2fc85161f79bc824e3425e0d7bf1a443aafc76e3ebc4561",
-    ".github/workflows/ci.yml": "sha256:e249b3de3bfa6e356e513d0598a5958ef5ba720d60e9a45caa507e10dc3240c9",
+    ".github/rulesets/main.json": "sha256:9017705810b212e8a146cf358ae5ff9d6473fc516fdbdf8620f632d5190f1417",
+    ".github/workflows/ci.yml": "sha256:ff27fb9576cc13fba6e4a5b0072d77548288f2bb17a2c860f560666068f92a14",
     ".github/workflows/merge-gate.yml": "sha256:c7360c0dd5e483d3d8b5e2fc739ed266e0f99a669967d1629df05796961be36c",
     ".github/workflows/pr-steward.yml": "sha256:3d346646eba0cd609e9fbe15f4570148ff74512c79f9a3a3c7273d07afb7f4cb",
     ".github/workflows/secret-scan.yml": "sha256:67585c5a5800910670a20aaad962842574c5e8137c5f0b9d00531f325159a425",
     "AGENTS.md": "sha256:2bf3f74657b8cb071b978c8698133e0cea603c38238af9a52d4f1686144060f4",
     "CLAUDE.md": "sha256:1fa585d749f767f9f35b1ae92019f4a74f3bec6cff20ca6928161e2dcb4ab795",
     "PROGRESS.md": "sha256:d80a03db3cb157ee682314787afb2eb15911b2f4f86da2f564e49106f6f76941",
-    "xt.yaml": "sha256:b7ce8b528e5d6447d31132c780db9623d37c765b5965acd0ec76ccd1f0ef7c74"
+    "xt.yaml": "sha256:b696d7b4cc1d136074bc6cd283e05fac16f380a3b60a4f14d65b7a344b946fc5"
   },
   "policy": {
     "ask_removal": "manifest-only"

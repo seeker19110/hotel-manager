@@ -3,7 +3,7 @@ title: Git, nhánh, commit, PR nhỏ, lịch sử sạch
 kind: module
 prefix: WF-GIT
 applies_to: [all]
-updated: 2026-10-20
+updated: 2026-10-21
 ---
 
 # Git, nhánh, commit, PR nhỏ, lịch sử sạch
@@ -39,7 +39,7 @@ updated: 2026-10-20
 ## Checklist
 
 - [ ] `WF-GIT-001` **MUST** Không push thẳng nhánh chính; mọi thay đổi qua PR (kể cả một người, kể cả bot/agent). → Kiểm: ruleset nhánh mặc định có rule `pull_request`; `git log --merges`/`--first-parent main` không có commit ngoài squash PR. · Nguồn: GitHub Rulesets
-- [ ] `WF-GIT-002` **MUST** Ruleset nhánh chính lưu dưới dạng code (`.github/rulesets/main.json`), gồm: cấm xoá, cấm force-push (`non_fast_forward`), `pull_request` (resolve thread, chỉ squash — hoặc rebase theo ngoại lệ có ADR của `WF-GIT-005`), `required_status_checks` trỏ tới các job có thật `quality`, `protection-guard`, `gitleaks`, `dep-audit`; `bypass_actors: []`. → Kiểm: file tồn tại; `GET /repos/{o}/{r}/rules/branches/main` chứa đủ 4 loại rule. · Nguồn: GitHub REST Rules, khung cũ `rulesets/main.json`
+- [ ] `WF-GIT-002` **MUST** Ruleset nhánh chính lưu dưới dạng code (`.github/rulesets/main.json`), gồm: cấm xoá, cấm force-push (`non_fast_forward`), `pull_request` (resolve thread, chỉ squash — hoặc rebase theo ngoại lệ có ADR của `WF-GIT-005`), `required_status_checks` trỏ tới các job có thật `quality`, `gitleaks`, `merge-gate` (`protection-guard`, quét phụ thuộc là job con của `quality`; repo khung thêm hai context đó — D-116, D-117), không đòi "up to date" theo `BASE-GATE-007`; `bypass_actors: []`. → Kiểm: file tồn tại (mẫu dự án đích `framework/templates/ruleset-main.json`); `GET /repos/{o}/{r}/rules/branches/main` chứa đủ 4 loại rule. · Nguồn: GitHub REST Rules, khung cũ `rulesets/main.json`
 - [ ] `WF-GIT-003` **MUST** Job CI `protection-guard` **đỏ** khi required check trong ruleset không khớp tên job thật trong `.github/workflows/` (chống khoá nhánh do đổi tên job) và **cảnh báo** (không đỏ) khi ruleset chưa hiệu lực trên nhánh mặc định; dự án đã import ruleset đổi `::warning` thành `exit 1` để ép. → Kiểm: job tồn tại; test đổi tên job `quality` trong nhánh thử → guard đỏ; nhánh mặc định thiếu rule → log có `::warning`. · Nguồn: khung cũ `ci.yml` job `protection-guard` (commit `1b80fe4`)
 - [ ] `WF-GIT-004` **MUST@L** Commit message và tiêu đề PR theo Conventional Commits 1.0.0 (`type(scope)!: mô tả`), subject ≤ 72 ký tự, `BREAKING CHANGE:` footer hoặc `!` cho thay đổi phá vỡ; kiểm bằng commitlint ở hook **và** CI (PR title + mọi commit). → Kiểm: `commitlint --from origin/main` trong CI exit 0; PR title lint. · Nguồn: Conventional Commits 1.0.0; catalog 23 §2.5 (TRAPS 58: squash lấy title)
 - [ ] `WF-GIT-005` **MUST@L** Squash merge là phương thức mặc định và duy nhất bật ở repo (tiêu đề squash = tiêu đề PR conventional); tắt merge commit; bật tự xoá nhánh sau merge. Ngoại lệ duy nhất: **rebase-merge** cho thư viện/monorepo cần giữ từng commit — phải có ADR, mọi commit conventional, vẫn tắt merge commit. → Kiểm: ruleset `allowed_merge_methods: ["squash"]` (hoặc `["rebase"]`/`["squash", "rebase"]` khi có ADR trong `docs/adr/`); settings repo "Allow merge commits" tắt; `git log --merges main` rỗng. · Nguồn: release-please README (khuyến nghị squash); [`../05-architecture/decision-records.md`](../05-architecture/decision-records.md)
