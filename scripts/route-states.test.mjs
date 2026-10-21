@@ -36,6 +36,7 @@ const LOADING_GROUPS = [
   "thong-bao",
   "thong-bao-luu-tru",
   "them",
+  "phong",
   "dat-phong/moi",
   "luu-tru/moi",
   "thanh-vien",
