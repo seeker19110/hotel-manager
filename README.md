@@ -51,10 +51,9 @@ pnpm install --frozen-lockfile
   (`packages/app/src/config/schema.ts`) — thiếu biến thì dừng ngay và nêu tên. Production bắt buộc đặt khoá PII
   (`HM_PII_KEYS`…) và máy quét `CLAMD_HOST`.
 - **Dev một lệnh:** `pnpm dev:up` (thêm `--worker` để chạy cả worker). Lệnh dựng Postgres 17 bền ở `.dev/pg` (cổng
-  `DEV_PG_PORT`, mặc định 54329), áp migration, seed dữ liệu giả **một lần**, chạy S3/clamd giả trong tiến trình rồi `next dev`
+  `DEV_PG_PORT`, mặc định 54329), áp migration, seed dữ liệu giả **một lần**, chạy SeaweedFS bền ở `.dev/s3` (không có `weed` thì S3 giả trong bộ nhớ) và clamd giả rồi `next dev`
   ở `http://127.0.0.1:3000` (`DEV_PORT`). Tài khoản giả in ra khi khởi động; mã TOTP của chủ khách sạn giả: `pnpm dev:up --totp`;
-  mã OTP người thuê ghi ở `.dev/outbox.jsonl`. Dừng Postgres: `pnpm dev:up --stop`; xoá sạch: `pnpm dev:up --reset`. Ảnh tải
-  lên chỉ giữ trong bộ nhớ (mất khi dừng). Cần `scripts/dev-env-setup.sh` trước và `pnpm install`.
+  mã OTP người thuê ghi ở `.dev/outbox.jsonl`. Dừng Postgres: `pnpm dev:up --stop`; xoá sạch: `pnpm dev:up --reset`. Cần `scripts/dev-env-setup.sh` trước và `pnpm install`.
 - Web (Next.js) chạy tay: `pnpm --filter @hm/web dev` với biến môi trường tự đặt và CSDL đã áp migration (`packages/db/src/migrations`).
 - Chạy thử trọn luồng với dữ liệu giả: lệnh E2E bên dưới tự dựng Postgres tạm, seed, build và khởi động web.
 - Worker (`apps/worker`): tiến trình chạy thật — `node apps/worker/src/index.ts` (Node 24; relay outbox, consumer pg-boss, job định kỳ; dừng êm khi nhận SIGTERM). Cần thêm `WORKER_DATABASE_URL` (vai trò `app_worker`); lịch và cách dừng ở [`docs/RUNBOOK.md`](docs/RUNBOOK.md) §8.

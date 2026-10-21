@@ -1,7 +1,7 @@
 // SeaweedFS tạm cho test (ADR-0002, PLAN T-011): binary `weed` từ scripts/dev-env-setup.sh; cổng ngẫu nhiên,
 // khoá truy cập chỉ cho test; xoá dữ liệu khi dừng.
 import { type ChildProcess, spawn } from "node:child_process";
-import { closeSync, mkdtempSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { closeSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -45,8 +45,18 @@ export async function freePorts(n: number): Promise<number[]> {
   }
 }
 
-export async function startS3Server(): Promise<S3Server> {
-  const dir = mkdtempSync(join(tmpdir(), "hm-weed-"));
+/**
+ * `dir` (tuỳ chọn, môi trường dev `pnpm dev:up`): thư mục dữ liệu BỀN — tạo nếu chưa có, KHÔNG xoá khi dừng hay khi khởi động
+ * lỗi (file đã tải lên còn qua lần chạy sau). Mặc định (test): thư mục tạm, xoá khi dừng.
+ */
+export async function startS3Server(opts: { dir?: string } = {}): Promise<S3Server> {
+  const persistent = opts.dir !== undefined;
+  const dir = opts.dir ?? mkdtempSync(join(tmpdir(), "hm-weed-"));
+  if (persistent) mkdirSync(dir, { recursive: true, mode: 0o700 });
+  /** Xoá thư mục dữ liệu — chỉ với thư mục tạm của test. */
+  const cleanup = () => {
+    if (!persistent) rmSync(dir, { recursive: true, force: true });
+  };
   const config: S3TestConfig = {
     endpoint: "",
     region: "vn-local",
@@ -105,7 +115,7 @@ export async function startS3Server(): Promise<S3Server> {
       { stdio: ["ignore", log, log] },
     );
   } catch (e) {
-    rmSync(dir, { recursive: true, force: true });
+    cleanup();
     throw e;
   } finally {
     closeSync(log);
@@ -134,7 +144,7 @@ export async function startS3Server(): Promise<S3Server> {
     const lines = readFileSync(logFile, "utf8").split("\n").filter(Boolean);
     const errs = lines.filter((l) => /^[FE]\d{4} |invalid value|flag provided but not defined/.test(l));
     const tail = [...new Set([...errs.slice(-10), ...lines.slice(-5)])].join("\n");
-    rmSync(dir, { recursive: true, force: true });
+    cleanup();
     throw new Error(
       `SeaweedFS không khởi động được — chạy \`bash scripts/dev-env-setup.sh --only weed\` (PLAN T-001). Log weed:\n${tail}`,
     );
@@ -147,7 +157,7 @@ export async function startS3Server(): Promise<S3Server> {
         await new Promise((r) => setTimeout(r, 300));
         if (!exited) proc.kill("SIGKILL");
       }
-      rmSync(dir, { recursive: true, force: true });
+      cleanup();
     },
   };
 }

@@ -26,4 +26,12 @@ describe("s3-server — SeaweedFS tạm cho test", () => {
     expect(src).toMatch(/-filer\.localSocket=\$\{join\(dir,/);
     expect(src).toMatch(/-s3\.localSocket=\$\{join\(dir,/);
   });
+
+  it("dev (`dir` bền): mọi lối xoá thư mục dữ liệu đi qua cleanup() và cleanup() bỏ qua thư mục bền", () => {
+    expect(src).toMatch(/export async function startS3Server\(opts: \{ dir\?: string \} = \{\}\)/);
+    expect(src).toContain("const persistent = opts.dir !== undefined;");
+    expect(src).toContain("if (!persistent) rmSync(dir, { recursive: true, force: true });");
+    // Không còn rmSync(dir…) nào ngoài cleanup — lỗi khởi động/dừng ở dev không được xoá ảnh đã tải lên.
+    expect([...src.matchAll(/rmSync\(dir,/g)]).toHaveLength(1);
+  });
 });

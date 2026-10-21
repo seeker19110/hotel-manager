@@ -1,14 +1,14 @@
 // Môi trường DEV một lệnh (`pnpm dev:up`): Postgres 17 BỀN ở `.dev/pg` (giữ dữ liệu giữa các lần chạy) → role → migrate →
-// seed dữ liệu giả MỘT lần → S3/clamd giả → `next dev` (+ worker khi có `--worker`). Không dùng dữ liệu thật, không gọi
+// seed dữ liệu giả MỘT lần → SeaweedFS bền ở `.dev/s3` (không có `weed` → S3 giả trong bộ nhớ) + clamd giả → `next dev` (+ worker khi có `--worker`). Không dùng dữ liệu thật, không gọi
 // dịch vụ ngoài; thư OTP ghi vào hộp thư giả `.dev/outbox.jsonl`. Xoá sạch: `pnpm dev:up --reset`.
 // Mã TOTP hiện tại của chủ khách sạn giả: `pnpm dev:up --totp`. Chạy bằng `node` (Node 24 bỏ kiểu TS).
-import { execFileSync, spawn } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { chmodSync, chownSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { createAuth, loadConfig } from "@hm/app";
+import { createAuth, loadConfig, ObjectStorage } from "@hm/app";
 import { migrateToLatest } from "@hm/db";
-import { asPg, bootstrapRoles, PG_BIN, pgUrl } from "@hm/testkit/setup";
+import { asPg, bootstrapRoles, PG_BIN, pgUrl, type S3Server, startS3Server } from "@hm/testkit/setup";
 import { Kysely, PostgresDialect, sql } from "kysely";
 import pg from "pg";
 import { startFakeClamd, startFakeS3 } from "../e2e/fakes.ts";
@@ -174,8 +174,29 @@ await migrator.destroy();
 const { betterAuth } = secrets();
 await seedOnce(adminUrl, runtimeUrl, betterAuth);
 
-// S3 giả trong bộ nhớ (ảnh tải lên mất khi dừng) + clamd giả (chỉ chặn chuỗi EICAR) — không cần SeaweedFS/ClamAV.
-const fakeS3 = await startFakeS3();
+// Kho file: SeaweedFS bền ở `.dev/s3` khi có `weed` (scripts/dev-env-setup.sh) — ảnh tải lên còn qua lần chạy sau; không có
+// `weed` thì S3 giả trong bộ nhớ (mất khi dừng). clamd giả (chỉ chặn chuỗi EICAR) — không cần ClamAV.
+const hasWeed = spawnSync(process.env.WEED_BIN || "weed", ["version"], { stdio: "ignore" }).status === 0;
+let weed: S3Server | undefined;
+let fakeS3: Awaited<ReturnType<typeof startFakeS3>> | undefined;
+let s3: { endpoint: string; bucket: string; accessKeyId: string; secretAccessKey: string };
+if (hasWeed) {
+  weed = await startS3Server({ dir: join(DEV_DIR, "s3") });
+  s3 = { ...weed.config, bucket: "hm-dev" };
+  await new ObjectStorage({ ...weed.config, bucket: s3.bucket }).ensureBucket();
+  console.log(`[dev] kho file: SeaweedFS bền ở .dev/s3 (${s3.endpoint})`);
+} else {
+  console.warn(
+    "[dev] không có `weed` — dùng S3 giả trong bộ nhớ (ảnh tải lên mất khi dừng); cài: scripts/dev-env-setup.sh",
+  );
+  fakeS3 = await startFakeS3();
+  s3 = {
+    endpoint: `http://127.0.0.1:${fakeS3.port}`,
+    bucket: "hm-dev",
+    accessKeyId: "dev",
+    secretAccessKey: "dev-khong-dung",
+  };
+}
 const fakeClamd = await startFakeClamd();
 if (!existsSync(OUTBOX)) writeFileSync(OUTBOX, "", { mode: 0o600 });
 
@@ -186,10 +207,10 @@ const appEnv: NodeJS.ProcessEnv = {
   APP_BASE_URL: BASE_URL,
   DATABASE_URL: runtimeUrl,
   BETTER_AUTH_SECRET: betterAuth,
-  S3_ENDPOINT: `http://127.0.0.1:${fakeS3.port}`,
-  S3_BUCKET: "hm-dev",
-  S3_ACCESS_KEY_ID: "dev",
-  S3_SECRET_ACCESS_KEY: "dev-khong-dung",
+  S3_ENDPOINT: s3.endpoint,
+  S3_BUCKET: s3.bucket,
+  S3_ACCESS_KEY_ID: s3.accessKeyId,
+  S3_SECRET_ACCESS_KEY: s3.secretAccessKey,
   CLAMD_HOST: "127.0.0.1",
   CLAMD_PORT: String(fakeClamd.port),
   SMTP_URL: `fake://file?path=${encodeURIComponent(OUTBOX)}`,
@@ -219,15 +240,16 @@ if (args.has("--worker")) {
 printAccounts();
 
 let stopping = false;
-function stop(code: number): void {
+async function stop(code: number): Promise<void> {
   if (stopping) return;
   stopping = true;
   for (const c of children) c.kill("SIGTERM");
-  fakeS3.server.close();
+  fakeS3?.server.close();
   fakeClamd.server.close();
-  // Postgres dev chạy tiếp (dữ liệu bền); dừng hẳn: `pnpm dev:up --stop`.
+  // SeaweedFS dừng cùng (dữ liệu ở `.dev/s3` giữ nguyên); Postgres dev chạy tiếp — dừng hẳn: `pnpm dev:up --stop`.
+  await weed?.stop();
   process.exit(code);
 }
-process.on("SIGTERM", () => stop(0));
-process.on("SIGINT", () => stop(0));
-for (const c of children) c.on("exit", (code) => stop(code ?? 1));
+process.on("SIGTERM", () => void stop(0));
+process.on("SIGINT", () => void stop(0));
+for (const c of children) c.on("exit", (code) => void stop(code ?? 1));
