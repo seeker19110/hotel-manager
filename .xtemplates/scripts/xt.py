@@ -92,6 +92,7 @@ import posixpath
 import re
 import shlex
 import shutil
+import signal
 import stat
 import statistics
 import subprocess
@@ -2236,15 +2237,45 @@ def run_gate_shell(cmd_str: str, base: Path, timeout: int) -> Tuple[int, str]:
     why = guard_block(cmd_str, base)
     if why:
         return 126, f"guard chặn, không chạy (LOOP-STOP-027): {why}"
+    # Output ra file tạm, không qua pipe: tiến trình con tách phiên (`setsid` app server) giữ pipe thì `communicate()`
+    # chờ EOF mãi — chỉ cần chờ chính bash (review #220).
+    # utf-8 + replace: byte lạ trong output (binary, locale khác) không làm `loop record`/`release-check` ném lỗi (review #220)
+    with tempfile.TemporaryFile("w+", encoding="utf-8", errors="replace") as sink:
+        try:
+            proc = subprocess.Popen(
+                ["bash", "-o", "pipefail", "-c", cmd_str],
+                cwd=base,
+                stdout=sink,
+                stderr=subprocess.STDOUT,
+                text=True,
+                start_new_session=True,  # nhóm tiến trình riêng: hết giờ thì dừng cả cây, không chỉ bash (hotel-manager #119)
+            )
+        except FileNotFoundError:
+            return 127, "bash: không có trong PATH — loop record cần bash (như hook và dev-task.sh)"
+        try:
+            code = proc.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            _stop_group(proc)
+            sink.seek(0)
+            return 124, f"timeout: lệnh chạy quá {timeout} giây — đã dừng cả nhóm tiến trình\n" + sink.read()
+        sink.seek(0)
+        return zero_tests_red(code, sink.read())
+
+
+GATE_KILL_GRACE = 30  # giây chờ sau SIGTERM để trap dọn dẹp của script (app tạm, khoá cổng, container) chạy
+
+
+def _stop_group(proc: "subprocess.Popen[str]") -> None:
+    """Hết giờ: SIGTERM cả nhóm tiến trình (trap EXIT/TERM của script được chạy), quá `GATE_KILL_GRACE` thì SIGKILL rồi
+    chờ bash. Trước đây chỉ bash bị SIGKILL nên trap không chạy và tiến trình con (`setsid` app, DB tạm) sống sót."""
+    with contextlib.suppress(ProcessLookupError):
+        os.killpg(proc.pid, signal.SIGTERM)
     try:
-        proc = subprocess.run(
-            ["bash", "-o", "pipefail", "-c", cmd_str], cwd=base, capture_output=True, text=True, timeout=timeout
-        )
-        return zero_tests_red(proc.returncode, (proc.stdout or "") + (proc.stderr or ""))
-    except subprocess.TimeoutExpired as exc:
-        return 124, f"timeout: {exc}"
-    except FileNotFoundError:
-        return 127, "bash: không có trong PATH — loop record cần bash (như hook và dev-task.sh)"
+        proc.wait(timeout=GATE_KILL_GRACE)
+    except subprocess.TimeoutExpired:
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(proc.pid, signal.SIGKILL)
+        proc.wait()
 
 
 # unittest trên Python 3.11 exit 0 khi KHÔNG test nào chạy (`-k` sai tên, module không import được): từ 3.12 exit 5
