@@ -1,7 +1,8 @@
 import { listReservations, listRooms, opsProperties, RESERVATION_LIST_LIMIT, serverContext } from "@hm/app";
 import type { Metadata } from "next";
 import { StatusBadge } from "../../components/ui/badge.tsx";
-import { EmptyState, ErrorState, TruncatedNotice } from "../../components/ui/state.tsx";
+import { EmptyState, ErrorState } from "../../components/ui/state.tsx";
+import { TruncatedNotice } from "../../components/ui/truncated-notice.tsx";
 import { addDays, BOOKING_STATUS, day, vnd } from "../../lib/format.ts";
 import { t } from "../../lib/i18n.ts";
 import { withActor } from "../../lib/page.tsx";

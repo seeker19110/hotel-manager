@@ -8,7 +8,8 @@ import { TextField } from "../../../../components/ui/field.tsx";
 import { ErrorState, LoadingState } from "../../../../components/ui/state.tsx";
 import { timedFetch } from "../../../../lib/fetch-timeout.ts";
 import { day, vnd } from "../../../../lib/format.ts";
-import { t } from "../../../../lib/i18n.ts";
+import type { Messages } from "../../../../lib/i18n.ts";
+import { tm } from "../../../../lib/i18n-format.ts";
 
 interface GuestView {
   stay: {
@@ -26,13 +27,16 @@ interface GuestView {
   };
 }
 
-const STAY_STATUS: Record<string, string> = {
-  expected: t("guest_stay.status.expected"),
-  in_house: t("guest_stay.status.in_house"),
-  checked_out: t("guest_stay.status.checked_out"),
-  cancelled: t("guest_stay.status.cancelled"),
-  no_show: t("guest_stay.status.no_show"),
-};
+/** Nhãn trạng thái lượt ở (dựng từ `m` — client không import catalog, D-098); mã lạ: nơi gọi hiện mã thô. */
+function stayStatusLabels(m: Messages<"guest_stay.">): Record<string, string> {
+  return {
+    expected: tm(m, "guest_stay.status.expected"),
+    in_house: tm(m, "guest_stay.status.in_house"),
+    checked_out: tm(m, "guest_stay.status.checked_out"),
+    cancelled: tm(m, "guest_stay.status.cancelled"),
+    no_show: tm(m, "guest_stay.status.no_show"),
+  };
+}
 
 type State =
   | { kind: "ask" }
@@ -40,15 +44,12 @@ type State =
   | { kind: "ok"; view: GuestView }
   | { kind: "dead"; title: string; text: string };
 
-const EXPIRED = t("guest_stay.error.expired_text");
-const REVOKED = t("guest_stay.error.revoked_text");
-
 function tokenFromFragment(): string | null {
   const m = /(?:^#|&)t=([A-Za-z0-9_-]+)/.exec(window.location.hash);
   return m?.[1] ?? null;
 }
 
-export function GuestStay({ stayId }: { stayId: string }) {
+export function GuestStay({ stayId, m }: { stayId: string; m: Messages<"guest_stay."> }) {
   const [state, setState] = useState<State>({ kind: "ask" });
   const [error, setError] = useState<string | undefined>();
   const [token, setToken] = useState<string | null | undefined>(undefined);
@@ -69,7 +70,7 @@ export function GuestStay({ stayId }: { stayId: string }) {
     e.preventDefault();
     if (!token) return;
     const digits = String(new FormData(e.currentTarget).get("last4") ?? "").trim();
-    if (!/^\d{4}$/.test(digits)) return setError(t("guest_stay.error.last4"));
+    if (!/^\d{4}$/.test(digits)) return setError(tm(m, "guest_stay.error.last4"));
     setError(undefined);
     setState({ kind: "loading" });
     try {
@@ -85,35 +86,37 @@ export function GuestStay({ stayId }: { stayId: string }) {
       if (j?.code === "LINK_EXPIRED")
         return setState({
           kind: "dead",
-          title: t("guest_stay.error.expired_title"),
-          text: j.title ?? EXPIRED,
+          title: tm(m, "guest_stay.error.expired_title"),
+          text: j.title ?? tm(m, "guest_stay.error.expired_text"),
         });
       if (j?.code === "LINK_REVOKED")
         return setState({
           kind: "dead",
-          title: t("guest_stay.error.revoked_title"),
-          text: j.title ?? REVOKED,
+          title: tm(m, "guest_stay.error.revoked_title"),
+          text: j.title ?? tm(m, "guest_stay.error.revoked_text"),
         });
       setState({ kind: "ask" });
       setError(
         res.status === 429
-          ? (j?.title ?? t("guest_stay.error.too_many"))
-          : (j?.title ?? t("guest_stay.error.open_failed")),
+          ? (j?.title ?? tm(m, "guest_stay.error.too_many"))
+          : (j?.title ?? tm(m, "guest_stay.error.open_failed")),
       );
     } catch {
       setState({ kind: "ask" });
-      setError(t("guest_stay.error.no_response"));
+      setError(tm(m, "guest_stay.error.no_response"));
     }
   }
 
-  if (token === undefined) return <LoadingState label={t("guest_stay.loading")} />;
+  if (token === undefined) return <LoadingState label={tm(m, "guest_stay.loading")} />;
   if (token === null)
-    return <ErrorState title={t("guest_stay.incomplete.title")} text={t("guest_stay.incomplete.text")} />;
+    return (
+      <ErrorState title={tm(m, "guest_stay.incomplete.title")} text={tm(m, "guest_stay.incomplete.text")} />
+    );
   if (state.kind === "dead") return <ErrorState title={state.title} text={state.text} />;
   if (state.kind === "loading")
     return (
       <div className="state" role="status">
-        <span className="spinner" aria-hidden="true" /> {t("guest_stay.loading")}
+        <span className="spinner" aria-hidden="true" /> {tm(m, "guest_stay.loading")}
       </div>
     );
   if (state.kind === "ok") {
@@ -121,33 +124,36 @@ export function GuestStay({ stayId }: { stayId: string }) {
     return (
       <>
         <section aria-labelledby="ls" className="panel">
-          <h2 id="ls">{t("guest_stay.stay.heading")}</h2>
+          <h2 id="ls">{tm(m, "guest_stay.stay.heading")}</h2>
           <dl className="facts">
-            <dt>{t("guest_stay.stay.unit")}</dt>
+            <dt>{tm(m, "guest_stay.stay.unit")}</dt>
             <dd data-testid="guest-unit">{stay.unitCode}</dd>
-            <dt>{t("guest_stay.stay.arrival")}</dt>
+            <dt>{tm(m, "guest_stay.stay.arrival")}</dt>
             <dd>{day(stay.arrivalDate)}</dd>
-            <dt>{t("guest_stay.stay.departure")}</dt>
+            <dt>{tm(m, "guest_stay.stay.departure")}</dt>
             <dd>{day(stay.departureDate)}</dd>
-            <dt>{t("guest_stay.stay.status")}</dt>
-            <dd>{STAY_STATUS[stay.status] ?? stay.status}</dd>
+            <dt>{tm(m, "guest_stay.stay.status")}</dt>
+            <dd>{stayStatusLabels(m)[stay.status] ?? stay.status}</dd>
           </dl>
         </section>
         <section aria-labelledby="fo" className="panel">
-          <h2 id="fo">{t("guest_stay.folio.heading")}</h2>
+          <h2 id="fo">{tm(m, "guest_stay.folio.heading")}</h2>
           {folio.charges.length > 0 ? (
             <table className="lines">
               <thead>
                 <tr>
-                  <th scope="col">{t("guest_stay.folio.col_kind")}</th>
-                  <th scope="col">{t("guest_stay.folio.col_amount")}</th>
+                  <th scope="col">{tm(m, "guest_stay.folio.col_kind")}</th>
+                  <th scope="col">{tm(m, "guest_stay.folio.col_amount")}</th>
                 </tr>
               </thead>
               <tbody>
                 {folio.charges.map((c) => (
                   <tr key={`${c.businessDate}-${c.description}-${c.amount}`}>
                     <th scope="row">
-                      {t("guest_stay.folio.line", { description: c.description, date: day(c.businessDate) })}
+                      {tm(m, "guest_stay.folio.line", {
+                        description: c.description,
+                        date: day(c.businessDate),
+                      })}
                     </th>
                     <td>{vnd(c.amount)}</td>
                   </tr>
@@ -156,11 +162,11 @@ export function GuestStay({ stayId }: { stayId: string }) {
             </table>
           ) : null}
           <dl className="facts">
-            <dt>{t("guest_stay.folio.total")}</dt>
+            <dt>{tm(m, "guest_stay.folio.total")}</dt>
             <dd data-testid="guest-total">{vnd(folio.total)}</dd>
-            <dt>{t("guest_stay.folio.paid")}</dt>
+            <dt>{tm(m, "guest_stay.folio.paid")}</dt>
             <dd data-testid="guest-paid">{vnd(folio.paid)}</dd>
-            <dt>{t("guest_stay.folio.balance")}</dt>
+            <dt>{tm(m, "guest_stay.folio.balance")}</dt>
             <dd data-testid="guest-balance">{vnd(folio.balance)}</dd>
           </dl>
         </section>
@@ -170,8 +176,8 @@ export function GuestStay({ stayId }: { stayId: string }) {
   return (
     <form onSubmit={onSubmit} noValidate>
       <TextField
-        label={t("guest_stay.form.last4")}
-        hint={t("guest_stay.form.hint")}
+        label={tm(m, "guest_stay.form.last4")}
+        hint={tm(m, "guest_stay.form.hint")}
         name="last4"
         inputMode="numeric"
         autoComplete="off"
@@ -179,7 +185,7 @@ export function GuestStay({ stayId }: { stayId: string }) {
         required
         error={error}
       />
-      <Button type="submit">{t("guest_stay.form.submit")}</Button>
+      <Button type="submit">{tm(m, "guest_stay.form.submit")}</Button>
     </form>
   );
 }

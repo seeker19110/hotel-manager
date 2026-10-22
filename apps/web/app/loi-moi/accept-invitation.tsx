@@ -10,12 +10,11 @@ import { Button } from "../../components/ui/button.tsx";
 import { TextField } from "../../components/ui/field.tsx";
 import { ErrorState, LoadingState } from "../../components/ui/state.tsx";
 import { timedFetch } from "../../lib/fetch-timeout.ts";
-import { t } from "../../lib/i18n.ts";
+import type { Messages } from "../../lib/i18n.ts";
+import { tm } from "../../lib/i18n-format.ts";
 
 type Phase = "checking" | "anonymous" | "ready" | "accepting" | "done" | "invalid" | "failed" | "no-token";
 type AuthMode = "login" | "register" | "totp";
-
-const INVALID_TEXT = t("invitation.invalid_text");
 
 async function jsonPost(path: string, body: unknown, key?: string) {
   const res = await timedFetch(path, {
@@ -37,7 +36,7 @@ function tokenFromHash(hash: string): string | null {
   return v && /^[A-Za-z0-9_-]{20,200}$/.test(v) ? v : null;
 }
 
-export function AcceptInvitation() {
+export function AcceptInvitation({ m }: { m: Messages<"invitation."> }) {
   const online = useOnline();
   const token = useRef<string | null>(null);
   const key = useRef<string | null>(null);
@@ -72,7 +71,7 @@ export function AcceptInvitation() {
 
   async function onAuth(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!online) return setError(t("invitation.error.offline"));
+    if (!online) return setError(tm(m, "invitation.error.offline"));
     const f = new FormData(e.currentTarget);
     const email = String(f.get("email") ?? "");
     const password = String(f.get("password") ?? "");
@@ -81,7 +80,7 @@ export function AcceptInvitation() {
     try {
       if (mode === "totp") {
         const r = await jsonPost("/api/auth/two-factor/verify-totp", { code: String(f.get("code") ?? "") });
-        if (!r.ok) return setError(t("invitation.error.totp"));
+        if (!r.ok) return setError(tm(m, "invitation.error.totp"));
         return await checkSession();
       }
       if (mode === "register") {
@@ -93,21 +92,21 @@ export function AcceptInvitation() {
         if (!r.ok)
           return setError(
             r.status === 422 || r.status === 400
-              ? t("invitation.error.register_rejected")
-              : t("invitation.error.register_failed"),
+              ? tm(m, "invitation.error.register_rejected")
+              : tm(m, "invitation.error.register_failed"),
           );
       }
       const r = await jsonPost("/api/auth/sign-in/email", { email, password });
       if (!r.ok)
         return setError(
           r.data.code === "ACCOUNT_LOCKED" || r.status === 429
-            ? t("invitation.error.locked")
-            : t("invitation.error.credentials"),
+            ? tm(m, "invitation.error.locked")
+            : tm(m, "invitation.error.credentials"),
         );
       if (r.data.twoFactorRedirect) return setMode("totp");
       await checkSession();
     } catch {
-      setError(t("invitation.error.no_response"));
+      setError(tm(m, "invitation.error.no_response"));
     } finally {
       setBusy(false);
     }
@@ -117,14 +116,14 @@ export function AcceptInvitation() {
     setBusy(true);
     try {
       const r = await jsonPost("/api/auth/sign-out", {});
-      if (!r.ok && r.status !== 401) return setProblem(t("invitation.error.sign_out"));
+      if (!r.ok && r.status !== 401) return setProblem(tm(m, "invitation.error.sign_out"));
       setWho(null);
       setMode("login");
       setError(undefined);
       setProblem(undefined);
       setPhase("anonymous");
     } catch {
-      setProblem(t("invitation.error.no_response"));
+      setProblem(tm(m, "invitation.error.no_response"));
     } finally {
       setBusy(false);
     }
@@ -132,7 +131,7 @@ export function AcceptInvitation() {
 
   async function accept() {
     if (!token.current || phase === "accepting") return;
-    if (!online) return setProblem(t("invitation.error.offline"));
+    if (!online) return setProblem(tm(m, "invitation.error.offline"));
     key.current ??= crypto.randomUUID();
     setPhase("accepting");
     setProblem(undefined);
@@ -146,12 +145,12 @@ export function AcceptInvitation() {
       }
       if (r.status === 409 && r.data.code === "DUPLICATE") {
         key.current = null;
-        setProblem(t("invitation.error.duplicate"));
+        setProblem(tm(m, "invitation.error.duplicate"));
         return setPhase("ready");
       }
       if (!r.ok) {
         // Lỗi khác (kể cả 5xx): giữ key để bấm lại là gửi lại đúng lệnh cũ.
-        setProblem(t("invitation.error.accept_failed"));
+        setProblem(tm(m, "invitation.error.accept_failed"));
         return setPhase("ready");
       }
       const organizationId = (r.data.data as { organizationId?: string } | undefined)?.organizationId;
@@ -175,23 +174,25 @@ export function AcceptInvitation() {
       }
       window.location.assign(safeUrl(home) ?? "/chon-to-chuc");
     } catch {
-      setProblem(t("invitation.error.accept_no_response"));
+      setProblem(tm(m, "invitation.error.accept_no_response"));
       setPhase("ready");
     }
   }
 
-  if (phase === "checking") return <LoadingState label={t("invitation.checking")} rows={2} />;
+  if (phase === "checking") return <LoadingState label={tm(m, "invitation.checking")} rows={2} />;
   if (phase === "no-token")
-    return <ErrorState title={t("invitation.incomplete.title")} text={t("invitation.incomplete.text")} />;
+    return (
+      <ErrorState title={tm(m, "invitation.incomplete.title")} text={tm(m, "invitation.incomplete.text")} />
+    );
   if (phase === "invalid")
     return (
       <ErrorState
-        title={t("invitation.invalid.title")}
-        text={`${INVALID_TEXT}${t("invitation.invalid.rules")}`}
+        title={tm(m, "invitation.invalid.title")}
+        text={`${tm(m, "invitation.invalid_text")}${tm(m, "invitation.invalid.rules")}`}
         action={
           who ? (
             <Button variant="secondary" onClick={signOut} loading={busy}>
-              {t("invitation.invalid.sign_out")}
+              {tm(m, "invitation.invalid.sign_out")}
             </Button>
           ) : undefined
         }
@@ -200,22 +201,26 @@ export function AcceptInvitation() {
   if (phase === "failed")
     return (
       <ErrorState
-        title={t("invitation.failed.title")}
-        text={t("invitation.failed.text")}
-        action={<Button onClick={() => void checkSession()}>{t("invitation.failed.retry")}</Button>}
+        title={tm(m, "invitation.failed.title")}
+        text={tm(m, "invitation.failed.text")}
+        action={<Button onClick={() => void checkSession()}>{tm(m, "invitation.failed.retry")}</Button>}
       />
     );
-  if (phase === "done") return <LoadingState label={t("invitation.done")} rows={1} />;
+  if (phase === "done") return <LoadingState label={tm(m, "invitation.done")} rows={1} />;
 
   if (phase === "anonymous") {
     return (
       <>
-        <p>{mode === "register" ? t("invitation.anon.register_intro") : t("invitation.anon.login_intro")}</p>
+        <p>
+          {mode === "register"
+            ? tm(m, "invitation.anon.register_intro")
+            : tm(m, "invitation.anon.login_intro")}
+        </p>
         <form onSubmit={onAuth} noValidate>
           {mode === "totp" ? (
             <TextField
-              label={t("invitation.field.totp")}
-              hint={t("invitation.field.totp_hint")}
+              label={tm(m, "invitation.field.totp")}
+              hint={tm(m, "invitation.field.totp_hint")}
               name="code"
               inputMode="numeric"
               autoComplete="one-time-code"
@@ -227,7 +232,7 @@ export function AcceptInvitation() {
             <>
               {mode === "register" ? (
                 <TextField
-                  label={t("invitation.field.name")}
+                  label={tm(m, "invitation.field.name")}
                   name="name"
                   autoComplete="name"
                   required
@@ -236,11 +241,11 @@ export function AcceptInvitation() {
               ) : null}
               <TextField label="Email" name="email" type="email" autoComplete="username" required />
               <TextField
-                label={t("invitation.field.password")}
+                label={tm(m, "invitation.field.password")}
                 name="password"
                 type="password"
                 autoComplete={mode === "register" ? "new-password" : "current-password"}
-                hint={mode === "register" ? t("invitation.field.password_hint") : undefined}
+                hint={mode === "register" ? tm(m, "invitation.field.password_hint") : undefined}
                 required
                 error={error}
               />
@@ -248,10 +253,10 @@ export function AcceptInvitation() {
           )}
           <Button type="submit" loading={busy}>
             {mode === "totp"
-              ? t("invitation.submit.totp")
+              ? tm(m, "invitation.submit.totp")
               : mode === "register"
-                ? t("invitation.submit.register")
-                : t("invitation.submit.login")}
+                ? tm(m, "invitation.submit.register")
+                : tm(m, "invitation.submit.login")}
           </Button>
         </form>
         {mode !== "totp" ? (
@@ -263,7 +268,9 @@ export function AcceptInvitation() {
                 setMode(mode === "login" ? "register" : "login");
               }}
             >
-              {mode === "login" ? t("invitation.switch.to_register") : t("invitation.switch.to_login")}
+              {mode === "login"
+                ? tm(m, "invitation.switch.to_register")
+                : tm(m, "invitation.switch.to_login")}
             </Button>
           </p>
         ) : null}
@@ -274,9 +281,9 @@ export function AcceptInvitation() {
   return (
     <>
       <p>
-        {t("invitation.ready.signed_in_before")}
+        {tm(m, "invitation.ready.signed_in_before")}
         <strong>{who}</strong>
-        {t("invitation.ready.signed_in_after")}
+        {tm(m, "invitation.ready.signed_in_after")}
       </p>
       {problem ? (
         <p className="field__error" role="alert">
@@ -285,12 +292,12 @@ export function AcceptInvitation() {
       ) : null}
       <p>
         <Button onClick={accept} loading={phase === "accepting"}>
-          {t("invitation.ready.accept")}
+          {tm(m, "invitation.ready.accept")}
         </Button>
       </p>
       <p>
         <Button variant="secondary" onClick={signOut} loading={busy}>
-          {t("invitation.ready.other_account")}
+          {tm(m, "invitation.ready.other_account")}
         </Button>
       </p>
     </>

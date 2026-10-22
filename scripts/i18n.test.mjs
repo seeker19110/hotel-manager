@@ -6,10 +6,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { t, tOr } from "../apps/web/lib/i18n.ts";
+import { messagesFor, t, tOr } from "../apps/web/lib/i18n.ts";
+import { format, tm } from "../apps/web/lib/i18n-format.ts";
 import { ROLE_LABEL, STATUS_LABEL } from "../apps/web/lib/roles.ts";
 import {
   checkCatalogs,
+  clientCatalogErrors,
   loadCatalogs,
   messageArgs,
   roleKeyErrors,
@@ -97,6 +99,110 @@ describe("XC-I18N-009 — kiểm tệp dịch", () => {
     expect(
       tCallErrors('import type * as I from "./i18n.ts";\nimport type i18n from "./i18n.ts";', "u.ts", src),
     ).toEqual([]);
+  });
+
+  it("tham số tm(m, …) (client, D-098): khoá viết thẳng có trong nguồn, đúng tập {tên}; chỉ tm import từ lib/i18n-format", () => {
+    const src = { "a.hi": entry("Chào {name}, còn {n} phòng"), "a.plain": entry("Đã lưu") };
+    const file = (body) => `import { tm } from "../lib/i18n-format.ts";\n${body}`;
+    const errs = (body) => tCallErrors(file(body), "c.tsx", src);
+    expect(errs('tm(m, "a.hi", { name: u, n: 2 }); tm(props.m, "a.plain");')).toEqual([]);
+    expect(errs('tm(m, "a.khong_co");')).toEqual(['c.tsx:2: tm("a.khong_co") không có trong nguồn']);
+    expect(errs('tm(m, "toString");')).toEqual(['c.tsx:2: tm("toString") không có trong nguồn']);
+    expect(errs('tm(m, "a.hi", { name: u });')).toEqual(['c.tsx:2: tm("a.hi") thiếu tham số {n}']);
+    expect(errs('tm(m, "a.hi");')).toEqual(['c.tsx:2: tm("a.hi") thiếu tham số {n}, {name}']);
+    expect(errs('tm(m, "a.plain", { nam: 1 });')).toEqual([
+      'c.tsx:2: tm("a.plain") thừa tham số nam (message không có)',
+    ]);
+    expect(errs('tm(m, "a.hi", params);')[0]).toMatch(/tm\("a\.hi"\) — tham số phải là object literal/);
+    expect(errs("tm(m, key);")[0]).toMatch(/tm\(\) cần khoá viết thẳng/);
+    // Nhiều dòng: báo đúng dòng của lời gọi.
+    expect(errs('const a = 1;\nconst b = tm(m, "a.hi", { name: 1 });')).toEqual([
+      'c.tsx:3: tm("a.hi") thiếu tham số {n}',
+    ]);
+    // Đổi tên khi import vẫn bị kiểm; `tm` tự định nghĩa / từ module khác / `import type` thì không.
+    expect(
+      tCallErrors('import { tm as x } from "./i18n-format.ts";\nx(m, "a.hi");', "d.tsx", src),
+    ).toHaveLength(1);
+    expect(tCallErrors('const tm = (a, b) => b;\ntm(m, "a.hi");', "e.tsx", src)).toEqual([]);
+    expect(tCallErrors('import { tm } from "./other-format.ts";\ntm(m, "a.hi");', "f.tsx", src)).toEqual([]);
+    expect(tCallErrors('import type { tm } from "./i18n-format.ts";\ntm(m, "a.hi");', "g.tsx", src)).toEqual(
+      [],
+    );
+    expect(tCallErrors('import * as F from "./i18n-format.ts";\nF.tm(m, "a.hi");', "h.tsx", src)[0]).toMatch(
+      /import \{ tm \}/,
+    );
+    // `t` và `tm` cùng tệp: mỗi hàm đọc khoá ở đúng vị trí đối số.
+    expect(
+      tCallErrors(
+        'import { t } from "../lib/i18n.ts";\nimport { tm } from "../lib/i18n-format.ts";\nt("a.plain"); tm(m, "a.plain");',
+        "k.tsx",
+        src,
+      ),
+    ).toEqual([]);
+  });
+
+  it("format/tm/messagesFor: cùng kết quả với t(); một lượt thay; tham số thiếu giữ nguyên; chỉ khoá đúng tiền tố", () => {
+    expect(format("Chào {name}, {name}! {x}", { name: "An" })).toBe("Chào An, An! {x}");
+    expect(format("{a}{b}", { a: "{b}", b: 0 })).toBe("{b}0"); // một lượt: giá trị chứa `{b}` không bị thay tiếp
+    expect(format("Không tham số")).toBe("Không tham số");
+    expect(format("{toString}", {})).toBe("{toString}"); // khoá prototype không bị coi là tham số
+    const m = messagesFor("booking.hold.");
+    expect(Object.keys(m).sort()).toEqual([
+      "booking.hold.countdown",
+      "booking.hold.expired",
+      "booking.hold.until",
+    ]);
+    expect(tm(m, "booking.hold.countdown", { minutes: 2, seconds: "05" })).toBe(
+      t("booking.hold.countdown", { minutes: 2, seconds: "05" }),
+    );
+    expect(tm(m, "booking.hold.until")).toBe(t("booking.hold.until")); // tham số thiếu: giữ `{until}` như t()
+    const two = messagesFor("booking.quote.", "booking.hold.");
+    expect(Object.keys(two)).toHaveLength(4);
+    expect(two["booking.quote.total"]).toBe(loadCatalogs().vi["booking.quote.total"].message);
+    // Catalog thật: mọi tiền tố dùng ở client đều có khoá; mỗi khoá vào đúng object (không lẫn tiền tố khác).
+    for (const p of ["invitation.", "guest_stay.", "booking.quote.", "booking.hold."]) {
+      const keys = Object.keys(messagesFor(p));
+      expect(keys.length, p).toBeGreaterThan(0);
+      expect(keys.every((k) => k.startsWith(p))).toBe(true);
+    }
+    expect(() => messagesFor("khong_co.")).toThrow(/no message key with prefix/);
+    expect(() => messagesFor("booking.hold.", "")).toThrow(/no message key with prefix/);
+  });
+
+  it("module client không kéo catalog vào bundle, kể cả gián tiếp (D-098, bundle-size PR #123)", () => {
+    const root = mkdtempSync(join(tmpdir(), "i18n-client-"));
+    try {
+      const w = (rel, body) => {
+        mkdirSync(join(root, rel, ".."), { recursive: true });
+        writeFileSync(join(root, rel), body);
+        return join(root, rel);
+      };
+      w("apps/web/lib/i18n.ts", "export const t = (k) => k;\n");
+      w("apps/web/lib/i18n-format.ts", "export const tm = (m, k) => m[k];\n");
+      w("apps/web/messages/vi.json", "{}");
+      const ok = w(
+        "apps/web/c/ok.tsx",
+        '"use client";\nimport type { Messages } from "../lib/i18n.ts";\nimport { tm } from "../lib/i18n-format.ts";\n',
+      );
+      const server = w("apps/web/c/server.tsx", 'import { t } from "../lib/i18n.ts";\n');
+      const direct = w("apps/web/c/direct.tsx", '"use client";\nimport { t } from "../lib/i18n.ts";\n');
+      const json = w("apps/web/c/json.tsx", '"use client";\nimport vi from "../messages/vi.json";\n');
+      w("apps/web/c/mid.tsx", 'export { x } from "./leaf";\n'); // không ghi đuôi → thử .ts/.tsx
+      w("apps/web/c/leaf.ts", 'import { type T, t } from "../lib/i18n.ts";\nexport const x = 1;\n');
+      const indirect = w("apps/web/c/indirect.tsx", '"use client";\nimport { x } from "./mid.tsx";\n');
+      const lazy = w("apps/web/c/lazy.tsx", '"use client";\nconst m = import("../lib/i18n.ts");\n');
+      const files = [ok, server, direct, json, indirect, lazy];
+      const errors = clientCatalogErrors(files, root);
+      expect(errors).toHaveLength(4);
+      expect(errors.join("\n")).not.toMatch(/ok\.tsx|server\.tsx/);
+      expect(errors.find((e) => e.startsWith("apps/web/c/indirect.tsx"))).toContain(
+        "apps/web/c/indirect.tsx → apps/web/c/mid.tsx → apps/web/c/leaf.ts → apps/web/lib/i18n.ts",
+      );
+      expect(errors.some((e) => e.startsWith("apps/web/c/json.tsx"))).toBe(true);
+      expect(errors.some((e) => e.startsWith("apps/web/c/lazy.tsx"))).toBe(true);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it("sourceErrors gom lỗi khoá lạ và tham số t() từ tệp thật trên đĩa (main() dùng hàm này)", () => {

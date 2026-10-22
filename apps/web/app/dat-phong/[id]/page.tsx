@@ -8,7 +8,7 @@ import { ShiftPanel } from "../../../components/hotel/shift-panel.tsx";
 import { StatusBadge } from "../../../components/ui/badge.tsx";
 import { ErrorState } from "../../../components/ui/state.tsx";
 import { BOOKING_STATUS, DEFAULT_TIME_ZONE, dateTime, day, vnd } from "../../../lib/format.ts";
-import { t } from "../../../lib/i18n.ts";
+import { messagesFor, t } from "../../../lib/i18n.ts";
 import { withActor } from "../../../lib/page.tsx";
 import { safe } from "../../../lib/safe.ts";
 
@@ -66,6 +66,7 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
                   <HoldCountdown
                     until={b.heldUntil.toISOString()}
                     untilText={dateTime(b.heldUntil, property?.timezone ?? DEFAULT_TIME_ZONE)}
+                    m={messagesFor("booking.hold.")}
                   />
                 </dd>
               </>

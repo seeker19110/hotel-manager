@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { BookingForm } from "../../../components/hotel/booking-form.tsx";
 import { EmptyState, ErrorState } from "../../../components/ui/state.tsx";
 import { addDays } from "../../../lib/format.ts";
+import { messagesFor } from "../../../lib/i18n.ts";
 import { withActor } from "../../../lib/page.tsx";
 import { safe } from "../../../lib/safe.ts";
 
@@ -45,6 +46,7 @@ export default async function NewBookingPage({
           arrival,
           departure: addDays(arrival, 1),
         }}
+        m={messagesFor("booking.quote.")}
       />
     );
   });

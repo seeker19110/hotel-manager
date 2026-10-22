@@ -704,3 +704,10 @@
 - Chọn: Defer: chuyển dần theo màn khi sửa màn (ratchet chặn tăng), đợt riêng cho packages/app sau khi quyết cách trả mã lỗi + thông điệp (đổi API); chủ dự án duyệt nhịp
 - Lý do (tiêu chí chất lượng cuối): (1) packages/app đổi cách sinh thông điệp lỗi chạm hợp đồng API (cần quyết thiết kế, không cơ học); (2)(3) PR lớn liên tục quanh tiền/lưu trú dồn việc merge cho người, rủi ro đổi chữ; ratchet đã giữ không lùi; sản phẩm chỉ có một locale (vi) nên không chặn người dùng
 - Đường lùi: Lập PLAN đợt i18n kế (mỗi đợt ≤ 5 màn ngoài merge_risk_paths) bất cứ lúc nào
+
+### D-098 · 2026-10-22T10:34:53+00:00 · PR #123: bundle-size đỏ (324,98/300 kB gzip) vì vi.json (cả description) bị nhân bản vào 4 chunk client (booking-form, hold-countdown, accept-invitation, guest-stay) — sửa thế nào?
+
+- Phương án: (1) Client không import catalog: server page truyền messagesFor(namespace) qua prop, client dùng tm(m, key, params) từ module định dạng thuần (type-only import); i18n-check kiểm tm() như t(); áp cho cả 4 client component · (2) Sinh catalog runtime bỏ description (≈5,2 kB × 4 chunk ≈ 312 kB, vẫn vượt) · (3) Nâng trần .size-limit.json
+- Chọn: Client không import catalog: server page truyền messagesFor(namespace) qua prop, client dùng tm(m, key, params) từ module định dạng thuần (type-only import); i18n-check kiểm tm() như t(); áp cho cả 4 client component
+- Lý do (tiêu chí chất lượng cuối): (1) không nới cổng (LOOP-CI-001); (3) bền: catalog lớn dần tới ~2000 khoá thì mọi cách bundle catalog vào client đều vượt — chỉ server dịch mới co giãn được; giữ kiểm khoá/tham số bằng i18n-check
+- Đường lùi: Revert commit sửa; quay lại import t() ở client

@@ -2,7 +2,10 @@
 // FE-TEST-003: thời gian giả (`vi.useFakeTimers` + `setSystemTime`) — kết quả không phụ thuộc đồng hồ máy/múi giờ.
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { messagesFor } from "../../lib/i18n.ts";
 import { HoldCountdown } from "./hold-countdown.tsx";
+
+const m = messagesFor("booking.hold.");
 
 const NOW = "2026-10-17T10:00:00.000Z";
 
@@ -19,13 +22,13 @@ const until = (secondsFromNow: number) => new Date(Date.parse(NOW) + secondsFrom
 
 describe("HoldCountdown", () => {
   it("luôn hiện hạn tuyệt đối bằng chữ; đếm ngược phút:giây theo đồng hồ giả", () => {
-    render(<HoldCountdown until={until(125)} untilText="10:02 ngày 17/10" />);
+    render(<HoldCountdown until={until(125)} untilText="10:02 ngày 17/10" m={m} />);
     expect(screen.getByText(/Giữ phòng đến 10:02 ngày 17\/10/)).toBeTruthy();
     expect(screen.getByText(/còn 2 phút 05 giây/)).toBeTruthy();
   });
 
   it("mỗi giây giảm một giây; giây một chữ số có số 0 đệm", () => {
-    render(<HoldCountdown until={until(61)} untilText="x" />);
+    render(<HoldCountdown until={until(61)} untilText="x" m={m} />);
     expect(screen.getByText(/còn 1 phút 01 giây/)).toBeTruthy();
     act(() => {
       vi.advanceTimersByTime(2000);
@@ -34,7 +37,7 @@ describe("HoldCountdown", () => {
   });
 
   it("đúng lúc hết hạn: hiện chữ hết hạn (không hiện số âm) và dừng đếm", () => {
-    render(<HoldCountdown until={until(2)} untilText="x" />);
+    render(<HoldCountdown until={until(2)} untilText="x" m={m} />);
     act(() => {
       vi.advanceTimersByTime(2000);
     });
@@ -47,12 +50,12 @@ describe("HoldCountdown", () => {
   });
 
   it("hạn đã qua từ trước: hiện hết hạn ngay, không âm", () => {
-    render(<HoldCountdown until={until(-3600)} untilText="x" />);
+    render(<HoldCountdown until={until(-3600)} untilText="x" m={m} />);
     expect(screen.getByText(/đã hết hạn giữ phòng/)).toBeTruthy();
   });
 
   it("gỡ khỏi trang thì huỷ bộ đếm (không còn timer treo)", () => {
-    const { unmount } = render(<HoldCountdown until={until(90)} untilText="x" />);
+    const { unmount } = render(<HoldCountdown until={until(90)} untilText="x" m={m} />);
     expect(vi.getTimerCount()).toBeGreaterThan(0);
     unmount();
     expect(vi.getTimerCount()).toBe(0);
