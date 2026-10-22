@@ -683,3 +683,10 @@
 - Lý do (tiêu chí chất lượng cuối): (1) an toàn: chưa có triển khai production nào (VPS chờ người) nên lỗ hổng chưa phơi ra; GO-2026-6604 không áp dụng Linux; SeaweedFS chỉ ở mạng nội bộ. (2)(3) tự dựng image đổi cách triển khai + thêm bảo trì chuỗi build khi thượng nguồn thường vá trong vài ngày; tắt h2 giảm trải nghiệm và không xử lý SeaweedFS. Hạn 7 ngày buộc rà lại.
 - Đường lùi: Nếu 2026-10-29 vẫn chưa có bản vá hoặc sắp lên production: làm phương án 2 (deploy/caddy/Dockerfile, deploy/seaweedfs/Dockerfile với Go ≥ 1.26.9)
 - Khi chạy thật (đề xuất, chủ dự án quyết ở G7): Trước khi lên production: không chạy Caddy/SeaweedFS dựng bằng Go < 1.26.9 — nâng image vá hoặc tự dựng; tạm thời có thể tắt h2 ở Caddy (servers { protocols h1 h3 })
+
+### D-095 · 2026-10-22T09:23:22+00:00 · Kiểm lại cuối đợt 17: 8 mục MUST [x] (BASE-REPO-008/013, WF-REVIEW-001/005, WF-GIT-001/002, QA-E2E-001, QA-STRAT-002) có lệnh Kiểm 'check-github-live ruleset' đỏ vì ruleset sống chưa import main.json bản D-091 (thiếu 27 context + strict) — xử lý thế nào?
+
+- Phương án: (1) Bỏ tick về [ ] (giữ Kiểm), loop defer chờ người import; tick lại khi lệnh Kiểm xanh · (2) Giữ [x] vì yêu cầu cốt lõi (bảo vệ nhánh) vẫn đạt · (3) Nới check-github-live chỉ so tập con
+- Chọn: Bỏ tick về [ ] (giữ Kiểm), loop defer chờ người import; tick lại khi lệnh Kiểm xanh
+- Lý do (tiêu chí chất lượng cuối): (1) P1 bằng chứng, không lời khai: lệnh Kiểm đỏ thì mục chưa đạt; không nới công cụ kiểm (LOOP-CI-001). (2) đảo ngược: import xong chạy lại Kiểm rồi tick lại
+- Đường lùi: Người import ruleset → chạy 'node scripts/check-github-live.mjs ruleset' xanh → tick lại 8 mục

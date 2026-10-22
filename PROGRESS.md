@@ -2,12 +2,12 @@
 ## Đang làm
 - 2026-10-21 đợt 15 (D-087, D-088): `pnpm dev:up` (Postgres + SeaweedFS bền ở `.dev/`), quét A11Y, sửa 🟢 audit (SMTP_URL production, GCM tag, quyền theo múi giờ, danh sách bị cắt, 401 `/me`). PR #116 (+ đợt 16, một nhánh), **người merge**.
 - 2026-10-21 đợt 16 (D-089, D-090): giờ/"hôm nay" theo múi giờ cơ sở, RLS ghi persons/payments theo vai (0065), xem trước kỳ thu theo lô (24/328 → 17/17 truy vấn), ADR-0005. Audit: 🔴/🟠 đã sửa trừ AUD-HAR-001 (chủ dự án); 🟢 còn 4 có lý do.
-- 2026-10-22 đợt 17 (D-093, D-094): 4 luật grype critical gia hạn tới 2026-10-29 (chưa có image vá: Caddy v2.11.7 vẫn Go 1.26.8, SeaweedFS 4.48; GO-2026-6604 chỉ Windows); `/co-so`, `/thanh-vien` sang `t()` (−77 chuỗi, còn 2280).
+- 2026-10-22 đợt 17 (D-093, D-094): 4 luật grype critical gia hạn tới 2026-10-29 (chưa có image vá: Caddy v2.11.7 vẫn Go 1.26.8, SeaweedFS 4.48; GO-2026-6604 chỉ Windows); `/co-so`, `/thanh-vien` sang `t()` (−77 chuỗi, còn 2280). D-095: 8 MUST bỏ tick (ruleset sống chưa import `main.json` bản D-091) ⇒ MUST mở 99.
 - Đợt mới: `loop resume` nếu còn `.autopilot/state.json`; container mới không có state ⇒ PLAN mới + `loop init` (FB-149).
 - Phát hành v0.2.0 (#88). D-091 (2026-10-22): pha harden, 26 cổng hoãn đã khôi phục — `main.json` 28 context, strict bật (người import lên GitHub). `release-please` đỏ — xem *Tiếp theo* 3.
 
 ## Tiếp theo
-1. Người (theo nhóm, từng bước ở BLUEPRINT-GAPS): ① import `.github/rulesets/tags.json` (cấm xoá/dời tag `v*`, WF-REL-003) ② nhãn `major`, Dependabot, quyết D-060 ③ BASE-REPO-006 cần tag annotated (release-please tạo tag thường) — quyết bước tạo tag; xoá tag mồ côi `v2.0.0` ④ VPS/domain/staging/secret store ⑤ sao lưu khác máy + Prometheus/Alertmanager + RPO/RTO ⑥ pháp lý DPIA/DPO/DPA ⑦ LICENSE + SECURITY.md + PVR ⑧ kiểm tay thiết bị/a11y ⑨ quyết IND-SAAS-009, CMP-RIGHTS-001, PM-METRIC-003 ⑩ duyệt `WORKER_DATABASE_URL`/`MIGRATION_DATABASE_URL` ⑪ SMTP, ClamAV ⑫ quyết 18 đề xuất "Khi chạy thật" (GO-NO-GO 4b).
+1. Người (theo nhóm, từng bước ở BLUEPRINT-GAPS): ⓪ import `.github/rulesets/main.json` (D-091) rồi tick lại 8 mục D-095 ① import `.github/rulesets/tags.json` (cấm xoá/dời tag `v*`, WF-REL-003) ② nhãn `major`, Dependabot, quyết D-060 ③ BASE-REPO-006 cần tag annotated (release-please tạo tag thường) — quyết bước tạo tag; xoá tag mồ côi `v2.0.0` ④ VPS/domain/staging/secret store ⑤ sao lưu khác máy + Prometheus/Alertmanager + RPO/RTO ⑥ pháp lý DPIA/DPO/DPA ⑦ LICENSE + SECURITY.md + PVR ⑧ kiểm tay thiết bị/a11y ⑨ quyết IND-SAAS-009, CMP-RIGHTS-001, PM-METRIC-003 ⑩ duyệt `WORKER_DATABASE_URL`/`MIGRATION_DATABASE_URL` ⑪ SMTP, ClamAV ⑫ quyết 18 đề xuất "Khi chạy thật" (GO-NO-GO 4b).
 2. **Hạn gấp:** `.grype.yaml` 4 luật critical hết hạn **2026-10-29** (21 luật 2026-11-01) — rà lại: có image Caddy/SeaweedFS dựng bằng Go ≥ 1.26.9 → nâng digest, gỡ luật; không → gia hạn ≤ 7 ngày hoặc tự dựng image (D-094, bắt buộc trước production). Duyệt/gia hạn `@img/sharp-libvips-linux-x64` LGPL (2026-12-31), `parse-cache-control` BSD (2027-04-18).
 3. **Người — `release-please` đỏ trên `main` từ #93** (`Error adding to tree`, chạy lại 1 lần vẫn đỏ): token đọc được nhưng không ghi được ⇒ nhiều khả năng secret `RELEASE_PLEASE_TOKEN` thiếu **Contents: Read and write** (README, mục Phát hành). Sửa quyền hoặc xoá secret, rồi chạy lại workflow `Release`; xoá nhánh mồ côi `release-please--branches--main--components--hotel-manager` nếu không cần.
 4. Người: chạy `perf-nightly` (`workflow_dispatch`) một lần khi có staging (QA-PERF-002); chờ hạ tầng: CMP-PRIV-008, XC-GREEN-002, PRF-WEB-005; XC-I18N-001 chuyển dần ~2280 chuỗi.
@@ -25,7 +25,6 @@
 - D-064 otelcol-contrib ghim SHA-256; `schema-compat` mỗi PR · D-065 required check gom ở `main.json`, import là việc người.
 - D-066 FE-TEST-001 chỉ test Testing Library; giữ `skipLibCheck` có lý do; bỏ husky, một hook `.githooks`.
 - D-067 ngoại lệ grype CÓ HẠN (critical ≤ 7 ngày, high ≤ 30 ngày) + VULN-SLA; kiểm hạn ở job, không ở unit test.
-- D-075 đợt 12 chỉ gia cố rào đã ghi treo; D-076 bộ đếm i18n chặt hơn ⇒ chuyển chuỗi chứ không nới baseline.
 - D-084…D-086 hoãn 26 cổng ở pha build; D-091 khôi phục khi harden (`DEFERRED_TO_HARDEN` rỗng); D-092 e2e timeout 40 → 15 để vừa trần 600 phút CI/PR.
 - D-068 ngoại lệ giấy phép `parse-cache-control` BSD (hạn 2027-04-18); giữ MỘT lockfile pnpm.
 - Nợ chấp nhận: pháp lý trong `docs/research/` chỉ có nguồn thứ cấp — đối chiếu văn bản gốc trước khi dùng dữ liệu thật.
