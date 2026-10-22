@@ -690,3 +690,10 @@
 - Chọn: Bỏ tick về [ ] (giữ Kiểm), loop defer chờ người import; tick lại khi lệnh Kiểm xanh
 - Lý do (tiêu chí chất lượng cuối): (1) P1 bằng chứng, không lời khai: lệnh Kiểm đỏ thì mục chưa đạt; không nới công cụ kiểm (LOOP-CI-001). (2) đảo ngược: import xong chạy lại Kiểm rồi tick lại
 - Đường lùi: Người import ruleset → chạy 'node scripts/check-github-live.mjs ruleset' xanh → tick lại 8 mục
+
+### D-096 · 2026-10-22T09:47:47+00:00 · Duyệt PLAN đợt 18 (i18n 5 màn ngoài merge_risk_paths, hạ baseline)?
+
+- Phương án: (1) Duyệt 3 task như viết · (2) Dừng, chờ người xử lý 99 MUST
+- Chọn: Duyệt 3 task như viết
+- Lý do (tiêu chí chất lượng cuối): (3)(4) XC-I18N-001 là MUST duy nhất máy làm được; chọn màn ngoài merge_risk_paths để PR theo làn L3; ratchet chặn lùi
+- Đường lùi: Revert PR đợt 18

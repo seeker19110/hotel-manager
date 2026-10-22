@@ -5,10 +5,11 @@ import { CommandForm } from "../../../components/command/command-form.tsx";
 import { StatusBadge } from "../../../components/ui/badge.tsx";
 import { ErrorState } from "../../../components/ui/state.tsx";
 import { DEFAULT_TIME_ZONE, dateTime, PRIORITY, TASK_KIND, TASK_STATUS } from "../../../lib/format.ts";
+import { t } from "../../../lib/i18n.ts";
 import { withActor } from "../../../lib/page.tsx";
 import { safe } from "../../../lib/safe.ts";
 
-export const metadata: Metadata = { title: "Việc dọn phòng — Hotel Manager" };
+export const metadata: Metadata = { title: t("housekeeping.task.metadata.title") };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -16,51 +17,63 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export default async function TaskPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!UUID.test(id)) notFound();
-  return withActor("Việc dọn phòng", "/buong-phong", async (actor) => {
+  return withActor(t("housekeeping.task.page.title"), "/buong-phong", async (actor) => {
     const r = await safe(getHousekeepingTask(serverContext().db, actor, id));
     if (!r.ok) {
       if (r.status === 404) notFound();
-      return <ErrorState title="Không xem được việc" text={r.message} />;
+      return <ErrorState title={t("housekeeping.task.error.load")} text={r.message} />;
     }
-    const t = r.data;
+    const task = r.data;
     const props = await safe(opsProperties(serverContext().db, actor));
     const timeZone =
-      (props.ok ? props.data.find((p) => p.id === t.propertyId)?.timezone : undefined) ?? DEFAULT_TIME_ZONE;
+      (props.ok ? props.data.find((p) => p.id === task.propertyId)?.timezone : undefined) ??
+      DEFAULT_TIME_ZONE;
     const lead = ["owner", "manager"].includes(actor.role);
-    const mine = t.assigneeMembershipId === actor.membershipId;
-    const canClaim = t.status === "open" && ["housekeeping", "owner", "manager"].includes(actor.role);
+    const mine = task.assigneeMembershipId === actor.membershipId;
+    const canClaim = task.status === "open" && ["housekeeping", "owner", "manager"].includes(actor.role);
     const canProgress =
-      (lead || (actor.role === "housekeeping" && mine)) && ["assigned", "in_progress"].includes(t.status);
+      (lead || (actor.role === "housekeeping" && mine)) && ["assigned", "in_progress"].includes(task.status);
     const canCancel =
       ["owner", "manager", "front_desk"].includes(actor.role) &&
-      ["open", "assigned", "in_progress"].includes(t.status);
+      ["open", "assigned", "in_progress"].includes(task.status);
     return (
       <>
         <section aria-labelledby="tt" className="panel">
           <h2 id="tt">
-            Phòng {t.unitCode} — {TASK_KIND[t.kind] ?? t.kind}
+            {t("housekeeping.task.heading", {
+              code: task.unitCode,
+              kind: TASK_KIND[task.kind] ?? task.kind,
+            })}
           </h2>
           <dl className="facts">
-            <dt>Trạng thái</dt>
+            <dt>{t("housekeeping.task.facts.status")}</dt>
             <dd>
-              <StatusBadge status={t.status} label={TASK_STATUS[t.status] ?? t.status} testId="task-status" />
+              <StatusBadge
+                status={task.status}
+                label={TASK_STATUS[task.status] ?? task.status}
+                testId="task-status"
+              />
             </dd>
-            <dt>Tầng</dt>
-            <dd>{t.floor}</dd>
-            <dt>Ưu tiên</dt>
-            <dd>{PRIORITY[t.priority] ?? t.priority}</dd>
-            <dt>Người làm</dt>
-            <dd>{t.assigneeName ?? "Chưa có người nhận"}</dd>
-            {t.arrivalToday && t.expectedArrivalAt ? (
+            <dt>{t("housekeeping.task.facts.floor")}</dt>
+            <dd>{task.floor}</dd>
+            <dt>{t("housekeeping.task.facts.priority")}</dt>
+            <dd>{PRIORITY[task.priority] ?? task.priority}</dd>
+            <dt>{t("housekeeping.task.facts.assignee")}</dt>
+            <dd>{task.assigneeName ?? t("housekeeping.task.facts.assignee_none")}</dd>
+            {task.arrivalToday && task.expectedArrivalAt ? (
               <>
-                <dt>Khách đến</dt>
-                <dd>Hôm nay lúc {dateTime(t.expectedArrivalAt, timeZone)}</dd>
+                <dt>{t("housekeeping.task.facts.arrival")}</dt>
+                <dd>
+                  {t("housekeeping.task.facts.arrival_today", {
+                    time: dateTime(task.expectedArrivalAt, timeZone),
+                  })}
+                </dd>
               </>
             ) : null}
-            {t.note ? (
+            {task.note ? (
               <>
-                <dt>Ghi chú</dt>
-                <dd>{t.note}</dd>
+                <dt>{t("housekeeping.task.facts.note")}</dt>
+                <dd>{task.note}</dd>
               </>
             ) : null}
           </dl>
@@ -70,47 +83,54 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
           <CommandForm
             path="housekeeping/claimTask"
             fixed={{ task_id: id }}
-            submitLabel="Nhận việc"
-            successText="Đã nhận việc."
+            submitLabel={t("housekeeping.task.claim.submit")}
+            successText={t("housekeeping.task.claim.success")}
             className="btn--large"
           />
         ) : null}
-        {canProgress && t.status === "assigned" ? (
+        {canProgress && task.status === "assigned" ? (
           <CommandForm
             path="housekeeping/startTask"
             fixed={{ task_id: id }}
-            submitLabel="Bắt đầu dọn"
-            successText="Đã bắt đầu."
+            submitLabel={t("housekeeping.task.start.submit")}
+            successText={t("housekeeping.task.start.success")}
             className="btn--large"
           />
         ) : null}
-        {canProgress && t.status === "in_progress" ? (
+        {canProgress && task.status === "in_progress" ? (
           <CommandForm
             path="housekeeping/completeTask"
             fixed={{ task_id: id }}
-            fields={[{ name: "note", label: "Ghi chú (tuỳ chọn)", maxLength: 2000 }]}
-            submitLabel="Xong"
-            successText="Đã báo xong — chờ nghiệm thu."
+            fields={[{ name: "note", label: t("housekeeping.task.complete.note"), maxLength: 2000 }]}
+            submitLabel={t("housekeeping.task.complete.submit")}
+            successText={t("housekeeping.task.complete.success")}
             className="btn--large"
           />
         ) : null}
-        {lead && t.status === "done" ? (
+        {lead && task.status === "done" ? (
           <section aria-labelledby="nt" className="panel">
-            <h2 id="nt">Nghiệm thu</h2>
+            <h2 id="nt">{t("housekeeping.task.verify.heading")}</h2>
             <CommandForm
               path="housekeeping/verifyTask"
               fixed={{ task_id: id, result: "pass" }}
-              submitLabel="Đạt — phòng sẵn sàng"
-              successText="Đã nghiệm thu — phòng sẵn sàng."
+              submitLabel={t("housekeeping.task.verify.pass_submit")}
+              successText={t("housekeeping.task.verify.pass_success")}
               className="btn--large"
               testId="verify-pass"
             />
             <CommandForm
               path="housekeeping/verifyTask"
               fixed={{ task_id: id, result: "fail" }}
-              fields={[{ name: "reason", label: "Lý do không đạt", required: true, maxLength: 1000 }]}
-              submitLabel="Không đạt"
-              successText="Đã trả lại việc cho người làm."
+              fields={[
+                {
+                  name: "reason",
+                  label: t("housekeeping.task.verify.fail_reason"),
+                  required: true,
+                  maxLength: 1000,
+                },
+              ]}
+              submitLabel={t("housekeeping.task.verify.fail_submit")}
+              successText={t("housekeeping.task.verify.fail_success")}
               variant="secondary"
               className="btn--large"
             />
@@ -118,22 +138,32 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
         ) : null}
         {canCancel ? (
           <details className="details-box">
-            <summary>Huỷ việc</summary>
+            <summary>{t("housekeeping.task.cancel.summary")}</summary>
             <CommandForm
               path="housekeeping/cancelTask"
-              confirm="Huỷ việc dọn phòng; không mở lại được."
-              confirmLabel={`Huỷ việc ${(TASK_KIND[t.kind] ?? t.kind).toLowerCase()} phòng ${t.unitCode}`}
+              confirm={t("housekeeping.task.cancel.confirm")}
+              confirmLabel={t("housekeeping.task.cancel.label", {
+                kind: (TASK_KIND[task.kind] ?? task.kind).toLowerCase(),
+                room: task.unitCode,
+              })}
               fixed={{ task_id: id }}
-              fields={[{ name: "reason", label: "Lý do huỷ", required: true, maxLength: 1000 }]}
-              submitLabel="Huỷ việc"
-              successText="Đã huỷ việc."
+              fields={[
+                {
+                  name: "reason",
+                  label: t("housekeeping.task.cancel.reason"),
+                  required: true,
+                  maxLength: 1000,
+                },
+              ]}
+              submitLabel={t("housekeeping.task.cancel.submit")}
+              successText={t("housekeeping.task.cancel.success")}
               variant="secondary"
             />
           </details>
         ) : null}
         <p>
           <a className="btn btn--secondary" href="/buong-phong">
-            Về danh sách việc
+            {t("housekeeping.task.back")}
           </a>
         </p>
       </>

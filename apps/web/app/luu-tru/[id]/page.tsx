@@ -13,10 +13,11 @@ import {
   vnd,
   vndUnitPrice,
 } from "../../../lib/format.ts";
+import { t } from "../../../lib/i18n.ts";
 import { withActor } from "../../../lib/page.tsx";
 import { safe } from "../../../lib/safe.ts";
 
-export const metadata: Metadata = { title: "Lượt ở và folio — Hotel Manager" };
+export const metadata: Metadata = { title: t("stay.metadata.title") };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MANAGE = ["owner", "manager", "front_desk"];
@@ -25,12 +26,12 @@ const MANAGE = ["owner", "manager", "front_desk"];
 export default async function StayPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!UUID.test(id)) notFound();
-  return withActor("Lượt ở và folio", "/dat-phong", async (actor) => {
+  return withActor(t("stay.page.title"), "/dat-phong", async (actor) => {
     const db = serverContext().db;
     const r = await safe(getFolio(db, actor, id));
     if (!r.ok) {
       if (r.status === 404) notFound();
-      return <ErrorState title="Không xem được folio" text={r.message} />;
+      return <ErrorState title={t("stay.error.load")} text={r.message} />;
     }
     const f = r.data;
     const props = await safe(opsProperties(db, actor));
@@ -41,9 +42,9 @@ export default async function StayPage({ params }: { params: Promise<{ id: strin
     return (
       <>
         <section aria-labelledby="tt" className="panel">
-          <h2 id="tt">Phòng {f.unitCode}</h2>
+          <h2 id="tt">{t("stay.room.heading", { code: f.unitCode })}</h2>
           <dl className="facts">
-            <dt>Trạng thái</dt>
+            <dt>{t("stay.facts.status")}</dt>
             <dd>
               <StatusBadge
                 status={f.stayStatus}
@@ -51,30 +52,32 @@ export default async function StayPage({ params }: { params: Promise<{ id: strin
                 testId="stay-status"
               />
             </dd>
-            <dt>Tổng phải thu</dt>
+            <dt>{t("stay.facts.charges")}</dt>
             <dd data-testid="folio-charges">{vnd(f.chargesTotal)}</dd>
-            <dt>Đã thu</dt>
+            <dt>{t("stay.facts.paid")}</dt>
             <dd data-testid="folio-paid">{vnd(f.paidTotal)}</dd>
-            <dt>Còn phải thu</dt>
+            <dt>{t("stay.facts.balance")}</dt>
             <dd data-testid="folio-balance">{vnd(f.balance)}</dd>
-            <dt>Cọc đang giữ (tách riêng)</dt>
-            <dd data-testid="folio-deposit">{f.deposit ? vnd(f.deposit.balance) : "Không có"}</dd>
+            <dt>{t("stay.facts.deposit")}</dt>
+            <dd data-testid="folio-deposit">
+              {f.deposit ? vnd(f.deposit.balance) : t("stay.facts.deposit_none")}
+            </dd>
           </dl>
           <p>
             <a className="btn btn--secondary" href={`/dat-phong/${f.reservationId}`}>
-              Mở đặt phòng
+              {t("stay.link.reservation")}
             </a>
           </p>
         </section>
 
         <section aria-labelledby="khoan" className="panel">
-          <h2 id="khoan">Các khoản</h2>
+          <h2 id="khoan">{t("stay.charges.heading")}</h2>
           <table className="lines">
-            <caption>Khoản phải thu của lượt ở</caption>
+            <caption>{t("stay.charges.caption")}</caption>
             <thead>
               <tr>
-                <th scope="col">Khoản</th>
-                <th scope="col">Thành tiền</th>
+                <th scope="col">{t("stay.charges.col_kind")}</th>
+                <th scope="col">{t("stay.charges.col_amount")}</th>
               </tr>
             </thead>
             <tbody>
@@ -82,8 +85,10 @@ export default async function StayPage({ params }: { params: Promise<{ id: strin
                 <tr key={c.id} data-testid="charge">
                   <th scope="row">
                     {CHARGE_KIND[c.kind] ?? c.kind}: {c.description}
-                    {c.quantity > 1 ? ` (${c.quantity} × ${vndUnitPrice(c.unitPrice)})` : ""}
-                    {c.voided ? " — đã huỷ" : ""}
+                    {c.quantity > 1
+                      ? t("stay.charges.quantity", { quantity: c.quantity, price: vndUnitPrice(c.unitPrice) })
+                      : ""}
+                    {c.voided ? t("stay.charges.voided") : ""}
                   </th>
                   <td>{c.voided ? <s>{vnd(c.amount)}</s> : vnd(c.amount)}</td>
                 </tr>
@@ -91,12 +96,12 @@ export default async function StayPage({ params }: { params: Promise<{ id: strin
             </tbody>
           </table>
           {f.payments.length > 0 ? (
-            <ul className="card-list" aria-label="Khoản đã thu">
+            <ul className="card-list" aria-label={t("stay.payments.aria")}>
               {f.payments.map((p) => (
                 <li key={p.id} className="card" data-testid="folio-payment">
                   {PAYMENT_METHOD[p.method] ?? p.method} {vnd(p.amount)} —{" "}
                   {PAYMENT_STATUS[p.status] ?? p.status}
-                  {p.receiptNo ? ` · biên nhận ${p.receiptNo}` : ""}
+                  {p.receiptNo ? t("stay.payments.receipt", { receipt: p.receiptNo }) : ""}
                 </li>
               ))}
             </ul>
@@ -105,50 +110,59 @@ export default async function StayPage({ params }: { params: Promise<{ id: strin
 
         {canManage && inHouse ? (
           <section aria-labelledby="dv" className="panel">
-            <h2 id="dv">Thêm dịch vụ / phụ thu / giảm giá</h2>
+            <h2 id="dv">{t("stay.add.heading")}</h2>
             <CommandForm
               path="stay/postCharge"
               fixed={{ stay_id: id }}
               fields={[
                 {
                   name: "kind",
-                  label: "Loại khoản",
+                  label: t("stay.add.kind"),
                   type: "select",
                   defaultValue: "service",
                   options: [
-                    { value: "service", label: "Dịch vụ" },
-                    { value: "fee", label: "Phụ thu" },
-                    { value: "discount", label: "Giảm giá" },
+                    { value: "service", label: t("stay.add.kind_service") },
+                    { value: "fee", label: t("stay.add.kind_fee") },
+                    { value: "discount", label: t("stay.add.kind_discount") },
                   ],
                 },
-                { name: "description", label: "Nội dung", required: true, maxLength: 500 },
-                { name: "quantity", label: "Số lượng", type: "integer", defaultValue: 1, required: true },
-                { name: "unit_price", label: "Đơn giá (đồng)", type: "money", required: true },
+                { name: "description", label: t("stay.add.description"), required: true, maxLength: 500 },
+                {
+                  name: "quantity",
+                  label: t("stay.add.quantity"),
+                  type: "integer",
+                  defaultValue: 1,
+                  required: true,
+                },
+                { name: "unit_price", label: t("stay.add.unit_price"), type: "money", required: true },
               ]}
-              submitLabel="Thêm khoản"
-              successText="Đã thêm khoản vào folio."
+              submitLabel={t("stay.add.submit")}
+              successText={t("stay.add.success")}
               testId="charge-form"
             />
             {f.charges
               .filter((c) => !c.voided && c.kind !== "room")
               .map((c) => (
                 <details key={c.id} className="details-box">
-                  <summary>Huỷ khoản: {c.description}</summary>
+                  <summary>{t("stay.void.summary", { description: c.description })}</summary>
                   <CommandForm
                     path="stay/voidCharge"
-                    confirm="Huỷ khoản phí này khỏi folio; thao tác được ghi nhật ký."
-                    confirmLabel={`Huỷ khoản "${c.description}" (phòng ${f.unitCode})`}
+                    confirm={t("stay.void.confirm")}
+                    confirmLabel={t("stay.void.confirm_label", {
+                      description: c.description,
+                      room: f.unitCode,
+                    })}
                     fixed={{ charge_id: c.id }}
                     fields={[
                       {
                         name: "reason",
-                        label: `Lý do huỷ "${c.description}"`,
+                        label: t("stay.void.reason", { description: c.description }),
                         required: true,
                         maxLength: 1000,
                       },
                     ]}
-                    submitLabel="Huỷ khoản này"
-                    successText="Đã huỷ khoản."
+                    submitLabel={t("stay.void.submit")}
+                    successText={t("stay.void.success")}
                     variant="secondary"
                   />
                 </details>
@@ -158,79 +172,78 @@ export default async function StayPage({ params }: { params: Promise<{ id: strin
 
         {canManage && inHouse ? (
           <section aria-labelledby="out" className="panel">
-            <h2 id="out">Trả phòng</h2>
+            <h2 id="out">{t("stay.checkout.heading")}</h2>
             {property ? <ShiftPanel property={property} /> : null}
             {/* key theo số tiền: form mount lại khi folio đổi → ô tiền luôn mặc định đúng số còn lại */}
             {owes ? (
               <>
                 <p>
-                  Khách còn phải trả <strong>{vnd(f.balance)}</strong>. Thu tiền mặt rồi trả phòng (khoản thu
-                  được xác nhận ngay trong ca của bạn).
+                  {t("stay.checkout.owes_before")}
+                  <strong>{vnd(f.balance)}</strong>
+                  {t("stay.checkout.owes_after")}
                 </p>
                 <CommandForm
                   key={`cash-${f.balance}`}
                   path="stay/checkOut"
-                  confirm="Trả phòng sẽ phát hành folio, ghi sổ và tạo việc dọn phòng; không quay lại được."
-                  confirmLabel={`Thu {cash} và trả phòng ${f.unitCode}`}
+                  confirm={t("stay.checkout.confirm")}
+                  confirmLabel={t("stay.checkout.cash_label", { cash: "{cash}", room: f.unitCode })}
                   fixed={{ stay_id: id, payments: [{ method: "cash" }] }}
                   fields={[
                     {
                       name: "cash",
                       path: "payments.0.amount",
-                      label: "Tiền mặt thu (đồng)",
+                      label: t("stay.checkout.cash_field"),
                       type: "money",
                       required: true,
                       defaultValue: f.balance,
                     },
                   ]}
-                  submitLabel="Thu tiền mặt và trả phòng"
-                  successText="Đã trả phòng. Việc dọn phòng đã được tạo cho buồng phòng."
+                  submitLabel={t("stay.checkout.cash_submit")}
+                  successText={t("stay.checkout.cash_success")}
                   testId="checkout-cash"
                 />
-                <p className="card__meta">
-                  Khách chưa trả đủ: cho ghi nợ cần quản lý duyệt — lập yêu cầu duyệt trước khi trả phòng.
-                </p>
+                <p className="card__meta">{t("stay.checkout.debt_note")}</p>
               </>
             ) : f.deposit && f.deposit.balance > 0 ? (
               <>
                 <CommandForm
                   key={`refund-${f.deposit.balance}`}
                   path="stay/checkOut"
-                  confirm="Trả phòng sẽ phát hành folio, ghi sổ và tạo việc dọn phòng; không quay lại được."
-                  confirmLabel={`Hoàn cọc {refund} và trả phòng ${f.unitCode}`}
+                  confirm={t("stay.checkout.confirm")}
+                  confirmLabel={t("stay.checkout.refund_label", { refund: "{refund}", room: f.unitCode })}
                   fixed={{ stay_id: id, deposit_refund: { method: "cash" } }}
                   fields={[
                     {
                       name: "refund",
                       path: "deposit_refund.amount",
-                      label: "Hoàn cọc tiền mặt (đồng)",
+                      label: t("stay.checkout.refund_field"),
                       type: "money",
                       required: true,
                       defaultValue: f.deposit.balance,
                     },
                   ]}
-                  submitLabel="Trả phòng và hoàn cọc"
-                  successText="Đã trả phòng và hoàn cọc. Việc dọn phòng đã được tạo."
+                  submitLabel={t("stay.checkout.refund_submit")}
+                  successText={t("stay.checkout.refund_success")}
                   testId="checkout-refund"
                 />
                 <CommandForm
                   path="stay/checkOut"
-                  confirm="Trả phòng sẽ phát hành folio, ghi sổ và tạo việc dọn phòng; không quay lại được."
-                  confirmLabel={`Trả phòng ${f.unitCode} (chưa hoàn cọc)`}
+                  confirm={t("stay.checkout.confirm")}
+                  confirmLabel={t("stay.checkout.keep_label", { room: f.unitCode })}
                   fixed={{ stay_id: id }}
-                  submitLabel="Trả phòng (chưa hoàn cọc)"
-                  successText="Đã trả phòng. Việc dọn phòng đã được tạo."
+                  submitLabel={t("stay.checkout.keep_submit")}
+                  successText={t("stay.checkout.success")}
                   variant="secondary"
                 />
               </>
             ) : (
               <CommandForm
                 path="stay/checkOut"
-                confirm="Trả phòng sẽ phát hành folio, ghi sổ và tạo việc dọn phòng; không quay lại được."
-                confirmLabel={`Trả phòng ${f.unitCode}`}
+                confirm={t("stay.checkout.confirm")}
+                confirmLabel={t("stay.checkout.plain_label", { room: f.unitCode })}
                 fixed={{ stay_id: id }}
-                submitLabel="Trả phòng"
-                successText="Đã trả phòng. Việc dọn phòng đã được tạo."
+                submitLabel={t("stay.checkout.plain_submit")}
+                successText={t("stay.checkout.success")}
                 testId="checkout-plain"
               />
             )}
@@ -240,7 +253,7 @@ export default async function StayPage({ params }: { params: Promise<{ id: strin
         {f.stayStatus === "checked_out" ? (
           <p>
             <a className="btn" href="/buong-phong">
-              Xem việc dọn phòng
+              {t("stay.link.housekeeping")}
             </a>
           </p>
         ) : null}

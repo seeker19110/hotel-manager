@@ -10,11 +10,12 @@ import { Button } from "../../components/ui/button.tsx";
 import { TextField } from "../../components/ui/field.tsx";
 import { ErrorState, LoadingState } from "../../components/ui/state.tsx";
 import { timedFetch } from "../../lib/fetch-timeout.ts";
+import { t } from "../../lib/i18n.ts";
 
 type Phase = "checking" | "anonymous" | "ready" | "accepting" | "done" | "invalid" | "failed" | "no-token";
 type AuthMode = "login" | "register" | "totp";
 
-const INVALID_TEXT = "Lời mời không còn hiệu lực. Hãy nhờ quản trị gửi lại.";
+const INVALID_TEXT = t("invitation.invalid_text");
 
 async function jsonPost(path: string, body: unknown, key?: string) {
   const res = await timedFetch(path, {
@@ -71,7 +72,7 @@ export function AcceptInvitation() {
 
   async function onAuth(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!online) return setError("Không có kết nối mạng. Thao tác chưa được gửi.");
+    if (!online) return setError(t("invitation.error.offline"));
     const f = new FormData(e.currentTarget);
     const email = String(f.get("email") ?? "");
     const password = String(f.get("password") ?? "");
@@ -80,7 +81,7 @@ export function AcceptInvitation() {
     try {
       if (mode === "totp") {
         const r = await jsonPost("/api/auth/two-factor/verify-totp", { code: String(f.get("code") ?? "") });
-        if (!r.ok) return setError("Mã xác thực không đúng hoặc đã hết hạn.");
+        if (!r.ok) return setError(t("invitation.error.totp"));
         return await checkSession();
       }
       if (mode === "register") {
@@ -92,21 +93,21 @@ export function AcceptInvitation() {
         if (!r.ok)
           return setError(
             r.status === 422 || r.status === 400
-              ? "Không tạo được tài khoản: email đã có tài khoản hoặc mật khẩu chưa đủ 10 ký tự."
-              : "Không tạo được tài khoản. Vui lòng thử lại.",
+              ? t("invitation.error.register_rejected")
+              : t("invitation.error.register_failed"),
           );
       }
       const r = await jsonPost("/api/auth/sign-in/email", { email, password });
       if (!r.ok)
         return setError(
           r.data.code === "ACCOUNT_LOCKED" || r.status === 429
-            ? "Tài khoản tạm khoá do đăng nhập sai nhiều lần. Thử lại sau 15 phút."
-            : "Email hoặc mật khẩu không đúng.",
+            ? t("invitation.error.locked")
+            : t("invitation.error.credentials"),
         );
       if (r.data.twoFactorRedirect) return setMode("totp");
       await checkSession();
     } catch {
-      setError("Chưa nhận được phản hồi. Kiểm tra mạng rồi thử lại.");
+      setError(t("invitation.error.no_response"));
     } finally {
       setBusy(false);
     }
@@ -116,14 +117,14 @@ export function AcceptInvitation() {
     setBusy(true);
     try {
       const r = await jsonPost("/api/auth/sign-out", {});
-      if (!r.ok && r.status !== 401) return setProblem("Chưa đăng xuất được. Thử lại.");
+      if (!r.ok && r.status !== 401) return setProblem(t("invitation.error.sign_out"));
       setWho(null);
       setMode("login");
       setError(undefined);
       setProblem(undefined);
       setPhase("anonymous");
     } catch {
-      setProblem("Chưa nhận được phản hồi. Kiểm tra mạng rồi thử lại.");
+      setProblem(t("invitation.error.no_response"));
     } finally {
       setBusy(false);
     }
@@ -131,7 +132,7 @@ export function AcceptInvitation() {
 
   async function accept() {
     if (!token.current || phase === "accepting") return;
-    if (!online) return setProblem("Không có kết nối mạng. Thao tác chưa được gửi.");
+    if (!online) return setProblem(t("invitation.error.offline"));
     key.current ??= crypto.randomUUID();
     setPhase("accepting");
     setProblem(undefined);
@@ -145,12 +146,12 @@ export function AcceptInvitation() {
       }
       if (r.status === 409 && r.data.code === "DUPLICATE") {
         key.current = null;
-        setProblem("Tài khoản này đã là thành viên của tổ chức. Chọn tổ chức để vào làm việc.");
+        setProblem(t("invitation.error.duplicate"));
         return setPhase("ready");
       }
       if (!r.ok) {
         // Lỗi khác (kể cả 5xx): giữ key để bấm lại là gửi lại đúng lệnh cũ.
-        setProblem("Chưa nhận lời mời được. Bấm lại để thử lần nữa.");
+        setProblem(t("invitation.error.accept_failed"));
         return setPhase("ready");
       }
       const organizationId = (r.data.data as { organizationId?: string } | undefined)?.organizationId;
@@ -174,28 +175,23 @@ export function AcceptInvitation() {
       }
       window.location.assign(safeUrl(home) ?? "/chon-to-chuc");
     } catch {
-      setProblem("Chưa nhận được phản hồi. Bấm lại để thử lần nữa — hệ thống không tạo hai lần.");
+      setProblem(t("invitation.error.accept_no_response"));
       setPhase("ready");
     }
   }
 
-  if (phase === "checking") return <LoadingState label="Đang kiểm tra phiên đăng nhập…" rows={2} />;
+  if (phase === "checking") return <LoadingState label={t("invitation.checking")} rows={2} />;
   if (phase === "no-token")
-    return (
-      <ErrorState
-        title="Liên kết không đầy đủ"
-        text="Mở lại đúng liên kết trong email lời mời, hoặc nhờ quản trị gửi lại."
-      />
-    );
+    return <ErrorState title={t("invitation.incomplete.title")} text={t("invitation.incomplete.text")} />;
   if (phase === "invalid")
     return (
       <ErrorState
-        title="Lời mời không còn hiệu lực"
-        text={`${INVALID_TEXT} Lời mời chỉ dùng một lần, hết hạn sau 7 ngày và chỉ dành cho đúng email được mời.`}
+        title={t("invitation.invalid.title")}
+        text={`${INVALID_TEXT}${t("invitation.invalid.rules")}`}
         action={
           who ? (
             <Button variant="secondary" onClick={signOut} loading={busy}>
-              Đăng xuất để dùng tài khoản khác
+              {t("invitation.invalid.sign_out")}
             </Button>
           ) : undefined
         }
@@ -204,26 +200,22 @@ export function AcceptInvitation() {
   if (phase === "failed")
     return (
       <ErrorState
-        title="Chưa kiểm tra được phiên đăng nhập"
-        text="Kiểm tra mạng rồi thử lại."
-        action={<Button onClick={() => void checkSession()}>Thử lại</Button>}
+        title={t("invitation.failed.title")}
+        text={t("invitation.failed.text")}
+        action={<Button onClick={() => void checkSession()}>{t("invitation.failed.retry")}</Button>}
       />
     );
-  if (phase === "done") return <LoadingState label="Đã tham gia — đang vào tổ chức…" rows={1} />;
+  if (phase === "done") return <LoadingState label={t("invitation.done")} rows={1} />;
 
   if (phase === "anonymous") {
     return (
       <>
-        <p>
-          {mode === "register"
-            ? "Tạo tài khoản bằng ĐÚNG địa chỉ email nhận lời mời."
-            : "Đăng nhập bằng ĐÚNG địa chỉ email nhận lời mời để chấp nhận."}
-        </p>
+        <p>{mode === "register" ? t("invitation.anon.register_intro") : t("invitation.anon.login_intro")}</p>
         <form onSubmit={onAuth} noValidate>
           {mode === "totp" ? (
             <TextField
-              label="Mã xác thực 6 số"
-              hint="Mở ứng dụng xác thực trên điện thoại để lấy mã."
+              label={t("invitation.field.totp")}
+              hint={t("invitation.field.totp_hint")}
               name="code"
               inputMode="numeric"
               autoComplete="one-time-code"
@@ -234,22 +226,32 @@ export function AcceptInvitation() {
           ) : (
             <>
               {mode === "register" ? (
-                <TextField label="Họ và tên" name="name" autoComplete="name" required maxLength={200} />
+                <TextField
+                  label={t("invitation.field.name")}
+                  name="name"
+                  autoComplete="name"
+                  required
+                  maxLength={200}
+                />
               ) : null}
               <TextField label="Email" name="email" type="email" autoComplete="username" required />
               <TextField
-                label="Mật khẩu"
+                label={t("invitation.field.password")}
                 name="password"
                 type="password"
                 autoComplete={mode === "register" ? "new-password" : "current-password"}
-                hint={mode === "register" ? "Tối thiểu 10 ký tự." : undefined}
+                hint={mode === "register" ? t("invitation.field.password_hint") : undefined}
                 required
                 error={error}
               />
             </>
           )}
           <Button type="submit" loading={busy}>
-            {mode === "totp" ? "Xác nhận" : mode === "register" ? "Tạo tài khoản và tiếp tục" : "Đăng nhập"}
+            {mode === "totp"
+              ? t("invitation.submit.totp")
+              : mode === "register"
+                ? t("invitation.submit.register")
+                : t("invitation.submit.login")}
           </Button>
         </form>
         {mode !== "totp" ? (
@@ -261,7 +263,7 @@ export function AcceptInvitation() {
                 setMode(mode === "login" ? "register" : "login");
               }}
             >
-              {mode === "login" ? "Tôi chưa có tài khoản" : "Tôi đã có tài khoản"}
+              {mode === "login" ? t("invitation.switch.to_register") : t("invitation.switch.to_login")}
             </Button>
           </p>
         ) : null}
@@ -272,7 +274,9 @@ export function AcceptInvitation() {
   return (
     <>
       <p>
-        Bạn đang đăng nhập bằng <strong>{who}</strong>. Lời mời chỉ chấp nhận được khi đúng email này.
+        {t("invitation.ready.signed_in_before")}
+        <strong>{who}</strong>
+        {t("invitation.ready.signed_in_after")}
       </p>
       {problem ? (
         <p className="field__error" role="alert">
@@ -281,12 +285,12 @@ export function AcceptInvitation() {
       ) : null}
       <p>
         <Button onClick={accept} loading={phase === "accepting"}>
-          Chấp nhận lời mời
+          {t("invitation.ready.accept")}
         </Button>
       </p>
       <p>
         <Button variant="secondary" onClick={signOut} loading={busy}>
-          Dùng tài khoản khác
+          {t("invitation.ready.other_account")}
         </Button>
       </p>
     </>

@@ -8,6 +8,7 @@ import { TextField } from "../../../../components/ui/field.tsx";
 import { ErrorState, LoadingState } from "../../../../components/ui/state.tsx";
 import { timedFetch } from "../../../../lib/fetch-timeout.ts";
 import { day, vnd } from "../../../../lib/format.ts";
+import { t } from "../../../../lib/i18n.ts";
 
 interface GuestView {
   stay: {
@@ -26,11 +27,11 @@ interface GuestView {
 }
 
 const STAY_STATUS: Record<string, string> = {
-  expected: "Sắp đến",
-  in_house: "Đang ở",
-  checked_out: "Đã trả phòng",
-  cancelled: "Đã huỷ",
-  no_show: "Không đến",
+  expected: t("guest_stay.status.expected"),
+  in_house: t("guest_stay.status.in_house"),
+  checked_out: t("guest_stay.status.checked_out"),
+  cancelled: t("guest_stay.status.cancelled"),
+  no_show: t("guest_stay.status.no_show"),
 };
 
 type State =
@@ -39,8 +40,8 @@ type State =
   | { kind: "ok"; view: GuestView }
   | { kind: "dead"; title: string; text: string };
 
-const EXPIRED = "Liên kết đã hết hạn. Vui lòng liên hệ lễ tân để nhận liên kết mới.";
-const REVOKED = "Liên kết không còn hiệu lực. Vui lòng liên hệ lễ tân.";
+const EXPIRED = t("guest_stay.error.expired_text");
+const REVOKED = t("guest_stay.error.revoked_text");
 
 function tokenFromFragment(): string | null {
   const m = /(?:^#|&)t=([A-Za-z0-9_-]+)/.exec(window.location.hash);
@@ -68,7 +69,7 @@ export function GuestStay({ stayId }: { stayId: string }) {
     e.preventDefault();
     if (!token) return;
     const digits = String(new FormData(e.currentTarget).get("last4") ?? "").trim();
-    if (!/^\d{4}$/.test(digits)) return setError("Nhập đúng 4 chữ số cuối số điện thoại đặt phòng");
+    if (!/^\d{4}$/.test(digits)) return setError(t("guest_stay.error.last4"));
     setError(undefined);
     setState({ kind: "loading" });
     try {
@@ -82,34 +83,37 @@ export function GuestStay({ stayId }: { stayId: string }) {
         | null;
       if (res.ok && j?.data) return setState({ kind: "ok", view: j.data });
       if (j?.code === "LINK_EXPIRED")
-        return setState({ kind: "dead", title: "Liên kết đã hết hạn", text: j.title ?? EXPIRED });
+        return setState({
+          kind: "dead",
+          title: t("guest_stay.error.expired_title"),
+          text: j.title ?? EXPIRED,
+        });
       if (j?.code === "LINK_REVOKED")
-        return setState({ kind: "dead", title: "Liên kết không còn hiệu lực", text: j.title ?? REVOKED });
+        return setState({
+          kind: "dead",
+          title: t("guest_stay.error.revoked_title"),
+          text: j.title ?? REVOKED,
+        });
       setState({ kind: "ask" });
       setError(
         res.status === 429
-          ? (j?.title ?? "Bạn thử quá nhiều lần. Vui lòng đợi ít phút.")
-          : (j?.title ?? "Không mở được liên kết. Vui lòng thử lại."),
+          ? (j?.title ?? t("guest_stay.error.too_many"))
+          : (j?.title ?? t("guest_stay.error.open_failed")),
       );
     } catch {
       setState({ kind: "ask" });
-      setError("Chưa nhận được phản hồi. Kiểm tra mạng rồi thử lại.");
+      setError(t("guest_stay.error.no_response"));
     }
   }
 
-  if (token === undefined) return <LoadingState label="Đang kiểm tra liên kết" />;
+  if (token === undefined) return <LoadingState label={t("guest_stay.loading")} />;
   if (token === null)
-    return (
-      <ErrorState
-        title="Liên kết không đầy đủ"
-        text="Hãy mở đúng liên kết lễ tân đã gửi, hoặc liên hệ lễ tân để nhận liên kết mới."
-      />
-    );
+    return <ErrorState title={t("guest_stay.incomplete.title")} text={t("guest_stay.incomplete.text")} />;
   if (state.kind === "dead") return <ErrorState title={state.title} text={state.text} />;
   if (state.kind === "loading")
     return (
       <div className="state" role="status">
-        <span className="spinner" aria-hidden="true" /> Đang kiểm tra liên kết
+        <span className="spinner" aria-hidden="true" /> {t("guest_stay.loading")}
       </div>
     );
   if (state.kind === "ok") {
@@ -117,33 +121,33 @@ export function GuestStay({ stayId }: { stayId: string }) {
     return (
       <>
         <section aria-labelledby="ls" className="panel">
-          <h2 id="ls">Lượt ở</h2>
+          <h2 id="ls">{t("guest_stay.stay.heading")}</h2>
           <dl className="facts">
-            <dt>Phòng</dt>
+            <dt>{t("guest_stay.stay.unit")}</dt>
             <dd data-testid="guest-unit">{stay.unitCode}</dd>
-            <dt>Ngày đến</dt>
+            <dt>{t("guest_stay.stay.arrival")}</dt>
             <dd>{day(stay.arrivalDate)}</dd>
-            <dt>Ngày đi</dt>
+            <dt>{t("guest_stay.stay.departure")}</dt>
             <dd>{day(stay.departureDate)}</dd>
-            <dt>Trạng thái</dt>
+            <dt>{t("guest_stay.stay.status")}</dt>
             <dd>{STAY_STATUS[stay.status] ?? stay.status}</dd>
           </dl>
         </section>
         <section aria-labelledby="fo" className="panel">
-          <h2 id="fo">Khoản phí</h2>
+          <h2 id="fo">{t("guest_stay.folio.heading")}</h2>
           {folio.charges.length > 0 ? (
             <table className="lines">
               <thead>
                 <tr>
-                  <th scope="col">Khoản</th>
-                  <th scope="col">Thành tiền</th>
+                  <th scope="col">{t("guest_stay.folio.col_kind")}</th>
+                  <th scope="col">{t("guest_stay.folio.col_amount")}</th>
                 </tr>
               </thead>
               <tbody>
                 {folio.charges.map((c) => (
                   <tr key={`${c.businessDate}-${c.description}-${c.amount}`}>
                     <th scope="row">
-                      {c.description} ({day(c.businessDate)})
+                      {t("guest_stay.folio.line", { description: c.description, date: day(c.businessDate) })}
                     </th>
                     <td>{vnd(c.amount)}</td>
                   </tr>
@@ -152,11 +156,11 @@ export function GuestStay({ stayId }: { stayId: string }) {
             </table>
           ) : null}
           <dl className="facts">
-            <dt>Tổng</dt>
+            <dt>{t("guest_stay.folio.total")}</dt>
             <dd data-testid="guest-total">{vnd(folio.total)}</dd>
-            <dt>Đã thanh toán</dt>
+            <dt>{t("guest_stay.folio.paid")}</dt>
             <dd data-testid="guest-paid">{vnd(folio.paid)}</dd>
-            <dt>Còn lại</dt>
+            <dt>{t("guest_stay.folio.balance")}</dt>
             <dd data-testid="guest-balance">{vnd(folio.balance)}</dd>
           </dl>
         </section>
@@ -166,8 +170,8 @@ export function GuestStay({ stayId }: { stayId: string }) {
   return (
     <form onSubmit={onSubmit} noValidate>
       <TextField
-        label="4 số cuối số điện thoại đặt phòng"
-        hint="Để bảo vệ thông tin của bạn, lễ tân yêu cầu xác minh trước khi hiển thị."
+        label={t("guest_stay.form.last4")}
+        hint={t("guest_stay.form.hint")}
         name="last4"
         inputMode="numeric"
         autoComplete="off"
@@ -175,7 +179,7 @@ export function GuestStay({ stayId }: { stayId: string }) {
         required
         error={error}
       />
-      <Button type="submit">Xem lượt ở</Button>
+      <Button type="submit">{t("guest_stay.form.submit")}</Button>
     </form>
   );
 }

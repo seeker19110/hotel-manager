@@ -438,5 +438,789 @@
   "member.revoke.confirm_label": {
     "message": "Thu hồi phiên của {name}",
     "description": "Màn Thành viên (/thanh-vien): nhãn xác nhận thu hồi phiên; {name} = tên thành viên."
+  },
+  "stay.metadata.title": {
+    "message": "Lượt ở và folio — Hotel Manager",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): tiêu đề tab trình duyệt"
+  },
+  "stay.page.title": {
+    "message": "Lượt ở và folio",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): tiêu đề màn"
+  },
+  "stay.error.load": {
+    "message": "Không xem được folio",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): tiêu đề trạng thái lỗi khi không tải được folio"
+  },
+  "stay.room.heading": {
+    "message": "Phòng {code}",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): tiêu đề khối thông tin; {code} = mã phòng"
+  },
+  "stay.facts.status": {
+    "message": "Trạng thái",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): nhãn trạng thái lượt ở"
+  },
+  "stay.facts.charges": {
+    "message": "Tổng phải thu",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): nhãn tổng các khoản phải thu"
+  },
+  "stay.facts.paid": {
+    "message": "Đã thu",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): nhãn tổng đã thu"
+  },
+  "stay.facts.balance": {
+    "message": "Còn phải thu",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): nhãn số còn phải thu"
+  },
+  "stay.facts.deposit": {
+    "message": "Cọc đang giữ (tách riêng)",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): nhãn số cọc đang giữ, tách khỏi folio"
+  },
+  "stay.facts.deposit_none": {
+    "message": "Không có",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): giá trị khi không có cọc"
+  },
+  "stay.link.reservation": {
+    "message": "Mở đặt phòng",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): nút mở đặt phòng gốc"
+  },
+  "stay.charges.heading": {
+    "message": "Các khoản",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): tiêu đề khối các khoản"
+  },
+  "stay.charges.caption": {
+    "message": "Khoản phải thu của lượt ở",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): chú thích bảng các khoản"
+  },
+  "stay.charges.col_kind": {
+    "message": "Khoản",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): tiêu đề cột khoản"
+  },
+  "stay.charges.col_amount": {
+    "message": "Thành tiền",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): tiêu đề cột thành tiền"
+  },
+  "stay.charges.quantity": {
+    "message": " ({quantity} × {price})",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): hậu tố dòng khoản khi số lượng > 1, có dấu cách đầu; {quantity} = số lượng, {price} = đơn giá đã định dạng"
+  },
+  "stay.charges.voided": {
+    "message": " — đã huỷ",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): hậu tố dòng khoản đã huỷ, có dấu cách đầu"
+  },
+  "stay.payments.aria": {
+    "message": "Khoản đã thu",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): nhãn trợ năng danh sách khoản đã thu"
+  },
+  "stay.payments.receipt": {
+    "message": " · biên nhận {receipt}",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): hậu tố dòng khoản đã thu, có dấu cách đầu; {receipt} = số biên nhận"
+  },
+  "stay.add.heading": {
+    "message": "Thêm dịch vụ / phụ thu / giảm giá",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): tiêu đề form thêm khoản"
+  },
+  "stay.add.kind": {
+    "message": "Loại khoản",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): nhãn chọn loại khoản"
+  },
+  "stay.add.kind_service": {
+    "message": "Dịch vụ",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): lựa chọn loại khoản: dịch vụ"
+  },
+  "stay.add.kind_fee": {
+    "message": "Phụ thu",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): lựa chọn loại khoản: phụ thu"
+  },
+  "stay.add.kind_discount": {
+    "message": "Giảm giá",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): lựa chọn loại khoản: giảm giá"
+  },
+  "stay.add.description": {
+    "message": "Nội dung",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): nhãn nội dung khoản"
+  },
+  "stay.add.quantity": {
+    "message": "Số lượng",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): nhãn số lượng"
+  },
+  "stay.add.unit_price": {
+    "message": "Đơn giá (đồng)",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): nhãn đơn giá"
+  },
+  "stay.add.submit": {
+    "message": "Thêm khoản",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): nút gửi form thêm khoản"
+  },
+  "stay.add.success": {
+    "message": "Đã thêm khoản vào folio.",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): thông báo thêm khoản thành công"
+  },
+  "stay.void.summary": {
+    "message": "Huỷ khoản: {description}",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): tiêu đề mục mở form huỷ khoản; {description} = nội dung khoản"
+  },
+  "stay.void.confirm": {
+    "message": "Huỷ khoản phí này khỏi folio; thao tác được ghi nhật ký.",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): nội dung hộp xác nhận huỷ khoản"
+  },
+  "stay.void.confirm_label": {
+    "message": "Huỷ khoản \"{description}\" (phòng {room})",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): nhãn nút xác nhận huỷ khoản; {description} = nội dung khoản, {room} = mã phòng"
+  },
+  "stay.void.reason": {
+    "message": "Lý do huỷ \"{description}\"",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): nhãn ô lý do huỷ khoản; {description} = nội dung khoản"
+  },
+  "stay.void.submit": {
+    "message": "Huỷ khoản này",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): nút gửi form huỷ khoản"
+  },
+  "stay.void.success": {
+    "message": "Đã huỷ khoản.",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): thông báo huỷ khoản thành công"
+  },
+  "stay.checkout.heading": {
+    "message": "Trả phòng",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): tiêu đề khối trả phòng"
+  },
+  "stay.checkout.owes_before": {
+    "message": "Khách còn phải trả ",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): đoạn trước số tiền còn nợ, có dấu cách cuối"
+  },
+  "stay.checkout.owes_after": {
+    "message": ". Thu tiền mặt rồi trả phòng (khoản thu được xác nhận ngay trong ca của bạn).",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): đoạn sau số tiền còn nợ, bắt đầu bằng dấu chấm"
+  },
+  "stay.checkout.confirm": {
+    "message": "Trả phòng sẽ phát hành folio, ghi sổ và tạo việc dọn phòng; không quay lại được.",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): nội dung hộp xác nhận trả phòng (mọi biến thể)"
+  },
+  "stay.checkout.success": {
+    "message": "Đã trả phòng. Việc dọn phòng đã được tạo.",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): thông báo trả phòng thành công"
+  },
+  "stay.checkout.cash_label": {
+    "message": "Thu {cash} và trả phòng {room}",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): nhãn nút xác nhận thu tiền mặt và trả phòng; {cash} = giữ nguyên chỗ giữ chỗ của form, {room} = mã phòng"
+  },
+  "stay.checkout.cash_field": {
+    "message": "Tiền mặt thu (đồng)",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): nhãn ô tiền mặt thu"
+  },
+  "stay.checkout.cash_submit": {
+    "message": "Thu tiền mặt và trả phòng",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): nút thu tiền mặt và trả phòng"
+  },
+  "stay.checkout.cash_success": {
+    "message": "Đã trả phòng. Việc dọn phòng đã được tạo cho buồng phòng.",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): thông báo thu tiền mặt và trả phòng thành công"
+  },
+  "stay.checkout.debt_note": {
+    "message": "Khách chưa trả đủ: cho ghi nợ cần quản lý duyệt — lập yêu cầu duyệt trước khi trả phòng.",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): ghi chú khi khách chưa trả đủ"
+  },
+  "stay.checkout.refund_label": {
+    "message": "Hoàn cọc {refund} và trả phòng {room}",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): nhãn nút xác nhận hoàn cọc và trả phòng; {refund} = giữ nguyên chỗ giữ chỗ của form, {room} = mã phòng"
+  },
+  "stay.checkout.refund_field": {
+    "message": "Hoàn cọc tiền mặt (đồng)",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): nhãn ô tiền cọc hoàn"
+  },
+  "stay.checkout.refund_submit": {
+    "message": "Trả phòng và hoàn cọc",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): nút trả phòng và hoàn cọc"
+  },
+  "stay.checkout.refund_success": {
+    "message": "Đã trả phòng và hoàn cọc. Việc dọn phòng đã được tạo.",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): thông báo trả phòng và hoàn cọc thành công"
+  },
+  "stay.checkout.keep_label": {
+    "message": "Trả phòng {room} (chưa hoàn cọc)",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): nhãn nút xác nhận trả phòng không hoàn cọc; {room} = mã phòng"
+  },
+  "stay.checkout.keep_submit": {
+    "message": "Trả phòng (chưa hoàn cọc)",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): nút trả phòng không hoàn cọc"
+  },
+  "stay.checkout.plain_label": {
+    "message": "Trả phòng {room}",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): nhãn nút xác nhận trả phòng; {room} = mã phòng"
+  },
+  "stay.checkout.plain_submit": {
+    "message": "Trả phòng",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): nút trả phòng"
+  },
+  "stay.link.housekeeping": {
+    "message": "Xem việc dọn phòng",
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): nút sang việc dọn phòng sau khi đã trả phòng"
+  },
+  "reservation.metadata.title": {
+    "message": "Chi tiết đặt phòng — Hotel Manager",
+    "description": "Màn Chi tiết đặt phòng (/dat-phong/[id]): tiêu đề tab trình duyệt"
+  },
+  "reservation.page.title": {
+    "message": "Chi tiết đặt phòng",
+    "description": "Màn Chi tiết đặt phòng (/dat-phong/[id]): tiêu đề màn"
+  },
+  "reservation.error.load": {
+    "message": "Không xem được đặt phòng",
+    "description": "Màn Chi tiết đặt phòng (/dat-phong/[id]): tiêu đề trạng thái lỗi khi không tải được đặt phòng"
+  },
+  "reservation.facts.status": {
+    "message": "Trạng thái",
+    "description": "Màn Chi tiết đặt phòng (/dat-phong/[id]): nhãn trạng thái đặt phòng"
+  },
+  "reservation.facts.booker": {
+    "message": "Người đặt",
+    "description": "Màn Chi tiết đặt phòng (/dat-phong/[id]): nhãn người đặt"
+  },
+  "reservation.facts.stay": {
+    "message": "Ở từ",
+    "description": "Màn Chi tiết đặt phòng (/dat-phong/[id]): nhãn khoảng ở"
+  },
+  "reservation.facts.room_total": {
+    "message": "Tiền phòng",
+    "description": "Màn Chi tiết đặt phòng (/dat-phong/[id]): nhãn tổng tiền phòng"
+  },
+  "reservation.facts.held_until": {
+    "message": "Hạn giữ phòng",
+    "description": "Màn Chi tiết đặt phòng (/dat-phong/[id]): nhãn hạn giữ phòng"
+  },
+  "reservation.nightly.caption": {
+    "message": "Giá từng đêm (đã chốt khi đặt)",
+    "description": "Màn Chi tiết đặt phòng (/dat-phong/[id]): chú thích bảng giá từng đêm"
+  },
+  "reservation.nightly.col_night": {
+    "message": "Đêm",
+    "description": "Màn Chi tiết đặt phòng (/dat-phong/[id]): tiêu đề cột đêm"
+  },
+  "reservation.nightly.col_price": {
+    "message": "Giá",
+    "description": "Màn Chi tiết đặt phòng (/dat-phong/[id]): tiêu đề cột giá"
+  },
+  "reservation.link.stay": {
+    "message": "Mở folio lượt ở",
+    "description": "Màn Chi tiết đặt phòng (/dat-phong/[id]): nút mở folio của lượt ở"
+  },
+  "reservation.hold.heading": {
+    "message": "Giữ phòng",
+    "description": "Màn Chi tiết đặt phòng (/dat-phong/[id]): tiêu đề khối giữ phòng và nhãn nút gửi"
+  },
+  "reservation.hold.success": {
+    "message": "Đã giữ phòng.",
+    "description": "Màn Chi tiết đặt phòng (/dat-phong/[id]): thông báo giữ phòng thành công"
+  },
+  "reservation.confirm.heading": {
+    "message": "Xác nhận đặt phòng",
+    "description": "Màn Chi tiết đặt phòng (/dat-phong/[id]): tiêu đề khối xác nhận đặt phòng"
+  },
+  "reservation.confirm.plain_confirm": {
+    "message": "Xác nhận đặt phòng không thu trước: phòng được giữ chắc cho khách, huỷ sau sẽ theo chính sách huỷ.",
+    "description": "Màn Chi tiết đặt phòng (/dat-phong/[id]): nội dung hộp xác nhận không thu trước"
+  },
+  "reservation.confirm.plain_label": {
+    "message": "Xác nhận đặt phòng {number} (phòng {room}) không thu trước",
+    "description": "Màn Chi tiết đặt phòng (/dat-phong/[id]): nhãn nút xác nhận không thu trước; {number} = số đặt phòng, {room} = mã phòng"
+  },
+  "reservation.confirm.plain_submit": {
+    "message": "Xác nhận (chưa thu trước)",
+    "description": "Màn Chi tiết đặt phòng (/dat-phong/[id]): nút xác nhận không thu trước"
+  },
+  "reservation.confirm.plain_success": {
+    "message": "Đã xác nhận đặt phòng.",
+    "description": "Màn Chi tiết đặt phòng (/dat-phong/[id]): thông báo xác nhận thành công"
+  },
+  "reservation.confirm.advance_heading": {
+    "message": "Xác nhận kèm ứng trước tiền mặt",
+    "description": "Màn Chi tiết đặt phòng (/dat-phong/[id]): tiêu đề phụ khối xác nhận kèm ứng trước"
+  },
+  "reservation.confirm.advance_confirm": {
+    "message": "Xác nhận đặt phòng và ghi khoản ứng trước tiền mặt vào ca đang mở; không xoá được, chỉ đảo bằng bút toán có duyệt.",
+    "description": "Màn Chi tiết đặt phòng (/dat-phong/[id]): nội dung hộp xác nhận kèm ứng trước"
+  },
+  "reservation.confirm.advance_label": {
+    "message": "Xác nhận {number} và thu ứng trước {advance}",
+    "description": "Màn Chi tiết đặt phòng (/dat-phong/[id]): nhãn nút xác nhận kèm ứng trước; {number} = số đặt phòng, {advance} = giữ nguyên chỗ giữ chỗ của form"
+  },
+  "reservation.confirm.advance_field": {
+    "message": "Ứng trước tiền mặt (đồng)",
+    "description": "Màn Chi tiết đặt phòng (/dat-phong/[id]): nhãn ô ứng trước tiền mặt"
+  },
+  "reservation.confirm.advance_submit": {
+    "message": "Xác nhận + thu ứng trước",
+    "description": "Màn Chi tiết đặt phòng (/dat-phong/[id]): nút xác nhận kèm ứng trước"
+  },
+  "reservation.confirm.advance_success": {
+    "message": "Đã xác nhận và ghi nhận ứng trước.",
+    "description": "Màn Chi tiết đặt phòng (/dat-phong/[id]): thông báo xác nhận kèm ứng trước thành công"
+  },
+  "reservation.checkin.heading": {
+    "message": "Nhận phòng",
+    "description": "Màn Chi tiết đặt phòng (/dat-phong/[id]): tiêu đề khối nhận phòng"
+  },
+  "reservation.checkin.note": {
+    "message": "Chỉ nhận phòng trong khoảng ngày của đặt phòng và khi phòng đã dọn + kiểm xong.",
+    "description": "Màn Chi tiết đặt phòng (/dat-phong/[id]): ghi chú điều kiện nhận phòng"
+  },
+  "reservation.checkin.submit": {
+    "message": "Xác nhận nhận phòng",
+    "description": "Màn Chi tiết đặt phòng (/dat-phong/[id]): nút xác nhận nhận phòng"
+  },
+  "reservation.checkin.success": {
+    "message": "Đã nhận phòng — đang mở folio.",
+    "description": "Màn Chi tiết đặt phòng (/dat-phong/[id]): thông báo nhận phòng thành công"
+  },
+  "reservation.cancel.heading": {
+    "message": "Huỷ đặt phòng",
+    "description": "Màn Chi tiết đặt phòng (/dat-phong/[id]): tiêu đề khối huỷ đặt phòng và nhãn nút gửi"
+  },
+  "reservation.cancel.confirm": {
+    "message": "Huỷ đặt phòng và nhả phòng; không khôi phục được.",
+    "description": "Màn Chi tiết đặt phòng (/dat-phong/[id]): nội dung hộp xác nhận huỷ"
+  },
+  "reservation.cancel.label": {
+    "message": "Huỷ đặt phòng {number} (phòng {room})",
+    "description": "Màn Chi tiết đặt phòng (/dat-phong/[id]): nhãn nút xác nhận huỷ; {number} = số đặt phòng, {room} = mã phòng"
+  },
+  "reservation.cancel.reason": {
+    "message": "Lý do huỷ",
+    "description": "Màn Chi tiết đặt phòng (/dat-phong/[id]): nhãn ô lý do huỷ"
+  },
+  "reservation.cancel.fee": {
+    "message": "Phí huỷ (đồng, tuỳ chọn)",
+    "description": "Màn Chi tiết đặt phòng (/dat-phong/[id]): nhãn ô phí huỷ"
+  },
+  "reservation.cancel.success": {
+    "message": "Đã huỷ đặt phòng.",
+    "description": "Màn Chi tiết đặt phòng (/dat-phong/[id]): thông báo huỷ thành công"
+  },
+  "reservation.noshow.heading": {
+    "message": "Khách không đến",
+    "description": "Màn Chi tiết đặt phòng (/dat-phong/[id]): tiêu đề khối đánh dấu khách không đến"
+  },
+  "reservation.noshow.confirm": {
+    "message": "Đánh dấu khách không đến và nhả phòng; không khôi phục được.",
+    "description": "Màn Chi tiết đặt phòng (/dat-phong/[id]): nội dung hộp xác nhận khách không đến"
+  },
+  "reservation.noshow.label": {
+    "message": "Đánh dấu {number} (phòng {room}) khách không đến",
+    "description": "Màn Chi tiết đặt phòng (/dat-phong/[id]): nhãn nút xác nhận khách không đến; {number} = số đặt phòng, {room} = mã phòng"
+  },
+  "reservation.noshow.reason": {
+    "message": "Ghi chú",
+    "description": "Màn Chi tiết đặt phòng (/dat-phong/[id]): nhãn ô ghi chú"
+  },
+  "reservation.noshow.submit": {
+    "message": "Đánh dấu không đến",
+    "description": "Màn Chi tiết đặt phòng (/dat-phong/[id]): nút đánh dấu không đến"
+  },
+  "reservation.noshow.success": {
+    "message": "Đã đánh dấu không đến.",
+    "description": "Màn Chi tiết đặt phòng (/dat-phong/[id]): thông báo đánh dấu không đến thành công"
+  },
+  "invitation.invalid_text": {
+    "message": "Lời mời không còn hiệu lực. Hãy nhờ quản trị gửi lại.",
+    "description": "Màn Nhận lời mời nhân viên (/loi-moi): thông báo chung cho mọi lý do lời mời không dùng được (khớp 410 INVITATION_INVALID)"
+  },
+  "invitation.error.offline": {
+    "message": "Không có kết nối mạng. Thao tác chưa được gửi.",
+    "description": "Màn Nhận lời mời nhân viên (/loi-moi): lỗi khi thiết bị đang ngoại tuyến"
+  },
+  "invitation.error.totp": {
+    "message": "Mã xác thực không đúng hoặc đã hết hạn.",
+    "description": "Màn Nhận lời mời nhân viên (/loi-moi): lỗi mã TOTP sai/hết hạn"
+  },
+  "invitation.error.register_rejected": {
+    "message": "Không tạo được tài khoản: email đã có tài khoản hoặc mật khẩu chưa đủ 10 ký tự.",
+    "description": "Màn Nhận lời mời nhân viên (/loi-moi): lỗi đăng ký khi server từ chối dữ liệu (400/422)"
+  },
+  "invitation.error.register_failed": {
+    "message": "Không tạo được tài khoản. Vui lòng thử lại.",
+    "description": "Màn Nhận lời mời nhân viên (/loi-moi): lỗi đăng ký khác"
+  },
+  "invitation.error.locked": {
+    "message": "Tài khoản tạm khoá do đăng nhập sai nhiều lần. Thử lại sau 15 phút.",
+    "description": "Màn Nhận lời mời nhân viên (/loi-moi): lỗi tài khoản bị khoá tạm"
+  },
+  "invitation.error.credentials": {
+    "message": "Email hoặc mật khẩu không đúng.",
+    "description": "Màn Nhận lời mời nhân viên (/loi-moi): lỗi đăng nhập sai thông tin"
+  },
+  "invitation.error.no_response": {
+    "message": "Chưa nhận được phản hồi. Kiểm tra mạng rồi thử lại.",
+    "description": "Màn Nhận lời mời nhân viên (/loi-moi): lỗi mạng khi đăng nhập/đăng ký/đăng xuất"
+  },
+  "invitation.error.sign_out": {
+    "message": "Chưa đăng xuất được. Thử lại.",
+    "description": "Màn Nhận lời mời nhân viên (/loi-moi): lỗi đăng xuất không thành công"
+  },
+  "invitation.error.duplicate": {
+    "message": "Tài khoản này đã là thành viên của tổ chức. Chọn tổ chức để vào làm việc.",
+    "description": "Màn Nhận lời mời nhân viên (/loi-moi): thông báo khi tài khoản đã là thành viên (409 DUPLICATE)"
+  },
+  "invitation.error.accept_failed": {
+    "message": "Chưa nhận lời mời được. Bấm lại để thử lần nữa.",
+    "description": "Màn Nhận lời mời nhân viên (/loi-moi): lỗi chấp nhận lời mời khác (kể cả 5xx); gửi lại dùng cùng khoá idempotency"
+  },
+  "invitation.error.accept_no_response": {
+    "message": "Chưa nhận được phản hồi. Bấm lại để thử lần nữa — hệ thống không tạo hai lần.",
+    "description": "Màn Nhận lời mời nhân viên (/loi-moi): lỗi mạng khi chấp nhận lời mời"
+  },
+  "invitation.checking": {
+    "message": "Đang kiểm tra phiên đăng nhập…",
+    "description": "Màn Nhận lời mời nhân viên (/loi-moi): nhãn trạng thái đang kiểm tra phiên"
+  },
+  "invitation.incomplete.title": {
+    "message": "Liên kết không đầy đủ",
+    "description": "Màn Nhận lời mời nhân viên (/loi-moi): tiêu đề lỗi khi thiếu token trong liên kết"
+  },
+  "invitation.incomplete.text": {
+    "message": "Mở lại đúng liên kết trong email lời mời, hoặc nhờ quản trị gửi lại.",
+    "description": "Màn Nhận lời mời nhân viên (/loi-moi): hướng dẫn khi thiếu token"
+  },
+  "invitation.invalid.title": {
+    "message": "Lời mời không còn hiệu lực",
+    "description": "Màn Nhận lời mời nhân viên (/loi-moi): tiêu đề lỗi khi lời mời không dùng được"
+  },
+  "invitation.invalid.rules": {
+    "message": " Lời mời chỉ dùng một lần, hết hạn sau 7 ngày và chỉ dành cho đúng email được mời.",
+    "description": "Màn Nhận lời mời nhân viên (/loi-moi): đoạn nối sau thông báo lời mời không dùng được, có dấu cách đầu"
+  },
+  "invitation.invalid.sign_out": {
+    "message": "Đăng xuất để dùng tài khoản khác",
+    "description": "Màn Nhận lời mời nhân viên (/loi-moi): nút đăng xuất ở màn lời mời không dùng được"
+  },
+  "invitation.failed.title": {
+    "message": "Chưa kiểm tra được phiên đăng nhập",
+    "description": "Màn Nhận lời mời nhân viên (/loi-moi): tiêu đề lỗi khi không kiểm tra được phiên"
+  },
+  "invitation.failed.text": {
+    "message": "Kiểm tra mạng rồi thử lại.",
+    "description": "Màn Nhận lời mời nhân viên (/loi-moi): hướng dẫn khi không kiểm tra được phiên"
+  },
+  "invitation.failed.retry": {
+    "message": "Thử lại",
+    "description": "Màn Nhận lời mời nhân viên (/loi-moi): nút thử lại kiểm tra phiên"
+  },
+  "invitation.done": {
+    "message": "Đã tham gia — đang vào tổ chức…",
+    "description": "Màn Nhận lời mời nhân viên (/loi-moi): nhãn trạng thái sau khi chấp nhận lời mời"
+  },
+  "invitation.anon.register_intro": {
+    "message": "Tạo tài khoản bằng ĐÚNG địa chỉ email nhận lời mời.",
+    "description": "Màn Nhận lời mời nhân viên (/loi-moi): hướng dẫn ở chế độ đăng ký"
+  },
+  "invitation.anon.login_intro": {
+    "message": "Đăng nhập bằng ĐÚNG địa chỉ email nhận lời mời để chấp nhận.",
+    "description": "Màn Nhận lời mời nhân viên (/loi-moi): hướng dẫn ở chế độ đăng nhập"
+  },
+  "invitation.field.totp": {
+    "message": "Mã xác thực 6 số",
+    "description": "Màn Nhận lời mời nhân viên (/loi-moi): nhãn ô mã TOTP"
+  },
+  "invitation.field.totp_hint": {
+    "message": "Mở ứng dụng xác thực trên điện thoại để lấy mã.",
+    "description": "Màn Nhận lời mời nhân viên (/loi-moi): gợi ý ô mã TOTP"
+  },
+  "invitation.field.name": {
+    "message": "Họ và tên",
+    "description": "Màn Nhận lời mời nhân viên (/loi-moi): nhãn ô họ và tên khi đăng ký"
+  },
+  "invitation.field.password": {
+    "message": "Mật khẩu",
+    "description": "Màn Nhận lời mời nhân viên (/loi-moi): nhãn ô mật khẩu"
+  },
+  "invitation.field.password_hint": {
+    "message": "Tối thiểu 10 ký tự.",
+    "description": "Màn Nhận lời mời nhân viên (/loi-moi): gợi ý mật khẩu khi đăng ký"
+  },
+  "invitation.submit.totp": {
+    "message": "Xác nhận",
+    "description": "Màn Nhận lời mời nhân viên (/loi-moi): nút gửi mã TOTP"
+  },
+  "invitation.submit.register": {
+    "message": "Tạo tài khoản và tiếp tục",
+    "description": "Màn Nhận lời mời nhân viên (/loi-moi): nút gửi form đăng ký"
+  },
+  "invitation.submit.login": {
+    "message": "Đăng nhập",
+    "description": "Màn Nhận lời mời nhân viên (/loi-moi): nút gửi form đăng nhập"
+  },
+  "invitation.switch.to_register": {
+    "message": "Tôi chưa có tài khoản",
+    "description": "Màn Nhận lời mời nhân viên (/loi-moi): nút chuyển sang đăng ký"
+  },
+  "invitation.switch.to_login": {
+    "message": "Tôi đã có tài khoản",
+    "description": "Màn Nhận lời mời nhân viên (/loi-moi): nút chuyển sang đăng nhập"
+  },
+  "invitation.ready.signed_in_before": {
+    "message": "Bạn đang đăng nhập bằng ",
+    "description": "Màn Nhận lời mời nhân viên (/loi-moi): đoạn trước email đang đăng nhập, có dấu cách cuối"
+  },
+  "invitation.ready.signed_in_after": {
+    "message": ". Lời mời chỉ chấp nhận được khi đúng email này.",
+    "description": "Màn Nhận lời mời nhân viên (/loi-moi): đoạn sau email đang đăng nhập, bắt đầu bằng dấu chấm"
+  },
+  "invitation.ready.accept": {
+    "message": "Chấp nhận lời mời",
+    "description": "Màn Nhận lời mời nhân viên (/loi-moi): nút chấp nhận lời mời"
+  },
+  "invitation.ready.other_account": {
+    "message": "Dùng tài khoản khác",
+    "description": "Màn Nhận lời mời nhân viên (/loi-moi): nút đăng xuất để dùng tài khoản khác"
+  },
+  "housekeeping.task.metadata.title": {
+    "message": "Việc dọn phòng — Hotel Manager",
+    "description": "Màn Việc dọn phòng (/buong-phong/[id]): tiêu đề tab trình duyệt"
+  },
+  "housekeeping.task.page.title": {
+    "message": "Việc dọn phòng",
+    "description": "Màn Việc dọn phòng (/buong-phong/[id]): tiêu đề màn"
+  },
+  "housekeeping.task.error.load": {
+    "message": "Không xem được việc",
+    "description": "Màn Việc dọn phòng (/buong-phong/[id]): tiêu đề trạng thái lỗi khi không tải được việc"
+  },
+  "housekeeping.task.heading": {
+    "message": "Phòng {code} — {kind}",
+    "description": "Màn Việc dọn phòng (/buong-phong/[id]): tiêu đề khối thông tin; {code} = mã phòng, {kind} = loại việc"
+  },
+  "housekeeping.task.facts.status": {
+    "message": "Trạng thái",
+    "description": "Màn Việc dọn phòng (/buong-phong/[id]): nhãn trạng thái việc"
+  },
+  "housekeeping.task.facts.floor": {
+    "message": "Tầng",
+    "description": "Màn Việc dọn phòng (/buong-phong/[id]): nhãn tầng"
+  },
+  "housekeeping.task.facts.priority": {
+    "message": "Ưu tiên",
+    "description": "Màn Việc dọn phòng (/buong-phong/[id]): nhãn mức ưu tiên"
+  },
+  "housekeeping.task.facts.assignee": {
+    "message": "Người làm",
+    "description": "Màn Việc dọn phòng (/buong-phong/[id]): nhãn người làm"
+  },
+  "housekeeping.task.facts.assignee_none": {
+    "message": "Chưa có người nhận",
+    "description": "Màn Việc dọn phòng (/buong-phong/[id]): giá trị khi chưa có người nhận việc"
+  },
+  "housekeeping.task.facts.arrival": {
+    "message": "Khách đến",
+    "description": "Màn Việc dọn phòng (/buong-phong/[id]): nhãn giờ khách đến"
+  },
+  "housekeeping.task.facts.arrival_today": {
+    "message": "Hôm nay lúc {time}",
+    "description": "Màn Việc dọn phòng (/buong-phong/[id]): giá trị giờ khách đến trong ngày; {time} = thời điểm đã định dạng"
+  },
+  "housekeeping.task.facts.note": {
+    "message": "Ghi chú",
+    "description": "Màn Việc dọn phòng (/buong-phong/[id]): nhãn ghi chú của việc"
+  },
+  "housekeeping.task.claim.submit": {
+    "message": "Nhận việc",
+    "description": "Màn Việc dọn phòng (/buong-phong/[id]): nút nhận việc"
+  },
+  "housekeeping.task.claim.success": {
+    "message": "Đã nhận việc.",
+    "description": "Màn Việc dọn phòng (/buong-phong/[id]): thông báo nhận việc thành công"
+  },
+  "housekeeping.task.start.submit": {
+    "message": "Bắt đầu dọn",
+    "description": "Màn Việc dọn phòng (/buong-phong/[id]): nút bắt đầu dọn"
+  },
+  "housekeeping.task.start.success": {
+    "message": "Đã bắt đầu.",
+    "description": "Màn Việc dọn phòng (/buong-phong/[id]): thông báo bắt đầu thành công"
+  },
+  "housekeeping.task.complete.note": {
+    "message": "Ghi chú (tuỳ chọn)",
+    "description": "Màn Việc dọn phòng (/buong-phong/[id]): nhãn ô ghi chú khi báo xong"
+  },
+  "housekeeping.task.complete.submit": {
+    "message": "Xong",
+    "description": "Màn Việc dọn phòng (/buong-phong/[id]): nút báo xong"
+  },
+  "housekeeping.task.complete.success": {
+    "message": "Đã báo xong — chờ nghiệm thu.",
+    "description": "Màn Việc dọn phòng (/buong-phong/[id]): thông báo báo xong thành công"
+  },
+  "housekeeping.task.verify.heading": {
+    "message": "Nghiệm thu",
+    "description": "Màn Việc dọn phòng (/buong-phong/[id]): tiêu đề khối nghiệm thu"
+  },
+  "housekeeping.task.verify.pass_submit": {
+    "message": "Đạt — phòng sẵn sàng",
+    "description": "Màn Việc dọn phòng (/buong-phong/[id]): nút nghiệm thu đạt"
+  },
+  "housekeeping.task.verify.pass_success": {
+    "message": "Đã nghiệm thu — phòng sẵn sàng.",
+    "description": "Màn Việc dọn phòng (/buong-phong/[id]): thông báo nghiệm thu đạt thành công"
+  },
+  "housekeeping.task.verify.fail_reason": {
+    "message": "Lý do không đạt",
+    "description": "Màn Việc dọn phòng (/buong-phong/[id]): nhãn ô lý do không đạt"
+  },
+  "housekeeping.task.verify.fail_submit": {
+    "message": "Không đạt",
+    "description": "Màn Việc dọn phòng (/buong-phong/[id]): nút nghiệm thu không đạt"
+  },
+  "housekeeping.task.verify.fail_success": {
+    "message": "Đã trả lại việc cho người làm.",
+    "description": "Màn Việc dọn phòng (/buong-phong/[id]): thông báo trả lại việc thành công"
+  },
+  "housekeeping.task.cancel.summary": {
+    "message": "Huỷ việc",
+    "description": "Màn Việc dọn phòng (/buong-phong/[id]): tiêu đề mục mở form huỷ việc"
+  },
+  "housekeeping.task.cancel.confirm": {
+    "message": "Huỷ việc dọn phòng; không mở lại được.",
+    "description": "Màn Việc dọn phòng (/buong-phong/[id]): nội dung hộp xác nhận huỷ việc"
+  },
+  "housekeeping.task.cancel.label": {
+    "message": "Huỷ việc {kind} phòng {room}",
+    "description": "Màn Việc dọn phòng (/buong-phong/[id]): nhãn nút xác nhận huỷ việc; {kind} = loại việc viết thường, {room} = mã phòng"
+  },
+  "housekeeping.task.cancel.reason": {
+    "message": "Lý do huỷ",
+    "description": "Màn Việc dọn phòng (/buong-phong/[id]): nhãn ô lý do huỷ"
+  },
+  "housekeeping.task.cancel.submit": {
+    "message": "Huỷ việc",
+    "description": "Màn Việc dọn phòng (/buong-phong/[id]): nút gửi form huỷ việc"
+  },
+  "housekeeping.task.cancel.success": {
+    "message": "Đã huỷ việc.",
+    "description": "Màn Việc dọn phòng (/buong-phong/[id]): thông báo huỷ việc thành công"
+  },
+  "housekeeping.task.back": {
+    "message": "Về danh sách việc",
+    "description": "Màn Việc dọn phòng (/buong-phong/[id]): nút về danh sách việc"
+  },
+  "guest_stay.status.expected": {
+    "message": "Sắp đến",
+    "description": "Khách xem lượt ở bằng liên kết (/khach/luot-o/[id]): trạng thái lượt ở: sắp đến"
+  },
+  "guest_stay.status.in_house": {
+    "message": "Đang ở",
+    "description": "Khách xem lượt ở bằng liên kết (/khach/luot-o/[id]): trạng thái lượt ở: đang ở"
+  },
+  "guest_stay.status.checked_out": {
+    "message": "Đã trả phòng",
+    "description": "Khách xem lượt ở bằng liên kết (/khach/luot-o/[id]): trạng thái lượt ở: đã trả phòng"
+  },
+  "guest_stay.status.cancelled": {
+    "message": "Đã huỷ",
+    "description": "Khách xem lượt ở bằng liên kết (/khach/luot-o/[id]): trạng thái lượt ở: đã huỷ"
+  },
+  "guest_stay.status.no_show": {
+    "message": "Không đến",
+    "description": "Khách xem lượt ở bằng liên kết (/khach/luot-o/[id]): trạng thái lượt ở: không đến"
+  },
+  "guest_stay.error.expired_text": {
+    "message": "Liên kết đã hết hạn. Vui lòng liên hệ lễ tân để nhận liên kết mới.",
+    "description": "Khách xem lượt ở bằng liên kết (/khach/luot-o/[id]): nội dung mặc định khi liên kết hết hạn"
+  },
+  "guest_stay.error.revoked_text": {
+    "message": "Liên kết không còn hiệu lực. Vui lòng liên hệ lễ tân.",
+    "description": "Khách xem lượt ở bằng liên kết (/khach/luot-o/[id]): nội dung mặc định khi liên kết bị thu hồi"
+  },
+  "guest_stay.error.expired_title": {
+    "message": "Liên kết đã hết hạn",
+    "description": "Khách xem lượt ở bằng liên kết (/khach/luot-o/[id]): tiêu đề khi liên kết hết hạn"
+  },
+  "guest_stay.error.revoked_title": {
+    "message": "Liên kết không còn hiệu lực",
+    "description": "Khách xem lượt ở bằng liên kết (/khach/luot-o/[id]): tiêu đề khi liên kết bị thu hồi"
+  },
+  "guest_stay.error.last4": {
+    "message": "Nhập đúng 4 chữ số cuối số điện thoại đặt phòng",
+    "description": "Khách xem lượt ở bằng liên kết (/khach/luot-o/[id]): lỗi khi ô 4 số cuối không đúng định dạng"
+  },
+  "guest_stay.error.too_many": {
+    "message": "Bạn thử quá nhiều lần. Vui lòng đợi ít phút.",
+    "description": "Khách xem lượt ở bằng liên kết (/khach/luot-o/[id]): lỗi mặc định khi bị giới hạn tốc độ (429)"
+  },
+  "guest_stay.error.open_failed": {
+    "message": "Không mở được liên kết. Vui lòng thử lại.",
+    "description": "Khách xem lượt ở bằng liên kết (/khach/luot-o/[id]): lỗi mặc định khi không mở được liên kết"
+  },
+  "guest_stay.error.no_response": {
+    "message": "Chưa nhận được phản hồi. Kiểm tra mạng rồi thử lại.",
+    "description": "Khách xem lượt ở bằng liên kết (/khach/luot-o/[id]): lỗi mạng khi gọi API"
+  },
+  "guest_stay.loading": {
+    "message": "Đang kiểm tra liên kết",
+    "description": "Khách xem lượt ở bằng liên kết (/khach/luot-o/[id]): nhãn trạng thái đang kiểm tra liên kết"
+  },
+  "guest_stay.incomplete.title": {
+    "message": "Liên kết không đầy đủ",
+    "description": "Khách xem lượt ở bằng liên kết (/khach/luot-o/[id]): tiêu đề lỗi khi thiếu token trong liên kết"
+  },
+  "guest_stay.incomplete.text": {
+    "message": "Hãy mở đúng liên kết lễ tân đã gửi, hoặc liên hệ lễ tân để nhận liên kết mới.",
+    "description": "Khách xem lượt ở bằng liên kết (/khach/luot-o/[id]): hướng dẫn khi thiếu token"
+  },
+  "guest_stay.stay.heading": {
+    "message": "Lượt ở",
+    "description": "Khách xem lượt ở bằng liên kết (/khach/luot-o/[id]): tiêu đề khối lượt ở"
+  },
+  "guest_stay.stay.unit": {
+    "message": "Phòng",
+    "description": "Khách xem lượt ở bằng liên kết (/khach/luot-o/[id]): nhãn phòng"
+  },
+  "guest_stay.stay.arrival": {
+    "message": "Ngày đến",
+    "description": "Khách xem lượt ở bằng liên kết (/khach/luot-o/[id]): nhãn ngày đến"
+  },
+  "guest_stay.stay.departure": {
+    "message": "Ngày đi",
+    "description": "Khách xem lượt ở bằng liên kết (/khach/luot-o/[id]): nhãn ngày đi"
+  },
+  "guest_stay.stay.status": {
+    "message": "Trạng thái",
+    "description": "Khách xem lượt ở bằng liên kết (/khach/luot-o/[id]): nhãn trạng thái"
+  },
+  "guest_stay.folio.heading": {
+    "message": "Khoản phí",
+    "description": "Khách xem lượt ở bằng liên kết (/khach/luot-o/[id]): tiêu đề khối khoản phí"
+  },
+  "guest_stay.folio.col_kind": {
+    "message": "Khoản",
+    "description": "Khách xem lượt ở bằng liên kết (/khach/luot-o/[id]): tiêu đề cột khoản"
+  },
+  "guest_stay.folio.col_amount": {
+    "message": "Thành tiền",
+    "description": "Khách xem lượt ở bằng liên kết (/khach/luot-o/[id]): tiêu đề cột thành tiền"
+  },
+  "guest_stay.folio.line": {
+    "message": "{description} ({date})",
+    "description": "Khách xem lượt ở bằng liên kết (/khach/luot-o/[id]): dòng khoản; {description} = nội dung khoản, {date} = ngày đã định dạng"
+  },
+  "guest_stay.folio.total": {
+    "message": "Tổng",
+    "description": "Khách xem lượt ở bằng liên kết (/khach/luot-o/[id]): nhãn tổng"
+  },
+  "guest_stay.folio.paid": {
+    "message": "Đã thanh toán",
+    "description": "Khách xem lượt ở bằng liên kết (/khach/luot-o/[id]): nhãn đã thanh toán"
+  },
+  "guest_stay.folio.balance": {
+    "message": "Còn lại",
+    "description": "Khách xem lượt ở bằng liên kết (/khach/luot-o/[id]): nhãn còn lại"
+  },
+  "guest_stay.form.last4": {
+    "message": "4 số cuối số điện thoại đặt phòng",
+    "description": "Khách xem lượt ở bằng liên kết (/khach/luot-o/[id]): nhãn ô 4 số cuối số điện thoại"
+  },
+  "guest_stay.form.hint": {
+    "message": "Để bảo vệ thông tin của bạn, lễ tân yêu cầu xác minh trước khi hiển thị.",
+    "description": "Khách xem lượt ở bằng liên kết (/khach/luot-o/[id]): gợi ý ô 4 số cuối"
+  },
+  "guest_stay.form.submit": {
+    "message": "Xem lượt ở",
+    "description": "Khách xem lượt ở bằng liên kết (/khach/luot-o/[id]): nút gửi form xác minh"
   }
 }
