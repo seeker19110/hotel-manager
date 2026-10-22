@@ -46,7 +46,7 @@ Khi xong: `luu-tru/[id]`, `dat-phong/[id]`, `loi-moi`, `buong-phong/[id]`, `khac
 ### Lát 1 — i18n theo màn
 - [x] `T-1801` XC-I18N-001 (phần): `apps/web/app/luu-tru/[id]/page.tsx` (57), `apps/web/app/dat-phong/[id]/page.tsx` (43) sang `t()`, văn bản giữ nguyên; hạ baseline bằng `node scripts/i18n-literals.mjs --write` (cũng thu 6 chuỗi dư của các đợt trước) (files: apps/web/app/luu-tru/, apps/web/app/dat-phong/, apps/web/messages/vi.json, scripts/i18n-literal-baseline.json) — Gate: `node scripts/i18n-check.mjs && node scripts/i18n-literals.mjs && pnpm vitest run --project unit scripts/i18n.test && pnpm --filter @hm/web exec tsc -p tsconfig.json`
 - [x] `T-1802` XC-I18N-001 (phần): `apps/web/app/loi-moi/accept-invitation.tsx` (40), `apps/web/app/buong-phong/[id]/page.tsx` (31), `apps/web/app/khach/luot-o/[id]/guest-stay.tsx` (31) sang `t()`, văn bản giữ nguyên; hạ baseline (sau: T-1801; files: apps/web/app/loi-moi/, apps/web/app/buong-phong/, apps/web/app/khach/, apps/web/messages/vi.json, scripts/i18n-literal-baseline.json) — Gate: `node scripts/i18n-check.mjs && node scripts/i18n-literals.mjs && pnpm vitest run --project unit scripts/i18n.test apps/web && pnpm --filter @hm/web exec tsc -p tsconfig.json`
-- [ ] `T-1803` Rà đợt 18: PROGRESS, BLUEPRINT-GAPS (sau: T-1801, T-1802; files: PROGRESS.md, docs/autopilot/BLUEPRINT-GAPS.md) — Gate: `python3 .xtemplates/scripts/xt.py progress-check`
+- [x] `T-1803` Rà đợt 18: PROGRESS, BLUEPRINT-GAPS (sau: T-1801, T-1802; files: PROGRESS.md, docs/autopilot/BLUEPRINT-GAPS.md) — Gate: `python3 .xtemplates/scripts/xt.py progress-check`
 
 ## Phụ thuộc ngoài
 | Việc | Bên ngoài | Kế hoạch B |
