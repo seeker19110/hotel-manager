@@ -1,7 +1,6 @@
 name: CI
 
 on:
-  workflow_dispatch: {}
   push:
     branches: [main]
   pull_request:
@@ -148,11 +147,12 @@ jobs:
   # E2E (SPEC-pwa, PLAN T-013/T-014): build production + e2e/server.ts (Postgres service + seed giả) + Playwright Chromium.
   # Song song tối đa: 6 shard (mỗi runner Postgres + cặp server riêng), trong shard hai project mobile/desktop chạy cùng lúc
   # (apps/web/playwright.config.ts). 4 → 6 (khung 3.12.0, WF-CI-025): với 4 shard, e2e (1/4) 4m22s là đường găng của cả CI
-  # (shard chia theo file, 14 spec); 6 shard ≈ 2–3 spec mỗi shard. timeout 40 giữ nguyên — không nới ngưỡng chất lượng.
+  # (shard chia theo file, 14 spec); 6 shard ≈ 2–3 spec mỗi shard. timeout 15 (D-092: đo 2m19–3m33/shard trên main, run 39688644466 — siết từ 40
+  # để tổng timeout mỗi PR vừa ngân sách 600 phút khi khôi phục cổng harden; không nới trần).
   e2e:
     name: e2e (${{ matrix.name }})
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -217,8 +217,6 @@ jobs:
 
   protection-guard:
     name: protection-guard
-    # D-086: hoãn tới pha harden — chỉ chạy tay (workflow_dispatch); khôi phục khi delivery_phase: harden.
-    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

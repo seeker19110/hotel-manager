@@ -3,7 +3,6 @@ name: Commit lint
 # BASE-REPO-005: mọi commit của PR theo Conventional Commits 1.0.0, dòng đầu ≤ 72 ký tự (cùng luật với hook local
 # `.githooks/commit-msg`). Commit của Dependabot bỏ qua — tiêu đề PR (squash) vẫn do job `quality` của ci.yml kiểm.
 on:
-  workflow_dispatch: {}
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened]
@@ -18,8 +17,8 @@ concurrency:
 jobs:
   commit-lint:
     name: commit-lint
-    # D-086: hoãn tới pha harden — chỉ chạy tay (workflow_dispatch); khôi phục khi delivery_phase: harden. Khi khôi phục: xét TÁC GIẢ PR như pr-policy.yml (AUD-CI-002), không xét người kích hoạt: if: github.event.pull_request.user.login != 'dependabot[bot]'.
-    if: github.event_name == 'workflow_dispatch'
+    # Xét TÁC GIẢ PR như pr-policy.yml (AUD-CI-002), không xét người kích hoạt lần chạy.
+    if: github.event.pull_request.user.login != 'dependabot[bot]'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

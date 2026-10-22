@@ -7,8 +7,7 @@ name: Supply chain
 #  · image-scan: mỗi image triển khai (postgres+pgBackRest build từ deploy/postgres, image nền của web/worker, seaweedfs, caddy):
 #    ngân sách kích thước (scripts/check-image-size.mjs, XC-GREEN-002) → SBOM bằng syft → cùng bước kiểm giấy phép → grype quét OS
 #    + gói, đỏ khi có high/critical có bản sửa.
-# Pha build: chỉ chạy tay (D-085, hoãn tới harden). Khi harden: mỗi PR, push main, HẰNG TUẦN (quét lại SBOM với cơ sở dữ
-# liệu lỗ hổng mới) và chạy tay.
+# Chạy mỗi PR, push main, HẰNG TUẦN (quét lại SBOM với cơ sở dữ liệu lỗ hổng mới) và chạy tay.
 # SBOM lưu làm artifact 90 ngày.
 # `only-fixed`: lỗ hổng chưa có bản sửa không chặn build (không ai sửa được) mà vào báo cáo artifact + SLA theo dõi ở VULN-SLA.md.
 # Danh sách image ở `matrix` phải khớp deploy/ (scripts/supply-chain.test.mjs kiểm).
@@ -31,8 +30,6 @@ concurrency:
 jobs:
   sbom:
     name: sbom
-    # D-085: hoãn tới pha harden — chỉ chạy tay (workflow_dispatch), không chạy trên PR/push/lịch; khôi phục khi delivery_phase: harden.
-    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -69,8 +66,6 @@ jobs:
 
   image-scan:
     name: image-scan (${{ matrix.name }})
-    # D-085: hoãn tới pha harden — chỉ chạy tay (workflow_dispatch), không chạy trên PR/push/lịch; khôi phục khi delivery_phase: harden.
-    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:

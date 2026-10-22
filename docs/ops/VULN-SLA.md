@@ -35,7 +35,7 @@ Tính từ lúc lỗ hổng xuất hiện trên một lượt quét (CI đỏ ho
 
 _Không có lỗ hổng "chưa ai sửa"._ Dưới đây là ngoại lệ có hạn (`.grype.yaml`) cho lỗ hổng high/critical **đã có bản sửa ở thượng nguồn nhưng image
 đang ghim chưa được dựng lại** (không có tag mới cùng dòng phiên bản; tra Docker Hub 2026-10-18). Mỗi mã trong `.grype.yaml` phải có mặt ở bảng này
-và `reason` ghi hạn rà lại; job `image-scan` (`scripts/grype-ignore-check.mjs`, pha build chỉ chạy tay — D-084/D-085; harden: mỗi PR + hằng tuần) đỏ khi quá hạn. Đến hạn: nâng image nếu đã có bản vá (gỡ luật), không thì quyết định lại.
+và `reason` ghi hạn rà lại; job `image-scan` (`scripts/grype-ignore-check.mjs`, mỗi PR + hằng tuần — khôi phục ở pha harden, D-091) đỏ khi quá hạn. Đến hạn: nâng image nếu đã có bản vá (gỡ luật), không thì quyết định lại.
 
 | Image / gói | Mã (mức) | Sửa ở | Hạn rà lại | Giảm nhẹ / ghi chú |
 |---|---|---|---|---|

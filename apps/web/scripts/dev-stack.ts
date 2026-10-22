@@ -163,7 +163,7 @@ const serverUrl = `postgres://postgres@127.0.0.1:${PG_PORT}/postgres`;
 const admin = kysely(serverUrl);
 await bootstrapRoles(admin);
 const exists = await sql`select 1 from pg_database where datname = ${DB_NAME}`.execute(admin);
-if (exists.rows.length === 0) await sql.raw(`CREATE DATABASE ${DB_NAME}`).execute(admin);
+if (exists.rows.length === 0) await sql`CREATE DATABASE ${sql.id(DB_NAME)}`.execute(admin);
 await admin.destroy();
 
 const adminUrl = pgUrl(serverUrl, DB_NAME);

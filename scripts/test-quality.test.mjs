@@ -52,7 +52,7 @@ describe("QA-COV-001: coverage nhánh cho unit + db, lưu artifact", () => {
     expect(pg).toBeLessThan(body.indexOf("vitest run --coverage"));
   });
   it("workflow chạy trên pull_request và push main; không continue-on-error", () => {
-    // D-085 (pha build): thêm workflow_dispatch để chạy tay các job hoãn; harden giữ hoặc bỏ đều được.
+    // D-091 (harden): trigger workflow_dispatch thêm lúc hoãn (D-085) đã gỡ; giữ dạng tuỳ chọn để regex không phụ thuộc pha.
     expect(workflow).toMatch(
       /^on:\n {2}push:\n {4}branches: \[main\]\n(?: {2}workflow_dispatch: \{\}\n)? {2}pull_request:/m,
     );
@@ -88,7 +88,7 @@ describe("QA-COV-002: ngưỡng ratchet là số cho lines + branches (+ functio
   it("job coverage-ratchet chạy trên PR, so với nhánh gốc, nhận mô tả PR", () => {
     const body = job("coverage-ratchet");
     expect(workflow).toMatch(
-      /coverage-ratchet:\n {4}name: coverage-ratchet\n(?: {4}# D-085:.*\n {4}if: github.event_name == 'workflow_dispatch'| {4}if: github.event_name == 'pull_request')/,
+      /coverage-ratchet:\n {4}name: coverage-ratchet\n {4}if: github.event_name == 'pull_request'/,
     );
     expect(body).toMatch(/check-coverage-ratchet\.mjs --base "origin\/\$BASE_REF" --body-file/);
     expect(body).toMatch(/git fetch --no-tags --depth=1 origin "\$BASE_REF"/);
@@ -377,7 +377,7 @@ describe("QA-STRAT-005: PR fix: phải kèm test", () => {
   it("job fix-requires-test chạy trên PR, đọc diff base...head", () => {
     const body = job("fix-requires-test");
     expect(workflow).toMatch(
-      /fix-requires-test:\n {4}name: fix-requires-test\n(?: {4}# D-085:.*\n {4}if: github.event_name == 'workflow_dispatch'| {4}if: github.event_name == 'pull_request')/,
+      /fix-requires-test:\n {4}name: fix-requires-test\n {4}if: github.event_name == 'pull_request'/,
     );
     expect(body).toMatch(/fetch-depth: 0/);
     expect(body).toMatch(

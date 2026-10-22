@@ -6,7 +6,6 @@ on:
   pull_request:
     branches: [main]
     types: [opened, edited, synchronize, reopened]
-  workflow_dispatch: {}
 
 permissions:
   contents: read
@@ -18,8 +17,6 @@ concurrency:
 jobs:
   new-deps:
     name: new-deps
-    # D-085: hoãn tới pha harden — chỉ chạy tay (workflow_dispatch), không chạy trên PR/push/lịch; khôi phục khi delivery_phase: harden.
-    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:

@@ -15,7 +15,7 @@ import {
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const code = JSON.parse(readFileSync(join(ROOT, ".github/rulesets/main.json"), "utf8"));
-/** Bản code bật strict (pha harden; D-086 tắt ở pha build) — để kiểm nhánh so strict của `rulesetProblems`. */
+/** Bản code bật strict (pha harden bật lại — D-091; pha build D-086 tắt) — kiểm nhánh so strict của `rulesetProblems` ở mọi pha. */
 const strictCode = {
   ...code,
   rules: code.rules.map((r) =>
@@ -54,10 +54,8 @@ describe("rulesetProblems — rule đang áp so với .github/rulesets/main.json
       "pull_request cho kiểu merge khác squash",
       'thiếu required check "quality" so với main.json',
       'required check "readme-smoke" không có trong main.json',
-    ]);
-    expect(rulesetProblems(live, strictCode)).toContain(
       "required_status_checks không bật strict (nhánh phải cập nhật trước merge)",
-    );
+    ]);
   });
 
   it("không có rule nào ⇒ thiếu đủ 4 loại và mọi required check", () => {

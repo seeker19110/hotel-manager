@@ -149,7 +149,7 @@ Sau mỗi lát: review độc lập (`reviewer`), sửa hết 🔴/🟠 kèm tes
 > CI/workflow/hook/xt.yaml/.env.example, pháp lý, hạ tầng, diễn tập người → đã `loop defer`. Xếp chồng sau lát 9.
 
 ### Rủi ro ↔ task đợt 5 (PM-RISK-003)
-> Sổ rủi ro: [`docs/RISKS.md`](../RISKS.md). Rủi ro xếp đầu của lát 10 là RK-003 (ghi tiền trùng/sai) và RK-007: T-401 mở lát và xử lý hai rủi ro này trước. Test máy kiểm: `scripts/process-docs.test.mjs`.
+> Sổ rủi ro: [`docs/RISKS.md`](../../RISKS.md). Rủi ro xếp đầu của lát 10 là RK-003 (ghi tiền trùng/sai) và RK-007: T-401 mở lát và xử lý hai rủi ro này trước. Test máy kiểm: `scripts/process-docs.test.mjs`.
 
 | Task | Rủi ro (RK-NNN) |
 |---|---|
