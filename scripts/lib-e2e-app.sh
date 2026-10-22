@@ -148,11 +148,11 @@ hm_start_app() {
       tail -n 50 "$log" >&2 || true
       hm_die 1 "app thoát trước khi sẵn sàng"
     fi
-    if curl -fsS --max-time 2 "${HM_BASE_URL}/api/health" >/dev/null 2>&1; then
+    if curl -fsS --max-time 2 "${HM_BASE_URL}/api/health" >/dev/null 2>&1 9>&-; then
       hm_log "app sẵn sàng"
       return 0
     fi
-    sleep 2
+    sleep 2 9>&-
   done
   tail -n 50 "$log" >&2 || true
   hm_die 1 "app không lên trong 240 giây"
@@ -172,14 +172,14 @@ hm_stop_app() {
       kill -TERM "$pid" 2>/dev/null || true
       for _ in $(seq 1 60); do
         kill -0 "$pid" 2>/dev/null || break
-        sleep 0.5
+        sleep 0.5 9>&-
       done
     fi
     if kill -0 -- "-$pid" 2>/dev/null; then
       kill -TERM -- "-$pid" 2>/dev/null || true
       for _ in $(seq 1 20); do
         kill -0 -- "-$pid" 2>/dev/null || break
-        sleep 0.5
+        sleep 0.5 9>&-
       done
       kill -KILL -- "-$pid" 2>/dev/null || true
     fi

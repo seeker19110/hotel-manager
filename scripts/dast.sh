@@ -45,7 +45,8 @@ hm_log "ZAP baseline (quét thụ động, spider 2 phút)"
 zap zap-baseline.py -t "$HM_BASE_URL" -m 2 -I -J baseline.json -r baseline.html
 hm_log "ZAP quét chủ động (XSS/injection), giới hạn 12 phút"
 zap zap-full-scan.py -t "$HM_BASE_URL" -m 2 -T 12 -I -J active.json -r active.html
-mv "$wrk"/* "$OUT"/
+# Cả file ẩn (nếu ZAP sinh ra): `find -mindepth 1 -maxdepth 1` thay glob `*` (review #119).
+find "$wrk" -mindepth 1 -maxdepth 1 -exec mv -t "$OUT"/ {} +
 rmdir "$wrk"
 
 hm_stop_app
