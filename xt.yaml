@@ -46,7 +46,7 @@ commit_gate: fast
 # test_fast: test unit liên quan file đổi; test db/e2e ở CI
 test_fast: "pnpm exec vitest related --run --project unit --passWithNoTests $XT_CHANGED_FILES"
 # merge_hard_exceptions: human
-delivery_phase: build
+delivery_phase: harden
 # e2e_affected: ""      # chỉ spec của lát đang làm (Gate mỗi task); trống = e2e
 # pr_title_check: ""    # off = không đòi tiêu đề PR `<type>(scope): mô tả` ≤ 72 ký tự
 

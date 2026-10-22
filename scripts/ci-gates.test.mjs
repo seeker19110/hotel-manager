@@ -125,43 +125,41 @@ const ci = parse(read(`${WORKFLOW_DIR}/ci.yml`));
 const stepRun = (job, namePart) => job.steps.find((s) => String(s.name ?? "").includes(namePart))?.run;
 
 /** Cổng đợt 9 (T-801…T-807) chạy trên mọi PR — D-065: phải có trong ruleset để chặn merge khi người import. */
-const WAVE9_GATES = []; // đợt 9 hoãn hết tới harden (D-084/D-085/D-086)
-/**
- * D-084 + D-085 + D-086 (chủ dự án, pha build): cổng hoãn tới pha harden — không required, không chạy trên PR/push/lịch, chỉ chạy tay
- * (`if: github.event_name == 'workflow_dispatch'`). Đặt `delivery_phase: harden` trong xt.yaml ⇒ test đỏ tới khi trả hết về
- * WAVE9_GATES + ruleset + trigger cũ.
- */
-const DEFERRED_TO_HARDEN = [
+const WAVE9_GATES = [
+  "commit-lint",
+  "pr-policy",
   "new-deps",
   "openapi",
-  "unit-deterministic",
-  "regression",
-  "sast",
-  "coverage",
-  "coverage-ratchet",
-  "fix-requires-test",
+  "prometheus-rules",
+  "otel-collector",
+  "schema-compat",
+  "fe-typecheck",
+  "fe-lint",
   "bundle-size",
   "lighthouse",
+  "unit-deterministic",
   "e2e-repeat",
+  "regression",
+  "sast",
   "dast",
   "sbom",
   "image-scan (postgres)",
   "image-scan (node-base)",
   "image-scan (seaweedfs)",
   "image-scan (caddy)",
-  "schema-compat",
-  "prometheus-rules",
-  "otel-collector",
-  "protection-guard",
-  "dep-audit",
-  "commit-lint",
-  "pr-policy",
-  "fe-typecheck",
-  "fe-lint",
+  "coverage",
+  "coverage-ratchet",
+  "fix-requires-test",
 ];
+/**
+ * D-084 + D-085 + D-086 (chủ dự án, pha build): cổng hoãn tới pha harden — không required, không chạy trên PR/push/lịch, chỉ chạy tay
+ * (`if: github.event_name == 'workflow_dispatch'`). Pha harden (D-091): rỗng — mọi cổng đã trả về WAVE9_GATES/BASE_GATES,
+ * ruleset và trigger cũ; rào bên dưới đỏ nếu `delivery_phase: harden` mà danh sách này còn phần tử.
+ */
+const DEFERRED_TO_HARDEN = [];
 /** Cổng có từ trước đợt 9; `quality` gom gate/e2e/onboarding-smoke (T-807; ADR-0039 của khung: typecheck, lint, workflow-lint,
  * backup-restore gộp thành bước của `gate`). */
-const BASE_GATES = ["quality", "gitleaks"]; // protection-guard, dep-audit: hoãn tới harden (D-086)
+const BASE_GATES = ["quality", "protection-guard", "gitleaks", "dep-audit"]; // D-086 khôi phục ở pha harden (D-091)
 /**
  * Khung 3.13.0 (ADR-0036): máy chỉ merge ghim head nên `merge-gate` hết lý do tồn tại. Chủ dự án đã gỡ context khỏi
  * ruleset sống (2026-10-21) rồi mới xoá workflow stub — xoá trước thì mọi PR treo "Expected — merge-gate".

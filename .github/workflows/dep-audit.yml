@@ -15,8 +15,6 @@ permissions:
 jobs:
   dep-audit:
     name: dep-audit
-    # D-086: hoãn tới pha harden — chỉ chạy tay (workflow_dispatch); khôi phục khi delivery_phase: harden.
-    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:

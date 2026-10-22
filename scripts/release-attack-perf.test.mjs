@@ -60,15 +60,15 @@ describe("xt.yaml attack/perf ↔ CI: một lệnh, gọi nguyên văn", () => {
     expect(xt.attack).toBe("bash scripts/dast.sh");
     expect(xt.perf).toBe("bash scripts/perf-load.sh");
     for (const f of SCRIPTS) expect(existsSync(join(ROOT, f)), f).toBe(true);
-    expect(xt.delivery_phase).toBe("build");
+    expect(xt.delivery_phase).toBe("harden");
   });
 
-  it("job dast và job k6 chạy đúng lệnh của xt.yaml; điều kiện chạy (if:) của job dast giữ nguyên (D-085)", () => {
+  it("job dast và job k6 chạy đúng lệnh của xt.yaml; pha harden: sast/dast không còn if: chỉ chạy tay (D-085 đã khôi phục)", () => {
     const sec = read(".github/workflows/security-scan.yml");
     const perf = read(".github/workflows/perf-nightly.yml");
     expect(sec).toContain(`run: ${xt.attack}\n`);
     expect(perf).toContain(`run: ${xt.perf}\n`);
-    expect(sec.match(/^ {4}if: github\.event_name == 'workflow_dispatch'$/gm)).toHaveLength(2);
+    expect(sec).not.toMatch(/^ {4}if: github\.event_name == 'workflow_dispatch'$/m);
   });
 
   it.each(SCRIPTS)("%s: cú pháp bash hợp lệ, set -euo pipefail ở script chạy", (f) => {

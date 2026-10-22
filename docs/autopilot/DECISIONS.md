@@ -654,3 +654,17 @@
 - Chọn: Giữ ngoại lệ khởi tạo; accountant chỉ UPDATE (lockPerson), không INSERT
 - Lý do (tiêu chí chất lượng cuối): Đúng và an toàn — cách hiểu chặt hơn: không đường mã nào cho accountant tạo người, chỉ cần UPDATE/khoá hàng; ngoại lệ khởi tạo chỉ mở khi membership của actor chưa tồn tại (org.create, acceptInvitation), đổi thứ tự khởi tạo đụng FK person_id và luồng auth — rủi ro hơn lợi ích (tiêu chí 2).
 - Đường lùi: Thêm accountant lại vào điều kiện INSERT của 0065 (migration mới)
+
+### D-091 · 2026-10-22T03:26:00+00:00 · Chuyển pha harden (delivery_phase: harden): khôi phục 26 cổng hoãn theo D-084/D-085/D-086 thế nào?
+
+- Phương án: (1) Khôi phục toàn bộ 26 cổng một lát: gỡ if: workflow_dispatch (coverage-ratchet/fix-requires-test/schema-compat về if: pull_request; commit-lint/pr-policy lấy if xét tác giả PR), bỏ trigger workflow_dispatch thêm vào lúc hoãn, trả 28 context vào main.json, strict true, DEFERRED_TO_HARDEN rỗng · (2) Khôi phục dần theo lô (cổng nền + chính sách PR trước, hiệu năng/quét image/DAST sau), giữ delivery_phase: build tới lô cuối
+- Chọn: Khôi phục toàn bộ 26 cổng một lát: gỡ if: workflow_dispatch (coverage-ratchet/fix-requires-test/schema-compat về if: pull_request; commit-lint/pr-policy lấy if xét tác giả PR), bỏ trigger workflow_dispatch thêm vào lúc hoãn, trả 28 context vào main.json, strict true, DEFERRED_TO_HARDEN rỗng
+- Lý do (tiêu chí chất lượng cuối): Phiên chính chọn chuyển harden. Đúng và an toàn: đường lùi của D-084/D-085/D-086 ghi sẵn từng bước, rào ci-gates đòi DEFERRED_TO_HARDEN rỗng khi harden nên khôi phục từng phần không qua được rào; giữ build tới lô cuối thì các lô đầu không được máy bắt. Bỏ trigger workflow_dispatch thêm lúc hoãn vì job như pr-policy/commit-lint/new-deps đọc ngữ cảnh PR, chạy tay sẽ đỏ vô nghĩa. Đánh đổi chấp nhận: CI mỗi PR nặng lại (lighthouse, e2e-repeat, dast, image-scan cần docker/mạng); ngoại lệ grype hết hạn 2026-10-25 có thể đỏ image-scan.
+- Đường lùi: Revert commit khôi phục (đặt lại if: workflow_dispatch, DEFERRED_TO_HARDEN 26 cổng, ruleset 2 check strict false, delivery_phase: build); người import lại ruleset trên GitHub.
+
+### D-092 · 2026-10-22T03:32:33+00:00 · Khôi phục cổng harden làm tổng timeout CI mỗi PR 730 > trần 600 phút — xử lý thế nào?
+
+- Phương án: (1) Siết timeout e2e 40 → 15 phút (đo 2m19–3m33/shard), tổng 580 · (2) Nâng max_total_timeout_min 600 → 800 và ghi lý do · (3) Giảm số shard e2e
+- Chọn: Siết timeout e2e 40 → 15 phút (đo 2m19–3m33/shard), tổng 580
+- Lý do (tiêu chí chất lượng cuối): Đúng và an toàn: siết chứ không nới ngưỡng (LOOP-CI-001), biên >4 lần thời gian đo; giảm shard đi ngược WF-CI-025 và kéo dài đường găng. Rủi ro: runner chậm bị huỷ ở 15 phút — đo lại nếu xảy ra.
+- Đường lùi: Đặt lại timeout-minutes: 40 cho e2e và đề xuất nâng trần có lý do ở docs/PERF-BUDGET.md

@@ -9,7 +9,6 @@ name: Test quality
 on:
   push:
     branches: [main]
-  workflow_dispatch: {}
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened, edited]
@@ -26,8 +25,6 @@ jobs:
   # Unit + db (Postgres 17 thật) với coverage v8 có `branches`; vitest đỏ khi thấp hơn coverage.thresholds trong vitest.config.ts.
   coverage:
     name: coverage
-    # D-085: hoãn tới pha harden — chỉ chạy tay (workflow_dispatch), không chạy trên PR/push/lịch; khôi phục khi delivery_phase: harden.
-    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     services:
@@ -73,8 +70,7 @@ jobs:
   # Ngưỡng chỉ được tăng; `exclude` mới cần lý do ở mô tả PR (scripts/check-coverage-ratchet.mjs).
   coverage-ratchet:
     name: coverage-ratchet
-    # D-085: hoãn tới pha harden — chỉ chạy tay (workflow_dispatch), không chạy trên PR/push/lịch; khôi phục khi delivery_phase: harden.
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -99,8 +95,7 @@ jobs:
   # PR `fix:` phải đổi ít nhất một file test (hoặc ghi lý do miễn trừ ở mô tả PR).
   fix-requires-test:
     name: fix-requires-test
-    # D-085: hoãn tới pha harden — chỉ chạy tay (workflow_dispatch), không chạy trên PR/push/lịch; khôi phục khi delivery_phase: harden.
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

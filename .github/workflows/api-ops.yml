@@ -1,15 +1,13 @@
 name: API và vận hành
 
 # Kiểm hợp đồng API và cấu hình vận hành bằng công cụ thật (T-806): spectral (BE-API-001), promtool (OPS-SLO-001),
-# OTel Collector (OPS-OBS-001), test bản N−1 trên schema N (OPS-DEPLOY-003;
-# pha build: chỉ chạy tay — D-085). Công cụ nhị phân cài bằng scripts/ops-tools.sh
+# OTel Collector (OPS-OBS-001), test bản N−1 trên schema N (OPS-DEPLOY-003). Công cụ nhị phân cài bằng scripts/ops-tools.sh
 # (phiên bản + SHA-256 ghim một chỗ). Kiểm breaking-change OpenAPI nằm ở job `pr-policy` (scripts/check-openapi-breaking.mjs).
 on:
   pull_request:
     branches: [main]
   push:
     branches: [main]
-  workflow_dispatch: {}
 
 permissions:
   contents: read
@@ -22,8 +20,6 @@ jobs:
   # BE-API-001: spec OpenAPI 3.1 là nguồn sự thật; lint bằng Spectral với ruleset trong repo (.spectral.yaml), cảnh báo cũng là lỗi.
   openapi:
     name: openapi
-    # D-085: hoãn tới pha harden — chỉ chạy tay (workflow_dispatch), không chạy trên PR/push/lịch; khôi phục khi delivery_phase: harden.
-    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -43,8 +39,6 @@ jobs:
   # OPS-SLO-001: rule cảnh báo + SLO. `check rules` (cú pháp), `test rules` (rule báo/không báo đúng), truy vấn SLI trong SLO.md.
   prometheus-rules:
     name: prometheus-rules
-    # D-085: hoãn tới pha harden — chỉ chạy tay (workflow_dispatch), không chạy trên PR/push/lịch; khôi phục khi delivery_phase: harden.
-    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -66,8 +60,6 @@ jobs:
   # OPS-OBS-001: cấu hình Collector hợp lệ (validate) và chạy thật trên log mẫu — dòng rác vẫn lưu với nhãn `unparsed`.
   otel-collector:
     name: otel-collector
-    # D-085: hoãn tới pha harden — chỉ chạy tay (workflow_dispatch), không chạy trên PR/push/lịch; khôi phục khi delivery_phase: harden.
-    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -91,8 +83,7 @@ jobs:
   # (schema-guards.baseline.json, data-map.yaml) được `overlay` chép từ PR — xem scripts/schema-compat.mjs.
   schema-compat:
     name: schema-compat
-    # D-085: hoãn tới pha harden — chỉ chạy tay (workflow_dispatch), không chạy trên PR/push/lịch; khôi phục khi delivery_phase: harden.
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     services:
