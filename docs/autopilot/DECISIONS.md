@@ -668,3 +668,25 @@
 - Chọn: Siết timeout e2e 40 → 15 phút (đo 2m19–3m33/shard), tổng 580
 - Lý do (tiêu chí chất lượng cuối): Đúng và an toàn: siết chứ không nới ngưỡng (LOOP-CI-001), biên >4 lần thời gian đo; giảm shard đi ngược WF-CI-025 và kéo dài đường găng. Rủi ro: runner chậm bị huỷ ở 15 phút — đo lại nếu xảy ra.
 - Đường lùi: Đặt lại timeout-minutes: 40 cho e2e và đề xuất nâng trần có lý do ở docs/PERF-BUDGET.md
+
+### D-093 · 2026-10-22T08:44:08+00:00 · Duyệt PLAN đợt 17 (hạn ngoại lệ grype + i18n /co-so, /thanh-vien)?
+
+- Phương án: (1) Duyệt PLAN 3 task như viết · (2) Chỉ làm T-1701, để i18n đợt sau
+- Chọn: Duyệt PLAN 3 task như viết
+- Lý do (tiêu chí chất lượng cuối): (1) đúng/an toàn: xử lý hạn 2026-10-25 trước; (3) i18n là MUST mở duy nhất máy làm tiếp được, lát nhỏ độc lập file, ratchet chặn lùi
+- Đường lùi: Bỏ T-1702 khỏi PLAN, đóng PR lát 2
+
+### D-094 · 2026-10-22T08:46:47+00:00 · T-1701: 4 luật grype critical (GO-2026-6612 HTTP/2 server; GO-2026-6604 chỉ Windows) hết hạn 2026-10-25, thượng nguồn chưa có image vá (rà 2026-10-22: Caddy mới nhất v2.11.7 — image 2.11.7-alpine dựng lại 2026-10-21 vẫn tải nhị phân phát hành v2.11.7/Go 1.26.8; SeaweedFS mới nhất 4.48; Go 1.26.10 đã có) — xử lý thế nào?
+
+- Phương án: (1) Gia hạn ≤ 7 ngày (2026-10-29) theo D-067, ghi giảm nhẹ; tự dựng image trước production nếu thượng nguồn vẫn chưa vá · (2) Tự dựng image Caddy + SeaweedFS bằng Go 1.26.10 ngay (Dockerfile riêng, build trong CI) · (3) Tắt HTTP/2 ở Caddyfile và gỡ luật Caddy
+- Chọn: Gia hạn ≤ 7 ngày (2026-10-29) theo D-067, ghi giảm nhẹ; tự dựng image trước production nếu thượng nguồn vẫn chưa vá
+- Lý do (tiêu chí chất lượng cuối): (1) an toàn: chưa có triển khai production nào (VPS chờ người) nên lỗ hổng chưa phơi ra; GO-2026-6604 không áp dụng Linux; SeaweedFS chỉ ở mạng nội bộ. (2)(3) tự dựng image đổi cách triển khai + thêm bảo trì chuỗi build khi thượng nguồn thường vá trong vài ngày; tắt h2 giảm trải nghiệm và không xử lý SeaweedFS. Hạn 7 ngày buộc rà lại.
+- Đường lùi: Nếu 2026-10-29 vẫn chưa có bản vá hoặc sắp lên production: làm phương án 2 (deploy/caddy/Dockerfile, deploy/seaweedfs/Dockerfile với Go ≥ 1.26.9)
+- Khi chạy thật (đề xuất, chủ dự án quyết ở G7): Trước khi lên production: không chạy Caddy/SeaweedFS dựng bằng Go < 1.26.9 — nâng image vá hoặc tự dựng; tạm thời có thể tắt h2 ở Caddy (servers { protocols h1 h3 })
+
+### D-095 · 2026-10-22T09:23:22+00:00 · Kiểm lại cuối đợt 17: 8 mục MUST [x] (BASE-REPO-008/013, WF-REVIEW-001/005, WF-GIT-001/002, QA-E2E-001, QA-STRAT-002) có lệnh Kiểm 'check-github-live ruleset' đỏ vì ruleset sống chưa import main.json bản D-091 (thiếu 27 context + strict) — xử lý thế nào?
+
+- Phương án: (1) Bỏ tick về [ ] (giữ Kiểm), loop defer chờ người import; tick lại khi lệnh Kiểm xanh · (2) Giữ [x] vì yêu cầu cốt lõi (bảo vệ nhánh) vẫn đạt · (3) Nới check-github-live chỉ so tập con
+- Chọn: Bỏ tick về [ ] (giữ Kiểm), loop defer chờ người import; tick lại khi lệnh Kiểm xanh
+- Lý do (tiêu chí chất lượng cuối): (1) P1 bằng chứng, không lời khai: lệnh Kiểm đỏ thì mục chưa đạt; không nới công cụ kiểm (LOOP-CI-001). (2) đảo ngược: import xong chạy lại Kiểm rồi tick lại
+- Đường lùi: Người import ruleset → chạy 'node scripts/check-github-live.mjs ruleset' xanh → tick lại 8 mục

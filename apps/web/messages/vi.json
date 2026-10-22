@@ -166,5 +166,277 @@
   "list.truncated": {
     "message": "Đang hiện {n} mục đầu tiên, có thể còn mục khác. Thu hẹp khoảng ngày để xem đủ.",
     "description": "Thông báo khi danh sách (đặt phòng, lịch phòng) chạm trần số dòng của truy vấn; {n} = trần."
+  },
+  "property.metadata.title": {
+    "message": "Cơ sở — Hotel Manager",
+    "description": "Màn Cơ sở (/co-so): tiêu đề tab trình duyệt."
+  },
+  "property.page.title": {
+    "message": "Cơ sở",
+    "description": "Màn Cơ sở (/co-so): tiêu đề trang."
+  },
+  "property.template.rental": {
+    "message": "Nhà trọ",
+    "description": "Màn Cơ sở (/co-so): nhãn mẫu cơ sở `rental`."
+  },
+  "property.template.hotel": {
+    "message": "Khách sạn / nhà nghỉ",
+    "description": "Màn Cơ sở (/co-so): nhãn mẫu cơ sở `hotel`."
+  },
+  "property.template.mixed": {
+    "message": "Hỗn hợp",
+    "description": "Màn Cơ sở (/co-so): nhãn mẫu cơ sở `mixed`."
+  },
+  "property.error.load": {
+    "message": "Không tải được danh sách cơ sở",
+    "description": "Màn Cơ sở (/co-so): tiêu đề lỗi khi tải danh sách thất bại."
+  },
+  "property.empty.title": {
+    "message": "Chưa có cơ sở nào",
+    "description": "Màn Cơ sở (/co-so): tiêu đề trạng thái rỗng."
+  },
+  "property.empty.owner": {
+    "message": "Tạo cơ sở đầu tiên bên dưới để bắt đầu.",
+    "description": "Màn Cơ sở (/co-so): gợi ý trạng thái rỗng cho chủ sở hữu."
+  },
+  "property.empty.staff": {
+    "message": "Chủ sở hữu cần tạo cơ sở.",
+    "description": "Màn Cơ sở (/co-so): gợi ý trạng thái rỗng cho vai trò khác chủ."
+  },
+  "property.list.checkin": {
+    "message": " · nhận phòng {time}",
+    "description": "Màn Cơ sở (/co-so): nối sau dòng mô tả cơ sở; {time} = giờ nhận phòng."
+  },
+  "property.list.checkout": {
+    "message": " · trả phòng {time}",
+    "description": "Màn Cơ sở (/co-so): nối sau dòng mô tả cơ sở; {time} = giờ trả phòng."
+  },
+  "property.edit.summary": {
+    "message": "Sửa cơ sở — {name}",
+    "description": "Màn Cơ sở (/co-so): tiêu đề khối mở rộng sửa cơ sở; {name} = tên cơ sở."
+  },
+  "property.field.name": {
+    "message": "Tên cơ sở",
+    "description": "Màn Cơ sở (/co-so): nhãn ô nhập tên cơ sở."
+  },
+  "property.field.timezone": {
+    "message": "Múi giờ (tên IANA)",
+    "description": "Màn Cơ sở (/co-so): nhãn ô nhập múi giờ."
+  },
+  "property.field.cutoff": {
+    "message": "Giờ chốt ngày (HH:MM)",
+    "description": "Màn Cơ sở (/co-so): nhãn ô nhập giờ chốt ngày kinh doanh."
+  },
+  "property.field.check_in": {
+    "message": "Giờ nhận phòng (HH:MM)",
+    "description": "Màn Cơ sở (/co-so): nhãn ô nhập giờ nhận phòng."
+  },
+  "property.field.check_out": {
+    "message": "Giờ trả phòng (HH:MM)",
+    "description": "Màn Cơ sở (/co-so): nhãn ô nhập giờ trả phòng."
+  },
+  "property.field.template": {
+    "message": "Loại hình",
+    "description": "Màn Cơ sở (/co-so): nhãn ô chọn loại hình (mẫu) cơ sở."
+  },
+  "property.hint.timezone_edit": {
+    "message": "Ví dụ Asia/Ho_Chi_Minh. Không đổi được khi cơ sở đã có giao dịch.",
+    "description": "Màn Cơ sở (/co-so): gợi ý ô múi giờ khi sửa."
+  },
+  "property.hint.locked": {
+    "message": "Không đổi được khi cơ sở đã có giao dịch.",
+    "description": "Màn Cơ sở (/co-so): gợi ý ô giờ chốt ngày khi sửa."
+  },
+  "property.hint.timezone_create": {
+    "message": "Để trống = Asia/Ho_Chi_Minh.",
+    "description": "Màn Cơ sở (/co-so): gợi ý ô múi giờ khi tạo."
+  },
+  "property.hint.cutoff_create": {
+    "message": "Để trống = 00:00.",
+    "description": "Màn Cơ sở (/co-so): gợi ý ô giờ chốt ngày khi tạo."
+  },
+  "property.hint.hotel_optional": {
+    "message": "Khách sạn/nhà nghỉ; có thể để trống.",
+    "description": "Màn Cơ sở (/co-so): gợi ý ô giờ nhận/trả phòng khi tạo."
+  },
+  "property.edit.submit": {
+    "message": "Lưu thay đổi",
+    "description": "Màn Cơ sở (/co-so): nhãn nút lưu khi sửa cơ sở."
+  },
+  "property.edit.success": {
+    "message": "Đã lưu cơ sở.",
+    "description": "Màn Cơ sở (/co-so): thông báo sau khi lưu cơ sở."
+  },
+  "property.create.heading": {
+    "message": "Tạo cơ sở mới",
+    "description": "Màn Cơ sở (/co-so): tiêu đề phần tạo cơ sở."
+  },
+  "property.create.submit": {
+    "message": "Tạo cơ sở",
+    "description": "Màn Cơ sở (/co-so): nhãn nút tạo cơ sở."
+  },
+  "property.create.success": {
+    "message": "Đã tạo cơ sở.",
+    "description": "Màn Cơ sở (/co-so): thông báo sau khi tạo cơ sở."
+  },
+  "member.metadata.title": {
+    "message": "Thành viên — Hotel Manager",
+    "description": "Màn Thành viên (/thanh-vien): tiêu đề tab trình duyệt."
+  },
+  "member.page.title": {
+    "message": "Thành viên",
+    "description": "Màn Thành viên (/thanh-vien): tiêu đề trang."
+  },
+  "member.error.forbidden_title": {
+    "message": "Không có quyền",
+    "description": "Màn Thành viên (/thanh-vien): tiêu đề lỗi khi vai trò không được xem danh sách."
+  },
+  "member.error.forbidden_text": {
+    "message": "Chỉ chủ và quản lý xem được danh sách thành viên.",
+    "description": "Màn Thành viên (/thanh-vien): nội dung lỗi khi vai trò không được xem danh sách."
+  },
+  "member.error.load_members": {
+    "message": "Không tải được danh sách",
+    "description": "Màn Thành viên (/thanh-vien): tiêu đề lỗi khi tải danh sách thành viên thất bại."
+  },
+  "member.error.load_properties": {
+    "message": "Không tải được cơ sở",
+    "description": "Màn Thành viên (/thanh-vien): tiêu đề lỗi khi tải danh sách cơ sở thất bại."
+  },
+  "member.invite.email": {
+    "message": "Email người được mời",
+    "description": "Màn Thành viên (/thanh-vien): nhãn ô email của lời mời."
+  },
+  "member.field.role": {
+    "message": "Vai trò",
+    "description": "Màn Thành viên (/thanh-vien): nhãn ô chọn vai trò khi mời."
+  },
+  "member.field.property": {
+    "message": "Cơ sở",
+    "description": "Màn Thành viên (/thanh-vien): nhãn ô chọn cơ sở (mời, đổi cơ sở)."
+  },
+  "member.invite.all_properties_option": {
+    "message": "Tất cả cơ sở (chỉ chủ và kế toán)",
+    "description": "Màn Thành viên (/thanh-vien): lựa chọn phạm vi mọi cơ sở trong form mời."
+  },
+  "member.invite.property_hint": {
+    "message": "Vai trò còn lại phải chọn một cơ sở.",
+    "description": "Màn Thành viên (/thanh-vien): gợi ý ô cơ sở trong form mời."
+  },
+  "member.invite.discount": {
+    "message": "Hạn mức giảm giá (đ)",
+    "description": "Màn Thành viên (/thanh-vien): nhãn ô hạn mức giảm giá, đơn vị đồng."
+  },
+  "member.invite.discount_hint": {
+    "message": "Để trống nếu không cấp. 0 = mọi khoản cần duyệt.",
+    "description": "Màn Thành viên (/thanh-vien): gợi ý ô hạn mức giảm giá."
+  },
+  "member.invite.heading": {
+    "message": "Mời nhân viên",
+    "description": "Màn Thành viên (/thanh-vien): tiêu đề phần mời nhân viên."
+  },
+  "member.invite.submit": {
+    "message": "Gửi lời mời",
+    "description": "Màn Thành viên (/thanh-vien): nhãn nút gửi lời mời."
+  },
+  "member.invite.success": {
+    "message": "Đã gửi lời mời. Người nhận mở liên kết trong email (hạn 7 ngày) để tham gia.",
+    "description": "Màn Thành viên (/thanh-vien): thông báo sau khi gửi lời mời."
+  },
+  "member.pending.heading": {
+    "message": "Lời mời đang chờ",
+    "description": "Màn Thành viên (/thanh-vien): tiêu đề phần lời mời đang chờ."
+  },
+  "member.pending.empty": {
+    "message": "Không có lời mời đang chờ",
+    "description": "Màn Thành viên (/thanh-vien): trạng thái rỗng danh sách lời mời."
+  },
+  "member.scope.all": {
+    "message": "Tất cả cơ sở",
+    "description": "Màn Thành viên (/thanh-vien): phạm vi của thành viên/lời mời được làm ở mọi cơ sở."
+  },
+  "member.scope.none": {
+    "message": "Chưa có cơ sở",
+    "description": "Màn Thành viên (/thanh-vien): thành viên chưa gán cơ sở nào."
+  },
+  "member.active.heading": {
+    "message": "Đang làm việc",
+    "description": "Màn Thành viên (/thanh-vien): tiêu đề phần thành viên đang làm việc."
+  },
+  "member.active.empty_title": {
+    "message": "Chưa có nhân viên",
+    "description": "Màn Thành viên (/thanh-vien): tiêu đề trạng thái rỗng danh sách nhân viên."
+  },
+  "member.active.empty_text": {
+    "message": "Mời người đầu tiên ở phần trên.",
+    "description": "Màn Thành viên (/thanh-vien): gợi ý trạng thái rỗng danh sách nhân viên."
+  },
+  "member.self_suffix": {
+    "message": " (bạn)",
+    "description": "Màn Thành viên (/thanh-vien): hậu tố sau tên khi thành viên là chính người đang xem."
+  },
+  "member.role.summary": {
+    "message": "Đổi vai trò — {name}",
+    "description": "Màn Thành viên (/thanh-vien): tiêu đề khối mở rộng đổi vai trò; {name} = tên thành viên."
+  },
+  "member.role.new": {
+    "message": "Vai trò mới",
+    "description": "Màn Thành viên (/thanh-vien): nhãn ô chọn vai trò mới."
+  },
+  "member.role.property_label": {
+    "message": "Cơ sở (nếu đổi sang vai trò theo cơ sở)",
+    "description": "Màn Thành viên (/thanh-vien): nhãn ô cơ sở khi đổi vai trò."
+  },
+  "member.role.keep_scope": {
+    "message": "Giữ nguyên phạm vi",
+    "description": "Màn Thành viên (/thanh-vien): lựa chọn giữ phạm vi cơ sở hiện tại khi đổi vai trò."
+  },
+  "member.field.reason": {
+    "message": "Lý do",
+    "description": "Màn Thành viên (/thanh-vien): nhãn ô lý do (đổi vai trò/đổi cơ sở)."
+  },
+  "member.role.submit": {
+    "message": "Đổi vai trò",
+    "description": "Màn Thành viên (/thanh-vien): nhãn nút đổi vai trò."
+  },
+  "member.role.success": {
+    "message": "Đã đổi vai trò. Có hiệu lực ở thao tác kế tiếp của người đó.",
+    "description": "Màn Thành viên (/thanh-vien): thông báo sau khi đổi vai trò."
+  },
+  "member.role.confirm": {
+    "message": "Quyền của người này đổi ngay ở thao tác kế tiếp; thay đổi được ghi vào nhật ký.",
+    "description": "Màn Thành viên (/thanh-vien): nội dung hộp xác nhận đổi vai trò."
+  },
+  "member.role.confirm_label": {
+    "message": "Đổi vai trò của {name}",
+    "description": "Màn Thành viên (/thanh-vien): nhãn xác nhận đổi vai trò; {name} = tên thành viên."
+  },
+  "member.scope.summary": {
+    "message": "Đổi cơ sở được làm việc — {name}",
+    "description": "Màn Thành viên (/thanh-vien): tiêu đề khối mở rộng đổi cơ sở; {name} = tên thành viên."
+  },
+  "member.scope.submit": {
+    "message": "Đổi cơ sở",
+    "description": "Màn Thành viên (/thanh-vien): nhãn nút đổi cơ sở."
+  },
+  "member.scope.success": {
+    "message": "Đã đổi phạm vi cơ sở.",
+    "description": "Màn Thành viên (/thanh-vien): thông báo sau khi đổi phạm vi cơ sở."
+  },
+  "member.revoke.submit": {
+    "message": "Thu hồi phiên đăng nhập — {name}",
+    "description": "Màn Thành viên (/thanh-vien): nhãn nút thu hồi phiên; {name} = tên thành viên."
+  },
+  "member.revoke.success": {
+    "message": "Đã đăng xuất người này khỏi mọi thiết bị.",
+    "description": "Màn Thành viên (/thanh-vien): thông báo sau khi thu hồi phiên."
+  },
+  "member.revoke.confirm": {
+    "message": "Người này bị đăng xuất khỏi mọi thiết bị ngay và phải đăng nhập lại.",
+    "description": "Màn Thành viên (/thanh-vien): nội dung hộp xác nhận thu hồi phiên."
+  },
+  "member.revoke.confirm_label": {
+    "message": "Thu hồi phiên của {name}",
+    "description": "Màn Thành viên (/thanh-vien): nhãn xác nhận thu hồi phiên; {name} = tên thành viên."
   }
 }

@@ -42,3 +42,6 @@ d6d1268d867f6fb822fa1bad57465d1609115ac1:packages/app/src/reconciliation/reconci
 # dòng `".github/workflows/secret-scan.yml": "<64 hex>"`. Khung 3.11.1 ghi `sha256:<hex>` nên commit sau không còn khớp.
 3d1981cfbc7a86f46c13c25cc766b82eda98ed9a:.xtemplates/harness.sha256.json:generic-api-key:33
 3d1981cfbc7a86f46c13c25cc766b82eda98ed9a:.xtemplates/manifest.json:generic-api-key:34
+
+# Khoá HMAC giả của test DB đối soát ở commit 5c1516a (reconciliation.db.test.ts, giá trị "…-chi-dung-trong-test-…") — không phải bí mật thật; bắt được khi kiểm lại cuối đợt 17 (WF-GIT-010).
+5c1516aca06d62086fdc7e2c782de4f6cfe52c29:packages/app/src/reconciliation/reconciliation.db.test.ts:generic-api-key:30

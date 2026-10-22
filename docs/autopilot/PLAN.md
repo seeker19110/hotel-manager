@@ -1,30 +1,30 @@
-# docs/autopilot/PLAN.md — Hotel Manager · Đợt 16: hoàn thiện ở dev — phần còn lại của audit 🟢
+# docs/autopilot/PLAN.md — Hotel Manager · Đợt 17: hạn ngoại lệ grype + chuyển chuỗi i18n
 
-> **Cổng duyệt: phiên chính tự duyệt 2026-10-21** (AGENTS §5; D-089 ở `docs/autopilot/DECISIONS.md`). Tiếp đợt 15 (`archive/PLAN-dot-15.md`, PR #116 chờ người merge); xếp chồng cùng nhánh (D-088).
+> **Cổng duyệt: phiên chính tự duyệt 2026-10-22** (AGENTS §5; D-093/D-094 ở `docs/autopilot/DECISIONS.md`). Đợt 16 đã merge (#118); khung 3.15.1 (#121).
 
 ## Tóm tắt cổng duyệt (≤ 30 dòng)
-- **Mục tiêu:** đóng các phát hiện 🟢 còn mở của audit 2026-10-19 làm được trong repo: múi giờ hiển thị/"hôm nay" theo cơ sở, rào CSDL theo vai trò cho ghi hồ sơ người và phiếu thu (phòng thủ chiều sâu), N+1 khi xem trước kỳ thu, tài liệu lệch mã.
-- **Không làm (lý do ở D-089):** AUD-SEC-003 bác bỏ — ma trận SPEC-access xếp đảo thanh toán vào "Phân bổ tiền, điều chỉnh có lý do" (= `payment.allocate`); AUD-DATA-005/006, AUD-PERF-002 (ghi theo dòng, chưa đo được hại), AUD-XFEAT-005 phần mã `DUPLICATE` (đổi mã lỗi là breaking API); AUD-HAR-001 chờ chủ dự án.
-- **Stack:** giữ nguyên; không thêm phụ thuộc. Migration mới 0065 (chỉ thêm policy, có `down`).
-- **Task:** 6 (T-1601…T-1606), 2 lát. Sửa lỗi có test đỏ trước.
-- **Rủi ro:** (R1) policy RESTRICTIVE mới chặn nhầm luồng hợp lệ (worker, nhập liệu, check-in tạo khách) — chạy toàn bộ test DB; (R2) gom truy vấn kỳ thu đổi kết quả tiền — so khớp từng đồng với bản cũ trên cùng dữ liệu.
-- **Điểm dừng:** PR chạm CSDL/tiền ⇒ người merge.
+- **Mục tiêu:** (1) 4 luật critical trong `.grype.yaml` hết hạn 2026-10-25 — rà lại 2026-10-22: Caddy chưa ra bản sau 2.11.7 (image 2.11.7-alpine dựng lại 2026-10-21 vẫn tải cùng nhị phân phát hành, Go 1.26.8), SeaweedFS chưa có 4.49 ⇒ chưa gỡ được; quyết lại theo D-067 trước khi job `image-scan` đỏ. (2) Tiến dần XC-I18N-001: chuyển chuỗi viết thẳng của hai màn quản trị (`/co-so`, `/thanh-vien`, 77 chuỗi) sang `t()`, baseline chỉ giảm.
+- **Không làm:** tự dựng image Caddy/SeaweedFS bằng Go 1.26.10 (đổi cách triển khai, chưa có production — D-094); 91 MUST còn mở đều cần người (PROGRESS *Tiếp theo*).
+- **Stack:** giữ nguyên; không thêm phụ thuộc; không migration.
+- **Task:** 3 (T-1701…T-1703), 2 lát độc lập file.
+- **Rủi ro:** (R1) gia hạn che lỗ hổng thật — chỉ gia hạn ≤ 7 ngày cho critical, ghi giảm nhẹ; (R2) chuyển chuỗi làm đổi chữ trên giao diện — E2E/unit hiện có bắt chữ, khoá dịch giữ nguyên văn bản.
+- **Điểm dừng:** không có ngoại lệ cứng (không chạm tiền/CSDL/auth).
 - **Ngân sách:** `--single-session` · 1800 s/lệnh · 24 giờ.
 
 ## Mục tiêu của kế hoạch này
-Khi xong: mọi giờ hiển thị và mốc "hôm nay" theo `properties.timezone`; vai buồng phòng/kỹ thuật/người thuê không ghi được hồ sơ người hay phiếu thu ngay ở tầng CSDL; xem trước kỳ thu của cơ sở N hợp đồng dùng số truy vấn không tăng theo N; ADR/AGENTS khớp mã.
+Khi xong: `image-scan` không đỏ vì quá hạn trước khi thượng nguồn có bản vá, mọi luật có hạn ≤ 7 ngày (critical) kèm lý do đã rà; `/co-so` và `/thanh-vien` không còn chuỗi viết thẳng (baseline giảm 77).
 
 ## Ngân sách (4 con số)
 - Số vòng tối đa: bỏ trống (`--single-session`)
-- Ngân sách: ≤ 60 USD token
+- Ngân sách: ≤ 30 USD token
 - Timeout mỗi lệnh Gate: 1800 s
 - Hạn chót: 24 giờ kể từ `loop init` (`--hours 24`)
 
 ## Hạn
 | Loại | Ngày | Hậu quả nếu trễ | Cách xử lý khi trễ |
 |---|---|---|---|
-| Hạn thật | chưa có | — | — |
-| Hạn mong muốn | 2026-10-22 | nội bộ | cắt T-1604 trước |
+| Hạn thật | 2026-10-25 | `image-scan` (required) đỏ trên mọi PR | T-1701 làm trước |
+| Hạn mong muốn | 2026-10-22 | nội bộ | cắt T-1702 |
 
 ## Ủy quyền production
 - grant: payments | mode=sandbox | max_per_txn=0 | refund=false
@@ -35,25 +35,22 @@ Khi xong: mọi giờ hiển thị và mốc "hôm nay" theo `properties.timezon
 - grant: secrets | read_values=false
 
 ## Điểm dừng bắt buộc về hành động
-- Merge PR chạm `packages/db/*`, tiền, auth (ngoại lệ cứng): người merge.
+- Không có trong đợt này.
 
 ## Thứ tự & lý do
-1. **Lát 1 — múi giờ và tài liệu** (T-1601, T-1602, T-1605): nhỏ, độc lập file.
-2. **Lát 2 — CSDL và hiệu năng** (T-1603, T-1604, T-1606): rủi ro cao hơn, tầng sâu, chạy song song vì khác file.
+1. **Lát 1 — hạn ngoại lệ grype** (T-1701): có hạn thật 2026-10-25.
+2. **Lát 2 — i18n** (T-1702, T-1703): độc lập file với lát 1.
 
 ## Task
 
-### Lát 1 — Múi giờ và tài liệu
-- [x] `T-1601` AUD-XFEAT-003 + AUD-XFEAT-005 (phần định dạng số): mọi lời gọi `dateTime(…)` trong `apps/web` truyền múi giờ của cơ sở liên quan (không dựa mặc định); `portal/dien-nuoc` dùng helper định dạng chung thay `Intl.NumberFormat` gọi thẳng; rào: `dateTime` bắt buộc tham số múi giờ, không tự dựng Intl ngoài `lib/format.ts` (files: apps/web/app/, apps/web/lib/, apps/web/components/) — Gate: `pnpm vitest run --project unit apps/web/components && pnpm --filter @hm/web exec tsc -p tsconfig.json`
-- [x] `T-1602` AUD-XFEAT-002 (phần còn lại): `reports.receivables` tính "hôm nay" theo `properties.timezone` của từng cơ sở (bỏ +7h cố định), `/ky-thu` lấy tháng mặc định theo cơ sở đang xem; test DB: cơ sở múi giờ khác ngày UTC cho đúng số ngày quá hạn (files: packages/app/src/reports/, apps/web/app/ky-thu/) — Gate: `pnpm vitest run --project db packages/app/src/reports`
-- [x] `T-1605` Tài liệu: AUD-DOC-002 (ADR-0005 ghi `@serwist/turbopack` thay mục Serwist của ADR-0001, đổi dòng trạng thái ADR-0001, SPEC-pwa/research trỏ ADR mới), AUD-HAR-002 (AGENTS.md §9: dev/CI không cần Docker — `scripts/dev-env-setup.sh`, `pnpm dev:up`), AUD-SEC-003 → "bác bỏ" kèm lý do ở sổ audit (files: docs/adr/, docs/specs/SPEC-pwa.md, docs/research/, AGENTS.md, docs/ops/AUDIT-STATUS.md) — Gate: `pnpm vitest run --project unit scripts && python3 .xtemplates/scripts/xt.py audit check docs/ops/AUDIT-STATUS.md`
+### Lát 1 — Hạn ngoại lệ grype
+- [x] `T-1701` Rà lại 4 luật critical hạn 2026-10-25 (D-094): GO-2026-6604 chỉ ảnh hưởng Windows (`os.Root` qua junction) — giữ luật, ghi "không áp dụng Linux"; GO-2026-6612 (HTTP/2 server, sửa Go 1.26.9 / x/net 0.60.0) — chưa có image vá ⇒ gia hạn ≤ 7 ngày (2026-10-29), cập nhật bảng "Theo dõi" của `docs/ops/VULN-SLA.md` (ngày tra, bằng chứng tag/nhị phân) và đề xuất "Khi chạy thật" (tắt h2 ở Caddy hoặc tự dựng image nếu thượng nguồn vẫn chưa vá khi lên production) (files: .grype.yaml, docs/ops/VULN-SLA.md, docs/autopilot/DECISIONS.md) — Gate: `node scripts/grype-ignore-check.mjs && pnpm vitest run --project unit scripts/supply-chain`
 
-### Lát 2 — CSDL và hiệu năng
-- [x] `T-1603` AUD-DATA-003 + AUD-DATA-004: migration 0065 thêm policy RESTRICTIVE theo `app.actor_role()` — `persons` INSERT/UPDATE chỉ owner/manager/front_desk/accountant (và đường worker/không actor giữ nguyên như 0064); `payments` ghi và `shift_discrepancies` INSERT chỉ vai được ghi nhận thanh toán theo ma trận SPEC-access; `down` gỡ đúng các policy; test DB đỏ trước: housekeeping/maintenance/tenant INSERT `persons`/`payments` = lỗi RLS, các vai hợp lệ và luồng sẵn có (check-in tạo khách, nhập liệu, worker) vẫn xanh (exec: deep; files: packages/db/src/migrations/, packages/testkit/src/) — Gate: `pnpm vitest run --project db packages/testkit/src/migration-0065 packages/app/src/http/authz-matrix packages/app/src/payments packages/app/src/stay`
-- [x] `T-1604` AUD-PERF-001: `billing` `buildPreview` gom truy vấn theo lô (hợp đồng, công tơ, chỉ số, giá) thay vòng lặp mỗi hợp đồng; test DB: cơ sở 1 và 20 hợp đồng (điện + nước) — số truy vấn không tăng theo số hợp đồng (đếm qua log query của Kysely) và kết quả xem trước trùng từng đồng với bản cũ (exec: deep; files: packages/app/src/billing/, packages/app/src/metering/) — Gate: `pnpm vitest run --project db packages/app/src/billing`
-- [x] `T-1606` Rà đợt 16: sổ audit (đã sửa / bác bỏ / còn mở có lý do), PROGRESS (sau: T-1601, T-1602, T-1603, T-1604, T-1605; files: docs/ops/AUDIT-STATUS.md, PROGRESS.md) — Gate: `python3 .xtemplates/scripts/xt.py audit check docs/ops/AUDIT-STATUS.md && python3 .xtemplates/scripts/xt.py progress-check`
+### Lát 2 — i18n
+- [x] `T-1702` XC-I18N-001 (phần): chuyển mọi chuỗi viết thẳng của `apps/web/app/co-so/page.tsx` và `apps/web/app/thanh-vien/page.tsx` sang `t()` với khoá mới trong `apps/web/messages/vi.json` (giữ nguyên văn bản hiển thị), hạ baseline đúng số đếm mới (files: apps/web/app/co-so/, apps/web/app/thanh-vien/, apps/web/messages/vi.json, scripts/i18n-literal-baseline.json) — Gate: `node scripts/i18n-check.mjs && pnpm vitest run --project unit scripts/i18n.test && pnpm --filter @hm/web exec tsc -p tsconfig.json`
+- [x] `T-1703` Rà đợt 17: PROGRESS, BLUEPRINT-GAPS (sau: T-1701, T-1702; files: PROGRESS.md, docs/autopilot/BLUEPRINT-GAPS.md) — Gate: `python3 .xtemplates/scripts/xt.py progress-check`
 
 ## Phụ thuộc ngoài
 | Việc | Bên ngoài | Kế hoạch B |
 |---|---|---|
-| Merge #116 và PR đợt này | chủ dự án (ngoại lệ cứng) | xếp chồng cùng nhánh (D-088) |
+| Image Caddy/SeaweedFS dựng bằng Go ≥ 1.26.9 | thượng nguồn | gia hạn ≤ 7 ngày mỗi lần, tự dựng image trước khi lên production |

@@ -6,12 +6,12 @@ import { t } from "../../lib/i18n.ts";
 import { withActor } from "../../lib/page.tsx";
 import { safe } from "../../lib/safe.ts";
 
-export const metadata: Metadata = { title: "Cơ sở — Hotel Manager" };
+export const metadata: Metadata = { title: t("property.metadata.title") };
 
 const TEMPLATE_LABEL: Record<string, string> = {
-  rental: "Nhà trọ",
-  hotel: "Khách sạn / nhà nghỉ",
-  mixed: "Hỗn hợp",
+  rental: t("property.template.rental"),
+  hotel: t("property.template.hotel"),
+  mixed: t("property.template.mixed"),
 };
 // Mẫu Hỗn hợp chỉ mở khi cờ `mixed_template_enabled` bật (SPEC-access S-003) — màn tạo chỉ đưa hai mẫu đã mở.
 const CREATE_TEMPLATES = [
@@ -23,16 +23,16 @@ const CREATE_TEMPLATES = [
 // xem được danh sách trong phạm vi; sửa/tạo chỉ owner (quyền thật kiểm ở server). Đổi múi giờ/giờ chốt khi cơ sở đã có giao dịch bị
 // từ chối (PROPERTY_IN_USE) — màn hiện đúng thông báo của server.
 export default async function PropertiesPage() {
-  return withActor("Cơ sở", "/co-so", async (actor) => {
+  return withActor(t("property.page.title"), "/co-so", async (actor) => {
     const list = await safe(listProperties(serverContext().db, actor));
-    if (!list.ok) return <ErrorState title="Không tải được danh sách cơ sở" text={list.message} />;
+    if (!list.ok) return <ErrorState title={t("property.error.load")} text={list.message} />;
     const isOwner = actor.role === "owner";
     return (
       <>
         {list.data.length === 0 ? (
           <EmptyState
-            title="Chưa có cơ sở nào"
-            text={isOwner ? "Tạo cơ sở đầu tiên bên dưới để bắt đầu." : "Chủ sở hữu cần tạo cơ sở."}
+            title={t("property.empty.title")}
+            text={isOwner ? t("property.empty.owner") : t("property.empty.staff")}
           />
         ) : (
           <ul className="member-list" data-testid="properties">
@@ -45,48 +45,48 @@ export default async function PropertiesPage() {
                     timezone: p.timezone,
                     cutoff: p.businessDayCutoff,
                   })}
-                  {p.checkInTime ? ` · nhận phòng ${p.checkInTime}` : ""}
-                  {p.checkOutTime ? ` · trả phòng ${p.checkOutTime}` : ""}
+                  {p.checkInTime ? t("property.list.checkin", { time: p.checkInTime }) : ""}
+                  {p.checkOutTime ? t("property.list.checkout", { time: p.checkOutTime }) : ""}
                 </p>
                 {isOwner ? (
                   <details className="details-box">
-                    <summary>Sửa cơ sở — {p.name}</summary>
+                    <summary>{t("property.edit.summary", { name: p.name })}</summary>
                     <CommandForm
                       path="property/update"
                       fixed={{ property_id: p.propertyId }}
                       fields={[
                         {
                           name: "name",
-                          label: "Tên cơ sở",
+                          label: t("property.field.name"),
                           required: true,
                           maxLength: 200,
                           defaultValue: p.name,
                         },
                         {
                           name: "timezone",
-                          label: "Múi giờ (tên IANA)",
+                          label: t("property.field.timezone"),
                           defaultValue: p.timezone,
-                          hint: "Ví dụ Asia/Ho_Chi_Minh. Không đổi được khi cơ sở đã có giao dịch.",
+                          hint: t("property.hint.timezone_edit"),
                         },
                         {
                           name: "business_day_cutoff",
-                          label: "Giờ chốt ngày (HH:MM)",
+                          label: t("property.field.cutoff"),
                           defaultValue: p.businessDayCutoff,
-                          hint: "Không đổi được khi cơ sở đã có giao dịch.",
+                          hint: t("property.hint.locked"),
                         },
                         {
                           name: "check_in_time",
-                          label: "Giờ nhận phòng (HH:MM)",
+                          label: t("property.field.check_in"),
                           defaultValue: p.checkInTime ?? "",
                         },
                         {
                           name: "check_out_time",
-                          label: "Giờ trả phòng (HH:MM)",
+                          label: t("property.field.check_out"),
                           defaultValue: p.checkOutTime ?? "",
                         },
                       ]}
-                      submitLabel="Lưu thay đổi"
-                      successText="Đã lưu cơ sở."
+                      submitLabel={t("property.edit.submit")}
+                      successText={t("property.edit.success")}
                     />
                   </details>
                 ) : null}
@@ -96,14 +96,14 @@ export default async function PropertiesPage() {
         )}
         {isOwner ? (
           <section aria-labelledby="new-property-h">
-            <h2 id="new-property-h">Tạo cơ sở mới</h2>
+            <h2 id="new-property-h">{t("property.create.heading")}</h2>
             <CommandForm
               path="property/create"
               fields={[
-                { name: "name", label: "Tên cơ sở", required: true, maxLength: 200 },
+                { name: "name", label: t("property.field.name"), required: true, maxLength: 200 },
                 {
                   name: "template",
-                  label: "Loại hình",
+                  label: t("property.field.template"),
                   type: "select",
                   required: true,
                   options: CREATE_TEMPLATES,
@@ -111,23 +111,27 @@ export default async function PropertiesPage() {
                 },
                 {
                   name: "timezone",
-                  label: "Múi giờ (tên IANA)",
-                  hint: "Để trống = Asia/Ho_Chi_Minh.",
+                  label: t("property.field.timezone"),
+                  hint: t("property.hint.timezone_create"),
                 },
-                { name: "business_day_cutoff", label: "Giờ chốt ngày (HH:MM)", hint: "Để trống = 00:00." },
+                {
+                  name: "business_day_cutoff",
+                  label: t("property.field.cutoff"),
+                  hint: t("property.hint.cutoff_create"),
+                },
                 {
                   name: "check_in_time",
-                  label: "Giờ nhận phòng (HH:MM)",
-                  hint: "Khách sạn/nhà nghỉ; có thể để trống.",
+                  label: t("property.field.check_in"),
+                  hint: t("property.hint.hotel_optional"),
                 },
                 {
                   name: "check_out_time",
-                  label: "Giờ trả phòng (HH:MM)",
-                  hint: "Khách sạn/nhà nghỉ; có thể để trống.",
+                  label: t("property.field.check_out"),
+                  hint: t("property.hint.hotel_optional"),
                 },
               ]}
-              submitLabel="Tạo cơ sở"
-              successText="Đã tạo cơ sở."
+              submitLabel={t("property.create.submit")}
+              successText={t("property.create.success")}
               testId="property-create-form"
             />
           </section>
