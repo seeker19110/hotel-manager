@@ -7,7 +7,7 @@
     ".claude/agents/reviewer.md": "sha256:ad02fd3cd3d3994e913d6a7a4916b7a5d86524b7e9b811a6d89ce4394d133677",
     ".claude/hooks/_lib.sh": "sha256:1d20298fb50b8acd1c5c4de4dd3a705c9cce29efb08683e1b31002e25da4e5c0",
     ".claude/hooks/auto-format.sh": "sha256:77b66366cf89c2577f2e0397346c2f438fda171629bba458477b016910767345",
-    ".claude/hooks/guard.py": "sha256:44f49f733046b195019c264d721bd60dc7ab3079f72cbb319745eb304c218ca4",
+    ".claude/hooks/guard.py": "sha256:5b5e98a9f73b0e040e714b747c961958f6dc174826b4ab4c4a5b19a2f6ab9671",
     ".claude/hooks/permission-request.sh": "sha256:a3707521b7c7ac58f1a9ce0fba18f7cd9d3a64967564b82f1666639e75988c26",
     ".claude/hooks/post-tool-failure.sh": "sha256:4c495cae9503d80a968443dd2277690ea3769bbff098436e92ab4ab3a440b196",
     ".claude/hooks/pre-bash-guard.sh": "sha256:31c356c5167a6c3f8718e48010a01cb5700259505c88aa77ce93251db92447ce",
@@ -20,7 +20,7 @@
     ".claude/hooks/task-completed.sh": "sha256:03c078f3fde6155500ef367f74433b19245b917521a1dc096f7158a46f01720f",
     ".claude/skills/adr/SKILL.md": "sha256:6dca3474d43a276676a2e15ceefe0d906e88eb52702cb606c9ad7fa124d191e0",
     ".claude/skills/audit/SKILL.md": "sha256:3466760155d07d4fe0f70bd97acd83b5cf75bd00650e493fdd2e214634e12223",
-    ".claude/skills/autopilot/SKILL.md": "sha256:fcc30399f3bc90dc9ac939b7635308dbc80faedb325d3b6b297b67d1028ebe81",
+    ".claude/skills/autopilot/SKILL.md": "sha256:1502124ff7d4d6f5f47ab071b382c4698a27aed451150f742f5c73a81559f232",
     ".claude/skills/blueprint/SKILL.md": "sha256:e3f83cc0f86013654ae3300323c1fd1b7fc8d8673cd48ab081b010b0876f8f32",
     ".claude/skills/gate/SKILL.md": "sha256:5f7fd0104c37bc9a5b21f94954426aa8ad95419848a1c7bc98a5a633d2972dc3",
     ".claude/skills/handover/SKILL.md": "sha256:0b69c0a7690fc85338f5ecf2e8bb6f36b73de95b534526f9bad9a36b470ea062",
@@ -36,7 +36,7 @@
     "AGENTS.md": "sha256:2bf3f74657b8cb071b978c8698133e0cea603c38238af9a52d4f1686144060f4",
     "CLAUDE.md": "sha256:1fa585d749f767f9f35b1ae92019f4a74f3bec6cff20ca6928161e2dcb4ab795",
     "PROGRESS.md": "sha256:d80a03db3cb157ee682314787afb2eb15911b2f4f86da2f564e49106f6f76941",
-    "xt.yaml": "sha256:e225aa4ed094826408b58b9494e3948ff59a0f15e0c49f3c4f0f72ea35ab5e8d"
+    "xt.yaml": "sha256:30096ef09bb16d056f6b87e7480a89504a7629b3afb90045dc5f5c12a2b25551"
   },
   "policy": {
     "ask_removal": "manifest-only"

@@ -52,3 +52,11 @@ delivery_phase: build
 
 # Khoá mới của khung (bản 3.12.0 (5b8b8a6)) — bật bằng cách bỏ "# "; vắng khoá = hành vi cũ
 # e2e_setup: ""         # trước e2e: cài trình duyệt (vd npx playwright install --with-deps chromium)
+
+# Khoá mới của khung (bản 3.15.0 (a45092c)) — bật bằng cách bỏ "# "; vắng khoá = hành vi cũ
+# Tấn công thử (`attack`) trên app tạm loopback — build, ZAP baseline + quét chủ động, cổng zap-gate (Medium trở lên ngoài allowlist = đỏ);
+# cùng script với job `dast` của security-scan.yml. Cần docker; kết quả ra `mktemp -d` (DAST_OUT đổi được).
+attack: "bash scripts/dast.sh"
+# Kiểm tải (`perf`): k6 room-list có thresholds p95/p99 + tỷ lệ lỗi (vượt = đỏ) và quét PII log server; cùng script với job `k6` của
+# perf-nightly.yml. Chỉ tải vào app tạm 127.0.0.1; kết quả ra `mktemp -d` (PERF_OUT đổi được).
+perf: "bash scripts/perf-load.sh"
