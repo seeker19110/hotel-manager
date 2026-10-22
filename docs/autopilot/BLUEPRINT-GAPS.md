@@ -9,6 +9,10 @@
 > `PM-SPEC-004` và `WF-SDD-003` (nền spec-coverage còn 26 S-NNN). **Tick kèm lưu ý để phiên chính xác nhận:** `DB-MODEL-004` (52 FK nhóm A thiếu index là ngoại lệ có lý do — D-035),
 > `UX-STATE-001` (không Storybook; loading bị D-032 miễn ở trang có route con động/notFound/redirect), `DB-PERF-001` (EXPLAIN không ANALYZE), `XC-GREEN-007` (còn `notifications`/`inbox`/`worker_heartbeats` chưa có job dọn, chờ DPIA).
 
+## Kết quả đợt 17 (T-1703, 2026-10-22; D-093, D-094)
+
+Không tick mục mới: MUST mở vẫn **91**, đều cần người. T-1701: 4 luật grype critical gia hạn tới 2026-10-29 (thượng nguồn chưa có image vá; chưa có production). T-1702: XC-I18N-001 tiến thêm — `/co-so`, `/thanh-vien` hết chuỗi viết thẳng (baseline 2363 → 2280 khi đếm lại; ratchet chỉ giảm), vẫn mở tới khi chuyển hết.
+
 ## Kết quả đợt 13 (T-1203, 2026-10-19; D-078)
 
 Không tick mục mới: MUST mở vẫn **91**, đều cần người (bảng 'Kết quả đợt 9 (a)'). Đợt này lấp hai lỗ 🟢 treo sau review #78:

@@ -48,7 +48,7 @@ Khi xong: `image-scan` không đỏ vì quá hạn trước khi thượng nguồ
 
 ### Lát 2 — i18n
 - [x] `T-1702` XC-I18N-001 (phần): chuyển mọi chuỗi viết thẳng của `apps/web/app/co-so/page.tsx` và `apps/web/app/thanh-vien/page.tsx` sang `t()` với khoá mới trong `apps/web/messages/vi.json` (giữ nguyên văn bản hiển thị), hạ baseline đúng số đếm mới (files: apps/web/app/co-so/, apps/web/app/thanh-vien/, apps/web/messages/vi.json, scripts/i18n-literal-baseline.json) — Gate: `node scripts/i18n-check.mjs && pnpm vitest run --project unit scripts/i18n.test && pnpm --filter @hm/web exec tsc -p tsconfig.json`
-- [ ] `T-1703` Rà đợt 17: PROGRESS, BLUEPRINT-GAPS (sau: T-1701, T-1702; files: PROGRESS.md, docs/autopilot/BLUEPRINT-GAPS.md) — Gate: `python3 .xtemplates/scripts/xt.py progress-check`
+- [x] `T-1703` Rà đợt 17: PROGRESS, BLUEPRINT-GAPS (sau: T-1701, T-1702; files: PROGRESS.md, docs/autopilot/BLUEPRINT-GAPS.md) — Gate: `python3 .xtemplates/scripts/xt.py progress-check`
 
 ## Phụ thuộc ngoài
 | Việc | Bên ngoài | Kế hoạch B |
