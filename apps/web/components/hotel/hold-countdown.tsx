@@ -4,9 +4,18 @@
 
 import { MS_PER_SECOND, msToSeconds, SECONDS_PER_MINUTE } from "@hm/app/units";
 import { useEffect, useState } from "react";
-import { t } from "../../lib/i18n.ts";
+import type { Messages } from "../../lib/i18n.ts";
+import { tm } from "../../lib/i18n-format.ts";
 
-export function HoldCountdown({ until, untilText }: { until: string; untilText: string }) {
+export function HoldCountdown({
+  until,
+  untilText,
+  m,
+}: {
+  until: string;
+  untilText: string;
+  m: Messages<"booking.hold.">;
+}) {
   const [left, setLeft] = useState<number | null>(null);
   useEffect(() => {
     const end = new Date(until).getTime();
@@ -17,17 +26,17 @@ export function HoldCountdown({ until, untilText }: { until: string; untilText: 
   }, [until]);
   return (
     <span data-testid="hold-until">
-      {t("booking.hold.until", { until: untilText })}
+      {tm(m, "booking.hold.until", { until: untilText })}
       {left === null ? null : left > 0 ? (
         <span className="countdown" aria-hidden="true">
           {" "}
-          {t("booking.hold.countdown", {
+          {tm(m, "booking.hold.countdown", {
             minutes: Math.floor(left / SECONDS_PER_MINUTE),
             seconds: String(left % SECONDS_PER_MINUTE).padStart(2, "0"),
           })}
         </span>
       ) : (
-        <strong> {t("booking.hold.expired")}</strong>
+        <strong> {tm(m, "booking.hold.expired")}</strong>
       )}
     </span>
   );

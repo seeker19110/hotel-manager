@@ -690,3 +690,24 @@
 - Chọn: Bỏ tick về [ ] (giữ Kiểm), loop defer chờ người import; tick lại khi lệnh Kiểm xanh
 - Lý do (tiêu chí chất lượng cuối): (1) P1 bằng chứng, không lời khai: lệnh Kiểm đỏ thì mục chưa đạt; không nới công cụ kiểm (LOOP-CI-001). (2) đảo ngược: import xong chạy lại Kiểm rồi tick lại
 - Đường lùi: Người import ruleset → chạy 'node scripts/check-github-live.mjs ruleset' xanh → tick lại 8 mục
+
+### D-096 · 2026-10-22T09:47:47+00:00 · Duyệt PLAN đợt 18 (i18n 5 màn ngoài merge_risk_paths, hạ baseline)?
+
+- Phương án: (1) Duyệt 3 task như viết · (2) Dừng, chờ người xử lý 99 MUST
+- Chọn: Duyệt 3 task như viết
+- Lý do (tiêu chí chất lượng cuối): (3)(4) XC-I18N-001 là MUST duy nhất máy làm được; chọn màn ngoài merge_risk_paths để PR theo làn L3; ratchet chặn lùi
+- Đường lùi: Revert PR đợt 18
+
+### D-097 · 2026-10-22T10:14:21+00:00 · XC-I18N-001 còn 2078 chuỗi / 181 tệp (795 ở apps/web, 1280 ở packages/app là thông báo lỗi/xuất file/thông báo; 831 chuỗi nằm trong merge_risk_paths ⇒ PR người merge) — làm tiếp theo đợt liên tục hay chuyển dần?
+
+- Phương án: (1) Defer: chuyển dần theo màn khi sửa màn (ratchet chặn tăng), đợt riêng cho packages/app sau khi quyết cách trả mã lỗi + thông điệp (đổi API); chủ dự án duyệt nhịp · (2) Chạy tiếp ~10 đợt/PR liên tục tới hết
+- Chọn: Defer: chuyển dần theo màn khi sửa màn (ratchet chặn tăng), đợt riêng cho packages/app sau khi quyết cách trả mã lỗi + thông điệp (đổi API); chủ dự án duyệt nhịp
+- Lý do (tiêu chí chất lượng cuối): (1) packages/app đổi cách sinh thông điệp lỗi chạm hợp đồng API (cần quyết thiết kế, không cơ học); (2)(3) PR lớn liên tục quanh tiền/lưu trú dồn việc merge cho người, rủi ro đổi chữ; ratchet đã giữ không lùi; sản phẩm chỉ có một locale (vi) nên không chặn người dùng
+- Đường lùi: Lập PLAN đợt i18n kế (mỗi đợt ≤ 5 màn ngoài merge_risk_paths) bất cứ lúc nào
+
+### D-098 · 2026-10-22T10:34:53+00:00 · PR #123: bundle-size đỏ (324,98/300 kB gzip) vì vi.json (cả description) bị nhân bản vào 4 chunk client (booking-form, hold-countdown, accept-invitation, guest-stay) — sửa thế nào?
+
+- Phương án: (1) Client không import catalog: server page truyền messagesFor(namespace) qua prop, client dùng tm(m, key, params) từ module định dạng thuần (type-only import); i18n-check kiểm tm() như t(); áp cho cả 4 client component · (2) Sinh catalog runtime bỏ description (≈5,2 kB × 4 chunk ≈ 312 kB, vẫn vượt) · (3) Nâng trần .size-limit.json
+- Chọn: Client không import catalog: server page truyền messagesFor(namespace) qua prop, client dùng tm(m, key, params) từ module định dạng thuần (type-only import); i18n-check kiểm tm() như t(); áp cho cả 4 client component
+- Lý do (tiêu chí chất lượng cuối): (1) không nới cổng (LOOP-CI-001); (3) bền: catalog lớn dần tới ~2000 khoá thì mọi cách bundle catalog vào client đều vượt — chỉ server dịch mới co giãn được; giữ kiểm khoá/tham số bằng i18n-check
+- Đường lùi: Revert commit sửa; quay lại import t() ở client

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { messagesFor } from "../../lib/i18n.ts";
 import { AcceptInvitation } from "./accept-invitation.tsx";
 
 // Token lời mời nằm ở FRAGMENT (`/loi-moi#token=…`) — trình duyệt không gửi fragment lên máy chủ nên token không vào nhật ký truy
@@ -13,7 +14,7 @@ export default function InvitationPage() {
   return (
     <main id="main" className="page">
       <h1>Lời mời tham gia</h1>
-      <AcceptInvitation />
+      <AcceptInvitation m={messagesFor("invitation.")} />
     </main>
   );
 }

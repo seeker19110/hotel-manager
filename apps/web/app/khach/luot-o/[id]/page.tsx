@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { messagesFor } from "../../../../lib/i18n.ts";
 import { GuestStay } from "./guest-stay.tsx";
 
 export const metadata: Metadata = {
@@ -13,7 +14,7 @@ export default async function GuestStayPage({ params }: { params: Promise<{ id: 
   return (
     <main id="main" className="page">
       <h1>Lượt ở của bạn</h1>
-      <GuestStay stayId={id} />
+      <GuestStay stayId={id} m={messagesFor("guest_stay.")} />
     </main>
   );
 }

@@ -2,7 +2,7 @@
 // FE-TEST-001: truy vấn theo vai trò/nhãn (Testing Library). AUD-XFEAT-001: danh sách chạm trần SQL phải báo, không im lặng.
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { TruncatedNotice } from "./state.tsx";
+import { TruncatedNotice } from "./truncated-notice.tsx";
 
 afterEach(cleanup);
 

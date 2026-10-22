@@ -4,10 +4,14 @@
 //  · mọi locale: `message` đúng cú pháp ICU (parser của formatjs), cùng tập tham số với nguồn, không thẻ HTML/script/`javascript:`;
 //    thiếu khoá so với nguồn → lỗi (chưa có cơ chế fallback khai báo);
 //  · mã nguồn: mọi khoá `t("…")` đều có trong nguồn (khoá dựng động `tOr(\`…\`)` kiểm theo tiền tố); mỗi lời gọi `t` (import từ
-//    lib/i18n) truyền đúng tập tham số `{tên}` của khoá — thiếu thì người dùng thấy `{tên}` thô, thừa là gõ nhầm (đọc trên AST, D-078).
+//    lib/i18n) truyền đúng tập tham số `{tên}` của khoá — thiếu thì người dùng thấy `{tên}` thô, thừa là gõ nhầm (đọc trên AST, D-078);
+//    lời gọi `tm(m, "khoá", {…})` (import từ lib/i18n-format — client component, D-098) kiểm y như vậy: khoá viết thẳng, có trong
+//    nguồn, đúng tập tham số;
+//  · bundle: không module `"use client"` nào (kể cả gián tiếp qua import tương đối) import giá trị từ lib/i18n.ts hay tệp
+//    messages/*.json — catalog bị nhân bản vào mỗi chunk JS client (D-098, CI bundle-size đỏ ở PR #123). Chỉ `import type`.
 // Thoát 1 khi có lỗi. Dùng: node scripts/i18n-check.mjs
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse, TYPE } from "@formatjs/icu-messageformat-parser";
 import { isMain } from "./is-main.mjs";
@@ -125,48 +129,65 @@ const propName = (p) =>
         : null
     : null;
 
+// Hàm dịch được kiểm: module (theo đuôi đường dẫn import) → tên export → vị trí đối số khoá (tham số ở ngay sau).
+const CHECKED = [
+  { module: /(^|\/)i18n(\.ts)?$/, name: "t", keyAt: 0 },
+  { module: /(^|\/)i18n-format(\.ts)?$/, name: "tm", keyAt: 1 },
+];
+
 /**
- * Lỗi tham số của các lời gọi `t(...)` trong một tệp. Chỉ xét tên cục bộ của `t` import từ module `…/i18n(.ts)` (biến `t` khác
+ * Lỗi tham số của các lời gọi `t(...)` / `tm(m, ...)` trong một tệp. Chỉ xét tên cục bộ của `t` import từ module `…/i18n(.ts)` (biến `t` khác
  * không bị bắt nhầm). Khoá phải là chuỗi viết thẳng (khoá động dùng `tOr`); đối số thứ hai (nếu có) phải là object literal với
- * khoá tĩnh, và tập khoá phải đúng bằng tập tham số ICU của message nguồn. Khoá không có trong nguồn do `usedKeys` báo.
+ * khoá tĩnh, và tập khoá phải đúng bằng tập tham số ICU của message nguồn. Khoá `t()` không có trong nguồn do `usedKeys` báo;
+ * khoá `tm()` không có trong nguồn báo ngay tại đây (đối số đầu là biểu thức tuỳ ý — regex của `usedKeys` không đọc chắc được).
  */
 export function tCallErrors(text, file, src) {
   const ast = parseSource(text, file);
-  const locals = new Set();
+  const locals = new Map(); // tên cục bộ → mục CHECKED
   const errors = [];
-  for (const node of ast.program.body)
-    if (
-      node.type === "ImportDeclaration" &&
-      node.importKind !== "type" && // `import type …` không gọi được t()
-      /(^|\/)i18n(\.ts)?$/.test(node.source.value)
-    )
-      for (const sp of node.specifiers)
-        if (sp.type === "ImportSpecifier") {
-          if ((sp.imported.name ?? sp.imported.value) === "t") locals.add(sp.local.name);
-        }
-        // `import * as i18n` / import mặc định: `i18n.t(...)` không kiểm được tham số → bắt dùng `import { t }`.
-        else
-          errors.push(
-            `${file}:${node.loc.start.line}: import lib/i18n bằng tên — dùng \`import { t }\` để kiểm tham số t()`,
-          );
+  for (const node of ast.program.body) {
+    if (node.type !== "ImportDeclaration" || node.importKind === "type") continue; // `import type …` không gọi được
+    const fns = CHECKED.filter((c) => c.module.test(node.source.value));
+    if (fns.length === 0) continue;
+    for (const sp of node.specifiers)
+      if (sp.type === "ImportSpecifier") {
+        if (sp.importKind === "type") continue;
+        const fn = fns.find((c) => c.name === (sp.imported.name ?? sp.imported.value));
+        if (fn) locals.set(sp.local.name, fn);
+      }
+      // `import * as i18n` / import mặc định: `i18n.t(...)` không kiểm được tham số → bắt dùng `import { t }` / `{ tm }`.
+      else
+        errors.push(
+          `${file}:${node.loc.start.line}: import ${node.source.value} bằng tên — dùng \`import { ${fns[0].name} }\` để kiểm tham số ${fns[0].name}()`,
+        );
+  }
   if (locals.size === 0) return errors;
   walk(ast.program, (node) => {
     if (node.type !== "CallExpression" || node.callee.type !== "Identifier" || !locals.has(node.callee.name))
       return;
+    const fn = locals.get(node.callee.name);
     const at = `${file}:${node.loc.start.line}`;
-    const [keyArg, paramsArg] = node.arguments;
+    const keyArg = node.arguments[fn.keyAt];
+    const paramsArg = node.arguments[fn.keyAt + 1];
     if (keyArg?.type !== "StringLiteral") {
-      errors.push(`${at}: t() cần khoá viết thẳng "…" (khoá dựng động dùng tOr)`);
+      errors.push(
+        fn.name === "t"
+          ? `${at}: t() cần khoá viết thẳng "…" (khoá dựng động dùng tOr)`
+          : `${at}: ${fn.name}() cần khoá viết thẳng "…" ở đối số thứ ${fn.keyAt + 1}`,
+      );
       return;
     }
     const key = keyArg.value;
-    if (!Object.hasOwn(src, key)) return;
+    if (!Object.hasOwn(src, key)) {
+      if (fn.name !== "t") errors.push(`${at}: ${fn.name}("${key}") không có trong nguồn`);
+      return;
+    }
     let got = [];
     if (paramsArg) {
       const names = paramsArg.type === "ObjectExpression" ? paramsArg.properties.map(propName) : [null];
       if (names.includes(null)) {
         errors.push(
-          `${at}: t("${key}") — tham số phải là object literal với khoá tĩnh (không spread/biến/khoá tính)`,
+          `${at}: ${fn.name}("${key}") — tham số phải là object literal với khoá tĩnh (không spread/biến/khoá tính)`,
         );
         return;
       }
@@ -176,8 +197,9 @@ export function tCallErrors(text, file, src) {
     const missing = want.filter((n) => !got.includes(n));
     const extra = got.filter((n) => !want.includes(n));
     if (missing.length)
-      errors.push(`${at}: t("${key}") thiếu tham số ${missing.map((n) => `{${n}}`).join(", ")}`);
-    if (extra.length) errors.push(`${at}: t("${key}") thừa tham số ${extra.join(", ")} (message không có)`);
+      errors.push(`${at}: ${fn.name}("${key}") thiếu tham số ${missing.map((n) => `{${n}}`).join(", ")}`);
+    if (extra.length)
+      errors.push(`${at}: ${fn.name}("${key}") thừa tham số ${extra.join(", ")} (message không có)`);
   });
   return errors;
 }
@@ -192,6 +214,85 @@ export function sourceErrors(files, src, root = ROOT) {
     if (!Object.keys(src).some((k) => k.startsWith(p)))
       errors.push(`${relative(root, f)}: tiền tố "${p}" không có khoá nào`);
   for (const f of files) errors.push(...tCallErrors(readFileSync(f, "utf8"), relative(root, f), src));
+  return errors;
+}
+
+const CATALOG = /(^|\/)apps\/web\/(lib\/i18n\.ts|messages\/[^/]+\.json)$/;
+
+/** Đường dẫn import tương đối → tệp trên đĩa (dự án ghi đuôi `.ts`/`.tsx`; thiếu đuôi thì thử thêm). Gói (`@hm/…`) → null. */
+function resolveImport(from, spec) {
+  if (!spec.startsWith(".")) return null;
+  const base = resolve(dirname(from), spec);
+  for (const p of [base, `${base}.ts`, `${base}.tsx`, join(base, "index.ts"), join(base, "index.tsx")])
+    if (existsSync(p) && statSync(p).isFile()) return p;
+  return null;
+}
+
+/** Nguồn import GIÁ TRỊ của một tệp: `import`/`export … from` không phải `import type`, và `import("…")` viết thẳng. */
+function valueImports(text, file) {
+  if (file.endsWith(".json")) return [];
+  const ast = parseSource(text, file);
+  const out = [];
+  walk(ast.program, (n) => {
+    if (
+      (n.type === "ImportDeclaration" ||
+        n.type === "ExportNamedDeclaration" ||
+        n.type === "ExportAllDeclaration") &&
+      n.source &&
+      n.importKind !== "type" &&
+      n.exportKind !== "type"
+    )
+      out.push(n.source.value);
+    else if (
+      n.type === "CallExpression" &&
+      n.callee.type === "Import" &&
+      n.arguments[0]?.type === "StringLiteral"
+    )
+      out.push(n.arguments[0].value);
+  });
+  return out;
+}
+
+/**
+ * Module client (`"use client"`) kéo catalog vào bundle: với mỗi tệp client, đi theo import giá trị tương đối; chạm
+ * lib/i18n.ts hoặc messages/*.json → lỗi kèm chuỗi import. `import { type X }` (không phải `import type`) vẫn tính là giá trị
+ * (verbatimModuleSyntax giữ lại import rỗng — chặt hơn).
+ */
+export function clientCatalogErrors(files, root = ROOT) {
+  const errors = [];
+  const cache = new Map();
+  const deps = (f) => {
+    if (!cache.has(f))
+      cache.set(
+        f,
+        valueImports(readFileSync(f, "utf8"), f)
+          .map((s) => resolveImport(f, s))
+          .filter(Boolean),
+      );
+    return cache.get(f);
+  };
+  for (const f of files) {
+    if (!/\.tsx?$/.test(f)) continue;
+    const directives = parseSource(readFileSync(f, "utf8"), f).program.directives ?? [];
+    if (!directives.some((d) => d.value.value === "use client")) continue;
+    const seen = new Set([f]);
+    const queue = [[f]];
+    while (queue.length) {
+      const chain = queue.shift();
+      for (const d of deps(chain.at(-1))) {
+        if (seen.has(d)) continue;
+        seen.add(d);
+        const next = [...chain, d];
+        if (CATALOG.test(d.split("\\").join("/"))) {
+          errors.push(
+            `${relative(root, f)}: module client import catalog (${next.map((p) => relative(root, p)).join(" → ")}) — truyền m={messagesFor(…)} và dùng tm() (D-098)`,
+          );
+          continue;
+        }
+        queue.push(next);
+      }
+    }
+  }
   return errors;
 }
 
@@ -226,7 +327,9 @@ function main() {
   const catalogs = loadCatalogs();
   const errors = checkCatalogs(catalogs);
   const src = catalogs[SOURCE_LOCALE] ?? {};
-  errors.push(...sourceErrors(sourceFiles(join(ROOT, "apps/web")), src));
+  const files = sourceFiles(join(ROOT, "apps/web"));
+  errors.push(...sourceErrors(files, src));
+  errors.push(...clientCatalogErrors(files));
   errors.push(...roleKeyErrors(src, readFileSync(join(ROOT, "apps/web/lib/roles.ts"), "utf8")));
   for (const e of errors) console.error(e);
   console.log(

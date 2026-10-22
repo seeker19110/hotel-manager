@@ -7,7 +7,8 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { timedFetch } from "../../lib/fetch-timeout.ts";
 import { vnd } from "../../lib/format.ts";
-import { t } from "../../lib/i18n.ts";
+import type { Messages } from "../../lib/i18n.ts";
+import { tm } from "../../lib/i18n-format.ts";
 import { firstNonEmpty } from "../../lib/text.ts";
 import { CommandStatus } from "../command/command-status.tsx";
 import { orgContextHeaders } from "../command/org-context.ts";
@@ -36,9 +37,11 @@ interface Booker {
 export function BookingForm({
   rooms,
   defaults,
+  m,
 }: {
   rooms: BookableRoom[];
   defaults: { unitId: string; arrival: string; departure: string };
+  m: Messages<"booking.quote.">;
 }) {
   const router = useRouter();
   const create = useCommand<{ reservationId: string }>("reservation/create");
@@ -206,7 +209,7 @@ export function BookingForm({
           <div data-testid="quote" role="status">
             <table className="lines">
               <caption>
-                {t("booking.quote.total", { nights: quote.nights })}{" "}
+                {tm(m, "booking.quote.total", { nights: quote.nights })}{" "}
                 <strong data-testid="quote-total">{vnd(quote.roomTotal)}</strong>
               </caption>
               <thead>
