@@ -8,6 +8,9 @@
 #   DAST_SKIP_BUILD=1 (dùng bản build có sẵn) · E2E_PORT (mặc định 3100) · TEST_DATABASE_URL (không đặt = cluster Postgres
 #   tạm của testkit) · ZAP_IMAGE (phải ghim digest sha256).
 # Cần: node/pnpm (scripts/dev-env-setup.sh), PostgreSQL 17 hoặc TEST_DATABASE_URL, docker. Exit ≠ 0 = NO-GO.
+# Thời gian: build + spider 2 phút × 2 + quét chủ động tới 12 phút — thường 10–20 phút, máy chậm có thể vượt 30 phút
+# (trần mặc định của release-check): khi đó chạy `XT_RECORD_TIMEOUT=3600 python3 .xtemplates/scripts/xt.py release-check`.
+# Bị giết ngang (SIGKILL, hết trần) thì lượt sau tự dọn app/container còn sót (scripts/lib-e2e-app.sh).
 set -euo pipefail
 
 # shellcheck source=scripts/lib-e2e-app.sh
@@ -23,8 +26,11 @@ command -v docker >/dev/null || hm_die 1 "thiếu docker (ZAP chạy bằng imag
 docker info >/dev/null 2>&1 || hm_die 1 "docker daemon không phản hồi — khởi động dockerd rồi chạy lại"
 
 OUT="$(hm_out_dir "${DAST_OUT:-}")"
-# Container ZAP chạy bằng người dùng `zap` (không phải chủ thư mục): cho ghi báo cáo.
-chmod 777 "$OUT"
+# Container ZAP chạy bằng người dùng `zap` (uid khác người chạy script, không chown được khi không là root): chỉ thư mục làm việc
+# riêng của ZAP mở quyền ghi cho mọi người; báo cáo chuyển ra $OUT sau khi quét xong.
+wrk="$OUT/zap-wrk"
+mkdir -p "$wrk"
+chmod 777 "$wrk"
 hm_log "kết quả ghi vào $OUT"
 trap hm_stop_app EXIT
 trap 'exit 130' INT
@@ -33,12 +39,14 @@ trap 'exit 143' TERM
 hm_build "${DAST_SKIP_BUILD:-}"
 hm_start_app "$OUT/server.log"
 
+# ZAP chạy nền + wait (trap INT/TERM dừng ngay), container mang nhãn lượt chạy để dọn được cả khi script bị giết ngang.
+zap() { hm_run_wait docker run --rm --label "hm-e2e-run=$HM_RUN_ID" --network host -v "$wrk:/zap/wrk:rw" "$ZAP_IMAGE" "$@"; }
 hm_log "ZAP baseline (quét thụ động, spider 2 phút)"
-docker run --rm --network host -v "$OUT:/zap/wrk:rw" "$ZAP_IMAGE" \
-  zap-baseline.py -t "$HM_BASE_URL" -m 2 -I -J baseline.json -r baseline.html
+zap zap-baseline.py -t "$HM_BASE_URL" -m 2 -I -J baseline.json -r baseline.html
 hm_log "ZAP quét chủ động (XSS/injection), giới hạn 12 phút"
-docker run --rm --network host -v "$OUT:/zap/wrk:rw" "$ZAP_IMAGE" \
-  zap-full-scan.py -t "$HM_BASE_URL" -m 2 -T 12 -I -J active.json -r active.html
+zap zap-full-scan.py -t "$HM_BASE_URL" -m 2 -T 12 -I -J active.json -r active.html
+mv "$wrk"/* "$OUT"/
+rmdir "$wrk"
 
 hm_stop_app
 hm_log "cổng DAST — đỏ khi còn cảnh báo Medium trở lên ngoài allowlist"

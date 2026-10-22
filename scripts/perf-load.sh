@@ -9,6 +9,8 @@
 #   PERF_SKIP_BUILD=1 · E2E_PORT (mặc định 3100) · TEST_DATABASE_URL (không đặt = cluster Postgres tạm của testkit) ·
 #   LOAD_VUS/LOAD_DURATION (mặc định 20 phiên × 3m như CI) · PW_CHROMIUM_PATH (trình duyệt cho bước đăng nhập).
 # Exit ≠ 0 = NO-GO (k6 vượt ngưỡng, PII trong log, app không lên, đích không an toàn).
+# Thời gian: build + ~5,5 phút k6 (ramp 1m + giữ 3m + giảm 1m + 30s) — dưới trần 30 phút của release-check; bị giết ngang thì
+# lượt sau tự dọn app còn sót (scripts/lib-e2e-app.sh).
 set -euo pipefail
 
 # shellcheck source=scripts/lib-e2e-app.sh
@@ -62,9 +64,9 @@ hm_start_app "$OUT/server.log"
 # không ra log. Chỉ nhận đúng bốn khoá, không eval.
 hm_log "đăng nhập chủ khách sạn giả để lấy phiên cho k6"
 if [ "${GITHUB_ACTIONS:-}" = true ]; then
-  session="$(cd "$HM_ROOT/apps/web" && node e2e/perf-session-env.ts)"
+  session="$(exec 9>&-; cd "$HM_ROOT/apps/web" && hm_run node e2e/perf-session-env.ts)"
 else
-  session="$(cd "$HM_ROOT/apps/web" && node e2e/perf-session-env.ts 2> >(grep -v '^::add-mask::' >&2 || true))"
+  session="$(exec 9>&-; cd "$HM_ROOT/apps/web" && hm_run node e2e/perf-session-env.ts 2> >(grep -v '^::add-mask::' >&2 || true))"
 fi
 while IFS= read -r line; do
   [ -n "$line" ] || continue
@@ -79,8 +81,9 @@ done <<<"$session"
 
 hm_log "k6 load room-list: ${LOAD_VUS} phiên × ${LOAD_DURATION} (đỏ khi vượt thresholds)"
 k6_rc=0
-(cd "$HM_ROOT" && k6 run -e LOAD_VUS="$LOAD_VUS" -e LOAD_DURATION="$LOAD_DURATION" \
-  --summary-export "$OUT/k6-summary.json" perf/k6/room-list.js) || k6_rc=$?
+# Chạy nền + wait ngay trong shell này (không bọc subshell — trap INT/TERM dừng ngay); hm_run đóng fd khoá, gắn dấu lượt chạy.
+hm_run_wait k6 run -e LOAD_VUS="$LOAD_VUS" -e LOAD_DURATION="$LOAD_DURATION" \
+  --summary-export "$OUT/k6-summary.json" "$HM_ROOT/perf/k6/room-list.js" || k6_rc=$?
 
 # Dừng app trước khi quét: server.ts chờ Next đóng stdio nên log đủ dòng cuối.
 hm_stop_app

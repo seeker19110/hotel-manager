@@ -1,8 +1,18 @@
 // Khoá `attack`/`perf` của xt.yaml (release-check của khung chạy trước phát hành; exit ≠ 0 = NO-GO) trỏ vào scripts/dast.sh và
 // scripts/perf-load.sh — CI (security-scan.yml job `dast`, perf-nightly.yml job `k6`) gọi NGUYÊN VĂN cùng lệnh. Kiểm hành vi
-// các bước chặn sớm (trước build/khởi động app): đầu vào sai → exit 2, cổng bận/khoá bởi lượt khác → exit 1, đích lạ → chặn.
+// các bước chặn sớm (trước build/khởi động app): đầu vào sai → exit 2, cổng bận/khoá bởi lượt khác → exit 1, đích lạ → chặn;
+// và chạy trọn với app/k6/docker giả trên PATH: mã thoát, dọn nhóm tiến trình, dọn tàn dư của lượt bị SIGKILL.
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -224,6 +234,175 @@ describe("dast.sh / perf-load.sh — chặn sớm trước build/khởi động"
     } finally {
       await close();
     }
-    expect(readdirSync(tmp).filter((n) => !n.endsWith(".lock"))).toEqual([]);
+    expect(readdirSync(tmp).filter((n) => !/\.(lock|run)$/.test(n))).toEqual([]);
   });
+});
+
+/** Trạng thái tiến trình từ /proc/<pid>/stat (sau tên lệnh trong ngoặc): [trạng thái, ppid, pgid, …]; null khi không còn. */
+function procStat(pid) {
+  try {
+    const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
+    return stat.slice(stat.lastIndexOf(")") + 2).split(" ");
+  } catch {
+    return null;
+  }
+}
+
+/** Tiến trình còn sống (zombie chờ init thu dọn tính là đã chết)? */
+const alive = (pid) => {
+  const f = procStat(pid);
+  return f !== null && f[0] !== "Z";
+};
+
+/** Còn thành viên nào (không phải zombie) trong nhóm tiến trình `pgid`? */
+const groupAlive = (pgid) =>
+  readdirSync("/proc")
+    .filter((n) => /^\d+$/.test(n))
+    .some((n) => {
+      const f = procStat(n);
+      return f !== null && f[0] !== "Z" && Number(f[2]) === pgid;
+    });
+
+const waitFor = async (cond, ms = 20_000) => {
+  for (const end = Date.now() + ms; Date.now() < end; ) {
+    if (cond()) return true;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  return false;
+};
+
+describe("dast.sh / perf-load.sh với app/k6/docker giả trên PATH — mã thoát và dọn tiến trình", () => {
+  let tmp;
+  let port;
+  const pidOf = (name) => Number(readFileSync(join(tmp, `${name}.pid`), "utf8"));
+  const stub = (name, body) => {
+    const f = join(tmp, "bin", name);
+    writeFileSync(f, `#!/usr/bin/env bash\n${body}\n`);
+    chmodSync(f, 0o755);
+  };
+
+  beforeEach(async () => {
+    tmp = mkdtempSync(join(tmpdir(), "hm-attack-perf-stub-"));
+    port = await freePortPair();
+    mkdirSync(join(tmp, "bin"));
+    // node: e2e/server.ts → app giả; perf-session-env.ts → phiên giả; còn lại → node thật (guard, quét PII, zap-gate).
+    stub(
+      "node",
+      [
+        'case " $* " in',
+        '  *" e2e/server.ts "*) exec bash "$STUB_DIR/server.sh" ;;',
+        "  *\" e2e/perf-session-env.ts \"*) printf 'K6_COOKIE=hm=gia\\nORG_ID=o\\nPROPERTY_ID=p\\nUNIT_IDS=u\\n'; exit 0 ;;",
+        "esac",
+        'exec "$REAL_NODE" "$@"',
+      ].join("\n"),
+    );
+    // App giả: một tiến trình con cùng nhóm (như `next start`), log cho bộ quét PII; STUB_APP=die → chết ngay, con còn sống.
+    writeFileSync(
+      join(tmp, "server.sh"),
+      [
+        'echo $$ > "$STUB_DIR/server.pid"',
+        `mkdir -p e2e-logs && echo '{"service":"web","msg":"server giả"}' > "e2e-logs/server-$E2E_PORT.log"`,
+        'sleep 300 & echo $! > "$STUB_DIR/child.pid"',
+        '[ "$STUB_APP" = die ] && exit 3',
+        'touch "$STUB_DIR/ready"',
+        "trap 'exit 0' TERM",
+        "while :; do sleep 1; done",
+      ].join("\n"),
+    );
+    stub("curl", '[ -f "$STUB_DIR/ready" ]');
+    stub(
+      "k6",
+      [
+        '[ "$1" = version ] && { echo "k6 giả"; exit 0; }',
+        'echo $$ > "$STUB_DIR/k6.pid"',
+        'case "$STUB_K6" in fail) exit 99 ;; hang) exec sleep 300 ;; esac',
+        "exit 0",
+      ].join("\n"),
+    );
+    stub("docker", "exit 0");
+  });
+
+  afterEach(() => {
+    for (const n of ["server", "child", "k6"])
+      if (existsSync(join(tmp, `${n}.pid`)) && alive(pidOf(n))) process.kill(pidOf(n), "SIGKILL");
+    rmSync(join(ROOT, `apps/web/e2e-logs/server-${port}.log`), { force: true });
+    rmSync(tmp, { recursive: true, force: true });
+  });
+
+  const env = (extra) => ({
+    PATH: `${join(tmp, "bin")}:${process.env.PATH}`,
+    HOME: process.env.HOME,
+    TMPDIR: tmp,
+    STUB_DIR: tmp,
+    REAL_NODE: process.execPath,
+    E2E_PORT: String(port),
+    DAST_SKIP_BUILD: "1",
+    PERF_SKIP_BUILD: "1",
+    ...extra,
+  });
+  const run = (script, extra) =>
+    spawnSync("bash", [join(ROOT, script)], { cwd: tmp, encoding: "utf8", timeout: 60_000, env: env(extra) });
+
+  it.each([["scripts/dast.sh"], ["scripts/perf-load.sh"]])(
+    "%s: app chết trước khi sẵn sàng → exit 1; cả nhóm tiến trình của app (con còn sót) bị dọn",
+    (script) => {
+      const r = run(script, { STUB_APP: "die" });
+      expect(r.status, r.stderr).toBe(1);
+      expect(r.stderr).toMatch(/app thoát trước khi sẵn sàng/);
+      expect(groupAlive(pidOf("server"))).toBe(false);
+      expect(alive(pidOf("child"))).toBe(false);
+    },
+    60_000,
+  );
+
+  it("perf-load.sh: k6 thoát 99 (vượt thresholds) → script exit 99, quét PII vẫn chạy, nhóm app đã dừng", () => {
+    const r = run("scripts/perf-load.sh", { STUB_K6: "fail" });
+    expect(r.status, r.stderr).toBe(99);
+    expect(r.stdout).toMatch(/\[pii-log-scan\] 1 tệp · 0 phát hiện/);
+    expect(r.stderr).toMatch(/k6 đỏ \(exit 99/);
+    expect(groupAlive(pidOf("server"))).toBe(false);
+  }, 60_000);
+
+  it("perf-load.sh: k6 xanh → exit 0, nhóm app đã dừng (được phép)", () => {
+    const r = run("scripts/perf-load.sh", {});
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/✓ kiểm tải xanh/);
+    expect(groupAlive(pidOf("server"))).toBe(false);
+  }, 60_000);
+
+  it("lượt trước bị SIGKILL (hết trần release-check): con không giữ khoá cổng; lượt sau dọn app + k6 còn sót rồi chạy xanh", async () => {
+    const first = spawn("bash", [join(ROOT, "scripts/perf-load.sh")], {
+      cwd: tmp,
+      stdio: "ignore",
+      env: env({ STUB_K6: "hang" }),
+    });
+    expect(await waitFor(() => existsSync(join(tmp, "k6.pid")) && alive(pidOf("k6")))).toBe(true);
+    first.kill("SIGKILL"); // như subprocess.run(timeout=…) — trap EXIT không chạy
+    await waitFor(() => first.exitCode !== null || first.signalCode !== null);
+    const old = { server: pidOf("server"), child: pidOf("child"), k6: pidOf("k6") };
+    // Tàn dư thật sự còn đó (tái hiện lỗi rò)…
+    expect(alive(old.server) && alive(old.child) && alive(old.k6)).toBe(true);
+    // …lượt sau không bị "cổng đang được một lượt khác dùng", dọn sạch rồi chạy xanh.
+    rmSync(join(tmp, "ready"), { force: true });
+    const r = run("scripts/perf-load.sh", {});
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/dọn tàn dư của lượt trước bị dừng ngang/);
+    for (const [name, pid] of Object.entries(old)) expect(alive(pid), name).toBe(false);
+  }, 90_000);
+
+  it("không chạm tiến trình của lượt khác: dấu id khác không bị dọn", async () => {
+    const bystander = spawn("sleep", ["300"], {
+      stdio: "ignore",
+      env: { PATH: process.env.PATH, HM_E2E_RUN_ID: "deadbeefdeadbeef" },
+    });
+    writeFileSync(join(tmp, `hm-e2e-${port}.run`), "0123456789abcdef\n");
+    try {
+      const r = run("scripts/perf-load.sh", {});
+      expect(r.status, r.stderr).toBe(0);
+      expect(r.stdout).not.toMatch(/dọn tàn dư/);
+      expect(alive(bystander.pid)).toBe(true);
+    } finally {
+      bystander.kill("SIGKILL");
+    }
+  }, 60_000);
 });

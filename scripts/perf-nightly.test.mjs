@@ -46,7 +46,7 @@ describe("perf-nightly.yml — load test tự động", () => {
   it("k6 chạy kịch bản có thresholds p95/p99 và tỷ lệ lỗi; k6 thoát ≠ 0 khi vượt (script giữ mã lỗi, không nuốt)", () => {
     expect(sh).toMatch(/^set -euo pipefail$/m);
     expect(sh).toMatch(
-      /k6 run -e LOAD_VUS="\$LOAD_VUS" -e LOAD_DURATION="\$LOAD_DURATION" \\\n\s+--summary-export "\$OUT\/k6-summary\.json" perf\/k6\/room-list\.js\) \|\| k6_rc=\$\?\n/,
+      /hm_run_wait k6 run -e LOAD_VUS="\$LOAD_VUS" -e LOAD_DURATION="\$LOAD_DURATION" \\\n\s+--summary-export "\$OUT\/k6-summary\.json" "\$HM_ROOT\/perf\/k6\/room-list\.js" \|\| k6_rc=\$\?\n/,
     );
     expect(sh).toMatch(/^\[ "\$k6_rc" -eq 0 \] \|\| hm_die "\$k6_rc" /m);
     expect(sh).not.toMatch(/--no-thresholds|k6 run[^\n]*(\|\| *true|; *true)/);
