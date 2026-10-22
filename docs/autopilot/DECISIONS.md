@@ -697,3 +697,10 @@
 - Chọn: Duyệt 3 task như viết
 - Lý do (tiêu chí chất lượng cuối): (3)(4) XC-I18N-001 là MUST duy nhất máy làm được; chọn màn ngoài merge_risk_paths để PR theo làn L3; ratchet chặn lùi
 - Đường lùi: Revert PR đợt 18
+
+### D-097 · 2026-10-22T10:14:21+00:00 · XC-I18N-001 còn 2078 chuỗi / 181 tệp (795 ở apps/web, 1280 ở packages/app là thông báo lỗi/xuất file/thông báo; 831 chuỗi nằm trong merge_risk_paths ⇒ PR người merge) — làm tiếp theo đợt liên tục hay chuyển dần?
+
+- Phương án: (1) Defer: chuyển dần theo màn khi sửa màn (ratchet chặn tăng), đợt riêng cho packages/app sau khi quyết cách trả mã lỗi + thông điệp (đổi API); chủ dự án duyệt nhịp · (2) Chạy tiếp ~10 đợt/PR liên tục tới hết
+- Chọn: Defer: chuyển dần theo màn khi sửa màn (ratchet chặn tăng), đợt riêng cho packages/app sau khi quyết cách trả mã lỗi + thông điệp (đổi API); chủ dự án duyệt nhịp
+- Lý do (tiêu chí chất lượng cuối): (1) packages/app đổi cách sinh thông điệp lỗi chạm hợp đồng API (cần quyết thiết kế, không cơ học); (2)(3) PR lớn liên tục quanh tiền/lưu trú dồn việc merge cho người, rủi ro đổi chữ; ratchet đã giữ không lùi; sản phẩm chỉ có một locale (vi) nên không chặn người dùng
+- Đường lùi: Lập PLAN đợt i18n kế (mỗi đợt ≤ 5 màn ngoài merge_risk_paths) bất cứ lúc nào
