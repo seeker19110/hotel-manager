@@ -23,6 +23,9 @@ deploy/secrets/
 test-results/
 # Log server của lượt E2E (apps/web/e2e/server.ts) — CI quét PII rồi bỏ.
 e2e-logs/
+# Kết quả DAST/kiểm tải khi đặt DAST_OUT=zap-out / PERF_OUT=perf-out (như CI) — scripts/dast.sh, scripts/perf-load.sh.
+zap-out/
+perf-out/
 playwright-report/
 
 # Python (scripts/)

@@ -56,38 +56,17 @@ jobs:
         run: pnpm --filter web exec playwright install --with-deps chromium
       - name: k6 (ghim phiên bản, kiểm SHA-256)
         run: DEV_ENV_OPT_DIR="$RUNNER_TEMP" DEV_ENV_BIN_DIR="$HOME/.local/bin" bash scripts/dev-env-setup.sh --only k6 && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-      - name: Build production
-        run: pnpm --filter web build
-      - name: Khởi động app (Postgres service + seed giả, như job e2e)
-        working-directory: apps/web
-        run: |
-          nohup node e2e/server.ts > "$RUNNER_TEMP/k6-server.log" 2>&1 &
-          echo $! > "$RUNNER_TEMP/k6-server.pid"
-          for _ in $(seq 1 120); do
-            curl -fsS "$BASE_URL/api/health" > /dev/null && exit 0
-            sleep 2
-          done
-          echo "::error::App không lên trong 240 giây"; tail -n 50 "$RUNNER_TEMP/k6-server.log"; exit 1
-      - name: Phiên đăng nhập + ID seed cho k6
-        working-directory: apps/web
-        run: node e2e/perf-session-env.ts >> "$GITHUB_ENV"
-      - name: Load test room-list (đỏ khi vượt thresholds)
-        # 20 phiên đồng thời, giữ 3 phút (runner 4 vCPU — số đo so sánh giữa các đêm, không thay số đo staging). Tên LOAD_* chứ không
-        # K6_VUS/K6_DURATION: k6 coi biến K6_<tuỳ chọn> (cả qua -e) là tuỳ chọn gốc và đè toàn bộ `scenarios` (perf/k6/lib.js).
-        run: k6 run -e LOAD_VUS=20 -e LOAD_DURATION=3m --summary-export k6-summary.json perf/k6/room-list.js
-      - name: Quét PII trong log server (CMP-PRIV-008)
-        if: ${{ !cancelled() }}
-        run: node scripts/pii-log-scan.mjs apps/web/e2e-logs
-      - name: Dừng app (xoá DB tạm)
-        if: always()
-        run: |
-          kill -TERM "$(cat "$RUNNER_TEMP/k6-server.pid")" 2>/dev/null || true
-          sleep 3
+      # Build → app tạm loopback → phiên đăng nhập giả → k6 load room-list (đỏ khi vượt thresholds) → quét PII log server (cả khi k6
+      # đỏ) → dừng app: cùng script với khoá `perf` của xt.yaml (release-check). Đích cố định 127.0.0.1, script chặn lại lần nữa.
+      - name: Load test room-list + quét PII log server (đỏ khi vượt thresholds hoặc lọt PII)
+        env:
+          PERF_OUT: perf-out
+        run: bash scripts/perf-load.sh
       - name: Lưu tóm tắt k6 (số đo, không có cookie)
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: k6-summary
-          path: k6-summary.json
+          path: perf-out/k6-summary.json
           retention-days: 30
           if-no-files-found: ignore

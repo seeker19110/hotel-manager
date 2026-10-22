@@ -1,5 +1,5 @@
 // Khoá cấu hình quét bảo mật + CSDL qua TLS (BASE-SEC-007, SEC-WEB-001, SEC-WEB-004, DB-SEC-003): phần chạy thật nằm ở CI
-// (.github/workflows/security-scan.yml: job `sast`, `dast`), file này giữ để không ai nới cấu hình âm thầm.
+// (.github/workflows/security-scan.yml: job `sast`, `dast` → scripts/dast.sh), file này giữ để không ai nới cấu hình âm thầm.
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -81,26 +81,52 @@ describe("security-scan.yml", () => {
     );
   });
 
-  it("job dast: app production chạy thật + ZAP baseline + quét chủ động, image ghim digest, cổng zap-gate", () => {
+  // Các bước DAST nằm ở scripts/dast.sh (một nhà, cũng là khoá `attack` của xt.yaml cho release-check); job chỉ gọi script.
+  const dastSh = read("scripts/dast.sh");
+  // phần mã, bỏ dòng chú thích (đầu file mô tả các bước) — để so thứ tự bước
+  const dastCode = dastSh
+    .split("\n")
+    .filter((l) => !/^\s*#/.test(l))
+    .join("\n");
+  const lib = read("scripts/lib-e2e-app.sh");
+
+  it("job dast: gọi scripts/dast.sh (kết quả vào zap-out/ để lưu artifact), Postgres service ghim digest, có timeout", () => {
     const dast = job(wf, "dast");
     expect(dast).not.toBeNull();
     expect(dast).toMatch(/image: postgres:17\.\d+@sha256:[0-9a-f]{64}/);
-    expect(dast).toMatch(/node e2e\/server\.ts/);
-    expect(dast).toMatch(/api\/health/);
-    expect(dast).toMatch(/zap-baseline\.py/);
-    expect(dast).toMatch(/zap-full-scan\.py/);
-    expect(dast).toMatch(/node scripts\/zap-gate\.mjs zap-out\/baseline\.json zap-out\/active\.json/);
-    expect(wf).toMatch(/ZAP_IMAGE: ghcr\.io\/zaproxy\/zaproxy:\d+\.\d+\.\d+@sha256:[0-9a-f]{64}/);
+    expect(dast).toMatch(/env:\n\s+DAST_OUT: zap-out\n\s+run: bash scripts\/dast\.sh\n/);
+    expect(dast).toMatch(/path: zap-out\/\n/);
     expect(dast).toMatch(/timeout-minutes: (?:[1-9]|[1-5]\d)\n/);
-    // dừng app kể cả khi đỏ để xoá DB tạm
-    expect(dast).toMatch(/if: always\(\)\n\s+run: \|\n\s+kill -TERM/);
+    // job không tự đặt ZAP_IMAGE (bản ghim một nhà ở script)
+    expect(dast).not.toMatch(/ZAP_IMAGE:/);
   });
 
-  it("job dast không nới cổng: -I chỉ để zap không tự quyết, quyết định ở zap-gate (không bỏ bước gate)", () => {
-    const dast = job(wf, "dast");
-    const gate = dast.indexOf("zap-gate.mjs");
-    expect(gate).toBeGreaterThan(dast.indexOf("zap-full-scan.py"));
-    expect(dast).not.toMatch(/zap-gate[^\n]*(\|\||;)/);
+  it("dast.sh: app production chạy thật + ZAP baseline + quét chủ động, image ghim digest, cổng zap-gate, dừng app khi thoát", () => {
+    expect(dastSh).toMatch(/^set -euo pipefail$/m);
+    expect(lib).toMatch(/setsid node e2e\/server\.ts/);
+    expect(lib).toMatch(/api\/health/);
+    expect(dastSh).toMatch(/hm_build "\$\{DAST_SKIP_BUILD:-\}"/);
+    expect(lib).toMatch(/pnpm --filter web build/);
+    expect(dastSh).toMatch(/zap-baseline\.py -t "\$HM_BASE_URL" -m 2 -I -J baseline\.json/);
+    expect(dastSh).toMatch(/zap-full-scan\.py -t "\$HM_BASE_URL" -m 2 -T 12 -I -J active\.json/);
+    expect(dastSh).toMatch(
+      /node "\$HM_ROOT\/scripts\/zap-gate\.mjs" "\$OUT\/baseline\.json" "\$OUT\/active\.json"\n/,
+    );
+    expect(dastSh).toMatch(
+      /^ZAP_IMAGE="\$\{ZAP_IMAGE:-ghcr\.io\/zaproxy\/zaproxy:\d+\.\d+\.\d+@sha256:[0-9a-f]{64}\}"$/m,
+    );
+    // dừng app kể cả khi đỏ để xoá DB tạm
+    expect(dastSh).toMatch(/^trap hm_stop_app EXIT$/m);
+    expect(lib).toMatch(/kill -TERM "\$pid"/);
+  });
+
+  it("dast.sh không nới cổng: -I chỉ để zap không tự quyết, quyết định ở zap-gate (không bỏ bước gate, không nuốt lỗi)", () => {
+    const gate = dastCode.indexOf("zap-gate.mjs");
+    expect(dastCode.indexOf("zap-full-scan.py")).toBeGreaterThan(-1);
+    expect(gate).toBeGreaterThan(dastCode.indexOf("zap-full-scan.py"));
+    expect(dastSh).not.toMatch(/zap-gate[^\n]*(\|\||;)/);
+    expect(dastSh).not.toMatch(/(?:zap|docker)[^\n]*\|\|\s*true/);
+    expect(dastSh).not.toMatch(/continue-on-error|set \+e/);
   });
 });
 

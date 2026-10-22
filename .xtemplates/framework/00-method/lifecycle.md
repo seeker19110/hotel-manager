@@ -1,7 +1,7 @@
 ---
 title: Vòng đời dự án và các cổng
 kind: method
-updated: 2026-10-20
+updated: 2026-10-22
 ---
 
 # Vòng đời dự án và các cổng
@@ -36,7 +36,8 @@ updated: 2026-10-20
    cấu hình, dữ liệu, phân quyền — thứ sai từ đầu thì làm lại cả hệ); G6 chạy **nhanh trên sàn đó**: cổng commit + PR mỗi
    lát + review theo làn, **không** audit toàn repo mỗi PR, **không** tối ưu khi chưa có số ([`../11-autonomous-loop/optimization-loop.md`](../11-autonomous-loop/optimization-loop.md)),
    UI "đủ dùng" theo MUST của quy mô; audit **theo delta ở mỗi mốc** của PLAN ở pha harden — pha build gom về trước G7, ADR-0033 ([`audit.md`](audit.md) §1) và **toàn diện ở G7**
-   (`xt.py release-check` gom blueprint `--strict --run`, sổ audit `--strict`, kiểm lại cuối, cây git → GO/NO-GO máy đọc;
+   (`xt.py release-check` gom blueprint `--strict --run`, sổ audit `--strict`, kiểm lại cuối, cây git, tấn công thử và kiểm tải
+   — `attack`/`perf` của `xt.yaml`, ADR-0042 → GO/NO-GO máy đọc;
    người ký `GO-NO-GO.md`). Chỉ G7 mới đòi E2E đầy đủ, kiểm tải, diễn tập rollback/khôi phục. Không phải hạ chuẩn:
    cùng tiêu chí cuối, khác **thời điểm** kiểm. Máy merge theo pha bằng khoá `delivery_phase: build|harden` của `xt.yaml`
    — build hoãn review thành nợ, G7 đòi harden và hết nợ (ADR-0031 của repo khung).

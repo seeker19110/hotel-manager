@@ -58,8 +58,6 @@ jobs:
       NEXT_TELEMETRY_DISABLED: "1"
       TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
       E2E_PORT: "3100"
-      # ZAP 2.17.0 (index đa kiến trúc, tra ghcr.io 2026-10-18).
-      ZAP_IMAGE: ghcr.io/zaproxy/zaproxy:2.17.0@sha256:5ccfff9a411743ab2615136a2edd7416bec9ce41572fa94e935df38c14adb2b6
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -71,35 +69,12 @@ jobs:
           cache: pnpm
       - name: Cài phụ thuộc (lockfile đóng băng)
         run: pnpm install --frozen-lockfile
-      - name: Build production
-        run: pnpm --filter web build
-      - name: Khởi động app (Postgres service + seed giả, như job e2e)
-        working-directory: apps/web
-        run: |
-          nohup node e2e/server.ts > "$RUNNER_TEMP/dast-server.log" 2>&1 &
-          echo $! > "$RUNNER_TEMP/dast-server.pid"
-          for _ in $(seq 1 120); do
-            curl -fsS "http://127.0.0.1:${E2E_PORT}/api/health" > /dev/null && exit 0
-            sleep 2
-          done
-          echo "::error::App không lên trong 240 giây"; tail -n 50 "$RUNNER_TEMP/dast-server.log"; exit 1
-      - name: Thư mục kết quả ZAP (container chạy bằng người dùng zap)
-        run: mkdir -p zap-out && chmod 777 zap-out
-      - name: ZAP baseline (quét thụ động, spider 2 phút)
-        run: |
-          docker run --rm --network host -v "$PWD/zap-out:/zap/wrk:rw" "$ZAP_IMAGE" \
-            zap-baseline.py -t "http://127.0.0.1:${E2E_PORT}" -m 2 -I -J baseline.json -r baseline.html
-      - name: ZAP quét chủ động (XSS/injection), giới hạn thời gian
-        run: |
-          docker run --rm --network host -v "$PWD/zap-out:/zap/wrk:rw" "$ZAP_IMAGE" \
-            zap-full-scan.py -t "http://127.0.0.1:${E2E_PORT}" -m 2 -T 12 -I -J active.json -r active.html
-      - name: Cổng DAST — đỏ khi còn cảnh báo Medium trở lên ngoài allowlist
-        run: node scripts/zap-gate.mjs zap-out/baseline.json zap-out/active.json
-      - name: Dừng app (xoá DB tạm)
-        if: always()
-        run: |
-          kill -TERM "$(cat "$RUNNER_TEMP/dast-server.pid")" 2>/dev/null || true
-          sleep 3
+      # Build → app tạm loopback → ZAP baseline + quét chủ động → cổng zap-gate → dừng app (kể cả khi đỏ): cùng script với khoá
+      # `attack` của xt.yaml (release-check), một nhà cho các bước và bản ghim ZAP_IMAGE.
+      - name: DAST — ZAP baseline + quét chủ động, đỏ khi còn cảnh báo Medium trở lên ngoài allowlist
+        env:
+          DAST_OUT: zap-out
+        run: bash scripts/dast.sh
       - name: Lưu báo cáo ZAP và log app (dữ liệu giả)
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

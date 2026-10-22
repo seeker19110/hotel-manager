@@ -3973,10 +3973,11 @@ def build_scope(base: Path, blueprint: Optional[str]) -> Dict[str, Any]:
 
 
 def gate_floor_keys(base: Path) -> Tuple[List[Tuple[str, str]], Dict[str, str]]:
-    """([(khoá, mô tả)] sàn đòi ở quy mô hiện tại, giá trị xt.yaml); S/không blueprint/không xt.yaml → ([], {})."""
+    """([(khoá, mô tả)] sàn đòi ở quy mô hiện tại, giá trị xt.yaml); S/không blueprint/không xt.yaml → ([], {}). Pha
+    `build` → không áp (ADR-0041: test tối thiểu, CI xanh là merge; sàn trở lại khi đặt `harden` — `release-check` đòi)."""
     scale, profile = blueprint_scale(base)
     p = base / "xt.yaml"
-    if scale not in ("M", "L"):
+    if scale not in ("M", "L") or _phase_in_tree(base) == "build":
         return [], {}
     # Thiếu cả xt.yaml ở M/L = mọi khoá sàn đều thiếu (không phải "không áp" — review #107).
     rows = map(YAML_KEY_RE.match, p.read_text(encoding="utf-8").splitlines() if p.is_file() else [])
@@ -4062,6 +4063,9 @@ def cmd_floor(args: argparse.Namespace) -> int:
         return rc
     if scale not in ("M", "L"):
         print(f"floor: không áp (quy mô {scale or 'không rõ'} — sàn chỉ ở M/L, LOOP-HARNESS-023)")
+        return 0
+    if _phase_in_tree(base) == "build":
+        print("floor: không áp ở pha build (ADR-0041) — sàn chạy lại khi đặt `delivery_phase: harden`")
         return 0
     for m in missing:
         print(f"{'✗' if args.strict else '⚠'} {m}")
@@ -7653,6 +7657,12 @@ def _merge_eval(pr: Dict[str, Any], local: bool = False) -> Tuple[Dict[str, Any]
     autonomy, notes = merge_autonomy_level(project_dir(), ref)
     hard_auto, hard_notes = merge_hard_mode(project_dir(), ref)
     phase, phase_notes = delivery_phase(project_dir(), ref)
+    if phase == "build" and {"xt.yaml", project_prefix() + "xt.yaml"} & set(
+        _risky_paths(pr)
+    ):  # kể cả tên cũ, dự án con
+        # steward chạy trên checkout nhánh đích: "cây làm việc" = nhánh đích, không thấy xt.yaml của PR — PR tự đổi pha
+        # (#213: build → harden) từng merge như build. PR đụng xt.yaml luôn tính harden (review #213, D-137).
+        phase, phase_notes = "harden", [*phase_notes, "PR sửa xt.yaml — tính pha harden (D-137)"]
     risk = merge_risk_globs(project_dir(), ref)
     rec = _pr_record(read_reviews(project_dir()), str(pr.get("number", ""))) if local else None
     return merge_check_result(pr, autonomy, risk, hard_auto, phase, rec), notes + hard_notes + phase_notes
@@ -7750,7 +7760,12 @@ def cmd_merge_check(args: argparse.Namespace) -> int:
 
 # --------------------------------------------------------------------------- release-check (G7 máy đọc, ADR-0029)
 
-RELEASE_ROWS = ("blueprint", "audit", "verify", "tree", "prod_switch", "phase", "review_debt")
+RELEASE_ROWS = ("blueprint", "audit", "verify", "tree", "prod_switch", "phase", "review_debt", "attack", "perf")
+# ADR-0042: kiểm chỉ chạy trước phát hành (pha harden) — khoá xt.yaml của dự án, lệnh đỏ = NO-GO.
+RELEASE_RUN_KEYS = (
+    ("attack", "tấn công thử: DAST/fuzz/kịch bản khai thác trên bản chạy cục bộ hay staging"),
+    ("perf", "kiểm tải/ngân sách hiệu năng có ngưỡng, đỏ khi vượt"),
+)
 
 
 def _release_row(rid: str, result: str, evidence: str, level: str = "BLOCKER") -> Dict[str, str]:
@@ -7924,11 +7939,33 @@ def _release_review_debt(base: Path, status: str) -> Dict[str, str]:
     return _release_row("review_debt", "PASS", f"không có file ngoài tài liệu đổi sau SHA quét ({len(shas)} SHA)")
 
 
+def _release_run(base: Path, blueprint: str, key: str, what: str) -> Dict[str, str]:
+    """Hàng chạy lệnh `key` của xt.yaml (ADR-0042). Chưa khai/no-op: M/L → N/A BLOCKER (người xác nhận không áp hoặc khai
+    lệnh), S/không rõ → N/A SHOULD. Khai → chạy qua guard (`run_gate_shell`): exit 0 PASS, khác FAIL kèm đuôi log."""
+    cmd = _xt_keys(base).get(key, "")
+    if gate_noop(cmd):
+        scale = (_blueprint_front(base, blueprint) or ("", ""))[0]
+        if scale in ("M", "L"):
+            return _release_row(
+                key, "N/A", f"xt.yaml chưa khai `{key}` ({what}) — khai lệnh, hoặc người ký lý do không áp"
+            )
+        return _release_row(key, "N/A", f"quy mô {scale or 'không rõ'}: `{key}` không bắt buộc ({what})", "SHOULD")
+    timeout = _record_timeout() or 0
+    timeout = timeout if timeout > 0 else 1800  # sai/âm/0 → mặc định (review #217)
+    code, out = run_gate_shell(cmd, base, timeout)
+    tail = redact(" ".join(out.strip().splitlines()[-3:]))[:300]
+    if code:
+        return _release_row(key, "FAIL", f"`{redact(cmd)}` exit {code}: {tail}")
+    return _release_row(key, "PASS", f"`{redact(cmd)}` exit 0")
+
+
 def release_check(base: Path, blueprint: str, status: str) -> Dict[str, Any]:
     """Cổng G7 máy đọc (ADR-0029): gom `blueprint-status --strict --run`, `audit check --strict`, kiểm lại cuối của autopilot
     và cây git thành bảng PASS/FAIL/N-A có bằng chứng — cùng nguồn cho GO-NO-GO.md (phần máy) và JSON. GO chỉ khi không
     hàng BLOCKER nào FAIL; hàng N/A BLOCKER là việc của người (không tính GO, không tính NO-GO — ghi rõ). ADR-0031: pha
     phải là harden (`phase`) và không còn nợ review — file ngoài tài liệu đổi sau SHA quét của sổ audit (`review_debt`)."""
+    # `attack`/`perf` chạy TRƯỚC `tree`: báo cáo công cụ ghi vào cây phải hiện ở hàng `tree` (review #217)
+    runs = {key: _release_run(base, blueprint, key, what) for key, what in RELEASE_RUN_KEYS}
     rows = [
         _release_blueprint(base, blueprint),
         _release_audit(base, status),
@@ -7937,6 +7974,7 @@ def release_check(base: Path, blueprint: str, status: str) -> Dict[str, Any]:
         _release_prod_switch(base),
         _release_phase(base),
         _release_review_debt(base, status),
+        *runs.values(),
     ]
     fails = [r["id"] for r in rows if r["result"] == "FAIL" and r["level"] == "BLOCKER"]
     human = [r["id"] for r in rows if r["result"] == "N/A" and r["level"] == "BLOCKER"]

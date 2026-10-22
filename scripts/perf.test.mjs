@@ -389,7 +389,7 @@ describe("perf: ngân sách trang + baseline (XC-GREEN-001, QA-PERF-006)", () =>
   it("lhci chỉ chạy trong job `lighthouse` (đợt 9, D-059); k6 chỉ chạy trong perf-nightly.yml (đợt 10, D-072 — không trên PR)", () => {
     for (const n of readdirSync(join(ROOT, ".github/workflows"))) {
       const text = read(`.github/workflows/${n}`);
-      if (n !== "perf-nightly.yml") expect(text, n).not.toMatch(/\bk6 run\b/i);
+      if (n !== "perf-nightly.yml") expect(text, n).not.toMatch(/\bk6 run\b|scripts\/perf-load\.sh/i);
       if (n !== "frontend-quality.yml") expect(text, n).not.toMatch(/lhci|lighthouse-ci/i);
     }
     expect(read(".github/workflows/frontend-quality.yml")).toMatch(/^ {2}lighthouse:\n/m);

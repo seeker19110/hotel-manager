@@ -3,7 +3,7 @@ title: Điểm dừng bắt buộc, mức tin cậy T0–T4, leo thang
 kind: module
 prefix: LOOP-STOP
 applies_to: [all]
-updated: 2026-10-21
+updated: 2026-10-22
 ---
 
 # Điểm dừng bắt buộc, mức tin cậy T0–T4, leo thang
@@ -83,7 +83,7 @@ chuyên môn. Guard **không hỏi người** (ADR-0018): bộ luật vẫn tín
 
 | Nhóm | Ví dụ | Cơ chế thật trong khung (mặc định) | Ai mở khoá |
 |---|---|---|---|
-| Thao tác không đảo ngược | `rm -rf`, `git push --force`, `reset --hard`, push thẳng nhánh chính, xoá đệ quy ngoài dự án, `gh repo delete`, ghi ruleset qua `gh api`, `kubectl delete`, `terraform destroy`, drop/alter phá vỡ, xoá dữ liệu | `pre-bash-guard.sh` → **deny**; `permissions.deny` | Người tự chạy tay |
+| Thao tác không đảo ngược | `rm -rf`, `git push --force`, `reset --hard`, push thẳng nhánh chính, xoá đệ quy ngoài dự án, `gh repo delete`, ghi ruleset qua `gh api`, `kubectl delete`, `terraform destroy`, drop/alter phá vỡ, xoá dữ liệu | `pre-bash-guard.sh` → **deny**; `permissions.deny`. Pha `build` (`delivery_phase` ở cả cây làm việc lẫn nhánh mặc định của remote, ADR-0040): việc **chỉ trong dự án hoặc thư mục tạm** cho chạy — `reset --hard`/`clean -f` (trừ `-x`)/`checkout .`/`restore .`/`stash drop`, `chmod 777`, `dd of=`, ghi file bí mật trong dự án | Người tự chạy tay |
 | Tiền thật | Thanh toán, hoàn tiền, đổi giá, gọi API thu phí ngoài sandbox, đăng ký dịch vụ trả phí | `loop defer`/`loop block --reason` + SPEC phải có ca test; PR chạm tiền → `merge-check` `hard` → merge bị **deny** (`merge_hard_exceptions: human`); việc trong `- grant:` của PLAN và còn hạn mức thì tự làm (`grant-check`, ADR-0022) | Chủ sản phẩm (qua PR ủy quyền) |
 | Dữ liệu người dùng thật | Migration phá vỡ trên DB production, export PII, xoá tài khoản, gửi tin tới người dùng thật | `loop defer`; PR `risk:pii` → `hard` → merge bị **deny** (`human`); sửa migration đã tồn tại: cho chạy, §3 AGENTS.md cấm sửa migration đã áp; việc trong `- grant:` của PLAN và còn hạn mức thì tự làm (`grant-check`, ADR-0022) | Người trực + chủ dữ liệu (qua PR ủy quyền) |
 | Đổi quyền / nới cổng | Sửa `eslint`/`tsconfig`/coverage/workflows/`.claude/settings.json`/`.xtemplates/`, cập nhật snapshot/baseline ảnh | `pre-edit-guard.sh` → cho chạy, lý do ghi ở commit/PR, PR không vào làn nhanh; tắt/bỏ qua hook → **deny** | Review PR |
