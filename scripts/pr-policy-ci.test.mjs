@@ -63,7 +63,7 @@ describe("pr-policy.yml", () => {
     expect(yml).not.toContain("continue-on-error");
   });
   it("bỏ qua PR của bot theo TÁC GIẢ PR (dependabot + github-actions/release-please), không theo github.actor", () => {
-    // D-086 (pha build): job chỉ chạy tay, điều kiện bỏ qua bot giữ trong chú thích "Khi khôi phục" để trả lại ở harden.
+    // D-091 (harden): điều kiện bỏ qua bot xét tác giả PR, trả lại từ chú thích "Khi khôi phục" của D-086.
     const jobIf = (
       /^ {4}if: >-\n((?: {6}.*\n)+)/m.exec(job)?.[1] ??
       /^ {4}# Khi khôi phục: (if: .*\n(?: {4}# .*\n)*)/m.exec(job)?.[1] ??

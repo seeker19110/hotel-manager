@@ -152,8 +152,7 @@ const WAVE9_GATES = [
   "fix-requires-test",
 ];
 /**
- * D-084 + D-085 + D-086 (chủ dự án, pha build): cổng hoãn tới pha harden — không required, không chạy trên PR/push/lịch, chỉ chạy tay
- * (`if: github.event_name == 'workflow_dispatch'`). Pha harden (D-091): rỗng — mọi cổng đã trả về WAVE9_GATES/BASE_GATES,
+ * D-084 + D-085 + D-086 (pha build): danh sách cổng hoãn — không required, chỉ chạy tay. Pha harden (D-091): rỗng — mọi cổng đã trả về WAVE9_GATES/BASE_GATES,
  * ruleset và trigger cũ; rào bên dưới đỏ nếu `delivery_phase: harden` mà danh sách này còn phần tử.
  */
 const DEFERRED_TO_HARDEN = [];
@@ -410,7 +409,7 @@ describe("WF-CI-001 — job gom quality + ruleset khớp job thật", () => {
   });
 });
 
-describe("D-084/D-085 — cổng hoãn tới pha harden", () => {
+describe("D-084/D-085/D-091 — cổng hoãn ở pha build, rỗng ở harden", () => {
   const wfs = workflows();
   const required = new Set(requiredContexts(JSON.parse(read(".github/rulesets/main.json"))));
   const prJobs = prContexts(wfs);
@@ -512,7 +511,7 @@ describe("D-065 — ruleset gom mọi job chạy trên mọi PR vào main", () =
   });
 
   it("nhóm cổng đợt 9 đều có mặt và là job PR thật", () => {
-    // 29 cổng (nền 4 + đợt 9 24 + khung 1) = còn required + hoãn tới harden (D-084…D-086) + đã gỡ (ADR-0036):
+    // 29 cổng (nền 4 + đợt 9 24 + khung 1) = required + hoãn (rỗng ở harden, D-091) + đã gỡ (ADR-0036):
     // không cổng nào bị bỏ lặng lẽ.
     expect(
       BASE_GATES.length +
