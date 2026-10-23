@@ -163,6 +163,7 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
+  zod@>=4.0.0 <4.6.6: 4.6.7
   tmp@<0.2.7: 0.2.7
   basic-ftp@<6.2.1: 6.2.1
   uuid@<11.1.1: 11.1.1
@@ -1879,7 +1880,7 @@ packages:
   better-call@1.4.2:
     resolution: {integrity: sha512-lOmFCTG1KcE60YWxoff2Wx0Fv7v7drP/fQTDYnhJUCdkA7V6QWXdLPUiMpOQCq7Fd0Ts3AkrRwD23xoiootlGA==}
     peerDependencies:
-      zod: ^4.0.0
+      zod: 4.6.7
     peerDependenciesMeta:
       zod:
         optional: true
@@ -3922,9 +3923,6 @@ packages:
   zod@3.25.76:
     resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
 
-  zod@4.6.5:
-    resolution: {integrity: sha512-v5l/aFXZQeai4awLbOpSoHecE9UiMrnfx75tEXLjNonXVARxQ5mOeipTjROUchszUNCqnE+hqAMujRsRHsut2Q==}
-
   zod@4.6.7:
     resolution: {integrity: sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg==}
 
@@ -4514,7 +4512,7 @@ snapshots:
       pretty-bytes: 6.1.1
       source-map: 0.8.0
       type-fest: 5.10.0
-      zod: 4.6.5
+      zod: 4.6.7
     optionalDependencies:
       typescript: 7.0.2
     transitivePeerDependencies:
@@ -4532,7 +4530,7 @@ snapshots:
       react: 19.3.1
       semver: 7.8.5
       serwist: 9.5.13(browserslist@4.29.3)(typescript@7.0.2)
-      zod: 4.6.5
+      zod: 4.6.7
     optionalDependencies:
       esbuild: 0.28.2
       typescript: 7.0.2
@@ -7493,7 +7491,5 @@ snapshots:
       fd-slicer: 1.1.0
 
   zod@3.25.76: {}
-
-  zod@4.6.5: {}
 
   zod@4.6.7: {}
