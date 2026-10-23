@@ -4,6 +4,9 @@ import { expect, type Page } from "@playwright/test";
 
 /** Mọi vấn đề tiếp cận của trang hiện tại (rỗng = đạt): vi phạm axe ở MỌI mức impact + vùng chạm < 44 px. */
 export async function accessibilityProblems(page: Page): Promise<string[]> {
+  // Sau router.refresh() Next thay metadata trong <head>: <title> có thể vắng một nhịp ⇒ axe document-title đỏ chập chờn.
+  // Chờ title có chữ (trang thật sự thiếu title vẫn đỏ ở đây sau timeout) rồi mới quét.
+  await expect(page, "trang phải có <title>").toHaveTitle(/\S/);
   const r = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
     .analyze();
