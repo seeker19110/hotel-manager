@@ -9,6 +9,10 @@
 > `PM-SPEC-004` và `WF-SDD-003` (nền spec-coverage còn 26 S-NNN). **Tick kèm lưu ý để phiên chính xác nhận:** `DB-MODEL-004` (52 FK nhóm A thiếu index là ngoại lệ có lý do — D-035),
 > `UX-STATE-001` (không Storybook; loading bị D-032 miễn ở trang có route con động/notFound/redirect), `DB-PERF-001` (EXPLAIN không ANALYZE), `XC-GREEN-007` (còn `notifications`/`inbox`/`worker_heartbeats` chưa có job dọn, chờ DPIA).
 
+## Kết quả đợt 19 (T-1903, 2026-10-23; D-099)
+
+XC-I18N-001 tiến tiếp theo nhịp D-097: 9 tệp ngoài `merge_risk_paths` hết chuỗi viết thẳng (171 khoá mới, 477 khoá), baseline 2078 → 1899 chuỗi / 172 tệp; client component theo D-098 (bundle 287,92 kB ≤ 300). Vẫn mở. MUST mở **90**.
+
 ## WF-REL-003 (2026-10-23)
 
 Chủ dự án import `.github/rulesets/tags.json`. Thêm `node scripts/check-github-live.mjs tag-ruleset` (ruleset tag active phủ `refs/tags/v*`, đủ rule deletion/non_fast_forward/update, không bypass; test `scripts/check-github-live.test.mjs`) → đạt; `release v0.2.0` → đạt ⇒ tick WF-REL-003. MUST mở **90**. Tag mồ côi `v2.0.0` vẫn còn (ruleset nay chặn xoá).
