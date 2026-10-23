@@ -34,7 +34,11 @@ allowBuilds:
 #  - tmp@<0.2.7 (0.0.33 qua inquirer/external-editor, 0.1.0 trực tiếp): GHSA-7c78-jf6q-g5cm, GHSA-ph9p-34f9-6g65 (high), GHSA-52f5-9888-hmc6 (low)
 #  - basic-ftp@<6.2.1 (qua proxy-agent/get-uri): GHSA-c475-qrg2-pj4r (high)
 #  - uuid@<11.1.1 (8.3.2): GHSA-w5hq-g745-h8pq (medium)
+#  - zod 4.x <4.6.6 (4.6.5 ghim cứng trong @serwist/turbopack@9.5.13 và @serwist/build): GHSA-mrhx-c7xc-m3w5 (high) — job dep-audit.
+#    Cập nhật bảo mật không chịu cooldown 14 ngày (DEPENDENCY-POLICY); ghim 4.6.7 = bản packages/app đang dùng. Chỉ dải 4.x:
+#    zod@3.25.76 của gói khác không bị đổi. Gỡ khi @serwist nâng zod ≥ 4.6.6.
 overrides:
+  'zod@>=4.0.0 <4.6.6': 4.6.7
   'tmp@<0.2.7': 0.2.7
   'basic-ftp@<6.2.1': 6.2.1
   'uuid@<11.1.1': 11.1.1

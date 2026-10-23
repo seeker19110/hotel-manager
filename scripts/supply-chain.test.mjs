@@ -493,4 +493,14 @@ describe("pnpm overrides — bản vá cho phụ thuộc gián tiếp (grype --o
       expect(found).toEqual([fixed]);
     });
   }
+  // zod: chỉ ghim dải 4.x (dep-audit, GHSA-mrhx-c7xc-m3w5) — zod@3.x của gói khác giữ nguyên nên không so toàn bộ phiên bản.
+  it("zod: override ghim 4.6.7 cho 4.x < 4.6.6 (GHSA-mrhx-c7xc-m3w5), lockfile không còn 4.x chưa vá", () => {
+    expect(overrides["zod@>=4.0.0 <4.6.6"]).toBe("4.6.7");
+    const v4 = versionsOf("zod").filter((v) => v.startsWith("4."));
+    expect(v4.length).toBeGreaterThan(0);
+    for (const v of v4) {
+      const [, mi, pa] = v.split(".").map(Number);
+      expect(mi > 6 || (mi === 6 && pa >= 6), `zod@${v} chưa vá`).toBe(true);
+    }
+  });
 });
