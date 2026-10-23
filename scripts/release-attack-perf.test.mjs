@@ -34,15 +34,22 @@ const xt = Object.fromEntries(
 /** Cổng TCP trống (cùng cổng+1 trống) trên 127.0.0.1. */
 async function freePortPair() {
   for (;;) {
+    // Giữ cổng hệ điều hành cấp rồi thử giữ luôn cổng+1: chạy song song, cổng+1 (dải cổng tạm) có thể đang bị kết nối khác dùng.
+    const first = createServer();
     const port = await new Promise((resolve, reject) => {
-      const s = createServer();
-      s.once("error", reject);
-      s.listen(0, "127.0.0.1", () => {
-        const p = s.address().port;
-        s.close(() => resolve(p));
-      });
+      first.once("error", reject);
+      first.listen(0, "127.0.0.1", () => resolve(first.address().port));
     });
-    if (port < 65000) return port;
+    const second = createServer();
+    const pairFree =
+      port < 65000 &&
+      (await new Promise((resolve) => {
+        second.once("error", () => resolve(false));
+        second.listen(port + 1, "127.0.0.1", () => resolve(true));
+      }));
+    await new Promise((r) => first.close(r));
+    if (second.listening) await new Promise((r) => second.close(r));
+    if (pairFree) return port;
   }
 }
 
