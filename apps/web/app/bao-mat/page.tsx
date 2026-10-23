@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { messagesFor } from "../../lib/i18n.ts";
 import { MfaEnroll } from "./mfa-enroll.tsx";
 
 export const metadata: Metadata = { title: "Bảo mật tài khoản — Hotel Manager" };
@@ -8,7 +9,7 @@ export default function SecurityPage() {
   return (
     <main id="main" className="page">
       <h1>Bảo mật tài khoản</h1>
-      <MfaEnroll />
+      <MfaEnroll m={messagesFor("mfa_enroll.", "auth_form.")} />
     </main>
   );
 }

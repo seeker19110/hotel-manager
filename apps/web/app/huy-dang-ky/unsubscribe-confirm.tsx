@@ -5,14 +5,21 @@ import { useOnline } from "../../components/pwa/pwa-shell.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { ErrorState } from "../../components/ui/state.tsx";
 import { timedFetch } from "../../lib/fetch-timeout.ts";
+import type { Messages } from "../../lib/i18n.ts";
+import { tm } from "../../lib/i18n-format.ts";
 
-const FALLBACK: Record<number, string> = {
-  404: "Liên kết không hợp lệ.",
-  410: "Liên kết đã hết hạn. Vui lòng đổi tuỳ chọn trong mục Tài khoản.",
-  422: "Loại thông báo này cần thiết cho tài khoản và không tắt được.",
-};
+type M = Messages<"unsubscribe_confirm." | "auth_form.">;
 
-export function UnsubscribeConfirm({ token }: { token: string }) {
+/** Lời nhắn theo mã trạng thái khi máy chủ không kèm `title` (dựng từ `m` — client không import catalog, D-098). */
+function fallback(m: M): Record<number, string> {
+  return {
+    404: tm(m, "unsubscribe_confirm.error.invalid_link"),
+    410: tm(m, "unsubscribe_confirm.error.expired"),
+    422: tm(m, "unsubscribe_confirm.error.required_type"),
+  };
+}
+
+export function UnsubscribeConfirm({ token, m }: { token: string; m: M }) {
   const online = useOnline();
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<string | null>(null);
@@ -21,13 +28,13 @@ export function UnsubscribeConfirm({ token }: { token: string }) {
   if (token.length < 10)
     return (
       <ErrorState
-        title="Liên kết không hợp lệ"
-        text="Hãy mở đúng liên kết trong email, hoặc đổi tuỳ chọn thông báo trong mục Tài khoản."
+        title={tm(m, "unsubscribe_confirm.invalid.title")}
+        text={tm(m, "unsubscribe_confirm.invalid.text")}
       />
     );
 
   async function confirm() {
-    if (!online) return setError("Không có kết nối mạng. Thao tác chưa được gửi.");
+    if (!online) return setError(tm(m, "auth_form.offline"));
     setBusy(true);
     setError(null);
     try {
@@ -42,10 +49,10 @@ export function UnsubscribeConfirm({ token }: { token: string }) {
         data?: { message?: string };
         title?: string;
       } | null;
-      if (res.ok) setDone(j?.data?.message ?? "Đã huỷ đăng ký email loại này.");
-      else setError(j?.title ?? FALLBACK[res.status] ?? "Không thực hiện được. Vui lòng thử lại.");
+      if (res.ok) setDone(j?.data?.message ?? tm(m, "unsubscribe_confirm.done"));
+      else setError(j?.title ?? fallback(m)[res.status] ?? tm(m, "unsubscribe_confirm.error.generic"));
     } catch {
-      setError("Chưa nhận được phản hồi. Kiểm tra mạng rồi bấm lại.");
+      setError(tm(m, "unsubscribe_confirm.error.no_response"));
     } finally {
       setBusy(false);
     }
@@ -59,9 +66,9 @@ export function UnsubscribeConfirm({ token }: { token: string }) {
     );
   return (
     <>
-      <p>Bấm nút bên dưới để không nhận loại email này nữa. Bạn có thể bật lại trong mục Tài khoản.</p>
+      <p>{tm(m, "unsubscribe_confirm.text")}</p>
       <Button onClick={confirm} loading={busy}>
-        Xác nhận huỷ đăng ký
+        {tm(m, "unsubscribe_confirm.submit")}
       </Button>
       {error ? (
         <p className="field__error" role="alert">

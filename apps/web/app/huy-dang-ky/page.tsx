@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { messagesFor } from "../../lib/i18n.ts";
 import { UnsubscribeConfirm } from "./unsubscribe-confirm.tsx";
 
 export const metadata: Metadata = {
@@ -19,7 +20,7 @@ export default async function UnsubscribePage({
   return (
     <main id="main" className="page">
       <h1>Huỷ đăng ký email</h1>
-      <UnsubscribeConfirm token={token ?? ""} />
+      <UnsubscribeConfirm token={token ?? ""} m={messagesFor("unsubscribe_confirm.", "auth_form.")} />
     </main>
   );
 }

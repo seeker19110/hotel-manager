@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { GuestsForm } from "../../../components/hotel/guests-form.tsx";
 import { EmptyState, ErrorState } from "../../../components/ui/state.tsx";
 import { addDays, HK_STATUS } from "../../../lib/format.ts";
+import { messagesFor } from "../../../lib/i18n.ts";
 import { withActor } from "../../../lib/page.tsx";
 import { safe } from "../../../lib/safe.ts";
 
@@ -44,6 +45,7 @@ export default async function WalkInPage({
         defaultDeparture={addDays(today, 1)}
         submitLabel="Nhận khách ngay"
         successText="Đã nhận khách — đang mở folio."
+        m={messagesFor("guests_form.")}
       />
     );
   });

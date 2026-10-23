@@ -6,6 +6,8 @@ import { Button } from "../../components/ui/button.tsx";
 import { TextField } from "../../components/ui/field.tsx";
 import { ErrorState, LoadingState } from "../../components/ui/state.tsx";
 import { timedFetch } from "../../lib/fetch-timeout.ts";
+import type { Messages } from "../../lib/i18n.ts";
+import { tm } from "../../lib/i18n-format.ts";
 
 type Phase = "checking" | "anonymous" | "enabled" | "password" | "verify" | "failed";
 
@@ -23,7 +25,7 @@ async function post(path: string, body: unknown) {
   };
 }
 
-export function MfaEnroll() {
+export function MfaEnroll({ m }: { m: Messages<"mfa_enroll." | "auth_form."> }) {
   const [phase, setPhase] = useState<Phase>("checking");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | undefined>();
@@ -53,13 +55,13 @@ export function MfaEnroll() {
     setError(undefined);
     try {
       const r = await post("/api/auth/two-factor/enable", { password });
-      if (!r.ok) return setError("Mật khẩu không đúng.");
+      if (!r.ok) return setError(tm(m, "mfa_enroll.error.password"));
       const uri = String(r.data.totpURI ?? "");
       setSecret(new URL(uri).searchParams.get("secret") ?? "");
       setCodes(Array.isArray(r.data.backupCodes) ? (r.data.backupCodes as string[]) : []);
       setPhase("verify");
     } catch {
-      setError("Chưa nhận được phản hồi. Kiểm tra mạng rồi thử lại.");
+      setError(tm(m, "auth_form.no_response"));
     } finally {
       setBusy(false);
     }
@@ -72,34 +74,34 @@ export function MfaEnroll() {
     setError(undefined);
     try {
       const r = await post("/api/auth/two-factor/verify-totp", { code });
-      if (!r.ok) return setError("Mã xác thực không đúng hoặc đã hết hạn.");
+      if (!r.ok) return setError(tm(m, "auth_form.totp.invalid"));
       setSecret("");
       setCodes([]);
       window.location.assign("/chon-to-chuc");
     } catch {
-      setError("Chưa nhận được phản hồi. Kiểm tra mạng rồi thử lại.");
+      setError(tm(m, "auth_form.no_response"));
     } finally {
       setBusy(false);
     }
   }
 
-  if (phase === "checking") return <LoadingState label="Đang kiểm tra tài khoản…" rows={2} />;
+  if (phase === "checking") return <LoadingState label={tm(m, "mfa_enroll.checking")} rows={2} />;
   if (phase === "failed")
     return (
       <ErrorState
-        title="Chưa tải được trạng thái tài khoản"
-        text="Kiểm tra mạng rồi thử lại."
-        action={<Button onClick={() => void check()}>Thử lại</Button>}
+        title={tm(m, "mfa_enroll.failed.title")}
+        text={tm(m, "mfa_enroll.failed.text")}
+        action={<Button onClick={() => void check()}>{tm(m, "mfa_enroll.retry")}</Button>}
       />
     );
   if (phase === "anonymous")
     return (
       <ErrorState
-        title="Cần đăng nhập"
-        text="Đăng nhập rồi quay lại trang này để bật xác thực hai lớp."
+        title={tm(m, "mfa_enroll.anonymous.title")}
+        text={tm(m, "mfa_enroll.anonymous.text")}
         action={
           <a className="btn" href="/dang-nhap">
-            Đăng nhập
+            {tm(m, "mfa_enroll.anonymous.action")}
           </a>
         }
       />
@@ -107,22 +109,19 @@ export function MfaEnroll() {
   if (phase === "enabled")
     return (
       <>
-        <p role="status">Xác thực hai lớp đã được bật cho tài khoản này.</p>
+        <p role="status">{tm(m, "mfa_enroll.enabled.status")}</p>
         {/* Liên kết dạng nút: vùng chạm ≥ 44 px (UX-A11Y-001). */}
         <a className="btn" href="/chon-to-chuc">
-          Chọn tổ chức để làm việc
+          {tm(m, "mfa_enroll.enabled.action")}
         </a>
       </>
     );
   if (phase === "password")
     return (
       <form onSubmit={onPassword} noValidate>
-        <p>
-          Nhập mật khẩu để bắt đầu. Bạn sẽ cần một ứng dụng xác thực trên điện thoại (Google Authenticator,
-          Microsoft Authenticator…).
-        </p>
+        <p>{tm(m, "mfa_enroll.password.intro")}</p>
         <TextField
-          label="Mật khẩu hiện tại"
+          label={tm(m, "mfa_enroll.password.label")}
           name="password"
           type="password"
           autoComplete="current-password"
@@ -130,22 +129,20 @@ export function MfaEnroll() {
           error={error}
         />
         <Button type="submit" loading={busy}>
-          Tiếp tục
+          {tm(m, "mfa_enroll.password.submit")}
         </Button>
       </form>
     );
   return (
     <form onSubmit={onVerify} noValidate>
+      <p>{tm(m, "mfa_enroll.verify.intro")}</p>
       <p>
-        Thêm khoá sau vào ứng dụng xác thực (chọn &quot;nhập khoá thiết lập&quot;, loại theo thời gian), rồi
-        nhập mã 6 số ứng dụng hiển thị.
-      </p>
-      <p>
-        Khoá thiết lập: <code data-testid="totp-secret">{secret}</code>
+        {tm(m, "mfa_enroll.verify.secret")}
+        <code data-testid="totp-secret">{secret}</code>
       </p>
       {codes.length > 0 ? (
         <>
-          <p>Mã dự phòng (chỉ hiện một lần — cất ở nơi an toàn, mỗi mã dùng một lần khi mất điện thoại):</p>
+          <p>{tm(m, "mfa_enroll.verify.backup")}</p>
           <ul data-testid="backup-codes">
             {codes.map((c) => (
               <li key={c}>
@@ -156,7 +153,7 @@ export function MfaEnroll() {
         </>
       ) : null}
       <TextField
-        label="Mã xác thực 6 số"
+        label={tm(m, "auth_form.totp.label")}
         name="code"
         inputMode="numeric"
         autoComplete="one-time-code"
@@ -165,7 +162,7 @@ export function MfaEnroll() {
         error={error}
       />
       <Button type="submit" loading={busy}>
-        Xác nhận và bật
+        {tm(m, "mfa_enroll.verify.submit")}
       </Button>
     </form>
   );

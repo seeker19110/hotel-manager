@@ -1906,5 +1906,645 @@
   "incident_form.success": {
     "message": "Đã ghi nhận sự cố — trạng thái: Mới báo.",
     "description": "Thông báo thành công sau khi tạo phiếu sự cố; 'Mới báo' là tên trạng thái phiếu mới."
+  },
+  "notice.metadata.title": {
+    "message": "Thông báo lưu trú — Hotel Manager",
+    "description": "Tiêu đề tab của màn Thông báo lưu trú."
+  },
+  "notice.page.title": {
+    "message": "Thông báo lưu trú",
+    "description": "Tiêu đề trang (thanh trên) của màn Thông báo lưu trú."
+  },
+  "notice.error.load": {
+    "message": "Không xem được thông báo lưu trú",
+    "description": "Tiêu đề lỗi khi không tải được danh sách cơ sở của màn Thông báo lưu trú."
+  },
+  "notice.error.list": {
+    "message": "Không tải được danh sách",
+    "description": "Tiêu đề lỗi khi không tải được danh sách thông báo của một cơ sở."
+  },
+  "notice.error.forbidden": {
+    "message": "Vai trò của bạn không xem được mục này.",
+    "description": "Nội dung lỗi khi máy chủ trả 404 cho danh sách thông báo (vai trò không đủ quyền)."
+  },
+  "notice.empty.title": {
+    "message": "Chưa có thông báo lưu trú",
+    "description": "Tiêu đề trạng thái rỗng: cơ sở chưa có thông báo lưu trú nào."
+  },
+  "notice.empty.text": {
+    "message": "Mỗi lượt ở đã nhận phòng có một thông báo cần nộp.",
+    "description": "Giải thích trạng thái rỗng của danh sách thông báo lưu trú."
+  },
+  "notice.card.title": {
+    "message": "Phòng {unit}",
+    "description": "Tiêu đề thẻ thông báo lưu trú; {unit} là mã phòng."
+  },
+  "notice.card.foreign": {
+    "message": " · khách nước ngoài",
+    "description": "Hậu tố sau tiêu đề thẻ khi lượt ở có khách nước ngoài (có dấu cách đầu để nối chuỗi)."
+  },
+  "notice.card.due": {
+    "message": "Hạn nộp {due}",
+    "description": "Dòng phụ thẻ thông báo: hạn nộp; {due} là ngày giờ đã định dạng theo múi giờ cơ sở."
+  },
+  "notice.card.no_due": {
+    "message": "Chưa cấu hình hạn nộp",
+    "description": "Dòng phụ thẻ thông báo khi cơ sở chưa cấu hình hạn nộp."
+  },
+  "notice.card.submitted": {
+    "message": " · đã nộp {at}",
+    "description": "Hậu tố dòng phụ thẻ thông báo đã nộp; {at} là ngày giờ nộp (có dấu cách đầu để nối chuỗi)."
+  },
+  "notice_actions.channel.in_person": {
+    "message": "Nộp trực tiếp",
+    "description": "Lựa chọn kênh đã nộp thông báo lưu trú: nộp trực tiếp."
+  },
+  "notice_actions.channel.online": {
+    "message": "Nộp trực tuyến",
+    "description": "Lựa chọn kênh đã nộp thông báo lưu trú: nộp trực tuyến."
+  },
+  "notice_actions.channel.other": {
+    "message": "Kênh khác",
+    "description": "Lựa chọn kênh đã nộp thông báo lưu trú: kênh khác."
+  },
+  "notice_actions.channel.label": {
+    "message": "Kênh đã nộp (phòng {unit})",
+    "description": "Nhãn ô chọn kênh đã nộp; {unit} là mã phòng."
+  },
+  "notice_actions.export": {
+    "message": "Xuất file phòng {unit}",
+    "description": "Nút xuất file thông báo lưu trú; {unit} là mã phòng."
+  },
+  "notice_actions.export_success": {
+    "message": "Đã xuất file — tải trong vài phút.",
+    "description": "Thông báo thành công sau khi xuất file (liên kết tải có hạn ngắn)."
+  },
+  "notice_actions.download": {
+    "message": "Tải file thông báo phòng {unit}",
+    "description": "Liên kết tải file thông báo đã xuất; {unit} là mã phòng."
+  },
+  "notice_actions.mark": {
+    "message": "Đánh dấu đã nộp phòng {unit}",
+    "description": "Nút xác nhận đã nộp thông báo lưu trú; {unit} là mã phòng."
+  },
+  "notice_actions.mark_success": {
+    "message": "Đã ghi nhận đã nộp.",
+    "description": "Thông báo thành công sau khi đánh dấu đã nộp."
+  },
+  "portal.invoice.metadata.title": {
+    "message": "Chi tiết phiếu — Hotel Manager",
+    "description": "Tiêu đề tab của màn chi tiết phiếu (cổng người thuê)."
+  },
+  "portal.invoice.page.title": {
+    "message": "Chi tiết phiếu",
+    "description": "Tiêu đề trang của màn chi tiết phiếu (cổng người thuê)."
+  },
+  "portal.invoice.period": {
+    "message": "Kỳ {period}",
+    "description": "Tiêu đề mục tóm tắt phiếu; {period} là kỳ thu."
+  },
+  "portal.invoice.facts.total": {
+    "message": "Tổng phiếu",
+    "description": "Nhãn tổng tiền phiếu trong mục tóm tắt."
+  },
+  "portal.invoice.facts.paid": {
+    "message": "Đã thanh toán",
+    "description": "Nhãn số tiền đã thanh toán (tóm tắt) và tiêu đề mục danh sách khoản đã thanh toán."
+  },
+  "portal.invoice.pay": {
+    "message": "Thanh toán",
+    "description": "Nút mở màn thanh toán của phiếu còn dư nợ."
+  },
+  "portal.invoice.lines.heading": {
+    "message": "Các khoản",
+    "description": "Tiêu đề mục bảng các khoản của phiếu."
+  },
+  "portal.invoice.lines.col_kind": {
+    "message": "Khoản",
+    "description": "Tiêu đề cột khoản của bảng dòng phiếu."
+  },
+  "portal.invoice.lines.col_amount": {
+    "message": "Thành tiền",
+    "description": "Tiêu đề cột thành tiền của bảng dòng phiếu."
+  },
+  "portal.invoice.allocations.empty": {
+    "message": "Chưa có khoản thanh toán nào được ghi nhận",
+    "description": "Trạng thái rỗng: phiếu chưa có khoản thanh toán nào được phân bổ."
+  },
+  "portal.invoice.allocations.confirmed": {
+    "message": " · xác nhận {at}",
+    "description": "Hậu tố sau số tiền của một khoản thanh toán; {at} là ngày giờ xác nhận (có dấu cách đầu để nối chuỗi)."
+  },
+  "rooms.metadata.title": {
+    "message": "Phòng — Hotel Manager",
+    "description": "Tiêu đề tab của màn danh sách phòng."
+  },
+  "rooms.hk.dirty": {
+    "message": "Bẩn",
+    "description": "Trạng thái dọn phòng `dirty` trên danh sách phòng."
+  },
+  "rooms.hk.assigned": {
+    "message": "Đã giao dọn",
+    "description": "Trạng thái dọn phòng `assigned` trên danh sách phòng."
+  },
+  "rooms.hk.cleaning": {
+    "message": "Đang dọn",
+    "description": "Trạng thái dọn phòng `cleaning` trên danh sách phòng."
+  },
+  "rooms.hk.clean": {
+    "message": "Sạch",
+    "description": "Trạng thái dọn phòng `clean` trên danh sách phòng."
+  },
+  "rooms.hk.inspected": {
+    "message": "Đã kiểm",
+    "description": "Trạng thái dọn phòng `inspected` trên danh sách phòng."
+  },
+  "booking.list.metadata.title": {
+    "message": "Đặt phòng — Hotel Manager",
+    "description": "Tiêu đề tab của màn danh sách đặt phòng."
+  },
+  "booking.list.page.title": {
+    "message": "Đặt phòng",
+    "description": "Tiêu đề trang của màn danh sách đặt phòng."
+  },
+  "booking.list.error.load": {
+    "message": "Không xem được đặt phòng",
+    "description": "Tiêu đề lỗi của màn danh sách đặt phòng (không tải được cơ sở hoặc danh sách)."
+  },
+  "booking.list.error.forbidden": {
+    "message": "Vai trò của bạn không xem được đặt phòng.",
+    "description": "Nội dung lỗi khi máy chủ trả 403/404 cho danh sách đặt phòng."
+  },
+  "booking.list.empty.title": {
+    "message": "Chưa có đặt phòng",
+    "description": "Tiêu đề trạng thái rỗng của danh sách đặt phòng."
+  },
+  "booking.list.empty.text": {
+    "message": "Đặt phòng trong 7 ngày qua và 90 ngày tới sẽ hiện ở đây.",
+    "description": "Giải thích khoảng ngày của danh sách đặt phòng (7 ngày trước, 90 ngày sau)."
+  },
+  "portal.request.metadata.title": {
+    "message": "Yêu cầu — Hotel Manager",
+    "description": "Tiêu đề tab của màn yêu cầu sửa chữa (cổng người thuê)."
+  },
+  "portal.request.page.title": {
+    "message": "Yêu cầu",
+    "description": "Tiêu đề trang của màn yêu cầu sửa chữa (cổng người thuê)."
+  },
+  "portal.request.list.heading": {
+    "message": "Yêu cầu của bạn",
+    "description": "Tiêu đề mục danh sách yêu cầu đã gửi."
+  },
+  "portal.request.empty.title": {
+    "message": "Bạn chưa gửi yêu cầu nào",
+    "description": "Tiêu đề trạng thái rỗng: người thuê chưa gửi yêu cầu nào."
+  },
+  "portal.request.empty.action": {
+    "message": "Gửi yêu cầu",
+    "description": "Nút cuộn tới form gửi yêu cầu trong trạng thái rỗng."
+  },
+  "portal.request.updated": {
+    "message": "Cập nhật {at}",
+    "description": "Dòng phụ thẻ yêu cầu; {at} là thời điểm cập nhật đã định dạng."
+  },
+  "portal.request.new.heading": {
+    "message": "Gửi yêu cầu sửa chữa",
+    "description": "Tiêu đề mục form gửi yêu cầu sửa chữa."
+  },
+  "portal.request.no_lease.title": {
+    "message": "Chưa có hợp đồng đang hiệu lực",
+    "description": "Tiêu đề trạng thái rỗng: người thuê chưa có hợp đồng hiệu lực để gửi yêu cầu."
+  },
+  "portal.request.no_lease.text": {
+    "message": "Bạn gửi được yêu cầu khi hợp đồng đang hiệu lực.",
+    "description": "Giải thích điều kiện gửi yêu cầu sửa chữa."
+  },
+  "request_form.field.unit": {
+    "message": "Phòng",
+    "description": "Nhãn ô chọn phòng của form yêu cầu sửa chữa (chỉ hiện khi có nhiều phòng)."
+  },
+  "request_form.option.unit": {
+    "message": "Phòng {unit}",
+    "description": "Lựa chọn phòng trong form yêu cầu; {unit} là mã phòng."
+  },
+  "request_form.field.title": {
+    "message": "Việc cần sửa",
+    "description": "Nhãn ô tiêu đề của form yêu cầu sửa chữa."
+  },
+  "request_form.field.description": {
+    "message": "Mô tả",
+    "description": "Nhãn ô mô tả của form yêu cầu sửa chữa."
+  },
+  "request_form.photo.label": {
+    "message": "Ảnh (tuỳ chọn)",
+    "description": "Nhãn ô chọn ảnh của form yêu cầu sửa chữa."
+  },
+  "request_form.photo.hint": {
+    "message": "JPEG, PNG hoặc WebP, tối đa 10 MB.",
+    "description": "Gợi ý định dạng và dung lượng ảnh."
+  },
+  "request_form.error.required": {
+    "message": "Bắt buộc nhập",
+    "description": "Lỗi ô bắt buộc để trống (tiêu đề, mô tả)."
+  },
+  "request_form.error.title_max": {
+    "message": "Tối đa 200 ký tự",
+    "description": "Lỗi tiêu đề quá dài."
+  },
+  "request_form.error.description_max": {
+    "message": "Tối đa 2.000 ký tự",
+    "description": "Lỗi mô tả quá dài."
+  },
+  "request_form.submit": {
+    "message": "Gửi yêu cầu",
+    "description": "Nút gửi form yêu cầu sửa chữa."
+  },
+  "request_form.checking": {
+    "message": "Đang kiểm tra kết quả…",
+    "description": "Trạng thái đang kiểm tra kết quả lệnh sau khi gửi."
+  },
+  "request_form.checking_id": {
+    "message": " (mã {id})",
+    "description": "Hậu tố mã lệnh rút gọn cạnh trạng thái đang kiểm tra; {id} là 8 ký tự đầu (có dấu cách đầu)."
+  },
+  "request_form.unknown": {
+    "message": "Chưa rõ máy chủ đã nhận yêu cầu chưa. Bấm \"Gửi lại\" để gửi đúng yêu cầu này (không bị ghi hai lần).",
+    "description": "Cảnh báo khi chưa biết máy chủ đã nhận yêu cầu; nhắc nút \"Gửi lại\" (cùng command_id nên không ghi đúp)."
+  },
+  "request_form.resend": {
+    "message": "Gửi lại",
+    "description": "Nút gửi lại đúng yêu cầu khi chưa rõ kết quả."
+  },
+  "request_form.reload": {
+    "message": "Tải lại trang",
+    "description": "Nút tải lại trang khi ngữ cảnh đã đổi (CONTEXT_CHANGED)."
+  },
+  "request_form.success": {
+    "message": "Đã gửi yêu cầu — trạng thái: Đã tiếp nhận.",
+    "description": "Thông báo thành công sau khi gửi yêu cầu; 'Đã tiếp nhận' là tên trạng thái yêu cầu mới."
+  },
+  "guests_form.doc.cccd": {
+    "message": "CCCD",
+    "description": "Loại giấy tờ khách: căn cước công dân."
+  },
+  "guests_form.doc.passport": {
+    "message": "Hộ chiếu",
+    "description": "Loại giấy tờ khách: hộ chiếu."
+  },
+  "guests_form.doc.other": {
+    "message": "Giấy tờ khác",
+    "description": "Loại giấy tờ khách: khác."
+  },
+  "guests_form.error.doc_number_min": {
+    "message": "Số giấy tờ tối thiểu 5 ký tự",
+    "description": "Lỗi số giấy tờ khách quá ngắn."
+  },
+  "guests_form.error.required": {
+    "message": "Bắt buộc nhập",
+    "description": "Lỗi họ tên khách bắt buộc nhưng để trống."
+  },
+  "guests_form.error.phone_required": {
+    "message": "Khách chính cần số điện thoại",
+    "description": "Lỗi khách chính của khách vãng lai thiếu số điện thoại."
+  },
+  "guests_form.error.nationality": {
+    "message": "Mã quốc gia 2 chữ cái, vd VN",
+    "description": "Lỗi mã quốc tịch không đúng 2 chữ cái."
+  },
+  "guests_form.error.departure": {
+    "message": "Chọn ngày đi",
+    "description": "Lỗi khách vãng lai chưa chọn ngày đi."
+  },
+  "guests_form.field.unit": {
+    "message": "Phòng",
+    "description": "Nhãn ô chọn phòng của form khách vãng lai."
+  },
+  "guests_form.field.departure": {
+    "message": "Ngày đi",
+    "description": "Nhãn ô ngày đi của form khách vãng lai."
+  },
+  "guests_form.guest.primary": {
+    "message": "Khách chính",
+    "description": "Tiêu đề khối khách đầu tiên."
+  },
+  "guests_form.guest.n": {
+    "message": "Khách {n}",
+    "description": "Tiêu đề khối khách thứ {n} (từ 2)."
+  },
+  "guests_form.field.full_name_booker": {
+    "message": "Họ tên khách {n} (bỏ trống nếu là người đặt)",
+    "description": "Nhãn ô họ tên của khách chính khi nhận phòng từ đặt phòng; {n} là số thứ tự."
+  },
+  "guests_form.field.full_name": {
+    "message": "Họ tên khách {n}",
+    "description": "Nhãn ô họ tên khách thứ {n}."
+  },
+  "guests_form.field.phone": {
+    "message": "Số điện thoại khách {n}",
+    "description": "Nhãn ô số điện thoại khách thứ {n}."
+  },
+  "guests_form.field.doc_type": {
+    "message": "Loại giấy tờ khách {n}",
+    "description": "Nhãn ô loại giấy tờ khách thứ {n}."
+  },
+  "guests_form.field.doc_number": {
+    "message": "Số giấy tờ khách {n}",
+    "description": "Nhãn ô số giấy tờ khách thứ {n}."
+  },
+  "guests_form.field.nationality": {
+    "message": "Quốc tịch khách {n} (mã 2 chữ, mặc định VN)",
+    "description": "Nhãn ô quốc tịch khách thứ {n}."
+  },
+  "guests_form.add": {
+    "message": "Thêm khách",
+    "description": "Nút thêm một khối khách."
+  },
+  "guests_form.remove": {
+    "message": "Bớt khách cuối",
+    "description": "Nút bỏ khối khách cuối."
+  },
+  "auth_form.offline": {
+    "message": "Không có kết nối mạng. Thao tác chưa được gửi.",
+    "description": "Lỗi dùng chung của form xác thực khi trình duyệt mất mạng."
+  },
+  "auth_form.no_response": {
+    "message": "Chưa nhận được phản hồi. Kiểm tra mạng rồi thử lại.",
+    "description": "Lỗi dùng chung của form xác thực khi không nhận được phản hồi từ máy chủ."
+  },
+  "auth_form.field.email": {
+    "message": "Email",
+    "description": "Nhãn ô email của các form xác thực."
+  },
+  "auth_form.totp.label": {
+    "message": "Mã xác thực 6 số",
+    "description": "Nhãn ô mã TOTP 6 số (đăng nhập bước hai, bật xác thực hai lớp)."
+  },
+  "auth_form.totp.invalid": {
+    "message": "Mã xác thực không đúng hoặc đã hết hạn.",
+    "description": "Lỗi mã TOTP sai/hết hạn (đăng nhập bước hai, bật xác thực hai lớp)."
+  },
+  "login_form.error.locked": {
+    "message": "Tài khoản tạm khoá do đăng nhập sai nhiều lần. Thử lại sau 15 phút.",
+    "description": "Lỗi đăng nhập khi tài khoản bị khoá tạm hoặc bị giới hạn tần suất."
+  },
+  "login_form.error.credentials": {
+    "message": "Email hoặc mật khẩu không đúng.",
+    "description": "Lỗi đăng nhập sai email/mật khẩu (không lộ email có tồn tại)."
+  },
+  "login_form.error.generic": {
+    "message": "Không đăng nhập được. Vui lòng thử lại.",
+    "description": "Lỗi đăng nhập chung."
+  },
+  "login_form.field.password": {
+    "message": "Mật khẩu",
+    "description": "Nhãn ô mật khẩu của form đăng nhập."
+  },
+  "login_form.totp.hint": {
+    "message": "Mở ứng dụng xác thực trên điện thoại để lấy mã.",
+    "description": "Gợi ý ô mã TOTP ở bước hai của đăng nhập."
+  },
+  "login_form.submit.signin": {
+    "message": "Đăng nhập",
+    "description": "Nút gửi bước mật khẩu của form đăng nhập."
+  },
+  "login_form.submit.verify": {
+    "message": "Xác nhận",
+    "description": "Nút gửi bước mã TOTP của form đăng nhập."
+  },
+  "tenant_login_form.error.email_required": {
+    "message": "Bắt buộc nhập email",
+    "description": "Lỗi đăng nhập người thuê khi để trống email."
+  },
+  "tenant_login_form.error.too_many": {
+    "message": "Bạn thử quá nhiều lần. Vui lòng đợi ít phút.",
+    "description": "Lỗi đăng nhập người thuê khi bị giới hạn tần suất (gửi mã hoặc nhập mã)."
+  },
+  "tenant_login_form.error.send_failed": {
+    "message": "Không gửi được mã. Vui lòng thử lại.",
+    "description": "Lỗi đăng nhập người thuê khi không gửi được mã OTP."
+  },
+  "tenant_login_form.error.otp_format": {
+    "message": "Nhập mã gồm 6 chữ số",
+    "description": "Lỗi đăng nhập người thuê khi mã OTP không đúng 6 chữ số."
+  },
+  "tenant_login_form.error.otp_invalid": {
+    "message": "Mã không đúng hoặc đã hết hạn.",
+    "description": "Lỗi đăng nhập người thuê khi mã OTP sai/hết hạn."
+  },
+  "tenant_login_form.status.sent": {
+    "message": "Nếu email đúng, mã đã được gửi. Mã có hiệu lực 5 phút.",
+    "description": "Thông điệp bước hai luôn như nhau (không lộ email có tồn tại)."
+  },
+  "tenant_login_form.field.otp": {
+    "message": "Mã đăng nhập 6 số",
+    "description": "Nhãn ô mã OTP của đăng nhập người thuê."
+  },
+  "tenant_login_form.submit.send": {
+    "message": "Gửi mã",
+    "description": "Nút gửi mã OTP (bước email)."
+  },
+  "tenant_login_form.submit.signin": {
+    "message": "Đăng nhập",
+    "description": "Nút đăng nhập bằng mã OTP (bước mã)."
+  },
+  "register_form.error.name_required": {
+    "message": "Bắt buộc nhập họ và tên.",
+    "description": "Lỗi đăng ký khi để trống họ và tên."
+  },
+  "register_form.error.password_min": {
+    "message": "Mật khẩu tối thiểu 10 ký tự.",
+    "description": "Lỗi đăng ký khi mật khẩu dưới 10 ký tự."
+  },
+  "register_form.error.too_many": {
+    "message": "Bạn thử quá nhiều lần. Vui lòng đợi rồi thử lại.",
+    "description": "Lỗi đăng ký khi bị giới hạn tần suất."
+  },
+  "register_form.error.create_failed": {
+    "message": "Không tạo được tài khoản. Kiểm tra email và mật khẩu, hoặc đăng nhập nếu đã có tài khoản.",
+    "description": "Lỗi đăng ký chung; cũng là thông điệp khi email đã tồn tại (không lộ email có tồn tại)."
+  },
+  "register_form.error.signin_failed": {
+    "message": "Đã tạo tài khoản nhưng chưa đăng nhập được. Hãy đăng nhập.",
+    "description": "Lỗi khi tạo tài khoản xong nhưng đăng nhập tự động thất bại."
+  },
+  "register_form.field.name": {
+    "message": "Họ và tên",
+    "description": "Nhãn ô họ và tên của form đăng ký."
+  },
+  "register_form.field.password": {
+    "message": "Mật khẩu",
+    "description": "Nhãn ô mật khẩu của form đăng ký."
+  },
+  "register_form.field.password_hint": {
+    "message": "Tối thiểu 10 ký tự.",
+    "description": "Gợi ý ô mật khẩu của form đăng ký."
+  },
+  "register_form.submit": {
+    "message": "Tạo tài khoản",
+    "description": "Nút gửi form đăng ký."
+  },
+  "unsubscribe_confirm.error.invalid_link": {
+    "message": "Liên kết không hợp lệ.",
+    "description": "Lỗi huỷ đăng ký khi máy chủ trả 404 (token không hợp lệ)."
+  },
+  "unsubscribe_confirm.error.expired": {
+    "message": "Liên kết đã hết hạn. Vui lòng đổi tuỳ chọn trong mục Tài khoản.",
+    "description": "Lỗi huỷ đăng ký khi máy chủ trả 410 (token hết hạn)."
+  },
+  "unsubscribe_confirm.error.required_type": {
+    "message": "Loại thông báo này cần thiết cho tài khoản và không tắt được.",
+    "description": "Lỗi huỷ đăng ký khi máy chủ trả 422 (loại thông báo bắt buộc)."
+  },
+  "unsubscribe_confirm.error.generic": {
+    "message": "Không thực hiện được. Vui lòng thử lại.",
+    "description": "Lỗi huỷ đăng ký chung."
+  },
+  "unsubscribe_confirm.error.no_response": {
+    "message": "Chưa nhận được phản hồi. Kiểm tra mạng rồi bấm lại.",
+    "description": "Lỗi huỷ đăng ký khi không nhận được phản hồi."
+  },
+  "unsubscribe_confirm.done": {
+    "message": "Đã huỷ đăng ký email loại này.",
+    "description": "Thông báo thành công mặc định sau khi huỷ đăng ký (khi máy chủ không kèm lời nhắn)."
+  },
+  "unsubscribe_confirm.invalid.title": {
+    "message": "Liên kết không hợp lệ",
+    "description": "Tiêu đề lỗi khi token trên liên kết huỷ đăng ký quá ngắn/thiếu."
+  },
+  "unsubscribe_confirm.invalid.text": {
+    "message": "Hãy mở đúng liên kết trong email, hoặc đổi tuỳ chọn thông báo trong mục Tài khoản.",
+    "description": "Hướng dẫn khi liên kết huỷ đăng ký không hợp lệ."
+  },
+  "unsubscribe_confirm.text": {
+    "message": "Bấm nút bên dưới để không nhận loại email này nữa. Bạn có thể bật lại trong mục Tài khoản.",
+    "description": "Lời giải thích trên màn xác nhận huỷ đăng ký."
+  },
+  "unsubscribe_confirm.submit": {
+    "message": "Xác nhận huỷ đăng ký",
+    "description": "Nút xác nhận huỷ đăng ký email."
+  },
+  "mfa_enroll.checking": {
+    "message": "Đang kiểm tra tài khoản…",
+    "description": "Nhãn đang tải trạng thái tài khoản ở màn bật xác thực hai lớp."
+  },
+  "mfa_enroll.failed.title": {
+    "message": "Chưa tải được trạng thái tài khoản",
+    "description": "Tiêu đề lỗi khi không tải được trạng thái tài khoản."
+  },
+  "mfa_enroll.failed.text": {
+    "message": "Kiểm tra mạng rồi thử lại.",
+    "description": "Nội dung lỗi khi không tải được trạng thái tài khoản."
+  },
+  "mfa_enroll.retry": {
+    "message": "Thử lại",
+    "description": "Nút tải lại trạng thái tài khoản."
+  },
+  "mfa_enroll.anonymous.title": {
+    "message": "Cần đăng nhập",
+    "description": "Tiêu đề khi chưa đăng nhập mà vào màn bật xác thực hai lớp."
+  },
+  "mfa_enroll.anonymous.text": {
+    "message": "Đăng nhập rồi quay lại trang này để bật xác thực hai lớp.",
+    "description": "Hướng dẫn khi chưa đăng nhập."
+  },
+  "mfa_enroll.anonymous.action": {
+    "message": "Đăng nhập",
+    "description": "Nút tới trang đăng nhập."
+  },
+  "mfa_enroll.enabled.status": {
+    "message": "Xác thực hai lớp đã được bật cho tài khoản này.",
+    "description": "Trạng thái khi tài khoản đã bật xác thực hai lớp."
+  },
+  "mfa_enroll.enabled.action": {
+    "message": "Chọn tổ chức để làm việc",
+    "description": "Nút tới màn chọn tổ chức sau khi đã bật xác thực hai lớp."
+  },
+  "mfa_enroll.password.intro": {
+    "message": "Nhập mật khẩu để bắt đầu. Bạn sẽ cần một ứng dụng xác thực trên điện thoại (Google Authenticator, Microsoft Authenticator…).",
+    "description": "Hướng dẫn bước nhập mật khẩu khi bật xác thực hai lớp."
+  },
+  "mfa_enroll.password.label": {
+    "message": "Mật khẩu hiện tại",
+    "description": "Nhãn ô mật khẩu hiện tại khi bật xác thực hai lớp."
+  },
+  "mfa_enroll.password.submit": {
+    "message": "Tiếp tục",
+    "description": "Nút gửi bước nhập mật khẩu."
+  },
+  "mfa_enroll.error.password": {
+    "message": "Mật khẩu không đúng.",
+    "description": "Lỗi khi mật khẩu hiện tại sai lúc bật xác thực hai lớp."
+  },
+  "mfa_enroll.verify.intro": {
+    "message": "Thêm khoá sau vào ứng dụng xác thực (chọn \"nhập khoá thiết lập\", loại theo thời gian), rồi nhập mã 6 số ứng dụng hiển thị.",
+    "description": "Hướng dẫn thêm khoá thiết lập vào ứng dụng xác thực; chuỗi trong ngoặc kép là tên tuỳ chọn trong ứng dụng."
+  },
+  "mfa_enroll.verify.secret": {
+    "message": "Khoá thiết lập: ",
+    "description": "Nhãn đứng trước khoá TOTP (có dấu cách cuối để nối với khoá hiển thị)."
+  },
+  "mfa_enroll.verify.backup": {
+    "message": "Mã dự phòng (chỉ hiện một lần — cất ở nơi an toàn, mỗi mã dùng một lần khi mất điện thoại):",
+    "description": "Lời dẫn danh sách mã dự phòng (chỉ hiện một lần)."
+  },
+  "mfa_enroll.verify.submit": {
+    "message": "Xác nhận và bật",
+    "description": "Nút xác nhận mã và bật xác thực hai lớp."
+  },
+  "install_app.heading": {
+    "message": "Cài ứng dụng",
+    "description": "Tiêu đề mục cài ứng dụng PWA."
+  },
+  "install_app.installed": {
+    "message": "Ứng dụng đã được cài trên thiết bị này.",
+    "description": "Trạng thái khi ứng dụng đã chạy ở chế độ cài đặt."
+  },
+  "install_app.prompt.text": {
+    "message": "Cài về màn hình chính để mở nhanh như một ứng dụng.",
+    "description": "Lời giải thích khi trình duyệt cho phép cài trực tiếp."
+  },
+  "install_app.prompt.button": {
+    "message": "Cài ứng dụng",
+    "description": "Nút mở hộp cài ứng dụng của trình duyệt."
+  },
+  "install_app.ios.intro": {
+    "message": "Trên iPhone/iPad (Safari, iOS 16.4 trở lên), cài ứng dụng bằng 3 bước:",
+    "description": "Lời dẫn hướng dẫn cài trên Safari iOS."
+  },
+  "install_app.ios.step1_before": {
+    "message": "Bấm nút ",
+    "description": "Bước 1 (phần trước tên nút), có dấu cách cuối; sau tên nút là biểu tượng Chia sẻ."
+  },
+  "install_app.ios.step1_target": {
+    "message": "Chia sẻ",
+    "description": "Tên nút Chia sẻ của Safari trong bước 1."
+  },
+  "install_app.ios.step1_after": {
+    "message": " ở thanh công cụ của Safari.",
+    "description": "Bước 1 (phần sau biểu tượng), có dấu cách đầu."
+  },
+  "install_app.ios.step2_before": {
+    "message": "Kéo xuống và chọn ",
+    "description": "Bước 2 (phần trước tên mục), có dấu cách cuối."
+  },
+  "install_app.ios.step2_target": {
+    "message": "Thêm vào MH chính",
+    "description": "Tên mục 'Thêm vào MH chính' của Safari iOS (đúng nhãn hệ thống)."
+  },
+  "install_app.ios.step3_before": {
+    "message": "Bấm ",
+    "description": "Bước 3 (phần trước tên nút), có dấu cách cuối."
+  },
+  "install_app.ios.step3_target": {
+    "message": "Thêm",
+    "description": "Tên nút Thêm của Safari iOS ở bước 3."
+  },
+  "install_app.ios.step3_after": {
+    "message": " ở góc trên bên phải.",
+    "description": "Bước 3 (phần sau tên nút), có dấu cách đầu."
+  },
+  "install_app.unsupported": {
+    "message": "Trình duyệt này chưa cho cài trực tiếp từ đây. Dùng Chrome hoặc Edge (Android, máy tính) hoặc Safari (iPhone, iPad) để cài ứng dụng.",
+    "description": "Lời nhắn khi trình duyệt không hỗ trợ cài."
   }
 }

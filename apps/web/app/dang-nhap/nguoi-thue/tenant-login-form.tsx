@@ -6,6 +6,8 @@ import { useOnline } from "../../../components/pwa/pwa-shell.tsx";
 import { Button } from "../../../components/ui/button.tsx";
 import { TextField } from "../../../components/ui/field.tsx";
 import { timedFetch } from "../../../lib/fetch-timeout.ts";
+import type { Messages } from "../../../lib/i18n.ts";
+import { tm } from "../../../lib/i18n-format.ts";
 
 async function post(path: string, body: unknown): Promise<{ ok: boolean; status: number }> {
   const res = await timedFetch(path, {
@@ -18,7 +20,13 @@ async function post(path: string, body: unknown): Promise<{ ok: boolean; status:
 }
 
 /** `onSuccess`: đăng nhập lại ngay trên trang (hộp đăng nhập lại, S-013) — không chuyển sang /chon-to-chuc. */
-export function TenantLoginForm({ onSuccess }: { onSuccess?: () => void } = {}) {
+export function TenantLoginForm({
+  onSuccess,
+  m,
+}: {
+  onSuccess?: () => void;
+  m: Messages<"tenant_login_form." | "auth_form.">;
+}) {
   const online = useOnline();
   const [step, setStep] = useState<"email" | "code">("email");
   const [email, setEmail] = useState("");
@@ -27,30 +35,30 @@ export function TenantLoginForm({ onSuccess }: { onSuccess?: () => void } = {}) 
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!online) return setError("Không có kết nối mạng. Thao tác chưa được gửi.");
+    if (!online) return setError(tm(m, "auth_form.offline"));
     const form = new FormData(e.currentTarget);
     setBusy(true);
     setError(undefined);
     try {
       if (step === "email") {
         const value = String(form.get("email") ?? "").trim();
-        if (!value) return setError("Bắt buộc nhập email");
+        if (!value) return setError(tm(m, "tenant_login_form.error.email_required"));
         const r = await post("/api/auth/email-otp/send-verification-otp", { email: value, type: "sign-in" });
-        if (r.status === 429) return setError("Bạn thử quá nhiều lần. Vui lòng đợi ít phút.");
-        if (!r.ok) return setError("Không gửi được mã. Vui lòng thử lại.");
+        if (r.status === 429) return setError(tm(m, "tenant_login_form.error.too_many"));
+        if (!r.ok) return setError(tm(m, "tenant_login_form.error.send_failed"));
         setEmail(value);
         setStep("code");
       } else {
         const otp = String(form.get("otp") ?? "").trim();
-        if (!/^\d{6}$/.test(otp)) return setError("Nhập mã gồm 6 chữ số");
+        if (!/^\d{6}$/.test(otp)) return setError(tm(m, "tenant_login_form.error.otp_format"));
         const r = await post("/api/auth/sign-in/email-otp", { email, otp });
-        if (r.status === 429) return setError("Bạn thử quá nhiều lần. Vui lòng đợi ít phút.");
-        if (!r.ok) return setError("Mã không đúng hoặc đã hết hạn.");
+        if (r.status === 429) return setError(tm(m, "tenant_login_form.error.too_many"));
+        if (!r.ok) return setError(tm(m, "tenant_login_form.error.otp_invalid"));
         if (onSuccess) onSuccess();
         else window.location.assign("/chon-to-chuc");
       }
     } catch {
-      setError("Chưa nhận được phản hồi. Kiểm tra mạng rồi thử lại.");
+      setError(tm(m, "auth_form.no_response"));
     } finally {
       setBusy(false);
     }
@@ -59,12 +67,19 @@ export function TenantLoginForm({ onSuccess }: { onSuccess?: () => void } = {}) 
   return (
     <form onSubmit={onSubmit} noValidate>
       {step === "email" ? (
-        <TextField label="Email" name="email" type="email" autoComplete="email" required error={error} />
+        <TextField
+          label={tm(m, "auth_form.field.email")}
+          name="email"
+          type="email"
+          autoComplete="email"
+          required
+          error={error}
+        />
       ) : (
         <>
-          <p role="status">Nếu email đúng, mã đã được gửi. Mã có hiệu lực 5 phút.</p>
+          <p role="status">{tm(m, "tenant_login_form.status.sent")}</p>
           <TextField
-            label="Mã đăng nhập 6 số"
+            label={tm(m, "tenant_login_form.field.otp")}
             name="otp"
             inputMode="numeric"
             autoComplete="one-time-code"
@@ -75,7 +90,7 @@ export function TenantLoginForm({ onSuccess }: { onSuccess?: () => void } = {}) 
         </>
       )}
       <Button type="submit" loading={busy}>
-        {step === "email" ? "Gửi mã" : "Đăng nhập"}
+        {step === "email" ? tm(m, "tenant_login_form.submit.send") : tm(m, "tenant_login_form.submit.signin")}
       </Button>
     </form>
   );
