@@ -7,7 +7,7 @@ import { withActor } from "../lib/page.tsx";
 import { safe } from "../lib/safe.ts";
 import { currentSession } from "../lib/session.ts";
 
-export const metadata: Metadata = { title: "Hôm nay — Hotel Manager" };
+export const metadata: Metadata = { title: t("home.metadata.title") };
 
 const FRONT_ROLES = ["owner", "manager", "front_desk"];
 
@@ -21,29 +21,29 @@ export default async function HomePage({
   if (!(await currentSession())) {
     return (
       <main id="main" className="page">
-        <h1>Hôm nay</h1>
+        <h1>{t("home.page.title")}</h1>
         <EmptyState
-          title="Chưa đăng nhập"
-          text="Đăng nhập để xem phòng và việc trong ngày."
+          title={t("home.anonymous.title")}
+          text={t("home.anonymous.text")}
           action={
             <a className="btn" href="/dang-nhap">
-              Đăng nhập
+              {t("home.anonymous.login")}
             </a>
           }
         />
       </main>
     );
   }
-  return withActor("Hôm nay", "/", async (actor) => {
+  return withActor(t("home.page.title"), "/", async (actor) => {
     const r = await safe(getTodaySummary(serverContext().db, actor, propertyId ? { propertyId } : {}));
     if (!r.ok)
       return (
         <ErrorState
-          title="Không xem được màn Hôm nay"
-          text={r.status === 403 ? "Vai trò của bạn không có mục này." : r.message}
+          title={t("home.error.load")}
+          text={r.status === 403 ? t("home.error.forbidden") : r.message}
           action={
             <a className="btn" href="/">
-              Thử lại
+              {t("common.retry")}
             </a>
           }
         />
@@ -53,9 +53,9 @@ export default async function HomePage({
     return (
       <>
         {s.properties.length > 1 ? (
-          <nav aria-label="Lọc theo cơ sở" className="pager">
+          <nav aria-label={t("home.filter.aria")} className="pager">
             <a className="btn btn--secondary" href="/" aria-current={propertyId ? undefined : "page"}>
-              Tất cả cơ sở
+              {t("home.filter.all")}
             </a>
             {s.properties.map((p) => (
               <a
@@ -69,7 +69,7 @@ export default async function HomePage({
             ))}
           </nav>
         ) : null}
-        <ul className="card-list" aria-label="Ngày kinh doanh">
+        <ul className="card-list" aria-label={t("home.business_dates.aria")}>
           {s.properties.map((p) => (
             <li key={p.id} className="card__meta" data-testid="business-date">
               {t("home.business_date", { property: p.name, date: day(p.businessDate) })}
@@ -77,7 +77,7 @@ export default async function HomePage({
           ))}
         </ul>
         {s.cards.length === 0 ? (
-          <EmptyState title="Chưa có việc nào cho vai trò của bạn" />
+          <EmptyState title={t("home.empty.title")} />
         ) : (
           <ul className="today-cards">
             {s.cards.map((c) => {
@@ -95,21 +95,23 @@ export default async function HomePage({
                     {c.amount !== undefined ? (
                       <span className="today-card__hint">{vnd(c.amount)}</span>
                     ) : null}
-                    {c.count === 0 ? <span className="today-card__hint">Không có việc</span> : null}
+                    {c.count === 0 ? <span className="today-card__hint">{t("home.card.none")}</span> : null}
                   </a>
                 </li>
               );
             })}
           </ul>
         )}
-        <p className="card__meta">Số liệu tại {dateTime(s.asOf, commonTimeZone(s.properties))}</p>
+        <p className="card__meta">
+          {t("home.as_of", { time: dateTime(s.asOf, commonTimeZone(s.properties)) })}
+        </p>
         {FRONT_ROLES.includes(actor.role) ? (
           <p className="pager">
             <a className="btn" href="/dat-phong/moi">
-              Đặt phòng mới
+              {t("home.action.new_booking")}
             </a>
             <a className="btn btn--secondary" href="/luu-tru/moi">
-              Khách vãng lai
+              {t("home.action.walk_in")}
             </a>
           </p>
         ) : null}

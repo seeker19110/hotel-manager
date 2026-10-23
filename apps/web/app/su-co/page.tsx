@@ -5,22 +5,22 @@ import { IncidentForm } from "../../components/hotel/incident-form.tsx";
 import { StatusBadge } from "../../components/ui/badge.tsx";
 import { EmptyState, ErrorState } from "../../components/ui/state.tsx";
 import { dateTime, SEVERITY, WORK_ORDER_STATUS } from "../../lib/format.ts";
-import { t } from "../../lib/i18n.ts";
+import { messagesFor, t } from "../../lib/i18n.ts";
 import { withActor } from "../../lib/page.tsx";
 import { safe } from "../../lib/safe.ts";
 
-export const metadata: Metadata = { title: "Sự cố — Hotel Manager" };
+export const metadata: Metadata = { title: t("incident.metadata.title") };
 
 const LEAD = ["owner", "manager"];
 const ACTIVE = new Set(["open", "assigned", "in_progress", "done"]);
 
 export default async function IncidentsPage() {
-  return withActor("Sự cố", "/su-co", async (actor) => {
+  return withActor(t("incident.page.title"), "/su-co", async (actor) => {
     const db = serverContext().db;
     const props = await safe(opsProperties(db, actor));
-    if (!props.ok) return <ErrorState title="Không xem được sự cố" text={props.message} />;
+    if (!props.ok) return <ErrorState title={t("incident.error.load")} text={props.message} />;
     if (props.data.length === 0)
-      return <EmptyState title="Chưa có cơ sở nào được giao" text="Liên hệ quản lý để được giao cơ sở." />;
+      return <EmptyState title={t("ops.no_property.title")} text={t("ops.no_property.text")} />;
     const [lists, rooms] = await Promise.all([
       Promise.all(
         props.data.map(async (p) => ({
@@ -46,46 +46,50 @@ export default async function IncidentsPage() {
             <CommandForm
               path="maintenance/assignWorkOrder"
               fixed={{ work_order_id: w.id, assignee_membership_id: actor.membershipId }}
-              submitLabel="Nhận xử lý"
-              successText="Đã nhận xử lý."
+              submitLabel={t("incident.assign.submit")}
+              successText={t("incident.assign.success")}
             />
           ) : null}
           {w.status === "assigned" && (lead || mine) ? (
             <CommandForm
               path="maintenance/startWorkOrder"
               fixed={{ work_order_id: w.id }}
-              submitLabel="Bắt đầu sửa"
-              successText="Đã bắt đầu sửa."
+              submitLabel={t("incident.start.submit")}
+              successText={t("incident.start.success")}
             />
           ) : null}
           {w.status === "in_progress" && (lead || mine) ? (
             <CommandForm
               path="maintenance/completeWorkOrder"
               fixed={{ work_order_id: w.id }}
-              fields={[{ name: "note", label: `Ghi chú sau sửa (${w.unitCode})`, maxLength: 2000 }]}
-              submitLabel="Đã sửa xong"
-              successText="Đã báo sửa xong — chờ nghiệm thu."
+              fields={[
+                { name: "note", label: t("incident.complete.note", { unit: w.unitCode }), maxLength: 2000 },
+              ]}
+              submitLabel={t("incident.complete.submit")}
+              successText={t("incident.complete.success")}
             />
           ) : null}
           {w.status === "done" && lead ? (
             <CommandForm
               path="maintenance/verifyWorkOrder"
               fixed={{ work_order_id: w.id }}
-              submitLabel="Nghiệm thu"
-              successText="Đã nghiệm thu — việc dọn phòng đã được tạo."
+              submitLabel={t("incident.verify.submit")}
+              successText={t("incident.verify.success")}
             />
           ) : null}
           {lead && ["open", "assigned", "in_progress"].includes(w.status) ? (
             <details className="details-box">
-              <summary>Huỷ phiếu {w.unitCode}</summary>
+              <summary>{t("incident.cancel.summary", { unit: w.unitCode })}</summary>
               <CommandForm
                 path="maintenance/cancelWorkOrder"
-                confirm="Huỷ phiếu sự cố; không mở lại được."
-                confirmLabel={`Huỷ phiếu sự cố phòng ${w.unitCode}`}
+                confirm={t("incident.cancel.confirm")}
+                confirmLabel={t("incident.cancel.label", { unit: w.unitCode })}
                 fixed={{ work_order_id: w.id }}
-                fields={[{ name: "reason", label: "Lý do huỷ", required: true, maxLength: 1000 }]}
-                submitLabel="Huỷ phiếu"
-                successText="Đã huỷ phiếu."
+                fields={[
+                  { name: "reason", label: t("incident.cancel.reason"), required: true, maxLength: 1000 },
+                ]}
+                submitLabel={t("incident.cancel.submit")}
+                successText={t("incident.cancel.success")}
                 variant="secondary"
               />
             </details>
@@ -100,16 +104,16 @@ export default async function IncidentsPage() {
             <h2 id={`s-${p.id}`}>{p.name}</h2>
             {!orders.ok ? (
               <ErrorState
-                title="Không tải được sự cố"
+                title={t("incident.error.orders")}
                 text={orders.message}
                 action={
                   <a className="btn" href="/su-co">
-                    Thử lại
+                    {t("common.retry")}
                   </a>
                 }
               />
             ) : orders.data.filter((w) => ACTIVE.has(w.status)).length === 0 ? (
-              <EmptyState title="Không có sự cố đang mở" />
+              <EmptyState title={t("incident.empty.title")} />
             ) : (
               <ul className="card-list">
                 {orders.data
@@ -117,14 +121,16 @@ export default async function IncidentsPage() {
                   .map((w) => (
                     <li key={w.id} className="card" data-testid="work-order">
                       <p className="card__title">
-                        Phòng {w.unitCode}: {w.title}
+                        {t("incident.card.title", { unit: w.unitCode, title: w.title })}
                       </p>
                       <p className="card__meta">
                         {t("workorder.list.meta", {
                           severity: SEVERITY[w.severity]?.toLowerCase() ?? w.severity,
                           createdAt: dateTime(w.createdAt, p.timezone),
                         })}
-                        {w.photoFileIds.length > 0 ? ` · ${w.photoFileIds.length} ảnh đính kèm` : ""}
+                        {w.photoFileIds.length > 0
+                          ? t("incident.card.photos", { count: w.photoFileIds.length })
+                          : ""}
                       </p>
                       <p className="card__meta">{w.description}</p>
                       <StatusBadge status={w.status} label={WORK_ORDER_STATUS[w.status] ?? w.status} />
@@ -137,8 +143,8 @@ export default async function IncidentsPage() {
         ))}
         {roomOptions.length > 0 ? (
           <section aria-labelledby="bao" className="panel">
-            <h2 id="bao">Báo sự cố mới</h2>
-            <IncidentForm rooms={roomOptions} />
+            <h2 id="bao">{t("incident.new.heading")}</h2>
+            <IncidentForm rooms={roomOptions} m={messagesFor("incident_form.")} />
           </section>
         ) : null}
       </>

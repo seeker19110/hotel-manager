@@ -4,21 +4,22 @@ import { CommandForm } from "../../components/command/command-form.tsx";
 import { StatusBadge } from "../../components/ui/badge.tsx";
 import { EmptyState, ErrorState } from "../../components/ui/state.tsx";
 import { dateTime, PRIORITY, TASK_KIND, TASK_STATUS } from "../../lib/format.ts";
+import { t } from "../../lib/i18n.ts";
 import { withActor } from "../../lib/page.tsx";
 import { safe } from "../../lib/safe.ts";
 
-export const metadata: Metadata = { title: "Buồng phòng — Hotel Manager" };
+export const metadata: Metadata = { title: t("housekeeping.list.metadata.title") };
 
 const CREATE = ["owner", "manager", "front_desk"];
 
 // SPEC-housekeeping-maintenance §5: danh sách việc theo tầng; khách đến hôm nay → vừa trả phòng → thời gian tạo (đã sắp ở máy chủ).
 export default async function HousekeepingPage() {
-  return withActor("Buồng phòng", "/buong-phong", async (actor) => {
+  return withActor(t("housekeeping.list.page.title"), "/buong-phong", async (actor) => {
     const db = serverContext().db;
     const props = await safe(opsProperties(db, actor));
-    if (!props.ok) return <ErrorState title="Không xem được việc dọn" text={props.message} />;
+    if (!props.ok) return <ErrorState title={t("housekeeping.list.error.load")} text={props.message} />;
     if (props.data.length === 0)
-      return <EmptyState title="Chưa có cơ sở nào được giao" text="Liên hệ quản lý để được giao cơ sở." />;
+      return <EmptyState title={t("ops.no_property.title")} text={t("ops.no_property.text")} />;
     const lists = await Promise.all(
       props.data.map(async (p) => ({
         p,
@@ -33,35 +34,44 @@ export default async function HousekeepingPage() {
             <h2 id={`h-${p.id}`}>{p.name}</h2>
             {!tasks.ok ? (
               <ErrorState
-                title="Không tải được việc dọn"
+                title={t("housekeeping.list.error.tasks")}
                 text={tasks.message}
                 action={
                   <a className="btn" href="/buong-phong">
-                    Thử lại
+                    {t("common.retry")}
                   </a>
                 }
               />
             ) : tasks.data.length === 0 ? (
-              <EmptyState title="Không có phòng cần dọn" />
+              <EmptyState title={t("housekeeping.list.empty.title")} />
             ) : (
               byFloor(tasks.data).map(([floor, items]) => (
                 <div key={floor}>
                   <h3>{floor}</h3>
                   <ul className="card-list">
-                    {items.map((t) => (
-                      <li key={t.id} className="card" data-testid="task">
-                        <a href={`/buong-phong/${t.id}`} className="card__link">
+                    {items.map((task) => (
+                      <li key={task.id} className="card" data-testid="task">
+                        <a href={`/buong-phong/${task.id}`} className="card__link">
                           <span className="card__title">
-                            Phòng {t.unitCode} — {TASK_KIND[t.kind] ?? t.kind}
+                            {t("housekeeping.list.card.title", {
+                              unit: task.unitCode,
+                              kind: TASK_KIND[task.kind] ?? task.kind,
+                            })}
                           </span>
                           <span className="card__meta">
-                            {t.priority !== "normal" ? `${PRIORITY[t.priority] ?? t.priority} · ` : ""}
-                            {t.arrivalToday && t.expectedArrivalAt
-                              ? `Khách đến hôm nay lúc ${dateTime(t.expectedArrivalAt, p.timezone)} · `
+                            {task.priority !== "normal"
+                              ? `${PRIORITY[task.priority] ?? task.priority} · `
                               : ""}
-                            {t.assigneeName ? `Người làm: ${t.assigneeName}` : "Chưa có người nhận"}
+                            {task.arrivalToday && task.expectedArrivalAt
+                              ? t("housekeeping.list.card.arrival", {
+                                  time: dateTime(task.expectedArrivalAt, p.timezone),
+                                })
+                              : ""}
+                            {task.assigneeName
+                              ? t("housekeeping.list.card.assignee", { name: task.assigneeName })
+                              : t("housekeeping.task.facts.assignee_none")}
                           </span>
-                          <StatusBadge status={t.status} label={TASK_STATUS[t.status] ?? t.status} />
+                          <StatusBadge status={task.status} label={TASK_STATUS[task.status] ?? task.status} />
                         </a>
                       </li>
                     ))}
@@ -73,13 +83,13 @@ export default async function HousekeepingPage() {
         ))}
         {CREATE.includes(actor.role) && rooms.length > 0 ? (
           <section aria-labelledby="tao" className="panel">
-            <h2 id="tao">Tạo việc thủ công</h2>
+            <h2 id="tao">{t("housekeeping.list.create.heading")}</h2>
             <CommandForm
               path="housekeeping/createTask"
               fields={[
                 {
                   name: "unit_id",
-                  label: "Phòng",
+                  label: t("housekeeping.list.create.unit"),
                   type: "select",
                   options: rooms.flatMap((p) =>
                     p.rooms.map((u) => ({ value: u.unitId, label: `${u.code} · ${p.propertyName}` })),
@@ -87,27 +97,27 @@ export default async function HousekeepingPage() {
                 },
                 {
                   name: "kind",
-                  label: "Loại việc",
+                  label: t("housekeeping.list.create.kind"),
                   type: "select",
                   options: [
-                    { value: "cleaning", label: "Dọn phòng" },
-                    { value: "inspection", label: "Kiểm tra phòng" },
+                    { value: "cleaning", label: t("housekeeping.list.create.kind_cleaning") },
+                    { value: "inspection", label: t("housekeeping.list.create.kind_inspection") },
                   ],
                 },
                 {
                   name: "priority",
-                  label: "Mức ưu tiên",
+                  label: t("housekeeping.list.create.priority"),
                   type: "select",
                   options: [
-                    { value: "normal", label: "Thường" },
-                    { value: "high", label: "Ưu tiên" },
-                    { value: "urgent", label: "Khẩn" },
+                    { value: "normal", label: t("housekeeping.list.create.priority_normal") },
+                    { value: "high", label: t("housekeeping.list.create.priority_high") },
+                    { value: "urgent", label: t("housekeeping.list.create.priority_urgent") },
                   ],
                 },
-                { name: "note", label: "Ghi chú (tuỳ chọn)", maxLength: 2000 },
+                { name: "note", label: t("housekeeping.list.create.note"), maxLength: 2000 },
               ]}
-              submitLabel="Tạo việc"
-              successText="Đã tạo việc."
+              submitLabel={t("housekeeping.list.create.submit")}
+              successText={t("housekeeping.list.create.success")}
               variant="secondary"
             />
           </section>

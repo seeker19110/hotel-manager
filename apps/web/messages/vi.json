@@ -1222,5 +1222,689 @@
   "guest_stay.form.submit": {
     "message": "Xem lượt ở",
     "description": "Khách xem lượt ở bằng liên kết (/khach/luot-o/[id]): nút gửi form xác minh"
+  },
+  "common.retry": {
+    "message": "Thử lại",
+    "description": "Nút liên kết thử tải lại trang, hiện cạnh thông báo lỗi tải danh sách (sự cố, buồng phòng, thông báo)."
+  },
+  "ops.no_property.title": {
+    "message": "Chưa có cơ sở nào được giao",
+    "description": "Tiêu đề trạng thái rỗng khi nhân viên chưa được giao cơ sở nào (màn sự cố, buồng phòng)."
+  },
+  "ops.no_property.text": {
+    "message": "Liên hệ quản lý để được giao cơ sở.",
+    "description": "Hướng dẫn dưới tiêu đề 'chưa có cơ sở nào được giao' ở màn sự cố, buồng phòng."
+  },
+  "incident.metadata.title": {
+    "message": "Sự cố — Hotel Manager",
+    "description": "Tiêu đề tab trình duyệt của màn danh sách sự cố."
+  },
+  "incident.page.title": {
+    "message": "Sự cố",
+    "description": "Tiêu đề (h1) màn danh sách sự cố, truyền cho khung trang."
+  },
+  "incident.error.load": {
+    "message": "Không xem được sự cố",
+    "description": "Tiêu đề lỗi khi không tải được danh sách cơ sở của màn sự cố."
+  },
+  "incident.error.orders": {
+    "message": "Không tải được sự cố",
+    "description": "Tiêu đề lỗi khi không tải được phiếu sự cố của một cơ sở."
+  },
+  "incident.empty.title": {
+    "message": "Không có sự cố đang mở",
+    "description": "Trạng thái rỗng: cơ sở không có phiếu sự cố nào đang mở."
+  },
+  "incident.card.title": {
+    "message": "Phòng {unit}: {title}",
+    "description": "Dòng tiêu đề thẻ phiếu sự cố: mã phòng và tiêu đề phiếu."
+  },
+  "incident.card.photos": {
+    "message": " · {count} ảnh đính kèm",
+    "description": "Nối sau dòng mô tả thẻ sự cố khi phiếu có ảnh; {count} là số ảnh. Giữ dấu cách và dấu chấm giữa đầu câu."
+  },
+  "incident.assign.submit": {
+    "message": "Nhận xử lý",
+    "description": "Nút nhận xử lý phiếu sự cố (quản lý/chủ nhận về mình)."
+  },
+  "incident.assign.success": {
+    "message": "Đã nhận xử lý.",
+    "description": "Thông báo thành công sau khi nhận xử lý phiếu sự cố."
+  },
+  "incident.start.submit": {
+    "message": "Bắt đầu sửa",
+    "description": "Nút bắt đầu sửa phiếu sự cố."
+  },
+  "incident.start.success": {
+    "message": "Đã bắt đầu sửa.",
+    "description": "Thông báo thành công sau khi bắt đầu sửa."
+  },
+  "incident.complete.note": {
+    "message": "Ghi chú sau sửa ({unit})",
+    "description": "Nhãn ô ghi chú khi báo sửa xong; {unit} là mã phòng để phân biệt các phiếu cùng trang."
+  },
+  "incident.complete.submit": {
+    "message": "Đã sửa xong",
+    "description": "Nút báo đã sửa xong phiếu sự cố."
+  },
+  "incident.complete.success": {
+    "message": "Đã báo sửa xong — chờ nghiệm thu.",
+    "description": "Thông báo thành công sau khi báo sửa xong."
+  },
+  "incident.verify.submit": {
+    "message": "Nghiệm thu",
+    "description": "Nút nghiệm thu phiếu sự cố đã sửa xong (quản lý/chủ)."
+  },
+  "incident.verify.success": {
+    "message": "Đã nghiệm thu — việc dọn phòng đã được tạo.",
+    "description": "Thông báo thành công sau khi nghiệm thu phiếu sự cố; hệ thống tạo việc dọn phòng."
+  },
+  "incident.cancel.summary": {
+    "message": "Huỷ phiếu {unit}",
+    "description": "Tiêu đề phần mở rộng chứa form huỷ phiếu; {unit} là mã phòng."
+  },
+  "incident.cancel.confirm": {
+    "message": "Huỷ phiếu sự cố; không mở lại được.",
+    "description": "Câu cảnh báo trong hộp xác nhận huỷ phiếu sự cố."
+  },
+  "incident.cancel.label": {
+    "message": "Huỷ phiếu sự cố phòng {unit}",
+    "description": "Nhãn nút xác nhận huỷ phiếu sự cố; {unit} là mã phòng."
+  },
+  "incident.cancel.reason": {
+    "message": "Lý do huỷ",
+    "description": "Nhãn ô lý do khi huỷ phiếu sự cố."
+  },
+  "incident.cancel.submit": {
+    "message": "Huỷ phiếu",
+    "description": "Nút huỷ phiếu sự cố."
+  },
+  "incident.cancel.success": {
+    "message": "Đã huỷ phiếu.",
+    "description": "Thông báo thành công sau khi huỷ phiếu sự cố."
+  },
+  "incident.new.heading": {
+    "message": "Báo sự cố mới",
+    "description": "Tiêu đề phần chứa form báo sự cố mới."
+  },
+  "housekeeping.list.metadata.title": {
+    "message": "Buồng phòng — Hotel Manager",
+    "description": "Tiêu đề tab trình duyệt của màn danh sách việc dọn phòng."
+  },
+  "housekeeping.list.page.title": {
+    "message": "Buồng phòng",
+    "description": "Tiêu đề (h1) màn danh sách việc buồng phòng, truyền cho khung trang."
+  },
+  "housekeeping.list.error.load": {
+    "message": "Không xem được việc dọn",
+    "description": "Tiêu đề lỗi khi không tải được danh sách cơ sở của màn buồng phòng."
+  },
+  "housekeeping.list.error.tasks": {
+    "message": "Không tải được việc dọn",
+    "description": "Tiêu đề lỗi khi không tải được việc dọn của một cơ sở."
+  },
+  "housekeeping.list.empty.title": {
+    "message": "Không có phòng cần dọn",
+    "description": "Trạng thái rỗng: cơ sở không có việc dọn phòng nào."
+  },
+  "housekeeping.list.card.title": {
+    "message": "Phòng {unit} — {kind}",
+    "description": "Tiêu đề thẻ việc: mã phòng và loại việc (dọn phòng/kiểm tra phòng)."
+  },
+  "housekeeping.list.card.arrival": {
+    "message": "Khách đến hôm nay lúc {time} · ",
+    "description": "Đoạn trong dòng phụ của thẻ việc khi có khách đến hôm nay; {time} là giờ dự kiến. Giữ dấu cách cuối và dấu chấm giữa để nối đoạn sau."
+  },
+  "housekeeping.list.card.assignee": {
+    "message": "Người làm: {name}",
+    "description": "Dòng phụ thẻ việc khi đã có người nhận; {name} là tên người làm."
+  },
+  "housekeeping.list.create.heading": {
+    "message": "Tạo việc thủ công",
+    "description": "Tiêu đề phần chứa form tạo việc dọn/kiểm tra phòng thủ công."
+  },
+  "housekeeping.list.create.unit": {
+    "message": "Phòng",
+    "description": "Nhãn ô chọn phòng trong form tạo việc thủ công."
+  },
+  "housekeeping.list.create.kind": {
+    "message": "Loại việc",
+    "description": "Nhãn ô chọn loại việc trong form tạo việc thủ công."
+  },
+  "housekeeping.list.create.kind_cleaning": {
+    "message": "Dọn phòng",
+    "description": "Lựa chọn loại việc: dọn phòng."
+  },
+  "housekeeping.list.create.kind_inspection": {
+    "message": "Kiểm tra phòng",
+    "description": "Lựa chọn loại việc: kiểm tra phòng."
+  },
+  "housekeeping.list.create.priority": {
+    "message": "Mức ưu tiên",
+    "description": "Nhãn ô chọn mức ưu tiên trong form tạo việc thủ công."
+  },
+  "housekeeping.list.create.priority_normal": {
+    "message": "Thường",
+    "description": "Lựa chọn mức ưu tiên: thường."
+  },
+  "housekeeping.list.create.priority_high": {
+    "message": "Ưu tiên",
+    "description": "Lựa chọn mức ưu tiên: ưu tiên (cao)."
+  },
+  "housekeeping.list.create.priority_urgent": {
+    "message": "Khẩn",
+    "description": "Lựa chọn mức ưu tiên: khẩn."
+  },
+  "housekeeping.list.create.note": {
+    "message": "Ghi chú (tuỳ chọn)",
+    "description": "Nhãn ô ghi chú tuỳ chọn trong form tạo việc thủ công."
+  },
+  "housekeeping.list.create.submit": {
+    "message": "Tạo việc",
+    "description": "Nút gửi form tạo việc thủ công."
+  },
+  "housekeeping.list.create.success": {
+    "message": "Đã tạo việc.",
+    "description": "Thông báo thành công sau khi tạo việc thủ công."
+  },
+  "portal.payment.metadata.title": {
+    "message": "Thanh toán — Hotel Manager",
+    "description": "Tiêu đề tab trình duyệt của màn thanh toán trong cổng người thuê."
+  },
+  "portal.payment.page.title": {
+    "message": "Thanh toán",
+    "description": "Tiêu đề (h1) màn thanh toán trong cổng người thuê."
+  },
+  "portal.payment.paid.title": {
+    "message": "Phiếu này đã được thanh toán đủ",
+    "description": "Trạng thái rỗng khi phiếu không còn nợ."
+  },
+  "portal.payment.paid.view": {
+    "message": "Xem phiếu",
+    "description": "Nút quay lại xem phiếu đã thanh toán đủ."
+  },
+  "portal.payment.qr.alt": {
+    "message": "Mã QR chuyển khoản tới tài khoản {account} ({bank}) tên {name}, số tiền {amount}, nội dung {content}",
+    "description": "Mô tả thay thế (cho trình đọc màn hình) của mã QR chuyển khoản; {account} số tài khoản, {bank} mã ngân hàng, {name} tên chủ tài khoản, {amount} số tiền định dạng, {content} nội dung chuyển khoản."
+  },
+  "portal.payment.transfer.heading": {
+    "message": "Chuyển khoản",
+    "description": "Tiêu đề phần thông tin chuyển khoản."
+  },
+  "portal.payment.transfer.bank": {
+    "message": "Ngân hàng",
+    "description": "Nhãn dòng mã ngân hàng nhận tiền."
+  },
+  "portal.payment.transfer.account_number": {
+    "message": "Số tài khoản",
+    "description": "Nhãn dòng số tài khoản nhận tiền."
+  },
+  "portal.payment.transfer.account_name": {
+    "message": "Tên tài khoản",
+    "description": "Nhãn dòng tên chủ tài khoản nhận tiền."
+  },
+  "portal.payment.transfer.amount_due": {
+    "message": "Số tiền còn nợ",
+    "description": "Nhãn dòng số tiền người thuê còn nợ trên phiếu."
+  },
+  "portal.payment.transfer.content": {
+    "message": "Nội dung chuyển khoản",
+    "description": "Nhãn dòng nội dung chuyển khoản cần nhập khi chuyển."
+  },
+  "portal.payment.no_account.title": {
+    "message": "Chủ trọ chưa khai báo tài khoản nhận tiền",
+    "description": "Trạng thái rỗng khi cơ sở chưa khai báo tài khoản nhận tiền."
+  },
+  "portal.payment.no_account.text": {
+    "message": "Hãy hỏi chủ trọ thông tin chuyển khoản, rồi quay lại bấm Tôi đã chuyển.",
+    "description": "Hướng dẫn khi chưa có tài khoản nhận tiền; 'Tôi đã chuyển' trùng nhãn nút ở form báo chuyển."
+  },
+  "portal.payment.claim.heading": {
+    "message": "Tôi đã chuyển",
+    "description": "Tiêu đề phần form báo đã chuyển khoản."
+  },
+  "portal.payment.claim.confirm": {
+    "message": "Gửi báo đã chuyển khoản cho nhà trọ đối chiếu; không sửa được sau khi gửi.",
+    "description": "Câu cảnh báo trong hộp xác nhận gửi báo đã chuyển khoản."
+  },
+  "portal.payment.claim.label": {
+    "message": "Gửi báo đã chuyển {amount}",
+    "description": "Nhãn nút xác nhận; {amount} do form điền số tiền người dùng nhập (nơi gọi truyền lại nguyên '{amount}')."
+  },
+  "portal.payment.claim.amount": {
+    "message": "Số tiền đã chuyển (đồng)",
+    "description": "Nhãn ô số tiền đã chuyển, đơn vị đồng."
+  },
+  "portal.payment.claim.hint": {
+    "message": "Chuyển khác số còn nợ vẫn ghi nhận; chủ trọ sẽ đối chiếu.",
+    "description": "Gợi ý dưới ô số tiền đã chuyển."
+  },
+  "portal.payment.claim.submit": {
+    "message": "Tôi đã chuyển",
+    "description": "Nút gửi báo đã chuyển khoản."
+  },
+  "portal.payment.claim.success": {
+    "message": "Đã ghi nhận báo chuyển — chủ trọ sẽ xác nhận khi thấy tiền",
+    "description": "Thông báo thành công sau khi gửi báo chuyển khoản (không có dấu chấm cuối)."
+  },
+  "notification.metadata.title": {
+    "message": "Thông báo — Hotel Manager",
+    "description": "Tiêu đề tab trình duyệt của hộp thông báo."
+  },
+  "notification.page.title": {
+    "message": "Thông báo",
+    "description": "Tiêu đề (h1) màn hộp thông báo, truyền cho khung trang."
+  },
+  "notification.severity.info": {
+    "message": "Thông tin",
+    "description": "Nhãn mức độ thông báo: thông tin."
+  },
+  "notification.severity.warning": {
+    "message": "Cần chú ý",
+    "description": "Nhãn mức độ thông báo: cần chú ý."
+  },
+  "notification.severity.critical": {
+    "message": "Quá hạn / khẩn",
+    "description": "Nhãn mức độ thông báo: quá hạn hoặc khẩn."
+  },
+  "notification.error.load": {
+    "message": "Không tải được thông báo",
+    "description": "Tiêu đề lỗi khi không tải được hộp thông báo."
+  },
+  "notification.unread.some": {
+    "message": "{count} thông báo chưa đọc",
+    "description": "Số thông báo chưa đọc (ở đầu hộp thư, đọc qua vùng aria-live)."
+  },
+  "notification.unread.none": {
+    "message": "Không có thông báo chưa đọc",
+    "description": "Hiện khi không còn thông báo chưa đọc."
+  },
+  "notification.mark_all.submit": {
+    "message": "Đánh dấu tất cả đã đọc",
+    "description": "Nút đánh dấu mọi thông báo đã đọc."
+  },
+  "notification.mark_all.success": {
+    "message": "Đã đánh dấu tất cả đã đọc.",
+    "description": "Thông báo thành công sau khi đánh dấu tất cả đã đọc."
+  },
+  "notification.empty.title": {
+    "message": "Chưa có thông báo",
+    "description": "Trạng thái rỗng hộp thông báo."
+  },
+  "notification.item.read": {
+    "message": " · đã đọc",
+    "description": "Đoạn nối cuối dòng phụ của thẻ thông báo đã đọc; giữ dấu cách và dấu chấm giữa đầu."
+  },
+  "notification.item.unread": {
+    "message": " · chưa đọc",
+    "description": "Đoạn nối cuối dòng phụ của thẻ thông báo chưa đọc; giữ dấu cách và dấu chấm giữa đầu."
+  },
+  "notification.item.open": {
+    "message": "Mở nội dung",
+    "description": "Nút liên kết mở màn liên quan của thông báo."
+  },
+  "notification.mark.submit": {
+    "message": "Đánh dấu đã đọc",
+    "description": "Nút đánh dấu một thông báo đã đọc."
+  },
+  "notification.mark.success": {
+    "message": "Đã đánh dấu đã đọc.",
+    "description": "Thông báo thành công sau khi đánh dấu một thông báo đã đọc."
+  },
+  "home.metadata.title": {
+    "message": "Hôm nay — Hotel Manager",
+    "description": "Tiêu đề tab trình duyệt của màn Hôm nay (trang chủ)."
+  },
+  "home.page.title": {
+    "message": "Hôm nay",
+    "description": "Tiêu đề (h1) màn Hôm nay, dùng cả khi chưa đăng nhập và truyền cho khung trang."
+  },
+  "home.anonymous.title": {
+    "message": "Chưa đăng nhập",
+    "description": "Tiêu đề trạng thái rỗng ở trang chủ khi người dùng chưa đăng nhập."
+  },
+  "home.anonymous.text": {
+    "message": "Đăng nhập để xem phòng và việc trong ngày.",
+    "description": "Hướng dẫn dưới tiêu đề 'chưa đăng nhập' ở trang chủ."
+  },
+  "home.anonymous.login": {
+    "message": "Đăng nhập",
+    "description": "Nút đưa tới màn đăng nhập ở trang chủ khi chưa đăng nhập."
+  },
+  "home.error.load": {
+    "message": "Không xem được màn Hôm nay",
+    "description": "Tiêu đề lỗi khi không tải được số liệu màn Hôm nay."
+  },
+  "home.error.forbidden": {
+    "message": "Vai trò của bạn không có mục này.",
+    "description": "Nội dung lỗi khi vai trò hiện tại không có quyền xem màn Hôm nay (403)."
+  },
+  "home.filter.aria": {
+    "message": "Lọc theo cơ sở",
+    "description": "Nhãn trợ năng của thanh lọc theo cơ sở ở màn Hôm nay."
+  },
+  "home.filter.all": {
+    "message": "Tất cả cơ sở",
+    "description": "Nút lọc hiện số liệu của mọi cơ sở."
+  },
+  "home.business_dates.aria": {
+    "message": "Ngày kinh doanh",
+    "description": "Nhãn trợ năng của danh sách ngày kinh doanh từng cơ sở."
+  },
+  "home.empty.title": {
+    "message": "Chưa có việc nào cho vai trò của bạn",
+    "description": "Trạng thái rỗng khi vai trò không có thẻ việc nào ở màn Hôm nay."
+  },
+  "home.card.none": {
+    "message": "Không có việc",
+    "description": "Gợi ý nhỏ trên thẻ có số lượng bằng 0 ở màn Hôm nay."
+  },
+  "home.as_of": {
+    "message": "Số liệu tại {time}",
+    "description": "Dòng thời điểm lấy số liệu màn Hôm nay; {time} là ngày giờ định dạng theo múi giờ cơ sở."
+  },
+  "home.action.new_booking": {
+    "message": "Đặt phòng mới",
+    "description": "Nút tắt tới form đặt phòng mới (lễ tân/quản lý)."
+  },
+  "home.action.walk_in": {
+    "message": "Khách vãng lai",
+    "description": "Nút tắt tới form nhận khách vãng lai không đặt trước."
+  },
+  "calendar.metadata.title": {
+    "message": "Lịch phòng — Hotel Manager",
+    "description": "Tiêu đề tab trình duyệt của màn lịch phòng."
+  },
+  "calendar.page.title": {
+    "message": "Lịch phòng",
+    "description": "Tiêu đề (h1) màn lịch phòng, truyền cho khung trang."
+  },
+  "calendar.error.load": {
+    "message": "Không xem được lịch",
+    "description": "Tiêu đề lỗi khi không tải được danh sách cơ sở của lịch phòng."
+  },
+  "calendar.empty.no_hotel.title": {
+    "message": "Chưa có cơ sở khách sạn",
+    "description": "Trạng thái rỗng khi tổ chức chưa có cơ sở loại khách sạn/nhà nghỉ."
+  },
+  "calendar.empty.no_hotel.text": {
+    "message": "Cơ sở nhà trọ dùng màn Hợp đồng và Phòng.",
+    "description": "Hướng dẫn: cơ sở nhà trọ không dùng lịch phòng; 'Hợp đồng' và 'Phòng' là tên hai màn trong menu."
+  },
+  "calendar.error.reservations": {
+    "message": "Không xem được đặt phòng",
+    "description": "Tiêu đề lỗi khi không tải được đặt phòng cho lịch."
+  },
+  "calendar.error.forbidden": {
+    "message": "Vai trò của bạn không xem được lịch đặt phòng.",
+    "description": "Nội dung lỗi khi vai trò hiện tại không có quyền xem lịch (403/404)."
+  },
+  "calendar.nav.property": {
+    "message": "Chọn cơ sở",
+    "description": "Nhãn trợ năng của thanh chọn cơ sở trên lịch phòng."
+  },
+  "calendar.nav.week": {
+    "message": "Chuyển tuần",
+    "description": "Nhãn trợ năng của thanh chuyển tuần trên lịch phòng."
+  },
+  "calendar.nav.prev": {
+    "message": "Tuần trước",
+    "description": "Nút chuyển về tuần trước trên lịch phòng."
+  },
+  "calendar.nav.today": {
+    "message": "Hôm nay",
+    "description": "Nút về tuần chứa ngày kinh doanh hôm nay trên lịch phòng."
+  },
+  "calendar.nav.next": {
+    "message": "Tuần sau",
+    "description": "Nút chuyển sang tuần sau trên lịch phòng."
+  },
+  "calendar.empty.units": {
+    "message": "Cơ sở chưa có phòng",
+    "description": "Trạng thái rỗng khi cơ sở chưa có phòng nào để hiện trên lịch."
+  },
+  "calendar.room.out_of_service": {
+    "message": "Ngừng sử dụng",
+    "description": "Nhãn ô phòng ngừng sử dụng trên lịch, đứng sau biểu tượng."
+  },
+  "calendar.room.free": {
+    "message": "Trống",
+    "description": "Nhãn ô phòng còn trống trên lịch, đứng sau ký hiệu ○."
+  },
+  "calendar.room.book_aria": {
+    "message": "Đặt phòng {unit} từ {date}",
+    "description": "Nhãn trợ năng của nút đặt phòng trên ô trống; {unit} mã phòng, {date} ngày đến."
+  },
+  "calendar.room.book": {
+    "message": "Đặt phòng",
+    "description": "Nút đặt phòng trên ô phòng trống của lịch."
+  },
+  "today_list.metadata.title": {
+    "message": "Danh sách trong ngày — Hotel Manager",
+    "description": "Tiêu đề tab trình duyệt của màn danh sách từng thẻ ở màn Hôm nay."
+  },
+  "today_list.title.arrivals": {
+    "message": "Khách đến hôm nay",
+    "description": "Tiêu đề màn danh sách thẻ khách đến (dự phòng khi thẻ không có nhãn riêng)."
+  },
+  "today_list.title.departures": {
+    "message": "Khách đi hôm nay",
+    "description": "Tiêu đề màn danh sách thẻ khách đi (dự phòng)."
+  },
+  "today_list.title.receivables": {
+    "message": "Nợ đến hạn/quá hạn",
+    "description": "Tiêu đề màn danh sách thẻ công nợ đến hạn hoặc quá hạn (dự phòng)."
+  },
+  "today_list.title.periods_reviewing": {
+    "message": "Kỳ thu cần duyệt",
+    "description": "Tiêu đề màn danh sách thẻ kỳ thu cần duyệt (dự phòng)."
+  },
+  "today_list.title.dirty_units": {
+    "message": "Phòng cần dọn",
+    "description": "Tiêu đề màn danh sách thẻ phòng cần dọn (dự phòng)."
+  },
+  "today_list.title.work_orders": {
+    "message": "Sự cố",
+    "description": "Tiêu đề màn danh sách thẻ sự cố (dự phòng)."
+  },
+  "today_list.title.residence_notices": {
+    "message": "Thông báo lưu trú sắp/quá hạn",
+    "description": "Tiêu đề màn danh sách thẻ thông báo lưu trú sắp hoặc quá hạn (dự phòng)."
+  },
+  "today_list.error.load": {
+    "message": "Không xem được danh sách",
+    "description": "Tiêu đề lỗi khi không tải được danh sách của một thẻ."
+  },
+  "today_list.error.forbidden": {
+    "message": "Vai trò của bạn không có thẻ này.",
+    "description": "Nội dung lỗi khi vai trò hiện tại không có quyền xem thẻ (403)."
+  },
+  "today_list.back": {
+    "message": "Về Hôm nay",
+    "description": "Nút quay về màn Hôm nay, dùng ở trạng thái lỗi và đầu danh sách."
+  },
+  "today_list.empty.title": {
+    "message": "Không có việc",
+    "description": "Tiêu đề trạng thái rỗng của danh sách thẻ."
+  },
+  "today_list.empty.text": {
+    "message": "Không có dòng nào trong mục này hôm nay.",
+    "description": "Nội dung trạng thái rỗng của danh sách thẻ."
+  },
+  "today_list.item.remaining": {
+    "message": "Còn {amount}",
+    "description": "Dòng số tiền còn lại của một dòng công nợ; {amount} là số tiền định dạng."
+  },
+  "today_list.item.overdue": {
+    "message": "Quá hạn",
+    "description": "Nhãn huy hiệu dòng đã quá hạn, đứng sau biểu tượng cảnh báo."
+  },
+  "booking.form.error.guests": {
+    "message": "Số khách phải là số nguyên ≥ 1.",
+    "description": "Lỗi ở form báo giá khi số khách không phải số nguyên dương."
+  },
+  "booking.form.error.dates": {
+    "message": "Chọn ngày đến và ngày đi.",
+    "description": "Lỗi ở form báo giá khi thiếu ngày đến hoặc ngày đi."
+  },
+  "booking.form.error.quote_failed": {
+    "message": "Không báo giá được. Vui lòng thử lại.",
+    "description": "Lỗi mặc định khi máy chủ không trả báo giá và không có chi tiết."
+  },
+  "booking.form.error.offline": {
+    "message": "Không có kết nối mạng. Chưa báo giá được.",
+    "description": "Lỗi khi yêu cầu báo giá không tới được máy chủ."
+  },
+  "booking.form.error.required": {
+    "message": "Bắt buộc nhập",
+    "description": "Lỗi dưới ô bắt buộc (họ tên người đặt) khi để trống."
+  },
+  "booking.form.error.phone": {
+    "message": "Số điện thoại 6–20 chữ số",
+    "description": "Lỗi dưới ô số điện thoại người đặt khi sai định dạng."
+  },
+  "booking.form.step1.heading": {
+    "message": "1. Báo giá",
+    "description": "Tiêu đề bước 1 của form đặt phòng."
+  },
+  "booking.form.field.unit": {
+    "message": "Phòng",
+    "description": "Nhãn ô chọn phòng ở form báo giá."
+  },
+  "booking.form.field.arrival": {
+    "message": "Ngày đến",
+    "description": "Nhãn ô ngày đến ở form báo giá."
+  },
+  "booking.form.field.departure": {
+    "message": "Ngày đi",
+    "description": "Nhãn ô ngày đi ở form báo giá."
+  },
+  "booking.form.field.guests": {
+    "message": "Số khách",
+    "description": "Nhãn ô số khách ở form báo giá."
+  },
+  "booking.form.quote.submit": {
+    "message": "Báo giá",
+    "description": "Nút lấy báo giá ở form đặt phòng."
+  },
+  "booking.form.quote.col_night": {
+    "message": "Đêm",
+    "description": "Tiêu đề cột ngày đêm trong bảng giá từng đêm."
+  },
+  "booking.form.quote.col_price": {
+    "message": "Giá",
+    "description": "Tiêu đề cột giá trong bảng giá từng đêm."
+  },
+  "booking.form.quote.policy": {
+    "message": "Giữ phòng có thời hạn; hết hạn mà chưa xác nhận thì phòng được nhả. Điều kiện huỷ theo chính sách cơ sở.",
+    "description": "Ghi chú chính sách giữ phòng và huỷ luôn hiện dưới báo giá."
+  },
+  "booking.form.step2.heading": {
+    "message": "2. Người đặt và giữ phòng",
+    "description": "Tiêu đề bước 2 của form đặt phòng (sau khi có báo giá)."
+  },
+  "booking.form.booker.name": {
+    "message": "Họ tên người đặt",
+    "description": "Nhãn ô họ tên người đặt phòng."
+  },
+  "booking.form.booker.phone": {
+    "message": "Số điện thoại",
+    "description": "Nhãn ô số điện thoại người đặt phòng."
+  },
+  "booking.form.booker.email": {
+    "message": "Email (tuỳ chọn)",
+    "description": "Nhãn ô email người đặt phòng, không bắt buộc."
+  },
+  "booking.form.submit.create": {
+    "message": "Tạo và giữ phòng",
+    "description": "Nút tạo đặt phòng nháp và giữ phòng."
+  },
+  "booking.form.submit.rehold": {
+    "message": "Giữ phòng lại",
+    "description": "Nút thử giữ phòng lại khi bản nháp đã tạo nhưng giữ phòng thất bại."
+  },
+  "booking.form.create.success": {
+    "message": "Đã tạo đặt phòng.",
+    "description": "Thông báo thành công sau khi tạo đặt phòng nháp."
+  },
+  "booking.form.hold.success": {
+    "message": "Đã giữ phòng — đang mở đặt phòng.",
+    "description": "Thông báo thành công sau khi giữ phòng, trước khi chuyển sang trang chi tiết."
+  },
+  "booking.form.draft.note": {
+    "message": "Đặt phòng nháp đã được tạo.",
+    "description": "Câu báo bản nháp đã tạo khi giữ phòng thất bại; theo sau là liên kết mở bản nháp."
+  },
+  "booking.form.draft.open": {
+    "message": "Mở đặt phòng nháp",
+    "description": "Liên kết mở trang chi tiết của đặt phòng nháp."
+  },
+  "incident_form.severity.low": {
+    "message": "Thấp",
+    "description": "Lựa chọn mức độ sự cố: thấp."
+  },
+  "incident_form.severity.medium": {
+    "message": "Trung bình",
+    "description": "Lựa chọn mức độ sự cố: trung bình (mặc định)."
+  },
+  "incident_form.severity.high": {
+    "message": "Cao",
+    "description": "Lựa chọn mức độ sự cố: cao."
+  },
+  "incident_form.severity.critical": {
+    "message": "Nghiêm trọng",
+    "description": "Lựa chọn mức độ sự cố: nghiêm trọng."
+  },
+  "incident_form.error.required": {
+    "message": "Bắt buộc nhập",
+    "description": "Lỗi dưới ô tiêu đề hoặc mô tả sự cố khi để trống."
+  },
+  "incident_form.error.title_max": {
+    "message": "Tối đa 200 ký tự",
+    "description": "Lỗi khi tiêu đề sự cố dài quá 200 ký tự."
+  },
+  "incident_form.error.description_max": {
+    "message": "Tối đa 2.000 ký tự",
+    "description": "Lỗi khi mô tả sự cố dài quá 2.000 ký tự (dấu chấm ngăn nghìn)."
+  },
+  "incident_form.error.photo_max": {
+    "message": "Tối đa {max} ảnh mỗi phiếu.",
+    "description": "Lỗi khi chọn quá số ảnh cho phép; {max} là số ảnh tối đa."
+  },
+  "incident_form.field.unit": {
+    "message": "Phòng",
+    "description": "Nhãn ô chọn phòng ở form báo sự cố."
+  },
+  "incident_form.field.title": {
+    "message": "Sự cố",
+    "description": "Nhãn ô tiêu đề (tóm tắt) sự cố."
+  },
+  "incident_form.field.description": {
+    "message": "Mô tả",
+    "description": "Nhãn ô mô tả chi tiết sự cố."
+  },
+  "incident_form.field.severity": {
+    "message": "Mức độ",
+    "description": "Nhãn ô chọn mức độ sự cố."
+  },
+  "incident_form.photo.label": {
+    "message": "Ảnh (tuỳ chọn, tối đa {max})",
+    "description": "Nhãn ô chọn ảnh sự cố; {max} là số ảnh tối đa."
+  },
+  "incident_form.photo.hint": {
+    "message": "Chụp trực tiếp hoặc chọn ảnh JPEG, PNG, WebP, tối đa 10 MB mỗi ảnh.",
+    "description": "Gợi ý dưới nhãn ô chọn ảnh sự cố (định dạng, dung lượng)."
+  },
+  "incident_form.photo.checking": {
+    "message": "Đang kiểm tra ảnh…",
+    "description": "Trạng thái trong lúc máy chủ quét ảnh vừa tải lên (đọc qua vùng role=status)."
+  },
+  "incident_form.submit": {
+    "message": "Gửi báo sự cố",
+    "description": "Nút gửi form báo sự cố."
+  },
+  "incident_form.success": {
+    "message": "Đã ghi nhận sự cố — trạng thái: Mới báo.",
+    "description": "Thông báo thành công sau khi tạo phiếu sự cố; 'Mới báo' là tên trạng thái phiếu mới."
   }
 }

@@ -4,6 +4,8 @@
 // Rồi gửi `maintenance/createWorkOrder` với file_ids — cùng cơ chế chống gửi đúp/mất mạng của mọi command.
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
+import type { Messages } from "../../lib/i18n.ts";
+import { tm } from "../../lib/i18n-format.ts";
 import { CommandStatus } from "../command/command-status.tsx";
 import { problemText, useCommand } from "../command/use-command.ts";
 import { MAX_PHOTOS, usePhotoUpload } from "../command/use-photo-upload.ts";
@@ -16,14 +18,17 @@ export interface IncidentRoom {
   label: string;
 }
 
-const SEVERITIES = [
-  { value: "low", label: "Thấp" },
-  { value: "medium", label: "Trung bình" },
-  { value: "high", label: "Cao" },
-  { value: "critical", label: "Nghiêm trọng" },
-];
+/** Mức độ sự cố (dựng từ `m` — client không import catalog, D-098). */
+function severities(m: Messages<"incident_form.">) {
+  return [
+    { value: "low", label: tm(m, "incident_form.severity.low") },
+    { value: "medium", label: tm(m, "incident_form.severity.medium") },
+    { value: "high", label: tm(m, "incident_form.severity.high") },
+    { value: "critical", label: tm(m, "incident_form.severity.critical") },
+  ];
+}
 
-export function IncidentForm({ rooms }: { rooms: IncidentRoom[] }) {
+export function IncidentForm({ rooms, m }: { rooms: IncidentRoom[]; m: Messages<"incident_form."> }) {
   const router = useRouter();
   const cmd = useCommand("maintenance/createWorkOrder");
   const photos = usePhotoUpload("/dang-nhap");
@@ -37,12 +42,12 @@ export function IncidentForm({ rooms }: { rooms: IncidentRoom[] }) {
     const description = String(f.get("description") ?? "").trim();
     const unit = rooms.find((r) => r.unitId === String(f.get("unit_id") ?? "")) ?? rooms[0];
     const errs: Record<string, string> = {};
-    if (!title) errs.title = "Bắt buộc nhập";
-    if (title.length > 200) errs.title = "Tối đa 200 ký tự";
-    if (!description) errs.description = "Bắt buộc nhập";
-    if (description.length > 2000) errs.description = "Tối đa 2.000 ký tự";
+    if (!title) errs.title = tm(m, "incident_form.error.required");
+    if (title.length > 200) errs.title = tm(m, "incident_form.error.title_max");
+    if (!description) errs.description = tm(m, "incident_form.error.required");
+    if (description.length > 2000) errs.description = tm(m, "incident_form.error.description_max");
     const files = f.getAll("photo").filter((x): x is File => x instanceof File && x.size > 0);
-    if (files.length > MAX_PHOTOS) errs.photo = `Tối đa ${MAX_PHOTOS} ảnh mỗi phiếu.`;
+    if (files.length > MAX_PHOTOS) errs.photo = tm(m, "incident_form.error.photo_max", { max: MAX_PHOTOS });
     setErrors(errs);
     photos.setError(null);
     if (Object.keys(errs).length > 0 || !unit) return;
@@ -82,12 +87,18 @@ export function IncidentForm({ rooms }: { rooms: IncidentRoom[] }) {
       <fieldset className="command-form__fields" disabled={cmd.locked || photos.uploading}>
         <SelectField
           name="unit_id"
-          label="Phòng"
+          label={tm(m, "incident_form.field.unit")}
           options={rooms.map((r) => ({ value: r.unitId, label: r.label }))}
         />
-        <TextField name="title" label="Sự cố" required maxLength={200} error={fieldError("title")} />
+        <TextField
+          name="title"
+          label={tm(m, "incident_form.field.title")}
+          required
+          maxLength={200}
+          error={fieldError("title")}
+        />
         <div className="field">
-          <label htmlFor="description">Mô tả</label>
+          <label htmlFor="description">{tm(m, "incident_form.field.description")}</label>
           <textarea
             id="description"
             name="description"
@@ -103,11 +114,16 @@ export function IncidentForm({ rooms }: { rooms: IncidentRoom[] }) {
             </span>
           ) : null}
         </div>
-        <SelectField name="severity" label="Mức độ" options={SEVERITIES} defaultValue="medium" />
+        <SelectField
+          name="severity"
+          label={tm(m, "incident_form.field.severity")}
+          options={severities(m)}
+          defaultValue="medium"
+        />
         <div className="field">
-          <label htmlFor="photo">Ảnh (tuỳ chọn, tối đa {MAX_PHOTOS})</label>
+          <label htmlFor="photo">{tm(m, "incident_form.photo.label", { max: MAX_PHOTOS })}</label>
           <span id="photo-hint" className="field__hint">
-            Chụp trực tiếp hoặc chọn ảnh JPEG, PNG, WebP, tối đa 10 MB mỗi ảnh.
+            {tm(m, "incident_form.photo.hint")}
           </span>
           <input
             id="photo"
@@ -126,11 +142,11 @@ export function IncidentForm({ rooms }: { rooms: IncidentRoom[] }) {
         </div>
       </fieldset>
       <Button type="submit" loading={cmd.busy || photos.uploading} disabled={cmd.locked || photos.uploading}>
-        Gửi báo sự cố
+        {tm(m, "incident_form.submit")}
       </Button>
       {photos.uploading ? (
         <p className="command-form__status" role="status">
-          Đang kiểm tra ảnh…
+          {tm(m, "incident_form.photo.checking")}
         </p>
       ) : null}
       <CommandStatus
@@ -138,7 +154,7 @@ export function IncidentForm({ rooms }: { rooms: IncidentRoom[] }) {
         commandId={cmd.commandId}
         problem={cmd.problem}
         general={general}
-        successText="Đã ghi nhận sự cố — trạng thái: Mới báo."
+        successText={tm(m, "incident_form.success")}
         onResend={() => void cmd.resend().then((r) => r !== null && router.refresh())}
         onRecheck={() => void cmd.recheck().then((r) => r !== null && router.refresh())}
       />
