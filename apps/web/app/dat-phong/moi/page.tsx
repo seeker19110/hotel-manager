@@ -46,7 +46,7 @@ export default async function NewBookingPage({
           arrival,
           departure: addDays(arrival, 1),
         }}
-        m={messagesFor("booking.quote.")}
+        m={messagesFor("booking.quote.", "booking.form.")}
       />
     );
   });

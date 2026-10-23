@@ -41,7 +41,7 @@ export function BookingForm({
 }: {
   rooms: BookableRoom[];
   defaults: { unitId: string; arrival: string; departure: string };
-  m: Messages<"booking.quote.">;
+  m: Messages<"booking.quote." | "booking.form.">;
 }) {
   const router = useRouter();
   const create = useCommand<{ reservationId: string }>("reservation/create");
@@ -64,8 +64,8 @@ export function BookingForm({
   async function getQuote() {
     setQuoteError(null);
     setQuote(null);
-    if (!/^\d+$/.test(guests) || Number(guests) < 1) return setQuoteError("Số khách phải là số nguyên ≥ 1.");
-    if (!arrival || !departure) return setQuoteError("Chọn ngày đến và ngày đi.");
+    if (!/^\d+$/.test(guests) || Number(guests) < 1) return setQuoteError(tm(m, "booking.form.error.guests"));
+    if (!arrival || !departure) return setQuoteError(tm(m, "booking.form.error.dates"));
     setQuoting(true);
     try {
       const qs = new URLSearchParams({
@@ -89,10 +89,10 @@ export function BookingForm({
         title?: string;
       } | null;
       if (!res.ok || !j?.data)
-        setQuoteError(firstNonEmpty(j?.detail, j?.title) ?? "Không báo giá được. Vui lòng thử lại.");
+        setQuoteError(firstNonEmpty(j?.detail, j?.title) ?? tm(m, "booking.form.error.quote_failed"));
       else setQuote(j.data);
     } catch {
-      setQuoteError("Không có kết nối mạng. Chưa báo giá được.");
+      setQuoteError(tm(m, "booking.form.error.offline"));
     } finally {
       setQuoting(false);
     }
@@ -110,8 +110,8 @@ export function BookingForm({
     const phone = String(f.get("phone") ?? "").trim();
     const email = String(f.get("email") ?? "").trim();
     const errs: Record<string, string> = {};
-    if (!full_name) errs.full_name = "Bắt buộc nhập";
-    if (!/^\+?[0-9 .()-]{6,20}$/.test(phone)) errs.phone = "Số điện thoại 6–20 chữ số";
+    if (!full_name) errs.full_name = tm(m, "booking.form.error.required");
+    if (!/^\+?[0-9 .()-]{6,20}$/.test(phone)) errs.phone = tm(m, "booking.form.error.phone");
     setErrors(errs);
     if (Object.keys(errs).length > 0) return;
     let id = draftId;
@@ -145,7 +145,7 @@ export function BookingForm({
   return (
     <div className="panel">
       <section aria-labelledby="b1">
-        <h2 id="b1">1. Báo giá</h2>
+        <h2 id="b1">{tm(m, "booking.form.step1.heading")}</h2>
         <form
           noValidate
           className="command-form"
@@ -157,7 +157,7 @@ export function BookingForm({
           <fieldset className="command-form__fields" disabled={locked || draftId !== null}>
             <SelectField
               name="unit_id"
-              label="Phòng"
+              label={tm(m, "booking.form.field.unit")}
               options={rooms.map((r) => ({ value: r.unitId, label: r.label }))}
               value={unitId}
               onChange={(e) => {
@@ -167,7 +167,7 @@ export function BookingForm({
             />
             <TextField
               name="arrival_date"
-              label="Ngày đến"
+              label={tm(m, "booking.form.field.arrival")}
               type="date"
               value={arrival}
               onChange={(e) => {
@@ -177,7 +177,7 @@ export function BookingForm({
             />
             <TextField
               name="departure_date"
-              label="Ngày đi"
+              label={tm(m, "booking.form.field.departure")}
               type="date"
               value={departure}
               onChange={(e) => {
@@ -187,7 +187,7 @@ export function BookingForm({
             />
             <TextField
               name="guests"
-              label="Số khách"
+              label={tm(m, "booking.form.field.guests")}
               inputMode="numeric"
               value={guests}
               onChange={(e) => {
@@ -197,7 +197,7 @@ export function BookingForm({
             />
           </fieldset>
           <Button type="submit" variant="secondary" loading={quoting} disabled={locked || draftId !== null}>
-            Báo giá
+            {tm(m, "booking.form.quote.submit")}
           </Button>
           {quoteError ? (
             <p className="field__error" role="alert">
@@ -214,8 +214,8 @@ export function BookingForm({
               </caption>
               <thead>
                 <tr>
-                  <th scope="col">Đêm</th>
-                  <th scope="col">Giá</th>
+                  <th scope="col">{tm(m, "booking.form.quote.col_night")}</th>
+                  <th scope="col">{tm(m, "booking.form.quote.col_price")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -227,44 +227,46 @@ export function BookingForm({
                 ))}
               </tbody>
             </table>
-            <p className="card__meta">
-              Giữ phòng có thời hạn; hết hạn mà chưa xác nhận thì phòng được nhả. Điều kiện huỷ theo chính
-              sách cơ sở.
-            </p>
+            <p className="card__meta">{tm(m, "booking.form.quote.policy")}</p>
           </div>
         ) : null}
       </section>
 
       {quote ? (
         <section aria-labelledby="b2">
-          <h2 id="b2">2. Người đặt và giữ phòng</h2>
+          <h2 id="b2">{tm(m, "booking.form.step2.heading")}</h2>
           <form onSubmit={onSubmit} noValidate className="command-form" data-testid="booking-form">
             <fieldset className="command-form__fields" disabled={locked || draftId !== null}>
               <TextField
                 name="full_name"
-                label="Họ tên người đặt"
+                label={tm(m, "booking.form.booker.name")}
                 required
                 error={errors.full_name}
                 maxLength={200}
               />
               <TextField
                 name="phone"
-                label="Số điện thoại"
+                label={tm(m, "booking.form.booker.phone")}
                 type="tel"
                 inputMode="tel"
                 required
                 error={errors.phone}
                 maxLength={20}
               />
-              <TextField name="email" label="Email (tuỳ chọn)" type="email" maxLength={320} />
+              <TextField
+                name="email"
+                label={tm(m, "booking.form.booker.email")}
+                type="email"
+                maxLength={320}
+              />
             </fieldset>
             {draftId === null ? (
               <Button type="submit" loading={create.busy || hold.busy} disabled={locked}>
-                Tạo và giữ phòng
+                {tm(m, "booking.form.submit.create")}
               </Button>
             ) : (
               <Button type="submit" loading={hold.busy} disabled={hold.locked}>
-                Giữ phòng lại
+                {tm(m, "booking.form.submit.rehold")}
               </Button>
             )}
             <CommandStatus
@@ -272,7 +274,7 @@ export function BookingForm({
               commandId={create.commandId}
               problem={create.problem}
               general={general(create)}
-              successText="Đã tạo đặt phòng."
+              successText={tm(m, "booking.form.create.success")}
               onResend={() => void create.resend().then(createRecovered)}
               onRecheck={() => void create.recheck().then(createRecovered)}
             />
@@ -281,7 +283,7 @@ export function BookingForm({
               commandId={hold.commandId}
               problem={hold.problem}
               general={general(hold)}
-              successText="Đã giữ phòng — đang mở đặt phòng."
+              successText={tm(m, "booking.form.hold.success")}
               onResend={() =>
                 void hold.resend().then((h) => h && draftId && router.push(`/dat-phong/${draftId}`))
               }
@@ -291,9 +293,9 @@ export function BookingForm({
             />
             {draftId && hold.phase === "error" ? (
               <p>
-                Đặt phòng nháp đã được tạo.{" "}
+                {tm(m, "booking.form.draft.note")}{" "}
                 <a className="btn btn--secondary" href={`/dat-phong/${draftId}`}>
-                  Mở đặt phòng nháp
+                  {tm(m, "booking.form.draft.open")}
                 </a>
               </p>
             ) : null}

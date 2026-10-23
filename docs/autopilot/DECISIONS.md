@@ -711,3 +711,10 @@
 - Chọn: Client không import catalog: server page truyền messagesFor(namespace) qua prop, client dùng tm(m, key, params) từ module định dạng thuần (type-only import); i18n-check kiểm tm() như t(); áp cho cả 4 client component
 - Lý do (tiêu chí chất lượng cuối): (1) không nới cổng (LOOP-CI-001); (3) bền: catalog lớn dần tới ~2000 khoá thì mọi cách bundle catalog vào client đều vượt — chỉ server dịch mới co giãn được; giữ kiểm khoá/tham số bằng i18n-check
 - Đường lùi: Revert commit sửa; quay lại import t() ở client
+
+### D-099 · 2026-10-23T06:01:30+00:00 · Duyệt PLAN đợt 19 (i18n 9 tệp ngoài merge_risk_paths, ~179 chuỗi, theo nhịp D-097)?
+
+- Phương án: (1) Duyệt 3 task như viết · (2) Dừng, chờ người
+- Chọn: Duyệt 3 task như viết
+- Lý do (tiêu chí chất lượng cuối): (3)(4) XC-I18N-001 là việc máy duy nhất; lô nhỏ ngoài merge_risk_paths theo D-097; ràng buộc bundle D-098 có rào máy
+- Đường lùi: Revert PR đợt 19

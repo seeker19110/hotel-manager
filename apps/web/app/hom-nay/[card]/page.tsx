@@ -4,19 +4,20 @@ import { notFound } from "next/navigation";
 import { Icon } from "../../../components/ui/icon.tsx";
 import { EmptyState, ErrorState } from "../../../components/ui/state.tsx";
 import { CARD_LABEL, vnd } from "../../../lib/format.ts";
+import { t } from "../../../lib/i18n.ts";
 import { withActor } from "../../../lib/page.tsx";
 import { safe } from "../../../lib/safe.ts";
 
-export const metadata: Metadata = { title: "Danh sách trong ngày — Hotel Manager" };
+export const metadata: Metadata = { title: t("today_list.metadata.title") };
 
 const TITLE: Record<TodayCard, string> = {
-  arrivals: "Khách đến hôm nay",
-  departures: "Khách đi hôm nay",
-  receivables: "Nợ đến hạn/quá hạn",
-  periodsReviewing: "Kỳ thu cần duyệt",
-  dirtyUnits: "Phòng cần dọn",
-  workOrders: "Sự cố",
-  residenceNotices: "Thông báo lưu trú sắp/quá hạn",
+  arrivals: t("today_list.title.arrivals"),
+  departures: t("today_list.title.departures"),
+  receivables: t("today_list.title.receivables"),
+  periodsReviewing: t("today_list.title.periods_reviewing"),
+  dirtyUnits: t("today_list.title.dirty_units"),
+  workOrders: t("today_list.title.work_orders"),
+  residenceNotices: t("today_list.title.residence_notices"),
 };
 
 /** Dòng của thẻ dẫn tới màn xử lý tương ứng. */
@@ -58,11 +59,11 @@ export default async function TodayListPage({
       if (r.status === 404) notFound();
       return (
         <ErrorState
-          title="Không xem được danh sách"
-          text={r.status === 403 ? "Vai trò của bạn không có thẻ này." : r.message}
+          title={t("today_list.error.load")}
+          text={r.status === 403 ? t("today_list.error.forbidden") : r.message}
           action={
             <a className="btn" href="/">
-              Về Hôm nay
+              {t("today_list.back")}
             </a>
           }
         />
@@ -72,11 +73,11 @@ export default async function TodayListPage({
       <>
         <p>
           <a className="btn btn--secondary" href={propertyId ? `/?property_id=${propertyId}` : "/"}>
-            Về Hôm nay
+            {t("today_list.back")}
           </a>
         </p>
         {r.data.length === 0 ? (
-          <EmptyState title="Không có việc" text="Không có dòng nào trong mục này hôm nay." />
+          <EmptyState title={t("today_list.empty.title")} text={t("today_list.empty.text")} />
         ) : (
           <ul className="card-list">
             {r.data.map((i) => (
@@ -84,10 +85,14 @@ export default async function TodayListPage({
                 <a href={hrefOf(key, i.id)} className="card__link">
                   <span className="card__title">{i.title}</span>
                   {i.subtitle ? <span className="card__meta">{i.subtitle}</span> : null}
-                  {i.amount !== undefined ? <span className="card__meta">Còn {vnd(i.amount)}</span> : null}
+                  {i.amount !== undefined ? (
+                    <span className="card__meta">
+                      {t("today_list.item.remaining", { amount: vnd(i.amount) })}
+                    </span>
+                  ) : null}
                   {i.overdue ? (
                     <span className="badge" data-status="overdue">
-                      <Icon name="warning" /> Quá hạn
+                      <Icon name="warning" /> {t("today_list.item.overdue")}
                     </span>
                   ) : null}
                 </a>
