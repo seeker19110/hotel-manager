@@ -11,6 +11,7 @@ import {
   nonSquashSubjects,
   rulesetProblems,
   sbomCoverage,
+  tagRulesetProblems,
 } from "./check-github-live.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
@@ -97,6 +98,40 @@ describe("bypassProblems", () => {
     expect(bypassProblems([{ name: "main", target: "branch", enforcement: "active" }])).toEqual([
       'ruleset "main": không đọc được bypass_actors (token thiếu quyền quản trị?)',
     ]);
+  });
+});
+
+describe("tagRulesetProblems — ruleset tag đang áp so với .github/rulesets/tags.json", () => {
+  const tagCode = JSON.parse(readFileSync(join(ROOT, ".github/rulesets/tags.json"), "utf8"));
+  const live = (over = {}) => ({ ...tagCode, bypass_actors: [], ...over });
+
+  it("đúng như bản code ⇒ không lỗi", () => {
+    expect(tagRulesetProblems([live()], tagCode)).toEqual([]);
+  });
+  it("không có ruleset tag, hoặc chỉ có ruleset nhánh/đang tắt ⇒ lỗi", () => {
+    expect(tagRulesetProblems([], tagCode)).toHaveLength(1);
+    expect(tagRulesetProblems([live({ target: "branch" })], tagCode)).toHaveLength(1);
+    expect(tagRulesetProblems([live({ enforcement: "evaluate" })], tagCode)).toHaveLength(1);
+  });
+  it("phủ mẫu ref khác (không gồm refs/tags/v*) ⇒ lỗi", () => {
+    expect(
+      tagRulesetProblems(
+        [live({ conditions: { ref_name: { include: ["refs/tags/release-*"], exclude: [] } } })],
+        tagCode,
+      ),
+    ).toHaveLength(1);
+  });
+  it("thiếu rule update (dời tag được) ⇒ lỗi nêu tên rule", () => {
+    const rules = tagCode.rules.filter((r) => r.type !== "update");
+    expect(tagRulesetProblems([live({ rules })], tagCode)).toEqual(["ruleset tag thiếu rule update"]);
+  });
+  it("có bypass hoặc không đọc được bypass_actors ⇒ lỗi", () => {
+    expect(tagRulesetProblems([live({ bypass_actors: [{ actor_id: 5 }] })], tagCode)[0]).toMatch(
+      /có bypass_actors/,
+    );
+    const noField = { ...tagCode };
+    delete noField.bypass_actors;
+    expect(tagRulesetProblems([noField], tagCode)[0]).toMatch(/không đọc được bypass_actors/);
   });
 });
 

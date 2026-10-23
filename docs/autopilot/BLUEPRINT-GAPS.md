@@ -9,6 +9,10 @@
 > `PM-SPEC-004` và `WF-SDD-003` (nền spec-coverage còn 26 S-NNN). **Tick kèm lưu ý để phiên chính xác nhận:** `DB-MODEL-004` (52 FK nhóm A thiếu index là ngoại lệ có lý do — D-035),
 > `UX-STATE-001` (không Storybook; loading bị D-032 miễn ở trang có route con động/notFound/redirect), `DB-PERF-001` (EXPLAIN không ANALYZE), `XC-GREEN-007` (còn `notifications`/`inbox`/`worker_heartbeats` chưa có job dọn, chờ DPIA).
 
+## WF-REL-003 (2026-10-23)
+
+Chủ dự án import `.github/rulesets/tags.json`. Thêm `node scripts/check-github-live.mjs tag-ruleset` (ruleset tag active phủ `refs/tags/v*`, đủ rule deletion/non_fast_forward/update, không bypass; test `scripts/check-github-live.test.mjs`) → đạt; `release v0.2.0` → đạt ⇒ tick WF-REL-003. MUST mở **90**. Tag mồ côi `v2.0.0` vẫn còn (ruleset nay chặn xoá).
+
 ## Tick lại 8 mục D-095 (2026-10-23)
 
 Chủ dự án import `.github/rulesets/main.json` (bản D-091: 28 required check, strict). `node scripts/check-github-live.mjs ruleset` → đạt; lệnh Kiểm của BASE-REPO-008, BASE-REPO-013, WF-REVIEW-001, WF-REVIEW-005, WF-GIT-001, WF-GIT-002, QA-E2E-001, QA-STRAT-002 đều exit 0 ⇒ tick lại. MUST mở **91**.

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Lệnh "Kiểm:" của các mục blueprint cần trạng thái THẬT trên GitHub (không phải lời khai trong repo): ruleset nhánh mặc
-// định khớp `.github/rulesets/main.json`, lịch sử nhánh chính chỉ gồm squash PR, tag SemVer, Release mới nhất có SBOM đủ
+// định khớp `.github/rulesets/main.json`, ruleset tag `v*` khớp `tags.json`, lịch sử nhánh chính chỉ gồm squash PR, tag SemVer, Release mới nhất có SBOM đủ
 // license + SHA256SUMS khớp. Đọc qua `gh api` (REST; GraphQL bị chặn ở phiên agent). Hàm thuần export để test.
-// Dùng: node scripts/check-github-live.mjs ruleset | squash-history | tags | release [<tag>]
+// Dùng: node scripts/check-github-live.mjs ruleset | tag-ruleset | squash-history | tags | release [<tag>]
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -65,6 +65,33 @@ export function bypassProblems(rulesets) {
 }
 
 /**
+ * Ruleset tag đang áp so với `.github/rulesets/tags.json` (WF-REL-003): phải có ruleset target=tag, active, phủ mọi mẫu ref
+ * của bản code, đủ mọi loại rule của bản code (cấm xoá/dời/force-push tag) và không ai được bypass. Thiếu `bypass_actors`
+ * (token không có quyền quản trị) ⇒ lỗi, không coi là rỗng.
+ */
+export function tagRulesetProblems(rulesets, codeRuleset) {
+  const want = codeRuleset.conditions?.ref_name?.include ?? [];
+  const wantRules = (codeRuleset.rules ?? []).map((r) => r.type);
+  const live = rulesets.filter(
+    (r) =>
+      r.target === "tag" &&
+      r.enforcement === "active" &&
+      want.every((ref) => (r.conditions?.ref_name?.include ?? []).includes(ref)),
+  );
+  if (!live.length) return [`không có ruleset tag active phủ ${want.join(", ")} như tags.json`];
+  const out = [];
+  const types = new Set(live.flatMap((r) => (r.rules ?? []).map((x) => x.type)));
+  for (const t of wantRules) if (!types.has(t)) out.push(`ruleset tag thiếu rule ${t}`);
+  for (const r of live) {
+    if (!Array.isArray(r.bypass_actors))
+      out.push(`ruleset "${r.name}": không đọc được bypass_actors (token thiếu quyền quản trị?)`);
+    else if (r.bypass_actors.length > 0)
+      out.push(`ruleset "${r.name}" có bypass_actors (${r.bypass_actors.length})`);
+  }
+  return out;
+}
+
+/**
  * Dòng `git log --first-parent --format=%s` không phải squash PR "… (#N)". Chỉ nhìn tiêu đề: commit đẩy thẳng mang hậu tố
  * giả vẫn lọt — lớp chặn thật là rule `pull_request` của ruleset (kiểm bằng `ruleset`).
  */
@@ -120,6 +147,12 @@ function checkRuleset() {
   return [...rulesetProblems(live, code), ...bypassProblems(sets)];
 }
 
+function checkTagRuleset() {
+  const code = JSON.parse(readFileSync(join(ROOT, ".github/rulesets/tags.json"), "utf8"));
+  const sets = ghJson(`repos/${REPO}/rulesets`).map((r) => ghJson(`repos/${REPO}/rulesets/${r.id}`));
+  return tagRulesetProblems(sets, code);
+}
+
 function checkSquashHistory() {
   const repo = ghJson(`repos/${REPO}`);
   const log = execFileSync("git", ["log", "--first-parent", "--format=%s", `origin/${repo.default_branch}`], {
@@ -165,11 +198,12 @@ if (isMain(import.meta.url)) {
     ruleset: checkRuleset,
     "squash-history": checkSquashHistory,
     tags: checkTags,
+    "tag-ruleset": checkTagRuleset,
     release: checkRelease,
   }[cmd];
   if (!run) {
     console.error(
-      "Dùng: node scripts/check-github-live.mjs ruleset | squash-history | tags | release [<tag>]",
+      "Dùng: node scripts/check-github-live.mjs ruleset | tag-ruleset | squash-history | tags | release [<tag>]",
     );
     process.exit(2);
   }
