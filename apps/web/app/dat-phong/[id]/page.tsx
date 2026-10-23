@@ -161,6 +161,7 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
               fixed={{ reservation_id: id }}
               submitLabel={t("reservation.checkin.submit")}
               successText={t("reservation.checkin.success")}
+              m={messagesFor("guests_form.")}
             />
           </section>
         ) : null}

@@ -8,7 +8,7 @@ import { t } from "../../lib/i18n.ts";
 import { withActor } from "../../lib/page.tsx";
 import { safe } from "../../lib/safe.ts";
 
-export const metadata: Metadata = { title: "Đặt phòng — Hotel Manager" };
+export const metadata: Metadata = { title: t("booking.list.metadata.title") };
 
 const MANAGE = ["owner", "manager", "front_desk"];
 
@@ -18,13 +18,13 @@ export default async function BookingsPage({
   searchParams: Promise<{ property_id?: string }>;
 }) {
   const q = await searchParams;
-  return withActor("Đặt phòng", "/dat-phong", async (actor) => {
+  return withActor(t("booking.list.page.title"), "/dat-phong", async (actor) => {
     const db = serverContext().db;
     const props = await safe(opsProperties(db, actor));
-    if (!props.ok) return <ErrorState title="Không xem được đặt phòng" text={props.message} />;
+    if (!props.ok) return <ErrorState title={t("booking.list.error.load")} text={props.message} />;
     const hotels = props.data.filter((p) => p.template !== "rental");
     const property = hotels.find((p) => p.id === q.property_id) ?? hotels[0];
-    if (!property) return <EmptyState title="Chưa có cơ sở khách sạn" />;
+    if (!property) return <EmptyState title={t("calendar.empty.no_hotel.title")} />;
     const from = addDays(property.businessDate, -7);
     const [rooms, list] = await Promise.all([
       listRooms(db, actor),
@@ -39,12 +39,8 @@ export default async function BookingsPage({
     if (!list.ok)
       return (
         <ErrorState
-          title="Không xem được đặt phòng"
-          text={
-            list.status === 403 || list.status === 404
-              ? "Vai trò của bạn không xem được đặt phòng."
-              : list.message
-          }
+          title={t("booking.list.error.load")}
+          text={list.status === 403 || list.status === 404 ? t("booking.list.error.forbidden") : list.message}
         />
       );
     const code = new Map(
@@ -53,7 +49,7 @@ export default async function BookingsPage({
     return (
       <>
         {hotels.length > 1 ? (
-          <nav aria-label="Chọn cơ sở" className="pager">
+          <nav aria-label={t("calendar.nav.property")} className="pager">
             {hotels.map((p) => (
               <a
                 key={p.id}
@@ -69,19 +65,16 @@ export default async function BookingsPage({
         {MANAGE.includes(actor.role) ? (
           <p className="pager">
             <a className="btn" href={`/dat-phong/moi?property_id=${property.id}`}>
-              Đặt phòng mới
+              {t("home.action.new_booking")}
             </a>
             <a className="btn btn--secondary" href={`/luu-tru/moi?property_id=${property.id}`}>
-              Khách vãng lai
+              {t("home.action.walk_in")}
             </a>
           </p>
         ) : null}
         <TruncatedNotice shown={list.data.length} limit={RESERVATION_LIST_LIMIT} />
         {list.data.length === 0 ? (
-          <EmptyState
-            title="Chưa có đặt phòng"
-            text="Đặt phòng trong 7 ngày qua và 90 ngày tới sẽ hiện ở đây."
-          />
+          <EmptyState title={t("booking.list.empty.title")} text={t("booking.list.empty.text")} />
         ) : (
           <ul className="card-list">
             {list.data.map((b) => (

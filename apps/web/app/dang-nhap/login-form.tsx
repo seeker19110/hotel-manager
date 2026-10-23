@@ -5,6 +5,8 @@ import { useOnline } from "../../components/pwa/pwa-shell.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { TextField } from "../../components/ui/field.tsx";
 import { timedFetch } from "../../lib/fetch-timeout.ts";
+import type { Messages } from "../../lib/i18n.ts";
+import { tm } from "../../lib/i18n-format.ts";
 
 type Step = "password" | "totp";
 
@@ -22,16 +24,26 @@ async function post(
   return { ok: res.ok, status: res.status, data };
 }
 
-function messageFor(status: number, data: Record<string, unknown>): string {
+function messageFor(
+  m: Messages<"login_form." | "auth_form.">,
+  status: number,
+  data: Record<string, unknown>,
+): string {
   if (data.code === "ACCOUNT_LOCKED" || status === 429) {
-    return "Tài khoản tạm khoá do đăng nhập sai nhiều lần. Thử lại sau 15 phút.";
+    return tm(m, "login_form.error.locked");
   }
-  if (status === 401 || status === 400) return "Email hoặc mật khẩu không đúng.";
-  return "Không đăng nhập được. Vui lòng thử lại.";
+  if (status === 401 || status === 400) return tm(m, "login_form.error.credentials");
+  return tm(m, "login_form.error.generic");
 }
 
 /** `onSuccess`: đăng nhập lại ngay trên trang (hộp đăng nhập lại, S-013) — không chuyển sang /chon-to-chuc. */
-export function LoginForm({ onSuccess }: { onSuccess?: () => void } = {}) {
+export function LoginForm({
+  onSuccess,
+  m,
+}: {
+  onSuccess?: () => void;
+  m: Messages<"login_form." | "auth_form.">;
+}) {
   const online = useOnline();
   const [step, setStep] = useState<Step>("password");
   const [busy, setBusy] = useState(false);
@@ -40,7 +52,7 @@ export function LoginForm({ onSuccess }: { onSuccess?: () => void } = {}) {
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!online) {
-      setError("Không có kết nối mạng. Thao tác chưa được gửi.");
+      setError(tm(m, "auth_form.offline"));
       return;
     }
     const form = new FormData(e.currentTarget);
@@ -52,16 +64,16 @@ export function LoginForm({ onSuccess }: { onSuccess?: () => void } = {}) {
           email: String(form.get("email") ?? ""),
           password: String(form.get("password") ?? ""),
         });
-        if (!r.ok) return setError(messageFor(r.status, r.data));
+        if (!r.ok) return setError(messageFor(m, r.status, r.data));
         if (r.data.twoFactorRedirect) return setStep("totp");
       } else {
         const r = await post("/api/auth/two-factor/verify-totp", { code: String(form.get("code") ?? "") });
-        if (!r.ok) return setError("Mã xác thực không đúng hoặc đã hết hạn.");
+        if (!r.ok) return setError(tm(m, "auth_form.totp.invalid"));
       }
       if (onSuccess) onSuccess();
       else window.location.assign("/chon-to-chuc");
     } catch {
-      setError("Chưa nhận được phản hồi. Kiểm tra mạng rồi thử lại.");
+      setError(tm(m, "auth_form.no_response"));
     } finally {
       setBusy(false);
     }
@@ -71,9 +83,15 @@ export function LoginForm({ onSuccess }: { onSuccess?: () => void } = {}) {
     <form onSubmit={onSubmit} noValidate>
       {step === "password" ? (
         <>
-          <TextField label="Email" name="email" type="email" autoComplete="username" required />
           <TextField
-            label="Mật khẩu"
+            label={tm(m, "auth_form.field.email")}
+            name="email"
+            type="email"
+            autoComplete="username"
+            required
+          />
+          <TextField
+            label={tm(m, "login_form.field.password")}
             name="password"
             type="password"
             autoComplete="current-password"
@@ -83,8 +101,8 @@ export function LoginForm({ onSuccess }: { onSuccess?: () => void } = {}) {
         </>
       ) : (
         <TextField
-          label="Mã xác thực 6 số"
-          hint="Mở ứng dụng xác thực trên điện thoại để lấy mã."
+          label={tm(m, "auth_form.totp.label")}
+          hint={tm(m, "login_form.totp.hint")}
           name="code"
           inputMode="numeric"
           autoComplete="one-time-code"
@@ -94,7 +112,7 @@ export function LoginForm({ onSuccess }: { onSuccess?: () => void } = {}) {
         />
       )}
       <Button type="submit" loading={busy}>
-        {step === "password" ? "Đăng nhập" : "Xác nhận"}
+        {step === "password" ? tm(m, "login_form.submit.signin") : tm(m, "login_form.submit.verify")}
       </Button>
     </form>
   );

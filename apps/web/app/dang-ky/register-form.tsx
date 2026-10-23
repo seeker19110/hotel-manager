@@ -6,6 +6,8 @@ import { useOnline } from "../../components/pwa/pwa-shell.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { TextField } from "../../components/ui/field.tsx";
 import { timedFetch } from "../../lib/fetch-timeout.ts";
+import type { Messages } from "../../lib/i18n.ts";
+import { tm } from "../../lib/i18n-format.ts";
 
 async function post(path: string, body: unknown) {
   const res = await timedFetch(path, {
@@ -21,20 +23,20 @@ async function post(path: string, body: unknown) {
   };
 }
 
-export function RegisterForm() {
+export function RegisterForm({ m }: { m: Messages<"register_form." | "auth_form."> }) {
   const online = useOnline();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | undefined>();
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!online) return setError("Không có kết nối mạng. Thao tác chưa được gửi.");
+    if (!online) return setError(tm(m, "auth_form.offline"));
     const f = new FormData(e.currentTarget);
     const email = String(f.get("email") ?? "");
     const password = String(f.get("password") ?? "");
     const name = String(f.get("name") ?? "").trim();
-    if (!name) return setError("Bắt buộc nhập họ và tên.");
-    if (password.length < 10) return setError("Mật khẩu tối thiểu 10 ký tự.");
+    if (!name) return setError(tm(m, "register_form.error.name_required"));
+    if (password.length < 10) return setError(tm(m, "register_form.error.password_min"));
     setBusy(true);
     setError(undefined);
     try {
@@ -42,14 +44,14 @@ export function RegisterForm() {
       if (!r.ok)
         return setError(
           r.status === 429
-            ? "Bạn thử quá nhiều lần. Vui lòng đợi rồi thử lại."
-            : "Không tạo được tài khoản. Kiểm tra email và mật khẩu, hoặc đăng nhập nếu đã có tài khoản.",
+            ? tm(m, "register_form.error.too_many")
+            : tm(m, "register_form.error.create_failed"),
         );
       const s = await post("/api/auth/sign-in/email", { email, password });
-      if (!s.ok) return setError("Đã tạo tài khoản nhưng chưa đăng nhập được. Hãy đăng nhập.");
+      if (!s.ok) return setError(tm(m, "register_form.error.signin_failed"));
       window.location.assign("/chon-to-chuc");
     } catch {
-      setError("Chưa nhận được phản hồi. Kiểm tra mạng rồi thử lại.");
+      setError(tm(m, "auth_form.no_response"));
     } finally {
       setBusy(false);
     }
@@ -57,19 +59,31 @@ export function RegisterForm() {
 
   return (
     <form onSubmit={onSubmit} noValidate>
-      <TextField label="Họ và tên" name="name" autoComplete="name" required maxLength={200} />
-      <TextField label="Email" name="email" type="email" autoComplete="username" required />
       <TextField
-        label="Mật khẩu"
+        label={tm(m, "register_form.field.name")}
+        name="name"
+        autoComplete="name"
+        required
+        maxLength={200}
+      />
+      <TextField
+        label={tm(m, "auth_form.field.email")}
+        name="email"
+        type="email"
+        autoComplete="username"
+        required
+      />
+      <TextField
+        label={tm(m, "register_form.field.password")}
         name="password"
         type="password"
         autoComplete="new-password"
-        hint="Tối thiểu 10 ký tự."
+        hint={tm(m, "register_form.field.password_hint")}
         required
         error={error}
       />
       <Button type="submit" loading={busy}>
-        Tạo tài khoản
+        {tm(m, "register_form.submit")}
       </Button>
     </form>
   );

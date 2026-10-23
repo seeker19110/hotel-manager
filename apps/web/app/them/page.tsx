@@ -4,6 +4,7 @@ import { LogoutButton } from "../../components/pwa/logout-button.tsx";
 import { MoreLinks } from "../../components/rental/app-nav.tsx";
 import { moreLinks } from "../../components/rental/nav-items.ts";
 import { EmptyState } from "../../components/ui/state.tsx";
+import { messagesFor } from "../../lib/i18n.ts";
 import { withActor } from "../../lib/page.tsx";
 
 export const metadata: Metadata = { title: "Thêm — Hotel Manager" };
@@ -20,7 +21,7 @@ export default async function MorePage() {
           <MoreLinks role={actor.role} kinds={kinds} />
         )}
       </section>
-      <InstallApp />
+      <InstallApp m={messagesFor("install_app.")} />
       <section aria-labelledby="tai-khoan" className="panel">
         <h2 id="tai-khoan">Tài khoản</h2>
         <LogoutButton />

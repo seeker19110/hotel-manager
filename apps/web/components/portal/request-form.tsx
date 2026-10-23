@@ -3,6 +3,8 @@
 // nguyên khi thử lại), rồi gửi `portal/createRequest` với file_ids — cùng cơ chế chống gửi đúp/mất mạng của mọi command.
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
+import type { Messages } from "../../lib/i18n.ts";
+import { tm } from "../../lib/i18n-format.ts";
 import { firstNonEmpty } from "../../lib/text.ts";
 import { ResultUnknown, shortCommandId } from "../command/command-status.tsx";
 import { problemText, useCommand } from "../command/use-command.ts";
@@ -16,7 +18,7 @@ export interface RentedUnit {
   unitCode: string;
 }
 
-export function RequestForm({ units }: { units: RentedUnit[] }) {
+export function RequestForm({ units, m }: { units: RentedUnit[]; m: Messages<"request_form."> }) {
   const router = useRouter();
   const cmd = useCommand("portal/createRequest");
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -32,10 +34,10 @@ export function RequestForm({ units }: { units: RentedUnit[] }) {
     const unit = units.find((u) => u.unitId === String(f.get("unit_id") ?? units[0]?.unitId)) ?? units[0];
     const photo = f.get("photo");
     const errs: Record<string, string> = {};
-    if (!title) errs.title = "Bắt buộc nhập";
-    if (title.length > 200) errs.title = "Tối đa 200 ký tự";
-    if (!description) errs.description = "Bắt buộc nhập";
-    if (description.length > 2000) errs.description = "Tối đa 2.000 ký tự";
+    if (!title) errs.title = tm(m, "request_form.error.required");
+    if (title.length > 200) errs.title = tm(m, "request_form.error.title_max");
+    if (!description) errs.description = tm(m, "request_form.error.required");
+    if (description.length > 2000) errs.description = tm(m, "request_form.error.description_max");
     setErrors(errs);
     photos.setError(null);
     if (Object.keys(errs).length > 0 || !unit) return;
@@ -74,19 +76,25 @@ export function RequestForm({ units }: { units: RentedUnit[] }) {
       <fieldset className="command-form__fields" disabled={cmd.locked || uploading}>
         {units.length > 1 ? (
           <div className="field">
-            <label htmlFor="unit_id">Phòng</label>
+            <label htmlFor="unit_id">{tm(m, "request_form.field.unit")}</label>
             <select id="unit_id" name="unit_id">
               {units.map((u) => (
                 <option key={u.unitId} value={u.unitId}>
-                  Phòng {u.unitCode}
+                  {tm(m, "request_form.option.unit", { unit: u.unitCode })}
                 </option>
               ))}
             </select>
           </div>
         ) : null}
-        <TextField name="title" label="Việc cần sửa" required maxLength={200} error={fieldError("title")} />
+        <TextField
+          name="title"
+          label={tm(m, "request_form.field.title")}
+          required
+          maxLength={200}
+          error={fieldError("title")}
+        />
         <div className="field">
-          <label htmlFor="description">Mô tả</label>
+          <label htmlFor="description">{tm(m, "request_form.field.description")}</label>
           <textarea
             id="description"
             name="description"
@@ -103,9 +111,9 @@ export function RequestForm({ units }: { units: RentedUnit[] }) {
           ) : null}
         </div>
         <div className="field">
-          <label htmlFor="photo">Ảnh (tuỳ chọn)</label>
+          <label htmlFor="photo">{tm(m, "request_form.photo.label")}</label>
           <span id="photo-hint" className="field__hint">
-            JPEG, PNG hoặc WebP, tối đa 10 MB.
+            {tm(m, "request_form.photo.hint")}
           </span>
           <input
             id="photo"
@@ -122,28 +130,27 @@ export function RequestForm({ units }: { units: RentedUnit[] }) {
         </div>
       </fieldset>
       <Button type="submit" loading={cmd.busy || uploading} disabled={cmd.locked || uploading}>
-        Gửi yêu cầu
+        {tm(m, "request_form.submit")}
       </Button>
       {cmd.phase === "checking" ? (
         <p className="command-form__status" role="status">
-          Đang kiểm tra kết quả…
+          {tm(m, "request_form.checking")}
           {cmd.commandId ? (
-            <span className="command-form__id"> (mã {shortCommandId(cmd.commandId)})</span>
+            <span className="command-form__id">
+              {tm(m, "request_form.checking_id", { id: shortCommandId(cmd.commandId) })}
+            </span>
           ) : null}
         </p>
       ) : null}
       {cmd.phase === "unknown" ? (
         <div className="banner banner--warn" role="alert">
-          <p>
-            Chưa rõ máy chủ đã nhận yêu cầu chưa. Bấm "Gửi lại" để gửi đúng yêu cầu này (không bị ghi hai
-            lần).
-          </p>
+          <p>{tm(m, "request_form.unknown")}</p>
           {cmd.problem ? <p>{problemText(cmd.problem)}</p> : null}
           <Button
             variant="secondary"
             onClick={() => void cmd.resend().then((r) => r !== null && router.refresh())}
           >
-            Gửi lại
+            {tm(m, "request_form.resend")}
           </Button>
         </div>
       ) : null}
@@ -160,12 +167,12 @@ export function RequestForm({ units }: { units: RentedUnit[] }) {
       ) : null}
       {cmd.problem?.code === "CONTEXT_CHANGED" ? (
         <Button variant="secondary" onClick={() => window.location.reload()}>
-          Tải lại trang
+          {tm(m, "request_form.reload")}
         </Button>
       ) : null}
       {cmd.phase === "done" ? (
         <p className="command-form__status command-form__status--ok" role="status">
-          Đã gửi yêu cầu — trạng thái: Đã tiếp nhận.
+          {tm(m, "request_form.success")}
         </p>
       ) : null}
     </form>

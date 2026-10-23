@@ -718,3 +718,10 @@
 - Chọn: Duyệt 3 task như viết
 - Lý do (tiêu chí chất lượng cuối): (3)(4) XC-I18N-001 là việc máy duy nhất; lô nhỏ ngoài merge_risk_paths theo D-097; ràng buộc bundle D-098 có rào máy
 - Đường lùi: Revert PR đợt 19
+
+### D-100 · 2026-10-23T08:39:18+00:00 · Duyệt PLAN đợt 20 (i18n 13 tệp ngoài merge_risk_paths ~173 chuỗi; hoãn lib/format.ts vì client import)?
+
+- Phương án: (1) Duyệt 3 task như viết · (2) Làm luôn format.ts
+- Chọn: Duyệt 3 task như viết
+- Lý do (tiêu chí chất lượng cuối): (1)(3) format.ts được client import — t() trong đó kéo catalog vào bundle (D-098), cần thiết kế tách nhãn riêng; lô 13 tệp còn lại cơ học, rào máy đủ
+- Đường lùi: Revert PR đợt 20

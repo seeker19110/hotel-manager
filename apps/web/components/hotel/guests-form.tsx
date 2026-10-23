@@ -4,16 +4,21 @@
 // Khách chính của booking có thể để trống họ tên = chính người đặt. Thành công → mở folio của lượt ở.
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
+import type { Messages } from "../../lib/i18n.ts";
+import { tm } from "../../lib/i18n-format.ts";
 import { CommandStatus } from "../command/command-status.tsx";
 import { problemText, useCommand } from "../command/use-command.ts";
 import { Button } from "../ui/button.tsx";
 import { SelectField, TextField } from "../ui/field.tsx";
 
-const DOC_TYPES = [
-  { value: "cccd", label: "CCCD" },
-  { value: "passport", label: "Hộ chiếu" },
-  { value: "other", label: "Giấy tờ khác" },
-];
+/** Loại giấy tờ (dựng từ `m` — client không import catalog, D-098). */
+function docTypes(m: Messages<"guests_form.">) {
+  return [
+    { value: "cccd", label: tm(m, "guests_form.doc.cccd") },
+    { value: "passport", label: tm(m, "guests_form.doc.passport") },
+    { value: "other", label: tm(m, "guests_form.doc.other") },
+  ];
+}
 const MAX_GUESTS = 50;
 
 export function GuestsForm({
@@ -23,6 +28,7 @@ export function GuestsForm({
   defaultDeparture,
   submitLabel,
   successText,
+  m,
 }: {
   path: "stay/checkIn" | "stay/walkIn";
   fixed: Record<string, unknown>;
@@ -31,6 +37,7 @@ export function GuestsForm({
   defaultDeparture?: string;
   submitLabel: string;
   successText: string;
+  m: Messages<"guests_form.">;
 }) {
   const router = useRouter();
   const cmd = useCommand<{ stayId: string }>(path);
@@ -50,21 +57,21 @@ export function GuestsForm({
     for (let i = 0; i < count; i++) {
       const v = (k: string) => String(f.get(`g${i}_${k}`) ?? "").trim();
       const g: Record<string, unknown> = { doc_type: v("doc_type"), doc_number: v("doc_number") };
-      if (v("doc_number").length < 5) errs[`g${i}_doc_number`] = "Số giấy tờ tối thiểu 5 ký tự";
+      if (v("doc_number").length < 5) errs[`g${i}_doc_number`] = tm(m, "guests_form.error.doc_number_min");
       if (v("full_name")) g.full_name = v("full_name");
-      else if (walkIn || i > 0) errs[`g${i}_full_name`] = "Bắt buộc nhập";
+      else if (walkIn || i > 0) errs[`g${i}_full_name`] = tm(m, "guests_form.error.required");
       if (v("phone")) g.phone = v("phone");
-      else if (i === 0 && walkIn) errs[`g${i}_phone`] = "Khách chính cần số điện thoại";
+      else if (i === 0 && walkIn) errs[`g${i}_phone`] = tm(m, "guests_form.error.phone_required");
       if (v("nationality")) g.nationality = v("nationality").toUpperCase();
       if (g.nationality && !/^[A-Z]{2}$/.test(String(g.nationality)))
-        errs[`g${i}_nationality`] = "Mã quốc gia 2 chữ cái, vd VN";
+        errs[`g${i}_nationality`] = tm(m, "guests_form.error.nationality");
       guests.push(g);
     }
     const body: Record<string, unknown> = { ...fixed, guests };
     if (walkIn) {
       body.unit_id = String(f.get("unit_id") ?? "");
       body.departure_date = String(f.get("departure_date") ?? "");
-      if (!body.departure_date) errs.departure_date = "Chọn ngày đi";
+      if (!body.departure_date) errs.departure_date = tm(m, "guests_form.error.departure");
     }
     setErrors(errs);
     if (Object.keys(errs).length > 0) return;
@@ -91,12 +98,12 @@ export function GuestsForm({
           <>
             <SelectField
               name="unit_id"
-              label="Phòng"
+              label={tm(m, "guests_form.field.unit")}
               options={(rooms ?? []).map((r) => ({ value: r.unitId, label: r.label }))}
             />
             <TextField
               name="departure_date"
-              label="Ngày đi"
+              label={tm(m, "guests_form.field.departure")}
               type="date"
               defaultValue={defaultDeparture}
               error={errors.departure_date}
@@ -106,36 +113,42 @@ export function GuestsForm({
         {Array.from({ length: count }, (_, i) => (
           // biome-ignore lint/suspicious/noArrayIndexKey: khách theo thứ tự nhập; chỉ thêm/bớt ở cuối
           <fieldset key={i} className="guest-block">
-            <legend>{i === 0 ? "Khách chính" : `Khách ${i + 1}`}</legend>
+            <legend>
+              {i === 0 ? tm(m, "guests_form.guest.primary") : tm(m, "guests_form.guest.n", { n: i + 1 })}
+            </legend>
             <TextField
               name={`g${i}_full_name`}
               label={
                 i === 0 && !walkIn
-                  ? `Họ tên khách ${i + 1} (bỏ trống nếu là người đặt)`
-                  : `Họ tên khách ${i + 1}`
+                  ? tm(m, "guests_form.field.full_name_booker", { n: i + 1 })
+                  : tm(m, "guests_form.field.full_name", { n: i + 1 })
               }
               maxLength={200}
               error={errors[`g${i}_full_name`] ?? serverError(i, "full_name")}
             />
             <TextField
               name={`g${i}_phone`}
-              label={`Số điện thoại khách ${i + 1}`}
+              label={tm(m, "guests_form.field.phone", { n: i + 1 })}
               type="tel"
               inputMode="tel"
               maxLength={20}
               error={errors[`g${i}_phone`] ?? serverError(i, "phone")}
             />
-            <SelectField name={`g${i}_doc_type`} label={`Loại giấy tờ khách ${i + 1}`} options={DOC_TYPES} />
+            <SelectField
+              name={`g${i}_doc_type`}
+              label={tm(m, "guests_form.field.doc_type", { n: i + 1 })}
+              options={docTypes(m)}
+            />
             <TextField
               name={`g${i}_doc_number`}
-              label={`Số giấy tờ khách ${i + 1}`}
+              label={tm(m, "guests_form.field.doc_number", { n: i + 1 })}
               autoComplete="off"
               maxLength={40}
               error={errors[`g${i}_doc_number`] ?? serverError(i, "doc_number") ?? serverError(i, "doc_type")}
             />
             <TextField
               name={`g${i}_nationality`}
-              label={`Quốc tịch khách ${i + 1} (mã 2 chữ, mặc định VN)`}
+              label={tm(m, "guests_form.field.nationality", { n: i + 1 })}
               maxLength={2}
               error={errors[`g${i}_nationality`] ?? serverError(i, "nationality")}
             />
@@ -143,11 +156,11 @@ export function GuestsForm({
         ))}
         <div className="card__actions">
           <Button variant="secondary" onClick={() => setCount((n) => Math.min(MAX_GUESTS, n + 1))}>
-            Thêm khách
+            {tm(m, "guests_form.add")}
           </Button>
           {count > 1 ? (
             <Button variant="secondary" onClick={() => setCount((n) => Math.max(1, n - 1))}>
-              Bớt khách cuối
+              {tm(m, "guests_form.remove")}
             </Button>
           ) : null}
         </div>

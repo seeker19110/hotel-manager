@@ -4,27 +4,34 @@
 import { safeUrl } from "@hm/app/http";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import type { Messages } from "../../lib/i18n.ts";
+import { tm } from "../../lib/i18n-format.ts";
 import { CommandStatus } from "../command/command-status.tsx";
 import { problemText, useCommand } from "../command/use-command.ts";
 import { Button } from "../ui/button.tsx";
 import { SelectField } from "../ui/field.tsx";
 
-const CHANNELS = [
-  { value: "in_person", label: "Nộp trực tiếp" },
-  { value: "online", label: "Nộp trực tuyến" },
-  { value: "other", label: "Kênh khác" },
-];
+/** Kênh nộp (dựng từ `m` — client không import catalog, D-098). */
+function channels(m: Messages<"notice_actions.">) {
+  return [
+    { value: "in_person", label: tm(m, "notice_actions.channel.in_person") },
+    { value: "online", label: tm(m, "notice_actions.channel.online") },
+    { value: "other", label: tm(m, "notice_actions.channel.other") },
+  ];
+}
 
 export function NoticeActions({
   noticeId,
   stayId,
   unitCode,
   submitted,
+  m,
 }: {
   noticeId: string;
   stayId: string;
   unitCode: string;
   submitted: boolean;
+  m: Messages<"notice_actions.">;
 }) {
   const router = useRouter();
   const exp = useCommand<{ url: string; expiresIn: number }>("stay/exportResidenceNotice");
@@ -50,28 +57,28 @@ export function NoticeActions({
         disabled={exp.locked}
         onClick={() => void exp.send({ stay_id: stayId }).then(afterExport)}
       >
-        Xuất file phòng {unitCode}
+        {tm(m, "notice_actions.export", { unit: unitCode })}
       </Button>
       <CommandStatus
         phase={exp.phase}
         commandId={exp.commandId}
         problem={exp.problem}
         general={exp.phase === "error" ? problemText(exp.problem) : null}
-        successText="Đã xuất file — tải trong vài phút."
+        successText={tm(m, "notice_actions.export_success")}
         onResend={() => void exp.resend().then(afterExport)}
         onRecheck={() => void exp.recheck().then(afterExport)}
       />
       {safeUrl(url) ? (
         <a className="btn" href={safeUrl(url) as string} download data-testid="notice-download">
-          Tải file thông báo phòng {unitCode}
+          {tm(m, "notice_actions.download", { unit: unitCode })}
         </a>
       ) : null}
       {submitted ? null : (
         <>
           <SelectField
             name="channel"
-            label={`Kênh đã nộp (phòng ${unitCode})`}
-            options={CHANNELS}
+            label={tm(m, "notice_actions.channel.label", { unit: unitCode })}
+            options={channels(m)}
             value={channel}
             onChange={(e) => setChannel(e.target.value)}
             disabled={mark.locked}
@@ -85,14 +92,14 @@ export function NoticeActions({
                 .then(afterMark)
             }
           >
-            Đánh dấu đã nộp phòng {unitCode}
+            {tm(m, "notice_actions.mark", { unit: unitCode })}
           </Button>
           <CommandStatus
             phase={mark.phase}
             commandId={mark.commandId}
             problem={mark.problem}
             general={mark.phase === "error" ? problemText(mark.problem) : null}
-            successText="Đã ghi nhận đã nộp."
+            successText={tm(m, "notice_actions.mark_success")}
             onResend={() => void mark.resend().then(afterMark)}
             onRecheck={() => void mark.recheck().then(afterMark)}
           />

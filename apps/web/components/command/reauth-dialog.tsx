@@ -5,10 +5,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LoginForm } from "../../app/dang-nhap/login-form.tsx";
 import { TenantLoginForm } from "../../app/dang-nhap/nguoi-thue/tenant-login-form.tsx";
+import type { Messages } from "../../lib/i18n.ts";
 import { Button } from "../ui/button.tsx";
 import { setReauthHandler, UNAUTHENTICATED_TEXT } from "./reauth.ts";
 
-export function ReauthDialog() {
+/** Chữ của hai form đăng nhập hiển thị trong hộp (server dựng ở layout; client không import catalog, D-098). */
+export type ReauthMessages = Messages<"login_form." | "tenant_login_form." | "auth_form.">;
+
+export function ReauthDialog({ m }: { m: ReauthMessages }) {
   const ref = useRef<HTMLDialogElement>(null);
   const title = useRef<HTMLHeadingElement>(null);
   // Form đăng nhập chỉ dựng khi hộp mở (tránh trùng ô "Email"/"Mật khẩu" ẩn trên mọi trang, kể cả /dang-nhap).
@@ -56,8 +60,8 @@ export function ReauthDialog() {
         Đăng nhập lại
       </h2>
       <p role="alert">{UNAUTHENTICATED_TEXT}</p>
-      {open === "tenant" ? <TenantLoginForm onSuccess={() => settle(true)} /> : null}
-      {open === "staff" ? <LoginForm onSuccess={() => settle(true)} /> : null}
+      {open === "tenant" ? <TenantLoginForm onSuccess={() => settle(true)} m={m} /> : null}
+      {open === "staff" ? <LoginForm onSuccess={() => settle(true)} m={m} /> : null}
       <div className="confirm-dialog__actions">
         <Button variant="secondary" onClick={() => settle(false)}>
           Để sau
