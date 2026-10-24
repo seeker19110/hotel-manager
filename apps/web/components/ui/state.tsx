@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
-/** Đang tải: khung xương + chữ cho trình đọc màn hình (không chỉ hiệu ứng hình). */
-export function LoadingState({ label = "Đang tải…", rows = 3 }: { label?: string; rows?: number }) {
+/** Đang tải: khung xương + chữ cho trình đọc màn hình (không chỉ hiệu ứng hình). `label` bắt buộc: component dùng chung cả server/client nên không mang catalog; người gọi truyền chữ đã dịch. */
+export function LoadingState({ label, rows = 3 }: { label: string; rows?: number }) {
   return (
     <div className="state" role="status" aria-live="polite">
       <span className="visually-hidden">{label}</span>

@@ -6,26 +6,32 @@ import { useRef, useState } from "react";
 import { clearUserData, useOnline } from "../../components/pwa/pwa-shell.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { timedFetch } from "../../lib/fetch-timeout.ts";
+import type { Messages } from "../../lib/i18n.ts";
+import { useMessages } from "../../lib/i18n-context.tsx";
+import { tm } from "../../lib/i18n-format.ts";
 
 export function OrgChoice({
   organizationId,
   label,
   meta,
   home = "/phong",
+  m,
 }: {
   organizationId: string;
   label: string;
   meta: string;
   /** Trang đích sau khi chọn: nhân viên → /phong, người thuê → /portal. */
   home?: string;
+  m: Messages<"org_choice.">;
 }) {
+  const common = useMessages();
   const online = useOnline();
   const key = useRef<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function choose() {
-    if (!online) return setError("Không có kết nối mạng. Thao tác chưa được gửi.");
+    if (!online) return setError(tm(common, "common.command.offline"));
     setBusy(true);
     setError(null);
     key.current ??= crypto.randomUUID();
@@ -40,11 +46,11 @@ export function OrgChoice({
       if (res.status === 401) return window.location.assign("/dang-nhap");
       if (!res.ok) {
         key.current = null;
-        return setError("Không chọn được tổ chức này. Tải lại trang để xem danh sách mới.");
+        return setError(tm(m, "org_choice.error.failed"));
       }
       window.location.assign(safeUrl(home) ?? "/phong");
     } catch {
-      setError("Chưa nhận được phản hồi. Kiểm tra mạng rồi bấm lại.");
+      setError(tm(m, "org_choice.error.no_response"));
     } finally {
       setBusy(false);
     }

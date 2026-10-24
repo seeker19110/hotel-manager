@@ -8,6 +8,9 @@ import { clearUserData, useOnline } from "../../components/pwa/pwa-shell.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { TextField } from "../../components/ui/field.tsx";
 import { timedFetch } from "../../lib/fetch-timeout.ts";
+import type { Messages } from "../../lib/i18n.ts";
+import { useMessages } from "../../lib/i18n-context.tsx";
+import { tm } from "../../lib/i18n-format.ts";
 
 async function post(path: string, body: unknown, key: string) {
   const res = await timedFetch(path, {
@@ -23,7 +26,8 @@ async function post(path: string, body: unknown, key: string) {
   };
 }
 
-export function CreateOrganization() {
+export function CreateOrganization({ m }: { m: Messages<"org_create."> }) {
+  const common = useMessages();
   const online = useOnline();
   const key = useRef<string | null>(null);
   const lastName = useRef("");
@@ -33,10 +37,10 @@ export function CreateOrganization() {
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (busy) return;
-    if (!online) return setError("Không có kết nối mạng. Thao tác chưa được gửi.");
+    if (!online) return setError(tm(common, "common.command.offline"));
     const name = String(new FormData(e.currentTarget).get("name") ?? "").trim();
-    if (!name) return setError("Bắt buộc nhập tên tổ chức.");
-    if (name.length > 200) return setError("Tên tối đa 200 ký tự.");
+    if (!name) return setError(tm(m, "org_create.error.name_required"));
+    if (name.length > 200) return setError(tm(m, "org_create.error.name_too_long"));
     // Đổi tên sau một lần chưa rõ kết quả = thao tác mới (key mới); cùng tên = gửi lại đúng thao tác cũ.
     if (name !== lastName.current) key.current = null;
     lastName.current = name;
@@ -48,10 +52,9 @@ export function CreateOrganization() {
       if (r.status === 401) return window.location.assign("/dang-nhap");
       if (r.status === 422 || r.status === 400) {
         key.current = null;
-        return setError("Tên tổ chức chưa hợp lệ (1–200 ký tự, không ký tự điều khiển).");
+        return setError(tm(m, "org_create.error.name_invalid"));
       }
-      if (!r.ok)
-        return setError("Chưa tạo được tổ chức. Bấm lại để thử lần nữa — hệ thống không tạo hai lần.");
+      if (!r.ok) return setError(tm(m, "org_create.error.failed"));
       const orgId = (r.data.data as { organizationId?: string } | undefined)?.organizationId;
       key.current = null;
       await clearUserData();
@@ -70,7 +73,7 @@ export function CreateOrganization() {
       }
       window.location.assign(safeUrl(next) ?? "/chon-to-chuc");
     } catch {
-      setError("Chưa nhận được phản hồi. Bấm lại để thử lần nữa — hệ thống không tạo hai lần.");
+      setError(tm(m, "org_create.error.no_response"));
     } finally {
       setBusy(false);
     }
@@ -79,15 +82,15 @@ export function CreateOrganization() {
   return (
     <form onSubmit={onSubmit} noValidate data-testid="create-org-form">
       <TextField
-        label="Tên tổ chức"
-        hint="Tên nhà trọ, nhà nghỉ hoặc khách sạn của bạn. Bạn sẽ là chủ sở hữu."
+        label={tm(m, "org_create.field.name")}
+        hint={tm(m, "org_create.field.name_hint")}
         name="name"
         required
         maxLength={200}
         error={error}
       />
       <Button type="submit" loading={busy}>
-        Tạo tổ chức
+        {tm(m, "org_create.submit")}
       </Button>
     </form>
   );

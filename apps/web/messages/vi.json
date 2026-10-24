@@ -2738,5 +2738,413 @@
   "install_app.unsupported": {
     "message": "Trình duyệt này chưa cho cài trực tiếp từ đây. Dùng Chrome hoặc Edge (Android, máy tính) hoặc Safari (iPhone, iPad) để cài ứng dụng.",
     "description": "Lời nhắn khi trình duyệt không hỗ trợ cài."
+  },
+  "common.route_title.buong_phong": {
+    "message": "Buồng phòng",
+    "description": "Tiêu đề (h1) của màn Buồng phòng (/buong-phong) ở trạng thái đang tải (loading.tsx) và lỗi (error.tsx) cấp route; chữ cho trình đọc màn hình ở trạng thái tải lấy từ đây (chữ thường)."
+  },
+  "common.route_title.co_so": {
+    "message": "Cơ sở",
+    "description": "Tiêu đề (h1) của màn Cơ sở (/co-so) ở trạng thái đang tải (loading.tsx) và lỗi (error.tsx) cấp route; chữ cho trình đọc màn hình ở trạng thái tải lấy từ đây (chữ thường)."
+  },
+  "common.route_title.dat_phong": {
+    "message": "Đặt phòng",
+    "description": "Tiêu đề (h1) của màn Đặt phòng (/dat-phong) ở trạng thái đang tải (loading.tsx) và lỗi (error.tsx) cấp route; chữ cho trình đọc màn hình ở trạng thái tải lấy từ đây (chữ thường)."
+  },
+  "common.route_title.dat_phong_moi": {
+    "message": "Đặt phòng mới",
+    "description": "Tiêu đề (h1) của màn Đặt phòng mới (/dat-phong/moi) ở trạng thái đang tải (loading.tsx) và lỗi (error.tsx) cấp route; chữ cho trình đọc màn hình ở trạng thái tải lấy từ đây (chữ thường)."
+  },
+  "common.route_title.lich_phong": {
+    "message": "Lịch phòng",
+    "description": "Tiêu đề (h1) của màn Lịch phòng (/lich-phong) ở trạng thái đang tải (loading.tsx) và lỗi (error.tsx) cấp route; chữ cho trình đọc màn hình ở trạng thái tải lấy từ đây (chữ thường)."
+  },
+  "common.route_title.luu_tru": {
+    "message": "Lượt ở và folio",
+    "description": "Tiêu đề (h1) của màn Lượt ở và folio (/luu-tru) ở trạng thái đang tải (loading.tsx) và lỗi (error.tsx) cấp route; chữ cho trình đọc màn hình ở trạng thái tải lấy từ đây (chữ thường)."
+  },
+  "common.route_title.walk_in": {
+    "message": "Khách vãng lai",
+    "description": "Tiêu đề (h1) của màn Khách vãng lai (/luu-tru/moi) ở trạng thái đang tải (loading.tsx) và lỗi (error.tsx) cấp route; chữ cho trình đọc màn hình ở trạng thái tải lấy từ đây (chữ thường)."
+  },
+  "common.route_title.phong": {
+    "message": "Phòng",
+    "description": "Tiêu đề (h1) của màn Phòng (/phong) ở trạng thái đang tải (loading.tsx) và lỗi (error.tsx) cấp route; chữ cho trình đọc màn hình ở trạng thái tải lấy từ đây (chữ thường)."
+  },
+  "common.route_title.portal_meters": {
+    "message": "Điện nước",
+    "description": "Tiêu đề (h1) của màn Điện nước của cổng người thuê (/portal/dien-nuoc) ở trạng thái đang tải (loading.tsx) và lỗi (error.tsx) cấp route; chữ cho trình đọc màn hình ở trạng thái tải lấy từ đây (chữ thường)."
+  },
+  "common.route_title.portal": {
+    "message": "Cổng người thuê",
+    "description": "Tiêu đề (h1) của màn Cổng người thuê (/portal) ở trạng thái đang tải (loading.tsx) và lỗi (error.tsx) cấp route; chữ cho trình đọc màn hình ở trạng thái tải lấy từ đây (chữ thường)."
+  },
+  "common.route_title.portal_requests": {
+    "message": "Yêu cầu",
+    "description": "Tiêu đề (h1) của màn Yêu cầu của cổng người thuê (/portal/yeu-cau) ở trạng thái đang tải (loading.tsx) và lỗi (error.tsx) cấp route; chữ cho trình đọc màn hình ở trạng thái tải lấy từ đây (chữ thường)."
+  },
+  "common.route_title.incident": {
+    "message": "Sự cố",
+    "description": "Tiêu đề (h1) của màn Sự cố (/su-co) ở trạng thái đang tải (loading.tsx) và lỗi (error.tsx) cấp route; chữ cho trình đọc màn hình ở trạng thái tải lấy từ đây (chữ thường)."
+  },
+  "common.route_title.members": {
+    "message": "Thành viên",
+    "description": "Tiêu đề (h1) của màn Thành viên (/thanh-vien) ở trạng thái đang tải (loading.tsx) và lỗi (error.tsx) cấp route; chữ cho trình đọc màn hình ở trạng thái tải lấy từ đây (chữ thường)."
+  },
+  "common.route_title.more": {
+    "message": "Thêm",
+    "description": "Tiêu đề (h1) của màn Thêm (/them) ở trạng thái đang tải (loading.tsx) và lỗi (error.tsx) cấp route; chữ cho trình đọc màn hình ở trạng thái tải lấy từ đây (chữ thường)."
+  },
+  "common.route_title.notice": {
+    "message": "Thông báo lưu trú",
+    "description": "Tiêu đề (h1) của màn Thông báo lưu trú (/thong-bao-luu-tru) ở trạng thái đang tải (loading.tsx) và lỗi (error.tsx) cấp route; chữ cho trình đọc màn hình ở trạng thái tải lấy từ đây (chữ thường)."
+  },
+  "common.route_title.notification": {
+    "message": "Thông báo",
+    "description": "Tiêu đề (h1) của màn Thông báo (/thong-bao) ở trạng thái đang tải (loading.tsx) và lỗi (error.tsx) cấp route; chữ cho trình đọc màn hình ở trạng thái tải lấy từ đây (chữ thường)."
+  },
+  "app.description": {
+    "message": "Quản lý phòng trọ, nhà nghỉ, khách sạn nhỏ",
+    "description": "Mô tả ứng dụng: thẻ meta description của mọi trang và mô tả trong manifest cài đặt PWA."
+  },
+  "app.short_name": {
+    "message": "Quản lý phòng",
+    "description": "Tên ngắn của ứng dụng: dưới biểu tượng khi cài PWA (manifest) và tên ứng dụng web trên iOS."
+  },
+  "app.manifest.name": {
+    "message": "Hotel Manager — Quản lý phòng",
+    "description": "Tên đầy đủ của ứng dụng trong manifest cài đặt PWA."
+  },
+  "app.skip_link": {
+    "message": "Bỏ qua tới nội dung",
+    "description": "Liên kết 'bỏ qua' ẩn ở đầu mọi trang, hiện khi focus bằng bàn phím, nhảy tới nội dung chính."
+  },
+  "offline.metadata.title": {
+    "message": "Không có kết nối mạng — Hotel Manager",
+    "description": "Trang dự phòng khi mất mạng (/offline): tiêu đề tab trình duyệt."
+  },
+  "offline.page.title": {
+    "message": "Không có kết nối mạng",
+    "description": "Trang dự phòng khi mất mạng: tiêu đề h1."
+  },
+  "offline.text": {
+    "message": "Ứng dụng cần mạng để xem và lưu dữ liệu. Chưa có thao tác nào được gửi.",
+    "description": "Trang dự phòng khi mất mạng: giải thích; nhấn mạnh chưa có thao tác nào bị gửi đi."
+  },
+  "login_page.metadata.title": {
+    "message": "Đăng nhập — Hotel Manager",
+    "description": "Màn đăng nhập nhân viên (/dang-nhap): tiêu đề tab trình duyệt."
+  },
+  "login_page.page.title": {
+    "message": "Đăng nhập",
+    "description": "Màn đăng nhập nhân viên: tiêu đề h1."
+  },
+  "login_page.tenant_link": {
+    "message": "Tôi là người thuê",
+    "description": "Màn đăng nhập nhân viên: nút liên kết sang đăng nhập dành cho người thuê."
+  },
+  "login_page.register_link": {
+    "message": "Tạo tài khoản mới",
+    "description": "Màn đăng nhập nhân viên: nút liên kết sang màn tạo tài khoản."
+  },
+  "tenant_login_page.metadata.title": {
+    "message": "Đăng nhập người thuê — Hotel Manager",
+    "description": "Màn đăng nhập người thuê (/dang-nhap/nguoi-thue): tiêu đề tab trình duyệt."
+  },
+  "tenant_login_page.page.title": {
+    "message": "Đăng nhập người thuê",
+    "description": "Màn đăng nhập người thuê: tiêu đề h1."
+  },
+  "tenant_login_page.intro": {
+    "message": "Nhập email chủ trọ đã đăng ký cho bạn. Chúng tôi gửi một mã 6 số đến email đó.",
+    "description": "Màn đăng nhập người thuê: hướng dẫn trước ô email (đăng nhập bằng mã một lần gửi qua email)."
+  },
+  "tenant_login_page.staff_link": {
+    "message": "Tôi là nhân viên",
+    "description": "Màn đăng nhập người thuê: nút liên kết sang đăng nhập nhân viên."
+  },
+  "register_page.metadata.title": {
+    "message": "Tạo tài khoản — Hotel Manager",
+    "description": "Màn tạo tài khoản (/dang-ky): tiêu đề tab trình duyệt."
+  },
+  "register_page.page.title": {
+    "message": "Tạo tài khoản",
+    "description": "Màn tạo tài khoản: tiêu đề h1."
+  },
+  "register_page.login_link": {
+    "message": "Tôi đã có tài khoản",
+    "description": "Màn tạo tài khoản: nút liên kết sang màn đăng nhập."
+  },
+  "invitation_page.metadata.title": {
+    "message": "Lời mời tham gia — Hotel Manager",
+    "description": "Màn chấp nhận lời mời (/loi-moi): tiêu đề tab trình duyệt."
+  },
+  "invitation_page.page.title": {
+    "message": "Lời mời tham gia",
+    "description": "Màn chấp nhận lời mời: tiêu đề h1."
+  },
+  "guest_stay_page.metadata.title": {
+    "message": "Lượt ở của bạn — Hotel Manager",
+    "description": "Màn khách xem lượt ở của mình (/khach/luot-o/[id]): tiêu đề tab trình duyệt."
+  },
+  "guest_stay_page.page.title": {
+    "message": "Lượt ở của bạn",
+    "description": "Màn khách xem lượt ở của mình: tiêu đề h1."
+  },
+  "unsubscribe_page.metadata.title": {
+    "message": "Huỷ đăng ký email — Hotel Manager",
+    "description": "Màn huỷ đăng ký email (/huy-dang-ky): tiêu đề tab trình duyệt."
+  },
+  "unsubscribe_page.page.title": {
+    "message": "Huỷ đăng ký email",
+    "description": "Màn huỷ đăng ký email: tiêu đề h1."
+  },
+  "security_page.metadata.title": {
+    "message": "Bảo mật tài khoản — Hotel Manager",
+    "description": "Màn bật xác thực hai lớp (/bao-mat): tiêu đề tab trình duyệt."
+  },
+  "security_page.page.title": {
+    "message": "Bảo mật tài khoản",
+    "description": "Màn bật xác thực hai lớp: tiêu đề h1."
+  },
+  "org_picker.metadata.title": {
+    "message": "Chọn tổ chức — Hotel Manager",
+    "description": "Màn chọn tổ chức (/chon-to-chuc): tiêu đề tab trình duyệt."
+  },
+  "org_picker.page.title": {
+    "message": "Chọn tổ chức",
+    "description": "Màn chọn tổ chức: tiêu đề h1."
+  },
+  "org_picker.empty.title": {
+    "message": "Bạn chưa thuộc tổ chức nào",
+    "description": "Màn chọn tổ chức: tiêu đề trạng thái rỗng khi người dùng chưa có tổ chức."
+  },
+  "org_picker.empty.text": {
+    "message": "Tạo tổ chức của bạn bên dưới, hoặc nhờ chủ cơ sở gửi lời mời vào tổ chức của họ.",
+    "description": "Màn chọn tổ chức: hướng dẫn ở trạng thái rỗng (tự tạo tổ chức hoặc nhận lời mời)."
+  },
+  "org_picker.create.heading": {
+    "message": "Tạo tổ chức mới",
+    "description": "Màn chọn tổ chức: tiêu đề mục tạo tổ chức mới (h2 khi chưa có tổ chức; tiêu đề phần mở rộng khi đã có)."
+  },
+  "org_choice.error.failed": {
+    "message": "Không chọn được tổ chức này. Tải lại trang để xem danh sách mới.",
+    "description": "Màn chọn tổ chức: lỗi khi máy chủ từ chối đổi sang tổ chức đã chọn (có thể đã bị thu hồi quyền)."
+  },
+  "org_choice.error.no_response": {
+    "message": "Chưa nhận được phản hồi. Kiểm tra mạng rồi bấm lại.",
+    "description": "Màn chọn tổ chức: lỗi khi không nhận được phản hồi từ máy chủ lúc chọn tổ chức."
+  },
+  "org_create.field.name": {
+    "message": "Tên tổ chức",
+    "description": "Form tạo tổ chức: nhãn ô tên tổ chức."
+  },
+  "org_create.field.name_hint": {
+    "message": "Tên nhà trọ, nhà nghỉ hoặc khách sạn của bạn. Bạn sẽ là chủ sở hữu.",
+    "description": "Form tạo tổ chức: gợi ý dưới ô tên; người tạo trở thành chủ sở hữu."
+  },
+  "org_create.submit": {
+    "message": "Tạo tổ chức",
+    "description": "Form tạo tổ chức: nhãn nút gửi."
+  },
+  "org_create.error.name_required": {
+    "message": "Bắt buộc nhập tên tổ chức.",
+    "description": "Form tạo tổ chức: lỗi khi để trống tên."
+  },
+  "org_create.error.name_too_long": {
+    "message": "Tên tối đa 200 ký tự.",
+    "description": "Form tạo tổ chức: lỗi khi tên dài hơn 200 ký tự."
+  },
+  "org_create.error.name_invalid": {
+    "message": "Tên tổ chức chưa hợp lệ (1–200 ký tự, không ký tự điều khiển).",
+    "description": "Form tạo tổ chức: lỗi khi máy chủ từ chối tên (400/422)."
+  },
+  "org_create.error.failed": {
+    "message": "Chưa tạo được tổ chức. Bấm lại để thử lần nữa — hệ thống không tạo hai lần.",
+    "description": "Form tạo tổ chức: lỗi chung của máy chủ; nhấn mạnh bấm lại không tạo trùng (cùng khoá idempotency)."
+  },
+  "org_create.error.no_response": {
+    "message": "Chưa nhận được phản hồi. Bấm lại để thử lần nữa — hệ thống không tạo hai lần.",
+    "description": "Form tạo tổ chức: lỗi khi không nhận được phản hồi (mạng); bấm lại không tạo trùng."
+  },
+  "walk_in.metadata.title": {
+    "message": "Khách vãng lai — Hotel Manager",
+    "description": "Màn nhận khách vãng lai (/luu-tru/moi): tiêu đề tab trình duyệt."
+  },
+  "walk_in.page.title": {
+    "message": "Khách vãng lai",
+    "description": "Màn nhận khách vãng lai: tiêu đề h1."
+  },
+  "walk_in.error.forbidden_title": {
+    "message": "Không có quyền",
+    "description": "Màn nhận khách vãng lai: tiêu đề lỗi khi vai trò không được nhận khách."
+  },
+  "walk_in.error.forbidden_text": {
+    "message": "Chỉ chủ, quản lý và lễ tân nhận khách.",
+    "description": "Màn nhận khách vãng lai: giải thích lỗi không có quyền."
+  },
+  "walk_in.error.load_title": {
+    "message": "Không mở được form",
+    "description": "Màn nhận khách vãng lai: tiêu đề lỗi khi không đọc được danh sách cơ sở (kèm thông điệp lỗi của máy chủ)."
+  },
+  "walk_in.empty.title": {
+    "message": "Chưa có phòng để nhận khách",
+    "description": "Màn nhận khách vãng lai: trạng thái rỗng khi không có phòng đang hoạt động."
+  },
+  "walk_in.submit": {
+    "message": "Nhận khách ngay",
+    "description": "Màn nhận khách vãng lai: nhãn nút gửi."
+  },
+  "walk_in.success": {
+    "message": "Đã nhận khách — đang mở folio.",
+    "description": "Màn nhận khách vãng lai: thông báo thành công, sau đó chuyển sang folio."
+  },
+  "booking.new.metadata.title": {
+    "message": "Đặt phòng mới — Hotel Manager",
+    "description": "Màn tạo đặt phòng (/dat-phong/moi): tiêu đề tab trình duyệt."
+  },
+  "booking.new.page.title": {
+    "message": "Đặt phòng mới",
+    "description": "Màn tạo đặt phòng: tiêu đề h1."
+  },
+  "booking.new.error.forbidden_title": {
+    "message": "Không có quyền",
+    "description": "Màn tạo đặt phòng: tiêu đề lỗi khi vai trò không được tạo đặt phòng."
+  },
+  "booking.new.error.forbidden_text": {
+    "message": "Chỉ chủ, quản lý và lễ tân tạo được đặt phòng.",
+    "description": "Màn tạo đặt phòng: giải thích lỗi không có quyền."
+  },
+  "booking.new.error.load_title": {
+    "message": "Không mở được form",
+    "description": "Màn tạo đặt phòng: tiêu đề lỗi khi không đọc được danh sách cơ sở (kèm thông điệp lỗi của máy chủ)."
+  },
+  "booking.new.empty.title": {
+    "message": "Chưa có phòng để đặt",
+    "description": "Màn tạo đặt phòng: trạng thái rỗng khi không có phòng đang hoạt động."
+  },
+  "booking.new.empty.text": {
+    "message": "Cơ sở cần có phòng đang hoạt động.",
+    "description": "Màn tạo đặt phòng: hướng dẫn ở trạng thái rỗng."
+  },
+  "portal.invoice_list.metadata.title": {
+    "message": "Kỳ thu — Hotel Manager",
+    "description": "Cổng người thuê, danh sách kỳ thu (/portal): tiêu đề tab trình duyệt."
+  },
+  "portal.invoice_list.page.title": {
+    "message": "Kỳ thu",
+    "description": "Cổng người thuê, danh sách kỳ thu: tiêu đề h1."
+  },
+  "portal.invoice_list.empty.title": {
+    "message": "Chưa có kỳ thu nào được phát hành",
+    "description": "Cổng người thuê, danh sách kỳ thu: tiêu đề trạng thái rỗng."
+  },
+  "portal.invoice_list.empty.text": {
+    "message": "Khi chủ trọ phát hành kỳ thu, phiếu sẽ hiện ở đây.",
+    "description": "Cổng người thuê, danh sách kỳ thu: hướng dẫn ở trạng thái rỗng."
+  },
+  "portal.invoice_list.card.period": {
+    "message": "Kỳ {period}",
+    "description": "Thẻ phiếu thu: tên kỳ (tháng, vd 2026-10)."
+  },
+  "portal.invoice_list.card.total": {
+    "message": "Tổng",
+    "description": "Thẻ phiếu thu: nhãn trước số tiền tổng (số tiền là thành phần riêng đứng sau)."
+  },
+  "portal.invoice_list.card.due": {
+    "message": "Hạn {date}",
+    "description": "Thẻ phiếu thu: hạn thanh toán, ngày đã định dạng."
+  },
+  "portal.meter.metadata.title": {
+    "message": "Điện nước — Hotel Manager",
+    "description": "Cổng người thuê, chỉ số điện nước (/portal/dien-nuoc): tiêu đề tab trình duyệt."
+  },
+  "portal.meter.page.title": {
+    "message": "Điện nước",
+    "description": "Cổng người thuê, chỉ số điện nước: tiêu đề h1."
+  },
+  "portal.meter.empty.title": {
+    "message": "Chưa có chỉ số nào được duyệt",
+    "description": "Cổng người thuê, chỉ số điện nước: tiêu đề trạng thái rỗng."
+  },
+  "portal.meter.empty.text": {
+    "message": "Chỉ số hiện ở đây sau khi chủ trọ chốt.",
+    "description": "Cổng người thuê, chỉ số điện nước: hướng dẫn ở trạng thái rỗng."
+  },
+  "portal.meter.card.read_on": {
+    "message": "Ngày {date}",
+    "description": "Thẻ chỉ số điện nước: ngày ghi chỉ số, đã định dạng."
+  },
+  "portal.meter.card.photo_link": {
+    "message": "Xem ảnh công tơ ngày {date}",
+    "description": "Thẻ chỉ số điện nước: nhãn liên kết mở ảnh công tơ (mở tab mới), kèm ngày ghi."
+  },
+  "portal.revoked.heading": {
+    "message": "Không còn truy cập",
+    "description": "Cổng người thuê khi quyền đã bị thu hồi/hết hạn: tiêu đề h1."
+  },
+  "portal.revoked.title": {
+    "message": "Tài khoản này không còn truy cập được portal",
+    "description": "Cổng người thuê khi quyền đã bị thu hồi/hết hạn: tiêu đề khối lỗi."
+  },
+  "portal.revoked.text": {
+    "message": "Quyền xem của bạn đã bị thu hồi hoặc đã hết hạn. Liên hệ chủ trọ nếu cần, hoặc đăng nhập bằng tài khoản khác.",
+    "description": "Cổng người thuê khi quyền đã bị thu hồi/hết hạn: giải thích và hướng xử lý."
+  },
+  "portal.revoked.login": {
+    "message": "Đăng nhập tài khoản khác",
+    "description": "Cổng người thuê khi quyền đã bị thu hồi/hết hạn: nút liên kết sang đăng nhập người thuê."
+  },
+  "page_shell.mfa_required.title": {
+    "message": "Cần bật xác thực hai lớp",
+    "description": "Khung trang nhân viên khi vai trò bắt buộc MFA chưa bật: tiêu đề khối lỗi."
+  },
+  "page_shell.mfa_required.text": {
+    "message": "Vai trò của bạn có quyền về tiền hoặc quản trị. Hãy bật xác thực hai lớp trước khi thao tác.",
+    "description": "Khung trang nhân viên khi vai trò bắt buộc MFA chưa bật: giải thích lý do."
+  },
+  "page_shell.mfa_required.action": {
+    "message": "Bật xác thực hai lớp",
+    "description": "Khung trang nhân viên khi vai trò bắt buộc MFA chưa bật: nút liên kết sang /bao-mat."
+  },
+  "shift.open.notice": {
+    "message": "Bạn đang mở ca tiền mặt tại {name}.",
+    "description": "Panel ca tiền mặt khi đã mở ca: dòng xác nhận kèm tên cơ sở (dấu ✓ là phần trang trí đứng trước)."
+  },
+  "shift.form.heading": {
+    "message": "Mở ca tiền mặt — {name}",
+    "description": "Panel ca tiền mặt khi chưa mở ca: tiêu đề h2 kèm tên cơ sở."
+  },
+  "shift.form.opening_cash": {
+    "message": "Tiền đầu ca (đồng)",
+    "description": "Form mở ca: nhãn ô tiền mặt đầu ca, đơn vị đồng."
+  },
+  "shift.form.submit": {
+    "message": "Mở ca",
+    "description": "Form mở ca: nhãn nút gửi."
+  },
+  "shift.form.success": {
+    "message": "Đã mở ca.",
+    "description": "Form mở ca: thông báo thành công."
+  },
+  "more.metadata.title": {
+    "message": "Thêm — Hotel Manager",
+    "description": "Màn Thêm (/them): tiêu đề tab trình duyệt."
+  },
+  "more.page.title": {
+    "message": "Thêm",
+    "description": "Màn Thêm: tiêu đề h1."
+  },
+  "more.links.heading": {
+    "message": "Màn khác",
+    "description": "Màn Thêm: tiêu đề mục các màn còn lại."
+  },
+  "more.links.empty": {
+    "message": "Không có màn nào khác cho vai trò của bạn",
+    "description": "Màn Thêm: trạng thái rỗng khi vai trò không có màn nào khác."
+  },
+  "more.account.heading": {
+    "message": "Tài khoản",
+    "description": "Màn Thêm: tiêu đề mục tài khoản (chứa nút đăng xuất)."
   }
 }

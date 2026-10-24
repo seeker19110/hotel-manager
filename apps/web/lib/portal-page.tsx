@@ -27,13 +27,13 @@ export async function withPortal(
     // S-015: quyền đã bị thu hồi/hết hạn xem lại — không hiển thị dữ liệu nào.
     return (
       <main id="main" className="page">
-        <h1>Không còn truy cập</h1>
+        <h1>{t("portal.revoked.heading")}</h1>
         <ErrorState
-          title="Tài khoản này không còn truy cập được portal"
-          text="Quyền xem của bạn đã bị thu hồi hoặc đã hết hạn. Liên hệ chủ trọ nếu cần, hoặc đăng nhập bằng tài khoản khác."
+          title={t("portal.revoked.title")}
+          text={t("portal.revoked.text")}
           action={
             <a className="btn" href={PORTAL_LOGIN}>
-              Đăng nhập tài khoản khác
+              {t("portal.revoked.login")}
             </a>
           }
         />

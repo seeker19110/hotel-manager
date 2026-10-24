@@ -3,11 +3,11 @@ import type { Metadata } from "next";
 import { GuestsForm } from "../../../components/hotel/guests-form.tsx";
 import { EmptyState, ErrorState } from "../../../components/ui/state.tsx";
 import { addDays, HK_STATUS } from "../../../lib/format.ts";
-import { messagesFor } from "../../../lib/i18n.ts";
+import { messagesFor, t } from "../../../lib/i18n.ts";
 import { withActor } from "../../../lib/page.tsx";
 import { safe } from "../../../lib/safe.ts";
 
-export const metadata: Metadata = { title: "Khách vãng lai — Hotel Manager" };
+export const metadata: Metadata = { title: t("walk_in.metadata.title") };
 
 // SPEC-reservation-stay S-015/S-016: walk-in = một lệnh tạo booking + lượt ở `in_house`; phòng phải sẵn sàng (đã dọn + kiểm).
 export default async function WalkInPage({
@@ -16,12 +16,14 @@ export default async function WalkInPage({
   searchParams: Promise<{ property_id?: string }>;
 }) {
   const q = await searchParams;
-  return withActor("Khách vãng lai", "/dat-phong", async (actor) => {
+  return withActor(t("walk_in.page.title"), "/dat-phong", async (actor) => {
     if (!["owner", "manager", "front_desk"].includes(actor.role))
-      return <ErrorState title="Không có quyền" text="Chỉ chủ, quản lý và lễ tân nhận khách." />;
+      return (
+        <ErrorState title={t("walk_in.error.forbidden_title")} text={t("walk_in.error.forbidden_text")} />
+      );
     const db = serverContext().db;
     const props = await safe(opsProperties(db, actor));
-    if (!props.ok) return <ErrorState title="Không mở được form" text={props.message} />;
+    if (!props.ok) return <ErrorState title={t("walk_in.error.load_title")} text={props.message} />;
     const hotels = props.data.filter(
       (p) => p.template !== "rental" && (!q.property_id || p.id === q.property_id),
     );
@@ -35,7 +37,7 @@ export default async function WalkInPage({
             label: `${u.code} — ${HK_STATUS[u.housekeepingStatus] ?? u.housekeepingStatus}`,
           })),
       );
-    if (rooms.length === 0) return <EmptyState title="Chưa có phòng để nhận khách" />;
+    if (rooms.length === 0) return <EmptyState title={t("walk_in.empty.title")} />;
     const today = hotels[0]?.businessDate ?? new Date().toISOString().slice(0, 10);
     return (
       <GuestsForm
@@ -43,8 +45,8 @@ export default async function WalkInPage({
         fixed={{}}
         rooms={rooms}
         defaultDeparture={addDays(today, 1)}
-        submitLabel="Nhận khách ngay"
-        successText="Đã nhận khách — đang mở folio."
+        submitLabel={t("walk_in.submit")}
+        successText={t("walk_in.success")}
         m={messagesFor("guests_form.")}
       />
     );

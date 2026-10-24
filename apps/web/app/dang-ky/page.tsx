@@ -1,17 +1,17 @@
 import type { Metadata } from "next";
-import { messagesFor } from "../../lib/i18n.ts";
+import { messagesFor, t } from "../../lib/i18n.ts";
 import { RegisterForm } from "./register-form.tsx";
 
-export const metadata: Metadata = { title: "Tạo tài khoản — Hotel Manager" };
+export const metadata: Metadata = { title: t("register_page.metadata.title") };
 
 export default function RegisterPage() {
   return (
     <main id="main" className="page">
-      <h1>Tạo tài khoản</h1>
+      <h1>{t("register_page.page.title")}</h1>
       <RegisterForm m={messagesFor("register_form.", "auth_form.")} />
       <p>
         <a className="btn btn--secondary" href="/dang-nhap">
-          Tôi đã có tài khoản
+          {t("register_page.login_link")}
         </a>
       </p>
     </main>
