@@ -1,6 +1,6 @@
 # PROGRESS.md — Hotel Manager
 ## Đang làm
-- 2026-10-22 đợt 17 (D-093, D-094): 4 luật grype critical gia hạn tới 2026-10-29 (chưa có image vá: Caddy v2.11.7 vẫn Go 1.26.8, SeaweedFS 4.48; GO-2026-6604 chỉ Windows); `/co-so`, `/thanh-vien` sang `t()` (−77 chuỗi, còn 2280). D-095: 8 MUST bỏ tick chờ import ruleset; 2026-10-23 chủ dự án import `main.json` ⇒ tick lại, MUST mở 90 (WF-REL-003 đạt sau import ruleset tag).
+- 2026-10-22 đợt 17 (D-093…D-095): luật grype critical gia hạn tới 2026-10-29 (chưa có image vá); 8 MUST D-095 tick lại sau khi import ruleset (2026-10-23), MUST mở 90.
 - 2026-10-24 đợt 21 (D-101, D-102): `MessagesProvider` (client context, khoá `common.`) cho hạ tầng client; phần đuôi ngoài `merge_risk_paths` sang `t()`/`tm()`, baseline 1717 → 1552; bundle 278,11 kB. Còn ngoài risk: chỉ `lib/format.ts`.
 - 2026-10-24 đợt 22 (D-103…D-105, "hoàn thiện dự án"): hoàn tất XC-I18N-001 theo 5 lát; lát 1 `lib/format.ts` → hàm nhãn nhận `m` (1552 → 1478). Lát 2+4 (tiền/lưu trú/auth) người merge.
 - Đợt mới: `loop resume` nếu còn `.autopilot/state.json`; container mới không có state ⇒ PLAN mới + `loop init` (FB-149).
