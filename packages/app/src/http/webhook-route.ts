@@ -4,6 +4,7 @@
 import { kibToBytes } from "@hm/domain";
 import type { Kysely } from "kysely";
 import { z } from "zod";
+import { t } from "../i18n.ts";
 import { ingestBankEvent, parseWebhookSecrets, verifySimSignature } from "../ledger/index.ts";
 import { rateLimited, toProblem } from "../pipeline/index.ts";
 import {
@@ -70,7 +71,7 @@ async function readCapped(req: Request, max: number): Promise<string | null> {
 
 function tooMany(retryAfter: number, correlationId: string): Response {
   return problemResponse(
-    toProblem(rateLimited("Webhook gửi quá nhanh. Thử lại sau.", retryAfter), correlationId),
+    toProblem(rateLimited(t("http.webhook.rate_limited"), retryAfter), correlationId),
     correlationId,
   );
 }
@@ -83,12 +84,12 @@ export async function handleWebhook(
 ): Promise<Response> {
   const correlationId = correlationOf(req);
   if (provider !== "sim" || !deps.simSecret) {
-    return simpleProblem("NOT_FOUND", 404, "Không có nhà cung cấp này", correlationId);
+    return simpleProblem("NOT_FOUND", 404, t("http.webhook.provider_not_found"), correlationId);
   }
   // `account` là đoạn đường dẫn do kẻ gọi chọn: phải là UUID TRƯỚC khi đi tiếp (khoá bộ đếm, truy vấn) — chuỗi lạ/NUL từng làm
   // Postgres lỗi → 500 (BASE-SEC-001). Không phải UUID ⇒ không thể là tài khoản nhận nào: 404, không lộ gì.
   if (!UUID.test(account))
-    return simpleProblem("NOT_FOUND", 404, "Không tìm thấy tài khoản nhận", correlationId);
+    return simpleProblem("NOT_FOUND", 404, t("http.webhook.account_not_found"), correlationId);
   // Danh sách khoá sai dạng (cấu hình đã bị schema chặn từ lúc khởi động) ⇒ đóng: coi như adapter tắt, không chấp nhận gì.
   let secrets: string[];
   try {
@@ -97,13 +98,14 @@ export async function handleWebhook(
     secrets = [];
   }
   if (secrets.length === 0)
-    return simpleProblem("NOT_FOUND", 404, "Không có nhà cung cấp này", correlationId);
+    return simpleProblem("NOT_FOUND", 404, t("http.webhook.provider_not_found"), correlationId);
   try {
     const declared = Number(req.headers.get("content-length") ?? "0");
     if (declared > WEBHOOK_MAX_BYTES)
-      return simpleProblem("VALIDATION_FAILED", 422, "Payload quá lớn", correlationId);
+      return simpleProblem("VALIDATION_FAILED", 422, t("http.webhook.payload_too_large"), correlationId);
     const body = await readCapped(req, WEBHOOK_MAX_BYTES);
-    if (body === null) return simpleProblem("VALIDATION_FAILED", 422, "Payload quá lớn", correlationId);
+    if (body === null)
+      return simpleProblem("VALIDATION_FAILED", 422, t("http.webhook.payload_too_large"), correlationId);
     try {
       verifySimSignature({
         secret: secrets,
@@ -136,7 +138,7 @@ export async function handleWebhook(
       parsedJson = JSON.parse(body);
     } catch {
       rejectInput(req, correlationId, "input.deserialize_failed", null, WEBHOOK_TARGET, "MALFORMED_REQUEST");
-      return simpleProblem("MALFORMED_REQUEST", 400, "Body không phải JSON", correlationId);
+      return simpleProblem("MALFORMED_REQUEST", 400, t("http.webhook.body_not_json"), correlationId);
     }
     const parsed = simPayload.safeParse(parsedJson);
     if (!parsed.success) {

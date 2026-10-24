@@ -2,6 +2,7 @@
 // Chỉ POST (trình quét liên kết trong email hay tự GET — không được đổi tuỳ chọn khi chỉ mở link); trang `/huy-dang-ky`
 // (T-219) hiện nút xác nhận rồi POST. Lỗi theo problem+json; token không bao giờ ghi log.
 import type { Kysely } from "kysely";
+import { t } from "../i18n.ts";
 import { unsubscribe, unsubscribeKey } from "../notifications/index.ts";
 import { CommandError } from "../pipeline/index.ts";
 import { correlationOf, json, simpleProblem } from "./command-route.ts";
@@ -15,10 +16,10 @@ export async function handleUnsubscribe(
   try {
     token = ((await req.json()) as { token?: unknown }).token;
   } catch {
-    return simpleProblem("MALFORMED_REQUEST", 400, "Yêu cầu không hợp lệ.", correlationId);
+    return simpleProblem("MALFORMED_REQUEST", 400, t("http.unsubscribe.invalid_request"), correlationId);
   }
   if (typeof token !== "string" || token.length < 10 || token.length > 512)
-    return simpleProblem("MALFORMED_REQUEST", 400, "Yêu cầu không hợp lệ.", correlationId);
+    return simpleProblem("MALFORMED_REQUEST", 400, t("http.unsubscribe.invalid_request"), correlationId);
   try {
     const r = await unsubscribe(deps.db, unsubscribeKey(deps.secret), { token, correlationId });
     return json({ data: { type: r.type, message: r.message } }, 200, correlationId);

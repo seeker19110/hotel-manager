@@ -53,6 +53,7 @@ import {
   startTask,
   verifyTask,
 } from "../housekeeping/index.ts";
+import { t } from "../i18n.ts";
 import { getIdentityDocument } from "../identity/index.ts";
 import {
   cancelBatch,
@@ -1675,7 +1676,7 @@ export const QUERIES: Readonly<Record<string, AnyQuery>> = {
         guests: z.coerce.number().int().min(1).max(50),
       })
       .refine((v) => (v.room_type_id === undefined) !== (v.unit_id === undefined), {
-        message: "cần đúng một trong room_type_id, unit_id",
+        message: t("registry.reservation_quote.room_type_or_unit"),
         path: ["room_type_id"],
       }),
     run: (

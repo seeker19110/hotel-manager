@@ -5,6 +5,7 @@
 
 import type { Kysely } from "kysely";
 import type { Actor } from "../access/index.ts";
+import { t } from "../i18n.ts";
 import { emitSecurity, requestClient } from "../logging/index.ts";
 import { rateLimited, rateLimitHit, toProblem } from "../pipeline/index.ts";
 import { problemResponse } from "./command-route.ts";
@@ -35,8 +36,18 @@ export async function enforceActorRateLimit(
   rule: { scope: string; perMember: number; perOrg: number },
 ): Promise<Response | null> {
   const checks = [
-    { scope: `${rule.scope}:member`, subject: actor.membershipId, limit: rule.perMember, who: "Bạn" },
-    { scope: `${rule.scope}:org`, subject: actor.orgId, limit: rule.perOrg, who: "Tổ chức" },
+    {
+      scope: `${rule.scope}:member`,
+      subject: actor.membershipId,
+      limit: rule.perMember,
+      message: t("http.rate_limit.upload_member"),
+    },
+    {
+      scope: `${rule.scope}:org`,
+      subject: actor.orgId,
+      limit: rule.perOrg,
+      message: t("http.rate_limit.upload_org"),
+    },
   ];
   for (const c of checks) {
     const r = await rateLimitHit(db, { scope: c.scope, subject: c.subject, limit: c.limit });
@@ -50,13 +61,7 @@ export async function enforceActorRateLimit(
       client: requestClient(req.headers),
       correlationId,
     });
-    return problemResponse(
-      toProblem(
-        rateLimited(`${c.who} tải lên quá nhiều trong một phút. Vui lòng thử lại sau.`, r.retryAfter),
-        correlationId,
-      ),
-      correlationId,
-    );
+    return problemResponse(toProblem(rateLimited(c.message, r.retryAfter), correlationId), correlationId);
   }
   return null;
 }

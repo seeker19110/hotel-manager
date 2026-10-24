@@ -760,3 +760,10 @@
 - Chọn: Không — ngoại lệ theo tệp có lý do trong baseline, script kiểm lý do không rỗng; mọi tệp khác về 0
 - Lý do (tiêu chí chất lượng cuối): (1) MUST ghi 'chuỗi người dùng thấy (UI, email, thông báo đẩy, lỗi, PDF)'; log/metric/OpenAPI không phải; ngoại lệ hiển thị từng tệp + lý do nên không phải nới ngầm; reviewer rà danh sách
 - Đường lùi: Bỏ danh sách ngoại lệ, chuyển nốt các tệp đó
+
+### D-106 · 2026-10-24T09:54:02+00:00 · D-106: packages/app/src/http/command-inputs.ts (19 thông điệp lỗi zod của form) được trình duyệt nạp trễ — không được import catalog server (D-098). Chuyển i18n thế nào?
+
+- Phương án: (1) A: catalog con an toàn cho client packages/app/messages/form.vi.json (chỉ câu form), i18n-check kiểm; nới danh sách import cho phép của command-inputs.test thêm đúng tệp này · (2) B: issueText(m, issue) với m truyền từ server/context — refactor apps/web/components/command · (3) C: để ratchet giữ 19 chuỗi (nợ)
+- Chọn: A: catalog con an toàn cho client packages/app/messages/form.vi.json (chỉ câu form), i18n-check kiểm; nới danh sách import cho phép của command-inputs.test thêm đúng tệp này
+- Lý do (tiêu chí chất lượng cuối): (1) XC-I18N-001 đòi mọi chuỗi; mục đích D-098 là không nhân bản catalog lớn vào bundle — catalog con ~1 kB chỉ chứa câu form trong chunk nạp trễ đáp ứng; (3) ít thay đổi nhất, không đổi luồng validate client/server; rào máy giữ (chỉ đúng tệp được phép)
+- Đường lùi: Chuyển sang B nếu catalog form lớn dần

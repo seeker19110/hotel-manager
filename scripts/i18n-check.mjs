@@ -1,5 +1,8 @@
 #!/usr/bin/env node
-// Kiểm tệp dịch (XC-I18N-009, D-073) — file dịch cũng là đầu vào: `apps/web/messages/<locale>.json` (khoá → { message, description }).
+// Kiểm tệp dịch (XC-I18N-009, D-073) — file dịch cũng là đầu vào. Hai catalog cùng định dạng (khoá → { message, description }),
+// mỗi catalog đi với mã nguồn của nó (TREES): `apps/web/messages/<locale>.json` ↔ apps/web (t/tOr của lib/i18n.ts, tm của
+// lib/i18n-format.ts) và `packages/app/messages/<locale>.json` ↔ packages/app/src (t của src/i18n.ts, import tương đối — D-104;
+// packages/app không phụ thuộc apps/web nên catalog riêng). Mọi luật dưới đây áp cho cả hai:
 //  · nguồn `vi`: mọi khoá có `description` (ngữ cảnh cho người dịch — XC-I18N-001);
 //  · mọi locale: `message` đúng cú pháp ICU (parser của formatjs), cùng tập tham số với nguồn, không thẻ HTML/script/`javascript:`;
 //    thiếu khoá so với nguồn → lỗi (chưa có cơ chế fallback khai báo);
@@ -10,6 +13,8 @@
 //    (context `common.` của lib/i18n-context.tsx, D-101) được kiểm như nhau;
 //  · bundle: không module `"use client"` nào (kể cả gián tiếp qua import tương đối) import giá trị từ lib/i18n.ts hay tệp
 //    messages/*.json — catalog bị nhân bản vào mỗi chunk JS client (D-098, CI bundle-size đỏ ở PR #123). Chỉ `import type`.
+//    Đi theo cả import gói `@hm/<gói>/<đường>` (theo `exports` của packages/*/package.json): module client chạm
+//    packages/app/src/i18n.ts hoặc packages/app/messages/*.json (vd qua `@hm/app/http`) cũng là lỗi.
 // Thoát 1 khi có lỗi. Dùng: node scripts/i18n-check.mjs
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
@@ -20,6 +25,18 @@ import { parseSource, walk } from "./ts-ast.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 export const MESSAGES_DIR = join(ROOT, "apps/web/messages");
+export const APP_MESSAGES_DIR = join(ROOT, "packages/app/messages");
+/** Catalog ↔ mã nguồn dùng nó (đường dẫn tương đối gốc repo). `roles`: tệp ROLES/STATUSES có khoá dựng động (chỉ web). */
+export const TREES = [
+  {
+    name: "apps/web",
+    messages: "apps/web/messages",
+    sources: "apps/web",
+    roles: "apps/web/lib/roles.ts",
+    client: true,
+  },
+  { name: "packages/app", messages: "packages/app/messages", sources: "packages/app/src" },
+];
 export const SOURCE_LOCALE = "vi";
 const UNSAFE = /<\s*\/?\s*[a-z][^>]*>|javascript:|on\w+\s*=/i;
 
@@ -218,15 +235,40 @@ export function sourceErrors(files, src, root = ROOT) {
   return errors;
 }
 
-const CATALOG = /(^|\/)apps\/web\/(lib\/i18n\.ts|messages\/[^/]+\.json)$/;
+const CATALOG =
+  /(^|\/)(apps\/web\/(lib\/i18n\.ts|messages\/[^/]+\.json)|packages\/app\/(src\/i18n\.ts|messages\/[^/]+\.json))$/;
 
-/** Đường dẫn import tương đối → tệp trên đĩa (dự án ghi đuôi `.ts`/`.tsx`; thiếu đuôi thì thử thêm). Gói (`@hm/…`) → null. */
-function resolveImport(from, spec) {
-  if (!spec.startsWith(".")) return null;
-  const base = resolve(dirname(from), spec);
-  for (const p of [base, `${base}.ts`, `${base}.tsx`, join(base, "index.ts"), join(base, "index.tsx")])
-    if (existsSync(p) && statSync(p).isFile()) return p;
-  return null;
+/** Gói workspace `@hm/…` → { dir, exports } đọc từ packages/*\/package.json dưới `root` (không có thư mục → rỗng). */
+function workspacePackages(root) {
+  const dir = join(root, "packages");
+  const out = new Map();
+  if (!existsSync(dir)) return out;
+  for (const n of readdirSync(dir)) {
+    const pj = join(dir, n, "package.json");
+    if (!existsSync(pj)) continue;
+    const pkg = JSON.parse(readFileSync(pj, "utf8"));
+    if (typeof pkg.name === "string") out.set(pkg.name, { dir: join(dir, n), exports: pkg.exports ?? {} });
+  }
+  return out;
+}
+
+/**
+ * Đường dẫn import → tệp trên đĩa: tương đối (dự án ghi đuôi `.ts`/`.tsx`; thiếu đuôi thì thử thêm) hoặc gói workspace
+ * `@hm/x[/sub]` theo `exports` (chuỗi; điều kiện `import`/`default`). Gói ngoài/không có trong exports → null.
+ */
+function resolveImport(from, spec, pkgs = new Map()) {
+  const tryFile = (base) => {
+    for (const p of [base, `${base}.ts`, `${base}.tsx`, join(base, "index.ts"), join(base, "index.tsx")])
+      if (existsSync(p) && statSync(p).isFile()) return p;
+    return null;
+  };
+  if (spec.startsWith(".")) return tryFile(resolve(dirname(from), spec));
+  const m = /^(@[^/]+\/[^/]+)(\/.*)?$/.exec(spec);
+  const pkg = m && pkgs.get(m[1]);
+  if (!pkg) return null;
+  const target = pkg.exports[`.${m[2] ?? ""}`];
+  const rel = typeof target === "string" ? target : (target?.import ?? target?.default);
+  return typeof rel === "string" ? tryFile(join(pkg.dir, rel)) : null;
 }
 
 /** Nguồn import GIÁ TRỊ của một tệp: `import`/`export … from` không phải `import type`, và `import("…")` viết thẳng. */
@@ -262,12 +304,13 @@ function valueImports(text, file) {
 export function clientCatalogErrors(files, root = ROOT) {
   const errors = [];
   const cache = new Map();
+  const pkgs = workspacePackages(root);
   const deps = (f) => {
     if (!cache.has(f))
       cache.set(
         f,
         valueImports(readFileSync(f, "utf8"), f)
-          .map((s) => resolveImport(f, s))
+          .map((s) => resolveImport(f, s, pkgs))
           .filter(Boolean),
       );
     return cache.get(f);
@@ -324,19 +367,35 @@ export function roleKeyErrors(src, rolesTs) {
   return errors;
 }
 
-function main() {
-  const catalogs = loadCatalogs();
-  const errors = checkCatalogs(catalogs);
+/**
+ * Mọi lỗi của một cây (catalog + mã nguồn dùng nó, xem TREES) dưới `root`: catalog (lỗi có tiền tố thư mục catalog), khoá/tham
+ * số của lời gọi dịch, module client kéo catalog (cây `client`), khoá dựng động của roles (cây có `roles`). Thiếu thư mục
+ * catalog → lỗi (không lặng lẽ bỏ qua cả cây).
+ */
+export function treeErrors(tree, root = ROOT) {
+  const dir = join(root, tree.messages);
+  if (!existsSync(dir)) return { errors: [`${tree.messages}: thiếu thư mục catalog`], catalogs: {} };
+  const catalogs = loadCatalogs(dir);
+  const errors = checkCatalogs(catalogs).map((e) => `${tree.messages}/${e}`);
   const src = catalogs[SOURCE_LOCALE] ?? {};
-  const files = sourceFiles(join(ROOT, "apps/web"));
-  errors.push(...sourceErrors(files, src));
-  errors.push(...clientCatalogErrors(files));
-  errors.push(...roleKeyErrors(src, readFileSync(join(ROOT, "apps/web/lib/roles.ts"), "utf8")));
-  for (const e of errors) console.error(e);
-  console.log(
-    `[i18n-check] ${Object.keys(catalogs).length} locale · ${Object.keys(src).length} khoá · ${errors.length} lỗi`,
-  );
-  return errors.length ? 1 : 0;
+  const files = sourceFiles(join(root, tree.sources));
+  errors.push(...sourceErrors(files, src, root));
+  if (tree.client) errors.push(...clientCatalogErrors(files, root));
+  if (tree.roles) errors.push(...roleKeyErrors(src, readFileSync(join(root, tree.roles), "utf8")));
+  return { errors, catalogs };
+}
+
+function main() {
+  let total = 0;
+  for (const tree of TREES) {
+    const { errors, catalogs } = treeErrors(tree);
+    for (const e of errors) console.error(e);
+    total += errors.length;
+    console.log(
+      `[i18n-check] ${tree.messages}: ${Object.keys(catalogs).length} locale · ${Object.keys(catalogs[SOURCE_LOCALE] ?? {}).length} khoá · ${errors.length} lỗi`,
+    );
+  }
+  return total ? 1 : 0;
 }
 
 if (isMain(import.meta.url)) process.exit(main());

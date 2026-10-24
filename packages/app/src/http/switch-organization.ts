@@ -5,6 +5,7 @@
 // IDEMPOTENCY_CONFLICT; kết quả lưu ở idempotency_keys của tổ chức đích. Tách khỏi route Next để test được (BASE-SEC-001).
 import { z } from "zod";
 import { orgCookieName, switchOrganization } from "../access/index.ts";
+import { t } from "../i18n.ts";
 import { correlationOf, type HttpDeps, json, simpleProblem, validationProblem } from "./command-route.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -21,16 +22,16 @@ export async function handleSwitchOrganization(
 ): Promise<Response> {
   const correlationId = correlationOf(req);
   const session = await deps.getSession(req.headers);
-  if (!session) return simpleProblem("UNAUTHENTICATED", 401, "Cần đăng nhập", correlationId);
+  if (!session) return simpleProblem("UNAUTHENTICATED", 401, t("http.unauthenticated"), correlationId);
 
   const key = req.headers.get("idempotency-key") ?? "";
   if (!UUID.test(key))
-    return simpleProblem("MALFORMED_REQUEST", 400, "Thiếu hoặc sai Idempotency-Key (UUID)", correlationId);
+    return simpleProblem("MALFORMED_REQUEST", 400, t("http.idempotency_key_invalid"), correlationId);
   let raw: unknown;
   try {
     raw = await req.json();
   } catch {
-    return simpleProblem("MALFORMED_REQUEST", 400, "Thân yêu cầu không phải JSON hợp lệ", correlationId);
+    return simpleProblem("MALFORMED_REQUEST", 400, t("http.body_not_json"), correlationId);
   }
   const parsed = switchOrganizationInput.safeParse(raw);
   if (!parsed.success) return validationProblem(parsed.error, correlationId);
@@ -42,14 +43,9 @@ export async function handleSwitchOrganization(
     correlationId,
   });
   if (result.kind === "conflict")
-    return simpleProblem(
-      "IDEMPOTENCY_CONFLICT",
-      422,
-      "Idempotency-Key đã dùng cho yêu cầu khác",
-      correlationId,
-    );
+    return simpleProblem("IDEMPOTENCY_CONFLICT", 422, t("http.idempotency_conflict"), correlationId);
   if (result.kind === "not_found")
-    return simpleProblem("NOT_FOUND", 404, "Không tìm thấy tổ chức", correlationId);
+    return simpleProblem("NOT_FOUND", 404, t("http.organization_not_found"), correlationId);
   const { context } = result;
 
   const res = json(

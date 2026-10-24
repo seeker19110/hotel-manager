@@ -1,0 +1,94 @@
+{
+  "http.unauthenticated": {
+    "message": "Cần đăng nhập",
+    "description": "`title` của problem+json (RFC 9457) mà API trả cho client khi request không có phiên đăng nhập (401 UNAUTHENTICATED) — command, query, /api/v1/me, chọn tổ chức."
+  },
+  "http.session_revoked": {
+    "message": "Phiên này đã bị đăng xuất. Vui lòng đăng nhập lại.",
+    "description": "`title` của problem+json (RFC 9457) mà API trả cho client khi phiên đã bị thu hồi (401 SESSION_REVOKED, vd đăng xuất ở thiết bị khác)."
+  },
+  "http.client_outdated": {
+    "message": "Ứng dụng cần cập nhật để tiếp tục.",
+    "description": "`title` của problem+json (RFC 9457) mà API trả cho client khi bản web/PWA cũ hơn mức tối thiểu của server (426 CLIENT_OUTDATED); UI hiện nút Cập nhật."
+  },
+  "http.context_changed": {
+    "message": "Bạn vừa chuyển sang cơ sở khác. Tải lại để tiếp tục.",
+    "description": "`title` của problem+json (RFC 9457) mà API trả cho client khi trang đang mở thuộc tổ chức/cơ sở khác với ngữ cảnh hiện tại (409 CONTEXT_CHANGED, thường do đổi cơ sở ở tab khác)."
+  },
+  "http.org_context_required": {
+    "message": "Hãy chọn tổ chức bạn đang làm việc.",
+    "description": "`title` của problem+json (RFC 9457) mà API trả cho client khi người dùng có nhiều tổ chức mà chưa chọn tổ chức đang làm việc (409 ORG_CONTEXT_REQUIRED); kèm danh sách tổ chức."
+  },
+  "http.validation_failed": {
+    "message": "Dữ liệu không hợp lệ",
+    "description": "`title` của problem+json (RFC 9457) mà API trả cho client khi thân/tham số request sai (422 VALIDATION_FAILED); chi tiết theo trường nằm ở `errors[]`."
+  },
+  "http.idempotency_key_invalid": {
+    "message": "Thiếu hoặc sai Idempotency-Key (UUID)",
+    "description": "`title` của problem+json (RFC 9457) mà API trả cho client khi request ghi thiếu header Idempotency-Key hoặc không phải UUID (400 MALFORMED_REQUEST). Giữ nguyên tên header."
+  },
+  "http.body_not_json": {
+    "message": "Thân yêu cầu không phải JSON hợp lệ",
+    "description": "`title` của problem+json (RFC 9457) mà API trả cho client khi thân request không đọc được thành JSON (400 MALFORMED_REQUEST)."
+  },
+  "http.idempotency_conflict": {
+    "message": "Idempotency-Key đã dùng cho yêu cầu khác",
+    "description": "`title` của problem+json (RFC 9457) mà API trả cho client khi cùng Idempotency-Key được gửi lại với nội dung khác (422 IDEMPOTENCY_CONFLICT). Giữ nguyên tên header."
+  },
+  "http.organization_not_found": {
+    "message": "Không tìm thấy tổ chức",
+    "description": "`title` của problem+json (RFC 9457) mà API trả cho client khi chọn tổ chức mà người dùng không có membership hoặc tổ chức không tồn tại (404 NOT_FOUND)."
+  },
+  "http.file_too_large": {
+    "message": "File vượt dung lượng cho phép",
+    "description": "`title` của problem+json (RFC 9457) mà API trả cho client khi tải ảnh/PDF lớn hơn giới hạn (413 FILE_TOO_LARGE)."
+  },
+  "http.import.multipart_required": {
+    "message": "Cần multipart/form-data",
+    "description": "`title` của problem+json (RFC 9457) mà API trả cho client khi tải file nhập liệu không gửi dạng multipart/form-data (400 MALFORMED_REQUEST). Giữ nguyên tên kiểu nội dung."
+  },
+  "http.import.file_too_large": {
+    "message": "File quá lớn. Tách thành nhiều file.",
+    "description": "`title` của problem+json (RFC 9457) mà API trả cho client khi file nhập liệu CSV/XLSX vượt giới hạn dung lượng (413 FILE_TOO_LARGE)."
+  },
+  "http.import.multipart_invalid": {
+    "message": "Thân multipart không hợp lệ",
+    "description": "`title` của problem+json (RFC 9457) mà API trả cho client khi thân multipart của file nhập liệu không phân tích được (400 MALFORMED_REQUEST)."
+  },
+  "http.rate_limit.upload_member": {
+    "message": "Bạn tải lên quá nhiều trong một phút. Vui lòng thử lại sau.",
+    "description": "`title` của problem+json (RFC 9457) mà API trả cho client khi một thành viên vượt hạn mức tải file/nhập liệu trong 60 giây (429 RATE_LIMITED, kèm Retry-After)."
+  },
+  "http.rate_limit.upload_org": {
+    "message": "Tổ chức tải lên quá nhiều trong một phút. Vui lòng thử lại sau.",
+    "description": "`title` của problem+json (RFC 9457) mà API trả cho client khi cả tổ chức vượt hạn mức tải file/nhập liệu trong 60 giây (429 RATE_LIMITED, kèm Retry-After)."
+  },
+  "http.webhook.rate_limited": {
+    "message": "Webhook gửi quá nhanh. Thử lại sau.",
+    "description": "`title` của problem+json (RFC 9457) mà API trả cho client cho nhà cung cấp thanh toán khi webhook vượt hạn mức tần suất (429 RATE_LIMITED)."
+  },
+  "http.webhook.provider_not_found": {
+    "message": "Không có nhà cung cấp này",
+    "description": "`title` của problem+json (RFC 9457) mà API trả cho client cho bên gọi webhook khi nhà cung cấp không tồn tại hoặc chưa bật (404 NOT_FOUND)."
+  },
+  "http.webhook.account_not_found": {
+    "message": "Không tìm thấy tài khoản nhận",
+    "description": "`title` của problem+json (RFC 9457) mà API trả cho client cho bên gọi webhook khi mã tài khoản nhận tiền không hợp lệ (404 NOT_FOUND)."
+  },
+  "http.webhook.payload_too_large": {
+    "message": "Payload quá lớn",
+    "description": "`title` của problem+json (RFC 9457) mà API trả cho client cho bên gọi webhook khi thân vượt giới hạn dung lượng (422 VALIDATION_FAILED)."
+  },
+  "http.webhook.body_not_json": {
+    "message": "Body không phải JSON",
+    "description": "`title` của problem+json (RFC 9457) mà API trả cho client cho bên gọi webhook khi thân không phải JSON (400 MALFORMED_REQUEST)."
+  },
+  "http.unsubscribe.invalid_request": {
+    "message": "Yêu cầu không hợp lệ.",
+    "description": "`title` của problem+json (RFC 9457) mà API trả cho client ở trang huỷ đăng ký email khi thân thiếu/sai token (400 MALFORMED_REQUEST)."
+  },
+  "registry.reservation_quote.room_type_or_unit": {
+    "message": "cần đúng một trong room_type_id, unit_id",
+    "description": "Thông điệp kiểm tra đầu vào truy vấn báo giá đặt phòng (`reservation.quote`): phải gửi đúng một trong hai trường. Hiện API 422 chỉ trả mã lỗi theo trường; giữ nguyên tên trường."
+  }
+}

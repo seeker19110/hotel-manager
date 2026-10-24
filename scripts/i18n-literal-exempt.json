@@ -1,0 +1,16 @@
+{
+  "packages/app/src/auth/auth-events.ts": "Chuỗi duy nhất là thông điệp log.error khi ghi audit sự kiện xác thực thất bại — chỉ vào log vận hành, không ra API/UI.",
+  "packages/app/src/config/schema.ts": "Lý do lỗi cấu hình biến môi trường lúc khởi động (Error ném khi đọc env) — chỉ người vận hành thấy trong log khởi động, không ra API/UI.",
+  "packages/app/src/config/webhook-secrets.ts": "Lỗi cấu hình SIM_WEBHOOK_SECRET lúc khởi động (Error ném khi phân tích env) — chỉ người vận hành thấy, không ra API/UI.",
+  "packages/app/src/config/worker.ts": "Lý do lỗi cấu hình env của worker lúc khởi động — chỉ người vận hành thấy trong log khởi động, không ra API/UI.",
+  "packages/app/src/crypto/pii.ts": "PiiKeyError: lỗi cấu hình khoá HM_PII_KEYS (đọc lúc khởi động qua config/schema.ts) và lỗi giải mã nội bộ — Error thường, toProblem che thành INTERNAL với câu chung; không ra API/UI.",
+  "packages/app/src/errors.ts": "Chuỗi duy nhất là trường `source` (ghi chú nơi định nghĩa mã lỗi cho nhà phát triển, scripts/process-docs.test.mjs đọc để đối chiếu API-CONTRACT); không vào problem+json. Mã lỗi/status không phải chuỗi dịch.",
+  "packages/app/src/files/clamd.ts": "Thông điệp ScannerUnavailableError khi nói chuyện với clamd — files.ts bắt lỗi này và trả CommandError SERVICE_UNAVAILABLE với câu riêng; chuỗi ở đây chỉ vào log.",
+  "packages/app/src/http/openapi.ts": "Mô tả OpenAPI (apps/web/openapi.json, `pnpm openapi`) — tài liệu cho nhà phát triển tích hợp API, không hiện cho người dùng sản phẩm.",
+  "packages/app/src/http/security.ts": "Chuỗi duy nhất là Error lập trình khi nonce CSP sai dạng trong buildCsp (proxy) — không ra API/UI. Module được client import (`@hm/app/http` → safeUrl) nên không được import catalog (D-098).",
+  "packages/app/src/logging/unexpected.ts": "Thông điệp log.error và nhãn trong bản ghi log lỗi không dự kiến — chỉ vào log vận hành; người dùng chỉ thấy câu INTERNAL chung kèm correlation_id.",
+  "packages/app/src/observability/metrics.ts": "Chuỗi HELP của metric Prometheus (/api/metrics, chỉ nội bộ) — chỉ người vận hành/dashboard thấy.",
+  "packages/app/src/outbox/payloads.ts": "InvalidJobPayloadError khi payload job outbox sai schema — lỗi nội bộ của worker, chỉ vào log/dead-letter, không ra API/UI.",
+  "packages/app/src/pipeline/rate-counter.ts": "Chuỗi duy nhất là Error bất biến nội bộ khi hàm SQL app.rate_limit_hit không trả hàng — toProblem che thành INTERNAL; không ra API/UI.",
+  "packages/app/src/retention/events.ts": "Thông điệp AggregateError của job dọn dữ liệu hết hạn (worker) — chỉ vào log vận hành, không ra API/UI."
+}
