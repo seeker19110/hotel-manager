@@ -1,8 +1,8 @@
 # PROGRESS.md — Hotel Manager
 ## Đang làm
 - 2026-10-22 đợt 17 (D-093, D-094): 4 luật grype critical gia hạn tới 2026-10-29 (chưa có image vá: Caddy v2.11.7 vẫn Go 1.26.8, SeaweedFS 4.48; GO-2026-6604 chỉ Windows); `/co-so`, `/thanh-vien` sang `t()` (−77 chuỗi, còn 2280). D-095: 8 MUST bỏ tick chờ import ruleset; 2026-10-23 chủ dự án import `main.json` ⇒ tick lại, MUST mở 90 (WF-REL-003 đạt sau import ruleset tag).
-- 2026-10-23 đợt 20 (D-100): 14 tệp sang `t()`/`tm()`, baseline 1899 → 1717.
 - 2026-10-24 đợt 21 (D-101, D-102): `MessagesProvider` (client context, khoá `common.`) cho hạ tầng client; phần đuôi ngoài `merge_risk_paths` sang `t()`/`tm()`, baseline 1717 → 1552; bundle 278,11 kB. Còn ngoài risk: chỉ `lib/format.ts`.
+- 2026-10-24 đợt 22 (D-103…D-105, "hoàn thiện dự án"): hoàn tất XC-I18N-001 theo 5 lát; lát 1 `lib/format.ts` → hàm nhãn nhận `m` (1552 → 1478). Lát 2+4 (tiền/lưu trú/auth) người merge.
 - Đợt mới: `loop resume` nếu còn `.autopilot/state.json`; container mới không có state ⇒ PLAN mới + `loop init` (FB-149).
 - Phát hành v0.2.0 (#88). D-091 (2026-10-22): pha harden, 26 cổng hoãn đã khôi phục — `main.json` 28 context, strict bật (đã import 2026-10-23). `release-please` đỏ — xem *Tiếp theo* 3.
 
@@ -33,6 +33,6 @@
 - Bài học đợt 5–8: Better Auth `/sign-in/email` 20 lần/phút theo IP; `<dialog>` phát `close` sau một task (`onClose` chỉ xoá trạng thái khi hộp thật sự đóng); chạy lại job CI dùng payload sự kiện cũ (cần push mới); test giá trị ngẫu nhiên phải loại ca biên (IP octet 0); không so thời gian tuyệt đối (so tương đối); hai lát song song có thể đụng nhau qua rào mới.
 
 ## Bàn giao phiên
-- 2026-10-22 `main` = `e41d6f1` (sau #129); nhánh `claude/admiring-pasteur-qi1dn0` (đợt 17–18, tick lại D-095). Thiếu ruleset tag, nhãn `major`, LICENSE.
+- 2026-10-22 `main` = `eaab1f8` (sau #130); nhánh `claude/admiring-pasteur-qi1dn0` (đợt 17–18, tick lại D-095). Thiếu ruleset tag, nhãn `major`, LICENSE.
 - Lệnh kiểm nhanh: `.xtemplates/scripts/dev-task.sh gate` · `pnpm test:db` · `E2E_PORT=<cổng riêng> pnpm --filter @hm/web exec playwright test` · `bash scripts/db-backup-restore-check.sh`. Container mới: `bash scripts/dev-env-setup.sh && bash scripts/dev-env-setup.sh --only gitleaks` rồi `pnpm install --frozen-lockfile`; semgrep: `python3 -m venv <thư mục tạm>/sg && <…>/sg/bin/pip install --require-hashes -r security/semgrep/requirements.txt` rồi đưa `<…>/sg/bin` vào PATH (thiếu gitleaks/semgrep ⇒ `loop verify` đỏ exit 127 ở WF-GIT-010/T-1101). Không chạy E2E song song với `loop verify` (T-402 đỏ do tranh CPU).
 - Đang chặn: chờ người (mục *Tiếp theo* 1–3; xác nhận việc viết lại lịch sử `main` có chủ ý — ruleset nay chặn force-push). Autopilot: `done-pending-human` (một phiên).
