@@ -774,3 +774,10 @@
 - Chọn: Mở rộng SCOPE sang packages/domain/src và packages/db/src; domain có catalog riêng (thuần, chỉ import JSON) như D-104, chuyển chuỗi người dùng thấy (kể cả từ vựng đọc số); packages/db: migration đã áp bất biến + thông báo RAISE không ra API (toProblem dùng title catalog) ⇒ ngoại lệ D-105 theo tệp có lý do + max sau khi kiểm từng tệp; packages/testkit (chỉ test) ngoài phạm vi
 - Lý do (tiêu chí chất lượng cuối): (1) P1 bằng chứng: MUST nói mọi chuỗi người dùng thấy (lỗi API, PDF/phiếu) — domain có chuỗi ra API và phiếu; không sửa migration đã áp (AGENTS §4)
 - Đường lùi: Thu hẹp SCOPE lại (không khuyến nghị)
+
+### D-108 · 2026-10-24T12:54:03+00:00 · D-108: packages/domain/src/format/intl.ts (ký hiệu 'đ' + 4 RangeError nội bộ) được client import qua @hm/app/format — catalog con format.vi.json (mẫu D-106, +~3 kB gzip) hay ngoại lệ D-105?
+
+- Phương án: (1) A: catalog con packages/domain/messages/format.vi.json + formatText (mở rộng D-106 sang domain) · (2) B: ngoại lệ D-105 (coi 'đ' là dữ liệu định dạng locale)
+- Chọn: A: catalog con packages/domain/messages/format.vi.json + formatText (mở rộng D-106 sang domain)
+- Lý do (tiêu chí chất lượng cuối): (1) 'đ' người dùng thấy trên mọi số tiền — XC-I18N-001 đòi qua tài nguyên; nhất quán D-106; +3 kB vẫn trong ngân sách 300 kB (282,3)
+- Đường lùi: Phương án B: bỏ formatText/format.vi.json, thêm 1 dòng ngoại lệ

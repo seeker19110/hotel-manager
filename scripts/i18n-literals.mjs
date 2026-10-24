@@ -28,6 +28,8 @@ export const SCOPE = [
   "apps/web/lib",
   "apps/worker/src",
   "packages/app/src",
+  "packages/domain/src",
+  "packages/db/src",
 ];
 const VI = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i;
 
@@ -134,7 +136,7 @@ export function regressions(current, baseline) {
     .filter(([f, n]) => n > (baseline[f] ?? 0))
     .map(
       ([f, n]) =>
-        `${f}: ${n} chuỗi viết thẳng > ngưỡng ${baseline[f] ?? 0} — dùng t() và khoá trong apps/web/messages/vi.json`,
+        `${f}: ${n} chuỗi viết thẳng > ngưỡng ${baseline[f] ?? 0} — dùng t() và khoá trong catalog của gói (apps/web, packages/app hoặc packages/domain: messages/vi.json)`,
     );
 }
 

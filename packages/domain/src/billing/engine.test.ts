@@ -1,7 +1,7 @@
 // T-113 — engine tính tiền thuần (SPEC-metering-billing S-001, S-016, S-018…S-021).
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { lineAmount, prorate } from "../money/money.ts";
+import { lineAmount, MoneyError, prorate } from "../money/money.ts";
 import { computeLeaseInvoice, daysInMonth, type LeaseBillingInput, rentLines } from "./engine.ts";
 
 const base = (over: Partial<LeaseBillingInput> = {}): LeaseBillingInput => ({
@@ -312,5 +312,54 @@ describe("money: trừ thập phân, kiểm số chữ số thập phân", () =>
       hasMaxDecimals(1e21, 3),
       hasMaxDecimals(Number.NaN, 3),
     ]).toEqual([true, false, true, false]);
+  });
+});
+
+describe("mô tả dòng phiếu và câu lỗi giữ nguyên chữ sau khi chuyển sang catalog domain (D-107)", () => {
+  it("trọn tháng / lẻ ngày / theo người; lỗi kỳ, ngày, số người, lượng âm", () => {
+    expect(rentLines(base())[0]?.description).toBe("Tiền thuê tháng 10/2026");
+    expect(rentLines(base({ billingStartOn: "2026-10-17" }))[0]?.description).toBe(
+      "Tiền thuê 15/31 ngày (3.000.000 đ/tháng)",
+    );
+    expect(() => rentLines(base({ periodEnd: "2026-09-30" }))).toThrow(new MoneyError("Kỳ thu sai"));
+    expect(() => rentLines(base({ periodEnd: "2026-11-30" }))).toThrow(
+      new MoneyError("Kỳ thu là một tháng dương lịch"),
+    );
+    expect(() => rentLines(base({ periodStart: "2026-02-30" }))).toThrow(
+      new MoneyError("Ngày không hợp lệ: 2026-02-30"),
+    );
+    expect(() => computeLeaseInvoice(base({ occupantsAtEnd: -1 }))).toThrow(new MoneyError("Số người ở sai"));
+    expect(() =>
+      computeLeaseInvoice(
+        base({
+          metered: [
+            {
+              serviceId: "e",
+              name: "Điện",
+              revenueAccount: "REV_UTIL",
+              start: "9",
+              end: "1",
+              unitPrice: "1",
+            },
+          ],
+        }),
+      ),
+    ).toThrow(new MoneyError("Lượng Điện âm"));
+    expect(() =>
+      computeLeaseInvoice(
+        base({
+          services: [
+            {
+              serviceId: "x",
+              name: "Gửi xe",
+              kind: "fixed_per_unit",
+              revenueAccount: "REV_SERVICE",
+              unitPrice: "1",
+              quantity: 1.5,
+            },
+          ],
+        }),
+      ),
+    ).toThrow(new MoneyError("Số lượng Gửi xe sai"));
   });
 });

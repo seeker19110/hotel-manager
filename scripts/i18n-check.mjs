@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-// Kiểm tệp dịch (XC-I18N-009, D-073) — file dịch cũng là đầu vào. Hai catalog cùng định dạng (khoá → { message, description }),
+// Kiểm tệp dịch (XC-I18N-009, D-073) — file dịch cũng là đầu vào. Ba catalog cùng định dạng (khoá → { message, description }),
 // mỗi catalog đi với mã nguồn của nó (TREES): `apps/web/messages/<locale>.json` ↔ apps/web (t/tOr của lib/i18n.ts, tm của
-// lib/i18n-format.ts) và `packages/app/messages/<locale>.json` ↔ packages/app/src (t của src/i18n.ts, import tương đối — D-104;
-// packages/app không phụ thuộc apps/web nên catalog riêng). Mọi luật dưới đây áp cho cả hai:
+// lib/i18n-format.ts), `packages/app/messages/<locale>.json` ↔ packages/app/src (t của src/i18n.ts, import tương đối — D-104;
+// packages/app không phụ thuộc apps/web nên catalog riêng) và `packages/domain/messages/<locale>.json` ↔ packages/domain/src
+// (t của src/i18n.ts — D-107; domain thuần, không phụ thuộc gói khác). Mọi luật dưới đây áp cho cả ba:
 //  · nguồn `vi`: mọi khoá có `description` (ngữ cảnh cho người dịch — XC-I18N-001);
 //  · mọi locale: `message` đúng cú pháp ICU (parser của formatjs), cùng tập tham số với nguồn, không thẻ HTML/script/`javascript:`;
 //    thiếu khoá so với nguồn → lỗi (chưa có cơ chế fallback khai báo);
@@ -14,10 +15,12 @@
 //  · bundle: không module `"use client"` nào (kể cả gián tiếp qua import tương đối) import giá trị từ lib/i18n.ts hay tệp
 //    messages/*.json — catalog bị nhân bản vào mỗi chunk JS client (D-098, CI bundle-size đỏ ở PR #123). Chỉ `import type`.
 //    Đi theo cả import gói `@hm/<gói>/<đường>` (theo `exports` của packages/*/package.json): module client chạm
-//    packages/app/src/i18n.ts hoặc packages/app/messages/<locale>.json (vd qua `@hm/app/http`) cũng là lỗi.
+//    packages/{app,domain}/src/i18n.ts hoặc packages/{app,domain}/messages/<locale>.json (vd qua `@hm/app/http`,
+//    `@hm/app/format` → `@hm/domain/format`) cũng là lỗi.
 //    Import gói workspace mà `exports` không giải được (mẫu `"./*"`, điều kiện lồng, đường con không khai…) ⇒ lỗi, không bỏ qua
 //    (fail-closed, T-2207).
-//  · catalog con (D-106) `<thư mục catalog>/<tên>.<locale>.json` (vd packages/app/messages/form.vi.json): tập câu NHỎ cho module
+//  · catalog con (D-106) `<thư mục catalog>/<tên>.<locale>.json` (vd packages/app/messages/form.vi.json,
+//    packages/domain/messages/format.vi.json của format/intl.ts — D-107): tập câu NHỎ cho module
 //    mà trình duyệt nạp (http/command-inputs.ts) — được phép vào bundle client (không khớp luật trên), nhưng chỉ đúng các tệp mã
 //    khai ở `subcatalogs` dùng nó. Kiểm như catalog chính (mô tả, ICU, tham số, HTML) + mọi lời gọi hàm tra cứu (`formText`) trong
 //    tệp mã khai báo: khoá viết thẳng, có trong catalog con, đúng tham số; khoá không được gọi ở đâu ⇒ lỗi (giữ catalog con tối thiểu).
@@ -46,6 +49,13 @@ export const TREES = [
     messages: "packages/app/messages",
     sources: "packages/app/src",
     subcatalogs: [{ name: "form", fn: "formText", sources: ["packages/app/src/http/command-inputs.ts"] }],
+  },
+  {
+    name: "packages/domain",
+    messages: "packages/domain/messages",
+    sources: "packages/domain/src",
+    // format/intl.ts vào bundle trình duyệt (apps/web/lib/format.ts → @hm/app/format → @hm/domain/format) — D-107 theo mẫu D-106.
+    subcatalogs: [{ name: "format", fn: "formatText", sources: ["packages/domain/src/format/intl.ts"] }],
   },
 ];
 
@@ -253,7 +263,7 @@ export function sourceErrors(files, src, root = ROOT) {
 // Catalog chính (`<locale>.json`, không dấu chấm trong tên). Catalog con `<tên>.<locale>.json` (D-106) không khớp: nó được thiết
 // kế để vào bundle client (nhỏ, chỉ câu form) — phạm vi dùng do `subcatalogErrors` giữ.
 const CATALOG =
-  /(^|\/)(apps\/web\/(lib\/i18n\.ts|messages\/[^/.]+\.json)|packages\/app\/(src\/i18n\.ts|messages\/[^/.]+\.json))$/;
+  /(^|\/)(apps\/web\/(lib\/i18n\.ts|messages\/[^/.]+\.json)|packages\/(app|domain)\/(src\/i18n\.ts|messages\/[^/.]+\.json))$/;
 
 /** Gói workspace `@hm/…` → { dir, exports } đọc từ packages/*\/package.json dưới `root` (không có thư mục → rỗng). */
 function workspacePackages(root) {

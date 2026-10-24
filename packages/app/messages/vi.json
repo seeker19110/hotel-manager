@@ -3215,10 +3215,6 @@
     "message": "File sao kê vượt 2 MB — tách thành nhiều file",
     "description": "Thông điệp lỗi API (problem+json) trả cho client (413 FILE_TOO_LARGE) khi tệp sao kê ngân hàng vượt 2 MB."
   },
-  "reconciliation.statement_limit_prefix": {
-    "message": "Tối đa",
-    "description": "KHÔNG hiện cho người dùng: tiền tố thông điệp RangeError của bộ đọc sao kê khi vượt giới hạn; mã so khớp tiền tố này để đổi thành lỗi FILE_TOO_LARGE — phải giữ đồng bộ với thông điệp của bộ đọc."
-  },
   "reconciliation.skip_outflow": {
     "message": "Tiền ra",
     "description": "Lý do dòng sao kê bị bỏ qua khi xem trước nhập sao kê: giao dịch tiền ra."

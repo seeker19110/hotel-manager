@@ -1,5 +1,7 @@
 // authorize(actor, action, ctx) — kiểm quyền thuần (không I/O), ARCHITECTURE "Kiểm quyền hai lớp" lớp app.
 // Lớp CSDL (RLS) là lớp thứ hai; giao diện chỉ ẩn/hiện.
+
+import { t } from "../i18n.ts";
 import { type Action, DEFAULT_LIMITS, grantFor, LIMIT_KIND, type MatrixRole, ROLES } from "./matrix.ts";
 
 export interface AuthzActor {
@@ -57,16 +59,16 @@ export function effectiveLimit(actor: AuthzActor, kind: string): number {
 export function authorize(actor: AuthzActor, action: Action, ctx: AuthzContext = {}): AuthzResult {
   // SPEC-portal S-005: người thuê (không có phạm vi cơ sở) gọi API nhân viên → 403 rõ ràng, không phải 404 do phạm vi.
   if (actor.role === "tenant" && grantFor(action, "tenant") === "no")
-    throw new AuthzError("FORBIDDEN", "Bạn không có quyền thực hiện thao tác này");
+    throw new AuthzError("FORBIDDEN", t("authz.forbidden"));
   if (ctx.propertyId !== undefined && !actor.allProperties && !actor.propertyIds.includes(ctx.propertyId)) {
-    throw new AuthzError("NOT_FOUND", "Không tìm thấy");
+    throw new AuthzError("NOT_FOUND", t("authz.not_found"));
   }
-  if (!isMatrixRole(actor.role)) throw new AuthzError("FORBIDDEN", "Vai trò không có quyền này");
+  if (!isMatrixRole(actor.role)) throw new AuthzError("FORBIDDEN", t("authz.role_not_allowed"));
   const grant = grantFor(action, actor.role);
 
   switch (grant) {
     case "no":
-      throw new AuthzError("FORBIDDEN", "Bạn không có quyền thực hiện thao tác này");
+      throw new AuthzError("FORBIDDEN", t("authz.forbidden"));
     case "yes":
     case "read":
     case "request":
@@ -76,32 +78,31 @@ export function authorize(actor: AuthzActor, action: Action, ctx: AuthzContext =
         grant === "yes"
       ) {
         // Owner duyệt yêu cầu do chính mình lập cũng bị cấm (INV-F5) — chỉ khi ngữ cảnh là duyệt.
-        throw new AuthzError("SELF_APPROVAL_FORBIDDEN", "Bạn không thể tự duyệt yêu cầu mình lập");
+        throw new AuthzError("SELF_APPROVAL_FORBIDDEN", t("authz.self_approval"));
       }
       return { grant };
     case "own":
       if (ctx.subjectPersonId === undefined || ctx.subjectPersonId !== actor.personId) {
-        throw new AuthzError("FORBIDDEN", "Chỉ được thao tác trên bản ghi của mình");
+        throw new AuthzError("FORBIDDEN", t("authz.own_records_only"));
       }
       return { grant };
     case "limit": {
       if (ctx.requestedByPersonId !== undefined && ctx.requestedByPersonId === actor.personId) {
-        throw new AuthzError("SELF_APPROVAL_FORBIDDEN", "Bạn không thể tự duyệt yêu cầu mình lập");
+        throw new AuthzError("SELF_APPROVAL_FORBIDDEN", t("authz.self_approval"));
       }
       if (
         actor.role === "front_desk" &&
         (action === "deposit.refund" || action === "credit.refund") &&
         !ctx.atCheckout
       ) {
-        throw new AuthzError("FORBIDDEN", "Lễ tân chỉ hoàn trong lúc trả phòng");
+        throw new AuthzError("FORBIDDEN", t("authz.front_desk_refund_checkout_only"));
       }
       const kind = LIMIT_KIND[action] ?? "refund";
       const limit = effectiveLimit(actor, kind);
       if (ctx.amount === undefined || !Number.isInteger(ctx.amount) || ctx.amount < 0) {
-        throw new AuthzError("FORBIDDEN", "Thiếu số tiền hợp lệ để kiểm hạn mức");
+        throw new AuthzError("FORBIDDEN", t("authz.amount_required"));
       }
-      if (ctx.amount > limit)
-        throw new AuthzError("APPROVAL_LIMIT_EXCEEDED", "Vượt hạn mức — cần người có thẩm quyền duyệt");
+      if (ctx.amount > limit) throw new AuthzError("APPROVAL_LIMIT_EXCEEDED", t("authz.limit_exceeded"));
       return { grant, limit };
     }
   }
@@ -113,9 +114,9 @@ export function authorize(actor: AuthzActor, action: Action, ctx: AuthzContext =
  */
 export function authorizeRequest(actor: AuthzActor, action: Action, ctx: { propertyId?: string } = {}): void {
   if (ctx.propertyId !== undefined && !actor.allProperties && !actor.propertyIds.includes(ctx.propertyId)) {
-    throw new AuthzError("NOT_FOUND", "Không tìm thấy");
+    throw new AuthzError("NOT_FOUND", t("authz.not_found"));
   }
   if (!isMatrixRole(actor.role) || grantFor(action, actor.role) === "no") {
-    throw new AuthzError("FORBIDDEN", "Bạn không có quyền lập yêu cầu này");
+    throw new AuthzError("FORBIDDEN", t("authz.request_forbidden"));
   }
 }

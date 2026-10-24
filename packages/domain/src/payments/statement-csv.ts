@@ -1,10 +1,22 @@
 // Đọc sao kê CSV có ánh xạ cột (SPEC-ledger S-019). Thuần, không I/O: CSV RFC 4180 (ngoặc kép, xuống dòng trong ô, BOM),
 // số tiền kiểu Việt Nam ("1.580.000", "1,580,000", "1.580.000,00"), ngày giờ địa phương Asia/Ho_Chi_Minh (+07:00).
 // Lỗi từng dòng được trả về theo dòng — không làm hỏng cả file.
+import { t } from "../i18n.ts";
 import { mibToBytes } from "../units/units.ts";
 
 export const STATEMENT_MAX_ROWS = 5000;
 export const STATEMENT_MAX_BYTES = mibToBytes(2);
+
+/**
+ * Sao kê vượt giới hạn số dòng (`STATEMENT_MAX_ROWS`). Lớp riêng để nơi gọi đổi thành 413 FILE_TOO_LARGE theo LỚP lỗi thay vì so
+ * tiền tố câu chữ (câu đi qua catalog, dịch được); vẫn là RangeError như các lỗi đầu vào khác của bộ đọc.
+ */
+export class StatementLimitError extends RangeError {
+  constructor(message: string) {
+    super(message);
+    this.name = "StatementLimitError";
+  }
+}
 
 export function parseCsv(text: string, delimiter?: string): string[][] {
   const src = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
@@ -40,7 +52,7 @@ export function parseCsv(text: string, delimiter?: string): string[][] {
       cell = "";
     } else cell += c;
   }
-  if (quoted) throw new RangeError("CSV: thiếu dấu đóng ngoặc kép");
+  if (quoted) throw new RangeError(t("statement.unclosed_quote"));
   row.push(cell);
   if (row.some((x) => x.trim() !== "")) rows.push(row);
   return rows;
@@ -138,46 +150,47 @@ export function mapStatement(rows: readonly string[][], m: StatementMapping): St
   const col = (ref: ColumnRef | undefined, field: string): number | undefined => {
     if (ref === undefined) return undefined;
     const i = typeof ref === "number" ? ref : header.indexOf(ref.trim().toLowerCase().replace(/\s+/g, " "));
-    if (!Number.isInteger(i) || i < 0) throw new RangeError(`Không tìm thấy cột ${field}: ${String(ref)}`);
+    if (!Number.isInteger(i) || i < 0)
+      throw new RangeError(t("statement.column_not_found", { field, column: String(ref) }));
     return i;
   };
   if ((m.amount === undefined) === (m.credit === undefined))
-    throw new RangeError("Ánh xạ cần đúng một trong: cột số tiền, hoặc cột Có (kèm Nợ nếu có)");
+    throw new RangeError(t("statement.mapping_amount"));
   const c = {
-    date: col(m.date, "ngày") as number,
-    description: col(m.description, "nội dung") as number,
-    amount: col(m.amount, "số tiền"),
-    credit: col(m.credit, "tiền vào"),
-    debit: col(m.debit, "tiền ra"),
-    ref: col(m.ref, "mã giao dịch"),
-    balance: col(m.balance, "số dư"),
+    date: col(m.date, t("statement.field_date")) as number,
+    description: col(m.description, t("statement.field_description")) as number,
+    amount: col(m.amount, t("statement.field_amount")),
+    credit: col(m.credit, t("statement.field_credit")),
+    debit: col(m.debit, t("statement.field_debit")),
+    ref: col(m.ref, t("statement.field_ref")),
+    balance: col(m.balance, t("statement.field_balance")),
   };
   const body = rows.slice(hasHeader ? 1 : 0);
   if (body.length > STATEMENT_MAX_ROWS)
-    throw new RangeError(`Tối đa ${STATEMENT_MAX_ROWS} dòng mỗi lần nhập`);
+    throw new StatementLimitError(t("statement.too_many_rows", { max: STATEMENT_MAX_ROWS }));
   return body.map((r, idx): StatementRow => {
     const line = idx + (hasHeader ? 2 : 1);
     const cell = (i: number | undefined) => (i === undefined ? "" : (r[i] ?? "").trim());
     const occurredAt = parseStatementDate(cell(c.date));
-    if (!occurredAt) return { line, kind: "invalid", error: "Ngày giao dịch không hợp lệ" };
+    if (!occurredAt) return { line, kind: "invalid", error: t("statement.row_date_invalid") };
     let amount: number | null;
     if (c.amount !== undefined) amount = parseVndAmount(cell(c.amount));
     else {
       const cr = cell(c.credit) === "" ? 0 : parseVndAmount(cell(c.credit));
       const dr = cell(c.debit) === "" ? 0 : parseVndAmount(cell(c.debit));
       if (cr === null || dr === null) amount = null;
-      else if (cr > 0 && dr > 0) return { line, kind: "invalid", error: "Dòng có cả tiền vào và tiền ra" };
+      else if (cr > 0 && dr > 0) return { line, kind: "invalid", error: t("statement.row_both_directions") };
       else amount = cr > 0 ? cr : -Math.abs(dr);
     }
-    if (amount === null) return { line, kind: "invalid", error: "Số tiền không hợp lệ" };
+    if (amount === null) return { line, kind: "invalid", error: t("statement.row_amount_invalid") };
     if (amount === 0) return { line, kind: "skipped", why: "zero" };
     if (amount < 0) return { line, kind: "skipped", why: "outflow" };
     const balanceRaw = cell(c.balance);
     const balanceAfter = balanceRaw === "" ? null : parseVndAmount(balanceRaw);
     if (balanceRaw !== "" && balanceAfter === null)
-      return { line, kind: "invalid", error: "Số dư không hợp lệ" };
+      return { line, kind: "invalid", error: t("statement.row_balance_invalid") };
     const ref = cell(c.ref);
-    if (ref.length > 100) return { line, kind: "invalid", error: "Mã giao dịch quá dài" };
+    if (ref.length > 100) return { line, kind: "invalid", error: t("statement.row_ref_too_long") };
     return {
       line,
       kind: "credit",

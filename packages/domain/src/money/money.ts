@@ -1,5 +1,6 @@
 // Tiền VND (INV-G3, IND-FIN-001/012): số nguyên đồng; lượng/đơn giá là chuỗi thập phân → nhân CHÍNH XÁC bằng BigInt,
 // rồi làm tròn MỘT lần qua MỘT hàm theo quy tắc lưu trên chứng từ. Không dùng số thực.
+import { t } from "../i18n.ts";
 
 export const ROUNDING_RULES = ["HALF_UP_1", "HALF_UP_1000"] as const;
 export type RoundingRule = (typeof ROUNDING_RULES)[number];
@@ -24,7 +25,7 @@ const DECIMAL = /^(-)?(\d{1,18})(?:\.(\d{1,9}))?$/;
 
 export function parseDecimal(input: string): Dec {
   const m = DECIMAL.exec(input.trim());
-  if (!m) throw new MoneyError(`Không phải số thập phân hợp lệ: "${input}"`);
+  if (!m) throw new MoneyError(t("money.decimal_invalid", { input }));
   const frac = m[3] ?? "";
   const units = BigInt(`${m[2]}${frac}`) * (m[1] ? -1n : 1n);
   return { units, scale: frac.length };
@@ -48,7 +49,7 @@ function roundRational(num: bigint, den: bigint, rule: RoundingRule): bigint {
 
 function toSafe(v: bigint): number {
   if (v > BigInt(Number.MAX_SAFE_INTEGER) || v < BigInt(Number.MIN_SAFE_INTEGER)) {
-    throw new MoneyError("Số tiền vượt giới hạn an toàn");
+    throw new MoneyError(t("money.unsafe_amount"));
   }
   return Number(v);
 }
@@ -109,11 +110,11 @@ export function prorate(
   rule: RoundingRule = DEFAULT_ROUNDING,
 ): number {
   assertVnd(monthlyPrice);
-  if (monthlyPrice < 0) throw new MoneyError("Giá tháng không âm");
+  if (monthlyPrice < 0) throw new MoneyError(t("money.monthly_price_negative"));
   if (!Number.isInteger(daysInMonth) || daysInMonth < 28 || daysInMonth > 31)
-    throw new MoneyError("Số ngày của tháng sai");
+    throw new MoneyError(t("money.days_in_month_invalid"));
   if (!Number.isInteger(days) || days < 0 || days > daysInMonth)
-    throw new MoneyError("Số ngày tính tiền sai");
+    throw new MoneyError(t("money.billed_days_invalid"));
   if (days === daysInMonth) return monthlyPrice;
   const den = mode === "fixed_30" ? 30n : BigInt(daysInMonth);
   const d = mode === "fixed_30" ? BigInt(Math.min(days, 30)) : BigInt(days);
@@ -124,7 +125,7 @@ export function prorate(
 export function sumVnd(amounts: readonly number[]): number {
   let total = 0n;
   for (const a of amounts) {
-    if (!Number.isSafeInteger(a)) throw new MoneyError(`Số tiền phải là số nguyên đồng: ${a}`);
+    if (!Number.isSafeInteger(a)) throw new MoneyError(t("money.amount_not_whole", { amount: a }));
     total += BigInt(a);
   }
   return toSafe(total);
@@ -132,7 +133,7 @@ export function sumVnd(amounts: readonly number[]): number {
 
 export function assertVnd(amount: unknown): asserts amount is number {
   if (typeof amount !== "number" || !Number.isSafeInteger(amount)) {
-    throw new MoneyError("Số tiền phải là số nguyên đồng (VND)");
+    throw new MoneyError(t("money.amount_not_vnd"));
   }
 }
 
@@ -160,15 +161,15 @@ export interface PostingLine {
 
 /** INV-F1 ở tầng domain (CSDL kiểm lại): ≥ 2 dòng, mỗi dòng đúng một phía > 0, Σ Nợ = Σ Có. */
 export function assertBalanced(lines: readonly PostingLine[]): void {
-  if (lines.length < 2) throw new MoneyError("Bút toán cần ít nhất 2 dòng");
+  if (lines.length < 2) throw new MoneyError(t("money.posting_min_lines"));
   for (const l of lines) {
     assertVnd(l.debit);
     assertVnd(l.credit);
     if (l.debit < 0 || l.credit < 0 || l.debit > 0 === l.credit > 0) {
-      throw new MoneyError("Mỗi dòng bút toán có đúng một phía Nợ hoặc Có lớn hơn 0");
+      throw new MoneyError(t("money.posting_line_one_side"));
     }
   }
   if (sumVnd(lines.map((l) => l.debit)) !== sumVnd(lines.map((l) => l.credit))) {
-    throw new MoneyError("Bút toán lệch: tổng Nợ khác tổng Có");
+    throw new MoneyError(t("money.posting_unbalanced"));
   }
 }

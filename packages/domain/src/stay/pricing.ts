@@ -1,6 +1,8 @@
 // Giá lưu trú ngắn hạn thuần (SPEC-reservation-stay S-001, S-002, S-008, S-016; Q-02/Q-03/Q-06/Q-10 — PLAN đợt 3 D-002).
 // Một đơn vị "đêm" theo ngày kinh doanh: đêm d tính từ giờ nhận ngày d đến giờ trả ngày d+1. Giá mỗi đêm = giá cuối tuần nếu
 // thứ của d thuộc `weekendNights` (ISO 1 = thứ Hai … 7 = Chủ nhật), còn lại giá ngày thường; tiền là số nguyên đồng.
+
+import { t } from "../i18n.ts";
 import { MS_PER_DAY } from "../units/units.ts";
 
 export interface RateVersion {
@@ -86,7 +88,7 @@ export function priceNights(
 
 export function sumNights(prices: readonly NightPrice[]): number {
   const s = prices.reduce((acc, p) => acc + p.amount, 0);
-  if (!Number.isSafeInteger(s)) throw new RangeError("tổng tiền phòng vượt giới hạn số nguyên an toàn");
+  if (!Number.isSafeInteger(s)) throw new RangeError(t("stay.total_unsafe"));
   return s;
 }
 

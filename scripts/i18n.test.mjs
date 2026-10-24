@@ -12,6 +12,12 @@ import { ROLE_LABEL, STATUS_LABEL } from "../apps/web/lib/roles.ts";
 import { formText } from "../packages/app/src/http/command-inputs.ts";
 import { format as appFormat, t as appT } from "../packages/app/src/i18n.ts";
 import {
+  formatText as domainFormatText,
+  formatVnd,
+  formatVndUnitPrice,
+} from "../packages/domain/src/format/intl.ts";
+import { format as domainFormat, t as domainT } from "../packages/domain/src/i18n.ts";
+import {
   checkCatalogs,
   clientCatalogErrors,
   loadCatalogs,
@@ -442,7 +448,11 @@ describe("XC-I18N-009 — catalog thứ hai packages/app/messages (D-104)", () =
   const APP = TREES.find((tr) => tr.name === "packages/app");
 
   it("cả hai catalog được kiểm; catalog thật của packages/app sạch và mọi t() của nó trỏ khoá có thật", () => {
-    expect(TREES.map((tr) => tr.messages)).toEqual(["apps/web/messages", "packages/app/messages"]);
+    expect(TREES.map((tr) => tr.messages)).toEqual([
+      "apps/web/messages",
+      "packages/app/messages",
+      "packages/domain/messages",
+    ]);
     expect(treeErrors(APP).errors).toEqual([]);
     const r = node("scripts/i18n-check.mjs");
     expect(r.stdout).toMatch(/packages\/app\/messages: 1 locale · \d+ khoá · 0 lỗi/);
@@ -923,5 +933,97 @@ describe("XC-I18N-001 — ngoại lệ theo tệp có lý do và --strict (D-105
     const left = Object.keys(JSON.parse(readFileSync(BASELINE, "utf8"))).length;
     expect(strict.status).toBe(left > 0 ? 1 : 0);
     if (left > 0) expect(strict.stderr).toMatch(/--strict cần 0 ngoài ngoại lệ/);
+  });
+});
+
+describe("XC-I18N-009 — catalog packages/domain/messages và catalog con format (D-107)", () => {
+  const tmpTree = (files) => {
+    const root = mkdtempSync(join(tmpdir(), "i18n-domain-"));
+    for (const [rel, body] of Object.entries(files)) {
+      mkdirSync(join(root, rel, ".."), { recursive: true });
+      writeFileSync(join(root, rel), typeof body === "string" ? body : JSON.stringify(body));
+    }
+    return root;
+  };
+  const DOMAIN = TREES.find((tr) => tr.name === "packages/domain");
+  const FORMAT = DOMAIN.subcatalogs.find((s) => s.name === "format");
+
+  it("catalog domain thật sạch; t()/format() trùng hành vi bản apps/web và packages/app; câu chữ giữ nguyên", () => {
+    expect(DOMAIN).toMatchObject({ messages: "packages/domain/messages", sources: "packages/domain/src" });
+    expect(treeErrors(DOMAIN).errors).toEqual([]);
+    expect(node("scripts/i18n-check.mjs").stdout).toMatch(
+      /packages\/domain\/messages: 1 locale · \d+ khoá · 0 lỗi/,
+    );
+    for (const [m, p] of [
+      ["Chào {name}, {name}! {x}", { name: "An" }],
+      ["{a}{b}", { a: "{b}", b: 0 }],
+      ["Không tham số", {}],
+      ["{toString}", {}],
+      ["{ name } {n}", { name: "x", n: -1 }],
+      ["", {}],
+    ]) {
+      expect(domainFormat(m, p), m).toBe(format(m, p));
+      expect(domainFormat(m, p), m).toBe(appFormat(m, p));
+    }
+    const dom = loadCatalogs(join(ROOT, "packages/domain/messages")).vi;
+    for (const [k, v] of Object.entries(dom)) expect(domainT(k), k).toBe(v.message);
+    // Catalog chính không đọc nhầm catalog con thành locale "format.vi".
+    expect(Object.keys(loadCatalogs(join(ROOT, "packages/domain/messages")))).toEqual(["vi"]);
+    expect(domainT("authz.forbidden")).toBe("Bạn không có quyền thực hiện thao tác này");
+    expect(domainT("state.invalid_transition", { machine: "lease", from: "draft", to: "active" })).toBe(
+      'lease: không thể chuyển từ "draft" sang "active"',
+    );
+    expect(
+      domainT("billing.line_rent_prorated", { days: 15, days_in_month: 31, monthly_rent: "3.100.000" }),
+    ).toBe("Tiền thuê 15/31 ngày (3.100.000 đ/tháng)");
+  });
+
+  it("catalog con format.vi.json: sạch, mọi khoá được formatText() dùng, formatText trùng format; đầu ra định dạng giữ nguyên", () => {
+    expect(FORMAT).toEqual({
+      name: "format",
+      fn: "formatText",
+      sources: ["packages/domain/src/format/intl.ts"],
+    });
+    const { errors, catalogs } = subcatalogErrors(DOMAIN, FORMAT);
+    expect(errors).toEqual([]);
+    for (const [k, v] of Object.entries(catalogs.vi)) expect(domainFormatText(k), k).toBe(v.message);
+    expect(domainFormatText("format.date_invalid", { date: "{month}", month: 1 })).toBe(
+      "Ngày không hợp lệ: {month}",
+    );
+    expect(domainFormatText("format.date_invalid")).toBe("Ngày không hợp lệ: {date}");
+    expect(formatVnd(1_430_000)).toBe("1.430.000 đ");
+    expect(formatVndUnitPrice(1234.5)).toBe("1.234,5 đ");
+    expect(() => formatVnd(1.5)).toThrow(new RangeError("Số tiền phải là số nguyên đồng: 1.5"));
+  });
+
+  it("module client không kéo catalog domain qua `@hm/app/format` → `@hm/domain/format` (D-098); catalog con format thì được", () => {
+    const root = tmpTree({
+      "packages/app/package.json": { name: "@hm/app", exports: { "./format": "./src/format.ts" } },
+      "packages/app/src/format.ts": 'export * from "@hm/domain/format";\n',
+      "packages/domain/package.json": {
+        name: "@hm/domain",
+        exports: { "./format": "./src/format/intl.ts", "./bad": "./src/format/bad.ts" },
+      },
+      "packages/domain/messages/vi.json": {},
+      "packages/domain/messages/format.vi.json": {},
+      "packages/domain/src/i18n.ts": "export const t = (k) => k;\n",
+      "packages/domain/src/format/intl.ts":
+        'import m from "../../messages/format.vi.json" with { type: "json" };\nexport const x = m;\n',
+      "packages/domain/src/format/bad.ts": 'import { t } from "../i18n.ts";\nexport const y = t;\n',
+      "apps/web/c/ok.tsx": '"use client";\nimport { x } from "@hm/app/format";\n',
+      "apps/web/c/bad.tsx": '"use client";\nimport { y } from "@hm/domain/bad";\n',
+    });
+    try {
+      const errors = clientCatalogErrors(
+        ["ok", "bad"].map((n) => join(root, `apps/web/c/${n}.tsx`)),
+        root,
+      );
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toContain(
+        "apps/web/c/bad.tsx → packages/domain/src/format/bad.ts → packages/domain/src/i18n.ts",
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });

@@ -74,5 +74,209 @@
   "packages/app/src/retention/events.ts": {
     "reason": "Thông điệp AggregateError của job dọn dữ liệu hết hạn (worker) — chỉ vào log vận hành, không ra API/UI.",
     "max": 1
+  },
+  "packages/db/src/migrations/0001_tenancy.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL/thông báo): chuỗi tiếng Việt là chú thích SQL `--` và thông báo RAISE EXCEPTION của trigger/hàm (3 RAISE; HINT LAST_OWNER, TENANT_CONTEXT_MISSING, VALIDATION_FAILED) — toProblem (packages/app/src/pipeline/problem.ts) không trả message Postgres mà dùng title catalog theo HINT/SQLSTATE (không khớp → INTERNAL câu chung), safe() của web không bắt lỗi pg (không có status); message chỉ vào log vận hành.",
+    "max": 1
+  },
+  "packages/db/src/migrations/0002_auth.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL): chuỗi tiếng Việt duy nhất là chú thích SQL `--` trong thân migration — không phải dữ liệu, không ra API/UI (chỉ nhà phát triển đọc).",
+    "max": 1
+  },
+  "packages/db/src/migrations/0003_command_pipeline.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL/thông báo): chuỗi tiếng Việt là chú thích SQL `--` và thông báo RAISE EXCEPTION của trigger/hàm (1 RAISE; HINT DOCUMENT_IMMUTABLE) — toProblem (packages/app/src/pipeline/problem.ts) không trả message Postgres mà dùng title catalog theo HINT/SQLSTATE (không khớp → INTERNAL câu chung), safe() của web không bắt lỗi pg (không có status); message chỉ vào log vận hành.",
+    "max": 1
+  },
+  "packages/db/src/migrations/0004_inventory.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL/thông báo): chuỗi tiếng Việt là chú thích SQL `--` và thông báo RAISE EXCEPTION của trigger/hàm (3 RAISE; HINT INVALID_TRANSITION) — toProblem (packages/app/src/pipeline/problem.ts) không trả message Postgres mà dùng title catalog theo HINT/SQLSTATE (không khớp → INTERNAL câu chung), safe() của web không bắt lỗi pg (không có status); message chỉ vào log vận hành.",
+    "max": 1
+  },
+  "packages/db/src/migrations/0005_ledger_core.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL/thông báo): chuỗi tiếng Việt là chú thích SQL `--` và thông báo RAISE EXCEPTION của trigger/hàm (3 RAISE; HINT DOCUMENT_IMMUTABLE, LEDGER_UNBALANCED) — toProblem (packages/app/src/pipeline/problem.ts) không trả message Postgres mà dùng title catalog theo HINT/SQLSTATE (không khớp → INTERNAL câu chung), safe() của web không bắt lỗi pg (không có status); message chỉ vào log vận hành.",
+    "max": 1
+  },
+  "packages/db/src/migrations/0006_files.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL): chuỗi tiếng Việt duy nhất là chú thích SQL `--` trong thân migration — không phải dữ liệu, không ra API/UI (chỉ nhà phát triển đọc).",
+    "max": 1
+  },
+  "packages/db/src/migrations/0007_file_scope_rls.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL): chuỗi tiếng Việt duy nhất là chú thích SQL `--` trong thân migration — không phải dữ liệu, không ra API/UI (chỉ nhà phát triển đọc).",
+    "max": 1
+  },
+  "packages/db/src/migrations/0008_approvals.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL/thông báo): chuỗi tiếng Việt là chú thích SQL `--` và thông báo RAISE EXCEPTION của trigger/hàm (1 RAISE; HINT INVALID_TRANSITION) — toProblem (packages/app/src/pipeline/problem.ts) không trả message Postgres mà dùng title catalog theo HINT/SQLSTATE (không khớp → INTERNAL câu chung), safe() của web không bắt lỗi pg (không có status); message chỉ vào log vận hành.",
+    "max": 1
+  },
+  "packages/db/src/migrations/0009_shifts.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL/thông báo): chuỗi tiếng Việt là chú thích SQL `--` và thông báo RAISE EXCEPTION của trigger/hàm (1 RAISE; HINT DOCUMENT_IMMUTABLE) — toProblem (packages/app/src/pipeline/problem.ts) không trả message Postgres mà dùng title catalog theo HINT/SQLSTATE (không khớp → INTERNAL câu chung), safe() của web không bắt lỗi pg (không có status); message chỉ vào log vận hành.",
+    "max": 1
+  },
+  "packages/db/src/migrations/0010_payments.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL/thông báo): chuỗi tiếng Việt là chú thích SQL `--` và thông báo RAISE EXCEPTION của trigger/hàm (5 RAISE; HINT DOCUMENT_IMMUTABLE, INVALID_TRANSITION, VALIDATION_FAILED) — toProblem (packages/app/src/pipeline/problem.ts) không trả message Postgres mà dùng title catalog theo HINT/SQLSTATE (không khớp → INTERNAL câu chung), safe() của web không bắt lỗi pg (không có status); message chỉ vào log vận hành.",
+    "max": 1
+  },
+  "packages/db/src/migrations/0011_deposits.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL/thông báo): chuỗi tiếng Việt là chú thích SQL `--` và thông báo RAISE EXCEPTION của trigger/hàm (1 RAISE; HINT DOCUMENT_IMMUTABLE) — toProblem (packages/app/src/pipeline/problem.ts) không trả message Postgres mà dùng title catalog theo HINT/SQLSTATE (không khớp → INTERNAL câu chung), safe() của web không bắt lỗi pg (không có status); message chỉ vào log vận hành.",
+    "max": 1
+  },
+  "packages/db/src/migrations/0012_reconciliation.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL/thông báo): chuỗi tiếng Việt là chú thích SQL `--` và thông báo RAISE EXCEPTION của trigger/hàm (7 RAISE; HINT DOCUMENT_IMMUTABLE, EVIDENCE_REQUIRED, INVALID_TRANSITION) — toProblem (packages/app/src/pipeline/problem.ts) không trả message Postgres mà dùng title catalog theo HINT/SQLSTATE (không khớp → INTERNAL câu chung), safe() của web không bắt lỗi pg (không có status); message chỉ vào log vận hành.",
+    "max": 2
+  },
+  "packages/db/src/migrations/0013_period_close.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL/thông báo): chuỗi tiếng Việt là chú thích SQL `--` và thông báo RAISE EXCEPTION của trigger/hàm (5 RAISE; HINT DOCUMENT_IMMUTABLE, INVALID_TRANSITION, PERIOD_LOCKED) — toProblem (packages/app/src/pipeline/problem.ts) không trả message Postgres mà dùng title catalog theo HINT/SQLSTATE (không khớp → INTERNAL câu chung), safe() của web không bắt lỗi pg (không có status); message chỉ vào log vận hành.",
+    "max": 2
+  },
+  "packages/db/src/migrations/0014_leases.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL/thông báo): chuỗi tiếng Việt là chú thích SQL `--` và thông báo RAISE EXCEPTION của trigger/hàm (7 RAISE; HINT DOCUMENT_IMMUTABLE, INVALID_TRANSITION, VALIDATION_FAILED) — toProblem (packages/app/src/pipeline/problem.ts) không trả message Postgres mà dùng title catalog theo HINT/SQLSTATE (không khớp → INTERNAL câu chung), safe() của web không bắt lỗi pg (không có status); message chỉ vào log vận hành.",
+    "max": 1
+  },
+  "packages/db/src/migrations/0015_review_money_fixes.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL/thông báo): chuỗi tiếng Việt là chú thích SQL `--` và thông báo RAISE EXCEPTION của trigger/hàm (1 RAISE; HINT DOCUMENT_IMMUTABLE) — toProblem (packages/app/src/pipeline/problem.ts) không trả message Postgres mà dùng title catalog theo HINT/SQLSTATE (không khớp → INTERNAL câu chung), safe() của web không bắt lỗi pg (không có status); message chỉ vào log vận hành.",
+    "max": 1
+  },
+  "packages/db/src/migrations/0016_handovers.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL/thông báo): chuỗi tiếng Việt là chú thích SQL `--` và thông báo RAISE EXCEPTION của trigger/hàm (3 RAISE; HINT DOCUMENT_IMMUTABLE, HANDOVER_REQUIRED) — toProblem (packages/app/src/pipeline/problem.ts) không trả message Postgres mà dùng title catalog theo HINT/SQLSTATE (không khớp → INTERNAL câu chung), safe() của web không bắt lỗi pg (không có status); message chỉ vào log vận hành.",
+    "max": 1
+  },
+  "packages/db/src/migrations/0017_lease_settlements.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL/thông báo): chuỗi tiếng Việt là chú thích SQL `--` và thông báo RAISE EXCEPTION của trigger/hàm (2 RAISE; HINT DOCUMENT_IMMUTABLE, SETTLEMENT_REQUIRED) — toProblem (packages/app/src/pipeline/problem.ts) không trả message Postgres mà dùng title catalog theo HINT/SQLSTATE (không khớp → INTERNAL câu chung), safe() của web không bắt lỗi pg (không có status); message chỉ vào log vận hành.",
+    "max": 1
+  },
+  "packages/db/src/migrations/0018_metering.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL/thông báo): chuỗi tiếng Việt là chú thích SQL `--` và thông báo RAISE EXCEPTION của trigger/hàm (2 RAISE; HINT PERIOD_ISSUED) — toProblem (packages/app/src/pipeline/problem.ts) không trả message Postgres mà dùng title catalog theo HINT/SQLSTATE (không khớp → INTERNAL câu chung), safe() của web không bắt lỗi pg (không có status); message chỉ vào log vận hành.",
+    "max": 1
+  },
+  "packages/db/src/migrations/0019_review_lease_fixes.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL/thông báo): chuỗi tiếng Việt là chú thích SQL `--` và thông báo RAISE EXCEPTION của trigger/hàm (2 RAISE; HINT DOCUMENT_IMMUTABLE, FORBIDDEN) — toProblem (packages/app/src/pipeline/problem.ts) không trả message Postgres mà dùng title catalog theo HINT/SQLSTATE (không khớp → INTERNAL câu chung), safe() của web không bắt lỗi pg (không có status); message chỉ vào log vận hành.",
+    "max": 1
+  },
+  "packages/db/src/migrations/0020_billing.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL/thông báo): chuỗi tiếng Việt là chú thích SQL `--` và thông báo RAISE EXCEPTION của trigger/hàm (8 RAISE; HINT DOCUMENT_IMMUTABLE, INVALID_TRANSITION, PERIOD_ISSUED) — toProblem (packages/app/src/pipeline/problem.ts) không trả message Postgres mà dùng title catalog theo HINT/SQLSTATE (không khớp → INTERNAL câu chung), safe() của web không bắt lỗi pg (không có status); message chỉ vào log vận hành.",
+    "max": 1
+  },
+  "packages/db/src/migrations/0021_import.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL/thông báo): chuỗi tiếng Việt là chú thích SQL `--` và thông báo RAISE EXCEPTION của trigger/hàm (6 RAISE; HINT DOCUMENT_IMMUTABLE, INVALID_TRANSITION) — toProblem (packages/app/src/pipeline/problem.ts) không trả message Postgres mà dùng title catalog theo HINT/SQLSTATE (không khớp → INTERNAL câu chung), safe() của web không bắt lỗi pg (không có status); message chỉ vào log vận hành.",
+    "max": 1
+  },
+  "packages/db/src/migrations/0023_identity_encryption.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL/thông báo): chuỗi tiếng Việt là chú thích SQL `--` và hai RAISE EXCEPTION trong khối DO chặn chạy/lùi migration khi dữ liệu số giấy tờ chưa mã hoá/giải mã — chỉ người vận hành chạy migration thấy (log khởi động), không ra API/UI.",
+    "max": 2
+  },
+  "packages/db/src/migrations/0024_rate_plans.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL): chuỗi tiếng Việt duy nhất là chú thích SQL `--` trong thân migration — không phải dữ liệu, không ra API/UI (chỉ nhà phát triển đọc).",
+    "max": 1
+  },
+  "packages/db/src/migrations/0025_reservations.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL/thông báo): chuỗi tiếng Việt là chú thích SQL `--` và thông báo RAISE EXCEPTION của trigger/hàm (5 RAISE; HINT DOCUMENT_IMMUTABLE, INVALID_TRANSITION) — toProblem (packages/app/src/pipeline/problem.ts) không trả message Postgres mà dùng title catalog theo HINT/SQLSTATE (không khớp → INTERNAL câu chung), safe() của web không bắt lỗi pg (không có status); message chỉ vào log vận hành.",
+    "max": 1
+  },
+  "packages/db/src/migrations/0026_reservation_expiry.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL): chuỗi tiếng Việt duy nhất là chú thích SQL `--` trong thân migration — không phải dữ liệu, không ra API/UI (chỉ nhà phát triển đọc).",
+    "max": 1
+  },
+  "packages/db/src/migrations/0027_residence_notices.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL/thông báo): chuỗi tiếng Việt là chú thích SQL `--` và thông báo RAISE EXCEPTION của trigger/hàm (1 RAISE; HINT INVALID_TRANSITION) — toProblem (packages/app/src/pipeline/problem.ts) không trả message Postgres mà dùng title catalog theo HINT/SQLSTATE (không khớp → INTERNAL câu chung), safe() của web không bắt lỗi pg (không có status); message chỉ vào log vận hành.",
+    "max": 1
+  },
+  "packages/db/src/migrations/0028_tasks_checkout.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL/thông báo): chuỗi tiếng Việt là chú thích SQL `--` và thông báo RAISE EXCEPTION của trigger/hàm (3 RAISE; HINT DOCUMENT_IMMUTABLE, INVALID_TRANSITION) — toProblem (packages/app/src/pipeline/problem.ts) không trả message Postgres mà dùng title catalog theo HINT/SQLSTATE (không khớp → INTERNAL câu chung), safe() của web không bắt lỗi pg (không có status); message chỉ vào log vận hành.",
+    "max": 1
+  },
+  "packages/db/src/migrations/0032_work_orders.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL/thông báo): chuỗi tiếng Việt là chú thích SQL `--` và thông báo RAISE EXCEPTION của trigger/hàm (3 RAISE; HINT DOCUMENT_IMMUTABLE, INVALID_TRANSITION) — toProblem (packages/app/src/pipeline/problem.ts) không trả message Postgres mà dùng title catalog theo HINT/SQLSTATE (không khớp → INTERNAL câu chung), safe() của web không bắt lỗi pg (không có status); message chỉ vào log vận hành.",
+    "max": 1
+  },
+  "packages/db/src/migrations/0033_hk_maintenance_review_fixes.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL/thông báo): chuỗi tiếng Việt là chú thích SQL `--` và thông báo RAISE EXCEPTION của trigger/hàm (6 RAISE; HINT DOCUMENT_IMMUTABLE, INVALID_TRANSITION) — toProblem (packages/app/src/pipeline/problem.ts) không trả message Postgres mà dùng title catalog theo HINT/SQLSTATE (không khớp → INTERNAL câu chung), safe() của web không bắt lỗi pg (không có status); message chỉ vào log vận hành.",
+    "max": 2
+  },
+  "packages/db/src/migrations/0034_notifications.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL/thông báo): chuỗi tiếng Việt là chú thích SQL `--` và thông báo RAISE EXCEPTION của trigger/hàm (3 RAISE; HINT DOCUMENT_IMMUTABLE, INVALID_TRANSITION) — toProblem (packages/app/src/pipeline/problem.ts) không trả message Postgres mà dùng title catalog theo HINT/SQLSTATE (không khớp → INTERNAL câu chung), safe() của web không bắt lỗi pg (không có status); message chỉ vào log vận hành.",
+    "max": 1
+  },
+  "packages/db/src/migrations/0035_notification_preferences.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL/thông báo): chuỗi tiếng Việt là chú thích SQL `--` và thông báo RAISE EXCEPTION của trigger/hàm (1 RAISE; HINT PREFERENCE_REQUIRED) — toProblem (packages/app/src/pipeline/problem.ts) không trả message Postgres mà dùng title catalog theo HINT/SQLSTATE (không khớp → INTERNAL câu chung), safe() của web không bắt lỗi pg (không có status); message chỉ vào log vận hành.",
+    "max": 1
+  },
+  "packages/db/src/migrations/0036_reminders.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL): chuỗi tiếng Việt duy nhất là chú thích SQL `--` trong thân migration — không phải dữ liệu, không ra API/UI (chỉ nhà phát triển đọc).",
+    "max": 1
+  },
+  "packages/db/src/migrations/0037_notification_claim_fixes.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL): chuỗi tiếng Việt duy nhất là chú thích SQL `--` trong thân migration — không phải dữ liệu, không ra API/UI (chỉ nhà phát triển đọc).",
+    "max": 1
+  },
+  "packages/db/src/migrations/0038_portal_access.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL): chuỗi tiếng Việt duy nhất là chú thích SQL `--` trong thân migration — không phải dữ liệu, không ra API/UI (chỉ nhà phát triển đọc).",
+    "max": 1
+  },
+  "packages/db/src/migrations/0039_tenant_rls_hardening.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL): chuỗi tiếng Việt duy nhất là chú thích SQL `--` trong thân migration — không phải dữ liệu, không ra API/UI (chỉ nhà phát triển đọc).",
+    "max": 1
+  },
+  "packages/db/src/migrations/0040_portal_tenant.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL/thông báo): chuỗi tiếng Việt là chú thích SQL `--` và thông báo RAISE EXCEPTION của trigger/hàm (2 RAISE; HINT DOCUMENT_IMMUTABLE, INVALID_TRANSITION) — toProblem (packages/app/src/pipeline/problem.ts) không trả message Postgres mà dùng title catalog theo HINT/SQLSTATE (không khớp → INTERNAL câu chung), safe() của web không bắt lỗi pg (không có status); message chỉ vào log vận hành.",
+    "max": 1
+  },
+  "packages/db/src/migrations/0041_guest_links.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL/thông báo): chuỗi tiếng Việt là chú thích SQL `--` và thông báo RAISE EXCEPTION của trigger/hàm (2 RAISE; HINT DOCUMENT_IMMUTABLE, INVALID_TRANSITION) — toProblem (packages/app/src/pipeline/problem.ts) không trả message Postgres mà dùng title catalog theo HINT/SQLSTATE (không khớp → INTERNAL câu chung), safe() của web không bắt lỗi pg (không có status); message chỉ vào log vận hành.",
+    "max": 1
+  },
+  "packages/db/src/migrations/0043_export_jobs.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL/thông báo): chuỗi tiếng Việt là chú thích SQL `--` và thông báo RAISE EXCEPTION của trigger/hàm (2 RAISE; HINT DOCUMENT_IMMUTABLE, INVALID_TRANSITION) — toProblem (packages/app/src/pipeline/problem.ts) không trả message Postgres mà dùng title catalog theo HINT/SQLSTATE (không khớp → INTERNAL câu chung), safe() của web không bắt lỗi pg (không có status); message chỉ vào log vận hành.",
+    "max": 1
+  },
+  "packages/db/src/migrations/0044_lease_supersede.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL/thông báo): chuỗi tiếng Việt là chú thích SQL `--` và thông báo RAISE EXCEPTION của trigger/hàm (5 RAISE; HINT DOCUMENT_IMMUTABLE) — toProblem (packages/app/src/pipeline/problem.ts) không trả message Postgres mà dùng title catalog theo HINT/SQLSTATE (không khớp → INTERNAL câu chung), safe() của web không bắt lỗi pg (không có status); message chỉ vào log vận hành.",
+    "max": 2
+  },
+  "packages/db/src/migrations/0045_retention_and_selection.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL): chuỗi tiếng Việt duy nhất là chú thích SQL `--` trong thân migration — không phải dữ liệu, không ra API/UI (chỉ nhà phát triển đọc).",
+    "max": 1
+  },
+  "packages/db/src/migrations/0046_observability.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL): chuỗi tiếng Việt duy nhất là chú thích SQL `--` trong thân migration — không phải dữ liệu, không ra API/UI (chỉ nhà phát triển đọc).",
+    "max": 1
+  },
+  "packages/db/src/migrations/0047_worker_schema_and_file_staging.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL): chuỗi tiếng Việt duy nhất là chú thích SQL `--` trong thân migration — không phải dữ liệu, không ra API/UI (chỉ nhà phát triển đọc).",
+    "max": 2
+  },
+  "packages/db/src/migrations/0053_rate_limit_counters.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL/thông báo): chuỗi tiếng Việt là chú thích SQL `--` và thông báo RAISE EXCEPTION của trigger/hàm (1 RAISE) — toProblem (packages/app/src/pipeline/problem.ts) không trả message Postgres mà dùng title catalog theo HINT/SQLSTATE (không khớp → INTERNAL câu chung), safe() của web không bắt lỗi pg (không có status); message chỉ vào log vận hành.",
+    "max": 1
+  },
+  "packages/db/src/migrations/0054_outbox_traceparent.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL): chuỗi tiếng Việt duy nhất là chú thích SQL `--` trong thân migration — không phải dữ liệu, không ra API/UI (chỉ nhà phát triển đọc).",
+    "max": 1
+  },
+  "packages/db/src/migrations/0062_access_property.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL/thông báo): chuỗi tiếng Việt là chú thích SQL `--` và thông báo RAISE EXCEPTION của trigger/hàm (1 RAISE; HINT PROPERTY_IN_USE) — toProblem (packages/app/src/pipeline/problem.ts) không trả message Postgres mà dùng title catalog theo HINT/SQLSTATE (không khớp → INTERNAL câu chung), safe() của web không bắt lỗi pg (không có status); message chỉ vào log vận hành.",
+    "max": 1
+  },
+  "packages/db/src/migrations/0063_email_budget.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL/thông báo): chuỗi tiếng Việt là chú thích SQL `--` và thông báo RAISE EXCEPTION của trigger/hàm (1 RAISE) — toProblem (packages/app/src/pipeline/problem.ts) không trả message Postgres mà dùng title catalog theo HINT/SQLSTATE (không khớp → INTERNAL câu chung), safe() của web không bắt lỗi pg (không có status); message chỉ vào log vận hành.",
+    "max": 1
+  },
+  "packages/db/src/migrations/0064_catalog_property_scope.ts": {
+    "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL): chuỗi tiếng Việt duy nhất là chú thích SQL `--` trong thân migration — không phải dữ liệu, không ra API/UI (chỉ nhà phát triển đọc).",
+    "max": 1
+  },
+  "packages/db/src/migrator.ts": {
+    "reason": "Chỉ thông điệp Error khi chạy/lùi migration thất bại (migrateToLatest lúc khởi động, migrateDownAll trong test) — người vận hành thấy trong log khởi động, không ra API/UI.",
+    "max": 2
+  },
+  "packages/db/src/retry.ts": {
+    "reason": "Chỉ RangeError khi RetryPolicy/tham số jitter sai (lỗi lập trình/cấu hình hằng số WORKER_TX_RETRY…) — toProblem che thành INTERNAL câu chung; chỉ vào log vận hành, không ra API/UI.",
+    "max": 6
+  },
+  "packages/db/src/tenant.ts": {
+    "reason": "Chỉ Error khi orgId/actorId truyền vào withTenant không phải UUID (lỗi lập trình — giá trị lấy từ phiên/ngữ cảnh đã kiểm) — toProblem che thành INTERNAL câu chung; chỉ vào log vận hành.",
+    "max": 2
+  },
+  "packages/domain/src/access/matrix.ts": {
+    "reason": "Chỉ nhãn dòng của ma trận quyền = khoá đồng bộ với bảng SPEC-access-and-property §5.3 (matrix.spec-sync.test.ts so từng ký tự) — không hiện ở UI/API (apps/web và packages/app không đọc nhãn; quyền trả mã, câu lỗi qua catalog domain authz.*). Đổi nhãn phải đổi SPEC.",
+    "max": 52
   }
 }

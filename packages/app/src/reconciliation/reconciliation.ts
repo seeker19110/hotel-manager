@@ -11,6 +11,7 @@ import {
   mapStatement,
   parseCsv,
   STATEMENT_MAX_BYTES,
+  StatementLimitError,
   type StatementMapping,
 } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
@@ -95,8 +96,8 @@ export async function importStatement(
     parsed = mapStatement(parseCsv(input.csv), input.mapping);
   } catch (e) {
     if (!(e instanceof RangeError)) throw e;
-    if (e.message.startsWith(t("reconciliation.statement_limit_prefix")))
-      throw new CommandError("FILE_TOO_LARGE", 413, e.message);
+    // Vượt số dòng: nhận theo LỚP lỗi của bộ đọc (không so tiền tố câu chữ — câu đi qua catalog domain).
+    if (e instanceof StatementLimitError) throw new CommandError("FILE_TOO_LARGE", 413, e.message);
     throw new CommandError("VALIDATION_FAILED", 422, e.message);
   }
   const owner = { orgId: ctx.actor.orgId, propertyId };

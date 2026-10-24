@@ -93,6 +93,7 @@ export {
   parseVndAmount,
   STATEMENT_MAX_BYTES,
   STATEMENT_MAX_ROWS,
+  StatementLimitError,
   type StatementMapping,
   type StatementRow,
 } from "./payments/statement-csv.ts";

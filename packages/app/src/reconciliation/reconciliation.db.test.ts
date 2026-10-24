@@ -1,6 +1,6 @@
 // PLAN đợt 2 T-107 — QR và đối soát trên Postgres thật (SPEC-ledger S-015…S-021, S-029, S-030; INV-F3, INV-F4, INV-F4b).
 import { randomUUID } from "node:crypto";
-import { crc16CcittFalse } from "@hm/domain";
+import { crc16CcittFalse, STATEMENT_MAX_ROWS } from "@hm/domain";
 import {
   createTestDb,
   type SeededOrg,
@@ -439,6 +439,26 @@ describe("S-019…S-021 sao kê", () => {
     expect(badMap).toMatchObject({ code: "VALIDATION_FAILED", status: 422 });
     const big = await fails(importCsv(K, csv(["01/10/2026", ref(), "đ".repeat(1_100_000), "1"])));
     expect(big).toMatchObject({ code: "FILE_TOO_LARGE", status: 413 });
+    // Vượt số dòng (dưới giới hạn byte): 413 nhận theo lớp StatementLimitError (D-107), câu giữ nguyên chữ.
+    const rows = Array.from({ length: STATEMENT_MAX_ROWS + 1 }, (): [string, string, string, string] => [
+      "01/10/2026",
+      ref(),
+      "a",
+      "1",
+    ]);
+    const tooMany = await fails(importCsv(K, csv(...rows)));
+    expect(tooMany).toMatchObject({
+      code: "FILE_TOO_LARGE",
+      status: 413,
+      title: `Tối đa ${STATEMENT_MAX_ROWS} dòng mỗi lần nhập`,
+    });
+    // Lỗi đầu vào khác của bộ đọc vẫn là 422 với câu của catalog domain.
+    const unclosed = await fails(importCsv(K, 'Ngày,Mã GD,Nội dung,Số tiền\n"01/10/2026'));
+    expect(unclosed).toMatchObject({
+      code: "VALIDATION_FAILED",
+      status: 422,
+      title: "CSV: thiếu dấu đóng ngoặc kép",
+    });
   });
 
   it("S-020/S-021: (a) khớp, (b) WRONG_REFERENCE, (c) COMBINED, (d) OVERPAID — không ghi tiền trước khi xác nhận; trả hộ đóng break", async () => {

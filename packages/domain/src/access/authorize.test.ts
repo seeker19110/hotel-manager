@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type AuthzActor, authorize } from "./authorize.ts";
+import { type AuthzActor, authorize, authorizeRequest } from "./authorize.ts";
 
 const P1 = "11111111-1111-4111-8111-111111111111";
 const P2 = "22222222-2222-4222-8222-222222222222";
@@ -105,5 +105,75 @@ describe("hạn mức hoàn cọc (đã duyệt 2026-10-15; SPEC-access S-026)",
     expect(() => authorize(actor("front_desk"), "reservation.override_price", { amount: 1 })).toThrowError(
       expect.objectContaining({ code: "APPROVAL_LIMIT_EXCEEDED" }),
     );
+  });
+});
+
+describe("câu lỗi ra API giữ nguyên chữ sau khi chuyển sang catalog domain (D-107)", () => {
+  const msg = (f: () => unknown) => {
+    try {
+      f();
+    } catch (e) {
+      return { code: (e as { code: string }).code, message: (e as Error).message };
+    }
+    return null;
+  };
+  it("từ chối: mỗi nhánh trả đúng mã + câu cũ; được phép: không ném", () => {
+    expect(msg(() => authorize(actor("tenant"), "unit.manage"))).toEqual({
+      code: "FORBIDDEN",
+      message: "Bạn không có quyền thực hiện thao tác này",
+    });
+    expect(msg(() => authorize(actor("manager"), "unit.manage", { propertyId: P2 }))).toEqual({
+      code: "NOT_FOUND",
+      message: "Không tìm thấy",
+    });
+    expect(msg(() => authorize(actor("chu_nha"), "unit.manage"))).toEqual({
+      code: "FORBIDDEN",
+      message: "Vai trò không có quyền này",
+    });
+    expect(msg(() => authorize(actor("housekeeping"), "unit.manage"))).toEqual({
+      code: "FORBIDDEN",
+      message: "Bạn không có quyền thực hiện thao tác này",
+    });
+    expect(
+      msg(() =>
+        authorize(actor("owner"), "deposit.refund", { requestedByPersonId: "person-owner", amount: 1 }),
+      ),
+    ).toEqual({ code: "SELF_APPROVAL_FORBIDDEN", message: "Bạn không thể tự duyệt yêu cầu mình lập" });
+    expect(
+      msg(() =>
+        authorize(actor("manager"), "deposit.refund", { requestedByPersonId: "person-manager", amount: 1 }),
+      ),
+    ).toEqual({ code: "SELF_APPROVAL_FORBIDDEN", message: "Bạn không thể tự duyệt yêu cầu mình lập" });
+    expect(msg(() => authorize(actor("tenant"), "money.read", { subjectPersonId: "x" }))).toEqual({
+      code: "FORBIDDEN",
+      message: "Chỉ được thao tác trên bản ghi của mình",
+    });
+    expect(msg(() => authorize(actor("front_desk"), "deposit.refund", { amount: 1 }))).toEqual({
+      code: "FORBIDDEN",
+      message: "Lễ tân chỉ hoàn trong lúc trả phòng",
+    });
+    expect(msg(() => authorize(actor("manager"), "deposit.refund", {}))).toEqual({
+      code: "FORBIDDEN",
+      message: "Thiếu số tiền hợp lệ để kiểm hạn mức",
+    });
+    expect(msg(() => authorize(actor("manager"), "deposit.refund", { amount: 5_000_001 }))).toEqual({
+      code: "APPROVAL_LIMIT_EXCEEDED",
+      message: "Vượt hạn mức — cần người có thẩm quyền duyệt",
+    });
+    expect(msg(() => authorizeRequest(actor("housekeeping"), "deposit.refund"))).toEqual({
+      code: "FORBIDDEN",
+      message: "Bạn không có quyền lập yêu cầu này",
+    });
+    expect(msg(() => authorizeRequest(actor("manager"), "deposit.refund", { propertyId: P2 }))).toEqual({
+      code: "NOT_FOUND",
+      message: "Không tìm thấy",
+    });
+    // Được phép: cùng hành động, đúng phạm vi/hạn mức/ngữ cảnh.
+    expect(authorize(actor("manager"), "deposit.refund", { amount: 5_000_000 })).toEqual({
+      grant: "limit",
+      limit: 5_000_000,
+    });
+    expect(authorize(actor("tenant"), "money.read", { subjectPersonId: "person-tenant" }).grant).toBe("own");
+    expect(msg(() => authorizeRequest(actor("accountant"), "deposit.refund"))).toBeNull();
   });
 });

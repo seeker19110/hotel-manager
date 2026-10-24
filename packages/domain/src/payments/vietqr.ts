@@ -3,6 +3,7 @@
 // blog) có 3 chuỗi mẫu tự khớp CRC; văn bản NAPAS v1.5.2 gốc CHƯA truy cập được → (chưa xác minh) với 59/60, giới hạn
 // 62.08. Vì vậy chỉ sinh đúng tập trường của các chuỗi mẫu: 00, 01, 38 (00 GUID, 01 BIN+TK, 02 QRIBFTTA), 53, 54, 58,
 // 62.08, 63; nội dung CK chỉ gồm [A-Z0-9 ] ≤ 25 ký tự (mã tham chiếu 8 ký tự) để an toàn với mọi ứng dụng ngân hàng.
+import { t } from "../i18n.ts";
 
 /** BIN ngân hàng (api.vietqr.io/v2/banks, 2026-10-15). `bank_code` của tài khoản nhận có thể là mã ngắn hoặc chính BIN. */
 export const BANK_BINS: Readonly<Record<string, string>> = {
@@ -31,7 +32,7 @@ export function crc16CcittFalse(s: string): string {
 }
 
 function tlv(id: string, value: string): string {
-  if (value.length > 99) throw new RangeError(`Trường ${id} dài quá 99 ký tự`);
+  if (value.length > 99) throw new RangeError(t("vietqr.field_too_long", { id }));
   return `${id}${String(value.length).padStart(2, "0")}${value}`;
 }
 
@@ -45,16 +46,16 @@ export interface VietQrInput {
 }
 
 export function buildVietQr(input: VietQrInput): string {
-  if (!/^\d{6}$/.test(input.bin)) throw new RangeError("BIN ngân hàng phải 6 chữ số");
-  if (!/^\d{4,19}$/.test(input.accountNumber)) throw new RangeError("Số tài khoản không hợp lệ");
+  if (!/^\d{6}$/.test(input.bin)) throw new RangeError(t("vietqr.bin_invalid"));
+  if (!/^\d{4,19}$/.test(input.accountNumber)) throw new RangeError(t("vietqr.account_invalid"));
   if (
     input.amount !== undefined &&
     (!Number.isSafeInteger(input.amount) || input.amount <= 0 || input.amount > 9_999_999_999_999)
   ) {
-    throw new RangeError("Số tiền phải là số nguyên đồng dương, tối đa 13 chữ số");
+    throw new RangeError(t("vietqr.amount_invalid"));
   }
   if (input.memo !== undefined && !/^[A-Z0-9 ]{1,25}$/.test(input.memo)) {
-    throw new RangeError("Nội dung CK chỉ gồm A-Z, 0-9, khoảng trắng, tối đa 25 ký tự");
+    throw new RangeError(t("vietqr.memo_invalid"));
   }
   const beneficiary = tlv("00", input.bin) + tlv("01", input.accountNumber);
   const merchant = tlv("00", "A000000727") + tlv("01", beneficiary) + tlv("02", "QRIBFTTA");

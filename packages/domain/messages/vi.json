@@ -1,0 +1,326 @@
+{
+  "authz.forbidden": {
+    "message": "Bạn không có quyền thực hiện thao tác này",
+    "description": "Thông điệp của AuthzError (packages/domain access/authorize.ts) — đi thẳng ra `title` của problem+json (RFC 9457) mà API trả cho client khi vai trò không có quyền với hành động (403 FORBIDDEN), kể cả người thuê gọi API nhân viên."
+  },
+  "authz.not_found": {
+    "message": "Không tìm thấy",
+    "description": "Thông điệp của AuthzError (packages/domain access/authorize.ts) — đi thẳng ra `title` của problem+json (RFC 9457) mà API trả cho client khi cơ sở nằm ngoài phạm vi của người thao tác (404 NOT_FOUND — không lộ là có tồn tại)."
+  },
+  "authz.role_not_allowed": {
+    "message": "Vai trò không có quyền này",
+    "description": "Thông điệp của AuthzError (packages/domain access/authorize.ts) — đi thẳng ra `title` của problem+json (RFC 9457) mà API trả cho client khi vai trò của thành viên không thuộc ma trận quyền (403 FORBIDDEN)."
+  },
+  "authz.self_approval": {
+    "message": "Bạn không thể tự duyệt yêu cầu mình lập",
+    "description": "Thông điệp của AuthzError (packages/domain access/authorize.ts) — đi thẳng ra `title` của problem+json (RFC 9457) mà API trả cho client khi người duyệt chính là người lập yêu cầu (403 SELF_APPROVAL_FORBIDDEN, INV-F5)."
+  },
+  "authz.own_records_only": {
+    "message": "Chỉ được thao tác trên bản ghi của mình",
+    "description": "Thông điệp của AuthzError (packages/domain access/authorize.ts) — đi thẳng ra `title` của problem+json (RFC 9457) mà API trả cho client khi vai trò chỉ được thao tác bản ghi của chính mình mà bản ghi thuộc người khác (403 FORBIDDEN)."
+  },
+  "authz.front_desk_refund_checkout_only": {
+    "message": "Lễ tân chỉ hoàn trong lúc trả phòng",
+    "description": "Thông điệp của AuthzError (packages/domain access/authorize.ts) — đi thẳng ra `title` của problem+json (RFC 9457) mà API trả cho client khi lễ tân hoàn cọc/ứng trước ngoài lúc trả phòng (403 FORBIDDEN)."
+  },
+  "authz.amount_required": {
+    "message": "Thiếu số tiền hợp lệ để kiểm hạn mức",
+    "description": "Thông điệp của AuthzError (packages/domain access/authorize.ts) — đi thẳng ra `title` của problem+json (RFC 9457) mà API trả cho client khi hành động có hạn mức mà không có số tiền nguyên đồng ≥ 0 để so (403 FORBIDDEN)."
+  },
+  "authz.limit_exceeded": {
+    "message": "Vượt hạn mức — cần người có thẩm quyền duyệt",
+    "description": "Thông điệp của AuthzError (packages/domain access/authorize.ts) — đi thẳng ra `title` của problem+json (RFC 9457) mà API trả cho client khi số tiền vượt hạn mức của người thao tác (403 APPROVAL_LIMIT_EXCEEDED); app thường lập yêu cầu duyệt kèm theo."
+  },
+  "authz.request_forbidden": {
+    "message": "Bạn không có quyền lập yêu cầu này",
+    "description": "Thông điệp của AuthzError (packages/domain access/authorize.ts) — đi thẳng ra `title` của problem+json (RFC 9457) mà API trả cho client khi vai trò không được lập yêu cầu duyệt cho hành động này (403 FORBIDDEN)."
+  },
+  "billing.date_invalid": {
+    "message": "Ngày không hợp lệ: {date}",
+    "description": "Thông điệp MoneyError (lỗi tính tiền ở domain) — app không trả nguyên văn ra API (problem che thành lỗi nội bộ); chủ yếu vào log/vận hành: ngày đầu vào của bộ tính phiếu kỳ không phải YYYY-MM-DD có thật. {date} là chuỗi ngày nhận được."
+  },
+  "billing.period_invalid": {
+    "message": "Kỳ thu sai",
+    "description": "Thông điệp MoneyError (lỗi tính tiền ở domain) — app không trả nguyên văn ra API (problem che thành lỗi nội bộ); chủ yếu vào log/vận hành: ngày cuối kỳ thu trước ngày đầu kỳ."
+  },
+  "billing.period_not_calendar_month": {
+    "message": "Kỳ thu là một tháng dương lịch",
+    "description": "Thông điệp MoneyError (lỗi tính tiền ở domain) — app không trả nguyên văn ra API (problem che thành lỗi nội bộ); chủ yếu vào log/vận hành: đầu và cuối kỳ thu không cùng một tháng dương lịch."
+  },
+  "billing.line_rent_full_month": {
+    "message": "Tiền thuê tháng {month}/{year}",
+    "description": "Mô tả dòng tiền thuê trên phiếu thu (lưu vào invoice_lines, hiện trên phiếu/portal/PDF) khi ở trọn tháng. {month} là tháng 2 chữ số (vd 10), {year} là năm 4 chữ số."
+  },
+  "billing.line_rent_prorated": {
+    "message": "Tiền thuê {days}/{days_in_month} ngày ({monthly_rent} đ/tháng)",
+    "description": "Mô tả dòng tiền thuê trên phiếu thu (lưu vào invoice_lines, hiện trên phiếu/portal/PDF) khi ở lẻ ngày trong tháng. {days} là số ngày ở, {days_in_month} số ngày của tháng, {monthly_rent} giá tháng đã định dạng nhóm nghìn (không kèm ký hiệu — câu đã có \"đ/tháng\")."
+  },
+  "billing.metered_quantity_negative": {
+    "message": "Lượng {name} âm",
+    "description": "Thông điệp MoneyError (lỗi tính tiền ở domain) — app không trả nguyên văn ra API (problem che thành lỗi nội bộ); chủ yếu vào log/vận hành: chỉ số cuối nhỏ hơn chỉ số đầu của một dịch vụ theo công tơ. {name} là tên dịch vụ (vd Điện)."
+  },
+  "billing.occupants_invalid": {
+    "message": "Số người ở sai",
+    "description": "Thông điệp MoneyError (lỗi tính tiền ở domain) — app không trả nguyên văn ra API (problem che thành lỗi nội bộ); chủ yếu vào log/vận hành: số người ở cuối kỳ không phải số nguyên ≥ 0."
+  },
+  "billing.service_quantity_invalid": {
+    "message": "Số lượng {name} sai",
+    "description": "Thông điệp MoneyError (lỗi tính tiền ở domain) — app không trả nguyên văn ra API (problem che thành lỗi nội bộ); chủ yếu vào log/vận hành: số lượng của dịch vụ cố định/theo người không phải số nguyên ≥ 0. {name} là tên dịch vụ."
+  },
+  "billing.line_per_person": {
+    "message": "{name} ({count} người)",
+    "description": "Mô tả dòng dịch vụ tính theo đầu người trên phiếu thu (lưu vào invoice_lines, hiện trên phiếu/portal/PDF). {name} là tên dịch vụ (vd Rác), {count} là số người ở."
+  },
+  "money.decimal_invalid": {
+    "message": "Không phải số thập phân hợp lệ: \"{input}\"",
+    "description": "Thông điệp MoneyError (lỗi tính tiền ở domain) — app không trả nguyên văn ra API (problem che thành lỗi nội bộ); chủ yếu vào log/vận hành: lượng/đơn giá không phải chuỗi thập phân hợp lệ. {input} là chuỗi nhận được (giữ dấu ngoặc kép bao quanh)."
+  },
+  "money.unsafe_amount": {
+    "message": "Số tiền vượt giới hạn an toàn",
+    "description": "Thông điệp MoneyError (lỗi tính tiền ở domain) — app không trả nguyên văn ra API (problem che thành lỗi nội bộ); chủ yếu vào log/vận hành: kết quả tính tiền vượt số nguyên an toàn của JavaScript."
+  },
+  "money.monthly_price_negative": {
+    "message": "Giá tháng không âm",
+    "description": "Thông điệp MoneyError (lỗi tính tiền ở domain) — app không trả nguyên văn ra API (problem che thành lỗi nội bộ); chủ yếu vào log/vận hành: giá tháng đưa vào prorata là số âm."
+  },
+  "money.days_in_month_invalid": {
+    "message": "Số ngày của tháng sai",
+    "description": "Thông điệp MoneyError (lỗi tính tiền ở domain) — app không trả nguyên văn ra API (problem che thành lỗi nội bộ); chủ yếu vào log/vận hành: số ngày của tháng đưa vào prorata không phải số nguyên 28–31."
+  },
+  "money.billed_days_invalid": {
+    "message": "Số ngày tính tiền sai",
+    "description": "Thông điệp MoneyError (lỗi tính tiền ở domain) — app không trả nguyên văn ra API (problem che thành lỗi nội bộ); chủ yếu vào log/vận hành: số ngày tính tiền đưa vào prorata âm, không nguyên hoặc lớn hơn số ngày của tháng."
+  },
+  "money.amount_not_whole": {
+    "message": "Số tiền phải là số nguyên đồng: {amount}",
+    "description": "Thông điệp MoneyError (lỗi tính tiền ở domain) — app không trả nguyên văn ra API (problem che thành lỗi nội bộ); chủ yếu vào log/vận hành: một số tiền khi cộng tổng không phải số nguyên đồng. {amount} là giá trị nhận được."
+  },
+  "money.amount_not_vnd": {
+    "message": "Số tiền phải là số nguyên đồng (VND)",
+    "description": "Thông điệp MoneyError (lỗi tính tiền ở domain) — app không trả nguyên văn ra API (problem che thành lỗi nội bộ); chủ yếu vào log/vận hành: giá trị không phải số nguyên đồng an toàn."
+  },
+  "money.posting_min_lines": {
+    "message": "Bút toán cần ít nhất 2 dòng",
+    "description": "Thông điệp MoneyError (lỗi tính tiền ở domain) — app không trả nguyên văn ra API (problem che thành lỗi nội bộ); chủ yếu vào log/vận hành: bút toán sổ phụ (INV-F1) có ít hơn 2 dòng."
+  },
+  "money.posting_line_one_side": {
+    "message": "Mỗi dòng bút toán có đúng một phía Nợ hoặc Có lớn hơn 0",
+    "description": "Thông điệp MoneyError (lỗi tính tiền ở domain) — app không trả nguyên văn ra API (problem che thành lỗi nội bộ); chủ yếu vào log/vận hành: một dòng bút toán có cả Nợ và Có, hoặc không có phía nào > 0. Giữ thuật ngữ kế toán Nợ/Có."
+  },
+  "money.posting_unbalanced": {
+    "message": "Bút toán lệch: tổng Nợ khác tổng Có",
+    "description": "Thông điệp MoneyError (lỗi tính tiền ở domain) — app không trả nguyên văn ra API (problem che thành lỗi nội bộ); chủ yếu vào log/vận hành: tổng Nợ khác tổng Có (INV-F1). Giữ thuật ngữ kế toán Nợ/Có."
+  },
+  "qr.empty": {
+    "message": "Chuỗi QR rỗng",
+    "description": "RangeError nội bộ của domain (lỗi lập trình/dữ liệu, không ra API — app che thành lỗi nội bộ) — chỉ log/vận hành: dựng mã QR từ chuỗi rỗng."
+  },
+  "qr.too_long": {
+    "message": "Chuỗi QR dài quá {max} byte",
+    "description": "RangeError nội bộ của domain (lỗi lập trình/dữ liệu, không ra API — app che thành lỗi nội bộ) — chỉ log/vận hành: chuỗi cần mã hoá QR vượt dung lượng hỗ trợ. {max} là số byte UTF-8 tối đa."
+  },
+  "reconcile.amount_not_positive": {
+    "message": "Số tiền giao dịch phải là số nguyên dương",
+    "description": "RangeError nội bộ của domain (lỗi lập trình/dữ liệu, không ra API — app che thành lỗi nội bộ) — chỉ log/vận hành: phân loại giao dịch ngân hàng có số tiền không phải số nguyên đồng dương."
+  },
+  "vietqr.field_too_long": {
+    "message": "Trường {id} dài quá 99 ký tự",
+    "description": "RangeError nội bộ của domain (lỗi lập trình/dữ liệu, không ra API — app che thành lỗi nội bộ) — chỉ log/vận hành: một trường TLV của chuỗi VietQR (EMVCo) dài quá 99 ký tự. {id} là mã trường 2 chữ số."
+  },
+  "vietqr.bin_invalid": {
+    "message": "BIN ngân hàng phải 6 chữ số",
+    "description": "RangeError nội bộ của domain (lỗi lập trình/dữ liệu, không ra API — app che thành lỗi nội bộ) — chỉ log/vận hành: BIN ngân hàng của tài khoản nhận không phải 6 chữ số khi dựng VietQR."
+  },
+  "vietqr.account_invalid": {
+    "message": "Số tài khoản không hợp lệ",
+    "description": "RangeError nội bộ của domain (lỗi lập trình/dữ liệu, không ra API — app che thành lỗi nội bộ) — chỉ log/vận hành: số tài khoản nhận không phải 4–19 chữ số khi dựng VietQR."
+  },
+  "vietqr.amount_invalid": {
+    "message": "Số tiền phải là số nguyên đồng dương, tối đa 13 chữ số",
+    "description": "RangeError nội bộ của domain (lỗi lập trình/dữ liệu, không ra API — app che thành lỗi nội bộ) — chỉ log/vận hành: số tiền của VietQR không phải số nguyên đồng dương ≤ 13 chữ số."
+  },
+  "vietqr.memo_invalid": {
+    "message": "Nội dung CK chỉ gồm A-Z, 0-9, khoảng trắng, tối đa 25 ký tự",
+    "description": "RangeError nội bộ của domain (lỗi lập trình/dữ liệu, không ra API — app che thành lỗi nội bộ) — chỉ log/vận hành: nội dung chuyển khoản của VietQR sai dạng. \"CK\" = chuyển khoản."
+  },
+  "statement.unclosed_quote": {
+    "message": "CSV: thiếu dấu đóng ngoặc kép",
+    "description": "Lỗi đọc sao kê CSV (SPEC-ledger S-019) — app trả nguyên văn ra `title` của problem+json khi người dùng nhập sao kê (422 VALIDATION_FAILED): tệp có ô mở ngoặc kép mà không đóng."
+  },
+  "statement.column_not_found": {
+    "message": "Không tìm thấy cột {field}: {column}",
+    "description": "Lỗi đọc sao kê CSV (SPEC-ledger S-019) — app trả nguyên văn ra `title` của problem+json khi người dùng nhập sao kê (422 VALIDATION_FAILED): ánh xạ trỏ tới cột không có trong tệp. {field} là tên trường (statement.field_*), {column} là tên/số cột người dùng chọn."
+  },
+  "statement.mapping_amount": {
+    "message": "Ánh xạ cần đúng một trong: cột số tiền, hoặc cột Có (kèm Nợ nếu có)",
+    "description": "Lỗi đọc sao kê CSV (SPEC-ledger S-019) — app trả nguyên văn ra `title` của problem+json khi người dùng nhập sao kê (422 VALIDATION_FAILED): ánh xạ không chọn hoặc chọn cả hai cách đọc số tiền. Giữ thuật ngữ kế toán Nợ/Có."
+  },
+  "statement.field_date": {
+    "message": "ngày",
+    "description": "Tên trường ánh xạ sao kê, chèn vào {field} của statement.column_not_found (chữ thường, giữa câu): cột ngày giao dịch."
+  },
+  "statement.field_description": {
+    "message": "nội dung",
+    "description": "Tên trường ánh xạ sao kê, chèn vào {field} của statement.column_not_found (chữ thường, giữa câu): cột nội dung chuyển khoản."
+  },
+  "statement.field_amount": {
+    "message": "số tiền",
+    "description": "Tên trường ánh xạ sao kê, chèn vào {field} của statement.column_not_found (chữ thường, giữa câu): cột số tiền (có dấu)."
+  },
+  "statement.field_credit": {
+    "message": "tiền vào",
+    "description": "Tên trường ánh xạ sao kê, chèn vào {field} của statement.column_not_found (chữ thường, giữa câu): cột tiền vào (Có)."
+  },
+  "statement.field_debit": {
+    "message": "tiền ra",
+    "description": "Tên trường ánh xạ sao kê, chèn vào {field} của statement.column_not_found (chữ thường, giữa câu): cột tiền ra (Nợ)."
+  },
+  "statement.field_ref": {
+    "message": "mã giao dịch",
+    "description": "Tên trường ánh xạ sao kê, chèn vào {field} của statement.column_not_found (chữ thường, giữa câu): cột mã giao dịch của ngân hàng."
+  },
+  "statement.field_balance": {
+    "message": "số dư",
+    "description": "Tên trường ánh xạ sao kê, chèn vào {field} của statement.column_not_found (chữ thường, giữa câu): cột số dư sau giao dịch."
+  },
+  "statement.too_many_rows": {
+    "message": "Tối đa {max} dòng mỗi lần nhập",
+    "description": "Lỗi đọc sao kê CSV (SPEC-ledger S-019) — app trả nguyên văn ra `title` của problem+json khi người dùng nhập sao kê (413 FILE_TOO_LARGE — app nhận qua lớp StatementLimitError): tệp có quá nhiều dòng. {max} là số dòng tối đa."
+  },
+  "statement.row_date_invalid": {
+    "message": "Ngày giao dịch không hợp lệ",
+    "description": "Lỗi của một dòng sao kê — hiện ở cột lỗi của bảng kết quả nhập sao kê (các dòng khác vẫn được nhập): ô ngày không đọc được."
+  },
+  "statement.row_both_directions": {
+    "message": "Dòng có cả tiền vào và tiền ra",
+    "description": "Lỗi của một dòng sao kê — hiện ở cột lỗi của bảng kết quả nhập sao kê (các dòng khác vẫn được nhập): dòng có giá trị ở cả cột tiền vào và tiền ra."
+  },
+  "statement.row_amount_invalid": {
+    "message": "Số tiền không hợp lệ",
+    "description": "Lỗi của một dòng sao kê — hiện ở cột lỗi của bảng kết quả nhập sao kê (các dòng khác vẫn được nhập): ô số tiền không đọc được."
+  },
+  "statement.row_balance_invalid": {
+    "message": "Số dư không hợp lệ",
+    "description": "Lỗi của một dòng sao kê — hiện ở cột lỗi của bảng kết quả nhập sao kê (các dòng khác vẫn được nhập): ô số dư có giá trị nhưng không đọc được."
+  },
+  "statement.row_ref_too_long": {
+    "message": "Mã giao dịch quá dài",
+    "description": "Lỗi của một dòng sao kê — hiện ở cột lỗi của bảng kết quả nhập sao kê (các dòng khác vẫn được nhập): mã giao dịch dài quá 100 ký tự."
+  },
+  "state.invalid_transition": {
+    "message": "{machine}: không thể chuyển từ \"{from}\" sang \"{to}\"",
+    "description": "Thông điệp TransitionError — đi thẳng ra `title` của problem+json (409 INVALID_TRANSITION) khi đổi trạng thái không có trong máy trạng thái. {machine} là tên máy (booking, lease…), {from}/{to} là mã trạng thái (giữ dấu ngoặc kép bao quanh)."
+  },
+  "state.unknown_state": {
+    "message": "{machine}: trạng thái lạ \"{state}\"",
+    "description": "(chỉ log/vận hành) Error lúc khởi tạo máy trạng thái khi bảng chuyển nhắc trạng thái không khai báo — lỗi lập trình, không tới người dùng. {machine} là tên máy, {state} là mã trạng thái."
+  },
+  "stay.check_in_invalid": {
+    "message": "giờ nhận phòng không hợp lệ",
+    "description": "RangeError nội bộ của domain (lỗi lập trình/dữ liệu, không ra API — app che thành lỗi nội bộ) — chỉ log/vận hành: giờ nhận phòng địa phương không đúng dạng YYYY-MM-DDTHH:MM khi tính hạn thông báo lưu trú."
+  },
+  "stay.total_unsafe": {
+    "message": "tổng tiền phòng vượt giới hạn số nguyên an toàn",
+    "description": "RangeError nội bộ của domain (lỗi lập trình/dữ liệu, không ra API — app che thành lỗi nội bộ) — chỉ log/vận hành: tổng tiền các đêm vượt số nguyên an toàn của JavaScript."
+  },
+  "vnd_words.digit_0": {
+    "message": "không",
+    "description": "Từ vựng đọc số tiền thành chữ (vndInWords — aria-label/số tiền bằng chữ trên phiếu, SPEC-portal §5: \"một triệu năm trăm tám mươi nghìn đồng\"); thuật toán ghép các từ bằng dấu cách: chữ số 0 (cũng dùng trong \"không trăm\" và \"không đồng\")."
+  },
+  "vnd_words.digit_1": {
+    "message": "một",
+    "description": "Từ vựng đọc số tiền thành chữ (vndInWords — aria-label/số tiền bằng chữ trên phiếu, SPEC-portal §5: \"một triệu năm trăm tám mươi nghìn đồng\"); thuật toán ghép các từ bằng dấu cách: chữ số 1."
+  },
+  "vnd_words.digit_2": {
+    "message": "hai",
+    "description": "Từ vựng đọc số tiền thành chữ (vndInWords — aria-label/số tiền bằng chữ trên phiếu, SPEC-portal §5: \"một triệu năm trăm tám mươi nghìn đồng\"); thuật toán ghép các từ bằng dấu cách: chữ số 2."
+  },
+  "vnd_words.digit_3": {
+    "message": "ba",
+    "description": "Từ vựng đọc số tiền thành chữ (vndInWords — aria-label/số tiền bằng chữ trên phiếu, SPEC-portal §5: \"một triệu năm trăm tám mươi nghìn đồng\"); thuật toán ghép các từ bằng dấu cách: chữ số 3."
+  },
+  "vnd_words.digit_4": {
+    "message": "bốn",
+    "description": "Từ vựng đọc số tiền thành chữ (vndInWords — aria-label/số tiền bằng chữ trên phiếu, SPEC-portal §5: \"một triệu năm trăm tám mươi nghìn đồng\"); thuật toán ghép các từ bằng dấu cách: chữ số 4."
+  },
+  "vnd_words.digit_5": {
+    "message": "năm",
+    "description": "Từ vựng đọc số tiền thành chữ (vndInWords — aria-label/số tiền bằng chữ trên phiếu, SPEC-portal §5: \"một triệu năm trăm tám mươi nghìn đồng\"); thuật toán ghép các từ bằng dấu cách: chữ số 5."
+  },
+  "vnd_words.digit_6": {
+    "message": "sáu",
+    "description": "Từ vựng đọc số tiền thành chữ (vndInWords — aria-label/số tiền bằng chữ trên phiếu, SPEC-portal §5: \"một triệu năm trăm tám mươi nghìn đồng\"); thuật toán ghép các từ bằng dấu cách: chữ số 6."
+  },
+  "vnd_words.digit_7": {
+    "message": "bảy",
+    "description": "Từ vựng đọc số tiền thành chữ (vndInWords — aria-label/số tiền bằng chữ trên phiếu, SPEC-portal §5: \"một triệu năm trăm tám mươi nghìn đồng\"); thuật toán ghép các từ bằng dấu cách: chữ số 7."
+  },
+  "vnd_words.digit_8": {
+    "message": "tám",
+    "description": "Từ vựng đọc số tiền thành chữ (vndInWords — aria-label/số tiền bằng chữ trên phiếu, SPEC-portal §5: \"một triệu năm trăm tám mươi nghìn đồng\"); thuật toán ghép các từ bằng dấu cách: chữ số 8."
+  },
+  "vnd_words.digit_9": {
+    "message": "chín",
+    "description": "Từ vựng đọc số tiền thành chữ (vndInWords — aria-label/số tiền bằng chữ trên phiếu, SPEC-portal §5: \"một triệu năm trăm tám mươi nghìn đồng\"); thuật toán ghép các từ bằng dấu cách: chữ số 9."
+  },
+  "vnd_words.hundred": {
+    "message": "trăm",
+    "description": "Từ vựng đọc số tiền thành chữ (vndInWords — aria-label/số tiền bằng chữ trên phiếu, SPEC-portal §5: \"một triệu năm trăm tám mươi nghìn đồng\"); thuật toán ghép các từ bằng dấu cách: hàng trăm, đứng sau chữ số (\"năm trăm\")."
+  },
+  "vnd_words.ten": {
+    "message": "mười",
+    "description": "Từ vựng đọc số tiền thành chữ (vndInWords — aria-label/số tiền bằng chữ trên phiếu, SPEC-portal §5: \"một triệu năm trăm tám mươi nghìn đồng\"); thuật toán ghép các từ bằng dấu cách: số 10–19 (\"mười\", \"mười hai\")."
+  },
+  "vnd_words.tens": {
+    "message": "mươi",
+    "description": "Từ vựng đọc số tiền thành chữ (vndInWords — aria-label/số tiền bằng chữ trên phiếu, SPEC-portal §5: \"một triệu năm trăm tám mươi nghìn đồng\"); thuật toán ghép các từ bằng dấu cách: hàng chục 20–90, đứng sau chữ số (\"hai mươi\")."
+  },
+  "vnd_words.odd": {
+    "message": "lẻ",
+    "description": "Từ vựng đọc số tiền thành chữ (vndInWords — aria-label/số tiền bằng chữ trên phiếu, SPEC-portal §5: \"một triệu năm trăm tám mươi nghìn đồng\"); thuật toán ghép các từ bằng dấu cách: chục bằng 0 mà có đơn vị (\"một trăm lẻ năm\")."
+  },
+  "vnd_words.one_after_tens": {
+    "message": "mốt",
+    "description": "Từ vựng đọc số tiền thành chữ (vndInWords — aria-label/số tiền bằng chữ trên phiếu, SPEC-portal §5: \"một triệu năm trăm tám mươi nghìn đồng\"); thuật toán ghép các từ bằng dấu cách: đơn vị 1 sau hàng chục ≥ 20 (\"hai mươi mốt\")."
+  },
+  "vnd_words.four_after_tens": {
+    "message": "tư",
+    "description": "Từ vựng đọc số tiền thành chữ (vndInWords — aria-label/số tiền bằng chữ trên phiếu, SPEC-portal §5: \"một triệu năm trăm tám mươi nghìn đồng\"); thuật toán ghép các từ bằng dấu cách: đơn vị 4 sau hàng chục ≥ 20 (\"hai mươi tư\")."
+  },
+  "vnd_words.five_after_tens": {
+    "message": "lăm",
+    "description": "Từ vựng đọc số tiền thành chữ (vndInWords — aria-label/số tiền bằng chữ trên phiếu, SPEC-portal §5: \"một triệu năm trăm tám mươi nghìn đồng\"); thuật toán ghép các từ bằng dấu cách: đơn vị 5 sau hàng chục ≥ 10 (\"mười lăm\", \"hai mươi lăm\")."
+  },
+  "vnd_words.scale_thousand": {
+    "message": "nghìn",
+    "description": "Từ vựng đọc số tiền thành chữ (vndInWords — aria-label/số tiền bằng chữ trên phiếu, SPEC-portal §5: \"một triệu năm trăm tám mươi nghìn đồng\"); thuật toán ghép các từ bằng dấu cách: nhóm nghìn (10^3)."
+  },
+  "vnd_words.scale_million": {
+    "message": "triệu",
+    "description": "Từ vựng đọc số tiền thành chữ (vndInWords — aria-label/số tiền bằng chữ trên phiếu, SPEC-portal §5: \"một triệu năm trăm tám mươi nghìn đồng\"); thuật toán ghép các từ bằng dấu cách: nhóm triệu (10^6)."
+  },
+  "vnd_words.scale_billion": {
+    "message": "tỷ",
+    "description": "Từ vựng đọc số tiền thành chữ (vndInWords — aria-label/số tiền bằng chữ trên phiếu, SPEC-portal §5: \"một triệu năm trăm tám mươi nghìn đồng\"); thuật toán ghép các từ bằng dấu cách: nhóm tỷ (10^9)."
+  },
+  "vnd_words.scale_trillion": {
+    "message": "nghìn tỷ",
+    "description": "Từ vựng đọc số tiền thành chữ (vndInWords — aria-label/số tiền bằng chữ trên phiếu, SPEC-portal §5: \"một triệu năm trăm tám mươi nghìn đồng\"); thuật toán ghép các từ bằng dấu cách: nhóm 10^12 (tiếng Việt đọc \"nghìn tỷ\")."
+  },
+  "vnd_words.scale_quadrillion": {
+    "message": "triệu tỷ",
+    "description": "Từ vựng đọc số tiền thành chữ (vndInWords — aria-label/số tiền bằng chữ trên phiếu, SPEC-portal §5: \"một triệu năm trăm tám mươi nghìn đồng\"); thuật toán ghép các từ bằng dấu cách: nhóm 10^15 (tiếng Việt đọc \"triệu tỷ\")."
+  },
+  "vnd_words.currency": {
+    "message": "đồng",
+    "description": "Từ vựng đọc số tiền thành chữ (vndInWords — aria-label/số tiền bằng chữ trên phiếu, SPEC-portal §5: \"một triệu năm trăm tám mươi nghìn đồng\"); thuật toán ghép các từ bằng dấu cách: đơn vị tiền ở cuối câu (\"… đồng\")."
+  },
+  "vnd_words.amount_invalid": {
+    "message": "Số tiền phải là số nguyên đồng ≥ 0",
+    "description": "RangeError nội bộ của domain (lỗi lập trình/dữ liệu, không ra API — app che thành lỗi nội bộ) — chỉ log/vận hành: vndInWords nhận số âm/không nguyên."
+  },
+  "vnd_words.too_large": {
+    "message": "Số tiền quá lớn để đọc",
+    "description": "RangeError nội bộ của domain (lỗi lập trình/dữ liệu, không ra API — app che thành lỗi nội bộ) — chỉ log/vận hành: vndInWords nhận số vượt nhóm lớn nhất có tên đọc."
+  }
+}
