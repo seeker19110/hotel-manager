@@ -9,6 +9,10 @@
 > `PM-SPEC-004` và `WF-SDD-003` (nền spec-coverage còn 26 S-NNN). **Tick kèm lưu ý để phiên chính xác nhận:** `DB-MODEL-004` (52 FK nhóm A thiếu index là ngoại lệ có lý do — D-035),
 > `UX-STATE-001` (không Storybook; loading bị D-032 miễn ở trang có route con động/notFound/redirect), `DB-PERF-001` (EXPLAIN không ANALYZE), `XC-GREEN-007` (còn `notifications`/`inbox`/`worker_heartbeats` chưa có job dọn, chờ DPIA).
 
+## Kết quả đợt 22 (T-2207, 2026-10-24; D-103…D-108) — "hoàn thiện dự án"
+
+XC-I18N-001 **đạt**: mọi chuỗi người dùng thấy (UI, email, thông báo, lỗi API, tệp xuất/nhập, phiếu/số tiền bằng chữ) vào tệp tài nguyên — `apps/web`, `packages/app`, `packages/domain` (`messages/vi.json`) + catalog con client `form.vi.json`, `format.vi.json`; SCOPE gồm apps/web, apps/worker, packages/app, packages/domain, packages/db; baseline 1552 → 0; 70 tệp ngoại lệ D-105/D-107 (log, metric, cấu hình, OpenAPI, migration bất biến…) có lý do + max; literal trong lỗi ra API bị chặn kể cả tệp ngoại lệ. PR #131 (người merge). MUST mở **89** — đều cần người.
+
 ## Kết quả đợt 21 (T-2103, 2026-10-24; D-101, D-102)
 
 XC-I18N-001: `MessagesProvider`/`useMessages()` (D-101) cấp khoá `common.` cho hạ tầng client; phần đuôi ngoài `merge_risk_paths` hết chuỗi viết thẳng (787 khoá); baseline 1717 → 1552 / 103 tệp; bundle 278,11 kB. Còn: `apps/web/lib/format.ts` (74), màn trong `merge_risk_paths`, `packages/app`. Vẫn mở. MUST mở **90**.

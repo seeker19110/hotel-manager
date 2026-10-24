@@ -2,7 +2,7 @@
 ## Đang làm
 - 2026-10-22 đợt 17 (D-093…D-095): luật grype critical gia hạn tới 2026-10-29 (chưa có image vá); 8 MUST D-095 tick lại sau khi import ruleset (2026-10-23), MUST mở 90.
 - 2026-10-24 đợt 21 (D-101, D-102): `MessagesProvider` (client context, khoá `common.`) cho hạ tầng client; phần đuôi ngoài `merge_risk_paths` sang `t()`/`tm()`, baseline 1717 → 1552; bundle 278,11 kB. Còn ngoài risk: chỉ `lib/format.ts`.
-- 2026-10-24 đợt 22 (D-103…D-105, "hoàn thiện dự án"): hoàn tất XC-I18N-001 theo 5 lát; lát 1 `lib/format.ts` → hàm nhãn nhận `m` (1552 → 1478). Lát 2+4 (tiền/lưu trú/auth) người merge.
+- 2026-10-24 đợt 22 (D-103…D-105, "hoàn thiện dự án"): XC-I18N-001 ĐẠT (D-103…D-108): 1552 → 0 chuỗi viết thẳng, 3 catalog + 2 catalog con client, 70 tệp ngoại lệ vận hành/migration có lý do + max; PR #131 người merge. MUST mở 89.
 - Đợt mới: `loop resume` nếu còn `.autopilot/state.json`; container mới không có state ⇒ PLAN mới + `loop init` (FB-149).
 - Phát hành v0.2.0 (#88). D-091 (2026-10-22): pha harden, 26 cổng hoãn đã khôi phục — `main.json` 28 context, strict bật (đã import 2026-10-23). `release-please` đỏ — xem *Tiếp theo* 3.
 
@@ -10,7 +10,7 @@
 1. Người (theo nhóm, từng bước ở BLUEPRINT-GAPS): ② nhãn `major`, Dependabot, quyết D-060 ③ BASE-REPO-006 cần tag annotated (release-please tạo tag thường) — quyết bước tạo tag; tag mồ côi `v2.0.0` đã xoá 2026-10-23 ④ VPS/domain/staging/secret store ⑤ sao lưu khác máy + Prometheus/Alertmanager + RPO/RTO ⑥ pháp lý DPIA/DPO/DPA ⑦ LICENSE + SECURITY.md + PVR ⑧ kiểm tay thiết bị/a11y ⑨ quyết IND-SAAS-009, CMP-RIGHTS-001, PM-METRIC-003 ⑩ duyệt `WORKER_DATABASE_URL`/`MIGRATION_DATABASE_URL` ⑪ SMTP, ClamAV ⑫ quyết 18 đề xuất "Khi chạy thật" (GO-NO-GO 4b).
 2. **Hạn gấp:** `.grype.yaml` 4 luật critical hết hạn **2026-10-29** (21 luật 2026-11-01); rà 2026-10-23: SeaweedFS 4.49 đã gắn tag (x/net 0.61) chờ image, Caddy chưa có bản mới — rà lại: có image Caddy/SeaweedFS dựng bằng Go ≥ 1.26.9 → nâng digest, gỡ luật; không → gia hạn ≤ 7 ngày hoặc tự dựng image (D-094, bắt buộc trước production). Duyệt/gia hạn `@img/sharp-libvips-linux-x64` LGPL (2026-12-31), `parse-cache-control` BSD (2027-04-18).
 3. **Người — `release-please` đỏ trên `main` từ #93** (`Error adding to tree`, chạy lại 1 lần vẫn đỏ): token đọc được nhưng không ghi được ⇒ nhiều khả năng secret `RELEASE_PLEASE_TOKEN` thiếu **Contents: Read and write** (README, mục Phát hành). Sửa quyền hoặc xoá secret, rồi chạy lại workflow `Release`; xoá nhánh mồ côi `release-please--branches--main--components--hotel-manager` nếu không cần.
-4. Người: chạy `perf-nightly` (`workflow_dispatch`) một lần khi có staging (QA-PERF-002); chờ hạ tầng: CMP-PRIV-008, XC-GREEN-002, PRF-WEB-005; XC-I18N-001 còn ~1552 chuỗi: `apps/web/lib/format.ts` (cần tách nhãn khỏi client), màn `merge_risk_paths` (người merge), `packages/app` (quyết cách trả thông điệp lỗi — D-097).
+4. Người: chạy `perf-nightly` (`workflow_dispatch`) một lần khi có staging (QA-PERF-002); chờ hạ tầng: CMP-PRIV-008, XC-GREEN-002, PRF-WEB-005; XC-I18N-001 đạt (đợt 22, chờ merge #131).
 5. Sau khi người xử lý: `python3 .xtemplates/scripts/xt.py loop resume --reason "..."`.
 
 ## Quyết định
@@ -33,6 +33,6 @@
 - Bài học đợt 5–8: Better Auth `/sign-in/email` 20 lần/phút theo IP; `<dialog>` phát `close` sau một task (`onClose` chỉ xoá trạng thái khi hộp thật sự đóng); chạy lại job CI dùng payload sự kiện cũ (cần push mới); test giá trị ngẫu nhiên phải loại ca biên (IP octet 0); không so thời gian tuyệt đối (so tương đối); hai lát song song có thể đụng nhau qua rào mới.
 
 ## Bàn giao phiên
-- 2026-10-22 `main` = `eaab1f8` (sau #130); nhánh `claude/admiring-pasteur-qi1dn0` (đợt 17–18, tick lại D-095). Thiếu ruleset tag, nhãn `major`, LICENSE.
+- 2026-10-22 `main` = `eaab1f8` (sau #130); PR #131 đợt 22; nhánh `claude/admiring-pasteur-qi1dn0` (đợt 17–18, tick lại D-095). Thiếu ruleset tag, nhãn `major`, LICENSE.
 - Lệnh kiểm nhanh: `.xtemplates/scripts/dev-task.sh gate` · `pnpm test:db` · `E2E_PORT=<cổng riêng> pnpm --filter @hm/web exec playwright test` · `bash scripts/db-backup-restore-check.sh`. Container mới: `bash scripts/dev-env-setup.sh && bash scripts/dev-env-setup.sh --only gitleaks` rồi `pnpm install --frozen-lockfile`; semgrep: `python3 -m venv <thư mục tạm>/sg && <…>/sg/bin/pip install --require-hashes -r security/semgrep/requirements.txt` rồi đưa `<…>/sg/bin` vào PATH (thiếu gitleaks/semgrep ⇒ `loop verify` đỏ exit 127 ở WF-GIT-010/T-1101). Không chạy E2E song song với `loop verify` (T-402 đỏ do tranh CPU).
 - Đang chặn: chờ người (mục *Tiếp theo* 1–3; xác nhận việc viết lại lịch sử `main` có chủ ý — ruleset nay chặn force-push). Autopilot: `done-pending-human` (một phiên).
