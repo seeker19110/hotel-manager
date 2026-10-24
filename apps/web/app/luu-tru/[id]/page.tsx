@@ -6,16 +6,26 @@ import { ShiftPanel } from "../../../components/hotel/shift-panel.tsx";
 import { StatusBadge } from "../../../components/ui/badge.tsx";
 import { ErrorState } from "../../../components/ui/state.tsx";
 import {
-  CHARGE_KIND,
-  PAYMENT_METHOD,
-  PAYMENT_STATUS,
-  STAY_STATUS,
+  chargeKindLabel,
+  paymentMethodLabel,
+  paymentStatusLabel,
+  stayStatusLabel,
   vnd,
   vndUnitPrice,
 } from "../../../lib/format.ts";
-import { t } from "../../../lib/i18n.ts";
+import { messagesFor, t } from "../../../lib/i18n.ts";
 import { withActor } from "../../../lib/page.tsx";
 import { safe } from "../../../lib/safe.ts";
+
+/** Nhãn mã (lib/format.ts, D-103). */
+const LABELS = messagesFor(
+  "label.charge_kind.",
+  "stay.add.kind_",
+  "label.payment_method.",
+  "label.payment_status.",
+  "label.stay_status.",
+  "guest_stay.status.",
+);
 
 export const metadata: Metadata = { title: t("stay.metadata.title") };
 
@@ -48,7 +58,7 @@ export default async function StayPage({ params }: { params: Promise<{ id: strin
             <dd>
               <StatusBadge
                 status={f.stayStatus}
-                label={STAY_STATUS[f.stayStatus] ?? f.stayStatus}
+                label={stayStatusLabel(LABELS, f.stayStatus)}
                 testId="stay-status"
               />
             </dd>
@@ -84,7 +94,7 @@ export default async function StayPage({ params }: { params: Promise<{ id: strin
               {f.charges.map((c) => (
                 <tr key={c.id} data-testid="charge">
                   <th scope="row">
-                    {CHARGE_KIND[c.kind] ?? c.kind}: {c.description}
+                    {chargeKindLabel(LABELS, c.kind)}: {c.description}
                     {c.quantity > 1
                       ? t("stay.charges.quantity", { quantity: c.quantity, price: vndUnitPrice(c.unitPrice) })
                       : ""}
@@ -99,8 +109,8 @@ export default async function StayPage({ params }: { params: Promise<{ id: strin
             <ul className="card-list" aria-label={t("stay.payments.aria")}>
               {f.payments.map((p) => (
                 <li key={p.id} className="card" data-testid="folio-payment">
-                  {PAYMENT_METHOD[p.method] ?? p.method} {vnd(p.amount)} —{" "}
-                  {PAYMENT_STATUS[p.status] ?? p.status}
+                  {paymentMethodLabel(LABELS, p.method)} {vnd(p.amount)} —{" "}
+                  {paymentStatusLabel(LABELS, p.status)}
                   {p.receiptNo ? t("stay.payments.receipt", { receipt: p.receiptNo }) : ""}
                 </li>
               ))}

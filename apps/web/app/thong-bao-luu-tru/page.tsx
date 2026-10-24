@@ -4,10 +4,13 @@ import { NoticeActions } from "../../components/hotel/notice-actions.tsx";
 import { StatusBadge } from "../../components/ui/badge.tsx";
 import { Icon } from "../../components/ui/icon.tsx";
 import { EmptyState, ErrorState } from "../../components/ui/state.tsx";
-import { dateTime, NOTICE_STATUS } from "../../lib/format.ts";
+import { dateTime, noticeStatusLabel } from "../../lib/format.ts";
 import { messagesFor, t } from "../../lib/i18n.ts";
 import { withActor } from "../../lib/page.tsx";
 import { safe } from "../../lib/safe.ts";
+
+/** Nhãn mã (lib/format.ts, D-103). */
+const LABELS = messagesFor("label.notice_status.");
 
 export const metadata: Metadata = { title: t("notice.metadata.title") };
 
@@ -50,7 +53,7 @@ export default async function NoticesPage() {
                         ? t("notice.card.submitted", { at: dateTime(n.submittedAt, p.timezone) })
                         : ""}
                     </p>
-                    <StatusBadge status={n.status} label={NOTICE_STATUS[n.status] ?? n.status} />
+                    <StatusBadge status={n.status} label={noticeStatusLabel(LABELS, n.status)} />
                     {n.overdue ? (
                       <span className="badge" data-status="overdue">
                         <Icon name="warning" /> {t("today_list.item.overdue")}

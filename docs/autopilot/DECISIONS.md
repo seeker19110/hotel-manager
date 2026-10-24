@@ -739,3 +739,24 @@
 - Chọn: Duyệt 3 task như viết
 - Lý do (tiêu chí chất lượng cuối): (3)(4) việc máy duy nhất còn lại; theo nhịp D-097; thiết kế D-102 có rào máy
 - Đường lùi: Revert PR đợt 21
+
+### D-103 · 2026-10-24T08:51:55+00:00 · D-103: apps/web/lib/format.ts (74 chuỗi nhãn) được cả server lẫn client import — chuyển i18n thế nào?
+
+- Phương án: (1) Nhãn tách: hàm nhận m / dùng t() ở server; client lấy qua useMessages() (common.) hoặc prop m · (2) Giữ nguyên format.ts, miễn trừ
+- Chọn: Nhãn tách: hàm nhận m / dùng t() ở server; client lấy qua useMessages() (common.) hoặc prop m
+- Lý do (tiêu chí chất lượng cuối): (1) XC-I18N-001 đòi mọi chuỗi người dùng thấy; giữ D-098 (catalog không vào bundle)
+- Đường lùi: Revert PR lát 1
+
+### D-104 · 2026-10-24T08:51:56+00:00 · D-104: packages/app (1280 chuỗi: lỗi API, email, xuất/nhập) dùng catalog nào?
+
+- Phương án: (1) Catalog riêng packages/app/messages/vi.json cùng định dạng + t() typed server-only; i18n-check kiểm 2 catalog; mã lỗi API giữ nguyên · (2) Dùng chung apps/web/messages/vi.json (packages/app import từ apps/web) · (3) Gói packages/i18n chung
+- Chọn: Catalog riêng packages/app/messages/vi.json cùng định dạng + t() typed server-only; i18n-check kiểm 2 catalog; mã lỗi API giữ nguyên
+- Lý do (tiêu chí chất lượng cuối): (3) đúng ranh giới module (ADR-0001: packages/app không phụ thuộc apps/web); không đổi API (mã lỗi giữ); (2) dễ gộp sau nếu cần locale thứ hai
+- Đường lùi: Gộp catalog vào gói chung khi có locale thứ hai
+
+### D-105 · 2026-10-24T08:51:56+00:00 · D-105: chuỗi tiếng Việt chỉ người vận hành/nhà phát triển thấy (log, mô tả metric, lỗi cấu hình lúc khởi động, mô tả OpenAPI) có thuộc XC-I18N-001 không?
+
+- Phương án: (1) Không — ngoại lệ theo tệp có lý do trong baseline, script kiểm lý do không rỗng; mọi tệp khác về 0 · (2) Có — chuyển tất cả vào catalog
+- Chọn: Không — ngoại lệ theo tệp có lý do trong baseline, script kiểm lý do không rỗng; mọi tệp khác về 0
+- Lý do (tiêu chí chất lượng cuối): (1) MUST ghi 'chuỗi người dùng thấy (UI, email, thông báo đẩy, lỗi, PDF)'; log/metric/OpenAPI không phải; ngoại lệ hiển thị từng tệp + lý do nên không phải nới ngầm; reviewer rà danh sách
+- Đường lùi: Bỏ danh sách ngoại lệ, chuyển nốt các tệp đó

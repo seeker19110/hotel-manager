@@ -2,8 +2,12 @@ import { getLease, leaseExtras, serverContext } from "@hm/app";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { CommandForm, type FieldSpec } from "../../../components/command/command-form.tsx";
-import { day, LEASE_STATUS, METER_LABEL, vnd } from "../../../lib/format.ts";
+import { day, leaseStatusLabel, meterLabel, vnd } from "../../../lib/format.ts";
+import { messagesFor } from "../../../lib/i18n.ts";
 import { withActor } from "../../../lib/page.tsx";
+
+/** Nhãn mã (lib/format.ts, D-103). */
+const LABELS = messagesFor("label.lease_status.", "label.meter.");
 
 export const metadata: Metadata = { title: "Chi tiết hợp đồng — Hotel Manager" };
 
@@ -24,7 +28,7 @@ export default async function LeasePage({ params }: { params: Promise<{ id: stri
       x.meters.map((m) => ({
         name: `${prefix}_${m.kind}`,
         path: `readings.${m.kind}`,
-        label: `Chỉ số ${METER_LABEL[m.kind]?.toLowerCase() ?? m.kind}`,
+        label: `Chỉ số ${meterLabel(LABELS, m.kind)?.toLowerCase() ?? m.kind}`,
         type: "decimal",
         required: true,
         hint: `Lần đọc trước: ${m.last}`,
@@ -46,7 +50,7 @@ export default async function LeasePage({ params }: { params: Promise<{ id: stri
             <dt>Số hợp đồng</dt>
             <dd>{lease.number}</dd>
             <dt>Trạng thái</dt>
-            <dd data-testid="lease-status">{LEASE_STATUS[lease.status] ?? lease.status}</dd>
+            <dd data-testid="lease-status">{leaseStatusLabel(LABELS, lease.status)}</dd>
             <dt>Cơ sở</dt>
             <dd>{x.property}</dd>
             <dt>Điện thoại</dt>

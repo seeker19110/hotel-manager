@@ -18,7 +18,6 @@
   "apps/web/app/thu-tien/page.tsx": 24,
   "apps/web/components/rental/app-nav.tsx": 4,
   "apps/web/components/rental/nav-items.ts": 19,
-  "apps/web/lib/format.ts": 74,
   "apps/worker/src/jobs.ts": 1,
   "apps/worker/src/runtime.ts": 2,
   "packages/app/src/access/accept-invitation.ts": 2,

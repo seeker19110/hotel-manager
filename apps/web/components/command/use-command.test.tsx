@@ -43,7 +43,10 @@ afterEach(() => {
 describe("problemText", () => {
   it("null → null; 5xx không lộ detail; mã tra cứu chỉ nhận ký tự an toàn", () => {
     expect(problemText(cm, null)).toBeNull();
-    expect(problemText(cm, { code: "X", status: 500, detail: "bí mật nội bộ" })).toBe(SERVER_ERROR_TEXT);
+    // Chữ cố định (không lấy từ catalog): catalog đổi/hỏng message thì test này đỏ thay vì so catalog với chính nó.
+    expect(problemText(cm, { code: "X", status: 500, detail: "bí mật nội bộ" })).toBe(
+      "Hệ thống đang gặp lỗi, thao tác chưa thực hiện được. Vui lòng thử lại sau ít phút.",
+    );
     expect(problemText(cm, { code: "X", status: 503, correlation_id: "ab-12" })).toBe(
       "Hệ thống đang gặp lỗi, thao tác chưa thực hiện được. Vui lòng thử lại sau ít phút. Mã tra cứu: ab-12.",
     );

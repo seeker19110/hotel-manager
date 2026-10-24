@@ -13,10 +13,13 @@ import { StatusBadge } from "../../components/ui/badge.tsx";
 import { Icon } from "../../components/ui/icon.tsx";
 import { EmptyState, ErrorState } from "../../components/ui/state.tsx";
 import { TruncatedNotice } from "../../components/ui/truncated-notice.tsx";
-import { addDays, BOOKING_STATUS, day, weekdayDay } from "../../lib/format.ts";
-import { t } from "../../lib/i18n.ts";
+import { addDays, bookingStatusLabel, day, weekdayDay } from "../../lib/format.ts";
+import { messagesFor, t } from "../../lib/i18n.ts";
 import { withActor } from "../../lib/page.tsx";
 import { safe } from "../../lib/safe.ts";
+
+/** Nhãn mã (lib/format.ts, D-103). */
+const LABELS = messagesFor("label.booking_status.", "label.weekday.");
 
 export const metadata: Metadata = { title: t("calendar.metadata.title") };
 
@@ -95,7 +98,7 @@ export default async function CalendarPage({
         ) : (
           Array.from({ length: DAYS }, (_, i) => addDays(from, i)).map((d) => (
             <section key={d} aria-labelledby={`d-${d}`} className="day-block" data-testid="calendar-day">
-              <h2 id={`d-${d}`}>{weekdayDay(d)}</h2>
+              <h2 id={`d-${d}`}>{weekdayDay(LABELS, d)}</h2>
               <ul className="day-rooms">
                 {units.map((u) => {
                   const b = at(u.unitId, d);
@@ -108,7 +111,7 @@ export default async function CalendarPage({
                         </span>
                       ) : b ? (
                         <a href={`/dat-phong/${b.id}`} className="card__link">
-                          <StatusBadge status={b.status} label={BOOKING_STATUS[b.status] ?? b.status} />
+                          <StatusBadge status={b.status} label={bookingStatusLabel(LABELS, b.status)} />
                           <span>
                             {b.number} · {b.bookerName}
                           </span>

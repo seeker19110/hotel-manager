@@ -3,8 +3,12 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { CommandForm } from "../../../components/command/command-form.tsx";
 import { EmptyState, ErrorState } from "../../../components/ui/state.tsx";
-import { METER_LABEL } from "../../../lib/format.ts";
+import { meterLabel } from "../../../lib/format.ts";
+import { messagesFor } from "../../../lib/i18n.ts";
 import { withActor } from "../../../lib/page.tsx";
+
+/** Nhãn mã (lib/format.ts, D-103). */
+const LABELS = messagesFor("label.meter.");
 
 export const metadata: Metadata = { title: "Chốt chỉ số — Hotel Manager" };
 
@@ -50,14 +54,14 @@ export default async function ReadingsPage({ params }: { params: Promise<{ id: s
                       fields={[
                         {
                           name: "value",
-                          label: `${METER_LABEL[m.kind] ?? m.kind} phòng ${r.unit}`,
+                          label: `${meterLabel(LABELS, m.kind) ?? m.kind} phòng ${r.unit}`,
                           type: "decimal",
                           required: true,
                           hint: `Lần trước: ${m.previous_value}${m.entered ? ` · đã nhập ${m.value}` : ""}`,
                           ...(m.value === null ? {} : { defaultValue: m.value }),
                         },
                       ]}
-                      submitLabel={`Lưu ${METER_LABEL[m.kind]?.toLowerCase() ?? m.kind}`}
+                      submitLabel={`Lưu ${meterLabel(LABELS, m.kind)?.toLowerCase() ?? m.kind}`}
                       successText="Đã lưu chỉ số."
                       variant="secondary"
                     />

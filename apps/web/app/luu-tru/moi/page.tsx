@@ -2,10 +2,13 @@ import { listRooms, opsProperties, serverContext } from "@hm/app";
 import type { Metadata } from "next";
 import { GuestsForm } from "../../../components/hotel/guests-form.tsx";
 import { EmptyState, ErrorState } from "../../../components/ui/state.tsx";
-import { addDays, HK_STATUS } from "../../../lib/format.ts";
+import { addDays, hkStatusLabel } from "../../../lib/format.ts";
 import { messagesFor, t } from "../../../lib/i18n.ts";
 import { withActor } from "../../../lib/page.tsx";
 import { safe } from "../../../lib/safe.ts";
+
+/** Nhãn mã (lib/format.ts, D-103). */
+const LABELS = messagesFor("rooms.hk.", "label.hk_status.");
 
 export const metadata: Metadata = { title: t("walk_in.metadata.title") };
 
@@ -34,7 +37,7 @@ export default async function WalkInPage({
           .filter((u) => u.availability === "active")
           .map((u) => ({
             unitId: u.unitId,
-            label: `${u.code} — ${HK_STATUS[u.housekeepingStatus] ?? u.housekeepingStatus}`,
+            label: `${u.code} — ${hkStatusLabel(LABELS, u.housekeepingStatus)}`,
           })),
       );
     if (rooms.length === 0) return <EmptyState title={t("walk_in.empty.title")} />;

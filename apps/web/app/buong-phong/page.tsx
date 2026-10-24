@@ -3,10 +3,17 @@ import type { Metadata } from "next";
 import { CommandForm } from "../../components/command/command-form.tsx";
 import { StatusBadge } from "../../components/ui/badge.tsx";
 import { EmptyState, ErrorState } from "../../components/ui/state.tsx";
-import { dateTime, PRIORITY, TASK_KIND, TASK_STATUS } from "../../lib/format.ts";
-import { t } from "../../lib/i18n.ts";
+import { dateTime, priorityLabel, taskKindLabel, taskStatusLabel } from "../../lib/format.ts";
+import { messagesFor, t } from "../../lib/i18n.ts";
 import { withActor } from "../../lib/page.tsx";
 import { safe } from "../../lib/safe.ts";
+
+/** Nhãn mã (lib/format.ts, D-103). */
+const LABELS = messagesFor(
+  "label.task_status.",
+  "housekeeping.list.create.kind_",
+  "housekeeping.list.create.priority_",
+);
 
 export const metadata: Metadata = { title: t("housekeeping.list.metadata.title") };
 
@@ -55,13 +62,11 @@ export default async function HousekeepingPage() {
                           <span className="card__title">
                             {t("housekeeping.list.card.title", {
                               unit: task.unitCode,
-                              kind: TASK_KIND[task.kind] ?? task.kind,
+                              kind: taskKindLabel(LABELS, task.kind),
                             })}
                           </span>
                           <span className="card__meta">
-                            {task.priority !== "normal"
-                              ? `${PRIORITY[task.priority] ?? task.priority} · `
-                              : ""}
+                            {task.priority !== "normal" ? `${priorityLabel(LABELS, task.priority)} · ` : ""}
                             {task.arrivalToday && task.expectedArrivalAt
                               ? t("housekeeping.list.card.arrival", {
                                   time: dateTime(task.expectedArrivalAt, p.timezone),
@@ -71,7 +76,7 @@ export default async function HousekeepingPage() {
                               ? t("housekeeping.list.card.assignee", { name: task.assigneeName })
                               : t("housekeeping.task.facts.assignee_none")}
                           </span>
-                          <StatusBadge status={task.status} label={TASK_STATUS[task.status] ?? task.status} />
+                          <StatusBadge status={task.status} label={taskStatusLabel(LABELS, task.status)} />
                         </a>
                       </li>
                     ))}

@@ -1,11 +1,14 @@
 import { getTodaySummary, serverContext } from "@hm/app";
 import type { Metadata } from "next";
 import { EmptyState, ErrorState } from "../components/ui/state.tsx";
-import { CARD_LABEL, commonTimeZone, dateTime, day, vnd } from "../lib/format.ts";
-import { t } from "../lib/i18n.ts";
+import { cardLabel, commonTimeZone, dateTime, day, vnd } from "../lib/format.ts";
+import { messagesFor, t } from "../lib/i18n.ts";
 import { withActor } from "../lib/page.tsx";
 import { safe } from "../lib/safe.ts";
 import { currentSession } from "../lib/session.ts";
+
+/** Nhãn mã (lib/format.ts, D-103). */
+const LABELS = messagesFor("today_list.title.");
 
 export const metadata: Metadata = { title: t("home.metadata.title") };
 
@@ -81,7 +84,7 @@ export default async function HomePage({
         ) : (
           <ul className="today-cards">
             {s.cards.map((c) => {
-              const label = CARD_LABEL[c.key] ?? c.label;
+              const label = cardLabel(LABELS, c.key, c.label);
               return (
                 <li key={c.key}>
                   <a

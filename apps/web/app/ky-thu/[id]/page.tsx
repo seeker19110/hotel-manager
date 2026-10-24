@@ -3,9 +3,12 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { CommandForm } from "../../../components/command/command-form.tsx";
 import { EmptyState, ErrorState } from "../../../components/ui/state.tsx";
-import { month, PERIOD_STATUS, vnd, vndUnitPrice } from "../../../lib/format.ts";
-import { t } from "../../../lib/i18n.ts";
+import { month, periodStatusLabel, vnd, vndUnitPrice } from "../../../lib/format.ts";
+import { messagesFor, t } from "../../../lib/i18n.ts";
 import { withActor } from "../../../lib/page.tsx";
+
+/** Nhãn mã (lib/format.ts, D-103). */
+const LABELS = messagesFor("label.period_status.");
 
 export const metadata: Metadata = { title: "Kỳ thu — xem trước — Hotel Manager" };
 
@@ -32,7 +35,7 @@ export default async function PeriodPage({ params }: { params: Promise<{ id: str
           <h2 id="tt">Kỳ {month(pv.period_start)}</h2>
           <dl className="facts">
             <dt>Trạng thái</dt>
-            <dd data-testid="period-status">{PERIOD_STATUS[pv.status] ?? pv.status}</dd>
+            <dd data-testid="period-status">{periodStatusLabel(LABELS, pv.status)}</dd>
             <dt>Tổng kỳ</dt>
             <dd data-testid="period-total">{vnd(pv.total)}</dd>
           </dl>

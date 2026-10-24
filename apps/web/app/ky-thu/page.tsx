@@ -2,9 +2,12 @@ import { listBillingPeriods, rentalProperties, serverContext } from "@hm/app";
 import type { Metadata } from "next";
 import { CommandForm } from "../../components/command/command-form.tsx";
 import { EmptyState } from "../../components/ui/state.tsx";
-import { month, PERIOD_STATUS, vnd } from "../../lib/format.ts";
-import { t } from "../../lib/i18n.ts";
+import { month, periodStatusLabel, vnd } from "../../lib/format.ts";
+import { messagesFor, t } from "../../lib/i18n.ts";
 import { withActor } from "../../lib/page.tsx";
+
+/** Nhãn mã (lib/format.ts, D-103). */
+const LABELS = messagesFor("label.period_status.");
 
 export const metadata: Metadata = { title: "Kỳ thu — Hotel Manager" };
 
@@ -48,7 +51,7 @@ export default async function PeriodsPage() {
                       {t("billing.period.meta", { invoices: b.invoices, total: vnd(b.total) })}
                     </span>
                     <span className="badge" data-status={b.status}>
-                      {PERIOD_STATUS[b.status] ?? b.status}
+                      {periodStatusLabel(LABELS, b.status)}
                     </span>
                   </a>
                 </li>

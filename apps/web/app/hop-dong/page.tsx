@@ -1,9 +1,12 @@
 import { listLeases, serverContext } from "@hm/app";
 import type { Metadata } from "next";
 import { EmptyState } from "../../components/ui/state.tsx";
-import { day, LEASE_STATUS, vnd } from "../../lib/format.ts";
-import { t } from "../../lib/i18n.ts";
+import { day, leaseStatusLabel, vnd } from "../../lib/format.ts";
+import { messagesFor, t } from "../../lib/i18n.ts";
 import { withActor } from "../../lib/page.tsx";
+
+/** Nhãn mã (lib/format.ts, D-103). */
+const LABELS = messagesFor("label.lease_status.");
 
 export const metadata: Metadata = { title: "Hợp đồng — Hotel Manager" };
 
@@ -29,7 +32,7 @@ export default async function LeasesPage() {
                 })}
               </span>
               <span className="badge" data-status={l.status}>
-                {LEASE_STATUS[l.status] ?? l.status}
+                {leaseStatusLabel(LABELS, l.status)}
               </span>
             </a>
           </li>

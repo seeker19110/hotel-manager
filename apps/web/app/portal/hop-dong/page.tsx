@@ -2,9 +2,12 @@ import { getMyLease, serverContext } from "@hm/app";
 import type { Metadata } from "next";
 import { Money } from "../../../components/portal/money.tsx";
 import { EmptyState } from "../../../components/ui/state.tsx";
-import { day, LEASE_STATUS } from "../../../lib/format.ts";
-import { t } from "../../../lib/i18n.ts";
+import { day, leaseStatusLabel } from "../../../lib/format.ts";
+import { messagesFor, t } from "../../../lib/i18n.ts";
 import { withPortal } from "../../../lib/portal-page.tsx";
+
+/** Nhãn mã (lib/format.ts, D-103). */
+const LABELS = messagesFor("label.lease_status.");
 
 export const metadata: Metadata = { title: "Hợp đồng — Hotel Manager" };
 
@@ -20,7 +23,7 @@ export default async function PortalLeasePage() {
             <p className="card__title">{t("portal.lease.title", { number: l.number, unit: l.unitCode })}</p>
             <dl className="facts">
               <dt>Trạng thái</dt>
-              <dd>{LEASE_STATUS[l.status] ?? l.status}</dd>
+              <dd>{leaseStatusLabel(LABELS, l.status)}</dd>
               {l.currentVersion ? (
                 <>
                   <dt>Điều khoản</dt>
