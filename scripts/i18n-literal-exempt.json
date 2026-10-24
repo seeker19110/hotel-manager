@@ -1,21 +1,78 @@
 {
-  "apps/web/app/api/v1/webhooks/[provider]/[account]/route.ts": "Chỉ hai thông điệp log (log.warn webhook bị từ chối, log.error lỗi không dự kiến) — vào log vận hành; phản hồi HTTP dùng thông điệp của catalog packages/app (http.webhook.*).",
-  "apps/worker/src/jobs.ts": "Chuỗi duy nhất là Error nội bộ của job outbox khi payload thiếu bank_transaction_id — worker không có giao diện, lỗi chỉ vào log/bảng job (vận hành).",
-  "apps/worker/src/runtime.ts": "Chỉ AggregateError tổng hợp bước lỗi của vòng worker và lý do log.warn khi chưa có adapter SMTP — log vận hành, không tới người dùng.",
-  "packages/app/src/auth/auth-events.ts": "Chuỗi duy nhất là thông điệp log.error khi ghi audit sự kiện xác thực thất bại — chỉ vào log vận hành, không ra API/UI.",
-  "packages/app/src/config/schema.ts": "Lý do lỗi cấu hình biến môi trường lúc khởi động (Error ném khi đọc env) — chỉ người vận hành thấy trong log khởi động, không ra API/UI.",
-  "packages/app/src/config/webhook-secrets.ts": "Lỗi cấu hình SIM_WEBHOOK_SECRET lúc khởi động (Error ném khi phân tích env) — chỉ người vận hành thấy, không ra API/UI.",
-  "packages/app/src/config/worker.ts": "Lý do lỗi cấu hình env của worker lúc khởi động — chỉ người vận hành thấy trong log khởi động, không ra API/UI.",
-  "packages/app/src/crypto/pii.ts": "PiiKeyError: lỗi cấu hình khoá HM_PII_KEYS (đọc lúc khởi động qua config/schema.ts) và lỗi giải mã nội bộ — Error thường, toProblem che thành INTERNAL với câu chung; không ra API/UI.",
-  "packages/app/src/errors.ts": "Chuỗi duy nhất là trường `source` (ghi chú nơi định nghĩa mã lỗi cho nhà phát triển, scripts/process-docs.test.mjs đọc để đối chiếu API-CONTRACT); không vào problem+json. Mã lỗi/status không phải chuỗi dịch.",
-  "packages/app/src/files/clamd.ts": "Thông điệp ScannerUnavailableError khi nói chuyện với clamd — files.ts bắt lỗi này và trả CommandError SERVICE_UNAVAILABLE với câu riêng; chuỗi ở đây chỉ vào log.",
-  "packages/app/src/files/inspect.ts": "Thông điệp CorruptFileError khi phân tích JPEG/PNG/WebP hỏng (bỏ EXIF) — nơi gọi duy nhất files.ts (inspectUpload) bắt lớp lỗi này và trả câu riêng `files.image_corrupt` từ catalog; message gốc không ra API/UI.",
-  "packages/app/src/files/storage.ts": "Thông điệp StorageError của kho object (nhãn thao tác, quá thời gian, lỗi kết nối, khoá object sai) — không lớp nào trả message này ra client: toProblem che thành INTERNAL với câu chung, /api/ready chỉ trả ok/fail/timeout; chỉ vào log vận hành.",
-  "packages/app/src/http/openapi.ts": "Mô tả OpenAPI (apps/web/openapi.json, `pnpm openapi`) — tài liệu cho nhà phát triển tích hợp API, không hiện cho người dùng sản phẩm.",
-  "packages/app/src/http/security.ts": "Chuỗi duy nhất là Error lập trình khi nonce CSP sai dạng trong buildCsp (proxy) — không ra API/UI. Module được client import (`@hm/app/http` → safeUrl) nên không được import catalog (D-098).",
-  "packages/app/src/logging/unexpected.ts": "Thông điệp log.error và nhãn trong bản ghi log lỗi không dự kiến — chỉ vào log vận hành; người dùng chỉ thấy câu INTERNAL chung kèm correlation_id.",
-  "packages/app/src/observability/metrics.ts": "Chuỗi HELP của metric Prometheus (/api/metrics, chỉ nội bộ) — chỉ người vận hành/dashboard thấy.",
-  "packages/app/src/outbox/payloads.ts": "InvalidJobPayloadError khi payload job outbox sai schema — lỗi nội bộ của worker, chỉ vào log/dead-letter, không ra API/UI.",
-  "packages/app/src/pipeline/rate-counter.ts": "Chuỗi duy nhất là Error bất biến nội bộ khi hàm SQL app.rate_limit_hit không trả hàng — toProblem che thành INTERNAL; không ra API/UI.",
-  "packages/app/src/retention/events.ts": "Thông điệp AggregateError của job dọn dữ liệu hết hạn (worker) — chỉ vào log vận hành, không ra API/UI."
+  "apps/web/app/api/v1/webhooks/[provider]/[account]/route.ts": {
+    "reason": "Chỉ hai thông điệp log (log.warn webhook bị từ chối, log.error lỗi không dự kiến) — vào log vận hành; phản hồi HTTP dùng thông điệp của catalog packages/app (http.webhook.*).",
+    "max": 2
+  },
+  "apps/worker/src/jobs.ts": {
+    "reason": "Chuỗi duy nhất là Error nội bộ của job outbox khi payload thiếu bank_transaction_id — worker không có giao diện, lỗi chỉ vào log/bảng job (vận hành).",
+    "max": 1
+  },
+  "apps/worker/src/runtime.ts": {
+    "reason": "Chỉ AggregateError tổng hợp bước lỗi của vòng worker và lý do log.warn khi chưa có adapter SMTP — log vận hành, không tới người dùng.",
+    "max": 2
+  },
+  "packages/app/src/auth/auth-events.ts": {
+    "reason": "Chuỗi duy nhất là thông điệp log.error khi ghi audit sự kiện xác thực thất bại — chỉ vào log vận hành, không ra API/UI.",
+    "max": 1
+  },
+  "packages/app/src/config/schema.ts": {
+    "reason": "Lý do lỗi cấu hình biến môi trường lúc khởi động (Error ném khi đọc env) — chỉ người vận hành thấy trong log khởi động, không ra API/UI.",
+    "max": 12
+  },
+  "packages/app/src/config/webhook-secrets.ts": {
+    "reason": "Lỗi cấu hình SIM_WEBHOOK_SECRET lúc khởi động (Error ném khi phân tích env) — chỉ người vận hành thấy, không ra API/UI.",
+    "max": 3
+  },
+  "packages/app/src/config/worker.ts": {
+    "reason": "Lý do lỗi cấu hình env của worker lúc khởi động — chỉ người vận hành thấy trong log khởi động, không ra API/UI.",
+    "max": 3
+  },
+  "packages/app/src/crypto/pii.ts": {
+    "reason": "PiiKeyError: lỗi cấu hình khoá HM_PII_KEYS (đọc lúc khởi động qua config/schema.ts) và lỗi giải mã nội bộ — Error thường, toProblem che thành INTERNAL với câu chung; không ra API/UI.",
+    "max": 8
+  },
+  "packages/app/src/errors.ts": {
+    "reason": "Chuỗi duy nhất là trường `source` (ghi chú nơi định nghĩa mã lỗi cho nhà phát triển, scripts/process-docs.test.mjs đọc để đối chiếu API-CONTRACT); không vào problem+json. Mã lỗi/status không phải chuỗi dịch.",
+    "max": 1
+  },
+  "packages/app/src/files/clamd.ts": {
+    "reason": "Thông điệp ScannerUnavailableError khi nói chuyện với clamd — files.ts bắt lỗi này và trả CommandError SERVICE_UNAVAILABLE với câu riêng; chuỗi ở đây chỉ vào log.",
+    "max": 6
+  },
+  "packages/app/src/files/inspect.ts": {
+    "reason": "Thông điệp CorruptFileError khi phân tích JPEG/PNG/WebP hỏng (bỏ EXIF) — nơi gọi duy nhất files.ts (inspectUpload) bắt lớp lỗi này và trả câu riêng `files.image_corrupt` từ catalog; message gốc không ra API/UI.",
+    "max": 9
+  },
+  "packages/app/src/files/storage.ts": {
+    "reason": "Thông điệp StorageError của kho object (nhãn thao tác, quá thời gian, lỗi kết nối, khoá object sai) — không lớp nào trả message này ra client: toProblem che thành INTERNAL với câu chung, /api/ready chỉ trả ok/fail/timeout; chỉ vào log vận hành.",
+    "max": 8
+  },
+  "packages/app/src/http/openapi.ts": {
+    "reason": "Mô tả OpenAPI (apps/web/openapi.json, `pnpm openapi`) — tài liệu cho nhà phát triển tích hợp API, không hiện cho người dùng sản phẩm.",
+    "max": 50
+  },
+  "packages/app/src/http/security.ts": {
+    "reason": "Chuỗi duy nhất là Error lập trình khi nonce CSP sai dạng trong buildCsp (proxy) — không ra API/UI. Module được client import (`@hm/app/http` → safeUrl) nên không được import catalog (D-098).",
+    "max": 1
+  },
+  "packages/app/src/logging/unexpected.ts": {
+    "reason": "Thông điệp log.error và nhãn trong bản ghi log lỗi không dự kiến — chỉ vào log vận hành; người dùng chỉ thấy câu INTERNAL chung kèm correlation_id.",
+    "max": 5
+  },
+  "packages/app/src/observability/metrics.ts": {
+    "reason": "Chuỗi HELP của metric Prometheus (/api/metrics, chỉ nội bộ) — chỉ người vận hành/dashboard thấy.",
+    "max": 26
+  },
+  "packages/app/src/outbox/payloads.ts": {
+    "reason": "InvalidJobPayloadError khi payload job outbox sai schema — lỗi nội bộ của worker, chỉ vào log/dead-letter, không ra API/UI.",
+    "max": 4
+  },
+  "packages/app/src/pipeline/rate-counter.ts": {
+    "reason": "Chuỗi duy nhất là Error bất biến nội bộ khi hàm SQL app.rate_limit_hit không trả hàng — toProblem che thành INTERNAL; không ra API/UI.",
+    "max": 1
+  },
+  "packages/app/src/retention/events.ts": {
+    "reason": "Thông điệp AggregateError của job dọn dữ liệu hết hạn (worker) — chỉ vào log vận hành, không ra API/UI.",
+    "max": 1
+  }
 }

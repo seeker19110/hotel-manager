@@ -15,6 +15,8 @@
 //    messages/*.json — catalog bị nhân bản vào mỗi chunk JS client (D-098, CI bundle-size đỏ ở PR #123). Chỉ `import type`.
 //    Đi theo cả import gói `@hm/<gói>/<đường>` (theo `exports` của packages/*/package.json): module client chạm
 //    packages/app/src/i18n.ts hoặc packages/app/messages/<locale>.json (vd qua `@hm/app/http`) cũng là lỗi.
+//    Import gói workspace mà `exports` không giải được (mẫu `"./*"`, điều kiện lồng, đường con không khai…) ⇒ lỗi, không bỏ qua
+//    (fail-closed, T-2207).
 //  · catalog con (D-106) `<thư mục catalog>/<tên>.<locale>.json` (vd packages/app/messages/form.vi.json): tập câu NHỎ cho module
 //    mà trình duyệt nạp (http/command-inputs.ts) — được phép vào bundle client (không khớp luật trên), nhưng chỉ đúng các tệp mã
 //    khai ở `subcatalogs` dùng nó. Kiểm như catalog chính (mô tả, ICU, tham số, HTML) + mọi lời gọi hàm tra cứu (`formText`) trong
@@ -262,16 +264,20 @@ function workspacePackages(root) {
     const pj = join(dir, n, "package.json");
     if (!existsSync(pj)) continue;
     const pkg = JSON.parse(readFileSync(pj, "utf8"));
-    if (typeof pkg.name === "string") out.set(pkg.name, { dir: join(dir, n), exports: pkg.exports ?? {} });
+    if (typeof pkg.name === "string") out.set(pkg.name, { dir: join(dir, n), exports: pkg.exports });
   }
   return out;
 }
 
 /**
  * Đường dẫn import → tệp trên đĩa: tương đối (dự án ghi đuôi `.ts`/`.tsx`; thiếu đuôi thì thử thêm) hoặc gói workspace
- * `@hm/x[/sub]` theo `exports` (chuỗi; điều kiện `import`/`default`). Gói ngoài/không có trong exports → null.
+ * `@hm/x[/sub]` theo `exports`. Gói ngoài (không phải gói workspace) và tương đối không có tệp → null (bỏ qua: npm/TS báo).
+ * Gói workspace mà không giải được ⇒ NÉM lỗi (fail-closed, T-2207) — bỏ qua im lặng sẽ để module client đi vòng qua gói kéo
+ * catalog vào bundle mà rào không thấy. Dạng hỗ trợ: `exports` là chuỗi (= "."), hoặc object khoá đường dẫn "./…" (không mẫu
+ * `*`) với giá trị chuỗi hoặc object điều kiện MỘT tầng có `import`/`default` là chuỗi. Còn lại (mẫu `"./*"`, điều kiện lồng,
+ * mảng, null, đường con không khai, `exports` thiếu, tệp đích không tồn tại) ⇒ lỗi.
  */
-function resolveImport(from, spec, pkgs = new Map()) {
+export function resolveImport(from, spec, pkgs = new Map()) {
   const tryFile = (base) => {
     for (const p of [base, `${base}.ts`, `${base}.tsx`, join(base, "index.ts"), join(base, "index.tsx")])
       if (existsSync(p) && statSync(p).isFile()) return p;
@@ -281,9 +287,31 @@ function resolveImport(from, spec, pkgs = new Map()) {
   const m = /^(@[^/]+\/[^/]+)(\/.*)?$/.exec(spec);
   const pkg = m && pkgs.get(m[1]);
   if (!pkg) return null;
-  const target = pkg.exports[`.${m[2] ?? ""}`];
-  const rel = typeof target === "string" ? target : (target?.import ?? target?.default);
-  return typeof rel === "string" ? tryFile(join(pkg.dir, rel)) : null;
+  const fail = (why) => {
+    throw new Error(
+      `import "${spec}": ${why} — i18n-check không giải được exports của ${m[1]} (fail-closed)`,
+    );
+  };
+  const exp = pkg.exports;
+  if (exp === undefined) fail('gói không khai "exports"');
+  const map = typeof exp === "string" ? { ".": exp } : exp;
+  if (typeof map !== "object" || map === null || Array.isArray(map))
+    fail('"exports" không phải chuỗi/object');
+  const keys = Object.keys(map);
+  if (keys.some((k) => !k.startsWith("."))) fail('"exports" dạng điều kiện ở gốc chưa hỗ trợ');
+  if (keys.some((k) => k.includes("*"))) fail('"exports" có mẫu "*" chưa hỗ trợ');
+  const sub = `.${m[2] ?? ""}`;
+  if (!Object.hasOwn(map, sub)) fail(`"${sub}" không có trong "exports"`);
+  const target = map[sub];
+  let rel = null;
+  if (typeof target === "string") rel = target;
+  else if (typeof target === "object" && target !== null && !Array.isArray(target)) {
+    const cond = Object.hasOwn(target, "import") ? target.import : target.default;
+    if (typeof cond === "string") rel = cond;
+    else if (cond !== undefined) fail(`điều kiện lồng/mảng ở "${sub}" chưa hỗ trợ`);
+  }
+  if (rel === null) fail(`"${sub}" không có đích chuỗi (chuỗi hoặc điều kiện import/default)`);
+  return tryFile(join(pkg.dir, rel)) ?? fail(`đích "${rel}" không tồn tại`);
 }
 
 /** Nguồn import GIÁ TRỊ của một tệp: `import`/`export … from` không phải `import type`, và `import("…")` viết thẳng. */
@@ -325,7 +353,14 @@ export function clientCatalogErrors(files, root = ROOT) {
       cache.set(
         f,
         valueImports(readFileSync(f, "utf8"), f)
-          .map((s) => resolveImport(f, s, pkgs))
+          .map((s) => {
+            try {
+              return resolveImport(f, s, pkgs);
+            } catch (e) {
+              errors.push(`${relative(root, f)}: ${e.message}`);
+              return null;
+            }
+          })
           .filter(Boolean),
       );
     return cache.get(f);

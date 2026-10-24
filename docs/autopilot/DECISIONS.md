@@ -767,3 +767,10 @@
 - Chọn: A: catalog con an toàn cho client packages/app/messages/form.vi.json (chỉ câu form), i18n-check kiểm; nới danh sách import cho phép của command-inputs.test thêm đúng tệp này
 - Lý do (tiêu chí chất lượng cuối): (1) XC-I18N-001 đòi mọi chuỗi; mục đích D-098 là không nhân bản catalog lớn vào bundle — catalog con ~1 kB chỉ chứa câu form trong chunk nạp trễ đáp ứng; (3) ít thay đổi nhất, không đổi luồng validate client/server; rào máy giữ (chỉ đúng tệp được phép)
 - Đường lùi: Chuyển sang B nếu catalog form lớn dần
+
+### D-107 · 2026-10-24T12:19:07+00:00 · D-107: i18n-literals chưa quét packages/domain (≈135 chuỗi: AuthzError/TransitionError ra API, mô tả dòng phiếu billing/engine, đọc số vnd-words, nhãn ma trận quyền) và packages/db (≈119, migration) — XC-I18N-001 chưa thật đạt. Xử lý?
+
+- Phương án: (1) Mở rộng SCOPE sang packages/domain/src và packages/db/src; domain có catalog riêng (thuần, chỉ import JSON) như D-104, chuyển chuỗi người dùng thấy (kể cả từ vựng đọc số); packages/db: migration đã áp bất biến + thông báo RAISE không ra API (toProblem dùng title catalog) ⇒ ngoại lệ D-105 theo tệp có lý do + max sau khi kiểm từng tệp; packages/testkit (chỉ test) ngoài phạm vi · (2) Tick XC-I18N-001 với phạm vi hiện tại
+- Chọn: Mở rộng SCOPE sang packages/domain/src và packages/db/src; domain có catalog riêng (thuần, chỉ import JSON) như D-104, chuyển chuỗi người dùng thấy (kể cả từ vựng đọc số); packages/db: migration đã áp bất biến + thông báo RAISE không ra API (toProblem dùng title catalog) ⇒ ngoại lệ D-105 theo tệp có lý do + max sau khi kiểm từng tệp; packages/testkit (chỉ test) ngoài phạm vi
+- Lý do (tiêu chí chất lượng cuối): (1) P1 bằng chứng: MUST nói mọi chuỗi người dùng thấy (lỗi API, PDF/phiếu) — domain có chuỗi ra API và phiếu; không sửa migration đã áp (AGENTS §4)
+- Đường lùi: Thu hẹp SCOPE lại (không khuyến nghị)
