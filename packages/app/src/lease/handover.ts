@@ -4,6 +4,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { hasMaxDecimals } from "@hm/domain";
 import { sql } from "kysely";
+import { t as msg } from "../i18n.ts";
 import { assertNoOpenOverstay, resolveOverstayExceptions } from "../inventory/index.ts";
 import { type CommandContext, CommandError, canonicalJson, fieldError } from "../pipeline/index.ts";
 import {
@@ -48,36 +49,45 @@ export interface RecordHandoverInput {
 function assertDate(d: string, field: string): void {
   const t = new Date(`${d}T00:00:00Z`);
   if (!DATE.test(d) || Number.isNaN(t.getTime()) || t.toISOString().slice(0, 10) !== d) {
-    throw fieldError(field, "INVALID_DATE", `${field}: ngày không hợp lệ (YYYY-MM-DD)`);
+    throw fieldError(field, "INVALID_DATE", msg("lease.date_invalid", { field }));
   }
 }
 
 function validateAssets(assets: readonly HandoverAsset[], photos: readonly string[]): string[] {
   if (assets.length > HANDOVER_LIMITS.assets)
-    throw fieldError("assets", "TOO_MANY", `Tối đa ${HANDOVER_LIMITS.assets} tài sản`);
+    throw fieldError(
+      "assets",
+      "TOO_MANY",
+      msg("lease.handover_assets_max", { assets: HANDOVER_LIMITS.assets }),
+    );
   if (photos.length > HANDOVER_LIMITS.photos) {
-    throw fieldError("photo_file_ids", "TOO_MANY", `Tối đa ${HANDOVER_LIMITS.photos} ảnh`);
+    throw fieldError(
+      "photo_file_ids",
+      "TOO_MANY",
+      msg("lease.handover_photos_max", { photos: HANDOVER_LIMITS.photos }),
+    );
   }
   const files: string[] = [];
   assets.forEach((a, i) => {
     if (!a.name.trim() || a.name.length > 100)
-      throw fieldError(`assets[${i}].name`, "INVALID", "Tên tài sản 1–100 ký tự");
+      throw fieldError(`assets[${i}].name`, "INVALID", msg("lease.handover_asset_name_length"));
     if (!Number.isInteger(a.quantity) || a.quantity < 1 || a.quantity > 1000) {
-      throw fieldError(`assets[${i}].quantity`, "INVALID", "Số lượng 1–1000");
+      throw fieldError(`assets[${i}].quantity`, "INVALID", msg("lease.handover_asset_qty_range"));
     }
     if (!a.condition.trim() || a.condition.length > 200) {
-      throw fieldError(`assets[${i}].condition`, "INVALID", "Tình trạng 1–200 ký tự");
+      throw fieldError(`assets[${i}].condition`, "INVALID", msg("lease.handover_asset_condition_length"));
     }
     const ids = a.fileIds ?? [];
     if (ids.length > HANDOVER_LIMITS.filesPerAsset)
-      throw fieldError(`assets[${i}].file_ids`, "TOO_MANY", "Quá nhiều ảnh");
+      throw fieldError(`assets[${i}].file_ids`, "TOO_MANY", msg("lease.handover_too_many_photos"));
     ids.forEach((id, j) => {
-      if (!UUID.test(id)) throw fieldError(`assets[${i}].file_ids[${j}]`, "INVALID", "Ảnh không hợp lệ");
+      if (!UUID.test(id))
+        throw fieldError(`assets[${i}].file_ids[${j}]`, "INVALID", msg("common.photo_invalid"));
       files.push(id);
     });
   });
   photos.forEach((id, j) => {
-    if (!UUID.test(id)) throw fieldError(`photo_file_ids[${j}]`, "INVALID", "Ảnh không hợp lệ");
+    if (!UUID.test(id)) throw fieldError(`photo_file_ids[${j}]`, "INVALID", msg("common.photo_invalid"));
     files.push(id);
   });
   return [...new Set(files)];
@@ -92,7 +102,7 @@ export async function recordHandover(
   const okStatus: LeaseStatus[] =
     input.kind === "move_in" ? ["signed_awaiting_handover"] : ["active", "notice_given", "settling"];
   if (!okStatus.includes(lease.status)) {
-    throw new CommandError("INVALID_TRANSITION", 409, "Trạng thái hợp đồng không cho lập biên bản này", {
+    throw new CommandError("INVALID_TRANSITION", 409, msg("lease.handover_status_blocks"), {
       extensions: { from: lease.status },
     });
   }
@@ -104,7 +114,7 @@ export async function recordHandover(
     await assertNoOpenOverstay(ctx.trx, ctx.actor.orgId, lease.unit_id, lease.id);
     const v1 = await originalVersion(ctx, lease.id);
     if (v1.effective_to !== null && input.handedOverOn > v1.effective_to) {
-      throw fieldError("handed_over_on", "AFTER_END", "Ngày nhận phòng sau ngày hết hạn hợp đồng");
+      throw fieldError("handed_over_on", "AFTER_END", msg("lease.handover_checkin_after_end"));
     }
   } else {
     const mi = await sql<{ d: string }>`
@@ -114,14 +124,14 @@ export async function recordHandover(
     );
     const moveIn = mi.rows[0]?.d;
     if (moveIn && input.handedOverOn < moveIn) {
-      throw fieldError("handed_over_on", "BEFORE_MOVE_IN", "Ngày trả phòng trước ngày nhận phòng");
+      throw fieldError("handed_over_on", "BEFORE_MOVE_IN", msg("lease.handover_checkout_before_checkin"));
     }
   }
   if (!Number.isInteger(input.keysCount) || input.keysCount < 0 || input.keysCount > 100) {
-    throw fieldError("keys_count", "INVALID", "Số chìa khoá 0–100");
+    throw fieldError("keys_count", "INVALID", msg("lease.handover_keys_range"));
   }
   if (input.note && input.note.length > HANDOVER_LIMITS.note)
-    throw fieldError("note", "TOO_LONG", "Ghi chú tối đa 2.000 ký tự");
+    throw fieldError("note", "TOO_LONG", msg("common.note_too_long_2000"));
   const fileIds = validateAssets(input.assets, input.photoFileIds);
   if (fileIds.length > 0) {
     const f = await sql<{ id: string }>`
@@ -131,7 +141,7 @@ export async function recordHandover(
     );
     const found = new Set(f.rows.map((r) => r.id));
     const missing = fileIds.find((id) => !found.has(id));
-    if (missing) throw fieldError("photo_file_ids", "NOT_FOUND", "Ảnh bàn giao không tồn tại hoặc sai loại");
+    if (missing) throw fieldError("photo_file_ids", "NOT_FOUND", msg("lease.handover_photo_missing"));
   }
 
   // Chỉ số: đủ mọi công tơ đang dùng của phòng tại ngày bàn giao; không nhỏ hơn lần đọc đã duyệt trước.
@@ -147,19 +157,30 @@ export async function recordHandover(
     const v = input.readings[m.kind];
     const field = `readings.${m.kind}`;
     if (v === undefined || v === null)
-      throw fieldError(field, "REQUIRED", `Thiếu chỉ số ${m.kind === "electric" ? "điện" : "nước"}`);
+      throw fieldError(
+        field,
+        "REQUIRED",
+        msg("lease.handover_reading_required", {
+          meter: m.kind === "electric" ? msg("lease.meter_electric") : msg("lease.meter_water"),
+        }),
+      );
     if (!Number.isFinite(v) || v < 0 || !hasMaxDecimals(v, 3) || v >= 1e11) {
-      throw fieldError(field, "INVALID", "Chỉ số không hợp lệ (≥ 0, tối đa 3 chữ số thập phân)");
+      throw fieldError(field, "INVALID", msg("lease.handover_reading_invalid"));
     }
     if (v < Number(m.last)) {
-      throw new CommandError("METER_READING_DECREASED", 422, `Chỉ số ${v} nhỏ hơn lần đọc trước ${m.last}`, {
-        extensions: { errors: [{ path: field, field, code: "DECREASED" }] },
-      });
+      throw new CommandError(
+        "METER_READING_DECREASED",
+        422,
+        msg("metering.reading_decreased", { value: v, previous: m.last }),
+        {
+          extensions: { errors: [{ path: field, field, code: "DECREASED" }] },
+        },
+      );
     }
   }
   for (const k of Object.keys(input.readings) as ("electric" | "water")[]) {
     if (input.readings[k] !== undefined && !meters.rows.some((m) => m.kind === k)) {
-      throw fieldError(`readings.${k}`, "NO_METER", "Phòng không có công tơ loại này");
+      throw fieldError(`readings.${k}`, "NO_METER", msg("lease.handover_no_meter"));
     }
   }
 
@@ -185,7 +206,7 @@ export async function recordHandover(
     );
   } catch (e) {
     if ((e as { code?: string }).code === "23505") {
-      throw new CommandError("INVALID_TRANSITION", 409, "Hợp đồng đã có biên bản loại này");
+      throw new CommandError("INVALID_TRANSITION", 409, msg("lease.handover_exists"));
     }
     throw e;
   }
@@ -245,7 +266,7 @@ export async function activateLease(
     ctx.trx,
   );
   const handover = h.rows[0];
-  if (!handover) throw new CommandError("HANDOVER_REQUIRED", 409, "Cần hoàn tất biên bản bàn giao trước.");
+  if (!handover) throw new CommandError("HANDOVER_REQUIRED", 409, msg("pipeline.handover_required"));
   const alloc = (await leaseAllocations(ctx, lease.id)).find((a) => a.active && a.kind === "lease");
   if (alloc) {
     const start = await leaseInterval(
@@ -264,7 +285,7 @@ export async function activateLease(
       );
     } catch (e) {
       if ((e as { code?: string }).code === "23P01") {
-        throw new CommandError("ROOM_UNAVAILABLE", 409, "Phòng đã có người trong khoảng từ ngày bàn giao");
+        throw new CommandError("ROOM_UNAVAILABLE", 409, msg("lease.handover_unit_occupied"));
       }
       throw e;
     }
@@ -310,8 +331,8 @@ async function assertNotRetroactiveIntoClosedPeriod(
     ctx.trx,
   );
   if (r.rows[0]?.status === "locked" || lt.rows[0]?.locked)
-    throw new CommandError("PERIOD_LOCKED", 409, "Kỳ đã khoá. Cần chứng từ điều chỉnh có duyệt.");
-  if (r.rows[0]) throw new CommandError("PERIOD_ISSUED", 409, "Kỳ đã phát hành. Dùng chứng từ điều chỉnh.");
+    throw new CommandError("PERIOD_LOCKED", 409, msg("pipeline.period_locked"));
+  if (r.rows[0]) throw new CommandError("PERIOD_ISSUED", 409, msg("pipeline.period_issued"));
 }
 
 /**
@@ -325,14 +346,14 @@ export async function renewLease(
 ): Promise<{ versionNo: number; termsHash: string }> {
   const lease = await lockLease(ctx, input.leaseId, "lease.manage");
   if (!["active", "notice_given"].includes(lease.status)) {
-    throw new CommandError("INVALID_TRANSITION", 409, "Chỉ lập phụ lục cho hợp đồng đang hiệu lực", {
+    throw new CommandError("INVALID_TRANSITION", 409, msg("lease.renew_active_only"), {
       extensions: { from: lease.status },
     });
   }
   await validateTerms(ctx, lease.property_id, input.terms);
   const v1 = await originalVersion(ctx, lease.id);
   if (input.terms.effectiveFrom <= v1.effective_from) {
-    throw new CommandError("LEASE_VERSION_OVERLAP", 409, "Thời gian hiệu lực trùng với phiên bản khác.");
+    throw new CommandError("LEASE_VERSION_OVERLAP", 409, msg("lease.version_overlap"));
   }
   await assertNotRetroactiveIntoClosedPeriod(ctx, lease.property_id, input.terms.effectiveFrom);
   const n = await sql<{ n: number }>`
@@ -362,7 +383,7 @@ export async function renewLease(
   const openVersion = open.rows[0];
   if (openVersion) {
     if (input.terms.effectiveFrom <= openVersion.effective_from)
-      throw new CommandError("LEASE_VERSION_OVERLAP", 409, "Thời gian hiệu lực trùng với phiên bản khác.");
+      throw new CommandError("LEASE_VERSION_OVERLAP", 409, msg("lease.version_overlap"));
     await sql`update lease_versions set superseded_on = ${input.terms.effectiveFrom}::date, version = version + 1
               where organization_id = ${ctx.actor.orgId} and id = ${openVersion.id} and superseded_on is null`.execute(
       ctx.trx,
@@ -389,7 +410,7 @@ export async function renewLease(
     );
   } catch (e) {
     if ((e as { code?: string }).code === "23P01") {
-      throw new CommandError("LEASE_VERSION_OVERLAP", 409, "Thời gian hiệu lực trùng với phiên bản khác.");
+      throw new CommandError("LEASE_VERSION_OVERLAP", 409, msg("lease.version_overlap"));
     }
     throw e;
   }
@@ -412,7 +433,7 @@ export async function renewLease(
       );
     } catch (e) {
       if ((e as { code?: string }).code === "23P01") {
-        throw new CommandError("ROOM_UNAVAILABLE", 409, "Phòng đã có người trong thời gian gia hạn");
+        throw new CommandError("ROOM_UNAVAILABLE", 409, msg("lease.renew_unit_occupied"));
       }
       throw e;
     }
@@ -449,14 +470,9 @@ export async function recordImportHandover(
 ): Promise<{ handoverId: string }> {
   const lease = await lockLease(ctx, input.leaseId, "lease.manage");
   if (lease.status !== "signed_awaiting_handover") {
-    throw new CommandError(
-      "INVALID_TRANSITION",
-      409,
-      "Chỉ ghi bàn giao chuyển đổi cho hợp đồng đã ký chờ bàn giao",
-      {
-        extensions: { from: lease.status },
-      },
-    );
+    throw new CommandError("INVALID_TRANSITION", 409, msg("lease.handover_conversion_status"), {
+      extensions: { from: lease.status },
+    });
   }
   assertDate(input.handedOverOn, "handed_over_on");
   const handoverId = randomUUID();

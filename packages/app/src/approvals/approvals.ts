@@ -8,6 +8,7 @@ import { randomUUID } from "node:crypto";
 import { type Action, authorize, authorizeRequest } from "@hm/domain";
 import { sql } from "kysely";
 import type { Actor } from "../access/index.ts";
+import { t } from "../i18n.ts";
 import { type CommandContext, CommandError } from "../pipeline/index.ts";
 
 export const APPROVAL_KINDS = [
@@ -63,7 +64,7 @@ const executors = new Map<ApprovalKind, ApprovalExecutor>();
 
 /** Module nghiệp vụ đăng ký cách thực hiện từng loại (một lần lúc nạp module). */
 export function registerApprovalExecutor(kind: ApprovalKind, executor: ApprovalExecutor): void {
-  if (executors.has(kind)) throw new Error(`Đã đăng ký executor cho ${kind}`);
+  if (executors.has(kind)) throw new Error(t("approvals.executor_registered", { kind }));
   executors.set(kind, executor);
 }
 
@@ -88,12 +89,13 @@ export interface ApprovalInput {
 
 function validate(input: ApprovalInput): void {
   if (!(APPROVAL_KINDS as readonly string[]).includes(input.kind)) {
-    throw new CommandError("VALIDATION_FAILED", 422, "Loại yêu cầu duyệt không hợp lệ");
+    throw new CommandError("VALIDATION_FAILED", 422, t("approvals.kind_invalid"));
   }
   if (input.amount !== null && (!Number.isSafeInteger(input.amount) || input.amount < 0)) {
-    throw new CommandError("VALIDATION_FAILED", 422, "Số tiền phải là số nguyên đồng không âm");
+    throw new CommandError("VALIDATION_FAILED", 422, t("approvals.amount_invalid"));
   }
-  if (!input.reason.trim()) throw new CommandError("VALIDATION_FAILED", 422, "Cần lý do");
+  if (!input.reason.trim())
+    throw new CommandError("VALIDATION_FAILED", 422, t("stay.reservation.reason_required"));
 }
 
 async function insertRequest(
@@ -181,7 +183,7 @@ async function lockRequest(ctx: CommandContext, id: string): Promise<ApprovalRow
     where a.organization_id = ${ctx.actor.orgId} and a.id = ${id}
     for update of a`.execute(ctx.trx);
   const row = r.rows[0];
-  if (!row) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy yêu cầu duyệt");
+  if (!row) throw new CommandError("NOT_FOUND", 404, t("approvals.not_found"));
   return {
     id: row.id,
     propertyId: row.property_id,
@@ -204,11 +206,10 @@ export async function decideApproval(
   ctx: CommandContext,
   input: { approvalRequestId: string; decision: "approve" | "reject"; note?: string },
 ): Promise<{ status: "executed" | "rejected"; result?: unknown }> {
-  if (!UUID.test(input.approvalRequestId))
-    throw new CommandError("NOT_FOUND", 404, "Không tìm thấy yêu cầu duyệt");
+  if (!UUID.test(input.approvalRequestId)) throw new CommandError("NOT_FOUND", 404, t("approvals.not_found"));
   const req = await lockRequest(ctx, input.approvalRequestId);
   if (req.status !== "pending") {
-    throw new CommandError("INVALID_TRANSITION", 409, `Yêu cầu đã ở trạng thái ${req.status}`);
+    throw new CommandError("INVALID_TRANSITION", 409, t("approvals.already_status", { status: req.status }));
   }
   const action = KIND_ACTION[req.kind];
   const executor = executors.get(req.kind);
@@ -222,10 +223,10 @@ export async function decideApproval(
   });
   // SPEC-ledger mục 10 (một chỗ quyết hạn mức): kế toán chỉ lập đề nghị, không duyệt loại nào (review R4).
   if ((authz.grant !== "yes" && authz.grant !== "limit") || ctx.actor.role === "accountant") {
-    throw new CommandError("FORBIDDEN", 403, "Vai trò này chỉ lập đề nghị, không duyệt");
+    throw new CommandError("FORBIDDEN", 403, t("approvals.role_cannot_decide"));
   }
   if (req.requestedBy === ctx.actor.membershipId) {
-    throw new CommandError("SELF_APPROVAL_FORBIDDEN", 403, "Bạn không thể tự duyệt yêu cầu mình lập");
+    throw new CommandError("SELF_APPROVAL_FORBIDDEN", 403, t("approvals.self_approve"));
   }
   const base = {
     entityType: "approval_request",
@@ -247,7 +248,11 @@ export async function decideApproval(
     return { status: "rejected" };
   }
   if (!executor) {
-    throw new CommandError("APPROVAL_NOT_EXECUTABLE", 409, `Chưa hỗ trợ thực hiện loại ${req.kind}`);
+    throw new CommandError(
+      "APPROVAL_NOT_EXECUTABLE",
+      409,
+      t("approvals.executor_missing", { kind: req.kind }),
+    );
   }
   await sql`
     update approval_requests set status = 'approved', approved_by = ${ctx.actor.membershipId}, decided_at = now(),
@@ -272,13 +277,13 @@ export async function cancelApproval(
   ctx: CommandContext,
   approvalRequestId: string,
 ): Promise<{ status: "cancelled" }> {
-  if (!UUID.test(approvalRequestId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy yêu cầu duyệt");
+  if (!UUID.test(approvalRequestId)) throw new CommandError("NOT_FOUND", 404, t("approvals.not_found"));
   const req = await lockRequest(ctx, approvalRequestId);
   if (req.requestedBy !== ctx.actor.membershipId) {
-    throw new CommandError("FORBIDDEN", 403, "Chỉ người lập được huỷ yêu cầu");
+    throw new CommandError("FORBIDDEN", 403, t("approvals.cancel_requester_only"));
   }
   if (req.status !== "pending") {
-    throw new CommandError("INVALID_TRANSITION", 409, `Yêu cầu đã ở trạng thái ${req.status}`);
+    throw new CommandError("INVALID_TRANSITION", 409, t("approvals.already_status", { status: req.status }));
   }
   await sql`
     update approval_requests set status = 'cancelled', decided_at = now(), version = version + 1

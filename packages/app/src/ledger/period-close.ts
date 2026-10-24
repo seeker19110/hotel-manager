@@ -8,6 +8,7 @@ import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/index.ts";
 import { assertPropertyInOrg } from "../access/index.ts";
 import { type ApprovalRow, registerApprovalExecutor, requestApproval } from "../approvals/index.ts";
+import { t as msg } from "../i18n.ts";
 import { type CommandContext, CommandError } from "../pipeline/index.ts";
 import { postEntry } from "./ledger.ts";
 
@@ -17,14 +18,14 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 function assertDate(d: string, field: string): void {
   const t = new Date(`${d}T00:00:00Z`);
   if (!DATE.test(d) || Number.isNaN(t.getTime()) || t.toISOString().slice(0, 10) !== d) {
-    throw new CommandError("VALIDATION_FAILED", 422, `${field} không hợp lệ (YYYY-MM-DD)`);
+    throw new CommandError("VALIDATION_FAILED", 422, msg("ledger.period_date_invalid", { field }));
   }
 }
 
 function requireReason(reason: string | undefined, what: string): string {
   const r = reason?.trim() ?? "";
-  if (!r) throw new CommandError("VALIDATION_FAILED", 422, `${what} cần lý do`);
-  if (r.length > 1000) throw new CommandError("VALIDATION_FAILED", 422, "Lý do quá dài");
+  if (!r) throw new CommandError("VALIDATION_FAILED", 422, msg("ledger.period_reason_required", { what }));
+  if (r.length > 1000) throw new CommandError("VALIDATION_FAILED", 422, msg("ledger.period_reason_too_long"));
   return r;
 }
 
@@ -33,7 +34,7 @@ async function businessToday(trx: Transaction<unknown>, orgId: string, propertyI
     d: string | null;
   }>`select app.business_date(${orgId}, ${propertyId})::text as d`.execute(trx);
   const d = r.rows[0]?.d;
-  if (!d) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy cơ sở");
+  if (!d) throw new CommandError("NOT_FOUND", 404, msg("common.property_not_found"));
   return d;
 }
 
@@ -58,18 +59,19 @@ export async function lockPeriod(
   ctx: CommandContext,
   input: { propertyId: string; lockedThrough: string; reason: string },
 ): Promise<{ periodLockId: string; lockedThrough: string }> {
-  if (!UUID.test(input.propertyId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy cơ sở");
+  if (!UUID.test(input.propertyId))
+    throw new CommandError("NOT_FOUND", 404, msg("common.property_not_found"));
   authorize(ctx.actor, "period.lock", { propertyId: input.propertyId });
-  assertDate(input.lockedThrough, "Ngày khoá");
-  const reason = requireReason(input.reason, "Chốt kỳ");
+  assertDate(input.lockedThrough, msg("ledger.label_lock_date"));
+  const reason = requireReason(input.reason, msg("ledger.label_lock"));
   await lockProperty(ctx.trx, input.propertyId);
   const today = await businessToday(ctx.trx, ctx.actor.orgId, input.propertyId);
   if (input.lockedThrough >= today) {
-    throw new CommandError("VALIDATION_FAILED", 422, `Chỉ khoá ngày kinh doanh đã qua (hôm nay ${today})`);
+    throw new CommandError("VALIDATION_FAILED", 422, msg("ledger.period_lock_future", { today }));
   }
   const current = await lockedThrough(ctx.trx, ctx.actor.orgId, input.propertyId);
   if (current && current >= input.lockedThrough) {
-    throw new CommandError("INVALID_TRANSITION", 409, `Kỳ đã khoá tới ${current}`);
+    throw new CommandError("INVALID_TRANSITION", 409, msg("ledger.period_already_locked", { current }));
   }
   // Một cơ chế khoá (SPEC-metering mục 5): kỳ thu trong khoảng khoá phải đã phát hành, rồi chuyển sang `locked`.
   const open = await sql<{ n: number }>`
@@ -77,7 +79,7 @@ export async function lockPeriod(
     where organization_id = ${ctx.actor.orgId} and property_id = ${input.propertyId} and period_end <= ${input.lockedThrough}::date
       and status in ('draft','reviewing')`.execute(ctx.trx);
   if ((open.rows[0]?.n ?? 0) > 0) {
-    throw new CommandError("INVALID_TRANSITION", 409, "Còn kỳ thu chưa phát hành trong khoảng khoá");
+    throw new CommandError("INVALID_TRANSITION", 409, msg("ledger.period_unissued_in_range"));
   }
   const id = randomUUID();
   await sql`
@@ -115,17 +117,19 @@ export async function unlockPeriod(
   ctx: CommandContext,
   input: { propertyId: string; from: string; reason: string },
 ): Promise<{ releasedIds: string[]; lockedThrough: string | null }> {
-  if (!UUID.test(input.propertyId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy cơ sở");
+  if (!UUID.test(input.propertyId))
+    throw new CommandError("NOT_FOUND", 404, msg("common.property_not_found"));
   authorize(ctx.actor, "period.unlock", { propertyId: input.propertyId });
-  const reason = requireReason(input.reason, "Mở khoá kỳ");
-  assertDate(input.from, "Ngày bắt đầu mở khoá");
+  const reason = requireReason(input.reason, msg("ledger.label_unlock"));
+  assertDate(input.from, msg("ledger.label_unlock_from"));
   await lockProperty(ctx.trx, input.propertyId);
   const released = await sql<{ id: string; locked_through: string }>`
     update period_locks set released_by = ${ctx.actor.membershipId}, released_at = now(), release_reason = ${reason}
     where organization_id = ${ctx.actor.orgId} and property_id = ${input.propertyId} and released_at is null
       and locked_through >= ${input.from}::date
     returning id, locked_through::text`.execute(ctx.trx);
-  if (released.rows.length === 0) throw new CommandError("INVALID_TRANSITION", 409, "Kỳ này không đang khoá");
+  if (released.rows.length === 0)
+    throw new CommandError("INVALID_TRANSITION", 409, msg("ledger.period_not_locked"));
   const after = await lockedThrough(ctx.trx, ctx.actor.orgId, input.propertyId);
   await sql`
     update billing_periods set status = 'issued', version = version + 1
@@ -165,25 +169,25 @@ interface InvoiceForAdjust {
 }
 
 async function readInvoice(ctx: CommandContext, invoiceId: string, lock: boolean): Promise<InvoiceForAdjust> {
-  if (!UUID.test(invoiceId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phiếu");
+  if (!UUID.test(invoiceId)) throw new CommandError("NOT_FOUND", 404, msg("payments.invoice_not_found"));
   const r = await sql<InvoiceForAdjust>`
     select id, property_id, kind, number, payer_person_id, open_amount from invoices
     where organization_id = ${ctx.actor.orgId} and id = ${invoiceId} ${lock ? sql`for update` : sql``}`.execute(
     ctx.trx,
   );
   const inv = r.rows[0];
-  if (!inv) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phiếu");
+  if (!inv) throw new CommandError("NOT_FOUND", 404, msg("payments.invoice_not_found"));
   return inv;
 }
 
 function checkAdjustment(inv: InvoiceForAdjust, amount: number): void {
   if (inv.kind === "adjustment")
-    throw new CommandError("VALIDATION_FAILED", 422, "Không điều chỉnh một phiếu điều chỉnh");
+    throw new CommandError("VALIDATION_FAILED", 422, msg("ledger.adjust_an_adjustment"));
   if (amount > Number(inv.open_amount)) {
     throw new CommandError(
       "OVER_ALLOCATION",
       409,
-      `Điều chỉnh ${amount} vượt số còn phải thu ${inv.open_amount} (đã thu thì hoàn qua credit.requestRefund)`,
+      msg("ledger.adjust_exceeds_open", { amount, open: inv.open_amount }),
     );
   }
 }
@@ -198,9 +202,9 @@ export async function issueAdjustment(
   input: { invoiceId: string; amount: number; reason: string },
 ): Promise<{ approvalRequestId: string }> {
   if (!Number.isSafeInteger(input.amount) || input.amount <= 0) {
-    throw new CommandError("VALIDATION_FAILED", 422, "Số tiền giảm phải là số nguyên đồng dương");
+    throw new CommandError("VALIDATION_FAILED", 422, msg("ledger.discount_amount_invalid"));
   }
-  const reason = requireReason(input.reason, "Điều chỉnh");
+  const reason = requireReason(input.reason, msg("ledger.label_adjust"));
   const inv = await readInvoice(ctx, input.invoiceId, false);
   checkAdjustment(inv, input.amount);
   return requestApproval(ctx, {
@@ -253,7 +257,7 @@ export function registerPeriodCloseExecutors(): void {
         insert into invoice_lines (id, organization_id, property_id, invoice_id, line_no, kind, description, revenue_account,
                                    quantity, unit_price, amount, rounding_rule, formula_version)
         values (${lineId}, ${ctx.actor.orgId}, ${inv.property_id}, ${adjId}, 1, 'discount',
-                ${`Giảm trừ phiếu ${inv.number}: ${req.reason}`.slice(0, 500)}, 'DISCOUNT', 1, ${-amount}, ${-amount},
+                ${msg("ledger.discount_line_description", { number: inv.number, reason: req.reason }).slice(0, 500)}, 'DISCOUNT', 1, ${-amount}, ${-amount},
                 'HALF_UP_1', 1)`.execute(ctx.trx);
       const entryId = await postEntry(ctx.trx, {
         orgId: ctx.actor.orgId,
@@ -308,10 +312,11 @@ export async function financialSummary(
   actor: Actor,
   input: { propertyId: string; from: string; to: string },
 ): Promise<FinancialSummary> {
-  if (!UUID.test(input.propertyId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy cơ sở");
-  assertDate(input.from, "Từ ngày");
-  assertDate(input.to, "Đến ngày");
-  if (input.from > input.to) throw new CommandError("VALIDATION_FAILED", 422, "Từ ngày phải ≤ đến ngày");
+  if (!UUID.test(input.propertyId))
+    throw new CommandError("NOT_FOUND", 404, msg("common.property_not_found"));
+  assertDate(input.from, msg("ledger.label_from"));
+  assertDate(input.to, msg("ledger.label_to"));
+  if (input.from > input.to) throw new CommandError("VALIDATION_FAILED", 422, msg("ledger.range_invalid"));
   authorize(actor, "money.read", { propertyId: input.propertyId });
   return withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
     await assertPropertyInOrg(trx, actor.orgId, input.propertyId);

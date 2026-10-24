@@ -4,6 +4,7 @@
 import { SECONDS_PER_HOUR } from "@hm/domain";
 import { sql } from "kysely";
 import type { Actor } from "../actor-core/index.ts";
+import { t } from "../i18n.ts";
 import { CommandError, type CommandResult, rateLimited, rateLimitHit } from "../pipeline/index.ts";
 import { deriveUuid, readAuthUser, runUserCommand, type UserCommandRequest } from "./provision.ts";
 
@@ -46,7 +47,7 @@ export function createOrganization(
     actor,
     bootstrap: async (trx) => {
       const user = await readAuthUser(trx, req.userId);
-      if (!user) throw new CommandError("UNAUTHENTICATED", 401, "Cần đăng nhập");
+      if (!user) throw new CommandError("UNAUTHENTICATED", 401, t("http.unauthenticated"));
       const hit = await rateLimitHit(trx, {
         scope: "org.create:user",
         subject: req.userId,
@@ -54,7 +55,7 @@ export function createOrganization(
         windowSeconds: ORG_CREATE_WINDOW_SECONDS,
       });
       if (!hit.allowed) {
-        throw rateLimited("Bạn tạo quá nhiều tổ chức trong một giờ. Vui lòng thử lại sau.", hit.retryAfter);
+        throw rateLimited(t("access.org_create_rate_limited"), hit.retryAfter);
       }
       await sql`insert into organizations (id, name, created_by) values (${orgId}, ${name}, ${req.userId})`.execute(
         trx,

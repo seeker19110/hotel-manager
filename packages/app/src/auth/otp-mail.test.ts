@@ -4,6 +4,15 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { createSignInOtpSender, fakeOutboxPath, otpMessage } from "./otp-mail.ts";
 
+describe("OTP đăng nhập người thuê — chữ thư", () => {
+  it("chủ đề và nội dung giữ nguyên từng ký tự (XC-I18N-001)", () => {
+    expect(otpMessage("123456")).toEqual({
+      subject: "Mã đăng nhập Hotel Manager",
+      text: "Mã đăng nhập của bạn là 123456. Mã có hiệu lực 5 phút. Không chia sẻ mã này cho bất kỳ ai.",
+    });
+  });
+});
+
 describe("OTP đăng nhập người thuê — hộp thư giả", () => {
   it("fake://file?path=<tuyệt đối> ghi mỗi mã một dòng JSON; mặc định fake://local bỏ mã", async () => {
     const dir = mkdtempSync(join(tmpdir(), "hm-otp-"));

@@ -2286,5 +2286,1061 @@
   "stay.stays.checkin_window": {
     "message": "Chỉ nhận phòng trong khoảng ngày của booking",
     "description": "Lỗi 409 khi nhận phòng ngoài khoảng ngày đến–đi của booking."
+  },
+  "access.invitation_unavailable": {
+    "message": "Lời mời không còn hiệu lực. Hãy nhờ quản trị gửi lại.",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi người dùng chấp nhận lời mời đã hết hạn, bị thu hồi hoặc đã được dùng."
+  },
+  "access.already_member": {
+    "message": "Bạn đã là thành viên của tổ chức này",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi người nhận chấp nhận lời mời nhưng tài khoản đã là thành viên đang hoạt động của tổ chức."
+  },
+  "access.mfa_required": {
+    "message": "Vai trò này cần bật xác thực hai lớp trước khi thao tác",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client (AccessError MFA_REQUIRED) khi vai trò nhạy cảm chưa bật xác thực hai lớp mà đã thao tác."
+  },
+  "access.role_owner": {
+    "message": "chủ sở hữu",
+    "description": "Tên vai trò owner viết thường, chèn vào câu email lời mời ({role}); nhãn vai trò của `ROLE_LABEL`."
+  },
+  "access.role_manager": {
+    "message": "quản lý",
+    "description": "Tên vai trò manager viết thường, chèn vào câu email lời mời ({role}); nhãn vai trò của `ROLE_LABEL`."
+  },
+  "access.role_front_desk": {
+    "message": "lễ tân",
+    "description": "Tên vai trò front_desk viết thường, chèn vào câu email lời mời ({role}); nhãn vai trò của `ROLE_LABEL`."
+  },
+  "access.role_accountant": {
+    "message": "kế toán",
+    "description": "Tên vai trò accountant viết thường, chèn vào câu email lời mời ({role}); nhãn vai trò của `ROLE_LABEL`."
+  },
+  "access.role_housekeeping": {
+    "message": "buồng phòng",
+    "description": "Tên vai trò housekeeping viết thường, chèn vào câu email lời mời ({role}); nhãn vai trò của `ROLE_LABEL`."
+  },
+  "access.role_maintenance": {
+    "message": "kỹ thuật",
+    "description": "Tên vai trò maintenance viết thường, chèn vào câu email lời mời ({role}); nhãn vai trò của `ROLE_LABEL`."
+  },
+  "access.limit_exceeds_own": {
+    "message": "Không được trao hạn mức vượt hạn mức của chính bạn",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi người mời/sửa thành viên trao hạn mức (giảm giá, hoàn tiền, đổi giá) vượt hạn mức của chính họ."
+  },
+  "access.owner_all_properties": {
+    "message": "Chủ sở hữu luôn có mọi cơ sở",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi gán danh sách cơ sở cụ thể cho vai trò chủ sở hữu (owner luôn có mọi cơ sở)."
+  },
+  "access.role_needs_property": {
+    "message": "Vai trò này cần chọn ít nhất một cơ sở",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi mời/đổi vai trò của thành viên mà không chọn cơ sở nào cho vai trò cần phạm vi cơ sở."
+  },
+  "access.email_already_member": {
+    "message": "Email này đã là thành viên của tổ chức",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi mời một email đã là thành viên của tổ chức."
+  },
+  "access.invitation_pending": {
+    "message": "Đã có lời mời đang chờ cho email và vai trò này",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi tạo lời mời trùng email và vai trò với một lời mời còn đang chờ."
+  },
+  "access.invitation_payload_missing": {
+    "message": "payload thiếu invitation_id",
+    "description": "Thông điệp lỗi nội bộ (Error ném trong server/worker, chỉ vào log vận hành, không tới người dùng) khi job outbox dựng email lời mời nhận payload không có `invitation_id`."
+  },
+  "access.invite_mail_subject": {
+    "message": "{org} mời bạn tham gia với vai trò {role}",
+    "description": "Chủ đề email lời mời tham gia tổ chức; {org} = tên tổ chức (đã bỏ ký tự điều khiển), {role} = tên vai trò viết thường."
+  },
+  "access.invite_mail_intro": {
+    "message": "{org} mời bạn tham gia quản lý với vai trò {role}.",
+    "description": "Câu đầu nội dung email lời mời; {org} = tên tổ chức, {role} = tên vai trò viết thường."
+  },
+  "access.invite_mail_link_intro": {
+    "message": "Mở liên kết sau và đăng nhập bằng đúng email này để chấp nhận (liên kết dùng một lần, hết hạn sau {days} ngày):",
+    "description": "Câu dẫn liền trước liên kết chấp nhận trong email lời mời; {days} = số ngày lời mời còn hiệu lực."
+  },
+  "access.invite_mail_ignore": {
+    "message": "Nếu bạn không biết lời mời này, hãy bỏ qua email.",
+    "description": "Câu cuối email lời mời, dành cho người nhận không biết lời mời."
+  },
+  "access.reason_required_500": {
+    "message": "Cần lý do (≤ 500 ký tự)",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi thao tác quản trị thành viên (đổi vai trò, đặt lại 2FA, thu hồi phiên) thiếu lý do hoặc lý do dài quá 500 ký tự."
+  },
+  "access.member_not_found": {
+    "message": "Không tìm thấy thành viên",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi thành viên được chỉ định không tồn tại hoặc không thuộc tổ chức/phạm vi của người thao tác (404 NOT_FOUND)."
+  },
+  "access.members_staff_only": {
+    "message": "Chỉ đổi được vai trò/phạm vi của nhân viên",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi đổi vai trò/phạm vi của thành viên không phải nhân viên (vd chủ sở hữu)."
+  },
+  "access.last_owner": {
+    "message": "Tổ chức phải còn ít nhất một chủ sở hữu",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi thao tác sẽ khiến tổ chức không còn chủ sở hữu nào."
+  },
+  "access.all_properties_accountant_only": {
+    "message": "Chỉ kế toán được phạm vi mọi cơ sở",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi gán phạm vi \"mọi cơ sở\" cho vai trò không phải kế toán hoặc chủ sở hữu."
+  },
+  "access.all_properties_no_list": {
+    "message": "Phạm vi mọi cơ sở không kèm danh sách cơ sở",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi chọn phạm vi \"mọi cơ sở\" mà vẫn gửi kèm danh sách cơ sở."
+  },
+  "access.property_required": {
+    "message": "Cần chọn ít nhất một cơ sở",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi đổi phạm vi của thành viên mà danh sách cơ sở rỗng."
+  },
+  "access.mfa_reset_sole_owner": {
+    "message": "Bạn là owner duy nhất — liên hệ hỗ trợ nền tảng để xác minh danh tính và khôi phục.",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi owner duy nhất của tổ chức tự đặt lại xác thực hai lớp (phải qua hỗ trợ nền tảng)."
+  },
+  "access.mfa_reset_self": {
+    "message": "Không tự đặt lại xác thực hai lớp của mình — nhờ một owner khác.",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi người dùng tự đặt lại xác thực hai lớp của chính mình."
+  },
+  "access.member_no_login": {
+    "message": "Thành viên chưa có tài khoản đăng nhập",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi thao tác (đặt lại 2FA, thu hồi phiên) nhắm tới thành viên chưa có tài khoản đăng nhập."
+  },
+  "access.mfa_reset_shared_account": {
+    "message": "Tài khoản này còn dùng ở tổ chức khác — liên hệ hỗ trợ nền tảng để khôi phục.",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi đặt lại 2FA cho tài khoản còn là thành viên của tổ chức khác."
+  },
+  "access.org_create_rate_limited": {
+    "message": "Bạn tạo quá nhiều tổ chức trong một giờ. Vui lòng thử lại sau.",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi một người dùng tạo quá nhiều tổ chức trong một giờ (giới hạn tốc độ)."
+  },
+  "access.timezone_invalid": {
+    "message": "Múi giờ phải là tên IANA, ví dụ Asia/Ho_Chi_Minh",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi múi giờ của cơ sở không phải tên IANA hợp lệ."
+  },
+  "access.time_format_invalid": {
+    "message": "Giờ phải dạng HH:MM (00:00–23:59)",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi giờ nhận/trả phòng chuẩn của cơ sở sai dạng HH:MM."
+  },
+  "access.mixed_template_unavailable": {
+    "message": "Mẫu Hỗn hợp chưa được mở",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi tạo cơ sở theo mẫu \"Hỗn hợp\" (chưa mở cho người dùng)."
+  },
+  "access.property_name_length": {
+    "message": "Tên 1–200 ký tự",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi tên cơ sở rỗng hoặc dài quá 200 ký tự."
+  },
+  "access.sessions_revoke_manager_scope": {
+    "message": "Quản lý chỉ thu hồi phiên của nhân viên cấp thấp",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi quản lý thu hồi phiên đăng nhập của thành viên cấp cao hơn nhân viên cấp thấp."
+  },
+  "access.sessions_revoke_shared_account": {
+    "message": "Tài khoản này còn dùng ở tổ chức khác — chỉ chính người đó hoặc hỗ trợ nền tảng thu hồi phiên.",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi thu hồi phiên của tài khoản còn là thành viên tổ chức khác."
+  },
+  "approvals.executor_registered": {
+    "message": "Đã đăng ký executor cho {kind}",
+    "description": "Thông điệp lỗi nội bộ (Error ném trong server/worker, chỉ vào log vận hành, không tới người dùng) khi mã khởi động đăng ký hai executor cho cùng một loại yêu cầu duyệt ({kind}); lỗi lập trình."
+  },
+  "approvals.kind_invalid": {
+    "message": "Loại yêu cầu duyệt không hợp lệ",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi tạo yêu cầu duyệt với loại không nằm trong danh sách hỗ trợ."
+  },
+  "approvals.amount_invalid": {
+    "message": "Số tiền phải là số nguyên đồng không âm",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi số tiền của yêu cầu duyệt không phải số nguyên đồng ≥ 0."
+  },
+  "approvals.not_found": {
+    "message": "Không tìm thấy yêu cầu duyệt",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi yêu cầu duyệt không tồn tại hoặc ngoài phạm vi của người thao tác (404 NOT_FOUND)."
+  },
+  "approvals.already_status": {
+    "message": "Yêu cầu đã ở trạng thái {status}",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client (409 INVALID_TRANSITION) khi duyệt/từ chối/huỷ yêu cầu không còn ở trạng thái chờ; {status} = trạng thái hiện tại."
+  },
+  "approvals.role_cannot_decide": {
+    "message": "Vai trò này chỉ lập đề nghị, không duyệt",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi vai trò chỉ được lập đề nghị (vd lễ tân) cố duyệt yêu cầu."
+  },
+  "approvals.self_approve": {
+    "message": "Bạn không thể tự duyệt yêu cầu mình lập",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi người lập yêu cầu tự duyệt chính yêu cầu đó (tách nhiệm vụ)."
+  },
+  "approvals.executor_missing": {
+    "message": "Chưa hỗ trợ thực hiện loại {kind}",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi duyệt yêu cầu có loại chưa có executor thực hiện; {kind} = loại yêu cầu."
+  },
+  "approvals.cancel_requester_only": {
+    "message": "Chỉ người lập được huỷ yêu cầu",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi người không phải người lập huỷ yêu cầu duyệt."
+  },
+  "auth.telemetry_must_be_off": {
+    "message": "BETTER_AUTH_TELEMETRY phải tắt: dự án tự host, không gửi telemetry ra ngoài (ADR-0002).",
+    "description": "Thông điệp lỗi nội bộ (Error ném trong server/worker, chỉ vào log vận hành, không tới người dùng) ném lúc khởi tạo xác thực khi biến môi trường BETTER_AUTH_TELEMETRY đang bật; chỉ người vận hành thấy."
+  },
+  "auth.unsupported": {
+    "message": "Không hỗ trợ",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client (404) khi gọi đường dẫn đăng nhập bằng mã OTP mà sản phẩm không hỗ trợ (chỉ cho người thuê đăng nhập)."
+  },
+  "auth.otp_invalid": {
+    "message": "Mã không đúng hoặc đã hết hạn.",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi mã OTP đăng nhập sai hoặc hết hạn."
+  },
+  "auth.locked_out": {
+    "message": "Tài khoản tạm khoá do đăng nhập sai nhiều lần. Thử lại sau.",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi tài khoản bị khoá tạm vì nhập sai mã/mật khẩu nhiều lần."
+  },
+  "auth.otp_mail_subject": {
+    "message": "Mã đăng nhập Hotel Manager",
+    "description": "Chủ đề email gửi mã OTP đăng nhập cho người thuê."
+  },
+  "auth.otp_mail_body": {
+    "message": "Mã đăng nhập của bạn là {otp}. Mã có hiệu lực {minutes} phút. Không chia sẻ mã này cho bất kỳ ai.",
+    "description": "Nội dung email mã OTP đăng nhập; {otp} = mã, {minutes} = số phút mã còn hiệu lực."
+  },
+  "deposits.label_amount": {
+    "message": "Số tiền cọc",
+    "description": "Nhãn trường \"số tiền cọc\" chèn vào {field} của câu \"{field} phải là số nguyên đồng dương\"."
+  },
+  "deposits.one_target": {
+    "message": "Cọc gắn đúng một hợp đồng hoặc một đặt phòng",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi tạo cọc gắn cả hợp đồng lẫn đặt phòng hoặc không gắn gì."
+  },
+  "deposits.target_invalid": {
+    "message": "Đối tượng cọc không hợp lệ",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi mã hợp đồng/đặt phòng của khoản cọc sai định dạng."
+  },
+  "deposits.not_found": {
+    "message": "Không tìm thấy cọc",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi khoản cọc không tồn tại hoặc ngoài phạm vi người thao tác (404 NOT_FOUND)."
+  },
+  "deposits.other_property": {
+    "message": "Cọc thuộc cơ sở khác",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi thao tác trên cọc thuộc cơ sở khác với cơ sở của phiếu/yêu cầu."
+  },
+  "deposits.refunds_exceed": {
+    "message": "{what} {amount} vượt số còn {balance}",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client (409 REFUND_EXCEEDS_BALANCE) khi số tiền hoàn/khấu trừ vượt số dư; {what} = \"Hoàn\" hoặc \"Khấu trừ\", {amount} số tiền yêu cầu, {balance} số còn lại."
+  },
+  "deposits.deduct_booking_folio_only": {
+    "message": "Cọc đặt phòng chỉ khấu trừ vào folio của chính đặt phòng",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi khấu trừ cọc đặt phòng vào phiếu không phải folio của chính đặt phòng đó."
+  },
+  "deposits.deduct_lease_invoice_only": {
+    "message": "Chỉ khấu trừ vào phiếu của chính hợp đồng có cọc",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi khấu trừ cọc hợp đồng vào phiếu của hợp đồng khác."
+  },
+  "deposits.label_deduct": {
+    "message": "Khấu trừ",
+    "description": "Từ chỉ thao tác khấu trừ cọc, chèn vào {what} của câu \"{what} {amount} vượt số còn {balance}\"."
+  },
+  "deposits.deduct_exceeds_open": {
+    "message": "Khấu trừ {amount} vượt AR còn mở {open}",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client (409 OVER_ALLOCATION) khi khấu trừ cọc vượt số phải thu còn mở của phiếu; {amount} số khấu trừ, {open} số còn mở."
+  },
+  "deposits.label_deduct_amount": {
+    "message": "Số tiền khấu trừ",
+    "description": "Nhãn trường \"số tiền khấu trừ\" chèn vào {field} của câu \"{field} phải là số nguyên đồng dương\"."
+  },
+  "deposits.label_refund_amount": {
+    "message": "Số tiền hoàn",
+    "description": "Nhãn trường \"số tiền hoàn\" chèn vào {field} của câu \"{field} phải là số nguyên đồng dương\"."
+  },
+  "deposits.label_refund": {
+    "message": "Hoàn",
+    "description": "Từ chỉ thao tác hoàn tiền (cọc/số dư khách), chèn vào {what} của câu \"{what} {amount} vượt số còn {balance}\"."
+  },
+  "common.person_not_found": {
+    "message": "Không tìm thấy người",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi người (khách/người thuê) được chỉ định không tồn tại hoặc ngoài tổ chức (404 NOT_FOUND)."
+  },
+  "common.shift_required_cash_out": {
+    "message": "Mở ca trước khi chi tiền mặt",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client (403 FORBIDDEN) khi chi tiền mặt (hoàn cọc/quyết toán) mà người thao tác chưa mở ca."
+  },
+  "deposits.refund_transfer_account_required": {
+    "message": "Hoàn chuyển khoản cần tài khoản chi",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi hoàn cọc bằng chuyển khoản mà chưa chọn tài khoản chi."
+  },
+  "identity.document_number_invalid": {
+    "message": "Số giấy tờ không hợp lệ",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi số giấy tờ tuỳ thân (CCCD/hộ chiếu) sai định dạng."
+  },
+  "inventory.calendar_from_invalid": {
+    "message": "Ngày bắt đầu không hợp lệ",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi ngày bắt đầu của lịch phòng sai định dạng YYYY-MM-DD."
+  },
+  "inventory.calendar_to_invalid": {
+    "message": "Ngày kết thúc không hợp lệ",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi ngày kết thúc của lịch phòng sai định dạng YYYY-MM-DD."
+  },
+  "inventory.calendar_range_too_long": {
+    "message": "Chỉ xem tối đa {days} ngày mỗi lần",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi khoảng ngày xem lịch phòng vượt giới hạn; {days} = số ngày tối đa."
+  },
+  "inventory.calendar_floor_invalid": {
+    "message": "Tầng không hợp lệ",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi bộ lọc tầng của lịch phòng không hợp lệ."
+  },
+  "inventory.unit_type_invalid": {
+    "message": "Loại phòng không hợp lệ",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi mã loại phòng trong bộ lọc/tra cứu phòng trống không hợp lệ."
+  },
+  "inventory.calendar_cursor_invalid": {
+    "message": "Con trỏ trang không hợp lệ",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi con trỏ phân trang của lịch phòng bị sửa hoặc sai dạng."
+  },
+  "inventory.availability_start_invalid": {
+    "message": "Thời điểm bắt đầu không hợp lệ",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi thời điểm bắt đầu của truy vấn phòng trống sai định dạng."
+  },
+  "inventory.end_after_start": {
+    "message": "Thời điểm kết thúc phải sau thời điểm bắt đầu",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi thời điểm kết thúc không sau thời điểm bắt đầu (truy vấn phòng trống, giữ chỗ, phân bổ)."
+  },
+  "inventory.availability_guests_invalid": {
+    "message": "Số khách không hợp lệ",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi số khách trong truy vấn phòng trống không phải số nguyên dương hợp lệ."
+  },
+  "inventory.exception_conflict_missing": {
+    "message": "exceptions: xung đột chèn nhưng không thấy ngoại lệ đang mở",
+    "description": "Thông điệp lỗi nội bộ (Error ném trong server/worker, chỉ vào log vận hành, không tới người dùng) khi chèn ngoại lệ vận hành bị xung đột unique nhưng không đọc lại được ngoại lệ đang mở; lỗi bất biến, chỉ vào log."
+  },
+  "inventory.hold_end_required": {
+    "message": "Giữ chỗ phải có thời điểm kết thúc",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi tạo giữ chỗ không có thời điểm kết thúc."
+  },
+  "inventory.hold_ttl_invalid": {
+    "message": "Thời hạn giữ chỗ không hợp lệ",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi thời hạn giữ chỗ không hợp lệ (đã qua hoặc vượt giới hạn)."
+  },
+  "inventory.hold_not_found": {
+    "message": "Không tìm thấy giữ chỗ",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi giữ chỗ không tồn tại hoặc ngoài phạm vi người thao tác (404 NOT_FOUND)."
+  },
+  "inventory.hold_expired": {
+    "message": "Giữ chỗ đã hết hạn",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi dùng/gia hạn một giữ chỗ đã quá hạn."
+  },
+  "inventory.move_reason_required": {
+    "message": "Cần ghi lý do chuyển phòng",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi chuyển phòng mà không ghi lý do."
+  },
+  "inventory.allocation_not_found": {
+    "message": "Không tìm thấy phân bổ phòng",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi phân bổ phòng (lượt ở/hợp đồng chiếm phòng) không tồn tại hoặc ngoài phạm vi (404 NOT_FOUND)."
+  },
+  "inventory.move_source_invalid": {
+    "message": "Chỉ chuyển lượt ở/hợp đồng",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi chuyển phòng một phân bổ không phải lượt ở hoặc hợp đồng."
+  },
+  "inventory.move_time_out_of_range": {
+    "message": "Thời điểm chuyển phải nằm trong khoảng đang ở",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi thời điểm chuyển phòng nằm ngoài khoảng đang ở của phân bổ."
+  },
+  "inventory.move_same_property": {
+    "message": "Chỉ chuyển trong cùng cơ sở",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi chuyển phòng sang phòng thuộc cơ sở khác."
+  },
+  "inventory.block_end_required": {
+    "message": "Block phải có thời điểm kết thúc",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi tạo block chặn phòng không có thời điểm kết thúc."
+  },
+  "inventory.block_not_found": {
+    "message": "Không tìm thấy block",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi block chặn phòng không tồn tại hoặc ngoài phạm vi (404 NOT_FOUND)."
+  },
+  "inventory.block_not_pending": {
+    "message": "Block không ở trạng thái chờ duyệt",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi duyệt/từ chối một block không còn ở trạng thái chờ duyệt."
+  },
+  "inventory.block_conflict": {
+    "message": "Khoảng block đụng khách/hợp đồng đã có — cần tái bố trí trước",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi khoảng của block chặn phòng trùng với khách hoặc hợp đồng đang có."
+  },
+  "inventory.block_not_active": {
+    "message": "Block không ở trạng thái đang chặn",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi gỡ một block không còn ở trạng thái đang chặn."
+  },
+  "inventory.out_of_service_reason_required": {
+    "message": "Cần ghi lý do ngừng khai thác",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi cho phòng ngừng khai thác mà không ghi lý do."
+  },
+  "inventory.allocation_edit_empty": {
+    "message": "Cần ít nhất start hoặc end",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi sửa khoảng của phân bổ mà không gửi `start` lẫn `end`."
+  },
+  "inventory.open_ended_lease_only": {
+    "message": "Chỉ hợp đồng được để khoảng mở (không có thời điểm kết thúc)",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi để khoảng phân bổ không có thời điểm kết thúc cho nguồn không phải hợp đồng."
+  },
+  "inventory.unit_whole_only": {
+    "message": "Chỉ bán nguyên phòng (kind = whole)",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi tạo phòng với `kind` khác whole."
+  },
+  "inventory.unit_sub_unsupported": {
+    "message": "Chưa hỗ trợ phòng con/giường",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi tạo phòng con hoặc giường (chưa hỗ trợ)."
+  },
+  "inventory.unit_code_length": {
+    "message": "Mã phòng 1–20 ký tự",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi mã phòng rỗng hoặc dài quá 20 ký tự."
+  },
+  "inventory.floor_name_length": {
+    "message": "Tên tầng 1–100 ký tự",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi tên tầng rỗng hoặc dài quá 100 ký tự."
+  },
+  "inventory.capacity_range": {
+    "message": "Sức chứa 1–50",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi sức chứa của phòng ngoài khoảng 1–50."
+  },
+  "inventory.unit_type_default_name": {
+    "message": "Phòng {capacity} người",
+    "description": "Tên loại phòng mặc định lưu vào CSDL khi tạo phòng mới theo sức chứa; {capacity} = số người."
+  },
+  "inventory.unit_in_use": {
+    "message": "Phòng còn lượt ở/giữ chỗ/hợp đồng/đặt phòng/block đang hiệu lực hoặc chờ xử lý",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi xoá/ngừng phòng còn lượt ở, giữ chỗ, hợp đồng, đặt phòng hoặc block đang hiệu lực."
+  },
+  "lease.date_invalid": {
+    "message": "{field}: ngày không hợp lệ (YYYY-MM-DD)",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi một trường ngày (hợp đồng, bàn giao, chỉ số công tơ) sai định dạng; {field} = tên trường."
+  },
+  "lease.handover_assets_max": {
+    "message": "Tối đa {assets} tài sản",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi biên bản bàn giao có quá nhiều tài sản; {assets} = số tối đa."
+  },
+  "lease.handover_photos_max": {
+    "message": "Tối đa {photos} ảnh",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi biên bản bàn giao đính kèm quá nhiều ảnh; {photos} = số tối đa."
+  },
+  "lease.handover_asset_name_length": {
+    "message": "Tên tài sản 1–100 ký tự",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi tên tài sản trong biên bản bàn giao rỗng hoặc dài quá 100 ký tự."
+  },
+  "lease.handover_asset_qty_range": {
+    "message": "Số lượng 1–1000",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi số lượng tài sản trong biên bản bàn giao ngoài khoảng 1–1000."
+  },
+  "lease.handover_asset_condition_length": {
+    "message": "Tình trạng 1–200 ký tự",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi tình trạng tài sản trong biên bản bàn giao rỗng hoặc dài quá 200 ký tự."
+  },
+  "lease.handover_too_many_photos": {
+    "message": "Quá nhiều ảnh",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi một dòng của biên bản bàn giao đính kèm quá nhiều ảnh."
+  },
+  "common.photo_invalid": {
+    "message": "Ảnh không hợp lệ",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi mã ảnh đính kèm sai định dạng (biên bản bàn giao, quyết toán, chỉ số công tơ)."
+  },
+  "lease.handover_status_blocks": {
+    "message": "Trạng thái hợp đồng không cho lập biên bản này",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi lập biên bản bàn giao không hợp với trạng thái hiện tại của hợp đồng."
+  },
+  "lease.handover_checkin_after_end": {
+    "message": "Ngày nhận phòng sau ngày hết hạn hợp đồng",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi ngày nhận phòng ghi trong biên bản sau ngày hết hạn của hợp đồng."
+  },
+  "lease.handover_checkout_before_checkin": {
+    "message": "Ngày trả phòng trước ngày nhận phòng",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi ngày trả phòng ghi trong biên bản trước ngày nhận phòng."
+  },
+  "lease.handover_keys_range": {
+    "message": "Số chìa khoá 0–100",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi số chìa khoá trong biên bản bàn giao ngoài khoảng 0–100."
+  },
+  "lease.handover_photo_missing": {
+    "message": "Ảnh bàn giao không tồn tại hoặc sai loại",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi ảnh đính kèm biên bản bàn giao không tồn tại hoặc không đúng loại tệp."
+  },
+  "lease.meter_electric": {
+    "message": "điện",
+    "description": "Tên công tơ điện (chữ thường) chèn vào {meter} của câu \"Thiếu chỉ số {meter}\"."
+  },
+  "lease.meter_water": {
+    "message": "nước",
+    "description": "Tên công tơ nước (chữ thường) chèn vào {meter} của câu \"Thiếu chỉ số {meter}\"."
+  },
+  "lease.handover_reading_required": {
+    "message": "Thiếu chỉ số {meter}",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi biên bản bàn giao thiếu chỉ số công tơ; {meter} = \"điện\" hoặc \"nước\"."
+  },
+  "lease.handover_reading_invalid": {
+    "message": "Chỉ số không hợp lệ (≥ 0, tối đa 3 chữ số thập phân)",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi chỉ số công tơ trong biên bản bàn giao âm, quá lớn hoặc quá 3 chữ số thập phân."
+  },
+  "metering.reading_decreased": {
+    "message": "Chỉ số {value} nhỏ hơn lần đọc trước {previous}",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client (422 METER_READING_DECREASED) khi chỉ số công tơ nhỏ hơn lần đọc trước; {value} = chỉ số vừa nhập, {previous} = lần đọc trước."
+  },
+  "lease.handover_no_meter": {
+    "message": "Phòng không có công tơ loại này",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi biên bản bàn giao có chỉ số cho loại công tơ mà phòng không có."
+  },
+  "lease.handover_exists": {
+    "message": "Hợp đồng đã có biên bản loại này",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi lập biên bản bàn giao trùng loại với biên bản đã có của hợp đồng."
+  },
+  "lease.handover_unit_occupied": {
+    "message": "Phòng đã có người trong khoảng từ ngày bàn giao",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi bàn giao phòng nhưng phòng đã có người ở trong khoảng từ ngày bàn giao."
+  },
+  "lease.renew_active_only": {
+    "message": "Chỉ lập phụ lục cho hợp đồng đang hiệu lực",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi lập phụ lục/gia hạn cho hợp đồng không ở trạng thái đang hiệu lực."
+  },
+  "lease.version_overlap": {
+    "message": "Thời gian hiệu lực trùng với phiên bản khác.",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi phụ lục/phiên bản hợp đồng có thời gian hiệu lực trùng với phiên bản khác."
+  },
+  "lease.renew_unit_occupied": {
+    "message": "Phòng đã có người trong thời gian gia hạn",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi gia hạn hợp đồng nhưng phòng đã có người trong khoảng gia hạn."
+  },
+  "lease.handover_conversion_status": {
+    "message": "Chỉ ghi bàn giao chuyển đổi cho hợp đồng đã ký chờ bàn giao",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi ghi biên bản bàn giao chuyển đổi (nhập dữ liệu cũ) cho hợp đồng không ở trạng thái đã ký chờ bàn giao."
+  },
+  "lease.money_invalid": {
+    "message": "{field}: số nguyên đồng ≥ 0",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi một trường tiền của hợp đồng (giá thuê, cọc) không phải số nguyên đồng ≥ 0; {field} = tên trường."
+  },
+  "lease.end_before_start": {
+    "message": "Ngày hết hạn phải ≥ ngày hiệu lực",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi ngày hết hạn của hợp đồng nhỏ hơn ngày hiệu lực."
+  },
+  "lease.services_max": {
+    "message": "Tối đa {services} dịch vụ",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi hợp đồng gắn quá nhiều dịch vụ; {services} = số tối đa."
+  },
+  "lease.services_invalid": {
+    "message": "Dịch vụ không hợp lệ hoặc lặp",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi dịch vụ gắn vào hợp đồng sai định dạng hoặc bị lặp."
+  },
+  "lease.service_qty_invalid": {
+    "message": "Số lượng không hợp lệ",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi số lượng của dịch vụ gắn vào hợp đồng không hợp lệ."
+  },
+  "lease.service_other_property": {
+    "message": "Dịch vụ không thuộc cơ sở",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi dịch vụ gắn vào hợp đồng thuộc cơ sở khác."
+  },
+  "lease.person_invalid": {
+    "message": "Người không hợp lệ",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi mã người thuê/người ở sai định dạng."
+  },
+  "lease.tenant_phone_required": {
+    "message": "Người thuê cần số điện thoại",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi người đứng hợp đồng chưa có số điện thoại."
+  },
+  "lease.not_found": {
+    "message": "Không tìm thấy hợp đồng",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi hợp đồng không tồn tại hoặc ngoài phạm vi người thao tác (404 NOT_FOUND)."
+  },
+  "lease.version1_missing": {
+    "message": "hợp đồng {leaseId} thiếu phiên bản 1",
+    "description": "Thông điệp lỗi nội bộ (Error ném trong server/worker, chỉ vào log vận hành, không tới người dùng) khi hợp đồng {leaseId} không có phiên bản 1; lỗi bất biến dữ liệu, chỉ vào log."
+  },
+  "lease.occupants_max": {
+    "message": "Tối đa {occupants} người ở",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi hợp đồng có quá nhiều người ở; {occupants} = số tối đa."
+  },
+  "lease.occupants_duplicate": {
+    "message": "Người ở bị lặp",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi danh sách người ở có cùng một người hai lần."
+  },
+  "lease.signed_terms_locked": {
+    "message": "Điều khoản đã ký không sửa được. Hãy lập phụ lục (lease.renew).",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi sửa điều khoản của hợp đồng đã ký (phải lập phụ lục)."
+  },
+  "lease.ended": {
+    "message": "Hợp đồng đã kết thúc",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi thao tác trên hợp đồng đã kết thúc."
+  },
+  "lease.occupant_exists": {
+    "message": "Người này đã ở hợp đồng",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi thêm người ở đã có trong hợp đồng."
+  },
+  "lease.occupant_not_found": {
+    "message": "Không tìm thấy người ở",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi người ở cần rời không thuộc hợp đồng (404 NOT_FOUND)."
+  },
+  "lease.occupant_is_signer": {
+    "message": "Không thể rời người đứng hợp đồng",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi cho người đứng hợp đồng rời khỏi danh sách người ở."
+  },
+  "lease.occupant_leave_before_join": {
+    "message": "Ngày rời đi trước ngày vào ở",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi ngày rời đi của người ở trước ngày vào ở."
+  },
+  "lease.hold_unsigned_only": {
+    "message": "Chỉ giữ chỗ hợp đồng chưa ký",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi giữ chỗ một hợp đồng đã ký."
+  },
+  "lease.already_held": {
+    "message": "Hợp đồng đang được giữ chỗ",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi giữ chỗ hợp đồng đang được giữ chỗ."
+  },
+  "lease.signer_mismatch": {
+    "message": "Người ký phải là người đứng hợp đồng",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi người ký hợp đồng không phải người đứng hợp đồng."
+  },
+  "lease.unit_unavailable": {
+    "message": "Phòng đã có người hoặc đã được giữ trong khoảng này",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi giữ chỗ/ký hợp đồng mà phòng đã có người hoặc đã được giữ trong khoảng đó."
+  },
+  "lease.settlement_expected_checkout_invalid": {
+    "message": "Ngày dự kiến trả không hợp lệ",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi ngày dự kiến trả phòng của quyết toán sai định dạng."
+  },
+  "lease.settlement_create_forbidden": {
+    "message": "Không có quyền lập quyết toán",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi người không có quyền lập quyết toán hợp đồng."
+  },
+  "lease.settlement_handover_required": {
+    "message": "Cần biên bản bàn giao trả phòng trước.",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi lập quyết toán mà chưa có biên bản bàn giao trả phòng."
+  },
+  "lease.settlement_status_required": {
+    "message": "Chỉ lập quyết toán khi hợp đồng đang thanh lý",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi lập quyết toán cho hợp đồng không ở trạng thái đang thanh lý."
+  },
+  "lease.settlement_period_required": {
+    "message": "Cần phát hành kỳ thu có ngày trả phòng trước khi quyết toán.",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi lập quyết toán mà chưa phát hành kỳ thu có ngày trả phòng."
+  },
+  "lease.settlement_fees_max": {
+    "message": "Tối đa 20 khoản phí",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi quyết toán có quá 20 khoản phí phát sinh."
+  },
+  "lease.settlement_fee_amount_invalid": {
+    "message": "Phí là số nguyên đồng dương",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi một khoản phí phát sinh của quyết toán không phải số nguyên đồng dương."
+  },
+  "lease.settlement_fee_reason_required": {
+    "message": "Phí cần lý do (≤ 500 ký tự)",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi khoản phí của quyết toán thiếu lý do hoặc lý do dài quá 500 ký tự."
+  },
+  "lease.settlement_evidence_missing": {
+    "message": "Ảnh chứng cứ không tồn tại",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi ảnh chứng cứ đính kèm khoản phí của quyết toán không tồn tại."
+  },
+  "lease.settlement_fees_total_too_large": {
+    "message": "Tổng phí quá lớn",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi tổng các khoản phí của quyết toán vượt giới hạn số nguyên an toàn."
+  },
+  "lease.settlement_default_deduction_reason": {
+    "message": "Đối trừ cọc khi thanh lý",
+    "description": "Lý do mặc định (lưu vào CSDL) của khoản đối trừ cọc tự đề xuất khi thanh lý hợp đồng."
+  },
+  "lease.settlement_deduction_amount_invalid": {
+    "message": "Khấu trừ là số nguyên đồng dương",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi một khoản khấu trừ cọc của quyết toán không phải số nguyên đồng dương."
+  },
+  "lease.settlement_deduction_reason_required": {
+    "message": "Khấu trừ cần lý do",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi khoản khấu trừ cọc của quyết toán thiếu lý do."
+  },
+  "lease.settlement_deduction_exceeds_fees": {
+    "message": "Khấu trừ vượt phí phát sinh",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi tổng khấu trừ vượt tổng phí phát sinh của quyết toán."
+  },
+  "lease.settlement_invoice_invalid": {
+    "message": "Phiếu không thuộc hợp đồng hoặc đã tất toán",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi khấu trừ vào phiếu không thuộc hợp đồng hoặc phiếu đã tất toán."
+  },
+  "lease.settlement_deduction_exceeds_open": {
+    "message": "Khấu trừ vượt AR còn mở {open} của phiếu {number}",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi khấu trừ vượt số phải thu còn mở của phiếu; {open} = số còn mở, {number} = số phiếu."
+  },
+  "lease.settlement_deduction_exceeds_deposit": {
+    "message": "Khấu trừ vượt cọc còn giữ {depositBalance}",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi tổng khấu trừ vượt cọc còn giữ; {depositBalance} = số cọc còn giữ."
+  },
+  "lease.settlement_not_found": {
+    "message": "Không tìm thấy quyết toán",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi quyết toán không tồn tại hoặc ngoài phạm vi (404 NOT_FOUND)."
+  },
+  "lease.settlement_approve_forbidden": {
+    "message": "Không có quyền duyệt quyết toán",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi người không có quyền duyệt quyết toán."
+  },
+  "lease.settlement_self_approve": {
+    "message": "Bạn không thể tự duyệt chứng từ mình lập.",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi người lập quyết toán tự duyệt chính quyết toán đó."
+  },
+  "lease.settlement_already_approved": {
+    "message": "Quyết toán đã duyệt",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi duyệt lại một quyết toán đã được duyệt."
+  },
+  "lease.settlement_not_terminating": {
+    "message": "Hợp đồng không ở trạng thái thanh lý",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi duyệt quyết toán mà hợp đồng không còn ở trạng thái đang thanh lý."
+  },
+  "lease.settlement_stale": {
+    "message": "Số liệu cọc/công nợ đã đổi từ lúc lập — lập lại quyết toán",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi cọc hoặc công nợ đã thay đổi kể từ lúc lập quyết toán nên phải lập lại."
+  },
+  "lease.settlement_refund_method_required": {
+    "message": "Chọn cách hoàn cọc (tiền mặt/chuyển khoản)",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi duyệt quyết toán có hoàn cọc mà chưa chọn tiền mặt hay chuyển khoản."
+  },
+  "lease.settlement_payout_account_other_property": {
+    "message": "Tài khoản chi không thuộc cơ sở",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi tài khoản chi để hoàn cọc không thuộc cơ sở của hợp đồng."
+  },
+  "ledger.receiving_account_no_property": {
+    "message": "Tài khoản nhận chưa gắn cơ sở",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi tài khoản nhận tiền chưa được gắn với cơ sở nào."
+  },
+  "ledger.bank_amount_invalid": {
+    "message": "Số tiền giao dịch phải là số nguyên đồng dương",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi số tiền của giao dịch ngân hàng nhận qua webhook không phải số nguyên đồng dương."
+  },
+  "ledger.no_active_owner": {
+    "message": "Tổ chức không còn owner hoạt động",
+    "description": "Thông điệp khi cần giao việc/thông báo cho owner mà tổ chức không còn owner đang hoạt động."
+  },
+  "ledger.bank_event_conflict": {
+    "message": "Sự kiện trùng mã nhưng nội dung khác — không ghi tiền, cần đối soát",
+    "description": "Mô tả khoản bất thường đối soát khi cùng mã sự kiện ngân hàng đến lần nữa với nội dung khác (không ghi tiền)."
+  },
+  "ledger.bank_amount_conflict": {
+    "message": "Cùng mã giao dịch ngân hàng nhưng số tiền khác — không ghi tiền, cần đối soát",
+    "description": "Mô tả khoản bất thường đối soát khi cùng mã giao dịch ngân hàng nhưng số tiền khác (không ghi tiền)."
+  },
+  "ledger.webhook_signature_invalid": {
+    "message": "Chữ ký webhook không hợp lệ hoặc đã quá hạn",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client (401) khi chữ ký webhook ngân hàng sai hoặc quá hạn."
+  },
+  "ledger.entry_not_found": {
+    "message": "Không tìm thấy bút toán",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi bút toán không tồn tại hoặc ngoài phạm vi (404 NOT_FOUND)."
+  },
+  "ledger.reverse_a_reversal": {
+    "message": "Không đảo một bút toán đảo",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi đảo một bút toán vốn đã là bút toán đảo."
+  },
+  "ledger.already_reversed": {
+    "message": "Bút toán đã được đảo",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi đảo lại một bút toán đã được đảo."
+  },
+  "ledger.opening_lease_inactive": {
+    "message": "Hợp đồng không còn hiệu lực — không ghi số dư đầu kỳ",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi ghi số dư đầu kỳ cho hợp đồng không còn hiệu lực."
+  },
+  "ledger.opening_debt_invalid": {
+    "message": "Nợ là số nguyên dương",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi nợ đầu kỳ nhập chuyển đổi không phải số nguyên dương."
+  },
+  "ledger.opening_line_description_note": {
+    "message": "Số dư đầu kỳ — {note}",
+    "description": "Mô tả dòng phiếu số dư đầu kỳ (lưu CSDL, hiện trên phiếu) khi có ghi chú; {note} = ghi chú của người nhập."
+  },
+  "ledger.opening_line_description": {
+    "message": "Số dư đầu kỳ",
+    "description": "Mô tả dòng phiếu số dư đầu kỳ (lưu CSDL, hiện trên phiếu) khi không có ghi chú."
+  },
+  "ledger.opening_deposit_invalid": {
+    "message": "Cọc là số nguyên dương",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi cọc đầu kỳ nhập chuyển đổi không phải số nguyên dương."
+  },
+  "ledger.period_date_invalid": {
+    "message": "{field} không hợp lệ (YYYY-MM-DD)",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi ngày trong thao tác chốt/mở khoá kỳ hoặc báo cáo sai định dạng; {field} = nhãn trường ngày."
+  },
+  "ledger.period_reason_required": {
+    "message": "{what} cần lý do",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi thao tác chốt kỳ/mở khoá/điều chỉnh thiếu lý do; {what} = tên thao tác."
+  },
+  "ledger.period_reason_too_long": {
+    "message": "Lý do quá dài",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi lý do của thao tác chốt kỳ/mở khoá/điều chỉnh quá dài."
+  },
+  "ledger.label_lock_date": {
+    "message": "Ngày khoá",
+    "description": "Nhãn trường \"ngày khoá\" chèn vào {field} của câu \"{field} không hợp lệ (YYYY-MM-DD)\"."
+  },
+  "ledger.label_lock": {
+    "message": "Chốt kỳ",
+    "description": "Tên thao tác chốt kỳ, chèn vào {what} của câu \"{what} cần lý do\"."
+  },
+  "ledger.period_lock_future": {
+    "message": "Chỉ khoá ngày kinh doanh đã qua (hôm nay {today})",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi khoá kỳ tới ngày chưa qua; {today} = ngày kinh doanh hiện tại của cơ sở."
+  },
+  "ledger.period_already_locked": {
+    "message": "Kỳ đã khoá tới {current}",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client (409 INVALID_TRANSITION) khi khoá lùi/khoá lại kỳ đã khoá; {current} = ngày đã khoá tới."
+  },
+  "ledger.period_unissued_in_range": {
+    "message": "Còn kỳ thu chưa phát hành trong khoảng khoá",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi khoá kỳ mà trong khoảng vẫn còn kỳ thu chưa phát hành."
+  },
+  "ledger.label_unlock": {
+    "message": "Mở khoá kỳ",
+    "description": "Tên thao tác mở khoá kỳ, chèn vào {what} của câu \"{what} cần lý do\"."
+  },
+  "ledger.label_unlock_from": {
+    "message": "Ngày bắt đầu mở khoá",
+    "description": "Nhãn trường \"ngày bắt đầu mở khoá\" chèn vào {field} của câu \"{field} không hợp lệ (YYYY-MM-DD)\"."
+  },
+  "ledger.period_not_locked": {
+    "message": "Kỳ này không đang khoá",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi mở khoá một kỳ hiện không bị khoá."
+  },
+  "ledger.adjust_an_adjustment": {
+    "message": "Không điều chỉnh một phiếu điều chỉnh",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi điều chỉnh giảm một phiếu vốn đã là phiếu điều chỉnh."
+  },
+  "ledger.adjust_exceeds_open": {
+    "message": "Điều chỉnh {amount} vượt số còn phải thu {open} (đã thu thì hoàn qua credit.requestRefund)",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi số tiền điều chỉnh giảm vượt số còn phải thu của phiếu; {amount} số điều chỉnh, {open} số còn phải thu."
+  },
+  "ledger.discount_amount_invalid": {
+    "message": "Số tiền giảm phải là số nguyên đồng dương",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi số tiền giảm của phiếu điều chỉnh không phải số nguyên đồng dương."
+  },
+  "ledger.label_adjust": {
+    "message": "Điều chỉnh",
+    "description": "Tên thao tác điều chỉnh phiếu, chèn vào {what} của câu \"{what} cần lý do\"."
+  },
+  "ledger.discount_line_description": {
+    "message": "Giảm trừ phiếu {number}: {reason}",
+    "description": "Mô tả dòng giảm trừ của phiếu (lưu CSDL, hiện trên phiếu); {number} = số phiếu, {reason} = lý do đã duyệt."
+  },
+  "ledger.label_from": {
+    "message": "Từ ngày",
+    "description": "Nhãn trường \"từ ngày\" của báo cáo tài chính, chèn vào {field} của câu \"{field} không hợp lệ (YYYY-MM-DD)\"."
+  },
+  "ledger.label_to": {
+    "message": "Đến ngày",
+    "description": "Nhãn trường \"đến ngày\" của báo cáo tài chính, chèn vào {field} của câu \"{field} không hợp lệ (YYYY-MM-DD)\"."
+  },
+  "ledger.range_invalid": {
+    "message": "Từ ngày phải ≤ đến ngày",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi báo cáo tài chính có ngày bắt đầu sau ngày kết thúc."
+  },
+  "metering.value_invalid": {
+    "message": "Chỉ số ≥ 0, tối đa 3 chữ số thập phân",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi chỉ số công tơ âm, quá lớn hoặc quá 3 chữ số thập phân."
+  },
+  "metering.service_not_found": {
+    "message": "Không tìm thấy dịch vụ",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi dịch vụ (điện, nước, …) không tồn tại hoặc ngoài phạm vi (404 NOT_FOUND)."
+  },
+  "metering.rate_end_before_start": {
+    "message": "Ngày kết thúc trước ngày bắt đầu",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi đơn giá dịch vụ có ngày kết thúc hiệu lực trước ngày bắt đầu."
+  },
+  "metering.rate_invalid": {
+    "message": "Đơn giá ≥ 0, tối đa 4 chữ số thập phân",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi đơn giá dịch vụ âm hoặc quá 4 chữ số thập phân."
+  },
+  "metering.rate_overlap": {
+    "message": "Trùng hiệu lực với đơn giá khác",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi đơn giá mới có thời gian hiệu lực trùng đơn giá khác của cùng dịch vụ."
+  },
+  "metering.meter_exists": {
+    "message": "Phòng đã có công tơ loại này",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi lắp công tơ cùng loại cho phòng đã có công tơ loại đó."
+  },
+  "metering.meter_not_found": {
+    "message": "Không tìm thấy công tơ",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi công tơ không tồn tại hoặc ngoài phạm vi (404 NOT_FOUND)."
+  },
+  "metering.period_not_found": {
+    "message": "Không tìm thấy kỳ thu",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi kỳ thu không tồn tại hoặc ngoài phạm vi (404 NOT_FOUND)."
+  },
+  "metering.meter_replaced": {
+    "message": "Công tơ đã tháo — nhập vào công tơ đang dùng",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi nhập chỉ số vào công tơ đã tháo (phải nhập vào công tơ thay thế)."
+  },
+  "metering.period_pending_approval": {
+    "message": "Kỳ đang chờ duyệt — trả về nháp để sửa chỉ số",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi sửa chỉ số của kỳ thu đang chờ duyệt (phải trả về nháp trước)."
+  },
+  "metering.reading_date_out_of_period": {
+    "message": "Ngày đọc phải trong kỳ {period_start} – {period_end}",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi ngày đọc chỉ số nằm ngoài kỳ thu; {period_start}/{period_end} = ngày đầu/cuối kỳ."
+  },
+  "metering.reading_exceeds_next": {
+    "message": "Chỉ số lớn hơn lần đọc sau ({next})",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi chỉ số nhập lớn hơn lần đọc sau đó; {next} = chỉ số lần đọc sau."
+  },
+  "metering.reading_conflict": {
+    "message": "Chỉ số vừa được người khác cập nhật — tải lại",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client (409) khi chỉ số vừa bị người khác cập nhật (xung đột phiên bản); người dùng cần tải lại."
+  },
+  "metering.reading_not_found": {
+    "message": "Không tìm thấy chỉ số",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi chỉ số công tơ không tồn tại hoặc ngoài phạm vi (404 NOT_FOUND)."
+  },
+  "metering.replacement_chain_too_long": {
+    "message": "chuỗi thay công tơ quá dài",
+    "description": "Thông điệp lỗi nội bộ (Error ném trong server/worker, chỉ vào log vận hành, không tới người dùng) khi chuỗi công tơ thay thế dài bất thường; lỗi bất biến, chỉ vào log."
+  },
+  "metering.note_required": {
+    "message": "Cần ghi chú (≤ 1.000 ký tự)",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi ghi chú của chỉ số/thay công tơ thiếu hoặc dài quá 1.000 ký tự."
+  },
+  "metering.already_replaced": {
+    "message": "Công tơ đã được thay",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi thay một công tơ đã được thay."
+  },
+  "metering.replace_before_install": {
+    "message": "Ngày thay trước ngày lắp",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi ngày thay công tơ trước ngày lắp."
+  },
+  "metering.replace_before_last_reading": {
+    "message": "Ngày thay trước lần đọc đã duyệt cuối ({lastOn})",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi ngày thay công tơ trước lần đọc đã duyệt cuối; {lastOn} = ngày của lần đọc đó."
+  },
+  "metering.replace_in_issued_period": {
+    "message": "Ngày thay thuộc kỳ đã phát hành (đến {issuedEnd}). Dùng điều chỉnh.",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi ngày thay công tơ nằm trong kỳ đã phát hành; {issuedEnd} = ngày cuối kỳ đã phát hành."
+  },
+  "metering.final_reading_decreased": {
+    "message": "Chỉ số cuối {final} nhỏ hơn lần đọc trước {previous}",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client (422) khi chỉ số cuối của công tơ cũ khi thay nhỏ hơn lần đọc trước; {final} = chỉ số cuối, {previous} = lần đọc trước."
+  },
+  "metering.reading_before_install": {
+    "message": "Ngày đọc trước ngày lắp công tơ",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi ngày đọc chỉ số trước ngày lắp công tơ."
+  },
+  "metering.reading_in_issued_period": {
+    "message": "Ngày đọc thuộc kỳ đã phát hành",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi ngày đọc chỉ số thuộc kỳ đã phát hành."
+  },
+  "reconciliation.statement_too_large": {
+    "message": "File sao kê vượt 2 MB — tách thành nhiều file",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client (413 FILE_TOO_LARGE) khi tệp sao kê ngân hàng vượt 2 MB."
+  },
+  "reconciliation.statement_limit_prefix": {
+    "message": "Tối đa",
+    "description": "KHÔNG hiện cho người dùng: tiền tố thông điệp RangeError của bộ đọc sao kê khi vượt giới hạn; mã so khớp tiền tố này để đổi thành lỗi FILE_TOO_LARGE — phải giữ đồng bộ với thông điệp của bộ đọc."
+  },
+  "reconciliation.skip_outflow": {
+    "message": "Tiền ra",
+    "description": "Lý do dòng sao kê bị bỏ qua khi xem trước nhập sao kê: giao dịch tiền ra."
+  },
+  "reconciliation.skip_zero_amount": {
+    "message": "Số tiền 0",
+    "description": "Lý do dòng sao kê bị bỏ qua khi xem trước nhập sao kê: số tiền bằng 0."
+  },
+  "reconciliation.reread_failed": {
+    "message": "bank_transaction vừa ghi không đọc lại được",
+    "description": "Thông điệp lỗi nội bộ (Error ném trong server/worker, chỉ vào log vận hành, không tới người dùng) khi giao dịch ngân hàng vừa ghi không đọc lại được trong cùng giao dịch CSDL; lỗi bất biến, chỉ vào log."
+  },
+  "reconciliation.third_party_note_required": {
+    "message": "Người khác trả hộ cần ghi chú",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi ghép giao dịch cho người trả khác mà không ghi chú."
+  },
+  "reconciliation.txn_diverged": {
+    "message": "Giao dịch đang lệch nội dung giữa các nguồn — xử lý break trước",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi ghép giao dịch đang lệch nội dung giữa các nguồn; phải xử lý khoản bất thường trước."
+  },
+  "reconciliation.payer_required": {
+    "message": "Cần người trả khi không phân bổ vào phiếu",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi ghép giao dịch không phân bổ vào phiếu mà không chọn người trả."
+  },
+  "reconciliation.default_resolution": {
+    "message": "Xác nhận ghép từ sao kê",
+    "description": "Lý do mặc định (lưu CSDL) khi đóng khoản bất thường lúc xác nhận ghép giao dịch từ sao kê mà không có ghi chú."
+  },
+  "reconciliation.break_not_found": {
+    "message": "Không tìm thấy khoản bất thường",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi khoản bất thường đối soát không tồn tại hoặc ngoài phạm vi (404 NOT_FOUND)."
+  },
+  "reconciliation.close_reason_required": {
+    "message": "Cần lý do đóng",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi đóng khoản bất thường đối soát mà không ghi lý do."
+  },
+  "reconciliation.break_closed": {
+    "message": "Khoản bất thường đã đóng",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi đóng lại khoản bất thường đối soát đã đóng."
+  },
+  "reconciliation.no_receiving_account": {
+    "message": "Cơ sở chưa có tài khoản nhận",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi dựng thông tin chuyển khoản cho phiếu mà cơ sở chưa có tài khoản nhận."
+  },
+  "reconciliation.multiple_receiving_accounts": {
+    "message": "Cơ sở có nhiều tài khoản nhận — chọn một",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi cơ sở có nhiều tài khoản nhận mà chưa chọn tài khoản nào cho thông tin chuyển khoản."
+  },
+  "reconciliation.transfer_notice": {
+    "message": "Thông tin chuyển khoản — phiếu chỉ được ghi nhận đã trả khi có chứng cứ từ ngân hàng.",
+    "description": "Lưu ý hiện kèm mã QR/thông tin chuyển khoản của phiếu: tiền chỉ được ghi nhận khi có chứng cứ từ ngân hàng."
+  },
+  "shifts.cash_invalid": {
+    "message": "{field} phải là số nguyên đồng không âm",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi số tiền mặt của ca (đầu ca, đếm thực tế, nhận ca) không phải số nguyên đồng ≥ 0; {field} = nhãn trường."
+  },
+  "shifts.not_found": {
+    "message": "Không tìm thấy ca",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi ca làm việc không tồn tại hoặc ngoài phạm vi (404 NOT_FOUND)."
+  },
+  "shifts.already_open": {
+    "message": "Bạn đang có một ca chưa đóng",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi mở ca mới trong lúc đang có ca chưa đóng."
+  },
+  "shifts.label_opening_cash": {
+    "message": "Tiền đầu ca",
+    "description": "Nhãn trường \"tiền đầu ca\" chèn vào {field} của câu \"{field} phải là số nguyên đồng không âm\"."
+  },
+  "shifts.accountant_cannot_open": {
+    "message": "Kế toán đóng/đối chiếu ca, không mở ca nhận tiền",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi kế toán mở ca nhận tiền (kế toán chỉ đóng/đối chiếu ca)."
+  },
+  "shifts.label_counted_cash": {
+    "message": "Tiền đếm thực tế",
+    "description": "Nhãn trường \"tiền đếm thực tế\" chèn vào {field} của câu \"{field} phải là số nguyên đồng không âm\"."
+  },
+  "shifts.not_open": {
+    "message": "Ca không còn mở",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi đóng ca đã đóng hoặc không còn mở."
+  },
+  "shifts.unconfirmed_cash": {
+    "message": "Còn khoản tiền mặt chưa xác nhận trong ca",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi đóng ca mà còn khoản tiền mặt chưa xác nhận."
+  },
+  "shifts.handover_closed_only": {
+    "message": "Chỉ giao ca đã đóng và chưa giao",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi giao ca chưa đóng hoặc đã giao."
+  },
+  "shifts.self_handover": {
+    "message": "Không tự nhận ca của chính mình",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi giao ca cho chính người đang giao."
+  },
+  "shifts.recipient_not_found": {
+    "message": "Không tìm thấy người nhận",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi người nhận ca không tồn tại hoặc không thuộc cơ sở (404 NOT_FOUND)."
+  },
+  "shifts.label_received_cash": {
+    "message": "Tiền nhận",
+    "description": "Nhãn trường \"tiền nhận\" chèn vào {field} của câu \"{field} phải là số nguyên đồng không âm\"."
+  },
+  "shifts.accept_recipient_only": {
+    "message": "Chỉ người được giao mới xác nhận nhận ca",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi người không phải người nhận được chỉ định xác nhận nhận ca."
+  },
+  "shifts.not_pending_accept": {
+    "message": "Ca không ở trạng thái chờ nhận",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi xác nhận nhận một ca không ở trạng thái chờ nhận."
+  },
+  "shifts.reassign_forbidden": {
+    "message": "Chỉ quản lý/chủ gán lại người chịu trách nhiệm",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi người không phải quản lý/chủ gán lại người chịu trách nhiệm chênh lệch."
+  },
+  "shifts.discrepancy_not_found": {
+    "message": "Không tìm thấy chênh lệch",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi chênh lệch tiền ca không tồn tại hoặc ngoài phạm vi (404 NOT_FOUND)."
+  },
+  "shifts.discrepancy_resolved": {
+    "message": "Chênh lệch đã xử lý",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi gán lại chênh lệch tiền ca đã được xử lý."
+  },
+  "shifts.assignee_invalid": {
+    "message": "Người được gán phải là nhân viên còn hiệu lực của cơ sở",
+    "description": "Thông điệp lỗi API (problem+json) trả cho client khi người được gán chịu trách nhiệm chênh lệch không phải nhân viên còn hiệu lực của cơ sở."
   }
 }

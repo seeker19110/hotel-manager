@@ -5,6 +5,7 @@
 import { randomUUID } from "node:crypto";
 import { authorize, generateMemoRef } from "@hm/domain";
 import { sql } from "kysely";
+import { t } from "../i18n.ts";
 import { postEntry } from "../ledger/index.ts";
 import { type CommandContext, CommandError, fieldError } from "../pipeline/index.ts";
 import { openShiftOf } from "../shifts/index.ts";
@@ -60,7 +61,7 @@ export async function giveNotice(
   const lease = await lockLease(ctx, input.leaseId, "lease.manage");
   transition(lease, "notice_given");
   if (!DATE.test(input.plannedMoveOutOn) || Number.isNaN(Date.parse(input.plannedMoveOutOn))) {
-    throw fieldError("planned_move_out_on", "INVALID_DATE", "Ngày dự kiến trả không hợp lệ");
+    throw fieldError("planned_move_out_on", "INVALID_DATE", t("lease.settlement_expected_checkout_invalid"));
   }
   await sql`update leases set status = 'notice_given', planned_move_out_on = ${input.plannedMoveOutOn}::date, version = version + 1
             where organization_id = ${ctx.actor.orgId} and id = ${lease.id}`.execute(ctx.trx);
@@ -120,23 +121,23 @@ export async function prepareSettlement(
   ctx: CommandContext,
   input: { leaseId: string; fees: readonly SettlementFee[]; deductions?: readonly SettlementDeduction[] },
 ): Promise<SettlementSummary> {
-  if (!UUID.test(input.leaseId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy hợp đồng");
+  if (!UUID.test(input.leaseId)) throw new CommandError("NOT_FOUND", 404, t("lease.not_found"));
   const l = await sql<{ id: string; property_id: string; status: LeaseStatus }>`
     select id, property_id, status from leases where organization_id = ${ctx.actor.orgId} and id = ${input.leaseId}`.execute(
     ctx.trx,
   );
   const lease = l.rows[0];
-  if (!lease) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy hợp đồng");
+  if (!lease) throw new CommandError("NOT_FOUND", 404, t("lease.not_found"));
   const authz = authorize(ctx.actor, "lease.prepare_settlement", { propertyId: lease.property_id });
   if (!["yes", "request"].includes(authz.grant))
-    throw new CommandError("FORBIDDEN", 403, "Không có quyền lập quyết toán");
+    throw new CommandError("FORBIDDEN", 403, t("lease.settlement_create_forbidden"));
   const moveOut =
     await sql`select 1 from handovers where organization_id = ${ctx.actor.orgId} and lease_id = ${lease.id}
                             and kind = 'move_out' and confirmed_at is not null`.execute(ctx.trx);
   if (moveOut.rows.length === 0)
-    throw new CommandError("HANDOVER_REQUIRED", 409, "Cần biên bản bàn giao trả phòng trước.");
+    throw new CommandError("HANDOVER_REQUIRED", 409, t("lease.settlement_handover_required"));
   if (lease.status !== "settling") {
-    throw new CommandError("INVALID_TRANSITION", 409, "Chỉ lập quyết toán khi hợp đồng đang thanh lý", {
+    throw new CommandError("INVALID_TRANSITION", 409, t("lease.settlement_status_required"), {
       extensions: { from: lease.status },
     });
   }
@@ -152,24 +153,19 @@ export async function prepareSettlement(
     where l.organization_id = ${ctx.actor.orgId} and l.id = ${lease.id}`.execute(ctx.trx);
   const fp = finalPeriod.rows[0];
   if (fp?.uses_billing && !(fp.status === "issued" || fp.status === "locked")) {
-    throw new CommandError(
-      "FINAL_PERIOD_NOT_ISSUED",
-      409,
-      "Cần phát hành kỳ thu có ngày trả phòng trước khi quyết toán.",
-      {
-        extensions: { items: [{ billing_period_id: fp.id, status: fp.status }] },
-      },
-    );
+    throw new CommandError("FINAL_PERIOD_NOT_ISSUED", 409, t("lease.settlement_period_required"), {
+      extensions: { items: [{ billing_period_id: fp.id, status: fp.status }] },
+    });
   }
-  if (input.fees.length > 20) throw fieldError("fees", "TOO_MANY", "Tối đa 20 khoản phí");
+  if (input.fees.length > 20) throw fieldError("fees", "TOO_MANY", t("lease.settlement_fees_max"));
   const fileIds: string[] = [];
   input.fees.forEach((f, i) => {
     if (!Number.isSafeInteger(f.amount) || f.amount <= 0)
-      throw fieldError(`fees[${i}].amount`, "INVALID", "Phí là số nguyên đồng dương");
+      throw fieldError(`fees[${i}].amount`, "INVALID", t("lease.settlement_fee_amount_invalid"));
     if (!f.reason.trim() || f.reason.length > 500)
-      throw fieldError(`fees[${i}].reason`, "REQUIRED", "Phí cần lý do (≤ 500 ký tự)");
+      throw fieldError(`fees[${i}].reason`, "REQUIRED", t("lease.settlement_fee_reason_required"));
     for (const [j, id] of (f.fileIds ?? []).entries()) {
-      if (!UUID.test(id)) throw fieldError(`fees[${i}].file_ids[${j}]`, "INVALID", "Ảnh không hợp lệ");
+      if (!UUID.test(id)) throw fieldError(`fees[${i}].file_ids[${j}]`, "INVALID", t("common.photo_invalid"));
       fileIds.push(id);
     }
   });
@@ -181,10 +177,10 @@ export async function prepareSettlement(
       ctx.trx,
     );
     if (f.rows.length !== new Set(fileIds).size)
-      throw fieldError("fees", "FILE_NOT_FOUND", "Ảnh chứng cứ không tồn tại");
+      throw fieldError("fees", "FILE_NOT_FOUND", t("lease.settlement_evidence_missing"));
   }
   const feesTotal = input.fees.reduce((s, f) => s + f.amount, 0);
-  if (feesTotal > MAX) throw fieldError("fees", "TOO_LARGE", "Tổng phí quá lớn");
+  if (feesTotal > MAX) throw fieldError("fees", "TOO_LARGE", t("lease.settlement_fees_total_too_large"));
   const deposit = await depositOf(ctx, lease.id, false);
   const depositBalance = deposit?.balance ?? 0;
   const invoices = await linkedOpenInvoices(ctx, lease.id, false);
@@ -194,7 +190,7 @@ export async function prepareSettlement(
     ? input.deductions.map((d) => ({ invoiceId: d.invoiceId ?? null, amount: d.amount, reason: d.reason }))
     : defaultDeductions(depositBalance, invoices, feesTotal).map((d) => ({
         ...d,
-        reason: "Đối trừ cọc khi thanh lý",
+        reason: t("lease.settlement_default_deduction_reason"),
       }));
   const perInvoice = new Map<string, number>();
   let feeDeducted = 0;
@@ -202,32 +198,38 @@ export async function prepareSettlement(
   deductions.forEach((d, i) => {
     const field = `deductions[${i}].amount`;
     if (!Number.isSafeInteger(d.amount) || d.amount <= 0)
-      throw fieldError(field, "INVALID", "Khấu trừ là số nguyên đồng dương");
-    if (!d.reason.trim()) throw fieldError(`deductions[${i}].reason`, "REQUIRED", "Khấu trừ cần lý do");
+      throw fieldError(field, "INVALID", t("lease.settlement_deduction_amount_invalid"));
+    if (!d.reason.trim())
+      throw fieldError(
+        `deductions[${i}].reason`,
+        "REQUIRED",
+        t("lease.settlement_deduction_reason_required"),
+      );
     total += d.amount;
     if (d.invoiceId === null) {
       feeDeducted += d.amount;
-      if (feeDeducted > feesTotal) throw fieldError(field, "EXCEEDS_OPEN_AR", "Khấu trừ vượt phí phát sinh");
+      if (feeDeducted > feesTotal)
+        throw fieldError(field, "EXCEEDS_OPEN_AR", t("lease.settlement_deduction_exceeds_fees"));
     } else {
       const inv = invoices.find((x) => x.id === d.invoiceId);
       if (!inv)
-        throw fieldError(
-          `deductions[${i}].invoice_id`,
-          "NOT_LINKED",
-          "Phiếu không thuộc hợp đồng hoặc đã tất toán",
-        );
+        throw fieldError(`deductions[${i}].invoice_id`, "NOT_LINKED", t("lease.settlement_invoice_invalid"));
       const used = (perInvoice.get(inv.id) ?? 0) + d.amount;
       if (used > inv.open) {
         throw fieldError(
           field,
           "EXCEEDS_OPEN_AR",
-          `Khấu trừ vượt AR còn mở ${inv.open} của phiếu ${inv.number}`,
+          t("lease.settlement_deduction_exceeds_open", { open: inv.open, number: inv.number }),
         );
       }
       perInvoice.set(inv.id, used);
     }
     if (total > depositBalance)
-      throw fieldError(field, "EXCEEDS_DEPOSIT", `Khấu trừ vượt cọc còn giữ ${depositBalance}`);
+      throw fieldError(
+        field,
+        "EXCEEDS_DEPOSIT",
+        t("lease.settlement_deduction_exceeds_deposit", { depositBalance }),
+      );
   });
   const refundAmount = depositBalance - total;
   const id = randomUUID();
@@ -291,7 +293,8 @@ export async function approveSettlement(
     refund?: { method: "cash" } | { method: "bank_transfer"; receivingAccountId: string };
   },
 ): Promise<{ feeInvoiceId: string | null; deductionEntryId: string | null; refundEntryId: string | null }> {
-  if (!UUID.test(input.settlementId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy quyết toán");
+  if (!UUID.test(input.settlementId))
+    throw new CommandError("NOT_FOUND", 404, t("lease.settlement_not_found"));
   const read = (lock: boolean) =>
     sql<SettlementRow>`
       select id, property_id, lease_id, status, deposit_balance, outstanding_ar, fees, deductions, refund_amount, prepared_by
@@ -306,28 +309,28 @@ export async function approveSettlement(
       amount: Math.max(total, Number(row.refund_amount)),
     });
     if (authz.grant !== "yes" && authz.grant !== "limit")
-      throw new CommandError("FORBIDDEN", 403, "Không có quyền duyệt quyết toán");
+      throw new CommandError("FORBIDDEN", 403, t("lease.settlement_approve_forbidden"));
     if (row.prepared_by === ctx.actor.membershipId) {
-      throw new CommandError("SELF_APPROVAL_FORBIDDEN", 403, "Bạn không thể tự duyệt chứng từ mình lập.");
+      throw new CommandError("SELF_APPROVAL_FORBIDDEN", 403, t("lease.settlement_self_approve"));
     }
     return total;
   };
   const seen = (await read(false)).rows[0];
-  if (!seen) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy quyết toán");
+  if (!seen) throw new CommandError("NOT_FOUND", 404, t("lease.settlement_not_found"));
   check(seen);
   const s = (await read(true)).rows[0] as SettlementRow;
   const deductionsTotal = check(s);
-  if (s.status !== "prepared") throw new CommandError("INVALID_TRANSITION", 409, "Quyết toán đã duyệt");
+  if (s.status !== "prepared")
+    throw new CommandError("INVALID_TRANSITION", 409, t("lease.settlement_already_approved"));
   const lease = await lockLease(ctx, s.lease_id, "lease.manage");
   if (lease.status !== "settling") {
-    throw new CommandError("INVALID_TRANSITION", 409, "Hợp đồng không ở trạng thái thanh lý", {
+    throw new CommandError("INVALID_TRANSITION", 409, t("lease.settlement_not_terminating"), {
       extensions: { from: lease.status },
     });
   }
   const deposit = await depositOf(ctx, lease.id, true);
   const invoices = await linkedOpenInvoices(ctx, lease.id, true);
-  const stale = () =>
-    new CommandError("INVALID_TRANSITION", 409, "Số liệu cọc/công nợ đã đổi từ lúc lập — lập lại quyết toán");
+  const stale = () => new CommandError("INVALID_TRANSITION", 409, t("lease.settlement_stale"));
   if ((deposit?.balance ?? 0) !== Number(s.deposit_balance)) throw stale();
   // Nợ của hợp đồng đổi (phiếu mới phát hành, khách trả bớt) ⇒ khấu trừ/hoàn đã tính sai — lập lại (review lát 2 🔴1).
   if (invoices.reduce((sum, i) => sum + i.open, 0) !== Number(s.outstanding_ar)) throw stale();
@@ -451,7 +454,7 @@ export async function approveSettlement(
   if (refundAmount > 0) {
     if (!deposit) throw stale();
     if (!input.refund)
-      throw fieldError("refund.method", "REQUIRED", "Chọn cách hoàn cọc (tiền mặt/chuyển khoản)");
+      throw fieldError("refund.method", "REQUIRED", t("lease.settlement_refund_method_required"));
     let payout:
       | { account: "CASH"; debit: 0; credit: number; shiftId: string }
       | {
@@ -462,7 +465,7 @@ export async function approveSettlement(
         };
     if (input.refund.method === "cash") {
       const shiftId = await openShiftOf(ctx.trx, ctx.actor.orgId, ctx.actor.membershipId, lease.property_id);
-      if (!shiftId) throw new CommandError("SHIFT_NOT_OPEN", 409, "Mở ca trước khi chi tiền mặt");
+      if (!shiftId) throw new CommandError("SHIFT_NOT_OPEN", 409, t("common.shift_required_cash_out"));
       payout = { account: "CASH", debit: 0, credit: refundAmount, shiftId };
     } else {
       const acct = input.refund.receivingAccountId;
@@ -471,7 +474,11 @@ export async function approveSettlement(
                      and property_id = ${lease.property_id} and active`.execute(ctx.trx)
         : { rows: [] };
       if (ok.rows.length === 0)
-        throw fieldError("refund.receiving_account_id", "NOT_FOUND", "Tài khoản chi không thuộc cơ sở");
+        throw fieldError(
+          "refund.receiving_account_id",
+          "NOT_FOUND",
+          t("lease.settlement_payout_account_other_property"),
+        );
       payout = { account: "BANK", debit: 0, credit: refundAmount, receivingAccountId: acct };
     }
     refundEntryId = await postEntry(ctx.trx, {
@@ -527,7 +534,7 @@ export async function closeLease(
     await sql`select 1 from lease_settlements where organization_id = ${ctx.actor.orgId} and lease_id = ${lease.id}
                       and status = 'approved'`.execute(ctx.trx);
   if (s.rows.length === 0)
-    throw new CommandError("SETTLEMENT_REQUIRED", 409, "Cần duyệt quyết toán trước khi đóng hợp đồng.");
+    throw new CommandError("SETTLEMENT_REQUIRED", 409, t("pipeline.settlement_required"));
   const m = await sql<{ moved_out_on: string }>`
     select moved_out_on::text from leases where organization_id = ${ctx.actor.orgId} and id = ${lease.id}`.execute(
     ctx.trx,

@@ -6,6 +6,7 @@ import { authorize, keepIfUndefined, minutesToMs } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/index.ts";
 import { createCleaningTask } from "../housekeeping/index.ts";
+import { t } from "../i18n.ts";
 import { type CommandContext, CommandError } from "../pipeline/index.ts";
 import { type ExceptionType, insertExceptionOutbox, openException } from "./exceptions.ts";
 
@@ -17,7 +18,7 @@ export interface Interval {
 
 function rangeLiteral(i: Interval): string {
   if (i.end && i.end.getTime() <= i.start.getTime()) {
-    throw new CommandError("VALIDATION_FAILED", 422, "Thời điểm kết thúc phải sau thời điểm bắt đầu");
+    throw new CommandError("VALIDATION_FAILED", 422, t("inventory.end_after_start"));
   }
   return `[${i.start.toISOString()},${i.end ? i.end.toISOString() : ""})`;
 }
@@ -37,7 +38,7 @@ export async function lockUnit(
     trx,
   );
   const u = r.rows[0];
-  if (!u || u.archived_at) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phòng");
+  if (!u || u.archived_at) throw new CommandError("NOT_FOUND", 404, t("common.unit_not_found"));
   return u;
 }
 
@@ -97,12 +98,12 @@ export async function assertNoOpenOverstay(
       and a.unit_id = ${unitId} and a.active
       ${exceptSourceId ? sql`and a.source_id is distinct from ${exceptSourceId}` : sql``}
     limit 1`.execute(trx);
-  if (r.rows[0]) throw new CommandError("ROOM_OCCUPIED", 409, "Phòng vẫn còn khách chưa trả.");
+  if (r.rows[0]) throw new CommandError("ROOM_OCCUPIED", 409, t("stay.stays.room_busy"));
 }
 
 function translateOverlap(err: unknown): never {
   if ((err as { code?: string }).code === "23P01") {
-    throw new CommandError("ROOM_UNAVAILABLE", 409, "Phòng đã có người đặt trong khoảng thời gian này");
+    throw new CommandError("ROOM_UNAVAILABLE", 409, t("pipeline.room_unavailable"));
   }
   throw err;
 }
@@ -145,13 +146,13 @@ export async function createHold(
     propertyId: unit.property_id,
   });
   if (unit.availability !== "active")
-    throw new CommandError("UNIT_OUT_OF_SERVICE", 409, "Phòng đang ngừng khai thác");
+    throw new CommandError("UNIT_OUT_OF_SERVICE", 409, t("stay.stays.room_out_of_service"));
   await assertNoOpenOverstay(ctx.trx, ctx.actor.orgId, input.unitId);
   // Hợp đồng không thời hạn được giữ chỗ mở cuối (SPEC-lease S-023); booking luôn có điểm cuối.
   if (!input.during.end && input.sourceType !== "lease")
-    throw new CommandError("VALIDATION_FAILED", 422, "Giữ chỗ phải có thời điểm kết thúc");
+    throw new CommandError("VALIDATION_FAILED", 422, t("inventory.hold_end_required"));
   if (!Number.isInteger(input.ttlMinutes) || input.ttlMinutes <= 0) {
-    throw new CommandError("VALIDATION_FAILED", 422, "Thời hạn giữ chỗ không hợp lệ");
+    throw new CommandError("VALIDATION_FAILED", 422, t("inventory.hold_ttl_invalid"));
   }
   const range = rangeLiteral(input.during);
   const released = await releaseExpiredOverlapping(ctx.trx, ctx.actor.orgId, input.unitId, range, now);
@@ -177,7 +178,7 @@ export async function createHold(
         range,
         now,
       );
-      throw new CommandError("ROOM_UNAVAILABLE", 409, "Phòng đã có người đặt trong khoảng thời gian này", {
+      throw new CommandError("ROOM_UNAVAILABLE", 409, t("pipeline.room_unavailable"), {
         extensions: { alternatives },
       });
     }
@@ -248,7 +249,7 @@ export async function confirmHold(
     ctx.trx,
   );
   const found = pre.rows[0];
-  if (!found) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy giữ chỗ");
+  if (!found) throw new CommandError("NOT_FOUND", 404, t("inventory.hold_not_found"));
   authorize(ctx.actor, kind === "lease" ? "lease.manage" : "reservation.manage", {
     propertyId: found.property_id,
   });
@@ -259,11 +260,11 @@ export async function confirmHold(
     ctx.trx,
   );
   const row = r.rows[0];
-  if (!row) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy giữ chỗ");
+  if (!row) throw new CommandError("NOT_FOUND", 404, t("inventory.hold_not_found"));
   if (row.expires_at.getTime() <= now.getTime()) {
     // Lệnh chính rollback nên việc nhả hold (đúng một lần, kèm audit như job worker — INV-I3) ghi ở transaction riêng.
     const { orgId } = ctx.actor;
-    throw new CommandError("HOLD_EXPIRED", 409, "Giữ chỗ đã hết hạn", {
+    throw new CommandError("HOLD_EXPIRED", 409, t("inventory.hold_expired"), {
       persist: async (trx, audit) => {
         const released = await sql`
           update allocations set active = false, deactivated_at = ${now}, deactivated_reason = 'expired'
@@ -282,7 +283,7 @@ export async function confirmHold(
     });
   }
   if (unit.availability !== "active")
-    throw new CommandError("UNIT_OUT_OF_SERVICE", 409, "Phòng đang ngừng khai thác");
+    throw new CommandError("UNIT_OUT_OF_SERVICE", 409, t("stay.stays.room_out_of_service"));
   try {
     await sql`savepoint confirm_hold`.execute(ctx.trx);
     await sql`update allocations set kind = ${kind}, expires_at = null
@@ -315,14 +316,15 @@ export async function moveAllocation(
   ctx: CommandContext,
   input: { allocationId: string; toUnitId: string; at: Date; reason: string },
 ) {
-  if (!input.reason.trim()) throw new CommandError("VALIDATION_FAILED", 422, "Cần ghi lý do chuyển phòng");
+  if (!input.reason.trim())
+    throw new CommandError("VALIDATION_FAILED", 422, t("inventory.move_reason_required"));
   // Khoá cả phòng nguồn lẫn phòng đích theo id tăng dần (SPEC-inventory) — hai lệnh chuyển ngược chiều không thể khoá chéo.
   const src = await sql<{ unit_id: string }>`
     select unit_id from allocations where organization_id = ${ctx.actor.orgId} and id = ${input.allocationId} and active`.execute(
     ctx.trx,
   );
   const srcUnit = src.rows[0]?.unit_id;
-  if (!srcUnit) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phân bổ phòng");
+  if (!srcUnit) throw new CommandError("NOT_FOUND", 404, t("inventory.allocation_not_found"));
   for (const unitId of [...new Set([srcUnit, input.toUnitId])].sort()) {
     await sql`select 1 from units where organization_id = ${ctx.actor.orgId} and id = ${unitId} for update`.execute(
       ctx.trx,
@@ -342,18 +344,18 @@ export async function moveAllocation(
     ctx.trx,
   );
   const a = r.rows[0];
-  if (!a) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phân bổ phòng");
+  if (!a) throw new CommandError("NOT_FOUND", 404, t("inventory.allocation_not_found"));
   authorize(ctx.actor, "stay.move", { propertyId: a.property_id });
   if (a.kind === "hold" || a.kind === "block")
-    throw new CommandError("INVALID_TRANSITION", 409, "Chỉ chuyển lượt ở/hợp đồng");
+    throw new CommandError("INVALID_TRANSITION", 409, t("inventory.move_source_invalid"));
   if (input.at.getTime() < a.lo.getTime() || (a.hi && input.at.getTime() >= a.hi.getTime())) {
-    throw new CommandError("VALIDATION_FAILED", 422, "Thời điểm chuyển phải nằm trong khoảng đang ở");
+    throw new CommandError("VALIDATION_FAILED", 422, t("inventory.move_time_out_of_range"));
   }
   const target = await lockUnit(ctx.trx, ctx.actor.orgId, input.toUnitId);
   if (target.property_id !== a.property_id)
-    throw new CommandError("VALIDATION_FAILED", 422, "Chỉ chuyển trong cùng cơ sở");
+    throw new CommandError("VALIDATION_FAILED", 422, t("inventory.move_same_property"));
   if (target.availability !== "active")
-    throw new CommandError("UNIT_OUT_OF_SERVICE", 409, "Phòng đang ngừng khai thác");
+    throw new CommandError("UNIT_OUT_OF_SERVICE", 409, t("stay.stays.room_out_of_service"));
   await assertNoOpenOverstay(ctx.trx, ctx.actor.orgId, input.toUnitId);
   const newId = randomUUID();
   try {
@@ -411,7 +413,7 @@ export async function proposeBlock(
 ) {
   const unit = await lockUnit(ctx.trx, ctx.actor.orgId, input.unitId);
   authorize(ctx.actor, "block.propose", { propertyId: unit.property_id });
-  if (!input.period.end) throw new CommandError("VALIDATION_FAILED", 422, "Block phải có thời điểm kết thúc");
+  if (!input.period.end) throw new CommandError("VALIDATION_FAILED", 422, t("inventory.block_end_required"));
   const id = randomUUID();
   await sql`
     insert into blocks (id, organization_id, property_id, unit_id, period, reason, requested_by)
@@ -446,10 +448,10 @@ export async function approveBlock(ctx: CommandContext, blockId: string) {
     select property_id, unit_id, period::text as period, status, requested_by from blocks
     where organization_id = ${ctx.actor.orgId} and id = ${blockId} for update`.execute(ctx.trx);
   const b = r.rows[0];
-  if (!b) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy block");
+  if (!b) throw new CommandError("NOT_FOUND", 404, t("inventory.block_not_found"));
   authorize(ctx.actor, "block.approve", { propertyId: b.property_id });
   if (b.status !== "requested")
-    throw new CommandError("INVALID_TRANSITION", 409, "Block không ở trạng thái chờ duyệt");
+    throw new CommandError("INVALID_TRANSITION", 409, t("inventory.block_not_pending"));
   try {
     await sql`savepoint block_alloc`.execute(ctx.trx);
     await sql`
@@ -470,22 +472,17 @@ export async function approveBlock(ctx: CommandContext, blockId: string) {
         select kind, source_type, source_id, lower(during) as lo, upper(during) as hi from allocations
         where organization_id = ${ctx.actor.orgId} and unit_id = ${b.unit_id} and active and during && ${b.period}::tstzrange
         order by lower(during), id`.execute(ctx.trx);
-      throw new CommandError(
-        "BLOCK_CONFLICT",
-        409,
-        "Khoảng block đụng khách/hợp đồng đã có — cần tái bố trí trước",
-        {
-          extensions: {
-            items: c.rows.map((x) => ({
-              kind: x.kind,
-              source_type: x.source_type,
-              source_id: x.source_id,
-              start: x.lo.toISOString(),
-              end: x.hi ? x.hi.toISOString() : null,
-            })),
-          },
+      throw new CommandError("BLOCK_CONFLICT", 409, t("inventory.block_conflict"), {
+        extensions: {
+          items: c.rows.map((x) => ({
+            kind: x.kind,
+            source_type: x.source_type,
+            source_id: x.source_id,
+            start: x.lo.toISOString(),
+            end: x.hi ? x.hi.toISOString() : null,
+          })),
         },
-      );
+      });
     }
     throw err;
   }
@@ -520,7 +517,7 @@ export async function unitStatus(trx: Transaction<unknown>, orgId: string, unitI
     where u.organization_id = ${orgId} and u.id = ${unitId}
     group by u.id`.execute(trx);
   const u = r.rows[0];
-  if (!u) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phòng");
+  if (!u) throw new CommandError("NOT_FOUND", 404, t("common.unit_not_found"));
   const kinds = u.kinds ?? [];
   const occupancy: Occupancy = kinds.includes("block")
     ? "blocked"
@@ -549,17 +546,17 @@ export async function getUnitStatus(
   readyForArrival: boolean;
   sellable: boolean;
 }> {
-  if (!/^[0-9a-f-]{36}$/i.test(unitId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phòng");
+  if (!/^[0-9a-f-]{36}$/i.test(unitId)) throw new CommandError("NOT_FOUND", 404, t("common.unit_not_found"));
   return withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
     const p = await sql<{ property_id: string; require_inspected: boolean }>`
       select u.property_id, p.require_inspected from units u join properties p on p.organization_id = u.organization_id and p.id = u.property_id
       where u.organization_id = ${actor.orgId} and u.id = ${unitId}`.execute(trx);
     const row = p.rows[0];
-    if (!row) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phòng");
+    if (!row) throw new CommandError("NOT_FOUND", 404, t("common.unit_not_found"));
     try {
       authorize(actor, "calendar.read_status", { propertyId: row.property_id });
     } catch {
-      throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phòng");
+      throw new CommandError("NOT_FOUND", 404, t("common.unit_not_found"));
     }
     const s = await unitStatus(trx, actor.orgId, unitId, at);
     const clean = s.housekeeping === "inspected" || (!row.require_inspected && s.housekeeping === "clean");
@@ -587,10 +584,10 @@ export async function endBlock(
     ctx.trx,
   );
   const b = r.rows[0];
-  if (!b) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy block");
+  if (!b) throw new CommandError("NOT_FOUND", 404, t("inventory.block_not_found"));
   authorize(ctx.actor, "block.approve", { propertyId: b.property_id });
   if (b.status !== "approved")
-    throw new CommandError("INVALID_TRANSITION", 409, "Block không ở trạng thái đang chặn");
+    throw new CommandError("INVALID_TRANSITION", 409, t("inventory.block_not_active"));
   const a = await sql<{ id: string; lo: Date; hi: Date }>`
     select id, lower(during) as lo, upper(during) as hi from allocations
     where organization_id = ${ctx.actor.orgId} and kind = 'block' and source_id = ${blockId} and active for update`.execute(
@@ -676,7 +673,7 @@ export async function setUnitAvailability(
   authorize(ctx.actor, "unit.set_availability", { propertyId: unit.property_id });
   const reason = input.reason?.trim() ?? "";
   if (input.availability === "out_of_service" && reason.length === 0)
-    throw new CommandError("VALIDATION_FAILED", 422, "Cần ghi lý do ngừng khai thác", {
+    throw new CommandError("VALIDATION_FAILED", 422, t("inventory.out_of_service_reason_required"), {
       extensions: { errors: [{ path: "reason", field: "reason", code: "required" }] },
     });
   const before = await sql<{ availability: string; availability_reason: string | null }>`
@@ -759,14 +756,14 @@ export async function resizeAllocation(
 ): Promise<{ allocationId: string; start: string; end: string | null }> {
   const now = input.now ?? new Date();
   if (input.start === undefined && input.end === undefined)
-    throw new CommandError("VALIDATION_FAILED", 422, "Cần ít nhất start hoặc end");
+    throw new CommandError("VALIDATION_FAILED", 422, t("inventory.allocation_edit_empty"));
   const { orgId } = ctx.actor;
   const src = await sql<{ unit_id: string }>`
     select unit_id from allocations where organization_id = ${orgId} and id = ${input.allocationId} and active`.execute(
     ctx.trx,
   );
   const unitId = src.rows[0]?.unit_id;
-  if (!unitId) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phân bổ phòng");
+  if (!unitId) throw new CommandError("NOT_FOUND", 404, t("inventory.allocation_not_found"));
   const unit = await lockUnit(ctx.trx, orgId, unitId);
   const r = await sql<{
     kind: string;
@@ -778,7 +775,7 @@ export async function resizeAllocation(
     select kind, source_type, expires_at, lower(during) as lo, upper(during) as hi from allocations
     where organization_id = ${orgId} and id = ${input.allocationId} and active for update`.execute(ctx.trx);
   const a = r.rows[0];
-  if (!a) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phân bổ phòng");
+  if (!a) throw new CommandError("NOT_FOUND", 404, t("inventory.allocation_not_found"));
   authorize(
     ctx.actor,
     a.kind === "lease"
@@ -791,15 +788,11 @@ export async function resizeAllocation(
     { propertyId: unit.property_id },
   );
   if (a.kind === "hold" && a.expires_at && a.expires_at.getTime() <= now.getTime())
-    throw new CommandError("HOLD_EXPIRED", 409, "Giữ chỗ đã hết hạn");
+    throw new CommandError("HOLD_EXPIRED", 409, t("inventory.hold_expired"));
   const start = input.start ?? a.lo;
   const end = keepIfUndefined(input.end, a.hi);
   if (end === null && a.kind !== "lease")
-    throw new CommandError(
-      "VALIDATION_FAILED",
-      422,
-      "Chỉ hợp đồng được để khoảng mở (không có thời điểm kết thúc)",
-    );
+    throw new CommandError("VALIDATION_FAILED", 422, t("inventory.open_ended_lease_only"));
   const range = rangeLiteral({ start, end });
   await recordExpired(
     ctx,
@@ -821,7 +814,7 @@ export async function resizeAllocation(
       order by lower(during), id`.execute(ctx.trx);
     const confirmed = c.rows.find((x) => x.kind === "stay" || x.kind === "lease");
     const { correlationId, commandId } = ctx;
-    throw new CommandError("ROOM_UNAVAILABLE", 409, "Phòng đã có người đặt trong khoảng thời gian này", {
+    throw new CommandError("ROOM_UNAVAILABLE", 409, t("pipeline.room_unavailable"), {
       // Transaction của lệnh đã rollback: ngoại lệ ghi ở transaction riêng (đúng một lần cho mỗi Idempotency-Key).
       ...(confirmed
         ? {

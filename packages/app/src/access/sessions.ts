@@ -5,6 +5,7 @@
 import { createHash } from "node:crypto";
 import { AuthzError, authorize } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
+import { t } from "../i18n.ts";
 import { type CommandContext, CommandError } from "../pipeline/index.ts";
 import { authorizeOrAudit } from "./denied.ts";
 
@@ -78,7 +79,7 @@ export async function revokeAllSessions(
   if (!self) {
     const id = input.membershipId as string;
     authorizeOrAudit(() => authorize(ctx.actor, "session.revoke_other", {}), denied);
-    if (!UUID.test(id)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy thành viên");
+    if (!UUID.test(id)) throw new CommandError("NOT_FOUND", 404, t("access.member_not_found"));
     const m = await sql<{ auth_user_id: string | null; role: string; shared: boolean }>`
       select m.auth_user_id, m.role,
              (m.all_properties or exists (select 1 from property_scopes ps
@@ -86,27 +87,23 @@ export async function revokeAllSessions(
                   and (${ctx.actor.allProperties} or ps.property_id = any(${ctx.actor.propertyIds}::uuid[])))) as shared
       from memberships m where m.organization_id = ${ctx.actor.orgId} and m.id = ${id}`.execute(ctx.trx);
     const target = m.rows[0];
-    if (!target) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy thành viên");
+    if (!target) throw new CommandError("NOT_FOUND", 404, t("access.member_not_found"));
     if (ctx.actor.role === "manager") {
-      if (!target.shared) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy thành viên");
+      if (!target.shared) throw new CommandError("NOT_FOUND", 404, t("access.member_not_found"));
       authorizeOrAudit(() => {
         if (!MANAGER_REVOKABLE.has(target.role))
-          throw new AuthzError("FORBIDDEN", "Quản lý chỉ thu hồi phiên của nhân viên cấp thấp");
+          throw new AuthzError("FORBIDDEN", t("access.sessions_revoke_manager_scope"));
       }, denied);
     }
-    if (!target.auth_user_id)
-      throw new CommandError("INVALID_TRANSITION", 409, "Thành viên chưa có tài khoản đăng nhập");
+    if (!target.auth_user_id) throw new CommandError("INVALID_TRANSITION", 409, t("access.member_no_login"));
     const elsewhere = await sql<{ n: number }>`
       select app.memberships_elsewhere(${target.auth_user_id}::uuid, ${ctx.actor.orgId}::uuid) as n`.execute(
       ctx.trx,
     );
     if ((elsewhere.rows[0]?.n ?? 0) > 0)
-      throw new CommandError(
-        "FORBIDDEN",
-        403,
-        "Tài khoản này còn dùng ở tổ chức khác — chỉ chính người đó hoặc hỗ trợ nền tảng thu hồi phiên.",
-        { extensions: { items: [{ recovery: "self_or_platform_support" }] } },
-      );
+      throw new CommandError("FORBIDDEN", 403, t("access.sessions_revoke_shared_account"), {
+        extensions: { items: [{ recovery: "self_or_platform_support" }] },
+      });
     userId = target.auth_user_id;
     membershipId = id.toLowerCase();
   }

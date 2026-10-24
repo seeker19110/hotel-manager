@@ -7,13 +7,14 @@
 import { randomUUID } from "node:crypto";
 import { authorize } from "@hm/domain";
 import { sql, type Transaction } from "kysely";
+import { t } from "../i18n.ts";
 import { type CommandContext, CommandError } from "../pipeline/index.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function assertCash(n: number, field: string): void {
   if (!Number.isSafeInteger(n) || n < 0) {
-    throw new CommandError("VALIDATION_FAILED", 422, `${field} phải là số nguyên đồng không âm`);
+    throw new CommandError("VALIDATION_FAILED", 422, t("shifts.cash_invalid", { field }));
   }
 }
 
@@ -37,7 +38,7 @@ async function lockShift(
   shiftId: string,
   check: (row: ShiftRow) => void,
 ): Promise<ShiftRow> {
-  if (!UUID.test(shiftId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy ca");
+  if (!UUID.test(shiftId)) throw new CommandError("NOT_FOUND", 404, t("shifts.not_found"));
   const read = (lock: boolean) =>
     sql<ShiftRow>`
     select s.id, s.property_id, s.opened_by, m.person_id as opener_person_id, s.opening_cash, s.status, s.counted_cash,
@@ -46,10 +47,10 @@ async function lockShift(
     where s.organization_id = ${ctx.actor.orgId} and s.id = ${shiftId}
     ${lock ? sql`for update of s` : sql``}`.execute(ctx.trx);
   const seen = (await read(false)).rows[0];
-  if (!seen) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy ca");
+  if (!seen) throw new CommandError("NOT_FOUND", 404, t("shifts.not_found"));
   check(seen);
   const row = (await read(true)).rows[0];
-  if (!row) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy ca");
+  if (!row) throw new CommandError("NOT_FOUND", 404, t("shifts.not_found"));
   return row;
 }
 
@@ -82,7 +83,7 @@ export async function expectedCash(
                      where l.organization_id = s.organization_id and l.shift_id = s.id and l.account = 'CASH'), 0) as net
     from shifts s where s.organization_id = ${orgId} and s.id = ${shiftId}`.execute(trx);
   const row = r.rows[0];
-  if (!row) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy ca");
+  if (!row) throw new CommandError("NOT_FOUND", 404, t("shifts.not_found"));
   return Number(row.opening) + Number(row.net);
 }
 
@@ -101,7 +102,7 @@ async function insertShift(
   } catch (err) {
     if ((err as { constraint?: string }).constraint === "uq_shifts_one_open") {
       await sql`rollback to savepoint shift_open`.execute(ctx.trx);
-      throw new CommandError("SHIFT_ALREADY_OPEN", 409, "Bạn đang có một ca chưa đóng");
+      throw new CommandError("SHIFT_ALREADY_OPEN", 409, t("shifts.already_open"));
     }
     throw err;
   }
@@ -120,9 +121,9 @@ export async function openShift(
   ctx: CommandContext,
   input: { propertyId: string; openingCash: number },
 ): Promise<{ shiftId: string }> {
-  assertCash(input.openingCash, "Tiền đầu ca");
+  assertCash(input.openingCash, t("shifts.label_opening_cash"));
   if (ctx.actor.role === "accountant") {
-    throw new CommandError("FORBIDDEN", 403, "Kế toán đóng/đối chiếu ca, không mở ca nhận tiền");
+    throw new CommandError("FORBIDDEN", 403, t("shifts.accountant_cannot_open"));
   }
   authorize(ctx.actor, "shift.open_close", {
     propertyId: input.propertyId,
@@ -136,21 +137,21 @@ export async function closeShift(
   ctx: CommandContext,
   input: { shiftId: string; countedCash: number },
 ): Promise<{ expectedCash: number; countedCash: number; difference: number; discrepancyId: string | null }> {
-  assertCash(input.countedCash, "Tiền đếm thực tế");
+  assertCash(input.countedCash, t("shifts.label_counted_cash"));
   const s = await lockShift(ctx, input.shiftId, (row) =>
     authorize(ctx.actor, "shift.open_close", {
       propertyId: row.property_id,
       subjectPersonId: row.opener_person_id,
     }),
   );
-  if (s.status !== "open") throw new CommandError("INVALID_TRANSITION", 409, "Ca không còn mở");
+  if (s.status !== "open") throw new CommandError("INVALID_TRANSITION", 409, t("shifts.not_open"));
   const pending = await sql<{ n: number }>`
     select count(*)::int as n from payments
     where organization_id = ${ctx.actor.orgId} and shift_id = ${s.id} and status = 'pending'`.execute(
     ctx.trx,
   );
   if ((pending.rows[0]?.n ?? 0) > 0) {
-    throw new CommandError("SHIFT_HAS_PENDING_PAYMENTS", 409, "Còn khoản tiền mặt chưa xác nhận trong ca");
+    throw new CommandError("SHIFT_HAS_PENDING_PAYMENTS", 409, t("shifts.unconfirmed_cash"));
   }
   const expected = await expectedCash(ctx.trx, ctx.actor.orgId, s.id);
   const difference = input.countedCash - expected;
@@ -190,17 +191,18 @@ export async function handoverShift(
     }),
   );
   if (s.status !== "closed" || s.handed_to !== null) {
-    throw new CommandError("INVALID_TRANSITION", 409, "Chỉ giao ca đã đóng và chưa giao");
+    throw new CommandError("INVALID_TRANSITION", 409, t("shifts.handover_closed_only"));
   }
   if (input.toMembershipId === s.opened_by) {
-    throw new CommandError("SELF_APPROVAL_FORBIDDEN", 403, "Không tự nhận ca của chính mình");
+    throw new CommandError("SELF_APPROVAL_FORBIDDEN", 403, t("shifts.self_handover"));
   }
-  if (!UUID.test(input.toMembershipId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy người nhận");
+  if (!UUID.test(input.toMembershipId))
+    throw new CommandError("NOT_FOUND", 404, t("shifts.recipient_not_found"));
   const to = await sql<{ id: string }>`
     select id from memberships
     where organization_id = ${ctx.actor.orgId} and id = ${input.toMembershipId} and status = 'active'
       and role in ('owner','manager','front_desk')`.execute(ctx.trx);
-  if (!to.rows[0]) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy người nhận");
+  if (!to.rows[0]) throw new CommandError("NOT_FOUND", 404, t("shifts.recipient_not_found"));
   await sql`
     update shifts set handed_to = ${input.toMembershipId}, version = version + 1
     where organization_id = ${ctx.actor.orgId} and id = ${s.id}`.execute(ctx.trx);
@@ -222,18 +224,18 @@ export async function receiveHandover(
   ctx: CommandContext,
   input: { shiftId: string; receivedCash: number },
 ): Promise<{ newShiftId: string; difference: number; discrepancyId: string | null }> {
-  assertCash(input.receivedCash, "Tiền nhận");
+  assertCash(input.receivedCash, t("shifts.label_received_cash"));
   const s = await lockShift(ctx, input.shiftId, (row) => {
     if (row.handed_to !== null && row.handed_to !== ctx.actor.membershipId) {
       throw new CommandError(
         row.opened_by === ctx.actor.membershipId ? "SELF_APPROVAL_FORBIDDEN" : "FORBIDDEN",
         403,
-        "Chỉ người được giao mới xác nhận nhận ca",
+        t("shifts.accept_recipient_only"),
       );
     }
   });
   if (s.status !== "closed" || s.handed_to === null) {
-    throw new CommandError("INVALID_TRANSITION", 409, "Ca không ở trạng thái chờ nhận");
+    throw new CommandError("INVALID_TRANSITION", 409, t("shifts.not_pending_accept"));
   }
   const declared = Number(s.counted_cash);
   const difference = input.receivedCash - declared;
@@ -275,16 +277,18 @@ export async function reassignDiscrepancy(
   input: { discrepancyId: string; responsibleMembershipId: string; reason: string },
 ): Promise<void> {
   if (!["owner", "manager"].includes(ctx.actor.role)) {
-    throw new CommandError("FORBIDDEN", 403, "Chỉ quản lý/chủ gán lại người chịu trách nhiệm");
+    throw new CommandError("FORBIDDEN", 403, t("shifts.reassign_forbidden"));
   }
-  if (!input.reason.trim()) throw new CommandError("VALIDATION_FAILED", 422, "Cần lý do");
+  if (!input.reason.trim())
+    throw new CommandError("VALIDATION_FAILED", 422, t("stay.reservation.reason_required"));
   const d = await sql<{ property_id: string; responsible_membership_id: string; status: string }>`
     select property_id, responsible_membership_id, status from shift_discrepancies
     where organization_id = ${ctx.actor.orgId} and id = ${input.discrepancyId} for update`.execute(ctx.trx);
   const row = d.rows[0];
-  if (!row) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy chênh lệch");
+  if (!row) throw new CommandError("NOT_FOUND", 404, t("shifts.discrepancy_not_found"));
   authorize(ctx.actor, "shift.open_close", { propertyId: row.property_id });
-  if (row.status !== "open") throw new CommandError("INVALID_TRANSITION", 409, "Chênh lệch đã xử lý");
+  if (row.status !== "open")
+    throw new CommandError("INVALID_TRANSITION", 409, t("shifts.discrepancy_resolved"));
   const target = await sql<{ id: string }>`
     select m.id from memberships m
     where m.organization_id = ${ctx.actor.orgId} and m.id = ${input.responsibleMembershipId} and m.status = 'active'
@@ -294,11 +298,7 @@ export async function reassignDiscrepancy(
     ctx.trx,
   );
   if (target.rows.length === 0) {
-    throw new CommandError(
-      "VALIDATION_FAILED",
-      422,
-      "Người được gán phải là nhân viên còn hiệu lực của cơ sở",
-    );
+    throw new CommandError("VALIDATION_FAILED", 422, t("shifts.assignee_invalid"));
   }
   await sql`
     update shift_discrepancies set responsible_membership_id = ${input.responsibleMembershipId}, version = version + 1
