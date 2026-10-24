@@ -9,6 +9,10 @@
 > `PM-SPEC-004` và `WF-SDD-003` (nền spec-coverage còn 26 S-NNN). **Tick kèm lưu ý để phiên chính xác nhận:** `DB-MODEL-004` (52 FK nhóm A thiếu index là ngoại lệ có lý do — D-035),
 > `UX-STATE-001` (không Storybook; loading bị D-032 miễn ở trang có route con động/notFound/redirect), `DB-PERF-001` (EXPLAIN không ANALYZE), `XC-GREEN-007` (còn `notifications`/`inbox`/`worker_heartbeats` chưa có job dọn, chờ DPIA).
 
+## Kết quả đợt 21 (T-2103, 2026-10-24; D-101, D-102)
+
+XC-I18N-001: `MessagesProvider`/`useMessages()` (D-101) cấp khoá `common.` cho hạ tầng client; phần đuôi ngoài `merge_risk_paths` hết chuỗi viết thẳng (787 khoá); baseline 1717 → 1552 / 103 tệp; bundle 278,11 kB. Còn: `apps/web/lib/format.ts` (74), màn trong `merge_risk_paths`, `packages/app`. Vẫn mở. MUST mở **90**.
+
 ## Kết quả đợt 20 (T-2003, 2026-10-23; D-100)
 
 XC-I18N-001: 14 tệp ngoài `merge_risk_paths` hết chuỗi viết thẳng (160 khoá mới, 637 khoá), baseline 1899 → 1717 / 158 tệp; bundle 286,06 kB. `apps/web/lib/format.ts` (74) được client import ⇒ cần thiết kế tách nhãn trước khi chuyển. Vẫn mở. MUST mở **90**.

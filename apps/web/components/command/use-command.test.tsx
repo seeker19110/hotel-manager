@@ -10,7 +10,11 @@ vi.mock("@serwist/turbopack/react", () => ({
   useSerwist: () => ({ serwist: null }),
 }));
 
-import { OFFLINE_TEXT, PENDING_TEXT, problemText, SERVER_ERROR_TEXT, useCommand } from "./use-command.ts";
+import { tm } from "../../lib/i18n-format.ts";
+import { commonMessages as cm, WithMessages } from "../testing/with-messages.tsx";
+import { problemText, useCommand } from "./use-command.ts";
+
+const SERVER_ERROR_TEXT = tm(cm, "common.command.server_error");
 
 const UNIT = "2f1b1f0e-6b1e-4a0e-8d54-0d3a1c8a9e11";
 const body = { unit_id: UNIT, kind: "cleaning" };
@@ -38,24 +42,26 @@ afterEach(() => {
 
 describe("problemText", () => {
   it("null → null; 5xx không lộ detail; mã tra cứu chỉ nhận ký tự an toàn", () => {
-    expect(problemText(null)).toBeNull();
-    expect(problemText({ code: "X", status: 500, detail: "bí mật nội bộ" })).toBe(SERVER_ERROR_TEXT);
-    expect(problemText({ code: "X", status: 503, correlation_id: "ab-12" })).toBe(
-      `${SERVER_ERROR_TEXT} Mã tra cứu: ab-12.`,
+    expect(problemText(cm, null)).toBeNull();
+    expect(problemText(cm, { code: "X", status: 500, detail: "bí mật nội bộ" })).toBe(SERVER_ERROR_TEXT);
+    expect(problemText(cm, { code: "X", status: 503, correlation_id: "ab-12" })).toBe(
+      "Hệ thống đang gặp lỗi, thao tác chưa thực hiện được. Vui lòng thử lại sau ít phút. Mã tra cứu: ab-12.",
     );
-    expect(problemText({ code: "X", status: 500, correlation_id: "<script>" })).toBe(SERVER_ERROR_TEXT);
+    expect(problemText(cm, { code: "X", status: 500, correlation_id: "<script>" })).toBe(SERVER_ERROR_TEXT);
   });
   it("4xx: ưu tiên detail, rồi title, rồi câu mặc định", () => {
-    expect(problemText({ code: "X", status: 422, detail: "d", title: "t" })).toBe("d");
-    expect(problemText({ code: "X", status: 422, title: "t" })).toBe("t");
-    expect(problemText({ code: "X", status: 422 })).toBe("Không thực hiện được. Vui lòng thử lại.");
+    expect(problemText(cm, { code: "X", status: 422, detail: "d", title: "t" })).toBe("d");
+    expect(problemText(cm, { code: "X", status: 422, title: "t" })).toBe("t");
+    expect(problemText(cm, { code: "X", status: 422 })).toBe("Không thực hiện được. Vui lòng thử lại.");
   });
 });
 
 describe("useCommand", () => {
   it("thành công: phase done, trả dữ liệu, một POST", async () => {
     fetchMock.mockResolvedValueOnce(json(200, { data: { task_id: "t1" } }));
-    const { result } = renderHook(() => useCommand<{ task_id: string }>("housekeeping/createTask"));
+    const { result } = renderHook(() => useCommand<{ task_id: string }>("housekeeping/createTask"), {
+      wrapper: WithMessages,
+    });
     expect(result.current.phase).toBe("idle");
     let r: unknown;
     await act(async () => {
@@ -67,7 +73,7 @@ describe("useCommand", () => {
   });
 
   it("thân sai schema: không gọi mạng, báo VALIDATION_FAILED theo trường", async () => {
-    const { result } = renderHook(() => useCommand("housekeeping/createTask"));
+    const { result } = renderHook(() => useCommand("housekeeping/createTask"), { wrapper: WithMessages });
     await act(async () => {
       await result.current.send({ unit_id: "không-phải-uuid", kind: "cleaning" });
     });
@@ -79,7 +85,7 @@ describe("useCommand", () => {
 
   it("bấm gửi hai lần lúc đang tải schema (nạp trễ): chỉ MỘT lệnh, một key", async () => {
     fetchMock.mockResolvedValue(json(200, { ok: true }));
-    const { result } = renderHook(() => useCommand("housekeeping/createTask"));
+    const { result } = renderHook(() => useCommand("housekeeping/createTask"), { wrapper: WithMessages });
     await act(async () => {
       await Promise.all([result.current.send(body), result.current.send(body)]);
     });
@@ -88,13 +94,16 @@ describe("useCommand", () => {
 
   it("mất mạng trình duyệt: không gửi, báo OFFLINE", async () => {
     vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
-    const { result } = renderHook(() => useCommand("housekeeping/createTask"));
+    const { result } = renderHook(() => useCommand("housekeeping/createTask"), { wrapper: WithMessages });
     await act(async () => {
       await result.current.send(body);
     });
     vi.restoreAllMocks();
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(result.current.problem).toMatchObject({ code: "OFFLINE", detail: OFFLINE_TEXT });
+    expect(result.current.problem).toMatchObject({
+      code: "OFFLINE",
+      detail: "Không có kết nối mạng. Thao tác chưa được gửi.",
+    });
     expect(result.current.phase).toBe("error");
   });
 
@@ -103,7 +112,7 @@ describe("useCommand", () => {
       .mockRejectedValueOnce(new TypeError("Failed to fetch"))
       .mockResolvedValueOnce(json(404, { code: "COMMAND_NOT_FOUND" }))
       .mockResolvedValueOnce(json(200, { data: { ok: true } }));
-    const { result } = renderHook(() => useCommand("housekeeping/createTask"));
+    const { result } = renderHook(() => useCommand("housekeeping/createTask"), { wrapper: WithMessages });
     await act(async () => {
       await result.current.send(body);
     });
@@ -113,7 +122,10 @@ describe("useCommand", () => {
     await act(async () => {
       await result.current.send({ ...body, kind: "inspection" });
     });
-    expect(result.current.problem).toMatchObject({ code: "PENDING_UNKNOWN", detail: PENDING_TEXT });
+    expect(result.current.problem).toMatchObject({
+      code: "PENDING_UNKNOWN",
+      detail: tm(cm, "common.command.pending"),
+    });
     expect(fetchMock).toHaveBeenCalledTimes(2);
 
     await act(async () => {
@@ -127,7 +139,7 @@ describe("useCommand", () => {
     fetchMock
       .mockResolvedValueOnce(json(422, { code: "UNIT_BUSY", status: 422, detail: "Bận" }))
       .mockResolvedValueOnce(json(200, { data: {} }));
-    const { result } = renderHook(() => useCommand("housekeeping/createTask"));
+    const { result } = renderHook(() => useCommand("housekeeping/createTask"), { wrapper: WithMessages });
     await act(async () => {
       await result.current.send(body);
     });
@@ -144,7 +156,7 @@ describe("useCommand", () => {
     fetchMock
       .mockResolvedValueOnce(json(409, { code: "IDEMPOTENCY_IN_PROGRESS" }, { "retry-after": "2" }))
       .mockResolvedValueOnce(json(200, { status: "committed", data: { done: true } }));
-    const { result } = renderHook(() => useCommand("housekeeping/createTask"));
+    const { result } = renderHook(() => useCommand("housekeeping/createTask"), { wrapper: WithMessages });
     let pending: Promise<unknown> = Promise.resolve();
     await act(async () => {
       pending = result.current.send(body);

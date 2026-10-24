@@ -6,19 +6,30 @@ import { safeUrl } from "@hm/app/http";
 import { mibToBytes } from "@hm/app/units";
 import { useRef, useState } from "react";
 import { timedFetch, UPLOAD_TIMEOUT_MS } from "../../lib/fetch-timeout.ts";
+import { type CommonMessages, useMessages } from "../../lib/i18n-context.tsx";
+import { tm } from "../../lib/i18n-format.ts";
 import { reportClientOutdated } from "../pwa/pwa-shell.tsx";
-import { appVersionHeaders, CLIENT_OUTDATED_TEXT } from "./app-version.ts";
+import { appVersionHeaders } from "./app-version.ts";
 import { IN_PROGRESS_CODE } from "./in-progress.ts";
 import { orgContextHeaders } from "./org-context.ts";
 
 export const MAX_PHOTO_BYTES = mibToBytes(10);
 export const MAX_PHOTOS = 5;
-export const PHOTO_ERRORS: Record<number, string> = {
-  413: "Ảnh quá lớn (tối đa 10 MB).",
-  415: "Chỉ nhận ảnh JPEG, PNG, WebP.",
-  429: "Bạn tải ảnh quá nhanh, vui lòng thử lại sau ít phút.",
-  503: "Chưa kiểm tra được ảnh, vui lòng thử lại sau.",
-};
+/** Câu lỗi theo mã HTTP của lần tải ảnh; mã khác → câu chung. */
+export function photoError(m: CommonMessages, status: number): string {
+  switch (status) {
+    case 413:
+      return tm(m, "common.photo.too_large");
+    case 415:
+      return tm(m, "common.photo.bad_type");
+    case 429:
+      return tm(m, "common.photo.rate_limited");
+    case 503:
+      return tm(m, "common.photo.scan_unavailable");
+    default:
+      return tm(m, "common.photo.failed");
+  }
+}
 
 interface Uploaded {
   key: string;
@@ -27,6 +38,7 @@ interface Uploaded {
 
 /** `loginPath`: nơi đưa người dùng về khi phiên hết hạn (nhân viên `/dang-nhap`, người thuê `/dang-nhap/nguoi-thue`). */
 export function usePhotoUpload(loginPath: string) {
+  const m = useMessages();
   const uploaded = useRef(new Map<string, Uploaded>());
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -34,7 +46,7 @@ export function usePhotoUpload(loginPath: string) {
   /** Tải một ảnh; trả `fileId` khi `ready`, ngược lại `null` (đã đặt `error`). */
   async function upload(file: File, propertyId: string): Promise<string | null> {
     if (file.size > MAX_PHOTO_BYTES) {
-      setError(PHOTO_ERRORS[413] as string);
+      setError(photoError(m, 413));
       return null;
     }
     const sig = `${file.name}:${file.size}:${file.lastModified}:${propertyId}`;
@@ -69,7 +81,7 @@ export function usePhotoUpload(loginPath: string) {
       if (res.status === 426) {
         reportClientOutdated();
         uploaded.current.delete(sig);
-        setError(CLIENT_OUTDATED_TEXT);
+        setError(tm(m, "common.command.client_outdated"));
         return null;
       }
       if (res.status === 401) {
@@ -77,28 +89,28 @@ export function usePhotoUpload(loginPath: string) {
         return null;
       }
       if (res.status === 409 && j?.code === "CONTEXT_CHANGED") {
-        setError("Bạn vừa đổi tổ chức ở tab khác — tải lại trang");
+        setError(tm(m, "common.command.context_changed"));
         return null;
       }
       if (res.status === 409 && j?.code === IN_PROGRESS_CODE) {
         // D-043: lần tải trước cùng key còn đang xử lý — GIỮ key để lần gửi lại nhận đúng file đó, không tải bản thứ hai.
-        setError("Ảnh đang được xử lý. Chờ vài giây rồi bấm gửi lại.");
+        setError(tm(m, "common.photo.in_progress"));
         return null;
       }
       if (!res.ok || !j?.data) {
         uploaded.current.delete(sig);
-        setError(PHOTO_ERRORS[res.status] ?? "Không tải được ảnh. Vui lòng thử lại.");
+        setError(photoError(m, res.status));
         return null;
       }
       if (j.data.status !== "ready") {
         uploaded.current.delete(sig);
-        setError("Ảnh không đạt kiểm tra an toàn. Hãy chọn ảnh khác.");
+        setError(tm(m, "common.photo.unsafe"));
         return null;
       }
       u.fileId = j.data.fileId;
       return u.fileId;
     } catch {
-      setError("Chưa tải được ảnh. Kiểm tra mạng rồi bấm gửi lại.");
+      setError(tm(m, "common.photo.network"));
       return null;
     } finally {
       setUploading(false);

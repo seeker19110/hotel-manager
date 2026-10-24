@@ -4,26 +4,26 @@ import { LogoutButton } from "../../components/pwa/logout-button.tsx";
 import { MoreLinks } from "../../components/rental/app-nav.tsx";
 import { moreLinks } from "../../components/rental/nav-items.ts";
 import { EmptyState } from "../../components/ui/state.tsx";
-import { messagesFor } from "../../lib/i18n.ts";
+import { messagesFor, t } from "../../lib/i18n.ts";
 import { withActor } from "../../lib/page.tsx";
 
-export const metadata: Metadata = { title: "Thêm — Hotel Manager" };
+export const metadata: Metadata = { title: t("more.metadata.title") };
 
 // Điểm vào thứ 5 của thanh điều hướng (SPEC-pwa S-014): các màn còn lại, cài ứng dụng (S-002/S-003), đăng xuất (S-007).
 export default async function MorePage() {
-  return withActor("Thêm", "/them", async (actor, { kinds }) => (
+  return withActor(t("more.page.title"), "/them", async (actor, { kinds }) => (
     <>
       <section aria-labelledby="man-khac" className="panel">
-        <h2 id="man-khac">Màn khác</h2>
+        <h2 id="man-khac">{t("more.links.heading")}</h2>
         {moreLinks(actor.role, kinds).length === 0 ? (
-          <EmptyState title="Không có màn nào khác cho vai trò của bạn" />
+          <EmptyState title={t("more.links.empty")} />
         ) : (
           <MoreLinks role={actor.role} kinds={kinds} />
         )}
       </section>
       <InstallApp m={messagesFor("install_app.")} />
       <section aria-labelledby="tai-khoan" className="panel">
-        <h2 id="tai-khoan">Tài khoản</h2>
+        <h2 id="tai-khoan">{t("more.account.heading")}</h2>
         <LogoutButton />
       </section>
     </>

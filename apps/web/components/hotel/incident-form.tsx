@@ -5,6 +5,7 @@
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
 import type { Messages } from "../../lib/i18n.ts";
+import { useMessages } from "../../lib/i18n-context.tsx";
 import { tm } from "../../lib/i18n-format.ts";
 import { CommandStatus } from "../command/command-status.tsx";
 import { problemText, useCommand } from "../command/use-command.ts";
@@ -30,6 +31,7 @@ function severities(m: Messages<"incident_form.">) {
 
 export function IncidentForm({ rooms, m }: { rooms: IncidentRoom[]; m: Messages<"incident_form."> }) {
   const router = useRouter();
+  const common = useMessages();
   const cmd = useCommand("maintenance/createWorkOrder");
   const photos = usePhotoUpload("/dang-nhap");
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -74,11 +76,11 @@ export function IncidentForm({ rooms, m }: { rooms: IncidentRoom[]; m: Messages<
   const fieldError = (name: string) => {
     if (errors[name]) return errors[name];
     const hit = cmd.problem?.errors?.find((x) => x.field === name);
-    return hit ? (problemText(cmd.problem) ?? undefined) : undefined;
+    return hit ? (problemText(common, cmd.problem) ?? undefined) : undefined;
   };
   const general =
     cmd.phase === "error" && !["title", "description"].some((n) => fieldError(n))
-      ? problemText(cmd.problem)
+      ? problemText(common, cmd.problem)
       : null;
   const photoError = errors.photo ?? photos.error;
 

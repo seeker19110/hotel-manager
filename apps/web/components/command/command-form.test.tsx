@@ -12,6 +12,7 @@ vi.mock("@serwist/turbopack/react", () => ({
   useSerwist: () => ({ serwist: null }),
 }));
 
+import { WithMessages } from "../testing/with-messages.tsx";
 import { CommandForm, type FieldSpec } from "./command-form.tsx";
 
 const UNIT = "2f1b1f0e-6b1e-4a0e-8d54-0d3a1c8a9e11";
@@ -49,6 +50,7 @@ function setup(props: Partial<Parameters<typeof CommandForm>[0]> = {}) {
       successText="Đã tạo việc."
       {...(props as object)}
     />,
+    { wrapper: WithMessages },
   );
 }
 

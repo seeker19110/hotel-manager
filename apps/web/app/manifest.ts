@@ -1,13 +1,14 @@
 import type { MetadataRoute } from "next";
 import { BRAND_BG, BRAND_COLOR } from "../lib/brand.ts";
+import { t } from "../lib/i18n.ts";
 
 // S-001: manifest cài đặt (Chrome Android/desktop; iOS dùng apple-touch-icon ở layout).
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: "/",
-    name: "Hotel Manager — Quản lý phòng",
-    short_name: "Quản lý phòng",
-    description: "Quản lý phòng trọ, nhà nghỉ, khách sạn nhỏ",
+    name: t("app.manifest.name"),
+    short_name: t("app.short_name"),
+    description: t("app.description"),
     lang: "vi",
     dir: "ltr",
     start_url: "/?source=pwa",

@@ -1,18 +1,18 @@
 import type { Metadata } from "next";
-import { messagesFor } from "../../../lib/i18n.ts";
+import { messagesFor, t } from "../../../lib/i18n.ts";
 import { TenantLoginForm } from "./tenant-login-form.tsx";
 
-export const metadata: Metadata = { title: "Đăng nhập người thuê — Hotel Manager" };
+export const metadata: Metadata = { title: t("tenant_login_page.metadata.title") };
 
 export default function TenantLoginPage() {
   return (
     <main id="main" className="page">
-      <h1>Đăng nhập người thuê</h1>
-      <p>Nhập email chủ trọ đã đăng ký cho bạn. Chúng tôi gửi một mã 6 số đến email đó.</p>
+      <h1>{t("tenant_login_page.page.title")}</h1>
+      <p>{t("tenant_login_page.intro")}</p>
       <TenantLoginForm m={messagesFor("tenant_login_form.", "auth_form.")} />
       <p>
         <a className="btn btn--secondary" href="/dang-nhap">
-          Tôi là nhân viên
+          {t("tenant_login_page.staff_link")}
         </a>
       </p>
     </main>

@@ -6,7 +6,8 @@
 //  · mã nguồn: mọi khoá `t("…")` đều có trong nguồn (khoá dựng động `tOr(\`…\`)` kiểm theo tiền tố); mỗi lời gọi `t` (import từ
 //    lib/i18n) truyền đúng tập tham số `{tên}` của khoá — thiếu thì người dùng thấy `{tên}` thô, thừa là gõ nhầm (đọc trên AST, D-078);
 //    lời gọi `tm(m, "khoá", {…})` (import từ lib/i18n-format — client component, D-098) kiểm y như vậy: khoá viết thẳng, có trong
-//    nguồn, đúng tập tham số;
+//    nguồn, đúng tập tham số — `m` là biểu thức tuỳ ý nên `tm(useMessages(), "khoá")` và `const m = useMessages(); tm(m, …)`
+//    (context `common.` của lib/i18n-context.tsx, D-101) được kiểm như nhau;
 //  · bundle: không module `"use client"` nào (kể cả gián tiếp qua import tương đối) import giá trị từ lib/i18n.ts hay tệp
 //    messages/*.json — catalog bị nhân bản vào mỗi chunk JS client (D-098, CI bundle-size đỏ ở PR #123). Chỉ `import type`.
 // Thoát 1 khi có lỗi. Dùng: node scripts/i18n-check.mjs

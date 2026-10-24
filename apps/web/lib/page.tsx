@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { ORG_CONTEXT_META } from "../components/command/org-context.ts";
 import { AppNav, type NavKinds } from "../components/rental/app-nav.tsx";
 import { ErrorState } from "../components/ui/state.tsx";
+import { t } from "./i18n.ts";
 import { safe } from "./safe.ts";
 import { currentActor } from "./session.ts";
 
@@ -21,11 +22,11 @@ export async function withActor(
       <main id="main" className="page">
         <h1>{title}</h1>
         <ErrorState
-          title="Cần bật xác thực hai lớp"
-          text="Vai trò của bạn có quyền về tiền hoặc quản trị. Hãy bật xác thực hai lớp trước khi thao tác."
+          title={t("page_shell.mfa_required.title")}
+          text={t("page_shell.mfa_required.text")}
           action={
             <a className="btn" href="/bao-mat">
-              Bật xác thực hai lớp
+              {t("page_shell.mfa_required.action")}
             </a>
           }
         />
@@ -44,8 +45,8 @@ export async function withActor(
   const kinds =
     templates.length > 0
       ? {
-          hotel: templates.some((t) => t === "hotel" || t === "mixed"),
-          rental: templates.some((t) => t === "rental" || t === "mixed"),
+          hotel: templates.some((x) => x === "hotel" || x === "mixed"),
+          rental: templates.some((x) => x === "rental" || x === "mixed"),
         }
       : { hotel: true, rental: true };
   return (
