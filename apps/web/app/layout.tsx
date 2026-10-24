@@ -6,6 +6,7 @@ import { PwaShell } from "../components/pwa/pwa-shell.tsx";
 import { APP_VERSION } from "../lib/app-version.ts";
 import { BRAND_COLOR } from "../lib/brand.ts";
 import { messagesFor } from "../lib/i18n.ts";
+import { MessagesProvider } from "../lib/i18n-context.tsx";
 
 export const metadata: Metadata = {
   title: "Hotel Manager",
@@ -33,12 +34,15 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         <a className="skip-link" href="#main">
           Bỏ qua tới nội dung
         </a>
-        <PwaShell reauth={messagesFor("login_form.", "tenant_login_form.", "auth_form.")}>
-          <header className="app-header">
-            <p className="app-header__title">Hotel Manager</p>
-          </header>
-          {children}
-        </PwaShell>
+        {/* Chữ dùng chung của hạ tầng client (D-101): mọi trang, error.tsx và banner của vỏ PWA nằm trong provider. */}
+        <MessagesProvider m={messagesFor("common.")}>
+          <PwaShell reauth={messagesFor("login_form.", "tenant_login_form.", "auth_form.")}>
+            <header className="app-header">
+              <p className="app-header__title">Hotel Manager</p>
+            </header>
+            {children}
+          </PwaShell>
+        </MessagesProvider>
       </body>
     </html>
   );

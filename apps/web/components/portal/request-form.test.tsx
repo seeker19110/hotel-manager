@@ -12,6 +12,7 @@ vi.mock("@serwist/turbopack/react", () => ({
 }));
 
 import { messagesFor } from "../../lib/i18n.ts";
+import { WithMessages } from "../testing/with-messages.tsx";
 import { RequestForm } from "./request-form.tsx";
 
 const m = messagesFor("request_form.");
@@ -48,7 +49,7 @@ afterEach(() => {
 
 describe("RequestForm", () => {
   it("để trống tiêu đề và mô tả: hai lỗi theo ô, không gửi gì", async () => {
-    render(<RequestForm units={UNITS.slice(0, 1)} m={m} />);
+    render(<RequestForm units={UNITS.slice(0, 1)} m={m} />, { wrapper: WithMessages });
     await userEvent.click(screen.getByRole("button", { name: "Gửi yêu cầu" }));
     const alerts = await screen.findAllByRole("alert");
     expect(alerts.map((a) => a.textContent)).toEqual(["Bắt buộc nhập", "Bắt buộc nhập"]);
@@ -58,7 +59,7 @@ describe("RequestForm", () => {
   });
 
   it("một phòng: không hiện ô chọn phòng; nhiều phòng: có ô chọn và gửi đúng phòng đã chọn", async () => {
-    const { unmount } = render(<RequestForm units={UNITS.slice(0, 1)} m={m} />);
+    const { unmount } = render(<RequestForm units={UNITS.slice(0, 1)} m={m} />, { wrapper: WithMessages });
     expect(screen.queryByRole("combobox", { name: "Phòng" })).toBeNull();
     unmount();
 
@@ -68,7 +69,7 @@ describe("RequestForm", () => {
         headers: { "content-type": "application/json" },
       }),
     );
-    render(<RequestForm units={UNITS} m={m} />);
+    render(<RequestForm units={UNITS} m={m} />, { wrapper: WithMessages });
     await userEvent.selectOptions(screen.getByRole("combobox", { name: "Phòng" }), "Phòng P102");
     await userEvent.type(screen.getByLabelText("Việc cần sửa"), "Vòi nước rỉ");
     await userEvent.type(screen.getByLabelText("Mô tả"), "Vòi bồn rửa mặt rỉ nước suốt đêm");
@@ -86,7 +87,7 @@ describe("RequestForm", () => {
   });
 
   it("tiêu đề 201 ký tự bị chặn ở máy khách (quá trần 200)", async () => {
-    render(<RequestForm units={UNITS.slice(0, 1)} m={m} />);
+    render(<RequestForm units={UNITS.slice(0, 1)} m={m} />, { wrapper: WithMessages });
     const title = screen.getByLabelText("Việc cần sửa") as HTMLInputElement;
     // `maxLength` của ô chặn gõ quá 200; đặt thẳng giá trị để kiểm nhánh kiểm tra của form.
     title.removeAttribute("maxlength");

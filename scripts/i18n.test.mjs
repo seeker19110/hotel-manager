@@ -131,6 +131,26 @@ describe("XC-I18N-009 — kiểm tệp dịch", () => {
     expect(tCallErrors('import * as F from "./i18n-format.ts";\nF.tm(m, "a.hi");', "h.tsx", src)[0]).toMatch(
       /import \{ tm \}/,
     );
+    // D-101: `m` từ context — `tm(useMessages(), …)` và `const m = useMessages(); tm(m, …)` kiểm y như prop `m`.
+    const ctx = (body) =>
+      tCallErrors(
+        `import { useMessages } from "../lib/i18n-context.tsx";\nimport { tm } from "../lib/i18n-format.ts";\n${body}`,
+        "ctx.tsx",
+        src,
+      );
+    expect(
+      ctx('tm(useMessages(), "a.hi", { name: u, n: 1 });\nconst m = useMessages();\ntm(m, "a.plain");'),
+    ).toEqual([]);
+    expect(ctx('tm(useMessages(), "a.khong_co");')).toEqual([
+      'ctx.tsx:3: tm("a.khong_co") không có trong nguồn',
+    ]);
+    expect(ctx('tm(useMessages(), "a.hi", { name: 1 });')).toEqual([
+      'ctx.tsx:3: tm("a.hi") thiếu tham số {n}',
+    ]);
+    expect(ctx('const m = useMessages();\ntm(m, "a.plain", { x: 1 });')).toEqual([
+      'ctx.tsx:4: tm("a.plain") thừa tham số x (message không có)',
+    ]);
+    expect(ctx("tm(useMessages(), key);")[0]).toMatch(/tm\(\) cần khoá viết thẳng/);
     // `t` và `tm` cùng tệp: mỗi hàm đọc khoá ở đúng vị trí đối số.
     expect(
       tCallErrors(
@@ -191,10 +211,20 @@ describe("XC-I18N-009 — kiểm tệp dịch", () => {
       w("apps/web/c/leaf.ts", 'import { type T, t } from "../lib/i18n.ts";\nexport const x = 1;\n');
       const indirect = w("apps/web/c/indirect.tsx", '"use client";\nimport { x } from "./mid.tsx";\n');
       const lazy = w("apps/web/c/lazy.tsx", '"use client";\nconst m = import("../lib/i18n.ts");\n');
-      const files = [ok, server, direct, json, indirect, lazy];
+      // D-101: provider client chỉ `import type` từ lib/i18n.ts; module client dùng hook của nó cũng không bị chặn nhầm.
+      w(
+        "apps/web/lib/i18n-context.tsx",
+        '"use client";\nimport { createContext } from "react";\nimport type { Messages } from "./i18n.ts";\nexport const useMessages = () => null;\n',
+      );
+      const ctx = join(root, "apps/web/lib/i18n-context.tsx");
+      const viaCtx = w(
+        "apps/web/c/via-ctx.tsx",
+        '"use client";\nimport { useMessages } from "../lib/i18n-context.tsx";\nimport { tm } from "../lib/i18n-format.ts";\n',
+      );
+      const files = [ok, server, direct, json, indirect, lazy, ctx, viaCtx];
       const errors = clientCatalogErrors(files, root);
       expect(errors).toHaveLength(4);
-      expect(errors.join("\n")).not.toMatch(/ok\.tsx|server\.tsx/);
+      expect(errors.join("\n")).not.toMatch(/ok\.tsx|server\.tsx|i18n-context\.tsx|via-ctx\.tsx/);
       expect(errors.find((e) => e.startsWith("apps/web/c/indirect.tsx"))).toContain(
         "apps/web/c/indirect.tsx → apps/web/c/mid.tsx → apps/web/c/leaf.ts → apps/web/lib/i18n.ts",
       );

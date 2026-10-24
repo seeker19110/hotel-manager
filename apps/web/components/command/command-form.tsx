@@ -14,11 +14,13 @@ import { fillConfirmLabel, parseDecimalInput, parseIntegerInput, parseMoneyInput
 import { useRouter } from "next/navigation";
 import { type FormEvent, useId, useRef, useState } from "react";
 import { day, vnd } from "../../lib/format.ts";
+import { useMessages } from "../../lib/i18n-context.tsx";
+import { tm } from "../../lib/i18n-format.ts";
 import { Button } from "../ui/button.tsx";
 import { SelectField, TextField } from "../ui/field.tsx";
 import { checkCommandInputLazy, prefetchCommandInputs } from "./command-inputs-lazy.ts";
 import { CommandStatus } from "./command-status.tsx";
-import { INVALID_INPUT_TEXT, problemText, useCommand } from "./use-command.ts";
+import { problemText, useCommand } from "./use-command.ts";
 
 export interface FieldSpec {
   name: string;
@@ -77,6 +79,7 @@ export function CommandForm({
   /** Lớp CSS thêm cho nút gửi (vd `btn--large` cho màn buồng phòng trên điện thoại). */
   className?: string;
 }) {
+  const m = useMessages();
   const router = useRouter();
   const cmd = useCommand(path);
   const [local, setLocal] = useState<Record<string, string>>({});
@@ -96,7 +99,7 @@ export function CommandForm({
     for (const f of fields) {
       const raw = String(form.get(f.name) ?? "").trim();
       if (raw === "") {
-        if (f.required) errs[f.name] = "Bắt buộc nhập";
+        if (f.required) errs[f.name] = tm(m, "common.command_form.required");
         continue;
       }
       let v: unknown = raw;
@@ -104,16 +107,16 @@ export function CommandForm({
       if (f.type === "money") {
         const n = parseMoneyInput(raw);
         v = n;
-        if (n === null) errs[f.name] = "Nhập số nguyên đồng, vd 3580000 hoặc 3.580.000";
+        if (n === null) errs[f.name] = tm(m, "common.command_form.money_invalid");
         else shown[f.name] = vnd(n);
       } else if (f.type === "decimal") {
         v = parseDecimalInput(raw);
-        if (v === null) errs[f.name] = "Số ≥ 0, tối đa 3 chữ số thập phân (dấu chấm)";
+        if (v === null) errs[f.name] = tm(m, "common.command_form.decimal_invalid");
       } else if (f.type === "date") {
         if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) shown[f.name] = day(raw);
       } else if (f.type === "integer") {
         v = parseIntegerInput(raw);
-        if (v === null) errs[f.name] = "Nhập số nguyên";
+        if (v === null) errs[f.name] = tm(m, "common.command_form.integer_invalid");
       }
       setPath(body, f.path ?? f.name, f.array ? [v] : v);
     }
@@ -123,7 +126,7 @@ export function CommandForm({
       for (const issue of (await checkCommandInputLazy(path, body)) ?? []) {
         const f = fields.find((x) => (x.path ?? x.name) === issue.field);
         if (f) errs[f.name] ??= issue.message;
-        else general ??= INVALID_INPUT_TEXT;
+        else general ??= tm(m, "common.command.invalid_input");
       }
     }
     setLocal(errs);
@@ -165,11 +168,11 @@ export function CommandForm({
   const fieldError = (f: FieldSpec) => {
     if (local[f.name]) return local[f.name];
     const hit = cmd.problem?.errors?.find((x) => x.field === (f.path ?? f.name) || x.field === f.name);
-    return hit ? (problemText(cmd.problem) ?? undefined) : undefined;
+    return hit ? (problemText(m, cmd.problem) ?? undefined) : undefined;
   };
   const general =
     localGeneral ??
-    (cmd.phase === "error" && !fields.some((f) => fieldError(f)) ? problemText(cmd.problem) : null);
+    (cmd.phase === "error" && !fields.some((f) => fieldError(f)) ? problemText(m, cmd.problem) : null);
 
   return (
     <form
@@ -243,7 +246,7 @@ export function CommandForm({
           <p id={descId}>{confirm}</p>
           <div className="confirm-dialog__actions">
             <Button variant="secondary" onClick={() => dialogRef.current?.close()}>
-              Quay lại
+              {tm(m, "common.command_form.back")}
             </Button>
             <Button onClick={onConfirm}>{asking}</Button>
           </div>

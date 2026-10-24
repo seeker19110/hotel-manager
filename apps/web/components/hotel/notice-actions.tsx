@@ -5,6 +5,7 @@ import { safeUrl } from "@hm/app/http";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { Messages } from "../../lib/i18n.ts";
+import { useMessages } from "../../lib/i18n-context.tsx";
 import { tm } from "../../lib/i18n-format.ts";
 import { CommandStatus } from "../command/command-status.tsx";
 import { problemText, useCommand } from "../command/use-command.ts";
@@ -35,6 +36,7 @@ export function NoticeActions({
 }) {
   const router = useRouter();
   const exp = useCommand<{ url: string; expiresIn: number }>("stay/exportResidenceNotice");
+  const common = useMessages();
   const mark = useCommand("stay/markNoticeSubmitted");
   const [url, setUrl] = useState<string | null>(null);
   const [channel, setChannel] = useState("in_person");
@@ -63,7 +65,7 @@ export function NoticeActions({
         phase={exp.phase}
         commandId={exp.commandId}
         problem={exp.problem}
-        general={exp.phase === "error" ? problemText(exp.problem) : null}
+        general={exp.phase === "error" ? problemText(common, exp.problem) : null}
         successText={tm(m, "notice_actions.export_success")}
         onResend={() => void exp.resend().then(afterExport)}
         onRecheck={() => void exp.recheck().then(afterExport)}
@@ -98,7 +100,7 @@ export function NoticeActions({
             phase={mark.phase}
             commandId={mark.commandId}
             problem={mark.problem}
-            general={mark.phase === "error" ? problemText(mark.problem) : null}
+            general={mark.phase === "error" ? problemText(common, mark.problem) : null}
             successText={tm(m, "notice_actions.mark_success")}
             onResend={() => void mark.resend().then(afterMark)}
             onRecheck={() => void mark.recheck().then(afterMark)}

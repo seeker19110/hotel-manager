@@ -4,17 +4,19 @@
 // trang đăng nhập (replace: nút Back không đưa lại trang có dữ liệu; trang no-store sẽ yêu cầu đăng nhập khi tải lại).
 import { useState } from "react";
 import { timedFetch } from "../../lib/fetch-timeout.ts";
-import { OFFLINE_TEXT } from "../command/use-command.ts";
+import { useMessages } from "../../lib/i18n-context.tsx";
+import { tm } from "../../lib/i18n-format.ts";
 import { Button } from "../ui/button.tsx";
 import { clearUserData, useOnline } from "./pwa-shell.tsx";
 
 export function LogoutButton() {
+  const m = useMessages();
   const online = useOnline();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function logout() {
-    if (!online) return setError(OFFLINE_TEXT);
+    if (!online) return setError(tm(m, "common.command.offline"));
     setBusy(true);
     setError(null);
     try {
@@ -26,9 +28,9 @@ export function LogoutButton() {
         credentials: "same-origin",
       });
       if (res.ok) return window.location.replace("/dang-nhap");
-      setError("Không đăng xuất được. Vui lòng thử lại.");
+      setError(tm(m, "common.logout.failed"));
     } catch {
-      setError("Chưa nhận được phản hồi. Kiểm tra mạng rồi bấm lại.");
+      setError(tm(m, "common.logout.network"));
     } finally {
       setBusy(false);
     }
@@ -37,7 +39,7 @@ export function LogoutButton() {
   return (
     <div>
       <Button variant="secondary" loading={busy} onClick={() => void logout()}>
-        Đăng xuất
+        {tm(m, "common.logout.button")}
       </Button>
       {error ? (
         <p className="field__error" role="alert">

@@ -1227,6 +1227,198 @@
     "message": "Thử lại",
     "description": "Nút liên kết thử tải lại trang, hiện cạnh thông báo lỗi tải danh sách (sự cố, buồng phòng, thông báo)."
   },
+  "common.command.result_unknown": {
+    "message": "Chưa xác định được kết quả. Đừng thao tác lại; kiểm tra lịch sử hoặc liên hệ quản lý.",
+    "description": "Mọi form gửi thao tác: máy chủ báo đang xử lý quá 30 giây nên không biết thao tác đã ghi hay chưa (không cho gửi lại)."
+  },
+  "common.command.invalid_input": {
+    "message": "Dữ liệu chưa hợp lệ. Kiểm tra lại các ô đã nhập rồi gửi lại.",
+    "description": "Mọi form gửi thao tác: lỗi chung khi dữ liệu nhập không qua kiểm tra trước khi gửi."
+  },
+  "common.command.offline": {
+    "message": "Không có kết nối mạng. Thao tác chưa được gửi.",
+    "description": "Mọi form gửi thao tác và nút đăng xuất: bấm khi máy đang mất mạng, chưa gửi gì."
+  },
+  "common.command.pending": {
+    "message": "Thao tác trước chưa rõ kết quả. Bấm \"Gửi lại\" để gửi đúng thao tác đó, hoặc tải lại trang để xem kết quả trước khi làm thao tác khác.",
+    "description": "Mọi form gửi thao tác: người dùng sửa form và gửi khác đi khi thao tác trước chưa rõ kết quả. \"Gửi lại\" là tên nút."
+  },
+  "common.command.server_error": {
+    "message": "Hệ thống đang gặp lỗi, thao tác chưa thực hiện được. Vui lòng thử lại sau ít phút.",
+    "description": "Mọi form gửi thao tác: máy chủ lỗi (5xx), không có mã tra cứu."
+  },
+  "common.command.server_error_ref": {
+    "message": "Hệ thống đang gặp lỗi, thao tác chưa thực hiện được. Vui lòng thử lại sau ít phút. Mã tra cứu: {code}.",
+    "description": "Như common.command.server_error nhưng kèm mã tra cứu để báo hỗ trợ. {code} là mã kỹ thuật (chữ, số, gạch ngang)."
+  },
+  "common.command.failed": {
+    "message": "Không thực hiện được. Vui lòng thử lại.",
+    "description": "Mọi form gửi thao tác: lỗi nghiệp vụ mà máy chủ không gửi kèm lời giải thích."
+  },
+  "common.command.unauthenticated": {
+    "message": "Phiên đăng nhập đã hết. Vui lòng đăng nhập lại.",
+    "description": "Hộp đăng nhập lại và form gửi thao tác: phiên đăng nhập hết hạn khi đang dùng."
+  },
+  "common.command.context_changed": {
+    "message": "Bạn vừa đổi tổ chức ở tab khác — tải lại trang",
+    "description": "Form gửi thao tác/tải ảnh: người dùng đã đổi tổ chức ở tab trình duyệt khác nên thao tác bị huỷ."
+  },
+  "common.command.client_outdated": {
+    "message": "Ứng dụng cần cập nhật để tiếp tục.",
+    "description": "Banner toàn cục và form: máy chủ báo bản ứng dụng đang chạy quá cũ, cần bấm Cập nhật."
+  },
+  "common.command_form.required": {
+    "message": "Bắt buộc nhập",
+    "description": "Lỗi dưới một ô bắt buộc để trống trong form gửi thao tác."
+  },
+  "common.command_form.money_invalid": {
+    "message": "Nhập số nguyên đồng, vd 3580000 hoặc 3.580.000",
+    "description": "Lỗi dưới ô số tiền (đồng, số nguyên) nhập sai định dạng."
+  },
+  "common.command_form.decimal_invalid": {
+    "message": "Số ≥ 0, tối đa 3 chữ số thập phân (dấu chấm)",
+    "description": "Lỗi dưới ô số thập phân (vd chỉ số điện nước) nhập sai định dạng."
+  },
+  "common.command_form.integer_invalid": {
+    "message": "Nhập số nguyên",
+    "description": "Lỗi dưới ô số nguyên nhập sai định dạng."
+  },
+  "common.command_form.back": {
+    "message": "Quay lại",
+    "description": "Nút đóng hộp xác nhận thao tác không hoàn tác, không gửi gì."
+  },
+  "common.command_status.checking": {
+    "message": "Đang kiểm tra kết quả…",
+    "description": "Trạng thái khi mất phản hồi và đang hỏi máy chủ thao tác đã ghi chưa."
+  },
+  "common.command_status.short_id": {
+    "message": "(mã {id})",
+    "description": "Đứng sau \"Đang kiểm tra kết quả…\": mã thao tác rút gọn. {id} là 8 ký tự đầu của mã."
+  },
+  "common.command_status.unknown": {
+    "message": "Chưa rõ máy chủ đã nhận thao tác này chưa. Bấm \"Gửi lại\" để gửi đúng thao tác này một lần nữa (không bị ghi hai lần).",
+    "description": "Cảnh báo khi không biết máy chủ đã nhận thao tác; \"Gửi lại\" là tên nút gửi lại cùng thao tác."
+  },
+  "common.command_status.ref": {
+    "message": "Mã tra cứu: {code}",
+    "description": "Dòng mã tra cứu lỗi máy chủ trong cảnh báo chưa rõ kết quả. {code} là mã kỹ thuật."
+  },
+  "common.command_status.resend": {
+    "message": "Gửi lại",
+    "description": "Nút gửi lại đúng thao tác chưa rõ kết quả (không ghi hai lần)."
+  },
+  "common.command_status.reload": {
+    "message": "Tải lại trang",
+    "description": "Nút tải lại trang khi người dùng vừa đổi tổ chức ở tab khác."
+  },
+  "common.command_status.command_id": {
+    "message": "Mã thao tác:",
+    "description": "Nhãn đứng trước mã thao tác đầy đủ (người dùng đọc cho quản lý) khi không xác định được kết quả."
+  },
+  "common.command_status.recheck": {
+    "message": "Kiểm tra lại",
+    "description": "Nút hỏi lại máy chủ kết quả thao tác đang xử lý (không gửi lại thao tác)."
+  },
+  "common.photo.too_large": {
+    "message": "Ảnh quá lớn (tối đa 10 MB).",
+    "description": "Lỗi tải ảnh đính kèm (yêu cầu sửa chữa, sự cố): ảnh vượt dung lượng."
+  },
+  "common.photo.bad_type": {
+    "message": "Chỉ nhận ảnh JPEG, PNG, WebP.",
+    "description": "Lỗi tải ảnh đính kèm: định dạng tệp không nhận."
+  },
+  "common.photo.rate_limited": {
+    "message": "Bạn tải ảnh quá nhanh, vui lòng thử lại sau ít phút.",
+    "description": "Lỗi tải ảnh đính kèm: tải quá nhiều trong thời gian ngắn."
+  },
+  "common.photo.scan_unavailable": {
+    "message": "Chưa kiểm tra được ảnh, vui lòng thử lại sau.",
+    "description": "Lỗi tải ảnh đính kèm: dịch vụ kiểm tra an toàn ảnh tạm không dùng được."
+  },
+  "common.photo.in_progress": {
+    "message": "Ảnh đang được xử lý. Chờ vài giây rồi bấm gửi lại.",
+    "description": "Tải ảnh đính kèm: lần tải trước của cùng ảnh còn đang xử lý."
+  },
+  "common.photo.failed": {
+    "message": "Không tải được ảnh. Vui lòng thử lại.",
+    "description": "Lỗi tải ảnh đính kèm chung (máy chủ từ chối, không rõ lý do)."
+  },
+  "common.photo.unsafe": {
+    "message": "Ảnh không đạt kiểm tra an toàn. Hãy chọn ảnh khác.",
+    "description": "Lỗi tải ảnh đính kèm: ảnh bị bộ kiểm tra an toàn từ chối."
+  },
+  "common.photo.network": {
+    "message": "Chưa tải được ảnh. Kiểm tra mạng rồi bấm gửi lại.",
+    "description": "Lỗi tải ảnh đính kèm: mất mạng hoặc quá thời gian chờ."
+  },
+  "common.reauth.title": {
+    "message": "Đăng nhập lại",
+    "description": "Tiêu đề hộp đăng nhập lại hiện ngay trên trang khi phiên hết hạn."
+  },
+  "common.reauth.later": {
+    "message": "Để sau",
+    "description": "Nút đóng hộp đăng nhập lại, không gửi thao tác."
+  },
+  "common.route.error_title": {
+    "message": "Không tải được màn hình",
+    "description": "Tiêu đề khối lỗi khi cả màn hình không tải được."
+  },
+  "common.route.error": {
+    "message": "Hệ thống đang gặp lỗi, màn hình này chưa tải được. Hãy thử lại; nếu vẫn lỗi, báo kèm mã tra cứu bên dưới.",
+    "description": "Lời giải thích khi cả màn hình không tải được (không có mã tra cứu)."
+  },
+  "common.route.error_ref": {
+    "message": "Hệ thống đang gặp lỗi, màn hình này chưa tải được. Hãy thử lại; nếu vẫn lỗi, báo kèm mã tra cứu bên dưới. Mã tra cứu: {code}.",
+    "description": "Như common.route.error nhưng kèm mã tra cứu. {code} là mã kỹ thuật."
+  },
+  "common.route.loading": {
+    "message": "Đang tải {title}…",
+    "description": "Chữ cho trình đọc màn hình khi màn hình đang tải. {title} là tên màn hình viết thường (vd \"danh sách phòng\")."
+  },
+  "common.pwa.offline_banner": {
+    "message": "Mất kết nối — thao tác chưa được gửi",
+    "description": "Banner đầu trang khi máy mất mạng."
+  },
+  "common.pwa.update_available": {
+    "message": "Đã có phiên bản mới. Lưu xong thao tác rồi bấm Cập nhật.",
+    "description": "Banner khi có bản ứng dụng mới; \"Cập nhật\" là tên nút ngay sau."
+  },
+  "common.pwa.update": {
+    "message": "Cập nhật",
+    "description": "Nút cập nhật ứng dụng lên bản mới (tải lại trang)."
+  },
+  "common.logout.button": {
+    "message": "Đăng xuất",
+    "description": "Nút đăng xuất (xoá dữ liệu trên máy rồi về trang đăng nhập)."
+  },
+  "common.logout.failed": {
+    "message": "Không đăng xuất được. Vui lòng thử lại.",
+    "description": "Lỗi khi máy chủ từ chối yêu cầu đăng xuất."
+  },
+  "common.logout.network": {
+    "message": "Chưa nhận được phản hồi. Kiểm tra mạng rồi bấm lại.",
+    "description": "Lỗi đăng xuất do mất mạng hoặc quá thời gian chờ."
+  },
+  "portal_nav.label": {
+    "message": "Portal người thuê",
+    "description": "Nhãn (aria-label) thanh điều hướng portal người thuê."
+  },
+  "portal_nav.charges": {
+    "message": "Kỳ thu",
+    "description": "Mục điều hướng portal người thuê: danh sách kỳ thu tiền."
+  },
+  "portal_nav.contract": {
+    "message": "Hợp đồng",
+    "description": "Mục điều hướng portal người thuê: hợp đồng thuê."
+  },
+  "portal_nav.meters": {
+    "message": "Điện nước",
+    "description": "Mục điều hướng portal người thuê: chỉ số điện nước."
+  },
+  "portal_nav.requests": {
+    "message": "Yêu cầu",
+    "description": "Mục điều hướng portal người thuê: yêu cầu sửa chữa."
+  },
   "ops.no_property.title": {
     "message": "Chưa có cơ sở nào được giao",
     "description": "Tiêu đề trạng thái rỗng khi nhân viên chưa được giao cơ sở nào (màn sự cố, buồng phòng)."

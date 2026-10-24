@@ -13,13 +13,15 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { timedFetch } from "../../lib/fetch-timeout.ts";
+import { type CommonMessages, useMessages } from "../../lib/i18n-context.tsx";
+import { tm } from "../../lib/i18n-format.ts";
 import { firstNonEmpty } from "../../lib/text.ts";
 import { reportClientOutdated, useOnline } from "../pwa/pwa-shell.tsx";
-import { appVersionHeaders, CLIENT_OUTDATED_CODE, CLIENT_OUTDATED_TEXT } from "./app-version.ts";
+import { appVersionHeaders, CLIENT_OUTDATED_CODE } from "./app-version.ts";
 import { checkCommandInputLazy } from "./command-inputs-lazy.ts";
 import { IN_PROGRESS_CODE, retryAfterMs } from "./in-progress.ts";
-import { CONTEXT_CHANGED_CODE, CONTEXT_CHANGED_TEXT, orgContextHeaders } from "./org-context.ts";
-import { requestReauth, UNAUTHENTICATED_TEXT } from "./reauth.ts";
+import { CONTEXT_CHANGED_CODE, orgContextHeaders } from "./org-context.ts";
+import { requestReauth } from "./reauth.ts";
 import { recheckSchedule } from "./recheck.ts";
 
 export interface ProblemLike {
@@ -39,40 +41,33 @@ export interface ProblemLike {
 export type CommandPhase = "idle" | "sending" | "checking" | "unknown" | "processing" | "done" | "error";
 
 export const RESULT_UNKNOWN_CODE = "RESULT_UNKNOWN";
-export const RESULT_UNKNOWN_TEXT =
-  "Chưa xác định được kết quả. Đừng thao tác lại; kiểm tra lịch sử hoặc liên hệ quản lý.";
-
-export const INVALID_INPUT_TEXT = "Dữ liệu chưa hợp lệ. Kiểm tra lại các ô đã nhập rồi gửi lại.";
-
-export const OFFLINE_TEXT = "Không có kết nối mạng. Thao tác chưa được gửi.";
-export const PENDING_TEXT =
-  'Thao tác trước chưa rõ kết quả. Bấm "Gửi lại" để gửi đúng thao tác đó, hoặc tải lại trang để xem kết quả trước khi làm thao tác khác.';
 
 /** Trần chờ tải lại sau khi có mạng: mạng chập chờn không được khoá nút vô hạn (hết hạn thì mở, lệnh vẫn do server kiểm). */
 export const RECONNECT_REFRESH_CAP_MS = 8_000;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export const SERVER_ERROR_TEXT =
-  "Hệ thống đang gặp lỗi, thao tác chưa thực hiện được. Vui lòng thử lại sau ít phút.";
-
-/** Lỗi 5xx: KHÔNG hiện `detail`/`title` từ server (phòng khi lớp nào đó lộ chi tiết nội bộ) — chỉ câu chung + mã tra cứu. */
-export function problemText(p: ProblemLike | null): string | null {
+/**
+ * Lỗi 5xx: KHÔNG hiện `detail`/`title` từ server (phòng khi lớp nào đó lộ chi tiết nội bộ) — chỉ câu chung + mã tra cứu.
+ * `m` = chữ `common.` (`useMessages()`, D-101).
+ */
+export function problemText(m: CommonMessages, p: ProblemLike | null): string | null {
   if (!p) return null;
   if ((p.status ?? 0) >= 500)
     return p.correlation_id && /^[\w-]{1,64}$/.test(p.correlation_id)
-      ? `${SERVER_ERROR_TEXT} Mã tra cứu: ${p.correlation_id}.`
-      : SERVER_ERROR_TEXT;
-  return firstNonEmpty(p.detail, p.title) ?? "Không thực hiện được. Vui lòng thử lại.";
+      ? tm(m, "common.command.server_error_ref", { code: p.correlation_id })
+      : tm(m, "common.command.server_error");
+  return firstNonEmpty(p.detail, p.title) ?? tm(m, "common.command.failed");
 }
 
-const contextChanged = (): ProblemLike => ({
+const contextChanged = (m: CommonMessages): ProblemLike => ({
   code: CONTEXT_CHANGED_CODE,
   status: 409,
-  detail: CONTEXT_CHANGED_TEXT,
+  detail: tm(m, "common.command.context_changed"),
 });
 
 export function useCommand<T = unknown>(path: string) {
+  const m = useMessages();
   const online = useOnline();
   const router = useRouter();
   const [refreshPending, startRefresh] = useTransition();
@@ -127,7 +122,11 @@ export function useCommand<T = unknown>(path: string) {
 
   /** 401 mà không đăng nhập lại được: key chưa rõ kết quả thì GIỮ (phase unknown, "Gửi lại" cùng key); lượt đầu thì bỏ. */
   const unauthenticated = useCallback((): null => {
-    const p: ProblemLike = { code: "UNAUTHENTICATED", status: 401, detail: UNAUTHENTICATED_TEXT };
+    const p: ProblemLike = {
+      code: "UNAUTHENTICATED",
+      status: 401,
+      detail: tm(m, "common.command.unauthenticated"),
+    };
     if (!uncertain.current) {
       key.current = null;
       setCommandId(null);
@@ -138,7 +137,7 @@ export function useCommand<T = unknown>(path: string) {
     setProblem(p);
     setPhase("unknown");
     return null;
-  }, []);
+  }, [m]);
 
   const finish = useCallback((d: T): T => {
     key.current = null;
@@ -189,7 +188,7 @@ export function useCommand<T = unknown>(path: string) {
             // Sau đăng nhập lại mà tổ chức đang chọn đã khác/mất ⇒ huỷ form như post() (S-013).
             const code = ((await res.json().catch(() => null)) as ProblemLike | null)?.code;
             if (code === CONTEXT_CHANGED_CODE || (reauth.current === "ok" && code === "ORG_CONTEXT_REQUIRED"))
-              return fail(contextChanged());
+              return fail(contextChanged(m));
           }
           if (res.status === 404 && !pending) {
             setPhase("unknown");
@@ -209,12 +208,16 @@ export function useCommand<T = unknown>(path: string) {
       }
       if (inProgress) {
         // S-012: quá hạn hỏi lại mà server vẫn báo đang xử lý ⇒ KHÔNG biết kết quả; khoá form, không cho gửi lại.
-        setProblem({ code: RESULT_UNKNOWN_CODE, detail: RESULT_UNKNOWN_TEXT, command_id: key.current ?? "" });
+        setProblem({
+          code: RESULT_UNKNOWN_CODE,
+          detail: tm(m, "common.command.result_unknown"),
+          command_id: key.current ?? "",
+        });
         setPhase("processing");
       } else setPhase("unknown");
       return null;
     },
-    [finish, fail, askReauth, unauthenticated],
+    [m, finish, fail, askReauth, unauthenticated],
   );
 
   const post = useCallback(
@@ -241,7 +244,11 @@ export function useCommand<T = unknown>(path: string) {
       // Client quá cũ (S-009): server không ghi gì ⇒ bỏ key, báo cập nhật (banner toàn cục có nút "Cập nhật").
       if (res.status === 426) {
         reportClientOutdated();
-        return fail({ code: CLIENT_OUTDATED_CODE, status: 426, detail: CLIENT_OUTDATED_TEXT });
+        return fail({
+          code: CLIENT_OUTDATED_CODE,
+          status: 426,
+          detail: tm(m, "common.command.client_outdated"),
+        });
       }
       if (res.status === 401) {
         // S-013: phiên hết hạn ⇒ hộp đăng nhập lại; xong thì gửi lại với CÙNG key (server chưa ghi gì ở lượt 401).
@@ -256,7 +263,7 @@ export function useCommand<T = unknown>(path: string) {
         res.status === 409 &&
         (j?.code === CONTEXT_CHANGED_CODE || (afterReauth && j?.code === "ORG_CONTEXT_REQUIRED"))
       )
-        return fail(contextChanged());
+        return fail(contextChanged(m));
       // Lần đầu cùng key còn đang xử lý: đợi Retry-After rồi tra kết quả theo key — không gửi payload mới, không tạo key mới.
       if (res.status === 409 && j?.code === IN_PROGRESS_CODE)
         return check({ waitMs: retryAfterMs(res.headers.get("retry-after")) });
@@ -268,15 +275,15 @@ export function useCommand<T = unknown>(path: string) {
       }
       return fail(j ?? { code: "INTERNAL", status: res.status });
     },
-    [path, check, finish, fail, askReauth, unauthenticated],
+    [m, path, check, finish, fail, askReauth, unauthenticated],
   );
 
   /** Mất mạng: không gửi; KHÔNG bỏ key của thao tác đang chưa rõ kết quả. */
   const offline = useCallback((): null => {
-    setProblem({ code: "OFFLINE", detail: OFFLINE_TEXT });
+    setProblem({ code: "OFFLINE", detail: tm(m, "common.command.offline") });
     setPhase(key.current ? "unknown" : "error");
     return null;
-  }, []);
+  }, [m]);
 
   /** Gửi lệnh mới với `body`. Còn thao tác chưa rõ kết quả ⇒ chỉ cho gửi lại đúng payload đó (cùng key). */
   const send = useCallback(
@@ -284,7 +291,7 @@ export function useCommand<T = unknown>(path: string) {
       if (inflight.current) return null;
       if (!online) return offline();
       if (key.current && JSON.stringify(body) !== JSON.stringify(lastBody.current)) {
-        setProblem({ code: "PENDING_UNKNOWN", detail: PENDING_TEXT });
+        setProblem({ code: "PENDING_UNKNOWN", detail: tm(m, "common.command.pending") });
         return null;
       }
       // Lưới an toàn cho mọi form (FE-FORM-001): kiểm bằng CHÍNH schema `input` của lệnh trong registry trước khi gửi.
@@ -302,7 +309,7 @@ export function useCommand<T = unknown>(path: string) {
           setProblem({
             code: "VALIDATION_FAILED",
             status: 422,
-            detail: INVALID_INPUT_TEXT,
+            detail: tm(m, "common.command.invalid_input"),
             errors: issues.map((i) => ({ field: i.field, code: "invalid" })),
           });
           setPhase("error");
@@ -323,7 +330,7 @@ export function useCommand<T = unknown>(path: string) {
         inflight.current = false;
       }
     },
-    [online, path, post, offline],
+    [m, online, path, post, offline],
   );
 
   /** S-011: gửi lại đúng lệnh cũ, cùng Idempotency-Key. */

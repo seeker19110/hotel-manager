@@ -5,6 +5,7 @@
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
 import type { Messages } from "../../lib/i18n.ts";
+import { useMessages } from "../../lib/i18n-context.tsx";
 import { tm } from "../../lib/i18n-format.ts";
 import { CommandStatus } from "../command/command-status.tsx";
 import { problemText, useCommand } from "../command/use-command.ts";
@@ -40,6 +41,7 @@ export function GuestsForm({
   m: Messages<"guests_form.">;
 }) {
   const router = useRouter();
+  const common = useMessages();
   const cmd = useCommand<{ stayId: string }>(path);
   const [count, setCount] = useState(1);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -81,10 +83,10 @@ export function GuestsForm({
   // Lỗi theo trường của máy chủ (guests.0.doc_number …) gắn đúng ô.
   const serverError = (i: number, k: string) => {
     const hit = cmd.problem?.errors?.find((x) => x.field === `guests.${i}.${k}`);
-    return hit ? (problemText(cmd.problem) ?? undefined) : undefined;
+    return hit ? (problemText(common, cmd.problem) ?? undefined) : undefined;
   };
   const anyFieldError = cmd.problem?.errors?.some((x) => x.field.startsWith("guests."));
-  const general = cmd.phase === "error" && !anyFieldError ? problemText(cmd.problem) : null;
+  const general = cmd.phase === "error" && !anyFieldError ? problemText(common, cmd.problem) : null;
 
   return (
     <form

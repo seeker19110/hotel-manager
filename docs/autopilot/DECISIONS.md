@@ -725,3 +725,17 @@
 - Chọn: Duyệt 3 task như viết
 - Lý do (tiêu chí chất lượng cuối): (1)(3) format.ts được client import — t() trong đó kéo catalog vào bundle (D-098), cần thiết kế tách nhãn riêng; lô 13 tệp còn lại cơ học, rào máy đủ
 - Đường lùi: Revert PR đợt 20
+
+### D-101 · 2026-10-24T04:45:09+00:00 · Đợt 21: hạ tầng client dùng chung (command-form, command-status, use-command, reauth-dialog, route-state, pwa-shell…) cần chuỗi i18n nhưng render từ rất nhiều trang — truyền thế nào?
+
+- Phương án: (1) MessagesProvider (client context) ở app/layout với messagesFor('common.'), hook useMessages() + tm() · (2) Truyền prop m qua mọi trang dùng CommandForm/route-state · (3) Để nguyên chuỗi viết thẳng ở hạ tầng
+- Chọn: MessagesProvider (client context) ở app/layout với messagesFor('common.'), hook useMessages() + tm()
+- Lý do (tiêu chí chất lượng cuối): (1) giữ D-098: catalog không vào bundle, chỉ khoá common. trong payload RSC; (3) một điểm cấp, không sửa hàng chục trang; hook ném lỗi khi thiếu provider ⇒ test bắt; i18n-check vẫn kiểm tm()
+- Đường lùi: Bỏ provider, truyền m qua prop như D-098
+
+### D-102 · 2026-10-24T04:45:09+00:00 · Duyệt PLAN đợt 21 (i18n phần đuôi ngoài merge_risk_paths, trừ lib/format.ts)?
+
+- Phương án: (1) Duyệt 3 task như viết · (2) Dừng
+- Chọn: Duyệt 3 task như viết
+- Lý do (tiêu chí chất lượng cuối): (3)(4) việc máy duy nhất còn lại; theo nhịp D-097; thiết kế D-102 có rào máy
+- Đường lùi: Revert PR đợt 21

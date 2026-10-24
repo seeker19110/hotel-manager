@@ -4,6 +4,7 @@
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
 import type { Messages } from "../../lib/i18n.ts";
+import { useMessages } from "../../lib/i18n-context.tsx";
 import { tm } from "../../lib/i18n-format.ts";
 import { firstNonEmpty } from "../../lib/text.ts";
 import { ResultUnknown, shortCommandId } from "../command/command-status.tsx";
@@ -20,6 +21,7 @@ export interface RentedUnit {
 
 export function RequestForm({ units, m }: { units: RentedUnit[]; m: Messages<"request_form."> }) {
   const router = useRouter();
+  const common = useMessages();
   const cmd = useCommand("portal/createRequest");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const photos = usePhotoUpload("/dang-nhap/nguoi-thue");
@@ -64,11 +66,11 @@ export function RequestForm({ units, m }: { units: RentedUnit[]; m: Messages<"re
   const fieldError = (name: string) => {
     if (errors[name]) return errors[name];
     const hit = cmd.problem?.errors?.find((x) => x.field === name);
-    return hit ? (problemText(cmd.problem) ?? undefined) : undefined;
+    return hit ? (problemText(common, cmd.problem) ?? undefined) : undefined;
   };
   const general =
     cmd.phase === "error" && !fieldError("title") && !fieldError("description")
-      ? problemText(cmd.problem)
+      ? problemText(common, cmd.problem)
       : null;
 
   return (
@@ -145,7 +147,7 @@ export function RequestForm({ units, m }: { units: RentedUnit[]; m: Messages<"re
       {cmd.phase === "unknown" ? (
         <div className="banner banner--warn" role="alert">
           <p>{tm(m, "request_form.unknown")}</p>
-          {cmd.problem ? <p>{problemText(cmd.problem)}</p> : null}
+          {cmd.problem ? <p>{problemText(common, cmd.problem)}</p> : null}
           <Button
             variant="secondary"
             onClick={() => void cmd.resend().then((r) => r !== null && router.refresh())}

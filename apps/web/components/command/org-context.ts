@@ -4,7 +4,7 @@
 export const ORG_CONTEXT_META = "hm-org-context";
 export const ORG_CONTEXT_HEADER = "x-org-context";
 export const CONTEXT_CHANGED_CODE = "CONTEXT_CHANGED";
-export const CONTEXT_CHANGED_TEXT = "Bạn vừa đổi tổ chức ở tab khác — tải lại trang";
+// Câu báo đổi tổ chức: khoá `common.command.context_changed` (D-101).
 
 /** Header ngữ cảnh từ thẻ meta của trang; không có meta (trang chưa chọn tổ chức) → không gửi header. */
 export function orgContextHeaders(

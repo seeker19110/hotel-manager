@@ -4,7 +4,7 @@ import { CLIENT_VERSION_HEADER } from "@hm/app/client-version";
 
 export const APP_VERSION_META = "hm-app-version";
 export const CLIENT_OUTDATED_CODE = "CLIENT_OUTDATED";
-export const CLIENT_OUTDATED_TEXT = "Ứng dụng cần cập nhật để tiếp tục.";
+// Câu báo cần cập nhật: khoá `common.command.client_outdated` (D-101).
 
 /** Header phiên bản từ thẻ meta; không có meta (trang lỗi dựng sớm) ⇒ không gửi header. */
 export function appVersionHeaders(

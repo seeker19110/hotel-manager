@@ -8,6 +8,7 @@ import { useState } from "react";
 import { timedFetch } from "../../lib/fetch-timeout.ts";
 import { vnd } from "../../lib/format.ts";
 import type { Messages } from "../../lib/i18n.ts";
+import { useMessages } from "../../lib/i18n-context.tsx";
 import { tm } from "../../lib/i18n-format.ts";
 import { firstNonEmpty } from "../../lib/text.ts";
 import { CommandStatus } from "../command/command-status.tsx";
@@ -44,6 +45,7 @@ export function BookingForm({
   m: Messages<"booking.quote." | "booking.form.">;
 }) {
   const router = useRouter();
+  const common = useMessages();
   const create = useCommand<{ reservationId: string }>("reservation/create");
   const hold = useCommand<{ expiresAt: string }>("reservation/hold");
   const [unitId, setUnitId] = useState(defaults.unitId);
@@ -139,8 +141,8 @@ export function BookingForm({
   }
 
   const locked = create.locked || hold.locked;
-  const general = (c: { phase: string; problem: Parameters<typeof problemText>[0] }) =>
-    c.phase === "error" ? problemText(c.problem) : null;
+  const general = (c: { phase: string; problem: Parameters<typeof problemText>[1] }) =>
+    c.phase === "error" ? problemText(common, c.problem) : null;
 
   return (
     <div className="panel">

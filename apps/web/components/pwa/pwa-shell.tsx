@@ -2,7 +2,8 @@
 // Vỏ PWA (SPEC-pwa): đăng ký SW, banner mất mạng, banner có bản mới. Chỉ chạy online — không cache trang/dữ liệu.
 import { SerwistProvider, useSerwist } from "@serwist/turbopack/react";
 import { type ReactNode, useEffect, useState, useSyncExternalStore } from "react";
-import { CLIENT_OUTDATED_TEXT } from "../command/app-version.ts";
+import { useMessages } from "../../lib/i18n-context.tsx";
+import { tm } from "../../lib/i18n-format.ts";
 import { ReauthDialog, type ReauthMessages } from "../command/reauth-dialog.tsx";
 import { Icon } from "../ui/icon.tsx";
 
@@ -26,12 +27,13 @@ export function useOnline(): boolean {
 
 /** S-004: banner mất mạng — role="status" (đọc lịch sự), chữ rõ ràng, không chỉ dựa vào màu. */
 export function NetworkBanner() {
+  const m = useMessages();
   const online = useOnline();
   if (online) return null;
   return (
     <div className="banner banner--warn" role="status" aria-live="polite" data-testid="network-banner">
       <Icon name="warning" />
-      Mất kết nối — thao tác chưa được gửi
+      {tm(m, "common.pwa.offline_banner")}
     </div>
   );
 }
@@ -41,6 +43,7 @@ export function NetworkBanner() {
  * SW mới nắm quyền thì tải lại trang.
  */
 function UpdateBanner() {
+  const m = useMessages();
   const { serwist } = useSerwist();
   const [waiting, setWaiting] = useState(false);
   useEffect(() => {
@@ -57,9 +60,9 @@ function UpdateBanner() {
   if (!waiting) return null;
   return (
     <div className="banner banner--info" role="status" aria-live="polite">
-      Đã có phiên bản mới. Lưu xong thao tác rồi bấm Cập nhật.
+      {tm(m, "common.pwa.update_available")}
       <button type="button" className="btn btn--secondary" onClick={() => serwist?.messageSkipWaiting()}>
-        Cập nhật
+        {tm(m, "common.pwa.update")}
       </button>
     </div>
   );
@@ -108,6 +111,7 @@ export async function applyUpdate(): Promise<void> {
 }
 
 function OutdatedBanner() {
+  const m = useMessages();
   const isOutdated = useSyncExternalStore(
     subscribeOutdated,
     () => outdated,
@@ -116,9 +120,9 @@ function OutdatedBanner() {
   if (!isOutdated) return null;
   return (
     <div className="banner banner--warn" role="alert" data-testid="outdated-banner">
-      <p>{CLIENT_OUTDATED_TEXT}</p>
+      <p>{tm(m, "common.command.client_outdated")}</p>
       <button type="button" className="btn" onClick={() => void applyUpdate()}>
-        Cập nhật
+        {tm(m, "common.pwa.update")}
       </button>
     </div>
   );
