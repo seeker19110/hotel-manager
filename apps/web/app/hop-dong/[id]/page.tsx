@@ -3,20 +3,20 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { CommandForm, type FieldSpec } from "../../../components/command/command-form.tsx";
 import { day, leaseStatusLabel, meterLabel, vnd } from "../../../lib/format.ts";
-import { messagesFor } from "../../../lib/i18n.ts";
+import { messagesFor, t } from "../../../lib/i18n.ts";
 import { withActor } from "../../../lib/page.tsx";
 
 /** Nhãn mã (lib/format.ts, D-103). */
 const LABELS = messagesFor("label.lease_status.", "label.meter.");
 
-export const metadata: Metadata = { title: "Chi tiết hợp đồng — Hotel Manager" };
+export const metadata: Metadata = { title: t("lease.detail.metadata.title") };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export default async function LeasePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!UUID.test(id)) notFound();
-  return withActor("Chi tiết hợp đồng", "/hop-dong", async (actor) => {
+  return withActor(t("lease.detail.page.title"), "/hop-dong", async (actor) => {
     const db = serverContext().db;
     const x = await leaseExtras(db, actor, id);
     if (!x) notFound();
@@ -28,10 +28,10 @@ export default async function LeasePage({ params }: { params: Promise<{ id: stri
       x.meters.map((m) => ({
         name: `${prefix}_${m.kind}`,
         path: `readings.${m.kind}`,
-        label: `Chỉ số ${meterLabel(LABELS, m.kind)?.toLowerCase() ?? m.kind}`,
+        label: t("lease.detail.reading.label", { kind: meterLabel(LABELS, m.kind)?.toLowerCase() ?? m.kind }),
         type: "decimal",
         required: true,
-        hint: `Lần đọc trước: ${m.last}`,
+        hint: t("lease.detail.reading.hint", { last: m.last }),
       }));
     const handoverFixed = (kind: string) => ({
       lease_id: id,
@@ -43,70 +43,69 @@ export default async function LeasePage({ params }: { params: Promise<{ id: stri
     return (
       <>
         <section aria-labelledby="tt" className="panel">
-          <h2 id="tt">
-            Phòng {x.unit} — {x.tenant}
-          </h2>
+          <h2 id="tt">{t("lease.detail.summary.heading", { unit: x.unit, tenant: x.tenant })}</h2>
           <dl className="facts">
-            <dt>Số hợp đồng</dt>
+            <dt>{t("lease.detail.fact.number")}</dt>
             <dd>{lease.number}</dd>
-            <dt>Trạng thái</dt>
+            <dt>{t("lease.detail.fact.status")}</dt>
             <dd data-testid="lease-status">{leaseStatusLabel(LABELS, lease.status)}</dd>
-            <dt>Cơ sở</dt>
+            <dt>{t("lease.detail.fact.property")}</dt>
             <dd>{x.property}</dd>
-            <dt>Điện thoại</dt>
+            <dt>{t("lease.detail.fact.phone")}</dt>
             <dd>{x.tenant_phone ?? "—"}</dd>
-            <dt>Giá thuê</dt>
-            <dd>{v ? `${vnd(v.rent_amount)}/tháng` : "—"}</dd>
-            <dt>Hiệu lực</dt>
+            <dt>{t("lease.detail.fact.rent")}</dt>
+            <dd>{v ? t("lease.detail.fact.rent_value", { rent: vnd(v.rent_amount) }) : "—"}</dd>
+            <dt>{t("lease.detail.fact.effective")}</dt>
             <dd>
-              {day(v?.effective_from)} – {v?.effective_to ? day(v.effective_to) : "không thời hạn"}
+              {day(v?.effective_from)} –{" "}
+              {v?.effective_to ? day(v.effective_to) : t("lease.detail.fact.no_end")}
             </dd>
-            <dt>Cọc đang giữ</dt>
+            <dt>{t("lease.detail.fact.deposit")}</dt>
             <dd data-testid="deposit-balance">
-              {x.deposit_balance === null ? "Chưa nhận" : vnd(x.deposit_balance)}
+              {x.deposit_balance === null ? t("lease.detail.fact.deposit_none") : vnd(x.deposit_balance)}
             </dd>
-            <dt>Còn phải thu</dt>
+            <dt>{t("lease.detail.fact.open_ar")}</dt>
             <dd>{vnd(x.open_ar)}</dd>
           </dl>
         </section>
 
         {lease.status === "draft" ? (
           <section aria-labelledby="a-submit" className="panel">
-            <h2 id="a-submit">Trình ký</h2>
+            <h2 id="a-submit">{t("lease.detail.submit.heading")}</h2>
             <CommandForm
               path="lease/submitForSignature"
               fixed={{ lease_id: id }}
-              submitLabel="Trình ký"
-              successText="Đã chuyển sang chờ ký."
+              submitLabel={t("lease.detail.submit.submit_label")}
+              successText={t("lease.detail.submit.success")}
             />
           </section>
         ) : null}
 
         {lease.status === "pending_signature" ? (
           <section aria-labelledby="a-sign" className="panel">
-            <h2 id="a-sign">Ký hợp đồng</h2>
-            <p>Người đứng hợp đồng ký trực tiếp; điều khoản được khoá sau khi ký.</p>
+            <h2 id="a-sign">{t("lease.detail.sign.heading")}</h2>
+            <p>{t("lease.detail.sign.intro")}</p>
             <CommandForm
               path="lease/sign"
-              confirm="Ký hợp đồng sẽ chốt điều khoản và giữ phòng; không sửa lại được — muốn đổi phải lập phụ lục."
-              confirmLabel={`Ký hợp đồng ${lease.number}`}
+              confirm={t("lease.detail.sign.confirm")}
+              confirmLabel={t("lease.detail.sign.confirm_label", { number: lease.number })}
               fixed={{ lease_id: id, signer_person_id: lease.representative_person_id }}
-              submitLabel="Ký hợp đồng"
-              successText="Đã ký hợp đồng."
+              submitLabel={t("lease.detail.sign.submit_label")}
+              successText={t("lease.detail.sign.success")}
             />
           </section>
         ) : null}
 
         {lease.status === "signed_awaiting_handover" && !moveIn ? (
           <section aria-labelledby="a-in" className="panel">
-            <h2 id="a-in">Bàn giao nhận phòng</h2>
+            <h2 id="a-in">{t("lease.detail.move_in.heading")}</h2>
             <CommandForm
               path="lease/recordHandover"
               fixed={handoverFixed("move_in")}
               fields={[
                 {
                   name: "handed_over_on",
-                  label: "Ngày bàn giao",
+                  label: t("lease.detail.move_in.date"),
                   type: "date",
                   required: true,
                   defaultValue: lease.billing_start_on,
@@ -114,41 +113,44 @@ export default async function LeasePage({ params }: { params: Promise<{ id: stri
                 ...readingFields("in"),
                 {
                   name: "keys_count",
-                  label: "Số chìa khoá",
+                  label: t("lease.detail.move_in.keys"),
                   type: "integer",
                   required: true,
                   defaultValue: 2,
                 },
               ]}
-              submitLabel="Xác nhận bàn giao"
-              successText="Đã lưu biên bản bàn giao."
+              submitLabel={t("lease.detail.move_in.submit_label")}
+              successText={t("lease.detail.move_in.success")}
             />
           </section>
         ) : null}
 
         {lease.status === "signed_awaiting_handover" && moveIn ? (
           <section aria-labelledby="a-act" className="panel">
-            <h2 id="a-act">Kích hoạt hợp đồng</h2>
-            <p>Đã bàn giao ngày {day(moveIn.handed_over_on)}.</p>
+            <h2 id="a-act">{t("lease.detail.activate.heading")}</h2>
+            <p>{t("lease.detail.activate.handed_over", { date: day(moveIn.handed_over_on) })}</p>
             <CommandForm
               path="lease/activate"
-              confirm="Hợp đồng chuyển sang đang thuê và bắt đầu tính tiền theo kỳ."
-              confirmLabel={`Kích hoạt hợp đồng ${lease.number}`}
+              confirm={t("lease.detail.activate.confirm")}
+              confirmLabel={t("lease.detail.activate.confirm_label", { number: lease.number })}
               fixed={{ lease_id: id }}
-              submitLabel="Kích hoạt"
-              successText="Hợp đồng đang hiệu lực."
+              submitLabel={t("lease.detail.activate.submit_label")}
+              successText={t("lease.detail.activate.success")}
             />
           </section>
         ) : null}
 
         {["active", "notice_given"].includes(lease.status) && x.deposit_balance === null ? (
           <section aria-labelledby="a-dep" className="panel">
-            <h2 id="a-dep">Nhận cọc (tiền mặt)</h2>
+            <h2 id="a-dep">{t("lease.detail.deposit.heading")}</h2>
             {x.open_shift ? (
               <CommandForm
                 path="deposit/receive"
-                confirm="Ghi nhận tiền cọc vào sổ; muốn sửa phải lập bút toán điều chỉnh có duyệt."
-                confirmLabel={`Nhận cọc {amount} cho ${lease.number}`}
+                confirm={t("lease.detail.deposit.confirm")}
+                confirmLabel={t("lease.detail.deposit.confirm_label", {
+                  amount: "{amount}",
+                  number: lease.number,
+                })}
                 fixed={{
                   property_id: lease.property_id,
                   lease_id: id,
@@ -158,20 +160,20 @@ export default async function LeasePage({ params }: { params: Promise<{ id: stri
                 fields={[
                   {
                     name: "amount",
-                    label: "Số tiền cọc (đồng)",
+                    label: t("lease.detail.deposit.amount"),
                     type: "money",
                     required: true,
                     defaultValue: v?.deposit_amount ?? "",
                   },
                 ]}
-                submitLabel="Nhận cọc"
-                successText="Đã ghi nhận cọc — chờ xác nhận tiền mặt ở trang Thu tiền."
+                submitLabel={t("lease.detail.deposit.submit_label")}
+                successText={t("lease.detail.deposit.success")}
               />
             ) : (
               <p>
-                Mở ca tiền mặt ở trang Thu tiền trước khi nhận cọc.{" "}
+                {t("lease.detail.deposit.need_shift")}{" "}
                 <a className="btn btn--secondary" href="/thu-tien">
-                  Đến trang Thu tiền
+                  {t("lease.detail.deposit.to_cash")}
                 </a>
               </p>
             )}
@@ -180,17 +182,26 @@ export default async function LeasePage({ params }: { params: Promise<{ id: stri
 
         {lease.status === "active" ? (
           <section aria-labelledby="a-notice" className="panel">
-            <h2 id="a-notice">Báo trả phòng</h2>
+            <h2 id="a-notice">{t("lease.detail.notice.heading")}</h2>
             <CommandForm
               path="lease/giveNotice"
-              confirm="Ghi nhận người thuê báo trả phòng; hợp đồng chuyển sang chờ trả, không rút lại được trên hệ thống."
-              confirmLabel={`Ghi nhận báo trả phòng ${x.unit} (${lease.number}) ngày {planned_move_out_on}`}
+              confirm={t("lease.detail.notice.confirm")}
+              confirmLabel={t("lease.detail.notice.confirm_label", {
+                unit: x.unit,
+                number: lease.number,
+                planned_move_out_on: "{planned_move_out_on}",
+              })}
               fixed={{ lease_id: id }}
               fields={[
-                { name: "planned_move_out_on", label: "Ngày dự kiến trả", type: "date", required: true },
+                {
+                  name: "planned_move_out_on",
+                  label: t("lease.detail.notice.date"),
+                  type: "date",
+                  required: true,
+                },
               ]}
-              submitLabel="Ghi nhận báo trả"
-              successText="Đã ghi nhận báo trả."
+              submitLabel={t("lease.detail.notice.submit_label")}
+              successText={t("lease.detail.notice.success")}
               variant="secondary"
             />
           </section>
@@ -198,25 +209,34 @@ export default async function LeasePage({ params }: { params: Promise<{ id: stri
 
         {["active", "notice_given"].includes(lease.status) && !moveOut ? (
           <section aria-labelledby="a-out" className="panel">
-            <h2 id="a-out">Bàn giao trả phòng</h2>
+            <h2 id="a-out">{t("lease.detail.move_out.heading")}</h2>
             <CommandForm
               path="lease/recordHandover"
-              confirm="Bàn giao trả phòng chốt ngày trả và chỉ số cuối; hợp đồng chuyển sang quyết toán, không quay lại đang thuê."
-              confirmLabel={`Chốt trả phòng ${x.unit} (${lease.number}) ngày {handed_over_on}`}
+              confirm={t("lease.detail.move_out.confirm")}
+              confirmLabel={t("lease.detail.move_out.confirm_label", {
+                unit: x.unit,
+                number: lease.number,
+                handed_over_on: "{handed_over_on}",
+              })}
               fixed={handoverFixed("move_out")}
               fields={[
-                { name: "handed_over_on", label: "Ngày trả phòng", type: "date", required: true },
+                {
+                  name: "handed_over_on",
+                  label: t("lease.detail.move_out.date"),
+                  type: "date",
+                  required: true,
+                },
                 ...readingFields("out"),
                 {
                   name: "keys_count",
-                  label: "Số chìa khoá nhận lại",
+                  label: t("lease.detail.move_out.keys"),
                   type: "integer",
                   required: true,
                   defaultValue: 2,
                 },
               ]}
-              submitLabel="Xác nhận trả phòng"
-              successText="Đã lưu biên bản trả phòng — chuyển sang thanh lý."
+              submitLabel={t("lease.detail.move_out.submit_label")}
+              successText={t("lease.detail.move_out.success")}
               variant="secondary"
             />
           </section>
@@ -224,18 +244,15 @@ export default async function LeasePage({ params }: { params: Promise<{ id: stri
 
         {lease.status === "settling" ? (
           <section aria-labelledby="a-settle" className="panel">
-            <h2 id="a-settle">Thanh lý</h2>
-            <p>
-              Lập bảng quyết toán: cọc đối trừ công nợ, phần còn lại hoàn cho khách. Người khác (theo hạn mức)
-              duyệt rồi mới ghi sổ.
-            </p>
+            <h2 id="a-settle">{t("lease.detail.settle.heading")}</h2>
+            <p>{t("lease.detail.settle.intro")}</p>
             <CommandForm
               path="lease/prepareSettlement"
-              confirm="Lập quyết toán từ chỉ số và công nợ hiện tại của hợp đồng."
-              confirmLabel={`Lập quyết toán ${lease.number}`}
+              confirm={t("lease.detail.settle.confirm")}
+              confirmLabel={t("lease.detail.settle.confirm_label", { number: lease.number })}
               fixed={{ lease_id: id, fees: [] }}
-              submitLabel="Lập quyết toán"
-              successText="Đã lập quyết toán — chờ duyệt."
+              submitLabel={t("lease.detail.settle.submit_label")}
+              successText={t("lease.detail.settle.success")}
             />
           </section>
         ) : null}

@@ -8,15 +8,13 @@ import { withActor } from "../../lib/page.tsx";
 /** Nhãn mã (lib/format.ts, D-103). */
 const LABELS = messagesFor("label.lease_status.");
 
-export const metadata: Metadata = { title: "Hợp đồng — Hotel Manager" };
+export const metadata: Metadata = { title: t("lease.list.metadata.title") };
 
 export default async function LeasesPage() {
-  return withActor("Hợp đồng", "/hop-dong", async (actor) => {
+  return withActor(t("common.route_title.hop_dong"), "/hop-dong", async (actor) => {
     const leases = await listLeases(serverContext().db, actor);
     if (leases.length === 0)
-      return (
-        <EmptyState title="Chưa có hợp đồng" text="Hợp đồng nhập từ sổ cũ hoặc lập mới sẽ hiện ở đây." />
-      );
+      return <EmptyState title={t("lease.list.empty.title")} text={t("lease.list.empty.text")} />;
     return (
       <ul className="card-list">
         {leases.map((l) => (

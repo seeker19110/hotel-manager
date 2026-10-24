@@ -9,6 +9,7 @@ import {
   handleUserCommand,
 } from "@hm/app";
 import { httpDeps } from "../../../../../lib/http-deps.ts";
+import { t } from "../../../../../lib/i18n.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,7 @@ const notFound = () =>
   Response.json(
     {
       type: "https://hotel-manager.invalid/errors/NOT_FOUND",
-      title: "Không có command này",
+      title: t("api.command_not_found.title"),
       status: 404,
       code: "NOT_FOUND",
     },

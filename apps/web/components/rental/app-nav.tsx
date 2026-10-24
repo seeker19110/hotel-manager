@@ -1,6 +1,7 @@
 // Điều hướng chính của nhân viên (SPEC-pwa S-014): thanh dưới với đúng các điểm vào của `primaryNav` (tối đa 5: Hôm nay ·
 // Phòng/Lịch · Thu tiền · Công việc · Thêm); thanh trên (dưới tiêu đề ứng dụng) luôn nêu cơ sở đang thao tác + chuông thông báo.
 // Mục đang mở có aria-current. Chi tiết mục theo vai trò: `nav-items.ts`.
+import { t } from "../../lib/i18n.ts";
 import { Icon } from "../ui/icon.tsx";
 import { activeKey, moreLinks, type NavKinds, primaryNav, type Role, scopeLabel } from "./nav-items.ts";
 
@@ -25,14 +26,14 @@ export function AppNav({
     <>
       <div className="scope-bar">
         <p className="scope-bar__property" data-testid="scope-bar">
-          <span className="scope-bar__label">Cơ sở: </span>
+          <span className="scope-bar__label">{t("nav.scope.label")} </span>
           {scopeLabel(propertyNames)}
         </p>
         <a
           href="/thong-bao"
           className="bell"
           aria-current={current === "/thong-bao" ? "page" : undefined}
-          aria-label={unread > 0 ? `${unread} thông báo chưa đọc` : "Thông báo"}
+          aria-label={unread > 0 ? t("nav.bell.unread", { count: unread }) : t("nav.bell.none")}
           data-testid="bell"
           data-unread={unread}
         >
@@ -44,7 +45,7 @@ export function AppNav({
           ) : null}
         </a>
       </div>
-      <nav aria-label="Chức năng" className="app-nav" data-testid="app-nav">
+      <nav aria-label={t("nav.label")} className="app-nav" data-testid="app-nav">
         <ul>
           {items.map((i) => (
             <li key={i.key}>

@@ -1,6 +1,9 @@
 "use client";
 import { RouteError } from "../../components/ui/route-state.tsx";
+import { useMessages } from "../../lib/i18n-context.tsx";
+import { tm } from "../../lib/i18n-format.ts";
 
 export default function ErrorPage(props: { error: Error & { digest?: string }; reset: () => void }) {
-  return <RouteError title="Hợp đồng" {...props} />;
+  const m = useMessages();
+  return <RouteError title={tm(m, "common.route_title.hop_dong")} {...props} />;
 }

@@ -1,4 +1,7 @@
 {
+  "apps/web/app/api/v1/webhooks/[provider]/[account]/route.ts": "Chỉ hai thông điệp log (log.warn webhook bị từ chối, log.error lỗi không dự kiến) — vào log vận hành; phản hồi HTTP dùng thông điệp của catalog packages/app (http.webhook.*).",
+  "apps/worker/src/jobs.ts": "Chuỗi duy nhất là Error nội bộ của job outbox khi payload thiếu bank_transaction_id — worker không có giao diện, lỗi chỉ vào log/bảng job (vận hành).",
+  "apps/worker/src/runtime.ts": "Chỉ AggregateError tổng hợp bước lỗi của vòng worker và lý do log.warn khi chưa có adapter SMTP — log vận hành, không tới người dùng.",
   "packages/app/src/auth/auth-events.ts": "Chuỗi duy nhất là thông điệp log.error khi ghi audit sự kiện xác thực thất bại — chỉ vào log vận hành, không ra API/UI.",
   "packages/app/src/config/schema.ts": "Lý do lỗi cấu hình biến môi trường lúc khởi động (Error ném khi đọc env) — chỉ người vận hành thấy trong log khởi động, không ra API/UI.",
   "packages/app/src/config/webhook-secrets.ts": "Lỗi cấu hình SIM_WEBHOOK_SECRET lúc khởi động (Error ném khi phân tích env) — chỉ người vận hành thấy, không ra API/UI.",
