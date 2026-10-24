@@ -8,6 +8,7 @@
 import { withTenant } from "@hm/db";
 import { type Kysely, type RawBuilder, sql } from "kysely";
 import type { Actor } from "../access/index.ts";
+import { t } from "../i18n.ts";
 import { CommandError } from "../pipeline/index.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -24,13 +25,13 @@ export const TODAY_CARDS = [
 export type TodayCard = (typeof TODAY_CARDS)[number];
 
 const LABEL: Readonly<Record<TodayCard, string>> = {
-  arrivals: "Khách đến",
-  departures: "Khách đi",
-  receivables: "Nợ đến hạn/quá hạn",
-  periodsReviewing: "Kỳ thu cần duyệt",
-  dirtyUnits: "Phòng cần dọn",
-  workOrders: "Sự cố",
-  residenceNotices: "Thông báo lưu trú sắp/quá hạn",
+  arrivals: t("today.card.arrivals"),
+  departures: t("today.card.departures"),
+  receivables: t("today.card.receivables"),
+  periodsReviewing: t("today.card.periods_reviewing"),
+  dirtyUnits: t("today.card.dirty_units"),
+  workOrders: t("today.card.work_orders"),
+  residenceNotices: t("today.card.residence_notices"),
 };
 
 /** Thẻ có số tiền (chỉ trả `amount` cho các thẻ này). */
@@ -63,8 +64,8 @@ export interface TodaySummary {
   asOf: Date;
 }
 
-const forbidden = () => new CommandError("FORBIDDEN", 403, "Bạn không có quyền xem mục này");
-const notFound = () => new CommandError("NOT_FOUND", 404, "Không tìm thấy");
+const forbidden = () => new CommandError("FORBIDDEN", 403, t("today.forbidden"));
+const notFound = () => new CommandError("NOT_FOUND", 404, t("common.not_found"));
 
 function cardsFor(actor: Actor): readonly TodayCard[] {
   const c = CARDS_BY_ROLE[actor.role];
@@ -85,7 +86,7 @@ function listSql(card: TodayCard, now: Date): RawBuilder<unknown> {
   switch (card) {
     case "arrivals":
       return sql`
-        select r.id, pr.id as property_id, concat('Phòng ', coalesce(u.code, '—'), ' · ', r.number) as title,
+        select r.id, pr.id as property_id, concat(${t("today.item.room")}::text, ' ', coalesce(u.code, '—'), ' · ', r.number) as title,
                to_char(ri.arrival_date, 'DD/MM/YYYY') as subtitle, null::bigint as amount, false as overdue, r.number as sort_key
         from pr join reservation_items ri on ri.organization_id = pr.org and ri.property_id = pr.id and ri.arrival_date = pr.bd
         join reservations r on r.organization_id = ri.organization_id and r.id = ri.reservation_id
@@ -93,8 +94,8 @@ function listSql(card: TodayCard, now: Date): RawBuilder<unknown> {
         where r.status in ('held','confirmed','in_house','checked_out')`;
     case "departures":
       return sql`
-        select s.id, pr.id as property_id, concat('Phòng ', u.code, ' · ', r.number) as title,
-               case s.status when 'checked_out' then 'Đã trả phòng' else 'Đang ở' end as subtitle,
+        select s.id, pr.id as property_id, concat(${t("today.item.room")}::text, ' ', u.code, ' · ', r.number) as title,
+               case s.status when 'checked_out' then ${t("today.departure.checked_out")}::text else ${t("today.departure.in_house")}::text end as subtitle,
                null::bigint as amount, false as overdue, u.code as sort_key
         from pr join reservation_items ri on ri.organization_id = pr.org and ri.property_id = pr.id and ri.departure_date = pr.bd
         join stays s on s.organization_id = ri.organization_id and s.reservation_item_id = ri.id
@@ -103,8 +104,8 @@ function listSql(card: TodayCard, now: Date): RawBuilder<unknown> {
         where s.status in ('in_house','checked_out')`;
     case "receivables":
       return sql`
-        select i.id, pr.id as property_id, concat('Phiếu ', i.number) as title,
-               concat('Hạn ', to_char(i.due_on, 'DD/MM/YYYY')) as subtitle, i.open_amount::bigint as amount,
+        select i.id, pr.id as property_id, concat(${t("today.item.invoice")}::text, ' ', i.number) as title,
+               concat(${t("today.item.due")}::text, ' ', to_char(i.due_on, 'DD/MM/YYYY')) as subtitle, i.open_amount::bigint as amount,
                i.due_on < pr.bd as overdue, to_char(i.due_on, 'YYYY-MM-DD') || i.number as sort_key
         from pr join invoices i on i.organization_id = pr.org and i.property_id = pr.id
         where i.kind in ('periodic','fee','folio','opening_balance') and i.open_amount > 0
@@ -114,29 +115,29 @@ function listSql(card: TodayCard, now: Date): RawBuilder<unknown> {
                    and b.status in ('issued','locked')))`;
     case "periodsReviewing":
       return sql`
-        select b.id, pr.id as property_id, concat('Kỳ ', to_char(b.period_start, 'MM/YYYY')) as title, pr.name as subtitle,
+        select b.id, pr.id as property_id, concat(${t("today.item.period")}::text, ' ', to_char(b.period_start, 'MM/YYYY')) as title, pr.name as subtitle,
                null::bigint as amount, false as overdue, to_char(b.period_start, 'YYYY-MM-DD') as sort_key
         from pr join billing_periods b on b.organization_id = pr.org and b.property_id = pr.id
         where b.status = 'reviewing'`;
     case "dirtyUnits":
       return sql`
-        select u.id, pr.id as property_id, concat('Phòng ', u.code) as title,
-               case u.housekeeping_status when 'dirty' then 'Bẩn' when 'assigned' then 'Đã giao dọn' else 'Đang dọn' end as subtitle,
+        select u.id, pr.id as property_id, concat(${t("today.item.room")}::text, ' ', u.code) as title,
+               case u.housekeeping_status when 'dirty' then ${t("today.housekeeping.dirty")}::text when 'assigned' then ${t("today.housekeeping.assigned")}::text else ${t("today.housekeeping.cleaning")}::text end as subtitle,
                null::bigint as amount, false as overdue, u.code as sort_key
         from pr join units u on u.organization_id = pr.org and u.property_id = pr.id
         where u.archived_at is null and u.housekeeping_status in ('dirty','assigned','cleaning')`;
     case "workOrders":
       return sql`
-        select w.id, pr.id as property_id, concat('Phòng ', u.code, ': ', w.title) as title,
-               case w.status when 'open' then 'Mới báo' when 'assigned' then 'Đã giao' else 'Đang sửa' end as subtitle,
+        select w.id, pr.id as property_id, concat(${t("today.item.room")}::text, ' ', u.code, ': ', w.title) as title,
+               case w.status when 'open' then ${t("today.work_order.open")}::text when 'assigned' then ${t("today.work_order.assigned")}::text else ${t("today.work_order.in_progress")}::text end as subtitle,
                null::bigint as amount, false as overdue, to_char(w.created_at, 'YYYY-MM-DD HH24:MI:SS') as sort_key
         from pr join work_orders w on w.organization_id = pr.org and w.property_id = pr.id
         join units u on u.organization_id = w.organization_id and u.id = w.unit_id
         where w.status in ('open','assigned','in_progress')`;
     case "residenceNotices":
       return sql`
-        select n.id, pr.id as property_id, concat('Phòng ', u.code) as title,
-               concat('Hạn ', to_char(n.due_at at time zone pr.timezone, 'HH24:MI DD/MM/YYYY')) as subtitle,
+        select n.id, pr.id as property_id, concat(${t("today.item.room")}::text, ' ', u.code) as title,
+               concat(${t("today.item.due")}::text, ' ', to_char(n.due_at at time zone pr.timezone, 'HH24:MI DD/MM/YYYY')) as subtitle,
                null::bigint as amount, n.due_at < ${now} as overdue, to_char(n.due_at, 'YYYY-MM-DD HH24:MI:SS') as sort_key
         from pr join residence_notices n on n.organization_id = pr.org and n.property_id = pr.id
         join stays s on s.organization_id = n.organization_id and s.id = n.stay_id

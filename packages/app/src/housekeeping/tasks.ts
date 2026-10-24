@@ -6,6 +6,7 @@ import { withTenant } from "@hm/db";
 import { authorize, TransitionError } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/index.ts";
+import { t as msg } from "../i18n.ts";
 import { type CommandContext, CommandError } from "../pipeline/index.ts";
 
 export type TaskSource = "stay" | "move" | "work_order" | "lease" | "manual";
@@ -103,7 +104,7 @@ async function lockTask(
   taskId: string,
   check: (t: TaskRow) => void = () => {},
 ): Promise<TaskRow> {
-  if (!UUID.test(taskId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy việc");
+  if (!UUID.test(taskId)) throw new CommandError("NOT_FOUND", 404, msg("housekeeping.task_not_found"));
   const read = (lock: boolean) =>
     sql<TaskRow>`
       select t.id, t.property_id, t.unit_id, t.kind, t.status, t.assignee_membership_id, m.person_id as assignee_person_id,
@@ -113,7 +114,7 @@ async function lockTask(
       ${lock ? sql`for update of t` : sql``}`.execute(ctx.trx);
   const seen = (await read(false)).rows[0];
   if (!seen || (!ctx.actor.allProperties && !ctx.actor.propertyIds.includes(seen.property_id)))
-    throw new CommandError("NOT_FOUND", 404, "Không tìm thấy việc");
+    throw new CommandError("NOT_FOUND", 404, msg("housekeeping.task_not_found"));
   check(seen);
   const locked = (await read(true)).rows[0];
   if (!locked) {
@@ -181,19 +182,19 @@ export async function createTask(
     note?: string;
   },
 ): Promise<{ taskId: string; created: boolean }> {
-  if (!UUID.test(input.unitId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phòng");
+  if (!UUID.test(input.unitId)) throw new CommandError("NOT_FOUND", 404, msg("common.unit_not_found"));
   const u = await sql<{ property_id: string }>`
     select property_id from units where organization_id = ${ctx.actor.orgId} and id = ${input.unitId} and archived_at is null`.execute(
     ctx.trx,
   );
   const unit = u.rows[0];
-  if (!unit) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phòng");
+  if (!unit) throw new CommandError("NOT_FOUND", 404, msg("common.unit_not_found"));
   authorize(ctx.actor, "housekeeping.assign", {
     propertyId: unit.property_id,
     subjectPersonId: ctx.actor.personId,
   });
   if (input.note !== undefined && input.note.length > 2000)
-    throw new CommandError("VALIDATION_FAILED", 422, "Ghi chú tối đa 2.000 ký tự");
+    throw new CommandError("VALIDATION_FAILED", 422, msg("common.note_too_long_2000"));
   if (input.kind === "cleaning") {
     const r = await createCleaningTask(ctx, {
       propertyId: unit.property_id,
@@ -228,7 +229,8 @@ async function assertAssignee(
   propertyId: string,
   membershipId: string,
 ): Promise<string> {
-  if (!UUID.test(membershipId)) throw new CommandError("VALIDATION_FAILED", 422, "Người nhận không hợp lệ");
+  if (!UUID.test(membershipId))
+    throw new CommandError("VALIDATION_FAILED", 422, msg("common.assignee_invalid"));
   const r = await sql<{ person_id: string }>`
     select m.person_id from memberships m
     where m.organization_id = ${ctx.actor.orgId} and m.id = ${membershipId} and m.status = 'active'
@@ -238,14 +240,9 @@ async function assertAssignee(
     ctx.trx,
   );
   if (!r.rows[0])
-    throw new CommandError(
-      "VALIDATION_FAILED",
-      422,
-      "Người nhận không thuộc cơ sở hoặc không làm buồng phòng",
-      {
-        extensions: { errors: [{ path: "assignee", field: "assignee", code: "invalid" }] },
-      },
-    );
+    throw new CommandError("VALIDATION_FAILED", 422, msg("housekeeping.assignee_not_eligible"), {
+      extensions: { errors: [{ path: "assignee", field: "assignee", code: "invalid" }] },
+    });
   return r.rows[0].person_id;
 }
 
@@ -257,7 +254,7 @@ export async function assignTask(
   const t = await lockTask(ctx, input.taskId);
   authorize(ctx.actor, "housekeeping.assign", { propertyId: t.property_id });
   if (ctx.actor.role === "housekeeping")
-    throw new CommandError("FORBIDDEN", 403, "Buồng phòng chỉ tự nhận việc");
+    throw new CommandError("FORBIDDEN", 403, msg("housekeeping.cannot_assign"));
   if (t.status !== "open" && t.status !== "assigned") denyTransition(t.status, "assigned");
   await assertAssignee(ctx, t.property_id, input.assigneeMembershipId);
   await sql`update tasks set status = 'assigned', assignee_membership_id = ${input.assigneeMembershipId}, version = version + 1
@@ -307,7 +304,7 @@ export async function completeTask(ctx: CommandContext, input: { taskId: string;
   const t = await lockTask(ctx, input.taskId, (row) => authorizeProgress(ctx, row));
   if (t.status !== "in_progress") denyTransition(t.status, "done");
   if (input.note !== undefined && input.note.length > 2000)
-    throw new CommandError("VALIDATION_FAILED", 422, "Ghi chú tối đa 2.000 ký tự");
+    throw new CommandError("VALIDATION_FAILED", 422, msg("common.note_too_long_2000"));
   await sql`update tasks set status = 'done', done_by = ${ctx.actor.membershipId}, done_at = now(),
                    note = coalesce(${input.note ?? null}, note), version = version + 1
             where organization_id = ${ctx.actor.orgId} and id = ${t.id}`.execute(ctx.trx);
@@ -345,7 +342,7 @@ export async function verifyTask(
   if (!frontDeskInspects) authorize(ctx.actor, "task.verify", { propertyId: t.property_id });
   if (t.status !== "done") denyTransition(t.status, input.result === "pass" ? "verified" : "assigned");
   if (s.segregate_inspection !== false && t.done_by === ctx.actor.membershipId)
-    throw new CommandError("SELF_APPROVAL_FORBIDDEN", 403, "Bạn không thể tự nghiệm thu việc mình đã làm.");
+    throw new CommandError("SELF_APPROVAL_FORBIDDEN", 403, msg("common.self_verify_forbidden"));
   if (input.result === "pass") {
     await sql`update tasks set status = 'verified', verified_by = ${ctx.actor.membershipId}, verified_at = now(), version = version + 1
               where organization_id = ${ctx.actor.orgId} and id = ${t.id}`.execute(ctx.trx);
@@ -361,21 +358,21 @@ export async function verifyTask(
     return { taskId: t.id, status: "verified" as const };
   }
   const reason = input.reason?.trim() ?? "";
-  if (!reason) throw new CommandError("VALIDATION_FAILED", 422, "Cần lý do không đạt");
+  if (!reason) throw new CommandError("VALIDATION_FAILED", 422, msg("housekeeping.fail_reason_required"));
   const newer = t.kind === "cleaning" ? await otherOpenCleaning(ctx, t) : null;
   if (newer) {
     // Đã có việc dọn mới cho phòng (S-002): việc cũ không đạt thì đóng lại, lý do chuyển sang việc mới (review R3 — thay vì
     // 409 DUPLICATE do unique việc dọn mở).
-    await sql`update tasks set status = 'cancelled', cancel_reason = ${`Không đạt: ${reason} — gộp vào việc dọn mới`}, version = version + 1
+    await sql`update tasks set status = 'cancelled', cancel_reason = ${msg("housekeeping.fail_merged", { reason })}, version = version + 1
               where organization_id = ${ctx.actor.orgId} and id = ${t.id}`.execute(ctx.trx);
-    await sql`update tasks set note = left(concat_ws(E'\n', note, ${`Kiểm việc trước không đạt: ${reason}`}::text), 2000),
+    await sql`update tasks set note = left(concat_ws(E'\n', note, ${msg("housekeeping.previous_failed_note", { reason })}::text), 2000),
                      version = version + 1
               where organization_id = ${ctx.actor.orgId} and id = ${newer}`.execute(ctx.trx);
     await audited(ctx, t, "task_rejected", "cancelled", { reason, merged_into: newer });
     return { taskId: t.id, status: "cancelled" as const };
   }
   await sql`update tasks set status = 'assigned', done_by = null, done_at = null, version = version + 1,
-                   note = left(concat_ws(E'\n', note, ${`Không đạt: ${reason}`}::text), 2000)
+                   note = left(concat_ws(E'\n', note, ${msg("housekeeping.failed_note", { reason })}::text), 2000)
             where organization_id = ${ctx.actor.orgId} and id = ${t.id}`.execute(ctx.trx);
   await setUnitStatus(ctx, t, "assigned");
   await audited(ctx, t, "task_rejected", "assigned", { reason });
@@ -387,10 +384,10 @@ export async function cancelTask(ctx: CommandContext, input: { taskId: string; r
   const t = await lockTask(ctx, input.taskId);
   authorize(ctx.actor, "housekeeping.assign", { propertyId: t.property_id });
   if (ctx.actor.role === "housekeeping")
-    throw new CommandError("FORBIDDEN", 403, "Buồng phòng không huỷ việc");
+    throw new CommandError("FORBIDDEN", 403, msg("housekeeping.cannot_cancel"));
   if (!["open", "assigned", "in_progress"].includes(t.status)) denyTransition(t.status, "cancelled");
   const reason = input.reason.trim();
-  if (!reason) throw new CommandError("VALIDATION_FAILED", 422, "Cần lý do huỷ");
+  if (!reason) throw new CommandError("VALIDATION_FAILED", 422, msg("common.cancel_reason_required"));
   await sql`update tasks set status = 'cancelled', cancel_reason = ${reason}, version = version + 1
             where organization_id = ${ctx.actor.orgId} and id = ${t.id}`.execute(ctx.trx);
   await setUnitStatus(ctx, t, "cancelled");
@@ -442,7 +439,7 @@ function authorizeRead(actor: Actor, propertyId: string): void {
   try {
     authorize(actor, "calendar.read_status", { propertyId });
   } catch {
-    throw new CommandError("NOT_FOUND", 404, "Không tìm thấy dữ liệu");
+    throw new CommandError("NOT_FOUND", 404, msg("common.not_found_data"));
   }
 }
 
@@ -513,7 +510,7 @@ export async function listTasks(
   actor: Actor,
   input: { propertyId: string; floorId?: string; status?: TaskStatus; assignee?: string; now?: Date },
 ): Promise<TaskView[]> {
-  if (!UUID.test(input.propertyId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy dữ liệu");
+  if (!UUID.test(input.propertyId)) throw new CommandError("NOT_FOUND", 404, msg("common.not_found_data"));
   authorizeRead(actor, input.propertyId);
   return withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
     const p = await sql<{
@@ -521,7 +518,7 @@ export async function listTasks(
     }>`select id from properties where organization_id = ${actor.orgId} and id = ${input.propertyId}`.execute(
       trx,
     );
-    if (!p.rows[0]) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy dữ liệu");
+    if (!p.rows[0]) throw new CommandError("NOT_FOUND", 404, msg("common.not_found_data"));
     return queryTasks(trx, actor, input, input.now ?? new Date());
   });
 }
@@ -533,15 +530,15 @@ export async function getTask(
   taskId: string,
   now = new Date(),
 ): Promise<TaskView> {
-  if (!UUID.test(taskId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy việc");
+  if (!UUID.test(taskId)) throw new CommandError("NOT_FOUND", 404, msg("housekeeping.task_not_found"));
   return withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
     const r = await sql<{ property_id: string }>`
       select property_id from tasks where organization_id = ${actor.orgId} and id = ${taskId}`.execute(trx);
     const row = r.rows[0];
-    if (!row) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy việc");
+    if (!row) throw new CommandError("NOT_FOUND", 404, msg("housekeeping.task_not_found"));
     authorizeRead(actor, row.property_id);
     const [v] = await queryTasks(trx, actor, { propertyId: row.property_id, taskId }, now);
-    if (!v) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy việc");
+    if (!v) throw new CommandError("NOT_FOUND", 404, msg("housekeeping.task_not_found"));
     return v;
   });
 }

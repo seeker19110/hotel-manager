@@ -8,6 +8,7 @@ import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/index.ts";
 import { assertPropertyInOrg } from "../access/index.ts";
 import type { FileDeps } from "../files/index.ts";
+import { t } from "../i18n.ts";
 import { createWorkOrder, type Severity } from "../maintenance/index.ts";
 import { type CommandContext, CommandError } from "../pipeline/index.ts";
 
@@ -15,11 +16,10 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PHOTO_URL_SECONDS = 300;
 
 function tenantOnly(actor: Actor): void {
-  if (actor.role !== "tenant")
-    throw new CommandError("FORBIDDEN", 403, "Bạn không có quyền thực hiện thao tác này.");
+  if (actor.role !== "tenant") throw new CommandError("FORBIDDEN", 403, t("common.forbidden_action"));
 }
 
-const notFound = () => new CommandError("NOT_FOUND", 404, "Không tìm thấy dữ liệu.");
+const notFound = () => new CommandError("NOT_FOUND", 404, t("common.not_found_data_dot"));
 
 /** S-003: truy cập tài nguyên không thuộc mình → audit (transaction riêng, không lộ gì trong phản hồi). */
 async function denied(
@@ -38,7 +38,8 @@ async function denied(
 }
 
 const period = (iso: string) => `${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
-const balanceLabel = (balance: number) => (balance > 0 ? "Còn nợ" : "Đã trả đủ");
+const balanceLabel = (balance: number) =>
+  balance > 0 ? t("portal.tenant.balance_due") : t("portal.tenant.balance_paid");
 
 export interface MyInvoice {
   id: string;
@@ -208,7 +209,7 @@ export async function getMyLease(db: Kysely<unknown>, actor: Actor) {
       deposit: {
         amount: Number(x.deposit_amount ?? 0),
         balance: Number(x.deposit_balance ?? 0),
-        label: "Cọc — không phải tiền đã trả cho phiếu",
+        label: t("portal.tenant.deposit_label"),
       },
     }));
   });
@@ -251,12 +252,12 @@ export async function listMyMeterReadings(
 // ——— Yêu cầu sửa chữa (S-008, S-009) ———
 
 const REQUEST_LABEL: Readonly<Record<string, string>> = {
-  open: "Đã tiếp nhận",
-  assigned: "Đã giao thợ",
-  in_progress: "Đang xử lý",
-  done: "Đã xong — chờ nghiệm thu",
-  verified: "Đã hoàn tất",
-  cancelled: "Đã huỷ",
+  open: t("portal.tenant.request.open"),
+  assigned: t("portal.tenant.request.assigned"),
+  in_progress: t("portal.tenant.request.in_progress"),
+  done: t("portal.tenant.request.done"),
+  verified: t("portal.tenant.request.verified"),
+  cancelled: t("portal.tenant.request.cancelled"),
 };
 
 /** `portal.createRequest` (S-008): phiếu sự cố nguồn người thuê, phòng của hợp đồng mình (qua module sự cố). */
@@ -352,7 +353,7 @@ export async function getPaymentInstructions(
             ? { bankCode: acct.bank_code, accountNumber: acct.account_number, accountName: acct.account_name }
             : null,
           qrPayload: qr,
-          notice: "Chuyển đúng nội dung. Phiếu chỉ được ghi nhận đã trả khi chủ trọ thấy tiền vào tài khoản.",
+          notice: t("portal.tenant.transfer_notice"),
         };
       })
     : null;
@@ -373,14 +374,14 @@ export async function submitPaymentClaim(
 ) {
   tenantOnly(ctx.actor);
   if (!Number.isSafeInteger(input.amount) || input.amount <= 0)
-    throw new CommandError("VALIDATION_FAILED", 422, "Số tiền phải là số nguyên đồng > 0", {
+    throw new CommandError("VALIDATION_FAILED", 422, t("portal.tenant.claim_amount_invalid"), {
       extensions: { errors: [{ path: "amount", field: "amount", code: "invalid" }] },
     });
   if (!UUID.test(input.invoiceId)) throw notFound();
   const i = (await invoiceRows(ctx.trx, ctx.actor, input.invoiceId))[0];
   if (!i) {
     // Ghi audit ở transaction lưu kết quả lỗi (lệnh chính rollback) — S-003.
-    throw new CommandError("NOT_FOUND", 404, "Không tìm thấy dữ liệu.", {
+    throw new CommandError("NOT_FOUND", 404, t("common.not_found_data_dot"), {
       persist: async (trx) => {
         await sql`insert into audit_events (id, organization_id, actor_type, actor_person_id, action, entity_type, entity_id,
                                             correlation_id, outcome)
@@ -406,14 +407,9 @@ export async function submitPaymentClaim(
         and uploaded_by = ${ctx.actor.membershipId} and owner_id is null
       returning id`.execute(ctx.trx);
     if (!f.rows[0])
-      throw new CommandError(
-        "VALIDATION_FAILED",
-        422,
-        "Ảnh chứng từ không hợp lệ (chưa quét xong hoặc không phải của bạn)",
-        {
-          extensions: { errors: [{ path: "proof_file_id", field: "proof_file_id", code: "invalid" }] },
-        },
-      );
+      throw new CommandError("VALIDATION_FAILED", 422, t("portal.tenant.proof_invalid"), {
+        extensions: { errors: [{ path: "proof_file_id", field: "proof_file_id", code: "invalid" }] },
+      });
   }
   await ctx.audit({
     action: "payment_claim.submitted",
@@ -432,7 +428,7 @@ export async function submitPaymentClaim(
   return {
     claimId,
     status: "submitted" as const,
-    message: "Đã ghi nhận báo chuyển — chủ trọ sẽ xác nhận khi thấy tiền",
+    message: t("portal.tenant.claim_submitted"),
   };
 }
 

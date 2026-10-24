@@ -3,8 +3,27 @@
 // `@hm/app/command-inputs`) kiểm cùng schema trước khi gửi để báo lỗi theo ô sớm. Module này CHỈ import `zod` và
 // `./form-rules.ts` (thuần) — không import mã server (CSDL, S3, xác thực) nên vào bundle trình duyệt được; có test chặn
 // import lạ (`command-inputs.test.ts`) và quét bundle `.next/static`. Phía client chỉ để báo lỗi sớm, không phải ranh giới tin cậy.
+// Câu lỗi form lấy từ catalog con `packages/app/messages/form.vi.json` (D-106): CHỈ câu form, cùng định dạng catalog chính —
+// KHÔNG import `../i18n.ts`/`messages/vi.json` (catalog server, D-098: không nhân bản catalog lớn vào bundle trình duyệt).
+// `scripts/i18n-check.mjs` kiểm catalog con (mô tả, cú pháp, tham số) và mọi lời gọi `formText` (khoá có thật, đúng tham số).
 import { z } from "zod";
+import formMessages from "../../messages/form.vi.json" with { type: "json" };
 import { MONEY_MAX, nfcDeep } from "./form-rules.ts";
+
+export type FormMessageKey = keyof typeof formMessages;
+
+/**
+ * Câu form theo khoá, thay `{ten}` bằng tham số MỘT lượt; tham số thiếu giữ nguyên `{ten}` — cùng hành vi `format` của
+ * `../i18n.ts` (sao lại vì không được import module đó; `scripts/i18n.test.mjs` so hai bản trên cùng bộ ca).
+ */
+export function formText(
+  key: FormMessageKey,
+  params: Readonly<Record<string, string | number>> = {},
+): string {
+  return formMessages[key].message.replace(/\{(\w+)\}/g, (whole, name: string) =>
+    Object.hasOwn(params, name) ? String(params[name]) : whole,
+  );
+}
 
 export const uuid = z.uuid();
 export const money = z.number().int().nonnegative().max(MONEY_MAX);
@@ -26,14 +45,14 @@ export const guest = z.strictObject({
 });
 
 /** Giờ trong ngày dạng HH:MM (00:00–23:59) — `business_day_cutoff`, giờ nhận/trả phòng (SPEC-access S-002). */
-const clockTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Giờ phải dạng HH:MM");
+const clockTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, formText("form.clock_time"));
 /** Tên hiển thị: không ký tự NUL (Postgres từ chối byte 0x00 trong text ⇒ sẽ thành 500 nếu lọt vào CSDL). */
 const displayName = z
   .string()
   .trim()
   .min(1)
   .max(200)
-  .refine((v) => !v.includes("\u0000"), { message: "Không được chứa ký tự điều khiển" });
+  .refine((v) => !v.includes("\u0000"), { message: formText("form.no_control_chars") });
 const propertyName = displayName;
 const propertyTemplate = z.enum(["rental", "hotel", "mixed"]);
 const timezoneName = z.string().trim().min(1).max(64);
@@ -73,7 +92,7 @@ export const COMMAND_INPUTS = {
       bank_txn: bankTxn.optional(),
     })
     .refine((i) => Boolean(i.lease_id) !== Boolean(i.reservation_id), {
-      message: "lease_id hoặc reservation_id",
+      message: formText("form.deposit_target"),
     }),
   "housekeeping.cancelTask": z.strictObject({ task_id: uuid, reason: z.string().trim().min(1).max(1000) }),
   "housekeeping.claimTask": z.strictObject({ task_id: uuid }),
@@ -233,7 +252,7 @@ export const COMMAND_INPUTS = {
       check_out_time: clockTime.nullable().optional(),
     })
     .refine((i) => Object.keys(i).some((k) => k !== "property_id"), {
-      message: "Cần ít nhất một trường để đổi",
+      message: formText("form.update_needs_field"),
     }),
   "reconciliation.resolveBreak": z.strictObject({
     break_id: uuid,
@@ -348,31 +367,31 @@ export interface FieldIssue {
 function issueText(i: z.core.$ZodIssue): string {
   switch (i.code) {
     case "invalid_type":
-      return i.input === undefined ? "Bắt buộc nhập" : "Giá trị không đúng loại";
+      return i.input === undefined ? formText("form.required") : formText("form.wrong_type");
     case "too_small":
       return i.origin === "string"
         ? i.minimum === 1
-          ? "Bắt buộc nhập"
-          : `Cần ít nhất ${String(i.minimum)} ký tự`
+          ? formText("form.required")
+          : formText("form.min_chars", { min: String(i.minimum) })
         : i.origin === "array"
-          ? `Cần ít nhất ${String(i.minimum)} mục`
+          ? formText("form.min_items", { min: String(i.minimum) })
           : i.inclusive
-            ? `Phải từ ${String(i.minimum)} trở lên`
-            : `Phải lớn hơn ${String(i.minimum)}`;
+            ? formText("form.min_inclusive", { min: String(i.minimum) })
+            : formText("form.min_exclusive", { min: String(i.minimum) });
     case "too_big":
       return i.origin === "string"
-        ? `Tối đa ${String(i.maximum)} ký tự`
+        ? formText("form.max_chars", { max: String(i.maximum) })
         : i.origin === "array"
-          ? `Tối đa ${String(i.maximum)} mục`
-          : `Phải từ ${String(i.maximum)} trở xuống`;
+          ? formText("form.max_items", { max: String(i.maximum) })
+          : formText("form.max_inclusive", { max: String(i.maximum) });
     case "invalid_format":
-      return i.format === "email" ? "Email không hợp lệ" : "Định dạng không hợp lệ";
+      return i.format === "email" ? formText("form.email_invalid") : formText("form.format_invalid");
     case "invalid_value":
-      return "Giá trị không nằm trong lựa chọn";
+      return formText("form.not_in_options");
     case "unrecognized_keys":
-      return "Có trường không được phép";
+      return formText("form.unknown_field");
     default:
-      return "Giá trị không hợp lệ";
+      return formText("form.invalid");
   }
 }
 

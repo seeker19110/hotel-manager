@@ -6,6 +6,7 @@
 import { randomUUID } from "node:crypto";
 import { authorize } from "@hm/domain";
 import { sql, type Transaction } from "kysely";
+import { t } from "../i18n.ts";
 import { bankTxnHash, postEntry, reverseEntry } from "../ledger/index.ts";
 import { type CommandContext, CommandError } from "../pipeline/index.ts";
 import { openShiftOf } from "../shifts/index.ts";
@@ -16,7 +17,7 @@ export type PaymentMethod = "cash" | "bank_transfer";
 
 function assertMoney(n: number, field: string): void {
   if (!Number.isSafeInteger(n) || n <= 0) {
-    throw new CommandError("VALIDATION_FAILED", 422, `${field} phải là số nguyên đồng dương`);
+    throw new CommandError("VALIDATION_FAILED", 422, t("payments.amount_not_positive_int", { field }));
   }
 }
 
@@ -33,7 +34,7 @@ async function businessDate(
     trx,
   );
   const d = r.rows[0]?.d;
-  if (!d) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy cơ sở");
+  if (!d) throw new CommandError("NOT_FOUND", 404, t("common.property_not_found"));
   return d;
 }
 
@@ -50,10 +51,10 @@ async function upsertManualBankTxn(
 ): Promise<string> {
   const ref = input.txn.ref.trim();
   if (!ref || ref.length > 100)
-    throw new CommandError("VALIDATION_FAILED", 422, "Mã giao dịch ngân hàng không hợp lệ");
+    throw new CommandError("VALIDATION_FAILED", 422, t("payments.bank_ref_invalid"));
   const occurred = new Date(input.txn.occurredAt);
   if (Number.isNaN(occurred.getTime()))
-    throw new CommandError("VALIDATION_FAILED", 422, "Thời điểm giao dịch không hợp lệ");
+    throw new CommandError("VALIDATION_FAILED", 422, t("payments.bank_time_invalid"));
   // Cùng dấu vân tay với webhook/sao kê (bankTxnHash) để nguồn sau nhận ra cùng giao dịch (S-029).
   const rawHash = bankTxnHash(ref, input.amount);
   await sql`
@@ -68,13 +69,9 @@ async function upsertManualBankTxn(
     ctx.trx,
   );
   const row = r.rows[0];
-  if (!row) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy giao dịch ngân hàng");
+  if (!row) throw new CommandError("NOT_FOUND", 404, t("payments.bank_txn_not_found"));
   if (Number(row.amount) !== input.amount || row.property_id !== input.propertyId) {
-    throw new CommandError(
-      "VALIDATION_FAILED",
-      422,
-      "Số tiền/cơ sở không khớp giao dịch ngân hàng đã ghi nhận",
-    );
+    throw new CommandError("VALIDATION_FAILED", 422, t("payments.bank_txn_amount_mismatch"));
   }
   return row.id;
 }
@@ -92,11 +89,7 @@ async function guardBankTxn(ctx: CommandContext, bankTransactionId: string): Pro
     where organization_id = ${ctx.actor.orgId} and bank_transaction_id = ${bankTransactionId} and status = 'open'
       and reason = 'HASH_MISMATCH'`.execute(ctx.trx);
   if (broken.rows.length > 0) {
-    throw new CommandError(
-      "INVALID_TRANSITION",
-      409,
-      "Giao dịch đang lệch nội dung giữa các nguồn — xử lý đối soát trước",
-    );
+    throw new CommandError("INVALID_TRANSITION", 409, t("payments.bank_txn_conflict"));
   }
 }
 
@@ -108,7 +101,7 @@ async function assertBankTxnUnused(ctx: CommandContext, bankTransactionId: strin
   );
   const existing = used.rows[0]?.id;
   if (existing) {
-    throw new CommandError("BANK_TRANSACTION_ALREADY_USED", 409, "Giao dịch ngân hàng này đã được ghi nhận", {
+    throw new CommandError("BANK_TRANSACTION_ALREADY_USED", 409, t("payments.bank_txn_used"), {
       extensions: { payment_id: existing },
     });
   }
@@ -134,28 +127,24 @@ export async function recordPayment(
   ctx: CommandContext,
   input: RecordPaymentInput,
 ): Promise<{ paymentId: string }> {
-  assertMoney(input.amount, "Số tiền");
+  assertMoney(input.amount, t("payments.field.amount"));
   authorize(ctx.actor, input.purpose === "deposit" ? "deposit.receive" : "payment.record", {
     propertyId: input.propertyId,
   });
   if (!UUID.test(input.payerPersonId))
-    throw new CommandError("VALIDATION_FAILED", 422, "Người trả không hợp lệ");
+    throw new CommandError("VALIDATION_FAILED", 422, t("payments.payer_invalid"));
   let shiftId: string | null = null;
   let receivingAccountId: string | null = null;
   let bankTransactionId: string | null = null;
   if (input.method === "cash") {
     if (input.receivingAccountId || input.bankTxn) {
-      throw new CommandError(
-        "VALIDATION_FAILED",
-        422,
-        "Tiền mặt không kèm tài khoản nhận/giao dịch ngân hàng",
-      );
+      throw new CommandError("VALIDATION_FAILED", 422, t("payments.cash_with_bank"));
     }
     shiftId = await openShiftOf(ctx.trx, ctx.actor.orgId, ctx.actor.membershipId, input.propertyId);
-    if (!shiftId) throw new CommandError("SHIFT_NOT_OPEN", 409, "Mở ca trước khi nhận tiền mặt");
+    if (!shiftId) throw new CommandError("SHIFT_NOT_OPEN", 409, t("payments.shift_required"));
   } else {
     if (!input.receivingAccountId || !UUID.test(input.receivingAccountId)) {
-      throw new CommandError("VALIDATION_FAILED", 422, "Chuyển khoản cần tài khoản nhận");
+      throw new CommandError("VALIDATION_FAILED", 422, t("payments.receiving_account_required"));
     }
     receivingAccountId = input.receivingAccountId;
     if (input.bankTxn) {
@@ -215,7 +204,7 @@ export async function lockPayment(
   paymentId: string,
   check: (row: PaymentRow) => void = () => {},
 ): Promise<PaymentRow> {
-  if (!UUID.test(paymentId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy thanh toán");
+  if (!UUID.test(paymentId)) throw new CommandError("NOT_FOUND", 404, t("payments.payment_not_found"));
   const read = (lock: boolean) =>
     sql<PaymentRow>`
     select p.id, p.property_id, p.method, p.purpose, p.status, p.amount, p.allocated_total, p.receiving_account_id,
@@ -225,10 +214,10 @@ export async function lockPayment(
     where p.organization_id = ${ctx.actor.orgId} and p.id = ${paymentId}
     ${lock ? sql`for update of p` : sql``}`.execute(ctx.trx);
   const seen = (await read(false)).rows[0];
-  if (!seen) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy thanh toán");
+  if (!seen) throw new CommandError("NOT_FOUND", 404, t("payments.payment_not_found"));
   check(seen);
   const row = (await read(true)).rows[0];
-  if (!row) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy thanh toán");
+  if (!row) throw new CommandError("NOT_FOUND", 404, t("payments.payment_not_found"));
   return row;
 }
 
@@ -272,14 +261,15 @@ export async function confirmPayment(
         })
       : authorize(ctx.actor, "payment.confirm_transfer", { propertyId: row.property_id }),
   );
-  if (p.status !== "pending") throw new CommandError("INVALID_TRANSITION", 409, `Thanh toán đã ${p.status}`);
+  if (p.status !== "pending")
+    throw new CommandError("INVALID_TRANSITION", 409, t("payments.not_pending", { status: p.status }));
   let receiptNo: string | null = null;
   let bankTransactionId = p.bank_transaction_id;
   let evidenceKind: "cash_receipt" | "bank_transaction";
   let evidenceId: string;
   if (p.method === "cash") {
     if (!p.shift_id || !(await shiftIsOpen(ctx, p.shift_id))) {
-      throw new CommandError("SHIFT_NOT_OPEN", 409, "Ca nhận tiền đã đóng");
+      throw new CommandError("SHIFT_NOT_OPEN", 409, t("payments.shift_closed"));
     }
     const n = await sql<{
       n: string;
@@ -297,29 +287,21 @@ export async function confirmPayment(
       });
     } else if (!bankTransactionId && input.evidence?.bankTransactionId) {
       if (!UUID.test(input.evidence.bankTransactionId))
-        throw new CommandError("NOT_FOUND", 404, "Không tìm thấy giao dịch");
+        throw new CommandError("NOT_FOUND", 404, t("payments.txn_not_found"));
       const b = await sql<{ id: string; amount: string; receiving_account_id: string }>`
         select id, amount, receiving_account_id from bank_transactions
         where organization_id = ${ctx.actor.orgId} and id = ${input.evidence.bankTransactionId}`.execute(
         ctx.trx,
       );
       const row = b.rows[0];
-      if (!row) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy giao dịch ngân hàng");
+      if (!row) throw new CommandError("NOT_FOUND", 404, t("payments.bank_txn_not_found"));
       if (Number(row.amount) !== Number(p.amount) || row.receiving_account_id !== p.receiving_account_id) {
-        throw new CommandError(
-          "VALIDATION_FAILED",
-          422,
-          "Giao dịch ngân hàng không khớp số tiền/tài khoản nhận",
-        );
+        throw new CommandError("VALIDATION_FAILED", 422, t("payments.bank_txn_not_matching"));
       }
       bankTransactionId = row.id;
     }
     if (!bankTransactionId) {
-      throw new CommandError(
-        "EVIDENCE_REQUIRED",
-        422,
-        "Cần chứng cứ: giao dịch trên sao kê/ngân hàng (INV-F3)",
-      );
+      throw new CommandError("EVIDENCE_REQUIRED", 422, t("payments.evidence_required"));
     }
     if (bankTransactionId !== p.bank_transaction_id) await assertBankTxnUnused(ctx, bankTransactionId);
     else await guardBankTxn(ctx, bankTransactionId);
@@ -399,14 +381,14 @@ export async function allocatePayment(
   opts: { authorizeRow?: (row: PaymentRow) => void; now?: Date } = {},
 ): Promise<{ entryId: string; allocationIds: string[]; unallocated: number }> {
   if (input.allocations.length === 0)
-    throw new CommandError("VALIDATION_FAILED", 422, "Cần ít nhất một dòng phân bổ");
+    throw new CommandError("VALIDATION_FAILED", 422, t("payments.allocation_empty"));
   const seen = new Set<string>();
   for (const a of input.allocations) {
-    if (!UUID.test(a.invoiceId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phiếu");
+    if (!UUID.test(a.invoiceId)) throw new CommandError("NOT_FOUND", 404, t("payments.invoice_not_found"));
     if (seen.has(a.invoiceId))
-      throw new CommandError("VALIDATION_FAILED", 422, "Mỗi phiếu chỉ một dòng phân bổ");
+      throw new CommandError("VALIDATION_FAILED", 422, t("payments.allocation_duplicate"));
     seen.add(a.invoiceId);
-    assertMoney(a.amount, "Số tiền phân bổ");
+    assertMoney(a.amount, t("payments.field.allocation_amount"));
   }
   const sum = input.allocations.reduce((s, a) => s + a.amount, 0);
   const p = await lockPayment(
@@ -416,26 +398,18 @@ export async function allocatePayment(
       ((row) => authorize(ctx.actor, "payment.allocate", { propertyId: row.property_id, amount: sum })),
   );
   if (p.status !== "confirmed" || p.purpose !== "receivable") {
-    throw new CommandError("INVALID_TRANSITION", 409, "Chỉ phân bổ khoản thu đã xác nhận");
+    throw new CommandError("INVALID_TRANSITION", 409, t("payments.allocate_requires_confirmed"));
   }
   const remaining = Number(p.amount) - Number(p.allocated_total);
   if (sum > remaining) {
-    throw new CommandError(
-      "OVER_ALLOCATION",
-      409,
-      `Phân bổ ${sum} vượt số chưa phân bổ ${remaining} của khoản thu`,
-    );
+    throw new CommandError("OVER_ALLOCATION", 409, t("payments.over_unallocated", { sum, remaining }));
   }
   // Phần chưa phân bổ nằm ở CUSTOMER_CREDIT của người trả và có thể đã được hoàn (credit.requestRefund): kiểm số dư thật
   // dưới cùng mutex `persons` với lệnh hoàn, để không phân bổ tiền đã trả lại khách (review lát tiền R1).
   await lockPerson(ctx.trx, ctx.actor.orgId, p.payer_person_id);
   const credit = await customerCredit(ctx.trx, ctx.actor.orgId, p.payer_person_id, p.property_id);
   if (sum > credit) {
-    throw new CommandError(
-      "OVER_ALLOCATION",
-      409,
-      `Phân bổ ${sum} vượt số dư khách ${credit} (đã hoàn một phần?)`,
-    );
+    throw new CommandError("OVER_ALLOCATION", 409, t("payments.over_credit", { sum, credit }));
   }
   const ids = [...seen].sort();
   const inv = await sql<{
@@ -452,10 +426,14 @@ export async function allocatePayment(
   for (const a of input.allocations) {
     const i = byId.get(a.invoiceId);
     if (!i || i.property_id !== p.property_id)
-      throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phiếu");
+      throw new CommandError("NOT_FOUND", 404, t("payments.invoice_not_found"));
     const open = Number(i.open_amount);
     if (a.amount > open) {
-      throw new CommandError("OVER_ALLOCATION", 409, `Phân bổ ${a.amount} vượt số còn ${open} của phiếu`);
+      throw new CommandError(
+        "OVER_ALLOCATION",
+        409,
+        t("payments.over_invoice_open", { amount: a.amount, open }),
+      );
     }
   }
   const entryId = await postEntry(ctx.trx, {
@@ -515,20 +493,24 @@ export async function reversePayment(
   ctx: CommandContext,
   input: { paymentId: string; reason: string },
 ): Promise<{ reversalEntryIds: string[] }> {
-  if (!input.reason.trim()) throw new CommandError("VALIDATION_FAILED", 422, "Cần lý do đảo");
+  if (!input.reason.trim())
+    throw new CommandError("VALIDATION_FAILED", 422, t("payments.reverse_reason_required"));
   const p = await lockPayment(ctx, input.paymentId, (row) =>
     authorize(ctx.actor, "payment.allocate", { propertyId: row.property_id, amount: Number(row.amount) }),
   );
   if (p.status !== "confirmed")
-    throw new CommandError("INVALID_TRANSITION", 409, `Không đảo thanh toán ${p.status}`);
+    throw new CommandError(
+      "INVALID_TRANSITION",
+      409,
+      t("payments.reverse_not_confirmed", { status: p.status }),
+    );
   let cashShiftId: string | undefined;
   if (p.method === "cash") {
     cashShiftId =
       p.shift_id && (await shiftIsOpen(ctx, p.shift_id))
         ? p.shift_id
         : ((await openShiftOf(ctx.trx, ctx.actor.orgId, ctx.actor.membershipId, p.property_id)) ?? undefined);
-    if (!cashShiftId)
-      throw new CommandError("SHIFT_NOT_OPEN", 409, "Ca gốc đã đóng — mở ca để ghi khoản đảo tiền mặt");
+    if (!cashShiftId) throw new CommandError("SHIFT_NOT_OPEN", 409, t("payments.reverse_shift_required"));
   }
   const bd = await businessDate(ctx.trx, ctx.actor.orgId, p.property_id);
   const allocs = await sql<{ id: string; invoice_id: string; amount: string; entry_id: string }>`
@@ -570,7 +552,7 @@ export async function reversePayment(
     where organization_id = ${ctx.actor.orgId} and source_doc_type = 'payment' and source_doc_id = ${p.id}
       and entry_type in ('payment_confirmed','deposit_received')`.execute(ctx.trx);
   const ce = confirmEntry.rows[0]?.id;
-  if (!ce) throw new CommandError("INVALID_TRANSITION", 409, "Không tìm thấy bút toán thu để đảo");
+  if (!ce) throw new CommandError("INVALID_TRANSITION", 409, t("payments.reverse_entry_missing"));
   reversalEntryIds.push(
     await reverseEntry(ctx.trx, {
       orgId: ctx.actor.orgId,
@@ -628,13 +610,13 @@ export async function collectCash(
   ctx: CommandContext,
   input: { invoiceId: string; amount: number },
 ): Promise<{ paymentId: string; receiptNo: string | null; unallocated: number }> {
-  if (!UUID.test(input.invoiceId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phiếu");
+  if (!UUID.test(input.invoiceId)) throw new CommandError("NOT_FOUND", 404, t("payments.invoice_not_found"));
   const r = await sql<{ property_id: string; payer_person_id: string }>`
     select property_id, payer_person_id from invoices where organization_id = ${ctx.actor.orgId} and id = ${input.invoiceId}`.execute(
     ctx.trx,
   );
   const inv = r.rows[0];
-  if (!inv) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phiếu");
+  if (!inv) throw new CommandError("NOT_FOUND", 404, t("payments.invoice_not_found"));
   const { paymentId } = await recordPayment(ctx, {
     propertyId: inv.property_id,
     method: "cash",

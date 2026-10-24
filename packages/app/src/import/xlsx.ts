@@ -8,6 +8,7 @@ import { Buffer } from "node:buffer";
 import { crc32, inflateRawSync } from "node:zlib";
 import type { Cell } from "@hm/domain";
 import { mibToBytes } from "@hm/domain";
+import { t } from "../i18n.ts";
 
 export class XlsxError extends Error {}
 
@@ -54,7 +55,7 @@ interface Zip {
 
 function openZip(bytes: Uint8Array, limits: XlsxLimits): Zip {
   const buf = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  if (buf.length < 22) throw new XlsxError("Không phải file XLSX (quá ngắn).");
+  if (buf.length < 22) throw new XlsxError(t("xlsx.too_short"));
 
   let eocd = -1;
   for (let i = buf.length - 22; i >= Math.max(0, buf.length - 22 - 0xffff); i--) {
@@ -63,28 +64,27 @@ function openZip(bytes: Uint8Array, limits: XlsxLimits): Zip {
       break;
     }
   }
-  if (eocd < 0) throw new XlsxError("Không phải file XLSX (không thấy cấu trúc ZIP).");
-  if (eocd >= 20 && buf.readUInt32LE(eocd - 20) === SIG_ZIP64_LOCATOR)
-    throw new XlsxError("ZIP64 không được hỗ trợ.");
+  if (eocd < 0) throw new XlsxError(t("xlsx.no_zip"));
+  if (eocd >= 20 && buf.readUInt32LE(eocd - 20) === SIG_ZIP64_LOCATOR) throw new XlsxError(t("xlsx.zip64"));
 
   const diskNo = buf.readUInt16LE(eocd + 4);
   const cdDisk = buf.readUInt16LE(eocd + 6);
   const total = buf.readUInt16LE(eocd + 10);
   const cdSize = buf.readUInt32LE(eocd + 12);
   const cdOffset = buf.readUInt32LE(eocd + 16);
-  if (diskNo !== 0 || cdDisk !== 0) throw new XlsxError("ZIP nhiều đĩa không được hỗ trợ.");
+  if (diskNo !== 0 || cdDisk !== 0) throw new XlsxError(t("xlsx.multi_disk"));
   if (total === 0xffff || cdSize === 0xffffffff || cdOffset === 0xffffffff) {
-    throw new XlsxError("ZIP64 không được hỗ trợ.");
+    throw new XlsxError(t("xlsx.zip64"));
   }
-  if (total > limits.maxEntries) throw new XlsxError("File chứa quá nhiều phần.");
-  if (cdOffset + cdSize > eocd) throw new XlsxError("Thư mục trung tâm của ZIP bị hỏng.");
+  if (total > limits.maxEntries) throw new XlsxError(t("xlsx.too_many_entries"));
+  if (cdOffset + cdSize > eocd) throw new XlsxError(t("xlsx.central_dir_corrupt"));
 
   const entries = new Map<string, ZipEntry>();
   let declaredTotal = 0;
   let p = cdOffset;
   for (let k = 0; k < total; k++) {
     if (p + 46 > buf.length || buf.readUInt32LE(p) !== SIG_CENTRAL)
-      throw new XlsxError("Thư mục trung tâm của ZIP bị hỏng.");
+      throw new XlsxError(t("xlsx.central_dir_corrupt"));
     const flags = buf.readUInt16LE(p + 8);
     const method = buf.readUInt16LE(p + 10);
     const crc = buf.readUInt32LE(p + 16);
@@ -94,22 +94,22 @@ function openZip(bytes: Uint8Array, limits: XlsxLimits): Zip {
     const extraLen = buf.readUInt16LE(p + 30);
     const commentLen = buf.readUInt16LE(p + 32);
     const offset = buf.readUInt32LE(p + 42);
-    if (p + 46 + nameLen > buf.length) throw new XlsxError("Thư mục trung tâm của ZIP bị hỏng.");
+    if (p + 46 + nameLen > buf.length) throw new XlsxError(t("xlsx.central_dir_corrupt"));
     const name = buf.toString("utf8", p + 46, p + 46 + nameLen);
     p += 46 + nameLen + extraLen + commentLen;
 
     if (name.includes("..") || name.includes("\0") || name.includes("\\") || name.startsWith("/")) {
-      throw new XlsxError("Tên phần trong ZIP không hợp lệ.");
+      throw new XlsxError(t("xlsx.entry_name_invalid"));
     }
-    if ((flags & 0x1) !== 0 || (flags & 0x40) !== 0) throw new XlsxError("File mã hoá không được hỗ trợ.");
+    if ((flags & 0x1) !== 0 || (flags & 0x40) !== 0) throw new XlsxError(t("xlsx.encrypted"));
     if (csize === 0xffffffff || usize === 0xffffffff || offset === 0xffffffff)
-      throw new XlsxError("ZIP64 không được hỗ trợ.");
+      throw new XlsxError(t("xlsx.zip64"));
     if (name.endsWith("/")) continue; // thư mục
-    if (method !== 0 && method !== 8) throw new XlsxError("Kiểu nén không được hỗ trợ.");
-    if (usize > limits.maxEntryBytes) throw new XlsxError("Một phần trong file vượt giới hạn dung lượng.");
+    if (method !== 0 && method !== 8) throw new XlsxError(t("xlsx.compression"));
+    if (usize > limits.maxEntryBytes) throw new XlsxError(t("xlsx.entry_too_large"));
     declaredTotal += usize;
-    if (declaredTotal > limits.maxTotalBytes) throw new XlsxError("Tổng dung lượng giải nén vượt giới hạn.");
-    if (entries.has(name)) throw new XlsxError("ZIP có hai phần trùng tên.");
+    if (declaredTotal > limits.maxTotalBytes) throw new XlsxError(t("xlsx.total_too_large"));
+    if (entries.has(name)) throw new XlsxError(t("xlsx.duplicate_entry"));
     entries.set(name, { method, csize, usize, crc, offset });
   }
 
@@ -120,27 +120,27 @@ function openZip(bytes: Uint8Array, limits: XlsxLimits): Zip {
       const e = entries.get(name);
       if (!e) return undefined;
       if (e.offset + 30 > buf.length || buf.readUInt32LE(e.offset) !== SIG_LOCAL)
-        throw new XlsxError("ZIP bị hỏng (local header).");
+        throw new XlsxError(t("xlsx.local_header_corrupt"));
       const start = e.offset + 30 + buf.readUInt16LE(e.offset + 26) + buf.readUInt16LE(e.offset + 28);
       const end = start + e.csize;
-      if (end > cdOffset) throw new XlsxError("ZIP bị hỏng (dữ liệu ngoài vùng cho phép).");
+      if (end > cdOffset) throw new XlsxError(t("xlsx.data_out_of_range"));
       const data = buf.subarray(start, end);
       let out: Buffer;
       if (e.method === 0) {
-        if (e.csize !== e.usize) throw new XlsxError("ZIP bị hỏng (kích thước không khớp).");
+        if (e.csize !== e.usize) throw new XlsxError(t("xlsx.size_mismatch"));
         out = data;
       } else {
         try {
           // Trần giải nén = kích thước khai báo (đã ≤ maxEntryBytes): khai nhỏ mà nén bom sẽ bị chặn tại đây.
           out = inflateRawSync(data, { maxOutputLength: Math.max(1, e.usize) });
         } catch (cause) {
-          throw new XlsxError("Không giải nén được (hỏng hoặc vượt kích thước khai báo).", { cause });
+          throw new XlsxError(t("xlsx.inflate_failed"), { cause });
         }
       }
-      if (out.length !== e.usize) throw new XlsxError("ZIP bị hỏng (kích thước giải nén không khớp).");
-      if (crc32(out) !== e.crc) throw new XlsxError("ZIP bị hỏng (CRC không khớp).");
+      if (out.length !== e.usize) throw new XlsxError(t("xlsx.inflated_size_mismatch"));
+      if (crc32(out) !== e.crc) throw new XlsxError(t("xlsx.crc_mismatch"));
       inflated += out.length;
-      if (inflated > limits.maxTotalBytes) throw new XlsxError("Tổng dung lượng giải nén vượt giới hạn.");
+      if (inflated > limits.maxTotalBytes) throw new XlsxError(t("xlsx.total_too_large"));
       return out;
     },
   };
@@ -167,7 +167,7 @@ function* elements(xml: string, name: string): Generator<El> {
       continue;
     }
     const gt = xml.indexOf(">", i + open.length);
-    if (gt < 0) throw new XlsxError("XML bị cắt cụt.");
+    if (gt < 0) throw new XlsxError(t("xlsx.xml_truncated"));
     if (xml.charAt(gt - 1) === "/") {
       yield { attrs: xml.slice(i + open.length, gt - 1), inner: "" };
       pos = gt + 1;
@@ -175,7 +175,7 @@ function* elements(xml: string, name: string): Generator<El> {
     }
     const closeTag = `</${name}>`;
     const close = xml.indexOf(closeTag, gt + 1);
-    if (close < 0) throw new XlsxError("XML bị cắt cụt.");
+    if (close < 0) throw new XlsxError(t("xlsx.xml_truncated"));
     yield { attrs: xml.slice(i + open.length, gt), inner: xml.slice(gt + 1, close) };
     pos = close + closeTag.length;
   }
@@ -212,7 +212,7 @@ function decodeXml(s: string): string {
       (cp >= 0xd800 && cp <= 0xdfff) ||
       cp === 0xfffe ||
       cp === 0xffff;
-    if (invalid) throw new XlsxError("XML chứa ký tự không hợp lệ.");
+    if (invalid) throw new XlsxError(t("xlsx.xml_bad_char"));
     return String.fromCodePoint(cp);
   });
 }
@@ -226,7 +226,7 @@ const isSpace = (c: string) => c === " " || c === "\t" || c === "\n" || c === "\
  * dấu `=` — file vài KB treo tiến trình nhiều giờ). Thuộc tính quá dài ⇒ XlsxError.
  */
 function attrsOf(s: string): Map<string, string> {
-  if (s.length > MAX_ATTRS) throw new XlsxError("Thẻ XML có thuộc tính quá dài.");
+  if (s.length > MAX_ATTRS) throw new XlsxError(t("xlsx.xml_attr_too_long"));
   const map = new Map<string, string>();
   let i = 0;
   const n = s.length;
@@ -283,7 +283,7 @@ function utf8(buf: Buffer): string {
 
 function requirePart(zip: Zip, name: string): string {
   const b = zip.read(name);
-  if (!b) throw new XlsxError(`Thiếu phần ${name} — không phải file XLSX hợp lệ.`);
+  if (!b) throw new XlsxError(t("xlsx.missing_part", { name }));
   return utf8(b);
 }
 
@@ -294,7 +294,7 @@ function resolveTarget(target: string): string {
   for (const seg of segments) {
     if (seg === "" || seg === ".") continue;
     if (seg === "..") {
-      if (parts.pop() === undefined) throw new XlsxError("Đường dẫn quan hệ không hợp lệ.");
+      if (parts.pop() === undefined) throw new XlsxError(t("xlsx.rel_path_invalid"));
     } else parts.push(seg);
   }
   return parts.join("/");
@@ -303,23 +303,23 @@ function resolveTarget(target: string): string {
 function firstSheetPath(zip: Zip): string {
   const workbook = requirePart(zip, "xl/workbook.xml");
   const sheet = first(workbook, "sheet");
-  if (!sheet) throw new XlsxError("Workbook không có sheet nào.");
+  if (!sheet) throw new XlsxError(t("xlsx.no_sheet"));
   let rid: string | undefined;
   for (const [k, v] of attrsOf(sheet.attrs)) {
     if (k === "r:id" || k.endsWith(":id")) rid = v;
   }
-  if (rid === undefined) throw new XlsxError("Sheet đầu tiên thiếu r:id.");
+  if (rid === undefined) throw new XlsxError(t("xlsx.sheet_missing_rid"));
 
   const rels = requirePart(zip, "xl/_rels/workbook.xml.rels");
   for (const rel of elements(rels, "Relationship")) {
     const a = attrsOf(rel.attrs);
     if (a.get("Id") !== rid) continue;
-    if (a.get("TargetMode") === "External") throw new XlsxError("Sheet trỏ ra ngoài file.");
+    if (a.get("TargetMode") === "External") throw new XlsxError(t("xlsx.sheet_outside"));
     const target = a.get("Target");
     if (target === undefined) break;
     return resolveTarget(target);
   }
-  throw new XlsxError("Không phân giải được sheet đầu tiên.");
+  throw new XlsxError(t("xlsx.sheet_unresolved"));
 }
 
 function readSharedStrings(zip: Zip): string[] {
@@ -346,21 +346,21 @@ function parseRef(ref: string): { col: number; row: number } | undefined {
 }
 
 function readCell(attrs: Map<string, string>, inner: string, shared: string[], where: string): Cell {
-  const t = attrs.get("t");
+  const cellType = attrs.get("t");
   // `<f>` (công thức) không bao giờ được đọc: chỉ lấy giá trị đã lưu.
   const vEl = first(inner, "v");
   const raw = vEl ? decodeXml(vEl.inner) : undefined;
 
-  if (t === "inlineStr") {
+  if (cellType === "inlineStr") {
     const is = first(inner, "is");
     return { v: is ? textOf(is.inner) : "", numeric: false };
   }
   if (raw === undefined) return { v: "", numeric: false };
-  switch (t) {
+  switch (cellType) {
     case "s": {
       const idx = Number(raw.trim());
       const s = Number.isInteger(idx) ? shared[idx] : undefined;
-      if (s === undefined) throw new XlsxError(`Ô ${where} trỏ tới chuỗi dùng chung không tồn tại.`);
+      if (s === undefined) throw new XlsxError(t("xlsx.shared_string_missing", { cell: where }));
       return { v: s, numeric: false };
     }
     case "b":
@@ -374,7 +374,7 @@ function readCell(attrs: Map<string, string>, inner: string, shared: string[], w
       const trimmed = raw.trim();
       if (trimmed === "") return { v: "", numeric: false };
       const n = Number(trimmed);
-      if (!Number.isFinite(n)) throw new XlsxError(`Ô ${where} có giá trị số không hợp lệ.`);
+      if (!Number.isFinite(n)) throw new XlsxError(t("xlsx.number_invalid", { cell: where }));
       return { v: String(n), numeric: true };
     }
     default:
@@ -405,7 +405,7 @@ export function readXlsx(
       const rAttr = ra.get("r");
       const rowNo = rAttr === undefined ? prevRow + 1 : Number(rAttr);
       if (!Number.isInteger(rowNo) || rowNo < 1 || rowNo > MAX_ROWS)
-        throw new XlsxError("Số hàng không hợp lệ.");
+        throw new XlsxError(t("xlsx.row_number_invalid"));
       prevRow = rowNo;
 
       const cells: (Cell | undefined)[] = [];
@@ -416,16 +416,16 @@ export function readXlsx(
         let col = prevCol + 1;
         if (ref !== undefined) {
           const parsed = parseRef(ref);
-          if (!parsed) throw new XlsxError(`Địa chỉ ô không hợp lệ: ${ref}`);
+          if (!parsed) throw new XlsxError(t("xlsx.cell_ref_invalid", { ref }));
           col = parsed.col;
         }
-        if (col >= MAX_COLUMNS) throw new XlsxError("Quá nhiều cột.");
+        if (col >= MAX_COLUMNS) throw new XlsxError(t("xlsx.too_many_columns"));
         prevCol = col;
         cells[col] = readCell(ca, c.inner, shared, ref ?? `#${col + 1}`);
       }
 
       cellCount += cells.length;
-      if (cellCount > maxCells) throw new XlsxError("Sheet có quá nhiều ô.");
+      if (cellCount > maxCells) throw new XlsxError(t("xlsx.too_many_cells"));
       const filled: Cell[] = [];
       let blank = true;
       for (let i = 0; i < cells.length; i++) {
@@ -438,7 +438,7 @@ export function readXlsx(
     return rows;
   } catch (e) {
     if (e instanceof XlsxError) throw e;
-    throw new XlsxError("Không đọc được file XLSX.", { cause: e });
+    throw new XlsxError(t("xlsx.unreadable"), { cause: e });
   }
 }
 
@@ -497,15 +497,15 @@ function sheetName(raw: string, index: number): string {
 }
 
 function sheetXml(rows: (string | number)[][]): string {
-  if (rows.length > MAX_ROWS) throw new XlsxError("Quá nhiều hàng.");
+  if (rows.length > MAX_ROWS) throw new XlsxError(t("xlsx.too_many_rows"));
   let out = `${XML_HEAD}<worksheet xmlns="${NS_MAIN}"><sheetData>`;
   rows.forEach((row, ri) => {
-    if (row.length > MAX_COLUMNS) throw new XlsxError("Quá nhiều cột.");
+    if (row.length > MAX_COLUMNS) throw new XlsxError(t("xlsx.too_many_columns"));
     out += `<row r="${ri + 1}">`;
     row.forEach((value, ci) => {
       const ref = `${colLetters(ci)}${ri + 1}`;
       if (typeof value === "number") {
-        if (!Number.isFinite(value)) throw new XlsxError(`Ô ${ref} không phải số hữu hạn.`);
+        if (!Number.isFinite(value)) throw new XlsxError(t("xlsx.write_not_finite", { cell: ref }));
         out += `<c r="${ref}"><v>${String(value + 0)}</v></c>`;
       } else if (value !== "") {
         out += `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${esc(value)}</t></is></c>`;
@@ -575,11 +575,11 @@ export function zipStore(files: ZipFile[]): Uint8Array {
 
 /** Tạo XLSX tối thiểu hợp lệ: chuỗi → inlineStr (escape XML), số → `<v>`; ô `""` bỏ trống. */
 export function writeXlsx(sheets: { name: string; rows: (string | number)[][] }[]): Uint8Array {
-  if (sheets.length === 0) throw new XlsxError("Workbook cần ít nhất một sheet.");
+  if (sheets.length === 0) throw new XlsxError(t("xlsx.write_no_sheet"));
   const names = sheets.map((s, i) => sheetName(s.name, i));
   const seen = new Set<string>();
   for (const n of names) {
-    if (seen.has(n.toLowerCase())) throw new XlsxError(`Tên sheet trùng: ${n}`);
+    if (seen.has(n.toLowerCase())) throw new XlsxError(t("xlsx.write_duplicate_sheet", { name: n }));
     seen.add(n.toLowerCase());
   }
 

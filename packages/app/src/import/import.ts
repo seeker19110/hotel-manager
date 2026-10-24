@@ -29,6 +29,7 @@ import {
   prepareTabularFile,
   storeTabularFile,
 } from "../files/index.ts";
+import { t } from "../i18n.ts";
 import { createUnit } from "../inventory/index.ts";
 import {
   activateLease,
@@ -77,99 +78,129 @@ export const IMPORT_COLUMNS: Readonly<Record<ImportKind, readonly ColumnSpec[]>>
     {
       name: "external_id",
       required: true,
-      help: "Mã phòng ở hệ thống/sổ cũ (chống nhập lặp)",
+      help: t("import.help.units.external_id"),
       example: "U-001",
     },
     {
       name: "unit_code",
       required: true,
-      help: "Mã phòng, 1–20 ký tự, không trùng trong cơ sở",
+      help: t("import.help.units.unit_code"),
       example: "101",
     },
-    { name: "floor", required: true, help: "Tên tầng/khu (tạo mới nếu chưa có)", example: "Tầng 1" },
-    { name: "capacity", required: true, help: "Sức chứa, số nguyên 1–50", example: 2 },
+    { name: "floor", required: true, help: t("import.help.units.floor"), example: t("import.example.floor") },
+    { name: "capacity", required: true, help: t("import.help.units.capacity"), example: 2 },
   ],
   leases: [
-    { name: "external_id", required: true, help: "Mã hợp đồng ở sổ cũ", example: "HD-01" },
-    { name: "unit_code", required: true, help: "Mã phòng đã có trong hệ thống", example: "101" },
-    { name: "tenant_name", required: true, help: "Họ tên người đứng hợp đồng", example: "Nguyễn Văn A" },
+    { name: "external_id", required: true, help: t("import.help.leases.external_id"), example: "HD-01" },
+    { name: "unit_code", required: true, help: t("import.help.leases.unit_code"), example: "101" },
+    {
+      name: "tenant_name",
+      required: true,
+      help: t("import.help.leases.tenant_name"),
+      example: t("import.example.tenant_name"),
+    },
     {
       name: "tenant_phone",
       required: true,
-      help: "Số điện thoại người đứng hợp đồng",
+      help: t("import.help.leases.tenant_phone"),
       example: "0900000001",
     },
     {
       name: "rent_amount",
       required: true,
-      help: "Giá thuê tháng, số nguyên đồng (3000000 hoặc 3.000.000)",
+      help: t("import.help.leases.rent_amount"),
       example: 3000000,
     },
     {
       name: "deposit_amount",
       required: false,
-      help: "Tiền cọc theo hợp đồng (số đang giữ nhập ở lô số dư)",
+      help: t("import.help.leases.deposit_amount"),
       example: 3000000,
     },
     {
       name: "billing_start_on",
       required: true,
-      help: "Ngày bắt đầu tính tiền YYYY-MM-DD, không sau ngày mốc",
+      help: t("import.help.leases.billing_start_on"),
       example: "2026-03-01",
     },
     {
       name: "end_on",
       required: false,
-      help: "Ngày hết hạn YYYY-MM-DD; trống = không thời hạn",
+      help: t("import.help.leases.end_on"),
       example: "2027-02-28",
     },
     {
       name: "signed_on",
       required: false,
-      help: "Ngày ký YYYY-MM-DD; trống = ngày bắt đầu tính tiền",
+      help: t("import.help.leases.signed_on"),
       example: "2026-02-25",
     },
     {
       name: "services",
       required: false,
-      help: "Mã dịch vụ của cơ sở, cách nhau dấu ; (vd DIEN;NUOC)",
+      help: t("import.help.leases.services"),
       example: "DIEN;NUOC",
     },
     {
       name: "occupants",
       required: false,
-      help: "Họ tên người ở cùng, cách nhau dấu ;",
-      example: "Trần Thị B",
+      help: t("import.help.leases.occupants"),
+      example: t("import.example.occupant"),
     },
   ],
   meter_readings: [
-    { name: "external_id", required: true, help: "Mã dòng chỉ số ở sổ cũ", example: "CS-101-DIEN" },
-    { name: "unit_code", required: true, help: "Mã phòng", example: "101" },
-    { name: "meter_kind", required: true, help: "electric (điện) hoặc water (nước)", example: "electric" },
+    {
+      name: "external_id",
+      required: true,
+      help: t("import.help.meter_readings.external_id"),
+      example: "CS-101-DIEN",
+    },
+    { name: "unit_code", required: true, help: t("import.help.meter_readings.unit_code"), example: "101" },
+    {
+      name: "meter_kind",
+      required: true,
+      help: t("import.help.meter_readings.meter_kind"),
+      example: "electric",
+    },
     {
       name: "value",
       required: true,
-      help: "Chỉ số, ≥ 0, tối đa 3 chữ số thập phân, dấu chấm thập phân",
+      help: t("import.help.meter_readings.value"),
       example: 1250,
     },
     {
       name: "read_on",
       required: false,
-      help: "Ngày đọc YYYY-MM-DD; trống = ngày mốc chuyển đổi",
+      help: t("import.help.meter_readings.read_on"),
       example: "2026-11-01",
     },
   ],
   opening_balances: [
-    { name: "external_id", required: true, help: "Mã dòng số dư ở sổ cũ", example: "SD-01" },
-    { name: "lease_external_id", required: true, help: "external_id của hợp đồng đã nhập", example: "HD-01" },
+    {
+      name: "external_id",
+      required: true,
+      help: t("import.help.opening_balances.external_id"),
+      example: "SD-01",
+    },
+    {
+      name: "lease_external_id",
+      required: true,
+      help: t("import.help.opening_balances.lease_external_id"),
+      example: "HD-01",
+    },
     {
       name: "type",
       required: true,
-      help: "debt (khách còn nợ) hoặc deposit (cọc đang giữ)",
+      help: t("import.help.opening_balances.type"),
       example: "debt",
     },
-    { name: "amount", required: true, help: "Số nguyên đồng ≥ 0 (1580000 hoặc 1.580.000)", example: 1580000 },
-    { name: "note", required: false, help: "Ghi chú", example: "Tiền điện tháng 10 chưa trả" },
+    { name: "amount", required: true, help: t("import.help.opening_balances.amount"), example: 1580000 },
+    {
+      name: "note",
+      required: false,
+      help: t("import.help.opening_balances.note"),
+      example: t("import.example.note"),
+    },
   ],
 };
 
@@ -191,24 +222,20 @@ export function getTemplate(
 ): { filename: string; xlsx_base64: string; csv: string } {
   authorize(actor, "import.prepare");
   if (!(IMPORT_KINDS as readonly string[]).includes(kind))
-    throw fieldError("kind", "INVALID", "Loại nhập không hỗ trợ");
+    throw fieldError("kind", "INVALID", t("import.kind_unsupported"));
   const cols = IMPORT_COLUMNS[kind as ImportKind];
   const header = cols.map((c) => c.name);
   const example = cols.map((c) => c.example);
   const guide: (string | number)[][] = [
-    ["Cột", "Bắt buộc", "Mô tả"],
-    ...cols.map((c) => [c.name, c.required ? "Có" : "Không", c.help]),
+    [t("import.guide.column"), t("import.guide.required"), t("import.guide.description")],
+    ...cols.map((c) => [c.name, c.required ? t("import.guide.yes") : t("import.guide.no"), c.help]),
     [],
-    [
-      "Quy ước",
-      "",
-      "Ngày dạng YYYY-MM-DD; tiền là số nguyên đồng; dấu . chỉ là phân cách nghìn đúng nhóm 3 chữ số.",
-    ],
-    ["Quy ước", "", "Dòng ví dụ là dữ liệu giả — xoá trước khi nhập. Công thức trong ô không được tính lại."],
+    [t("import.guide.convention"), "", t("import.guide.convention_format")],
+    [t("import.guide.convention"), "", t("import.guide.convention_example")],
   ];
   const xlsx = writeXlsx([
     { name: kind, rows: [header, example] },
-    { name: "Hướng dẫn", rows: guide },
+    { name: t("import.guide.sheet_name"), rows: guide },
   ]);
   return {
     filename: `mau-nhap-${kind}`,
@@ -228,7 +255,7 @@ function detectTable(bytes: Uint8Array): {
       return { format: "xlsx", rows: nfcRows(readXlsx(bytes)) };
     } catch (e) {
       if (e instanceof XlsxError)
-        throw new CommandError("FILE_TYPE_NOT_ALLOWED", 415, "File XLSX hỏng hoặc không đọc được");
+        throw new CommandError("FILE_TYPE_NOT_ALLOWED", 415, t("import.xlsx_unreadable"));
       throw e;
     }
   }
@@ -236,10 +263,10 @@ function detectTable(bytes: Uint8Array): {
   try {
     text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
   } catch {
-    throw new CommandError("FILE_TYPE_NOT_ALLOWED", 415, "Chỉ nhận file .xlsx hoặc .csv (UTF-8).");
+    throw new CommandError("FILE_TYPE_NOT_ALLOWED", 415, t("import.format_unsupported"));
   }
   if (text.includes("\u0000"))
-    throw new CommandError("FILE_TYPE_NOT_ALLOWED", 415, "Chỉ nhận file .xlsx hoặc .csv (UTF-8).");
+    throw new CommandError("FILE_TYPE_NOT_ALLOWED", 415, t("import.format_unsupported"));
   return {
     format: "csv",
     rows: nfcRows(
@@ -267,35 +294,40 @@ type UploadBatchInput = {
 
 /** Kiểm quyền, kích thước, định dạng, tiêu đề — thuần CPU/không I/O; dùng ở bước prepare VÀ trong lệnh. */
 function inspectBatchUpload(actor: Actor, input: UploadBatchInput) {
-  if (!UUID.test(input.propertyId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy cơ sở");
+  if (!UUID.test(input.propertyId)) throw new CommandError("NOT_FOUND", 404, t("common.property_not_found"));
   authorize(actor, "import.prepare", { propertyId: input.propertyId });
   if (input.kind === "reservations")
-    throw fieldError("kind", "NOT_SUPPORTED_YET", "Nhập đặt phòng mở ở đợt 3");
+    throw fieldError("kind", "NOT_SUPPORTED_YET", t("import.reservations_not_yet"));
   if (!(IMPORT_KINDS as readonly string[]).includes(input.kind))
-    throw fieldError("kind", "INVALID", "Loại nhập không hỗ trợ");
+    throw fieldError("kind", "INVALID", t("import.kind_unsupported"));
   const kind = input.kind as ImportKind;
   if (input.cutoffOn !== undefined && !parseImportDate({ v: input.cutoffOn, numeric: false }).ok)
-    throw fieldError("cutoff_on", "INVALID_DATE", "Ngày mốc dạng YYYY-MM-DD");
+    throw fieldError("cutoff_on", "INVALID_DATE", t("import.cutoff_format"));
   if (kind !== "units" && !input.cutoffOn)
-    throw fieldError("cutoff_on", "REQUIRED", "Cần ngày mốc chuyển đổi");
-  if (input.bytes.byteLength === 0) throw new CommandError("VALIDATION_FAILED", 422, "File rỗng");
+    throw fieldError("cutoff_on", "REQUIRED", t("import.cutoff_required"));
+  if (input.bytes.byteLength === 0) throw new CommandError("VALIDATION_FAILED", 422, t("files.empty"));
   if (input.bytes.byteLength > IMPORT_LIMITS.bytes)
-    throw new CommandError("FILE_TOO_LARGE", 413, "File quá lớn. Tách thành nhiều file.");
+    throw new CommandError("FILE_TOO_LARGE", 413, t("http.import.file_too_large"));
   const table = detectTable(input.bytes);
   const [head, ...data] = table.rows.filter((r) => r.cells.some((c) => c.v.trim() !== ""));
-  if (!head) throw new CommandError("VALIDATION_FAILED", 422, "File không có dữ liệu");
-  if (data.length === 0) throw new CommandError("VALIDATION_FAILED", 422, "File chỉ có dòng tiêu đề");
+  if (!head) throw new CommandError("VALIDATION_FAILED", 422, t("import.file_no_data"));
+  if (data.length === 0) throw new CommandError("VALIDATION_FAILED", 422, t("import.file_header_only"));
   if (data.length > IMPORT_LIMITS.rows)
-    throw new CommandError("FILE_TOO_LARGE", 413, "File quá lớn. Tách thành nhiều file.");
+    throw new CommandError("FILE_TOO_LARGE", 413, t("http.import.file_too_large"));
   const header = head.cells.map((c) => c.v.trim().toLowerCase());
   const cols = IMPORT_COLUMNS[kind];
   const missing = cols.filter((c) => c.required && !header.includes(c.name));
   if (missing.length > 0) {
-    throw new CommandError("VALIDATION_FAILED", 422, `Thiếu cột: ${missing.map((c) => c.name).join(", ")}`, {
-      extensions: {
-        errors: missing.map((c) => ({ path: `header.${c.name}`, field: c.name, code: "REQUIRED" })),
+    throw new CommandError(
+      "VALIDATION_FAILED",
+      422,
+      t("import.missing_columns", { columns: missing.map((c) => c.name).join(", ") }),
+      {
+        extensions: {
+          errors: missing.map((c) => ({ path: `header.${c.name}`, field: c.name, code: "REQUIRED" })),
+        },
       },
-    });
+    );
   }
   return { kind, table, header, data, cols };
 }
@@ -334,8 +366,7 @@ export async function uploadBatch(
 ): Promise<{ batchId: string; rows: number }> {
   const { kind, table, header, data, cols } = inspectBatchUpload(ctx.actor, input);
   const prepared = input.prepared;
-  if (prepared && prepared.mime !== xlsxOrCsv(table.format))
-    throw new Error("Bản chuẩn bị tải lên không khớp định dạng file");
+  if (prepared && prepared.mime !== xlsxOrCsv(table.format)) throw new Error(t("import.prepared_mismatch"));
   const batchId = prepared?.batchId ?? randomUUID();
   const file = prepared
     ? await commitTabularFile(ctx, prepared)
@@ -399,12 +430,11 @@ interface Checked {
 }
 
 const MESSAGES: Record<string, string> = {
-  REQUIRED: "Bắt buộc nhập",
-  NOT_INTEGER_VND:
-    "Không phải số nguyên đồng (dấu . chỉ phân cách nghìn đúng nhóm 3 chữ số, dấu , không dùng)",
-  OUT_OF_RANGE: "Ngoài khoảng cho phép",
-  INVALID_FORMAT: "Sai định dạng",
-  TOO_LONG: `Quá ${IMPORT_LIMITS.cell} ký tự`,
+  REQUIRED: t("import.cell.required"),
+  NOT_INTEGER_VND: t("import.cell.not_integer_vnd"),
+  OUT_OF_RANGE: t("import.cell.out_of_range"),
+  INVALID_FORMAT: t("import.cell.invalid_format"),
+  TOO_LONG: t("import.cell.too_long", { max: IMPORT_LIMITS.cell }),
 };
 
 class RowCtx {
@@ -424,7 +454,7 @@ class RowCtx {
   text(column: string, max: number = IMPORT_LIMITS.cell, required = true) {
     const p = parseImportText(this.raw[column], max, required);
     if (!p.ok && p.code === "TOO_LONG") {
-      this.err(column, "TOO_LONG", `Quá ${max} ký tự`);
+      this.err(column, "TOO_LONG", t("import.cell.too_long", { max }));
       return undefined;
     }
     return this.take(column, p);
@@ -455,7 +485,7 @@ function parseRow(
       data.tenant_name = r.text("tenant_name", 200);
       const phone = r.text("tenant_phone", 20);
       if (phone !== undefined && !/^\+?[0-9 .()-]{6,20}$/.test(phone))
-        r.err("tenant_phone", "INVALID_FORMAT", "Số điện thoại không hợp lệ");
+        r.err("tenant_phone", "INVALID_FORMAT", t("import.cell.phone_invalid"));
       data.tenant_phone = phone;
       data.rent_amount = r.take("rent_amount", parseImportVnd(raw.rent_amount, { allowZero: false }));
       data.deposit_amount = raw.deposit_amount
@@ -465,16 +495,12 @@ function parseRow(
       const end = raw.end_on ? r.take("end_on", parseImportDate(raw.end_on)) : null;
       const signed = raw.signed_on ? r.take("signed_on", parseImportDate(raw.signed_on)) : null;
       if (start && cutoffOn && start > cutoffOn)
-        r.err(
-          "billing_start_on",
-          "OUT_OF_RANGE",
-          `Hợp đồng đang chạy phải bắt đầu tính tiền trước ngày mốc ${cutoffOn}`,
-        );
-      if (start && end && end < start) r.err("end_on", "OUT_OF_RANGE", "Ngày hết hạn trước ngày bắt đầu");
+        r.err("billing_start_on", "OUT_OF_RANGE", t("import.cell.start_after_cutoff", { cutoff: cutoffOn }));
+      if (start && end && end < start) r.err("end_on", "OUT_OF_RANGE", t("import.cell.end_before_start"));
       if (end && cutoffOn && end < cutoffOn)
-        r.err("end_on", "OUT_OF_RANGE", "Hợp đồng đã hết hạn trước ngày mốc");
+        r.err("end_on", "OUT_OF_RANGE", t("import.cell.ended_before_cutoff"));
       if (start && signed && signed > start)
-        r.err("signed_on", "OUT_OF_RANGE", "Ngày ký sau ngày bắt đầu tính tiền");
+        r.err("signed_on", "OUT_OF_RANGE", t("import.cell.signed_after_start"));
       data.billing_start_on = start;
       data.end_on = end;
       data.signed_on = signed ?? start;
@@ -491,8 +517,9 @@ function parseRow(
         .split(";")
         .map((x) => x.trim())
         .filter(Boolean);
-      if (occ.length > 19) r.err("occupants", "OUT_OF_RANGE", "Tối đa 19 người ở cùng");
-      if (occ.some((x) => x.length > 200)) r.err("occupants", "TOO_LONG", "Họ tên tối đa 200 ký tự");
+      if (occ.length > 19) r.err("occupants", "OUT_OF_RANGE", t("import.cell.too_many_occupants"));
+      if (occ.some((x) => x.length > 200))
+        r.err("occupants", "TOO_LONG", t("import.cell.occupant_name_too_long"));
       data.occupants = occ;
       break;
     }
@@ -505,7 +532,8 @@ function parseRow(
         điện: "electric",
         nước: "water",
       };
-      if (raw.meter_kind && !kindMap[k]) r.err("meter_kind", "INVALID_FORMAT", "electric hoặc water");
+      if (raw.meter_kind && !kindMap[k])
+        r.err("meter_kind", "INVALID_FORMAT", t("import.cell.meter_kind_invalid"));
       data.meter_kind = kindMap[k];
       data.value = r.take("value", parseImportDecimal(raw.value, 3));
       data.read_on = raw.read_on ? r.take("read_on", parseImportDate(raw.read_on)) : cutoffOn;
@@ -513,15 +541,16 @@ function parseRow(
     }
     case "opening_balances": {
       data.lease_external_id = r.text("lease_external_id", 200);
-      const t = (r.text("type", 20) ?? "").toLowerCase();
+      const balanceType = (r.text("type", 20) ?? "").toLowerCase();
       const typeMap: Record<string, string> = {
         debt: "debt",
         deposit: "deposit",
         nợ: "debt",
         cọc: "deposit",
       };
-      if (raw.type && !typeMap[t]) r.err("type", "INVALID_FORMAT", "debt (nợ) hoặc deposit (cọc)");
-      data.type = typeMap[t];
+      if (raw.type && !typeMap[balanceType])
+        r.err("type", "INVALID_FORMAT", t("import.cell.balance_type_invalid"));
+      data.type = typeMap[balanceType];
       data.amount = r.take("amount", parseImportVnd(raw.amount));
       data.note = r.text("note", IMPORT_LIMITS.cell, false) ?? "";
       break;
@@ -550,25 +579,20 @@ async function lockBatch(
   batchId: string,
   action: "import.prepare" | "import.commit",
 ): Promise<BatchRow> {
-  if (!UUID.test(batchId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy lô nhập");
+  if (!UUID.test(batchId)) throw new CommandError("NOT_FOUND", 404, t("import.batch_not_found"));
   const r = await sql<BatchRow>`
     select id, property_id, kind, status, cutoff_on::text, expected_totals, actual_totals from import_batches
     where organization_id = ${ctx.actor.orgId} and id = ${batchId} for update`.execute(ctx.trx);
   const b = r.rows[0];
-  if (!b) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy lô nhập");
+  if (!b) throw new CommandError("NOT_FOUND", 404, t("import.batch_not_found"));
   authorize(ctx.actor, action, { propertyId: b.property_id });
   return b;
 }
 
 function transitionError(from: string, to: string): CommandError {
-  return new CommandError(
-    "INVALID_TRANSITION",
-    409,
-    "Không thể thực hiện với trạng thái hiện tại của lô nhập.",
-    {
-      extensions: { from, to },
-    },
-  );
+  return new CommandError("INVALID_TRANSITION", 409, t("import.batch_invalid_state"), {
+    extensions: { from, to },
+  });
 }
 
 /** Kiểm từng dòng + chéo dòng + với dữ liệu hiện có (chỉ đọc). */
@@ -599,7 +623,7 @@ async function checkRows(trx: Transaction<unknown>, orgId: string, b: BatchRow):
         c.errors.push({
           column,
           code: "DUPLICATE_IN_FILE",
-          message: `Trùng với dòng ${f.rowNo}`,
+          message: t("import.cell.duplicate_in_file", { row: f.rowNo }),
           ...(f.externalId ? { ref: f.externalId } : {}),
         });
       else first.set(k, c);
@@ -639,7 +663,7 @@ async function checkRows(trx: Transaction<unknown>, orgId: string, b: BatchRow):
       c.errors.push({
         column: "external_id",
         code: "IMPORT_EXTERNAL_ID_CONFLICT",
-        message: "Mã ngoài đã nhập trước đó với nội dung khác.",
+        message: t("import.cell.external_id_conflict"),
       });
   }
 
@@ -655,12 +679,12 @@ async function checkRows(trx: Transaction<unknown>, orgId: string, b: BatchRow):
     const d = c.data as Record<string, unknown>;
     const unitId = typeof d.unit_code === "string" ? units.get(d.unit_code.toLowerCase()) : undefined;
     if (b.kind === "units" && unitId)
-      c.errors.push({ column: "unit_code", code: "ALREADY_EXISTS", message: "Mã phòng đã có trong cơ sở" });
+      c.errors.push({ column: "unit_code", code: "ALREADY_EXISTS", message: t("import.cell.unit_exists") });
     if ((b.kind === "leases" || b.kind === "meter_readings") && !unitId)
       c.errors.push({
         column: "unit_code",
         code: "REFERENCE_NOT_FOUND",
-        message: "Không có phòng này trong cơ sở",
+        message: t("import.cell.unit_missing"),
       });
     if (unitId) d.unit_id = unitId;
   }
@@ -689,7 +713,7 @@ async function checkLeases(trx: Transaction<unknown>, orgId: string, b: BatchRow
       c.errors.push({
         column: "services",
         code: "REFERENCE_NOT_FOUND",
-        message: `Không có dịch vụ: ${missing.join(", ")}`,
+        message: t("import.cell.services_missing", { codes: missing.join(", ") }),
       });
     d.service_ids = (d.services as string[]).map((x) => services.get(x)).filter(Boolean);
     if (typeof d.unit_id !== "string") continue;
@@ -703,7 +727,7 @@ async function checkLeases(trx: Transaction<unknown>, orgId: string, b: BatchRow
       c.errors.push({
         column: "unit_code",
         code: "ROOM_UNAVAILABLE",
-        message: "Phòng đã có người hoặc đã được giữ trong khoảng này.",
+        message: t("import.cell.room_unavailable"),
         ...(clash.c.externalId ? { ref: clash.c.externalId } : {}),
       });
       continue;
@@ -719,7 +743,7 @@ async function checkLeases(trx: Transaction<unknown>, orgId: string, b: BatchRow
       c.errors.push({
         column: "unit_code",
         code: "ROOM_UNAVAILABLE",
-        message: "Phòng đã có người hoặc đã được giữ trong khoảng này.",
+        message: t("import.cell.room_unavailable"),
       });
   }
 }
@@ -737,7 +761,7 @@ async function checkReadings(trx: Transaction<unknown>, orgId: string, _b: Batch
       c.errors.push({
         column: "value",
         code: "OUT_OF_RANGE",
-        message: `Nhỏ hơn chỉ số đã duyệt trước (${Number(v)})`,
+        message: t("import.cell.reading_below_previous", { previous: Number(v) }),
       });
   }
 }
@@ -760,16 +784,20 @@ async function checkBalances(trx: Transaction<unknown>, orgId: string, b: BatchR
       c.errors.push({
         column: "lease_external_id",
         code: "REFERENCE_NOT_FOUND",
-        message: "Chưa nhập hợp đồng này",
+        message: t("import.cell.lease_missing"),
       });
       continue;
     }
     d.lease_id = ref.target_id;
     if (d.amount === 0) {
       c.action = "skip_empty";
-      c.note = "Không có số dư";
+      c.note = t("import.note.no_balance");
     } else if (d.type === "deposit" && ref.has_deposit) {
-      c.errors.push({ column: "lease_external_id", code: "ALREADY_EXISTS", message: "Hợp đồng đã có cọc" });
+      c.errors.push({
+        column: "lease_external_id",
+        code: "ALREADY_EXISTS",
+        message: t("import.cell.deposit_exists"),
+      });
     }
   }
 }
@@ -850,13 +878,13 @@ export async function setExpectedTotals(
 ): Promise<{ diff: Totals }> {
   const b = await lockBatch(ctx, input.batchId, "import.prepare");
   if (b.kind !== "opening_balances")
-    throw fieldError("batch_id", "NOT_APPLICABLE", "Chỉ lô số dư có tổng đối chiếu");
+    throw fieldError("batch_id", "NOT_APPLICABLE", t("import.totals_not_applicable"));
   if (!["validated", "confirmed"].includes(b.status)) throw transitionError(b.status, "validated");
   for (const [f, v] of [
     ["debt", input.debt],
     ["deposit", input.deposit],
   ] as const) {
-    if (!Number.isSafeInteger(v) || v < 0) throw fieldError(f, "INVALID", "Tổng là số nguyên đồng ≥ 0");
+    if (!Number.isSafeInteger(v) || v < 0) throw fieldError(f, "INVALID", t("import.totals_invalid"));
   }
   const expected = { debt: input.debt, deposit: input.deposit };
   await sql`
@@ -878,11 +906,9 @@ async function assertReady(ctx: CommandContext, b: BatchRow) {
   const e = await sql<{ n: number }>`
     select count(*)::int as n from import_rows where organization_id = ${ctx.actor.orgId} and batch_id = ${b.id}
       and (action = 'error' or action is null)`.execute(ctx.trx);
-  if ((e.rows[0]?.n ?? 0) > 0)
-    throw new CommandError("IMPORT_HAS_ERRORS", 409, "Còn dòng lỗi. Sửa file và tải lại.");
+  if ((e.rows[0]?.n ?? 0) > 0) throw new CommandError("IMPORT_HAS_ERRORS", 409, t("import.has_errors"));
   if (b.kind !== "opening_balances") return;
-  if (!b.expected_totals)
-    throw fieldError("expected_totals", "REQUIRED", "Cần nhập tổng nợ/cọc theo sổ nguồn để đối chiếu");
+  if (!b.expected_totals) throw fieldError("expected_totals", "REQUIRED", t("import.totals_required"));
   const totals: Record<string, { expected: number; actual: number; diff: number }> = {};
   for (const k of ["debt", "deposit"] as const) {
     const expected = b.expected_totals[k] ?? 0;
@@ -890,7 +916,7 @@ async function assertReady(ctx: CommandContext, b: BatchRow) {
     if (expected !== actual) totals[k] = { expected, actual, diff: actual - expected };
   }
   if (Object.keys(totals).length > 0)
-    throw new CommandError("IMPORT_TOTALS_MISMATCH", 409, "Tổng trong file khác tổng bạn đã đối chiếu.", {
+    throw new CommandError("IMPORT_TOTALS_MISMATCH", 409, t("import.totals_mismatch"), {
       extensions: { totals },
     });
 }
@@ -967,7 +993,7 @@ async function writeRow(
       await recordImportHandover(ctx, {
         leaseId,
         handedOverOn: start,
-        note: `Bàn giao chuyển đổi (lô nhập, dòng ${rowNo})`,
+        note: t("import.handover_note", { row: rowNo }),
       });
       await clearImportReadingsPending(ctx, { unitId, cutoffOn: cutoff });
       await activateLease(ctx, { leaseId });
@@ -1018,11 +1044,7 @@ export async function commitBatch(
   const b = await lockBatch(ctx, input.batchId, "import.commit");
   if (b.status === "validated") {
     await assertReady(ctx, b);
-    throw new CommandError(
-      "IMPORT_CONFIRMATION_REQUIRED",
-      409,
-      "Cần người phụ trách xác nhận trước khi nhập.",
-    );
+    throw new CommandError("IMPORT_CONFIRMATION_REQUIRED", 409, t("import.confirmation_required"));
   }
   if (b.status !== "confirmed") throw transitionError(b.status, "committed");
   await assertReady(ctx, b);
@@ -1049,28 +1071,23 @@ export async function commitBatch(
     } catch (e) {
       const p = toProblem(e);
       if (p.status >= 500) throw e;
-      const message = `Lỗi khi ghi: ${p.detail ?? p.title} (${p.code})`;
-      throw new CommandError(
-        "IMPORT_HAS_ERRORS",
-        409,
-        `Dòng ${row.row_no}: ${message}. Không dòng nào được ghi.`,
-        {
-          persist: async (trx) => {
-            await sql`
+      const message = t("import.write_error", { detail: p.detail ?? p.title, code: p.code });
+      throw new CommandError("IMPORT_HAS_ERRORS", 409, t("import.row_failed", { row: row.row_no, message }), {
+        persist: async (trx) => {
+          await sql`
             update import_batches set status = 'validated', confirmed_by = null, confirmed_at = null
             where organization_id = ${ctx.actor.orgId} and id = ${b.id} and status = 'confirmed'`.execute(
-              trx,
-            );
-            await sql`
+            trx,
+          );
+          await sql`
             update import_rows set action = 'error',
                    errors = errors || ${JSON.stringify([{ column: "*", code: "CONFLICT_AT_COMMIT", message }])}::jsonb
             where organization_id = ${ctx.actor.orgId} and batch_id = ${b.id} and row_no = ${row.row_no}`.execute(
-              trx,
-            );
-            return { errors: [{ path: `rows.${row.row_no}`, field: "*", code: "CONFLICT_AT_COMMIT" }] };
-          },
+            trx,
+          );
+          return { errors: [{ path: `rows.${row.row_no}`, field: "*", code: "CONFLICT_AT_COMMIT" }] };
         },
-      );
+      });
     }
     await sql`
       update import_rows set target_id = ${targetId}
@@ -1104,7 +1121,8 @@ export async function cancelBatch(ctx: CommandContext, input: { batchId: string;
   if (!["uploaded", "validated", "confirmed"].includes(b.status))
     throw transitionError(b.status, "cancelled");
   const reason = input.reason.trim();
-  if (!reason || reason.length > 500) throw fieldError("reason", "REQUIRED", "Cần lý do huỷ (≤ 500 ký tự)");
+  if (!reason || reason.length > 500)
+    throw fieldError("reason", "REQUIRED", t("import.cancel_reason_required"));
   await sql`
     update import_batches set status = 'cancelled', cancelled_at = now(), cancel_reason = ${reason}
     where organization_id = ${ctx.actor.orgId} and id = ${b.id}`.execute(ctx.trx);
@@ -1126,14 +1144,14 @@ export async function cancelBatch(ctx: CommandContext, input: { batchId: string;
 // ---------- Truy vấn ----------
 
 async function readBatch(trx: Transaction<unknown>, actor: Actor, batchId: string) {
-  if (!UUID.test(batchId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy lô nhập");
+  if (!UUID.test(batchId)) throw new CommandError("NOT_FOUND", 404, t("import.batch_not_found"));
   const r = await sql<
     BatchRow & { confirmed_by: string | null; confirmed_at: Date | null; committed_at: Date | null }
   >`
     select id, property_id, kind, status, cutoff_on::text, expected_totals, actual_totals, confirmed_by, confirmed_at, committed_at
     from import_batches where organization_id = ${actor.orgId} and id = ${batchId}`.execute(trx);
   const b = r.rows[0];
-  if (!b) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy lô nhập");
+  if (!b) throw new CommandError("NOT_FOUND", 404, t("import.batch_not_found"));
   authorize(actor, "import.prepare", { propertyId: b.property_id });
   const rows = await sql<{
     row_no: number;

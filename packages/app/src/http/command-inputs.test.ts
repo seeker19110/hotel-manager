@@ -13,10 +13,15 @@ const UUID = "00000000-0000-4000-8000-000000000001";
 const fields = (r: ReturnType<typeof checkCommandInput>) => (r ?? []).map((i) => i.field).sort();
 
 describe("module schema an toàn cho client", () => {
-  it("chỉ import zod và ./form-rules.ts (không kéo CSDL/S3/xác thực vào bundle trình duyệt)", () => {
+  it("chỉ import zod, ./form-rules.ts và catalog con form.vi.json (không kéo CSDL/S3/xác thực/catalog server vào bundle)", () => {
     const text = readFileSync(`${REPO_ROOT}packages/app/src/http/command-inputs.ts`, "utf8");
-    const imports = [...text.matchAll(/^import[^;]*?from\s+"([^"]+)";/gms)].map((m) => m[1]);
-    expect(imports.sort()).toEqual(["./form-rules.ts", "zod"]);
+    // Bắt cả import có thuộc tính (`with { type: "json" }`) — thiếu nhánh này thì import JSON lọt khỏi danh sách.
+    const imports = [...text.matchAll(/^import[^;]*?from\s+"([^"]+)"(?:\s+with\s*\{[^}]*\})?;/gms)].map(
+      (m) => m[1],
+    );
+    expect(imports.length, "mọi câu import đều được đọc").toBe((text.match(/^import\s/gm) ?? []).length);
+    // D-106: catalog con CHỈ chứa câu form; catalog server (`../i18n.ts`, `messages/vi.json`) không được vào bundle (D-098).
+    expect(imports.sort()).toEqual(["../../messages/form.vi.json", "./form-rules.ts", "zod"]);
     expect(readFileSync(`${REPO_ROOT}packages/app/src/http/form-rules.ts`, "utf8")).not.toMatch(/^import\s/m);
   });
 

@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import { messagesFor, t, tOr } from "../apps/web/lib/i18n.ts";
 import { format, tm } from "../apps/web/lib/i18n-format.ts";
 import { ROLE_LABEL, STATUS_LABEL } from "../apps/web/lib/roles.ts";
+import { formText } from "../packages/app/src/http/command-inputs.ts";
 import { format as appFormat, t as appT } from "../packages/app/src/i18n.ts";
 import {
   checkCatalogs,
@@ -17,6 +18,7 @@ import {
   messageArgs,
   roleKeyErrors,
   sourceErrors,
+  subcatalogErrors,
   TREES,
   tCallErrors,
   treeErrors,
@@ -469,9 +471,11 @@ describe("XC-I18N-009 — catalog thứ hai packages/app/messages (D-104)", () =
           'packages/app/src/http/route.ts:4: t("e.hi") thiếu tham số {name}',
           'packages/app/src/http/route.ts:4: t("e.hi") thừa tham số nam (message không có)',
           'packages/app/src/http/route.ts:5: t("e.hi") thiếu tham số {name}',
+          // Cây packages/app khai catalog con form (D-106): thiếu tệp là lỗi, không lặng lẽ bỏ qua.
+          "packages/app/messages/form.vi.json: thiếu catalog con",
         ]),
       );
-      expect(errors).toHaveLength(6);
+      expect(errors).toHaveLength(7);
       // Khoá của catalog web không hợp lệ ở packages/app (catalog riêng, không trộn).
       const web = tmpTree({
         "packages/app/messages/vi.json": {},
@@ -479,6 +483,7 @@ describe("XC-I18N-009 — catalog thứ hai packages/app/messages (D-104)", () =
       });
       expect(treeErrors(APP, web).errors).toEqual([
         'packages/app/src/a.ts: t("role.owner") không có trong nguồn',
+        "packages/app/messages/form.vi.json: thiếu catalog con",
       ]);
       expect(treeErrors(APP, tmpTree({ "packages/app/src/a.ts": "" })).errors).toEqual([
         "packages/app/messages: thiếu thư mục catalog",
@@ -503,7 +508,7 @@ describe("XC-I18N-009 — catalog thứ hai packages/app/messages (D-104)", () =
       ["", {}],
     ])
       expect(appFormat(m, p), m).toBe(format(m, p));
-    // Mọi message của catalog packages/app không có tham số ⇒ t() trả đúng message (không còn `{…}` sót).
+    // t() không tham số trả đúng message (tham số thiếu giữ nguyên `{tên}` — không mất chữ).
     const app = loadCatalogs(join(ROOT, "packages/app/messages")).vi;
     for (const [k, v] of Object.entries(app)) expect(appT(k), k).toBe(v.message);
   });
@@ -539,6 +544,131 @@ describe("XC-I18N-009 — catalog thứ hai packages/app/messages (D-104)", () =
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
+  });
+});
+
+describe("XC-I18N-009 — catalog con form.vi.json cho module trình duyệt nạp (D-106)", () => {
+  const tmpTree = (files) => {
+    const root = mkdtempSync(join(tmpdir(), "i18n-sub-"));
+    for (const [rel, body] of Object.entries(files)) {
+      mkdirSync(join(root, rel, ".."), { recursive: true });
+      writeFileSync(join(root, rel), typeof body === "string" ? body : JSON.stringify(body));
+    }
+    return root;
+  };
+  const APP = TREES.find((tr) => tr.name === "packages/app");
+  const FORM = APP.subcatalogs.find((s) => s.name === "form");
+
+  it("catalog con thật sạch, mọi khoá đều được formText() dùng; formText trùng hành vi format của t()", () => {
+    expect(FORM).toEqual({
+      name: "form",
+      fn: "formText",
+      sources: ["packages/app/src/http/command-inputs.ts"],
+    });
+    const { errors, catalogs } = subcatalogErrors(APP, FORM);
+    expect(errors).toEqual([]);
+    expect(Object.keys(catalogs.vi).length).toBeGreaterThan(10);
+    // Catalog chính không đọc nhầm catalog con thành locale "form.vi".
+    expect(Object.keys(loadCatalogs(join(ROOT, "packages/app/messages")))).toEqual(["vi"]);
+    expect(node("scripts/i18n-check.mjs").stdout).toMatch(
+      /catalog con packages\/app\/messages\/form\.\*\.json: \d+ khoá/,
+    );
+    for (const [k, v] of Object.entries(catalogs.vi)) expect(formText(k), k).toBe(v.message);
+    expect(formText("form.max_chars", { max: 1000 })).toBe("Tối đa 1000 ký tự");
+    expect(formText("form.min_items", { min: "{max}", max: 1 })).toBe("Cần ít nhất {max} mục"); // một lượt
+    expect(formText("form.min_chars")).toBe("Cần ít nhất {min} ký tự"); // thiếu tham số giữ nguyên
+  });
+
+  it("bắt: khoá lạ, thiếu/thừa tham số, khoá động, khoá không dùng, thiếu mô tả, thiếu catalog con/tệp nguồn", () => {
+    const root = tmpTree({
+      "packages/app/messages/vi.json": {},
+      "packages/app/messages/form.vi.json": {
+        "form.max": entry("Tối đa {max}"),
+        "form.plain": entry("Sai", " "),
+        "form.unused": entry("Không ai dùng"),
+      },
+      "packages/app/src/http/command-inputs.ts": [
+        "const formText = (k, p) => k;",
+        'formText("form.max", { max: 1 });',
+        'formText("form.plain");',
+        'formText("form.khong_co");',
+        'formText("form.max");',
+        'formText("form.plain", { x: 1 });',
+        "formText(key);",
+      ].join("\n"),
+    });
+    try {
+      const { errors } = subcatalogErrors(APP, FORM, root);
+      expect(errors.sort()).toEqual(
+        [
+          "packages/app/messages/form.vi:form.plain: thiếu description (ngữ cảnh cho người dịch)",
+          'packages/app/src/http/command-inputs.ts:4: formText("form.khong_co") không có trong nguồn',
+          'packages/app/src/http/command-inputs.ts:5: formText("form.max") thiếu tham số {max}',
+          'packages/app/src/http/command-inputs.ts:6: formText("form.plain") thừa tham số x (message không có)',
+          'packages/app/src/http/command-inputs.ts:7: formText() cần khoá viết thẳng "…" ở đối số thứ 1',
+          "packages/app/messages/form.vi:form.unused: khoá không được formText() nào dùng — bỏ khỏi catalog con",
+        ].sort(),
+      );
+      // Lỗi catalog con được gộp vào lỗi của cây (main() thoát 1).
+      expect(treeErrors(APP, root).errors).toEqual(expect.arrayContaining(errors));
+      expect(subcatalogErrors(APP, FORM, tmpTree({ "packages/app/messages/vi.json": {} })).errors).toEqual([
+        "packages/app/messages/form.vi.json: thiếu catalog con",
+      ]);
+      expect(
+        subcatalogErrors(
+          APP,
+          FORM,
+          tmpTree({ "packages/app/messages/form.vi.json": { "form.a": entry("a") } }),
+        ).errors,
+      ).toEqual([
+        "packages/app/src/http/command-inputs.ts: tệp dùng catalog con form không tồn tại",
+        "packages/app/messages/form.vi:form.a: khoá không được formText() nào dùng — bỏ khỏi catalog con",
+      ]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("rào client: module trình duyệt được nạp catalog con form.vi.json, KHÔNG được nạp vi.json/i18n.ts của packages/app", () => {
+    const root = tmpTree({
+      "packages/app/package.json": {
+        name: "@hm/app",
+        exports: { "./command-inputs": "./src/http/command-inputs.ts", "./bad": "./src/http/bad.ts" },
+      },
+      "packages/app/messages/vi.json": {},
+      "packages/app/messages/form.vi.json": {},
+      "packages/app/src/i18n.ts":
+        'import vi from "../messages/vi.json" with { type: "json" };\nexport const t = (k) => vi[k];\n',
+      "packages/app/src/http/command-inputs.ts":
+        'import m from "../../messages/form.vi.json" with { type: "json" };\nexport const c = m;\n',
+      "packages/app/src/http/bad.ts":
+        'import m from "../../messages/vi.json" with { type: "json" };\nimport { t } from "../i18n.ts";\nexport const c = [m, t];\n',
+      "apps/web/c/lazy.ts": 'export const load = () => import("@hm/app/command-inputs");\n',
+      "apps/web/c/form.tsx": '"use client";\nimport { load } from "./lazy.ts";\n',
+      "apps/web/c/bad.tsx": '"use client";\nimport { c } from "@hm/app/bad";\n',
+    });
+    try {
+      const errors = clientCatalogErrors(
+        ["form", "bad"].map((n) => join(root, `apps/web/c/${n}.tsx`)),
+        root,
+      );
+      expect(errors).toHaveLength(2);
+      expect(errors[0]).toContain(
+        "apps/web/c/bad.tsx → packages/app/src/http/bad.ts → packages/app/messages/vi.json",
+      );
+      expect(errors[1]).toContain("packages/app/src/i18n.ts");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("t() import đổi tên (`import { t as msg }`) vẫn bị bắt khoá lạ và tham số sai", () => {
+    const src = { "a.hi": entry("Chào {name}") };
+    const file = 'import { t as msg } from "../i18n.ts";\nmsg("a.khong_co");\nmsg("a.hi");\n';
+    expect(tCallErrors(file, "x.ts", src)).toEqual([
+      'x.ts:2: msg("a.khong_co") không có trong nguồn',
+      'x.ts:3: t("a.hi") thiếu tham số {name}',
+    ]);
   });
 });
 

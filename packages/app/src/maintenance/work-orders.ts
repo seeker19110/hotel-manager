@@ -7,6 +7,7 @@ import { authorize, TransitionError } from "@hm/domain";
 import { type Kysely, sql } from "kysely";
 import type { Actor } from "../access/index.ts";
 import { createCleaningTask } from "../housekeeping/index.ts";
+import { t } from "../i18n.ts";
 import { approveBlock, endBlock, proposeBlock } from "../inventory/index.ts";
 import { type CommandContext, CommandError } from "../pipeline/index.ts";
 
@@ -29,16 +30,24 @@ async function attachPhotos(
   fileIds: readonly string[],
 ): Promise<{ attached: string[]; rejected: string[] }> {
   if (fileIds.length > MAX_WORK_ORDER_PHOTOS)
-    throw fieldError("file_ids", "too_many", `Tối đa ${MAX_WORK_ORDER_PHOTOS} ảnh mỗi phiếu`);
+    throw fieldError(
+      "file_ids",
+      "too_many",
+      t("maintenance.too_many_photos", { max: MAX_WORK_ORDER_PHOTOS }),
+    );
   const existing = await sql<{ n: number }>`
     select count(*)::int as n from files where organization_id = ${ctx.actor.orgId} and owner_type = 'work_order'
       and owner_id = ${workOrderId} and status = 'ready'`.execute(ctx.trx);
   if ((existing.rows[0]?.n ?? 0) + fileIds.length > MAX_WORK_ORDER_PHOTOS)
-    throw fieldError("file_ids", "too_many", `Tối đa ${MAX_WORK_ORDER_PHOTOS} ảnh mỗi phiếu`);
+    throw fieldError(
+      "file_ids",
+      "too_many",
+      t("maintenance.too_many_photos", { max: MAX_WORK_ORDER_PHOTOS }),
+    );
   const attached: string[] = [];
   const rejected: string[] = [];
   for (const [i, id] of fileIds.entries()) {
-    if (!UUID.test(id)) throw fieldError(`file_ids.${i}`, "invalid", "Mã ảnh không hợp lệ");
+    if (!UUID.test(id)) throw fieldError(`file_ids.${i}`, "invalid", t("maintenance.photo_id_invalid"));
     const r = await sql<{ id: string }>`
       update files set owner_id = ${workOrderId}
       where organization_id = ${ctx.actor.orgId} and id = ${id} and owner_type = 'work_order' and status = 'ready'
@@ -62,13 +71,13 @@ export async function createWorkOrder(
     reporterPersonId?: string;
   },
 ): Promise<{ workOrderId: string; attachedFileIds: string[]; rejectedFileIds: string[] }> {
-  if (!UUID.test(input.unitId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phòng");
+  if (!UUID.test(input.unitId)) throw new CommandError("NOT_FOUND", 404, t("common.unit_not_found"));
   const u = await sql<{ property_id: string }>`
     select property_id from units where organization_id = ${ctx.actor.orgId} and id = ${input.unitId} and archived_at is null`.execute(
     ctx.trx,
   );
   const unit = u.rows[0];
-  if (!unit) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phòng");
+  if (!unit) throw new CommandError("NOT_FOUND", 404, t("common.unit_not_found"));
   const tenant = ctx.actor.role === "tenant";
   authorize(ctx.actor, "work_order.create", {
     ...(tenant ? {} : { propertyId: unit.property_id }),
@@ -80,13 +89,14 @@ export async function createWorkOrder(
     const own = await sql<{ ok: boolean }>`select app.tenant_rents_unit(${input.unitId}::uuid) as ok`.execute(
       ctx.trx,
     );
-    if (!own.rows[0]?.ok) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phòng");
+    if (!own.rows[0]?.ok) throw new CommandError("NOT_FOUND", 404, t("common.unit_not_found"));
   }
   const title = input.title.trim();
   const description = input.description.trim();
-  if (title.length < 1 || title.length > 200) throw fieldError("title", "required", "Tiêu đề 1–200 ký tự");
+  if (title.length < 1 || title.length > 200)
+    throw fieldError("title", "required", t("maintenance.title_length"));
   if (description.length < 1 || description.length > 2000)
-    throw fieldError("description", "required", "Mô tả 1–2.000 ký tự");
+    throw fieldError("description", "required", t("maintenance.description_length"));
   const id = randomUUID();
   await sql`
     insert into work_orders (id, organization_id, property_id, unit_id, title, description, severity, source,
@@ -126,7 +136,7 @@ interface WoRow {
 }
 
 async function lockWorkOrder(ctx: CommandContext, id: string, check: (w: WoRow) => void): Promise<WoRow> {
-  if (!UUID.test(id)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phiếu");
+  if (!UUID.test(id)) throw new CommandError("NOT_FOUND", 404, t("maintenance.work_order_not_found"));
   const read = (lock: boolean) =>
     sql<WoRow>`
       select w.id, w.property_id, w.unit_id, w.status, w.assignee_membership_id, m.person_id as assignee_person_id, w.done_by,
@@ -141,7 +151,7 @@ async function lockWorkOrder(ctx: CommandContext, id: string, check: (w: WoRow) 
     ctx.actor.role === "tenant" ||
     (!ctx.actor.allProperties && !ctx.actor.propertyIds.includes(seen.property_id))
   )
-    throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phiếu");
+    throw new CommandError("NOT_FOUND", 404, t("maintenance.work_order_not_found"));
   check(seen);
   const locked = (await read(true)).rows[0];
   if (!locked) throw new TransitionError("work_order", seen.status, "changed");
@@ -185,11 +195,11 @@ export async function assignWorkOrder(
   const w = await lockWorkOrder(ctx, input.workOrderId, (row) => {
     authorize(ctx.actor, "work_order.handle", { propertyId: row.property_id });
     if (ctx.actor.role === "maintenance")
-      throw new CommandError("FORBIDDEN", 403, "Kỹ thuật không tự giao phiếu");
+      throw new CommandError("FORBIDDEN", 403, t("maintenance.cannot_assign"));
   });
   if (w.status !== "open" && w.status !== "assigned") deny(w.status, "assigned");
   if (!UUID.test(input.assigneeMembershipId))
-    throw fieldError("assignee", "invalid", "Người nhận không hợp lệ");
+    throw fieldError("assignee", "invalid", t("common.assignee_invalid"));
   const m = await sql<{ id: string }>`
     select m.id from memberships m
     where m.organization_id = ${ctx.actor.orgId} and m.id = ${input.assigneeMembershipId} and m.status = 'active'
@@ -198,8 +208,7 @@ export async function assignWorkOrder(
                                         and ps.membership_id = m.id and ps.property_id = ${w.property_id}))`.execute(
     ctx.trx,
   );
-  if (!m.rows[0])
-    throw fieldError("assignee", "invalid", "Người nhận không thuộc cơ sở hoặc không phải kỹ thuật");
+  if (!m.rows[0]) throw fieldError("assignee", "invalid", t("maintenance.assignee_not_eligible"));
   await sql`update work_orders set status = 'assigned', assignee_membership_id = ${input.assigneeMembershipId}, version = version + 1
             where organization_id = ${ctx.actor.orgId} and id = ${w.id}`.execute(ctx.trx);
   await audit(ctx, w, "assigned", "assigned", { assignee: input.assigneeMembershipId });
@@ -231,7 +240,7 @@ export async function completeWorkOrder(
   const w = await lockWorkOrder(ctx, input.workOrderId, (row) => authorizeHandle(ctx, row));
   if (w.status !== "in_progress") deny(w.status, "done");
   if (input.note !== undefined && input.note.length > 2000)
-    throw fieldError("note", "too_long", "Ghi chú tối đa 2.000 ký tự");
+    throw fieldError("note", "too_long", t("common.note_too_long_2000"));
   const photos = await attachPhotos(ctx, w.id, w.property_id, input.fileIds ?? []);
   await sql`update work_orders set status = 'done', done_by = ${ctx.actor.membershipId}, done_at = now(),
                    resolution_note = ${input.note ?? null}, version = version + 1
@@ -250,7 +259,7 @@ export async function verifyWorkOrder(ctx: CommandContext, input: { workOrderId:
   );
   if (w.status !== "done") deny(w.status, "verified");
   if (w.done_by === ctx.actor.membershipId)
-    throw new CommandError("SELF_APPROVAL_FORBIDDEN", 403, "Bạn không thể tự nghiệm thu việc mình đã làm.");
+    throw new CommandError("SELF_APPROVAL_FORBIDDEN", 403, t("common.self_verify_forbidden"));
   await sql`update work_orders set status = 'verified', verified_by = ${ctx.actor.membershipId}, verified_at = now(), version = version + 1
             where organization_id = ${ctx.actor.orgId} and id = ${w.id}`.execute(ctx.trx);
   const blockEnded = await closeWorkOrderBlocks(ctx, w, input.now);
@@ -285,7 +294,7 @@ async function closeWorkOrderBlocks(ctx: CommandContext, w: WoRow, now?: Date): 
         entityType: "block",
         entityId: b.id,
         propertyId: w.property_id,
-        reason: "Phiếu sự cố đã kết thúc",
+        reason: t("maintenance.block_rejected_reason"),
         after: { status: "rejected", work_order_id: w.id },
       });
     }
@@ -298,11 +307,11 @@ export async function cancelWorkOrder(ctx: CommandContext, input: { workOrderId:
   const w = await lockWorkOrder(ctx, input.workOrderId, (row) => {
     authorize(ctx.actor, "work_order.handle", { propertyId: row.property_id });
     if (ctx.actor.role === "maintenance")
-      throw new CommandError("FORBIDDEN", 403, "Kỹ thuật không huỷ phiếu");
+      throw new CommandError("FORBIDDEN", 403, t("maintenance.cannot_cancel"));
   });
   if (!["open", "assigned", "in_progress"].includes(w.status)) deny(w.status, "cancelled");
   const reason = input.reason.trim();
-  if (!reason) throw fieldError("reason", "required", "Cần lý do huỷ");
+  if (!reason) throw fieldError("reason", "required", t("common.cancel_reason_required"));
   await sql`update work_orders set status = 'cancelled', cancel_reason = ${reason}, version = version + 1
             where organization_id = ${ctx.actor.orgId} and id = ${w.id}`.execute(ctx.trx);
   const blockEnded = await closeWorkOrderBlocks(ctx, w);
@@ -321,7 +330,7 @@ export async function proposeWorkOrderBlock(
     // `inventory.requestBlock` (review R7).
     if (ctx.actor.role !== "owner" && ctx.actor.role !== "manager") {
       if (ctx.actor.role !== "maintenance")
-        throw new CommandError("FORBIDDEN", 403, "Đề xuất block cho phiếu: quản lý hoặc kỹ thuật được giao");
+        throw new CommandError("FORBIDDEN", 403, t("maintenance.block_forbidden"));
       authorizeHandle(ctx, row);
     }
   });
@@ -330,11 +339,11 @@ export async function proposeWorkOrderBlock(
     select id from blocks where organization_id = ${ctx.actor.orgId} and work_order_id = ${w.id}
       and status in ('requested','approved') limit 1`.execute(ctx.trx);
   if (active.rows[0])
-    throw new CommandError("INVALID_TRANSITION", 409, "Phiếu đã có block đang chờ duyệt/đang chặn", {
+    throw new CommandError("INVALID_TRANSITION", 409, t("maintenance.block_exists"), {
       extensions: { from: "blocked", to: "blocked" },
     });
   const reason = input.reason.trim();
-  if (!reason) throw fieldError("reason", "required", "Cần lý do");
+  if (!reason) throw fieldError("reason", "required", t("maintenance.block_reason_required"));
   const { blockId } = await proposeBlock(ctx, {
     unitId: w.unit_id,
     period: { start: input.start, end: input.end },
@@ -390,11 +399,11 @@ export async function listWorkOrders(
   actor: Actor,
   input: { propertyId: string; status?: Status; mine?: boolean },
 ): Promise<WorkOrderView[]> {
-  if (!UUID.test(input.propertyId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy dữ liệu");
+  if (!UUID.test(input.propertyId)) throw new CommandError("NOT_FOUND", 404, t("common.not_found_data"));
   try {
     authorize(actor, "calendar.read_status", { propertyId: input.propertyId });
   } catch {
-    throw new CommandError("NOT_FOUND", 404, "Không tìm thấy dữ liệu");
+    throw new CommandError("NOT_FOUND", 404, t("common.not_found_data"));
   }
   return withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
     const p = await sql<{
@@ -402,7 +411,7 @@ export async function listWorkOrders(
     }>`select id from properties where organization_id = ${actor.orgId} and id = ${input.propertyId}`.execute(
       trx,
     );
-    if (!p.rows[0]) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy dữ liệu");
+    if (!p.rows[0]) throw new CommandError("NOT_FOUND", 404, t("common.not_found_data"));
     const r = await sql<{
       id: string;
       unit_id: string;
@@ -465,7 +474,7 @@ export interface TenantWorkOrderView {
  */
 export async function listMyWorkOrders(db: Kysely<unknown>, actor: Actor): Promise<TenantWorkOrderView[]> {
   if (actor.role !== "tenant" || !actor.personId)
-    throw new CommandError("NOT_FOUND", 404, "Không tìm thấy dữ liệu");
+    throw new CommandError("NOT_FOUND", 404, t("common.not_found_data"));
   return withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
     const r = await sql<{
       id: string;

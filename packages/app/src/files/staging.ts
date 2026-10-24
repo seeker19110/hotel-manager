@@ -13,6 +13,7 @@ import { createHash } from "node:crypto";
 import { withTenant } from "@hm/db";
 import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/index.ts";
+import { t } from "../i18n.ts";
 import { CommandError } from "../pipeline/index.ts";
 
 /** Hạn (ngày, giờ VN) của dòng staging — dư để lượt quét/ghi chậm hoặc replay không bị job hạn giữ xoá giữa chừng. */
@@ -62,7 +63,7 @@ export async function stageFile(db: Kysely<unknown>, actor: Actor, spec: StageSp
   ).catch((err: unknown) => {
     // Cơ sở không tồn tại (FK) — cùng kết quả với đường cũ: không phải lỗi máy chủ.
     if ((err as { code?: string }).code === "23503")
-      throw new CommandError("NOT_FOUND", 404, "Không tìm thấy cơ sở");
+      throw new CommandError("NOT_FOUND", 404, t("common.property_not_found"));
     throw err;
   });
 }
@@ -108,12 +109,11 @@ async function stageInTrx(
     (f.property_id ?? null) !== (spec.propertyId ?? null) ||
     f.storage_key !== key
   )
-    throw conflict("Idempotency-Key đã dùng cho yêu cầu khác");
-  if (f.status === "deleted") throw conflict("Idempotency-Key đã hết hạn, hãy tạo khoá mới");
+    throw conflict(t("http.idempotency_conflict"));
+  if (f.status === "deleted") throw conflict(t("files.staging.key_expired"));
   // Dòng chưa chốt tới/quá `delete_after` (hôm nay theo ngày UTC, cùng phép so `<=` với app.files_due_for_deletion mà `runRetention`
   // dùng) có thể đang/sắp bị job hạn giữ xoá object ⇒ không chốt lại dòng đó.
-  if (f.status === "pending_scan" && f.expired)
-    throw conflict("Idempotency-Key đã hết hạn, hãy tạo khoá mới");
+  if (f.status === "pending_scan" && f.expired) throw conflict(t("files.staging.key_expired"));
   if (f.status === "ready" || f.status === "rejected")
     return { state: "done", status: f.status, rejectReason: f.reject_reason, key };
   return { state: "pending", status: "pending_scan", rejectReason: null, key };
@@ -150,7 +150,7 @@ export async function finalizeStaged(
     select status from files where organization_id = ${actor.orgId} and id = ${id} and uploaded_by = ${actor.membershipId}`.execute(
     trx,
   );
-  if (r.rows[0]?.status !== to.status) throw conflict("File chuẩn bị không còn hiệu lực, hãy tải lại");
+  if (r.rows[0]?.status !== to.status) throw conflict(t("files.staging.prepared_gone"));
 }
 
 /** Chạy bước prepare ngoài transaction và giữ kết quả/lỗi để ném lại TRONG handler (giữ ghi `failed` + audit `denied`). */
