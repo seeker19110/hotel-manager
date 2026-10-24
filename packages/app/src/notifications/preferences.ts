@@ -11,6 +11,7 @@ import { authorize, daysToMs, epochSeconds, secondsToMs } from "@hm/domain";
 import { type Kysely, sql } from "kysely";
 import type { Actor } from "../access/index.ts";
 import { assertPersonInOrg, assertPropertyInOrg } from "../access/index.ts";
+import { t as msg } from "../i18n.ts";
 import { type CommandContext, CommandError } from "../pipeline/index.ts";
 import {
   type DeliveryStatus,
@@ -93,12 +94,13 @@ export async function listMyNotifications(
 
 /** `notifications.markRead`: thông báo không thuộc người dùng ⇒ 404, không đổi gì (S-017). */
 export async function markRead(ctx: CommandContext, input: { notificationId: string }) {
-  if (!UUID.test(input.notificationId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy dữ liệu");
+  if (!UUID.test(input.notificationId))
+    throw new CommandError("NOT_FOUND", 404, msg("common.not_found_data"));
   const r = await sql<{ id: string }>`
     update notifications set read_at = coalesce(read_at, now())
     where organization_id = ${ctx.actor.orgId} and id = ${input.notificationId} and recipient_person_id = ${ctx.actor.personId}
     returning id`.execute(ctx.trx);
-  if (!r.rows[0]) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy dữ liệu");
+  if (!r.rows[0]) throw new CommandError("NOT_FOUND", 404, msg("common.not_found_data"));
   return { notificationId: input.notificationId, read: true as const };
 }
 
@@ -144,15 +146,11 @@ export async function updatePreference(
   ctx: CommandContext,
   input: { type: string; state: "opted_in" | "opted_out" },
 ): Promise<PreferenceView> {
-  if (!isType(input.type)) throw fieldError("type", "invalid", "Loại thông báo không hợp lệ");
+  if (!isType(input.type)) throw fieldError("type", "invalid", msg("notify.pref.type_invalid"));
   if (input.state !== "opted_in" && input.state !== "opted_out")
-    throw fieldError("state", "invalid", "Trạng thái không hợp lệ");
+    throw fieldError("state", "invalid", msg("notify.pref.state_invalid"));
   if (REQUIRED_TYPES.has(input.type) && input.state === "opted_out")
-    throw new CommandError(
-      "PREFERENCE_REQUIRED",
-      422,
-      "Loại thông báo này cần thiết cho tài khoản và không tắt được.",
-    );
+    throw new CommandError("PREFERENCE_REQUIRED", 422, msg("notify.pref.required_type"));
   const prev = await sql<{ state: string }>`
     select state from notification_preferences
     where organization_id = ${ctx.actor.orgId} and person_id = ${ctx.actor.personId} and type = ${input.type}
@@ -207,7 +205,7 @@ export function unsubscribeUrl(
 }
 
 function verifyUnsubscribe(key: Buffer, token: string, now: Date) {
-  const notFound = () => new CommandError("NOT_FOUND", 404, "Liên kết không hợp lệ.");
+  const notFound = () => new CommandError("NOT_FOUND", 404, msg("notify.unsubscribe.link_invalid"));
   const parts = token.split(".");
   if (parts.length !== 2 || token.length > 512) throw notFound();
   const payload = Buffer.from(parts[0] as string, "base64url").toString("utf8");
@@ -225,22 +223,18 @@ function verifyUnsubscribe(key: Buffer, token: string, now: Date) {
   )
     throw notFound();
   if (secondsToMs(Number(exp)) <= now.getTime())
-    throw new CommandError(
-      "LINK_EXPIRED",
-      410,
-      "Liên kết đã hết hạn. Vui lòng đổi tuỳ chọn trong mục Tài khoản.",
-    );
+    throw new CommandError("LINK_EXPIRED", 410, msg("notify.unsubscribe.link_expired"));
   return { orgId, personId, type };
 }
 
 const TYPE_LABEL: Readonly<Record<NotificationType, string>> = {
-  account_security: "bảo mật tài khoản",
-  invoice_issued: "phiếu thu mới",
-  invoice_overdue: "nhắc quá hạn",
-  lease_expiring: "nhắc hợp đồng sắp hết hạn",
-  stay_notice_due: "nhắc thông báo lưu trú",
-  maintenance_status: "cập nhật sự cố",
-  export_ready: "xuất dữ liệu xong",
+  account_security: msg("notify.unsubscribe.type.account_security"),
+  invoice_issued: msg("notify.unsubscribe.type.invoice_issued"),
+  invoice_overdue: msg("notify.unsubscribe.type.invoice_overdue"),
+  lease_expiring: msg("notify.unsubscribe.type.lease_expiring"),
+  stay_notice_due: msg("notify.unsubscribe.type.stay_notice_due"),
+  maintenance_status: msg("notify.unsubscribe.type.maintenance_status"),
+  export_ready: msg("notify.unsubscribe.type.export_ready"),
 };
 
 /** `notifications.unsubscribe` (không đăng nhập): đặt `opted_out` cho đúng loại của đúng người; idempotent. */
@@ -251,21 +245,17 @@ export async function unsubscribe(
 ): Promise<{ type: NotificationType; message: string; changed: boolean }> {
   const t = verifyUnsubscribe(key, input.token, input.now ?? new Date());
   if (REQUIRED_TYPES.has(t.type))
-    throw new CommandError(
-      "PREFERENCE_REQUIRED",
-      422,
-      "Loại thông báo này cần thiết cho tài khoản và không tắt được.",
-    );
+    throw new CommandError("PREFERENCE_REQUIRED", 422, msg("notify.pref.required_type"));
   const r = await sql<{ organization_name: string; changed: boolean }>`
     select * from app.unsubscribe_email(${t.orgId}::uuid, ${t.personId}::uuid, ${t.type}, ${input.correlationId})`.execute(
     db,
   );
   const row = r.rows[0];
-  if (!row) throw new CommandError("NOT_FOUND", 404, "Liên kết không hợp lệ.");
+  if (!row) throw new CommandError("NOT_FOUND", 404, msg("notify.unsubscribe.link_invalid"));
   return {
     type: t.type,
     changed: row.changed,
-    message: `Bạn sẽ không nhận email ${TYPE_LABEL[t.type]} từ ${row.organization_name} nữa.`,
+    message: msg("notify.unsubscribe.done", { type: TYPE_LABEL[t.type], org: row.organization_name }),
   };
 }
 
@@ -293,14 +283,14 @@ export async function listDeliveries(
   input: { propertyId?: string; status?: DeliveryStatus; recipientPersonId?: string; type?: string } = {},
 ): Promise<DeliveryView[]> {
   if (input.propertyId !== undefined && !UUID.test(input.propertyId))
-    throw new CommandError("NOT_FOUND", 404, "Không tìm thấy dữ liệu");
+    throw new CommandError("NOT_FOUND", 404, msg("common.not_found_data"));
   authorize(actor, "notification.configure", input.propertyId ? { propertyId: input.propertyId } : {});
   return withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
     if (input.propertyId) await assertPropertyInOrg(trx, actor.orgId, input.propertyId);
     // Người nhận lạ (hoặc không phải uuid) → 404, không lọc im lặng thành rỗng.
     if (input.recipientPersonId !== undefined) {
       if (!UUID.test(input.recipientPersonId))
-        throw new CommandError("NOT_FOUND", 404, "Không tìm thấy dữ liệu");
+        throw new CommandError("NOT_FOUND", 404, msg("common.not_found_data"));
       await assertPersonInOrg(trx, actor.orgId, input.recipientPersonId);
     }
     const r = await sql<{
@@ -344,7 +334,7 @@ export async function listDeliveries(
 
 /** `notifications.retryDelivery` (S-019): `failed`/`dead` → `queued`, attempts 0; có Idempotency-Key qua pipeline lệnh. */
 export async function retryDelivery(ctx: CommandContext, input: { deliveryId: string; now?: Date }) {
-  if (!UUID.test(input.deliveryId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy dữ liệu");
+  if (!UUID.test(input.deliveryId)) throw new CommandError("NOT_FOUND", 404, msg("common.not_found_data"));
   const r = await sql<{ status: DeliveryStatus; property_id: string | null; attempts: number }>`
     select status, property_id, attempts from notification_deliveries
     where organization_id = ${ctx.actor.orgId} and id = ${input.deliveryId}`.execute(ctx.trx);
@@ -352,11 +342,11 @@ export async function retryDelivery(ctx: CommandContext, input: { deliveryId: st
   if (!d) {
     // Vai trò không có quyền thấy mọi lần gửi (RLS) → 403 rõ ràng theo S-018 thay vì 404.
     authorize(ctx.actor, "notification.configure", {});
-    throw new CommandError("NOT_FOUND", 404, "Không tìm thấy dữ liệu");
+    throw new CommandError("NOT_FOUND", 404, msg("common.not_found_data"));
   }
   authorize(ctx.actor, "notification.configure", d.property_id ? { propertyId: d.property_id } : {});
   if (d.status !== "failed" && d.status !== "dead")
-    throw new CommandError("DELIVERY_NOT_RETRYABLE", 409, "Thông báo này không cần gửi lại.", {
+    throw new CommandError("DELIVERY_NOT_RETRYABLE", 409, msg("notify.delivery.not_retryable"), {
       extensions: { from: d.status },
     });
   const u = await sql<{ id: string }>`
@@ -364,7 +354,7 @@ export async function retryDelivery(ctx: CommandContext, input: { deliveryId: st
            last_error_code = null, locked_until = null
     where organization_id = ${ctx.actor.orgId} and id = ${input.deliveryId} and status in ('failed','dead')
     returning id`.execute(ctx.trx);
-  if (!u.rows[0]) throw new CommandError("DELIVERY_NOT_RETRYABLE", 409, "Thông báo này không cần gửi lại.");
+  if (!u.rows[0]) throw new CommandError("DELIVERY_NOT_RETRYABLE", 409, msg("notify.delivery.not_retryable"));
   await ctx.audit({
     action: "notification.delivery_retried",
     entityType: "notification_delivery",
@@ -399,19 +389,20 @@ function offsets(v: number[] | undefined, path: string): number[] | undefined {
     v.length > 10 ||
     !v.every((n) => Number.isInteger(n) && n >= 0 && n <= 365)
   )
-    throw fieldError(path, "invalid", "Mốc nhắc là 1–10 số nguyên ngày 0–365");
+    throw fieldError(path, "invalid", msg("notify.settings.offsets_invalid"));
   return [...new Set(v)].sort((a, b) => b - a);
 }
 
 /** `notifications.updateSettings`: owner/manager trong phạm vi (ma trận "Cấu hình thông báo"); audit. */
 export async function updateSettings(ctx: CommandContext, input: SettingsInput) {
-  if (!UUID.test(input.propertyId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy cơ sở");
+  if (!UUID.test(input.propertyId))
+    throw new CommandError("NOT_FOUND", 404, msg("common.property_not_found"));
   authorize(ctx.actor, "notification.configure", { propertyId: input.propertyId });
   const p = await sql<{ id: string }>`
     select id from properties where organization_id = ${ctx.actor.orgId} and id = ${input.propertyId}`.execute(
     ctx.trx,
   );
-  if (!p.rows[0]) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy cơ sở");
+  if (!p.rows[0]) throw new CommandError("NOT_FOUND", 404, msg("common.property_not_found"));
   const overdue = offsets(input.overdueReminderOffsetsDays, "overdue_reminder_offsets_days");
   const lease = offsets(input.leaseExpiryOffsetsDays, "lease_expiry_offsets_days");
   let deadline: string | null | undefined;
@@ -420,27 +411,35 @@ export async function updateSettings(ctx: CommandContext, input: SettingsInput) 
     const d = input.stayNoticeDeadline;
     const keys = Object.keys(d);
     if (keys.some((k) => !["domestic_cutoff", "domestic_next_day_before", "foreign_hours"].includes(k)))
-      throw fieldError("stay_notice_deadline", "unknown_key", "Khoá cấu hình hạn lưu trú không hợp lệ");
+      throw fieldError("stay_notice_deadline", "unknown_key", msg("notify.settings.deadline_unknown_key"));
     if (d.domestic_cutoff !== undefined && !HHMM.test(d.domestic_cutoff))
-      throw fieldError("stay_notice_deadline.domestic_cutoff", "invalid", "Giờ dạng HH:MM");
+      throw fieldError(
+        "stay_notice_deadline.domestic_cutoff",
+        "invalid",
+        msg("notify.settings.clock_format"),
+      );
     if (d.domestic_next_day_before !== undefined && !HHMM.test(d.domestic_next_day_before))
-      throw fieldError("stay_notice_deadline.domestic_next_day_before", "invalid", "Giờ dạng HH:MM");
+      throw fieldError(
+        "stay_notice_deadline.domestic_next_day_before",
+        "invalid",
+        msg("notify.settings.clock_format"),
+      );
     if ((d.domestic_cutoff === undefined) !== (d.domestic_next_day_before === undefined))
-      throw fieldError("stay_notice_deadline", "incomplete", "Cần cả giờ chốt và giờ hạn hôm sau");
+      throw fieldError("stay_notice_deadline", "incomplete", msg("notify.settings.deadline_incomplete"));
     if (
       d.foreign_hours !== undefined &&
       !(Number.isInteger(d.foreign_hours) && d.foreign_hours >= 1 && d.foreign_hours <= 72)
     )
-      throw fieldError("stay_notice_deadline.foreign_hours", "invalid", "Số giờ 1–72");
+      throw fieldError("stay_notice_deadline.foreign_hours", "invalid", msg("notify.settings.foreign_hours"));
     if (keys.length === 0)
-      throw fieldError("stay_notice_deadline", "empty", "Cấu hình rỗng — dùng null để bỏ");
+      throw fieldError("stay_notice_deadline", "empty", msg("notify.settings.deadline_empty"));
     deadline = JSON.stringify(d);
   }
   for (const [k, v] of [
     ["send_window_start", input.sendWindowStart],
     ["send_window_end", input.sendWindowEnd],
   ] as const)
-    if (v !== undefined && !HHMM.test(v)) throw fieldError(k, "invalid", "Giờ dạng HH:MM");
+    if (v !== undefined && !HHMM.test(v)) throw fieldError(k, "invalid", msg("notify.settings.clock_format"));
   const cur = await sql<{ send_window_start: string; send_window_end: string }>`
     select to_char(send_window_start, 'HH24:MI') as send_window_start, to_char(send_window_end, 'HH24:MI') as send_window_end
     from notification_settings where organization_id = ${ctx.actor.orgId} and property_id = ${input.propertyId} for update`.execute(
@@ -448,7 +447,7 @@ export async function updateSettings(ctx: CommandContext, input: SettingsInput) 
   );
   const start = input.sendWindowStart ?? cur.rows[0]?.send_window_start ?? "08:00";
   const end = input.sendWindowEnd ?? cur.rows[0]?.send_window_end ?? "20:00";
-  if (end <= start) throw fieldError("send_window_end", "invalid", "Giờ kết thúc phải sau giờ bắt đầu");
+  if (end <= start) throw fieldError("send_window_end", "invalid", msg("notify.settings.window_order"));
   await sql`
     insert into notification_settings (id, organization_id, property_id, overdue_reminder_offsets_days, lease_expiry_offsets_days,
                                        stay_notice_deadline, send_window_start, send_window_end, updated_by)

@@ -25,17 +25,6 @@
   "packages/app/src/ledger/opening-balance.ts": 6,
   "packages/app/src/ledger/period-close.ts": 25,
   "packages/app/src/metering/meters.ts": 38,
-  "packages/app/src/notifications/budget.ts": 2,
-  "packages/app/src/notifications/dispatch.ts": 9,
-  "packages/app/src/notifications/preferences.ts": 34,
-  "packages/app/src/notifications/reminders.ts": 2,
-  "packages/app/src/notifications/templates.ts": 73,
   "packages/app/src/reconciliation/reconciliation.ts": 26,
-  "packages/app/src/shifts/shifts.ts": 23,
-  "packages/app/src/stay/checkout.ts": 23,
-  "packages/app/src/stay/folio.ts": 16,
-  "packages/app/src/stay/rates.ts": 13,
-  "packages/app/src/stay/reservations.ts": 28,
-  "packages/app/src/stay/residence-notices.ts": 25,
-  "packages/app/src/stay/stays.ts": 16
+  "packages/app/src/shifts/shifts.ts": 23
 }

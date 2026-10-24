@@ -1514,5 +1514,777 @@
   "import.cancel_reason_required": {
     "message": "Cần lý do huỷ (≤ 500 ký tự)",
     "description": "Thông điệp lỗi API (422) ở trường reason khi huỷ lô nhập mà lý do trống hoặc dài quá 500 ký tự."
+  },
+  "notify.error.missing_var": {
+    "message": "thiếu biến {name}",
+    "description": "Lý do TemplateError khi mẫu thông báo thiếu một biến bắt buộc (chỉ log/vận hành, không tới người dùng cuối). {name} là tên biến."
+  },
+  "notify.error.var_wrong_type": {
+    "message": "biến {name} sai kiểu",
+    "description": "Lý do TemplateError khi biến mẫu thông báo không phải chuỗi/số (chỉ log/vận hành). {name} là tên biến."
+  },
+  "notify.error.var_not_integer_vnd": {
+    "message": "biến {name} phải là số nguyên đồng",
+    "description": "Lý do TemplateError khi biến tiền của mẫu thông báo không phải số nguyên đồng (chỉ log/vận hành). {name} là tên biến."
+  },
+  "notify.error.invalid_date": {
+    "message": "ngày không hợp lệ: {iso}",
+    "description": "Lý do TemplateError khi biến ngày của mẫu thông báo không phải YYYY-MM-DD hợp lệ (chỉ log/vận hành). {iso} là giá trị nhận được."
+  },
+  "notify.error.var_not_id": {
+    "message": "biến {name} không phải mã hợp lệ",
+    "description": "Lý do TemplateError khi biến mã (UUID) của mẫu thông báo sai định dạng (chỉ log/vận hành). {name} là tên biến."
+  },
+  "notify.error.invalid_work_order_status": {
+    "message": "trạng thái phiếu sự cố không hợp lệ",
+    "description": "Lý do TemplateError khi mẫu thông báo trạng thái phiếu sự cố nhận trạng thái lạ (chỉ log/vận hành)."
+  },
+  "notify.error.sensitive_content": {
+    "message": "nội dung chứa dạng {what} — không gửi",
+    "description": "Lý do TemplateError khi nội dung thông báo đã render còn dạng dữ liệu nhạy cảm (chỉ log/vận hành). {what} là tên dạng nhạy cảm (số giấy tờ, số điện thoại, số tài khoản)."
+  },
+  "notify.error.no_template": {
+    "message": "không có mẫu {type}",
+    "description": "Lý do TemplateError khi loại thông báo không có mẫu (chỉ log/vận hành). {type} là mã loại."
+  },
+  "notify.sensitive.document_no": {
+    "message": "số giấy tờ",
+    "description": "Tên dạng nhạy cảm (CCCD/CMND/hộ chiếu) chèn vào lý do lỗi khi nội dung thông báo chứa số giấy tờ."
+  },
+  "notify.sensitive.phone": {
+    "message": "số điện thoại",
+    "description": "Tên dạng nhạy cảm chèn vào lý do lỗi khi nội dung thông báo chứa số điện thoại."
+  },
+  "notify.sensitive.account_no": {
+    "message": "số tài khoản",
+    "description": "Tên dạng nhạy cảm chèn vào lý do lỗi khi nội dung thông báo chứa số tài khoản ngân hàng."
+  },
+  "notify.maintenance.assigned": {
+    "message": "đã giao kỹ thuật",
+    "description": "Cụm trạng thái phiếu sự cố trong thông báo cho người báo (nối sau 'Phiếu sự cố phòng X …'): đã giao cho kỹ thuật."
+  },
+  "notify.maintenance.in_progress": {
+    "message": "đang sửa",
+    "description": "Cụm trạng thái phiếu sự cố trong thông báo cho người báo: đang sửa."
+  },
+  "notify.maintenance.done": {
+    "message": "đã sửa xong, chờ nghiệm thu",
+    "description": "Cụm trạng thái phiếu sự cố trong thông báo cho người báo: kỹ thuật đã sửa xong, chờ nghiệm thu."
+  },
+  "notify.maintenance.verified": {
+    "message": "đã hoàn tất",
+    "description": "Cụm trạng thái phiếu sự cố trong thông báo cho người báo: đã nghiệm thu, hoàn tất."
+  },
+  "notify.maintenance.cancelled": {
+    "message": "đã huỷ",
+    "description": "Cụm trạng thái phiếu sự cố trong thông báo cho người báo: phiếu đã huỷ."
+  },
+  "notify.severity.urgent": {
+    "message": "Khẩn: ",
+    "description": "Tiền tố (có dấu cách cuối) đặt trước tiêu đề/nội dung thông báo lưu trú khi còn ≤ 30 phút tới hạn."
+  },
+  "notify.severity.overdue": {
+    "message": "Quá hạn: ",
+    "description": "Tiền tố (có dấu cách cuối) đặt trước tiêu đề/nội dung thông báo lưu trú khi đã quá hạn."
+  },
+  "notify.invite.title": {
+    "message": "{org} mời bạn vào cổng người thuê",
+    "description": "Tiêu đề thông báo và tiêu đề email mời người thuê vào cổng người thuê. {org} là tên cơ sở/tổ chức."
+  },
+  "notify.invite.body": {
+    "message": "Bạn có thể xem kỳ thu, hợp đồng và gửi yêu cầu. Đăng nhập bằng email này — mã đăng nhập gửi qua email.",
+    "description": "Nội dung thông báo trong app khi người thuê được mời vào cổng (đăng nhập bằng mã gửi qua email, không mật khẩu)."
+  },
+  "notify.invite.email_1": {
+    "message": "{org} đã mời bạn vào cổng người thuê để xem kỳ thu, hợp đồng và gửi yêu cầu.",
+    "description": "Dòng 1 thân email mời người thuê vào cổng. {org} là tên cơ sở/tổ chức."
+  },
+  "notify.invite.email_2": {
+    "message": "Đăng nhập bằng địa chỉ email này; hệ thống sẽ gửi mã đăng nhập mỗi lần.",
+    "description": "Dòng 2 thân email mời người thuê vào cổng."
+  },
+  "notify.invite.email_3": {
+    "message": "Nếu bạn không thuê phòng ở đây, hãy bỏ qua email này.",
+    "description": "Dòng 3 thân email mời người thuê vào cổng (người nhận nhầm)."
+  },
+  "notify.security.mfa_reset": {
+    "message": "Xác thực hai lớp của bạn đã được chủ cơ sở đặt lại; lần đăng nhập tới bạn cần đăng ký lại.",
+    "description": "Câu nêu sự kiện bảo mật: chủ cơ sở đặt lại xác thực hai lớp (MFA) của người nhận."
+  },
+  "notify.security.mfa_disabled": {
+    "message": "Xác thực hai lớp của tài khoản bạn đã được tắt.",
+    "description": "Câu nêu sự kiện bảo mật: xác thực hai lớp (MFA) của người nhận đã bị tắt."
+  },
+  "notify.security.password_changed": {
+    "message": "Mật khẩu tài khoản của bạn đã được đổi.",
+    "description": "Câu nêu sự kiện bảo mật: mật khẩu của người nhận đã được đổi."
+  },
+  "notify.security.advice": {
+    "message": "Nếu không phải bạn, hãy đổi mật khẩu ngay và liên hệ chủ cơ sở.",
+    "description": "Dòng khuyến cáo cuối thông báo/email sự kiện bảo mật (mfa_reset, password_changed, mfa_disabled)."
+  },
+  "notify.security.body": {
+    "message": "{what} Nếu không phải bạn, hãy đổi mật khẩu ngay và liên hệ chủ cơ sở.",
+    "description": "Nội dung thông báo trong app cho sự kiện bảo mật. {what} là câu nêu sự kiện (khoá notify.security.mfa_reset/mfa_disabled/password_changed)."
+  },
+  "notify.security.generic_body": {
+    "message": "Có thao tác bảo mật trên tài khoản của bạn: {action}. Nếu không phải bạn, hãy liên hệ quản lý.",
+    "description": "Nội dung thông báo trong app cho sự kiện bảo mật chung. {action} là mô tả thao tác."
+  },
+  "notify.security.generic_email_1": {
+    "message": "Có thao tác bảo mật trên tài khoản của bạn tại {org}: {action}.",
+    "description": "Dòng 1 thân email sự kiện bảo mật chung. {org} là tên tổ chức, {action} là mô tả thao tác."
+  },
+  "notify.security.generic_email_2": {
+    "message": "Nếu không phải bạn, hãy liên hệ quản lý.",
+    "description": "Dòng 2 thân email sự kiện bảo mật chung."
+  },
+  "notify.invoice_issued.title": {
+    "message": "Phiếu thu kỳ {period}",
+    "description": "Tiêu đề thông báo phiếu thu kỳ vừa phát hành. {period} là kỳ thu (MM/YYYY)."
+  },
+  "notify.invoice_issued.body": {
+    "message": "{property}: phiếu thu kỳ {period} {amount}, hạn thanh toán {due}.",
+    "description": "Nội dung thông báo trong app khi phát hành phiếu thu kỳ. {property} tên cơ sở, {period} kỳ thu, {amount} số tiền đã định dạng VND, {due} hạn thanh toán DD/MM/YYYY."
+  },
+  "notify.invoice_issued.email_subject": {
+    "message": "{property}: phiếu thu kỳ {period}",
+    "description": "Tiêu đề email phiếu thu kỳ mới (không ghi số tiền). {property} tên cơ sở, {period} kỳ thu."
+  },
+  "notify.invoice_issued.email_line": {
+    "message": "{property} đã phát hành phiếu thu kỳ {period}, hạn thanh toán {due}.",
+    "description": "Dòng nội dung email phiếu thu kỳ mới (không ghi số tiền). {property} tên cơ sở, {period} kỳ thu, {due} hạn thanh toán."
+  },
+  "notify.invoice_overdue.title": {
+    "message": "Phiếu thu kỳ {period} đã quá hạn",
+    "description": "Tiêu đề thông báo phiếu thu quá hạn. {period} là kỳ thu."
+  },
+  "notify.invoice_overdue.body": {
+    "message": "{property}: phiếu thu kỳ {period} còn {amount}, đã quá hạn {due}.",
+    "description": "Nội dung thông báo trong app phiếu thu quá hạn. {property} tên cơ sở, {period} kỳ thu, {amount} số còn nợ đã định dạng VND, {due} hạn thanh toán."
+  },
+  "notify.invoice_overdue.email_subject": {
+    "message": "{property}: nhắc phiếu thu kỳ {period} quá hạn",
+    "description": "Tiêu đề email nhắc phiếu thu quá hạn. {property} tên cơ sở, {period} kỳ thu."
+  },
+  "notify.invoice_overdue.email_line": {
+    "message": "Phiếu thu kỳ {period} tại {property} đã quá hạn thanh toán ({due}).",
+    "description": "Dòng nội dung email nhắc phiếu thu quá hạn (không ghi số tiền). {period} kỳ thu, {property} tên cơ sở, {due} hạn thanh toán."
+  },
+  "notify.lease_expiring.title": {
+    "message": "Hợp đồng phòng {unit} hết hạn {end}",
+    "description": "Tiêu đề thông báo hợp đồng sắp hết hạn. {unit} mã phòng, {end} ngày kết thúc DD/MM/YYYY."
+  },
+  "notify.lease_expiring.body": {
+    "message": "{property}: hợp đồng phòng {unit} kết thúc {end}. Cần gia hạn hoặc chuẩn bị trả phòng.",
+    "description": "Nội dung thông báo trong app hợp đồng sắp hết hạn. {property} tên cơ sở, {unit} mã phòng, {end} ngày kết thúc."
+  },
+  "notify.lease_expiring.email_subject": {
+    "message": "{property}: hợp đồng phòng {unit} sắp hết hạn",
+    "description": "Tiêu đề email hợp đồng sắp hết hạn. {property} tên cơ sở, {unit} mã phòng."
+  },
+  "notify.lease_expiring.email_line": {
+    "message": "Hợp đồng phòng {unit} tại {property} kết thúc {end}.",
+    "description": "Dòng nội dung email hợp đồng sắp hết hạn. {unit} mã phòng, {property} tên cơ sở, {end} ngày kết thúc."
+  },
+  "notify.stay_config.title": {
+    "message": "Chưa cấu hình hạn thông báo lưu trú",
+    "description": "Tiêu đề thông báo cảnh báo cơ sở chưa cấu hình hạn thông báo lưu trú."
+  },
+  "notify.stay_config.body": {
+    "message": "{property}: chưa cấu hình hạn thông báo lưu trú nên hệ thống không nhắc được. Vào Cài đặt → Thông báo để nhập hạn.",
+    "description": "Nội dung thông báo trong app cảnh báo chưa cấu hình hạn thông báo lưu trú. {property} tên cơ sở. Giữ tên mục Cài đặt → Thông báo khớp giao diện."
+  },
+  "notify.stay_config.email_subject": {
+    "message": "{property}: chưa cấu hình hạn thông báo lưu trú",
+    "description": "Tiêu đề email cảnh báo chưa cấu hình hạn thông báo lưu trú. {property} tên cơ sở."
+  },
+  "notify.stay_config.email_line": {
+    "message": "{property} chưa cấu hình hạn thông báo lưu trú nên hệ thống không nhắc được.",
+    "description": "Dòng nội dung email cảnh báo chưa cấu hình hạn thông báo lưu trú. {property} tên cơ sở."
+  },
+  "notify.stay_notice.title": {
+    "message": "{sev}Phòng {unit}: thông báo lưu trú",
+    "description": "Tiêu đề thông báo lưu trú sắp/quá hạn. {sev} là tiền tố mức độ (rỗng, 'Khẩn: ' hoặc 'Quá hạn: '), {unit} mã phòng."
+  },
+  "notify.stay_notice.body": {
+    "message": "{sev}Phòng {unit}: cần thông báo lưu trú trước {due}. Hệ thống không tự gửi cho cơ quan nhà nước.",
+    "description": "Nội dung thông báo trong app lưu trú sắp/quá hạn. {sev} tiền tố mức độ, {unit} mã phòng, {due} hạn giờ địa phương."
+  },
+  "notify.stay_notice.email_subject": {
+    "message": "{property}: {sev}phòng {unit} cần thông báo lưu trú",
+    "description": "Tiêu đề email thông báo lưu trú. {property} tên cơ sở, {sev} tiền tố mức độ (có thể rỗng; đứng trước chữ 'phòng' viết thường), {unit} mã phòng."
+  },
+  "notify.stay_notice.email_line": {
+    "message": "{sev}Phòng {unit} tại {property}: cần thông báo lưu trú trước {due}.",
+    "description": "Dòng nội dung email thông báo lưu trú. {sev} tiền tố mức độ, {unit} mã phòng, {property} tên cơ sở, {due} hạn giờ địa phương."
+  },
+  "notify.maintenance_status.title": {
+    "message": "Sự cố phòng {unit}: {label}",
+    "description": "Tiêu đề thông báo đổi trạng thái phiếu sự cố. {unit} mã phòng, {label} cụm trạng thái (notify.maintenance.*)."
+  },
+  "notify.maintenance_status.body": {
+    "message": "{property}: phiếu sự cố phòng {unit} {label}.",
+    "description": "Nội dung thông báo trong app đổi trạng thái phiếu sự cố. {property} tên cơ sở, {unit} mã phòng, {label} cụm trạng thái."
+  },
+  "notify.maintenance_status.email_subject": {
+    "message": "{property}: sự cố phòng {unit} {label}",
+    "description": "Tiêu đề email đổi trạng thái phiếu sự cố. {property} tên cơ sở, {unit} mã phòng, {label} cụm trạng thái."
+  },
+  "notify.maintenance_status.email_line": {
+    "message": "Phiếu sự cố phòng {unit} tại {property} {label}.",
+    "description": "Dòng nội dung email đổi trạng thái phiếu sự cố. {unit} mã phòng, {property} tên cơ sở, {label} cụm trạng thái."
+  },
+  "notify.export_ready.title": {
+    "message": "Đã xuất xong: {name}",
+    "description": "Tiêu đề thông báo và email khi tệp xuất dữ liệu sẵn sàng. {name} là tên tệp xuất."
+  },
+  "notify.export_ready.body": {
+    "message": "File {name} đã sẵn sàng tải về (liên kết có hạn).",
+    "description": "Nội dung thông báo trong app khi tệp xuất sẵn sàng. {name} là tên tệp xuất."
+  },
+  "notify.export_ready.email_line": {
+    "message": "File {name} đã sẵn sàng. Đăng nhập để tải về.",
+    "description": "Dòng nội dung email khi tệp xuất sẵn sàng (không đính kèm liên kết tải trực tiếp). {name} là tên tệp xuất."
+  },
+  "notify.email.greeting": {
+    "message": "Xin chào,",
+    "description": "Dòng chào đầu mọi email thông báo."
+  },
+  "notify.email.link": {
+    "message": "Xem chi tiết (cần đăng nhập): {url}",
+    "description": "Dòng liên kết trong email thông báo. {url} là địa chỉ tuyệt đối tới trang cần đăng nhập."
+  },
+  "notify.email.footer": {
+    "message": "Email tự động từ Hotel Manager, vui lòng không trả lời.",
+    "description": "Dòng chân email thông báo: email tự động, không trả lời."
+  },
+  "notify.email.unsubscribe": {
+    "message": "Không muốn nhận loại email này: {url}",
+    "description": "Dòng huỷ đăng ký ở cuối email thông báo (chỉ loại không bắt buộc). {url} là liên kết huỷ."
+  },
+  "notify.delivery.pending": {
+    "message": "Đang chờ gửi",
+    "description": "Nhãn lịch sử gửi email: đang xếp hàng/đang gửi."
+  },
+  "notify.delivery.retrying": {
+    "message": "Nhà cung cấp tạm lỗi — đang thử lại",
+    "description": "Nhãn lịch sử gửi email: nhà cung cấp email lỗi tạm, hệ thống đang thử lại."
+  },
+  "notify.delivery.sent": {
+    "message": "Đã chuyển cho nhà cung cấp email",
+    "description": "Nhãn lịch sử gửi email: đã giao cho nhà cung cấp (không khẳng định người nhận đã nhận)."
+  },
+  "notify.delivery.failed": {
+    "message": "Gửi thất bại — cần xử lý",
+    "description": "Nhãn lịch sử gửi email: gửi thất bại hẳn, cần người xử lý."
+  },
+  "notify.delivery.opted_out": {
+    "message": "Không gửi — người nhận đã tắt loại email này",
+    "description": "Nhãn lịch sử gửi email: bị chặn vì người nhận đã tắt loại email này."
+  },
+  "notify.delivery.no_address": {
+    "message": "Không gửi — chưa có địa chỉ email",
+    "description": "Nhãn lịch sử gửi email: bị chặn vì người nhận chưa có địa chỉ email."
+  },
+  "notify.delivery.settled": {
+    "message": "Không gửi — đã thanh toán xong",
+    "description": "Nhãn lịch sử gửi email: bị chặn vì phiếu thu đã được thanh toán xong lúc gửi."
+  },
+  "notify.fallback_org": {
+    "message": "Cơ sở",
+    "description": "Tên cơ sở dự phòng trong thông báo mời vào cổng khi tổ chức không có tên."
+  },
+  "notify.action.tenant_invited": {
+    "message": "mời vào cổng người thuê",
+    "description": "Mô tả thao tác (ghi trong biến `action` của thông báo mời vào cổng người thuê)."
+  },
+  "notify.action.mfa_reset": {
+    "message": "xác thực hai lớp đã được đặt lại",
+    "description": "Mô tả thao tác bảo mật (biến `action`, tiêu đề thông báo): xác thực hai lớp bị đặt lại."
+  },
+  "notify.action.password_changed": {
+    "message": "mật khẩu đã được đổi",
+    "description": "Mô tả thao tác bảo mật (biến `action`, tiêu đề thông báo): mật khẩu đã đổi."
+  },
+  "notify.action.mfa_disabled": {
+    "message": "xác thực hai lớp đã được tắt",
+    "description": "Mô tả thao tác bảo mật (biến `action`, tiêu đề thông báo): xác thực hai lớp bị tắt."
+  },
+  "notify.error.reminder_org_failed": {
+    "message": "nhắc lịch lỗi ở {count} tổ chức",
+    "description": "Thông điệp AggregateError khi quét nhắc lịch lỗi ở một số tổ chức (chỉ log/vận hành). {count} là số tổ chức lỗi."
+  },
+  "notify.error.reminder_scan_failed": {
+    "message": "nhắc lịch lỗi ở {count} loại quét",
+    "description": "Thông điệp AggregateError khi một số loại quét nhắc lịch lỗi (chỉ log/vận hành). {count} là số loại quét lỗi."
+  },
+  "notify.error.budget_exhausted": {
+    "message": "ngân sách email ngày của tổ chức đã hết — hoãn tới đầu ngày UTC kế tiếp",
+    "description": "Thông điệp lỗi khi lượt gửi email bị hoãn vì hết ngân sách ngày (chỉ log/vận hành)."
+  },
+  "notify.error.budget_no_row": {
+    "message": "app.email_budget_take không trả hàng",
+    "description": "Thông điệp lỗi khi hàm CSDL ngân sách email không trả hàng (chỉ log/vận hành). Giữ tên hàm app.email_budget_take."
+  },
+  "notify.error.payload_missing_invoice": {
+    "message": "payload thiếu invoice_id",
+    "description": "Thông điệp lỗi khi sự kiện outbox phiếu thu thiếu invoice_id (chỉ log/vận hành)."
+  },
+  "notify.error.payload_missing_work_order": {
+    "message": "payload thiếu work_order_id/status",
+    "description": "Thông điệp lỗi khi sự kiện outbox phiếu sự cố thiếu work_order_id/status (chỉ log/vận hành)."
+  },
+  "notify.error.payload_missing_membership_person": {
+    "message": "payload thiếu membership_id/person_id",
+    "description": "Thông điệp lỗi khi sự kiện mời vào portal thiếu membership_id/person_id (chỉ log/vận hành)."
+  },
+  "notify.error.payload_missing_membership": {
+    "message": "payload thiếu membership_id",
+    "description": "Thông điệp lỗi khi sự kiện bảo mật tài khoản thiếu membership_id (chỉ log/vận hành)."
+  },
+  "notify.pref.type_invalid": {
+    "message": "Loại thông báo không hợp lệ",
+    "description": "Lỗi theo trường `type` (422) khi đổi tuỳ chọn thông báo với loại không có trong danh sách."
+  },
+  "notify.pref.state_invalid": {
+    "message": "Trạng thái không hợp lệ",
+    "description": "Lỗi theo trường `state` (422) khi đổi tuỳ chọn thông báo với trạng thái không phải bật/tắt."
+  },
+  "notify.pref.required_type": {
+    "message": "Loại thông báo này cần thiết cho tài khoản và không tắt được.",
+    "description": "Lỗi 422 PREFERENCE_REQUIRED khi cố tắt email loại bắt buộc (bảo mật tài khoản), cả khi đổi tuỳ chọn lẫn khi bấm liên kết huỷ đăng ký."
+  },
+  "notify.unsubscribe.link_invalid": {
+    "message": "Liên kết không hợp lệ.",
+    "description": "Lỗi 404 khi liên kết huỷ đăng ký email sai chữ ký/định dạng hoặc không có bản ghi tương ứng."
+  },
+  "notify.unsubscribe.link_expired": {
+    "message": "Liên kết đã hết hạn. Vui lòng đổi tuỳ chọn trong mục Tài khoản.",
+    "description": "Lỗi 410 LINK_EXPIRED khi liên kết huỷ đăng ký email đã quá hạn. Giữ tên mục Tài khoản khớp giao diện."
+  },
+  "notify.unsubscribe.type.account_security": {
+    "message": "bảo mật tài khoản",
+    "description": "Tên loại email (chèn vào câu xác nhận huỷ đăng ký): bảo mật tài khoản."
+  },
+  "notify.unsubscribe.type.invoice_issued": {
+    "message": "phiếu thu mới",
+    "description": "Tên loại email (chèn vào câu xác nhận huỷ đăng ký): phiếu thu mới."
+  },
+  "notify.unsubscribe.type.invoice_overdue": {
+    "message": "nhắc quá hạn",
+    "description": "Tên loại email (chèn vào câu xác nhận huỷ đăng ký): nhắc phiếu thu quá hạn."
+  },
+  "notify.unsubscribe.type.lease_expiring": {
+    "message": "nhắc hợp đồng sắp hết hạn",
+    "description": "Tên loại email (chèn vào câu xác nhận huỷ đăng ký): nhắc hợp đồng sắp hết hạn."
+  },
+  "notify.unsubscribe.type.stay_notice_due": {
+    "message": "nhắc thông báo lưu trú",
+    "description": "Tên loại email (chèn vào câu xác nhận huỷ đăng ký): nhắc thông báo lưu trú."
+  },
+  "notify.unsubscribe.type.maintenance_status": {
+    "message": "cập nhật sự cố",
+    "description": "Tên loại email (chèn vào câu xác nhận huỷ đăng ký): cập nhật phiếu sự cố."
+  },
+  "notify.unsubscribe.type.export_ready": {
+    "message": "xuất dữ liệu xong",
+    "description": "Tên loại email (chèn vào câu xác nhận huỷ đăng ký): xuất dữ liệu xong."
+  },
+  "notify.unsubscribe.done": {
+    "message": "Bạn sẽ không nhận email {type} từ {org} nữa.",
+    "description": "Câu xác nhận trên trang huỷ đăng ký email. {type} là tên loại email (notify.unsubscribe.type.*), {org} là tên tổ chức."
+  },
+  "notify.delivery.not_retryable": {
+    "message": "Thông báo này không cần gửi lại.",
+    "description": "Lỗi 409 DELIVERY_NOT_RETRYABLE khi gửi lại một lần gửi không ở trạng thái thất bại."
+  },
+  "notify.settings.offsets_invalid": {
+    "message": "Mốc nhắc là 1–10 số nguyên ngày 0–365",
+    "description": "Lỗi theo trường khi cấu hình mốc nhắc quá hạn/hết hạn hợp đồng sai: 1–10 số nguyên, mỗi số 0–365 ngày."
+  },
+  "notify.settings.deadline_unknown_key": {
+    "message": "Khoá cấu hình hạn lưu trú không hợp lệ",
+    "description": "Lỗi theo trường `stay_notice_deadline` khi có khoá lạ trong cấu hình hạn thông báo lưu trú."
+  },
+  "notify.settings.clock_format": {
+    "message": "Giờ dạng HH:MM",
+    "description": "Lỗi theo trường giờ trong cấu hình thông báo (hạn lưu trú, khung giờ gửi) khi sai định dạng. Giữ HH:MM."
+  },
+  "notify.settings.deadline_incomplete": {
+    "message": "Cần cả giờ chốt và giờ hạn hôm sau",
+    "description": "Lỗi theo trường `stay_notice_deadline` khi chỉ nhập một trong hai giờ (giờ chốt trong ngày, giờ hạn hôm sau)."
+  },
+  "notify.settings.foreign_hours": {
+    "message": "Số giờ 1–72",
+    "description": "Lỗi theo trường khi số giờ hạn thông báo lưu trú cho khách nước ngoài ngoài khoảng 1–72."
+  },
+  "notify.settings.deadline_empty": {
+    "message": "Cấu hình rỗng — dùng null để bỏ",
+    "description": "Lỗi theo trường `stay_notice_deadline` khi gửi đối tượng rỗng; muốn bỏ cấu hình thì gửi null. Giữ từ `null`."
+  },
+  "notify.settings.window_order": {
+    "message": "Giờ kết thúc phải sau giờ bắt đầu",
+    "description": "Lỗi theo trường `send_window_end` khi khung giờ gửi email kết thúc không sau giờ bắt đầu."
+  },
+  "stay.checkout.negative_total": {
+    "message": "Tổng folio âm — kiểm tra lại giảm giá",
+    "description": "Lỗi theo trường `charges` (422) khi trả phòng mà tổng folio âm (giảm giá quá tay)."
+  },
+  "stay.checkout.void_reason_early": {
+    "message": "Trả phòng sớm — đêm chưa ở",
+    "description": "Lý do ghi vào khoản tiền phòng bị huỷ tự động (cột void_reason, lưu trong CSDL) khi trả phòng sớm: đêm chưa bắt đầu nên không tính tiền."
+  },
+  "stay.checkout.payment_not_found": {
+    "message": "Không tìm thấy thanh toán",
+    "description": "Lỗi 404 khi phân bổ khoản thanh toán vào folio lúc trả phòng mà khoản đó không thuộc cơ sở của booking."
+  },
+  "stay.checkout.debtor_required": {
+    "message": "Cần người nợ",
+    "description": "Lỗi theo trường `allow_balance.debtor_person_id` khi cho nợ lúc trả phòng mà thiếu/sai người nợ."
+  },
+  "stay.checkout.due_date_required": {
+    "message": "Cần hạn trả",
+    "description": "Lỗi theo trường `allow_balance.due_date` khi cho nợ lúc trả phòng mà thiếu hạn trả đúng dạng YYYY-MM-DD."
+  },
+  "stay.checkout.debtor_not_found": {
+    "message": "Không tìm thấy người nợ",
+    "description": "Lỗi theo trường `allow_balance.debtor_person_id` khi người nợ không có trong tổ chức."
+  },
+  "stay.checkout.due_date_past": {
+    "message": "Hạn trả không trước ngày trả phòng",
+    "description": "Lỗi theo trường `allow_balance.due_date` khi hạn trả nợ sớm hơn ngày trả phòng."
+  },
+  "stay.checkout.outstanding_balance": {
+    "message": "Khách còn nợ. Cần quản lý cho phép và hạn trả.",
+    "description": "Lỗi 409 OUTSTANDING_BALANCE khi trả phòng còn dư nợ mà chưa có phép cho nợ của quản lý (hoặc phép chưa đủ số tiền)."
+  },
+  "stay.checkout.approval_mismatch": {
+    "message": "Người nợ/hạn trả khác với yêu cầu đã được duyệt.",
+    "description": "Lỗi 409 OUTSTANDING_BALANCE khi người nợ/hạn trả lúc trả phòng khác với yêu cầu cho nợ đã được quản lý duyệt."
+  },
+  "stay.checkout.invalid_state": {
+    "message": "Thao tác không hợp lệ với trạng thái hiện tại.",
+    "description": "Lỗi 409 INVALID_TRANSITION khi trả phòng cho lượt ở không còn ở trạng thái đang ở."
+  },
+  "stay.checkout.due_date_invalid": {
+    "message": "Cần hạn trả hợp lệ",
+    "description": "Lỗi theo trường `allow_balance.due_date` khi hạn trả không phải ngày hợp lệ."
+  },
+  "stay.checkout.amount_positive": {
+    "message": "Số tiền > 0",
+    "description": "Lỗi theo trường `payments.N.amount` khi số tiền thu lúc trả phòng không phải số nguyên đồng dương."
+  },
+  "stay.checkout.shift_required": {
+    "message": "Mở ca trước khi nhận tiền mặt lúc trả phòng",
+    "description": "Lỗi 403 khi nhận tiền mặt lúc trả phòng mà người thu chưa mở ca."
+  },
+  "stay.checkout.no_deposit": {
+    "message": "Booking không có cọc",
+    "description": "Lỗi theo trường `deposit_deduction`/`deposit_refund` khi trả phòng muốn khấu trừ/hoàn cọc mà booking không có cọc."
+  },
+  "stay.checkout.refund_needs_settled": {
+    "message": "Khách còn nợ — chỉ hoàn cọc khi folio đã thu đủ.",
+    "description": "Lỗi 409 OUTSTANDING_BALANCE khi muốn hoàn cọc lúc trả phòng mà folio còn nợ hoặc đang có khấu trừ chờ duyệt."
+  },
+  "stay.checkout.refund_reason": {
+    "message": "Hoàn cọc khi trả phòng",
+    "description": "Lý do ghi trong khoản hoàn cọc tạo lúc trả phòng (lưu trong CSDL, hiện ở sổ cọc)."
+  },
+  "stay.checkout.allow_balance_subject": {
+    "message": "Yêu cầu cho nợ phải gắn lượt ở và số tiền",
+    "description": "Lỗi 422 khi thực thi yêu cầu duyệt `allow_balance` mà thiếu lượt ở hoặc số tiền."
+  },
+  "stay.checkout.allow_balance_payload": {
+    "message": "Yêu cầu cho nợ phải ghi người nợ và hạn trả",
+    "description": "Lỗi 422 khi thực thi yêu cầu duyệt `allow_balance` mà nội dung thiếu người nợ/hạn trả."
+  },
+  "stay.checkout.allow_balance_state": {
+    "message": "Chỉ cho nợ lượt ở đang ở",
+    "description": "Lỗi 409 INVALID_TRANSITION khi duyệt cho nợ cho lượt ở không còn ở trạng thái đang ở."
+  },
+  "stay.folio.charge_not_found": {
+    "message": "Không tìm thấy khoản",
+    "description": "Lỗi 404 khi thao tác (huỷ) một khoản trên folio mà khoản đó không tồn tại hoặc ngoài phạm vi."
+  },
+  "stay.folio.in_house_only": {
+    "message": "Chỉ ghi dịch vụ khi khách đang ở",
+    "description": "Lỗi 409 khi ghi khoản dịch vụ vào folio của lượt ở không còn đang ở."
+  },
+  "stay.folio.description_length": {
+    "message": "Mô tả 1–500 ký tự",
+    "description": "Lỗi theo trường `description` khi mô tả khoản dịch vụ rỗng hoặc dài quá 500 ký tự."
+  },
+  "stay.folio.quantity_range": {
+    "message": "Số lượng là số nguyên 1–1000",
+    "description": "Lỗi theo trường `quantity` khi số lượng khoản dịch vụ ngoài 1–1000 hoặc không nguyên."
+  },
+  "stay.folio.unit_price_positive": {
+    "message": "Đơn giá là số nguyên đồng > 0",
+    "description": "Lỗi theo trường `unit_price` khi đơn giá khoản dịch vụ không phải số nguyên đồng dương."
+  },
+  "stay.folio.amount_too_large": {
+    "message": "Số tiền quá lớn",
+    "description": "Lỗi theo trường `unit_price` khi thành tiền (số lượng × đơn giá) vượt giới hạn số nguyên an toàn."
+  },
+  "stay.folio.discount_needs_approval": {
+    "message": "Giảm giá vượt hạn mức — đã gửi yêu cầu duyệt",
+    "description": "Thông điệp lỗi 403 APPROVAL_LIMIT_EXCEEDED khi giảm giá vượt hạn mức của vai trò; hệ thống lập yêu cầu duyệt thay vì ghi ngay."
+  },
+  "stay.folio.void_room_forbidden": {
+    "message": "Tiền phòng đổi bằng đổi ngày, không huỷ từng đêm",
+    "description": "Lỗi theo trường `charge_id` khi cố huỷ riêng một đêm tiền phòng; phải đổi ngày của booking."
+  },
+  "stay.folio.already_voided": {
+    "message": "Khoản đã huỷ",
+    "description": "Lỗi 409 khi huỷ một khoản đã bị huỷ."
+  },
+  "stay.folio.period_closed": {
+    "message": "Kỳ này đã khoá. Hãy tạo điều chỉnh có duyệt.",
+    "description": "Lỗi 409 PERIOD_LOCKED khi huỷ khoản thuộc kỳ đã khoá; cần chứng từ điều chỉnh có duyệt."
+  },
+  "stay.folio.discount_request_incomplete": {
+    "message": "Yêu cầu giảm giá thiếu lượt ở/số tiền",
+    "description": "Lỗi 422 khi thực thi yêu cầu duyệt giảm giá mà thiếu lượt ở hoặc số tiền."
+  },
+  "stay.rates.not_configured": {
+    "message": "Chưa cấu hình giá cho loại phòng này",
+    "description": "Lỗi 422 RATE_NOT_CONFIGURED khi báo giá/đặt phòng mà loại phòng chưa có bảng giá cho đêm nào đó."
+  },
+  "stay.rates.max_nights": {
+    "message": "Tối đa {max} đêm cho một booking",
+    "description": "Lỗi theo trường `departure_date` khi số đêm vượt giới hạn mỗi booking. {max} là số đêm tối đa."
+  },
+  "stay.rates.invalid_date": {
+    "message": "Ngày không hợp lệ",
+    "description": "Lỗi theo trường `departure_date` khi ngày đến/đi không phải ngày hợp lệ."
+  },
+  "stay.rates.departure_after_arrival": {
+    "message": "Ngày đi phải sau ngày đến",
+    "description": "Lỗi theo trường `departure_date` khi ngày đi không sau ngày đến."
+  },
+  "stay.rates.unit_or_type_not_found": {
+    "message": "Không tìm thấy phòng/loại phòng",
+    "description": "Lỗi 404 khi báo giá cho phòng hoặc loại phòng không tồn tại, sai định dạng mã hoặc ngoài phạm vi."
+  },
+  "stay.rates.guests_min": {
+    "message": "Số khách phải ≥ 1",
+    "description": "Lỗi theo trường `guests` khi số khách nhỏ hơn 1 hoặc không nguyên."
+  },
+  "stay.rates.guests_over_capacity": {
+    "message": "Số khách vượt sức chứa của phòng",
+    "description": "Lỗi 422 CAPACITY_EXCEEDED khi số khách vượt sức chứa của phòng/loại phòng."
+  },
+  "stay.rates.room_type_code_taken": {
+    "message": "Mã loại phòng đã có trong cơ sở",
+    "description": "Lỗi theo trường `code` khi tạo loại phòng với mã đã dùng trong cơ sở."
+  },
+  "stay.rates.price_positive": {
+    "message": "Giá phải là số nguyên đồng > 0",
+    "description": "Lỗi theo trường giá (giá ngày thường/cuối tuần) khi không phải số nguyên đồng dương."
+  },
+  "stay.rates.effective_after_start": {
+    "message": "Ngày hiệu lực phải sau ngày bắt đầu của bảng giá hiện hành",
+    "description": "Lỗi theo trường `effective_from` khi bảng giá mới có hiệu lực không sau ngày bắt đầu của bảng giá hiện hành."
+  },
+  "stay.reservation.booker_invalid": {
+    "message": "Người đặt không hợp lệ",
+    "description": "Lỗi theo trường `booker.person_id` khi mã người đặt sai định dạng."
+  },
+  "stay.reservation.booker_not_found": {
+    "message": "Không tìm thấy người đặt",
+    "description": "Lỗi theo trường `booker.person_id` khi người đặt không có trong tổ chức."
+  },
+  "stay.reservation.name_length": {
+    "message": "Họ tên 1–200 ký tự",
+    "description": "Lỗi theo trường `booker.full_name` khi họ tên người đặt rỗng hoặc dài quá 200 ký tự."
+  },
+  "stay.reservation.phone_invalid": {
+    "message": "Số điện thoại không hợp lệ",
+    "description": "Lỗi theo trường `booker.phone` khi số điện thoại người đặt sai định dạng."
+  },
+  "stay.reservation.not_found": {
+    "message": "Không tìm thấy đặt phòng",
+    "description": "Lỗi 404 khi đặt phòng (booking) không tồn tại hoặc ngoài phạm vi vai trò."
+  },
+  "stay.reservation.room_taken_suggest": {
+    "message": "Phòng đã có người giữ trong thời gian này. Xem phòng gợi ý.",
+    "description": "Lỗi 409 khi giữ phòng mà phòng đã có người giữ/đặt trong khoảng đó; kèm danh sách phòng gợi ý."
+  },
+  "stay.reservation.hold_expired": {
+    "message": "Thời gian giữ phòng đã hết. Vui lòng giữ lại.",
+    "description": "Lỗi 409 khi xác nhận booking mà thời gian giữ phòng đã hết hạn."
+  },
+  "stay.reservation.deposit_required": {
+    "message": "Cơ sở yêu cầu ứng trước/cọc khi xác nhận",
+    "description": "Lỗi 409 khi xác nhận booking mà cơ sở bắt buộc ứng trước/cọc nhưng chưa có."
+  },
+  "stay.reservation.confirmed_payment_required": {
+    "message": "Cơ sở yêu cầu khoản thu đã xác nhận (tiền mặt hoặc chuyển khoản có chứng cứ) khi xác nhận booking",
+    "description": "Lỗi 409 khi xác nhận booking mà cơ sở yêu cầu khoản thu đã xác nhận (tiền mặt hoặc chuyển khoản có chứng cứ) nhưng chưa có."
+  },
+  "stay.reservation.cancel_fee_needs_approval": {
+    "message": "Phí huỷ vượt hạn mức — đã gửi yêu cầu duyệt",
+    "description": "Thông điệp lỗi 403 APPROVAL_LIMIT_EXCEEDED khi phí huỷ vượt hạn mức của vai trò; hệ thống lập yêu cầu duyệt thay vì thu ngay."
+  },
+  "stay.reservation.cancel_fee_charge": {
+    "message": "Phí huỷ {number}: {reason}",
+    "description": "Mô tả khoản phí huỷ trên folio (lưu trong CSDL, cắt còn 500 ký tự). {number} là mã booking, {reason} là lý do huỷ."
+  },
+  "stay.reservation.cancel_fee_line": {
+    "message": "Phí huỷ {number}",
+    "description": "Mô tả dòng phiếu thu phí huỷ (lưu trong CSDL). {number} là mã booking."
+  },
+  "stay.reservation.cancel_fee_integer": {
+    "message": "Phí huỷ là số nguyên ≥ 0",
+    "description": "Lỗi theo trường `cancellation_fee` khi phí huỷ không phải số nguyên đồng không âm."
+  },
+  "stay.reservation.cancel_fee_confirmed_only": {
+    "message": "Chỉ thu phí huỷ với booking đã xác nhận",
+    "description": "Lỗi theo trường `cancellation_fee` khi thu phí huỷ cho booking chưa có lượt ở (chưa xác nhận)."
+  },
+  "stay.reservation.reason_required": {
+    "message": "Cần lý do",
+    "description": "Lỗi theo trường `reason` khi đánh dấu không đến mà không nhập lý do."
+  },
+  "stay.reservation.no_show_after_cutoff": {
+    "message": "Chỉ đánh dấu không đến sau giờ chốt của ngày đến",
+    "description": "Lỗi 409 khi đánh dấu khách không đến trước giờ chốt của ngày đến."
+  },
+  "stay.reservation.reschedule_before_checkin": {
+    "message": "Chỉ đổi ngày booking chưa nhận phòng",
+    "description": "Lỗi 409 khi đổi ngày booking đã có khách nhận phòng."
+  },
+  "stay.reservation.room_taken_new_dates": {
+    "message": "Phòng đã có người giữ trong thời gian mới. Booking không đổi.",
+    "description": "Lỗi 409 khi đổi ngày mà phòng đã có người giữ trong khoảng mới; booking giữ nguyên."
+  },
+  "stay.reservation.date_range_invalid": {
+    "message": "Khoảng ngày không hợp lệ",
+    "description": "Lỗi theo trường `to` khi truy vấn lịch đặt phòng có ngày kết thúc không sau ngày bắt đầu."
+  },
+  "stay.reservation.cancel_fee_request_incomplete": {
+    "message": "Yêu cầu phí huỷ thiếu booking/số tiền",
+    "description": "Lỗi 422 khi thực thi yêu cầu duyệt phí huỷ mà thiếu booking hoặc số tiền."
+  },
+  "stay.notice.field.full_name": {
+    "message": "Họ và tên",
+    "description": "Nhãn cột mặc định trong file thông báo lưu trú (CSV/Excel nộp cơ quan quản lý): họ và tên khách."
+  },
+  "stay.notice.field.nationality": {
+    "message": "Quốc tịch",
+    "description": "Nhãn cột mặc định trong file thông báo lưu trú: quốc tịch khách."
+  },
+  "stay.notice.field.doc_type": {
+    "message": "Loại giấy tờ",
+    "description": "Nhãn cột mặc định trong file thông báo lưu trú: loại giấy tờ tuỳ thân."
+  },
+  "stay.notice.field.doc_number": {
+    "message": "Số giấy tờ",
+    "description": "Nhãn cột mặc định trong file thông báo lưu trú: số giấy tờ tuỳ thân."
+  },
+  "stay.notice.field.check_in_date": {
+    "message": "Ngày đến",
+    "description": "Nhãn cột mặc định trong file thông báo lưu trú: ngày khách đến."
+  },
+  "stay.notice.field.check_in_time": {
+    "message": "Giờ đến",
+    "description": "Nhãn cột mặc định trong file thông báo lưu trú: giờ khách đến."
+  },
+  "stay.notice.field.expected_departure_date": {
+    "message": "Ngày đi dự kiến",
+    "description": "Nhãn cột mặc định trong file thông báo lưu trú: ngày khách dự kiến đi."
+  },
+  "stay.notice.field.unit_code": {
+    "message": "Phòng",
+    "description": "Nhãn cột mặc định trong file thông báo lưu trú: mã phòng."
+  },
+  "stay.notice.field.property_name": {
+    "message": "Cơ sở lưu trú",
+    "description": "Nhãn cột mặc định trong file thông báo lưu trú: tên cơ sở lưu trú."
+  },
+  "stay.notice.doc_passport": {
+    "message": "Hộ chiếu",
+    "description": "Giá trị ô loại giấy tờ trong file thông báo lưu trú: hộ chiếu."
+  },
+  "stay.notice.doc_other": {
+    "message": "Khác",
+    "description": "Giá trị ô loại giấy tờ trong file thông báo lưu trú: loại giấy tờ khác."
+  },
+  "stay.notice.template_missing": {
+    "message": "Cơ sở chưa cấu hình mẫu thông báo lưu trú.",
+    "description": "Lỗi 409 NOTICE_TEMPLATE_MISSING khi xuất file thông báo lưu trú mà cơ sở chưa cấu hình mẫu file."
+  },
+  "stay.notice.template_fields_missing": {
+    "message": "Thiếu thông tin mẫu thông báo lưu trú yêu cầu",
+    "description": "Lỗi 422 khi xuất file thông báo lưu trú mà thiếu dữ liệu của trường mẫu yêu cầu."
+  },
+  "stay.notice.stale": {
+    "message": "Dữ liệu vừa thay đổi, vui lòng thử lại",
+    "description": "Lỗi 409 VERSION_CONFLICT khi dữ liệu thay đổi giữa lúc tạo file thông báo và lúc lưu (xung đột đồng thời)."
+  },
+  "stay.notice.marked": {
+    "message": "Thông báo lưu trú đã được đánh dấu",
+    "description": "Lỗi 409 INVALID_TRANSITION khi đánh dấu đã nộp một thông báo lưu trú đã được đánh dấu rồi."
+  },
+  "stay.notice.submitted_future": {
+    "message": "Thời điểm thông báo không được ở tương lai",
+    "description": "Lỗi 422 theo trường `submitted_at` khi thời điểm nộp thông báo lưu trú ở tương lai."
+  },
+  "stay.notice.evidence_invalid": {
+    "message": "File bằng chứng không hợp lệ",
+    "description": "Lỗi 422 theo trường `evidence_file_id` khi file bằng chứng nộp thông báo lưu trú không hợp lệ."
+  },
+  "stay.stays.room_busy": {
+    "message": "Phòng vẫn còn khách chưa trả.",
+    "description": "Lỗi 409 khi nhận phòng cho phòng vẫn còn khách đang ở."
+  },
+  "stay.stays.room_out_of_service": {
+    "message": "Phòng đang ngừng khai thác",
+    "description": "Lỗi 409 khi nhận phòng cho phòng đang ngừng khai thác (block/bảo trì)."
+  },
+  "stay.stays.room_not_clean": {
+    "message": "Phòng chưa dọn xong, chưa thể nhận khách.",
+    "description": "Lỗi 409 khi nhận phòng cho phòng chưa dọn xong."
+  },
+  "stay.stays.guest_required": {
+    "message": "Cần thông tin ít nhất một khách",
+    "description": "Lỗi theo trường danh sách khách khi nhận phòng mà không có khách nào."
+  },
+  "stay.stays.nationality_iso2": {
+    "message": "Quốc tịch phải là mã ISO 2 chữ cái",
+    "description": "Lỗi theo trường quốc tịch khi không phải mã quốc gia ISO 3166 gồm 2 chữ cái."
+  },
+  "stay.stays.guest_name_required": {
+    "message": "Cần họ tên khách",
+    "description": "Lỗi theo trường họ tên khi khách thiếu họ tên."
+  },
+  "stay.stays.primary_phone_required": {
+    "message": "Khách chính cần số điện thoại",
+    "description": "Lỗi theo trường số điện thoại khi khách chính không có số điện thoại."
+  },
+  "stay.stays.foreign_passport_required": {
+    "message": "Khách nước ngoài cần hộ chiếu",
+    "description": "Lỗi theo trường giấy tờ khi khách nước ngoài không có hộ chiếu."
+  },
+  "stay.stays.guest_duplicate": {
+    "message": "Khách bị lặp",
+    "description": "Lỗi theo trường danh sách khách khi cùng một người xuất hiện hai lần."
+  },
+  "stay.stays.guest_name_max": {
+    "message": "Họ tên tối đa 200 ký tự",
+    "description": "Lỗi theo trường họ tên khi khách có họ tên dài quá 200 ký tự."
+  },
+  "stay.stays.room_charge": {
+    "message": "Tiền phòng {unit} đêm {date}",
+    "description": "Mô tả khoản tiền phòng mỗi đêm trên folio (lưu trong CSDL). {unit} là mã phòng, {date} là ngày kinh doanh của đêm (YYYY-MM-DD)."
+  },
+  "stay.stays.invalid_state": {
+    "message": "Thao tác không hợp lệ với trạng thái hiện tại.",
+    "description": "Lỗi 409 INVALID_TRANSITION khi nhận phòng cho booking không ở trạng thái cho phép."
+  },
+  "stay.stays.checkin_window": {
+    "message": "Chỉ nhận phòng trong khoảng ngày của booking",
+    "description": "Lỗi 409 khi nhận phòng ngoài khoảng ngày đến–đi của booking."
   }
 }

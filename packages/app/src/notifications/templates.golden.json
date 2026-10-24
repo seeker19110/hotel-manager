@@ -1,0 +1,342 @@
+{
+  "invite:bare": {
+    "title": "Nhà trọ Hoa Sen mời bạn vào cổng người thuê",
+    "body": "Bạn có thể xem kỳ thu, hợp đồng và gửi yêu cầu. Đăng nhập bằng email này — mã đăng nhập gửi qua email.",
+    "link": "/dang-nhap",
+    "emailSubject": "Nhà trọ Hoa Sen mời bạn vào cổng người thuê",
+    "emailText": "Xin chào,\n\nNhà trọ Hoa Sen đã mời bạn vào cổng người thuê để xem kỳ thu, hợp đồng và gửi yêu cầu.\nĐăng nhập bằng địa chỉ email này; hệ thống sẽ gửi mã đăng nhập mỗi lần.\nNếu bạn không thuê phòng ở đây, hãy bỏ qua email này.\n\nXem chi tiết (cần đăng nhập): /dang-nhap\n\n—\nEmail tự động từ Hotel Manager, vui lòng không trả lời."
+  },
+  "invite:opts": {
+    "title": "Nhà trọ Hoa Sen mời bạn vào cổng người thuê",
+    "body": "Bạn có thể xem kỳ thu, hợp đồng và gửi yêu cầu. Đăng nhập bằng email này — mã đăng nhập gửi qua email.",
+    "link": "/dang-nhap",
+    "emailSubject": "Nhà trọ Hoa Sen mời bạn vào cổng người thuê",
+    "emailText": "Xin chào,\n\nNhà trọ Hoa Sen đã mời bạn vào cổng người thuê để xem kỳ thu, hợp đồng và gửi yêu cầu.\nĐăng nhập bằng địa chỉ email này; hệ thống sẽ gửi mã đăng nhập mỗi lần.\nNếu bạn không thuê phòng ở đây, hãy bỏ qua email này.\n\nXem chi tiết (cần đăng nhập): https://app.example/dang-nhap\n\n—\nEmail tự động từ Hotel Manager, vui lòng không trả lời."
+  },
+  "mfa_reset:bare": {
+    "title": "Nhà trọ Hoa Sen: đặt lại",
+    "body": "Xác thực hai lớp của bạn đã được chủ cơ sở đặt lại; lần đăng nhập tới bạn cần đăng ký lại. Nếu không phải bạn, hãy đổi mật khẩu ngay và liên hệ chủ cơ sở.",
+    "link": "/tai-khoan",
+    "emailSubject": "Nhà trọ Hoa Sen: đặt lại",
+    "emailText": "Xin chào,\n\nXác thực hai lớp của bạn đã được chủ cơ sở đặt lại; lần đăng nhập tới bạn cần đăng ký lại.\nNếu không phải bạn, hãy đổi mật khẩu ngay và liên hệ chủ cơ sở.\n\nXem chi tiết (cần đăng nhập): /tai-khoan\n\n—\nEmail tự động từ Hotel Manager, vui lòng không trả lời."
+  },
+  "mfa_reset:opts": {
+    "title": "Nhà trọ Hoa Sen: đặt lại",
+    "body": "Xác thực hai lớp của bạn đã được chủ cơ sở đặt lại; lần đăng nhập tới bạn cần đăng ký lại. Nếu không phải bạn, hãy đổi mật khẩu ngay và liên hệ chủ cơ sở.",
+    "link": "/tai-khoan",
+    "emailSubject": "Nhà trọ Hoa Sen: đặt lại",
+    "emailText": "Xin chào,\n\nXác thực hai lớp của bạn đã được chủ cơ sở đặt lại; lần đăng nhập tới bạn cần đăng ký lại.\nNếu không phải bạn, hãy đổi mật khẩu ngay và liên hệ chủ cơ sở.\n\nXem chi tiết (cần đăng nhập): https://app.example/tai-khoan\n\n—\nEmail tự động từ Hotel Manager, vui lòng không trả lời."
+  },
+  "pwd:bare": {
+    "title": "Nhà trọ Hoa Sen: đổi",
+    "body": "Mật khẩu tài khoản của bạn đã được đổi. Nếu không phải bạn, hãy đổi mật khẩu ngay và liên hệ chủ cơ sở.",
+    "link": "/tai-khoan",
+    "emailSubject": "Nhà trọ Hoa Sen: đổi",
+    "emailText": "Xin chào,\n\nMật khẩu tài khoản của bạn đã được đổi.\nNếu không phải bạn, hãy đổi mật khẩu ngay và liên hệ chủ cơ sở.\n\nXem chi tiết (cần đăng nhập): /tai-khoan\n\n—\nEmail tự động từ Hotel Manager, vui lòng không trả lời."
+  },
+  "pwd:opts": {
+    "title": "Nhà trọ Hoa Sen: đổi",
+    "body": "Mật khẩu tài khoản của bạn đã được đổi. Nếu không phải bạn, hãy đổi mật khẩu ngay và liên hệ chủ cơ sở.",
+    "link": "/tai-khoan",
+    "emailSubject": "Nhà trọ Hoa Sen: đổi",
+    "emailText": "Xin chào,\n\nMật khẩu tài khoản của bạn đã được đổi.\nNếu không phải bạn, hãy đổi mật khẩu ngay và liên hệ chủ cơ sở.\n\nXem chi tiết (cần đăng nhập): https://app.example/tai-khoan\n\n—\nEmail tự động từ Hotel Manager, vui lòng không trả lời."
+  },
+  "mfa_off:bare": {
+    "title": "Nhà trọ Hoa Sen: tắt",
+    "body": "Xác thực hai lớp của tài khoản bạn đã được tắt. Nếu không phải bạn, hãy đổi mật khẩu ngay và liên hệ chủ cơ sở.",
+    "link": "/tai-khoan",
+    "emailSubject": "Nhà trọ Hoa Sen: tắt",
+    "emailText": "Xin chào,\n\nXác thực hai lớp của tài khoản bạn đã được tắt.\nNếu không phải bạn, hãy đổi mật khẩu ngay và liên hệ chủ cơ sở.\n\nXem chi tiết (cần đăng nhập): /tai-khoan\n\n—\nEmail tự động từ Hotel Manager, vui lòng không trả lời."
+  },
+  "mfa_off:opts": {
+    "title": "Nhà trọ Hoa Sen: tắt",
+    "body": "Xác thực hai lớp của tài khoản bạn đã được tắt. Nếu không phải bạn, hãy đổi mật khẩu ngay và liên hệ chủ cơ sở.",
+    "link": "/tai-khoan",
+    "emailSubject": "Nhà trọ Hoa Sen: tắt",
+    "emailText": "Xin chào,\n\nXác thực hai lớp của tài khoản bạn đã được tắt.\nNếu không phải bạn, hãy đổi mật khẩu ngay và liên hệ chủ cơ sở.\n\nXem chi tiết (cần đăng nhập): https://app.example/tai-khoan\n\n—\nEmail tự động từ Hotel Manager, vui lòng không trả lời."
+  },
+  "generic:bare": {
+    "title": "Nhà trọ Hoa Sen: đăng nhập lạ",
+    "body": "Có thao tác bảo mật trên tài khoản của bạn: đăng nhập lạ. Nếu không phải bạn, hãy liên hệ quản lý.",
+    "link": "/tai-khoan",
+    "emailSubject": "Nhà trọ Hoa Sen: đăng nhập lạ",
+    "emailText": "Xin chào,\n\nCó thao tác bảo mật trên tài khoản của bạn tại Nhà trọ Hoa Sen: đăng nhập lạ.\nNếu không phải bạn, hãy liên hệ quản lý.\n\nXem chi tiết (cần đăng nhập): /tai-khoan\n\n—\nEmail tự động từ Hotel Manager, vui lòng không trả lời."
+  },
+  "generic:opts": {
+    "title": "Nhà trọ Hoa Sen: đăng nhập lạ",
+    "body": "Có thao tác bảo mật trên tài khoản của bạn: đăng nhập lạ. Nếu không phải bạn, hãy liên hệ quản lý.",
+    "link": "/tai-khoan",
+    "emailSubject": "Nhà trọ Hoa Sen: đăng nhập lạ",
+    "emailText": "Xin chào,\n\nCó thao tác bảo mật trên tài khoản của bạn tại Nhà trọ Hoa Sen: đăng nhập lạ.\nNếu không phải bạn, hãy liên hệ quản lý.\n\nXem chi tiết (cần đăng nhập): https://app.example/tai-khoan\n\n—\nEmail tự động từ Hotel Manager, vui lòng không trả lời."
+  },
+  "issued:bare": {
+    "title": "Phiếu thu kỳ 10/2026",
+    "body": "KS Mai: phiếu thu kỳ 10/2026 1.580.000 đ, hạn thanh toán 10/10/2026.",
+    "link": "/portal/phieu-thu/6f1c2b3a-1111-4222-8333-444455556666",
+    "emailSubject": "KS Mai: phiếu thu kỳ 10/2026",
+    "emailText": "Xin chào,\n\nKS Mai đã phát hành phiếu thu kỳ 10/2026, hạn thanh toán 10/10/2026.\n\nXem chi tiết (cần đăng nhập): /portal/phieu-thu/6f1c2b3a-1111-4222-8333-444455556666\n\n—\nEmail tự động từ Hotel Manager, vui lòng không trả lời."
+  },
+  "issued:opts": {
+    "title": "Phiếu thu kỳ 10/2026",
+    "body": "KS Mai: phiếu thu kỳ 10/2026 1.580.000 đ, hạn thanh toán 10/10/2026.",
+    "link": "/portal/phieu-thu/6f1c2b3a-1111-4222-8333-444455556666",
+    "emailSubject": "KS Mai: phiếu thu kỳ 10/2026",
+    "emailText": "Xin chào,\n\nKS Mai đã phát hành phiếu thu kỳ 10/2026, hạn thanh toán 10/10/2026.\n\nXem chi tiết (cần đăng nhập): https://app.example/portal/phieu-thu/6f1c2b3a-1111-4222-8333-444455556666\n\n—\nEmail tự động từ Hotel Manager, vui lòng không trả lời.\nKhông muốn nhận loại email này: https://app.example/u/1"
+  },
+  "overdue:bare": {
+    "title": "Phiếu thu kỳ 10/2026 đã quá hạn",
+    "body": "KS Mai: phiếu thu kỳ 10/2026 còn 1.580.000 đ, đã quá hạn 10/10/2026.",
+    "link": "/portal/phieu-thu/6f1c2b3a-1111-4222-8333-444455556666",
+    "emailSubject": "KS Mai: nhắc phiếu thu kỳ 10/2026 quá hạn",
+    "emailText": "Xin chào,\n\nPhiếu thu kỳ 10/2026 tại KS Mai đã quá hạn thanh toán (10/10/2026).\n\nXem chi tiết (cần đăng nhập): /portal/phieu-thu/6f1c2b3a-1111-4222-8333-444455556666\n\n—\nEmail tự động từ Hotel Manager, vui lòng không trả lời."
+  },
+  "overdue:opts": {
+    "title": "Phiếu thu kỳ 10/2026 đã quá hạn",
+    "body": "KS Mai: phiếu thu kỳ 10/2026 còn 1.580.000 đ, đã quá hạn 10/10/2026.",
+    "link": "/portal/phieu-thu/6f1c2b3a-1111-4222-8333-444455556666",
+    "emailSubject": "KS Mai: nhắc phiếu thu kỳ 10/2026 quá hạn",
+    "emailText": "Xin chào,\n\nPhiếu thu kỳ 10/2026 tại KS Mai đã quá hạn thanh toán (10/10/2026).\n\nXem chi tiết (cần đăng nhập): https://app.example/portal/phieu-thu/6f1c2b3a-1111-4222-8333-444455556666\n\n—\nEmail tự động từ Hotel Manager, vui lòng không trả lời.\nKhông muốn nhận loại email này: https://app.example/u/1"
+  },
+  "lease_staff:bare": {
+    "title": "Hợp đồng phòng 203 hết hạn 30/11/2026",
+    "body": "KS Mai: hợp đồng phòng 203 kết thúc 30/11/2026. Cần gia hạn hoặc chuẩn bị trả phòng.",
+    "link": "/hop-dong/6f1c2b3a-1111-4222-8333-444455556666",
+    "emailSubject": "KS Mai: hợp đồng phòng 203 sắp hết hạn",
+    "emailText": "Xin chào,\n\nHợp đồng phòng 203 tại KS Mai kết thúc 30/11/2026.\n\nXem chi tiết (cần đăng nhập): /hop-dong/6f1c2b3a-1111-4222-8333-444455556666\n\n—\nEmail tự động từ Hotel Manager, vui lòng không trả lời."
+  },
+  "lease_staff:opts": {
+    "title": "Hợp đồng phòng 203 hết hạn 30/11/2026",
+    "body": "KS Mai: hợp đồng phòng 203 kết thúc 30/11/2026. Cần gia hạn hoặc chuẩn bị trả phòng.",
+    "link": "/hop-dong/6f1c2b3a-1111-4222-8333-444455556666",
+    "emailSubject": "KS Mai: hợp đồng phòng 203 sắp hết hạn",
+    "emailText": "Xin chào,\n\nHợp đồng phòng 203 tại KS Mai kết thúc 30/11/2026.\n\nXem chi tiết (cần đăng nhập): https://app.example/hop-dong/6f1c2b3a-1111-4222-8333-444455556666\n\n—\nEmail tự động từ Hotel Manager, vui lòng không trả lời.\nKhông muốn nhận loại email này: https://app.example/u/1"
+  },
+  "lease_tenant:bare": {
+    "title": "Hợp đồng phòng 203 hết hạn 30/11/2026",
+    "body": "KS Mai: hợp đồng phòng 203 kết thúc 30/11/2026. Cần gia hạn hoặc chuẩn bị trả phòng.",
+    "link": "/portal/hop-dong",
+    "emailSubject": "KS Mai: hợp đồng phòng 203 sắp hết hạn",
+    "emailText": "Xin chào,\n\nHợp đồng phòng 203 tại KS Mai kết thúc 30/11/2026.\n\nXem chi tiết (cần đăng nhập): /portal/hop-dong\n\n—\nEmail tự động từ Hotel Manager, vui lòng không trả lời."
+  },
+  "lease_tenant:opts": {
+    "title": "Hợp đồng phòng 203 hết hạn 30/11/2026",
+    "body": "KS Mai: hợp đồng phòng 203 kết thúc 30/11/2026. Cần gia hạn hoặc chuẩn bị trả phòng.",
+    "link": "/portal/hop-dong",
+    "emailSubject": "KS Mai: hợp đồng phòng 203 sắp hết hạn",
+    "emailText": "Xin chào,\n\nHợp đồng phòng 203 tại KS Mai kết thúc 30/11/2026.\n\nXem chi tiết (cần đăng nhập): https://app.example/portal/hop-dong\n\n—\nEmail tự động từ Hotel Manager, vui lòng không trả lời.\nKhông muốn nhận loại email này: https://app.example/u/1"
+  },
+  "stay_cfg:bare": {
+    "title": "Chưa cấu hình hạn thông báo lưu trú",
+    "body": "KS Mai: chưa cấu hình hạn thông báo lưu trú nên hệ thống không nhắc được. Vào Cài đặt → Thông báo để nhập hạn.",
+    "link": "/cai-dat/thong-bao",
+    "emailSubject": "KS Mai: chưa cấu hình hạn thông báo lưu trú",
+    "emailText": "Xin chào,\n\nKS Mai chưa cấu hình hạn thông báo lưu trú nên hệ thống không nhắc được.\n\nXem chi tiết (cần đăng nhập): /cai-dat/thong-bao\n\n—\nEmail tự động từ Hotel Manager, vui lòng không trả lời."
+  },
+  "stay_cfg:opts": {
+    "title": "Chưa cấu hình hạn thông báo lưu trú",
+    "body": "KS Mai: chưa cấu hình hạn thông báo lưu trú nên hệ thống không nhắc được. Vào Cài đặt → Thông báo để nhập hạn.",
+    "link": "/cai-dat/thong-bao",
+    "emailSubject": "KS Mai: chưa cấu hình hạn thông báo lưu trú",
+    "emailText": "Xin chào,\n\nKS Mai chưa cấu hình hạn thông báo lưu trú nên hệ thống không nhắc được.\n\nXem chi tiết (cần đăng nhập): https://app.example/cai-dat/thong-bao\n\n—\nEmail tự động từ Hotel Manager, vui lòng không trả lời.\nKhông muốn nhận loại email này: https://app.example/u/1"
+  },
+  "stay_normal:bare": {
+    "title": "Phòng 203: thông báo lưu trú",
+    "body": "Phòng 203: cần thông báo lưu trú trước 23:00 15/10/2026. Hệ thống không tự gửi cho cơ quan nhà nước.",
+    "link": "/luu-tru/6f1c2b3a-1111-4222-8333-444455556666",
+    "emailSubject": "KS Mai: phòng 203 cần thông báo lưu trú",
+    "emailText": "Xin chào,\n\nPhòng 203 tại KS Mai: cần thông báo lưu trú trước 23:00 15/10/2026.\n\nXem chi tiết (cần đăng nhập): /luu-tru/6f1c2b3a-1111-4222-8333-444455556666\n\n—\nEmail tự động từ Hotel Manager, vui lòng không trả lời."
+  },
+  "stay_normal:opts": {
+    "title": "Phòng 203: thông báo lưu trú",
+    "body": "Phòng 203: cần thông báo lưu trú trước 23:00 15/10/2026. Hệ thống không tự gửi cho cơ quan nhà nước.",
+    "link": "/luu-tru/6f1c2b3a-1111-4222-8333-444455556666",
+    "emailSubject": "KS Mai: phòng 203 cần thông báo lưu trú",
+    "emailText": "Xin chào,\n\nPhòng 203 tại KS Mai: cần thông báo lưu trú trước 23:00 15/10/2026.\n\nXem chi tiết (cần đăng nhập): https://app.example/luu-tru/6f1c2b3a-1111-4222-8333-444455556666\n\n—\nEmail tự động từ Hotel Manager, vui lòng không trả lời.\nKhông muốn nhận loại email này: https://app.example/u/1"
+  },
+  "stay_urgent:bare": {
+    "title": "Khẩn: Phòng 203: thông báo lưu trú",
+    "body": "Khẩn: Phòng 203: cần thông báo lưu trú trước 23:00 15/10/2026. Hệ thống không tự gửi cho cơ quan nhà nước.",
+    "link": "/luu-tru/6f1c2b3a-1111-4222-8333-444455556666",
+    "emailSubject": "KS Mai: Khẩn: phòng 203 cần thông báo lưu trú",
+    "emailText": "Xin chào,\n\nKhẩn: Phòng 203 tại KS Mai: cần thông báo lưu trú trước 23:00 15/10/2026.\n\nXem chi tiết (cần đăng nhập): /luu-tru/6f1c2b3a-1111-4222-8333-444455556666\n\n—\nEmail tự động từ Hotel Manager, vui lòng không trả lời."
+  },
+  "stay_urgent:opts": {
+    "title": "Khẩn: Phòng 203: thông báo lưu trú",
+    "body": "Khẩn: Phòng 203: cần thông báo lưu trú trước 23:00 15/10/2026. Hệ thống không tự gửi cho cơ quan nhà nước.",
+    "link": "/luu-tru/6f1c2b3a-1111-4222-8333-444455556666",
+    "emailSubject": "KS Mai: Khẩn: phòng 203 cần thông báo lưu trú",
+    "emailText": "Xin chào,\n\nKhẩn: Phòng 203 tại KS Mai: cần thông báo lưu trú trước 23:00 15/10/2026.\n\nXem chi tiết (cần đăng nhập): https://app.example/luu-tru/6f1c2b3a-1111-4222-8333-444455556666\n\n—\nEmail tự động từ Hotel Manager, vui lòng không trả lời.\nKhông muốn nhận loại email này: https://app.example/u/1"
+  },
+  "stay_overdue:bare": {
+    "title": "Quá hạn: Phòng 203: thông báo lưu trú",
+    "body": "Quá hạn: Phòng 203: cần thông báo lưu trú trước 23:00 15/10/2026. Hệ thống không tự gửi cho cơ quan nhà nước.",
+    "link": "/luu-tru/6f1c2b3a-1111-4222-8333-444455556666",
+    "emailSubject": "KS Mai: Quá hạn: phòng 203 cần thông báo lưu trú",
+    "emailText": "Xin chào,\n\nQuá hạn: Phòng 203 tại KS Mai: cần thông báo lưu trú trước 23:00 15/10/2026.\n\nXem chi tiết (cần đăng nhập): /luu-tru/6f1c2b3a-1111-4222-8333-444455556666\n\n—\nEmail tự động từ Hotel Manager, vui lòng không trả lời."
+  },
+  "stay_overdue:opts": {
+    "title": "Quá hạn: Phòng 203: thông báo lưu trú",
+    "body": "Quá hạn: Phòng 203: cần thông báo lưu trú trước 23:00 15/10/2026. Hệ thống không tự gửi cho cơ quan nhà nước.",
+    "link": "/luu-tru/6f1c2b3a-1111-4222-8333-444455556666",
+    "emailSubject": "KS Mai: Quá hạn: phòng 203 cần thông báo lưu trú",
+    "emailText": "Xin chào,\n\nQuá hạn: Phòng 203 tại KS Mai: cần thông báo lưu trú trước 23:00 15/10/2026.\n\nXem chi tiết (cần đăng nhập): https://app.example/luu-tru/6f1c2b3a-1111-4222-8333-444455556666\n\n—\nEmail tự động từ Hotel Manager, vui lòng không trả lời.\nKhông muốn nhận loại email này: https://app.example/u/1"
+  },
+  "mt_assigned:bare": {
+    "title": "Sự cố phòng 203: đã giao kỹ thuật",
+    "body": "KS Mai: phiếu sự cố phòng 203 đã giao kỹ thuật.",
+    "link": "/portal/su-co/6f1c2b3a-1111-4222-8333-444455556666",
+    "emailSubject": "KS Mai: sự cố phòng 203 đã giao kỹ thuật",
+    "emailText": "Xin chào,\n\nPhiếu sự cố phòng 203 tại KS Mai đã giao kỹ thuật.\n\nXem chi tiết (cần đăng nhập): /portal/su-co/6f1c2b3a-1111-4222-8333-444455556666\n\n—\nEmail tự động từ Hotel Manager, vui lòng không trả lời."
+  },
+  "mt_assigned:opts": {
+    "title": "Sự cố phòng 203: đã giao kỹ thuật",
+    "body": "KS Mai: phiếu sự cố phòng 203 đã giao kỹ thuật.",
+    "link": "/portal/su-co/6f1c2b3a-1111-4222-8333-444455556666",
+    "emailSubject": "KS Mai: sự cố phòng 203 đã giao kỹ thuật",
+    "emailText": "Xin chào,\n\nPhiếu sự cố phòng 203 tại KS Mai đã giao kỹ thuật.\n\nXem chi tiết (cần đăng nhập): https://app.example/portal/su-co/6f1c2b3a-1111-4222-8333-444455556666\n\n—\nEmail tự động từ Hotel Manager, vui lòng không trả lời.\nKhông muốn nhận loại email này: https://app.example/u/1"
+  },
+  "mt_in_progress:bare": {
+    "title": "Sự cố phòng 203: đang sửa",
+    "body": "KS Mai: phiếu sự cố phòng 203 đang sửa.",
+    "link": "/portal/su-co/6f1c2b3a-1111-4222-8333-444455556666",
+    "emailSubject": "KS Mai: sự cố phòng 203 đang sửa",
+    "emailText": "Xin chào,\n\nPhiếu sự cố phòng 203 tại KS Mai đang sửa.\n\nXem chi tiết (cần đăng nhập): /portal/su-co/6f1c2b3a-1111-4222-8333-444455556666\n\n—\nEmail tự động từ Hotel Manager, vui lòng không trả lời."
+  },
+  "mt_in_progress:opts": {
+    "title": "Sự cố phòng 203: đang sửa",
+    "body": "KS Mai: phiếu sự cố phòng 203 đang sửa.",
+    "link": "/portal/su-co/6f1c2b3a-1111-4222-8333-444455556666",
+    "emailSubject": "KS Mai: sự cố phòng 203 đang sửa",
+    "emailText": "Xin chào,\n\nPhiếu sự cố phòng 203 tại KS Mai đang sửa.\n\nXem chi tiết (cần đăng nhập): https://app.example/portal/su-co/6f1c2b3a-1111-4222-8333-444455556666\n\n—\nEmail tự động từ Hotel Manager, vui lòng không trả lời.\nKhông muốn nhận loại email này: https://app.example/u/1"
+  },
+  "mt_done:bare": {
+    "title": "Sự cố phòng 203: đã sửa xong, chờ nghiệm thu",
+    "body": "KS Mai: phiếu sự cố phòng 203 đã sửa xong, chờ nghiệm thu.",
+    "link": "/portal/su-co/6f1c2b3a-1111-4222-8333-444455556666",
+    "emailSubject": "KS Mai: sự cố phòng 203 đã sửa xong, chờ nghiệm thu",
+    "emailText": "Xin chào,\n\nPhiếu sự cố phòng 203 tại KS Mai đã sửa xong, chờ nghiệm thu.\n\nXem chi tiết (cần đăng nhập): /portal/su-co/6f1c2b3a-1111-4222-8333-444455556666\n\n—\nEmail tự động từ Hotel Manager, vui lòng không trả lời."
+  },
+  "mt_done:opts": {
+    "title": "Sự cố phòng 203: đã sửa xong, chờ nghiệm thu",
+    "body": "KS Mai: phiếu sự cố phòng 203 đã sửa xong, chờ nghiệm thu.",
+    "link": "/portal/su-co/6f1c2b3a-1111-4222-8333-444455556666",
+    "emailSubject": "KS Mai: sự cố phòng 203 đã sửa xong, chờ nghiệm thu",
+    "emailText": "Xin chào,\n\nPhiếu sự cố phòng 203 tại KS Mai đã sửa xong, chờ nghiệm thu.\n\nXem chi tiết (cần đăng nhập): https://app.example/portal/su-co/6f1c2b3a-1111-4222-8333-444455556666\n\n—\nEmail tự động từ Hotel Manager, vui lòng không trả lời.\nKhông muốn nhận loại email này: https://app.example/u/1"
+  },
+  "mt_verified:bare": {
+    "title": "Sự cố phòng 203: đã hoàn tất",
+    "body": "KS Mai: phiếu sự cố phòng 203 đã hoàn tất.",
+    "link": "/portal/su-co/6f1c2b3a-1111-4222-8333-444455556666",
+    "emailSubject": "KS Mai: sự cố phòng 203 đã hoàn tất",
+    "emailText": "Xin chào,\n\nPhiếu sự cố phòng 203 tại KS Mai đã hoàn tất.\n\nXem chi tiết (cần đăng nhập): /portal/su-co/6f1c2b3a-1111-4222-8333-444455556666\n\n—\nEmail tự động từ Hotel Manager, vui lòng không trả lời."
+  },
+  "mt_verified:opts": {
+    "title": "Sự cố phòng 203: đã hoàn tất",
+    "body": "KS Mai: phiếu sự cố phòng 203 đã hoàn tất.",
+    "link": "/portal/su-co/6f1c2b3a-1111-4222-8333-444455556666",
+    "emailSubject": "KS Mai: sự cố phòng 203 đã hoàn tất",
+    "emailText": "Xin chào,\n\nPhiếu sự cố phòng 203 tại KS Mai đã hoàn tất.\n\nXem chi tiết (cần đăng nhập): https://app.example/portal/su-co/6f1c2b3a-1111-4222-8333-444455556666\n\n—\nEmail tự động từ Hotel Manager, vui lòng không trả lời.\nKhông muốn nhận loại email này: https://app.example/u/1"
+  },
+  "mt_cancelled:bare": {
+    "title": "Sự cố phòng 203: đã huỷ",
+    "body": "KS Mai: phiếu sự cố phòng 203 đã huỷ.",
+    "link": "/portal/su-co/6f1c2b3a-1111-4222-8333-444455556666",
+    "emailSubject": "KS Mai: sự cố phòng 203 đã huỷ",
+    "emailText": "Xin chào,\n\nPhiếu sự cố phòng 203 tại KS Mai đã huỷ.\n\nXem chi tiết (cần đăng nhập): /portal/su-co/6f1c2b3a-1111-4222-8333-444455556666\n\n—\nEmail tự động từ Hotel Manager, vui lòng không trả lời."
+  },
+  "mt_cancelled:opts": {
+    "title": "Sự cố phòng 203: đã huỷ",
+    "body": "KS Mai: phiếu sự cố phòng 203 đã huỷ.",
+    "link": "/portal/su-co/6f1c2b3a-1111-4222-8333-444455556666",
+    "emailSubject": "KS Mai: sự cố phòng 203 đã huỷ",
+    "emailText": "Xin chào,\n\nPhiếu sự cố phòng 203 tại KS Mai đã huỷ.\n\nXem chi tiết (cần đăng nhập): https://app.example/portal/su-co/6f1c2b3a-1111-4222-8333-444455556666\n\n—\nEmail tự động từ Hotel Manager, vui lòng không trả lời.\nKhông muốn nhận loại email này: https://app.example/u/1"
+  },
+  "export:bare": {
+    "title": "Đã xuất xong: Báo cáo công nợ 10/2026",
+    "body": "File Báo cáo công nợ 10/2026 đã sẵn sàng tải về (liên kết có hạn).",
+    "link": "/xuat-du-lieu/6f1c2b3a-1111-4222-8333-444455556666",
+    "emailSubject": "Đã xuất xong: Báo cáo công nợ 10/2026",
+    "emailText": "Xin chào,\n\nFile Báo cáo công nợ 10/2026 đã sẵn sàng. Đăng nhập để tải về.\n\nXem chi tiết (cần đăng nhập): /xuat-du-lieu/6f1c2b3a-1111-4222-8333-444455556666\n\n—\nEmail tự động từ Hotel Manager, vui lòng không trả lời."
+  },
+  "export:opts": {
+    "title": "Đã xuất xong: Báo cáo công nợ 10/2026",
+    "body": "File Báo cáo công nợ 10/2026 đã sẵn sàng tải về (liên kết có hạn).",
+    "link": "/xuat-du-lieu/6f1c2b3a-1111-4222-8333-444455556666",
+    "emailSubject": "Đã xuất xong: Báo cáo công nợ 10/2026",
+    "emailText": "Xin chào,\n\nFile Báo cáo công nợ 10/2026 đã sẵn sàng. Đăng nhập để tải về.\n\nXem chi tiết (cần đăng nhập): https://app.example/xuat-du-lieu/6f1c2b3a-1111-4222-8333-444455556666\n\n—\nEmail tự động từ Hotel Manager, vui lòng không trả lời.\nKhông muốn nhận loại email này: https://app.example/u/1"
+  },
+  "account_security:required_no_unsub": {
+    "title": "Nhà trọ Hoa Sen mời bạn vào cổng người thuê",
+    "body": "Bạn có thể xem kỳ thu, hợp đồng và gửi yêu cầu. Đăng nhập bằng email này — mã đăng nhập gửi qua email.",
+    "link": "/dang-nhap",
+    "emailSubject": "Nhà trọ Hoa Sen mời bạn vào cổng người thuê",
+    "emailText": "Xin chào,\n\nNhà trọ Hoa Sen đã mời bạn vào cổng người thuê để xem kỳ thu, hợp đồng và gửi yêu cầu.\nĐăng nhập bằng địa chỉ email này; hệ thống sẽ gửi mã đăng nhập mỗi lần.\nNếu bạn không thuê phòng ở đây, hãy bỏ qua email này.\n\nXem chi tiết (cần đăng nhập): https://app.example/dang-nhap\n\n—\nEmail tự động từ Hotel Manager, vui lòng không trả lời."
+  },
+  "bad_status": {
+    "error": "TemplateError",
+    "message": "trạng thái phiếu sự cố không hợp lệ"
+  },
+  "missing": {
+    "error": "TemplateError",
+    "message": "thiếu biến exportName"
+  },
+  "wrong_type": {
+    "error": "TemplateError",
+    "message": "biến exportName sai kiểu"
+  },
+  "bad_amount": {
+    "error": "TemplateError",
+    "message": "biến amount phải là số nguyên đồng"
+  },
+  "bad_date": {
+    "error": "TemplateError",
+    "message": "ngày không hợp lệ: 10/10/2026"
+  },
+  "bad_date2": {
+    "error": "TemplateError",
+    "message": "ngày không hợp lệ: 2026-13-40"
+  },
+  "bad_id": {
+    "error": "TemplateError",
+    "message": "biến exportId không phải mã hợp lệ"
+  },
+  "sensitive": {
+    "title": "Đã xuất xong: a",
+    "body": "File a đã sẵn sàng tải về (liên kết có hạn).",
+    "link": "/xuat-du-lieu/6f1c2b3a-1111-4222-8333-444455556666",
+    "emailSubject": "Đã xuất xong: a",
+    "emailText": "Xin chào,\n\nFile a đã sẵn sàng. Đăng nhập để tải về.\n\nXem chi tiết (cần đăng nhập): /xuat-du-lieu/6f1c2b3a-1111-4222-8333-444455556666\n\n—\nEmail tự động từ Hotel Manager, vui lòng không trả lời."
+  },
+  "no_template": {
+    "error": "TemplateError",
+    "message": "không có mẫu nope"
+  },
+  "label:queued:null": "Đang chờ gửi",
+  "label:queued:OPTED_OUT": "Đang chờ gửi",
+  "label:queued:NO_ADDRESS": "Đang chờ gửi",
+  "label:queued:SETTLED": "Đang chờ gửi",
+  "label:sending:null": "Đang chờ gửi",
+  "label:sending:OPTED_OUT": "Đang chờ gửi",
+  "label:sending:NO_ADDRESS": "Đang chờ gửi",
+  "label:sending:SETTLED": "Đang chờ gửi",
+  "label:sent:null": "Đã chuyển cho nhà cung cấp email",
+  "label:sent:OPTED_OUT": "Đã chuyển cho nhà cung cấp email",
+  "label:sent:NO_ADDRESS": "Đã chuyển cho nhà cung cấp email",
+  "label:sent:SETTLED": "Đã chuyển cho nhà cung cấp email",
+  "label:retrying:null": "Nhà cung cấp tạm lỗi — đang thử lại",
+  "label:retrying:OPTED_OUT": "Nhà cung cấp tạm lỗi — đang thử lại",
+  "label:retrying:NO_ADDRESS": "Nhà cung cấp tạm lỗi — đang thử lại",
+  "label:retrying:SETTLED": "Nhà cung cấp tạm lỗi — đang thử lại",
+  "label:failed:null": "Gửi thất bại — cần xử lý",
+  "label:failed:OPTED_OUT": "Gửi thất bại — cần xử lý",
+  "label:failed:NO_ADDRESS": "Gửi thất bại — cần xử lý",
+  "label:failed:SETTLED": "Gửi thất bại — cần xử lý",
+  "label:dead:null": "Gửi thất bại — cần xử lý",
+  "label:dead:OPTED_OUT": "Gửi thất bại — cần xử lý",
+  "label:dead:NO_ADDRESS": "Gửi thất bại — cần xử lý",
+  "label:dead:SETTLED": "Gửi thất bại — cần xử lý",
+  "label:suppressed:null": "Không gửi — đã thanh toán xong",
+  "label:suppressed:OPTED_OUT": "Không gửi — người nhận đã tắt loại email này",
+  "label:suppressed:NO_ADDRESS": "Không gửi — chưa có địa chỉ email",
+  "label:suppressed:SETTLED": "Không gửi — đã thanh toán xong"
+}

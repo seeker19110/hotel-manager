@@ -6,6 +6,7 @@
 //   10–19 chữ số → thay bằng `***` (vd tên "Nhà nghỉ Hoa Mai - 0100003456" vẫn gửi được, không lộ số).
 // - Lưới cuối: nội dung render vẫn còn các dạng đó → TemplateError (mặc định an toàn: không gửi thay vì lộ).
 import { formatDate, formatVnd } from "@hm/domain";
+import { t } from "../i18n.ts";
 
 export const NOTIFICATION_TYPES = [
   "account_security",
@@ -47,9 +48,9 @@ const ACCOUNT_NO = /(?<!\d)(?<!\d\.)\d{10,19}(?!\d)(?!\.\d)/;
 
 /** Dạng nhạy cảm không được xuất hiện trong nội dung render (S-012). */
 const SENSITIVE: readonly [string, RegExp][] = [
-  ["số giấy tờ", DOC_NO],
-  ["số điện thoại", PHONE],
-  ["số tài khoản", ACCOUNT_NO],
+  [t("notify.sensitive.document_no"), DOC_NO],
+  [t("notify.sensitive.phone"), PHONE],
+  [t("notify.sensitive.account_no"), ACCOUNT_NO],
 ];
 
 /** Che các dạng nhạy cảm trong một giá trị biến (SĐT trước: dạng có dấu cách/chấm dài hơn dạng số liền). */
@@ -60,8 +61,10 @@ function redact(s: string): string {
 }
 
 function clean(v: unknown, name: string, opts: { redact?: boolean } = {}): string {
-  if (v === undefined || v === null || v === "") throw new TemplateError(`thiếu biến ${name}`);
-  if (typeof v !== "string" && typeof v !== "number") throw new TemplateError(`biến ${name} sai kiểu`);
+  if (v === undefined || v === null || v === "")
+    throw new TemplateError(t("notify.error.missing_var", { name }));
+  if (typeof v !== "string" && typeof v !== "number")
+    throw new TemplateError(t("notify.error.var_wrong_type", { name }));
   // Ký tự điều khiển (CR/LF/NUL…) → khoảng trắng: chống chèn header khi có adapter SMTP.
   const s = Array.from(String(v), (ch) => {
     const c = ch.charCodeAt(0);
@@ -70,7 +73,7 @@ function clean(v: unknown, name: string, opts: { redact?: boolean } = {}): strin
     .join("")
     .replace(/ {2,}/g, " ")
     .trim();
-  if (!s) throw new TemplateError(`thiếu biến ${name}`);
+  if (!s) throw new TemplateError(t("notify.error.missing_var", { name }));
   const cut = (x: string) => (x.length > MAX_VALUE ? `${x.slice(0, MAX_VALUE - 1)}…` : x);
   if (opts.redact === false) return cut(s);
   // Che → cắt → che lại: che trước để số nằm vắt qua chỗ cắt không còn lại phần dở (8/10 chữ số SĐT), che lại để dãy số
@@ -85,17 +88,17 @@ function str(vars: Vars, name: string): string {
 function vnd(vars: Vars, name: string): string {
   const v = vars[name];
   if (typeof v !== "number" || !Number.isSafeInteger(v))
-    throw new TemplateError(`biến ${name} phải là số nguyên đồng`);
+    throw new TemplateError(t("notify.error.var_not_integer_vnd", { name }));
   return formatVnd(v);
 }
 
 /** `YYYY-MM-DD` → `DD/MM/YYYY`. */
 export function viDate(iso: string): string {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) throw new TemplateError(`ngày không hợp lệ: ${iso}`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) throw new TemplateError(t("notify.error.invalid_date", { iso }));
   try {
     return formatDate(iso);
   } catch {
-    throw new TemplateError(`ngày không hợp lệ: ${iso}`);
+    throw new TemplateError(t("notify.error.invalid_date", { iso }));
   }
 }
 
@@ -106,22 +109,22 @@ function date(vars: Vars, name: string): string {
 function uuidLink(prefix: string, vars: Vars, name: string): string {
   // Mã kiểm bằng định dạng UUID, không che (nhóm cuối 12 chữ số liền là UUID hợp lệ).
   const id = clean(vars[name], name, { redact: false });
-  if (!/^[0-9a-f-]{36}$/i.test(id)) throw new TemplateError(`biến ${name} không phải mã hợp lệ`);
+  if (!/^[0-9a-f-]{36}$/i.test(id)) throw new TemplateError(t("notify.error.var_not_id", { name }));
   return `${prefix}/${id}`;
 }
 
 const MAINTENANCE_LABEL: Readonly<Record<string, string>> = {
-  assigned: "đã giao kỹ thuật",
-  in_progress: "đang sửa",
-  done: "đã sửa xong, chờ nghiệm thu",
-  verified: "đã hoàn tất",
-  cancelled: "đã huỷ",
+  assigned: t("notify.maintenance.assigned"),
+  in_progress: t("notify.maintenance.in_progress"),
+  done: t("notify.maintenance.done"),
+  verified: t("notify.maintenance.verified"),
+  cancelled: t("notify.maintenance.cancelled"),
 };
 
 const SEVERITY_PREFIX: Readonly<Record<string, string>> = {
   normal: "",
-  urgent: "Khẩn: ",
-  overdue: "Quá hạn: ",
+  urgent: t("notify.severity.urgent"),
+  overdue: t("notify.severity.overdue"),
 };
 
 type Builder = (vars: Vars) => Omit<Rendered, "emailText"> & { emailLines: string[] };
@@ -132,14 +135,14 @@ const BUILDERS: Readonly<Record<NotificationType, Builder>> = {
     if (v.kind === "tenant_invited") {
       // Lời mời vào cổng người thuê (SPEC-portal S-014): đăng nhập bằng mã gửi về chính email này (không mật khẩu).
       return {
-        title: `${org} mời bạn vào cổng người thuê`,
-        body: "Bạn có thể xem kỳ thu, hợp đồng và gửi yêu cầu. Đăng nhập bằng email này — mã đăng nhập gửi qua email.",
+        title: t("notify.invite.title", { org }),
+        body: t("notify.invite.body"),
         link: "/dang-nhap",
-        emailSubject: `${org} mời bạn vào cổng người thuê`,
+        emailSubject: t("notify.invite.title", { org }),
         emailLines: [
-          `${org} đã mời bạn vào cổng người thuê để xem kỳ thu, hợp đồng và gửi yêu cầu.`,
-          "Đăng nhập bằng địa chỉ email này; hệ thống sẽ gửi mã đăng nhập mỗi lần.",
-          "Nếu bạn không thuê phòng ở đây, hãy bỏ qua email này.",
+          t("notify.invite.email_1", { org }),
+          t("notify.invite.email_2"),
+          t("notify.invite.email_3"),
         ],
       };
     }
@@ -147,28 +150,28 @@ const BUILDERS: Readonly<Record<NotificationType, Builder>> = {
       // Sự kiện bảo mật của chính tài khoản (T-405): nêu việc đã xảy ra + cách xử lý, KHÔNG kèm IP/thiết bị/người thực hiện.
       const what =
         v.kind === "mfa_reset"
-          ? "Xác thực hai lớp của bạn đã được chủ cơ sở đặt lại; lần đăng nhập tới bạn cần đăng ký lại."
+          ? t("notify.security.mfa_reset")
           : v.kind === "mfa_disabled"
-            ? "Xác thực hai lớp của tài khoản bạn đã được tắt."
-            : "Mật khẩu tài khoản của bạn đã được đổi.";
+            ? t("notify.security.mfa_disabled")
+            : t("notify.security.password_changed");
       const act = str(v, "action");
       return {
         title: `${org}: ${act}`,
-        body: `${what} Nếu không phải bạn, hãy đổi mật khẩu ngay và liên hệ chủ cơ sở.`,
+        body: t("notify.security.body", { what }),
         link: "/tai-khoan",
         emailSubject: `${org}: ${act}`,
-        emailLines: [`${what}`, "Nếu không phải bạn, hãy đổi mật khẩu ngay và liên hệ chủ cơ sở."],
+        emailLines: [`${what}`, t("notify.security.advice")],
       };
     }
     const action = str(v, "action");
     return {
       title: `${org}: ${action}`,
-      body: `Có thao tác bảo mật trên tài khoản của bạn: ${action}. Nếu không phải bạn, hãy liên hệ quản lý.`,
+      body: t("notify.security.generic_body", { action }),
       link: "/tai-khoan",
       emailSubject: `${org}: ${action}`,
       emailLines: [
-        `Có thao tác bảo mật trên tài khoản của bạn tại ${org}: ${action}.`,
-        "Nếu không phải bạn, hãy liên hệ quản lý.",
+        t("notify.security.generic_email_1", { org, action }),
+        t("notify.security.generic_email_2"),
       ],
     };
   },
@@ -177,11 +180,11 @@ const BUILDERS: Readonly<Record<NotificationType, Builder>> = {
     const period = str(v, "period");
     const due = date(v, "dueOn");
     return {
-      title: `Phiếu thu kỳ ${period}`,
-      body: `${p}: phiếu thu kỳ ${period} ${vnd(v, "amount")}, hạn thanh toán ${due}.`,
+      title: t("notify.invoice_issued.title", { period }),
+      body: t("notify.invoice_issued.body", { property: p, period, amount: vnd(v, "amount"), due }),
       link: uuidLink("/portal/phieu-thu", v, "invoiceId"),
-      emailSubject: `${p}: phiếu thu kỳ ${period}`,
-      emailLines: [`${p} đã phát hành phiếu thu kỳ ${period}, hạn thanh toán ${due}.`],
+      emailSubject: t("notify.invoice_issued.email_subject", { property: p, period }),
+      emailLines: [t("notify.invoice_issued.email_line", { property: p, period, due })],
     };
   },
   invoice_overdue: (v) => {
@@ -189,11 +192,11 @@ const BUILDERS: Readonly<Record<NotificationType, Builder>> = {
     const period = str(v, "period");
     const due = date(v, "dueOn");
     return {
-      title: `Phiếu thu kỳ ${period} đã quá hạn`,
-      body: `${p}: phiếu thu kỳ ${period} còn ${vnd(v, "amount")}, đã quá hạn ${due}.`,
+      title: t("notify.invoice_overdue.title", { period }),
+      body: t("notify.invoice_overdue.body", { property: p, period, amount: vnd(v, "amount"), due }),
       link: uuidLink("/portal/phieu-thu", v, "invoiceId"),
-      emailSubject: `${p}: nhắc phiếu thu kỳ ${period} quá hạn`,
-      emailLines: [`Phiếu thu kỳ ${period} tại ${p} đã quá hạn thanh toán (${due}).`],
+      emailSubject: t("notify.invoice_overdue.email_subject", { property: p, period }),
+      emailLines: [t("notify.invoice_overdue.email_line", { period, property: p, due })],
     };
   },
   lease_expiring: (v) => {
@@ -201,12 +204,12 @@ const BUILDERS: Readonly<Record<NotificationType, Builder>> = {
     const unit = str(v, "unitCode");
     const end = date(v, "endOn");
     return {
-      title: `Hợp đồng phòng ${unit} hết hạn ${end}`,
-      body: `${p}: hợp đồng phòng ${unit} kết thúc ${end}. Cần gia hạn hoặc chuẩn bị trả phòng.`,
+      title: t("notify.lease_expiring.title", { unit, end }),
+      body: t("notify.lease_expiring.body", { property: p, unit, end }),
       // Người thuê (người đại diện) mở portal; nhân viên mở trang hợp đồng.
       link: v.audience === "tenant" ? "/portal/hop-dong" : uuidLink("/hop-dong", v, "leaseId"),
-      emailSubject: `${p}: hợp đồng phòng ${unit} sắp hết hạn`,
-      emailLines: [`Hợp đồng phòng ${unit} tại ${p} kết thúc ${end}.`],
+      emailSubject: t("notify.lease_expiring.email_subject", { property: p, unit }),
+      emailLines: [t("notify.lease_expiring.email_line", { unit, property: p, end })],
     };
   },
   stay_notice_due: (v) => {
@@ -214,52 +217,52 @@ const BUILDERS: Readonly<Record<NotificationType, Builder>> = {
     if (v.kind === "config_missing") {
       // S-020: cơ sở chưa cấu hình hạn thông báo lưu trú (không có mặc định cứng — Q-08).
       return {
-        title: "Chưa cấu hình hạn thông báo lưu trú",
-        body: `${p}: chưa cấu hình hạn thông báo lưu trú nên hệ thống không nhắc được. Vào Cài đặt → Thông báo để nhập hạn.`,
+        title: t("notify.stay_config.title"),
+        body: t("notify.stay_config.body", { property: p }),
         link: "/cai-dat/thong-bao",
-        emailSubject: `${p}: chưa cấu hình hạn thông báo lưu trú`,
-        emailLines: [`${p} chưa cấu hình hạn thông báo lưu trú nên hệ thống không nhắc được.`],
+        emailSubject: t("notify.stay_config.email_subject", { property: p }),
+        emailLines: [t("notify.stay_config.email_line", { property: p })],
       };
     }
     const unit = str(v, "unitCode");
     const dueAt = str(v, "dueAtLocal");
     const sev = SEVERITY_PREFIX[String(v.severity ?? "normal")] ?? "";
     return {
-      title: `${sev}Phòng ${unit}: thông báo lưu trú`,
-      body: `${sev}Phòng ${unit}: cần thông báo lưu trú trước ${dueAt}. Hệ thống không tự gửi cho cơ quan nhà nước.`,
+      title: t("notify.stay_notice.title", { sev, unit }),
+      body: t("notify.stay_notice.body", { sev, unit, due: dueAt }),
       link: uuidLink("/luu-tru", v, "noticeId"),
-      emailSubject: `${p}: ${sev}phòng ${unit} cần thông báo lưu trú`,
-      emailLines: [`${sev}Phòng ${unit} tại ${p}: cần thông báo lưu trú trước ${dueAt}.`],
+      emailSubject: t("notify.stay_notice.email_subject", { property: p, sev, unit }),
+      emailLines: [t("notify.stay_notice.email_line", { sev, unit, property: p, due: dueAt })],
     };
   },
   maintenance_status: (v) => {
     const p = str(v, "propertyName");
     const unit = str(v, "unitCode");
     const label = MAINTENANCE_LABEL[str(v, "status")];
-    if (!label) throw new TemplateError("trạng thái phiếu sự cố không hợp lệ");
+    if (!label) throw new TemplateError(t("notify.error.invalid_work_order_status"));
     return {
-      title: `Sự cố phòng ${unit}: ${label}`,
-      body: `${p}: phiếu sự cố phòng ${unit} ${label}.`,
+      title: t("notify.maintenance_status.title", { unit, label }),
+      body: t("notify.maintenance_status.body", { property: p, unit, label }),
       link: uuidLink("/portal/su-co", v, "workOrderId"),
-      emailSubject: `${p}: sự cố phòng ${unit} ${label}`,
-      emailLines: [`Phiếu sự cố phòng ${unit} tại ${p} ${label}.`],
+      emailSubject: t("notify.maintenance_status.email_subject", { property: p, unit, label }),
+      emailLines: [t("notify.maintenance_status.email_line", { unit, property: p, label })],
     };
   },
   export_ready: (v) => {
     const name = str(v, "exportName");
     return {
-      title: `Đã xuất xong: ${name}`,
-      body: `File ${name} đã sẵn sàng tải về (liên kết có hạn).`,
+      title: t("notify.export_ready.title", { name }),
+      body: t("notify.export_ready.body", { name }),
       link: uuidLink("/xuat-du-lieu", v, "exportId"),
-      emailSubject: `Đã xuất xong: ${name}`,
-      emailLines: [`File ${name} đã sẵn sàng. Đăng nhập để tải về.`],
+      emailSubject: t("notify.export_ready.title", { name }),
+      emailLines: [t("notify.export_ready.email_line", { name })],
     };
   },
 };
 
 function assertNoSensitive(text: string): void {
   for (const [what, rx] of SENSITIVE)
-    if (rx.test(text)) throw new TemplateError(`nội dung chứa dạng ${what} — không gửi`);
+    if (rx.test(text)) throw new TemplateError(t("notify.error.sensitive_content", { what }));
 }
 
 /** Render thông báo; `baseUrl` (vd https://app.example) để email có liên kết tuyệt đối tới trang cần đăng nhập. */
@@ -269,20 +272,20 @@ export function render(
   opts: { baseUrl?: string; unsubscribeUrl?: string } = {},
 ): Rendered {
   const b = BUILDERS[type];
-  if (!b) throw new TemplateError(`không có mẫu ${type}`);
+  if (!b) throw new TemplateError(t("notify.error.no_template", { type }));
   const r = b(vars);
   const lines = [
-    "Xin chào,",
+    t("notify.email.greeting"),
     "",
     ...r.emailLines,
     ...(r.link
-      ? ["", `Xem chi tiết (cần đăng nhập): ${(opts.baseUrl ?? "").replace(/\/$/, "")}${r.link}`]
+      ? ["", t("notify.email.link", { url: `${(opts.baseUrl ?? "").replace(/\/$/, "")}${r.link}` })]
       : []),
     "",
     "—",
-    "Email tự động từ Hotel Manager, vui lòng không trả lời.",
+    t("notify.email.footer"),
     ...(opts.unsubscribeUrl && !REQUIRED_TYPES.has(type)
-      ? [`Không muốn nhận loại email này: ${opts.unsubscribeUrl}`]
+      ? [t("notify.email.unsubscribe", { url: opts.unsubscribeUrl })]
       : []),
   ];
   const out: Rendered = {
@@ -310,19 +313,19 @@ export function deliveryStatusLabel(status: DeliveryStatus, suppressedReason?: s
   switch (status) {
     case "queued":
     case "sending":
-      return "Đang chờ gửi";
+      return t("notify.delivery.pending");
     case "retrying":
-      return "Nhà cung cấp tạm lỗi — đang thử lại";
+      return t("notify.delivery.retrying");
     case "sent":
-      return "Đã chuyển cho nhà cung cấp email";
+      return t("notify.delivery.sent");
     case "failed":
     case "dead":
-      return "Gửi thất bại — cần xử lý";
+      return t("notify.delivery.failed");
     case "suppressed":
       return suppressedReason === "OPTED_OUT"
-        ? "Không gửi — người nhận đã tắt loại email này"
+        ? t("notify.delivery.opted_out")
         : suppressedReason === "NO_ADDRESS"
-          ? "Không gửi — chưa có địa chỉ email"
-          : "Không gửi — đã thanh toán xong";
+          ? t("notify.delivery.no_address")
+          : t("notify.delivery.settled");
   }
 }
