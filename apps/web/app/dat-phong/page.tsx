@@ -3,10 +3,13 @@ import type { Metadata } from "next";
 import { StatusBadge } from "../../components/ui/badge.tsx";
 import { EmptyState, ErrorState } from "../../components/ui/state.tsx";
 import { TruncatedNotice } from "../../components/ui/truncated-notice.tsx";
-import { addDays, BOOKING_STATUS, day, vnd } from "../../lib/format.ts";
-import { t } from "../../lib/i18n.ts";
+import { addDays, bookingStatusLabel, day, vnd } from "../../lib/format.ts";
+import { messagesFor, t } from "../../lib/i18n.ts";
 import { withActor } from "../../lib/page.tsx";
 import { safe } from "../../lib/safe.ts";
+
+/** Nhãn mã (lib/format.ts, D-103). */
+const LABELS = messagesFor("label.booking_status.");
 
 export const metadata: Metadata = { title: t("booking.list.metadata.title") };
 
@@ -95,7 +98,7 @@ export default async function BookingsPage({
                       total: vnd(b.roomTotal),
                     })}
                   </span>
-                  <StatusBadge status={b.status} label={BOOKING_STATUS[b.status] ?? b.status} />
+                  <StatusBadge status={b.status} label={bookingStatusLabel(LABELS, b.status)} />
                 </a>
               </li>
             ))}

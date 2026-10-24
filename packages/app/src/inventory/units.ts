@@ -3,10 +3,11 @@
 import { randomUUID } from "node:crypto";
 import { authorize } from "@hm/domain";
 import { sql } from "kysely";
+import { t } from "../i18n.ts";
 import { type CommandContext, CommandError, fieldError } from "../pipeline/index.ts";
 
 /** Thông báo 404 chung (cơ sở/phòng ngoài tầm nhìn không phân biệt với không tồn tại). */
-const NOT_FOUND_MSG = "Không tìm thấy phòng";
+const NOT_FOUND_MSG = t("common.unit_not_found");
 
 export async function createUnit(
   ctx: CommandContext,
@@ -22,16 +23,17 @@ export async function createUnit(
 ): Promise<{ unitId: string }> {
   authorize(ctx.actor, "unit.manage", { propertyId: input.propertyId });
   if (input.kind !== undefined && input.kind !== "whole")
-    throw fieldError("kind", "INVALID", "Chỉ bán nguyên phòng (kind = whole)");
+    throw fieldError("kind", "INVALID", t("inventory.unit_whole_only"));
   if (input.parentUnitId !== undefined && input.parentUnitId !== null)
-    throw fieldError("parent_unit_id", "INVALID", "Chưa hỗ trợ phòng con/giường");
+    throw fieldError("parent_unit_id", "INVALID", t("inventory.unit_sub_unsupported"));
   const code = input.code.trim();
   const floorName = input.floorName.trim();
-  if (code.length < 1 || code.length > 20) throw fieldError("code", "INVALID", "Mã phòng 1–20 ký tự");
+  if (code.length < 1 || code.length > 20)
+    throw fieldError("code", "INVALID", t("inventory.unit_code_length"));
   if (floorName.length < 1 || floorName.length > 100)
-    throw fieldError("floor", "INVALID", "Tên tầng 1–100 ký tự");
+    throw fieldError("floor", "INVALID", t("inventory.floor_name_length"));
   if (!Number.isInteger(input.capacity) || input.capacity < 1 || input.capacity > 50)
-    throw fieldError("capacity", "OUT_OF_RANGE", "Sức chứa 1–50");
+    throw fieldError("capacity", "OUT_OF_RANGE", t("inventory.capacity_range"));
   // Cơ sở ngoài tầm nhìn (tổ chức khác, id lạ, hoặc ngoài phạm vi) → 404 như trước: RLS danh mục (0064) sẽ chặn INSERT … RETURNING
   // bằng lỗi quyền (403) trước khi khoá ngoại kịp báo, nên tra cơ sở trước.
   const prop =
@@ -49,7 +51,7 @@ export async function createUnit(
   const typeCode = `P${input.capacity}`;
   const type = await sql<{ id: string }>`
     insert into room_types (id, organization_id, property_id, code, name, capacity)
-    values (${randomUUID()}, ${ctx.actor.orgId}, ${input.propertyId}, ${typeCode}, ${`Phòng ${input.capacity} người`},
+    values (${randomUUID()}, ${ctx.actor.orgId}, ${input.propertyId}, ${typeCode}, ${t("inventory.unit_type_default_name", { capacity: input.capacity })},
             ${input.capacity})
     on conflict (organization_id, property_id, code) where archived_at is null do update set code = excluded.code
     returning id`.execute(ctx.trx);
@@ -104,11 +106,7 @@ export async function archiveUnit(
               and status = 'requested')
          as n`.execute(ctx.trx);
   if ((busy.rows[0]?.n ?? 0) + Number(pending.rows[0]?.n ?? 0) > 0)
-    throw new CommandError(
-      "UNIT_IN_USE",
-      409,
-      "Phòng còn lượt ở/giữ chỗ/hợp đồng/đặt phòng/block đang hiệu lực hoặc chờ xử lý",
-    );
+    throw new CommandError("UNIT_IN_USE", 409, t("inventory.unit_in_use"));
   await sql`update units set archived_at = ${now}, version = version + 1
             where organization_id = ${ctx.actor.orgId} and id = ${input.unitId}`.execute(ctx.trx);
   await ctx.audit({

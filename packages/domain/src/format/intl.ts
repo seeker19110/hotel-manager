@@ -2,8 +2,27 @@
 // (`toLocaleString`, cắt chuỗi ngày). Thuần, không I/O. Mặc định locale `vi-VN`.
 // Ký hiệu tiền: CLDR vi-VN cho VND là "₫"; sản phẩm (SPEC, E2E) hiển thị "1.430.000 đ" nên với locale `vi*` ta thay đúng phần
 // *ký hiệu* của kết quả Intl bằng "đ" (dấu nhóm, dấu trừ, thứ tự vẫn do Intl quyết định). Locale khác giữ nguyên kết quả Intl.
+// Câu chữ (ký hiệu "đ", thông điệp RangeError) lấy từ catalog con `packages/domain/messages/format.vi.json` (XC-I18N-001, D-107
+// theo mẫu D-106): module này vào bundle trình duyệt (apps/web/lib/format.ts → @hm/app/format) nên KHÔNG import `../i18n.ts`
+// (catalog domain chính, D-098). `scripts/i18n-check.mjs` kiểm catalog con và mọi lời gọi `formatText` (khoá có thật, đúng tham số).
+import formatMessages from "../../messages/format.vi.json" with { type: "json" };
 
-const DISPLAY_SYMBOL_VI = "đ";
+export type FormatMessageKey = keyof typeof formatMessages;
+
+/**
+ * Câu của catalog con định dạng theo khoá, thay `{ten}` bằng tham số MỘT lượt; tham số thiếu giữ nguyên `{ten}` — cùng hành vi
+ * `format` của `../i18n.ts` (sao lại vì không được import module đó; `scripts/i18n.test.mjs` so các bản trên cùng bộ ca).
+ */
+export function formatText(
+  key: FormatMessageKey,
+  params: Readonly<Record<string, string | number>> = {},
+): string {
+  return formatMessages[key].message.replace(/\{(\w+)\}/g, (whole, name: string) =>
+    Object.hasOwn(params, name) ? String(params[name]) : whole,
+  );
+}
+
+const DISPLAY_SYMBOL_VI = formatText("format.vnd_symbol");
 
 const currencyFormats = new Map<string, Intl.NumberFormat>();
 const numberFormats = new Map<string, Intl.NumberFormat>();
@@ -43,7 +62,7 @@ function dateFormat(locale: string, kind: "day" | "month"): Intl.DateTimeFormat 
 }
 
 function assertWholeVnd(amount: number): void {
-  if (!Number.isSafeInteger(amount)) throw new RangeError(`Số tiền phải là số nguyên đồng: ${amount}`);
+  if (!Number.isSafeInteger(amount)) throw new RangeError(formatText("format.amount_not_whole", { amount }));
 }
 
 /** Tiền VND nguyên đồng kèm ký hiệu: `1430000` → "1.430.000 đ" (vi-VN). Không nhận số lẻ/NaN/Infinity. */
@@ -63,7 +82,7 @@ const unitPriceFormats = new Map<string, Intl.NumberFormat>();
  * Khác `formatVnd`: KHÔNG ép số nguyên (đơn giá không phải số tiền chứng từ; thành tiền luôn qua `lineAmount` làm tròn).
  */
 export function formatVndUnitPrice(price: number, locale = "vi-VN"): string {
-  if (!Number.isFinite(price)) throw new RangeError(`Đơn giá không hợp lệ: ${price}`);
+  if (!Number.isFinite(price)) throw new RangeError(formatText("format.unit_price_invalid", { price }));
   let f = unitPriceFormats.get(locale);
   if (!f) {
     f = new Intl.NumberFormat(locale, { maximumFractionDigits: 4 });
@@ -86,21 +105,21 @@ function utcDate(y: number, m: number, d: number): Date {
   const t = new Date(Date.UTC(y, m - 1, d));
   // Date.UTC tự cuộn tháng/ngày (2026-02-31 → 03-03): kiểm khứ hồi để từ chối ngày không có thật.
   if (t.getUTCFullYear() !== y || t.getUTCMonth() !== m - 1 || t.getUTCDate() !== d)
-    throw new RangeError(`Ngày không hợp lệ: ${y}-${m}-${d}`);
+    throw new RangeError(formatText("format.date_invalid", { date: `${y}-${m}-${d}` }));
   return t;
 }
 
 /** `YYYY-MM-DD` → ngày theo locale: "2026-10-05" → "05/10/2026" (vi-VN), "10/05/2026" (en-US). Ném RangeError nếu sai. */
 export function formatDate(iso: string, locale = "vi-VN"): string {
   const m = ISO_DATE.exec(iso);
-  if (!m) throw new RangeError(`Ngày không hợp lệ: ${iso}`);
+  if (!m) throw new RangeError(formatText("format.date_invalid", { date: iso }));
   return dateFormat(locale, "day").format(utcDate(Number(m[1]), Number(m[2]), Number(m[3])));
 }
 
 /** `YYYY-MM-DD` hoặc `YYYY-MM` → tháng/năm: "2026-10-05" → "10/2026" (kỳ thu). Ném RangeError nếu sai. */
 export function formatMonth(iso: string, locale = "vi-VN"): string {
   const m = ISO_MONTH.exec(iso);
-  if (!m) throw new RangeError(`Tháng không hợp lệ: ${iso}`);
+  if (!m) throw new RangeError(formatText("format.month_invalid", { month: iso }));
   const parts = dateFormat(locale, "month").formatToParts(utcDate(Number(m[1]), Number(m[2]), 1));
   const pick = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
   return `${pick("month")}/${pick("year")}`;

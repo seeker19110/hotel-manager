@@ -5,6 +5,7 @@ import {
   parseStatementDate,
   parseVndAmount,
   STATEMENT_MAX_ROWS,
+  StatementLimitError,
 } from "./statement-csv.ts";
 
 describe("CSV", () => {
@@ -90,6 +91,16 @@ describe("ánh xạ cột (S-019)", () => {
       ["d", "n", "a"],
       ...Array.from({ length: STATEMENT_MAX_ROWS + 1 }, () => ["01/10/2026", "x", "1"]),
     ];
-    expect(() => mapStatement(big, { date: 0, description: 1, amount: 2 })).toThrow(/Tối đa/);
+    expect(() => mapStatement(big, { date: 0, description: 1, amount: 2 })).toThrow(
+      new StatementLimitError(`Tối đa ${STATEMENT_MAX_ROWS} dòng mỗi lần nhập`),
+    );
+    expect(() => mapStatement(big, { date: 0, description: 1, amount: 2 })).toThrow(StatementLimitError);
+    // Lớp riêng chỉ cho giới hạn số dòng (nơi gọi đổi thành 413); lỗi ánh xạ khác là RangeError thường.
+    expect(() => mapStatement(rows, { date: 0, description: 2 })).not.toThrow(StatementLimitError);
+    expect(new StatementLimitError("x")).toBeInstanceOf(RangeError);
+    expect(() => mapStatement(rows, { date: "x", description: "Nội dung", amount: 3 })).toThrow(
+      new RangeError("Không tìm thấy cột ngày: x"),
+    );
+    expect(() => parseCsv('a,"b')).toThrow(new RangeError("CSV: thiếu dấu đóng ngoặc kép"));
   });
 });

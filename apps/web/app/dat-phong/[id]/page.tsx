@@ -7,10 +7,13 @@ import { HoldCountdown } from "../../../components/hotel/hold-countdown.tsx";
 import { ShiftPanel } from "../../../components/hotel/shift-panel.tsx";
 import { StatusBadge } from "../../../components/ui/badge.tsx";
 import { ErrorState } from "../../../components/ui/state.tsx";
-import { BOOKING_STATUS, DEFAULT_TIME_ZONE, dateTime, day, vnd } from "../../../lib/format.ts";
+import { bookingStatusLabel, DEFAULT_TIME_ZONE, dateTime, day, vnd } from "../../../lib/format.ts";
 import { messagesFor, t } from "../../../lib/i18n.ts";
 import { withActor } from "../../../lib/page.tsx";
 import { safe } from "../../../lib/safe.ts";
+
+/** Nhãn mã (lib/format.ts, D-103). */
+const LABELS = messagesFor("label.booking_status.");
 
 export const metadata: Metadata = { title: t("reservation.metadata.title") };
 
@@ -42,7 +45,7 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
             <dd>
               <StatusBadge
                 status={b.status}
-                label={BOOKING_STATUS[b.status] ?? b.status}
+                label={bookingStatusLabel(LABELS, b.status)}
                 testId="booking-status"
               />
             </dd>

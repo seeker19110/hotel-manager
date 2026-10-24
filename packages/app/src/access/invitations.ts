@@ -8,6 +8,7 @@ import { createHash, createHmac, hkdfSync, randomUUID } from "node:crypto";
 import { withTenantRetry } from "@hm/db";
 import { AuthzError, authorize, effectiveLimit } from "@hm/domain";
 import { type Kysely, sql } from "kysely";
+import { t } from "../i18n.ts";
 import { type CommandContext, CommandError, fieldError } from "../pipeline/index.ts";
 import { authorizeOrAudit } from "./denied.ts";
 
@@ -28,12 +29,12 @@ export const LIMIT_KEYS = ["discount", "refund", "price_override"] as const;
 const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,253}\.[^\s@]{2,}$/;
 
 export const ROLE_LABEL: Readonly<Record<string, string>> = {
-  owner: "chủ sở hữu",
-  manager: "quản lý",
-  front_desk: "lễ tân",
-  accountant: "kế toán",
-  housekeeping: "buồng phòng",
-  maintenance: "kỹ thuật",
+  owner: t("access.role_owner"),
+  manager: t("access.role_manager"),
+  front_desk: t("access.role_front_desk"),
+  accountant: t("access.role_accountant"),
+  housekeeping: t("access.role_housekeeping"),
+  maintenance: t("access.role_maintenance"),
 };
 
 /** Khoá dẫn xuất token lời mời: HKDF-SHA256 từ bí mật phiên với nhãn riêng. Xoay `BETTER_AUTH_SECRET` ⇒ lời mời đang chờ mất hiệu lực. */
@@ -81,17 +82,17 @@ export async function inviteMember(
       for (const k of LIMIT_KEYS) {
         const v = input.limits[k];
         if (v !== undefined && v > effectiveLimit(ctx.actor, k))
-          throw new AuthzError("FORBIDDEN", "Không được trao hạn mức vượt hạn mức của chính bạn");
+          throw new AuthzError("FORBIDDEN", t("access.limit_exceeds_own"));
       }
     }
   }, denied);
 
   const email = normalizeEmail(input.email);
-  if (!email) throw fieldError("email", "invalid", "Email không hợp lệ");
+  if (!email) throw fieldError("email", "invalid", t("portal.email_invalid"));
   if (input.role === "owner" && propertyIds.length > 0)
-    throw fieldError("property_ids", "not_allowed", "Chủ sở hữu luôn có mọi cơ sở");
+    throw fieldError("property_ids", "not_allowed", t("access.owner_all_properties"));
   if (!ALL_PROPERTIES_ROLES.has(input.role) && propertyIds.length === 0)
-    throw fieldError("property_ids", "required", "Vai trò này cần chọn ít nhất một cơ sở");
+    throw fieldError("property_ids", "required", t("access.role_needs_property"));
   if (propertyIds.length > 0) {
     const found = await sql<{ n: number }>`
       select count(*)::int as n from properties
@@ -99,7 +100,7 @@ export async function inviteMember(
       ctx.trx,
     );
     if ((found.rows[0]?.n ?? 0) !== propertyIds.length)
-      throw new CommandError("NOT_FOUND", 404, "Không tìm thấy cơ sở");
+      throw new CommandError("NOT_FOUND", 404, t("common.property_not_found"));
   }
 
   // Đã là thành viên (còn hiệu lực/tạm khoá) của tổ chức này ⇒ không mời lại.
@@ -108,7 +109,7 @@ export async function inviteMember(
     where m.organization_id = ${ctx.actor.orgId} and lower(btrim(u.email)) = ${email}
       and m.status in ('invited','active','suspended')`.execute(ctx.trx);
   if (member.rows[0])
-    throw new CommandError("DUPLICATE", 409, "Email này đã là thành viên của tổ chức", {
+    throw new CommandError("DUPLICATE", 409, t("access.email_already_member"), {
       extensions: { errors: [{ path: "email", field: "email", code: "member_exists" }] },
     });
   // Lời mời đang chờ đã quá hạn thì đóng (giải phóng unique một phần); còn hạn ⇒ trùng.
@@ -119,7 +120,7 @@ export async function inviteMember(
     select id from invitations where organization_id = ${ctx.actor.orgId} and lower(email) = ${email} and role = ${input.role}
       and status = 'pending'`.execute(ctx.trx);
   if (pending.rows[0])
-    throw new CommandError("DUPLICATE", 409, "Đã có lời mời đang chờ cho email và vai trò này", {
+    throw new CommandError("DUPLICATE", 409, t("access.invitation_pending"), {
       extensions: { errors: [{ path: "email", field: "email", code: "pending_invitation" }] },
     });
 
@@ -167,7 +168,7 @@ export async function buildInvitationMail(
   opts: { key: Buffer; baseUrl: string },
 ): Promise<InvitationMail | null> {
   const id = job.payload.invitation_id;
-  if (typeof id !== "string") throw new Error("payload thiếu invitation_id");
+  if (typeof id !== "string") throw new Error(t("access.invitation_payload_missing"));
   const r = await withTenantRetry(workerDb, { orgId: job.organization_id }, (trx) =>
     sql<{ email: string; role: string; org_name: string; ok: boolean }>`
       select i.email, i.role, o.name as org_name, (i.status = 'pending' and i.expires_at > now()) as ok
@@ -184,14 +185,14 @@ export async function buildInvitationMail(
     .slice(0, 200);
   return {
     to: row.email,
-    subject: `${org} mời bạn tham gia với vai trò ${role}`,
+    subject: t("access.invite_mail_subject", { org, role }),
     text: [
-      `${org} mời bạn tham gia quản lý với vai trò ${role}.`,
+      t("access.invite_mail_intro", { org, role }),
       "",
-      `Mở liên kết sau và đăng nhập bằng đúng email này để chấp nhận (liên kết dùng một lần, hết hạn sau ${INVITATION_TTL_DAYS} ngày):`,
+      t("access.invite_mail_link_intro", { days: INVITATION_TTL_DAYS }),
       link,
       "",
-      "Nếu bạn không biết lời mời này, hãy bỏ qua email.",
+      t("access.invite_mail_ignore"),
     ].join("\n"),
     idempotencyKey: id,
   };

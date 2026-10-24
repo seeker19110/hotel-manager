@@ -18,6 +18,7 @@ import {
 } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/index.ts";
+import { t } from "../i18n.ts";
 import { lockPeriod, postEntry, unlockPeriod } from "../ledger/index.ts";
 import {
   missingReadings,
@@ -38,10 +39,10 @@ export async function createPeriod(
   ctx: CommandContext,
   input: { propertyId: string; month: string },
 ): Promise<{ billingPeriodId: string; created: boolean }> {
-  if (!UUID.test(input.propertyId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy cơ sở");
+  if (!UUID.test(input.propertyId)) throw new CommandError("NOT_FOUND", 404, t("common.property_not_found"));
   authorize(ctx.actor, "billing.prepare", { propertyId: input.propertyId });
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(input.month))
-    throw fieldError("month", "INVALID", "Tháng dạng YYYY-MM");
+    throw fieldError("month", "INVALID", t("billing.month_format"));
   const id = randomUUID();
   const ins = await sql<{ id: string }>`
     insert into billing_periods (id, organization_id, property_id, period_start, period_end)
@@ -163,8 +164,8 @@ export async function buildPreview(
   const leaseIds = leases.rows.map((l) => l.id);
   const versionsBy = new Map<string, LeaseVersionRow[]>();
   if (leaseIds.length > 0) {
+    // SQL: Ngày cuối hiệu lực THỰC (phiên bản không thời hạn bị phụ lục thay — D-007).
     const versions = await sql<LeaseVersionRow & { lease_id: string }>`
-      -- Ngày cuối hiệu lực THỰC (phiên bản không thời hạn bị phụ lục thay — D-007).
       select lease_id, id, effective_from::text as "from", effective_until::text as "to", rent_amount::text as rent, services
       from lease_versions where organization_id = ${orgId} and lease_id = any(${leaseIds}::uuid[]) and signed_at is not null
       order by lease_id, version_no`.execute(trx);
@@ -409,7 +410,7 @@ async function assertEarlierPeriodsIssued(
     throw new CommandError(
       "INVALID_TRANSITION",
       409,
-      `Còn kỳ ${e.period_start.slice(0, 7)} chưa phát hành — phát hành theo thứ tự.`,
+      t("billing.earlier_period_unissued", { month: e.period_start.slice(0, 7) }),
       {
         extensions: { items: [{ period_start: e.period_start, status: e.status }] },
       },
@@ -423,7 +424,7 @@ function assertNoMissing(preview: Preview) {
     i.missing.map((meter) => ({ unit: i.unit, meter, reason: "no_reading" })),
   );
   if (items.length > 0)
-    throw new CommandError("READINGS_INCOMPLETE", 409, "Còn phòng chưa nhập chỉ số.", {
+    throw new CommandError("READINGS_INCOMPLETE", 409, t("billing.readings_incomplete"), {
       extensions: { items },
     });
 }
@@ -437,13 +438,13 @@ export async function submitForReview(
   await assertEarlierPeriodsIssued(ctx, p);
   const missing = await missingReadings(ctx.trx, ctx.actor.orgId, p.id);
   if (missing.length > 0) {
-    throw new CommandError("READINGS_INCOMPLETE", 409, "Còn phòng chưa nhập chỉ số.", {
+    throw new CommandError("READINGS_INCOMPLETE", 409, t("billing.readings_incomplete"), {
       extensions: { items: missing },
     });
   }
   const anomalies = await unresolvedAnomalies(ctx.trx, ctx.actor.orgId, p.id);
   if (anomalies.length > 0) {
-    throw new CommandError("UNRESOLVED_ANOMALIES", 409, "Còn chỉ số bất thường chưa kiểm tra.", {
+    throw new CommandError("UNRESOLVED_ANOMALIES", 409, t("billing.unresolved_anomalies"), {
       extensions: { items: anomalies },
     });
   }
@@ -466,7 +467,7 @@ export async function returnToDraft(ctx: CommandContext, input: { billingPeriodI
   const p = await lockedPeriod(ctx, input.billingPeriodId, "billing.prepare");
   billingPeriodMachine.assertTransition(p.status, "draft");
   const reason = input.reason.trim();
-  if (!reason) throw fieldError("reason", "REQUIRED", "Cần lý do trả về");
+  if (!reason) throw fieldError("reason", "REQUIRED", t("billing.return_reason_required"));
   await sql`update billing_periods set status = 'draft', preview_hash = null
             where organization_id = ${ctx.actor.orgId} and id = ${p.id}`.execute(ctx.trx);
   await ctx.audit({
@@ -499,11 +500,7 @@ export async function issuePeriod(
   const readingIds = locked.rows.map((r) => r.id);
   const preview = await buildPreview(ctx.trx, ctx.actor.orgId, p.id);
   if (preview.preview_hash !== input.previewHash) {
-    throw new CommandError(
-      "BILLING_PREVIEW_STALE",
-      409,
-      "Số liệu đã thay đổi sau khi bạn xem trước. Hãy xem lại.",
-    );
+    throw new CommandError("BILLING_PREVIEW_STALE", 409, t("billing.preview_stale"));
   }
   assertNoMissing(preview);
   const invoiceIds: string[] = [];
@@ -601,7 +598,13 @@ export async function issuePeriod(
     ctx.trx,
   );
   if (Number(approved.numAffectedRows ?? 0) !== readingIds.length) {
-    throw new Error(`Duyệt chỉ số kỳ ${p.id}: ${approved.numAffectedRows}/${readingIds.length}`);
+    throw new Error(
+      t("billing.approve_readings_mismatch", {
+        period_id: p.id,
+        approved: String(approved.numAffectedRows),
+        expected: readingIds.length,
+      }),
+    );
   }
   await sql`
     update billing_periods set status = 'issued', issued_at = now(), issued_by = ${ctx.actor.membershipId}
@@ -623,7 +626,7 @@ export async function lockBillingPeriod(
 ) {
   const p = await readPeriod(ctx.trx, ctx.actor.orgId, input.billingPeriodId);
   if (p.status !== "issued") {
-    throw new CommandError("INVALID_TRANSITION", 409, "Chỉ khoá kỳ đã phát hành", {
+    throw new CommandError("INVALID_TRANSITION", 409, t("billing.lock_requires_issued"), {
       extensions: { from: p.status, to: "locked" },
     });
   }
@@ -634,9 +637,9 @@ export async function lockBillingPeriod(
 export async function reopenPeriod(ctx: CommandContext, input: { billingPeriodId: string; reason: string }) {
   const p = await readPeriod(ctx.trx, ctx.actor.orgId, input.billingPeriodId);
   authorize(ctx.actor, "period.unlock", { propertyId: p.property_id });
-  if (!input.reason.trim()) throw fieldError("reason", "REQUIRED", "Mở khoá kỳ cần lý do");
+  if (!input.reason.trim()) throw fieldError("reason", "REQUIRED", t("billing.unlock_reason_required"));
   if (p.status !== "locked") {
-    throw new CommandError("INVALID_TRANSITION", 409, "Kỳ không ở trạng thái khoá", {
+    throw new CommandError("INVALID_TRANSITION", 409, t("billing.unlock_requires_locked"), {
       extensions: { from: p.status, to: "issued" },
     });
   }

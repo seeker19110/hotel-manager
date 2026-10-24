@@ -3,6 +3,7 @@
 import { withTenant } from "@hm/db";
 import { type Kysely, sql } from "kysely";
 import { AccessError, type Actor, type Role } from "../actor-core/index.ts";
+import { t } from "../i18n.ts";
 
 // Kiểu Actor/Role và AccessError nằm ở `actor-core` (module nền, tránh vòng access<->pipeline); xuất lại để giữ đường import cũ.
 export { AccessError, type AccessErrorCode, type Actor, type Role } from "../actor-core/index.ts";
@@ -57,10 +58,10 @@ export async function resolveActor(
     authenticatedAt?: Date | undefined;
   },
 ): Promise<Actor> {
-  if (!input.authUserId) throw new AccessError("UNAUTHENTICATED", "Cần đăng nhập");
+  if (!input.authUserId) throw new AccessError("UNAUTHENTICATED", t("http.unauthenticated"));
   const authUserId = input.authUserId;
   const UUID = /^[0-9a-f-]{36}$/i;
-  if (!UUID.test(input.orgId)) throw new AccessError("NOT_FOUND", "Không tìm thấy tổ chức");
+  if (!UUID.test(input.orgId)) throw new AccessError("NOT_FOUND", t("http.organization_not_found"));
 
   // AUD-SEC-001 (D-081): quyền người thuê chỉ có hiệu lực khi email đã được chứng minh (OTP gửi tới hộp thư). Đăng ký mật khẩu không
   // xác minh email, nên kẻ lập tài khoản trước bằng email nạn nhân không dùng được lời mời dành cho nạn nhân (`u."emailVerified"` bên dưới).
@@ -87,7 +88,7 @@ export async function resolveActor(
       group by m.id, o.settings`.execute(trx);
     return r.rows[0];
   });
-  if (!row) throw new AccessError("NOT_FOUND", "Không tìm thấy tổ chức");
+  if (!row) throw new AccessError("NOT_FOUND", t("http.organization_not_found"));
 
   // Hạn mức 3 tầng (ERD 7.1 #9): mặc định trong mã (DEFAULT_LIMITS, authorize) < theo vai trò của tổ chức
   // (`organizations.settings.role_limits.<role>`) < ghi đè của membership (`memberships.limits`).
@@ -106,7 +107,7 @@ export async function resolveActor(
     ...(input.authenticatedAt ? { authenticatedAt: input.authenticatedAt } : {}),
   };
   if (actor.mfaRequired && !input.twoFactorEnabled) {
-    throw new AccessError("MFA_REQUIRED", "Vai trò này cần bật xác thực hai lớp trước khi thao tác");
+    throw new AccessError("MFA_REQUIRED", t("access.mfa_required"));
   }
   return actor;
 }

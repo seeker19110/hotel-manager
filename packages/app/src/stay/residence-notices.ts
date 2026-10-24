@@ -1,6 +1,7 @@
 // Thông báo lưu trú — nghĩa vụ của CƠ SỞ (SPEC-reservation-stay S-028…S-030, Q-13; SPEC-notifications S-014…S-021). Hệ thống
 // chỉ xuất file theo mẫu cơ sở cấu hình và ghi dấu vết; KHÔNG tự nộp cho cơ quan nhà nước. File chỉ gồm đúng các trường mẫu
 // yêu cầu (không ảnh giấy tờ, SĐT, ghi chú nội bộ, số tiền), riêng tư, link ký ≤ 5 phút, tự xoá sau hạn ngắn.
+
 import { createHash } from "node:crypto";
 import { withTenant } from "@hm/db";
 import { authorize, MS_PER_MINUTE, toCsv } from "@hm/domain";
@@ -14,6 +15,7 @@ import {
   storeGeneratedFile,
   type TabularMime,
 } from "../files/index.ts";
+import { t } from "../i18n.ts";
 import { revealDocNumber } from "../identity/index.ts";
 import { writeXlsx } from "../import/index.ts";
 import { type CommandContext, CommandError } from "../pipeline/index.ts";
@@ -23,15 +25,15 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Trường được phép đưa vào file — danh sách đóng; mẫu chỉ chọn trong đây (không SĐT, ảnh, ghi chú, tiền). */
 export const NOTICE_FIELDS = {
-  full_name: "Họ và tên",
-  nationality: "Quốc tịch",
-  doc_type: "Loại giấy tờ",
-  doc_number: "Số giấy tờ",
-  check_in_date: "Ngày đến",
-  check_in_time: "Giờ đến",
-  expected_departure_date: "Ngày đi dự kiến",
-  unit_code: "Phòng",
-  property_name: "Cơ sở lưu trú",
+  full_name: t("stay.notice.field.full_name"),
+  nationality: t("stay.notice.field.nationality"),
+  doc_type: t("stay.notice.field.doc_type"),
+  doc_number: t("stay.notice.field.doc_number"),
+  check_in_date: t("stay.notice.field.check_in_date"),
+  check_in_time: t("stay.notice.field.check_in_time"),
+  expected_departure_date: t("stay.notice.field.expected_departure_date"),
+  unit_code: t("stay.notice.field.unit_code"),
+  property_name: t("stay.notice.field.property_name"),
 } as const;
 export type NoticeField = keyof typeof NOTICE_FIELDS;
 
@@ -59,7 +61,11 @@ export function parseNoticeTemplate(v: unknown): NoticeTemplate | null {
   return { format, fields: o.fields as NoticeField[], labels };
 }
 
-const DOC_LABEL: Record<string, string> = { cccd: "CCCD", passport: "Hộ chiếu", other: "Khác" };
+const DOC_LABEL: Record<string, string> = {
+  cccd: "CCCD",
+  passport: t("stay.notice.doc_passport"),
+  other: t("stay.notice.doc_other"),
+};
 
 interface NoticeRow {
   id: string;
@@ -74,7 +80,7 @@ async function readNotice(
   noticeId: string,
   lock: boolean,
 ): Promise<NoticeRow> {
-  if (!UUID.test(noticeId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy dữ liệu");
+  if (!UUID.test(noticeId)) throw new CommandError("NOT_FOUND", 404, t("common.not_found_data"));
   const r = await sql<NoticeRow>`
     select id, property_id, stay_id, status from residence_notices
     where organization_id = ${actor.orgId} and id = ${noticeId} ${lock ? sql`for update` : sql``}`.execute(
@@ -82,7 +88,7 @@ async function readNotice(
   );
   const row = r.rows[0];
   if (!row || (!actor.allProperties && !actor.propertyIds.includes(row.property_id)))
-    throw new CommandError("NOT_FOUND", 404, "Không tìm thấy dữ liệu");
+    throw new CommandError("NOT_FOUND", 404, t("common.not_found_data"));
   return row;
 }
 
@@ -91,7 +97,7 @@ function authorizeNotice(actor: Actor, propertyId: string): void {
   try {
     authorize(actor, "residence_notice.manage", { propertyId });
   } catch {
-    throw new CommandError("NOT_FOUND", 404, "Không tìm thấy dữ liệu");
+    throw new CommandError("NOT_FOUND", 404, t("common.not_found_data"));
   }
 }
 
@@ -113,12 +119,12 @@ async function buildNoticeFile(
   stayId: string,
   lock: boolean,
 ): Promise<BuiltNotice> {
-  if (!UUID.test(stayId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy dữ liệu");
+  if (!UUID.test(stayId)) throw new CommandError("NOT_FOUND", 404, t("common.not_found_data"));
   const n = await sql<{ id: string }>`
     select id from residence_notices where organization_id = ${actor.orgId} and stay_id = ${stayId}`.execute(
     trx,
   );
-  if (!n.rows[0]) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy dữ liệu");
+  if (!n.rows[0]) throw new CommandError("NOT_FOUND", 404, t("common.not_found_data"));
   const notice = await readNotice(trx, actor, n.rows[0].id, lock);
   authorizeNotice(actor, notice.property_id);
   const cfg = await sql<{ t: unknown; tz: string; pname: string }>`
@@ -127,8 +133,7 @@ async function buildNoticeFile(
     where p.organization_id = ${actor.orgId} and p.id = ${notice.property_id}`.execute(trx);
   const c = cfg.rows[0] as { t: unknown; tz: string; pname: string };
   const tpl = parseNoticeTemplate(c.t);
-  if (!tpl)
-    throw new CommandError("NOTICE_TEMPLATE_MISSING", 409, "Cơ sở chưa cấu hình mẫu thông báo lưu trú.");
+  if (!tpl) throw new CommandError("NOTICE_TEMPLATE_MISSING", 409, t("stay.notice.template_missing"));
   const s = await sql<{
     persons: string[];
     in_date: string;
@@ -144,7 +149,7 @@ async function buildNoticeFile(
     join units u on u.organization_id = s.organization_id and u.id = s.unit_id
     where s.organization_id = ${actor.orgId} and s.id = ${notice.stay_id}`.execute(trx);
   const stay = s.rows[0];
-  if (!stay) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy dữ liệu");
+  if (!stay) throw new CommandError("NOT_FOUND", 404, t("common.not_found_data"));
   const missing: { path: string; field: string; code: string }[] = [];
   const rows: (string | number)[][] = [tpl.fields.map((f) => tpl.labels[f] ?? NOTICE_FIELDS[f])];
   for (const [i, personId] of stay.persons.entries()) {
@@ -182,7 +187,7 @@ async function buildNoticeFile(
     rows.push(tpl.fields.map((f) => value[f] ?? ""));
   }
   if (missing.length > 0) {
-    throw new CommandError("VALIDATION_FAILED", 422, "Thiếu thông tin mẫu thông báo lưu trú yêu cầu", {
+    throw new CommandError("VALIDATION_FAILED", 422, t("stay.notice.template_fields_missing"), {
       extensions: { errors: missing },
     });
   }
@@ -256,7 +261,7 @@ export async function exportResidenceNotice(
       input.prepared.ownerId !== notice.id ||
       input.prepared.sha256 !== createHash("sha256").update(bytes).digest("hex")
     )
-      throw new CommandError("VERSION_CONFLICT", 409, "Dữ liệu vừa thay đổi, vui lòng thử lại");
+      throw new CommandError("VERSION_CONFLICT", 409, t("stay.notice.stale"));
     ({ fileId } = await commitGeneratedFile(ctx.trx, ctx.actor, input.prepared, 1));
   } else {
     ({ fileId } = await storeGeneratedFile(ctx, svc, {
@@ -309,7 +314,7 @@ export async function markNoticeSubmitted(
   const notice = await readNotice(ctx.trx, ctx.actor, input.noticeId, true);
   authorizeNotice(ctx.actor, notice.property_id);
   if (notice.status === "submitted")
-    throw new CommandError("INVALID_TRANSITION", 409, "Thông báo lưu trú đã được đánh dấu", {
+    throw new CommandError("INVALID_TRANSITION", 409, t("stay.notice.marked"), {
       extensions: { from: "submitted", to: "submitted" },
     });
   const now = input.now ?? new Date();
@@ -317,7 +322,7 @@ export async function markNoticeSubmitted(
     Number.isNaN(input.submittedAt.getTime()) ||
     input.submittedAt.getTime() > now.getTime() + MS_PER_MINUTE
   )
-    throw new CommandError("VALIDATION_FAILED", 422, "Thời điểm thông báo không được ở tương lai", {
+    throw new CommandError("VALIDATION_FAILED", 422, t("stay.notice.submitted_future"), {
       extensions: { errors: [{ path: "submitted_at", field: "submitted_at", code: "in_future" }] },
     });
   if (input.evidenceFileId) {
@@ -327,7 +332,7 @@ export async function markNoticeSubmitted(
       ctx.trx,
     );
     if (!f.rows[0])
-      throw new CommandError("VALIDATION_FAILED", 422, "File bằng chứng không hợp lệ", {
+      throw new CommandError("VALIDATION_FAILED", 422, t("stay.notice.evidence_invalid"), {
         extensions: { errors: [{ path: "evidence_file_id", field: "evidence_file_id", code: "invalid" }] },
       });
   }
@@ -371,7 +376,7 @@ export async function listNotices(
   actor: Actor,
   input: { propertyId: string; status?: "pending" | "exported" | "submitted"; dueBefore?: Date; now?: Date },
 ): Promise<NoticeListItem[]> {
-  if (!UUID.test(input.propertyId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy dữ liệu");
+  if (!UUID.test(input.propertyId)) throw new CommandError("NOT_FOUND", 404, t("common.not_found_data"));
   authorizeNotice(actor, input.propertyId);
   const now = input.now ?? new Date();
   return withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
@@ -380,7 +385,7 @@ export async function listNotices(
     }>`select id from properties where organization_id = ${actor.orgId} and id = ${input.propertyId}`.execute(
       trx,
     );
-    if (!p.rows[0]) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy dữ liệu");
+    if (!p.rows[0]) throw new CommandError("NOT_FOUND", 404, t("common.not_found_data"));
     const r = await sql<{
       id: string;
       stay_id: string;

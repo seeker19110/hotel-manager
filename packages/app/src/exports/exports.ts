@@ -32,6 +32,7 @@ import {
   type ObjectStorage,
   prepareGeneratedFile,
 } from "../files/index.ts";
+import { t } from "../i18n.ts";
 import { writeXlsx, zipStore } from "../import/index.ts";
 import { createNotification } from "../notifications/index.ts";
 import { type CommandContext, CommandError, rateLimited } from "../pipeline/index.ts";
@@ -61,12 +62,12 @@ export type ExportKind = (typeof EXPORT_KINDS)[number];
 const ACCOUNTANT_KINDS: ReadonlySet<string> = new Set(["receivables", "collections", "deposits"]);
 
 const KIND_LABEL: Readonly<Record<ExportKind | "org_full", string>> = {
-  receivables: "Công nợ",
-  collections: "Tiền đã thu",
-  deposits: "Cọc đang giữ",
-  occupancy: "Công suất",
-  audit: "Nhật ký audit",
-  org_full: "Toàn bộ dữ liệu tổ chức",
+  receivables: t("exports.kind.receivables"),
+  collections: t("exports.kind.collections"),
+  deposits: t("exports.kind.deposits"),
+  occupancy: t("exports.kind.occupancy"),
+  audit: t("exports.kind.audit"),
+  org_full: t("exports.kind.org_full"),
 };
 
 const MIME = {
@@ -75,8 +76,8 @@ const MIME = {
   zip: "application/zip",
 } as const;
 
-const notFound = () => new CommandError("NOT_FOUND", 404, "Không tìm thấy dữ liệu.");
-const forbidden = () => new CommandError("FORBIDDEN", 403, "Bạn không có quyền thực hiện thao tác này.");
+const notFound = () => new CommandError("NOT_FOUND", 404, t("common.not_found_data_dot"));
+const forbidden = () => new CommandError("FORBIDDEN", 403, t("common.forbidden_action"));
 
 // ───────────────────────────── CSV an toàn ─────────────────────────────
 
@@ -162,7 +163,7 @@ function assertRecentAuth(actor: Actor, now: Date): void {
     now.getTime() - at > secondsToMs(REAUTH_MAX_AGE_SECONDS) ||
     at > now.getTime() + MS_PER_MINUTE
   )
-    throw new CommandError("REAUTH_REQUIRED", 401, "Vui lòng xác thực lại để xuất dữ liệu.");
+    throw new CommandError("REAUTH_REQUIRED", 401, t("exports.reauth_required"));
 }
 
 function normalizeFilters(kind: ExportKind, f: ExportFilters): Record<string, string> {
@@ -174,7 +175,7 @@ function normalizeFilters(kind: ExportKind, f: ExportFilters): Record<string, st
     case "audit": {
       if (!f.from || !f.to) {
         const field = f.from ? "to" : "from";
-        throw new CommandError("VALIDATION_FAILED", 422, `Thông tin chưa hợp lệ: ${field}.`, {
+        throw new CommandError("VALIDATION_FAILED", 422, t("exports.filter_required", { field }), {
           extensions: { errors: [{ path: field, field, code: "required" }] },
         });
       }
@@ -203,10 +204,7 @@ async function assertRate(ctx: CommandContext, now: Date): Promise<void> {
       and created_at > ${now}::timestamptz - interval '1 hour'`.execute(ctx.trx);
   // Yêu cầu cũ nhất rời cửa sổ 1 giờ ⇒ được yêu cầu tiếp: đó là số giây `Retry-After`.
   if ((r.rows[0]?.n ?? 0) >= EXPORT_RATE_PER_HOUR)
-    throw rateLimited(
-      "Bạn đã yêu cầu xuất quá nhiều lần. Vui lòng thử lại sau.",
-      r.rows[0]?.wait ?? SECONDS_PER_HOUR,
-    );
+    throw rateLimited(t("exports.rate_limited"), r.rows[0]?.wait ?? SECONDS_PER_HOUR);
 }
 
 async function createJob(
@@ -367,14 +365,12 @@ export async function downloadExport(
   const job = r.rows[0];
   if (!job) throw notFound();
   if (job.status === "expired" || (job.status === "ready" && job.expires_at && job.expires_at <= now))
-    throw new CommandError("LINK_EXPIRED", 410, "Liên kết tải đã hết hạn. Hãy tạo yêu cầu xuất mới.");
+    throw new CommandError("LINK_EXPIRED", 410, t("exports.link_expired"));
   if (job.status !== "ready" || !job.file_key || !job.expires_at)
     throw new CommandError(
       "EXPORT_NOT_READY",
       409,
-      job.status === "failed"
-        ? "Bản xuất không tạo được. Hãy tạo yêu cầu mới."
-        : "File đang được chuẩn bị. Vui lòng đợi.",
+      job.status === "failed" ? t("exports.failed") : t("exports.not_ready"),
     );
   const expiresIn = Math.max(
     1,
@@ -453,16 +449,16 @@ async function reportTable(
         rows: r.rows.length,
         table: [
           [
-            "Phiếu",
-            "Cơ sở",
-            "Người trả",
-            "Loại",
-            "Hạn",
-            "Tổng",
-            "Đã phân bổ",
-            "Đã giảm trừ",
-            "Còn nợ",
-            "Số ngày quá hạn",
+            t("exports.col.invoice"),
+            t("exports.col.property"),
+            t("exports.col.payer"),
+            t("exports.col.kind"),
+            t("exports.col.due"),
+            t("exports.total"),
+            t("exports.col.allocated"),
+            t("exports.col.adjusted"),
+            t("exports.col.balance"),
+            t("exports.col.days_overdue"),
           ],
           ...capped(r.rows).map((x) => [
             x.number,
@@ -476,11 +472,11 @@ async function reportTable(
             x.balance,
             x.daysOverdue,
           ]),
-          ["Tổng", "", "", "", "", "", "", "", r.total, ""],
+          [t("exports.total"), "", "", "", "", "", "", "", r.total, ""],
           [
-            `Ngày chốt ${vnDate(r.asOf)}`,
-            `Số dư AR ${r.ledgerBalance}`,
-            r.matchesLedger ? "Khớp sổ" : "LỆCH SỔ",
+            t("exports.receivables.as_of", { date: vnDate(r.asOf) }),
+            t("exports.receivables.ledger_balance", { amount: r.ledgerBalance }),
+            r.matchesLedger ? t("exports.ledger_match") : t("exports.ledger_mismatch"),
           ],
         ],
       };
@@ -490,15 +486,21 @@ async function reportTable(
       return {
         rows: r.byDay.length,
         table: [
-          ["Ngày kinh doanh", "Phương thức", "Người xác nhận", "Số khoản", "Số tiền"],
+          [
+            t("exports.col.business_date"),
+            t("exports.col.method"),
+            t("exports.col.confirmed_by"),
+            t("exports.col.count"),
+            t("exports.col.amount"),
+          ],
           ...capped(r.byDay).map((x) => [
             vnDate(x.businessDate),
-            x.method === "cash" ? "Tiền mặt" : "Chuyển khoản",
+            x.method === "cash" ? t("common.payment_method.cash") : t("common.payment_method.bank_transfer"),
             x.confirmedBy,
             x.count,
             x.amount,
           ]),
-          ["Tổng", "", "", "", r.total],
+          [t("exports.total"), "", "", "", r.total],
           [r.note],
         ],
       };
@@ -508,7 +510,16 @@ async function reportTable(
       return {
         rows: r.rows.length,
         table: [
-          ["Mã cọc", "Người nộp", "Hợp đồng", "Đặt phòng", "Đã nhận", "Đã khấu trừ", "Đã hoàn", "Đang giữ"],
+          [
+            t("exports.col.deposit_id"),
+            t("exports.col.depositor"),
+            t("exports.col.lease"),
+            t("exports.col.reservation"),
+            t("exports.col.received"),
+            t("exports.col.deducted"),
+            t("exports.col.refunded"),
+            t("exports.col.held"),
+          ],
           ...capped(r.rows).map((x) => [
             x.depositId,
             x.payerName,
@@ -519,8 +530,11 @@ async function reportTable(
             x.refunded,
             x.balance,
           ]),
-          ["Tổng", "", "", "", "", "", "", r.total],
-          [`Số dư DEPOSIT_LIAB ${r.ledgerBalance}`, r.matchesLedger ? "Khớp sổ" : "LỆCH SỔ"],
+          [t("exports.total"), "", "", "", "", "", "", r.total],
+          [
+            t("exports.deposits.ledger_balance", { amount: r.ledgerBalance }),
+            r.matchesLedger ? t("exports.ledger_match") : t("exports.ledger_mismatch"),
+          ],
         ],
       };
     }
@@ -529,7 +543,15 @@ async function reportTable(
       return {
         rows: r.rows.length,
         table: [
-          ["Ngày", "Cơ sở", "Số phòng", "Bị chặn", "Khả dụng", "Đang ở", "Công suất (%)"],
+          [
+            t("exports.col.date"),
+            t("exports.col.property"),
+            t("exports.col.units"),
+            t("exports.col.blocked"),
+            t("exports.col.available"),
+            t("exports.col.occupied"),
+            t("exports.col.rate"),
+          ],
           ...capped(r.rows).map((x) => [
             vnDate(x.date),
             x.propertyName,
@@ -546,17 +568,17 @@ async function reportTable(
     case "audit": {
       const out: Cell[][] = [
         [
-          "Thời điểm (giờ cơ sở)",
-          "Người",
-          "Hành động",
-          "Đối tượng",
-          "Mã đối tượng",
-          "Lý do",
-          "Trước",
+          t("exports.col.occurred_at"),
+          t("exports.col.actor"),
+          t("exports.col.action"),
+          t("exports.col.entity_type"),
+          t("exports.col.entity_id"),
+          t("exports.col.reason"),
+          t("exports.col.before"),
           "Sau",
           "Correlation",
-          "IP (đã cắt)",
-          "Thiết bị (User-Agent)",
+          t("exports.col.ip"),
+          t("exports.col.user_agent"),
         ],
       ];
       let cursor: string | undefined;
@@ -647,16 +669,14 @@ export const ORG_EXPORT_FILE_OWNER_ALLOWLIST: readonly string[] = [
 ];
 /** Lý do KHÔNG nhúng file (cột `reason` của `files/MANIFEST.csv`). */
 export const ORG_EXPORT_SKIP_REASONS = {
-  over_total_limit: "vượt trần tổng dung lượng file đính kèm của bản xuất",
-  identity_document:
-    "ảnh giấy tờ tuỳ thân không đưa vào bản xuất (dữ liệu nhạy cảm — lấy qua màn hình hồ sơ)",
-  residence_notice:
-    "file thông báo lưu trú chứa số giấy tờ tuỳ thân (số giấy tờ chỉ đi qua luồng thông báo lưu trú có kiểm soát)",
-  import_batch: "file nguồn nhập liệu có thể chứa số giấy tờ tuỳ thân",
-  export_job: "bản xuất cũ không nhúng vào bản xuất mới",
-  owner_type_not_allowed: "loại file chưa nằm trong danh sách được phép nhúng (đóng mặc định)",
-  fetch_failed: "không tải được object từ kho lưu trữ (lỗi hoặc quá thời gian)",
-  checksum_mismatch: "nội dung object không khớp sha256/kích thước đã ghi",
+  over_total_limit: t("exports.skip.over_total_limit"),
+  identity_document: t("exports.skip.identity_document"),
+  residence_notice: t("exports.skip.residence_notice"),
+  import_batch: t("exports.skip.import_batch"),
+  export_job: t("exports.skip.export_job"),
+  owner_type_not_allowed: t("exports.skip.owner_type_not_allowed"),
+  fetch_failed: t("exports.skip.fetch_failed"),
+  checksum_mismatch: t("exports.skip.checksum_mismatch"),
 } as const;
 type SkipReason = keyof typeof ORG_EXPORT_SKIP_REASONS;
 
@@ -831,24 +851,24 @@ async function orgZip(
     name: "README.txt",
     data: Buffer.from(
       [
-        "Xuất toàn bộ dữ liệu của tổ chức — Hotel Manager.",
+        t("exports.readme.title"),
         "",
-        "ĐỊNH DẠNG",
-        "- CSV UTF-8 (có BOM), dấu phẩy, ô chứa dấu phẩy/xuống dòng đặt trong nháy kép. Ô chữ bắt đầu bằng = + - @ được thêm dấu ' phía trước (chống công thức khi mở bằng bảng tính).",
-        "- Tiền: số nguyên đồng (VND), không có dấu phân cách. Thời điểm: ISO 8601 UTC (có hậu tố Z). Ngày: YYYY-MM-DD (theo múi giờ cơ sở).",
-        "- Khoá: *_id là UUID; tệp con tham chiếu tệp cha qua cột *_id (vd. invoice_lines.invoice_id → invoices.id).",
+        t("exports.readme.format_heading"),
+        t("exports.readme.format_csv", { quote: "'" }),
+        t("exports.readme.format_values"),
+        t("exports.readme.format_keys"),
         "",
-        "FILE ĐÍNH KÈM",
-        `- Thư mục files/<loại>/<file_id>.<đuôi>: ảnh công tơ, ảnh sự cố, chứng từ… đã quét và ở trạng thái sẵn sàng, theo quyền của người yêu cầu xuất. Đã nhúng ${att.included} file, bỏ qua ${skipped} file.`,
-        "- files/MANIFEST.csv liệt kê MỌI file thuộc phạm vi (cột status = included|skipped; file bỏ qua có cột reason).",
-        `- Trần tổng dung lượng file nhúng: ${ORG_EXPORT_FILES_MAX_BYTES / BYTES_PER_MIB} MiB; file vượt trần được liệt kê kèm lý do thay vì nhúng.`,
+        t("exports.readme.files_heading"),
+        t("exports.readme.files_dir", { lt: "<", gt: ">", included: att.included, skipped }),
+        t("exports.readme.files_manifest"),
+        t("exports.readme.files_cap", { mib: ORG_EXPORT_FILES_MAX_BYTES / BYTES_PER_MIB }),
         ...Object.entries(ORG_EXPORT_SKIP_REASONS).map(([k, v]) => `  · ${k}: ${v}`),
         "",
-        `- Chỉ nhúng file thuộc loại: ${ORG_EXPORT_FILE_OWNER_ALLOWLIST.join(", ")}. File thông báo lưu trú (chứa số giấy tờ), file nguồn nhập liệu, ảnh giấy tờ tuỳ thân và bản xuất cũ KHÔNG được nhúng — chỉ liệt kê ở MANIFEST kèm lý do; thông báo lưu trú lấy qua luồng thông báo lưu trú.`,
+        t("exports.readme.files_allowlist", { kinds: ORG_EXPORT_FILE_OWNER_ALLOWLIST.join(", ") }),
         "",
-        "KHÔNG GỒM: số giấy tờ tuỳ thân (kể cả trong file thông báo lưu trú/nhập liệu), ảnh giấy tờ tuỳ thân, thông tin đăng nhập, khoá/băm/bí mật, bản xuất cũ.",
+        t("exports.readme.excluded"),
         "",
-        "TỪ ĐIỂN CỘT",
+        t("exports.readme.dictionary_heading"),
         ...dictionary,
         "",
       ].join("\r\n"),
@@ -877,7 +897,7 @@ export async function runExportJob(
 ): Promise<ExportStatus["status"] | "skipped"> {
   const orgId = job.organization_id;
   const id = job.payload.export_id;
-  if (typeof id !== "string" || !UUID.test(id)) throw new Error("payload thiếu export_id");
+  if (typeof id !== "string" || !UUID.test(id)) throw new Error(t("exports.payload_missing_id"));
   const claimed = await withTenantRetry(deps.workerDb, { orgId }, async (trx) => {
     const r = await sql<{
       id: string;

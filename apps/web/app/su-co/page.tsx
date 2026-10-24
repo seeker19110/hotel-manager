@@ -4,10 +4,13 @@ import { CommandForm } from "../../components/command/command-form.tsx";
 import { IncidentForm } from "../../components/hotel/incident-form.tsx";
 import { StatusBadge } from "../../components/ui/badge.tsx";
 import { EmptyState, ErrorState } from "../../components/ui/state.tsx";
-import { dateTime, SEVERITY, WORK_ORDER_STATUS } from "../../lib/format.ts";
+import { dateTime, severityLabel, workOrderStatusLabel } from "../../lib/format.ts";
 import { messagesFor, t } from "../../lib/i18n.ts";
 import { withActor } from "../../lib/page.tsx";
 import { safe } from "../../lib/safe.ts";
+
+/** Nhãn mã (lib/format.ts, D-103). */
+const LABELS = messagesFor("incident_form.severity.", "label.work_order_status.");
 
 export const metadata: Metadata = { title: t("incident.metadata.title") };
 
@@ -125,7 +128,7 @@ export default async function IncidentsPage() {
                       </p>
                       <p className="card__meta">
                         {t("workorder.list.meta", {
-                          severity: SEVERITY[w.severity]?.toLowerCase() ?? w.severity,
+                          severity: severityLabel(LABELS, w.severity)?.toLowerCase() ?? w.severity,
                           createdAt: dateTime(w.createdAt, p.timezone),
                         })}
                         {w.photoFileIds.length > 0
@@ -133,7 +136,7 @@ export default async function IncidentsPage() {
                           : ""}
                       </p>
                       <p className="card__meta">{w.description}</p>
-                      <StatusBadge status={w.status} label={WORK_ORDER_STATUS[w.status] ?? w.status} />
+                      <StatusBadge status={w.status} label={workOrderStatusLabel(LABELS, w.status)} />
                       {action(w)}
                     </li>
                   ))}

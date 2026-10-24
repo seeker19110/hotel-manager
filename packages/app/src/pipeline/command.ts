@@ -11,6 +11,7 @@ import {
 } from "@hm/db";
 import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../actor-core/index.ts";
+import { t } from "../i18n.ts";
 import {
   appLogger,
   auditSource,
@@ -115,7 +116,7 @@ export interface CommandRequest {
 class BootstrapFailure extends Error {
   readonly original: unknown;
   constructor(original: unknown) {
-    super("bootstrap thất bại");
+    super(t("pipeline.bootstrap_failed"));
     this.name = "BootstrapFailure";
     this.original = original;
   }
@@ -249,7 +250,7 @@ export async function executeCommand<T>(
   handler: (ctx: CommandContext) => Promise<{ data: T; httpStatus?: number }>,
 ): Promise<CommandResult<T>> {
   if (!req.idempotencyKey || !UUID.test(req.idempotencyKey)) {
-    throw new CommandError("MALFORMED_REQUEST", 400, "Thiếu hoặc sai Idempotency-Key (UUID)");
+    throw new CommandError("MALFORMED_REQUEST", 400, t("http.idempotency_key_invalid"));
   }
   const commandId = req.idempotencyKey.toLowerCase();
   const hash = hashPayload(req.command, req.payload);
@@ -263,9 +264,7 @@ export async function executeCommand<T>(
     // 429 không lưu vào idempotency_keys: retry cùng key sau Retry-After phải chạy được, không dính kết quả lỗi cũ.
     const problem = toProblem(
       rateLimited(
-        blocked.scope === "member"
-          ? "Bạn gửi quá nhiều thao tác trong một phút. Vui lòng thử lại sau."
-          : "Tổ chức gửi quá nhiều thao tác trong một phút. Vui lòng thử lại sau.",
+        blocked.scope === "member" ? t("pipeline.rate_limit.member") : t("pipeline.rate_limit.org"),
         blocked.wait,
       ),
       req.correlationId,
@@ -324,7 +323,7 @@ export async function executeCommand<T>(
             where organization_id = ${actor.orgId} and key = ${commandId}`.execute(trx);
             const row = existing.rows[0] as StoredRow;
             if (!Buffer.from(row.request_hash).equals(hash)) {
-              throw new CommandError("IDEMPOTENCY_CONFLICT", 422, "Idempotency-Key đã dùng cho yêu cầu khác");
+              throw new CommandError("IDEMPOTENCY_CONFLICT", 422, t("http.idempotency_conflict"));
             }
             return replay<T>(commandId, row);
           }
@@ -372,7 +371,7 @@ export async function executeCommand<T>(
       for (const r of await Promise.allSettled(compensations.map((fn) => fn()))) {
         // Không che lỗi gốc, nhưng không im lặng: tác dụng phụ còn sót cần người/job dọn.
         if (r.status === "rejected")
-          appLogger().error("bù trừ thất bại", {
+          appLogger().error(t("pipeline.log.compensation_failed"), {
             command: req.command,
             command_id: commandId,
             correlation_id: req.correlationId,
@@ -392,7 +391,7 @@ export async function executeCommand<T>(
       ...(req.retry?.sleep ? { sleep: req.retry.sleep } : {}),
       ...(req.retry?.now ? { now: req.retry.now } : {}),
       onRetry: ({ attempt, delayMs, error }) =>
-        appLogger().warn("lệnh chạy lại do xung đột transaction", {
+        appLogger().warn(t("pipeline.log.tx_retry"), {
           command: req.command,
           command_id: commandId,
           correlation_id: req.correlationId,
@@ -486,7 +485,8 @@ export async function getCommandResult(
   actor: Actor,
   commandId: string,
 ): Promise<CommandStatus> {
-  if (!UUID.test(commandId)) throw new CommandError("COMMAND_NOT_FOUND", 404, "Không tìm thấy lệnh");
+  if (!UUID.test(commandId))
+    throw new CommandError("COMMAND_NOT_FOUND", 404, t("pipeline.command_not_found"));
   const row = await withTenant(db, { orgId: actor.orgId }, async (trx) => {
     const r = await sql<StoredRow & { actor_person_id: string }>`
       select status, request_hash, http_status, response, actor_person_id from idempotency_keys
@@ -494,7 +494,7 @@ export async function getCommandResult(
     return r.rows[0];
   });
   if (!row || (row.actor_person_id !== actor.personId && !MANAGER_ROLES.has(actor.role))) {
-    throw new CommandError("COMMAND_NOT_FOUND", 404, "Không tìm thấy lệnh");
+    throw new CommandError("COMMAND_NOT_FOUND", 404, t("pipeline.command_not_found"));
   }
   if (row.status === "in_progress") return { status: "in_progress" };
   if (row.status === "committed")

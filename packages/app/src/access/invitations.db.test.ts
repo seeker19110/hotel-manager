@@ -12,7 +12,7 @@ import { testServices } from "../server/services.ts";
 import { seedMember } from "../testing/helpers.ts";
 import { assertLogRecords } from "../testing/log-schema.ts";
 import { resolveActor } from "./actor.ts";
-import { buildInvitationMail, invitationToken } from "./invitations.ts";
+import { buildInvitationMail, INVITATION_TTL_DAYS, invitationToken, ROLE_LABEL } from "./invitations.ts";
 
 let t: TestDb;
 let deps: HttpDeps;
@@ -453,6 +453,29 @@ describe("token chỉ lưu băm; email lời mời dựng lại token ở worker
     expect(m?.to).toBe(a.email);
     expect(m?.text).toContain(`https://hm.example.test/loi-moi#token=${a.token}`);
     expect(m?.idempotencyKey).toBe(a.invitationId);
+    // Chữ email giữ nguyên từng ký tự khi chuỗi đi qua catalog (XC-I18N-001): vai trò front_desk → "lễ tân".
+    const org = (
+      await sql<{ name: string }>`select name from organizations where id = ${A.orgId}`.execute(t.admin)
+    ).rows[0]?.name;
+    expect(m?.subject).toBe(`${org} mời bạn tham gia với vai trò lễ tân`);
+    expect(m?.text).toBe(
+      [
+        `${org} mời bạn tham gia quản lý với vai trò lễ tân.`,
+        "",
+        `Mở liên kết sau và đăng nhập bằng đúng email này để chấp nhận (liên kết dùng một lần, hết hạn sau ${INVITATION_TTL_DAYS} ngày):`,
+        `https://hm.example.test/loi-moi#token=${a.token}`,
+        "",
+        "Nếu bạn không biết lời mời này, hãy bỏ qua email.",
+      ].join("\n"),
+    );
+    expect(ROLE_LABEL).toEqual({
+      owner: "chủ sở hữu",
+      manager: "quản lý",
+      front_desk: "lễ tân",
+      accountant: "kế toán",
+      housekeeping: "buồng phòng",
+      maintenance: "kỹ thuật",
+    });
     // Xuống dòng/ký tự lạ trong tên tổ chức không chèn được header thư.
     expect(m?.subject).not.toMatch(/[\r\n]/);
     const u = await seedAuthUser(t.admin, a.email);

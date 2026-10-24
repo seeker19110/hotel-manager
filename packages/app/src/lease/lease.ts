@@ -7,6 +7,7 @@ import { withTenant } from "@hm/db";
 import { authorize, blankToNull, leaseMachine } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/index.ts";
+import { t as msg } from "../i18n.ts";
 import { confirmHold, createHold, type Interval, lockUnit } from "../inventory/index.ts";
 import { type CommandContext, CommandError, canonicalJson, fieldError } from "../pipeline/index.ts";
 
@@ -18,13 +19,13 @@ export type LeaseStatus = (typeof leaseMachine.states)[number];
 function assertDate(d: string, field: string): void {
   const t = new Date(`${d}T00:00:00Z`);
   if (!DATE.test(d) || Number.isNaN(t.getTime()) || t.toISOString().slice(0, 10) !== d) {
-    throw fieldError(field, "INVALID_DATE", `${field}: ngày không hợp lệ (YYYY-MM-DD)`);
+    throw fieldError(field, "INVALID_DATE", msg("lease.date_invalid", { field }));
   }
 }
 
 function assertMoney(n: number, field: string): void {
   if (!Number.isSafeInteger(n) || n < 0)
-    throw fieldError(field, "INVALID_AMOUNT", `${field}: số nguyên đồng ≥ 0`);
+    throw fieldError(field, "INVALID_AMOUNT", msg("lease.money_invalid", { field }));
 }
 
 export interface LeaseServiceTerm {
@@ -55,22 +56,26 @@ export async function validateTerms(
   if (t.effectiveTo !== null) {
     assertDate(t.effectiveTo, `${prefix}.effective_to`);
     if (t.effectiveTo < t.effectiveFrom) {
-      throw fieldError(`${prefix}.effective_to`, "BEFORE_START", "Ngày hết hạn phải ≥ ngày hiệu lực");
+      throw fieldError(`${prefix}.effective_to`, "BEFORE_START", msg("lease.end_before_start"));
     }
   }
   assertMoney(t.rentAmount, `${prefix}.rent_amount`);
   assertMoney(t.depositAmount, `${prefix}.deposit_amount`);
   if (t.services.length > LEASE_LIMITS.services) {
-    throw fieldError(`${prefix}.services`, "TOO_MANY", `Tối đa ${LEASE_LIMITS.services} dịch vụ`);
+    throw fieldError(
+      `${prefix}.services`,
+      "TOO_MANY",
+      msg("lease.services_max", { services: LEASE_LIMITS.services }),
+    );
   }
   const ids = new Set<string>();
   t.services.forEach((s, i) => {
     if (!UUID.test(s.serviceId) || ids.has(s.serviceId)) {
-      throw fieldError(`${prefix}.services[${i}].service_id`, "INVALID", "Dịch vụ không hợp lệ hoặc lặp");
+      throw fieldError(`${prefix}.services[${i}].service_id`, "INVALID", msg("lease.services_invalid"));
     }
     ids.add(s.serviceId);
     if (!Number.isInteger(s.quantity) || s.quantity < 0 || s.quantity > 1000) {
-      throw fieldError(`${prefix}.services[${i}].quantity`, "INVALID", "Số lượng không hợp lệ");
+      throw fieldError(`${prefix}.services[${i}].quantity`, "INVALID", msg("lease.service_qty_invalid"));
     }
     if (s.unitPrice !== undefined) assertMoney(s.unitPrice, `${prefix}.services[${i}].unit_price`);
   });
@@ -81,7 +86,11 @@ export async function validateTerms(
     const found = new Set(r.rows.map((x) => x.id));
     const i = t.services.findIndex((s) => !found.has(s.serviceId));
     if (i >= 0)
-      throw fieldError(`${prefix}.services[${i}].service_id`, "NOT_FOUND", "Dịch vụ không thuộc cơ sở");
+      throw fieldError(
+        `${prefix}.services[${i}].service_id`,
+        "NOT_FOUND",
+        msg("lease.service_other_property"),
+      );
   }
 }
 
@@ -104,10 +113,10 @@ export async function createPerson(
   authorize(ctx.actor, "lease.manage", { propertyId: input.propertyId });
   const fullName = input.fullName.trim();
   if (fullName.length < 1 || fullName.length > 200)
-    throw fieldError("full_name", "INVALID", "Họ tên 1–200 ký tự");
+    throw fieldError("full_name", "INVALID", msg("stay.reservation.name_length"));
   const phone = blankToNull(input.phone);
   if (phone !== null && !/^\+?[0-9 .()-]{6,20}$/.test(phone))
-    throw fieldError("phone", "INVALID", "Số điện thoại không hợp lệ");
+    throw fieldError("phone", "INVALID", msg("stay.reservation.phone_invalid"));
   const personId = randomUUID();
   await sql`insert into persons (id, organization_id, full_name, phone) values (${personId}, ${ctx.actor.orgId}, ${fullName},
             ${phone})`.execute(ctx.trx);
@@ -126,15 +135,15 @@ async function assertPerson(
   field: string,
   requirePhone: boolean,
 ): Promise<void> {
-  if (!UUID.test(personId)) throw fieldError(field, "INVALID", "Người không hợp lệ");
+  if (!UUID.test(personId)) throw fieldError(field, "INVALID", msg("lease.person_invalid"));
   const r = await sql<{ phone: string | null }>`
     select phone from persons where organization_id = ${ctx.actor.orgId} and id = ${personId} and anonymized_at is null`.execute(
     ctx.trx,
   );
   const p = r.rows[0];
-  if (!p) throw fieldError(field, "NOT_FOUND", "Không tìm thấy người");
+  if (!p) throw fieldError(field, "NOT_FOUND", msg("common.person_not_found"));
   if (requirePhone && !p.phone)
-    throw fieldError(`${field}.phone`, "REQUIRED", "Người thuê cần số điện thoại");
+    throw fieldError(`${field}.phone`, "REQUIRED", msg("lease.tenant_phone_required"));
 }
 
 export interface LeaseRow {
@@ -154,7 +163,7 @@ export async function lockLease(
   leaseId: string,
   action: "lease.manage" | "lease.hold" | "lease.handover",
 ): Promise<LeaseRow> {
-  if (!UUID.test(leaseId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy hợp đồng");
+  if (!UUID.test(leaseId)) throw new CommandError("NOT_FOUND", 404, msg("lease.not_found"));
   const read = (lock: boolean) =>
     sql<LeaseRow>`
       select id, property_id, unit_id, number, status, signed_on::text, billing_start_on::text, representative_person_id
@@ -162,13 +171,13 @@ export async function lockLease(
       ctx.trx,
     );
   const seen = (await read(false)).rows[0];
-  if (!seen) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy hợp đồng");
+  if (!seen) throw new CommandError("NOT_FOUND", 404, msg("lease.not_found"));
   authorize(ctx.actor, action, { propertyId: seen.property_id });
   // Giữ chỗ/bàn giao không đổi hàng hợp đồng (lễ tân không ghi `leases` nên không khoá được): tuần tự hoá bằng khoá phòng +
   // EXCLUDE của allocations (giữ chỗ), UNIQUE (lease_id, kind) của handovers (bàn giao).
   if (action !== "lease.manage") return seen;
   const row = (await read(true)).rows[0];
-  if (!row) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy hợp đồng");
+  if (!row) throw new CommandError("NOT_FOUND", 404, msg("lease.not_found"));
   return row;
 }
 
@@ -195,7 +204,7 @@ export async function originalVersion(ctx: CommandContext, leaseId: string): Pro
     ctx.trx,
   );
   const v = r.rows[0];
-  if (!v) throw new Error(`hợp đồng ${leaseId} thiếu phiên bản 1`);
+  if (!v) throw new Error(msg("lease.version1_missing", { leaseId }));
   return v;
 }
 
@@ -212,7 +221,7 @@ export async function leaseInterval(
            case when ${to}::date is null then null else ((${to}::date + 1)::timestamp at time zone p.timezone) end as e
     from properties p where p.organization_id = ${orgId} and p.id = ${propertyId}`.execute(trx);
   const row = r.rows[0];
-  if (!row) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy cơ sở");
+  if (!row) throw new CommandError("NOT_FOUND", 404, msg("common.property_not_found"));
   return { start: new Date(row.s), end: row.e ? new Date(row.e) : null };
 }
 
@@ -232,13 +241,13 @@ export async function createDraft(
   ctx: CommandContext,
   input: CreateDraftInput,
 ): Promise<{ leaseId: string; number: string; versionNo: 1 }> {
-  if (!UUID.test(input.unitId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phòng");
+  if (!UUID.test(input.unitId)) throw new CommandError("NOT_FOUND", 404, msg("common.unit_not_found"));
   const u = await sql<{ property_id: string; archived_at: Date | null }>`
     select property_id, archived_at from units where organization_id = ${ctx.actor.orgId} and id = ${input.unitId}`.execute(
     ctx.trx,
   );
   const unit = u.rows[0];
-  if (!unit || unit.archived_at) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phòng");
+  if (!unit || unit.archived_at) throw new CommandError("NOT_FOUND", 404, msg("common.unit_not_found"));
   authorize(ctx.actor, "lease.manage", { propertyId: unit.property_id });
   assertDate(input.billingStartOn, "billing_start_on");
   if (input.signedOn !== undefined) assertDate(input.signedOn, "signed_on");
@@ -246,11 +255,16 @@ export async function createDraft(
   await assertPerson(ctx, input.representativePersonId, "representative_person_id", true);
   const occupants = input.occupants ?? [];
   if (occupants.length + 1 > LEASE_LIMITS.occupants) {
-    throw fieldError("occupants", "TOO_MANY", `Tối đa ${LEASE_LIMITS.occupants} người ở`);
+    throw fieldError(
+      "occupants",
+      "TOO_MANY",
+      msg("lease.occupants_max", { occupants: LEASE_LIMITS.occupants }),
+    );
   }
   const seen = new Set([input.representativePersonId]);
   for (const [i, o] of occupants.entries()) {
-    if (seen.has(o.personId)) throw fieldError(`occupants[${i}].person_id`, "DUPLICATE", "Người ở bị lặp");
+    if (seen.has(o.personId))
+      throw fieldError(`occupants[${i}].person_id`, "DUPLICATE", msg("lease.occupants_duplicate"));
     seen.add(o.personId);
     await assertPerson(ctx, o.personId, `occupants[${i}].person_id`, o.role === "co_tenant");
   }
@@ -312,11 +326,7 @@ export async function updateDraft(
   const lease = await lockLease(ctx, input.leaseId, "lease.manage");
   const v = await originalVersion(ctx, lease.id);
   if (v.signed_at || !["draft", "pending_signature"].includes(lease.status)) {
-    throw new CommandError(
-      "DOCUMENT_IMMUTABLE",
-      409,
-      "Điều khoản đã ký không sửa được. Hãy lập phụ lục (lease.renew).",
-    );
+    throw new CommandError("DOCUMENT_IMMUTABLE", 409, msg("lease.signed_terms_locked"));
   }
   await validateTerms(ctx, lease.property_id, input.terms);
   if (input.billingStartOn !== undefined) assertDate(input.billingStartOn, "billing_start_on");
@@ -356,7 +366,7 @@ export async function addOccupant(
 ): Promise<{ occupantId: string }> {
   const lease = await lockLease(ctx, input.leaseId, "lease.manage");
   if (["closed", "cancelled"].includes(lease.status)) {
-    throw new CommandError("INVALID_TRANSITION", 409, "Hợp đồng đã kết thúc", {
+    throw new CommandError("INVALID_TRANSITION", 409, msg("lease.ended"), {
       extensions: { from: lease.status },
     });
   }
@@ -366,7 +376,11 @@ export async function addOccupant(
     select count(*)::int as n from lease_occupants
     where organization_id = ${ctx.actor.orgId} and lease_id = ${lease.id} and to_on is null`.execute(ctx.trx);
   if ((count.rows[0]?.n ?? 0) >= LEASE_LIMITS.occupants) {
-    throw fieldError("person_id", "TOO_MANY", `Tối đa ${LEASE_LIMITS.occupants} người ở`);
+    throw fieldError(
+      "person_id",
+      "TOO_MANY",
+      msg("lease.occupants_max", { occupants: LEASE_LIMITS.occupants }),
+    );
   }
   const id = randomUUID();
   try {
@@ -377,7 +391,7 @@ export async function addOccupant(
               ${input.fromOn}::date)`.execute(ctx.trx);
   } catch (e) {
     if ((e as { code?: string }).code === "23505")
-      throw fieldError("person_id", "DUPLICATE", "Người này đã ở hợp đồng");
+      throw fieldError("person_id", "DUPLICATE", msg("lease.occupant_exists"));
     throw e;
   }
   await ctx.audit({
@@ -403,10 +417,10 @@ export async function removeOccupant(
     ctx.trx,
   );
   const o = r.rows[0];
-  if (!o) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy người ở");
-  if (o.is_representative)
-    throw fieldError("person_id", "REPRESENTATIVE", "Không thể rời người đứng hợp đồng");
-  if (input.toOn < o.from_on) throw fieldError("to_on", "BEFORE_START", "Ngày rời đi trước ngày vào ở");
+  if (!o) throw new CommandError("NOT_FOUND", 404, msg("lease.occupant_not_found"));
+  if (o.is_representative) throw fieldError("person_id", "REPRESENTATIVE", msg("lease.occupant_is_signer"));
+  if (input.toOn < o.from_on)
+    throw fieldError("to_on", "BEFORE_START", msg("lease.occupant_leave_before_join"));
   await sql`update lease_occupants set to_on = ${input.toOn}::date where id = ${o.id}`.execute(ctx.trx);
   await ctx.audit({
     action: "lease.occupant_removed",
@@ -462,7 +476,7 @@ export async function holdLease(
 ): Promise<{ allocationId: string; expiresAt: Date }> {
   const lease = await lockLease(ctx, input.leaseId, "lease.hold");
   if (!["draft", "pending_signature"].includes(lease.status)) {
-    throw new CommandError("INVALID_TRANSITION", 409, "Chỉ giữ chỗ hợp đồng chưa ký", {
+    throw new CommandError("INVALID_TRANSITION", 409, msg("lease.hold_unsigned_only"), {
       extensions: { from: lease.status },
     });
   }
@@ -470,7 +484,7 @@ export async function holdLease(
   const current = (await leaseAllocations(ctx, lease.id)).find(
     (a) => a.active && a.kind === "hold" && (a.expires_at as Date).getTime() > now.getTime(),
   );
-  if (current) throw new CommandError("INVALID_TRANSITION", 409, "Hợp đồng đang được giữ chỗ");
+  if (current) throw new CommandError("INVALID_TRANSITION", 409, msg("lease.already_held"));
   const v = await originalVersion(ctx, lease.id);
   const ttl = await sql<{ h: number }>`
     select lease_hold_ttl_hours as h from properties where organization_id = ${ctx.actor.orgId} and id = ${lease.property_id}`.execute(
@@ -513,7 +527,7 @@ export async function signLease(
   const lease = await lockLease(ctx, input.leaseId, "lease.manage");
   transition(lease, "signed_awaiting_handover");
   if (input.signerPersonId !== lease.representative_person_id) {
-    throw fieldError("signer_person_id", "NOT_REPRESENTATIVE", "Người ký phải là người đứng hợp đồng");
+    throw fieldError("signer_person_id", "NOT_REPRESENTATIVE", msg("lease.signer_mismatch"));
   }
   if (input.signedOn !== undefined) assertDate(input.signedOn, "signed_on");
   const now = input.now ?? new Date();
@@ -533,7 +547,7 @@ export async function signLease(
     await confirmHold(ctx, hold.id, "lease", now, during); // hết hạn ⇒ HOLD_EXPIRED
     allocationId = hold.id;
   } else if (allocs.some((a) => a.kind === "hold" && a.deactivated_reason === "expired")) {
-    throw new CommandError("HOLD_EXPIRED", 409, "Thời gian giữ phòng đã hết. Vui lòng giữ lại.");
+    throw new CommandError("HOLD_EXPIRED", 409, msg("stay.reservation.hold_expired"));
   } else {
     // Khoá phòng như mọi đường ghi allocation khác: phòng đã lưu trữ ⇒ NOT_FOUND (INV-G7).
     await lockUnit(ctx.trx, ctx.actor.orgId, lease.unit_id);
@@ -546,11 +560,7 @@ export async function signLease(
                 tstzrange(${during.start}, ${during.end}, '[)'), ${ctx.actor.membershipId})`.execute(ctx.trx);
     } catch (e) {
       if ((e as { code?: string }).code === "23P01") {
-        throw new CommandError(
-          "ROOM_UNAVAILABLE",
-          409,
-          "Phòng đã có người hoặc đã được giữ trong khoảng này",
-        );
+        throw new CommandError("ROOM_UNAVAILABLE", 409, msg("lease.unit_unavailable"));
       }
       throw e;
     }
@@ -623,7 +633,7 @@ export async function cancelLease(
   const lease = await lockLease(ctx, input.leaseId, "lease.manage");
   transition(lease, "cancelled");
   const reason = input.reason.trim();
-  if (!reason) throw fieldError("reason", "REQUIRED", "Cần lý do huỷ");
+  if (!reason) throw fieldError("reason", "REQUIRED", msg("common.cancel_reason_required"));
   const now = input.now ?? new Date();
   const released = await sql<{ id: string }>`
     update allocations set active = false, deactivated_at = ${now}, deactivated_reason = 'cancelled'
@@ -691,14 +701,14 @@ export interface LeaseView {
 
 /** `lease.get` (S-010): RLS quyết ai đọc được — người thuê chỉ hợp đồng mình đứng tên; không đọc được ⇒ 404. */
 export async function getLease(db: Kysely<unknown>, actor: Actor, leaseId: string): Promise<LeaseView> {
-  if (!UUID.test(leaseId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy hợp đồng");
+  if (!UUID.test(leaseId)) throw new CommandError("NOT_FOUND", 404, msg("lease.not_found"));
   return withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
     const l = await sql<Omit<LeaseView, "versions" | "occupants" | "handovers">>`
       select id, number, property_id, unit_id, status, signed_on::text, billing_start_on::text, planned_move_out_on::text,
              moved_out_on::text, representative_person_id
       from leases where organization_id = ${actor.orgId} and id = ${leaseId}`.execute(trx);
     const lease = l.rows[0];
-    if (!lease) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy hợp đồng");
+    if (!lease) throw new CommandError("NOT_FOUND", 404, msg("lease.not_found"));
     const v = await sql<{
       version_no: number;
       kind: string;
@@ -779,5 +789,5 @@ export async function getPerson(
       trx,
     ),
   );
-  throw new CommandError("NOT_FOUND", 404, "Không tìm thấy");
+  throw new CommandError("NOT_FOUND", 404, msg("common.not_found"));
 }

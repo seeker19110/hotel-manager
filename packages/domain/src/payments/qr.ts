@@ -1,6 +1,7 @@
 // Bộ mã hoá QR (ISO/IEC 18004) tối thiểu cho chuỗi VietQR: chế độ byte, mức sửa lỗi M, phiên bản 1–10 (tối đa 213 byte).
 // Thuần tính toán, không I/O — trả ma trận module; hiển thị (SVG) ở lớp web. Chỉ dùng để HIỂN THỊ thông tin chuyển tiền
 // (SPEC-ledger S-015) — người thuê vẫn phải bấm "Tôi đã chuyển", QR không xác nhận thu (INV-F3).
+import { t } from "../i18n.ts";
 
 /** Mức M: [mã dữ liệu mỗi nhóm khối: (số khối, mã dữ liệu/khối)[], mã sửa lỗi/khối]. Tổng dữ liệu khớp bảng 9 của chuẩn. */
 const BLOCKS_M: readonly { groups: readonly [number, number][]; ec: number }[] = [
@@ -167,14 +168,14 @@ const MASKS: readonly ((x: number, y: number) => boolean)[] = [
 /** Ma trận module QR (true = tối), `m[hàng][cột]`. Chuỗi > 213 byte UTF-8 → RangeError. */
 export function qrMatrix(text: string): boolean[][] {
   const bytes = new TextEncoder().encode(text);
-  if (bytes.length === 0) throw new RangeError("Chuỗi QR rỗng");
+  if (bytes.length === 0) throw new RangeError(t("qr.empty"));
   const version = (() => {
     for (let v = 1; v <= BLOCKS_M.length; v++) {
       const spec = BLOCKS_M[v - 1] as (typeof BLOCKS_M)[number];
       const cap = spec.groups.reduce((s, [c, n]) => s + c * n, 0);
       if (4 + (v <= 9 ? 8 : 16) + bytes.length * 8 <= cap * 8) return v;
     }
-    throw new RangeError(`Chuỗi QR dài quá ${QR_MAX_BYTES} byte`);
+    throw new RangeError(t("qr.too_long", { max: QR_MAX_BYTES }));
   })();
   const spec = BLOCKS_M[version - 1] as (typeof BLOCKS_M)[number];
   const capacity = spec.groups.reduce((s, [c, n]) => s + c * n, 0);

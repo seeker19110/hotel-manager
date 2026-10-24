@@ -1,12 +1,14 @@
 // Folio lượt ở (SPEC-reservation-stay S-017, S-018, S-022, S-024, S-025; DOMAIN-MODEL §1, §5): khung nhìn trên `charges` +
 // thanh toán của booking + phân bổ; cọc bảo đảm hiển thị RIÊNG, không trừ vào số còn phải thu (INV-F5). Ghi dịch vụ/phụ thu
 // chỉ khi khách đang ở; huỷ khoản chỉ trước khi phát hành (trigger INV-G4) và trong kỳ chưa khoá (PERIOD_LOCKED).
+
 import { randomUUID } from "node:crypto";
 import { withTenant } from "@hm/db";
 import { authorize } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/index.ts";
 import { approvalRequired, registerApprovalExecutor } from "../approvals/index.ts";
+import { t } from "../i18n.ts";
 import { customerCredit } from "../payments/index.ts";
 import { type CommandContext, CommandError } from "../pipeline/index.ts";
 
@@ -35,7 +37,7 @@ export async function readStay(
   stayId: string,
   lock: boolean,
 ): Promise<StayRow> {
-  if (!UUID.test(stayId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy lượt ở");
+  if (!UUID.test(stayId)) throw new CommandError("NOT_FOUND", 404, t("portal.guest.stay_not_found"));
   if (lock)
     await sql`select 1 from stays where organization_id = ${actor.orgId} and id = ${stayId} for update`.execute(
       trx,
@@ -49,7 +51,7 @@ export async function readStay(
     where s.organization_id = ${actor.orgId} and s.id = ${stayId}`.execute(trx);
   const row = r.rows[0];
   if (!row || (!actor.allProperties && !actor.propertyIds.includes(row.property_id)))
-    throw new CommandError("NOT_FOUND", 404, "Không tìm thấy lượt ở");
+    throw new CommandError("NOT_FOUND", 404, t("portal.guest.stay_not_found"));
   return row;
 }
 
@@ -72,18 +74,19 @@ export async function postCharge(
   const stay = await readStay(ctx.trx, ctx.actor, input.stayId, true);
   authorize(ctx.actor, "folio.post_charge", { propertyId: stay.property_id });
   if (stay.status !== "in_house")
-    throw new CommandError("INVALID_TRANSITION", 409, "Chỉ ghi dịch vụ khi khách đang ở", {
+    throw new CommandError("INVALID_TRANSITION", 409, t("stay.folio.in_house_only"), {
       extensions: { from: stay.status, to: stay.status },
     });
   const description = input.description.trim();
   if (description.length < 1 || description.length > 500)
-    throw fieldError("description", "required", "Mô tả 1–500 ký tự");
+    throw fieldError("description", "required", t("stay.folio.description_length"));
   if (!Number.isInteger(input.quantity) || input.quantity < 1 || input.quantity > 1000)
-    throw fieldError("quantity", "invalid", "Số lượng là số nguyên 1–1000");
+    throw fieldError("quantity", "invalid", t("stay.folio.quantity_range"));
   if (!Number.isSafeInteger(input.unitPrice) || input.unitPrice <= 0)
-    throw fieldError("unit_price", "invalid", "Đơn giá là số nguyên đồng > 0");
+    throw fieldError("unit_price", "invalid", t("stay.folio.unit_price_positive"));
   const gross = input.quantity * input.unitPrice;
-  if (!Number.isSafeInteger(gross)) throw fieldError("unit_price", "too_large", "Số tiền quá lớn");
+  if (!Number.isSafeInteger(gross))
+    throw fieldError("unit_price", "too_large", t("stay.folio.amount_too_large"));
   if (input.kind === "discount" && !opts.approved) {
     try {
       authorize(ctx.actor, "reservation.override_price", { propertyId: stay.property_id, amount: gross });
@@ -101,7 +104,7 @@ export async function postCharge(
           subjectId: stay.id,
           payload: { description, quantity: input.quantity, unit_price: input.unitPrice },
         },
-        "Giảm giá vượt hạn mức — đã gửi yêu cầu duyệt",
+        t("stay.folio.discount_needs_approval"),
       );
     }
   }
@@ -133,7 +136,7 @@ export async function voidCharge(
   ctx: CommandContext,
   input: { chargeId: string; reason: string },
 ): Promise<{ chargeId: string; voided: true }> {
-  if (!UUID.test(input.chargeId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy khoản");
+  if (!UUID.test(input.chargeId)) throw new CommandError("NOT_FOUND", 404, t("stay.folio.charge_not_found"));
   const r = await sql<{
     stay_id: string | null;
     kind: string;
@@ -146,7 +149,7 @@ export async function voidCharge(
     ctx.trx,
   );
   const seen = r.rows[0];
-  if (!seen?.stay_id) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy khoản");
+  if (!seen?.stay_id) throw new CommandError("NOT_FOUND", 404, t("stay.folio.charge_not_found"));
   // Thứ tự khoá như check-out (stay → charges) để hai lệnh song song không deadlock (review R-nghi ngờ 1).
   const stay = await readStay(ctx.trx, ctx.actor, seen.stay_id, true);
   const relock = await sql<{ voided_at: Date | null }>`
@@ -156,18 +159,17 @@ export async function voidCharge(
   const c = { ...seen, voided_at: relock.rows[0]?.voided_at ?? null };
   authorize(ctx.actor, "folio.post_charge", { propertyId: stay.property_id });
   const reason = input.reason.trim();
-  if (reason.length < 1) throw fieldError("reason", "required", "Cần lý do huỷ");
-  if (c.kind === "room")
-    throw fieldError("charge_id", "room_charge", "Tiền phòng đổi bằng đổi ngày, không huỷ từng đêm");
+  if (reason.length < 1) throw fieldError("reason", "required", t("common.cancel_reason_required"));
+  if (c.kind === "room") throw fieldError("charge_id", "room_charge", t("stay.folio.void_room_forbidden"));
   if (c.voided_at)
-    throw new CommandError("INVALID_TRANSITION", 409, "Khoản đã huỷ", {
+    throw new CommandError("INVALID_TRANSITION", 409, t("stay.folio.already_voided"), {
       extensions: { from: "voided", to: "voided" },
     });
   const lock = await sql<{ lt: string | null }>`
     select app.locked_through(${ctx.actor.orgId}, ${c.property_id})::text as lt`.execute(ctx.trx);
   const lt = lock.rows[0]?.lt;
   if (lt && c.business_date <= lt)
-    throw new CommandError("PERIOD_LOCKED", 409, "Kỳ này đã khoá. Hãy tạo điều chỉnh có duyệt.");
+    throw new CommandError("PERIOD_LOCKED", 409, t("stay.folio.period_closed"));
   // Đã lên phiếu → trigger charge_guard chặn (DOCUMENT_IMMUTABLE, S-023).
   await sql`update charges set voided_at = now(), voided_by = ${ctx.actor.membershipId}, void_reason = ${reason}
             where organization_id = ${ctx.actor.orgId} and id = ${input.chargeId}`.execute(ctx.trx);
@@ -316,7 +318,7 @@ export async function folioIn(trx: Transaction<unknown>, actor: Actor, stay: Sta
 /** `stay.getFolio` (query, S-017, S-025): buồng phòng/kỹ thuật, ngoài phạm vi, khác tổ chức → 404. */
 export async function getFolio(db: Kysely<unknown>, actor: Actor, stayId: string): Promise<FolioView> {
   if (!["owner", "manager", "front_desk", "accountant"].includes(actor.role))
-    throw new CommandError("NOT_FOUND", 404, "Không tìm thấy lượt ở");
+    throw new CommandError("NOT_FOUND", 404, t("portal.guest.stay_not_found"));
   return withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) =>
     folioIn(trx, actor, await readStay(trx, actor, stayId, false)),
   );
@@ -339,7 +341,7 @@ export function registerFolioExecutors(): void {
         typeof up !== "number" ||
         typeof d !== "string"
       )
-        throw new CommandError("VALIDATION_FAILED", 422, "Yêu cầu giảm giá thiếu lượt ở/số tiền");
+        throw new CommandError("VALIDATION_FAILED", 422, t("stay.folio.discount_request_incomplete"));
       return postCharge(
         ctx,
         { stayId: req.subjectId, kind: "discount", description: d, quantity: q, unitPrice: up },

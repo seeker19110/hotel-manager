@@ -7,6 +7,7 @@
 import { randomUUID } from "node:crypto";
 import { authorize } from "@hm/domain";
 import { sql } from "kysely";
+import { t } from "../i18n.ts";
 import { type CommandContext, CommandError } from "../pipeline/index.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -42,16 +43,17 @@ export async function inviteTenant(
   ctx: CommandContext,
   input: { personId: string; email: string },
 ): Promise<{ membershipId: string; created: boolean }> {
-  if (!UUID.test(input.personId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy người thuê");
+  if (!UUID.test(input.personId)) throw new CommandError("NOT_FOUND", 404, t("portal.tenant_not_found"));
   const props = await tenantProperties(ctx, input.personId);
-  if (props.length === 0) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy người thuê");
+  if (props.length === 0) throw new CommandError("NOT_FOUND", 404, t("portal.tenant_not_found"));
   authorize(ctx.actor, "portal.invite_tenant", { propertyId: props[0] as string });
   const email = input.email.trim().toLowerCase();
-  if (!EMAIL.test(email) || email.length > 320) throw fieldError("email", "invalid", "Email không hợp lệ");
+  if (!EMAIL.test(email) || email.length > 320)
+    throw fieldError("email", "invalid", t("portal.email_invalid"));
   const p = await sql<{ full_name: string }>`
     select full_name from persons where organization_id = ${ctx.actor.orgId} and id = ${input.personId}
       and anonymized_at is null for update`.execute(ctx.trx);
-  if (!p.rows[0]) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy người thuê");
+  if (!p.rows[0]) throw new CommandError("NOT_FOUND", 404, t("portal.tenant_not_found"));
 
   const existingUser = await sql<{ id: string }>`select id from auth."user" where email = ${email}`.execute(
     ctx.trx,
@@ -65,7 +67,7 @@ export async function inviteTenant(
     if (cur?.role === "tenant" && cur.person_id === input.personId)
       return { membershipId: cur.id, created: false };
     if (cur)
-      throw new CommandError("DUPLICATE", 409, "Email này đã gắn với tài khoản khác trong tổ chức", {
+      throw new CommandError("DUPLICATE", 409, t("portal.email_taken"), {
         extensions: { errors: [{ path: "email", field: "email", code: "taken" }] },
       });
   }
@@ -73,14 +75,9 @@ export async function inviteTenant(
     select id from memberships where organization_id = ${ctx.actor.orgId} and person_id = ${input.personId}
       and status in ('invited','active','suspended')`.execute(ctx.trx);
   if (other.rows[0])
-    throw new CommandError(
-      "DUPLICATE",
-      409,
-      "Người này đã có quyền truy cập với email khác — thu hồi trước khi mời lại",
-      {
-        extensions: { errors: [{ path: "person_id", field: "person_id", code: "taken" }] },
-      },
-    );
+    throw new CommandError("DUPLICATE", 409, t("portal.access_exists_other_email"), {
+      extensions: { errors: [{ path: "person_id", field: "person_id", code: "taken" }] },
+    });
   if (!userId) {
     userId = randomUUID();
     await sql`insert into auth."user" (id, name, email, "emailVerified", "createdAt", "updatedAt")
@@ -119,18 +116,17 @@ export async function revokeTenantAccess(
   ctx: CommandContext,
   input: { membershipId: string; reason?: string },
 ) {
-  if (!UUID.test(input.membershipId))
-    throw new CommandError("NOT_FOUND", 404, "Không tìm thấy quyền truy cập");
+  if (!UUID.test(input.membershipId)) throw new CommandError("NOT_FOUND", 404, t("portal.access_not_found"));
   const m = await sql<{ person_id: string; status: string }>`
     select person_id, status from memberships where organization_id = ${ctx.actor.orgId} and id = ${input.membershipId}
       and role = 'tenant' for update`.execute(ctx.trx);
   const row = m.rows[0];
-  if (!row) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy quyền truy cập");
+  if (!row) throw new CommandError("NOT_FOUND", 404, t("portal.access_not_found"));
   // Owner thu hồi mọi người thuê; quản lý/lễ tân chỉ người thuê có hợp đồng trong phạm vi của mình.
   const props = await tenantProperties(ctx, row.person_id);
   if (ctx.actor.role === "owner") authorize(ctx.actor, "portal.invite_tenant", {});
   else if (props[0]) authorize(ctx.actor, "portal.invite_tenant", { propertyId: props[0] });
-  else throw new CommandError("NOT_FOUND", 404, "Không tìm thấy quyền truy cập");
+  else throw new CommandError("NOT_FOUND", 404, t("portal.access_not_found"));
   if (row.status === "revoked") return { membershipId: input.membershipId, status: "revoked" as const };
   await sql`update memberships set status = 'revoked', revoked_at = now(), version = version + 1
             where organization_id = ${ctx.actor.orgId} and id = ${input.membershipId}`.execute(ctx.trx);

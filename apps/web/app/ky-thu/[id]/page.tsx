@@ -3,18 +3,21 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { CommandForm } from "../../../components/command/command-form.tsx";
 import { EmptyState, ErrorState } from "../../../components/ui/state.tsx";
-import { month, PERIOD_STATUS, vnd, vndUnitPrice } from "../../../lib/format.ts";
-import { t } from "../../../lib/i18n.ts";
+import { month, periodStatusLabel, vnd, vndUnitPrice } from "../../../lib/format.ts";
+import { messagesFor, t } from "../../../lib/i18n.ts";
 import { withActor } from "../../../lib/page.tsx";
 
-export const metadata: Metadata = { title: "Kỳ thu — xem trước — Hotel Manager" };
+/** Nhãn mã (lib/format.ts, D-103). */
+const LABELS = messagesFor("label.period_status.");
+
+export const metadata: Metadata = { title: t("billing.preview.metadata.title") };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export default async function PeriodPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!UUID.test(id)) notFound();
-  return withActor("Kỳ thu", "/ky-thu", async (actor) => {
+  return withActor(t("billing.preview.page.title"), "/ky-thu", async (actor) => {
     let pv: Awaited<ReturnType<typeof previewPeriod>>;
     try {
       pv = await previewPeriod(serverContext().db, actor, { billingPeriodId: id });
@@ -22,37 +25,44 @@ export default async function PeriodPage({ params }: { params: Promise<{ id: str
       const code = (e as { code?: string }).code;
       if (code === "NOT_FOUND") notFound();
       if (code === "FORBIDDEN")
-        return <ErrorState title="Không có quyền" text="Vai trò của bạn không lập/xem trước kỳ thu." />;
+        return (
+          <ErrorState
+            title={t("billing.preview.forbidden.title")}
+            text={t("billing.preview.forbidden.text")}
+          />
+        );
       throw e;
     }
     const missing = pv.items.filter((i) => i.missing.length > 0);
     return (
       <>
         <section aria-labelledby="tt" className="panel">
-          <h2 id="tt">Kỳ {month(pv.period_start)}</h2>
+          <h2 id="tt">{t("billing.preview.heading", { month: month(pv.period_start) })}</h2>
           <dl className="facts">
-            <dt>Trạng thái</dt>
-            <dd data-testid="period-status">{PERIOD_STATUS[pv.status] ?? pv.status}</dd>
-            <dt>Tổng kỳ</dt>
+            <dt>{t("billing.preview.fact.status")}</dt>
+            <dd data-testid="period-status">{periodStatusLabel(LABELS, pv.status)}</dd>
+            <dt>{t("billing.preview.fact.total")}</dt>
             <dd data-testid="period-total">{vnd(pv.total)}</dd>
           </dl>
           {pv.status === "draft" ? (
             <p>
               <a className="btn btn--secondary" href={`/chi-so/${id}`}>
-                Nhập chỉ số theo tầng
+                {t("billing.preview.enter_readings")}
               </a>
             </p>
           ) : null}
         </section>
         {missing.length > 0 ? (
           <div className="banner banner--warn" role="note">
-            Còn phòng thiếu chỉ số: {missing.map((i) => `${i.unit} (${i.missing.join(", ")})`).join("; ")}.
+            {t("billing.preview.missing", {
+              rooms: missing.map((i) => `${i.unit} (${i.missing.join(", ")})`).join("; "),
+            })}
           </div>
         ) : null}
         <section aria-labelledby="xt" className="panel">
-          <h2 id="xt">Xem trước từng phòng</h2>
+          <h2 id="xt">{t("billing.preview.rooms.heading")}</h2>
           {pv.items.length === 0 ? (
-            <EmptyState title="Không có hợp đồng tính tiền trong kỳ" />
+            <EmptyState title={t("billing.preview.rooms.empty")} />
           ) : (
             pv.items.map((i) => (
               <table key={i.lease_id} className="lines" data-testid="preview-room">
@@ -61,10 +71,10 @@ export default async function PeriodPage({ params }: { params: Promise<{ id: str
                 </caption>
                 <thead>
                   <tr>
-                    <th scope="col">Khoản</th>
-                    <th scope="col">Lượng</th>
-                    <th scope="col">Đơn giá</th>
-                    <th scope="col">Thành tiền</th>
+                    <th scope="col">{t("billing.preview.col.item")}</th>
+                    <th scope="col">{t("billing.preview.col.quantity")}</th>
+                    <th scope="col">{t("billing.preview.col.unit_price")}</th>
+                    <th scope="col">{t("billing.preview.col.amount")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -83,36 +93,33 @@ export default async function PeriodPage({ params }: { params: Promise<{ id: str
         </section>
         {pv.status === "draft" ? (
           <section aria-labelledby="a-review" className="panel">
-            <h2 id="a-review">Gửi duyệt</h2>
+            <h2 id="a-review">{t("billing.preview.review.heading")}</h2>
             <CommandForm
               path="billing/submitForReview"
               fixed={{ billing_period_id: id }}
-              submitLabel="Gửi duyệt"
-              successText="Đã gửi duyệt — chờ phát hành."
+              submitLabel={t("billing.preview.review.submit_label")}
+              successText={t("billing.preview.review.success")}
             />
           </section>
         ) : null}
         {pv.status === "reviewing" ? (
           <section aria-labelledby="a-issue" className="panel">
-            <h2 id="a-issue">Phát hành</h2>
-            <p>
-              Phát hành tạo phiếu thu cho từng phòng đúng như bản xem trước ở trên; sau đó không sửa được chỉ
-              số kỳ này.
-            </p>
+            <h2 id="a-issue">{t("billing.preview.issue.heading")}</h2>
+            <p>{t("billing.preview.issue.intro")}</p>
             <CommandForm
               path="billing/issuePeriod"
-              confirm="Phát hành kỳ thu: phiếu gửi tới người thuê và ghi công nợ; muốn sửa phải điều chỉnh có duyệt."
-              confirmLabel={`Phát hành kỳ ${month(pv.period_start)}`}
+              confirm={t("billing.preview.issue.confirm")}
+              confirmLabel={t("billing.preview.issue.confirm_label", { month: month(pv.period_start) })}
               fixed={{ billing_period_id: id, preview_hash: pv.preview_hash }}
-              submitLabel="Phát hành kỳ"
-              successText="Đã phát hành phiếu thu."
+              submitLabel={t("billing.preview.issue.submit_label")}
+              successText={t("billing.preview.issue.success")}
             />
             <CommandForm
               path="billing/returnToDraft"
               fixed={{ billing_period_id: id }}
-              fields={[{ name: "reason", label: "Lý do trả về nháp", required: true }]}
-              submitLabel="Trả về nháp"
-              successText="Đã trả về nháp."
+              fields={[{ name: "reason", label: t("billing.preview.return.reason"), required: true }]}
+              submitLabel={t("billing.preview.return.submit_label")}
+              successText={t("billing.preview.return.success")}
               variant="secondary"
             />
           </section>

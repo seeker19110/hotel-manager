@@ -525,15 +525,15 @@
   },
   "stay.add.kind_service": {
     "message": "Dịch vụ",
-    "description": "Màn Lượt ở và folio (/luu-tru/[id]): lựa chọn loại khoản: dịch vụ"
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): lựa chọn loại khoản: dịch vụ. Dùng chung (lib/format.ts): loại khoản trong folio lượt ở (/luu-tru/[id])."
   },
   "stay.add.kind_fee": {
     "message": "Phụ thu",
-    "description": "Màn Lượt ở và folio (/luu-tru/[id]): lựa chọn loại khoản: phụ thu"
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): lựa chọn loại khoản: phụ thu. Dùng chung (lib/format.ts): loại khoản trong folio lượt ở (/luu-tru/[id])."
   },
   "stay.add.kind_discount": {
     "message": "Giảm giá",
-    "description": "Màn Lượt ở và folio (/luu-tru/[id]): lựa chọn loại khoản: giảm giá"
+    "description": "Màn Lượt ở và folio (/luu-tru/[id]): lựa chọn loại khoản: giảm giá. Dùng chung (lib/format.ts): loại khoản trong folio lượt ở (/luu-tru/[id])."
   },
   "stay.add.description": {
     "message": "Nội dung",
@@ -1105,19 +1105,19 @@
   },
   "guest_stay.status.in_house": {
     "message": "Đang ở",
-    "description": "Khách xem lượt ở bằng liên kết (/khach/luot-o/[id]): trạng thái lượt ở: đang ở"
+    "description": "Khách xem lượt ở bằng liên kết (/khach/luot-o/[id]): trạng thái lượt ở: đang ở. Dùng chung (lib/format.ts): trạng thái lượt ở trên màn lượt ở của lễ tân (/luu-tru/[id])."
   },
   "guest_stay.status.checked_out": {
     "message": "Đã trả phòng",
-    "description": "Khách xem lượt ở bằng liên kết (/khach/luot-o/[id]): trạng thái lượt ở: đã trả phòng"
+    "description": "Khách xem lượt ở bằng liên kết (/khach/luot-o/[id]): trạng thái lượt ở: đã trả phòng. Dùng chung (lib/format.ts): trạng thái lượt ở trên màn lượt ở của lễ tân (/luu-tru/[id])."
   },
   "guest_stay.status.cancelled": {
     "message": "Đã huỷ",
-    "description": "Khách xem lượt ở bằng liên kết (/khach/luot-o/[id]): trạng thái lượt ở: đã huỷ"
+    "description": "Khách xem lượt ở bằng liên kết (/khach/luot-o/[id]): trạng thái lượt ở: đã huỷ. Dùng chung (lib/format.ts): trạng thái lượt ở trên màn lượt ở của lễ tân (/luu-tru/[id])."
   },
   "guest_stay.status.no_show": {
     "message": "Không đến",
-    "description": "Khách xem lượt ở bằng liên kết (/khach/luot-o/[id]): trạng thái lượt ở: không đến"
+    "description": "Khách xem lượt ở bằng liên kết (/khach/luot-o/[id]): trạng thái lượt ở: không đến. Dùng chung (lib/format.ts): trạng thái lượt ở trên màn lượt ở của lễ tân (/luu-tru/[id])."
   },
   "guest_stay.error.expired_text": {
     "message": "Liên kết đã hết hạn. Vui lòng liên hệ lễ tân để nhận liên kết mới.",
@@ -1565,11 +1565,11 @@
   },
   "housekeeping.list.create.kind_cleaning": {
     "message": "Dọn phòng",
-    "description": "Lựa chọn loại việc: dọn phòng."
+    "description": "Lựa chọn loại việc: dọn phòng. Dùng chung (lib/format.ts): nhãn loại việc trong danh sách/chi tiết việc dọn phòng."
   },
   "housekeeping.list.create.kind_inspection": {
     "message": "Kiểm tra phòng",
-    "description": "Lựa chọn loại việc: kiểm tra phòng."
+    "description": "Lựa chọn loại việc: kiểm tra phòng. Dùng chung (lib/format.ts): nhãn loại việc trong danh sách/chi tiết việc dọn phòng."
   },
   "housekeeping.list.create.priority": {
     "message": "Mức ưu tiên",
@@ -1577,15 +1577,15 @@
   },
   "housekeeping.list.create.priority_normal": {
     "message": "Thường",
-    "description": "Lựa chọn mức ưu tiên: thường."
+    "description": "Lựa chọn mức ưu tiên: thường. Dùng chung (lib/format.ts): nhãn mức ưu tiên trong danh sách/chi tiết việc dọn phòng."
   },
   "housekeeping.list.create.priority_high": {
     "message": "Ưu tiên",
-    "description": "Lựa chọn mức ưu tiên: ưu tiên (cao)."
+    "description": "Lựa chọn mức ưu tiên: ưu tiên (cao). Dùng chung (lib/format.ts): nhãn mức ưu tiên trong danh sách/chi tiết việc dọn phòng."
   },
   "housekeeping.list.create.priority_urgent": {
     "message": "Khẩn",
-    "description": "Lựa chọn mức ưu tiên: khẩn."
+    "description": "Lựa chọn mức ưu tiên: khẩn. Dùng chung (lib/format.ts): nhãn mức ưu tiên trong danh sách/chi tiết việc dọn phòng."
   },
   "housekeeping.list.create.note": {
     "message": "Ghi chú (tuỳ chọn)",
@@ -1877,11 +1877,11 @@
   },
   "today_list.title.arrivals": {
     "message": "Khách đến hôm nay",
-    "description": "Tiêu đề màn danh sách thẻ khách đến (dự phòng khi thẻ không có nhãn riêng)."
+    "description": "Tiêu đề màn danh sách thẻ khách đến (dự phòng khi thẻ không có nhãn riêng). Dùng chung (lib/format.ts): tên thẻ trên màn Hôm nay (/)."
   },
   "today_list.title.departures": {
     "message": "Khách đi hôm nay",
-    "description": "Tiêu đề màn danh sách thẻ khách đi (dự phòng)."
+    "description": "Tiêu đề màn danh sách thẻ khách đi (dự phòng). Dùng chung (lib/format.ts): tên thẻ trên màn Hôm nay (/)."
   },
   "today_list.title.receivables": {
     "message": "Nợ đến hạn/quá hạn",
@@ -2033,19 +2033,19 @@
   },
   "incident_form.severity.low": {
     "message": "Thấp",
-    "description": "Lựa chọn mức độ sự cố: thấp."
+    "description": "Lựa chọn mức độ sự cố: thấp. Dùng chung (lib/format.ts): mức độ sự cố trong danh sách sự cố (/su-co, viết thường giữa câu)."
   },
   "incident_form.severity.medium": {
     "message": "Trung bình",
-    "description": "Lựa chọn mức độ sự cố: trung bình (mặc định)."
+    "description": "Lựa chọn mức độ sự cố: trung bình (mặc định). Dùng chung (lib/format.ts): mức độ sự cố trong danh sách sự cố (/su-co, viết thường giữa câu)."
   },
   "incident_form.severity.high": {
     "message": "Cao",
-    "description": "Lựa chọn mức độ sự cố: cao."
+    "description": "Lựa chọn mức độ sự cố: cao. Dùng chung (lib/format.ts): mức độ sự cố trong danh sách sự cố (/su-co, viết thường giữa câu)."
   },
   "incident_form.severity.critical": {
     "message": "Nghiêm trọng",
-    "description": "Lựa chọn mức độ sự cố: nghiêm trọng."
+    "description": "Lựa chọn mức độ sự cố: nghiêm trọng. Dùng chung (lib/format.ts): mức độ sự cố trong danh sách sự cố (/su-co, viết thường giữa câu)."
   },
   "incident_form.error.required": {
     "message": "Bắt buộc nhập",
@@ -2233,15 +2233,15 @@
   },
   "rooms.hk.dirty": {
     "message": "Bẩn",
-    "description": "Trạng thái dọn phòng `dirty` trên danh sách phòng."
+    "description": "Trạng thái dọn phòng `dirty` trên danh sách phòng. Dùng chung (lib/format.ts): trạng thái buồng trong ô chọn phòng khi nhận khách vãng lai (/luu-tru/moi)."
   },
   "rooms.hk.assigned": {
     "message": "Đã giao dọn",
-    "description": "Trạng thái dọn phòng `assigned` trên danh sách phòng."
+    "description": "Trạng thái dọn phòng `assigned` trên danh sách phòng. Dùng chung (lib/format.ts): trạng thái buồng trong ô chọn phòng khi nhận khách vãng lai (/luu-tru/moi)."
   },
   "rooms.hk.cleaning": {
     "message": "Đang dọn",
-    "description": "Trạng thái dọn phòng `cleaning` trên danh sách phòng."
+    "description": "Trạng thái dọn phòng `cleaning` trên danh sách phòng. Dùng chung (lib/format.ts): trạng thái buồng trong ô chọn phòng khi nhận khách vãng lai (/luu-tru/moi)."
   },
   "rooms.hk.clean": {
     "message": "Sạch",
@@ -2751,9 +2751,9 @@
     "message": "Đặt phòng",
     "description": "Tiêu đề (h1) của màn Đặt phòng (/dat-phong) ở trạng thái đang tải (loading.tsx) và lỗi (error.tsx) cấp route; chữ cho trình đọc màn hình ở trạng thái tải lấy từ đây (chữ thường)."
   },
-  "common.route_title.dat_phong_moi": {
+  "route_title.dat_phong_moi": {
     "message": "Đặt phòng mới",
-    "description": "Tiêu đề (h1) của màn Đặt phòng mới (/dat-phong/moi) ở trạng thái đang tải (loading.tsx) và lỗi (error.tsx) cấp route; chữ cho trình đọc màn hình ở trạng thái tải lấy từ đây (chữ thường)."
+    "description": "Tiêu đề (h1) của màn Đặt phòng mới (/dat-phong/moi) ở trạng thái đang tải (loading.tsx) cấp route (chỉ server dùng — không thuộc common.); chữ cho trình đọc màn hình ở trạng thái tải lấy từ đây (chữ thường)."
   },
   "common.route_title.lich_phong": {
     "message": "Lịch phòng",
@@ -2763,25 +2763,25 @@
     "message": "Lượt ở và folio",
     "description": "Tiêu đề (h1) của màn Lượt ở và folio (/luu-tru) ở trạng thái đang tải (loading.tsx) và lỗi (error.tsx) cấp route; chữ cho trình đọc màn hình ở trạng thái tải lấy từ đây (chữ thường)."
   },
-  "common.route_title.walk_in": {
+  "route_title.walk_in": {
     "message": "Khách vãng lai",
-    "description": "Tiêu đề (h1) của màn Khách vãng lai (/luu-tru/moi) ở trạng thái đang tải (loading.tsx) và lỗi (error.tsx) cấp route; chữ cho trình đọc màn hình ở trạng thái tải lấy từ đây (chữ thường)."
+    "description": "Tiêu đề (h1) của màn Khách vãng lai (/luu-tru/moi) ở trạng thái đang tải (loading.tsx) cấp route (chỉ server dùng — không thuộc common.); chữ cho trình đọc màn hình ở trạng thái tải lấy từ đây (chữ thường)."
   },
   "common.route_title.phong": {
     "message": "Phòng",
     "description": "Tiêu đề (h1) của màn Phòng (/phong) ở trạng thái đang tải (loading.tsx) và lỗi (error.tsx) cấp route; chữ cho trình đọc màn hình ở trạng thái tải lấy từ đây (chữ thường)."
   },
-  "common.route_title.portal_meters": {
+  "route_title.portal_meters": {
     "message": "Điện nước",
-    "description": "Tiêu đề (h1) của màn Điện nước của cổng người thuê (/portal/dien-nuoc) ở trạng thái đang tải (loading.tsx) và lỗi (error.tsx) cấp route; chữ cho trình đọc màn hình ở trạng thái tải lấy từ đây (chữ thường)."
+    "description": "Tiêu đề (h1) của màn Điện nước của cổng người thuê (/portal/dien-nuoc) ở trạng thái đang tải (loading.tsx) cấp route (chỉ server dùng — không thuộc common.); chữ cho trình đọc màn hình ở trạng thái tải lấy từ đây (chữ thường)."
   },
   "common.route_title.portal": {
     "message": "Cổng người thuê",
     "description": "Tiêu đề (h1) của màn Cổng người thuê (/portal) ở trạng thái đang tải (loading.tsx) và lỗi (error.tsx) cấp route; chữ cho trình đọc màn hình ở trạng thái tải lấy từ đây (chữ thường)."
   },
-  "common.route_title.portal_requests": {
+  "route_title.portal_requests": {
     "message": "Yêu cầu",
-    "description": "Tiêu đề (h1) của màn Yêu cầu của cổng người thuê (/portal/yeu-cau) ở trạng thái đang tải (loading.tsx) và lỗi (error.tsx) cấp route; chữ cho trình đọc màn hình ở trạng thái tải lấy từ đây (chữ thường)."
+    "description": "Tiêu đề (h1) của màn Yêu cầu của cổng người thuê (/portal/yeu-cau) ở trạng thái đang tải (loading.tsx) cấp route (chỉ server dùng — không thuộc common.); chữ cho trình đọc màn hình ở trạng thái tải lấy từ đây (chữ thường)."
   },
   "common.route_title.incident": {
     "message": "Sự cố",
@@ -2791,9 +2791,9 @@
     "message": "Thành viên",
     "description": "Tiêu đề (h1) của màn Thành viên (/thanh-vien) ở trạng thái đang tải (loading.tsx) và lỗi (error.tsx) cấp route; chữ cho trình đọc màn hình ở trạng thái tải lấy từ đây (chữ thường)."
   },
-  "common.route_title.more": {
+  "route_title.more": {
     "message": "Thêm",
-    "description": "Tiêu đề (h1) của màn Thêm (/them) ở trạng thái đang tải (loading.tsx) và lỗi (error.tsx) cấp route; chữ cho trình đọc màn hình ở trạng thái tải lấy từ đây (chữ thường)."
+    "description": "Tiêu đề (h1) của màn Thêm (/them) ở trạng thái đang tải (loading.tsx) cấp route (chỉ server dùng — không thuộc common.); chữ cho trình đọc màn hình ở trạng thái tải lấy từ đây (chữ thường)."
   },
   "common.route_title.notice": {
     "message": "Thông báo lưu trú",
@@ -3146,5 +3146,957 @@
   "more.account.heading": {
     "message": "Tài khoản",
     "description": "Màn Thêm: tiêu đề mục tài khoản (chứa nút đăng xuất)."
+  },
+  "label.lease_status.draft": {
+    "message": "Nháp",
+    "description": "Trạng thái hợp đồng thuê (danh sách/chi tiết hợp đồng, cổng người thuê): nháp."
+  },
+  "label.lease_status.pending_signature": {
+    "message": "Chờ ký",
+    "description": "Trạng thái hợp đồng thuê (danh sách/chi tiết hợp đồng, cổng người thuê): chờ ký."
+  },
+  "label.lease_status.signed_awaiting_handover": {
+    "message": "Đã ký — chờ bàn giao",
+    "description": "Trạng thái hợp đồng thuê (danh sách/chi tiết hợp đồng, cổng người thuê): đã ký, chưa bàn giao phòng."
+  },
+  "label.lease_status.active": {
+    "message": "Đang thuê",
+    "description": "Trạng thái hợp đồng thuê (danh sách/chi tiết hợp đồng, cổng người thuê): đang thuê."
+  },
+  "label.lease_status.notice_given": {
+    "message": "Đã báo trả",
+    "description": "Trạng thái hợp đồng thuê (danh sách/chi tiết hợp đồng, cổng người thuê): người thuê đã báo trả phòng."
+  },
+  "label.lease_status.settling": {
+    "message": "Đang thanh lý",
+    "description": "Trạng thái hợp đồng thuê (danh sách/chi tiết hợp đồng, cổng người thuê): đang thanh lý."
+  },
+  "label.lease_status.closed": {
+    "message": "Đã đóng",
+    "description": "Trạng thái hợp đồng thuê (danh sách/chi tiết hợp đồng, cổng người thuê): đã đóng."
+  },
+  "label.lease_status.cancelled": {
+    "message": "Đã huỷ",
+    "description": "Trạng thái hợp đồng thuê (danh sách/chi tiết hợp đồng, cổng người thuê): đã huỷ."
+  },
+  "label.period_status.draft": {
+    "message": "Nháp",
+    "description": "Trạng thái kỳ thu (/ky-thu): nháp."
+  },
+  "label.period_status.reviewing": {
+    "message": "Chờ phát hành",
+    "description": "Trạng thái kỳ thu (/ky-thu): chờ duyệt để phát hành."
+  },
+  "label.period_status.issued": {
+    "message": "Đã phát hành",
+    "description": "Trạng thái kỳ thu (/ky-thu): đã phát hành hoá đơn."
+  },
+  "label.period_status.locked": {
+    "message": "Đã khoá",
+    "description": "Trạng thái kỳ thu (/ky-thu): đã khoá."
+  },
+  "label.meter.electric": {
+    "message": "Điện",
+    "description": "Loại công tơ (chốt chỉ số, hợp đồng, cổng người thuê); có chỗ viết thường giữa câu: điện."
+  },
+  "label.meter.water": {
+    "message": "Nước",
+    "description": "Loại công tơ (chốt chỉ số, hợp đồng, cổng người thuê); có chỗ viết thường giữa câu: nước."
+  },
+  "label.weekday.0": {
+    "message": "Chủ nhật",
+    "description": "Thứ trong tuần, đứng trước ngày dd/mm/yyyy ở tiêu đề ngày của Lịch phòng (/lich-phong): Chủ nhật."
+  },
+  "label.weekday.1": {
+    "message": "Thứ hai",
+    "description": "Thứ trong tuần, đứng trước ngày dd/mm/yyyy ở tiêu đề ngày của Lịch phòng (/lich-phong): thứ Hai."
+  },
+  "label.weekday.2": {
+    "message": "Thứ ba",
+    "description": "Thứ trong tuần, đứng trước ngày dd/mm/yyyy ở tiêu đề ngày của Lịch phòng (/lich-phong): thứ Ba."
+  },
+  "label.weekday.3": {
+    "message": "Thứ tư",
+    "description": "Thứ trong tuần, đứng trước ngày dd/mm/yyyy ở tiêu đề ngày của Lịch phòng (/lich-phong): thứ Tư."
+  },
+  "label.weekday.4": {
+    "message": "Thứ năm",
+    "description": "Thứ trong tuần, đứng trước ngày dd/mm/yyyy ở tiêu đề ngày của Lịch phòng (/lich-phong): thứ Năm."
+  },
+  "label.weekday.5": {
+    "message": "Thứ sáu",
+    "description": "Thứ trong tuần, đứng trước ngày dd/mm/yyyy ở tiêu đề ngày của Lịch phòng (/lich-phong): thứ Sáu."
+  },
+  "label.weekday.6": {
+    "message": "Thứ bảy",
+    "description": "Thứ trong tuần, đứng trước ngày dd/mm/yyyy ở tiêu đề ngày của Lịch phòng (/lich-phong): thứ Bảy."
+  },
+  "label.booking_status.draft": {
+    "message": "Nháp",
+    "description": "Trạng thái đặt phòng (lịch phòng, danh sách/chi tiết đặt phòng): nháp."
+  },
+  "label.booking_status.held": {
+    "message": "Đang giữ phòng",
+    "description": "Trạng thái đặt phòng (lịch phòng, danh sách/chi tiết đặt phòng): đang giữ phòng tạm."
+  },
+  "label.booking_status.confirmed": {
+    "message": "Đã xác nhận",
+    "description": "Trạng thái đặt phòng (lịch phòng, danh sách/chi tiết đặt phòng): đã xác nhận."
+  },
+  "label.booking_status.in_house": {
+    "message": "Đang ở",
+    "description": "Trạng thái đặt phòng (lịch phòng, danh sách/chi tiết đặt phòng): khách đang ở."
+  },
+  "label.booking_status.checked_out": {
+    "message": "Đã trả phòng",
+    "description": "Trạng thái đặt phòng (lịch phòng, danh sách/chi tiết đặt phòng): khách đã trả phòng."
+  },
+  "label.booking_status.cancelled": {
+    "message": "Đã huỷ",
+    "description": "Trạng thái đặt phòng (lịch phòng, danh sách/chi tiết đặt phòng): đã huỷ."
+  },
+  "label.booking_status.no_show": {
+    "message": "Không đến",
+    "description": "Trạng thái đặt phòng (lịch phòng, danh sách/chi tiết đặt phòng): khách không đến."
+  },
+  "label.booking_status.expired": {
+    "message": "Hết hạn giữ",
+    "description": "Trạng thái đặt phòng (lịch phòng, danh sách/chi tiết đặt phòng): hết hạn giữ phòng."
+  },
+  "label.hk_status.clean": {
+    "message": "Sạch — chờ kiểm",
+    "description": "Trạng thái buồng trong ô chọn phòng khi nhận khách vãng lai (/luu-tru/moi): đã dọn, chờ kiểm tra."
+  },
+  "label.hk_status.inspected": {
+    "message": "Đã kiểm — sẵn sàng",
+    "description": "Trạng thái buồng trong ô chọn phòng khi nhận khách vãng lai (/luu-tru/moi): đã kiểm, sẵn sàng đón khách."
+  },
+  "label.task_status.open": {
+    "message": "Chưa nhận",
+    "description": "Trạng thái việc dọn phòng (/buong-phong): chưa ai nhận."
+  },
+  "label.task_status.assigned": {
+    "message": "Đã nhận",
+    "description": "Trạng thái việc dọn phòng (/buong-phong): đã có người nhận."
+  },
+  "label.task_status.in_progress": {
+    "message": "Đang làm",
+    "description": "Trạng thái việc dọn phòng (/buong-phong): đang làm."
+  },
+  "label.task_status.done": {
+    "message": "Đã xong — chờ nghiệm thu",
+    "description": "Trạng thái việc dọn phòng (/buong-phong): làm xong, chờ nghiệm thu."
+  },
+  "label.task_status.verified": {
+    "message": "Đã nghiệm thu",
+    "description": "Trạng thái việc dọn phòng (/buong-phong): đã nghiệm thu."
+  },
+  "label.task_status.cancelled": {
+    "message": "Đã huỷ",
+    "description": "Trạng thái việc dọn phòng (/buong-phong): đã huỷ."
+  },
+  "label.work_order_status.open": {
+    "message": "Mới báo",
+    "description": "Trạng thái sự cố/phiếu sửa chữa (/su-co): mới báo."
+  },
+  "label.work_order_status.assigned": {
+    "message": "Đã giao",
+    "description": "Trạng thái sự cố/phiếu sửa chữa (/su-co): đã giao người sửa."
+  },
+  "label.work_order_status.in_progress": {
+    "message": "Đang sửa",
+    "description": "Trạng thái sự cố/phiếu sửa chữa (/su-co): đang sửa."
+  },
+  "label.work_order_status.done": {
+    "message": "Đã sửa — chờ nghiệm thu",
+    "description": "Trạng thái sự cố/phiếu sửa chữa (/su-co): sửa xong, chờ nghiệm thu."
+  },
+  "label.work_order_status.verified": {
+    "message": "Đã nghiệm thu",
+    "description": "Trạng thái sự cố/phiếu sửa chữa (/su-co): đã nghiệm thu."
+  },
+  "label.work_order_status.cancelled": {
+    "message": "Đã huỷ",
+    "description": "Trạng thái sự cố/phiếu sửa chữa (/su-co): đã huỷ."
+  },
+  "label.notice_status.pending": {
+    "message": "Chưa xuất",
+    "description": "Trạng thái thông báo lưu trú (/thong-bao-luu-tru): chưa xuất tệp."
+  },
+  "label.notice_status.exported": {
+    "message": "Đã xuất — chưa nộp",
+    "description": "Trạng thái thông báo lưu trú (/thong-bao-luu-tru): đã xuất tệp, chưa nộp cơ quan."
+  },
+  "label.notice_status.submitted": {
+    "message": "Đã nộp",
+    "description": "Trạng thái thông báo lưu trú (/thong-bao-luu-tru): đã nộp."
+  },
+  "label.charge_kind.room": {
+    "message": "Tiền phòng",
+    "description": "Loại khoản trong folio lượt ở (/luu-tru/[id]): tiền phòng."
+  },
+  "label.payment_method.cash": {
+    "message": "Tiền mặt",
+    "description": "Hình thức thanh toán trong folio lượt ở (/luu-tru/[id]): tiền mặt."
+  },
+  "label.payment_method.bank_transfer": {
+    "message": "Chuyển khoản",
+    "description": "Hình thức thanh toán trong folio lượt ở (/luu-tru/[id]): chuyển khoản ngân hàng."
+  },
+  "label.payment_status.pending": {
+    "message": "Chờ xác nhận",
+    "description": "Trạng thái khoản thanh toán trong folio lượt ở (/luu-tru/[id]): chờ xác nhận."
+  },
+  "label.payment_status.confirmed": {
+    "message": "Đã xác nhận",
+    "description": "Trạng thái khoản thanh toán trong folio lượt ở (/luu-tru/[id]): đã xác nhận."
+  },
+  "label.payment_status.rejected": {
+    "message": "Từ chối",
+    "description": "Trạng thái khoản thanh toán trong folio lượt ở (/luu-tru/[id]): bị từ chối."
+  },
+  "label.payment_status.reversed": {
+    "message": "Đã đảo",
+    "description": "Trạng thái khoản thanh toán trong folio lượt ở (/luu-tru/[id]): đã đảo bút toán."
+  },
+  "label.stay_status.expected": {
+    "message": "Chờ nhận phòng",
+    "description": "Trạng thái lượt ở trên màn lượt ở của lễ tân (/luu-tru/[id]): khách chưa nhận phòng."
+  },
+  "lease.detail.metadata.title": {
+    "message": "Chi tiết hợp đồng — Hotel Manager",
+    "description": "Tiêu đề tab trình duyệt của trang chi tiết hợp đồng (/hop-dong/[id])."
+  },
+  "lease.detail.page.title": {
+    "message": "Chi tiết hợp đồng",
+    "description": "Tiêu đề trang (h1) chi tiết hợp đồng."
+  },
+  "lease.detail.reading.label": {
+    "message": "Chỉ số {kind}",
+    "description": "Nhãn ô nhập chỉ số công tơ khi bàn giao nhận/trả phòng; kind là loại công tơ viết thường (điện, nước) hoặc mã thô nếu lạ."
+  },
+  "lease.detail.reading.hint": {
+    "message": "Lần đọc trước: {last}",
+    "description": "Gợi ý dưới ô nhập chỉ số công tơ: chỉ số lần đọc trước của công tơ đó."
+  },
+  "lease.detail.summary.heading": {
+    "message": "Phòng {unit} — {tenant}",
+    "description": "Tiêu đề khối thông tin hợp đồng: mã phòng và tên người thuê."
+  },
+  "lease.detail.fact.number": {
+    "message": "Số hợp đồng",
+    "description": "Nhãn trong khối thông tin hợp đồng: số hợp đồng."
+  },
+  "lease.detail.fact.status": {
+    "message": "Trạng thái",
+    "description": "Nhãn trong khối thông tin hợp đồng: trạng thái hợp đồng."
+  },
+  "lease.detail.fact.property": {
+    "message": "Cơ sở",
+    "description": "Nhãn trong khối thông tin hợp đồng: cơ sở (nhà trọ) của hợp đồng."
+  },
+  "lease.detail.fact.phone": {
+    "message": "Điện thoại",
+    "description": "Nhãn trong khối thông tin hợp đồng: số điện thoại người thuê."
+  },
+  "lease.detail.fact.rent": {
+    "message": "Giá thuê",
+    "description": "Nhãn trong khối thông tin hợp đồng: giá thuê tháng."
+  },
+  "lease.detail.fact.rent_value": {
+    "message": "{rent}/tháng",
+    "description": "Giá trị giá thuê: số tiền đã định dạng kèm đơn vị theo tháng."
+  },
+  "lease.detail.fact.effective": {
+    "message": "Hiệu lực",
+    "description": "Nhãn trong khối thông tin hợp đồng: khoảng thời gian hiệu lực."
+  },
+  "lease.detail.fact.no_end": {
+    "message": "không thời hạn",
+    "description": "Hiển thị ở ngày kết thúc hiệu lực khi hợp đồng không có ngày hết hạn."
+  },
+  "lease.detail.fact.deposit": {
+    "message": "Cọc đang giữ",
+    "description": "Nhãn trong khối thông tin hợp đồng: số tiền cọc đang giữ."
+  },
+  "lease.detail.fact.deposit_none": {
+    "message": "Chưa nhận",
+    "description": "Hiển thị ở số cọc đang giữ khi chưa nhận cọc nào."
+  },
+  "lease.detail.fact.open_ar": {
+    "message": "Còn phải thu",
+    "description": "Nhãn trong khối thông tin hợp đồng: công nợ còn phải thu."
+  },
+  "lease.detail.submit.heading": {
+    "message": "Trình ký",
+    "description": "Tiêu đề khối trình ký hợp đồng nháp."
+  },
+  "lease.detail.submit.submit_label": {
+    "message": "Trình ký",
+    "description": "Nút trình ký hợp đồng nháp."
+  },
+  "lease.detail.submit.success": {
+    "message": "Đã chuyển sang chờ ký.",
+    "description": "Thông báo sau khi trình ký thành công."
+  },
+  "lease.detail.sign.heading": {
+    "message": "Ký hợp đồng",
+    "description": "Tiêu đề khối ký hợp đồng."
+  },
+  "lease.detail.sign.intro": {
+    "message": "Người đứng hợp đồng ký trực tiếp; điều khoản được khoá sau khi ký.",
+    "description": "Giải thích ngắn trong khối ký hợp đồng."
+  },
+  "lease.detail.sign.confirm": {
+    "message": "Ký hợp đồng sẽ chốt điều khoản và giữ phòng; không sửa lại được — muốn đổi phải lập phụ lục.",
+    "description": "Câu cảnh báo trong hộp xác nhận trước khi ký hợp đồng."
+  },
+  "lease.detail.sign.confirm_label": {
+    "message": "Ký hợp đồng {number}",
+    "description": "Nhãn nút xác nhận trong hộp xác nhận ký; number là số hợp đồng."
+  },
+  "lease.detail.sign.submit_label": {
+    "message": "Ký hợp đồng",
+    "description": "Nút ký hợp đồng."
+  },
+  "lease.detail.sign.success": {
+    "message": "Đã ký hợp đồng.",
+    "description": "Thông báo sau khi ký hợp đồng thành công."
+  },
+  "lease.detail.move_in.heading": {
+    "message": "Bàn giao nhận phòng",
+    "description": "Tiêu đề khối bàn giao nhận phòng (hợp đồng đã ký, chưa bàn giao)."
+  },
+  "lease.detail.move_in.date": {
+    "message": "Ngày bàn giao",
+    "description": "Nhãn ô ngày bàn giao nhận phòng."
+  },
+  "lease.detail.move_in.keys": {
+    "message": "Số chìa khoá",
+    "description": "Nhãn ô số chìa khoá bàn giao cho người thuê."
+  },
+  "lease.detail.move_in.submit_label": {
+    "message": "Xác nhận bàn giao",
+    "description": "Nút xác nhận bàn giao nhận phòng."
+  },
+  "lease.detail.move_in.success": {
+    "message": "Đã lưu biên bản bàn giao.",
+    "description": "Thông báo sau khi lưu biên bản bàn giao nhận phòng."
+  },
+  "lease.detail.activate.heading": {
+    "message": "Kích hoạt hợp đồng",
+    "description": "Tiêu đề khối kích hoạt hợp đồng (đã bàn giao)."
+  },
+  "lease.detail.activate.handed_over": {
+    "message": "Đã bàn giao ngày {date}.",
+    "description": "Dòng báo ngày đã bàn giao nhận phòng; date là ngày đã định dạng."
+  },
+  "lease.detail.activate.confirm": {
+    "message": "Hợp đồng chuyển sang đang thuê và bắt đầu tính tiền theo kỳ.",
+    "description": "Câu cảnh báo trong hộp xác nhận kích hoạt hợp đồng."
+  },
+  "lease.detail.activate.confirm_label": {
+    "message": "Kích hoạt hợp đồng {number}",
+    "description": "Nhãn nút xác nhận kích hoạt; number là số hợp đồng."
+  },
+  "lease.detail.activate.submit_label": {
+    "message": "Kích hoạt",
+    "description": "Nút kích hoạt hợp đồng."
+  },
+  "lease.detail.activate.success": {
+    "message": "Hợp đồng đang hiệu lực.",
+    "description": "Thông báo sau khi kích hoạt hợp đồng thành công."
+  },
+  "lease.detail.deposit.heading": {
+    "message": "Nhận cọc (tiền mặt)",
+    "description": "Tiêu đề khối nhận cọc tiền mặt."
+  },
+  "lease.detail.deposit.confirm": {
+    "message": "Ghi nhận tiền cọc vào sổ; muốn sửa phải lập bút toán điều chỉnh có duyệt.",
+    "description": "Câu cảnh báo trong hộp xác nhận nhận cọc."
+  },
+  "lease.detail.deposit.confirm_label": {
+    "message": "Nhận cọc {amount} cho {number}",
+    "description": "Nhãn nút xác nhận nhận cọc; amount là chỗ giữ chỗ do biểu mẫu thay bằng số tiền người dùng nhập (truyền nguyên {amount}), number là số hợp đồng."
+  },
+  "lease.detail.deposit.amount": {
+    "message": "Số tiền cọc (đồng)",
+    "description": "Nhãn ô nhập số tiền cọc, đơn vị đồng."
+  },
+  "lease.detail.deposit.submit_label": {
+    "message": "Nhận cọc",
+    "description": "Nút nhận cọc."
+  },
+  "lease.detail.deposit.success": {
+    "message": "Đã ghi nhận cọc — chờ xác nhận tiền mặt ở trang Thu tiền.",
+    "description": "Thông báo sau khi ghi nhận cọc tiền mặt."
+  },
+  "lease.detail.deposit.need_shift": {
+    "message": "Mở ca tiền mặt ở trang Thu tiền trước khi nhận cọc.",
+    "description": "Nhắc khi chưa có ca tiền mặt đang mở nên chưa nhận cọc được."
+  },
+  "lease.detail.deposit.to_cash": {
+    "message": "Đến trang Thu tiền",
+    "description": "Nút liên kết sang trang Thu tiền để mở ca tiền mặt."
+  },
+  "lease.detail.notice.heading": {
+    "message": "Báo trả phòng",
+    "description": "Tiêu đề khối ghi nhận người thuê báo trả phòng."
+  },
+  "lease.detail.notice.confirm": {
+    "message": "Ghi nhận người thuê báo trả phòng; hợp đồng chuyển sang chờ trả, không rút lại được trên hệ thống.",
+    "description": "Câu cảnh báo trong hộp xác nhận báo trả phòng."
+  },
+  "lease.detail.notice.confirm_label": {
+    "message": "Ghi nhận báo trả phòng {unit} ({number}) ngày {planned_move_out_on}",
+    "description": "Nhãn nút xác nhận báo trả; planned_move_out_on là chỗ giữ chỗ do biểu mẫu thay bằng ngày người dùng chọn (truyền nguyên {planned_move_out_on})."
+  },
+  "lease.detail.notice.date": {
+    "message": "Ngày dự kiến trả",
+    "description": "Nhãn ô ngày dự kiến trả phòng."
+  },
+  "lease.detail.notice.submit_label": {
+    "message": "Ghi nhận báo trả",
+    "description": "Nút ghi nhận báo trả phòng."
+  },
+  "lease.detail.notice.success": {
+    "message": "Đã ghi nhận báo trả.",
+    "description": "Thông báo sau khi ghi nhận báo trả phòng."
+  },
+  "lease.detail.move_out.heading": {
+    "message": "Bàn giao trả phòng",
+    "description": "Tiêu đề khối bàn giao trả phòng."
+  },
+  "lease.detail.move_out.confirm": {
+    "message": "Bàn giao trả phòng chốt ngày trả và chỉ số cuối; hợp đồng chuyển sang quyết toán, không quay lại đang thuê.",
+    "description": "Câu cảnh báo trong hộp xác nhận bàn giao trả phòng."
+  },
+  "lease.detail.move_out.confirm_label": {
+    "message": "Chốt trả phòng {unit} ({number}) ngày {handed_over_on}",
+    "description": "Nhãn nút xác nhận trả phòng; handed_over_on là chỗ giữ chỗ do biểu mẫu thay bằng ngày người dùng chọn (truyền nguyên {handed_over_on})."
+  },
+  "lease.detail.move_out.date": {
+    "message": "Ngày trả phòng",
+    "description": "Nhãn ô ngày trả phòng."
+  },
+  "lease.detail.move_out.keys": {
+    "message": "Số chìa khoá nhận lại",
+    "description": "Nhãn ô số chìa khoá nhận lại khi trả phòng."
+  },
+  "lease.detail.move_out.submit_label": {
+    "message": "Xác nhận trả phòng",
+    "description": "Nút xác nhận bàn giao trả phòng."
+  },
+  "lease.detail.move_out.success": {
+    "message": "Đã lưu biên bản trả phòng — chuyển sang thanh lý.",
+    "description": "Thông báo sau khi lưu biên bản trả phòng."
+  },
+  "lease.detail.settle.heading": {
+    "message": "Thanh lý",
+    "description": "Tiêu đề khối thanh lý hợp đồng."
+  },
+  "lease.detail.settle.intro": {
+    "message": "Lập bảng quyết toán: cọc đối trừ công nợ, phần còn lại hoàn cho khách. Người khác (theo hạn mức) duyệt rồi mới ghi sổ.",
+    "description": "Giải thích ngắn trong khối thanh lý."
+  },
+  "lease.detail.settle.confirm": {
+    "message": "Lập quyết toán từ chỉ số và công nợ hiện tại của hợp đồng.",
+    "description": "Câu cảnh báo trong hộp xác nhận lập quyết toán."
+  },
+  "lease.detail.settle.confirm_label": {
+    "message": "Lập quyết toán {number}",
+    "description": "Nhãn nút xác nhận lập quyết toán; number là số hợp đồng."
+  },
+  "lease.detail.settle.submit_label": {
+    "message": "Lập quyết toán",
+    "description": "Nút lập quyết toán."
+  },
+  "lease.detail.settle.success": {
+    "message": "Đã lập quyết toán — chờ duyệt.",
+    "description": "Thông báo sau khi lập quyết toán."
+  },
+  "common.route_title.thu_tien": {
+    "message": "Thu tiền",
+    "description": "Tên màn Thu tiền (/thu-tien) dùng cho tiêu đề trang đang tải và trang lỗi."
+  },
+  "common.route_title.doi_soat": {
+    "message": "Đối soát ngân hàng",
+    "description": "Tên màn Đối soát ngân hàng (/doi-soat) dùng cho tiêu đề trang đang tải và trang lỗi."
+  },
+  "common.route_title.ky_thu": {
+    "message": "Kỳ thu",
+    "description": "Tên màn Kỳ thu (/ky-thu) dùng cho tiêu đề trang đang tải và trang lỗi."
+  },
+  "common.route_title.hop_dong": {
+    "message": "Hợp đồng",
+    "description": "Tên màn Hợp đồng (/hop-dong) dùng cho tiêu đề trang đang tải và trang lỗi."
+  },
+  "route_title.portal_contract": {
+    "message": "Hợp đồng",
+    "description": "Tên màn Hợp đồng của người thuê (/portal/hop-dong) dùng cho tiêu đề trang đang tải."
+  },
+  "billing.preview.metadata.title": {
+    "message": "Kỳ thu — xem trước — Hotel Manager",
+    "description": "Tiêu đề tab trình duyệt của trang xem trước kỳ thu (/ky-thu/[id])."
+  },
+  "billing.preview.page.title": {
+    "message": "Kỳ thu",
+    "description": "Tiêu đề trang (h1) xem trước kỳ thu."
+  },
+  "billing.preview.forbidden.title": {
+    "message": "Không có quyền",
+    "description": "Tiêu đề khối lỗi khi vai trò không được lập/xem trước kỳ thu."
+  },
+  "billing.preview.forbidden.text": {
+    "message": "Vai trò của bạn không lập/xem trước kỳ thu.",
+    "description": "Nội dung khối lỗi khi vai trò không được lập/xem trước kỳ thu."
+  },
+  "billing.preview.heading": {
+    "message": "Kỳ {month}",
+    "description": "Tiêu đề khối thông tin kỳ thu; month là tháng đã định dạng (mm/yyyy)."
+  },
+  "billing.preview.fact.status": {
+    "message": "Trạng thái",
+    "description": "Nhãn trong khối thông tin kỳ thu: trạng thái kỳ."
+  },
+  "billing.preview.fact.total": {
+    "message": "Tổng kỳ",
+    "description": "Nhãn trong khối thông tin kỳ thu: tổng số tiền của kỳ."
+  },
+  "billing.preview.enter_readings": {
+    "message": "Nhập chỉ số theo tầng",
+    "description": "Nút liên kết sang trang nhập chỉ số công tơ theo tầng (chỉ khi kỳ còn nháp)."
+  },
+  "billing.preview.missing": {
+    "message": "Còn phòng thiếu chỉ số: {rooms}.",
+    "description": "Cảnh báo kỳ thu còn phòng chưa có chỉ số; rooms là danh sách phòng kèm loại công tơ còn thiếu."
+  },
+  "billing.preview.rooms.heading": {
+    "message": "Xem trước từng phòng",
+    "description": "Tiêu đề khối bảng xem trước tiền của từng phòng."
+  },
+  "billing.preview.rooms.empty": {
+    "message": "Không có hợp đồng tính tiền trong kỳ",
+    "description": "Trạng thái rỗng khi kỳ thu không có hợp đồng nào được tính tiền."
+  },
+  "billing.preview.col.item": {
+    "message": "Khoản",
+    "description": "Tiêu đề cột bảng xem trước: tên khoản thu."
+  },
+  "billing.preview.col.quantity": {
+    "message": "Lượng",
+    "description": "Tiêu đề cột bảng xem trước: số lượng (kWh, m3, tháng…)."
+  },
+  "billing.preview.col.unit_price": {
+    "message": "Đơn giá",
+    "description": "Tiêu đề cột bảng xem trước: đơn giá."
+  },
+  "billing.preview.col.amount": {
+    "message": "Thành tiền",
+    "description": "Tiêu đề cột bảng xem trước: thành tiền của khoản."
+  },
+  "billing.preview.review.heading": {
+    "message": "Gửi duyệt",
+    "description": "Tiêu đề khối gửi duyệt kỳ thu nháp."
+  },
+  "billing.preview.review.submit_label": {
+    "message": "Gửi duyệt",
+    "description": "Nút gửi duyệt kỳ thu."
+  },
+  "billing.preview.review.success": {
+    "message": "Đã gửi duyệt — chờ phát hành.",
+    "description": "Thông báo sau khi gửi duyệt kỳ thu thành công."
+  },
+  "billing.preview.issue.heading": {
+    "message": "Phát hành",
+    "description": "Tiêu đề khối phát hành kỳ thu."
+  },
+  "billing.preview.issue.intro": {
+    "message": "Phát hành tạo phiếu thu cho từng phòng đúng như bản xem trước ở trên; sau đó không sửa được chỉ số kỳ này.",
+    "description": "Giải thích ngắn trong khối phát hành kỳ thu."
+  },
+  "billing.preview.issue.confirm": {
+    "message": "Phát hành kỳ thu: phiếu gửi tới người thuê và ghi công nợ; muốn sửa phải điều chỉnh có duyệt.",
+    "description": "Câu cảnh báo trong hộp xác nhận phát hành kỳ thu."
+  },
+  "billing.preview.issue.confirm_label": {
+    "message": "Phát hành kỳ {month}",
+    "description": "Nhãn nút xác nhận phát hành; month là tháng đã định dạng (mm/yyyy)."
+  },
+  "billing.preview.issue.submit_label": {
+    "message": "Phát hành kỳ",
+    "description": "Nút phát hành kỳ thu."
+  },
+  "billing.preview.issue.success": {
+    "message": "Đã phát hành phiếu thu.",
+    "description": "Thông báo sau khi phát hành kỳ thu thành công."
+  },
+  "billing.preview.return.reason": {
+    "message": "Lý do trả về nháp",
+    "description": "Nhãn ô nhập lý do khi trả kỳ thu về nháp."
+  },
+  "billing.preview.return.submit_label": {
+    "message": "Trả về nháp",
+    "description": "Nút trả kỳ thu về nháp."
+  },
+  "billing.preview.return.success": {
+    "message": "Đã trả về nháp.",
+    "description": "Thông báo sau khi trả kỳ thu về nháp."
+  },
+  "billing.list.metadata.title": {
+    "message": "Kỳ thu — Hotel Manager",
+    "description": "Tiêu đề tab trình duyệt của danh sách kỳ thu (/ky-thu)."
+  },
+  "billing.list.create.heading": {
+    "message": "Tạo kỳ — {name}",
+    "description": "Tiêu đề khối tạo kỳ thu của một cơ sở; name là tên cơ sở."
+  },
+  "billing.list.create.month": {
+    "message": "Tháng (YYYY-MM)",
+    "description": "Nhãn ô nhập tháng của kỳ thu; YYYY-MM là định dạng năm-tháng cố định."
+  },
+  "billing.list.create.submit_label": {
+    "message": "Tạo kỳ",
+    "description": "Nút tạo kỳ thu."
+  },
+  "billing.list.create.success": {
+    "message": "Đã có kỳ thu cho tháng này.",
+    "description": "Thông báo sau khi tạo (hoặc đã có sẵn) kỳ thu của tháng."
+  },
+  "billing.list.heading": {
+    "message": "Các kỳ",
+    "description": "Tiêu đề khối danh sách các kỳ thu."
+  },
+  "billing.list.empty.title": {
+    "message": "Chưa có kỳ thu",
+    "description": "Trạng thái rỗng khi chưa có kỳ thu nào: tiêu đề."
+  },
+  "billing.list.empty.text": {
+    "message": "Kỳ được tạo tự động đầu tháng, hoặc tạo ở trên.",
+    "description": "Trạng thái rỗng khi chưa có kỳ thu nào: giải thích."
+  },
+  "billing.readings.metadata.title": {
+    "message": "Chốt chỉ số — Hotel Manager",
+    "description": "Tiêu đề tab trình duyệt của trang chốt chỉ số theo tầng (/chi-so/[id])."
+  },
+  "billing.readings.page.title": {
+    "message": "Chốt chỉ số theo tầng",
+    "description": "Tiêu đề trang (h1) chốt chỉ số theo tầng."
+  },
+  "billing.readings.forbidden.title": {
+    "message": "Không có quyền",
+    "description": "Tiêu đề khối lỗi khi vai trò không được nhập chỉ số."
+  },
+  "billing.readings.forbidden.text": {
+    "message": "Vai trò của bạn không nhập chỉ số.",
+    "description": "Nội dung khối lỗi khi vai trò không được nhập chỉ số."
+  },
+  "billing.readings.empty.title": {
+    "message": "Chưa có công tơ nào",
+    "description": "Trạng thái rỗng khi kỳ thu chưa có công tơ nào: tiêu đề."
+  },
+  "billing.readings.empty.text": {
+    "message": "Lắp công tơ cho phòng trước khi chốt chỉ số.",
+    "description": "Trạng thái rỗng khi kỳ thu chưa có công tơ nào: giải thích."
+  },
+  "billing.readings.back": {
+    "message": "Quay lại kỳ thu",
+    "description": "Nút liên kết quay về trang xem trước kỳ thu."
+  },
+  "billing.readings.room": {
+    "message": "Phòng {unit}",
+    "description": "Tiêu đề nhóm công tơ của một phòng; unit là mã phòng."
+  },
+  "billing.readings.field.label": {
+    "message": "{meter} phòng {unit}",
+    "description": "Nhãn ô nhập chỉ số; meter là loại công tơ (Điện/Nước) hoặc mã thô nếu lạ."
+  },
+  "billing.readings.field.hint": {
+    "message": "Lần trước: {previous}",
+    "description": "Gợi ý dưới ô nhập chỉ số: chỉ số lần trước."
+  },
+  "billing.readings.field.hint_entered": {
+    "message": "Lần trước: {previous} · đã nhập {value}",
+    "description": "Gợi ý dưới ô nhập chỉ số khi đã có số nhập cho kỳ này: chỉ số lần trước và số đã nhập."
+  },
+  "billing.readings.field.submit_label": {
+    "message": "Lưu {meter}",
+    "description": "Nút lưu chỉ số của một công tơ; meter là loại công tơ viết thường (điện/nước) hoặc mã thô nếu lạ."
+  },
+  "billing.readings.field.success": {
+    "message": "Đã lưu chỉ số.",
+    "description": "Thông báo sau khi lưu chỉ số công tơ."
+  },
+  "lease.list.metadata.title": {
+    "message": "Hợp đồng — Hotel Manager",
+    "description": "Tiêu đề tab trình duyệt của danh sách hợp đồng (/hop-dong)."
+  },
+  "lease.list.empty.title": {
+    "message": "Chưa có hợp đồng",
+    "description": "Trạng thái rỗng khi chưa có hợp đồng nào: tiêu đề."
+  },
+  "lease.list.empty.text": {
+    "message": "Hợp đồng nhập từ sổ cũ hoặc lập mới sẽ hiện ở đây.",
+    "description": "Trạng thái rỗng khi chưa có hợp đồng nào: giải thích."
+  },
+  "portal.lease.metadata.title": {
+    "message": "Hợp đồng — Hotel Manager",
+    "description": "Tiêu đề tab trình duyệt của trang hợp đồng trong cổng người thuê (/portal/hop-dong)."
+  },
+  "portal.lease.empty": {
+    "message": "Bạn chưa có hợp đồng nào",
+    "description": "Trạng thái rỗng trong cổng người thuê khi chưa có hợp đồng."
+  },
+  "portal.lease.fact.status": {
+    "message": "Trạng thái",
+    "description": "Nhãn trong thẻ hợp đồng của người thuê: trạng thái hợp đồng."
+  },
+  "portal.lease.fact.terms": {
+    "message": "Điều khoản",
+    "description": "Nhãn trong thẻ hợp đồng của người thuê: phiên bản điều khoản đang hiệu lực."
+  },
+  "portal.lease.fact.rent": {
+    "message": "Giá thuê",
+    "description": "Nhãn trong thẻ hợp đồng của người thuê: giá thuê tháng."
+  },
+  "portal.lease.deposit.received": {
+    "message": "(đã nhận",
+    "description": "Đoạn chữ mở ngoặc đứng ngay sau số tiền cọc: hiển thị dạng `cọc (đã nhận số-tiền)`; số tiền và dấu đóng ngoặc nằm ngoài catalog."
+  },
+  "payment.collect.metadata.title": {
+    "message": "Thu tiền — Hotel Manager",
+    "description": "Tiêu đề tab trình duyệt của trang Thu tiền (/thu-tien)."
+  },
+  "payment.collect.pending.heading": {
+    "message": "Chờ xác nhận",
+    "description": "Tiêu đề khối các khoản thu đang chờ xác nhận."
+  },
+  "payment.collect.pending.empty": {
+    "message": "Không có khoản chờ xác nhận",
+    "description": "Trạng thái rỗng khi không có khoản thu chờ xác nhận."
+  },
+  "payment.collect.pending.title_deposit": {
+    "message": "Cọc {amount} — {payer}",
+    "description": "Tiêu đề thẻ khoản chờ xác nhận khi là tiền cọc; amount là số tiền đã định dạng, payer là người nộp."
+  },
+  "payment.collect.pending.title_cash": {
+    "message": "Thu {amount} — {payer}",
+    "description": "Tiêu đề thẻ khoản chờ xác nhận khi là khoản thu thường; amount là số tiền đã định dạng, payer là người nộp."
+  },
+  "payment.collect.pending.meta": {
+    "message": "{method} · {property}",
+    "description": "Dòng phụ thẻ khoản chờ xác nhận: hình thức thanh toán và cơ sở."
+  },
+  "payment.collect.pending.confirm": {
+    "message": "Xác nhận khoản thu vào sổ; không xoá được, chỉ đảo bằng bút toán có duyệt.",
+    "description": "Câu cảnh báo trong hộp xác nhận khoản thu."
+  },
+  "payment.collect.pending.confirm_label_deposit": {
+    "message": "Xác nhận cọc {amount} từ {payer}",
+    "description": "Nhãn nút xác nhận khi khoản chờ là tiền cọc; amount là số tiền đã định dạng."
+  },
+  "payment.collect.pending.confirm_label_cash": {
+    "message": "Xác nhận thu {amount} từ {payer}",
+    "description": "Nhãn nút xác nhận khi khoản chờ là khoản thu thường; amount là số tiền đã định dạng."
+  },
+  "payment.collect.pending.submit_label": {
+    "message": "Xác nhận đã nhận tiền",
+    "description": "Nút xác nhận đã nhận tiền của khoản chờ."
+  },
+  "payment.collect.pending.success": {
+    "message": "Đã xác nhận và ghi sổ.",
+    "description": "Thông báo sau khi xác nhận khoản thu."
+  },
+  "payment.collect.open.heading": {
+    "message": "Phiếu còn phải thu",
+    "description": "Tiêu đề khối các phiếu còn công nợ."
+  },
+  "payment.collect.open.empty": {
+    "message": "Không còn phiếu nào phải thu",
+    "description": "Trạng thái rỗng khi không còn phiếu nào phải thu."
+  },
+  "payment.collect.open.title_unit": {
+    "message": "{number} — Phòng {unit} · {payer}",
+    "description": "Tiêu đề thẻ phiếu còn phải thu khi phiếu gắn với một phòng: số phiếu, mã phòng, người nộp."
+  },
+  "payment.collect.open.title": {
+    "message": "{number} — {payer}",
+    "description": "Tiêu đề thẻ phiếu còn phải thu khi phiếu không gắn phòng: số phiếu, người nộp."
+  },
+  "payment.collect.open.confirm": {
+    "message": "Ghi nhận tiền mặt vào ca đang mở; không xoá được, chỉ đảo bằng bút toán có duyệt.",
+    "description": "Câu cảnh báo trong hộp xác nhận thu tiền mặt."
+  },
+  "payment.collect.open.confirm_label": {
+    "message": "Thu {amount} cho {number}",
+    "description": "Nhãn nút xác nhận thu tiền mặt; amount là chỗ giữ chỗ do biểu mẫu thay bằng số tiền người dùng nhập (truyền nguyên {amount}), number là số phiếu."
+  },
+  "payment.collect.open.amount": {
+    "message": "Số tiền mặt thu cho {number}",
+    "description": "Nhãn ô nhập số tiền mặt thu; number là số phiếu."
+  },
+  "payment.collect.open.submit_label": {
+    "message": "Thu tiền mặt",
+    "description": "Nút thu tiền mặt cho phiếu."
+  },
+  "payment.collect.open.success": {
+    "message": "Đã thu và phân bổ vào phiếu.",
+    "description": "Thông báo sau khi thu tiền mặt thành công."
+  },
+  "payment.collect.open.need_shift": {
+    "message": "Mở ca để thu tiền mặt.",
+    "description": "Nhắc khi cơ sở chưa có ca tiền mặt đang mở nên chưa thu được."
+  },
+  "reconciliation.breaks.metadata.title": {
+    "message": "Đối soát — Hotel Manager",
+    "description": "Tiêu đề tab trình duyệt của trang Đối soát ngân hàng (/doi-soat)."
+  },
+  "reconciliation.breaks.reason.wrong_reference": {
+    "message": "Sai nội dung chuyển khoản",
+    "description": "Lý do chênh lệch đối soát: nội dung chuyển khoản sai."
+  },
+  "reconciliation.breaks.reason.combined": {
+    "message": "Gộp nhiều phiếu",
+    "description": "Lý do chênh lệch đối soát: một khoản chuyển cho nhiều phiếu."
+  },
+  "reconciliation.breaks.reason.overpaid": {
+    "message": "Chuyển thừa",
+    "description": "Lý do chênh lệch đối soát: người thuê chuyển thừa tiền."
+  },
+  "reconciliation.breaks.reason.third_party_payer": {
+    "message": "Người khác trả hộ",
+    "description": "Lý do chênh lệch đối soát: người chuyển khoản không phải người thuê."
+  },
+  "reconciliation.breaks.reason.unmatched": {
+    "message": "Không khớp phiếu nào",
+    "description": "Lý do chênh lệch đối soát: không khớp phiếu nào."
+  },
+  "reconciliation.breaks.reason.hash_mismatch": {
+    "message": "Dữ liệu ngân hàng không khớp",
+    "description": "Lý do chênh lệch đối soát: dữ liệu ngân hàng bị sai lệch (băm không khớp)."
+  },
+  "reconciliation.breaks.empty.title": {
+    "message": "Không có giao dịch chờ đối soát",
+    "description": "Trạng thái rỗng khi không có chênh lệch đối soát: tiêu đề."
+  },
+  "reconciliation.breaks.empty.text": {
+    "message": "Giao dịch ngân hàng khớp đúng một phiếu được ghi tự động.",
+    "description": "Trạng thái rỗng khi không có chênh lệch đối soát: giải thích."
+  },
+  "reconciliation.breaks.confirm": {
+    "message": "Đóng chênh lệch đối soát với cách xử lý đã ghi; không mở lại được.",
+    "description": "Câu cảnh báo trong hộp xác nhận đóng chênh lệch đối soát."
+  },
+  "reconciliation.breaks.confirm_label": {
+    "message": "Đóng chênh lệch: {reason}",
+    "description": "Nhãn nút xác nhận đóng chênh lệch khi giao dịch không có số tiền; reason là lý do chênh lệch."
+  },
+  "reconciliation.breaks.confirm_label_amount": {
+    "message": "Đóng chênh lệch: {reason} {amount}",
+    "description": "Nhãn nút xác nhận đóng chênh lệch khi giao dịch có số tiền; amount là số tiền đã định dạng."
+  },
+  "reconciliation.breaks.resolution": {
+    "message": "Cách xử lý (ghi rõ)",
+    "description": "Nhãn ô nhập cách xử lý khi đóng chênh lệch đối soát."
+  },
+  "reconciliation.breaks.submit_label": {
+    "message": "Đánh dấu đã xử lý",
+    "description": "Nút đánh dấu chênh lệch đối soát đã xử lý."
+  },
+  "reconciliation.breaks.success": {
+    "message": "Đã xử lý.",
+    "description": "Thông báo sau khi đóng chênh lệch đối soát."
+  },
+  "api.command_not_found.title": {
+    "message": "Không có command này",
+    "description": "`title` của problem+json (RFC 9457) mà API /api/v1/<module>/<command> trả cho client khi không có command hoặc query tương ứng (404 NOT_FOUND)."
+  },
+  "nav.primary.today": {
+    "message": "Hôm nay",
+    "description": "Mục điều hướng dưới: màn Hôm nay."
+  },
+  "nav.primary.rooms": {
+    "message": "Phòng/Lịch",
+    "description": "Mục điều hướng dưới: danh sách phòng hoặc lịch phòng."
+  },
+  "nav.primary.money": {
+    "message": "Thu tiền",
+    "description": "Mục điều hướng dưới: màn Thu tiền."
+  },
+  "nav.primary.work": {
+    "message": "Công việc",
+    "description": "Mục điều hướng dưới: công việc buồng phòng hoặc sự cố."
+  },
+  "nav.primary.more": {
+    "message": "Thêm",
+    "description": "Mục điều hướng dưới: màn Thêm chứa các màn còn lại."
+  },
+  "nav.more.calendar": {
+    "message": "Lịch phòng",
+    "description": "Liên kết trong màn Thêm: lịch phòng khách sạn."
+  },
+  "nav.more.rooms": {
+    "message": "Danh sách phòng",
+    "description": "Liên kết trong màn Thêm: danh sách phòng."
+  },
+  "nav.more.bookings": {
+    "message": "Đặt phòng",
+    "description": "Liên kết trong màn Thêm: danh sách đặt phòng."
+  },
+  "nav.more.housekeeping": {
+    "message": "Buồng phòng",
+    "description": "Liên kết trong màn Thêm: công việc buồng phòng."
+  },
+  "nav.more.incidents": {
+    "message": "Sự cố",
+    "description": "Liên kết trong màn Thêm: sự cố/bảo trì."
+  },
+  "nav.more.notices": {
+    "message": "Thông báo lưu trú",
+    "description": "Liên kết trong màn Thêm: thông báo lưu trú với cơ quan chức năng."
+  },
+  "nav.more.leases": {
+    "message": "Hợp đồng",
+    "description": "Liên kết trong màn Thêm: hợp đồng thuê."
+  },
+  "nav.more.periods": {
+    "message": "Kỳ thu",
+    "description": "Liên kết trong màn Thêm: kỳ thu tiền thuê."
+  },
+  "nav.more.reconciliation": {
+    "message": "Đối soát",
+    "description": "Liên kết trong màn Thêm: đối soát ngân hàng."
+  },
+  "nav.more.notifications": {
+    "message": "Thông báo",
+    "description": "Liên kết trong màn Thêm: hộp thông báo."
+  },
+  "nav.more.properties": {
+    "message": "Cơ sở",
+    "description": "Liên kết trong màn Thêm: quản lý cơ sở."
+  },
+  "nav.more.members": {
+    "message": "Thành viên",
+    "description": "Liên kết trong màn Thêm: quản lý thành viên."
+  },
+  "nav.no_property": {
+    "message": "Chưa có cơ sở được giao",
+    "description": "Thanh phạm vi cơ sở khi người dùng chưa được giao cơ sở nào."
+  },
+  "nav.scope.label": {
+    "message": "Cơ sở:",
+    "description": "Nhãn đứng trước tên cơ sở đang thao tác ở thanh trên (dấu cách sau dấu hai chấm do mã thêm)."
+  },
+  "nav.bell.unread": {
+    "message": "{count} thông báo chưa đọc",
+    "description": "Nhãn đọc cho trình đọc màn hình của chuông thông báo khi có thông báo chưa đọc."
+  },
+  "nav.bell.none": {
+    "message": "Thông báo",
+    "description": "Nhãn đọc cho trình đọc màn hình của chuông thông báo khi không có thông báo chưa đọc."
+  },
+  "nav.label": {
+    "message": "Chức năng",
+    "description": "Nhãn đọc cho trình đọc màn hình của thanh điều hướng chính."
   }
 }

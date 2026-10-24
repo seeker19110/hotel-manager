@@ -1,19 +1,20 @@
 import { listLeases, serverContext } from "@hm/app";
 import type { Metadata } from "next";
 import { EmptyState } from "../../components/ui/state.tsx";
-import { day, LEASE_STATUS, vnd } from "../../lib/format.ts";
-import { t } from "../../lib/i18n.ts";
+import { day, leaseStatusLabel, vnd } from "../../lib/format.ts";
+import { messagesFor, t } from "../../lib/i18n.ts";
 import { withActor } from "../../lib/page.tsx";
 
-export const metadata: Metadata = { title: "Hợp đồng — Hotel Manager" };
+/** Nhãn mã (lib/format.ts, D-103). */
+const LABELS = messagesFor("label.lease_status.");
+
+export const metadata: Metadata = { title: t("lease.list.metadata.title") };
 
 export default async function LeasesPage() {
-  return withActor("Hợp đồng", "/hop-dong", async (actor) => {
+  return withActor(t("common.route_title.hop_dong"), "/hop-dong", async (actor) => {
     const leases = await listLeases(serverContext().db, actor);
     if (leases.length === 0)
-      return (
-        <EmptyState title="Chưa có hợp đồng" text="Hợp đồng nhập từ sổ cũ hoặc lập mới sẽ hiện ở đây." />
-      );
+      return <EmptyState title={t("lease.list.empty.title")} text={t("lease.list.empty.text")} />;
     return (
       <ul className="card-list">
         {leases.map((l) => (
@@ -29,7 +30,7 @@ export default async function LeasesPage() {
                 })}
               </span>
               <span className="badge" data-status={l.status}>
-                {LEASE_STATUS[l.status] ?? l.status}
+                {leaseStatusLabel(LABELS, l.status)}
               </span>
             </a>
           </li>

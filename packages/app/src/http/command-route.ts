@@ -15,6 +15,7 @@ import {
   resolveActor,
   type UserCommandRequest,
 } from "../access/index.ts";
+import { t } from "../i18n.ts";
 import {
   type ActorRef,
   emitSecurity,
@@ -131,7 +132,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const CORRELATION = /^[A-Za-z0-9._-]{8,64}$/;
 const NO_STORE = { "cache-control": "no-store" };
 /** Tiêu đề 401 chung (command, query, /api/v1/me — AUD-XFEAT-004). */
-export const UNAUTHENTICATED_TITLE = "Cần đăng nhập";
+export const UNAUTHENTICATED_TITLE = t("http.unauthenticated");
 
 export function json(body: unknown, status: number, correlationId: string, problem = false): Response {
   return new Response(JSON.stringify(body), {
@@ -182,7 +183,7 @@ export function simpleProblem(
  */
 export function outdatedClientProblem(req: Request, deps: HttpDeps, correlationId: string): Response | null {
   return isClientOutdated(req.headers.get(CLIENT_VERSION_HEADER), deps.minClientVersion)
-    ? simpleProblem("CLIENT_OUTDATED", 426, "Ứng dụng cần cập nhật để tiếp tục.", correlationId)
+    ? simpleProblem("CLIENT_OUTDATED", 426, t("http.client_outdated"), correlationId)
     : null;
 }
 
@@ -255,12 +256,7 @@ async function noSession(
   const revoked = deps.isSessionRevoked ? await deps.isSessionRevoked(req.headers) : false;
   const code = revoked ? "SESSION_REVOKED" : "UNAUTHENTICATED";
   denied(req, correlationId, { status: 401, code }, null, endpoint);
-  return simpleProblem(
-    code,
-    401,
-    revoked ? "Phiên này đã bị đăng xuất. Vui lòng đăng nhập lại." : UNAUTHENTICATED_TITLE,
-    correlationId,
-  );
+  return simpleProblem(code, 401, revoked ? t("http.session_revoked") : UNAUTHENTICATED_TITLE, correlationId);
 }
 
 /** Actor của request hoặc Response lỗi (401/409/404/403) đã sẵn để trả. */
@@ -280,15 +276,10 @@ export async function actorFromRequest(
   // tab khác ⇒ 409, không ghi gì — UI tải lại. (`X-Org-Id` vẫn là cách API client CHỌN tổ chức, ưu tiên hơn cookie.)
   const shown = req.headers.get(ORG_CONTEXT_HEADER)?.trim();
   if (shown && orgId && shown !== orgId)
-    return simpleProblem(
-      "CONTEXT_CHANGED",
-      409,
-      "Bạn vừa chuyển sang cơ sở khác. Tải lại để tiếp tục.",
-      correlationId,
-    );
+    return simpleProblem("CONTEXT_CHANGED", 409, t("http.context_changed"), correlationId);
   if (!orgId) {
     const organizations = await listMyOrganizations(deps.db, session.user.id);
-    return simpleProblem("ORG_CONTEXT_REQUIRED", 409, "Hãy chọn tổ chức bạn đang làm việc.", correlationId, {
+    return simpleProblem("ORG_CONTEXT_REQUIRED", 409, t("http.org_context_required"), correlationId, {
       organizations: organizations.map((o) => ({
         id: o.organizationId,
         name: o.organizationName,
@@ -322,7 +313,7 @@ export async function actorFromRequest(
 }
 
 export function validationProblem(error: z.ZodError, correlationId: string): Response {
-  return simpleProblem("VALIDATION_FAILED", 422, "Dữ liệu không hợp lệ", correlationId, {
+  return simpleProblem("VALIDATION_FAILED", 422, t("http.validation_failed"), correlationId, {
     errors: error.issues.map((i) => {
       const path = i.path.join(".");
       return { path, field: path, code: i.code };
@@ -366,7 +357,7 @@ async function runCommand<I, O, P>(
     if (actor instanceof Response) return actor;
     const key = req.headers.get("idempotency-key") ?? "";
     if (!UUID.test(key)) {
-      return simpleProblem("MALFORMED_REQUEST", 400, "Thiếu hoặc sai Idempotency-Key (UUID)", correlationId);
+      return simpleProblem("MALFORMED_REQUEST", 400, t("http.idempotency_key_invalid"), correlationId);
     }
     let body: unknown;
     try {
@@ -380,7 +371,7 @@ async function runCommand<I, O, P>(
         { type: "command", id: def.command },
         "MALFORMED_REQUEST",
       );
-      return simpleProblem("MALFORMED_REQUEST", 400, "Thân yêu cầu không phải JSON hợp lệ", correlationId);
+      return simpleProblem("MALFORMED_REQUEST", 400, t("http.body_not_json"), correlationId);
     }
     const parsed = def.input.safeParse(body);
     if (!parsed.success) {
@@ -460,7 +451,7 @@ async function runUserCommand<I, O>(
     const actorRef: ActorRef = { authUserId: userId };
     const key = req.headers.get("idempotency-key") ?? "";
     if (!UUID.test(key)) {
-      return simpleProblem("MALFORMED_REQUEST", 400, "Thiếu hoặc sai Idempotency-Key (UUID)", correlationId);
+      return simpleProblem("MALFORMED_REQUEST", 400, t("http.idempotency_key_invalid"), correlationId);
     }
     let body: unknown;
     try {
@@ -474,7 +465,7 @@ async function runUserCommand<I, O>(
         { type: "command", id: def.command },
         "MALFORMED_REQUEST",
       );
-      return simpleProblem("MALFORMED_REQUEST", 400, "Thân yêu cầu không phải JSON hợp lệ", correlationId);
+      return simpleProblem("MALFORMED_REQUEST", 400, t("http.body_not_json"), correlationId);
     }
     const parsed = def.input.safeParse(body);
     if (!parsed.success) {

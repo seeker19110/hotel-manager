@@ -7,6 +7,7 @@ import { AuthzError, authorize } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/index.ts";
 import { last4, maskDocNumber, normalizeDocNumber, type PiiCipher } from "../crypto/index.ts";
+import { t } from "../i18n.ts";
 import { type CommandContext, CommandError } from "../pipeline/index.ts";
 
 export const DOC_TYPES = ["cccd", "passport", "other"] as const;
@@ -40,7 +41,7 @@ function authorizeRead(actor: Actor, propertyId: string | null): void {
   try {
     authorize(actor, "identity.read", propertyId ? { propertyId } : {});
   } catch (e) {
-    if (e instanceof AuthzError) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy dữ liệu");
+    if (e instanceof AuthzError) throw new CommandError("NOT_FOUND", 404, t("common.not_found_data"));
     throw e;
   }
 }
@@ -58,13 +59,13 @@ export async function recordIdentityDocument(
   authorizeRead(ctx.actor, input.propertyId);
   const normalized = normalizeDocNumber(input.docNumber);
   if (!normalized) {
-    throw new CommandError("VALIDATION_FAILED", 422, "Số giấy tờ không hợp lệ", {
+    throw new CommandError("VALIDATION_FAILED", 422, t("identity.document_number_invalid"), {
       extensions: { errors: [{ path, field: path, code: "invalid_doc_number" }] },
     });
   }
   const nationality = input.nationality ? input.nationality.toUpperCase() : null;
   if (nationality !== null && !/^[A-Z]{2}$/.test(nationality)) {
-    throw new CommandError("VALIDATION_FAILED", 422, "Quốc tịch phải là mã ISO 2 chữ cái", {
+    throw new CommandError("VALIDATION_FAILED", 422, t("stay.stays.nationality_iso2"), {
       extensions: { errors: [{ path: "nationality", field: "nationality", code: "invalid_country" }] },
     });
   }
@@ -128,7 +129,7 @@ export async function getIdentityDocument(
       from identity_documents where organization_id = ${actor.orgId} and id = ${id}`.execute(trx);
     return r.rows[0];
   });
-  if (!row) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy dữ liệu");
+  if (!row) throw new CommandError("NOT_FOUND", 404, t("common.not_found_data"));
   authorizeRead(actor, row.property_id);
   return view(row);
 }

@@ -4,10 +4,23 @@ import { notFound } from "next/navigation";
 import { CommandForm } from "../../../components/command/command-form.tsx";
 import { StatusBadge } from "../../../components/ui/badge.tsx";
 import { ErrorState } from "../../../components/ui/state.tsx";
-import { DEFAULT_TIME_ZONE, dateTime, PRIORITY, TASK_KIND, TASK_STATUS } from "../../../lib/format.ts";
-import { t } from "../../../lib/i18n.ts";
+import {
+  DEFAULT_TIME_ZONE,
+  dateTime,
+  priorityLabel,
+  taskKindLabel,
+  taskStatusLabel,
+} from "../../../lib/format.ts";
+import { messagesFor, t } from "../../../lib/i18n.ts";
 import { withActor } from "../../../lib/page.tsx";
 import { safe } from "../../../lib/safe.ts";
+
+/** Nhãn mã (lib/format.ts, D-103). */
+const LABELS = messagesFor(
+  "label.task_status.",
+  "housekeeping.list.create.kind_",
+  "housekeeping.list.create.priority_",
+);
 
 export const metadata: Metadata = { title: t("housekeeping.task.metadata.title") };
 
@@ -42,7 +55,7 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
           <h2 id="tt">
             {t("housekeeping.task.heading", {
               code: task.unitCode,
-              kind: TASK_KIND[task.kind] ?? task.kind,
+              kind: taskKindLabel(LABELS, task.kind),
             })}
           </h2>
           <dl className="facts">
@@ -50,14 +63,14 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
             <dd>
               <StatusBadge
                 status={task.status}
-                label={TASK_STATUS[task.status] ?? task.status}
+                label={taskStatusLabel(LABELS, task.status)}
                 testId="task-status"
               />
             </dd>
             <dt>{t("housekeeping.task.facts.floor")}</dt>
             <dd>{task.floor}</dd>
             <dt>{t("housekeeping.task.facts.priority")}</dt>
-            <dd>{PRIORITY[task.priority] ?? task.priority}</dd>
+            <dd>{priorityLabel(LABELS, task.priority)}</dd>
             <dt>{t("housekeeping.task.facts.assignee")}</dt>
             <dd>{task.assigneeName ?? t("housekeeping.task.facts.assignee_none")}</dd>
             {task.arrivalToday && task.expectedArrivalAt ? (
@@ -143,7 +156,7 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
               path="housekeeping/cancelTask"
               confirm={t("housekeeping.task.cancel.confirm")}
               confirmLabel={t("housekeeping.task.cancel.label", {
-                kind: (TASK_KIND[task.kind] ?? task.kind).toLowerCase(),
+                kind: taskKindLabel(LABELS, task.kind).toLowerCase(),
                 room: task.unitCode,
               })}
               fixed={{ task_id: id }}

@@ -3,6 +3,7 @@
 // (`setUnitAvailability`, `resizeAllocation`) và job worker (`inventory.detectOverdue`, `lease.detectOverstay`).
 import { randomUUID } from "node:crypto";
 import { sql, type Transaction } from "kysely";
+import { t } from "../i18n.ts";
 import { currentTraceparent } from "../logging/index.ts";
 import type { CommandContext } from "../pipeline/index.ts";
 
@@ -29,7 +30,7 @@ export async function openException(
     select id from exceptions where organization_id = ${a.orgId} and allocation_id = ${a.allocationId}
       and type = ${a.type} and status = 'open'`.execute(trx);
   const existing = cur.rows[0];
-  if (!existing) throw new Error("exceptions: xung đột chèn nhưng không thấy ngoại lệ đang mở");
+  if (!existing) throw new Error(t("inventory.exception_conflict_missing"));
   return { id: existing.id, created: false };
 }
 

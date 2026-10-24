@@ -11,6 +11,10 @@ invoices · Index
 leases · Index
 units · Index
 
+-- select lease_id, id, effective_from::text as "from", effective_until::text as "to", rent_a … #16538148
+lease_versions · Index
+leases · Index
+
 -- select settings->>'rounding' as rounding, settings->>'prorata' as prorata from properties  … #8333eba8
 properties · Index
 

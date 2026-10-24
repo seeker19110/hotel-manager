@@ -15,6 +15,7 @@ import { withTenant } from "@hm/db";
 import { authorize, MS_PER_DAY, VN_UTC_OFFSET_MS } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/index.ts";
+import { t } from "../i18n.ts";
 import { CommandError } from "../pipeline/index.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -23,10 +24,10 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 /** Khoảng tối đa của báo cáo theo khoảng ngày (S-019). */
 export const REPORT_MAX_DAYS = 366;
 
-const notFound = () => new CommandError("NOT_FOUND", 404, "Không tìm thấy");
-const forbidden = () => new CommandError("FORBIDDEN", 403, "Bạn không có quyền xem báo cáo này");
+const notFound = () => new CommandError("NOT_FOUND", 404, t("common.not_found"));
+const forbidden = () => new CommandError("FORBIDDEN", 403, t("reports.forbidden"));
 const badDate = (field: string) =>
-  new CommandError("VALIDATION_FAILED", 422, "Ngày không hợp lệ", {
+  new CommandError("VALIDATION_FAILED", 422, t("reports.date_invalid"), {
     extensions: { errors: [{ path: field, field, code: "invalid_date" }] },
   });
 
@@ -46,11 +47,7 @@ export function reportRange(from: string, to: string): { from: string; to: strin
   const days = (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / MS_PER_DAY + 1;
   if (days < 1) throw badDate("to");
   if (days > REPORT_MAX_DAYS)
-    throw new CommandError(
-      "REPORT_RANGE_TOO_LARGE",
-      422,
-      "Khoảng thời gian quá dài. Hãy chọn ngắn hơn hoặc dùng Xuất dữ liệu.",
-    );
+    throw new CommandError("REPORT_RANGE_TOO_LARGE", 422, t("reports.range_too_long"));
   return { from, to, days };
 }
 
@@ -129,6 +126,8 @@ export async function receivables(
   if (input.asOf !== undefined) validDate(input.asOf, "as_of");
   return withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
     const asOf = input.asOf ?? (await localToday(trx, actor, input.propertyId));
+    // SQL: Số còn nợ THEO SỔ PHỤ tại ngày chốt: gồm phân bổ, đảo phân bổ, điều chỉnh giảm (Có AR gắn phiếu gốc).
+    // SQL: Phiếu điều chỉnh (kind adjustment) không có dòng AR riêng — phần giảm nằm ở phiếu gốc.
     const r = await sql<{
       rows: {
         invoice_id: string;
@@ -158,7 +157,6 @@ export async function receivables(
                          left join journal_entries re on re.organization_id = a.organization_id and re.id = a.reversal_entry_id
                          where a.organization_id = i.organization_id and a.invoice_id = i.id and e.business_date <= ${asOf}::date
                            and (re.id is null or re.business_date > ${asOf}::date)), 0)::bigint as allocated,
-               -- Số còn nợ THEO SỔ PHỤ tại ngày chốt: gồm phân bổ, đảo phân bổ, điều chỉnh giảm (Có AR gắn phiếu gốc).
                ar.balance
         from invoices i
         join pr on pr.id = i.property_id
@@ -169,7 +167,6 @@ export async function receivables(
           where jl.organization_id = i.organization_id and jl.invoice_id = i.id and jl.account = 'AR'
             and je.business_date <= ${asOf}::date
         ) ar on ar.n > 0
-        -- Phiếu điều chỉnh (kind adjustment) không có dòng AR riêng — phần giảm nằm ở phiếu gốc.
         where i.organization_id = ${actor.orgId} and i.business_date <= ${asOf}::date and i.kind <> 'adjustment'
       ), open as (
         select *, (total - allocated - balance)::bigint as adjusted,
@@ -233,7 +230,10 @@ export interface CollectionsReport {
   generatedAt: Date;
 }
 
-const METHOD_LABEL = { cash: "Tiền mặt", bank_transfer: "Chuyển khoản" } as const;
+const METHOD_LABEL = {
+  cash: t("common.payment_method.cash"),
+  bank_transfer: t("common.payment_method.bank_transfer"),
+} as const;
 
 /** `reports.collections` (S-010): tiền đã thu (`confirmed`) theo phương thức, ngày kinh doanh, người xác nhận. */
 export async function collections(
@@ -279,7 +279,7 @@ export async function collections(
     return {
       from,
       to,
-      note: "Tiền đã thu — không phải doanh thu",
+      note: t("reports.collections.note"),
       byMethod: (x?.by_method ?? []).map((m) => ({
         method: m.method,
         label: METHOD_LABEL[m.method],
@@ -402,6 +402,7 @@ export async function occupancy(
   authorizeOccupancy(actor, input.propertyId);
   const { from, to } = reportRange(input.from, input.to);
   return withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
+    // SQL: Phòng chỉ tính từ khi có (tạo) tới khi lưu trữ — ngày quá khứ không đếm phòng tạo sau (review lát 5 🟢8).
     const r = await sql<{
       property_id: string;
       property_name: string;
@@ -422,7 +423,6 @@ export async function occupancy(
                exists (select 1 from allocations a where a.organization_id = un.organization_id and a.unit_id = un.id
                          and a.kind in ('lease','stay') and a.during @> pd.at and (a.active or a.deactivated_at > pd.at)) as occupied
         from pd join units un on un.organization_id = ${actor.orgId} and un.property_id = pd.id
-          -- Phòng chỉ tính từ khi có (tạo) tới khi lưu trữ — ngày quá khứ không đếm phòng tạo sau (review lát 5 🟢8).
           and un.created_at <= pd.at and (un.archived_at is null or un.archived_at > pd.at)
       )
       select pd.id as property_id, pd.name as property_name, pd.d::text as date,
@@ -448,8 +448,7 @@ export async function occupancy(
           rate: x.rate === null ? null : Number(x.rate),
         };
       }),
-      formula:
-        "Công suất = phòng đang ở (hợp đồng/lượt ở hiệu lực lúc 23:59:59 giờ cơ sở) ÷ phòng khả dụng (phòng chưa lưu trữ trừ phòng bị chặn); giữ chỗ không tính là đang ở.",
+      formula: t("reports.occupancy.formula"),
       generatedAt: r.rows[0]?.now ?? new Date(),
     };
   });

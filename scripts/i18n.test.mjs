@@ -9,16 +9,46 @@ import { describe, expect, it } from "vitest";
 import { messagesFor, t, tOr } from "../apps/web/lib/i18n.ts";
 import { format, tm } from "../apps/web/lib/i18n-format.ts";
 import { ROLE_LABEL, STATUS_LABEL } from "../apps/web/lib/roles.ts";
+import { formText } from "../packages/app/src/http/command-inputs.ts";
+import { format as appFormat, t as appT } from "../packages/app/src/i18n.ts";
+import {
+  formatText as domainFormatText,
+  formatVnd,
+  formatVndUnitPrice,
+} from "../packages/domain/src/format/intl.ts";
+import { format as domainFormat, t as domainT } from "../packages/domain/src/i18n.ts";
 import {
   checkCatalogs,
   clientCatalogErrors,
   loadCatalogs,
   messageArgs,
+  resolveImport,
   roleKeyErrors,
   sourceErrors,
+  subcatalogErrors,
+  TREES,
   tCallErrors,
+  treeErrors,
 } from "./i18n-check.mjs";
-import { BASELINE, countLiterals, regressions, SCOPE, scan, unjustifiedRaises } from "./i18n-literals.mjs";
+import {
+  API_MESSAGE_CALLS,
+  apiMessageErrors,
+  apiMessageLiterals,
+  BASELINE,
+  countLiterals,
+  EXEMPT,
+  exemptErrors,
+  loadExempt,
+  lowerExemptMax,
+  regressions,
+  remaining,
+  SCOPE,
+  scan,
+  unjustifiedRaises,
+} from "./i18n-literals.mjs";
+
+// Test chạy quét toàn repo (SCOPE gồm cả domain/db + 61 migration, D-107): ~2 s/lượt lúc rảnh, vượt 5 s mặc định khi cổng chạy song song.
+const FULL_SCAN_MS = 30_000;
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const node = (script, ...args) =>
@@ -26,11 +56,15 @@ const node = (script, ...args) =>
 const entry = (message, description = "ngữ cảnh") => ({ message, description });
 
 describe("XC-I18N-009 — kiểm tệp dịch", () => {
-  it("tệp dịch thật của repo sạch (khoá, mô tả, ICU, tham số, HTML) và mọi t() trỏ khoá có thật", () => {
-    expect(checkCatalogs(loadCatalogs())).toEqual([]);
-    const r = node("scripts/i18n-check.mjs");
-    expect(r.status, r.stderr).toBe(0);
-  });
+  it(
+    "tệp dịch thật của repo sạch (khoá, mô tả, ICU, tham số, HTML) và mọi t() trỏ khoá có thật",
+    () => {
+      expect(checkCatalogs(loadCatalogs())).toEqual([]);
+      const r = node("scripts/i18n-check.mjs");
+      expect(r.status, r.stderr).toBe(0);
+    },
+    FULL_SCAN_MS,
+  );
 
   it("tham số ICU: lấy đúng tên, kể cả trong plural/select; sai cú pháp → ném lỗi", () => {
     expect(messageArgs("Xin chào {name}, phòng {room} còn {count}")).toEqual(["count", "name", "room"]);
@@ -351,12 +385,16 @@ describe("XC-I18N-001 — chuỗi viết thẳng chỉ được giảm (ratchet)
     }
   });
 
-  it("không tệp nào tăng so với baseline; tệp mới = 0", () => {
-    const baseline = JSON.parse(readFileSync(BASELINE, "utf8"));
-    expect(regressions(scan(), baseline)).toEqual([]);
-    expect(regressions({ "x.tsx": 1 }, {})).toHaveLength(1);
-    expect(regressions({ "x.tsx": 2 }, { "x.tsx": 3 })).toEqual([]);
-  });
+  it(
+    "không tệp nào tăng so với baseline; tệp mới = 0",
+    () => {
+      const baseline = JSON.parse(readFileSync(BASELINE, "utf8"));
+      expect(regressions(scan(), baseline)).toEqual([]);
+      expect(regressions({ "x.tsx": 1 }, {})).toHaveLength(1);
+      expect(regressions({ "x.tsx": 2 }, { "x.tsx": 3 })).toEqual([]);
+    },
+    FULL_SCAN_MS,
+  );
 
   it("baseline chỉ được hạ, hoặc nâng tới đúng số đếm của tệp trên main (bộ đếm chặt hơn — D-078)", () => {
     const ref = spawnSync("git", ["rev-parse", "--verify", "--quiet", "origin/main"], {
@@ -404,7 +442,631 @@ describe("XC-I18N-001 — chuỗi viết thẳng chỉ được giảm (ratchet)
     expect(gate).toMatch(/fetch-depth: 0/);
   });
 
-  it("tệp đã chuyển (lib/roles.ts) không còn chuỗi viết thẳng", () => {
-    expect(scan()["apps/web/lib/roles.ts"]).toBeUndefined();
+  it(
+    "tệp đã chuyển (lib/roles.ts) không còn chuỗi viết thẳng",
+    () => {
+      expect(scan()["apps/web/lib/roles.ts"]).toBeUndefined();
+    },
+    FULL_SCAN_MS,
+  );
+});
+
+describe("XC-I18N-009 — catalog thứ hai packages/app/messages (D-104)", () => {
+  const tmpTree = (files) => {
+    const root = mkdtempSync(join(tmpdir(), "i18n-app-"));
+    for (const [rel, body] of Object.entries(files)) {
+      mkdirSync(join(root, rel, ".."), { recursive: true });
+      writeFileSync(join(root, rel), typeof body === "string" ? body : JSON.stringify(body));
+    }
+    return root;
+  };
+  const APP = TREES.find((tr) => tr.name === "packages/app");
+
+  it(
+    "cả hai catalog được kiểm; catalog thật của packages/app sạch và mọi t() của nó trỏ khoá có thật",
+    () => {
+      expect(TREES.map((tr) => tr.messages)).toEqual([
+        "apps/web/messages",
+        "packages/app/messages",
+        "packages/domain/messages",
+      ]);
+      expect(treeErrors(APP).errors).toEqual([]);
+      const r = node("scripts/i18n-check.mjs");
+      expect(r.stdout).toMatch(/packages\/app\/messages: 1 locale · \d+ khoá · 0 lỗi/);
+    },
+    FULL_SCAN_MS,
+  );
+
+  it("bắt ở catalog packages/app: mô tả rỗng, khoá thiếu, tham số sai, HTML lạ, thiếu thư mục catalog", () => {
+    const root = tmpTree({
+      "packages/app/messages/vi.json": {
+        "e.hi": entry("Chào {name}"),
+        "e.empty": entry("Rỗng mô tả", "  "),
+        "e.html": entry("<b>x</b>"),
+      },
+      "packages/app/src/http/route.ts": [
+        'import { t } from "../i18n.ts";',
+        't("e.hi", { name: 1 });',
+        't("e.khong_co");',
+        't("e.hi", { nam: 1 });',
+        't("e.hi");',
+      ].join("\n"),
+      // `t` không import từ i18n của gói thì không bị bắt nhầm; tệp test bị bỏ qua.
+      "packages/app/src/other.ts": 'const t = (k) => k;\nt("e.hi", { x: 1 });\n',
+      "packages/app/src/x.test.ts": 'import { t } from "./i18n.ts";\nt("e.test_only");\n',
+    });
+    try {
+      const { errors } = treeErrors(APP, root);
+      expect(errors).toEqual(
+        expect.arrayContaining([
+          "packages/app/messages/vi:e.empty: thiếu description (ngữ cảnh cho người dịch)",
+          "packages/app/messages/vi:e.html: có HTML/script lạ",
+          'packages/app/src/http/route.ts: t("e.khong_co") không có trong nguồn',
+          'packages/app/src/http/route.ts:4: t("e.hi") thiếu tham số {name}',
+          'packages/app/src/http/route.ts:4: t("e.hi") thừa tham số nam (message không có)',
+          'packages/app/src/http/route.ts:5: t("e.hi") thiếu tham số {name}',
+          // Cây packages/app khai catalog con form (D-106): thiếu tệp là lỗi, không lặng lẽ bỏ qua.
+          "packages/app/messages/form.vi.json: thiếu catalog con",
+        ]),
+      );
+      expect(errors).toHaveLength(7);
+      // Khoá của catalog web không hợp lệ ở packages/app (catalog riêng, không trộn).
+      const web = tmpTree({
+        "packages/app/messages/vi.json": {},
+        "packages/app/src/a.ts": 'import { t } from "./i18n.ts";\nt("role.owner");\n',
+      });
+      expect(treeErrors(APP, web).errors).toEqual([
+        'packages/app/src/a.ts: t("role.owner") không có trong nguồn',
+        "packages/app/messages/form.vi.json: thiếu catalog con",
+      ]);
+      expect(treeErrors(APP, tmpTree({ "packages/app/src/a.ts": "" })).errors).toEqual([
+        "packages/app/messages: thiếu thư mục catalog",
+      ]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("t() của packages/app: thay tham số một lượt, giữ nguyên câu chữ cũ; format trùng hành vi bản apps/web", () => {
+    expect(appT("http.validation_failed")).toBe("Dữ liệu không hợp lệ");
+    expect(appT("http.idempotency_key_invalid")).toBe("Thiếu hoặc sai Idempotency-Key (UUID)");
+    expect(appT("http.rate_limit.upload_member")).toBe(
+      "Bạn tải lên quá nhiều trong một phút. Vui lòng thử lại sau.",
+    );
+    for (const [m, p] of [
+      ["Chào {name}, {name}! {x}", { name: "An" }],
+      ["{a}{b}", { a: "{b}", b: 0 }],
+      ["Không tham số", {}],
+      ["{toString}", {}],
+      ["{ name } {n}", { name: "x", n: -1 }],
+      ["", {}],
+    ])
+      expect(appFormat(m, p), m).toBe(format(m, p));
+    // t() không tham số trả đúng message (tham số thiếu giữ nguyên `{tên}` — không mất chữ).
+    const app = loadCatalogs(join(ROOT, "packages/app/messages")).vi;
+    for (const [k, v] of Object.entries(app)) expect(appT(k), k).toBe(v.message);
+  });
+
+  it("module client không kéo catalog packages/app qua import gói `@hm/app/…` (D-098)", () => {
+    const root = tmpTree({
+      "packages/app/package.json": {
+        name: "@hm/app",
+        exports: { "./http": "./src/http/security.ts", "./safe": "./src/safe.ts", ".": "./src/index.ts" },
+      },
+      "packages/app/messages/vi.json": {},
+      "packages/app/src/i18n.ts": "export const t = (k) => k;\n",
+      "packages/app/src/http/security.ts":
+        'import { t } from "../i18n.ts";\nexport const safeUrl = (u) => u;\n',
+      "packages/app/src/safe.ts": 'import type { AppMessageKey } from "./i18n.ts";\nexport const x = 1;\n',
+      "packages/app/src/index.ts": 'export { safeUrl } from "./http/security.ts";\n',
+      "apps/web/c/bad.tsx": '"use client";\nimport { safeUrl } from "@hm/app/http";\n',
+      "apps/web/c/root.tsx": '"use client";\nimport { safeUrl } from "@hm/app";\n',
+      "apps/web/c/ok.tsx":
+        '"use client";\nimport { x } from "@hm/app/safe";\nimport type { y } from "@hm/app/http";\n',
+      "apps/web/c/unknown.tsx":
+        '"use client";\nimport { z } from "@hm/app/khong-xuat";\nimport { q } from "zod";\n',
+      "apps/web/c/server.tsx": 'import { safeUrl } from "@hm/app/http";\n',
+    });
+    try {
+      const files = ["bad", "root", "ok", "unknown", "server"].map((n) => join(root, `apps/web/c/${n}.tsx`));
+      const errors = clientCatalogErrors(files, root);
+      expect(errors).toHaveLength(3);
+      expect(errors[0]).toContain(
+        "apps/web/c/bad.tsx → packages/app/src/http/security.ts → packages/app/src/i18n.ts",
+      );
+      expect(errors[1]).toMatch(/^apps\/web\/c\/root\.tsx: .*packages\/app\/src\/index\.ts/);
+      // Đường con không khai trong exports của gói workspace ⇒ lỗi (fail-closed, T-2207); gói ngoài (`zod`) vẫn bỏ qua.
+      expect(errors[2]).toMatch(
+        /^apps\/web\/c\/unknown\.tsx: import "@hm\/app\/khong-xuat": "\.\/khong-xuat" không có/,
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("resolveImport fail-closed (T-2207): exports gói workspace không giải được ⇒ ném lỗi, không trả null bỏ qua", () => {
+    const root = tmpTree({
+      "packages/x/src/a.ts": "export const a = 1;\n",
+      "packages/x/src/index.ts": "export const i = 1;\n",
+    });
+    const dir = join(root, "packages/x");
+    const from = join(root, "apps/web/c/f.tsx");
+    const r = (exports, spec = "@hm/x/a") =>
+      resolveImport(from, spec, new Map([["@hm/x", { dir, exports }]]));
+    try {
+      // Dạng hỗ trợ: chuỗi; object đường dẫn → chuỗi; điều kiện một tầng import/default.
+      expect(r("./src/index.ts", "@hm/x")).toBe(join(dir, "src/index.ts"));
+      expect(r({ "./a": "./src/a.ts" })).toBe(join(dir, "src/a.ts"));
+      expect(r({ "./a": { types: "./src/a.d.ts", import: "./src/a.ts" } })).toBe(join(dir, "src/a.ts"));
+      expect(r({ "./a": { default: "./src/a" } })).toBe(join(dir, "src/a.ts"));
+      // Gói ngoài / tương đối không có tệp: vẫn null (npm/TS tự báo).
+      expect(resolveImport(from, "zod", new Map())).toBeNull();
+      expect(resolveImport(from, "@scope/other", new Map())).toBeNull();
+      expect(resolveImport(from, "./khong-co", new Map())).toBeNull();
+      // Không giải được ⇒ lỗi rõ ràng.
+      expect(() => r({ "./*": "./src/*.ts" })).toThrow(/mẫu "\*" chưa hỗ trợ.*fail-closed/);
+      expect(() => r({ "./a": { import: { node: "./src/a.ts" } } })).toThrow(
+        /điều kiện lồng\/mảng ở "\.\/a"/,
+      );
+      expect(() => r({ "./a": { import: ["./src/a.ts"] } })).toThrow(/điều kiện lồng\/mảng/);
+      expect(() => r({ "./a": { require: "./src/a.ts" } })).toThrow(/không có đích chuỗi/);
+      expect(() => r({ "./a": null })).toThrow(/không có đích chuỗi/);
+      expect(() => r({ "./a": ["./src/a.ts"] })).toThrow(/không có đích chuỗi/);
+      expect(() => r({ import: "./src/a.ts" })).toThrow(/điều kiện ở gốc/);
+      expect(() => r({ "./b": "./src/a.ts" })).toThrow(/"\.\/a" không có trong "exports"/);
+      expect(() => r(undefined)).toThrow(/không khai "exports"/);
+      expect(() => r({ "./a": "./src/khong-co.ts" })).toThrow(/đích "\.\/src\/khong-co\.ts" không tồn tại/);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it(
+    "clientCatalogErrors báo lỗi (không bỏ qua) khi import gói có exports mẫu `./*`; repo thật vẫn xanh",
+    () => {
+      const root = tmpTree({
+        "packages/app/package.json": { name: "@hm/app", exports: { "./*": "./src/*.ts" } },
+        "packages/app/src/i18n.ts": "export const t = (k) => k;\n",
+        "apps/web/c/bad.tsx": '"use client";\nimport { t } from "@hm/app/i18n";\n',
+      });
+      try {
+        const errors = clientCatalogErrors([join(root, "apps/web/c/bad.tsx")], root);
+        expect(errors).toEqual([
+          'apps/web/c/bad.tsx: import "@hm/app/i18n": "exports" có mẫu "*" chưa hỗ trợ — i18n-check không giải được exports của @hm/app (fail-closed)',
+        ]);
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+      const real = node("scripts/i18n-check.mjs");
+      expect(real.status, real.stderr).toBe(0);
+    },
+    FULL_SCAN_MS,
+  );
+});
+
+describe("XC-I18N-009 — catalog con form.vi.json cho module trình duyệt nạp (D-106)", () => {
+  const tmpTree = (files) => {
+    const root = mkdtempSync(join(tmpdir(), "i18n-sub-"));
+    for (const [rel, body] of Object.entries(files)) {
+      mkdirSync(join(root, rel, ".."), { recursive: true });
+      writeFileSync(join(root, rel), typeof body === "string" ? body : JSON.stringify(body));
+    }
+    return root;
+  };
+  const APP = TREES.find((tr) => tr.name === "packages/app");
+  const FORM = APP.subcatalogs.find((s) => s.name === "form");
+
+  it(
+    "catalog con thật sạch, mọi khoá đều được formText() dùng; formText trùng hành vi format của t()",
+    () => {
+      expect(FORM).toEqual({
+        name: "form",
+        fn: "formText",
+        sources: ["packages/app/src/http/command-inputs.ts"],
+      });
+      const { errors, catalogs } = subcatalogErrors(APP, FORM);
+      expect(errors).toEqual([]);
+      expect(Object.keys(catalogs.vi).length).toBeGreaterThan(10);
+      // Catalog chính không đọc nhầm catalog con thành locale "form.vi".
+      expect(Object.keys(loadCatalogs(join(ROOT, "packages/app/messages")))).toEqual(["vi"]);
+      expect(node("scripts/i18n-check.mjs").stdout).toMatch(
+        /catalog con packages\/app\/messages\/form\.\*\.json: \d+ khoá/,
+      );
+      for (const [k, v] of Object.entries(catalogs.vi)) expect(formText(k), k).toBe(v.message);
+      expect(formText("form.max_chars", { max: 1000 })).toBe("Tối đa 1000 ký tự");
+      expect(formText("form.min_items", { min: "{max}", max: 1 })).toBe("Cần ít nhất {max} mục"); // một lượt
+      expect(formText("form.min_chars")).toBe("Cần ít nhất {min} ký tự"); // thiếu tham số giữ nguyên
+    },
+    FULL_SCAN_MS,
+  );
+
+  it("bắt: khoá lạ, thiếu/thừa tham số, khoá động, khoá không dùng, thiếu mô tả, thiếu catalog con/tệp nguồn", () => {
+    const root = tmpTree({
+      "packages/app/messages/vi.json": {},
+      "packages/app/messages/form.vi.json": {
+        "form.max": entry("Tối đa {max}"),
+        "form.plain": entry("Sai", " "),
+        "form.unused": entry("Không ai dùng"),
+      },
+      "packages/app/src/http/command-inputs.ts": [
+        "const formText = (k, p) => k;",
+        'formText("form.max", { max: 1 });',
+        'formText("form.plain");',
+        'formText("form.khong_co");',
+        'formText("form.max");',
+        'formText("form.plain", { x: 1 });',
+        "formText(key);",
+      ].join("\n"),
+    });
+    try {
+      const { errors } = subcatalogErrors(APP, FORM, root);
+      expect(errors.sort()).toEqual(
+        [
+          "packages/app/messages/form.vi:form.plain: thiếu description (ngữ cảnh cho người dịch)",
+          'packages/app/src/http/command-inputs.ts:4: formText("form.khong_co") không có trong nguồn',
+          'packages/app/src/http/command-inputs.ts:5: formText("form.max") thiếu tham số {max}',
+          'packages/app/src/http/command-inputs.ts:6: formText("form.plain") thừa tham số x (message không có)',
+          'packages/app/src/http/command-inputs.ts:7: formText() cần khoá viết thẳng "…" ở đối số thứ 1',
+          "packages/app/messages/form.vi:form.unused: khoá không được formText() nào dùng — bỏ khỏi catalog con",
+        ].sort(),
+      );
+      // Lỗi catalog con được gộp vào lỗi của cây (main() thoát 1).
+      expect(treeErrors(APP, root).errors).toEqual(expect.arrayContaining(errors));
+      expect(subcatalogErrors(APP, FORM, tmpTree({ "packages/app/messages/vi.json": {} })).errors).toEqual([
+        "packages/app/messages/form.vi.json: thiếu catalog con",
+      ]);
+      expect(
+        subcatalogErrors(
+          APP,
+          FORM,
+          tmpTree({ "packages/app/messages/form.vi.json": { "form.a": entry("a") } }),
+        ).errors,
+      ).toEqual([
+        "packages/app/src/http/command-inputs.ts: tệp dùng catalog con form không tồn tại",
+        "packages/app/messages/form.vi:form.a: khoá không được formText() nào dùng — bỏ khỏi catalog con",
+      ]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("rào client: module trình duyệt được nạp catalog con form.vi.json, KHÔNG được nạp vi.json/i18n.ts của packages/app", () => {
+    const root = tmpTree({
+      "packages/app/package.json": {
+        name: "@hm/app",
+        exports: { "./command-inputs": "./src/http/command-inputs.ts", "./bad": "./src/http/bad.ts" },
+      },
+      "packages/app/messages/vi.json": {},
+      "packages/app/messages/form.vi.json": {},
+      "packages/app/src/i18n.ts":
+        'import vi from "../messages/vi.json" with { type: "json" };\nexport const t = (k) => vi[k];\n',
+      "packages/app/src/http/command-inputs.ts":
+        'import m from "../../messages/form.vi.json" with { type: "json" };\nexport const c = m;\n',
+      "packages/app/src/http/bad.ts":
+        'import m from "../../messages/vi.json" with { type: "json" };\nimport { t } from "../i18n.ts";\nexport const c = [m, t];\n',
+      "apps/web/c/lazy.ts": 'export const load = () => import("@hm/app/command-inputs");\n',
+      "apps/web/c/form.tsx": '"use client";\nimport { load } from "./lazy.ts";\n',
+      "apps/web/c/bad.tsx": '"use client";\nimport { c } from "@hm/app/bad";\n',
+    });
+    try {
+      const errors = clientCatalogErrors(
+        ["form", "bad"].map((n) => join(root, `apps/web/c/${n}.tsx`)),
+        root,
+      );
+      expect(errors).toHaveLength(2);
+      expect(errors[0]).toContain(
+        "apps/web/c/bad.tsx → packages/app/src/http/bad.ts → packages/app/messages/vi.json",
+      );
+      expect(errors[1]).toContain("packages/app/src/i18n.ts");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("t() import đổi tên (`import { t as msg }`) vẫn bị bắt khoá lạ và tham số sai", () => {
+    const src = { "a.hi": entry("Chào {name}") };
+    const file = 'import { t as msg } from "../i18n.ts";\nmsg("a.khong_co");\nmsg("a.hi");\n';
+    expect(tCallErrors(file, "x.ts", src)).toEqual([
+      'x.ts:2: msg("a.khong_co") không có trong nguồn',
+      'x.ts:3: t("a.hi") thiếu tham số {name}',
+    ]);
+  });
+});
+
+describe("XC-I18N-001 — ngoại lệ theo tệp có lý do và --strict (D-105)", () => {
+  it(
+    "danh sách ngoại lệ thật hợp lệ; tệp ngoại lệ không bị đếm, không nằm trong baseline",
+    () => {
+      const exempt = loadExempt();
+      expect(exemptErrors(exempt)).toEqual([]);
+      expect(Object.keys(exempt).length).toBeGreaterThan(0);
+      const baseline = JSON.parse(readFileSync(BASELINE, "utf8"));
+      const counted = scan();
+      for (const f of Object.keys(exempt)) {
+        expect(baseline[f], f).toBeUndefined();
+        expect(counted[f], f).toBeUndefined();
+        expect(exempt[f].reason.trim().length, f).toBeGreaterThan(20); // lý do cụ thể, không phải "log"
+        expect(exempt[f].max, f).toBe(countLiterals(readFileSync(join(ROOT, f), "utf8"), f)); // max = đúng số đếm
+      }
+      expect(EXEMPT).toMatch(/scripts\/i18n-literal-exempt\.json$/);
+    },
+    FULL_SCAN_MS,
+  );
+
+  it("lỗi: mục sai định dạng, lý do thiếu/rỗng, max thiếu/sai, tệp không tồn tại, ngoài phạm vi quét, không phải object", () => {
+    const root = mkdtempSync(join(tmpdir(), "i18n-exempt-"));
+    const ex = (reason, max = 1) => ({ reason, max });
+    try {
+      for (const d of SCOPE) mkdirSync(join(root, d), { recursive: true });
+      mkdirSync(join(root, "docs"), { recursive: true });
+      for (const f of ["packages/app/src/a.ts", "packages/app/src/a.test.ts", "docs/x.ts"])
+        writeFileSync(join(root, f), 'export const s = "Lỗi";\n');
+      expect(exemptErrors({ "packages/app/src/a.ts": ex("Chỉ log vận hành") }, root)).toEqual([]);
+      expect(exemptErrors({ "packages/app/src/a.ts": ex("") }, root)).toEqual([
+        "packages/app/src/a.ts: ngoại lệ thiếu lý do",
+      ]);
+      expect(exemptErrors({ "packages/app/src/a.ts": ex("   ") }, root)).toHaveLength(1);
+      expect(exemptErrors({ "packages/app/src/a.ts": ex(null) }, root)).toHaveLength(1);
+      expect(exemptErrors({ "packages/app/src/a.ts": ex(1) }, root)).toHaveLength(1);
+      // Định dạng cũ (chuỗi lý do trần), null, mảng ⇒ lỗi định dạng.
+      for (const bad of ["Chỉ log vận hành", null, 1, ["lý do", 1]])
+        expect(exemptErrors({ "packages/app/src/a.ts": bad }, root)).toEqual([
+          'packages/app/src/a.ts: mục ngoại lệ phải là { "reason": "lý do", "max": N }',
+        ]);
+      // max thiếu / 0 / âm / thập phân / chuỗi ⇒ lỗi.
+      for (const e of [
+        { reason: "Chỉ log" },
+        ex("Chỉ log", 0),
+        ex("Chỉ log", -1),
+        ex("Chỉ log", 1.5),
+        ex("Chỉ log", "1"),
+      ])
+        expect(exemptErrors({ "packages/app/src/a.ts": e }, root)).toEqual([
+          'packages/app/src/a.ts: ngoại lệ thiếu "max" (số nguyên ≥ 1 = số chuỗi viết thẳng hiện có)',
+        ]);
+      expect(exemptErrors({ "packages/app/src/a.ts": { ...ex("Chỉ log"), maxx: 2 } }, root)).toEqual([
+        "packages/app/src/a.ts: khoá lạ trong mục ngoại lệ (maxx)",
+      ]);
+      expect(exemptErrors({ "packages/app/src/khong-co.ts": ex("lý do") }, root)).toEqual([
+        "packages/app/src/khong-co.ts: tệp ngoại lệ không tồn tại",
+      ]);
+      expect(exemptErrors({ "packages/app/src": ex("thư mục") }, root)).toEqual([
+        "packages/app/src: tệp ngoại lệ không tồn tại",
+      ]);
+      expect(exemptErrors({ "docs/x.ts": ex("lý do") }, root)[0]).toMatch(/ngoài phạm vi quét/);
+      expect(exemptErrors({ "packages/app/src/a.test.ts": ex("lý do") }, root)[0]).toMatch(
+        /ngoài phạm vi quét/,
+      );
+      writeFileSync(join(root, "packages/app/src/clean.ts"), "export const s = 'ok';\n");
+      expect(exemptErrors({ "packages/app/src/clean.ts": ex("lý do") }, root)).toEqual([
+        "packages/app/src/clean.ts: ngoại lệ thừa (0 chuỗi viết thẳng) — bỏ khỏi danh sách",
+      ]);
+      expect(exemptErrors([], root)[0]).toMatch(/phải là object/);
+      expect(exemptErrors(null, root)[0]).toMatch(/phải là object/);
+      // scan bỏ đúng tệp ngoại lệ.
+      writeFileSync(join(root, "packages/app/src/b.ts"), 'export const s = "Phòng";\n');
+      expect(scan(root)).toEqual({ "packages/app/src/a.ts": 1, "packages/app/src/b.ts": 1 });
+      // Mặc định đọc scripts/i18n-literal-exempt.json của chính root.
+      mkdirSync(join(root, "scripts"), { recursive: true });
+      writeFileSync(
+        join(root, "scripts/i18n-literal-exempt.json"),
+        JSON.stringify({ "packages/app/src/b.ts": ex("Chỉ log") }),
+      );
+      expect(scan(root)).toEqual({ "packages/app/src/a.ts": 1 });
+      expect(scan(root, { "packages/app/src/a.ts": ex("Chỉ log") })).toEqual({ "packages/app/src/b.ts": 1 });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("max của ngoại lệ (T-2207): vượt ⇒ lỗi nêu tệp + số; dưới ⇒ lỗi cần hạ; lowerExemptMax chỉ hạ, không nâng", () => {
+    const root = mkdtempSync(join(tmpdir(), "i18n-exmax-"));
+    try {
+      for (const d of SCOPE) mkdirSync(join(root, d), { recursive: true });
+      const f = "packages/app/src/log.ts";
+      writeFileSync(join(root, f), 'log.warn("Lỗi một");\nlog.warn("Lỗi hai");\n'); // 2 chuỗi
+      const at = (max) => ({ [f]: { reason: "Chỉ log vận hành", max } });
+      expect(exemptErrors(at(2), root)).toEqual([]);
+      // Thêm chuỗi vào tệp ngoại lệ mà không sửa danh sách ⇒ đỏ (lỗ trước T-2207: lọt im lặng).
+      expect(exemptErrors(at(1), root)).toEqual([
+        `${f}: 2 chuỗi viết thẳng > max 1 của ngoại lệ — chuỗi người dùng thấy dùng t(); chỉ người vận hành thấy thì nâng max (reviewer rà)`,
+      ]);
+      expect(exemptErrors(at(5), root)).toEqual([
+        `${f}: còn 2 chuỗi viết thẳng < max 5 — hạ max (\`node scripts/i18n-literals.mjs --write\`)`,
+      ]);
+      expect(lowerExemptMax(at(5), root)).toEqual({ exempt: at(2), lowered: [`${f}: max 5 → 2`] });
+      expect(lowerExemptMax(at(2), root)).toEqual({ exempt: at(2), lowered: [] });
+      expect(lowerExemptMax(at(1), root)).toEqual({ exempt: at(1), lowered: [] }); // không nâng
+      // 0 chuỗi: không hạ về 0 — để exemptErrors báo "ngoại lệ thừa".
+      writeFileSync(join(root, f), "log.warn('ok');\n");
+      expect(lowerExemptMax(at(2), root).lowered).toEqual([]);
+      expect(exemptErrors(at(2), root)[0]).toMatch(/ngoại lệ thừa/);
+      // Mục sai định dạng / tệp không có: để nguyên.
+      expect(lowerExemptMax({ "x.ts": "lý do" }, root)).toEqual({ exempt: { "x.ts": "lý do" }, lowered: [] });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("thông điệp ra API (CommandError/fieldError/simpleProblem/AuthzError/AccessError/TransitionError) không có chuỗi viết thẳng", () => {
+    const src = [
+      'import { CommandError as E, fieldError } from "../pipeline/problem.ts";',
+      'import { t } from "../i18n.ts";',
+      'throw new E("X", 409, "Phòng đã có người");', // 3
+      'throw new CommandError("X", 409, t("lease.conflict"), { extensions: { hint: "Gợi ý" } });', // 4: trong opts
+      'fieldError("name", "REQUIRED", `Thiếu $' + "{f}`);", // 5
+      'p.simpleProblem("X", 400, "Sai", cid);', // không dấu ⇒ không tính
+      'deps.simpleProblem("X", 400, "Yêu cầu sai", cid);', // 7: gọi qua thuộc tính
+      'new AuthzError("FORBIDDEN", "Không có quyền");', // 8
+      'new AccessError("NOT_FOUND", msg);', // biến ⇒ không tính
+      'new TransitionError("lease", from, "đã hủy");', // 10
+      'new CommandError("X", 409, t("a.b", { name: "x" }));', // khoá + tham số không dấu ⇒ không tính
+      'log.warn("Chỉ log");', // không phải thông điệp API ⇒ không tính ở đây
+      'new CommandError("X", 422, fieldError("f", "C", "Lồng").message);', // 13: một lần dù lồng hai lời gọi
+    ].join("\n");
+    expect(apiMessageLiterals(src, "packages/app/src/x.ts").map((e) => e.split(":")[1])).toEqual([
+      "3",
+      "4",
+      "5",
+      "7",
+      "8",
+      "10",
+      "13",
+    ]);
+    expect(apiMessageLiterals('new CommandError("X", 1, "Lỗi");', "a.ts")[0]).toBe(
+      'a.ts:1: CommandError(…) có chuỗi tiếng Việt viết thẳng — thông điệp ra API phải qua t("…") của catalog (kể cả tệp ngoại lệ)',
+    );
+    // Hàm cùng tên ở đối tượng khác không có trong danh sách; lớp lỗi khác (Error thường) không bị bắt ở rào này.
+    expect(apiMessageLiterals('throw new Error("Lỗi nội bộ");\nfoo("Lỗi");', "a.ts")).toEqual([]);
+    expect(API_MESSAGE_CALLS).toEqual(
+      expect.arrayContaining([
+        "CommandError",
+        "fieldError",
+        "simpleProblem",
+        "AuthzError",
+        "AccessError",
+        "TransitionError",
+      ]),
+    );
+  });
+
+  it(
+    "thông điệp ra API bị bắt ở cả tệp ngoại lệ; repo thật 0 vi phạm",
+    () => {
+      const root = mkdtempSync(join(tmpdir(), "i18n-api-"));
+      try {
+        for (const d of SCOPE) mkdirSync(join(root, d), { recursive: true });
+        const f = "packages/app/src/files/clamd.ts";
+        mkdirSync(join(root, "packages/app/src/files"), { recursive: true });
+        writeFileSync(
+          join(root, f),
+          'log.warn("Chỉ log");\nthrow new CommandError("SERVICE_UNAVAILABLE", 503, "Máy quét lỗi");\n',
+        );
+        const exempt = { [f]: { reason: "Chỉ log vận hành", max: 2 } };
+        expect(exemptErrors(exempt, root)).toEqual([]); // danh sách ngoại lệ hợp lệ…
+        expect(scan(root, exempt)).toEqual({}); // …và ratchet bỏ qua tệp…
+        expect(apiMessageErrors(root)).toEqual([
+          `${f}:2: CommandError(…) có chuỗi tiếng Việt viết thẳng — thông điệp ra API phải qua t("…") của catalog (kể cả tệp ngoại lệ)`,
+        ]); // …nhưng thông điệp ra API vẫn đỏ.
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+      expect(apiMessageErrors()).toEqual([]);
+    },
+    FULL_SCAN_MS,
+  );
+
+  it(
+    "--strict: còn tệp > 0 ngoài ngoại lệ (baseline hoặc lần quét) ⇒ lỗi; không --strict thì ratchet như cũ",
+    () => {
+      expect(remaining({}, {}, {})).toEqual([]);
+      expect(remaining({ "a.ts": 0 }, { "a.ts": 0 })).toEqual([]);
+      expect(remaining({ "a.ts": 1 }, {}, { "a.ts": { reason: "log", max: 1 } })).toEqual([]);
+      expect(remaining({}, { "b.ts": 2 })).toEqual(["b.ts"]);
+      expect(remaining({ "c.ts": 1 }, { "b.ts": 2 }, {})).toEqual(["b.ts", "c.ts"]);
+      const plain = node("scripts/i18n-literals.mjs");
+      expect(plain.status, plain.stderr).toBe(0);
+      const strict = node("scripts/i18n-literals.mjs", "--strict");
+      const left = Object.keys(JSON.parse(readFileSync(BASELINE, "utf8"))).length;
+      expect(strict.status).toBe(left > 0 ? 1 : 0);
+      if (left > 0) expect(strict.stderr).toMatch(/--strict cần 0 ngoài ngoại lệ/);
+    },
+    FULL_SCAN_MS,
+  );
+});
+
+describe("XC-I18N-009 — catalog packages/domain/messages và catalog con format (D-107)", () => {
+  const tmpTree = (files) => {
+    const root = mkdtempSync(join(tmpdir(), "i18n-domain-"));
+    for (const [rel, body] of Object.entries(files)) {
+      mkdirSync(join(root, rel, ".."), { recursive: true });
+      writeFileSync(join(root, rel), typeof body === "string" ? body : JSON.stringify(body));
+    }
+    return root;
+  };
+  const DOMAIN = TREES.find((tr) => tr.name === "packages/domain");
+  const FORMAT = DOMAIN.subcatalogs.find((s) => s.name === "format");
+
+  it(
+    "catalog domain thật sạch; t()/format() trùng hành vi bản apps/web và packages/app; câu chữ giữ nguyên",
+    () => {
+      expect(DOMAIN).toMatchObject({ messages: "packages/domain/messages", sources: "packages/domain/src" });
+      expect(treeErrors(DOMAIN).errors).toEqual([]);
+      expect(node("scripts/i18n-check.mjs").stdout).toMatch(
+        /packages\/domain\/messages: 1 locale · \d+ khoá · 0 lỗi/,
+      );
+      for (const [m, p] of [
+        ["Chào {name}, {name}! {x}", { name: "An" }],
+        ["{a}{b}", { a: "{b}", b: 0 }],
+        ["Không tham số", {}],
+        ["{toString}", {}],
+        ["{ name } {n}", { name: "x", n: -1 }],
+        ["", {}],
+      ]) {
+        expect(domainFormat(m, p), m).toBe(format(m, p));
+        expect(domainFormat(m, p), m).toBe(appFormat(m, p));
+      }
+      const dom = loadCatalogs(join(ROOT, "packages/domain/messages")).vi;
+      for (const [k, v] of Object.entries(dom)) expect(domainT(k), k).toBe(v.message);
+      // Catalog chính không đọc nhầm catalog con thành locale "format.vi".
+      expect(Object.keys(loadCatalogs(join(ROOT, "packages/domain/messages")))).toEqual(["vi"]);
+      expect(domainT("authz.forbidden")).toBe("Bạn không có quyền thực hiện thao tác này");
+      expect(domainT("state.invalid_transition", { machine: "lease", from: "draft", to: "active" })).toBe(
+        'lease: không thể chuyển từ "draft" sang "active"',
+      );
+      expect(
+        domainT("billing.line_rent_prorated", { days: 15, days_in_month: 31, monthly_rent: "3.100.000" }),
+      ).toBe("Tiền thuê 15/31 ngày (3.100.000 đ/tháng)");
+    },
+    FULL_SCAN_MS,
+  );
+
+  it("catalog con format.vi.json: sạch, mọi khoá được formatText() dùng, formatText trùng format; đầu ra định dạng giữ nguyên", () => {
+    expect(FORMAT).toEqual({
+      name: "format",
+      fn: "formatText",
+      sources: ["packages/domain/src/format/intl.ts"],
+    });
+    const { errors, catalogs } = subcatalogErrors(DOMAIN, FORMAT);
+    expect(errors).toEqual([]);
+    for (const [k, v] of Object.entries(catalogs.vi)) expect(domainFormatText(k), k).toBe(v.message);
+    expect(domainFormatText("format.date_invalid", { date: "{month}", month: 1 })).toBe(
+      "Ngày không hợp lệ: {month}",
+    );
+    expect(domainFormatText("format.date_invalid")).toBe("Ngày không hợp lệ: {date}");
+    expect(formatVnd(1_430_000)).toBe("1.430.000 đ");
+    expect(formatVndUnitPrice(1234.5)).toBe("1.234,5 đ");
+    expect(() => formatVnd(1.5)).toThrow(new RangeError("Số tiền phải là số nguyên đồng: 1.5"));
+  });
+
+  it("module client không kéo catalog domain qua `@hm/app/format` → `@hm/domain/format` (D-098); catalog con format thì được", () => {
+    const root = tmpTree({
+      "packages/app/package.json": { name: "@hm/app", exports: { "./format": "./src/format.ts" } },
+      "packages/app/src/format.ts": 'export * from "@hm/domain/format";\n',
+      "packages/domain/package.json": {
+        name: "@hm/domain",
+        exports: { "./format": "./src/format/intl.ts", "./bad": "./src/format/bad.ts" },
+      },
+      "packages/domain/messages/vi.json": {},
+      "packages/domain/messages/format.vi.json": {},
+      "packages/domain/src/i18n.ts": "export const t = (k) => k;\n",
+      "packages/domain/src/format/intl.ts":
+        'import m from "../../messages/format.vi.json" with { type: "json" };\nexport const x = m;\n',
+      "packages/domain/src/format/bad.ts": 'import { t } from "../i18n.ts";\nexport const y = t;\n',
+      "apps/web/c/ok.tsx": '"use client";\nimport { x } from "@hm/app/format";\n',
+      "apps/web/c/bad.tsx": '"use client";\nimport { y } from "@hm/domain/bad";\n',
+    });
+    try {
+      const errors = clientCatalogErrors(
+        ["ok", "bad"].map((n) => join(root, `apps/web/c/${n}.tsx`)),
+        root,
+      );
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toContain(
+        "apps/web/c/bad.tsx → packages/domain/src/format/bad.ts → packages/domain/src/i18n.ts",
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });

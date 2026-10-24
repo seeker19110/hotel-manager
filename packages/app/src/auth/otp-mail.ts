@@ -6,6 +6,7 @@
 // - `smtp(s)://…`: chưa hỗ trợ → trả `undefined` (không gửi), giống trước khi có adapter.
 import { appendFile } from "node:fs/promises";
 import { isAbsolute } from "node:path";
+import { t } from "../i18n.ts";
 
 export interface OutboxLine {
   to: string;
@@ -17,8 +18,8 @@ export const OTP_TTL_MINUTES = 5;
 
 export function otpMessage(otp: string): { subject: string; text: string } {
   return {
-    subject: "Mã đăng nhập Hotel Manager",
-    text: `Mã đăng nhập của bạn là ${otp}. Mã có hiệu lực ${OTP_TTL_MINUTES} phút. Không chia sẻ mã này cho bất kỳ ai.`,
+    subject: t("auth.otp_mail_subject"),
+    text: t("auth.otp_mail_body", { otp, minutes: OTP_TTL_MINUTES }),
   };
 }
 

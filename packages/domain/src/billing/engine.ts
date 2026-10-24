@@ -2,6 +2,7 @@
 // mục 10). Đầu vào là ảnh chụp đã đọc sẵn (phiên bản hợp đồng, chỉ số, đơn giá hiệu lực, số người ở); đầu ra là các dòng
 // phiếu có snapshot lượng/đơn giá/quy tắc làm tròn. Mọi phép làm tròn tiền đi qua `money` (một hàm, từng dòng; tổng = Σ dòng).
 import { formatVndNumber } from "../format/intl.ts";
+import { t } from "../i18n.ts";
 import {
   DEFAULT_ROUNDING,
   decimalSub,
@@ -85,10 +86,11 @@ export interface BillingLine {
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 function day(d: string): number {
-  if (!DATE.test(d)) throw new MoneyError(`Ngày không hợp lệ: ${d}`);
-  const t = Date.UTC(Number(d.slice(0, 4)), Number(d.slice(5, 7)) - 1, Number(d.slice(8, 10)));
-  if (new Date(t).toISOString().slice(0, 10) !== d) throw new MoneyError(`Ngày không hợp lệ: ${d}`);
-  return t / MS_PER_DAY;
+  if (!DATE.test(d)) throw new MoneyError(t("billing.date_invalid", { date: d }));
+  const ms = Date.UTC(Number(d.slice(0, 4)), Number(d.slice(5, 7)) - 1, Number(d.slice(8, 10)));
+  if (new Date(ms).toISOString().slice(0, 10) !== d)
+    throw new MoneyError(t("billing.date_invalid", { date: d }));
+  return ms / MS_PER_DAY;
 }
 
 function iso(n: number): string {
@@ -116,9 +118,9 @@ export function rentLines(input: LeaseBillingInput): BillingLine[] {
   const rule = input.rounding ?? DEFAULT_ROUNDING;
   const ps = day(input.periodStart);
   const pe = day(input.periodEnd);
-  if (pe < ps) throw new MoneyError("Kỳ thu sai");
+  if (pe < ps) throw new MoneyError(t("billing.period_invalid"));
   if (input.periodStart.slice(0, 7) !== input.periodEnd.slice(0, 7)) {
-    throw new MoneyError("Kỳ thu là một tháng dương lịch");
+    throw new MoneyError(t("billing.period_not_calendar_month"));
   }
   const dim = daysInMonth(input.periodStart);
   const occ = overlap(ps, pe, day(input.billingStartOn), input.movedOutOn ? day(input.movedOutOn) : pe);
@@ -140,8 +142,15 @@ export function rentLines(input: LeaseBillingInput): BillingLine[] {
       kind: "room",
       description:
         days === dim
-          ? `Tiền thuê tháng ${input.periodStart.slice(5, 7)}/${input.periodStart.slice(0, 4)}`
-          : `Tiền thuê ${days}/${dim} ngày (${formatVndNumber(v.rentAmount)} đ/tháng)`,
+          ? t("billing.line_rent_full_month", {
+              month: input.periodStart.slice(5, 7),
+              year: input.periodStart.slice(0, 4),
+            })
+          : t("billing.line_rent_prorated", {
+              days,
+              days_in_month: dim,
+              monthly_rent: formatVndNumber(v.rentAmount),
+            }),
       revenueAccount: "REV_ROOM",
       quantity: String(days === dim ? denominator : Math.min(days, denominator)),
       unitPrice: String(v.rentAmount),
@@ -165,7 +174,8 @@ export function meteredLine(
 ): BillingLine | null {
   if (m.unitPrice === null) return null;
   const quantity = m.quantity ?? decimalSub(m.end ?? "0", m.start ?? "0");
-  if (quantity.startsWith("-")) throw new MoneyError(`Lượng ${m.name} âm`);
+  if (quantity.startsWith("-"))
+    throw new MoneyError(t("billing.metered_quantity_negative", { name: m.name }));
   return {
     kind: "utility",
     description: m.name,
@@ -185,7 +195,7 @@ export function meteredLine(
 export function computeLeaseInvoice(input: LeaseBillingInput): { lines: BillingLine[]; total: number } {
   const rule = input.rounding ?? DEFAULT_ROUNDING;
   if (!Number.isInteger(input.occupantsAtEnd) || input.occupantsAtEnd < 0)
-    throw new MoneyError("Số người ở sai");
+    throw new MoneyError(t("billing.occupants_invalid"));
   const period = { from: input.periodStart, to: input.periodEnd };
   const lines = rentLines(input);
   for (const m of input.metered) {
@@ -195,11 +205,13 @@ export function computeLeaseInvoice(input: LeaseBillingInput): { lines: BillingL
   for (const s of input.services) {
     if (s.unitPrice === null) continue;
     const qty = s.kind === "per_person" ? input.occupantsAtEnd : (s.quantity ?? 1);
-    if (!Number.isInteger(qty) || qty < 0) throw new MoneyError(`Số lượng ${s.name} sai`);
+    if (!Number.isInteger(qty) || qty < 0)
+      throw new MoneyError(t("billing.service_quantity_invalid", { name: s.name }));
     if (qty === 0) continue;
     lines.push({
       kind: s.kind === "one_time" ? "fee" : "service",
-      description: s.kind === "per_person" ? `${s.name} (${qty} người)` : s.name,
+      description:
+        s.kind === "per_person" ? t("billing.line_per_person", { name: s.name, count: qty }) : s.name,
       revenueAccount: s.revenueAccount,
       quantity: String(qty),
       unitPrice: s.unitPrice,

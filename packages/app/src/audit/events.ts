@@ -11,6 +11,7 @@ import { withTenant } from "@hm/db";
 import { authorize } from "@hm/domain";
 import { type Kysely, sql } from "kysely";
 import type { Actor } from "../access/index.ts";
+import { t } from "../i18n.ts";
 import { CommandError } from "../pipeline/index.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -68,9 +69,9 @@ export interface AuditEvent {
   userAgent: string | null;
 }
 
-const notFound = () => new CommandError("NOT_FOUND", 404, "Không tìm thấy");
+const notFound = () => new CommandError("NOT_FOUND", 404, t("common.not_found"));
 const invalid = (field: string) =>
-  new CommandError("VALIDATION_FAILED", 422, "Bộ lọc không hợp lệ", {
+  new CommandError("VALIDATION_FAILED", 422, t("audit.filter_invalid"), {
     extensions: { errors: [{ path: field, field, code: "invalid" }] },
   });
 
@@ -105,6 +106,7 @@ function authorizeAudit(actor: Actor, propertyId?: string): void {
   if (propertyId !== undefined) authorize(actor, "audit.read", { propertyId });
 }
 
+// SQL: Khoá keyset đủ micro giây (Date của JS chỉ tới mili giây ⇒ cắt ⇒ lặp/sót dòng ở ranh trang).
 const SELECT = sql`
   select e.id, e.occurred_at, e.property_id, e.actor_type, e.actor_person_id, pe.full_name as actor_name, e.action,
          e.entity_type, e.entity_id, e.before, e.after, e.reason, e.correlation_id, e.command_id, e.outcome,
@@ -112,7 +114,6 @@ const SELECT = sql`
          to_char(e.occurred_at at time zone coalesce(p.timezone,
                    (select p2.timezone from properties p2 where p2.organization_id = e.organization_id order by p2.created_at, p2.id limit 1),
                    'Asia/Ho_Chi_Minh'), 'YYYY-MM-DD HH24:MI:SS') as occurred_at_local,
-         -- Khoá keyset đủ micro giây (Date của JS chỉ tới mili giây ⇒ cắt ⇒ lặp/sót dòng ở ranh trang).
          to_char(e.occurred_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as occurred_at_key
   from audit_events e
   left join properties p on p.organization_id = e.organization_id and p.id = e.property_id

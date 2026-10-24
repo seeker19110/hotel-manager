@@ -13,6 +13,7 @@ import {
   unwrap,
   uploadFile,
 } from "../files/index.ts";
+import { t } from "../i18n.ts";
 import { requestClient } from "../logging/index.ts";
 import { executeCommand, toProblem } from "../pipeline/index.ts";
 import {
@@ -75,13 +76,13 @@ export async function handleFileUpload(req: Request, deps: HttpDeps): Promise<Re
     const endpoint = { type: "endpoint", id: "/api/v1/files/upload" };
     if (!ownerType || !OWNER_TYPES.includes(ownerType) || !UUID.test(propertyId)) {
       rejectInput(req, correlationId, "input.validation_failed", actor, endpoint, "VALIDATION_FAILED");
-      return simpleProblem("VALIDATION_FAILED", 422, "Dữ liệu không hợp lệ", correlationId, {
+      return simpleProblem("VALIDATION_FAILED", 422, t("http.validation_failed"), correlationId, {
         errors: [{ path: "owner_type", field: "owner_type", code: "invalid" }],
       });
     }
     const key = req.headers.get("idempotency-key") ?? "";
     if (!UUID.test(key))
-      return simpleProblem("MALFORMED_REQUEST", 400, "Thiếu hoặc sai Idempotency-Key (UUID)", correlationId);
+      return simpleProblem("MALFORMED_REQUEST", 400, t("http.idempotency_key_invalid"), correlationId);
     // Giới hạn tần suất TRƯỚC khi đọc thân/quét/ghi object (BE-REL-006): bộ đếm trong Postgres, đúng khi nhiều instance.
     const limited = await enforceActorRateLimit(deps.db, actor, req, correlationId, {
       scope: "file_upload",
@@ -92,7 +93,7 @@ export async function handleFileUpload(req: Request, deps: HttpDeps): Promise<Re
     const bytes = await readCapped(req, MAX_FILE_BYTES);
     if (!bytes) {
       rejectInput(req, correlationId, "file.upload_rejected", actor, endpoint, "FILE_TOO_LARGE");
-      return simpleProblem("FILE_TOO_LARGE", 413, "File vượt dung lượng cho phép", correlationId);
+      return simpleProblem("FILE_TOO_LARGE", 413, t("http.file_too_large"), correlationId);
     }
     const input = { ownerType, propertyId: propertyId.toLowerCase(), bytes };
     // Quét + ghi object NGOÀI transaction lệnh (T-303). Lỗi của bước này được ném lại trong handler để pipeline vẫn ghi

@@ -7,6 +7,7 @@ import { createHash } from "node:crypto";
 import { kibToBytes } from "@hm/domain";
 import type { Actor } from "../access/index.ts";
 import { settle, unwrap } from "../files/index.ts";
+import { t } from "../i18n.ts";
 import { IMPORT_LIMITS, prepareBatchUpload, uploadBatch } from "../import/index.ts";
 import { requestClient } from "../logging/index.ts";
 import { executeCommand, toProblem } from "../pipeline/index.ts";
@@ -36,7 +37,7 @@ const ENDPOINT = { type: "endpoint", id: "/api/v1/import/upload" };
 
 const invalid = (field: string, correlationId: string, req: Request, actor: Actor) => {
   rejectInput(req, correlationId, "input.validation_failed", actor, ENDPOINT, "VALIDATION_FAILED");
-  return simpleProblem("VALIDATION_FAILED", 422, "Dữ liệu không hợp lệ", correlationId, {
+  return simpleProblem("VALIDATION_FAILED", 422, t("http.validation_failed"), correlationId, {
     errors: [{ path: field, field, code: "invalid" }],
   });
 };
@@ -51,11 +52,11 @@ export async function handleImportUpload(req: Request, deps: HttpDeps): Promise<
     if (actor instanceof Response) return actor;
     const key = req.headers.get("idempotency-key") ?? "";
     if (!UUID.test(key))
-      return simpleProblem("MALFORMED_REQUEST", 400, "Thiếu hoặc sai Idempotency-Key (UUID)", correlationId);
+      return simpleProblem("MALFORMED_REQUEST", 400, t("http.idempotency_key_invalid"), correlationId);
     const type = req.headers.get("content-type") ?? "";
     if (!/^multipart\/form-data;\s*boundary=/i.test(type)) {
       rejectInput(req, correlationId, "input.deserialize_failed", actor, ENDPOINT, "MALFORMED_REQUEST");
-      return simpleProblem("MALFORMED_REQUEST", 400, "Cần multipart/form-data", correlationId);
+      return simpleProblem("MALFORMED_REQUEST", 400, t("http.import.multipart_required"), correlationId);
     }
     // Giới hạn tần suất TRƯỚC khi đọc thân tới 10 MB + phân tích (BE-REL-006): bộ đếm trong Postgres.
     const limited = await enforceActorRateLimit(deps.db, actor, req, correlationId, {
@@ -67,7 +68,7 @@ export async function handleImportUpload(req: Request, deps: HttpDeps): Promise<
     const body = await readCapped(req, IMPORT_LIMITS.bytes + MULTIPART_OVERHEAD);
     if (!body) {
       rejectInput(req, correlationId, "file.upload_rejected", actor, ENDPOINT, "FILE_TOO_LARGE");
-      return simpleProblem("FILE_TOO_LARGE", 413, "File quá lớn. Tách thành nhiều file.", correlationId);
+      return simpleProblem("FILE_TOO_LARGE", 413, t("http.import.file_too_large"), correlationId);
     }
     let form: FormData;
     try {
@@ -76,7 +77,7 @@ export async function handleImportUpload(req: Request, deps: HttpDeps): Promise<
       form = await new Response(copy, { headers: { "content-type": type } }).formData();
     } catch {
       rejectInput(req, correlationId, "input.deserialize_failed", actor, ENDPOINT, "MALFORMED_REQUEST");
-      return simpleProblem("MALFORMED_REQUEST", 400, "Thân multipart không hợp lệ", correlationId);
+      return simpleProblem("MALFORMED_REQUEST", 400, t("http.import.multipart_invalid"), correlationId);
     }
     const file = form.get("file");
     const propertyId = form.get("property_id");
@@ -90,7 +91,7 @@ export async function handleImportUpload(req: Request, deps: HttpDeps): Promise<
       return invalid("cutoff_on", correlationId, req, actor);
     if (file.size > IMPORT_LIMITS.bytes) {
       rejectInput(req, correlationId, "file.upload_rejected", actor, ENDPOINT, "FILE_TOO_LARGE");
-      return simpleProblem("FILE_TOO_LARGE", 413, "File quá lớn. Tách thành nhiều file.", correlationId);
+      return simpleProblem("FILE_TOO_LARGE", 413, t("http.import.file_too_large"), correlationId);
     }
     const bytes = new Uint8Array(await file.arrayBuffer());
     const input = {

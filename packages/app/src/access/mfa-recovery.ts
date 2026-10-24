@@ -5,6 +5,7 @@
 // - Tài khoản đăng nhập dùng chung nhiều tổ chức: owner tổ chức này KHÔNG được hạ bảo mật của tổ chức khác ⇒ chuyển hỗ trợ.
 import { authorize } from "@hm/domain";
 import { sql } from "kysely";
+import { t } from "../i18n.ts";
 import { type CommandContext, CommandError, fieldError } from "../pipeline/index.ts";
 import { revokeUserSessions } from "./sessions.ts";
 
@@ -24,35 +25,29 @@ export async function resetMemberMfa(
     throw new CommandError(
       "FORBIDDEN",
       403,
-      sole
-        ? "Bạn là owner duy nhất — liên hệ hỗ trợ nền tảng để xác minh danh tính và khôi phục."
-        : "Không tự đặt lại xác thực hai lớp của mình — nhờ một owner khác.",
+      sole ? t("access.mfa_reset_sole_owner") : t("access.mfa_reset_self"),
       { extensions: { items: [{ recovery: sole ? "platform_support" : "another_owner" }] } },
     );
   }
-  if (!UUID.test(input.membershipId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy thành viên");
+  if (!UUID.test(input.membershipId)) throw new CommandError("NOT_FOUND", 404, t("access.member_not_found"));
   const reason = input.reason.trim();
-  if (!reason || reason.length > 500) throw fieldError("reason", "REQUIRED", "Cần lý do (≤ 500 ký tự)");
+  if (!reason || reason.length > 500) throw fieldError("reason", "REQUIRED", t("access.reason_required_500"));
   const m = await sql<{ auth_user_id: string | null; role: string; status: string }>`
     select auth_user_id, role, status from memberships where organization_id = ${ctx.actor.orgId} and id = ${input.membershipId}
     for update`.execute(ctx.trx);
   const target = m.rows[0];
   if (!target || target.status === "revoked")
-    throw new CommandError("NOT_FOUND", 404, "Không tìm thấy thành viên");
-  if (!target.auth_user_id)
-    throw new CommandError("INVALID_TRANSITION", 409, "Thành viên chưa có tài khoản đăng nhập");
+    throw new CommandError("NOT_FOUND", 404, t("access.member_not_found"));
+  if (!target.auth_user_id) throw new CommandError("INVALID_TRANSITION", 409, t("access.member_no_login"));
   // Mọi membership chưa thu hồi ở tổ chức khác (kể cả tạm khoá/chưa hiệu lực) — review lát 4 🟢4.
   const elsewhere = await sql<{ n: number }>`
     select app.memberships_elsewhere(${target.auth_user_id}::uuid, ${ctx.actor.orgId}::uuid) as n`.execute(
     ctx.trx,
   );
   if ((elsewhere.rows[0]?.n ?? 0) > 0) {
-    throw new CommandError(
-      "FORBIDDEN",
-      403,
-      "Tài khoản này còn dùng ở tổ chức khác — liên hệ hỗ trợ nền tảng để khôi phục.",
-      { extensions: { items: [{ recovery: "platform_support" }] } },
-    );
+    throw new CommandError("FORBIDDEN", 403, t("access.mfa_reset_shared_account"), {
+      extensions: { items: [{ recovery: "platform_support" }] },
+    });
   }
   await sql`delete from auth."twoFactor" where "userId" = ${target.auth_user_id}::uuid`.execute(ctx.trx);
   await sql`update auth."user" set "twoFactorEnabled" = false, "updatedAt" = now() where id = ${target.auth_user_id}::uuid`.execute(

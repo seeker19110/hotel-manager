@@ -6,6 +6,7 @@ import { withTenant } from "@hm/db";
 import { authorize, grantFor, isMatrixRole, MS_PER_DAY } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/index.ts";
+import { t } from "../i18n.ts";
 import { CommandError, fieldError } from "../pipeline/index.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -83,7 +84,7 @@ async function propertyTimezone(
     trx,
   );
   const tz = p.rows[0]?.timezone;
-  if (!tz) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy cơ sở");
+  if (!tz) throw new CommandError("NOT_FOUND", 404, t("common.property_not_found"));
   return tz;
 }
 
@@ -94,22 +95,26 @@ export async function getCalendar(
   input: CalendarInput,
   now = new Date(),
 ): Promise<Calendar> {
-  if (!UUID.test(input.propertyId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy cơ sở");
+  if (!UUID.test(input.propertyId)) throw new CommandError("NOT_FOUND", 404, t("common.property_not_found"));
   authorize(actor, "calendar.read_status", { propertyId: input.propertyId });
-  if (!validDate(input.from)) throw fieldError("from", "invalid_date", "Ngày bắt đầu không hợp lệ");
-  if (!validDate(input.to)) throw fieldError("to", "invalid_date", "Ngày kết thúc không hợp lệ");
+  if (!validDate(input.from)) throw fieldError("from", "invalid_date", t("inventory.calendar_from_invalid"));
+  if (!validDate(input.to)) throw fieldError("to", "invalid_date", t("inventory.calendar_to_invalid"));
   const days = (Date.parse(`${input.to}T00:00:00Z`) - Date.parse(`${input.from}T00:00:00Z`)) / MS_PER_DAY;
-  if (days <= 0) throw fieldError("to", "invalid_range", "Khoảng ngày không hợp lệ");
+  if (days <= 0) throw fieldError("to", "invalid_range", t("stay.reservation.date_range_invalid"));
   if (days > CALENDAR_MAX_DAYS)
-    throw fieldError("to", "range_too_long", `Chỉ xem tối đa ${CALENDAR_MAX_DAYS} ngày mỗi lần`);
+    throw fieldError(
+      "to",
+      "range_too_long",
+      t("inventory.calendar_range_too_long", { days: CALENDAR_MAX_DAYS }),
+    );
   if (input.floorId !== undefined && !UUID.test(input.floorId))
-    throw fieldError("floor_id", "invalid", "Tầng không hợp lệ");
+    throw fieldError("floor_id", "invalid", t("inventory.calendar_floor_invalid"));
   if (input.roomTypeId !== undefined && !UUID.test(input.roomTypeId))
-    throw fieldError("room_type_id", "invalid", "Loại phòng không hợp lệ");
+    throw fieldError("room_type_id", "invalid", t("inventory.unit_type_invalid"));
   const limit = Math.min(Math.max(Math.trunc(input.limit ?? CALENDAR_DEFAULT_ROOMS), 1), CALENDAR_MAX_ROOMS);
   const offset = input.cursor === undefined ? 0 : Number(input.cursor);
   if (!Number.isInteger(offset) || offset < 0 || offset > 1_000_000)
-    throw fieldError("cursor", "invalid", "Con trỏ trang không hợp lệ");
+    throw fieldError("cursor", "invalid", t("inventory.calendar_cursor_invalid"));
   const role = actor.role;
   const guestsVisible = isMatrixRole(role) && grantFor("calendar.read_guests", role) !== "no";
   const moneyVisible = isMatrixRole(role) && grantFor("money.read", role) === "yes";
@@ -138,6 +143,8 @@ export async function getCalendar(
       limit ${limit + 1} offset ${offset}`.execute(trx);
     const page = rooms.rows.slice(0, limit);
     const unitIds = page.map((r) => r.unit_id);
+    // Đoạn quá hạn trả còn ngoại lệ mở luôn hiện (phòng thực tế còn người) dù khoảng xem bắt đầu sau giờ trả dự kiến
+    // (nhánh `or exists (…)` của điều kiện khoảng trong truy vấn dưới).
     const segs =
       unitIds.length === 0
         ? []
@@ -184,7 +191,6 @@ export async function getCalendar(
         and a.active and (a.kind <> 'hold' or a.expires_at > ${now})
         and (a.during && tstzrange((${input.from}::date)::timestamp at time zone ${tz},
                                    (${input.to}::date)::timestamp at time zone ${tz}, '[)')
-             -- Đoạn quá hạn trả còn ngoại lệ mở luôn hiện (phòng thực tế còn người) dù khoảng xem bắt đầu sau giờ trả dự kiến.
              or exists (select 1 from exceptions e where e.organization_id = a.organization_id and e.allocation_id = a.id
                           and e.status = 'open' and e.type in ('STAY_OVERSTAY', 'LEASE_OVERSTAY')))
       order by lower(a.during), a.id`.execute(trx)
@@ -254,19 +260,19 @@ export async function searchAvailability(
   input: { propertyId: string; start: Date; end: Date; guests?: number; roomTypeId?: string },
   now = new Date(),
 ): Promise<{ rooms: AvailableRoom[] }> {
-  if (!UUID.test(input.propertyId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy cơ sở");
+  if (!UUID.test(input.propertyId)) throw new CommandError("NOT_FOUND", 404, t("common.property_not_found"));
   authorize(actor, "calendar.read_status", { propertyId: input.propertyId });
   if (Number.isNaN(input.start.getTime()))
-    throw fieldError("start", "invalid_date", "Thời điểm bắt đầu không hợp lệ");
+    throw fieldError("start", "invalid_date", t("inventory.availability_start_invalid"));
   if (Number.isNaN(input.end.getTime()) || input.end.getTime() <= input.start.getTime())
-    throw fieldError("end", "invalid_range", "Thời điểm kết thúc phải sau thời điểm bắt đầu");
+    throw fieldError("end", "invalid_range", t("inventory.end_after_start"));
   if (
     input.guests !== undefined &&
     (!Number.isInteger(input.guests) || input.guests < 1 || input.guests > 50)
   )
-    throw fieldError("guests", "invalid", "Số khách không hợp lệ");
+    throw fieldError("guests", "invalid", t("inventory.availability_guests_invalid"));
   if (input.roomTypeId !== undefined && !UUID.test(input.roomTypeId))
-    throw fieldError("room_type_id", "invalid", "Loại phòng không hợp lệ");
+    throw fieldError("room_type_id", "invalid", t("inventory.unit_type_invalid"));
   const range = `[${input.start.toISOString()},${input.end.toISOString()})`;
   return withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
     await propertyTimezone(trx, actor.orgId, input.propertyId);

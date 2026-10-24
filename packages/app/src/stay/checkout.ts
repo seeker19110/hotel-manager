@@ -3,12 +3,14 @@
 // chính booking → thu tiền tại quầy (tiền mặt: lễ tân tự xác nhận khoản mình nhận trong ca đang mở) → còn nợ thì chỉ trả phòng
 // khi có người có thẩm quyền cho nợ (người nợ + hạn) hoặc khấu trừ cọc đang chờ duyệt → hoàn cọc theo hạn mức → stay/booking
 // `checked_out`, allocation kết thúc ở giờ trả thực, phòng `dirty` + việc dọn. Lỗi ở bước nào ⇒ không ghi gì.
+
 import { randomUUID } from "node:crypto";
 import { authorize, generateMemoRef, grantFor, isMatrixRole } from "@hm/domain";
 import { sql } from "kysely";
 import { registerApprovalExecutor } from "../approvals/index.ts";
 import { refundDepositAtCheckout, requestDeduction } from "../deposits/index.ts";
 import { createCleaningTask } from "../housekeeping/index.ts";
+import { t } from "../i18n.ts";
 import { resolveOverstayExceptions } from "../inventory/index.ts";
 import { postEntry } from "../ledger/index.ts";
 import {
@@ -88,7 +90,7 @@ async function issueFolio(
     order by c.business_date, c.created_at
     for update of c`.execute(ctx.trx);
   const total = ch.rows.reduce((s, c) => s + Number(c.amount), 0);
-  if (total < 0) throw fieldError("charges", "negative_total", "Tổng folio âm — kiểm tra lại giảm giá");
+  if (total < 0) throw fieldError("charges", "negative_total", t("stay.checkout.negative_total"));
   const invoiceId = randomUUID();
   const n = await sql<{
     n: string;
@@ -156,7 +158,7 @@ async function releaseUnusedNights(
   now: Date,
 ): Promise<string[]> {
   const r = await sql<{ business_date: string }>`
-    update charges c set voided_at = ${now}, voided_by = ${ctx.actor.membershipId}, void_reason = 'Trả phòng sớm — đêm chưa ở'
+    update charges c set voided_at = ${now}, voided_by = ${ctx.actor.membershipId}, void_reason = ${t("stay.checkout.void_reason_early")}::text
     from properties p
     where c.organization_id = ${ctx.actor.orgId} and c.stay_id = ${stay.id} and c.kind = 'room' and c.voided_at is null
       and p.organization_id = c.organization_id and p.id = c.property_id
@@ -193,7 +195,7 @@ async function allocateToFolio(
     {
       authorizeRow: (row: PaymentRow) => {
         if (row.property_id !== propertyId)
-          throw new CommandError("NOT_FOUND", 404, "Không tìm thấy thanh toán");
+          throw new CommandError("NOT_FOUND", 404, t("stay.checkout.payment_not_found"));
         authorize(ctx.actor, "reservation.manage", { propertyId });
       },
       ...(now ? { now } : {}),
@@ -217,20 +219,21 @@ async function assertAllowBalance(
   allow: NonNullable<CheckoutInput["allowBalance"]>,
 ): Promise<string | null> {
   if (!UUID.test(allow.debtorPersonId))
-    throw fieldError("allow_balance.debtor_person_id", "required", "Cần người nợ");
+    throw fieldError("allow_balance.debtor_person_id", "required", t("stay.checkout.debtor_required"));
   if (!/^\d{4}-\d{2}-\d{2}$/.test(allow.dueDate))
-    throw fieldError("allow_balance.due_date", "required", "Cần hạn trả");
+    throw fieldError("allow_balance.due_date", "required", t("stay.checkout.due_date_required"));
   const p = await sql<{ id: string }>`
     select id from persons where organization_id = ${ctx.actor.orgId} and id = ${allow.debtorPersonId} and anonymized_at is null`.execute(
     ctx.trx,
   );
-  if (!p.rows[0]) throw fieldError("allow_balance.debtor_person_id", "not_found", "Không tìm thấy người nợ");
+  if (!p.rows[0])
+    throw fieldError("allow_balance.debtor_person_id", "not_found", t("stay.checkout.debtor_not_found"));
   if (allow.dueDate < day)
-    throw fieldError("allow_balance.due_date", "past", "Hạn trả không trước ngày trả phòng");
+    throw fieldError("allow_balance.due_date", "past", t("stay.checkout.due_date_past"));
   // Owner/manager cho nợ trực tiếp — không gắn (và không tiêu thụ) yêu cầu duyệt của lượt ở khác.
   if (canGrant(ctx, "stay.checkout_with_debt")) return null;
   if (!allow.approvalRequestId || !UUID.test(allow.approvalRequestId))
-    throw new CommandError("OUTSTANDING_BALANCE", 409, "Khách còn nợ. Cần quản lý cho phép và hạn trả.", {
+    throw new CommandError("OUTSTANDING_BALANCE", 409, t("stay.checkout.outstanding_balance"), {
       extensions: { items: [{ balance: remaining }] },
     });
   const a = await sql<{ status: string; amount: string | null; payload: Record<string, unknown> }>`
@@ -239,12 +242,12 @@ async function assertAllowBalance(
       and subject_type = 'stay' and subject_id = ${stayId} for update`.execute(ctx.trx);
   const row = a.rows[0];
   if (row?.status !== "executed" || row.amount === null || Number(row.amount) < remaining)
-    throw new CommandError("OUTSTANDING_BALANCE", 409, "Khách còn nợ. Cần quản lý cho phép và hạn trả.", {
+    throw new CommandError("OUTSTANDING_BALANCE", 409, t("stay.checkout.outstanding_balance"), {
       extensions: { items: [{ balance: remaining }] },
     });
   // Người nợ + hạn trả do người duyệt quyết (S-019) — lễ tân phải dùng đúng giá trị đã duyệt.
   if (row.payload.debtor_person_id !== allow.debtorPersonId || row.payload.due_date !== allow.dueDate)
-    throw new CommandError("OUTSTANDING_BALANCE", 409, "Người nợ/hạn trả khác với yêu cầu đã được duyệt.", {
+    throw new CommandError("OUTSTANDING_BALANCE", 409, t("stay.checkout.approval_mismatch"), {
       extensions: { items: [{ balance: remaining }] },
     });
   return allow.approvalRequestId;
@@ -256,18 +259,18 @@ export async function checkOut(ctx: CommandContext, input: CheckoutInput): Promi
   const stay = await readStay(ctx.trx, ctx.actor, input.stayId, true);
   authorize(ctx.actor, "reservation.manage", { propertyId: stay.property_id });
   if (stay.status !== "in_house") {
-    throw new CommandError("INVALID_TRANSITION", 409, "Thao tác không hợp lệ với trạng thái hiện tại.", {
+    throw new CommandError("INVALID_TRANSITION", 409, t("stay.checkout.invalid_state"), {
       extensions: { from: stay.status, to: "checked_out" },
     });
   }
   if (input.allowBalance) {
     if (!UUID.test(input.allowBalance.debtorPersonId))
-      throw fieldError("allow_balance.debtor_person_id", "required", "Cần người nợ");
+      throw fieldError("allow_balance.debtor_person_id", "required", t("stay.checkout.debtor_required"));
     if (
       !/^\d{4}-\d{2}-\d{2}$/.test(input.allowBalance.dueDate) ||
       Number.isNaN(Date.parse(input.allowBalance.dueDate))
     )
-      throw fieldError("allow_balance.due_date", "required", "Cần hạn trả hợp lệ");
+      throw fieldError("allow_balance.due_date", "required", t("stay.checkout.due_date_invalid"));
   }
   const dayRow = await sql<{ d: string }>`
     select app.business_date(${ctx.actor.orgId}, ${stay.property_id}, ${now})::text as d`.execute(ctx.trx);
@@ -305,13 +308,13 @@ export async function checkOut(ctx: CommandContext, input: CheckoutInput): Promi
   const paid: CheckoutResult["payments"] = [];
   for (const [i, p] of (input.payments ?? []).entries()) {
     if (!Number.isSafeInteger(p.amount) || p.amount <= 0)
-      throw fieldError(`payments.${i}.amount`, "invalid", "Số tiền > 0");
+      throw fieldError(`payments.${i}.amount`, "invalid", t("stay.checkout.amount_positive"));
     if (
       p.method === "cash" &&
       !(await openShiftOf(ctx.trx, ctx.actor.orgId, ctx.actor.membershipId, stay.property_id))
     ) {
       // INV-F3b: chỉ xác nhận tiền mặt mình nhận trong ca đang mở của mình (S-026 a).
-      throw new CommandError("FORBIDDEN", 403, "Mở ca trước khi nhận tiền mặt lúc trả phòng");
+      throw new CommandError("FORBIDDEN", 403, t("stay.checkout.shift_required"));
     }
     const { paymentId } = await recordPayment(ctx, {
       propertyId: stay.property_id,
@@ -351,7 +354,7 @@ export async function checkOut(ctx: CommandContext, input: CheckoutInput): Promi
   let deductionApprovalId: string | null = null;
   let secured = 0;
   if (input.depositDeduction) {
-    if (!deposit) throw fieldError("deposit_deduction", "no_deposit", "Booking không có cọc");
+    if (!deposit) throw fieldError("deposit_deduction", "no_deposit", t("stay.checkout.no_deposit"));
     const r = await requestDeduction(ctx, {
       depositId: deposit.id,
       invoiceId,
@@ -366,7 +369,7 @@ export async function checkOut(ctx: CommandContext, input: CheckoutInput): Promi
   let debtor: { personId: string; dueDate: string } | null = null;
   if (remaining > 0) {
     if (!input.allowBalance)
-      throw new CommandError("OUTSTANDING_BALANCE", 409, "Khách còn nợ. Cần quản lý cho phép và hạn trả.", {
+      throw new CommandError("OUTSTANDING_BALANCE", 409, t("stay.checkout.outstanding_balance"), {
         extensions: { items: [{ balance: remaining }] },
       });
     allowBalanceApprovalId = await assertAllowBalance(ctx, day, stay.id, remaining, input.allowBalance);
@@ -379,9 +382,9 @@ export async function checkOut(ctx: CommandContext, input: CheckoutInput): Promi
   let depositRefundStatus: CheckoutResult["depositRefundStatus"] = null;
   let depositRefundApprovalId: string | null = null;
   if (input.depositRefund) {
-    if (!deposit) throw fieldError("deposit_refund", "no_deposit", "Booking không có cọc");
+    if (!deposit) throw fieldError("deposit_refund", "no_deposit", t("stay.checkout.no_deposit"));
     if (balance > 0 || deductionApprovalId)
-      throw new CommandError("OUTSTANDING_BALANCE", 409, "Khách còn nợ — chỉ hoàn cọc khi folio đã thu đủ.", {
+      throw new CommandError("OUTSTANDING_BALANCE", 409, t("stay.checkout.refund_needs_settled"), {
         extensions: { items: [{ balance }] },
       });
     const refund =
@@ -396,7 +399,7 @@ export async function checkOut(ctx: CommandContext, input: CheckoutInput): Promi
       amount: input.depositRefund.amount,
       refund,
       stayId: stay.id,
-      reason: "Hoàn cọc khi trả phòng",
+      reason: t("stay.checkout.refund_reason"),
       now,
     });
     depositRefundStatus = r.status;
@@ -496,7 +499,7 @@ export function registerCheckoutExecutors(): void {
   registerApprovalExecutor("allow_balance", {
     async execute(ctx, req) {
       if (req.subjectType !== "stay" || !req.subjectId || req.amount === null)
-        throw new CommandError("VALIDATION_FAILED", 422, "Yêu cầu cho nợ phải gắn lượt ở và số tiền");
+        throw new CommandError("VALIDATION_FAILED", 422, t("stay.checkout.allow_balance_subject"));
       const debtor = req.payload.debtor_person_id;
       const due = req.payload.due_date;
       if (
@@ -505,7 +508,7 @@ export function registerCheckoutExecutors(): void {
         typeof due !== "string" ||
         !/^\d{4}-\d{2}-\d{2}$/.test(due)
       )
-        throw new CommandError("VALIDATION_FAILED", 422, "Yêu cầu cho nợ phải ghi người nợ và hạn trả", {
+        throw new CommandError("VALIDATION_FAILED", 422, t("stay.checkout.allow_balance_payload"), {
           extensions: { errors: [{ path: "payload", field: "payload", code: "required" }] },
         });
       const s = await sql<{ status: string }>`
@@ -513,7 +516,7 @@ export function registerCheckoutExecutors(): void {
         ctx.trx,
       );
       if (s.rows[0]?.status !== "in_house")
-        throw new CommandError("INVALID_TRANSITION", 409, "Chỉ cho nợ lượt ở đang ở", {
+        throw new CommandError("INVALID_TRANSITION", 409, t("stay.checkout.allow_balance_state"), {
           extensions: { from: s.rows[0]?.status ?? "none", to: "checked_out" },
         });
       return { granted: true };

@@ -1,5 +1,6 @@
 // Loại phòng, bảng giá và báo giá khách sạn (SPEC-reservation-stay S-001, S-002, S-014, S-021; ERD `rate_plans`). Giá tính
 // bằng hàm thuần `@hm/domain` (đêm theo ngày kinh doanh, cuối tuần theo tham số cơ sở); app chỉ đọc dữ liệu và kiểm quyền.
+
 import { randomUUID } from "node:crypto";
 import { withTenant } from "@hm/db";
 import {
@@ -15,6 +16,7 @@ import {
 } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/index.ts";
+import { t } from "../i18n.ts";
 import { type CommandContext, CommandError } from "../pipeline/index.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -38,7 +40,7 @@ export async function staySettings(
   orgId: string,
   propertyId: string,
 ): Promise<StaySettings> {
-  if (!UUID.test(propertyId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy cơ sở");
+  if (!UUID.test(propertyId)) throw new CommandError("NOT_FOUND", 404, t("common.property_not_found"));
   const r = await sql<{
     template: string;
     timezone: string;
@@ -54,7 +56,7 @@ export async function staySettings(
     trx,
   );
   const p = r.rows[0];
-  if (!p) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy cơ sở");
+  if (!p) throw new CommandError("NOT_FOUND", 404, t("common.property_not_found"));
   return {
     propertyId,
     template: p.template,
@@ -92,15 +94,15 @@ export function quoteProblem(e: unknown): never {
   if (e instanceof QuoteRuleError) {
     const d = e.detail;
     if (d.code === "RATE_NOT_CONFIGURED")
-      throw new CommandError("RATE_NOT_CONFIGURED", 422, "Chưa cấu hình giá cho loại phòng này", {
+      throw new CommandError("RATE_NOT_CONFIGURED", 422, t("stay.rates.not_configured"), {
         extensions: { items: [{ business_date: d.businessDate }] },
       });
     if (d.code === "MAX_NIGHTS_EXCEEDED")
-      throw validation("departure_date", "max_nights", `Tối đa ${d.maxNights} đêm cho một booking`);
+      throw validation("departure_date", "max_nights", t("stay.rates.max_nights", { max: d.maxNights }));
     throw validation(
       "departure_date",
       d.reason,
-      d.reason === "invalid_date" ? "Ngày không hợp lệ" : "Ngày đi phải sau ngày đến",
+      d.reason === "invalid_date" ? t("stay.rates.invalid_date") : t("stay.rates.departure_after_arrival"),
     );
   }
   throw e;
@@ -136,7 +138,7 @@ async function roomTypeOf(
   by: { roomTypeId?: string; unitId?: string },
 ): Promise<RoomTypeRow & { unit_id: string | null }> {
   const id = by.unitId ?? by.roomTypeId;
-  if (!id || !UUID.test(id)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phòng/loại phòng");
+  if (!id || !UUID.test(id)) throw new CommandError("NOT_FOUND", 404, t("stay.rates.unit_or_type_not_found"));
   const r = by.unitId
     ? await sql<RoomTypeRow & { unit_id: string | null }>`
         select rt.id, rt.property_id, rt.capacity, u.id as unit_id from units u
@@ -146,14 +148,15 @@ async function roomTypeOf(
         select id, property_id, capacity, null::uuid as unit_id from room_types
         where organization_id = ${orgId} and id = ${by.roomTypeId} and archived_at is null`.execute(trx);
   const row = r.rows[0];
-  if (!row) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phòng/loại phòng");
+  if (!row) throw new CommandError("NOT_FOUND", 404, t("stay.rates.unit_or_type_not_found"));
   return row;
 }
 
 export function assertCapacity(guests: number, capacity: number): void {
-  if (!Number.isInteger(guests) || guests < 1) throw validation("guests", "too_small", "Số khách phải ≥ 1");
+  if (!Number.isInteger(guests) || guests < 1)
+    throw validation("guests", "too_small", t("stay.rates.guests_min"));
   if (guests > capacity)
-    throw new CommandError("CAPACITY_EXCEEDED", 422, "Số khách vượt sức chứa của phòng", {
+    throw new CommandError("CAPACITY_EXCEEDED", 422, t("stay.rates.guests_over_capacity"), {
       extensions: { items: [{ capacity }] },
     });
 }
@@ -227,7 +230,7 @@ export async function createRoomType(
     );
   } catch (e) {
     if ((e as { code?: string }).code === "23505")
-      throw validation("code", "duplicate", "Mã loại phòng đã có trong cơ sở");
+      throw validation("code", "duplicate", t("stay.rates.room_type_code_taken"));
     throw e;
   }
   await ctx.audit({
@@ -282,7 +285,7 @@ export async function setRate(
     ["weekend_price", input.weekendPrice],
   ] as const) {
     if (!Number.isSafeInteger(v) || v <= 0)
-      throw validation(k, "positive_integer", "Giá phải là số nguyên đồng > 0");
+      throw validation(k, "positive_integer", t("stay.rates.price_positive"));
   }
   const today = await sql<{
     d: string;
@@ -303,11 +306,7 @@ export async function setRate(
     );
   } else {
     if (cur && cur.f > from)
-      throw validation(
-        "effective_from",
-        "before_current",
-        "Ngày hiệu lực phải sau ngày bắt đầu của bảng giá hiện hành",
-      );
+      throw validation("effective_from", "before_current", t("stay.rates.effective_after_start"));
     if (cur) {
       await sql`update rate_plans set effective_to = ${from}::date - 1, version = version + 1
                 where organization_id = ${ctx.actor.orgId} and id = ${cur.id}`.execute(ctx.trx);

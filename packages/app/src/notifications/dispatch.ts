@@ -5,6 +5,7 @@
 import { randomUUID } from "node:crypto";
 import { withTenantRetry } from "@hm/db";
 import { type Kysely, sql, type Transaction } from "kysely";
+import { t } from "../i18n.ts";
 import { type NotificationType, render, TemplateError, type Vars } from "./templates.ts";
 
 export interface DispatchJob {
@@ -57,7 +58,7 @@ export async function createNotification(
 /** Phiếu thu kỳ (hợp đồng) phát hành → người trả (S-001). Folio khách lẻ không gửi (khách không có portal). */
 async function invoiceIssued(trx: Transaction<unknown>, job: DispatchJob, now: Date): Promise<number> {
   const invoiceId = job.payload.invoice_id;
-  if (typeof invoiceId !== "string") throw new Error("payload thiếu invoice_id");
+  if (typeof invoiceId !== "string") throw new Error(t("notify.error.payload_missing_invoice"));
   const r = await sql<{
     property_id: string;
     payer_person_id: string;
@@ -103,7 +104,7 @@ async function workOrderStatus(trx: Transaction<unknown>, job: DispatchJob, now:
   const woId = job.payload.work_order_id;
   const status = job.payload.status;
   if (typeof woId !== "string" || typeof status !== "string")
-    throw new Error("payload thiếu work_order_id/status");
+    throw new Error(t("notify.error.payload_missing_work_order"));
   if (!["assigned", "done", "verified", "cancelled"].includes(status)) return 0;
   const r = await sql<{
     property_id: string;
@@ -138,7 +139,7 @@ async function tenantInvited(trx: Transaction<unknown>, job: DispatchJob, now: D
   const membershipId = job.payload.membership_id;
   const personId = job.payload.person_id;
   if (typeof membershipId !== "string" || typeof personId !== "string")
-    throw new Error("payload thiếu membership_id/person_id");
+    throw new Error(t("notify.error.payload_missing_membership_person"));
   const o = await sql<{
     name: string;
   }>`select name from organizations where id = ${job.organization_id}`.execute(trx);
@@ -150,8 +151,8 @@ async function tenantInvited(trx: Transaction<unknown>, job: DispatchJob, now: D
       recipientPersonId: personId,
       type: "account_security",
       vars: {
-        orgName: o.rows[0]?.name ?? "Cơ sở",
-        action: "mời vào cổng người thuê",
+        orgName: o.rows[0]?.name ?? t("notify.fallback_org"),
+        action: t("notify.action.tenant_invited"),
         kind: "tenant_invited",
       },
       dedupeKey: `tenant_invited:${membershipId}`,
@@ -167,14 +168,14 @@ async function tenantInvited(trx: Transaction<unknown>, job: DispatchJob, now: D
  * Không đưa IP/UA/người thực hiện vào nội dung (S-012: không PII); dedupe theo outbox_id ⇒ giao lại không tạo bản thứ hai.
  */
 const SECURITY_KIND: Readonly<Record<string, { kind: string; action: string }>> = {
-  "member.mfa_reset": { kind: "mfa_reset", action: "xác thực hai lớp đã được đặt lại" },
-  "member.password_changed": { kind: "password_changed", action: "mật khẩu đã được đổi" },
-  "member.mfa_disabled": { kind: "mfa_disabled", action: "xác thực hai lớp đã được tắt" },
+  "member.mfa_reset": { kind: "mfa_reset", action: t("notify.action.mfa_reset") },
+  "member.password_changed": { kind: "password_changed", action: t("notify.action.password_changed") },
+  "member.mfa_disabled": { kind: "mfa_disabled", action: t("notify.action.mfa_disabled") },
 };
 
 async function accountSecurity(trx: Transaction<unknown>, job: DispatchJob, now: Date): Promise<number> {
   const membershipId = job.payload.membership_id;
-  if (typeof membershipId !== "string") throw new Error("payload thiếu membership_id");
+  if (typeof membershipId !== "string") throw new Error(t("notify.error.payload_missing_membership"));
   const spec = SECURITY_KIND[job.event_type];
   if (!spec) return 0;
   const r = await sql<{ person_id: string; org_name: string }>`

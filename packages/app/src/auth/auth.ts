@@ -8,6 +8,7 @@ import { betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { emailOTP, twoFactor } from "better-auth/plugins";
 import { createPool } from "../db/index.ts";
+import { t } from "../i18n.ts";
 import { appLogger, requestClient, type SecurityClient } from "../logging/index.ts";
 import { type AuthEventInput, correlationFrom, createAuthEvents } from "./auth-events.ts";
 import {
@@ -127,9 +128,7 @@ export function createAuth(deps: AuthDeps) {
   // Telemetry của Better Auth: tắt tường minh. Lưu ý thư viện còn bật nếu env BETTER_AUTH_TELEMETRY=1 (env thắng
   // tuỳ chọn) ⇒ chặn khởi động thay vì để gửi dữ liệu ra ngoài âm thầm.
   if (/^(1|true|yes|on)$/i.test(process.env.BETTER_AUTH_TELEMETRY ?? ""))
-    throw new Error(
-      "BETTER_AUTH_TELEMETRY phải tắt: dự án tự host, không gửi telemetry ra ngoài (ADR-0002).",
-    );
+    throw new Error(t("auth.telemetry_must_be_off"));
 
   /** Tài khoản chỉ còn là người thuê (xuyên tổ chức): `app.otp_sign_in_allowed`. */
   const tenantOnlyUser = async (userId: string): Promise<boolean> => {
@@ -216,7 +215,8 @@ export function createAuth(deps: AuthDeps) {
     },
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
-        if (OTP_BLOCKED_PATHS.has(ctx.path)) throw new APIError("NOT_FOUND", { message: "Không hỗ trợ" });
+        if (OTP_BLOCKED_PATHS.has(ctx.path))
+          throw new APIError("NOT_FOUND", { message: t("auth.unsupported") });
         if (ctx.path === "/sign-out") {
           // Phiên bị xoá bởi chính endpoint ⇒ phải đọc người dùng TRƯỚC (hook `after` ghi `auth.logout`).
           requestState.set(ctx.context, { userId: await sessionUserId(ctx) });
@@ -224,7 +224,7 @@ export function createAuth(deps: AuthDeps) {
         }
         if (ctx.path === "/email-otp/send-verification-otp") {
           if ((ctx.body as { type?: unknown } | undefined)?.type !== "sign-in")
-            throw new APIError("NOT_FOUND", { message: "Không hỗ trợ" });
+            throw new APIError("NOT_FOUND", { message: t("auth.unsupported") });
           return;
         }
         if (ctx.path === "/sign-in/email-otp") {
@@ -239,7 +239,7 @@ export function createAuth(deps: AuthDeps) {
             });
             throw new APIError("BAD_REQUEST", {
               code: "INVALID_OTP",
-              message: "Mã không đúng hoặc đã hết hạn.",
+              message: t("auth.otp_invalid"),
             });
           }
           return;
@@ -258,7 +258,7 @@ export function createAuth(deps: AuthDeps) {
             "TOO_MANY_REQUESTS",
             {
               code: "ACCOUNT_LOCKED",
-              message: "Tài khoản tạm khoá do đăng nhập sai nhiều lần. Thử lại sau.",
+              message: t("auth.locked_out"),
             },
             { "Retry-After": String(wait) },
           );

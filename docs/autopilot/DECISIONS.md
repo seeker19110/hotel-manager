@@ -739,3 +739,46 @@
 - Chọn: Duyệt 3 task như viết
 - Lý do (tiêu chí chất lượng cuối): (3)(4) việc máy duy nhất còn lại; theo nhịp D-097; thiết kế D-102 có rào máy
 - Đường lùi: Revert PR đợt 21
+
+### D-103 · 2026-10-24T08:51:55+00:00 · D-103: apps/web/lib/format.ts (74 chuỗi nhãn) được cả server lẫn client import — chuyển i18n thế nào?
+
+- Phương án: (1) Nhãn tách: hàm nhận m / dùng t() ở server; client lấy qua useMessages() (common.) hoặc prop m · (2) Giữ nguyên format.ts, miễn trừ
+- Chọn: Nhãn tách: hàm nhận m / dùng t() ở server; client lấy qua useMessages() (common.) hoặc prop m
+- Lý do (tiêu chí chất lượng cuối): (1) XC-I18N-001 đòi mọi chuỗi người dùng thấy; giữ D-098 (catalog không vào bundle)
+- Đường lùi: Revert PR lát 1
+
+### D-104 · 2026-10-24T08:51:56+00:00 · D-104: packages/app (1280 chuỗi: lỗi API, email, xuất/nhập) dùng catalog nào?
+
+- Phương án: (1) Catalog riêng packages/app/messages/vi.json cùng định dạng + t() typed server-only; i18n-check kiểm 2 catalog; mã lỗi API giữ nguyên · (2) Dùng chung apps/web/messages/vi.json (packages/app import từ apps/web) · (3) Gói packages/i18n chung
+- Chọn: Catalog riêng packages/app/messages/vi.json cùng định dạng + t() typed server-only; i18n-check kiểm 2 catalog; mã lỗi API giữ nguyên
+- Lý do (tiêu chí chất lượng cuối): (3) đúng ranh giới module (ADR-0001: packages/app không phụ thuộc apps/web); không đổi API (mã lỗi giữ); (2) dễ gộp sau nếu cần locale thứ hai
+- Đường lùi: Gộp catalog vào gói chung khi có locale thứ hai
+
+### D-105 · 2026-10-24T08:51:56+00:00 · D-105: chuỗi tiếng Việt chỉ người vận hành/nhà phát triển thấy (log, mô tả metric, lỗi cấu hình lúc khởi động, mô tả OpenAPI) có thuộc XC-I18N-001 không?
+
+- Phương án: (1) Không — ngoại lệ theo tệp có lý do trong baseline, script kiểm lý do không rỗng; mọi tệp khác về 0 · (2) Có — chuyển tất cả vào catalog
+- Chọn: Không — ngoại lệ theo tệp có lý do trong baseline, script kiểm lý do không rỗng; mọi tệp khác về 0
+- Lý do (tiêu chí chất lượng cuối): (1) MUST ghi 'chuỗi người dùng thấy (UI, email, thông báo đẩy, lỗi, PDF)'; log/metric/OpenAPI không phải; ngoại lệ hiển thị từng tệp + lý do nên không phải nới ngầm; reviewer rà danh sách
+- Đường lùi: Bỏ danh sách ngoại lệ, chuyển nốt các tệp đó
+
+### D-106 · 2026-10-24T09:54:02+00:00 · D-106: packages/app/src/http/command-inputs.ts (19 thông điệp lỗi zod của form) được trình duyệt nạp trễ — không được import catalog server (D-098). Chuyển i18n thế nào?
+
+- Phương án: (1) A: catalog con an toàn cho client packages/app/messages/form.vi.json (chỉ câu form), i18n-check kiểm; nới danh sách import cho phép của command-inputs.test thêm đúng tệp này · (2) B: issueText(m, issue) với m truyền từ server/context — refactor apps/web/components/command · (3) C: để ratchet giữ 19 chuỗi (nợ)
+- Chọn: A: catalog con an toàn cho client packages/app/messages/form.vi.json (chỉ câu form), i18n-check kiểm; nới danh sách import cho phép của command-inputs.test thêm đúng tệp này
+- Lý do (tiêu chí chất lượng cuối): (1) XC-I18N-001 đòi mọi chuỗi; mục đích D-098 là không nhân bản catalog lớn vào bundle — catalog con ~1 kB chỉ chứa câu form trong chunk nạp trễ đáp ứng; (3) ít thay đổi nhất, không đổi luồng validate client/server; rào máy giữ (chỉ đúng tệp được phép)
+- Đường lùi: Chuyển sang B nếu catalog form lớn dần
+
+### D-107 · 2026-10-24T12:19:07+00:00 · D-107: i18n-literals chưa quét packages/domain (≈135 chuỗi: AuthzError/TransitionError ra API, mô tả dòng phiếu billing/engine, đọc số vnd-words, nhãn ma trận quyền) và packages/db (≈119, migration) — XC-I18N-001 chưa thật đạt. Xử lý?
+
+- Phương án: (1) Mở rộng SCOPE sang packages/domain/src và packages/db/src; domain có catalog riêng (thuần, chỉ import JSON) như D-104, chuyển chuỗi người dùng thấy (kể cả từ vựng đọc số); packages/db: migration đã áp bất biến + thông báo RAISE không ra API (toProblem dùng title catalog) ⇒ ngoại lệ D-105 theo tệp có lý do + max sau khi kiểm từng tệp; packages/testkit (chỉ test) ngoài phạm vi · (2) Tick XC-I18N-001 với phạm vi hiện tại
+- Chọn: Mở rộng SCOPE sang packages/domain/src và packages/db/src; domain có catalog riêng (thuần, chỉ import JSON) như D-104, chuyển chuỗi người dùng thấy (kể cả từ vựng đọc số); packages/db: migration đã áp bất biến + thông báo RAISE không ra API (toProblem dùng title catalog) ⇒ ngoại lệ D-105 theo tệp có lý do + max sau khi kiểm từng tệp; packages/testkit (chỉ test) ngoài phạm vi
+- Lý do (tiêu chí chất lượng cuối): (1) P1 bằng chứng: MUST nói mọi chuỗi người dùng thấy (lỗi API, PDF/phiếu) — domain có chuỗi ra API và phiếu; không sửa migration đã áp (AGENTS §4)
+- Đường lùi: Thu hẹp SCOPE lại (không khuyến nghị)
+- Ghi chú (sau review 2026-10-24): nhãn ma trận quyền `packages/domain/src/access/matrix.ts` không ra UI/API (chỉ test đồng bộ spec) ⇒ đi theo ngoại lệ D-105 có lý do + max, không vào catalog.
+
+### D-108 · 2026-10-24T12:54:03+00:00 · D-108: packages/domain/src/format/intl.ts (ký hiệu 'đ' + 4 RangeError nội bộ) được client import qua @hm/app/format — catalog con format.vi.json (mẫu D-106, +~3 kB gzip) hay ngoại lệ D-105?
+
+- Phương án: (1) A: catalog con packages/domain/messages/format.vi.json + formatText (mở rộng D-106 sang domain) · (2) B: ngoại lệ D-105 (coi 'đ' là dữ liệu định dạng locale)
+- Chọn: A: catalog con packages/domain/messages/format.vi.json + formatText (mở rộng D-106 sang domain)
+- Lý do (tiêu chí chất lượng cuối): (1) 'đ' người dùng thấy trên mọi số tiền — XC-I18N-001 đòi qua tài nguyên; nhất quán D-106; +3 kB vẫn trong ngân sách 300 kB (282,3)
+- Đường lùi: Phương án B: bỏ formatText/format.vi.json, thêm 1 dòng ngoại lệ

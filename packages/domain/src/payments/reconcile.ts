@@ -1,6 +1,7 @@
 // Mã tham chiếu chuyển khoản và gợi ý ghép giao dịch ngân hàng ↔ phiếu (SPEC-ledger S-015, S-016, S-020). Thuần, không I/O.
 // Gợi ý KHÔNG ghi tiền: chỉ webhook đã xác minh chữ ký + khớp đúng một phiếu + không vượt số còn mới tự ghi (S-016);
 // mọi trường hợp khác vào hàng chờ `reconciliation_breaks` với LÝ DO (giá trị dữ liệu, không phải mã lỗi API).
+import { t } from "../i18n.ts";
 
 /** Bỏ ký tự dễ nhầm (0/O, 1/I) — 32 ký tự, 6 ký tự ngẫu nhiên ≈ 1,07 tỉ mã mỗi tổ chức (UNIQUE ở CSDL, trùng thì sinh lại). */
 export const MEMO_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
@@ -71,8 +72,7 @@ export interface MatchSuggestion {
  *   CUSTOMER_CREDIT) · 1 phiếu, tiền ≤ số còn → khớp (trả đủ hoặc một phần).
  */
 export function classifyBankTxn(amount: number, invoices: readonly CandidateInvoice[]): MatchSuggestion {
-  if (!Number.isSafeInteger(amount) || amount <= 0)
-    throw new RangeError("Số tiền giao dịch phải là số nguyên dương");
+  if (!Number.isSafeInteger(amount) || amount <= 0) throw new RangeError(t("reconcile.amount_not_positive"));
   if (invoices.length === 0)
     return { status: "break", reason: "WRONG_REFERENCE", allocations: [], credit: amount };
   if (invoices.some((i) => !i.sameProperty))

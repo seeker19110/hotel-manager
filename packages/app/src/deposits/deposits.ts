@@ -7,6 +7,7 @@ import { randomUUID } from "node:crypto";
 import { authorize } from "@hm/domain";
 import { sql, type Transaction } from "kysely";
 import { type ApprovalRow, registerApprovalExecutor, requestApproval } from "../approvals/index.ts";
+import { t } from "../i18n.ts";
 import { postEntry } from "../ledger/index.ts";
 import { customerCredit, lockPerson, type ManualBankTxn, recordPayment } from "../payments/index.ts";
 import { type CommandContext, CommandError } from "../pipeline/index.ts";
@@ -16,7 +17,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function assertMoney(n: number, field: string): void {
   if (!Number.isSafeInteger(n) || n <= 0) {
-    throw new CommandError("VALIDATION_FAILED", 422, `${field} phải là số nguyên đồng dương`);
+    throw new CommandError("VALIDATION_FAILED", 422, t("payments.amount_not_positive_int", { field }));
   }
 }
 
@@ -47,12 +48,12 @@ export async function receiveDeposit(
     bankTxn?: ManualBankTxn;
   },
 ): Promise<{ depositId: string; paymentId: string }> {
-  assertMoney(input.amount, "Số tiền cọc");
+  assertMoney(input.amount, t("deposits.label_amount"));
   if ((input.leaseId ? 1 : 0) + (input.reservationId ? 1 : 0) !== 1) {
-    throw new CommandError("VALIDATION_FAILED", 422, "Cọc gắn đúng một hợp đồng hoặc một đặt phòng");
+    throw new CommandError("VALIDATION_FAILED", 422, t("deposits.one_target"));
   }
   const subjectId = (input.leaseId ?? input.reservationId) as string;
-  if (!UUID.test(subjectId)) throw new CommandError("VALIDATION_FAILED", 422, "Đối tượng cọc không hợp lệ");
+  if (!UUID.test(subjectId)) throw new CommandError("VALIDATION_FAILED", 422, t("deposits.target_invalid"));
   const col = input.leaseId ? sql`lease_id` : sql`reservation_id`;
   await sql`
     insert into deposits (id, organization_id, property_id, ${col}, payer_person_id)
@@ -62,9 +63,9 @@ export async function receiveDeposit(
     select id, property_id, payer_person_id from deposits
     where organization_id = ${ctx.actor.orgId} and ${col} = ${subjectId}`.execute(ctx.trx);
   const dep = d.rows[0];
-  if (!dep) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy cọc");
+  if (!dep) throw new CommandError("NOT_FOUND", 404, t("deposits.not_found"));
   if (dep.property_id !== input.propertyId)
-    throw new CommandError("VALIDATION_FAILED", 422, "Cọc thuộc cơ sở khác");
+    throw new CommandError("VALIDATION_FAILED", 422, t("deposits.other_property"));
   const { paymentId } = await recordPayment(ctx, {
     propertyId: input.propertyId,
     method: input.method,
@@ -89,18 +90,22 @@ interface DepositRow {
 }
 
 async function readDeposit(ctx: CommandContext, depositId: string, lock: boolean): Promise<DepositRow> {
-  if (!UUID.test(depositId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy cọc");
+  if (!UUID.test(depositId)) throw new CommandError("NOT_FOUND", 404, t("deposits.not_found"));
   const r = await sql<DepositRow>`
     select id, property_id, lease_id, reservation_id, payer_person_id, balance from deposits
     where organization_id = ${ctx.actor.orgId} and id = ${depositId}
     ${lock ? sql`for update` : sql``}`.execute(ctx.trx);
   const row = r.rows[0];
-  if (!row) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy cọc");
+  if (!row) throw new CommandError("NOT_FOUND", 404, t("deposits.not_found"));
   return row;
 }
 
 function refundsExceed(amount: number, balance: number, what: string): CommandError {
-  return new CommandError("REFUND_EXCEEDS_BALANCE", 409, `${what} ${amount} vượt số còn ${balance}`);
+  return new CommandError(
+    "REFUND_EXCEEDS_BALANCE",
+    409,
+    t("deposits.refunds_exceed", { what, amount, balance }),
+  );
 }
 
 interface OpenInvoice {
@@ -114,7 +119,7 @@ interface OpenInvoice {
 }
 
 async function readInvoice(ctx: CommandContext, invoiceId: string, lock: boolean): Promise<OpenInvoice> {
-  if (!UUID.test(invoiceId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phiếu");
+  if (!UUID.test(invoiceId)) throw new CommandError("NOT_FOUND", 404, t("payments.invoice_not_found"));
   const r = await sql<{
     id: string;
     property_id: string;
@@ -130,7 +135,7 @@ async function readInvoice(ctx: CommandContext, invoiceId: string, lock: boolean
     where iv.organization_id = ${ctx.actor.orgId} and iv.id = ${invoiceId}
     ${lock ? sql`for update of iv` : sql``}`.execute(ctx.trx);
   const row = r.rows[0];
-  if (!row) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phiếu");
+  if (!row) throw new CommandError("NOT_FOUND", 404, t("payments.invoice_not_found"));
   return { ...row, open: Number(row.open) };
 }
 
@@ -139,18 +144,19 @@ function checkDeduction(dep: DepositRow, inv: OpenInvoice, amount: number): void
   // Cọc đặt phòng chỉ trừ vào folio/phí của chính booking đó (không để cọc khách X trả nợ của Y — review R6).
   if (dep.reservation_id !== null) {
     if (inv.property_id !== dep.property_id || inv.reservation_id !== dep.reservation_id) {
-      throw new CommandError(
-        "VALIDATION_FAILED",
-        422,
-        "Cọc đặt phòng chỉ khấu trừ vào folio của chính đặt phòng",
-      );
+      throw new CommandError("VALIDATION_FAILED", 422, t("deposits.deduct_booking_folio_only"));
     }
   } else if (inv.property_id !== dep.property_id || inv.lease_id !== dep.lease_id) {
-    throw new CommandError("VALIDATION_FAILED", 422, "Chỉ khấu trừ vào phiếu của chính hợp đồng có cọc");
+    throw new CommandError("VALIDATION_FAILED", 422, t("deposits.deduct_lease_invoice_only"));
   }
-  if (amount > Number(dep.balance)) throw refundsExceed(amount, Number(dep.balance), "Khấu trừ");
+  if (amount > Number(dep.balance))
+    throw refundsExceed(amount, Number(dep.balance), t("deposits.label_deduct"));
   if (amount > inv.open)
-    throw new CommandError("OVER_ALLOCATION", 409, `Khấu trừ ${amount} vượt AR còn mở ${inv.open}`);
+    throw new CommandError(
+      "OVER_ALLOCATION",
+      409,
+      t("deposits.deduct_exceeds_open", { amount, open: inv.open }),
+    );
 }
 
 /** `deposit.requestDeduction` (S-012): chưa có bút toán cho tới khi người khác người lập duyệt. */
@@ -158,7 +164,7 @@ export async function requestDeduction(
   ctx: CommandContext,
   input: { depositId: string; invoiceId: string; amount: number; reason: string },
 ): Promise<{ approvalRequestId: string }> {
-  assertMoney(input.amount, "Số tiền khấu trừ");
+  assertMoney(input.amount, t("deposits.label_deduct_amount"));
   const dep = await readDeposit(ctx, input.depositId, false);
   checkDeduction(dep, await readInvoice(ctx, input.invoiceId, false), input.amount);
   return requestApproval(ctx, {
@@ -185,9 +191,10 @@ export async function requestDepositRefund(
   ctx: CommandContext,
   input: { depositId: string; amount: number; reason: string; refund: RefundMethod },
 ): Promise<{ approvalRequestId: string }> {
-  assertMoney(input.amount, "Số tiền hoàn");
+  assertMoney(input.amount, t("deposits.label_refund_amount"));
   const dep = await readDeposit(ctx, input.depositId, false);
-  if (input.amount > Number(dep.balance)) throw refundsExceed(input.amount, Number(dep.balance), "Hoàn");
+  if (input.amount > Number(dep.balance))
+    throw refundsExceed(input.amount, Number(dep.balance), t("deposits.label_refund"));
   return requestApproval(ctx, {
     kind: "deposit_refund",
     amount: input.amount,
@@ -204,12 +211,12 @@ export async function requestCreditRefund(
   ctx: CommandContext,
   input: { personId: string; propertyId: string; amount: number; reason: string; refund: RefundMethod },
 ): Promise<{ approvalRequestId: string }> {
-  assertMoney(input.amount, "Số tiền hoàn");
-  if (!UUID.test(input.personId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy người");
-  if (!UUID.test(input.propertyId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy cơ sở");
+  assertMoney(input.amount, t("deposits.label_refund_amount"));
+  if (!UUID.test(input.personId)) throw new CommandError("NOT_FOUND", 404, t("common.person_not_found"));
+  if (!UUID.test(input.propertyId)) throw new CommandError("NOT_FOUND", 404, t("common.property_not_found"));
   // Số dư theo cơ sở được hoàn (review R7): không hoàn ở P1 tiền khách gửi ở P2.
   const bal = await customerCredit(ctx.trx, ctx.actor.orgId, input.personId, input.propertyId);
-  if (input.amount > bal) throw refundsExceed(input.amount, bal, "Hoàn");
+  if (input.amount > bal) throw refundsExceed(input.amount, bal, t("deposits.label_refund"));
   return requestApproval(ctx, {
     kind: "credit_refund",
     amount: input.amount,
@@ -226,12 +233,12 @@ async function payoutLine(ctx: CommandContext, req: ApprovalRow, amount: number)
   const propertyId = req.propertyId as string;
   if (req.payload.method === "cash") {
     const shiftId = await openShiftOf(ctx.trx, ctx.actor.orgId, ctx.actor.membershipId, propertyId);
-    if (!shiftId) throw new CommandError("SHIFT_NOT_OPEN", 409, "Mở ca trước khi chi tiền mặt");
+    if (!shiftId) throw new CommandError("SHIFT_NOT_OPEN", 409, t("common.shift_required_cash_out"));
     return { account: "CASH" as const, debit: 0, credit: amount, shiftId };
   }
   const acct = req.payload.receiving_account_id;
   if (typeof acct !== "string" || !UUID.test(acct)) {
-    throw new CommandError("VALIDATION_FAILED", 422, "Hoàn chuyển khoản cần tài khoản chi");
+    throw new CommandError("VALIDATION_FAILED", 422, t("deposits.refund_transfer_account_required"));
   }
   return { account: "BANK" as const, debit: 0, credit: amount, receivingAccountId: acct };
 }
@@ -295,7 +302,8 @@ export function registerDepositExecutors(): void {
     async execute(ctx, req) {
       const amount = req.amount as number;
       const dep = await readDeposit(ctx, req.subjectId as string, true);
-      if (amount > Number(dep.balance)) throw refundsExceed(amount, Number(dep.balance), "Hoàn");
+      if (amount > Number(dep.balance))
+        throw refundsExceed(amount, Number(dep.balance), t("deposits.label_refund"));
       const entryId = await postEntry(ctx.trx, {
         orgId: ctx.actor.orgId,
         propertyId: dep.property_id,
@@ -325,7 +333,7 @@ export function registerDepositExecutors(): void {
       await lockPerson(ctx.trx, ctx.actor.orgId, personId);
       const propertyId = req.propertyId as string;
       const bal = await customerCredit(ctx.trx, ctx.actor.orgId, personId, propertyId);
-      if (amount > bal) throw refundsExceed(amount, bal, "Hoàn");
+      if (amount > bal) throw refundsExceed(amount, bal, t("deposits.label_refund"));
       const entryId = await postEntry(ctx.trx, {
         orgId: ctx.actor.orgId,
         propertyId,
@@ -363,9 +371,10 @@ export async function refundDepositAtCheckout(
     now?: Date;
   },
 ): Promise<{ status: "done"; entryId: string } | { status: "pending_approval"; approvalRequestId: string }> {
-  assertMoney(input.amount, "Số tiền hoàn");
+  assertMoney(input.amount, t("deposits.label_refund_amount"));
   const dep = await readDeposit(ctx, input.depositId, true);
-  if (input.amount > Number(dep.balance)) throw refundsExceed(input.amount, Number(dep.balance), "Hoàn");
+  if (input.amount > Number(dep.balance))
+    throw refundsExceed(input.amount, Number(dep.balance), t("deposits.label_refund"));
   try {
     authorize(ctx.actor, "deposit.refund", {
       propertyId: dep.property_id,
@@ -388,11 +397,11 @@ export async function refundDepositAtCheckout(
   let payout: Record<string, unknown> & { account: "CASH" | "BANK"; debit: number; credit: number };
   if (input.refund.method === "cash") {
     const shiftId = await openShiftOf(ctx.trx, ctx.actor.orgId, ctx.actor.membershipId, dep.property_id);
-    if (!shiftId) throw new CommandError("SHIFT_NOT_OPEN", 409, "Mở ca trước khi chi tiền mặt");
+    if (!shiftId) throw new CommandError("SHIFT_NOT_OPEN", 409, t("common.shift_required_cash_out"));
     payout = { account: "CASH", debit: 0, credit: input.amount, shiftId };
   } else {
     if (!UUID.test(input.refund.receivingAccountId))
-      throw new CommandError("VALIDATION_FAILED", 422, "Hoàn chuyển khoản cần tài khoản chi");
+      throw new CommandError("VALIDATION_FAILED", 422, t("deposits.refund_transfer_account_required"));
     payout = {
       account: "BANK",
       debit: 0,

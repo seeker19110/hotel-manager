@@ -4,6 +4,7 @@
 import { randomUUID } from "node:crypto";
 import { authorize, generateMemoRef } from "@hm/domain";
 import { sql } from "kysely";
+import { t } from "../i18n.ts";
 import { type CommandContext, CommandError } from "../pipeline/index.ts";
 import { postEntry } from "./ledger.ts";
 
@@ -19,18 +20,13 @@ async function leaseOf(ctx: CommandContext, leaseId: string): Promise<LeaseRef> 
     select id, status, property_id, representative_person_id from leases
     where organization_id = ${ctx.actor.orgId} and id = ${leaseId}`.execute(ctx.trx);
   const l = r.rows[0];
-  if (!l) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy hợp đồng");
+  if (!l) throw new CommandError("NOT_FOUND", 404, t("lease.not_found"));
   authorize(ctx.actor, "import.commit", { propertyId: l.property_id });
   // Số dư chuyển đổi chỉ cho hợp đồng còn hiệu lực (review lát 4 🟢5): hợp đồng đã đóng/huỷ đã quyết toán xong.
   if (!["active", "notice_given", "settling"].includes(l.status)) {
-    throw new CommandError(
-      "INVALID_TRANSITION",
-      409,
-      "Hợp đồng không còn hiệu lực — không ghi số dư đầu kỳ",
-      {
-        extensions: { from: l.status },
-      },
-    );
+    throw new CommandError("INVALID_TRANSITION", 409, t("ledger.opening_lease_inactive"), {
+      extensions: { from: l.status },
+    });
   }
   return l;
 }
@@ -41,7 +37,7 @@ export async function recordOpeningDebt(
   input: { leaseId: string; amount: number; businessDate: string; note?: string; sourceId: string },
 ): Promise<{ invoiceId: string; journalEntryId: string }> {
   if (!Number.isSafeInteger(input.amount) || input.amount <= 0)
-    throw new CommandError("VALIDATION_FAILED", 422, "Nợ là số nguyên dương");
+    throw new CommandError("VALIDATION_FAILED", 422, t("ledger.opening_debt_invalid"));
   const l = await leaseOf(ctx, input.leaseId);
   const invoiceId = randomUUID();
   const n = await sql<{
@@ -58,7 +54,7 @@ export async function recordOpeningDebt(
     insert into invoice_lines (id, organization_id, property_id, invoice_id, line_no, kind, description, revenue_account, quantity,
                                unit_price, amount, rounding_rule, formula_version)
     values (${lineId}, ${ctx.actor.orgId}, ${l.property_id}, ${invoiceId}, 1, 'opening_balance',
-            ${input.note ? `Số dư đầu kỳ — ${input.note}` : "Số dư đầu kỳ"}, 'OPENING_BALANCE', 1, ${input.amount}, ${input.amount},
+            ${input.note ? t("ledger.opening_line_description_note", { note: input.note }) : t("ledger.opening_line_description")}, 'OPENING_BALANCE', 1, ${input.amount}, ${input.amount},
             'HALF_UP_1', 1)`.execute(ctx.trx);
   const journalEntryId = await postEntry(ctx.trx, {
     orgId: ctx.actor.orgId,
@@ -102,7 +98,7 @@ export async function recordOpeningDeposit(
   input: { leaseId: string; amount: number; businessDate: string; sourceId: string },
 ): Promise<{ depositId: string; journalEntryId: string }> {
   if (!Number.isSafeInteger(input.amount) || input.amount <= 0)
-    throw new CommandError("VALIDATION_FAILED", 422, "Cọc là số nguyên dương");
+    throw new CommandError("VALIDATION_FAILED", 422, t("ledger.opening_deposit_invalid"));
   const l = await leaseOf(ctx, input.leaseId);
   const depositId = randomUUID();
   await sql`

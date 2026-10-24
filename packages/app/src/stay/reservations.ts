@@ -2,6 +2,7 @@
 // (FOR UPDATE) rồi kiểm bảng chuyển (`bookingMachine`); CSDL có trigger chuyển trạng thái làm hàng rào cuối. Phòng do
 // allocation giữ (EXCLUDE — INV-I1); hold → stay đổi trong một UPDATE (không khe hở). Ứng trước vào CUSTOMER_CREDIT, cọc vào
 // DEPOSIT_LIAB — không bao giờ thành doanh thu khi huỷ/no-show (INV-F5).
+
 import { randomUUID } from "node:crypto";
 import { withTenant } from "@hm/db";
 import {
@@ -19,6 +20,7 @@ import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/index.ts";
 import { approvalRequired, registerApprovalExecutor } from "../approvals/index.ts";
 import { receiveDeposit } from "../deposits/index.ts";
+import { t } from "../i18n.ts";
 import { confirmHold, createHold, type Interval, lockUnit } from "../inventory/index.ts";
 import { postEntry } from "../ledger/index.ts";
 import { confirmPayment, type ManualBankTxn, recordPayment } from "../payments/index.ts";
@@ -45,23 +47,25 @@ function fieldError(path: string, code: string, message: string): CommandError {
 /** Người đặt: dùng người có sẵn trong tổ chức, hoặc tạo hồ sơ tối thiểu (họ tên + SĐT bắt buộc). */
 export async function resolveBooker(ctx: CommandContext, b: BookerInput, path = "booker"): Promise<string> {
   if (b.personId) {
-    if (!UUID.test(b.personId)) throw fieldError(`${path}.person_id`, "invalid", "Người đặt không hợp lệ");
+    if (!UUID.test(b.personId))
+      throw fieldError(`${path}.person_id`, "invalid", t("stay.reservation.booker_invalid"));
     const r = await sql<{ id: string }>`
       select id from persons where organization_id = ${ctx.actor.orgId} and id = ${b.personId} and anonymized_at is null`.execute(
       ctx.trx,
     );
-    if (!r.rows[0]) throw fieldError(`${path}.person_id`, "not_found", "Không tìm thấy người đặt");
+    if (!r.rows[0])
+      throw fieldError(`${path}.person_id`, "not_found", t("stay.reservation.booker_not_found"));
     return b.personId;
   }
   const fullName = b.fullName?.trim() ?? "";
   if (fullName.length < 1 || fullName.length > 200)
-    throw fieldError(`${path}.full_name`, "required", "Họ tên 1–200 ký tự");
+    throw fieldError(`${path}.full_name`, "required", t("stay.reservation.name_length"));
   const phone = b.phone?.trim() ?? "";
   if (!/^\+?[0-9 .()-]{6,20}$/.test(phone))
-    throw fieldError(`${path}.phone`, "invalid", "Số điện thoại không hợp lệ");
+    throw fieldError(`${path}.phone`, "invalid", t("stay.reservation.phone_invalid"));
   const email = blankToNull(b.email)?.toLowerCase() ?? null;
   if (email !== null && !/^[^\s@]{1,64}@[^\s@]{1,255}$/.test(email))
-    throw fieldError(`${path}.email`, "invalid", "Email không hợp lệ");
+    throw fieldError(`${path}.email`, "invalid", t("portal.email_invalid"));
   const id = randomUUID();
   await sql`insert into persons (id, organization_id, full_name, phone, email)
             values (${id}, ${ctx.actor.orgId}, ${fullName}, ${phone}, ${email})`.execute(ctx.trx);
@@ -98,7 +102,7 @@ export async function readReservation(
   reservationId: string,
   lock: boolean,
 ): Promise<ReservationRow> {
-  if (!UUID.test(reservationId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy đặt phòng");
+  if (!UUID.test(reservationId)) throw new CommandError("NOT_FOUND", 404, t("stay.reservation.not_found"));
   if (lock) {
     await sql`select 1 from reservations where organization_id = ${actor.orgId} and id = ${reservationId} for update`.execute(
       trx,
@@ -114,10 +118,10 @@ export async function readReservation(
     left join stays s on s.organization_id = i.organization_id and s.reservation_item_id = i.id
     where r.organization_id = ${actor.orgId} and r.id = ${reservationId}`.execute(trx);
   const row = r.rows[0];
-  if (!row) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy đặt phòng");
+  if (!row) throw new CommandError("NOT_FOUND", 404, t("stay.reservation.not_found"));
   // Ngoài phạm vi cơ sở → 404 (không lộ việc tồn tại); vai trò không có quyền đặt phòng → 403.
   if (!actor.allProperties && !actor.propertyIds.includes(row.property_id))
-    throw new CommandError("NOT_FOUND", 404, "Không tìm thấy đặt phòng");
+    throw new CommandError("NOT_FOUND", 404, t("stay.reservation.not_found"));
   return row;
 }
 
@@ -224,12 +228,9 @@ export async function holdReservation(
     if (e instanceof CommandError && e.code === "ROOM_UNAVAILABLE") {
       // Gợi ý do `createHold` tính (một hàm duy nhất); `items` giữ để tương thích hợp đồng cũ của reservation.hold (D-040).
       const alternatives = e.extensions.alternatives ?? [];
-      throw new CommandError(
-        "ROOM_UNAVAILABLE",
-        409,
-        "Phòng đã có người giữ trong thời gian này. Xem phòng gợi ý.",
-        { extensions: { alternatives, items: alternatives } },
-      );
+      throw new CommandError("ROOM_UNAVAILABLE", 409, t("stay.reservation.room_taken_suggest"), {
+        extensions: { alternatives, items: alternatives },
+      });
     }
     throw e;
   }
@@ -312,7 +313,7 @@ export async function recordBookingPayment(
 /** Lỗi HOLD_EXPIRED kèm ghi `held → expired` đúng một lần ở transaction riêng (lệnh chính đã rollback — S-007). */
 function holdExpired(ctx: CommandContext, row: ReservationRow): CommandError {
   const orgId = ctx.actor.orgId;
-  return new CommandError("HOLD_EXPIRED", 409, "Thời gian giữ phòng đã hết. Vui lòng giữ lại.", {
+  return new CommandError("HOLD_EXPIRED", 409, t("stay.reservation.hold_expired"), {
     persist: async (trx) => {
       const r = await sql<{ id: string }>`
         update reservations set status = 'expired', version = version + 1
@@ -369,7 +370,7 @@ export async function confirmReservation(
     throw holdExpired(ctx, row);
   const s = await staySettings(ctx.trx, ctx.actor.orgId, row.property_id);
   if (!input.payment && !s.confirmWithoutPayment)
-    throw fieldError("payment", "required", "Cơ sở yêu cầu ứng trước/cọc khi xác nhận");
+    throw fieldError("payment", "required", t("stay.reservation.deposit_required"));
   await confirmHold(ctx, row.allocation_id, "stay", now);
   const stayId = randomUUID();
   await sql`
@@ -384,11 +385,7 @@ export async function confirmReservation(
   const payment = input.payment ? await recordBookingPayment(ctx, row, input.payment) : null;
   // Cơ sở bắt buộc tiền khi xác nhận (S-006): khoản "khách báo đã chuyển" chưa có chứng cứ không đủ — rollback, booking giữ `held`.
   if (!s.confirmWithoutPayment && payment?.status !== "confirmed")
-    throw fieldError(
-      "payment",
-      "unconfirmed",
-      "Cơ sở yêu cầu khoản thu đã xác nhận (tiền mặt hoặc chuyển khoản có chứng cứ) khi xác nhận booking",
-    );
+    throw fieldError("payment", "unconfirmed", t("stay.reservation.confirmed_payment_required"));
   await ctx.audit({
     action: "reservation.confirmed",
     entityType: "reservation",
@@ -457,7 +454,7 @@ async function issueCancellationFee(
           subjectType: "reservation",
           subjectId: row.id,
         },
-        "Phí huỷ vượt hạn mức — đã gửi yêu cầu duyệt",
+        t("stay.reservation.cancel_fee_needs_approval"),
       );
     }
   }
@@ -467,7 +464,7 @@ async function issueCancellationFee(
     insert into charges (id, organization_id, property_id, source_type, stay_id, kind, revenue_account, description,
                          business_date, quantity, unit_price, amount, created_by, command_id)
     values (${chargeId}, ${ctx.actor.orgId}, ${row.property_id}, 'stay', ${stayId}, 'fee', 'REV_FEE',
-            ${`Phí huỷ ${row.number}: ${reason}`.slice(0, 500)}, ${day}::date, 1, ${fee}, ${fee}, ${ctx.actor.membershipId},
+            ${t("stay.reservation.cancel_fee_charge", { number: row.number, reason }).slice(0, 500)}, ${day}::date, 1, ${fee}, ${fee}, ${ctx.actor.membershipId},
             ${ctx.commandId})`.execute(ctx.trx);
   const invoiceId = randomUUID();
   const n = await sql<{
@@ -484,7 +481,7 @@ async function issueCancellationFee(
   await sql`
     insert into invoice_lines (id, organization_id, property_id, invoice_id, charge_id, line_no, kind, description, revenue_account,
                                quantity, unit_price, amount, rounding_rule, formula_version)
-    values (${lineId}, ${ctx.actor.orgId}, ${row.property_id}, ${invoiceId}, ${chargeId}, 1, 'fee', ${`Phí huỷ ${row.number}`},
+    values (${lineId}, ${ctx.actor.orgId}, ${row.property_id}, ${invoiceId}, ${chargeId}, 1, 'fee', ${t("stay.reservation.cancel_fee_line", { number: row.number })},
             'REV_FEE', 1, ${fee}, ${fee}, 'HALF_UP_1', 1)`.execute(ctx.trx);
   await postEntry(ctx.trx, {
     orgId: ctx.actor.orgId,
@@ -517,12 +514,12 @@ export async function cancelReservation(
   authorize(ctx.actor, "reservation.manage", { propertyId: row.property_id });
   transition(row.status, "cancelled");
   const reason = input.reason.trim();
-  if (reason.length < 1) throw fieldError("reason", "required", "Cần lý do huỷ");
+  if (reason.length < 1) throw fieldError("reason", "required", t("common.cancel_reason_required"));
   const fee = input.cancellationFee ?? 0;
   if (!Number.isSafeInteger(fee) || fee < 0)
-    throw fieldError("cancellation_fee", "invalid", "Phí huỷ là số nguyên ≥ 0");
+    throw fieldError("cancellation_fee", "invalid", t("stay.reservation.cancel_fee_integer"));
   if (fee > 0 && !row.stay_id)
-    throw fieldError("cancellation_fee", "not_confirmed", "Chỉ thu phí huỷ với booking đã xác nhận");
+    throw fieldError("cancellation_fee", "not_confirmed", t("stay.reservation.cancel_fee_confirmed_only"));
   await releaseAllocation(ctx, row, now);
   if (row.stay_id) {
     await sql`update stays set status = 'cancelled', version = version + 1
@@ -576,10 +573,10 @@ export async function markNoShow(
   authorize(ctx.actor, "reservation.manage", { propertyId: row.property_id });
   transition(row.status, "no_show");
   const reason = input.reason.trim();
-  if (reason.length < 1) throw fieldError("reason", "required", "Cần lý do");
+  if (reason.length < 1) throw fieldError("reason", "required", t("stay.reservation.reason_required"));
   const today = await businessDateAt(ctx.trx, ctx.actor.orgId, row.property_id, now);
   if (today <= row.arrival_date) {
-    throw new CommandError("INVALID_TRANSITION", 409, "Chỉ đánh dấu không đến sau giờ chốt của ngày đến", {
+    throw new CommandError("INVALID_TRANSITION", 409, t("stay.reservation.no_show_after_cutoff"), {
       extensions: { from: row.status, to: "no_show" },
     });
   }
@@ -660,7 +657,7 @@ export async function getReservation(
   reservationId: string,
 ): Promise<ReservationView> {
   if (!["owner", "manager", "front_desk", "accountant"].includes(actor.role))
-    throw new CommandError("NOT_FOUND", 404, "Không tìm thấy đặt phòng");
+    throw new CommandError("NOT_FOUND", 404, t("stay.reservation.not_found"));
   return withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) =>
     viewOf(await readReservation(trx, actor, reservationId, false)),
   );
@@ -685,7 +682,7 @@ export async function changeDates(
   const row = await readReservation(ctx.trx, ctx.actor, input.reservationId, true);
   authorize(ctx.actor, "reservation.manage", { propertyId: row.property_id });
   if (!["draft", "held", "confirmed"].includes(row.status)) {
-    throw new CommandError("INVALID_TRANSITION", 409, "Chỉ đổi ngày booking chưa nhận phòng", {
+    throw new CommandError("INVALID_TRANSITION", 409, t("stay.reservation.reschedule_before_checkin"), {
       extensions: { from: row.status, to: row.status },
     });
   }
@@ -728,11 +725,7 @@ export async function changeDates(
                 where organization_id = ${ctx.actor.orgId} and id = ${row.allocation_id}`.execute(ctx.trx);
     } catch (e) {
       if ((e as { code?: string }).code === "23P01")
-        throw new CommandError(
-          "ROOM_UNAVAILABLE",
-          409,
-          "Phòng đã có người giữ trong thời gian mới. Booking không đổi.",
-        );
+        throw new CommandError("ROOM_UNAVAILABLE", 409, t("stay.reservation.room_taken_new_dates"));
       throw e;
     }
   }
@@ -772,16 +765,17 @@ export async function listReservations(
   input: { propertyId: string; from: string; to: string; status?: BookingStatus },
 ): Promise<ReservationView[]> {
   if (!["owner", "manager", "front_desk", "accountant"].includes(actor.role) || !UUID.test(input.propertyId))
-    throw new CommandError("NOT_FOUND", 404, "Không tìm thấy cơ sở");
+    throw new CommandError("NOT_FOUND", 404, t("common.property_not_found"));
   if (!actor.allProperties && !actor.propertyIds.includes(input.propertyId))
-    throw new CommandError("NOT_FOUND", 404, "Không tìm thấy cơ sở");
-  if (input.to <= input.from) throw fieldError("to", "invalid_range", "Khoảng ngày không hợp lệ");
+    throw new CommandError("NOT_FOUND", 404, t("common.property_not_found"));
+  if (input.to <= input.from)
+    throw fieldError("to", "invalid_range", t("stay.reservation.date_range_invalid"));
   return withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
     const p = await sql<{ id: string }>`
       select id from properties where organization_id = ${actor.orgId} and id = ${input.propertyId}`.execute(
       trx,
     );
-    if (!p.rows[0]) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy cơ sở");
+    if (!p.rows[0]) throw new CommandError("NOT_FOUND", 404, t("common.property_not_found"));
     const r = await sql<ReservationRow>`
       select r.id, r.property_id, r.number, r.status, r.source, r.booker_person_id, i.id as item_id, i.unit_id, i.room_type_id,
              i.arrival_date::text, i.departure_date::text, i.guests, i.nightly_prices, i.room_total::text, i.allocation_id,
@@ -806,7 +800,7 @@ export function registerReservationExecutors(): void {
   registerApprovalExecutor("cancellation_fee", {
     async execute(ctx, req) {
       if (req.subjectType !== "reservation" || !req.subjectId || req.amount === null)
-        throw new CommandError("VALIDATION_FAILED", 422, "Yêu cầu phí huỷ thiếu booking/số tiền");
+        throw new CommandError("VALIDATION_FAILED", 422, t("stay.reservation.cancel_fee_request_incomplete"));
       return cancelReservation(
         ctx,
         { reservationId: req.subjectId, reason: req.reason, cancellationFee: req.amount },

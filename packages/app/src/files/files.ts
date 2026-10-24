@@ -7,6 +7,7 @@ import { withTenant } from "@hm/db";
 import { type Action, authorize, mibToBytes } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/index.ts";
+import { t } from "../i18n.ts";
 import { type CommandContext, CommandError } from "../pipeline/index.ts";
 import { ScannerUnavailableError } from "./clamd.ts";
 import {
@@ -57,11 +58,7 @@ async function scanOrFail(deps: FileDeps, bytes: Uint8Array) {
     return await deps.scanner.scan(bytes);
   } catch (err) {
     if (err instanceof ScannerUnavailableError)
-      throw new CommandError(
-        "SERVICE_UNAVAILABLE",
-        503,
-        "Chưa kiểm tra được an toàn của file, vui lòng thử lại sau",
-      );
+      throw new CommandError("SERVICE_UNAVAILABLE", 503, t("files.scanner_unavailable"));
     throw err;
   }
 }
@@ -95,31 +92,31 @@ async function assertUploadAllowed(
     // Người thuê (portal, SPEC-portal S-008/S-010): chỉ ảnh sự cố/báo chuyển, chỉ cho cơ sở có hợp đồng mình đứng tên
     // (CSDL cũng chặn — 0038 `portal_files`).
     if (input.ownerType !== "work_order" && input.ownerType !== "payment_claim")
-      throw new CommandError("FORBIDDEN", 403, "Bạn không có quyền tải loại file này");
+      throw new CommandError("FORBIDDEN", 403, t("files.upload_forbidden"));
     const own = await sql<{ ok: boolean }>`
       select ${input.propertyId}::uuid in (select app.tenant_property_ids()) as ok`.execute(trx);
-    if (!own.rows[0]?.ok) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy cơ sở");
+    if (!own.rows[0]?.ok) throw new CommandError("NOT_FOUND", 404, t("common.property_not_found"));
   } else {
     const action = UPLOAD_ACTION[input.ownerType];
-    if (!action) throw new CommandError("FORBIDDEN", 403, "Bạn không có quyền tải loại file này");
+    if (!action) throw new CommandError("FORBIDDEN", 403, t("files.upload_forbidden"));
     authorize(actor, action, { propertyId: input.propertyId });
   }
 }
 
 /** Kích thước → magic bytes theo allowlist → bỏ EXIF. Thuần CPU, không I/O. */
 function inspectUpload(input: UploadInput): { mime: DetectedMime; content: Uint8Array } {
-  if (input.bytes.byteLength === 0) throw new CommandError("VALIDATION_FAILED", 422, "File rỗng");
+  if (input.bytes.byteLength === 0) throw new CommandError("VALIDATION_FAILED", 422, t("files.empty"));
   if (input.bytes.byteLength > MAX_FILE_BYTES)
-    throw new CommandError("FILE_TOO_LARGE", 413, "File vượt dung lượng cho phép");
+    throw new CommandError("FILE_TOO_LARGE", 413, t("http.file_too_large"));
   const mime = detectMime(input.bytes);
   if (!mime || !ALLOW[input.ownerType].includes(mime)) {
-    throw new CommandError("FILE_TYPE_NOT_ALLOWED", 415, "Định dạng file không được phép");
+    throw new CommandError("FILE_TYPE_NOT_ALLOWED", 415, t("files.type_not_allowed"));
   }
   try {
     return { mime, content: stripImageMetadata(input.bytes, mime) };
   } catch (err) {
     if (err instanceof CorruptFileError)
-      throw new CommandError("FILE_TYPE_NOT_ALLOWED", 415, "File ảnh hỏng hoặc giả mạo");
+      throw new CommandError("FILE_TYPE_NOT_ALLOWED", 415, t("files.image_corrupt"));
     throw err;
   }
 }
@@ -209,7 +206,7 @@ export async function uploadFile(
   const p = input.prepared;
   if (p) {
     if (p.ownerType !== input.ownerType || p.propertyId !== input.propertyId)
-      throw new Error("Bản chuẩn bị tải lên không khớp yêu cầu");
+      throw new Error(t("files.prepared_mismatch"));
     await finalizeStaged(ctx.trx, ctx.actor, p.fileId, {
       status: p.status,
       rejectReason: p.rejectReason,
@@ -267,7 +264,7 @@ export async function storeTabularFile(
   input: { ownerId: string; propertyId: string; bytes: Uint8Array; mime: TabularMime },
 ): Promise<{ fileId: string; sha256: string }> {
   const scan = await scanOrFail(deps, input.bytes);
-  if (!scan.clean) throw new CommandError("FILE_TYPE_NOT_ALLOWED", 415, "File bị từ chối khi quét an toàn");
+  if (!scan.clean) throw new CommandError("FILE_TYPE_NOT_ALLOWED", 415, t("files.scan_rejected"));
   const id = randomUUID();
   const key = `${ctx.actor.orgId}/import_batch/${id}`;
   const sha256 = createHash("sha256").update(input.bytes).digest("hex");
@@ -323,7 +320,7 @@ export async function prepareTabularFile(
   });
   if (staged.state === "done") return prepared;
   const scan = await scanOrFail(deps, input.bytes);
-  if (!scan.clean) throw new CommandError("FILE_TYPE_NOT_ALLOWED", 415, "File bị từ chối khi quét an toàn");
+  if (!scan.clean) throw new CommandError("FILE_TYPE_NOT_ALLOWED", 415, t("files.scan_rejected"));
   await deps.storage.put(staged.key, input.bytes, input.mime);
   return prepared;
 }
@@ -360,7 +357,7 @@ export async function getFileUrl(
   deps: FileDeps,
   fileId: string,
 ): Promise<{ url: string; expiresIn: number }> {
-  if (!UUID.test(fileId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy file");
+  if (!UUID.test(fileId)) throw new CommandError("NOT_FOUND", 404, t("files.not_found"));
   const r = await sql<{
     owner_type: string;
     property_id: string | null;
@@ -372,7 +369,7 @@ export async function getFileUrl(
   );
   const f = r.rows[0];
   const action = f ? READ_ACTION[f.owner_type] : undefined;
-  if (f?.status !== "ready" || !action) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy file");
+  if (f?.status !== "ready" || !action) throw new CommandError("NOT_FOUND", 404, t("files.not_found"));
   try {
     // Người thuê: RLS `portal_files` (0039) đã chỉ để lộ file của chính mình/chỉ số mình được xem — không có phạm vi
     // cơ sở để kiểm thêm; vai trò khác kiểm theo ma trận.
@@ -382,7 +379,7 @@ export async function getFileUrl(
       });
   } catch {
     // Không phân biệt "không có quyền" với "không tồn tại" (API-CONTRACT §2).
-    throw new CommandError("NOT_FOUND", 404, "Không tìm thấy file");
+    throw new CommandError("NOT_FOUND", 404, t("files.not_found"));
   }
   return {
     url: await deps.storage.signedGetUrl(f.storage_key, MAX_SIGNED_URL_SECONDS),

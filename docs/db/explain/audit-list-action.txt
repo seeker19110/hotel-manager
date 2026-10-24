@@ -3,7 +3,7 @@
 # Mỗi dòng: bảng · kiểu quét (Index gồm Index Only/Bitmap) [· index (cột khoá) · cột bị ràng buộc trong tiền tố khoá (bound) — chỉ khi truy vấn có cột chọn lọc].
 # Đổi truy vấn/index làm kế hoạch đổi → test đỏ; cập nhật có chủ đích: pnpm vitest run --project db db-perf -u
 
--- select e.id, e.occurred_at, e.property_id, e.actor_type, e.actor_person_id, pe.full_name a … #3ef60476
+-- select e.id, e.occurred_at, e.property_id, e.actor_type, e.actor_person_id, pe.full_name a … #41b2066c
 audit_events · Index · ix_audit_org_action_time (organization_id, action, occurred_at, id) · bound=organization_id,action
 persons · Index · uq_persons_org_id (organization_id, id) · bound=organization_id
 properties · Index · ix_properties_org_archived (organization_id, archived_at) · bound=organization_id

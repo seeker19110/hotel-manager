@@ -2,6 +2,7 @@
 // phòng sẵn sàng/không còn khách → ghi khách + giấy tờ (số mã hoá) → phí phòng mỗi đêm (unique stay + ngày kinh doanh) →
 // `residence_notices` pending (hạn theo cấu hình cơ sở, không mặc định cứng) → stay/booking `in_house`. Walk-in: một command
 // khởi tạo thẳng `in_house`, không qua draft/held/confirmed/expected.
+
 import { randomUUID } from "node:crypto";
 import {
   authorize,
@@ -16,6 +17,7 @@ import {
 } from "@hm/domain";
 import { sql, type Transaction } from "kysely";
 import type { PiiCipher } from "../crypto/index.ts";
+import { t } from "../i18n.ts";
 import { type DocType, recordIdentityDocument } from "../identity/index.ts";
 import { assertNoOpenOverstay, confirmHold, createHold } from "../inventory/index.ts";
 import { type CommandContext, CommandError } from "../pipeline/index.ts";
@@ -53,19 +55,19 @@ async function assertRoomReady(
     ctx.trx,
   );
   const unit = u.rows[0];
-  if (!unit) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phòng");
+  if (!unit) throw new CommandError("NOT_FOUND", 404, t("common.unit_not_found"));
   const occupied = await sql<{ id: string }>`
     select id from stays where organization_id = ${ctx.actor.orgId} and unit_id = ${unitId} and status = 'in_house'
       ${exceptStayId ? sql`and id <> ${exceptStayId}` : sql``} limit 1`.execute(ctx.trx);
-  if (occupied.rows[0]) throw new CommandError("ROOM_OCCUPIED", 409, "Phòng vẫn còn khách chưa trả.");
+  if (occupied.rows[0]) throw new CommandError("ROOM_OCCUPIED", 409, t("stay.stays.room_busy"));
   // Hợp đồng/lượt ở quá hạn chưa trả (ngoại lệ OVERSTAY đang mở) cũng là phòng còn người (SPEC-inventory S-017, S-020).
   await assertNoOpenOverstay(ctx.trx, ctx.actor.orgId, unitId, exceptStayId);
   if (unit.availability !== "active")
-    throw new CommandError("UNIT_OUT_OF_SERVICE", 409, "Phòng đang ngừng khai thác");
+    throw new CommandError("UNIT_OUT_OF_SERVICE", 409, t("stay.stays.room_out_of_service"));
   const ready =
     unit.housekeeping_status === "inspected" || (!requireInspected && unit.housekeeping_status === "clean");
   if (!ready)
-    throw new CommandError("ROOM_NOT_READY", 409, "Phòng chưa dọn xong, chưa thể nhận khách.", {
+    throw new CommandError("ROOM_NOT_READY", 409, t("stay.stays.room_not_clean"), {
       extensions: { items: [{ housekeeping_status: unit.housekeeping_status }] },
     });
 }
@@ -84,23 +86,24 @@ async function recordGuests(
   guests: readonly GuestInput[],
   fallbackPrimary: string | null,
 ): Promise<RecordedGuests> {
-  if (guests.length < 1) throw fieldError("guests", "required", "Cần thông tin ít nhất một khách");
+  if (guests.length < 1) throw fieldError("guests", "required", t("stay.stays.guest_required"));
   const ids: string[] = [];
   let isForeign = false;
   for (const [i, g] of guests.entries()) {
     const path = `guests.${i}`;
     const given = blankToNull(g.nationality)?.toUpperCase() ?? null;
     if (given !== null && !/^[A-Z]{2}$/.test(given))
-      throw fieldError(`${path}.nationality`, "invalid", "Quốc tịch phải là mã ISO 2 chữ cái");
+      throw fieldError(`${path}.nationality`, "invalid", t("stay.stays.nationality_iso2"));
     let personId: string;
     if (g.personId) {
       personId = await resolveBooker(ctx, { personId: g.personId }, path);
     } else if (i === 0 && fallbackPrimary && !g.fullName) {
       personId = fallbackPrimary;
     } else {
-      if (!g.fullName?.trim()) throw fieldError(`${path}.full_name`, "required", "Cần họ tên khách");
+      if (!g.fullName?.trim())
+        throw fieldError(`${path}.full_name`, "required", t("stay.stays.guest_name_required"));
       if (i === 0 && !g.phone?.trim())
-        throw fieldError(`${path}.phone`, "required", "Khách chính cần số điện thoại");
+        throw fieldError(`${path}.phone`, "required", t("stay.stays.primary_phone_required"));
       personId = g.phone?.trim()
         ? await resolveBooker(
             ctx,
@@ -119,7 +122,7 @@ async function recordGuests(
     if (nationality !== "VN") {
       isForeign = true;
       if (g.docType !== "passport")
-        throw fieldError(`${path}.doc_type`, "passport_required", "Khách nước ngoài cần hộ chiếu");
+        throw fieldError(`${path}.doc_type`, "passport_required", t("stay.stays.foreign_passport_required"));
     }
     if (nationality !== stored.rows[0]?.nationality)
       await sql`update persons set nationality = ${nationality}, version = version + 1
@@ -130,7 +133,8 @@ async function recordGuests(
       { personId, propertyId, docType: g.docType, docNumber: g.docNumber, nationality },
       `${path}.doc_number`,
     );
-    if (ids.includes(personId)) throw fieldError(`${path}.person_id`, "duplicate", "Khách bị lặp");
+    if (ids.includes(personId))
+      throw fieldError(`${path}.person_id`, "duplicate", t("stay.stays.guest_duplicate"));
     ids.push(personId);
   }
   return { primaryPersonId: ids[0] as string, additionalPersonIds: ids.slice(1), isForeign };
@@ -138,7 +142,7 @@ async function recordGuests(
 
 async function createGuestWithoutPhone(ctx: CommandContext, fullName: string, path: string): Promise<string> {
   const name = fullName.trim();
-  if (name.length > 200) throw fieldError(`${path}.full_name`, "too_long", "Họ tên tối đa 200 ký tự");
+  if (name.length > 200) throw fieldError(`${path}.full_name`, "too_long", t("stay.stays.guest_name_max"));
   const id = randomUUID();
   await sql`insert into persons (id, organization_id, full_name) values (${id}, ${ctx.actor.orgId}, ${name})`.execute(
     ctx.trx,
@@ -160,7 +164,7 @@ async function postRoomCharges(
       insert into charges (id, organization_id, property_id, source_type, stay_id, kind, revenue_account, description,
                            business_date, quantity, unit_price, amount, created_by, command_id)
       values (${randomUUID()}, ${ctx.actor.orgId}, ${propertyId}, 'stay', ${stayId}, 'room', 'REV_ROOM',
-              ${`Tiền phòng ${unitCode} đêm ${p.businessDate}`}, ${p.businessDate}::date, 1, ${p.amount}, ${p.amount},
+              ${t("stay.stays.room_charge", { unit: unitCode, date: p.businessDate })}, ${p.businessDate}::date, 1, ${p.amount}, ${p.amount},
               ${ctx.actor.membershipId}, ${ctx.commandId})`.execute(ctx.trx);
   }
 }
@@ -231,14 +235,14 @@ export async function checkIn(
   const row = await readReservation(ctx.trx, ctx.actor, input.reservationId, true);
   authorize(ctx.actor, "reservation.manage", { propertyId: row.property_id });
   if (row.status !== "confirmed" || !row.stay_id || row.stay_status !== "expected") {
-    throw new CommandError("INVALID_TRANSITION", 409, "Thao tác không hợp lệ với trạng thái hiện tại.", {
+    throw new CommandError("INVALID_TRANSITION", 409, t("stay.stays.invalid_state"), {
       extensions: { from: row.stay_status ?? row.status, to: "in_house" },
     });
   }
   stayMachine.assertTransition("expected", "in_house");
   const today = await businessDateAt(ctx, row.property_id, now);
   if (today < row.arrival_date || today >= row.departure_date) {
-    throw new CommandError("INVALID_TRANSITION", 409, "Chỉ nhận phòng trong khoảng ngày của booking", {
+    throw new CommandError("INVALID_TRANSITION", 409, t("stay.stays.checkin_window"), {
       extensions: { from: "expected", to: "in_house" },
     });
   }
@@ -305,7 +309,7 @@ export async function walkIn(
   input: { unitId: string; departureDate: string; guests: readonly GuestInput[]; now?: Date },
 ): Promise<CheckInResult & { nights: number; roomTotal: number }> {
   const now = input.now ?? new Date();
-  if (!UUID.test(input.unitId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phòng");
+  if (!UUID.test(input.unitId)) throw new CommandError("NOT_FOUND", 404, t("common.unit_not_found"));
   const u = await sql<{ property_id: string; room_type_id: string; capacity: number; code: string }>`
     select u.property_id, u.room_type_id, rt.capacity, u.code from units u
     join room_types rt on rt.organization_id = u.organization_id and rt.id = u.room_type_id
@@ -313,7 +317,7 @@ export async function walkIn(
     ctx.trx,
   );
   const unit = u.rows[0];
-  if (!unit) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phòng");
+  if (!unit) throw new CommandError("NOT_FOUND", 404, t("common.unit_not_found"));
   authorize(ctx.actor, "reservation.manage", { propertyId: unit.property_id });
   assertCapacity(input.guests.length, unit.capacity);
   const s = await staySettings(ctx.trx, ctx.actor.orgId, unit.property_id);

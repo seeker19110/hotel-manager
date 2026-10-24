@@ -6,6 +6,7 @@
 import { randomUUID } from "node:crypto";
 import { authorize, keepIfUndefined } from "@hm/domain";
 import { sql } from "kysely";
+import { t } from "../i18n.ts";
 import { type CommandContext, CommandError, fieldError } from "../pipeline/index.ts";
 
 export const DEFAULT_TIMEZONE = "Asia/Ho_Chi_Minh";
@@ -21,11 +22,11 @@ async function assertTimezone(ctx: CommandContext, tz: string): Promise<void> {
       )
     : null;
   if (!ok || (ok.rows[0]?.n ?? 0) === 0)
-    throw fieldError("timezone", "INVALID", "Múi giờ phải là tên IANA, ví dụ Asia/Ho_Chi_Minh");
+    throw fieldError("timezone", "INVALID", t("access.timezone_invalid"));
 }
 
 function assertClock(field: string, v: string): void {
-  if (!CLOCK.test(v)) throw fieldError(field, "INVALID", "Giờ phải dạng HH:MM (00:00–23:59)");
+  if (!CLOCK.test(v)) throw fieldError(field, "INVALID", t("access.time_format_invalid"));
 }
 
 async function assertTemplateAllowed(ctx: CommandContext, template: PropertyTemplate): Promise<void> {
@@ -33,7 +34,7 @@ async function assertTemplateAllowed(ctx: CommandContext, template: PropertyTemp
   const r = await sql<{ on: boolean }>`
     select coalesce(settings #>> '{feature_flags,mixed_template_enabled}', 'false') = 'true' as on
     from organizations where id = ${ctx.actor.orgId}`.execute(ctx.trx);
-  if (!r.rows[0]?.on) throw new CommandError("FEATURE_DISABLED", 409, "Mẫu Hỗn hợp chưa được mở");
+  if (!r.rows[0]?.on) throw new CommandError("FEATURE_DISABLED", 409, t("access.mixed_template_unavailable"));
 }
 
 export async function createProperty(
@@ -56,7 +57,8 @@ export async function createProperty(
 }> {
   authorize(ctx.actor, "org.configure", {});
   const name = input.name.trim();
-  if (name.length < 1 || name.length > 200) throw fieldError("name", "INVALID", "Tên 1–200 ký tự");
+  if (name.length < 1 || name.length > 200)
+    throw fieldError("name", "INVALID", t("access.property_name_length"));
   const timezone = input.timezone ?? DEFAULT_TIMEZONE;
   const cutoff = input.businessDayCutoff ?? DEFAULT_BUSINESS_DAY_CUTOFF;
   await assertTimezone(ctx, timezone);
@@ -118,7 +120,7 @@ export async function updateProperty(
   },
 ): Promise<{ propertyId: string; changed: string[] }> {
   authorize(ctx.actor, "org.configure", {});
-  if (!UUID.test(input.propertyId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy cơ sở");
+  if (!UUID.test(input.propertyId)) throw new CommandError("NOT_FOUND", 404, t("common.property_not_found"));
   const cur = await sql<{
     name: string;
     template: PropertyTemplate;
@@ -132,9 +134,9 @@ export async function updateProperty(
     from properties where organization_id = ${ctx.actor.orgId} and id = ${input.propertyId} and archived_at is null
     for update`.execute(ctx.trx);
   const before = cur.rows[0];
-  if (!before) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy cơ sở");
+  if (!before) throw new CommandError("NOT_FOUND", 404, t("common.property_not_found"));
   if (input.name !== undefined && (input.name.trim().length < 1 || input.name.trim().length > 200))
-    throw fieldError("name", "INVALID", "Tên 1–200 ký tự");
+    throw fieldError("name", "INVALID", t("access.property_name_length"));
   if (input.timezone !== undefined) await assertTimezone(ctx, input.timezone);
   if (input.businessDayCutoff !== undefined) assertClock("business_day_cutoff", input.businessDayCutoff);
   if (input.checkInTime !== undefined && input.checkInTime !== null)

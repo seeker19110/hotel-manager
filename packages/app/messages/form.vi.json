@@ -1,0 +1,74 @@
+{
+  "form.required": {
+    "message": "Bắt buộc nhập",
+    "description": "Lỗi dưới ô form khi ô bắt buộc để trống (hoặc chỉ khoảng trắng)."
+  },
+  "form.wrong_type": {
+    "message": "Giá trị không đúng loại",
+    "description": "Lỗi dưới ô form khi giá trị sai kiểu (vd chữ ở ô số)."
+  },
+  "form.min_chars": {
+    "message": "Cần ít nhất {min} ký tự",
+    "description": "Lỗi dưới ô chữ của form khi quá ngắn. {min} là số ký tự tối thiểu."
+  },
+  "form.min_items": {
+    "message": "Cần ít nhất {min} mục",
+    "description": "Lỗi dưới danh sách của form khi ít mục quá. {min} là số mục tối thiểu."
+  },
+  "form.min_inclusive": {
+    "message": "Phải từ {min} trở lên",
+    "description": "Lỗi dưới ô số của form khi nhỏ hơn mức tối thiểu (được bằng). {min} là giá trị tối thiểu."
+  },
+  "form.min_exclusive": {
+    "message": "Phải lớn hơn {min}",
+    "description": "Lỗi dưới ô số của form khi không lớn hơn mức chặn dưới (không được bằng). {min} là mức chặn."
+  },
+  "form.max_chars": {
+    "message": "Tối đa {max} ký tự",
+    "description": "Lỗi dưới ô chữ của form khi quá dài. {max} là số ký tự tối đa."
+  },
+  "form.max_items": {
+    "message": "Tối đa {max} mục",
+    "description": "Lỗi dưới danh sách của form khi nhiều mục quá. {max} là số mục tối đa."
+  },
+  "form.max_inclusive": {
+    "message": "Phải từ {max} trở xuống",
+    "description": "Lỗi dưới ô số của form khi vượt mức tối đa. {max} là giá trị tối đa."
+  },
+  "form.email_invalid": {
+    "message": "Email không hợp lệ",
+    "description": "Lỗi dưới ô email của form khi địa chỉ sai định dạng."
+  },
+  "form.format_invalid": {
+    "message": "Định dạng không hợp lệ",
+    "description": "Lỗi dưới ô form khi giá trị sai định dạng (ngày, giờ, mã…)."
+  },
+  "form.not_in_options": {
+    "message": "Giá trị không nằm trong lựa chọn",
+    "description": "Lỗi dưới ô chọn của form khi giá trị không thuộc danh sách cho phép."
+  },
+  "form.unknown_field": {
+    "message": "Có trường không được phép",
+    "description": "Lỗi chung của form khi thân gửi có trường lạ."
+  },
+  "form.invalid": {
+    "message": "Giá trị không hợp lệ",
+    "description": "Lỗi dưới ô form cho các trường hợp sai khác."
+  },
+  "form.clock_time": {
+    "message": "Giờ phải dạng HH:MM",
+    "description": "Thông điệp schema cho ô giờ (giờ chốt ngày, giờ nhận/trả phòng). Giữ HH:MM."
+  },
+  "form.no_control_chars": {
+    "message": "Không được chứa ký tự điều khiển",
+    "description": "Thông điệp schema cho tên hiển thị chứa ký tự điều khiển (NUL)."
+  },
+  "form.deposit_target": {
+    "message": "lease_id hoặc reservation_id",
+    "description": "Thông điệp schema khi nhận cọc: cần đúng một trong hai trường. Giữ nguyên tên trường."
+  },
+  "form.update_needs_field": {
+    "message": "Cần ít nhất một trường để đổi",
+    "description": "Thông điệp schema khi sửa cơ sở mà không đổi trường nào."
+  }
+}

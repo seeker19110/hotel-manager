@@ -7,6 +7,7 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { authorize } from "@hm/domain";
 import { type Kysely, sql } from "kysely";
+import { t } from "../i18n.ts";
 import { emitSecurity, type SecurityClient, type SecurityEventName } from "../logging/index.ts";
 import { type CommandContext, CommandError, rateLimited } from "../pipeline/index.ts";
 
@@ -23,7 +24,7 @@ export async function createGuestLink(
   ctx: CommandContext,
   input: { stayId: string; now?: Date },
 ): Promise<{ linkId: string; token: string; expiresAt: Date }> {
-  if (!UUID.test(input.stayId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy lượt ở");
+  if (!UUID.test(input.stayId)) throw new CommandError("NOT_FOUND", 404, t("portal.guest.stay_not_found"));
   const r = await sql<{ property_id: string; status: string; expires_at: Date; factor_ok: boolean }>`
     select s.property_id, s.status,
            (not coalesce((p.settings ->> 'guest_link_second_factor')::boolean, true)
@@ -37,27 +38,22 @@ export async function createGuestLink(
     left join persons bp on bp.organization_id = rv.organization_id and bp.id = rv.booker_person_id
     where s.organization_id = ${ctx.actor.orgId} and s.id = ${input.stayId}`.execute(ctx.trx);
   const s = r.rows[0];
-  if (!s) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy lượt ở");
+  if (!s) throw new CommandError("NOT_FOUND", 404, t("portal.guest.stay_not_found"));
   authorize(ctx.actor, "portal.guest_link", { propertyId: s.property_id });
   if (s.status === "cancelled" || s.status === "no_show")
-    throw new CommandError("INVALID_TRANSITION", 409, "Lượt ở đã huỷ — không tạo liên kết", {
+    throw new CommandError("INVALID_TRANSITION", 409, t("portal.guest.stay_cancelled"), {
       extensions: { from: s.status, to: s.status },
     });
   const now = input.now ?? new Date();
   if (s.expires_at.getTime() <= now.getTime())
-    throw new CommandError("VALIDATION_FAILED", 422, "Lượt ở đã quá hạn xem lại — không tạo liên kết", {
+    throw new CommandError("VALIDATION_FAILED", 422, t("portal.guest.stay_expired"), {
       extensions: { errors: [{ path: "stay_id", field: "stay_id", code: "expired" }] },
     });
   // Bước hai bật mà người đặt không có SĐT đủ 4 số ⇒ link không bao giờ mở được — từ chối ngay (review lát 4).
   if (!s.factor_ok)
-    throw new CommandError(
-      "VALIDATION_FAILED",
-      422,
-      "Người đặt chưa có số điện thoại — bổ sung trước khi tạo liên kết",
-      {
-        extensions: { errors: [{ path: "stay_id", field: "booker_phone", code: "required" }] },
-      },
-    );
+    throw new CommandError("VALIDATION_FAILED", 422, t("portal.guest.booker_phone_missing"), {
+      extensions: { errors: [{ path: "stay_id", field: "booker_phone", code: "required" }] },
+    });
   const token = randomBytes(32).toString("base64url");
   const linkId = randomUUID();
   await sql`
@@ -78,12 +74,12 @@ export async function createGuestLink(
 
 /** `portal.revokeGuestLink` (S-019): request kế tiếp với token đó → 410 LINK_REVOKED; audit người thu hồi. */
 export async function revokeGuestLink(ctx: CommandContext, input: { linkId: string }) {
-  if (!UUID.test(input.linkId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy liên kết");
+  if (!UUID.test(input.linkId)) throw new CommandError("NOT_FOUND", 404, t("portal.guest.link_not_found"));
   const r = await sql<{ property_id: string; revoked_at: Date | null }>`
     select property_id, revoked_at from guest_access_links
     where organization_id = ${ctx.actor.orgId} and id = ${input.linkId} for update`.execute(ctx.trx);
   const l = r.rows[0];
-  if (!l) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy liên kết");
+  if (!l) throw new CommandError("NOT_FOUND", 404, t("portal.guest.link_not_found"));
   authorize(ctx.actor, "portal.guest_link", { propertyId: l.property_id });
   if (l.revoked_at) return { linkId: input.linkId, revoked: true as const };
   await sql`update guest_access_links set revoked_at = now(), revoked_by = ${ctx.actor.membershipId}
@@ -115,7 +111,7 @@ export interface GuestView {
   };
 }
 
-const invalidLink = () => new CommandError("NOT_FOUND", 404, "Liên kết hoặc mã xác minh không đúng.");
+const invalidLink = () => new CommandError("NOT_FOUND", 404, t("portal.guest.link_invalid"));
 
 /** `portal.guestGetStay` + folio (S-016…S-020). `ip` dùng để giới hạn tần suất (băm, không lưu IP thô). */
 export async function guestGetStay(
@@ -149,7 +145,7 @@ export async function guestGetStay(
   if ((await rate(false)) >= GUEST_RATE_LIMIT_PER_MINUTE) {
     secure("rate_limit.exceeded", "RATE_LIMITED");
     // Cửa sổ đếm là 1 phút (app.guest_link_rate) ⇒ sau tối đa 60 giây hết giới hạn.
-    throw rateLimited("Bạn thử quá nhiều lần. Vui lòng đợi ít phút.", GUEST_RATE_WINDOW_SECONDS);
+    throw rateLimited(t("portal.guest.rate_limited"), GUEST_RATE_WINDOW_SECONDS);
   }
   const fail = async (err: CommandError, reason = "INVALID_LINK", linkId?: string): Promise<never> => {
     secure("guest_link.denied", reason, linkId);
@@ -171,14 +167,10 @@ export async function guestGetStay(
   if (!link) return fail(invalidLink());
   if (link.revoked_at || link.locked_at) {
     secure("guest_link.denied", "LINK_REVOKED", link.id);
-    throw new CommandError("LINK_REVOKED", 410, "Liên kết không còn hiệu lực. Vui lòng liên hệ lễ tân.");
+    throw new CommandError("LINK_REVOKED", 410, t("portal.guest.link_revoked"));
   }
   if (link.expires_at.getTime() <= now.getTime())
-    throw new CommandError(
-      "LINK_EXPIRED",
-      410,
-      "Liên kết đã hết hạn. Vui lòng liên hệ lễ tân để nhận liên kết mới.",
-    );
+    throw new CommandError("LINK_EXPIRED", 410, t("portal.guest.link_expired"));
   if (link.second_factor) {
     const ok = link.phone_last4.length === 4 && input.phoneLast4 === link.phone_last4;
     if (!ok) {
@@ -187,23 +179,22 @@ export async function guestGetStay(
       if (locked.rows[0]?.locked) {
         secure("guest_link.locked", "SECOND_FACTOR_ATTEMPTS", link.id);
         await rate(true);
-        throw new CommandError("LINK_REVOKED", 410, "Liên kết không còn hiệu lực. Vui lòng liên hệ lễ tân.");
+        throw new CommandError("LINK_REVOKED", 410, t("portal.guest.link_revoked"));
       }
       return fail(invalidLink(), "SECOND_FACTOR_MISMATCH", link.id);
     }
   }
   // Token hợp lệ nhưng hỏi lượt ở khác → 404 (S-018), không tính là đoán token.
   if (!UUID.test(input.stayId) || link.stay_id !== input.stayId)
-    throw new CommandError("NOT_FOUND", 404, "Không tìm thấy dữ liệu.");
+    throw new CommandError("NOT_FOUND", 404, t("common.not_found_data_dot"));
   const used = await sql<{ locked: boolean }>`
     select app.guest_link_attempt(${link.id}::uuid, true, ${now}) as locked`.execute(db);
-  if (used.rows[0]?.locked)
-    throw new CommandError("LINK_REVOKED", 410, "Liên kết không còn hiệu lực. Vui lòng liên hệ lễ tân.");
+  if (used.rows[0]?.locked) throw new CommandError("LINK_REVOKED", 410, t("portal.guest.link_revoked"));
   const v = await sql<{ v: GuestViewRaw | null }>`select app.guest_stay_view(${link.id}::uuid) as v`.execute(
     db,
   );
   const raw = v.rows[0]?.v;
-  if (!raw) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy dữ liệu.");
+  if (!raw) throw new CommandError("NOT_FOUND", 404, t("common.not_found_data_dot"));
   const charges = raw.charges.map((c) => ({
     description: c.description,
     businessDate: c.businessDate,

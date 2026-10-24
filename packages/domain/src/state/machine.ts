@@ -1,4 +1,5 @@
 // Máy trạng thái khai báo (DOMAIN-MODEL §4, IND-FIN-005): chuyển ngoài bảng → INVALID_TRANSITION.
+import { t } from "../i18n.ts";
 
 export class TransitionError extends Error {
   readonly code = "INVALID_TRANSITION" as const;
@@ -6,7 +7,7 @@ export class TransitionError extends Error {
   readonly from: string;
   readonly to: string;
   constructor(machine: string, from: string, to: string) {
-    super(`${machine}: không thể chuyển từ "${from}" sang "${to}"`);
+    super(t("state.invalid_transition", { machine, from, to }));
     this.name = "TransitionError";
     this.from = from;
     this.to = to;
@@ -27,8 +28,9 @@ export function defineMachine<S extends string>(
   transitions: Readonly<Record<S, readonly S[]>>,
 ): Machine<S> {
   for (const [from, tos] of Object.entries(transitions) as [S, readonly S[]][]) {
-    if (!states.includes(from)) throw new Error(`${name}: trạng thái lạ "${from}"`);
-    for (const to of tos) if (!states.includes(to)) throw new Error(`${name}: trạng thái lạ "${to}"`);
+    if (!states.includes(from)) throw new Error(t("state.unknown_state", { machine: name, state: from }));
+    for (const to of tos)
+      if (!states.includes(to)) throw new Error(t("state.unknown_state", { machine: name, state: to }));
   }
   return {
     name,

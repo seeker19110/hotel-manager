@@ -2,6 +2,7 @@
 import { randomUUID } from "node:crypto";
 import { type Account, assertBalanced } from "@hm/domain";
 import { sql, type Transaction } from "kysely";
+import { t } from "../i18n.ts";
 import { CommandError } from "../pipeline/index.ts";
 
 export type EntryType =
@@ -89,9 +90,9 @@ export async function reverseEntry(
     trx,
   );
   const h = head.rows[0];
-  if (!h) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy bút toán");
+  if (!h) throw new CommandError("NOT_FOUND", 404, t("ledger.entry_not_found"));
   if (h.entry_type === "reversal")
-    throw new CommandError("INVALID_TRANSITION", 409, "Không đảo một bút toán đảo");
+    throw new CommandError("INVALID_TRANSITION", 409, t("ledger.reverse_a_reversal"));
   const lines = await sql<{
     account: Account;
     debit: string;
@@ -138,7 +139,7 @@ export async function reverseEntry(
     });
   } catch (err) {
     if ((err as { code?: string }).code === "23505")
-      throw new CommandError("INVALID_TRANSITION", 409, "Bút toán đã được đảo");
+      throw new CommandError("INVALID_TRANSITION", 409, t("ledger.already_reversed"));
     throw err;
   }
 }

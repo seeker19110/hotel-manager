@@ -6,6 +6,7 @@
 // - Quyền có hiệu lực ở request kế tiếp (quyền tra từ `memberships` mỗi request — không sửa token).
 import { authorize } from "@hm/domain";
 import { sql } from "kysely";
+import { t as msg } from "../i18n.ts";
 import { type CommandContext, CommandError, fieldError } from "../pipeline/index.ts";
 import { authorizeOrAudit } from "./denied.ts";
 import { ALL_PROPERTIES_ROLES, type InviteRole } from "./invitations.ts";
@@ -31,7 +32,7 @@ interface Target {
 
 function cleanReason(reason: string): string {
   const r = reason.trim();
-  if (!r || r.length > 500) throw fieldError("reason", "REQUIRED", "Cần lý do (≤ 500 ký tự)");
+  if (!r || r.length > 500) throw fieldError("reason", "REQUIRED", msg("access.reason_required_500"));
   return r;
 }
 
@@ -40,15 +41,14 @@ async function lockTarget(
   ctx: CommandContext,
   membershipId: string,
 ): Promise<{ target: Target; otherOwners: number }> {
-  if (!UUID.test(membershipId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy thành viên");
+  if (!UUID.test(membershipId)) throw new CommandError("NOT_FOUND", 404, msg("access.member_not_found"));
   const locked = await sql<{ id: string; role: string; status: string }>`
     select id, role, status from memberships
     where organization_id = ${ctx.actor.orgId} and ((role = 'owner' and status = 'active') or id = ${membershipId})
     order by id for update`.execute(ctx.trx);
   const t = locked.rows.find((r) => r.id === membershipId.toLowerCase());
-  if (!t || t.status === "revoked") throw new CommandError("NOT_FOUND", 404, "Không tìm thấy thành viên");
-  if (!STAFF.has(t.role))
-    throw new CommandError("INVALID_TRANSITION", 409, "Chỉ đổi được vai trò/phạm vi của nhân viên");
+  if (!t || t.status === "revoked") throw new CommandError("NOT_FOUND", 404, msg("access.member_not_found"));
+  if (!STAFF.has(t.role)) throw new CommandError("INVALID_TRANSITION", 409, msg("access.members_staff_only"));
   const sc = await sql<{ all_properties: boolean; property_ids: string[] }>`
     select m.all_properties,
            coalesce(array_agg(ps.property_id order by ps.property_id) filter (where ps.property_id is not null), '{}')::text[] as property_ids
@@ -73,7 +73,8 @@ async function assertPropertiesExist(ctx: CommandContext, ids: readonly string[]
     where organization_id = ${ctx.actor.orgId} and id = any(${ids}::uuid[]) and archived_at is null`.execute(
     ctx.trx,
   );
-  if ((r.rows[0]?.n ?? 0) !== ids.length) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy cơ sở");
+  if ((r.rows[0]?.n ?? 0) !== ids.length)
+    throw new CommandError("NOT_FOUND", 404, msg("common.property_not_found"));
 }
 
 async function writeScopes(ctx: CommandContext, membershipId: string, ids: readonly string[]): Promise<void> {
@@ -104,14 +105,14 @@ export async function updateMemberRole(
   const { target, otherOwners } = await lockTarget(ctx, input.membershipId);
 
   if (target.role === "owner" && target.status === "active" && input.role !== "owner" && otherOwners === 0)
-    throw new CommandError("LAST_OWNER", 409, "Tổ chức phải còn ít nhất một chủ sở hữu");
+    throw new CommandError("LAST_OWNER", 409, msg("access.last_owner"));
 
   // Phạm vi sau khi đổi vai: owner luôn mọi cơ sở; kế toán mặc định mọi cơ sở (Q-09); vai trò cấp cơ sở cần danh sách cơ sở.
   let all: boolean;
   let ids: string[];
   if (input.role === "owner") {
     if (requested && requested.length > 0)
-      throw fieldError("property_ids", "not_allowed", "Chủ sở hữu luôn có mọi cơ sở");
+      throw fieldError("property_ids", "not_allowed", msg("access.owner_all_properties"));
     all = true;
     ids = [];
   } else if (requested !== undefined && requested.length > 0) {
@@ -127,7 +128,7 @@ export async function updateMemberRole(
     !ALL_PROPERTIES_ROLES.has(input.role) &&
     (target.all_properties || target.property_ids.length === 0)
   ) {
-    throw fieldError("property_ids", "required", "Vai trò này cần chọn ít nhất một cơ sở");
+    throw fieldError("property_ids", "required", msg("access.role_needs_property"));
   } else {
     all = false;
     ids = target.property_ids;
@@ -176,12 +177,12 @@ export async function updateMemberScope(
   const all = input.allProperties === true;
   const { target } = await lockTarget(ctx, input.membershipId);
   if (target.role === "owner")
-    throw fieldError("membership_id", "owner_all_properties", "Chủ sở hữu luôn có mọi cơ sở");
+    throw fieldError("membership_id", "owner_all_properties", msg("access.owner_all_properties"));
   if (all && !ALL_PROPERTIES_ROLES.has(target.role))
-    throw fieldError("all_properties", "not_allowed", "Chỉ kế toán được phạm vi mọi cơ sở");
+    throw fieldError("all_properties", "not_allowed", msg("access.all_properties_accountant_only"));
   if (all && ids.length > 0)
-    throw fieldError("property_ids", "not_allowed", "Phạm vi mọi cơ sở không kèm danh sách cơ sở");
-  if (!all && ids.length === 0) throw fieldError("property_ids", "required", "Cần chọn ít nhất một cơ sở");
+    throw fieldError("property_ids", "not_allowed", msg("access.all_properties_no_list"));
+  if (!all && ids.length === 0) throw fieldError("property_ids", "required", msg("access.property_required"));
   if (all === target.all_properties && same(ids, target.property_ids))
     return { membershipId: target.id, allProperties: all, propertyIds: ids, changed: false };
   await assertPropertiesExist(ctx, ids);

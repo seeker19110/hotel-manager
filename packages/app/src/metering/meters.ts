@@ -6,6 +6,7 @@ import { withTenant } from "@hm/db";
 import { authorize, decimalSub, hasMaxDecimals } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/index.ts";
+import { t as msg } from "../i18n.ts";
 import { type CommandContext, CommandError, fieldError } from "../pipeline/index.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -19,14 +20,14 @@ export const ANOMALY = { factor: 2, history: 3 } as const;
 function assertDate(d: string, field: string): void {
   const t = new Date(`${d}T00:00:00Z`);
   if (!DATE.test(d) || Number.isNaN(t.getTime()) || t.toISOString().slice(0, 10) !== d) {
-    throw fieldError(field, "INVALID_DATE", `${field}: ngày không hợp lệ (YYYY-MM-DD)`);
+    throw fieldError(field, "INVALID_DATE", msg("lease.date_invalid", { field }));
   }
 }
 
 /** Chỉ số: ≥ 0, tối đa 3 chữ số thập phân (numeric(14,3)). */
 function assertReading(v: number, field: string): void {
   if (!Number.isFinite(v) || v < 0 || v >= 1e11 || !hasMaxDecimals(v, 3)) {
-    throw fieldError(field, "INVALID", "Chỉ số ≥ 0, tối đa 3 chữ số thập phân");
+    throw fieldError(field, "INVALID", msg("metering.value_invalid"));
   }
 }
 
@@ -43,22 +44,23 @@ export async function setServicePrice(
     basisNote?: string;
   },
 ): Promise<{ priceId: string }> {
-  if (!UUID.test(input.serviceId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy dịch vụ");
+  if (!UUID.test(input.serviceId))
+    throw new CommandError("NOT_FOUND", 404, msg("metering.service_not_found"));
   const s = await sql<{ property_id: string }>`
     select property_id from services where organization_id = ${ctx.actor.orgId} and id = ${input.serviceId} and archived_at is null`.execute(
     ctx.trx,
   );
   const svc = s.rows[0];
-  if (!svc) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy dịch vụ");
+  if (!svc) throw new CommandError("NOT_FOUND", 404, msg("metering.service_not_found"));
   authorize(ctx.actor, "pricing.manage", { propertyId: svc.property_id });
   assertDate(input.effectiveFrom, "effective_from");
   if (input.effectiveTo) {
     assertDate(input.effectiveTo, "effective_to");
     if (input.effectiveTo < input.effectiveFrom)
-      throw fieldError("effective_to", "BEFORE_START", "Ngày kết thúc trước ngày bắt đầu");
+      throw fieldError("effective_to", "BEFORE_START", msg("metering.rate_end_before_start"));
   }
   if (!Number.isFinite(input.unitPrice) || input.unitPrice < 0 || !hasMaxDecimals(input.unitPrice, 4)) {
-    throw fieldError("unit_price", "INVALID", "Đơn giá ≥ 0, tối đa 4 chữ số thập phân");
+    throw fieldError("unit_price", "INVALID", msg("metering.rate_invalid"));
   }
   await sql`
     update service_prices set effective_to = ${input.effectiveFrom}::date - 1, version = version + 1
@@ -76,7 +78,7 @@ export async function setServicePrice(
     );
   } catch (e) {
     if ((e as { code?: string }).code === "23P01")
-      throw fieldError("effective_from", "OVERLAP", "Trùng hiệu lực với đơn giá khác");
+      throw fieldError("effective_from", "OVERLAP", msg("metering.rate_overlap"));
     throw e;
   }
   await ctx.audit({
@@ -148,13 +150,13 @@ export async function installMeter(
   ctx: CommandContext,
   input: { unitId: string; kind: MeterKind; installedOn: string; initialValue: number; serial?: string },
 ): Promise<{ meterId: string }> {
-  if (!UUID.test(input.unitId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phòng");
+  if (!UUID.test(input.unitId)) throw new CommandError("NOT_FOUND", 404, msg("common.unit_not_found"));
   const u = await sql<{ property_id: string }>`
     select property_id from units where organization_id = ${ctx.actor.orgId} and id = ${input.unitId} and archived_at is null`.execute(
     ctx.trx,
   );
   const unit = u.rows[0];
-  if (!unit) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy phòng");
+  if (!unit) throw new CommandError("NOT_FOUND", 404, msg("common.unit_not_found"));
   authorize(ctx.actor, "unit.manage", { propertyId: unit.property_id });
   assertDate(input.installedOn, "installed_on");
   assertReading(input.initialValue, "initial_value");
@@ -167,7 +169,7 @@ export async function installMeter(
               ${input.installedOn}::date, ${input.initialValue})`.execute(ctx.trx);
   } catch (e) {
     if ((e as { code?: string }).code === "23505")
-      throw fieldError("kind", "DUPLICATE", "Phòng đã có công tơ loại này");
+      throw fieldError("kind", "DUPLICATE", msg("metering.meter_exists"));
     throw e;
   }
   await ctx.audit({
@@ -195,12 +197,12 @@ async function readMeter(
   meterId: string,
   lock = false,
 ): Promise<MeterRow> {
-  if (!UUID.test(meterId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy công tơ");
+  if (!UUID.test(meterId)) throw new CommandError("NOT_FOUND", 404, msg("metering.meter_not_found"));
   const r = await sql<MeterRow>`
     select id, property_id, unit_id, kind, installed_on::text, removed_on::text, initial_value::text from meters
     where organization_id = ${orgId} and id = ${meterId} ${lock ? sql`for update` : sql``}`.execute(trx);
   const m = r.rows[0];
-  if (!m) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy công tơ");
+  if (!m) throw new CommandError("NOT_FOUND", 404, msg("metering.meter_not_found"));
   return m;
 }
 
@@ -241,12 +243,12 @@ export async function readPeriod(
   periodId: string,
   lock = false,
 ): Promise<PeriodRow> {
-  if (!UUID.test(periodId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy kỳ thu");
+  if (!UUID.test(periodId)) throw new CommandError("NOT_FOUND", 404, msg("metering.period_not_found"));
   const r = await sql<PeriodRow>`
     select id, property_id, period_start::text, period_end::text, status from billing_periods
     where organization_id = ${orgId} and id = ${periodId} ${lock ? sql`for update` : sql``}`.execute(trx);
   const p = r.rows[0];
-  if (!p) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy kỳ thu");
+  if (!p) throw new CommandError("NOT_FOUND", 404, msg("metering.period_not_found"));
   return p;
 }
 
@@ -267,15 +269,15 @@ export async function recordReading(
 ): Promise<{ readingId: string; version: number; consumption: number; anomaly: { average: number } | null }> {
   const m = await readMeter(ctx.trx, ctx.actor.orgId, input.meterId);
   authorize(ctx.actor, "meter.record", { propertyId: m.property_id });
-  if (m.removed_on)
-    throw new CommandError("INVALID_TRANSITION", 409, "Công tơ đã tháo — nhập vào công tơ đang dùng");
+  if (m.removed_on) throw new CommandError("INVALID_TRANSITION", 409, msg("metering.meter_replaced"));
   const p = await readPeriod(ctx.trx, ctx.actor.orgId, input.billingPeriodId);
-  if (p.property_id !== m.property_id) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy kỳ thu");
+  if (p.property_id !== m.property_id)
+    throw new CommandError("NOT_FOUND", 404, msg("metering.period_not_found"));
   if (p.status === "issued" || p.status === "locked") {
-    throw new CommandError("PERIOD_ISSUED", 409, "Kỳ đã phát hành. Dùng chứng từ điều chỉnh.");
+    throw new CommandError("PERIOD_ISSUED", 409, msg("pipeline.period_issued"));
   }
   if (p.status !== "draft")
-    throw new CommandError("INVALID_TRANSITION", 409, "Kỳ đang chờ duyệt — trả về nháp để sửa chỉ số");
+    throw new CommandError("INVALID_TRANSITION", 409, msg("metering.period_pending_approval"));
   assertReading(input.value, "value");
   const readOn = input.readOn ?? p.period_end;
   assertDate(readOn, "read_on");
@@ -284,10 +286,10 @@ export async function recordReading(
     throw fieldError(
       "read_on",
       "OUT_OF_PERIOD",
-      `Ngày đọc phải trong kỳ ${p.period_start} – ${p.period_end}`,
+      msg("metering.reading_date_out_of_period", { period_start: p.period_start, period_end: p.period_end }),
     );
   if (input.photoFileId && !UUID.test(input.photoFileId))
-    throw fieldError("photo_file_id", "INVALID", "Ảnh không hợp lệ");
+    throw fieldError("photo_file_id", "INVALID", msg("common.photo_invalid"));
   const prev = await previousReading(ctx.trx, ctx.actor.orgId, m.id, {
     before: readOn,
     excludePeriodId: p.id,
@@ -296,7 +298,7 @@ export async function recordReading(
     throw new CommandError(
       "METER_READING_DECREASED",
       422,
-      `Chỉ số ${input.value} nhỏ hơn lần đọc trước ${prev.value}`,
+      msg("metering.reading_decreased", { value: input.value, previous: prev.value }),
       {
         extensions: {
           previous_value: prev.value,
@@ -312,7 +314,11 @@ export async function recordReading(
       and billing_period_id is distinct from ${p.id}::uuid`.execute(ctx.trx);
   const next = later.rows[0]?.v;
   if (next != null && input.value > Number(next)) {
-    throw fieldError("value", "EXCEEDS_LATER_READING", `Chỉ số lớn hơn lần đọc sau (${Number(next)})`);
+    throw fieldError(
+      "value",
+      "EXCEEDS_LATER_READING",
+      msg("metering.reading_exceeds_next", { next: Number(next) }),
+    );
   }
   const existing = await sql<{ id: string; version: number }>`
     select id, version from meter_readings
@@ -323,7 +329,7 @@ export async function recordReading(
   const cur = existing.rows[0];
   if (cur) {
     if (input.baseVersion !== undefined && input.baseVersion !== cur.version) {
-      throw new CommandError("VERSION_CONFLICT", 409, "Chỉ số vừa được người khác cập nhật — tải lại");
+      throw new CommandError("VERSION_CONFLICT", 409, msg("metering.reading_conflict"));
     }
     await sql`
       update meter_readings set value = ${input.value}, read_on = ${readOn}::date, photo_file_id = ${input.photoFileId ?? null},
@@ -403,7 +409,7 @@ export async function periodConsumptionTexts(
   }
   let pending: Walk[] = ids.map((id) => {
     const end = ends.get(id);
-    if (!end) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy chỉ số");
+    if (!end) throw new CommandError("NOT_FOUND", 404, msg("metering.reading_not_found"));
     return {
       readingId: id,
       meterId: end.meter_id,
@@ -473,7 +479,7 @@ export async function periodConsumptionTexts(
       });
     }
   }
-  if (pending.length > 0) throw new Error("chuỗi thay công tơ quá dài");
+  if (pending.length > 0) throw new Error(msg("metering.replacement_chain_too_long"));
   return out;
 }
 
@@ -537,16 +543,17 @@ export async function acknowledgeAnomaly(
   ctx: CommandContext,
   input: { readingId: string; note: string },
 ): Promise<{ readingId: string }> {
-  if (!UUID.test(input.readingId)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy chỉ số");
+  if (!UUID.test(input.readingId))
+    throw new CommandError("NOT_FOUND", 404, msg("metering.reading_not_found"));
   const r = await sql<{ property_id: string; source: string }>`
     select property_id, source from meter_readings where organization_id = ${ctx.actor.orgId} and id = ${input.readingId}`.execute(
     ctx.trx,
   );
   const row = r.rows[0];
-  if (row?.source !== "period") throw new CommandError("NOT_FOUND", 404, "Không tìm thấy chỉ số");
+  if (row?.source !== "period") throw new CommandError("NOT_FOUND", 404, msg("metering.reading_not_found"));
   authorize(ctx.actor, "billing.prepare", { propertyId: row.property_id });
   const note = input.note.trim();
-  if (!note || note.length > 1000) throw fieldError("note", "REQUIRED", "Cần ghi chú (≤ 1.000 ký tự)");
+  if (!note || note.length > 1000) throw fieldError("note", "REQUIRED", msg("metering.note_required"));
   await sql`
     update meter_readings set anomaly_note = ${note}, anomaly_acknowledged_by = ${ctx.actor.membershipId}, version = version + 1
     where organization_id = ${ctx.actor.orgId} and id = ${input.readingId}`.execute(ctx.trx);
@@ -615,10 +622,10 @@ export async function replaceMeter(
   const seen = await readMeter(ctx.trx, ctx.actor.orgId, input.meterId);
   authorize(ctx.actor, "meter.replace", { propertyId: seen.property_id });
   const m = await readMeter(ctx.trx, ctx.actor.orgId, input.meterId, true);
-  if (m.removed_on) throw new CommandError("INVALID_TRANSITION", 409, "Công tơ đã được thay");
+  if (m.removed_on) throw new CommandError("INVALID_TRANSITION", 409, msg("metering.already_replaced"));
   assertDate(input.occurredOn, "occurred_on");
   if (input.occurredOn < m.installed_on)
-    throw fieldError("occurred_on", "BEFORE_INSTALL", "Ngày thay trước ngày lắp");
+    throw fieldError("occurred_on", "BEFORE_INSTALL", msg("metering.replace_before_install"));
   assertReading(input.oldFinalValue, "old_final_value");
   assertReading(input.newInitialValue, "new_initial_value");
   // Không lùi ngày thay vào trước lần đọc đã duyệt cuối hoặc vào kỳ đã phát hành (lượng của kỳ đã thu không đổi được).
@@ -632,7 +639,7 @@ export async function replaceMeter(
     throw fieldError(
       "occurred_on",
       "BEFORE_LAST_READING",
-      `Ngày thay trước lần đọc đã duyệt cuối (${lastOn})`,
+      msg("metering.replace_before_last_reading", { lastOn }),
     );
   const issued = await sql<{ period_end: string }>`
     select max(period_end)::text as period_end from billing_periods
@@ -641,17 +648,13 @@ export async function replaceMeter(
   );
   const issuedEnd = issued.rows[0]?.period_end;
   if (issuedEnd && input.occurredOn <= issuedEnd)
-    throw new CommandError(
-      "PERIOD_ISSUED",
-      409,
-      `Ngày thay thuộc kỳ đã phát hành (đến ${issuedEnd}). Dùng điều chỉnh.`,
-    );
+    throw new CommandError("PERIOD_ISSUED", 409, msg("metering.replace_in_issued_period", { issuedEnd }));
   const prev = await previousReading(ctx.trx, ctx.actor.orgId, m.id);
   if (input.oldFinalValue < prev.value) {
     throw new CommandError(
       "METER_READING_DECREASED",
       422,
-      `Chỉ số cuối ${input.oldFinalValue} nhỏ hơn lần đọc trước ${prev.value}`,
+      msg("metering.final_reading_decreased", { final: input.oldFinalValue, previous: prev.value }),
       {
         extensions: {
           previous_value: prev.value,
@@ -664,7 +667,7 @@ export async function replaceMeter(
     ["old_photo_file_id", input.oldPhotoFileId],
     ["new_photo_file_id", input.newPhotoFileId],
   ] as const) {
-    if (id !== undefined && !UUID.test(id)) throw fieldError(f, "INVALID", "Ảnh không hợp lệ");
+    if (id !== undefined && !UUID.test(id)) throw fieldError(f, "INVALID", msg("common.photo_invalid"));
   }
   await sql`
     insert into meter_readings (id, organization_id, property_id, meter_id, read_on, value, photo_file_id, status, source,
@@ -804,17 +807,18 @@ export async function importReading(
   const m = await readMeter(ctx.trx, ctx.actor.orgId, meterId);
   authorize(ctx.actor, "meter.record", { propertyId: m.property_id });
   if (input.readOn < m.installed_on)
-    throw fieldError("read_on", "BEFORE_INSTALL", "Ngày đọc trước ngày lắp công tơ");
+    throw fieldError("read_on", "BEFORE_INSTALL", msg("metering.reading_before_install"));
   const issued = await sql`
     select 1 from billing_periods where organization_id = ${ctx.actor.orgId} and property_id = ${m.property_id}
       and status in ('issued','locked') and period_end >= ${input.readOn}::date limit 1`.execute(ctx.trx);
-  if (issued.rows.length > 0) throw new CommandError("PERIOD_ISSUED", 409, "Ngày đọc thuộc kỳ đã phát hành");
+  if (issued.rows.length > 0)
+    throw new CommandError("PERIOD_ISSUED", 409, msg("metering.reading_in_issued_period"));
   const prev = await previousReading(ctx.trx, ctx.actor.orgId, m.id, { before: input.readOn });
   if (value < prev.value) {
     throw new CommandError(
       "METER_READING_DECREASED",
       422,
-      `Chỉ số ${value} nhỏ hơn lần đọc trước ${prev.value}`,
+      msg("metering.reading_decreased", { value, previous: prev.value }),
       {
         extensions: { previous_value: prev.value },
       },
@@ -825,7 +829,11 @@ export async function importReading(
       and status = 'approved' and read_on > ${input.readOn}::date`.execute(ctx.trx);
   const next = later.rows[0]?.v;
   if (next != null && value > Number(next))
-    throw fieldError("value", "EXCEEDS_LATER_READING", `Chỉ số lớn hơn lần đọc sau (${Number(next)})`);
+    throw fieldError(
+      "value",
+      "EXCEEDS_LATER_READING",
+      msg("metering.reading_exceeds_next", { next: Number(next) }),
+    );
   const readingId = randomUUID();
   await sql`
     insert into meter_readings (id, organization_id, property_id, meter_id, read_on, value, status, source, entered_by, approved_by)

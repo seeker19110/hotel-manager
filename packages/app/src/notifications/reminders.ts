@@ -9,6 +9,7 @@
 //   owner/manager mỗi ngày tối đa 1 lần (S-020).
 import { withTenantRetry } from "@hm/db";
 import { type Kysely, sql } from "kysely";
+import { t } from "../i18n.ts";
 import { createNotification, type NewNotification } from "./dispatch.ts";
 import { TemplateError } from "./templates.ts";
 
@@ -52,7 +53,8 @@ async function perOrg(
       });
     }
   }
-  if (errors.length > 0) throw new AggregateError(errors, `nhắc lịch lỗi ở ${errors.length} tổ chức`);
+  if (errors.length > 0)
+    throw new AggregateError(errors, t("notify.error.reminder_org_failed", { count: errors.length }));
   return created;
 }
 
@@ -263,6 +265,7 @@ export async function runReminders(
       errors.push(err);
     }
   }
-  if (errors.length > 0) throw new AggregateError(errors, `nhắc lịch lỗi ở ${errors.length} loại quét`);
+  if (errors.length > 0)
+    throw new AggregateError(errors, t("notify.error.reminder_scan_failed", { count: errors.length }));
   return stats;
 }

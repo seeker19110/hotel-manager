@@ -5,6 +5,7 @@
 // song song chỉ một thắng; cùng Idempotency-Key gửi lại ⇒ replay đúng kết quả cũ.
 import { sql } from "kysely";
 import type { Actor, Role } from "../actor-core/index.ts";
+import { t } from "../i18n.ts";
 import { emitSecurity } from "../logging/index.ts";
 import { CommandError, type CommandResult } from "../pipeline/index.ts";
 import { hashInvitationToken } from "./invitations.ts";
@@ -30,11 +31,7 @@ export async function acceptInvitation(
       client: req.client ?? null,
       correlationId: req.correlationId,
     });
-    return new CommandError(
-      "INVITATION_INVALID",
-      410,
-      "Lời mời không còn hiệu lực. Hãy nhờ quản trị gửi lại.",
-    );
+    return new CommandError("INVITATION_INVALID", 410, t("access.invitation_unavailable"));
   };
 
   const found = await sql<{ organization_id: string; id: string; role: string }>`
@@ -80,7 +77,7 @@ export async function acceptInvitation(
       const existing = await sql<{ id: string }>`
         select id from memberships where organization_id = ${orgId} and auth_user_id = ${req.userId}
           and status in ('invited','active','suspended')`.execute(trx);
-      if (existing.rows[0]) throw new CommandError("DUPLICATE", 409, "Bạn đã là thành viên của tổ chức này");
+      if (existing.rows[0]) throw new CommandError("DUPLICATE", 409, t("access.already_member"));
       const allProperties = row.property_ids.length === 0;
       await sql`insert into persons (id, organization_id, full_name, email)
                 values (${personId}, ${orgId}, ${user.name.trim().slice(0, 200) || user.email}, ${user.email})`.execute(

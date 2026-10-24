@@ -8,6 +8,7 @@ import type { BreakReason } from "@hm/domain";
 import { msToSecondsExact } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
 import { parseWebhookSecrets, WEBHOOK_SECRET_MAX_COUNT, WEBHOOK_SECRET_MIN_LENGTH } from "../config/index.ts";
+import { t } from "../i18n.ts";
 import { currentTraceparent } from "../logging/index.ts";
 import { CommandError, canonicalJson } from "../pipeline/index.ts";
 
@@ -61,12 +62,13 @@ export interface AccountOwner {
 }
 
 export async function receivingAccountOwner(db: Kysely<unknown>, account: string): Promise<AccountOwner> {
-  if (!UUID.test(account)) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy tài khoản nhận");
+  if (!UUID.test(account)) throw new CommandError("NOT_FOUND", 404, t("http.webhook.account_not_found"));
   const owner = await sql<{ organization_id: string; property_id: string | null }>`
     select * from app.receiving_account_owner(${account}::uuid)`.execute(db);
   const o = owner.rows[0];
-  if (!o) throw new CommandError("NOT_FOUND", 404, "Không tìm thấy tài khoản nhận");
-  if (!o.property_id) throw new CommandError("VALIDATION_FAILED", 422, "Tài khoản nhận chưa gắn cơ sở");
+  if (!o) throw new CommandError("NOT_FOUND", 404, t("http.webhook.account_not_found"));
+  if (!o.property_id)
+    throw new CommandError("VALIDATION_FAILED", 422, t("ledger.receiving_account_no_property"));
   return { orgId: o.organization_id, propertyId: o.property_id };
 }
 
@@ -77,7 +79,7 @@ export async function ingestInTx(
   ev: BankEvent,
 ): Promise<IngestOutcome> {
   if (!Number.isSafeInteger(ev.txn.amount) || ev.txn.amount <= 0) {
-    throw new CommandError("VALIDATION_FAILED", 422, "Số tiền giao dịch phải là số nguyên đồng dương");
+    throw new CommandError("VALIDATION_FAILED", 422, t("ledger.bank_amount_invalid"));
   }
   const payloadHash = sha256(canonicalJson(ev.raw));
   const txnHash = bankTxnHash(ev.txn.ref, ev.txn.amount);
@@ -164,7 +166,7 @@ export async function defaultAssignee(
     order by array_position(${[...roles, "owner"]}::text[], m.role), m.id
     limit 1`.execute(trx);
   const id = r.rows[0]?.id;
-  if (!id) throw new Error("Tổ chức không còn owner hoạt động");
+  if (!id) throw new Error(t("ledger.no_active_owner"));
   return id;
 }
 
@@ -280,9 +282,7 @@ export async function ingestBankEvent(db: Kysely<unknown>, ev: BankEvent): Promi
     throw new CommandError(
       "INBOX_HASH_MISMATCH",
       409,
-      outcome.scope === "inbox"
-        ? "Sự kiện trùng mã nhưng nội dung khác — không ghi tiền, cần đối soát"
-        : "Cùng mã giao dịch ngân hàng nhưng số tiền khác — không ghi tiền, cần đối soát",
+      outcome.scope === "inbox" ? t("ledger.bank_event_conflict") : t("ledger.bank_amount_conflict"),
     );
   }
   const { kind: _k, ...result } = outcome;
@@ -306,7 +306,7 @@ export function verifySimSignature(input: {
   toleranceSeconds?: number;
 }): void {
   const fail = () =>
-    new CommandError("WEBHOOK_SIGNATURE_INVALID", 401, "Chữ ký webhook không hợp lệ hoặc đã quá hạn");
+    new CommandError("WEBHOOK_SIGNATURE_INVALID", 401, t("ledger.webhook_signature_invalid"));
   const ts = Number(input.timestamp);
   const now = msToSecondsExact((input.now ?? new Date()).getTime());
   if (!Number.isInteger(ts) || Math.abs(now - ts) > (input.toleranceSeconds ?? 300)) throw fail();

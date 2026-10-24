@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Icon } from "../../../components/ui/icon.tsx";
 import { EmptyState, ErrorState } from "../../../components/ui/state.tsx";
-import { CARD_LABEL, vnd } from "../../../lib/format.ts";
+import { vnd } from "../../../lib/format.ts";
 import { t } from "../../../lib/i18n.ts";
 import { withActor } from "../../../lib/page.tsx";
 import { safe } from "../../../lib/safe.ts";
@@ -51,7 +51,7 @@ export default async function TodayListPage({
   const { property_id: propertyId } = await searchParams;
   if (!(TODAY_CARDS as readonly string[]).includes(card)) notFound();
   const key = card as TodayCard;
-  return withActor(CARD_LABEL[key] ?? TITLE[key], "/", async (actor) => {
+  return withActor(TITLE[key], "/", async (actor) => {
     const r = await safe(
       listTodayItems(serverContext().db, actor, { card: key, ...(propertyId ? { propertyId } : {}) }),
     );

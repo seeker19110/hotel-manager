@@ -16,6 +16,7 @@ import {
   MS_PER_DAY,
 } from "@hm/domain";
 import { type Kysely, sql } from "kysely";
+import { t } from "../i18n.ts";
 
 // Giữ đường import cũ của các hằng ngưỡng.
 export { EMAIL_BUDGET_THROTTLE_PCT, EMAIL_BUDGET_WARN_PCT, EMAIL_DAILY_BUDGET_PER_ORG };
@@ -39,7 +40,7 @@ export type BudgetLog = (event: string, fields: Record<string, unknown>) => void
 export class EmailBudgetDeferredError extends Error {
   readonly retryAt: Date;
   constructor(retryAt: Date) {
-    super("ngân sách email ngày của tổ chức đã hết — hoãn tới đầu ngày UTC kế tiếp");
+    super(t("notify.error.budget_exhausted"));
     this.name = "EmailBudgetDeferredError";
     this.retryAt = retryAt;
   }
@@ -62,7 +63,7 @@ export async function takeEmailBudget(
     select decision, used, level, crossed from app.email_budget_take(${q.orgId}, ${q.now}, ${q.budget ?? EMAIL_DAILY_BUDGET_PER_ORG},
       ${EMAIL_BUDGET_WARN_PCT}, ${EMAIL_BUDGET_THROTTLE_PCT}, ${q.required})`.execute(workerDb);
   const row = r.rows[0];
-  if (!row) throw new Error("app.email_budget_take không trả hàng");
+  if (!row) throw new Error(t("notify.error.budget_no_row"));
   return {
     decision: row.decision,
     used: row.used,

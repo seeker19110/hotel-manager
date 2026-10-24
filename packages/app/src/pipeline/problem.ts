@@ -2,6 +2,7 @@
 import { AuthzError, TransitionError } from "@hm/domain";
 import type { Transaction } from "kysely";
 import { AccessError } from "../actor-core/index.ts";
+import { t } from "../i18n.ts";
 import type { AuditInput } from "./command.ts";
 
 export interface Problem {
@@ -70,12 +71,9 @@ export function rateLimited(message: string, retryAfterSeconds: number): Command
  */
 export const IDEMPOTENCY_RETRY_AFTER_SECONDS = 1;
 export function idempotencyInProgress(): CommandError {
-  return new CommandError(
-    "IDEMPOTENCY_IN_PROGRESS",
-    409,
-    "Yêu cầu cùng Idempotency-Key đang được xử lý. Vui lòng đợi rồi kiểm tra kết quả.",
-    { extensions: { retry_after: IDEMPOTENCY_RETRY_AFTER_SECONDS } },
-  );
+  return new CommandError("IDEMPOTENCY_IN_PROGRESS", 409, t("pipeline.idempotency_in_progress"), {
+    extensions: { retry_after: IDEMPOTENCY_RETRY_AFTER_SECONDS },
+  });
 }
 
 /** 422 VALIDATION_FAILED chỉ đúng một trường sai (SPEC-access S-001, SPEC-lease S-007/S-025). */
@@ -123,12 +121,12 @@ const PG_CODES: Record<string, { code: string; status: number; title: string }> 
   "23P01": {
     code: "ROOM_UNAVAILABLE",
     status: 409,
-    title: "Phòng đã có người đặt trong khoảng thời gian này",
+    title: t("pipeline.room_unavailable"),
   },
-  "23505": { code: "DUPLICATE", status: 409, title: "Dữ liệu đã tồn tại" },
-  "23503": { code: "NOT_FOUND", status: 404, title: "Không tìm thấy" },
-  "23514": { code: "VALIDATION_FAILED", status: 422, title: "Dữ liệu không hợp lệ" },
-  "42501": { code: "FORBIDDEN", status: 403, title: "Không có quyền" },
+  "23505": { code: "DUPLICATE", status: 409, title: t("pipeline.duplicate") },
+  "23503": { code: "NOT_FOUND", status: 404, title: t("common.not_found") },
+  "23514": { code: "VALIDATION_FAILED", status: 422, title: t("http.validation_failed") },
+  "42501": { code: "FORBIDDEN", status: 403, title: t("pipeline.forbidden") },
 };
 
 /**
@@ -136,23 +134,23 @@ const PG_CODES: Record<string, { code: string; status: number; title: string }> 
  * lỗi Postgres — vd. `55000` + DOCUMENT_IMMUTABLE là 409, `23514` + INVALID_TRANSITION là 409 (không phải 422).
  */
 const HINT_STATUS: Record<string, { status: number; title: string }> = {
-  DOCUMENT_IMMUTABLE: { status: 409, title: "Chứng từ đã phát hành/ký không được sửa" },
-  EVIDENCE_REQUIRED: { status: 422, title: "Cần chứng cứ thanh toán" },
-  HANDOVER_REQUIRED: { status: 409, title: "Cần hoàn tất biên bản bàn giao trước." },
-  SETTLEMENT_REQUIRED: { status: 409, title: "Cần duyệt quyết toán trước khi đóng hợp đồng." },
-  PERIOD_ISSUED: { status: 409, title: "Kỳ đã phát hành. Dùng chứng từ điều chỉnh." },
-  INVALID_TRANSITION: { status: 409, title: "Chuyển trạng thái không hợp lệ" },
-  LAST_OWNER: { status: 409, title: "Tổ chức phải còn ít nhất một owner" },
+  DOCUMENT_IMMUTABLE: { status: 409, title: t("pipeline.document_immutable") },
+  EVIDENCE_REQUIRED: { status: 422, title: t("pipeline.evidence_required") },
+  HANDOVER_REQUIRED: { status: 409, title: t("pipeline.handover_required") },
+  SETTLEMENT_REQUIRED: { status: 409, title: t("pipeline.settlement_required") },
+  PERIOD_ISSUED: { status: 409, title: t("pipeline.period_issued") },
+  INVALID_TRANSITION: { status: 409, title: t("pipeline.invalid_transition") },
+  LAST_OWNER: { status: 409, title: t("pipeline.last_owner") },
   // SPEC-access S-023: trigger `app.check_property_not_in_use` (0062) — mọi đường ghi đổi múi giờ/giờ chốt đều qua mã này.
   PROPERTY_IN_USE: {
     status: 409,
-    title: "Cơ sở đã có giao dịch, không thể đổi múi giờ hoặc giờ chốt ngày",
+    title: t("pipeline.property_in_use"),
   },
   // SPEC-ledger S-003: lỗi hệ thống, 500 GIỮ mã (để cảnh báo/tra cứu) và đi đường lỗi không dự kiến (onUnexpectedError).
-  LEDGER_UNBALANCED: { status: 500, title: "Lỗi hệ thống khi ghi sổ. Thao tác chưa được lưu." },
-  PERIOD_LOCKED: { status: 409, title: "Kỳ đã khoá. Cần chứng từ điều chỉnh có duyệt." },
-  VALIDATION_FAILED: { status: 422, title: "Dữ liệu không hợp lệ" },
-  TENANT_CONTEXT_MISSING: { status: 500, title: "Thiếu ngữ cảnh tổ chức" },
+  LEDGER_UNBALANCED: { status: 500, title: t("pipeline.ledger_unbalanced") },
+  PERIOD_LOCKED: { status: 409, title: t("pipeline.period_locked") },
+  VALIDATION_FAILED: { status: 422, title: t("http.validation_failed") },
+  TENANT_CONTEXT_MISSING: { status: 500, title: t("pipeline.tenant_context_missing") },
 };
 
 /**
@@ -161,7 +159,7 @@ const HINT_STATUS: Record<string, { status: number; title: string }> = {
  */
 const UNIQUE_CODES: Record<string, { code: string; status: number; title: string }> = {
   // SPEC-access-and-property S-004: mã phòng duy nhất theo cơ sở (không phân biệt hoa thường, bỏ khoảng trắng).
-  uq_units_code: { code: "UNIT_CODE_TAKEN", status: 409, title: "Mã phòng đã tồn tại trong cơ sở này" },
+  uq_units_code: { code: "UNIT_CODE_TAKEN", status: 409, title: t("pipeline.unit_code_taken") },
 };
 
 export function toProblem(err: unknown, correlationId?: string): Problem {
@@ -184,7 +182,7 @@ export function toProblem(err: unknown, correlationId?: string): Problem {
   if (typeof pg?.code === "string" && hinted && pg.hint) {
     // Lỗi cấu hình hệ thống (thiếu ngữ cảnh) vẫn che như lỗi nội bộ; sổ lệch giữ mã theo SPEC.
     if (hinted.status >= 500 && pg.hint !== "LEDGER_UNBALANCED")
-      return base("INTERNAL", 500, "Đã có lỗi, vui lòng thử lại hoặc báo hỗ trợ kèm mã tra cứu");
+      return base("INTERNAL", 500, t("common.internal_error"));
     return base(pg.hint, hinted.status, hinted.title);
   }
   if (typeof pg?.code === "string" && PG_CODES[pg.code]) {
@@ -193,5 +191,5 @@ export function toProblem(err: unknown, correlationId?: string): Problem {
     return base(code, m.status, m.title);
   }
   // Lỗi không dự kiến: chỉ trả correlation_id, không trả stack/chi tiết (API-CONTRACT §2).
-  return base("INTERNAL", 500, "Đã có lỗi, vui lòng thử lại hoặc báo hỗ trợ kèm mã tra cứu");
+  return base("INTERNAL", 500, t("common.internal_error"));
 }

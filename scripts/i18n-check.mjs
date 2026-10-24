@@ -1,5 +1,9 @@
 #!/usr/bin/env node
-// Kiểm tệp dịch (XC-I18N-009, D-073) — file dịch cũng là đầu vào: `apps/web/messages/<locale>.json` (khoá → { message, description }).
+// Kiểm tệp dịch (XC-I18N-009, D-073) — file dịch cũng là đầu vào. Ba catalog cùng định dạng (khoá → { message, description }),
+// mỗi catalog đi với mã nguồn của nó (TREES): `apps/web/messages/<locale>.json` ↔ apps/web (t/tOr của lib/i18n.ts, tm của
+// lib/i18n-format.ts), `packages/app/messages/<locale>.json` ↔ packages/app/src (t của src/i18n.ts, import tương đối — D-104;
+// packages/app không phụ thuộc apps/web nên catalog riêng) và `packages/domain/messages/<locale>.json` ↔ packages/domain/src
+// (t của src/i18n.ts — D-107; domain thuần, không phụ thuộc gói khác). Mọi luật dưới đây áp cho cả ba:
 //  · nguồn `vi`: mọi khoá có `description` (ngữ cảnh cho người dịch — XC-I18N-001);
 //  · mọi locale: `message` đúng cú pháp ICU (parser của formatjs), cùng tập tham số với nguồn, không thẻ HTML/script/`javascript:`;
 //    thiếu khoá so với nguồn → lỗi (chưa có cơ chế fallback khai báo);
@@ -10,6 +14,16 @@
 //    (context `common.` của lib/i18n-context.tsx, D-101) được kiểm như nhau;
 //  · bundle: không module `"use client"` nào (kể cả gián tiếp qua import tương đối) import giá trị từ lib/i18n.ts hay tệp
 //    messages/*.json — catalog bị nhân bản vào mỗi chunk JS client (D-098, CI bundle-size đỏ ở PR #123). Chỉ `import type`.
+//    Đi theo cả import gói `@hm/<gói>/<đường>` (theo `exports` của packages/*/package.json): module client chạm
+//    packages/{app,domain}/src/i18n.ts hoặc packages/{app,domain}/messages/<locale>.json (vd qua `@hm/app/http`,
+//    `@hm/app/format` → `@hm/domain/format`) cũng là lỗi.
+//    Import gói workspace mà `exports` không giải được (mẫu `"./*"`, điều kiện lồng, đường con không khai…) ⇒ lỗi, không bỏ qua
+//    (fail-closed, T-2207).
+//  · catalog con (D-106) `<thư mục catalog>/<tên>.<locale>.json` (vd packages/app/messages/form.vi.json,
+//    packages/domain/messages/format.vi.json của format/intl.ts — D-107): tập câu NHỎ cho module
+//    mà trình duyệt nạp (http/command-inputs.ts) — được phép vào bundle client (không khớp luật trên), nhưng chỉ đúng các tệp mã
+//    khai ở `subcatalogs` dùng nó. Kiểm như catalog chính (mô tả, ICU, tham số, HTML) + mọi lời gọi hàm tra cứu (`formText`) trong
+//    tệp mã khai báo: khoá viết thẳng, có trong catalog con, đúng tham số; khoá không được gọi ở đâu ⇒ lỗi (giữ catalog con tối thiểu).
 // Thoát 1 khi có lỗi. Dùng: node scripts/i18n-check.mjs
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
@@ -20,6 +34,31 @@ import { parseSource, walk } from "./ts-ast.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 export const MESSAGES_DIR = join(ROOT, "apps/web/messages");
+export const APP_MESSAGES_DIR = join(ROOT, "packages/app/messages");
+/** Catalog ↔ mã nguồn dùng nó (đường dẫn tương đối gốc repo). `roles`: tệp ROLES/STATUSES có khoá dựng động (chỉ web). */
+export const TREES = [
+  {
+    name: "apps/web",
+    messages: "apps/web/messages",
+    sources: "apps/web",
+    roles: "apps/web/lib/roles.ts",
+    client: true,
+  },
+  {
+    name: "packages/app",
+    messages: "packages/app/messages",
+    sources: "packages/app/src",
+    subcatalogs: [{ name: "form", fn: "formText", sources: ["packages/app/src/http/command-inputs.ts"] }],
+  },
+  {
+    name: "packages/domain",
+    messages: "packages/domain/messages",
+    sources: "packages/domain/src",
+    // format/intl.ts vào bundle trình duyệt (apps/web/lib/format.ts → @hm/app/format → @hm/domain/format) — D-107 theo mẫu D-106.
+    subcatalogs: [{ name: "format", fn: "formatText", sources: ["packages/domain/src/format/intl.ts"] }],
+  },
+];
+
 export const SOURCE_LOCALE = "vi";
 const UNSAFE = /<\s*\/?\s*[a-z][^>]*>|javascript:|on\w+\s*=/i;
 
@@ -142,11 +181,12 @@ const CHECKED = [
  * khoá tĩnh, và tập khoá phải đúng bằng tập tham số ICU của message nguồn. Khoá `t()` không có trong nguồn do `usedKeys` báo;
  * khoá `tm()` không có trong nguồn báo ngay tại đây (đối số đầu là biểu thức tuỳ ý — regex của `usedKeys` không đọc chắc được).
  */
-export function tCallErrors(text, file, src) {
+export function tCallErrors(text, file, src, fns = null) {
   const ast = parseSource(text, file);
-  const locals = new Map(); // tên cục bộ → mục CHECKED
+  // `fns` (catalog con): kiểm đúng các hàm tên đó (định nghĩa ngay trong tệp, không qua import) — bỏ qua import lib/i18n.
+  const locals = new Map(fns ? fns.map((f) => [f.name, f]) : []); // tên cục bộ → mục CHECKED
   const errors = [];
-  for (const node of ast.program.body) {
+  for (const node of fns ? [] : ast.program.body) {
     if (node.type !== "ImportDeclaration" || node.importKind === "type") continue; // `import type …` không gọi được
     const fns = CHECKED.filter((c) => c.module.test(node.source.value));
     if (fns.length === 0) continue;
@@ -180,7 +220,9 @@ export function tCallErrors(text, file, src) {
     }
     const key = keyArg.value;
     if (!Object.hasOwn(src, key)) {
-      if (fn.name !== "t") errors.push(`${at}: ${fn.name}("${key}") không có trong nguồn`);
+      // `t("…")` viết đúng tên do `usedKeys` báo; tên khác (tm, formText, `t` import đổi tên) báo ở đây.
+      if (fn.name !== "t" || node.callee.name !== "t")
+        errors.push(`${at}: ${node.callee.name}("${key}") không có trong nguồn`);
       return;
     }
     let got = [];
@@ -218,15 +260,68 @@ export function sourceErrors(files, src, root = ROOT) {
   return errors;
 }
 
-const CATALOG = /(^|\/)apps\/web\/(lib\/i18n\.ts|messages\/[^/]+\.json)$/;
+// Catalog chính (`<locale>.json`, không dấu chấm trong tên). Catalog con `<tên>.<locale>.json` (D-106) không khớp: nó được thiết
+// kế để vào bundle client (nhỏ, chỉ câu form) — phạm vi dùng do `subcatalogErrors` giữ.
+const CATALOG =
+  /(^|\/)(apps\/web\/(lib\/i18n\.ts|messages\/[^/.]+\.json)|packages\/(app|domain)\/(src\/i18n\.ts|messages\/[^/.]+\.json))$/;
 
-/** Đường dẫn import tương đối → tệp trên đĩa (dự án ghi đuôi `.ts`/`.tsx`; thiếu đuôi thì thử thêm). Gói (`@hm/…`) → null. */
-function resolveImport(from, spec) {
-  if (!spec.startsWith(".")) return null;
-  const base = resolve(dirname(from), spec);
-  for (const p of [base, `${base}.ts`, `${base}.tsx`, join(base, "index.ts"), join(base, "index.tsx")])
-    if (existsSync(p) && statSync(p).isFile()) return p;
-  return null;
+/** Gói workspace `@hm/…` → { dir, exports } đọc từ packages/*\/package.json dưới `root` (không có thư mục → rỗng). */
+function workspacePackages(root) {
+  const dir = join(root, "packages");
+  const out = new Map();
+  if (!existsSync(dir)) return out;
+  for (const n of readdirSync(dir)) {
+    const pj = join(dir, n, "package.json");
+    if (!existsSync(pj)) continue;
+    const pkg = JSON.parse(readFileSync(pj, "utf8"));
+    if (typeof pkg.name === "string") out.set(pkg.name, { dir: join(dir, n), exports: pkg.exports });
+  }
+  return out;
+}
+
+/**
+ * Đường dẫn import → tệp trên đĩa: tương đối (dự án ghi đuôi `.ts`/`.tsx`; thiếu đuôi thì thử thêm) hoặc gói workspace
+ * `@hm/x[/sub]` theo `exports`. Gói ngoài (không phải gói workspace) và tương đối không có tệp → null (bỏ qua: npm/TS báo).
+ * Gói workspace mà không giải được ⇒ NÉM lỗi (fail-closed, T-2207) — bỏ qua im lặng sẽ để module client đi vòng qua gói kéo
+ * catalog vào bundle mà rào không thấy. Dạng hỗ trợ: `exports` là chuỗi (= "."), hoặc object khoá đường dẫn "./…" (không mẫu
+ * `*`) với giá trị chuỗi hoặc object điều kiện MỘT tầng có `import`/`default` là chuỗi. Còn lại (mẫu `"./*"`, điều kiện lồng,
+ * mảng, null, đường con không khai, `exports` thiếu, tệp đích không tồn tại) ⇒ lỗi.
+ */
+export function resolveImport(from, spec, pkgs = new Map()) {
+  const tryFile = (base) => {
+    for (const p of [base, `${base}.ts`, `${base}.tsx`, join(base, "index.ts"), join(base, "index.tsx")])
+      if (existsSync(p) && statSync(p).isFile()) return p;
+    return null;
+  };
+  if (spec.startsWith(".")) return tryFile(resolve(dirname(from), spec));
+  const m = /^(@[^/]+\/[^/]+)(\/.*)?$/.exec(spec);
+  const pkg = m && pkgs.get(m[1]);
+  if (!pkg) return null;
+  const fail = (why) => {
+    throw new Error(
+      `import "${spec}": ${why} — i18n-check không giải được exports của ${m[1]} (fail-closed)`,
+    );
+  };
+  const exp = pkg.exports;
+  if (exp === undefined) fail('gói không khai "exports"');
+  const map = typeof exp === "string" ? { ".": exp } : exp;
+  if (typeof map !== "object" || map === null || Array.isArray(map))
+    fail('"exports" không phải chuỗi/object');
+  const keys = Object.keys(map);
+  if (keys.some((k) => !k.startsWith("."))) fail('"exports" dạng điều kiện ở gốc chưa hỗ trợ');
+  if (keys.some((k) => k.includes("*"))) fail('"exports" có mẫu "*" chưa hỗ trợ');
+  const sub = `.${m[2] ?? ""}`;
+  if (!Object.hasOwn(map, sub)) fail(`"${sub}" không có trong "exports"`);
+  const target = map[sub];
+  let rel = null;
+  if (typeof target === "string") rel = target;
+  else if (typeof target === "object" && target !== null && !Array.isArray(target)) {
+    const cond = Object.hasOwn(target, "import") ? target.import : target.default;
+    if (typeof cond === "string") rel = cond;
+    else if (cond !== undefined) fail(`điều kiện lồng/mảng ở "${sub}" chưa hỗ trợ`);
+  }
+  if (rel === null) fail(`"${sub}" không có đích chuỗi (chuỗi hoặc điều kiện import/default)`);
+  return tryFile(join(pkg.dir, rel)) ?? fail(`đích "${rel}" không tồn tại`);
 }
 
 /** Nguồn import GIÁ TRỊ của một tệp: `import`/`export … from` không phải `import type`, và `import("…")` viết thẳng. */
@@ -262,12 +357,20 @@ function valueImports(text, file) {
 export function clientCatalogErrors(files, root = ROOT) {
   const errors = [];
   const cache = new Map();
+  const pkgs = workspacePackages(root);
   const deps = (f) => {
     if (!cache.has(f))
       cache.set(
         f,
         valueImports(readFileSync(f, "utf8"), f)
-          .map((s) => resolveImport(f, s))
+          .map((s) => {
+            try {
+              return resolveImport(f, s, pkgs);
+            } catch (e) {
+              errors.push(`${relative(root, f)}: ${e.message}`);
+              return null;
+            }
+          })
           .filter(Boolean),
       );
     return cache.get(f);
@@ -297,12 +400,49 @@ export function clientCatalogErrors(files, root = ROOT) {
   return errors;
 }
 
-export function loadCatalogs(dir = MESSAGES_DIR) {
+/** Catalog chính của thư mục: { locale: catalog } từ các tệp `<locale>.json`; `sub` = tên catalog con ⇒ tệp `<sub>.<locale>.json`. */
+export function loadCatalogs(dir = MESSAGES_DIR, sub = null) {
+  const pick = sub ? new RegExp(`^${sub}\\.([^.]+)\\.json$`) : /^([^.]+)\.json$/;
   return Object.fromEntries(
     readdirSync(dir)
-      .filter((n) => n.endsWith(".json"))
-      .map((n) => [n.replace(/\.json$/, ""), JSON.parse(readFileSync(join(dir, n), "utf8"))]),
+      .map((n) => [n, pick.exec(n)])
+      .filter(([, m]) => m)
+      .map(([n, m]) => [m[1], JSON.parse(readFileSync(join(dir, n), "utf8"))]),
   );
+}
+
+/**
+ * Lỗi của một catalog con (D-106) dưới `root`: catalog (`checkCatalogs`, tiền tố `<thư mục>/<tên>.<locale>`), lời gọi hàm tra
+ * cứu `sub.fn` trong `sub.sources` (khoá viết thẳng, có trong catalog con, đúng tham số — `tCallErrors` với `fns`), khoá không
+ * được gọi ở tệp nào (catalog con phải tối thiểu vì nó vào bundle), tệp nguồn khai báo không tồn tại.
+ */
+export function subcatalogErrors(tree, sub, root = ROOT) {
+  const dir = join(root, tree.messages);
+  const catalogs = existsSync(dir) ? loadCatalogs(dir, sub.name) : {};
+  if (!catalogs[SOURCE_LOCALE])
+    return { errors: [`${tree.messages}/${sub.name}.${SOURCE_LOCALE}.json: thiếu catalog con`], catalogs };
+  const errors = checkCatalogs(catalogs).map((e) => `${tree.messages}/${sub.name}.${e}`);
+  const src = catalogs[SOURCE_LOCALE];
+  const used = new Set();
+  for (const rel of sub.sources) {
+    const f = join(root, rel);
+    if (!existsSync(f)) {
+      errors.push(`${rel}: tệp dùng catalog con ${sub.name} không tồn tại`);
+      continue;
+    }
+    const text = readFileSync(f, "utf8");
+    errors.push(...tCallErrors(text, rel, src, [{ name: sub.fn, keyAt: 0 }]));
+    walk(parseSource(text, rel).program, (n) => {
+      if (n.type === "CallExpression" && n.callee.type === "Identifier" && n.callee.name === sub.fn)
+        if (n.arguments[0]?.type === "StringLiteral") used.add(n.arguments[0].value);
+    });
+  }
+  for (const k of Object.keys(src))
+    if (!used.has(k))
+      errors.push(
+        `${tree.messages}/${sub.name}.${SOURCE_LOCALE}:${k}: khoá không được ${sub.fn}() nào dùng — bỏ khỏi catalog con`,
+      );
+  return { errors, catalogs };
 }
 
 /** Khoá dựng động `tOr(\`tiền.tố.${r}\`)`: mọi giá trị trong ROLES/STATUSES (roles.ts) phải có khoá thật trong nguồn. */
@@ -324,19 +464,42 @@ export function roleKeyErrors(src, rolesTs) {
   return errors;
 }
 
-function main() {
-  const catalogs = loadCatalogs();
-  const errors = checkCatalogs(catalogs);
+/**
+ * Mọi lỗi của một cây (catalog + mã nguồn dùng nó, xem TREES) dưới `root`: catalog (lỗi có tiền tố thư mục catalog), khoá/tham
+ * số của lời gọi dịch, module client kéo catalog (cây `client`), khoá dựng động của roles (cây có `roles`). Thiếu thư mục
+ * catalog → lỗi (không lặng lẽ bỏ qua cả cây).
+ */
+export function treeErrors(tree, root = ROOT) {
+  const dir = join(root, tree.messages);
+  if (!existsSync(dir)) return { errors: [`${tree.messages}: thiếu thư mục catalog`], catalogs: {} };
+  const catalogs = loadCatalogs(dir);
+  const errors = checkCatalogs(catalogs).map((e) => `${tree.messages}/${e}`);
   const src = catalogs[SOURCE_LOCALE] ?? {};
-  const files = sourceFiles(join(ROOT, "apps/web"));
-  errors.push(...sourceErrors(files, src));
-  errors.push(...clientCatalogErrors(files));
-  errors.push(...roleKeyErrors(src, readFileSync(join(ROOT, "apps/web/lib/roles.ts"), "utf8")));
-  for (const e of errors) console.error(e);
-  console.log(
-    `[i18n-check] ${Object.keys(catalogs).length} locale · ${Object.keys(src).length} khoá · ${errors.length} lỗi`,
-  );
-  return errors.length ? 1 : 0;
+  const files = sourceFiles(join(root, tree.sources));
+  errors.push(...sourceErrors(files, src, root));
+  if (tree.client) errors.push(...clientCatalogErrors(files, root));
+  if (tree.roles) errors.push(...roleKeyErrors(src, readFileSync(join(root, tree.roles), "utf8")));
+  for (const sub of tree.subcatalogs ?? []) errors.push(...subcatalogErrors(tree, sub, root).errors);
+  return { errors, catalogs };
+}
+
+function main() {
+  let total = 0;
+  for (const tree of TREES) {
+    const { errors, catalogs } = treeErrors(tree);
+    for (const e of errors) console.error(e);
+    total += errors.length;
+    console.log(
+      `[i18n-check] ${tree.messages}: ${Object.keys(catalogs).length} locale · ${Object.keys(catalogs[SOURCE_LOCALE] ?? {}).length} khoá · ${errors.length} lỗi`,
+    );
+    for (const sub of tree.subcatalogs ?? []) {
+      const n = Object.keys(subcatalogErrors(tree, sub).catalogs[SOURCE_LOCALE] ?? {}).length;
+      console.log(
+        `[i18n-check]   catalog con ${tree.messages}/${sub.name}.*.json: ${n} khoá (lỗi gộp ở dòng trên)`,
+      );
+    }
+  }
+  return total ? 1 : 0;
 }
 
 if (isMain(import.meta.url)) process.exit(main());

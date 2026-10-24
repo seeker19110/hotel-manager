@@ -5,6 +5,8 @@
 // Khách trong nước: nhận trước giờ `domestic_cutoff` → hạn = `domestic_cutoff` cùng ngày; từ giờ đó trở đi → hạn =
 // `domestic_next_day_before` ngày hôm sau. Khách nước ngoài: hạn = giờ nhận + `foreign_hours` giờ. Thiếu phần cấu hình
 // tương ứng → null (không nhắc, vẫn xuất/đánh dấu được).
+
+import { t } from "../i18n.ts";
 import { hoursToMinutes, MINUTES_PER_DAY, minutesToMs } from "../units/units.ts";
 
 export interface StayNoticeDeadline {
@@ -49,8 +51,7 @@ export function stayNoticeDueLocal(
   isForeign: boolean,
   cfg: StayNoticeDeadline | null,
 ): string | null {
-  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(checkInLocal))
-    throw new RangeError("giờ nhận phòng không hợp lệ");
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(checkInLocal)) throw new RangeError(t("stay.check_in_invalid"));
   if (!cfg) return null;
   if (isForeign) {
     if (cfg.foreignHours === undefined) return null;
