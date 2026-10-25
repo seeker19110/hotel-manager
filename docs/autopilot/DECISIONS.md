@@ -838,3 +838,10 @@
 - Chọn: Mặc định chặt, cấu hình được, đánh dấu chờ pháp lý: notifications 180 ngày; worker_heartbeats 30 ngày không cập nhật; phiên đăng nhập 30 ngày sau hết hạn; mã xác minh 1 ngày sau hết hạn; liên kết khách 90 ngày sau hết hạn/thu hồi; inbox (chứng từ ngân hàng) 10 năm; giấy tờ nhận dạng ẩn danh 12 tháng sau khi kết thúc lưu trú/thuê cuối; persons ẩn danh 10 năm sau quan hệ tiền/thuê cuối (giữ đối chiếu chứng từ)
 - Lý do (tiêu chí chất lượng cuối): (1) đúng và an toàn: tối thiểu hoá dữ liệu ngay, vẫn giữ phần nghĩa vụ kế toán 10 năm; mục đích thông báo lưu trú xong lúc nhận phòng nên giấy tờ không cần giữ lâu; (2) hằng số một chỗ, đổi một dòng; ẩn danh thay vì xoá giữ toàn vẹn sổ tiền (FK RESTRICT)
 - Đường lùi: Đổi hằng số trong packages/app/src/retention/policy.ts; tắt job bằng cấu hình worker
+
+### D-117 · 2026-10-25T15:21:13+00:00 · T-2308: tắt job privacy.retention bằng cách nào (đường lùi D-116)?
+
+- Phương án: (1) (a) thêm WORKER_DISABLE_JOBS vào schema config · (2) (b) giữ nguyên: đổi hằng policy.ts hoặc intervals.privacyRetention, ghi trong retention-policy.md
+- Chọn: (b) giữ nguyên: đổi hằng policy.ts hoặc intervals.privacyRetention, ghi trong retention-policy.md
+- Lý do (tiêu chí chất lượng cuối): (1) đúng/an toàn: không mở thêm bề mặt cấu hình cho job xoá dữ liệu; (2) đường lùi vẫn có; (3) đơn giản, không đụng config schema ngoài phạm vi
+- Đường lùi: Revert PR; migration 0066 có down

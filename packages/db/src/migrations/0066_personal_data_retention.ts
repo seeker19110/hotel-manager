@@ -1,0 +1,275 @@
+// PLAN T-2308 (STD-PRIV-005, XC-GREEN-007; D-116) — hạn lưu cho bảng chưa có job dọn + ẩn danh người/giấy tờ hết hạn lưu.
+// Cùng khuôn 0056: mỗi bảng MỘT hàm SECURITY DEFINER phạm vi hẹp, chỉ `app_worker` gọi (worker không có DELETE/UPDATE trực tiếp);
+// mốc bị chặn trên bởi đồng hồ CSDL (`least(p_now, now())`); số ngày/tháng tối thiểu 1; theo LÔ `p_limit` (1…5000, SKIP LOCKED);
+// so sánh nghiêm ngặt "<" (hàng đúng mốc còn giữ). Hằng số hạn lưu ở `packages/app/src/retention/policy.ts`.
+// XOÁ (dữ liệu vận hành, không ai tham chiếu):
+//   - `app.purge_notifications(p_now, p_days, p_limit)`: thông báo trong app tạo quá `p_days` ngày VÀ không còn lần gửi nào
+//     (`notification_deliveries` FK RESTRICT; lần gửi đã xong được 0056 dọn sau 90/180 ngày, lần gửi đang chờ giữ thông báo lại).
+//   - `app.purge_worker_heartbeats(p_now, p_days, p_limit)`: nhịp worker không cập nhật quá `p_days` ngày (tiến trình đã bỏ).
+//   - `app.purge_auth_sessions(p_now, p_days, p_limit)`: phiên Better Auth (`auth."session"`) hết hạn (`expiresAt`) quá `p_days` ngày.
+//   - `app.purge_auth_verifications(p_now, p_days, p_limit)`: mã xác minh/OTP (`auth."verification"`) hết hạn quá `p_days` ngày.
+//   - `app.purge_guest_access_links(p_now, p_days, p_limit)`: liên kết khách quá `p_days` ngày sau lúc hết hiệu lực
+//     (`least(expires_at, revoked_at)` — sớm hơn trong hai mốc hết hạn/thu hồi).
+// ẨN DANH (không xoá: FK RESTRICT từ sổ tiền/hợp đồng/lưu trú, giữ id để đối chiếu chứng từ — INV-G7 "ẩn danh kèm tombstone"):
+//   - `app.anonymize_identity_documents(p_now, p_months, p_limit)`: giấy tờ của người KHÔNG còn quan hệ mở và lưu trú/thuê/đặt
+//     phòng cuối kết thúc quá `p_months` tháng (giấy tờ cũng phải được tạo/sửa quá chừng đó, và đã qua `retention_until` nếu có):
+//     xoá số mã hoá + khoá + blind index + 4 số cuối + quốc tịch, gỡ `file_id` và đặt `files.delete_after` = hôm nay (UTC) để job
+//     `import.retention` (`app.files_due_for_deletion`) xoá object ảnh giấy tờ rồi đánh dấu `deleted`.
+//   - `app.anonymize_persons(p_now, p_months, p_limit)`: người KHÔNG còn quan hệ mở, quan hệ tiền/thuê/lưu trú/tài khoản cuối quá
+//     `p_months` tháng và mọi giấy tờ đã ẩn danh: tên ⇒ "***" (giá trị trung tính ASCII — giao diện nên hiển thị nhãn dịch theo
+//     `anonymized_at`), SĐT/email/địa chỉ/quốc tịch ⇒ NULL, giữ id.
+//   `app.retention_person_activity(org, person)` (không cấp cho ai — chỉ hai hàm ẩn danh gọi) trả: còn quan hệ mở không; mốc kết
+//   thúc muộn nhất của lưu trú/thuê/đặt phòng; mốc muộn nhất của mọi quan hệ (tiền, thuê, lưu trú, tài khoản, lời mời, phiếu sự cố).
+//   "Quan hệ mở": lượt ở expected/in_house; đặt phòng draft/held/confirmed/in_house; hợp đồng chưa
+//   closed/cancelled (đại diện hoặc người ở); phiếu còn `open_amount` ≠ 0; cọc còn `balance` ≠ 0; khoản thu `pending`; báo đã trả
+//   `submitted`; tư cách thành viên invited/active/suspended; lời mời pending; phiếu sự cố open/assigned/in_progress.
+//   Mốc "kết thúc" lấy BẢO THỦ = thời điểm muộn nhất của mọi hàng liên quan (`updated_at`, `checked_out_at`, `moved_out_on`+1 ngày…):
+//   chạm vào hàng sau này thì đồng hồ tính lại, không bao giờ ẩn danh sớm.
+//   Tháng (không phải ngày): 10 năm = 120 tháng đúng lịch — 3650 ngày ngắn hơn 10 năm 2–3 ngày (nghĩa vụ lưu chứng từ kế toán).
+//   Mỗi hàng ẩn danh ghi một `audit_events` (actor_type `worker`; append-only chỉ chặn UPDATE/DELETE/TRUNCATE, INSERT được) —
+//   chỉ id + chính sách, không ghi dữ liệu cá nhân.
+// - Index cho truy vấn dọn: `ix_notifications_created_at`, `ix_auth_session_expires`, `ix_auth_verification_expires`,
+//   `ix_guest_links_dead_at` (biểu thức), `ix_identity_documents_retention`/`ix_persons_retention` (một phần: chưa ẩn danh),
+//   `ix_stays_additional_guests` (GIN — tra người ở kèm `additional_guest_person_ids @> ARRAY[id]`).
+// - Khoá bảng: CREATE INDEX thường chặn ghi bảng đích ngắn; `lock_timeout` 5 s như 0048/0056.
+// - Down: xoá hàm và index; không có dữ liệu để khôi phục (hàng đã xoá/ẩn danh là hàng quá hạn lưu).
+import { type Kysely, sql } from "kysely";
+
+const UP = `
+CREATE INDEX ix_notifications_created_at ON notifications (created_at);
+CREATE INDEX ix_auth_session_expires ON auth."session" ("expiresAt");
+CREATE INDEX ix_auth_verification_expires ON auth."verification" ("expiresAt");
+CREATE INDEX ix_guest_links_dead_at ON guest_access_links ((least(expires_at, revoked_at)));
+CREATE INDEX ix_identity_documents_retention ON identity_documents (updated_at) WHERE anonymized_at IS NULL;
+CREATE INDEX ix_persons_retention ON persons (updated_at) WHERE anonymized_at IS NULL;
+CREATE INDEX ix_stays_additional_guests ON stays USING gin (additional_guest_person_ids);
+
+CREATE FUNCTION app.purge_notifications(p_now timestamptz, p_days integer, p_limit integer) RETURNS integer
+  LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+    WITH due AS (
+      SELECT n.id FROM notifications n
+      WHERE n.created_at < least(p_now, now()) - make_interval(days => greatest(p_days, 1))
+        AND NOT EXISTS (SELECT 1 FROM notification_deliveries d
+                        WHERE d.organization_id = n.organization_id AND d.notification_id = n.id)
+      ORDER BY n.created_at, n.id
+      LIMIT least(greatest(p_limit, 1), 5000)
+      FOR UPDATE SKIP LOCKED
+    ), x AS (
+      DELETE FROM notifications n USING due WHERE n.id = due.id RETURNING 1)
+    SELECT count(*)::int FROM x
+  $$;
+
+CREATE FUNCTION app.purge_worker_heartbeats(p_now timestamptz, p_days integer, p_limit integer) RETURNS integer
+  LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+    WITH due AS (
+      SELECT w.name FROM worker_heartbeats w
+      WHERE w.beat_at < least(p_now, now()) - make_interval(days => greatest(p_days, 1))
+      ORDER BY w.beat_at, w.name
+      LIMIT least(greatest(p_limit, 1), 5000)
+      FOR UPDATE SKIP LOCKED
+    ), x AS (
+      DELETE FROM worker_heartbeats w USING due WHERE w.name = due.name RETURNING 1)
+    SELECT count(*)::int FROM x
+  $$;
+
+CREATE FUNCTION app.purge_auth_sessions(p_now timestamptz, p_days integer, p_limit integer) RETURNS integer
+  LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+    WITH due AS (
+      SELECT s.id FROM auth."session" s
+      WHERE s."expiresAt" < least(p_now, now()) - make_interval(days => greatest(p_days, 1))
+      ORDER BY s."expiresAt", s.id
+      LIMIT least(greatest(p_limit, 1), 5000)
+      FOR UPDATE SKIP LOCKED
+    ), x AS (
+      DELETE FROM auth."session" s USING due WHERE s.id = due.id RETURNING 1)
+    SELECT count(*)::int FROM x
+  $$;
+
+CREATE FUNCTION app.purge_auth_verifications(p_now timestamptz, p_days integer, p_limit integer) RETURNS integer
+  LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+    WITH due AS (
+      SELECT v.id FROM auth."verification" v
+      WHERE v."expiresAt" < least(p_now, now()) - make_interval(days => greatest(p_days, 1))
+      ORDER BY v."expiresAt", v.id
+      LIMIT least(greatest(p_limit, 1), 5000)
+      FOR UPDATE SKIP LOCKED
+    ), x AS (
+      DELETE FROM auth."verification" v USING due WHERE v.id = due.id RETURNING 1)
+    SELECT count(*)::int FROM x
+  $$;
+
+CREATE FUNCTION app.purge_guest_access_links(p_now timestamptz, p_days integer, p_limit integer) RETURNS integer
+  LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+    WITH due AS (
+      SELECT g.id FROM guest_access_links g
+      WHERE least(g.expires_at, g.revoked_at) < least(p_now, now()) - make_interval(days => greatest(p_days, 1))
+      ORDER BY least(g.expires_at, g.revoked_at), g.id
+      LIMIT least(greatest(p_limit, 1), 5000)
+      FOR UPDATE SKIP LOCKED
+    ), x AS (
+      DELETE FROM guest_access_links g USING due WHERE g.id = due.id RETURNING 1)
+    SELECT count(*)::int FROM x
+  $$;
+
+CREATE FUNCTION app.retention_person_activity(p_org uuid, p_person uuid)
+  RETURNS TABLE (has_open boolean, stay_lease_end timestamptz, relation_end timestamptz)
+  LANGUAGE sql STABLE SET search_path = public, pg_temp AS $$
+    WITH ev(kind, is_open, at) AS (
+      SELECT 'stay', s.status IN ('expected','in_house'),
+             greatest(s.created_at, s.updated_at, s.checked_out_at, (s.debt_due_date + 1)::timestamp AT TIME ZONE 'UTC')
+        FROM stays s
+       WHERE s.organization_id = p_org
+         AND (s.primary_guest_person_id = p_person OR s.debtor_person_id = p_person
+              OR s.additional_guest_person_ids @> ARRAY[p_person])
+      UNION ALL
+      SELECT 'stay', r.status IN ('draft','held','confirmed','in_house'), greatest(r.created_at, r.updated_at, r.cancelled_at)
+        FROM reservations r WHERE r.organization_id = p_org AND r.booker_person_id = p_person
+      UNION ALL
+      SELECT 'stay', l.status NOT IN ('closed','cancelled'),
+             greatest(l.created_at, l.updated_at, (l.moved_out_on + 1)::timestamp AT TIME ZONE 'UTC')
+        FROM leases l
+       WHERE l.organization_id = p_org
+         AND (l.representative_person_id = p_person
+              OR EXISTS (SELECT 1 FROM lease_occupants o
+                         WHERE o.organization_id = p_org AND o.lease_id = l.id AND o.person_id = p_person))
+      UNION ALL
+      SELECT 'money', i.open_amount <> 0, greatest(i.issued_at, i.updated_at)
+        FROM invoices i WHERE i.organization_id = p_org AND i.payer_person_id = p_person
+      UNION ALL
+      SELECT 'money', p.status = 'pending', greatest(p.created_at, p.updated_at)
+        FROM payments p WHERE p.organization_id = p_org AND p.payer_person_id = p_person
+      UNION ALL
+      SELECT 'money', d.balance <> 0, greatest(d.created_at, d.updated_at)
+        FROM deposits d WHERE d.organization_id = p_org AND d.payer_person_id = p_person
+      UNION ALL
+      SELECT 'money', false, j.created_at
+        FROM journal_lines j WHERE j.organization_id = p_org AND j.person_id = p_person
+      UNION ALL
+      SELECT 'money', c.status = 'submitted', greatest(c.created_at, c.updated_at)
+        FROM payment_claims c WHERE c.organization_id = p_org AND c.person_id = p_person
+      UNION ALL
+      SELECT 'other', m.status IN ('invited','active','suspended'), greatest(m.created_at, m.updated_at, m.revoked_at, m.valid_to)
+        FROM memberships m WHERE m.organization_id = p_org AND m.person_id = p_person
+      UNION ALL
+      SELECT 'other', v.status = 'pending', greatest(v.created_at, v.updated_at, v.expires_at)
+        FROM invitations v WHERE v.organization_id = p_org AND v.person_id = p_person
+      UNION ALL
+      SELECT 'other', w.status IN ('open','assigned','in_progress'), greatest(w.created_at, w.updated_at)
+        FROM work_orders w WHERE w.organization_id = p_org AND w.reporter_person_id = p_person
+    )
+    SELECT coalesce(bool_or(ev.is_open), false), max(ev.at) FILTER (WHERE ev.kind = 'stay'), max(ev.at) FROM ev
+  $$;
+
+CREATE FUNCTION app.anonymize_identity_documents(p_now timestamptz, p_months integer, p_limit integer) RETURNS integer
+  LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+    WITH due AS (
+      SELECT d.id, d.organization_id, d.file_id FROM identity_documents d
+      CROSS JOIN LATERAL app.retention_person_activity(d.organization_id, d.person_id) a
+      WHERE d.anonymized_at IS NULL
+        AND d.updated_at < least(p_now, now()) - make_interval(months => greatest(p_months, 1))
+        AND d.created_at < least(p_now, now()) - make_interval(months => greatest(p_months, 1))
+        AND (d.retention_until IS NULL OR d.retention_until < (least(p_now, now()) AT TIME ZONE 'UTC')::date)
+        AND NOT a.has_open
+        AND (a.stay_lease_end IS NULL
+             OR a.stay_lease_end < least(p_now, now()) - make_interval(months => greatest(p_months, 1)))
+      ORDER BY d.updated_at, d.id
+      LIMIT least(greatest(p_limit, 1), 5000)
+      FOR UPDATE OF d SKIP LOCKED
+    ), doc AS (
+      UPDATE identity_documents d
+         SET doc_number_enc = NULL, doc_number_key_id = NULL, doc_number_hash = NULL, doc_number_last4 = NULL,
+             nationality = NULL, file_id = NULL, anonymized_at = now()
+        FROM due WHERE d.id = due.id
+      RETURNING d.id, d.organization_id, d.property_id, due.file_id
+    ), f AS (
+      UPDATE files f
+         SET delete_after = least(coalesce(f.delete_after, (now() AT TIME ZONE 'UTC')::date), (now() AT TIME ZONE 'UTC')::date)
+        FROM due
+       WHERE f.organization_id = due.organization_id AND f.id = due.file_id AND f.status IN ('ready','pending_scan')
+      RETURNING 1
+    ), aud AS (
+      INSERT INTO audit_events (id, organization_id, property_id, actor_type, action, entity_type, entity_id, after, reason,
+                                correlation_id)
+      SELECT gen_random_uuid(), doc.organization_id, doc.property_id, 'worker', 'identity_document.anonymized',
+             'identity_document', doc.id,
+             jsonb_build_object('retention_months', greatest(p_months, 1), 'file_scheduled_for_deletion', doc.file_id IS NOT NULL),
+             'retention_expired', 'retention.privacy'
+        FROM doc
+      RETURNING 1
+    )
+    SELECT count(*)::int FROM doc
+  $$;
+
+CREATE FUNCTION app.anonymize_persons(p_now timestamptz, p_months integer, p_limit integer) RETURNS integer
+  LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+    WITH due AS (
+      SELECT p.id FROM persons p
+      CROSS JOIN LATERAL app.retention_person_activity(p.organization_id, p.id) a
+      WHERE p.anonymized_at IS NULL
+        AND p.updated_at < least(p_now, now()) - make_interval(months => greatest(p_months, 1))
+        AND p.created_at < least(p_now, now()) - make_interval(months => greatest(p_months, 1))
+        AND NOT a.has_open
+        AND (a.relation_end IS NULL
+             OR a.relation_end < least(p_now, now()) - make_interval(months => greatest(p_months, 1)))
+        AND NOT EXISTS (SELECT 1 FROM identity_documents d
+                        WHERE d.organization_id = p.organization_id AND d.person_id = p.id AND d.anonymized_at IS NULL)
+      ORDER BY p.updated_at, p.id
+      LIMIT least(greatest(p_limit, 1), 5000)
+      FOR UPDATE OF p SKIP LOCKED
+    ), upd AS (
+      UPDATE persons p
+         SET full_name = '***', phone = NULL, email = NULL, address = NULL, nationality = NULL, anonymized_at = now()
+        FROM due WHERE p.id = due.id
+      RETURNING p.id, p.organization_id
+    ), aud AS (
+      INSERT INTO audit_events (id, organization_id, actor_type, action, entity_type, entity_id, after, reason, correlation_id)
+      SELECT gen_random_uuid(), upd.organization_id, 'worker', 'person.anonymized', 'person', upd.id,
+             jsonb_build_object('retention_months', greatest(p_months, 1)), 'retention_expired', 'retention.privacy'
+        FROM upd
+      RETURNING 1
+    )
+    SELECT count(*)::int FROM upd
+  $$;
+
+REVOKE ALL ON FUNCTION app.retention_person_activity(uuid, uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.purge_notifications(timestamptz, integer, integer),
+  app.purge_worker_heartbeats(timestamptz, integer, integer), app.purge_auth_sessions(timestamptz, integer, integer),
+  app.purge_auth_verifications(timestamptz, integer, integer), app.purge_guest_access_links(timestamptz, integer, integer),
+  app.anonymize_identity_documents(timestamptz, integer, integer), app.anonymize_persons(timestamptz, integer, integer)
+  FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION app.purge_notifications(timestamptz, integer, integer),
+  app.purge_worker_heartbeats(timestamptz, integer, integer), app.purge_auth_sessions(timestamptz, integer, integer),
+  app.purge_auth_verifications(timestamptz, integer, integer), app.purge_guest_access_links(timestamptz, integer, integer),
+  app.anonymize_identity_documents(timestamptz, integer, integer), app.anonymize_persons(timestamptz, integer, integer)
+  TO app_worker;
+`;
+
+const DOWN = `
+DROP FUNCTION IF EXISTS app.anonymize_persons(timestamptz, integer, integer);
+DROP FUNCTION IF EXISTS app.anonymize_identity_documents(timestamptz, integer, integer);
+DROP FUNCTION IF EXISTS app.retention_person_activity(uuid, uuid);
+DROP FUNCTION IF EXISTS app.purge_guest_access_links(timestamptz, integer, integer);
+DROP FUNCTION IF EXISTS app.purge_auth_verifications(timestamptz, integer, integer);
+DROP FUNCTION IF EXISTS app.purge_auth_sessions(timestamptz, integer, integer);
+DROP FUNCTION IF EXISTS app.purge_worker_heartbeats(timestamptz, integer, integer);
+DROP FUNCTION IF EXISTS app.purge_notifications(timestamptz, integer, integer);
+DROP INDEX IF EXISTS ix_stays_additional_guests;
+DROP INDEX IF EXISTS ix_persons_retention;
+DROP INDEX IF EXISTS ix_identity_documents_retention;
+DROP INDEX IF EXISTS ix_guest_links_dead_at;
+DROP INDEX IF EXISTS auth.ix_auth_verification_expires;
+DROP INDEX IF EXISTS auth.ix_auth_session_expires;
+DROP INDEX IF EXISTS ix_notifications_created_at;
+`;
+
+export async function up(db: Kysely<unknown>): Promise<void> {
+  const prev =
+    (await sql<{ v: string }>`select current_setting('lock_timeout') as v`.execute(db)).rows[0]?.v ?? "0";
+  await sql`select set_config('lock_timeout', '5s', true)`.execute(db);
+  await sql.raw(UP).execute(db);
+  await sql`select set_config('lock_timeout', ${prev}, true)`.execute(db);
+}
+
+export async function down(db: Kysely<unknown>): Promise<void> {
+  await sql.raw(DOWN).execute(db);
+}

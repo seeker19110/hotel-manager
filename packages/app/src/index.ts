@@ -172,6 +172,7 @@ export {
   receivables as reportReceivables,
 } from "./reports/reports.ts";
 export {
+  anonymizeExpiredPeople,
   DELIVERY_DONE_RETENTION_DAYS,
   DELIVERY_FAILED_RETENTION_DAYS,
   type EventPurgeStats,
@@ -180,6 +181,7 @@ export {
   PURGE_BATCH,
   PURGE_MAX_ROUNDS,
   purgeEventTables,
+  purgeExpiredOperational,
 } from "./retention/index.ts";
 export { serverContext } from "./server/context.ts";
 export { type AppServices, createServices, testServices } from "./server/services.ts";

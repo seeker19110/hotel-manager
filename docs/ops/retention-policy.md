@@ -3,7 +3,9 @@
 > Trạng thái: **đề xuất của kỹ thuật** — hạn giữ dữ liệu cá nhân chốt cùng DPIA và pháp lý ([`docs/privacy/data-map.yaml`](../privacy/data-map.yaml), RK-019).
 > Bảng này chỉ nói về dữ liệu **vận hành** (log, bảng sự kiện, hàng đợi, kho file); hạn giữ theo từng cột dữ liệu cá nhân nằm ở data-map.
 > Máy kiểm: `scripts/process-docs.test.mjs` («chính sách hạn giữ») giữ bảng khớp hằng số ở `packages/app/src/retention/policy.ts`,
-> cấu hình log ở `deploy/compose.yaml` và các hàm dọn của migration 0056; test CSDL: `packages/app/src/retention/retention.db.test.ts`.
+> cấu hình log ở `deploy/compose.yaml` và các hàm dọn của migration 0056/0066; test CSDL: `packages/app/src/retention/retention.db.test.ts`,
+> `packages/app/src/retention/personal.db.test.ts`.
+> RET-11…RET-18 theo **D-116** (2026-10-25): mặc định chặt, cấu hình được ở `policy.ts`, **chờ pháp lý chốt** (DPIA, RK-019).
 
 ## Bảng chính sách
 
@@ -19,17 +21,28 @@
 | RET-08 | Kho file riêng tư (bucket `hm-files`): file nguồn nhập, ảnh, bản xuất, object mồ côi | SeaweedFS | theo `files.delete_after` (file nhập 30 ngày; dòng `pending_scan` mồ côi 2 ngày; bản xuất hết hạn tải 15 phút) | job `import.retention` xoá object rồi đánh dấu `deleted` | `files.delete_after` (lifecycle ở tầng ứng dụng, RUNBOOK §7) |
 | RET-09 | Hàng đợi pg-boss: job gốc / dead letter | Postgres (schema `pgboss`) | job gốc 14 ngày; dead letter 30 ngày | pg-boss bảo trì theo `retentionSeconds`/`deleteAfterSeconds` của queue | `DEAD_LETTER_RETENTION_SECONDS` (`apps/worker/src/relay.ts`) |
 | RET-10 | Bản sao lưu CSDL (pgBackRest) | kho khác máy (chưa chọn) | 4 bản đầy đủ gần nhất; WAL kèm theo | pgBackRest `expire` | `repo1-retention-full=4` (`deploy/pgbackrest.conf.example`) |
+| RET-11 | Thông báo trong ứng dụng (`notifications`) | Postgres | 180 ngày kể từ lúc tạo; thông báo còn lần gửi (`notification_deliveries`) được giữ tới khi lần gửi bị dọn (RET-04/05) | job `privacy.retention` (worker, hằng ngày) → `app.purge_notifications` | `NOTIFICATION_RETENTION_DAYS=180` |
+| RET-12 | Nhịp worker (`worker_heartbeats`) | Postgres | 30 ngày không cập nhật | job `privacy.retention` → `app.purge_worker_heartbeats` | `WORKER_HEARTBEAT_RETENTION_DAYS=30` |
+| RET-13 | Phiên đăng nhập (`auth.session` của Better Auth: token, IP, user agent) | Postgres | 30 ngày sau `expiresAt` | job `privacy.retention` → `app.purge_auth_sessions` | `AUTH_SESSION_RETENTION_DAYS=30` |
+| RET-14 | Mã xác minh/OTP (`auth.verification`) | Postgres | 1 ngày sau `expiresAt` | job `privacy.retention` → `app.purge_auth_verifications` | `AUTH_VERIFICATION_RETENTION_DAYS=1` |
+| RET-15 | Liên kết khách (`guest_access_links`) | Postgres | 90 ngày sau lúc hết hiệu lực (mốc sớm hơn của `expires_at`/`revoked_at`) | job `privacy.retention` → `app.purge_guest_access_links` | `GUEST_LINK_RETENTION_DAYS=90` |
+| RET-16 | Giấy tờ nhận dạng (`identity_documents`: số mã hoá, blind index, 4 số cuối, quốc tịch, ảnh) | Postgres + bucket `hm-files` | **ẩn danh** 12 tháng lịch sau khi kết thúc lưu trú/thuê/đặt phòng cuối của người đó (và sau `retention_until` nếu có); không đụng người còn quan hệ mở (đang ở, hợp đồng hiệu lực, công nợ/cọc còn số dư) | job `privacy.retention` → `app.anonymize_identity_documents` (giữ tombstone, ảnh: `files.delete_after` = hôm nay ⇒ RET-08 xoá object) | `IDENTITY_DOCUMENT_RETENTION_MONTHS=12` |
+| RET-17 | Hồ sơ người (`persons`: tên, SĐT, email, địa chỉ, quốc tịch) | Postgres | **ẩn danh** 10 năm (120 tháng lịch) sau quan hệ tiền/thuê/lưu trú/tài khoản cuối, khi mọi giấy tờ đã ẩn danh; giữ id (FK RESTRICT từ sổ tiền, đối chiếu chứng từ) | job `privacy.retention` → `app.anonymize_persons` | `PERSON_RETENTION_MONTHS=120` |
+| RET-18 | Chứng từ ngân hàng thô (`inbox`) | Postgres | 10 năm (nghĩa vụ lưu chứng từ kế toán — chưa xác minh bản gốc) | **chưa có job**: chưa có hàng nào tới hạn trước 10 năm kể từ khi chạy thật; viết job trước mốc đó | `INBOX_RETENTION_MONTHS=120` |
 
 ## Điều chưa có (ghi rõ, không giả vờ đã làm)
 - **Lifecycle phía SeaweedFS** (rule hết hạn object theo tuổi ở bucket): chưa dùng và **chưa xác minh** cấu hình có hỗ trợ trong phiên bản đang ghim. Hiện lifecycle nằm ở ứng dụng (RET-08). Object lọt khỏi `files` (mất dòng CSDL) sẽ không bị dọn tự động — đối chiếu bằng quy trình khôi phục (`docs/ops/runbooks/restore.md`).
-- **Bảng chưa có job dọn:** `notifications` (thông báo trong ứng dụng), `inbox` (sổ phụ ngân hàng thô, tiền — có thể phải giữ theo luật kế toán, chưa xác minh), `worker_heartbeats` (rất nhỏ), phiên đăng nhập/liên kết khách hết hạn. Chốt hạn cùng DPIA rồi mới viết job (RK-019).
+- **Bảng chưa có job dọn:** `inbox` (RET-18 — hạn 10 năm đã chốt ở D-116, job viết trước khi có hàng tới hạn), `bank_transactions` (nội dung chuyển khoản), `invitations` (lời mời đã dùng/hết hạn), `auth.login_throttle`, `auth."rateLimit"`. Chốt hạn cùng DPIA rồi mới viết job (RK-019).
+- **Ẩn danh chưa lan tới:** `auth.user` của tài khoản đã thu hồi, nội dung tự do có thể chứa tên (`work_orders.description`, `bank_transactions.description`), và `audit_events.before/after` (append-only, RET-06) — thuộc DSAR/xoá tài khoản (PLAN T-2311) và lịch audit theo DPIA.
+- **Tắt riêng job `privacy.retention`:** chưa có biến môi trường; hiện đổi hằng ở `policy.ts` hoặc nhịp `privacyRetention` khi dựng worker.
 - **NĐ 333/2026/NĐ-CP Đ.22 (đã đọc gốc 2026-10-25): nhật ký hệ thống lưu ≥ 12 tháng** — RET-01 (xoay vòng 50 MB/container) **không đạt** cho production; cần kho log tập trung giữ ≥ 12 tháng (việc hạ tầng — HUONG-DAN bước C1). Nhật ký kiểm toán `audit_events` (RET-06) không xoá nên đạt phần truy vết thao tác.
 - **Kho log tập trung:** chưa có; sự kiện bảo mật chỉ ở log container (RET-01) tới khi có kho log thật. Nhật ký cần giữ lâu và truy vết theo người/tổ chức đi qua `audit_events` (RET-06).
 - Dữ liệu đã xoá vẫn còn trong bản sao lưu tới hết RET-10 (chấp nhận — THREAT-MODEL TM-22).
 
-## Quy tắc của job dọn (migration 0056)
+## Quy tắc của job dọn (migration 0056, 0066)
 - Worker (`app_worker`) không có DELETE trực tiếp; mỗi bảng có một hàm `SECURITY DEFINER` phạm vi hẹp, chỉ `app_worker` gọi.
 - Xoá theo **lô** (`PURGE_BATCH=1000`, tối đa `PURGE_MAX_ROUNDS=20` lô mỗi bảng mỗi lượt, `SKIP LOCKED`); tồn đọng lớn được dọn dần qua các lượt.
 - So sánh nghiêm ngặt: hàng **đúng** mốc còn giữ; hàng chưa phát/chưa xong **không bao giờ** bị xoá theo tuổi; mốc bị chặn bởi đồng hồ CSDL; số ngày tối thiểu 1.
 - Outbox: `dedupe_key` của hàng bị xoá mất tác dụng. Rà tại nguồn phát (T-505): khoá gắn một sự kiện xảy ra một lần (`invoice_issued`, `tenant_invited`, `export_ready`, `bank_transaction.received:<id>`…) hoặc theo mốc/ngày (`lease_expiring` mốc ≤ 30 ngày, `invoice_overdue:<id>:<ngày>`) — không có đường phát lại cùng khoá sau 90 ngày; bảng `notifications` còn khoá dedupe riêng. Chưa có test chung chặn một nguồn phát mới có cửa sổ dedupe dài hơn 90 ngày: thêm nguồn như vậy thì phải nâng RET-02 trước.
-- Vận hành: log `job.done`/`retention.events_purge_failed` (job `events.retention`); lỗi một bảng không chặn bảng khác.
+- Vận hành: log `job.done`/`retention.events_purge_failed` (job `events.retention`); `retention.operational_purge_failed`/`retention.anonymize_failed` (job `privacy.retention`); lỗi một bảng không chặn bảng khác.
+- Ẩn danh (0066): hạn tính bằng **tháng lịch** (10 năm = 120 tháng; 3650 ngày ngắn hơn 10 năm 2–3 ngày). Mốc "kết thúc" lấy bảo thủ = thời điểm muộn nhất của mọi hàng liên quan (`updated_at`, `checked_out_at`, `moved_out_on`…): sửa hàng liên quan thì đồng hồ tính lại, không bao giờ ẩn danh sớm. "Quan hệ mở" (lượt ở expected/in_house, đặt phòng chưa xong, hợp đồng chưa closed/cancelled, phiếu `open_amount` ≠ 0, cọc `balance` ≠ 0, khoản thu `pending`, báo đã trả `submitted`, thành viên invited/active/suspended, lời mời pending, phiếu sự cố đang mở) chặn ẩn danh bất kể tuổi. Mỗi hàng ẩn danh ghi một `audit_events` (actor `worker`, chỉ id + số tháng, không dữ liệu cá nhân). Giấy tờ ẩn danh trước, người sau (người còn giấy tờ chưa ẩn danh thì giữ).
