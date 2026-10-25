@@ -3366,5 +3366,17 @@
   "privacy.withdraw_requires_deletion": {
     "message": "Đồng ý bắt buộc chỉ rút được bằng cách xoá tài khoản",
     "description": "`title` problem+json khi client cố rút đồng ý `service_core` qua API đồng ý (409 CONSENT_WITHDRAW_REQUIRES_DELETION) — rút mục đích bắt buộc nghĩa là ngừng dùng dịch vụ, đi qua xoá tài khoản."
+  },
+  "privacy.dsar.reauth_required": {
+    "message": "Vui lòng đăng nhập lại để xác nhận đây là bạn (yêu cầu trong vòng 5 phút)",
+    "description": "`title` problem+json 401 REAUTH_REQUIRED khi xuất dữ liệu cá nhân hoặc xoá tài khoản mà phiên đăng nhập cũ hơn 5 phút (T-2311)."
+  },
+  "privacy.dsar.confirmation_mismatch": {
+    "message": "Email gõ lại không khớp với email của tài khoản",
+    "description": "`title` problem+json 422 CONFIRMATION_MISMATCH khi xoá tài khoản mà ô xác nhận không đúng email của tài khoản (T-2311)."
+  },
+  "privacy.dsar.sole_owner": {
+    "message": "Bạn đang là chủ sở hữu duy nhất của tổ chức. Hãy chuyển quyền chủ sở hữu cho người khác hoặc xoá tổ chức trước khi xoá tài khoản",
+    "description": "`title` problem+json 409 SOLE_OWNER khi xoá tài khoản của owner active duy nhất của một tổ chức (T-2311)."
   }
 }

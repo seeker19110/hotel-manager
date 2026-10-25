@@ -9,11 +9,11 @@
 //
 // Xử lý theo mục đích (T-2310, D-119): sự kiện CÓ người dùng chỉ được ghi khi người đó đang đồng ý `product_analytics` (hàng mới nhất của
 // `consent_records` là `grant`) — kiểm trong CÙNG transaction ghi (đọc đồng ý + chèn), nên rút đồng ý có hiệu lực từ sự kiện kế tiếp.
-// Chưa đồng ý/đã rút/id không phải UUID ⇒ BỎ QUA im lặng (không phải lỗi). Sự kiện hệ thống (không người dùng) không cần đồng ý.
+// Đang HẠN CHẾ XỬ LÝ (T-2311, `processing_restrictions`) cũng bỏ qua. Chưa đồng ý/đã rút/id không phải UUID ⇒ BỎ QUA im lặng (không phải lỗi). Sự kiện hệ thống (không người dùng) không cần đồng ý.
 import { withTenant } from "@hm/db";
 import { type Kysely, sql } from "kysely";
 import { appLogger } from "../logging/index.ts";
-import { hasConsentInTx } from "../privacy/index.ts";
+import { hasConsentInTx, isProcessingRestrictedInTx } from "../privacy/index.ts";
 import { pseudonymizeActor } from "./actor.ts";
 import {
   EVENT_SCHEMA_VERSION,
@@ -83,6 +83,8 @@ export async function track<E extends EventName>(sink: AnalyticsSink, input: Tra
   try {
     await withTenant(sink.db, { orgId: input.orgId }, async (trx) => {
       if (userId !== null && !(await hasConsentInTx(trx, userId, "product_analytics"))) return;
+      // Hạn chế xử lý (T-2311, GDPR Art. 18): người dùng đã bật ở trang Bảo mật ⇒ bỏ qua dù vẫn đồng ý.
+      if (userId !== null && (await isProcessingRestrictedInTx(trx, userId))) return;
       await sql`
         insert into product_events (organization_id, event, schema_version, actor_key, props)
         values (${input.orgId}, ${input.event}, ${EVENT_SCHEMA_VERSION}, ${actor}, ${JSON.stringify(props)}::jsonb)`.execute(

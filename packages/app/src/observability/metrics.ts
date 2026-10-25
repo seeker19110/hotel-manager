@@ -63,6 +63,11 @@ const HELP: Readonly<Record<string, [type: "gauge" | "counter" | "histogram", he
     "gauge",
     "Số lần gửi email bị hoãn vì hết ngân sách (100%) trong ngày UTC hiện tại, cộng mọi tổ chức.",
   ],
+  // Yêu cầu chủ thể dữ liệu (T-2311, CMP-INTL-007; `app.dsar_metrics` — migration 0069). Không nhãn tổ chức/người.
+  hm_dsar_overdue: [
+    "gauge",
+    "Số yêu cầu của chủ thể dữ liệu (DSAR) đã quá hạn trả lời mà chưa xong — mục tiêu 0.",
+  ],
   // HTTP (T-406, observability/http-metrics.ts): đo ở lớp handler, lưu trong bộ nhớ từng bản web.
   hm_http_requests_total: ["counter", "Số request HTTP theo mẫu route, method, status."],
   hm_http_request_duration_seconds: [
@@ -143,9 +148,11 @@ export async function collectMetrics(db: Kysely<unknown>, now: Date = new Date()
     await sql<Row>`select name, labels, value from app.email_budget_metrics(${now}, ${EMAIL_DAILY_BUDGET_PER_ORG})`.execute(
       db,
     );
+  // Hàm riêng (0069): DSAR quá hạn chưa xong — cảnh báo `HmDsarOverdue` (CMP-INTL-007).
+  const dsar = await sql<Row>`select name, labels, value from app.dsar_metrics(${now})`.execute(db);
   return [
     { name: "hm_up", value: 1 },
-    ...[...r.rows, ...rec.rows, ...health.rows, ...budget.rows].map((x) => ({
+    ...[...r.rows, ...rec.rows, ...health.rows, ...budget.rows, ...dsar.rows].map((x) => ({
       name: x.name,
       labels: x.labels ?? {},
       value: Number(x.value),

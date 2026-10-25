@@ -109,6 +109,13 @@ Cảnh báo `HmEmailBudgetHigh` (≥ 80%) / `HmEmailBudgetExhausted` (100%); met
 4. Hệ quả cần biết: mỗi lần gọi nhà cung cấp tính một lượt kể cả khi lỗi tạm (không hoàn lượt) — nhà cung cấp sập kéo dài làm các lần thử lại ăn ngân sách; có thể chạm 100% và chặn cả `account_security`/lời mời tới 00:00 UTC. Khi thấy `HmEmailBudgetExhausted` cùng `HmNotificationDead`/lỗi nhà cung cấp, sửa nhà cung cấp trước; thư vẫn không mất (được hoãn tới ngày sau).
 5. Không sửa tay `email_budget_days` để "xả" ngân sách; nâng trần cần đổi hằng bằng PR có review. Mã OTP đăng nhập người thuê chưa qua ngân sách (không gắn tổ chức, chưa có adapter SMTP thật — D-058).
 
+### 3.13 Yêu cầu DSAR quá hạn
+Cảnh báo `HmDsarOverdue` (`hm_dsar_overdue > 0` trong 15 phút; gauge không nhãn, hàm `app.dsar_metrics` — migration 0069). Một yêu cầu của chủ thể dữ liệu (`dsar_requests`, T-2311) chưa xong khi đã qua `due_at` (hạn theo vùng ở `packages/app/src/privacy/dsar-policy.ts`; VN 72 giờ — chưa xác minh). Truy cập và hạn chế xử lý xong ngay trong request, nên gần như luôn là **xoá tài khoản** kẹt ở pha 2 (worker).
+1. Yêu cầu nào: `select id, kind, region, received_at, due_at from dsar_requests where completed_at is null and due_at < now() order by due_at;` (vai trò quản trị; không in email/tên).
+2. Worker có chạy job `privacy.dsar_erasure` không (log `job.done`/`job.failed` với `job=privacy.dsar_erasure`, §8)? Log `dsar.erasure_failed {request_id, error}` cho biết yêu cầu nào lỗi.
+3. Sửa nguyên nhân rồi để lượt sau tự chạy lại (idempotent: `app.dsar_complete_erasure` chỉ đóng yêu cầu `received` một lần; xoá phân tích lần hai = 0 dòng). Không đóng tay bằng `update dsar_requests` — `result` phải phản ánh đúng kho đã xoá/giữ.
+4. Pha 1 (thu hồi phiên, xoá mật khẩu/2FA, ẩn danh auth user) đã xong khi yêu cầu được ghi: người dùng không đăng nhập được kể cả khi pha 2 trễ. Bản sao lưu chứa dữ liệu cũ hết theo RET-10 (không xoá chọn lọc trong bản sao lưu; khôi phục từ bản sao lưu phải chạy lại các yêu cầu xoá đã đóng sau thời điểm sao lưu — xem `docs/ops/retention-policy.md` RET-20).
+
 ## 4. Sao lưu và khôi phục
 - Diễn tập PITR (dữ liệu giả, cluster tạm): `bash scripts/db-backup-restore-check.sh` — exit 0 = khôi phục đúng (so số dòng, Σ Nợ/Có, số policy RLS).
 - Khi chạy thật (chờ quyết — PROGRESS "Chờ người"): pgBackRest repo mã hoá ở **máy khác**, giữ khoá `PGBACKREST_REPO_CIPHER_PASS` ngoài máy chủ; diễn tập khôi phục định kỳ.

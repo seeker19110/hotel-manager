@@ -13,6 +13,7 @@ export {
   type UserCommandDef,
 } from "./command-route.ts";
 export { consentChangeInput, handleConsentsGet, handleConsentsPost } from "./consents-route.ts";
+export { dsarInput, handleDsarGet, handleDsarPost } from "./dsar-route.ts";
 export { handleFileUpload } from "./file-upload.ts";
 export { handleGuestStay } from "./guest-stay.ts";
 export { handleImportUpload } from "./import-upload.ts";

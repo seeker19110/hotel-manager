@@ -312,6 +312,60 @@ const EXTRA_PATHS: Record<string, Json> = {
       responses: { "200": commandSuccess({ type: "object" }), ...pick("400", "401", "404", "409", "422") },
     },
   },
+  "/api/v1/privacy/dsar": {
+    get: {
+      operationId: "privacy.getDsarStatus",
+      tags: ["privacy"],
+      summary:
+        "Quyền chủ thể dữ liệu của chính người đăng nhập: hạn chế xử lý, owner duy nhất, lịch sử yêu cầu (T-2311)",
+      security: [{ sessionCookie: [] }],
+      responses: { "200": { description: "Trạng thái DSAR" }, ...pick("401", "500") },
+    },
+    post: {
+      operationId: "privacy.requestDsar",
+      tags: ["privacy"],
+      summary:
+        "Xuất dữ liệu cá nhân (access), xoá tài khoản (delete, gõ lại email) hoặc bật/tắt hạn chế xử lý (restrict); access/delete cần xác thực lại ≤ 5 phút",
+      security: [{ sessionCookie: [] }],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              oneOf: [
+                {
+                  type: "object",
+                  required: ["action"],
+                  additionalProperties: false,
+                  properties: { action: { const: "access" } },
+                },
+                {
+                  type: "object",
+                  required: ["action", "confirm_email"],
+                  additionalProperties: false,
+                  properties: {
+                    action: { const: "delete" },
+                    confirm_email: { type: "string", maxLength: 320 },
+                  },
+                },
+                {
+                  type: "object",
+                  required: ["action", "active"],
+                  additionalProperties: false,
+                  properties: { action: { const: "restrict" }, active: { type: "boolean" } },
+                },
+              ],
+            },
+          },
+        },
+      },
+      responses: {
+        "200": { description: "access: tệp JSON dữ liệu cá nhân (attachment); restrict: trạng thái mới" },
+        "202": { description: "delete: đã nhận, phiên bị thu hồi; hoàn tất ở worker trước due_at" },
+        ...pick("400", "401", "409", "422", "500"),
+      },
+    },
+  },
   "/api/v1/privacy/consents": {
     get: {
       operationId: "privacy.getConsents",
@@ -531,6 +585,7 @@ export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
   "v1/commands/[id]/route.ts": { spec: "/api/v1/commands/{id}" },
   "v1/me/route.ts": { spec: "/api/v1/me" },
   "v1/privacy/consents/route.ts": { spec: "/api/v1/privacy/consents" },
+  "v1/privacy/dsar/route.ts": { spec: "/api/v1/privacy/dsar" },
   "version/route.ts": { spec: "/api/version" },
   "v1/session/switchOrganization/route.ts": { spec: "/api/v1/session/switchOrganization" },
   "v1/notifications/unsubscribe/route.ts": { spec: "/api/v1/notifications/unsubscribe" },

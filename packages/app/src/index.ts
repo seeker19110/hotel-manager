@@ -167,8 +167,11 @@ export {
   type ConsentPurpose,
   consentDisplays,
   currentConsents,
+  DSAR_HOURS,
+  dsarDays,
   grantConsent,
   hasConsent,
+  processDsarErasures,
 } from "./privacy/index.ts";
 export { type AutoApplyResult, applyBankTransaction } from "./reconciliation/auto-apply.ts";
 export {

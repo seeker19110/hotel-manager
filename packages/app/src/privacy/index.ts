@@ -25,3 +25,32 @@ export {
   setConsentSubject,
   withdrawConsent,
 } from "./consent.ts";
+// DSAR (T-2311, D-120): truy cập (xuất JSON), xoá tài khoản hai pha, hạn chế xử lý; hạn theo vùng ở dsar-policy.ts.
+export {
+  assertDsarRecentAuth,
+  confirmationMatches,
+  DSAR_EXPORT_FORMAT,
+  DSAR_REAUTH_MAX_AGE_SECONDS,
+  type DsarErasureStats,
+  DsarError,
+  type DsarErrorCode,
+  type DsarExport,
+  type DsarRequestView,
+  type DsarSubject,
+  dsarStatus,
+  exportPersonalData,
+  isProcessingRestrictedInTx,
+  processDsarErasures,
+  requestAccountDeletion,
+  setProcessingRestriction,
+} from "./dsar.ts";
+export {
+  DSAR_DEFAULT_REGION,
+  DSAR_HOURS,
+  DSAR_KINDS,
+  type DsarKind,
+  dsarDays,
+  dsarDueAt,
+  dsarHours,
+  normalizeDsarRegion,
+} from "./dsar-policy.ts";

@@ -12973,6 +12973,110 @@
         }
       }
     },
+    "/api/v1/privacy/dsar": {
+      "get": {
+        "operationId": "privacy.getDsarStatus",
+        "tags": ["privacy"],
+        "summary": "Quyền chủ thể dữ liệu của chính người đăng nhập: hạn chế xử lý, owner duy nhất, lịch sử yêu cầu (T-2311)",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Trạng thái DSAR"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        }
+      },
+      "post": {
+        "operationId": "privacy.requestDsar",
+        "tags": ["privacy"],
+        "summary": "Xuất dữ liệu cá nhân (access), xoá tài khoản (delete, gõ lại email) hoặc bật/tắt hạn chế xử lý (restrict); access/delete cần xác thực lại ≤ 5 phút",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "required": ["action"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "action": {
+                        "const": "access"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": ["action", "confirm_email"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "action": {
+                        "const": "delete"
+                      },
+                      "confirm_email": {
+                        "type": "string",
+                        "maxLength": 320
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": ["action", "active"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "action": {
+                        "const": "restrict"
+                      },
+                      "active": {
+                        "type": "boolean"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "access: tệp JSON dữ liệu cá nhân (attachment); restrict: trạng thái mới"
+          },
+          "202": {
+            "description": "delete: đã nhận, phiên bị thu hồi; hoàn tất ở worker trước due_at"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        }
+      }
+    },
     "/api/v1/property/create": {
       "post": {
         "operationId": "property.create",

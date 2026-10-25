@@ -4172,7 +4172,7 @@
     "description": "Trang Bảo mật: nút một bước rút đồng ý phân tích sản phẩm (product_analytics); dừng ghi sự kiện ngay."
   },
   "privacy_settings.core.note": {
-    "message": "Đồng ý này bắt buộc để dùng dịch vụ. Muốn rút, bạn cần xoá tài khoản (chức năng xoá tài khoản sẽ có ở trang này).",
+    "message": "Đồng ý này bắt buộc để dùng dịch vụ. Muốn rút, bạn cần xoá tài khoản ở mục \"Xoá tài khoản\" bên dưới.",
     "description": "Trang Bảo mật: giải thích vì sao không có nút tắt mục đích bắt buộc service_core (rút = xoá tài khoản, T-2311)."
   },
   "privacy_settings.core.grant": {
@@ -4190,5 +4190,129 @@
   "privacy_settings.anonymous": {
     "message": "Đăng nhập để xem và đổi lựa chọn quyền riêng tư.",
     "description": "Trang Bảo mật: khối quyền riêng tư khi chưa đăng nhập."
+  },
+  "account_rights.heading": {
+    "message": "Dữ liệu của bạn",
+    "description": "Trang Bảo mật: tiêu đề khối quyền của chủ thể dữ liệu (tải dữ liệu, hạn chế xử lý, xoá tài khoản; T-2311)."
+  },
+  "account_rights.checking": {
+    "message": "Đang tải…",
+    "description": "Trang Bảo mật: trạng thái đang tải khối quyền dữ liệu."
+  },
+  "account_rights.anonymous": {
+    "message": "Đăng nhập để tải dữ liệu, hạn chế xử lý hoặc xoá tài khoản.",
+    "description": "Trang Bảo mật: khối quyền dữ liệu khi chưa đăng nhập."
+  },
+  "account_rights.failed.title": {
+    "message": "Chưa tải được thông tin",
+    "description": "Trang Bảo mật: tiêu đề lỗi khi tải trạng thái quyền dữ liệu thất bại."
+  },
+  "account_rights.failed.text": {
+    "message": "Kiểm tra kết nối rồi thử lại.",
+    "description": "Trang Bảo mật: hướng dẫn khi tải trạng thái quyền dữ liệu thất bại."
+  },
+  "account_rights.retry": {
+    "message": "Thử lại",
+    "description": "Trang Bảo mật: nút tải lại khối quyền dữ liệu."
+  },
+  "account_rights.access.heading": {
+    "message": "Tải dữ liệu của tôi",
+    "description": "Trang Bảo mật: tiêu đề mục xuất dữ liệu cá nhân (quyền truy cập)."
+  },
+  "account_rights.access.intro": {
+    "message": "Tệp JSON gồm tài khoản, các tổ chức bạn là thành viên, lựa chọn đồng ý, phiên đăng nhập, các yêu cầu đã gửi và số lần dùng ứng dụng được ghi nhận. Bạn có thể được yêu cầu đăng nhập lại để xác nhận.",
+    "description": "Trang Bảo mật: mô tả nội dung tệp xuất dữ liệu cá nhân và việc xác thực lại."
+  },
+  "account_rights.access.button": {
+    "message": "Tải dữ liệu của tôi",
+    "description": "Trang Bảo mật: nút tải tệp JSON dữ liệu cá nhân."
+  },
+  "account_rights.access.done": {
+    "message": "Đã tạo tệp dữ liệu của bạn.",
+    "description": "Trang Bảo mật: thông báo sau khi tải tệp dữ liệu cá nhân."
+  },
+  "account_rights.access.error": {
+    "message": "Chưa tạo được tệp. Bấm lại để thử lần nữa.",
+    "description": "Trang Bảo mật: lỗi khi xuất dữ liệu cá nhân thất bại."
+  },
+  "account_rights.restrict.heading": {
+    "message": "Hạn chế xử lý",
+    "description": "Trang Bảo mật: tiêu đề mục hạn chế xử lý dữ liệu."
+  },
+  "account_rights.restrict.intro": {
+    "message": "Khi bật, Hotel Manager ngừng xử lý dữ liệu của bạn cho mục đích không bắt buộc (phân tích sản phẩm), kể cả khi bạn đã đồng ý. Việc dùng dịch vụ không bị ảnh hưởng.",
+    "description": "Trang Bảo mật: giải thích tác dụng của hạn chế xử lý."
+  },
+  "account_rights.restrict.on": {
+    "message": "Đang hạn chế",
+    "description": "Trang Bảo mật: nhãn trạng thái hạn chế xử lý đang bật."
+  },
+  "account_rights.restrict.off": {
+    "message": "Không hạn chế",
+    "description": "Trang Bảo mật: nhãn trạng thái hạn chế xử lý đang tắt."
+  },
+  "account_rights.restrict.turn_on": {
+    "message": "Bật hạn chế xử lý",
+    "description": "Trang Bảo mật: nút một bước bật hạn chế xử lý."
+  },
+  "account_rights.restrict.turn_off": {
+    "message": "Tắt hạn chế xử lý",
+    "description": "Trang Bảo mật: nút một bước tắt hạn chế xử lý."
+  },
+  "account_rights.restrict.saved": {
+    "message": "Đã lưu lựa chọn của bạn.",
+    "description": "Trang Bảo mật: thông báo sau khi bật/tắt hạn chế xử lý."
+  },
+  "account_rights.restrict.error": {
+    "message": "Chưa lưu được. Bấm lại để thử lần nữa.",
+    "description": "Trang Bảo mật: lỗi khi bật/tắt hạn chế xử lý."
+  },
+  "account_rights.delete.heading": {
+    "message": "Xoá tài khoản",
+    "description": "Trang Bảo mật: tiêu đề mục xoá tài khoản."
+  },
+  "account_rights.delete.erased": {
+    "message": "Khi xoá: mọi phiên đăng nhập bị đăng xuất, mật khẩu và xác thực hai lớp bị xoá, tên và email bị thay bằng giá trị không định danh, bạn rời mọi tổ chức, dữ liệu phân tích sản phẩm của bạn bị xoá. Bạn không đăng nhập lại được bằng tài khoản này.",
+    "description": "Trang Bảo mật: liệt kê những gì bị xoá khi xoá tài khoản (không dark pattern: nói rõ hậu quả)."
+  },
+  "account_rights.delete.retained": {
+    "message": "Được giữ lại theo nghĩa vụ pháp lý: bản ghi đồng ý (để chứng minh sự đồng ý), chứng từ thu chi và hồ sơ gắn chứng từ của tổ chức (nghĩa vụ kế toán), nhật ký kiểm toán. Bản sao lưu hết hạn theo lịch sao lưu.",
+    "description": "Trang Bảo mật: liệt kê dữ liệu được giữ khi xoá tài khoản kèm lý do (CMP-RIGHTS-007)."
+  },
+  "account_rights.delete.sole_owner": {
+    "message": "Bạn đang là chủ sở hữu duy nhất của ít nhất một tổ chức nên chưa xoá được tài khoản. Hãy mời và chuyển quyền chủ sở hữu cho người khác (trang Thành viên) hoặc xoá tổ chức trước, rồi quay lại đây.",
+    "description": "Trang Bảo mật: giải thích vì sao owner duy nhất không xoá được tài khoản và cách xử lý."
+  },
+  "account_rights.delete.confirm_label": {
+    "message": "Gõ lại email của bạn để xác nhận",
+    "description": "Trang Bảo mật: nhãn ô xác nhận xoá tài khoản (gõ lại email tài khoản)."
+  },
+  "account_rights.delete.confirm_hint": {
+    "message": "Email bạn dùng để đăng nhập.",
+    "description": "Trang Bảo mật: gợi ý ô xác nhận xoá tài khoản."
+  },
+  "account_rights.delete.confirm_required": {
+    "message": "Nhập email của bạn để xác nhận.",
+    "description": "Trang Bảo mật: lỗi khi bấm xoá mà chưa gõ email xác nhận."
+  },
+  "account_rights.delete.mismatch": {
+    "message": "Email không khớp với tài khoản đang đăng nhập.",
+    "description": "Trang Bảo mật: lỗi khi email gõ lại không đúng (422 CONFIRMATION_MISMATCH)."
+  },
+  "account_rights.delete.button": {
+    "message": "Xoá tài khoản",
+    "description": "Trang Bảo mật: nút xoá tài khoản (một bước sau khi gõ lại email)."
+  },
+  "account_rights.delete.error": {
+    "message": "Chưa xoá được. Bấm lại để thử lần nữa.",
+    "description": "Trang Bảo mật: lỗi khi xoá tài khoản thất bại (mạng/5xx)."
+  },
+  "account_rights.delete.done": {
+    "message": "Đã nhận yêu cầu xoá tài khoản. Bạn đã được đăng xuất khỏi mọi thiết bị; phần còn lại được hoàn tất tự động trong hạn quy định.",
+    "description": "Trang Bảo mật: thông báo sau khi yêu cầu xoá tài khoản thành công (202)."
+  },
+  "account_rights.delete.to_login": {
+    "message": "Về trang đăng nhập",
+    "description": "Trang Bảo mật: liên kết sau khi xoá tài khoản."
   }
 }

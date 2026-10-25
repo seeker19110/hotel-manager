@@ -1,12 +1,12 @@
 ---
 title: DPIA — Hotel Manager
 kind: dpia
-version: 0.1.2
+version: 0.1.3
 updated: 2026-10-25
 status: "NHÁP KỸ THUẬT — chờ DPO/pháp lý rà, ký và nộp; chưa được dùng dữ liệu thật (PROJECT.md §6)"
 ---
 
-# DPIA — Hotel Manager (SaaS quản lý nhà trọ/nhà nghỉ/khách sạn nhỏ) · phiên bản 0.1.2 · 2026-10-25
+# DPIA — Hotel Manager (SaaS quản lý nhà trọ/nhà nghỉ/khách sạn nhỏ) · phiên bản 0.1.3 · 2026-10-25
 
 > Soạn theo mẫu khung (`.xtemplates/framework/templates/DPIA.md`) từ hiện trạng hệ thống: `docs/privacy/data-map.yaml` (từng cột),
 > `docs/privacy/ROPA.md` (hoạt động), `docs/design/THREAT-MODEL.md` (rủi ro, biện pháp). **Không phải tư vấn pháp lý.** Mọi số điều,
@@ -58,7 +58,7 @@ Nguồn: `docs/compliance/vendors.yaml`, `docs/legal/subprocessors.md`.
 - Mục đích (danh mục đóng, `packages/app/src/privacy/consent.ts`): `service_core` — bắt buộc để dùng dịch vụ, thu bằng ô KHÔNG tick sẵn ở đăng ký (server từ chối đăng ký thiếu ô này — 400 CONSENT_REQUIRED), nhận lời mời (thiếu → 422, ghi cùng transaction với membership) và đăng nhập portal người thuê lần đầu (trang portal chặn ở server tới khi đồng ý); rút = xoá tài khoản (T-2311). `product_analytics` — tuỳ chọn, mặc định KHÔNG (opt-in); `track()` chỉ ghi sự kiện có người khi người đó đang đồng ý (kiểm trong cùng transaction ghi ⇒ rút có hiệu lực từ sự kiện kế tiếp, không chờ 72 giờ); sự kiện hệ thống không gắn người vẫn ghi.
 - Rút đồng ý: trang Bảo mật, khối "Quyền riêng tư" — MỘT nút bật/tắt (cùng số bước với lúc cấp: một ô ở đăng ký), cùng kiểu nút cho bật và tắt (UX-CONTENT-005). Phân tích sản phẩm tự host nên không có bên thứ ba phải lan truyền việc rút.
 - Còn mở: tài khoản tạo trước tính năng (chưa có bản ghi `service_core`) chỉ bị chặn ở portal người thuê và khi nhận lời mời; nhân viên cũ xác nhận ở trang Bảo mật (chưa bắt buộc) — (chờ quyết); đổi văn bản ⇒ tăng `CONSENT_POLICY_VERSION`, chưa có luồng xin đồng ý lại theo phiên bản mới.
-- Quyền chủ thể (truy cập/xuất, chỉnh sửa, xoá, rút đồng ý, hạn chế): rút đồng ý có E2E `apps/web/e2e/rights-withdraw-consent.spec.ts` (T-2310); truy cập/xuất, xoá, hạn chế thuộc T-2311 (E2E `rights-access`, `rights-delete`); thời hạn xử lý cấu hình theo vùng (VN theo NĐ 356/2025 — chưa xác minh).
+- Quyền chủ thể (đã triển khai — T-2311, D-120): rút đồng ý có E2E `rights-withdraw-consent` (T-2310); **truy cập/xuất** (JSON của chính mình, xác thực lại ≤ 5 phút; E2E `rights-access`), **xoá tài khoản** (xác thực lại + gõ lại email, chặn owner duy nhất; pha 1 ngay: thu hồi phiên, xoá mật khẩu/2FA, ẩn danh auth user ⇒ không đăng nhập lại được — E2E `rights-delete`; pha 2 worker: xoá sự kiện phân tích, kết thúc membership, ẩn danh hồ sơ người không gắn chứng từ), **hạn chế xử lý** (bật/tắt một bước, `track()` bỏ qua). Giữ khi xoá: `consent_records` (bằng chứng, D-124), chứng từ tiền + hồ sơ gắn chứng từ (nghĩa vụ kế toán), `audit_events` — ghi kèm lý do trong `dsar_requests.result`. Mọi yêu cầu ghi `dsar_requests` (migration 0069) với hạn theo vùng (`dsar-policy.ts`: VN 72 giờ — chưa xác minh NĐ 356/2025; EU/UK 30 ngày; CA 45; SG/TH 30; vùng chưa biết = chặt nhất); quá hạn đo bằng `hm_dsar_overdue` (cảnh báo `HmDsarOverdue`). Ngoài repo: bản sao lưu hết theo RET-10. Còn mở: chỉnh sửa dữ liệu do tổ chức nhập đi qua tổ chức (bên kiểm soát); phản đối xử lý chưa có luồng riêng (mục đích tuỳ chọn duy nhất là phân tích — rút đồng ý/hạn chế bao trùm).
 - Trẻ em: hệ thống không có luồng riêng; người ở cùng là trẻ em do chủ cơ sở nhập — cần pháp lý xác định yêu cầu đồng ý người giám hộ (chưa xác minh).
 
 ## 5. Thời hạn xử lý, lưu trữ và xoá
@@ -122,4 +122,5 @@ Chi tiết từng cột: `docs/privacy/data-map.yaml` (`retention`); chính sác
 |---|---|---|---|
 | 0.1.0 | 2026-10-25 | Nháp kỹ thuật đầu tiên (PLAN đợt 23, T-2307) | Chưa |
 | 0.1.1 | 2026-10-25 | §5: job hạn lưu RET-11…RET-18 (T-2308); nêu khoảng trống lời mời/audit | Chưa |
+| 0.1.3 | 2026-10-25 | §4: quyền truy cập/xoá/hạn chế xử lý tự phục vụ + hạn theo vùng + metric quá hạn (T-2311, D-120) | Chưa |
 | 0.1.2 | 2026-10-25 | §4: cơ chế đồng ý theo mục đích + rút một bước đã triển khai (T-2310, D-119) | Chưa |

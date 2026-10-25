@@ -896,3 +896,10 @@
 - Lý do (tiêu chí chất lượng cuối): Đúng và an toàn ở mức đủ cho pre-production: không có dữ liệu thật; bằng chứng đồng ý là nghĩa vụ chứng minh nên giữ hàng; phương án 2 tăng phạm vi lớn (viết lại đăng ký Better Auth) với lợi ích chỉ có khi đã có người dùng
 - Đường lùi: Các mục còn lại ghi vào GO-NO-GO trước G7; làm được trong một PR sau
 - Khi chạy thật (đề xuất, chủ dự án quyết ở G7): Trước khi có người dùng thật: kiểm đồng ý ở API portal, xin lại đồng ý khi đổi phiên bản chính sách
+
+### D-125 · 2026-10-25T07:59:12+00:00 · T-2311: thực hiện xoá tài khoản khi web không có kết nối app_worker
+
+- Phương án: (1) Hai pha: pha 1 trong request (app_runtime) thu hồi phiên, xoá mật khẩu/2FA/mã xác minh, ẩn danh auth user ⇒ không đăng nhập lại được ngay; pha 2 job worker privacy.dsar_erasure mỗi 5 phút xoá analytics, kết thúc membership có audit, ẩn danh persons không gắn chứng từ (gắn chứng từ ⇒ giữ, lý do accounting_records_retention); bỏ Clear-Site-Data ở phản hồi xoá (phiên đã thu hồi ở CSDL) · (2) Cấp quyền xoá trực tiếp cho app_runtime (mở rộng quyền web, trái nguyên tắc hàm phạm vi hẹp chỉ worker)
+- Chọn: Hai pha: pha 1 trong request (app_runtime) thu hồi phiên, xoá mật khẩu/2FA/mã xác minh, ẩn danh auth user ⇒ không đăng nhập lại được ngay; pha 2 job worker privacy.dsar_erasure mỗi 5 phút xoá analytics, kết thúc membership có audit, ẩn danh persons không gắn chứng từ (gắn chứng từ ⇒ giữ, lý do accounting_records_retention); bỏ Clear-Site-Data ở phản hồi xoá (phiên đã thu hồi ở CSDL)
+- Lý do (tiêu chí chất lượng cuối): Đúng và an toàn: web không được thêm quyền xoá rộng; người dùng mất truy cập ngay; phần còn lại hoàn tất ≤ 5 phút, xa dưới hạn 72 giờ; giữ chứng từ là nghĩa vụ kế toán
+- Đường lùi: Job worker tắt được; pha 1 không đảo ngược (đúng mục đích)

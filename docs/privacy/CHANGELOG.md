@@ -5,6 +5,7 @@
 > không có mục mới → cảnh báo rà lại (mốc cập nhật theo NĐ 356/2025 — chưa xác minh số điều).
 
 ## 2026-10-25
+- Quyền chủ thể dữ liệu (T-2311, D-120): bảng `dsar_requests` + `processing_restrictions` (migration 0069, RLS theo người dùng; hàm xoá chỉ app_worker); xuất JSON, xoá tài khoản hai pha (giữ đồng ý + chứng từ có lý do, D-124), hạn chế xử lý; hạn theo vùng `dsar-policy.ts` + metric `hm_dsar_overdue`. data-map thêm hai bảng, ROPA thêm HĐ-12 + quy trình DSAR, DPIA 0.1.3 §4, `retention-policy.md` RET-20.
 - `data-map.yaml`: thêm `legal_basis_code` (mã GDPR Art. 6) cho mọi mục; `art9_condition` + `art9_note` cho cột nhạy cảm (CMP-INTL-002). Ghi chú: Luật 91/2025/QH15 không có "lợi ích hợp pháp" — 22 mục nhật ký an toàn cần pháp lý chọn cơ sở VN.
 - Sổ nhà cung cấp máy đọc `docs/compliance/vendors.yaml` song song `processors.md` (CMP-AUDIT-007).
 - Hồ sơ đánh giá tác động: `docs/DPIA.md` 0.1.0 (nháp kỹ thuật, chờ DPO/pháp lý); ROPA trỏ DPIA.

@@ -998,6 +998,8 @@ describe("BE-API-009 — route không guard = danh sách công khai đã duyệt
     "v1/session/switchOrganization/route.ts": /handleSwitchOrganization/,
     // T-2310: đồng ý của CHÍNH người đăng nhập — handleConsentsGet/Post trả 401 khi không có phiên (privacy/consent.db.test.ts).
     "v1/privacy/consents/route.ts": /handleConsentsGet[\s\S]*handleConsentsPost/,
+    // T-2311: quyền chủ thể dữ liệu của CHÍNH người đăng nhập — 401 khi không có phiên (privacy/dsar.db.test.ts).
+    "v1/privacy/dsar/route.ts": /handleDsarGet[\s\S]*handleDsarPost/,
     "v1/files/upload/route.ts": /handleFileUpload/,
     "v1/import/upload/route.ts": /handleImportUpload/,
   };
@@ -1158,6 +1160,7 @@ describe("BASE-SEC-001 — entrypoint ngoài registry: đầu vào xấu → 4xx
         "consents-route.ts",
         /z\.strictObject\([\s\S]*consentChangeInput\.safeParse\(raw\)/,
       ],
+      "v1/privacy/dsar/route.ts": ["dsar-route.ts", /z\.strictObject\([\s\S]*dsarInput\.safeParse\(raw\)/],
       "v1/files/upload/route.ts": ["file-upload.ts", /OWNER_TYPES\.includes[\s\S]*UUID\.test\(propertyId\)/],
       "v1/import/upload/route.ts": ["import-upload.ts", /UUID\.test\(propertyId\)[\s\S]*kind\.length > 40/],
       "v1/webhooks/[provider]/[account]/route.ts": [

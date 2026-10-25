@@ -3,6 +3,7 @@
 // `startWorker(deps)` thuần phụ thuộc tiêm vào (test được trên Postgres thật); `bootWorker(env)` dựng phụ thuộc từ cấu hình;
 // `main()` (index.ts) nối tiến trình + tín hiệu.
 import {
+  analyticsActorKey,
   BANK_TXN_RECEIVED,
   ConfigError,
   createLogger,
@@ -13,12 +14,14 @@ import {
   type EmailSender,
   expireHeldReservations,
   FakeEmailSender,
+  forgetAnalyticsActor,
   generatePeriods,
   invitationKey,
   type Logger,
   loadWorkerConfig,
   type ObjectStorage,
   parseOutboxPayload,
+  processDsarErasures,
   purgeEventTables,
   purgePersonalData,
   remindExpiring,
@@ -65,6 +68,8 @@ export interface Intervals {
   privacyRetention: number;
   /** Đối soát hằng ngày (IND-FIN-006). */
   reconciliation: number;
+  /** Pha 2 của xoá tài khoản (T-2311): hạn VN 72 giờ (chưa xác minh) — nhịp phút để còn nhiều lượt thử lại trước hạn. */
+  dsarErasure: number;
 }
 
 export const DEFAULT_INTERVALS: Intervals = {
@@ -81,6 +86,7 @@ export const DEFAULT_INTERVALS: Intervals = {
   eventsRetention: HOUR, // xoá theo lô có trần; tồn đọng lớn được dọn dần qua các lượt
   privacyRetention: 24 * HOUR, // hạn tính theo ngày/tháng/năm; xét quan hệ từng người nên chạy thưa
   reconciliation: 24 * HOUR,
+  dsarErasure: 5 * MINUTE,
 };
 
 export const DEFAULT_STOP_TIMEOUT_MS = 25_000;
@@ -103,6 +109,11 @@ export interface WorkerDeps {
   unsubscribeKey: Buffer;
   /** Khoá dựng token lời mời nhân viên (`invitationKey(BETTER_AUTH_SECRET)`) — consumer `member.invited`. */
   invitationKey: Buffer;
+  /**
+   * Khoá giả danh sự kiện sản phẩm (`analyticsActorKey(BETTER_AUTH_SECRET)`) — job `privacy.dsar_erasure` xoá sự kiện của người xoá tài
+   * khoản. Bỏ trống (test cũ) ⇒ không lắp job đó.
+   */
+  analyticsKey?: Buffer;
   /** Tên ghi ở `worker_heartbeats` (khớp `^[a-z0-9][a-z0-9._-]{0,62}$`). */
   name?: string;
   /** Handler bổ sung cho event_type khác (mở rộng/test); trùng tên với handler sẵn có thì handler này thắng. */
@@ -280,6 +291,20 @@ export async function startWorker(deps: WorkerDeps): Promise<WorkerHandle> {
       run: () => purgePersonalData(workerDb, { now: new Date(), log: (e, f) => log.info(e, f) }),
     },
   ];
+  const analyticsKey = deps.analyticsKey;
+  if (analyticsKey) {
+    // Pha 2 của xoá tài khoản (T-2311, D-120): sự kiện phân tích → membership/hồ sơ người/auth còn sót → đóng yêu cầu (`result`).
+    // Idempotent, mỗi yêu cầu độc lập; log chỉ id yêu cầu + tên lỗi.
+    jobs.push({
+      name: "privacy.dsar_erasure",
+      everyMs: iv.dsarErasure,
+      run: () =>
+        processDsarErasures(workerDb, {
+          forgetAnalytics: (userId) => forgetAnalyticsActor(workerDb, analyticsKey, userId),
+          log: (e, f) => log.error(e, f),
+        }),
+    });
+  }
   const sender = deps.sender;
   if (sender) {
     jobs.push({
@@ -386,6 +411,7 @@ export async function bootWorker(
       baseUrl: config.APP_BASE_URL,
       unsubscribeKey: unsubscribeKey(config.BETTER_AUTH_SECRET),
       invitationKey: invitationKey(config.BETTER_AUTH_SECRET),
+      analyticsKey: analyticsActorKey(config.BETTER_AUTH_SECRET),
       // Tên nhịp cố định (không theo hostname): container khởi động lại đổi hostname sẽ để lại hàng nhịp cũ → cảnh báo treo giả.
       ...(opts.extraHandlers ? { extraHandlers: opts.extraHandlers } : {}),
       ...(opts.intervals ? { intervals: opts.intervals } : {}),
