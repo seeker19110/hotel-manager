@@ -98,18 +98,21 @@ describe("describe + render", () => {
 });
 
 describe("repo thật (D-111)", () => {
-  it("LICENSE ở gốc ghi Proprietary + chủ sở hữu; mọi package.json có license UNLICENSED khớp", () => {
+  it("LICENSE ở gốc ghi Proprietary + chủ sở hữu; package.json gốc có license UNLICENSED, workspace có trường license thì phải khớp", () => {
     const lic = readFileSync(join(ROOT, "LICENSE"), "utf8");
     expect(lic).toMatch(/Proprietary/);
     expect(lic).toMatch(/Copyright \(c\) \d{4} seeker19110/);
-    const manifests = [
-      "package.json",
+    expect(JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")).license).toBe("UNLICENSED");
+    const workspaces = [
       ...globSync("apps/*/package.json", { cwd: ROOT }),
       ...globSync("packages/*/package.json", { cwd: ROOT }),
     ];
-    expect(manifests.length).toBeGreaterThan(5);
-    for (const m of manifests)
-      expect(JSON.parse(readFileSync(join(ROOT, m), "utf8")).license, m).toBe("UNLICENSED");
+    expect(workspaces.length).toBeGreaterThan(5);
+    for (const m of workspaces) {
+      const pkg = JSON.parse(readFileSync(join(ROOT, m), "utf8"));
+      expect(pkg.private, `${m}: workspace phải private (không phát hành)`).toBe(true);
+      if (pkg.license !== undefined) expect(pkg.license, m).toBe("UNLICENSED");
+    }
   });
 
   it("THIRD_PARTY_NOTICES.md khớp lockfile, có gói phân phối chính, không giấy phép UNKNOWN", () => {

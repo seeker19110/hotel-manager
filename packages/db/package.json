@@ -2,7 +2,6 @@
   "name": "@hm/db",
   "version": "0.0.0",
   "private": true,
-  "license": "UNLICENSED",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
