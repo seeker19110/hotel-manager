@@ -17,9 +17,12 @@ RUN apk upgrade --no-cache \
  && apk add --no-cache ca-certificates libcap mailcap \
  && mkdir -p /config/caddy /data/caddy /etc/caddy /usr/share/caddy \
  && chmod 1777 /config/caddy /data/caddy
-COPY --from=build /out/caddy /usr/bin/caddy
-# Nghe 80/443 không cần root đầy đủ (như image chính thức); `caddy version` hỏng là dựng hỏng.
-RUN setcap cap_net_bind_service=+ep /usr/bin/caddy && caddy version
+# Chép + setcap trong MỘT layer (BuildKit bind mount từ stage build): `COPY` rồi `RUN setcap` ghi nhị phân 58 MB thêm lần nữa
+# (image 125 MB > ngân sách 80 MB). Nghe 80/443 không cần root đầy đủ (như image chính thức); `caddy version` hỏng là dựng hỏng.
+RUN --mount=type=bind,from=build,source=/out/caddy,target=/tmp/caddy \
+    install -m 0755 /tmp/caddy /usr/bin/caddy \
+ && setcap cap_net_bind_service=+ep /usr/bin/caddy \
+ && caddy version
 ENV XDG_CONFIG_HOME=/config \
     XDG_DATA_HOME=/data
 LABEL org.opencontainers.image.title="hm-caddy" \
