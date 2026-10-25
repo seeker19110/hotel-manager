@@ -15,6 +15,7 @@ import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type Actor, resolveActor } from "../access/index.ts";
 import { ObjectStorage } from "../files/index.ts";
+import { COMMANDS } from "../http/registry.ts";
 import { codeOf, ownerOf, runAs, seedMember } from "../testing/helpers.ts";
 import {
   cancelOrgDeletion,
@@ -49,6 +50,11 @@ const write = (a: Actor) =>
     await sql`update properties set name = name where organization_id = ${a.orgId}`.execute(ctx.trx);
     return 1;
   });
+/** Mô phỏng 30 ngày trôi qua: lùi các cột xoá bằng quyền admin (hàm purge chặn p_now tương lai bằng giờ CSDL). */
+const backdate = (orgId: string, days = ORG_DELETION_GRACE_DAYS) =>
+  sql`update organizations set deletion_requested_at = deletion_requested_at - make_interval(days => ${days}),
+                               deletion_due_at = deletion_due_at - make_interval(days => ${days})
+      where id = ${orgId}`.execute(t.admin);
 const count = async (table: string, orgId: string) =>
   (
     await sql<{
@@ -168,6 +174,30 @@ describe("yêu cầu / huỷ xoá (owner, xác thực lại, gõ lại tên)", (
     expect(await codeOf(request(fresh(owner), "Nhà nghỉ Xoá Thử"))).toBe("ORG_PENDING_DELETION");
   });
 
+  it("chờ xoá: lệnh chỉ GIẢM quyền vẫn chạy (thu hồi hỗ trợ/phiên/quyền người thuê/link khách); lệnh có thể nâng quyền ⇒ 423", async () => {
+    for (const command of [
+      "support.revokeAccess",
+      "session.revokeAll",
+      "portal.revokeTenantAccess",
+      "portal.revokeGuestLink",
+    ]) {
+      expect(COMMANDS[command as keyof typeof COMMANDS], command).toBeDefined();
+      const r = await runAs(t, owner, async () => 1, { command });
+      expect(r.status, command).toBe("committed");
+    }
+    for (const command of [
+      "member.updateRole",
+      "member.updateScope",
+      "member.invite",
+      "member.resetMfa",
+      "support.grantAccess",
+      "portal.inviteTenant",
+    ]) {
+      expect(COMMANDS[command as keyof typeof COMMANDS], command).toBeDefined();
+      expect(await codeOf(runAs(t, owner, async () => 1, { command })), command).toBe("ORG_PENDING_DELETION");
+    }
+  });
+
   it("CSDL: vai trò app không phải owner không đổi được cột xoá; không ai ngoài job đặt deleted_at", async () => {
     await expect(
       t.runtime.transaction().execute(async (trx) => {
@@ -186,6 +216,25 @@ describe("yêu cầu / huỷ xoá (owner, xác thực lại, gõ lại tên)", (
         await sql`update organizations set deleted_at = deletion_due_at where id = ${A.orgId}`.execute(trx);
       }),
     ).rejects.toThrow(/deleted_at/);
+    // Owner không lùi ngày yêu cầu (purge ngay, bỏ ân hạn): mốc mới phải ≈ now() (< 60 giây).
+    const asOwner = (q: ReturnType<typeof sql>) =>
+      t.runtime.transaction().execute(async (trx) => {
+        await sql`select set_config('app.org_id', ${A.orgId}, true), set_config('app.actor_id', ${owner.membershipId}, true)`.execute(
+          trx,
+        );
+        await q.execute(trx);
+      });
+    await expect(
+      asOwner(sql`update organizations set deletion_requested_at = deletion_requested_at - interval '60 days',
+                  deletion_due_at = deletion_due_at - interval '60 days' where id = ${A.orgId}`),
+    ).rejects.toThrow(/phải là hiện tại/);
+    await expect(
+      asOwner(sql`update organizations set deletion_requested_at = now() + interval '61 seconds',
+                  deletion_due_at = now() + interval '61 seconds' + interval '30 days' where id = ${A.orgId}`),
+    ).rejects.toThrow(/phải là hiện tại/);
+    // Ca được phép: owner đặt lại đúng "bây giờ".
+    await asOwner(sql`update organizations set deletion_requested_at = now(), deletion_due_at = now() + interval '30 days'
+                      where id = ${A.orgId}`);
     // Hạn phải đúng +30 ngày (CHECK).
     await expect(
       sql`update organizations set deletion_due_at = deletion_due_at + interval '1 second' where id = ${A.orgId}`.execute(
@@ -287,6 +336,12 @@ describe("purge sau hạn: mọi kho rỗng trừ phần giữ có lý do; chứ
     // Lệnh qua pipeline ⇒ idempotency_keys + audit; rồi yêu cầu xoá.
     expect(await codeOf(write(owner))).toBe("COMMITTED");
     expect((await request(fresh(owner), "Khách sạn Purge")).status).toBe("committed");
+    // p_now tương lai không làm tới hạn ⇒ mô phỏng 30 ngày bằng cách lùi cột (admin).
+    expect(await processOrgPurges(t.worker, storage, { now: new Date(Date.now() + 365 * DAY) })).toEqual({
+      purged: 0,
+      failed: 0,
+    });
+    await backdate(P.orgId);
     const st = await orgDeletionStatus(t.runtime, owner);
     requestedAt = st.requestedAt as Date;
     dueAt = st.dueAt as Date;
@@ -410,6 +465,8 @@ describe("purge sau hạn: mọi kho rỗng trừ phần giữ có lý do; chứ
     }>`select content from org_deletion_certificates where organization_id = ${P.orgId}`.execute(t.admin);
     expect(c.rows).toHaveLength(1);
     expect(again.certificate).toEqual(JSON.parse(c.rows[0]?.content ?? "{}"));
+    // Nguyên văn (đúng chuỗi đã băm), không phải jsonb chuẩn hoá lại.
+    expect(again.content).toBe(c.rows[0]?.content);
     const audit = await sql<{ n: number }>`select count(*)::int as n from audit_events
       where organization_id = ${P.orgId} and action = 'organization.purged'`.execute(t.admin);
     expect(audit.rows[0]?.n).toBe(1);
@@ -452,6 +509,7 @@ describe("đồng thời và quyền", () => {
     const C = await seedOrg(t.admin, "Nhà trọ Song Song", "rental");
     const o = await ownerOf(t, C);
     expect((await request(fresh(o), "Nhà trọ Song Song")).status).toBe("committed");
+    await backdate(C.orgId);
     const st = await orgDeletionStatus(t.runtime, o);
     const now = st.dueAt as Date;
     const [a, b] = await Promise.all([
@@ -461,6 +519,21 @@ describe("đồng thời và quyền", () => {
     expect(a.certificate).not.toBeNull();
     expect(a.certificate).toEqual(b.certificate);
     expect(await count("org_deletion_certificates", C.orgId)).toBe(1);
+  });
+
+  it("p_now tương lai +365 ngày với tổ chức VỪA yêu cầu xoá ⇒ không purge (mốc chặn bởi giờ CSDL)", async () => {
+    const E = await seedOrg(t.admin, "Nhà nghỉ Đồng Hồ");
+    const o = await ownerOf(t, E);
+    expect((await request(fresh(o), "Nhà nghỉ Đồng Hồ")).status).toBe("committed");
+    const future = new Date(Date.now() + 365 * DAY);
+    const due = await sql<{ organization_id: string }>`
+      select organization_id from app.org_deletion_due(${future}, 100)`.execute(t.worker);
+    expect(due.rows.map((x) => x.organization_id)).not.toContain(E.orgId);
+    const r = await purgeOrganization(t.worker, null, E.orgId, future);
+    expect(r.certificate).toBeNull();
+    expect(r.content).toBeNull();
+    expect((await orgDeletionStatus(t.runtime, o)).state).toBe("pending");
+    expect(await count("org_deletion_certificates", E.orgId)).toBe(0);
   });
 
   it("purge chưa tới hạn / tổ chức không chờ xoá ⇒ NULL, không đổi gì", async () => {

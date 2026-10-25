@@ -17,6 +17,8 @@
 //     · app_worker: `app.dsar_open_erasures(p_limit)` (yêu cầu xoá đang chờ) và `app.dsar_complete_erasure(p_request, p_analytics_rows)` —
 //       kết thúc mọi membership (kèm audit_events từng tổ chức, actor worker), ẩn danh hồ sơ người liên kết KHÔNG gắn chứng từ tiền/hợp
 //       đồng/lưu trú, xoá phiên/phương thức đăng nhập/2FA/xác minh còn sót, ẩn danh auth user, rồi đóng yêu cầu với `result`.
+//       Lúc thực hiện đã thành owner duy nhất (LAST_OWNER) ⇒ hoàn tác và đóng yêu cầu `rejected` (`result.rejected_reason =
+//       'last_owner'`) thay vì ném mỗi lượt.
 //       GIỮ: consent_records (bằng chứng đồng ý, D-124), chứng từ tiền + hồ sơ người gắn chứng từ (nghĩa vụ kế toán), audit_events.
 //     · app_runtime + app_worker: `app.dsar_metrics(p_now)` — `hm_dsar_overdue` (số yêu cầu quá hạn chưa xong, không nhãn).
 // - `SET CONSTRAINTS trg_memberships_last_owner IMMEDIATE` trong hàm xoá: ràng buộc "còn owner active" (trigger hoãn tới COMMIT) phải
@@ -113,6 +115,7 @@ DECLARE
   v_sessions int; v_accounts int; v_two_factor int; v_verifications int; v_memberships int;
   v_persons_anon int; v_persons_kept int; v_consents int; v_restrictions int;
   v_result jsonb;
+  v_hint text;
 BEGIN
   SELECT d.subject_user_id INTO v_user FROM dsar_requests d
   WHERE d.id = p_request AND d.kind = 'delete' AND d.status = 'received'
@@ -120,6 +123,9 @@ BEGIN
   IF v_user IS NULL THEN
     RETURN NULL;
   END IF;
+
+  -- LAST_OWNER: see header comment (rejected, not re-raised every run).
+  BEGIN
 
   INSERT INTO auth.revoked_session (token_hash, user_id, expires_at)
     SELECT sha256(convert_to(s.token, 'UTF8')), s."userId", s."expiresAt" FROM auth."session" s WHERE s."userId" = v_user
@@ -201,6 +207,16 @@ BEGIN
       jsonb_build_object('store', 'backups', 'reason', 'expires_per_RET_10')));
 
   UPDATE dsar_requests SET status = 'completed', completed_at = now(), result = v_result WHERE id = p_request;
+  RETURN v_result;
+  EXCEPTION WHEN check_violation THEN
+    GET STACKED DIAGNOSTICS v_hint = PG_EXCEPTION_HINT;
+    IF v_hint IS DISTINCT FROM 'LAST_OWNER' THEN
+      RAISE;
+    END IF;
+  END;
+  v_result := jsonb_build_object('rejected_reason', 'last_owner',
+                                 'detail', 'subject_is_sole_active_owner_transfer_ownership_first');
+  UPDATE dsar_requests SET status = 'rejected', completed_at = now(), result = v_result WHERE id = p_request;
   RETURN v_result;
 END $$;
 

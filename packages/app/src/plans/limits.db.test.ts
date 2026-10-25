@@ -1,7 +1,8 @@
 // IND-SAAS-008 (D-123) — hạn mức gói ở command tạo cơ sở/phòng/mời thành viên và hạn mức lệnh/phút theo gói: đúng mốc
 // (bằng hạn mức được, vượt một bị 409 PLAN_LIMIT_REACHED), tổ chức khác không bị ảnh hưởng, đọc/sửa dữ liệu sẵn có không bị chặn.
 import { randomUUID } from "node:crypto";
-import { createTestDb, type SeededOrg, seedOrg, type TestDb } from "@hm/testkit";
+import { createTestDb, type SeededOrg, seedAuthUser, seedOrg, type TestDb } from "@hm/testkit";
+import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { inviteMember } from "../access/invitations.ts";
 import { createProperty } from "../access/property.ts";
@@ -102,6 +103,31 @@ describe("hạn mức thành viên", () => {
     expect(await invite(A, "m2@example.test")).toBe("COMMITTED");
     expect(await invite(A, "m3@example.test")).toBe("PLAN_LIMIT_REACHED");
     expect(await invite(B, "m1@example.test")).toBe("COMMITTED");
+  });
+});
+
+describe("hạn mức thành viên — chỉ đếm nhân viên còn hiệu lực", () => {
+  it("người thuê + grant hỗ trợ còn hạn + nhân viên đã hết hạn KHÔNG chiếm chỗ; đúng mốc vẫn đúng", async () => {
+    const D = await seedOrg(t.admin, "Plan D");
+    tiny.plans.set(D.orgId, { ...TINY, commandsPerMinute: 100 });
+    const member = async (role: string, validTo: string | null, status = "active") => {
+      const personId = randomUUID();
+      const au = randomUUID();
+      await seedAuthUser(t.admin, `${role}-${au.slice(0, 6)}@example.test`, au);
+      await sql`insert into persons (id, organization_id, full_name) values (${personId}, ${D.orgId}, ${role})`.execute(
+        t.admin,
+      );
+      await sql`insert into memberships (id, organization_id, auth_user_id, person_id, role, status, valid_from, valid_to)
+                values (${randomUUID()}, ${D.orgId}, ${au}, ${personId}, ${role}, ${status},
+                        now() - interval '10 days', ${validTo}::timestamptz)`.execute(t.admin);
+    };
+    await member("tenant", null);
+    await member("platform_support", new Date(Date.now() + 3_600_000).toISOString());
+    await member("manager", new Date(Date.now() - 3_600_000).toISOString());
+    // Chủ (1) + 2 lời mời = 3 (đúng mốc) được; lời mời thứ 3 vượt ⇒ 409.
+    expect(await invite(D, "d1@example.test")).toBe("COMMITTED");
+    expect(await invite(D, "d2@example.test")).toBe("COMMITTED");
+    expect(await invite(D, "d3@example.test")).toBe("PLAN_LIMIT_REACHED");
   });
 });
 

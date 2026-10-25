@@ -5,6 +5,7 @@
 // nút); không đếm ngược, không câu bêu xấu; owner duy nhất thì giải thích cách chuyển quyền thay vì ẩn nút.
 import { useCallback, useEffect, useState } from "react";
 import { requestReauth } from "../../components/command/reauth.ts";
+import { clearUserData } from "../../components/pwa/pwa-shell.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { TextField } from "../../components/ui/field.tsx";
 import { ErrorState, LoadingState } from "../../components/ui/state.tsx";
@@ -116,7 +117,12 @@ export function AccountRights({ m }: { m: Messages<"account_rights."> }) {
     setBusy("delete");
     try {
       const res = await postWithReauth({ action: "delete", confirm_email: confirm });
-      if (res.status === 202) return setPhase("deleted");
+      if (res.status === 202) {
+        setPhase("deleted");
+        // Xoá dữ liệu người dùng trên máy (cache/IndexedDB/storage) như khi đăng xuất; giữ service worker (app shell).
+        await clearUserData();
+        return;
+      }
       const code = ((await res.json().catch(() => ({}))) as { code?: string }).code;
       if (code === "CONFIRMATION_MISMATCH") return setConfirmError(tm(m, "account_rights.delete.mismatch"));
       if (code === "SOLE_OWNER") {

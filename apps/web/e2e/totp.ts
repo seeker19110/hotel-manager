@@ -41,6 +41,11 @@ export function hotelTotpFile(port: number): string {
   return join(tmpdir(), `hm-e2e-${port}-hotel-totp.json`);
 }
 
+/** Như `totpFile` cho nhân viên hỗ trợ nền tảng (T-2313 — vai trò bắt MFA). */
+export function supportTotpFile(port: number): string {
+  return join(tmpdir(), `hm-e2e-${port}-support-totp.json`);
+}
+
 /** Như `totpFile` cho chủ tổ chức sắp xoá (T-2312). */
 export function deleteTotpFile(port: number): string {
   return join(tmpdir(), `hm-e2e-${port}-delete-totp.json`);

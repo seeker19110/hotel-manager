@@ -1,4 +1,5 @@
 import { myOrgDeletionCertificates, serverContext } from "@hm/app";
+import { DEFAULT_TIME_ZONE, dateInZone } from "../../lib/format.ts";
 import { t } from "../../lib/i18n.ts";
 import { safe } from "../../lib/safe.ts";
 import { currentSession } from "../../lib/session.ts";
@@ -22,7 +23,7 @@ export async function OrgCertificates() {
             <p>
               {t("org_certificates.item", {
                 org: c.organizationId,
-                date: new Date(c.purgedAt).toISOString().slice(0, 10),
+                date: dateInZone(new Date(c.purgedAt), DEFAULT_TIME_ZONE),
               })}
             </p>
             <p>

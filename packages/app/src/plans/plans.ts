@@ -10,7 +10,7 @@ export interface PlanLimits {
   properties: number;
   /** Số phòng (units) chưa lưu trữ, cộng mọi cơ sở của tổ chức. */
   rooms: number;
-  /** Số thành viên còn hiệu lực/chờ chấp nhận + lời mời đang chờ. */
+  /** Số thành viên NHÂN VIÊN còn hiệu lực/chờ chấp nhận + lời mời nhân viên đang chờ (không đếm người thuê/khách/hỗ trợ). */
   members: number;
   /** Lệnh ghi/phút/tổ chức (pipeline lệnh). */
   commandsPerMinute: number;

@@ -229,7 +229,7 @@ export async function listSupportGrants(db: Kysely<unknown>, actor: Actor): Prom
 export async function recordSupportAccess(
   db: Kysely<unknown>,
   actor: Actor,
-  input: { resource: string; client?: SecurityClient | null; correlationId?: string },
+  input: { resource: string; client?: SecurityClient | null; correlationId?: string | undefined },
 ): Promise<void> {
   if (actor.role !== "platform_support") return;
   const grant = actor.supportGrant;
@@ -244,4 +244,29 @@ export async function recordSupportAccess(
               ${JSON.stringify({ resource })}::jsonb, ${grant.reason}, ${input.correlationId ?? `support:${randomUUID()}`},
               'success', ${src.sourceIp}, ${src.userAgent}, ${grant.id})`.execute(trx),
   );
+}
+
+/**
+ * Trang SSR mà hỗ trợ nền tảng được mở (D-122/D-126: phạm vi đọc chỉ `calendar.read_status`). Trang SSR đọc dữ liệu bằng hàm đọc
+ * thẳng (không qua `runQuery`) ⇒ khung trang phải chặn ở đây; mở rộng danh sách là thay đổi có chủ đích (SPEC + test + TM-12).
+ */
+export const SUPPORT_PAGES: readonly string[] = ["/lich-phong"];
+
+/**
+ * Cổng trang SSR cho hỗ trợ nền tảng: actor không phải hỗ trợ ⇒ `not_support` (không làm gì); trang ngoài `SUPPORT_PAGES` ⇒
+ * `forbidden` (không đọc gì, không ghi gì); trang được phép ⇒ ghi `support.accessed` TRƯỚC khi render — lỗi ghi ⇒ ném (fail-closed).
+ */
+export async function supportPageAccess(
+  db: Kysely<unknown>,
+  actor: Actor,
+  input: { page: string; client?: SecurityClient | null; correlationId?: string | undefined },
+): Promise<"not_support" | "forbidden" | "allowed"> {
+  if (actor.role !== "platform_support") return "not_support";
+  if (!SUPPORT_PAGES.includes(input.page)) return "forbidden";
+  await recordSupportAccess(db, actor, {
+    resource: `page:${input.page}`,
+    client: input.client ?? null,
+    correlationId: input.correlationId,
+  });
+  return "allowed";
 }

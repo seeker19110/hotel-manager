@@ -190,12 +190,20 @@ async function auditRow(
   );
 }
 
-/** Lệnh vẫn chạy khi tổ chức chờ xoá (T-2312): xuất dữ liệu và huỷ yêu cầu xoá. */
+/**
+ * Lệnh vẫn chạy khi tổ chức chờ xoá (T-2312): xuất dữ liệu, huỷ yêu cầu xoá, và lệnh CHỈ GIẢM quyền (thu hồi hỗ trợ, thu hồi
+ * phiên, thu hồi quyền người thuê/link khách) — chờ xoá không được làm chủ mất khả năng cắt truy cập. KHÔNG cho `member.updateRole`/
+ * `member.updateScope` (cùng một lệnh có thể nâng quyền/mở rộng phạm vi), `member.resetMfa` (gỡ MFA làm yếu bảo vệ), mời/cấp mới.
+ */
 export const PENDING_DELETION_ALLOWED: ReadonlySet<string> = new Set([
   "exports.request",
   "exports.requestOrgExport",
   "exports.download",
   "org.cancelDeletion",
+  "support.revokeAccess",
+  "session.revokeAll",
+  "portal.revokeTenantAccess",
+  "portal.revokeGuestLink",
 ]);
 
 interface QuotaLimits {

@@ -31,3 +31,16 @@ describe("định dạng giờ/số theo cơ sở", () => {
     expect(src).toMatch(/export const dateTime = \(d: Date, timeZone: string\) =>/);
   });
 });
+
+describe("ngày theo giờ Việt Nam (banner chờ xoá, chứng nhận xoá)", () => {
+  it("dateInZone lấy ngày theo múi giờ, không phải ngày UTC", async () => {
+    const { dateInZone } = await import("../../lib/format.ts");
+    // 18:30 UTC ngày 25 = 01:30 ngày 26 giờ VN.
+    expect(dateInZone(new Date("2026-10-25T18:30:00Z"), "Asia/Ho_Chi_Minh")).toBe("26/10/2026");
+    expect(dateInZone(new Date("2026-10-25T16:59:59Z"), "Asia/Ho_Chi_Minh")).toBe("25/10/2026");
+  });
+  it("banner + chứng nhận không cắt chuỗi ISO (ngày UTC)", () => {
+    for (const f of ["lib/page.tsx", "app/bao-mat/org-certificates.tsx"])
+      expect(readFileSync(join(WEB, f), "utf8"), f).not.toMatch(/toISOString\(\)\.slice\(0, 10\)/);
+  });
+});

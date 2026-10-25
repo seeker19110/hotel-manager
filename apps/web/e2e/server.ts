@@ -51,7 +51,7 @@ import {
 } from "./fixtures.ts";
 import { seedHotelOrg, signUpWithTotp } from "./hotel-seed.ts";
 import { seedPortal } from "./portal-seed.ts";
-import { deleteTotpFile, hotelTotpFile, totpFile } from "./totp.ts";
+import { deleteTotpFile, hotelTotpFile, supportTotpFile, totpFile } from "./totp.ts";
 
 const PORT = Number(process.env.E2E_PORT ?? 3100);
 const BASE_URL = `http://127.0.0.1:${PORT}`;
@@ -225,9 +225,10 @@ async function seed(adminUrl: string, runtimeUrl: string, secret: string): Promi
     await seedOrg(db, ORG_DELETE, "hotel", deleteOwner);
     await seedInvitations(db, auth, secret);
     // Nhân viên hỗ trợ nền tảng (T-2313): danh bạ do người vận hành ghi — ở đây seed thẳng.
-    const agent = await auth.api.signUpEmail({ body: withSignUpConsent(SUPPORT_AGENT) });
-    await sql`update auth."user" set "emailVerified" = true where id = ${agent.user.id}`.execute(db);
-    await sql`insert into platform_support_users (auth_user_id) values (${agent.user.id})`.execute(db);
+    // Hỗ trợ bắt MFA (resolveActor) ⇒ seed kèm TOTP để E2E đăng nhập được như hỗ trợ thật.
+    const agentId = await signUpWithTotp(auth, SUPPORT_AGENT, supportTotpFile(PORT));
+    await sql`update auth."user" set "emailVerified" = true where id = ${agentId}`.execute(db);
+    await sql`insert into platform_support_users (auth_user_id) values (${agentId})`.execute(db);
     const portal = await seedPortal(db);
     // Liên kết huỷ đăng ký ký số trong email nhắc quá hạn của người thuê An (SPEC-notifications S-010).
     writeFileSync(

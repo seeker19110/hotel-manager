@@ -42,6 +42,8 @@ export {
   recordSupportAccess,
   revokeSupportAccess,
   SUPPORT_GRANT_MAX_HOURS,
+  SUPPORT_PAGES,
   SUPPORT_REVOKE_DEFAULT_REASON,
   type SupportGrantRow,
+  supportPageAccess,
 } from "./support.ts";

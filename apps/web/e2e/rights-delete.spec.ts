@@ -3,7 +3,7 @@
 // khẩu cũ thất bại. Không hộp xác nhận thêm, không đếm ngược (UX-CONTENT-005).
 import { expect, test } from "@playwright/test";
 import { expectAccessible } from "./a11y.ts";
-import { CORE_CONSENT } from "./consent.ts";
+import { CORE_CONSENT, submitSignUp } from "./consent.ts";
 import { signInClick } from "./sign-in.ts";
 
 const PASSWORD = ["e2e", "xoa", "tai", "khoan", "gia"].join("-");
@@ -19,7 +19,7 @@ test("đăng ký → /bao-mat → xoá tài khoản (gõ lại email) ⇒ đăng
   await page.getByLabel("Email").fill(mail);
   await page.getByLabel("Mật khẩu").fill(PASSWORD);
   await page.getByLabel(CORE_CONSENT).check();
-  await page.getByRole("button", { name: "Tạo tài khoản" }).click();
+  await submitSignUp(page);
   await expect(page).toHaveURL(/\/chon-to-chuc$/, { timeout: 15_000 });
 
   await page.goto("/bao-mat");
@@ -43,9 +43,24 @@ test("đăng ký → /bao-mat → xoá tài khoản (gõ lại email) ⇒ đăng
   // Chưa có gì bị xoá: phiên vẫn còn.
   expect((await page.request.get("/api/v1/privacy/dsar")).status()).toBe(200);
 
+  // Dữ liệu người dùng trên máy (storage + Cache Storage ngoài precache) phải bị xoá sau khi xoá tài khoản.
+  await page.evaluate(async () => {
+    localStorage.setItem("hm-e2e-probe", "1");
+    sessionStorage.setItem("hm-e2e-probe", "1");
+    await (await caches.open("hm-e2e-probe")).put("/hm-e2e-probe", new Response("x"));
+  });
   await confirm.fill(mail);
   await block.getByRole("button", { name: "Xoá tài khoản" }).click();
   await expect(page.getByTestId("account-deleted")).toContainText("Đã nhận yêu cầu xoá tài khoản");
+  await expect
+    .poll(() =>
+      page.evaluate(async () => ({
+        local: localStorage.getItem("hm-e2e-probe"),
+        session: sessionStorage.getItem("hm-e2e-probe"),
+        cache: (await caches.keys()).includes("hm-e2e-probe"),
+      })),
+    )
+    .toEqual({ local: null, session: null, cache: false });
   expect(dialogs).toBe(0);
 
   // Phiên đã bị thu hồi ở server.

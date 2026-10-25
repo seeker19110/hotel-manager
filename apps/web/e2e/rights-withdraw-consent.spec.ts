@@ -3,7 +3,7 @@
 // Đăng ký thiếu ô bắt buộc service_core bị chặn ở giao diện VÀ ở server (gọi thẳng API, không tạo tài khoản).
 import { expect, type Page, test } from "@playwright/test";
 import { expectAccessible } from "./a11y.ts";
-import { ANALYTICS_CONSENT, CORE_CONSENT } from "./consent.ts";
+import { ANALYTICS_CONSENT, CORE_CONSENT, postRespectingRateLimit, submitSignUp } from "./consent.ts";
 import { signInClick } from "./sign-in.ts";
 
 test.describe.configure({ mode: "serial" });
@@ -55,14 +55,14 @@ test("đăng ký thiếu ô đồng ý bắt buộc → bị chặn (giao diện
   // Server không tin client: gọi thẳng API đăng ký không kèm đồng ý → 400 CONSENT_REQUIRED, tài khoản không tồn tại.
   const origin = new URL(baseURL as string).origin;
   for (const consents of [undefined, { service_core: false, product_analytics: true }]) {
-    const res = await page.request.post("/api/auth/sign-up/email", {
+    const res = await postRespectingRateLimit(page, "/api/auth/sign-up/email", {
       headers: { origin },
       data: { name: "Không đồng ý", email: mail, password: PASSWORD, ...(consents ? { consents } : {}) },
     });
     expect(res.status()).toBe(400);
     expect(((await res.json()) as { code?: string }).code).toBe("CONSENT_REQUIRED");
   }
-  const signIn = await page.request.post("/api/auth/sign-in/email", {
+  const signIn = await postRespectingRateLimit(page, "/api/auth/sign-in/email", {
     headers: { origin },
     data: { email: mail, password: PASSWORD },
   });
@@ -76,7 +76,7 @@ test("đăng ký có tick phân tích → /bao-mat 'Đang bật' → tắt một
   await fillRegister(page, mail);
   await page.getByLabel(CORE_CONSENT).check();
   await page.getByLabel(ANALYTICS_CONSENT).check();
-  await page.getByRole("button", { name: "Tạo tài khoản" }).click();
+  await submitSignUp(page);
   await expect(page).toHaveURL(/\/chon-to-chuc$/, { timeout: 15_000 });
 
   // Bằng chứng lúc cấp: cả hai mục đích đang đồng ý, kênh đăng ký.

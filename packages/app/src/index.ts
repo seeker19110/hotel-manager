@@ -26,7 +26,9 @@ export {
   listSupportGrants,
   recordSupportAccess,
   SUPPORT_GRANT_MAX_HOURS,
+  SUPPORT_PAGES,
   type SupportGrantRow,
+  supportPageAccess,
 } from "./access/index.ts";
 export {
   ORG_HEADER,
@@ -87,6 +89,7 @@ export { appLogger, setAppLogger } from "./logging/runtime.ts";
 export {
   emitSecurity,
   forwardedClientIp,
+  requestClient,
   SECURITY_EVENTS,
   type SecurityEventName,
 } from "./logging/security-events.ts";

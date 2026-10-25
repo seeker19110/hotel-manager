@@ -3,12 +3,14 @@
 // lực, hết hạn/thu hồi ⇒ mất quyền ở request kế tiếp; không grant ⇒ không quyền gì; mọi hành động của hỗ trợ ghi audit kèm grant + lý do;
 // ràng buộc CSDL (TTL ≤ 72 giờ, lý do NOT NULL, chỉ owner, chỉ đặt thu hồi một lần, RLS theo tổ chức, chặn ghi của hỗ trợ); đồng thời.
 import { randomUUID } from "node:crypto";
-import { createMigrator, withTenant } from "@hm/db";
+import { createMigrator, migrations, withTenant } from "@hm/db";
 import { createTestDb, seedAuthUser } from "@hm/testkit";
 import { sql } from "kysely";
+import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { listRooms } from "../inventory/rooms.ts";
 import { executeCommand } from "../pipeline/command.ts";
+import { listReservations } from "../stay/reservations.ts";
 import { codeOf, runAs } from "../testing/helpers.ts";
 import { type Hotel, seedHotel } from "../testing/hotel.ts";
 import { AccessError, type Actor, resolveActor } from "./actor.ts";
@@ -19,6 +21,7 @@ import {
   recordSupportAccess,
   revokeSupportAccess,
   SUPPORT_REVOKE_DEFAULT_REASON,
+  supportPageAccess,
 } from "./support.ts";
 
 let h: Hotel;
@@ -283,6 +286,47 @@ describe("hỗ trợ chỉ đọc khi grant còn hiệu lực", () => {
     ]);
   });
 
+  it("trang SSR: hỗ trợ mở trang ngoài /lich-phong ⇒ forbidden, không ghi; /lich-phong ⇒ đúng MỘT `support.accessed`; nhân viên ⇒ no-op", async () => {
+    const before = await audits(sql`action = 'support.accessed' and support_grant_id = ${grantId}`);
+    for (const page of ["/phong", "/nhat-ky", "/thu-tien", "/portal", "/lich-phong/khac", ""])
+      expect(await supportPageAccess(h.t.runtime, support, { page, client: CLIENT })).toBe("forbidden");
+    expect(await audits(sql`action = 'support.accessed' and support_grant_id = ${grantId}`)).toHaveLength(
+      before.length,
+    );
+    const correlationId = `page-${randomUUID()}`;
+    expect(
+      await supportPageAccess(h.t.runtime, support, { page: "/lich-phong", client: CLIENT, correlationId }),
+    ).toBe("allowed");
+    expect(await audits(sql`correlation_id = ${correlationId}`)).toEqual([
+      expect.objectContaining({
+        action: "support.accessed",
+        actor_type: "platform_support",
+        support_grant_id: grantId,
+      }),
+    ]);
+    expect(
+      await supportPageAccess(h.t.runtime, h.owner, { page: "/phong", correlationId: `${correlationId}-o` }),
+    ).toBe("not_support");
+    expect(await audits(sql`correlation_id = ${`${correlationId}-o`}`)).toEqual([]);
+    // Trang lịch phòng không lộ tên khách/tiền cho hỗ trợ: danh sách booking (có tên người đặt, giá) bị từ chối.
+    await expect(
+      listReservations(h.t.runtime, support, {
+        propertyId: h.org.propertyId,
+        from: "2026-01-01",
+        to: "2026-01-08",
+      }),
+    ).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("trang SSR fail-closed: ghi audit lỗi ⇒ ném (không render)", async () => {
+    const broken = { ...support, orgId: randomUUID() };
+    await expect(supportPageAccess(h.t.runtime, broken, { page: "/lich-phong" })).rejects.toThrow();
+    const noGrant = { ...support, supportGrant: null } as unknown as Actor;
+    await expect(supportPageAccess(h.t.runtime, noGrant, { page: "/lich-phong" })).rejects.toMatchObject({
+      status: 403,
+    });
+  });
+
   it("owner thu hồi một bước ⇒ request kế tiếp của hỗ trợ không còn actor (404); audit support.access_revoked; thu hồi lại ⇒ 409", async () => {
     const r = await runAs(h.t, h.owner, (ctx) => revokeSupportAccess(ctx, { grantId }));
     expect(r.status).toBe("committed");
@@ -543,7 +587,7 @@ describe("hàng rào: mọi bảng tổ chức có policy chỉ-đọc cho hỗ 
 });
 
 describe("migration 0071 — lùi/tiến", () => {
-  it("down gỡ bảng/cột/policy chỉ-đọc; up lại dựng lại", async () => {
+  it("down gỡ bảng/cột/policy chỉ-đọc; up lại dựng lại; lock_timeout 5 s; ràng buộc audit NOT VALID → VALIDATE", async () => {
     const db = await createTestDb();
     try {
       const count = async () =>
@@ -568,11 +612,59 @@ describe("migration 0071 — lùi/tiến", () => {
       }
       expect(undone).toBe("0071_support_grants");
       expect(await count()).toEqual({ p: 0, t: 0, c: 0 });
+      // up trong transaction của migrator: lock_timeout 5 s cục bộ rồi trả về giá trị cũ (không rò sang migration sau).
+      const m0071 = migrations["0071_support_grants"];
+      if (!m0071) throw new Error("thiếu migration 0071");
+      const ROLLBACK = new Error("rollback");
+      let inside: string | undefined;
+      await db.admin
+        .transaction()
+        .execute(async (trx) => {
+          await sql`select set_config('lock_timeout', '7s', true)`.execute(trx);
+          await m0071.up(trx);
+          inside = (await sql<{ v: string }>`select current_setting('lock_timeout') as v`.execute(trx))
+            .rows[0]?.v;
+          throw ROLLBACK;
+        })
+        .catch((e) => {
+          if (e !== ROLLBACK) throw e;
+        });
+      expect(inside).toBe("7s");
+      // Đợi khoá audit_events quá 5 giây ⇒ bỏ cuộc (lock_timeout), không treo vô hạn.
+      const holder = new pg.Client({ connectionString: db.adminUrl });
+      await holder.connect();
+      await holder.query("begin");
+      await holder.query("lock table audit_events in access exclusive mode");
+      try {
+        const guard = new Promise<string>((resolve) => setTimeout(() => resolve("TREO > 12s"), 12_000));
+        const run = db.admin
+          .transaction()
+          .execute((trx) => m0071.up(trx))
+          .then(
+            () => "ÁP ĐƯỢC",
+            (e: unknown) => String(e),
+          );
+        expect(await Promise.race([run, guard])).toMatch(/lock timeout/);
+      } finally {
+        await holder.query("rollback");
+        await holder.end();
+        await new Promise((r) => setTimeout(r, 500));
+      }
       const again = await createMigrator(db.admin).migrateToLatest();
       expect(again.error).toBeUndefined();
       expect(await count()).toEqual(up);
+      // Ràng buộc audit thêm NOT VALID rồi VALIDATE ⇒ đã hợp lệ (convalidated).
+      const cons = await sql<{ conname: string; convalidated: boolean }>`
+        select conname, convalidated from pg_constraint where conrelid = 'public.audit_events'::regclass
+          and conname in ('fk_audit_support_grant', 'ck_audit_support_grant') order by conname`.execute(
+        db.admin,
+      );
+      expect(cons.rows).toEqual([
+        { conname: "ck_audit_support_grant", convalidated: true },
+        { conname: "fk_audit_support_grant", convalidated: true },
+      ]);
     } finally {
       await db.drop();
     }
-  });
+  }, 60_000);
 });

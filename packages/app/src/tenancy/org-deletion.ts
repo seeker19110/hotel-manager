@@ -119,6 +119,8 @@ export async function cancelOrgDeletion(ctx: CommandContext): Promise<{ state: "
 export interface OrgPurgeResult {
   organizationId: string;
   certificate: Record<string, unknown> | null;
+  /** Nội dung chứng nhận nguyên văn (đúng chuỗi đã băm `content_sha256`), cả khi chạy lại cho tổ chức đã purge. */
+  content: string | null;
 }
 
 /** Danh sách khoá object theo tiền tố (ObjectStorage.listKeys) — tách để test/thay kho. */
@@ -150,9 +152,14 @@ export async function purgeOrganization(
       deleted++;
     }
   }
-  const r = await sql<{ c: Record<string, unknown> | null }>`
+  const r = await sql<{ c: string | null }>`
     select app.org_purge_execute(${orgId}::uuid, ${now}, ${deleted}, ${retained}) as c`.execute(workerDb);
-  return { organizationId: orgId, certificate: r.rows[0]?.c ?? null };
+  const c = r.rows[0]?.c ?? null;
+  return {
+    organizationId: orgId,
+    certificate: c === null ? null : (JSON.parse(c) as Record<string, unknown>),
+    content: c,
+  };
 }
 
 /** Job `tenancy.org_purge`: các tổ chức tới hạn (≤ ORG_PURGE_BATCH/lượt), mỗi tổ chức độc lập; lỗi một tổ chức không chặn tổ chức khác. */

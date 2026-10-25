@@ -439,6 +439,48 @@ describe("xoá tài khoản — lan mọi kho, giữ phần nghĩa vụ pháp l�
   });
 });
 
+describe("xoá tài khoản — lúc thực hiện đã thành owner duy nhất", () => {
+  it("worker đánh yêu cầu `rejected` kèm lý do (không ném mỗi lượt, không kẹt quá hạn); membership giữ nguyên", async () => {
+    const org = await seedOrg(t.admin, "KS chủ còn lại");
+    const o1 = { id: org.ownerAuthUserId };
+    const o1mail = (
+      await sql<{ email: string }>`select email from auth."user" where id = ${o1.id}`.execute(t.admin)
+    ).rows[0]?.email as string;
+    const o2 = await user("chu-roi-di");
+    await member(org, o2.id, "owner", "Chu Roi Di");
+    // Lúc yêu cầu: còn owner khác ⇒ được nhận.
+    const ok = await requestAccountDeletion(t.runtime, {
+      userId: o1.id,
+      authenticatedAt: fresh(),
+      confirmEmail: o1mail,
+    });
+    expect(ok.created).toBe(true);
+    // Trước khi worker chạy, owner kia rời đi ⇒ o1 thành owner duy nhất.
+    await sql`update memberships set status = 'revoked', revoked_at = now()
+              where organization_id = ${org.orgId} and auth_user_id = ${o2.id}`.execute(t.admin);
+    const stats = await processDsarErasures(t.worker, { forgetAnalytics: forget });
+    expect(stats.failed).toBe(0);
+    const req = await sql<{ status: string; completed: boolean; result: { rejected_reason?: string } }>`
+      select status, completed_at is not null as completed, result from dsar_requests
+      where subject_user_id = ${o1.id} and kind = 'delete'`.execute(t.admin);
+    expect(req.rows).toEqual([
+      {
+        status: "rejected",
+        completed: true,
+        result: expect.objectContaining({ rejected_reason: "last_owner" }),
+      },
+    ]);
+    // Không còn trong hàng đợi; lượt sau không lỗi.
+    expect((await processDsarErasures(t.worker, { forgetAnalytics: forget })).failed).toBe(0);
+    expect(
+      await count(
+        sql<{ n: number }>`select count(*)::int as n from memberships
+                           where organization_id = ${org.orgId} and role = 'owner' and status = 'active'`,
+      ),
+    ).toBe(1);
+  });
+});
+
 describe("hạn chế xử lý (restrict) — track() bỏ qua actor", () => {
   it("bật ⇒ không ghi sự kiện dù đã đồng ý; bấm lại cùng trạng thái không sinh yêu cầu; tắt ⇒ ghi lại", async () => {
     const u = await user("han-che");

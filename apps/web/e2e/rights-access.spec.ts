@@ -3,7 +3,7 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import { expectAccessible } from "./a11y.ts";
-import { CORE_CONSENT } from "./consent.ts";
+import { CORE_CONSENT, submitSignUp } from "./consent.ts";
 
 const PASSWORD = ["e2e", "xuat", "du", "lieu", "gia"].join("-");
 const email = () => `xuat.du.lieu.${Date.now().toString(36)}@example.test`;
@@ -17,7 +17,7 @@ test("đăng ký → /bao-mat → tải dữ liệu của tôi ⇒ tệp JSON đ
   await page.getByLabel("Email").fill(mail);
   await page.getByLabel("Mật khẩu").fill(PASSWORD);
   await page.getByLabel(CORE_CONSENT).check();
-  await page.getByRole("button", { name: "Tạo tài khoản" }).click();
+  await submitSignUp(page);
   await expect(page).toHaveURL(/\/chon-to-chuc$/, { timeout: 15_000 });
 
   await page.goto("/bao-mat");

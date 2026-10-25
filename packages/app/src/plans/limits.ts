@@ -1,5 +1,7 @@
 // Kiểm hạn mức gói trong command tạo cơ sở/phòng/mời thành viên (IND-SAAS-008, D-123). Bằng hạn mức vẫn được; vượt một ⇒
 // 409 PLAN_LIMIT_REACHED. Chỉ chặn TẠO MỚI: dữ liệu sẵn có vẫn đọc/sửa được (hạ gói không khoá dữ liệu — IND-SAAS-017).
+// Thành viên = NHÂN VIÊN còn hiệu lực: không đếm người thuê/khách/grant hỗ trợ nền tảng (owner không tự chặn mình cấp hỗ trợ) và
+// membership đã hết hạn (`valid_to` ≤ now()).
 // Khoá advisory theo (tổ chức, loại) tuần tự hoá hai lệnh tạo song song để không cùng lọt qua mốc cuối.
 import { sql } from "kysely";
 import { t } from "../i18n.ts";
@@ -25,9 +27,13 @@ async function currentCount(ctx: CommandContext, resource: PlanResource): Promis
           where organization_id = ${org} and archived_at is null`.execute(ctx.trx)
         : await sql<{ n: number }>`select (
             (select count(*) from memberships where organization_id = ${org}
-               and status in ('invited','active','suspended'))
+               and status in ('invited','active','suspended')
+               and role not in ('tenant','guest','platform_support')
+               and (valid_to is null or valid_to > now()))
             + (select count(*) from invitations where organization_id = ${org}
-               and status = 'pending' and expires_at > now()))::int as n`.execute(ctx.trx);
+               and status = 'pending' and expires_at > now() and role <> 'tenant'))::int as n`.execute(
+            ctx.trx,
+          );
   return r.rows[0]?.n ?? 0;
 }
 

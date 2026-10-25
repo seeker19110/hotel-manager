@@ -8,7 +8,7 @@ import { expect, type Page, test } from "@playwright/test";
 import { Kysely, PostgresDialect, sql } from "kysely";
 import pg from "pg";
 import { expectAccessible } from "./a11y.ts";
-import { CORE_CONSENT } from "./consent.ts";
+import { CORE_CONSENT, submitSignUp } from "./consent.ts";
 import { DELETE_OWNER, dbUrlFile, ORG_DELETE, portOf } from "./fixtures.ts";
 import { signInClick } from "./sign-in.ts";
 import { deleteTotpFile, totp } from "./totp.ts";
@@ -50,7 +50,7 @@ test("xoá tổ chức: yêu cầu → banner → huỷ một bước (≤ bư�
   await signup.fill("Email", `dem.buoc.${Date.now().toString(36)}@example.test`);
   await signup.fill("Mật khẩu", ["e2e", "dem", "buoc", "gia"].join("-"));
   await signup.check(CORE_CONSENT);
-  await signup.click("Tạo tài khoản");
+  await submitSignUp(page, () => signup.click("Tạo tài khoản"));
   await expect(page).toHaveURL(/\/chon-to-chuc$/, { timeout: 15_000 });
   await page.context().clearCookies();
 
@@ -91,9 +91,13 @@ test("xoá tổ chức: yêu cầu → banner → huỷ một bước (≤ bư�
   await form.getByRole("button", { name: "Xoá tổ chức" }).click();
   const banner = page.getByTestId("org-deletion-banner");
   await expect(banner).toBeVisible({ timeout: 15_000 });
-  await expect(banner).toContainText(/Dữ liệu sẽ bị xoá vĩnh viễn vào ngày \d{4}-\d{2}-\d{2}/);
-  const due = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
-  await expect(banner).toContainText(due);
+  await expect(banner).toContainText(/Dữ liệu sẽ bị xoá vĩnh viễn vào ngày \d{2}\/\d{2}\/\d{4}/);
+  // Ngày theo giờ Việt Nam (UTC+7, không DST) — không phải ngày UTC.
+  const [y, m, d] = new Date(Date.now() + 30 * 86_400_000 + 7 * 3_600_000)
+    .toISOString()
+    .slice(0, 10)
+    .split("-");
+  await expect(banner).toContainText(`${d}/${m}/${y}`);
 
   // Banner có trên trang khác.
   await page.goto("/phong");
@@ -128,9 +132,9 @@ test("xoá tổ chức: yêu cầu → banner → huỷ một bước (≤ bư�
                                        deletion_due_at = deletion_due_at - interval '30 days' where id = ${orgId}`.execute(
       db,
     );
-    const r = await sql<{ c: { organization_id: string } | null }>`
+    const r = await sql<{ c: string | null }>`
       select app.org_purge_execute(${orgId}::uuid, now(), 0, 0) as c`.execute(db);
-    expect(r.rows[0]?.c?.organization_id).toBe(orgId);
+    expect((JSON.parse(r.rows[0]?.c ?? "{}") as { organization_id?: string }).organization_id).toBe(orgId);
   } finally {
     await db.destroy();
   }

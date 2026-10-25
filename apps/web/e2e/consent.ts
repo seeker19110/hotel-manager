@@ -26,3 +26,41 @@ export async function passTenantConsentIfAsked(
   await page.getByRole("button", { name: "Đồng ý và tiếp tục" }).click();
   return "asked";
 }
+
+const SIGN_UP = "/api/auth/sign-up/";
+/** Cửa sổ hạn mức `/sign-up` theo IP của Better Auth (mặc định 3 lần/10 giây) + 1 giây dự phòng. */
+const SIGN_UP_WINDOW_MS = 11_000;
+
+/**
+ * Gửi form đăng ký. Nhiều spec đăng ký liền nhau trên cùng server (cùng IP) có thể chạm hạn mức `/sign-up` của Better Auth ⇒ 429:
+ * khi đó chờ hết cửa sổ rồi gửi lại (không tắt rào — như đăng nhập TOTP ở onboarding.spec.ts). `submit` là thao tác bấm của lần đầu
+ * (spec đếm bước truyền thao tác có đếm); các lần gửi lại bấm thẳng nút, không tính bước.
+ */
+export async function submitSignUp(
+  page: Page,
+  submit: () => Promise<unknown> = () =>
+    page.getByRole("button", { name: "Tạo tài khoản", exact: true }).click(),
+): Promise<void> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const res = page.waitForResponse((r) => r.url().includes(SIGN_UP));
+    await (attempt === 0
+      ? submit()
+      : page.getByRole("button", { name: "Tạo tài khoản", exact: true }).click());
+    if ((await res).status() !== 429) return;
+    await page.waitForTimeout(SIGN_UP_WINDOW_MS);
+  }
+  throw new Error("đăng ký: vẫn 429 sau 3 lần chờ hết cửa sổ");
+}
+
+/** POST tới API đăng ký/đăng nhập, gặp 429 (hạn mức theo IP) thì chờ hết cửa sổ rồi gửi lại. */
+export async function postRespectingRateLimit(
+  page: Page,
+  url: string,
+  options: Parameters<Page["request"]["post"]>[1],
+): Promise<Awaited<ReturnType<Page["request"]["post"]>>> {
+  for (let attempt = 0; ; attempt++) {
+    const res = await page.request.post(url, options);
+    if (res.status() !== 429 || attempt === 2) return res;
+    await page.waitForTimeout(SIGN_UP_WINDOW_MS);
+  }
+}

@@ -122,10 +122,13 @@ REVOKE ALL ON support_grants FROM PUBLIC;
 GRANT SELECT, INSERT, UPDATE ON support_grants TO app_runtime;
 
 ALTER TABLE audit_events ADD COLUMN support_grant_id uuid;
+-- NOT VALID rồi VALIDATE: thêm ràng buộc chỉ giữ khoá ngắn; VALIDATE quét bảng với SHARE UPDATE EXCLUSIVE (không chặn ghi).
 ALTER TABLE audit_events
   ADD CONSTRAINT fk_audit_support_grant FOREIGN KEY (organization_id, support_grant_id)
-    REFERENCES support_grants (organization_id, id) ON DELETE RESTRICT,
-  ADD CONSTRAINT ck_audit_support_grant CHECK ((actor_type = 'platform_support') = (support_grant_id IS NOT NULL));
+    REFERENCES support_grants (organization_id, id) ON DELETE RESTRICT NOT VALID,
+  ADD CONSTRAINT ck_audit_support_grant CHECK ((actor_type = 'platform_support') = (support_grant_id IS NOT NULL)) NOT VALID;
+ALTER TABLE audit_events VALIDATE CONSTRAINT fk_audit_support_grant;
+ALTER TABLE audit_events VALIDATE CONSTRAINT ck_audit_support_grant;
 CREATE INDEX ix_audit_support_grant ON audit_events (organization_id, support_grant_id) WHERE support_grant_id IS NOT NULL;
 
 -- Chỉ đọc ở tầng CSDL cho actor platform_support.
@@ -174,7 +177,12 @@ DROP TABLE IF EXISTS platform_support_users;
 `;
 
 export async function up(db: Kysely<unknown>): Promise<void> {
+  // Khoá bảng (RK-021): ALTER audit_events/policy trên mọi bảng — `lock_timeout` 5 s như 0048/0056/0066 (hết hạn ⇒ lỗi, chạy lại).
+  const prev =
+    (await sql<{ v: string }>`select current_setting('lock_timeout') as v`.execute(db)).rows[0]?.v ?? "0";
+  await sql`select set_config('lock_timeout', '5s', true)`.execute(db);
   await sql.raw(UP).execute(db);
+  await sql`select set_config('lock_timeout', ${prev}, true)`.execute(db);
 }
 
 export async function down(db: Kysely<unknown>): Promise<void> {

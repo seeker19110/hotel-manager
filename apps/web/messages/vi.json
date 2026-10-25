@@ -3107,6 +3107,22 @@
     "message": "Bật xác thực hai lớp",
     "description": "Khung trang nhân viên khi vai trò bắt buộc MFA chưa bật: nút liên kết sang /bao-mat."
   },
+  "page_shell.support_forbidden.title": {
+    "message": "Không có quyền xem trang này",
+    "description": "Khung trang nhân viên khi hỗ trợ nền tảng mở trang ngoài phạm vi được cấp: tiêu đề khối lỗi."
+  },
+  "page_shell.support_forbidden.text": {
+    "message": "Truy cập hỗ trợ chỉ cho xem trạng thái lịch phòng.",
+    "description": "Khung trang nhân viên khi hỗ trợ nền tảng mở trang ngoài phạm vi: giải thích phạm vi được phép."
+  },
+  "page_shell.support_audit_failed.text": {
+    "message": "Không ghi được nhật ký truy cập nên chưa thể hiển thị dữ liệu. Thử lại sau.",
+    "description": "Khung trang nhân viên khi hỗ trợ nền tảng mở trang được phép nhưng ghi nhật ký truy cập lỗi: không hiển thị dữ liệu."
+  },
+  "page_shell.support_forbidden.action": {
+    "message": "Mở lịch phòng",
+    "description": "Khung trang nhân viên khi hỗ trợ nền tảng mở trang ngoài phạm vi: nút liên kết sang /lich-phong."
+  },
   "shift.open.notice": {
     "message": "Bạn đang mở ca tiền mặt tại {name}.",
     "description": "Panel ca tiền mặt khi đã mở ca: dòng xác nhận kèm tên cơ sở (dấu ✓ là phần trang trí đứng trước)."
@@ -4712,8 +4728,8 @@
     "description": "Banner trên mọi trang khi tổ chức chờ xoá (T-2312, D-121)."
   },
   "org_banner.text": {
-    "message": "Dữ liệu sẽ bị xoá vĩnh viễn vào ngày {date} (UTC). Đến lúc đó chỉ xem và xuất dữ liệu được.",
-    "description": "Banner chờ xoá: ngày purge (YYYY-MM-DD UTC) (T-2312, D-121)."
+    "message": "Dữ liệu sẽ bị xoá vĩnh viễn vào ngày {date}. Đến lúc đó chỉ xem và xuất dữ liệu được.",
+    "description": "Banner chờ xoá: ngày purge (dd/mm/yyyy theo giờ Việt Nam) (T-2312, D-121)."
   },
   "org_banner.cancel": {
     "message": "Huỷ xoá tổ chức",
@@ -4736,7 +4752,7 @@
     "description": "Trang /bao-mat: giải thích chứng nhận xoá (T-2312, D-121)."
   },
   "org_certificates.item": {
-    "message": "Tổ chức {org} — xoá ngày {date} (UTC)",
+    "message": "Tổ chức {org} — xoá ngày {date}",
     "description": "Trang /bao-mat: một chứng nhận (id tổ chức, ngày purge) (T-2312, D-121)."
   },
   "org_certificates.sha": {

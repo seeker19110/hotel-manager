@@ -19,9 +19,11 @@
 //     · `app.org_purge_kept_object_keys(p_org)` — khoá object PHẢI GIỮ (file được bảng giữ tham chiếu: ảnh công tơ, chứng từ chuyển khoản,
 //       hồ sơ thông báo lưu trú). Worker liệt kê object theo tiền tố `<org>/` và xoá mọi object còn lại TRƯỚC khi gọi purge CSDL.
 //     · `app.org_purge_execute(p_org, p_now, p_objects_deleted, p_objects_retained)` — chưa tới hạn/đã huỷ ⇒ NULL; đã purge ⇒ trả lại
-//       chứng nhận cũ (chạy lại idempotent); còn lại: xoá/ẩn danh theo kế hoạch, thu hồi mọi membership, ghi chứng nhận + audit
+//       chứng nhận cũ dạng `text` = đúng chuỗi đã băm (chạy lại idempotent); còn lại: xoá/ẩn danh theo kế hoạch, thu hồi mọi membership, ghi chứng nhận + audit
 //       `organization.purged` trong cùng transaction.
 //   app_runtime: `app.org_deletion_my_certificates()`.
+//   Mốc của hai hàm trên bị chặn trên bởi đồng hồ CSDL (`least(p_now, now())`, như 0066/0067). Trigger guard bắt
+//   `deletion_requested_at` mới ≈ now() (lệch < 60 giây) — owner không lùi ngày yêu cầu để purge ngay.
 // - `app.check_last_owner` bỏ qua tổ chức đã purge (mọi membership bị thu hồi có chủ đích). Down khôi phục thân hàm cũ.
 // - Down: gỡ hàm/bảng/cột (mất chứng nhận — chỉ dùng khi lùi ngay sau khi áp).
 import { type Kysely, sql } from "kysely";
@@ -67,6 +69,11 @@ BEGIN
        IS DISTINCT FROM (OLD.deletion_requested_at, OLD.deletion_due_at, OLD.deletion_requested_by)
      AND coalesce((SELECT app.actor_role()) <> 'owner', true) THEN
     RAISE EXCEPTION 'chỉ owner yêu cầu/huỷ xoá tổ chức' USING ERRCODE = '42501', HINT = 'FORBIDDEN';
+  END IF;
+  -- Mốc yêu cầu phải là "bây giờ" (lệch < 60 giây với giờ CSDL): owner không lùi ngày yêu cầu để purge ngay (bỏ qua 30 ngày ân hạn).
+  IF NEW.deletion_requested_at IS NOT NULL AND NEW.deletion_requested_at IS DISTINCT FROM OLD.deletion_requested_at
+     AND abs(extract(epoch FROM (NEW.deletion_requested_at - now()))) >= 60 THEN
+    RAISE EXCEPTION 'thời điểm yêu cầu xoá phải là hiện tại' USING ERRCODE = '22007', HINT = 'INVALID_DELETION_TIME';
   END IF;
   RETURN NEW;
 END $$;
@@ -194,7 +201,7 @@ CREATE FUNCTION app.org_deletion_due(p_now timestamptz, p_limit integer)
   RETURNS TABLE (organization_id uuid)
   LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
     SELECT o.id FROM organizations o
-    WHERE o.deletion_due_at IS NOT NULL AND o.deleted_at IS NULL AND o.deletion_due_at <= p_now
+    WHERE o.deletion_due_at IS NOT NULL AND o.deleted_at IS NULL AND o.deletion_due_at <= least(p_now, now())
     ORDER BY o.deletion_due_at, o.id
     LIMIT least(greatest(p_limit, 1), 100)
   $$;
@@ -211,7 +218,7 @@ BEGIN
 END $$;
 
 CREATE FUNCTION app.org_purge_execute(p_org uuid, p_now timestamptz, p_objects_deleted integer, p_objects_retained integer)
-  RETURNS jsonb
+  RETURNS text
   LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE
   o organizations%ROWTYPE;
@@ -225,6 +232,8 @@ DECLARE
   v_import_rows integer;
   v_content text;
   v_cert uuid := gen_random_uuid();
+  -- Mốc bị chặn trên bởi đồng hồ CSDL (như 0066/0067): p_now tương lai không làm tổ chức "tới hạn" sớm.
+  v_now timestamptz := least(p_now, now());
 BEGIN
   PERFORM set_config('app.org_id', p_org::text, true);
   SELECT * INTO o FROM organizations WHERE id = p_org FOR UPDATE;
@@ -232,14 +241,14 @@ BEGIN
     RETURN NULL;
   END IF;
   IF o.deleted_at IS NOT NULL THEN
-    RETURN (SELECT c.content::jsonb FROM org_deletion_certificates c WHERE c.organization_id = p_org);
+    RETURN (SELECT c.content FROM org_deletion_certificates c WHERE c.organization_id = p_org);
   END IF;
-  IF o.deletion_due_at IS NULL OR o.deletion_due_at > p_now THEN
+  IF o.deletion_due_at IS NULL OR o.deletion_due_at > v_now THEN
     RETURN NULL;
   END IF;
 
   -- Đánh dấu đã purge TRƯỚC (check_last_owner bỏ qua tổ chức đã purge); tên → giá trị không định danh.
-  UPDATE organizations SET deleted_at = p_now, name = '—', settings = '{}'::jsonb, version = version + 1 WHERE id = p_org;
+  UPDATE organizations SET deleted_at = v_now, name = '—', settings = '{}'::jsonb, version = version + 1 WHERE id = p_org;
 
   FOR r IN SELECT p.table_name FROM app.org_purge_plan() p WHERE p.action = 'delete' AND p.table_name <> 'files' ORDER BY p.ord LOOP
     EXECUTE format('DELETE FROM %I WHERE organization_id = $1', r.table_name) USING p_org;
@@ -253,7 +262,7 @@ BEGIN
   v_erased := v_erased || jsonb_build_object('files', n, 'objects', greatest(coalesce(p_objects_deleted, 0), 0));
 
   SET CONSTRAINTS public.trg_memberships_last_owner IMMEDIATE;
-  UPDATE memberships m SET status = 'revoked', revoked_at = coalesce(m.revoked_at, p_now), version = m.version + 1
+  UPDATE memberships m SET status = 'revoked', revoked_at = coalesce(m.revoked_at, v_now), version = m.version + 1
   WHERE m.organization_id = p_org AND m.status <> 'revoked';
   GET DIAGNOSTICS v_members = ROW_COUNT;
 
@@ -271,7 +280,7 @@ BEGIN
     UPDATE persons p
     SET full_name = CASE WHEN c.keep THEN p.full_name ELSE '—' END,
         nationality = CASE WHEN c.keep THEN p.nationality ELSE NULL END,
-        anonymized_at = CASE WHEN c.keep THEN NULL ELSE p_now END,
+        anonymized_at = CASE WHEN c.keep THEN NULL ELSE v_now END,
         phone = NULL, email = NULL, address = NULL, version = p.version + 1
     FROM cls c WHERE p.organization_id = p_org AND p.id = c.id
     RETURNING c.keep
@@ -305,7 +314,7 @@ BEGIN
     'organization_id', p_org,
     'requested_at', o.deletion_requested_at,
     'due_at', o.deletion_due_at,
-    'purged_at', p_now,
+    'purged_at', v_now,
     'erased', v_erased,
     'retained', v_retained,
     'outside_repo', jsonb_build_array(
@@ -313,14 +322,14 @@ BEGIN
       jsonb_build_object('store', 'logs', 'reason', 'no_personal_data_logged_expires_per_retention_policy')))::text;
 
   INSERT INTO org_deletion_certificates (id, organization_id, requested_by, requested_at, due_at, purged_at, content, content_sha256)
-  VALUES (v_cert, p_org, o.deletion_requested_by, o.deletion_requested_at, o.deletion_due_at, p_now, v_content,
+  VALUES (v_cert, p_org, o.deletion_requested_by, o.deletion_requested_at, o.deletion_due_at, v_now, v_content,
           encode(sha256(convert_to(v_content, 'UTF8')), 'hex'));
 
   INSERT INTO audit_events (id, organization_id, actor_type, action, entity_type, entity_id, correlation_id, after)
   VALUES (gen_random_uuid(), p_org, 'worker', 'organization.purged', 'organization', p_org, 'org-purge:' || p_org::text,
           jsonb_build_object('certificate_id', v_cert, 'content_sha256', encode(sha256(convert_to(v_content, 'UTF8')), 'hex')));
 
-  RETURN v_content::jsonb;
+  RETURN v_content;
 END $$;
 
 CREATE FUNCTION app.org_deletion_my_certificates()
