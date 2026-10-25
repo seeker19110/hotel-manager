@@ -74,6 +74,13 @@ apps/worker (job)    ─┼─► packages/app (command/query: transaction, quy�
 - Client timeout ở bước 7 → gọi `GET /api/v1/commands/{command_id}` để lấy kết quả, **không** gửi lệnh mới (kế hoạch §09, §13).
 - Lỗi constraint (`23P01` chồng phòng, `23505` trùng) được dịch thành mã nghiệp vụ, không trả lỗi SQL thô.
 
+## Hạn mức theo gói và fair-share worker (IND-SAAS-008, D-123)
+
+- **Gói khai báo trong repo:** `packages/app/src/plans/plans.ts` (`free`, `standard`) — hạn mức số cơ sở, số phòng, số thành viên (kể cả lời mời đang chờ), lệnh ghi/phút/tổ chức, job đồng thời/tổ chức. Đổi hạn mức qua PR. `planFor(orgId)` là MỘT điểm tra cứu; `organizations` chưa có cột gói nên mọi tổ chức dùng `standard` (hạn mức rộng). Khi có thanh toán sẽ đọc gói từ CSDL ở chính hàm này.
+- **Kiểm ở command:** `property.create`, `unit.create`, `member.invite` gọi `assertWithinPlan` (`plans/limits.ts`) — đếm bản ghi chưa lưu trữ dưới khoá advisory theo (tổ chức, loại). Bằng hạn mức vẫn tạo được, vượt một ⇒ `409 PLAN_LIMIT_REACHED` (thông điệp ở catalog i18n). Chỉ chặn TẠO MỚI; dữ liệu sẵn có vẫn đọc/sửa.
+- **Rate limit lệnh ghi:** route lệnh (`http/command-route.ts`) truyền cho pipeline trần lệnh mới/phút/tổ chức lấy từ `planFor(orgId).commandsPerMinute` (cơ chế đếm sẵn có, xem API-CONTRACT §Rate limit).
+- **Fair-share worker:** relay gửi job pg-boss kèm nhóm `{id: organization_id, tier: id gói}` (`apps/worker/src/relay.ts`, `jobGroup`); consumer chạy `DEFAULT_LOCAL_CONCURRENCY` luồng/queue với `groupConcurrency` theo bậc gói (`jobGroupConcurrency()`). Một tổ chức xếp nhiều job chỉ chiếm chừng `jobConcurrency` luồng; luồng còn lại lấy job tổ chức khác. Dùng `groupConcurrency` của pg-boss (đếm job đang chạy theo nhóm ngay trong câu lệnh lấy job, đúng với nhiều worker): trần MỀM — hai luồng lấy job cùng lúc có thể cùng lọt qua trần (tối đa số luồng), nhưng luồng rảnh luôn bỏ qua tổ chức đã đủ trần nên tổ chức khác không đợi hết hàng. Đã đo `localGroupConcurrency` (đếm trong bộ nhớ, chính xác hơn): job bị lấy rồi trả khiến luồng rảnh thăm dò lệch pha, tổ chức nhỏ đôi khi đợi gần hết hàng — không chọn. Test tải hai tổ chức: `apps/worker/src/fair-share.db.test.ts`.
+
 ## Môi trường
 
 | Môi trường | CSDL | Auth | File | Email | Ghi chú |

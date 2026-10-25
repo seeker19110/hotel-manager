@@ -3338,5 +3338,17 @@
   "shifts.assignee_invalid": {
     "message": "Người được gán phải là nhân viên còn hiệu lực của cơ sở",
     "description": "Thông điệp lỗi API (problem+json) trả cho client khi người được gán chịu trách nhiệm chênh lệch không phải nhân viên còn hiệu lực của cơ sở."
+  },
+  "plans.limit_reached.properties": {
+    "message": "Gói hiện tại cho tối đa {limit} cơ sở. Hãy lưu trữ cơ sở không dùng hoặc nâng gói.",
+    "description": "Thông điệp lỗi API (409 PLAN_LIMIT_REACHED) khi tạo cơ sở vượt số cơ sở tối đa của gói. {limit} là số cơ sở tối đa."
+  },
+  "plans.limit_reached.rooms": {
+    "message": "Gói hiện tại cho tối đa {limit} phòng. Hãy lưu trữ phòng không dùng hoặc nâng gói.",
+    "description": "Thông điệp lỗi API (409 PLAN_LIMIT_REACHED) khi tạo phòng vượt số phòng tối đa của gói. {limit} là số phòng tối đa."
+  },
+  "plans.limit_reached.members": {
+    "message": "Gói hiện tại cho tối đa {limit} thành viên (kể cả lời mời đang chờ). Hãy thu hồi lời mời không dùng hoặc nâng gói.",
+    "description": "Thông điệp lỗi API (409 PLAN_LIMIT_REACHED) khi mời thành viên vượt số thành viên tối đa của gói. {limit} là số thành viên tối đa."
   }
 }

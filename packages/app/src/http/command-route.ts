@@ -36,6 +36,7 @@ import {
   toProblem,
   unwrap,
 } from "../pipeline/index.ts";
+import { planFor } from "../plans/index.ts";
 import type { AppServices } from "../server/index.ts";
 import { CLIENT_VERSION_HEADER, isClientOutdated } from "./client-version.ts";
 import { nfcDeep } from "./normalize.ts";
@@ -403,7 +404,8 @@ async function runCommand<I, O, P>(
         payload: body,
         correlationId,
         client: requestClient(req.headers),
-        ...(deps.commandQuotaPerMinute ? { quotaPerMinute: deps.commandQuotaPerMinute } : {}),
+        // Hạn mức lệnh/phút theo gói của tổ chức (D-123); `commandQuotaPerMinute` chỉ để test ghi đè.
+        quotaPerMinute: deps.commandQuotaPerMinute ?? planFor(actor.orgId).commandsPerMinute,
         ...(deps.commandMemberQuotaPerMinute
           ? { memberQuotaPerMinute: deps.commandMemberQuotaPerMinute }
           : {}),

@@ -8,6 +8,7 @@ import { authorize, keepIfUndefined } from "@hm/domain";
 import { sql } from "kysely";
 import { t } from "../i18n.ts";
 import { type CommandContext, CommandError, fieldError } from "../pipeline/index.ts";
+import { assertWithinPlan } from "../plans/index.ts";
 
 export const DEFAULT_TIMEZONE = "Asia/Ho_Chi_Minh";
 export const DEFAULT_BUSINESS_DAY_CUTOFF = "00:00";
@@ -66,6 +67,7 @@ export async function createProperty(
   if (input.checkInTime !== undefined) assertClock("check_in_time", input.checkInTime);
   if (input.checkOutTime !== undefined) assertClock("check_out_time", input.checkOutTime);
   await assertTemplateAllowed(ctx, input.template);
+  await assertWithinPlan(ctx, "properties");
   const propertyId = randomUUID();
   const r = await sql<{ currency: string; cutoff: string }>`
     insert into properties (id, organization_id, name, template, timezone, business_day_cutoff, check_in_time, check_out_time)

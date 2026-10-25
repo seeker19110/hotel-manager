@@ -31,7 +31,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  * trượt; vượt ⇒ 429 RATE_LIMITED + `Retry-After`, KHÔNG lưu kết quả (gửi lại cùng key sau khi hết giới hạn chạy bình thường).
  * Một tổ chức bão hoà hạn mức không chiếm tài nguyên của tổ chức khác. Đếm ngay trong CSDL (`idempotency_keys`) nên đúng khi
  * nhiều instance. 600/phút ≈ 10 lệnh/giây — gấp nhiều lần mức thao tác tay của một khách sạn nhỏ, chỉ chặn script/lỗi vòng
- * lặp. Cố định theo mã (không biến môi trường); sau này theo gói thì đổi nguồn của hằng này.
+ * lặp. Đây là mặc định của pipeline (= gói `standard`, test `plans.test.ts` giữ khớp); route lệnh truyền hạn mức THEO GÓI của tổ chức (`planFor`, D-123). Cố định theo mã (không biến môi trường).
  *
  * Chỉ lệnh `committed`/`in_progress` tính vào hạn mức TỔ CHỨC: lệnh bị từ chối (401/403/404/409/422… — kết quả `failed`) do
  * chính người gửi tự gây ra, không được phép làm cạn hạn mức của cả tổ chức (một người thuê/nhân viên spam lệnh 403 không

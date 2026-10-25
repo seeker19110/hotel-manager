@@ -2,6 +2,7 @@
 // → handler. Job mang organization_id (IND-SAAS-003); retry có backoff; quá giới hạn → dead letter; lỗi vĩnh viễn
 // (payload sai, lỗi nghiệp vụ 4xx) → dead letter ngay, không retry (BE-JOB-003).
 
+import { jobGroupConcurrency, planFor } from "@hm/app";
 import { runJobWithTrace } from "@hm/app/logging";
 import { SECONDS_PER_DAY } from "@hm/app/units";
 import type { Kysely } from "kysely";
@@ -9,6 +10,18 @@ import { sql } from "kysely";
 import type { PgBoss } from "pg-boss";
 
 export const DEAD_LETTER_QUEUE = "outbox.dead_letter";
+
+/**
+ * Nhóm fair-share của một job (IND-SAAS-008, D-123): mỗi tổ chức một nhóm pg-boss, bậc = id gói. Consumer đặt `groupConcurrency`
+ * theo bậc nên một tổ chức xếp hàng nhiều job cũng chỉ chiếm tối đa `jobConcurrency` của gói; luồng còn lại của worker lấy job
+ * của tổ chức khác (không phải chờ hết hàng của tổ chức đông việc).
+ */
+export function jobGroup(orgId: string): { id: string; tier: string } {
+  return { id: orgId, tier: planFor(orgId).id };
+}
+
+/** Số luồng xử lý song song mỗi queue trên một worker: phải lớn hơn trần mỗi tổ chức để còn chỗ cho tổ chức khác. */
+export const DEFAULT_LOCAL_CONCURRENCY = 4;
 
 export interface OutboxJob {
   organization_id: string;
@@ -183,7 +196,7 @@ export async function relayOutbox(
         traceparent: r.traceparent,
       };
       try {
-        await boss.send(r.event_type, job, { id: r.id });
+        await boss.send(r.event_type, job, { id: r.id, group: jobGroup(r.organization_id) });
       } catch (err) {
         error = String((err as Error).message);
       }
@@ -210,13 +223,28 @@ export async function startConsumers(
   handlers: Readonly<Record<string, EventHandler>>,
   opts: {
     pollingIntervalSeconds?: number;
+    /** Luồng song song mỗi queue (mặc định `DEFAULT_LOCAL_CONCURRENCY`). */
+    localConcurrency?: number;
+    /**
+     * Trần job đồng thời mỗi tổ chức theo bậc gói (mặc định theo `jobGroupConcurrency()`), dùng `groupConcurrency` của pg-boss:
+     * đếm job đang chạy theo nhóm NGAY trong câu lệnh lấy job nên luồng rảnh luôn bỏ qua tổ chức đã đủ trần và lấy job của tổ chức
+     * khác (đo ở `fair-share.db.test.ts`: job của B xong sau vài job của A thay vì sau cả hàng). Đây là trần MỀM: hai luồng lấy job
+     * cùng lúc có thể cùng lọt qua trần (tối đa `localConcurrency` job một tổ chức), đổi lại chạy đúng với nhiều worker và không
+     * giữ trạng thái trong tiến trình. (`localGroupConcurrency` đếm trong bộ nhớ chính xác hơn nhưng lấy-rồi-trả job khiến luồng rảnh
+     * thăm dò lệch pha, B đôi khi đợi gần hết hàng — đã đo, không chọn.)
+     */
+    groupConcurrency?: { default: number; tiers?: Record<string, number> };
     log?: (event: string, fields: Record<string, unknown>) => void;
   } = {},
 ): Promise<void> {
   for (const [name, handler] of Object.entries(handlers)) {
     await boss.work<OutboxJob>(
       name,
-      { pollingIntervalSeconds: opts.pollingIntervalSeconds ?? 2 },
+      {
+        pollingIntervalSeconds: opts.pollingIntervalSeconds ?? 2,
+        localConcurrency: opts.localConcurrency ?? DEFAULT_LOCAL_CONCURRENCY,
+        groupConcurrency: opts.groupConcurrency ?? jobGroupConcurrency(),
+      },
       async (jobs) => {
         for (const j of jobs) {
           // Mỗi job một span riêng, nối tiếp trace của request sinh ra sự kiện: mọi log trong handler và log

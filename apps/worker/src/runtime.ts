@@ -39,7 +39,7 @@ import {
   notifyHandlers,
   workerHeartbeat,
 } from "./jobs.ts";
-import { ensureQueues, type OutboxJob, relayOutbox, startConsumers } from "./relay.ts";
+import { ensureQueues, jobGroup, type OutboxJob, relayOutbox, startConsumers } from "./relay.ts";
 import { type ScheduledJob, startScheduler } from "./scheduler.ts";
 
 const SECOND = 1000;
@@ -184,7 +184,11 @@ export async function startWorker(deps: WorkerDeps): Promise<WorkerHandle> {
             baseUrl: deps.baseUrl,
             // Hết ngân sách email ngày ⇒ xếp lại job tới đầu ngày UTC kế (không vào dead letter) — OPS-COST-004.
             requeue: async (job, startAfter, id) => {
-              await boss.send("member.invited", job, { id, startAfter });
+              await boss.send("member.invited", job, {
+                id,
+                startAfter,
+                group: jobGroup(job.organization_id),
+              });
             },
           },
           log.child({ component: "member.invitation" }),

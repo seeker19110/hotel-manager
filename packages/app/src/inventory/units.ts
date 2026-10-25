@@ -5,6 +5,7 @@ import { authorize } from "@hm/domain";
 import { sql } from "kysely";
 import { t } from "../i18n.ts";
 import { type CommandContext, CommandError, fieldError } from "../pipeline/index.ts";
+import { assertWithinPlan } from "../plans/index.ts";
 
 /** Thông báo 404 chung (cơ sở/phòng ngoài tầm nhìn không phân biệt với không tồn tại). */
 const NOT_FOUND_MSG = t("common.unit_not_found");
@@ -41,6 +42,7 @@ export async function createUnit(
       ctx.trx,
     );
   if (prop.rows.length === 0) throw new CommandError("NOT_FOUND", 404, NOT_FOUND_MSG);
+  await assertWithinPlan(ctx, "rooms");
   const floor = await sql<{ id: string }>`
     insert into floors (id, organization_id, property_id, name, sort_order)
     values (${randomUUID()}, ${ctx.actor.orgId}, ${input.propertyId}, ${floorName},

@@ -22,6 +22,7 @@ Miền theo ranh giới của ADR-0001 (kế hoạch §11); cột "Tầng" dùng
 |---|---|---|---|
 | `access` | Access | B | Xác định người thao tác (`resolveActor`), ngữ cảnh tổ chức, khôi phục MFA |
 | `pipeline` | Access | B | Command pipeline: idempotency, quyền, audit + outbox cùng transaction, lỗi → problem+json (điểm công khai `index.ts`) |
+| `plans` | Nền | B | Gói và hạn mức theo tổ chức (`planFor`, `assertWithinPlan`): số cơ sở/phòng/thành viên, lệnh ghi/phút, job đồng thời/tổ chức (IND-SAAS-008, D-123) |
 | `identity` | Access | C | Giấy tờ nhận dạng: mã hoá AES-256-GCM, blind index, che hiển thị |
 | `approvals` | Access | C | Yêu cầu duyệt có hạn mức, cấm tự duyệt |
 | `actor-core` | Access | A | Kiểu `Actor`/`Role` và `AccessError` thuần (không I/O) cho cả `access` và `pipeline`; tách ra để hai module không import vòng (điểm công khai `index.ts`) |

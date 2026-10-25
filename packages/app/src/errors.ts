@@ -81,6 +81,7 @@ export const ERROR_CODES = {
   CLIENT_OUTDATED: { status: 426, source: "SPEC-pwa §6" },
   REPORT_RANGE_TOO_LARGE: { status: 422, source: "SPEC-audit-reporting §6" },
   EXPORT_NOT_READY: { status: 409, source: "SPEC-audit-reporting §6" },
+  PLAN_LIMIT_REACHED: { status: 409, source: "SPEC-access-and-property §6 (D-123)" },
   DUPLICATE: { status: 409, source: "unique 23505 chưa có mã nghiệp vụ riêng" },
 } as const satisfies Record<string, ErrorSpec>;
 

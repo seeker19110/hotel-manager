@@ -152,6 +152,7 @@ export {
 export * from "./outbox/index.ts";
 export { getCommandResult } from "./pipeline/command.ts";
 export { CommandError } from "./pipeline/problem.ts";
+export { jobGroupConcurrency, PLANS, type PlanId, type PlanLimits, planFor } from "./plans/index.ts";
 export {
   getMyInvoice,
   getMyLease,

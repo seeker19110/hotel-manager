@@ -10,6 +10,7 @@ import { AuthzError, authorize, effectiveLimit } from "@hm/domain";
 import { type Kysely, sql } from "kysely";
 import { t } from "../i18n.ts";
 import { type CommandContext, CommandError, fieldError } from "../pipeline/index.ts";
+import { assertWithinPlan } from "../plans/index.ts";
 import { authorizeOrAudit } from "./denied.ts";
 
 export const INVITATION_TTL_DAYS = 7;
@@ -124,6 +125,7 @@ export async function inviteMember(
       extensions: { errors: [{ path: "email", field: "email", code: "pending_invitation" }] },
     });
 
+  await assertWithinPlan(ctx, "members");
   const invitationId = randomUUID();
   const hash = hashInvitationToken(invitationToken(key, invitationId));
   const ins = await sql<{ expires_at: Date }>`

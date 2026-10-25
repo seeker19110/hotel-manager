@@ -194,7 +194,7 @@ Hợp đồng chi tiết: `docs/design/API-CONTRACT.md`. Mọi command nhận `I
 | Tên | Input chính | Output | Lỗi |
 |---|---|---|---|
 | `org.create` | name | organization_id, membership_id | VALIDATION_FAILED |
-| `property.create` / `property.update` | name, template, timezone?, business_day_cutoff?, check_in_time?, check_out_time? | property_id | VALIDATION_FAILED, FEATURE_DISABLED, PROPERTY_IN_USE, FORBIDDEN |
+| `property.create` / `property.update` | name, template, timezone?, business_day_cutoff?, check_in_time?, check_out_time? | property_id | VALIDATION_FAILED, FEATURE_DISABLED, PLAN_LIMIT_REACHED, PROPERTY_IN_USE, FORBIDDEN |
 | `floor.create` / `floor.update` | property_id, name, sort_order | floor_id | VALIDATION_FAILED |
 | `unit.create` / `unit.update` / `unit.archive` | property_id, floor_id, code, room_type_id?, kind | unit_id | UNIT_CODE_TAKEN, UNIT_IN_USE, VALIDATION_FAILED |
 | `member.invite` | email, role, property_ids, limits | invitation_id, expires_at | FORBIDDEN, VALIDATION_FAILED, IDEMPOTENCY_CONFLICT |
@@ -294,6 +294,7 @@ Ký hiệu: **Có** = được trong phạm vi cơ sở · **HM** = trong hạn 
 | UNIT_IN_USE | Lưu trữ phòng còn lịch tương lai | 409 | Phòng còn lịch sử dụng sắp tới, chưa thể lưu trữ. | S-006 |
 | PROPERTY_IN_USE | Đổi múi giờ/giờ chốt khi đã có dữ liệu | 409 | Cơ sở đã có giao dịch, không thể đổi múi giờ hoặc giờ chốt ngày. | S-023 |
 | FEATURE_DISABLED | Mẫu `mixed` chưa bật | 409 | Mẫu Hỗn hợp chưa được mở. | S-003 |
+| PLAN_LIMIT_REACHED | Tạo cơ sở/phòng/lời mời thành viên vượt hạn mức gói (D-123) | 409 | Gói hiện tại cho tối đa N cơ sở/phòng/thành viên. | — |
 | LAST_OWNER | Thu hồi/hạ owner cuối | 409 | Tổ chức phải còn ít nhất một chủ sở hữu. | S-019 |
 | ORG_CONTEXT_REQUIRED | Thuộc nhiều tổ chức, chưa chọn | 409 | Hãy chọn tổ chức bạn đang làm việc. | S-020 |
 | INVALID_TRANSITION | Duyệt yêu cầu đã xử lý | 409 | Yêu cầu này đã được xử lý. | — |
