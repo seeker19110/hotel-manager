@@ -102,3 +102,85 @@ describe("docs/privacy", () => {
         expect(line, `${f}: ${line}`).toMatch(/chưa xác minh/);
   });
 });
+
+describe("scripts/privacy-docs.mjs (CMP-INTL-002, CMP-AUDIT-003, CMP-AUDIT-007)", async () => {
+  const { changelogFindings, dataMapErrors, run, vendorErrors } = await import("./privacy-docs.mjs");
+  const DAY = 86_400_000;
+  const T = Date.parse("2026-10-25T00:00:00Z");
+  const entry = (o) => ({
+    table: "public.t",
+    column: "c",
+    legal_basis: "x",
+    legal_basis_code: "contract",
+    ...o,
+  });
+
+  it("repo thật: không lỗi", () => {
+    expect(run(T).errors).toEqual([]);
+  });
+
+  it("data map: thiếu/sai legal_basis_code, nhạy cảm thiếu art9_condition hoặc thiếu note → lỗi", () => {
+    expect(dataMapErrors({ entries: [entry({})] })).toEqual([]);
+    expect(dataMapErrors({ entries: [entry({ legal_basis_code: "hop_dong" })] })[0]).toMatch(
+      /legal_basis_code/,
+    );
+    expect(dataMapErrors({ entries: [entry({ legal_basis: "" })] })[0]).toMatch(/thiếu legal_basis/);
+    expect(dataMapErrors({ entries: [entry({ classification: "nhay_cam" })] })[0]).toMatch(/art9_condition/);
+    expect(
+      dataMapErrors({
+        entries: [entry({ classification: "nhay_cam", art9_condition: "khong_thuoc_art9" })],
+      })[0],
+    ).toMatch(/art9_note/);
+    expect(
+      dataMapErrors({ entries: [entry({ classification: "nhay_cam", art9_condition: "explicit_consent" })] }),
+    ).toEqual([]);
+    expect(dataMapErrors({ entries: [] })).toEqual(["data map không có mục nào"]);
+  });
+
+  const v = (o) => ({
+    name: "A",
+    role: "r",
+    data: "d",
+    location: "VN",
+    dpa: "x",
+    status: "dang_dung",
+    reviewed: "2026-01-01",
+    sdk_packages: [],
+    ...o,
+  });
+  const md = "| **A** | r |\n";
+  it("nhà cung cấp: hợp lệ; quá 12 tháng chưa rà; trùng tên; lệch processors.md hai chiều", () => {
+    expect(vendorErrors({ vendors: [v({})] }, md, [], T)).toEqual([]);
+    expect(vendorErrors({ vendors: [v({ reviewed: "2025-01-01" })] }, md, [], T)[0]).toMatch(/quá 12 tháng/);
+    expect(
+      vendorErrors({ vendors: [v({ reviewed: "2025-01-01", status: "chua_chon" })] }, md, [], T),
+    ).toEqual([]);
+    expect(vendorErrors({ vendors: [v({}), v({})] }, md, [], T)).toContain("A: trùng tên");
+    expect(vendorErrors({ vendors: [v({ name: "B" })] }, md, [], T).join()).toMatch(
+      /B: không có trong.*"A": thiếu dòng/,
+    );
+    expect(
+      vendorErrors({ vendors: [v({ status: "x", sdk_packages: undefined })] }, md, [], T).join(),
+    ).toMatch(/sdk_packages phải là mảng.*status "x"/);
+  });
+  it("SDK dịch vụ ngoài trong phụ thuộc runtime phải có ở sdk_packages; thư viện thường thì không cần", () => {
+    expect(vendorErrors({ vendors: [v({})] }, md, ["@sentry/node", "zod"], T)).toEqual([
+      'phụ thuộc runtime "@sentry/node" là SDK dịch vụ ngoài nhưng chưa có trong sdk_packages của vendors.yaml',
+    ]);
+    expect(
+      vendorErrors({ vendors: [v({ sdk_packages: ["@sentry/node"] })] }, md, ["@sentry/node"], T),
+    ).toEqual([]);
+  });
+
+  it("CHANGELOG: phải có mục ngày, xếp mới nhất trên; updated mới hơn mục mới nhất → lỗi; quá 6 tháng → cảnh báo", () => {
+    expect(changelogFindings("# x\n", [], T).errors[0]).toMatch(/chưa có mục/);
+    expect(changelogFindings("## 2026-01-01\n## 2026-02-01\n", [], T).errors[0]).toMatch(/mới nhất ở trên/);
+    expect(changelogFindings("## 2026-10-25\n", [["ROPA.md", "2026-10-26"]], T).errors[0]).toMatch(
+      /ROPA\.md/,
+    );
+    const old = changelogFindings("## 2026-01-01\n", [["ROPA.md", "2026-01-01"]], T);
+    expect(old.errors).toEqual([]);
+    expect(old.warnings[0]).toMatch(/quá 6 tháng/);
+    expect(changelogFindings("## 2026-10-01\n", [], T + 0 * DAY).warnings).toEqual([]);
+  });
+});

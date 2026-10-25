@@ -30,6 +30,8 @@ jobs:
           cache: pnpm
       - name: Cài phụ thuộc (lockfile đóng băng, không chạy script)
         run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Hồ sơ quyền riêng tư + sổ nhà cung cấp (CMP-INTL-002, CMP-AUDIT-003, CMP-AUDIT-007)
+        run: node scripts/privacy-docs.mjs
       - name: Lockfile của nhánh gốc
         env:
           BASE_REF: ${{ github.event.pull_request.base.ref }}
