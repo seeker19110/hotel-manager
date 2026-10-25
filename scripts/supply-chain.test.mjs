@@ -49,17 +49,24 @@ describe("dependabot.yml ↔ manifest thật (BASE-DEP-007, OPS-MAINT-001)", () 
     if (find(".github/workflows", (n) => /\.ya?ml$/.test(n)).length > 0) need.add("github-actions");
     if (find("deploy", (n) => /^Dockerfile|\.Dockerfile$/.test(n)).length > 0) need.add("docker");
     if (find("deploy", (n) => /^(docker-)?compose.*\.ya?ml$/.test(n)).length > 0) need.add("docker-compose");
+    if (find(".", (n) => n === "go.mod").length > 0) need.add("gomod");
     expect(need.size).toBeGreaterThanOrEqual(4);
     for (const eco of need) expect(byEco(eco), `thiếu ${eco}`).toHaveLength(1);
   });
 
-  it("không khai hệ sinh thái không có manifest; manifest pip nào cũng có mục dependabot (gomod… thì chưa có)", () => {
-    const known = new Set(["npm", "github-actions", "docker", "docker-compose", "pip"]);
+  it("không khai hệ sinh thái không có manifest; manifest pip/gomod nào cũng có mục dependabot và ngược lại", () => {
+    const known = new Set(["npm", "github-actions", "docker", "docker-compose", "pip", "gomod"]);
     for (const u of cfg.updates) expect(known.has(u["package-ecosystem"]), u["package-ecosystem"]).toBe(true);
-    expect(find(".", (n) => ["pyproject.toml", "go.mod"].includes(n))).toEqual([]);
-    const pipManifests = find(".", (n) => ["requirements.txt", "requirements-dev.txt"].includes(n));
-    for (const f of pipManifests) expect(dirsOf("pip"), f).toContain(dirOf(f));
-    for (const d of dirsOf("pip")) expect(pipManifests.map(dirOf), d).toContain(d);
+    expect(find(".", (n) => n === "pyproject.toml")).toEqual([]);
+    const manifests = {
+      pip: find(".", (n) => ["requirements.txt", "requirements-dev.txt"].includes(n)),
+      // go.mod của Caddy tự dựng (D-110).
+      gomod: find(".", (n) => n === "go.mod"),
+    };
+    for (const [eco, files] of Object.entries(manifests)) {
+      for (const f of files) expect(dirsOf(eco), f).toContain(dirOf(f));
+      for (const d of dirsOf(eco)) expect(files.map(dirOf), d).toContain(d);
+    }
   });
 
   it("thư mục khai báo phủ mọi Dockerfile và compose", () => {
@@ -362,9 +369,11 @@ describe(".grype.yaml: bỏ qua lỗ hổng chỉ khi có hạn, có theo dõi, 
     const tracked = parseTracked(sla);
     for (const r of rules)
       expect(tracked.has(r.vulnerability), `${r.vulnerability} chưa có trong bảng Theo dõi`).toBe(true);
-    // Mức Critical đọc được từ bảng (cơ sở của trần 7 ngày).
-    expect(tracked.get("GO-2026-6612")).toBe("critical");
-    expect(tracked.get("GO-2026-6603")).toBe("high");
+    // Mức đọc được từ bảng (cơ sở của trần 7 ngày cho Critical). Luật Critical cuối (brotli, GO-2026-6612) đã gỡ khi tự dựng
+    // caddy/seaweedfs (D-110) — bảng hiện chỉ còn High.
+    expect(tracked.get("GHSA-xjj6-f33q-929c")).toBe("high");
+    expect(tracked.get("GHSA-mrhx-c7xc-m3w5")).toBe("high");
+    for (const [id, level] of tracked) expect(["critical", "high"], id).toContain(level);
   });
   it("workflow không nới: cutoff high, only-fixed, fail-build; không có grype-config/continue-on-error", () => {
     const wf = read(".github/workflows/supply-chain.yml");

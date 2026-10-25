@@ -105,15 +105,17 @@ jobs:
         run: |
           set -euo pipefail
           docker build --tag hm-postgres:release deploy/postgres
+          docker build --tag hm-seaweedfs:release deploy/seaweedfs
+          docker build --tag hm-caddy:release deploy/caddy
           while read -r name ref <&3; do
-            [ "$ref" = "hm-postgres:release" ] || docker pull "$ref"
+            case "$ref" in hm-*:release) ;; *) docker pull "$ref" ;; esac
             "$SYFT" scan "$ref" -o "cyclonedx-json=dist/sbom-image-$name.cdx.json"
             node scripts/sbom-check.mjs "dist/sbom-image-$name.cdx.json"
           done 3<<'IMAGES'
           postgres hm-postgres:release
           node-base node:24.22.0-trixie-slim@sha256:7f486cabe892bff8fef04c0f7da8dba84a560be3e4e2740b7a86afc57ebec315
-          seaweedfs chrislusf/seaweedfs:4.48@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d
-          caddy caddy:2.11.7-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f
+          seaweedfs hm-seaweedfs:release
+          caddy hm-caddy:release
           IMAGES
           # Phải đủ 4 SBOM image (vòng lặp không được dừng sớm âm thầm).
           [ "$(find dist -name 'sbom-image-*.cdx.json' | wc -l)" -eq 4 ]

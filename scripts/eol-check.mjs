@@ -19,11 +19,18 @@ export const RUNTIME_PRODUCTS = new Set(["nodejs"]);
 export const UNTRACKED = {
   seaweedfs:
     "SeaweedFS (deploy/compose.yaml) — endoflife.date không có sản phẩm; theo dõi qua Dependabot + quét lỗ hổng image",
-  "alpine (image caddy)":
-    "Alpine trong tag caddy:<ver>-alpine — chu kỳ Alpine không suy ra được từ tag; quét OS của image ở supply-chain.yml",
   pgbackrest: "pgBackRest — endoflife.date không có sản phẩm; ghim bản và quét lỗ hổng image",
 };
-const IMAGE_PRODUCT = { node: "nodejs", postgres: "postgresql", caddy: "caddy" };
+const IMAGE_PRODUCT = {
+  node: "nodejs",
+  postgres: "postgresql",
+  caddy: "caddy",
+  // Image nền của caddy/seaweedfs tự dựng (D-110).
+  golang: "go",
+  alpine: "alpine-linux",
+};
+/** Module Go dựng thành nhị phân trong deploy/ (go.mod của image tự dựng, D-110) → sản phẩm endoflife.date. */
+const GO_MODULE_PRODUCT = { "github.com/caddyserver/caddy/v2": "caddy" };
 
 const DAY = 86_400_000;
 const parseDay = (s) => Date.parse(`${s}T00:00:00Z`);
@@ -77,6 +84,17 @@ function walk(dir, pred, out = []) {
   return out.sort();
 }
 
+/** Các lần dùng rút từ dòng `require` của một go.mod (chỉ module trong GO_MODULE_PRODUCT). */
+export function usagesFromGoMod(text, source) {
+  const out = [];
+  for (const raw of text.split("\n")) {
+    const m = /^\s*(?:require\s+)?(\S+)\s+v(\d\S*)/.exec(raw.replace(/\s*\/\/.*$/, ""));
+    const product = m && GO_MODULE_PRODUCT[m[1]];
+    if (product) out.push({ product, version: m[2], source });
+  }
+  return out;
+}
+
 /** Mọi phiên bản đang dùng, đọc từ repo thật. */
 export function collectUsages(root = ROOT) {
   const out = [];
@@ -103,6 +121,8 @@ export function collectUsages(root = ROOT) {
   ];
   for (const f of imageFiles)
     if (statSync(f).isFile()) out.push(...usagesFromImageLines(readFileSync(f, "utf8"), rel(f)));
+  for (const f of walk(join(root, "deploy"), (n) => n === "go.mod"))
+    out.push(...usagesFromGoMod(readFileSync(f, "utf8"), rel(f)));
   return out;
 }
 

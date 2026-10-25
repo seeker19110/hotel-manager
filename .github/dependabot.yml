@@ -38,11 +38,14 @@ updates:
     groups:
       actions:
         patterns: ["*"]
-  # Dockerfile (deploy/postgres/Dockerfile, deploy/web.Dockerfile, deploy/worker.Dockerfile): nâng tag + digest của image nền.
+  # Dockerfile (deploy/postgres, deploy/caddy, deploy/seaweedfs, deploy/web.Dockerfile, deploy/worker.Dockerfile): nâng tag + digest
+  # của image nền (golang/alpine của image tự dựng — D-110).
   - package-ecosystem: docker
     directories:
       - /deploy
+      - /deploy/caddy
       - /deploy/postgres
+      - /deploy/seaweedfs
     schedule:
       interval: weekly
       day: monday
@@ -56,7 +59,7 @@ updates:
     groups:
       docker-images:
         patterns: ["*"]
-  # Image trong compose (deploy/compose.yaml: seaweedfs, caddy) — cùng digest với bản quét lỗ hổng ở supply-chain.yml.
+  # Image trong compose (deploy/compose*.yaml) — hiện mọi service dựng tại chỗ (D-110); giữ mục để image kéo về sau này được nâng.
   - package-ecosystem: docker-compose
     directory: /deploy
     schedule:
@@ -71,6 +74,22 @@ updates:
       prefix: "build(deps)"
     groups:
       compose-images:
+        patterns: ["*"]
+  # Module Go của Caddy tự dựng (deploy/caddy/go.mod, D-110): nâng caddy, golang.org/x/* khi có bản vá.
+  - package-ecosystem: gomod
+    directory: /deploy/caddy
+    schedule:
+      interval: weekly
+      day: monday
+      time: "03:00"
+      timezone: Asia/Ho_Chi_Minh
+    open-pull-requests-limit: 2
+    cooldown:
+      default-days: 14
+    commit-message:
+      prefix: "build(deps)"
+    groups:
+      caddy-go-modules:
         patterns: ["*"]
   # Semgrep (security/semgrep/requirements.txt — lock có hash, cài bằng `pip install --require-hashes` ở job sast, T-803).
   - package-ecosystem: pip

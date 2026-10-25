@@ -37,11 +37,11 @@ Số liệu và trần ở [`perf/resource-budgets.json`](../perf/resource-budge
 |---|---|---|---|
 | Image `postgres` (+ pgBackRest) | 550 MB | 455,8 MB | job `image-scan` → `scripts/check-image-size.mjs` |
 | Image nền web/worker `node-base` | 285 MB | 234,7 MB | như trên |
-| Image `seaweedfs` | 640 MB | 529,2 MB | như trên |
-| Image `caddy` | 80 MB | 66,3 MB | như trên |
+| Image `seaweedfs` | 280 MB | 231,1 MB (tự dựng, PR #133; trước: 529,2 MB image chính thức) | như trên |
+| Image `caddy` | 80 MB | 67,1 MB (tự dựng, PR #133) | như trên |
 | Số job CI mỗi PR (tính cả matrix) | 40 | 36 (2026-10-22) | `scripts/perf-budget-resources.test.mjs` |
 | Timeout một job | 45 phút | lớn nhất 40 | như trên |
 | Tổng timeout các job mỗi PR | 600 phút | 580 (2026-10-22; e2e 6 × 15, D-092) | như trên |
 | JS client (gzip), trang | xem các mục trên | — | `bundle-size`, `lighthouse`, `perf/budgets.json` |
 
-Số đo image là `imageSize` trong báo cáo grype của CI trên `main` 251f605; trần = số đo × 1,2 làm tròn lên. Nới trần phải ghi lý do trong PR và cập nhật bảng này. Chi phí hạ tầng theo đơn vị chức năng (chi phí/kWh) cần nhà cung cấp hạ tầng thật — hiện chỉ có ngân sách email (OPS-COST-004); cảnh báo chi phí hosting là việc khi có VPS.
+Số đo image là `imageSize` trong báo cáo grype của CI trên `main` 251f605; trần = số đo × 1,2 làm tròn lên. Caddy/SeaweedFS đo lại 2026-10-25 khi tự dựng (ADR-0006, CI PR #133): SeaweedFS chỉ còn `weed` ⇒ siết trần 640 → 280 MB; Caddy 67,1 MB vẫn dưới trần 80 MB. Nới trần phải ghi lý do trong PR và cập nhật bảng này. Chi phí hạ tầng theo đơn vị chức năng (chi phí/kWh) cần nhà cung cấp hạ tầng thật — hiện chỉ có ngân sách email (OPS-COST-004); cảnh báo chi phí hosting là việc khi có VPS.

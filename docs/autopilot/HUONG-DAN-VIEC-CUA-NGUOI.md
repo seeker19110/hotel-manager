@@ -15,12 +15,14 @@ Thứ tự đề xuất: **0 → A → B → C → D → E**. Bước sau phụ 
 
 ## Bước 0 — Hạn gấp (làm trong tuần này)
 
-### 0.1 Luật grype hết hạn — **2026-10-29** (4 luật critical), **2026-11-01** (23 luật, gồm 2 luật critical `brotli-libs` của D-109), **2026-11-08** (2 luật high của D-109: `undici`, `zod` 3)
-- **Vì sao gấp:** quá hạn thì `image-scan` đỏ trên mọi PR. Đây là required check, nên **mọi merge bị chặn**.
-- **Bạn làm:** không cần làm gì, nếu đồng ý để agent tự xử lý. Agent đã hẹn tự kiểm lại ngày **2026-10-27**:
-  - Đã có image Caddy/SeaweedFS dựng bằng Go ≥ 1.26.9 thì agent nâng digest và gỡ luật.
-  - Chưa có thì agent gia hạn ≤ 7 ngày, kèm lý do (D-094).
-- **Bạn quyết (khi tới hạn mà thượng nguồn vẫn chưa vá):** tự dựng image Caddy/SeaweedFS bằng Go mới (agent viết Dockerfile), hay tiếp tục gia hạn. Trước khi lên production thì bắt buộc phải xử lý dứt điểm.
+### 0.1 Luật grype — **đã xử lý** (2026-10-25, D-110)
+- Caddy và SeaweedFS giờ **tự dựng** từ mã nguồn bằng Go đã vá trên Alpine cập nhật (`deploy/caddy/`, `deploy/seaweedfs/`, ADR-0006), nên đã gỡ 24 luật bỏ qua của hai image này, gồm toàn bộ luật Critical.
+- Còn 5 luật High, đều không vào bản chạy production:
+  - npm đi kèm image node, hạn **2026-11-01** và **2026-11-08**;
+  - `zod` 3 chỉ dùng trong lighthouse của CI, hạn **2026-11-08**.
+
+  Đến hạn, agent kiểm image node mới hoặc gia hạn kèm lý do (D-067).
+- **Bạn làm:** không cần làm gì. Khi có VPS (Bước C1), image production phải dựng từ chính các Dockerfile này: `docker compose build`.
 
 ### 0.2 `release-please` đỏ trên `main` từ #93
 1. GitHub → Settings → Developer settings → Fine-grained tokens. Sửa token đang dùng làm secret `RELEASE_PLEASE_TOKEN` (hoặc tạo token mới), chỉ cho repo `hotel-manager`:
