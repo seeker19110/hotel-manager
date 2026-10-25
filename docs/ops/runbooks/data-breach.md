@@ -1,7 +1,7 @@
 ---
 title: Runbook — vi phạm dữ liệu cá nhân
 kind: runbook
-updated: 2026-10-16
+updated: 2026-10-25
 last_drilled: chưa diễn tập (tabletop đầu tiên: trước khi dùng dữ liệu thật)
 owner: (chưa gán — pháp lý + Tech Lead)
 ---
@@ -22,6 +22,19 @@ Có dấu hiệu dữ liệu cá nhân bị truy cập, tiết lộ, mất hoặ
 | Cơ quan/đối tác khác (ngân hàng, nhà cung cấp) | Theo hợp đồng từng bên | — | (chưa có hợp đồng) |
 
 Gửi **thông báo sơ bộ** trong thời hạn rồi bổ sung; không chờ có đủ kết luận.
+
+## Thời hạn theo vùng (CMP-INTL-006)
+Áp **thời hạn ngắn nhất** trong các vùng có chủ thể bị ảnh hưởng. Đồng hồ tính từ lúc *phát hiện/xác định* như cột "Mốc".
+
+| Vùng | Cơ quan | Thời hạn | Mốc tính | Cơ sở | Xác minh |
+|---|---|---|---|---|---|
+| VN | Bộ Công an (cơ quan chuyên trách BVDLCN) | 72 giờ | phát hiện vi phạm có thể gây hại | Luật 91/2025/QH15 Đ.23.1 (+ Đ.23.2 lập biên bản); NĐ 356/2025/NĐ-CP Phụ lục Mẫu số 08 | đã đọc văn bản gốc 2026-10-25 (`PROJECT.md` §Khung pháp lý); nội dung tối thiểu của thông báo (NĐ 356 Đ.28) chưa đọc |
+| EU/EEA | cơ quan giám sát dẫn đầu | 72 giờ | biết (aware) có vi phạm | GDPR Art. 33(1) | (chưa xác minh — cần pháp lý) |
+| UK | ICO | 72 giờ | biết có vi phạm | UK GDPR Art. 33 | (chưa xác minh — cần pháp lý) |
+| Thái Lan | PDPC | 72 giờ | biết có vi phạm | PDPA 2019 s.37(4) | (chưa xác minh — cần pháp lý) |
+| Singapore | PDPC | 3 ngày lịch | **sau khi xác định** vi phạm phải thông báo (đánh giá ≤ 30 ngày) | PDPA 2012 s.26D | (chưa xác minh — cần pháp lý) |
+
+Hiện pilot chỉ có chủ thể ở VN (`docs/privacy/data-map.yaml`, region VN) ⇒ 72 giờ. Mở rộng vùng ⇒ cập nhật bảng và DPA.
 
 ## Điều kiện trước
 - Đã tuyên bố SEV1 và có IC ([INCIDENT-RESPONSE](../INCIDENT-RESPONSE.md) §3.2).

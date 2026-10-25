@@ -1,33 +1,36 @@
-# docs/autopilot/PLAN.md — Hotel Manager · Đợt 22: hoàn thiện XC-I18N-001 (mọi chuỗi người dùng thấy vào tệp tài nguyên)
+# docs/autopilot/PLAN.md — Hotel Manager · Đợt 23: làm hết phần máy làm được của 89 MUST còn mở
 
-> **Cổng duyệt: phiên chính tự duyệt 2026-10-24** (AGENTS §5; D-103, D-104, D-105 ở `docs/autopilot/DECISIONS.md`). Chủ dự án yêu cầu "hoàn thiện dự án" (2026-10-24) ⇒ làm hết phần còn lại của MUST duy nhất máy tự làm được; 89 MUST khác cần người (PROGRESS *Tiếp theo*).
+> **Cổng duyệt: phiên chính tự duyệt 2026-10-25** (AGENTS §5). Chủ dự án yêu cầu "làm hết" (2026-10-25) ⇒ mọi phần trong repo của
+> 89 MUST mở (khảo sát hiện trạng 2026-10-25); phần chỉ người làm được (tài khoản/tiền/VPS/ký pháp lý/diễn tập/thiết bị thật) → `loop defer`
+> kèm cách làm ở `docs/autopilot/HUONG-DAN-VIEC-CUA-NGUOI.md`.
 
 ## Tóm tắt cổng duyệt (≤ 30 dòng)
-- **Mục tiêu:** XC-I18N-001 ĐẠT — baseline `scripts/i18n-literal-baseline.json` rỗng (1552 → 0) với ngoại lệ có lý do chỉ cho chuỗi KHÔNG phải người dùng thấy; tick MUST kèm Kiểm.
-- **Còn lại:** `apps/web/lib/format.ts` 74 · màn web trong `merge_risk_paths` 195 · `packages/app/src` 1280 (lỗi API, email/thông báo, tệp xuất/nhập, PDF, nhật ký/vận hành).
-- **D-103:** `lib/format.ts` (server + client cùng import) — nhãn tách: hàm nhận `m`/dùng `t()` ở server; client lấy qua `useMessages()` (khoá `common.`) hoặc `m` prop.
-- **D-104:** `packages/app` có catalog riêng `packages/app/messages/vi.json` (cùng định dạng `{message, description}`) + `packages/app/src/i18n.ts` (`t()` typed, chỉ server); `i18n-check` kiểm cả hai catalog; mã lỗi API giữ nguyên (không breaking), chỉ `detail`/thông điệp lấy từ catalog.
-- **D-105 (phạm vi):** chuỗi chỉ người vận hành/nhà phát triển thấy (log, mô tả metric, lỗi cấu hình lúc khởi động, mô tả OpenAPI) không thuộc "người dùng thấy" của XC-I18N-001 ⇒ danh sách ngoại lệ **theo tệp, có lý do**, ghi trong baseline, script kiểm lý do không rỗng; mọi tệp khác phải về 0.
-- **Lát & PR:** Lát 1 (web `format.ts` + 2 🟢 review #130) và Lát 3 (`packages/app` nền + module ngoài `merge_risk_paths`) đi làn L3; Lát 2 (web màn tiền/hợp đồng) và Lát 4 (`packages/app` module tiền/lưu trú/auth) gom một PR **người merge** cuối cùng (một nhánh — D-088).
-- **Stack:** giữ nguyên; không thêm phụ thuộc; không migration.
-- **Rủi ro:** (R1) đổi chữ — giữ nguyên từng ký tự, reviewer đối chiếu bằng script; (R2) lỗi API đổi nội dung — test so `detail` cũ/mới; (R3) bundle — `pnpm size`; (R4) PR lớn — tách task ≤ ~150 chuỗi.
-- **Điểm dừng:** PR chạm `merge_risk_paths`/auth/crypto ⇒ người merge.
-- **Ngân sách:** `--single-session` · 1800 s/lệnh · 24 giờ.
+- **Mục tiêu:** tick mọi MUST mà Kiểm thoả được bằng mã/tài liệu/CI trong repo; với MUST cần người, làm sẵn toàn bộ phần repo để người chỉ còn bước của người.
+- **Lát A (L3) — repo & phát hành:** LICENSE Proprietary + THIRD_PARTY_NOTICES (D-111), SECURITY.md/security.txt/CONTRIBUTING/CoC/SUPPORT (D-112), annotated tag + đồng bộ phiên bản (D-113), CMP-LIC-004 (D-114).
+- **Lát B (L3) — hồ sơ tuân thủ có rào CI:** data map `legal_basis` lint, CHANGELOG `docs/privacy/` + nhắc quá hạn, `vendors.yaml` + chặn SDK mới, sổ sự cố + mẫu, runbook vi phạm dữ liệu (bảng vùng, Mẫu 08), DPA + sub-processor, RUNBOOK `last_drilled` lint, `renewals.md` + nhắc hạn, danh sách luật (researcher, nguồn sống) + DPIA nháp.
+- **Lát C (người merge — dữ liệu) — retention + analytics:** job dọn bảng còn thiếu + ẩn danh `persons`/`identity_documents` theo hạn; `track()` tự host có schema, cấm PII, cần đồng ý, hạn lưu, ngắt liên kết khi xoá tài khoản.
+- **Lát D (người merge — dữ liệu/auth) — quyền chủ thể:** bản ghi đồng ý append-only theo mục đích + rút; DSAR (truy cập/xuất, xoá có xác thực lại, hạn chế), hạn theo vùng + metric quá hạn; xoá tài khoản lan mọi kho; vòng đời xoá tổ chức (xoá mềm → xuất → purge → chứng nhận); E2E `rights-access`/`rights-delete`/`rights-withdraw-consent`.
+- **Lát E (người merge — auth) — audit & đa tenant:** màn xem/xuất audit cho admin tổ chức; truy cập hỗ trợ có lý do + TTL + hiển thị cho tenant; fair-share worker theo tổ chức + hạn mức theo gói (cấu hình).
+- **Quyết định:** D-111…D-114 đã ghi; D-116+ ghi khi tới task (mục đích đồng ý, DSAR/xoá, vòng đời tổ chức, analytics, hạn lưu, hỗ trợ, gói).
+- **Không làm được trong repo (defer):** `.env.example` (settings chặn agent) ⇒ BASE-CFG-002/FE-BUILD-005/DB-SEC-002; hook `guard.py` ⇒ ARC-ADR-004/XC-DOCAI-005; miễn trừ cần `Duyệt:` của chủ dự án (D-060); VPS/staging/backup/giám sát; diễn tập; thiết bị thật; ký pháp lý.
+- **Stack:** giữ nguyên; migration mới có đường lùi; không thêm phụ thuộc runtime trừ khi ghi D-NNN.
+- **Rủi ro:** (R1) xoá dữ liệu sai phạm vi — test DB thật mỗi kho, `grant data_delete hard_delete=false` cho production; (R2) chặn xử lý khi thiếu đồng ý làm gãy luồng cũ — mục đích "dịch vụ" theo hợp đồng không cần đồng ý; (R3) PR lớn — mỗi lát một PR, task ≤ 1 ngày.
+- **Ngân sách:** `--single-session` · 1800 s/lệnh · 72 giờ.
 
 ## Mục tiêu của kế hoạch này
-Khi xong: `node scripts/i18n-literals.mjs` báo 0 chuỗi ngoài ngoại lệ có lý do; `i18n-check` 0 lỗi trên 2 catalog; XC-I18N-001 `[x]`.
+Khi xong: mọi MUST còn mở hoặc đã `[x]` kèm Kiểm/Bằng chứng, hoặc đã `loop defer` với lý do "chỉ người" và phần repo đã làm sẵn.
 
 ## Ngân sách (4 con số)
 - Số vòng tối đa: bỏ trống (`--single-session`)
-- Ngân sách: ≤ 80 USD token
+- Ngân sách: ≤ 250 USD token
 - Timeout mỗi lệnh Gate: 1800 s
-- Hạn chót: 24 giờ kể từ `loop init` (`--hours 24`)
+- Hạn chót: 72 giờ kể từ `loop init` (`--hours 72`)
 
 ## Hạn
 | Loại | Ngày | Hậu quả nếu trễ | Cách xử lý khi trễ |
 |---|---|---|---|
-| Hạn thật | chưa có | — | — |
-| Hạn mong muốn | 2026-10-25 | nội bộ | dừng ở lát đã merge, phần còn lại đợt sau |
+| Hạn thật | 2026-11-01 | luật grype high (npm của node) hết hạn | task kiểm image node / gia hạn có lý do (D-067) |
+| Hạn mong muốn | 2026-10-28 | nội bộ | dừng ở lát đã merge |
 
 ## Ủy quyền production
 - grant: payments | mode=sandbox | max_per_txn=0 | refund=false
@@ -38,33 +41,42 @@ Khi xong: `node scripts/i18n-literals.mjs` báo 0 chuỗi ngoài ngoại lệ c�
 - grant: secrets | read_values=false
 
 ## Điểm dừng bắt buộc về hành động
-- Merge PR Lát 2 + Lát 4 (chạm `merge_risk_paths`, auth/crypto): người merge.
+- Merge PR Lát C, D, E (dữ liệu người dùng, auth, `merge_risk_paths`): người merge.
 
 ## Thứ tự & lý do
-1. Lát 1 → PR (L3). 2. Lát 3 → PR (L3). 3. Lát 2 + Lát 4 → một PR người merge. 4. Lát 5 tick + rà. Chung `vi.json`/baseline ⇒ task tuần tự.
+1. Lát A, B (độc lập, L3). 2. Lát C (nền retention/analytics). 3. Lát D (cần bản ghi đồng ý trước DSAR/xoá). 4. Lát E. Lát C–E chung migration ⇒ tuần tự.
 
 ## Task
 
-### Lát 1 — web `format.ts`
-- [x] `T-2201` D-103: `apps/web/lib/format.ts` hết chuỗi viết thẳng (nhãn qua `t()` ở server / `useMessages()` hoặc `m` ở client; sửa mọi nơi gọi); thêm 2 🟢 review #130: `common.route_title.*` chỉ dùng ở `loading.tsx` đưa khỏi tiền tố `common.` (giảm payload), `use-command.test.tsx` thêm assert chữ cố định cho 5xx (exec: deep; files: apps/web/lib/, apps/web/app/, apps/web/components/, apps/web/messages/vi.json, scripts/i18n-literal-baseline.json) — Gate: `node scripts/i18n-check.mjs && node scripts/i18n-literals.mjs && pnpm vitest run --project unit scripts/i18n.test apps/web && pnpm --filter @hm/web exec tsc -p tsconfig.json`
+### Lát A — repo & phát hành (L3)
+- [x] `T-2301` D-111: `LICENSE` Proprietary (chủ sở hữu seeker19110) + `license: UNLICENSED` mọi package.json; `scripts/third-party-notices.mjs` sinh `THIRD_PARTY_NOTICES.md` từ phụ thuộc production (`--check` so khác) + test + bước CI (files: LICENSE, THIRD_PARTY_NOTICES.md, scripts/third-party-notices.mjs, scripts/third-party-notices.test.mjs, package.json, apps/*/package.json, packages/*/package.json, .github/workflows/supply-chain.yml) — Gate: `node scripts/third-party-notices.mjs --check && pnpm vitest run --project unit scripts/third-party-notices.test`
+- [x] `T-2302` D-112: `SECURITY.md` (phiên bản hỗ trợ, PVR, SLA ≤ 7 ngày, công bố phối hợp), `apps/web/public/.well-known/security.txt` (RFC 9116, Expires ≤ 1 năm) + test hạn, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SUPPORT.md` + test cấu trúc (sau: T-2301; files: SECURITY.md, CONTRIBUTING.md, CODE_OF_CONDUCT.md, SUPPORT.md, apps/web/public/.well-known/security.txt, scripts/community-files.test.mjs) — Gate: `pnpm vitest run --project unit scripts/community-files.test`
+- [x] `T-2303` D-113: `release.yml` job `assets` tạo annotated tag trên `RELEASE_SHA` trước khi công khai; `release-please-config.json` `extra-files` cập nhật `apps/web/package.json`; đồng bộ `apps/web/package.json` version = manifest; test (sau: T-2302; files: .github/workflows/release.yml, release-please-config.json, apps/web/package.json, scripts/release-config.test.mjs) — Gate: `pnpm vitest run --project unit scripts/release-config.test`
+- [x] `T-2304` D-114: CMP-LIC-004 tick theo D-114 (ngoại lệ có lý do + hạn); rà BASE-DEP-007 (PR Dependabot thật) (sau: T-2303; files: BLUEPRINT.md, license-policy.json) — Gate: `node scripts/sbom.mjs --out /tmp/hm-sbom.cdx.json --timestamp 2026-10-25T00:00:00Z && node scripts/sbom-check.mjs --policy license-policy.json /tmp/hm-sbom.cdx.json`
 
-### Lát 3 — `packages/app` nền + module ngoài `merge_risk_paths`
-- [x] `T-2202` D-104 + D-105: catalog `packages/app/messages/vi.json`, `packages/app/src/i18n.ts` (`t()` typed); `scripts/i18n-check.mjs` kiểm cả hai catalog + test; `scripts/i18n-literals.mjs` hỗ trợ mục ngoại lệ theo tệp có lý do (không rỗng, test) — áp cho tệp chỉ vận hành/nhà phát triển thấy (observability, logging, config, http/openapi …, liệt kê từng tệp + lý do); chuyển `packages/app/src/errors.ts`, `packages/app/src/http/` (trừ openapi nếu ngoại lệ) (sau: T-2201; exec: deep; files: packages/app/messages/, packages/app/src/i18n.ts, packages/app/src/errors.ts, packages/app/src/http/, packages/app/src/observability/, packages/app/src/logging/, packages/app/src/config/, scripts/i18n-check.mjs, scripts/i18n-literals.mjs, scripts/i18n.test.mjs, scripts/i18n-literal-baseline.json) — Gate: `node scripts/i18n-check.mjs && node scripts/i18n-literals.mjs && pnpm vitest run --project unit scripts/i18n.test packages/app && pnpm -r exec tsc --noEmit -p tsconfig.json`
-- [x] `T-2203` XC-I18N-001: `packages/app/src/{import,exports,files,portal,pipeline,maintenance,housekeeping,today,billing,reports,payments,outbox,audit,retention,privacy}` hết chuỗi viết thẳng qua `t()` của packages/app (văn bản giữ nguyên; tệp xuất CSV/XLSX tiêu đề cột giữ nguyên) (sau: T-2202; files: packages/app/src/, packages/app/messages/vi.json, scripts/i18n-literal-baseline.json) — Gate: `node scripts/i18n-check.mjs && node scripts/i18n-literals.mjs && pnpm vitest run --project unit packages/app && pnpm vitest run --project db packages/app/src/import packages/app/src/exports packages/app/src/portal packages/app/src/payments && pnpm -r exec tsc --noEmit -p tsconfig.json`
+### Lát B — hồ sơ tuân thủ có rào CI (L3)
+- [x] `T-2305` CMP-INTL-002, CMP-AUDIT-003, CMP-AUDIT-007: lint `docs/privacy/data-map.yaml` bắt buộc `legal_basis` (+ Art. 9 cho dữ liệu nhạy cảm); `docs/privacy/CHANGELOG.md` + nhắc quá hạn 6 tháng; `docs/compliance/vendors.yaml` + `new-deps` chặn SDK/dịch vụ mới thiếu dòng (sau: T-2304; files: scripts/privacy-docs.mjs, scripts/privacy-docs.test.mjs, docs/privacy/, docs/compliance/vendors.yaml, .github/workflows/pr-deps.yml) — Gate: `node scripts/privacy-docs.mjs && pnpm vitest run --project unit scripts/privacy-docs.test`
+- [x] `T-2306` CMP-INTL-006, CMP-VN-006, CMP-AUDIT-010, OPS-IR-010, IND-SAAS-010, WF-DOC-008, PM-HANDOVER-009: `docs/ops/runbooks/data-breach.md` (bảng thời hạn theo vùng, Mẫu 08, mẫu thông báo), `docs/ops/incidents/` + mẫu, `docs/legal/DPA.md` + `docs/legal/subprocessors.md` có phiên bản, `docs/ops/RUNBOOK.md` có `last_drilled` + lint quá hạn, `docs/handover/renewals.md` + nhắc ≥ 30 ngày (sau: T-2305; files: docs/ops/, docs/legal/, docs/handover/, scripts/ops-registers.mjs, scripts/ops-registers.test.mjs) — Gate: `node scripts/ops-registers.mjs && pnpm vitest run --project unit scripts/ops-registers.test`
+- [x] `T-2307` PM-RISK-007: danh sách luật áp dụng (số hiệu, ngày hiệu lực, URL, ngày kiểm) từ nguồn sống (researcher) vào `PROJECT.md` §Khung pháp lý + `docs/DPIA.md` nháp theo mẫu khung (sau: T-2306; files: PROJECT.md, docs/DPIA.md, scripts/process-docs.test.mjs) — Gate: `pnpm vitest run --project unit scripts/process-docs.test`
 
-### Lát 2 — web màn trong `merge_risk_paths` (người merge)
-- [x] `T-2204` XC-I18N-001: `apps/web/app/{hop-dong,ky-thu,thu-tien,doi-soat,chi-so,portal/hop-dong}/**`, `apps/web/components/rental/**`, `apps/web/app/api/**` hết chuỗi viết thẳng (sau: T-2203; files: apps/web/app/hop-dong/, apps/web/app/ky-thu/, apps/web/app/thu-tien/, apps/web/app/doi-soat/, apps/web/app/chi-so/, apps/web/app/portal/hop-dong/, apps/web/components/rental/, apps/web/app/api/, apps/web/messages/vi.json, scripts/i18n-literal-baseline.json) — Gate: `node scripts/i18n-check.mjs && node scripts/i18n-literals.mjs && pnpm vitest run --project unit scripts/i18n.test apps/web && pnpm --filter @hm/web exec tsc -p tsconfig.json`
+### Lát C — retention + analytics (người merge)
+- [ ] `T-2308` STD-PRIV-005, XC-GREEN-007: job dọn `notifications`, inbox, `worker_heartbeats`, phiên/liên kết khách hết hạn; ẩn danh `persons`/`identity_documents` hết hạn lưu (D-116 hạn mặc định) + test DB seed quá hạn (sau: T-2307; files: packages/app/src/retention/, packages/db/src/migrations/, apps/worker/src/runtime.ts, docs/ops/retention-policy.md) — Gate: `pnpm vitest run --project db packages/app/src/retention && pnpm -r exec tsc --noEmit -p tsconfig.json`
+- [ ] `T-2309` PM-METRIC-003/005/006 (D-117): `track()` một điểm, schema sự kiện allowlist, cấm PII (test regex), bảng `product_events` + hạn lưu + ngắt liên kết khi xoá tài khoản; rào cấm SDK analytics ngoài `track` (sau: T-2308; files: packages/app/src/analytics/, packages/db/src/migrations/, scripts/) — Gate: `pnpm vitest run --project unit packages/app/src/analytics && pnpm vitest run --project db packages/app/src/analytics`
 
-### Lát 4 — `packages/app` module tiền/lưu trú/auth (người merge)
-- [x] `T-2205` XC-I18N-001: `packages/app/src/{stay,notifications}` (sau: T-2204; files: packages/app/src/stay/, packages/app/src/notifications/, packages/app/messages/vi.json, scripts/i18n-literal-baseline.json) — Gate: `node scripts/i18n-check.mjs && node scripts/i18n-literals.mjs && pnpm vitest run --project unit packages/app/src/stay packages/app/src/notifications && pnpm vitest run --project db packages/app/src/stay packages/app/src/notifications && pnpm -r exec tsc --noEmit -p tsconfig.json`
-- [x] `T-2206` XC-I18N-001: `packages/app/src/{lease,inventory,access,ledger,metering,deposits,reconciliation,shifts,approvals,identity,auth,crypto,tenancy,rental}` và mọi tệp `packages/app/src` còn trong baseline (sau: T-2205; files: packages/app/src/, packages/app/messages/vi.json, scripts/i18n-literal-baseline.json) — Gate: `node scripts/i18n-check.mjs && node scripts/i18n-literals.mjs && pnpm vitest run --project unit packages/app && pnpm vitest run --project db packages/app && pnpm -r exec tsc --noEmit -p tsconfig.json`
+### Lát D — quyền chủ thể (người merge)
+- [ ] `T-2310` CMP-RIGHTS-001, CMP-VN-001, CMP-RIGHTS-004 (D-118): `consent_records` append-only (subject, purpose, policy_version, granted_at, channel, ui_snapshot_hash, withdrawn_at), danh mục mục đích, thu đồng ý ở đăng ký/lời mời/portal, rút cùng số bước, xử lý theo mục đích kiểm đồng ý (sau: T-2309; files: packages/db/src/migrations/, packages/app/src/privacy/, apps/web/app/) — Gate: `pnpm vitest run --project db packages/app/src/privacy && pnpm --filter @hm/web exec playwright test e2e/rights-withdraw-consent.spec.ts`
+- [ ] `T-2311` STD-PRIV-004, CMP-VN-007, CMP-INTL-007, CMP-RIGHTS-007, CMP-PRIV-005 (D-119): DSAR (xuất dữ liệu cá nhân, xoá tài khoản có xác thực lại, hạn chế xử lý), `dsar_days` theo vùng + metric quá hạn, xoá lan mọi kho (DB, file, phiên, analytics) giữ phần nghĩa vụ pháp lý có lý do (sau: T-2310; files: packages/app/src/privacy/, packages/db/src/migrations/, apps/web/app/, apps/web/e2e/) — Gate: `pnpm vitest run --project db packages/app/src/privacy && pnpm --filter @hm/web exec playwright test e2e/rights-access.spec.ts e2e/rights-delete.spec.ts`
+- [ ] `T-2312` IND-SAAS-006, UX-CONTENT-005 (D-120): vòng đời xoá tổ chức (yêu cầu → giữ N ngày có xuất → purge mọi kho → chứng nhận xoá), luồng huỷ ≤ số bước đăng ký, checklist dark pattern trong PR template (sau: T-2311; files: packages/app/src/tenancy/, packages/db/src/migrations/, apps/worker/src/, apps/web/app/, .github/pull_request_template.md) — Gate: `pnpm vitest run --project db packages/app/src/tenancy && pnpm --filter @hm/web exec playwright test e2e/org-delete.spec.ts`
 
-### Lát 5 — tick và rà
-- [x] `T-2208` D-107: `scripts/i18n-literals.mjs` SCOPE thêm `packages/domain/src`, `packages/db/src`; catalog `packages/domain/messages/vi.json` + `packages/domain/src/i18n.ts` (thuần) — chuyển chuỗi người dùng thấy của domain (AuthzError/TransitionError, mô tả dòng phiếu, đọc số tiền bằng chữ, nhãn ma trận quyền…); `packages/db/src` migration: ngoại lệ D-105 theo tệp có lý do + max sau khi xác minh thông báo không ra API; `i18n-check` kiểm catalog domain (sau: T-2206; exec: deep; files: scripts/, packages/domain/, packages/db/src/, packages/app/src/pipeline/problem.ts) — Gate: `node scripts/i18n-check.mjs && node scripts/i18n-literals.mjs --strict && pnpm vitest run --project unit scripts/i18n.test packages/domain && pnpm vitest run --project db packages/app/src/pipeline && pnpm -r exec tsc --noEmit -p tsconfig.json`
-- [x] `T-2207` Rào review 137676b: ngoại lệ ghi số đếm tối đa (`{reason, max}`) — tăng ⇒ lỗi, và literal tiếng Việt trong đối số `CommandError`/`simpleProblem`/`AuthzError`/`AccessError`/`TransitionError` bị chặn kể cả ở tệp ngoại lệ; `i18n-check` báo lỗi khi `exports` không giải được (thay vì bỏ qua); test. XC-I18N-001 `[x]` kèm Kiểm (baseline chỉ còn ngoại lệ có lý do); PROGRESS, BLUEPRINT-GAPS, audit delta (sau: T-2208; files: scripts/i18n-literals.mjs, scripts/i18n-literal-exempt.json, scripts/i18n-check.mjs, scripts/i18n.test.mjs, BLUEPRINT.md, PROGRESS.md, docs/autopilot/BLUEPRINT-GAPS.md, docs/ops/AUDIT-STATUS.md) — Gate: `node scripts/i18n-check.mjs && node scripts/i18n-literals.mjs --strict && python3 .xtemplates/scripts/xt.py progress-check && python3 .xtemplates/scripts/xt.py audit check docs/ops/AUDIT-STATUS.md`
+### Lát E — audit & đa tenant (người merge)
+- [ ] `T-2313` IND-SAAS-009, CMP-AUDIT-002 (D-121): màn nhật ký hoạt động cho admin tổ chức (lọc, xuất), truy cập hỗ trợ có lý do + TTL + hiển thị cho tenant, test mỗi hành động nhạy cảm sinh sự kiện đủ trường (sau: T-2312; files: packages/app/src/audit/, packages/app/src/access/, apps/web/app/) — Gate: `pnpm vitest run --project db packages/app/src/audit packages/app/src/access && pnpm --filter @hm/web exec playwright test e2e/audit-log.spec.ts`
+- [ ] `T-2314` IND-SAAS-008 (D-122): hạn mức theo gói (cấu hình trong repo), fair-share worker theo tổ chức, test tải tenant A bão hoà không làm chậm tenant B (sau: T-2313; files: packages/app/src/pipeline/, apps/worker/src/, packages/app/src/plans/) — Gate: `pnpm vitest run --project db packages/app/src/plans apps/worker/src`
+
+### Lát F — tick và rà
+- [ ] `T-2315` Tick MUST đạt kèm Kiểm/Bằng chứng; defer phần chỉ người; PROGRESS, BLUEPRINT-GAPS, AUDIT-STATUS, hướng dẫn (sau: T-2314; files: BLUEPRINT.md, PROGRESS.md, docs/autopilot/BLUEPRINT-GAPS.md, docs/ops/AUDIT-STATUS.md, docs/autopilot/HUONG-DAN-VIEC-CUA-NGUOI.md) — Gate: `python3 scripts/check-blueprint-evidence.py BLUEPRINT.md && python3 .xtemplates/scripts/xt.py progress-check && python3 .xtemplates/scripts/xt.py audit check docs/ops/AUDIT-STATUS.md`
 
 ## Phụ thuộc ngoài
 | Việc | Bên ngoài | Kế hoạch B |
 |---|---|---|
-| Merge PR Lát 2 + 4 | chủ dự án (ngoại lệ cứng) | để PR mở, báo người |
-| 89 MUST còn lại | chủ dự án | `loop defer` |
+| Merge PR Lát C–E | chủ dự án | để PR mở, báo người |
+| Bật PVR, nhãn `major`, `.env.example`, hook, VPS, pháp lý, diễn tập, thiết bị | chủ dự án | `loop defer` + hướng dẫn |

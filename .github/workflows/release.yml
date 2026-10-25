@@ -132,4 +132,18 @@ jobs:
         run: |
           set -euo pipefail
           gh release upload "$TAG" dist/* --repo "$REPO" --clobber
+          # Annotated tag (BASE-REPO-006, D-113) trên đúng RELEASE_SHA TRƯỚC khi công khai: GitHub dùng tag có sẵn thay vì tự tạo tag
+          # thường. Chạy lại (tag đã có) chỉ đi tiếp khi tag là annotated và trỏ đúng commit; ruleset tags cấm sửa/xoá v*.
+          if existing=$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq '.object.type + " " + .object.sha' 2>/dev/null); then
+            case "$existing" in
+              "tag "*)
+                target=$(gh api "repos/$REPO/git/tags/${existing#tag }" --jq .object.sha)
+                [ "$target" = "$RELEASE_SHA" ] || { echo "::error::tag $TAG đã có nhưng trỏ $target, không phải $RELEASE_SHA"; exit 1; } ;;
+              *) echo "::error::tag $TAG đã có ở dạng tag thường (không annotated)"; exit 1 ;;
+            esac
+          else
+            tag_obj=$(gh api -X POST "repos/$REPO/git/tags" -f tag="$TAG" -f message="Hotel Manager $TAG" \
+              -f object="$RELEASE_SHA" -f type=commit --jq .sha)
+            gh api -X POST "repos/$REPO/git/refs" -f ref="refs/tags/$TAG" -f sha="$tag_obj" > /dev/null
+          fi
           gh release edit "$TAG" --repo "$REPO" --draft=false

@@ -9,7 +9,14 @@
   "skip-changelog": true,
   "packages": {
     ".": {
-      "package-name": "hotel-manager"
+      "package-name": "hotel-manager",
+      "extra-files": [
+        {
+          "type": "json",
+          "path": "apps/web/package.json",
+          "jsonpath": "$.version"
+        }
+      ]
     }
   }
 }

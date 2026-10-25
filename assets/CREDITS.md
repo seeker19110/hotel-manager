@@ -12,6 +12,7 @@
 | `apps/web/public/icons/icon-512.png` | như trên | như trên | không |
 | `apps/web/public/icons/maskable-512.png` | như trên (vùng an toàn cho icon maskable) | như trên | không |
 | `apps/web/public/icons/apple-touch-icon.png` | như trên (180 × 180 cho iOS) | như trên | không |
+| `apps/web/public/.well-known/security.txt` | Viết tay (RFC 9116, kênh báo lỗ hổng — SECURITY.md, D-112) | Thuộc dự án | không |
 
 ## Phông chữ
 

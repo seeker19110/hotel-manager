@@ -1,0 +1,88 @@
+# Sổ nhà cung cấp / bên xử lý dạng máy đọc (CMP-AUDIT-007; bản người đọc: docs/privacy/processors.md — cùng danh sách `name`).
+# scripts/privacy-docs.mjs (job new-deps) kiểm: đủ trường; bên đang dùng có `reviewed` ≤ 12 tháng; mọi gói SDK dịch vụ ngoài trong
+# phụ thuộc runtime (apps/*, packages/* trừ testkit) phải nằm trong `sdk_packages` của một dòng ⇒ thêm SDK/dịch vụ mới phải thêm
+# dòng ở đây (và ở processors.md) trong cùng PR. Thay đổi sub-processor: báo khách ≥ 30 ngày (docs/legal/subprocessors.md).
+# status: dang_dung | chua_chon | chua_tich_hop | khong_phai_ben_xu_ly
+version: 1
+vendors:
+  - name: "VPS tại Việt Nam"
+    role: "máy chủ chạy web, worker, Postgres, SeaweedFS, clamd, Caddy"
+    data: "toàn bộ dữ liệu trong docs/privacy/data-map.yaml"
+    location: "VN"
+    dpa: "chưa có — pháp lý soạn khi chọn nhà cung cấp"
+    status: "chua_chon"
+    reviewed: "2026-10-25"
+    # aws4fetch: ký SigV4 tới SeaweedFS S3 tự host trên chính VPS này (packages/app/src/files).
+    sdk_packages: ["aws4fetch"]
+  - name: "Kho sao lưu pgBackRest (khác máy)"
+    role: "giữ bản sao lưu CSDL + WAL, mã hoá phía client"
+    data: "toàn bộ CSDL ở dạng mã hoá"
+    location: "VN (đề xuất)"
+    dpa: "chưa có"
+    status: "chua_chon"
+    reviewed: "2026-10-25"
+    sdk_packages: []
+  - name: "Kho sao lưu file (khác máy)"
+    role: "bản sao bucket file (rclone)"
+    data: "ảnh giấy tờ, ảnh công tơ/sự cố, file xuất"
+    location: "VN (đề xuất)"
+    dpa: "chưa có"
+    status: "chua_chon"
+    reviewed: "2026-10-25"
+    sdk_packages: []
+  - name: "SMTP relay"
+    role: "gửi email giao dịch và OTP người thuê"
+    data: "email + tên người nhận, nội dung thông báo (đã che SĐT/CCCD/số tài khoản)"
+    location: "chưa chọn"
+    dpa: "chưa có"
+    status: "chua_chon"
+    reviewed: "2026-10-25"
+    sdk_packages: []
+  - name: "Prometheus / Alertmanager"
+    role: "giám sát, cảnh báo (tự host)"
+    data: "chỉ số tổng hợp, không PII"
+    location: "tự host (đề xuất)"
+    dpa: "không cần khi tự host"
+    status: "chua_chon"
+    reviewed: "2026-10-25"
+    sdk_packages: []
+  - name: "ClamAV (clamd)"
+    role: "quét mã độc file tải lên (nội bộ)"
+    data: "nội dung file đi qua clamd nội bộ; không gửi ra ngoài"
+    location: "tự host"
+    dpa: "không cần khi tự host"
+    status: "chua_chon"
+    reviewed: "2026-10-25"
+    sdk_packages: []
+  - name: "Let's Encrypt (ACME qua Caddy)"
+    role: "cấp chứng chỉ TLS"
+    data: "tên miền, email liên hệ ACME"
+    location: "ngoài VN (chưa xác minh)"
+    dpa: "điều khoản dịch vụ công khai"
+    status: "chua_chon"
+    reviewed: "2026-10-25"
+    sdk_packages: []
+  - name: "GitHub"
+    role: "lưu mã, CI"
+    data: "mã nguồn, dữ liệu giả; không dữ liệu thật"
+    location: "ngoài VN"
+    dpa: "điều khoản GitHub"
+    status: "dang_dung"
+    reviewed: "2026-10-25"
+    sdk_packages: []
+  - name: "Registry image (Docker Hub)"
+    role: "kéo image nền ghim digest"
+    data: "không có dữ liệu cá nhân"
+    location: "ngoài VN"
+    dpa: "điều khoản công khai"
+    status: "dang_dung"
+    reviewed: "2026-10-25"
+    sdk_packages: []
+  - name: "Ngân hàng / cổng thanh toán"
+    role: "chưa tích hợp (adapter mô phỏng)"
+    data: "số tài khoản nhận, nội dung chuyển khoản, tên người chuyển"
+    location: "VN"
+    dpa: "cần hợp đồng + threat model riêng khi bật"
+    status: "chua_tich_hop"
+    reviewed: "2026-10-25"
+    sdk_packages: []

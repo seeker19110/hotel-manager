@@ -282,7 +282,11 @@ describe("QA-E2E-005 + QA-STRAT-008: Playwright bắt buộc ở CI", () => {
 function testFiles(dir = ROOT) {
   const out = [];
   for (const name of readdirSync(dir)) {
-    if (["node_modules", ".next", "coverage", "test-results", ".git", ".xtemplates"].includes(name)) continue;
+    // `worktrees`: bản sao repo tạm của subagent (.claude/worktrees/) — không phải mã dự án.
+    if (
+      ["node_modules", ".next", "coverage", "test-results", ".git", ".xtemplates", "worktrees"].includes(name)
+    )
+      continue;
     const full = join(dir, name);
     if (statSync(full).isDirectory()) out.push(...testFiles(full));
     else if (/\.(test|spec)\.(ts|tsx|mjs)$/.test(name)) out.push(full);
@@ -417,7 +421,11 @@ describe("BASE-GATE-003: lint 0 cảnh báo, gồm kiểm format, nằm trong c�
     const bad = [];
     const walk = (dir) => {
       for (const name of readdirSync(dir)) {
-        if (["node_modules", ".next", "coverage", ".git", ".xtemplates", "test-results"].includes(name))
+        if (
+          ["node_modules", ".next", "coverage", ".git", ".xtemplates", "test-results", "worktrees"].includes(
+            name,
+          )
+        )
           continue;
         const full = join(dir, name);
         if (statSync(full).isDirectory()) walk(full);

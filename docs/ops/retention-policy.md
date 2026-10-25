@@ -23,6 +23,7 @@
 ## Điều chưa có (ghi rõ, không giả vờ đã làm)
 - **Lifecycle phía SeaweedFS** (rule hết hạn object theo tuổi ở bucket): chưa dùng và **chưa xác minh** cấu hình có hỗ trợ trong phiên bản đang ghim. Hiện lifecycle nằm ở ứng dụng (RET-08). Object lọt khỏi `files` (mất dòng CSDL) sẽ không bị dọn tự động — đối chiếu bằng quy trình khôi phục (`docs/ops/runbooks/restore.md`).
 - **Bảng chưa có job dọn:** `notifications` (thông báo trong ứng dụng), `inbox` (sổ phụ ngân hàng thô, tiền — có thể phải giữ theo luật kế toán, chưa xác minh), `worker_heartbeats` (rất nhỏ), phiên đăng nhập/liên kết khách hết hạn. Chốt hạn cùng DPIA rồi mới viết job (RK-019).
+- **NĐ 333/2026/NĐ-CP Đ.22 (đã đọc gốc 2026-10-25): nhật ký hệ thống lưu ≥ 12 tháng** — RET-01 (xoay vòng 50 MB/container) **không đạt** cho production; cần kho log tập trung giữ ≥ 12 tháng (việc hạ tầng — HUONG-DAN bước C1). Nhật ký kiểm toán `audit_events` (RET-06) không xoá nên đạt phần truy vết thao tác.
 - **Kho log tập trung:** chưa có; sự kiện bảo mật chỉ ở log container (RET-01) tới khi có kho log thật. Nhật ký cần giữ lâu và truy vết theo người/tổ chức đi qua `audit_events` (RET-06).
 - Dữ liệu đã xoá vẫn còn trong bản sao lưu tới hết RET-10 (chấp nhận — THREAT-MODEL TM-22).
 

@@ -43,6 +43,8 @@ jobs:
           cache: pnpm
       - name: Cài phụ thuộc (lockfile đóng băng, không chạy script)
         run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: THIRD_PARTY_NOTICES.md khớp lockfile (CMP-LIC-001, D-111)
+        run: node scripts/third-party-notices.mjs --check
       - name: SBOM CycloneDX của phụ thuộc npm
         run: node scripts/sbom.mjs --out sbom/npm.cdx.json --timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
       - name: Kiểm giấy phép trong SBOM (CMP-LIC-003/004)

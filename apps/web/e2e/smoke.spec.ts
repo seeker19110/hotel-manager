@@ -146,3 +146,13 @@ test("header bảo mật + CSP strict trên HTML và API, không lỗi CSP trong
   await expect(page.getByLabel("Email")).toHaveValue("kiem.tra@example.test");
   expect(cspErrors).toEqual([]);
 });
+
+test("/.well-known/security.txt phục vụ được, đúng RFC 9116 (XC-OSS-004, D-112)", async ({ request }) => {
+  const res = await request.get("/.well-known/security.txt");
+  expect(res.status()).toBe(200);
+  const body = await res.text();
+  expect(body).toMatch(
+    /^Contact: https:\/\/github\.com\/seeker19110\/hotel-manager\/security\/advisories\/new$/m,
+  );
+  expect(body).toMatch(/^Expires: \d{4}-\d{2}-\d{2}T/m);
+});

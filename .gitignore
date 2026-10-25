@@ -44,3 +44,6 @@ Thumbs.db
 
 # Môi trường dev một lệnh (pnpm dev:up): CSDL, bí mật, tài khoản giả
 .dev/
+
+# Worktree tạm của subagent Claude Code (isolation: worktree) — không thuộc repo.
+.claude/worktrees/

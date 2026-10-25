@@ -1,14 +1,14 @@
 ---
 title: Bên xử lý dữ liệu cá nhân (processors)
 kind: privacy-register
-updated: 2026-10-16
+updated: 2026-10-25
 status: khung — nhiều nhà cung cấp "chưa chọn"; chờ chủ dự án chọn và pháp lý soạn DPA
 ---
 
 # Bên xử lý dữ liệu cá nhân
 
 > Sổ nhà cung cấp chạm dữ liệu cá nhân (CMP-AUDIT-007, CMP-VN-004, IND-SAAS-010). Chưa có hợp đồng/DPA nào: pháp lý soạn DPA mẫu và duyệt (việc của người). Cột dữ liệu trỏ [`data-map.yaml`](data-map.yaml). Hạ tầng tự host (ADR-0002) nên phần lớn dữ liệu nằm trên VPS của chính dự án.
-> **Quy tắc:** thêm nhà cung cấp/SDK mới chạm dữ liệu cá nhân ⇒ thêm một dòng ở đây **trước** khi gộp PR (mẫu PR có mục kiểm). Chưa có script CI ép quy tắc này (đề xuất: `docs/compliance/vendors.yaml` + kiểm phụ thuộc mới — chờ đợt sau).
+> **Quy tắc:** thêm nhà cung cấp/SDK mới chạm dữ liệu cá nhân ⇒ thêm một dòng ở đây **trước** khi gộp PR (mẫu PR có mục kiểm). Máy ép: bản máy đọc `docs/compliance/vendors.yaml` (cùng danh sách tên) + `scripts/privacy-docs.mjs` ở job `new-deps` — SDK dịch vụ ngoài mới trong phụ thuộc runtime mà không có dòng ⇒ CI đỏ; bên đang dùng rà lại ≤ 12 tháng.
 
 | Bên | Vai trò | Dữ liệu chạm | Vị trí / nước | DPA / hợp đồng | Trạng thái | Rà lần cuối |
 |---|---|---|---|---|---|---|
