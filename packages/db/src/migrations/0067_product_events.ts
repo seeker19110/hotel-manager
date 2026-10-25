@@ -10,6 +10,7 @@
 // - `app.purge_product_events(p_now, p_months, p_limit)`: xoá sự kiện `occurred_at` quá `p_months` tháng LỊCH (13 tháng ở
 //   `PRODUCT_EVENTS_RETENTION_MONTHS`). Cùng khuôn 0056/0066: SECURITY DEFINER, chỉ `app_worker` gọi; mốc bị chặn trên bởi đồng hồ CSDL
 //   (`least(p_now, now())`); tối thiểu 1 tháng; theo lô `p_limit` (1…5000, SKIP LOCKED); so sánh nghiêm ngặt "<" (đúng mốc còn giữ).
+//   `SET timezone = 'UTC'`: phép trừ tháng trên timestamptz theo lịch của TimeZone phiên — cố định UTC để mốc không lệch theo người gọi.
 // - `app.unlink_product_events_actor(p_user_id)`: đặt `actor_user_id` = NULL cho mọi sự kiện của tài khoản (mọi tổ chức) — gọi khi xoá
 //   tài khoản (T-2311). Chỉ `app_worker` gọi (hàm xuyên tổ chức: không cấp cho `app_runtime` để request thường không ngắt được
 //   liên kết của người khác); trả số hàng đã đổi, chạy lại trả 0.
@@ -44,7 +45,7 @@ REVOKE ALL ON product_events FROM PUBLIC;
 GRANT INSERT ON product_events TO app_runtime;
 
 CREATE FUNCTION app.purge_product_events(p_now timestamptz, p_months integer, p_limit integer) RETURNS integer
-  LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+  LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp SET timezone = 'UTC' AS $$
     WITH due AS (
       SELECT e.id FROM product_events e
       WHERE e.occurred_at < least(p_now, now()) - make_interval(months => greatest(p_months, 1))
@@ -57,7 +58,7 @@ CREATE FUNCTION app.purge_product_events(p_now timestamptz, p_months integer, p_
   $$;
 
 CREATE FUNCTION app.unlink_product_events_actor(p_user_id uuid) RETURNS integer
-  LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+  LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp SET timezone = 'UTC' AS $$
     WITH x AS (
       UPDATE product_events e SET actor_user_id = NULL
       WHERE p_user_id IS NOT NULL AND e.actor_user_id = p_user_id

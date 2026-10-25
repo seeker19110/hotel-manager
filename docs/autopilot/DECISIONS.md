@@ -859,3 +859,10 @@
 - Chọn: Giữ stay.check_in_started trong schema (chưa nối); đo M-03 bằng phiên UAT ghi thời gian như M-02 tới khi có bước bắt đầu ở server
 - Lý do (tiêu chí chất lượng cuối): (1) không thêm lệnh ghi CSDL chỉ để đo, tránh mở bề mặt mới trên luồng lưu trú (merge_risk); (3) đơn giản; M-03 là mục tiêu pilot đo trong UAT tuần 16
 - Đường lùi: Thêm lệnh startCheckIn sau, sự kiện đã có schema
+
+### D-120 · 2026-10-25T16:20:28+00:00 · T-2308 review: thế nào là tiền khách còn được hoàn chặn ẩn danh
+
+- Phương án: (1) Theo số dư sổ CUSTOMER_CREDIT ≠ 0 theo cơ sở (thanh toán confirmed chưa phân bổ chỉ chặn khi người đó còn số dư có lợi) · (2) Đúng nghĩa đen: payments confirmed và amount > allocated_total
+- Chọn: Theo số dư sổ CUSTOMER_CREDIT ≠ 0 theo cơ sở (thanh toán confirmed chưa phân bổ chỉ chặn khi người đó còn số dư có lợi)
+- Lý do (tiêu chí chất lượng cuối): (1) đúng: sổ cái là nguồn sự thật về tiền (như checkout.ts); phương án 2 giữ vĩnh viễn người nộp cọc và người đã được hoàn, trái STD-PRIV-005; có test đối chứng người đã hoàn
+- Đường lùi: Sửa điều kiện trong app.retention_person_activity bằng migration mới

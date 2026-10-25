@@ -1,5 +1,6 @@
 // PLAN T-2309 (PM-METRIC-004/005; D-118) — rào CI: analytics sản phẩm chỉ đi qua `track()` (tự host, server-side). Cấm SDK/mã phân tích
-// của bên thứ ba trong apps/ và packages/ (trừ chính module analytics, nơi định nghĩa `track`), và cấm gói SDK analytics trong mọi
+// của bên thứ ba trong apps/ và packages/ (chỉ miễn ĐÚNG tệp này — nơi định nghĩa mẫu cấm; mã module analytics vẫn bị quét), host/CDN
+// của dịch vụ phân tích, và cấm gói SDK analytics trong mọi
 // package.json. Thêm công cụ phân tích mới = quyết định (D-NNN) + cập nhật docs/privacy, không lách bằng cách đổi tên biến.
 // Ghi chú: từ `segment` trần KHÔNG bị cấm (trùng nghĩa "đoạn": CalendarSegment, path segment) — chỉ cấm dấu hiệu của Segment SDK/CDN.
 import { readdirSync, readFileSync, statSync } from "node:fs";
@@ -16,13 +17,14 @@ const SKIP_DIRS = new Set([
   "test-results",
   "playwright-report",
 ]);
-const ANALYTICS_DIR = join(ROOT, "packages/app/src/analytics");
+/** Tệp được miễn quét: chỉ tệp chứa chính các mẫu cấm (danh sách tường minh — không miễn cả thư mục). */
+const EXEMPT_FILES = new Set([join(ROOT, "packages/app/src/analytics/no-sdk.test.ts")]);
 
 function walk(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     if (SKIP_DIRS.has(name)) return [];
     const p = join(dir, name);
-    if (p === ANALYTICS_DIR) return [];
+    if (EXEMPT_FILES.has(p)) return [];
     return statSync(p).isDirectory() ? walk(p) : [p];
   });
 }
@@ -42,6 +44,11 @@ const FORBIDDEN_SOURCE: [string, RegExp][] = [
   ],
   ["google analytics/tag manager", /google-analytics|googletagmanager|ga\(\s*['"]send['"]/i],
   ["vercel analytics", /@vercel\/analytics|@vercel\/speed-insights/i],
+  // Host/CDN của dịch vụ phân tích (thẻ <script>, fetch/beacon thẳng tới máy chủ bên thứ ba).
+  [
+    "analytics host/CDN",
+    /i\.posthog\.com|plausible\.io|googletagmanager\.com|google-analytics\.com|cdn\.segment\.|cdn\.mxpnl\.com|api\.mixpanel\.com|cdn\.amplitude\.com|static\.hotjar\.com/i,
+  ],
 ];
 /** Gói analytics trong dependencies/devDependencies/peer/optional của mọi package.json. */
 const FORBIDDEN_PACKAGES = [
@@ -81,11 +88,14 @@ function hits(text: string): string[] {
 }
 
 describe("rào analytics — không SDK/mã phân tích ngoài track()", () => {
-  it("quét thật: thấy nhiều tệp nguồn của apps/ và packages/, và không quét module analytics", () => {
-    const files = sourceFiles();
+  it("quét thật: thấy nhiều tệp nguồn của apps/ và packages/, kể cả mã module analytics; chỉ miễn đúng tệp định nghĩa mẫu", () => {
+    const files = sourceFiles().map(rel);
     expect(files.length).toBeGreaterThan(200);
-    expect(files.some((f) => rel(f) === "packages/app/src/billing/billing.ts")).toBe(true);
-    expect(files.some((f) => rel(f).startsWith("packages/app/src/analytics/"))).toBe(false);
+    expect(files).toContain("packages/app/src/billing/billing.ts");
+    for (const f of ["track.ts", "validate.ts", "events.ts", "index.ts", "command.ts", "analytics.test.ts"])
+      expect(files).toContain(`packages/app/src/analytics/${f}`);
+    expect(files).not.toContain("packages/app/src/analytics/no-sdk.test.ts");
+    expect([...EXEMPT_FILES].map(rel)).toEqual(["packages/app/src/analytics/no-sdk.test.ts"]);
   });
 
   it("không tệp nguồn nào chứa dấu hiệu SDK analytics bên thứ ba", () => {
@@ -131,7 +141,20 @@ describe("rào analytics — không SDK/mã phân tích ngoài track()", () => {
     expect(hits("import { AnalyticsBrowser } from '@segment/analytics-next'")).toEqual(["segment SDK"]);
     expect(hits("<script src='https://www.googletagmanager.com/gtm.js'>")).toEqual([
       "google analytics/tag manager",
+      "analytics host/CDN",
     ]);
+    // Host/CDN: kể cả khi không có tên SDK trong mã (fetch/beacon thẳng).
+    expect(hits("navigator.sendBeacon('https://plausible.io/api/event', b)")).toEqual(["analytics host/CDN"]);
+    expect(hits("fetch('https://eu.i.posthog.com/capture/')")).toEqual(["posthog", "analytics host/CDN"]);
+    expect(hits("<script src='https://www.google-analytics.com/analytics.js'>")).toEqual([
+      "google analytics/tag manager",
+      "analytics host/CDN",
+    ]);
+    expect(hits("<script src='https://cdn.segment.com/analytics.js/v1/x/analytics.min.js'>")).toEqual([
+      "segment SDK",
+      "analytics host/CDN",
+    ]);
+    expect(hits("const host = 'plausible.example.vn'")).toEqual([]);
     expect(hits("const segments: CalendarSegment[] = []; path.split('/').map((segment) => segment)")).toEqual(
       [],
     );

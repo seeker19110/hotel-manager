@@ -1,5 +1,6 @@
 // Kiểm hợp lệ payload analytics (PLAN T-2309; PM-METRIC-005/006): tên trong danh sách, phiên bản có thật, đủ/đúng/không thừa khoá,
-// khoá không thuộc danh sách đen PII, giá trị chuỗi không giống email/SĐT Việt Nam. Hàm thuần — không I/O, không log giá trị.
+// khoá không thuộc danh sách đen PII (cả tiếng Việt/viết tắt), giá trị chuỗi/số không giống email/SĐT Việt Nam.
+// Hàm thuần — không I/O, không log giá trị.
 // Thông điệp lỗi viết bằng tiếng Anh và KHÔNG chứa giá trị payload (giá trị sai có thể chính là PII); chỉ nêu tên khoá/mã lỗi.
 import type { EventRegistry, PropDef } from "./events.ts";
 
@@ -85,7 +86,37 @@ export const PII_KEY_TOKENS: ReadonlySet<string> = new Set([
   "latitude",
   "longitude",
   "location",
+  "zip",
+  "postcode",
+  "postal",
+  // Tiếng Việt không dấu + viết tắt (khoá kiểu `sdt`, `ten_khach`, `cmt`): SĐT, tên, giấy tờ, mã số thuế, số tài khoản.
+  "sdt",
+  "ten",
+  "cmt",
+  "hochieu",
+  "dienthoai",
+  "sodienthoai",
+  "hoten",
+  "diachi",
+  "bienso",
+  "mst",
+  "masothue",
+  "stk",
+  "sotaikhoan",
 ]);
+/**
+ * Cụm từ tiếng Việt viết tách (`so_dien_thoai`, `soDienThoai`, `ho_ten`…): khớp khi các từ đứng LIỀN NHAU trong khoá — không ghép
+ * chuỗi rồi tìm chuỗi con (tránh báo nhầm qua ranh giới từ, vd. `photo_tenant`).
+ */
+const PII_KEY_PHRASES: readonly (readonly string[])[] = [
+  ["dien", "thoai"],
+  ["ho", "ten"],
+  ["dia", "chi"],
+  ["ho", "chieu"],
+  ["bien", "so"],
+  ["ma", "so", "thue"],
+  ["so", "tai", "khoan"],
+];
 const PII_KEY_FRAGMENTS = [
   "fullname",
   "firstname",
@@ -109,10 +140,14 @@ const keyTokens = (key: string): string[] =>
     .split(/[^a-z0-9]+/)
     .filter(Boolean);
 
-/** Khoá thuộc danh sách đen PII? (theo từ, hoặc từ ghép viết liền). */
+const hasPhrase = (tokens: readonly string[], phrase: readonly string[]): boolean =>
+  tokens.some((_, i) => phrase.every((w, j) => tokens[i + j] === w));
+
+/** Khoá thuộc danh sách đen PII? (theo từ, cụm từ tiếng Việt liền nhau, hoặc từ ghép tiếng Anh viết liền). */
 export function isPiiKey(key: string): boolean {
   const tokens = keyTokens(key);
   if (tokens.some((t) => PII_KEY_TOKENS.has(t))) return true;
+  if (PII_KEY_PHRASES.some((ph) => hasPhrase(tokens, ph))) return true;
   const joined = tokens.join("");
   return PII_KEY_FRAGMENTS.some((f) => joined.includes(f));
 }
@@ -131,6 +166,19 @@ export function looksLikePii(value: string): boolean {
   if (UUID_RE.test(value)) return false;
   return EMAIL_RE.test(value) || PHONE_RE.test(value);
 }
+
+/**
+ * Số giống SĐT VN (số học mất số 0 đầu): 9 chữ số di động `[35789]xxxxxxxx`, 10 chữ số bàn `2xxxxxxxxx`, kèm/không kèm `84`;
+ * hoặc dạng chuỗi của số khớp `looksLikePii`. Số thuộc tính hợp lệ luôn < 10^8 (`assertRegistrySafe`) nên không báo nhầm.
+ */
+const NUMERIC_PHONE_RE = /^(?:84)?(?:[35789]\d{8}|2\d{9})$/;
+export function looksLikePiiNumber(value: number): boolean {
+  if (!Number.isFinite(value)) return false;
+  const s = String(Math.abs(value));
+  return looksLikePii(s) || NUMERIC_PHONE_RE.test(s);
+}
+/** Cận trên (loại trừ) cho thuộc tính số nguyên của registry: 10^8 đủ chứa SĐT 9 chữ số (không số 0 đầu). */
+export const INT_PROP_MAX_EXCLUSIVE = 100_000_000;
 
 export const isUuid = (v: unknown): v is string => typeof v === "string" && UUID_RE.test(v);
 
@@ -182,7 +230,10 @@ export function validateEvent(
       throw new AnalyticsValidationError("unknown_prop", `prop "${k}" is not in the schema of ${name}`, k);
   for (const k of keys) {
     const val = props[k];
-    if (typeof val === "string" && looksLikePii(val))
+    if (
+      (typeof val === "string" && looksLikePii(val)) ||
+      (typeof val === "number" && looksLikePiiNumber(val))
+    )
       throw new AnalyticsValidationError("pii_value", `prop "${k}" value looks like an email or phone`, k);
   }
   const out: Record<string, string | number> = {};
@@ -223,6 +274,12 @@ export function assertRegistrySafe(registry: EventRegistry): void {
         }
         if (p.type.kind === "int" && !(Number.isSafeInteger(p.type.min) && p.type.min <= p.type.max))
           bad(`${name}.${key}: invalid integer range`);
+        // Cận đủ rộng để chứa SĐT (9 chữ số) ⇒ một số "đếm" có thể bị dùng chở PII: từ chối ngay ở registry.
+        if (
+          p.type.kind === "int" &&
+          (p.type.max >= INT_PROP_MAX_EXCLUSIVE || p.type.min <= -INT_PROP_MAX_EXCLUSIVE)
+        )
+          bad(`${name}.${key}: integer range must stay below 10^8 (could carry a phone number)`);
       }
     }
   }

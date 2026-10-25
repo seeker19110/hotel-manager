@@ -2,6 +2,8 @@
 // Cùng khuôn 0056: mỗi bảng MỘT hàm SECURITY DEFINER phạm vi hẹp, chỉ `app_worker` gọi (worker không có DELETE/UPDATE trực tiếp);
 // mốc bị chặn trên bởi đồng hồ CSDL (`least(p_now, now())`); số ngày/tháng tối thiểu 1; theo LÔ `p_limit` (1…5000, SKIP LOCKED);
 // so sánh nghiêm ngặt "<" (hàng đúng mốc còn giữ). Hằng số hạn lưu ở `packages/app/src/retention/policy.ts`.
+// Mọi hàm SECURITY DEFINER đặt `timezone = 'UTC'` (cùng chỗ `search_path`): `timestamptz − make_interval(months/days)` tính theo
+// lịch của TimeZone phiên — phiên đặt Asia/Ho_Chi_Minh sẽ lệch mốc tháng tới 1 ngày; cố định UTC thì mốc không phụ thuộc người gọi.
 // XOÁ (dữ liệu vận hành, không ai tham chiếu):
 //   - `app.purge_notifications(p_now, p_days, p_limit)`: thông báo trong app tạo quá `p_days` ngày VÀ không còn lần gửi nào
 //     (`notification_deliveries` FK RESTRICT; lần gửi đã xong được 0056 dọn sau 90/180 ngày, lần gửi đang chờ giữ thông báo lại).
@@ -21,13 +23,28 @@
 //   `app.retention_person_activity(org, person)` (không cấp cho ai — chỉ hai hàm ẩn danh gọi) trả: còn quan hệ mở không; mốc kết
 //   thúc muộn nhất của lưu trú/thuê/đặt phòng; mốc muộn nhất của mọi quan hệ (tiền, thuê, lưu trú, tài khoản, lời mời, phiếu sự cố).
 //   "Quan hệ mở": lượt ở expected/in_house; đặt phòng draft/held/confirmed/in_house; hợp đồng chưa
-//   closed/cancelled (đại diện hoặc người ở); phiếu còn `open_amount` ≠ 0; cọc còn `balance` ≠ 0; khoản thu `pending`; báo đã trả
-//   `submitted`; tư cách thành viên invited/active/suspended; lời mời pending; phiếu sự cố open/assigned/in_progress.
+//   closed/cancelled (đại diện hoặc người ở); phiếu còn `open_amount` ≠ 0; cọc còn `balance` ≠ 0; khoản thu `pending`, hoặc đã
+//   xác nhận (thu thường) còn phần chưa phân bổ khi người trả còn số dư CUSTOMER_CREDIT > 0 ở cơ sở đó; số dư CUSTOMER_CREDIT
+//   (ứng trước/trả thừa) theo cơ sở ≠ 0; báo đã trả `submitted`; tư cách thành viên invited/active/suspended; lời mời pending;
+//   phiếu sự cố open/assigned/in_progress.
+//   Hai hàm ẩn danh (plpgsql) khoá trước rồi KIỂM LẠI ở câu lệnh sau (chống đua với quan hệ mới) — xem chú thích ngay trên hàm.
 //   Mốc "kết thúc" lấy BẢO THỦ = thời điểm muộn nhất của mọi hàng liên quan (`updated_at`, `checked_out_at`, `moved_out_on`+1 ngày…):
 //   chạm vào hàng sau này thì đồng hồ tính lại, không bao giờ ẩn danh sớm.
 //   Tháng (không phải ngày): 10 năm = 120 tháng đúng lịch — 3650 ngày ngắn hơn 10 năm 2–3 ngày (nghĩa vụ lưu chứng từ kế toán).
 //   Mỗi hàng ẩn danh ghi một `audit_events` (actor_type `worker`; append-only chỉ chặn UPDATE/DELETE/TRUNCATE, INSERT được) —
 //   chỉ id + chính sách, không ghi dữ liệu cá nhân.
+// - Khoản thu "mở" (retention_person_activity): pending; hoặc đã xác nhận (thu thường) còn phần chưa phân bổ (amount > allocated_total)
+//   MÀ người trả còn số dư CUSTOMER_CREDIT > 0 ở cơ sở đó — lệnh hoàn `credit.requestRefund` không sửa `payments`, thu cọc không bao
+//   giờ được phân bổ: không chặn trần bằng sổ thì người đã được hoàn hết/người nộp cọc bị giữ mãi. Thêm: số dư CUSTOMER_CREDIT
+//   (ứng trước/trả thừa — Nợ phải trả cho khách, DOMAIN-MODEL §5) theo từng cơ sở ≠ 0.
+// - Hai hàm ẩn danh: plpgsql, HAI câu lệnh (chống đua với quan hệ mới — review 0066):
+//   (1) chọn ứng viên theo đủ điều kiện rồi KHOÁ hàng `persons` (và giấy tờ) bằng FOR UPDATE … SKIP LOCKED. FOR UPDATE xung đột
+//       FOR KEY SHARE mà INSERT có khoá ngoại tới `persons` giữ ⇒ người đang được gắn quan hệ mới chưa commit bị BỎ QUA. Nhưng
+//       `has_open` ở câu này tính theo snapshot đầu câu: quan hệ commit giữa snapshot và lúc khoá không thấy được.
+//   (2) câu lệnh SAU (READ COMMITTED ⇒ snapshot mới, lấy khi đã giữ khoá) KIỂM LẠI đủ điều kiện và chỉ UPDATE hàng vẫn đạt. Từ lúc
+//       giữ khoá, không INSERT có FK tới người đó commit được trước khi transaction này kết thúc ⇒ không còn khe.
+//   Ở REPEATABLE READ/SERIALIZABLE câu (2) dùng lại snapshot cũ ⇒ hàm từ chối chạy. Giới hạn còn lại: `stays.additional_guest_person_ids`
+//   là mảng (không FK, không khoá `persons`) — người ở kèm được thêm đúng lúc lô chạy vẫn có thể lọt khe (ghi ở retention-policy).
 // - Index cho truy vấn dọn: `ix_notifications_created_at`, `ix_auth_session_expires`, `ix_auth_verification_expires`,
 //   `ix_guest_links_dead_at` (biểu thức), `ix_identity_documents_retention`/`ix_persons_retention` (một phần: chưa ẩn danh),
 //   `ix_stays_additional_guests` (GIN — tra người ở kèm `additional_guest_person_ids @> ARRAY[id]`).
@@ -45,7 +62,7 @@ CREATE INDEX ix_persons_retention ON persons (updated_at) WHERE anonymized_at IS
 CREATE INDEX ix_stays_additional_guests ON stays USING gin (additional_guest_person_ids);
 
 CREATE FUNCTION app.purge_notifications(p_now timestamptz, p_days integer, p_limit integer) RETURNS integer
-  LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+  LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp SET timezone = 'UTC' AS $$
     WITH due AS (
       SELECT n.id FROM notifications n
       WHERE n.created_at < least(p_now, now()) - make_interval(days => greatest(p_days, 1))
@@ -60,7 +77,7 @@ CREATE FUNCTION app.purge_notifications(p_now timestamptz, p_days integer, p_lim
   $$;
 
 CREATE FUNCTION app.purge_worker_heartbeats(p_now timestamptz, p_days integer, p_limit integer) RETURNS integer
-  LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+  LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp SET timezone = 'UTC' AS $$
     WITH due AS (
       SELECT w.name FROM worker_heartbeats w
       WHERE w.beat_at < least(p_now, now()) - make_interval(days => greatest(p_days, 1))
@@ -73,7 +90,7 @@ CREATE FUNCTION app.purge_worker_heartbeats(p_now timestamptz, p_days integer, p
   $$;
 
 CREATE FUNCTION app.purge_auth_sessions(p_now timestamptz, p_days integer, p_limit integer) RETURNS integer
-  LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+  LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp SET timezone = 'UTC' AS $$
     WITH due AS (
       SELECT s.id FROM auth."session" s
       WHERE s."expiresAt" < least(p_now, now()) - make_interval(days => greatest(p_days, 1))
@@ -86,7 +103,7 @@ CREATE FUNCTION app.purge_auth_sessions(p_now timestamptz, p_days integer, p_lim
   $$;
 
 CREATE FUNCTION app.purge_auth_verifications(p_now timestamptz, p_days integer, p_limit integer) RETURNS integer
-  LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+  LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp SET timezone = 'UTC' AS $$
     WITH due AS (
       SELECT v.id FROM auth."verification" v
       WHERE v."expiresAt" < least(p_now, now()) - make_interval(days => greatest(p_days, 1))
@@ -99,7 +116,7 @@ CREATE FUNCTION app.purge_auth_verifications(p_now timestamptz, p_days integer, 
   $$;
 
 CREATE FUNCTION app.purge_guest_access_links(p_now timestamptz, p_days integer, p_limit integer) RETURNS integer
-  LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+  LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp SET timezone = 'UTC' AS $$
     WITH due AS (
       SELECT g.id FROM guest_access_links g
       WHERE least(g.expires_at, g.revoked_at) < least(p_now, now()) - make_interval(days => greatest(p_days, 1))
@@ -136,7 +153,13 @@ CREATE FUNCTION app.retention_person_activity(p_org uuid, p_person uuid)
       SELECT 'money', i.open_amount <> 0, greatest(i.issued_at, i.updated_at)
         FROM invoices i WHERE i.organization_id = p_org AND i.payer_person_id = p_person
       UNION ALL
-      SELECT 'money', p.status = 'pending', greatest(p.created_at, p.updated_at)
+      -- payments: pending, or confirmed receivable with an unallocated part while the payer still has CUSTOMER_CREDIT > 0 here.
+      SELECT 'money', p.status = 'pending'
+               OR (p.status = 'confirmed' AND p.purpose = 'receivable' AND p.amount > p.allocated_total
+                   AND coalesce((SELECT sum(j.credit - j.debit) FROM journal_lines j
+                                 WHERE j.organization_id = p_org AND j.property_id = p.property_id
+                                   AND j.account = 'CUSTOMER_CREDIT' AND j.person_id = p_person), 0) > 0),
+             greatest(p.created_at, p.updated_at, p.confirmed_at)
         FROM payments p WHERE p.organization_id = p_org AND p.payer_person_id = p_person
       UNION ALL
       SELECT 'money', d.balance <> 0, greatest(d.created_at, d.updated_at)
@@ -144,6 +167,12 @@ CREATE FUNCTION app.retention_person_activity(p_org uuid, p_person uuid)
       UNION ALL
       SELECT 'money', false, j.created_at
         FROM journal_lines j WHERE j.organization_id = p_org AND j.person_id = p_person
+      UNION ALL
+      -- CUSTOMER_CREDIT balance per property <> 0: money still owed to/by the customer.
+      SELECT 'money', sum(j.credit - j.debit) <> 0, max(j.created_at)
+        FROM journal_lines j
+       WHERE j.organization_id = p_org AND j.account = 'CUSTOMER_CREDIT' AND j.person_id = p_person
+       GROUP BY j.property_id
       UNION ALL
       SELECT 'money', c.status = 'submitted', greatest(c.created_at, c.updated_at)
         FROM payment_claims c WHERE c.organization_id = p_org AND c.person_id = p_person
@@ -161,75 +190,116 @@ CREATE FUNCTION app.retention_person_activity(p_org uuid, p_person uuid)
   $$;
 
 CREATE FUNCTION app.anonymize_identity_documents(p_now timestamptz, p_months integer, p_limit integer) RETURNS integer
-  LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp AS $$
-    WITH due AS (
-      SELECT d.id, d.organization_id, d.file_id FROM identity_documents d
-      CROSS JOIN LATERAL app.retention_person_activity(d.organization_id, d.person_id) a
-      WHERE d.anonymized_at IS NULL
-        AND d.updated_at < least(p_now, now()) - make_interval(months => greatest(p_months, 1))
-        AND d.created_at < least(p_now, now()) - make_interval(months => greatest(p_months, 1))
-        AND (d.retention_until IS NULL OR d.retention_until < (least(p_now, now()) AT TIME ZONE 'UTC')::date)
-        AND NOT a.has_open
-        AND (a.stay_lease_end IS NULL
-             OR a.stay_lease_end < least(p_now, now()) - make_interval(months => greatest(p_months, 1)))
-      ORDER BY d.updated_at, d.id
-      LIMIT least(greatest(p_limit, 1), 5000)
-      FOR UPDATE OF d SKIP LOCKED
-    ), doc AS (
-      UPDATE identity_documents d
-         SET doc_number_enc = NULL, doc_number_key_id = NULL, doc_number_hash = NULL, doc_number_last4 = NULL,
-             nationality = NULL, file_id = NULL, anonymized_at = now()
-        FROM due WHERE d.id = due.id
-      RETURNING d.id, d.organization_id, d.property_id, due.file_id
-    ), f AS (
-      UPDATE files f
-         SET delete_after = least(coalesce(f.delete_after, (now() AT TIME ZONE 'UTC')::date), (now() AT TIME ZONE 'UTC')::date)
-        FROM due
-       WHERE f.organization_id = due.organization_id AND f.id = due.file_id AND f.status IN ('ready','pending_scan')
-      RETURNING 1
-    ), aud AS (
-      INSERT INTO audit_events (id, organization_id, property_id, actor_type, action, entity_type, entity_id, after, reason,
-                                correlation_id)
-      SELECT gen_random_uuid(), doc.organization_id, doc.property_id, 'worker', 'identity_document.anonymized',
-             'identity_document', doc.id,
-             jsonb_build_object('retention_months', greatest(p_months, 1), 'file_scheduled_for_deletion', doc.file_id IS NOT NULL),
-             'retention_expired', 'retention.privacy'
-        FROM doc
-      RETURNING 1
-    )
-    SELECT count(*)::int FROM doc
-  $$;
+  LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp SET timezone = 'UTC' AS $$
+DECLARE
+  v_cut timestamptz := least(p_now, now()) - make_interval(months => greatest(p_months, 1));
+  v_today date := (least(p_now, now()) AT TIME ZONE 'UTC')::date;
+  v_ids uuid[];
+  v_n integer;
+BEGIN
+  IF current_setting('transaction_isolation') <> 'read committed' THEN
+    RAISE EXCEPTION 'app.anonymize_identity_documents requires READ COMMITTED (re-check after lock needs a fresh snapshot)';
+  END IF;
+  -- (1) pick + lock documents and their owners (FOR UPDATE conflicts with FK FOR KEY SHARE).
+  SELECT coalesce(array_agg(c.id), '{}') INTO v_ids FROM (
+    SELECT d.id FROM identity_documents d
+    JOIN persons p ON p.organization_id = d.organization_id AND p.id = d.person_id
+    CROSS JOIN LATERAL app.retention_person_activity(d.organization_id, d.person_id) a
+    WHERE d.anonymized_at IS NULL
+      AND d.updated_at < v_cut AND d.created_at < v_cut
+      AND (d.retention_until IS NULL OR d.retention_until < v_today)
+      AND NOT a.has_open
+      AND (a.stay_lease_end IS NULL OR a.stay_lease_end < v_cut)
+    ORDER BY d.updated_at, d.id
+    LIMIT least(greatest(p_limit, 1), 5000)
+    FOR UPDATE OF d, p SKIP LOCKED
+  ) c;
+  IF cardinality(v_ids) = 0 THEN RETURN 0; END IF;
+  -- (2) re-check with a fresh snapshot taken while holding the locks; same predicate as (1).
+  WITH due AS (
+    SELECT d.id, d.organization_id, d.file_id FROM identity_documents d
+    CROSS JOIN LATERAL app.retention_person_activity(d.organization_id, d.person_id) a
+    WHERE d.id = ANY (v_ids)
+      AND d.anonymized_at IS NULL
+      AND d.updated_at < v_cut AND d.created_at < v_cut
+      AND (d.retention_until IS NULL OR d.retention_until < v_today)
+      AND NOT a.has_open
+      AND (a.stay_lease_end IS NULL OR a.stay_lease_end < v_cut)
+  ), doc AS (
+    UPDATE identity_documents d
+       SET doc_number_enc = NULL, doc_number_key_id = NULL, doc_number_hash = NULL, doc_number_last4 = NULL,
+           nationality = NULL, file_id = NULL, anonymized_at = now()
+      FROM due WHERE d.id = due.id
+    RETURNING d.id, d.organization_id, d.property_id, due.file_id
+  ), f AS (
+    UPDATE files f
+       SET delete_after = least(coalesce(f.delete_after, (now() AT TIME ZONE 'UTC')::date), (now() AT TIME ZONE 'UTC')::date)
+      FROM due
+     WHERE f.organization_id = due.organization_id AND f.id = due.file_id AND f.status IN ('ready','pending_scan')
+    RETURNING 1
+  ), aud AS (
+    INSERT INTO audit_events (id, organization_id, property_id, actor_type, action, entity_type, entity_id, after, reason,
+                              correlation_id)
+    SELECT gen_random_uuid(), doc.organization_id, doc.property_id, 'worker', 'identity_document.anonymized',
+           'identity_document', doc.id,
+           jsonb_build_object('retention_months', greatest(p_months, 1), 'file_scheduled_for_deletion', doc.file_id IS NOT NULL),
+           'retention_expired', 'retention.privacy'
+      FROM doc
+    RETURNING 1
+  )
+  SELECT count(*)::int INTO v_n FROM doc;
+  RETURN v_n;
+END
+$$;
 
 CREATE FUNCTION app.anonymize_persons(p_now timestamptz, p_months integer, p_limit integer) RETURNS integer
-  LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp AS $$
-    WITH due AS (
-      SELECT p.id FROM persons p
-      CROSS JOIN LATERAL app.retention_person_activity(p.organization_id, p.id) a
-      WHERE p.anonymized_at IS NULL
-        AND p.updated_at < least(p_now, now()) - make_interval(months => greatest(p_months, 1))
-        AND p.created_at < least(p_now, now()) - make_interval(months => greatest(p_months, 1))
-        AND NOT a.has_open
-        AND (a.relation_end IS NULL
-             OR a.relation_end < least(p_now, now()) - make_interval(months => greatest(p_months, 1)))
-        AND NOT EXISTS (SELECT 1 FROM identity_documents d
-                        WHERE d.organization_id = p.organization_id AND d.person_id = p.id AND d.anonymized_at IS NULL)
-      ORDER BY p.updated_at, p.id
-      LIMIT least(greatest(p_limit, 1), 5000)
-      FOR UPDATE OF p SKIP LOCKED
-    ), upd AS (
-      UPDATE persons p
-         SET full_name = '***', phone = NULL, email = NULL, address = NULL, nationality = NULL, anonymized_at = now()
-        FROM due WHERE p.id = due.id
-      RETURNING p.id, p.organization_id
-    ), aud AS (
-      INSERT INTO audit_events (id, organization_id, actor_type, action, entity_type, entity_id, after, reason, correlation_id)
-      SELECT gen_random_uuid(), upd.organization_id, 'worker', 'person.anonymized', 'person', upd.id,
-             jsonb_build_object('retention_months', greatest(p_months, 1)), 'retention_expired', 'retention.privacy'
-        FROM upd
-      RETURNING 1
-    )
-    SELECT count(*)::int FROM upd
-  $$;
+  LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp SET timezone = 'UTC' AS $$
+DECLARE
+  v_cut timestamptz := least(p_now, now()) - make_interval(months => greatest(p_months, 1));
+  v_ids uuid[];
+  v_n integer;
+BEGIN
+  IF current_setting('transaction_isolation') <> 'read committed' THEN
+    RAISE EXCEPTION 'app.anonymize_persons requires READ COMMITTED (re-check after lock needs a fresh snapshot)';
+  END IF;
+  -- (1) pick + lock persons (FOR UPDATE conflicts with FK FOR KEY SHARE, incl. new identity documents).
+  SELECT coalesce(array_agg(c.id), '{}') INTO v_ids FROM (
+    SELECT p.id FROM persons p
+    CROSS JOIN LATERAL app.retention_person_activity(p.organization_id, p.id) a
+    WHERE p.anonymized_at IS NULL
+      AND p.updated_at < v_cut AND p.created_at < v_cut
+      AND NOT a.has_open
+      AND (a.relation_end IS NULL OR a.relation_end < v_cut)
+      AND NOT EXISTS (SELECT 1 FROM identity_documents d
+                      WHERE d.organization_id = p.organization_id AND d.person_id = p.id AND d.anonymized_at IS NULL)
+    ORDER BY p.updated_at, p.id
+    LIMIT least(greatest(p_limit, 1), 5000)
+    FOR UPDATE OF p SKIP LOCKED
+  ) c;
+  IF cardinality(v_ids) = 0 THEN RETURN 0; END IF;
+  -- (2) re-check with a fresh snapshot taken while holding the locks; same predicate as (1).
+  WITH upd AS (
+    UPDATE persons p
+       SET full_name = '***', phone = NULL, email = NULL, address = NULL, nationality = NULL, anonymized_at = now()
+     WHERE p.id = ANY (v_ids)
+       AND p.anonymized_at IS NULL
+       AND p.updated_at < v_cut AND p.created_at < v_cut
+       AND NOT EXISTS (SELECT 1 FROM app.retention_person_activity(p.organization_id, p.id) a
+                       WHERE a.has_open OR a.relation_end >= v_cut)
+       AND NOT EXISTS (SELECT 1 FROM identity_documents d
+                       WHERE d.organization_id = p.organization_id AND d.person_id = p.id AND d.anonymized_at IS NULL)
+    RETURNING p.id, p.organization_id
+  ), aud AS (
+    INSERT INTO audit_events (id, organization_id, actor_type, action, entity_type, entity_id, after, reason, correlation_id)
+    SELECT gen_random_uuid(), upd.organization_id, 'worker', 'person.anonymized', 'person', upd.id,
+           jsonb_build_object('retention_months', greatest(p_months, 1)), 'retention_expired', 'retention.privacy'
+      FROM upd
+    RETURNING 1
+  )
+  SELECT count(*)::int INTO v_n FROM upd;
+  RETURN v_n;
+END
+$$;
 
 REVOKE ALL ON FUNCTION app.retention_person_activity(uuid, uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.purge_notifications(timestamptz, integer, integer),

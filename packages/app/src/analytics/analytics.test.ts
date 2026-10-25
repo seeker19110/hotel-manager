@@ -18,6 +18,7 @@ import {
   assertRegistrySafe,
   isPiiKey,
   looksLikePii,
+  looksLikePiiNumber,
   validateEvent,
 } from "./validate.ts";
 
@@ -111,6 +112,22 @@ describe("registry allowlist", () => {
       assertRegistrySafe(mk("a.b", { x: { type: { kind: "int", min: 5, max: 1 }, required: true } })),
     ).toThrow(/range/);
     expect(() => assertRegistrySafe(mk("a.b", { CamelKey: uuid }))).toThrow(/snake_case/);
+  });
+
+  it("assertRegistrySafe từ chối khoá tiếng Việt/viết tắt (sdt…) và số nguyên có cận đủ chứa SĐT (≥ 10^8)", () => {
+    const base = { owner: "x", metric: "M-01", current: 1 };
+    const mk = (props: Record<string, unknown>): EventRegistry =>
+      ({ "a.b": { ...base, versions: { 1: { addedOn: "2026-10-25", props } } } }) as unknown as EventRegistry;
+    const int = (min: number, max: number) => ({ type: { kind: "int", min, max }, required: true });
+    expect(() => assertRegistrySafe(mk({ sdt: int(0, 10) }))).toThrow(/PII/);
+    expect(() =>
+      assertRegistrySafe(mk({ so_dien_thoai: { type: { kind: "uuid" }, required: true } })),
+    ).toThrow(/PII/);
+    expect(() => assertRegistrySafe(mk({ x: int(0, 100_000_000) }))).toThrow(/10\^8/);
+    expect(() => assertRegistrySafe(mk({ x: int(0, Number.MAX_SAFE_INTEGER) }))).toThrow(/10\^8/);
+    expect(() => assertRegistrySafe(mk({ x: int(-100_000_000, 0) }))).toThrow(/10\^8/);
+    // Ca biên hợp lệ: cận trên 10^8 − 1.
+    expect(() => assertRegistrySafe(mk({ x: int(0, 99_999_999) }))).not.toThrow();
   });
 });
 
@@ -232,6 +249,42 @@ describe("validateEvent", () => {
     expect(code(val("core_task.completed", { email: ID }))).toBe("pii_key");
   });
 
+  it("khoá tiếng Việt không dấu/viết tắt → pii_key (tách snake_case/camelCase hoặc viết liền)", () => {
+    const keys = [
+      "sdt",
+      "sdt_khach",
+      "dien_thoai",
+      "so_dien_thoai",
+      "soDienThoai",
+      "sodienthoai",
+      "ho_ten",
+      "hoTen",
+      "ten",
+      "ten_khach",
+      "dia_chi",
+      "diachi",
+      "cmt",
+      "cmnd",
+      "cccd",
+      "ho_chieu",
+      "bien_so",
+      "bien_so_xe",
+      "zip",
+      "zip_code",
+      "postcode",
+      "mst",
+      "ma_so_thue",
+      "stk",
+      "so_tai_khoan",
+    ];
+    for (const k of keys) {
+      expect(isPiiKey(k), k).toBe(true);
+      expect(code(val("core_task.completed", { task: "stay_checked_in", [k]: "x" })), k).toBe("pii_key");
+    }
+    // Ca reviewer: SĐT gửi dạng SỐ dưới khoá `sdt`.
+    expect(code(val("core_task.completed", { task: "stay_checked_in", sdt: 912345678 }))).toBe("pii_key");
+  });
+
   it("isPiiKey không báo nhầm khoá an toàn", () => {
     for (const k of [
       "property_id",
@@ -244,6 +297,16 @@ describe("validateEvent", () => {
       "membership_id",
       "rename_to",
       "description_id".replace("description_id", "stay_id"),
+      // Gần giống cụm tiếng Việt nhưng khác ranh giới từ / từ khác: không báo.
+      "photo_tenant",
+      "tenant_count",
+      "content_type",
+      "so_luong",
+      "ho_so_id",
+      "dia_diem_count",
+      "bien_ban_id",
+      "ma_phong",
+      "tai_khoan_count",
     ])
       expect(isPiiKey(k), k).toBe(false);
   });
@@ -266,6 +329,17 @@ describe("validateEvent", () => {
       expect(code(val("billing_period.created", { billing_period_id: v })), v).toBe("pii_value");
       expect(code(val("core_task.completed", { task: v })), v).toBe("pii_value");
     }
+  });
+
+  it("giá trị SỐ giống SĐT VN (mất số 0 đầu, có/không 84) → pii_value, kể cả dưới khoá không PII; số đếm nhỏ không báo", () => {
+    for (const v of [912345678, 84912345678, 2838123456, 842838123456, 389999999]) {
+      expect(looksLikePiiNumber(v), String(v)).toBe(true);
+      expect(code(val("billing_period.issued", { billing_period_id: ID, invoice_count: v })), String(v)).toBe(
+        "pii_value",
+      );
+    }
+    for (const v of [0, 1, 12, 100_000, 99_999_999, 123456789, -1, 1.5, Number.NaN])
+      expect(looksLikePiiNumber(v), String(v)).toBe(false);
   });
 
   it("uuid hợp lệ không bị coi là SĐT dù chứa dãy số dài; chuỗi vô hại không bị báo", () => {

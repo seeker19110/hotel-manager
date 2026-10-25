@@ -325,6 +325,25 @@ describe("hạn lưu 13 tháng (RET-19) — purgeExpiredOperational / app.purge_
     expect(await alive(after)).toBe(true);
   });
 
+  it("không phụ thuộc múi giờ phiên: phiên Asia/Ho_Chi_Minh cho cùng mốc tháng như UTC", async () => {
+    // p_now = 2026-03-30 20:00Z: UTC − 13 tháng = 2025-02-28 20:00Z (kẹp 30/2 → 28/2); theo giờ VN (31/3 03:00) − 13 tháng
+    // = 28/2 03:00 +07 = 2025-02-27 20:00Z. Sự kiện 2025-02-28 10:00Z nằm GIỮA hai mốc.
+    const pNow = "2026-03-30T20:00:00Z";
+    const between = await seedEvent(A, "2025-02-28T10:00:00.000Z");
+    const boundary = await seedEvent(A, "2025-02-28T20:00:00.000Z"); // đúng mốc UTC ⇒ giữ
+    await t.worker.transaction().execute(async (trx) => {
+      await sql`set local time zone 'Asia/Ho_Chi_Minh'`.execute(trx);
+      // Đối chứng: cùng phép tính trong phiên này cho mốc theo giờ VN (test phân biệt được).
+      const local = await sql<{
+        b: Date;
+      }>`select (${pNow}::timestamptz - make_interval(months => 13)) as b`.execute(trx);
+      expect(local.rows[0]?.b.toISOString()).toBe("2025-02-27T20:00:00.000Z");
+      await sql`select app.purge_product_events(${pNow}::timestamptz, 13, 1000)`.execute(trx);
+    });
+    expect(await alive(between)).toBe(false);
+    expect(await alive(boundary)).toBe(true);
+  });
+
   it("đồng hồ worker lệch về tương lai không xoá thêm: mốc bị chặn bởi đồng hồ CSDL", async () => {
     const nearlyDue = await seedEvent(A, new Date(Date.now() - 86_400_000 * 300).toISOString()); // ~10 tháng
     const future = new Date(Date.now() + 86_400_000 * 800);

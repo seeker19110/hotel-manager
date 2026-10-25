@@ -528,6 +528,298 @@ describe("anonymizeExpiredPeople — hồ sơ người (RET-17: 10 năm sau quan
   });
 });
 
+describe("anonymizeExpiredPeople — mỗi loại quan hệ mở chặn ẩn danh người (RET-17)", () => {
+  /** Ca tiền mặt dùng chung cho các khoản thu giả (mỗi người mở tối đa một ca — `uq_shifts_one_open`). */
+  let shiftId: string | undefined;
+  async function cashShift(): Promise<string> {
+    if (!shiftId) {
+      shiftId = randomUUID();
+      await sql`insert into shifts (id, organization_id, property_id, opened_by, opening_cash)
+                values (${shiftId}, ${A.orgId}, ${A.propertyId}, ${A.ownerMembershipId}, 0)`.execute(t.admin);
+    }
+    return shiftId;
+  }
+
+  /** Ca số dư có lợi cho khách: thu tiền mặt `amount` đã xác nhận + bút toán Nợ CASH / Có CUSTOMER_CREDIT; `refunded` ⇒ thêm bút toán hoàn. */
+  async function confirmedPayment(
+    p: string,
+    at: string,
+    amount: number,
+    opts: { refunded?: number } = {},
+  ): Promise<void> {
+    const shift = await cashShift();
+    const pay = randomUUID();
+    const entry = randomUUID();
+    await rewind(sql`insert into payments (id, organization_id, property_id, method, purpose, amount, allocated_total, payer_person_id,
+                                           shift_id, business_date, recorded_by, status, confirmed_by, confirmed_at, evidence_kind,
+                                           evidence_id, created_at, updated_at)
+                     values (${pay}, ${A.orgId}, ${A.propertyId}, 'cash', 'receivable', ${amount}, 0, ${p}, ${shift},
+                             ${at}::date, ${A.ownerMembershipId}, 'confirmed', ${A.ownerMembershipId}, ${at}, 'cash_receipt',
+                             ${randomUUID()}, ${at}, ${at})`);
+    const lines: [string, number, number, string | null][] = [
+      ["CASH", amount, 0, null],
+      ["CUSTOMER_CREDIT", 0, amount, p],
+    ];
+    await rewind(sql`insert into journal_entries (id, organization_id, property_id, entry_type, business_date, source_doc_type,
+                                                  source_doc_id, created_at)
+                     values (${entry}, ${A.orgId}, ${A.propertyId}, 'payment_confirmed', ${at}::date, 'payment', ${pay}, ${at})`);
+    for (const [i, [account, debit, credit, person]] of lines.entries())
+      await rewind(sql`insert into journal_lines (id, organization_id, property_id, entry_id, line_no, account, debit, credit, person_id,
+                                                  shift_id, created_at)
+                       values (${randomUUID()}, ${A.orgId}, ${A.propertyId}, ${entry}, ${i + 1}, ${account}, ${debit}, ${credit},
+                               ${person}, ${account === "CASH" ? shift : null}, ${at})`);
+    if (opts.refunded) {
+      const refund = randomUUID();
+      await rewind(sql`insert into journal_entries (id, organization_id, property_id, entry_type, business_date, source_doc_type,
+                                                    source_doc_id, created_at)
+                       values (${refund}, ${A.orgId}, ${A.propertyId}, 'credit_refunded', ${at}::date, 'approval_request',
+                               ${randomUUID()}, ${at})`);
+      await rewind(sql`insert into journal_lines (id, organization_id, property_id, entry_id, line_no, account, debit, credit, person_id,
+                                                  shift_id, created_at)
+                       values (${randomUUID()}, ${A.orgId}, ${A.propertyId}, ${refund}, 1, 'CUSTOMER_CREDIT', ${opts.refunded}, 0, ${p},
+                               null, ${at}),
+                              (${randomUUID()}, ${A.orgId}, ${A.propertyId}, ${refund}, 2, 'CASH', 0, ${opts.refunded}, null,
+                               ${shift}, ${at})`);
+    }
+  }
+
+  /** Mỗi ca dựng MỘT quan hệ mở cho người `p`, mọi mốc của hàng đặt về `at` (cũ hơn hạn) ⇒ chỉ cờ "mở" chặn ẩn danh. */
+  const OPEN_CASES: [string, (p: string, at: string) => Promise<void>][] = [
+    [
+      "cọc còn số dư",
+      async (p, at) => {
+        // Hợp đồng (của chủ cơ sở) đã đóng từ lâu; cọc người `p` nộp vẫn còn số dư (chưa hoàn/khấu trừ).
+        const leaseId = await lease(A, A.ownerPersonId, at.slice(0, 10), at);
+        await rewind(sql`insert into deposits (id, organization_id, property_id, lease_id, payer_person_id, amount, created_at, updated_at)
+                         values (${randomUUID()}, ${A.orgId}, ${A.propertyId}, ${leaseId}, ${p}, 3000000, ${at}, ${at})`);
+      },
+    ],
+    [
+      "khoản thu pending",
+      async (p, at) => {
+        const shift = await cashShift();
+        await rewind(sql`insert into payments (id, organization_id, property_id, method, purpose, amount, payer_person_id, shift_id,
+                                               business_date, recorded_by, created_at, updated_at)
+                         values (${randomUUID()}, ${A.orgId}, ${A.propertyId}, 'cash', 'receivable', 200000, ${p}, ${shift},
+                                 ${at}::date, ${A.ownerMembershipId}, ${at}, ${at})`);
+      },
+    ],
+    [
+      "thu đã xác nhận 500.000 đ chưa phân bổ (CUSTOMER_CREDIT còn 500.000)",
+      (p, at) => confirmedPayment(p, at, 500_000),
+    ],
+    [
+      "số dư CUSTOMER_CREDIT ≠ 0 không kèm khoản thu (số dư đầu kỳ nhập khẩu)",
+      async (p, at) => {
+        const entry = randomUUID();
+        await rewind(sql`insert into journal_entries (id, organization_id, property_id, entry_type, business_date, source_doc_type,
+                                                      source_doc_id, created_at)
+                         values (${entry}, ${A.orgId}, ${A.propertyId}, 'opening_balance', ${at}::date, 'import_batch',
+                                 ${randomUUID()}, ${at})`);
+        await rewind(sql`insert into journal_lines (id, organization_id, property_id, entry_id, line_no, account, debit, credit, person_id,
+                                                    created_at)
+                         values (${randomUUID()}, ${A.orgId}, ${A.propertyId}, ${entry}, 1, 'OPENING_BALANCE', 150000, 0, null, ${at}),
+                                (${randomUUID()}, ${A.orgId}, ${A.propertyId}, ${entry}, 2, 'CUSTOMER_CREDIT', 0, 150000, ${p}, ${at})`);
+      },
+    ],
+    [
+      "báo đã trả submitted",
+      async (p, at) => {
+        const inv = await seedIssuedInvoice(t.admin, {
+          orgId: A.orgId,
+          propertyId: A.propertyId,
+          payerPersonId: A.ownerPersonId,
+          lines: [{ amount: 0 }],
+        });
+        await rewind(sql`insert into payment_claims (id, organization_id, property_id, invoice_id, person_id, amount, reference_code,
+                                                     command_id, created_at, updated_at)
+                         values (${randomUUID()}, ${A.orgId}, ${A.propertyId}, ${inv.invoiceId}, ${p}, 100000, 'CK-GIA',
+                                 ${randomUUID()}, ${at}, ${at})`);
+      },
+    ],
+    [
+      "lời mời pending",
+      async (p, at) => {
+        await rewind(sql`insert into invitations (id, organization_id, email, role, token_hash, expires_at, invited_by, person_id,
+                                                  created_at, updated_at)
+                         values (${randomUUID()}, ${A.orgId}, ${`inv-${p.slice(0, 8)}@example.test`}, 'tenant', ${randomBytes(32)},
+                                 ${at}, ${A.ownerMembershipId}, ${p}, ${at}, ${at})`);
+      },
+    ],
+    [
+      "phiếu sự cố đang mở",
+      async (p, at) => {
+        await rewind(sql`insert into work_orders (id, organization_id, property_id, unit_id, title, description, severity, status, source,
+                                                  reporter_person_id, created_at, updated_at)
+                         values (${randomUUID()}, ${A.orgId}, ${A.propertyId}, ${A.unitId}, 'Rò nước', 'Rò nước bồn rửa', 'low',
+                                 'open', 'tenant', ${p}, ${at}, ${at})`);
+      },
+    ],
+    [
+      "người ở kèm của lượt đang ở",
+      async (p, at) => {
+        await stay(A, A.ownerPersonId, at, null, { additional: [p] });
+      },
+    ],
+    [
+      "người ở (không đại diện) của hợp đồng còn hiệu lực",
+      async (p, at) => {
+        const { leaseId } = await seedLease(t.admin, {
+          orgId: A.orgId,
+          propertyId: A.propertyId,
+          representativePersonId: A.ownerPersonId,
+        });
+        await rewind(sql`update leases set created_at = ${at}, updated_at = ${at} where id = ${leaseId}`);
+        await rewind(sql`insert into lease_occupants (id, organization_id, property_id, lease_id, person_id, role, from_on, created_at,
+                                                      updated_at)
+                         values (${randomUUID()}, ${A.orgId}, ${A.propertyId}, ${leaseId}, ${p}, 'occupant', ${at}::date, ${at}, ${at})`);
+      },
+    ],
+    [
+      "đặt phòng còn mở (người đặt)",
+      async (p, at) => {
+        const { reservationId } = await seedReservation(t.admin, { org: A, bookerPersonId: p });
+        await rewind(
+          sql`update reservations set status = 'confirmed', created_at = ${at}, updated_at = ${at} where id = ${reservationId}`,
+        );
+      },
+    ],
+    [
+      "lượt ở in_house (khách chính)",
+      async (p, at) => {
+        await stay(A, p, at, null);
+      },
+    ],
+  ];
+
+  it("mỗi loại quan hệ mở chặn ẩn danh dù cũ hơn hạn; người không quan hệ và người đã hoàn hết ứng trước bị ẩn danh", async () => {
+    const veryOld = await monthsAgo(150);
+    const blocked: [string, string][] = [];
+    for (const [label, build] of OPEN_CASES) {
+      const p = await person(A, veryOld, `Khách ${label}`);
+      await build(p, veryOld);
+      blocked.push([label, p]);
+    }
+    // Đối chứng (cùng lượt chạy): không quan hệ ⇒ ẩn danh; ứng trước đã hoàn hết (CUSTOMER_CREDIT = 0 dù khoản thu còn
+    // amount > allocated_total — lệnh hoàn không sửa `payments`) ⇒ không bị giữ mãi.
+    const none = await person(A, veryOld, "Khách không quan hệ");
+    const refunded = await person(A, veryOld, "Khách đã hoàn ứng trước");
+    await confirmedPayment(refunded, veryOld, 500_000, { refunded: 500_000 });
+
+    await anonymizeExpiredPeople(t.worker, { now: NOW });
+    for (const [label, p] of blocked) {
+      expect((await personRow(p))?.anonymized, label).toBe(false);
+      expect((await personRow(p))?.phone, label).toBe("0912345678");
+    }
+    expect((await personRow(none))?.anonymized).toBe(true);
+    expect((await personRow(refunded))?.anonymized).toBe(true);
+  });
+});
+
+describe("anonymize_persons — đồng thời: quan hệ mới commit trong lúc worker đang chạy (khoá rồi kiểm lại)", () => {
+  it("quan hệ commit SAU snapshot của worker nhưng TRƯỚC khi khoá hàng ⇒ người không bị ẩn danh", async () => {
+    const veryOld = await monthsAgo(150);
+    const p = await person(A, veryOld, "Khách đua");
+    // Kết nối T giữ ACCESS EXCLUSIVE trên `invitations` ⇒ worker dừng ở lần đầu đọc bảng này (trong `retention_person_activity`,
+    // SAU khi câu lệnh chọn ứng viên đã lấy snapshot). T chèn lời mời pending cho P rồi commit ⇒ snapshot của câu chọn đã cũ.
+    await t.admin.connection().execute(async (conn) => {
+      await sql`begin`.execute(conn);
+      await sql`lock table invitations in access exclusive mode`.execute(conn);
+      const run = sql<{
+        n: number;
+      }>`select app.anonymize_persons(${NOW}, 120, 5000) as n`.execute(t.worker);
+      // Chờ tới khi worker thật sự đứng đợi khoá bảng (không đoán bằng sleep).
+      for (let i = 0; ; i++) {
+        const w = await sql<{ n: number }>`select count(*)::int as n from pg_locks
+                                           where relation = 'invitations'::regclass and not granted`.execute(
+          t.admin,
+        );
+        if ((w.rows[0]?.n ?? 0) > 0) break;
+        if (i > 400) throw new Error("worker không đợi khoá invitations");
+        await new Promise((r) => setTimeout(r, 25));
+      }
+      await sql`insert into invitations (id, organization_id, email, role, token_hash, expires_at, invited_by, person_id)
+                values (${randomUUID()}, ${A.orgId}, ${`race-${p.slice(0, 8)}@example.test`}, 'tenant', ${randomBytes(32)},
+                        now() + interval '7 days', ${A.ownerMembershipId}, ${p})`.execute(conn);
+      await sql`commit`.execute(conn);
+      await run;
+    });
+    expect((await personRow(p))?.anonymized).toBe(false);
+    expect(await auditCount("person.anonymized", p)).toBe(0);
+  });
+
+  it("quan hệ mới CHƯA commit (giữ FOR KEY SHARE trên persons) ⇒ worker bỏ qua người đó (SKIP LOCKED), không chờ", async () => {
+    const veryOld = await monthsAgo(150);
+    const p = await person(A, veryOld, "Khách đang được mời");
+    await t.admin.connection().execute(async (conn) => {
+      await sql`begin`.execute(conn);
+      await sql`insert into invitations (id, organization_id, email, role, token_hash, expires_at, invited_by, person_id)
+                values (${randomUUID()}, ${A.orgId}, ${`lock-${p.slice(0, 8)}@example.test`}, 'tenant', ${randomBytes(32)},
+                        now() + interval '7 days', ${A.ownerMembershipId}, ${p})`.execute(conn);
+      await sql`select app.anonymize_persons(${NOW}, 120, 5000)`.execute(t.worker);
+      expect((await personRow(p))?.anonymized).toBe(false);
+      await sql`rollback`.execute(conn);
+    });
+    // Lời mời bị huỷ ⇒ lượt sau ẩn danh bình thường.
+    await sql`select app.anonymize_persons(${NOW}, 120, 5000)`.execute(t.worker);
+    expect((await personRow(p))?.anonymized).toBe(true);
+  });
+
+  it("chỉ chạy ở READ COMMITTED (kiểm lại sau khoá cần snapshot mới mỗi câu lệnh)", async () => {
+    for (const fn of [
+      sql`select app.anonymize_persons(${NOW}, 120, 10)`,
+      sql`select app.anonymize_identity_documents(${NOW}, 12, 10)`,
+    ]) {
+      await expect(
+        t.worker.transaction().execute(async (trx) => {
+          await sql`set transaction isolation level repeatable read`.execute(trx);
+          await fn.execute(trx);
+        }),
+      ).rejects.toThrow(/READ COMMITTED/);
+    }
+  });
+});
+
+describe("hàm hạn lưu theo tháng không phụ thuộc múi giờ phiên (0066)", () => {
+  it("phiên đặt Asia/Ho_Chi_Minh cho cùng ranh giới tháng như UTC", async () => {
+    // p_now = 2026-03-30 20:00Z: UTC − 1 tháng = 2026-02-28 20:00Z (kẹp ngày 30/2 → 28/2); theo giờ VN (31/3 03:00) − 1 tháng
+    // = 28/2 03:00 +07 = 2026-02-27 20:00Z. Người sửa lần cuối 2026-02-28 10:00Z nằm GIỮA hai mốc.
+    const pNow = "2026-03-30T20:00:00Z";
+    const own = await createTestDb();
+    try {
+      const org = await seedOrg(own.admin, "Nhà nghỉ Múi Giờ", "hotel");
+      const id = randomUUID();
+      await own.admin.transaction().execute(async (trx) => {
+        await sql`set local session_replication_role = replica`.execute(trx);
+        await sql`insert into persons (id, organization_id, full_name, created_at, updated_at)
+                  values (${id}, ${org.orgId}, 'Khách múi giờ', '2026-02-28T10:00:00Z', '2026-02-28T10:00:00Z')`.execute(
+          trx,
+        );
+      });
+      const n = await own.worker.transaction().execute(async (trx) => {
+        await sql`set local time zone 'Asia/Ho_Chi_Minh'`.execute(trx);
+        // Đối chứng: cùng phép tính ngay trong phiên này cho mốc theo giờ VN (test phân biệt được).
+        const local = await sql<{
+          b: Date;
+        }>`select (${pNow}::timestamptz - make_interval(months => 1)) as b`.execute(trx);
+        expect(local.rows[0]?.b.toISOString()).toBe("2026-02-27T20:00:00.000Z");
+        return (
+          await sql<{ n: number }>`select app.anonymize_persons(${pNow}::timestamptz, 1, 100) as n`.execute(
+            trx,
+          )
+        ).rows[0]?.n;
+      });
+      expect(n).toBe(1);
+      const r = await sql<{
+        anonymized: boolean;
+      }>`select anonymized_at is not null as anonymized from persons where id = ${id}`.execute(own.admin);
+      expect(r.rows[0]?.anonymized).toBe(true);
+    } finally {
+      await own.drop();
+    }
+  });
+});
+
 describe("an toàn của hàm hạn lưu (0066)", () => {
   it("mốc ở tương lai (đồng hồ worker lệch) không xoá/ẩn danh thêm; số ngày/tháng 0/âm được nâng lên 1", async () => {
     const future = new Date(Date.now() + 5000 * DAY);
