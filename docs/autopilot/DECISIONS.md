@@ -866,3 +866,10 @@
 - Chọn: Theo số dư sổ CUSTOMER_CREDIT ≠ 0 theo cơ sở (thanh toán confirmed chưa phân bổ chỉ chặn khi người đó còn số dư có lợi)
 - Lý do (tiêu chí chất lượng cuối): (1) đúng: sổ cái là nguồn sự thật về tiền (như checkout.ts); phương án 2 giữ vĩnh viễn người nộp cọc và người đã được hoàn, trái STD-PRIV-005; có test đối chứng người đã hoàn
 - Đường lùi: Sửa điều kiện trong app.retention_person_activity bằng migration mới
+
+### D-121 · 2026-10-25T16:25:53+00:00 · Sau PR #137 (lát C, người merge): làm tiếp lát D/E thế nào khi phiên chỉ được đẩy MỘT nhánh?
+
+- Phương án: (1) Chặn vòng, chờ người merge #137; sau merge dựng lại nhánh từ main và làm lát D · (2) Dồn lát D/E vào cùng nhánh, PR #137 phình thành 3 lát auth+dữ liệu
+- Chọn: Chặn vòng, chờ người merge #137; sau merge dựng lại nhánh từ main và làm lát D
+- Lý do (tiêu chí chất lượng cuối): (1) an toàn: PR ngoại lệ cứng phải rà được — trộn auth (lát D/E) với dữ liệu (lát C) làm người duyệt khó bắt lỗi không đảo ngược; luật mỗi lát một PR; (2) đường lùi: revert từng lát; (5) tốc độ thua vì nút thắt là người merge, dồn thêm không nhanh hơn
+- Đường lùi: loop resume rồi làm lát D trên nhánh dựng lại từ main
