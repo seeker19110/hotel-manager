@@ -1325,6 +1325,7 @@ describe("docs/ops/retention-policy.md khớp mã và cấu hình (XC-GREEN-007)
         "INBOX_RAW_RETENTION_YEARS",
         "IDENTITY_DOCUMENT_RETENTION_MONTHS",
         "PERSON_RETENTION_YEARS",
+        "PRODUCT_EVENT_RETENTION_MONTHS",
       ]),
     );
     for (const [k, v] of consts) {
@@ -1383,14 +1384,15 @@ describe("docs/ops/retention-policy.md khớp mã và cấu hình (XC-GREEN-007)
     // Mỗi hằng của policy.ts dùng trong personal.ts đều có dòng RET (một nguồn số liệu ↔ tài liệu).
     const personal = read("packages/app/src/retention/personal.ts");
     const used = [...personal.matchAll(/\["\w+", "\w+", ([A-Z][A-Z0-9_]+)\]/g)].map((m) => m[1]);
-    expect(used).toHaveLength(fns.length);
+    // +1: RET-19 (`purge_product_events`, migration 0067, T-2309) cũng do `personal.ts` gọi.
+    expect(used).toHaveLength(fns.length + 1);
     for (const k of used)
       expect(
         rows.some((r) => r.cfg.includes(`\`${k}=`)),
         k,
       ).toBe(true);
     // Hạn giữ dữ liệu cá nhân ghi rõ là đề xuất.
-    expect(doc).toMatch(/RET-11…RET-18[^\n]*đề xuất/);
+    expect(doc).toMatch(/RET-11…RET-19[^\n]*đề xuất/);
   });
   it("audit_events được ghi rõ là không xoá và vẫn có trigger append-only", () => {
     expect(rows.find((r) => r.what.includes("audit_events")).keep).toContain("không xoá");

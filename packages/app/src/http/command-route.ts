@@ -15,6 +15,7 @@ import {
   resolveActor,
   type UserCommandRequest,
 } from "../access/index.ts";
+import { trackCommand } from "../analytics/index.ts";
 import { t } from "../i18n.ts";
 import {
   type ActorRef,
@@ -410,6 +411,15 @@ async function runCommand<I, O, P>(
       (ctx) => def.run(ctx, input, deps.services, (prep ? unwrap(prep) : undefined) as P),
     );
     if (result.status === "committed") {
+      // Sự kiện sản phẩm (PM-METRIC-003): sau commit, chỉ lần chạy đầu; lỗi ghi được nuốt trong `track` nên không đổi kết quả lệnh.
+      if (!result.replayed)
+        await trackCommand(analyticsSink(deps), {
+          command: def.command,
+          orgId: actor.orgId,
+          userId: actor.authUserId,
+          input,
+          data: result.data,
+        });
       return json(
         { command_id: result.commandId, status: "committed", data: result.data },
         result.httpStatus,
@@ -422,7 +432,11 @@ async function runCommand<I, O, P>(
   }
 }
 
+/** Đích ghi sự kiện sản phẩm (`track`) của tuyến HTTP. */
+const analyticsSink = (deps: HttpDeps) => ({ db: deps.db, actorKey: deps.services.analyticsKey });
+
 /** POST lệnh cấp người dùng: phiên (401) → Idempotency-Key (400) → JSON (400) → schema (422) → `run`. Đo `hm_http_*`. */
+
 export function handleUserCommand<I, O>(
   def: UserCommandDef<I, O>,
   req: Request,
@@ -485,6 +499,15 @@ async function runUserCommand<I, O>(
       deps.services,
     );
     if (result.status === "committed") {
+      const orgId = (result.data as { organizationId?: unknown } | undefined)?.organizationId;
+      if (!result.replayed && typeof orgId === "string")
+        await trackCommand(analyticsSink(deps), {
+          command: def.command,
+          orgId,
+          userId,
+          input: parsed.data,
+          data: result.data,
+        });
       return json(
         { command_id: result.commandId, status: "committed", data: result.data },
         result.httpStatus,

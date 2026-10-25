@@ -52,6 +52,7 @@ Miền theo ranh giới của ADR-0001 (kế hoạch §11); cột "Tầng" dùng
 | `retention` | Nền | A | Chính sách hạn giữ + job dọn bảng sự kiện (outbox đã phát, idempotency hết hạn, lần gửi thông báo đã xong) qua hàm CSDL của migration 0056 (điểm công khai `index.ts`, T-505) |
 | `logging` | Nền | A | Log JSON có cấu trúc, che bí mật/PII, sự kiện bảo mật |
 | `crypto` | Nền | A | Mã hoá PII, khoá xoay |
+| `analytics` | Nền | A | Sự kiện sản phẩm tự host: `track()` MỘT điểm, danh mục sự kiện đóng, chống PII, actor giả danh HMAC, `forgetAnalyticsActor`; bảng `product_events`, hạn 13 tháng RET-19 (điểm công khai `index.ts`, T-2309) |
 | `config` | Nền | A | Schema biến môi trường, cấu hình worker |
 | `db` | Nền | A | Pool kết nối Postgres có trần thời gian |
 | `server` | Nền | E | Ngữ cảnh server (composition root): nối auth, db, storage, scanner |

@@ -14,6 +14,7 @@ import {
   INBOX_RAW_RETENTION_YEARS,
   NOTIFICATION_RETENTION_DAYS,
   PERSON_RETENTION_YEARS,
+  PRODUCT_EVENT_RETENTION_MONTHS,
   PURGE_BATCH,
   PURGE_MAX_ROUNDS,
   WORKER_HEARTBEAT_STALE_DAYS,
@@ -31,6 +32,8 @@ export interface PersonalPurgeStats {
   identityDocuments: number;
   /** Số hồ sơ người được ẩn danh. */
   persons: number;
+  /** Số sự kiện sản phẩm quá hạn (RET-19) đã xoá. */
+  productEvents: number;
 }
 
 export interface PersonalPurgeOptions {
@@ -50,6 +53,7 @@ const STEPS: readonly (readonly [keyof PersonalPurgeStats, string, number])[] = 
   ["inboxRaw", "purge_inbox_raw", INBOX_RAW_RETENTION_YEARS],
   ["identityDocuments", "anonymize_identity_documents", IDENTITY_DOCUMENT_RETENTION_MONTHS],
   ["persons", "anonymize_persons", PERSON_RETENTION_YEARS],
+  ["productEvents", "purge_product_events", PRODUCT_EVENT_RETENTION_MONTHS],
 ];
 
 export async function purgePersonalData(
@@ -69,6 +73,7 @@ export async function purgePersonalData(
     inboxRaw: 0,
     identityDocuments: 0,
     persons: 0,
+    productEvents: 0,
   };
   const errors: unknown[] = [];
   for (const [table, fn, keep] of STEPS) {

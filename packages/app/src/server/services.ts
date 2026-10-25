@@ -1,11 +1,14 @@
 // Dịch vụ ngoài CSDL mà command/query cần (khoá PII, …) — dựng một lần từ cấu hình đã validate, tiêm qua HttpDeps.
 import { invitationKey } from "../access/index.ts";
+import { analyticsActorKey } from "../analytics/index.ts";
 import type { AppConfig } from "../config/index.ts";
 import { createPiiCipher, devKeyring, type PiiCipher, parseKeyring } from "../crypto/index.ts";
 import { clamdScanner, eicarOnlyScanner, type MalwareScanner, ObjectStorage } from "../files/index.ts";
 
 export interface AppServices {
   invitationKey: Buffer;
+  /** Khoá giả danh actor của sự kiện sản phẩm (HKDF từ BETTER_AUTH_SECRET, nhãn riêng — không thêm biến môi trường). */
+  analyticsKey: Buffer;
   pii: PiiCipher;
   scanner: MalwareScanner;
   storage: ObjectStorage;
@@ -18,6 +21,7 @@ export function createServices(config: AppConfig): AppServices {
       : devKeyring();
   return {
     invitationKey: invitationKey(config.BETTER_AUTH_SECRET),
+    analyticsKey: analyticsActorKey(config.BETTER_AUTH_SECRET),
     pii: createPiiCipher(ring),
     // Schema env đã bắt CLAMD_HOST ở production; bản giả chỉ cho dev/test.
     scanner: config.CLAMD_HOST
@@ -37,6 +41,7 @@ export function createServices(config: AppConfig): AppServices {
 export function testServices(overrides: Partial<AppServices> = {}): AppServices {
   return {
     invitationKey: invitationKey("khoa-thu-nghiem-khong-dung-o-production-0123456789"),
+    analyticsKey: analyticsActorKey("khoa-thu-nghiem-khong-dung-o-production-0123456789"),
     pii: createPiiCipher(devKeyring()),
     scanner: eicarOnlyScanner,
     storage: new ObjectStorage({

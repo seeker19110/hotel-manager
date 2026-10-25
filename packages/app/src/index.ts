@@ -35,6 +35,12 @@ export {
   switchOrganization,
 } from "./access/org-context.ts";
 export {
+  type AnalyticsSink,
+  analyticsActorKey,
+  forgetAnalyticsActor,
+  track,
+} from "./analytics/index.ts";
+export {
   type AuditEvent,
   type AuditFilter,
   getEvent as getAuditEvent,

@@ -38,3 +38,7 @@ export const INBOX_RAW_RETENTION_YEARS = 10;
 export const IDENTITY_DOCUMENT_RETENTION_MONTHS = 12;
 /** Hồ sơ người (`persons`): ẩn danh 10 năm sau quan hệ tiền/thuê/lưu trú cuối (giữ dòng làm tombstone cho sổ tiền). */
 export const PERSON_RETENTION_YEARS = 10;
+
+// ── Sự kiện sản phẩm tự host (T-2309; PM-METRIC-006, D-118) — job `privacy.retention`, hàm `app.purge_product_events` của migration 0067.
+/** Sự kiện sản phẩm (`product_events`, giả danh + thuộc tính enum/số): xoá 13 tháng sau lúc ghi (đủ so sánh cùng kỳ năm trước + 1 tháng đệm). ĐỀ XUẤT, chờ DPIA/pháp lý. */
+export const PRODUCT_EVENT_RETENTION_MONTHS = 13;

@@ -15,7 +15,7 @@ pgcrypto
 ## types (enum, domain) (0)
 
 
-## tables (75)
+## tables (76)
 auth.account owner=<admin> table
 auth.login_throttle owner=<admin> table
 auth.rateLimit owner=<admin> table
@@ -72,6 +72,7 @@ public.payment_claims owner=<admin> table rls force-rls
 public.payments owner=<admin> table rls force-rls
 public.period_locks owner=<admin> table rls force-rls
 public.persons owner=<admin> table rls force-rls
+public.product_events owner=<admin> table rls force-rls
 public.properties owner=<admin> table rls force-rls
 public.property_scopes owner=<admin> table rls force-rls
 public.rate_limit_counters owner=<admin> table
@@ -92,7 +93,7 @@ public.units owner=<admin> table rls force-rls
 public.work_orders owner=<admin> table rls force-rls
 public.worker_heartbeats owner=<admin> table rls force-rls
 
-## columns (1032)
+## columns (1039)
 auth.account.accessToken text
 auth.account.accessTokenExpiresAt timestamp with time zone
 auth.account.accountId text not null
@@ -862,6 +863,13 @@ public.persons.organization_id uuid not null
 public.persons.phone text
 public.persons.updated_at timestamp with time zone not null default now()
 public.persons.version integer not null default 1
+public.product_events.actor_key bytea
+public.product_events.event text not null
+public.product_events.id uuid not null default gen_random_uuid()
+public.product_events.occurred_at timestamp with time zone not null default now()
+public.product_events.organization_id uuid not null
+public.product_events.props jsonb not null default '{}'::jsonb
+public.product_events.schema_version smallint not null default 1
 public.properties.archived_at timestamp with time zone
 public.properties.business_day_cutoff time without time zone not null default '00:00:00'::time without time zone
 public.properties.check_in_time time without time zone
@@ -1130,7 +1138,7 @@ public.worker_heartbeats.beat_at timestamp with time zone not null
 public.worker_heartbeats.name text not null
 public.worker_heartbeats.started_at timestamp with time zone not null default now()
 
-## constraints (821)
+## constraints (827)
 auth.account account_pkey PRIMARY KEY (id)
 auth.account account_userId_fkey FOREIGN KEY ("userId") REFERENCES auth."user"(id) ON DELETE CASCADE
 auth.login_throttle login_throttle_email_hash_check CHECK (octet_length(email_hash) = 32)
@@ -1729,6 +1737,12 @@ public.persons persons_organization_id_fkey FOREIGN KEY (organization_id) REFERE
 public.persons persons_phone_check CHECK (phone ~ '^\+?[0-9 .()-]{6,20}$'::text)
 public.persons persons_pkey PRIMARY KEY (id)
 public.persons uq_persons_org_id UNIQUE (organization_id, id)
+public.product_events product_events_actor_key_check CHECK (actor_key IS NULL OR octet_length(actor_key) = 32)
+public.product_events product_events_event_check CHECK (event ~ '^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$'::text AND length(event) <= 64)
+public.product_events product_events_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE RESTRICT
+public.product_events product_events_pkey PRIMARY KEY (id)
+public.product_events product_events_props_check CHECK (jsonb_typeof(props) = 'object'::text AND pg_column_size(props) <= 2048)
+public.product_events product_events_schema_version_check CHECK (schema_version >= 1)
 public.properties properties_counters_check CHECK (jsonb_typeof(counters) = 'object'::text)
 public.properties properties_currency_check CHECK (currency::text = upper(currency::text))
 public.properties properties_hold_ttl_minutes_check CHECK (hold_ttl_minutes > 0)
@@ -1953,7 +1967,7 @@ public.work_orders work_orders_title_check CHECK (length(btrim(title)) >= 1 AND 
 public.worker_heartbeats worker_heartbeats_name_check CHECK (name ~ '^[a-z0-9][a-z0-9._-]{0,62}$'::text)
 public.worker_heartbeats worker_heartbeats_pkey PRIMARY KEY (name)
 
-## indexes (416)
+## indexes (420)
 auth.account account_pkey :: CREATE UNIQUE INDEX account_pkey ON auth.account USING btree (id)
 auth.account account_userId_idx :: CREATE INDEX "account_userId_idx" ON auth.account USING btree ("userId")
 auth.login_throttle login_throttle_pkey :: CREATE UNIQUE INDEX login_throttle_pkey ON auth.login_throttle USING btree (email_hash)
@@ -2256,6 +2270,10 @@ public.persons ix_persons_email :: CREATE INDEX ix_persons_email ON public.perso
 public.persons ix_persons_phone :: CREATE INDEX ix_persons_phone ON public.persons USING btree (organization_id, phone)
 public.persons persons_pkey :: CREATE UNIQUE INDEX persons_pkey ON public.persons USING btree (id)
 public.persons uq_persons_org_id :: CREATE UNIQUE INDEX uq_persons_org_id ON public.persons USING btree (organization_id, id)
+public.product_events ix_product_events_actor :: CREATE INDEX ix_product_events_actor ON public.product_events USING btree (actor_key) WHERE (actor_key IS NOT NULL)
+public.product_events ix_product_events_occurred :: CREATE INDEX ix_product_events_occurred ON public.product_events USING btree (occurred_at)
+public.product_events ix_product_events_org_time :: CREATE INDEX ix_product_events_org_time ON public.product_events USING btree (organization_id, occurred_at)
+public.product_events product_events_pkey :: CREATE UNIQUE INDEX product_events_pkey ON public.product_events USING btree (id)
 public.properties ix_properties_org_archived :: CREATE INDEX ix_properties_org_archived ON public.properties USING btree (organization_id, archived_at)
 public.properties properties_pkey :: CREATE UNIQUE INDEX properties_pkey ON public.properties USING btree (id)
 public.properties uq_properties_org_id :: CREATE UNIQUE INDEX uq_properties_org_id ON public.properties USING btree (organization_id, id)
@@ -2371,7 +2389,7 @@ public.work_orders uq_work_orders_org_id :: CREATE UNIQUE INDEX uq_work_orders_o
 public.work_orders work_orders_pkey :: CREATE UNIQUE INDEX work_orders_pkey ON public.work_orders USING btree (id)
 public.worker_heartbeats worker_heartbeats_pkey :: CREATE UNIQUE INDEX worker_heartbeats_pkey ON public.worker_heartbeats USING btree (name)
 
-## policies (RLS) (176)
+## policies (RLS) (177)
 public.allocations portal_deny_read RESTRICTIVE SELECT to app_runtime using ((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
 public.allocations tenant_isolation PERMISSIVE ALL to public using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
 public.approval_requests tenant_isolation PERMISSIVE ALL to public using (((organization_id = app.current_org()) AND ((requested_by = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid) OR ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text, 'accountant'::text])) AND app.actor_can_see_property(property_id))))) check (((organization_id = app.current_org()) AND ((requested_by = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid) OR ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id)))))
@@ -2533,6 +2551,7 @@ public.persons persons_read PERMISSIVE SELECT to public using (((organization_id
 public.persons persons_role_insert RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_may_insert_person() AS actor_may_insert_person))
 public.persons persons_role_update RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_may_update_person() AS actor_may_update_person)) check (( SELECT app.actor_may_update_person() AS actor_may_update_person))
 public.persons persons_update PERMISSIVE UPDATE to public using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
+public.product_events product_events_org PERMISSIVE ALL to public using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
 public.properties portal_no_delete RESTRICTIVE DELETE to app_runtime using ((NOT COALESCE((( SELECT app.actor_role() AS actor_role) = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
 public.properties portal_no_insert RESTRICTIVE INSERT to app_runtime check ((NOT COALESCE((( SELECT app.actor_role() AS actor_role) = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
 public.properties portal_no_update RESTRICTIVE UPDATE to app_runtime using ((NOT COALESCE((( SELECT app.actor_role() AS actor_role) = ANY (ARRAY['tenant'::text, 'guest'::text])), false))) check ((NOT COALESCE((( SELECT app.actor_role() AS actor_role) = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
@@ -2715,7 +2734,7 @@ public.units CREATE TRIGGER trg_units_updated BEFORE UPDATE ON units FOR EACH RO
 public.work_orders CREATE TRIGGER trg_work_orders_transition BEFORE UPDATE ON work_orders FOR EACH ROW EXECUTE FUNCTION app.work_order_transition()
 public.work_orders CREATE TRIGGER trg_work_orders_updated BEFORE UPDATE ON work_orders FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 
-## functions (119)
+## functions (121)
 -- app.actor_can_see_property(p uuid) owner=<admin>
 CREATE OR REPLACE FUNCTION app.actor_can_see_property(p uuid)
  RETURNS boolean
@@ -3371,6 +3390,17 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
+-- app.forget_analytics_actor(p_actor bytea) owner=<admin>
+CREATE OR REPLACE FUNCTION app.forget_analytics_actor(p_actor bytea)
+ RETURNS integer
+ LANGUAGE sql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+    WITH x AS (
+      DELETE FROM product_events e WHERE p_actor IS NOT NULL AND octet_length(p_actor) = 32 AND e.actor_key = p_actor RETURNING 1)
+    SELECT count(*)::int FROM x
+  $function$
 -- app.guest_link_attempt(p_id uuid, p_ok boolean, p_now timestamp with time zone) owner=<admin>
 CREATE OR REPLACE FUNCTION app.guest_link_attempt(p_id uuid, p_ok boolean, p_now timestamp with time zone)
  RETURNS boolean
@@ -4273,6 +4303,23 @@ AS $function$
       DELETE FROM outbox o USING due WHERE o.id = due.id RETURNING 1)
     SELECT count(*)::int FROM x
   $function$
+-- app.purge_product_events(p_now timestamp with time zone, p_months integer, p_limit integer) owner=<admin>
+CREATE OR REPLACE FUNCTION app.purge_product_events(p_now timestamp with time zone, p_months integer, p_limit integer)
+ RETURNS integer
+ LANGUAGE sql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+    WITH due AS (
+      SELECT e.id FROM product_events e
+      WHERE e.occurred_at < least(p_now, now()) - make_interval(months => greatest(p_months, 1))
+      ORDER BY e.occurred_at, e.id
+      LIMIT least(greatest(p_limit, 1), 5000)
+      FOR UPDATE SKIP LOCKED
+    ), x AS (
+      DELETE FROM product_events e USING due WHERE e.id = due.id RETURNING 1)
+    SELECT count(*)::int FROM x
+  $function$
 -- app.purge_worker_heartbeats(p_now timestamp with time zone, p_days integer, p_limit integer) owner=<admin>
 CREATE OR REPLACE FUNCTION app.purge_worker_heartbeats(p_now timestamp with time zone, p_days integer, p_limit integer)
  RETURNS integer
@@ -4832,7 +4879,7 @@ AS $function$
     ON CONFLICT (name) DO UPDATE SET beat_at = excluded.beat_at
   $function$
 
-## grants (bảng, cột, hàm, schema) (1182)
+## grants (bảng, cột, hàm, schema) (1197)
 column public.inbox.bank_transaction_id app_runtime UPDATE
 column public.inbox.bank_transaction_id app_worker UPDATE
 column public.inbox.process_error app_runtime UPDATE
@@ -4936,6 +4983,8 @@ function app.forbid_mutation() <admin> EXECUTE
 function app.forbid_mutation() PUBLIC EXECUTE
 function app.forbid_reactivation() <admin> EXECUTE
 function app.forbid_reactivation() PUBLIC EXECUTE
+function app.forget_analytics_actor(p_actor bytea) <admin> EXECUTE
+function app.forget_analytics_actor(p_actor bytea) app_worker EXECUTE
 function app.guest_link_attempt(p_id uuid, p_ok boolean, p_now timestamp with time zone) <admin> EXECUTE
 function app.guest_link_attempt(p_id uuid, p_ok boolean, p_now timestamp with time zone) app_runtime EXECUTE
 function app.guest_link_guard() <admin> EXECUTE
@@ -5044,6 +5093,8 @@ function app.purge_notifications(p_now timestamp with time zone, p_days integer,
 function app.purge_notifications(p_now timestamp with time zone, p_days integer, p_limit integer) app_worker EXECUTE
 function app.purge_outbox(p_now timestamp with time zone, p_days integer, p_limit integer) <admin> EXECUTE
 function app.purge_outbox(p_now timestamp with time zone, p_days integer, p_limit integer) app_worker EXECUTE
+function app.purge_product_events(p_now timestamp with time zone, p_months integer, p_limit integer) <admin> EXECUTE
+function app.purge_product_events(p_now timestamp with time zone, p_months integer, p_limit integer) app_worker EXECUTE
 function app.purge_worker_heartbeats(p_now timestamp with time zone, p_days integer, p_limit integer) <admin> EXECUTE
 function app.purge_worker_heartbeats(p_now timestamp with time zone, p_days integer, p_limit integer) app_worker EXECUTE
 function app.rate_limit_hit(p_scope text, p_subject text, p_limit integer, p_window_seconds integer, p_now timestamp with time zone) <admin> EXECUTE
@@ -5779,6 +5830,17 @@ table public.persons app_worker DELETE
 table public.persons app_worker INSERT
 table public.persons app_worker SELECT
 table public.persons app_worker UPDATE
+table public.product_events <admin> DELETE
+table public.product_events <admin> INSERT
+table public.product_events <admin> MAINTAIN
+table public.product_events <admin> REFERENCES
+table public.product_events <admin> SELECT
+table public.product_events <admin> TRIGGER
+table public.product_events <admin> TRUNCATE
+table public.product_events <admin> UPDATE
+table public.product_events app_runtime INSERT
+table public.product_events app_runtime SELECT
+table public.product_events app_worker INSERT
 table public.properties <admin> DELETE
 table public.properties <admin> INSERT
 table public.properties <admin> MAINTAIN

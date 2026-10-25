@@ -10,6 +10,7 @@
 - Hồ sơ đánh giá tác động: `docs/DPIA.md` 0.1.0 (nháp kỹ thuật, chờ DPO/pháp lý); ROPA trỏ DPIA.
 - Khung pháp lý tra nguồn sống (`PROJECT.md` §6): NĐ 13/2023 hết hiệu lực 01/01/2026 (NĐ 356/2025 thay); Luật ANM 2018 hết hiệu lực 01/7/2026 (Luật 116/2025 + NĐ 333/2026: lưu tại VN, nhật ký ≥ 12 tháng).
 - Hạn lưu dữ liệu cá nhân RET-11…RET-18 có job dọn/ẩn danh hằng ngày `privacy.retention` (T-2308, D-116): `data-map.yaml` cập nhật `retention`, ROPA và `retention-policy.md` ghi bảng còn chưa có job.
+- Phân tích sản phẩm tự host (T-2309, D-118): bảng `product_events` (giả danh actor HMAC, thuộc tính enum/số/bool theo danh mục đóng, không SDK/bên thứ ba), data-map thêm `product_events.actor_key`/`props`, ROPA thêm HĐ-10, hạn 13 tháng RET-19 trong job `privacy.retention`, `forgetAnalyticsActor` cho xoá tài khoản. Cơ sở pháp lý (lợi ích hợp pháp vs đồng ý) chờ pháp lý/T-2310.
 
 ## 2026-10-16
 - Khởi tạo `ROPA.md`, `data-map.yaml`, `processors.md` (T-309) — trạng thái đề xuất, chờ DPIA và pháp lý.

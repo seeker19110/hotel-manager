@@ -43,6 +43,7 @@
     "payments": 16,
     "period_locks": 4,
     "persons": 5,
+    "product_events": 1,
     "properties": 3,
     "rate_plans": 2,
     "receiving_accounts": 1,
