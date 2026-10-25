@@ -157,3 +157,28 @@ ignore:
       version: 5.0.9
       type: npm
       location: "/usr/local/lib/node_modules/npm/**"
+  - vulnerability: CVE-2026-111497
+    reason: "brotli-libs 1.2.0-r0 của Alpine trong caddy 2.11.7 (Caddy là nhị phân Go tĩnh, không liên kết libbrotli); sửa ở 1.2.1-r0, tag 2.11.7-alpine dựng lại vẫn 1.2.0-r0 — rà 2026-10-25 (D-109) (hạn rà lại: 2026-11-01)"
+    package:
+      name: brotli-libs
+      version: 1.2.0-r0
+      type: apk
+  - vulnerability: CVE-2026-111497
+    reason: "brotli-libs 1.2.0-r1 của Alpine trong SeaweedFS 4.48 (weed là nhị phân Go, không liên kết libbrotli; S3 chỉ trong mạng nội bộ); sửa ở 1.2.1-r0, image 4.49 chưa có — rà 2026-10-25 (D-109) (hạn rà lại: 2026-11-01)"
+    package:
+      name: brotli-libs
+      version: 1.2.0-r1
+      type: apk
+  - vulnerability: GHSA-xjj6-f33q-929c
+    reason: "undici 6.28.0 nằm trong npm đi kèm node:24.22.0 (không phải phụ thuộc của dự án); runtime web/worker xoá npm; sửa ở 6.29.1, node:24 mới nhất vẫn kèm 6.28.0 — rà 2026-10-25 (D-109) (hạn rà lại: 2026-11-08)"
+    package:
+      name: undici
+      version: 6.28.0
+      type: npm
+      location: "/usr/local/lib/node_modules/npm/**"
+  - vulnerability: GHSA-mrhx-c7xc-m3w5
+    reason: "zod 3.25.76 chỉ qua @lhci/cli → lighthouse → puppeteer-core → chromium-bidi (công cụ CI, không vào bundle/production); bản sửa duy nhất là 4.6.6 (đổi major, chromium-bidi dùng API zod 3) — rà 2026-10-25 (D-109) (hạn rà lại: 2026-11-08)"
+    package:
+      name: zod
+      version: 3.25.76
+      type: npm

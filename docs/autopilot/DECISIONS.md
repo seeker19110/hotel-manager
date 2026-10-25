@@ -782,3 +782,10 @@
 - Chọn: A: catalog con packages/domain/messages/format.vi.json + formatText (mở rộng D-106 sang domain)
 - Lý do (tiêu chí chất lượng cuối): (1) 'đ' người dùng thấy trên mọi số tiền — XC-I18N-001 đòi qua tài nguyên; nhất quán D-106; +3 kB vẫn trong ngân sách 300 kB (282,3)
 - Đường lùi: Phương án B: bỏ formatText/format.vi.json, thêm 1 dòng ngoại lệ
+
+### D-109 · 2026-10-25T01:21:11+00:00 · D-109: CSDL grype 2026-10-24 thêm 6 lỗ hổng high/critical (body-parser, happy-dom, zod 3 qua lighthouse; undici trong npm của node; brotli-libs Alpine trong caddy/seaweedfs) làm đỏ sbom + image-scan trên mọi PR. Xử lý?
+
+- Phương án: (1) Vá thật chỗ có bản vá (override body-parser 1.20.9, happy-dom 21.0.4) + ngoại lệ có hạn D-067 cho chỗ chưa có image vá/bản vá cùng major (brotli critical ≤ 7 ngày, undici/zod high 14 ngày theo VULN-SLA), theo dõi ở VULN-SLA · (2) Tự dựng image dẫn xuất apk upgrade cho caddy/seaweedfs ngay · (3) Hạ severity-cutoff/tắt only-fixed
+- Chọn: Vá thật chỗ có bản vá (override body-parser 1.20.9, happy-dom 21.0.4) + ngoại lệ có hạn D-067 cho chỗ chưa có image vá/bản vá cùng major (brotli critical ≤ 7 ngày, undici/zod high 14 ngày theo VULN-SLA), theo dõi ở VULN-SLA
+- Lý do (tiêu chí chất lượng cuối): (1) đúng và an toàn: vá thật mọi chỗ vá được; ngoại lệ chỉ cho gói không vào production (npm trong image bị xoá ở runtime, zod 3 chỉ trong CI) hoặc nhị phân Go không liên kết libbrotli, có hạn ngắn và kiểm hạn tự động; (2) phương án 2 đổi cách triển khai — câu hỏi mở đã có (zlib, D-094) cho chủ dự án; (3) bị cấm (nới cổng)
+- Đường lùi: Gỡ luật ở .grype.yaml + dòng VULN-SLA; trả happy-dom 20.14.5 và bỏ override body-parser

@@ -484,6 +484,7 @@ describe("pnpm overrides — bản vá cho phụ thuộc gián tiếp (grype --o
     ["tmp", "tmp@<0.2.7", "0.2.7", "GHSA-7c78-jf6q-g5cm"],
     ["basic-ftp", "basic-ftp@<6.2.1", "6.2.1", "GHSA-c475-qrg2-pj4r"],
     ["uuid", "uuid@<11.1.1", "11.1.1", "GHSA-w5hq-g745-h8pq"],
+    ["body-parser", "body-parser@<1.20.9", "1.20.9", "GHSA-27r3-jxmh-p828"],
   ];
   for (const [name, selector, fixed, ghsa] of cases) {
     it(`${name}: override ghim ${fixed} (${ghsa}) và lockfile chỉ còn bản đã vá`, () => {
