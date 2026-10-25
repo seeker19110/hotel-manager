@@ -1,0 +1,5 @@
+# RFC 9116 — kênh báo lỗ hổng của Hotel Manager (SECURITY.md, D-112). Gia hạn Expires trước hạn (test community-files nhắc).
+Contact: https://github.com/seeker19110/hotel-manager/security/advisories/new
+Expires: 2027-10-24T00:00:00.000Z
+Preferred-Languages: vi, en
+Policy: https://github.com/seeker19110/hotel-manager/security/policy
