@@ -258,7 +258,7 @@ export async function listAuditActions(db: Kysely<unknown>, actor: Actor): Promi
   return withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
     const r = await sql<{ action: string }>`
       select e.action from audit_events e where e.organization_id = ${actor.orgId} ${moneyOnly(actor)}
-      group by e.action order by e.action limit 300`.execute(trx);
+      group by e.action order by e.action collate "C" limit 300`.execute(trx);
     return r.rows.map((x) => x.action);
   });
 }

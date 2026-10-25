@@ -246,7 +246,8 @@ describe("migration 0056 — down/up", () => {
     if (!m) throw new Error("thiếu migration 0056_event_table_retention");
     const own = await createTestDb(); // DB riêng: không đụng dữ liệu các test trên
     try {
-      // [số hàm app.purge_* của 0056 + `purge_import_rows` (0045), số index của 0056] — hàm của 0066 không tính (test riêng)
+      // [số hàm app.purge_* của 0056 + `purge_import_rows` (0045), số index của 0056] — theo TÊN: migration sau thêm hàm purge_* khác
+      // (vd hạn lưu dữ liệu cá nhân) không làm đổi phép đếm của 0056 (job schema-compat chạy test này trên schema mới hơn).
       const count = async () => [
         (
           await sql<{

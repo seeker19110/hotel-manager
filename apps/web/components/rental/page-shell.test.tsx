@@ -6,6 +6,7 @@ import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const APP = join(import.meta.dirname, "../../app");
+const PAGE_LIB = join(import.meta.dirname, "../../lib/page.tsx");
 
 function pages(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
@@ -34,7 +35,7 @@ describe("khung trang — hỗ trợ nền tảng (D-122/D-126, TM-12)", () => {
   });
 
   it("withActor gọi cổng supportPageAccess trước khi đọc dữ liệu tổ chức", () => {
-    const src = readFileSync(join(import.meta.dirname, "../../lib/page.tsx"), "utf8");
+    const src = readFileSync(PAGE_LIB, "utf8");
     const gate = src.indexOf("supportPageAccess(");
     expect(gate).toBeGreaterThan(0);
     expect(gate).toBeLessThan(src.indexOf("opsProperties(db"));

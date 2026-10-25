@@ -342,6 +342,7 @@ const ROUTES: Record<string, RouteSpec> = {
   "/loi-moi": fixed("public", "/loi-moi#token=khong-hop-le"),
   "/luu-tru/[id]": { who: "hotel", urls: async (p) => [`/luu-tru/${await ensureStay(p)}`] },
   "/luu-tru/moi": fixed("hotel", "/luu-tru/moi"),
+  "/nhat-ky": fixed("hotel", "/nhat-ky"),
   "/offline": fixed("public", "/offline"),
   "/phong": fixed("hotel", "/phong"),
   "/portal": fixed("tenant", "/portal"),
@@ -362,6 +363,7 @@ const ROUTES: Record<string, RouteSpec> = {
   "/thong-bao-luu-tru": fixed("hotel", "/thong-bao-luu-tru"),
   "/them": fixed("hotel", "/them"),
   "/thu-tien": fixed("rental", "/thu-tien"),
+  "/to-chuc": fixed("hotel", "/to-chuc"),
 };
 
 test("danh mục route của E2E 320 px khớp đúng app/**/page.tsx (thêm trang phải khai báo ở ROUTES)", () => {

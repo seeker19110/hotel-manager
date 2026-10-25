@@ -1,22 +1,22 @@
 {
   "format.vnd_symbol": {
     "message": "đ",
-    "description": "Định dạng tiền/ngày (packages/domain format/intl.ts) — module này vào bundle trình duyệt nên dùng catalog con nhỏ này (D-106), không dùng catalog domain chính: ký hiệu tiền VND hiển thị sau số (\"1.430.000 đ\") với locale vi; thay ký hiệu \"₫\" của CLDR."
+    "description": "Ký hiệu tiền VND sau số (\"1.430.000 đ\"), locale vi; thay \"₫\" của CLDR."
   },
   "format.amount_not_whole": {
     "message": "Số tiền phải là số nguyên đồng: {amount}",
-    "description": "Định dạng tiền/ngày (packages/domain format/intl.ts) — module này vào bundle trình duyệt nên dùng catalog con nhỏ này (D-106), không dùng catalog domain chính. RangeError lập trình (không hiện cho người dùng: UI bắt và hiện giá trị gốc, server che thành lỗi nội bộ) — chỉ log/vận hành: số tiền cần định dạng không phải số nguyên đồng. {amount} là giá trị nhận được."
+    "description": "Lỗi lập trình, chỉ log (UI hiện giá trị gốc): số tiền không phải số nguyên đồng; {amount} = giá trị nhận."
   },
   "format.unit_price_invalid": {
     "message": "Đơn giá không hợp lệ: {price}",
-    "description": "Định dạng tiền/ngày (packages/domain format/intl.ts) — module này vào bundle trình duyệt nên dùng catalog con nhỏ này (D-106), không dùng catalog domain chính. RangeError lập trình (không hiện cho người dùng: UI bắt và hiện giá trị gốc, server che thành lỗi nội bộ) — chỉ log/vận hành: đơn giá không phải số hữu hạn. {price} là giá trị nhận được."
+    "description": "Lỗi lập trình, chỉ log (UI hiện giá trị gốc): đơn giá không phải số hữu hạn; {price} = giá trị nhận."
   },
   "format.date_invalid": {
     "message": "Ngày không hợp lệ: {date}",
-    "description": "Định dạng tiền/ngày (packages/domain format/intl.ts) — module này vào bundle trình duyệt nên dùng catalog con nhỏ này (D-106), không dùng catalog domain chính. RangeError lập trình (không hiện cho người dùng: UI bắt và hiện giá trị gốc, server che thành lỗi nội bộ) — chỉ log/vận hành: chuỗi ngày không phải YYYY-MM-DD có thật. {date} là ngày nhận được."
+    "description": "Lỗi lập trình, chỉ log (UI hiện giá trị gốc): ngày không phải YYYY-MM-DD có thật; {date} = giá trị nhận."
   },
   "format.month_invalid": {
     "message": "Tháng không hợp lệ: {month}",
-    "description": "Định dạng tiền/ngày (packages/domain format/intl.ts) — module này vào bundle trình duyệt nên dùng catalog con nhỏ này (D-106), không dùng catalog domain chính. RangeError lập trình (không hiện cho người dùng: UI bắt và hiện giá trị gốc, server che thành lỗi nội bộ) — chỉ log/vận hành: chuỗi tháng không phải YYYY-MM(-DD). {month} là giá trị nhận được."
+    "description": "Lỗi lập trình, chỉ log (UI hiện giá trị gốc): tháng không phải YYYY-MM(-DD); {month} = giá trị nhận."
   }
 }

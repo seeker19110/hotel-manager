@@ -254,6 +254,8 @@ export const COMMAND_INPUTS = {
   "org.cancelDeletion": z.strictObject({}),
   // Xuất toàn bộ dữ liệu tổ chức (S-018) — trang /to-chuc gửi lệnh này (T-2312).
   "exports.requestOrgExport": z.strictObject({}),
+  // Tải bản xuất đã sẵn sàng (T-2313): nút ở /nhat-ky gửi qua `CommandForm` ⇒ schema dùng chung như mọi lệnh có form.
+  "exports.download": z.strictObject({ export_id: z.string().max(64) }),
   "payment.collectCash": z.strictObject({ invoice_id: uuid, amount: positiveMoney }),
   "payment.confirm": z.strictObject({
     payment_id: uuid,

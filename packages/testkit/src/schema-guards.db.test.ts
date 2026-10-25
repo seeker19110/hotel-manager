@@ -4,6 +4,7 @@ import { type Kysely, sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createTestDb, type TestDb } from "./db.ts";
 import baseline from "./schema-guards.baseline.json" with { type: "json" };
+import noOrg from "./schema-guards.no-org.json" with { type: "json" };
 
 let t: TestDb;
 beforeAll(async () => {
@@ -492,27 +493,12 @@ async function publicTablesOrg(db: Kysely<unknown>): Promise<TableOrg[]> {
   return r.rows.map((x) => ({ table: x.table, hasOrg: x.has_org, orgNotNull: x.org_not_null }));
 }
 
-/** Bảng ở schema public KHÔNG có `organization_id` (IND-SAAS-001: mọi bảng nghiệp vụ có khoá tổ chức NOT NULL) — mỗi bảng một lý do. */
-const NO_ORG_ALLOWED: Record<string, string> = {
-  organizations:
-    "Bảng tổ chức gốc: `id` chính là khoá tổ chức; RLS lọc theo `id = app.current_org()` (tenancy.db.test.ts).",
-  worker_heartbeats:
-    "Nhịp tiến trình worker (0046): không phải dữ liệu tổ chức; RLS bật, không policy cho app_runtime — chỉ ghi qua hàm SECURITY DEFINER.",
-  guest_link_rate:
-    "Bộ đếm lần thử theo băm IP (0041) trước khi biết tổ chức của cổng khách: khoá `(ip_hash, window_start)`, không dữ liệu tổ chức/người; REVOKE khỏi PUBLIC, chỉ hàm app.guest_link_rate.",
-  rate_limit_counters:
-    "Bộ đếm hạn mức tần suất upload/webhook (0053, D-037): khoá `(scope, subject, window_start)` — có phạm vi theo nhà cung cấp webhook trước khi biết tổ chức; không dữ liệu nghiệp vụ, chỉ hàm SECURITY DEFINER app.rate_limit_hit đọc/ghi.",
-  consent_records:
-    "Bản ghi đồng ý theo mục đích của NGƯỜI DÙNG (0068, T-2310/D-119): chủ thể là auth user — có thể chưa thuộc tổ chức nào, một người nhiều tổ chức vẫn một chủ thể; RLS theo app.auth_user_id thay cho tổ chức.",
-  dsar_requests:
-    "Yêu cầu của chủ thể dữ liệu (0069, T-2311/D-120): chủ thể là auth user, không phải tổ chức (xoá tài khoản/xuất dữ liệu trải mọi tổ chức của người đó); RLS theo app.auth_user_id như consent_records.",
-  processing_restrictions:
-    "Cờ hạn chế xử lý của NGƯỜI DÙNG (0069, T-2311): theo auth user, áp cho mọi tổ chức; RLS theo app.auth_user_id.",
-  platform_support_users:
-    "Danh bạ nhân viên hỗ trợ của NỀN TẢNG (0071, T-2313/D-122): toàn hệ thống, không thuộc tổ chức; chỉ mã tài khoản; RLS bật, không policy/quyền cho vai trò app — chỉ hàm SECURITY DEFINER app.platform_support_lookup đọc. Quyền vào từng tổ chức đi qua `support_grants` (có organization_id).",
-  kysely_migration: "Sổ migration của Kysely (hạ tầng migrator), không phải dữ liệu nghiệp vụ.",
-  kysely_migration_lock: "Khoá migrator của Kysely (hạ tầng), không phải dữ liệu nghiệp vụ.",
-};
+/**
+ * Bảng ở schema public KHÔNG có `organization_id` (IND-SAAS-001: mọi bảng nghiệp vụ có khoá tổ chức NOT NULL) — mỗi bảng một lý do.
+ * Danh sách nằm trong `schema-guards.no-org.json`, không viết cứng ở đây: job `schema-compat` chép tệp nền của PR đè lên
+ * nhánh nền (scripts/schema-compat.mjs BASELINE_FILES) nên bảng không-tổ-chức hợp lệ mà PR thêm không làm test N−1 đỏ oan.
+ */
+const NO_ORG_ALLOWED: Record<string, string> = noOrg.no_org;
 
 describe("schema-guards — bảng nghiệp vụ có organization_id NOT NULL (IND-SAAS-001)", () => {
   it("mọi bảng ở schema public có `organization_id` NOT NULL, trừ ngoại lệ đã khai kèm lý do", async () => {

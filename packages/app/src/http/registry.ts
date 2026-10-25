@@ -686,7 +686,7 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
   }),
   "exports.download": defineCommand({
     command: "exports.download",
-    input: z.strictObject({ export_id: z.string().max(64) }),
+    input: COMMAND_INPUTS["exports.download"],
     run: async (ctx, i, svc) => ({ data: await downloadExport(ctx, svc, { exportId: i.export_id }) }),
   }),
   "portal.createGuestLink": defineCommand({

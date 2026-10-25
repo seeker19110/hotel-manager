@@ -216,4 +216,74 @@ describe("CommandForm", () => {
     await screen.findByRole("status");
     expect(JSON.parse(String(initOf(0).body))).toEqual({ task_id: UNIT });
   });
+
+  describe("resultLink (lệnh trả URL — vd tải bản xuất nhật ký, T-2313)", () => {
+    const linkProps = {
+      path: "exports/download",
+      fields: [],
+      fixed: { export_id: UNIT },
+      submitLabel: "Chuẩn bị tải",
+      successText: "Đã sẵn sàng.",
+      resultLink: { label: "Tải tệp", testId: "dl" },
+    };
+
+    it("thành công có `url` an toàn: hiện liên kết tải đúng href; gửi lại thành công thay URL mới", async () => {
+      fetchMock
+        .mockResolvedValueOnce(
+          jsonResponse(200, { data: { url: "https://files.example/a.csv?sig=1", expiresIn: 300 } }),
+        )
+        .mockResolvedValueOnce(
+          jsonResponse(200, { data: { url: "https://files.example/a.csv?sig=2", expiresIn: 300 } }),
+        );
+      setup(linkProps);
+      expect(screen.queryByRole("link", { name: "Tải tệp" })).toBeNull();
+      await userEvent.click(screen.getByRole("button", { name: "Chuẩn bị tải" }));
+      const link = await screen.findByRole("link", { name: "Tải tệp" });
+      expect(link.getAttribute("href")).toBe("https://files.example/a.csv?sig=1");
+      expect(link.hasAttribute("download")).toBe(true);
+      expect(link.textContent).toBe("Tải tệp");
+      expect(JSON.parse(String(initOf(0).body))).toEqual({ export_id: UNIT });
+
+      await userEvent.click(screen.getByRole("button", { name: "Chuẩn bị tải" }));
+      await waitFor(() =>
+        expect(screen.getByRole("link", { name: "Tải tệp" }).getAttribute("href")).toBe(
+          "https://files.example/a.csv?sig=2",
+        ),
+      );
+    });
+
+    it("URL không an toàn (javascript:) hoặc thiếu `url`: không hiện liên kết", async () => {
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, { data: { url: "javascript:alert(1)" } }));
+      setup(linkProps);
+      await userEvent.click(screen.getByRole("button", { name: "Chuẩn bị tải" }));
+      await screen.findByRole("status");
+      expect(screen.queryByRole("link", { name: "Tải tệp" })).toBeNull();
+      cleanup();
+
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, { data: {} }));
+      setup(linkProps);
+      await userEvent.click(screen.getByRole("button", { name: "Chuẩn bị tải" }));
+      await screen.findByRole("status");
+      expect(screen.queryByRole("link", { name: "Tải tệp" })).toBeNull();
+    });
+
+    it("lỗi 4xx: không hiện liên kết", async () => {
+      fetchMock.mockResolvedValueOnce(
+        jsonResponse(404, { code: "NOT_FOUND", status: 404, detail: "Không tìm thấy bản xuất." }),
+      );
+      setup(linkProps);
+      await userEvent.click(screen.getByRole("button", { name: "Chuẩn bị tải" }));
+      await screen.findByRole("alert");
+      expect(screen.queryByRole("link", { name: "Tải tệp" })).toBeNull();
+    });
+
+    it("không khai `resultLink`: kết quả có `url` cũng không hiện liên kết", async () => {
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, { data: { url: "https://files.example/a.csv" } }));
+      const { resultLink: _omit, ...withoutLink } = linkProps;
+      setup(withoutLink);
+      await userEvent.click(screen.getByRole("button", { name: "Chuẩn bị tải" }));
+      await screen.findByRole("status");
+      expect(screen.queryByRole("link")).toBeNull();
+    });
+  });
 });

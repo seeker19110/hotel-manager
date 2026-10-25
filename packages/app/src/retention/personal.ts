@@ -81,7 +81,7 @@ export async function purgePersonalData(
       stats[table] = await drain(
         async () =>
           (
-            await sql<{ n: number }>`select ${sql.raw(`app.${fn}`)}(${now}, ${keep}, ${batch}) as n`.execute(
+            await sql<{ n: number }>`select ${sql.id("app", fn)}(${now}, ${keep}, ${batch}) as n`.execute(
               workerDb,
             )
           ).rows[0]?.n ?? 0,

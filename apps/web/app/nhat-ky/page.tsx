@@ -16,10 +16,9 @@ import { StatusBadge } from "../../components/ui/badge.tsx";
 import { SelectField, TextField } from "../../components/ui/field.tsx";
 import { EmptyState, ErrorState } from "../../components/ui/state.tsx";
 import { addDays } from "../../lib/format.ts";
-import { messagesFor, t, tOr } from "../../lib/i18n.ts";
+import { t, tOr } from "../../lib/i18n.ts";
 import { withActor } from "../../lib/page.tsx";
 import { safe } from "../../lib/safe.ts";
-import { ExportDownload } from "./export-download.tsx";
 
 export const metadata: Metadata = { title: t("audit_log.metadata.title") };
 
@@ -222,7 +221,19 @@ export default async function AuditLogPage({ searchParams }: { searchParams: Pro
                     <li key={x.exportId}>
                       {utc(new Date(x.createdAt))} · {tOr(`audit_log.export.status.${x.status}`, x.status)}
                       {x.status === "ready" ? (
-                        <ExportDownload exportId={x.exportId} m={messagesFor("audit_log.download.")} />
+                        // Tải bản xuất đã sẵn sàng (T-2313): `exports.download` trả URL ký ngắn hạn (≤ 5 phút) cho chính người yêu
+                        // cầu — liên kết tải hiện sau khi lệnh thành công; hết hạn ⇒ bấm lại để lấy URL mới.
+                        <CommandForm
+                          path="exports/download"
+                          fixed={{ export_id: x.exportId }}
+                          variant="secondary"
+                          submitLabel={t("audit_log.download.prepare")}
+                          successText={t("audit_log.download.ready")}
+                          resultLink={{
+                            label: t("audit_log.download.link"),
+                            testId: "audit-export-download",
+                          }}
+                        />
                       ) : null}
                     </li>
                   ))}

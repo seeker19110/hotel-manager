@@ -11,6 +11,7 @@
 // và lỗi gắn đúng ô theo đường dẫn trường;
 // server vẫn validate lại tất cả.
 import { fillConfirmLabel, parseDecimalInput, parseIntegerInput, parseMoneyInput } from "@hm/app/form-rules";
+import { safeUrl } from "@hm/app/http";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useId, useRef, useState } from "react";
 import { day, vnd } from "../../lib/format.ts";
@@ -68,6 +69,7 @@ export function CommandForm({
   className,
   confirm,
   confirmLabel,
+  resultLink,
 }: ConfirmProps & {
   path: string;
   fields?: FieldSpec[];
@@ -78,6 +80,12 @@ export function CommandForm({
   testId?: string;
   /** Lớp CSS thêm cho nút gửi (vd `btn--large` cho màn buồng phòng trên điện thoại). */
   className?: string;
+  /**
+   * Lệnh trả `url` (vd `exports/download`: URL ký ngắn hạn cho chính người yêu cầu): sau khi thành công hiện liên kết tải tới URL đó
+   * (chỉ URL qua `safeUrl`); gửi lại thành công ⇒ thay bằng URL mới. Thay cho client component riêng — mỗi client root thêm vào trang
+   * là thêm một bản sao bộ chạy lệnh vào bundle (Turbopack nhân bản theo trang).
+   */
+  resultLink?: { label: string; testId?: string };
 }) {
   const m = useMessages();
   const router = useRouter();
@@ -170,6 +178,7 @@ export function CommandForm({
     const hit = cmd.problem?.errors?.find((x) => x.field === (f.path ?? f.name) || x.field === f.name);
     return hit ? (problemText(m, cmd.problem) ?? undefined) : undefined;
   };
+  const resultUrl = resultLink ? (cmd.data as { url?: unknown } | null)?.url : undefined;
   const general =
     localGeneral ??
     (cmd.phase === "error" && !fields.some((f) => fieldError(f)) ? problemText(m, cmd.problem) : null);
@@ -261,6 +270,11 @@ export function CommandForm({
         onResend={onResend}
         onRecheck={onRecheck}
       />
+      {resultLink && safeUrl(resultUrl) ? (
+        <a className="btn" href={safeUrl(resultUrl) as string} download data-testid={resultLink.testId}>
+          {resultLink.label}
+        </a>
+      ) : null}
     </form>
   );
 }

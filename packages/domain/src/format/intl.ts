@@ -5,6 +5,8 @@
 // Câu chữ (ký hiệu "đ", thông điệp RangeError) lấy từ catalog con `packages/domain/messages/format.vi.json` (XC-I18N-001, D-107
 // theo mẫu D-106): module này vào bundle trình duyệt (apps/web/lib/format.ts → @hm/app/format) nên KHÔNG import `../i18n.ts`
 // (catalog domain chính, D-098). `scripts/i18n-check.mjs` kiểm catalog con và mọi lời gọi `formatText` (khoá có thật, đúng tham số).
+// Catalog con đi NGUYÊN VĂN (cả `description`) vào chunk client của mỗi trang dùng định dạng (Turbopack nhân bản theo trang) ⇒ giữ
+// `description` ngắn, phần giải thích chung để ở chú thích này (bundle-size).
 import formatMessages from "../../messages/format.vi.json" with { type: "json" };
 
 export type FormatMessageKey = keyof typeof formatMessages;
