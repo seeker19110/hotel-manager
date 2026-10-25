@@ -28,6 +28,18 @@ describe("file sức khoẻ cộng đồng (đường dẫn GitHub nhận)", () 
     expect(coc).toMatch(/Contributor Covenant, phiên bản 2\.1/);
     expect(coc).toMatch(/Báo hành vi vi phạm/);
   });
+  it("mẫu PR có checklist dark pattern (UX-CONTENT-005, D-121)", () => {
+    const t = read(".github/pull_request_template.md");
+    const sec = t.split("## UX — không dark pattern (UX-CONTENT-005)")[1]?.split("\n## ")[0] ?? "";
+    for (const frag of [
+      "mặc định bật",
+      "không nhiều bước hơn",
+      "confirmshaming",
+      "đếm ngược",
+      "Nút từ chối ngang hàng",
+    ])
+      expect(sec, frag).toContain(frag);
+  });
   it("tệp được nhắc tới trong CONTRIBUTING/SUPPORT tồn tại", () => {
     for (const f of ["CONTRIBUTING.md", "SUPPORT.md"])
       for (const [, p] of read(f).matchAll(/`((?:docs|scripts|\.github|\.xtemplates)\/[^`*<> ]+?)`/g))

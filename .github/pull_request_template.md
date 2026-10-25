@@ -60,6 +60,13 @@ không có
 <!-- Ảnh hưởng nếu sai (tiền/tồn/dữ liệu cá nhân/quyền), phạm vi, cách phát hiện, cách tắt/quay lại (rollback) — thiếu cách quay lại thì `pr-policy` đỏ (WF-REVIEW-002). -->
 <!-- Chạm tiền/tồn/dữ liệu người dùng/auth/mật mã (đường dẫn trong `merge_risk_paths` của xt.yaml): gắn nhãn `risk:money` · `risk:data` · `risk:auth` · `risk:crypto` · `risk:gate` (cấu hình cổng, D-063) (LOOP-STOP-005); PR đó do người merge. -->
 
+## UX — không dark pattern (UX-CONTENT-005)
+<!-- Bắt buộc khi đổi màn đăng ký, đồng ý, thanh toán, gói, huỷ/xoá tài khoản hoặc tổ chức; còn lại ghi "không áp dụng — lý do". -->
+- [ ] Không mặc định bật tuỳ chọn bất lợi cho người dùng (chia sẻ dữ liệu, analytics, tự gia hạn) — ô đồng ý tuỳ chọn để trống
+- [ ] Huỷ/rút đồng ý/xoá không nhiều bước hơn lúc đăng ký/cấp (đếm bước, E2E nếu là luồng mới)
+- [ ] Không confirmshaming, không đếm ngược hay khan hiếm giả, không hỏi lại sau khi người dùng đã từ chối
+- [ ] Nút từ chối ngang hàng nút đồng ý (cùng cỡ, cùng mức nổi bật)
+
 ## Checklist bảo mật
 - [ ] Quyền kiểm ở server (`authorize()` + RLS), tài nguyên ngoài phạm vi trả 404, không tin `organization_id`/`property_id` từ client
 - [ ] Đầu vào kiểm bằng schema (Zod); không nối chuỗi vào SQL; không đưa HTML thô ra giao diện
