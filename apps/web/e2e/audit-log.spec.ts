@@ -7,7 +7,7 @@ import { Kysely, PostgresDialect, sql } from "kysely";
 import pg from "pg";
 import { expectAccessible } from "./a11y.ts";
 import { dbUrlFile, HOTEL_OWNER, ORG_HOTEL, portOf, SUPPORT_AGENT } from "./fixtures.ts";
-import { signInClick } from "./sign-in.ts";
+import { signInClick, signInWithTotp } from "./sign-in.ts";
 import { hotelTotpFile, supportTotpFile, totp } from "./totp.ts";
 
 test.describe.configure({ mode: "serial" });
@@ -96,13 +96,7 @@ test("chủ: nhật ký thấy sự kiện, lọc, xuất CSV; cấp rồi thu h
 
 async function signInTotp(page: Page, account: { email: string; password: string }, file: string) {
   const { secret } = JSON.parse(readFileSync(file, "utf8")) as { secret: string };
-  await page.goto("/dang-nhap");
-  await page.getByLabel("Email").fill(account.email);
-  await page.getByLabel("Mật khẩu").fill(account.password);
-  await signInClick(page);
-  await page.getByLabel("Mã xác thực 6 số").fill(totp(secret));
-  await page.getByRole("button", { name: "Xác nhận" }).click();
-  await expect(page).toHaveURL(/\/chon-to-chuc$/);
+  await signInWithTotp(page, account, () => totp(secret));
 }
 
 test("hỗ trợ nền tảng: trang SSR chỉ /lich-phong (mỗi lần mở ghi đúng một support.accessed); trang khác/portal ⇒ không có quyền", async ({

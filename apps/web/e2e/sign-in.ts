@@ -17,3 +17,30 @@ export async function signInClick(page: Page, button?: Locator): Promise<void> {
     await page.waitForTimeout(WINDOW_WAIT_MS);
   }
 }
+
+/** Cửa sổ hạn mức `/two-factor/*` của Better Auth (3 lần/10 giây theo IP) + 1 giây dự phòng. */
+const TWO_FACTOR_WINDOW_MS = 11_000;
+
+/**
+ * Đăng nhập mật khẩu + mã TOTP tới /chon-to-chuc. Spec chạy liền nhau trên cùng server (cùng IP) có thể chạm hạn mức
+ * `/two-factor/*` ⇒ 429: khi đó chờ hết cửa sổ rồi làm lại từ đầu với mã mới (mã cũ chưa được dùng). Không tắt rào.
+ */
+export async function signInWithTotp(
+  page: Page,
+  account: { email: string; password: string },
+  code: () => string,
+): Promise<void> {
+  for (let attempt = 1; ; attempt++) {
+    await page.goto("/dang-nhap");
+    await page.getByLabel("Email").fill(account.email);
+    await page.getByLabel("Mật khẩu").fill(account.password);
+    await signInClick(page);
+    await page.getByLabel("Mã xác thực 6 số").fill(code());
+    const verify = page.waitForResponse((r) => r.url().includes("/api/auth/two-factor/"));
+    await page.getByRole("button", { name: "Xác nhận" }).click();
+    if ((await verify).status() !== 429 || attempt >= MAX_ATTEMPTS) break;
+    test.info().setTimeout(test.info().timeout + TWO_FACTOR_WINDOW_MS + 10_000);
+    await page.waitForTimeout(TWO_FACTOR_WINDOW_MS);
+  }
+  await page.waitForURL(/\/chon-to-chuc$/, { timeout: 10_000 });
+}

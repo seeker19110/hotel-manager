@@ -10,7 +10,7 @@ import pg from "pg";
 import { expectAccessible } from "./a11y.ts";
 import { CORE_CONSENT, submitSignUp } from "./consent.ts";
 import { DELETE_OWNER, dbUrlFile, ORG_DELETE, portOf } from "./fixtures.ts";
-import { signInClick } from "./sign-in.ts";
+import { signInWithTotp } from "./sign-in.ts";
 import { deleteTotpFile, totp } from "./totp.ts";
 
 test.describe.configure({ mode: "serial" });
@@ -56,13 +56,7 @@ test("xoá tổ chức: yêu cầu → banner → huỷ một bước (≤ bư�
 
   // Chủ tổ chức đăng nhập (mật khẩu + TOTP) — phiên mới ⇒ đủ "xác thực lại ≤ 5 phút".
   const { secret } = JSON.parse(readFileSync(deleteTotpFile(port), "utf8")) as { secret: string };
-  await page.goto("/dang-nhap");
-  await page.getByLabel("Email").fill(DELETE_OWNER.email);
-  await page.getByLabel("Mật khẩu").fill(DELETE_OWNER.password);
-  await signInClick(page);
-  await page.getByLabel("Mã xác thực 6 số").fill(totp(secret));
-  await page.getByRole("button", { name: "Xác nhận" }).click();
-  await expect(page).toHaveURL(/\/chon-to-chuc$/);
+  await signInWithTotp(page, DELETE_OWNER, () => totp(secret));
   await page.getByRole("button", { name: ORG_DELETE }).click();
   await expect(page).toHaveURL(/\/phong$/);
 
