@@ -831,3 +831,10 @@
 - Chọn: Duyệt như PLAN
 - Lý do (tiêu chí chất lượng cuối): (1) chủ dự án yêu cầu 'làm hết'; lát dữ liệu/auth vẫn do người merge nên an toàn; (2) mỗi lát một PR, revert được
 - Đường lùi: Dừng sau lát bất kỳ; PR chưa merge đóng lại
+
+### D-116 · 2026-10-25T05:25:21+00:00 · D-116: Hạn lưu cho bảng chưa có job dọn + ẩn danh người/giấy tờ (STD-PRIV-005, XC-GREEN-007) — pháp lý chưa chốt
+
+- Phương án: (1) Mặc định chặt, cấu hình được, đánh dấu chờ pháp lý: notifications 180 ngày; worker_heartbeats 30 ngày không cập nhật; phiên đăng nhập 30 ngày sau hết hạn; mã xác minh 1 ngày sau hết hạn; liên kết khách 90 ngày sau hết hạn/thu hồi; inbox (chứng từ ngân hàng) 10 năm; giấy tờ nhận dạng ẩn danh 12 tháng sau khi kết thúc lưu trú/thuê cuối; persons ẩn danh 10 năm sau quan hệ tiền/thuê cuối (giữ đối chiếu chứng từ) · (2) Chờ pháp lý chốt rồi mới viết job
+- Chọn: Mặc định chặt, cấu hình được, đánh dấu chờ pháp lý: notifications 180 ngày; worker_heartbeats 30 ngày không cập nhật; phiên đăng nhập 30 ngày sau hết hạn; mã xác minh 1 ngày sau hết hạn; liên kết khách 90 ngày sau hết hạn/thu hồi; inbox (chứng từ ngân hàng) 10 năm; giấy tờ nhận dạng ẩn danh 12 tháng sau khi kết thúc lưu trú/thuê cuối; persons ẩn danh 10 năm sau quan hệ tiền/thuê cuối (giữ đối chiếu chứng từ)
+- Lý do (tiêu chí chất lượng cuối): (1) đúng và an toàn: tối thiểu hoá dữ liệu ngay, vẫn giữ phần nghĩa vụ kế toán 10 năm; mục đích thông báo lưu trú xong lúc nhận phòng nên giấy tờ không cần giữ lâu; (2) hằng số một chỗ, đổi một dòng; ẩn danh thay vì xoá giữ toàn vẹn sổ tiền (FK RESTRICT)
+- Đường lùi: Đổi hằng số trong packages/app/src/retention/policy.ts; tắt job bằng cấu hình worker
