@@ -853,3 +853,38 @@
 - Lý do (tiêu chí chất lượng cuối): Đúng và an toàn: không gửi dữ liệu ra ngoài, không thêm bên xử lý; schema đóng + cấm PII kiểm được bằng test; đơn giản, không thêm dịch vụ chạy; đường lùi: đổi đích trong track() là một điểm
 - Đường lùi: track() là điểm duy nhất — thay bộ ghi sang công cụ khác; migration có down
 - Khi chạy thật (đề xuất, chủ dự án quyết ở G7): Khi cần dashboard: PostHog tự host hoặc Metabase đọc product_events (chưa cần)
+
+### D-119 · 2026-10-25T06:27:55+00:00 · T-2310: mục đích cần đồng ý và cách ghi (CMP-RIGHTS-001, CMP-VN-001, CMP-RIGHTS-004)
+
+- Phương án: (1) Bảng consent_records append-only (mỗi lần cấp/rút là một dòng, trạng thái hiện tại = dòng mới nhất theo subject+purpose); danh mục mục đích đóng: service_core (bắt buộc để dùng dịch vụ, thu ở đăng ký/nhận lời mời/OTP portal lần đầu), product_analytics (tuỳ chọn, mặc định KHÔNG — opt-in); track() bỏ qua actor chưa đồng ý product_analytics; rút ở trang Bảo mật một bước như lúc cấp · (2) Cột cờ trên bảng user (mất lịch sử, không chứng minh được thời điểm/phiên bản chính sách) · (3) Banner đồng ý chung một lần cho mọi mục đích (gộp mục đích — trái Luật 91/2025 về đồng ý theo từng mục đích, chưa xác minh điều)
+- Chọn: Bảng consent_records append-only (mỗi lần cấp/rút là một dòng, trạng thái hiện tại = dòng mới nhất theo subject+purpose); danh mục mục đích đóng: service_core (bắt buộc để dùng dịch vụ, thu ở đăng ký/nhận lời mời/OTP portal lần đầu), product_analytics (tuỳ chọn, mặc định KHÔNG — opt-in); track() bỏ qua actor chưa đồng ý product_analytics; rút ở trang Bảo mật một bước như lúc cấp
+- Lý do (tiêu chí chất lượng cuối): Đúng và an toàn: cách hiểu chặt hơn — đồng ý riêng từng mục đích, chứng minh được (phiên bản chính sách, kênh, băm ảnh chụp UI), analytics opt-in; append-only giữ dấu vết; đơn giản, test được
+- Đường lùi: Bảng mới, migration có down; mục đích mới thêm vào danh mục không đổi dòng cũ
+
+### D-120 · 2026-10-25T06:28:13+00:00 · T-2311: DSAR và xoá tài khoản (STD-PRIV-004, CMP-VN-007, CMP-INTL-007, CMP-RIGHTS-007, CMP-PRIV-005)
+
+- Phương án: (1) Yêu cầu chủ thể lưu ở bảng dsar_requests (loại access/delete/restrict, hạn = ngày nhận + dsar_days theo vùng trong cấu hình repo: VN 3 ngày làm việc ≈ 72 giờ cho xoá (chưa xác minh), EU 30 ngày); xuất JSON dữ liệu của chính người dùng (đồng bộ, có xác thực lại ≤ 5 phút); xoá tài khoản = xác thực lại → thu hồi phiên → xoá analytics/consent liên kết/thành viên → ẩn danh user auth, GIỮ chứng từ tiền (nghĩa vụ kế toán) có ghi lý do trong kết quả; metric dsar_overdue · (2) Chỉ cho xuất/xoá qua email tới quản trị (thủ công, không kiểm được hạn)
+- Chọn: Yêu cầu chủ thể lưu ở bảng dsar_requests (loại access/delete/restrict, hạn = ngày nhận + dsar_days theo vùng trong cấu hình repo: VN 3 ngày làm việc ≈ 72 giờ cho xoá (chưa xác minh), EU 30 ngày); xuất JSON dữ liệu của chính người dùng (đồng bộ, có xác thực lại ≤ 5 phút); xoá tài khoản = xác thực lại → thu hồi phiên → xoá analytics/consent liên kết/thành viên → ẩn danh user auth, GIỮ chứng từ tiền (nghĩa vụ kế toán) có ghi lý do trong kết quả; metric dsar_overdue
+- Lý do (tiêu chí chất lượng cuối): Đúng và an toàn: tự phục vụ, xác thực lại, hạn kiểm bằng máy, giữ phần nghĩa vụ pháp lý có lý do; số ngày theo vùng là cấu hình, đánh dấu chưa xác minh tới khi pháp lý chốt
+- Đường lùi: Bảng mới + route mới; tắt route là quay lại
+
+### D-121 · 2026-10-25T06:28:14+00:00 · T-2312: vòng đời xoá tổ chức (IND-SAAS-006, UX-CONTENT-005)
+
+- Phương án: (1) Owner yêu cầu xoá (xác thực lại) → tổ chức vào trạng thái pending_deletion 30 ngày (chỉ đọc + xuất, huỷ được một bước) → job worker purge mọi kho (DB theo org, object theo tiền tố org, analytics) trừ chứng từ tiền giữ theo hạn kế toán → ghi chứng nhận xoá (org_deletion_certificates: thời điểm, số dòng/object theo kho, băm) · (2) Xoá ngay không thời gian ân hạn · (3) Chỉ vô hiệu hoá, không purge
+- Chọn: Owner yêu cầu xoá (xác thực lại) → tổ chức vào trạng thái pending_deletion 30 ngày (chỉ đọc + xuất, huỷ được một bước) → job worker purge mọi kho (DB theo org, object theo tiền tố org, analytics) trừ chứng từ tiền giữ theo hạn kế toán → ghi chứng nhận xoá (org_deletion_certificates: thời điểm, số dòng/object theo kho, băm)
+- Lý do (tiêu chí chất lượng cuối): Đúng và an toàn: có ân hạn chống xoá nhầm, xuất trước khi mất, purge kiểm được bằng chứng nhận; huỷ không khó hơn đăng ký (UX-CONTENT-005)
+- Đường lùi: Trong 30 ngày huỷ được; sau purge chỉ còn bản sao lưu tới hết RET-10
+
+### D-122 · 2026-10-25T06:28:14+00:00 · T-2313: nhật ký hoạt động cho admin và truy cập hỗ trợ (IND-SAAS-009, CMP-AUDIT-002)
+
+- Phương án: (1) Màn nhật ký đọc audit_events theo org (RLS), lọc theo thời gian/người/loại, xuất CSV qua cơ chế exports sẵn có; truy cập hỗ trợ = owner cấp support_grants (lý do, TTL ≤ 72 giờ, thu hồi được), mọi hành động của platform_support khi có grant ghi audit và hiển thị cho tenant · (2) Hỗ trợ dùng BYPASSRLS (không kiểm được, trái TM-12)
+- Chọn: Màn nhật ký đọc audit_events theo org (RLS), lọc theo thời gian/người/loại, xuất CSV qua cơ chế exports sẵn có; truy cập hỗ trợ = owner cấp support_grants (lý do, TTL ≤ 72 giờ, thu hồi được), mọi hành động của platform_support khi có grant ghi audit và hiển thị cho tenant
+- Lý do (tiêu chí chất lượng cuối): Đúng và an toàn: quyền tạm thời do tenant cấp, có hạn và nhìn thấy được; dùng lại audit/exports sẵn có
+- Đường lùi: Không có grant thì hỗ trợ không có quyền gì (như hiện nay)
+
+### D-123 · 2026-10-25T06:28:14+00:00 · T-2314: hạn mức theo gói và fair-share (IND-SAAS-008)
+
+- Phương án: (1) Gói khai báo trong repo (packages/app/src/plans/plans.ts: free/standard; hạn mức số cơ sở, phòng, thành viên, job/phút); kiểm hạn mức trong command; worker dùng pg-boss singletonKey/hàng đợi theo org với trần đồng thời mỗi org để tenant bão hoà không chặn tenant khác; test tải hai tenant · (2) Bảng gói trong CSDL có UI quản trị (chưa cần, chưa có thanh toán)
+- Chọn: Gói khai báo trong repo (packages/app/src/plans/plans.ts: free/standard; hạn mức số cơ sở, phòng, thành viên, job/phút); kiểm hạn mức trong command; worker dùng pg-boss singletonKey/hàng đợi theo org với trần đồng thời mỗi org để tenant bão hoà không chặn tenant khác; test tải hai tenant
+- Lý do (tiêu chí chất lượng cuối): Bền và đơn giản: chưa có thanh toán/gói thật nên cấu hình trong repo đủ, đổi được qua PR; fair-share giải rủi ro noisy neighbour có test
+- Đường lùi: Gỡ kiểm hạn mức là quay lại không giới hạn
