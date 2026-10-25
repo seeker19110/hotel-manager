@@ -56,8 +56,8 @@
     {
       "package": "@img/sharp-libvips-linux-x64",
       "license": "LGPL-3.0-or-later",
-      "reason": "liên kết động, gói tuỳ chọn của Next (qua sharp); chờ chủ dự án duyệt — đề xuất Khi chạy thật của D-061",
-      "approved_by": "phiên chính (tạm, theo D-061); chờ chủ dự án duyệt",
+      "reason": "LGPL-3.0-or-later (giấy phép OSI, không phải source-available): liên kết động qua sharp của Next, không sửa thư viện, không phân phối bản sửa đổi; ghi công ở THIRD_PARTY_NOTICES.md — D-061, D-114",
+      "approved_by": "phiên chính D-114 (2026-10-25, theo yêu cầu 'làm hết' của chủ dự án; AGENTS §5)",
       "expires": "2026-12-31"
     }
   ]
