@@ -3,7 +3,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
-import { SelectField, TextField } from "./field.tsx";
+import { CheckboxField, SelectField, TextField } from "./field.tsx";
 
 afterEach(cleanup);
 
@@ -85,5 +85,26 @@ describe("SelectField", () => {
     render(<SelectField label="Mức ưu tiên" options={options} error="Chọn một mức" />);
     expect(screen.getByRole("alert").textContent).toBe("Chọn một mức");
     expect(screen.getByRole("combobox", { name: "Mức ưu tiên" }).getAttribute("aria-invalid")).toBe("true");
+  });
+});
+
+describe("CheckboxField", () => {
+  it("mặc định KHÔNG tick; bấm nhãn thì tick (nhãn gắn với ô)", async () => {
+    render(<CheckboxField label="Tôi đồng ý" name="c" />);
+    const box = screen.getByLabelText("Tôi đồng ý") as HTMLInputElement;
+    expect(box.type).toBe("checkbox");
+    expect(box.checked).toBe(false);
+    await userEvent.click(screen.getByText("Tôi đồng ý"));
+    expect(box.checked).toBe(true);
+  });
+
+  it("có lỗi: aria-invalid + alert được aria-describedby trỏ tới; không lỗi thì không có", () => {
+    const { rerender } = render(<CheckboxField label="Bắt buộc" />);
+    expect(screen.getByLabelText("Bắt buộc").hasAttribute("aria-describedby")).toBe(false);
+    rerender(<CheckboxField label="Bắt buộc" error="Cần đánh dấu ô này" />);
+    const box = screen.getByLabelText("Bắt buộc");
+    const alert = screen.getByRole("alert");
+    expect(box.getAttribute("aria-invalid")).toBe("true");
+    expect(describedBy(box)).toEqual([alert.id]);
   });
 });

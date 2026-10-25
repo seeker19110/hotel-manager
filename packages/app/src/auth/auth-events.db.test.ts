@@ -5,7 +5,7 @@
 import { randomUUID } from "node:crypto";
 import { base32 } from "@better-auth/utils/base32";
 import { createOTP } from "@better-auth/utils/otp";
-import { createTestDb, seedOrg, type TestDb } from "@hm/testkit";
+import { createTestDb, seedOrg, type TestDb, withSignUpConsent } from "@hm/testkit";
 import { sql } from "kysely";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { resetMemberMfa } from "../access/mfa-recovery.ts";
@@ -62,7 +62,9 @@ const eventsOf = (name: string) => events().filter((e) => e.event === name);
 
 async function newUser(prefix: string): Promise<{ email: string; userId: string }> {
   const email = `${prefix}+${randomUUID().slice(0, 8)}@example.test`;
-  const r = await auth.api.signUpEmail({ body: { email, password: PASSWORD, name: email } });
+  const r = await auth.api.signUpEmail({
+    body: withSignUpConsent({ email, password: PASSWORD, name: email }),
+  });
   return { email, userId: r.user.id };
 }
 

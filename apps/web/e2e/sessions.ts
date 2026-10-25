@@ -2,6 +2,7 @@
 // `/two-factor/*` và gửi OTP theo IP). Gặp giới hạn (429) thì đợi rồi thử lại, không bỏ qua rào.
 import { readFileSync, writeFileSync } from "node:fs";
 import { type Browser, type BrowserContext, expect, type Page } from "@playwright/test";
+import { passTenantConsentIfAsked } from "./consent.ts";
 import {
   HOTEL_HK,
   HOTEL_OWNER,
@@ -108,6 +109,7 @@ export function loginTenant(browser: Browser, baseURL: string): Promise<Cookies>
     const code = await newOtpFor(baseURL, PORTAL_TENANT.email, before);
     await page.getByLabel("Mã đăng nhập 6 số").fill(code);
     await signInClick(page);
+    await passTenantConsentIfAsked(page); // lần đầu dùng portal: bước đồng ý service_core (T-2310)
     await expect(page).toHaveURL(/\/chon-to-chuc$/, { timeout: 10_000 });
     await page.getByRole("button", { name: new RegExp(`^${ORG_PORTAL.replace(/[()]/g, "\\$&")}`) }).click();
     await expect(page).toHaveURL(/\/portal$/);

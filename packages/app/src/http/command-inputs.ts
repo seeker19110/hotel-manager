@@ -192,7 +192,12 @@ export const COMMAND_INPUTS = {
   }),
   "notifications.markAllRead": z.strictObject({}),
   "notifications.markRead": z.strictObject({ notification_id: uuid }),
-  "member.acceptInvitation": z.strictObject({ token: z.string().min(1).max(200) }),
+  // `consent_service_core`: ô đồng ý bắt buộc (T-2310, D-119) — chỉ gửi khi người nhận CHƯA đồng ý `service_core` (vd. tài khoản cũ);
+  // thiếu mà chưa đồng ý ⇒ 422 CONSENT_REQUIRED. Chỉ nhận `true` (không có "đồng ý = false").
+  "member.acceptInvitation": z.strictObject({
+    token: z.string().min(1).max(200),
+    consent_service_core: z.literal(true).optional(),
+  }),
   "member.invite": z.strictObject({
     email: z.email().max(320),
     role: memberRole,

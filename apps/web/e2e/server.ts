@@ -13,7 +13,14 @@ import {
   unsubscribeUrl,
 } from "@hm/app";
 import { migrateToLatest } from "@hm/db";
-import { bootstrapRoles, type PgCluster, pgUrl, seedOrg, startPgCluster } from "@hm/testkit/setup";
+import {
+  bootstrapRoles,
+  type PgCluster,
+  pgUrl,
+  seedOrg,
+  startPgCluster,
+  withSignUpConsent,
+} from "@hm/testkit/setup";
 import { Kysely, PostgresDialect, sql } from "kysely";
 import pg from "pg";
 import { teeChildLog, waitClosed } from "./child-log.ts";
@@ -150,7 +157,7 @@ async function seedInvitations(
   const o = org.rows[0];
   if (!o) throw new Error("thiếu ORG_HOTEL để seed lời mời");
   // Nhân viên buồng phòng đích của màn Thành viên (có mật khẩu để đăng nhập thật rồi bị thu hồi phiên).
-  const target = await auth.api.signUpEmail({ body: STAFF_TARGET });
+  const target = await auth.api.signUpEmail({ body: withSignUpConsent(STAFF_TARGET) });
   const person = randomUUID();
   const membership = randomUUID();
   await sql`insert into persons (id, organization_id, full_name, email) values (${person}, ${o.id}, ${STAFF_TARGET.name}, ${STAFF_TARGET.email})`.execute(
@@ -188,7 +195,7 @@ async function seed(adminUrl: string, runtimeUrl: string, secret: string): Promi
     ipRateLimit: false,
   });
   try {
-    const { user } = await auth.api.signUpEmail({ body: SMOKE_USER });
+    const { user } = await auth.api.signUpEmail({ body: withSignUpConsent(SMOKE_USER) });
     const main = await seedOrg(db, ORG_MAIN, "hotel");
     await addUnits(
       db,

@@ -49,7 +49,7 @@
   },
   "packages/app/src/http/openapi.ts": {
     "reason": "Mô tả OpenAPI (apps/web/openapi.json, `pnpm openapi`) — tài liệu cho nhà phát triển tích hợp API, không hiện cho người dùng sản phẩm.",
-    "max": 50
+    "max": 53
   },
   "packages/app/src/http/security.ts": {
     "reason": "Chuỗi duy nhất là Error lập trình khi nonce CSP sai dạng trong buildCsp (proxy) — không ra API/UI. Module được client import (`@hm/app/http` → safeUrl) nên không được import catalog (D-098).",

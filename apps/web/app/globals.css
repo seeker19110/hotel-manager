@@ -177,6 +177,44 @@ body {
 .field [aria-invalid="true"] {
   border: 2px solid var(--c-danger);
 }
+/* Ô đánh dấu (đồng ý theo mục đích, T-2310): ô 44 px để đạt vùng chạm, nhãn đọc được dài nhiều dòng. */
+.field--check .check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+.field--check input[type="checkbox"] {
+  flex: none;
+  width: var(--touch);
+  height: var(--touch);
+  min-height: var(--touch);
+  margin: 0;
+  padding: 0;
+  accent-color: var(--c-brand);
+}
+.field--check label {
+  font-weight: 400;
+  padding-top: var(--space-2);
+}
+.consent-block {
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  padding: var(--space-3) var(--space-4);
+  margin: 0 0 var(--space-4);
+}
+.consent-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--space-4);
+}
+.consent-list li {
+  border-top: 1px solid var(--c-border);
+  padding: var(--space-3) 0;
+}
+.consent-block legend {
+  font-weight: 600;
+  padding: 0 var(--space-1);
+}
 .field__hint {
   color: var(--c-text-muted);
   font-size: 0.875rem;

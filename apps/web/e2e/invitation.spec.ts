@@ -3,6 +3,7 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import { expectAccessible } from "./a11y.ts";
+import { CORE_CONSENT } from "./consent.ts";
 import { HOTEL_HK, INVITEE, INVITEE_EXPIRED_EMAIL, inviteTokensFile, ORG_HOTEL, portOf } from "./fixtures.ts";
 import { signInClick } from "./sign-in.ts";
 
@@ -22,6 +23,7 @@ async function register(page: import("@playwright/test").Page, email: string, na
   await page.getByLabel("Họ và tên").fill(name);
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Mật khẩu").fill(PASSWORD);
+  await page.getByLabel(CORE_CONSENT).check(); // ô đồng ý bắt buộc, không tick sẵn (T-2310)
   await page.getByRole("button", { name: "Tạo tài khoản và tiếp tục" }).click();
 }
 

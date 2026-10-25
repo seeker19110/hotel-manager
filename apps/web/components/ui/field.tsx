@@ -66,3 +66,36 @@ export function SelectField({ label, hint, error, options, ...rest }: SelectFiel
     </div>
   );
 }
+
+interface CheckboxFieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "id" | "type"> {
+  label: string;
+  error?: string | undefined;
+}
+
+/**
+ * Ô đánh dấu có nhãn bấm được (ô đồng ý — T-2310). KHÔNG bao giờ tự tick: trạng thái ban đầu do nơi gọi truyền (`defaultChecked`),
+ * mặc định trống (UX-CONTENT-005). Ô ≥ 44 px (vùng chạm), lỗi gắn bằng aria-describedby + role="alert" như `TextField`.
+ */
+export function CheckboxField({ label, error, ...rest }: CheckboxFieldProps) {
+  const id = useId();
+  const errorId = error ? `${id}-error` : undefined;
+  return (
+    <div className="field field--check">
+      <div className="check">
+        <input
+          id={id}
+          type="checkbox"
+          aria-invalid={error ? true : undefined}
+          aria-describedby={errorId}
+          {...rest}
+        />
+        <label htmlFor={id}>{label}</label>
+      </div>
+      {error ? (
+        <span id={errorId} className="field__error" role="alert">
+          {error}
+        </span>
+      ) : null}
+    </div>
+  );
+}

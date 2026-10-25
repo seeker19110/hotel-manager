@@ -8,6 +8,7 @@ import type { Actor, Role } from "../actor-core/index.ts";
 import { t } from "../i18n.ts";
 import { emitSecurity } from "../logging/index.ts";
 import { CommandError, type CommandResult } from "../pipeline/index.ts";
+import { hasConsentInTx, recordConsentInTx } from "../privacy/index.ts";
 import { hashInvitationToken } from "./invitations.ts";
 import { deriveUuid, readAuthUser, runUserCommand, type UserCommandRequest } from "./provision.ts";
 
@@ -19,7 +20,7 @@ export interface AcceptedInvitation {
 
 export async function acceptInvitation(
   req: UserCommandRequest,
-  input: { token: string },
+  input: { token: string; consentServiceCore?: boolean },
 ): Promise<CommandResult<AcceptedInvitation>> {
   const reject = (reason: string, orgId?: string) => {
     emitSecurity({
@@ -78,6 +79,18 @@ export async function acceptInvitation(
         select id from memberships where organization_id = ${orgId} and auth_user_id = ${req.userId}
           and status in ('invited','active','suspended')`.execute(trx);
       if (existing.rows[0]) throw new CommandError("DUPLICATE", 409, t("access.already_member"));
+      // Đồng ý mục đích bắt buộc (T-2310, D-119): chưa có ⇒ phải tick ô ở màn nhận lời mời; ghi CÙNG transaction với membership (lời mời
+      // thất bại thì không còn hàng đồng ý lẻ; đồng ý ghi được thì membership mới được tạo). Kiểm SAU lời mời hợp lệ: lời mời hỏng luôn 410.
+      if (!(await hasConsentInTx(trx, req.userId, "service_core"))) {
+        if (input.consentServiceCore !== true)
+          throw new CommandError("CONSENT_REQUIRED", 422, t("privacy.consent_required"));
+        await recordConsentInTx(trx, {
+          subjectId: req.userId,
+          purpose: "service_core",
+          channel: "invitation",
+          action: "grant",
+        });
+      }
       const allProperties = row.property_ids.length === 0;
       await sql`insert into persons (id, organization_id, full_name, email)
                 values (${personId}, ${orgId}, ${user.name.trim().slice(0, 200) || user.email}, ${user.email})`.execute(

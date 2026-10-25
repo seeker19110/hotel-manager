@@ -263,3 +263,11 @@ export async function setBusinessDayCutoffForTest(
     await sql`alter table properties enable trigger trg_properties_in_use`.execute(trx);
   });
 }
+
+/**
+ * Thân `/sign-up/email` kèm đồng ý mục đích bắt buộc (T-2310, D-119: server từ chối đăng ký thiếu `consents.service_core`). Dùng cho
+ * seed/test gọi `auth.api.signUpEmail` — hàm trả biến (không phải object literal) nên kiểu body của Better Auth nhận trường thêm.
+ */
+export function withSignUpConsent<T extends object>(body: T): T & { consents: { service_core: true } } {
+  return { ...body, consents: { service_core: true } };
+}

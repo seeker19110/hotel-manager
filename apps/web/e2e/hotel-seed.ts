@@ -3,7 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { writeFileSync } from "node:fs";
 import type { createAuth } from "@hm/app";
-import { seedOrg } from "@hm/testkit/setup";
+import { seedOrg, withSignUpConsent } from "@hm/testkit/setup";
 import { type Kysely, sql } from "kysely";
 import {
   HOTEL_HK,
@@ -25,7 +25,7 @@ export async function signUpWithTotp(
   account: { email: string; password: string; name: string },
   file: string,
 ): Promise<string> {
-  const { user } = await auth.api.signUpEmail({ body: account });
+  const { user } = await auth.api.signUpEmail({ body: withSignUpConsent(account) });
   const login = await auth.api.signInEmail({
     body: { email: account.email, password: account.password },
     returnHeaders: true,
@@ -80,7 +80,7 @@ export async function seedHotelOrg(db: Kysely<unknown>, auth: Auth, port: number
     JSON.stringify({ org_id: org.orgId, property_id: org.propertyId, unit_ids: units.rows.map((u) => u.id) }),
     { mode: 0o600 },
   );
-  const { user: hk } = await auth.api.signUpEmail({ body: HOTEL_HK });
+  const { user: hk } = await auth.api.signUpEmail({ body: withSignUpConsent(HOTEL_HK) });
   const person = randomUUID();
   const membership = randomUUID();
   await sql`insert into persons (id, organization_id, full_name, email)

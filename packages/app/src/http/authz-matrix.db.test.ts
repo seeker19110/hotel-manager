@@ -18,6 +18,7 @@ import {
   seedReservation,
   type TestDb,
   tenantTables,
+  withSignUpConsent,
 } from "@hm/testkit";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -874,7 +875,9 @@ describe("BE-AUTH-004 — đăng xuất rồi dùng lại cookie → 401 (phiên
     });
     closeAuth = created.close;
     const email = `dx+${randomUUID().slice(0, 8)}@example.test`;
-    const signedUp = await created.auth.api.signUpEmail({ body: { email, password: PASSWORD, name: email } });
+    const signedUp = await created.auth.api.signUpEmail({
+      body: withSignUpConsent({ email, password: PASSWORD, name: email }),
+    });
     // Người này là thành viên `housekeeping` của A (không cần MFA) bằng tài khoản Better Auth thật.
     const personId = randomUUID();
     await sql`insert into persons (id, organization_id, full_name) values (${personId}, ${A.orgId}, 'Người đăng xuất')`.execute(
@@ -993,6 +996,8 @@ describe("BE-API-009 — route không guard = danh sách công khai đã duyệt
     "v1/commands/[id]/route.ts": /handleCommandStatus/,
     "v1/me/route.ts": /getSession/,
     "v1/session/switchOrganization/route.ts": /handleSwitchOrganization/,
+    // T-2310: đồng ý của CHÍNH người đăng nhập — handleConsentsGet/Post trả 401 khi không có phiên (privacy/consent.db.test.ts).
+    "v1/privacy/consents/route.ts": /handleConsentsGet[\s\S]*handleConsentsPost/,
     "v1/files/upload/route.ts": /handleFileUpload/,
     "v1/import/upload/route.ts": /handleImportUpload/,
   };
@@ -1148,6 +1153,10 @@ describe("BASE-SEC-001 — entrypoint ngoài registry: đầu vào xấu → 4xx
       "v1/session/switchOrganization/route.ts": [
         "switch-organization.ts",
         /z\.strictObject\([\s\S]*safeParse/,
+      ],
+      "v1/privacy/consents/route.ts": [
+        "consents-route.ts",
+        /z\.strictObject\([\s\S]*consentChangeInput\.safeParse\(raw\)/,
       ],
       "v1/files/upload/route.ts": ["file-upload.ts", /OWNER_TYPES\.includes[\s\S]*UUID\.test\(propertyId\)/],
       "v1/import/upload/route.ts": ["import-upload.ts", /UUID\.test\(propertyId\)[\s\S]*kind\.length > 40/],

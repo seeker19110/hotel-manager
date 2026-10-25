@@ -1,7 +1,7 @@
 // SPEC-access-and-property S-010 (session.revokeAll + 401 SESSION_REVOKED) với Better Auth THẬT trên Postgres thật:
 // hai thiết bị đăng nhập → owner thu hồi → cả hai cookie nhận 401 SESSION_REVOKED; đăng nhập lại hoạt động; audit session.revoked.
 import { randomUUID } from "node:crypto";
-import { createTestDb, type SeededOrg, seedOrg, type TestDb } from "@hm/testkit";
+import { createTestDb, type SeededOrg, seedOrg, type TestDb, withSignUpConsent } from "@hm/testkit";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type Auth, createAuth } from "../auth/auth.ts";
@@ -55,7 +55,9 @@ afterAll(async () => {
 /** Người dùng thật (đăng nhập được) + membership `housekeeping` (không bắt MFA) ở tổ chức A. */
 async function staff(orgOf: SeededOrg = A, role = "housekeeping") {
   const email = `nv+${randomUUID().slice(0, 8)}@example.test`;
-  const r = await auth.api.signUpEmail({ body: { email, password: PASSWORD, name: "Nhân viên" } });
+  const r = await auth.api.signUpEmail({
+    body: withSignUpConsent({ email, password: PASSWORD, name: "Nhân viên" }),
+  });
   const person = randomUUID();
   const membership = randomUUID();
   await sql`insert into persons (id, organization_id, full_name) values (${person}, ${orgOf.orgId}, 'Nhân viên')`.execute(

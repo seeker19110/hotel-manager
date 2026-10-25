@@ -65,8 +65,22 @@ async function call(
 }
 const invite = (user: string, body: Record<string, unknown>, opts: { key?: string; org?: string } = {}) =>
   call("org", "member.invite", user, body, { org: A.orgId, ...opts });
-const accept = (user: string, token: string, key?: string) =>
-  call("user", "member.acceptInvitation", user, { token }, key ? { key } : {});
+/** Mặc định tick ô đồng ý bắt buộc (người dùng seed chưa có bản ghi đồng ý — T-2310); `consent: false` = không gửi trường. */
+const accept = (user: string, token: string, key?: string, consent = true) =>
+  call(
+    "user",
+    "member.acceptInvitation",
+    user,
+    consent ? { token, consent_service_core: true } : { token },
+    key ? { key } : {},
+  );
+const consentRows = async (user: string) =>
+  (
+    await sql<{ purpose: string; action: string; channel: string }>`
+      select purpose, action, channel from consent_records where subject_user_id = ${user} order by id`.execute(
+      t.admin,
+    )
+  ).rows;
 const tokenOf = (invitationId: string) => invitationToken(services.invitationKey, invitationId);
 const mail = () => `moi+${randomUUID().slice(0, 8)}@example.test`;
 const count = async (table: string, where = sql`true`) =>
@@ -275,6 +289,60 @@ describe("SPEC-access S-008: lời mời hết hạn, đã dùng hoặc sai emai
       property_ids: [A.propertyId],
     });
     expect([b.status, b.body.code]).toEqual([409, "DUPLICATE"]);
+  });
+});
+
+describe("đồng ý mục đích bắt buộc khi nhận lời mời (T-2310, D-119)", () => {
+  it("chưa đồng ý và không tick → 422 CONSENT_REQUIRED: không membership, lời mời còn chờ, không hàng đồng ý; tick → 200 + một hàng grant kênh invitation", async () => {
+    const a = await invited();
+    const u = await seedAuthUser(t.admin, a.email);
+    const r = await accept(u, a.token, undefined, false);
+    expect([r.status, r.body.code]).toEqual([422, "CONSENT_REQUIRED"]);
+    expect(await count("memberships", sql`auth_user_id = ${u}`)).toBe(0);
+    const st = await sql<{
+      status: string;
+    }>`select status from invitations where id = ${a.invitationId}`.execute(t.admin);
+    expect(st.rows[0]?.status).toBe("pending");
+    expect(await consentRows(u)).toEqual([]);
+    expect((await accept(u, a.token)).status).toBe(200);
+    expect(await consentRows(u)).toEqual([
+      { purpose: "service_core", action: "grant", channel: "invitation" },
+    ]);
+  });
+
+  it("đã đồng ý (lúc đăng ký) → không cần tick; tick thừa không sinh hàng mới", async () => {
+    const a = await invited();
+    const u = await seedAuthUser(t.admin, a.email);
+    await sql`insert into consent_records (subject_user_id, purpose, action, policy_version, channel, ui_snapshot_hash)
+              values (${u}, 'service_core', 'grant', '2026-10-25', 'register', ${"a".repeat(64)})`.execute(
+      t.admin,
+    );
+    // Băm khác bản hiện hành (văn bản cũ) ⇒ vẫn là đồng ý hiện hành của mục đích; không bắt tick lại.
+    expect((await accept(u, a.token, undefined, false)).status).toBe(200);
+    expect((await consentRows(u)).length).toBe(1);
+    const b = await invited();
+    const v = await seedAuthUser(t.admin, b.email);
+    expect((await accept(v, b.token)).status).toBe(200);
+    expect((await accept(v, (await invited()).token)).status).toBe(410); // lời mời của email khác
+    expect((await consentRows(v)).length).toBe(1);
+  });
+
+  it("lời mời không hợp lệ luôn 410 trước khi xét đồng ý (không lộ trạng thái đồng ý), không ghi hàng đồng ý", async () => {
+    const u = await seedAuthUser(t.admin, mail());
+    const r = await accept(u, tokenOf(randomUUID()), undefined, false);
+    expect(r.status).toBe(410);
+    const r2 = await accept(u, tokenOf(randomUUID()));
+    expect(r2.status).toBe(410);
+    expect(await consentRows(u)).toEqual([]);
+  });
+
+  it("chỉ nhận consent_service_core = true: false/chuỗi → 422 VALIDATION_FAILED", async () => {
+    const a = await invited();
+    const u = await seedAuthUser(t.admin, a.email);
+    for (const v of [false, "true", 1]) {
+      const r = await call("user", "member.acceptInvitation", u, { token: a.token, consent_service_core: v });
+      expect([r.status, r.body.code]).toEqual([422, "VALIDATION_FAILED"]);
+    }
   });
 });
 

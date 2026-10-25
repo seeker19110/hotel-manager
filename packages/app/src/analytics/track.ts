@@ -6,9 +6,14 @@
 //    ⇒ ném `AnalyticsError` TRƯỚC khi chạm CSDL, để test/CI bắt ngay.
 //  - Lỗi I/O khi ghi (CSDL mất kết nối, hết hạn, quyền…) = sự cố hạ tầng của tính năng PHỤ ⇒ ghi log cảnh báo (chỉ tên sự kiện và tên lỗi,
 //    không PII) rồi nuốt: phân tích sản phẩm không bao giờ được làm hỏng hay làm chậm lệnh nghiệp vụ đã commit.
+//
+// Xử lý theo mục đích (T-2310, D-119): sự kiện CÓ người dùng chỉ được ghi khi người đó đang đồng ý `product_analytics` (hàng mới nhất của
+// `consent_records` là `grant`) — kiểm trong CÙNG transaction ghi (đọc đồng ý + chèn), nên rút đồng ý có hiệu lực từ sự kiện kế tiếp.
+// Chưa đồng ý/đã rút/id không phải UUID ⇒ BỎ QUA im lặng (không phải lỗi). Sự kiện hệ thống (không người dùng) không cần đồng ý.
 import { withTenant } from "@hm/db";
 import { type Kysely, sql } from "kysely";
 import { appLogger } from "../logging/index.ts";
+import { hasConsentInTx } from "../privacy/index.ts";
 import { pseudonymizeActor } from "./actor.ts";
 import {
   EVENT_SCHEMA_VERSION,
@@ -72,9 +77,12 @@ export interface TrackInput<E extends EventName> {
 export async function track<E extends EventName>(sink: AnalyticsSink, input: TrackInput<E>): Promise<void> {
   const props = validateEvent(input.event, input.props);
   if (!UUID.test(input.orgId)) throw new AnalyticsError("analytics: orgId is not a UUID");
-  const actor = input.userId ? pseudonymizeActor(sink.actorKey, input.userId) : null;
+  const userId = typeof input.userId === "string" && input.userId.length > 0 ? input.userId : null;
+  if (userId !== null && !UUID.test(userId)) return; // không thể có đồng ý (chủ thể là auth user id dạng UUID)
+  const actor = userId ? pseudonymizeActor(sink.actorKey, userId) : null;
   try {
     await withTenant(sink.db, { orgId: input.orgId }, async (trx) => {
+      if (userId !== null && !(await hasConsentInTx(trx, userId, "product_analytics"))) return;
       await sql`
         insert into product_events (organization_id, event, schema_version, actor_key, props)
         values (${input.orgId}, ${input.event}, ${EVENT_SCHEMA_VERSION}, ${actor}, ${JSON.stringify(props)}::jsonb)`.execute(

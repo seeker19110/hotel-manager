@@ -2,7 +2,7 @@
 import { randomUUID } from "node:crypto";
 import { base32 } from "@better-auth/utils/base32";
 import { createOTP } from "@better-auth/utils/otp";
-import { createTestDb, seedOrg, type TestDb } from "@hm/testkit";
+import { createTestDb, seedOrg, type TestDb, withSignUpConsent } from "@hm/testkit";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type Auth, createAuth, ENABLED_PLUGINS } from "../auth/auth.ts";
@@ -35,7 +35,9 @@ function cookiesOf(res: Response): string {
 }
 
 async function signUp(email: string): Promise<string> {
-  const r = await auth.api.signUpEmail({ body: { email, password: PASSWORD, name: email } });
+  const r = await auth.api.signUpEmail({
+    body: withSignUpConsent({ email, password: PASSWORD, name: email }),
+  });
   return r.user.id;
 }
 

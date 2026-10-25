@@ -1593,7 +1593,8 @@ export const USER_COMMANDS: Readonly<Record<string, AnyUserCommand>> = {
   "member.acceptInvitation": defineUserCommand({
     command: "member.acceptInvitation",
     input: COMMAND_INPUTS["member.acceptInvitation"],
-    run: (req, i) => acceptInvitation(req, { token: i.token }),
+    run: (req, i) =>
+      acceptInvitation(req, { token: i.token, consentServiceCore: i.consent_service_core === true }),
   }),
   "org.create": defineUserCommand({
     command: "org.create",

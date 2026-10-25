@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod";
 import { type CommandDef, type HttpDeps, handleCommand, handleUserCommand } from "../http/command-route.ts";
 import { USER_COMMANDS } from "../http/registry.ts";
+import { grantConsent, withdrawConsent } from "../privacy/index.ts";
 import { PRODUCT_EVENT_RETENTION_MONTHS, purgePersonalData } from "../retention/index.ts";
 import { testServices } from "../server/services.ts";
 import { analyticsActorKey, pseudonymizeActor } from "./actor.ts";
@@ -28,6 +29,12 @@ afterAll(async () => {
 });
 
 const sink = () => ({ db: t.runtime, actorKey: KEY });
+/** Người dùng thật (auth) ĐÃ đồng ý `product_analytics` — track() chỉ ghi sự kiện có người khi có đồng ý (T-2310). */
+async function consenting(): Promise<string> {
+  const id = await seedAuthUser(t.admin, `pt-${randomUUID()}@example.test`);
+  await grantConsent(t.runtime, { subjectId: id, purpose: "product_analytics", channel: "register" });
+  return id;
+}
 const rowsOf = (orgId: string) =>
   withTenant(t.runtime, { orgId }, async (trx) => {
     const r = await sql<{ event: string; props: unknown; actor_key: Buffer | null }>`
@@ -41,7 +48,7 @@ const countAll = async () =>
 
 describe("ghi qua track()", () => {
   it("ghi một hàng: sự kiện, props enum/số, actor giả danh 32 byte; không có userId thô ở đâu trong hàng", async () => {
-    const user = randomUUID();
+    const user = await consenting();
     await track(sink(), {
       event: "payment.recorded",
       orgId: A.orgId,
@@ -109,12 +116,115 @@ describe("ghi qua track()", () => {
   });
 });
 
+describe("xử lý theo mục đích: chỉ ghi khi có đồng ý product_analytics (T-2310, D-119)", () => {
+  const count = async (orgId: string, actor: string) =>
+    Number(
+      (
+        await sql<{ n: string }>`select count(*)::text as n from product_events
+          where organization_id = ${orgId} and actor_key = ${pseudonymizeActor(KEY, actor)}`.execute(t.admin)
+      ).rows[0]?.n,
+    );
+
+  it("chưa từng đồng ý → BỎ QUA (không ghi, không ném); id không phải UUID → bỏ qua", async () => {
+    const user = await seedAuthUser(t.admin, `khong-${randomUUID()}@example.test`);
+    await track(sink(), {
+      event: "stay.checked_in",
+      orgId: A.orgId,
+      userId: user,
+      props: { guest_count: 1 },
+    });
+    expect(await count(A.orgId, user)).toBe(0);
+    const before = await countAll();
+    await track(sink(), {
+      event: "stay.checked_in",
+      orgId: A.orgId,
+      userId: "khong-phai-uuid",
+      props: { guest_count: 1 },
+    });
+    expect(await countAll()).toBe(before);
+  });
+
+  it("đồng ý → ghi; rút → sự kiện kế tiếp không ghi; cấp lại → ghi tiếp; người khác không ảnh hưởng", async () => {
+    const user = await consenting();
+    const other = await consenting();
+    const ev = (u: string) =>
+      track(sink(), { event: "payment.recorded", orgId: A.orgId, userId: u, props: { method: "cash" } });
+    await ev(user);
+    expect(await count(A.orgId, user)).toBe(1);
+    await withdrawConsent(t.runtime, { subjectId: user, purpose: "product_analytics", channel: "settings" });
+    await ev(user);
+    await ev(other);
+    expect(await count(A.orgId, user)).toBe(1);
+    expect(await count(A.orgId, other)).toBe(1);
+    await grantConsent(t.runtime, { subjectId: user, purpose: "product_analytics", channel: "settings" });
+    await ev(user);
+    expect(await count(A.orgId, user)).toBe(2);
+  });
+
+  it("chỉ đồng ý service_core (không opt-in phân tích) → không ghi", async () => {
+    const user = await seedAuthUser(t.admin, `core-${randomUUID()}@example.test`);
+    await grantConsent(t.runtime, { subjectId: user, purpose: "service_core", channel: "register" });
+    await track(sink(), {
+      event: "lease.created",
+      orgId: A.orgId,
+      userId: user,
+      props: { occupant_count: 1, has_end_date: true },
+    });
+    expect(await count(A.orgId, user)).toBe(0);
+  });
+
+  it("sự kiện hệ thống (không actor) vẫn ghi dù không có đồng ý nào", async () => {
+    const S = await seedOrg(t.admin, "KS sự kiện hệ thống");
+    const before = await countAll();
+    await track(sink(), { event: "billing_period.issued", orgId: S.orgId, userId: null, props: {} });
+    await track(sink(), { event: "billing_period.issued", orgId: S.orgId, props: {} });
+    expect(await countAll()).toBe(before + 2);
+  });
+
+  it("pipeline lệnh: người chưa đồng ý chạy lệnh thành công nhưng không sinh sự kiện", async () => {
+    const C = await seedOrg(t.admin, "KS không đồng ý phân tích");
+    const deps: HttpDeps = {
+      db: t.runtime,
+      getSession: async (h) => {
+        const id = h.get("x-test-user");
+        return id ? { user: { id, twoFactorEnabled: true } } : null;
+      },
+      secureCookies: false,
+      services: testServices(),
+    };
+    const PAY: CommandDef<{ method: "cash" | "bank_transfer" }, { ok: true }> = {
+      command: "payment.record",
+      input: z.strictObject({ method: z.enum(["cash", "bank_transfer"]) }),
+      run: async (ctx) => {
+        await ctx.audit({ action: "test.pay", entityType: "test" });
+        return { data: { ok: true } };
+      },
+    };
+    const res = await handleCommand(
+      PAY,
+      new Request("http://local.test/api/v1/x/y", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "idempotency-key": randomUUID(),
+          "x-test-user": C.ownerAuthUserId,
+          "x-org-id": C.orgId,
+        },
+        body: JSON.stringify({ method: "cash" }),
+      }),
+      deps,
+    );
+    expect(res.status).toBe(200);
+    expect(await count(C.orgId, C.ownerAuthUserId)).toBe(0);
+  });
+});
+
 describe("RLS và quyền", () => {
   it("mỗi tổ chức chỉ thấy sự kiện của mình; không ngữ cảnh tổ chức thì không thấy gì", async () => {
     await track(sink(), {
       event: "organization.registered",
       orgId: B.orgId,
-      userId: randomUUID(),
+      userId: await consenting(),
       props: {},
     });
     const a = await rowsOf(A.orgId);
@@ -161,8 +271,8 @@ describe("RLS và quyền", () => {
 
 describe("forgetAnalyticsActor (xoá tài khoản)", () => {
   it("xoá mọi sự kiện của đúng người ở mọi tổ chức; người khác và sự kiện hệ thống còn nguyên; chạy lại = 0", async () => {
-    const me = randomUUID();
-    const other = randomUUID();
+    const me = await consenting();
+    const other = await consenting();
     await track(sink(), { event: "stay.checked_in", orgId: A.orgId, userId: me, props: { guest_count: 2 } });
     await track(sink(), { event: "stay.checked_in", orgId: B.orgId, userId: me, props: { guest_count: 0 } });
     await track(sink(), {
@@ -189,7 +299,7 @@ describe("forgetAnalyticsActor (xoá tài khoản)", () => {
   });
 
   it("khoá khác (xoay bí mật) không xoá nhầm hàng của người khác; userId rỗng ném", async () => {
-    const me = randomUUID();
+    const me = await consenting();
     await track(sink(), { event: "stay.checked_in", orgId: A.orgId, userId: me, props: { guest_count: 1 } });
     expect(
       await forgetAnalyticsActor(t.worker, analyticsActorKey("khoa-khac-khoa-khac-khoa-khac-0123456789"), me),
@@ -248,7 +358,12 @@ describe("hạn 13 tháng (RET-19, job privacy.retention)", () => {
 
 describe("nối vào pipeline lệnh (command-route)", () => {
   let deps: HttpDeps;
-  beforeAll(() => {
+  beforeAll(async () => {
+    await grantConsent(t.runtime, {
+      subjectId: A.ownerAuthUserId,
+      purpose: "product_analytics",
+      channel: "settings",
+    });
     deps = {
       db: t.runtime,
       getSession: async (h) => {
@@ -326,7 +441,7 @@ describe("nối vào pipeline lệnh (command-route)", () => {
   });
 
   it("org.create (lệnh cấp người dùng) ghi organization.registered cho tổ chức mới, actor giả danh của người tạo", async () => {
-    const user = await seedAuthUser(t.admin, `chu-${randomUUID()}@example.test`);
+    const user = await consenting();
     const def = USER_COMMANDS["org.create"];
     if (!def) throw new Error("thiếu org.create");
     const res = await handleUserCommand(

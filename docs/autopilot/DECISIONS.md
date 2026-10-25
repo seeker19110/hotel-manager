@@ -888,3 +888,11 @@
 - Chọn: Gói khai báo trong repo (packages/app/src/plans/plans.ts: free/standard; hạn mức số cơ sở, phòng, thành viên, job/phút); kiểm hạn mức trong command; worker dùng pg-boss singletonKey/hàng đợi theo org với trần đồng thời mỗi org để tenant bão hoà không chặn tenant khác; test tải hai tenant
 - Lý do (tiêu chí chất lượng cuối): Bền và đơn giản: chưa có thanh toán/gói thật nên cấu hình trong repo đủ, đổi được qua PR; fair-share giải rủi ro noisy neighbour có test
 - Đường lùi: Gỡ kiểm hạn mức là quay lại không giới hạn
+
+### D-124 · 2026-10-25T07:24:49+00:00 · T-2310 câu hỏi mở: tài khoản cũ thiếu service_core, ghi đồng ý đăng ký ngoài transaction, consent_records khi xoá tài khoản, API portal, đổi phiên bản chính sách
+
+- Phương án: (1) Giữ: chưa có người dùng thật (pre-production) nên mọi tài khoản thật sẽ đi luồng mới; lỗi ghi đồng ý sau đăng ký log error + tự cấp lại ở /bao-mat; consent_records GIỮ làm bằng chứng đồng ý khi xoá tài khoản (T-2311 ẩn danh auth user, không xoá hàng); API portal dựa trang portal chặn — thêm kiểm ở API và luồng xin lại đồng ý khi đổi CONSENT_POLICY_VERSION ghi là việc tiếp theo trước khi chạy thật · (2) Chặn mọi trang nhân viên tới khi đồng ý + tự viết route đăng ký trong một transaction + kiểm đồng ý ở mọi API portal ngay
+- Chọn: Giữ: chưa có người dùng thật (pre-production) nên mọi tài khoản thật sẽ đi luồng mới; lỗi ghi đồng ý sau đăng ký log error + tự cấp lại ở /bao-mat; consent_records GIỮ làm bằng chứng đồng ý khi xoá tài khoản (T-2311 ẩn danh auth user, không xoá hàng); API portal dựa trang portal chặn — thêm kiểm ở API và luồng xin lại đồng ý khi đổi CONSENT_POLICY_VERSION ghi là việc tiếp theo trước khi chạy thật
+- Lý do (tiêu chí chất lượng cuối): Đúng và an toàn ở mức đủ cho pre-production: không có dữ liệu thật; bằng chứng đồng ý là nghĩa vụ chứng minh nên giữ hàng; phương án 2 tăng phạm vi lớn (viết lại đăng ký Better Auth) với lợi ích chỉ có khi đã có người dùng
+- Đường lùi: Các mục còn lại ghi vào GO-NO-GO trước G7; làm được trong một PR sau
+- Khi chạy thật (đề xuất, chủ dự án quyết ở G7): Trước khi có người dùng thật: kiểm đồng ý ở API portal, xin lại đồng ý khi đổi phiên bản chính sách

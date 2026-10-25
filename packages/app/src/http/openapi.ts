@@ -160,6 +160,38 @@ function queryOperation(name: string, input: z.ZodType): Json {
 
 const uuidSchema = { type: "string", format: "uuid" };
 
+/** Trạng thái đồng ý theo mục đích (`handleConsentsGet/Post`, http/consents-route.ts). */
+const consentsResponse: Json = {
+  description: "Trạng thái từng mục đích sau thao tác",
+  headers: correlationHeader(),
+  content: {
+    "application/json": {
+      schema: {
+        type: "object",
+        required: ["policy_version", "consents"],
+        properties: {
+          policy_version: { type: "string" },
+          consents: {
+            type: "array",
+            items: {
+              type: "object",
+              required: ["purpose", "required", "granted", "policy_version", "channel", "recorded_at"],
+              properties: {
+                purpose: { enum: ["service_core", "product_analytics"] },
+                required: { type: "boolean" },
+                granted: { type: "boolean" },
+                policy_version: { type: ["string", "null"] },
+                channel: { enum: ["register", "invitation", "portal", "settings", null] },
+                recorded_at: { type: ["string", "null"], format: "date-time" },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+};
+
 /** Route riêng không đi qua registry — mô tả tay theo mã route thật (đọc `apps/web/app/api/**`). */
 const EXTRA_PATHS: Record<string, Json> = {
   "/api/v1/commands/{id}": {
@@ -278,6 +310,39 @@ const EXTRA_PATHS: Record<string, Json> = {
         },
       },
       responses: { "200": commandSuccess({ type: "object" }), ...pick("400", "401", "404", "409", "422") },
+    },
+  },
+  "/api/v1/privacy/consents": {
+    get: {
+      operationId: "privacy.getConsents",
+      tags: ["privacy"],
+      summary: "Trạng thái đồng ý theo mục đích của chính người đăng nhập (T-2310)",
+      security: [{ sessionCookie: [] }],
+      responses: { "200": consentsResponse, ...pick("401", "500") },
+    },
+    post: {
+      operationId: "privacy.changeConsent",
+      tags: ["privacy"],
+      summary: "Cấp hoặc rút đồng ý một mục đích (một bước); rút service_core → 409 (xoá tài khoản)",
+      security: [{ sessionCookie: [] }],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["purpose", "action", "channel"],
+              additionalProperties: false,
+              properties: {
+                purpose: { enum: ["service_core", "product_analytics"] },
+                action: { enum: ["grant", "withdraw"] },
+                channel: { enum: ["invitation", "portal", "settings"] },
+              },
+            },
+          },
+        },
+      },
+      responses: { "200": consentsResponse, ...pick("400", "401", "409", "422", "426", "500") },
     },
   },
   "/api/v1/notifications/unsubscribe": {
@@ -465,6 +530,7 @@ export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
   "v1/[module]/[command]/route.ts": { spec: "registry: mọi mục COMMANDS (POST) và QUERIES (GET)" },
   "v1/commands/[id]/route.ts": { spec: "/api/v1/commands/{id}" },
   "v1/me/route.ts": { spec: "/api/v1/me" },
+  "v1/privacy/consents/route.ts": { spec: "/api/v1/privacy/consents" },
   "version/route.ts": { spec: "/api/version" },
   "v1/session/switchOrganization/route.ts": { spec: "/api/v1/session/switchOrganization" },
   "v1/notifications/unsubscribe/route.ts": { spec: "/api/v1/notifications/unsubscribe" },

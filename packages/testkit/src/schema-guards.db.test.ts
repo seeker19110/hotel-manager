@@ -502,6 +502,8 @@ const NO_ORG_ALLOWED: Record<string, string> = {
     "Bộ đếm lần thử theo băm IP (0041) trước khi biết tổ chức của cổng khách: khoá `(ip_hash, window_start)`, không dữ liệu tổ chức/người; REVOKE khỏi PUBLIC, chỉ hàm app.guest_link_rate.",
   rate_limit_counters:
     "Bộ đếm hạn mức tần suất upload/webhook (0053, D-037): khoá `(scope, subject, window_start)` — có phạm vi theo nhà cung cấp webhook trước khi biết tổ chức; không dữ liệu nghiệp vụ, chỉ hàm SECURITY DEFINER app.rate_limit_hit đọc/ghi.",
+  consent_records:
+    "Bản ghi đồng ý theo mục đích của NGƯỜI DÙNG (0068, T-2310/D-119): chủ thể là auth user — có thể chưa thuộc tổ chức nào, một người nhiều tổ chức vẫn một chủ thể; RLS theo app.auth_user_id thay cho tổ chức.",
   kysely_migration: "Sổ migration của Kysely (hạ tầng migrator), không phải dữ liệu nghiệp vụ.",
   kysely_migration_lock: "Khoá migrator của Kysely (hạ tầng), không phải dữ liệu nghiệp vụ.",
 };

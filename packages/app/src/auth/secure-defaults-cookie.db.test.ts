@@ -1,7 +1,7 @@
 // BE-AUTH-004 — cookie phiên: https ⇒ `__Host-` + Secure + HttpOnly + SameSite=Lax + Path=/ + không Domain; http cục bộ ⇒ tên thường,
 // không Secure. ID phiên (token) đổi sau mỗi lần đăng nhập. Đăng xuất rồi dùng lại cookie → xem `authz-matrix.db.test.ts` (T-404).
 import { randomUUID } from "node:crypto";
-import { createTestDb, type TestDb } from "@hm/testkit";
+import { createTestDb, type TestDb, withSignUpConsent } from "@hm/testkit";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createAuth } from "./auth.ts";
 
@@ -27,7 +27,7 @@ async function login(base: string) {
   });
   closers.push(created.close);
   const email = `ck+${randomUUID().slice(0, 8)}@example.test`;
-  await created.auth.api.signUpEmail({ body: { email, password: PASSWORD, name: email } });
+  await created.auth.api.signUpEmail({ body: withSignUpConsent({ email, password: PASSWORD, name: email }) });
   const signIn = () =>
     created.auth.handler(
       new Request(`${base}/api/auth/sign-in/email`, {

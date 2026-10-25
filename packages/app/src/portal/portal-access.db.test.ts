@@ -266,7 +266,16 @@ describe("AUD-SEC-001 — quyền người thuê chỉ hiệu lực khi email ch
     const v = await tenantPerson(A, "Người thuê Dung");
     const email = "dung.victim@example.test";
     const pw = "Kẻ-gian-12345";
-    expect((await post("/sign-up/email", { name: "Kẻ gian", email, password: pw })).status).toBe(200);
+    expect(
+      (
+        await post("/sign-up/email", {
+          name: "Kẻ gian",
+          email,
+          password: pw,
+          consents: { service_core: true },
+        })
+      ).status,
+    ).toBe(200);
     // Kẻ gian bật 2FA rồi giữ sẵn một thử thách bước hai chưa dùng (cookie sống 10 phút).
     let cookie = cookiesOf(await post("/sign-in/email", { email, password: pw }));
     const enable = await post("/two-factor/enable", { password: pw }, cookie);
@@ -311,7 +320,16 @@ describe("AUD-SEC-001 — quyền người thuê chỉ hiệu lực khi email ch
     const v = await tenantPerson(A, "Người thuê Hà");
     const email = "ha.victim@example.test";
     const pw = "Kẻ-gian-99999";
-    expect((await post("/sign-up/email", { name: "Kẻ gian", email, password: pw })).status).toBe(200);
+    expect(
+      (
+        await post("/sign-up/email", {
+          name: "Kẻ gian",
+          email,
+          password: pw,
+          consents: { service_core: true },
+        })
+      ).status,
+    ).toBe(200);
     const uid = (
       await sql<{ id: string }>`select id from auth."user" where email = ${email}`.execute(t.admin)
     ).rows[0]?.id as string;
@@ -333,7 +351,7 @@ describe("AUD-SEC-001 — quyền người thuê chỉ hiệu lực khi email ch
     const w = await tenantPerson(A, "Người thuê Em");
     const email = "em.staff@example.test";
     const pw = "Mật-khẩu-12345";
-    await post("/sign-up/email", { name: "Em", email, password: pw });
+    await post("/sign-up/email", { name: "Em", email, password: pw, consents: { service_core: true } });
     const uid = (
       await sql<{ id: string }>`select id from auth."user" where email = ${email}`.execute(t.admin)
     ).rows[0]?.id as string;

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { consentDisplays } from "../../lib/consent.ts";
 import { messagesFor, t } from "../../lib/i18n.ts";
 import { RegisterForm } from "./register-form.tsx";
 
@@ -8,7 +9,7 @@ export default function RegisterPage() {
   return (
     <main id="main" className="page">
       <h1>{t("register_page.page.title")}</h1>
-      <RegisterForm m={messagesFor("register_form.", "auth_form.")} />
+      <RegisterForm m={messagesFor("register_form.", "auth_form.")} consents={consentDisplays()} />
       <p>
         <a className="btn btn--secondary" href="/dang-nhap">
           {t("register_page.login_link")}

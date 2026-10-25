@@ -161,6 +161,15 @@ export {
   listMyMeterReadings,
   listMyRequests,
 } from "./portal/tenant.ts";
+export {
+  CONSENT_POLICY_VERSION,
+  type ConsentDisplay,
+  type ConsentPurpose,
+  consentDisplays,
+  currentConsents,
+  grantConsent,
+  hasConsent,
+} from "./privacy/index.ts";
 export { type AutoApplyResult, applyBankTransaction } from "./reconciliation/auto-apply.ts";
 export {
   RECONCILIATION_BREAK_SLA_HOURS,

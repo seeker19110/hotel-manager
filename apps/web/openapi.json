@@ -87,6 +87,9 @@
       "name": "portal"
     },
     {
+      "name": "privacy"
+    },
+    {
       "name": "property"
     },
     {
@@ -8618,6 +8621,10 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 200
+                  },
+                  "consent_service_core": {
+                    "type": "boolean",
+                    "const": true
                   }
                 },
                 "required": ["token"],
@@ -12771,6 +12778,197 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/v1/privacy/consents": {
+      "get": {
+        "operationId": "privacy.getConsents",
+        "tags": ["privacy"],
+        "summary": "Trạng thái đồng ý theo mục đích của chính người đăng nhập (T-2310)",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Trạng thái từng mục đích sau thao tác",
+            "headers": {
+              "X-Correlation-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Mã tra cứu xuyên log/audit"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["policy_version", "consents"],
+                  "properties": {
+                    "policy_version": {
+                      "type": "string"
+                    },
+                    "consents": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "purpose",
+                          "required",
+                          "granted",
+                          "policy_version",
+                          "channel",
+                          "recorded_at"
+                        ],
+                        "properties": {
+                          "purpose": {
+                            "enum": ["service_core", "product_analytics"]
+                          },
+                          "required": {
+                            "type": "boolean"
+                          },
+                          "granted": {
+                            "type": "boolean"
+                          },
+                          "policy_version": {
+                            "type": ["string", "null"]
+                          },
+                          "channel": {
+                            "enum": ["register", "invitation", "portal", "settings", null]
+                          },
+                          "recorded_at": {
+                            "type": ["string", "null"],
+                            "format": "date-time"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        }
+      },
+      "post": {
+        "operationId": "privacy.changeConsent",
+        "tags": ["privacy"],
+        "summary": "Cấp hoặc rút đồng ý một mục đích (một bước); rút service_core → 409 (xoá tài khoản)",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["purpose", "action", "channel"],
+                "additionalProperties": false,
+                "properties": {
+                  "purpose": {
+                    "enum": ["service_core", "product_analytics"]
+                  },
+                  "action": {
+                    "enum": ["grant", "withdraw"]
+                  },
+                  "channel": {
+                    "enum": ["invitation", "portal", "settings"]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Trạng thái từng mục đích sau thao tác",
+            "headers": {
+              "X-Correlation-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Mã tra cứu xuyên log/audit"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["policy_version", "consents"],
+                  "properties": {
+                    "policy_version": {
+                      "type": "string"
+                    },
+                    "consents": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "purpose",
+                          "required",
+                          "granted",
+                          "policy_version",
+                          "channel",
+                          "recorded_at"
+                        ],
+                        "properties": {
+                          "purpose": {
+                            "enum": ["service_core", "product_analytics"]
+                          },
+                          "required": {
+                            "type": "boolean"
+                          },
+                          "granted": {
+                            "type": "boolean"
+                          },
+                          "policy_version": {
+                            "type": ["string", "null"]
+                          },
+                          "channel": {
+                            "enum": ["register", "invitation", "portal", "settings", null]
+                          },
+                          "recorded_at": {
+                            "type": ["string", "null"],
+                            "format": "date-time"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
           }
         }
       }

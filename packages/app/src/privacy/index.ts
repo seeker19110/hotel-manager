@@ -1,0 +1,27 @@
+// Điểm công khai của module `privacy` (ARC-MOD-005): đồng ý theo mục đích (T-2310, D-119). Module lá — không import module app khác
+// (analytics/access/auth/http gọi vào đây; ngược lại sẽ thành vòng phụ thuộc, ARC-MOD-004).
+export {
+  CONSENT_CHANNELS,
+  CONSENT_POLICY_VERSION,
+  CONSENT_PURPOSES,
+  type ConsentAction,
+  type ConsentChannel,
+  type ConsentDisplay,
+  ConsentError,
+  type ConsentInput,
+  type ConsentPurpose,
+  type ConsentState,
+  consentDisplays,
+  consentSnapshotHash,
+  consentText,
+  currentConsents,
+  grantConsent,
+  hasConsent,
+  hasConsentInTx,
+  isConsentPurpose,
+  isRequiredPurpose,
+  REQUIRED_PURPOSES,
+  recordConsentInTx,
+  setConsentSubject,
+  withdrawConsent,
+} from "./consent.ts";

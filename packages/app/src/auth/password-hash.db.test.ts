@@ -1,7 +1,7 @@
 // T-410 — Argon2id cho mật khẩu (BE-AUTH-001, D-031) trên Better Auth + Postgres thật: băm mới theo PHC/OWASP, băm
 // scrypt cũ vẫn đăng nhập rồi được băm lại, băm lạ/tham số quá lớn bị từ chối nhanh, telemetry tắt.
 import { argon2Sync } from "node:crypto";
-import { createTestDb, type TestDb } from "@hm/testkit";
+import { createTestDb, type TestDb, withSignUpConsent } from "@hm/testkit";
 import { hashPassword as hashLegacyScrypt } from "better-auth/crypto";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -143,7 +143,7 @@ describe("password-hash: hàm băm", () => {
 describe("password-hash: Better Auth + Postgres", () => {
   it("đăng ký ⇒ cột password là Argon2id PHC; đăng nhập đúng 200, sai 401 và băm không đổi", async () => {
     const email = "dk@example.test";
-    await auth.api.signUpEmail({ body: { email, password: PASSWORD, name: email } });
+    await auth.api.signUpEmail({ body: withSignUpConsent({ email, password: PASSWORD, name: email }) });
     const stored = await storedHash(email);
     expect(stored.startsWith(PHC_PREFIX)).toBe(true);
 
@@ -154,7 +154,7 @@ describe("password-hash: Better Auth + Postgres", () => {
 
   it("user băm scrypt mặc định cũ vẫn đăng nhập được, sau đó cột đổi sang Argon2id (sai mật khẩu thì không đổi)", async () => {
     const email = "cu@example.test";
-    await auth.api.signUpEmail({ body: { email, password: PASSWORD, name: email } });
+    await auth.api.signUpEmail({ body: withSignUpConsent({ email, password: PASSWORD, name: email }) });
     const legacy = await hashLegacyScrypt(PASSWORD); // hàm mặc định thật của Better Auth
     expect(legacy).toMatch(/^[0-9a-f]{32}:[0-9a-f]{128}$/);
     await sql`update auth.account set password = ${legacy} where "userId" = (select id from auth."user" where email = ${email})`.execute(
@@ -176,7 +176,7 @@ describe("password-hash: Better Auth + Postgres", () => {
 
   it("hai lần đăng nhập song song với băm cũ: cả hai thành công, cột cuối cùng là một băm Argon2id hợp lệ", async () => {
     const email = "song-song@example.test";
-    await auth.api.signUpEmail({ body: { email, password: PASSWORD, name: email } });
+    await auth.api.signUpEmail({ body: withSignUpConsent({ email, password: PASSWORD, name: email }) });
     await sql`update auth.account set password = ${await hashLegacyScrypt(PASSWORD)}
               where "userId" = (select id from auth."user" where email = ${email})`.execute(t.admin);
     const [a, b] = await Promise.all([signIn(email, PASSWORD), signIn(email, PASSWORD)]);
@@ -188,7 +188,7 @@ describe("password-hash: Better Auth + Postgres", () => {
 
   it("băm trong CSDL bị hỏng hoặc tham số quá lớn ⇒ đăng nhập 401 nhanh, không ném 500", async () => {
     const email = "hong@example.test";
-    await auth.api.signUpEmail({ body: { email, password: PASSWORD, name: email } });
+    await auth.api.signUpEmail({ body: withSignUpConsent({ email, password: PASSWORD, name: email }) });
     const where = sql`"userId" = (select id from auth."user" where email = ${email})`;
     await sql`update auth.account set password = '$argon2id$v=19$m=4194304,t=2,p=1$MDEyMzQ1Njc4OWFiY2RlZg$3VaWmEWYujjWh6ykOuHYuLMBcpZYyLucKTnqKRk0XEk' where ${where}`.execute(
       t.admin,
@@ -212,7 +212,7 @@ describe("password-hash: telemetry Better Auth", () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     try {
       const email = "tele@example.test";
-      await auth.api.signUpEmail({ body: { email, password: PASSWORD, name: email } });
+      await auth.api.signUpEmail({ body: withSignUpConsent({ email, password: PASSWORD, name: email }) });
       expect((await signIn(email, PASSWORD)).status).toBe(200);
       expect(fetchSpy).not.toHaveBeenCalled();
     } finally {

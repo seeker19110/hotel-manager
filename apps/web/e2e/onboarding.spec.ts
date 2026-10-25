@@ -2,6 +2,7 @@
 // → tạo cơ sở với mặc định đúng → lỗi múi giờ/giờ chốt báo đúng ô → sửa cơ sở. Axe + vùng chạm ≥ 44 px ở mọi màn.
 import { expect, test } from "@playwright/test";
 import { expectAccessible } from "./a11y.ts";
+import { CORE_CONSENT } from "./consent.ts";
 import { signInClick } from "./sign-in.ts";
 import { totp } from "./totp.ts";
 
@@ -25,6 +26,7 @@ test("@smoke S-001 đăng ký → tạo tổ chức → thành chủ, chọn s�
   await page.getByLabel("Họ và tên").fill(NEW_USER.name);
   await page.getByLabel("Email").fill(NEW_USER.email);
   await page.getByLabel("Mật khẩu").fill(NEW_USER.password);
+  await page.getByLabel(CORE_CONSENT).check(); // ô đồng ý bắt buộc, không tick sẵn (T-2310)
   await page.getByRole("button", { name: "Tạo tài khoản" }).click();
 
   await expect(page).toHaveURL(/\/chon-to-chuc$/);

@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 import { type BrowserContext, expect, test } from "@playwright/test";
 import { expectAccessible } from "./a11y.ts";
 import { confirmAction } from "./confirm.ts";
+import { passTenantConsentIfAsked } from "./consent.ts";
 import {
   GUEST_PHONE_LAST4,
   GUEST_STAY_ID,
@@ -88,6 +89,8 @@ test("S-022 đăng nhập OTP email: mã sai bị từ chối, nhân viên khôn
   await expect(page.getByRole("alert").filter({ hasText: "Mã không đúng hoặc đã hết hạn." })).toBeVisible();
   await page.getByLabel("Mã đăng nhập 6 số").fill(code);
   await signInClick(page);
+  // Lần đầu dùng portal: bước đồng ý service_core, ô KHÔNG tick sẵn (T-2310); phiên trước của spec khác có thể đã đồng ý.
+  await passTenantConsentIfAsked(page, () => expectAccessible(page));
   await expect(page).toHaveURL(/\/chon-to-chuc$/);
   await expect(
     page.getByRole("button", { name: new RegExp(`${ORG_PORTAL_2.replace(/[()]/g, "\\$&")}.*Người thuê`) }),

@@ -4098,5 +4098,97 @@
   "nav.label": {
     "message": "Chức năng",
     "description": "Nhãn đọc cho trình đọc màn hình của thanh điều hướng chính."
+  },
+  "register_form.consent.legend": {
+    "message": "Đồng ý xử lý dữ liệu cá nhân",
+    "description": "Màn Đăng ký (/dang-ky): tiêu đề nhóm ô đồng ý theo từng mục đích (T-2310). Văn bản từng ô lấy từ catalog packages/app (privacy.consent.*)."
+  },
+  "register_form.consent.required": {
+    "message": "Cần đánh dấu ô đồng ý bắt buộc để tạo tài khoản.",
+    "description": "Màn Đăng ký: lỗi gắn với ô đồng ý bắt buộc khi người dùng chưa tick (client) hoặc server trả CONSENT_REQUIRED."
+  },
+  "invitation.consent.legend": {
+    "message": "Đồng ý xử lý dữ liệu cá nhân",
+    "description": "Màn Nhận lời mời (/loi-moi): tiêu đề nhóm ô đồng ý (khi đăng ký mới hoặc tài khoản chưa đồng ý mục đích bắt buộc)."
+  },
+  "invitation.consent.required": {
+    "message": "Cần đánh dấu ô đồng ý bắt buộc để tiếp tục.",
+    "description": "Màn Nhận lời mời: lỗi gắn với ô đồng ý bắt buộc khi chưa tick hoặc server trả CONSENT_REQUIRED."
+  },
+  "tenant_login_form.consent.intro": {
+    "message": "Lần đầu dùng cổng người thuê: vui lòng đọc và xác nhận đồng ý dưới đây.",
+    "description": "Đăng nhập người thuê (/dang-nhap/nguoi-thue): lời dẫn bước đồng ý mục đích bắt buộc ở lần đăng nhập đầu (T-2310)."
+  },
+  "tenant_login_form.consent.required": {
+    "message": "Cần đánh dấu ô đồng ý để tiếp tục.",
+    "description": "Đăng nhập người thuê: lỗi khi bấm tiếp tục mà chưa tick ô đồng ý bắt buộc."
+  },
+  "tenant_login_form.consent.failed": {
+    "message": "Chưa lưu được xác nhận. Bấm lại để thử lần nữa.",
+    "description": "Đăng nhập người thuê: lưu đồng ý thất bại (mạng/5xx)."
+  },
+  "tenant_login_form.consent.submit": {
+    "message": "Đồng ý và tiếp tục",
+    "description": "Đăng nhập người thuê: nút xác nhận đồng ý mục đích bắt buộc rồi vào cổng người thuê."
+  },
+  "privacy_settings.heading": {
+    "message": "Quyền riêng tư",
+    "description": "Trang Bảo mật (/bao-mat): tiêu đề khối quyền riêng tư — trạng thái đồng ý từng mục đích, bật/tắt phân tích sản phẩm (T-2310)."
+  },
+  "privacy_settings.intro": {
+    "message": "Bạn đồng ý riêng cho từng mục đích. Bật hay tắt đều chỉ một lần bấm và có hiệu lực ngay.",
+    "description": "Trang Bảo mật: lời dẫn khối quyền riêng tư."
+  },
+  "privacy_settings.checking": {
+    "message": "Đang tải trạng thái đồng ý…",
+    "description": "Trang Bảo mật: trạng thái đang tải khối quyền riêng tư."
+  },
+  "privacy_settings.failed.title": {
+    "message": "Chưa tải được trạng thái đồng ý",
+    "description": "Trang Bảo mật: tiêu đề lỗi khi tải trạng thái đồng ý thất bại."
+  },
+  "privacy_settings.failed.text": {
+    "message": "Kiểm tra kết nối rồi thử lại.",
+    "description": "Trang Bảo mật: hướng dẫn khi tải trạng thái đồng ý thất bại."
+  },
+  "privacy_settings.retry": {
+    "message": "Thử lại",
+    "description": "Trang Bảo mật: nút tải lại trạng thái đồng ý."
+  },
+  "privacy_settings.status.on": {
+    "message": "Đang bật",
+    "description": "Trang Bảo mật: nhãn trạng thái một mục đích đang được đồng ý."
+  },
+  "privacy_settings.status.off": {
+    "message": "Đang tắt",
+    "description": "Trang Bảo mật: nhãn trạng thái một mục đích chưa/không còn được đồng ý."
+  },
+  "privacy_settings.analytics.turn_on": {
+    "message": "Bật phân tích sản phẩm",
+    "description": "Trang Bảo mật: nút một bước cấp đồng ý phân tích sản phẩm (product_analytics)."
+  },
+  "privacy_settings.analytics.turn_off": {
+    "message": "Tắt phân tích sản phẩm",
+    "description": "Trang Bảo mật: nút một bước rút đồng ý phân tích sản phẩm (product_analytics); dừng ghi sự kiện ngay."
+  },
+  "privacy_settings.core.note": {
+    "message": "Đồng ý này bắt buộc để dùng dịch vụ. Muốn rút, bạn cần xoá tài khoản (chức năng xoá tài khoản sẽ có ở trang này).",
+    "description": "Trang Bảo mật: giải thích vì sao không có nút tắt mục đích bắt buộc service_core (rút = xoá tài khoản, T-2311)."
+  },
+  "privacy_settings.core.grant": {
+    "message": "Tôi đồng ý",
+    "description": "Trang Bảo mật: nút xác nhận đồng ý mục đích bắt buộc khi tài khoản chưa có bản ghi đồng ý (tài khoản cũ)."
+  },
+  "privacy_settings.saved": {
+    "message": "Đã lưu lựa chọn của bạn.",
+    "description": "Trang Bảo mật: thông báo sau khi bật/tắt đồng ý thành công."
+  },
+  "privacy_settings.error.save": {
+    "message": "Chưa lưu được. Bấm lại để thử lần nữa.",
+    "description": "Trang Bảo mật: lỗi khi bật/tắt đồng ý thất bại (mạng/5xx)."
+  },
+  "privacy_settings.anonymous": {
+    "message": "Đăng nhập để xem và đổi lựa chọn quyền riêng tư.",
+    "description": "Trang Bảo mật: khối quyền riêng tư khi chưa đăng nhập."
   }
 }

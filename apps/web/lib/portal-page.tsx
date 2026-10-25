@@ -1,7 +1,7 @@
 // Khung trang portal người thuê (SPEC-portal S-005, S-012, S-015): chỉ vai trò `tenant`; tiêu đề luôn hiện "Tổ chức · Người thuê".
 // Quyền thật ở server (hàm portal.* chỉ cho tenant + RLS) — khung này chỉ điều hướng.
 
-import { type Actor, listMyOrganizations, serverContext } from "@hm/app";
+import { type Actor, hasConsent, listMyOrganizations, serverContext } from "@hm/app";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { ORG_CONTEXT_META } from "../components/command/org-context.ts";
@@ -42,6 +42,9 @@ export async function withPortal(
   }
   const { actor } = r;
   if (actor.role !== "tenant") redirect("/phong");
+  // Đồng ý mục đích bắt buộc (T-2310, D-119): người thuê chưa đồng ý không xem được dữ liệu portal — về bước đồng ý (đã đăng nhập).
+  if (!(await hasConsent(serverContext().db, actor.authUserId, "service_core")))
+    redirect("/dang-nhap/nguoi-thue?buoc=dong-y");
   const orgs = await listMyOrganizations(serverContext().db, actor.authUserId);
   const orgName = orgs.find((o) => o.organizationId === actor.orgId)?.organizationName ?? "";
   return (

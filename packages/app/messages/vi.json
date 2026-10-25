@@ -3350,5 +3350,21 @@
   "plans.limit_reached.members": {
     "message": "Gói hiện tại cho tối đa {limit} thành viên (kể cả lời mời đang chờ). Hãy thu hồi lời mời không dùng hoặc nâng gói.",
     "description": "Thông điệp lỗi API (409 PLAN_LIMIT_REACHED) khi mời thành viên vượt số thành viên tối đa của gói. {limit} là số thành viên tối đa."
+  },
+  "privacy.consent.service_core": {
+    "message": "Tôi đồng ý để Hotel Manager xử lý họ tên, địa chỉ thư điện tử và dữ liệu tôi nhập vào ứng dụng nhằm cung cấp dịch vụ quản lý phòng, hợp đồng, thu tiền và lưu trú. Chỉ tổ chức tôi tham gia và đơn vị lưu trữ hạ tầng của Hotel Manager tiếp cận dữ liệu này. (Bắt buộc để dùng dịch vụ)",
+    "description": "VĂN BẢN ĐỒNG Ý mục đích `service_core` hiển thị ở ô đánh dấu khi đăng ký, nhận lời mời, đăng nhập portal lần đầu và ở trang Bảo mật. Băm SHA-256 của chuỗi này (kèm phiên bản chính sách) được lưu làm bằng chứng (`consent_records.ui_snapshot_hash`) — đổi câu chữ thì tăng `CONSENT_POLICY_VERSION`. Phải nêu loại dữ liệu, mục đích, bên nhận (CMP-VN-001). Không dùng chữ \"email\"/\"mật khẩu\" trong câu (nhãn ô sẽ trùng nhãn ô nhập cùng form khi tra theo nhãn)."
+  },
+  "privacy.consent.product_analytics": {
+    "message": "Cho phép Hotel Manager ghi nhận cách tôi dùng ứng dụng (thao tác đã làm, dưới dạng mã giả danh, không kèm họ tên hay địa chỉ thư điện tử) để cải thiện sản phẩm. Dữ liệu lưu trên máy chủ của Hotel Manager, không chia sẻ cho bên thứ ba. (Không bắt buộc; tắt lại bất cứ lúc nào ở trang Bảo mật)",
+    "description": "VĂN BẢN ĐỒNG Ý mục đích tuỳ chọn `product_analytics` (phân tích sản phẩm tự host, mặc định KHÔNG bật) ở ô đánh dấu khi đăng ký và nút bật/tắt ở trang Bảo mật. Băm SHA-256 của chuỗi này (kèm phiên bản chính sách) là bằng chứng đồng ý — đổi câu chữ thì tăng `CONSENT_POLICY_VERSION`. Phải nêu loại dữ liệu, mục đích, bên nhận (CMP-VN-001). Không dùng chữ \"email\"/\"mật khẩu\" trong câu (nhãn ô sẽ trùng nhãn ô nhập cùng form khi tra theo nhãn)."
+  },
+  "privacy.consent_required": {
+    "message": "Cần đồng ý với việc xử lý dữ liệu để dùng dịch vụ",
+    "description": "`title`/thông điệp lỗi trả cho client khi đăng ký tài khoản, nhận lời mời hoặc dùng portal mà chưa đồng ý mục đích bắt buộc `service_core` (CONSENT_REQUIRED)."
+  },
+  "privacy.withdraw_requires_deletion": {
+    "message": "Đồng ý bắt buộc chỉ rút được bằng cách xoá tài khoản",
+    "description": "`title` problem+json khi client cố rút đồng ý `service_core` qua API đồng ý (409 CONSENT_WITHDRAW_REQUIRES_DELETION) — rút mục đích bắt buộc nghĩa là ngừng dùng dịch vụ, đi qua xoá tài khoản."
   }
 }

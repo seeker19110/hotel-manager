@@ -7,9 +7,11 @@ import { SECONDS_PER_HOUR } from "@hm/domain";
 import { betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { emailOTP, twoFactor } from "better-auth/plugins";
+import { Kysely, PostgresDialect } from "kysely";
 import { createPool } from "../db/index.ts";
 import { t } from "../i18n.ts";
 import { appLogger, requestClient, type SecurityClient } from "../logging/index.ts";
+import { type ConsentChannel, type ConsentPurpose, grantConsent } from "../privacy/index.ts";
 import { type AuthEventInput, correlationFrom, createAuthEvents } from "./auth-events.ts";
 import {
   clearFailures,
@@ -77,8 +79,36 @@ async function sessionUserId(ctx: {
   }
 }
 
-/** Trạng thái theo request giữa hook `before` → `after` (khoá theo đối tượng `ctx.context` của request — không dùng chung). */
-const requestState = new WeakMap<object, { userId: string | null }>();
+/**
+ * Trạng thái theo request giữa hook `before` → `after` (khoá theo đối tượng `ctx.context` của request — không dùng chung): người dùng
+ * của `/sign-out`, đồng ý đã kiểm của `/sign-up/email`.
+ */
+const requestState = new WeakMap<object, { userId: string | null; consent?: SignUpConsent }>();
+
+/**
+ * Đồng ý khi ĐĂNG KÝ (T-2310, D-119; CMP-VN-001): thân `/sign-up/email` phải có `consents.service_core === true` (ô bắt buộc, không tick
+ * sẵn); `consents.product_analytics` tuỳ chọn (chỉ `true` mới ghi — mặc định không đồng ý); `consent_channel` ∈ {register, invitation}
+ * (đăng ký từ trang lời mời). Thiếu/sai ⇒ 400 CONSENT_REQUIRED, KHÔNG tạo tài khoản. Bản ghi đồng ý được ghi ở hook `after` cho đúng id
+ * tài khoản vừa tạo (Better Auth tạo user trong transaction riêng nên không ghi chung được); văn bản/băm/phiên bản lấy ở server.
+ */
+interface SignUpConsent {
+  purposes: ConsentPurpose[];
+  channel: ConsentChannel;
+}
+export function parseSignUpConsent(body: unknown): SignUpConsent | null {
+  const b = (body ?? {}) as { consents?: unknown; consent_channel?: unknown };
+  const c = b.consents as { service_core?: unknown; product_analytics?: unknown } | null | undefined;
+  if (c === null || typeof c !== "object" || Array.isArray(c) || c.service_core !== true) return null;
+  if (c.product_analytics !== undefined && typeof c.product_analytics !== "boolean") return null;
+  const extra = Object.keys(c).filter((k) => k !== "service_core" && k !== "product_analytics");
+  if (extra.length > 0) return null;
+  const channel = b.consent_channel ?? "register";
+  if (channel !== "register" && channel !== "invitation") return null;
+  return {
+    purposes: c.product_analytics === true ? ["service_core", "product_analytics"] : ["service_core"],
+    channel,
+  };
+}
 
 /** Đường xác minh yếu tố thứ hai của Better Auth (two-factor). */
 const SECOND_FACTOR_PATHS = new Set([
@@ -140,6 +170,7 @@ export function createAuth(deps: AuthDeps) {
   };
 
   const events = createAuthEvents(pool);
+  const consentDb = new Kysely<unknown>({ dialect: new PostgresDialect({ pool }) });
   /** Phát sự kiện xác thực; mọi lỗi đã được nuốt ở `record` (không làm hỏng luồng đăng nhập). */
   const record = (ctx: HookCtx, e: Omit<AuthEventInput, "client" | "correlationId">) =>
     events.record({ ...e, client: clientOf(ctx), correlationId: correlationFrom(headersOf(ctx)) });
@@ -217,6 +248,16 @@ export function createAuth(deps: AuthDeps) {
       before: createAuthMiddleware(async (ctx) => {
         if (OTP_BLOCKED_PATHS.has(ctx.path))
           throw new APIError("NOT_FOUND", { message: t("auth.unsupported") });
+        if (ctx.path === "/sign-up/email") {
+          const consent = parseSignUpConsent(ctx.body);
+          if (!consent)
+            throw new APIError("BAD_REQUEST", {
+              code: "CONSENT_REQUIRED",
+              message: t("privacy.consent_required"),
+            });
+          requestState.set(ctx.context, { userId: null, consent });
+          return;
+        }
         if (ctx.path === "/sign-out") {
           // Phiên bị xoá bởi chính endpoint ⇒ phải đọc người dùng TRƯỚC (hook `after` ghi `auth.logout`).
           requestState.set(ctx.context, { userId: await sessionUserId(ctx) });
@@ -269,6 +310,21 @@ export function createAuth(deps: AuthDeps) {
         const failed = returned instanceof APIError;
         const newUserId = ctx.context.newSession?.user.id ?? null;
         switch (ctx.path) {
+          case "/sign-up/email": {
+            const consent = requestState.get(ctx.context)?.consent;
+            const userId = (returned as { user?: { id?: unknown } } | null)?.user?.id;
+            if (failed || !consent || typeof userId !== "string") return;
+            // Email đã có tài khoản: Better Auth trả người dùng GIẢ (id ngẫu nhiên, không có trong CSDL) để không lộ email tồn tại —
+            // FK tới auth."user" từ chối ⇒ bỏ qua (không ghi đồng ý thay cho chủ tài khoản thật).
+            try {
+              for (const purpose of consent.purposes)
+                await grantConsent(consentDb, { subjectId: userId, purpose, channel: consent.channel });
+            } catch (error) {
+              if ((error as { code?: unknown }).code !== "23503")
+                appLogger().error("privacy.consent_write_failed", { error, channel: consent.channel });
+            }
+            return;
+          }
           case "/sign-in/email": {
             const email = String((ctx.body as { email?: unknown } | undefined)?.email ?? "");
             if (!email) return;
