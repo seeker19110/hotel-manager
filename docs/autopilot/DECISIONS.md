@@ -789,3 +789,10 @@
 - Chọn: Vá thật chỗ có bản vá (override body-parser 1.20.9, happy-dom 21.0.4) + ngoại lệ có hạn D-067 cho chỗ chưa có image vá/bản vá cùng major (brotli critical ≤ 7 ngày, undici/zod high 14 ngày theo VULN-SLA), theo dõi ở VULN-SLA
 - Lý do (tiêu chí chất lượng cuối): (1) đúng và an toàn: vá thật mọi chỗ vá được; ngoại lệ chỉ cho gói không vào production (npm trong image bị xoá ở runtime, zod 3 chỉ trong CI) hoặc nhị phân Go không liên kết libbrotli, có hạn ngắn và kiểm hạn tự động; (2) phương án 2 đổi cách triển khai — câu hỏi mở đã có (zlib, D-094) cho chủ dự án; (3) bị cấm (nới cổng)
 - Đường lùi: Gỡ luật ở .grype.yaml + dòng VULN-SLA; trả happy-dom 20.14.5 và bỏ override body-parser
+
+### D-110 · 2026-10-25T03:27:02+00:00 · D-110: chủ dự án yêu cầu tự dựng image vá cho caddy và seaweedfs (Go 1.26.8 + Alpine chưa vá, 24 luật grype có hạn). Cách dựng?
+
+- Phương án: (1) Dựng từ mã nguồn đúng phiên bản (Caddy v2.11.7, SeaweedFS 4.48 commit 530be3e) bằng Go 1.26.10 + x/net v0.61.0 trên alpine:3.24.3 + apk upgrade; gỡ 24 luật (ADR-0006) · (2) Image dẫn xuất FROM chính thức + apk upgrade (chỉ vá OS, còn Go Critical) · (3) Nâng SeaweedFS 4.49 từ mã nguồn
+- Chọn: Dựng từ mã nguồn đúng phiên bản (Caddy v2.11.7, SeaweedFS 4.48 commit 530be3e) bằng Go 1.26.10 + x/net v0.61.0 trên alpine:3.24.3 + apk upgrade; gỡ 24 luật (ADR-0006)
+- Lý do (tiêu chí chất lượng cuối): (1) đúng và an toàn: vá cả nhị phân Go (GO-2026-6612 Critical) lẫn OS, giữ đúng phiên bản ứng dụng nên không đổi hành vi; kiểm commit + go mod verify + FROM ghim digest; grype cục bộ: weed 0, caddy chỉ 1 Medium, alpine 0; (2) đường lùi một PR; (3) phương án 2 không gỡ được ngoại lệ Critical; phương án 3 đổi phiên bản ngoài phạm vi
+- Đường lùi: Trả image chính thức (digest cũ) ở compose/supply-chain/release và khôi phục luật .grype.yaml từ lịch sử git

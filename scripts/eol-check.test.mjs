@@ -5,6 +5,7 @@ import {
   cycleCandidates,
   evaluate,
   parseImageRef,
+  usagesFromGoMod,
   usagesFromImageLines,
 } from "./eol-check.mjs";
 
@@ -58,6 +59,35 @@ describe("usagesFromImageLines", () => {
     ]);
   });
   it("rỗng → []", () => expect(usagesFromImageLines("", "f")).toEqual([]));
+  it("image nền tự dựng (D-110): golang → go, alpine → alpine-linux", () => {
+    const text = [
+      `FROM golang:1.26.10-alpine3.24@sha256:${"a".repeat(64)} AS build`,
+      `FROM alpine:3.24.3@sha256:${"b".repeat(64)}`,
+    ].join("\n");
+    expect(usagesFromImageLines(text, "f").map((u) => [u.product, u.version])).toEqual([
+      ["go", "1.26.10-alpine3.24"],
+      ["alpine-linux", "3.24.3"],
+    ]);
+  });
+});
+
+describe("usagesFromGoMod (image tự dựng, D-110)", () => {
+  it("lấy phiên bản module đã biết ở dòng require (khối và một dòng); bỏ module khác, chú thích, pseudo-version không số", () => {
+    const text = [
+      "module hotel-manager/deploy/caddy",
+      "require github.com/caddyserver/caddy/v2 v2.11.7",
+      "require (",
+      "\tgithub.com/caddyserver/caddy/v2 v2.12.0 // indirect",
+      "\tgolang.org/x/net v0.61.0",
+      ")",
+      "// github.com/caddyserver/caddy/v2 v9.9.9",
+    ].join("\n");
+    expect(usagesFromGoMod(text, "g").map((u) => [u.product, u.version, u.source])).toEqual([
+      ["caddy", "2.11.7", "g"],
+      ["caddy", "2.12.0", "g"],
+    ]);
+  });
+  it("rỗng → []", () => expect(usagesFromGoMod("", "g")).toEqual([]));
 });
 
 describe("evaluate", () => {
@@ -113,8 +143,12 @@ describe("evaluate", () => {
 describe("collectUsages trên repo thật", () => {
   const usages = collectUsages();
   const products = new Set(usages.map((u) => u.product));
-  it("thấy đủ sản phẩm đang dùng: Node, Next.js, PostgreSQL, Caddy, Debian", () => {
-    for (const p of ["nodejs", "nextjs", "postgresql", "caddy", "debian"]) expect(products.has(p)).toBe(true);
+  it("thấy đủ sản phẩm đang dùng: Node, Next.js, PostgreSQL, Caddy, Debian, Go, Alpine", () => {
+    for (const p of ["nodejs", "nextjs", "postgresql", "caddy", "debian", "go", "alpine-linux"])
+      expect(products.has(p)).toBe(true);
+  });
+  it("Caddy tự dựng (D-110): phiên bản lấy từ deploy/caddy/go.mod", () => {
+    expect(usages.filter((u) => u.product === "caddy").map((u) => u.source)).toContain("deploy/caddy/go.mod");
   });
   it("Node lấy từ .nvmrc, engines và Dockerfile; Postgres từ Dockerfile và workflow", () => {
     const src = (p) => usages.filter((u) => u.product === p).map((u) => u.source);

@@ -79,10 +79,13 @@ jobs:
           # Image nền của web/worker (deploy/web.Dockerfile, deploy/worker.Dockerfile) — web/worker chưa build thật trong CI.
           - name: node-base
             ref: node:24.22.0-trixie-slim@sha256:7f486cabe892bff8fef04c0f7da8dba84a560be3e4e2740b7a86afc57ebec315
+          # Tự dựng từ mã nguồn bằng Go đã vá (D-110): image chính thức dựng bằng Go 1.26.8 trên Alpine chưa vá.
           - name: seaweedfs
-            ref: chrislusf/seaweedfs:4.48@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d
+            build: deploy/seaweedfs
+            ref: hm-seaweedfs:scan
           - name: caddy
-            ref: caddy:2.11.7-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f
+            build: deploy/caddy
+            ref: hm-caddy:scan
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

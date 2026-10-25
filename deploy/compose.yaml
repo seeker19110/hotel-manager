@@ -71,7 +71,8 @@ services:
     # Không publish cổng: chỉ truy cập trong mạng backend.
 
   seaweedfs:
-    image: chrislusf/seaweedfs:4.48@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d
+    # SeaweedFS 4.48 dựng lại bằng Go đã vá trên Alpine cập nhật (deploy/seaweedfs/Dockerfile, D-110)
+    build: ./seaweedfs
     restart: unless-stopped
     command: ["server", "-dir=/data", "-s3", "-s3.config=/etc/seaweedfs/s3.json", "-master.volumeSizeLimitMB=1024"]
     volumes:
@@ -83,7 +84,8 @@ services:
     # {$HM_FILES_DOMAIN} của Caddy → seaweedfs:8333; ứng dụng phải ký với S3_ENDPOINT=https://{$HM_FILES_DOMAIN}.
 
   caddy:
-    image: caddy:2.11.7-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f
+    # Caddy v2.11.7 dựng lại bằng Go đã vá trên Alpine cập nhật (deploy/caddy/Dockerfile, D-110)
+    build: ./caddy
     restart: unless-stopped
     ports:
       - "80:80"
