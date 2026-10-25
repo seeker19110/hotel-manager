@@ -25,3 +25,8 @@ jobs:
           node-version-file: .nvmrc
       - name: Đối chiếu endoflife.date
         run: node scripts/eol-check.mjs
+      # Nhắc hằng tuần (cảnh báo, không đỏ trừ khi đã quá hạn): runbook chưa diễn tập/quá 6 tháng, mục gia hạn ≤ 30 ngày
+      # (WF-DOC-008, PM-HANDOVER-009 — scripts/ops-registers.mjs; mỗi PR đã kiểm qua test).
+      - name: Nhắc diễn tập runbook và hạn gia hạn
+        if: always()
+        run: node scripts/ops-registers.mjs
