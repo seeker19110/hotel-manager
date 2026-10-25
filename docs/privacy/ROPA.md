@@ -1,7 +1,7 @@
 ---
 title: Sổ hoạt động xử lý dữ liệu cá nhân (ROPA) — khung
 kind: privacy-register
-updated: 2026-10-16
+updated: 2026-10-25
 status: KHUNG — chờ DPIA và pháp lý duyệt; mọi cơ sở pháp lý, hạn giữ là đề xuất
 ---
 
@@ -16,7 +16,7 @@ status: KHUNG — chờ DPIA và pháp lý duyệt; mọi cơ sở pháp lý, h�
 | Bên kiểm soát / xử lý | (chưa gán — pháp lý) |
 | Bộ phận/đầu mối bảo vệ dữ liệu | (chưa gán; miễn có thời hạn cho doanh nghiệp nhỏ — chưa xác minh) |
 | Lần rà gần nhất | 2026-10-16 (khung) |
-| DPIA | chưa có — chặn dữ liệu thật |
+| DPIA | `docs/DPIA.md` 0.1.0 — **nháp kỹ thuật**, chờ DPO/pháp lý rà, ký, nộp; vẫn chặn dữ liệu thật |
 | Hồ sơ chuyển dữ liệu ra nước ngoài | chưa quyết (phụ thuộc vị trí SMTP relay — `processors.md`) |
 
 ## Hoạt động xử lý
@@ -41,5 +41,6 @@ Chưa có quy trình. Việc cần làm (người + kỹ thuật): xác định 
 | Ngày | Thay đổi | Người |
 |---|---|---|
 | 2026-10-16 | Tạo khung từ `data-map.yaml` (T-309); chưa có nội dung pháp lý | kỹ thuật |
+| 2026-10-25 | DPIA nháp kỹ thuật 0.1.0 (`docs/DPIA.md`); nhắc rà 6 tháng có CI (`docs/privacy/CHANGELOG.md`, `scripts/privacy-docs.mjs`) | kỹ thuật |
 
-> Nhắc rà: mỗi lần đổi data-map, thêm bên xử lý hoặc đổi mục đích, cập nhật bảng trên và dòng lịch sử; rà định kỳ ít nhất 6 tháng/lần (đề xuất — chưa có CI nhắc quá hạn).
+> Nhắc rà: mỗi lần đổi data-map, thêm bên xử lý hoặc đổi mục đích, cập nhật bảng trên và dòng lịch sử; rà định kỳ ít nhất 6 tháng/lần (đề xuất; CI nhắc quá 6 tháng qua `docs/privacy/CHANGELOG.md`).
