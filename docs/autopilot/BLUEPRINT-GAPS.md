@@ -9,6 +9,21 @@
 > `PM-SPEC-004` và `WF-SDD-003` (nền spec-coverage còn 26 S-NNN). **Tick kèm lưu ý để phiên chính xác nhận:** `DB-MODEL-004` (52 FK nhóm A thiếu index là ngoại lệ có lý do — D-035),
 > `UX-STATE-001` (không Storybook; loading bị D-032 miễn ở trang có route con động/notFound/redirect), `DB-PERF-001` (EXPLAIN không ANALYZE), `XC-GREEN-007` (còn `notifications`/`inbox`/`worker_heartbeats` chưa có job dọn, chờ DPIA).
 
+## Kết quả đợt 23 (T-2301…T-2315, 2026-10-25; D-109…D-127) — "làm hết"
+
+MUST mở **89 → 64**: tick 25 mục kèm Kiểm/Bằng chứng (`python3 scripts/check-blueprint-evidence.py BLUEPRINT.md` 0 lỗi):
+- Lát A/B (PR #134, đã merge): BASE-REPO-004, CMP-LIC-001, CMP-LIC-004, PM-RISK-007; tick sau merge: CMP-INTL-002, CMP-AUDIT-003, CMP-AUDIT-007, PM-HANDOVER-009.
+- Lát C (hạn lưu, analytics, gói): STD-PRIV-005, XC-GREEN-007, PM-METRIC-003/005/006, IND-SAAS-008.
+- Lát D (quyền chủ thể): CMP-RIGHTS-001/004/007, CMP-VN-001/007, CMP-INTL-007, CMP-PRIV-005, STD-PRIV-004, IND-SAAS-006, UX-CONTENT-005.
+- Lát E (audit, hỗ trợ): IND-SAAS-009.
+
+Migration mới 0066–0069, 0071, 0072 (0070 bỏ trống có chủ đích: 0071 làm song song đã áp trước, không chèn số nhỏ hơn bản đã áp).
+Rào mới: `scripts/analytics-guard.test.mjs` (cấm SDK analytics), `packages/app/src/access/support.db.test.ts` «hàng rào: mọi bảng tổ chức có policy chỉ-đọc cho hỗ trợ»,
+`packages/app/src/tenancy/org-deletion.db.test.ts` (kế hoạch purge phủ mọi bảng tổ chức trong catalog).
+
+Còn mở có phần máy đã xong, chờ người: CMP-AUDIT-002 (kho log WORM ngoài máy ≥ 12 tháng — `loop defer`), CMP-INTL-006/CMP-VN-006/CMP-AUDIT-010/OPS-IR-010 (diễn tập tabletop có biên bản),
+BASE-SEC-009/XC-OSS-001/XC-OSS-004 (bật PVR). Các mục còn lại như bảng đợt 9 (a) — hướng dẫn: `docs/autopilot/HUONG-DAN-VIEC-CUA-NGUOI.md`.
+
 ## Kết quả đợt 22 (T-2207, 2026-10-24; D-103…D-108) — "hoàn thiện dự án"
 
 XC-I18N-001 **đạt**: mọi chuỗi người dùng thấy (UI, email, thông báo, lỗi API, tệp xuất/nhập, phiếu/số tiền bằng chữ) vào tệp tài nguyên — `apps/web`, `packages/app`, `packages/domain` (`messages/vi.json`) + catalog con client `form.vi.json`, `format.vi.json`; SCOPE gồm apps/web, apps/worker, packages/app, packages/domain, packages/db; baseline 1552 → 0; 70 tệp ngoại lệ D-105/D-107 (log, metric, cấu hình, OpenAPI, migration bất biến…) có lý do + max; literal trong lỗi ra API bị chặn kể cả tệp ngoại lệ. PR #131 (người merge). MUST mở **89** — đều cần người.

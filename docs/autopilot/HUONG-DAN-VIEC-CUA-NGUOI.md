@@ -1,6 +1,6 @@
 # Hướng dẫn làm toàn bộ việc còn lại — Hotel Manager
 
-> Lập 2026-10-24, sau khi merge #131 (`main` = `d504ee7`). Còn **89 MUST** mở; agent không tự làm được mục nào trong số này.
+> Lập 2026-10-24, sau khi merge #131 (`main` = `d504ee7`). Còn **89 MUST** mở lúc lập; **2026-10-25 còn 64** (xem mục cập nhật ngay dưới).
 > Mỗi mục cần một trong bốn thứ: tài khoản/quyền GitHub, tiền/hạ tầng, quyết định sản phẩm/pháp lý, hoặc kiểm tay.
 > Mỗi nhóm có ba phần:
 > - **Bạn làm:** việc của bạn.
@@ -12,6 +12,29 @@
 Thứ tự đề xuất: **0 → A → B → C → D → E**. Bước sau phụ thuộc bước trước; trong cùng một bước, các nhóm làm song song được.
 
 ---
+
+## Cập nhật 2026-10-25 — đợt 23 ("làm hết"): 89 → 64 MUST mở
+
+Agent đã làm phần máy làm được, theo mặc định tự duyệt (D-111…D-127 trong `docs/autopilot/DECISIONS.md`). **25 MUST đã tick kèm Kiểm/Bằng chứng.** Bạn không cần làm lại, chỉ cần **duyệt lại các mặc định** dưới đây (đổi ý thì nhắn agent, mọi thứ đều có đường lùi):
+
+| Đã làm | Mặc định agent chọn | Bạn duyệt |
+|---|---|---|
+| A3: `LICENSE`, `SECURITY.md`, `security.txt`, CONTRIBUTING/CoC/SUPPORT, `THIRD_PARTY_NOTICES.md` | Proprietary © seeker19110; báo lỗ hổng qua GitHub PVR (không công bố email) — D-111, D-112 | Tên chủ sở hữu đúng chưa; **bật PVR** (Settings → Code security) — còn mở BASE-SEC-009, XC-OSS-001, XC-OSS-004 |
+| B1: data map có `legal_basis_code`, sổ nhà cung cấp, CHANGELOG, DPIA 0.1.x, khung pháp lý 16 văn bản (`PROJECT.md` §6), bảng thời hạn báo vi phạm theo vùng | Bản mẫu kỹ thuật, ghi "chờ pháp lý" | Luật sư/DPO đọc `docs/DPIA.md`, `docs/privacy/`, `docs/legal/DPA.md`; làm **tabletop sự cố** có biên bản (mở: CMP-INTL-006, CMP-VN-006, CMP-AUDIT-010, OPS-IR-010) |
+| B1: job hạn lưu RET-11…RET-21 (thông báo, phiên, link khách, inbox 10 năm, giấy tờ 12 tháng, hồ sơ người 10 năm, analytics 13 tháng…) | Số ngày là **đề xuất** — D-116, D-117 | Pháp lý xác nhận từng hạn trong `docs/ops/retention-policy.md` |
+| B2: đồng ý theo mục đích (`service_core` bắt buộc, `product_analytics` tuỳ chọn, mặc định tắt) | Văn bản đồng ý ở `apps/web/messages/vi.json` (`privacy.consent.*`) — D-119, D-124 | Pháp lý duyệt **câu chữ đồng ý**; đổi câu chữ ⇒ tăng `CONSENT_POLICY_VERSION` |
+| B2: DSAR — xuất JSON, xoá tài khoản hai pha, hạn chế xử lý; hạn trả lời theo vùng | VN 72 giờ (chưa xác minh số điều NĐ 356) — D-120, D-125 | Pháp lý xác nhận số ngày VN |
+| B2: xoá tổ chức — chờ 30 ngày có xuất, purge, chứng nhận | **Giữ chứng từ kế toán** khi purge (tổ chức thành tombstone) — D-121, D-127 | Pháp lý: nghĩa vụ lưu chứng từ thuộc ai sau khi khách huỷ dịch vụ |
+| B2: gói `free`/`standard` trong repo, fair-share worker | Mọi tổ chức dùng `standard` — D-123 | Quyết gói/giá thật khi có thanh toán |
+| B2: nhật ký hoạt động `/nhat-ky`, truy cập hỗ trợ ≤ 72 giờ do chủ tổ chức cấp | Hỗ trợ chỉ xem trạng thái phòng — D-122, D-126 | Người vận hành thêm nhân viên hỗ trợ: `insert into platform_support_users (auth_user_id) values ('<id>')` (SQL, chưa có UI) |
+| B2: analytics tự host `track()` + `product_events` | Không SDK ngoài — D-118 | — |
+| C3: `docs/handover/renewals.md` + nhắc CI | — | Điền hạn thật khi mua domain/VPS |
+
+**Việc mới phát sinh (trước khi có người dùng thật, D-124):** kiểm đồng ý ở API portal (hiện chỉ trang portal chặn); luồng xin lại đồng ý khi đổi phiên bản chính sách; kho log chỉ-ghi-thêm ngoài máy giữ ≥ 12 tháng (CMP-AUDIT-002, NĐ 333/2026 Đ.22 — cần VPS + kho lưu trữ, Bước C).
+
+**PR lát C–E** (dữ liệu cá nhân, auth, CSDL) thuộc làn **bạn merge** — xem PR mở trên nhánh `claude/admiring-pasteur-qi1dn0`.
+
+Bảng dưới đây giữ nguyên bản 2026-10-24 để tra chi tiết; các mục đã tick không cần làm nữa.
 
 ## Bước 0 — Hạn gấp (làm trong tuần này)
 
