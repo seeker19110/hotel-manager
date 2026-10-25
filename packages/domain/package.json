@@ -2,6 +2,7 @@
   "name": "@hm/domain",
   "version": "0.0.0",
   "private": true,
+  "license": "UNLICENSED",
   "type": "module",
   "exports": {
     ".": "./src/index.ts",

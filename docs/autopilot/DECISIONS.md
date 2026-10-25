@@ -796,3 +796,38 @@
 - Chọn: Dựng từ mã nguồn đúng phiên bản (Caddy v2.11.7, SeaweedFS 4.48 commit 530be3e) bằng Go 1.26.10 + x/net v0.61.0 trên alpine:3.24.3 + apk upgrade; gỡ 24 luật (ADR-0006)
 - Lý do (tiêu chí chất lượng cuối): (1) đúng và an toàn: vá cả nhị phân Go (GO-2026-6612 Critical) lẫn OS, giữ đúng phiên bản ứng dụng nên không đổi hành vi; kiểm commit + go mod verify + FROM ghim digest; grype cục bộ: weed 0, caddy chỉ 1 Medium, alpine 0; (2) đường lùi một PR; (3) phương án 2 không gỡ được ngoại lệ Critical; phương án 3 đổi phiên bản ngoài phạm vi
 - Đường lùi: Trả image chính thức (digest cũ) ở compose/supply-chain/release và khôi phục luật .grype.yaml từ lịch sử git
+
+### D-111 · 2026-10-25T04:32:39+00:00 · D-111: Giấy phép mã nguồn (BASE-REPO-004, CMP-LIC-001) — chủ dự án nói 'làm hết' nhưng chưa chọn giấy phép
+
+- Phương án: (1) Proprietary (All rights reserved), chủ sở hữu = chủ repo seeker19110; package.json license UNLICENSED; THIRD_PARTY_NOTICES sinh từ phụ thuộc production, CI so khác · (2) Giấy phép mở OSI (MIT/AGPL)
+- Chọn: Proprietary (All rights reserved), chủ sở hữu = chủ repo seeker19110; package.json license UNLICENSED; THIRD_PARTY_NOTICES sinh từ phụ thuộc production, CI so khác
+- Lý do (tiêu chí chất lượng cuối): (1) an toàn/chặt nhất: không trao quyền gì cho bên ngoài, đổi sang OSI về sau được (ngược lại thì không); (2) giữ đường lùi; SaaS thương mại
+- Đường lùi: Thay LICENSE + trường license bằng SPDX OSI khi chủ dự án quyết
+
+### D-112 · 2026-10-25T04:32:39+00:00 · D-112: Kênh báo lỗ hổng (BASE-SEC-009, XC-OSS-004) — chưa có email bảo mật
+
+- Phương án: (1) GitHub Private Vulnerability Reporting làm kênh chính (URL advisories/new), SECURITY.md SLA phản hồi ≤ 7 ngày (≤ 14 theo MUST), security.txt trỏ cùng URL; chủ dự án bật PVR (1 công tắc) · (2) Dùng email cá nhân của chủ dự án
+- Chọn: GitHub Private Vulnerability Reporting làm kênh chính (URL advisories/new), SECURITY.md SLA phản hồi ≤ 7 ngày (≤ 14 theo MUST), security.txt trỏ cùng URL; chủ dự án bật PVR (1 công tắc)
+- Lý do (tiêu chí chất lượng cuối): (1) không công bố email cá nhân (dữ liệu cá nhân); PVR riêng tư, có nhật ký; (3) chuẩn GitHub/OpenSSF
+- Đường lùi: Thêm email bảo mật riêng vào SECURITY.md/security.txt khi có
+
+### D-113 · 2026-10-25T04:32:39+00:00 · D-113: BASE-REPO-006 — release-please tạo tag thường; ruleset tags cấm sửa/xoá v*
+
+- Phương án: (1) Job assets tạo annotated tag vX.Y.Z trên đúng RELEASE_SHA rồi mới công khai Release; release-please cập nhật cả apps/web/package.json (extra-files) để /api/version khớp tag · (2) Tạo tag tay mỗi lần phát hành
+- Chọn: Job assets tạo annotated tag vX.Y.Z trên đúng RELEASE_SHA rồi mới công khai Release; release-please cập nhật cả apps/web/package.json (extra-files) để /api/version khớp tag
+- Lý do (tiêu chí chất lượng cuối): (1) máy làm, không quên; tag tạo trước khi Release hết nháp nên GitHub dùng tag có sẵn; (3) chuẩn SemVer + OpenSSF version_tags
+- Đường lùi: Bỏ bước tạo tag trong release.yml
+
+### D-114 · 2026-10-25T04:32:39+00:00 · D-114: CMP-LIC-004 — ngoại lệ @img/sharp-libvips-linux-x64 LGPL-3.0-or-later (D-061, hạn 2026-12-31) chờ duyệt
+
+- Phương án: (1) Chấp nhận: LGPL liên kết động qua sharp của Next, không sửa thư viện, không phân phối nhị phân sửa đổi; giữ hạn rà 2026-12-31 · (2) Thay sharp (tắt tối ưu ảnh Next)
+- Chọn: Chấp nhận: LGPL liên kết động qua sharp của Next, không sửa thư viện, không phân phối nhị phân sửa đổi; giữ hạn rà 2026-12-31
+- Lý do (tiêu chí chất lượng cuối): (1) LGPL là giấy phép OSI, liên kết động thoả điều kiện; không phải source-available; (3) giữ tối ưu ảnh; ngoại lệ có hạn và lý do trong license-policy.json
+- Đường lùi: Bỏ sharp/thay images.unoptimized, gỡ ngoại lệ
+
+### D-115 · 2026-10-25T04:33:36+00:00 · Duyệt PLAN đợt 23 (làm hết phần máy làm được của 89 MUST; 15 task, 6 lát)
+
+- Phương án: (1) Duyệt như PLAN · (2) Chỉ làm lát A+B (không chạm dữ liệu/auth)
+- Chọn: Duyệt như PLAN
+- Lý do (tiêu chí chất lượng cuối): (1) chủ dự án yêu cầu 'làm hết'; lát dữ liệu/auth vẫn do người merge nên an toàn; (2) mỗi lát một PR, revert được
+- Đường lùi: Dừng sau lát bất kỳ; PR chưa merge đóng lại
