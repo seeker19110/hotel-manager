@@ -1,6 +1,6 @@
 // T-807: rào cấu hình phát hành (WF-REL-001 SemVer tự sinh bằng release-please; WF-REL-003 tag bất biến, Release có artefact + checksum).
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -130,6 +130,28 @@ describe("WF-REL-003 — tag bất biến, Release kèm artefact + checksum", ()
     expect(at("--draft=false")).toBeGreaterThan(at("gh release upload"));
   });
 
+  it("BASE-REPO-006 (D-113): annotated tag tạo qua API trên RELEASE_SHA sau khi đính artefact, trước khi công khai; tag có sẵn phải annotated đúng commit", () => {
+    const text = stepText(release.jobs.assets);
+    const at = (s) => text.indexOf(s);
+    expect(at('repos/$REPO/git/tags" -f tag="$TAG"')).toBeGreaterThan(at("gh release upload"));
+    expect(text).toContain('-f object="$RELEASE_SHA" -f type=commit');
+    expect(at('repos/$REPO/git/refs" -f ref="refs/tags/$TAG"')).toBeGreaterThan(
+      at('repos/$REPO/git/tags" -f tag='),
+    );
+    expect(at("--draft=false")).toBeGreaterThan(at('repos/$REPO/git/refs" -f ref='));
+    // Chạy lại: tag thường hoặc trỏ commit khác → dừng, không công khai.
+    expect(text).toMatch(/"tag "\*\)/);
+    expect(text).toMatch(/tag thường \(không annotated\)"; exit 1/);
+  });
+
+  it("D-113: release-please cập nhật cả apps/web/package.json (/api/version) và hai phiên bản đang khớp manifest", () => {
+    const pkgCfg = json("release-please-config.json").packages["."];
+    expect(pkgCfg["extra-files"]).toEqual([
+      { type: "json", path: "apps/web/package.json", jsonpath: "$.version" },
+    ]);
+    expect(json("apps/web/package.json").version).toBe(json(".release-please-manifest.json")["."]);
+  });
+
   it("artefact là tarball của đúng commit phát hành + SHA256SUMS được kiểm lại", () => {
     const text = stepText(release.jobs.assets);
     expect(text).toMatch(/git archive .*"\$RELEASE_SHA"/);
@@ -149,6 +171,71 @@ describe("WF-REL-003 — tag bất biến, Release kèm artefact + checksum", ()
         slowestChild + ci.jobs.quality["timeout-minutes"] + WAIT_MARGIN_MIN,
       );
       expect(release.jobs.assets["timeout-minutes"]).toBeGreaterThanOrEqual(windowMin + SBOM_BUDGET_MIN);
+    });
+  });
+
+  describe("bước công khai tạo annotated tag chạy thật với gh giả (D-113)", () => {
+    const publishRun = release.jobs.assets.steps.find((s) =>
+      String(s.name).startsWith("Đính artefact rồi công khai"),
+    ).run;
+    // existing: "" = chưa có tag; "tag <obj>" = annotated (obj trỏ `target`); "commit <sha>" = tag thường.
+    const exec = (existing, target = "abc") => {
+      const d = mkdtempSync(join(tmpdir(), "rel-tag-"));
+      dirs.push(d);
+      mkdirSync(join(d, "dist"));
+      writeFileSync(
+        join(d, "gh"),
+        [
+          "#!/bin/sh",
+          `echo "$*" >> "${d}/calls"`,
+          'case "$*" in',
+          `  *"git/ref/tags/"*) [ -n "${existing}" ] || exit 1; echo "${existing}" ;;`,
+          `  "api repos/o/r/git/tags/"*) echo "${target}" ;;`,
+          '  *"-X POST repos/o/r/git/tags"*) echo "newtagobj" ;;',
+          "esac",
+          "exit 0",
+        ].join("\n"),
+        { mode: 0o755 },
+      );
+      const r = spawnSync("bash", ["-c", publishRun], {
+        cwd: d,
+        env: {
+          ...process.env,
+          PATH: `${d}:${process.env.PATH}`,
+          REPO: "o/r",
+          TAG: "v1.2.3",
+          RELEASE_SHA: "abc",
+        },
+        encoding: "utf8",
+      });
+      const calls = readFileSync(join(d, "calls"), "utf8").trim().split("\n");
+      return { status: r.status, calls };
+    };
+    const published = (calls) =>
+      calls.some((c) => c.includes("release edit v1.2.3") && c.includes("--draft=false"));
+
+    it("chưa có tag → tạo tag object annotated trên RELEASE_SHA, rồi ref, rồi công khai", () => {
+      const { status, calls } = exec("");
+      expect(status).toBe(0);
+      const i = (re) => calls.findIndex((c) => re.test(c));
+      expect(calls[i(/-X POST repos\/o\/r\/git\/tags/)]).toMatch(/tag=v1\.2\.3 .*object=abc .*type=commit/);
+      expect(calls[i(/-X POST repos\/o\/r\/git\/refs/)]).toContain("ref=refs/tags/v1.2.3 -f sha=newtagobj");
+      expect(i(/-X POST repos\/o\/r\/git\/refs/)).toBeGreaterThan(i(/-X POST repos\/o\/r\/git\/tags/));
+      expect(i(/release edit/)).toBeGreaterThan(i(/-X POST repos\/o\/r\/git\/refs/));
+    });
+    it("chạy lại: tag annotated đúng commit → không tạo lại, vẫn công khai", () => {
+      const { status, calls } = exec("tag obj1", "abc");
+      expect(status).toBe(0);
+      expect(calls.some((c) => c.includes("-X POST"))).toBe(false);
+      expect(published(calls)).toBe(true);
+    });
+    it.each([
+      ["tag annotated trỏ commit khác", "tag obj1", "zzz"],
+      ["tag thường", "commit abc", "abc"],
+    ])("%s → exit ≠ 0, KHÔNG công khai", (_, existing, target) => {
+      const { status, calls } = exec(existing, target);
+      expect(status).not.toBe(0);
+      expect(published(calls)).toBe(false);
     });
   });
 
