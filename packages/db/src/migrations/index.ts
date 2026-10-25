@@ -63,6 +63,7 @@ import * as m0063 from "./0063_email_budget.ts";
 import * as m0064 from "./0064_catalog_property_scope.ts";
 import * as m0065 from "./0065_role_write_policies.ts";
 import * as m0066 from "./0066_personal_data_retention.ts";
+import * as m0067 from "./0067_product_events.ts";
 
 export const migrations: Record<string, Migration> = {
   "0001_tenancy": m0001,
@@ -127,4 +128,5 @@ export const migrations: Record<string, Migration> = {
   "0064_catalog_property_scope": m0064,
   "0065_role_write_policies": m0065,
   "0066_personal_data_retention": m0066,
+  "0067_product_events": m0067,
 };

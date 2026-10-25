@@ -269,7 +269,7 @@ export async function startWorker(deps: WorkerDeps): Promise<WorkerHandle> {
       run: () => purgeEventTables(workerDb, { now: new Date(), log: (e, f) => log.info(e, f) }),
     },
     {
-      // Hạn lưu D-116 (docs/ops/retention-policy.md RET-11…RET-17): xoá dữ liệu vận hành quá hạn, rồi ẩn danh giấy tờ → người.
+      // Hạn lưu D-116/D-118 (docs/ops/retention-policy.md RET-11…RET-17, RET-19): xoá dữ liệu vận hành + sự kiện analytics quá hạn, rồi ẩn danh giấy tờ → người.
       // Hai nhóm độc lập (`sequence`): nhóm này lỗi không chặn nhóm kia; trong mỗi nhóm một bảng lỗi không chặn bảng khác.
       name: "privacy.retention",
       everyMs: iv.privacyRetention,

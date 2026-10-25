@@ -845,3 +845,17 @@
 - Chọn: (b) giữ nguyên: đổi hằng policy.ts hoặc intervals.privacyRetention, ghi trong retention-policy.md
 - Lý do (tiêu chí chất lượng cuối): (1) đúng/an toàn: không mở thêm bề mặt cấu hình cho job xoá dữ liệu; (2) đường lùi vẫn có; (3) đơn giản, không đụng config schema ngoài phạm vi
 - Đường lùi: Revert PR; migration 0066 có down
+
+### D-118 · 2026-10-25T15:25:18+00:00 · T-2309: thiết kế analytics sản phẩm (PM-METRIC-003/005/006)
+
+- Phương án: (1) Tự host trong Postgres: track() phía server một điểm, schema allowlist trong mã, bảng product_events (RLS theo tổ chức), chỉ ID nội bộ, cấm PII bằng danh sách đen + regex, hạn lưu 13 tháng qua job privacy.retention, ngắt liên kết (actor_user_id = null) khi xoá tài khoản; chỉ ghi khi chủ thể đồng ý mục đích analytics — bộ kiểm đồng ý mặc định TỪ CHỐI tới khi T-2310 nối consent_records; không SDK/cookie phía client · (2) Dịch vụ ngoài (PostHog/Plausible cloud) · (3) Chưa làm analytics
+- Chọn: Tự host trong Postgres: track() phía server một điểm, schema allowlist trong mã, bảng product_events (RLS theo tổ chức), chỉ ID nội bộ, cấm PII bằng danh sách đen + regex, hạn lưu 13 tháng qua job privacy.retention, ngắt liên kết (actor_user_id = null) khi xoá tài khoản; chỉ ghi khi chủ thể đồng ý mục đích analytics — bộ kiểm đồng ý mặc định TỪ CHỐI tới khi T-2310 nối consent_records; không SDK/cookie phía client
+- Lý do (tiêu chí chất lượng cuối): (1) đúng/an toàn: dữ liệu ở lại VN (NĐ 333 Đ.19), không cookie/SDK client nên PM-METRIC-004 đạt, đồng ý theo cách hiểu chặt (Luật 91/2025) — mặc định không ghi; (2) bảng + migration có down; (3) không thêm phụ thuộc, test được trên Postgres thật; mặc định tự host (AGENTS §5)
+- Đường lùi: Revert PR; migration có down; bỏ gọi track()
+
+### D-119 · 2026-10-25T15:49:15+00:00 · T-2309: đo M-03 (check-in) khi server không có bước bắt đầu check-in
+
+- Phương án: (1) Thêm lệnh stay.startCheckIn ghi lúc mở form · (2) Giữ stay.check_in_started trong schema (chưa nối); đo M-03 bằng phiên UAT ghi thời gian như M-02 tới khi có bước bắt đầu ở server
+- Chọn: Giữ stay.check_in_started trong schema (chưa nối); đo M-03 bằng phiên UAT ghi thời gian như M-02 tới khi có bước bắt đầu ở server
+- Lý do (tiêu chí chất lượng cuối): (1) không thêm lệnh ghi CSDL chỉ để đo, tránh mở bề mặt mới trên luồng lưu trú (merge_risk); (3) đơn giản; M-03 là mục tiêu pilot đo trong UAT tuần 16
+- Đường lùi: Thêm lệnh startCheckIn sau, sự kiện đã có schema

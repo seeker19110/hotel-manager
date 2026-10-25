@@ -31,6 +31,8 @@ export const GUEST_LINK_RETENTION_DAYS = 90;
 export const IDENTITY_DOCUMENT_RETENTION_MONTHS = 12;
 /** Hồ sơ người (`persons`): ẩn danh 10 năm (120 tháng lịch) sau quan hệ tiền/thuê/lưu trú cuối — giữ id để đối chiếu chứng từ. */
 export const PERSON_RETENTION_MONTHS = 120;
+/** Sự kiện analytics sản phẩm (`product_events`, T-2309, D-118): xoá 13 tháng lịch sau `occurred_at` (đủ so sánh cùng kỳ năm trước). */
+export const PRODUCT_EVENTS_RETENTION_MONTHS = 13;
 /**
  * `inbox` (chứng từ ngân hàng thô): giữ 10 năm. CHƯA có job — bảng chưa có hàng nào tới hạn trước 10 năm kể từ khi chạy thật;
  * viết job (xoá/ẩn danh theo `received_at`) trước mốc đó (docs/ops/retention-policy.md).

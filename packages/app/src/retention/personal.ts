@@ -2,7 +2,7 @@
 // `privacy.retention`, apps/worker). Mọi thao tác đi qua hàm SECURITY DEFINER của migration 0066 (app_worker không có
 // DELETE/UPDATE trực tiếp): theo LÔ, lặp tới khi hết hoặc hết `PURGE_MAX_ROUNDS` lô. Mỗi bảng độc lập: một bảng lỗi không chặn
 // bảng khác (lỗi gom lại ném sau cùng, log nêu tên bảng — không log dữ liệu).
-// - `purgeExpiredOperational`: XOÁ thông báo, nhịp worker, phiên đăng nhập, mã xác minh, liên kết khách quá hạn.
+// - `purgeExpiredOperational`: XOÁ thông báo, nhịp worker, phiên đăng nhập, mã xác minh, liên kết khách, sự kiện analytics (T-2309) quá hạn.
 // - `anonymizeExpiredPeople`: ẨN DANH giấy tờ nhận dạng rồi tới hồ sơ người (thứ tự có chủ đích: người chỉ được ẩn danh khi mọi
 //   giấy tờ của họ đã ẩn danh). Không xoá hàng: FK RESTRICT từ sổ tiền/hợp đồng, giữ id đối chiếu chứng từ (INV-G7).
 import type { Kysely, RawBuilder } from "kysely";
@@ -15,6 +15,7 @@ import {
   IDENTITY_DOCUMENT_RETENTION_MONTHS,
   NOTIFICATION_RETENTION_DAYS,
   PERSON_RETENTION_MONTHS,
+  PRODUCT_EVENTS_RETENTION_MONTHS,
   PURGE_BATCH,
   PURGE_MAX_ROUNDS,
   WORKER_HEARTBEAT_RETENTION_DAYS,
@@ -33,6 +34,7 @@ export interface OperationalPurgeStats {
   authSessions: number;
   authVerifications: number;
   guestAccessLinks: number;
+  productEvents: number;
 }
 
 export interface PeopleAnonymizeStats {
@@ -104,6 +106,11 @@ export function purgeExpiredOperational(
         "guestAccessLinks",
         (now, batch) =>
           sql`select app.purge_guest_access_links(${now}, ${GUEST_LINK_RETENTION_DAYS}, ${batch}) as n`,
+      ],
+      [
+        "productEvents",
+        (now, batch) =>
+          sql`select app.purge_product_events(${now}, ${PRODUCT_EVENTS_RETENTION_MONTHS}, ${batch}) as n`,
       ],
     ],
     opts,

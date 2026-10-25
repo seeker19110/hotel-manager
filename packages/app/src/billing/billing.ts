@@ -18,6 +18,7 @@ import {
 } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/index.ts";
+import { trackCommand } from "../analytics/index.ts";
 import { t } from "../i18n.ts";
 import { lockPeriod, postEntry, unlockPeriod } from "../ledger/index.ts";
 import {
@@ -56,6 +57,12 @@ export async function createPeriod(
       entityId: id,
       propertyId: input.propertyId,
     });
+    await trackCommand(
+      ctx,
+      "billing_period.created",
+      { billing_period_id: id },
+      { propertyId: input.propertyId },
+    );
     return { billingPeriodId: id, created: true };
   }
   const r = await sql<{ id: string }>`
@@ -616,6 +623,19 @@ export async function issuePeriod(
     propertyId: p.property_id,
     after: { invoices: invoiceIds.length, total: preview.total, preview_hash: preview.preview_hash },
   });
+  // Đo chỉ số (M-01, M-05): chỉ ID/số đếm, không số tiền; không đổi kết quả nghiệp vụ (xem analytics/track.ts).
+  await trackCommand(
+    ctx,
+    "billing_period.issued",
+    { billing_period_id: p.id, invoice_count: invoiceIds.length },
+    { propertyId: p.property_id },
+  );
+  await trackCommand(
+    ctx,
+    "core_task.completed",
+    { task: "billing_period_issued" },
+    { propertyId: p.property_id },
+  );
   return { invoiceIds, journalEntryIds, total: preview.total };
 }
 

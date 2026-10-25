@@ -3,9 +3,10 @@
 > Trạng thái: **đề xuất của kỹ thuật** — hạn giữ dữ liệu cá nhân chốt cùng DPIA và pháp lý ([`docs/privacy/data-map.yaml`](../privacy/data-map.yaml), RK-019).
 > Bảng này chỉ nói về dữ liệu **vận hành** (log, bảng sự kiện, hàng đợi, kho file); hạn giữ theo từng cột dữ liệu cá nhân nằm ở data-map.
 > Máy kiểm: `scripts/process-docs.test.mjs` («chính sách hạn giữ») giữ bảng khớp hằng số ở `packages/app/src/retention/policy.ts`,
-> cấu hình log ở `deploy/compose.yaml` và các hàm dọn của migration 0056/0066; test CSDL: `packages/app/src/retention/retention.db.test.ts`,
-> `packages/app/src/retention/personal.db.test.ts`.
+> cấu hình log ở `deploy/compose.yaml` và các hàm dọn của migration 0056/0066/0067; test CSDL: `packages/app/src/retention/retention.db.test.ts`,
+> `packages/app/src/retention/personal.db.test.ts`, `packages/app/src/analytics/track.db.test.ts`.
 > RET-11…RET-18 theo **D-116** (2026-10-25): mặc định chặt, cấu hình được ở `policy.ts`, **chờ pháp lý chốt** (DPIA, RK-019).
+> RET-19 theo **D-118** (2026-10-25, T-2309): sự kiện analytics sản phẩm tự host, chỉ ghi khi có đồng ý mục đích analytics, **chờ pháp lý chốt**.
 
 ## Bảng chính sách
 
@@ -29,6 +30,7 @@
 | RET-16 | Giấy tờ nhận dạng (`identity_documents`: số mã hoá, blind index, 4 số cuối, quốc tịch, ảnh) | Postgres + bucket `hm-files` | **ẩn danh** 12 tháng lịch sau khi kết thúc lưu trú/thuê/đặt phòng cuối của người đó (và sau `retention_until` nếu có); không đụng người còn quan hệ mở (đang ở, hợp đồng hiệu lực, công nợ/cọc còn số dư) | job `privacy.retention` → `app.anonymize_identity_documents` (giữ tombstone, ảnh: `files.delete_after` = hôm nay ⇒ RET-08 xoá object) | `IDENTITY_DOCUMENT_RETENTION_MONTHS=12` |
 | RET-17 | Hồ sơ người (`persons`: tên, SĐT, email, địa chỉ, quốc tịch) | Postgres | **ẩn danh** 10 năm (120 tháng lịch) sau quan hệ tiền/thuê/lưu trú/tài khoản cuối, khi mọi giấy tờ đã ẩn danh; giữ id (FK RESTRICT từ sổ tiền, đối chiếu chứng từ) | job `privacy.retention` → `app.anonymize_persons` | `PERSON_RETENTION_MONTHS=120` |
 | RET-18 | Chứng từ ngân hàng thô (`inbox`) | Postgres | 10 năm (nghĩa vụ lưu chứng từ kế toán — chưa xác minh bản gốc) | **chưa có job**: chưa có hàng nào tới hạn trước 10 năm kể từ khi chạy thật; viết job trước mốc đó | `INBOX_RETENTION_MONTHS=120` |
+| RET-19 | Sự kiện analytics sản phẩm (`product_events`: tên sự kiện, ID nội bộ, enum, số đếm; không PII) | Postgres | 13 tháng lịch kể từ `occurred_at` (đủ so sánh cùng kỳ năm trước); khi xoá tài khoản, `actor_user_id` bị gỡ liên kết ngay (`app.unlink_product_events_actor`) nhưng số đo còn tới hết hạn | job `privacy.retention` → `app.purge_product_events` | `PRODUCT_EVENTS_RETENTION_MONTHS=13` |
 
 ## Điều chưa có (ghi rõ, không giả vờ đã làm)
 - **Lifecycle phía SeaweedFS** (rule hết hạn object theo tuổi ở bucket): chưa dùng và **chưa xác minh** cấu hình có hỗ trợ trong phiên bản đang ghim. Hiện lifecycle nằm ở ứng dụng (RET-08). Object lọt khỏi `files` (mất dòng CSDL) sẽ không bị dọn tự động — đối chiếu bằng quy trình khôi phục (`docs/ops/runbooks/restore.md`).
@@ -45,4 +47,5 @@
 - So sánh nghiêm ngặt: hàng **đúng** mốc còn giữ; hàng chưa phát/chưa xong **không bao giờ** bị xoá theo tuổi; mốc bị chặn bởi đồng hồ CSDL; số ngày tối thiểu 1.
 - Outbox: `dedupe_key` của hàng bị xoá mất tác dụng. Rà tại nguồn phát (T-505): khoá gắn một sự kiện xảy ra một lần (`invoice_issued`, `tenant_invited`, `export_ready`, `bank_transaction.received:<id>`…) hoặc theo mốc/ngày (`lease_expiring` mốc ≤ 30 ngày, `invoice_overdue:<id>:<ngày>`) — không có đường phát lại cùng khoá sau 90 ngày; bảng `notifications` còn khoá dedupe riêng. Chưa có test chung chặn một nguồn phát mới có cửa sổ dedupe dài hơn 90 ngày: thêm nguồn như vậy thì phải nâng RET-02 trước.
 - Vận hành: log `job.done`/`retention.events_purge_failed` (job `events.retention`); `retention.operational_purge_failed`/`retention.anonymize_failed` (job `privacy.retention`); lỗi một bảng không chặn bảng khác.
+- Analytics sản phẩm (0067, D-118): chỉ ghi qua `track()` (`packages/app/src/analytics`), mặc định KHÔNG ghi tới khi bộ kiểm đồng ý được nối (T-2310); xoá theo **tháng lịch** như hạn ẩn danh bên dưới; `app.unlink_product_events_actor(user)` (chỉ `app_worker`) gọi khi xoá tài khoản (T-2311, chưa có luồng xoá).
 - Ẩn danh (0066): hạn tính bằng **tháng lịch** (10 năm = 120 tháng; 3650 ngày ngắn hơn 10 năm 2–3 ngày). Mốc "kết thúc" lấy bảo thủ = thời điểm muộn nhất của mọi hàng liên quan (`updated_at`, `checked_out_at`, `moved_out_on`…): sửa hàng liên quan thì đồng hồ tính lại, không bao giờ ẩn danh sớm. "Quan hệ mở" (lượt ở expected/in_house, đặt phòng chưa xong, hợp đồng chưa closed/cancelled, phiếu `open_amount` ≠ 0, cọc `balance` ≠ 0, khoản thu `pending`, báo đã trả `submitted`, thành viên invited/active/suspended, lời mời pending, phiếu sự cố đang mở) chặn ẩn danh bất kể tuổi. Mỗi hàng ẩn danh ghi một `audit_events` (actor `worker`, chỉ id + số tháng, không dữ liệu cá nhân). Giấy tờ ẩn danh trước, người sau (người còn giấy tờ chưa ẩn danh thì giữ).

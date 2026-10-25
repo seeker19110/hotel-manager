@@ -35,6 +35,15 @@ export {
   switchOrganization,
 } from "./access/org-context.ts";
 export {
+  type AnalyticsDb,
+  type ConsentCheck,
+  type ConsentQuery,
+  configureAnalytics,
+  type TrackContext,
+  type TrackResult,
+  track,
+} from "./analytics/index.ts";
+export {
   type AuditEvent,
   type AuditFilter,
   getEvent as getAuditEvent,
@@ -178,6 +187,7 @@ export {
   type EventPurgeStats,
   IDEMPOTENCY_GRACE_DAYS,
   OUTBOX_PUBLISHED_RETENTION_DAYS,
+  PRODUCT_EVENTS_RETENTION_MONTHS,
   PURGE_BATCH,
   PURGE_MAX_ROUNDS,
   purgeEventTables,

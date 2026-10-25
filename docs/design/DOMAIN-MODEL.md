@@ -147,3 +147,4 @@ Các bảng dưới đây xuất hiện khi viết SPEC. Tên ở đây là chu�
 | Import | `import_batches`, `import_rows`, `import_external_refs` | Lô import, dòng + lỗi, khoá chống import lặp | import |
 | Thông báo | `notifications`, `notification_deliveries`, `notification_preferences`, `notification_settings` | Thông báo trong app; lần gửi theo kênh; opt-in/out; lịch nhắc theo cơ sở | notifications |
 | Báo cáo | `export_jobs` | Xuất dữ liệu chạy nền, link có hạn, audit | audit-reporting |
+| Đo lường | `product_events` | Sự kiện analytics sản phẩm (tên `doi_tuong.hanh_dong`, ID nội bộ/enum/số — không PII), ghi qua `track()` chỉ khi có đồng ý; giữ 13 tháng; `actor_user_id` gỡ liên kết khi xoá tài khoản | PROJECT §2 (M-01/M-03/M-05), D-118 |

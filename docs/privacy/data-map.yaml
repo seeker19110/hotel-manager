@@ -437,7 +437,18 @@ entries:
     legal_basis: "thực hiện hợp đồng thuê/lưu trú với chủ thể (đề xuất)"
     legal_basis_code: "contract"
     retention: "Chưa có hạn giữ / chưa có job xoá — cần chốt cùng DPIA"
+  - table: "public.product_events"
+    column: "actor_user_id"
+    classification: "co_ban"
+    purpose: "Định danh bí danh (id tài khoản) của người thao tác trong sự kiện đo chỉ số sản phẩm (M-01/M-03/M-05); không tên/email/SĐT/IP"
+    legal_basis: "đồng ý của chủ thể cho mục đích analytics (đề xuất — D-118: mặc định KHÔNG ghi tới khi bộ kiểm đồng ý nối `consent_records`, T-2310)"
+    legal_basis_code: "consent"
+    retention: "13 tháng lịch kể từ `occurred_at` (RET-19, `PRODUCT_EVENTS_RETENTION_MONTHS`, job `privacy.retention` → `app.purge_product_events`); gỡ liên kết (NULL) ngay khi xoá tài khoản (`app.unlink_product_events_actor`, T-2311)"
+    notes: "Không khoá ngoại sang auth.user (tài khoản xoá được, sự kiện không chặn); không PII khác trong bảng — `track()` cấm khoá/giá trị PII"
 not_pii:
+  - table: "public.product_events"
+    column: "name"
+    reason: "Tên sự kiện thuộc allowlist cố định (ví dụ `billing_period.issued`), không định danh người"
   - table: "public.floors"
     column: "name"
     reason: "Tên tầng (ví dụ 'Tầng 2'), không định danh người"
@@ -469,6 +480,10 @@ not_pii:
     column: "bank_code"
     reason: "Mã ngân hàng công khai (ví dụ BIN/mã ngân hàng), không định danh người; số/tên tài khoản được khai riêng ở entries"
 free_text:
+  - table: "public.product_events"
+    column: "props"
+    risk: "khong_pii"
+    note: "Chỉ uuid nội bộ, enum đóng và số nguyên theo schema allowlist (`analytics/events.ts`); `track()` từ chối khoá thuộc danh sách đen PII và giá trị giống email/SĐT (test analytics.test.ts)"
   # Cột jsonb và cột chữ tự do (tên khớp memo/note/reason/detail/payload/description/title/snapshot/file_key/error/resolution…):
   # tên cột không nói lên nội dung có PII hay không nên rà TAY từng cột; máy chỉ buộc mọi cột như vậy phải có mặt ở đây.
   # risk: co_the_chua_pii = người dùng nhập/snapshot có thể chứa PII (không nhập PII vào ô tự do; xoá/ẩn danh theo hạn giữ của bảng chủ); khong_pii = mã/enum/băm/số liệu.
