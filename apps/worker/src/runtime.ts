@@ -3,6 +3,7 @@
 // `startWorker(deps)` thuần phụ thuộc tiêm vào (test được trên Postgres thật); `bootWorker(env)` dựng phụ thuộc từ cấu hình;
 // `main()` (index.ts) nối tiến trình + tín hiệu.
 import {
+  anonymizeExpiredPeople,
   BANK_TXN_RECEIVED,
   ConfigError,
   createLogger,
@@ -20,6 +21,7 @@ import {
   type ObjectStorage,
   parseOutboxPayload,
   purgeEventTables,
+  purgeExpiredOperational,
   remindExpiring,
   runReconciliationDaily,
   runReminders,
@@ -60,6 +62,8 @@ export interface Intervals {
   retention: number;
   /** Dọn bảng sự kiện (outbox đã phát, idempotency hết hạn, lần gửi thông báo đã xong; T-505). */
   eventsRetention: number;
+  /** Hạn lưu dữ liệu cá nhân/vận hành còn lại: xoá thông báo/phiên/mã xác minh/liên kết khách/nhịp worker, ẩn danh giấy tờ + người (T-2308). */
+  privacyRetention: number;
   /** Đối soát hằng ngày (IND-FIN-006). */
   reconciliation: number;
 }
@@ -76,6 +80,7 @@ export const DEFAULT_INTERVALS: Intervals = {
   exports: 5 * MINUTE,
   retention: 24 * HOUR,
   eventsRetention: HOUR, // xoá theo lô có trần; tồn đọng lớn được dọn dần qua các lượt
+  privacyRetention: 24 * HOUR, // hạn tính theo ngày/tháng — hằng ngày là đủ; tồn đọng dọn dần qua các lượt
   reconciliation: 24 * HOUR,
 };
 
@@ -262,6 +267,18 @@ export async function startWorker(deps: WorkerDeps): Promise<WorkerHandle> {
       everyMs: iv.eventsRetention,
       initialDelayMs: deps.retentionInitialDelayMs ?? MINUTE,
       run: () => purgeEventTables(workerDb, { now: new Date(), log: (e, f) => log.info(e, f) }),
+    },
+    {
+      // Hạn lưu D-116/D-118 (docs/ops/retention-policy.md RET-11…RET-17, RET-19): xoá dữ liệu vận hành + sự kiện analytics quá hạn, rồi ẩn danh giấy tờ → người.
+      // Hai nhóm độc lập (`sequence`): nhóm này lỗi không chặn nhóm kia; trong mỗi nhóm một bảng lỗi không chặn bảng khác.
+      name: "privacy.retention",
+      everyMs: iv.privacyRetention,
+      initialDelayMs: deps.retentionInitialDelayMs ?? MINUTE,
+      run: () =>
+        sequence([
+          () => purgeExpiredOperational(workerDb, { now: new Date(), log: (e, f) => log.info(e, f) }),
+          () => anonymizeExpiredPeople(workerDb, { now: new Date(), log: (e, f) => log.info(e, f) }),
+        ]),
     },
   ];
   const sender = deps.sender;

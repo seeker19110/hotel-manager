@@ -50,6 +50,7 @@ Miền theo ranh giới của ADR-0001 (kế hoạch §11); cột "Tầng" dùng
 | `observability` | Nền | A | Metric Prometheus, `/api/ready` |
 | `outbox` | Nền | A | Schema zod payload sự kiện outbox (worker validate, T-401) |
 | `retention` | Nền | A | Chính sách hạn giữ + job dọn bảng sự kiện (outbox đã phát, idempotency hết hạn, lần gửi thông báo đã xong) qua hàm CSDL của migration 0056 (điểm công khai `index.ts`, T-505) |
+| `analytics` | Nền | A | Analytics sản phẩm tự host (T-2309, D-118): schema sự kiện allowlist một nơi, `track()` là điểm gửi duy nhất (cấm PII, mặc định không ghi tới khi có đồng ý), ghi `product_events` (migration 0067); lớp command gọi qua `trackCommand` (điểm công khai `index.ts`) |
 | `logging` | Nền | A | Log JSON có cấu trúc, che bí mật/PII, sự kiện bảo mật |
 | `crypto` | Nền | A | Mã hoá PII, khoá xoay |
 | `config` | Nền | A | Schema biến môi trường, cấu hình worker |

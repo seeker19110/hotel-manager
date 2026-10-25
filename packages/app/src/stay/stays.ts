@@ -16,6 +16,7 @@ import {
   sumNights,
 } from "@hm/domain";
 import { sql, type Transaction } from "kysely";
+import { trackCommand } from "../analytics/index.ts";
 import type { PiiCipher } from "../crypto/index.ts";
 import { t } from "../i18n.ts";
 import { type DocType, recordIdentityDocument } from "../identity/index.ts";
@@ -214,6 +215,28 @@ async function businessDateAt(ctx: CommandContext, propertyId: string, at: Date)
   return r.rows[0]?.d as string;
 }
 
+/** `stay.checked_in` + `core_task.completed` cho lượt nhận phòng vừa ghi (cùng transaction với lệnh). */
+async function trackStayCheckedIn(
+  ctx: CommandContext,
+  e: {
+    source: "reservation" | "walk_in";
+    stayId: string;
+    reservationId: string;
+    propertyId: string;
+    guests: number;
+    at: Date;
+  },
+): Promise<void> {
+  const extra = { propertyId: e.propertyId, occurredAt: e.at };
+  await trackCommand(
+    ctx,
+    "stay.checked_in",
+    { source: e.source, stay_id: e.stayId, reservation_id: e.reservationId, guest_count: e.guests },
+    extra,
+  );
+  await trackCommand(ctx, "core_task.completed", { task: "stay_checked_in" }, extra);
+}
+
 export interface CheckInResult {
   stayId: string;
   reservationId: string;
@@ -289,6 +312,15 @@ export async function checkIn(
     aggregateId: row.stay_id,
     propertyId: row.property_id,
     payload: { stay_id: row.stay_id, reservation_id: row.id, notice_id: notice.noticeId },
+  });
+  // Đo chỉ số (M-03, M-05): chỉ ID/số đếm/enum; không đổi kết quả nghiệp vụ (xem analytics/track.ts).
+  await trackStayCheckedIn(ctx, {
+    source: "reservation",
+    stayId: row.stay_id,
+    reservationId: row.id,
+    propertyId: row.property_id,
+    guests: input.guests.length,
+    at: now,
   });
   return {
     stayId: row.stay_id,
@@ -398,6 +430,14 @@ export async function walkIn(
     aggregateId: stayId,
     propertyId: unit.property_id,
     payload: { stay_id: stayId, reservation_id: reservationId, notice_id: notice.noticeId, walk_in: true },
+  });
+  await trackStayCheckedIn(ctx, {
+    source: "walk_in",
+    stayId,
+    reservationId,
+    propertyId: unit.property_id,
+    guests: input.guests.length,
+    at: now,
   });
   return {
     stayId,

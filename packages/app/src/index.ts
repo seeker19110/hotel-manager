@@ -35,6 +35,15 @@ export {
   switchOrganization,
 } from "./access/org-context.ts";
 export {
+  type AnalyticsDb,
+  type ConsentCheck,
+  type ConsentQuery,
+  configureAnalytics,
+  type TrackContext,
+  type TrackResult,
+  track,
+} from "./analytics/index.ts";
+export {
   type AuditEvent,
   type AuditFilter,
   getEvent as getAuditEvent,
@@ -172,14 +181,17 @@ export {
   receivables as reportReceivables,
 } from "./reports/reports.ts";
 export {
+  anonymizeExpiredPeople,
   DELIVERY_DONE_RETENTION_DAYS,
   DELIVERY_FAILED_RETENTION_DAYS,
   type EventPurgeStats,
   IDEMPOTENCY_GRACE_DAYS,
   OUTBOX_PUBLISHED_RETENTION_DAYS,
+  PRODUCT_EVENTS_RETENTION_MONTHS,
   PURGE_BATCH,
   PURGE_MAX_ROUNDS,
   purgeEventTables,
+  purgeExpiredOperational,
 } from "./retention/index.ts";
 export { serverContext } from "./server/context.ts";
 export { type AppServices, createServices, testServices } from "./server/services.ts";

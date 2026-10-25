@@ -1802,6 +1802,26 @@ Loại: M (chỉ worker đổi trạng thái)
 - RLS/quyền đặc biệt: chỉ người yêu cầu tải được (người khác ⇒ `404`); `manager` không có quyền xuất (`403`); `accountant` chỉ nhóm tiền trong phạm vi.
 - Bất biến: INV-G6 (audit `export.requested`, `export.completed`, `export.downloaded`), INV-G1.
 
+### `product_events`
+Sự kiện analytics sản phẩm tự host (PROJECT §2: M-01, M-03, M-05; D-118): chỉ ID nội bộ, enum, số đếm — không PII. Ghi duy nhất qua `track()` (`packages/app/src/analytics`), chỉ khi chủ thể đồng ý mục đích analytics (mặc định từ chối tới khi nối `consent_records`, T-2310).
+
+Chủ module: Analytics
+
+Loại: H (hạ tầng đo lường: app chỉ chèn; worker xoá quá hạn và gỡ liên kết người qua hàm `SECURITY DEFINER` nên không append-only)
+
+| Cột | Kiểu | Null | Ràng buộc/mặc định | Ghi chú |
+|---|---|---|---|---|
+| property_id | uuid | có | FK ghép → `properties` | Cơ sở phát sinh sự kiện (M-05 đếm theo cơ sở) |
+| name | text | không | `CHECK (name ~ '^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$')` | `doi_tuong.hanh_dong`, thuộc allowlist ở `analytics/events.ts` |
+| schema_version | integer | không | `CHECK (schema_version >= 1)` | Phiên bản schema payload (payload cũ vẫn hợp lệ theo hình dạng của nó) |
+| props | jsonb | không | `CHECK (jsonb_typeof(props)='object')`, mặc định `'{}'` | uuid/enum/số nguyên theo schema; cấm khoá PII và giá trị giống email/SĐT |
+| actor_user_id | uuid | có | **không FK** (không FK từ bảng nghiệp vụ sang `auth`) | Id `auth.user`; đặt NULL khi xoá tài khoản (`app.unlink_product_events_actor`) |
+| occurred_at | timestamptz | không | mặc định `now()` | Mốc dọn 13 tháng lịch (`PRODUCT_EVENTS_RETENTION_MONTHS`) |
+
+- Khoá/index: `ix (organization_id, property_id, occurred_at)`; `ix (organization_id, name, occurred_at)`; `ix (occurred_at)` cho dọn; `ix (actor_user_id) WHERE actor_user_id IS NOT NULL` cho gỡ liên kết.
+- RLS/quyền đặc biệt: `app_runtime` chỉ `INSERT` (không SELECT/UPDATE/DELETE); `app_worker` không có quyền bảng, chỉ `app.purge_product_events(now, months, limit)` và `app.unlink_product_events_actor(user_id)`.
+- Bất biến: INV-G1; không PII (test `analytics.test.ts`, rào `no-sdk.test.ts`).
+
 ## 4. Bảng do Better Auth quản lý (schema `auth`)
 
 Better Auth chạy trong `apps/web`, dùng adapter Kysely/`pg` trên **cùng** Postgres, và tự tạo/quản lý các bảng dưới đây trong schema `auth` (ADR-0002). ERD không định nghĩa cột của chúng; danh sách chỉ để biết ranh giới. Tên cột và kiểu `id` (uuid hay text) do Better Auth sinh ở T-006 và phải đối chiếu với bản ≥ 1.7.9 đang ghim (chưa xác minh).

@@ -14,6 +14,8 @@ const MODULE_STATE: Record<string, string> = {
     "singleton kết nối (pool CSDL, auth, dịch vụ) dựng lười một lần mỗi tiến trình — tài nguyên, không phải dữ liệu nghiệp vụ",
   "packages/app/src/logging/logger.ts:cachedVersion":
     "hằng build (phiên bản) đọc một lần; mọi bản sao cùng giá trị",
+  "packages/app/src/analytics/track.ts:defaults":
+    "cấu hình tiêm MỘT lần lúc khởi động tiến trình (bộ kiểm đồng ý analytics, chế độ strict); mọi bản sao dựng giống nhau, mặc định từ chối — không giữ dữ liệu nghiệp vụ giữa các request",
   "packages/app/src/logging/runtime.ts:current":
     "logger của tiến trình (đầu ra), không ảnh hưởng kết quả request",
   "packages/app/src/auth/auth.ts:requestState":

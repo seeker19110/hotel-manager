@@ -14,3 +14,27 @@ export const IDEMPOTENCY_GRACE_DAYS = 0;
 export const PURGE_BATCH = 1000;
 /** Một lượt job xoá tối đa chừng này lô mỗi bảng rồi nhường (tồn đọng lớn được dọn dần qua các lượt, không độc chiếm). */
 export const PURGE_MAX_ROUNDS = 20;
+
+// ── Hạn lưu dữ liệu cá nhân/vận hành còn lại (PLAN T-2308; STD-PRIV-005; D-116 — mặc định chặt, CHỜ pháp lý chốt) ──
+// Job `privacy.retention` (`personal.ts`, migration 0066). Đổi hạn = đổi một dòng ở đây (bảng tài liệu được test giữ khớp).
+/** Thông báo trong app: xoá sau 180 ngày kể từ lúc tạo (khi không còn lần gửi nào chờ). */
+export const NOTIFICATION_RETENTION_DAYS = 180;
+/** Nhịp worker không cập nhật 30 ngày (tiến trình đã bỏ/đổi tên) thì xoá. */
+export const WORKER_HEARTBEAT_RETENTION_DAYS = 30;
+/** Phiên đăng nhập (`auth."session"`): xoá 30 ngày sau `expiresAt`. */
+export const AUTH_SESSION_RETENTION_DAYS = 30;
+/** Mã xác minh/OTP (`auth."verification"`): xoá 1 ngày sau `expiresAt`. */
+export const AUTH_VERIFICATION_RETENTION_DAYS = 1;
+/** Liên kết khách: xoá 90 ngày sau lúc hết hạn hoặc bị thu hồi (mốc sớm hơn). */
+export const GUEST_LINK_RETENTION_DAYS = 90;
+/** Giấy tờ nhận dạng: ẩn danh 12 tháng sau khi kết thúc lưu trú/thuê cuối của người đó (tháng lịch, không phải 365 ngày). */
+export const IDENTITY_DOCUMENT_RETENTION_MONTHS = 12;
+/** Hồ sơ người (`persons`): ẩn danh 10 năm (120 tháng lịch) sau quan hệ tiền/thuê/lưu trú cuối — giữ id để đối chiếu chứng từ. */
+export const PERSON_RETENTION_MONTHS = 120;
+/** Sự kiện analytics sản phẩm (`product_events`, T-2309, D-118): xoá 13 tháng lịch sau `occurred_at` (đủ so sánh cùng kỳ năm trước). */
+export const PRODUCT_EVENTS_RETENTION_MONTHS = 13;
+/**
+ * `inbox` (chứng từ ngân hàng thô): giữ 10 năm. CHƯA có job — bảng chưa có hàng nào tới hạn trước 10 năm kể từ khi chạy thật;
+ * viết job (xoá/ẩn danh theo `received_at`) trước mốc đó (docs/ops/retention-policy.md).
+ */
+export const INBOX_RETENTION_MONTHS = 120;

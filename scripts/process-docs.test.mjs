@@ -1356,6 +1356,49 @@ describe("docs/ops/retention-policy.md khớp mã và cấu hình (XC-GREEN-007)
     expect(mig).toMatch(/GRANT EXECUTE ON FUNCTION app\.purge_outbox[\s\S]*TO app_worker;/);
     expect(mig).not.toMatch(/TO app_runtime/);
   });
+  it("mỗi hàm purge_*/anonymize_* của migration 0066 (T-2308, D-116) được bảng nhắc tới, kèm job `privacy.retention`", () => {
+    const mig = read("packages/db/src/migrations/0066_personal_data_retention.ts");
+    const fns = [...mig.matchAll(/CREATE FUNCTION (app\.(?:purge|anonymize)_\w+)/g)].map((m) => m[1]);
+    expect(fns).toHaveLength(7);
+    for (const f of fns) expect(doc, f).toContain(`\`${f}\``);
+    const runtime = read("apps/worker/src/runtime.ts");
+    expect(runtime).toContain('name: "privacy.retention"');
+    expect(runtime).toContain("purgeExpiredOperational(workerDb");
+    expect(runtime).toContain("anonymizeExpiredPeople(workerDb");
+    expect(doc).toContain("privacy.retention");
+    for (const k of [
+      "NOTIFICATION_RETENTION_DAYS",
+      "WORKER_HEARTBEAT_RETENTION_DAYS",
+      "AUTH_SESSION_RETENTION_DAYS",
+      "AUTH_VERIFICATION_RETENTION_DAYS",
+      "GUEST_LINK_RETENTION_DAYS",
+      "IDENTITY_DOCUMENT_RETENTION_MONTHS",
+      "PERSON_RETENTION_MONTHS",
+      "INBOX_RETENTION_MONTHS",
+    ])
+      expect(doc, k).toMatch(new RegExp(`\`${k}=\\d+\``));
+    // Hàm chỉ cấp cho app_worker; hàm trợ giúp không cấp cho ai.
+    expect(mig).toMatch(/REVOKE ALL ON FUNCTION app\.purge_notifications[\s\S]*FROM PUBLIC/);
+    expect(mig).toMatch(/GRANT EXECUTE ON FUNCTION app\.purge_notifications[\s\S]*TO app_worker;/);
+    expect(mig).toMatch(/REVOKE ALL ON FUNCTION app\.retention_person_activity\(uuid, uuid\) FROM PUBLIC/);
+    expect(mig).not.toMatch(/TO app_runtime/);
+    expect(mig).not.toMatch(/GRANT[^;]*retention_person_activity/);
+  });
+  it("hàm purge/unlink của migration 0067 (T-2309, D-118) được bảng nhắc tới, nối vào job `privacy.retention`, chỉ cấp cho app_worker", () => {
+    const mig = read("packages/db/src/migrations/0067_product_events.ts");
+    const fns = [...mig.matchAll(/CREATE FUNCTION (app\.(?:purge|unlink)_\w+)/g)].map((m) => m[1]);
+    expect(fns).toEqual(["app.purge_product_events", "app.unlink_product_events_actor"]);
+    for (const f of fns) expect(doc, f).toContain(`\`${f}\``);
+    expect(doc).toMatch(/`PRODUCT_EVENTS_RETENTION_MONTHS=13`/);
+    expect(read("packages/app/src/retention/personal.ts")).toContain("app.purge_product_events(");
+    expect(read("apps/worker/src/runtime.ts")).toContain("purgeExpiredOperational(workerDb");
+    expect(mig).toMatch(/REVOKE ALL ON FUNCTION app\.purge_product_events[\s\S]*FROM PUBLIC/);
+    expect(mig).toMatch(/GRANT EXECUTE ON FUNCTION app\.purge_product_events[\s\S]*TO app_worker;/);
+    expect(mig).not.toMatch(/GRANT EXECUTE[^;]*TO app_runtime/);
+    // app_runtime chỉ INSERT vào bảng (không SELECT/UPDATE/DELETE).
+    expect(mig).toMatch(/GRANT INSERT ON product_events TO app_runtime;/);
+    expect(mig).not.toMatch(/GRANT[^;]*(SELECT|UPDATE|DELETE)[^;]*ON product_events/);
+  });
   it("audit_events được ghi rõ là không xoá và vẫn có trigger append-only", () => {
     expect(rows.find((r) => r.what.includes("audit_events")).keep).toContain("không xoá");
     expect(read("packages/db/src/migrations/0003_command_pipeline.ts")).toContain(

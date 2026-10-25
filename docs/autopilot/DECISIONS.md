@@ -838,3 +838,38 @@
 - Chọn: Mặc định chặt, cấu hình được, đánh dấu chờ pháp lý: notifications 180 ngày; worker_heartbeats 30 ngày không cập nhật; phiên đăng nhập 30 ngày sau hết hạn; mã xác minh 1 ngày sau hết hạn; liên kết khách 90 ngày sau hết hạn/thu hồi; inbox (chứng từ ngân hàng) 10 năm; giấy tờ nhận dạng ẩn danh 12 tháng sau khi kết thúc lưu trú/thuê cuối; persons ẩn danh 10 năm sau quan hệ tiền/thuê cuối (giữ đối chiếu chứng từ)
 - Lý do (tiêu chí chất lượng cuối): (1) đúng và an toàn: tối thiểu hoá dữ liệu ngay, vẫn giữ phần nghĩa vụ kế toán 10 năm; mục đích thông báo lưu trú xong lúc nhận phòng nên giấy tờ không cần giữ lâu; (2) hằng số một chỗ, đổi một dòng; ẩn danh thay vì xoá giữ toàn vẹn sổ tiền (FK RESTRICT)
 - Đường lùi: Đổi hằng số trong packages/app/src/retention/policy.ts; tắt job bằng cấu hình worker
+
+### D-117 · 2026-10-25T15:21:13+00:00 · T-2308: tắt job privacy.retention bằng cách nào (đường lùi D-116)?
+
+- Phương án: (1) (a) thêm WORKER_DISABLE_JOBS vào schema config · (2) (b) giữ nguyên: đổi hằng policy.ts hoặc intervals.privacyRetention, ghi trong retention-policy.md
+- Chọn: (b) giữ nguyên: đổi hằng policy.ts hoặc intervals.privacyRetention, ghi trong retention-policy.md
+- Lý do (tiêu chí chất lượng cuối): (1) đúng/an toàn: không mở thêm bề mặt cấu hình cho job xoá dữ liệu; (2) đường lùi vẫn có; (3) đơn giản, không đụng config schema ngoài phạm vi
+- Đường lùi: Revert PR; migration 0066 có down
+
+### D-118 · 2026-10-25T15:25:18+00:00 · T-2309: thiết kế analytics sản phẩm (PM-METRIC-003/005/006)
+
+- Phương án: (1) Tự host trong Postgres: track() phía server một điểm, schema allowlist trong mã, bảng product_events (RLS theo tổ chức), chỉ ID nội bộ, cấm PII bằng danh sách đen + regex, hạn lưu 13 tháng qua job privacy.retention, ngắt liên kết (actor_user_id = null) khi xoá tài khoản; chỉ ghi khi chủ thể đồng ý mục đích analytics — bộ kiểm đồng ý mặc định TỪ CHỐI tới khi T-2310 nối consent_records; không SDK/cookie phía client · (2) Dịch vụ ngoài (PostHog/Plausible cloud) · (3) Chưa làm analytics
+- Chọn: Tự host trong Postgres: track() phía server một điểm, schema allowlist trong mã, bảng product_events (RLS theo tổ chức), chỉ ID nội bộ, cấm PII bằng danh sách đen + regex, hạn lưu 13 tháng qua job privacy.retention, ngắt liên kết (actor_user_id = null) khi xoá tài khoản; chỉ ghi khi chủ thể đồng ý mục đích analytics — bộ kiểm đồng ý mặc định TỪ CHỐI tới khi T-2310 nối consent_records; không SDK/cookie phía client
+- Lý do (tiêu chí chất lượng cuối): (1) đúng/an toàn: dữ liệu ở lại VN (NĐ 333 Đ.19), không cookie/SDK client nên PM-METRIC-004 đạt, đồng ý theo cách hiểu chặt (Luật 91/2025) — mặc định không ghi; (2) bảng + migration có down; (3) không thêm phụ thuộc, test được trên Postgres thật; mặc định tự host (AGENTS §5)
+- Đường lùi: Revert PR; migration có down; bỏ gọi track()
+
+### D-119 · 2026-10-25T15:49:15+00:00 · T-2309: đo M-03 (check-in) khi server không có bước bắt đầu check-in
+
+- Phương án: (1) Thêm lệnh stay.startCheckIn ghi lúc mở form · (2) Giữ stay.check_in_started trong schema (chưa nối); đo M-03 bằng phiên UAT ghi thời gian như M-02 tới khi có bước bắt đầu ở server
+- Chọn: Giữ stay.check_in_started trong schema (chưa nối); đo M-03 bằng phiên UAT ghi thời gian như M-02 tới khi có bước bắt đầu ở server
+- Lý do (tiêu chí chất lượng cuối): (1) không thêm lệnh ghi CSDL chỉ để đo, tránh mở bề mặt mới trên luồng lưu trú (merge_risk); (3) đơn giản; M-03 là mục tiêu pilot đo trong UAT tuần 16
+- Đường lùi: Thêm lệnh startCheckIn sau, sự kiện đã có schema
+
+### D-120 · 2026-10-25T16:20:28+00:00 · T-2308 review: thế nào là tiền khách còn được hoàn chặn ẩn danh
+
+- Phương án: (1) Theo số dư sổ CUSTOMER_CREDIT ≠ 0 theo cơ sở (thanh toán confirmed chưa phân bổ chỉ chặn khi người đó còn số dư có lợi) · (2) Đúng nghĩa đen: payments confirmed và amount > allocated_total
+- Chọn: Theo số dư sổ CUSTOMER_CREDIT ≠ 0 theo cơ sở (thanh toán confirmed chưa phân bổ chỉ chặn khi người đó còn số dư có lợi)
+- Lý do (tiêu chí chất lượng cuối): (1) đúng: sổ cái là nguồn sự thật về tiền (như checkout.ts); phương án 2 giữ vĩnh viễn người nộp cọc và người đã được hoàn, trái STD-PRIV-005; có test đối chứng người đã hoàn
+- Đường lùi: Sửa điều kiện trong app.retention_person_activity bằng migration mới
+
+### D-121 · 2026-10-25T16:25:53+00:00 · Sau PR #137 (lát C, người merge): làm tiếp lát D/E thế nào khi phiên chỉ được đẩy MỘT nhánh?
+
+- Phương án: (1) Chặn vòng, chờ người merge #137; sau merge dựng lại nhánh từ main và làm lát D · (2) Dồn lát D/E vào cùng nhánh, PR #137 phình thành 3 lát auth+dữ liệu
+- Chọn: Chặn vòng, chờ người merge #137; sau merge dựng lại nhánh từ main và làm lát D
+- Lý do (tiêu chí chất lượng cuối): (1) an toàn: PR ngoại lệ cứng phải rà được — trộn auth (lát D/E) với dữ liệu (lát C) làm người duyệt khó bắt lỗi không đảo ngược; luật mỗi lát một PR; (2) đường lùi: revert từng lát; (5) tốc độ thua vì nút thắt là người merge, dồn thêm không nhanh hơn
+- Đường lùi: loop resume rồi làm lát D trên nhánh dựng lại từ main

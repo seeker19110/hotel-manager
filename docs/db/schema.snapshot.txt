@@ -15,7 +15,7 @@ pgcrypto
 ## types (enum, domain) (0)
 
 
-## tables (75)
+## tables (76)
 auth.account owner=<admin> table
 auth.login_throttle owner=<admin> table
 auth.rateLimit owner=<admin> table
@@ -72,6 +72,7 @@ public.payment_claims owner=<admin> table rls force-rls
 public.payments owner=<admin> table rls force-rls
 public.period_locks owner=<admin> table rls force-rls
 public.persons owner=<admin> table rls force-rls
+public.product_events owner=<admin> table rls force-rls
 public.properties owner=<admin> table rls force-rls
 public.property_scopes owner=<admin> table rls force-rls
 public.rate_limit_counters owner=<admin> table
@@ -92,7 +93,7 @@ public.units owner=<admin> table rls force-rls
 public.work_orders owner=<admin> table rls force-rls
 public.worker_heartbeats owner=<admin> table rls force-rls
 
-## columns (1032)
+## columns (1041)
 auth.account.accessToken text
 auth.account.accessTokenExpiresAt timestamp with time zone
 auth.account.accountId text not null
@@ -862,6 +863,15 @@ public.persons.organization_id uuid not null
 public.persons.phone text
 public.persons.updated_at timestamp with time zone not null default now()
 public.persons.version integer not null default 1
+public.product_events.actor_user_id uuid
+public.product_events.created_at timestamp with time zone not null default now()
+public.product_events.id uuid not null
+public.product_events.name text not null
+public.product_events.occurred_at timestamp with time zone not null default now()
+public.product_events.organization_id uuid not null
+public.product_events.property_id uuid
+public.product_events.props jsonb not null default '{}'::jsonb
+public.product_events.schema_version integer not null
 public.properties.archived_at timestamp with time zone
 public.properties.business_day_cutoff time without time zone not null default '00:00:00'::time without time zone
 public.properties.check_in_time time without time zone
@@ -1130,7 +1140,7 @@ public.worker_heartbeats.beat_at timestamp with time zone not null
 public.worker_heartbeats.name text not null
 public.worker_heartbeats.started_at timestamp with time zone not null default now()
 
-## constraints (821)
+## constraints (827)
 auth.account account_pkey PRIMARY KEY (id)
 auth.account account_userId_fkey FOREIGN KEY ("userId") REFERENCES auth."user"(id) ON DELETE CASCADE
 auth.login_throttle login_throttle_email_hash_check CHECK (octet_length(email_hash) = 32)
@@ -1729,6 +1739,12 @@ public.persons persons_organization_id_fkey FOREIGN KEY (organization_id) REFERE
 public.persons persons_phone_check CHECK (phone ~ '^\+?[0-9 .()-]{6,20}$'::text)
 public.persons persons_pkey PRIMARY KEY (id)
 public.persons uq_persons_org_id UNIQUE (organization_id, id)
+public.product_events fk_product_events_property FOREIGN KEY (organization_id, property_id) REFERENCES properties(organization_id, id) ON DELETE RESTRICT
+public.product_events product_events_name_check CHECK (name ~ '^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$'::text)
+public.product_events product_events_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE RESTRICT
+public.product_events product_events_pkey PRIMARY KEY (id)
+public.product_events product_events_props_check CHECK (jsonb_typeof(props) = 'object'::text)
+public.product_events product_events_schema_version_check CHECK (schema_version >= 1)
 public.properties properties_counters_check CHECK (jsonb_typeof(counters) = 'object'::text)
 public.properties properties_currency_check CHECK (currency::text = upper(currency::text))
 public.properties properties_hold_ttl_minutes_check CHECK (hold_ttl_minutes > 0)
@@ -1953,7 +1969,7 @@ public.work_orders work_orders_title_check CHECK (length(btrim(title)) >= 1 AND 
 public.worker_heartbeats worker_heartbeats_name_check CHECK (name ~ '^[a-z0-9][a-z0-9._-]{0,62}$'::text)
 public.worker_heartbeats worker_heartbeats_pkey PRIMARY KEY (name)
 
-## indexes (410)
+## indexes (422)
 auth.account account_pkey :: CREATE UNIQUE INDEX account_pkey ON auth.account USING btree (id)
 auth.account account_userId_idx :: CREATE INDEX "account_userId_idx" ON auth.account USING btree ("userId")
 auth.login_throttle login_throttle_pkey :: CREATE UNIQUE INDEX login_throttle_pkey ON auth.login_throttle USING btree (email_hash)
@@ -1962,6 +1978,7 @@ auth.rateLimit rateLimit_pkey :: CREATE UNIQUE INDEX "rateLimit_pkey" ON auth."r
 auth.revoked_session ix_revoked_session_expires :: CREATE INDEX ix_revoked_session_expires ON auth.revoked_session USING btree (expires_at)
 auth.revoked_session ix_revoked_session_user :: CREATE INDEX ix_revoked_session_user ON auth.revoked_session USING btree (user_id)
 auth.revoked_session revoked_session_pkey :: CREATE UNIQUE INDEX revoked_session_pkey ON auth.revoked_session USING btree (token_hash)
+auth.session ix_auth_session_expires :: CREATE INDEX ix_auth_session_expires ON auth.session USING btree ("expiresAt")
 auth.session session_pkey :: CREATE UNIQUE INDEX session_pkey ON auth.session USING btree (id)
 auth.session session_token_key :: CREATE UNIQUE INDEX session_token_key ON auth.session USING btree (token)
 auth.session session_userId_idx :: CREATE INDEX "session_userId_idx" ON auth.session USING btree ("userId")
@@ -1970,6 +1987,7 @@ auth.twoFactor twoFactor_secret_idx :: CREATE INDEX "twoFactor_secret_idx" ON au
 auth.twoFactor twoFactor_userId_idx :: CREATE INDEX "twoFactor_userId_idx" ON auth."twoFactor" USING btree ("userId")
 auth.user user_email_key :: CREATE UNIQUE INDEX user_email_key ON auth."user" USING btree (email)
 auth.user user_pkey :: CREATE UNIQUE INDEX user_pkey ON auth."user" USING btree (id)
+auth.verification ix_auth_verification_expires :: CREATE INDEX ix_auth_verification_expires ON auth.verification USING btree ("expiresAt")
 auth.verification verification_identifier_idx :: CREATE INDEX verification_identifier_idx ON auth.verification USING btree (identifier)
 auth.verification verification_pkey :: CREATE UNIQUE INDEX verification_pkey ON auth.verification USING btree (id)
 public.allocations allocations_pkey :: CREATE UNIQUE INDEX allocations_pkey ON public.allocations USING btree (id)
@@ -2054,6 +2072,7 @@ public.floors floors_pkey :: CREATE UNIQUE INDEX floors_pkey ON public.floors US
 public.floors uq_floors_name :: CREATE UNIQUE INDEX uq_floors_name ON public.floors USING btree (organization_id, property_id, name) WHERE (archived_at IS NULL)
 public.floors uq_floors_org_prop_id :: CREATE UNIQUE INDEX uq_floors_org_prop_id ON public.floors USING btree (organization_id, property_id, id)
 public.guest_access_links guest_access_links_pkey :: CREATE UNIQUE INDEX guest_access_links_pkey ON public.guest_access_links USING btree (id)
+public.guest_access_links ix_guest_links_dead_at :: CREATE INDEX ix_guest_links_dead_at ON public.guest_access_links USING btree (LEAST(expires_at, revoked_at))
 public.guest_access_links ix_guest_links_stay :: CREATE INDEX ix_guest_links_stay ON public.guest_access_links USING btree (organization_id, stay_id)
 public.guest_access_links ixfk_guest_access_links_created_by :: CREATE INDEX ixfk_guest_access_links_created_by ON public.guest_access_links USING btree (organization_id, created_by)
 public.guest_access_links ixfk_guest_access_links_reservation_id :: CREATE INDEX ixfk_guest_access_links_reservation_id ON public.guest_access_links USING btree (organization_id, reservation_id)
@@ -2073,6 +2092,7 @@ public.idempotency_keys uq_idempotency_keys :: CREATE UNIQUE INDEX uq_idempotenc
 public.identity_documents identity_documents_pkey :: CREATE UNIQUE INDEX identity_documents_pkey ON public.identity_documents USING btree (id)
 public.identity_documents ix_identity_documents_hash :: CREATE INDEX ix_identity_documents_hash ON public.identity_documents USING btree (organization_id, doc_type, doc_number_hash) WHERE (doc_number_hash IS NOT NULL)
 public.identity_documents ix_identity_documents_person :: CREATE INDEX ix_identity_documents_person ON public.identity_documents USING btree (organization_id, person_id)
+public.identity_documents ix_identity_documents_retention :: CREATE INDEX ix_identity_documents_retention ON public.identity_documents USING btree (updated_at) WHERE (anonymized_at IS NULL)
 public.identity_documents ixfk_identity_documents_file_id :: CREATE INDEX ixfk_identity_documents_file_id ON public.identity_documents USING btree (organization_id, file_id) WHERE (file_id IS NOT NULL)
 public.identity_documents ixfk_identity_documents_property_id :: CREATE INDEX ixfk_identity_documents_property_id ON public.identity_documents USING btree (organization_id, property_id)
 public.identity_documents uq_identity_documents_org_id :: CREATE UNIQUE INDEX uq_identity_documents_org_id ON public.identity_documents USING btree (organization_id, id)
@@ -2200,6 +2220,7 @@ public.notification_preferences uq_notification_preferences :: CREATE UNIQUE IND
 public.notification_settings ixfk_notification_settings_updated_by :: CREATE INDEX ixfk_notification_settings_updated_by ON public.notification_settings USING btree (organization_id, updated_by)
 public.notification_settings notification_settings_pkey :: CREATE UNIQUE INDEX notification_settings_pkey ON public.notification_settings USING btree (id)
 public.notification_settings uq_notification_settings_property :: CREATE UNIQUE INDEX uq_notification_settings_property ON public.notification_settings USING btree (organization_id, property_id)
+public.notifications ix_notifications_created_at :: CREATE INDEX ix_notifications_created_at ON public.notifications USING btree (created_at)
 public.notifications ix_notifications_recipient :: CREATE INDEX ix_notifications_recipient ON public.notifications USING btree (organization_id, recipient_person_id, read_at)
 public.notifications ixfk_notifications_property_id :: CREATE INDEX ixfk_notifications_property_id ON public.notifications USING btree (organization_id, property_id)
 public.notifications notifications_pkey :: CREATE UNIQUE INDEX notifications_pkey ON public.notifications USING btree (id)
@@ -2249,8 +2270,14 @@ public.period_locks period_locks_pkey :: CREATE UNIQUE INDEX period_locks_pkey O
 public.period_locks uq_period_locks_org_id :: CREATE UNIQUE INDEX uq_period_locks_org_id ON public.period_locks USING btree (organization_id, id)
 public.persons ix_persons_email :: CREATE INDEX ix_persons_email ON public.persons USING btree (organization_id, lower(email))
 public.persons ix_persons_phone :: CREATE INDEX ix_persons_phone ON public.persons USING btree (organization_id, phone)
+public.persons ix_persons_retention :: CREATE INDEX ix_persons_retention ON public.persons USING btree (updated_at) WHERE (anonymized_at IS NULL)
 public.persons persons_pkey :: CREATE UNIQUE INDEX persons_pkey ON public.persons USING btree (id)
 public.persons uq_persons_org_id :: CREATE UNIQUE INDEX uq_persons_org_id ON public.persons USING btree (organization_id, id)
+public.product_events ix_product_events_actor :: CREATE INDEX ix_product_events_actor ON public.product_events USING btree (actor_user_id) WHERE (actor_user_id IS NOT NULL)
+public.product_events ix_product_events_name_time :: CREATE INDEX ix_product_events_name_time ON public.product_events USING btree (organization_id, name, occurred_at)
+public.product_events ix_product_events_occurred :: CREATE INDEX ix_product_events_occurred ON public.product_events USING btree (occurred_at)
+public.product_events ix_product_events_property_time :: CREATE INDEX ix_product_events_property_time ON public.product_events USING btree (organization_id, property_id, occurred_at)
+public.product_events product_events_pkey :: CREATE UNIQUE INDEX product_events_pkey ON public.product_events USING btree (id)
 public.properties ix_properties_org_archived :: CREATE INDEX ix_properties_org_archived ON public.properties USING btree (organization_id, archived_at)
 public.properties properties_pkey :: CREATE UNIQUE INDEX properties_pkey ON public.properties USING btree (id)
 public.properties uq_properties_org_id :: CREATE UNIQUE INDEX uq_properties_org_id ON public.properties USING btree (organization_id, id)
@@ -2325,6 +2352,7 @@ public.shifts shifts_pkey :: CREATE UNIQUE INDEX shifts_pkey ON public.shifts US
 public.shifts uq_shifts_one_open :: CREATE UNIQUE INDEX uq_shifts_one_open ON public.shifts USING btree (organization_id, opened_by) WHERE (status = 'open'::text)
 public.shifts uq_shifts_org_id :: CREATE UNIQUE INDEX uq_shifts_org_id ON public.shifts USING btree (organization_id, id)
 public.shifts uq_shifts_org_prop_id :: CREATE UNIQUE INDEX uq_shifts_org_prop_id ON public.shifts USING btree (organization_id, property_id, id)
+public.stays ix_stays_additional_guests :: CREATE INDEX ix_stays_additional_guests ON public.stays USING gin (additional_guest_person_ids)
 public.stays ix_stays_in_house :: CREATE INDEX ix_stays_in_house ON public.stays USING btree (organization_id, property_id) WHERE (status = 'in_house'::text)
 public.stays ix_stays_status :: CREATE INDEX ix_stays_status ON public.stays USING btree (organization_id, property_id, status)
 public.stays ix_stays_unit :: CREATE INDEX ix_stays_unit ON public.stays USING btree (organization_id, unit_id, status)
@@ -2365,7 +2393,7 @@ public.work_orders uq_work_orders_org_id :: CREATE UNIQUE INDEX uq_work_orders_o
 public.work_orders work_orders_pkey :: CREATE UNIQUE INDEX work_orders_pkey ON public.work_orders USING btree (id)
 public.worker_heartbeats worker_heartbeats_pkey :: CREATE UNIQUE INDEX worker_heartbeats_pkey ON public.worker_heartbeats USING btree (name)
 
-## policies (RLS) (176)
+## policies (RLS) (177)
 public.allocations portal_deny_read RESTRICTIVE SELECT to app_runtime using ((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
 public.allocations tenant_isolation PERMISSIVE ALL to public using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
 public.approval_requests tenant_isolation PERMISSIVE ALL to public using (((organization_id = app.current_org()) AND ((requested_by = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid) OR ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text, 'accountant'::text])) AND app.actor_can_see_property(property_id))))) check (((organization_id = app.current_org()) AND ((requested_by = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid) OR ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id)))))
@@ -2527,6 +2555,7 @@ public.persons persons_read PERMISSIVE SELECT to public using (((organization_id
 public.persons persons_role_insert RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_may_insert_person() AS actor_may_insert_person))
 public.persons persons_role_update RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_may_update_person() AS actor_may_update_person)) check (( SELECT app.actor_may_update_person() AS actor_may_update_person))
 public.persons persons_update PERMISSIVE UPDATE to public using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
+public.product_events product_events_org PERMISSIVE ALL to public using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
 public.properties portal_no_delete RESTRICTIVE DELETE to app_runtime using ((NOT COALESCE((( SELECT app.actor_role() AS actor_role) = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
 public.properties portal_no_insert RESTRICTIVE INSERT to app_runtime check ((NOT COALESCE((( SELECT app.actor_role() AS actor_role) = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
 public.properties portal_no_update RESTRICTIVE UPDATE to app_runtime using ((NOT COALESCE((( SELECT app.actor_role() AS actor_role) = ANY (ARRAY['tenant'::text, 'guest'::text])), false))) check ((NOT COALESCE((( SELECT app.actor_role() AS actor_role) = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
@@ -2709,7 +2738,7 @@ public.units CREATE TRIGGER trg_units_updated BEFORE UPDATE ON units FOR EACH RO
 public.work_orders CREATE TRIGGER trg_work_orders_transition BEFORE UPDATE ON work_orders FOR EACH ROW EXECUTE FUNCTION app.work_order_transition()
 public.work_orders CREATE TRIGGER trg_work_orders_updated BEFORE UPDATE ON work_orders FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 
-## functions (109)
+## functions (119)
 -- app.actor_can_see_property(p uuid) owner=<admin>
 CREATE OR REPLACE FUNCTION app.actor_can_see_property(p uuid)
  RETURNS boolean
@@ -2785,6 +2814,128 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
+-- app.anonymize_identity_documents(p_now timestamp with time zone, p_months integer, p_limit integer) owner=<admin>
+CREATE OR REPLACE FUNCTION app.anonymize_identity_documents(p_now timestamp with time zone, p_months integer, p_limit integer)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+ SET "TimeZone" TO 'UTC'
+AS $function$
+DECLARE
+  v_cut timestamptz := least(p_now, now()) - make_interval(months => greatest(p_months, 1));
+  v_today date := (least(p_now, now()) AT TIME ZONE 'UTC')::date;
+  v_ids uuid[];
+  v_n integer;
+BEGIN
+  IF current_setting('transaction_isolation') <> 'read committed' THEN
+    RAISE EXCEPTION 'app.anonymize_identity_documents requires READ COMMITTED (re-check after lock needs a fresh snapshot)';
+  END IF;
+  -- (1) pick + lock documents and their owners (FOR UPDATE conflicts with FK FOR KEY SHARE).
+  SELECT coalesce(array_agg(c.id), '{}') INTO v_ids FROM (
+    SELECT d.id FROM identity_documents d
+    JOIN persons p ON p.organization_id = d.organization_id AND p.id = d.person_id
+    CROSS JOIN LATERAL app.retention_person_activity(d.organization_id, d.person_id) a
+    WHERE d.anonymized_at IS NULL
+      AND d.updated_at < v_cut AND d.created_at < v_cut
+      AND (d.retention_until IS NULL OR d.retention_until < v_today)
+      AND NOT a.has_open
+      AND (a.stay_lease_end IS NULL OR a.stay_lease_end < v_cut)
+    ORDER BY d.updated_at, d.id
+    LIMIT least(greatest(p_limit, 1), 5000)
+    FOR UPDATE OF d, p SKIP LOCKED
+  ) c;
+  IF cardinality(v_ids) = 0 THEN RETURN 0; END IF;
+  -- (2) re-check with a fresh snapshot taken while holding the locks; same predicate as (1).
+  WITH due AS (
+    SELECT d.id, d.organization_id, d.file_id FROM identity_documents d
+    CROSS JOIN LATERAL app.retention_person_activity(d.organization_id, d.person_id) a
+    WHERE d.id = ANY (v_ids)
+      AND d.anonymized_at IS NULL
+      AND d.updated_at < v_cut AND d.created_at < v_cut
+      AND (d.retention_until IS NULL OR d.retention_until < v_today)
+      AND NOT a.has_open
+      AND (a.stay_lease_end IS NULL OR a.stay_lease_end < v_cut)
+  ), doc AS (
+    UPDATE identity_documents d
+       SET doc_number_enc = NULL, doc_number_key_id = NULL, doc_number_hash = NULL, doc_number_last4 = NULL,
+           nationality = NULL, file_id = NULL, anonymized_at = now()
+      FROM due WHERE d.id = due.id
+    RETURNING d.id, d.organization_id, d.property_id, due.file_id
+  ), f AS (
+    UPDATE files f
+       SET delete_after = least(coalesce(f.delete_after, (now() AT TIME ZONE 'UTC')::date), (now() AT TIME ZONE 'UTC')::date)
+      FROM due
+     WHERE f.organization_id = due.organization_id AND f.id = due.file_id AND f.status IN ('ready','pending_scan')
+    RETURNING 1
+  ), aud AS (
+    INSERT INTO audit_events (id, organization_id, property_id, actor_type, action, entity_type, entity_id, after, reason,
+                              correlation_id)
+    SELECT gen_random_uuid(), doc.organization_id, doc.property_id, 'worker', 'identity_document.anonymized',
+           'identity_document', doc.id,
+           jsonb_build_object('retention_months', greatest(p_months, 1), 'file_scheduled_for_deletion', doc.file_id IS NOT NULL),
+           'retention_expired', 'retention.privacy'
+      FROM doc
+    RETURNING 1
+  )
+  SELECT count(*)::int INTO v_n FROM doc;
+  RETURN v_n;
+END
+$function$
+-- app.anonymize_persons(p_now timestamp with time zone, p_months integer, p_limit integer) owner=<admin>
+CREATE OR REPLACE FUNCTION app.anonymize_persons(p_now timestamp with time zone, p_months integer, p_limit integer)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+ SET "TimeZone" TO 'UTC'
+AS $function$
+DECLARE
+  v_cut timestamptz := least(p_now, now()) - make_interval(months => greatest(p_months, 1));
+  v_ids uuid[];
+  v_n integer;
+BEGIN
+  IF current_setting('transaction_isolation') <> 'read committed' THEN
+    RAISE EXCEPTION 'app.anonymize_persons requires READ COMMITTED (re-check after lock needs a fresh snapshot)';
+  END IF;
+  -- (1) pick + lock persons (FOR UPDATE conflicts with FK FOR KEY SHARE, incl. new identity documents).
+  SELECT coalesce(array_agg(c.id), '{}') INTO v_ids FROM (
+    SELECT p.id FROM persons p
+    CROSS JOIN LATERAL app.retention_person_activity(p.organization_id, p.id) a
+    WHERE p.anonymized_at IS NULL
+      AND p.updated_at < v_cut AND p.created_at < v_cut
+      AND NOT a.has_open
+      AND (a.relation_end IS NULL OR a.relation_end < v_cut)
+      AND NOT EXISTS (SELECT 1 FROM identity_documents d
+                      WHERE d.organization_id = p.organization_id AND d.person_id = p.id AND d.anonymized_at IS NULL)
+    ORDER BY p.updated_at, p.id
+    LIMIT least(greatest(p_limit, 1), 5000)
+    FOR UPDATE OF p SKIP LOCKED
+  ) c;
+  IF cardinality(v_ids) = 0 THEN RETURN 0; END IF;
+  -- (2) re-check with a fresh snapshot taken while holding the locks; same predicate as (1).
+  WITH upd AS (
+    UPDATE persons p
+       SET full_name = '***', phone = NULL, email = NULL, address = NULL, nationality = NULL, anonymized_at = now()
+     WHERE p.id = ANY (v_ids)
+       AND p.anonymized_at IS NULL
+       AND p.updated_at < v_cut AND p.created_at < v_cut
+       AND NOT EXISTS (SELECT 1 FROM app.retention_person_activity(p.organization_id, p.id) a
+                       WHERE a.has_open OR a.relation_end >= v_cut)
+       AND NOT EXISTS (SELECT 1 FROM identity_documents d
+                       WHERE d.organization_id = p.organization_id AND d.person_id = p.id AND d.anonymized_at IS NULL)
+    RETURNING p.id, p.organization_id
+  ), aud AS (
+    INSERT INTO audit_events (id, organization_id, actor_type, action, entity_type, entity_id, after, reason, correlation_id)
+    SELECT gen_random_uuid(), upd.organization_id, 'worker', 'person.anonymized', 'person', upd.id,
+           jsonb_build_object('retention_months', greatest(p_months, 1)), 'retention_expired', 'retention.privacy'
+      FROM upd
+    RETURNING 1
+  )
+  SELECT count(*)::int INTO v_n FROM upd;
+  RETURN v_n;
+END
+$function$
 -- app.approval_transition() owner=<admin>
 CREATE OR REPLACE FUNCTION app.approval_transition()
  RETURNS trigger
@@ -4030,6 +4181,60 @@ AS $function$
     SELECT nullif(current_setting('app.actor_id', true), '') IS NULL
            OR (coalesce(app.actor_role() NOT IN ('tenant','guest'), false) AND app.actor_can_see_property(p))
   $function$
+-- app.purge_auth_sessions(p_now timestamp with time zone, p_days integer, p_limit integer) owner=<admin>
+CREATE OR REPLACE FUNCTION app.purge_auth_sessions(p_now timestamp with time zone, p_days integer, p_limit integer)
+ RETURNS integer
+ LANGUAGE sql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+ SET "TimeZone" TO 'UTC'
+AS $function$
+    WITH due AS (
+      SELECT s.id FROM auth."session" s
+      WHERE s."expiresAt" < least(p_now, now()) - make_interval(days => greatest(p_days, 1))
+      ORDER BY s."expiresAt", s.id
+      LIMIT least(greatest(p_limit, 1), 5000)
+      FOR UPDATE SKIP LOCKED
+    ), x AS (
+      DELETE FROM auth."session" s USING due WHERE s.id = due.id RETURNING 1)
+    SELECT count(*)::int FROM x
+  $function$
+-- app.purge_auth_verifications(p_now timestamp with time zone, p_days integer, p_limit integer) owner=<admin>
+CREATE OR REPLACE FUNCTION app.purge_auth_verifications(p_now timestamp with time zone, p_days integer, p_limit integer)
+ RETURNS integer
+ LANGUAGE sql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+ SET "TimeZone" TO 'UTC'
+AS $function$
+    WITH due AS (
+      SELECT v.id FROM auth."verification" v
+      WHERE v."expiresAt" < least(p_now, now()) - make_interval(days => greatest(p_days, 1))
+      ORDER BY v."expiresAt", v.id
+      LIMIT least(greatest(p_limit, 1), 5000)
+      FOR UPDATE SKIP LOCKED
+    ), x AS (
+      DELETE FROM auth."verification" v USING due WHERE v.id = due.id RETURNING 1)
+    SELECT count(*)::int FROM x
+  $function$
+-- app.purge_guest_access_links(p_now timestamp with time zone, p_days integer, p_limit integer) owner=<admin>
+CREATE OR REPLACE FUNCTION app.purge_guest_access_links(p_now timestamp with time zone, p_days integer, p_limit integer)
+ RETURNS integer
+ LANGUAGE sql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+ SET "TimeZone" TO 'UTC'
+AS $function$
+    WITH due AS (
+      SELECT g.id FROM guest_access_links g
+      WHERE least(g.expires_at, g.revoked_at) < least(p_now, now()) - make_interval(days => greatest(p_days, 1))
+      ORDER BY least(g.expires_at, g.revoked_at), g.id
+      LIMIT least(greatest(p_limit, 1), 5000)
+      FOR UPDATE SKIP LOCKED
+    ), x AS (
+      DELETE FROM guest_access_links g USING due WHERE g.id = due.id RETURNING 1)
+    SELECT count(*)::int FROM x
+  $function$
 -- app.purge_idempotency_keys(p_now timestamp with time zone, p_limit integer) owner=<admin>
 CREATE OR REPLACE FUNCTION app.purge_idempotency_keys(p_now timestamp with time zone, p_limit integer)
  RETURNS integer
@@ -4086,6 +4291,26 @@ AS $function$
       DELETE FROM notification_deliveries d USING due WHERE d.id = due.id RETURNING 1)
     SELECT count(*)::int FROM x
   $function$
+-- app.purge_notifications(p_now timestamp with time zone, p_days integer, p_limit integer) owner=<admin>
+CREATE OR REPLACE FUNCTION app.purge_notifications(p_now timestamp with time zone, p_days integer, p_limit integer)
+ RETURNS integer
+ LANGUAGE sql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+ SET "TimeZone" TO 'UTC'
+AS $function$
+    WITH due AS (
+      SELECT n.id FROM notifications n
+      WHERE n.created_at < least(p_now, now()) - make_interval(days => greatest(p_days, 1))
+        AND NOT EXISTS (SELECT 1 FROM notification_deliveries d
+                        WHERE d.organization_id = n.organization_id AND d.notification_id = n.id)
+      ORDER BY n.created_at, n.id
+      LIMIT least(greatest(p_limit, 1), 5000)
+      FOR UPDATE SKIP LOCKED
+    ), x AS (
+      DELETE FROM notifications n USING due WHERE n.id = due.id RETURNING 1)
+    SELECT count(*)::int FROM x
+  $function$
 -- app.purge_outbox(p_now timestamp with time zone, p_days integer, p_limit integer) owner=<admin>
 CREATE OR REPLACE FUNCTION app.purge_outbox(p_now timestamp with time zone, p_days integer, p_limit integer)
  RETURNS integer
@@ -4102,6 +4327,42 @@ AS $function$
       FOR UPDATE SKIP LOCKED
     ), x AS (
       DELETE FROM outbox o USING due WHERE o.id = due.id RETURNING 1)
+    SELECT count(*)::int FROM x
+  $function$
+-- app.purge_product_events(p_now timestamp with time zone, p_months integer, p_limit integer) owner=<admin>
+CREATE OR REPLACE FUNCTION app.purge_product_events(p_now timestamp with time zone, p_months integer, p_limit integer)
+ RETURNS integer
+ LANGUAGE sql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+ SET "TimeZone" TO 'UTC'
+AS $function$
+    WITH due AS (
+      SELECT e.id FROM product_events e
+      WHERE e.occurred_at < least(p_now, now()) - make_interval(months => greatest(p_months, 1))
+      ORDER BY e.occurred_at, e.id
+      LIMIT least(greatest(p_limit, 1), 5000)
+      FOR UPDATE SKIP LOCKED
+    ), x AS (
+      DELETE FROM product_events e USING due WHERE e.id = due.id RETURNING 1)
+    SELECT count(*)::int FROM x
+  $function$
+-- app.purge_worker_heartbeats(p_now timestamp with time zone, p_days integer, p_limit integer) owner=<admin>
+CREATE OR REPLACE FUNCTION app.purge_worker_heartbeats(p_now timestamp with time zone, p_days integer, p_limit integer)
+ RETURNS integer
+ LANGUAGE sql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+ SET "TimeZone" TO 'UTC'
+AS $function$
+    WITH due AS (
+      SELECT w.name FROM worker_heartbeats w
+      WHERE w.beat_at < least(p_now, now()) - make_interval(days => greatest(p_days, 1))
+      ORDER BY w.beat_at, w.name
+      LIMIT least(greatest(p_limit, 1), 5000)
+      FOR UPDATE SKIP LOCKED
+    ), x AS (
+      DELETE FROM worker_heartbeats w USING due WHERE w.name = due.name RETURNING 1)
     SELECT count(*)::int FROM x
   $function$
 -- app.rate_limit_hit(p_scope text, p_subject text, p_limit integer, p_window_seconds integer, p_now timestamp with time zone) owner=<admin>
@@ -4251,6 +4512,70 @@ AS $function$
     LEFT JOIN persons bp ON bp.organization_id = r.organization_id AND bp.id = r.booker_person_id
     WHERE g.token_hash = p_hash
     LIMIT 1
+  $function$
+-- app.retention_person_activity(p_org uuid, p_person uuid) owner=<admin>
+CREATE OR REPLACE FUNCTION app.retention_person_activity(p_org uuid, p_person uuid)
+ RETURNS TABLE(has_open boolean, stay_lease_end timestamp with time zone, relation_end timestamp with time zone)
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+    WITH ev(kind, is_open, at) AS (
+      SELECT 'stay', s.status IN ('expected','in_house'),
+             greatest(s.created_at, s.updated_at, s.checked_out_at, (s.debt_due_date + 1)::timestamp AT TIME ZONE 'UTC')
+        FROM stays s
+       WHERE s.organization_id = p_org
+         AND (s.primary_guest_person_id = p_person OR s.debtor_person_id = p_person
+              OR s.additional_guest_person_ids @> ARRAY[p_person])
+      UNION ALL
+      SELECT 'stay', r.status IN ('draft','held','confirmed','in_house'), greatest(r.created_at, r.updated_at, r.cancelled_at)
+        FROM reservations r WHERE r.organization_id = p_org AND r.booker_person_id = p_person
+      UNION ALL
+      SELECT 'stay', l.status NOT IN ('closed','cancelled'),
+             greatest(l.created_at, l.updated_at, (l.moved_out_on + 1)::timestamp AT TIME ZONE 'UTC')
+        FROM leases l
+       WHERE l.organization_id = p_org
+         AND (l.representative_person_id = p_person
+              OR EXISTS (SELECT 1 FROM lease_occupants o
+                         WHERE o.organization_id = p_org AND o.lease_id = l.id AND o.person_id = p_person))
+      UNION ALL
+      SELECT 'money', i.open_amount <> 0, greatest(i.issued_at, i.updated_at)
+        FROM invoices i WHERE i.organization_id = p_org AND i.payer_person_id = p_person
+      UNION ALL
+      -- payments: pending, or confirmed receivable with an unallocated part while the payer still has CUSTOMER_CREDIT > 0 here.
+      SELECT 'money', p.status = 'pending'
+               OR (p.status = 'confirmed' AND p.purpose = 'receivable' AND p.amount > p.allocated_total
+                   AND coalesce((SELECT sum(j.credit - j.debit) FROM journal_lines j
+                                 WHERE j.organization_id = p_org AND j.property_id = p.property_id
+                                   AND j.account = 'CUSTOMER_CREDIT' AND j.person_id = p_person), 0) > 0),
+             greatest(p.created_at, p.updated_at, p.confirmed_at)
+        FROM payments p WHERE p.organization_id = p_org AND p.payer_person_id = p_person
+      UNION ALL
+      SELECT 'money', d.balance <> 0, greatest(d.created_at, d.updated_at)
+        FROM deposits d WHERE d.organization_id = p_org AND d.payer_person_id = p_person
+      UNION ALL
+      SELECT 'money', false, j.created_at
+        FROM journal_lines j WHERE j.organization_id = p_org AND j.person_id = p_person
+      UNION ALL
+      -- CUSTOMER_CREDIT balance per property <> 0: money still owed to/by the customer.
+      SELECT 'money', sum(j.credit - j.debit) <> 0, max(j.created_at)
+        FROM journal_lines j
+       WHERE j.organization_id = p_org AND j.account = 'CUSTOMER_CREDIT' AND j.person_id = p_person
+       GROUP BY j.property_id
+      UNION ALL
+      SELECT 'money', c.status = 'submitted', greatest(c.created_at, c.updated_at)
+        FROM payment_claims c WHERE c.organization_id = p_org AND c.person_id = p_person
+      UNION ALL
+      SELECT 'other', m.status IN ('invited','active','suspended'), greatest(m.created_at, m.updated_at, m.revoked_at, m.valid_to)
+        FROM memberships m WHERE m.organization_id = p_org AND m.person_id = p_person
+      UNION ALL
+      SELECT 'other', v.status = 'pending', greatest(v.created_at, v.updated_at, v.expires_at)
+        FROM invitations v WHERE v.organization_id = p_org AND v.person_id = p_person
+      UNION ALL
+      SELECT 'other', w.status IN ('open','assigned','in_progress'), greatest(w.created_at, w.updated_at)
+        FROM work_orders w WHERE w.organization_id = p_org AND w.reporter_person_id = p_person
+    )
+    SELECT coalesce(bool_or(ev.is_open), false), max(ev.at) FILTER (WHERE ev.kind = 'stay'), max(ev.at) FROM ev
   $function$
 -- app.select_property(p_property uuid) owner=<admin>
 CREATE OR REPLACE FUNCTION app.select_property(p_property uuid)
@@ -4480,6 +4805,20 @@ AS $function$
       AND i.arrival_date = p_date AND app.actor_can_see_property(p_property)
     GROUP BY s.unit_id
   $function$
+-- app.unlink_product_events_actor(p_user_id uuid) owner=<admin>
+CREATE OR REPLACE FUNCTION app.unlink_product_events_actor(p_user_id uuid)
+ RETURNS integer
+ LANGUAGE sql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+ SET "TimeZone" TO 'UTC'
+AS $function$
+    WITH x AS (
+      UPDATE product_events e SET actor_user_id = NULL
+      WHERE p_user_id IS NOT NULL AND e.actor_user_id = p_user_id
+      RETURNING 1)
+    SELECT count(*)::int FROM x
+  $function$
 -- app.unsubscribe_email(p_org uuid, p_person uuid, p_type text, p_correlation text) owner=<admin>
 CREATE OR REPLACE FUNCTION app.unsubscribe_email(p_org uuid, p_person uuid, p_type text, p_correlation text)
  RETURNS TABLE(organization_name text, changed boolean)
@@ -4568,7 +4907,7 @@ AS $function$
     ON CONFLICT (name) DO UPDATE SET beat_at = excluded.beat_at
   $function$
 
-## grants (bảng, cột, hàm, schema) (1164)
+## grants (bảng, cột, hàm, schema) (1192)
 column public.inbox.bank_transaction_id app_runtime UPDATE
 column public.inbox.bank_transaction_id app_worker UPDATE
 column public.inbox.process_error app_runtime UPDATE
@@ -4601,6 +4940,10 @@ function app.actor_role() app_runtime EXECUTE
 function app.actor_role() app_worker EXECUTE
 function app.allocation_guard() <admin> EXECUTE
 function app.allocation_guard() PUBLIC EXECUTE
+function app.anonymize_identity_documents(p_now timestamp with time zone, p_months integer, p_limit integer) <admin> EXECUTE
+function app.anonymize_identity_documents(p_now timestamp with time zone, p_months integer, p_limit integer) app_worker EXECUTE
+function app.anonymize_persons(p_now timestamp with time zone, p_months integer, p_limit integer) <admin> EXECUTE
+function app.anonymize_persons(p_now timestamp with time zone, p_months integer, p_limit integer) app_worker EXECUTE
 function app.approval_transition() <admin> EXECUTE
 function app.approval_transition() PUBLIC EXECUTE
 function app.billing_period_guard() <admin> EXECUTE
@@ -4758,14 +5101,26 @@ function app.property_staff(p_org uuid, p_property uuid, p_roles text[]) <admin>
 function app.property_staff(p_org uuid, p_property uuid, p_roles text[]) app_worker EXECUTE
 function app.property_writable(p uuid) <admin> EXECUTE
 function app.property_writable(p uuid) app_runtime EXECUTE
+function app.purge_auth_sessions(p_now timestamp with time zone, p_days integer, p_limit integer) <admin> EXECUTE
+function app.purge_auth_sessions(p_now timestamp with time zone, p_days integer, p_limit integer) app_worker EXECUTE
+function app.purge_auth_verifications(p_now timestamp with time zone, p_days integer, p_limit integer) <admin> EXECUTE
+function app.purge_auth_verifications(p_now timestamp with time zone, p_days integer, p_limit integer) app_worker EXECUTE
+function app.purge_guest_access_links(p_now timestamp with time zone, p_days integer, p_limit integer) <admin> EXECUTE
+function app.purge_guest_access_links(p_now timestamp with time zone, p_days integer, p_limit integer) app_worker EXECUTE
 function app.purge_idempotency_keys(p_now timestamp with time zone, p_limit integer) <admin> EXECUTE
 function app.purge_idempotency_keys(p_now timestamp with time zone, p_limit integer) app_worker EXECUTE
 function app.purge_import_rows(p_now timestamp with time zone, p_days integer) <admin> EXECUTE
 function app.purge_import_rows(p_now timestamp with time zone, p_days integer) app_worker EXECUTE
 function app.purge_notification_deliveries(p_now timestamp with time zone, p_done_days integer, p_failed_days integer, p_limit integer) <admin> EXECUTE
 function app.purge_notification_deliveries(p_now timestamp with time zone, p_done_days integer, p_failed_days integer, p_limit integer) app_worker EXECUTE
+function app.purge_notifications(p_now timestamp with time zone, p_days integer, p_limit integer) <admin> EXECUTE
+function app.purge_notifications(p_now timestamp with time zone, p_days integer, p_limit integer) app_worker EXECUTE
 function app.purge_outbox(p_now timestamp with time zone, p_days integer, p_limit integer) <admin> EXECUTE
 function app.purge_outbox(p_now timestamp with time zone, p_days integer, p_limit integer) app_worker EXECUTE
+function app.purge_product_events(p_now timestamp with time zone, p_months integer, p_limit integer) <admin> EXECUTE
+function app.purge_product_events(p_now timestamp with time zone, p_months integer, p_limit integer) app_worker EXECUTE
+function app.purge_worker_heartbeats(p_now timestamp with time zone, p_days integer, p_limit integer) <admin> EXECUTE
+function app.purge_worker_heartbeats(p_now timestamp with time zone, p_days integer, p_limit integer) app_worker EXECUTE
 function app.rate_limit_hit(p_scope text, p_subject text, p_limit integer, p_window_seconds integer, p_now timestamp with time zone) <admin> EXECUTE
 function app.rate_limit_hit(p_scope text, p_subject text, p_limit integer, p_window_seconds integer, p_now timestamp with time zone) app_runtime EXECUTE
 function app.receiving_account_owner(p_id uuid) <admin> EXECUTE
@@ -4786,6 +5141,7 @@ function app.residence_notice_guard() <admin> EXECUTE
 function app.residence_notice_guard() PUBLIC EXECUTE
 function app.resolve_guest_link(p_hash bytea) <admin> EXECUTE
 function app.resolve_guest_link(p_hash bytea) app_runtime EXECUTE
+function app.retention_person_activity(p_org uuid, p_person uuid) <admin> EXECUTE
 function app.select_property(p_property uuid) <admin> EXECUTE
 function app.select_property(p_property uuid) app_runtime EXECUTE
 function app.set_updated_at() <admin> EXECUTE
@@ -4812,6 +5168,8 @@ function app.tenant_rents_unit(p_unit uuid) <admin> EXECUTE
 function app.tenant_rents_unit(p_unit uuid) app_runtime EXECUTE
 function app.unit_arrivals(p_property uuid, p_date date) <admin> EXECUTE
 function app.unit_arrivals(p_property uuid, p_date date) app_runtime EXECUTE
+function app.unlink_product_events_actor(p_user_id uuid) <admin> EXECUTE
+function app.unlink_product_events_actor(p_user_id uuid) app_worker EXECUTE
 function app.unsubscribe_email(p_org uuid, p_person uuid, p_type text, p_correlation text) <admin> EXECUTE
 function app.unsubscribe_email(p_org uuid, p_person uuid, p_type text, p_correlation text) app_runtime EXECUTE
 function app.visible_property_ids() <admin> EXECUTE
@@ -5497,6 +5855,15 @@ table public.persons app_worker DELETE
 table public.persons app_worker INSERT
 table public.persons app_worker SELECT
 table public.persons app_worker UPDATE
+table public.product_events <admin> DELETE
+table public.product_events <admin> INSERT
+table public.product_events <admin> MAINTAIN
+table public.product_events <admin> REFERENCES
+table public.product_events <admin> SELECT
+table public.product_events <admin> TRIGGER
+table public.product_events <admin> TRUNCATE
+table public.product_events <admin> UPDATE
+table public.product_events app_runtime INSERT
 table public.properties <admin> DELETE
 table public.properties <admin> INSERT
 table public.properties <admin> MAINTAIN
