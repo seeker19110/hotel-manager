@@ -16,6 +16,7 @@ const MIGRATION = /^\d{4}_.+\.ts$/;
 /** File dữ liệu nền mà test CSDL đọc để so với schema thật (đường dẫn từ gốc repo). Thêm vào đây khi có test ratchet/sổ mới. */
 export const BASELINE_FILES = [
   "packages/testkit/src/schema-guards.baseline.json",
+  "packages/testkit/src/schema-guards.no-org.json",
   "docs/privacy/data-map.yaml",
 ];
 
