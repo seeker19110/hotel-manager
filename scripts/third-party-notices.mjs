@@ -2,6 +2,8 @@
 // của các workspace chạy thật (web, worker và gói nội bộ chúng dùng; bỏ @hm/testkit chỉ dùng cho test) theo lockfile.
 // Mỗi gói: tên, phiên bản, giấy phép SPDX, nguồn; nguyên văn NOTICE (Apache-2.0 §4(d)) và văn bản giấy phép — văn bản trùng
 // nhau gom một lần. Thứ tự cố định để CI so khác (`--check`, job sbom của supply-chain.yml).
+// Phụ thuộc nền tảng: gói tuỳ chọn theo OS/CPU (vd @img/sharp-libvips-linux-x64) chỉ có mặt khi được cài ⇒ chỉ sinh/kiểm trên
+// linux-x64 glibc (CI ubuntu-24.04, khớp image node:…-trixie-slim amd64 đang triển khai); sinh trên macOS/arm64 cho diff giả.
 // Dùng: node scripts/third-party-notices.mjs [--check] [--out THIRD_PARTY_NOTICES.md]
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -94,7 +96,7 @@ export function render(entries) {
     "# THIRD_PARTY_NOTICES",
     "",
     "Hotel Manager (giấy phép: xem `LICENSE`) phân phối kèm các thành phần bên thứ ba dưới đây theo giấy phép riêng của chúng.",
-    "Tệp này **sinh tự động** bởi `node scripts/third-party-notices.mjs` từ lockfile — không sửa tay; CI so khác (`--check`).",
+    "Tệp này **sinh tự động** bởi `node scripts/third-party-notices.mjs` từ lockfile trên linux-x64 (nền tảng image triển khai) — không sửa tay; CI so khác (`--check`).",
     "",
     `## Danh sách (${entries.length} gói)`,
     "",

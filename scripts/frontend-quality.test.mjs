@@ -231,7 +231,8 @@ describe("FE-BUILD-003 / FE-BUILD-004 — build nghiêm, lint 0 cảnh báo", ()
   /** Mọi tệp nguồn cấu hình dưới `dir` (không vào node_modules/.next). */
   const configFiles = (dir, out = []) => {
     for (const n of readdirSync(join(ROOT, dir))) {
-      if (["node_modules", ".next", ".git", ".xtemplates", ".autopilot"].includes(n)) continue;
+      // `worktrees`: bản sao repo tạm của subagent (.claude/worktrees/) — không phải mã dự án.
+      if (["node_modules", ".next", ".git", ".xtemplates", ".autopilot", "worktrees"].includes(n)) continue;
       const rel = join(dir, n);
       if (statSync(join(ROOT, rel)).isDirectory()) configFiles(rel, out);
       else if (/(^|\/)(next\.config\.[cm]?[jt]s|tsconfig[\w.-]*\.json)$/.test(rel)) out.push(rel);
@@ -251,7 +252,7 @@ describe("FE-BUILD-003 / FE-BUILD-004 — build nghiêm, lint 0 cảnh báo", ()
     const dts = [];
     const walk = (d) => {
       for (const n of readdirSync(join(ROOT, d))) {
-        if (["node_modules", ".next", ".git", ".xtemplates", ".autopilot"].includes(n)) continue;
+        if (["node_modules", ".next", ".git", ".xtemplates", ".autopilot", "worktrees"].includes(n)) continue;
         const rel = join(d, n);
         if (statSync(join(ROOT, rel)).isDirectory()) walk(rel);
         else if (n.endsWith(".d.ts") && n !== "next-env.d.ts") dts.push(rel);

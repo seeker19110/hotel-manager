@@ -1,7 +1,7 @@
 # THIRD_PARTY_NOTICES
 
 Hotel Manager (giấy phép: xem `LICENSE`) phân phối kèm các thành phần bên thứ ba dưới đây theo giấy phép riêng của chúng.
-Tệp này **sinh tự động** bởi `node scripts/third-party-notices.mjs` từ lockfile — không sửa tay; CI so khác (`--check`).
+Tệp này **sinh tự động** bởi `node scripts/third-party-notices.mjs` từ lockfile trên linux-x64 (nền tảng image triển khai) — không sửa tay; CI so khác (`--check`).
 
 ## Danh sách (99 gói)
 
