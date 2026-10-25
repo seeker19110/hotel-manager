@@ -7,6 +7,7 @@
 import { z } from "zod";
 import { ERROR_CODES } from "../errors.ts";
 import { IMPORT_KINDS } from "../import/index.ts";
+import { CONSENT_CHANNELS, CONSENT_PURPOSES } from "../privacy/index.ts";
 import { COMMANDS, QUERIES, USER_COMMANDS } from "./registry.ts";
 import { simPayload } from "./webhook-route.ts";
 
@@ -254,6 +255,68 @@ const EXTRA_PATHS: Record<string, Json> = {
       },
     },
   },
+  "/api/v1/me/consents": {
+    get: {
+      operationId: "me.getConsents",
+      tags: ["privacy"],
+      summary:
+        "Trạng thái đồng ý theo mục đích + toàn bộ lịch sử của chính người đăng nhập (`?download=1` ⇒ tệp JSON tải về)",
+      security: [{ sessionCookie: [] }],
+      parameters: [
+        { name: "download", in: "query", required: false, schema: { type: "string", enum: ["1"] } },
+      ],
+      responses: {
+        "200": {
+          description: "Mục đích (cần/không cần đồng ý, trạng thái) và lịch sử cho/rút, cũ → mới",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["purposes", "history"],
+                properties: {
+                  purposes: { type: "array", items: { type: "object" } },
+                  history: { type: "array", items: { type: "object" } },
+                },
+              },
+            },
+          },
+        },
+        ...pick("401"),
+      },
+    },
+    post: {
+      operationId: "me.setConsent",
+      tags: ["privacy"],
+      summary:
+        "Cho (granted=true) hoặc rút (granted=false) đồng ý một mục đích — idempotent theo trạng thái, không cần Idempotency-Key",
+      security: [{ sessionCookie: [] }],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["purpose", "granted", "channel"],
+              additionalProperties: false,
+              properties: {
+                purpose: { type: "string", enum: [...CONSENT_PURPOSES] },
+                granted: { type: "boolean" },
+                channel: { type: "string", enum: [...CONSENT_CHANNELS] },
+                policy_version: { type: "string", maxLength: 20 },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        "200": {
+          description: "`recorded` (thêm một hàng) hoặc `unchanged` (trạng thái đã đúng như yêu cầu)",
+          content: { "application/json": { schema: { type: "object", required: ["data"] } } },
+        },
+        ...pick("400", "401", "409", "422"),
+      },
+    },
+  },
   "/api/v1/session/switchOrganization": {
     post: {
       operationId: "session.switchOrganization",
@@ -465,6 +528,7 @@ export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
   "v1/[module]/[command]/route.ts": { spec: "registry: mọi mục COMMANDS (POST) và QUERIES (GET)" },
   "v1/commands/[id]/route.ts": { spec: "/api/v1/commands/{id}" },
   "v1/me/route.ts": { spec: "/api/v1/me" },
+  "v1/me/consents/route.ts": { spec: "/api/v1/me/consents" },
   "version/route.ts": { spec: "/api/version" },
   "v1/session/switchOrganization/route.ts": { spec: "/api/v1/session/switchOrganization" },
   "v1/notifications/unsubscribe/route.ts": { spec: "/api/v1/notifications/unsubscribe" },

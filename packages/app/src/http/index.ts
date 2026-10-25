@@ -12,6 +12,7 @@ export {
   type QueryDef,
   type UserCommandDef,
 } from "./command-route.ts";
+export { handleGetConsents, handleSetConsent, setConsentInput } from "./consents.ts";
 export { handleFileUpload } from "./file-upload.ts";
 export { handleGuestStay } from "./guest-stay.ts";
 export { handleImportUpload } from "./import-upload.ts";

@@ -43,7 +43,7 @@ CREATE POLICY tenant_isolation ON <bảng>
 - Truy cập **trước khi có ngữ cảnh tổ chức** (đăng nhập, `org.listMine`, `org.create`, link khách) đi qua hàm `SECURITY DEFINER` có phạm vi hẹp (`app.list_my_organizations(auth_user_id)`, `app.create_organization(...)`, `app.resolve_guest_link(token_hash)`), không mở `BYPASSRLS`.
 
 **Bảng append-only và chứng từ bất biến (INV-G4)**
-- Hoàn toàn append-only (trigger `BEFORE UPDATE OR DELETE` ném lỗi, kèm trigger statement-level chặn `TRUNCATE`, và `REVOKE UPDATE, DELETE, TRUNCATE` khỏi `app_runtime`/`app_worker`): `journal_entries`, `journal_lines`, `audit_events`, `bank_transactions`, `invoice_lines`, `meter_events`, `import_external_refs`.
+- Hoàn toàn append-only (trigger `BEFORE UPDATE OR DELETE` ném lỗi, kèm trigger statement-level chặn `TRUNCATE`, và `REVOKE UPDATE, DELETE, TRUNCATE` khỏi `app_runtime`/`app_worker`): `journal_entries`, `journal_lines`, `audit_events`, `bank_transactions`, `invoice_lines`, `meter_events`, `import_external_refs`, `consent_records`.
 - Bất biến **nội dung tiền** sau một mốc (trigger chặn đổi các cột tiền, cho phép đúng các cột trạng thái được liệt kê): `payments` (sau `confirmed`), `invoices` (sau khi phát hành; chỉ `allocated_total` đổi được), `charges` (sau khi có dòng phiếu), `lease_versions` (sau ký), `handovers` (sau xác nhận), `lease_settlements` (sau duyệt), `shifts` (sau `closed`), `period_locks` (chỉ điền cột mở khoá), `import_batches` (sau `committed`), `inbox` (`raw`, `payload_hash`).
 - Sửa sai bằng chứng từ **đảo/điều chỉnh** tham chiếu bản gốc, có lý do và người duyệt; sau `period_locks` hoặc chốt ca chỉ thêm được chứng từ ghi ngày trong kỳ đang mở (INV-F6).
 
@@ -1803,7 +1803,7 @@ Loại: M (chỉ worker đổi trạng thái)
 - Bất biến: INV-G6 (audit `export.requested`, `export.completed`, `export.downloaded`), INV-G1.
 
 ### `product_events`
-Sự kiện analytics sản phẩm tự host (PROJECT §2: M-01, M-03, M-05; D-118): chỉ ID nội bộ, enum, số đếm — không PII. Ghi duy nhất qua `track()` (`packages/app/src/analytics`), chỉ khi chủ thể đồng ý mục đích analytics (mặc định từ chối tới khi nối `consent_records`, T-2310).
+Sự kiện analytics sản phẩm tự host (PROJECT §2: M-01, M-03, M-05; D-118): chỉ ID nội bộ, enum, số đếm — không PII. Ghi duy nhất qua `track()` (`packages/app/src/analytics`), chỉ khi chủ thể đồng ý mục đích analytics (bộ kiểm đọc `consent_records` — T-2310; không có người thao tác/không có đồng ý ⇒ không ghi).
 
 Chủ module: Analytics
 
@@ -1822,6 +1822,29 @@ Loại: H (hạ tầng đo lường: app chỉ chèn; worker xoá quá hạn và
 - RLS/quyền đặc biệt: `app_runtime` chỉ `INSERT` (không SELECT/UPDATE/DELETE); `app_worker` không có quyền bảng, chỉ `app.purge_product_events(now, months, limit)` và `app.unlink_product_events_actor(user_id)`.
 - Bất biến: INV-G1; không PII (test `analytics.test.ts`, rào `no-sdk.test.ts`).
 
+### `consent_records`
+Bằng chứng đồng ý theo mục đích của **tài khoản** (CMP-RIGHTS-001/004, CMP-VN-001; D-122, T-2310): mỗi lần cho hoặc rút là một hàng mới; trạng thái hiện tại của (người, mục đích) = hàng mới nhất theo (`recorded_at`, `seq`). "Thời điểm cho"/"thời điểm rút" là `recorded_at` của hàng `grant`/`withdraw`. Danh mục mục đích ở `packages/app/src/privacy/purposes.ts` (chỉ mục cần đồng ý mới có hàng).
+
+Chủ module: Privacy
+
+Loại: A · không có `organization_id` (đồng ý thuộc tài khoản, có từ lúc đăng ký — ngoại lệ IND-SAAS-001 ở `schema-guards.no-org.json`)
+
+| Cột | Kiểu | Null | Ràng buộc/mặc định | Ghi chú |
+|---|---|---|---|---|
+| seq | bigint | không | `GENERATED ALWAYS AS IDENTITY` | Phá hoà khi hai hàng cùng transaction (`now()` bằng nhau) |
+| subject_user_id | uuid | không | **không FK** (không FK từ bảng nghiệp vụ sang `auth`) | Id `auth.user` của chủ thể; số phận hàng khi xoá tài khoản: T-2311 |
+| purpose | text | không | `CHECK (purpose IN ('analytics'))` | Khớp `CONSENT_PURPOSES` (test `consent.db.test.ts`); thêm mục đích = migration nới CHECK |
+| action | text | không | `CHECK (action IN ('grant','withdraw'))` | |
+| policy_version | text | không | `CHECK (policy_version ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}(\.[0-9]{1,3})?$')` | Phiên bản văn bản đã hiển thị; đồng ý theo bản cũ không còn hiệu lực |
+| channel | text | không | `CHECK (channel IN ('signup','invite','portal','settings'))` | Nơi thu/rút |
+| ui_snapshot_hash | text | không | `CHECK (ui_snapshot_hash ~ '^[0-9a-f]{64}$')` | sha-256 của văn bản hiển thị, server tự tính từ catalog |
+| recorded_at | timestamptz | không | mặc định `now()` | Do CSDL đặt: `app_runtime` không có quyền INSERT cột này |
+
+- Khoá/index: `ix (subject_user_id, purpose, recorded_at DESC, seq DESC)` (hàng mới nhất, lịch sử theo người).
+- Ràng buộc đặc biệt: **append-only** — trigger `BEFORE UPDATE OR DELETE` (`app.forbid_mutation`) và trigger statement-level chặn `TRUNCATE`; `app_runtime` chỉ `SELECT` + `INSERT (id, subject_user_id, purpose, action, policy_version, channel, ui_snapshot_hash)`.
+- RLS/quyền đặc biệt: RLS bật + FORCE theo **ngữ cảnh người dùng** `app.user_id` (`withUserContext` của `@hm/db`, từ phiên đã xác minh ở server; `app.current_user_id()` ném `42501 USER_CONTEXT_MISSING` khi thiếu): chỉ đọc/chèn hàng `subject_user_id = app.current_user_id()`. `app_worker` không có quyền.
+- Bất biến: INV-G4; `track()` (analytics) chỉ ghi khi hàng mới nhất của (người thao tác, `analytics`) là `grant` theo đúng phiên bản văn bản hiện hành.
+
 ## 4. Bảng do Better Auth quản lý (schema `auth`)
 
 Better Auth chạy trong `apps/web`, dùng adapter Kysely/`pg` trên **cùng** Postgres, và tự tạo/quản lý các bảng dưới đây trong schema `auth` (ADR-0002). ERD không định nghĩa cột của chúng; danh sách chỉ để biết ranh giới. Tên cột và kiểu `id` (uuid hay text) do Better Auth sinh ở T-006 và phải đối chiếu với bản ≥ 1.7.9 đang ghim (chưa xác minh).
@@ -1836,6 +1859,7 @@ Better Auth chạy trong `apps/web`, dùng adapter Kysely/`pg` trên **cùng** P
 
 Hàm `SECURITY DEFINER` phạm vi hẹp (thay cho BYPASSRLS/policy rộng; mỗi hàm `REVOKE ALL FROM PUBLIC` rồi chỉ cấp cho role cần):
 `app.list_my_organizations(auth_user_id)` (liệt kê tổ chức của chính người đăng nhập trước khi có ngữ cảnh tổ chức — 0002) ·
+`app.current_user_id()` (không SECURITY DEFINER: đọc ngữ cảnh người dùng `app.user_id` cho RLS bảng theo tài khoản `consent_records` — 0068) ·
 `app.outbox_claim`/`app.outbox_mark` (relay của worker — 0003) · `app.expire_holds` (job — 0004) ·
 `app.receiving_account_owner` (định tuyến webhook ngân hàng — 0005) · `app.actor_role()` (RLS lớp 3 theo vai trò cho giấy tờ — 0006).
 `app.rate_limit_hit(scope, subject, limit, window_seconds, now)` (bộ đếm giới hạn tần suất dùng chung giữa instance cho tải file/nhập liệu/webhook — bảng toàn cục `rate_limit_counters`, khoá advisory theo (scope, subject), lượt bị từ chối không tăng bộ đếm — 0053).

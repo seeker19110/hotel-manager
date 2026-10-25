@@ -992,6 +992,7 @@ describe("BE-API-009 — route không guard = danh sách công khai đã duyệt
     "v1/[module]/[command]/route.ts": /handleCommand|handleQuery/,
     "v1/commands/[id]/route.ts": /handleCommandStatus/,
     "v1/me/route.ts": /getSession/,
+    "v1/me/consents/route.ts": /handleGetConsents[\s\S]*handleSetConsent/,
     "v1/session/switchOrganization/route.ts": /handleSwitchOrganization/,
     "v1/files/upload/route.ts": /handleFileUpload/,
     "v1/import/upload/route.ts": /handleImportUpload/,
@@ -1029,6 +1030,10 @@ describe("BE-API-009 — route không guard = danh sách công khai đã duyệt
       if (!/actorFromRequest\(/.test(text) && inner) text = fnBody(inner);
       expect(text, fn).toMatch(/actorFromRequest\(/);
     }
+    // /api/v1/me/consents: không ngữ cảnh tổ chức (đồng ý thuộc tài khoản) — cả GET và POST đi qua `sessionUser` (getSession → 401).
+    const consents = readFileSync(new URL("./consents.ts", import.meta.url), "utf8");
+    expect(consents).toMatch(/async function sessionUser[\s\S]*deps\.getSession\(req\.headers\)/);
+    expect(consents.match(/await sessionUser\(req, deps, correlationId\)/g)).toHaveLength(2);
     // /api/v1/me: route lấy phiên (getSession) và giao cho handleMe; handleMe trả 401 khi không có người dùng (AUD-XFEAT-004).
     const me = routes.find((r) => r.rel === "v1/me/route.ts")?.text ?? "";
     expect(me).toMatch(/getSession\(/);
@@ -1149,6 +1154,8 @@ describe("BASE-SEC-001 — entrypoint ngoài registry: đầu vào xấu → 4xx
         "switch-organization.ts",
         /z\.strictObject\([\s\S]*safeParse/,
       ],
+      // GET chỉ nhận `download=1` (so sánh bằng hằng); POST schema strict (mục đích/kênh enum) — test đầu vào xấu ở consent.db.test.ts.
+      "v1/me/consents/route.ts": ["consents.ts", /z\.strictObject\([\s\S]*safeParse/],
       "v1/files/upload/route.ts": ["file-upload.ts", /OWNER_TYPES\.includes[\s\S]*UUID\.test\(propertyId\)/],
       "v1/import/upload/route.ts": ["import-upload.ts", /UUID\.test\(propertyId\)[\s\S]*kind\.length > 40/],
       "v1/webhooks/[provider]/[account]/route.ts": [

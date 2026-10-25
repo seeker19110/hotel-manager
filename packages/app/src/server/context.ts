@@ -1,9 +1,11 @@
 // Ngữ cảnh server dùng chung (khởi tạo lười khi request đầu tiên tới; build không cần env).
 import { Kysely, PostgresDialect } from "kysely";
+import { configureAnalytics } from "../analytics/index.ts";
 import { type Auth, createAuth, createSignInOtpSender } from "../auth/index.ts";
 import { type AppConfig, loadConfig } from "../config/index.ts";
 import { createPool } from "../db/index.ts";
 import { createLogger, type Logger, setAppLogger } from "../logging/index.ts";
+import { createAnalyticsConsentCheck } from "../privacy/index.ts";
 import { type AppServices, createServices } from "./services.ts";
 
 export interface ServerContext {
@@ -35,5 +37,8 @@ export function serverContext(env: Record<string, string | undefined> = process.
     log,
     services: createServices(config),
   };
+  // Analytics chỉ ghi khi chủ thể đồng ý (D-118/D-122): nối bộ kiểm `consent_records` thay cho mặc định từ chối, MỘT lần lúc dựng
+  // ngữ cảnh — trước mọi lệnh của tiến trình web. Worker không phát sự kiện analytics (chỉ lệnh qua web gọi `trackCommand`).
+  configureAnalytics({ consent: createAnalyticsConsentCheck(ctx.db) });
   return ctx;
 }

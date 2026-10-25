@@ -3,7 +3,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
-import { SelectField, TextField } from "./field.tsx";
+import { CheckboxField, SelectField, TextField } from "./field.tsx";
 
 afterEach(cleanup);
 
@@ -85,5 +85,25 @@ describe("SelectField", () => {
     render(<SelectField label="Mức ưu tiên" options={options} error="Chọn một mức" />);
     expect(screen.getByRole("alert").textContent).toBe("Chọn một mức");
     expect(screen.getByRole("combobox", { name: "Mức ưu tiên" }).getAttribute("aria-invalid")).toBe("true");
+  });
+});
+
+describe("CheckboxField (ô đồng ý — T-2310)", () => {
+  it("mặc định KHÔNG tick; nhãn bấm được đổi trạng thái; gợi ý gắn qua aria-describedby", async () => {
+    render(<CheckboxField label="Tôi đồng ý đo lường" hint="Không bắt buộc" name="c" />);
+    const box = screen.getByLabelText("Tôi đồng ý đo lường") as HTMLInputElement;
+    expect(box.type).toBe("checkbox");
+    expect(box.checked).toBe(false);
+    const [hintId] = describedBy(box);
+    expect(document.getElementById(hintId as string)?.textContent).toBe("Không bắt buộc");
+    await userEvent.click(screen.getByText("Tôi đồng ý đo lường"));
+    expect(box.checked).toBe(true);
+  });
+
+  it("không gợi ý ⇒ không aria-describedby; defaultChecked theo trạng thái đã lưu", () => {
+    render(<CheckboxField label="Đồng ý" defaultChecked />);
+    const box = screen.getByLabelText("Đồng ý") as HTMLInputElement;
+    expect(box.hasAttribute("aria-describedby")).toBe(false);
+    expect(box.checked).toBe(true);
   });
 });

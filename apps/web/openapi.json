@@ -87,6 +87,9 @@
       "name": "portal"
     },
     {
+      "name": "privacy"
+    },
+    {
       "name": "property"
     },
     {
@@ -8585,6 +8588,123 @@
           },
           "401": {
             "$ref": "#/components/responses/Error401"
+          }
+        }
+      }
+    },
+    "/api/v1/me/consents": {
+      "get": {
+        "operationId": "me.getConsents",
+        "tags": ["privacy"],
+        "summary": "Trạng thái đồng ý theo mục đích + toàn bộ lịch sử của chính người đăng nhập (`?download=1` ⇒ tệp JSON tải về)",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "download",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["1"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Mục đích (cần/không cần đồng ý, trạng thái) và lịch sử cho/rút, cũ → mới",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["purposes", "history"],
+                  "properties": {
+                    "purposes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "history": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          }
+        }
+      },
+      "post": {
+        "operationId": "me.setConsent",
+        "tags": ["privacy"],
+        "summary": "Cho (granted=true) hoặc rút (granted=false) đồng ý một mục đích — idempotent theo trạng thái, không cần Idempotency-Key",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["purpose", "granted", "channel"],
+                "additionalProperties": false,
+                "properties": {
+                  "purpose": {
+                    "type": "string",
+                    "enum": ["analytics"]
+                  },
+                  "granted": {
+                    "type": "boolean"
+                  },
+                  "channel": {
+                    "type": "string",
+                    "enum": ["signup", "invite", "portal", "settings"]
+                  },
+                  "policy_version": {
+                    "type": "string",
+                    "maxLength": 20
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "`recorded` (thêm một hàng) hoặc `unchanged` (trạng thái đã đúng như yêu cầu)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
           }
         }
       }

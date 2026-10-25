@@ -3338,5 +3338,73 @@
   "shifts.assignee_invalid": {
     "message": "Người được gán phải là nhân viên còn hiệu lực của cơ sở",
     "description": "Thông điệp lỗi API (problem+json) trả cho client khi người được gán chịu trách nhiệm chênh lệch không phải nhân viên còn hiệu lực của cơ sở."
+  },
+  "privacy.purpose.service.title": {
+    "message": "Cung cấp dịch vụ",
+    "description": "Tên mục đích 'cung cấp dịch vụ' (thực hiện hợp đồng). Văn bản mục đích xử lý dữ liệu (danh mục packages/app/src/privacy/purposes.ts) hiển thị ở trang Quyền riêng tư và ô đồng ý; đổi chữ của mục cần đồng ý ⇒ tăng `version` của mục (băm ui_snapshot_hash đổi)."
+  },
+  "privacy.purpose.service.description": {
+    "message": "Quản lý phòng, hợp đồng, kỳ thu, thanh toán và tài khoản đăng nhập của bạn.",
+    "description": "Mô tả mục đích 'cung cấp dịch vụ'. Văn bản mục đích xử lý dữ liệu (danh mục packages/app/src/privacy/purposes.ts) hiển thị ở trang Quyền riêng tư và ô đồng ý; đổi chữ của mục cần đồng ý ⇒ tăng `version` của mục (băm ui_snapshot_hash đổi)."
+  },
+  "privacy.purpose.service.data": {
+    "message": "Tên, email, số điện thoại, dữ liệu hợp đồng, phiếu thu và thanh toán do bạn hoặc cơ sở nhập.",
+    "description": "Loại dữ liệu của mục đích 'cung cấp dịch vụ'. Văn bản mục đích xử lý dữ liệu (danh mục packages/app/src/privacy/purposes.ts) hiển thị ở trang Quyền riêng tư và ô đồng ý; đổi chữ của mục cần đồng ý ⇒ tăng `version` của mục (băm ui_snapshot_hash đổi)."
+  },
+  "privacy.purpose.service.recipients": {
+    "message": "Hotel Manager và cơ sở cho thuê/lưu trú bạn làm việc cùng. Không bán hay chia sẻ cho bên thứ ba.",
+    "description": "Bên nhận của mục đích 'cung cấp dịch vụ'. Văn bản mục đích xử lý dữ liệu (danh mục packages/app/src/privacy/purposes.ts) hiển thị ở trang Quyền riêng tư và ô đồng ý; đổi chữ của mục cần đồng ý ⇒ tăng `version` của mục (băm ui_snapshot_hash đổi)."
+  },
+  "privacy.purpose.service.basis": {
+    "message": "Thực hiện hợp đồng — không cần đồng ý riêng.",
+    "description": "Cơ sở pháp lý của mục đích 'cung cấp dịch vụ'. Văn bản mục đích xử lý dữ liệu (danh mục packages/app/src/privacy/purposes.ts) hiển thị ở trang Quyền riêng tư và ô đồng ý; đổi chữ của mục cần đồng ý ⇒ tăng `version` của mục (băm ui_snapshot_hash đổi)."
+  },
+  "privacy.purpose.legal.title": {
+    "message": "Nghĩa vụ pháp lý và an toàn hệ thống",
+    "description": "Tên mục đích 'nghĩa vụ pháp lý'. Văn bản mục đích xử lý dữ liệu (danh mục packages/app/src/privacy/purposes.ts) hiển thị ở trang Quyền riêng tư và ô đồng ý; đổi chữ của mục cần đồng ý ⇒ tăng `version` của mục (băm ui_snapshot_hash đổi)."
+  },
+  "privacy.purpose.legal.description": {
+    "message": "Thông báo lưu trú, lưu chứng từ thu chi và nhật ký an toàn theo quy định.",
+    "description": "Mô tả mục đích 'nghĩa vụ pháp lý'. Văn bản mục đích xử lý dữ liệu (danh mục packages/app/src/privacy/purposes.ts) hiển thị ở trang Quyền riêng tư và ô đồng ý; đổi chữ của mục cần đồng ý ⇒ tăng `version` của mục (băm ui_snapshot_hash đổi)."
+  },
+  "privacy.purpose.legal.data": {
+    "message": "Thông tin lưu trú, giấy tờ tùy thân, chứng từ thu chi, nhật ký đăng nhập.",
+    "description": "Loại dữ liệu của mục đích 'nghĩa vụ pháp lý'. Văn bản mục đích xử lý dữ liệu (danh mục packages/app/src/privacy/purposes.ts) hiển thị ở trang Quyền riêng tư và ô đồng ý; đổi chữ của mục cần đồng ý ⇒ tăng `version` của mục (băm ui_snapshot_hash đổi)."
+  },
+  "privacy.purpose.legal.recipients": {
+    "message": "Cơ quan nhà nước có thẩm quyền khi pháp luật yêu cầu.",
+    "description": "Bên nhận của mục đích 'nghĩa vụ pháp lý'. Văn bản mục đích xử lý dữ liệu (danh mục packages/app/src/privacy/purposes.ts) hiển thị ở trang Quyền riêng tư và ô đồng ý; đổi chữ của mục cần đồng ý ⇒ tăng `version` của mục (băm ui_snapshot_hash đổi)."
+  },
+  "privacy.purpose.legal.basis": {
+    "message": "Nghĩa vụ pháp lý — không cần đồng ý riêng.",
+    "description": "Cơ sở pháp lý của mục đích 'nghĩa vụ pháp lý'. Văn bản mục đích xử lý dữ liệu (danh mục packages/app/src/privacy/purposes.ts) hiển thị ở trang Quyền riêng tư và ô đồng ý; đổi chữ của mục cần đồng ý ⇒ tăng `version` của mục (băm ui_snapshot_hash đổi)."
+  },
+  "privacy.purpose.analytics.title": {
+    "message": "Đo lường để cải thiện sản phẩm",
+    "description": "Tên mục đích 'analytics' (cần đồng ý). Văn bản mục đích xử lý dữ liệu (danh mục packages/app/src/privacy/purposes.ts) hiển thị ở trang Quyền riêng tư và ô đồng ý; đổi chữ của mục cần đồng ý ⇒ tăng `version` của mục (băm ui_snapshot_hash đổi)."
+  },
+  "privacy.purpose.analytics.description": {
+    "message": "Ghi lại các thao tác chính (ví dụ phát hành kỳ thu, nhận phòng) để biết tính năng nào hữu ích và chỗ nào khó dùng.",
+    "description": "Mô tả mục đích 'analytics'. Văn bản mục đích xử lý dữ liệu (danh mục packages/app/src/privacy/purposes.ts) hiển thị ở trang Quyền riêng tư và ô đồng ý; đổi chữ của mục cần đồng ý ⇒ tăng `version` của mục (băm ui_snapshot_hash đổi)."
+  },
+  "privacy.purpose.analytics.data": {
+    "message": "Mã nội bộ của tài khoản, tên thao tác, thời điểm và số đếm. Không ghi tên, email, số điện thoại, số tiền hay địa chỉ IP; không dùng cookie theo dõi.",
+    "description": "Loại dữ liệu của mục đích 'analytics'. Văn bản mục đích xử lý dữ liệu (danh mục packages/app/src/privacy/purposes.ts) hiển thị ở trang Quyền riêng tư và ô đồng ý; đổi chữ của mục cần đồng ý ⇒ tăng `version` của mục (băm ui_snapshot_hash đổi)."
+  },
+  "privacy.purpose.analytics.recipients": {
+    "message": "Chỉ Hotel Manager; lưu trên máy chủ tự vận hành tại Việt Nam, giữ 13 tháng, không chia sẻ cho bên thứ ba.",
+    "description": "Bên nhận của mục đích 'analytics'. Văn bản mục đích xử lý dữ liệu (danh mục packages/app/src/privacy/purposes.ts) hiển thị ở trang Quyền riêng tư và ô đồng ý; đổi chữ của mục cần đồng ý ⇒ tăng `version` của mục (băm ui_snapshot_hash đổi)."
+  },
+  "privacy.purpose.analytics.basis": {
+    "message": "Chỉ khi bạn đồng ý. Bạn có thể rút lại bất cứ lúc nào ở trang Quyền riêng tư.",
+    "description": "Cơ sở pháp lý của mục đích 'analytics'. Văn bản mục đích xử lý dữ liệu (danh mục packages/app/src/privacy/purposes.ts) hiển thị ở trang Quyền riêng tư và ô đồng ý; đổi chữ của mục cần đồng ý ⇒ tăng `version` của mục (băm ui_snapshot_hash đổi)."
+  },
+  "privacy.purpose.analytics.checkbox": {
+    "message": "Tôi đồng ý cho Hotel Manager đo lường cách tôi dùng sản phẩm (không bắt buộc)",
+    "description": "Nhãn ô đồng ý analytics (KHÔNG tick sẵn) ở đăng ký, nhận lời mời, portal và trang Quyền riêng tư. Văn bản mục đích xử lý dữ liệu (danh mục packages/app/src/privacy/purposes.ts) hiển thị ở trang Quyền riêng tư và ô đồng ý; đổi chữ của mục cần đồng ý ⇒ tăng `version` của mục (băm ui_snapshot_hash đổi)."
+  },
+  "privacy.policy_outdated": {
+    "message": "Nội dung đã được cập nhật. Vui lòng tải lại trang để xem bản mới trước khi chọn.",
+    "description": "`title` problem+json (409 VERSION_CONFLICT) khi POST /api/v1/me/consents gửi đồng ý theo phiên bản văn bản cũ hơn bản hiện hành của mục đích."
   }
 }

@@ -33,6 +33,7 @@
 | `/thong-bao` | trang | GET | SSR động | no-store (proxy) | nhân viên đã đăng nhập và chọn tổ chức (`withActor`); vai trò `tenant` bị chuyển sang `/portal`; quyền chi tiết kiểm lại ở server mỗi lệnh/truy vấn | Thông báo trong ứng dụng của người dùng |
 | `/chon-to-chuc` | trang | GET | SSR động | no-store (proxy) | người dùng đã đăng nhập (`currentSession`); chưa đăng nhập → `/dang-nhap` | Chọn tổ chức (và cơ sở) làm việc; chưa có tổ chức thì tạo tổ chức mới (`org.create`) |
 | `/bao-mat` | trang | GET | SSR động (nội dung phía client) | no-store (proxy) | người dùng đã đăng nhập (kiểm phía client qua `/api/v1/me`; chưa đăng nhập → nút đăng nhập); bật TOTP qua `/api/auth/two-factor/*` | Bảo mật tài khoản: bật xác thực hai lớp (TOTP) |
+| `/quyen-rieng-tu` | trang | GET | SSR động | no-store (proxy) | người dùng đã đăng nhập (`currentSession`, không cần tổ chức — nhân viên và người thuê); chưa đăng nhập → `/dang-nhap` (`?kenh=portal` → `/dang-nhap/nguoi-thue`); dữ liệu qua RLS theo người dùng (`app.user_id`); lưu lựa chọn bằng POST `/api/v1/me/consents` | Quyền riêng tư: mục đích xử lý (dữ liệu, bên nhận, cơ sở, phiên bản), bật/tắt đồng ý cùng số bước, lịch sử + tải về |
 | `/dang-nhap` | trang | GET | SSR động | no-store (proxy) | công khai (biểu mẫu; xác thực qua `/api/auth`) | Đăng nhập nhân viên (email, mật khẩu, TOTP) |
 | `/dang-nhap/nguoi-thue` | trang | GET | SSR động | no-store (proxy) | công khai (biểu mẫu; xác thực qua `/api/auth`) | Đăng nhập người thuê bằng mã OTP qua email |
 | `/dang-ky` | trang | GET | SSR động | no-store (proxy) | công khai (biểu mẫu; đăng ký qua `/api/auth/sign-up/email`, giới hạn tần suất theo IP của Better Auth) | Tạo tài khoản (email, mật khẩu ≥ 10 ký tự), rồi tạo tổ chức đầu tiên |
@@ -55,6 +56,7 @@
 | `/api/v1/commands/[id]` | API | GET | động (`force-dynamic`) | no-store (proxy) | phiên; chỉ người tạo hoặc quản lý | Tra kết quả command |
 | `/api/version` | API | GET | động (`force-dynamic`) | no-store (proxy) | công khai; chỉ trả phiên bản build + phiên bản client tối thiểu | `app.getVersion` (SPEC-pwa S-009) |
 | `/api/v1/me` | API | GET | động (`force-dynamic`) | no-store (proxy) | phiên (401 khi chưa đăng nhập) | Người dùng và tổ chức của họ |
+| `/api/v1/me/consents` | API | GET, POST | động (`force-dynamic`) | no-store (proxy) | phiên (401 khi chưa đăng nhập); RLS theo người dùng; POST cùng origin, không cần `Idempotency-Key` (idempotent theo trạng thái) | Đồng ý theo mục đích: trạng thái + lịch sử (tải về), cho/rút |
 | `/api/v1/session/switchOrganization` | API | POST | động (`force-dynamic`) | no-store (proxy) | phiên + membership; cùng origin; `Idempotency-Key` | Đổi tổ chức/cơ sở đang chọn |
 | `/api/v1/files/upload` | API | POST | động (`force-dynamic`) | no-store (proxy) | phiên + quyền theo cơ sở (`owner_type` = `work_order` hoặc `payment_claim`); cùng origin; `Idempotency-Key` | Tải ảnh sự cố/chứng từ |
 | `/api/v1/import/upload` | API | POST | động (`force-dynamic`) | no-store (proxy) | phiên + quyền import; cùng origin | Tải file import Excel/CSV |
@@ -67,5 +69,6 @@
 - **Không có route tĩnh theo người dùng:** trang động hết (layout gốc gọi `connection()` để Next gắn nonce CSP vào script). Cache dùng chung cho dữ liệu theo người dùng/tổ chức bị cấm (ADR-0004).
 - **Nhóm nhân viên** (`withActor`): chưa đăng nhập → `/dang-nhap`; chưa chọn tổ chức → `/chon-to-chuc`; vai trò bắt buộc MFA mà chưa bật → thông báo, không có dữ liệu.
 - **Nhóm người thuê** (`withPortal`): vai trò khác `tenant` → `/phong`; mất quyền → thông báo "Không còn truy cập".
+- **Nhóm theo tài khoản** (`/bao-mat`, `/quyen-rieng-tu`, `/chon-to-chuc`): chỉ cần phiên, không cần tổ chức; dữ liệu theo người dùng.
 - **Nhóm công khai có token** (`/huy-dang-ky`, `/khach/luot-o/[id]`, `/api/v1/portal/guest/*`, `/api/v1/notifications/unsubscribe`, webhook): không phiên; mọi quyết định dựa vào token/chữ ký kiểm ở server.
 - **Thêm route mới:** thêm một dòng ở bảng, chọn nhóm, nêu quyền; nếu muốn cache hoặc render tĩnh thì mở ADR (ADR-0004 "Điều kiện xem lại").

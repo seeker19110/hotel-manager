@@ -873,3 +873,10 @@
 - Chọn: Chặn vòng, chờ người merge #137; sau merge dựng lại nhánh từ main và làm lát D
 - Lý do (tiêu chí chất lượng cuối): (1) an toàn: PR ngoại lệ cứng phải rà được — trộn auth (lát D/E) với dữ liệu (lát C) làm người duyệt khó bắt lỗi không đảo ngược; luật mỗi lát một PR; (2) đường lùi: revert từng lát; (5) tốc độ thua vì nút thắt là người merge, dồn thêm không nhanh hơn
 - Đường lùi: loop resume rồi làm lát D trên nhánh dựng lại từ main
+
+### D-122 · 2026-10-25T22:56:22+00:00 · T-2310: phạm vi và cách thu/rút đồng ý (CMP-RIGHTS-001/004, CMP-VN-001)
+
+- Phương án: (1) Bảng consent_records append-only theo tài khoản (auth user), danh mục mục đích trong mã (hiện chỉ 'analytics' cần đồng ý; mục đích hợp đồng/nghĩa vụ pháp lý ghi rõ là không cần đồng ý); ô chọn KHÔNG tick sẵn ở đăng ký, nhận lời mời, portal; trang Quyền riêng tư bật/tắt cùng số bước để rút; nối bộ kiểm đồng ý của analytics (cache theo request); không có bên thứ ba nhận ⇒ lan tới bên thứ ba là không áp dụng · (2) Đồng ý theo hồ sơ người (persons) do cơ sở lưu trú thu · (3) Banner cookie phía client
+- Chọn: Bảng consent_records append-only theo tài khoản (auth user), danh mục mục đích trong mã (hiện chỉ 'analytics' cần đồng ý; mục đích hợp đồng/nghĩa vụ pháp lý ghi rõ là không cần đồng ý); ô chọn KHÔNG tick sẵn ở đăng ký, nhận lời mời, portal; trang Quyền riêng tư bật/tắt cùng số bước để rút; nối bộ kiểm đồng ý của analytics (cache theo request); không có bên thứ ba nhận ⇒ lan tới bên thứ ba là không áp dụng
+- Lý do (tiêu chí chất lượng cuối): (1) đúng: Luật 91/2025 Đ.9 đồng ý theo từng mục đích, có bằng chứng; tài khoản là chủ thể tự thao tác được; dữ liệu khách/người thuê do cơ sở là bên kiểm soát quyết — ngoài phạm vi; không cookie analytics nên banner thừa; (2) append-only, rút = bản ghi mới, đảo ngược được; (3) đơn giản, test được
+- Đường lùi: Revert PR; migration có down; bộ kiểm analytics trở về mặc định từ chối

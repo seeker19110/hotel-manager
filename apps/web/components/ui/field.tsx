@@ -66,3 +66,30 @@ export function SelectField({ label, hint, error, options, ...rest }: SelectFiel
     </div>
   );
 }
+
+interface CheckboxFieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "id" | "type"> {
+  label: string;
+  hint?: string | undefined;
+}
+
+/**
+ * Ô chọn có nhãn (đồng ý không bắt buộc — T-2310). Ô vuông 44 px (vùng chạm UX-A11Y-001) đứng trước nhãn bấm được; gợi ý gắn bằng
+ * aria-describedby. Không bao giờ tick sẵn trừ khi người gọi truyền `defaultChecked`/`checked` từ trạng thái đã lưu.
+ */
+export function CheckboxField({ label, hint, ...rest }: CheckboxFieldProps) {
+  const id = useId();
+  const hintId = hint ? `${id}-hint` : undefined;
+  return (
+    <div className="check">
+      <input id={id} type="checkbox" aria-describedby={hintId} {...rest} />
+      <div>
+        <label htmlFor={id}>{label}</label>
+        {hint ? (
+          <span id={hintId} className="check__hint">
+            {hint}
+          </span>
+        ) : null}
+      </div>
+    </div>
+  );
+}

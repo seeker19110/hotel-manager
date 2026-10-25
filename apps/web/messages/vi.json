@@ -4098,5 +4098,129 @@
   "nav.label": {
     "message": "Chức năng",
     "description": "Nhãn đọc cho trình đọc màn hình của thanh điều hướng chính."
+  },
+  "privacy_page.metadata.title": {
+    "message": "Quyền riêng tư",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu (T-2310, D-122): tiêu đề tab trình duyệt."
+  },
+  "privacy_page.page.title": {
+    "message": "Quyền riêng tư",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu (T-2310, D-122): tiêu đề h1."
+  },
+  "privacy_page.intro": {
+    "message": "Dữ liệu nào được xử lý, để làm gì, ai nhận — và những mục cần bạn đồng ý. Bạn đổi lựa chọn bất cứ lúc nào với cùng số bước như lúc chọn.",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu (T-2310, D-122): đoạn giới thiệu đầu trang."
+  },
+  "privacy_page.fact.data": {
+    "message": "Dữ liệu",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu (T-2310, D-122): nhãn dòng 'loại dữ liệu' của một mục đích."
+  },
+  "privacy_page.fact.recipients": {
+    "message": "Bên nhận",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu (T-2310, D-122): nhãn dòng 'bên nhận dữ liệu' của một mục đích."
+  },
+  "privacy_page.fact.basis": {
+    "message": "Cơ sở xử lý",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu (T-2310, D-122): nhãn dòng 'cơ sở pháp lý' của một mục đích."
+  },
+  "privacy_page.fact.version": {
+    "message": "Phiên bản nội dung",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu (T-2310, D-122): nhãn dòng 'phiên bản văn bản' (ngày phát hành) của một mục đích."
+  },
+  "privacy_page.status.granted": {
+    "message": "Trạng thái: đang đồng ý (từ {when})",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu (T-2310, D-122): trạng thái mục cần đồng ý khi đang đồng ý; {when} = ngày giờ đồng ý."
+  },
+  "privacy_page.status.not_granted": {
+    "message": "Trạng thái: chưa đồng ý",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu (T-2310, D-122): trạng thái mục cần đồng ý khi chưa từng đồng ý."
+  },
+  "privacy_page.status.withdrawn": {
+    "message": "Trạng thái: đã rút đồng ý ({when})",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu (T-2310, D-122): trạng thái mục cần đồng ý sau khi rút; {when} = ngày giờ rút."
+  },
+  "privacy_page.status.outdated": {
+    "message": "Trạng thái: nội dung đã thay đổi từ lần bạn đồng ý — cần bạn chọn lại",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu (T-2310, D-122): trạng thái khi lần đồng ý gần nhất theo phiên bản văn bản cũ (không còn hiệu lực)."
+  },
+  "privacy_page.status.not_required": {
+    "message": "Không cần đồng ý riêng — áp dụng khi bạn dùng dịch vụ.",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu (T-2310, D-122): dòng cho mục đích không cần đồng ý (hợp đồng, nghĩa vụ pháp lý)."
+  },
+  "privacy_page.history.title": {
+    "message": "Lịch sử lựa chọn",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu (T-2310, D-122): tiêu đề phần lịch sử đồng ý."
+  },
+  "privacy_page.history.empty_title": {
+    "message": "Chưa có lựa chọn nào",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu (T-2310, D-122): trạng thái rỗng của lịch sử đồng ý."
+  },
+  "privacy_page.history.empty_text": {
+    "message": "Mỗi lần bạn đồng ý hoặc rút đồng ý sẽ được ghi lại ở đây.",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu (T-2310, D-122): giải thích ở trạng thái rỗng của lịch sử."
+  },
+  "privacy_page.history.item": {
+    "message": "{action} — {purpose} — {when} — {channel}",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu (T-2310, D-122): một dòng lịch sử: hành động, mục đích, thời điểm, nơi chọn."
+  },
+  "privacy_page.history.action.grant": {
+    "message": "Đồng ý",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu (T-2310, D-122): hành động 'cho đồng ý' trong lịch sử."
+  },
+  "privacy_page.history.action.withdraw": {
+    "message": "Rút đồng ý",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu (T-2310, D-122): hành động 'rút đồng ý' trong lịch sử."
+  },
+  "privacy_page.history.channel.signup": {
+    "message": "khi đăng ký",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu (T-2310, D-122): nơi chọn: form đăng ký."
+  },
+  "privacy_page.history.channel.invite": {
+    "message": "khi nhận lời mời",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu (T-2310, D-122): nơi chọn: trang nhận lời mời."
+  },
+  "privacy_page.history.channel.portal": {
+    "message": "từ cổng người thuê",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu (T-2310, D-122): nơi chọn: portal người thuê."
+  },
+  "privacy_page.history.channel.settings": {
+    "message": "ở trang Quyền riêng tư",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu (T-2310, D-122): nơi chọn: trang Quyền riêng tư."
+  },
+  "privacy_page.history.download": {
+    "message": "Tải lịch sử (JSON)",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu (T-2310, D-122): liên kết tải toàn bộ lịch sử đồng ý dạng JSON (GET /api/v1/me/consents?download=1)."
+  },
+  "privacy_page.link": {
+    "message": "Quyền riêng tư và đồng ý",
+    "description": "Liên kết tới /quyen-rieng-tu từ trang Bảo mật tài khoản và khung portal người thuê (T-2310)."
+  },
+  "consent_toggle.save": {
+    "message": "Lưu lựa chọn",
+    "description": "Nút lưu lựa chọn đồng ý của một mục đích ở trang Quyền riêng tư (cho và rút cùng số bước: đổi ô + Lưu)."
+  },
+  "consent_toggle.saved": {
+    "message": "Đã lưu lựa chọn.",
+    "description": "Thông báo (role=status) sau khi lưu lựa chọn đồng ý thành công."
+  },
+  "consent_toggle.unchanged": {
+    "message": "Lựa chọn không thay đổi.",
+    "description": "Thông báo khi bấm Lưu mà lựa chọn giống trạng thái hiện tại."
+  },
+  "consent_toggle.error.failed": {
+    "message": "Không lưu được lựa chọn. Vui lòng thử lại.",
+    "description": "Lỗi khi lưu lựa chọn đồng ý thất bại (mạng/máy chủ)."
+  },
+  "consent_toggle.error.outdated": {
+    "message": "Nội dung vừa được cập nhật. Tải lại trang để đọc bản mới rồi chọn lại.",
+    "description": "Lỗi 409 khi văn bản mục đích đã có phiên bản mới hơn bản đang hiển thị."
+  },
+  "consent_toggle.error.offline": {
+    "message": "Đang mất mạng — kết nối lại rồi lưu.",
+    "description": "Lỗi khi bấm Lưu lúc ngoại tuyến."
+  },
+  "consent_toggle.error.session": {
+    "message": "Phiên đăng nhập đã hết. Đăng nhập lại rồi lưu.",
+    "description": "Lỗi 401 khi lưu lựa chọn đồng ý."
   }
 }

@@ -54,6 +54,12 @@ export async function withPortal(
         </p>
         <h1>{title}</h1>
         {await render({ actor, orgName })}
+        {/* T-2310: lựa chọn đồng ý của người thuê — liên kết kín đáo cuối trang, không chặn luồng portal. */}
+        <p className="portal-privacy">
+          <a className="btn btn--secondary" href="/quyen-rieng-tu?kenh=portal">
+            {t("privacy_page.link")}
+          </a>
+        </p>
       </main>
     </>
   );

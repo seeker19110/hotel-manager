@@ -1,10 +1,12 @@
 "use client";
 // Đăng ký tài khoản (Better Auth email/mật khẩu, tối thiểu 10 ký tự) rồi đăng nhập luôn → /chon-to-chuc, nơi tạo tổ chức đầu tiên
 // (SPEC-access S-001). Email đã có tài khoản và lỗi chung dùng cùng một thông báo (không lộ email có tồn tại).
+// Ô đồng ý analytics KHÔNG tick sẵn, không bắt buộc (T-2310, D-122); tick thì ghi đồng ý sau khi đăng nhập (kênh `signup`).
 import { type FormEvent, useState } from "react";
+import { type ConsentOffer, offerConsent } from "../../components/privacy/consent-offer.ts";
 import { useOnline } from "../../components/pwa/pwa-shell.tsx";
 import { Button } from "../../components/ui/button.tsx";
-import { TextField } from "../../components/ui/field.tsx";
+import { CheckboxField, TextField } from "../../components/ui/field.tsx";
 import { timedFetch } from "../../lib/fetch-timeout.ts";
 import type { Messages } from "../../lib/i18n.ts";
 import { tm } from "../../lib/i18n-format.ts";
@@ -23,7 +25,13 @@ async function post(path: string, body: unknown) {
   };
 }
 
-export function RegisterForm({ m }: { m: Messages<"register_form." | "auth_form."> }) {
+export function RegisterForm({
+  m,
+  consent,
+}: {
+  m: Messages<"register_form." | "auth_form.">;
+  consent: ConsentOffer;
+}) {
   const online = useOnline();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | undefined>();
@@ -35,6 +43,7 @@ export function RegisterForm({ m }: { m: Messages<"register_form." | "auth_form.
     const email = String(f.get("email") ?? "");
     const password = String(f.get("password") ?? "");
     const name = String(f.get("name") ?? "").trim();
+    const analytics = f.get("analytics_consent") === "on";
     if (!name) return setError(tm(m, "register_form.error.name_required"));
     if (password.length < 10) return setError(tm(m, "register_form.error.password_min"));
     setBusy(true);
@@ -49,6 +58,8 @@ export function RegisterForm({ m }: { m: Messages<"register_form." | "auth_form.
         );
       const s = await post("/api/auth/sign-in/email", { email, password });
       if (!s.ok) return setError(tm(m, "register_form.error.signin_failed"));
+      // Đồng ý chỉ ghi khi người dùng TỰ tick; gửi hỏng thì bỏ qua (mặc định = không đồng ý, chọn lại ở trang Quyền riêng tư).
+      if (analytics) await offerConsent(consent, "signup");
       window.location.assign("/chon-to-chuc");
     } catch {
       setError(tm(m, "auth_form.no_response"));
@@ -82,6 +93,7 @@ export function RegisterForm({ m }: { m: Messages<"register_form." | "auth_form.
         required
         error={error}
       />
+      <CheckboxField label={consent.label} hint={consent.hint} name="analytics_consent" />
       <Button type="submit" loading={busy}>
         {tm(m, "register_form.submit")}
       </Button>

@@ -9,6 +9,7 @@ export {
 export {
   type AnalyticsDb,
   type ConsentCheck,
+  type ConsentEnv,
   type ConsentQuery,
   configureAnalytics,
   type DropReason,

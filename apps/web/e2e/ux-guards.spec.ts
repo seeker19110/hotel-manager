@@ -345,6 +345,7 @@ const ROUTES: Record<string, RouteSpec> = {
   "/offline": fixed("public", "/offline"),
   "/phong": fixed("hotel", "/phong"),
   "/portal": fixed("tenant", "/portal"),
+  "/quyen-rieng-tu": fixed("tenant", "/quyen-rieng-tu?kenh=portal"),
   "/portal/dien-nuoc": fixed("tenant", "/portal/dien-nuoc"),
   "/portal/hop-dong": fixed("tenant", "/portal/hop-dong"),
   "/portal/phieu/[id]": {

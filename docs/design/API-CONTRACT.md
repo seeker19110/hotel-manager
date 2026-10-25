@@ -103,6 +103,7 @@ Danh sách đầy đủ command/query nằm ở `apps/web/openapi.json` (sinh t�
 | GET | `/api/metrics` | Prometheus text; `Authorization: Bearer <token dẫn xuất>`, chỉ nội bộ (RUNBOOK §1) |
 | GET | `/api/version` | Phiên bản build + `min_client_version` (công khai, không dữ liệu người dùng; SPEC-pwa S-009) |
 | GET | `/api/v1/me` | Người dùng, danh sách tổ chức/vai trò, tổ chức đang chọn |
+| GET/POST | `/api/v1/me/consents` | Đồng ý theo mục đích của chính người đăng nhập (T-2310, D-122): GET trạng thái + lịch sử (`?download=1` tải JSON); POST `{purpose, granted, channel, policy_version?}` cho/rút cùng một bước — idempotent theo trạng thái (không cần `Idempotency-Key`), phiên bản văn bản cũ ⇒ 409 `VERSION_CONFLICT` |
 | GET | `/api/v1/commands/{command_id}` | Kết quả một command (chỉ người tạo hoặc quản lý xem được) |
 | POST | `/api/v1/session/switchOrganization` | Đổi tổ chức/cơ sở đang chọn (cần `Idempotency-Key`) |
 | POST | `/api/v1/files/upload` · `/api/v1/import/upload` | Tải file (thân là byte; quét mã độc, kiểm MIME bằng magic bytes) / tải file import |
