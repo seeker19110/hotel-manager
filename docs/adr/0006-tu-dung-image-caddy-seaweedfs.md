@@ -45,6 +45,7 @@ Tự dựng hai image trong repo, multi-stage, mọi `FROM` ghim digest:
   - nhị phân `weed`: 0 lỗ hổng có bản sửa;
   - nhị phân `caddy`: chỉ còn 1 Medium (`go-chi/chi` v5.3.2), dưới ngưỡng chặn;
   - `alpine:3.24.3`: 0.
+  - CI PR #133 (dựng thật): `image-scan` xanh không cần luật bỏ qua nào của hai image; caddy 67,1 MB, seaweedfs 231,1 MB (image chính thức 529,2 MB).
 
 ## Các phương án đã cân nhắc
 
@@ -61,12 +62,15 @@ Tự dựng hai image trong repo, multi-stage, mọi `FROM` ghim digest:
 - Thượng nguồn phát hành image dựng bằng Go ≥ 1.26.9 / x/net ≥ 0.60 trên Alpine đã vá. Khi đó cân nhắc quay lại image chính thức
   (bớt mã tự bảo trì), với điều kiện `image-scan` xanh không cần ngoại lệ.
 - Nâng Caddy hoặc SeaweedFS lên phiên bản mới: sửa `go.mod`/`main.go` (Caddy) hoặc `SEAWEEDFS_VERSION`/`SEAWEEDFS_COMMIT`, cùng PR.
-- Job `image-scan (seaweedfs)` gần chạm trần 20 phút: cân nhắc cache hoặc tách bước dựng.
+- Job `image-scan (seaweedfs)` tiến gần trần 20 phút (đo lần đầu trên CI PR #133: 5 phút 18 giây, bước dựng 170 giây): cân nhắc cache hoặc tách bước dựng.
 
 ## Hệ quả
 
 - Image chạy thật được quét và sinh SBOM đúng thứ được dựng; ngoại lệ grype chỉ còn cho npm đi kèm image node và `zod` 3 của CI.
-- Dựng image cần mạng tới `github.com` (clone SeaweedFS) và `proxy.golang.org`/`sum.golang.org` (module Go) lúc build.
+- Dựng image cần mạng tới `github.com` (clone SeaweedFS) và `proxy.golang.org`/`sum.golang.org` (module Go) lúc build. `go.sum` của
+  SeaweedFS sau `go get` không lưu trong repo — toàn vẹn module dựa sum.golang.org (Caddy: `go.sum` trong repo).
+- Gói Alpine không ghim phiên bản (`apk upgrade`) nên mỗi lần dựng có thể khác nhau; image được quét ngay trong lần dựng đó. Khi có
+  registry production: dựng một lần, quét, ký, triển khai đúng digest (TM-25).
 - Đường lùi: trả `image:` chính thức (digest cũ) trong compose, ma trận `image-scan` và release.yml, rồi khôi phục các luật bỏ qua
   có hạn (lịch sử git của `.grype.yaml`). Không có dữ liệu cần chuyển: volume `seaweed`, `caddy_data`, `caddy_config` giữ nguyên
   đường dẫn và uid như image chính thức.

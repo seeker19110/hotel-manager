@@ -34,7 +34,7 @@ LABEL org.opencontainers.image.title="hm-seaweedfs" \
       org.opencontainers.image.revision="530be3e37337488ecc34d58441e0bc476e121c93" \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.source="https://github.com/seaweedfs/seaweedfs"
-EXPOSE 8080 18080 8333 8888 18888 9333 19333
+EXPOSE 7333 8080 18080 8333 8888 18888 9333 19333
 VOLUME /data
 WORKDIR /data
 ENTRYPOINT ["/entrypoint.sh"]
