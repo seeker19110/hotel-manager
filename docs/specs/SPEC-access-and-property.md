@@ -210,7 +210,7 @@ Hợp đồng chi tiết: `docs/design/API-CONTRACT.md`. Mọi command nhận `I
 `org.listMine` (các tổ chức của người dùng) · `property.list` · `unit.list` {property_id, floor_id?, include_archived?} · `member.list` · `session.listMine` · `approval.listPending` · `context.get`.
 
 ### 5.3 Ma trận quyền (vai trò × hành động)
-Ký hiệu: **Có** = được trong phạm vi cơ sở · **HM** = trong hạn mức, vượt → tạo `approval_requests` · **Mình** = chỉ bản ghi của mình/được giao · **Đọc** = chỉ xem · **Đề nghị** = chỉ lập yêu cầu, không duyệt · **—** = không. `platform_support`: mặc định **—** toàn bộ; chỉ có quyền tạm thời theo F-015.
+Ký hiệu: **Có** = được trong phạm vi cơ sở · **HM** = trong hạn mức, vượt → tạo `approval_requests` · **Mình** = chỉ bản ghi của mình/được giao · **Đọc** = chỉ xem · **Đề nghị** = chỉ lập yêu cầu, không duyệt · **—** = không. `platform_support`: mặc định **—** toàn bộ; chỉ có quyền tạm thời theo F-015 (T-2313, D-122): chủ tổ chức cấp truy cập hỗ trợ có lý do, hạn ≤ 72 giờ, thu hồi được (`support_grants`); khi còn hiệu lực hỗ trợ chỉ **Đọc** `SUPPORT_READ_ACTIONS` (`packages/domain/src/access/matrix.ts`: xem lịch phòng chỉ trạng thái), mọi lệnh ghi → 403, mọi truy cập ghi `audit_events` kèm `support_grant_id`; hết hạn/thu hồi → mất quyền ở request kế tiếp.
 
 | Hành động | owner | manager | front_desk | accountant | housekeeping | maintenance | tenant | guest |
 |---|---|---|---|---|---|---|---|---|
@@ -267,6 +267,7 @@ Ký hiệu: **Có** = được trong phạm vi cơ sở · **HM** = trong hạn 
 | Xử lý phiếu sự cố | Có | Có | — | — | — | Mình | — | — |
 | Xem audit | Có | Có | — | Có (tiền) | — | — | — | — |
 | Xuất dữ liệu (xác thực lại) | Có | — | — | Có (tiền) | — | — | — | — |
+| Cấp/thu hồi truy cập hỗ trợ có thời hạn (`support.grantAccess`/`support.revokeAccess`, F-015) | Có | — | — | — | — | — | — | — |
 
 ³ Đề xuất mặc định, chờ PO chốt (Q-04, Q-06, Q-11). Nguồn vai trò và giới hạn: kế hoạch §03, §16; DOMAIN-MODEL §6.
 

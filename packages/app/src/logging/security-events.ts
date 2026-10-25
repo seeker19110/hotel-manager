@@ -52,6 +52,9 @@ export const SECURITY_EVENTS = [
   "session.revoked",
   // Quyền chủ thể dữ liệu (T-2311): xuất, xoá tài khoản, bật/tắt hạn chế xử lý — chỉ id yêu cầu + loại, không PII.
   "privacy.dsar_requested",
+  // Truy cập hỗ trợ có thời hạn do chủ tổ chức cấp/thu hồi (T-2313, F-015, D-122).
+  "support.access_granted",
+  "support.access_revoked",
 ] as const;
 export type SecurityEventName = (typeof SECURITY_EVENTS)[number];
 export type SecurityOutcome = "success" | "denied" | "failure";

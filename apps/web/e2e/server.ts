@@ -42,6 +42,7 @@ import {
   SESSION_KINDS,
   SMOKE_USER,
   STAFF_TARGET,
+  SUPPORT_AGENT,
   sessionCacheFile,
   unsubFile,
 } from "./fixtures.ts";
@@ -217,6 +218,10 @@ async function seed(adminUrl: string, runtimeUrl: string, secret: string): Promi
     await seedRental(db, auth);
     await seedHotelOrg(db, auth, PORT);
     await seedInvitations(db, auth, secret);
+    // Nhân viên hỗ trợ nền tảng (T-2313): danh bạ do người vận hành ghi — ở đây seed thẳng.
+    const agent = await auth.api.signUpEmail({ body: withSignUpConsent(SUPPORT_AGENT) });
+    await sql`update auth."user" set "emailVerified" = true where id = ${agent.user.id}`.execute(db);
+    await sql`insert into platform_support_users (auth_user_id) values (${agent.user.id})`.execute(db);
     const portal = await seedPortal(db);
     // Liên kết huỷ đăng ký ký số trong email nhắc quá hạn của người thuê An (SPEC-notifications S-010).
     writeFileSync(

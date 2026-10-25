@@ -8,17 +8,20 @@ import {
   acceptInvitation,
   createOrganization,
   createProperty,
+  grantSupportAccess,
   inviteMember,
   listMembers,
   listProperties,
+  listSupportGrants,
   resetMemberMfa,
   revokeAllSessions,
+  revokeSupportAccess,
   updateMemberRole,
   updateMemberScope,
   updateProperty,
 } from "../access/index.ts";
 import { APPROVAL_KINDS, cancelApproval, decideApproval, requestApproval } from "../approvals/index.ts";
-import { getEvent, listEvents } from "../audit/index.ts";
+import { AUDIT_ACTOR_TYPES, type AuditActorType, getEvent, listEvents } from "../audit/index.ts";
 import {
   createPeriod,
   issuePeriod,
@@ -36,7 +39,6 @@ import {
 } from "../deposits/index.ts";
 import {
   downloadExport,
-  EXPORT_KINDS,
   getExportStatus,
   listMyExports,
   requestExport,
@@ -655,19 +657,7 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
   }),
   "exports.request": defineCommand({
     command: "exports.request",
-    input: z.strictObject({
-      kind: z.enum(EXPORT_KINDS),
-      format: z.enum(["csv", "xlsx"]),
-      property_id: z.string().max(64).optional(),
-      filters: z
-        .strictObject({
-          as_of: isoDate.optional(),
-          from: isoDate.optional(),
-          to: isoDate.optional(),
-          correlation_id: z.string().min(1).max(200).optional(),
-        })
-        .optional(),
-    }),
+    input: COMMAND_INPUTS["exports.request"],
     run: async (ctx, i) => ({
       data: await requestExport(ctx, {
         kind: i.kind,
@@ -678,6 +668,11 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
           ...(i.filters?.from ? { from: i.filters.from } : {}),
           ...(i.filters?.to ? { to: i.filters.to } : {}),
           ...(i.filters?.correlation_id ? { correlationId: i.filters.correlation_id } : {}),
+          ...(i.filters?.from_at ? { fromAt: i.filters.from_at } : {}),
+          ...(i.filters?.to_at ? { toAt: i.filters.to_at } : {}),
+          ...(i.filters?.actor_person_id ? { actorPersonId: i.filters.actor_person_id } : {}),
+          ...(i.filters?.action ? { action: i.filters.action } : {}),
+          ...(i.filters?.actor_type ? { actorType: i.filters.actor_type } : {}),
         },
       }),
       httpStatus: 202,
@@ -1505,6 +1500,24 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
       httpStatus: 201,
     }),
   }),
+  "support.grantAccess": defineCommand({
+    command: "support.grantAccess",
+    input: COMMAND_INPUTS["support.grantAccess"],
+    run: async (ctx, i) => ({
+      data: await grantSupportAccess(ctx, { email: i.email, hours: i.hours, reason: i.reason }),
+      httpStatus: 201,
+    }),
+  }),
+  "support.revokeAccess": defineCommand({
+    command: "support.revokeAccess",
+    input: COMMAND_INPUTS["support.revokeAccess"],
+    run: async (ctx, i) => ({
+      data: await revokeSupportAccess(ctx, {
+        grantId: i.grant_id,
+        ...(i.reason === undefined ? {} : { reason: i.reason }),
+      }),
+    }),
+  }),
   "member.updateRole": defineCommand({
     command: "member.updateRole",
     input: COMMAND_INPUTS["member.updateRole"],
@@ -1838,6 +1851,7 @@ export const QUERIES: Readonly<Record<string, AnyQuery>> = {
       to: z.iso.datetime({ offset: true }).optional(),
       property_id: z.string().max(64).optional(),
       actor_person_id: uuid.optional(),
+      actor_type: z.enum(AUDIT_ACTOR_TYPES).optional(),
       entity_type: z.string().min(1).max(64).optional(),
       entity_id: uuid.optional(),
       action: z.string().min(1).max(100).optional(),
@@ -1855,6 +1869,7 @@ export const QUERIES: Readonly<Record<string, AnyQuery>> = {
         ...(i.to ? { to: new Date(i.to) } : {}),
         ...(i.property_id ? { propertyId: i.property_id } : {}),
         ...(i.actor_person_id ? { actorPersonId: i.actor_person_id } : {}),
+        ...(i.actor_type ? { actorType: i.actor_type as AuditActorType } : {}),
         ...(i.entity_type ? { entityType: i.entity_type } : {}),
         ...(i.entity_id ? { entityId: i.entity_id } : {}),
         ...(i.action ? { action: i.action } : {}),
@@ -1863,6 +1878,11 @@ export const QUERIES: Readonly<Record<string, AnyQuery>> = {
         ...(i.cursor ? { cursor: i.cursor } : {}),
         ...(i.limit ? { limit: Number(i.limit) } : {}),
       }),
+  },
+  "support.listGrants": {
+    query: "support.listGrants",
+    input: z.strictObject({}),
+    run: (db, actor) => listSupportGrants(db, actor),
   },
   "audit.getEvent": {
     query: "audit.getEvent",

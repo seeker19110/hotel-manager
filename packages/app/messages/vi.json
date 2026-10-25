@@ -3378,5 +3378,49 @@
   "privacy.dsar.sole_owner": {
     "message": "Bạn đang là chủ sở hữu duy nhất của tổ chức. Hãy chuyển quyền chủ sở hữu cho người khác hoặc xoá tổ chức trước khi xoá tài khoản",
     "description": "`title` problem+json 409 SOLE_OWNER khi xoá tài khoản của owner active duy nhất của một tổ chức (T-2311)."
+  },
+  "pipeline.support_read_only": {
+    "message": "Truy cập hỗ trợ chỉ được xem, không được thay đổi dữ liệu",
+    "description": "Problem title (403 FORBIDDEN) khi nhân viên hỗ trợ nền tảng (platform_support, truy cập tạm thời do chủ tổ chức cấp — F-015) gửi bất kỳ lệnh ghi nào; truy cập hỗ trợ chỉ đọc."
+  },
+  "support.reason_invalid": {
+    "message": "Nhập lý do (1–500 ký tự)",
+    "description": "Lỗi 422 của trường `reason` khi chủ cấp/thu hồi truy cập hỗ trợ (support.grantAccess/revokeAccess) mà lý do rỗng hoặc dài quá 500 ký tự."
+  },
+  "support.hours_invalid": {
+    "message": "Thời hạn phải từ 1 đến {max} giờ",
+    "description": "Lỗi 422 của trường `hours` khi cấp truy cập hỗ trợ: thời hạn ngoài khoảng cho phép; {max} = trần giờ (72)."
+  },
+  "support.grantee_not_found": {
+    "message": "Không có nhân viên hỗ trợ nền tảng với email này",
+    "description": "Lỗi 422 của trường `email` khi cấp truy cập hỗ trợ: email không thuộc danh bạ nhân viên hỗ trợ của nền tảng (hoặc chưa xác minh) — không phân biệt có/không có tài khoản."
+  },
+  "support.grantee_is_member": {
+    "message": "Người này đang là thành viên của tổ chức — không cấp truy cập hỗ trợ được",
+    "description": "Lỗi 409 khi cấp truy cập hỗ trợ cho người đang có membership khác (nhân viên/người thuê) trong cùng tổ chức."
+  },
+  "support.grant_active": {
+    "message": "Nhân viên hỗ trợ này đang có truy cập còn hạn — thu hồi trước khi cấp mới",
+    "description": "Lỗi 409 khi cấp truy cập hỗ trợ trong khi người đó còn một truy cập chưa hết hạn/chưa thu hồi."
+  },
+  "support.grant_not_found": {
+    "message": "Không tìm thấy truy cập hỗ trợ",
+    "description": "Lỗi 404 khi thu hồi truy cập hỗ trợ với id không có trong tổ chức."
+  },
+  "support.grant_already_revoked": {
+    "message": "Truy cập hỗ trợ này đã được thu hồi",
+    "description": "Lỗi 409 khi thu hồi lại một truy cập hỗ trợ đã thu hồi."
+  },
+  "exports.col.outcome": {
+    "message": "Kết quả",
+    "description": "Tiêu đề cột kết quả của hành động (success = thành công, denied = bị từ chối) trong file xuất nhật ký audit (CSV/XLSX)."
+  },
+  "exports.col.actor_type": {
+    "message": "Nguồn",
+    "description": "Tiêu đề cột nguồn của hành động (user = người dùng tổ chức, worker = hệ thống, platform_support = hỗ trợ nền tảng) trong file xuất nhật ký audit."
+  },
+  "exports.col.support_grant": {
+    "message": "Truy cập hỗ trợ (mã — lý do)",
+    "description": "Tiêu đề cột trong file xuất nhật ký audit: mã truy cập hỗ trợ và lý do chủ tổ chức ghi khi cấp, cho hành động của hỗ trợ nền tảng (F-015)."
   }
 }

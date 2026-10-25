@@ -24,6 +24,17 @@ export interface Actor {
   mfaRequired: boolean;
   /** Thời điểm đăng nhập của phiên (Better Auth `session.createdAt`) — thao tác nhạy cảm đòi xác thực lại gần đây. */
   authenticatedAt?: Date;
+  /**
+   * Chỉ với `platform_support` (F-015, D-122): truy cập hỗ trợ CÒN HIỆU LỰC mà actor này dựa vào (chưa thu hồi, chưa hết hạn tại lúc
+   * tra). Mọi audit của actor gắn `support_grant_id` + lý do của grant. Không có grant hiệu lực ⇒ `resolveActor` không trả actor.
+   */
+  supportGrant?: SupportGrantRef;
+}
+
+export interface SupportGrantRef {
+  id: string;
+  reason: string;
+  expiresAt: Date;
 }
 
 export type AccessErrorCode = "UNAUTHENTICATED" | "NOT_FOUND" | "MFA_REQUIRED";

@@ -476,6 +476,8 @@ const ALLOWED_2XX: Record<string, Allowed> = {
     ["housekeeping", "maintenance", "accountant", "front_desk"],
   ],
   "audit.listEvents": ["audit.read", ["accountant"]],
+  // T-2313: danh sách truy cập hỗ trợ — vai trò có `audit.read` (kế toán xem được, chỉ chủ cấp/thu hồi).
+  "support.listGrants": ["audit.read", ["accountant"]],
   "reports.receivables": ["money.read", ["accountant", "front_desk"]],
   "reports.collections": ["money.read", ["accountant", "front_desk"]],
   "reports.depositsHeld": ["money.read", ["accountant", "front_desk"]],
@@ -636,6 +638,8 @@ const NO_PRECONDITION_FIXTURE = [
   "identity.get",
   "person.get",
   "meter.getReadingRoute",
+  // T-2313: thu hồi truy cập hỗ trợ cần một grant có thật (id mẫu ngẫu nhiên ⇒ 404).
+  "support.revokeAccess",
 ];
 
 describe("api5-bfla — vai trò thấp không gọi được chức năng của vai trò cao", () => {

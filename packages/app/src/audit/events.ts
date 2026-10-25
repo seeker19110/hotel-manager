@@ -32,11 +32,17 @@ export const AUDIT_MONEY_GROUPS = [
 
 export const AUDIT_PAGE_MAX = 200;
 
+/** Nguồn của sự kiện (`audit_events.actor_type`): người dùng tổ chức, job hệ thống, hỗ trợ nền tảng (F-015 — có `support_grant_id`). */
+export const AUDIT_ACTOR_TYPES = ["user", "worker", "platform_support"] as const;
+export type AuditActorType = (typeof AUDIT_ACTOR_TYPES)[number];
+
 export interface AuditFilter {
   from?: Date;
   to?: Date;
   propertyId?: string;
   actorPersonId?: string;
+  /** Lọc theo nguồn (vd. chỉ hành động của hỗ trợ nền tảng). */
+  actorType?: AuditActorType;
   entityType?: string;
   entityId?: string;
   action?: string;
@@ -67,6 +73,9 @@ export interface AuditEvent {
   /** "Từ đâu" (CMP-AUDIT-002): IP đã cắt (/24, /48) và User-Agent ≤ 200 ký tự; null = lệnh worker/hệ thống. */
   sourceIp: string | null;
   userAgent: string | null;
+  /** Hành động của hỗ trợ nền tảng: truy cập hỗ trợ (grant) mà nó dựa vào + lý do của grant (T-2313). */
+  supportGrantId: string | null;
+  supportReason: string | null;
 }
 
 const notFound = () => new CommandError("NOT_FOUND", 404, t("common.not_found"));
@@ -110,14 +119,15 @@ function authorizeAudit(actor: Actor, propertyId?: string): void {
 const SELECT = sql`
   select e.id, e.occurred_at, e.property_id, e.actor_type, e.actor_person_id, pe.full_name as actor_name, e.action,
          e.entity_type, e.entity_id, e.before, e.after, e.reason, e.correlation_id, e.command_id, e.outcome,
-         e.source_ip, e.user_agent,
+         e.source_ip, e.user_agent, e.support_grant_id, sg.reason as support_reason,
          to_char(e.occurred_at at time zone coalesce(p.timezone,
                    (select p2.timezone from properties p2 where p2.organization_id = e.organization_id order by p2.created_at, p2.id limit 1),
                    'Asia/Ho_Chi_Minh'), 'YYYY-MM-DD HH24:MI:SS') as occurred_at_local,
          to_char(e.occurred_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as occurred_at_key
   from audit_events e
   left join properties p on p.organization_id = e.organization_id and p.id = e.property_id
-  left join persons pe on pe.organization_id = e.organization_id and pe.id = e.actor_person_id`;
+  left join persons pe on pe.organization_id = e.organization_id and pe.id = e.actor_person_id
+  left join support_grants sg on sg.organization_id = e.organization_id and sg.id = e.support_grant_id`;
 
 interface Row {
   id: string;
@@ -137,6 +147,8 @@ interface Row {
   outcome: string;
   source_ip: string | null;
   user_agent: string | null;
+  support_grant_id: string | null;
+  support_reason: string | null;
   occurred_at_local: string;
   occurred_at_key: string;
 }
@@ -160,6 +172,8 @@ const toEvent = (r: Row): AuditEvent => ({
   outcome: r.outcome,
   sourceIp: r.source_ip,
   userAgent: r.user_agent,
+  supportGrantId: r.support_grant_id,
+  supportReason: r.support_reason,
 });
 
 const moneyOnly = (actor: Actor) =>
@@ -182,7 +196,11 @@ export async function listEvents(
       throw invalid(k);
     }
   authorizeAudit(actor, f.propertyId);
+  if (f.from && Number.isNaN(f.from.getTime())) throw invalid("from");
+  if (f.to && Number.isNaN(f.to.getTime())) throw invalid("to");
   if (f.from && f.to && f.from.getTime() > f.to.getTime()) throw invalid("from");
+  if (f.actorType !== undefined && !(AUDIT_ACTOR_TYPES as readonly string[]).includes(f.actorType))
+    throw invalid("actorType");
   const limit = Math.min(Math.max(Math.trunc(f.limit ?? 50), 1), AUDIT_PAGE_MAX);
   const order = f.order ?? (f.correlationId ? "asc" : "desc");
   const cur = f.cursor ? decodeCursor(f.cursor) : null;
@@ -194,6 +212,7 @@ export async function listEvents(
         ${f.to ? sql`and e.occurred_at < ${f.to}` : sql``}
         ${f.propertyId ? sql`and e.property_id = ${f.propertyId}` : sql``}
         ${f.actorPersonId ? sql`and e.actor_person_id = ${f.actorPersonId}` : sql``}
+        ${f.actorType ? sql`and e.actor_type = ${f.actorType}` : sql``}
         ${f.entityType ? sql`and e.entity_type = ${f.entityType}` : sql``}
         ${f.entityId ? sql`and e.entity_id = ${f.entityId}` : sql``}
         ${f.action ? sql`and e.action = ${f.action}` : sql``}
@@ -230,5 +249,35 @@ export async function getEvent(db: Kysely<unknown>, actor: Actor, id: string): P
     const row = r.rows[0];
     if (!row) throw notFound();
     return toEvent(row);
+  });
+}
+
+/** Loại hành động có trong nhật ký mà actor thấy được (RLS + nhóm tiền của kế toán) — cho bộ lọc của màn /nhat-ky. Tối đa 300. */
+export async function listAuditActions(db: Kysely<unknown>, actor: Actor): Promise<string[]> {
+  authorize(actor, "audit.read");
+  return withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
+    const r = await sql<{ action: string }>`
+      select e.action from audit_events e where e.organization_id = ${actor.orgId} ${moneyOnly(actor)}
+      group by e.action order by e.action limit 300`.execute(trx);
+    return r.rows.map((x) => x.action);
+  });
+}
+
+/** Người đã thực hiện hành động trong nhật ký mà actor thấy được — cho bộ lọc "người thực hiện". Tối đa 300. */
+export async function listAuditActors(
+  db: Kysely<unknown>,
+  actor: Actor,
+): Promise<{ personId: string; name: string | null; actorType: string }[]> {
+  authorize(actor, "audit.read");
+  return withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
+    const r = await sql<{ person_id: string; name: string | null; actor_type: string }>`
+      select e.actor_person_id as person_id, max(pe.full_name) as name, max(e.actor_type) as actor_type
+      from audit_events e
+      left join persons pe on pe.organization_id = e.organization_id and pe.id = e.actor_person_id
+      where e.organization_id = ${actor.orgId} and e.actor_person_id is not null ${moneyOnly(actor)}
+      group by e.actor_person_id order by max(pe.full_name) nulls last, e.actor_person_id limit 300`.execute(
+      trx,
+    );
+    return r.rows.map((x) => ({ personId: x.person_id, name: x.name, actorType: x.actor_type }));
   });
 }

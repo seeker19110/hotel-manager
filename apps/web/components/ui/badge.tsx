@@ -23,6 +23,9 @@ const ICON: Record<string, string> = {
   expired: "✕",
   rejected: "✕",
   reversed: "✕",
+  revoked: "✕",
+  active: "●",
+  platform_support: "⚑",
 };
 
 export function StatusBadge({ status, label, testId }: { status: string; label: string; testId?: string }) {

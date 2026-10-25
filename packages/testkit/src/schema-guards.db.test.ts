@@ -508,6 +508,8 @@ const NO_ORG_ALLOWED: Record<string, string> = {
     "Yêu cầu của chủ thể dữ liệu (0069, T-2311/D-120): chủ thể là auth user, không phải tổ chức (xoá tài khoản/xuất dữ liệu trải mọi tổ chức của người đó); RLS theo app.auth_user_id như consent_records.",
   processing_restrictions:
     "Cờ hạn chế xử lý của NGƯỜI DÙNG (0069, T-2311): theo auth user, áp cho mọi tổ chức; RLS theo app.auth_user_id.",
+  platform_support_users:
+    "Danh bạ nhân viên hỗ trợ của NỀN TẢNG (0071, T-2313/D-122): toàn hệ thống, không thuộc tổ chức; chỉ mã tài khoản; RLS bật, không policy/quyền cho vai trò app — chỉ hàm SECURITY DEFINER app.platform_support_lookup đọc. Quyền vào từng tổ chức đi qua `support_grants` (có organization_id).",
   kysely_migration: "Sổ migration của Kysely (hạ tầng migrator), không phải dữ liệu nghiệp vụ.",
   kysely_migration_lock: "Khoá migrator của Kysely (hạ tầng), không phải dữ liệu nghiệp vụ.",
 };

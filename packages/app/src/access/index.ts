@@ -36,3 +36,12 @@ export {
   revokeUserSessions,
   sessionTokenFromCookie,
 } from "./sessions.ts";
+export {
+  grantSupportAccess,
+  listSupportGrants,
+  recordSupportAccess,
+  revokeSupportAccess,
+  SUPPORT_GRANT_MAX_HOURS,
+  SUPPORT_REVOKE_DEFAULT_REASON,
+  type SupportGrantRow,
+} from "./support.ts";

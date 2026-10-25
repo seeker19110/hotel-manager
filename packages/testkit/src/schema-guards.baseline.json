@@ -4,7 +4,7 @@
   "nullable": {
     "allocations": 6,
     "approval_requests": 9,
-    "audit_events": 9,
+    "audit_events": 10,
     "bank_transactions": 3,
     "billing_periods": 3,
     "blocks": 4,
@@ -58,6 +58,7 @@
     "shift_discrepancies": 4,
     "shifts": 8,
     "stays": 7,
+    "support_grants": 2,
     "tasks": 12,
     "units": 4,
     "work_orders": 10

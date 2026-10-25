@@ -175,13 +175,17 @@ async function auditRow(
 ) {
   // "Từ đâu" (CMP-AUDIT-002): IP đã cắt + UA làm sạch; không có client (worker/hệ thống) ⇒ null.
   const src = auditSource(client);
+  // Hỗ trợ nền tảng (F-015, D-122): dòng audit mang `actor_type = platform_support` + tham chiếu grant; lý do mặc định = lý do của grant.
+  const support = actor.role === "platform_support" ? (actor.supportGrant ?? null) : null;
   await sql`
     insert into audit_events (id, organization_id, property_id, actor_type, actor_person_id, action, entity_type, entity_id,
-                              before, after, reason, correlation_id, command_id, outcome, source_ip, user_agent)
-    values (${randomUUID()}, ${actor.orgId}, ${e.propertyId ?? null}, 'user', ${actor.personId}, ${e.action}, ${e.entityType},
+                              before, after, reason, correlation_id, command_id, outcome, source_ip, user_agent,
+                              support_grant_id)
+    values (${randomUUID()}, ${actor.orgId}, ${e.propertyId ?? null}, ${support ? "platform_support" : "user"}, ${actor.personId},
+            ${e.action}, ${e.entityType},
             ${e.entityId ?? null}, ${e.before === undefined ? null : JSON.stringify(redact(e.before))}::jsonb,
-            ${e.after === undefined ? null : JSON.stringify(redact(e.after))}::jsonb, ${e.reason ?? null},
-            ${ids.correlationId}, ${ids.commandId}, ${outcome}, ${src.sourceIp}, ${src.userAgent})`.execute(
+            ${e.after === undefined ? null : JSON.stringify(redact(e.after))}::jsonb, ${e.reason ?? support?.reason ?? null},
+            ${ids.correlationId}, ${ids.commandId}, ${outcome}, ${src.sourceIp}, ${src.userAgent}, ${support?.id ?? null})`.execute(
     trx,
   );
 }
@@ -357,6 +361,10 @@ export async function executeCommand<T>(
               );
             },
           };
+          // F-015 (D-122): hỗ trợ nền tảng CHỈ ĐỌC — mọi lệnh ghi bị từ chối trước nghiệp vụ (kết quả `failed` + audit `denied` có
+          // tham chiếu grant ở nhánh lỗi bên dưới). CSDL chặn thêm bằng policy `support_read_only_*` (migration 0071).
+          if (actor.role === "platform_support")
+            throw new CommandError("FORBIDDEN", 403, t("pipeline.support_read_only"));
           const { data, httpStatus = 200 } = await handler(ctx);
           await sql`
           update idempotency_keys set status = 'committed', http_status = ${httpStatus},

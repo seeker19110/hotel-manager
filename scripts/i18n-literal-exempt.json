@@ -285,6 +285,10 @@
   },
   "packages/domain/src/access/matrix.ts": {
     "reason": "Chỉ nhãn dòng của ma trận quyền = khoá đồng bộ với bảng SPEC-access-and-property §5.3 (matrix.spec-sync.test.ts so từng ký tự) — không hiện ở UI/API (apps/web và packages/app không đọc nhãn; quyền trả mã, câu lỗi qua catalog domain authz.*). Đổi nhãn phải đổi SPEC.",
-    "max": 52
+    "max": 53
+  },
+  "packages/db/src/migrations/0071_support_grants.ts": {
+    "reason": "Migration (T-2313): chuỗi tiếng Việt là thông báo RAISE EXCEPTION của trigger `app.check_support_grant` (HINT VALIDATION_FAILED/FORBIDDEN/DOCUMENT_IMMUTABLE) — toProblem không trả message Postgres mà dùng title catalog theo HINT/SQLSTATE; message chỉ vào log vận hành.",
+    "max": 1
   }
 }

@@ -175,9 +175,20 @@ export const MATRIX = {
   "work_order.handle": ["Xử lý phiếu sự cố", ["yes", "yes", "no", "no", "no", "own", "no", "no"]],
   "audit.read": ["Xem audit", ["yes", "yes", "no", "yes", "no", "no", "no", "no"]],
   "data.export": ["Xuất dữ liệu (xác thực lại)", ["yes", "no", "no", "yes", "no", "no", "no", "no"]],
+  "support.grant": [
+    "Cấp/thu hồi truy cập hỗ trợ có thời hạn (`support.grantAccess`/`support.revokeAccess`, F-015)",
+    ["yes", "no", "no", "no", "no", "no", "no", "no"],
+  ],
 } as const satisfies Record<string, readonly [string, Row]>;
 
 export type Action = keyof typeof MATRIX;
+
+/**
+ * `platform_support` (F-015, D-122): KHÔNG có cột trong ma trận — mặc định không có quyền gì. Khi đang có truy cập hỗ trợ còn hiệu lực
+ * (chủ tổ chức cấp, `support_grants`; `resolveActor` chỉ trả actor này khi grant chưa thu hồi/chưa hết hạn) thì CHỈ ĐỌC đúng các
+ * hành động dưới đây — không tên khách, không tiền, không giấy tờ, không audit. Mở rộng = sửa danh sách + SPEC-access 5.3 + test.
+ */
+export const SUPPORT_READ_ACTIONS: readonly Action[] = ["calendar.read_status"];
 
 export function grantFor(action: Action, role: MatrixRole): Grant {
   const [, row] = MATRIX[action];

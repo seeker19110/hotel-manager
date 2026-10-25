@@ -1,6 +1,7 @@
 // Truy vấn danh mục truy cập (SPEC-access 5.2): `member.list` (thành viên + lời mời đang chờ) và `property.list` (cơ sở + cấu hình).
 // - `member.list`: owner thấy mọi nhân viên; manager chỉ thấy nhân viên cấp thấp CÙNG cơ sở với mình (+ chính mình) — cùng phạm vi
-//   mà manager được mời/thu hồi (ma trận 5.3). Người thuê (cổng riêng) và đã thu hồi không có trong danh sách. Không trả token/băm.
+//   mà manager được mời/thu hồi (ma trận 5.3). Người thuê (cổng riêng), hỗ trợ nền tảng (khối "Truy cập hỗ trợ" — `support.listGrants`)
+//   và đã thu hồi không có trong danh sách. Không trả token/băm.
 // - `property.list`: cơ sở chưa lưu trữ trong phạm vi của actor; mọi vai trò nhân viên đọc được (như lịch trạng thái phòng).
 import { withTenant } from "@hm/db";
 import { authorize } from "@hm/domain";
@@ -54,7 +55,7 @@ export async function listMembers(
                        where ps.organization_id = m.organization_id and ps.membership_id = m.id
                          and (${visible}::uuid[] is null or pr.id = any(${visible}::uuid[]))), '[]'::jsonb) as props
       from memberships m join persons p on p.organization_id = m.organization_id and p.id = m.person_id
-      where m.organization_id = ${actor.orgId} and m.status <> 'revoked' and m.role not in ('tenant', 'guest')
+      where m.organization_id = ${actor.orgId} and m.status <> 'revoked' and m.role not in ('tenant', 'guest', 'platform_support')
         and (${isOwner} or m.id = ${actor.membershipId}
              or (m.role = any(${LOW}::text[]) and exists (
                    select 1 from property_scopes ps where ps.organization_id = m.organization_id and ps.membership_id = m.id

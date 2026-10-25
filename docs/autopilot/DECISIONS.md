@@ -903,3 +903,10 @@
 - Chọn: Hai pha: pha 1 trong request (app_runtime) thu hồi phiên, xoá mật khẩu/2FA/mã xác minh, ẩn danh auth user ⇒ không đăng nhập lại được ngay; pha 2 job worker privacy.dsar_erasure mỗi 5 phút xoá analytics, kết thúc membership có audit, ẩn danh persons không gắn chứng từ (gắn chứng từ ⇒ giữ, lý do accounting_records_retention); bỏ Clear-Site-Data ở phản hồi xoá (phiên đã thu hồi ở CSDL)
 - Lý do (tiêu chí chất lượng cuối): Đúng và an toàn: web không được thêm quyền xoá rộng; người dùng mất truy cập ngay; phần còn lại hoàn tất ≤ 5 phút, xa dưới hạn 72 giờ; giữ chứng từ là nghĩa vụ kế toán
 - Đường lùi: Job worker tắt được; pha 1 không đảo ngược (đúng mục đích)
+
+### D-126 · 2026-10-25T08:04:06+00:00 · T-2313: ai được nhận grant hỗ trợ, phạm vi đọc, ai xem/xuất nhật ký
+
+- Phương án: (1) Chỉ tài khoản trong platform_support_users (vận hành ghi bằng SQL); phạm vi đọc hẹp calendar.read_status (không tên khách/tiền/giấy tờ); xem nhật ký theo ma trận quyền (owner/manager/accountant), xuất chỉ owner; policy CSDL chặn ghi của hỗ trợ trên mọi bảng có lúc áp 0071 + pipeline chặn mọi lệnh ghi · (2) Cấp tới email bất kỳ, hỗ trợ đọc mọi dữ liệu tổ chức
+- Chọn: Chỉ tài khoản trong platform_support_users (vận hành ghi bằng SQL); phạm vi đọc hẹp calendar.read_status (không tên khách/tiền/giấy tờ); xem nhật ký theo ma trận quyền (owner/manager/accountant), xuất chỉ owner; policy CSDL chặn ghi của hỗ trợ trên mọi bảng có lúc áp 0071 + pipeline chặn mọi lệnh ghi
+- Lý do (tiêu chí chất lượng cuối): Đúng và an toàn: tối thiểu quyền, không lộ email tồn tại, mở rộng phạm vi là thay đổi có chủ đích qua SPEC + test; bảng mới sau này phải thêm policy chặn ghi hỗ trợ (ghi vào THREAT-MODEL TM-12)
+- Đường lùi: Thu hồi grant/xoá hàng platform_support_users là mất quyền ngay; migration có down

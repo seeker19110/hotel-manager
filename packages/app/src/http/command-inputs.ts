@@ -217,6 +217,37 @@ export const COMMAND_INPUTS = {
     reason: z.string().trim().min(1).max(500),
   }),
   "session.revokeAll": z.strictObject({ membership_id: uuid.optional() }),
+  // Xuất dữ liệu (form /nhat-ky gửi `exports.request`); loại/nguồn liệt kê thẳng (module này không import mã server) — test
+  // `command-inputs.test.ts` + `registry.ts` dùng đúng schema này.
+  "exports.request": z.strictObject({
+    kind: z.enum(["receivables", "collections", "deposits", "occupancy", "audit"]),
+    format: z.enum(["csv", "xlsx"]),
+    property_id: z.string().max(64).optional(),
+    filters: z
+      .strictObject({
+        as_of: isoDate.optional(),
+        from: isoDate.optional(),
+        to: isoDate.optional(),
+        correlation_id: z.string().min(1).max(200).optional(),
+        // Nhật ký (T-2313): khoảng UTC + bộ lọc như màn /nhat-ky.
+        from_at: z.iso.datetime({ offset: true }).optional(),
+        to_at: z.iso.datetime({ offset: true }).optional(),
+        actor_person_id: uuid.optional(),
+        action: z.string().min(1).max(100).optional(),
+        actor_type: z.enum(["user", "worker", "platform_support"]).optional(),
+      })
+      .optional(),
+  }),
+  // Truy cập hỗ trợ có thời hạn (T-2313, D-122): trần 72 giờ trùng CHECK của CSDL (`ck_support_grants_ttl`).
+  "support.grantAccess": z.strictObject({
+    email: z.email().max(320),
+    hours: z.number().int().min(1).max(72),
+    reason: z.string().trim().min(1).max(500),
+  }),
+  "support.revokeAccess": z.strictObject({
+    grant_id: uuid,
+    reason: z.string().trim().max(500).optional(),
+  }),
   "org.create": z.strictObject({ name: displayName }),
   "payment.collectCash": z.strictObject({ invoice_id: uuid, amount: positiveMoney }),
   "payment.confirm": z.strictObject({

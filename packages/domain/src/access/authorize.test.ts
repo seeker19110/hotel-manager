@@ -48,6 +48,42 @@ describe("quyền theo vai trò", () => {
   });
 });
 
+describe("platform_support (F-015, T-2313) — chỉ đọc SUPPORT_READ_ACTIONS", () => {
+  it("được: xem trạng thái phòng trong phạm vi; ngoài phạm vi cơ sở ⇒ NOT_FOUND", () => {
+    expect(authorize(actor("platform_support"), "calendar.read_status", { propertyId: P1 }).grant).toBe(
+      "read",
+    );
+    expect(() =>
+      authorize(actor("platform_support"), "calendar.read_status", { propertyId: P2 }),
+    ).toThrowError(expect.objectContaining({ code: "NOT_FOUND" }));
+  });
+  it.each([
+    "calendar.read_guests",
+    "money.read",
+    "identity.read",
+    "audit.read",
+    "data.export",
+    "unit.manage",
+    "support.grant",
+  ])("không được %s ⇒ FORBIDDEN", (action) => {
+    expect(() => authorize(actor("platform_support"), action as never, { propertyId: P1 })).toThrowError(
+      expect.objectContaining({ code: "FORBIDDEN" }),
+    );
+  });
+  it("không lập được đề nghị duyệt", () => {
+    expect(() =>
+      authorizeRequest(actor("platform_support"), "deposit.refund", { propertyId: P1 }),
+    ).toThrowError(expect.objectContaining({ code: "FORBIDDEN" }));
+  });
+  it("cấp/thu hồi truy cập hỗ trợ: chỉ owner", () => {
+    expect(authorize(actor("owner"), "support.grant").grant).toBe("yes");
+    for (const r of ["manager", "accountant", "front_desk", "housekeeping", "maintenance", "tenant"])
+      expect(() => authorize(actor(r), "support.grant"), r).toThrowError(
+        expect.objectContaining({ code: "FORBIDDEN" }),
+      );
+  });
+});
+
 describe("quyền 'own'", () => {
   it("lễ tân xác nhận tiền mặt của chính mình được; của người khác → FORBIDDEN", () => {
     const fd = actor("front_desk");

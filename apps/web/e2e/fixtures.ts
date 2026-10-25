@@ -119,6 +119,13 @@ export const STAFF_TARGET = {
   password: ["e2e", "nv", "dich", "gia"].join("-"),
 };
 
+/** Nhân viên hỗ trợ NỀN TẢNG (T-2313): có trong `platform_support_users`, email đã xác minh — đích của "Truy cập hỗ trợ" ở /nhat-ky. */
+export const SUPPORT_AGENT = {
+  email: "ho.tro.nen.tang@example.test",
+  name: "Hỗ trợ nền tảng (giả)",
+  password: ["e2e", "ho", "tro", "nen", "tang"].join("-"),
+};
+
 /**
  * Cổng của server mà project đang chạy: mỗi project (mobile, desktop) có server + CSDL seed riêng (playwright.config.ts) vì các
  * luồng E2E ghi dữ liệu một lần (đăng ký, nhận lời mời, thu tiền…) — tệp tạm của seed khoá theo cổng này.

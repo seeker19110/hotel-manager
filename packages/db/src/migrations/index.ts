@@ -66,6 +66,7 @@ import * as m0066 from "./0066_personal_data_retention.ts";
 import * as m0067 from "./0067_product_events.ts";
 import * as m0068 from "./0068_consent_records.ts";
 import * as m0069 from "./0069_dsar_requests.ts";
+import * as m0071 from "./0071_support_grants.ts";
 
 export const migrations: Record<string, Migration> = {
   "0001_tenancy": m0001,
@@ -133,4 +134,5 @@ export const migrations: Record<string, Migration> = {
   "0067_product_events": m0067,
   "0068_consent_records": m0068,
   "0069_dsar_requests": m0069,
+  "0071_support_grants": m0071,
 };

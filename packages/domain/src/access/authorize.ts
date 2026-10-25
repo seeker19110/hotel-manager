@@ -2,7 +2,15 @@
 // Lớp CSDL (RLS) là lớp thứ hai; giao diện chỉ ẩn/hiện.
 
 import { t } from "../i18n.ts";
-import { type Action, DEFAULT_LIMITS, grantFor, LIMIT_KIND, type MatrixRole, ROLES } from "./matrix.ts";
+import {
+  type Action,
+  DEFAULT_LIMITS,
+  grantFor,
+  LIMIT_KIND,
+  type MatrixRole,
+  ROLES,
+  SUPPORT_READ_ACTIONS,
+} from "./matrix.ts";
 
 export interface AuthzActor {
   personId: string;
@@ -62,6 +70,11 @@ export function authorize(actor: AuthzActor, action: Action, ctx: AuthzContext =
     throw new AuthzError("FORBIDDEN", t("authz.forbidden"));
   if (ctx.propertyId !== undefined && !actor.allProperties && !actor.propertyIds.includes(ctx.propertyId)) {
     throw new AuthzError("NOT_FOUND", t("authz.not_found"));
+  }
+  // Hỗ trợ nền tảng có truy cập tạm thời (F-015): chỉ đọc đúng danh sách cho phép, trong phạm vi cơ sở đã kiểm ở trên.
+  if (actor.role === "platform_support") {
+    if (!SUPPORT_READ_ACTIONS.includes(action)) throw new AuthzError("FORBIDDEN", t("authz.forbidden"));
+    return { grant: "read" };
   }
   if (!isMatrixRole(actor.role)) throw new AuthzError("FORBIDDEN", t("authz.role_not_allowed"));
   const grant = grantFor(action, actor.role);

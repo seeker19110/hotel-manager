@@ -25,7 +25,7 @@ import {
 } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
 import { AccessError, type Actor, resolveActor } from "../access/index.ts";
-import { listEvents } from "../audit/index.ts";
+import { AUDIT_ACTOR_TYPES, type AuditActorType, listEvents } from "../audit/index.ts";
 import {
   commitGeneratedFile,
   MAX_SIGNED_URL_SECONDS,
@@ -40,6 +40,7 @@ import {
   collections,
   depositsHeld,
   occupancy,
+  REPORT_MAX_DAYS,
   receivables,
   reportRange,
   validDate,
@@ -149,6 +150,47 @@ export interface ExportFilters {
   from?: string;
   to?: string;
   correlationId?: string;
+  /** Nhật ký (T-2313): khoảng thời điểm UTC [fromAt, toAt) — thay cho `from`/`to` (ngày giờ VN) khi có đủ cả hai. */
+  fromAt?: string;
+  toAt?: string;
+  actorPersonId?: string;
+  action?: string;
+  actorType?: AuditActorType;
+}
+
+const filterInvalid = (field: string) =>
+  new CommandError("VALIDATION_FAILED", 422, t("exports.filter_required", { field }), {
+    extensions: { errors: [{ path: field, field, code: "invalid" }] },
+  });
+
+/** Bộ lọc thêm của bản xuất nhật ký — cùng ý nghĩa với `audit.listEvents` để file xuất khớp đúng màn /nhat-ky. */
+function auditExtraFilters(f: ExportFilters): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (f.actorPersonId !== undefined) {
+    if (!UUID.test(f.actorPersonId)) throw filterInvalid("actor_person_id");
+    out.actor_person_id = f.actorPersonId.toLowerCase();
+  }
+  if (f.action !== undefined) {
+    if (!/^[a-z_]+(\.[a-z_]+)+$/.test(f.action) || f.action.length > 100) throw filterInvalid("action");
+    out.action = f.action;
+  }
+  if (f.actorType !== undefined) {
+    if (!(AUDIT_ACTOR_TYPES as readonly string[]).includes(f.actorType)) throw filterInvalid("actor_type");
+    out.actor_type = f.actorType;
+  }
+  if (f.correlationId) out.correlation_id = f.correlationId.slice(0, 200);
+  return out;
+}
+
+/** Khoảng thời điểm UTC của bản xuất nhật ký: hợp lệ, `from_at` < `to_at`, không quá REPORT_MAX_DAYS ngày. */
+function utcRange(fromAt: string, toAt: string): { from_at: string; to_at: string } {
+  const a = Date.parse(fromAt);
+  const b = Date.parse(toAt);
+  if (Number.isNaN(a)) throw filterInvalid("from_at");
+  if (Number.isNaN(b) || b <= a) throw filterInvalid("to_at");
+  if (b - a > REPORT_MAX_DAYS * MS_PER_DAY)
+    throw new CommandError("REPORT_RANGE_TOO_LARGE", 422, t("reports.range_too_long"));
+  return { from_at: new Date(a).toISOString(), to_at: new Date(b).toISOString() };
 }
 
 function assertKindAllowed(actor: Actor, kind: string): void {
@@ -173,6 +215,10 @@ function normalizeFilters(kind: ExportKind, f: ExportFilters): Record<string, st
     case "collections":
     case "occupancy":
     case "audit": {
+      if (kind === "audit" && (f.fromAt !== undefined || f.toAt !== undefined)) {
+        if (!f.fromAt || !f.toAt) throw filterInvalid(f.fromAt ? "to_at" : "from_at");
+        return { ...utcRange(f.fromAt, f.toAt), ...auditExtraFilters(f) };
+      }
       if (!f.from || !f.to) {
         const field = f.from ? "to" : "from";
         throw new CommandError("VALIDATION_FAILED", 422, t("exports.filter_required", { field }), {
@@ -183,7 +229,7 @@ function normalizeFilters(kind: ExportKind, f: ExportFilters): Record<string, st
       return {
         from: r.from,
         to: r.to,
-        ...(kind === "audit" && f.correlationId ? { correlation_id: f.correlationId.slice(0, 200) } : {}),
+        ...(kind === "audit" ? auditExtraFilters(f) : {}),
       };
     }
     case "deposits":
@@ -234,6 +280,8 @@ async function createJob(
     entityId: id,
     ...(job.propertyId ? { propertyId: job.propertyId } : {}),
     after: { kind: job.kind, format: job.format, filters: job.filters },
+    // CMP-AUDIT-002 "reason": bản xuất không có lý do nhập tay — ghi loại dữ liệu xuất làm căn cứ (mã, như `auth.login` ghi phương thức).
+    reason: `export:${job.kind}`,
   });
   await ctx.emit({
     eventType: "export.requested",
@@ -381,6 +429,7 @@ export async function downloadExport(
     entityType: "export_job",
     entityId: job.id,
     ...(job.property_id ? { propertyId: job.property_id } : {}),
+    reason: `export:${job.kind}`,
   });
   ctx.security({ event: "export.downloaded", target: { type: "export_job", id: job.id } });
   return { url: await deps.storage.signedGetUrl(job.file_key, expiresIn), expiresIn };
@@ -579,15 +628,27 @@ async function reportTable(
           "Correlation",
           t("exports.col.ip"),
           t("exports.col.user_agent"),
+          t("exports.col.outcome"),
+          t("exports.col.actor_type"),
+          t("exports.col.support_grant"),
         ],
       ];
+      // Khoảng UTC (màn /nhat-ky) hoặc ngày giờ VN (yêu cầu cũ chỉ có from/to).
+      const range = f.from_at
+        ? { from: new Date(f.from_at), to: new Date(f.to_at as string) }
+        : {
+            from: new Date(`${f.from}T00:00:00+07:00`),
+            to: new Date(Date.parse(`${f.to}T00:00:00+07:00`) + MS_PER_DAY),
+          };
       let cursor: string | undefined;
       for (;;) {
         const r = await listEvents(db, actor, {
-          from: new Date(`${f.from}T00:00:00+07:00`),
-          to: new Date(Date.parse(`${f.to}T00:00:00+07:00`) + MS_PER_DAY),
+          ...range,
           ...(propertyId ? { propertyId } : {}),
           ...(f.correlation_id ? { correlationId: f.correlation_id } : {}),
+          ...(f.actor_person_id ? { actorPersonId: f.actor_person_id } : {}),
+          ...(f.action ? { action: f.action } : {}),
+          ...(f.actor_type ? { actorType: f.actor_type as AuditActorType } : {}),
           order: "asc",
           limit: 200,
           ...(cursor ? { cursor } : {}),
@@ -605,6 +666,9 @@ async function reportTable(
             e.correlationId,
             e.sourceIp,
             e.userAgent,
+            e.outcome,
+            e.actorType,
+            e.supportGrantId ? `${e.supportGrantId} — ${e.supportReason ?? ""}` : null,
           ]);
         if (out.length - 1 > EXPORT_MAX_ROWS) throw new ExportFailure("TOO_LARGE");
         if (!r.nextCursor) break;

@@ -11,6 +11,7 @@ import {
   ORG_CONTEXT_HEADER,
   ORG_HEADER,
   orgCookieName,
+  recordSupportAccess,
   requestedOrgId,
   resolveActor,
   type UserCommandRequest,
@@ -558,6 +559,12 @@ async function runQuery<I, O>(def: QueryDef<I, O>, req: Request, deps: HttpDeps)
       );
       return validationProblem(parsed.error, correlationId);
     }
+    // F-015 (D-122): mỗi truy vấn của hỗ trợ nền tảng để lại một dòng audit (grant + lý do) TRƯỚC khi trả dữ liệu.
+    await recordSupportAccess(deps.db, actor, {
+      resource: def.query,
+      client: requestClient(req.headers),
+      correlationId,
+    });
     return json(
       { data: await def.run(deps.db, actor, parsed.data, deps.services, { correlationId }) },
       200,

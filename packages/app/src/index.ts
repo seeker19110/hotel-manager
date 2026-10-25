@@ -23,6 +23,10 @@ export {
   isSessionRevoked,
   listMembers,
   listProperties,
+  listSupportGrants,
+  recordSupportAccess,
+  SUPPORT_GRANT_MAX_HOURS,
+  type SupportGrantRow,
 } from "./access/index.ts";
 export {
   ORG_HEADER,
@@ -41,9 +45,12 @@ export {
   track,
 } from "./analytics/index.ts";
 export {
+  AUDIT_ACTOR_TYPES,
   type AuditEvent,
   type AuditFilter,
   getEvent as getAuditEvent,
+  listAuditActions,
+  listAuditActors,
   listEvents as listAuditEvents,
 } from "./audit/events.ts";
 export { type Auth, createAuth } from "./auth/auth.ts";

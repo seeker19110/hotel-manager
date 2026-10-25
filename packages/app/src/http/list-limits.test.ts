@@ -16,6 +16,7 @@ const IMPL: Record<string, [string, string]> = {
   "housekeeping.listTasks": ["housekeeping/tasks.ts", "queryTasks"],
   "audit.listEvents": ["audit/events.ts", "listEvents"],
   "exports.listMine": ["exports/exports.ts", "listMyExports"],
+  "support.listGrants": ["access/support.ts", "listSupportGrants"],
   "today.listItems": ["today/today.ts", "listItems"],
   "portal.listMyInvoices": ["portal/tenant.ts", "invoiceRows"],
   "portal.listMyMeterReadings": ["portal/tenant.ts", "listMyMeterReadings"],

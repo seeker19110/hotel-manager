@@ -4314,5 +4314,321 @@
   "account_rights.delete.to_login": {
     "message": "Về trang đăng nhập",
     "description": "Trang Bảo mật: liên kết sau khi xoá tài khoản."
+  },
+  "common.route_title.audit_log": {
+    "message": "Nhật ký hoạt động",
+    "description": "Tiêu đề (h1) của màn Nhật ký hoạt động (/nhat-ky) ở trạng thái đang tải (loading.tsx) và lỗi (error.tsx) cấp route."
+  },
+  "nav.more.audit_log": {
+    "message": "Nhật ký hoạt động",
+    "description": "Liên kết trong màn Thêm: nhật ký hoạt động của tổ chức (ai làm gì, khi nào, từ đâu) và truy cập hỗ trợ."
+  },
+  "audit_log.metadata.title": {
+    "message": "Nhật ký hoạt động",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): tiêu đề tab trình duyệt."
+  },
+  "audit_log.page.title": {
+    "message": "Nhật ký hoạt động",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): tiêu đề trang (h1)."
+  },
+  "audit_log.error.forbidden_title": {
+    "message": "Không có quyền xem nhật ký",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): tiêu đề thông báo khi vai trò không được xem nhật ký (chỉ chủ, quản lý, kế toán)."
+  },
+  "audit_log.error.forbidden_text": {
+    "message": "Chỉ chủ, quản lý và kế toán xem được nhật ký hoạt động.",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): nội dung thông báo khi vai trò không được xem nhật ký."
+  },
+  "audit_log.error.load": {
+    "message": "Không tải được nhật ký",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): tiêu đề lỗi khi đọc nhật ký thất bại (kèm thông điệp từ máy chủ)."
+  },
+  "audit_log.field.when": {
+    "message": "Thời điểm (UTC)",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): nhãn trường thời điểm xảy ra của một sự kiện, hiển thị giờ UTC."
+  },
+  "audit_log.field.action": {
+    "message": "Hành động",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): nhãn trường mã hành động của sự kiện."
+  },
+  "audit_log.field.target": {
+    "message": "Đối tượng",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): nhãn trường đối tượng bị tác động (loại + mã)."
+  },
+  "audit_log.field.result": {
+    "message": "Kết quả",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): nhãn trường kết quả (thành công/bị từ chối)."
+  },
+  "audit_log.field.where": {
+    "message": "Từ đâu",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): nhãn trường nguồn truy cập: IP đã cắt và thiết bị (User-Agent)."
+  },
+  "audit_log.field.reason": {
+    "message": "Lý do",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): nhãn trường lý do/căn cứ ghi kèm sự kiện."
+  },
+  "audit_log.field.support_grant": {
+    "message": "Truy cập hỗ trợ",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): nhãn trường cho sự kiện do hỗ trợ nền tảng thực hiện: truy cập hỗ trợ (grant) mà hành động dựa vào."
+  },
+  "audit_log.support_grant_ref": {
+    "message": "Theo truy cập hỗ trợ — lý do khi cấp: {reason}",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): giá trị trường truy cập hỗ trợ của một sự kiện; {reason} là lý do chủ tổ chức ghi khi cấp."
+  },
+  "audit_log.source.user": {
+    "message": "Người dùng tổ chức",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): nhãn nguồn sự kiện: thành viên của tổ chức."
+  },
+  "audit_log.source.worker": {
+    "message": "Hệ thống",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): nhãn nguồn sự kiện: tác vụ nền của hệ thống (không có người thực hiện)."
+  },
+  "audit_log.source.platform_support": {
+    "message": "Hỗ trợ nền tảng",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): nhãn nguồn sự kiện: nhân viên hỗ trợ của nền tảng truy cập theo quyền tạm thời chủ tổ chức cấp; hiển thị nổi bật để chủ thấy."
+  },
+  "audit_log.outcome.success": {
+    "message": "Thành công",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): kết quả sự kiện: thành công."
+  },
+  "audit_log.outcome.denied": {
+    "message": "Bị từ chối",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): kết quả sự kiện: bị từ chối (không đủ quyền, lỗi nghiệp vụ…)."
+  },
+  "audit_log.action.support.access_granted": {
+    "message": "Cấp truy cập hỗ trợ",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): tên dễ đọc của hành động `support.access_granted`."
+  },
+  "audit_log.action.support.access_revoked": {
+    "message": "Thu hồi truy cập hỗ trợ",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): tên dễ đọc của hành động `support.access_revoked`."
+  },
+  "audit_log.action.support.accessed": {
+    "message": "Hỗ trợ xem dữ liệu",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): tên dễ đọc của hành động `support.accessed` (hỗ trợ nền tảng mở trang/gọi truy vấn)."
+  },
+  "audit_log.action.auth.login": {
+    "message": "Đăng nhập",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): tên dễ đọc của hành động `auth.login`."
+  },
+  "audit_log.action.auth.logout": {
+    "message": "Đăng xuất",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): tên dễ đọc của hành động `auth.logout`."
+  },
+  "audit_log.action.member.role_changed": {
+    "message": "Đổi vai trò thành viên",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): tên dễ đọc của hành động `member.role_changed`."
+  },
+  "audit_log.action.member.scope_changed": {
+    "message": "Đổi phạm vi thành viên",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): tên dễ đọc của hành động `member.scope_changed`."
+  },
+  "audit_log.action.member.invited": {
+    "message": "Mời thành viên",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): tên dễ đọc của hành động `member.invited`."
+  },
+  "audit_log.action.export.requested": {
+    "message": "Yêu cầu xuất dữ liệu",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): tên dễ đọc của hành động `export.requested`."
+  },
+  "audit_log.action.export.downloaded": {
+    "message": "Tải bản xuất dữ liệu",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): tên dễ đọc của hành động `export.downloaded`."
+  },
+  "audit_log.action.command.denied": {
+    "message": "Thao tác bị từ chối",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): tên dễ đọc của hành động `command.denied`."
+  },
+  "audit_log.filter.heading": {
+    "message": "Lọc nhật ký",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): tiêu đề khối bộ lọc."
+  },
+  "audit_log.filter.from": {
+    "message": "Từ ngày (UTC)",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): nhãn ô ngày bắt đầu (tính theo ngày UTC, gồm cả ngày đó)."
+  },
+  "audit_log.filter.to": {
+    "message": "Đến ngày (UTC)",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): nhãn ô ngày kết thúc (tính theo ngày UTC, gồm cả ngày đó)."
+  },
+  "audit_log.filter.actor": {
+    "message": "Người thực hiện",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): nhãn ô chọn người thực hiện."
+  },
+  "audit_log.filter.action": {
+    "message": "Loại hành động",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): nhãn ô chọn loại hành động."
+  },
+  "audit_log.filter.source": {
+    "message": "Nguồn",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): nhãn ô chọn nguồn sự kiện (người dùng tổ chức/hệ thống/hỗ trợ nền tảng)."
+  },
+  "audit_log.filter.source_all": {
+    "message": "Mọi nguồn",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): lựa chọn không lọc theo nguồn."
+  },
+  "audit_log.filter.action_all": {
+    "message": "Mọi hành động",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): lựa chọn không lọc theo loại hành động."
+  },
+  "audit_log.filter.actor_all": {
+    "message": "Mọi người",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): lựa chọn không lọc theo người thực hiện."
+  },
+  "audit_log.filter.actor_support": {
+    "message": "{name} (hỗ trợ nền tảng)",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): nhãn người thực hiện là nhân viên hỗ trợ nền tảng trong ô chọn; {name} là tên."
+  },
+  "audit_log.filter.submit": {
+    "message": "Lọc",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): nút áp dụng bộ lọc."
+  },
+  "audit_log.filter.reset": {
+    "message": "Xoá lọc",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): liên kết bỏ mọi bộ lọc (về 7 ngày gần nhất)."
+  },
+  "audit_log.export.heading": {
+    "message": "Xuất nhật ký",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): tiêu đề khối xuất nhật ký ra CSV."
+  },
+  "audit_log.export.hint": {
+    "message": "Xuất CSV theo đúng bộ lọc đang chọn. Cần đăng nhập lại nếu phiên đã quá 5 phút; file sẵn sàng sau ít phút và tải được trong 15 phút.",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): giải thích cách xuất nhật ký (theo bộ lọc, xác thực lại, thời hạn tải)."
+  },
+  "audit_log.export.submit": {
+    "message": "Xuất CSV",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): nút gửi yêu cầu xuất nhật ký ra CSV."
+  },
+  "audit_log.export.success": {
+    "message": "Đã gửi yêu cầu xuất — file sẽ có trong danh sách bên dưới",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): thông báo sau khi gửi yêu cầu xuất thành công."
+  },
+  "audit_log.export.owner_only": {
+    "message": "Chỉ chủ tổ chức xuất được nhật ký.",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): ghi chú cho quản lý/kế toán: không có quyền xuất nhật ký."
+  },
+  "audit_log.export.status.queued": {
+    "message": "Đang chờ xử lý",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): trạng thái bản xuất: đang chờ."
+  },
+  "audit_log.export.status.running": {
+    "message": "Đang tạo file",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): trạng thái bản xuất: đang chạy."
+  },
+  "audit_log.export.status.ready": {
+    "message": "Sẵn sàng",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): trạng thái bản xuất: đã xong, tải được."
+  },
+  "audit_log.export.status.failed": {
+    "message": "Thất bại",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): trạng thái bản xuất: thất bại."
+  },
+  "audit_log.export.status.expired": {
+    "message": "Hết hạn tải",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): trạng thái bản xuất: quá hạn tải."
+  },
+  "audit_log.download.prepare": {
+    "message": "Lấy liên kết tải",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): nút lấy liên kết tải (có hạn ngắn) của bản xuất đã sẵn sàng."
+  },
+  "audit_log.download.ready": {
+    "message": "Liên kết tải đã sẵn sàng (hết hạn sau vài phút)",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): thông báo sau khi lấy liên kết tải thành công."
+  },
+  "audit_log.download.link": {
+    "message": "Tải file CSV",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): liên kết tải file CSV nhật ký."
+  },
+  "audit_log.events.heading": {
+    "message": "Sự kiện",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): tiêu đề danh sách sự kiện."
+  },
+  "audit_log.events.empty_title": {
+    "message": "Không có sự kiện nào",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): tiêu đề trạng thái rỗng khi bộ lọc không khớp sự kiện nào."
+  },
+  "audit_log.events.empty_text": {
+    "message": "Thử mở rộng khoảng ngày hoặc bỏ bớt bộ lọc.",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): gợi ý ở trạng thái rỗng."
+  },
+  "audit_log.events.pager": {
+    "message": "Trang nhật ký",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): nhãn vùng điều hướng trang (cho trình đọc màn hình)."
+  },
+  "audit_log.events.first_page": {
+    "message": "Về trang đầu",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): liên kết về trang đầu của danh sách."
+  },
+  "audit_log.events.next_page": {
+    "message": "Trang sau",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): liên kết sang trang kế (sự kiện cũ hơn)."
+  },
+  "audit_log.support.heading": {
+    "message": "Truy cập hỗ trợ",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): tiêu đề khối truy cập hỗ trợ của nền tảng."
+  },
+  "audit_log.support.intro": {
+    "message": "Khi cần nhân viên hỗ trợ của nền tảng xem tài khoản, chủ tổ chức cấp quyền CHỈ XEM có lý do và thời hạn tối đa {max} giờ; thu hồi được bất cứ lúc nào. Mọi thao tác của hỗ trợ đều ghi vào nhật ký với nguồn \"Hỗ trợ nền tảng\".",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): giải thích truy cập hỗ trợ: chỉ xem, có lý do, tối đa {max} giờ, thu hồi được, mọi thao tác ghi nhật ký."
+  },
+  "audit_log.support.email": {
+    "message": "Email nhân viên hỗ trợ",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): nhãn ô email của nhân viên hỗ trợ nền tảng được cấp quyền."
+  },
+  "audit_log.support.email_hint": {
+    "message": "Email do bộ phận hỗ trợ của nền tảng cung cấp (chỉ cấp được cho nhân viên hỗ trợ).",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): gợi ý ô email nhân viên hỗ trợ."
+  },
+  "audit_log.support.hours": {
+    "message": "Thời hạn (giờ, tối đa {max})",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): nhãn ô thời hạn truy cập hỗ trợ tính bằng giờ; {max} là trần (72)."
+  },
+  "audit_log.support.reason": {
+    "message": "Lý do",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): nhãn ô lý do cấp truy cập hỗ trợ (bắt buộc, hiện trong nhật ký)."
+  },
+  "audit_log.support.grant_submit": {
+    "message": "Cấp truy cập hỗ trợ",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): nút cấp truy cập hỗ trợ."
+  },
+  "audit_log.support.grant_success": {
+    "message": "Đã cấp truy cập hỗ trợ",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): thông báo cấp truy cập hỗ trợ thành công."
+  },
+  "audit_log.support.error_load": {
+    "message": "Không tải được danh sách truy cập hỗ trợ",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): tiêu đề lỗi khi đọc danh sách truy cập hỗ trợ thất bại."
+  },
+  "audit_log.support.empty": {
+    "message": "Chưa cấp truy cập hỗ trợ nào",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): trạng thái rỗng của danh sách truy cập hỗ trợ."
+  },
+  "audit_log.support.status.active": {
+    "message": "Đang hiệu lực",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): trạng thái truy cập hỗ trợ: còn hạn, chưa thu hồi."
+  },
+  "audit_log.support.status.expired": {
+    "message": "Đã hết hạn",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): trạng thái truy cập hỗ trợ: đã qua thời hạn."
+  },
+  "audit_log.support.status.revoked": {
+    "message": "Đã thu hồi",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): trạng thái truy cập hỗ trợ: chủ đã thu hồi."
+  },
+  "audit_log.support.meta": {
+    "message": "Lý do: {reason} · Cấp bởi {by} lúc {granted} · Hết hạn {expires}",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): thông tin một truy cập hỗ trợ: {reason} lý do, {by} người cấp, {granted}/{expires} thời điểm UTC."
+  },
+  "audit_log.support.revoked_meta": {
+    "message": "· Thu hồi lúc {at} bởi {by}",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): phần thêm khi truy cập hỗ trợ đã thu hồi: {at} thời điểm UTC, {by} người thu hồi."
+  },
+  "audit_log.support.revoke_submit": {
+    "message": "Thu hồi truy cập của {name}",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): nút thu hồi một bước truy cập hỗ trợ đang hiệu lực; {name} là tên nhân viên hỗ trợ."
+  },
+  "audit_log.support.revoke_success": {
+    "message": "Đã thu hồi truy cập hỗ trợ",
+    "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): thông báo thu hồi truy cập hỗ trợ thành công."
   }
 }

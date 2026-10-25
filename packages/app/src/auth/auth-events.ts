@@ -82,12 +82,19 @@ export function createAuthEvents(pool: pg.Pool, log?: () => Logger): AuthEvents 
         );
         const personId = m.rows[0]?.person_id;
         if (!personId) return;
+        // Hỗ trợ nền tảng (F-015, D-122): đăng nhập/đăng xuất… ở tổ chức đang cấp truy cập hỗ trợ ghi `platform_support` + grant
+        // còn hiệu lực (membership hỗ trợ chỉ còn trong danh sách khi grant còn hiệu lực — thu hồi/hết hạn thì không còn).
         await sql`
           insert into public.audit_events (id, organization_id, actor_type, actor_person_id, action, entity_type, entity_id,
-                                           reason, correlation_id, outcome, source_ip, user_agent)
-          values (${randomUUID()}, ${o.organization_id}, 'user', ${personId}, ${e.event}, 'membership', ${o.membership_id},
-                  ${e.reason ?? null}, ${e.correlationId}, ${e.outcome === "success" ? "success" : "denied"}, ${src.sourceIp},
-                  ${src.userAgent})`.execute(trx);
+                                           reason, correlation_id, outcome, source_ip, user_agent, support_grant_id)
+          select ${randomUUID()}, ${o.organization_id}, case when g.id is null then 'user' else 'platform_support' end,
+                 ${personId}, ${e.event}, 'membership', ${o.membership_id}, ${e.reason ?? null}, ${e.correlationId},
+                 ${e.outcome === "success" ? "success" : "denied"}, ${src.sourceIp}, ${src.userAgent}, g.id
+          from (select 1) one
+          left join public.support_grants g on g.organization_id = ${o.organization_id}
+            and g.grantee_membership_id = ${o.membership_id} and g.revoked_at is null and g.expires_at > now()`.execute(
+          trx,
+        );
         const eventType = e.notify ? AUTH_NOTIFY_EVENT[e.event] : undefined;
         if (eventType && e.outcome === "success") {
           await sql`
