@@ -17,7 +17,7 @@ status: "NHÁP KỸ THUẬT — chờ DPO/pháp lý rà, ký và nộp; chưa đ
 | Vai trò của tổ chức | Với dữ liệu người thuê/khách của từng cơ sở: **Bên Xử lý** thay mặt chủ cơ sở (Bên Kiểm soát) theo DPA (`docs/legal/DPA.md`). Với tài khoản nhân viên và vận hành nền tảng: **Bên Kiểm soát** (chưa xác minh — cần pháp lý) |
 | Thông tin liên hệ tổ chức | chủ sở hữu `LICENSE` (seeker19110) — pháp nhân, địa chỉ, người đại diện: (chưa có — chủ dự án điền) |
 | Người phụ trách bảo vệ dữ liệu (DPO) | (chưa gán — chủ dự án) |
-| Căn cứ lập | Luật 91/2025/QH15; NĐ 356/2025/NĐ-CP (điều về hồ sơ đánh giá tác động — chưa xác minh); GDPR Art. 35 nếu có chủ thể EU |
+| Căn cứ lập | Luật 91/2025/QH15 Đ.21–22 (gửi trong 60 ngày từ ngày đầu xử lý, cập nhật 6 tháng — đã đọc gốc); NĐ 356/2025/NĐ-CP Mẫu 02a/02b, Mẫu 10; Đ.38.2–3 Luật 91 + Đ.41 NĐ 356: miễn cho hộ kinh doanh/DN siêu nhỏ **không** áp dụng khi xử lý dữ liệu nhạy cảm (giấy tờ) hoặc kinh doanh dịch vụ xử lý dữ liệu; GDPR Art. 35 nếu có chủ thể EU |
 | Trạng thái nộp | chưa nộp — hạn tính từ ngày bắt đầu xử lý dữ liệu thật (chưa bắt đầu) |
 | Lần cập nhật kế tiếp | 6 tháng sau khi nộp, hoặc trong 10 ngày khi đổi mục đích/bên xử lý/vị trí lưu trữ (chưa xác minh) — `docs/privacy/CHANGELOG.md` nhắc |
 

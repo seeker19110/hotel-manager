@@ -28,7 +28,7 @@ Gửi **thông báo sơ bộ** trong thời hạn rồi bổ sung; không chờ 
 
 | Vùng | Cơ quan | Thời hạn | Mốc tính | Cơ sở | Xác minh |
 |---|---|---|---|---|---|
-| VN | Bộ Công an (cơ quan chuyên trách BVDLCN) | 72 giờ | phát hiện vi phạm có thể gây hại | Luật 91/2025/QH15; NĐ 356/2025/NĐ-CP (Mẫu số 08) | (chưa xác minh — cần pháp lý) |
+| VN | Bộ Công an (cơ quan chuyên trách BVDLCN) | 72 giờ | phát hiện vi phạm có thể gây hại | Luật 91/2025/QH15 Đ.23.1 (+ Đ.23.2 lập biên bản); NĐ 356/2025/NĐ-CP Phụ lục Mẫu số 08 | đã đọc văn bản gốc 2026-10-25 (`PROJECT.md` §Khung pháp lý); nội dung tối thiểu của thông báo (NĐ 356 Đ.28) chưa đọc |
 | EU/EEA | cơ quan giám sát dẫn đầu | 72 giờ | biết (aware) có vi phạm | GDPR Art. 33(1) | (chưa xác minh — cần pháp lý) |
 | UK | ICO | 72 giờ | biết có vi phạm | UK GDPR Art. 33 | (chưa xác minh — cần pháp lý) |
 | Thái Lan | PDPC | 72 giờ | biết có vi phạm | PDPA 2019 s.37(4) | (chưa xác minh — cần pháp lý) |
