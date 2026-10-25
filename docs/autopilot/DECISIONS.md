@@ -845,3 +845,11 @@
 - Chọn: Nới trigger đúng một đường: raw → '{}' sau sàn 10 năm tính từ hết năm phát sinh, bỏ qua bản ghi pending; chỉ hàm SECURITY DEFINER của app_worker gọi được
 - Lý do (tiêu chí chất lượng cuối): Đúng và an toàn: giữ khoá idempotency và số tiền để đối soát, chỉ bỏ PII trong raw; đường nới hẹp, có test chặn mọi cập nhật khác; tính từ hết năm là cách hiểu chặt hơn của Luật Kế toán (chưa xác minh điều khoản)
 - Đường lùi: Migration 0066 có down khôi phục trigger cũ và gỡ hàm; dữ liệu đã ẩn danh không khôi phục (đúng mục đích)
+
+### D-118 · 2026-10-25T06:23:06+00:00 · T-2309: kênh analytics sản phẩm (PM-METRIC-003/005/006)
+
+- Phương án: (1) Tự host: bảng product_events trong Postgres, một hàm track() kiểm allowlist sự kiện + thuộc tính kiểu đóng, actor là ID giả danh HMAC (khoá theo môi trường), giữ 13 tháng, xoá tài khoản ⇒ xoá dòng theo actor · (2) PostHog tự host · (3) SDK SaaS (PostHog Cloud/Plausible)
+- Chọn: Tự host: bảng product_events trong Postgres, một hàm track() kiểm allowlist sự kiện + thuộc tính kiểu đóng, actor là ID giả danh HMAC (khoá theo môi trường), giữ 13 tháng, xoá tài khoản ⇒ xoá dòng theo actor
+- Lý do (tiêu chí chất lượng cuối): Đúng và an toàn: không gửi dữ liệu ra ngoài, không thêm bên xử lý; schema đóng + cấm PII kiểm được bằng test; đơn giản, không thêm dịch vụ chạy; đường lùi: đổi đích trong track() là một điểm
+- Đường lùi: track() là điểm duy nhất — thay bộ ghi sang công cụ khác; migration có down
+- Khi chạy thật (đề xuất, chủ dự án quyết ở G7): Khi cần dashboard: PostHog tự host hoặc Metabase đọc product_events (chưa cần)

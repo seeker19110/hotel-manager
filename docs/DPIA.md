@@ -1,12 +1,12 @@
 ---
 title: DPIA — Hotel Manager
 kind: dpia
-version: 0.1.0
+version: 0.1.1
 updated: 2026-10-25
 status: "NHÁP KỸ THUẬT — chờ DPO/pháp lý rà, ký và nộp; chưa được dùng dữ liệu thật (PROJECT.md §6)"
 ---
 
-# DPIA — Hotel Manager (SaaS quản lý nhà trọ/nhà nghỉ/khách sạn nhỏ) · phiên bản 0.1.0 · 2026-10-25
+# DPIA — Hotel Manager (SaaS quản lý nhà trọ/nhà nghỉ/khách sạn nhỏ) · phiên bản 0.1.1 · 2026-10-25
 
 > Soạn theo mẫu khung (`.xtemplates/framework/templates/DPIA.md`) từ hiện trạng hệ thống: `docs/privacy/data-map.yaml` (từng cột),
 > `docs/privacy/ROPA.md` (hoạt động), `docs/design/THREAT-MODEL.md` (rủi ro, biện pháp). **Không phải tư vấn pháp lý.** Mọi số điều,
@@ -66,7 +66,10 @@ Chi tiết từng cột: `docs/privacy/data-map.yaml` (`retention`); chính sác
 | Dòng nhập Excel/CSV | 30 ngày sau commit/huỷ | tối thiểu hoá | job `import.retention` | `packages/app/src/retention/` + test DB |
 | File xuất | 15 phút liên kết, xoá ≤ 24 giờ | tối thiểu hoá | job `exports.expire` | test DB |
 | Hàng đợi, nhật ký gửi | 90/180 ngày | vận hành | job `events.retention` | `docs/ops/retention-policy.md` |
-| Hồ sơ người thuê/khách, giấy tờ | theo quan hệ + hạn luật (chờ pháp lý) | hợp đồng; nghĩa vụ lưu trú | ẩn danh `persons.anonymized_at` (job — Lát C đợt 23) | sẽ có test DB seed quá hạn |
+| Giấy tờ nhận dạng + ảnh | 12 tháng sau quan hệ lưu trú/thuê cuối (RET-17, đề xuất) | nghĩa vụ lưu trú | job `privacy.retention` ẩn danh + xoá ảnh | `packages/app/src/retention/personal.db.test.ts` |
+| Hồ sơ người thuê/khách | 10 năm sau quan hệ cuối (RET-18, đề xuất) | hợp đồng; chứng từ tiền | job `privacy.retention` ẩn danh, giữ dòng và sổ tiền | `packages/app/src/retention/personal.db.test.ts` |
+| Phiên, mã xác minh, link khách, thông báo | 1–180 ngày (RET-11…RET-15) | tối thiểu hoá | job `privacy.retention` xoá | `packages/app/src/retention/personal.db.test.ts` |
+| Lời mời (`invitations`, email người được mời), `audit_events.before/after` (có thể chứa PII) | chưa có job dọn (lời mời); audit theo RET-06 | tối thiểu hoá; trách nhiệm giải trình | chờ quyết hạn cùng pháp lý | `docs/ops/retention-policy.md` §Điều chưa có |
 | Chứng từ tiền | 10 năm (Luật Kế toán — chưa xác minh điều) | nghĩa vụ pháp lý | giữ, che PII không bắt buộc khi xoá tài khoản | Lát D đợt 23 |
 
 ## 6. Biện pháp bảo vệ
@@ -115,3 +118,4 @@ Chi tiết từng cột: `docs/privacy/data-map.yaml` (`retention`); chính sác
 | Phiên bản | Ngày | Lý do | Đã nộp bản cập nhật? |
 |---|---|---|---|
 | 0.1.0 | 2026-10-25 | Nháp kỹ thuật đầu tiên (PLAN đợt 23, T-2307) | Chưa |
+| 0.1.1 | 2026-10-25 | §5: job hạn lưu RET-11…RET-18 (T-2308); nêu khoảng trống lời mời/audit | Chưa |
