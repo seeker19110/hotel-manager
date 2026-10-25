@@ -268,6 +268,47 @@ export class ObjectStorage {
     );
   }
 
+  /**
+   * Mọi khoá object có tiền tố `prefix` (S3 ListObjectsV2, phân trang bằng continuation token) — purge tổ chức (T-2312) xoá theo
+   * tiền tố `<org>/`. Tiền tố phải là đoạn khoá hợp lệ kết thúc bằng `/` (không liệt kê cả bucket do nhầm). Trần `max` khoá/lần gọi.
+   */
+  async listKeys(prefix: string, max = 100_000): Promise<string[]> {
+    if (!prefix.endsWith("/"))
+      throw new StorageError("Tiền tố liệt kê phải kết thúc bằng /", { retryable: false });
+    assertSafeObjectKey(prefix.slice(0, -1));
+    const base = `${this.#cfg.endpoint.replace(/\/$/, "")}/${this.#cfg.bucket}`;
+    const keys: string[] = [];
+    let token: string | undefined;
+    do {
+      const u = new URL(base);
+      u.searchParams.set("list-type", "2");
+      u.searchParams.set("prefix", prefix);
+      u.searchParams.set("max-keys", "1000");
+      if (token) u.searchParams.set("continuation-token", token);
+      const req = await this.#aws.sign(u.toString(), {
+        method: "GET",
+        signal: AbortSignal.timeout(this.#res.timeoutMs),
+      });
+      const res = await fetch(req);
+      if (!res.ok) {
+        await res.body?.cancel();
+        throw new StorageError(`Liệt kê object lỗi: HTTP ${res.status}`, {
+          status: res.status,
+          retryable: res.status >= 500 || res.status === 429,
+        });
+      }
+      const xml = await res.text();
+      for (const m of xml.matchAll(/<Key>([^<]*)<\/Key>/g)) keys.push(xmlUnescape(m[1] as string));
+      const truncated = /<IsTruncated>true<\/IsTruncated>/.test(xml);
+      token = truncated
+        ? xmlUnescape(/<NextContinuationToken>([^<]*)<\/NextContinuationToken>/.exec(xml)?.[1] ?? "")
+        : undefined;
+      if (truncated && !token)
+        throw new StorageError("Liệt kê object: thiếu continuation token", { retryable: false });
+    } while (token && keys.length < max);
+    return keys.filter((k) => k.startsWith(prefix)).slice(0, max);
+  }
+
   /** URL GET ký sẵn, hết hạn sau `seconds` (≤ 300). Chỉ gọi SAU khi đã kiểm quyền. */
   async signedGetUrl(key: string, seconds = MAX_SIGNED_URL_SECONDS): Promise<string> {
     const ttl = Math.min(Math.max(1, Math.floor(seconds)), MAX_SIGNED_URL_SECONDS);
@@ -276,4 +317,17 @@ export class ObjectStorage {
     const signed = await this.#aws.sign(u.toString(), { method: "GET", aws: { signQuery: true } });
     return signed.url;
   }
+}
+
+const XML_ENTITIES: Readonly<Record<string, string>> = {
+  "&amp;": "&",
+  "&lt;": "<",
+  "&gt;": ">",
+  "&quot;": '"',
+  "&apos;": "'",
+};
+
+/** Bỏ thoát thực thể XML cơ bản trong phản hồi ListObjectsV2. */
+function xmlUnescape(s: string): string {
+  return s.replace(/&(amp|lt|gt|quot|apos);/g, (m) => XML_ENTITIES[m] ?? m);
 }

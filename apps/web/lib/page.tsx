@@ -1,7 +1,8 @@
 // Khung trang cần đăng nhập + tổ chức: chuyển hướng khi chưa đủ điều kiện; vai trò bắt buộc MFA chưa bật ⇒ thông báo.
-import { type Actor, listMyNotifications, opsProperties, serverContext } from "@hm/app";
+import { type Actor, listMyNotifications, opsProperties, orgDeletionStatus, serverContext } from "@hm/app";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
+import { CommandForm } from "../components/command/command-form.tsx";
 import { ORG_CONTEXT_META } from "../components/command/org-context.ts";
 import { AppNav, type NavKinds } from "../components/rental/app-nav.tsx";
 import { ErrorState } from "../components/ui/state.tsx";
@@ -37,9 +38,10 @@ export async function withActor(
   if (r.actor.role === "tenant") redirect("/portal");
   // Thanh điều hướng theo loại cơ sở trong phạm vi + chuông thông báo (số chưa đọc). Lỗi đọc → mặc định hiện đủ, chuông 0.
   const db = serverContext().db;
-  const [props, inbox] = await Promise.all([
+  const [props, inbox, deletion] = await Promise.all([
     safe(opsProperties(db, r.actor)),
     safe(listMyNotifications(db, r.actor, { limit: 1 })),
+    safe(orgDeletionStatus(db, r.actor)),
   ]);
   const templates = props.ok ? props.data.map((p) => p.template) : [];
   const kinds =
@@ -60,9 +62,36 @@ export async function withActor(
         propertyNames={props.ok ? props.data.map((p) => p.name) : []}
       />
       <main id="main" className="page">
+        {deletion.ok && deletion.data.state === "pending" && deletion.data.dueAt ? (
+          <OrgDeletionBanner dueAt={deletion.data.dueAt} owner={r.actor.role === "owner"} />
+        ) : null}
         <h1>{title}</h1>
         {await render(r.actor, { kinds })}
       </main>
     </>
+  );
+}
+
+/**
+ * Banner chờ xoá trên MỌI trang của tổ chức (T-2312, D-121; UX-CONTENT-005): ngày purge + nút huỷ MỘT bước cho owner (không hộp xác
+ * nhận, không gõ lại gì). Vai trò khác chỉ thấy thông báo và ai huỷ được.
+ */
+function OrgDeletionBanner({ dueAt, owner }: { dueAt: Date; owner: boolean }) {
+  const date = new Date(dueAt).toISOString().slice(0, 10);
+  return (
+    <section aria-labelledby="org-deletion-banner" className="panel" data-testid="org-deletion-banner">
+      <h2 id="org-deletion-banner">{t("org_banner.heading")}</h2>
+      <p>{t("org_banner.text", { date })}</p>
+      {owner ? (
+        <CommandForm
+          path="org/cancelDeletion"
+          submitLabel={t("org_banner.cancel")}
+          successText={t("org_banner.cancelled")}
+          testId="org-deletion-cancel"
+        />
+      ) : (
+        <p>{t("org_banner.owner_hint")}</p>
+      )}
+    </section>
   );
 }

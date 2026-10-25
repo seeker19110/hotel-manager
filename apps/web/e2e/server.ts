@@ -26,11 +26,14 @@ import pg from "pg";
 import { teeChildLog, waitClosed } from "./child-log.ts";
 import { startFakeClamd, startFakeS3 } from "./fakes.ts";
 import {
+  DELETE_OWNER,
+  dbUrlFile,
   INVITEE,
   INVITEE_EXPIRED_EMAIL,
   INVITEE_OTHER_EMAIL,
   inviteTokensFile,
   MAIN_ROOMS,
+  ORG_DELETE,
   ORG_HOTEL,
   ORG_MAIN,
   ORG_OTHER,
@@ -48,7 +51,7 @@ import {
 } from "./fixtures.ts";
 import { seedHotelOrg, signUpWithTotp } from "./hotel-seed.ts";
 import { seedPortal } from "./portal-seed.ts";
-import { hotelTotpFile, totpFile } from "./totp.ts";
+import { deleteTotpFile, hotelTotpFile, totpFile } from "./totp.ts";
 
 const PORT = Number(process.env.E2E_PORT ?? 3100);
 const BASE_URL = `http://127.0.0.1:${PORT}`;
@@ -217,6 +220,9 @@ async function seed(adminUrl: string, runtimeUrl: string, secret: string): Promi
     await addStaff(db, other.orgId, user.id, other.propertyId);
     await seedRental(db, auth);
     await seedHotelOrg(db, auth, PORT);
+    // Xoá tổ chức (T-2312): chủ có TOTP + tổ chức riêng (luồng xoá không đụng dữ liệu của spec khác).
+    const deleteOwner = await signUpWithTotp(auth, DELETE_OWNER, deleteTotpFile(PORT));
+    await seedOrg(db, ORG_DELETE, "hotel", deleteOwner);
     await seedInvitations(db, auth, secret);
     // Nhân viên hỗ trợ nền tảng (T-2313): danh bạ do người vận hành ghi — ở đây seed thẳng.
     const agent = await auth.api.signUpEmail({ body: withSignUpConsent(SUPPORT_AGENT) });
@@ -256,6 +262,8 @@ await migrator.destroy();
 // Bí mật phiên chỉ sống trong tiến trình E2E này.
 const secret = randomBytes(32).toString("base64url");
 await seed(adminUrl, runtimeUrl, secret);
+// Test xoá tổ chức gọi thẳng hàm purge (thay job worker sau 30 ngày) — URL CSDL tạm của riêng tiến trình này.
+writeFileSync(dbUrlFile(PORT), adminUrl, { mode: 0o600 });
 
 // Dịch vụ giả (portal tải ảnh): S3 trong bộ nhớ + clamd giả; OTP đăng nhập người thuê ghi vào hộp thư giả (file) cho test đọc.
 const fakeS3 = await startFakeS3();
@@ -333,6 +341,8 @@ async function stop(code: number): Promise<void> {
   replica?.kill("SIGTERM");
   rmSync(totpFile(PORT), { force: true });
   rmSync(hotelTotpFile(PORT), { force: true });
+  rmSync(deleteTotpFile(PORT), { force: true });
+  rmSync(dbUrlFile(PORT), { force: true });
   rmSync(outbox, { force: true });
   rmSync(unsubFile(PORT), { force: true });
   rmSync(inviteTokensFile(PORT), { force: true });

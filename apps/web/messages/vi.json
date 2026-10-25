@@ -4630,5 +4630,129 @@
   "audit_log.support.revoke_success": {
     "message": "Đã thu hồi truy cập hỗ trợ",
     "description": "Màn Nhật ký hoạt động (/nhat-ky, T-2313): thông báo thu hồi truy cập hỗ trợ thành công."
+  },
+  "nav.more.organization": {
+    "message": "Tổ chức",
+    "description": "Mục 'Thêm' (chỉ chủ): trang Tổ chức — xuất toàn bộ dữ liệu, xoá tổ chức (T-2312, D-121)."
+  },
+  "common.route_title.organization": {
+    "message": "Tổ chức",
+    "description": "Tiêu đề trạng thái đang tải/lỗi của trang /to-chuc (T-2312, D-121)."
+  },
+  "org_page.metadata.title": {
+    "message": "Tổ chức",
+    "description": "Tiêu đề thẻ trình duyệt của trang /to-chuc (T-2312, D-121)."
+  },
+  "org_page.page.title": {
+    "message": "Tổ chức",
+    "description": "Tiêu đề h1 trang /to-chuc (T-2312, D-121)."
+  },
+  "org_deletion.owner_only": {
+    "message": "Chỉ chủ tổ chức xem và thay đổi được mục này.",
+    "description": "Trang /to-chuc khi người xem không phải chủ (T-2312, D-121)."
+  },
+  "org_deletion.failed": {
+    "message": "Không tải được trạng thái tổ chức. Vui lòng thử lại.",
+    "description": "Trang /to-chuc: lỗi đọc trạng thái xoá (T-2312, D-121)."
+  },
+  "org_deletion.export.heading": {
+    "message": "Xuất toàn bộ dữ liệu",
+    "description": "Trang /to-chuc: tiêu đề khối xuất toàn bộ dữ liệu tổ chức (ZIP CSV + file đính kèm) (T-2312, D-121)."
+  },
+  "org_deletion.export.intro": {
+    "message": "Tạo bản sao toàn bộ dữ liệu của tổ chức (tệp ZIP). Bạn vẫn xuất được trong thời gian chờ xoá. Khi bản xuất sẵn sàng sẽ có thông báo.",
+    "description": "Trang /to-chuc: giải thích xuất toàn bộ dữ liệu, cần đăng nhập lại ≤ 5 phút (T-2312, D-121)."
+  },
+  "org_deletion.export.submit": {
+    "message": "Xuất toàn bộ dữ liệu",
+    "description": "Nút gửi exports.requestOrgExport trên trang /to-chuc (T-2312, D-121)."
+  },
+  "org_deletion.export.success": {
+    "message": "Đã nhận yêu cầu xuất. Bản xuất sẵn sàng sẽ có thông báo.",
+    "description": "Thông báo sau khi gửi yêu cầu xuất toàn bộ dữ liệu (T-2312, D-121)."
+  },
+  "org_deletion.heading": {
+    "message": "Xoá tổ chức",
+    "description": "Trang /to-chuc: tiêu đề khối xoá tổ chức (T-2312, D-121)."
+  },
+  "org_deletion.intro": {
+    "message": "Sau khi bạn xác nhận, tổ chức chuyển sang chờ xoá trong {days} ngày: mọi người chỉ xem và xuất dữ liệu được, không thay đổi gì. Bạn huỷ được bằng một nút bất cứ lúc nào trong thời gian này. Hết {days} ngày, dữ liệu bị xoá vĩnh viễn và bạn nhận chứng nhận xoá ở trang Bảo mật.",
+    "description": "Trang /to-chuc: hậu quả của việc xoá tổ chức, thời gian chờ và cách huỷ (T-2312, D-121; UX-CONTENT-005: nói rõ, không bêu xấu)."
+  },
+  "org_deletion.erased": {
+    "message": "Bị xoá: phòng/lịch, đặt phòng chưa gắn chứng từ, công việc, sự cố, lời mời, thông báo, giấy tờ tuỳ thân, tệp đính kèm, dữ liệu phân tích; mọi thành viên mất quyền truy cập.",
+    "description": "Trang /to-chuc: liệt kê dữ liệu bị xoá khi purge (T-2312, D-121)."
+  },
+  "org_deletion.retained": {
+    "message": "Được giữ theo nghĩa vụ kế toán (10 năm) và an ninh: phiếu thu, thanh toán, cọc, sổ phụ, hợp đồng và lưu trú mà chứng từ dựa vào, tên người trên chứng từ (bỏ số điện thoại, email, địa chỉ), nhật ký hoạt động. Phần giữ được ghi trong chứng nhận xoá kèm lý do.",
+    "description": "Trang /to-chuc: liệt kê dữ liệu được giữ kèm lý do (T-2312, D-121)."
+  },
+  "org_deletion.already_pending": {
+    "message": "Tổ chức đang chờ xoá. Xem ngày xoá và nút huỷ ở đầu trang.",
+    "description": "Trang /to-chuc khi đã có yêu cầu xoá (T-2312, D-121)."
+  },
+  "org_deletion.confirm_label": {
+    "message": "Gõ lại tên tổ chức để xác nhận",
+    "description": "Nhãn ô gõ lại tên tổ chức trước khi xoá (T-2312, D-121)."
+  },
+  "org_deletion.confirm_hint": {
+    "message": "Phải khớp đúng tên tổ chức. Cần đăng nhập lại trong 5 phút gần nhất.",
+    "description": "Gợi ý ô xác nhận xoá tổ chức (T-2312, D-121)."
+  },
+  "org_deletion.submit": {
+    "message": "Xoá tổ chức",
+    "description": "Nút gửi org.requestDeletion (T-2312, D-121)."
+  },
+  "org_deletion.success": {
+    "message": "Đã nhận yêu cầu xoá tổ chức.",
+    "description": "Thông báo sau khi yêu cầu xoá tổ chức thành công (T-2312, D-121)."
+  },
+  "org_banner.heading": {
+    "message": "Tổ chức đang chờ xoá",
+    "description": "Banner trên mọi trang khi tổ chức chờ xoá (T-2312, D-121)."
+  },
+  "org_banner.text": {
+    "message": "Dữ liệu sẽ bị xoá vĩnh viễn vào ngày {date} (UTC). Đến lúc đó chỉ xem và xuất dữ liệu được.",
+    "description": "Banner chờ xoá: ngày purge (YYYY-MM-DD UTC) (T-2312, D-121)."
+  },
+  "org_banner.cancel": {
+    "message": "Huỷ xoá tổ chức",
+    "description": "Nút huỷ xoá MỘT bước trong banner (chỉ chủ) (T-2312, D-121; UX-CONTENT-005)."
+  },
+  "org_banner.cancelled": {
+    "message": "Đã huỷ xoá. Tổ chức hoạt động bình thường.",
+    "description": "Thông báo sau khi huỷ xoá tổ chức (T-2312, D-121)."
+  },
+  "org_banner.owner_hint": {
+    "message": "Chủ tổ chức có thể huỷ yêu cầu xoá.",
+    "description": "Banner chờ xoá với vai trò không phải chủ (T-2312, D-121)."
+  },
+  "org_certificates.heading": {
+    "message": "Chứng nhận xoá tổ chức",
+    "description": "Trang /bao-mat: khối chứng nhận xoá tổ chức của chủ cũ (T-2312, D-121; IND-SAAS-006)."
+  },
+  "org_certificates.intro": {
+    "message": "Tệp chứng nhận ghi thời điểm xoá, số dữ liệu đã xoá theo từng kho và phần được giữ kèm lý do. Đối chiếu mã SHA-256 để biết tệp không bị sửa.",
+    "description": "Trang /bao-mat: giải thích chứng nhận xoá (T-2312, D-121)."
+  },
+  "org_certificates.item": {
+    "message": "Tổ chức {org} — xoá ngày {date} (UTC)",
+    "description": "Trang /bao-mat: một chứng nhận (id tổ chức, ngày purge) (T-2312, D-121)."
+  },
+  "org_certificates.sha": {
+    "message": "SHA-256:",
+    "description": "Trang /bao-mat: nhãn mã băm chứng nhận (T-2312, D-121)."
+  },
+  "org_certificates.download": {
+    "message": "Tải chứng nhận (JSON)",
+    "description": "Trang /bao-mat: liên kết tải tệp chứng nhận (T-2312, D-121)."
+  },
+  "audit_log.action.organization.deletion_requested": {
+    "message": "Yêu cầu xoá tổ chức",
+    "description": "Màn Nhật ký hoạt động: tên dễ đọc của hành động `organization.deletion_requested` (T-2312, D-121)."
+  },
+  "audit_log.action.organization.deletion_cancelled": {
+    "message": "Huỷ xoá tổ chức",
+    "description": "Màn Nhật ký hoạt động: tên dễ đọc của hành động `organization.deletion_cancelled` (T-2312, D-121)."
   }
 }

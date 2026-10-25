@@ -22,6 +22,7 @@ import {
   type ObjectStorage,
   parseOutboxPayload,
   processDsarErasures,
+  processOrgPurges,
   purgeEventTables,
   purgePersonalData,
   remindExpiring,
@@ -70,6 +71,8 @@ export interface Intervals {
   reconciliation: number;
   /** Pha 2 của xoá tài khoản (T-2311): hạn VN 72 giờ (chưa xác minh) — nhịp phút để còn nhiều lượt thử lại trước hạn. */
   dsarErasure: number;
+  /** Purge tổ chức quá hạn chờ xoá 30 ngày (T-2312, D-121): hạn tính theo ngày ⇒ vài giờ một lượt là đủ sát. */
+  orgPurge: number;
 }
 
 export const DEFAULT_INTERVALS: Intervals = {
@@ -87,6 +90,7 @@ export const DEFAULT_INTERVALS: Intervals = {
   privacyRetention: 24 * HOUR, // hạn tính theo ngày/tháng/năm; xét quan hệ từng người nên chạy thưa
   reconciliation: 24 * HOUR,
   dsarErasure: 5 * MINUTE,
+  orgPurge: 6 * HOUR,
 };
 
 export const DEFAULT_STOP_TIMEOUT_MS = 25_000;
@@ -291,6 +295,14 @@ export async function startWorker(deps: WorkerDeps): Promise<WorkerHandle> {
       run: () => purgePersonalData(workerDb, { now: new Date(), log: (e, f) => log.info(e, f) }),
     },
   ];
+  // Vòng đời xoá tổ chức (T-2312, D-121): tổ chức quá hạn chờ xoá ⇒ object theo tiền tố tổ chức → CSDL theo `app.org_purge_plan()` →
+  // chứng nhận + audit (một transaction mỗi tổ chức; chạy lại idempotent). Log chỉ id tổ chức + tên lỗi.
+  jobs.push({
+    name: "tenancy.org_purge",
+    everyMs: iv.orgPurge,
+    initialDelayMs: deps.retentionInitialDelayMs ?? MINUTE,
+    run: () => processOrgPurges(workerDb, storage, { now: new Date(), log: (e, f) => log.info(e, f) }),
+  });
   const analyticsKey = deps.analyticsKey;
   if (analyticsKey) {
     // Pha 2 của xoá tài khoản (T-2311, D-120): sự kiện phân tích → membership/hồ sơ người/auth còn sót → đóng yêu cầu (`result`).

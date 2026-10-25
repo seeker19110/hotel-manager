@@ -74,6 +74,7 @@ Chi tiết từng cột: `docs/privacy/data-map.yaml` (`retention`); chính sác
 | Phiên, mã xác minh, link khách, thông báo | 1–180 ngày (RET-11…RET-15) | tối thiểu hoá | job `privacy.retention` xoá | `packages/app/src/retention/personal.db.test.ts` |
 | Lời mời (`invitations`, email người được mời), `audit_events.before/after` (có thể chứa PII) | chưa có job dọn (lời mời); audit theo RET-06 | tối thiểu hoá; trách nhiệm giải trình | chờ quyết hạn cùng pháp lý | `docs/ops/retention-policy.md` §Điều chưa có |
 | Chứng từ tiền | 10 năm (Luật Kế toán — chưa xác minh điều) | nghĩa vụ pháp lý | giữ, che PII không bắt buộc khi xoá tài khoản | Lát D đợt 23 |
+| Toàn bộ dữ liệu của một tổ chức khi chủ xoá tổ chức | 30 ngày chờ (chỉ xem + xuất, huỷ một bước) rồi purge (RET-21) | IND-SAAS-006; GDPR Art. 28(3)(g); Luật 91/2025/QH15 Đ.37 (chưa xác minh điều) | job `tenancy.org_purge`: object theo tiền tố tổ chức + CSDL theo `app.org_purge_plan()` (xoá/ẩn danh/giữ có lý do); GIỮ chứng từ tiền + bảng chứng từ dựa vào (10 năm), audit, thông báo lưu trú; ghi chứng nhận xoá có SHA-256 | `packages/app/src/tenancy/org-deletion.db.test.ts`, `apps/web/e2e/org-delete.spec.ts` |
 
 ## 6. Biện pháp bảo vệ
 | Biện pháp | Mô tả | Bằng chứng |
@@ -124,3 +125,4 @@ Chi tiết từng cột: `docs/privacy/data-map.yaml` (`retention`); chính sác
 | 0.1.1 | 2026-10-25 | §5: job hạn lưu RET-11…RET-18 (T-2308); nêu khoảng trống lời mời/audit | Chưa |
 | 0.1.3 | 2026-10-25 | §4: quyền truy cập/xoá/hạn chế xử lý tự phục vụ + hạn theo vùng + metric quá hạn (T-2311, D-120) | Chưa |
 | 0.1.2 | 2026-10-25 | §4: cơ chế đồng ý theo mục đích + rút một bước đã triển khai (T-2310, D-119) | Chưa |
+| 0.1.4 | 2026-10-25 | §5: vòng đời xoá tổ chức — 30 ngày chờ, purge mọi kho trừ phần giữ có lý do, chứng nhận xoá (T-2312, D-121) | Chưa |

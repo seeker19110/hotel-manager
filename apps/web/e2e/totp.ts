@@ -40,3 +40,8 @@ export function totpFile(port: number): string {
 export function hotelTotpFile(port: number): string {
   return join(tmpdir(), `hm-e2e-${port}-hotel-totp.json`);
 }
+
+/** Như `totpFile` cho chủ tổ chức sắp xoá (T-2312). */
+export function deleteTotpFile(port: number): string {
+  return join(tmpdir(), `hm-e2e-${port}-delete-totp.json`);
+}

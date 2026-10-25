@@ -126,6 +126,16 @@ export const SUPPORT_AGENT = {
   password: ["e2e", "ho", "tro", "nen", "tang"].join("-"),
 };
 
+/** Xoá tổ chức (T-2312): chủ có TOTP và tổ chức riêng — luồng yêu cầu → banner → huỷ → yêu cầu → purge → chứng nhận. */
+export const DELETE_OWNER = {
+  email: "chu.xoa.to.chuc@example.test",
+  password: ["e2e", "xoa", "to", "chuc"].join("-"),
+  name: "Chủ xoá tổ chức (giả)",
+};
+export const ORG_DELETE = "Nhà nghỉ Sắp Xoá (giả)";
+/** URL CSDL quản trị của server E2E (chỉ test xoá tổ chức dùng để gọi thẳng hàm purge thay cho job worker 30 ngày sau). */
+export const dbUrlFile = (port: number) => join(tmpdir(), `hm-e2e-${port}-db-url.txt`);
+
 /**
  * Cổng của server mà project đang chạy: mỗi project (mobile, desktop) có server + CSDL seed riêng (playwright.config.ts) vì các
  * luồng E2E ghi dữ liệu một lần (đăng ký, nhận lời mời, thu tiền…) — tệp tạm của seed khoá theo cổng này.

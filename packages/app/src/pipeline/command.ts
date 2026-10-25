@@ -190,6 +190,14 @@ async function auditRow(
   );
 }
 
+/** Lệnh vẫn chạy khi tổ chức chờ xoá (T-2312): xuất dữ liệu và huỷ yêu cầu xoá. */
+export const PENDING_DELETION_ALLOWED: ReadonlySet<string> = new Set([
+  "exports.request",
+  "exports.requestOrgExport",
+  "exports.download",
+  "org.cancelDeletion",
+]);
+
 interface QuotaLimits {
   org: number;
   member: number;
@@ -365,6 +373,15 @@ export async function executeCommand<T>(
           // tham chiếu grant ở nhánh lỗi bên dưới). CSDL chặn thêm bằng policy `support_read_only_*` (migration 0071).
           if (actor.role === "platform_support")
             throw new CommandError("FORBIDDEN", 403, t("pipeline.support_read_only"));
+          // T-2312 (D-121): tổ chức đang chờ xoá ⇒ chỉ đọc + xuất; lệnh ghi khác bị từ chối 423 trước nghiệp vụ (kết quả `failed` + audit).
+          if (!PENDING_DELETION_ALLOWED.has(req.command)) {
+            const st = await sql<{ pending: boolean }>`
+              select deletion_requested_at is not null as pending from organizations where id = ${actor.orgId}`.execute(
+              trx,
+            );
+            if (st.rows[0]?.pending)
+              throw new CommandError("ORG_PENDING_DELETION", 423, t("pipeline.org_pending_deletion"));
+          }
           const { data, httpStatus = 200 } = await handler(ctx);
           await sql`
           update idempotency_keys set status = 'committed', http_status = ${httpStatus},

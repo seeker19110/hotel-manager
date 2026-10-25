@@ -1004,6 +1004,8 @@ describe("BE-API-009 — route không guard = danh sách công khai đã duyệt
     "v1/privacy/consents/route.ts": /handleConsentsGet[\s\S]*handleConsentsPost/,
     // T-2311: quyền chủ thể dữ liệu của CHÍNH người đăng nhập — 401 khi không có phiên (privacy/dsar.db.test.ts).
     "v1/privacy/dsar/route.ts": /handleDsarGet[\s\S]*handleDsarPost/,
+    // T-2312: chứng nhận xoá tổ chức của CHÍNH người đã yêu cầu xoá — 401 khi không có phiên (tenancy/org-deletion-route).
+    "v1/privacy/org-deletion-certificates/route.ts": /handleOrgDeletionCertificatesGet/,
     "v1/files/upload/route.ts": /handleFileUpload/,
     "v1/import/upload/route.ts": /handleImportUpload/,
   };
@@ -1165,6 +1167,8 @@ describe("BASE-SEC-001 — entrypoint ngoài registry: đầu vào xấu → 4xx
         /z\.strictObject\([\s\S]*consentChangeInput\.safeParse\(raw\)/,
       ],
       "v1/privacy/dsar/route.ts": ["dsar-route.ts", /z\.strictObject\([\s\S]*dsarInput\.safeParse\(raw\)/],
+      // T-2312: đầu vào duy nhất `?id=` — regex UUID allowlist; id lạ/không phải của mình ⇒ 404.
+      "v1/privacy/org-deletion-certificates/route.ts": ["org-deletion-route.ts", /UUID\.test\(id\)/],
       "v1/files/upload/route.ts": ["file-upload.ts", /OWNER_TYPES\.includes[\s\S]*UUID\.test\(propertyId\)/],
       "v1/import/upload/route.ts": ["import-upload.ts", /UUID\.test\(propertyId\)[\s\S]*kind\.length > 40/],
       "v1/webhooks/[provider]/[account]/route.ts": [

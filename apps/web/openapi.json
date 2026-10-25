@@ -10720,6 +10720,102 @@
         }
       }
     },
+    "/api/v1/org/cancelDeletion": {
+      "post": {
+        "operationId": "org.cancelDeletion",
+        "tags": ["org"],
+        "summary": "org.cancelDeletion",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/OrgId"
+          },
+          {
+            "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "2XX": {
+            "description": "Đã commit (HTTP 200, hoặc 201/202 tuỳ lệnh); gửi lại cùng Idempotency-Key trả đúng kết quả này",
+            "headers": {
+              "X-Correlation-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Mã tra cứu xuyên log/audit"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["command_id", "status", "data"],
+                  "properties": {
+                    "command_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "status": {
+                      "const": "committed"
+                    },
+                    "data": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/org/create": {
       "post": {
         "operationId": "org.create",
@@ -10752,6 +10848,109 @@
                   }
                 },
                 "required": ["name"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "426": {
+            "$ref": "#/components/responses/Error426"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "2XX": {
+            "description": "Đã commit (HTTP 200, hoặc 201/202 tuỳ lệnh); gửi lại cùng Idempotency-Key trả đúng kết quả này",
+            "headers": {
+              "X-Correlation-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Mã tra cứu xuyên log/audit"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["command_id", "status", "data"],
+                  "properties": {
+                    "command_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "status": {
+                      "const": "committed"
+                    },
+                    "data": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/org/requestDeletion": {
+      "post": {
+        "operationId": "org.requestDeletion",
+        "tags": ["org"],
+        "summary": "org.requestDeletion",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/OrgId"
+          },
+          {
+            "$ref": "#/components/parameters/OrgContext"
+          },
+          {
+            "$ref": "#/components/parameters/AppVersion"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "confirm_name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  }
+                },
+                "required": ["confirm_name"],
                 "additionalProperties": false
               }
             }
@@ -13103,6 +13302,43 @@
           },
           "422": {
             "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        }
+      }
+    },
+    "/api/v1/privacy/org-deletion-certificates": {
+      "get": {
+        "operationId": "privacy.listOrgDeletionCertificates",
+        "tags": ["privacy"],
+        "summary": "Chứng nhận xoá tổ chức của chính người đã yêu cầu xoá (T-2312): danh sách; `?id=` tải tệp JSON nguyên văn đã băm (sha256 ở header x-content-sha256)",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Danh sách chứng nhận hoặc tệp chứng nhận"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
           },
           "500": {
             "$ref": "#/components/responses/Error500"

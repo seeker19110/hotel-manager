@@ -312,6 +312,20 @@ const EXTRA_PATHS: Record<string, Json> = {
       responses: { "200": commandSuccess({ type: "object" }), ...pick("400", "401", "404", "409", "422") },
     },
   },
+  "/api/v1/privacy/org-deletion-certificates": {
+    get: {
+      operationId: "privacy.listOrgDeletionCertificates",
+      tags: ["privacy"],
+      summary:
+        "Chứng nhận xoá tổ chức của chính người đã yêu cầu xoá (T-2312): danh sách; `?id=` tải tệp JSON nguyên văn đã băm (sha256 ở header x-content-sha256)",
+      security: [{ sessionCookie: [] }],
+      parameters: [{ name: "id", in: "query", required: false, schema: uuidSchema }],
+      responses: {
+        "200": { description: "Danh sách chứng nhận hoặc tệp chứng nhận" },
+        ...pick("401", "404", "500"),
+      },
+    },
+  },
   "/api/v1/privacy/dsar": {
     get: {
       operationId: "privacy.getDsarStatus",
@@ -586,6 +600,7 @@ export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
   "v1/me/route.ts": { spec: "/api/v1/me" },
   "v1/privacy/consents/route.ts": { spec: "/api/v1/privacy/consents" },
   "v1/privacy/dsar/route.ts": { spec: "/api/v1/privacy/dsar" },
+  "v1/privacy/org-deletion-certificates/route.ts": { spec: "/api/v1/privacy/org-deletion-certificates" },
   "version/route.ts": { spec: "/api/version" },
   "v1/session/switchOrganization/route.ts": { spec: "/api/v1/session/switchOrganization" },
   "v1/notifications/unsubscribe/route.ts": { spec: "/api/v1/notifications/unsubscribe" },

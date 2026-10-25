@@ -188,6 +188,7 @@ import {
   voidCharge,
   walkIn,
 } from "../stay/index.ts";
+import { cancelOrgDeletion, requestOrgDeletion } from "../tenancy/index.ts";
 import { getSummary, listItems, TODAY_CARDS } from "../today/index.ts";
 import {
   bankTxn,
@@ -680,7 +681,7 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
   }),
   "exports.requestOrgExport": defineCommand({
     command: "exports.requestOrgExport",
-    input: z.strictObject({}),
+    input: COMMAND_INPUTS["exports.requestOrgExport"],
     run: async (ctx) => ({ data: await requestOrgExport(ctx), httpStatus: 202 }),
   }),
   "exports.download": defineCommand({
@@ -1517,6 +1518,19 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
         ...(i.reason === undefined ? {} : { reason: i.reason }),
       }),
     }),
+  }),
+  "org.requestDeletion": defineCommand({
+    command: "org.requestDeletion",
+    input: COMMAND_INPUTS["org.requestDeletion"],
+    run: async (ctx, i) => ({
+      data: await requestOrgDeletion(ctx, { confirmName: i.confirm_name }),
+      httpStatus: 202,
+    }),
+  }),
+  "org.cancelDeletion": defineCommand({
+    command: "org.cancelDeletion",
+    input: COMMAND_INPUTS["org.cancelDeletion"],
+    run: async (ctx) => ({ data: await cancelOrgDeletion(ctx) }),
   }),
   "member.updateRole": defineCommand({
     command: "member.updateRole",

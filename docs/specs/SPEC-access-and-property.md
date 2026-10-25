@@ -268,6 +268,7 @@ Ký hiệu: **Có** = được trong phạm vi cơ sở · **HM** = trong hạn 
 | Xem audit | Có | Có | — | Có (tiền) | — | — | — | — |
 | Xuất dữ liệu (xác thực lại) | Có | — | — | Có (tiền) | — | — | — | — |
 | Cấp/thu hồi truy cập hỗ trợ có thời hạn (`support.grantAccess`/`support.revokeAccess`, F-015) | Có | — | — | — | — | — | — | — |
+| Yêu cầu/huỷ xoá tổ chức (`org.requestDeletion` xác thực lại/`org.cancelDeletion`, T-2312) | Có | — | — | — | — | — | — | — |
 
 ³ Đề xuất mặc định, chờ PO chốt (Q-04, Q-06, Q-11). Nguồn vai trò và giới hạn: kế hoạch §03, §16; DOMAIN-MODEL §6.
 

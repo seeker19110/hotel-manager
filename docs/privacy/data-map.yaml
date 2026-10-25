@@ -477,6 +477,22 @@ entries:
     legal_basis_code: "legal_obligation"
     retention: "RET-20: chỉ tồn tại khi đang bật; xoá khi người dùng tắt hoặc khi xoá tài khoản (`app.dsar_complete_erasure`)"
     classification_note: "Chỉ id tài khoản + thời điểm bật. RLS theo người dùng"
+  - table: "public.org_deletion_certificates"
+    column: "requested_by"
+    classification: "co_ban"
+    purpose: "Chứng nhận xoá tổ chức (T-2312, D-121; IND-SAAS-006): id tài khoản của chủ đã yêu cầu xoá — để chính người đó tải lại chứng nhận sau khi tổ chức đã purge (không còn thành viên nào)"
+    legal_basis: "nghĩa vụ pháp lý — chứng minh đã xoá/trả dữ liệu khi chấm dứt dịch vụ (GDPR Art. 28(3)(g); Luật 91/2025/QH15 Đ.37) (đề xuất; số điều chưa xác minh)"
+    legal_basis_code: "legal_obligation"
+    retention: "RET-21: giữ suốt thời gian giữ chứng từ kế toán của tổ chức đã xoá (10 năm sau purge, đề xuất — chờ DPIA); chỉ-thêm, không FK tới organizations để còn sau purge"
+    classification_note: "Chỉ id tài khoản + mốc thời gian + nội dung chứng nhận (số đếm theo kho, mã lý do) — không tên/email/IP"
+  - table: "public.organizations"
+    column: "deletion_requested_by"
+    classification: "co_ban"
+    purpose: "Ai (id tài khoản owner) đã yêu cầu xoá tổ chức (T-2312) — ghi vào chứng nhận xoá; xoá về NULL khi huỷ"
+    legal_basis: "thực hiện hợp đồng dịch vụ với chủ tổ chức (đề xuất)"
+    legal_basis_code: "contract"
+    retention: "Chỉ tồn tại trong 30 ngày chờ xoá; huỷ ⇒ NULL; purge ⇒ giữ trên hàng tổ chức (tombstone) cùng hạn chứng từ giữ lại (RET-21)"
+    classification_note: "Chỉ id tài khoản"
 not_pii:
   - table: "public.floors"
     column: "name"
@@ -509,6 +525,14 @@ not_pii:
     column: "bank_code"
     reason: "Mã ngân hàng công khai (ví dụ BIN/mã ngân hàng), không định danh người; số/tên tài khoản được khai riêng ở entries"
 free_text:
+  - table: "public.org_deletion_certificates"
+    column: "content_sha256"
+    risk: "khong_pii"
+    note: "SHA-256 hex (CHECK ^[0-9a-f]{64}$ và khớp băm của `content`) — không chứa dữ liệu người dùng"
+  - table: "public.org_deletion_certificates"
+    column: "content"
+    risk: "khong_pii"
+    note: "Văn bản JSON do hàm CSDL `app.org_purge_execute` dựng: id tổ chức, mốc thời gian, số dòng/object theo kho (erased), kho giữ lại + mã lý do (retained); không tên/email/người (test org-deletion.db.test.ts kiểm cấu trúc)"
   # Cột jsonb và cột chữ tự do (tên khớp memo/note/reason/detail/payload/description/title/snapshot/file_key/error/resolution…):
   # tên cột không nói lên nội dung có PII hay không nên rà TAY từng cột; máy chỉ buộc mọi cột như vậy phải có mặt ở đây.
   # risk: co_the_chua_pii = người dùng nhập/snapshot có thể chứa PII (không nhập PII vào ô tự do; xoá/ẩn danh theo hạn giữ của bảng chủ); khong_pii = mã/enum/băm/số liệu.

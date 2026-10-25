@@ -87,6 +87,8 @@ const moreItems = (): readonly MoreItem[] => [
   { href: "/thanh-vien", label: t("nav.more.members"), roles: ["owner", "manager"] },
   // Nhật ký hoạt động + truy cập hỗ trợ (T-2313): vai trò có `audit.read`.
   { href: "/nhat-ky", label: t("nav.more.audit_log"), roles: MONEY },
+  // Tổ chức: xuất toàn bộ dữ liệu, xoá tổ chức (T-2312) — chỉ owner.
+  { href: "/to-chuc", label: t("nav.more.organization"), roles: ["owner"] },
 ];
 
 /** Các màn trong trang "Thêm": mọi màn của vai trò mà thanh dưới chưa trỏ thẳng tới. */

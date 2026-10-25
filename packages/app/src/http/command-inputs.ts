@@ -249,6 +249,11 @@ export const COMMAND_INPUTS = {
     reason: z.string().trim().max(500).optional(),
   }),
   "org.create": z.strictObject({ name: displayName }),
+  // Xoá tổ chức (T-2312, D-121): gõ lại tên tổ chức để xác nhận; huỷ một bước không cần nhập gì.
+  "org.requestDeletion": z.strictObject({ confirm_name: z.string().min(1).max(200) }),
+  "org.cancelDeletion": z.strictObject({}),
+  // Xuất toàn bộ dữ liệu tổ chức (S-018) — trang /to-chuc gửi lệnh này (T-2312).
+  "exports.requestOrgExport": z.strictObject({}),
   "payment.collectCash": z.strictObject({ invoice_id: uuid, amount: positiveMoney }),
   "payment.confirm": z.strictObject({
     payment_id: uuid,

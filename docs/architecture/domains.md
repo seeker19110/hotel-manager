@@ -60,7 +60,7 @@ Miền theo ranh giới của ADR-0001 (kế hoạch §11); cột "Tầng" dùng
 | `http` | Cổng HTTP | F | Lớp HTTP không phụ thuộc Next: lõi route (`command-route`), registry command/query, OpenAPI, bảo mật header/CSRF, webhook, route adapter của module (tải file, tải import, huỷ đăng ký email, khách xem lưu trú) |
 | `testing` | Kiểm thử | F | Helper test dùng chung trong packages/app (không vào bundle sản phẩm) |
 | `privacy` | Nền | A | Đồng ý theo mục đích (T-2310, D-119): danh mục mục đích đóng, `grantConsent`/`withdrawConsent`/`currentConsents`/`hasConsent`, bảng chỉ-thêm `consent_records` (RLS theo người dùng); module lá (analytics/access/auth/http gọi vào); test đối chiếu data-map ↔ catalog CSDL (điểm công khai `index.ts`) |
-| `tenancy` | Kiểm thử | A | Chỉ có test cách ly tenant (RLS) |
+| `tenancy` | Access | C | Vòng đời xoá tổ chức (T-2312, D-121): yêu cầu/huỷ (chỉ owner, xác thực lại), chờ 30 ngày chỉ đọc + xuất, purge theo `app.org_purge_plan()` + object theo tiền tố, chứng nhận xoá; test cách ly tenant (RLS) (điểm công khai `index.ts`) |
 
 ## 3. Hướng phụ thuộc cho phép giữa các thư mục
 Tầng từ thấp lên cao: **A** nền · **B** lõi lệnh · **C** miền đơn · **D** tiền · **E** miền ghép · **F** cổng.

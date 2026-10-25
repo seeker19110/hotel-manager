@@ -44,6 +44,10 @@ trong thời hạn luật định (`docs/privacy/`).
 ## 8. Chấm dứt — trả lại và xoá dữ liệu
 Khi chấm dứt: bên kiểm soát xuất dữ liệu trong thời gian giữ công bố; sau đó bên xử lý xoá ở mọi kho (CSDL, kho file, bản sao lưu theo
 vòng xoay) và cấp **chứng nhận xoá** (vòng đời xoá tổ chức — IND-SAAS-006).
+Cụ thể (T-2312, D-121): chủ tổ chức yêu cầu xoá trong sản phẩm (xác thực lại + gõ lại tên) ⇒ **30 ngày** chờ, chỉ xem và xuất
+dữ liệu, huỷ được bằng một nút; hết hạn bên xử lý xoá dữ liệu CSDL và object của tổ chức, trừ chứng từ tiền và dữ liệu chứng từ dựa vào
+(giữ theo hạn kế toán 10 năm — chưa xác minh điều luật), nhật ký kiểm toán và hồ sơ thông báo lưu trú; chứng nhận xoá (JSON có SHA-256)
+liệt kê số dữ liệu đã xoá theo kho và phần giữ kèm lý do.
 
 ## 9. Kiểm toán
 Bên xử lý cung cấp thông tin cần thiết để chứng minh tuân thủ (nhật ký kiểm toán theo tổ chức, báo cáo đánh giá) theo yêu cầu hợp lý.

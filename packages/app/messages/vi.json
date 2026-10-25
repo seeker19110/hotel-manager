@@ -3422,5 +3422,21 @@
   "exports.col.support_grant": {
     "message": "Truy cập hỗ trợ (mã — lý do)",
     "description": "Tiêu đề cột trong file xuất nhật ký audit: mã truy cập hỗ trợ và lý do chủ tổ chức ghi khi cấp, cho hành động của hỗ trợ nền tảng (F-015)."
+  },
+  "pipeline.org_pending_deletion": {
+    "message": "Tổ chức đang chờ xoá: chỉ xem và xuất dữ liệu được. Chủ tổ chức có thể huỷ yêu cầu xoá để làm việc lại",
+    "description": "Problem title (423 ORG_PENDING_DELETION) khi gửi lệnh ghi trong lúc tổ chức chờ xoá 30 ngày (T-2312, D-121); chỉ xuất dữ liệu và huỷ xoá còn chạy."
+  },
+  "tenancy.org_deletion.reauth_required": {
+    "message": "Vui lòng đăng nhập lại để xác nhận xoá tổ chức",
+    "description": "Problem title (401 REAUTH_REQUIRED) khi owner yêu cầu xoá tổ chức mà phiên đăng nhập cũ hơn 5 phút (T-2312)."
+  },
+  "tenancy.org_deletion.confirmation_mismatch": {
+    "message": "Tên tổ chức không khớp",
+    "description": "Problem title (422 CONFIRMATION_MISMATCH) khi tên gõ lại để xác nhận xoá tổ chức khác tên thật (T-2312)."
+  },
+  "tenancy.org_deletion.not_pending": {
+    "message": "Tổ chức không có yêu cầu xoá nào để huỷ",
+    "description": "Problem title (409 INVALID_TRANSITION) khi huỷ xoá tổ chức nhưng không có yêu cầu đang chờ hoặc đã tới mốc purge (T-2312)."
   }
 }

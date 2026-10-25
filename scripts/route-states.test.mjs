@@ -32,6 +32,7 @@ const ERROR_GROUPS = [
 const LOADING_GROUPS = [
   "thu-tien",
   "nhat-ky",
+  "to-chuc",
   "su-co",
   "doi-soat",
   "thong-bao",

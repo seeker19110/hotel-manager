@@ -211,6 +211,7 @@ describe("worker chạy thật", () => {
       "import.retention",
       "events.retention",
       "privacy.retention",
+      "tenancy.org_purge",
       "notifications.send_due",
     ];
     await waitFor(() => expected.every((j) => cap.lines.some((l) => l.msg === "job.done" && l.job === j)));

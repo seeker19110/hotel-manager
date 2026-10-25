@@ -44,12 +44,12 @@
     "max": 9
   },
   "packages/app/src/files/storage.ts": {
-    "reason": "Thông điệp StorageError của kho object (nhãn thao tác, quá thời gian, lỗi kết nối, khoá object sai) — không lớp nào trả message này ra client: toProblem che thành INTERNAL với câu chung, /api/ready chỉ trả ok/fail/timeout; chỉ vào log vận hành.",
-    "max": 8
+    "reason": "Thông điệp StorageError của kho object (nhãn thao tác, quá thời gian, lỗi kết nối, khoá object sai) — không lớp nào trả message này ra client: toProblem che thành INTERNAL với câu chung, /api/ready chỉ trả ok/fail/timeout; chỉ vào log vận hành. T-2312 thêm 3 thông điệp của listKeys (liệt kê object khi purge tổ chức — chỉ vào log worker).",
+    "max": 11
   },
   "packages/app/src/http/openapi.ts": {
     "reason": "Mô tả OpenAPI (apps/web/openapi.json, `pnpm openapi`) — tài liệu cho nhà phát triển tích hợp API, không hiện cho người dùng sản phẩm.",
-    "max": 58
+    "max": 60
   },
   "packages/app/src/http/security.ts": {
     "reason": "Chuỗi duy nhất là Error lập trình khi nonce CSP sai dạng trong buildCsp (proxy) — không ra API/UI. Module được client import (`@hm/app/http` → safeUrl) nên không được import catalog (D-098).",
@@ -284,11 +284,15 @@
     "max": 2
   },
   "packages/domain/src/access/matrix.ts": {
-    "reason": "Chỉ nhãn dòng của ma trận quyền = khoá đồng bộ với bảng SPEC-access-and-property §5.3 (matrix.spec-sync.test.ts so từng ký tự) — không hiện ở UI/API (apps/web và packages/app không đọc nhãn; quyền trả mã, câu lỗi qua catalog domain authz.*). Đổi nhãn phải đổi SPEC.",
-    "max": 53
+    "reason": "Chỉ nhãn dòng của ma trận quyền = khoá đồng bộ với bảng SPEC-access-and-property §5.3 (matrix.spec-sync.test.ts so từng ký tự) — không hiện ở UI/API (apps/web và packages/app không đọc nhãn; quyền trả mã, câu lỗi qua catalog domain authz.*). Đổi nhãn phải đổi SPEC. T-2312 thêm dòng `org.delete`.",
+    "max": 54
   },
   "packages/db/src/migrations/0071_support_grants.ts": {
     "reason": "Migration (T-2313): chuỗi tiếng Việt là thông báo RAISE EXCEPTION của trigger `app.check_support_grant` (HINT VALIDATION_FAILED/FORBIDDEN/DOCUMENT_IMMUTABLE) — toProblem không trả message Postgres mà dùng title catalog theo HINT/SQLSTATE; message chỉ vào log vận hành.",
     "max": 1
+  },
+  "packages/db/src/migrations/0072_org_deletion.ts": {
+    "reason": "Migration (T-2312): chuỗi tiếng Việt là thông báo RAISE EXCEPTION của trigger `app.organization_deletion_guard`/`app.check_last_owner` (HINT ORG_DELETED/FORBIDDEN/LAST_OWNER) — toProblem không trả message Postgres mà dùng title catalog theo HINT/SQLSTATE; message chỉ vào log vận hành.",
+    "max": 2
   }
 }

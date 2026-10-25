@@ -116,6 +116,14 @@ Cảnh báo `HmDsarOverdue` (`hm_dsar_overdue > 0` trong 15 phút; gauge không 
 3. Sửa nguyên nhân rồi để lượt sau tự chạy lại (idempotent: `app.dsar_complete_erasure` chỉ đóng yêu cầu `received` một lần; xoá phân tích lần hai = 0 dòng). Không đóng tay bằng `update dsar_requests` — `result` phải phản ánh đúng kho đã xoá/giữ.
 4. Pha 1 (thu hồi phiên, xoá mật khẩu/2FA, ẩn danh auth user) đã xong khi yêu cầu được ghi: người dùng không đăng nhập được kể cả khi pha 2 trễ. Bản sao lưu chứa dữ liệu cũ hết theo RET-10 (không xoá chọn lọc trong bản sao lưu; khôi phục từ bản sao lưu phải chạy lại các yêu cầu xoá đã đóng sau thời điểm sao lưu — xem `docs/ops/retention-policy.md` RET-20).
 
+### 3.14 Xoá tổ chức — purge và chứng nhận (T-2312, D-121)
+Owner yêu cầu ở `/to-chuc` (xác thực lại ≤ 5 phút + gõ lại tên) ⇒ `organizations.deletion_due_at` = yêu cầu + 30 ngày; trong 30 ngày mọi lệnh ghi trả 423 `ORG_PENDING_DELETION` trừ xuất dữ liệu và huỷ (một nút ở banner). Job worker `tenancy.org_purge` (6 giờ/lượt, ≤ 10 tổ chức/lượt, mỗi tổ chức một transaction):
+1. Tổ chức tới hạn: `select id, deletion_due_at from organizations where deletion_due_at <= now() and deleted_at is null order by deletion_due_at;` — còn hàng lâu hơn một lượt ⇒ xem log `org.purge_failed` (chỉ id tổ chức + tên lỗi, §8).
+2. Thứ tự một lượt: liệt kê object theo tiền tố `<org>/` và xoá mọi object TRỪ khoá do `app.org_purge_kept_object_keys(org)` trả (ảnh công tơ, chứng từ chuyển khoản, hồ sơ thông báo lưu trú) → `app.org_purge_execute(org, now, số object đã xoá, số object giữ)`: xoá/ẩn danh theo `app.org_purge_plan()`, thu hồi thành viên, đặt `deleted_at`, ghi `org_deletion_certificates` + audit `organization.purged`. Lỗi ở bước object ⇒ chưa đổi gì trong CSDL; lượt sau làm lại (object đã xoá trả 404 = coi như xong; số object trong chứng nhận là số xoá ở lượt hoàn tất).
+3. Chạy lại an toàn: tổ chức đã purge không còn trong danh sách tới hạn; gọi lại hàm trả đúng chứng nhận cũ.
+4. Chứng nhận: `select organization_id, purged_at, content_sha256 from org_deletion_certificates where organization_id = '<org>';` — nội dung `content` là JSON nguyên văn, `content_sha256` = sha256 của nó (CHECK ở CSDL). Chủ cũ tải ở `/bao-mat` (khối "Chứng nhận xoá tổ chức"); gửi thủ công khi cần: xuất cột `content` ra tệp rồi `sha256sum` để đối chiếu.
+5. Không khôi phục được tổ chức đã purge (đúng mục đích); bản sao lưu còn dữ liệu tới hết RET-10. Hủy xoá chỉ được trước mốc 30 ngày.
+
 ## 4. Sao lưu và khôi phục
 - Diễn tập PITR (dữ liệu giả, cluster tạm): `bash scripts/db-backup-restore-check.sh` — exit 0 = khôi phục đúng (so số dòng, Σ Nợ/Có, số policy RLS).
 - Khi chạy thật (chờ quyết — PROGRESS "Chờ người"): pgBackRest repo mã hoá ở **máy khác**, giữ khoá `PGBACKREST_REPO_CIPHER_PASS` ngoài máy chủ; diễn tập khôi phục định kỳ.

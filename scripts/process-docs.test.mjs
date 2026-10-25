@@ -1306,6 +1306,8 @@ describe("docs/ops/retention-policy.md khớp mã và cấu hình (XC-GREEN-007)
       policySrc,
       read("packages/app/src/import/retention.ts"),
       read("apps/worker/src/relay.ts"),
+      // RET-21 (T-2312): thời gian chờ xoá tổ chức.
+      read("packages/app/src/tenancy/org-deletion.ts"),
     ].join("\n");
     const consts = [...doc.matchAll(/`([A-Z][A-Z0-9_]+)=(\d+)`/g)].map((m) => [m[1], Number(m[2])]);
     expect(consts.map(([k]) => k)).toEqual(

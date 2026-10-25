@@ -179,6 +179,10 @@ export const MATRIX = {
     "Cấp/thu hồi truy cập hỗ trợ có thời hạn (`support.grantAccess`/`support.revokeAccess`, F-015)",
     ["yes", "no", "no", "no", "no", "no", "no", "no"],
   ],
+  "org.delete": [
+    "Yêu cầu/huỷ xoá tổ chức (`org.requestDeletion` xác thực lại/`org.cancelDeletion`, T-2312)",
+    ["yes", "no", "no", "no", "no", "no", "no", "no"],
+  ],
 } as const satisfies Record<string, readonly [string, Row]>;
 
 export type Action = keyof typeof MATRIX;

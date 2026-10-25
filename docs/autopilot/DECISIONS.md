@@ -910,3 +910,10 @@
 - Chọn: Chỉ tài khoản trong platform_support_users (vận hành ghi bằng SQL); phạm vi đọc hẹp calendar.read_status (không tên khách/tiền/giấy tờ); xem nhật ký theo ma trận quyền (owner/manager/accountant), xuất chỉ owner; policy CSDL chặn ghi của hỗ trợ trên mọi bảng có lúc áp 0071 + pipeline chặn mọi lệnh ghi
 - Lý do (tiêu chí chất lượng cuối): Đúng và an toàn: tối thiểu quyền, không lộ email tồn tại, mở rộng phạm vi là thay đổi có chủ đích qua SPEC + test; bảng mới sau này phải thêm policy chặn ghi hỗ trợ (ghi vào THREAT-MODEL TM-12)
 - Đường lùi: Thu hồi grant/xoá hàng platform_support_users là mất quyền ngay; migration có down
+
+### D-127 · 2026-10-25T08:50:26+00:00 · T-2312: purge tổ chức có chứng từ kế toán phải giữ
+
+- Phương án: (1) Giữ hàng chứng từ tiền và bảng chứng từ trỏ tới (hợp đồng, lưu trú, cơ sở/phòng, công tơ, audit, support_grants); tổ chức thành tombstone; người gắn chứng từ giữ họ tên, bỏ SĐT/email/địa chỉ; người khác ẩn danh; xoá mọi kho còn lại + object; chứng nhận liệt kê kho giữ + lý do · (2) Xoá hết vì nghĩa vụ lưu chứng từ thuộc chủ tổ chức (đã xuất dữ liệu) — phải nới trigger chỉ-thêm trên ~20 bảng
+- Chọn: Giữ hàng chứng từ tiền và bảng chứng từ trỏ tới (hợp đồng, lưu trú, cơ sở/phòng, công tơ, audit, support_grants); tổ chức thành tombstone; người gắn chứng từ giữ họ tên, bỏ SĐT/email/địa chỉ; người khác ẩn danh; xoá mọi kho còn lại + object; chứng nhận liệt kê kho giữ + lý do
+- Lý do (tiêu chí chất lượng cuối): Đúng và an toàn: không nới bất biến tiền (INV) đã có test; giữ tối thiểu, có lý do trong chứng nhận; nếu pháp lý xác nhận nghĩa vụ thuộc chủ tổ chức thì thêm bước xoá phần giữ sau hạn (việc tiếp theo)
+- Đường lùi: Thêm job xoá phần giữ khi pháp lý quyết; chứng nhận mới ghi bổ sung
