@@ -1,8 +1,6 @@
 # PROGRESS.md — Hotel Manager
 ## Đang làm
-- 2026-10-22 đợt 17 (D-093…D-095): luật grype critical gia hạn tới 2026-10-29 (chưa có image vá); 8 MUST D-095 tick lại sau khi import ruleset (2026-10-23), MUST mở 90.
-- 2026-10-24 đợt 21 (D-101, D-102): `MessagesProvider` (client context, khoá `common.`) cho hạ tầng client; phần đuôi ngoài `merge_risk_paths` sang `t()`/`tm()`, baseline 1717 → 1552; bundle 278,11 kB. Còn ngoài risk: chỉ `lib/format.ts`.
-- 2026-10-24 đợt 22 (D-103…D-105, "hoàn thiện dự án"): XC-I18N-001 ĐẠT (D-103…D-108): 1552 → 0 chuỗi viết thẳng, 3 catalog + 2 catalog con client, 70 tệp ngoại lệ vận hành/migration có lý do + max; PR #131 người merge. MUST mở 89.
+- Lịch sử đợt cũ: `docs/autopilot/archive/PROGRESS-history.md`.
 - 2026-10-25 đợt 23 lát C (D-117…D-120, nhánh `claude/exciting-gauss-5yuqhd`, người merge): T-2308 migration 0066 dọn dữ liệu vận hành + ẩn danh giấy tờ/người (quan hệ mở/số dư CUSTOMER_CREDIT chặn; khoá rồi kiểm lại chống race; TimeZone UTC), job `privacy.retention`; T-2309 `track()` + `product_events` (0067), đồng ý mặc định TỪ CHỐI tới T-2310. Review chéo họ: 1 🟠 + 3 🟡 + 1 🟢 đã sửa. Còn cho T-2310: cache đồng ý theo request; T-2311: gọi `app.unlink_product_events_actor` (chỉ cấp `app_worker`), ẩn danh `auth.user`; nơi ghi quan hệ nên kiểm `anonymized_at`.
 - Cần xác minh khi triển khai: role owner chạy migration phải bỏ qua RLS (superuser/BYPASSRLS), nếu không mọi hàm dọn SECURITY DEFINER (0056/0066/0067) lỗi trên bảng FORCE RLS — gắn với ⑩ `MIGRATION_DATABASE_URL`.
 - Đợt mới: `loop resume` nếu còn `.autopilot/state.json`; container mới không có state ⇒ PLAN mới + `loop init` (FB-149).
@@ -32,8 +30,6 @@
 - D-068 ngoại lệ giấy phép `parse-cache-control` BSD (hạn 2027-04-18); giữ MỘT lockfile pnpm.
 - Nợ chấp nhận: pháp lý trong `docs/research/` chỉ có nguồn thứ cấp — đối chiếu văn bản gốc trước khi dùng dữ liệu thật.
 - Bài học: `set -o pipefail` với `loop record`; test DB `pnpm vitest run --project db <mẫu>`; sau mỗi merge `main` chạy lại `pnpm test` (rào mới đụng nhau); `merge-check` có thể báo xanh khi job chính chưa có check run (FB-096); E2E đăng nhập qua `signInClick`; `page.route` cần `serviceWorkers: "block"`; mốc `delete_after` theo ngày UTC; migration mới đánh số sau bản cuối trên `main`; job có tên chứa dấu cách (ma trận) cần `while read` khi duyệt context.
-
-- Bài học đợt 5–8: Better Auth `/sign-in/email` 20 lần/phút theo IP; `<dialog>` phát `close` sau một task (`onClose` chỉ xoá trạng thái khi hộp thật sự đóng); chạy lại job CI dùng payload sự kiện cũ (cần push mới); test giá trị ngẫu nhiên phải loại ca biên (IP octet 0); không so thời gian tuyệt đối (so tương đối); hai lát song song có thể đụng nhau qua rào mới.
 
 ## Bàn giao phiên
 - 2026-10-22 `main` = `eaab1f8` (sau #130); PR #131 đợt 22; nhánh `claude/admiring-pasteur-qi1dn0` (đợt 17–18, tick lại D-095). Thiếu ruleset tag, nhãn `major`, LICENSE.
