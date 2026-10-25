@@ -1317,6 +1317,14 @@ describe("docs/ops/retention-policy.md khớp mã và cấu hình (XC-GREEN-007)
         "IMPORT_ROW_RETENTION_DAYS",
         "PURGE_BATCH",
         "PURGE_MAX_ROUNDS",
+        "NOTIFICATION_RETENTION_DAYS",
+        "WORKER_HEARTBEAT_STALE_DAYS",
+        "AUTH_SESSION_GRACE_DAYS",
+        "AUTH_VERIFICATION_GRACE_DAYS",
+        "GUEST_LINK_GRACE_DAYS",
+        "INBOX_RAW_RETENTION_YEARS",
+        "IDENTITY_DOCUMENT_RETENTION_MONTHS",
+        "PERSON_RETENTION_YEARS",
       ]),
     );
     for (const [k, v] of consts) {
@@ -1355,6 +1363,34 @@ describe("docs/ops/retention-policy.md khớp mã và cấu hình (XC-GREEN-007)
     expect(mig).toMatch(/REVOKE ALL ON FUNCTION app\.purge_outbox[\s\S]*FROM PUBLIC/);
     expect(mig).toMatch(/GRANT EXECUTE ON FUNCTION app\.purge_outbox[\s\S]*TO app_worker;/);
     expect(mig).not.toMatch(/TO app_runtime/);
+  });
+  it("T-2308: mỗi hàm app.purge_*/app.anonymize_* của migration 0066 được bảng nhắc tới, chỉ cấp app_worker, có job privacy.retention", () => {
+    const mig = read("packages/db/src/migrations/0066_personal_data_retention.ts");
+    const fns = [...mig.matchAll(/CREATE FUNCTION (app\.(?:purge|anonymize)_\w+)/g)].map((m) => m[1]);
+    expect(fns).toHaveLength(8);
+    for (const f of fns) {
+      expect(doc, f).toContain(`\`${f}\``);
+      expect(mig, `${f} chỉ cấp cho app_worker`).toMatch(
+        new RegExp(`GRANT EXECUTE ON FUNCTION[^;]*${f.replace(".", "\\.")}\\(`),
+      );
+    }
+    expect(mig).toMatch(/REVOKE ALL ON FUNCTION app\.purge_notifications[\s\S]*FROM PUBLIC/);
+    expect(mig).not.toMatch(/TO app_runtime/);
+    const runtime = read("apps/worker/src/runtime.ts");
+    expect(runtime).toContain('name: "privacy.retention"');
+    expect(runtime).toContain("purgePersonalData(workerDb");
+    expect(doc).toContain("privacy.retention");
+    // Mỗi hằng của policy.ts dùng trong personal.ts đều có dòng RET (một nguồn số liệu ↔ tài liệu).
+    const personal = read("packages/app/src/retention/personal.ts");
+    const used = [...personal.matchAll(/\["\w+", "\w+", ([A-Z][A-Z0-9_]+)\]/g)].map((m) => m[1]);
+    expect(used).toHaveLength(fns.length);
+    for (const k of used)
+      expect(
+        rows.some((r) => r.cfg.includes(`\`${k}=`)),
+        k,
+      ).toBe(true);
+    // Hạn giữ dữ liệu cá nhân ghi rõ là đề xuất.
+    expect(doc).toMatch(/RET-11…RET-18[^\n]*đề xuất/);
   });
   it("audit_events được ghi rõ là không xoá và vẫn có trigger append-only", () => {
     expect(rows.find((r) => r.what.includes("audit_events")).keep).toContain("không xoá");

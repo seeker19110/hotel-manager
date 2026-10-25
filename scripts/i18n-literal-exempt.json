@@ -75,6 +75,10 @@
     "reason": "Thông điệp AggregateError của job dọn dữ liệu hết hạn (worker) — chỉ vào log vận hành, không ra API/UI.",
     "max": 1
   },
+  "packages/app/src/retention/personal.ts": {
+    "reason": "Thông điệp AggregateError của job dọn/ẩn danh dữ liệu cá nhân (worker, T-2308) — chỉ vào log vận hành, không ra API/UI (cùng loại packages/app/src/retention/events.ts).",
+    "max": 1
+  },
   "packages/db/src/migrations/0001_tenancy.ts": {
     "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL/thông báo): chuỗi tiếng Việt là chú thích SQL `--` và thông báo RAISE EXCEPTION của trigger/hàm (3 RAISE; HINT LAST_OWNER, TENANT_CONTEXT_MISSING, VALIDATION_FAILED) — toProblem (packages/app/src/pipeline/problem.ts) không trả message Postgres mà dùng title catalog theo HINT/SQLSTATE (không khớp → INTERNAL câu chung), safe() của web không bắt lỗi pg (không có status); message chỉ vào log vận hành.",
     "max": 1
@@ -262,6 +266,10 @@
   "packages/db/src/migrations/0064_catalog_property_scope.ts": {
     "reason": "Migration đã áp (bất biến — AGENTS §4, không sửa SQL): chuỗi tiếng Việt duy nhất là chú thích SQL `--` trong thân migration — không phải dữ liệu, không ra API/UI (chỉ nhà phát triển đọc).",
     "max": 1
+  },
+  "packages/db/src/migrations/0066_personal_data_retention.ts": {
+    "reason": "Thông báo RAISE EXCEPTION của trigger app.inbox_immutable (bản nới hẹp 0066 và bản 0005 khôi phục ở down; HINT DOCUMENT_IMMUTABLE) — giữ nguyên câu của 0005; toProblem dùng title catalog theo HINT/SQLSTATE, message Postgres chỉ vào log vận hành.",
+    "max": 2
   },
   "packages/db/src/migrator.ts": {
     "reason": "Chỉ thông điệp Error khi chạy/lùi migration thất bại (migrateToLatest lúc khởi động, migrateDownAll trong test) — người vận hành thấy trong log khởi động, không ra API/UI.",

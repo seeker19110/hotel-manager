@@ -20,6 +20,7 @@ import {
   type ObjectStorage,
   parseOutboxPayload,
   purgeEventTables,
+  purgePersonalData,
   remindExpiring,
   runReconciliationDaily,
   runReminders,
@@ -60,6 +61,8 @@ export interface Intervals {
   retention: number;
   /** Dọn bảng sự kiện (outbox đã phát, idempotency hết hạn, lần gửi thông báo đã xong; T-505). */
   eventsRetention: number;
+  /** Dọn/ẩn danh dữ liệu cá nhân và bảng còn lại theo hạn giữ (T-2308, migration 0066). */
+  privacyRetention: number;
   /** Đối soát hằng ngày (IND-FIN-006). */
   reconciliation: number;
 }
@@ -76,6 +79,7 @@ export const DEFAULT_INTERVALS: Intervals = {
   exports: 5 * MINUTE,
   retention: 24 * HOUR,
   eventsRetention: HOUR, // xoá theo lô có trần; tồn đọng lớn được dọn dần qua các lượt
+  privacyRetention: 24 * HOUR, // hạn tính theo ngày/tháng/năm; xét quan hệ từng người nên chạy thưa
   reconciliation: 24 * HOUR,
 };
 
@@ -262,6 +266,14 @@ export async function startWorker(deps: WorkerDeps): Promise<WorkerHandle> {
       everyMs: iv.eventsRetention,
       initialDelayMs: deps.retentionInitialDelayMs ?? MINUTE,
       run: () => purgeEventTables(workerDb, { now: new Date(), log: (e, f) => log.info(e, f) }),
+    },
+    {
+      // Dữ liệu cá nhân + bảng còn lại (docs/ops/retention-policy.md RET-11…RET-18): xoá/ẩn danh theo lô qua hàm SECURITY DEFINER
+      // (migration 0066); idempotent, SKIP LOCKED. Log chỉ tên bảng + tên lỗi (không PII).
+      name: "privacy.retention",
+      everyMs: iv.privacyRetention,
+      initialDelayMs: deps.retentionInitialDelayMs ?? MINUTE,
+      run: () => purgePersonalData(workerDb, { now: new Date(), log: (e, f) => log.info(e, f) }),
     },
   ];
   const sender = deps.sender;

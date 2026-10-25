@@ -177,9 +177,11 @@ export {
   type EventPurgeStats,
   IDEMPOTENCY_GRACE_DAYS,
   OUTBOX_PUBLISHED_RETENTION_DAYS,
+  type PersonalPurgeStats,
   PURGE_BATCH,
   PURGE_MAX_ROUNDS,
   purgeEventTables,
+  purgePersonalData,
 } from "./retention/index.ts";
 export { serverContext } from "./server/context.ts";
 export { type AppServices, createServices, testServices } from "./server/services.ts";

@@ -27,8 +27,8 @@ export interface EventPurgeOptions {
   log?: (event: string, fields: Record<string, unknown>) => void;
 }
 
-/** Gọi `step` (trả số hàng đã xoá) lặp tới khi lô không đầy hoặc hết số lô. */
-async function drain(step: () => Promise<number>, batch: number, maxRounds: number): Promise<number> {
+/** Gọi `step` (trả số hàng đã xoá) lặp tới khi lô không đầy hoặc hết số lô. Dùng chung với `personal.ts`. */
+export async function drain(step: () => Promise<number>, batch: number, maxRounds: number): Promise<number> {
   let total = 0;
   for (let round = 0; round < maxRounds; round++) {
     const n = await step();

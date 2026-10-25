@@ -838,3 +838,10 @@
 - Chọn: Mặc định chặt, cấu hình được, đánh dấu chờ pháp lý: notifications 180 ngày; worker_heartbeats 30 ngày không cập nhật; phiên đăng nhập 30 ngày sau hết hạn; mã xác minh 1 ngày sau hết hạn; liên kết khách 90 ngày sau hết hạn/thu hồi; inbox (chứng từ ngân hàng) 10 năm; giấy tờ nhận dạng ẩn danh 12 tháng sau khi kết thúc lưu trú/thuê cuối; persons ẩn danh 10 năm sau quan hệ tiền/thuê cuối (giữ đối chiếu chứng từ)
 - Lý do (tiêu chí chất lượng cuối): (1) đúng và an toàn: tối thiểu hoá dữ liệu ngay, vẫn giữ phần nghĩa vụ kế toán 10 năm; mục đích thông báo lưu trú xong lúc nhận phòng nên giấy tờ không cần giữ lâu; (2) hằng số một chỗ, đổi một dòng; ẩn danh thay vì xoá giữ toàn vẹn sổ tiền (FK RESTRICT)
 - Đường lùi: Đổi hằng số trong packages/app/src/retention/policy.ts; tắt job bằng cấu hình worker
+
+### D-117 · 2026-10-25T06:19:19+00:00 · T-2308: ẩn danh payload inbox (append-only, trigger app.inbox_immutable) và cách tính sàn 10 năm chứng từ kế toán
+
+- Phương án: (1) Nới trigger đúng một đường: raw → '{}' sau sàn 10 năm tính từ hết năm phát sinh, bỏ qua bản ghi pending; chỉ hàm SECURITY DEFINER của app_worker gọi được · (2) Giữ inbox bất biến, không ẩn danh (vi phạm hạn RET khi hết 10 năm) · (3) Xoá cả dòng inbox khi hết hạn (mất dấu idempotency/đối soát)
+- Chọn: Nới trigger đúng một đường: raw → '{}' sau sàn 10 năm tính từ hết năm phát sinh, bỏ qua bản ghi pending; chỉ hàm SECURITY DEFINER của app_worker gọi được
+- Lý do (tiêu chí chất lượng cuối): Đúng và an toàn: giữ khoá idempotency và số tiền để đối soát, chỉ bỏ PII trong raw; đường nới hẹp, có test chặn mọi cập nhật khác; tính từ hết năm là cách hiểu chặt hơn của Luật Kế toán (chưa xác minh điều khoản)
+- Đường lùi: Migration 0066 có down khôi phục trigger cũ và gỡ hàm; dữ liệu đã ẩn danh không khôi phục (đúng mục đích)

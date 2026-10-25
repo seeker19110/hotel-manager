@@ -246,13 +246,14 @@ describe("migration 0056 — down/up", () => {
     if (!m) throw new Error("thiếu migration 0056_event_table_retention");
     const own = await createTestDb(); // DB riêng: không đụng dữ liệu các test trên
     try {
-      // [số hàm app.purge_* (kể cả `purge_import_rows` có từ 0045), số index của 0056]
+      // [số hàm app.purge_* của 0056 + `purge_import_rows` (0045), số index của 0056] — hàm của 0066 không tính (test riêng)
       const count = async () => [
         (
           await sql<{
             n: number;
           }>`select count(*)::int as n from pg_proc p join pg_namespace s on s.oid = p.pronamespace
-                                   where s.nspname = 'app' and p.proname like 'purge\\_%'`.execute(own.admin)
+                                   where s.nspname = 'app' and p.proname in ('purge_outbox', 'purge_idempotency_keys',
+                                     'purge_notification_deliveries', 'purge_import_rows')`.execute(own.admin)
         ).rows[0]?.n,
         (
           await sql<{ n: number }>`select count(*)::int as n from pg_indexes
