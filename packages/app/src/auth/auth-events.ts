@@ -76,16 +76,18 @@ export function createAuthEvents(pool: pg.Pool, log?: () => Logger): AuthEvents 
       select organization_id, membership_id from app.list_my_organizations(${e.userId}::uuid)`.execute(db);
     for (const o of orgs.rows) {
       await withTenant(db, { orgId: o.organization_id, actorId: o.membership_id }, async (trx) => {
-        const m = await sql<{ person_id: string }>`
-          select person_id from public.memberships where organization_id = ${o.organization_id} and id = ${o.membership_id}`.execute(
+        const m = await sql<{ person_id: string; role: string }>`
+          select person_id, role from public.memberships where organization_id = ${o.organization_id} and id = ${o.membership_id}`.execute(
           trx,
         );
         const personId = m.rows[0]?.person_id;
         if (!personId) return;
+        // Tài khoản hỗ trợ (D-128): đăng nhập/bảo mật của họ hiện riêng trong nhật ký của tổ chức.
+        const actorType = m.rows[0]?.role === "platform_support" ? "platform_support" : "user";
         await sql`
           insert into public.audit_events (id, organization_id, actor_type, actor_person_id, action, entity_type, entity_id,
                                            reason, correlation_id, outcome, source_ip, user_agent)
-          values (${randomUUID()}, ${o.organization_id}, 'user', ${personId}, ${e.event}, 'membership', ${o.membership_id},
+          values (${randomUUID()}, ${o.organization_id}, ${actorType}, ${personId}, ${e.event}, 'membership', ${o.membership_id},
                   ${e.reason ?? null}, ${e.correlationId}, ${e.outcome === "success" ? "success" : "denied"}, ${src.sourceIp},
                   ${src.userAgent})`.execute(trx);
         const eventType = e.notify ? AUTH_NOTIFY_EVENT[e.event] : undefined;

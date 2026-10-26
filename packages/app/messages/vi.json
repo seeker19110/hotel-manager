@@ -3454,5 +3454,33 @@
   "tenancy.deletion.rate_limited": {
     "message": "Thử mật khẩu quá nhiều lần, vui lòng đợi rồi thử lại",
     "description": "Thông điệp lỗi API (429 RATE_LIMITED) khi nhập lại mật khẩu để xoá tổ chức vượt 5 lần/15 phút (T-2312)."
+  },
+  "access.role_platform_support": {
+    "message": "hỗ trợ nền tảng (chỉ xem)",
+    "description": "Nhãn vai trò truy cập hỗ trợ (`platform_support`, D-128) trong email lời mời và danh sách thành viên."
+  },
+  "access.support_mail_link_intro": {
+    "message": "Đây là quyền hỗ trợ CHỈ XEM, mọi thao tác được ghi vào nhật ký mà chủ tổ chức xem được. Mở liên kết sau và đăng nhập bằng đúng email này để nhận (dùng một lần, quyền tự hết sau {hours} giờ):",
+    "description": "Câu dẫn liền trước liên kết trong email lời mời truy cập hỗ trợ; {hours} = số giờ còn lại của quyền hỗ trợ."
+  },
+  "access.support_owner_only": {
+    "message": "Chỉ chủ tổ chức được cấp hoặc thu hồi truy cập hỗ trợ",
+    "description": "Lỗi 403 khi vai trò khác owner gọi member.grantSupportAccess / member.revokeSupportAccess (D-128)."
+  },
+  "access.support_reason_required": {
+    "message": "Nhập lý do cấp truy cập hỗ trợ (tối đa 500 ký tự)",
+    "description": "Lỗi theo ô `reason` của member.grantSupportAccess: lý do rỗng hoặc dài quá 500 ký tự."
+  },
+  "access.support_ttl_invalid": {
+    "message": "Thời hạn truy cập hỗ trợ là số giờ từ 1 đến {max}",
+    "description": "Lỗi theo ô `ttl_hours` của member.grantSupportAccess; {max} = số giờ tối đa (72)."
+  },
+  "access.support_not_found": {
+    "message": "Không tìm thấy truy cập hỗ trợ này",
+    "description": "Lỗi 404 khi thu hồi truy cập hỗ trợ không tồn tại trong tổ chức (member.revokeSupportAccess)."
+  },
+  "pipeline.support_read_only": {
+    "message": "Truy cập hỗ trợ chỉ được xem, không được thay đổi dữ liệu",
+    "description": "`title` của problem+json 403 khi tài khoản hỗ trợ nền tảng (D-128) gửi bất kỳ lệnh ghi nào."
   }
 }

@@ -195,6 +195,17 @@ export const DEFAULT_LIMITS: Readonly<Partial<Record<MatrixRole, Readonly<Record
   front_desk: { refund: 2_000_000, price_override: 0 },
 };
 
+/**
+ * Truy cập hỗ trợ `platform_support` (D-128, ngoài bảng 5.3 vì không phải vai trò nghiệp vụ): CHỈ ĐỌC lịch phòng và số tiền để
+ * hỗ trợ — không giấy tờ (`identity.read`), không audit, không xuất (`data.export`), không quản trị thành viên/tổ chức. Mọi lệnh ghi
+ * còn bị chặn ở pipeline/route và RLS (0072) dù hành động có trong danh sách này.
+ */
+export const SUPPORT_READ: ReadonlySet<Action> = new Set<Action>([
+  "calendar.read_status",
+  "calendar.read_guests",
+  "money.read",
+]);
+
 /** Loại hạn mức áp cho từng hành động có `limit`. */
 export const LIMIT_KIND: Partial<Record<Action, string>> = {
   "reservation.override_price": "price_override",

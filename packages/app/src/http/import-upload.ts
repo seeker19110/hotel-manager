@@ -48,7 +48,7 @@ export async function handleImportUpload(req: Request, deps: HttpDeps): Promise<
     // Client quá cũ (S-009): 426 trước phiên/đọc thân, như lệnh thường.
     const outdated = outdatedClientProblem(req, deps, correlationId);
     if (outdated) return outdated;
-    const actor = await actorFromRequest(req, deps, correlationId);
+    const actor = await actorFromRequest(req, deps, correlationId, { write: "import.upload" });
     if (actor instanceof Response) return actor;
     const key = req.headers.get("idempotency-key") ?? "";
     if (!UUID.test(key))

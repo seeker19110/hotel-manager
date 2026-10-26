@@ -11,6 +11,7 @@ import {
   ORG_CONTEXT_HEADER,
   ORG_HEADER,
   orgCookieName,
+  recordSupportAccess,
   requestedOrgId,
   resolveActor,
   type UserCommandRequest,
@@ -32,6 +33,7 @@ import {
   getCommandResult,
   type Problem,
   settle,
+  supportWriteDenied,
   toProblem,
   unwrap,
 } from "../pipeline/index.ts";
@@ -269,7 +271,14 @@ export async function actorFromRequest(
   deps: HttpDeps,
   correlationId: string,
   /** `allowPendingDeletion`: đường được phép khi tổ chức chờ xoá (xuất dữ liệu, trạng thái/huỷ — T-2312, D-125). */
-  opts: { allowPendingDeletion?: boolean } = {},
+  opts: {
+    allowPendingDeletion?: boolean;
+    /**
+     * Đường GHI (tên lệnh/endpoint): tài khoản hỗ trợ chỉ đọc (D-128) ⇒ 403 + audit `command.denied` + sự kiện bảo mật, trước khi
+     * đọc thân request hay chạy bất cứ gì.
+     */
+    write?: string;
+  } = {},
 ): Promise<Actor | Response> {
   const session = await deps.getSession(req.headers);
   const endpoint = { type: "endpoint", id: new URL(req.url).pathname };
@@ -293,8 +302,9 @@ export async function actorFromRequest(
       })),
     });
   }
+  let actor: Actor;
   try {
-    return await resolveActor(deps.db, {
+    actor = await resolveActor(deps.db, {
       authUserId: session.user.id,
       orgId,
       twoFactorEnabled: Boolean(session.user.twoFactorEnabled),
@@ -317,6 +327,16 @@ export async function actorFromRequest(
     }
     throw err;
   }
+  if (opts.write !== undefined && actor.role === "platform_support")
+    return problemResponse(
+      await supportWriteDenied(deps.db, actor, {
+        command: opts.write,
+        correlationId,
+        client: requestClient(req.headers),
+      }),
+      correlationId,
+    );
+  return actor;
 }
 
 export function validationProblem(error: z.ZodError, correlationId: string): Response {
@@ -362,6 +382,7 @@ async function runCommand<I, O, P>(
     if (outdated) return outdated;
     const actor = await actorFromRequest(req, deps, correlationId, {
       allowPendingDeletion: def.allowPendingDeletion === true,
+      write: def.command,
     });
     if (actor instanceof Response) return actor;
     const key = req.headers.get("idempotency-key") ?? "";
@@ -531,6 +552,13 @@ async function runQuery<I, O>(def: QueryDef<I, O>, req: Request, deps: HttpDeps)
     });
     if (actor instanceof Response) return actor;
     actorOf = actor;
+    // D-128: mỗi query của tài khoản hỗ trợ để lại một `support.accessed` (lý do của lời cấp, nguồn) TRƯỚC khi đọc dữ liệu.
+    await recordSupportAccess(deps.db, actor, {
+      kind: "query",
+      name: def.query,
+      client: requestClient(req.headers),
+      correlationId,
+    });
     const params = nfcDeep(Object.fromEntries(new URL(req.url).searchParams));
     const parsed = def.input.safeParse(params);
     if (!parsed.success) {

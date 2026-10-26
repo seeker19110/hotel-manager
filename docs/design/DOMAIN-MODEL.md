@@ -125,7 +125,7 @@ Tài khoản sổ phụ (V1, theo từng tổ chức; chưa phải hệ thống 
 
 ## 6. Quyền (tóm tắt — ma trận đầy đủ ở SPEC-access-and-property)
 
-Vai trò: `owner` · `manager` · `front_desk` · `accountant` · `housekeeping` · `maintenance` · `tenant` (portal) · `guest` (link có hạn) · `platform_support` (tách riêng, cấp tạm thời).
+Vai trò: `owner` · `manager` · `front_desk` · `accountant` · `housekeeping` · `maintenance` · `tenant` (portal) · `guest` (link có hạn) · `platform_support` (tách riêng, cấp tạm thời: owner cấp qua lời mời email kèm lý do, hạn ≤ 72 giờ, CHỈ ĐỌC, mọi truy cập ghi audit `support.accessed` — D-128, T-2313).
 Quyền = (vai trò, hành động, phạm vi cơ sở, hạn mức tiền). Kiểm ở server (`packages/app`) **và** ở RLS. Giao diện chỉ ẩn/hiện để người dùng dễ hiểu.
 `housekeeping` không đọc `identity_documents` và không xem số tiền.
 

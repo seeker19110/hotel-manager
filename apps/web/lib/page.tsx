@@ -1,7 +1,17 @@
 // Khung trang cần đăng nhập + tổ chức: chuyển hướng khi chưa đủ điều kiện; vai trò bắt buộc MFA chưa bật ⇒ thông báo.
-import { type Actor, listMyNotifications, opsProperties, serverContext } from "@hm/app";
+import {
+  type Actor,
+  listMyNotifications,
+  listSupportAccess,
+  opsProperties,
+  recordSupportAccess,
+  requestClient,
+  serverContext,
+} from "@hm/app";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
+import { SupportBanner } from "../components/access/support-banner.tsx";
 import { ORG_CONTEXT_META } from "../components/command/org-context.ts";
 import { AppNav, type NavKinds } from "../components/rental/app-nav.tsx";
 import { ErrorState } from "../components/ui/state.tsx";
@@ -40,9 +50,17 @@ export async function withActor(
   if (r.actor.role === "tenant" && !opts.allowPendingDeletion) redirect("/portal");
   // Thanh điều hướng theo loại cơ sở trong phạm vi + chuông thông báo (số chưa đọc). Lỗi đọc → mặc định hiện đủ, chuông 0.
   const db = serverContext().db;
-  const [props, inbox] = await Promise.all([
+  // Truy cập hỗ trợ (D-128): mỗi lần tài khoản hỗ trợ mở trang ⇒ audit `support.accessed` (lý do của lời cấp, nguồn) TRƯỚC khi đọc
+  // dữ liệu; ghi lỗi thì trang lỗi (không phục vụ khi không để lại dấu vết).
+  await recordSupportAccess(db, r.actor, {
+    kind: "page",
+    name: current,
+    client: requestClient(await headers()),
+  });
+  const [props, inbox, support] = await Promise.all([
     safe(opsProperties(db, r.actor)),
     safe(listMyNotifications(db, r.actor, { limit: 1 })),
+    safe(listSupportAccess(db, r.actor)),
   ]);
   const templates = props.ok ? props.data.map((p) => p.template) : [];
   const kinds =
@@ -63,6 +81,12 @@ export async function withActor(
         propertyNames={props.ok ? props.data.map((p) => p.name) : []}
       />
       <main id="main" className="page">
+        {support.ok && support.data.some((x) => x.state === "active") ? (
+          <SupportBanner
+            rows={support.data.filter((x) => x.state === "active")}
+            owner={r.actor.role === "owner"}
+          />
+        ) : null}
         <h1>{title}</h1>
         {await render(r.actor, { kinds })}
       </main>

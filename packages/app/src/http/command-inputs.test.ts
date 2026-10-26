@@ -3,6 +3,7 @@
 // schema dùng chung, (4) lỗi theo trường của client khớp lỗi 422 của server cho cùng thân sai (client chỉ báo sớm).
 import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { EXPORT_KINDS } from "../exports/index.ts";
 import { REPO_ROOT, sourceFiles } from "../testing/source-scan.ts";
 import { COMMAND_INPUTS, checkCommandInput } from "./command-inputs.ts";
 import { validationProblem } from "./command-route.ts";
@@ -170,5 +171,14 @@ describe("client ↔ server: cùng thân sai ⇒ cùng tập trường lỗi (se
     ].sort();
     expect(server.length).toBeGreaterThan(0);
     expect(fields(checkCommandInput(path, body))).toEqual(server);
+  });
+});
+
+describe("exports.request — loại xuất ở schema dùng chung khớp EXPORT_KINDS (T-2313)", () => {
+  it("mọi loại trong EXPORT_KINDS hợp lệ và chỉ chúng", () => {
+    const schema = COMMAND_INPUTS["exports.request"];
+    for (const kind of EXPORT_KINDS)
+      expect(schema.safeParse({ kind, format: "csv" }).success, kind).toBe(true);
+    expect(schema.safeParse({ kind: "org_full", format: "csv" }).success).toBe(false);
   });
 });

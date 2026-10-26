@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { type AuthzActor, authorize, authorizeRequest } from "./authorize.ts";
+import { MATRIX, SUPPORT_READ } from "./matrix.ts";
 
 const P1 = "11111111-1111-4111-8111-111111111111";
 const P2 = "22222222-2222-4222-8222-222222222222";
@@ -37,9 +38,25 @@ describe("quyền theo vai trò", () => {
     ["manager", "period.unlock"],
     ["accountant", "reservation.manage"],
     ["tenant", "unit.manage"],
-    ["platform_support", "money.read"],
+    ["platform_support", "payment.record"],
+    ["platform_support", "identity.read"],
+    ["platform_support", "data.export"],
+    ["platform_support", "audit.read"],
+    ["platform_support", "member.invite_staff"],
   ])("%s không được %s → FORBIDDEN", (role, action) => {
     expect(() => authorize(actor(role), action as never, { propertyId: P1 })).toThrowError(
+      expect.objectContaining({ code: "FORBIDDEN" }),
+    );
+  });
+  it("platform_support (D-128): chỉ đọc theo SUPPORT_READ; mọi hành động ghi/quản trị bị từ chối", () => {
+    const support = { ...actor("platform_support"), allProperties: true };
+    for (const a of SUPPORT_READ) expect(authorize(support, a, { propertyId: P1 }).grant).toBe("read");
+    for (const a of Object.keys(MATRIX) as (keyof typeof MATRIX)[])
+      if (!SUPPORT_READ.has(a))
+        expect(() => authorize(support, a, { propertyId: P1, amount: 0 })).toThrowError(
+          expect.objectContaining({ code: "FORBIDDEN" }),
+        );
+    expect(() => authorizeRequest(support, "deposit.refund")).toThrowError(
       expect.objectContaining({ code: "FORBIDDEN" }),
     );
   });

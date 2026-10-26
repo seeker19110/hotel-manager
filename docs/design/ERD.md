@@ -300,9 +300,10 @@ Loại: M
 | role | text | không | `CHECK (role IN ('owner','manager','front_desk','accountant','housekeeping','maintenance','tenant','guest','platform_support'))` | 9 vai trò DOMAIN-MODEL §6; `guest` dùng cho ma trận quyền nhưng không tạo membership (khách dùng `guest_access_links`) |
 | status | text | không | `CHECK (status IN ('invited','active','suspended','revoked'))`, mặc định `'active'` | |
 | valid_from | timestamptz | không | mặc định `now()` | |
-| valid_to | timestamptz | có | `CHECK (valid_to IS NULL OR valid_to > valid_from)`; `CHECK (role <> 'platform_support' OR valid_to IS NOT NULL)` | `platform_support` chỉ cấp tạm thời; SPEC-portal ghi `valid_until`, ERD dùng `valid_to` theo SPEC-access (mục 7) |
+| valid_to | timestamptz | có | `CHECK (valid_to IS NULL OR valid_to > valid_from)`; `ck_memberships_support_temporary` (0072): `platform_support` ⇒ `valid_to IS NOT NULL AND valid_to <= valid_from + 72 giờ` và `support_reason` 1–500 ký tự; vai khác ⇒ `support_reason IS NULL` | `platform_support` chỉ cấp tạm thời (D-128: owner cấp qua lời mời, hết hiệu lực khi `valid_to <= now()`); SPEC-portal ghi `valid_until`, ERD dùng `valid_to` theo SPEC-access (mục 7) |
+| support_reason | text | có | xem `ck_memberships_support_temporary` | Lý do của lời cấp truy cập hỗ trợ (sao từ `invitations.support_reason`; T-2313, D-128) |
 | limits | jsonb | không | `CHECK (jsonb_typeof(limits)='object')`, mặc định `'{}'` | Khoá `discount`, `refund`, `price_override`: số nguyên đồng ≥ 0 (`bigint`); 0 = mọi khoản cần duyệt; thiếu khoá thì lấy `organizations.settings.role_limits` |
-| all_properties | boolean | không | mặc định `false`; `CHECK (NOT all_properties OR role IN ('owner','accountant'))` | "Mọi cơ sở" (SPEC-access ca biên rỗng; Q-09); đề xuất, SPEC chưa nêu cột |
+| all_properties | boolean | không | mặc định `false`; `CHECK (NOT all_properties OR role IN ('owner','accountant','platform_support'))` (0072) | "Mọi cơ sở" (SPEC-access ca biên rỗng; Q-09); đề xuất, SPEC chưa nêu cột |
 | revoked_at | timestamptz | có | `CHECK ((status='revoked') = (revoked_at IS NOT NULL))` | |
 
 - Khoá/index: `PK (id)`, `UNIQUE (organization_id, id)`; `UNIQUE (organization_id, auth_user_id) WHERE auth_user_id IS NOT NULL AND status IN ('invited','active','suspended')`; `UNIQUE (organization_id, person_id) WHERE status IN ('invited','active','suspended')`; `ix (auth_user_id)` cho tra cứu theo phiên.
@@ -336,7 +337,8 @@ Loại: M
 | Cột | Kiểu | Null | Ràng buộc/mặc định | Ghi chú |
 |---|---|---|---|---|
 | email | text | không | `CHECK (email = lower(btrim(email)))` | |
-| role | text | không | `CHECK (role IN ('owner','manager','front_desk','accountant','housekeeping','maintenance','tenant'))` | |
+| role | text | không | `CHECK (role IN ('owner','manager','front_desk','accountant','housekeeping','maintenance','tenant','platform_support'))` (0072) | `platform_support` = lời mời truy cập hỗ trợ chỉ đọc (D-128) |
+| support_reason | text | có | `ck_invitations_support` (0072): `platform_support` ⇒ lý do 1–500 ký tự, `expires_at <= created_at + 72 giờ`, `property_ids = '{}'`, `limits = '{}'`; vai khác ⇒ NULL | Lý do owner cấp truy cập hỗ trợ (T-2313) |
 | property_ids | uuid[] | không | mặc định `'{}'` | Không FK (mảng); kiểm ở command và chuyển thành `property_scopes` (có FK) khi chấp nhận |
 | limits | jsonb | không | `CHECK (jsonb_typeof(limits)='object')`, mặc định `'{}'` | Như `memberships.limits` |
 | token_hash | bytea | không | `CHECK (octet_length(token_hash)=32)` | SHA-256 của token ngẫu nhiên ≥ 128 bit; không lưu token |

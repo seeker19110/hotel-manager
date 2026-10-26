@@ -11,6 +11,10 @@
     "message": "Vai trò không có quyền này",
     "description": "Thông điệp của AuthzError (packages/domain access/authorize.ts) — đi thẳng ra `title` của problem+json (RFC 9457) mà API trả cho client khi vai trò của thành viên không thuộc ma trận quyền (403 FORBIDDEN)."
   },
+  "authz.support_read_only": {
+    "message": "Truy cập hỗ trợ chỉ được xem, không được thay đổi dữ liệu",
+    "description": "Thông điệp của AuthzError (packages/domain access/authorize.ts) — `title` của problem+json khi tài khoản hỗ trợ nền tảng (truy cập hỗ trợ do owner cấp, D-128) gọi hành động ngoài danh sách chỉ đọc (403 FORBIDDEN)."
+  },
   "authz.self_approval": {
     "message": "Bạn không thể tự duyệt yêu cầu mình lập",
     "description": "Thông điệp của AuthzError (packages/domain access/authorize.ts) — đi thẳng ra `title` của problem+json (RFC 9457) mà API trả cho client khi người duyệt chính là người lập yêu cầu (403 SELF_APPROVAL_FORBIDDEN, INV-F5)."

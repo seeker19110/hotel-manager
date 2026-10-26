@@ -31,12 +31,15 @@ export const AUDIT_MONEY_GROUPS = [
 ] as const;
 
 export const AUDIT_PAGE_MAX = 200;
+const ACTOR_TYPES: ReadonlySet<string> = new Set(["user", "worker", "platform_support"]);
 
 export interface AuditFilter {
   from?: Date;
   to?: Date;
   propertyId?: string;
   actorPersonId?: string;
+  /** `user` | `worker` | `platform_support` — lọc riêng thao tác của truy cập hỗ trợ (D-128). */
+  actorType?: string;
   entityType?: string;
   entityId?: string;
   action?: string;
@@ -182,6 +185,7 @@ export async function listEvents(
       throw invalid(k);
     }
   authorizeAudit(actor, f.propertyId);
+  if (f.actorType !== undefined && !ACTOR_TYPES.has(f.actorType)) throw invalid("actorType");
   if (f.from && f.to && f.from.getTime() > f.to.getTime()) throw invalid("from");
   const limit = Math.min(Math.max(Math.trunc(f.limit ?? 50), 1), AUDIT_PAGE_MAX);
   const order = f.order ?? (f.correlationId ? "asc" : "desc");
@@ -194,6 +198,7 @@ export async function listEvents(
         ${f.to ? sql`and e.occurred_at < ${f.to}` : sql``}
         ${f.propertyId ? sql`and e.property_id = ${f.propertyId}` : sql``}
         ${f.actorPersonId ? sql`and e.actor_person_id = ${f.actorPersonId}` : sql``}
+        ${f.actorType ? sql`and e.actor_type = ${f.actorType}` : sql``}
         ${f.entityType ? sql`and e.entity_type = ${f.entityType}` : sql``}
         ${f.entityId ? sql`and e.entity_id = ${f.entityId}` : sql``}
         ${f.action ? sql`and e.action = ${f.action}` : sql``}

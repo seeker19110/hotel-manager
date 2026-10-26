@@ -165,10 +165,67 @@ function replay<T>(commandId: string, row: StoredRow): CommandResult<T> {
   };
 }
 
+/** `audit_events.actor_type`: tài khoản hỗ trợ (D-128) tách khỏi người dùng của tổ chức để owner lọc/nhận ra. */
+const actorType = (actor: Actor) => (actor.role === "platform_support" ? "platform_support" : "user");
+
+/**
+ * "Từ đâu" cho audit ghi bằng SQL trong transaction (hàm CSDL, insert trực tiếp): GUC giao dịch mà trigger 0072 đọc khi dòng chưa
+ * có `source_ip`/`user_agent`. Giá trị đã cắt/làm sạch như `auditRow`.
+ */
+export async function setAuditSource(
+  trx: Transaction<unknown> | Kysely<unknown>,
+  client: SecurityClient | null | undefined,
+): Promise<void> {
+  const src = auditSource(client);
+  await sql`select set_config('app.source_ip', ${src.sourceIp ?? ""}, true),
+                   set_config('app.user_agent', ${src.userAgent ?? ""}, true)`.execute(trx);
+}
+
+/**
+ * Truy cập hỗ trợ CHỈ ĐỌC (D-128): mọi lệnh ghi của actor `platform_support` bị từ chối TRƯỚC khi chạy bất cứ gì (không
+ * idempotency, không nghiệp vụ) — 403 + audit `command.denied` (actor_type platform_support, lý do của lời cấp, nguồn) + sự kiện
+ * bảo mật. Gọi ở route (trước khi đọc thân lệnh) và ở `executeCommand` (lớp hai cho mọi đường gọi khác).
+ */
+export async function supportWriteDenied(
+  db: Kysely<unknown>,
+  actor: Actor,
+  req: { command: string; correlationId: string; client?: SecurityClient | null | undefined },
+): Promise<Problem> {
+  const problem = toProblem(
+    new CommandError("FORBIDDEN", 403, t("pipeline.support_read_only")),
+    req.correlationId,
+  );
+  await withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, (trx) =>
+    auditRow(
+      trx,
+      actor,
+      { commandId: null, correlationId: req.correlationId },
+      {
+        action: "command.denied",
+        entityType: req.command,
+        after: { code: problem.code },
+        ...(actor.support?.reason ? { reason: actor.support.reason } : {}),
+      },
+      "denied",
+      req.client,
+    ),
+  );
+  emitSecurity({
+    event: "authz.denied",
+    outcome: "denied",
+    actor,
+    target: { type: "command", id: req.command },
+    reason: problem.code,
+    client: req.client ?? null,
+    correlationId: req.correlationId,
+  });
+  return problem;
+}
+
 async function auditRow(
   trx: Transaction<unknown>,
   actor: Actor,
-  ids: { commandId: string; correlationId: string },
+  ids: { commandId: string | null; correlationId: string },
   e: AuditInput,
   outcome: "success" | "denied",
   client: SecurityClient | null | undefined,
@@ -178,7 +235,7 @@ async function auditRow(
   await sql`
     insert into audit_events (id, organization_id, property_id, actor_type, actor_person_id, action, entity_type, entity_id,
                               before, after, reason, correlation_id, command_id, outcome, source_ip, user_agent)
-    values (${randomUUID()}, ${actor.orgId}, ${e.propertyId ?? null}, 'user', ${actor.personId}, ${e.action}, ${e.entityType},
+    values (${randomUUID()}, ${actor.orgId}, ${e.propertyId ?? null}, ${actorType(actor)}, ${actor.personId}, ${e.action}, ${e.entityType},
             ${e.entityId ?? null}, ${e.before === undefined ? null : JSON.stringify(redact(e.before))}::jsonb,
             ${e.after === undefined ? null : JSON.stringify(redact(e.after))}::jsonb, ${e.reason ?? null},
             ${ids.correlationId}, ${ids.commandId}, ${outcome}, ${src.sourceIp}, ${src.userAgent})`.execute(
@@ -253,6 +310,10 @@ export async function executeCommand<T>(
     throw new CommandError("MALFORMED_REQUEST", 400, t("http.idempotency_key_invalid"));
   }
   const commandId = req.idempotencyKey.toLowerCase();
+  if (actor.role === "platform_support" && !req.bootstrap) {
+    const problem = await supportWriteDenied(db, actor, req);
+    return { status: "failed", commandId, httpStatus: problem.status, problem, replayed: false };
+  }
   const hash = hashPayload(req.command, req.payload);
   const ids = { commandId, correlationId: req.correlationId };
 
@@ -298,6 +359,8 @@ export async function executeCommand<T>(
             trx,
           );
           if (!free.rows[0]?.ok) throw idempotencyInProgress();
+          // Audit ghi bằng SQL trong lệnh (hàm CSDL, insert trực tiếp) cũng có "từ đâu" (trigger 0072).
+          if (req.client) await setAuditSource(trx, req.client);
           if (req.bootstrap) {
             const known = await sql<{ one: number }>`
               select 1 as one from idempotency_keys where organization_id = ${actor.orgId} and key = ${commandId}`.execute(

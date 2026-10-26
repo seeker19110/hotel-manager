@@ -10,6 +10,7 @@ const SRC = new URL("../", import.meta.url);
 /** query → [file, hàm chứa câu SQL danh sách] (hàm đệm khi `list*` gọi qua helper). */
 const IMPL: Record<string, [string, string]> = {
   "member.list": ["access/directory.ts", "listMembers"],
+  "member.listSupportAccess": ["access/support.ts", "listSupportAccess"],
   "property.list": ["access/directory.ts", "listProperties"],
   "reservation.list": ["stay/reservations.ts", "listReservations"],
   "stay.listNotices": ["stay/residence-notices.ts", "listNotices"],

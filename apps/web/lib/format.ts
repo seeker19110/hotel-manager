@@ -110,6 +110,10 @@ export const DEFAULT_TIME_ZONE = "Asia/Ho_Chi_Minh";
 export const dateTime = (d: Date, timeZone: string) =>
   new Intl.DateTimeFormat("vi-VN", { dateStyle: "short", timeStyle: "short", timeZone }).format(d);
 
+/** Ngày lịch (YYYY-MM-DD) của thời điểm `d` theo múi giờ `timeZone` — vd "hôm nay" theo giờ cơ sở (bộ lọc /nhat-ky). */
+export const isoDateIn = (d: Date, timeZone: string) =>
+  new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone }).format(d);
+
 /** Múi giờ chung của các cơ sở trong phạm vi (thông báo cấp tổ chức); các cơ sở khác múi giờ nhau ⇒ mặc định. */
 export function commonTimeZone(properties: readonly { timezone: string }[]): string {
   const zones = new Set(properties.map((p) => p.timezone));

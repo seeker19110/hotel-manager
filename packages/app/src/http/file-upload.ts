@@ -68,7 +68,7 @@ export async function handleFileUpload(req: Request, deps: HttpDeps): Promise<Re
     // Client quá cũ (S-009): 426 trước phiên/đọc thân, như lệnh thường.
     const outdated = outdatedClientProblem(req, deps, correlationId);
     if (outdated) return outdated;
-    const actor = await actorFromRequest(req, deps, correlationId);
+    const actor = await actorFromRequest(req, deps, correlationId, { write: "files.upload" });
     if (actor instanceof Response) return actor;
     const q = new URL(req.url).searchParams;
     const ownerType = q.get("owner_type") as FileOwnerType | null;

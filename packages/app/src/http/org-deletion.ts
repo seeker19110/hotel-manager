@@ -127,6 +127,7 @@ export async function handleRequestOrgDeletion(req: Request, deps: OrgDeletionDe
     const r = await requestOrgDeletion(deps.db, actor, {
       reauthenticatedAt: at,
       correlationId,
+      client: requestClient(req.headers),
       ...(deps.now ? { now: deps.now() } : {}),
     });
     const status = await orgDeletionStatus(deps.db, actor);
@@ -146,7 +147,10 @@ export async function handleCancelOrgDeletion(req: Request, deps: OrgDeletionDep
   const actor = await actorOf(req, deps, correlationId);
   if (actor instanceof Response) return actor;
   try {
-    const cancelled = await cancelOrgDeletion(deps.db, actor, { correlationId });
+    const cancelled = await cancelOrgDeletion(deps.db, actor, {
+      correlationId,
+      client: requestClient(req.headers),
+    });
     const status = await orgDeletionStatus(deps.db, actor);
     return json({ data: { cancelled, ...statusJson(status) } }, 200, correlationId);
   } catch (err) {

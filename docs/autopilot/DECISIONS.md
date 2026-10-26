@@ -915,3 +915,17 @@
 - Chọn: Giữ trigger BEFORE INSERT auth.session từ chối tài khoản đã ẩn danh (42501 ACCOUNT_DELETED)
 - Lý do (tiêu chí chất lượng cuối): (1) đúng: đóng lỗ thật (có test đỏ trên mã cũ), quyền xoá phải dứt điểm; chi phí một lần tra PK mỗi đăng nhập; tài khoản tự đặt email dạng deleted+…@deleted.invalid chỉ tự chặn chính mình
 - Đường lùi: Drop trigger app.session_guard_erased bằng migration mới
+
+### D-128 · 2026-10-26T04:16:40+00:00 · T-2313: nhật ký cho admin tổ chức + truy cập hỗ trợ (IND-SAAS-009, CMP-AUDIT-002) khi chủ dự án chưa quyết B2.3
+
+- Phương án: (1) Màn /nhat-ky cho owner/manager: lọc theo thời gian/người/loại/đối tượng, xuất CSV qua cơ chế xuất sẵn có; sự kiện audit đủ who/what/target/when UTC/ip/ua/result/reason; truy cập hỗ trợ = owner CẤP (mặc định không ai có) thành viên vai trò 'support' CHỈ ĐỌC qua lời mời theo email, kèm lý do bắt buộc + TTL (mặc định 24 giờ, tối đa 72 giờ), tự hết hạn, thu hồi 1 bước, biểu ngữ trong app khi đang có truy cập hỗ trợ, mọi thao tác của support ghi audit thấy được trong /nhat-ky; KHÔNG impersonation (không đăng nhập thay người khác) · (2) Impersonation do nhân viên nền tảng tự bật · (3) Chờ chủ dự án quyết B2.3
+- Chọn: Màn /nhat-ky cho owner/manager: lọc theo thời gian/người/loại/đối tượng, xuất CSV qua cơ chế xuất sẵn có; sự kiện audit đủ who/what/target/when UTC/ip/ua/result/reason; truy cập hỗ trợ = owner CẤP (mặc định không ai có) thành viên vai trò 'support' CHỈ ĐỌC qua lời mời theo email, kèm lý do bắt buộc + TTL (mặc định 24 giờ, tối đa 72 giờ), tự hết hạn, thu hồi 1 bước, biểu ngữ trong app khi đang có truy cập hỗ trợ, mọi thao tác của support ghi audit thấy được trong /nhat-ky; KHÔNG impersonation (không đăng nhập thay người khác)
+- Lý do (tiêu chí chất lượng cuối): (1) an toàn: chủ thể dữ liệu (tổ chức) kiểm soát, mặc định đóng, chỉ đọc, có hạn, minh bạch — hẹp hơn mọi phương án impersonation; không cần tài khoản/cấu hình nền tảng mới; (2) tắt được bằng cách gỡ vai trò; (3) dùng lại membership/lời mời/audit sẵn có, test được
+- Đường lùi: Revert PR; migration có down; chủ dự án có thể tắt hẳn vai trò support
+
+### D-129 · 2026-10-26T05:36:22+00:00 · T-2313 câu hỏi mở: tên vai hỗ trợ, support đọc persons, xác thực lại khi cấp
+
+- Phương án: (1) Giữ platform_support (đã có trong DOMAIN-MODEL); support KHÔNG đọc persons; owner phải xác thực lại (REAUTH như xoá tổ chức) khi cấp truy cập hỗ trợ · (2) Đổi tên support, mở persons_read, không xác thực lại
+- Chọn: Giữ platform_support (đã có trong DOMAIN-MODEL); support KHÔNG đọc persons; owner phải xác thực lại (REAUTH như xoá tổ chức) khi cấp truy cập hỗ trợ
+- Lý do (tiêu chí chất lượng cuối): (1) an toàn: cấp quyền đọc toàn tổ chức cho người ngoài là hành động nhạy cảm như xoá tổ chức nên cần xác thực lại; không lộ thêm PII khách; thuật ngữ theo DOMAIN-MODEL (AGENTS §9)
+- Đường lùi: Bỏ REAUTH ở lệnh grant; thêm policy persons_read cho support bằng migration mới

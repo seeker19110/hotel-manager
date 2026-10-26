@@ -6,7 +6,7 @@
 //   (không trao nhiều hơn mình có). Bị từ chối ⇒ 403 + audit `member.invite_denied` (S-018).
 import { createHash, createHmac, hkdfSync, randomUUID } from "node:crypto";
 import { withTenantRetry } from "@hm/db";
-import { AuthzError, authorize, effectiveLimit } from "@hm/domain";
+import { AuthzError, authorize, effectiveLimit, SECONDS_PER_HOUR } from "@hm/domain";
 import { type Kysely, sql } from "kysely";
 import { t } from "../i18n.ts";
 import { type CommandContext, CommandError, fieldError } from "../pipeline/index.ts";
@@ -35,6 +35,7 @@ export const ROLE_LABEL: Readonly<Record<string, string>> = {
   accountant: t("access.role_accountant"),
   housekeeping: t("access.role_housekeeping"),
   maintenance: t("access.role_maintenance"),
+  platform_support: t("access.role_platform_support"),
 };
 
 /** Khoá dẫn xuất token lời mời: HKDF-SHA256 từ bí mật phiên với nhãn riêng. Xoay `BETTER_AUTH_SECRET` ⇒ lời mời đang chờ mất hiệu lực. */
@@ -170,8 +171,9 @@ export async function buildInvitationMail(
   const id = job.payload.invitation_id;
   if (typeof id !== "string") throw new Error(t("access.invitation_payload_missing"));
   const r = await withTenantRetry(workerDb, { orgId: job.organization_id }, (trx) =>
-    sql<{ email: string; role: string; org_name: string; ok: boolean }>`
-      select i.email, i.role, o.name as org_name, (i.status = 'pending' and i.expires_at > now() and o.status = 'active') as ok
+    sql<{ email: string; role: string; org_name: string; ok: boolean; hours_left: number }>`
+      select i.email, i.role, o.name as org_name, (i.status = 'pending' and i.expires_at > now() and o.status = 'active') as ok,
+             greatest(1, ceil(extract(epoch from i.expires_at - now()) / ${SECONDS_PER_HOUR}))::int as hours_left
       from invitations i join organizations o on o.id = i.organization_id
       where i.organization_id = ${job.organization_id} and i.id = ${id}`.execute(trx),
   );
@@ -189,7 +191,10 @@ export async function buildInvitationMail(
     text: [
       t("access.invite_mail_intro", { org, role }),
       "",
-      t("access.invite_mail_link_intro", { days: INVITATION_TTL_DAYS }),
+      // Truy cập hỗ trợ (D-128): hạn tính bằng giờ, kèm nhắc chỉ đọc + mọi thao tác được ghi nhật ký cho chủ tổ chức.
+      row.role === "platform_support"
+        ? t("access.support_mail_link_intro", { hours: row.hours_left })
+        : t("access.invite_mail_link_intro", { days: INVITATION_TTL_DAYS }),
       link,
       "",
       t("access.invite_mail_ignore"),

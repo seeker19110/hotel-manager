@@ -149,7 +149,13 @@ export interface ExportFilters {
   from?: string;
   to?: string;
   correlationId?: string;
+  /** Bộ lọc nhật ký (/nhat-ky, T-2313) — cùng bộ lọc màn hình: người, loại hành động, loại đối tượng. */
+  actorPersonId?: string;
+  action?: string;
+  entityType?: string;
 }
+
+const AUDIT_FILTER_KEY = /^[a-z_]+(\.[a-z_]+)*$/;
 
 function assertKindAllowed(actor: Actor, kind: string): void {
   authorize(actor, "data.export");
@@ -183,12 +189,31 @@ function normalizeFilters(kind: ExportKind, f: ExportFilters): Record<string, st
       return {
         from: r.from,
         to: r.to,
-        ...(kind === "audit" && f.correlationId ? { correlation_id: f.correlationId.slice(0, 200) } : {}),
+        ...(kind === "audit" ? auditFilters(f) : {}),
       };
     }
     case "deposits":
       return {};
   }
+}
+
+function auditFilters(f: ExportFilters): Record<string, string> {
+  const bad = (field: string) =>
+    new CommandError("VALIDATION_FAILED", 422, t("audit.filter_invalid"), {
+      extensions: { errors: [{ path: field, field, code: "invalid" }] },
+    });
+  if (f.actorPersonId !== undefined && !UUID.test(f.actorPersonId)) throw bad("actor_person_id");
+  for (const [k, v] of [
+    ["action", f.action],
+    ["entity_type", f.entityType],
+  ] as const)
+    if (v !== undefined && (v.length > 100 || !AUDIT_FILTER_KEY.test(v))) throw bad(k);
+  return {
+    ...(f.correlationId ? { correlation_id: f.correlationId.slice(0, 200) } : {}),
+    ...(f.actorPersonId ? { actor_person_id: f.actorPersonId.toLowerCase() } : {}),
+    ...(f.action ? { action: f.action } : {}),
+    ...(f.entityType ? { entity_type: f.entityType } : {}),
+  };
 }
 
 async function assertRate(ctx: CommandContext, now: Date): Promise<void> {
@@ -594,6 +619,9 @@ async function reportTable(
           to: new Date(Date.parse(`${f.to}T00:00:00+07:00`) + MS_PER_DAY),
           ...(propertyId ? { propertyId } : {}),
           ...(f.correlation_id ? { correlationId: f.correlation_id } : {}),
+          ...(f.actor_person_id ? { actorPersonId: f.actor_person_id } : {}),
+          ...(f.action ? { action: f.action } : {}),
+          ...(f.entity_type ? { entityType: f.entity_type } : {}),
           order: "asc",
           limit: 200,
           ...(cursor ? { cursor } : {}),

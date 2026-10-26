@@ -36,3 +36,15 @@ export {
   revokeUserSessions,
   sessionTokenFromCookie,
 } from "./sessions.ts";
+export {
+  grantSupportAccess,
+  isSupport,
+  listSupportAccess,
+  listSupportAccessQuery,
+  recordSupportAccess,
+  revokeSupportAccess,
+  SUPPORT_REASON_MAX,
+  SUPPORT_TTL_DEFAULT_HOURS,
+  SUPPORT_TTL_MAX_HOURS,
+  type SupportAccessRow,
+} from "./support.ts";

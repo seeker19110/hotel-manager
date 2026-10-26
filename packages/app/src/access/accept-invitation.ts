@@ -65,8 +65,11 @@ export async function acceptInvitation(
         expired: boolean;
         property_ids: string[];
         limits: Record<string, number>;
+        support_reason: string | null;
+        expires_at: Date;
       }>`
-        select email, role, status, (expires_at <= now()) as expired, property_ids::text[] as property_ids, limits
+        select email, role, status, (expires_at <= now()) as expired, property_ids::text[] as property_ids, limits,
+               support_reason, expires_at
         from invitations where organization_id = ${orgId} and id = ${inv.id} for update`.execute(trx);
       const row = r.rows[0];
       if (!row) throw reject("unknown_token", orgId);
@@ -83,9 +86,15 @@ export async function acceptInvitation(
                 values (${personId}, ${orgId}, ${user.name.trim().slice(0, 200) || user.email}, ${user.email})`.execute(
         trx,
       );
-      await sql`insert into memberships (id, organization_id, auth_user_id, person_id, role, status, limits, all_properties)
+      // Truy cập hỗ trợ (D-128): hiệu lực đến đúng hạn của lời cấp (tính từ lúc owner cấp), kèm lý do — CHECK 0072 giữ ≤ 72 giờ.
+      const support = row.role === "platform_support";
+      await sql`insert into memberships (id, organization_id, auth_user_id, person_id, role, status, limits, all_properties,
+                                         valid_to, support_reason)
                 values (${membershipId}, ${orgId}, ${req.userId}, ${personId}, ${row.role}, 'active',
-                        ${JSON.stringify(row.limits)}::jsonb, ${allProperties})`.execute(trx);
+                        ${JSON.stringify(row.limits)}::jsonb, ${allProperties},
+                        ${support ? row.expires_at : null}, ${support ? row.support_reason : null})`.execute(
+        trx,
+      );
       for (const p of row.property_ids)
         await sql`insert into property_scopes (id, organization_id, membership_id, property_id)
                   values (gen_random_uuid(), ${orgId}, ${membershipId}, ${p})`.execute(trx);

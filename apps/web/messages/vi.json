@@ -2791,6 +2791,10 @@
     "message": "Thành viên",
     "description": "Tiêu đề (h1) của màn Thành viên (/thanh-vien) ở trạng thái đang tải (loading.tsx) và lỗi (error.tsx) cấp route; chữ cho trình đọc màn hình ở trạng thái tải lấy từ đây (chữ thường)."
   },
+  "common.route_title.audit_log": {
+    "message": "Nhật ký hoạt động",
+    "description": "Tiêu đề (h1) của màn Nhật ký hoạt động (/nhat-ky, T-2313) ở trạng thái đang tải (loading.tsx) và lỗi (error.tsx) cấp route."
+  },
   "route_title.more": {
     "message": "Thêm",
     "description": "Tiêu đề (h1) của màn Thêm (/them) ở trạng thái đang tải (loading.tsx) cấp route (chỉ server dùng — không thuộc common.); chữ cho trình đọc màn hình ở trạng thái tải lấy từ đây (chữ thường)."
@@ -4714,5 +4718,333 @@
   "org_certificate_page.back": {
     "message": "Về trang Quyền riêng tư",
     "description": "Trang chứng nhận xoá tổ chức /quyen-rieng-tu/chung-nhan-xoa (T-2312, D-125): liên kết quay lại."
+  },
+  "role.platform_support": {
+    "message": "Hỗ trợ nền tảng (chỉ xem)",
+    "description": "Nhãn vai trò `platform_support` (truy cập hỗ trợ chỉ đọc do owner cấp, D-128) trong màn quản trị."
+  },
+  "org_picker.role.platform_support": {
+    "message": "Hỗ trợ (chỉ xem)",
+    "description": "Nhãn vai trò `platform_support` ngắn ở màn chọn tổ chức."
+  },
+  "nav.more.audit_log": {
+    "message": "Nhật ký hoạt động",
+    "description": "Liên kết trong màn Thêm (owner, manager): trang Nhật ký hoạt động /nhat-ky (T-2313)."
+  },
+  "audit_log.metadata.title": {
+    "message": "Nhật ký hoạt động",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): tiêu đề thẻ trình duyệt."
+  },
+  "audit_log.page.title": {
+    "message": "Nhật ký hoạt động",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): tiêu đề trang (h1)."
+  },
+  "audit_log.error.forbidden_title": {
+    "message": "Không có quyền",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): tiêu đề lỗi khi vai trò không phải owner/manager."
+  },
+  "audit_log.error.forbidden_text": {
+    "message": "Chỉ chủ và quản lý xem được nhật ký hoạt động của tổ chức.",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nội dung lỗi khi vai trò không phải owner/manager."
+  },
+  "audit_log.error.load": {
+    "message": "Không tải được nhật ký",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): tiêu đề lỗi khi truy vấn nhật ký thất bại (vd bộ lọc không hợp lệ)."
+  },
+  "audit_log.filter.title": {
+    "message": "Lọc",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): tiêu đề khối lọc."
+  },
+  "audit_log.filter.from": {
+    "message": "Từ ngày",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nhãn ô ngày bắt đầu (giờ Việt Nam)."
+  },
+  "audit_log.filter.to": {
+    "message": "Đến ngày",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nhãn ô ngày kết thúc (gồm cả ngày này)."
+  },
+  "audit_log.filter.actor": {
+    "message": "Người thao tác",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nhãn ô chọn người."
+  },
+  "audit_log.filter.action": {
+    "message": "Loại hành động",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nhãn ô chọn loại hành động."
+  },
+  "audit_log.filter.entity": {
+    "message": "Loại đối tượng",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nhãn ô chọn loại đối tượng."
+  },
+  "audit_log.filter.any": {
+    "message": "Tất cả",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): lựa chọn không lọc."
+  },
+  "audit_log.filter.support_actor": {
+    "message": "Tài khoản hỗ trợ nền tảng",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): lựa chọn lọc mọi thao tác của truy cập hỗ trợ."
+  },
+  "audit_log.filter.submit": {
+    "message": "Lọc nhật ký",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nút áp dụng bộ lọc."
+  },
+  "audit_log.list.title": {
+    "message": "Sự kiện",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): tiêu đề danh sách sự kiện."
+  },
+  "audit_log.list.empty": {
+    "message": "Không có sự kiện nào trong khoảng đã chọn",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): trạng thái rỗng."
+  },
+  "audit_log.list.denied": {
+    "message": "bị từ chối",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): hậu tố khi sự kiện có kết quả bị từ chối."
+  },
+  "audit_log.list.meta": {
+    "message": "{when} · {who}",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): dòng thời điểm (giờ cơ sở) và người thao tác; {when} = thời điểm, {who} = tên người."
+  },
+  "audit_log.list.support_actor": {
+    "message": "Hỗ trợ nền tảng {name}",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): tên người thao tác khi là tài khoản hỗ trợ; {name} = tên (có thể rỗng)."
+  },
+  "audit_log.list.system_actor": {
+    "message": "Hệ thống",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): người thao tác khi là job/hệ thống."
+  },
+  "audit_log.list.target": {
+    "message": "Đối tượng: {type} {id}",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): dòng đối tượng; {type} = nhãn loại, {id} = 8 ký tự đầu mã."
+  },
+  "audit_log.list.ip": {
+    "message": "IP {ip}",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nguồn IP đã cắt (/24, /48); {ip} = địa chỉ."
+  },
+  "audit_log.list.reason": {
+    "message": "Lý do: {reason}",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): lý do ghi kèm sự kiện; {reason} = văn bản lý do."
+  },
+  "audit_log.list.next": {
+    "message": "Trang sau",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): liên kết trang kế (phân trang keyset)."
+  },
+  "audit_log.export.title": {
+    "message": "Xuất nhật ký",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): tiêu đề khối xuất CSV (owner)."
+  },
+  "audit_log.export.text": {
+    "message": "Xuất CSV theo bộ lọc hiện tại, từ {from} đến {to}. Cần đăng nhập gần đây; tệp có hạn tải ngắn.",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): giải thích xuất; {from}/{to} = ngày."
+  },
+  "audit_log.export.request": {
+    "message": "Xuất CSV",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nút yêu cầu xuất nhật ký."
+  },
+  "audit_log.export.requested": {
+    "message": "Đã yêu cầu xuất — tệp sẽ có trong danh sách bên dưới",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): thông báo thành công khi yêu cầu xuất."
+  },
+  "audit_log.export.item": {
+    "message": "{when} — {status}",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): một bản xuất nhật ký; {when} = lúc yêu cầu, {status} = trạng thái."
+  },
+  "audit_log.support.title": {
+    "message": "Truy cập hỗ trợ",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): tiêu đề khối quản lý truy cập hỗ trợ (owner)."
+  },
+  "audit_log.support.text": {
+    "message": "Cho người hỗ trợ của nền tảng XEM dữ liệu tổ chức trong thời hạn bạn chọn (tối đa {max} giờ). Họ không thay đổi, xuất dữ liệu hay xem số giấy tờ được; mọi lần truy cập ghi vào nhật ký này. Bạn thu hồi được bất cứ lúc nào.",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): giải thích truy cập hỗ trợ; {max} = số giờ tối đa."
+  },
+  "audit_log.support.none": {
+    "message": "Hiện không có truy cập hỗ trợ nào.",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): trạng thái rỗng của danh sách truy cập hỗ trợ."
+  },
+  "audit_log.support.active": {
+    "message": "{who} đang có quyền xem đến {until}",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): truy cập hỗ trợ đang hiệu lực; {who} = tên/email, {until} = hạn."
+  },
+  "audit_log.support.pending": {
+    "message": "Đã mời {who}, lời mời hết hạn lúc {until}",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): lời mời hỗ trợ chưa nhận; {who} = email, {until} = hạn."
+  },
+  "audit_log.support.email": {
+    "message": "Email người hỗ trợ",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nhãn ô email."
+  },
+  "audit_log.support.reason": {
+    "message": "Lý do",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nhãn ô lý do (bắt buộc)."
+  },
+  "audit_log.support.reason_hint": {
+    "message": "Ví dụ: mã yêu cầu hỗ trợ, việc cần kiểm tra",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): gợi ý ô lý do."
+  },
+  "audit_log.support.ttl": {
+    "message": "Thời hạn (giờ)",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nhãn ô thời hạn."
+  },
+  "audit_log.support.ttl_hint": {
+    "message": "Từ 1 đến {max} giờ, tính từ bây giờ",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): gợi ý ô thời hạn; {max} = tối đa."
+  },
+  "audit_log.support.grant": {
+    "message": "Cấp truy cập hỗ trợ",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nút gửi lời mời hỗ trợ."
+  },
+  "audit_log.support.granted": {
+    "message": "Đã gửi lời mời hỗ trợ",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): thông báo thành công khi cấp."
+  },
+  "audit_log.action.auth.login": {
+    "message": "Đăng nhập",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nhãn hành động `auth.login`."
+  },
+  "audit_log.action.auth.logout": {
+    "message": "Đăng xuất",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nhãn hành động `auth.logout`."
+  },
+  "audit_log.action.auth.mfa_enabled": {
+    "message": "Bật xác thực hai lớp",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nhãn hành động `auth.mfa_enabled`."
+  },
+  "audit_log.action.auth.mfa_disabled": {
+    "message": "Tắt xác thực hai lớp",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nhãn hành động `auth.mfa_disabled`."
+  },
+  "audit_log.action.auth.password_changed": {
+    "message": "Đổi mật khẩu",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nhãn hành động `auth.password_changed`."
+  },
+  "audit_log.action.auth.account_locked": {
+    "message": "Khoá tài khoản",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nhãn hành động `auth.account_locked`."
+  },
+  "audit_log.action.member.invited": {
+    "message": "Mời thành viên",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nhãn hành động `member.invited`."
+  },
+  "audit_log.action.member.accepted": {
+    "message": "Nhận lời mời",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nhãn hành động `member.accepted`."
+  },
+  "audit_log.action.member.role_changed": {
+    "message": "Đổi vai trò",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nhãn hành động `member.role_changed`."
+  },
+  "audit_log.action.member.scope_changed": {
+    "message": "Đổi phạm vi cơ sở",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nhãn hành động `member.scope_changed`."
+  },
+  "audit_log.action.member.mfa_reset": {
+    "message": "Đặt lại xác thực hai lớp",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nhãn hành động `member.mfa_reset`."
+  },
+  "audit_log.action.member.invite_denied": {
+    "message": "Mời thành viên bị từ chối",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nhãn hành động `member.invite_denied`."
+  },
+  "audit_log.action.session.revoked": {
+    "message": "Thu hồi phiên đăng nhập",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nhãn hành động `session.revoked`."
+  },
+  "audit_log.action.property.created": {
+    "message": "Tạo cơ sở",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nhãn hành động `property.created`."
+  },
+  "audit_log.action.property.updated": {
+    "message": "Sửa cấu hình cơ sở",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nhãn hành động `property.updated`."
+  },
+  "audit_log.action.organization.created": {
+    "message": "Tạo tổ chức",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nhãn hành động `organization.created`."
+  },
+  "audit_log.action.organization.deletion_requested": {
+    "message": "Yêu cầu xoá tổ chức",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nhãn hành động `organization.deletion_requested`."
+  },
+  "audit_log.action.organization.deletion_cancelled": {
+    "message": "Huỷ yêu cầu xoá tổ chức",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nhãn hành động `organization.deletion_cancelled`."
+  },
+  "audit_log.action.export.requested": {
+    "message": "Yêu cầu xuất dữ liệu",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nhãn hành động `export.requested`."
+  },
+  "audit_log.action.export.downloaded": {
+    "message": "Tải bản xuất",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nhãn hành động `export.downloaded`."
+  },
+  "audit_log.action.support.access_granted": {
+    "message": "Cấp truy cập hỗ trợ",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nhãn hành động `support.access_granted`."
+  },
+  "audit_log.action.support.access_revoked": {
+    "message": "Thu hồi truy cập hỗ trợ",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nhãn hành động `support.access_revoked`."
+  },
+  "audit_log.action.support.accessed": {
+    "message": "Hỗ trợ truy cập",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nhãn hành động `support.accessed`."
+  },
+  "audit_log.action.command.denied": {
+    "message": "Thao tác bị từ chối",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nhãn hành động `command.denied`."
+  },
+  "audit_log.entity.membership": {
+    "message": "Thành viên",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nhãn loại đối tượng `membership`."
+  },
+  "audit_log.entity.invitation": {
+    "message": "Lời mời",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nhãn loại đối tượng `invitation`."
+  },
+  "audit_log.entity.property": {
+    "message": "Cơ sở",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nhãn loại đối tượng `property`."
+  },
+  "audit_log.entity.organization": {
+    "message": "Tổ chức",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nhãn loại đối tượng `organization`."
+  },
+  "audit_log.entity.export_job": {
+    "message": "Bản xuất",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nhãn loại đối tượng `export_job`."
+  },
+  "audit_log.entity.page": {
+    "message": "Trang",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nhãn loại đối tượng `page`."
+  },
+  "audit_log.entity.query": {
+    "message": "Truy vấn",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nhãn loại đối tượng `query`."
+  },
+  "support_banner.title": {
+    "message": "Đang có truy cập hỗ trợ",
+    "description": "Biểu ngữ truy cập hỗ trợ trên mọi trang của tổ chức (T-2313, D-128): tiêu đề."
+  },
+  "support_banner.item": {
+    "message": "{who} được xem dữ liệu tổ chức đến {until}",
+    "description": "Biểu ngữ truy cập hỗ trợ trên mọi trang của tổ chức (T-2313, D-128): một truy cập; {who} = tên/email, {until} = hạn."
+  },
+  "support_banner.unnamed": {
+    "message": "Người hỗ trợ",
+    "description": "Biểu ngữ truy cập hỗ trợ trên mọi trang của tổ chức (T-2313, D-128): tên thay thế khi không đọc được tên."
+  },
+  "support_banner.reason": {
+    "message": "Lý do: {reason}",
+    "description": "Biểu ngữ truy cập hỗ trợ trên mọi trang của tổ chức (T-2313, D-128): lý do cấp (owner/manager thấy); {reason} = văn bản."
+  },
+  "support_banner.revoke": {
+    "message": "Thu hồi truy cập hỗ trợ",
+    "description": "Biểu ngữ truy cập hỗ trợ trên mọi trang của tổ chức (T-2313, D-128): nút thu hồi một bước (owner)."
+  },
+  "support_banner.revoked": {
+    "message": "Đã thu hồi truy cập hỗ trợ",
+    "description": "Biểu ngữ truy cập hỗ trợ trên mọi trang của tổ chức (T-2313, D-128): thông báo thành công khi thu hồi."
+  },
+  "support_banner.note": {
+    "message": "Người hỗ trợ chỉ xem, không thay đổi được dữ liệu; mọi lần truy cập có trong Nhật ký hoạt động.",
+    "description": "Biểu ngữ truy cập hỗ trợ trên mọi trang của tổ chức (T-2313, D-128): ghi chú minh bạch."
   }
 }

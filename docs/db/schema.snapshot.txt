@@ -97,7 +97,7 @@ public.units owner=<admin> table rls force-rls
 public.work_orders owner=<admin> table rls force-rls
 public.worker_heartbeats owner=<admin> table rls force-rls
 
-## columns (1082)
+## columns (1084)
 auth.account.accessToken text
 auth.account.accessTokenExpiresAt timestamp with time zone
 auth.account.accountId text not null
@@ -520,6 +520,7 @@ public.invitations.person_id uuid
 public.invitations.property_ids uuid[] not null default '{}'::uuid[]
 public.invitations.role text not null
 public.invitations.status text not null default 'pending'::text
+public.invitations.support_reason text
 public.invitations.token_hash bytea not null
 public.invitations.updated_at timestamp with time zone not null default now()
 public.invitations.version integer not null default 1
@@ -682,6 +683,7 @@ public.memberships.revoked_at timestamp with time zone
 public.memberships.role text not null
 public.memberships.selected_property_id uuid
 public.memberships.status text not null default 'active'::text
+public.memberships.support_reason text
 public.memberships.updated_at timestamp with time zone not null default now()
 public.memberships.valid_from timestamp with time zone not null default now()
 public.memberships.valid_to timestamp with time zone
@@ -1185,7 +1187,7 @@ public.worker_heartbeats.beat_at timestamp with time zone not null
 public.worker_heartbeats.name text not null
 public.worker_heartbeats.started_at timestamp with time zone not null default now()
 
-## constraints (856)
+## constraints (857)
 auth.account account_pkey PRIMARY KEY (id)
 auth.account account_userId_fkey FOREIGN KEY ("userId") REFERENCES auth."user"(id) ON DELETE CASCADE
 auth.login_throttle login_throttle_email_hash_check CHECK (octet_length(email_hash) = 32)
@@ -1483,6 +1485,11 @@ public.inbox inbox_provider_event_id_check CHECK (length(provider_event_id) >= 1
 public.inbox uq_inbox_event UNIQUE (provider, account, provider_event_id)
 public.inbox uq_inbox_org_id UNIQUE (organization_id, id)
 public.invitations ck_invitations_accepted CHECK ((status = 'accepted'::text) = (accepted_at IS NOT NULL))
+public.invitations ck_invitations_support CHECK (
+CASE
+    WHEN role = 'platform_support'::text THEN support_reason IS NOT NULL AND char_length(btrim(support_reason)) >= 1 AND char_length(btrim(support_reason)) <= 500 AND expires_at <= (created_at + '72:00:00'::interval) AND property_ids = '{}'::uuid[] AND limits = '{}'::jsonb
+    ELSE support_reason IS NULL
+END)
 public.invitations fk_invitations_invited_by FOREIGN KEY (organization_id, invited_by) REFERENCES memberships(organization_id, id) ON DELETE RESTRICT
 public.invitations fk_invitations_membership FOREIGN KEY (organization_id, membership_id) REFERENCES memberships(organization_id, id) ON DELETE RESTRICT
 public.invitations fk_invitations_person FOREIGN KEY (organization_id, person_id) REFERENCES persons(organization_id, id) ON DELETE RESTRICT
@@ -1490,7 +1497,7 @@ public.invitations invitations_email_check CHECK (email = lower(btrim(email)))
 public.invitations invitations_limits_check CHECK (jsonb_typeof(limits) = 'object'::text)
 public.invitations invitations_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE RESTRICT
 public.invitations invitations_pkey PRIMARY KEY (id)
-public.invitations invitations_role_check CHECK (role = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text, 'accountant'::text, 'housekeeping'::text, 'maintenance'::text, 'tenant'::text]))
+public.invitations invitations_role_check CHECK (role = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text, 'accountant'::text, 'housekeeping'::text, 'maintenance'::text, 'tenant'::text, 'platform_support'::text]))
 public.invitations invitations_status_check CHECK (status = ANY (ARRAY['pending'::text, 'accepted'::text, 'expired'::text, 'revoked'::text]))
 public.invitations invitations_token_hash_check CHECK (octet_length(token_hash) = 32)
 public.invitations uq_invitations_token UNIQUE (token_hash)
@@ -1624,9 +1631,13 @@ public.leases trg_leases_representative TRIGGER DEFERRABLE INITIALLY DEFERRED
 public.leases uq_leases_number UNIQUE (organization_id, property_id, number)
 public.leases uq_leases_org_id UNIQUE (organization_id, id)
 public.leases uq_leases_org_prop_id UNIQUE (organization_id, property_id, id)
-public.memberships ck_memberships_all_properties CHECK (NOT all_properties OR (role = ANY (ARRAY['owner'::text, 'accountant'::text])))
+public.memberships ck_memberships_all_properties CHECK (NOT all_properties OR (role = ANY (ARRAY['owner'::text, 'accountant'::text, 'platform_support'::text])))
 public.memberships ck_memberships_revoked CHECK ((status = 'revoked'::text) = (revoked_at IS NOT NULL))
-public.memberships ck_memberships_support_temporary CHECK (role <> 'platform_support'::text OR valid_to IS NOT NULL)
+public.memberships ck_memberships_support_temporary CHECK (
+CASE
+    WHEN role = 'platform_support'::text THEN valid_to IS NOT NULL AND valid_to <= (valid_from + '72:00:00'::interval) AND support_reason IS NOT NULL AND char_length(btrim(support_reason)) >= 1 AND char_length(btrim(support_reason)) <= 500
+    ELSE support_reason IS NULL
+END)
 public.memberships ck_memberships_valid CHECK (valid_to IS NULL OR valid_to > valid_from)
 public.memberships fk_memberships_auth_user FOREIGN KEY (auth_user_id) REFERENCES auth."user"(id) ON DELETE RESTRICT
 public.memberships fk_memberships_persons FOREIGN KEY (organization_id, person_id) REFERENCES persons(organization_id, id) ON DELETE RESTRICT
@@ -2481,9 +2492,15 @@ public.work_orders uq_work_orders_org_id :: CREATE UNIQUE INDEX uq_work_orders_o
 public.work_orders work_orders_pkey :: CREATE UNIQUE INDEX work_orders_pkey ON public.work_orders USING btree (id)
 public.worker_heartbeats worker_heartbeats_pkey :: CREATE UNIQUE INDEX worker_heartbeats_pkey ON public.worker_heartbeats USING btree (name)
 
-## policies (RLS) (184)
+## policies (RLS) (376)
 public.allocations portal_deny_read RESTRICTIVE SELECT to app_runtime using ((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
+public.allocations support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.allocations support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.allocations support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.allocations tenant_isolation PERMISSIVE ALL to public using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
+public.approval_requests support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.approval_requests support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.approval_requests support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.approval_requests tenant_isolation PERMISSIVE ALL to public using (((organization_id = app.current_org()) AND ((requested_by = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid) OR ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text, 'accountant'::text])) AND app.actor_can_see_property(property_id))))) check (((organization_id = app.current_org()) AND ((requested_by = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid) OR ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id)))))
 public.audit_events audit_read_by_role RESTRICTIVE SELECT to app_runtime using (((NULLIF(current_setting('app.actor_id'::text, true), ''::text) IS NULL) OR (app.actor_role() = 'owner'::text) OR ((app.actor_role() = 'manager'::text) AND
 CASE
@@ -2493,6 +2510,9 @@ END) OR ((app.actor_role() = 'accountant'::text) AND (split_part(action, '.'::te
 public.audit_events portal_deny_read RESTRICTIVE SELECT to app_runtime using ((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
 public.audit_events tenant_isolation PERMISSIVE ALL to public using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
 public.bank_transactions portal_deny_read RESTRICTIVE SELECT to app_runtime using ((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
+public.bank_transactions support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.bank_transactions support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.bank_transactions support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.bank_transactions tenant_isolation PERMISSIVE ALL to public using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
 public.billing_periods billing_periods_read PERMISSIVE SELECT to public using (((organization_id = app.current_org()) AND ((NULLIF(current_setting('app.actor_id'::text, true), ''::text) IS NULL) OR ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'accountant'::text, 'front_desk'::text, 'maintenance'::text])) AND app.actor_can_see_property(property_id)))))
 public.billing_periods billing_periods_system PERMISSIVE INSERT to app_worker check ((organization_id = app.current_org()))
@@ -2500,24 +2520,51 @@ public.billing_periods billing_periods_tenant_read PERMISSIVE SELECT to app_runt
    FROM invoices i
   WHERE ((i.organization_id = billing_periods.organization_id) AND (i.billing_period_id = billing_periods.id))))))
 public.billing_periods billing_periods_write PERMISSIVE ALL to app_runtime using (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'accountant'::text])) AND app.actor_can_see_property(property_id))) check (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'accountant'::text])) AND app.actor_can_see_property(property_id)))
+public.billing_periods support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.billing_periods support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.billing_periods support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.blocks portal_deny_read RESTRICTIVE SELECT to app_runtime using ((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
+public.blocks support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.blocks support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.blocks support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.blocks tenant_isolation PERMISSIVE ALL to public using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
 public.charges charges_read PERMISSIVE SELECT to public using (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'accountant'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id)))
 public.charges charges_write PERMISSIVE ALL to app_runtime using (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'accountant'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id))) check (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'accountant'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id)))
+public.charges support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.charges support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.charges support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.consent_records consent_records_self_insert PERMISSIVE INSERT to public check ((subject_user_id = app.current_user_id()))
 public.consent_records consent_records_self_read PERMISSIVE SELECT to public using ((subject_user_id = app.current_user_id()))
+public.consent_records support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.consent_records support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.consent_records support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.deposits deposits_tenant_read PERMISSIVE SELECT to app_runtime using (((organization_id = app.current_org()) AND (app.actor_role() = 'tenant'::text) AND (lease_id IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM leases l
   WHERE ((l.organization_id = deposits.organization_id) AND (l.id = deposits.lease_id))))))
+public.deposits support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.deposits support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.deposits support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.deposits tenant_isolation PERMISSIVE ALL to public using (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'accountant'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id))) check (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'accountant'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id)))
 public.dsar_requests dsar_requests_self_insert PERMISSIVE INSERT to public check (((subject_user_id = app.current_user_id()) AND (((status = 'verified'::text) AND (type = ANY (ARRAY['access'::text, 'delete'::text]))) OR ((status = 'completed'::text) AND (type = 'restrict'::text)))))
 public.dsar_requests dsar_requests_self_read PERMISSIVE SELECT to public using ((subject_user_id = app.current_user_id()))
+public.dsar_requests support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.dsar_requests support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.dsar_requests support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.email_budget_days email_budget_days_org PERMISSIVE ALL to public using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
+public.email_budget_days support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.email_budget_days support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.email_budget_days support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.exceptions portal_deny_read RESTRICTIVE SELECT to app_runtime using ((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
+public.exceptions support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.exceptions support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.exceptions support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.exceptions tenant_isolation PERMISSIVE ALL to public using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
 public.export_jobs export_jobs_read PERMISSIVE SELECT to public using (((organization_id = app.current_org()) AND ((NULLIF(current_setting('app.actor_id'::text, true), ''::text) IS NULL) OR (requested_by = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid))))
 public.export_jobs export_jobs_request PERMISSIVE INSERT to app_runtime check (((organization_id = app.current_org()) AND (status = 'queued'::text) AND (requested_by = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid) AND (file_key IS NULL) AND (expires_at IS NULL) AND (row_count IS NULL) AND (completed_at IS NULL) AND (failed_reason IS NULL)))
 public.export_jobs export_jobs_worker_update PERMISSIVE UPDATE to app_worker using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
+public.export_jobs support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.export_jobs support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.export_jobs support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.files files_staging_insert RESTRICTIVE INSERT to app_runtime check (((status <> 'pending_scan'::text) OR (uploaded_by = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid)))
 public.files files_staging_update RESTRICTIVE UPDATE to app_runtime using (((status <> 'pending_scan'::text) OR (uploaded_by = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid)))
 public.files portal_files RESTRICTIVE ALL to app_runtime using (((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)) OR ((owner_type = ANY (ARRAY['work_order'::text, 'payment_claim'::text])) AND (uploaded_by = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid)) OR ((owner_type = 'work_order'::text) AND (owner_id IS NOT NULL) AND (EXISTS ( SELECT 1
@@ -2525,6 +2572,9 @@ public.files portal_files RESTRICTIVE ALL to app_runtime using (((NOT COALESCE((
   WHERE ((w.organization_id = files.organization_id) AND (w.id = files.owner_id))))) OR ((owner_type = 'meter_reading'::text) AND (EXISTS ( SELECT 1
    FROM meter_readings r
   WHERE ((r.organization_id = files.organization_id) AND (r.photo_file_id = files.id))))))) check (((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)) OR ((owner_type = ANY (ARRAY['work_order'::text, 'payment_claim'::text])) AND (uploaded_by = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid))))
+public.files support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.files support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.files support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.files tenant_isolation PERMISSIVE ALL to public using (((organization_id = app.current_org()) AND
 CASE
     WHEN (owner_type = 'identity_document'::text) THEN ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id))
@@ -2540,81 +2590,159 @@ public.floors portal_no_delete RESTRICTIVE DELETE to app_runtime using ((NOT COA
 public.floors portal_no_insert RESTRICTIVE INSERT to app_runtime check ((NOT COALESCE((( SELECT app.actor_role() AS actor_role) = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
 public.floors portal_no_update RESTRICTIVE UPDATE to app_runtime using ((NOT COALESCE((( SELECT app.actor_role() AS actor_role) = ANY (ARRAY['tenant'::text, 'guest'::text])), false))) check ((NOT COALESCE((( SELECT app.actor_role() AS actor_role) = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
 public.floors property_scope RESTRICTIVE ALL to app_runtime using (((( SELECT NULLIF(current_setting('app.actor_id'::text, true), ''::text) AS "nullif") IS NULL) OR (property_id IN ( SELECT app.visible_property_ids() AS visible_property_ids)))) check (app.property_writable(property_id))
+public.floors support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.floors support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.floors support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.floors tenant_isolation PERMISSIVE ALL to public using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
 public.guest_access_links guest_links_insert PERMISSIVE INSERT to app_runtime check (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id) AND (created_by = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid)))
 public.guest_access_links guest_links_read PERMISSIVE SELECT to app_runtime using (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id)))
 public.guest_access_links guest_links_update PERMISSIVE UPDATE to app_runtime using (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id))) check (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id)))
+public.guest_access_links support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.guest_access_links support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.guest_access_links support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.handovers handovers_read PERMISSIVE SELECT to public using (((organization_id = app.current_org()) AND (EXISTS ( SELECT 1
    FROM leases l
   WHERE ((l.organization_id = handovers.organization_id) AND (l.id = handovers.lease_id))))))
 public.handovers handovers_write PERMISSIVE ALL to app_runtime using (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id))) check (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id)))
+public.handovers support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.handovers support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.handovers support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.idempotency_keys portal_own_idempotency RESTRICTIVE ALL to app_runtime using (((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)) OR (actor_person_id = app.actor_person_id()))) check (((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)) OR (actor_person_id = app.actor_person_id())))
 public.idempotency_keys tenant_isolation PERMISSIVE ALL to public using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
 public.idempotency_keys worker_cleanup PERMISSIVE DELETE to app_worker using ((expires_at < now()))
+public.identity_documents support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.identity_documents support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.identity_documents support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.identity_documents tenant_isolation PERMISSIVE ALL to public using (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id))) check (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id)))
 public.import_batches import_batches_access PERMISSIVE ALL to app_runtime using (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text])) AND app.actor_can_see_property(property_id))) check (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text])) AND app.actor_can_see_property(property_id)))
+public.import_batches support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.import_batches support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.import_batches support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.import_external_refs import_external_refs_access PERMISSIVE ALL to app_runtime using (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text])) AND app.actor_can_see_property(property_id))) check (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text])) AND app.actor_can_see_property(property_id)))
+public.import_external_refs support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.import_external_refs support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.import_external_refs support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.import_rows import_rows_access PERMISSIVE ALL to app_runtime using (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text])) AND app.actor_can_see_property(property_id))) check (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text])) AND app.actor_can_see_property(property_id)))
+public.import_rows support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.import_rows support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.import_rows support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.inbox portal_deny_read RESTRICTIVE SELECT to app_runtime using ((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
+public.inbox support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.inbox support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.inbox support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.inbox tenant_isolation PERMISSIVE ALL to public using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
 public.invitations portal_deny_read RESTRICTIVE SELECT to app_runtime using ((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
 public.invitations tenant_isolation PERMISSIVE ALL to public using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
 public.invoice_lines invoice_lines_tenant_read PERMISSIVE SELECT to app_runtime using (((organization_id = app.current_org()) AND (app.actor_role() = 'tenant'::text) AND (EXISTS ( SELECT 1
    FROM invoices i
   WHERE ((i.organization_id = invoice_lines.organization_id) AND (i.id = invoice_lines.invoice_id))))))
+public.invoice_lines support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.invoice_lines support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.invoice_lines support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.invoice_lines tenant_isolation PERMISSIVE ALL to public using (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'accountant'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id))) check (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'accountant'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id)))
 public.invoices invoices_system PERMISSIVE SELECT to app_worker using ((organization_id = app.current_org()))
 public.invoices invoices_system_update PERMISSIVE UPDATE to app_worker using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
 public.invoices invoices_tenant_read PERMISSIVE SELECT to app_runtime using (((organization_id = app.current_org()) AND (app.actor_role() = 'tenant'::text) AND (payer_person_id = app.actor_person_id()) AND (lease_id IS NOT NULL) AND (kind = ANY (ARRAY['periodic'::text, 'fee'::text, 'opening_balance'::text, 'adjustment'::text])) AND ((billing_period_id IS NULL) OR app.billing_period_published(organization_id, billing_period_id))))
+public.invoices support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.invoices support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.invoices support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.invoices tenant_isolation PERMISSIVE ALL to public using (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'accountant'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id))) check (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'accountant'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id)))
 public.journal_entries portal_deny_read RESTRICTIVE SELECT to app_runtime using ((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
+public.journal_entries support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.journal_entries support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.journal_entries support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.journal_entries tenant_isolation PERMISSIVE ALL to public using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
 public.journal_lines portal_deny_read RESTRICTIVE SELECT to app_runtime using ((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
+public.journal_lines support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.journal_lines support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.journal_lines support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.journal_lines tenant_isolation PERMISSIVE ALL to public using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
 public.lease_occupants lease_occupants_read PERMISSIVE SELECT to public using (((organization_id = app.current_org()) AND (EXISTS ( SELECT 1
    FROM leases l
   WHERE ((l.organization_id = lease_occupants.organization_id) AND (l.id = lease_occupants.lease_id))))))
 public.lease_occupants lease_occupants_write PERMISSIVE ALL to app_runtime using (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text])) AND app.actor_can_see_property(property_id))) check (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text])) AND app.actor_can_see_property(property_id)))
+public.lease_occupants support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.lease_occupants support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.lease_occupants support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.lease_settlements lease_settlements_read PERMISSIVE SELECT to public using (((organization_id = app.current_org()) AND (((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'accountant'::text])) AND app.actor_can_see_property(property_id)) OR ((app.actor_role() = 'tenant'::text) AND (EXISTS ( SELECT 1
    FROM leases l
   WHERE ((l.organization_id = lease_settlements.organization_id) AND (l.id = lease_settlements.lease_id))))))))
 public.lease_settlements lease_settlements_write PERMISSIVE ALL to app_runtime using (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'accountant'::text])) AND app.actor_can_see_property(property_id))) check (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'accountant'::text])) AND app.actor_can_see_property(property_id)))
+public.lease_settlements support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.lease_settlements support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.lease_settlements support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.lease_versions lease_versions_read PERMISSIVE SELECT to public using (((organization_id = app.current_org()) AND (EXISTS ( SELECT 1
    FROM leases l
   WHERE ((l.organization_id = lease_versions.organization_id) AND (l.id = lease_versions.lease_id))))))
 public.lease_versions lease_versions_write PERMISSIVE ALL to app_runtime using (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text])) AND app.actor_can_see_property(property_id))) check (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text])) AND app.actor_can_see_property(property_id)))
+public.lease_versions support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.lease_versions support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.lease_versions support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.leases leases_staff_read PERMISSIVE SELECT to public using (((organization_id = app.current_org()) AND ((NULLIF(current_setting('app.actor_id'::text, true), ''::text) IS NULL) OR ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text, 'accountant'::text])) AND app.actor_can_see_property(property_id)))))
 public.leases leases_tenant_read PERMISSIVE SELECT to public using (((organization_id = app.current_org()) AND (app.actor_role() = 'tenant'::text) AND (representative_person_id = app.actor_person_id())))
 public.leases leases_update PERMISSIVE UPDATE to app_runtime using (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id))) check (((organization_id = app.current_org()) AND app.actor_can_see_property(property_id)))
 public.leases leases_write PERMISSIVE INSERT to app_runtime check (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text])) AND app.actor_can_see_property(property_id)))
+public.leases support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.leases support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.leases support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.memberships portal_own_membership RESTRICTIVE SELECT to app_runtime using (((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)) OR (person_id = app.actor_person_id())))
+public.memberships support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.memberships support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.memberships support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.memberships tenant_isolation PERMISSIVE ALL to public using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
 public.meter_events meter_events_read PERMISSIVE SELECT to public using (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text, 'accountant'::text, 'maintenance'::text])) AND app.actor_can_see_property(property_id)))
 public.meter_events meter_events_write PERMISSIVE INSERT to app_runtime check (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text])) AND app.actor_can_see_property(property_id)))
+public.meter_events support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.meter_events support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.meter_events support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.meter_readings meter_readings_approve PERMISSIVE UPDATE to app_runtime using (((organization_id = app.current_org()) AND (app.actor_role() = 'accountant'::text) AND app.actor_can_see_property(property_id))) check (((organization_id = app.current_org()) AND (app.actor_role() = 'accountant'::text) AND app.actor_can_see_property(property_id) AND (status = 'approved'::text)))
 public.meter_readings meter_readings_read PERMISSIVE SELECT to public using (((organization_id = app.current_org()) AND ((NULLIF(current_setting('app.actor_id'::text, true), ''::text) IS NULL) OR ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text, 'accountant'::text, 'maintenance'::text])) AND app.actor_can_see_property(property_id)))))
 public.meter_readings meter_readings_tenant_read PERMISSIVE SELECT to app_runtime using (((organization_id = app.current_org()) AND (app.actor_role() = 'tenant'::text) AND (status = 'approved'::text) AND (EXISTS ( SELECT 1
    FROM app.tenant_meters() tm(meter_id, since, until)
   WHERE ((tm.meter_id = meter_readings.meter_id) AND (meter_readings.read_on >= tm.since) AND ((tm.until IS NULL) OR (meter_readings.read_on <= tm.until)))))))
 public.meter_readings meter_readings_write PERMISSIVE ALL to app_runtime using (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id))) check (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id)))
+public.meter_readings support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.meter_readings support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.meter_readings support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.meters meters_read PERMISSIVE SELECT to public using (((organization_id = app.current_org()) AND ((NULLIF(current_setting('app.actor_id'::text, true), ''::text) IS NULL) OR ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text, 'accountant'::text, 'maintenance'::text])) AND app.actor_can_see_property(property_id)))))
 public.meters meters_tenant_read PERMISSIVE SELECT to app_runtime using (((organization_id = app.current_org()) AND (app.actor_role() = 'tenant'::text) AND (id IN ( SELECT tenant_meters.meter_id
    FROM app.tenant_meters() tenant_meters(meter_id, since, until)))))
 public.meters meters_write PERMISSIVE ALL to app_runtime using (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text])) AND app.actor_can_see_property(property_id))) check (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text])) AND app.actor_can_see_property(property_id)))
+public.meters support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.meters support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.meters support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.notification_deliveries notification_deliveries_manual_retry PERMISSIVE UPDATE to app_runtime using (((organization_id = app.current_org()) AND ((app.actor_role() = 'owner'::text) OR ((app.actor_role() = 'manager'::text) AND (property_id IS NOT NULL) AND app.actor_can_see_property(property_id))))) check (((organization_id = app.current_org()) AND ((app.actor_role() = 'owner'::text) OR ((app.actor_role() = 'manager'::text) AND (property_id IS NOT NULL) AND app.actor_can_see_property(property_id)))))
 public.notification_deliveries notification_deliveries_read PERMISSIVE SELECT to public using (((organization_id = app.current_org()) AND ((NULLIF(current_setting('app.actor_id'::text, true), ''::text) IS NULL) OR (app.actor_role() = 'owner'::text) OR ((app.actor_role() = 'manager'::text) AND (property_id IS NOT NULL) AND app.actor_can_see_property(property_id)))))
 public.notification_deliveries notification_deliveries_worker_insert PERMISSIVE INSERT to app_worker check ((organization_id = app.current_org()))
 public.notification_deliveries notification_deliveries_worker_update PERMISSIVE UPDATE to app_worker using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
+public.notification_deliveries support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.notification_deliveries support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.notification_deliveries support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.notification_preferences notification_preferences_own_insert PERMISSIVE INSERT to app_runtime check (((organization_id = app.current_org()) AND (person_id = app.actor_person_id())))
 public.notification_preferences notification_preferences_own_update PERMISSIVE UPDATE to app_runtime using (((organization_id = app.current_org()) AND (person_id = app.actor_person_id()))) check (((organization_id = app.current_org()) AND (person_id = app.actor_person_id())))
 public.notification_preferences notification_preferences_read PERMISSIVE SELECT to public using (((organization_id = app.current_org()) AND ((NULLIF(current_setting('app.actor_id'::text, true), ''::text) IS NULL) OR (person_id = app.actor_person_id()))))
+public.notification_preferences support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.notification_preferences support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.notification_preferences support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.notification_settings notification_settings_read PERMISSIVE SELECT to public using (((organization_id = app.current_org()) AND ((NULLIF(current_setting('app.actor_id'::text, true), ''::text) IS NULL) OR app.actor_can_see_property(property_id))))
 public.notification_settings notification_settings_write PERMISSIVE ALL to app_runtime using (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text])) AND app.actor_can_see_property(property_id))) check (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text])) AND app.actor_can_see_property(property_id)))
+public.notification_settings support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.notification_settings support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.notification_settings support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.notifications notifications_mark_read PERMISSIVE UPDATE to app_runtime using (((organization_id = app.current_org()) AND (recipient_person_id = app.actor_person_id()))) check (((organization_id = app.current_org()) AND (recipient_person_id = app.actor_person_id())))
 public.notifications notifications_read PERMISSIVE SELECT to public using (((organization_id = app.current_org()) AND ((NULLIF(current_setting('app.actor_id'::text, true), ''::text) IS NULL) OR (recipient_person_id = app.actor_person_id()))))
 public.notifications notifications_staff_read PERMISSIVE SELECT to app_runtime using (((organization_id = app.current_org()) AND ((app.actor_role() = 'owner'::text) OR ((app.actor_role() = 'manager'::text) AND (property_id IS NOT NULL) AND app.actor_can_see_property(property_id)))))
 public.notifications notifications_worker_insert PERMISSIVE INSERT to app_worker check ((organization_id = app.current_org()))
+public.notifications support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.notifications support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.notifications support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.org_deletion_certificates org_deletion_certificates_self_read PERMISSIVE SELECT to public using ((requested_by = app.current_user_id()))
+public.org_deletion_certificates support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.org_deletion_certificates support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.org_deletion_certificates support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
+public.organizations support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.organizations support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.organizations support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.organizations tenant_isolation PERMISSIVE ALL to public using ((id = app.current_org())) check ((id = app.current_org()))
 public.outbox portal_deny_read RESTRICTIVE SELECT to app_runtime using ((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
 public.outbox tenant_isolation PERMISSIVE ALL to public using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
@@ -2623,12 +2751,18 @@ public.payment_allocations allocations_system_insert PERMISSIVE INSERT to app_wo
 public.payment_allocations payment_allocations_tenant_read PERMISSIVE SELECT to app_runtime using (((organization_id = app.current_org()) AND (app.actor_role() = 'tenant'::text) AND (EXISTS ( SELECT 1
    FROM invoices i
   WHERE ((i.organization_id = payment_allocations.organization_id) AND (i.id = payment_allocations.invoice_id))))))
+public.payment_allocations support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.payment_allocations support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.payment_allocations support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.payment_allocations tenant_isolation PERMISSIVE ALL to public using (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'accountant'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id))) check (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'accountant'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id)))
 public.payment_claims payment_claims_read PERMISSIVE SELECT to public using (((organization_id = app.current_org()) AND ((NULLIF(current_setting('app.actor_id'::text, true), ''::text) IS NULL) OR ((app.actor_role() = 'tenant'::text) AND (person_id = app.actor_person_id())) OR ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'accountant'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id)))))
 public.payment_claims payment_claims_staff_update PERMISSIVE UPDATE to app_runtime using (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'accountant'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id))) check (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'accountant'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id)))
 public.payment_claims payment_claims_tenant_insert PERMISSIVE INSERT to app_runtime check (((organization_id = app.current_org()) AND (app.actor_role() = 'tenant'::text) AND (person_id = app.actor_person_id()) AND (status = 'submitted'::text) AND (EXISTS ( SELECT 1
    FROM invoices i
   WHERE ((i.organization_id = payment_claims.organization_id) AND (i.id = payment_claims.invoice_id) AND (i.property_id = payment_claims.property_id))))))
+public.payment_claims support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.payment_claims support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.payment_claims support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.payments payments_checkout_allocate PERMISSIVE UPDATE to app_runtime using (((organization_id = app.current_org()) AND (app.actor_role() = 'front_desk'::text) AND app.actor_can_see_property(property_id) AND (reservation_id IS NOT NULL) AND (status = 'confirmed'::text) AND (purpose = 'receivable'::text))) check (((organization_id = app.current_org()) AND (app.actor_role() = 'front_desk'::text) AND app.actor_can_see_property(property_id) AND (reservation_id IS NOT NULL) AND (status = 'confirmed'::text) AND (purpose = 'receivable'::text)))
 public.payments payments_read PERMISSIVE SELECT to public using (((organization_id = app.current_org()) AND ((recorded_by = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid) OR ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'accountant'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id)))))
 public.payments payments_record PERMISSIVE INSERT to public check (((organization_id = app.current_org()) AND (recorded_by = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid) AND app.actor_can_see_property(property_id)))
@@ -2638,62 +2772,122 @@ public.payments payments_system_insert PERMISSIVE INSERT to app_worker check (((
 public.payments payments_system_read PERMISSIVE SELECT to app_worker using ((organization_id = app.current_org()))
 public.payments payments_system_update PERMISSIVE UPDATE to app_worker using (((organization_id = app.current_org()) AND (source = 'bank_auto'::text))) check (((organization_id = app.current_org()) AND (source = 'bank_auto'::text)))
 public.payments payments_write PERMISSIVE UPDATE to public using (((organization_id = app.current_org()) AND ((recorded_by = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid) OR ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'accountant'::text])) AND app.actor_can_see_property(property_id))))) check (((organization_id = app.current_org()) AND ((recorded_by = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid) OR ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'accountant'::text])) AND app.actor_can_see_property(property_id)))))
+public.payments support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.payments support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.payments support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.period_locks period_locks_lock PERMISSIVE INSERT to app_runtime check (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'accountant'::text])) AND app.actor_can_see_property(property_id) AND (locked_by = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid) AND (released_at IS NULL)))
 public.period_locks period_locks_read PERMISSIVE SELECT to public using ((organization_id = app.current_org()))
 public.period_locks period_locks_unlock PERMISSIVE UPDATE to app_runtime using (((organization_id = app.current_org()) AND (app.actor_role() = 'owner'::text) AND app.actor_can_see_property(property_id))) check (((organization_id = app.current_org()) AND (released_by = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid)))
 public.period_locks portal_deny_read RESTRICTIVE SELECT to app_runtime using ((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
+public.period_locks support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.period_locks support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.period_locks support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.persons persons_delete PERMISSIVE DELETE to public using ((organization_id = app.current_org()))
 public.persons persons_insert PERMISSIVE INSERT to public check ((organization_id = app.current_org()))
 public.persons persons_read PERMISSIVE SELECT to public using (((organization_id = app.current_org()) AND ((NULLIF(current_setting('app.actor_id'::text, true), ''::text) IS NULL) OR (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text, 'accountant'::text])) OR (id = app.actor_person_id()))))
 public.persons persons_role_insert RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_may_insert_person() AS actor_may_insert_person))
 public.persons persons_role_update RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_may_update_person() AS actor_may_update_person)) check (( SELECT app.actor_may_update_person() AS actor_may_update_person))
 public.persons persons_update PERMISSIVE UPDATE to public using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
+public.persons support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.persons support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.persons support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.processing_restrictions processing_restrictions_self_insert PERMISSIVE INSERT to public check ((subject_user_id = app.current_user_id()))
 public.processing_restrictions processing_restrictions_self_read PERMISSIVE SELECT to public using ((subject_user_id = app.current_user_id()))
+public.processing_restrictions support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.processing_restrictions support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.processing_restrictions support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.product_events product_events_org PERMISSIVE ALL to public using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
+public.product_events support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.product_events support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.product_events support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.properties portal_no_delete RESTRICTIVE DELETE to app_runtime using ((NOT COALESCE((( SELECT app.actor_role() AS actor_role) = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
 public.properties portal_no_insert RESTRICTIVE INSERT to app_runtime check ((NOT COALESCE((( SELECT app.actor_role() AS actor_role) = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
 public.properties portal_no_update RESTRICTIVE UPDATE to app_runtime using ((NOT COALESCE((( SELECT app.actor_role() AS actor_role) = ANY (ARRAY['tenant'::text, 'guest'::text])), false))) check ((NOT COALESCE((( SELECT app.actor_role() AS actor_role) = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
 public.properties property_scope RESTRICTIVE ALL to app_runtime using (((( SELECT NULLIF(current_setting('app.actor_id'::text, true), ''::text) AS "nullif") IS NULL) OR (id IN ( SELECT app.visible_property_ids() AS visible_property_ids)) OR app.property_writable(id))) check (app.property_writable(id))
+public.properties support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.properties support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.properties support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.properties tenant_isolation PERMISSIVE ALL to public using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
 public.property_scopes portal_deny_read RESTRICTIVE SELECT to app_runtime using ((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
+public.property_scopes support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.property_scopes support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.property_scopes support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.property_scopes tenant_isolation PERMISSIVE ALL to public using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
 public.rate_plans rate_plans_read PERMISSIVE SELECT to public using (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text, 'accountant'::text])) AND app.actor_can_see_property(property_id)))
 public.rate_plans rate_plans_write PERMISSIVE ALL to app_runtime using (((organization_id = app.current_org()) AND (app.actor_role() = 'owner'::text))) check (((organization_id = app.current_org()) AND (app.actor_role() = 'owner'::text)))
+public.rate_plans support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.rate_plans support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.rate_plans support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.receiving_accounts portal_receiving_accounts RESTRICTIVE SELECT to app_runtime using (((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)) OR (active AND (property_id IN ( SELECT app.tenant_property_ids() AS tenant_property_ids)))))
+public.receiving_accounts support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.receiving_accounts support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.receiving_accounts support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.receiving_accounts tenant_isolation PERMISSIVE ALL to public using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
 public.reconciliation_breaks breaks_ingest_insert PERMISSIVE INSERT to app_runtime check (((organization_id = app.current_org()) AND (status = 'open'::text) AND (reason = 'HASH_MISMATCH'::text) AND (NULLIF(current_setting('app.actor_id'::text, true), ''::text) IS NULL)))
 public.reconciliation_breaks breaks_ingest_read PERMISSIVE SELECT to app_runtime using (((organization_id = app.current_org()) AND (reason = 'HASH_MISMATCH'::text) AND (NULLIF(current_setting('app.actor_id'::text, true), ''::text) IS NULL)))
 public.reconciliation_breaks breaks_staff PERMISSIVE ALL to app_runtime using (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'accountant'::text])) AND app.actor_can_see_property(property_id))) check (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'accountant'::text])) AND app.actor_can_see_property(property_id)))
 public.reconciliation_breaks breaks_system PERMISSIVE SELECT to app_worker using ((organization_id = app.current_org()))
 public.reconciliation_breaks breaks_system_insert PERMISSIVE INSERT to app_worker check (((organization_id = app.current_org()) AND (status = 'open'::text)))
+public.reconciliation_breaks support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.reconciliation_breaks support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.reconciliation_breaks support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.reservation_items reservation_items_read PERMISSIVE SELECT to public using (((organization_id = app.current_org()) AND ((NULLIF(current_setting('app.actor_id'::text, true), ''::text) IS NULL) OR ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text, 'accountant'::text])) AND app.actor_can_see_property(property_id)))))
 public.reservation_items reservation_items_system PERMISSIVE UPDATE to app_worker using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
 public.reservation_items reservation_items_write PERMISSIVE ALL to app_runtime using (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id))) check (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id)))
+public.reservation_items support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.reservation_items support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.reservation_items support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.reservations reservations_read PERMISSIVE SELECT to public using (((organization_id = app.current_org()) AND ((NULLIF(current_setting('app.actor_id'::text, true), ''::text) IS NULL) OR ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text, 'accountant'::text])) AND app.actor_can_see_property(property_id)))))
 public.reservations reservations_system PERMISSIVE UPDATE to app_worker using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
 public.reservations reservations_write PERMISSIVE ALL to app_runtime using (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id))) check (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id)))
+public.reservations support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.reservations support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.reservations support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.residence_notices residence_notices_read PERMISSIVE SELECT to public using (((organization_id = app.current_org()) AND ((NULLIF(current_setting('app.actor_id'::text, true), ''::text) IS NULL) OR ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id)))))
 public.residence_notices residence_notices_write PERMISSIVE ALL to app_runtime using (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id))) check (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id)))
+public.residence_notices support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.residence_notices support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.residence_notices support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.room_types portal_no_delete RESTRICTIVE DELETE to app_runtime using ((NOT COALESCE((( SELECT app.actor_role() AS actor_role) = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
 public.room_types portal_no_insert RESTRICTIVE INSERT to app_runtime check ((NOT COALESCE((( SELECT app.actor_role() AS actor_role) = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
 public.room_types portal_no_update RESTRICTIVE UPDATE to app_runtime using ((NOT COALESCE((( SELECT app.actor_role() AS actor_role) = ANY (ARRAY['tenant'::text, 'guest'::text])), false))) check ((NOT COALESCE((( SELECT app.actor_role() AS actor_role) = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
 public.room_types property_scope RESTRICTIVE ALL to app_runtime using (((( SELECT NULLIF(current_setting('app.actor_id'::text, true), ''::text) AS "nullif") IS NULL) OR (property_id IN ( SELECT app.visible_property_ids() AS visible_property_ids)))) check (app.property_writable(property_id))
+public.room_types support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.room_types support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.room_types support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.room_types tenant_isolation PERMISSIVE ALL to public using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
 public.service_prices service_prices_read PERMISSIVE SELECT to public using ((organization_id = app.current_org()))
 public.service_prices service_prices_write PERMISSIVE ALL to app_runtime using (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text])) AND app.actor_can_see_property(property_id))) check (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text])) AND app.actor_can_see_property(property_id)))
+public.service_prices support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.service_prices support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.service_prices support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.services services_read PERMISSIVE SELECT to public using ((organization_id = app.current_org()))
 public.services services_write PERMISSIVE ALL to app_runtime using (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text])) AND app.actor_can_see_property(property_id))) check (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text])) AND app.actor_can_see_property(property_id)))
+public.services support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.services support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.services support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.shift_discrepancies discrepancies_insert PERMISSIVE INSERT to public check (((organization_id = app.current_org()) AND (status = 'open'::text)))
 public.shift_discrepancies discrepancies_read PERMISSIVE SELECT to public using (((organization_id = app.current_org()) AND ((responsible_membership_id = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid) OR ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'accountant'::text])) AND app.actor_can_see_property(property_id)))))
 public.shift_discrepancies discrepancies_role_insert RESTRICTIVE INSERT to app_runtime check (((( SELECT NULLIF(current_setting('app.actor_id'::text, true), ''::text) AS "nullif") IS NULL) OR COALESCE((( SELECT app.actor_role() AS actor_role) = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text, 'accountant'::text])), false)))
 public.shift_discrepancies discrepancies_update PERMISSIVE UPDATE to public using (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text])) AND app.actor_can_see_property(property_id))) check ((organization_id = app.current_org()))
+public.shift_discrepancies support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.shift_discrepancies support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.shift_discrepancies support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.shifts shifts_open PERMISSIVE INSERT to public check (((organization_id = app.current_org()) AND (opened_by = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid)))
 public.shifts shifts_read PERMISSIVE SELECT to public using (((organization_id = app.current_org()) AND ((opened_by = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid) OR (handed_to = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid) OR ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'accountant'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id)))))
 public.shifts shifts_write PERMISSIVE UPDATE to public using (((organization_id = app.current_org()) AND ((opened_by = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid) OR (handed_to = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid) OR ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'accountant'::text])) AND app.actor_can_see_property(property_id))))) check (((organization_id = app.current_org()) AND ((opened_by = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid) OR (handed_to = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid) OR ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'accountant'::text])) AND app.actor_can_see_property(property_id)))))
+public.shifts support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.shifts support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.shifts support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.stays stays_read PERMISSIVE SELECT to public using (((organization_id = app.current_org()) AND ((NULLIF(current_setting('app.actor_id'::text, true), ''::text) IS NULL) OR ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text, 'accountant'::text])) AND app.actor_can_see_property(property_id)))))
 public.stays stays_system PERMISSIVE UPDATE to app_worker using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
 public.stays stays_write PERMISSIVE ALL to app_runtime using (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id))) check (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id)))
+public.stays support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.stays support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.stays support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
+public.tasks support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.tasks support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.tasks support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.tasks tasks_insert PERMISSIVE INSERT to app_runtime check (((organization_id = app.current_org()) AND (app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text, 'housekeeping'::text, 'maintenance'::text])) AND app.actor_can_see_property(property_id)))
 public.tasks tasks_read PERMISSIVE SELECT to public using (((organization_id = app.current_org()) AND ((NULLIF(current_setting('app.actor_id'::text, true), ''::text) IS NULL) OR ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text, 'housekeeping'::text, 'maintenance'::text])) AND app.actor_can_see_property(property_id)))))
 public.tasks tasks_update PERMISSIVE UPDATE to app_runtime using (((organization_id = app.current_org()) AND app.actor_can_see_property(property_id) AND ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text])) OR ((app.actor_role() = 'housekeeping'::text) AND ((assignee_membership_id = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid) OR (status = 'open'::text)))))) check (((organization_id = app.current_org()) AND app.actor_can_see_property(property_id) AND ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text])) OR ((app.actor_role() = 'housekeeping'::text) AND (assignee_membership_id = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid)))))
@@ -2701,18 +2895,28 @@ public.units portal_no_delete RESTRICTIVE DELETE to app_runtime using ((NOT COAL
 public.units portal_no_insert RESTRICTIVE INSERT to app_runtime check ((NOT COALESCE((( SELECT app.actor_role() AS actor_role) = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
 public.units portal_no_update RESTRICTIVE UPDATE to app_runtime using ((NOT COALESCE((( SELECT app.actor_role() AS actor_role) = ANY (ARRAY['tenant'::text, 'guest'::text])), false))) check ((NOT COALESCE((( SELECT app.actor_role() AS actor_role) = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
 public.units property_scope RESTRICTIVE ALL to app_runtime using (((( SELECT NULLIF(current_setting('app.actor_id'::text, true), ''::text) AS "nullif") IS NULL) OR (property_id IN ( SELECT app.visible_property_ids() AS visible_property_ids)))) check (app.property_writable(property_id))
+public.units support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.units support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.units support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.units tenant_isolation PERMISSIVE ALL to public using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
+public.work_orders support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.work_orders support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.work_orders support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.work_orders work_orders_insert PERMISSIVE INSERT to app_runtime check (((organization_id = app.current_org()) AND (((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text, 'housekeeping'::text, 'maintenance'::text])) AND app.actor_can_see_property(property_id) AND (reporter_membership_id = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid)) OR ((app.actor_role() = 'tenant'::text) AND (source = 'tenant'::text) AND (reporter_person_id = app.actor_person_id())))))
 public.work_orders work_orders_read PERMISSIVE SELECT to public using (((organization_id = app.current_org()) AND ((NULLIF(current_setting('app.actor_id'::text, true), ''::text) IS NULL) OR ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text, 'housekeeping'::text, 'maintenance'::text])) AND app.actor_can_see_property(property_id)) OR ((app.actor_role() = 'tenant'::text) AND (reporter_person_id = app.actor_person_id())))))
 public.work_orders work_orders_update PERMISSIVE UPDATE to app_runtime using (((organization_id = app.current_org()) AND app.actor_can_see_property(property_id) AND ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text])) OR ((app.actor_role() = 'maintenance'::text) AND (assignee_membership_id = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid))))) check (((organization_id = app.current_org()) AND app.actor_can_see_property(property_id) AND ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text])) OR ((app.actor_role() = 'maintenance'::text) AND (assignee_membership_id = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid)))))
+public.worker_heartbeats support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.worker_heartbeats support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.worker_heartbeats support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 
-## triggers (131)
+## triggers (132)
 auth.session CREATE TRIGGER trg_session_not_erased BEFORE INSERT ON auth.session FOR EACH ROW EXECUTE FUNCTION app.session_guard_erased()
 public.allocations CREATE TRIGGER trg_allocations_no_reactivation BEFORE UPDATE OF active ON allocations FOR EACH ROW EXECUTE FUNCTION app.forbid_reactivation()
 public.allocations CREATE TRIGGER trg_allocations_updated BEFORE UPDATE ON allocations FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 public.approval_requests CREATE TRIGGER trg_approval_requests_no_delete BEFORE DELETE OR TRUNCATE ON approval_requests FOR EACH STATEMENT EXECUTE FUNCTION app.forbid_mutation()
 public.approval_requests CREATE TRIGGER trg_approval_requests_transition BEFORE UPDATE ON approval_requests FOR EACH ROW EXECUTE FUNCTION app.approval_transition()
 public.approval_requests CREATE TRIGGER trg_approval_requests_updated BEFORE UPDATE ON approval_requests FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
+public.audit_events CREATE TRIGGER audit_events_source_from_context BEFORE INSERT ON audit_events FOR EACH ROW EXECUTE FUNCTION app.audit_source_from_context()
 public.audit_events CREATE TRIGGER trg_audit_events_append_only BEFORE DELETE OR UPDATE ON audit_events FOR EACH ROW EXECUTE FUNCTION app.forbid_mutation()
 public.audit_events CREATE TRIGGER trg_audit_events_no_truncate BEFORE TRUNCATE ON audit_events FOR EACH STATEMENT EXECUTE FUNCTION app.forbid_mutation()
 public.bank_transactions CREATE TRIGGER trg_bank_transactions_append_only BEFORE DELETE OR UPDATE ON bank_transactions FOR EACH ROW EXECUTE FUNCTION app.forbid_mutation()
@@ -2839,7 +3043,7 @@ public.units CREATE TRIGGER trg_units_updated BEFORE UPDATE ON units FOR EACH RO
 public.work_orders CREATE TRIGGER trg_work_orders_transition BEFORE UPDATE ON work_orders FOR EACH ROW EXECUTE FUNCTION app.work_order_transition()
 public.work_orders CREATE TRIGGER trg_work_orders_updated BEFORE UPDATE ON work_orders FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 
-## functions (137)
+## functions (139)
 -- app.actor_can_see_property(p uuid) owner=<admin>
 CREATE OR REPLACE FUNCTION app.actor_can_see_property(p uuid)
  RETURNS boolean
@@ -2878,6 +3082,17 @@ AS $function$
     SELECT nullif(current_setting('app.actor_id', true), '') IS NULL
            OR coalesce(app.actor_role() IN ('owner','manager','front_desk','accountant'), false)
            OR NOT EXISTS (SELECT 1 FROM memberships m WHERE m.id = nullif(current_setting('app.actor_id', true), '')::uuid)
+  $function$
+-- app.actor_not_support() owner=<admin>
+CREATE OR REPLACE FUNCTION app.actor_not_support()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+    SELECT NOT EXISTS (
+      SELECT 1 FROM memberships m
+      WHERE m.id = nullif(current_setting('app.actor_id', true), '')::uuid AND m.role = 'platform_support')
   $function$
 -- app.actor_person_id() owner=<admin>
 CREATE OR REPLACE FUNCTION app.actor_person_id()
@@ -3050,6 +3265,16 @@ BEGIN
     RAISE EXCEPTION 'approval_requests: không thể chuyển % → % hoặc sửa nội dung yêu cầu', OLD.status, NEW.status
       USING ERRCODE = 'check_violation', HINT = 'INVALID_TRANSITION';
   END IF;
+  RETURN NEW;
+END $function$
+-- app.audit_source_from_context() owner=<admin>
+CREATE OR REPLACE FUNCTION app.audit_source_from_context()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  IF NEW.source_ip IS NULL THEN NEW.source_ip := nullif(current_setting('app.source_ip', true), ''); END IF;
+  IF NEW.user_agent IS NULL THEN NEW.user_agent := nullif(current_setting('app.user_agent', true), ''); END IF;
   RETURN NEW;
 END $function$
 -- app.billing_period_guard() owner=<admin>
@@ -5561,7 +5786,7 @@ AS $function$
     ON CONFLICT (name) DO UPDATE SET beat_at = excluded.beat_at
   $function$
 
-## grants (bảng, cột, hàm, schema) (1282)
+## grants (bảng, cột, hàm, schema) (1286)
 column public.consent_records.action app_runtime INSERT
 column public.consent_records.channel app_runtime INSERT
 column public.consent_records.id app_runtime INSERT
@@ -5604,6 +5829,8 @@ function app.actor_may_insert_person() <admin> EXECUTE
 function app.actor_may_insert_person() app_runtime EXECUTE
 function app.actor_may_update_person() <admin> EXECUTE
 function app.actor_may_update_person() app_runtime EXECUTE
+function app.actor_not_support() <admin> EXECUTE
+function app.actor_not_support() app_runtime EXECUTE
 function app.actor_person_id() <admin> EXECUTE
 function app.actor_person_id() app_runtime EXECUTE
 function app.actor_person_id() app_worker EXECUTE
@@ -5618,6 +5845,8 @@ function app.anonymize_persons(p_now timestamp with time zone, p_months integer,
 function app.anonymize_persons(p_now timestamp with time zone, p_months integer, p_limit integer) app_worker EXECUTE
 function app.approval_transition() <admin> EXECUTE
 function app.approval_transition() PUBLIC EXECUTE
+function app.audit_source_from_context() <admin> EXECUTE
+function app.audit_source_from_context() PUBLIC EXECUTE
 function app.billing_period_guard() <admin> EXECUTE
 function app.billing_period_guard() PUBLIC EXECUTE
 function app.billing_period_published(p_org uuid, p_id uuid) <admin> EXECUTE

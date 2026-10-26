@@ -55,6 +55,8 @@ Nguồn IP: hop PHẢI NHẤT của `X-Forwarded-For` (do proxy tin cậy duy nh
 | `member.role_changed` | Owner đổi vai trò nhân viên (lần thay đổi thật; đặt lại đúng vai trò cũ không phát): `target` = id membership, `reason` = vai trò mới; trước/sau + lý do ở `audit_events`. Lần thử bị từ chối ⇒ `authz.denied` + audit `member.role_change_denied` | `access/members.ts` `updateMemberRole` | `access/members.db.test.ts` |
 | `member.scope_changed` | Owner đổi phạm vi cơ sở của nhân viên: `target` = id membership. Lần thử bị từ chối ⇒ `authz.denied` + audit `member.scope_change_denied` | `access/members.ts` `updateMemberScope` | idem |
 | `session.revoked` | Thu hồi MỌI phiên của một tài khoản (`session.revokeAll`, tự mình hoặc owner/manager thu hồi nhân viên): `target` = id membership; số phiên ở `audit_events` (`session.revoked`). Request kế tiếp mang cookie phiên đó ⇒ 401 `SESSION_REVOKED` ⇒ `auth.unauthenticated` với `reason = SESSION_REVOKED` | `access/sessions.ts` `revokeAllSessions`; `http/command-route.ts` | `access/sessions.db.test.ts` |
+| `support.access_granted` | Owner cấp truy cập hỗ trợ chỉ đọc (T-2313, D-128): `target` = id lời mời; lý do + hạn ở `audit_events` (`support.access_granted`) | `access/support.ts` `grantSupportAccess` | `access/support-access.db.test.ts` |
+| `support.access_revoked` | Owner thu hồi truy cập hỗ trợ (lời mời chưa nhận hoặc membership đang hiệu lực): `target` = id lời mời | `access/support.ts` `revokeSupportAccess` | `access/support-access.db.test.ts` |
 
 Sự kiện thành công (`ctx.security`) chỉ phát **sau commit**; lệnh bị rollback hoặc replay cùng `Idempotency-Key` không phát. Sự kiện từ chối của
 command phát một lần cho mỗi `Idempotency-Key`.

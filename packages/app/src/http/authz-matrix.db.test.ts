@@ -494,6 +494,11 @@ const ALLOWED_2XX: Record<string, Allowed> = {
 const MUST_403: readonly (readonly [string, Action | null, readonly Role[]])[] = [
   ...["room_type.create", "room_type.update", "rate.set"].map((n) => [n, "pricing.manage", ALL5] as const),
   ["meter.install", "meter.replace", ALL5],
+  // T-2313 (D-128): truy cập hỗ trợ chỉ owner cấp/thu hồi; danh sách cho owner/manager.
+  ...["member.grantSupportAccess", "member.revokeSupportAccess"].map(
+    (n) => [n, "member.invite_senior", ALL5] as const,
+  ),
+  ["member.listSupportAccess", "member.invite_staff", ALL5],
   // SPEC-access S-005/S-006: chỉ chủ/quản lý được tạo/lưu trữ phòng (`unit.manage`).
   ...["unit.create", "unit.archive"].map((n) => [n, "unit.manage", ALL5] as const),
   ["lease.createDraft", "lease.manage", ALL5],
@@ -589,6 +594,7 @@ const NO_PRECONDITION_FIXTURE = [
   "stay.exportResidenceNotice",
   "stay.markNoticeSubmitted",
   "exports.download",
+  "member.revokeSupportAccess",
   "portal.createGuestLink",
   "portal.revokeGuestLink",
   "portal.inviteTenant",

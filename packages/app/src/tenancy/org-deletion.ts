@@ -14,6 +14,8 @@ import { withTenant, withUserContext } from "@hm/db";
 import { type Kysely, sql } from "kysely";
 import type { Actor } from "../actor-core/index.ts";
 import type { ObjectStorage } from "../files/index.ts";
+import type { SecurityClient } from "../logging/index.ts";
+import { setAuditSource } from "../pipeline/index.ts";
 import { isRecentReauth } from "../privacy/index.ts";
 
 /** Số ngày giữ trước khi purge — CSDL (0070) đặt `deletion_due_at = now() + 30 ngày` và CHECK ≥ 30 ngày; test khớp hằng này. */
@@ -73,6 +75,8 @@ export interface RequestOrgDeletionInput {
   reauthenticatedAt: Date | null | undefined;
   correlationId: string;
   now?: Date;
+  /** Nguồn request — audit `organization.deletion_*` (ghi trong hàm CSDL) nhận IP/UA qua trigger 0072. */
+  client?: SecurityClient | null;
 }
 
 export interface RequestOrgDeletionResult {
@@ -90,10 +94,11 @@ export async function requestOrgDeletion(
   if (actor.role !== "owner") throw new OrgDeletionError("FORBIDDEN");
   if (!isRecentReauth(input.reauthenticatedAt, input.now ?? new Date()))
     throw new OrgDeletionError("REAUTH_REQUIRED");
-  const r = await withTenant(db, tenantOf(actor), (trx) =>
-    sql<{ status: string; requested_at: Date; due_at: Date; created: boolean }>`
-      select * from app.org_request_deletion(${input.correlationId})`.execute(trx),
-  );
+  const r = await withTenant(db, tenantOf(actor), async (trx) => {
+    await setAuditSource(trx, input.client);
+    return sql<{ status: string; requested_at: Date; due_at: Date; created: boolean }>`
+      select * from app.org_request_deletion(${input.correlationId})`.execute(trx);
+  });
   const row = r.rows[0];
   if (!row) throw new OrgDeletionError("FORBIDDEN");
   return { status: row.created ? "created" : "existing", requestedAt: row.requested_at, dueAt: row.due_at };
@@ -103,12 +108,13 @@ export async function requestOrgDeletion(
 export async function cancelOrgDeletion(
   db: Kysely<unknown>,
   actor: Actor,
-  input: { correlationId: string },
+  input: { correlationId: string; client?: SecurityClient | null },
 ): Promise<boolean> {
   if (actor.role !== "owner") throw new OrgDeletionError("FORBIDDEN");
-  const r = await withTenant(db, tenantOf(actor), (trx) =>
-    sql<{ ok: boolean }>`select app.org_cancel_deletion(${input.correlationId}) as ok`.execute(trx),
-  );
+  const r = await withTenant(db, tenantOf(actor), async (trx) => {
+    await setAuditSource(trx, input.client);
+    return sql<{ ok: boolean }>`select app.org_cancel_deletion(${input.correlationId}) as ok`.execute(trx);
+  });
   return r.rows[0]?.ok === true;
 }
 
