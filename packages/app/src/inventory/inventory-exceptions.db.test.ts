@@ -4,11 +4,12 @@
 import { randomUUID } from "node:crypto";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { Actor } from "../access/index.ts";
+import { type Actor, resolveActor } from "../access/index.ts";
 import { createPiiCipher, devKeyring } from "../crypto/pii.ts";
 import { type CommandResult, toProblem } from "../pipeline/index.ts";
 import { checkIn, checkOut, createReservation, holdReservation } from "../stay/index.ts";
 import { confirmReservation } from "../stay/reservations.ts";
+import { cancelOrgDeletion, requestOrgDeletion } from "../tenancy/index.ts";
 import { okAs, runAs, seedMember } from "../testing/helpers.ts";
 import { type Hotel, seedHotel } from "../testing/hotel.ts";
 import { getCalendar, searchAvailability } from "./calendar.ts";
@@ -1775,5 +1776,37 @@ describe("SPEC-inventory S-023 audit + outbox cùng transaction cho mọi comman
     expect(rz.status).toBe("committed"); // đối chứng: không bị chắn thì có đủ bằng chứng
     const evRz = await evidence(rz.commandId);
     expect(evRz.audit.map((a) => a.action)).toEqual(["allocation.resized"]);
+  });
+});
+
+describe("D-126 tổ chức chờ xoá: detectOverdue ngừng, huỷ yêu cầu xoá thì chạy lại", () => {
+  it("lưu trú quá hạn của tổ chức chờ xoá không mở ngoại lệ; sau khi huỷ yêu cầu xoá thì mở đúng 1 STAY_OVERSTAY", async () => {
+    const unit = await freshUnit({ floorId: await newFloor(), code: "D126" });
+    const s1 = await booking(unit, "2026-12-01", "2026-12-03", { checkedInAt: loc("2026-12-01T15:00") });
+    const t0 = loc("2026-12-03T13:00");
+    const owner = () =>
+      resolveActor(h.t.runtime, {
+        authUserId: h.org.ownerAuthUserId,
+        orgId: h.org.orgId,
+        twoFactorEnabled: true,
+        authenticatedAt: new Date(),
+        allowPendingDeletion: true,
+      });
+    await requestOrgDeletion(h.t.runtime, await owner(), {
+      reauthenticatedAt: new Date(),
+      correlationId: "overdue-d126",
+    });
+    try {
+      expect(await detectOverdue(h.t.worker, t0)).toBe(0);
+      expect(await exceptionsOf(s1.allocationId)).toEqual([]);
+    } finally {
+      expect(await cancelOrgDeletion(h.t.runtime, await owner(), { correlationId: "overdue-d126" })).toBe(
+        true,
+      );
+    }
+    expect(await detectOverdue(h.t.worker, t0)).toBe(1);
+    expect(await exceptionsOf(s1.allocationId)).toEqual([
+      expect.objectContaining({ type: "STAY_OVERSTAY", status: "open" }),
+    ]);
   });
 });

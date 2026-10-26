@@ -3,10 +3,12 @@
 import { createHash, randomUUID } from "node:crypto";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { resolveActor } from "../access/actor.ts";
 import { createPiiCipher, devKeyring } from "../crypto/pii.ts";
 import { postCharge } from "../stay/folio.ts";
 import { confirmReservation, createReservation, holdReservation } from "../stay/reservations.ts";
 import { checkIn } from "../stay/stays.ts";
+import { cancelOrgDeletion, requestOrgDeletion } from "../tenancy/org-deletion.ts";
 import { codeOf, okAs, runAs } from "../testing/helpers.ts";
 import { type Hotel, seedHotel } from "../testing/hotel.ts";
 import { createGuestLink, guestGetStay, revokeGuestLink } from "./guest.ts";
@@ -265,5 +267,49 @@ describe("S-020 đoán token", () => {
         })
       ).folio.total,
     ).toBe(1_430_000);
+  });
+});
+
+describe("D-126 tổ chức chờ xoá: liên kết khách bị từ chối, huỷ yêu cầu xoá thì dùng lại được", () => {
+  it("chờ xoá ⇒ 404 y như token không tồn tại (không lộ trạng thái, liên kết không bị khoá/thu hồi); huỷ ⇒ mở lại được", async () => {
+    const s = await stay();
+    const l = await okAs(h.t, h.frontDesk, (ctx) => createGuestLink(ctx, { stayId: s.stayId, now: NOW }));
+    const open = (token: string) =>
+      guestGetStay(h.t.runtime, { token, stayId: s.stayId, phoneLast4: "5678", ip: ip(), now: NOW }).catch(
+        (e) => e,
+      );
+    const owner = () =>
+      resolveActor(h.t.runtime, {
+        authUserId: h.org.ownerAuthUserId,
+        orgId: h.org.orgId,
+        twoFactorEnabled: true,
+        authenticatedAt: new Date(),
+        allowPendingDeletion: true,
+      });
+    expect((await open(l.token)).folio.total).toBe(1_430_000);
+    await requestOrgDeletion(h.t.runtime, await owner(), {
+      reauthenticatedAt: new Date(),
+      correlationId: "guest-link-d126",
+    });
+    try {
+      const unknown = await open(randomUUID().replaceAll("-", "").padEnd(43, "x"));
+      const denied = await open(l.token);
+      expect(denied).toMatchObject({ code: "NOT_FOUND", status: 404 });
+      expect({ code: denied.code, status: denied.status, message: denied.message }).toEqual({
+        code: unknown.code,
+        status: unknown.status,
+        message: unknown.message,
+      });
+    } finally {
+      expect(await cancelOrgDeletion(h.t.runtime, await owner(), { correlationId: "guest-link-d126" })).toBe(
+        true,
+      );
+    }
+    const row = await sql<{ revoked_at: Date | null; locked_at: Date | null; failed_attempts: number }>`
+      select revoked_at, locked_at, failed_attempts from guest_access_links where id = ${l.linkId}`.execute(
+      h.t.admin,
+    );
+    expect(row.rows[0]).toEqual({ revoked_at: null, locked_at: null, failed_attempts: 0 });
+    expect((await open(l.token)).folio.total).toBe(1_430_000);
   });
 });

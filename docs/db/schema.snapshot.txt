@@ -3308,7 +3308,7 @@ BEGIN
   RETURN QUERY
   WITH due_orgs AS (
     SELECT d.organization_id FROM notification_deliveries d
-     WHERE d.status IN ('queued','retrying') AND d.next_attempt_at <= p_now
+     WHERE d.status IN ('queued','retrying') AND d.next_attempt_at <= p_now AND EXISTS (SELECT 1 FROM organizations og WHERE og.id = d.organization_id AND og.status = 'active')
      GROUP BY d.organization_id
      ORDER BY min(d.next_attempt_at), d.organization_id
      LIMIT least(greatest(p_limit, 1), 1000)
@@ -3331,7 +3331,6 @@ BEGIN
   )
   UPDATE notification_deliveries d
      SET status = 'sending', attempts = d.attempts + 1,
-         -- Mili giây: mã rào được so lại từ Date của JS (mất micro giây) — gọi bằng now() của SQL vẫn khớp.
          locked_until = date_trunc('milliseconds', p_now) + make_interval(secs => greatest(p_lock_seconds, 1))
     FROM picked p WHERE d.id = p.id
   RETURNING d.id, d.organization_id, d.attempts, d.locked_until;
@@ -3696,7 +3695,7 @@ AS $function$
     SELECT r.id, r.organization_id FROM reservations r
     JOIN reservation_items i ON i.organization_id = r.organization_id AND i.reservation_id = r.id
     LEFT JOIN allocations a ON a.organization_id = i.organization_id AND a.id = i.allocation_id
-    WHERE r.status = 'held' AND (a.id IS NULL OR NOT a.active OR a.expires_at <= p_now)
+    WHERE r.status = 'held' AND (a.id IS NULL OR NOT a.active OR a.expires_at <= p_now) AND EXISTS (SELECT 1 FROM organizations og WHERE og.id = r.organization_id AND og.status = 'active')
     ORDER BY r.held_until, r.id
     LIMIT least(greatest(p_limit, 1), 10000)
   $function$
@@ -3776,7 +3775,7 @@ CREATE OR REPLACE FUNCTION app.expire_holds(p_now timestamp with time zone, p_li
 AS $function$
     WITH due AS (
       SELECT a.id FROM allocations a
-      WHERE a.active AND a.kind = 'hold' AND a.expires_at <= p_now
+      WHERE a.active AND a.kind = 'hold' AND a.expires_at <= p_now AND EXISTS (SELECT 1 FROM organizations og WHERE og.id = a.organization_id AND og.status = 'active')
       ORDER BY a.expires_at, a.id
       LIMIT least(greatest(p_limit, 1), 10000)
       FOR UPDATE SKIP LOCKED
@@ -4211,7 +4210,7 @@ AS $function$
     JOIN LATERAL (SELECT lv.version_no, lv.effective_to FROM lease_versions lv
                   WHERE lv.organization_id = l.organization_id AND lv.lease_id = l.id AND lv.signed_at IS NOT NULL
                   ORDER BY lv.version_no DESC LIMIT 1) v ON true
-    WHERE l.status IN ('active','notice_given') AND v.effective_to IS NOT NULL
+    WHERE l.status IN ('active','notice_given') AND v.effective_to IS NOT NULL AND EXISTS (SELECT 1 FROM organizations og WHERE og.id = l.organization_id AND og.status = 'active')
       AND (v.effective_to - (p_now AT TIME ZONE p.timezone)::date) = ANY (
         CASE WHEN jsonb_typeof(p.settings -> 'lease_reminder_days') = 'array'
              THEN ARRAY(SELECT x::int FROM jsonb_array_elements_text(p.settings -> 'lease_reminder_days') x
@@ -4235,7 +4234,7 @@ AS $function$
                   ORDER BY lv.version_no DESC LIMIT 1) v ON true
     JOIN allocations a ON a.organization_id = l.organization_id AND a.source_type = 'lease' AND a.source_id = l.id
                       AND a.active AND a.kind = 'lease'
-    WHERE l.status IN ('active','notice_given') AND v.effective_to IS NOT NULL
+    WHERE l.status IN ('active','notice_given') AND v.effective_to IS NOT NULL AND EXISTS (SELECT 1 FROM organizations og WHERE og.id = l.organization_id AND og.status = 'active')
       AND v.effective_to < (p_now AT TIME ZONE p.timezone)::date
       AND NOT EXISTS (SELECT 1 FROM handovers h WHERE h.organization_id = l.organization_id AND h.lease_id = l.id
                         AND h.kind = 'move_out' AND h.confirmed_at IS NOT NULL)
@@ -4566,6 +4565,8 @@ CREATE OR REPLACE FUNCTION app.outbox_claim(p_limit integer)
 AS $function$
     WITH c AS (
       SELECT o.id FROM outbox o WHERE o.published_at IS NULL AND o.available_at <= now()
+        AND (o.event_type = 'export.requested'
+             OR EXISTS (SELECT 1 FROM organizations og WHERE og.id = o.organization_id AND og.status = 'active'))
       ORDER BY o.created_at, o.id
       LIMIT least(greatest(p_limit, 1), 1000)
       FOR UPDATE SKIP LOCKED),
@@ -4685,7 +4686,7 @@ AS $function$
     SELECT p.organization_id, p.id, m.s, (m.s + interval '1 month' - interval '1 day')::date
     FROM properties p
     CROSS JOIN LATERAL (SELECT date_trunc('month', (p_now AT TIME ZONE p.timezone))::date AS s) m
-    WHERE p.template IN ('rental','mixed') AND p.archived_at IS NULL
+    WHERE p.template IN ('rental','mixed') AND p.archived_at IS NULL AND EXISTS (SELECT 1 FROM organizations og WHERE og.id = p.organization_id AND og.status = 'active')
       AND NOT EXISTS (SELECT 1 FROM billing_periods b WHERE b.organization_id = p.organization_id AND b.property_id = p.id
                         AND b.period_start = m.s)
   $function$
@@ -5020,7 +5021,7 @@ AS $function$
     SELECT b.organization_id, b.property_id, b.id, b.assignee, b.reason,
            floor(extract(epoch FROM p_now - b.created_at) / extract(epoch FROM interval '1 hour'))::integer
     FROM reconciliation_breaks b
-    WHERE b.status = 'open' AND b.created_at <= p_now - make_interval(hours => greatest(p_sla_hours, 0))
+    WHERE b.status = 'open' AND b.created_at <= p_now - make_interval(hours => greatest(p_sla_hours, 0)) AND EXISTS (SELECT 1 FROM organizations og WHERE og.id = b.organization_id AND og.status = 'active')
     ORDER BY b.created_at, b.id
     LIMIT least(greatest(p_limit, 1), 5000)
   $function$
@@ -5098,7 +5099,7 @@ AS $function$
     LEFT JOIN stays s ON s.organization_id = ri.organization_id AND s.reservation_item_id = ri.id
     LEFT JOIN reservations r ON r.organization_id = ri.organization_id AND r.id = ri.reservation_id
     LEFT JOIN persons bp ON bp.organization_id = r.organization_id AND bp.id = r.booker_person_id
-    WHERE g.token_hash = p_hash
+    WHERE g.token_hash = p_hash AND EXISTS (SELECT 1 FROM organizations og WHERE og.id = g.organization_id AND og.status = 'active')
     LIMIT 1
   $function$
 -- app.retention_person_activity(p_org uuid, p_person uuid) owner=<admin>
@@ -5279,7 +5280,7 @@ AS $function$
     JOIN properties p ON p.organization_id = s.organization_id AND p.id = s.property_id
     JOIN allocations a ON a.organization_id = s.organization_id AND a.source_type = 'stay' AND a.source_id = s.id
                       AND a.active AND a.kind = 'stay'
-    WHERE s.status = 'in_house' AND NOT upper_inf(a.during)
+    WHERE s.status = 'in_house' AND NOT upper_inf(a.during) AND EXISTS (SELECT 1 FROM organizations og WHERE og.id = s.organization_id AND og.status = 'active')
       AND upper(a.during) + make_interval(mins => p.overstay_grace_minutes) <= p_now
       AND NOT EXISTS (SELECT 1 FROM allocations l WHERE l.organization_id = a.organization_id AND l.source_type = 'stay'
                         AND l.source_id = a.source_id AND l.active AND l.kind = 'stay' AND l.id <> a.id
