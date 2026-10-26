@@ -45,3 +45,9 @@ d6d1268d867f6fb822fa1bad57465d1609115ac1:packages/app/src/reconciliation/reconci
 
 # Khoá HMAC giả của test DB đối soát ở commit 5c1516a (reconciliation.db.test.ts, giá trị "…-chi-dung-trong-test-…") — không phải bí mật thật; bắt được khi kiểm lại cuối đợt 17 (WF-GIT-010).
 5c1516aca06d62086fdc7e2c782de4f6cfe52c29:packages/app/src/reconciliation/reconciliation.db.test.ts:generic-api-key:30
+
+# Mật khẩu giả của test truy cập hỗ trợ ở commit d893db2 (support-access.db.test.ts, T-2313/D-129) — đã thay bằng chuỗi ghép lúc
+# chạy; và khoá giả webhook ở reconciliation.db.test.ts (cùng chuỗi "sim-secret…" như 6327e00/8a6996e) nằm trong commit ba46c5b
+# (#84, nâng khung 3.5.1). Giữ fingerprint để `gitleaks git --log-opts=--all` (WF-GIT-010) không đỏ.
+d893db2b63d55ad4549b3e809595d7be424f9773:packages/app/src/access/support-access.db.test.ts:generic-api-key:27
+ba46c5bfc20c4da9484969f727fc352122ea9a2f:packages/app/src/reconciliation/reconciliation.db.test.ts:generic-api-key:30

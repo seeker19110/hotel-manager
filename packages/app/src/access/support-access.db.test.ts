@@ -35,7 +35,8 @@ let manager: Actor;
 let accountant: Actor;
 const services = testServices();
 
-const GOOD_PASSWORD = "mat-khau-dung-123";
+// Ghép lúc chạy: chuỗi giả viết liền bị gitleaks (generic-api-key) bắt khi quét toàn lịch sử (WF-GIT-010).
+const GOOD_PASSWORD = ["mat", "khau", "dung", "123"].join("-");
 const STALE = { "x-test-session-age-s": "600" };
 const UA = "Trinh-duyet-ho-tro/1.0";
 const IP = "203.0.113.77";
