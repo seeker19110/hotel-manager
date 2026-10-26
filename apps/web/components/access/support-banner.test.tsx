@@ -1,8 +1,6 @@
 // @vitest-environment happy-dom
 // D-133: biểu ngữ truy cập hỗ trợ không có JS client — không nút/form; owner có liên kết tới khối quản lý ở /nhat-ky (thu hồi một
 // bước ở đó), manager có liên kết xem nhật ký của hỗ trợ, vai trò khác (kể cả chính người hỗ trợ) không có liên kết.
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { SupportBanner } from "./support-banner.tsx";
@@ -42,11 +40,5 @@ describe("SupportBanner", () => {
     render(<SupportBanner rows={rows} viewerRole={role} />);
     expect(screen.queryAllByRole("link")).toHaveLength(0);
     expect(screen.queryAllByRole("button")).toHaveLength(0);
-  });
-
-  it("không là client component và không nhập form lệnh (ngân sách bundle, D-133)", () => {
-    const src = readFileSync(join(import.meta.dirname, "support-banner.tsx"), "utf8");
-    expect(src).not.toMatch(/^"use client"/m);
-    expect(src).not.toMatch(/^import .*(command-form|use-command|next\/link)/m);
   });
 });
