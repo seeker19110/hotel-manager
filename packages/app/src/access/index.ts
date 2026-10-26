@@ -24,6 +24,7 @@ export {
   ORG_HEADER,
   orgCookieName,
   requestedOrgId,
+  selectOrganization,
   switchOrganization,
 } from "./org-context.ts";
 export { createOrganization } from "./organization.ts";
@@ -42,9 +43,13 @@ export {
   listSupportAccess,
   listSupportAccessQuery,
   recordSupportAccess,
+  retireExpiredSupport,
   revokeSupportAccess,
+  SUPPORT_ACCESS_DEDUP_SECONDS,
   SUPPORT_REASON_MAX,
   SUPPORT_TTL_DEFAULT_HOURS,
   SUPPORT_TTL_MAX_HOURS,
+  type SupportAccessActor,
   type SupportAccessRow,
+  supportAccessActor,
 } from "./support.ts";

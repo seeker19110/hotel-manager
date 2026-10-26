@@ -223,6 +223,7 @@ export const COMMAND_INPUTS = {
         to: isoDate.optional(),
         correlation_id: z.string().min(1).max(200).optional(),
         actor_person_id: uuid.optional(),
+        actor_type: z.enum(["user", "worker", "platform_support"]).optional(),
         action: z.string().min(1).max(100).optional(),
         entity_type: z.string().min(1).max(64).optional(),
       })

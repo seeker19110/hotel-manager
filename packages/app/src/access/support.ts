@@ -7,14 +7,14 @@
 // - Chỉ đọc: pipeline/route chặn mọi lệnh ghi (`supportWriteDenied`), RLS 0072 chặn ghi ở CSDL, `authorize` chỉ cho SUPPORT_READ.
 // - Minh bạch: mỗi lần support mở trang/gọi query ⇒ một `audit_events` `support.accessed` (actor_type `platform_support`, lý do của
 //   lời cấp, nguồn IP/UA) — owner/manager thấy trong /nhat-ky; mọi trang của tổ chức hiện biểu ngữ khi đang có truy cập hỗ trợ.
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { withTenant } from "@hm/db";
 import { AuthzError, authorize } from "@hm/domain";
 import { type Kysely, sql } from "kysely";
 import type { Actor } from "../actor-core/index.ts";
 import { t } from "../i18n.ts";
 import { auditSource, type SecurityClient } from "../logging/index.ts";
-import { type CommandContext, CommandError, fieldError } from "../pipeline/index.ts";
+import { type CommandContext, CommandError, fieldError, rateLimitHit } from "../pipeline/index.ts";
 import { authorizeOrAudit } from "./denied.ts";
 import { hashInvitationToken, invitationToken, normalizeEmail } from "./invitations.ts";
 
@@ -69,6 +69,9 @@ export async function grantSupportAccess(
     throw new CommandError("DUPLICATE", 409, t("access.email_already_member"), {
       extensions: { errors: [{ path: "email", field: "email", code: "member_exists" }] },
     });
+  // Membership hỗ trợ HẾT HẠN vẫn `active` (hết hạn theo `valid_to`, không cần job) và vẫn giữ unique `uq_memberships_user` ⇒ nếu
+  // để nguyên, lời cấp mới gửi được nhưng nhận lời mời luôn 409. Đóng hẳn (`revoked`) trong cùng transaction — UPDATE khoá hàng.
+  const retired = await retireExpiredSupport(ctx.trx, ctx.actor.orgId, { email });
   await sql`update invitations set status = 'expired'
             where organization_id = ${ctx.actor.orgId} and lower(email) = ${email} and role = ${SUPPORT_ROLE}
               and status = 'pending' and expires_at <= now()`.execute(ctx.trx);
@@ -90,7 +93,12 @@ export async function grantSupportAccess(
     action: "support.access_granted",
     entityType: "invitation",
     entityId: invitationId,
-    after: { role: SUPPORT_ROLE, ttl_hours: ttl, expires_at: expiresAt },
+    after: {
+      role: SUPPORT_ROLE,
+      ttl_hours: ttl,
+      expires_at: expiresAt,
+      ...(retired.length > 0 ? { expired_memberships_closed: retired } : {}),
+    },
     reason,
   });
   await ctx.emit({
@@ -101,6 +109,29 @@ export async function grantSupportAccess(
   });
   ctx.security({ event: "support.access_granted", target: { type: "invitation", id: invitationId } });
   return { invitationId, expiresAt };
+}
+
+/**
+ * Đóng (`revoked`) membership hỗ trợ ĐÃ HẾT HẠN của một tài khoản trong tổ chức — theo email (lúc owner cấp lại) hoặc auth user id
+ * (lúc nhận lời mời, cho lời cấp tạo trước bản sửa). Chỉ chạm vai `platform_support` có `valid_to <= now()`; còn hạn thì không đổi.
+ * UPDATE khoá hàng ⇒ hai transaction song song không cùng đóng/ghi đè. Trả id đã đóng (đưa vào audit).
+ */
+export async function retireExpiredSupport(
+  trx: Kysely<unknown>,
+  orgId: string,
+  who: { email: string } | { authUserId: string },
+): Promise<string[]> {
+  const r = await sql<{ id: string }>`
+    update memberships m set status = 'revoked', revoked_at = now(), updated_at = now(), version = m.version + 1
+    where m.organization_id = ${orgId} and m.role = ${SUPPORT_ROLE} and m.status in ('invited','active','suspended')
+      and m.valid_to is not null and m.valid_to <= now()
+      and ${
+        "email" in who
+          ? sql`m.auth_user_id in (select u.id from auth."user" u where lower(btrim(u.email)) = ${who.email})`
+          : sql`m.auth_user_id = ${who.authUserId}`
+      }
+    returning m.id`.execute(trx);
+  return r.rows.map((x) => x.id);
 }
 
 export async function revokeSupportAccess(
@@ -199,25 +230,73 @@ export async function listSupportAccessQuery(db: Kysely<unknown>, actor: Actor):
   return listSupportAccess(db, actor);
 }
 
+/** Cửa sổ gộp `support.accessed`: mỗi (membership hỗ trợ, loại, tên) tối đa một sự kiện mỗi cửa sổ (chống spam nhật ký owner). */
+export const SUPPORT_ACCESS_DEDUP_SECONDS = 60;
+
+/** Đủ thông tin để ghi `support.accessed` (Actor đầy đủ hoặc membership vừa chọn ở `session.switchOrganization`). */
+export type SupportAccessActor = Pick<Actor, "role" | "orgId" | "membershipId" | "personId" | "support">;
+
 /**
- * Ghi một lần truy cập của support (trang hoặc query) — `support.accessed`, lý do của lời cấp, nguồn IP/UA. Actor không phải
- * support ⇒ không làm gì. Lỗi ghi được ném lên: không ghi được dấu vết thì không phục vụ (mặc định an toàn).
+ * Membership hỗ trợ CÒN HIỆU LỰC (theo đồng hồ CSDL) dưới dạng đủ để ghi `support.accessed` — cho route không đi qua `resolveActor`
+ * (`session.switchOrganization`). Không phải support/hết hạn ⇒ null.
+ */
+export async function supportAccessActor(
+  db: Kysely<unknown>,
+  orgId: string,
+  membershipId: string,
+): Promise<SupportAccessActor | null> {
+  const r = await withTenant(db, { orgId, actorId: membershipId }, (trx) =>
+    sql<{ person_id: string; support_reason: string; valid_to: Date }>`
+      select person_id, support_reason, valid_to from memberships
+      where organization_id = ${orgId} and id = ${membershipId} and role = ${SUPPORT_ROLE} and status = 'active'
+        and valid_from <= now() and valid_to > now()`.execute(trx),
+  );
+  const m = r.rows[0];
+  return m
+    ? {
+        role: SUPPORT_ROLE,
+        orgId,
+        membershipId,
+        personId: m.person_id,
+        support: { reason: m.support_reason, until: m.valid_to },
+      }
+    : null;
+}
+
+/**
+ * Ghi một lần truy cập của support (trang hoặc query/route đọc) — `support.accessed`, lý do của lời cấp, nguồn IP/UA. Actor không
+ * phải support ⇒ không làm gì. Gộp: cùng (membership, loại, tên) trong cùng cửa sổ 60 giây chỉ ghi lần đầu (bộ đếm `rate_limit_hit`
+ * chạy CÙNG transaction với insert ⇒ insert lỗi thì lượt đếm cũng rollback, lần sau vẫn ghi). Lỗi ghi được ném lên: không ghi được
+ * dấu vết thì không phục vụ (mặc định an toàn).
  */
 export async function recordSupportAccess(
   db: Kysely<unknown>,
-  actor: Actor,
-  access: { kind: "page" | "query"; name: string; client?: SecurityClient | null; correlationId?: string },
+  actor: SupportAccessActor,
+  access: {
+    kind: "page" | "query";
+    name: string;
+    client?: SecurityClient | null;
+    correlationId?: string;
+  },
 ): Promise<void> {
   if (!isSupport(actor)) return;
   const src = auditSource(access.client);
-  await withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, (trx) =>
-    sql`
+  const name = access.name.slice(0, 200);
+  await withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
+    const first = await rateLimitHit(trx, {
+      scope: "support.accessed",
+      subject: `${actor.membershipId}:${access.kind}:${createHash("sha256").update(name).digest("hex").slice(0, 40)}`,
+      limit: 1,
+      windowSeconds: SUPPORT_ACCESS_DEDUP_SECONDS,
+    });
+    if (!first.allowed) return;
+    await sql`
       insert into audit_events (id, organization_id, actor_type, actor_person_id, action, entity_type, after, reason,
                                 correlation_id, outcome, source_ip, user_agent)
       values (${randomUUID()}, ${actor.orgId}, 'platform_support', ${actor.personId}, 'support.accessed', ${access.kind},
-              ${JSON.stringify({ [access.kind]: access.name.slice(0, 200) })}::jsonb, ${actor.support?.reason ?? null},
+              ${JSON.stringify({ [access.kind]: name })}::jsonb, ${actor.support?.reason ?? null},
               ${(access.correlationId ?? `support-${randomUUID()}`).slice(0, 200)}, 'success', ${src.sourceIp}, ${src.userAgent})`.execute(
       trx,
-    ),
-  );
+    );
+  });
 }

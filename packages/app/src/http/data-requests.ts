@@ -22,6 +22,7 @@ import {
   type DsarRequest,
   dsarDownloadUrl,
   dsarOverview,
+  REAUTH_PASSWORD_SCOPE,
 } from "../privacy/index.ts";
 import {
   correlationOf,
@@ -130,7 +131,7 @@ export async function handleCreateDataRequest(req: Request, deps: DataRequestDep
   let reauthenticatedAt = s.createdAt;
   if (type === "delete" && password !== undefined) {
     const rate = await rateLimitHit(deps.db, {
-      scope: "dsar.reauth",
+      scope: REAUTH_PASSWORD_SCOPE,
       subject: s.userId,
       limit: DSAR_PASSWORD_ATTEMPTS_PER_15_MIN,
       windowSeconds: minutesToSeconds(15),

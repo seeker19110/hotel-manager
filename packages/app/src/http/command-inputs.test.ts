@@ -181,4 +181,16 @@ describe("exports.request — loại xuất ở schema dùng chung khớp EXPORT
       expect(schema.safeParse({ kind, format: "csv" }).success, kind).toBe(true);
     expect(schema.safeParse({ kind: "org_full", format: "csv" }).success).toBe(false);
   });
+
+  it("bộ lọc nhật ký nhận `actor_type` (lọc người hỗ trợ của /nhat-ky) và chỉ ba giá trị hợp lệ", () => {
+    const schema = COMMAND_INPUTS["exports.request"];
+    const f = (actor_type: string) =>
+      schema.safeParse({
+        kind: "audit",
+        format: "csv",
+        filters: { from: "2026-10-01", to: "2026-10-02", actor_type },
+      }).success;
+    for (const v of ["user", "worker", "platform_support"]) expect(f(v), v).toBe(true);
+    for (const v of ["", "admin", "PLATFORM_SUPPORT"]) expect(f(v), v).toBe(false);
+  });
 });

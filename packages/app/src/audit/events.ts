@@ -87,15 +87,29 @@ function encodeCursor(c: Cursor): string {
   return Buffer.from(JSON.stringify(c)).toString("base64url");
 }
 
+/** Đúng định dạng `occurred_at_key` mà `encodeCursor` phát ra (UTC, micro giây) — `Date.parse` nhận cả "1", CSDL thì không ⇒ 500. */
+const CURSOR_TIME = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})\.\d{6}Z$/;
+
+/** Ngày giờ có thật (không 2026-02-30, 24:00…): dựng lại bằng Date.UTC phải ra đúng các thành phần. */
+function validCursorTime(v: string): boolean {
+  const m = CURSOR_TIME.exec(v);
+  if (!m) return false;
+  const [y, mo, d, h, mi, se] = m.slice(1, 7).map(Number) as [number, number, number, number, number, number];
+  const at = new Date(Date.UTC(y, mo - 1, d, h, mi, se));
+  return (
+    at.getUTCFullYear() === y &&
+    at.getUTCMonth() === mo - 1 &&
+    at.getUTCDate() === d &&
+    at.getUTCHours() === h &&
+    at.getUTCMinutes() === mi &&
+    at.getUTCSeconds() === se
+  );
+}
+
 function decodeCursor(s: string): Cursor {
   try {
     const c = JSON.parse(Buffer.from(s, "base64url").toString("utf8")) as Cursor;
-    if (
-      typeof c.t !== "string" ||
-      Number.isNaN(Date.parse(c.t)) ||
-      typeof c.id !== "string" ||
-      !UUID.test(c.id)
-    )
+    if (typeof c.t !== "string" || !validCursorTime(c.t) || typeof c.id !== "string" || !UUID.test(c.id))
       throw new Error("cursor");
     return c;
   } catch {

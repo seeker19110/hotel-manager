@@ -13,8 +13,66 @@
 // - Audit "từ đâu" cho dòng ghi bằng SQL (hàm CSDL như `app.org_request_deletion`, insert trực tiếp trong lệnh): trigger BEFORE INSERT
 //   điền `source_ip`/`user_agent` còn NULL từ GUC giao dịch `app.source_ip`/`app.user_agent` (app đặt bằng `set_config(..., true)`
 //   từ `auditSource` — đã cắt IP, làm sạch UA; CHECK 0049 vẫn chặn giá trị sai).
+// - Nhật ký (D-128 "owner/manager thấy"): sự kiện của support (`actor_type = 'platform_support'`, cấp tổ chức — property_id NULL)
+//   manager cũng đọc được: `audit_read_by_role` (0042) thêm nhánh đó cho manager; nhánh khác giữ nguyên.
+// - Hàm RLS theo actor (`app.actor_role` 0006, `app.actor_person_id` 0014, `app.actor_can_see_property` 0007) chỉ coi membership
+//   `active` CÒN HẠN (`valid_to IS NULL OR valid_to > now()`) — membership hỗ trợ/người thuê hết hạn vẫn `active` (không cần job),
+//   nên GUC actor còn đặt cũng không mở được dữ liệu. Phần còn lại của ba hàm giữ nguyên.
 // DOWN: gỡ policy/hàm/trigger, khôi phục CHECK cũ (membership/lời mời hỗ trợ còn sót bị thu hồi/đóng trước để CHECK cũ hợp lệ).
 import { type Kysely, sql } from "kysely";
+import { AUDIT_MONEY_GROUPS } from "./0042_audit_read_scope.ts";
+
+const moneyGroupsSql = AUDIT_MONEY_GROUPS.map((g) => `'${g}'`).join(",");
+
+/** Ba hàm actor của RLS; `live` = thêm điều kiện còn hạn của 0072 (DOWN dựng lại bản cũ với `live = false`). */
+const actorFunctions = (live: boolean) => {
+  const until = (indent: string) => (live ? `\n${indent}AND (m.valid_to IS NULL OR m.valid_to > now())` : "");
+  return `
+CREATE OR REPLACE FUNCTION app.actor_role() RETURNS text
+  LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+    SELECT m.role FROM memberships m
+    WHERE m.id = nullif(current_setting('app.actor_id', true), '')::uuid
+      AND m.organization_id = nullif(current_setting('app.org_id', true), '')::uuid
+      AND m.status = 'active'${until("      ")}
+  $$;
+CREATE OR REPLACE FUNCTION app.actor_person_id() RETURNS uuid
+  LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+    SELECT m.person_id FROM memberships m
+    WHERE m.id = nullif(current_setting('app.actor_id', true), '')::uuid
+      AND m.organization_id = nullif(current_setting('app.org_id', true), '')::uuid
+      AND m.status = 'active'${until("      ")}
+  $$;
+CREATE OR REPLACE FUNCTION app.actor_can_see_property(p uuid) RETURNS boolean
+  LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+    SELECT EXISTS (
+      SELECT 1 FROM memberships m
+      WHERE m.id = nullif(current_setting('app.actor_id', true), '')::uuid
+        AND m.organization_id = nullif(current_setting('app.org_id', true), '')::uuid
+        AND m.status = 'active'${until("        ")}
+        AND (m.all_properties
+             OR (p IS NOT NULL AND EXISTS (
+                   SELECT 1 FROM property_scopes ps
+                   WHERE ps.organization_id = m.organization_id AND ps.membership_id = m.id AND ps.property_id = p))))
+  $$;
+`;
+};
+
+/** `audit_read_by_role` (0042); `supportForManager` = nhánh thêm ở 0072 cho sự kiện cấp tổ chức của support. */
+const auditReadPolicy = (supportForManager: boolean) => `
+DROP POLICY audit_read_by_role ON audit_events;
+CREATE POLICY audit_read_by_role ON audit_events AS RESTRICTIVE FOR SELECT TO app_runtime
+  USING (
+    nullif(current_setting('app.actor_id', true), '') IS NULL
+    OR app.actor_role() = 'owner'
+    OR (app.actor_role() = 'manager' AND CASE WHEN property_id IS NULL THEN actor_person_id = app.actor_person_id()${
+      supportForManager ? " OR actor_type = 'platform_support'" : ""
+    }
+                                              ELSE app.actor_can_see_property(property_id) END)
+    OR (app.actor_role() = 'accountant'
+        AND split_part(action, '.', 1) = ANY (ARRAY[${moneyGroupsSql}])
+        AND (property_id IS NULL OR app.actor_can_see_property(property_id)))
+  );
+`;
 
 const UP = `
 ALTER TABLE invitations DROP CONSTRAINT invitations_role_check;
@@ -70,9 +128,13 @@ BEGIN
 END $$;
 CREATE TRIGGER audit_events_source_from_context BEFORE INSERT ON audit_events
   FOR EACH ROW EXECUTE FUNCTION app.audit_source_from_context();
+${actorFunctions(true)}
+${auditReadPolicy(true)}
 `;
 
 const DOWN = `
+${auditReadPolicy(false)}
+${actorFunctions(false)}
 DROP TRIGGER IF EXISTS audit_events_source_from_context ON audit_events;
 DROP FUNCTION IF EXISTS app.audit_source_from_context();
 DO $$

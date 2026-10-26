@@ -10,6 +10,7 @@ import { emitSecurity } from "../logging/index.ts";
 import { CommandError, type CommandResult } from "../pipeline/index.ts";
 import { hashInvitationToken } from "./invitations.ts";
 import { deriveUuid, readAuthUser, runUserCommand, type UserCommandRequest } from "./provision.ts";
+import { retireExpiredSupport, SUPPORT_ROLE } from "./support.ts";
 
 export interface AcceptedInvitation {
   membershipId: string;
@@ -77,6 +78,9 @@ export async function acceptInvitation(
       if (row.expired) throw reject("expired", orgId);
       const user = await readAuthUser(trx, req.userId);
       if (!user || user.email !== row.email) throw reject("email_mismatch", orgId);
+      // Membership hỗ trợ cũ đã hết hạn (vẫn `active`) chặn unique ⇒ đóng trước khi kiểm trùng (lời cấp tạo trước khi owner-cấp-lại
+      // tự đóng). Chỉ khi lời mời này là hỗ trợ: vai khác không âm thầm đổi membership cũ.
+      if (row.role === SUPPORT_ROLE) await retireExpiredSupport(trx, orgId, { authUserId: req.userId });
       const existing = await sql<{ id: string }>`
         select id from memberships where organization_id = ${orgId} and auth_user_id = ${req.userId}
           and status in ('invited','active','suspended')`.execute(trx);

@@ -39,7 +39,11 @@ import {
   toProblem,
   unwrap,
 } from "../pipeline/index.ts";
-import { DSAR_PASSWORD_ATTEMPTS_PER_15_MIN, isRecentReauth } from "../privacy/index.ts";
+import {
+  DSAR_PASSWORD_ATTEMPTS_PER_15_MIN,
+  isRecentReauth,
+  REAUTH_PASSWORD_SCOPE,
+} from "../privacy/index.ts";
 import type { AppServices } from "../server/index.ts";
 import { CLIENT_VERSION_HEADER, isClientOutdated } from "./client-version.ts";
 import { nfcDeep } from "./normalize.ts";
@@ -358,7 +362,8 @@ export async function actorFromRequest(
 
 /**
  * Xác thực lại bằng mật khẩu (dùng chung lệnh `reauth`, xoá tổ chức): `password` undefined ⇒ thời điểm đăng nhập của phiên; có ⇒ hạn
- * mức 5 lần/15 phút/tài khoản (429) rồi `verifyPassword` (sai ⇒ 401 REAUTH_REQUIRED `invalid_password`), đúng ⇒ bây giờ.
+ * mức 5 lần/15 phút/tài khoản (429) rồi `verifyPassword` (sai ⇒ 401 REAUTH_REQUIRED `invalid_password`), đúng ⇒ bây giờ. Hạn mức
+ * CHUNG mọi đường (`REAUTH_PASSWORD_SCOPE`, cả DSAR); `target` chỉ để ghi sự kiện bảo mật biết đường nào bị chặn.
  */
 export async function reauthenticatedAt(
   req: Request,
@@ -366,7 +371,7 @@ export async function reauthenticatedAt(
   actor: Actor,
   password: string | undefined,
   correlationId: string,
-  o: { scope: string; rateLimitedTitle: string; passwordInvalidTitle: string },
+  o: { target: string; rateLimitedTitle: string; passwordInvalidTitle: string },
 ): Promise<Date | null | Response> {
   if (password === undefined) return actor.authenticatedAt ?? null;
   const security = {
@@ -375,7 +380,7 @@ export async function reauthenticatedAt(
     correlationId,
   };
   const rate = await rateLimitHit(deps.db, {
-    scope: o.scope,
+    scope: REAUTH_PASSWORD_SCOPE,
     subject: actor.authUserId,
     limit: DSAR_PASSWORD_ATTEMPTS_PER_15_MIN,
     windowSeconds: minutesToSeconds(15),
@@ -385,7 +390,7 @@ export async function reauthenticatedAt(
       ...security,
       event: "rate_limit.exceeded",
       outcome: "denied",
-      target: { type: "route", id: o.scope },
+      target: { type: "route", id: o.target },
       reason: "RATE_LIMITED",
     });
     return simpleProblem("RATE_LIMITED", 429, o.rateLimitedTitle, correlationId, {
@@ -420,7 +425,7 @@ async function commandReauth(
 ): Promise<Response | null> {
   if (!rule.roles.includes(actor.role)) return null;
   const at = await reauthenticatedAt(req, deps, actor, password, correlationId, {
-    scope: `${command}.reauth`,
+    target: `${command}.reauth`,
     rateLimitedTitle: t("http.reauth_rate_limited"),
     passwordInvalidTitle: t("http.reauth_password_invalid"),
   });
@@ -507,12 +512,15 @@ async function runCommand<I, O, P>(
       );
       return validationProblem(parsed.error, correlationId);
     }
-    const input = parsed.data;
-    // D-129: lệnh nhạy cảm — xác thực lại TRƯỚC khi chạm pipeline; `password` không vào payload (băm idempotency, audit).
+    // D-129: lệnh nhạy cảm — xác thực lại TRƯỚC khi chạm pipeline; `password` không vào payload (băm idempotency, audit) và cũng
+    // không tới `prepare`/`run` (lệnh ghi `ctx.audit({ after: input })` không thể làm lộ mật khẩu).
+    let input = parsed.data;
     let payload = body;
     if (def.reauth) {
       const { password, ...rest } = body as Record<string, unknown>;
       payload = rest;
+      const { password: _omit, ...inputRest } = parsed.data as Record<string, unknown>;
+      input = inputRest as typeof input;
       const need = await commandReauth(
         req,
         deps,

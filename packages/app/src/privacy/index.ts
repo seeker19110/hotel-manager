@@ -53,6 +53,7 @@ export {
   dsarDays,
   dsarDueAt,
   isDsarRegion,
+  REAUTH_PASSWORD_SCOPE,
 } from "./dsar-policy.ts";
 export {
   analyticsConsentView,

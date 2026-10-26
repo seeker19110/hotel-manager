@@ -2507,7 +2507,7 @@ public.approval_requests support_ro_upd RESTRICTIVE UPDATE to app_runtime using 
 public.approval_requests tenant_isolation PERMISSIVE ALL to public using (((organization_id = app.current_org()) AND ((requested_by = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid) OR ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text, 'accountant'::text])) AND app.actor_can_see_property(property_id))))) check (((organization_id = app.current_org()) AND ((requested_by = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid) OR ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id)))))
 public.audit_events audit_read_by_role RESTRICTIVE SELECT to app_runtime using (((NULLIF(current_setting('app.actor_id'::text, true), ''::text) IS NULL) OR (app.actor_role() = 'owner'::text) OR ((app.actor_role() = 'manager'::text) AND
 CASE
-    WHEN (property_id IS NULL) THEN (actor_person_id = app.actor_person_id())
+    WHEN (property_id IS NULL) THEN ((actor_person_id = app.actor_person_id()) OR (actor_type = 'platform_support'::text))
     ELSE app.actor_can_see_property(property_id)
 END) OR ((app.actor_role() = 'accountant'::text) AND (split_part(action, '.'::text, 1) = ANY (ARRAY['payment'::text, 'payment_claim'::text, 'invoice'::text, 'deposit'::text, 'period'::text, 'billing'::text, 'ledger'::text, 'reconciliation'::text, 'shift'::text, 'folio'::text])) AND ((property_id IS NULL) OR app.actor_can_see_property(property_id)))))
 public.audit_events portal_deny_read RESTRICTIVE SELECT to app_runtime using ((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
@@ -3064,6 +3064,7 @@ AS $function$
       WHERE m.id = nullif(current_setting('app.actor_id', true), '')::uuid
         AND m.organization_id = nullif(current_setting('app.org_id', true), '')::uuid
         AND m.status = 'active'
+        AND (m.valid_to IS NULL OR m.valid_to > now())
         AND (m.all_properties
              OR (p IS NOT NULL AND EXISTS (
                    SELECT 1 FROM property_scopes ps
@@ -3113,6 +3114,7 @@ AS $function$
     WHERE m.id = nullif(current_setting('app.actor_id', true), '')::uuid
       AND m.organization_id = nullif(current_setting('app.org_id', true), '')::uuid
       AND m.status = 'active'
+      AND (m.valid_to IS NULL OR m.valid_to > now())
   $function$
 -- app.actor_role() owner=<admin>
 CREATE OR REPLACE FUNCTION app.actor_role()
@@ -3125,6 +3127,7 @@ AS $function$
     WHERE m.id = nullif(current_setting('app.actor_id', true), '')::uuid
       AND m.organization_id = nullif(current_setting('app.org_id', true), '')::uuid
       AND m.status = 'active'
+      AND (m.valid_to IS NULL OR m.valid_to > now())
   $function$
 -- app.allocation_guard() owner=<admin>
 CREATE OR REPLACE FUNCTION app.allocation_guard()

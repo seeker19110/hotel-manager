@@ -258,7 +258,11 @@ export default async function AuditLogPage({ searchParams }: { searchParams: Pro
                 filters: {
                   from,
                   to,
-                  ...(who && who !== SUPPORT_ACTOR ? { actor_person_id: who } : {}),
+                  ...(who === SUPPORT_ACTOR
+                    ? { actor_type: SUPPORT_ACTOR }
+                    : who
+                      ? { actor_person_id: who }
+                      : {}),
                   ...(action ? { action } : {}),
                   ...(entityType ? { entity_type: entityType } : {}),
                 },

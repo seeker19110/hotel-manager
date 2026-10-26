@@ -422,6 +422,42 @@ describe("audit.listEvents — lọc, keyset, RLS tổ chức", () => {
     await expect(listEvents(t.runtime, owner, { cursor: "rac" })).rejects.toMatchObject({ status: 422 });
   });
 
+  it("cursor: `t` phải đúng dạng ISO-8601 UTC micro giây mà trang trước phát ra; dạng khác ⇒ 422 (không 500 ở CSDL)", async () => {
+    const enc = (v: unknown) => Buffer.from(JSON.stringify(v)).toString("base64url");
+    const id = randomUUID();
+    for (const bad of [
+      "1",
+      "2026",
+      "2026-09-01",
+      "2026-09-01T00:00:00Z",
+      "2026-09-01T00:00:00.000Z",
+      "2026-02-30T00:00:00.000000Z",
+      "2026-09-01T24:00:00.000000Z",
+      "2026-09-01T00:00:00.000000+07:00",
+      " 2026-09-01T00:00:00.000000Z",
+      "infinity",
+    ])
+      await expect(listEvents(t.runtime, owner, { cursor: enc({ t: bad, id }) }), bad).rejects.toMatchObject({
+        status: 422,
+      });
+    await expect(listEvents(t.runtime, owner, { cursor: enc({ t: 1, id }) })).rejects.toMatchObject({
+      status: 422,
+    });
+    // Cursor thật của trang 1 vẫn đi tiếp được (dạng chuẩn).
+    const p1 = await listEvents(t.runtime, owner, { ...window, limit: 7 });
+    expect(p1.nextCursor).toBeTruthy();
+    const decoded = JSON.parse(Buffer.from(p1.nextCursor as string, "base64url").toString("utf8")) as {
+      t: string;
+    };
+    expect(decoded.t).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/);
+    const p2 = await listEvents(t.runtime, owner, { ...window, limit: 7, cursor: p1.nextCursor as string });
+    expect(p2.items).toHaveLength(7);
+    // Ngày nhuận hợp lệ.
+    await expect(
+      listEvents(t.runtime, owner, { cursor: enc({ t: "2028-02-29T00:00:00.000000Z", id }) }),
+    ).resolves.toBeTruthy();
+  });
+
   it("RLS tổ chức: owner/manager A không thấy sự kiện của B; owner B chỉ thấy 5 của B", async () => {
     for (const a of [owner, manager]) {
       const r = await listEvents(t.runtime, a, { ...window, limit: 200 });

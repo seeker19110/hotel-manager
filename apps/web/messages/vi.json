@@ -4876,8 +4876,8 @@
     "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nhãn ô lý do (bắt buộc)."
   },
   "audit_log.support.reason_hint": {
-    "message": "Ví dụ: mã yêu cầu hỗ trợ, việc cần kiểm tra",
-    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): gợi ý ô lý do."
+    "message": "Ví dụ: mã yêu cầu hỗ trợ, việc cần kiểm tra. Không ghi dữ liệu cá nhân (tên, số điện thoại, số giấy tờ của khách) vào lý do.",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): gợi ý ô lý do — lý do lưu trong nhật ký và hiện cho owner/manager nên nhắc không nhập dữ liệu cá nhân."
   },
   "audit_log.support.ttl": {
     "message": "Thời hạn (giờ)",

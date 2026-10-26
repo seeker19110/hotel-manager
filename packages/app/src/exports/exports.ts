@@ -151,9 +151,13 @@ export interface ExportFilters {
   correlationId?: string;
   /** Bộ lọc nhật ký (/nhat-ky, T-2313) — cùng bộ lọc màn hình: người, loại hành động, loại đối tượng. */
   actorPersonId?: string;
+  /** `user` | `worker` | `platform_support` — bộ lọc "người hỗ trợ" của /nhat-ky (D-128). */
+  actorType?: string;
   action?: string;
   entityType?: string;
 }
+
+const AUDIT_ACTOR_TYPES: ReadonlySet<string> = new Set(["user", "worker", "platform_support"]);
 
 const AUDIT_FILTER_KEY = /^[a-z_]+(\.[a-z_]+)*$/;
 
@@ -203,6 +207,7 @@ function auditFilters(f: ExportFilters): Record<string, string> {
       extensions: { errors: [{ path: field, field, code: "invalid" }] },
     });
   if (f.actorPersonId !== undefined && !UUID.test(f.actorPersonId)) throw bad("actor_person_id");
+  if (f.actorType !== undefined && !AUDIT_ACTOR_TYPES.has(f.actorType)) throw bad("actor_type");
   for (const [k, v] of [
     ["action", f.action],
     ["entity_type", f.entityType],
@@ -211,6 +216,7 @@ function auditFilters(f: ExportFilters): Record<string, string> {
   return {
     ...(f.correlationId ? { correlation_id: f.correlationId.slice(0, 200) } : {}),
     ...(f.actorPersonId ? { actor_person_id: f.actorPersonId.toLowerCase() } : {}),
+    ...(f.actorType ? { actor_type: f.actorType } : {}),
     ...(f.action ? { action: f.action } : {}),
     ...(f.entityType ? { entity_type: f.entityType } : {}),
   };
@@ -620,6 +626,7 @@ async function reportTable(
           ...(propertyId ? { propertyId } : {}),
           ...(f.correlation_id ? { correlationId: f.correlation_id } : {}),
           ...(f.actor_person_id ? { actorPersonId: f.actor_person_id } : {}),
+          ...(f.actor_type ? { actorType: f.actor_type } : {}),
           ...(f.action ? { action: f.action } : {}),
           ...(f.entity_type ? { entityType: f.entity_type } : {}),
           order: "asc",

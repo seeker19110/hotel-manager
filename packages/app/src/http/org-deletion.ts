@@ -5,6 +5,7 @@
 //   (phiên ≤ 5 phút HOẶC `password` đúng; thử ≤ 5 lần/15 phút/tài khoản) ⇒ 202 (mới) / 200 (đã chờ xoá). DELETE: owner huỷ — một
 //   bước, 200 `{ cancelled }` (idempotent: không chờ xoá ⇒ `cancelled: false`). CSRF: kiểm Origin ở proxy.ts (mọi /api/ ghi).
 import { z } from "zod";
+import { recordSupportAccess } from "../access/index.ts";
 import type { Actor } from "../actor-core/index.ts";
 import { t } from "../i18n.ts";
 import { requestClient } from "../logging/index.ts";
@@ -56,6 +57,13 @@ export async function handleGetOrgDeletion(req: Request, deps: OrgDeletionDeps):
   const correlationId = correlationOf(req);
   const actor = await actorOf(req, deps, correlationId);
   if (actor instanceof Response) return actor;
+  // D-128: route GET riêng (không qua `handleQuery`) — support xem trạng thái xoá (biểu ngữ) cũng để lại `support.accessed`.
+  await recordSupportAccess(deps.db, actor, {
+    kind: "query",
+    name: "organization.getDeletion",
+    client: requestClient(req.headers),
+    correlationId,
+  });
   return json({ data: statusJson(await orgDeletionStatus(deps.db, actor)) }, 200, correlationId);
 }
 
@@ -67,7 +75,7 @@ const reauthAt = (
   correlationId: string,
 ) =>
   reauthenticatedAt(req, deps, actor, password, correlationId, {
-    scope: "org_deletion.reauth",
+    target: "org_deletion.reauth",
     rateLimitedTitle: t("tenancy.deletion.rate_limited"),
     passwordInvalidTitle: t("tenancy.deletion.password_invalid"),
   });

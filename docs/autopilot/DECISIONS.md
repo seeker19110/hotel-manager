@@ -943,3 +943,10 @@
 - Chọn: Giữ localConcurrency 2 (cùng tổ chức tuần tự), đo bộ nhớ khi có staging; QUOTA_EXCEEDED dùng thông điệp i18n chung, chưa UI riêng
 - Lý do (tiêu chí chất lượng cuối): (3) đơn giản, đủ cho quy mô pilot; tăng song song khi có số đo thật; (4) thông điệp chung đã nói rõ vượt hạn mức gói
 - Đường lùi: Đổi localConcurrency trong relay.ts
+
+### D-132 · 2026-10-26T07:26:43+00:00 · Review T-2314: thông lượng relay, người thuê làm đầy dung lượng, thứ tự sự kiện
+
+- Phương án: (1) outbox_claim: vòng tròn ≤ per_org rồi LẤP ĐẦY phần còn lại của p_limit theo thứ tự cũ (per_org là mức ưu tiên, không phải trần cứng); hạn mức dung lượng con cho tải lên của người thuê/portal (vd 2% trần tổ chức và ≤ 200 MB mỗi người thuê); consumer về localConcurrency 1 để giữ thứ tự trong tiến trình (fair-share giữ ở claim); actor dựng tay mang plan; chặn app_runtime tự chọn plan khi INSERT tổ chức · (2) Giữ nguyên, ghi rủi ro
+- Chọn: outbox_claim: vòng tròn ≤ per_org rồi LẤP ĐẦY phần còn lại của p_limit theo thứ tự cũ (per_org là mức ưu tiên, không phải trần cứng); hạn mức dung lượng con cho tải lên của người thuê/portal (vd 2% trần tổ chức và ≤ 200 MB mỗi người thuê); consumer về localConcurrency 1 để giữ thứ tự trong tiến trình (fair-share giữ ở claim); actor dựng tay mang plan; chặn app_runtime tự chọn plan khi INSERT tổ chức
+- Lý do (tiêu chí chất lượng cuối): (1) đúng: không làm chậm tổ chức đơn lẻ (ca thường gặp ở pilot), không mở vector từ chối dịch vụ mới, giữ thứ tự sự kiện như trước T-2314; (3) sửa nhỏ, có test
+- Đường lùi: Đổi tham số trong 0073/relay.ts

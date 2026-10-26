@@ -4,17 +4,28 @@
 // MỌI lệnh ghi trong registry bị 403 (duyệt registry tự động) + RLS chặn ghi ở CSDL trên mọi bảng RLS → hết hạn đúng mốc theo đồng
 // hồ CSDL → thu hồi một bước. CHECK: TTL > 72 giờ, lý do rỗng. Đồng thời: hai lời cấp song song cùng email ⇒ một thắng.
 import { randomUUID } from "node:crypto";
+import { withTenant } from "@hm/db";
 import { createTestDb, type SeededOrg, seedAuthUser, seedOrg, type TestDb } from "@hm/testkit";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { z } from "zod";
 import { listEvents } from "../audit/index.ts";
-import { type HttpDeps, handleCommand, handleQuery, handleUserCommand } from "../http/command-route.ts";
+import {
+  type CommandDef,
+  type HttpDeps,
+  handleCommand,
+  handleQuery,
+  handleUserCommand,
+} from "../http/command-route.ts";
+import { handleCreateDataRequest } from "../http/data-requests.ts";
+import { handleGetOrgDeletion, handleRequestOrgDeletion } from "../http/org-deletion.ts";
 import { COMMANDS, QUERIES, USER_COMMANDS } from "../http/registry.ts";
+import { handleSwitchOrganization } from "../http/switch-organization.ts";
 import { testServices } from "../server/services.ts";
 import { seedMember } from "../testing/helpers.ts";
 import { type Actor, resolveActor } from "./actor.ts";
 import { buildInvitationMail, invitationToken } from "./invitations.ts";
-import { listSupportAccess } from "./support.ts";
+import { listSupportAccess, recordSupportAccess } from "./support.ts";
 
 let t: TestDb;
 let deps: HttpDeps;
@@ -176,10 +187,16 @@ describe("cấp truy cập hỗ trợ — xác thực lại (D-129)", () => {
     expect(await invitationsOf(ok.email)).toBe(1);
     const leak = await sql<{ n: number }>`
       select (select count(*) from audit_events where organization_id = ${A.orgId} and (after::text like ${`%${GOOD_PASSWORD}%`} or before::text like ${`%${GOOD_PASSWORD}%`}))::int
-           + (select count(*) from outbox where organization_id = ${A.orgId} and payload::text like ${`%${GOOD_PASSWORD}%`})::int as n`.execute(
-      t.admin,
-    );
+           + (select count(*) from outbox where organization_id = ${A.orgId} and payload::text like ${`%${GOOD_PASSWORD}%`})::int
+           + (select count(*) from idempotency_keys where organization_id = ${A.orgId}
+                and coalesce(response::text, '') like ${`%${GOOD_PASSWORD}%`})::int as n`.execute(t.admin);
     expect(leak.rows[0]?.n).toBe(0);
+    // Kết quả idempotency của chính request này có lưu (để chắc câu trên thật sự quét hàng của nó).
+    const stored = await sql<{ response: unknown }>`select response from idempotency_keys
+      where organization_id = ${A.orgId} and command = 'member.grantSupportAccess' and response is not null
+      order by created_at desc limit 1`.execute(t.admin);
+    expect(JSON.stringify(stored.rows[0]?.response ?? null)).not.toContain(GOOD_PASSWORD);
+    expect(stored.rows[0]?.response).toBeTruthy();
   });
 
   it("phiên mới (≤ 5 phút) không cần mật khẩu; phiên đúng 5 phút còn hợp lệ, 5 phút + 1 giây thì không", async () => {
@@ -565,5 +582,322 @@ describe("hết hạn và thu hồi", () => {
       reason: "nâng",
     });
     expect(r.status).toBe(409);
+  });
+});
+
+// ───────────── Sửa sau review (T-2313/D-128/D-129): cấp lại, RLS còn hạn, manager thấy, gộp nhật ký, đổi tổ chức, xác thực lại ─────────────
+
+const ownerActorA = () =>
+  resolveActor(t.runtime, { authUserId: A.ownerAuthUserId, orgId: A.orgId, twoFactorEnabled: true });
+const expire = (membershipId: string) =>
+  sql`update memberships set valid_from = now() - interval '2 hours', valid_to = now() - interval '1 minute'
+      where id = ${membershipId}`.execute(t.admin);
+const supportAccessCount = async (personId: string, name?: string) =>
+  (
+    await sql<{ n: number }>`select count(*)::int as n from audit_events
+      where organization_id = ${A.orgId} and actor_type = 'platform_support' and action = 'support.accessed'
+        and actor_person_id = ${personId} ${name ? sql`and (after ->> 'query' = ${name} or after ->> 'page' = ${name})` : sql``}`.execute(
+      t.admin,
+    )
+  ).rows[0]?.n ?? 0;
+
+describe("cấp lại sau khi hết hạn (F2)", () => {
+  it("cấp → nhận → hết hạn → cấp lại → nhận thành công; membership cũ thành revoked; owner thấy lời cấp chờ nhận", async () => {
+    const first = await grantAndAccept({ reason: "Phiếu #1" });
+    const old = (await supportActor(first.user)).membershipId;
+    await expire(old);
+    const g = await post("member.grantSupportAccess", owner(), { email: first.email, reason: "Phiếu #2" });
+    expect(g.status, JSON.stringify(g.json)).toBe(201);
+    const invitationId = (g.json.data as { invitationId: string }).invitationId;
+    const st = await sql<{
+      status: string;
+      revoked: boolean;
+    }>`select status, revoked_at is not null as revoked
+      from memberships where id = ${old}`.execute(t.admin);
+    expect(st.rows[0]).toEqual({ status: "revoked", revoked: true });
+    // Owner thấy lời cấp CHỜ NHẬN để thu hồi được.
+    const listed = await listSupportAccess(t.runtime, await ownerActorA());
+    expect(listed.find((x) => x.invitationId === invitationId)).toMatchObject({
+      state: "pending",
+      email: first.email,
+      reason: "Phiếu #2",
+    });
+    const a = await post(
+      "member.acceptInvitation",
+      { user: first.user },
+      { token: invitationToken(services.invitationKey, invitationId) },
+    );
+    expect(a.status, JSON.stringify(a.json)).toBe(200);
+    const now = await supportActor(first.user);
+    expect(now.membershipId).not.toBe(old);
+    expect(now.support?.reason).toBe("Phiếu #2");
+  });
+
+  it("lời cấp tạo trước khi membership cũ bị đóng: nhận lời mời tự đóng membership hỗ trợ hết hạn (không 409 mãi)", async () => {
+    const first = await grantAndAccept();
+    const old = (await supportActor(first.user)).membershipId;
+    await expire(old);
+    const g = await post("member.grantSupportAccess", owner(), { email: first.email, reason: "Phiếu cũ" });
+    expect(g.status).toBe(201);
+    // Dựng lại trạng thái của dữ liệu cũ: membership hết hạn vẫn `active` khi lời cấp mới đã có.
+    await sql`update memberships set status = 'active', revoked_at = null where id = ${old}`.execute(t.admin);
+    const invitationId = (g.json.data as { invitationId: string }).invitationId;
+    const a = await post(
+      "member.acceptInvitation",
+      { user: first.user },
+      { token: invitationToken(services.invitationKey, invitationId) },
+    );
+    expect(a.status, JSON.stringify(a.json)).toBe(200);
+    expect(
+      (await sql<{ status: string }>`select status from memberships where id = ${old}`.execute(t.admin))
+        .rows[0]?.status,
+    ).toBe("revoked");
+  });
+
+  it("membership hỗ trợ CÒN hạn: cấp lại vẫn 409 và không bị đóng; vai khác (manager) không bị đụng", async () => {
+    const live = await grantAndAccept();
+    const id = (await supportActor(live.user)).membershipId;
+    const r = await post("member.grantSupportAccess", owner(), { email: live.email, reason: "trùng" });
+    expect(r.status).toBe(409);
+    expect(
+      (await sql<{ status: string }>`select status from memberships where id = ${id}`.execute(t.admin))
+        .rows[0]?.status,
+    ).toBe("active");
+  });
+
+  it("đồng thời: hai lời cấp lại song song cho cùng email đã hết hạn ⇒ đúng một 201, một 409; membership cũ đóng một lần", async () => {
+    const first = await grantAndAccept();
+    const old = (await supportActor(first.user)).membershipId;
+    await expire(old);
+    const rs = await Promise.all(
+      [1, 2].map((i) =>
+        post("member.grantSupportAccess", owner(), { email: first.email, reason: `song song ${i}` }),
+      ),
+    );
+    expect(rs.map((r) => r.status).sort()).toEqual([201, 409]);
+    const m = await sql<{
+      status: string;
+      version: number;
+    }>`select status, version from memberships where id = ${old}`.execute(t.admin);
+    expect(m.rows[0]?.status).toBe("revoked");
+  });
+});
+
+describe("hàm RLS chỉ coi membership còn hạn (F4)", () => {
+  it("GUC actor còn đặt nhưng membership hết hạn ⇒ actor_role/actor_person_id NULL, actor_can_see_property false, persons 0 dòng", async () => {
+    const { user } = await grantAndAccept();
+    const s = await supportActor(user);
+    const probe = () =>
+      withTenant(t.runtime, { orgId: A.orgId, actorId: s.membershipId }, async (trx) => {
+        const r = await sql<{ role: string | null; person: string | null; sees: boolean }>`
+          select app.actor_role() as role, app.actor_person_id() as person,
+                 app.actor_can_see_property(${A.propertyId}::uuid) as sees`.execute(trx);
+        return r.rows[0];
+      });
+    expect(await probe()).toEqual({ role: "platform_support", person: s.personId, sees: true });
+    await expire(s.membershipId);
+    expect(await probe()).toEqual({ role: null, person: null, sees: false });
+
+    // Vai nhân viên có `valid_to` (cùng cơ chế): manager hết hạn không đọc được hồ sơ người dù GUC còn đặt.
+    const m = await seedMember(t, A, "manager", { name: "Quản lý hết hạn" });
+    const persons = () =>
+      withTenant(t.runtime, { orgId: A.orgId, actorId: m.membershipId }, async (trx) =>
+        Number(
+          (
+            await sql<{
+              n: number;
+            }>`select count(*)::int as n from persons where organization_id = ${A.orgId}`.execute(trx)
+          ).rows[0]?.n,
+        ),
+      );
+    expect(await persons()).toBeGreaterThan(0);
+    await expire(m.membershipId);
+    expect(await persons()).toBe(0);
+  });
+});
+
+describe("manager thấy sự kiện của support (F3, D-128)", () => {
+  it("manager (phạm vi một cơ sở) thấy `support.accessed` cấp tổ chức; kế toán thì không; owner thấy", async () => {
+    const { user } = await grantAndAccept({ reason: "Phiếu #F3" });
+    const s = await supportActor(user);
+    expect((await get("inventory.getCalendar", { user, org: A.orgId }, cal(A))).status).toBe(200);
+    const seen = async (a: Actor) =>
+      (
+        await listEvents(t.runtime, a, {
+          actorType: "platform_support",
+          action: "support.accessed",
+          limit: 200,
+        })
+      ).items.filter((e) => e.actorPersonId === s.personId).length;
+    expect(await seen(await ownerActorA())).toBe(1);
+    expect(await seen(manager)).toBe(1);
+    // Kế toán: không thuộc nhóm tiền ⇒ RLS che (app cũng lọc).
+    expect(await seen(accountant)).toBe(0);
+    // Sự kiện cấp tổ chức của NGƯỜI KHÁC (không phải support) vẫn bị che với manager như trước.
+    const other = randomUUID();
+    await sql`insert into audit_events (id, organization_id, actor_type, actor_person_id, action, entity_type, correlation_id)
+              values (${other}, ${A.orgId}, 'user', ${A.ownerPersonId}, 'member.invited', 'invitation', 'f3-khac')`.execute(
+      t.admin,
+    );
+    const r = await listEvents(t.runtime, manager, { correlationId: "f3-khac" });
+    expect(r.items).toHaveLength(0);
+  });
+});
+
+describe("gộp `support.accessed` (F7a)", () => {
+  it("cùng trang/query trong 60 giây ⇒ một sự kiện (kể cả 5 lần song song); khác tên ⇒ thêm; qua cửa sổ ⇒ ghi lại", async () => {
+    const { user } = await grantAndAccept();
+    const s = await supportActor(user);
+    await Promise.all(
+      Array.from({ length: 5 }, () => recordSupportAccess(t.runtime, s, { kind: "page", name: "/phong" })),
+    );
+    await recordSupportAccess(t.runtime, s, { kind: "page", name: "/phong" });
+    expect(await supportAccessCount(s.personId, "/phong")).toBe(1);
+    await recordSupportAccess(t.runtime, s, { kind: "page", name: "/lich" });
+    await recordSupportAccess(t.runtime, s, { kind: "query", name: "/phong" });
+    expect(await supportAccessCount(s.personId)).toBe(3);
+    // Giả lập hết cửa sổ: xoá bộ đếm của membership này ⇒ lần kế tiếp ghi lại.
+    await sql`delete from rate_limit_counters where scope = 'support.accessed' and subject like ${`${s.membershipId}:%`}`.execute(
+      t.admin,
+    );
+    await recordSupportAccess(t.runtime, s, { kind: "page", name: "/phong" });
+    // Tên "/phong": trang × 2 (trước/sau cửa sổ) + query × 1 (khác loại ⇒ khoá gộp khác).
+    expect(await supportAccessCount(s.personId, "/phong")).toBe(3);
+    // Không phải support ⇒ không ghi, không đếm.
+    await recordSupportAccess(t.runtime, await ownerActorA(), { kind: "page", name: "/phong" });
+    expect(await supportAccessCount(A.ownerPersonId)).toBe(0);
+  });
+});
+
+describe("đổi tổ chức và trạng thái xoá của support được ghi (F5)", () => {
+  const routeReq = (user: string, method: "GET" | "POST", body?: unknown) =>
+    new Request("http://local.test/api/v1/x", {
+      method,
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": randomUUID(),
+        "x-test-user": user,
+        "x-test-2fa": "1",
+        "x-org-id": A.orgId,
+        "user-agent": UA,
+        "x-forwarded-for": IP,
+      },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+
+  it("support chọn tổ chức/cơ sở được (200) và để lại `support.accessed`; owner thì không có sự kiện", async () => {
+    const { user } = await grantAndAccept();
+    const s = await supportActor(user);
+    const r = await handleSwitchOrganization(
+      routeReq(user, "POST", { organization_id: A.orgId, property_id: A.propertyId }),
+      deps,
+    );
+    expect(r.status, await r.clone().text()).toBe(200);
+    expect(await supportAccessCount(s.personId, "session.switchOrganization")).toBe(1);
+    const o = await handleSwitchOrganization(
+      routeReq(A.ownerAuthUserId, "POST", { organization_id: A.orgId }),
+      deps,
+    );
+    expect(o.status).toBe(200);
+    expect(
+      (
+        await sql<{
+          n: number;
+        }>`select count(*)::int as n from audit_events where organization_id = ${A.orgId}
+          and action = 'support.accessed' and actor_person_id = ${A.ownerPersonId}`.execute(t.admin)
+      ).rows[0]?.n,
+    ).toBe(0);
+  });
+
+  it("GET trạng thái xoá tổ chức của support ⇒ 200 + `support.accessed`", async () => {
+    const { user } = await grantAndAccept();
+    const s = await supportActor(user);
+    const r = await handleGetOrgDeletion(routeReq(user, "GET"), deps);
+    expect(r.status).toBe(200);
+    expect(await supportAccessCount(s.personId, "organization.getDeletion")).toBe(1);
+  });
+});
+
+describe("xác thực lại: input không mang mật khẩu, hạn mức chung (R1, R2)", () => {
+  it("lệnh khai `reauth`: `prepare`/`run` nhận input KHÔNG có `password`; audit after = input không có mật khẩu", async () => {
+    const seen: Record<string, unknown>[] = [];
+    const def: CommandDef<{ note: string; password?: string | undefined }, { ok: true }, null> = {
+      command: "member.reauthProbe",
+      input: z.strictObject({ note: z.string(), password: z.string().min(1).max(256).optional() }),
+      reauth: { roles: ["owner"] },
+      prepare: async (_db, _a, input) => {
+        seen.push({ ...input });
+        return null;
+      },
+      run: async (ctx, input) => {
+        seen.push({ ...input });
+        await ctx.audit({
+          action: "member.reauth_probe",
+          entityType: "organization",
+          entityId: A.orgId,
+          after: input,
+        });
+        return { data: { ok: true } };
+      },
+    };
+    const req = new Request("http://local.test/api/v1/member/reauthProbe", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": randomUUID(),
+        "x-test-user": A.ownerAuthUserId,
+        "x-test-2fa": "1",
+        "x-org-id": A.orgId,
+        ...STALE,
+      },
+      body: JSON.stringify({ note: "thử", password: GOOD_PASSWORD }),
+    });
+    const res = await handleCommand(def as never, req, deps);
+    expect(res.status, await res.clone().text()).toBe(200);
+    expect(seen).toEqual([{ note: "thử" }, { note: "thử" }]);
+    const a = await sql<{ after: unknown }>`select after from audit_events
+      where organization_id = ${A.orgId} and action = 'member.reauth_probe'`.execute(t.admin);
+    expect(a.rows[0]?.after).toEqual({ note: "thử" });
+  });
+
+  it("5 lần sai ở lệnh cấp hỗ trợ ⇒ xoá tổ chức và DSAR xoá cũng 429 (một hạn mức theo tài khoản); tài khoản khác không bị ảnh hưởng", async () => {
+    const who = await seedMember(t, A, "owner", { name: "Chủ thử hạn mức" });
+    const me = { user: who.authUserId, org: A.orgId };
+    for (let i = 0; i < 5; i++)
+      expect(
+        (
+          await post(
+            "member.grantSupportAccess",
+            me,
+            { email: `r2+${i}@example.test`, reason: "x", password: "sai" },
+            STALE,
+          )
+        ).status,
+      ).toBe(401);
+    const req = (user: string, body: unknown) =>
+      new Request("http://local.test/api/v1/x", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "idempotency-key": randomUUID(),
+          "x-test-user": user,
+          "x-test-2fa": "1",
+          "x-org-id": A.orgId,
+          ...STALE,
+        },
+        body: JSON.stringify(body),
+      });
+    const del = await handleRequestOrgDeletion(req(who.authUserId, { password: "sai" }), deps);
+    expect(del.status).toBe(429);
+    const dsar = await handleCreateDataRequest(
+      req(who.authUserId, { type: "delete", password: "sai" }),
+      deps,
+    );
+    expect(dsar.status).toBe(429);
+    // Owner khác: hạn mức riêng ⇒ vẫn 401 (sai mật khẩu), không 429.
+    const other = await seedMember(t, A, "owner", { name: "Chủ khác" });
+    expect((await handleRequestOrgDeletion(req(other.authUserId, { password: "sai" }), deps)).status).toBe(
+      401,
+    );
   });
 });

@@ -669,6 +669,7 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
           ...(i.filters?.to ? { to: i.filters.to } : {}),
           ...(i.filters?.correlation_id ? { correlationId: i.filters.correlation_id } : {}),
           ...(i.filters?.actor_person_id ? { actorPersonId: i.filters.actor_person_id } : {}),
+          ...(i.filters?.actor_type ? { actorType: i.filters.actor_type } : {}),
           ...(i.filters?.action ? { action: i.filters.action } : {}),
           ...(i.filters?.entity_type ? { entityType: i.filters.entity_type } : {}),
         },

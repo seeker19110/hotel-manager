@@ -528,3 +528,47 @@ describe("Review lát 5 — job xuất bền vững", () => {
     }
   });
 });
+
+describe("xuất nhật ký giữ bộ lọc người hỗ trợ (/nhat-ky, D-128)", () => {
+  it("filters.actor_type = platform_support ⇒ lưu vào job và CSV chỉ có sự kiện của support; giá trị lạ ⇒ 422", async () => {
+    const owner = fresh(await seedMember(h.t, h.org, "owner", { name: "Chủ xuất nhật ký" }));
+    const tag = randomUUID().slice(0, 8);
+    const at = `${TODAY}T05:00:00Z`;
+    for (const [actorType, corr] of [
+      ["platform_support", `ho-tro-${tag}`],
+      ["user", `nguoi-dung-${tag}`],
+    ] as const)
+      await sql`insert into audit_events (id, organization_id, occurred_at, actor_type, actor_person_id, action, entity_type,
+                                          correlation_id)
+                values (${randomUUID()}, ${h.org.orgId}, ${at}, ${actorType}, ${owner.personId}, 'support.accessed', 'page', ${corr})`.execute(
+        h.t.admin,
+      );
+    const q = await okAs(h.t, owner, (ctx) =>
+      requestExport(ctx, {
+        kind: "audit",
+        format: "csv",
+        filters: { from: TODAY, to: TODAY, actorType: "platform_support" },
+      }),
+    );
+    const f = await sql<{
+      filters: Record<string, string>;
+    }>`select filters from export_jobs where id = ${q.exportId}`.execute(h.t.admin);
+    expect(f.rows[0]?.filters).toMatchObject({ actor_type: "platform_support" });
+    expect(await runExportJob(deps(), job(q.exportId))).toBe("ready");
+    const d = await okAs(h.t, owner, (ctx) => downloadExport(ctx, deps(), { exportId: q.exportId }));
+    const csv = decode(await text(d.url));
+    expect(csv).toContain(`ho-tro-${tag}`);
+    expect(csv).not.toContain(`nguoi-dung-${tag}`);
+    expect(
+      await codeOf(
+        runAs(h.t, owner, (ctx) =>
+          requestExport(ctx, {
+            kind: "audit",
+            format: "csv",
+            filters: { from: TODAY, to: TODAY, actorType: "khac" },
+          }),
+        ),
+      ),
+    ).toBe("VALIDATION_FAILED");
+  });
+});
