@@ -2,7 +2,7 @@
 // role → migrate → seed giả → `next start`. Dừng (SIGTERM) thì xoá DB/cluster tạm. Chạy bằng `node` (bỏ kiểu TS).
 import { spawn } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   createAuth,
@@ -22,6 +22,8 @@ import pg from "pg";
 import { teeChildLog, waitClosed } from "./child-log.ts";
 import { startFakeClamd, startFakeS3 } from "./fakes.ts";
 import {
+  authRateLimitResetAckFile,
+  authRateLimitResetFile,
   INVITEE,
   INVITEE_EXPIRED_EMAIL,
   INVITEE_OTHER_EMAIL,
@@ -301,6 +303,48 @@ const dsarTimer = setInterval(() => {
  * làm gì (tổ chức chờ xoá của spec khác không bị purge ngoài ý muốn).
  */
 const purgeAdmin = kysely(adminUrl);
+
+// D-138: 1 worker/project; reset chỉ được spec yêu cầu TRƯỚC scenario trên DB tạm do server này tạo.
+// Không thêm HTTP endpoint, không tắt/nới limiter, không đụng login_throttle hoặc dữ liệu tài khoản.
+const authResetSignal = authRateLimitResetFile(PORT);
+const authResetAck = authRateLimitResetAckFile(PORT);
+const authResetAckPending = `${authResetAck}.tmp`;
+const authResetSignalPending = `${authResetSignal}.tmp`;
+rmSync(authResetSignal, { force: true });
+rmSync(authResetAck, { force: true });
+rmSync(authResetAckPending, { force: true });
+rmSync(authResetSignalPending, { force: true });
+const acknowledgeAuthReset = (nonce: string, ok: boolean) => {
+  writeFileSync(authResetAckPending, JSON.stringify({ nonce, ok }), { mode: 0o600 });
+  renameSync(authResetAckPending, authResetAck);
+};
+let authResetRunning = false;
+const authResetTimer = setInterval(() => {
+  if (authResetRunning || !existsSync(authResetSignal)) return;
+  const nonce = readFileSync(authResetSignal, "utf8").trim();
+  rmSync(authResetSignal, { force: true });
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(nonce)) return;
+  authResetRunning = true;
+  sql<{ buckets: number; max_count: number }>`
+    with removed as (delete from auth."rateLimit" returning "count")
+    select count(*)::integer as buckets, coalesce(max("count"), 0)::integer as max_count from removed`
+    .execute(purgeAdmin)
+    .then((result) => {
+      const counts = result.rows[0];
+      process.stdout.write(
+        `[e2e-server] auth fixture reset buckets=${counts?.buckets ?? 0} max_count=${counts?.max_count ?? 0}\n`,
+      );
+      acknowledgeAuthReset(nonce, true);
+    })
+    .catch(() => {
+      process.stderr.write("[e2e-server] auth fixture reset failed\n");
+      acknowledgeAuthReset(nonce, false);
+    })
+    .finally(() => {
+      authResetRunning = false;
+    });
+}, 100);
+
 const purgeSignal = orgPurgeFile(PORT);
 let purgeRunning = false;
 const purgeTimer = setInterval(() => {
@@ -395,6 +439,11 @@ async function stop(code: number): Promise<void> {
   clearInterval(dsarTimer);
   clearInterval(purgeTimer);
   clearInterval(supportTimer);
+  clearInterval(authResetTimer);
+  rmSync(authResetSignal, { force: true });
+  rmSync(authResetAck, { force: true });
+  rmSync(authResetAckPending, { force: true });
+  rmSync(authResetSignalPending, { force: true });
   rmSync(purgeSignal, { force: true });
   rmSync(supportFile, { force: true });
   next.kill("SIGTERM");

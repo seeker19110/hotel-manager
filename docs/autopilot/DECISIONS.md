@@ -985,3 +985,10 @@
 - Chọn: Gỡ tick tới khi chủ repo quyết ngoại lệ lịch sử hoặc phạm vi kiểm hợp lệ, không sửa lịch sử/không nới checker
 - Lý do (tiêu chí chất lượng cuối): Clone đầy đủ phát hiện36 commit lịch sử ngoài squashPR, gồm tiền thân khung. Bằng chứng Kiểm hiện tại đỏ thì không được khai đạt; không forcepush hay viết lại main để xoá lịch sử. MUST đạt367, mở75, miễn59.
 - Đường lùi: Tick lại sau khi tiêu chí và bằng chứng được xác nhận, lệnh kiểm thực sự exit0.
+
+### D-138 · 2026-10-26T16:13:07+00:00 · Cô lập ca E2E đăng ký khỏi bucket giới hạn dùng chung của spec trước
+
+- Phương án: (1) Retry 429 bằng route/intercept hoặc tăng thời gian chờ/mô phỏng IP · (2) Đặt lại riêng dữ liệu fixture auth.rateLimit ở DB E2E trước spec đồng ý, không đổi server sản phẩm hoặc limiter trong kịch bản
+- Chọn: Đặt lại riêng dữ liệu fixture auth.rateLimit ở DB E2E trước spec đồng ý, không đổi server sản phẩm hoặc limiter trong kịch bản
+- Lý do (tiêu chí chất lượng cuối): Full E2E local: 221 qua, một signup auto-signin thất bại sau nhiều spec dùng chung IP; toàn bộ6shardCI xanh. Fixture phải có trạng thái Given độc lập. Chỉ testserver vớiDBgiả nhận marker riêng từngproject (1worker/project); mọi HTTP/UI và giới hạn20/60s vẫn thật, không đổi timeout hoặc response. Test DB auth tiếp tục chứng minh429.
+- Đường lùi: Revert helper/marker E2E; không thay chính sách giới hạn sản phẩm.

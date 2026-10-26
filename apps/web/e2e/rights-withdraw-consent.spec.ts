@@ -4,9 +4,15 @@
 import { randomUUID } from "node:crypto";
 import { expect, type Page, test } from "@playwright/test";
 import { expectAccessible } from "./a11y.ts";
+import { resetAuthRateLimitFixture } from "./fixtures.ts";
 import { signInClick, signUpClick } from "./sign-in.ts";
 
 test.describe.configure({ mode: "serial" });
+
+// D-138: cô lập bucket IP còn lại từ spec trước, một lần trước nhóm serial; limiter thật vẫn bật trong cả ba ca.
+test.beforeAll(async ({ baseURL }) => {
+  await resetAuthRateLimitFixture(baseURL);
+});
 
 // Email riêng mỗi lần chạy: lần thử lại (CI retries) không vướng "email đã có tài khoản".
 const USER = {
