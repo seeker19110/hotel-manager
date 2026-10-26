@@ -23,7 +23,14 @@ import {
   dsarDownloadUrl,
   dsarOverview,
 } from "../privacy/index.ts";
-import { correlationOf, type HttpDeps, json, simpleProblem, validationProblem } from "./command-route.ts";
+import {
+  correlationOf,
+  type HttpDeps,
+  json,
+  simpleProblem,
+  type VerifyPassword,
+  validationProblem,
+} from "./command-route.ts";
 
 export const createDataRequestInput = z.strictObject({
   type: z.enum(DSAR_TYPES),
@@ -32,8 +39,7 @@ export const createDataRequestInput = z.strictObject({
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Kiểm mật khẩu của người dùng trong phiên (Better Auth `verifyPassword`); không có mật khẩu/sai ⇒ false. */
-export type VerifyPassword = (headers: Headers, password: string) => Promise<boolean>;
+export type { VerifyPassword };
 
 export type DataRequestDeps = Pick<HttpDeps, "db" | "getSession" | "isSessionRevoked" | "services"> & {
   verifyPassword?: VerifyPassword;

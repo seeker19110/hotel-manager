@@ -4,13 +4,10 @@
 // - GET: trạng thái (mọi thành viên — để hiện biểu ngữ). POST `{ password? }` (schema strict): chỉ owner; xác thực lại như DSAR
 //   (phiên ≤ 5 phút HOẶC `password` đúng; thử ≤ 5 lần/15 phút/tài khoản) ⇒ 202 (mới) / 200 (đã chờ xoá). DELETE: owner huỷ — một
 //   bước, 200 `{ cancelled }` (idempotent: không chờ xoá ⇒ `cancelled: false`). CSRF: kiểm Origin ở proxy.ts (mọi /api/ ghi).
-import { minutesToSeconds, SECONDS_PER_MINUTE } from "@hm/domain";
 import { z } from "zod";
 import type { Actor } from "../actor-core/index.ts";
 import { t } from "../i18n.ts";
-import { emitSecurity, requestClient } from "../logging/index.ts";
-import { rateLimitHit } from "../pipeline/index.ts";
-import { DSAR_PASSWORD_ATTEMPTS_PER_15_MIN } from "../privacy/index.ts";
+import { requestClient } from "../logging/index.ts";
 import {
   cancelOrgDeletion,
   OrgDeletionError,
@@ -23,10 +20,11 @@ import {
   correlationOf,
   type HttpDeps,
   json,
+  reauthenticatedAt,
   simpleProblem,
+  type VerifyPassword,
   validationProblem,
 } from "./command-route.ts";
-import type { VerifyPassword } from "./data-requests.ts";
 
 export const requestOrgDeletionInput = z.strictObject({
   password: z.string().min(1).max(256).optional(),
@@ -61,52 +59,18 @@ export async function handleGetOrgDeletion(req: Request, deps: OrgDeletionDeps):
   return json({ data: statusJson(await orgDeletionStatus(deps.db, actor)) }, 200, correlationId);
 }
 
-async function reauthAt(
+const reauthAt = (
   req: Request,
   deps: OrgDeletionDeps,
   actor: Actor,
   password: string | undefined,
   correlationId: string,
-): Promise<Date | null | Response> {
-  if (password === undefined) return actor.authenticatedAt ?? null;
-  const security = {
-    actor: { authUserId: actor.authUserId },
-    client: requestClient(req.headers),
-    correlationId,
-  };
-  const rate = await rateLimitHit(deps.db, {
+) =>
+  reauthenticatedAt(req, deps, actor, password, correlationId, {
     scope: "org_deletion.reauth",
-    subject: actor.authUserId,
-    limit: DSAR_PASSWORD_ATTEMPTS_PER_15_MIN,
-    windowSeconds: minutesToSeconds(15),
+    rateLimitedTitle: t("tenancy.deletion.rate_limited"),
+    passwordInvalidTitle: t("tenancy.deletion.password_invalid"),
   });
-  if (!rate.allowed) {
-    emitSecurity({
-      ...security,
-      event: "rate_limit.exceeded",
-      outcome: "denied",
-      target: { type: "route", id: "org_deletion.reauth" },
-      reason: "RATE_LIMITED",
-    });
-    return simpleProblem("RATE_LIMITED", 429, t("tenancy.deletion.rate_limited"), correlationId, {
-      retry_after: rate.retryAfter ?? SECONDS_PER_MINUTE,
-    });
-  }
-  const ok = deps.verifyPassword ? await deps.verifyPassword(req.headers, password) : false;
-  if (!ok) {
-    emitSecurity({
-      ...security,
-      event: "auth.reauth_required",
-      outcome: "denied",
-      target: { type: "organization", id: actor.orgId },
-      reason: "invalid_password",
-    });
-    return simpleProblem("REAUTH_REQUIRED", 401, t("tenancy.deletion.password_invalid"), correlationId, {
-      reason: "invalid_password",
-    });
-  }
-  return deps.now?.() ?? new Date();
-}
 
 export async function handleRequestOrgDeletion(req: Request, deps: OrgDeletionDeps): Promise<Response> {
   const correlationId = correlationOf(req);

@@ -27,6 +27,18 @@
     "message": "Thiếu hoặc sai Idempotency-Key (UUID)",
     "description": "`title` của problem+json (RFC 9457) mà API trả cho client khi request ghi thiếu header Idempotency-Key hoặc không phải UUID (400 MALFORMED_REQUEST). Giữ nguyên tên header."
   },
+  "http.reauth_required": {
+    "message": "Cần xác thực lại: nhập mật khẩu hoặc đăng nhập lại rồi thử lại",
+    "description": "`title` của problem+json (401 REAUTH_REQUIRED, reason reauth_required) khi lệnh nhạy cảm (vd cấp truy cập hỗ trợ — D-129) thiếu xác thực lại: phiên cũ hơn 5 phút và không gửi mật khẩu."
+  },
+  "http.reauth_password_invalid": {
+    "message": "Mật khẩu không đúng — thao tác chưa được thực hiện",
+    "description": "`title` của problem+json (401 REAUTH_REQUIRED, reason invalid_password) khi mật khẩu nhập lại cho lệnh nhạy cảm (D-129) sai hoặc tài khoản không có mật khẩu."
+  },
+  "http.reauth_rate_limited": {
+    "message": "Thử mật khẩu quá nhiều lần, vui lòng đợi rồi thử lại",
+    "description": "`title` của problem+json (429 RATE_LIMITED) khi nhập lại mật khẩu cho lệnh nhạy cảm (D-129) vượt 5 lần/15 phút/tài khoản."
+  },
   "http.body_not_json": {
     "message": "Thân yêu cầu không phải JSON hợp lệ",
     "description": "`title` của problem+json (RFC 9457) mà API trả cho client khi thân request không đọc được thành JSON (400 MALFORMED_REQUEST)."

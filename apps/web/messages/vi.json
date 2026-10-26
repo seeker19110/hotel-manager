@@ -4887,6 +4887,14 @@
     "message": "Từ 1 đến {max} giờ, tính từ bây giờ",
     "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): gợi ý ô thời hạn; {max} = tối đa."
   },
+  "audit_log.support.password": {
+    "message": "Mật khẩu của bạn",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (D-129): nhãn ô nhập lại mật khẩu để xác thực lại trước khi cấp truy cập hỗ trợ."
+  },
+  "audit_log.support.password_hint": {
+    "message": "Nhập lại mật khẩu để xác nhận — cấp quyền xem cho người ngoài là thao tác nhạy cảm",
+    "description": "Màn Nhật ký hoạt động /nhat-ky (D-129): gợi ý ô mật khẩu xác thực lại khi cấp truy cập hỗ trợ."
+  },
   "audit_log.support.grant": {
     "message": "Cấp truy cập hỗ trợ",
     "description": "Màn Nhật ký hoạt động /nhat-ky (T-2313, D-128): nút gửi lời mời hỗ trợ."

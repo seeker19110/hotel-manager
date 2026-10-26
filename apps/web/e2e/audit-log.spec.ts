@@ -133,6 +133,15 @@ test("owner cấp truy cập hỗ trợ: email + lý do + 24 giờ ⇒ lời m�
   await box.getByLabel("Email người hỗ trợ").fill(SUPPORT.email);
   await box.getByLabel("Lý do").fill(REASON);
   await expect(box.getByLabel("Thời hạn (giờ)")).toHaveValue("24");
+  // D-129: cấp quyền cho người ngoài cần xác thực lại — mật khẩu sai ⇒ báo lỗi, KHÔNG tạo lời mời; đúng ⇒ cấp.
+  await box.getByLabel("Mật khẩu của bạn").fill("mat-khau-sai-hoan-toan");
+  await box.getByRole("button", { name: "Cấp truy cập hỗ trợ" }).click();
+  await expect(box.getByRole("alert")).toContainText("Mật khẩu không đúng", { timeout: 15_000 });
+  await expect(box.getByTestId("support-list")).toHaveCount(0);
+  expect(
+    ((await (await page.request.get("/api/v1/member/listSupportAccess")).json()) as { data: unknown[] }).data,
+  ).toHaveLength(0);
+  await box.getByLabel("Mật khẩu của bạn").fill(HOTEL_OWNER.password);
   await box.getByRole("button", { name: "Cấp truy cập hỗ trợ" }).click();
   await expect(box.getByText("Đã gửi lời mời hỗ trợ")).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId("support-list")).toContainText(`Đã mời ${SUPPORT.email}`, {

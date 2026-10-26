@@ -679,7 +679,7 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
   "exports.requestOrgExport": defineCommand({
     command: "exports.requestOrgExport",
     allowPendingDeletion: true,
-    input: z.strictObject({}),
+    input: COMMAND_INPUTS["exports.requestOrgExport"],
     run: async (ctx) => ({ data: await requestOrgExport(ctx), httpStatus: 202 }),
   }),
   "exports.download": defineCommand({
@@ -1503,6 +1503,8 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
   "member.grantSupportAccess": defineCommand({
     command: "member.grantSupportAccess",
     input: COMMAND_INPUTS["member.grantSupportAccess"],
+    // D-129: cấp quyền đọc toàn tổ chức cho người ngoài nhạy cảm như xoá tổ chức ⇒ owner xác thực lại (route lo, trước pipeline).
+    reauth: { roles: ["owner"] },
     run: async (ctx, i, svc) => ({
       data: await grantSupportAccess(ctx, svc.invitationKey, {
         email: i.email,

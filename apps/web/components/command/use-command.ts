@@ -251,6 +251,12 @@ export function useCommand<T = unknown>(path: string) {
         });
       }
       if (res.status === 401) {
+        // D-129: REAUTH_REQUIRED = lệnh nhạy cảm cần mật khẩu/đăng nhập lại gần đây — lỗi nghiệp vụ hiện tại form, KHÔNG phải phiên hết hạn.
+        const p = (await res
+          .clone()
+          .json()
+          .catch(() => null)) as ProblemLike | null;
+        if (p?.code === "REAUTH_REQUIRED") return fail({ ...p, status: 401 });
         // S-013: phiên hết hạn ⇒ hộp đăng nhập lại; xong thì gửi lại với CÙNG key (server chưa ghi gì ở lượt 401).
         if (await askReauth()) return post(true);
         return unauthenticated();

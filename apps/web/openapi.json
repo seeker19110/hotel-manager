@@ -9266,6 +9266,11 @@
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 72
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
                   }
                 },
                 "required": ["email", "reason"],

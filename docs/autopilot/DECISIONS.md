@@ -929,3 +929,10 @@
 - Chọn: Giữ platform_support (đã có trong DOMAIN-MODEL); support KHÔNG đọc persons; owner phải xác thực lại (REAUTH như xoá tổ chức) khi cấp truy cập hỗ trợ
 - Lý do (tiêu chí chất lượng cuối): (1) an toàn: cấp quyền đọc toàn tổ chức cho người ngoài là hành động nhạy cảm như xoá tổ chức nên cần xác thực lại; không lộ thêm PII khách; thuật ngữ theo DOMAIN-MODEL (AGENTS §9)
 - Đường lùi: Bỏ REAUTH ở lệnh grant; thêm policy persons_read cho support bằng migration mới
+
+### D-130 · 2026-10-26T05:42:37+00:00 · T-2314: hạn mức theo gói + fair-share (IND-SAAS-008) khi chủ dự án chưa chốt gói/giá (B2.2)
+
+- Phương án: (1) Một gói mặc định 'pilot' cấu hình trong repo (packages/app/src/plans/, một nguồn): hạn mức số cơ sở, số phòng, thành viên active, dung lượng file, lệnh/phút — gắn cột organizations.plan (mặc định pilot, CHECK theo danh mục); vượt ⇒ 409 QUOTA_EXCEEDED ở lệnh tạo tương ứng + rate limit lệnh đọc từ gói; fair-share: relay outbox và job theo tổ chức lấy theo vòng tròn có trần mỗi tổ chức mỗi lượt; test tải A bão hoà không làm trễ B quá N lượt; bảng giá/nhiều gói do chủ dự án thêm sau (chỉ thêm mục cấu hình) · (2) Chờ chủ dự án chốt gói
+- Chọn: Một gói mặc định 'pilot' cấu hình trong repo (packages/app/src/plans/, một nguồn): hạn mức số cơ sở, số phòng, thành viên active, dung lượng file, lệnh/phút — gắn cột organizations.plan (mặc định pilot, CHECK theo danh mục); vượt ⇒ 409 QUOTA_EXCEEDED ở lệnh tạo tương ứng + rate limit lệnh đọc từ gói; fair-share: relay outbox và job theo tổ chức lấy theo vòng tròn có trần mỗi tổ chức mỗi lượt; test tải A bão hoà không làm trễ B quá N lượt; bảng giá/nhiều gói do chủ dự án thêm sau (chỉ thêm mục cấu hình)
+- Lý do (tiêu chí chất lượng cuối): (1) đúng: chặn một tenant chiếm hết tài nguyên ngay từ pilot; hạn mức pilot rộng hơn nhu cầu thật nên không chặn người dùng hợp lệ; (2) thêm gói = thêm cấu hình; (3) test được trên Postgres thật
+- Đường lùi: Nâng hạn mức pilot hoặc revert PR; migration có down

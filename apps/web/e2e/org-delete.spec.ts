@@ -106,6 +106,18 @@ test("tạo tổ chức → yêu cầu xoá → huỷ → yêu cầu lại → p
   await expect(page.locator("input[type=checkbox]:checked")).toHaveCount(0);
   await expectAccessible(page);
 
+  // Nút xuất dữ liệu gọi ĐÚNG đường lệnh (không 308 do tiền tố /api/v1/ bị nhân đôi) và yêu cầu được nhận.
+  const exportCall = page.waitForResponse(
+    (r) => r.request().method() === "POST" && r.url().includes("exports/requestOrgExport"),
+  );
+  await page.getByTestId("org-export-request").getByRole("button", { name: "Tạo bản xuất dữ liệu" }).click();
+  const exportRes = await exportCall;
+  expect(new URL(exportRes.url()).pathname).toBe("/api/v1/exports/requestOrgExport");
+  expect(exportRes.status()).toBe(202);
+  await expect(page.getByText("Đã nhận yêu cầu. Bản xuất sẽ hiện ở danh sách dưới khi xong.")).toBeVisible({
+    timeout: 15_000,
+  });
+
   // Sai mật khẩu ⇒ báo lỗi, không xoá.
   await card.getByLabel("Nhập lại mật khẩu để xác nhận").fill("mat-khau-sai-hoan-toan");
   await card.getByRole("button", { name: "Yêu cầu xoá tổ chức" }).click();

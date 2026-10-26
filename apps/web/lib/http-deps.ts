@@ -25,22 +25,6 @@ export function httpDeps(): HttpDeps {
     // Tên cookie phiên do Better Auth quyết (tiền tố `__Host-` ở https): lấy từ ngữ cảnh của nó, không tự đoán.
     isSessionRevoked: async (headers) =>
       isSessionRevoked(db, (await auth.$context).authCookies.sessionToken.name, headers),
-    minClientVersion: MIN_CLIENT_VERSION,
-    secureCookies: config.APP_BASE_URL.startsWith("https://"),
-    services,
-    // Ghi loại, thông điệp, stack, cause + correlation_id (đã che bí mật/PII) — xem logging/unexpected.ts.
-    onUnexpectedError: (err, correlationId) => reportUnexpectedError(log, err, correlationId),
-  };
-}
-
-/**
- * Phụ thuộc của `/api/v1/me/data-requests` (T-2311): như `httpDeps` + kiểm mật khẩu của người trong phiên bằng Better Auth
- * `verifyPassword` (endpoint chỉ gọi từ server, đọc phiên từ header) — sai mật khẩu/không có mật khẩu (người thuê đăng nhập OTP) ⇒ false.
- */
-export function dataRequestDeps(): DataRequestDeps {
-  const { auth } = serverContext();
-  return {
-    ...httpDeps(),
     verifyPassword: async (headers, password) => {
       try {
         const r = await auth.api.verifyPassword({ body: { password }, headers });
@@ -52,11 +36,24 @@ export function dataRequestDeps(): DataRequestDeps {
         throw e;
       }
     },
+    minClientVersion: MIN_CLIENT_VERSION,
+    secureCookies: config.APP_BASE_URL.startsWith("https://"),
+    services,
+    // Ghi loại, thông điệp, stack, cause + correlation_id (đã che bí mật/PII) — xem logging/unexpected.ts.
+    onUnexpectedError: (err, correlationId) => reportUnexpectedError(log, err, correlationId),
   };
 }
 
-/** Phụ thuộc của `/api/v1/organization/deletion` (T-2312, D-125): như `httpDeps` + kiểm mật khẩu như DSAR (cùng một hàm). */
+/**
+ * Phụ thuộc của `/api/v1/me/data-requests` (T-2311) và mọi route xác thực lại: `httpDeps` đã kèm kiểm mật khẩu của người trong phiên
+ * bằng Better Auth `verifyPassword` (endpoint chỉ gọi từ server, đọc phiên từ header) — sai/không có mật khẩu (người thuê đăng
+ * nhập OTP) ⇒ false.
+ */
+export function dataRequestDeps(): DataRequestDeps {
+  return httpDeps();
+}
+
+/** Phụ thuộc của `/api/v1/organization/deletion` (T-2312, D-125): cùng một hàm kiểm mật khẩu như DSAR và lệnh `reauth` (D-129). */
 export function orgDeletionDeps(): OrgDeletionDeps {
-  const { verifyPassword } = dataRequestDeps();
-  return { ...httpDeps(), ...(verifyPassword ? { verifyPassword } : {}) };
+  return httpDeps();
 }

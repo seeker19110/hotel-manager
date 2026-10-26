@@ -25,7 +25,7 @@ import { problemText, useCommand } from "./use-command.ts";
 export interface FieldSpec {
   name: string;
   label: string;
-  type?: "text" | "money" | "decimal" | "date" | "integer" | "select";
+  type?: "text" | "money" | "decimal" | "date" | "integer" | "select" | "password";
   /** Lựa chọn của ô `select` (giá trị gửi lên là `value`). */
   options?: { value: string; label: string }[];
   required?: boolean;
@@ -97,7 +97,9 @@ export function CommandForm({
     const errs: Record<string, string> = {};
     const shown: Record<string, string> = {};
     for (const f of fields) {
-      const raw = String(form.get(f.name) ?? "").trim();
+      // Mật khẩu giữ nguyên từng ký tự (không cắt khoảng trắng đầu/cuối) — xác thực lại của lệnh nhạy cảm (D-129).
+      const rawValue = String(form.get(f.name) ?? "");
+      const raw = f.type === "password" ? rawValue : rawValue.trim();
       if (raw === "") {
         if (f.required) errs[f.name] = tm(m, "common.command_form.required");
         continue;
@@ -114,6 +116,8 @@ export function CommandForm({
         if (v === null) errs[f.name] = tm(m, "common.command_form.decimal_invalid");
       } else if (f.type === "date") {
         if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) shown[f.name] = day(raw);
+      } else if (f.type === "password") {
+        delete shown[f.name]; // không bao giờ đưa mật khẩu vào nhãn xác nhận
       } else if (f.type === "integer") {
         v = parseIntegerInput(raw);
         if (v === null) errs[f.name] = tm(m, "common.command_form.integer_invalid");
@@ -204,7 +208,8 @@ export function CommandForm({
               label={f.label}
               hint={f.hint}
               error={fieldError(f)}
-              type={f.type === "date" ? "date" : "text"}
+              type={f.type === "date" ? "date" : f.type === "password" ? "password" : "text"}
+              {...(f.type === "password" ? { autoComplete: "current-password" } : {})}
               inputMode={
                 f.type === "money" || f.type === "integer"
                   ? "numeric"

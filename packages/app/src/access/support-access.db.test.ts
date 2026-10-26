@@ -24,6 +24,8 @@ let manager: Actor;
 let accountant: Actor;
 const services = testServices();
 
+const GOOD_PASSWORD = "mat-khau-dung-123";
+const STALE = { "x-test-session-age-s": "600" };
 const UA = "Trinh-duyet-ho-tro/1.0";
 const IP = "203.0.113.77";
 
@@ -31,6 +33,7 @@ async function post(
   name: string,
   who: { user: string; org?: string | null },
   body: unknown,
+  extraHeaders: Record<string, string> = {},
 ): Promise<{ status: number; json: Record<string, unknown> }> {
   const def = COMMANDS[name] ?? USER_COMMANDS[name];
   if (!def) throw new Error(`không có lệnh ${name}`);
@@ -44,6 +47,7 @@ async function post(
       "user-agent": UA,
       "x-forwarded-for": IP,
       ...(who.org ? { "x-org-id": who.org } : {}),
+      ...extraHeaders,
     },
     body: JSON.stringify(body),
   });
@@ -110,8 +114,16 @@ beforeAll(async () => {
     db: t.runtime,
     getSession: async (h) => {
       const id = h.get("x-test-user");
-      return id ? { user: { id, twoFactorEnabled: h.get("x-test-2fa") === "1" } } : null;
+      // Tuổi phiên theo header (mặc định vừa đăng nhập) để thử xác thực lại của lệnh cấp (D-129).
+      const age = Number(h.get("x-test-session-age-s") ?? 0);
+      return id
+        ? {
+            user: { id, twoFactorEnabled: h.get("x-test-2fa") === "1" },
+            session: { createdAt: new Date(Date.now() - age * 1000) },
+          }
+        : null;
     },
+    verifyPassword: async (_h, password) => password === GOOD_PASSWORD,
     secureCookies: false,
     services,
     commandQuotaPerMinute: 100_000,
@@ -122,8 +134,109 @@ afterAll(async () => {
   await t?.drop();
 });
 
+describe("cấp truy cập hỗ trợ — xác thực lại (D-129)", () => {
+  it("mọi lệnh khai `reauth` đều có `password` tuỳ chọn trong schema (route tách nó khỏi payload)", () => {
+    const declared = Object.values(COMMANDS).filter((c) => c.reauth);
+    expect(declared.map((c) => c.command)).toContain("member.grantSupportAccess");
+    for (const c of declared) {
+      const shape = (c.input as unknown as { shape?: Record<string, { isOptional(): boolean }> }).shape;
+      expect(shape?.password?.isOptional(), c.command).toBe(true);
+    }
+  });
+
+  const grantBody = (extra: Record<string, unknown> = {}) => ({
+    email: `xt+${randomUUID().slice(0, 8)}@example.test`,
+    reason: "Phiếu #9",
+    ...extra,
+  });
+  const invitationsOf = async (email: string) =>
+    (
+      await sql<{ n: number }>`select count(*)::int as n from invitations
+        where organization_id = ${A.orgId} and lower(email) = ${email}`.execute(t.admin)
+    ).rows[0]?.n;
+
+  it("phiên cũ hơn 5 phút, không mật khẩu ⇒ 401 REAUTH_REQUIRED (reauth_required), không tạo lời mời", async () => {
+    const body = grantBody();
+    const r = await post("member.grantSupportAccess", owner(), body, STALE);
+    expect(r.status).toBe(401);
+    expect(r.json).toMatchObject({ code: "REAUTH_REQUIRED", reason: "reauth_required" });
+    expect(await invitationsOf(body.email)).toBe(0);
+  });
+
+  it("mật khẩu sai ⇒ 401 invalid_password; mật khẩu đúng ⇒ 201 và mật khẩu không nằm trong audit/idempotency", async () => {
+    const bad = grantBody();
+    const r1 = await post("member.grantSupportAccess", owner(), { ...bad, password: "sai" }, STALE);
+    expect(r1.status).toBe(401);
+    expect(r1.json).toMatchObject({ code: "REAUTH_REQUIRED", reason: "invalid_password" });
+    expect(await invitationsOf(bad.email)).toBe(0);
+
+    const ok = grantBody();
+    const r2 = await post("member.grantSupportAccess", owner(), { ...ok, password: GOOD_PASSWORD }, STALE);
+    expect(r2.status, JSON.stringify(r2.json)).toBe(201);
+    expect(await invitationsOf(ok.email)).toBe(1);
+    const leak = await sql<{ n: number }>`
+      select (select count(*) from audit_events where organization_id = ${A.orgId} and (after::text like ${`%${GOOD_PASSWORD}%`} or before::text like ${`%${GOOD_PASSWORD}%`}))::int
+           + (select count(*) from outbox where organization_id = ${A.orgId} and payload::text like ${`%${GOOD_PASSWORD}%`})::int as n`.execute(
+      t.admin,
+    );
+    expect(leak.rows[0]?.n).toBe(0);
+  });
+
+  it("phiên mới (≤ 5 phút) không cần mật khẩu; phiên đúng 5 phút còn hợp lệ, 5 phút + 1 giây thì không", async () => {
+    expect((await post("member.grantSupportAccess", owner(), grantBody())).status).toBe(201);
+    const edge = await post("member.grantSupportAccess", owner(), grantBody(), {
+      "x-test-session-age-s": "299",
+    });
+    expect(edge.status).toBe(201);
+    const over = await post("member.grantSupportAccess", owner(), grantBody(), {
+      "x-test-session-age-s": "301",
+    });
+    expect(over.status).toBe(401);
+  });
+
+  it("mật khẩu rỗng bị schema chặn (422), không phải lỗi xác thực", async () => {
+    const r = await post("member.grantSupportAccess", owner(), { ...grantBody(), password: "" }, STALE);
+    expect(r.status).toBe(422);
+  });
+
+  it("vai không phải owner ⇒ vẫn 403 (không lộ yêu cầu xác thực lại), kể cả phiên cũ không mật khẩu", async () => {
+    const r = await post(
+      "member.grantSupportAccess",
+      { user: manager.authUserId, org: A.orgId },
+      grantBody(),
+      STALE,
+    );
+    expect(r.status).toBe(403);
+  });
+
+  it("thử mật khẩu sai quá 5 lần/15 phút ⇒ 429 có Retry-After, kể cả mật khẩu đúng sau đó", async () => {
+    const who = await seedMember(t, A, "owner", { name: "Chủ thứ hai" });
+    const me = { user: who.authUserId, org: A.orgId };
+    for (let i = 0; i < 5; i++)
+      expect(
+        (await post("member.grantSupportAccess", me, { ...grantBody(), password: "sai" }, STALE)).status,
+      ).toBe(401);
+    const limited = await post(
+      "member.grantSupportAccess",
+      me,
+      { ...grantBody(), password: GOOD_PASSWORD },
+      STALE,
+    );
+    expect(limited.status).toBe(429);
+    expect(limited.json).toMatchObject({ code: "RATE_LIMITED" });
+  });
+});
+
 describe("cấp truy cập hỗ trợ — phân quyền", () => {
   it("manager và kế toán bị 403 (chỉ owner cấp/thu hồi); lần bị từ chối có audit", async () => {
+    const count = async () =>
+      (
+        await sql<{ n: number }>`
+      select count(*)::int as n from audit_events where organization_id = ${A.orgId} and action = 'support.grant_denied'`.execute(
+          t.admin,
+        )
+      ).rows[0]?.n ?? 0;
+    const before = await count();
     for (const who of [manager, accountant]) {
       const r = await post(
         "member.grantSupportAccess",
@@ -132,11 +245,7 @@ describe("cấp truy cập hỗ trợ — phân quyền", () => {
       );
       expect(r.status).toBe(403);
     }
-    const denied = await sql<{ n: number }>`
-      select count(*)::int as n from audit_events where organization_id = ${A.orgId} and action = 'support.grant_denied'`.execute(
-      t.admin,
-    );
-    expect(denied.rows[0]?.n).toBe(2);
+    expect((await count()) - before).toBe(2);
   });
 
   it("owner cấp được; lý do rỗng → 422; TTL ngoài 1–72 giờ → 422 (schema) — mặc định 24 giờ", async () => {

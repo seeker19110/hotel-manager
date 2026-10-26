@@ -1,4 +1,5 @@
 import {
+  accountHasPassword,
   listAuditEvents,
   listMembers,
   listMyExports,
@@ -97,7 +98,9 @@ export default async function AuditLogPage({ searchParams }: { searchParams: Pro
     const who = q.actor && (UUID.test(q.actor) || q.actor === SUPPORT_ACTOR) ? q.actor : "";
     const action = q.action && KEY.test(q.action) ? q.action : "";
     const entityType = q.entity_type && KEY.test(q.entity_type) ? q.entity_type : "";
-    const [events, members, support, exports] = await Promise.all([
+    // D-129: cấp truy cập hỗ trợ cần xác thực lại — owner có mật khẩu nhập ở form; không có mật khẩu thì dựa vào phiên mới (≤ 5 phút).
+    const [hasPassword, events, members, support, exports] = await Promise.all([
+      owner ? accountHasPassword(db, actor.authUserId) : Promise.resolve(false),
       safe(
         listAuditEvents(db, actor, {
           from: vnStart(from),
@@ -138,6 +141,18 @@ export default async function AuditLogPage({ searchParams }: { searchParams: Pro
         defaultValue: SUPPORT_TTL_DEFAULT_HOURS,
         hint: t("audit_log.support.ttl_hint", { max: SUPPORT_TTL_MAX_HOURS }),
       },
+      ...(hasPassword
+        ? [
+            {
+              name: "password",
+              label: t("audit_log.support.password"),
+              type: "password" as const,
+              required: true,
+              maxLength: 256,
+              hint: t("audit_log.support.password_hint"),
+            },
+          ]
+        : []),
     ];
     const auditExports = exports?.ok ? exports.data.filter((e) => e.kind === "audit").slice(0, 5) : [];
     return (

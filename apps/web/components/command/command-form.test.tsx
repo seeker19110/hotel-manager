@@ -86,6 +86,30 @@ describe("CommandForm", () => {
     expect(router.refresh).toHaveBeenCalledTimes(1);
   });
 
+  it("D-129: ô mật khẩu là type=password, gửi nguyên văn (không cắt khoảng trắng); 401 REAUTH_REQUIRED hiện lỗi tại form, không mở hộp đăng nhập lại", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(401, {
+        code: "REAUTH_REQUIRED",
+        reason: "invalid_password",
+        title: "Mật khẩu không đúng — thao tác chưa được thực hiện",
+      }),
+    );
+    setup({
+      path: "member/grantSupportAccess",
+      fixed: { email: "ht@example.test", reason: "Phiếu" },
+      fields: [{ name: "password", label: "Mật khẩu của bạn", type: "password", required: true }],
+    });
+    const input = screen.getByLabelText("Mật khẩu của bạn");
+    expect(input.getAttribute("type")).toBe("password");
+    await userEvent.type(input, " mk có cách ");
+    await userEvent.click(screen.getByRole("button", { name: "Tạo việc" }));
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "Mật khẩu không đúng — thao tác chưa được thực hiện",
+    );
+    expect(JSON.parse(String(initOf(0).body))).toMatchObject({ password: " mk có cách " });
+    expect(fetchMock).toHaveBeenCalledTimes(1); // không gửi lại kiểu "đăng nhập lại rồi gửi tiếp"
+  });
+
   it("ô bắt buộc để trống: báo lỗi đúng ô (role=alert, aria-invalid) và KHÔNG gửi gì", async () => {
     setup({ fields: [{ name: "note", label: "Lý do", required: true }] });
     await userEvent.click(screen.getByRole("button", { name: "Tạo việc" }));
