@@ -95,7 +95,7 @@ Thứ tự đề xuất: **0 → A → B → C → D → E**. Bước sau phụ 
 
 ---
 
-## Bước B — Quyết định sản phẩm và pháp lý (28 MUST; cần trước khi có dữ liệu thật)
+## Bước B — Quyết định sản phẩm và pháp lý (17 MUST; cần trước khi có dữ liệu thật)
 
 ### B1. Pháp lý, quyền riêng tư — 12 mục
 `PM-RISK-007, CMP-INTL-002, CMP-INTL-006, CMP-VN-004, CMP-VN-006, CMP-AUDIT-003, CMP-AUDIT-007, CMP-AUDIT-010, IND-SAAS-010, OPS-IR-010, STD-PRIV-005, XC-GREEN-007`
@@ -115,19 +115,29 @@ Nên có luật sư hoặc người phụ trách pháp lý.
 6. Chỉ định **DPO / đầu mối pháp lý**; làm tabletop sự cố vi phạm dữ liệu một lần, có biên bản (Mẫu 08, thông báo Bộ Công an trong 72 giờ).
 - **Rồi nhắn agent:** dán số liệu hoặc đường dẫn tài liệu. Agent ghi vào `docs/privacy/`, `docs/compliance/` (ROPA, vendors, sổ sự cố) và viết job tự xoá.
 
-### B2. Quyết định sản phẩm rồi mới code — 16 mục
-`CMP-RIGHTS-001/004/007, CMP-VN-001/007, CMP-INTL-007, CMP-PRIV-005, CMP-AUDIT-002, STD-PRIV-004, IND-SAAS-006/008/009, UX-CONTENT-005, PM-METRIC-003/005/006`
+### B2. Duyệt các mặc định agent đã làm (đợt 23) — còn 5 MUST mở, 11 đã tick
+Đã tick (kèm lệnh Kiểm trong `BLUEPRINT.md`): `CMP-RIGHTS-001/004, CMP-VN-001, STD-PRIV-004, CMP-INTL-007, UX-CONTENT-005, IND-SAAS-008/009, PM-METRIC-003/005/006`.
+Còn mở: `CMP-RIGHTS-007, CMP-PRIV-005, IND-SAAS-006, CMP-VN-007, CMP-AUDIT-002` — phần còn lại ghi ở `docs/autopilot/BLUEPRINT-GAPS.md` mục "Kết quả đợt 23".
 
-1. **Danh mục mục đích xin đồng ý.** Ví dụ: (1) quản lý hợp đồng, bắt buộc; (2) gửi thông báo nhắc phí; (3) marketing, tuỳ chọn. Kèm văn bản hiển thị, do pháp lý duyệt.
-   - Việc này mở khoá cả cụm khoảng 10 mục: đồng ý / rút đồng ý / xoá / DSAR / xoá tài khoản / xoá tenant.
-   - Agent viết phần đó, kèm test E2E.
-2. **Gói và giá (F-015):** tên gói, hạn mức theo gói (số phòng, người dùng, dung lượng), luồng đăng ký/huỷ. Phục vụ IND-SAAS-008 và UX-CONTENT-005.
-3. **Truy cập hỗ trợ tạm (IND-SAAS-009):** cho phép nhân viên hỗ trợ đăng nhập thay chủ trọ không, giới hạn bao lâu, chủ trọ có thấy log không.
-   - Chạm auth, nên **bạn merge**.
-4. **Analytics (PM-METRIC-003/005/006)**, chọn một:
-   - (a) Không dùng SDK analytics; đo từ `audit_events`. Đề xuất cách này, ghi miễn phần SDK.
-   - (b) Dùng `track()` có schema, kèm thời hạn lưu N tháng.
-- **Rồi nhắn agent:** `B2: mục đích = …; gói = …; IND-SAAS-009 = có/không …; analytics (a)`.
+Agent đã làm xong theo mặc định an toàn (mỗi mặc định có D-NNN trong `docs/autopilot/DECISIONS.md`, đổi được bằng một dòng cấu hình hoặc revert):
+- **Analytics (D-118):** tự host, `track()` phía server, chỉ ghi khi người dùng đồng ý, không SDK/cookie phía client, giữ 13 tháng.
+- **Đồng ý (D-122):** mới có một mục đích cần đồng ý là `analytics`; ô KHÔNG tick sẵn; rút cùng số bước như cho.
+- **Quyền chủ thể (D-123, D-124):** truy cập / xoá tài khoản (xác thực lại) / hạn chế; hạn VN lấy cách hiểu chặt (xoá 3 ngày, truy cập 10 ngày) — **chưa xác minh** theo NĐ 356.
+- **Xoá tổ chức (D-125, D-126):** giữ 30 ngày để xuất dữ liệu, rồi purge và cấp chứng nhận xoá; job purge **tắt** ở production.
+- **Hỗ trợ chỉ đọc có hạn (D-128, D-129):** không có impersonation; owner cấp vai `platform_support` chỉ đọc, kèm lý do, hạn 1–72 giờ, có xác thực lại; chủ trọ thấy trong `/nhat-ky`.
+- **Gói pilot (D-130, D-132):** một gói `pilot` trong `packages/app/src/plans/catalog.ts`; chưa có bảng giá.
+
+**Bạn làm:**
+1. **Văn bản đồng ý** (`packages/app/messages/vi.json`, khoá `privacy.purpose.*`): nhờ pháp lý duyệt hoặc sửa. Đổi chữ thì tăng `version` trong `purposes.ts` (test ghim băm). Cần thêm mục đích (ví dụ nhắc phí qua email, marketing) thì báo agent.
+2. **Hạn trả lời DSAR cho VN** (`packages/app/src/privacy/dsar-policy.ts`): đối chiếu NĐ 356/2025 bản gốc rồi chốt số ngày cho truy cập, xoá, hạn chế. Cũng chốt quyền **chỉnh sửa** và **phản đối** có cần luồng riêng không (CMP-VN-007).
+3. **Hạn giữ chứng nhận xoá tổ chức** (RET-23) và hạn giữ yêu cầu DSAR/bằng chứng đồng ý (RET-21): chốt cùng DPIA.
+4. **Bảng gói/giá:** duyệt gói `pilot` hoặc gửi bảng gói (tên, số cơ sở, số phòng, thành viên, dung lượng, lệnh/phút). Agent chỉ thêm mục cấu hình. Luồng đăng ký/huỷ gói trả phí (F-015) làm sau.
+5. **Hỗ trợ chỉ đọc:** giữ hay tắt hẳn vai `platform_support`? Nếu cần nhân viên hỗ trợ thật đăng nhập thay chủ trọ (impersonation), đó là quyết định mới, chạm auth.
+6. **Bật purge xoá tổ chức ở production** (chỉ khi đã có dữ liệu thật và đã duyệt hạn giữ): ghi grant `data_delete hard_delete=true` vào mục Ủy quyền production của `docs/autopilot/PLAN.md`, chạy `python3 .xtemplates/scripts/xt.py grant-check` (phải exit 0), rồi bật bằng `bootWorker(env, { orgPurge: true })` ở điểm khởi động worker (không có biến môi trường). Các bước ở `docs/RUNBOOK.md` §3.14. Việc này không đảo ngược ngoài PITR.
+7. **`AUD-SEC-005` (X-Forwarded-For):** kiểm Caddy ở `deploy/` có ghi đè `X-Forwarded-For` không; gửi thử request đăng nhập kèm header giả rồi đếm 429. Agent khai `advanced.ipAddress.ipAddressHeaders` trong Better Auth và thêm test sau khi bạn xác nhận cấu hình proxy.
+8. **Bản sao lưu và SMTP** (cùng C1/C2): chọn nhà cung cấp và nói cách xoá dữ liệu khỏi bản sao lưu/relay; nhờ đó `CMP-PRIV-005`, `CMP-RIGHTS-007`, `IND-SAAS-006` tick được.
+- **Rồi nhắn agent:** `B2: văn bản đồng ý = đã duyệt/sửa …; hạn DSAR VN = …; hạn giữ chứng nhận = …; gói = pilot/…; hỗ trợ = giữ/tắt; purge production = bật/chưa`.
+- **Kiểm:** `python3 .xtemplates/scripts/xt.py blueprint-status BLUEPRINT.md` — số MUST mở giảm; `pnpm vitest run --project unit packages/app/src/privacy` xanh sau khi đổi văn bản/hạn.
 
 ---
 
@@ -202,7 +212,7 @@ Nên có luật sư hoặc người phụ trách pháp lý.
 
 ---
 
-## Bảng tổng (89)
+## Bảng tổng (lập 2026-10-24: 89; trừ 11 MUST B2 đã tick = 78; số mở thật đo bằng `blueprint-status`)
 
 | Bước | Nhóm | Số MUST | Cần gì |
 |---|---|---|---|
@@ -213,11 +223,11 @@ Nên có luật sư hoặc người phụ trách pháp lý.
 | A5 | Biến env | 3 | thêm 2 dòng `.env.example` |
 | A6 | Hook / ADR | 2 | miễn hoặc sửa hook |
 | B1 | Pháp lý | 12 | luật sư / DPO |
-| B2 | Quyết định sản phẩm | 16 | danh mục đồng ý, gói giá, analytics |
+| B2 | Duyệt mặc định đợt 23, purge production | 5 | pháp lý duyệt, hạn DSAR VN, gói giá, grant purge |
 | C1 | Hạ tầng | 25 | VPS ×2, domain, SMTP, ClamAV |
 | C2 | Sao lưu / giám sát | 13 | bucket nhà cung cấp khác, kênh trực, diễn tập |
 | C3 | Bàn giao | 3 | danh sách gia hạn |
 | D | Kiểm tay | 3 | điện thoại thật, trình đọc màn hình |
-| | **Tổng** | **89** | |
+| | **Tổng** | **78** | |
 
 **Làm nhanh nhất:** Bước 0 và Bước A (khoảng 1–2 giờ), gửi agent một tin gom hết các câu trả lời. Việc đó đóng được tới 17 MUST mà chưa tốn tiền hạ tầng.

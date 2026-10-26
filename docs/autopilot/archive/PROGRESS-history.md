@@ -9,5 +9,7 @@
 
 - 2026-10-25 đợt 23 lát C (D-117…D-120, nhánh `claude/exciting-gauss-5yuqhd`, người merge): T-2308 migration 0066 dọn dữ liệu vận hành + ẩn danh giấy tờ/người (quan hệ mở/số dư CUSTOMER_CREDIT chặn; khoá rồi kiểm lại chống race; TimeZone UTC), job `privacy.retention`; T-2309 `track()` + `product_events` (0067), đồng ý mặc định TỪ CHỐI tới T-2310. Review chéo họ: 1 🟠 + 3 🟡 + 1 🟢 đã sửa. Còn cho T-2310: cache đồng ý theo request; T-2311: gọi `app.unlink_product_events_actor` (chỉ cấp `app_worker`), ẩn danh `auth.user`; nơi ghi quan hệ nên kiểm `anonymized_at`.
 
+- 2026-10-26 đợt 23 lát D (D-122…D-127, nhánh `claude/exciting-gauss-5yuqhd`, người merge): T-2310 `consent_records` append-only (0068, RLS theo `app.user_id`), trang `/quyen-rieng-tu`; T-2311 DSAR truy cập/xoá/hạn chế (0069, xác thực lại, worker `privacy.dsar`, alert quá hạn); T-2312 xoá tổ chức (0070: chờ 30 ngày, purge 61 bảng, chứng nhận; job tắt ở production); D-126 ngừng job nền cho tổ chức chờ xoá (0071). Review chéo họ: 4 🟠 + 🟡 đã sửa. Lát C (#137) đã merge.
+
 ## Bài học (cũ)
 - Bài học đợt 5–8: Better Auth `/sign-in/email` 20 lần/phút theo IP; `<dialog>` phát `close` sau một task (`onClose` chỉ xoá trạng thái khi hộp thật sự đóng); chạy lại job CI dùng payload sự kiện cũ (cần push mới); test giá trị ngẫu nhiên phải loại ca biên (IP octet 0); không so thời gian tuyệt đối (so tương đối); hai lát song song có thể đụng nhau qua rào mới.
