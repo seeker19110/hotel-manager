@@ -26,6 +26,14 @@ export interface PlanLimits {
    * thống sinh, có hạn, là quyền của chủ dữ liệu kể cả khi chờ xoá tổ chức: không được chặn bởi hạn mức).
    */
   maxStorageBytes: number;
+  /**
+   * Hạn mức CON trong `maxStorageBytes` cho file do người dùng cổng tải (`PORTAL_ROLES`: người thuê, khách lưu trú — vd ảnh
+   * `payment_claim`, `work_order`; người tải = `files.uploaded_by`; cùng cách đếm như trên) — D-132: người dùng cổng không làm đầy
+   * dung lượng tổ chức để chặn tải lên của nhân viên. Tổng của MỌI người dùng cổng ≤ `maxPortalStorageBytes` (2% trần tổ chức) và
+   * mỗi membership cổng ≤ `maxPortalStorageBytesPerMember`.
+   */
+  maxPortalStorageBytes: number;
+  maxPortalStorageBytesPerMember: number;
   /** Lệnh ghi MỚI mỗi 60 giây trượt (pipeline): theo tổ chức (chỉ lệnh committed/in_progress) và theo thành viên (mọi lệnh). */
   commandsPerMinute: { org: number; member: number };
   /** Tải ảnh/PDF (`files/upload`) mỗi 60 giây. */
@@ -40,7 +48,7 @@ const BYTES_PER_GIB = BYTES_PER_MIB * BYTES_PER_KIB;
  * `pilot`: số liệu RỘNG hơn nhu cầu pilot thật để không chặn người dùng hợp lệ — PROJECT.md: người dùng mục tiêu 10–100 phòng ở 1–5
  * cơ sở; pilot ≥ 6 cơ sở (nhiều chủ); bộ tải k6 100 tổ chức / 5.000 phòng. Hạn mức chỉ chặn một tenant chiếm hết tài nguyên (script
  * lỗi, lạm dụng): 50 cơ sở (10× chủ lớn nhất), 20.000 phòng (4× TOÀN BỘ bộ tải trong một tổ chức), 200 nhân viên, 50 GiB file (ảnh ≤
- * 10 MB: ~5.000 ảnh/cơ sở). Hạn mức tần suất giữ NGUYÊN giá trị trước T-2314 (không đổi hành vi): lệnh 600/200, tải file 120/30,
+ * 10 MB: ~5.000 ảnh/cơ sở); người dùng cổng 1 GiB tổng, 200 MiB mỗi người (~20 ảnh 10 MB — đủ chứng từ/sự cố của một hợp đồng). Hạn mức tần suất giữ NGUYÊN giá trị trước T-2314 (không đổi hành vi): lệnh 600/200, tải file 120/30,
  * nhập liệu 30/10 mỗi phút (tổ chức/thành viên).
  */
 export const PLANS: Readonly<Record<PlanId, Readonly<PlanLimits>>> = {
@@ -49,6 +57,8 @@ export const PLANS: Readonly<Record<PlanId, Readonly<PlanLimits>>> = {
     maxUnits: 20_000,
     maxActiveMembers: 200,
     maxStorageBytes: 50 * BYTES_PER_GIB,
+    maxPortalStorageBytes: BYTES_PER_GIB, // = 2% × 50 GiB
+    maxPortalStorageBytesPerMember: 200 * BYTES_PER_MIB,
     commandsPerMinute: { org: 600, member: 200 },
     fileUploadsPerMinute: { org: 120, member: 30 },
     importUploadsPerMinute: { org: 30, member: 10 },
@@ -66,6 +76,11 @@ export function isPlanId(v: unknown): v is PlanId {
 export function planLimits(plan?: string | null): Readonly<PlanLimits> {
   return PLANS[isPlanId(plan) ? plan : DEFAULT_PLAN];
 }
+
+/** Tỉ lệ trần dung lượng tổ chức dành cho người dùng cổng (D-132) — test danh mục kiểm `maxPortalStorageBytes` theo tỉ lệ này. */
+export const PORTAL_STORAGE_SHARE = 0.02;
+/** Vai người dùng cổng có hạn mức dung lượng con — trùng danh sách trong trigger `app.enforce_plan_quota` (0073). */
+export const PORTAL_ROLES = ["tenant", "guest"] as const;
 
 /** Loại hạn mức tài nguyên — trùng `TG_ARGV[0]` của trigger CSDL và `quota` trong log. */
 export const QUOTA_KINDS = ["properties", "units", "members", "storage"] as const;

@@ -35,8 +35,9 @@ export async function acceptInvitation(
     return new CommandError("INVITATION_INVALID", 410, t("access.invitation_unavailable"));
   };
 
-  const found = await sql<{ organization_id: string; id: string; role: string }>`
-    select organization_id, id, role from app.invitation_by_token(${hashInvitationToken(input.token)})`.execute(
+  // `plan` của tổ chức (0073): actor dựng tay mang gói thật ⇒ hạn mức tần suất lệnh theo gói (D-132).
+  const found = await sql<{ organization_id: string; id: string; role: string; plan: string | null }>`
+    select organization_id, id, role, plan from app.invitation_by_token(${hashInvitationToken(input.token)})`.execute(
     req.db,
   );
   const inv = found.rows[0];
@@ -54,6 +55,7 @@ export async function acceptInvitation(
     propertyIds: [],
     limits: {},
     mfaRequired: false,
+    ...(inv.plan ? { plan: inv.plan } : {}),
   };
   return runUserCommand<AcceptedInvitation>(req, {
     command: "member.acceptInvitation",

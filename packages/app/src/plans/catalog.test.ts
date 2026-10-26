@@ -7,7 +7,7 @@ import {
   IMPORT_UPLOAD_PER_ORG_PER_MINUTE,
 } from "../http/rate-limit.ts";
 import { COMMAND_MEMBER_QUOTA_PER_MINUTE, COMMAND_QUOTA_PER_MINUTE } from "../pipeline/index.ts";
-import { DEFAULT_PLAN, isPlanId, PLAN_IDS, PLANS, planLimits } from "./index.ts";
+import { DEFAULT_PLAN, isPlanId, PLAN_IDS, PLANS, PORTAL_STORAGE_SHARE, planLimits } from "./index.ts";
 
 describe("danh mục gói", () => {
   it("mỗi id có đúng một mục, gói mặc định nằm trong danh mục, id hợp lệ cho CHECK CSDL", () => {
@@ -30,6 +30,22 @@ describe("danh mục gói", () => {
         expect(r.member).toBeLessThanOrEqual(r.org);
       }
     }
+  });
+
+  it("hạn mức con của người dùng cổng (D-132): = 2% trần tổ chức (làm tròn xuống), mỗi người ≤ tổng cổng, pilot 1 GiB / 200 MiB", () => {
+    for (const id of PLAN_IDS) {
+      const p = PLANS[id];
+      for (const v of [p.maxPortalStorageBytes, p.maxPortalStorageBytesPerMember]) {
+        expect(Number.isSafeInteger(v), id).toBe(true);
+        expect(v).toBeGreaterThan(0);
+      }
+      expect(p.maxPortalStorageBytes).toBe(Math.floor(p.maxStorageBytes * PORTAL_STORAGE_SHARE));
+      expect(p.maxPortalStorageBytesPerMember).toBeLessThanOrEqual(p.maxPortalStorageBytes);
+    }
+    expect([PLANS.pilot.maxPortalStorageBytes, PLANS.pilot.maxPortalStorageBytesPerMember]).toEqual([
+      1024 ** 3,
+      200 * 1024 ** 2,
+    ]);
   });
 
   it("pilot rộng hơn nhu cầu pilot thật (PROJECT.md: 1–5 cơ sở/chủ, ≥ 6 cơ sở pilot, bộ tải 5.000 phòng)", () => {

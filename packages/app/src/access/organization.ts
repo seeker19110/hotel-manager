@@ -6,6 +6,7 @@ import { sql } from "kysely";
 import type { Actor } from "../actor-core/index.ts";
 import { t } from "../i18n.ts";
 import { CommandError, type CommandResult, rateLimited, rateLimitHit } from "../pipeline/index.ts";
+import { DEFAULT_PLAN } from "../plans/index.ts";
 import { deriveUuid, readAuthUser, runUserCommand, type UserCommandRequest } from "./provision.ts";
 
 /**
@@ -41,6 +42,8 @@ export function createOrganization(
     propertyIds: [],
     limits: {},
     mfaRequired: true,
+    // Tổ chức mới luôn ở gói mặc định (app_runtime không chọn được gói khi INSERT — trigger 0073, D-132).
+    plan: DEFAULT_PLAN,
   };
   return runUserCommand<CreatedOrganization>(req, {
     command: "org.create",

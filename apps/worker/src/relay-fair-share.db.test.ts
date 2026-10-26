@@ -1,20 +1,14 @@
 // T-2314 (D-130, IND-SAAS-008) — fair-share theo tổ chức trên Postgres thật + pg-boss thật:
-//  · `app.outbox_claim` lấy vòng tròn, trần `p_per_org` hàng/tổ chức/lượt: A dồn 5×N (và 10.000) sự kiện, B có 1 ⇒ lượt claim ĐẦU đã
-//    có sự kiện của B; B xong trong ≤ 1 lượt bất kể backlog của A;
-//  · relay gửi job kèm `group.id = organization_id`; consumer chạy tối đa 1 job/tổ chức cùng lúc ⇒ job của B không chờ hết backlog A.
+//  · `app.outbox_claim` lấy vòng tròn ưu tiên ≤ `p_per_org` hàng/tổ chức rồi LẤP ĐẦY `p_limit` theo thứ tự cũ (D-132): A dồn 5×N (và
+//    10.000) sự kiện, B có 1 ⇒ lượt claim ĐẦU đã có sự kiện của B; tổ chức đơn lẻ vẫn xả đủ lô; trong một tổ chức giữ thứ tự;
+//  · relay gửi job kèm `group.id = organization_id`; consumer chạy tuần tự (localConcurrency 1) ⇒ thứ tự sự kiện trong tổ chức giữ
+//    như trước T-2314 (fair-share bảo đảm ở bước claim).
 import { randomUUID } from "node:crypto";
 import { createTestDb, type SeededOrg, seedOrg, type TestDb } from "@hm/testkit";
 import { sql } from "kysely";
 import { PgBoss } from "pg-boss";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import {
-  CONSUMER_GROUP_CONCURRENCY,
-  ensureQueues,
-  type OutboxJob,
-  RELAY_PER_ORG,
-  relayOutbox,
-  startConsumers,
-} from "./relay.ts";
+import { ensureQueues, type OutboxJob, RELAY_PER_ORG, relayOutbox, startConsumers } from "./relay.ts";
 
 let t: TestDb;
 let boss: PgBoss;
@@ -61,7 +55,33 @@ const claim = async (limit: number, perOrg = N) =>
     }>`select id, organization_id from app.outbox_claim(${limit}, ${perOrg})`.execute(t.worker)
   ).rows;
 
-describe("app.outbox_claim — vòng tròn có trần mỗi tổ chức", () => {
+/** Thứ tự `seq` (payload) của các hàng `rows` thuộc tổ chức `org` theo đúng thứ tự trả về. */
+async function seqs(rows: { id: string; organization_id: string }[], org: SeededOrg): Promise<number[]> {
+  const ids = rows.filter((r) => r.organization_id === org.orgId).map((r) => r.id);
+  const m = new Map(
+    (
+      await sql<{
+        id: string;
+        seq: number;
+      }>`select id, (payload->>'seq')::int as seq from outbox where id = any(${ids}::uuid[])`.execute(t.admin)
+    ).rows.map((r) => [r.id, r.seq]),
+  );
+  return ids.map((id) => m.get(id) as number);
+}
+const range = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, i) => from + i);
+
+describe("app.outbox_claim — vòng tròn ưu tiên mỗi tổ chức + lấp đầy lô", () => {
+  it("một tổ chức 1.000 hàng ⇒ lượt claim đầu trả ĐỦ p_limit, đúng thứ tự cũ nhất trước; lượt sau nối tiếp liền mạch", async () => {
+    const A = await seedOrg(t.admin, "Fair đơn lẻ");
+    await backlog(A, "fair.demo", 1_000);
+    const first = await claim(100);
+    expect(first).toHaveLength(100);
+    expect(await seqs(first, A)).toEqual(range(1, 100));
+    const second = await claim(100);
+    expect(await seqs(second, A)).toEqual(range(101, 200));
+    await clear(A);
+  });
+
   it("A có 5×N sự kiện cũ hơn, B có 1 ⇒ lượt claim đầu (lô N) đã có sự kiện của B, A tối đa N hàng", async () => {
     const A = await seedOrg(t.admin, "Fair A");
     const B = await seedOrg(t.admin, "Fair B");
@@ -76,43 +96,66 @@ describe("app.outbox_claim — vòng tròn có trần mỗi tổ chức", () => 
     await clear(A, B);
   });
 
-  it("lô lớn: mỗi tổ chức không quá p_per_org; tổ chức đơn lẻ vẫn lấy theo thứ tự cũ nhất trước", async () => {
+  it("lô lớn: vòng tròn trước (≤ p_per_org mỗi tổ chức), phần còn lại lấp theo thứ tự cũ; trong tổ chức là tiền tố liên tục", async () => {
     const A = await seedOrg(t.admin, "Fair A2");
     const B = await seedOrg(t.admin, "Fair B2");
-    await backlog(A, "fair.demo", 5 * N);
+    const C = await seedOrg(t.admin, "Fair C2");
+    await backlog(A, "fair.demo", 20 * N);
     await backlog(B, "fair.demo", 3, 60);
+    await backlog(C, "fair.demo", 5 * N, 1800);
     const rows = await claim(100);
-    expect(rows.filter((r) => r.organization_id === A.orgId)).toHaveLength(N);
+    expect(rows).toHaveLength(100);
+    // Phần vòng tròn đứng đầu: N của A, 3 của B, N của C (vòng 1 có cả 3 tổ chức).
+    expect(new Set(rows.slice(0, 3).map((r) => r.organization_id))).toEqual(
+      new Set([A.orgId, B.orgId, C.orgId]),
+    );
     expect(rows.filter((r) => r.organization_id === B.orgId)).toHaveLength(3);
-    // Lượt sau: hàng đã lease không bị lấy lại; A tiếp tục N hàng kế.
+    // Lấp đầy 100 − (N + 3 + N) theo created_at: A cũ nhất ⇒ phần lấp thuộc A (C mới hơn mọi hàng A).
+    const a = await seqs(rows, A);
+    expect(a).toEqual(range(1, 100 - 3 - N));
+    expect(await seqs(rows, C)).toEqual(range(1, N));
+    expect(await seqs(rows, B)).toEqual([1, 2, 3]);
+    // Lượt sau: hàng đã lease không bị lấy lại; A, C nối tiếp liền mạch.
     const next = await claim(100);
-    expect(next.filter((r) => r.organization_id === A.orgId)).toHaveLength(N);
     expect(next.some((r) => rows.some((x) => x.id === r.id))).toBe(false);
-    await clear(A, B);
+    expect((await seqs(next, A))[0]).toBe(a.length + 1);
+    expect((await seqs(next, C))[0]).toBe(N + 1);
+    for (const o of [A, C]) {
+      const s2 = await seqs(next, o);
+      expect(s2).toEqual(range(s2[0] as number, (s2[0] as number) + s2.length - 1));
+    }
+    await clear(A, B, C);
   });
 
-  it("A dồn 10.000 sự kiện: B vẫn được lấy ngay lượt đầu, claim vẫn nhanh", async () => {
+  // Tốc độ claim không đo bằng đồng hồ (chập chờn khi CI chạy song song): kế hoạch truy vấn được ghim ở db-perf
+  // (`docs/db/explain/outbox-claim.txt`, `outbox-claim-fill.txt`).
+  it("A dồn 10.000 sự kiện: B vẫn được lấy ngay lượt đầu, lô vẫn đầy", async () => {
     const A = await seedOrg(t.admin, "Fair A3");
     const B = await seedOrg(t.admin, "Fair B3");
     await backlog(A, "fair.demo", 10_000);
     const b = await one(B, "fair.demo");
     await sql`analyze outbox`.execute(t.admin);
-    const started = performance.now();
     const rows = await claim(100);
-    const ms = performance.now() - started;
     expect(rows.map((r) => r.id)).toContain(b);
-    expect(ms).toBeLessThan(2_000);
+    expect(rows).toHaveLength(100);
     await clear(A, B);
   });
 
-  it("p_per_org/p_limit ngoài miền được kẹp (≤ 0 ⇒ 1); hai relay song song không lấy trùng", async () => {
+  it("p_per_org/p_limit ngoài miền được kẹp (≤ 0 ⇒ 1; > 1000 ⇒ 1000); hai relay song song không lấy trùng, cùng nhau đủ backlog", async () => {
     const A = await seedOrg(t.admin, "Fair A4");
+    const B = await seedOrg(t.admin, "Fair B4");
     await backlog(A, "fair.demo", 30);
     expect(await claim(0, 0)).toHaveLength(1);
-    const [x, y] = await Promise.all([claim(100, 15), claim(100, 15)]);
+    await backlog(B, "fair.demo", 1_200, 600);
+    expect(await claim(5_000, 5_000)).toHaveLength(1_000);
+    await clear(A, B);
+    await backlog(A, "fair.demo", 300);
+    await backlog(B, "fair.demo", 300, 600);
+    const [x, y] = await Promise.all([claim(250, 15), claim(250, 15)]);
     const ids = [...(x ?? []), ...(y ?? [])].map((r) => r.id);
     expect(new Set(ids).size).toBe(ids.length);
-    await clear(A);
+    expect(ids).toHaveLength(500);
+    await clear(A, B);
   });
 });
 
@@ -134,19 +177,21 @@ describe("relayOutbox + consumer — B không chờ backlog của A", () => {
     expect(published.rows[0]?.n).toBe(1);
   });
 
-  it("consumer: A có 5 job chậm xếp trước, B có 1 ⇒ B xong trước khi A xong job thứ 2; A không bao giờ chạy > 1 job cùng lúc", async () => {
+  it("consumer tuần tự: job xen kẽ hai tổ chức, thời gian xử lý khác nhau ⇒ mỗi tổ chức xong đúng thứ tự gửi, không chạy chồng", async () => {
     const A = randomUUID();
     const B = randomUUID();
     const done: string[] = [];
-    const running = new Map<string, number>();
-    let maxA = 0;
+    let running = 0;
+    let maxRunning = 0;
     const handler = async (job: OutboxJob) => {
       const org = job.organization_id;
-      running.set(org, (running.get(org) ?? 0) + 1);
-      if (org === A) maxA = Math.max(maxA, running.get(org) ?? 0);
-      await new Promise((r) => setTimeout(r, org === A ? 700 : 10));
-      running.set(org, (running.get(org) ?? 1) - 1);
-      done.push(org === A ? `A${String(job.payload.seq)}` : "B");
+      running++;
+      maxRunning = Math.max(maxRunning, running);
+      // Job đầu chậm nhất: chạy song song sẽ làm job sau của cùng tổ chức xong trước.
+      const seq = Number(job.payload.seq);
+      await new Promise((r) => setTimeout(r, seq === 1 ? 400 : 20));
+      running--;
+      done.push(`${org === A ? "A" : "B"}${seq}`);
     };
     const send = (org: string, seq: number) =>
       boss.send(
@@ -161,13 +206,16 @@ describe("relayOutbox + consumer — B không chờ backlog của A", () => {
         },
         { group: { id: org } },
       );
-    for (let i = 1; i <= 5; i++) await send(A, i);
-    await send(B, 1);
+    for (let i = 1; i <= 4; i++) {
+      await send(A, i);
+      await send(B, i);
+    }
     await startConsumers(boss, { "fair.consume": handler }, { pollingIntervalSeconds: 0.5 });
     const end = Date.now() + 30_000;
-    while (done.length < 6 && Date.now() < end) await new Promise((r) => setTimeout(r, 100));
-    expect(done).toHaveLength(6);
-    expect(done.indexOf("B")).toBeLessThanOrEqual(1);
-    expect(maxA).toBeLessThanOrEqual(CONSUMER_GROUP_CONCURRENCY);
+    while (done.length < 8 && Date.now() < end) await new Promise((r) => setTimeout(r, 100));
+    expect(done).toHaveLength(8);
+    expect(done.filter((d) => d.startsWith("A"))).toEqual(["A1", "A2", "A3", "A4"]);
+    expect(done.filter((d) => d.startsWith("B"))).toEqual(["B1", "B2", "B3", "B4"]);
+    expect(maxRunning).toBe(1);
   });
 });

@@ -2912,7 +2912,7 @@ public.worker_heartbeats support_ro_del RESTRICTIVE DELETE to app_runtime using 
 public.worker_heartbeats support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
 public.worker_heartbeats support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 
-## triggers (137)
+## triggers (138)
 auth.session CREATE TRIGGER trg_session_not_erased BEFORE INSERT ON auth.session FOR EACH ROW EXECUTE FUNCTION app.session_guard_erased()
 public.allocations CREATE TRIGGER trg_allocations_no_reactivation BEFORE UPDATE OF active ON allocations FOR EACH ROW EXECUTE FUNCTION app.forbid_reactivation()
 public.allocations CREATE TRIGGER trg_allocations_updated BEFORE UPDATE ON allocations FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
@@ -3003,6 +3003,7 @@ public.notifications CREATE TRIGGER trg_notifications_guard BEFORE UPDATE ON not
 public.org_deletion_certificates CREATE TRIGGER trg_org_deletion_certificates_append_only BEFORE DELETE OR UPDATE ON org_deletion_certificates FOR EACH ROW EXECUTE FUNCTION app.forbid_mutation()
 public.org_deletion_certificates CREATE TRIGGER trg_org_deletion_certificates_no_truncate BEFORE TRUNCATE ON org_deletion_certificates FOR EACH STATEMENT EXECUTE FUNCTION app.forbid_mutation()
 public.organizations CREATE TRIGGER trg_organizations_lifecycle_guard BEFORE UPDATE ON organizations FOR EACH ROW EXECUTE FUNCTION app.organizations_lifecycle_guard()
+public.organizations CREATE TRIGGER trg_organizations_plan_insert BEFORE INSERT ON organizations FOR EACH ROW EXECUTE FUNCTION app.organizations_plan_insert_guard()
 public.organizations CREATE TRIGGER trg_organizations_updated BEFORE UPDATE ON organizations FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 public.payment_allocations CREATE TRIGGER trg_payment_allocations_by BEFORE INSERT ON payment_allocations FOR EACH ROW EXECUTE FUNCTION app.check_allocation_by()
 public.payment_allocations CREATE TRIGGER trg_payment_allocations_guard BEFORE UPDATE ON payment_allocations FOR EACH ROW EXECUTE FUNCTION app.allocation_guard()
@@ -3051,7 +3052,7 @@ public.units CREATE TRIGGER trg_units_updated BEFORE UPDATE ON units FOR EACH RO
 public.work_orders CREATE TRIGGER trg_work_orders_transition BEFORE UPDATE ON work_orders FOR EACH ROW EXECUTE FUNCTION app.work_order_transition()
 public.work_orders CREATE TRIGGER trg_work_orders_updated BEFORE UPDATE ON work_orders FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 
-## functions (141)
+## functions (142)
 -- app.actor_can_see_property(p uuid) owner=<admin>
 CREATE OR REPLACE FUNCTION app.actor_can_see_property(p uuid)
  RETURNS boolean
@@ -4033,6 +4034,11 @@ DECLARE
   v_limit bigint;
   v_used bigint;
   v_add bigint := 1;
+  v_uploader_role text;
+  v_portal_limit bigint;
+  v_member_limit bigint;
+  v_portal_used bigint;
+  v_member_used bigint;
 BEGIN
   -- Does the new/changed row INCREASE usage? If not, skip (no lock).
   IF v_kind IN ('properties', 'units') THEN
@@ -4049,6 +4055,10 @@ BEGIN
     -- Staging replay (INSERT ... ON CONFLICT DO NOTHING, same id): row already counted.
     IF EXISTS (SELECT 1 FROM files f WHERE f.id = NEW.id) THEN RETURN NEW; END IF;
     v_add := NEW.size_bytes;
+    IF NEW.uploaded_by IS NOT NULL THEN
+      SELECT m.role INTO v_uploader_role FROM memberships m
+       WHERE m.organization_id = NEW.organization_id AND m.id = NEW.uploaded_by;
+    END IF;
   ELSE
     RAISE EXCEPTION 'app.enforce_plan_quota: unknown quota kind %', v_kind;
   END IF;
@@ -4088,6 +4098,26 @@ BEGIN
   IF v_used + v_add > v_limit THEN
     RAISE EXCEPTION 'plan quota exceeded: % (plan %, limit %, used %)', v_kind, v_plan, v_limit, v_used
       USING ERRCODE = '23514', HINT = 'QUOTA_EXCEEDED';
+  END IF;
+
+  -- Portal sub-quota (D-132): files uploaded by tenant/guest memberships, under the same storage lock.
+  IF v_kind = 'storage' AND v_uploader_role IN ('tenant', 'guest') THEN
+    SELECT l.max_portal_storage_bytes, l.max_portal_storage_bytes_per_member INTO v_portal_limit, v_member_limit
+      FROM app.plan_limits(v_plan) l;
+    SELECT coalesce(sum(f.size_bytes), 0),
+           coalesce(sum(f.size_bytes) FILTER (WHERE f.uploaded_by = NEW.uploaded_by), 0)
+      INTO v_portal_used, v_member_used
+      FROM files f JOIN memberships m ON m.organization_id = f.organization_id AND m.id = f.uploaded_by
+     WHERE f.organization_id = NEW.organization_id AND f.status IN ('pending_scan', 'ready') AND f.owner_type <> 'export_job'
+       AND m.role IN ('tenant', 'guest');
+    IF v_member_used + v_add > v_member_limit THEN
+      RAISE EXCEPTION 'plan quota exceeded: storage_portal_member (plan %, limit %, used %)', v_plan, v_member_limit, v_member_used
+        USING ERRCODE = '23514', HINT = 'QUOTA_EXCEEDED';
+    END IF;
+    IF v_portal_used + v_add > v_portal_limit THEN
+      RAISE EXCEPTION 'plan quota exceeded: storage_portal (plan %, limit %, used %)', v_plan, v_portal_limit, v_portal_used
+        USING ERRCODE = '23514', HINT = 'QUOTA_EXCEEDED';
+    END IF;
   END IF;
   RETURN NEW;
 END $function$
@@ -4362,12 +4392,14 @@ BEGIN
 END $function$
 -- app.invitation_by_token(p_token_hash bytea) owner=<admin>
 CREATE OR REPLACE FUNCTION app.invitation_by_token(p_token_hash bytea)
- RETURNS TABLE(organization_id uuid, id uuid, email text, role text, status text, expires_at timestamp with time zone)
+ RETURNS TABLE(organization_id uuid, id uuid, email text, role text, status text, expires_at timestamp with time zone, plan text)
  LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'public', 'pg_temp'
 AS $function$
-    SELECT i.organization_id, i.id, i.email, i.role, i.status, i.expires_at FROM invitations i WHERE i.token_hash = p_token_hash
+    SELECT i.organization_id, i.id, i.email, i.role, i.status, i.expires_at,
+           (SELECT o.plan FROM organizations o WHERE o.id = i.organization_id) AS plan
+    FROM invitations i WHERE i.token_hash = p_token_hash
   $function$
 -- app.invoice_immutable() owner=<admin>
 CREATE OR REPLACE FUNCTION app.invoice_immutable()
@@ -4896,6 +4928,20 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
+-- app.organizations_plan_insert_guard() owner=<admin>
+CREATE OR REPLACE FUNCTION app.organizations_plan_insert_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'pg_catalog', 'public', 'pg_temp'
+AS $function$
+BEGIN
+  IF NEW.plan IS DISTINCT FROM 'pilot'
+     AND current_user <> (SELECT pg_get_userbyid(c.relowner) FROM pg_class c WHERE c.oid = 'public.organizations'::regclass) THEN
+    RAISE EXCEPTION 'organizations.plan is chosen only by the table owner (docs/ops/runbooks/plan-change.md)'
+      USING ERRCODE = '42501', HINT = 'FORBIDDEN';
+  END IF;
+  RETURN NEW;
+END $function$
 -- app.otp_sign_in_allowed(p_email text) owner=<admin>
 CREATE OR REPLACE FUNCTION app.otp_sign_in_allowed(p_email text)
  RETURNS boolean
@@ -4936,13 +4982,26 @@ AS $function$
         ORDER BY o.created_at, o.id
         LIMIT least(greatest(p_per_org, 1), greatest(p_limit, 1), 1000)
         FOR UPDATE SKIP LOCKED) x),
-    c AS (
+    rr AS (
       SELECT r.id, r.rn FROM (
         SELECT l.id, l.created_at,
                row_number() OVER (PARTITION BY l.organization_id ORDER BY l.created_at, l.id) AS rn
         FROM locked l) r
       ORDER BY r.rn, r.created_at, r.id
       LIMIT least(greatest(p_limit, 1), 1000)),
+    fill AS (
+      SELECT o.id FROM outbox o
+      WHERE o.published_at IS NULL AND o.available_at <= now()
+        AND (o.event_type = 'export.requested'
+             OR EXISTS (SELECT 1 FROM organizations og WHERE og.id = o.organization_id AND og.status = 'active'))
+        AND NOT EXISTS (SELECT 1 FROM rr WHERE rr.id = o.id)
+      ORDER BY o.created_at, o.id
+      LIMIT greatest(least(greatest(p_limit, 1), 1000) - (SELECT count(*) FROM rr), 0)
+      FOR UPDATE SKIP LOCKED),
+    c AS (
+      SELECT rr.id, rr.rn FROM rr
+      UNION ALL
+      SELECT fill.id, 1001::bigint FROM fill),
     u AS (
       UPDATE outbox o SET available_at = now() + interval '60 seconds'
       FROM c WHERE o.id = c.id
@@ -5052,14 +5111,16 @@ BEGIN
 END $function$
 -- app.plan_limits(p_plan text) owner=<admin>
 CREATE OR REPLACE FUNCTION app.plan_limits(p_plan text)
- RETURNS TABLE(plan text, max_properties integer, max_units integer, max_active_members integer, max_storage_bytes bigint)
+ RETURNS TABLE(plan text, max_properties integer, max_units integer, max_active_members integer, max_storage_bytes bigint, max_portal_storage_bytes bigint, max_portal_storage_bytes_per_member bigint)
  LANGUAGE sql
  IMMUTABLE
  SET search_path TO 'pg_catalog', 'pg_temp'
 AS $function$
-    SELECT v.plan, v.max_properties, v.max_units, v.max_active_members, v.max_storage_bytes
-    FROM (VALUES ('pilot'::text, 50, 20000, 200, 53687091200::bigint))
-         AS v (plan, max_properties, max_units, max_active_members, max_storage_bytes)
+    SELECT v.plan, v.max_properties, v.max_units, v.max_active_members, v.max_storage_bytes, v.max_portal_storage_bytes,
+           v.max_portal_storage_bytes_per_member
+    FROM (VALUES ('pilot'::text, 50, 20000, 200, 53687091200::bigint, 1073741824::bigint, 209715200::bigint))
+         AS v (plan, max_properties, max_units, max_active_members, max_storage_bytes, max_portal_storage_bytes,
+               max_portal_storage_bytes_per_member)
     WHERE p_plan IS NULL OR v.plan = p_plan
     ORDER BY v.plan
   $function$
@@ -5905,7 +5966,7 @@ AS $function$
     ON CONFLICT (name) DO UPDATE SET beat_at = excluded.beat_at
   $function$
 
-## grants (bảng, cột, hàm, schema) (1288)
+## grants (bảng, cột, hàm, schema) (1289)
 column public.consent_records.action app_runtime INSERT
 column public.consent_records.channel app_runtime INSERT
 column public.consent_records.id app_runtime INSERT
@@ -6133,6 +6194,7 @@ function app.org_purge_file_keys(p_org uuid) app_worker EXECUTE
 function app.org_request_deletion(p_correlation text) <admin> EXECUTE
 function app.org_request_deletion(p_correlation text) app_runtime EXECUTE
 function app.organizations_lifecycle_guard() <admin> EXECUTE
+function app.organizations_plan_insert_guard() <admin> EXECUTE
 function app.otp_sign_in_allowed(p_email text) <admin> EXECUTE
 function app.otp_sign_in_allowed(p_email text) app_runtime EXECUTE
 function app.outbox_claim(p_limit integer, p_per_org integer) <admin> EXECUTE

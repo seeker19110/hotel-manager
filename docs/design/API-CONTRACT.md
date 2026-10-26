@@ -63,7 +63,7 @@ Trường tuỳ chọn theo mã (không có thì bỏ hẳn, không gửi `null`
 | `UNIT_OUT_OF_SERVICE` | 409 | Phòng đang block/ngừng khai thác |
 | `COMMAND_NOT_FOUND` | 404 | Tra kết quả command không tồn tại/không thuộc người hỏi |
 | `RATE_LIMITED` | 429 | Vượt rate limit |
-| `QUOTA_EXCEEDED` | 409 | Vượt hạn mức gói của tổ chức (D-130): tạo cơ sở/phòng (kể cả nhập liệu hàng loạt — cả lô không ghi), mời/kích hoạt nhân viên, tải file. Cưỡng chế ở CSDL (`app.enforce_plan_quota`, khoá theo tổ chức ⇒ song song không vượt trần). Không retry tự động; lưu trữ bớt hoặc đổi gói (RUNBOOK) |
+| `QUOTA_EXCEEDED` | 409 | Vượt hạn mức gói của tổ chức (D-130): tạo cơ sở/phòng (kể cả nhập liệu hàng loạt — cả lô không ghi), mời/kích hoạt nhân viên, tải file (người thuê/khách: thêm hạn mức con 2% trần tổ chức tổng và 200 MiB mỗi người — D-132). Cưỡng chế ở CSDL (`app.enforce_plan_quota`, khoá theo tổ chức ⇒ song song không vượt trần). Không retry tự động; lưu trữ bớt hoặc đổi gói (RUNBOOK) |
 | `INTERNAL` | 500 | Lỗi không dự kiến. Chỉ trả `correlation_id`, không trả stack trace |
 | `SERVICE_UNAVAILABLE` | 503 | Dịch vụ phụ thuộc tự host (quét mã độc, lưu trữ file) tạm không dùng được; không ghi gì, thử lại sau (D-003) |
 

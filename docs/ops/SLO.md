@@ -32,7 +32,7 @@ sum(rate(hm_http_requests_total{route=~"/api/v1/.*|/api/ready",status=~"5.."}[W]
 # p95 (báo cáo, không làm cổng): histogram_quantile gộp theo le
 histogram_quantile(0.95, sum by (le) (rate(hm_http_request_duration_seconds_bucket{route=~"/api/v1/.*"}[5m])))
 ```
-> SLO-OUTBOX đo theo hàng cũ nhất toàn hệ; fair-share theo tổ chức (D-130, migration 0073) giữ cho backlog của một tổ chức không làm trễ tổ chức khác: relay claim vòng tròn ≤ `RELAY_PER_ORG` (10) sự kiện/tổ chức/lượt, consumer ≤ 1 job/tổ chức/tiến trình worker cùng lúc (`apps/worker/src/relay.ts`; đo ở `relay-fair-share.db.test.ts`: B có mặt ngay lượt claim đầu khi A dồn 10.000 sự kiện).
+> SLO-OUTBOX đo theo hàng cũ nhất toàn hệ; fair-share theo tổ chức (D-130, migration 0073) giữ cho backlog của một tổ chức không làm trễ tổ chức khác: relay claim vòng tròn ưu tiên ≤ `RELAY_PER_ORG` (10) sự kiện/tổ chức/lượt rồi lấp đủ lô theo thứ tự cũ (D-132: tổ chức đơn lẻ vẫn xả đủ lô 100/lượt), consumer chạy tuần tự mỗi queue mỗi tiến trình worker để giữ thứ tự sự kiện trong tổ chức (`apps/worker/src/relay.ts`; đo ở `relay-fair-share.db.test.ts`: B có mặt ngay lượt claim đầu khi A dồn 10.000 sự kiện; một tổ chức 1.000 sự kiện ⇒ lượt đầu đủ 100, đúng thứ tự).
 
 Truy vấn đo được ngay (SLO-OUTBOX, SLO-WORKER):
 ```promql

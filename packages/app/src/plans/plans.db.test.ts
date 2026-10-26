@@ -13,7 +13,7 @@ import { archiveUnit, createUnit } from "../inventory/index.ts";
 import { type CommandResult, toProblem } from "../pipeline/index.ts";
 import { testServices } from "../server/services.ts";
 import { ownerOf, runAs, seedMember } from "../testing/helpers.ts";
-import { PLAN_IDS, PLANS } from "./index.ts";
+import { DEFAULT_PLAN, PLAN_IDS, PLANS, PORTAL_ROLES } from "./index.ts";
 
 let t: TestDb;
 const pilot = PLANS.pilot;
@@ -67,6 +67,8 @@ describe("danh mục gói ở CSDL khớp mã (một nguồn: plans/catalog.ts)"
       max_units: number;
       max_active_members: number;
       max_storage_bytes: string;
+      max_portal_storage_bytes: string;
+      max_portal_storage_bytes_per_member: string;
     }>`select * from app.plan_limits(null)`.execute(t.admin);
     expect(
       rows.rows.map((r) => [
@@ -75,6 +77,8 @@ describe("danh mục gói ở CSDL khớp mã (một nguồn: plans/catalog.ts)"
         r.max_units,
         r.max_active_members,
         Number(r.max_storage_bytes),
+        Number(r.max_portal_storage_bytes),
+        Number(r.max_portal_storage_bytes_per_member),
       ]),
     ).toEqual(
       [...PLAN_IDS]
@@ -85,8 +89,29 @@ describe("danh mục gói ở CSDL khớp mã (một nguồn: plans/catalog.ts)"
           PLANS[id].maxUnits,
           PLANS[id].maxActiveMembers,
           PLANS[id].maxStorageBytes,
+          PLANS[id].maxPortalStorageBytes,
+          PLANS[id].maxPortalStorageBytesPerMember,
         ]),
     );
+  });
+
+  it("DEFAULT organizations.plan = DEFAULT_PLAN = gói trigger INSERT cho phép; vai cổng của trigger = PORTAL_ROLES", async () => {
+    const col = await sql<{ d: string }>`select pg_get_expr(d.adbin, d.adrelid) as d from pg_attrdef d
+      join pg_attribute a on a.attrelid = d.adrelid and a.attnum = d.adnum
+      where d.adrelid = 'public.organizations'::regclass and a.attname = 'plan'`.execute(t.admin);
+    expect(col.rows[0]?.d).toBe(`'${DEFAULT_PLAN}'::text`);
+    const guard = await sql<{
+      d: string;
+    }>`select pg_get_functiondef('app.organizations_plan_insert_guard()'::regprocedure) as d`.execute(
+      t.admin,
+    );
+    expect(guard.rows[0]?.d).toContain(`IS DISTINCT FROM '${DEFAULT_PLAN}'`);
+    const quota = await sql<{
+      d: string;
+    }>`select pg_get_functiondef('app.enforce_plan_quota()'::regprocedure) as d`.execute(t.admin);
+    const roles = PORTAL_ROLES.map((r) => `'${r}'`).join(", ");
+    expect(quota.rows[0]?.d).toContain(`v_uploader_role IN (${roles})`);
+    expect(quota.rows[0]?.d).toContain(`m.role IN (${roles})`);
   });
 
   it("tổ chức mới mặc định 'pilot'; giá trị ngoài danh mục bị CHECK chặn", async () => {
@@ -145,6 +170,67 @@ describe("chỉ owner CSDL đổi được organizations.plan", () => {
              jsonb_build_object('plan', old.plan), jsonb_build_object('plan', upd.plan), ${"T-0001"}, 'ops-plan-change'
       from old, upd`.execute(t.admin);
     expect(Number(r.numAffectedRows)).toBe(1);
+  });
+});
+
+describe("app_runtime không tự chọn organizations.plan khi INSERT (D-132)", () => {
+  it("app_runtime INSERT tổ chức với gói khác mặc định ⇒ 42501 FORBIDDEN; không ghi gói ⇒ mặc định; ghi đúng gói mặc định ⇒ được", async () => {
+    const o = await seedOrg(t.admin, "Chèn gói");
+    const ctx = { orgId: o.orgId, actorId: o.ownerMembershipId };
+    const ins = (id: string, plan?: string) =>
+      withTenant(t.runtime, { ...ctx, orgId: id }, (trx) =>
+        plan === undefined
+          ? sql`insert into organizations (id, name, created_by) values (${id}, 'Mới', ${o.ownerAuthUserId})`.execute(
+              trx,
+            )
+          : sql`insert into organizations (id, name, created_by, plan) values (${id}, 'Mới', ${o.ownerAuthUserId}, ${plan})`.execute(
+              trx,
+            ),
+      );
+    // Gói lạ bị guard chặn trước CHECK (42501, không phải 23514) — kể cả khi danh mục sau này có thêm gói.
+    const bad = randomUUID();
+    const e = await pgErr(ins(bad, "enterprise"));
+    expect([e.code, e.hint]).toEqual(["42501", "FORBIDDEN"]);
+    expect(toProblem(e)).toMatchObject({ status: 403, code: "FORBIDDEN" });
+    expect(await n(sql`select count(*) as n from organizations where id = ${bad}`)).toBe(0);
+    const ok1 = randomUUID();
+    await ins(ok1);
+    const ok2 = randomUUID();
+    await ins(ok2, DEFAULT_PLAN);
+    expect(
+      await n(
+        sql`select count(*) as n from organizations where id in (${ok1}, ${ok2}) and plan = ${DEFAULT_PLAN}`,
+      ),
+    ).toBe(2);
+  });
+
+  it("owner CSDL tạo tổ chức qua được guard (gói ngoài danh mục vẫn bị CHECK chặn)", async () => {
+    const o = await seedOrg(t.admin, "Owner chèn gói");
+    const e = await pgErr(
+      sql`insert into organizations (id, name, created_by, plan) values (${randomUUID()}, 'X', ${o.ownerAuthUserId}, 'gold')`.execute(
+        t.admin,
+      ),
+    );
+    expect(e.code).toBe("23514");
+  });
+
+  it("app.invitation_by_token trả gói của tổ chức (actor nhận lời mời mang gói thật)", async () => {
+    const o = await seedOrg(t.admin, "Lời mời gói");
+    const owner = await ownerOf(t, o);
+    const key = testServices().invitationKey;
+    const r = await runAs(t, owner, (ctx) =>
+      inviteMember(ctx, key, { email: "goi@example.test", role: "accountant", propertyIds: [], limits: {} }),
+    );
+    expect(r.status).toBe("committed");
+    const hash = (
+      await sql<{
+        h: Buffer;
+      }>`select token_hash as h from invitations where organization_id = ${o.orgId}`.execute(t.admin)
+    ).rows[0]?.h as Buffer;
+    // Như accept-invitation: app_runtime, CHƯA có ngữ cảnh tổ chức.
+    const row = await sql<{ organization_id: string; plan: string }>`
+      select organization_id, plan from app.invitation_by_token(${hash})`.execute(t.runtime);
+    expect(row.rows).toEqual([{ organization_id: o.orgId, plan: DEFAULT_PLAN }]);
   });
 });
 
@@ -400,6 +486,99 @@ describe("QUOTA_EXCEEDED: dung lượng file", () => {
           values (${randomUUID()}, ${B.orgId}, 'work_order', 'application/pdf', 1000, ${"b".repeat(64)}, 'pending_scan',
                   ${`${B.orgId}/work_order/${randomUUID()}`}, ${B.ownerMembershipId})`.execute(trx),
     );
+  });
+});
+
+describe("QUOTA_EXCEEDED: dung lượng con của người dùng cổng (D-132)", () => {
+  const MiB = 1024 ** 2;
+  async function portalMember(org: SeededOrg, role: "tenant" | "guest" = "tenant") {
+    const person = randomUUID();
+    await sql`insert into persons (id, organization_id, full_name) values (${person}, ${org.orgId}, ${role})`.execute(
+      t.admin,
+    );
+    const id = randomUUID();
+    await sql`insert into memberships (id, organization_id, person_id, role) values (${id}, ${org.orgId}, ${person}, ${role})`.execute(
+      t.admin,
+    );
+    return id;
+  }
+  /** Ghi file như người tải `by` (RLS người dùng cổng: owner_type payment_claim/work_order, uploaded_by = chính mình). */
+  const put = (
+    org: SeededOrg,
+    by: string,
+    size: number,
+    opts: { owner?: string; status?: string; db?: "runtime" | "admin" } = {},
+  ) => {
+    const id = randomUUID();
+    const owner = opts.owner ?? "payment_claim";
+    const q = sql`insert into files (id, organization_id, owner_type, mime, size_bytes, sha256, status, storage_key, reject_reason,
+                                     uploaded_by)
+                  values (${id}, ${org.orgId}, ${owner}, 'image/jpeg', ${size}, ${"c".repeat(64)}, ${opts.status ?? "pending_scan"},
+                          ${`${org.orgId}/${owner}/${id}`}, ${opts.status === "rejected" ? "malware" : null}, ${by})`;
+    return opts.db === "admin"
+      ? q.execute(t.admin)
+      : withTenant(t.runtime, { orgId: org.orgId, actorId: by }, (trx) => q.execute(trx));
+  };
+  const quota = async (p: Promise<unknown>) => toProblem(await pgErr(p));
+
+  it("mỗi người dùng cổng ≤ 200 MiB: chạm trần ⇒ 409; người khác và NHÂN VIÊN vẫn tải được; file bị từ chối/bản xuất không tính", async () => {
+    const P = await seedOrg(t.admin, "Cổng mỗi người");
+    const tenantActor = await seedMember(t, P, "tenant");
+    const tenant = tenantActor.membershipId;
+    const other = await portalMember(P);
+    await put(P, tenant, pilot.maxPortalStorageBytesPerMember - 10);
+    await put(P, tenant, 5 * MiB, { status: "rejected", db: "admin" });
+    await put(P, tenant, 5 * MiB, { owner: "export_job", db: "admin" });
+    await put(P, tenant, 10);
+    expect(await quota(put(P, tenant, 1))).toMatchObject({ code: "QUOTA_EXCEEDED", status: 409 });
+    // Người thuê khác của cùng tổ chức và nhân viên (owner) không bị ảnh hưởng.
+    await put(P, other, MiB);
+    await put(P, P.ownerMembershipId, 50 * MiB, { owner: "work_order" });
+    // Qua pipeline lệnh (vai tenant): 409 QUOTA_EXCEEDED, không lưu gì.
+    const before = await n(sql`select count(*) as n from files where uploaded_by = ${tenant}`);
+    const viaCommand = await runAs(t, tenantActor, (c) =>
+      sql`insert into files (id, organization_id, owner_type, mime, size_bytes, sha256, status, storage_key, uploaded_by)
+            values (${randomUUID()}, ${P.orgId}, 'payment_claim', 'image/jpeg', 1, ${"d".repeat(64)}, 'pending_scan',
+                    ${`${P.orgId}/payment_claim/${randomUUID()}`}, ${tenant})`.execute(c.trx),
+    );
+    expect(problemOf(viaCommand)).toMatchObject({ code: "QUOTA_EXCEEDED", status: 409 });
+    expect(await n(sql`select count(*) as n from files where uploaded_by = ${tenant}`)).toBe(before);
+  });
+
+  it("tổng mọi người dùng cổng (tenant + guest) ≤ 2% trần tổ chức: chạm ⇒ 409 cho người dùng cổng MỚI; nhân viên vẫn tải được", async () => {
+    const P = await seedOrg(t.admin, "Cổng tổng");
+    const per = pilot.maxPortalStorageBytesPerMember;
+    const full = Math.floor(pilot.maxPortalStorageBytes / per);
+    // Fixture: `full` người thuê mỗi người đủ trần riêng, + 1 khách lưu trú phần dư − 1 byte ⇒ tổng cổng = trần − 1.
+    for (let i = 0; i < full; i++) await put(P, await portalMember(P), per, { db: "admin" });
+    const guest = await portalMember(P, "guest");
+    const rest = pilot.maxPortalStorageBytes - full * per;
+    await put(P, guest, rest - 1, { db: "admin" });
+    const fresh = await portalMember(P);
+    await put(P, fresh, 1);
+    expect(await quota(put(P, fresh, 1))).toMatchObject({ code: "QUOTA_EXCEEDED", status: 409 });
+    expect(await quota(put(P, guest, 1))).toMatchObject({ code: "QUOTA_EXCEEDED", status: 409 });
+    await put(P, P.ownerMembershipId, 100 * MiB, { owner: "work_order" });
+    expect(
+      await n(sql`select coalesce(sum(f.size_bytes), 0) as n from files f join memberships m on m.id = f.uploaded_by
+                  where f.organization_id = ${P.orgId} and m.role in ('tenant', 'guest') and f.status in ('pending_scan','ready')`),
+    ).toBe(pilot.maxPortalStorageBytes);
+    // Tổ chức khác không ảnh hưởng.
+    const Q = await seedOrg(t.admin, "Cổng tổng Q");
+    await put(Q, await portalMember(Q), MiB);
+  });
+
+  it("song song: người thuê còn 1 MiB, 5 file 1 MiB cùng lúc ⇒ đúng 1 thành công", async () => {
+    const P = await seedOrg(t.admin, "Cổng song song");
+    const tenant = await portalMember(P);
+    await put(P, tenant, pilot.maxPortalStorageBytesPerMember - MiB, { db: "admin" });
+    const res = await Promise.allSettled(Array.from({ length: 5 }, () => put(P, tenant, MiB)));
+    expect(res.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    for (const r of res)
+      if (r.status === "rejected") expect(toProblem(r.reason)).toMatchObject({ code: "QUOTA_EXCEEDED" });
+    expect(
+      await n(sql`select coalesce(sum(size_bytes), 0) as n from files where uploaded_by = ${tenant}`),
+    ).toBe(pilot.maxPortalStorageBytesPerMember);
   });
 });
 
