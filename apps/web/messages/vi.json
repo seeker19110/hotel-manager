@@ -5045,11 +5045,19 @@
   },
   "support_banner.revoke": {
     "message": "Thu hồi truy cập hỗ trợ",
-    "description": "Biểu ngữ truy cập hỗ trợ trên mọi trang của tổ chức (T-2313, D-128): nút thu hồi một bước (owner)."
+    "description": "Nút thu hồi một bước của owner ở khối Truy cập hỗ trợ trên /nhat-ky (T-2313, D-128, D-133)."
   },
   "support_banner.revoked": {
     "message": "Đã thu hồi truy cập hỗ trợ",
-    "description": "Biểu ngữ truy cập hỗ trợ trên mọi trang của tổ chức (T-2313, D-128): thông báo thành công khi thu hồi."
+    "description": "Khối Truy cập hỗ trợ trên /nhat-ky (T-2313, D-128, D-133): thông báo thành công khi thu hồi."
+  },
+  "support_banner.manage": {
+    "message": "Thu hồi hoặc quản lý truy cập hỗ trợ",
+    "description": "Biểu ngữ truy cập hỗ trợ trên mọi trang của tổ chức (T-2313, D-128, D-133): liên kết của owner tới khối quản lý truy cập hỗ trợ ở /nhat-ky (thu hồi một bước ở đó)."
+  },
+  "support_banner.view_log": {
+    "message": "Xem thao tác của hỗ trợ trong nhật ký",
+    "description": "Biểu ngữ truy cập hỗ trợ trên mọi trang của tổ chức (T-2313, D-128, D-133): liên kết của manager tới /nhat-ky lọc theo người hỗ trợ."
   },
   "support_banner.note": {
     "message": "Người hỗ trợ chỉ xem, không thay đổi được dữ liệu; mọi lần truy cập có trong Nhật ký hoạt động.",

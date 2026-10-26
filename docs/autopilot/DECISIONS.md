@@ -950,3 +950,10 @@
 - Chọn: outbox_claim: vòng tròn ≤ per_org rồi LẤP ĐẦY phần còn lại của p_limit theo thứ tự cũ (per_org là mức ưu tiên, không phải trần cứng); hạn mức dung lượng con cho tải lên của người thuê/portal (vd 2% trần tổ chức và ≤ 200 MB mỗi người thuê); consumer về localConcurrency 1 để giữ thứ tự trong tiến trình (fair-share giữ ở claim); actor dựng tay mang plan; chặn app_runtime tự chọn plan khi INSERT tổ chức
 - Lý do (tiêu chí chất lượng cuối): (1) đúng: không làm chậm tổ chức đơn lẻ (ca thường gặp ở pilot), không mở vector từ chối dịch vụ mới, giữ thứ tự sự kiện như trước T-2314; (3) sửa nhỏ, có test
 - Đường lùi: Đổi tham số trong 0073/relay.ts
+
+### D-133 · 2026-10-26T11:30:46+00:00 · PR #139 bundle-size vượt trần 300 kB do biểu ngữ hỗ trợ kéo CommandForm vào mọi trang
+
+- Phương án: (1) Biểu ngữ không JS client: hiển thị trạng thái + liên kết tới /nhat-ky#truy-cap-ho-tro (thu hồi một bước ở đó) · (2) Chỉnh experimental.turbopackChunking.minChunkSize trong next.config.ts · (3) Nâng trần size-limit
+- Chọn: Biểu ngữ không JS client: hiển thị trạng thái + liên kết tới /nhat-ky#truy-cap-ho-tro (thu hồi một bước ở đó)
+- Lý do (tiêu chí chất lượng cuối): (1) không nới cổng, không đổi cấu hình build thử nghiệm ảnh hưởng mọi route; (3) đơn giản; (4) owner vẫn thấy biểu ngữ trên mọi trang, thu hồi một bước tại /nhat-ky (TM-12 vẫn đạt)
+- Đường lùi: Đưa lại nút thu hồi vào biểu ngữ khi có cách tách chunk

@@ -1,5 +1,6 @@
 // Migration 0073 (T-2314, D-130/D-132): down gỡ sạch (cột plan, trigger hạn mức + guard INSERT, plan_limits, outbox_claim 2 tham số)
-// và khôi phục `invitation_by_token` của 0062 + `outbox_claim(integer)` của 0071; up lại đưa về trạng thái mới nhất.
+// và khôi phục `invitation_by_token` của 0062; `outbox_claim(integer)` của 0071 giữ nguyên cả khi up (expand → contract: worker N−1
+// gọi một tham số vẫn chạy — job schema-compat); up lại đưa về trạng thái mới nhất.
 import { createMigrator } from "@hm/db";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -39,7 +40,7 @@ describe("migration 0073 — down/up", () => {
     expect(await state()).toMatchObject({
       plan_col: true,
       claim2: true,
-      claim1: false,
+      claim1: true,
       limits: true,
       insert_guard: true,
     });
@@ -63,6 +64,15 @@ describe("migration 0073 — down/up", () => {
     expect(grants.rows[0]).toEqual({ a: true, b: true });
     const up = await createMigrator(t.admin).migrateToLatest();
     expect(up.error).toBeUndefined();
-    expect(await state()).toMatchObject({ plan_col: true, claim2: true, claim1: false, insert_guard: true });
+    expect(await state()).toMatchObject({ plan_col: true, claim2: true, claim1: true, insert_guard: true });
   }, 120_000);
+
+  it("tương thích N−1: worker cũ gọi `outbox_claim(p_limit)` một tham số vẫn chạy (không mơ hồ với hàm hai tham số)", async () => {
+    // Hàm hai tham số không có DEFAULT ⇒ lời gọi một tham số chỉ khớp hàm của 0071; hai tham số khớp hàm mới.
+    await expect(sql`select * from app.outbox_claim(10)`.execute(t.worker)).resolves.toBeDefined();
+    await expect(sql`select * from app.outbox_claim(10, 10)`.execute(t.worker)).resolves.toBeDefined();
+    const defaults = await sql<{ n: number }>`select pronargdefaults::int as n from pg_proc
+      where oid = 'app.outbox_claim(integer, integer)'::regprocedure`.execute(t.admin);
+    expect(defaults.rows[0]?.n).toBe(0);
+  });
 });

@@ -82,10 +82,7 @@ export async function withActor(
       />
       <main id="main" className="page">
         {support.ok && support.data.some((x) => x.state === "active") ? (
-          <SupportBanner
-            rows={support.data.filter((x) => x.state === "active")}
-            owner={r.actor.role === "owner"}
-          />
+          <SupportBanner rows={support.data.filter((x) => x.state === "active")} viewerRole={r.actor.role} />
         ) : null}
         <h1>{title}</h1>
         {await render(r.actor, { kinds })}

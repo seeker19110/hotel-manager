@@ -1,7 +1,7 @@
 // E2E nhật ký hoạt động + truy cập hỗ trợ (PLAN T-2313; IND-SAAS-009, CMP-AUDIT-002; D-128): chủ khách sạn mở /nhat-ky, thấy sự
 // kiện (nhãn tiếng Việt), lọc, yêu cầu xuất CSV → cấp truy cập hỗ trợ (email + lý do + 24 giờ) → người hỗ trợ nhận lời mời bằng tài
 // khoản RIÊNG (không impersonation), bật xác thực hai lớp (bắt buộc), thấy phòng nhưng mọi lệnh ghi bị 403, biểu ngữ hiện → chủ thấy
-// thao tác của hỗ trợ trong nhật ký (lọc "Tài khoản hỗ trợ nền tảng") và biểu ngữ có nút thu hồi → thu hồi một bước → hỗ trợ mất
+// thao tác của hỗ trợ trong nhật ký (lọc "Tài khoản hỗ trợ nền tảng") và biểu ngữ có liên kết tới khối Truy cập hỗ trợ ở /nhat-ky (D-133) → thu hồi một bước ở đó → hỗ trợ mất
 // quyền ở request kế tiếp. Buồng phòng mở /nhat-ky ⇒ "Không có quyền". Axe + vùng chạm ≥ 44 px.
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
@@ -184,8 +184,9 @@ test("hỗ trợ: nhận lời mời bằng tài khoản riêng, bật 2FA, th�
   const banner = page.getByTestId("support-banner");
   await expect(banner).toContainText("Đang có truy cập hỗ trợ");
   await expect(banner).toContainText(SUPPORT.name);
-  // Người hỗ trợ không có nút thu hồi (chỉ owner).
-  await expect(banner.getByRole("button", { name: "Thu hồi truy cập hỗ trợ" })).toHaveCount(0);
+  // Người hỗ trợ không có nút thu hồi lẫn liên kết quản lý (chỉ owner).
+  await expect(banner.getByRole("button")).toHaveCount(0);
+  await expect(banner.getByRole("link")).toHaveCount(0);
   await expectAccessible(page);
 
   // Ghi: mọi lệnh bị 403 trước khi đọc thân; nhật ký/xuất/thành viên không mở được.
@@ -223,7 +224,16 @@ test("owner thấy thao tác của hỗ trợ trong nhật ký rồi thu hồi m
   await expect(banner).toContainText(SUPPORT.name);
   await expect(banner).toContainText(REASON);
   await expectAccessible(page);
-  await banner.getByRole("button", { name: "Thu hồi truy cập hỗ trợ" }).click();
+  // D-133: biểu ngữ không có JS client — owner theo liên kết tới khối Truy cập hỗ trợ, thu hồi một bước ở đó.
+  await expect(banner.getByRole("button")).toHaveCount(0);
+  await page.goto("/phong");
+  await page
+    .getByTestId("support-banner")
+    .getByRole("link", { name: "Thu hồi hoặc quản lý truy cập hỗ trợ" })
+    .click();
+  await expect(page).toHaveURL(/\/nhat-ky#truy-cap-ho-tro$/);
+  const item = page.getByTestId("support-list").locator("li").filter({ hasText: SUPPORT.name });
+  await item.getByRole("button", { name: "Thu hồi truy cập hỗ trợ" }).click();
   await expect(page.getByTestId("support-banner")).toBeHidden({ timeout: 15_000 });
   await ctx.close();
 

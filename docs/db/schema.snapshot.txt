@@ -3052,7 +3052,7 @@ public.units CREATE TRIGGER trg_units_updated BEFORE UPDATE ON units FOR EACH RO
 public.work_orders CREATE TRIGGER trg_work_orders_transition BEFORE UPDATE ON work_orders FOR EACH ROW EXECUTE FUNCTION app.work_order_transition()
 public.work_orders CREATE TRIGGER trg_work_orders_updated BEFORE UPDATE ON work_orders FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 
-## functions (142)
+## functions (143)
 -- app.actor_can_see_property(p uuid) owner=<admin>
 CREATE OR REPLACE FUNCTION app.actor_can_see_property(p uuid)
  RETURNS boolean
@@ -4957,8 +4957,29 @@ AS $function$
         AND NOT EXISTS (SELECT 1 FROM memberships m WHERE m.auth_user_id = u.id AND m.role <> 'tenant'
                           AND m.status IN ('invited','active','suspended')))
   $function$
+-- app.outbox_claim(p_limit integer) owner=<admin>
+CREATE OR REPLACE FUNCTION app.outbox_claim(p_limit integer)
+ RETURNS TABLE(id uuid, organization_id uuid, event_type text, aggregate_id uuid, payload jsonb, correlation_id text, traceparent text)
+ LANGUAGE sql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+    WITH c AS (
+      SELECT o.id FROM outbox o WHERE o.published_at IS NULL AND o.available_at <= now()
+        AND (o.event_type = 'export.requested'
+             OR EXISTS (SELECT 1 FROM organizations og WHERE og.id = o.organization_id AND og.status = 'active'))
+      ORDER BY o.created_at, o.id
+      LIMIT least(greatest(p_limit, 1), 1000)
+      FOR UPDATE SKIP LOCKED),
+    u AS (
+      UPDATE outbox o SET available_at = now() + interval '60 seconds'
+      FROM c WHERE o.id = c.id
+      RETURNING o.id, o.organization_id, o.event_type, o.aggregate_id, o.payload, o.correlation_id, o.traceparent, o.created_at)
+    SELECT u.id, u.organization_id, u.event_type, u.aggregate_id, u.payload, u.correlation_id, u.traceparent
+    FROM u ORDER BY u.created_at, u.id
+  $function$
 -- app.outbox_claim(p_limit integer, p_per_org integer) owner=<admin>
-CREATE OR REPLACE FUNCTION app.outbox_claim(p_limit integer, p_per_org integer DEFAULT 10)
+CREATE OR REPLACE FUNCTION app.outbox_claim(p_limit integer, p_per_org integer)
  RETURNS TABLE(id uuid, organization_id uuid, event_type text, aggregate_id uuid, payload jsonb, correlation_id text, traceparent text)
  LANGUAGE sql
  SECURITY DEFINER
@@ -5966,7 +5987,7 @@ AS $function$
     ON CONFLICT (name) DO UPDATE SET beat_at = excluded.beat_at
   $function$
 
-## grants (bảng, cột, hàm, schema) (1289)
+## grants (bảng, cột, hàm, schema) (1291)
 column public.consent_records.action app_runtime INSERT
 column public.consent_records.channel app_runtime INSERT
 column public.consent_records.id app_runtime INSERT
@@ -6197,6 +6218,8 @@ function app.organizations_lifecycle_guard() <admin> EXECUTE
 function app.organizations_plan_insert_guard() <admin> EXECUTE
 function app.otp_sign_in_allowed(p_email text) <admin> EXECUTE
 function app.otp_sign_in_allowed(p_email text) app_runtime EXECUTE
+function app.outbox_claim(p_limit integer) <admin> EXECUTE
+function app.outbox_claim(p_limit integer) app_worker EXECUTE
 function app.outbox_claim(p_limit integer, p_per_org integer) <admin> EXECUTE
 function app.outbox_claim(p_limit integer, p_per_org integer) app_worker EXECUTE
 function app.outbox_mark(p_id uuid, p_error text) <admin> EXECUTE

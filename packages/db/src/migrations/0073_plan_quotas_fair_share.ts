@@ -16,7 +16,7 @@
 // - `organizations.plan` khi INSERT: chỉ owner CSDL được chọn khác gói mặc định (`trg_organizations_plan_insert` ⇒ 42501) — app_runtime
 //   tạo tổ chức (`org.create`) luôn nhận gói mặc định. `app.invitation_by_token` trả thêm `plan` của tổ chức (actor dựng tay khi nhận
 //   lời mời mang gói thật ⇒ hạn mức tần suất đúng gói).
-// - Fair-share relay: `app.outbox_claim(p_limit, p_per_org DEFAULT 10)` — (1) vòng tròn: mỗi tổ chức có việc được ƯU TIÊN tối đa
+// - Fair-share relay: `app.outbox_claim(p_limit, p_per_org)` (HÀM MỚI, không DEFAULT) — (1) vòng tròn: mỗi tổ chức có việc được ƯU TIÊN tối đa
 //   `p_per_org` hàng cũ nhất, thứ tự (vòng, created_at) ⇒ tổ chức A dồn hàng chục nghìn sự kiện không chặn sự kiện của B (B vào ngay
 //   lượt đầu); (2) LẤP ĐẦY phần còn lại của `p_limit` bằng các hàng đến hạn kế tiếp theo thứ tự cũ (created_at, id) ⇒ tổ chức đơn lẻ
 //   vẫn xả đủ lô (per_org là mức ưu tiên, không phải trần cứng — D-132). Trong một tổ chức luôn là tiền tố liên tục theo
@@ -29,7 +29,11 @@
 //   khi đã đầy bị chặn dù lời mời đã giữ chỗ; lời mời hết hạn tự nhả chỗ.
 // - `due_orgs` của outbox_claim gom theo tổ chức trên MỌI hàng đến hạn (quét backlog qua index một phần) — chi phí tăng theo backlog
 //   toàn hệ; đo ở relay-fair-share.db.test.ts (10.000 hàng < 2 s) và db-perf.
-// DOWN: gỡ trigger/hàm/index/cột, khôi phục guard 0070, `invitation_by_token` của 0062 và `outbox_claim(integer)` của 0071.
+// TƯƠNG THÍCH NGƯỢC (expand → contract, OPS-DEPLOY-003, job `schema-compat`): `app.outbox_claim(integer)` của 0071 GIỮ NGUYÊN — worker
+//   bản N−1 (gọi một tham số) vẫn chạy đúng trên schema này trong lúc triển khai cuốn chiếu (claim theo thứ tự cũ, chưa fair-share).
+//   Hàm hai tham số KHÔNG có DEFAULT: có DEFAULT thì lời gọi một tham số mơ hồ giữa hai hàm (42725). Worker N luôn truyền đủ hai.
+//   Bước contract (migration sau, khi không còn worker N−1): DROP `app.outbox_claim(integer)`.
+// DOWN: gỡ trigger/hàm/index/cột, khôi phục guard 0070, `invitation_by_token` của 0062; `outbox_claim(integer)` của 0071 chưa bị đụng.
 import { type Kysely, sql } from "kysely";
 
 const PASS = (o: string) => `
@@ -222,8 +226,7 @@ ${INVITATION_BY_TOKEN(true)}
 
 CREATE INDEX ix_outbox_unpublished_org ON outbox (organization_id, created_at, id) WHERE published_at IS NULL;
 
-DROP FUNCTION app.outbox_claim(integer);
-CREATE FUNCTION app.outbox_claim(p_limit integer, p_per_org integer DEFAULT 10)
+CREATE FUNCTION app.outbox_claim(p_limit integer, p_per_org integer)
   RETURNS TABLE (id uuid, organization_id uuid, event_type text, aggregate_id uuid, payload jsonb, correlation_id text,
                  traceparent text)
   LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp AS $$
@@ -273,24 +276,6 @@ GRANT EXECUTE ON FUNCTION app.outbox_claim(integer, integer) TO app_worker;
 
 const DOWN = `
 DROP FUNCTION IF EXISTS app.outbox_claim(integer, integer);
-CREATE FUNCTION app.outbox_claim(p_limit integer)
-  RETURNS TABLE (id uuid, organization_id uuid, event_type text, aggregate_id uuid, payload jsonb, correlation_id text,
-                 traceparent text)
-  LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp AS $$
-    WITH c AS (
-      SELECT o.id FROM outbox o WHERE o.published_at IS NULL AND o.available_at <= now()${PASS("o")}
-      ORDER BY o.created_at, o.id
-      LIMIT least(greatest(p_limit, 1), 1000)
-      FOR UPDATE SKIP LOCKED),
-    u AS (
-      UPDATE outbox o SET available_at = now() + interval '60 seconds'
-      FROM c WHERE o.id = c.id
-      RETURNING o.id, o.organization_id, o.event_type, o.aggregate_id, o.payload, o.correlation_id, o.traceparent, o.created_at)
-    SELECT u.id, u.organization_id, u.event_type, u.aggregate_id, u.payload, u.correlation_id, u.traceparent
-    FROM u ORDER BY u.created_at, u.id
-  $$;
-REVOKE ALL ON FUNCTION app.outbox_claim(integer) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION app.outbox_claim(integer) TO app_worker;
 DROP INDEX IF EXISTS ix_outbox_unpublished_org;
 ${INVITATION_BY_TOKEN(false)}
 DROP TRIGGER IF EXISTS trg_organizations_plan_insert ON organizations;
