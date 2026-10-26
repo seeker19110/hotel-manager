@@ -26,15 +26,23 @@ export interface Actor {
   authenticatedAt?: Date;
 }
 
-export type AccessErrorCode = "UNAUTHENTICATED" | "NOT_FOUND" | "MFA_REQUIRED";
+export type AccessErrorCode = "UNAUTHENTICATED" | "NOT_FOUND" | "MFA_REQUIRED" | "ORG_PENDING_DELETION";
 
 export class AccessError extends Error {
   readonly code: AccessErrorCode;
-  readonly status: 401 | 403 | 404;
+  readonly status: 401 | 403 | 404 | 423;
   constructor(code: AccessErrorCode, message: string) {
     super(message);
     this.name = "AccessError";
     this.code = code;
-    this.status = code === "UNAUTHENTICATED" ? 401 : code === "NOT_FOUND" ? 404 : 403;
+    // ORG_PENDING_DELETION (T-2312, D-125): tổ chức đang chờ xoá — mọi truy cập bị khoá trừ xuất dữ liệu và huỷ yêu cầu.
+    this.status =
+      code === "UNAUTHENTICATED"
+        ? 401
+        : code === "NOT_FOUND"
+          ? 404
+          : code === "ORG_PENDING_DELETION"
+            ? 423
+            : 403;
   }
 }

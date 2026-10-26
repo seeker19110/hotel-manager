@@ -3,6 +3,7 @@ import {
   type DataRequestDeps,
   type HttpDeps,
   isSessionRevoked,
+  type OrgDeletionDeps,
   reportUnexpectedError,
   serverContext,
 } from "@hm/app";
@@ -52,4 +53,10 @@ export function dataRequestDeps(): DataRequestDeps {
       }
     },
   };
+}
+
+/** Phụ thuộc của `/api/v1/organization/deletion` (T-2312, D-125): như `httpDeps` + kiểm mật khẩu như DSAR (cùng một hàm). */
+export function orgDeletionDeps(): OrgDeletionDeps {
+  const { verifyPassword } = dataRequestDeps();
+  return { ...httpDeps(), ...(verifyPassword ? { verifyPassword } : {}) };
 }

@@ -68,6 +68,11 @@ const HELP: Readonly<Record<string, [type: "gauge" | "counter" | "histogram", he
     "gauge",
     "Yêu cầu quyền chủ thể (truy cập/xoá) còn mở đã quá hạn trả lời due_at theo vùng — phải bằng 0.",
   ],
+  // Vòng đời xoá tổ chức (T-2312, `app.org_deletion_metrics` — migration 0070; IND-SAAS-006). state=waiting|due.
+  hm_org_pending_deletion: [
+    "gauge",
+    "Số tổ chức đang chờ xoá theo trạng thái: waiting = còn trong 30 ngày giữ, due = đã tới hạn purge (job tenancy.purge).",
+  ],
   // HTTP (T-406, observability/http-metrics.ts): đo ở lớp handler, lưu trong bộ nhớ từng bản web.
   hm_http_requests_total: ["counter", "Số request HTTP theo mẫu route, method, status."],
   hm_http_request_duration_seconds: [
@@ -150,9 +155,11 @@ export async function collectMetrics(db: Kysely<unknown>, now: Date = new Date()
     );
   // Hàm riêng (0069): yêu cầu quyền chủ thể quá hạn — cảnh báo `HmDsarOverdue` (CMP-VN-007).
   const dsar = await sql<Row>`select name, labels, value from app.dsar_metrics(${now})`.execute(db);
+  // Hàm riêng (0070): tổ chức chờ xoá / tới hạn purge (IND-SAAS-006).
+  const orgDel = await sql<Row>`select name, labels, value from app.org_deletion_metrics(${now})`.execute(db);
   return [
     { name: "hm_up", value: 1 },
-    ...[...r.rows, ...rec.rows, ...health.rows, ...budget.rows, ...dsar.rows].map((x) => ({
+    ...[...r.rows, ...rec.rows, ...health.rows, ...budget.rows, ...dsar.rows, ...orgDel.rows].map((x) => ({
       name: x.name,
       labels: x.labels ?? {},
       value: Number(x.value),

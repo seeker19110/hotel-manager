@@ -117,6 +117,11 @@ const SAFE = /^(?:`[/#][^`]*`|"[/#][^"]*"|'[/#][^']*'|\(?safeUrl\([^)]*\)\)?(?: 
  */
 const ALLOWED: readonly { file: string; expr: RegExp; why: string }[] = [
   {
+    file: "apps/web/components/tenancy/org-deletion.tsx",
+    expr: /^body\.data\.url$/,
+    why: "URL ký ≤ 15 phút do CHÍNH server trả từ `exports.download` (bản xuất của người gọi, RLS) — không từ đầu vào người dùng (T-2312)",
+  },
+  {
     file: "apps/web/components/rental/app-nav.tsx",
     expr: /^i\.href$/,
     why: "đường dẫn hằng của bảng ITEMS trong file",

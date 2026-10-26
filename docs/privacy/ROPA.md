@@ -33,6 +33,7 @@ Mỗi hoạt động điền đủ cột; cột "Cơ sở pháp lý (đề xuấ
 | HĐ-07 | Báo cáo và xuất dữ liệu | báo cáo công nợ/thu tiền; xuất theo yêu cầu chủ cơ sở | người thuê, khách | file xuất (không số giấy tờ/ảnh) | thực hiện hợp đồng dịch vụ | VPS, kho file | không | file hết hạn 15 phút, xoá ≤ 24 giờ | quyền xuất riêng, xác thực lại, link ngắn hạn |
 | HĐ-08 | Nhật ký audit và an ninh | truy vết thao tác, điều tra sự cố | nhân viên, người thuê (người thực hiện) | `audit_events.*`, `auth.session.ipAddress/userAgent`, log | an ninh hệ thống; nghĩa vụ truy vết (chưa xác minh) | VPS | không | audit không xoá ở pilot; log chưa chốt | append-only, che bí mật/PII |
 | HĐ-09 | Sao lưu và khôi phục | phục hồi sau sự cố | mọi chủ thể ở trên | toàn bộ CSDL + file ở dạng mã hoá | an ninh hệ thống | kho sao lưu khác máy | tuỳ nhà cung cấp | retention-full 4 bản (đề xuất) | mã hoá phía client, khoá ngoài máy, diễn tập PITR |
+| HĐ-10 | Xoá tổ chức khi chấm dứt dịch vụ (T-2312, D-125) | xoá/trả dữ liệu của tổ chức khi owner yêu cầu, có thời gian xuất; chứng minh đã xoá | mọi chủ thể trong dữ liệu của tổ chức; owner yêu cầu | mọi bảng có `organization_id` + object `<org>/…`; `organizations.deletion_requested_by`, `org_deletion_certificates.*` | nghĩa vụ của bên xử lý khi chấm dứt (GDPR Art. 28(3)(g); Luật 91/2025/QH15 — chưa đối chiếu bản gốc) | không | không | giữ 30 ngày rồi xoá cứng (RET-22); chứng nhận giữ lâu dài (RET-23) | xác thực lại + chỉ owner; khoá truy cập khi chờ; purge trong hàm SECURITY DEFINER (lối vượt append-only chỉ cho role owner); object xoá trước; job TẮT ở production tới khi có người + grant |
 
 ## Quyền của chủ thể (DSAR)
 Quy trình tự phục vụ cho **tài khoản** (T-2311, D-123) ở trang `/quyen-rieng-tu` (API `/api/v1/me/data-requests`); dữ liệu khách/người thuê do cơ sở là bên kiểm soát vẫn theo yêu cầu gửi cơ sở (chưa có công cụ riêng — pháp lý chốt phân vai).
@@ -51,6 +52,7 @@ Quy trình tự phục vụ cho **tài khoản** (T-2311, D-123) ở trang `/quy
 | Ngày | Thay đổi | Người |
 |---|---|---|
 | 2026-10-16 | Tạo khung từ `data-map.yaml` (T-309); chưa có nội dung pháp lý | kỹ thuật |
+| 2026-10-26 | HĐ-10 xoá tổ chức (T-2312, D-125): 30 ngày giữ + xuất/huỷ, purge mọi kho, chứng nhận xoá | kỹ thuật |
 | 2026-10-26 | Quy trình DSAR theo tài khoản (T-2311, D-123): truy cập/xoá/hạn chế, hạn theo vùng, kho, phần giữ lại + căn cứ | kỹ thuật |
 | 2026-10-25 | DPIA nháp kỹ thuật 0.1.0 (`docs/DPIA.md`); nhắc rà 6 tháng có CI (`docs/privacy/CHANGELOG.md`, `scripts/privacy-docs.mjs`) | kỹ thuật |
 

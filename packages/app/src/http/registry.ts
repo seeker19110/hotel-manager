@@ -685,11 +685,13 @@ export const COMMANDS: Readonly<Record<string, AnyCommand>> = {
   }),
   "exports.requestOrgExport": defineCommand({
     command: "exports.requestOrgExport",
+    allowPendingDeletion: true,
     input: z.strictObject({}),
     run: async (ctx) => ({ data: await requestOrgExport(ctx), httpStatus: 202 }),
   }),
   "exports.download": defineCommand({
     command: "exports.download",
+    allowPendingDeletion: true,
     input: z.strictObject({ export_id: z.string().max(64) }),
     run: async (ctx, i, svc) => ({ data: await downloadExport(ctx, svc, { exportId: i.export_id }) }),
   }),
@@ -1905,11 +1907,13 @@ export const QUERIES: Readonly<Record<string, AnyQuery>> = {
   },
   "exports.getStatus": {
     query: "exports.getStatus",
+    allowPendingDeletion: true,
     input: z.strictObject({ export_id: z.string().max(64) }),
     run: (db, actor, i: { export_id: string }) => getExportStatus(db, actor, i.export_id),
   },
   "exports.listMine": {
     query: "exports.listMine",
+    allowPendingDeletion: true,
     input: z.strictObject({}),
     run: (db, actor) => listMyExports(db, actor),
   },

@@ -13,10 +13,13 @@ export async function withActor(
   title: string,
   current: string,
   render: (actor: Actor, ctx: { kinds: NavKinds }) => Promise<ReactNode>,
+  /** Trang vẫn mở khi tổ chức chờ xoá (chỉ trang Tổ chức — T-2312, D-125). */
+  opts: { allowPendingDeletion?: boolean } = {},
 ): Promise<ReactNode> {
-  const r = await currentActor();
+  const r = await currentActor(opts);
   if (r.kind === "login") redirect("/dang-nhap");
   if (r.kind === "choose-org") redirect("/chon-to-chuc");
+  if (r.kind === "org-pending-deletion") redirect("/to-chuc");
   if (r.kind === "mfa-required") {
     return (
       <main id="main" className="page">
@@ -34,7 +37,7 @@ export async function withActor(
     );
   }
   // Người thuê chỉ có portal (SPEC-portal S-005); quyền thật vẫn kiểm ở server mỗi lần gọi.
-  if (r.actor.role === "tenant") redirect("/portal");
+  if (r.actor.role === "tenant" && !opts.allowPendingDeletion) redirect("/portal");
   // Thanh điều hướng theo loại cơ sở trong phạm vi + chuông thông báo (số chưa đọc). Lỗi đọc → mặc định hiện đủ, chuông 0.
   const db = serverContext().db;
   const [props, inbox] = await Promise.all([

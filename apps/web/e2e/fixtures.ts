@@ -55,6 +55,11 @@ export const sessionCacheFile = (port: number, kind: SessionKind) =>
   join(tmpdir(), `hm-e2e-${port}-session-${kind}.json`);
 /** Nơi seed ghi liên kết huỷ đăng ký ký số (cần khoá của server) cho test đọc. */
 export const unsubFile = (port: number) => join(tmpdir(), `hm-e2e-${port}-unsub.txt`);
+/**
+ * Tín hiệu purge tổ chức (T-2312): spec ghi mã tổ chức (mỗi dòng một mã) — server E2E đẩy mốc yêu cầu/hạn xoá lùi 31 ngày rồi chạy
+ * job `tenancy.purge` (thay cho chờ 30 ngày thật), xong thì xoá file.
+ */
+export const orgPurgeFile = (port: number) => join(tmpdir(), `hm-e2e-${port}-org-purge.txt`);
 
 /** Khách sạn (T-223): chủ có TOTP, buồng phòng đăng nhập mật khẩu; phòng 101–103 đã dọn + kiểm, giá 600.000/700.000 đ. */
 export const ORG_HOTEL = "Khách sạn Biển (giả)";

@@ -3434,5 +3434,25 @@
   "privacy.dsar.retention_note": {
     "message": "Đã xoá thông tin đăng nhập, phiên và liên kết phân tích của tài khoản. Được giữ lại theo nghĩa vụ pháp lý: hoá đơn, chứng từ và sổ kế toán liên quan (tối thiểu 10 năm — Luật Kế toán 88/2015/QH13, Điều 41), nhật ký kiểm toán của tổ chức, hồ sơ người trong tổ chức (do cơ sở lưu trú quản lý, ẩn danh theo hạn lưu) và bằng chứng đồng ý/yêu cầu quyền (chỉ còn mã tài khoản, không còn email/tên).",
     "description": "Yêu cầu quyền chủ thể (DSAR — T-2311, D-123): ghi chú `legal_retention_note` lưu cùng yêu cầu xoá đã hoàn tất: phần dữ liệu được giữ và căn cứ. Hiển thị cho người dùng/kiểm toán."
+  },
+  "access.org_pending_deletion": {
+    "message": "Tổ chức đang chờ xoá: chỉ còn xuất dữ liệu và huỷ yêu cầu xoá",
+    "description": "Thông điệp lỗi API (problem+json, 423 ORG_PENDING_DELETION — T-2312, D-125) khi thao tác trong tổ chức đang ở thời gian giữ 30 ngày trước khi xoá."
+  },
+  "tenancy.deletion.reauth_required": {
+    "message": "Cần xác thực lại trước khi yêu cầu xoá tổ chức",
+    "description": "Thông điệp lỗi API (401 REAUTH_REQUIRED) khi owner yêu cầu xoá tổ chức mà phiên đã cũ hơn 5 phút và chưa nhập lại mật khẩu (T-2312, D-125)."
+  },
+  "tenancy.deletion.password_invalid": {
+    "message": "Mật khẩu không đúng — tổ chức chưa bị xoá",
+    "description": "Thông điệp lỗi API (401 REAUTH_REQUIRED, reason invalid_password) khi mật khẩu nhập lại để yêu cầu xoá tổ chức sai (T-2312)."
+  },
+  "tenancy.deletion.forbidden": {
+    "message": "Chỉ chủ sở hữu được yêu cầu hoặc huỷ xoá tổ chức",
+    "description": "Thông điệp lỗi API (403 FORBIDDEN) khi người không phải owner gọi yêu cầu/huỷ xoá tổ chức (T-2312, D-125)."
+  },
+  "tenancy.deletion.rate_limited": {
+    "message": "Thử mật khẩu quá nhiều lần, vui lòng đợi rồi thử lại",
+    "description": "Thông điệp lỗi API (429 RATE_LIMITED) khi nhập lại mật khẩu để xoá tổ chức vượt 5 lần/15 phút (T-2312)."
   }
 }

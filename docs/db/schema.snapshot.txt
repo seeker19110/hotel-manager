@@ -15,7 +15,7 @@ pgcrypto
 ## types (enum, domain) (0)
 
 
-## tables (79)
+## tables (80)
 auth.account owner=<admin> table
 auth.login_throttle owner=<admin> table
 auth.rateLimit owner=<admin> table
@@ -67,6 +67,7 @@ public.notification_deliveries owner=<admin> table rls force-rls options(autovac
 public.notification_preferences owner=<admin> table rls force-rls
 public.notification_settings owner=<admin> table rls force-rls
 public.notifications owner=<admin> table rls force-rls options(autovacuum_analyze_scale_factor=0.02,autovacuum_vacuum_scale_factor=0.02,autovacuum_vacuum_threshold=200)
+public.org_deletion_certificates owner=<admin> table rls force-rls
 public.organizations owner=<admin> table rls force-rls
 public.outbox owner=<admin> table rls force-rls options(autovacuum_analyze_scale_factor=0.02,autovacuum_vacuum_scale_factor=0.02,autovacuum_vacuum_threshold=200)
 public.payment_allocations owner=<admin> table rls force-rls
@@ -96,7 +97,7 @@ public.units owner=<admin> table rls force-rls
 public.work_orders owner=<admin> table rls force-rls
 public.worker_heartbeats owner=<admin> table rls force-rls
 
-## columns (1068)
+## columns (1081)
 auth.account.accessToken text
 auth.account.accessTokenExpiresAt timestamp with time zone
 auth.account.accountId text not null
@@ -779,8 +780,21 @@ public.notifications.source_outbox_id uuid
 public.notifications.title text not null
 public.notifications.type text not null
 public.notifications.vars jsonb not null default '{}'::jsonb
+public.org_deletion_certificates.counts jsonb not null
+public.org_deletion_certificates.deleted_organization_id uuid not null
+public.org_deletion_certificates.digest text not null
+public.org_deletion_certificates.due_at timestamp with time zone not null
+public.org_deletion_certificates.id uuid not null
+public.org_deletion_certificates.objects_deleted integer not null
+public.org_deletion_certificates.purged_at timestamp with time zone not null
+public.org_deletion_certificates.requested_at timestamp with time zone not null
+public.org_deletion_certificates.requested_by uuid not null
+public.org_deletion_certificates.total_rows bigint not null
 public.organizations.created_at timestamp with time zone not null default now()
 public.organizations.created_by uuid not null
+public.organizations.deletion_due_at timestamp with time zone
+public.organizations.deletion_requested_at timestamp with time zone
+public.organizations.deletion_requested_by uuid
 public.organizations.id uuid not null
 public.organizations.name text not null
 public.organizations.settings jsonb not null default '{}'::jsonb
@@ -1170,7 +1184,7 @@ public.worker_heartbeats.beat_at timestamp with time zone not null
 public.worker_heartbeats.name text not null
 public.worker_heartbeats.started_at timestamp with time zone not null default now()
 
-## constraints (847)
+## constraints (855)
 auth.account account_pkey PRIMARY KEY (id)
 auth.account account_userId_fkey FOREIGN KEY ("userId") REFERENCES auth."user"(id) ON DELETE CASCADE
 auth.login_throttle login_throttle_email_hash_check CHECK (octet_length(email_hash) = 32)
@@ -1704,10 +1718,18 @@ public.notifications notifications_type_check CHECK (type = ANY (ARRAY['account_
 public.notifications notifications_vars_check CHECK (jsonb_typeof(vars) = 'object'::text)
 public.notifications uq_notifications_dedupe UNIQUE (organization_id, dedupe_key, recipient_person_id)
 public.notifications uq_notifications_org_id UNIQUE (organization_id, id)
+public.org_deletion_certificates ck_org_deletion_certificates_time CHECK (requested_at <= due_at AND due_at <= purged_at)
+public.org_deletion_certificates org_deletion_certificates_counts_check CHECK (jsonb_typeof(counts) = 'object'::text)
+public.org_deletion_certificates org_deletion_certificates_deleted_organization_id_key UNIQUE (deleted_organization_id)
+public.org_deletion_certificates org_deletion_certificates_digest_check CHECK (digest ~ '^[0-9a-f]{64}$'::text)
+public.org_deletion_certificates org_deletion_certificates_objects_deleted_check CHECK (objects_deleted >= 0)
+public.org_deletion_certificates org_deletion_certificates_pkey PRIMARY KEY (id)
+public.org_deletion_certificates org_deletion_certificates_total_rows_check CHECK (total_rows >= 1)
+public.organizations ck_organizations_deletion CHECK ((status = 'pending_deletion'::text) = (deletion_requested_at IS NOT NULL AND deletion_due_at IS NOT NULL AND deletion_requested_by IS NOT NULL) AND (deletion_requested_at IS NOT NULL OR deletion_due_at IS NULL AND deletion_requested_by IS NULL) AND (deletion_due_at IS NULL OR deletion_due_at >= (deletion_requested_at + '30 days'::interval)))
 public.organizations organizations_name_check CHECK (length(btrim(name)) >= 1 AND length(btrim(name)) <= 200)
 public.organizations organizations_pkey PRIMARY KEY (id)
 public.organizations organizations_settings_check CHECK (jsonb_typeof(settings) = 'object'::text)
-public.organizations organizations_status_check CHECK (status = ANY (ARRAY['active'::text, 'suspended'::text]))
+public.organizations organizations_status_check CHECK (status = ANY (ARRAY['active'::text, 'suspended'::text, 'pending_deletion'::text]))
 public.outbox ck_outbox_traceparent CHECK (traceparent IS NULL OR traceparent ~ '^00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]$'::text AND traceparent !~ '^00-0{32}-'::text AND traceparent !~ '^00-[0-9a-f]{32}-0{16}-'::text)
 public.outbox fk_outbox_property FOREIGN KEY (organization_id, property_id) REFERENCES properties(organization_id, id) ON DELETE RESTRICT
 public.outbox outbox_attempts_check CHECK (attempts >= 0)
@@ -2019,7 +2041,7 @@ public.work_orders work_orders_title_check CHECK (length(btrim(title)) >= 1 AND 
 public.worker_heartbeats worker_heartbeats_name_check CHECK (name ~ '^[a-z0-9][a-z0-9._-]{0,62}$'::text)
 public.worker_heartbeats worker_heartbeats_pkey PRIMARY KEY (name)
 
-## indexes (431)
+## indexes (435)
 auth.account account_pkey :: CREATE UNIQUE INDEX account_pkey ON auth.account USING btree (id)
 auth.account account_userId_idx :: CREATE INDEX "account_userId_idx" ON auth.account USING btree ("userId")
 auth.login_throttle login_throttle_pkey :: CREATE UNIQUE INDEX login_throttle_pkey ON auth.login_throttle USING btree (email_hash)
@@ -2283,6 +2305,10 @@ public.notifications ixfk_notifications_property_id :: CREATE INDEX ixfk_notific
 public.notifications notifications_pkey :: CREATE UNIQUE INDEX notifications_pkey ON public.notifications USING btree (id)
 public.notifications uq_notifications_dedupe :: CREATE UNIQUE INDEX uq_notifications_dedupe ON public.notifications USING btree (organization_id, dedupe_key, recipient_person_id)
 public.notifications uq_notifications_org_id :: CREATE UNIQUE INDEX uq_notifications_org_id ON public.notifications USING btree (organization_id, id)
+public.org_deletion_certificates ix_org_deletion_certificates_requester :: CREATE INDEX ix_org_deletion_certificates_requester ON public.org_deletion_certificates USING btree (requested_by, purged_at)
+public.org_deletion_certificates org_deletion_certificates_deleted_organization_id_key :: CREATE UNIQUE INDEX org_deletion_certificates_deleted_organization_id_key ON public.org_deletion_certificates USING btree (deleted_organization_id)
+public.org_deletion_certificates org_deletion_certificates_pkey :: CREATE UNIQUE INDEX org_deletion_certificates_pkey ON public.org_deletion_certificates USING btree (id)
+public.organizations ix_organizations_deletion_due :: CREATE INDEX ix_organizations_deletion_due ON public.organizations USING btree (deletion_due_at) WHERE (status = 'pending_deletion'::text)
 public.organizations organizations_pkey :: CREATE UNIQUE INDEX organizations_pkey ON public.organizations USING btree (id)
 public.outbox ix_outbox_published_at :: CREATE INDEX ix_outbox_published_at ON public.outbox USING btree (published_at) WHERE (published_at IS NOT NULL)
 public.outbox ix_outbox_unpublished :: CREATE INDEX ix_outbox_unpublished ON public.outbox USING btree (id) WHERE (published_at IS NULL)
@@ -2452,7 +2478,7 @@ public.work_orders uq_work_orders_org_id :: CREATE UNIQUE INDEX uq_work_orders_o
 public.work_orders work_orders_pkey :: CREATE UNIQUE INDEX work_orders_pkey ON public.work_orders USING btree (id)
 public.worker_heartbeats worker_heartbeats_pkey :: CREATE UNIQUE INDEX worker_heartbeats_pkey ON public.worker_heartbeats USING btree (name)
 
-## policies (RLS) (183)
+## policies (RLS) (184)
 public.allocations portal_deny_read RESTRICTIVE SELECT to app_runtime using ((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
 public.allocations tenant_isolation PERMISSIVE ALL to public using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
 public.approval_requests tenant_isolation PERMISSIVE ALL to public using (((organization_id = app.current_org()) AND ((requested_by = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid) OR ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text, 'accountant'::text])) AND app.actor_can_see_property(property_id))))) check (((organization_id = app.current_org()) AND ((requested_by = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid) OR ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text])) AND app.actor_can_see_property(property_id)))))
@@ -2585,6 +2611,7 @@ public.notifications notifications_mark_read PERMISSIVE UPDATE to app_runtime us
 public.notifications notifications_read PERMISSIVE SELECT to public using (((organization_id = app.current_org()) AND ((NULLIF(current_setting('app.actor_id'::text, true), ''::text) IS NULL) OR (recipient_person_id = app.actor_person_id()))))
 public.notifications notifications_staff_read PERMISSIVE SELECT to app_runtime using (((organization_id = app.current_org()) AND ((app.actor_role() = 'owner'::text) OR ((app.actor_role() = 'manager'::text) AND (property_id IS NOT NULL) AND app.actor_can_see_property(property_id)))))
 public.notifications notifications_worker_insert PERMISSIVE INSERT to app_worker check ((organization_id = app.current_org()))
+public.org_deletion_certificates org_deletion_certificates_self_read PERMISSIVE SELECT to public using ((requested_by = app.current_user_id()))
 public.organizations tenant_isolation PERMISSIVE ALL to public using ((id = app.current_org())) check ((id = app.current_org()))
 public.outbox portal_deny_read RESTRICTIVE SELECT to app_runtime using ((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
 public.outbox tenant_isolation PERMISSIVE ALL to public using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
@@ -2676,7 +2703,7 @@ public.work_orders work_orders_insert PERMISSIVE INSERT to app_runtime check (((
 public.work_orders work_orders_read PERMISSIVE SELECT to public using (((organization_id = app.current_org()) AND ((NULLIF(current_setting('app.actor_id'::text, true), ''::text) IS NULL) OR ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text, 'front_desk'::text, 'housekeeping'::text, 'maintenance'::text])) AND app.actor_can_see_property(property_id)) OR ((app.actor_role() = 'tenant'::text) AND (reporter_person_id = app.actor_person_id())))))
 public.work_orders work_orders_update PERMISSIVE UPDATE to app_runtime using (((organization_id = app.current_org()) AND app.actor_can_see_property(property_id) AND ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text])) OR ((app.actor_role() = 'maintenance'::text) AND (assignee_membership_id = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid))))) check (((organization_id = app.current_org()) AND app.actor_can_see_property(property_id) AND ((app.actor_role() = ANY (ARRAY['owner'::text, 'manager'::text])) OR ((app.actor_role() = 'maintenance'::text) AND (assignee_membership_id = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid)))))
 
-## triggers (127)
+## triggers (129)
 public.allocations CREATE TRIGGER trg_allocations_no_reactivation BEFORE UPDATE OF active ON allocations FOR EACH ROW EXECUTE FUNCTION app.forbid_reactivation()
 public.allocations CREATE TRIGGER trg_allocations_updated BEFORE UPDATE ON allocations FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 public.approval_requests CREATE TRIGGER trg_approval_requests_no_delete BEFORE DELETE OR TRUNCATE ON approval_requests FOR EACH STATEMENT EXECUTE FUNCTION app.forbid_mutation()
@@ -2759,6 +2786,8 @@ public.notification_deliveries CREATE TRIGGER trg_notification_deliveries_transi
 public.notification_deliveries CREATE TRIGGER trg_notification_deliveries_updated BEFORE UPDATE ON notification_deliveries FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 public.notification_settings CREATE TRIGGER trg_notification_settings_updated BEFORE UPDATE ON notification_settings FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 public.notifications CREATE TRIGGER trg_notifications_guard BEFORE UPDATE ON notifications FOR EACH ROW EXECUTE FUNCTION app.notification_guard()
+public.org_deletion_certificates CREATE TRIGGER trg_org_deletion_certificates_append_only BEFORE DELETE OR UPDATE ON org_deletion_certificates FOR EACH ROW EXECUTE FUNCTION app.forbid_mutation()
+public.org_deletion_certificates CREATE TRIGGER trg_org_deletion_certificates_no_truncate BEFORE TRUNCATE ON org_deletion_certificates FOR EACH STATEMENT EXECUTE FUNCTION app.forbid_mutation()
 public.organizations CREATE TRIGGER trg_organizations_updated BEFORE UPDATE ON organizations FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 public.payment_allocations CREATE TRIGGER trg_payment_allocations_by BEFORE INSERT ON payment_allocations FOR EACH ROW EXECUTE FUNCTION app.check_allocation_by()
 public.payment_allocations CREATE TRIGGER trg_payment_allocations_guard BEFORE UPDATE ON payment_allocations FOR EACH ROW EXECUTE FUNCTION app.allocation_guard()
@@ -2805,7 +2834,7 @@ public.units CREATE TRIGGER trg_units_updated BEFORE UPDATE ON units FOR EACH RO
 public.work_orders CREATE TRIGGER trg_work_orders_transition BEFORE UPDATE ON work_orders FOR EACH ROW EXECUTE FUNCTION app.work_order_transition()
 public.work_orders CREATE TRIGGER trg_work_orders_updated BEFORE UPDATE ON work_orders FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 
-## functions (128)
+## functions (135)
 -- app.actor_can_see_property(p uuid) owner=<admin>
 CREATE OR REPLACE FUNCTION app.actor_can_see_property(p uuid)
  RETURNS boolean
@@ -3076,6 +3105,7 @@ CREATE OR REPLACE FUNCTION app.charge_guard()
  LANGUAGE plpgsql
 AS $function$
 BEGIN
+  IF TG_OP = 'DELETE' AND app.org_purge_active(OLD.organization_id) THEN RETURN OLD; END IF; -- org purge (0070)
   IF TG_OP = 'DELETE' OR EXISTS (SELECT 1 FROM invoice_lines il WHERE il.organization_id = OLD.organization_id AND il.charge_id = OLD.id)
      OR (to_jsonb(NEW) - ARRAY['voided_at','voided_by','void_reason']) <> (to_jsonb(OLD) - ARRAY['voided_at','voided_by','void_reason']) THEN
     RAISE EXCEPTION 'khoản phải thu % đã lên phiếu hoặc chỉ được huỷ', OLD.id USING ERRCODE = '55000', HINT = 'DOCUMENT_IMMUTABLE';
@@ -3184,6 +3214,7 @@ CREATE OR REPLACE FUNCTION app.check_last_owner()
 AS $function$
 DECLARE org uuid := COALESCE(NEW.organization_id, OLD.organization_id);
 BEGIN
+  IF TG_OP = 'DELETE' AND app.org_purge_active(OLD.organization_id) THEN RETURN OLD; END IF; -- org purge (0070)
   IF NOT EXISTS (SELECT 1 FROM memberships WHERE organization_id = org AND role = 'owner' AND status = 'active') THEN
     RAISE EXCEPTION 'tổ chức % không còn owner active', org USING ERRCODE = '23514', HINT = 'LAST_OWNER';
   END IF;
@@ -3793,6 +3824,7 @@ CREATE OR REPLACE FUNCTION app.forbid_mutation()
  LANGUAGE plpgsql
 AS $function$
 BEGIN
+  IF TG_OP = 'DELETE' AND app.org_purge_active(CASE WHEN TG_LEVEL = 'ROW' THEN (to_jsonb(OLD) ->> 'organization_id')::uuid ELSE nullif(current_setting('app.purge_org', true), '')::uuid END) THEN IF TG_LEVEL = 'ROW' THEN RETURN OLD; END IF; RETURN NULL; END IF; -- org purge (0070)
   RAISE EXCEPTION 'bảng % là append-only (%)', TG_TABLE_NAME, TG_OP USING ERRCODE = '55000', HINT = 'DOCUMENT_IMMUTABLE';
 END $function$
 -- app.forbid_reactivation() owner=<admin>
@@ -3901,6 +3933,7 @@ CREATE OR REPLACE FUNCTION app.handover_guard()
  LANGUAGE plpgsql
 AS $function$
 BEGIN
+  IF TG_OP = 'DELETE' AND app.org_purge_active(OLD.organization_id) THEN RETURN OLD; END IF; -- org purge (0070)
   IF TG_OP = 'DELETE' THEN
     RAISE EXCEPTION 'biên bản bàn giao không xoá được' USING ERRCODE = '55000', HINT = 'DOCUMENT_IMMUTABLE';
   END IF;
@@ -3919,6 +3952,7 @@ CREATE OR REPLACE FUNCTION app.handover_reading_guard()
  LANGUAGE plpgsql
 AS $function$
 BEGIN
+  IF TG_OP = 'DELETE' AND app.org_purge_active(OLD.organization_id) THEN RETURN OLD; END IF; -- org purge (0070)
   IF OLD.handover_id IS NOT NULL AND EXISTS (SELECT 1 FROM handovers h WHERE h.organization_id = OLD.organization_id
        AND h.id = OLD.handover_id AND h.confirmed_at IS NOT NULL) THEN
     RAISE EXCEPTION 'chỉ số của biên bản bàn giao đã xác nhận — không sửa/xoá' USING ERRCODE = '55000', HINT = 'DOCUMENT_IMMUTABLE';
@@ -3933,6 +3967,7 @@ CREATE OR REPLACE FUNCTION app.import_batch_guard()
 AS $function$
 DECLARE allowed text[];
 BEGIN
+  IF TG_OP = 'DELETE' AND app.org_purge_active(OLD.organization_id) THEN RETURN OLD; END IF; -- org purge (0070)
   IF TG_OP = 'DELETE' THEN
     RAISE EXCEPTION 'lô nhập % không xoá được', OLD.id USING ERRCODE = '55000', HINT = 'DOCUMENT_IMMUTABLE';
   END IF;
@@ -3964,6 +3999,7 @@ CREATE OR REPLACE FUNCTION app.import_row_guard()
 AS $function$
 DECLARE st text;
 BEGIN
+  IF TG_OP = 'DELETE' AND app.org_purge_active(OLD.organization_id) THEN RETURN OLD; END IF; -- org purge (0070)
   SELECT status INTO st FROM import_batches WHERE organization_id = OLD.organization_id AND id = OLD.batch_id;
   IF TG_OP = 'DELETE' THEN
     RAISE EXCEPTION 'dòng nhập không xoá được' USING ERRCODE = '55000', HINT = 'DOCUMENT_IMMUTABLE';
@@ -4128,6 +4164,7 @@ CREATE OR REPLACE FUNCTION app.lease_settlement_guard()
  LANGUAGE plpgsql
 AS $function$
 BEGIN
+  IF TG_OP = 'DELETE' AND app.org_purge_active(OLD.organization_id) THEN RETURN OLD; END IF; -- org purge (0070)
   IF TG_OP = 'DELETE' OR OLD.status = 'approved' THEN
     RAISE EXCEPTION 'quyết toán % đã duyệt — không sửa/xoá', OLD.id USING ERRCODE = '55000', HINT = 'DOCUMENT_IMMUTABLE';
   END IF;
@@ -4139,6 +4176,7 @@ CREATE OR REPLACE FUNCTION app.lease_version_guard()
  LANGUAGE plpgsql
 AS $function$
 BEGIN
+  IF TG_OP = 'DELETE' AND app.org_purge_active(OLD.organization_id) THEN RETURN OLD; END IF; -- org purge (0070)
   IF OLD.signed_at IS NOT NULL THEN
     -- D-007: ngoại lệ duy nhất — đặt superseded_on từ NULL đúng một lần, không đổi gì khác.
     IF TG_OP = 'UPDATE' AND OLD.superseded_on IS NULL AND NEW.superseded_on IS NOT NULL
@@ -4223,7 +4261,7 @@ CREATE OR REPLACE FUNCTION app.list_my_organizations(p_auth_user_id uuid)
 AS $function$
     SELECT o.id, o.name, m.id, m.role
     FROM memberships m JOIN organizations o ON o.id = m.organization_id
-    WHERE m.auth_user_id = p_auth_user_id AND m.status = 'active' AND o.status = 'active'
+    WHERE m.auth_user_id = p_auth_user_id AND m.status = 'active' AND o.status IN ('active', 'pending_deletion')
       AND m.valid_from <= now() AND (m.valid_to IS NULL OR m.valid_to > now())
     ORDER BY o.name
   $function$
@@ -4278,6 +4316,7 @@ CREATE OR REPLACE FUNCTION app.meter_reading_period_guard()
 AS $function$
 DECLARE st text; pid uuid;
 BEGIN
+  IF TG_OP = 'DELETE' AND app.org_purge_active(OLD.organization_id) THEN RETURN OLD; END IF; -- org purge (0070)
   pid := CASE WHEN TG_OP = 'DELETE' THEN OLD.billing_period_id ELSE NEW.billing_period_id END;
   IF TG_OP <> 'INSERT' AND OLD.billing_period_id IS NOT NULL THEN
     SELECT status INTO st FROM billing_periods WHERE organization_id = OLD.organization_id AND id = OLD.billing_period_id;
@@ -4369,6 +4408,139 @@ BEGIN
     NEW.read_at := OLD.read_at;
   END IF;
   RETURN NEW;
+END $function$
+-- app.org_cancel_deletion(p_correlation text) owner=<admin>
+CREATE OR REPLACE FUNCTION app.org_cancel_deletion(p_correlation text)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+ SET "TimeZone" TO 'UTC'
+AS $function$
+DECLARE
+  v_org uuid := app.current_org();
+  v_actor uuid := nullif(current_setting('app.actor_id', true), '')::uuid;
+  v_person uuid;
+  o organizations%ROWTYPE;
+BEGIN
+  SELECT * INTO o FROM organizations x WHERE x.id = v_org FOR UPDATE;
+  SELECT m.person_id INTO v_person FROM memberships m
+   WHERE m.organization_id = v_org AND m.id = v_actor AND m.role = 'owner' AND m.status = 'active'
+     AND m.valid_from <= now() AND (m.valid_to IS NULL OR m.valid_to > now());
+  IF v_person IS NULL OR o.id IS NULL THEN
+    RAISE EXCEPTION 'only an active owner may cancel organization deletion' USING ERRCODE = '42501', HINT = 'FORBIDDEN';
+  END IF;
+  IF o.status <> 'pending_deletion' THEN
+    RETURN false;
+  END IF;
+  UPDATE organizations x
+     SET status = 'active', deletion_requested_at = NULL, deletion_due_at = NULL, deletion_requested_by = NULL,
+         version = x.version + 1
+   WHERE x.id = v_org;
+  INSERT INTO audit_events (id, organization_id, actor_type, actor_person_id, action, entity_type, entity_id, before, correlation_id)
+  VALUES (gen_random_uuid(), v_org, 'user', v_person, 'organization.deletion_cancelled', 'organization', v_org,
+          jsonb_build_object('due_at', o.deletion_due_at), coalesce(nullif(p_correlation, ''), 'org-deletion'));
+  RETURN true;
+END $function$
+-- app.org_deletion_metrics(p_now timestamp with time zone) owner=<admin>
+CREATE OR REPLACE FUNCTION app.org_deletion_metrics(p_now timestamp with time zone)
+ RETURNS TABLE(name text, labels jsonb, value double precision)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+ SET "TimeZone" TO 'UTC'
+AS $function$
+    SELECT 'hm_org_pending_deletion'::text, jsonb_build_object('state', s.state),
+           (SELECT count(*) FROM organizations o
+             WHERE o.status = 'pending_deletion'
+               AND (o.deletion_due_at <= p_now) = (s.state = 'due'))::double precision
+      FROM (VALUES ('waiting'), ('due')) AS s(state)
+  $function$
+-- app.org_purge_active(p_org uuid) owner=<admin>
+CREATE OR REPLACE FUNCTION app.org_purge_active(p_org uuid)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ STABLE
+ SET search_path TO 'pg_catalog', 'public', 'pg_temp'
+AS $function$
+DECLARE
+  v text := current_setting('app.purge_org', true);
+BEGIN
+  IF p_org IS NULL OR v IS NULL OR v <> p_org::text THEN
+    RETURN false;
+  END IF;
+  -- Executing role must own the purge function (i.e. we are inside the SECURITY DEFINER body); a caller-set GUC is not enough.
+  IF current_user <> (SELECT pg_get_userbyid(p.proowner) FROM pg_proc p
+                       WHERE p.oid = 'app.purge_organization(uuid)'::regprocedure) THEN
+    RETURN false;
+  END IF;
+  RETURN EXISTS (SELECT 1 FROM public.organizations o
+                  WHERE o.id = p_org AND o.status = 'pending_deletion' AND o.deletion_due_at <= now());
+END $function$
+-- app.org_purge_due(p_now timestamp with time zone, p_limit integer) owner=<admin>
+CREATE OR REPLACE FUNCTION app.org_purge_due(p_now timestamp with time zone, p_limit integer)
+ RETURNS TABLE(id uuid, due_at timestamp with time zone)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+ SET "TimeZone" TO 'UTC'
+AS $function$
+    SELECT o.id, o.deletion_due_at FROM organizations o
+     WHERE o.status = 'pending_deletion' AND o.deletion_due_at <= least(p_now, now())
+     ORDER BY o.deletion_due_at, o.id
+     LIMIT least(greatest(p_limit, 1), 100)
+  $function$
+-- app.org_purge_file_keys(p_org uuid) owner=<admin>
+CREATE OR REPLACE FUNCTION app.org_purge_file_keys(p_org uuid)
+ RETURNS TABLE(storage_key text)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+ SET "TimeZone" TO 'UTC'
+AS $function$
+    SELECT f.storage_key FROM files f
+      JOIN organizations o ON o.id = f.organization_id
+     WHERE f.organization_id = p_org AND o.status = 'pending_deletion' AND o.deletion_due_at <= now()
+     ORDER BY f.storage_key
+  $function$
+-- app.org_request_deletion(p_correlation text) owner=<admin>
+CREATE OR REPLACE FUNCTION app.org_request_deletion(p_correlation text)
+ RETURNS TABLE(status text, requested_at timestamp with time zone, due_at timestamp with time zone, created boolean)
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+ SET "TimeZone" TO 'UTC'
+AS $function$
+DECLARE
+  v_org uuid := app.current_org();
+  v_actor uuid := nullif(current_setting('app.actor_id', true), '')::uuid;
+  v_user uuid;
+  v_person uuid;
+  o organizations%ROWTYPE;
+BEGIN
+  SELECT * INTO o FROM organizations x WHERE x.id = v_org FOR UPDATE;
+  SELECT m.auth_user_id, m.person_id INTO v_user, v_person FROM memberships m
+   WHERE m.organization_id = v_org AND m.id = v_actor AND m.role = 'owner' AND m.status = 'active'
+     AND m.valid_from <= now() AND (m.valid_to IS NULL OR m.valid_to > now());
+  IF v_user IS NULL OR o.id IS NULL THEN
+    RAISE EXCEPTION 'only an active owner may request organization deletion' USING ERRCODE = '42501', HINT = 'FORBIDDEN';
+  END IF;
+  IF o.status = 'pending_deletion' THEN
+    RETURN QUERY SELECT o.status, o.deletion_requested_at, o.deletion_due_at, false;
+    RETURN;
+  END IF;
+  IF o.status <> 'active' THEN
+    RAISE EXCEPTION 'organization % is %', v_org, o.status USING ERRCODE = '23514', HINT = 'INVALID_TRANSITION';
+  END IF;
+  UPDATE organizations x
+     SET status = 'pending_deletion', deletion_requested_at = now(), deletion_due_at = now() + interval '30 days',
+         deletion_requested_by = v_user, version = x.version + 1
+   WHERE x.id = v_org
+  RETURNING * INTO o;
+  INSERT INTO audit_events (id, organization_id, actor_type, actor_person_id, action, entity_type, entity_id, after, correlation_id)
+  VALUES (gen_random_uuid(), v_org, 'user', v_person, 'organization.deletion_requested', 'organization', v_org,
+          jsonb_build_object('due_at', o.deletion_due_at), coalesce(nullif(p_correlation, ''), 'org-deletion'));
+  RETURN QUERY SELECT o.status, o.deletion_requested_at, o.deletion_due_at, true;
 END $function$
 -- app.otp_sign_in_allowed(p_email text) owner=<admin>
 CREATE OR REPLACE FUNCTION app.otp_sign_in_allowed(p_email text)
@@ -4669,6 +4841,64 @@ AS $function$
       DELETE FROM notifications n USING due WHERE n.id = due.id RETURNING 1)
     SELECT count(*)::int FROM x
   $function$
+-- app.purge_organization(p_org uuid) owner=<admin>
+CREATE OR REPLACE FUNCTION app.purge_organization(p_org uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+ SET "TimeZone" TO 'UTC'
+AS $function$
+DECLARE
+  v_order text[] := ARRAY['audit_events', 'blocks', 'email_budget_days', 'exceptions', 'export_jobs', 'guest_access_links', 'idempotency_keys', 'identity_documents', 'import_external_refs', 'import_rows', 'invitations', 'journal_lines', 'lease_occupants', 'lease_settlements', 'meter_events', 'meter_readings', 'notification_deliveries', 'notification_preferences', 'notification_settings', 'outbox', 'payment_allocations', 'payment_claims', 'period_locks', 'product_events', 'property_scopes', 'rate_plans', 'reconciliation_breaks', 'residence_notices', 'service_prices', 'shift_discrepancies', 'tasks', 'work_orders', 'handovers', 'import_batches', 'invoice_lines', 'journal_entries', 'meters', 'notifications', 'payments', 'charges', 'deposits', 'files', 'inbox+bank_transactions', 'invoices', 'shifts', 'billing_periods', 'lease_versions', 'receiving_accounts', 'services', 'stays', 'approval_requests', 'leases', 'reservation_items', 'allocations', 'reservations', 'memberships', 'units', 'floors', 'persons', 'room_types', 'properties'];
+  v_org organizations%ROWTYPE;
+  v_t text;
+  n bigint;
+  n2 bigint;
+  v_counts jsonb := '{}'::jsonb;
+  v_total bigint := 0;
+  v_objects integer;
+  v_now timestamptz := now();
+  v_digest text;
+  v_id uuid := gen_random_uuid();
+BEGIN
+  SELECT * INTO v_org FROM organizations o WHERE o.id = p_org FOR UPDATE;
+  IF NOT FOUND OR v_org.status <> 'pending_deletion' OR v_org.deletion_due_at > now() THEN
+    RETURN NULL;
+  END IF;
+  SELECT count(*)::int INTO v_objects FROM files f WHERE f.organization_id = p_org;
+  PERFORM set_config('app.org_id', p_org::text, true);
+  PERFORM set_config('app.purge_org', p_org::text, true);
+  -- Deferred last-owner check must fire HERE (definer rights, bypass active), not at COMMIT as app_worker.
+  SET CONSTRAINTS trg_memberships_last_owner IMMEDIATE;
+  FOREACH v_t IN ARRAY v_order LOOP
+    IF v_t = 'inbox+bank_transactions' THEN
+      -- RESTRICT FK cycle: both DELETEs in ONE statement; RI checks run at statement end when both sides are gone.
+      WITH a AS (DELETE FROM inbox x WHERE x.organization_id = p_org RETURNING 1),
+           b AS (DELETE FROM bank_transactions x WHERE x.organization_id = p_org RETURNING 1)
+      SELECT (SELECT count(*) FROM a), (SELECT count(*) FROM b) INTO n, n2;
+      v_counts := v_counts || jsonb_build_object('inbox', n, 'bank_transactions', n2);
+      v_total := v_total + n + n2;
+    ELSE
+      EXECUTE format('DELETE FROM %I WHERE organization_id = $1', v_t) USING p_org;
+      GET DIAGNOSTICS n = ROW_COUNT;
+      v_counts := v_counts || jsonb_build_object(v_t, n);
+      v_total := v_total + n;
+    END IF;
+  END LOOP;
+  DELETE FROM organizations o WHERE o.id = p_org;
+  v_counts := v_counts || jsonb_build_object('organizations', 1);
+  v_total := v_total + 1;
+  PERFORM set_config('app.purge_org', '', true);
+  v_digest := encode(sha256(convert_to(
+    p_org::text || '|' || to_char(v_now, 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') || '|' || v_counts::text, 'UTF8')), 'hex');
+  INSERT INTO org_deletion_certificates
+    (id, deleted_organization_id, requested_by, requested_at, due_at, purged_at, counts, total_rows, objects_deleted, digest)
+  VALUES (v_id, p_org, v_org.deletion_requested_by, v_org.deletion_requested_at, v_org.deletion_due_at, v_now, v_counts,
+          v_total, v_objects, v_digest);
+  RETURN jsonb_build_object('certificate_id', v_id, 'total_rows', v_total, 'objects_deleted', v_objects,
+                            'counts', v_counts, 'digest', v_digest);
+END $function$
 -- app.purge_outbox(p_now timestamp with time zone, p_days integer, p_limit integer) owner=<admin>
 CREATE OR REPLACE FUNCTION app.purge_outbox(p_now timestamp with time zone, p_days integer, p_limit integer)
  RETURNS integer
@@ -5265,7 +5495,7 @@ AS $function$
     ON CONFLICT (name) DO UPDATE SET beat_at = excluded.beat_at
   $function$
 
-## grants (bảng, cột, hàm, schema) (1256)
+## grants (bảng, cột, hàm, schema) (1280)
 column public.consent_records.action app_runtime INSERT
 column public.consent_records.channel app_runtime INSERT
 column public.consent_records.id app_runtime INSERT
@@ -5474,6 +5704,19 @@ function app.notification_delivery_transition() <admin> EXECUTE
 function app.notification_delivery_transition() PUBLIC EXECUTE
 function app.notification_guard() <admin> EXECUTE
 function app.notification_guard() PUBLIC EXECUTE
+function app.org_cancel_deletion(p_correlation text) <admin> EXECUTE
+function app.org_cancel_deletion(p_correlation text) app_runtime EXECUTE
+function app.org_deletion_metrics(p_now timestamp with time zone) <admin> EXECUTE
+function app.org_deletion_metrics(p_now timestamp with time zone) app_runtime EXECUTE
+function app.org_deletion_metrics(p_now timestamp with time zone) app_worker EXECUTE
+function app.org_purge_active(p_org uuid) <admin> EXECUTE
+function app.org_purge_active(p_org uuid) PUBLIC EXECUTE
+function app.org_purge_due(p_now timestamp with time zone, p_limit integer) <admin> EXECUTE
+function app.org_purge_due(p_now timestamp with time zone, p_limit integer) app_worker EXECUTE
+function app.org_purge_file_keys(p_org uuid) <admin> EXECUTE
+function app.org_purge_file_keys(p_org uuid) app_worker EXECUTE
+function app.org_request_deletion(p_correlation text) <admin> EXECUTE
+function app.org_request_deletion(p_correlation text) app_runtime EXECUTE
 function app.otp_sign_in_allowed(p_email text) <admin> EXECUTE
 function app.otp_sign_in_allowed(p_email text) app_runtime EXECUTE
 function app.outbox_claim(p_limit integer) <admin> EXECUTE
@@ -5510,6 +5753,8 @@ function app.purge_notification_deliveries(p_now timestamp with time zone, p_don
 function app.purge_notification_deliveries(p_now timestamp with time zone, p_done_days integer, p_failed_days integer, p_limit integer) app_worker EXECUTE
 function app.purge_notifications(p_now timestamp with time zone, p_days integer, p_limit integer) <admin> EXECUTE
 function app.purge_notifications(p_now timestamp with time zone, p_days integer, p_limit integer) app_worker EXECUTE
+function app.purge_organization(p_org uuid) <admin> EXECUTE
+function app.purge_organization(p_org uuid) app_worker EXECUTE
 function app.purge_outbox(p_now timestamp with time zone, p_days integer, p_limit integer) <admin> EXECUTE
 function app.purge_outbox(p_now timestamp with time zone, p_days integer, p_limit integer) app_worker EXECUTE
 function app.purge_product_events(p_now timestamp with time zone, p_months integer, p_limit integer) <admin> EXECUTE
@@ -6176,6 +6421,15 @@ table public.notifications <admin> UPDATE
 table public.notifications app_runtime SELECT
 table public.notifications app_worker INSERT
 table public.notifications app_worker SELECT
+table public.org_deletion_certificates <admin> DELETE
+table public.org_deletion_certificates <admin> INSERT
+table public.org_deletion_certificates <admin> MAINTAIN
+table public.org_deletion_certificates <admin> REFERENCES
+table public.org_deletion_certificates <admin> SELECT
+table public.org_deletion_certificates <admin> TRIGGER
+table public.org_deletion_certificates <admin> TRUNCATE
+table public.org_deletion_certificates <admin> UPDATE
+table public.org_deletion_certificates app_runtime SELECT
 table public.organizations <admin> DELETE
 table public.organizations <admin> INSERT
 table public.organizations <admin> MAINTAIN

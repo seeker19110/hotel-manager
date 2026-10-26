@@ -2,7 +2,7 @@
 // role → migrate → seed giả → `next start`. Dừng (SIGTERM) thì xoá DB/cluster tạm. Chạy bằng `node` (bỏ kiểu TS).
 import { spawn } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   createAuth,
@@ -11,6 +11,7 @@ import {
   invitationToken,
   loadConfig,
   processDsarRequests,
+  purgeDueOrganizations,
   unsubscribeKey,
   unsubscribeUrl,
 } from "@hm/app";
@@ -31,6 +32,7 @@ import {
   ORG_OTHER,
   ORG_RENTAL,
   OTHER_ROOMS,
+  orgPurgeFile,
   outboxFile,
   RENTAL_OWNER,
   RENTAL_TENANT,
@@ -292,6 +294,35 @@ const dsarTimer = setInterval(() => {
       dsarRunning = false;
     });
 }, 1_000);
+/**
+ * Job `tenancy.purge` (T-2312) theo TÍN HIỆU của spec (`orgPurgeFile`): đẩy mốc yêu cầu/hạn xoá của tổ chức được nêu lùi 31 ngày
+ * (admin — thay cho chờ 30 ngày thật) rồi chạy purge bằng app_worker + kho giả, như worker thật khi tới hạn. Không tín hiệu ⇒ không
+ * làm gì (tổ chức chờ xoá của spec khác không bị purge ngoài ý muốn).
+ */
+const purgeAdmin = kysely(adminUrl);
+const purgeSignal = orgPurgeFile(PORT);
+let purgeRunning = false;
+const purgeTimer = setInterval(() => {
+  if (purgeRunning || !existsSync(purgeSignal)) return;
+  purgeRunning = true;
+  (async () => {
+    const ids = readFileSync(purgeSignal, "utf8")
+      .split("\n")
+      .map((x) => x.trim())
+      .filter((x) => /^[0-9a-f-]{36}$/.test(x));
+    rmSync(purgeSignal, { force: true });
+    for (const id of ids)
+      await sql`update organizations
+                set deletion_requested_at = deletion_requested_at - interval '31 days',
+                    deletion_due_at = deletion_due_at - interval '31 days'
+                where id = ${id}::uuid and status = 'pending_deletion'`.execute(purgeAdmin);
+    if (ids.length > 0) await purgeDueOrganizations(dsarDb, { storage: dsarStorage });
+  })()
+    .catch((e: unknown) => process.stderr.write(`[e2e-server] tenancy.purge lỗi: ${String(e)}\n`))
+    .finally(() => {
+      purgeRunning = false;
+    });
+}, 1_000);
 const replicaEnv: NodeJS.ProcessEnv = { ...appEnv, APP_BASE_URL: `http://127.0.0.1:${REPLICA_PORT}` };
 loadConfig(replicaEnv);
 /**
@@ -336,6 +367,8 @@ async function stop(code: number): Promise<void> {
   if (stopping) return;
   stopping = true;
   clearInterval(dsarTimer);
+  clearInterval(purgeTimer);
+  rmSync(purgeSignal, { force: true });
   next.kill("SIGTERM");
   replica?.kill("SIGTERM");
   rmSync(totpFile(PORT), { force: true });
@@ -350,6 +383,9 @@ async function stop(code: number): Promise<void> {
   const closedInTime = await waitClosed([nextClosed, ...(replicaRun ? [replicaRun.closed] : [])], 10_000);
   if (!closedInTime)
     process.stderr.write("[e2e-server] tiến trình Next chưa đóng sau 10 s — log có thể thiếu dòng cuối\n");
+  await purgeAdmin
+    .destroy()
+    .catch((e: unknown) => process.stderr.write(`[e2e-server] đóng pool tenancy.purge lỗi: ${String(e)}\n`));
   await dsarDb
     .destroy()
     .catch((e: unknown) => process.stderr.write(`[e2e-server] đóng pool privacy.dsar lỗi: ${String(e)}\n`));

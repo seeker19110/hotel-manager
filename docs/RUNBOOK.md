@@ -116,6 +116,14 @@ Cảnh báo `HmDsarOverdue` (`hm_dsar_overdue > 0` liên tục 15 phút): yêu c
 3. Xoá bị `rejected` lý do `last_owner` không tính quá hạn (đã đóng) — liên hệ người dùng để chuyển quyền chủ sở hữu/xoá tổ chức rồi gửi lại.
 4. Không sửa tay trạng thái để "tắt" cảnh báo; đường lùi D-123 (tắt job) chỉ khi job gây hại — khi đó yêu cầu nằm lại và cảnh báo tiếp tục báo.
 
+### 3.14 Xoá tổ chức (purge) — bật ở production cần người + grant
+Vòng đời (T-2312, D-125): owner yêu cầu xoá ⇒ tổ chức `pending_deletion` 30 ngày (khoá mọi trang/API trừ xuất dữ liệu + huỷ) ⇒ job `tenancy.purge` (worker, hằng ngày) xoá object `<org>/…` trong kho rồi `app.purge_organization` xoá MỌI bảng theo tổ chức và ghi chứng nhận (`org_deletion_certificates`).
+1. **Mặc định TẮT ở production** (`orgPurgeEnabled(NODE_ENV)`; PLAN: grant `data_delete hard_delete=false`). Khi tắt: tổ chức tới hạn nằm lại `pending_deletion` (vẫn bị khoá, owner vẫn huỷ được); gauge `hm_org_pending_deletion{state="due"}` > 0 cho biết số đang chờ.
+2. **Bật**: chỉ khi chủ dự án ghi grant `data_delete hard_delete=true` trong mục Ủy quyền production của PLAN (`python3 .xtemplates/scripts/xt.py grant-check` exit 0) — xoá cứng không đảo ngược ngoài PITR. Bật bằng tuỳ chọn runtime `bootWorker(env, { orgPurge: true })` ở điểm khởi động worker (không có biến môi trường); triển khai lại worker. Trước lượt đầu: kiểm sao lưu PITR gần nhất (§4) và danh sách tới hạn: `select id, deletion_requested_at, deletion_due_at from organizations where status = 'pending_deletion' and deletion_due_at <= now();`.
+3. **Theo dõi**: log `tenancy.purged` (org, certificate_id, số hàng, số object), `tenancy.purge_failed` (lỗi kho ⇒ không purge, lượt sau thử lại — xem §3.8), `tenancy.purge_run`.
+4. **Huỷ thay người dùng** (hỗ trợ): không sửa tay trạng thái — owner huỷ một bước trên trang Tổ chức; ngoại lệ cần người duyệt.
+5. **Đường lùi**: tắt job (`orgPurge: false`); tổ chức đã purge chỉ khôi phục được bằng PITR toàn cụm (§4), không khôi phục riêng một tổ chức.
+
 ## 4. Sao lưu và khôi phục
 - Diễn tập PITR (dữ liệu giả, cluster tạm): `bash scripts/db-backup-restore-check.sh` — exit 0 = khôi phục đúng (so số dòng, Σ Nợ/Có, số policy RLS).
 - Khi chạy thật (chờ quyết — PROGRESS "Chờ người"): pgBackRest repo mã hoá ở **máy khác**, giữ khoá `PGBACKREST_REPO_CIPHER_PASS` ngoài máy chủ; diễn tập khôi phục định kỳ.

@@ -20,6 +20,8 @@ export async function withPortal(
   const r = await currentActor();
   if (r.kind === "login") redirect(PORTAL_LOGIN);
   if (r.kind === "mfa-required") redirect("/phong");
+  // Tổ chức chờ xoá (T-2312): người thuê cũng bị khoá — trang Tổ chức nêu trạng thái.
+  if (r.kind === "org-pending-deletion") redirect("/to-chuc");
   if (r.kind === "choose-org") {
     const session = await currentSession();
     const orgs = session ? await listMyOrganizations(serverContext().db, session.user.id) : [];

@@ -42,6 +42,9 @@ const ERROR_RESPONSES: Record<string, Json> = {
   "426": errorResponse(
     "CLIENT_OUTDATED — `X-App-Version` thấp hơn mức tối thiểu; không ghi gì, client cần cập nhật (SPEC-pwa S-009)",
   ),
+  "423": errorResponse(
+    "ORG_PENDING_DELETION — tổ chức đang chờ xoá (30 ngày giữ): mọi thao tác có ngữ cảnh tổ chức bị khoá trừ xuất dữ liệu và trạng thái/huỷ xoá (D-125)",
+  ),
   "429": {
     description: "RATE_LIMITED — vượt giới hạn tần suất",
     headers: { "Retry-After": { schema: { type: "integer", minimum: 0 }, description: "Giây nên đợi" } },
@@ -123,6 +126,8 @@ function commandOperation(name: string, input: z.ZodType, userScope = false): Js
     responses: {
       "2XX": commandSuccess(),
       ...pick("400", "401", "403", "404", "409", "422", "426", "429", "500"),
+      // Tổ chức chờ xoá (D-125): lệnh có ngữ cảnh tổ chức không được phép ⇒ 423.
+      ...(userScope || COMMANDS[name]?.allowPendingDeletion ? {} : pick("423")),
       ...(COMMAND_EXTRA_RESPONSES[name] ?? {}),
     },
   };
@@ -155,6 +160,7 @@ function queryOperation(name: string, input: z.ZodType): Json {
         },
       },
       ...pick("401", "403", "404", "409", "422", "429", "500"),
+      ...(QUERIES[name]?.allowPendingDeletion ? {} : pick("423")),
     },
   };
 }
@@ -399,6 +405,68 @@ const EXTRA_PATHS: Record<string, Json> = {
       },
     },
   },
+  "/api/v1/organization/deletion": {
+    get: {
+      operationId: "organization.getDeletion",
+      tags: ["organization"],
+      summary: "Trạng thái vòng đời xoá của tổ chức đang chọn (mọi thành viên; chạy được cả khi chờ xoá)",
+      security: [{ sessionCookie: [] }],
+      parameters: [ref("OrgId")],
+      responses: {
+        "200": {
+          description: "Trạng thái (active | pending_deletion) và mốc yêu cầu/hạn xoá",
+          content: { "application/json": { schema: { $ref: "#/components/schemas/OrgDeletionResult" } } },
+        },
+        ...pick("401", "403", "404", "409"),
+      },
+    },
+    post: {
+      operationId: "organization.requestDeletion",
+      tags: ["organization"],
+      summary:
+        "Owner yêu cầu xoá tổ chức — xác thực lại (phiên ≤ 5 phút hoặc `password`); giữ 30 ngày (xuất/huỷ được) rồi purge; idempotent",
+      security: [{ sessionCookie: [] }],
+      parameters: [ref("OrgId")],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              additionalProperties: false,
+              properties: { password: { type: "string", minLength: 1, maxLength: 256 } },
+            },
+          },
+        },
+      },
+      responses: {
+        "200": {
+          description: "Tổ chức đã đang chờ xoá — trả trạng thái hiện có",
+          content: { "application/json": { schema: { $ref: "#/components/schemas/OrgDeletionResult" } } },
+        },
+        "202": {
+          description: "Đã nhận yêu cầu — tổ chức chuyển pending_deletion, hạn purge = +30 ngày",
+          content: { "application/json": { schema: { $ref: "#/components/schemas/OrgDeletionResult" } } },
+        },
+        ...pick("400", "401", "403", "404", "409", "422", "429"),
+      },
+    },
+    delete: {
+      operationId: "organization.cancelDeletion",
+      tags: ["organization"],
+      summary:
+        "Owner huỷ yêu cầu xoá (một bước) — tổ chức về active ngay; không chờ xoá ⇒ `cancelled: false`",
+      security: [{ sessionCookie: [] }],
+      parameters: [ref("OrgId")],
+      responses: {
+        "200": {
+          description: "Kết quả huỷ kèm trạng thái mới",
+          content: { "application/json": { schema: { $ref: "#/components/schemas/OrgDeletionResult" } } },
+        },
+        ...pick("401", "403", "404", "409"),
+      },
+    },
+  },
   "/api/v1/session/switchOrganization": {
     post: {
       operationId: "session.switchOrganization",
@@ -612,6 +680,7 @@ export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
   "v1/me/route.ts": { spec: "/api/v1/me" },
   "v1/me/consents/route.ts": { spec: "/api/v1/me/consents" },
   "v1/me/data-requests/route.ts": { spec: "/api/v1/me/data-requests" },
+  "v1/organization/deletion/route.ts": { spec: "/api/v1/organization/deletion" },
   "v1/me/data-requests/[id]/download/route.ts": { spec: "/api/v1/me/data-requests/{id}/download" },
   "version/route.ts": { spec: "/api/version" },
   "v1/session/switchOrganization/route.ts": { spec: "/api/v1/session/switchOrganization" },
@@ -771,6 +840,27 @@ export function buildOpenApi(): Json {
             legal_retention_note: { type: ["string", "null"] },
             download_expires_at: { type: ["string", "null"], format: "date-time" },
             download_url: { type: ["string", "null"] },
+          },
+        },
+        OrgDeletionResult: {
+          type: "object",
+          description: "Vòng đời xoá tổ chức — T-2312, D-125",
+          required: ["data"],
+          properties: {
+            data: {
+              type: "object",
+              required: ["organization_id", "status", "requested_at", "due_at", "requested_by_me"],
+              properties: {
+                organization_id: uuidSchema,
+                organization_name: { type: "string" },
+                status: { type: "string", enum: ["active", "suspended", "pending_deletion"] },
+                requested_at: { type: ["string", "null"], format: "date-time" },
+                due_at: { type: ["string", "null"], format: "date-time" },
+                requested_by_me: { type: "boolean" },
+                result: { type: "string", enum: ["created", "existing"] },
+                cancelled: { type: "boolean" },
+              },
+            },
           },
         },
         DataRequestResult: {

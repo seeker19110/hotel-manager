@@ -229,6 +229,7 @@ export {
   type ReservationView,
 } from "./stay/reservations.ts";
 export { listNotices, type NoticeListItem } from "./stay/residence-notices.ts";
+export * from "./tenancy/index.ts";
 export {
   getSummary as getTodaySummary,
   listItems as listTodayItems,

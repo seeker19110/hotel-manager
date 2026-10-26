@@ -995,6 +995,8 @@ describe("BE-API-009 — route không guard = danh sách công khai đã duyệt
     "v1/me/consents/route.ts": /handleGetConsents[\s\S]*handleSetConsent/,
     "v1/me/data-requests/route.ts": /handleListDataRequests[\s\S]*handleCreateDataRequest/,
     "v1/me/data-requests/[id]/download/route.ts": /handleDownloadDataRequest/,
+    "v1/organization/deletion/route.ts":
+      /handleGetOrgDeletion[\s\S]*handleRequestOrgDeletion[\s\S]*handleCancelOrgDeletion/,
     "v1/session/switchOrganization/route.ts": /handleSwitchOrganization/,
     "v1/files/upload/route.ts": /handleFileUpload/,
     "v1/import/upload/route.ts": /handleImportUpload/,
@@ -1041,6 +1043,11 @@ describe("BE-API-009 — route không guard = danh sách công khai đã duyệt
     const dsar = readFileSync(new URL("./data-requests.ts", import.meta.url), "utf8");
     expect(dsar).toMatch(/async function sessionOf[\s\S]*deps\.getSession\(req\.headers\)/);
     expect(dsar.match(/await sessionOf\(req, deps, correlationId\)/g)).toHaveLength(3);
+    // /api/v1/organization/deletion (T-2312): ngữ cảnh tổ chức qua `actorFromRequest` (allowPendingDeletion) cho cả GET, POST, DELETE;
+    // xử lý thật (owner được, vai trò khác bị từ chối, chờ xoá chặn đường khác) ở tenancy/org-deletion.db.test.ts.
+    const orgDel = readFileSync(new URL("./org-deletion.ts", import.meta.url), "utf8");
+    expect(orgDel).toMatch(/actorFromRequest\(req, deps, correlationId, \{ allowPendingDeletion: true \}\)/);
+    expect(orgDel.match(/await actorOf\(req, deps, correlationId\)/g)).toHaveLength(3);
     // /api/v1/me: route lấy phiên (getSession) và giao cho handleMe; handleMe trả 401 khi không có người dùng (AUD-XFEAT-004).
     const me = routes.find((r) => r.rel === "v1/me/route.ts")?.text ?? "";
     expect(me).toMatch(/getSession\(/);
@@ -1166,6 +1173,8 @@ describe("BASE-SEC-001 — entrypoint ngoài registry: đầu vào xấu → 4xx
       // POST schema strict (loại enum, mật khẩu có trần độ dài); tải: id phải là UUID — test đầu vào xấu ở dsar.db.test.ts.
       "v1/me/data-requests/route.ts": ["data-requests.ts", /z\.strictObject\([\s\S]*safeParse/],
       "v1/me/data-requests/[id]/download/route.ts": ["data-requests.ts", /UUID\.test\(id\)/],
+      // POST schema strict (chỉ `password` có trần độ dài); GET/DELETE không nhận thân.
+      "v1/organization/deletion/route.ts": ["org-deletion.ts", /z\.strictObject\([\s\S]*safeParse/],
       "v1/files/upload/route.ts": ["file-upload.ts", /OWNER_TYPES\.includes[\s\S]*UUID\.test\(propertyId\)/],
       "v1/import/upload/route.ts": ["import-upload.ts", /UUID\.test\(propertyId\)[\s\S]*kind\.length > 40/],
       "v1/webhooks/[provider]/[account]/route.ts": [

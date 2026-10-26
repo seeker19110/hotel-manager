@@ -346,6 +346,7 @@ const ROUTES: Record<string, RouteSpec> = {
   "/phong": fixed("hotel", "/phong"),
   "/portal": fixed("tenant", "/portal"),
   "/quyen-rieng-tu": fixed("tenant", "/quyen-rieng-tu?kenh=portal"),
+  "/quyen-rieng-tu/chung-nhan-xoa": fixed("tenant", "/quyen-rieng-tu/chung-nhan-xoa"),
   "/portal/dien-nuoc": fixed("tenant", "/portal/dien-nuoc"),
   "/portal/hop-dong": fixed("tenant", "/portal/hop-dong"),
   "/portal/phieu/[id]": {
@@ -358,6 +359,7 @@ const ROUTES: Record<string, RouteSpec> = {
   },
   "/portal/yeu-cau": fixed("tenant", "/portal/yeu-cau"),
   "/su-co": fixed("hotel", "/su-co"),
+  "/to-chuc": fixed("hotel", "/to-chuc"),
   "/thanh-vien": fixed("hotel", "/thanh-vien"),
   "/thong-bao": fixed("hotel", "/thong-bao"),
   "/thong-bao-luu-tru": fixed("hotel", "/thong-bao-luu-tru"),

@@ -4458,5 +4458,253 @@
   "data_requests.delete.error.last_owner": {
     "message": "Bạn đang là chủ sở hữu duy nhất của một tổ chức. Chuyển quyền chủ sở hữu hoặc xoá tổ chức trước.",
     "description": "Thành phần client yêu cầu quyền chủ thể ở trang Quyền riêng tư (T-2311, D-123): lỗi 409 LAST_OWNER."
+  },
+  "nav.more.organization": {
+    "message": "Tổ chức",
+    "description": "Liên kết trong màn Thêm (owner): trang Tổ chức — xuất dữ liệu, xoá tổ chức (T-2312)."
+  },
+  "org_page.metadata.title": {
+    "message": "Tổ chức",
+    "description": "Trang Tổ chức /to-chuc (T-2312, D-125): tiêu đề tab trình duyệt."
+  },
+  "org_page.page.title": {
+    "message": "Tổ chức",
+    "description": "Trang Tổ chức /to-chuc (T-2312, D-125): tiêu đề trang (h1)."
+  },
+  "org_page.pending.title": {
+    "message": "Tổ chức đang chờ xoá",
+    "description": "Trang Tổ chức /to-chuc (T-2312, D-125): tiêu đề biểu ngữ khi tổ chức ở trạng thái chờ xoá."
+  },
+  "org_page.pending.text": {
+    "message": "Toàn bộ dữ liệu của tổ chức sẽ bị xoá vĩnh viễn vào {due} ({days} ngày sau khi yêu cầu). Trong thời gian này chỉ có thể xuất dữ liệu hoặc huỷ yêu cầu xoá.",
+    "description": "Trang Tổ chức /to-chuc (T-2312, D-125): nội dung biểu ngữ chờ xoá; {due} = thời điểm xoá (giờ Việt Nam), {days} = số ngày giữ."
+  },
+  "org_page.pending.export_link": {
+    "message": "Xuất dữ liệu trước khi xoá",
+    "description": "Trang Tổ chức /to-chuc (T-2312, D-125): liên kết trong biểu ngữ tới mục xuất dữ liệu."
+  },
+  "org_page.pending.ask_owner": {
+    "message": "Liên hệ chủ sở hữu nếu cần giữ lại tổ chức.",
+    "description": "Trang Tổ chức /to-chuc (T-2312, D-125): câu cho thành viên không phải owner khi tổ chức chờ xoá."
+  },
+  "org_page.export.title": {
+    "message": "Xuất dữ liệu tổ chức",
+    "description": "Trang Tổ chức /to-chuc (T-2312, D-125): tiêu đề mục xuất toàn bộ dữ liệu (S-018)."
+  },
+  "org_page.export.text": {
+    "message": "Tải một tệp nén chứa dữ liệu của tổ chức (cơ sở, phòng, hợp đồng, lưu trú, hoá đơn, sổ thu chi, nhật ký) và tệp đính kèm. Chứng từ kế toán là nghĩa vụ lưu của cơ sở — hãy tải về trước khi xoá.",
+    "description": "Trang Tổ chức /to-chuc (T-2312, D-125): mô tả mục xuất dữ liệu."
+  },
+  "org_page.export.request": {
+    "message": "Tạo bản xuất dữ liệu",
+    "description": "Trang Tổ chức /to-chuc (T-2312, D-125): nút gửi lệnh xuất toàn bộ dữ liệu tổ chức."
+  },
+  "org_page.export.requested": {
+    "message": "Đã nhận yêu cầu. Bản xuất sẽ hiện ở danh sách dưới khi xong.",
+    "description": "Trang Tổ chức /to-chuc (T-2312, D-125): thông báo sau khi gửi yêu cầu xuất."
+  },
+  "org_page.export.item": {
+    "message": "Bản xuất lúc {when}: {status}",
+    "description": "Trang Tổ chức /to-chuc (T-2312, D-125): một dòng trong danh sách bản xuất; {when} = thời điểm tạo, {status} = trạng thái."
+  },
+  "org_page.export.status.queued": {
+    "message": "đang chờ",
+    "description": "Trang Tổ chức /to-chuc (T-2312, D-125): trạng thái bản xuất: chờ xử lý."
+  },
+  "org_page.export.status.running": {
+    "message": "đang tạo",
+    "description": "Trang Tổ chức /to-chuc (T-2312, D-125): trạng thái bản xuất: đang tạo."
+  },
+  "org_page.export.status.ready": {
+    "message": "sẵn sàng tải",
+    "description": "Trang Tổ chức /to-chuc (T-2312, D-125): trạng thái bản xuất: xong, tải được."
+  },
+  "org_page.export.status.failed": {
+    "message": "không tạo được",
+    "description": "Trang Tổ chức /to-chuc (T-2312, D-125): trạng thái bản xuất: lỗi."
+  },
+  "org_page.export.status.expired": {
+    "message": "đã hết hạn tải",
+    "description": "Trang Tổ chức /to-chuc (T-2312, D-125): trạng thái bản xuất: hết hạn."
+  },
+  "org_page.export.owner_only": {
+    "message": "Chỉ chủ sở hữu tải được toàn bộ dữ liệu tổ chức.",
+    "description": "Trang Tổ chức /to-chuc (T-2312, D-125): câu cho người không phải owner ở mục xuất."
+  },
+  "org_page.delete.title": {
+    "message": "Xoá tổ chức",
+    "description": "Trang Tổ chức /to-chuc (T-2312, D-125): tiêu đề mục xoá tổ chức."
+  },
+  "org_page.delete.text": {
+    "message": "Sau khi yêu cầu, tổ chức bị khoá và được giữ {days} ngày: trong thời gian đó bạn vẫn xuất được dữ liệu và huỷ được yêu cầu bằng một nút. Hết {days} ngày, dữ liệu bị xoá vĩnh viễn, không khôi phục được, và bạn nhận chứng nhận xoá.",
+    "description": "Trang Tổ chức /to-chuc (T-2312, D-125): mô tả vòng đời xoá; {days} = số ngày giữ."
+  },
+  "org_page.delete.export_first": {
+    "message": "Xuất dữ liệu trước",
+    "description": "Trang Tổ chức /to-chuc (T-2312, D-125): liên kết tới mục xuất dữ liệu trong mục xoá."
+  },
+  "org_page.delete.removed_title": {
+    "message": "Sẽ bị xoá",
+    "description": "Trang Tổ chức /to-chuc (T-2312, D-125): tiêu đề danh sách dữ liệu sẽ bị xoá."
+  },
+  "org_page.delete.removed.operations": {
+    "message": "Cơ sở, phòng, giá, đặt phòng, lưu trú, hợp đồng, công việc buồng phòng và sự cố",
+    "description": "Trang Tổ chức /to-chuc (T-2312, D-125): mục dữ liệu bị xoá: vận hành."
+  },
+  "org_page.delete.removed.people": {
+    "message": "Hồ sơ khách, người thuê và giấy tờ tuỳ thân",
+    "description": "Trang Tổ chức /to-chuc (T-2312, D-125): mục dữ liệu bị xoá: người."
+  },
+  "org_page.delete.removed.money": {
+    "message": "Hoá đơn, sổ thu chi, tiền cọc, đối soát và nhật ký kiểm toán",
+    "description": "Trang Tổ chức /to-chuc (T-2312, D-125): mục dữ liệu bị xoá: tiền và nhật ký."
+  },
+  "org_page.delete.removed.files": {
+    "message": "Mọi tệp đính kèm và bản xuất trong kho lưu trữ",
+    "description": "Trang Tổ chức /to-chuc (T-2312, D-125): mục dữ liệu bị xoá: tệp."
+  },
+  "org_page.delete.removed.members": {
+    "message": "Tư cách thành viên, lời mời và cài đặt thông báo của tổ chức",
+    "description": "Trang Tổ chức /to-chuc (T-2312, D-125): mục dữ liệu bị xoá: thành viên."
+  },
+  "org_page.delete.kept_title": {
+    "message": "Không bị xoá",
+    "description": "Trang Tổ chức /to-chuc (T-2312, D-125): tiêu đề danh sách phần còn lại."
+  },
+  "org_page.delete.kept.accounts": {
+    "message": "Tài khoản đăng nhập của bạn và của thành viên (dùng tiếp với tổ chức khác)",
+    "description": "Trang Tổ chức /to-chuc (T-2312, D-125): phần còn lại: tài khoản."
+  },
+  "org_page.delete.kept.certificate": {
+    "message": "Chứng nhận xoá: mã tổ chức, thời điểm, số dòng đã xoá và mã kiểm tra — không chứa dữ liệu cá nhân",
+    "description": "Trang Tổ chức /to-chuc (T-2312, D-125): phần còn lại: chứng nhận xoá."
+  },
+  "org_page.delete.legal": {
+    "message": "Cơ sở lưu trú tự chịu nghĩa vụ lưu chứng từ kế toán (tối thiểu 10 năm — Luật Kế toán 88/2015/QH13, Điều 41): hãy tải bản xuất trước khi hết thời gian giữ.",
+    "description": "Trang Tổ chức /to-chuc (T-2312, D-125): căn cứ pháp lý nhắc owner tải dữ liệu kế toán trước khi xoá."
+  },
+  "org_deletion.password_label": {
+    "message": "Nhập lại mật khẩu để xác nhận",
+    "description": "Thành phần client xoá tổ chức ở trang Tổ chức (T-2312, D-125): nhãn ô mật khẩu xác thực lại."
+  },
+  "org_deletion.submit": {
+    "message": "Yêu cầu xoá tổ chức",
+    "description": "Thành phần client xoá tổ chức ở trang Tổ chức (T-2312, D-125): nút gửi yêu cầu xoá tổ chức (bắt đầu 30 ngày giữ)."
+  },
+  "org_deletion.cancel": {
+    "message": "Huỷ yêu cầu xoá",
+    "description": "Thành phần client xoá tổ chức ở trang Tổ chức (T-2312, D-125): nút huỷ yêu cầu xoá (một bước)."
+  },
+  "org_deletion.cancelled": {
+    "message": "Đã huỷ yêu cầu xoá. Tổ chức hoạt động lại bình thường.",
+    "description": "Thành phần client xoá tổ chức ở trang Tổ chức (T-2312, D-125): thông báo sau khi huỷ."
+  },
+  "org_deletion.otp_intro": {
+    "message": "Tài khoản của bạn đăng nhập bằng mã gửi qua email. Đăng nhập lại để xác nhận trước khi yêu cầu xoá tổ chức.",
+    "description": "Thành phần client xoá tổ chức ở trang Tổ chức (T-2312, D-125): hướng dẫn xác thực lại bằng OTP cho tài khoản không có mật khẩu."
+  },
+  "org_deletion.otp_done": {
+    "message": "Đã xác thực lại.",
+    "description": "Thành phần client xoá tổ chức ở trang Tổ chức (T-2312, D-125): trạng thái sau khi đăng nhập lại bằng OTP."
+  },
+  "org_deletion.export.download": {
+    "message": "Tải bản xuất",
+    "description": "Thành phần client xoá tổ chức ở trang Tổ chức (T-2312, D-125): nút tải bản xuất dữ liệu tổ chức đã sẵn sàng."
+  },
+  "org_deletion.error.offline": {
+    "message": "Đang mất mạng — kết nối lại rồi thử.",
+    "description": "Thành phần client xoá tổ chức ở trang Tổ chức (T-2312, D-125): lỗi khi bấm lúc ngoại tuyến."
+  },
+  "org_deletion.error.password_required": {
+    "message": "Nhập mật khẩu để xác nhận.",
+    "description": "Thành phần client xoá tổ chức ở trang Tổ chức (T-2312, D-125): lỗi khi chưa nhập mật khẩu."
+  },
+  "org_deletion.error.password_invalid": {
+    "message": "Mật khẩu không đúng. Tổ chức chưa bị xoá.",
+    "description": "Thành phần client xoá tổ chức ở trang Tổ chức (T-2312, D-125): lỗi sai mật khẩu."
+  },
+  "org_deletion.error.reauth": {
+    "message": "Phiên đăng nhập đã cũ — nhập lại mật khẩu hoặc đăng nhập lại.",
+    "description": "Thành phần client xoá tổ chức ở trang Tổ chức (T-2312, D-125): lỗi cần xác thực lại."
+  },
+  "org_deletion.error.too_many": {
+    "message": "Thử quá nhiều lần. Đợi vài phút rồi thử lại.",
+    "description": "Thành phần client xoá tổ chức ở trang Tổ chức (T-2312, D-125): lỗi vượt hạn mức thử mật khẩu."
+  },
+  "org_deletion.error.forbidden": {
+    "message": "Chỉ chủ sở hữu được làm thao tác này.",
+    "description": "Thành phần client xoá tổ chức ở trang Tổ chức (T-2312, D-125): lỗi không phải owner."
+  },
+  "org_deletion.error.failed": {
+    "message": "Chưa thực hiện được. Thử lại sau.",
+    "description": "Thành phần client xoá tổ chức ở trang Tổ chức (T-2312, D-125): lỗi chung."
+  },
+  "privacy_page.org_certificates.title": {
+    "message": "Chứng nhận xoá tổ chức",
+    "description": "Trang Quyền riêng tư (T-2312, D-125): tiêu đề mục chứng nhận xoá tổ chức."
+  },
+  "privacy_page.org_certificates.text": {
+    "message": "Khi một tổ chức bạn yêu cầu xoá đã bị xoá hết, chứng nhận nằm ở đây.",
+    "description": "Trang Quyền riêng tư (T-2312): mô tả mục chứng nhận xoá tổ chức."
+  },
+  "privacy_page.org_certificates.link": {
+    "message": "Xem chứng nhận xoá",
+    "description": "Trang Quyền riêng tư (T-2312): liên kết tới trang chứng nhận xoá tổ chức."
+  },
+  "org_certificate_page.metadata.title": {
+    "message": "Chứng nhận xoá tổ chức",
+    "description": "Trang chứng nhận xoá tổ chức /quyen-rieng-tu/chung-nhan-xoa (T-2312, D-125): tiêu đề tab."
+  },
+  "org_certificate_page.page.title": {
+    "message": "Chứng nhận xoá tổ chức",
+    "description": "Trang chứng nhận xoá tổ chức /quyen-rieng-tu/chung-nhan-xoa (T-2312, D-125): tiêu đề trang (h1)."
+  },
+  "org_certificate_page.intro": {
+    "message": "Mỗi chứng nhận xác nhận toàn bộ dữ liệu của tổ chức đã bị xoá, kèm số dòng theo từng bảng và mã SHA-256 để đối chiếu.",
+    "description": "Trang chứng nhận xoá tổ chức /quyen-rieng-tu/chung-nhan-xoa (T-2312, D-125): đoạn giới thiệu."
+  },
+  "org_certificate_page.empty": {
+    "message": "Chưa có chứng nhận nào.",
+    "description": "Trang chứng nhận xoá tổ chức /quyen-rieng-tu/chung-nhan-xoa (T-2312, D-125): trạng thái rỗng."
+  },
+  "org_certificate_page.item.title": {
+    "message": "Đã xoá lúc {purged}",
+    "description": "Trang chứng nhận xoá tổ chức /quyen-rieng-tu/chung-nhan-xoa (T-2312, D-125): tiêu đề một chứng nhận; {purged} = thời điểm xoá."
+  },
+  "org_certificate_page.item.organization": {
+    "message": "Mã tổ chức",
+    "description": "Trang chứng nhận xoá tổ chức /quyen-rieng-tu/chung-nhan-xoa (T-2312, D-125): nhãn mã tổ chức đã xoá."
+  },
+  "org_certificate_page.item.requested": {
+    "message": "Yêu cầu lúc",
+    "description": "Trang chứng nhận xoá tổ chức /quyen-rieng-tu/chung-nhan-xoa (T-2312, D-125): nhãn thời điểm yêu cầu."
+  },
+  "org_certificate_page.item.purged": {
+    "message": "Xoá xong lúc",
+    "description": "Trang chứng nhận xoá tổ chức /quyen-rieng-tu/chung-nhan-xoa (T-2312, D-125): nhãn thời điểm xoá xong."
+  },
+  "org_certificate_page.item.rows": {
+    "message": "Số dòng đã xoá",
+    "description": "Trang chứng nhận xoá tổ chức /quyen-rieng-tu/chung-nhan-xoa (T-2312, D-125): nhãn tổng số dòng đã xoá."
+  },
+  "org_certificate_page.item.files": {
+    "message": "Số tệp đã xoá",
+    "description": "Trang chứng nhận xoá tổ chức /quyen-rieng-tu/chung-nhan-xoa (T-2312, D-125): nhãn số tệp trong kho đã xoá."
+  },
+  "org_certificate_page.item.digest": {
+    "message": "Mã kiểm tra SHA-256",
+    "description": "Trang chứng nhận xoá tổ chức /quyen-rieng-tu/chung-nhan-xoa (T-2312, D-125): nhãn mã băm của chứng nhận."
+  },
+  "org_certificate_page.item.tables": {
+    "message": "Chi tiết theo bảng",
+    "description": "Trang chứng nhận xoá tổ chức /quyen-rieng-tu/chung-nhan-xoa (T-2312, D-125): nút mở chi tiết số dòng theo bảng."
+  },
+  "org_certificate_page.item.table_row": {
+    "message": "{table}: {n}",
+    "description": "Trang chứng nhận xoá tổ chức /quyen-rieng-tu/chung-nhan-xoa (T-2312, D-125): một dòng chi tiết; {table} = tên bảng kỹ thuật, {n} = số dòng."
+  },
+  "org_certificate_page.back": {
+    "message": "Về trang Quyền riêng tư",
+    "description": "Trang chứng nhận xoá tổ chức /quyen-rieng-tu/chung-nhan-xoa (T-2312, D-125): liên kết quay lại."
   }
 }

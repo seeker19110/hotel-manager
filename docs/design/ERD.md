@@ -254,11 +254,15 @@ Loại: M · không có `organization_id` (chính là tenant).
 | Cột | Kiểu | Null | Ràng buộc/mặc định | Ghi chú |
 |---|---|---|---|---|
 | name | text | không | `CHECK (length(btrim(name)) BETWEEN 1 AND 200)` | |
-| status | text | không | `CHECK (status IN ('active','suspended'))`, mặc định `'active'` | `suspended`: tạm khoá toàn tổ chức (đề xuất) |
+| status | text | không | `CHECK (status IN ('active','suspended','pending_deletion'))`, mặc định `'active'` | `suspended`: tạm khoá toàn tổ chức (đề xuất); `pending_deletion`: owner đã yêu cầu xoá — khoá mọi truy cập trừ xuất dữ liệu + trạng thái/huỷ (`resolveActor`), purge khi quá `deletion_due_at` (0070, D-125) |
+| deletion_requested_at | timestamptz | có | | Mốc yêu cầu xoá |
+| deletion_due_at | timestamptz | có | `ck_organizations_deletion`: ≥ `deletion_requested_at + 30 ngày`; index một phần `WHERE status = 'pending_deletion'` | Hạn purge (đồng hồ CSDL) |
+| deletion_requested_by | uuid | có | không FK | `auth.user.id` của owner yêu cầu — người xem chứng nhận |
 | settings | jsonb | không | `CHECK (jsonb_typeof(settings)='object')`, mặc định `'{}'` | Cờ tính năng (`mixed_template_enabled`, mặc định `false`) và hạn mức mặc định theo vai trò (`role_limits`) khi `memberships.limits` không đặt khoá; thay cho "bảng cấu hình theo tổ chức" của PLAN T-007 (mục 7) |
 | created_by | uuid | không | | `auth.user.id` của người tạo; không FK, chỉ để truy vết |
 
 - Khoá/index: `PK (id)`.
+- `ck_organizations_deletion`: `pending_deletion` ⇔ đủ ba cột `deletion_*`; ba cột không cấp cho app_runtime/app_worker — chỉ `app.org_request_deletion`/`app.org_cancel_deletion` (SECURITY DEFINER, kiểm owner active qua `app.actor_id`, ghi `audit_events`) đổi.
 - RLS/quyền đặc biệt: policy `id = current_setting('app.org_id')::uuid`. Liệt kê tổ chức của một người (trước khi chọn ngữ cảnh) và tạo tổ chức đi qua hàm `SECURITY DEFINER` (`app.list_my_organizations`, `app.create_organization`); `org.create` tạo luôn `persons` + `memberships(role='owner')` trong cùng transaction.
 - Bất biến: INV-G1, INV-G6 (sự kiện `organization.created` vào `audit_events` + `outbox`).
 
@@ -1887,6 +1891,28 @@ Loại: A · không có `organization_id` (ngoại lệ IND-SAAS-001)
 | restricted_at | timestamptz | không | mặc định `now()` | |
 
 - RLS/quyền đặc biệt: RLS + FORCE theo `app.user_id`; `app_runtime` SELECT + INSERT (subject_user_id, request_id).
+
+### `org_deletion_certificates`
+Chứng nhận xoá tổ chức (T-2312, D-125): ghi trong `app.purge_organization` ngay sau khi xoá mọi bảng theo tổ chức.
+
+Chủ module: Tenancy
+
+Loại: A · không có `organization_id` (ngoại lệ IND-SAAS-001 — tổ chức đã không còn)
+
+| Cột | Kiểu | Null | Ràng buộc/mặc định | Ghi chú |
+|---|---|---|---|---|
+| deleted_organization_id | uuid | không | UNIQUE, **không FK** | Mã tổ chức đã xoá |
+| requested_by | uuid | không | không FK; index `(requested_by, purged_at)` | `auth.user.id` của owner yêu cầu |
+| requested_at | timestamptz | không | | |
+| due_at | timestamptz | không | `requested_at <= due_at <= purged_at` | |
+| purged_at | timestamptz | không | | Đồng hồ CSDL |
+| counts | jsonb | không | `jsonb_typeof = 'object'` | `{bảng: số hàng đã xoá}` cho MỌI bảng có `organization_id` + `organizations: 1` |
+| total_rows | bigint | không | `>= 1` | |
+| objects_deleted | integer | không | `>= 0` | Số hàng `files` (object đã xoá trước khi purge) |
+| digest | text | không | hex 64 | SHA-256 của `deleted_organization_id|purged_at (UTC, micro giây)|counts::text` |
+
+- RLS/quyền đặc biệt: RLS + FORCE theo `app.user_id` (`requested_by = app.current_user_id()`); `app_runtime` chỉ SELECT; append-only (`forbid_mutation` chặn UPDATE/DELETE/TRUNCATE). Không tên tổ chức (băm tên ngắn đoán được ⇒ bỏ).
+- Hàm (0070): `app.purge_organization(org)` (app_worker; chỉ tổ chức `pending_deletion` quá hạn theo đồng hồ CSDL; khoá hàng tổ chức; xoá theo thứ tự FK — test so khớp catalog), `app.org_purge_due(now, limit)`, `app.org_purge_file_keys(org)` (app_worker), `app.org_request_deletion(correlation)`/`app.org_cancel_deletion(correlation)` (app_runtime), `app.org_deletion_metrics(now)`. Lối vượt trigger append-only/bất biến khi purge: `app.org_purge_active(org)` — đúng chỉ khi GUC `app.purge_org` = org VÀ `current_user` là role sở hữu `app.purge_organization` VÀ tổ chức chờ xoá đã tới hạn; GUC do app_runtime/app_worker tự đặt không đủ (test).
 
 ## 4. Bảng do Better Auth quản lý (schema `auth`)
 

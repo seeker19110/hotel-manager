@@ -250,6 +250,15 @@ export default async function PrivacyPage({
           </ol>
         )}
       </section>
+      <section aria-labelledby="org-cert-title" data-testid="org-certificates-link">
+        <h2 id="org-cert-title">{t("privacy_page.org_certificates.title")}</h2>
+        <p>{t("privacy_page.org_certificates.text")}</p>
+        <p>
+          <a className="btn btn--secondary" href="/quyen-rieng-tu/chung-nhan-xoa">
+            {t("privacy_page.org_certificates.link")}
+          </a>
+        </p>
+      </section>
     </main>
   );
 }
