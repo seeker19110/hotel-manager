@@ -61,6 +61,9 @@ export const unsubFile = (port: number) => join(tmpdir(), `hm-e2e-${port}-unsub.
  */
 export const orgPurgeFile = (port: number) => join(tmpdir(), `hm-e2e-${port}-org-purge.txt`);
 
+/** Token lời mời truy cập hỗ trợ đang chờ (T-2313): server E2E ghi `{ email: token }` mỗi giây (thay email của worker). */
+export const supportTokensFile = (port: number) => join(tmpdir(), `hm-e2e-${port}-support-invites.json`);
+
 /** Khách sạn (T-223): chủ có TOTP, buồng phòng đăng nhập mật khẩu; phòng 101–103 đã dọn + kiểm, giá 600.000/700.000 đ. */
 export const ORG_HOTEL = "Khách sạn Biển (giả)";
 export const HOTEL_OWNER = {

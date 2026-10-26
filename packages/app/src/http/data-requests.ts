@@ -22,8 +22,16 @@ import {
   type DsarRequest,
   dsarDownloadUrl,
   dsarOverview,
+  REAUTH_PASSWORD_SCOPE,
 } from "../privacy/index.ts";
-import { correlationOf, type HttpDeps, json, simpleProblem, validationProblem } from "./command-route.ts";
+import {
+  correlationOf,
+  type HttpDeps,
+  json,
+  simpleProblem,
+  type VerifyPassword,
+  validationProblem,
+} from "./command-route.ts";
 
 export const createDataRequestInput = z.strictObject({
   type: z.enum(DSAR_TYPES),
@@ -32,8 +40,7 @@ export const createDataRequestInput = z.strictObject({
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Kiểm mật khẩu của người dùng trong phiên (Better Auth `verifyPassword`); không có mật khẩu/sai ⇒ false. */
-export type VerifyPassword = (headers: Headers, password: string) => Promise<boolean>;
+export type { VerifyPassword };
 
 export type DataRequestDeps = Pick<HttpDeps, "db" | "getSession" | "isSessionRevoked" | "services"> & {
   verifyPassword?: VerifyPassword;
@@ -124,7 +131,7 @@ export async function handleCreateDataRequest(req: Request, deps: DataRequestDep
   let reauthenticatedAt = s.createdAt;
   if (type === "delete" && password !== undefined) {
     const rate = await rateLimitHit(deps.db, {
-      scope: "dsar.reauth",
+      scope: REAUTH_PASSWORD_SCOPE,
       subject: s.userId,
       limit: DSAR_PASSWORD_ATTEMPTS_PER_15_MIN,
       windowSeconds: minutesToSeconds(15),

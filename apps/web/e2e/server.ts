@@ -40,6 +40,7 @@ import {
   SMOKE_USER,
   STAFF_TARGET,
   sessionCacheFile,
+  supportTokensFile,
   unsubFile,
 } from "./fixtures.ts";
 import { seedHotelOrg, signUpWithTotp } from "./hotel-seed.ts";
@@ -323,6 +324,31 @@ const purgeTimer = setInterval(() => {
       purgeRunning = false;
     });
 }, 1_000);
+/**
+ * Lời mời truy cập hỗ trợ (T-2313, D-128) thay cho email của worker (server E2E không gửi thư lời mời): mỗi giây ghi token của lời mời
+ * hỗ trợ đang chờ vào `supportTokensFile` (`{ email: token }`, quyền 0600) — token dẫn xuất từ khoá chỉ server có, như email thật.
+ */
+const supportKey = invitationKey(secret);
+const supportFile = supportTokensFile(PORT);
+let supportRunning = false;
+const supportTimer = setInterval(() => {
+  if (supportRunning) return;
+  supportRunning = true;
+  sql<{ id: string; email: string }>`
+    select id, email from invitations where role = 'platform_support' and status = 'pending' and expires_at > now()`
+    .execute(purgeAdmin)
+    .then((r) =>
+      writeFileSync(
+        supportFile,
+        JSON.stringify(Object.fromEntries(r.rows.map((x) => [x.email, invitationToken(supportKey, x.id)]))),
+        { mode: 0o600 },
+      ),
+    )
+    .catch((e: unknown) => process.stderr.write(`[e2e-server] token hỗ trợ lỗi: ${String(e)}\n`))
+    .finally(() => {
+      supportRunning = false;
+    });
+}, 1_000);
 const replicaEnv: NodeJS.ProcessEnv = { ...appEnv, APP_BASE_URL: `http://127.0.0.1:${REPLICA_PORT}` };
 loadConfig(replicaEnv);
 /**
@@ -368,7 +394,9 @@ async function stop(code: number): Promise<void> {
   stopping = true;
   clearInterval(dsarTimer);
   clearInterval(purgeTimer);
+  clearInterval(supportTimer);
   rmSync(purgeSignal, { force: true });
+  rmSync(supportFile, { force: true });
   next.kill("SIGTERM");
   replica?.kill("SIGTERM");
   rmSync(totpFile(PORT), { force: true });

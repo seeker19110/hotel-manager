@@ -475,6 +475,7 @@ describe("token chỉ lưu băm; email lời mời dựng lại token ở worker
       accountant: "kế toán",
       housekeeping: "buồng phòng",
       maintenance: "kỹ thuật",
+      platform_support: "hỗ trợ nền tảng (chỉ xem)",
     });
     // Xuống dòng/ký tự lạ trong tên tổ chức không chèn được header thư.
     expect(m?.subject).not.toMatch(/[\r\n]/);

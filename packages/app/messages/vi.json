@@ -27,6 +27,18 @@
     "message": "Thiếu hoặc sai Idempotency-Key (UUID)",
     "description": "`title` của problem+json (RFC 9457) mà API trả cho client khi request ghi thiếu header Idempotency-Key hoặc không phải UUID (400 MALFORMED_REQUEST). Giữ nguyên tên header."
   },
+  "http.reauth_required": {
+    "message": "Cần xác thực lại: nhập mật khẩu hoặc đăng nhập lại rồi thử lại",
+    "description": "`title` của problem+json (401 REAUTH_REQUIRED, reason reauth_required) khi lệnh nhạy cảm (vd cấp truy cập hỗ trợ — D-129) thiếu xác thực lại: phiên cũ hơn 5 phút và không gửi mật khẩu."
+  },
+  "http.reauth_password_invalid": {
+    "message": "Mật khẩu không đúng — thao tác chưa được thực hiện",
+    "description": "`title` của problem+json (401 REAUTH_REQUIRED, reason invalid_password) khi mật khẩu nhập lại cho lệnh nhạy cảm (D-129) sai hoặc tài khoản không có mật khẩu."
+  },
+  "http.reauth_rate_limited": {
+    "message": "Thử mật khẩu quá nhiều lần, vui lòng đợi rồi thử lại",
+    "description": "`title` của problem+json (429 RATE_LIMITED) khi nhập lại mật khẩu cho lệnh nhạy cảm (D-129) vượt 5 lần/15 phút/tài khoản."
+  },
   "http.body_not_json": {
     "message": "Thân yêu cầu không phải JSON hợp lệ",
     "description": "`title` của problem+json (RFC 9457) mà API trả cho client khi thân request không đọc được thành JSON (400 MALFORMED_REQUEST)."
@@ -362,6 +374,10 @@
   "pipeline.last_owner": {
     "message": "Tổ chức phải còn ít nhất một owner",
     "description": "`title` của problem+json (RFC 9457) mà API trả cho client khi đổi vai trò/gỡ owner cuối cùng của tổ chức (409 LAST_OWNER). \"owner\" là tên vai trò hiển thị nguyên văn."
+  },
+  "pipeline.quota_exceeded": {
+    "message": "Tổ chức đã dùng hết hạn mức của gói dịch vụ (cơ sở, phòng, thành viên hoặc dung lượng file)",
+    "description": "`title` của problem+json (RFC 9457) khi tạo cơ sở/phòng, mời/kích hoạt thành viên hoặc tải file vượt hạn mức gói của tổ chức (409 QUOTA_EXCEEDED, D-130)."
   },
   "pipeline.property_in_use": {
     "message": "Cơ sở đã có giao dịch, không thể đổi múi giờ hoặc giờ chốt ngày",
@@ -3454,5 +3470,33 @@
   "tenancy.deletion.rate_limited": {
     "message": "Thử mật khẩu quá nhiều lần, vui lòng đợi rồi thử lại",
     "description": "Thông điệp lỗi API (429 RATE_LIMITED) khi nhập lại mật khẩu để xoá tổ chức vượt 5 lần/15 phút (T-2312)."
+  },
+  "access.role_platform_support": {
+    "message": "hỗ trợ nền tảng (chỉ xem)",
+    "description": "Nhãn vai trò truy cập hỗ trợ (`platform_support`, D-128) trong email lời mời và danh sách thành viên."
+  },
+  "access.support_mail_link_intro": {
+    "message": "Đây là quyền hỗ trợ CHỈ XEM, mọi thao tác được ghi vào nhật ký mà chủ tổ chức xem được. Mở liên kết sau và đăng nhập bằng đúng email này để nhận (dùng một lần, quyền tự hết sau {hours} giờ):",
+    "description": "Câu dẫn liền trước liên kết trong email lời mời truy cập hỗ trợ; {hours} = số giờ còn lại của quyền hỗ trợ."
+  },
+  "access.support_owner_only": {
+    "message": "Chỉ chủ tổ chức được cấp hoặc thu hồi truy cập hỗ trợ",
+    "description": "Lỗi 403 khi vai trò khác owner gọi member.grantSupportAccess / member.revokeSupportAccess (D-128)."
+  },
+  "access.support_reason_required": {
+    "message": "Nhập lý do cấp truy cập hỗ trợ (tối đa 500 ký tự)",
+    "description": "Lỗi theo ô `reason` của member.grantSupportAccess: lý do rỗng hoặc dài quá 500 ký tự."
+  },
+  "access.support_ttl_invalid": {
+    "message": "Thời hạn truy cập hỗ trợ là số giờ từ 1 đến {max}",
+    "description": "Lỗi theo ô `ttl_hours` của member.grantSupportAccess; {max} = số giờ tối đa (72)."
+  },
+  "access.support_not_found": {
+    "message": "Không tìm thấy truy cập hỗ trợ này",
+    "description": "Lỗi 404 khi thu hồi truy cập hỗ trợ không tồn tại trong tổ chức (member.revokeSupportAccess)."
+  },
+  "pipeline.support_read_only": {
+    "message": "Truy cập hỗ trợ chỉ được xem, không được thay đổi dữ liệu",
+    "description": "`title` của problem+json 403 khi tài khoản hỗ trợ nền tảng (D-128) gửi bất kỳ lệnh ghi nào."
   }
 }

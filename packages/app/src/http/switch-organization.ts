@@ -4,8 +4,16 @@
 // request vẫn resolveActor). Idempotency như mọi command: cùng key + cùng payload → kết quả cũ; khác payload → 422
 // IDEMPOTENCY_CONFLICT; kết quả lưu ở idempotency_keys của tổ chức đích. Tách khỏi route Next để test được (BASE-SEC-001).
 import { z } from "zod";
-import { orgCookieName, switchOrganization } from "../access/index.ts";
+import {
+  isSupport,
+  orgCookieName,
+  recordSupportAccess,
+  selectOrganization,
+  supportAccessActor,
+  switchOrganization,
+} from "../access/index.ts";
 import { t } from "../i18n.ts";
+import { requestClient } from "../logging/index.ts";
 import { correlationOf, type HttpDeps, json, simpleProblem, validationProblem } from "./command-route.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -36,6 +44,19 @@ export async function handleSwitchOrganization(
   const parsed = switchOrganizationInput.safeParse(raw);
   if (!parsed.success) return validationProblem(parsed.error, correlationId);
 
+  // D-128/TM-12: tài khoản hỗ trợ được chọn tổ chức/cơ sở để xem (chỉ đổi lựa chọn của CHÍNH mình — cookie + `selected_property_id`
+  // của membership hỗ trợ), nhưng mỗi lần để lại `support.accessed` TRƯỚC khi trả ngữ cảnh (gộp 60 giây như trang/query).
+  const target = await selectOrganization(deps.db, session.user.id, parsed.data.organization_id);
+  if (target && isSupport(target)) {
+    const support = await supportAccessActor(deps.db, target.organizationId, target.membershipId);
+    if (support)
+      await recordSupportAccess(deps.db, support, {
+        kind: "query",
+        name: "session.switchOrganization",
+        client: requestClient(req.headers),
+        correlationId,
+      });
+  }
   const result = await switchOrganization(deps.db, session.user.id, {
     key,
     organizationId: parsed.data.organization_id,

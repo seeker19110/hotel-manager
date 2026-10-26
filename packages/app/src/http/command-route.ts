@@ -2,6 +2,7 @@
 // Thứ tự kiểm: phiên bản client (426) → phiên (401) → ngữ cảnh tổ chức (409 ORG_CONTEXT_REQUIRED kèm danh sách) → membership/MFA (resolveActor)
 // → Idempotency-Key (400) → JSON (400) → schema (422 + errors[]) → command pipeline (idempotency, audit, outbox).
 import { randomUUID } from "node:crypto";
+import { minutesToSeconds, SECONDS_PER_MINUTE } from "@hm/domain";
 import type { Kysely } from "kysely";
 import type { z } from "zod";
 import {
@@ -11,6 +12,7 @@ import {
   ORG_CONTEXT_HEADER,
   ORG_HEADER,
   orgCookieName,
+  recordSupportAccess,
   requestedOrgId,
   resolveActor,
   type UserCommandRequest,
@@ -31,14 +33,24 @@ import {
   executeCommand,
   getCommandResult,
   type Problem,
+  rateLimitHit,
   settle,
+  supportWriteDenied,
   toProblem,
   unwrap,
 } from "../pipeline/index.ts";
+import {
+  DSAR_PASSWORD_ATTEMPTS_PER_15_MIN,
+  isRecentReauth,
+  REAUTH_PASSWORD_SCOPE,
+} from "../privacy/index.ts";
 import type { AppServices } from "../server/index.ts";
 import { CLIENT_VERSION_HEADER, isClientOutdated } from "./client-version.ts";
 import { nfcDeep } from "./normalize.ts";
 import { retryAfterSeconds } from "./retry-after.ts";
+
+/** Kiểm mật khẩu của người dùng trong phiên (Better Auth `verifyPassword`); không có mật khẩu/sai ⇒ false. */
+export type VerifyPassword = (headers: Headers, password: string) => Promise<boolean>;
 
 export interface HttpSession {
   user: { id: string; twoFactorEnabled?: boolean | null | undefined };
@@ -63,6 +75,10 @@ export interface HttpDeps {
    * Bỏ trống = không bắt buộc. Lấy từ `apps/web/package.json` (`hm.minClientVersion`), không phải biến môi trường.
    */
   minClientVersion?: string;
+  /** Kiểm mật khẩu cho xác thực lại (lệnh `reauth`, xoá tổ chức, DSAR). Bỏ trống = mọi mật khẩu bị coi là sai (an toàn). */
+  verifyPassword?: VerifyPassword;
+  /** Đồng hồ cho kiểm "phiên ≤ 5 phút" — chỉ test đặt; bỏ trống = giờ hệ thống. */
+  now?: () => Date;
   /** Hạn mức lệnh mới/phút/tổ chức (T-401); bỏ trống = `COMMAND_QUOTA_PER_MINUTE`. Chỉ test đặt khác. */
   commandQuotaPerMinute?: number;
   /** Hạn mức lệnh mới/phút/thành viên; bỏ trống = `COMMAND_MEMBER_QUOTA_PER_MINUTE`. Chỉ test đặt khác. */
@@ -76,6 +92,13 @@ export interface CommandDef<I, O, P = undefined> {
   input: z.ZodType<I>;
   /** Vẫn chạy khi tổ chức `pending_deletion` (chỉ xuất dữ liệu — T-2312, D-125). Mặc định: 423 ORG_PENDING_DELETION. */
   allowPendingDeletion?: boolean;
+  /**
+   * Lệnh nhạy cảm cần XÁC THỰC LẠI (D-129; như xoá tổ chức/DSAR xoá): phiên đăng nhập ≤ 5 phút HOẶC `password` đúng trong thân
+   * (schema `input` phải khai `password` tuỳ chọn); thiếu/sai ⇒ 401 `REAUTH_REQUIRED` (`reason`), thử mật khẩu ≤ 5 lần/15 phút/tài
+   * khoản ⇒ 429. Chỉ áp cho vai trong `roles` (vai khác đi thẳng tới kiểm quyền của lệnh ⇒ 403, không lộ yêu cầu xác thực). `password`
+   * bị tách khỏi payload trước idempotency/audit/`run` — không bao giờ được lưu.
+   */
+  reauth?: { roles: readonly Actor["role"][] };
   /**
    * Bước chuẩn bị NGOÀI transaction lệnh (T-303; quét mã độc, ghi object — xem files/staging.ts). Chạy trước `executeCommand`;
    * kết quả đi vào `run`. Lỗi của bước này được ném lại TRONG `run` để pipeline vẫn ghi kết quả `failed` + audit `denied`.
@@ -269,7 +292,14 @@ export async function actorFromRequest(
   deps: HttpDeps,
   correlationId: string,
   /** `allowPendingDeletion`: đường được phép khi tổ chức chờ xoá (xuất dữ liệu, trạng thái/huỷ — T-2312, D-125). */
-  opts: { allowPendingDeletion?: boolean } = {},
+  opts: {
+    allowPendingDeletion?: boolean;
+    /**
+     * Đường GHI (tên lệnh/endpoint): tài khoản hỗ trợ chỉ đọc (D-128) ⇒ 403 + audit `command.denied` + sự kiện bảo mật, trước khi
+     * đọc thân request hay chạy bất cứ gì.
+     */
+    write?: string;
+  } = {},
 ): Promise<Actor | Response> {
   const session = await deps.getSession(req.headers);
   const endpoint = { type: "endpoint", id: new URL(req.url).pathname };
@@ -293,8 +323,9 @@ export async function actorFromRequest(
       })),
     });
   }
+  let actor: Actor;
   try {
-    return await resolveActor(deps.db, {
+    actor = await resolveActor(deps.db, {
       authUserId: session.user.id,
       orgId,
       twoFactorEnabled: Boolean(session.user.twoFactorEnabled),
@@ -317,6 +348,92 @@ export async function actorFromRequest(
     }
     throw err;
   }
+  if (opts.write !== undefined && actor.role === "platform_support")
+    return problemResponse(
+      await supportWriteDenied(deps.db, actor, {
+        command: opts.write,
+        correlationId,
+        client: requestClient(req.headers),
+      }),
+      correlationId,
+    );
+  return actor;
+}
+
+/**
+ * Xác thực lại bằng mật khẩu (dùng chung lệnh `reauth`, xoá tổ chức): `password` undefined ⇒ thời điểm đăng nhập của phiên; có ⇒ hạn
+ * mức 5 lần/15 phút/tài khoản (429) rồi `verifyPassword` (sai ⇒ 401 REAUTH_REQUIRED `invalid_password`), đúng ⇒ bây giờ. Hạn mức
+ * CHUNG mọi đường (`REAUTH_PASSWORD_SCOPE`, cả DSAR); `target` chỉ để ghi sự kiện bảo mật biết đường nào bị chặn.
+ */
+export async function reauthenticatedAt(
+  req: Request,
+  deps: Pick<HttpDeps, "db" | "verifyPassword" | "now">,
+  actor: Actor,
+  password: string | undefined,
+  correlationId: string,
+  o: { target: string; rateLimitedTitle: string; passwordInvalidTitle: string },
+): Promise<Date | null | Response> {
+  if (password === undefined) return actor.authenticatedAt ?? null;
+  const security = {
+    actor: { authUserId: actor.authUserId },
+    client: requestClient(req.headers),
+    correlationId,
+  };
+  const rate = await rateLimitHit(deps.db, {
+    scope: REAUTH_PASSWORD_SCOPE,
+    subject: actor.authUserId,
+    limit: DSAR_PASSWORD_ATTEMPTS_PER_15_MIN,
+    windowSeconds: minutesToSeconds(15),
+  });
+  if (!rate.allowed) {
+    emitSecurity({
+      ...security,
+      event: "rate_limit.exceeded",
+      outcome: "denied",
+      target: { type: "route", id: o.target },
+      reason: "RATE_LIMITED",
+    });
+    return simpleProblem("RATE_LIMITED", 429, o.rateLimitedTitle, correlationId, {
+      retry_after: rate.retryAfter ?? SECONDS_PER_MINUTE,
+    });
+  }
+  const ok = deps.verifyPassword ? await deps.verifyPassword(req.headers, password) : false;
+  if (!ok) {
+    emitSecurity({
+      ...security,
+      event: "auth.reauth_required",
+      outcome: "denied",
+      target: { type: "organization", id: actor.orgId },
+      reason: "invalid_password",
+    });
+    return simpleProblem("REAUTH_REQUIRED", 401, o.passwordInvalidTitle, correlationId, {
+      reason: "invalid_password",
+    });
+  }
+  return deps.now?.() ?? new Date();
+}
+
+/** Lệnh khai `reauth`: Response lỗi (401/429) hoặc null (đã xác thực lại / vai không thuộc diện). Bỏ `password` khỏi thân. */
+async function commandReauth(
+  req: Request,
+  deps: HttpDeps,
+  actor: Actor,
+  command: string,
+  rule: { roles: readonly Actor["role"][] },
+  password: string | undefined,
+  correlationId: string,
+): Promise<Response | null> {
+  if (!rule.roles.includes(actor.role)) return null;
+  const at = await reauthenticatedAt(req, deps, actor, password, correlationId, {
+    target: `${command}.reauth`,
+    rateLimitedTitle: t("http.reauth_rate_limited"),
+    passwordInvalidTitle: t("http.reauth_password_invalid"),
+  });
+  if (at instanceof Response) return at;
+  if (isRecentReauth(at, deps.now?.() ?? new Date())) return null;
+  return simpleProblem("REAUTH_REQUIRED", 401, t("http.reauth_required"), correlationId, {
+    reason: "reauth_required",
+  });
 }
 
 export function validationProblem(error: z.ZodError, correlationId: string): Response {
@@ -362,6 +479,7 @@ async function runCommand<I, O, P>(
     if (outdated) return outdated;
     const actor = await actorFromRequest(req, deps, correlationId, {
       allowPendingDeletion: def.allowPendingDeletion === true,
+      write: def.command,
     });
     if (actor instanceof Response) return actor;
     const key = req.headers.get("idempotency-key") ?? "";
@@ -394,7 +512,26 @@ async function runCommand<I, O, P>(
       );
       return validationProblem(parsed.error, correlationId);
     }
-    const input = parsed.data;
+    // D-129: lệnh nhạy cảm — xác thực lại TRƯỚC khi chạm pipeline; `password` không vào payload (băm idempotency, audit) và cũng
+    // không tới `prepare`/`run` (lệnh ghi `ctx.audit({ after: input })` không thể làm lộ mật khẩu).
+    let input = parsed.data;
+    let payload = body;
+    if (def.reauth) {
+      const { password, ...rest } = body as Record<string, unknown>;
+      payload = rest;
+      const { password: _omit, ...inputRest } = parsed.data as Record<string, unknown>;
+      input = inputRest as typeof input;
+      const need = await commandReauth(
+        req,
+        deps,
+        actor,
+        def.command,
+        def.reauth,
+        typeof password === "string" ? password : undefined,
+        correlationId,
+      );
+      if (need) return need;
+    }
     const prep = def.prepare
       ? await settle(() =>
           (def.prepare as NonNullable<typeof def.prepare>)(deps.db, actor, input, deps.services, {
@@ -408,7 +545,7 @@ async function runCommand<I, O, P>(
       {
         command: def.command,
         idempotencyKey: key,
-        payload: body,
+        payload,
         correlationId,
         client: requestClient(req.headers),
         ...(deps.commandQuotaPerMinute ? { quotaPerMinute: deps.commandQuotaPerMinute } : {}),
@@ -531,6 +668,13 @@ async function runQuery<I, O>(def: QueryDef<I, O>, req: Request, deps: HttpDeps)
     });
     if (actor instanceof Response) return actor;
     actorOf = actor;
+    // D-128: mỗi query của tài khoản hỗ trợ để lại một `support.accessed` (lý do của lời cấp, nguồn) TRƯỚC khi đọc dữ liệu.
+    await recordSupportAccess(deps.db, actor, {
+      kind: "query",
+      name: def.query,
+      client: requestClient(req.headers),
+      correlationId,
+    });
     const params = nfcDeep(Object.fromEntries(new URL(req.url).searchParams));
     const parsed = def.input.safeParse(params);
     if (!parsed.success) {

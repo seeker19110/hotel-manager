@@ -258,11 +258,13 @@ Loại: M · không có `organization_id` (chính là tenant).
 | deletion_requested_at | timestamptz | có | | Mốc yêu cầu xoá |
 | deletion_due_at | timestamptz | có | `ck_organizations_deletion`: ≥ `deletion_requested_at + 30 ngày`; index một phần `WHERE status = 'pending_deletion'` | Hạn purge (đồng hồ CSDL) |
 | deletion_requested_by | uuid | có | không FK | `auth.user.id` của owner yêu cầu — người xem chứng nhận |
+| plan | text | không | `ck_organizations_plan`: `CHECK (plan IN ('pilot'))` (= `PLAN_IDS` của `packages/app/src/plans/catalog.ts`), mặc định `'pilot'` | Gói dịch vụ (D-130, 0073): chọn hạn mức tài nguyên (`app.plan_limits`) và tần suất; chỉ role sở hữu bảng đổi được (`trg_organizations_lifecycle_guard`) hoặc chọn gói khác mặc định khi INSERT (`trg_organizations_plan_insert`, D-132) — RUNBOOK §Đổi gói |
 | settings | jsonb | không | `CHECK (jsonb_typeof(settings)='object')`, mặc định `'{}'` | Cờ tính năng (`mixed_template_enabled`, mặc định `false`) và hạn mức mặc định theo vai trò (`role_limits`) khi `memberships.limits` không đặt khoá; thay cho "bảng cấu hình theo tổ chức" của PLAN T-007 (mục 7) |
 | created_by | uuid | không | | `auth.user.id` của người tạo; không FK, chỉ để truy vết |
 
 - Khoá/index: `PK (id)`.
 - `ck_organizations_deletion`: `pending_deletion` ⇔ đủ ba cột `deletion_*`; ba cột không cấp cho app_runtime/app_worker — chỉ `app.org_request_deletion`/`app.org_cancel_deletion` (SECURITY DEFINER, kiểm owner active qua `app.actor_id`, ghi `audit_events`) đổi.
+- Hạn mức theo gói (IND-SAAS-008, D-130, 0073): trigger `app.enforce_plan_quota` trên `properties`/`units` (chưa lưu trữ), `memberships` (nhân viên active, trừ `tenant`/`platform_support`), `invitations` (lời mời nhân viên chờ còn hạn tính vào trần), `files` (tổng `size_bytes` `pending_scan`/`ready`, trừ `export_job`; hạn mức CON cho file do membership `tenant`/`guest` tải — theo `uploaded_by`: tổng ≤ `max_portal_storage_bytes` = 2% trần, mỗi người ≤ `max_portal_storage_bytes_per_member` = 200 MiB, D-132): vượt ⇒ `23514` + HINT `QUOTA_EXCEEDED` (409). Khoá `pg_advisory_xact_lock` theo (loại, tổ chức) trước khi đếm ⇒ ghi song song không vượt trần.
 - RLS/quyền đặc biệt: policy `id = current_setting('app.org_id')::uuid`. Liệt kê tổ chức của một người (trước khi chọn ngữ cảnh) và tạo tổ chức đi qua hàm `SECURITY DEFINER` (`app.list_my_organizations`, `app.create_organization`); `org.create` tạo luôn `persons` + `memberships(role='owner')` trong cùng transaction.
 - Bất biến: INV-G1, INV-G6 (sự kiện `organization.created` vào `audit_events` + `outbox`).
 
@@ -300,9 +302,10 @@ Loại: M
 | role | text | không | `CHECK (role IN ('owner','manager','front_desk','accountant','housekeeping','maintenance','tenant','guest','platform_support'))` | 9 vai trò DOMAIN-MODEL §6; `guest` dùng cho ma trận quyền nhưng không tạo membership (khách dùng `guest_access_links`) |
 | status | text | không | `CHECK (status IN ('invited','active','suspended','revoked'))`, mặc định `'active'` | |
 | valid_from | timestamptz | không | mặc định `now()` | |
-| valid_to | timestamptz | có | `CHECK (valid_to IS NULL OR valid_to > valid_from)`; `CHECK (role <> 'platform_support' OR valid_to IS NOT NULL)` | `platform_support` chỉ cấp tạm thời; SPEC-portal ghi `valid_until`, ERD dùng `valid_to` theo SPEC-access (mục 7) |
+| valid_to | timestamptz | có | `CHECK (valid_to IS NULL OR valid_to > valid_from)`; `ck_memberships_support_temporary` (0072): `platform_support` ⇒ `valid_to IS NOT NULL AND valid_to <= valid_from + 72 giờ` và `support_reason` 1–500 ký tự; vai khác ⇒ `support_reason IS NULL` | `platform_support` chỉ cấp tạm thời (D-128: owner cấp qua lời mời, hết hiệu lực khi `valid_to <= now()`); SPEC-portal ghi `valid_until`, ERD dùng `valid_to` theo SPEC-access (mục 7) |
+| support_reason | text | có | xem `ck_memberships_support_temporary` | Lý do của lời cấp truy cập hỗ trợ (sao từ `invitations.support_reason`; T-2313, D-128) |
 | limits | jsonb | không | `CHECK (jsonb_typeof(limits)='object')`, mặc định `'{}'` | Khoá `discount`, `refund`, `price_override`: số nguyên đồng ≥ 0 (`bigint`); 0 = mọi khoản cần duyệt; thiếu khoá thì lấy `organizations.settings.role_limits` |
-| all_properties | boolean | không | mặc định `false`; `CHECK (NOT all_properties OR role IN ('owner','accountant'))` | "Mọi cơ sở" (SPEC-access ca biên rỗng; Q-09); đề xuất, SPEC chưa nêu cột |
+| all_properties | boolean | không | mặc định `false`; `CHECK (NOT all_properties OR role IN ('owner','accountant','platform_support'))` (0072) | "Mọi cơ sở" (SPEC-access ca biên rỗng; Q-09); đề xuất, SPEC chưa nêu cột |
 | revoked_at | timestamptz | có | `CHECK ((status='revoked') = (revoked_at IS NOT NULL))` | |
 
 - Khoá/index: `PK (id)`, `UNIQUE (organization_id, id)`; `UNIQUE (organization_id, auth_user_id) WHERE auth_user_id IS NOT NULL AND status IN ('invited','active','suspended')`; `UNIQUE (organization_id, person_id) WHERE status IN ('invited','active','suspended')`; `ix (auth_user_id)` cho tra cứu theo phiên.
@@ -336,7 +339,8 @@ Loại: M
 | Cột | Kiểu | Null | Ràng buộc/mặc định | Ghi chú |
 |---|---|---|---|---|
 | email | text | không | `CHECK (email = lower(btrim(email)))` | |
-| role | text | không | `CHECK (role IN ('owner','manager','front_desk','accountant','housekeeping','maintenance','tenant'))` | |
+| role | text | không | `CHECK (role IN ('owner','manager','front_desk','accountant','housekeeping','maintenance','tenant','platform_support'))` (0072) | `platform_support` = lời mời truy cập hỗ trợ chỉ đọc (D-128) |
+| support_reason | text | có | `ck_invitations_support` (0072): `platform_support` ⇒ lý do 1–500 ký tự, `expires_at <= created_at + 72 giờ`, `property_ids = '{}'`, `limits = '{}'`; vai khác ⇒ NULL | Lý do owner cấp truy cập hỗ trợ (T-2313) |
 | property_ids | uuid[] | không | mặc định `'{}'` | Không FK (mảng); kiểm ở command và chuyển thành `property_scopes` (có FK) khi chấp nhận |
 | limits | jsonb | không | `CHECK (jsonb_typeof(limits)='object')`, mặc định `'{}'` | Như `memberships.limits` |
 | token_hash | bytea | không | `CHECK (octet_length(token_hash)=32)` | SHA-256 của token ngẫu nhiên ≥ 128 bit; không lưu token |
@@ -1579,7 +1583,7 @@ Loại: H (chỉ cột phát/thử lại đổi; worker xoá theo hạn)
 | available_at | timestamptz | không | mặc định `now()` (0047) | Lần thử kế tiếp sớm nhất; `app.outbox_mark` lùi theo backoff khi lỗi; `app.outbox_claim` bỏ qua hàng chưa tới hạn và đặt lease 60 giây (`available_at = now() + 60 s`) cho hàng lấy được (claim ngắn, T-401) |
 | traceparent | text | có | `CHECK` dạng W3C `00-<32 hex>-<16 hex>-0[01]`, không toàn 0 (0054) | `traceparent` của span lúc ghi sự kiện; relay chép vào job, handler worker nối tiếp trace của request (BASE-ERR-006). NULL = ghi ngoài request/job |
 
-- Khoá/index: `UNIQUE (organization_id, dedupe_key) WHERE dedupe_key IS NOT NULL`; `ix (id) WHERE published_at IS NULL` cho relay (`FOR UPDATE SKIP LOCKED`).
+- Khoá/index: `UNIQUE (organization_id, dedupe_key) WHERE dedupe_key IS NOT NULL`; `ix (id) WHERE published_at IS NULL` cho relay (`FOR UPDATE SKIP LOCKED`); `ix_outbox_unpublished_org (organization_id, created_at, id) WHERE published_at IS NULL` cho claim vòng tròn theo tổ chức (0073: `app.outbox_claim(p_limit, p_per_org)` — worker truyền `p_per_org` = 10; `outbox_claim(p_limit)` của 0071 giữ lại cho worker N−1 tới bước contract — mỗi tổ chức được ưu tiên ≤ `p_per_org` hàng/lượt, trả theo vòng ⇒ backlog của một tổ chức không chặn tổ chức khác, D-130; phần còn lại của lô lấp theo `(created_at, id)` qua `ix (id) WHERE published_at IS NULL` ⇒ tổ chức đơn lẻ xả đủ lô, D-132).
 - Ràng buộc đặc biệt: INSERT chung transaction với nghiệp vụ và `audit_events` (INV-G6); gửi ra ngoài làm sau COMMIT; transaction rollback ⇒ không có hàng. `app_worker` có policy riêng đọc các hàng `published_at IS NULL` mọi tổ chức để relay, và đặt `app.org_id` theo hàng trước khi làm việc tiếp (đề xuất, T-008).
 - RLS/quyền đặc biệt: `app_runtime` chỉ `INSERT`; `app_worker` `SELECT` + `UPDATE (published_at, attempts, last_error)` + `DELETE` hàng cũ đã phát.
 - Bất biến: INV-G6.
@@ -1930,7 +1934,7 @@ Better Auth chạy trong `apps/web`, dùng adapter Kysely/`pg` trên **cùng** P
 Hàm `SECURITY DEFINER` phạm vi hẹp (thay cho BYPASSRLS/policy rộng; mỗi hàm `REVOKE ALL FROM PUBLIC` rồi chỉ cấp cho role cần):
 `app.list_my_organizations(auth_user_id)` (liệt kê tổ chức của chính người đăng nhập trước khi có ngữ cảnh tổ chức — 0002) ·
 `app.current_user_id()` (không SECURITY DEFINER: đọc ngữ cảnh người dùng `app.user_id` cho RLS bảng theo tài khoản `consent_records` — 0068, `dsar_requests`/`processing_restrictions` — 0069) ·
-`app.outbox_claim`/`app.outbox_mark` (relay của worker — 0003) · `app.expire_holds` (job — 0004) ·
+`app.outbox_claim`/`app.outbox_mark` (relay của worker — 0003; vòng tròn theo tổ chức — 0073) · `app.enforce_plan_quota()` (trigger hạn mức theo gói) + `app.plan_limits(plan)` (bản sao hạn mức tài nguyên của `packages/app/src/plans/catalog.ts`, test so khớp — 0073) · `app.expire_holds` (job — 0004) ·
 `app.receiving_account_owner` (định tuyến webhook ngân hàng — 0005) · `app.actor_role()` (RLS lớp 3 theo vai trò cho giấy tờ — 0006).
 `app.rate_limit_hit(scope, subject, limit, window_seconds, now)` (bộ đếm giới hạn tần suất dùng chung giữa instance cho tải file/nhập liệu/webhook — bảng toàn cục `rate_limit_counters`, khoá advisory theo (scope, subject), lượt bị từ chối không tăng bộ đếm — 0053).
 `app.email_budget_take(org, now, budget, warn_pct, throttle_pct, required)` (ngân sách email theo ngày UTC/tổ chức — OPS-COST-004: bảng `email_budget_days` (PK `organization_id` + `day`; `used`, `throttled`, `stopped`, `level`), RLS bật, KHÔNG cấp quyền trực tiếp cho app_runtime/app_worker, khoá hàng ⇒ tổng `used` không vượt ngân sách khi đồng thời) · `app.email_budget_metrics(now, budget)` (gauge ngày UTC hiện tại cho `/api/metrics`) — 0063.

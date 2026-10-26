@@ -80,6 +80,15 @@ export const AUDIT_ONLY_EVENT_TYPES: ReadonlySet<string> = new Set([
 
 export const NO_CONSUMER_ERROR = "no_consumer";
 
+/**
+ * Fair-share theo tổ chức (IND-SAAS-008, D-130, D-132) đặt ở bước CLAIM: mỗi lượt, mỗi tổ chức có việc được ƯU TIÊN tối đa chừng này
+ * sự kiện (lô 100 ⇒ ≥ 10 tổ chức được phục vụ trước khi cùng có backlog), phần còn lại của lô được lấp theo thứ tự cũ ⇒ tổ chức đơn
+ * lẻ vẫn xả đủ lô. Consumer chạy TUẦN TỰ mỗi queue mỗi tiến trình (`CONSUMER_CONCURRENCY` = 1, như trước T-2314) ⇒ thứ tự sự kiện
+ * trong một tổ chức được giữ trong tiến trình; job của B không chờ backlog của A vì đã vào pg-boss ngay lượt claim đầu.
+ */
+export const RELAY_PER_ORG = 10;
+export const CONSUMER_CONCURRENCY = 1;
+
 export interface QueuePolicy {
   retryLimit: number;
   retryDelay: number;
@@ -142,6 +151,10 @@ export function isPermanentJobError(err: unknown): boolean {
  * `opts.consumed`: tập event_type có consumer ở worker này. Loại khác: nằm trong `opts.auditOnly` (mặc định
  * `AUDIT_ONLY_EVENT_TYPES`) ⇒ đánh dấu đã phát không sinh job; không nằm trong đó ⇒ KHÔNG đánh dấu đã phát, ghi
  * `no_consumer`, log `outbox.no_consumer`, lùi lần thử (không kẹt đầu hàng; worker khác có consumer vẫn nhận được).
+ * Fair-share (IND-SAAS-008, D-130, migration 0073): claim lấy theo VÒNG TRÒN — mỗi tổ chức được ưu tiên tối đa `opts.perOrg`
+ * (mặc định `RELAY_PER_ORG`) hàng, trả theo thứ tự vòng ⇒ tổ chức dồn hàng nghìn sự kiện không chặn tổ chức khác (sự kiện của B vào
+ * pg-boss ngay lượt đầu) — rồi lấp đủ `batch` theo thứ tự cũ (D-132); trong một tổ chức luôn theo (created_at, id). Job mang
+ * `group.id = organization_id` (siêu dữ liệu để truy vết/giới hạn theo tổ chức về sau; consumer hiện chạy tuần tự).
  * Trả số hàng đã claim.
  */
 export async function relayOutbox(
@@ -149,6 +162,8 @@ export async function relayOutbox(
   boss: PgBoss,
   batch = 100,
   opts: {
+    /** Số hàng ưu tiên mỗi tổ chức mỗi lượt claim (mặc định `RELAY_PER_ORG`); phần còn lại của lô lấp theo thứ tự cũ. */
+    perOrg?: number;
     consumed?: ReadonlySet<string>;
     auditOnly?: ReadonlySet<string>;
     log?: (event: string, fields: Record<string, unknown>) => void;
@@ -164,7 +179,7 @@ export async function relayOutbox(
     payload: Record<string, unknown>;
     correlation_id: string;
     traceparent: string | null;
-  }>`select * from app.outbox_claim(${batch})`.execute(workerDb);
+  }>`select * from app.outbox_claim(${batch}, ${opts.perOrg ?? RELAY_PER_ORG})`.execute(workerDb);
   for (const r of claimed.rows) {
     let error: string | null = null;
     if (opts.consumed && !opts.consumed.has(r.event_type)) {
@@ -183,7 +198,7 @@ export async function relayOutbox(
         traceparent: r.traceparent,
       };
       try {
-        await boss.send(r.event_type, job, { id: r.id });
+        await boss.send(r.event_type, job, { id: r.id, group: { id: r.organization_id } });
       } catch (err) {
         error = String((err as Error).message);
       }
@@ -216,7 +231,12 @@ export async function startConsumers(
   for (const [name, handler] of Object.entries(handlers)) {
     await boss.work<OutboxJob>(
       name,
-      { pollingIntervalSeconds: opts.pollingIntervalSeconds ?? 2 },
+      {
+        pollingIntervalSeconds: opts.pollingIntervalSeconds ?? 2,
+        // Tuần tự (D-132): job song song — kể cả giới hạn theo nhóm — cho phép job sau của cùng tổ chức xong trước job trước khi
+        // backlog trải qua nhiều suất; giữ thứ tự trong tiến trình như trước T-2314. Fair-share giữa tổ chức nằm ở `outbox_claim`.
+        localConcurrency: CONSUMER_CONCURRENCY,
+      },
       async (jobs) => {
         for (const j of jobs) {
           // Mỗi job một span riêng, nối tiếp trace của request sinh ra sự kiện: mọi log trong handler và log

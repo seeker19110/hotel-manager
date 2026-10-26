@@ -22,6 +22,7 @@ import {
   type SecurityClient,
   securityEventForProblem,
 } from "../logging/index.ts";
+import { DEFAULT_PLAN, PLANS, planLimits } from "../plans/index.ts";
 import { CommandError, idempotencyInProgress, type Problem, rateLimited, toProblem } from "./problem.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -31,20 +32,20 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  * trượt; vượt ⇒ 429 RATE_LIMITED + `Retry-After`, KHÔNG lưu kết quả (gửi lại cùng key sau khi hết giới hạn chạy bình thường).
  * Một tổ chức bão hoà hạn mức không chiếm tài nguyên của tổ chức khác. Đếm ngay trong CSDL (`idempotency_keys`) nên đúng khi
  * nhiều instance. 600/phút ≈ 10 lệnh/giây — gấp nhiều lần mức thao tác tay của một khách sạn nhỏ, chỉ chặn script/lỗi vòng
- * lặp. Cố định theo mã (không biến môi trường); sau này theo gói thì đổi nguồn của hằng này.
+ * lặp. Theo gói của tổ chức (`plans/`, D-130; actor mang `plan`); hằng này = giá trị gói mặc định `pilot`.
  *
  * Chỉ lệnh `committed`/`in_progress` tính vào hạn mức TỔ CHỨC: lệnh bị từ chối (401/403/404/409/422… — kết quả `failed`) do
  * chính người gửi tự gây ra, không được phép làm cạn hạn mức của cả tổ chức (một người thuê/nhân viên spam lệnh 403 không
  * chặn được owner ghi). Lệnh lỗi vẫn tính vào hạn mức THÀNH VIÊN bên dưới. (5xx không để lại hàng: transaction rollback.)
  */
-export const COMMAND_QUOTA_PER_MINUTE = 600;
+export const COMMAND_QUOTA_PER_MINUTE = PLANS[DEFAULT_PLAN].commandsPerMinute.org;
 /**
  * Hạn mức lệnh ghi theo THÀNH VIÊN (kể cả người thuê): mọi lệnh MỚI của một thành viên (cả lệnh bị từ chối), 60 giây trượt;
  * kiểm TRƯỚC hạn mức tổ chức nên kẻ spam chỉ tự chặn mình. Nhỏ hơn hạn mức tổ chức (200/phút ≈ 3 lệnh/giây — vượt xa thao
  * tác tay của một người). Khoá đếm là `actor_person_id` của `idempotency_keys`; mỗi thành viên có đúng một person trong tổ chức
- * (`uq_memberships_person`) nên tương đương theo `membershipId`.
+ * (`uq_memberships_person`) nên tương đương theo `membershipId`. Theo gói như hạn mức tổ chức; hằng này = gói `pilot`.
  */
-export const COMMAND_MEMBER_QUOTA_PER_MINUTE = 200;
+export const COMMAND_MEMBER_QUOTA_PER_MINUTE = PLANS[DEFAULT_PLAN].commandsPerMinute.member;
 const QUOTA_WINDOW_SECONDS = 60;
 
 export interface AuditInput {
@@ -97,9 +98,9 @@ export interface CommandRequest {
   correlationId: string;
   /** IP/User-Agent của request, để gắn vào sự kiện bảo mật (không dùng cho nghiệp vụ). */
   client?: SecurityClient;
-  /** Ghi đè hạn mức lệnh/phút/tổ chức (test); mặc định `COMMAND_QUOTA_PER_MINUTE`. */
+  /** Ghi đè hạn mức lệnh/phút/tổ chức (test); mặc định theo gói của tổ chức (`planLimits(actor.plan)`). */
   quotaPerMinute?: number;
-  /** Ghi đè hạn mức lệnh/phút/thành viên (test); mặc định `COMMAND_MEMBER_QUOTA_PER_MINUTE`. */
+  /** Ghi đè hạn mức lệnh/phút/thành viên (test); mặc định theo gói của tổ chức. */
   memberQuotaPerMinute?: number;
   /** Chính sách chạy lại khi 40001/40P01 (mặc định `REQUEST_TX_RETRY`) và nguồn ngẫu nhiên/đồng hồ/chờ tiêm cho test. */
   retry?: RetryDeps & { policy?: RetryPolicy };
@@ -165,10 +166,67 @@ function replay<T>(commandId: string, row: StoredRow): CommandResult<T> {
   };
 }
 
+/** `audit_events.actor_type`: tài khoản hỗ trợ (D-128) tách khỏi người dùng của tổ chức để owner lọc/nhận ra. */
+const actorType = (actor: Actor) => (actor.role === "platform_support" ? "platform_support" : "user");
+
+/**
+ * "Từ đâu" cho audit ghi bằng SQL trong transaction (hàm CSDL, insert trực tiếp): GUC giao dịch mà trigger 0072 đọc khi dòng chưa
+ * có `source_ip`/`user_agent`. Giá trị đã cắt/làm sạch như `auditRow`.
+ */
+export async function setAuditSource(
+  trx: Transaction<unknown> | Kysely<unknown>,
+  client: SecurityClient | null | undefined,
+): Promise<void> {
+  const src = auditSource(client);
+  await sql`select set_config('app.source_ip', ${src.sourceIp ?? ""}, true),
+                   set_config('app.user_agent', ${src.userAgent ?? ""}, true)`.execute(trx);
+}
+
+/**
+ * Truy cập hỗ trợ CHỈ ĐỌC (D-128): mọi lệnh ghi của actor `platform_support` bị từ chối TRƯỚC khi chạy bất cứ gì (không
+ * idempotency, không nghiệp vụ) — 403 + audit `command.denied` (actor_type platform_support, lý do của lời cấp, nguồn) + sự kiện
+ * bảo mật. Gọi ở route (trước khi đọc thân lệnh) và ở `executeCommand` (lớp hai cho mọi đường gọi khác).
+ */
+export async function supportWriteDenied(
+  db: Kysely<unknown>,
+  actor: Actor,
+  req: { command: string; correlationId: string; client?: SecurityClient | null | undefined },
+): Promise<Problem> {
+  const problem = toProblem(
+    new CommandError("FORBIDDEN", 403, t("pipeline.support_read_only")),
+    req.correlationId,
+  );
+  await withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, (trx) =>
+    auditRow(
+      trx,
+      actor,
+      { commandId: null, correlationId: req.correlationId },
+      {
+        action: "command.denied",
+        entityType: req.command,
+        after: { code: problem.code },
+        ...(actor.support?.reason ? { reason: actor.support.reason } : {}),
+      },
+      "denied",
+      req.client,
+    ),
+  );
+  emitSecurity({
+    event: "authz.denied",
+    outcome: "denied",
+    actor,
+    target: { type: "command", id: req.command },
+    reason: problem.code,
+    client: req.client ?? null,
+    correlationId: req.correlationId,
+  });
+  return problem;
+}
+
 async function auditRow(
   trx: Transaction<unknown>,
   actor: Actor,
-  ids: { commandId: string; correlationId: string },
+  ids: { commandId: string | null; correlationId: string },
   e: AuditInput,
   outcome: "success" | "denied",
   client: SecurityClient | null | undefined,
@@ -178,7 +236,7 @@ async function auditRow(
   await sql`
     insert into audit_events (id, organization_id, property_id, actor_type, actor_person_id, action, entity_type, entity_id,
                               before, after, reason, correlation_id, command_id, outcome, source_ip, user_agent)
-    values (${randomUUID()}, ${actor.orgId}, ${e.propertyId ?? null}, 'user', ${actor.personId}, ${e.action}, ${e.entityType},
+    values (${randomUUID()}, ${actor.orgId}, ${e.propertyId ?? null}, ${actorType(actor)}, ${actor.personId}, ${e.action}, ${e.entityType},
             ${e.entityId ?? null}, ${e.before === undefined ? null : JSON.stringify(redact(e.before))}::jsonb,
             ${e.after === undefined ? null : JSON.stringify(redact(e.after))}::jsonb, ${e.reason ?? null},
             ${ids.correlationId}, ${ids.commandId}, ${outcome}, ${src.sourceIp}, ${src.userAgent})`.execute(
@@ -253,12 +311,16 @@ export async function executeCommand<T>(
     throw new CommandError("MALFORMED_REQUEST", 400, t("http.idempotency_key_invalid"));
   }
   const commandId = req.idempotencyKey.toLowerCase();
+  if (actor.role === "platform_support" && !req.bootstrap) {
+    const problem = await supportWriteDenied(db, actor, req);
+    return { status: "failed", commandId, httpStatus: problem.status, problem, replayed: false };
+  }
   const hash = hashPayload(req.command, req.payload);
   const ids = { commandId, correlationId: req.correlationId };
 
   const blocked = await quotaWait(db, actor, commandId, {
-    org: req.quotaPerMinute ?? COMMAND_QUOTA_PER_MINUTE,
-    member: req.memberQuotaPerMinute ?? COMMAND_MEMBER_QUOTA_PER_MINUTE,
+    org: req.quotaPerMinute ?? planLimits(actor.plan).commandsPerMinute.org,
+    member: req.memberQuotaPerMinute ?? planLimits(actor.plan).commandsPerMinute.member,
   });
   if (blocked) {
     // 429 không lưu vào idempotency_keys: retry cùng key sau Retry-After phải chạy được, không dính kết quả lỗi cũ.
@@ -298,6 +360,8 @@ export async function executeCommand<T>(
             trx,
           );
           if (!free.rows[0]?.ok) throw idempotencyInProgress();
+          // Audit ghi bằng SQL trong lệnh (hàm CSDL, insert trực tiếp) cũng có "từ đâu" (trigger 0072).
+          if (req.client) await setAuditSource(trx, req.client);
           if (req.bootstrap) {
             const known = await sql<{ one: number }>`
               select 1 as one from idempotency_keys where organization_id = ${actor.orgId} and key = ${commandId}`.execute(

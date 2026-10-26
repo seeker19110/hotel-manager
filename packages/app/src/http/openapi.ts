@@ -27,7 +27,7 @@ const ERROR_RESPONSES: Record<string, Json> = {
   "404": errorResponse("NOT_FOUND — không tồn tại hoặc thuộc tổ chức/cơ sở khác (không phân biệt)"),
   "409": {
     description:
-      "Xung đột trạng thái/ngữ cảnh (ORG_CONTEXT_REQUIRED, CONTEXT_CHANGED…); hoặc IDEMPOTENCY_IN_PROGRESS (cùng Idempotency-Key, lần đầu còn đang xử lý chưa commit, D-043) kèm `Retry-After` — đợi rồi tra GET /api/v1/commands/{id}, không gửi payload mới",
+      "Xung đột trạng thái/ngữ cảnh (ORG_CONTEXT_REQUIRED, CONTEXT_CHANGED…); QUOTA_EXCEEDED (vượt hạn mức gói của tổ chức: cơ sở, phòng, thành viên, dung lượng file — D-130); hoặc IDEMPOTENCY_IN_PROGRESS (cùng Idempotency-Key, lần đầu còn đang xử lý chưa commit, D-043) kèm `Retry-After` — đợi rồi tra GET /api/v1/commands/{id}, không gửi payload mới",
     headers: {
       "Retry-After": {
         schema: { type: "integer", minimum: 1 },

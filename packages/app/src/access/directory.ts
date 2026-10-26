@@ -9,6 +9,8 @@ import type { Actor } from "../actor-core/index.ts";
 
 export interface MemberRow {
   membershipId: string;
+  /** Hồ sơ người của thành viên (lọc nhật ký theo người — /nhat-ky). */
+  personId: string;
   fullName: string;
   email: string | null;
   role: string;
@@ -41,6 +43,7 @@ export async function listMembers(
   return withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
     const m = await sql<{
       id: string;
+      person_id: string;
       full_name: string;
       email: string | null;
       role: string;
@@ -48,13 +51,13 @@ export async function listMembers(
       all_properties: boolean;
       props: { id: string; name: string }[];
     }>`
-      select m.id, p.full_name, p.email, m.role, m.status, m.all_properties,
+      select m.id, m.person_id, p.full_name, p.email, m.role, m.status, m.all_properties,
              coalesce((select jsonb_agg(jsonb_build_object('id', pr.id, 'name', pr.name) order by pr.name)
                        from property_scopes ps join properties pr on pr.organization_id = ps.organization_id and pr.id = ps.property_id
                        where ps.organization_id = m.organization_id and ps.membership_id = m.id
                          and (${visible}::uuid[] is null or pr.id = any(${visible}::uuid[]))), '[]'::jsonb) as props
       from memberships m join persons p on p.organization_id = m.organization_id and p.id = m.person_id
-      where m.organization_id = ${actor.orgId} and m.status <> 'revoked' and m.role not in ('tenant', 'guest')
+      where m.organization_id = ${actor.orgId} and m.status <> 'revoked' and m.role not in ('tenant', 'guest', 'platform_support')
         and (${isOwner} or m.id = ${actor.membershipId}
              or (m.role = any(${LOW}::text[]) and exists (
                    select 1 from property_scopes ps where ps.organization_id = m.organization_id and ps.membership_id = m.id
@@ -74,12 +77,14 @@ export async function listMembers(
                          and (${visible}::uuid[] is null or pr.id = any(${visible}::uuid[]))), '[]'::jsonb) as props
       from invitations i
       where i.organization_id = ${actor.orgId} and i.status = 'pending' and i.expires_at > now()
+        and i.role <> 'platform_support'
         and (${isOwner} or (i.role = any(${LOW}::text[]) and i.property_ids && ${myProps}::uuid[]))
       order by i.created_at desc, i.id
       limit 200`.execute(trx);
     return {
       members: m.rows.map((r) => ({
         membershipId: r.id,
+        personId: r.person_id,
         fullName: r.full_name,
         email: r.email,
         role: r.role,

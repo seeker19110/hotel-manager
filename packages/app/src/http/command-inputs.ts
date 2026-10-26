@@ -211,7 +211,36 @@ export const COMMAND_INPUTS = {
     all_properties: z.boolean().optional(),
     reason: z.string().trim().min(1).max(500),
   }),
+  // Xuất dữ liệu (form /nhat-ky): danh sách loại khớp `EXPORT_KINDS` (exports.ts — test đối chiếu ở command-inputs.test).
+  "exports.request": z.strictObject({
+    kind: z.enum(["receivables", "collections", "deposits", "occupancy", "audit"]),
+    format: z.enum(["csv", "xlsx"]),
+    property_id: z.string().max(64).optional(),
+    filters: z
+      .strictObject({
+        as_of: isoDate.optional(),
+        from: isoDate.optional(),
+        to: isoDate.optional(),
+        correlation_id: z.string().min(1).max(200).optional(),
+        actor_person_id: uuid.optional(),
+        actor_type: z.enum(["user", "worker", "platform_support"]).optional(),
+        action: z.string().min(1).max(100).optional(),
+        entity_type: z.string().min(1).max(64).optional(),
+      })
+      .optional(),
+  }),
   "session.revokeAll": z.strictObject({ membership_id: uuid.optional() }),
+  // Truy cập hỗ trợ chỉ đọc (D-128): lý do bắt buộc, hạn 1–72 giờ (mặc định 24 ở server); CSDL CHECK là lớp cuối.
+  "member.grantSupportAccess": z.strictObject({
+    email: z.email().max(320),
+    reason: z.string().trim().min(1).max(500),
+    ttl_hours: z.number().int().min(1).max(72).optional(),
+    // D-129: xác thực lại (như xoá tổ chức) — phiên ≤ 5 phút HOẶC mật khẩu; tách khỏi payload ở route (`CommandDef.reauth`).
+    password: z.string().min(1).max(256).optional(),
+  }),
+  "member.revokeSupportAccess": z.strictObject({ invitation_id: uuid }),
+  // Xuất toàn bộ dữ liệu tổ chức (trang Tổ chức, D-125): không tham số — có schema dùng chung để form kiểm như mọi lệnh web.
+  "exports.requestOrgExport": z.strictObject({}),
   "org.create": z.strictObject({ name: displayName }),
   "payment.collectCash": z.strictObject({ invoice_id: uuid, amount: positiveMoney }),
   "payment.confirm": z.strictObject({

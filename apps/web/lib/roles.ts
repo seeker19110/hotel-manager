@@ -8,6 +8,7 @@ const ROLES = [
   "housekeeping",
   "maintenance",
   "tenant",
+  "platform_support",
 ] as const;
 const STATUSES = ["active", "suspended", "invited"] as const;
 

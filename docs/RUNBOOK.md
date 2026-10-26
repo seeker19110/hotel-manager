@@ -178,6 +178,12 @@ Web chạy vai trò CSDL `app_runtime` và danh tính S3 `hotel-manager-web`; wo
 - Thêm lớp proxy/CDN (hoặc bật `trusted_proxies`) ⇒ hop phải nhất là địa chỉ của lớp đó: mọi khách chung một IP (giới hạn tần suất gộp chung, log sai nguồn). Phải sửa `forwardedClientIp` (đếm số hop tin cậy) và cập nhật mục này TRƯỚC khi đổi hạ tầng.
 - Chạy ứng dụng không qua proxy (cổng 3000 lộ ra ngoài) ⇒ client tự đặt được header ⇒ không an toàn; cổng web chỉ mở cho Caddy.
 
+## 11a. Truy cập hỗ trợ (T-2313, D-128)
+- Không có lối vào dữ liệu khách của nhân viên nền tảng: người hỗ trợ dùng TÀI KHOẢN RIÊNG; chỉ vào được khi owner của tổ chức cấp ở `/nhat-ky` → "Truy cập hỗ trợ" (email + lý do, 1–72 giờ, mặc định 24). Thư lời mời do worker gửi (outbox `member.invited`); người hỗ trợ nhận lời mời, bật xác thực hai lớp (bắt buộc).
+- Chỉ đọc: mọi lệnh ghi 403 (`FORBIDDEN`, "Truy cập hỗ trợ chỉ được xem…"), RLS `support_ro_*` chặn ghi ở CSDL. Hết hạn tự động theo `memberships.valid_to` (không cần job); thu hồi: owner bấm "Thu hồi truy cập hỗ trợ" ở biểu ngữ hoặc `/nhat-ky`.
+- Truy vết: `/nhat-ky` lọc "Tài khoản hỗ trợ nền tảng" (`audit_events.actor_type = 'platform_support'`, hành động `support.accessed` / `command.denied`, kèm lý do của lời cấp). Sự kiện bảo mật `support.access_granted`/`support.access_revoked` ở log.
+- Gỡ hẳn tính năng: revert PR (migration 0072 có `down` — thu hồi membership/lời mời hỗ trợ còn lại trước khi khôi phục CHECK cũ).
+
 ## 12. Tài liệu vận hành liên quan
 | Cần làm | Tài liệu |
 |---|---|

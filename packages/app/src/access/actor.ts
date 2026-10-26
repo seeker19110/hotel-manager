@@ -9,7 +9,14 @@ import { t } from "../i18n.ts";
 export { AccessError, type AccessErrorCode, type Actor, type Role } from "../actor-core/index.ts";
 
 /** Vai trò có quyền tiền/quản trị bắt buộc MFA (kế hoạch §16; access Q-06 — chủ dự án duyệt 2026-10-15). */
-const MFA_ROLES: ReadonlySet<Role> = new Set(["owner", "manager", "accountant", "front_desk"]);
+// `platform_support` (D-128): đọc dữ liệu cá nhân của cả tổ chức ⇒ bắt buộc MFA như vai quản trị.
+const MFA_ROLES: ReadonlySet<Role> = new Set([
+  "owner",
+  "manager",
+  "accountant",
+  "front_desk",
+  "platform_support",
+]);
 
 export function requiresMfa(role: Role, limits: Readonly<Record<string, number>>): boolean {
   return MFA_ROLES.has(role) || Object.values(limits).some((v) => typeof v === "number" && v > 0);
@@ -80,8 +87,11 @@ export async function resolveActor(
       role_limits: Record<string, number> | null;
       property_ids: string[] | null;
       org_status: string;
+      org_plan: string;
+      support_reason: string | null;
+      valid_to: Date | null;
     }>`
-      select m.id, m.person_id, m.role, m.all_properties, m.limits, o.status as org_status,
+      select m.id, m.person_id, m.role, m.all_properties, m.limits, o.status as org_status, o.plan as org_plan, m.support_reason, m.valid_to,
              o.settings -> 'role_limits' -> m.role as role_limits,
              array_remove(array_agg(ps.property_id), null)::text[] as property_ids
       from memberships m
@@ -91,7 +101,7 @@ export async function resolveActor(
       where m.auth_user_id = ${authUserId}::uuid and m.status = 'active'
         and m.valid_from <= now() and (m.valid_to is null or m.valid_to > now())
         and (m.role <> 'tenant' or u."emailVerified")
-      group by m.id, o.settings, o.status`.execute(trx);
+      group by m.id, o.settings, o.status, o.plan`.execute(trx);
     return r.rows[0];
   });
   if (!row) throw new AccessError("NOT_FOUND", t("http.organization_not_found"));
@@ -112,7 +122,12 @@ export async function resolveActor(
     propertyIds: row.property_ids ?? [],
     limits,
     mfaRequired: requiresMfa(row.role, limits),
+    plan: row.org_plan,
     ...(input.authenticatedAt ? { authenticatedAt: input.authenticatedAt } : {}),
+    // Hiệu lực theo đồng hồ CSDL (`valid_to > now()` ở truy vấn trên) — không phụ thuộc job; hết hạn ⇒ NOT_FOUND như không phải thành viên.
+    ...(row.role === "platform_support" && row.support_reason && row.valid_to
+      ? { support: { reason: row.support_reason, until: row.valid_to } }
+      : {}),
   };
   if (actor.mfaRequired && !input.twoFactorEnabled) {
     throw new AccessError("MFA_REQUIRED", t("access.mfa_required"));

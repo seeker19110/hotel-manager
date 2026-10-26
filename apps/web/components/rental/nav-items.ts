@@ -28,15 +28,17 @@ export interface NavEntry {
 const STAFF = ["owner", "manager", "front_desk", "accountant", "housekeeping", "maintenance"] as const;
 const FRONT = ["owner", "manager", "front_desk"] as const;
 const MONEY = ["owner", "manager", "accountant"] as const;
+/** Truy cập hỗ trợ chỉ đọc (D-128): xem phòng/lịch; quyền thật kiểm ở server. */
+const SUPPORT = "platform_support";
 
 const has = (roles: readonly string[], role: Role) => roles.includes(role);
 
 /** Năm (hoặc ít hơn khi vai trò không có quyền) điểm vào của thanh điều hướng dưới. */
 export function primaryNav(role: Role, kinds: NavKinds = { hotel: true, rental: true }): NavEntry[] {
   const out: NavEntry[] = [{ key: "today", label: t("nav.primary.today"), href: "/", paths: ["/"] }];
-  if (has(STAFF, role)) {
-    // Khách sạn: lễ tân/quản lý/kế toán xem lịch; còn lại (và nhà trọ) xem danh sách phòng.
-    const calendar = kinds.hotel && has([...FRONT, "accountant"], role);
+  if (has([...STAFF, SUPPORT], role)) {
+    // Khách sạn: lễ tân/quản lý/kế toán/hỗ trợ xem lịch; còn lại (và nhà trọ) xem danh sách phòng.
+    const calendar = kinds.hotel && has([...FRONT, "accountant", SUPPORT], role);
     out.push({
       key: "rooms",
       label: t("nav.primary.rooms"),
@@ -73,8 +75,13 @@ interface MoreItem {
 
 /** Dựng lúc gọi (không lúc nạp module) để nhãn lấy từ catalog đúng thời điểm. */
 const moreItems = (): readonly MoreItem[] => [
-  { href: "/lich-phong", label: t("nav.more.calendar"), roles: [...FRONT, "accountant"], kind: "hotel" },
-  { href: "/phong", label: t("nav.more.rooms"), roles: STAFF },
+  {
+    href: "/lich-phong",
+    label: t("nav.more.calendar"),
+    roles: [...FRONT, "accountant", SUPPORT],
+    kind: "hotel",
+  },
+  { href: "/phong", label: t("nav.more.rooms"), roles: [...STAFF, SUPPORT] },
   { href: "/dat-phong", label: t("nav.more.bookings"), roles: [...FRONT, "accountant"], kind: "hotel" },
   { href: "/buong-phong", label: t("nav.more.housekeeping"), roles: [...FRONT, "housekeeping"] },
   { href: "/su-co", label: t("nav.more.incidents"), roles: [...FRONT, "housekeeping", "maintenance"] },
@@ -85,6 +92,7 @@ const moreItems = (): readonly MoreItem[] => [
   { href: "/thong-bao", label: t("nav.more.notifications"), roles: STAFF },
   { href: "/co-so", label: t("nav.more.properties"), roles: ["owner"] },
   { href: "/thanh-vien", label: t("nav.more.members"), roles: ["owner", "manager"] },
+  { href: "/nhat-ky", label: t("nav.more.audit_log"), roles: ["owner", "manager"] },
   { href: "/to-chuc", label: t("nav.more.organization"), roles: ["owner"] },
 ];
 

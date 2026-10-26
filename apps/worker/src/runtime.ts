@@ -199,7 +199,7 @@ export async function startWorker(deps: WorkerDeps): Promise<WorkerHandle> {
             baseUrl: deps.baseUrl,
             // Hết ngân sách email ngày ⇒ xếp lại job tới đầu ngày UTC kế (không vào dead letter) — OPS-COST-004.
             requeue: async (job, startAfter, id) => {
-              await boss.send("member.invited", job, { id, startAfter });
+              await boss.send("member.invited", job, { id, startAfter, group: { id: job.organization_id } });
             },
           },
           log.child({ component: "member.invitation" }),

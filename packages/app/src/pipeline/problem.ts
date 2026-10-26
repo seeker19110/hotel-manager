@@ -141,6 +141,8 @@ const HINT_STATUS: Record<string, { status: number; title: string }> = {
   PERIOD_ISSUED: { status: 409, title: t("pipeline.period_issued") },
   INVALID_TRANSITION: { status: 409, title: t("pipeline.invalid_transition") },
   LAST_OWNER: { status: 409, title: t("pipeline.last_owner") },
+  // D-130: trigger `app.enforce_plan_quota` (0073) — hạn mức tài nguyên theo gói (cơ sở/phòng/thành viên/dung lượng file).
+  QUOTA_EXCEEDED: { status: 409, title: t("pipeline.quota_exceeded") },
   // SPEC-access S-023: trigger `app.check_property_not_in_use` (0062) — mọi đường ghi đổi múi giờ/giờ chốt đều qua mã này.
   PROPERTY_IN_USE: {
     status: 409,

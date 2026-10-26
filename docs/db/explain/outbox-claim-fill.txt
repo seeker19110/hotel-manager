@@ -1,0 +1,7 @@
+# EXPLAIN truy vấn nóng "outbox-claim-fill" (DB-PERF-001) — sinh và so khớp bởi packages/app/src/db-perf.db.test.ts.
+# EXPLAIN (FORMAT JSON) trên Postgres thật, enable_seqscan = off (Seq Scan còn lại = không có index dùng được), vai trò và dữ liệu theo test.
+# Mỗi dòng: bảng · kiểu quét (Index gồm Index Only/Bitmap) [· index (cột khoá) · cột bị ràng buộc trong tiền tố khoá (bound) — chỉ khi truy vấn có cột chọn lọc].
+# Đổi truy vấn/index làm kế hoạch đổi → test đỏ; cập nhật có chủ đích: pnpm vitest run --project db db-perf -u
+
+-- select o.id from outbox o where o.published_at is null and o.available_at <= now() order b … #13172d7c
+outbox · Index · ix_outbox_unpublished (id) · bound=-

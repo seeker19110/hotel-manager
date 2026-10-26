@@ -11,6 +11,7 @@ import { t } from "../i18n.ts";
 import { IMPORT_LIMITS, prepareBatchUpload, uploadBatch } from "../import/index.ts";
 import { requestClient } from "../logging/index.ts";
 import { executeCommand, toProblem } from "../pipeline/index.ts";
+import { planLimits } from "../plans/index.ts";
 import {
   actorFromRequest,
   correlationOf,
@@ -23,11 +24,7 @@ import {
 } from "./command-route.ts";
 import { readCapped } from "./file-upload.ts";
 import { normalizeUploadName } from "./normalize.ts";
-import {
-  enforceActorRateLimit,
-  IMPORT_UPLOAD_PER_MEMBER_PER_MINUTE,
-  IMPORT_UPLOAD_PER_ORG_PER_MINUTE,
-} from "./rate-limit.ts";
+import { enforceActorRateLimit } from "./rate-limit.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Phần đầu multipart (ranh giới, header từng phần, các trường chữ) được phép ngoài dung lượng file. */
@@ -48,7 +45,7 @@ export async function handleImportUpload(req: Request, deps: HttpDeps): Promise<
     // Client quá cũ (S-009): 426 trước phiên/đọc thân, như lệnh thường.
     const outdated = outdatedClientProblem(req, deps, correlationId);
     if (outdated) return outdated;
-    const actor = await actorFromRequest(req, deps, correlationId);
+    const actor = await actorFromRequest(req, deps, correlationId, { write: "import.upload" });
     if (actor instanceof Response) return actor;
     const key = req.headers.get("idempotency-key") ?? "";
     if (!UUID.test(key))
@@ -61,8 +58,8 @@ export async function handleImportUpload(req: Request, deps: HttpDeps): Promise<
     // Giới hạn tần suất TRƯỚC khi đọc thân tới 10 MB + phân tích (BE-REL-006): bộ đếm trong Postgres.
     const limited = await enforceActorRateLimit(deps.db, actor, req, correlationId, {
       scope: "import_upload",
-      perMember: deps.uploadRateLimit?.perMember ?? IMPORT_UPLOAD_PER_MEMBER_PER_MINUTE,
-      perOrg: deps.uploadRateLimit?.perOrg ?? IMPORT_UPLOAD_PER_ORG_PER_MINUTE,
+      perMember: deps.uploadRateLimit?.perMember ?? planLimits(actor.plan).importUploadsPerMinute.member,
+      perOrg: deps.uploadRateLimit?.perOrg ?? planLimits(actor.plan).importUploadsPerMinute.org,
     });
     if (limited) return limited;
     const body = await readCapped(req, IMPORT_LIMITS.bytes + MULTIPART_OVERHEAD);

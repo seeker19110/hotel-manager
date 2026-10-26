@@ -23,6 +23,11 @@ export {
   isSessionRevoked,
   listMembers,
   listProperties,
+  listSupportAccess,
+  recordSupportAccess,
+  SUPPORT_TTL_DEFAULT_HOURS,
+  SUPPORT_TTL_MAX_HOURS,
+  type SupportAccessRow,
 } from "./access/index.ts";
 export {
   ORG_HEADER,
@@ -83,6 +88,7 @@ export { appLogger, setAppLogger } from "./logging/runtime.ts";
 export {
   emitSecurity,
   forwardedClientIp,
+  requestClient,
   SECURITY_EVENTS,
   type SecurityEventName,
 } from "./logging/security-events.ts";

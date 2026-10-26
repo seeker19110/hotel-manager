@@ -1,7 +1,7 @@
 ---
 title: Mục lục runbook vận hành
 kind: runbook-index
-updated: 2026-10-25
+updated: 2026-10-26
 ---
 
 # Runbook vận hành — mục lục (WF-DOC-008)
@@ -18,4 +18,5 @@ updated: 2026-10-25
 | Xoay secret khi lộ | [runbooks/secret-leak.md](runbooks/secret-leak.md) |
 | Xoay mật khẩu role CSDL | [runbooks/db-password-rotation.md](runbooks/db-password-rotation.md) |
 | Vi phạm dữ liệu cá nhân | [runbooks/data-breach.md](runbooks/data-breach.md) |
+| Đổi gói dịch vụ (hạn mức) cho tổ chức | [runbooks/plan-change.md](runbooks/plan-change.md) |
 | Sự cố thường gặp (web/CSDL/worker/kho file) | [../RUNBOOK.md](../RUNBOOK.md) §3 — ngày diễn tập ghi ở frontmatter của các runbook trên |

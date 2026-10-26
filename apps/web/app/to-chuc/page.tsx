@@ -77,7 +77,7 @@ export default async function OrganizationPage() {
             {owner ? (
               <>
                 <CommandForm
-                  path="/api/v1/exports/requestOrgExport"
+                  path="exports/requestOrgExport"
                   submitLabel={t("org_page.export.request")}
                   successText={t("org_page.export.requested")}
                   variant="secondary"

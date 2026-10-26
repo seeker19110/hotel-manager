@@ -41,6 +41,11 @@ export const DSAR_STALE_MINUTES = 15;
 export const DSAR_REQUESTS_PER_HOUR = 10;
 /** Tối đa số lần nhập lại mật khẩu sai trong 15 phút mỗi tài khoản trước khi trả 429. */
 export const DSAR_PASSWORD_ATTEMPTS_PER_15_MIN = 5;
+/**
+ * Một hạn mức thử mật khẩu xác thực lại cho MỌI đường (lệnh khai `reauth`, xoá tổ chức, DSAR xoá) theo tài khoản — tách theo đường
+ * thì kẻ có phiên bị lộ được 5 lần thử × số đường.
+ */
+export const REAUTH_PASSWORD_SCOPE = "reauth.password";
 
 export const isDsarRegion = (v: string): v is DsarRegion => (DSAR_REGIONS as readonly string[]).includes(v);
 

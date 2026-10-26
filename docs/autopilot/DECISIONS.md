@@ -915,3 +915,45 @@
 - Chọn: Giữ trigger BEFORE INSERT auth.session từ chối tài khoản đã ẩn danh (42501 ACCOUNT_DELETED)
 - Lý do (tiêu chí chất lượng cuối): (1) đúng: đóng lỗ thật (có test đỏ trên mã cũ), quyền xoá phải dứt điểm; chi phí một lần tra PK mỗi đăng nhập; tài khoản tự đặt email dạng deleted+…@deleted.invalid chỉ tự chặn chính mình
 - Đường lùi: Drop trigger app.session_guard_erased bằng migration mới
+
+### D-128 · 2026-10-26T04:16:40+00:00 · T-2313: nhật ký cho admin tổ chức + truy cập hỗ trợ (IND-SAAS-009, CMP-AUDIT-002) khi chủ dự án chưa quyết B2.3
+
+- Phương án: (1) Màn /nhat-ky cho owner/manager: lọc theo thời gian/người/loại/đối tượng, xuất CSV qua cơ chế xuất sẵn có; sự kiện audit đủ who/what/target/when UTC/ip/ua/result/reason; truy cập hỗ trợ = owner CẤP (mặc định không ai có) thành viên vai trò 'support' CHỈ ĐỌC qua lời mời theo email, kèm lý do bắt buộc + TTL (mặc định 24 giờ, tối đa 72 giờ), tự hết hạn, thu hồi 1 bước, biểu ngữ trong app khi đang có truy cập hỗ trợ, mọi thao tác của support ghi audit thấy được trong /nhat-ky; KHÔNG impersonation (không đăng nhập thay người khác) · (2) Impersonation do nhân viên nền tảng tự bật · (3) Chờ chủ dự án quyết B2.3
+- Chọn: Màn /nhat-ky cho owner/manager: lọc theo thời gian/người/loại/đối tượng, xuất CSV qua cơ chế xuất sẵn có; sự kiện audit đủ who/what/target/when UTC/ip/ua/result/reason; truy cập hỗ trợ = owner CẤP (mặc định không ai có) thành viên vai trò 'support' CHỈ ĐỌC qua lời mời theo email, kèm lý do bắt buộc + TTL (mặc định 24 giờ, tối đa 72 giờ), tự hết hạn, thu hồi 1 bước, biểu ngữ trong app khi đang có truy cập hỗ trợ, mọi thao tác của support ghi audit thấy được trong /nhat-ky; KHÔNG impersonation (không đăng nhập thay người khác)
+- Lý do (tiêu chí chất lượng cuối): (1) an toàn: chủ thể dữ liệu (tổ chức) kiểm soát, mặc định đóng, chỉ đọc, có hạn, minh bạch — hẹp hơn mọi phương án impersonation; không cần tài khoản/cấu hình nền tảng mới; (2) tắt được bằng cách gỡ vai trò; (3) dùng lại membership/lời mời/audit sẵn có, test được
+- Đường lùi: Revert PR; migration có down; chủ dự án có thể tắt hẳn vai trò support
+
+### D-129 · 2026-10-26T05:36:22+00:00 · T-2313 câu hỏi mở: tên vai hỗ trợ, support đọc persons, xác thực lại khi cấp
+
+- Phương án: (1) Giữ platform_support (đã có trong DOMAIN-MODEL); support KHÔNG đọc persons; owner phải xác thực lại (REAUTH như xoá tổ chức) khi cấp truy cập hỗ trợ · (2) Đổi tên support, mở persons_read, không xác thực lại
+- Chọn: Giữ platform_support (đã có trong DOMAIN-MODEL); support KHÔNG đọc persons; owner phải xác thực lại (REAUTH như xoá tổ chức) khi cấp truy cập hỗ trợ
+- Lý do (tiêu chí chất lượng cuối): (1) an toàn: cấp quyền đọc toàn tổ chức cho người ngoài là hành động nhạy cảm như xoá tổ chức nên cần xác thực lại; không lộ thêm PII khách; thuật ngữ theo DOMAIN-MODEL (AGENTS §9)
+- Đường lùi: Bỏ REAUTH ở lệnh grant; thêm policy persons_read cho support bằng migration mới
+
+### D-130 · 2026-10-26T05:42:37+00:00 · T-2314: hạn mức theo gói + fair-share (IND-SAAS-008) khi chủ dự án chưa chốt gói/giá (B2.2)
+
+- Phương án: (1) Một gói mặc định 'pilot' cấu hình trong repo (packages/app/src/plans/, một nguồn): hạn mức số cơ sở, số phòng, thành viên active, dung lượng file, lệnh/phút — gắn cột organizations.plan (mặc định pilot, CHECK theo danh mục); vượt ⇒ 409 QUOTA_EXCEEDED ở lệnh tạo tương ứng + rate limit lệnh đọc từ gói; fair-share: relay outbox và job theo tổ chức lấy theo vòng tròn có trần mỗi tổ chức mỗi lượt; test tải A bão hoà không làm trễ B quá N lượt; bảng giá/nhiều gói do chủ dự án thêm sau (chỉ thêm mục cấu hình) · (2) Chờ chủ dự án chốt gói
+- Chọn: Một gói mặc định 'pilot' cấu hình trong repo (packages/app/src/plans/, một nguồn): hạn mức số cơ sở, số phòng, thành viên active, dung lượng file, lệnh/phút — gắn cột organizations.plan (mặc định pilot, CHECK theo danh mục); vượt ⇒ 409 QUOTA_EXCEEDED ở lệnh tạo tương ứng + rate limit lệnh đọc từ gói; fair-share: relay outbox và job theo tổ chức lấy theo vòng tròn có trần mỗi tổ chức mỗi lượt; test tải A bão hoà không làm trễ B quá N lượt; bảng giá/nhiều gói do chủ dự án thêm sau (chỉ thêm mục cấu hình)
+- Lý do (tiêu chí chất lượng cuối): (1) đúng: chặn một tenant chiếm hết tài nguyên ngay từ pilot; hạn mức pilot rộng hơn nhu cầu thật nên không chặn người dùng hợp lệ; (2) thêm gói = thêm cấu hình; (3) test được trên Postgres thật
+- Đường lùi: Nâng hạn mức pilot hoặc revert PR; migration có down
+
+### D-131 · 2026-10-26T07:14:14+00:00 · T-2314 câu hỏi mở: số job song song của consumer, UI riêng cho QUOTA_EXCEEDED
+
+- Phương án: (1) Giữ localConcurrency 2 (cùng tổ chức tuần tự), đo bộ nhớ khi có staging; QUOTA_EXCEEDED dùng thông điệp i18n chung, chưa UI riêng · (2) Tăng song song + làm UI riêng
+- Chọn: Giữ localConcurrency 2 (cùng tổ chức tuần tự), đo bộ nhớ khi có staging; QUOTA_EXCEEDED dùng thông điệp i18n chung, chưa UI riêng
+- Lý do (tiêu chí chất lượng cuối): (3) đơn giản, đủ cho quy mô pilot; tăng song song khi có số đo thật; (4) thông điệp chung đã nói rõ vượt hạn mức gói
+- Đường lùi: Đổi localConcurrency trong relay.ts
+
+### D-132 · 2026-10-26T07:26:43+00:00 · Review T-2314: thông lượng relay, người thuê làm đầy dung lượng, thứ tự sự kiện
+
+- Phương án: (1) outbox_claim: vòng tròn ≤ per_org rồi LẤP ĐẦY phần còn lại của p_limit theo thứ tự cũ (per_org là mức ưu tiên, không phải trần cứng); hạn mức dung lượng con cho tải lên của người thuê/portal (vd 2% trần tổ chức và ≤ 200 MB mỗi người thuê); consumer về localConcurrency 1 để giữ thứ tự trong tiến trình (fair-share giữ ở claim); actor dựng tay mang plan; chặn app_runtime tự chọn plan khi INSERT tổ chức · (2) Giữ nguyên, ghi rủi ro
+- Chọn: outbox_claim: vòng tròn ≤ per_org rồi LẤP ĐẦY phần còn lại của p_limit theo thứ tự cũ (per_org là mức ưu tiên, không phải trần cứng); hạn mức dung lượng con cho tải lên của người thuê/portal (vd 2% trần tổ chức và ≤ 200 MB mỗi người thuê); consumer về localConcurrency 1 để giữ thứ tự trong tiến trình (fair-share giữ ở claim); actor dựng tay mang plan; chặn app_runtime tự chọn plan khi INSERT tổ chức
+- Lý do (tiêu chí chất lượng cuối): (1) đúng: không làm chậm tổ chức đơn lẻ (ca thường gặp ở pilot), không mở vector từ chối dịch vụ mới, giữ thứ tự sự kiện như trước T-2314; (3) sửa nhỏ, có test
+- Đường lùi: Đổi tham số trong 0073/relay.ts
+
+### D-133 · 2026-10-26T11:30:46+00:00 · PR #139 bundle-size vượt trần 300 kB do biểu ngữ hỗ trợ kéo CommandForm vào mọi trang
+
+- Phương án: (1) Biểu ngữ không JS client: hiển thị trạng thái + liên kết tới /nhat-ky#truy-cap-ho-tro (thu hồi một bước ở đó) · (2) Chỉnh experimental.turbopackChunking.minChunkSize trong next.config.ts · (3) Nâng trần size-limit
+- Chọn: Biểu ngữ không JS client: hiển thị trạng thái + liên kết tới /nhat-ky#truy-cap-ho-tro (thu hồi một bước ở đó)
+- Lý do (tiêu chí chất lượng cuối): (1) không nới cổng, không đổi cấu hình build thử nghiệm ảnh hưởng mọi route; (3) đơn giản; (4) owner vẫn thấy biểu ngữ trên mọi trang, thu hồi một bước tại /nhat-ky (TM-12 vẫn đạt)
+- Đường lùi: Đưa lại nút thu hồi vào biểu ngữ khi có cách tách chunk

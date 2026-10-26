@@ -100,7 +100,7 @@ describe("relay claim ngắn — gửi pg-boss NGOÀI transaction", () => {
   it("sập sau khi gửi, trước khi đánh dấu: chưa hết lease ⇒ không claim lại; hết lease ⇒ claim lại, pg-boss không tạo job thứ hai", async () => {
     const [id] = await addOutbox("claim.demo");
     // Mô phỏng tiến trình chết: claim + gửi thật, KHÔNG gọi outbox_mark.
-    const claimed = await sql<{ id: string }>`select id from app.outbox_claim(10)`.execute(t.worker);
+    const claimed = await sql<{ id: string }>`select id from app.outbox_claim(10, 10)`.execute(t.worker);
     expect(claimed.rows.map((r) => r.id)).toEqual([id]);
     await boss.send("claim.demo", { outbox_id: id }, { id: id as string });
     expect(await jobCount("claim.demo", id)).toBe(1);

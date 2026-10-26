@@ -20,6 +20,7 @@ export {
   MATRIX,
   type MatrixRole,
   ROLES,
+  SUPPORT_READ,
 } from "./access/matrix.ts";
 export {
   type BillingLine,

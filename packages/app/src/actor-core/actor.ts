@@ -24,6 +24,13 @@ export interface Actor {
   mfaRequired: boolean;
   /** Thời điểm đăng nhập của phiên (Better Auth `session.createdAt`) — thao tác nhạy cảm đòi xác thực lại gần đây. */
   authenticatedAt?: Date;
+  /**
+   * Truy cập hỗ trợ (`platform_support`, D-128): lý do owner ghi khi cấp và mốc hết hiệu lực (`memberships.valid_to`). Chỉ có ở
+   * actor hỗ trợ — mọi lần truy cập trang/query của họ được audit kèm lý do này.
+   */
+  support?: { reason: string; until: Date };
+  /** Gói của tổ chức (`organizations.plan`, D-130) — chọn hạn mức tần suất (`plans/`). Thiếu ⇒ gói mặc định. */
+  plan?: string;
 }
 
 export type AccessErrorCode = "UNAUTHENTICATED" | "NOT_FOUND" | "MFA_REQUIRED" | "ORG_PENDING_DELETION";

@@ -8,17 +8,21 @@ import type { Actor } from "../access/index.ts";
 import { t } from "../i18n.ts";
 import { emitSecurity, requestClient } from "../logging/index.ts";
 import { rateLimited, rateLimitHit, toProblem } from "../pipeline/index.ts";
+import { DEFAULT_PLAN, PLANS } from "../plans/index.ts";
 import { problemResponse } from "./command-route.ts";
 
 // Giữ đường import cũ của bộ đếm (đã chuyển sang `pipeline/rate-counter.ts` để `access` dùng chung).
 export { RATE_WINDOW_SECONDS, type RateHit, type RateResult, rateLimitHit } from "../pipeline/index.ts";
 
-/** Tải ảnh/PDF (vật dụng, phiếu sự cố, báo chuyển): mỗi thành viên / mỗi tổ chức trong 60 giây. Vượt xa thao tác tay. */
-export const FILE_UPLOAD_PER_MEMBER_PER_MINUTE = 30;
-export const FILE_UPLOAD_PER_ORG_PER_MINUTE = 120;
+/**
+ * Tải ảnh/PDF (vật dụng, phiếu sự cố, báo chuyển): mỗi thành viên / mỗi tổ chức trong 60 giây. Vượt xa thao tác tay. Theo gói của
+ * tổ chức (`plans/`, D-130: route dùng `planLimits(actor.plan)`); các hằng dưới đây = gói mặc định `pilot`.
+ */
+export const FILE_UPLOAD_PER_MEMBER_PER_MINUTE = PLANS[DEFAULT_PLAN].fileUploadsPerMinute.member;
+export const FILE_UPLOAD_PER_ORG_PER_MINUTE = PLANS[DEFAULT_PLAN].fileUploadsPerMinute.org;
 /** Nhập liệu (CSV/XLSX tới 10 MB, quét + phân tích nặng): chặt hơn tải ảnh. */
-export const IMPORT_UPLOAD_PER_MEMBER_PER_MINUTE = 10;
-export const IMPORT_UPLOAD_PER_ORG_PER_MINUTE = 30;
+export const IMPORT_UPLOAD_PER_MEMBER_PER_MINUTE = PLANS[DEFAULT_PLAN].importUploadsPerMinute.member;
+export const IMPORT_UPLOAD_PER_ORG_PER_MINUTE = PLANS[DEFAULT_PLAN].importUploadsPerMinute.org;
 /** Webhook đã xác thực chữ ký: mỗi (nhà cung cấp, tài khoản) — ngân hàng bắn dồn khi đồng bộ vẫn dư. */
 export const WEBHOOK_PER_ACCOUNT_PER_MINUTE = 600;
 /** Webhook chữ ký SAI: theo nhà cung cấp (không theo tài khoản do kẻ gọi tự chọn ⇒ bảng không phình). Vượt ⇒ 429 thay cho 401. */

@@ -14,6 +14,7 @@ import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { MAX_FILE_BYTES } from "../files/files.ts";
 import { ObjectStorage } from "../files/storage.ts";
+import { PLANS } from "../plans/index.ts";
 import { testServices } from "../server/services.ts";
 import type { HttpDeps } from "./command-route.ts";
 import { handleFileUpload } from "./file-upload.ts";
@@ -177,5 +178,35 @@ describe("tải ảnh qua HTTP", () => {
     );
     expect(r.status).toBe(409);
     expect((await j(r)).code).toBe("CONTEXT_CHANGED");
+  });
+});
+
+describe("hạn mức dung lượng con của người dùng cổng (D-132)", () => {
+  it("người thuê chạm trần 200 MiB của mình ⇒ 409 QUOTA_EXCEEDED, không ghi file; nhân viên (owner) vẫn tải được 201", async () => {
+    const tenantMembership = (
+      await sql<{
+        id: string;
+      }>`select id from memberships where organization_id = ${A.orgId} and auth_user_id = ${tenantUser}`.execute(
+        t.admin,
+      )
+    ).rows[0]?.id as string;
+    const used = await sql<{ n: string }>`select coalesce(sum(size_bytes), 0) as n from files
+      where uploaded_by = ${tenantMembership} and status in ('pending_scan', 'ready')`.execute(t.admin);
+    // Fixture: một file "đã giữ" lấp đầy tới trần riêng của người thuê trừ 1 byte (nhỏ hơn mọi JPEG hợp lệ).
+    const filler = randomUUID();
+    await sql`insert into files (id, organization_id, property_id, owner_type, mime, size_bytes, sha256, status, storage_key, uploaded_by)
+              values (${filler}, ${A.orgId}, ${A.propertyId}, 'payment_claim', 'application/pdf',
+                      ${PLANS.pilot.maxPortalStorageBytesPerMember - Number(used.rows[0]?.n ?? 0) - 1}, ${"e".repeat(64)}, 'ready',
+                      ${`${A.orgId}/payment_claim/${filler}`}, ${tenantMembership})`.execute(t.admin);
+    const q = `owner_type=work_order&property_id=${A.propertyId}`;
+    const before = await sql<{ n: number }>`select count(*)::int as n from files`.execute(t.admin);
+    const r = await handleFileUpload(upload(q, JPEG), deps);
+    expect(r.status).toBe(409);
+    expect((await j(r)).code).toBe("QUOTA_EXCEEDED");
+    const after = await sql<{ n: number }>`select count(*)::int as n from files`.execute(t.admin);
+    expect(after.rows[0]?.n).toBe(before.rows[0]?.n);
+    const staff = await handleFileUpload(upload(q, JPEG, {}, A.ownerAuthUserId), deps);
+    expect(staff.status).toBe(201);
+    expect(await j(staff)).toMatchObject({ status: "committed", data: { status: "ready" } });
   });
 });

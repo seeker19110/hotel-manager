@@ -37,6 +37,7 @@ export const ERROR_CODES = {
   UNIT_OUT_OF_SERVICE: { status: 409, source: "contract" },
   COMMAND_NOT_FOUND: { status: 404, source: "contract" },
   RATE_LIMITED: { status: 429, source: "contract" },
+  QUOTA_EXCEEDED: { status: 409, source: "contract" },
   INTERNAL: { status: 500, source: "contract" },
   SERVICE_UNAVAILABLE: { status: 503, source: "contract" },
   // Riêng tính năng / nội bộ

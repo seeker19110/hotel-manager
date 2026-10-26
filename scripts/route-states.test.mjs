@@ -31,6 +31,7 @@ const ERROR_GROUPS = [
 // `dat-phong/moi`, `luu-tru/moi`, `portal/{dien-nuoc,hop-dong,yeu-cau}` là trang lá, cùng tiêu chí: không route con động, không notFound()/redirect().
 const LOADING_GROUPS = [
   "thu-tien",
+  "nhat-ky",
   "su-co",
   "doi-soat",
   "thong-bao",

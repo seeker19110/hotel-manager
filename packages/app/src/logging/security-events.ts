@@ -50,6 +50,9 @@ export const SECURITY_EVENTS = [
   "member.scope_changed",
   // Thu hồi phiên (T-605, SPEC-access S-010): tự thu hồi hoặc owner/manager thu hồi phiên thành viên.
   "session.revoked",
+  // Truy cập hỗ trợ chỉ đọc do owner cấp/thu hồi (T-2313, D-128).
+  "support.access_granted",
+  "support.access_revoked",
 ] as const;
 export type SecurityEventName = (typeof SECURITY_EVENTS)[number];
 export type SecurityOutcome = "success" | "denied" | "failure";
