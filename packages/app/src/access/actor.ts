@@ -104,7 +104,8 @@ export async function resolveActor(
       group by m.id, o.settings, o.status, o.plan`.execute(trx);
     return r.rows[0];
   });
-  if (!row) throw new AccessError("NOT_FOUND", t("http.organization_not_found"));
+  if (!row || !["active", "pending_deletion"].includes(row.org_status))
+    throw new AccessError("NOT_FOUND", t("http.organization_not_found"));
   if (row.org_status === "pending_deletion" && input.allowPendingDeletion !== true)
     throw new AccessError("ORG_PENDING_DELETION", t("access.org_pending_deletion"));
 

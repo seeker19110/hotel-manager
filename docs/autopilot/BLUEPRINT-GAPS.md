@@ -9,13 +9,19 @@
 > `PM-SPEC-004` và `WF-SDD-003` (nền spec-coverage còn 26 S-NNN). **Tick kèm lưu ý để phiên chính xác nhận:** `DB-MODEL-004` (52 FK nhóm A thiếu index là ngoại lệ có lý do — D-035),
 > `UX-STATE-001` (không Storybook; loading bị D-032 miễn ở trang có route con động/notFound/redirect), `DB-PERF-001` (EXPLAIN không ANALYZE), `XC-GREEN-007` (còn `notifications`/`inbox`/`worker_heartbeats` chưa có job dọn, chờ DPIA).
 
+## Kết quả đợt 24 (2026-10-26; D-134)
+
+Tiếp tục từ PR #137–#139 đã merge; 75 MUST còn mở (D-137: bỏ tick WF-GIT-001 vì lệnh kiểm lịch sử đầy đủ đỏ; không sửa lịch sử hay nới checker). Khép ba lỗi dữ liệu/quyền bằng test đỏ trước sửa: suspended không giữ quyền qua cookie cũ; claim purge bền chặn huỷ sau khi bắt đầu xoá object; người ở kèm và đọc giấy tờ giữ KEY SHARE để retention không ẩn danh hồ sơ đang dùng. Sửa thêm thông báo MFA 429 và Retry-After từ database rate limiter.
+
+AUD-SEC-005 đã kiểm trên Caddy 2.11.7 mặc định: header giả bị thay bằng địa chỉ kết nối; `X-Real-IP` không được Better Auth mặc định dùng. Bằng chứng và giới hạn production ở `docs/ops/runbooks/auth-proxy.md`. Không coi đây là bằng chứng cấu hình VPS chưa triển khai.
+
 ## Kết quả đợt 23 lát F (T-2315, 2026-10-26; D-116…D-132)
 
 `blueprint-status`: MUST đạt 357 → **368** · mở 85 → **74** (miễn 59 giữ nguyên). Mỗi mục tick có `Kiểm:` chạy lại được (đã chạy exit 0 ở phiên rà) và `Bằng chứng:` kiểm bằng `scripts/check-blueprint-evidence.py`.
 - **Đã tick (11):** PM-METRIC-003/005/006, CMP-RIGHTS-001/004, CMP-VN-001, STD-PRIV-004, CMP-INTL-007, UX-CONTENT-005, IND-SAAS-008/009. PM-METRIC-004 giữ `[~]` (miễn vẫn đúng: analytics tự host phía server, mặc định từ chối, không SDK/cookie client).
 - **Lưu ý trung thực trên mục đã tick:** hạn DSAR VN (xoá 3, truy cập 10 ngày) **chưa xác minh** theo NĐ 356 (D-123) — cấu hình theo vùng đạt, số VN chờ pháp lý; văn bản đồng ý và danh mục mục đích chờ pháp lý duyệt (D-122); IND-SAAS-009 làm bằng truy cập hỗ trợ chỉ đọc có hạn, KHÔNG impersonation (D-128); IND-SAAS-008 kiểm fair-share theo thứ tự claim (không đo p95 thời gian thật), chưa có API key của tenant nên không có hạn mức theo khoá.
 - **Chưa tick (7), có lý do:** STD-PRIV-005, XC-GREEN-007 (còn bảng chưa có hạn/job; log ≥ 12 tháng là hạ tầng), CMP-VN-007 (hạn NĐ 356 chưa xác minh; chưa có luồng chỉnh sửa/phản đối), CMP-RIGHTS-007, CMP-PRIV-005 (bản sao lưu/SMTP chưa có quy trình xoá), IND-SAAS-006 (purge TẮT ở production — D-125; cộng bản sao lưu), CMP-AUDIT-002 (deploy/NTP/kho log ≥ 12 tháng là hạ tầng; DSAR truy cập chưa vào audit). Chi tiết từng mục ở bảng "Còn thiếu" bên dưới; việc của người ở `HUONG-DAN-VIEC-CUA-NGUOI.md` B2.
-- Sổ kiểm toán: AUD-SEC-005 🟠 (`X-Forwarded-For`) còn mở — người kiểm Caddy (HUONG-DAN B2.7).
+- Sổ kiểm toán tại thời điểm đợt 23: AUD-SEC-005 còn mở; đã kiểm bổ sung ở đợt 24 (runbook auth-proxy).
 
 ## Kết quả đợt 22 (T-2207, 2026-10-24; D-103…D-108) — "hoàn thiện dự án"
 

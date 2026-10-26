@@ -34,6 +34,7 @@ import {
 } from "../files/index.ts";
 import { t } from "../i18n.ts";
 import { writeXlsx, zipStore } from "../import/index.ts";
+import { appLogger } from "../logging/index.ts";
 import { createNotification } from "../notifications/index.ts";
 import { type CommandContext, CommandError, rateLimited } from "../pipeline/index.ts";
 import {
@@ -248,6 +249,13 @@ async function createJob(
   },
   now: Date,
 ): Promise<{ exportId: string; status: "queued" }> {
+  // Giữ cùng giao thức với claim purge (0074 FOR UPDATE): yêu cầu xuất thắng trước thì claim đợi commit;
+  // claim thắng trước thì không nhận thêm job, tránh liên tục tạo object mới trong lúc purge đã xoá file cũ.
+  const organization = await sql<{ purge_started_at: Date | null }>`
+    select purge_started_at from organizations where id = ${ctx.actor.orgId} for key share`.execute(ctx.trx);
+  if (!organization.rows[0]) throw notFound();
+  if (organization.rows[0].purge_started_at !== null)
+    throw new CommandError("ORG_PENDING_DELETION", 423, t("access.org_pending_deletion"));
   await assertRate(ctx, now);
   const id = randomUUID();
   const scope = {
@@ -1053,9 +1061,22 @@ async function produce(
     { ownerType: "export_job", ownerId: id, propertyId: claimed.property_id, bytes, mime },
     `${id}:run${claimed.version}`,
   );
-  await withTenant(deps.db, { orgId, actorId: actor.membershipId }, (trx) =>
-    commitGeneratedFile(trx, actor, prepared, "keep"),
-  );
+  try {
+    await withTenant(deps.db, { orgId, actorId: actor.membershipId }, (trx) =>
+      commitGeneratedFile(trx, actor, prepared, "keep"),
+    );
+  } catch (error) {
+    // Purge/retention may have removed the staging row: do not leave the uploaded object without its cleanup record.
+    try {
+      await deps.storage.delete(prepared.key);
+    } catch (cleanupError) {
+      appLogger().warn("exports.generated_cleanup_failed", {
+        file_id: prepared.fileId,
+        error: cleanupError instanceof Error ? cleanupError.name : "error",
+      });
+    }
+    throw error;
+  }
   const key = prepared.key;
   const expiresAt = new Date(now.getTime() + minutesToMs(EXPORT_TTL_MINUTES));
   let hit = false;

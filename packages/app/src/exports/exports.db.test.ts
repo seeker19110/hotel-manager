@@ -1,10 +1,11 @@
 // PLAN đợt 3 T-222 — xuất dữ liệu trên Postgres thật + SeaweedFS (SPEC-audit-reporting S-013…S-018).
 import { createHash, randomUUID } from "node:crypto";
-import { seedIssuedInvoice, testS3Config } from "@hm/testkit";
+import { seedIssuedInvoice, seedOrg, testS3Config } from "@hm/testkit";
 import { type Kysely, sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { Actor } from "../access/actor.ts";
+import { type Actor, resolveActor } from "../access/actor.ts";
 import { ObjectStorage } from "../files/storage.ts";
+import { purgeDueOrganizations, requestOrgDeletion } from "../tenancy/index.ts";
 import { codeOf, okAs, runAs, seedMember } from "../testing/helpers.ts";
 import { type Hotel, seedHotel } from "../testing/hotel.ts";
 import {
@@ -570,5 +571,93 @@ describe("xuất nhật ký giữ bộ lọc người hỗ trợ (/nhat-ky, D-12
         ),
       ),
     ).toBe("VALIDATION_FAILED");
+  });
+});
+
+describe("purge trong lúc export đang PUT object (T-2403)", () => {
+  it("finalize lỗi sau PUT vẫn xoá bù object khi staging row đã mất", async () => {
+    const org = await seedOrg(h.t.admin, "Forced purge during export PUT");
+    const actor = fresh(
+      await resolveActor(h.t.runtime, {
+        authUserId: org.ownerAuthUserId,
+        orgId: org.orgId,
+        twoFactorEnabled: true,
+      }),
+    );
+    await requestOrgDeletion(h.t.runtime, actor, {
+      reauthenticatedAt: new Date(),
+      correlationId: "export-finalize-race",
+    });
+    await sql`update organizations set deletion_requested_at = deletion_requested_at - interval '31 days', deletion_due_at = deletion_due_at - interval '31 days' where id = ${org.orgId}`.execute(
+      h.t.admin,
+    );
+    const q = await okAs(h.t, actor, (ctx) => requestOrgExport(ctx));
+    const objects = new Set<string>();
+    const memoryStorage = {
+      delete: async (key: string) => {
+        objects.delete(key);
+      },
+      put: async (key: string) => {
+        // Fault injection: trusted direct purge bypasses key enumeration's pending_scan guard.
+        // The export must still compensate if a staging row disappears after its last pre-PUT check.
+        const forced = await sql<{
+          result: unknown;
+        }>`select app.purge_organization(${org.orgId}::uuid, array[${key}]::text[]) as result`.execute(
+          h.t.worker,
+        );
+        expect(forced.rows[0]?.result).not.toBeNull();
+        objects.add(key);
+      },
+    } as unknown as ObjectStorage;
+    await expect(
+      runExportJob(
+        { db: h.t.runtime, workerDb: h.t.worker, storage: memoryStorage },
+        { organization_id: org.orgId, payload: { export_id: q.exportId } },
+      ),
+    ).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT" });
+    expect(objects.size).toBe(0);
+  });
+
+  it("export PUT không để object mồ côi nếu purge chạy sau staging nhưng trước khi PUT hoàn tất", async () => {
+    const org = await seedOrg(h.t.admin, "Race staging export");
+    const actor = fresh(
+      await resolveActor(h.t.runtime, {
+        authUserId: org.ownerAuthUserId,
+        orgId: org.orgId,
+        twoFactorEnabled: true,
+      }),
+    );
+    await requestOrgDeletion(h.t.runtime, actor, {
+      reauthenticatedAt: new Date(),
+      correlationId: "export-put-race",
+    });
+    await sql`update organizations set deletion_requested_at = deletion_requested_at - interval '31 days', deletion_due_at = deletion_due_at - interval '31 days' where id = ${org.orgId}`.execute(
+      h.t.admin,
+    );
+    const q = await okAs(h.t, actor, (ctx) => requestOrgExport(ctx));
+    const objects = new Set<string>();
+    const memoryStorage = {
+      delete: async (key: string) => {
+        objects.delete(key);
+      },
+      put: async (key: string) => {
+        const purged = await purgeDueOrganizations(h.t.worker, { storage: memoryStorage });
+        expect(purged).toMatchObject({ purged: 0, deferred: 1 });
+        expect(objects.size).toBe(0);
+        objects.add(key);
+      },
+    } as unknown as ObjectStorage;
+    expect(
+      await runExportJob(
+        { db: h.t.runtime, workerDb: h.t.worker, storage: memoryStorage },
+        { organization_id: org.orgId, payload: { export_id: q.exportId } },
+      ),
+    ).toBe("ready");
+    expect(objects.size).toBe(1);
+    expect(await purgeDueOrganizations(h.t.worker, { storage: memoryStorage })).toMatchObject({
+      purged: 1,
+      deferred: 0,
+    });
+    expect(objects.size).toBe(0);
   });
 });

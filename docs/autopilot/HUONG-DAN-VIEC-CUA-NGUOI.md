@@ -1,7 +1,7 @@
 # Hướng dẫn làm toàn bộ việc còn lại — Hotel Manager
 
-> Lập 2026-10-24, sau khi merge #131 (`main` = `d504ee7`). Còn **89 MUST** mở; agent không tự làm được mục nào trong số này.
-> Mỗi mục cần một trong bốn thứ: tài khoản/quyền GitHub, tiền/hạ tầng, quyết định sản phẩm/pháp lý, hoặc kiểm tay.
+> Cập nhật 2026-10-26 sau #137–#139: còn **75 MUST** mở (`xt.py blueprint-status BLUEPRINT.md --strict`).
+> Các bước lịch sử giữ để tra cứu; mục đã tick trong BLUEPRINT hoặc có bằng chứng mới thì không làm lại. Phần repo đã có được ghi ở đợt 23/24; mục còn mở cần bằng chứng triển khai, quyết định sản phẩm/pháp lý, quyền hoặc kiểm tay tương ứng.
 > Mỗi nhóm có ba phần:
 > - **Bạn làm:** việc của bạn.
 > - **Rồi nhắn agent:** câu gửi phiên agent sau khi bạn làm xong, để agent làm phần trong repo và tick kèm bằng chứng.
@@ -231,3 +231,10 @@ Agent đã làm xong theo mặc định an toàn (mỗi mặc định có D-NNN 
 | | **Tổng** | **78** | |
 
 **Làm nhanh nhất:** Bước 0 và Bước A (khoảng 1–2 giờ), gửi agent một tin gom hết các câu trả lời. Việc đó đóng được tới 17 MUST mà chưa tốn tiền hạ tầng.
+
+
+## Đợt 24 — review sửa lỗi trước triển khai
+
+PR mới chạm auth/dữ liệu cần người merge (AGENTS §7). Migration 0074 giữ `purge_started_at` trước khi xoá file: có claim thì không thể huỷ, kể cả khi kho file lỗi. Khắc phục kho rồi chạy lại worker để hoàn tất; down bị chặn khi còn claim. Không xoá cờ bằng tay để mở lại quyền huỷ. Migration 0075 khoá người ở kèm trong lúc lưu trú và đọc giấy tờ. Production purge vẫn tắt theo D-125.
+
+B2.7 về IP: đã kiểm Caddy mặc định ở máy dev (3 ca header giả) và mã Better Auth 1.7.9; xem `docs/ops/runbooks/auth-proxy.md`. Khi triển khai VPS, thêm CDN hoặc đổi publish cổng, kiểm lại từ bên ngoài. Bằng chứng dev không thay thế cấu hình thực tế.
