@@ -226,7 +226,14 @@ export async function dispatchNotification(
   const h = HANDLERS[job.event_type];
   if (!h) return 0;
   try {
-    return await withTenantRetry(workerDb, { orgId: job.organization_id }, (trx) => h(trx, job, now));
+    return await withTenantRetry(workerDb, { orgId: job.organization_id }, async (trx) => {
+      // D-126: tổ chức chờ xoá (hoặc tạm khoá) ngừng sinh thông báo — job đã vào pg-boss trước khi yêu cầu xoá cũng bỏ qua.
+      const o = await sql<{
+        status: string;
+      }>`select status from organizations where id = ${job.organization_id}`.execute(trx);
+      if (o.rows[0]?.status !== "active") return 0;
+      return h(trx, job, now);
+    });
   } catch (err) {
     if (!(err instanceof TemplateError)) throw err;
     log("notification.template_error", {

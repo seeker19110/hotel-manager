@@ -2,13 +2,16 @@
 // role → migrate → seed giả → `next start`. Dừng (SIGTERM) thì xoá DB/cluster tạm. Chạy bằng `node` (bỏ kiểu TS).
 import { spawn } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   createAuth,
+  createServices,
   invitationKey,
   invitationToken,
   loadConfig,
+  processDsarRequests,
+  purgeDueOrganizations,
   unsubscribeKey,
   unsubscribeUrl,
 } from "@hm/app";
@@ -29,6 +32,7 @@ import {
   ORG_OTHER,
   ORG_RENTAL,
   OTHER_ROOMS,
+  orgPurgeFile,
   outboxFile,
   RENTAL_OWNER,
   RENTAL_TENANT,
@@ -273,7 +277,52 @@ const appEnv: NodeJS.ProcessEnv = {
 };
 // Hàng rào: env của server E2E phải qua đúng schema cấu hình production — thiếu biến thì dừng ngay, báo tên biến
 // (thay vì đăng nhập 500 âm thầm như lần thêm khoá PII).
-loadConfig(appEnv);
+const appConfig = loadConfig(appEnv);
+/**
+ * Job `privacy.dsar` của worker (T-2311) chạy NGAY trong tiến trình E2E (server E2E không dựng worker): mỗi giây xử lý yêu cầu
+ * truy cập/xoá bằng vai trò app_worker + kho object giả — `rights-access`/`rights-delete` thấy kết quả như khi có worker thật.
+ */
+const dsarDb = kysely(pgUrl(serverUrl, dbName, "app_worker"));
+const dsarStorage = createServices(appConfig).storage;
+let dsarRunning = false;
+const dsarTimer = setInterval(() => {
+  if (dsarRunning) return;
+  dsarRunning = true;
+  processDsarRequests(dsarDb, { storage: dsarStorage })
+    .catch((e: unknown) => process.stderr.write(`[e2e-server] privacy.dsar lỗi: ${String(e)}\n`))
+    .finally(() => {
+      dsarRunning = false;
+    });
+}, 1_000);
+/**
+ * Job `tenancy.purge` (T-2312) theo TÍN HIỆU của spec (`orgPurgeFile`): đẩy mốc yêu cầu/hạn xoá của tổ chức được nêu lùi 31 ngày
+ * (admin — thay cho chờ 30 ngày thật) rồi chạy purge bằng app_worker + kho giả, như worker thật khi tới hạn. Không tín hiệu ⇒ không
+ * làm gì (tổ chức chờ xoá của spec khác không bị purge ngoài ý muốn).
+ */
+const purgeAdmin = kysely(adminUrl);
+const purgeSignal = orgPurgeFile(PORT);
+let purgeRunning = false;
+const purgeTimer = setInterval(() => {
+  if (purgeRunning || !existsSync(purgeSignal)) return;
+  purgeRunning = true;
+  (async () => {
+    const ids = readFileSync(purgeSignal, "utf8")
+      .split("\n")
+      .map((x) => x.trim())
+      .filter((x) => /^[0-9a-f-]{36}$/.test(x));
+    rmSync(purgeSignal, { force: true });
+    for (const id of ids)
+      await sql`update organizations
+                set deletion_requested_at = deletion_requested_at - interval '31 days',
+                    deletion_due_at = deletion_due_at - interval '31 days'
+                where id = ${id}::uuid and status = 'pending_deletion'`.execute(purgeAdmin);
+    if (ids.length > 0) await purgeDueOrganizations(dsarDb, { storage: dsarStorage });
+  })()
+    .catch((e: unknown) => process.stderr.write(`[e2e-server] tenancy.purge lỗi: ${String(e)}\n`))
+    .finally(() => {
+      purgeRunning = false;
+    });
+}, 1_000);
 const replicaEnv: NodeJS.ProcessEnv = { ...appEnv, APP_BASE_URL: `http://127.0.0.1:${REPLICA_PORT}` };
 loadConfig(replicaEnv);
 /**
@@ -317,6 +366,9 @@ let stopping = false;
 async function stop(code: number): Promise<void> {
   if (stopping) return;
   stopping = true;
+  clearInterval(dsarTimer);
+  clearInterval(purgeTimer);
+  rmSync(purgeSignal, { force: true });
   next.kill("SIGTERM");
   replica?.kill("SIGTERM");
   rmSync(totpFile(PORT), { force: true });
@@ -331,6 +383,12 @@ async function stop(code: number): Promise<void> {
   const closedInTime = await waitClosed([nextClosed, ...(replicaRun ? [replicaRun.closed] : [])], 10_000);
   if (!closedInTime)
     process.stderr.write("[e2e-server] tiến trình Next chưa đóng sau 10 s — log có thể thiếu dòng cuối\n");
+  await purgeAdmin
+    .destroy()
+    .catch((e: unknown) => process.stderr.write(`[e2e-server] đóng pool tenancy.purge lỗi: ${String(e)}\n`));
+  await dsarDb
+    .destroy()
+    .catch((e: unknown) => process.stderr.write(`[e2e-server] đóng pool privacy.dsar lỗi: ${String(e)}\n`));
   try {
     const s = kysely(serverUrl);
     await sql.raw(`DROP DATABASE IF EXISTS ${dbName} WITH (FORCE)`).execute(s);

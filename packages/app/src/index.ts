@@ -163,6 +163,29 @@ export {
   listMyMeterReadings,
   listMyRequests,
 } from "./portal/tenant.ts";
+export {
+  accountHasPassword,
+  analyticsConsentView,
+  CONSENT_CHANNELS,
+  type ConsentChannel,
+  type ConsentRecord,
+  consentHistory,
+  consentOverview,
+  createAnalyticsConsentCheck,
+  createDsarRequest,
+  DSAR_ACCESS_TTL_HOURS,
+  DSAR_DAYS,
+  DSAR_DEFAULT_REGION,
+  type DsarOverview,
+  type DsarRequest,
+  type DsarType,
+  dsarOverview,
+  grantConsent,
+  type PurposeStatus,
+  type PurposeView,
+  processDsarRequests,
+  withdrawConsent,
+} from "./privacy/index.ts";
 export { type AutoApplyResult, applyBankTransaction } from "./reconciliation/auto-apply.ts";
 export {
   RECONCILIATION_BREAK_SLA_HOURS,
@@ -206,6 +229,7 @@ export {
   type ReservationView,
 } from "./stay/reservations.ts";
 export { listNotices, type NoticeListItem } from "./stay/residence-notices.ts";
+export * from "./tenancy/index.ts";
 export {
   getSummary as getTodaySummary,
   listItems as listTodayItems,

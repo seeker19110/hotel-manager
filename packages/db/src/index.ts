@@ -17,3 +17,4 @@ export {
   WORKER_TX_RETRY,
 } from "./retry.ts";
 export { type TenantContext, type TenantRetryOptions, withTenant, withTenantRetry } from "./tenant.ts";
+export { setUserContext, withUserContext } from "./user-context.ts";

@@ -20,6 +20,8 @@ const MODULE_STATE: Record<string, string> = {
     "logger của tiến trình (đầu ra), không ảnh hưởng kết quả request",
   "packages/app/src/auth/auth.ts:requestState":
     "WeakMap theo đối tượng Request đang xử lý — sống đúng một request, thu gom khi xong",
+  "packages/app/src/privacy/consent.ts:perTransaction":
+    "WeakMap theo đối tượng transaction của lệnh: cache kết quả kiểm đồng ý analytics trong đúng transaction đó, thu gom khi xong — không sống qua request",
   "packages/app/src/logging/trace.ts:byRequest":
     "WeakMap theo Request: ngữ cảnh truy vết của đúng request đó, không sống qua request",
   "packages/app/src/approvals/approvals.ts:executors":

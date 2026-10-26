@@ -1,6 +1,8 @@
 import { listMyOrganizations, serverContext } from "@hm/app";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { CONSENT_UNSAVED_PARAM } from "../../components/privacy/consent-offer.ts";
+import { ConsentUnsavedNotice } from "../../components/privacy/consent-unsaved-notice.tsx";
 import { EmptyState } from "../../components/ui/state.tsx";
 import { messagesFor, t } from "../../lib/i18n.ts";
 import { ORG_PICKER_ROLE_LABEL } from "../../lib/roles.ts";
@@ -11,13 +13,22 @@ import { OrgChoice } from "./org-choice.tsx";
 export const metadata: Metadata = { title: t("org_picker.metadata.title") };
 
 // SPEC-access-and-property S-020: chọn ngữ cảnh trong số tổ chức có membership.
-export default async function ChooseOrganizationPage() {
+export default async function ChooseOrganizationPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const session = await currentSession();
   if (!session) redirect("/dang-nhap");
+  // Vừa đăng ký, tick đồng ý mà ghi thất bại (T-2310) ⇒ thông báo không chặn.
+  const consentUnsaved = (await searchParams)[CONSENT_UNSAVED_PARAM] === "1";
   const orgs = await listMyOrganizations(serverContext().db, session.user.id);
   return (
     <main id="main" className="page">
       <h1>{t("org_picker.page.title")}</h1>
+      {consentUnsaved ? (
+        <ConsentUnsavedNotice text={t("consent_offer.unsaved")} link={t("consent_offer.open_privacy")} />
+      ) : null}
       {orgs.length === 0 ? (
         <>
           <EmptyState title={t("org_picker.empty.title")} text={t("org_picker.empty.text")} />

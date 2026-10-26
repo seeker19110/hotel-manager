@@ -7,6 +7,7 @@
 import { z } from "zod";
 import { ERROR_CODES } from "../errors.ts";
 import { IMPORT_KINDS } from "../import/index.ts";
+import { CONSENT_CHANNELS, CONSENT_PURPOSES, DSAR_STATUSES, DSAR_TYPES } from "../privacy/index.ts";
 import { COMMANDS, QUERIES, USER_COMMANDS } from "./registry.ts";
 import { simPayload } from "./webhook-route.ts";
 
@@ -40,6 +41,9 @@ const ERROR_RESPONSES: Record<string, Json> = {
   ),
   "426": errorResponse(
     "CLIENT_OUTDATED — `X-App-Version` thấp hơn mức tối thiểu; không ghi gì, client cần cập nhật (SPEC-pwa S-009)",
+  ),
+  "423": errorResponse(
+    "ORG_PENDING_DELETION — tổ chức đang chờ xoá (30 ngày giữ): mọi thao tác có ngữ cảnh tổ chức bị khoá trừ xuất dữ liệu và trạng thái/huỷ xoá (D-125)",
   ),
   "429": {
     description: "RATE_LIMITED — vượt giới hạn tần suất",
@@ -122,6 +126,8 @@ function commandOperation(name: string, input: z.ZodType, userScope = false): Js
     responses: {
       "2XX": commandSuccess(),
       ...pick("400", "401", "403", "404", "409", "422", "426", "429", "500"),
+      // Tổ chức chờ xoá (D-125): lệnh có ngữ cảnh tổ chức không được phép ⇒ 423.
+      ...(userScope || COMMANDS[name]?.allowPendingDeletion ? {} : pick("423")),
       ...(COMMAND_EXTRA_RESPONSES[name] ?? {}),
     },
   };
@@ -154,6 +160,7 @@ function queryOperation(name: string, input: z.ZodType): Json {
         },
       },
       ...pick("401", "403", "404", "409", "422", "429", "500"),
+      ...(QUERIES[name]?.allowPendingDeletion ? {} : pick("423")),
     },
   };
 }
@@ -192,7 +199,7 @@ const EXTRA_PATHS: Record<string, Json> = {
             },
           },
         },
-        ...pick("401", "404", "409", "500"),
+        ...pick("401", "404", "409", "423", "500"),
       },
     },
   },
@@ -251,6 +258,212 @@ const EXTRA_PATHS: Record<string, Json> = {
           },
         },
         ...pick("401"),
+      },
+    },
+  },
+  "/api/v1/me/consents": {
+    get: {
+      operationId: "me.getConsents",
+      tags: ["privacy"],
+      summary:
+        "Trạng thái đồng ý theo mục đích + toàn bộ lịch sử của chính người đăng nhập (`?download=1` ⇒ tệp JSON tải về)",
+      security: [{ sessionCookie: [] }],
+      parameters: [
+        { name: "download", in: "query", required: false, schema: { type: "string", enum: ["1"] } },
+      ],
+      responses: {
+        "200": {
+          description: "Mục đích (cần/không cần đồng ý, trạng thái) và lịch sử cho/rút, cũ → mới",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["purposes", "history"],
+                properties: {
+                  purposes: { type: "array", items: { type: "object" } },
+                  history: { type: "array", items: { type: "object" } },
+                },
+              },
+            },
+          },
+        },
+        ...pick("401"),
+      },
+    },
+    post: {
+      operationId: "me.setConsent",
+      tags: ["privacy"],
+      summary:
+        "Cho (granted=true) hoặc rút (granted=false) đồng ý một mục đích — idempotent theo trạng thái, không cần Idempotency-Key",
+      security: [{ sessionCookie: [] }],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["purpose", "granted", "channel"],
+              additionalProperties: false,
+              properties: {
+                purpose: { type: "string", enum: [...CONSENT_PURPOSES] },
+                granted: { type: "boolean" },
+                channel: { type: "string", enum: [...CONSENT_CHANNELS] },
+                policy_version: { type: "string", maxLength: 20 },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        "200": {
+          description: "`recorded` (thêm một hàng) hoặc `unchanged` (trạng thái đã đúng như yêu cầu)",
+          content: { "application/json": { schema: { type: "object", required: ["data"] } } },
+        },
+        ...pick("400", "401", "409", "422"),
+      },
+    },
+  },
+  "/api/v1/me/data-requests": {
+    get: {
+      operationId: "me.listDataRequests",
+      tags: ["privacy"],
+      summary:
+        "Yêu cầu quyền chủ thể (truy cập/xoá/hạn chế) của chính người đăng nhập, mới → cũ, kèm trạng thái hạn chế xử lý",
+      security: [{ sessionCookie: [] }],
+      responses: {
+        "200": {
+          description: "Danh sách yêu cầu (hạn `due_at` theo vùng) và `restricted_at` (null = không hạn chế)",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["requests", "restricted_at"],
+                properties: {
+                  requests: { type: "array", items: { $ref: "#/components/schemas/DataRequest" } },
+                  restricted_at: { type: ["string", "null"], format: "date-time" },
+                },
+              },
+            },
+          },
+        },
+        ...pick("401"),
+      },
+    },
+    post: {
+      operationId: "me.createDataRequest",
+      tags: ["privacy"],
+      summary:
+        "Tạo yêu cầu truy cập/xoá/hạn chế — xoá cần xác thực lại (phiên ≤ 5 phút hoặc `password`); idempotent: đã có yêu cầu mở cùng loại ⇒ 200 trả yêu cầu đó",
+      security: [{ sessionCookie: [] }],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["type"],
+              additionalProperties: false,
+              properties: {
+                type: { type: "string", enum: [...DSAR_TYPES] },
+                password: { type: "string", minLength: 1, maxLength: 256 },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        "200": {
+          description: "Đã có yêu cầu mở cùng loại (hoặc đã hạn chế xử lý) — trả yêu cầu đó",
+          content: { "application/json": { schema: { $ref: "#/components/schemas/DataRequestResult" } } },
+        },
+        "202": {
+          description: "Đã nhận yêu cầu (truy cập/xoá xử lý nền; hạn chế có hiệu lực ngay)",
+          content: { "application/json": { schema: { $ref: "#/components/schemas/DataRequestResult" } } },
+        },
+        ...pick("400", "401", "409", "422", "429"),
+      },
+    },
+  },
+  "/api/v1/me/data-requests/{id}/download": {
+    get: {
+      operationId: "me.downloadDataRequest",
+      tags: ["privacy"],
+      summary:
+        "Tải gói JSON dữ liệu của chính mình (yêu cầu truy cập đã xong) — chuyển hướng tới URL ký ≤ 5 phút",
+      security: [{ sessionCookie: [] }],
+      parameters: [{ name: "id", in: "path", required: true, schema: uuidSchema }],
+      responses: {
+        "303": {
+          description: "Chuyển hướng tới URL ký của gói JSON",
+          headers: { Location: { schema: { type: "string", format: "uri" }, description: "URL ký" } },
+        },
+        "410": {
+          description: "LINK_EXPIRED — gói đã hết hạn tải",
+          content: problemContent,
+        },
+        ...pick("401", "404", "409"),
+      },
+    },
+  },
+  "/api/v1/organization/deletion": {
+    get: {
+      operationId: "organization.getDeletion",
+      tags: ["organization"],
+      summary: "Trạng thái vòng đời xoá của tổ chức đang chọn (mọi thành viên; chạy được cả khi chờ xoá)",
+      security: [{ sessionCookie: [] }],
+      parameters: [ref("OrgId")],
+      responses: {
+        "200": {
+          description: "Trạng thái (active | pending_deletion) và mốc yêu cầu/hạn xoá",
+          content: { "application/json": { schema: { $ref: "#/components/schemas/OrgDeletionResult" } } },
+        },
+        ...pick("401", "403", "404", "409"),
+      },
+    },
+    post: {
+      operationId: "organization.requestDeletion",
+      tags: ["organization"],
+      summary:
+        "Owner yêu cầu xoá tổ chức — xác thực lại (phiên ≤ 5 phút hoặc `password`); giữ 30 ngày (xuất/huỷ được) rồi purge; idempotent",
+      security: [{ sessionCookie: [] }],
+      parameters: [ref("OrgId")],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              additionalProperties: false,
+              properties: { password: { type: "string", minLength: 1, maxLength: 256 } },
+            },
+          },
+        },
+      },
+      responses: {
+        "200": {
+          description: "Tổ chức đã đang chờ xoá — trả trạng thái hiện có",
+          content: { "application/json": { schema: { $ref: "#/components/schemas/OrgDeletionResult" } } },
+        },
+        "202": {
+          description: "Đã nhận yêu cầu — tổ chức chuyển pending_deletion, hạn purge = +30 ngày",
+          content: { "application/json": { schema: { $ref: "#/components/schemas/OrgDeletionResult" } } },
+        },
+        ...pick("400", "401", "403", "404", "409", "422", "429"),
+      },
+    },
+    delete: {
+      operationId: "organization.cancelDeletion",
+      tags: ["organization"],
+      summary:
+        "Owner huỷ yêu cầu xoá (một bước) — tổ chức về active ngay; không chờ xoá ⇒ `cancelled: false`",
+      security: [{ sessionCookie: [] }],
+      parameters: [ref("OrgId")],
+      responses: {
+        "200": {
+          description: "Kết quả huỷ kèm trạng thái mới",
+          content: { "application/json": { schema: { $ref: "#/components/schemas/OrgDeletionResult" } } },
+        },
+        ...pick("401", "403", "404", "409"),
       },
     },
   },
@@ -465,6 +678,10 @@ export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
   "v1/[module]/[command]/route.ts": { spec: "registry: mọi mục COMMANDS (POST) và QUERIES (GET)" },
   "v1/commands/[id]/route.ts": { spec: "/api/v1/commands/{id}" },
   "v1/me/route.ts": { spec: "/api/v1/me" },
+  "v1/me/consents/route.ts": { spec: "/api/v1/me/consents" },
+  "v1/me/data-requests/route.ts": { spec: "/api/v1/me/data-requests" },
+  "v1/organization/deletion/route.ts": { spec: "/api/v1/organization/deletion" },
+  "v1/me/data-requests/[id]/download/route.ts": { spec: "/api/v1/me/data-requests/{id}/download" },
   "version/route.ts": { spec: "/api/version" },
   "v1/session/switchOrganization/route.ts": { spec: "/api/v1/session/switchOrganization" },
   "v1/notifications/unsubscribe/route.ts": { spec: "/api/v1/notifications/unsubscribe" },
@@ -606,6 +823,59 @@ export function buildOpenApi(): Json {
             },
           },
           additionalProperties: true,
+        },
+        DataRequest: {
+          type: "object",
+          description: "Yêu cầu quyền chủ thể (DSAR) của chính người đăng nhập — T-2311, D-123",
+          required: ["id", "type", "status", "region", "requested_at", "due_at"],
+          properties: {
+            id: uuidSchema,
+            type: { type: "string", enum: [...DSAR_TYPES] },
+            status: { type: "string", enum: [...DSAR_STATUSES] },
+            region: { type: "string" },
+            requested_at: { type: "string", format: "date-time" },
+            due_at: { type: "string", format: "date-time" },
+            completed_at: { type: ["string", "null"], format: "date-time" },
+            result_summary: { type: ["object", "null"] },
+            legal_retention_note: { type: ["string", "null"] },
+            download_expires_at: { type: ["string", "null"], format: "date-time" },
+            download_url: { type: ["string", "null"] },
+          },
+        },
+        OrgDeletionResult: {
+          type: "object",
+          description: "Vòng đời xoá tổ chức — T-2312, D-125",
+          required: ["data"],
+          properties: {
+            data: {
+              type: "object",
+              required: ["organization_id", "status", "requested_at", "due_at", "requested_by_me"],
+              properties: {
+                organization_id: uuidSchema,
+                organization_name: { type: "string" },
+                status: { type: "string", enum: ["active", "suspended", "pending_deletion"] },
+                requested_at: { type: ["string", "null"], format: "date-time" },
+                due_at: { type: ["string", "null"], format: "date-time" },
+                requested_by_me: { type: "boolean" },
+                result: { type: "string", enum: ["created", "existing"] },
+                cancelled: { type: "boolean" },
+              },
+            },
+          },
+        },
+        DataRequestResult: {
+          type: "object",
+          required: ["data"],
+          properties: {
+            data: {
+              type: "object",
+              required: ["status", "request"],
+              properties: {
+                status: { type: "string", enum: ["created", "existing"] },
+                request: { $ref: "#/components/schemas/DataRequest" },
+              },
+            },
+          },
         },
       },
     },

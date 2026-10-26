@@ -873,3 +873,45 @@
 - Chọn: Chặn vòng, chờ người merge #137; sau merge dựng lại nhánh từ main và làm lát D
 - Lý do (tiêu chí chất lượng cuối): (1) an toàn: PR ngoại lệ cứng phải rà được — trộn auth (lát D/E) với dữ liệu (lát C) làm người duyệt khó bắt lỗi không đảo ngược; luật mỗi lát một PR; (2) đường lùi: revert từng lát; (5) tốc độ thua vì nút thắt là người merge, dồn thêm không nhanh hơn
 - Đường lùi: loop resume rồi làm lát D trên nhánh dựng lại từ main
+
+### D-122 · 2026-10-25T22:56:22+00:00 · T-2310: phạm vi và cách thu/rút đồng ý (CMP-RIGHTS-001/004, CMP-VN-001)
+
+- Phương án: (1) Bảng consent_records append-only theo tài khoản (auth user), danh mục mục đích trong mã (hiện chỉ 'analytics' cần đồng ý; mục đích hợp đồng/nghĩa vụ pháp lý ghi rõ là không cần đồng ý); ô chọn KHÔNG tick sẵn ở đăng ký, nhận lời mời, portal; trang Quyền riêng tư bật/tắt cùng số bước để rút; nối bộ kiểm đồng ý của analytics (cache theo request); không có bên thứ ba nhận ⇒ lan tới bên thứ ba là không áp dụng · (2) Đồng ý theo hồ sơ người (persons) do cơ sở lưu trú thu · (3) Banner cookie phía client
+- Chọn: Bảng consent_records append-only theo tài khoản (auth user), danh mục mục đích trong mã (hiện chỉ 'analytics' cần đồng ý; mục đích hợp đồng/nghĩa vụ pháp lý ghi rõ là không cần đồng ý); ô chọn KHÔNG tick sẵn ở đăng ký, nhận lời mời, portal; trang Quyền riêng tư bật/tắt cùng số bước để rút; nối bộ kiểm đồng ý của analytics (cache theo request); không có bên thứ ba nhận ⇒ lan tới bên thứ ba là không áp dụng
+- Lý do (tiêu chí chất lượng cuối): (1) đúng: Luật 91/2025 Đ.9 đồng ý theo từng mục đích, có bằng chứng; tài khoản là chủ thể tự thao tác được; dữ liệu khách/người thuê do cơ sở là bên kiểm soát quyết — ngoài phạm vi; không cookie analytics nên banner thừa; (2) append-only, rút = bản ghi mới, đảo ngược được; (3) đơn giản, test được
+- Đường lùi: Revert PR; migration có down; bộ kiểm analytics trở về mặc định từ chối
+
+### D-123 · 2026-10-25T23:40:39+00:00 · T-2311: thiết kế quyền chủ thể (truy cập/xoá/hạn chế), hạn DSAR, số phận consent_records khi xoá tài khoản
+
+- Phương án: (1) Bảng dsar_requests (loại access|delete|restrict, trạng thái, due_at theo dsar_days của vùng); xác thực lại (phiên mới ≤ 5 phút hoặc nhập lại mật khẩu/OTP) trước xoá; worker xử lý: truy cập = gói JSON dữ liệu của tài khoản vào kho file riêng có hạn tải; xoá = ẩn danh auth.user, thu hồi mọi phiên, membership → removed, unlink_product_events_actor, xoá file riêng của tài khoản, GIỮ hoá đơn/sổ tiền/audit (nghĩa vụ kế toán, nêu căn cứ trong kết quả); hạn chế = cờ trên tài khoản làm analytics từ chối + chặn xử lý không bắt buộc; consent_records GIỮ làm bằng chứng (id tài khoản đã ẩn danh, không còn PII); dsar_days: VN xoá 3 ngày / truy cập 10 ngày (cách hiểu chặt hơn của nguồn thứ cấp, chưa xác minh), EU/UK 30, CA 45, SG/TH 30; metric gauge dsar_overdue · (2) Xoá cứng tài khoản và mọi bản ghi liên quan · (3) Chỉ làm quy trình thủ công qua ticket
+- Chọn: Bảng dsar_requests (loại access|delete|restrict, trạng thái, due_at theo dsar_days của vùng); xác thực lại (phiên mới ≤ 5 phút hoặc nhập lại mật khẩu/OTP) trước xoá; worker xử lý: truy cập = gói JSON dữ liệu của tài khoản vào kho file riêng có hạn tải; xoá = ẩn danh auth.user, thu hồi mọi phiên, membership → removed, unlink_product_events_actor, xoá file riêng của tài khoản, GIỮ hoá đơn/sổ tiền/audit (nghĩa vụ kế toán, nêu căn cứ trong kết quả); hạn chế = cờ trên tài khoản làm analytics từ chối + chặn xử lý không bắt buộc; consent_records GIỮ làm bằng chứng (id tài khoản đã ẩn danh, không còn PII); dsar_days: VN xoá 3 ngày / truy cập 10 ngày (cách hiểu chặt hơn của nguồn thứ cấp, chưa xác minh), EU/UK 30, CA 45, SG/TH 30; metric gauge dsar_overdue
+- Lý do (tiêu chí chất lượng cuối): (1) đúng: tự phục vụ + xác thực lại (CMP-RIGHTS-007), giữ phần bắt buộc có căn cứ (Luật Kế toán Đ.41: 10 năm), hạn VN lấy số chặt nhất trong nguồn hiện có; consent_records chỉ còn id giả danh nên giữ được làm bằng chứng mà không nới trigger append-only; (2) ẩn danh thay xoá cứng giữ FK/sổ tiền, migration có down; (3) test được trên Postgres thật + E2E
+- Đường lùi: Revert PR; migration có down; tắt job DSAR trong worker
+
+### D-124 · 2026-10-26T00:39:55+00:00 · T-2311 câu hỏi mở: email báo gói dữ liệu, vùng DSAR, gỡ cờ hạn chế
+
+- Phương án: (1) Không gửi email (chỉ trạng thái trên trang, không nới cổng ngân sách email); vùng luôn VN (thị trường duy nhất, hạn chặt nhất); chưa cho tự gỡ cờ hạn chế — gỡ qua hỗ trợ, ghi vào RUNBOOK; xem lại khi có khách ngoài VN · (2) Thêm ngân sách email theo tài khoản + cột quốc gia + nút gỡ cờ
+- Chọn: Không gửi email (chỉ trạng thái trên trang, không nới cổng ngân sách email); vùng luôn VN (thị trường duy nhất, hạn chặt nhất); chưa cho tự gỡ cờ hạn chế — gỡ qua hỗ trợ, ghi vào RUNBOOK; xem lại khi có khách ngoài VN
+- Lý do (tiêu chí chất lượng cuối): (1) an toàn: không nới cổng OPS-COST-004, VN là cách hiểu chặt hơn; (3) đơn giản, giữ PR lát D vừa sức rà; (4) trạng thái trên trang đủ cho người dùng tự phục vụ
+- Đường lùi: Thêm email/cột vùng/nút gỡ ở lát sau
+
+### D-125 · 2026-10-26T00:44:54+00:00 · T-2312: vòng đời xoá tổ chức (IND-SAAS-006, UX-CONTENT-005)
+
+- Phương án: (1) Owner yêu cầu xoá (xác thực lại) → tổ chức pending_deletion: chặn mọi truy cập trừ xuất dữ liệu + huỷ yêu cầu; giữ 30 ngày; job purge xoá mọi bảng theo tổ chức + object kho file (cả sổ tiền/audit: nghĩa vụ lưu 10 năm thuộc cơ sở — bên kiểm soát, đã có 30 ngày xuất), vượt trigger append-only CHỈ trong hàm SECURITY DEFINER do owner sở hữu (trigger kiểm current_user, không tin GUC người gọi đặt); sinh chứng nhận xoá (bảng không theo tổ chức: org id, thời điểm, số hàng mỗi bảng, digest SHA-256) xem được bởi người yêu cầu; job purge TẮT mặc định ở production (grant data_delete hard_delete=false trong PLAN) — bật ở dev/test; huỷ yêu cầu 1 bước, số bước xoá/huỷ ≤ số bước tạo tổ chức; checklist dark pattern vào PR template · (2) Chỉ xoá mềm, không purge · (3) Purge ngay không thời gian giữ
+- Chọn: Owner yêu cầu xoá (xác thực lại) → tổ chức pending_deletion: chặn mọi truy cập trừ xuất dữ liệu + huỷ yêu cầu; giữ 30 ngày; job purge xoá mọi bảng theo tổ chức + object kho file (cả sổ tiền/audit: nghĩa vụ lưu 10 năm thuộc cơ sở — bên kiểm soát, đã có 30 ngày xuất), vượt trigger append-only CHỈ trong hàm SECURITY DEFINER do owner sở hữu (trigger kiểm current_user, không tin GUC người gọi đặt); sinh chứng nhận xoá (bảng không theo tổ chức: org id, thời điểm, số hàng mỗi bảng, digest SHA-256) xem được bởi người yêu cầu; job purge TẮT mặc định ở production (grant data_delete hard_delete=false trong PLAN) — bật ở dev/test; huỷ yêu cầu 1 bước, số bước xoá/huỷ ≤ số bước tạo tổ chức; checklist dark pattern vào PR template
+- Lý do (tiêu chí chất lượng cuối): (1) đúng: GDPR Art.28(3)(g)/Luật 91 Đ.37 — bên xử lý xoá/trả dữ liệu khi chấm dứt, có thời gian xuất; lối vượt trigger chỉ cho owner nên app_runtime/app_worker không lạm dụng được; production không xoá cứng khi chưa có grant; (2) 30 ngày giữ + huỷ được + chứng nhận; (3) test DB từng kho + E2E
+- Đường lùi: Revert PR; job purge tắt; migration có down
+
+### D-126 · 2026-10-26T01:37:03+00:00 · T-2312 câu hỏi mở: tổ chức chờ xoá với job nền, liên kết khách, bật purge production
+
+- Phương án: (1) Giữ chặn ở resolveActor; thêm: job nền chọn tổ chức chỉ lấy status='active' (dừng nhắc/email trong thời gian chờ xoá) và liên kết khách bằng token từ chối khi tổ chức không active; không thêm biến môi trường bật purge (bật production = người ghi grant data_delete hard_delete=true + bootWorker orgPurge); hạn giữ chứng nhận xoá chờ pháp lý · (2) Chặn trong runTenantTx bằng hàm cổng cho mọi chỗ gọi
+- Chọn: Giữ chặn ở resolveActor; thêm: job nền chọn tổ chức chỉ lấy status='active' (dừng nhắc/email trong thời gian chờ xoá) và liên kết khách bằng token từ chối khi tổ chức không active; không thêm biến môi trường bật purge (bật production = người ghi grant data_delete hard_delete=true + bootWorker orgPurge); hạn giữ chứng nhận xoá chờ pháp lý
+- Lý do (tiêu chí chất lượng cuối): (1) đúng: tổ chức đã yêu cầu xoá thì ngừng xử lý dữ liệu khách/người thuê (tối thiểu hoá), liên kết khách là đường vào không qua resolveActor nên phải tự kiểm; (3) ít chỗ chạm hơn phương án 2, không làm gãy luồng export
+- Đường lùi: Bỏ điều kiện status trong bộ chọn job/guest link
+
+### D-127 · 2026-10-26T02:35:46+00:00 · Review lát D điểm 9: phiên tạo song song với xoá tài khoản
+
+- Phương án: (1) Giữ trigger BEFORE INSERT auth.session từ chối tài khoản đã ẩn danh (42501 ACCOUNT_DELETED) · (2) Bỏ trigger, chỉ ghi rủi ro
+- Chọn: Giữ trigger BEFORE INSERT auth.session từ chối tài khoản đã ẩn danh (42501 ACCOUNT_DELETED)
+- Lý do (tiêu chí chất lượng cuối): (1) đúng: đóng lỗ thật (có test đỏ trên mã cũ), quyền xoá phải dứt điểm; chi phí một lần tra PK mỗi đăng nhập; tài khoản tự đặt email dạng deleted+…@deleted.invalid chỉ tự chặn chính mình
+- Đường lùi: Drop trigger app.session_guard_erased bằng migration mới

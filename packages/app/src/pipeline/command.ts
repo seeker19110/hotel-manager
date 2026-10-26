@@ -10,7 +10,7 @@ import {
   withTenant,
 } from "@hm/db";
 import { type Kysely, sql, type Transaction } from "kysely";
-import type { Actor } from "../actor-core/index.ts";
+import { AccessError, type Actor } from "../actor-core/index.ts";
 import { t } from "../i18n.ts";
 import {
   appLogger,
@@ -479,23 +479,32 @@ export type CommandStatus =
 
 const MANAGER_ROLES = new Set(["owner", "manager"]);
 
-/** GET /api/v1/commands/{id}: chỉ người tạo (hoặc owner/manager) xem; còn lại → COMMAND_NOT_FOUND (404). */
+/**
+ * GET /api/v1/commands/{id}: chỉ người tạo (hoặc owner/manager) xem; còn lại → COMMAND_NOT_FOUND (404). Tổ chức đang chờ xoá
+ * (T-2312, D-125): chỉ trả kết quả của lệnh mà `allowWhenPendingDeletion(command)` cho phép (xuất dữ liệu), còn lại 423
+ * ORG_PENDING_DELETION — mặc định không lệnh nào.
+ */
 export async function getCommandResult(
   db: Kysely<unknown>,
   actor: Actor,
   commandId: string,
+  opts: { allowWhenPendingDeletion?: (command: string) => boolean } = {},
 ): Promise<CommandStatus> {
   if (!UUID.test(commandId))
     throw new CommandError("COMMAND_NOT_FOUND", 404, t("pipeline.command_not_found"));
   const row = await withTenant(db, { orgId: actor.orgId }, async (trx) => {
-    const r = await sql<StoredRow & { actor_person_id: string }>`
-      select status, request_hash, http_status, response, actor_person_id from idempotency_keys
-      where organization_id = ${actor.orgId} and key = ${commandId.toLowerCase()}`.execute(trx);
+    const r = await sql<StoredRow & { actor_person_id: string; command: string; org_status: string | null }>`
+      select k.status, k.request_hash, k.http_status, k.response, k.actor_person_id, k.command,
+             (select o.status from organizations o where o.id = k.organization_id) as org_status
+      from idempotency_keys k
+      where k.organization_id = ${actor.orgId} and k.key = ${commandId.toLowerCase()}`.execute(trx);
     return r.rows[0];
   });
   if (!row || (row.actor_person_id !== actor.personId && !MANAGER_ROLES.has(actor.role))) {
     throw new CommandError("COMMAND_NOT_FOUND", 404, t("pipeline.command_not_found"));
   }
+  if (row.org_status === "pending_deletion" && opts.allowWhenPendingDeletion?.(row.command) !== true)
+    throw new AccessError("ORG_PENDING_DELETION", t("access.org_pending_deletion"));
   if (row.status === "in_progress") return { status: "in_progress" };
   if (row.status === "committed")
     return { status: "committed", data: row.response?.data, httpStatus: row.http_status ?? 200 };

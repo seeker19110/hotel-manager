@@ -2,7 +2,7 @@
 // → tạo cơ sở với mặc định đúng → lỗi múi giờ/giờ chốt báo đúng ô → sửa cơ sở. Axe + vùng chạm ≥ 44 px ở mọi màn.
 import { expect, test } from "@playwright/test";
 import { expectAccessible } from "./a11y.ts";
-import { signInClick } from "./sign-in.ts";
+import { signInClick, signUpClick, twoFactorClick } from "./sign-in.ts";
 import { totp } from "./totp.ts";
 
 test.describe.configure({ mode: "serial" });
@@ -25,7 +25,7 @@ test("@smoke S-001 đăng ký → tạo tổ chức → thành chủ, chọn s�
   await page.getByLabel("Họ và tên").fill(NEW_USER.name);
   await page.getByLabel("Email").fill(NEW_USER.email);
   await page.getByLabel("Mật khẩu").fill(NEW_USER.password);
-  await page.getByRole("button", { name: "Tạo tài khoản" }).click();
+  await signUpClick(page);
 
   await expect(page).toHaveURL(/\/chon-to-chuc$/);
   await expect(page.getByText("Bạn chưa thuộc tổ chức nào")).toBeVisible();
@@ -51,19 +51,21 @@ test("bật xác thực hai lớp: sai mật khẩu báo lỗi; đúng mật kh�
   await page.goto("/bao-mat");
   await expectAccessible(page);
   await page.getByLabel("Mật khẩu hiện tại").fill("sai-mat-khau-hoan-toan");
-  await page.getByRole("button", { name: "Tiếp tục" }).click();
+  await twoFactorClick(page, page.getByRole("button", { name: "Tiếp tục" }));
   await expect(page.locator(".field__error[role=alert]")).toContainText("Mật khẩu không đúng");
   await page.getByLabel("Mật khẩu hiện tại").fill(NEW_USER.password);
-  await page.getByRole("button", { name: "Tiếp tục" }).click();
+  await twoFactorClick(page, page.getByRole("button", { name: "Tiếp tục" }));
   secret = (await page.getByTestId("totp-secret").textContent()) ?? "";
   expect(secret).toMatch(/^[A-Z2-7]{16,}$/);
   await expect(page.getByTestId("backup-codes").getByRole("listitem")).not.toHaveCount(0);
   await expectAccessible(page);
   await page.getByLabel("Mã xác thực 6 số").fill("000000");
-  await page.getByRole("button", { name: "Xác nhận và bật" }).click();
+  // 429 ở /bao-mat cũng hiện "Mã không đúng" ⇒ phải chắc lần bấm này được server chấm (không 429) thì khẳng định mới có nghĩa.
+  await twoFactorClick(page, page.getByRole("button", { name: "Xác nhận và bật" }));
   await expect(page.locator(".field__error[role=alert]")).toContainText("Mã xác thực không đúng");
-  await page.getByLabel("Mã xác thực 6 số").fill(totp(secret));
-  await page.getByRole("button", { name: "Xác nhận và bật" }).click();
+  const fillCode = () => page.getByLabel("Mã xác thực 6 số").fill(totp(secret));
+  await fillCode();
+  await twoFactorClick(page, page.getByRole("button", { name: "Xác nhận và bật" }), fillCode);
   await expect(page).toHaveURL(/\/chon-to-chuc$/, { timeout: 15_000 });
 });
 

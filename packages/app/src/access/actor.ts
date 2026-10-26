@@ -56,6 +56,11 @@ export async function resolveActor(
     orgId: string;
     twoFactorEnabled: boolean;
     authenticatedAt?: Date | undefined;
+    /**
+     * Tổ chức `pending_deletion` (T-2312, D-125) mặc định bị khoá: ORG_PENDING_DELETION (423) cho MỌI trang/command/query. Chỉ các
+     * đường được phép rõ ràng — xuất dữ liệu, xem trạng thái/huỷ yêu cầu xoá — đặt `true`.
+     */
+    allowPendingDeletion?: boolean;
   },
 ): Promise<Actor> {
   if (!input.authUserId) throw new AccessError("UNAUTHENTICATED", t("http.unauthenticated"));
@@ -74,8 +79,9 @@ export async function resolveActor(
       limits: Record<string, number>;
       role_limits: Record<string, number> | null;
       property_ids: string[] | null;
+      org_status: string;
     }>`
-      select m.id, m.person_id, m.role, m.all_properties, m.limits,
+      select m.id, m.person_id, m.role, m.all_properties, m.limits, o.status as org_status,
              o.settings -> 'role_limits' -> m.role as role_limits,
              array_remove(array_agg(ps.property_id), null)::text[] as property_ids
       from memberships m
@@ -85,10 +91,12 @@ export async function resolveActor(
       where m.auth_user_id = ${authUserId}::uuid and m.status = 'active'
         and m.valid_from <= now() and (m.valid_to is null or m.valid_to > now())
         and (m.role <> 'tenant' or u."emailVerified")
-      group by m.id, o.settings`.execute(trx);
+      group by m.id, o.settings, o.status`.execute(trx);
     return r.rows[0];
   });
   if (!row) throw new AccessError("NOT_FOUND", t("http.organization_not_found"));
+  if (row.org_status === "pending_deletion" && input.allowPendingDeletion !== true)
+    throw new AccessError("ORG_PENDING_DELETION", t("access.org_pending_deletion"));
 
   // Hạn mức 3 tầng (ERD 7.1 #9): mặc định trong mã (DEFAULT_LIMITS, authorize) < theo vai trò của tổ chức
   // (`organizations.settings.role_limits.<role>`) < ghi đè của membership (`memberships.limits`).

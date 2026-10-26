@@ -709,3 +709,39 @@ body {
   width: 1.5em;
   height: 1.5em;
 }
+/* Ô chọn có nhãn (đồng ý không bắt buộc — T-2310): ô vuông bằng vùng chạm 44 px, nhãn bấm được bên phải. */
+.check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+.check input {
+  flex: none;
+  width: var(--touch);
+  height: var(--touch);
+  margin: 0;
+  accent-color: var(--c-brand);
+}
+.check label {
+  display: block;
+  padding-top: var(--space-2);
+  font-weight: 600;
+}
+.check__hint {
+  display: block;
+  color: var(--c-text-muted);
+  font-size: 0.875rem;
+}
+.privacy-facts {
+  margin: var(--space-2) 0;
+}
+.privacy-facts dt {
+  font-weight: 600;
+}
+.privacy-facts dd {
+  margin: 0 0 var(--space-2);
+}
+.privacy-history {
+  padding-left: var(--space-4);
+}

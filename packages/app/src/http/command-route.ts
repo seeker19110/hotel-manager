@@ -74,6 +74,8 @@ export interface HttpDeps {
 export interface CommandDef<I, O, P = undefined> {
   command: string;
   input: z.ZodType<I>;
+  /** Vẫn chạy khi tổ chức `pending_deletion` (chỉ xuất dữ liệu — T-2312, D-125). Mặc định: 423 ORG_PENDING_DELETION. */
+  allowPendingDeletion?: boolean;
   /**
    * Bước chuẩn bị NGOÀI transaction lệnh (T-303; quét mã độc, ghi object — xem files/staging.ts). Chạy trước `executeCommand`;
    * kết quả đi vào `run`. Lỗi của bước này được ném lại TRONG `run` để pipeline vẫn ghi kết quả `failed` + audit `denied`.
@@ -107,6 +109,8 @@ export interface UserCommandDef<I, O> {
 export interface QueryDef<I, O> {
   query: string;
   input: z.ZodType<I>;
+  /** Như `CommandDef.allowPendingDeletion`. */
+  allowPendingDeletion?: boolean;
   run(
     db: Kysely<unknown>,
     actor: Actor,
@@ -264,6 +268,8 @@ export async function actorFromRequest(
   req: Request,
   deps: HttpDeps,
   correlationId: string,
+  /** `allowPendingDeletion`: đường được phép khi tổ chức chờ xoá (xuất dữ liệu, trạng thái/huỷ — T-2312, D-125). */
+  opts: { allowPendingDeletion?: boolean } = {},
 ): Promise<Actor | Response> {
   const session = await deps.getSession(req.headers);
   const endpoint = { type: "endpoint", id: new URL(req.url).pathname };
@@ -293,6 +299,7 @@ export async function actorFromRequest(
       orgId,
       twoFactorEnabled: Boolean(session.user.twoFactorEnabled),
       authenticatedAt: session.session?.createdAt ? new Date(session.session.createdAt) : undefined,
+      ...(opts.allowPendingDeletion ? { allowPendingDeletion: true } : {}),
     });
   } catch (err) {
     if (err instanceof AccessError) {
@@ -353,7 +360,9 @@ async function runCommand<I, O, P>(
     // Client quá cũ: trả 426 TRƯỚC mọi việc khác (không cần phiên, không đụng CSDL) để UI hiện nút "Cập nhật" (S-009).
     const outdated = outdatedClientProblem(req, deps, correlationId);
     if (outdated) return outdated;
-    const actor = await actorFromRequest(req, deps, correlationId);
+    const actor = await actorFromRequest(req, deps, correlationId, {
+      allowPendingDeletion: def.allowPendingDeletion === true,
+    });
     if (actor instanceof Response) return actor;
     const key = req.headers.get("idempotency-key") ?? "";
     if (!UUID.test(key)) {
@@ -517,7 +526,9 @@ async function runQuery<I, O>(def: QueryDef<I, O>, req: Request, deps: HttpDeps)
   const correlationId = correlationOf(req);
   let actorOf: Actor | null = null;
   try {
-    const actor = await actorFromRequest(req, deps, correlationId);
+    const actor = await actorFromRequest(req, deps, correlationId, {
+      allowPendingDeletion: def.allowPendingDeletion === true,
+    });
     if (actor instanceof Response) return actor;
     actorOf = actor;
     const params = nfcDeep(Object.fromEntries(new URL(req.url).searchParams));
@@ -558,9 +569,12 @@ export function handleCommandStatus(commandId: string, req: Request, deps: HttpD
 async function runCommandStatus(commandId: string, req: Request, deps: HttpDeps): Promise<Response> {
   const correlationId = correlationOf(req);
   try {
-    const actor = await actorFromRequest(req, deps, correlationId);
+    // Tổ chức chờ xoá: chỉ kết quả lệnh nhóm `exports.*` (xuất dữ liệu trong thời gian giữ — D-125); lệnh khác 423.
+    const actor = await actorFromRequest(req, deps, correlationId, { allowPendingDeletion: true });
     if (actor instanceof Response) return actor;
-    const r = await getCommandResult(deps.db, actor, commandId);
+    const r = await getCommandResult(deps.db, actor, commandId, {
+      allowWhenPendingDeletion: (command) => command.startsWith("exports."),
+    });
     const id = commandId.toLowerCase();
     if (r.status === "committed")
       return json({ command_id: id, status: "committed", data: r.data }, 200, correlationId);

@@ -7,5 +7,7 @@
 - 2026-10-24 đợt 21 (D-101, D-102): `MessagesProvider` (client context, khoá `common.`) cho hạ tầng client; phần đuôi ngoài `merge_risk_paths` sang `t()`/`tm()`, baseline 1717 → 1552; bundle 278,11 kB. Còn ngoài risk: chỉ `lib/format.ts`.
 - 2026-10-24 đợt 22 (D-103…D-105, "hoàn thiện dự án"): XC-I18N-001 ĐẠT (D-103…D-108): 1552 → 0 chuỗi viết thẳng, 3 catalog + 2 catalog con client, 70 tệp ngoại lệ vận hành/migration có lý do + max; PR #131 người merge. MUST mở 89.
 
+- 2026-10-25 đợt 23 lát C (D-117…D-120, nhánh `claude/exciting-gauss-5yuqhd`, người merge): T-2308 migration 0066 dọn dữ liệu vận hành + ẩn danh giấy tờ/người (quan hệ mở/số dư CUSTOMER_CREDIT chặn; khoá rồi kiểm lại chống race; TimeZone UTC), job `privacy.retention`; T-2309 `track()` + `product_events` (0067), đồng ý mặc định TỪ CHỐI tới T-2310. Review chéo họ: 1 🟠 + 3 🟡 + 1 🟢 đã sửa. Còn cho T-2310: cache đồng ý theo request; T-2311: gọi `app.unlink_product_events_actor` (chỉ cấp `app_worker`), ẩn danh `auth.user`; nơi ghi quan hệ nên kiểm `anonymized_at`.
+
 ## Bài học (cũ)
 - Bài học đợt 5–8: Better Auth `/sign-in/email` 20 lần/phút theo IP; `<dialog>` phát `close` sau một task (`onClose` chỉ xoá trạng thái khi hộp thật sự đóng); chạy lại job CI dùng payload sự kiện cũ (cần push mới); test giá trị ngẫu nhiên phải loại ca biên (IP octet 0); không so thời gian tuyệt đối (so tương đối); hai lát song song có thể đụng nhau qua rào mới.

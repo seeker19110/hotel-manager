@@ -285,3 +285,35 @@ tests:
       - eval_time: 12m
         alertname: HmDbXidAgeCritical
         exp_alerts: []
+
+  # --- Quyền chủ thể: có yêu cầu quá hạn liên tục 15 phút (ticket); về 0 thì không báo ---
+  - name: dsar-overdue-fires-after-15m
+    interval: 1m
+    input_series:
+      - series: "hm_dsar_overdue"
+        values: "1x30"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: HmDsarOverdue
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: HmDsarOverdue
+        exp_alerts:
+          - exp_labels:
+              severity: ticket
+              owner: backend
+            exp_annotations:
+              summary: "Có yêu cầu quyền chủ thể (truy cập/xoá dữ liệu) quá hạn trả lời theo luật"
+              description: "Job privacy.dsar chưa hoàn tất yêu cầu trước due_at (VN: xoá 3 ngày, truy cập 10 ngày — packages/app/src/privacy/dsar-policy.ts). Thường do worker dừng, kho object lỗi hoặc yêu cầu lỗi lặp lại (log dsar.request_failed). Xử lý ngay theo runbook."
+              runbook_url: docs/RUNBOOK.md
+              runbook_section: "3.13 Yêu cầu quyền chủ thể quá hạn"
+
+  - name: dsar-overdue-zero-is-silent
+    interval: 1m
+    input_series:
+      - series: "hm_dsar_overdue"
+        values: "0x30"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: HmDsarOverdue
+        exp_alerts: []

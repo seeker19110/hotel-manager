@@ -12,10 +12,26 @@ export {
   type QueryDef,
   type UserCommandDef,
 } from "./command-route.ts";
+export { handleGetConsents, handleSetConsent, setConsentInput } from "./consents.ts";
+export {
+  createDataRequestInput,
+  type DataRequestDeps,
+  handleCreateDataRequest,
+  handleDownloadDataRequest,
+  handleListDataRequests,
+  type VerifyPassword,
+} from "./data-requests.ts";
 export { handleFileUpload } from "./file-upload.ts";
 export { handleGuestStay } from "./guest-stay.ts";
 export { handleImportUpload } from "./import-upload.ts";
 export { handleMe, type MeDeps } from "./me-route.ts";
+export {
+  handleCancelOrgDeletion,
+  handleGetOrgDeletion,
+  handleRequestOrgDeletion,
+  type OrgDeletionDeps,
+  requestOrgDeletionInput,
+} from "./org-deletion.ts";
 export { COMMANDS, findCommand, findQuery, findUserCommand, QUERIES, USER_COMMANDS } from "./registry.ts";
 export { DEFAULT_RETRY_AFTER_SECONDS, retryAfterSeconds, withRetryAfter } from "./retry-after.ts";
 export { handleSwitchOrganization, switchOrganizationInput } from "./switch-organization.ts";

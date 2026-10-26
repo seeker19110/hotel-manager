@@ -19,7 +19,10 @@ import {
   type Logger,
   loadWorkerConfig,
   type ObjectStorage,
+  orgPurgeEnabled,
   parseOutboxPayload,
+  processDsarRequests,
+  purgeDueOrganizations,
   purgeEventTables,
   purgeExpiredOperational,
   remindExpiring,
@@ -66,6 +69,10 @@ export interface Intervals {
   privacyRetention: number;
   /** Đối soát hằng ngày (IND-FIN-006). */
   reconciliation: number;
+  /** Yêu cầu quyền chủ thể: xuất dữ liệu, xoá tài khoản, dọn gói hết hạn (T-2311; hạn VN ngắn nhất 3 ngày). */
+  dsar: number;
+  /** Purge tổ chức đã quá 30 ngày giữ (T-2312, D-125) — hằng ngày. */
+  orgPurge: number;
 }
 
 export const DEFAULT_INTERVALS: Intervals = {
@@ -82,6 +89,8 @@ export const DEFAULT_INTERVALS: Intervals = {
   eventsRetention: HOUR, // xoá theo lô có trần; tồn đọng lớn được dọn dần qua các lượt
   privacyRetention: 24 * HOUR, // hạn tính theo ngày/tháng — hằng ngày là đủ; tồn đọng dọn dần qua các lượt
   reconciliation: 24 * HOUR,
+  dsar: 2 * MINUTE, // hạn trả lời tính theo ngày; nhịp vài phút để người dùng nhận gói/xoá xong gần như ngay
+  orgPurge: 24 * HOUR, // hạn giữ tính theo ngày (30 ngày) — hằng ngày là đủ
 };
 
 export const DEFAULT_STOP_TIMEOUT_MS = 25_000;
@@ -114,6 +123,11 @@ export interface WorkerDeps {
   pollingIntervalSeconds?: number;
   /** Trì hoãn lượt đầu của job hạn giữ (ms) — test đặt 0. */
   retentionInitialDelayMs?: number;
+  /**
+   * Bật job `tenancy.purge` (xoá cứng tổ chức quá hạn giữ — T-2312, D-125). `bootWorker` đặt theo `orgPurgeEnabled(NODE_ENV)`:
+   * TẮT ở production (grant `data_delete hard_delete=false` — bật cần người + grant, RUNBOOK), bật ở dev/test. Bỏ trống = tắt.
+   */
+  orgPurge?: boolean;
 }
 
 export interface WorkerHandle {
@@ -280,6 +294,29 @@ export async function startWorker(deps: WorkerDeps): Promise<WorkerHandle> {
           () => anonymizeExpiredPeople(workerDb, { now: new Date(), log: (e, f) => log.info(e, f) }),
         ]),
     },
+    {
+      // Quyền chủ thể (D-123): xử lý yêu cầu truy cập/xoá đến hạn (SKIP LOCKED — nhiều worker an toàn), rồi dọn gói hết hạn.
+      // Tắt (đường lùi D-123): bỏ mục này; yêu cầu nằm lại `verified` và metric hm_dsar_overdue báo khi quá hạn.
+      name: "privacy.dsar",
+      everyMs: iv.dsar,
+      run: () =>
+        processDsarRequests(workerDb, {
+          storage,
+          log: (e, f) => log.info(e, f),
+        }),
+    },
+    ...(deps.orgPurge
+      ? [
+          {
+            // Vòng đời xoá tổ chức (D-125): object kho TRƯỚC, rồi `app.purge_organization` (mọi bảng + chứng nhận). Đường lùi: tắt
+            // (`orgPurge: false`) — tổ chức nằm lại `pending_deletion` (vẫn bị khoá, huỷ được), gauge hm_org_pending_deletion{state="due"} báo.
+            name: "tenancy.purge",
+            everyMs: iv.orgPurge,
+            initialDelayMs: deps.retentionInitialDelayMs ?? MINUTE,
+            run: () => purgeDueOrganizations(workerDb, { storage, log: (e, f) => log.info(e, f) }),
+          } satisfies ScheduledJob,
+        ]
+      : []),
   ];
   const sender = deps.sender;
   if (sender) {
@@ -343,6 +380,8 @@ export interface BootOptions {
   extraHandlers?: WorkerDeps["extraHandlers"];
   /** Thay bộ gửi email (test). Mặc định: `fake://…` → FakeEmailSender; `smtp(s)://…` → null (chưa có adapter). */
   sender?: EmailSender | null;
+  /** Ghi đè bật/tắt job `tenancy.purge` (mặc định theo NODE_ENV — `orgPurgeEnabled`). Tuỳ chọn runtime, không phải biến môi trường. */
+  orgPurge?: boolean;
 }
 
 /** Dựng worker từ env: ConfigError nếu thiếu/sai biến (nêu tên, không giá trị). */
@@ -397,6 +436,7 @@ export async function bootWorker(
       ...(opts.retentionInitialDelayMs !== undefined
         ? { retentionInitialDelayMs: opts.retentionInitialDelayMs }
         : {}),
+      orgPurge: orgPurgeEnabled(config.NODE_ENV, opts.orgPurge),
     });
   } catch (err) {
     // Khởi động dở (DB không tới, thiếu quyền tạo schema pgboss…): dọn những gì đã mở rồi báo lỗi.

@@ -58,8 +58,8 @@ Miền theo ranh giới của ADR-0001 (kế hoạch §11); cột "Tầng" dùng
 | `server` | Nền | E | Ngữ cảnh server (composition root): nối auth, db, storage, scanner |
 | `http` | Cổng HTTP | F | Lớp HTTP không phụ thuộc Next: lõi route (`command-route`), registry command/query, OpenAPI, bảo mật header/CSRF, webhook, route adapter của module (tải file, tải import, huỷ đăng ký email, khách xem lưu trú) |
 | `testing` | Kiểm thử | F | Helper test dùng chung trong packages/app (không vào bundle sản phẩm) |
-| `privacy` | Kiểm thử | A | Chỉ có test đối chiếu data-map ↔ catalog CSDL |
-| `tenancy` | Kiểm thử | A | Chỉ có test cách ly tenant (RLS) |
+| `privacy` | Quyền riêng tư | E | Đồng ý theo mục đích (`consent_records`, T-2310) và quyền chủ thể DSAR (`dsar_requests`, hạn theo vùng, worker xuất/xoá tài khoản — T-2311, D-123; dùng `files` cho URL ký, `pipeline` cho hạn mức), test đối chiếu data-map ↔ catalog CSDL |
+| `tenancy` | Access | E | Vòng đời xoá tổ chức (T-2312, D-125): yêu cầu/huỷ (owner, xác thực lại qua `privacy.isRecentReauth`), trạng thái, job purge (`app.purge_organization`, object `files` trước), chứng nhận xoá; cùng test cách ly tenant (RLS) |
 
 ## 3. Hướng phụ thuộc cho phép giữa các thư mục
 Tầng từ thấp lên cao: **A** nền · **B** lõi lệnh · **C** miền đơn · **D** tiền · **E** miền ghép · **F** cổng.

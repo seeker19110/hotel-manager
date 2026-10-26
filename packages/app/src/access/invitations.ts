@@ -171,7 +171,7 @@ export async function buildInvitationMail(
   if (typeof id !== "string") throw new Error(t("access.invitation_payload_missing"));
   const r = await withTenantRetry(workerDb, { orgId: job.organization_id }, (trx) =>
     sql<{ email: string; role: string; org_name: string; ok: boolean }>`
-      select i.email, i.role, o.name as org_name, (i.status = 'pending' and i.expires_at > now()) as ok
+      select i.email, i.role, o.name as org_name, (i.status = 'pending' and i.expires_at > now() and o.status = 'active') as ok
       from invitations i join organizations o on o.id = i.organization_id
       where i.organization_id = ${job.organization_id} and i.id = ${id}`.execute(trx),
   );

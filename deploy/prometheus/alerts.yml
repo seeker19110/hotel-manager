@@ -132,6 +132,21 @@ groups:
           runbook_url: docs/RUNBOOK.md
           runbook_section: "3.9 Chênh lệch đối soát mở quá hạn"
 
+  - name: hotel-manager.quyen-rieng-tu
+    rules:
+      - alert: HmDsarOverdue
+        # hm_dsar_overdue là gauge: số yêu cầu quyền chủ thể (truy cập/xoá) còn mở đã quá due_at (hạn theo vùng — T-2311, D-123).
+        expr: hm_dsar_overdue > 0
+        for: 15m
+        labels:
+          severity: ticket
+          owner: backend
+        annotations:
+          summary: "Có yêu cầu quyền chủ thể (truy cập/xoá dữ liệu) quá hạn trả lời theo luật"
+          description: "Job privacy.dsar chưa hoàn tất yêu cầu trước due_at (VN: xoá 3 ngày, truy cập 10 ngày — packages/app/src/privacy/dsar-policy.ts). Thường do worker dừng, kho object lỗi hoặc yêu cầu lỗi lặp lại (log dsar.request_failed). Xử lý ngay theo runbook."
+          runbook_url: docs/RUNBOOK.md
+          runbook_section: "3.13 Yêu cầu quyền chủ thể quá hạn"
+
   - name: hotel-manager.csdl
     rules:
       # Sức khoẻ CSDL (T-503; DB-PERF-004/008). Metric do app.db_health_metrics (migration 0051). Ngưỡng là lựa chọn của đội (ghi nguồn ở

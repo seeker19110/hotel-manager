@@ -5,9 +5,11 @@
 // nên không tra `/api/v1/commands/{id}` như `useCommand`.
 import { safeUrl } from "@hm/app/http";
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { type ConsentOffer, offerConsent } from "../../components/privacy/consent-offer.ts";
+import { ConsentUnsavedNotice } from "../../components/privacy/consent-unsaved-notice.tsx";
 import { clearUserData, useOnline } from "../../components/pwa/pwa-shell.tsx";
 import { Button } from "../../components/ui/button.tsx";
-import { TextField } from "../../components/ui/field.tsx";
+import { CheckboxField, TextField } from "../../components/ui/field.tsx";
 import { ErrorState, LoadingState } from "../../components/ui/state.tsx";
 import { timedFetch } from "../../lib/fetch-timeout.ts";
 import type { Messages } from "../../lib/i18n.ts";
@@ -36,7 +38,7 @@ function tokenFromHash(hash: string): string | null {
   return v && /^[A-Za-z0-9_-]{20,200}$/.test(v) ? v : null;
 }
 
-export function AcceptInvitation({ m }: { m: Messages<"invitation."> }) {
+export function AcceptInvitation({ m, consent }: { m: Messages<"invitation.">; consent: ConsentOffer }) {
   const online = useOnline();
   const token = useRef<string | null>(null);
   const key = useRef<string | null>(null);
@@ -46,6 +48,7 @@ export function AcceptInvitation({ m }: { m: Messages<"invitation."> }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | undefined>();
   const [problem, setProblem] = useState<string | undefined>();
+  const [consentUnsaved, setConsentUnsaved] = useState(false);
 
   const checkSession = useCallback(async () => {
     setPhase("checking");
@@ -104,6 +107,10 @@ export function AcceptInvitation({ m }: { m: Messages<"invitation."> }) {
             : tm(m, "invitation.error.credentials"),
         );
       if (r.data.twoFactorRedirect) return setMode("totp");
+      // Tài khoản mới tạo ở đây: ô đồng ý analytics (không tick sẵn) — tick thì ghi sau khi có phiên (kênh `invite`, T-2310).
+      // Ghi hỏng ⇒ không chặn việc nhận lời mời, nhưng hiện thông báo để chọn lại ở trang Quyền riêng tư.
+      if (mode === "register" && f.get("analytics_consent") === "on")
+        setConsentUnsaved(!(await offerConsent(consent, "invite")));
       await checkSession();
     } catch {
       setError(tm(m, "invitation.error.no_response"));
@@ -249,6 +256,9 @@ export function AcceptInvitation({ m }: { m: Messages<"invitation."> }) {
                 required
                 error={error}
               />
+              {mode === "register" ? (
+                <CheckboxField label={consent.label} hint={consent.hint} name="analytics_consent" />
+              ) : null}
             </>
           )}
           <Button type="submit" loading={busy}>
@@ -285,6 +295,7 @@ export function AcceptInvitation({ m }: { m: Messages<"invitation."> }) {
         <strong>{who}</strong>
         {tm(m, "invitation.ready.signed_in_after")}
       </p>
+      {consentUnsaved ? <ConsentUnsavedNotice {...consent.unsaved} /> : null}
       {problem ? (
         <p className="field__error" role="alert">
           {problem}

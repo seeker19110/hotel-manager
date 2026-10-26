@@ -64,6 +64,10 @@ import * as m0064 from "./0064_catalog_property_scope.ts";
 import * as m0065 from "./0065_role_write_policies.ts";
 import * as m0066 from "./0066_personal_data_retention.ts";
 import * as m0067 from "./0067_product_events.ts";
+import * as m0068 from "./0068_consent_records.ts";
+import * as m0069 from "./0069_dsar_requests.ts";
+import * as m0070 from "./0070_org_deletion.ts";
+import * as m0071 from "./0071_org_background_active_only.ts";
 
 export const migrations: Record<string, Migration> = {
   "0001_tenancy": m0001,
@@ -129,4 +133,8 @@ export const migrations: Record<string, Migration> = {
   "0065_role_write_policies": m0065,
   "0066_personal_data_retention": m0066,
   "0067_product_events": m0067,
+  "0068_consent_records": m0068,
+  "0069_dsar_requests": m0069,
+  "0070_org_deletion": m0070,
+  "0071_org_background_active_only": m0071,
 };

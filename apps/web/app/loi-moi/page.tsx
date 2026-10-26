@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { analyticsConsentOffer } from "../../lib/consent.ts";
 import { messagesFor, t } from "../../lib/i18n.ts";
 import { AcceptInvitation } from "./accept-invitation.tsx";
 
@@ -14,7 +15,7 @@ export default function InvitationPage() {
   return (
     <main id="main" className="page">
       <h1>{t("invitation_page.page.title")}</h1>
-      <AcceptInvitation m={messagesFor("invitation.")} />
+      <AcceptInvitation m={messagesFor("invitation.")} consent={analyticsConsentOffer()} />
     </main>
   );
 }

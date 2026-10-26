@@ -20,6 +20,8 @@ export async function withPortal(
   const r = await currentActor();
   if (r.kind === "login") redirect(PORTAL_LOGIN);
   if (r.kind === "mfa-required") redirect("/phong");
+  // Tổ chức chờ xoá (T-2312): người thuê cũng bị khoá — trang Tổ chức nêu trạng thái.
+  if (r.kind === "org-pending-deletion") redirect("/to-chuc");
   if (r.kind === "choose-org") {
     const session = await currentSession();
     const orgs = session ? await listMyOrganizations(serverContext().db, session.user.id) : [];
@@ -54,6 +56,12 @@ export async function withPortal(
         </p>
         <h1>{title}</h1>
         {await render({ actor, orgName })}
+        {/* T-2310: lựa chọn đồng ý của người thuê — liên kết kín đáo cuối trang, không chặn luồng portal. */}
+        <p className="portal-privacy">
+          <a className="btn btn--secondary" href="/quyen-rieng-tu?kenh=portal">
+            {t("privacy_page.link")}
+          </a>
+        </p>
       </main>
     </>
   );

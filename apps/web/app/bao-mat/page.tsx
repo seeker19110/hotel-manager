@@ -10,6 +10,11 @@ export default function SecurityPage() {
     <main id="main" className="page">
       <h1>{t("security_page.page.title")}</h1>
       <MfaEnroll m={messagesFor("mfa_enroll.", "auth_form.")} />
+      <p>
+        <a className="btn btn--secondary" href="/quyen-rieng-tu">
+          {t("privacy_page.link")}
+        </a>
+      </p>
     </main>
   );
 }

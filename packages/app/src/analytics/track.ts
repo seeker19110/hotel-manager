@@ -3,7 +3,8 @@
 // Thứ tự (cố ý): (1) kiểm hợp lệ TRƯỚC — kể cả khi chưa có đồng ý — để lỗi lập trình lộ ngay ở test dù mặc định không ghi;
 // (2) kiểm đồng ý cho mục đích analytics; (3) ghi.
 // - Đồng ý: bộ kiểm đồng ý được tiêm (`configureAnalytics({ consent })` hoặc `opts.consent`); MẶC ĐỊNH TỪ CHỐI ⇒ sự kiện bị bỏ,
-//   trả `{ status: "dropped", reason: "no_consent" }`, không lỗi (T-2310 nối `consent_records`). Bộ kiểm ném lỗi ⇒ coi như không đồng ý.
+//   trả `{ status: "dropped", reason: "no_consent" }`, không lỗi. Web nối bộ kiểm `consent_records` (privacy, T-2310) lúc dựng
+//   `serverContext()`; bộ kiểm nhận `ctx.db` để đọc trong chính transaction của lệnh. Bộ kiểm ném lỗi ⇒ coi như không đồng ý.
 // - Không làm hỏng lệnh nghiệp vụ: `track` gọi trong transaction của lệnh. Ghi bằng SAVEPOINT riêng nên lỗi ghi (RLS, ràng buộc,
 //   mất kết nối cục bộ) KHÔNG làm transaction của lệnh rơi vào trạng thái "aborted". Lỗi kiểm hợp lệ/ghi là lỗi LẬP TRÌNH:
 //   · dev/test (`NODE_ENV` ≠ production, hoặc `strict: true`): ném `AnalyticsValidationError`/lỗi CSDL để test đỏ ngay;
@@ -37,7 +38,11 @@ export interface ConsentQuery {
   actorUserId: string | null;
   purpose: "analytics";
 }
-export type ConsentCheck = (q: ConsentQuery) => boolean | Promise<boolean>;
+/** Môi trường của lần kiểm: kết nối/transaction của sự kiện — bộ kiểm đọc đồng ý trong đó thay vì mượn thêm kết nối (T-2310). */
+export interface ConsentEnv {
+  db: AnalyticsDb;
+}
+export type ConsentCheck = (q: ConsentQuery, env?: ConsentEnv) => boolean | Promise<boolean>;
 
 export type DropReason = "no_consent" | "invalid" | "write_failed";
 export type TrackResult = { status: "recorded"; id: string } | { status: "dropped"; reason: DropReason };
@@ -153,11 +158,14 @@ export async function track(
   }
   let allowed = false;
   try {
-    allowed = await (opts.consent ?? defaults.consent)({
-      organizationId: ctx.organizationId,
-      actorUserId: ctx.actorUserId ?? null,
-      purpose: "analytics",
-    });
+    allowed = await (opts.consent ?? defaults.consent)(
+      {
+        organizationId: ctx.organizationId,
+        actorUserId: ctx.actorUserId ?? null,
+        purpose: "analytics",
+      },
+      { db: ctx.db },
+    );
   } catch {
     log.warn("analytics.consent_check_failed", { event: name });
   }

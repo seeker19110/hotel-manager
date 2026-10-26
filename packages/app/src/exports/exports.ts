@@ -417,7 +417,13 @@ async function requesterNow(db: Kysely<unknown>, orgId: string, membershipId: st
   const authUserId = m.rows[0]?.auth_user_id;
   if (!authUserId) throw new ExportFailure("FORBIDDEN");
   try {
-    const a = await resolveActor(db, { authUserId, orgId, twoFactorEnabled: true });
+    // Xuất dữ liệu vẫn chạy khi tổ chức chờ xoá (D-125: 30 ngày giữ để xuất).
+    const a = await resolveActor(db, {
+      authUserId,
+      orgId,
+      twoFactorEnabled: true,
+      allowPendingDeletion: true,
+    });
     if (a.membershipId !== membershipId) throw new ExportFailure("FORBIDDEN");
     return a;
   } catch (err) {

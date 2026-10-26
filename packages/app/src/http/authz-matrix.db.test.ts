@@ -992,6 +992,11 @@ describe("BE-API-009 — route không guard = danh sách công khai đã duyệt
     "v1/[module]/[command]/route.ts": /handleCommand|handleQuery/,
     "v1/commands/[id]/route.ts": /handleCommandStatus/,
     "v1/me/route.ts": /getSession/,
+    "v1/me/consents/route.ts": /handleGetConsents[\s\S]*handleSetConsent/,
+    "v1/me/data-requests/route.ts": /handleListDataRequests[\s\S]*handleCreateDataRequest/,
+    "v1/me/data-requests/[id]/download/route.ts": /handleDownloadDataRequest/,
+    "v1/organization/deletion/route.ts":
+      /handleGetOrgDeletion[\s\S]*handleRequestOrgDeletion[\s\S]*handleCancelOrgDeletion/,
     "v1/session/switchOrganization/route.ts": /handleSwitchOrganization/,
     "v1/files/upload/route.ts": /handleFileUpload/,
     "v1/import/upload/route.ts": /handleImportUpload/,
@@ -1029,6 +1034,20 @@ describe("BE-API-009 — route không guard = danh sách công khai đã duyệt
       if (!/actorFromRequest\(/.test(text) && inner) text = fnBody(inner);
       expect(text, fn).toMatch(/actorFromRequest\(/);
     }
+    // /api/v1/me/consents: không ngữ cảnh tổ chức (đồng ý thuộc tài khoản) — cả GET và POST đi qua `sessionUser` (getSession → 401).
+    const consents = readFileSync(new URL("./consents.ts", import.meta.url), "utf8");
+    expect(consents).toMatch(/async function sessionUser[\s\S]*deps\.getSession\(req\.headers\)/);
+    expect(consents.match(/await sessionUser\(req, deps, correlationId\)/g)).toHaveLength(2);
+    // /api/v1/me/data-requests (T-2311): không ngữ cảnh tổ chức (yêu cầu thuộc tài khoản) — GET, POST và tải đều qua `sessionOf`
+    // (getSession → 401); xử lý thật ở dsar.db.test.ts (được phép và bị từ chối).
+    const dsar = readFileSync(new URL("./data-requests.ts", import.meta.url), "utf8");
+    expect(dsar).toMatch(/async function sessionOf[\s\S]*deps\.getSession\(req\.headers\)/);
+    expect(dsar.match(/await sessionOf\(req, deps, correlationId\)/g)).toHaveLength(3);
+    // /api/v1/organization/deletion (T-2312): ngữ cảnh tổ chức qua `actorFromRequest` (allowPendingDeletion) cho cả GET, POST, DELETE;
+    // xử lý thật (owner được, vai trò khác bị từ chối, chờ xoá chặn đường khác) ở tenancy/org-deletion.db.test.ts.
+    const orgDel = readFileSync(new URL("./org-deletion.ts", import.meta.url), "utf8");
+    expect(orgDel).toMatch(/actorFromRequest\(req, deps, correlationId, \{ allowPendingDeletion: true \}\)/);
+    expect(orgDel.match(/await actorOf\(req, deps, correlationId\)/g)).toHaveLength(3);
     // /api/v1/me: route lấy phiên (getSession) và giao cho handleMe; handleMe trả 401 khi không có người dùng (AUD-XFEAT-004).
     const me = routes.find((r) => r.rel === "v1/me/route.ts")?.text ?? "";
     expect(me).toMatch(/getSession\(/);
@@ -1149,6 +1168,13 @@ describe("BASE-SEC-001 — entrypoint ngoài registry: đầu vào xấu → 4xx
         "switch-organization.ts",
         /z\.strictObject\([\s\S]*safeParse/,
       ],
+      // GET chỉ nhận `download=1` (so sánh bằng hằng); POST schema strict (mục đích/kênh enum) — test đầu vào xấu ở consent.db.test.ts.
+      "v1/me/consents/route.ts": ["consents.ts", /z\.strictObject\([\s\S]*safeParse/],
+      // POST schema strict (loại enum, mật khẩu có trần độ dài); tải: id phải là UUID — test đầu vào xấu ở dsar.db.test.ts.
+      "v1/me/data-requests/route.ts": ["data-requests.ts", /z\.strictObject\([\s\S]*safeParse/],
+      "v1/me/data-requests/[id]/download/route.ts": ["data-requests.ts", /UUID\.test\(id\)/],
+      // POST schema strict (chỉ `password` có trần độ dài); GET/DELETE không nhận thân.
+      "v1/organization/deletion/route.ts": ["org-deletion.ts", /z\.strictObject\([\s\S]*safeParse/],
       "v1/files/upload/route.ts": ["file-upload.ts", /OWNER_TYPES\.includes[\s\S]*UUID\.test\(propertyId\)/],
       "v1/import/upload/route.ts": ["import-upload.ts", /UUID\.test\(propertyId\)[\s\S]*kind\.length > 40/],
       "v1/webhooks/[provider]/[account]/route.ts": [

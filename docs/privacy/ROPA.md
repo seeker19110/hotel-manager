@@ -1,7 +1,7 @@
 ---
 title: Sổ hoạt động xử lý dữ liệu cá nhân (ROPA) — khung
 kind: privacy-register
-updated: 2026-10-25
+updated: 2026-10-26
 status: KHUNG — chờ DPIA và pháp lý duyệt; mọi cơ sở pháp lý, hạn giữ là đề xuất
 ---
 
@@ -33,14 +33,27 @@ Mỗi hoạt động điền đủ cột; cột "Cơ sở pháp lý (đề xuấ
 | HĐ-07 | Báo cáo và xuất dữ liệu | báo cáo công nợ/thu tiền; xuất theo yêu cầu chủ cơ sở | người thuê, khách | file xuất (không số giấy tờ/ảnh) | thực hiện hợp đồng dịch vụ | VPS, kho file | không | file hết hạn 15 phút, xoá ≤ 24 giờ | quyền xuất riêng, xác thực lại, link ngắn hạn |
 | HĐ-08 | Nhật ký audit và an ninh | truy vết thao tác, điều tra sự cố | nhân viên, người thuê (người thực hiện) | `audit_events.*`, `auth.session.ipAddress/userAgent`, log | an ninh hệ thống; nghĩa vụ truy vết (chưa xác minh) | VPS | không | audit không xoá ở pilot; log chưa chốt | append-only, che bí mật/PII |
 | HĐ-09 | Sao lưu và khôi phục | phục hồi sau sự cố | mọi chủ thể ở trên | toàn bộ CSDL + file ở dạng mã hoá | an ninh hệ thống | kho sao lưu khác máy | tuỳ nhà cung cấp | retention-full 4 bản (đề xuất) | mã hoá phía client, khoá ngoài máy, diễn tập PITR |
+| HĐ-10 | Xoá tổ chức khi chấm dứt dịch vụ (T-2312, D-125) | xoá/trả dữ liệu của tổ chức khi owner yêu cầu, có thời gian xuất; chứng minh đã xoá | mọi chủ thể trong dữ liệu của tổ chức; owner yêu cầu | mọi bảng có `organization_id` + object `<org>/…`; `organizations.deletion_requested_by`, `org_deletion_certificates.*` | nghĩa vụ của bên xử lý khi chấm dứt (GDPR Art. 28(3)(g); Luật 91/2025/QH15 — chưa đối chiếu bản gốc) | không | không | giữ 30 ngày rồi xoá cứng (RET-22); chứng nhận giữ lâu dài (RET-23) | xác thực lại + chỉ owner; khoá truy cập khi chờ; purge trong hàm SECURITY DEFINER (lối vượt append-only chỉ cho role owner); object xoá trước; job TẮT ở production tới khi có người + grant |
 
 ## Quyền của chủ thể (DSAR)
-Chưa có quy trình. Việc cần làm (người + kỹ thuật): xác định thời hạn pháp luật yêu cầu (chưa xác minh — cần pháp lý), đường nhận yêu cầu, truy xuất theo `persons.id` qua data-map, xoá/ẩn danh (`persons.anonymized_at`) và ảnh hưởng tới sổ tiền bất biến.
+Quy trình tự phục vụ cho **tài khoản** (T-2311, D-123) ở trang `/quyen-rieng-tu` (API `/api/v1/me/data-requests`); dữ liệu khách/người thuê do cơ sở là bên kiểm soát vẫn theo yêu cầu gửi cơ sở (chưa có công cụ riêng — pháp lý chốt phân vai).
+
+| Quyền | Cách nhận | Xác minh | Xử lý | Hạn (VN · EU/UK · CA · SG/TH) | Kho chạm tới |
+|---|---|---|---|---|---|
+| Truy cập/nhận bản sao | nút "Yêu cầu bản sao dữ liệu" | phiên đăng nhập | job `privacy.dsar` dựng gói JSON (`app.dsar_export_data`): tài khoản, cách đăng nhập (không băm), phiên, membership + hồ sơ người liên kết, đồng ý, yêu cầu, cờ hạn chế, sự kiện analytics của mình → kho object riêng tư, tải qua URL ký ≤ 5 phút, hết hạn 72 giờ (RET-20) | 10 · 30 · 45 · 30 ngày | Postgres, bucket `hm-files` |
+| Xoá | "Xoá tài khoản" + hộp xác nhận | xác thực lại: nhập lại mật khẩu, hoặc đăng nhập lại bằng OTP (người thuê) — phiên ≤ 5 phút | `app.dsar_erase_account`: ẩn danh `auth.user` (giữ id), xoá phiên/mật khẩu/TOTP/OTP/bộ đếm khoá, membership → `revoked` (+ audit mỗi tổ chức), gỡ liên kết `product_events`, file bản xuất của mình `delete_after` = hôm nay, gói DSAR hết hạn ngay. Chặn khi là owner duy nhất (LAST_OWNER) | 3 · 30 · 45 · 30 ngày | Postgres (`auth.*`, `memberships`, `product_events`, `files`), bucket |
+| Hạn chế xử lý | "Hạn chế xử lý dữ liệu của tôi" | phiên | bật `processing_restrictions` ngay ⇒ analytics từ chối kể cả đã đồng ý (chưa có luồng gỡ) | 3 · 30 · 45 · 30 ngày | Postgres |
+
+- **Giữ lại có căn cứ** (ghi trong `legal_retention_note` của yêu cầu xoá): hoá đơn/chứng từ/sổ kế toán ≥ 10 năm (Luật Kế toán 88/2015/QH13 Đ.41); `audit_events` của tổ chức; `persons` của cơ sở (bên kiểm soát, ẩn danh theo RET-17); `consent_records`/`dsar_requests` làm bằng chứng (chỉ còn id bí danh).
+- **Hạn**: một nơi — `packages/app/src/privacy/dsar-policy.ts` (`DSAR_DAYS`). Số VN là cách hiểu chặt nhất của nguồn thứ cấp về Luật 91/2025/QH15 — **chưa xác minh** bản gốc; vùng mặc định VN (tài khoản chưa lưu quốc gia).
+- **Theo dõi hạn**: metric `hm_dsar_overdue` + cảnh báo `HmDsarOverdue` (RUNBOOK §3.13).
 
 ## Lịch sử cập nhật
 | Ngày | Thay đổi | Người |
 |---|---|---|
 | 2026-10-16 | Tạo khung từ `data-map.yaml` (T-309); chưa có nội dung pháp lý | kỹ thuật |
+| 2026-10-26 | HĐ-10 xoá tổ chức (T-2312, D-125): 30 ngày giữ + xuất/huỷ, purge mọi kho, chứng nhận xoá | kỹ thuật |
+| 2026-10-26 | Quy trình DSAR theo tài khoản (T-2311, D-123): truy cập/xoá/hạn chế, hạn theo vùng, kho, phần giữ lại + căn cứ | kỹ thuật |
 | 2026-10-25 | DPIA nháp kỹ thuật 0.1.0 (`docs/DPIA.md`); nhắc rà 6 tháng có CI (`docs/privacy/CHANGELOG.md`, `scripts/privacy-docs.mjs`) | kỹ thuật |
 
 > Nhắc rà: mỗi lần đổi data-map, thêm bên xử lý hoặc đổi mục đích, cập nhật bảng trên và dòng lịch sử; rà định kỳ ít nhất 6 tháng/lần (đề xuất; CI nhắc quá 6 tháng qua `docs/privacy/CHANGELOG.md`).
