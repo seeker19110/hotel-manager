@@ -29,6 +29,8 @@ export interface Actor {
    * actor hỗ trợ — mọi lần truy cập trang/query của họ được audit kèm lý do này.
    */
   support?: { reason: string; until: Date };
+  /** Gói của tổ chức (`organizations.plan`, D-130) — chọn hạn mức tần suất (`plans/`). Thiếu ⇒ gói mặc định. */
+  plan?: string;
 }
 
 export type AccessErrorCode = "UNAUTHENTICATED" | "NOT_FOUND" | "MFA_REQUIRED" | "ORG_PENDING_DELETION";

@@ -22,6 +22,7 @@ import {
   type SecurityClient,
   securityEventForProblem,
 } from "../logging/index.ts";
+import { DEFAULT_PLAN, PLANS, planLimits } from "../plans/index.ts";
 import { CommandError, idempotencyInProgress, type Problem, rateLimited, toProblem } from "./problem.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -31,20 +32,20 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  * trượt; vượt ⇒ 429 RATE_LIMITED + `Retry-After`, KHÔNG lưu kết quả (gửi lại cùng key sau khi hết giới hạn chạy bình thường).
  * Một tổ chức bão hoà hạn mức không chiếm tài nguyên của tổ chức khác. Đếm ngay trong CSDL (`idempotency_keys`) nên đúng khi
  * nhiều instance. 600/phút ≈ 10 lệnh/giây — gấp nhiều lần mức thao tác tay của một khách sạn nhỏ, chỉ chặn script/lỗi vòng
- * lặp. Cố định theo mã (không biến môi trường); sau này theo gói thì đổi nguồn của hằng này.
+ * lặp. Theo gói của tổ chức (`plans/`, D-130; actor mang `plan`); hằng này = giá trị gói mặc định `pilot`.
  *
  * Chỉ lệnh `committed`/`in_progress` tính vào hạn mức TỔ CHỨC: lệnh bị từ chối (401/403/404/409/422… — kết quả `failed`) do
  * chính người gửi tự gây ra, không được phép làm cạn hạn mức của cả tổ chức (một người thuê/nhân viên spam lệnh 403 không
  * chặn được owner ghi). Lệnh lỗi vẫn tính vào hạn mức THÀNH VIÊN bên dưới. (5xx không để lại hàng: transaction rollback.)
  */
-export const COMMAND_QUOTA_PER_MINUTE = 600;
+export const COMMAND_QUOTA_PER_MINUTE = PLANS[DEFAULT_PLAN].commandsPerMinute.org;
 /**
  * Hạn mức lệnh ghi theo THÀNH VIÊN (kể cả người thuê): mọi lệnh MỚI của một thành viên (cả lệnh bị từ chối), 60 giây trượt;
  * kiểm TRƯỚC hạn mức tổ chức nên kẻ spam chỉ tự chặn mình. Nhỏ hơn hạn mức tổ chức (200/phút ≈ 3 lệnh/giây — vượt xa thao
  * tác tay của một người). Khoá đếm là `actor_person_id` của `idempotency_keys`; mỗi thành viên có đúng một person trong tổ chức
- * (`uq_memberships_person`) nên tương đương theo `membershipId`.
+ * (`uq_memberships_person`) nên tương đương theo `membershipId`. Theo gói như hạn mức tổ chức; hằng này = gói `pilot`.
  */
-export const COMMAND_MEMBER_QUOTA_PER_MINUTE = 200;
+export const COMMAND_MEMBER_QUOTA_PER_MINUTE = PLANS[DEFAULT_PLAN].commandsPerMinute.member;
 const QUOTA_WINDOW_SECONDS = 60;
 
 export interface AuditInput {
@@ -97,9 +98,9 @@ export interface CommandRequest {
   correlationId: string;
   /** IP/User-Agent của request, để gắn vào sự kiện bảo mật (không dùng cho nghiệp vụ). */
   client?: SecurityClient;
-  /** Ghi đè hạn mức lệnh/phút/tổ chức (test); mặc định `COMMAND_QUOTA_PER_MINUTE`. */
+  /** Ghi đè hạn mức lệnh/phút/tổ chức (test); mặc định theo gói của tổ chức (`planLimits(actor.plan)`). */
   quotaPerMinute?: number;
-  /** Ghi đè hạn mức lệnh/phút/thành viên (test); mặc định `COMMAND_MEMBER_QUOTA_PER_MINUTE`. */
+  /** Ghi đè hạn mức lệnh/phút/thành viên (test); mặc định theo gói của tổ chức. */
   memberQuotaPerMinute?: number;
   /** Chính sách chạy lại khi 40001/40P01 (mặc định `REQUEST_TX_RETRY`) và nguồn ngẫu nhiên/đồng hồ/chờ tiêm cho test. */
   retry?: RetryDeps & { policy?: RetryPolicy };
@@ -318,8 +319,8 @@ export async function executeCommand<T>(
   const ids = { commandId, correlationId: req.correlationId };
 
   const blocked = await quotaWait(db, actor, commandId, {
-    org: req.quotaPerMinute ?? COMMAND_QUOTA_PER_MINUTE,
-    member: req.memberQuotaPerMinute ?? COMMAND_MEMBER_QUOTA_PER_MINUTE,
+    org: req.quotaPerMinute ?? planLimits(actor.plan).commandsPerMinute.org,
+    member: req.memberQuotaPerMinute ?? planLimits(actor.plan).commandsPerMinute.member,
   });
   if (blocked) {
     // 429 không lưu vào idempotency_keys: retry cùng key sau Retry-After phải chạy được, không dính kết quả lỗi cũ.

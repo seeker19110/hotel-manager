@@ -16,6 +16,7 @@ import {
 import { t } from "../i18n.ts";
 import { requestClient } from "../logging/index.ts";
 import { executeCommand, toProblem } from "../pipeline/index.ts";
+import { planLimits } from "../plans/index.ts";
 import {
   actorFromRequest,
   correlationOf,
@@ -26,11 +27,7 @@ import {
   rejectInput,
   simpleProblem,
 } from "./command-route.ts";
-import {
-  enforceActorRateLimit,
-  FILE_UPLOAD_PER_MEMBER_PER_MINUTE,
-  FILE_UPLOAD_PER_ORG_PER_MINUTE,
-} from "./rate-limit.ts";
+import { enforceActorRateLimit } from "./rate-limit.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const OWNER_TYPES: readonly FileOwnerType[] = ["work_order", "payment_claim", "lease_settlement"];
@@ -86,8 +83,8 @@ export async function handleFileUpload(req: Request, deps: HttpDeps): Promise<Re
     // Giới hạn tần suất TRƯỚC khi đọc thân/quét/ghi object (BE-REL-006): bộ đếm trong Postgres, đúng khi nhiều instance.
     const limited = await enforceActorRateLimit(deps.db, actor, req, correlationId, {
       scope: "file_upload",
-      perMember: deps.uploadRateLimit?.perMember ?? FILE_UPLOAD_PER_MEMBER_PER_MINUTE,
-      perOrg: deps.uploadRateLimit?.perOrg ?? FILE_UPLOAD_PER_ORG_PER_MINUTE,
+      perMember: deps.uploadRateLimit?.perMember ?? planLimits(actor.plan).fileUploadsPerMinute.member,
+      perOrg: deps.uploadRateLimit?.perOrg ?? planLimits(actor.plan).fileUploadsPerMinute.org,
     });
     if (limited) return limited;
     const bytes = await readCapped(req, MAX_FILE_BYTES);

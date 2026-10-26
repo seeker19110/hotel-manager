@@ -97,7 +97,7 @@ public.units owner=<admin> table rls force-rls
 public.work_orders owner=<admin> table rls force-rls
 public.worker_heartbeats owner=<admin> table rls force-rls
 
-## columns (1084)
+## columns (1085)
 auth.account.accessToken text
 auth.account.accessTokenExpiresAt timestamp with time zone
 auth.account.accountId text not null
@@ -800,6 +800,7 @@ public.organizations.deletion_requested_at timestamp with time zone
 public.organizations.deletion_requested_by uuid
 public.organizations.id uuid not null
 public.organizations.name text not null
+public.organizations.plan text not null default 'pilot'::text
 public.organizations.settings jsonb not null default '{}'::jsonb
 public.organizations.status text not null default 'active'::text
 public.organizations.updated_at timestamp with time zone not null default now()
@@ -1187,7 +1188,7 @@ public.worker_heartbeats.beat_at timestamp with time zone not null
 public.worker_heartbeats.name text not null
 public.worker_heartbeats.started_at timestamp with time zone not null default now()
 
-## constraints (857)
+## constraints (858)
 auth.account account_pkey PRIMARY KEY (id)
 auth.account account_userId_fkey FOREIGN KEY ("userId") REFERENCES auth."user"(id) ON DELETE CASCADE
 auth.login_throttle login_throttle_email_hash_check CHECK (octet_length(email_hash) = 32)
@@ -1739,6 +1740,7 @@ public.org_deletion_certificates org_deletion_certificates_objects_deleted_check
 public.org_deletion_certificates org_deletion_certificates_pkey PRIMARY KEY (id)
 public.org_deletion_certificates org_deletion_certificates_total_rows_check CHECK (total_rows >= 1)
 public.organizations ck_organizations_deletion CHECK ((status = 'pending_deletion'::text) = (deletion_requested_at IS NOT NULL AND deletion_due_at IS NOT NULL AND deletion_requested_by IS NOT NULL) AND (deletion_requested_at IS NOT NULL OR deletion_due_at IS NULL AND deletion_requested_by IS NULL) AND (deletion_due_at IS NULL OR deletion_due_at >= (deletion_requested_at + '30 days'::interval)))
+public.organizations ck_organizations_plan CHECK (plan = 'pilot'::text)
 public.organizations organizations_name_check CHECK (length(btrim(name)) >= 1 AND length(btrim(name)) <= 200)
 public.organizations organizations_pkey PRIMARY KEY (id)
 public.organizations organizations_settings_check CHECK (jsonb_typeof(settings) = 'object'::text)
@@ -2054,7 +2056,7 @@ public.work_orders work_orders_title_check CHECK (length(btrim(title)) >= 1 AND 
 public.worker_heartbeats worker_heartbeats_name_check CHECK (name ~ '^[a-z0-9][a-z0-9._-]{0,62}$'::text)
 public.worker_heartbeats worker_heartbeats_pkey PRIMARY KEY (name)
 
-## indexes (436)
+## indexes (437)
 auth.account account_pkey :: CREATE UNIQUE INDEX account_pkey ON auth.account USING btree (id)
 auth.account account_userId_idx :: CREATE INDEX "account_userId_idx" ON auth.account USING btree ("userId")
 auth.login_throttle login_throttle_pkey :: CREATE UNIQUE INDEX login_throttle_pkey ON auth.login_throttle USING btree (email_hash)
@@ -2326,6 +2328,7 @@ public.organizations ix_organizations_deletion_due :: CREATE INDEX ix_organizati
 public.organizations organizations_pkey :: CREATE UNIQUE INDEX organizations_pkey ON public.organizations USING btree (id)
 public.outbox ix_outbox_published_at :: CREATE INDEX ix_outbox_published_at ON public.outbox USING btree (published_at) WHERE (published_at IS NOT NULL)
 public.outbox ix_outbox_unpublished :: CREATE INDEX ix_outbox_unpublished ON public.outbox USING btree (id) WHERE (published_at IS NULL)
+public.outbox ix_outbox_unpublished_org :: CREATE INDEX ix_outbox_unpublished_org ON public.outbox USING btree (organization_id, created_at, id) WHERE (published_at IS NULL)
 public.outbox ixfk_outbox_property_id :: CREATE INDEX ixfk_outbox_property_id ON public.outbox USING btree (organization_id, property_id)
 public.outbox outbox_pkey :: CREATE UNIQUE INDEX outbox_pkey ON public.outbox USING btree (id)
 public.outbox uq_outbox_dedupe :: CREATE UNIQUE INDEX uq_outbox_dedupe ON public.outbox USING btree (organization_id, dedupe_key) WHERE (dedupe_key IS NOT NULL)
@@ -2909,7 +2912,7 @@ public.worker_heartbeats support_ro_del RESTRICTIVE DELETE to app_runtime using 
 public.worker_heartbeats support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
 public.worker_heartbeats support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 
-## triggers (132)
+## triggers (137)
 auth.session CREATE TRIGGER trg_session_not_erased BEFORE INSERT ON auth.session FOR EACH ROW EXECUTE FUNCTION app.session_guard_erased()
 public.allocations CREATE TRIGGER trg_allocations_no_reactivation BEFORE UPDATE OF active ON allocations FOR EACH ROW EXECUTE FUNCTION app.forbid_reactivation()
 public.allocations CREATE TRIGGER trg_allocations_updated BEFORE UPDATE ON allocations FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
@@ -2937,6 +2940,7 @@ public.deposits CREATE TRIGGER trg_deposits_updated BEFORE UPDATE ON deposits FO
 public.exceptions CREATE TRIGGER trg_exceptions_updated BEFORE UPDATE ON exceptions FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 public.export_jobs CREATE TRIGGER trg_export_jobs_transition BEFORE UPDATE ON export_jobs FOR EACH ROW EXECUTE FUNCTION app.export_job_transition()
 public.export_jobs CREATE TRIGGER trg_export_jobs_updated BEFORE UPDATE ON export_jobs FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
+public.files CREATE TRIGGER trg_files_plan_quota BEFORE INSERT ON files FOR EACH ROW EXECUTE FUNCTION app.enforce_plan_quota('storage')
 public.files CREATE TRIGGER trg_files_updated BEFORE UPDATE ON files FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 public.floors CREATE TRIGGER trg_floors_updated BEFORE UPDATE ON floors FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 public.guest_access_links CREATE TRIGGER trg_guest_links_guard BEFORE UPDATE ON guest_access_links FOR EACH ROW EXECUTE FUNCTION app.guest_link_guard()
@@ -2951,6 +2955,7 @@ public.import_rows CREATE TRIGGER trg_import_rows_guard BEFORE DELETE OR UPDATE 
 public.import_rows CREATE TRIGGER trg_import_rows_updated BEFORE UPDATE ON import_rows FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 public.inbox CREATE TRIGGER trg_inbox_immutable BEFORE UPDATE ON inbox FOR EACH ROW EXECUTE FUNCTION app.inbox_immutable()
 public.inbox CREATE TRIGGER trg_inbox_no_delete BEFORE DELETE ON inbox FOR EACH ROW EXECUTE FUNCTION app.forbid_mutation()
+public.invitations CREATE TRIGGER trg_invitations_plan_quota BEFORE INSERT ON invitations FOR EACH ROW EXECUTE FUNCTION app.enforce_plan_quota('members')
 public.invitations CREATE TRIGGER trg_invitations_updated BEFORE UPDATE ON invitations FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 public.invoice_lines CREATE CONSTRAINT TRIGGER trg_invoice_lines_total AFTER INSERT ON invoice_lines DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION app.check_invoice_total()
 public.invoice_lines CREATE TRIGGER trg_invoice_lines_append_only BEFORE DELETE OR UPDATE ON invoice_lines FOR EACH ROW EXECUTE FUNCTION app.forbid_mutation()
@@ -2983,6 +2988,7 @@ public.leases CREATE TRIGGER trg_leases_no_delete BEFORE DELETE OR TRUNCATE ON l
 public.leases CREATE TRIGGER trg_leases_tenant_access AFTER UPDATE OF status ON leases FOR EACH ROW EXECUTE FUNCTION app.tenant_access_on_lease_close()
 public.leases CREATE TRIGGER trg_leases_updated BEFORE UPDATE ON leases FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 public.memberships CREATE CONSTRAINT TRIGGER trg_memberships_last_owner AFTER DELETE OR UPDATE ON memberships DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN (old.role = 'owner'::text AND old.status = 'active'::text) EXECUTE FUNCTION app.check_last_owner()
+public.memberships CREATE TRIGGER trg_memberships_plan_quota BEFORE INSERT OR UPDATE OF status, role ON memberships FOR EACH ROW EXECUTE FUNCTION app.enforce_plan_quota('members')
 public.memberships CREATE TRIGGER trg_memberships_updated BEFORE UPDATE ON memberships FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 public.meter_events CREATE TRIGGER trg_meter_events_append_only BEFORE DELETE OR UPDATE ON meter_events FOR EACH ROW EXECUTE FUNCTION app.forbid_mutation()
 public.meter_readings CREATE TRIGGER trg_meter_readings_accountant BEFORE UPDATE ON meter_readings FOR EACH ROW EXECUTE FUNCTION app.meter_reading_accountant_guard()
@@ -3013,6 +3019,7 @@ public.period_locks CREATE TRIGGER trg_period_locks_guard BEFORE UPDATE ON perio
 public.period_locks CREATE TRIGGER trg_period_locks_no_delete BEFORE DELETE OR TRUNCATE ON period_locks FOR EACH STATEMENT EXECUTE FUNCTION app.forbid_mutation()
 public.persons CREATE TRIGGER trg_persons_updated BEFORE UPDATE ON persons FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 public.properties CREATE TRIGGER trg_properties_in_use BEFORE UPDATE OF timezone, business_day_cutoff ON properties FOR EACH ROW WHEN (old.timezone IS DISTINCT FROM new.timezone OR old.business_day_cutoff IS DISTINCT FROM new.business_day_cutoff) EXECUTE FUNCTION app.check_property_not_in_use()
+public.properties CREATE TRIGGER trg_properties_plan_quota BEFORE INSERT OR UPDATE OF archived_at ON properties FOR EACH ROW EXECUTE FUNCTION app.enforce_plan_quota('properties')
 public.properties CREATE TRIGGER trg_properties_timezone BEFORE INSERT OR UPDATE OF timezone ON properties FOR EACH ROW EXECUTE FUNCTION app.check_timezone()
 public.properties CREATE TRIGGER trg_properties_updated BEFORE UPDATE ON properties FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 public.rate_plans CREATE TRIGGER trg_rate_plans_updated BEFORE UPDATE ON rate_plans FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
@@ -3039,11 +3046,12 @@ public.stays CREATE TRIGGER trg_stays_transition BEFORE UPDATE ON stays FOR EACH
 public.stays CREATE TRIGGER trg_stays_updated BEFORE UPDATE ON stays FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 public.tasks CREATE TRIGGER trg_tasks_transition BEFORE UPDATE ON tasks FOR EACH ROW EXECUTE FUNCTION app.task_transition()
 public.tasks CREATE TRIGGER trg_tasks_updated BEFORE UPDATE ON tasks FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
+public.units CREATE TRIGGER trg_units_plan_quota BEFORE INSERT OR UPDATE OF archived_at ON units FOR EACH ROW EXECUTE FUNCTION app.enforce_plan_quota('units')
 public.units CREATE TRIGGER trg_units_updated BEFORE UPDATE ON units FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 public.work_orders CREATE TRIGGER trg_work_orders_transition BEFORE UPDATE ON work_orders FOR EACH ROW EXECUTE FUNCTION app.work_order_transition()
 public.work_orders CREATE TRIGGER trg_work_orders_updated BEFORE UPDATE ON work_orders FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 
-## functions (139)
+## functions (141)
 -- app.actor_can_see_property(p uuid) owner=<admin>
 CREATE OR REPLACE FUNCTION app.actor_can_see_property(p uuid)
  RETURNS boolean
@@ -4009,6 +4017,77 @@ BEGIN
     SELECT y.ctid FROM email_budget_days y WHERE y.day < d - 90 LIMIT 50 FOR UPDATE SKIP LOCKED);
   RETURN QUERY SELECT 'send'::text, n, greatest(r.level::integer, lv), lv > r.level;
 END $function$
+-- app.enforce_plan_quota() owner=<admin>
+CREATE OR REPLACE FUNCTION app.enforce_plan_quota()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public', 'pg_temp'
+AS $function$
+DECLARE
+  v_kind text := TG_ARGV[0];
+  v_plan text;
+  v_limit bigint;
+  v_used bigint;
+  v_add bigint := 1;
+BEGIN
+  -- Does the new/changed row INCREASE usage? If not, skip (no lock).
+  IF v_kind IN ('properties', 'units') THEN
+    IF NEW.archived_at IS NOT NULL OR (TG_OP = 'UPDATE' AND OLD.archived_at IS NULL) THEN RETURN NEW; END IF;
+  ELSIF v_kind = 'members' AND TG_TABLE_NAME = 'memberships' THEN
+    IF NOT (NEW.status = 'active' AND NEW.role NOT IN ('tenant', 'platform_support'))
+       OR (TG_OP = 'UPDATE' AND OLD.status = 'active' AND OLD.role NOT IN ('tenant', 'platform_support')) THEN
+      RETURN NEW;
+    END IF;
+  ELSIF v_kind = 'members' THEN
+    IF NEW.status <> 'pending' OR NEW.role IN ('tenant', 'platform_support') THEN RETURN NEW; END IF;
+  ELSIF v_kind = 'storage' THEN
+    IF NEW.status NOT IN ('pending_scan', 'ready') OR NEW.owner_type = 'export_job' THEN RETURN NEW; END IF;
+    -- Staging replay (INSERT ... ON CONFLICT DO NOTHING, same id): row already counted.
+    IF EXISTS (SELECT 1 FROM files f WHERE f.id = NEW.id) THEN RETURN NEW; END IF;
+    v_add := NEW.size_bytes;
+  ELSE
+    RAISE EXCEPTION 'app.enforce_plan_quota: unknown quota kind %', v_kind;
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtextextended('plan_quota:' || v_kind || ':' || NEW.organization_id::text, 0));
+  SELECT o.plan INTO v_plan FROM organizations o WHERE o.id = NEW.organization_id;
+  IF NOT FOUND THEN RETURN NEW; END IF; -- the FK reports the proper error afterwards.
+  SELECT CASE v_kind WHEN 'properties' THEN l.max_properties WHEN 'units' THEN l.max_units
+                     WHEN 'members' THEN l.max_active_members ELSE l.max_storage_bytes END
+    INTO v_limit FROM app.plan_limits(v_plan) l;
+  IF v_limit IS NULL THEN
+    RAISE EXCEPTION 'plan % missing from app.plan_limits', v_plan;
+  END IF;
+
+  -- NEW is not counted yet: BEFORE INSERT row is not in the table; UPDATE only gets here when OLD was not counted.
+  -- Counts use indexes (uq_units_code / ix_properties_org_archived cover non-archived rows).
+  IF v_kind = 'properties' THEN
+    SELECT count(*) INTO v_used FROM properties p
+     WHERE p.organization_id = NEW.organization_id AND p.archived_at IS NULL;
+  ELSIF v_kind = 'units' THEN
+    SELECT count(*) INTO v_used FROM units u
+     WHERE u.organization_id = NEW.organization_id AND u.archived_at IS NULL;
+  ELSIF v_kind = 'members' THEN
+    SELECT count(*) INTO v_used FROM memberships m
+     WHERE m.organization_id = NEW.organization_id AND m.status = 'active'
+       AND m.role NOT IN ('tenant', 'platform_support');
+    IF TG_TABLE_NAME = 'invitations' THEN
+      v_used := v_used + (SELECT count(*) FROM invitations i
+                           WHERE i.organization_id = NEW.organization_id AND i.status = 'pending' AND i.expires_at > now()
+                             AND i.role NOT IN ('tenant', 'platform_support'));
+    END IF;
+  ELSE
+    SELECT coalesce(sum(f.size_bytes), 0) INTO v_used FROM files f
+     WHERE f.organization_id = NEW.organization_id AND f.status IN ('pending_scan', 'ready') AND f.owner_type <> 'export_job';
+  END IF;
+
+  IF v_used + v_add > v_limit THEN
+    RAISE EXCEPTION 'plan quota exceeded: % (plan %, limit %, used %)', v_kind, v_plan, v_limit, v_used
+      USING ERRCODE = '23514', HINT = 'QUOTA_EXCEEDED';
+  END IF;
+  RETURN NEW;
+END $function$
 -- app.expire_export_jobs(p_now timestamp with time zone) owner=<admin>
 CREATE OR REPLACE FUNCTION app.expire_export_jobs(p_now timestamp with time zone)
  RETURNS integer
@@ -4807,6 +4886,11 @@ BEGIN
     RAISE EXCEPTION 'organizations.status/deletion_* change only via app.org_request_deletion/app.org_cancel_deletion'
       USING ERRCODE = '42501', HINT = 'FORBIDDEN';
   END IF;
+  IF NEW.plan IS DISTINCT FROM OLD.plan
+     AND current_user <> (SELECT pg_get_userbyid(c.relowner) FROM pg_class c WHERE c.oid = 'public.organizations'::regclass) THEN
+    RAISE EXCEPTION 'organizations.plan change only by the table owner (docs/ops/runbooks/plan-change.md)'
+      USING ERRCODE = '42501', HINT = 'FORBIDDEN';
+  END IF;
   RETURN NEW;
 END $function$
 -- app.otp_sign_in_allowed(p_email text) owner=<admin>
@@ -4824,26 +4908,45 @@ AS $function$
         AND NOT EXISTS (SELECT 1 FROM memberships m WHERE m.auth_user_id = u.id AND m.role <> 'tenant'
                           AND m.status IN ('invited','active','suspended')))
   $function$
--- app.outbox_claim(p_limit integer) owner=<admin>
-CREATE OR REPLACE FUNCTION app.outbox_claim(p_limit integer)
+-- app.outbox_claim(p_limit integer, p_per_org integer) owner=<admin>
+CREATE OR REPLACE FUNCTION app.outbox_claim(p_limit integer, p_per_org integer DEFAULT 10)
  RETURNS TABLE(id uuid, organization_id uuid, event_type text, aggregate_id uuid, payload jsonb, correlation_id text, traceparent text)
  LANGUAGE sql
  SECURITY DEFINER
  SET search_path TO 'public', 'pg_temp'
 AS $function$
-    WITH c AS (
-      SELECT o.id FROM outbox o WHERE o.published_at IS NULL AND o.available_at <= now()
+    WITH due_orgs AS (
+      SELECT o.organization_id FROM outbox o
+      WHERE o.published_at IS NULL AND o.available_at <= now()
         AND (o.event_type = 'export.requested'
              OR EXISTS (SELECT 1 FROM organizations og WHERE og.id = o.organization_id AND og.status = 'active'))
-      ORDER BY o.created_at, o.id
-      LIMIT least(greatest(p_limit, 1), 1000)
-      FOR UPDATE SKIP LOCKED),
+      GROUP BY o.organization_id
+      ORDER BY min(o.created_at), o.organization_id
+      LIMIT least(greatest(p_limit, 1), 1000)),
+    locked AS (
+      SELECT x.id, x.organization_id, x.created_at FROM due_orgs d
+      CROSS JOIN LATERAL (
+        SELECT o.id, o.organization_id, o.created_at FROM outbox o
+        WHERE o.organization_id = d.organization_id AND o.published_at IS NULL AND o.available_at <= now()
+        AND (o.event_type = 'export.requested'
+             OR EXISTS (SELECT 1 FROM organizations og WHERE og.id = o.organization_id AND og.status = 'active'))
+        ORDER BY o.created_at, o.id
+        LIMIT least(greatest(p_per_org, 1), greatest(p_limit, 1), 1000)
+        FOR UPDATE SKIP LOCKED) x),
+    c AS (
+      SELECT r.id, r.rn FROM (
+        SELECT l.id, l.created_at,
+               row_number() OVER (PARTITION BY l.organization_id ORDER BY l.created_at, l.id) AS rn
+        FROM locked l) r
+      ORDER BY r.rn, r.created_at, r.id
+      LIMIT least(greatest(p_limit, 1), 1000)),
     u AS (
       UPDATE outbox o SET available_at = now() + interval '60 seconds'
       FROM c WHERE o.id = c.id
-      RETURNING o.id, o.organization_id, o.event_type, o.aggregate_id, o.payload, o.correlation_id, o.traceparent, o.created_at)
+      RETURNING o.id, o.organization_id, o.event_type, o.aggregate_id, o.payload, o.correlation_id, o.traceparent, o.created_at,
+                c.rn)
     SELECT u.id, u.organization_id, u.event_type, u.aggregate_id, u.payload, u.correlation_id, u.traceparent
-    FROM u ORDER BY u.created_at, u.id
+    FROM u ORDER BY u.rn, u.created_at, u.id
   $function$
 -- app.outbox_mark(p_id uuid, p_error text) owner=<admin>
 CREATE OR REPLACE FUNCTION app.outbox_mark(p_id uuid, p_error text)
@@ -4944,6 +5047,19 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
+-- app.plan_limits(p_plan text) owner=<admin>
+CREATE OR REPLACE FUNCTION app.plan_limits(p_plan text)
+ RETURNS TABLE(plan text, max_properties integer, max_units integer, max_active_members integer, max_storage_bytes bigint)
+ LANGUAGE sql
+ IMMUTABLE
+ SET search_path TO 'pg_catalog', 'pg_temp'
+AS $function$
+    SELECT v.plan, v.max_properties, v.max_units, v.max_active_members, v.max_storage_bytes
+    FROM (VALUES ('pilot'::text, 50, 20000, 200, 53687091200::bigint))
+         AS v (plan, max_properties, max_units, max_active_members, max_storage_bytes)
+    WHERE p_plan IS NULL OR v.plan = p_plan
+    ORDER BY v.plan
+  $function$
 -- app.properties_due_period(p_now timestamp with time zone) owner=<admin>
 CREATE OR REPLACE FUNCTION app.properties_due_period(p_now timestamp with time zone)
  RETURNS TABLE(organization_id uuid, property_id uuid, period_start date, period_end date)
@@ -5786,7 +5902,7 @@ AS $function$
     ON CONFLICT (name) DO UPDATE SET beat_at = excluded.beat_at
   $function$
 
-## grants (bảng, cột, hàm, schema) (1286)
+## grants (bảng, cột, hàm, schema) (1288)
 column public.consent_records.action app_runtime INSERT
 column public.consent_records.channel app_runtime INSERT
 column public.consent_records.id app_runtime INSERT
@@ -5919,6 +6035,7 @@ function app.email_budget_metrics(p_now timestamp with time zone, p_budget integ
 function app.email_budget_metrics(p_now timestamp with time zone, p_budget integer) app_worker EXECUTE
 function app.email_budget_take(p_org uuid, p_now timestamp with time zone, p_budget integer, p_warn_pct integer, p_throttle_pct integer, p_required boolean) <admin> EXECUTE
 function app.email_budget_take(p_org uuid, p_now timestamp with time zone, p_budget integer, p_warn_pct integer, p_throttle_pct integer, p_required boolean) app_worker EXECUTE
+function app.enforce_plan_quota() <admin> EXECUTE
 function app.expire_export_jobs(p_now timestamp with time zone) <admin> EXECUTE
 function app.expire_export_jobs(p_now timestamp with time zone) app_worker EXECUTE
 function app.expire_holds(p_now timestamp with time zone, p_limit integer) <admin> EXECUTE
@@ -6015,8 +6132,8 @@ function app.org_request_deletion(p_correlation text) app_runtime EXECUTE
 function app.organizations_lifecycle_guard() <admin> EXECUTE
 function app.otp_sign_in_allowed(p_email text) <admin> EXECUTE
 function app.otp_sign_in_allowed(p_email text) app_runtime EXECUTE
-function app.outbox_claim(p_limit integer) <admin> EXECUTE
-function app.outbox_claim(p_limit integer) app_worker EXECUTE
+function app.outbox_claim(p_limit integer, p_per_org integer) <admin> EXECUTE
+function app.outbox_claim(p_limit integer, p_per_org integer) app_worker EXECUTE
 function app.outbox_mark(p_id uuid, p_error text) <admin> EXECUTE
 function app.outbox_mark(p_id uuid, p_error text) app_worker EXECUTE
 function app.overdue_candidates(p_org uuid, p_now timestamp with time zone) <admin> EXECUTE
@@ -6029,6 +6146,7 @@ function app.payment_reservation_fixed() <admin> EXECUTE
 function app.payment_reservation_fixed() PUBLIC EXECUTE
 function app.period_lock_guard() <admin> EXECUTE
 function app.period_lock_guard() PUBLIC EXECUTE
+function app.plan_limits(p_plan text) <admin> EXECUTE
 function app.properties_due_period(p_now timestamp with time zone) <admin> EXECUTE
 function app.properties_due_period(p_now timestamp with time zone) app_worker EXECUTE
 function app.property_staff(p_org uuid, p_property uuid, p_roles text[]) <admin> EXECUTE

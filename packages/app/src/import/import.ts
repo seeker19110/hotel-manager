@@ -1070,7 +1070,9 @@ export async function commitBatch(
       );
     } catch (e) {
       const p = toProblem(e);
-      if (p.status >= 500) throw e;
+      // Hết hạn mức gói (D-130) là lỗi của CẢ lô, không phải của dòng: trả nguyên 409 QUOTA_EXCEEDED, lô giữ `confirmed` để commit
+      // lại sau khi giải phóng/nâng hạn mức; không đánh dấu dòng lỗi.
+      if (p.status >= 500 || p.code === "QUOTA_EXCEEDED") throw e;
       const message = t("import.write_error", { detail: p.detail ?? p.title, code: p.code });
       throw new CommandError("IMPORT_HAS_ERRORS", 409, t("import.row_failed", { row: row.row_no, message }), {
         persist: async (trx) => {

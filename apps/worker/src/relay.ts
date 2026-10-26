@@ -80,6 +80,16 @@ export const AUDIT_ONLY_EVENT_TYPES: ReadonlySet<string> = new Set([
 
 export const NO_CONSUMER_ERROR = "no_consumer";
 
+/**
+ * Fair-share theo tổ chức (IND-SAAS-008, D-130). Relay: mỗi lượt claim lấy tối đa chừng này sự kiện của MỘT tổ chức (lô 100 ⇒ ≥ 10
+ * tổ chức được phục vụ mỗi lượt khi cùng có backlog). Consumer: mỗi queue chạy `CONSUMER_CONCURRENCY` job song song nhưng tối đa
+ * `CONSUMER_GROUP_CONCURRENCY` job của CÙNG một tổ chức trong một tiến trình worker (pg-boss `localGroupConcurrency`) ⇒
+ * backlog của A chỉ chiếm một suất, job của B lấy suất còn lại; job cùng tổ chức vẫn chạy tuần tự như trước.
+ */
+export const RELAY_PER_ORG = 10;
+export const CONSUMER_CONCURRENCY = 2;
+export const CONSUMER_GROUP_CONCURRENCY = 1;
+
 export interface QueuePolicy {
   retryLimit: number;
   retryDelay: number;
@@ -142,6 +152,9 @@ export function isPermanentJobError(err: unknown): boolean {
  * `opts.consumed`: tập event_type có consumer ở worker này. Loại khác: nằm trong `opts.auditOnly` (mặc định
  * `AUDIT_ONLY_EVENT_TYPES`) ⇒ đánh dấu đã phát không sinh job; không nằm trong đó ⇒ KHÔNG đánh dấu đã phát, ghi
  * `no_consumer`, log `outbox.no_consumer`, lùi lần thử (không kẹt đầu hàng; worker khác có consumer vẫn nhận được).
+ * Fair-share (IND-SAAS-008, D-130, migration 0073): claim lấy theo VÒNG TRÒN — mỗi tổ chức tối đa `opts.perOrg` (mặc định
+ * `RELAY_PER_ORG`) hàng mỗi lượt, trả theo thứ tự vòng ⇒ tổ chức dồn hàng nghìn sự kiện không chặn tổ chức khác (sự kiện của B vào
+ * pg-boss ngay lượt đầu). Job mang `group.id = organization_id` để consumer giới hạn đồng thời theo tổ chức (`startConsumers`).
  * Trả số hàng đã claim.
  */
 export async function relayOutbox(
@@ -149,6 +162,8 @@ export async function relayOutbox(
   boss: PgBoss,
   batch = 100,
   opts: {
+    /** Trần hàng mỗi tổ chức mỗi lượt claim (mặc định `RELAY_PER_ORG`). */
+    perOrg?: number;
     consumed?: ReadonlySet<string>;
     auditOnly?: ReadonlySet<string>;
     log?: (event: string, fields: Record<string, unknown>) => void;
@@ -164,7 +179,7 @@ export async function relayOutbox(
     payload: Record<string, unknown>;
     correlation_id: string;
     traceparent: string | null;
-  }>`select * from app.outbox_claim(${batch})`.execute(workerDb);
+  }>`select * from app.outbox_claim(${batch}, ${opts.perOrg ?? RELAY_PER_ORG})`.execute(workerDb);
   for (const r of claimed.rows) {
     let error: string | null = null;
     if (opts.consumed && !opts.consumed.has(r.event_type)) {
@@ -183,7 +198,7 @@ export async function relayOutbox(
         traceparent: r.traceparent,
       };
       try {
-        await boss.send(r.event_type, job, { id: r.id });
+        await boss.send(r.event_type, job, { id: r.id, group: { id: r.organization_id } });
       } catch (err) {
         error = String((err as Error).message);
       }
@@ -210,13 +225,22 @@ export async function startConsumers(
   handlers: Readonly<Record<string, EventHandler>>,
   opts: {
     pollingIntervalSeconds?: number;
+    /** Số job song song mỗi queue (mặc định `CONSUMER_CONCURRENCY`); tối đa `CONSUMER_GROUP_CONCURRENCY` job mỗi tổ chức. */
+    concurrency?: number;
     log?: (event: string, fields: Record<string, unknown>) => void;
   } = {},
 ): Promise<void> {
   for (const [name, handler] of Object.entries(handlers)) {
     await boss.work<OutboxJob>(
       name,
-      { pollingIntervalSeconds: opts.pollingIntervalSeconds ?? 2 },
+      {
+        pollingIntervalSeconds: opts.pollingIntervalSeconds ?? 2,
+        localConcurrency: opts.concurrency ?? CONSUMER_CONCURRENCY,
+        // `localGroupConcurrency` (pg-boss chỉ cho chọn MỘT trong hai kiểu): chặn CHẮC trong một tiến trình — job vượt được trả lại
+        // hàng đợi, lượt lấy sau bỏ qua nhóm đang đầy. `groupConcurrency` (đếm qua CSDL) bị loại: hai worker cùng lấy một lúc đều
+        // thấy nhóm rảnh ⇒ chạy khoá bước A,A (đo ở relay-fair-share.db.test.ts). Nhiều tiến trình worker ⇒ A tối đa 1 suất/tiến trình.
+        localGroupConcurrency: CONSUMER_GROUP_CONCURRENCY,
+      },
       async (jobs) => {
         for (const j of jobs) {
           // Mỗi job một span riêng, nối tiếp trace của request sinh ra sự kiện: mọi log trong handler và log

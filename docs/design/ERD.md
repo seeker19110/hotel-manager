@@ -258,11 +258,13 @@ Loại: M · không có `organization_id` (chính là tenant).
 | deletion_requested_at | timestamptz | có | | Mốc yêu cầu xoá |
 | deletion_due_at | timestamptz | có | `ck_organizations_deletion`: ≥ `deletion_requested_at + 30 ngày`; index một phần `WHERE status = 'pending_deletion'` | Hạn purge (đồng hồ CSDL) |
 | deletion_requested_by | uuid | có | không FK | `auth.user.id` của owner yêu cầu — người xem chứng nhận |
+| plan | text | không | `ck_organizations_plan`: `CHECK (plan IN ('pilot'))` (= `PLAN_IDS` của `packages/app/src/plans/catalog.ts`), mặc định `'pilot'` | Gói dịch vụ (D-130, 0073): chọn hạn mức tài nguyên (`app.plan_limits`) và tần suất; chỉ role sở hữu bảng đổi được (`trg_organizations_lifecycle_guard`) — RUNBOOK §Đổi gói |
 | settings | jsonb | không | `CHECK (jsonb_typeof(settings)='object')`, mặc định `'{}'` | Cờ tính năng (`mixed_template_enabled`, mặc định `false`) và hạn mức mặc định theo vai trò (`role_limits`) khi `memberships.limits` không đặt khoá; thay cho "bảng cấu hình theo tổ chức" của PLAN T-007 (mục 7) |
 | created_by | uuid | không | | `auth.user.id` của người tạo; không FK, chỉ để truy vết |
 
 - Khoá/index: `PK (id)`.
 - `ck_organizations_deletion`: `pending_deletion` ⇔ đủ ba cột `deletion_*`; ba cột không cấp cho app_runtime/app_worker — chỉ `app.org_request_deletion`/`app.org_cancel_deletion` (SECURITY DEFINER, kiểm owner active qua `app.actor_id`, ghi `audit_events`) đổi.
+- Hạn mức theo gói (IND-SAAS-008, D-130, 0073): trigger `app.enforce_plan_quota` trên `properties`/`units` (chưa lưu trữ), `memberships` (nhân viên active, trừ `tenant`/`platform_support`), `invitations` (lời mời nhân viên chờ còn hạn tính vào trần), `files` (tổng `size_bytes` `pending_scan`/`ready`, trừ `export_job`): vượt ⇒ `23514` + HINT `QUOTA_EXCEEDED` (409). Khoá `pg_advisory_xact_lock` theo (loại, tổ chức) trước khi đếm ⇒ ghi song song không vượt trần.
 - RLS/quyền đặc biệt: policy `id = current_setting('app.org_id')::uuid`. Liệt kê tổ chức của một người (trước khi chọn ngữ cảnh) và tạo tổ chức đi qua hàm `SECURITY DEFINER` (`app.list_my_organizations`, `app.create_organization`); `org.create` tạo luôn `persons` + `memberships(role='owner')` trong cùng transaction.
 - Bất biến: INV-G1, INV-G6 (sự kiện `organization.created` vào `audit_events` + `outbox`).
 
@@ -1581,7 +1583,7 @@ Loại: H (chỉ cột phát/thử lại đổi; worker xoá theo hạn)
 | available_at | timestamptz | không | mặc định `now()` (0047) | Lần thử kế tiếp sớm nhất; `app.outbox_mark` lùi theo backoff khi lỗi; `app.outbox_claim` bỏ qua hàng chưa tới hạn và đặt lease 60 giây (`available_at = now() + 60 s`) cho hàng lấy được (claim ngắn, T-401) |
 | traceparent | text | có | `CHECK` dạng W3C `00-<32 hex>-<16 hex>-0[01]`, không toàn 0 (0054) | `traceparent` của span lúc ghi sự kiện; relay chép vào job, handler worker nối tiếp trace của request (BASE-ERR-006). NULL = ghi ngoài request/job |
 
-- Khoá/index: `UNIQUE (organization_id, dedupe_key) WHERE dedupe_key IS NOT NULL`; `ix (id) WHERE published_at IS NULL` cho relay (`FOR UPDATE SKIP LOCKED`).
+- Khoá/index: `UNIQUE (organization_id, dedupe_key) WHERE dedupe_key IS NOT NULL`; `ix (id) WHERE published_at IS NULL` cho relay (`FOR UPDATE SKIP LOCKED`); `ix_outbox_unpublished_org (organization_id, created_at, id) WHERE published_at IS NULL` cho claim vòng tròn theo tổ chức (0073: `app.outbox_claim(p_limit, p_per_org = 10)` — mỗi tổ chức ≤ `p_per_org` hàng/lượt, trả theo vòng ⇒ backlog của một tổ chức không chặn tổ chức khác, D-130).
 - Ràng buộc đặc biệt: INSERT chung transaction với nghiệp vụ và `audit_events` (INV-G6); gửi ra ngoài làm sau COMMIT; transaction rollback ⇒ không có hàng. `app_worker` có policy riêng đọc các hàng `published_at IS NULL` mọi tổ chức để relay, và đặt `app.org_id` theo hàng trước khi làm việc tiếp (đề xuất, T-008).
 - RLS/quyền đặc biệt: `app_runtime` chỉ `INSERT`; `app_worker` `SELECT` + `UPDATE (published_at, attempts, last_error)` + `DELETE` hàng cũ đã phát.
 - Bất biến: INV-G6.
@@ -1932,7 +1934,7 @@ Better Auth chạy trong `apps/web`, dùng adapter Kysely/`pg` trên **cùng** P
 Hàm `SECURITY DEFINER` phạm vi hẹp (thay cho BYPASSRLS/policy rộng; mỗi hàm `REVOKE ALL FROM PUBLIC` rồi chỉ cấp cho role cần):
 `app.list_my_organizations(auth_user_id)` (liệt kê tổ chức của chính người đăng nhập trước khi có ngữ cảnh tổ chức — 0002) ·
 `app.current_user_id()` (không SECURITY DEFINER: đọc ngữ cảnh người dùng `app.user_id` cho RLS bảng theo tài khoản `consent_records` — 0068, `dsar_requests`/`processing_restrictions` — 0069) ·
-`app.outbox_claim`/`app.outbox_mark` (relay của worker — 0003) · `app.expire_holds` (job — 0004) ·
+`app.outbox_claim`/`app.outbox_mark` (relay của worker — 0003; vòng tròn theo tổ chức — 0073) · `app.enforce_plan_quota()` (trigger hạn mức theo gói) + `app.plan_limits(plan)` (bản sao hạn mức tài nguyên của `packages/app/src/plans/catalog.ts`, test so khớp — 0073) · `app.expire_holds` (job — 0004) ·
 `app.receiving_account_owner` (định tuyến webhook ngân hàng — 0005) · `app.actor_role()` (RLS lớp 3 theo vai trò cho giấy tờ — 0006).
 `app.rate_limit_hit(scope, subject, limit, window_seconds, now)` (bộ đếm giới hạn tần suất dùng chung giữa instance cho tải file/nhập liệu/webhook — bảng toàn cục `rate_limit_counters`, khoá advisory theo (scope, subject), lượt bị từ chối không tăng bộ đếm — 0053).
 `app.email_budget_take(org, now, budget, warn_pct, throttle_pct, required)` (ngân sách email theo ngày UTC/tổ chức — OPS-COST-004: bảng `email_budget_days` (PK `organization_id` + `day`; `used`, `throttled`, `stopped`, `level`), RLS bật, KHÔNG cấp quyền trực tiếp cho app_runtime/app_worker, khoá hàng ⇒ tổng `used` không vượt ngân sách khi đồng thời) · `app.email_budget_metrics(now, budget)` (gauge ngày UTC hiện tại cho `/api/metrics`) — 0063.

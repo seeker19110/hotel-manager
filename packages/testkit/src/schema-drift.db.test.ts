@@ -405,8 +405,8 @@ describe("schema-drift — ảnh chụp schema ↔ docs/db/schema.snapshot.txt (
       );
       await sensitive(
         "GRANT EXECUTE hàm cho role",
-        ["grant execute on function app.outbox_claim(integer) to app_runtime"],
-        ["revoke execute on function app.outbox_claim(integer) from app_runtime"],
+        ["grant execute on function app.outbox_claim(integer, integer) to app_runtime"],
+        ["revoke execute on function app.outbox_claim(integer, integer) from app_runtime"],
       );
       await sensitive(
         "thu hồi EXECUTE của PUBLIC",

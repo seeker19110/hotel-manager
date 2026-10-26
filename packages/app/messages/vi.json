@@ -375,6 +375,10 @@
     "message": "Tổ chức phải còn ít nhất một owner",
     "description": "`title` của problem+json (RFC 9457) mà API trả cho client khi đổi vai trò/gỡ owner cuối cùng của tổ chức (409 LAST_OWNER). \"owner\" là tên vai trò hiển thị nguyên văn."
   },
+  "pipeline.quota_exceeded": {
+    "message": "Tổ chức đã dùng hết hạn mức của gói dịch vụ (cơ sở, phòng, thành viên hoặc dung lượng file)",
+    "description": "`title` của problem+json (RFC 9457) khi tạo cơ sở/phòng, mời/kích hoạt thành viên hoặc tải file vượt hạn mức gói của tổ chức (409 QUOTA_EXCEEDED, D-130)."
+  },
   "pipeline.property_in_use": {
     "message": "Cơ sở đã có giao dịch, không thể đổi múi giờ hoặc giờ chốt ngày",
     "description": "`title` của problem+json (RFC 9457) mà API trả cho client khi đổi múi giờ/giờ chốt ngày của cơ sở đã có giao dịch (409 PROPERTY_IN_USE)."

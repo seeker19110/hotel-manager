@@ -615,28 +615,30 @@ describe("db-perf — folio (S-017)", () => {
 });
 
 describe("db-perf — claim outbox và thông báo (worker)", () => {
-  it("app.outbox_claim: dấu vân tay khớp định nghĩa ĐANG DÙNG (0047: available_at + lease) và truy vấn dùng index một phần", async () => {
+  it("app.outbox_claim: dấu vân tay khớp định nghĩa ĐANG DÙNG (0073: vòng tròn theo tổ chức + lease) và truy vấn theo tổ chức dùng index một phần", async () => {
     const def = (
       await sql<{
         d: string;
-      }>`select pg_get_functiondef('app.outbox_claim(integer)'::regprocedure) as d`.execute(t.admin)
+      }>`select pg_get_functiondef('app.outbox_claim(integer,integer)'::regprocedure) as d`.execute(t.admin)
     ).rows[0]?.d as string;
     for (const part of [
       "WHERE o.published_at IS NULL AND o.available_at <= now()",
+      "WHERE o.organization_id = d.organization_id AND o.published_at IS NULL AND o.available_at <= now()",
       "ORDER BY o.created_at, o.id",
       "FOR UPDATE SKIP LOCKED",
+      "PARTITION BY l.organization_id",
       "SET available_at = now() + interval '60 seconds'",
     ])
       expect(def, part).toContain(part);
     await expectIndexed(
       [
         {
-          sql: "select o.id from outbox o where o.published_at is null and o.available_at <= now() order by o.created_at, o.id limit 100 for update skip locked",
-          params: [],
+          sql: "select o.id from outbox o where o.organization_id = $1 and o.published_at is null and o.available_at <= now() order by o.created_at, o.id limit 10 for update skip locked",
+          params: [A.orgId],
         },
       ],
       "admin",
-      { expect: { outbox: { index: "ix_outbox_unpublished" } }, doc: "outbox-claim" },
+      { expect: { outbox: { index: "ix_outbox_unpublished_org" } }, doc: "outbox-claim" },
     );
   });
 

@@ -70,7 +70,7 @@ Khi xong: mọi MUST còn mở hoặc đã `[x]` kèm Kiểm/Bằng chứng, ho�
 
 ### Lát E — audit & đa tenant (người merge)
 - [x] `T-2313` IND-SAAS-009, CMP-AUDIT-002 (D-121): màn nhật ký hoạt động cho admin tổ chức (lọc, xuất), truy cập hỗ trợ có lý do + TTL + hiển thị cho tenant, test mỗi hành động nhạy cảm sinh sự kiện đủ trường (sau: T-2312; files: packages/app/src/audit/, packages/app/src/access/, apps/web/app/) — Gate: `pnpm vitest run --project db packages/app/src/audit packages/app/src/access && pnpm --filter @hm/web exec playwright test e2e/audit-log.spec.ts`
-- [ ] `T-2314` IND-SAAS-008 (D-122): hạn mức theo gói (cấu hình trong repo), fair-share worker theo tổ chức, test tải tenant A bão hoà không làm chậm tenant B (sau: T-2313; files: packages/app/src/pipeline/, apps/worker/src/, packages/app/src/plans/) — Gate: `pnpm vitest run --project db packages/app/src/plans apps/worker/src`
+- [x] `T-2314` IND-SAAS-008 (D-122): hạn mức theo gói (cấu hình trong repo), fair-share worker theo tổ chức, test tải tenant A bão hoà không làm chậm tenant B (sau: T-2313; files: packages/app/src/pipeline/, apps/worker/src/, packages/app/src/plans/) — Gate: `pnpm vitest run --project db packages/app/src/plans apps/worker/src`
 
 ### Lát F — tick và rà
 - [ ] `T-2315` Tick MUST đạt kèm Kiểm/Bằng chứng; defer phần chỉ người; PROGRESS, BLUEPRINT-GAPS, AUDIT-STATUS, hướng dẫn (sau: T-2314; files: BLUEPRINT.md, PROGRESS.md, docs/autopilot/BLUEPRINT-GAPS.md, docs/ops/AUDIT-STATUS.md, docs/autopilot/HUONG-DAN-VIEC-CUA-NGUOI.md) — Gate: `python3 scripts/check-blueprint-evidence.py BLUEPRINT.md && python3 .xtemplates/scripts/xt.py progress-check && python3 .xtemplates/scripts/xt.py audit check docs/ops/AUDIT-STATUS.md`

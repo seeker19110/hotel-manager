@@ -69,6 +69,7 @@ import * as m0069 from "./0069_dsar_requests.ts";
 import * as m0070 from "./0070_org_deletion.ts";
 import * as m0071 from "./0071_org_background_active_only.ts";
 import * as m0072 from "./0072_support_access.ts";
+import * as m0073 from "./0073_plan_quotas_fair_share.ts";
 
 export const migrations: Record<string, Migration> = {
   "0001_tenancy": m0001,
@@ -139,4 +140,5 @@ export const migrations: Record<string, Migration> = {
   "0070_org_deletion": m0070,
   "0071_org_background_active_only": m0071,
   "0072_support_access": m0072,
+  "0073_plan_quotas_fair_share": m0073,
 };

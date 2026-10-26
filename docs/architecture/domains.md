@@ -25,6 +25,7 @@ Miền theo ranh giới của ADR-0001 (kế hoạch §11); cột "Tầng" dùng
 | `identity` | Access | C | Giấy tờ nhận dạng: mã hoá AES-256-GCM, blind index, che hiển thị |
 | `approvals` | Access | C | Yêu cầu duyệt có hạn mức, cấm tự duyệt |
 | `actor-core` | Access | A | Kiểu `Actor`/`Role` và `AccessError` thuần (không I/O) cho cả `access` và `pipeline`; tách ra để hai module không import vòng (điểm công khai `index.ts`) |
+| `plans` | Access | A | Danh mục gói dịch vụ một nguồn (D-130, T-2314): hạn mức tài nguyên (bản sao ở CSDL `app.plan_limits` + trigger `app.enforce_plan_quota`, 0073) và hạn mức tần suất cho `pipeline`/`http`; thuần, không I/O (điểm công khai `index.ts`) |
 | `auth` | Nền | A | Better Auth (email/mật khẩu, TOTP, OTP người thuê), khoá tài khoản |
 | `inventory` | Property & Inventory | C | Lịch tài nguyên, allocation, hold, block, phòng và đơn vị |
 | `rental` | Lease | C | Truy vấn chỉ đọc cho giao diện nhà trọ (RLS quyết định phạm vi) |

@@ -9,6 +9,7 @@
 | Thuật ngữ | Bảng | Định nghĩa | Không nhầm với |
 |---|---|---|---|
 | Tổ chức | `organizations` | Khách hàng SaaS (chủ kinh doanh), là ranh giới tenant | Người thuê phòng |
+| Gói dịch vụ | `organizations.plan` | Gói của tổ chức (hiện chỉ `pilot`, danh mục ở `packages/app/src/plans/catalog.ts`) quyết định hạn mức tài nguyên (cơ sở, phòng, nhân viên active, dung lượng file) và tần suất (lệnh, tải file, nhập liệu); vượt hạn mức tài nguyên ⇒ 409 `QUOTA_EXCEEDED` (D-130) | Hạn mức duyệt theo vai trò (`memberships.limits`) |
 | Cơ sở | `properties` | Một địa điểm kinh doanh, có múi giờ, giờ chốt ngày, mẫu (Trọ/Khách sạn/Hỗn hợp) | Toà nhà/tầng |
 | Phòng | `units` | Đơn vị bán/cho thuê nguyên căn. V1 không bán theo giường | Loại phòng |
 | Loại phòng | `room_types` | Nhóm phòng cùng sức chứa và bảng giá (khách sạn) | |

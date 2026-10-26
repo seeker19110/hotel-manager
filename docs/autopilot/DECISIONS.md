@@ -936,3 +936,10 @@
 - Chọn: Một gói mặc định 'pilot' cấu hình trong repo (packages/app/src/plans/, một nguồn): hạn mức số cơ sở, số phòng, thành viên active, dung lượng file, lệnh/phút — gắn cột organizations.plan (mặc định pilot, CHECK theo danh mục); vượt ⇒ 409 QUOTA_EXCEEDED ở lệnh tạo tương ứng + rate limit lệnh đọc từ gói; fair-share: relay outbox và job theo tổ chức lấy theo vòng tròn có trần mỗi tổ chức mỗi lượt; test tải A bão hoà không làm trễ B quá N lượt; bảng giá/nhiều gói do chủ dự án thêm sau (chỉ thêm mục cấu hình)
 - Lý do (tiêu chí chất lượng cuối): (1) đúng: chặn một tenant chiếm hết tài nguyên ngay từ pilot; hạn mức pilot rộng hơn nhu cầu thật nên không chặn người dùng hợp lệ; (2) thêm gói = thêm cấu hình; (3) test được trên Postgres thật
 - Đường lùi: Nâng hạn mức pilot hoặc revert PR; migration có down
+
+### D-131 · 2026-10-26T07:14:14+00:00 · T-2314 câu hỏi mở: số job song song của consumer, UI riêng cho QUOTA_EXCEEDED
+
+- Phương án: (1) Giữ localConcurrency 2 (cùng tổ chức tuần tự), đo bộ nhớ khi có staging; QUOTA_EXCEEDED dùng thông điệp i18n chung, chưa UI riêng · (2) Tăng song song + làm UI riêng
+- Chọn: Giữ localConcurrency 2 (cùng tổ chức tuần tự), đo bộ nhớ khi có staging; QUOTA_EXCEEDED dùng thông điệp i18n chung, chưa UI riêng
+- Lý do (tiêu chí chất lượng cuối): (3) đơn giản, đủ cho quy mô pilot; tăng song song khi có số đo thật; (4) thông điệp chung đã nói rõ vượt hạn mức gói
+- Đường lùi: Đổi localConcurrency trong relay.ts
