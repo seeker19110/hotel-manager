@@ -1,9 +1,12 @@
 // PLAN T-2310 (CMP-RIGHTS-001, CMP-RIGHTS-004, CMP-VN-001; D-122) — bằng chứng đồng ý theo mục đích, APPEND-ONLY, theo TÀI KHOẢN.
 // - `consent_records`: mỗi lần cho hoặc rút đồng ý là MỘT hàng mới (`action` = grant|withdraw); trạng thái hiện tại của
-//   (subject_user_id, purpose) = hàng mới nhất theo (`recorded_at`, `seq`). "granted_at"/"withdrawn_at" của PLAN chính là
-//   `recorded_at` của hàng grant/withdraw — không cột NULL, không sửa hàng cũ. `seq` (identity) phá hoà khi hai hàng cùng
-//   transaction (`now()` bằng nhau). `recorded_at` do CSDL đặt: `app_runtime` chỉ có quyền INSERT theo cột, KHÔNG gồm
-//   `recorded_at`/`seq` nên client không lùi/tiến được mốc thời gian của bằng chứng.
+//   (subject_user_id, purpose) = hàng có `seq` LỚN NHẤT. `seq` (identity) cấp lúc INSERT, khi ứng dụng đang giữ khoá advisory
+//   theo (người, mục đích) ⇒ thứ tự `seq` = thứ tự ghi thật. KHÔNG sắp theo `recorded_at`: hai yêu cầu đồng thời có transaction mở
+//   trước lại lấy khoá sau thì `now()` (giờ BẮT ĐẦU transaction) của hàng ghi sau nhỏ hơn ⇒ rút đồng ý bị coi là cũ hơn và mất
+//   hiệu lực. `recorded_at DEFAULT clock_timestamp()` (giờ thật lúc INSERT, sau khi lấy khoá) để mốc trong bằng chứng cũng khớp thứ
+//   tự ghi. "granted_at"/"withdrawn_at" của PLAN chính là `recorded_at` của hàng grant/withdraw — không cột NULL, không sửa hàng
+//   cũ. `recorded_at` do CSDL đặt: `app_runtime` chỉ có quyền INSERT theo cột, KHÔNG gồm `recorded_at`/`seq` nên client không
+//   lùi/tiến được mốc thời gian của bằng chứng.
 // - Không theo tổ chức (đồng ý là của tài khoản, có từ lúc đăng ký — trước khi thuộc tổ chức nào): ngoại lệ IND-SAAS-001 khai ở
 //   packages/testkit/src/schema-guards.no-org.json. `subject_user_id` là id `auth."user"` KHÔNG khoá ngoại (ERD §4: không FK từ
 //   bảng nghiệp vụ sang `auth`; bằng chứng đồng ý không được chặn việc xoá tài khoản — T-2311 quyết số phận hàng khi xoá).
@@ -15,7 +18,7 @@
 // - `purpose` CHECK theo danh mục trong mã (packages/app/src/privacy/purposes.ts — chỉ mục đích CẦN đồng ý mới có hàng ở đây);
 //   thêm mục đích = migration mới nới CHECK. `channel` ∈ signup|invite|portal|settings. `ui_snapshot_hash` = sha-256 hex của văn
 //   bản hiển thị (server tự tính từ catalog, không nhận từ client).
-// - Index `(subject_user_id, purpose, recorded_at DESC, seq DESC)` phục vụ "hàng mới nhất" và lịch sử theo người. Bảng mới, rỗng.
+// - Index `(subject_user_id, purpose, seq DESC)` phục vụ "hàng mới nhất" và lịch sử theo người. Bảng mới, rỗng.
 // - Down: xoá bảng (trigger/policy đi theo) rồi hàm ngữ cảnh — mất bằng chứng đồng ý nên chỉ dùng khi lùi bản phát hành chưa có
 //   người dùng thật (bộ kiểm analytics khi đó về mặc định từ chối).
 import { type Kysely, sql } from "kysely";
@@ -42,10 +45,10 @@ CREATE TABLE consent_records (
   policy_version text NOT NULL CHECK (policy_version ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}(\\.[0-9]{1,3})?$'),
   channel text NOT NULL CHECK (channel IN ('signup', 'invite', 'portal', 'settings')),
   ui_snapshot_hash text NOT NULL CHECK (ui_snapshot_hash ~ '^[0-9a-f]{64}$'),
-  recorded_at timestamptz NOT NULL DEFAULT now()
+  recorded_at timestamptz NOT NULL DEFAULT clock_timestamp()
 );
-CREATE INDEX ix_consent_records_subject_purpose_time
-  ON consent_records (subject_user_id, purpose, recorded_at DESC, seq DESC);
+CREATE INDEX ix_consent_records_subject_purpose_seq
+  ON consent_records (subject_user_id, purpose, seq DESC);
 
 CREATE TRIGGER trg_consent_records_append_only BEFORE UPDATE OR DELETE ON consent_records
   FOR EACH ROW EXECUTE FUNCTION app.forbid_mutation();

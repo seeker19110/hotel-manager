@@ -4,7 +4,7 @@
 import { randomUUID } from "node:crypto";
 import { expect, type Page, test } from "@playwright/test";
 import { expectAccessible } from "./a11y.ts";
-import { signInClick } from "./sign-in.ts";
+import { signInClick, signUpClick } from "./sign-in.ts";
 
 test.describe.configure({ mode: "serial" });
 
@@ -38,7 +38,7 @@ test("đăng ký: ô đồng ý analytics không tick sẵn; tự tick ⇒ đang
   await page.getByLabel("Email").fill(USER.email);
   await page.getByLabel("Mật khẩu").fill(USER.password);
   await box.check();
-  await page.getByRole("button", { name: "Tạo tài khoản" }).click();
+  await signUpClick(page);
   await expect(page).toHaveURL(/\/chon-to-chuc$/, { timeout: 15_000 });
 
   await page.goto("/quyen-rieng-tu");

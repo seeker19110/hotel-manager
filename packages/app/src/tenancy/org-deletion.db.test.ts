@@ -5,6 +5,7 @@
 // nhận đúng số đếm + digest, chỉ người yêu cầu đọc; trigger append-only KHÔNG vượt được bằng GUC từ app_runtime/app_worker; hai
 // purge đồng thời chỉ một chạy; job tắt mặc định ở production.
 import { randomUUID } from "node:crypto";
+import { withTenant } from "@hm/db";
 import {
   activateLease,
   seedAuthUser,
@@ -17,7 +18,7 @@ import { type Kysely, sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AccessError, type Actor, resolveActor } from "../access/actor.ts";
 import { requestOrgExport } from "../exports/index.ts";
-import { type HttpDeps, handleQuery } from "../http/command-route.ts";
+import { type HttpDeps, handleCommandStatus, handleQuery } from "../http/command-route.ts";
 import {
   handleCancelOrgDeletion,
   handleGetOrgDeletion,
@@ -44,6 +45,8 @@ let B: string;
 let owner: Actor;
 let deps: HttpDeps;
 const fileKeys: string[] = [];
+const seededCommandKey = randomUUID();
+const exportCommandKey = randomUUID();
 
 const fresh = (a: Actor): Actor => ({ ...a, authenticatedAt: new Date() });
 const asOwner = (allowPendingDeletion = false) =>
@@ -123,11 +126,21 @@ beforeAll(async () => {
   await populate(h.other);
   owner = await asOwner();
   // Một lệnh qua pipeline thật ⇒ audit_events + idempotency_keys + outbox của A.
-  await runAs(h.t, owner, async (ctx) => {
-    await ctx.audit({ action: "test.seeded", entityType: "organization", entityId: A });
-    await ctx.emit({ eventType: "test.seeded", aggregateType: "organization", aggregateId: A, payload: {} });
-    return 1;
-  });
+  await runAs(
+    h.t,
+    owner,
+    async (ctx) => {
+      await ctx.audit({ action: "test.seeded", entityType: "organization", entityId: A });
+      await ctx.emit({
+        eventType: "test.seeded",
+        aggregateType: "organization",
+        aggregateId: A,
+        payload: {},
+      });
+      return 1;
+    },
+    { key: seededCommandKey },
+  );
   deps = {
     db: h.t.runtime,
     getSession: async (hd) => {
@@ -154,7 +167,7 @@ describe("danh mục purge khớp catalog (bảng mới không bị sót)", () =
   it("app.purge_organization liệt kê ĐÚNG mọi bảng có organization_id, thứ tự xoá theo FK", async () => {
     const src = await sql<{
       s: string;
-    }>`select prosrc as s from pg_proc where oid = 'app.purge_organization(uuid)'::regprocedure`.execute(
+    }>`select prosrc as s from pg_proc where oid = 'app.purge_organization(uuid, text[])'::regprocedure`.execute(
       h.t.admin,
     );
     const arr = /v_order text\[\] := ARRAY\[([^\]]+)\]/.exec(src.rows[0]?.s ?? "")?.[1] ?? "";
@@ -188,6 +201,44 @@ describe("danh mục purge khớp catalog (bảng mới không bị sót)", () =
   });
 });
 
+describe("hàng rào: không hàm SECURITY DEFINER nào khác xoá bảng có trigger chặn DELETE (lối vượt org_purge_active)", () => {
+  it("chỉ app.purge_organization được chứa DELETE nhắm bảng append-only/guard; DELETE động (EXECUTE) cũng tính", async () => {
+    // Lối vượt `app.org_purge_active` đúng khi current_user = owner hàm purge + GUC `app.purge_org` (người gọi tự đặt được) + tổ chức
+    // tới hạn: MỌI hàm definer cùng owner đều thoả điều kiện role ⇒ hàm definer mới có DELETE trên các bảng này là lỗ thủng.
+    const guarded = (
+      await sql<{ tbl: string }>`
+        select distinct t.tgrelid::regclass::text as tbl from pg_trigger t join pg_proc p on p.oid = t.tgfoid
+        where not t.tgisinternal and (t.tgtype & 8) <> 0 and p.prosrc like '%org_purge_active%'`.execute(
+        h.t.admin,
+      )
+    ).rows.map((r) => r.tbl);
+    expect(guarded).toEqual(
+      expect.arrayContaining(["audit_events", "journal_lines", "invoices", "memberships"]),
+    );
+    const fns = (
+      await sql<{ fn: string; src: string }>`
+        select p.oid::regprocedure::text as fn, p.prosrc as src from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+        where p.prosecdef and n.nspname not in ('pg_catalog', 'information_schema')`.execute(h.t.admin)
+    ).rows;
+    expect(fns.length).toBeGreaterThan(20);
+    const allowed = new Set(["app.purge_organization(uuid,text[])"]);
+    const esc = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const direct = new RegExp(
+      `\\bDELETE\\s+FROM\\s+(?:ONLY\\s+)?(?:public\\.)?"?(${guarded.map(esc).join("|")})"?\\b`,
+      "i",
+    );
+    const dynamic = /EXECUTE\s+(?:format\s*\(\s*)?'DELETE/i;
+    const offenders = fns
+      .filter((f) => !allowed.has(f.fn.replace(/\s+/g, "")))
+      .filter((f) => direct.test(f.src) || dynamic.test(f.src))
+      .map((f) => f.fn);
+    expect(offenders).toEqual([]);
+    // Ca âm: hàm definer mới xoá audit_events ⇒ bị bắt.
+    expect(direct.test("BEGIN DELETE FROM audit_events WHERE organization_id = p; END")).toBe(true);
+    expect(dynamic.test("EXECUTE format('DELETE FROM %I WHERE x', t)")).toBe(true);
+  });
+});
+
 describe("yêu cầu xoá: chỉ owner, xác thực lại", () => {
   it("không phải owner ⇒ FORBIDDEN (lớp app và HTTP); owner thiếu xác thực lại ⇒ REAUTH_REQUIRED; không đổi trạng thái", async () => {
     await expect(
@@ -211,7 +262,9 @@ describe("yêu cầu xoá: chỉ owner, xác thực lại", () => {
     const extra = await handleRequestOrgDeletion(req(h.org.ownerAuthUserId, "POST", { force: true }), deps);
     expect(extra.status).toBe(422);
     // app_runtime không tự gọi được purge, cũng không tự đặt cột xoá (không cấp quyền cột).
-    await expect(sql`select app.purge_organization(${A}::uuid)`.execute(h.t.runtime)).rejects.toMatchObject({
+    await expect(
+      sql`select app.purge_organization(${A}::uuid, '{}'::text[])`.execute(h.t.runtime),
+    ).rejects.toMatchObject({
       code: "42501",
     });
     expect((await orgDeletionStatus(h.t.runtime, owner)).status).toBe("active");
@@ -232,6 +285,44 @@ describe("yêu cầu xoá: chỉ owner, xác thực lại", () => {
       h.t.admin,
     );
     expect(audit.rows[0]?.n).toBe(1);
+  });
+
+  it("app_runtime (có UPDATE bảng organizations) KHÔNG tự đổi status/deletion_*: cả đặt chờ xoá quá hạn lẫn gỡ về active", async () => {
+    const asRuntime = (org: string, stmt: ReturnType<typeof sql>) =>
+      withTenant(h.t.runtime, { orgId: org }, (trx) => stmt.execute(trx)).catch((e: unknown) => e);
+    // B đang active: tự đặt pending_deletion với mốc quá khứ (tới hạn purge ngay) ⇒ chặn.
+    expect(
+      await asRuntime(
+        B,
+        sql`update organizations set status = 'pending_deletion', deletion_requested_by = ${h.other.ownerAuthUserId},
+              deletion_requested_at = now() - interval '40 days', deletion_due_at = now() - interval '10 days'
+            where id = ${B}`,
+      ),
+    ).toMatchObject({ code: "42501", hint: "FORBIDDEN" });
+    // A đang chờ xoá: tự gỡ về active (huỷ không qua owner) ⇒ chặn; đổi riêng một cột deletion_* cũng chặn.
+    expect(
+      await asRuntime(
+        A,
+        sql`update organizations set status = 'active', deletion_requested_at = null, deletion_due_at = null,
+              deletion_requested_by = null where id = ${A}`,
+      ),
+    ).toMatchObject({ code: "42501" });
+    expect(
+      await asRuntime(
+        A,
+        sql`update organizations set deletion_due_at = deletion_due_at + interval '1 day' where id = ${A}`,
+      ),
+    ).toMatchObject({ code: "42501" });
+    // UPDATE hợp lệ khác của app_runtime (settings) vẫn chạy.
+    expect(
+      await asRuntime(B, sql`update organizations set settings = settings || '{}'::jsonb where id = ${B}`),
+    ).toMatchObject({ numAffectedRows: 1n });
+    const st = await sql<{ id: string; status: string }>`
+      select id, status from organizations where id in (${A}, ${B}) order by id`.execute(h.t.admin);
+    expect(Object.fromEntries(st.rows.map((r) => [r.id, r.status]))).toEqual({
+      [A]: "pending_deletion",
+      [B]: "active",
+    });
   });
 
   it("CSDL giữ ≥ 30 ngày: đặt hạn sớm hơn bằng tay vi phạm CHECK", async () => {
@@ -295,8 +386,24 @@ describe("đang chờ xoá: khoá mọi đường trừ xuất dữ liệu + tr�
   });
 
   it("xuất toàn bộ dữ liệu vẫn tạo được trong thời gian giữ", async () => {
-    const r = await runAs(h.t, await asOwner(true), (ctx) => requestOrgExport(ctx));
+    const r = await runAs(h.t, await asOwner(true), (ctx) => requestOrgExport(ctx), {
+      command: "exports.requestOrgExport",
+      key: exportCommandKey,
+    });
     expect(r.status).toBe("committed");
+  });
+
+  it("GET /api/v1/commands/{id} khi chờ xoá: chỉ trả kết quả lệnh exports.*; lệnh khác ⇒ 423", async () => {
+    const status = (key: string) =>
+      handleCommandStatus(key, req(h.org.ownerAuthUserId, "GET", undefined, `/api/v1/commands/${key}`), deps);
+    const ok = await status(exportCommandKey);
+    expect(ok.status).toBe(200);
+    expect(((await ok.json()) as { status: string }).status).toBe("committed");
+    const locked = await status(seededCommandKey);
+    expect(locked.status).toBe(423);
+    expect(((await locked.json()) as { code: string }).code).toBe("ORG_PENDING_DELETION");
+    // Không lộ sự tồn tại: id lạ vẫn 404 như thường.
+    expect((await status(randomUUID())).status).toBe(404);
   });
 
   it("huỷ: nhân viên bị từ chối; owner một bước ⇒ active, cột xoá rỗng, truy cập trở lại; huỷ lần hai ⇒ false", async () => {
@@ -341,9 +448,9 @@ describe("purge", () => {
       due: 0,
       purged: 0,
     });
-    const direct = await sql<{ r: unknown }>`select app.purge_organization(${A}::uuid) as r`.execute(
-      h.t.worker,
-    );
+    const direct = await sql<{
+      r: unknown;
+    }>`select app.purge_organization(${A}::uuid, '{}'::text[]) as r`.execute(h.t.worker);
     expect(direct.rows[0]?.r).toBeNull();
     expect(storage.deleted).toEqual([]);
     const o = await sql<{ n: number }>`select count(*)::int as n from organizations where id = ${A}`.execute(
@@ -405,6 +512,35 @@ describe("purge", () => {
       h.t.admin,
     );
     expect(st.rows[0]?.status).toBe("pending_deletion");
+  });
+
+  it("file MỚI ghi giữa lúc liệt kê khoá và purge ⇒ không purge (deferred), lượt sau làm lại — không object mồ côi", async () => {
+    const extraId = randomUUID();
+    const extraKey = `${A}/export_job/${extraId}`;
+    let wrote = false;
+    const storage = {
+      deleted: [] as string[],
+      delete: async (k: string) => {
+        storage.deleted.push(k);
+        if (wrote) return;
+        wrote = true;
+        // Như bản xuất trong thời gian giữ: ghi file mới sau khi worker đã liệt kê khoá.
+        await sql`insert into files (id, organization_id, owner_type, mime, size_bytes, sha256, status, storage_key, exif_stripped)
+                  values (${extraId}, ${A}, 'work_order', 'application/pdf', 10, ${"d".repeat(64)}, 'ready', ${extraKey}, true)`.execute(
+          h.t.admin,
+        );
+      },
+    };
+    const logs: string[] = [];
+    const r = await purgeDueOrganizations(h.t.worker, { storage, log: (e) => logs.push(e) });
+    expect(r).toMatchObject({ due: 1, purged: 0, deferred: 1, failed: 0, objectsDeleted: 0 });
+    expect(logs).toContain("tenancy.purge_deferred");
+    expect(storage.deleted).not.toContain(extraKey);
+    const st = await sql<{ status: string }>`select status from organizations where id = ${A}`.execute(
+      h.t.admin,
+    );
+    expect(st.rows[0]?.status).toBe("pending_deletion");
+    fileKeys.push(extraKey); // lượt purge sau phải xoá cả object này
   });
 
   it("quá hạn ⇒ object xoá, MỌI bảng theo tổ chức (catalog) = 0 hàng của A, B nguyên vẹn, chứng nhận đúng số đếm", async () => {
@@ -496,7 +632,7 @@ describe("đồng thời + job", () => {
                 deletion_requested_at = now() - interval '40 days', deletion_due_at = now() - interval '10 days'
               where id = ${org}`.execute(h.t.admin);
     const run = () =>
-      sql<{ r: unknown }>`select app.purge_organization(${org}::uuid) as r`.execute(h.t.worker);
+      sql<{ r: unknown }>`select app.purge_organization(${org}::uuid, '{}'::text[]) as r`.execute(h.t.worker);
     const [x, y] = await Promise.all([run(), run()]);
     expect([x.rows[0]?.r, y.rows[0]?.r].filter((v) => v !== null)).toHaveLength(1);
     const n = await sql<{ n: number }>`

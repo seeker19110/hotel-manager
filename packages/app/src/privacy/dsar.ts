@@ -6,7 +6,8 @@
 //   `reauthenticatedAt` (phiên tạo ≤ 5 phút, hoặc vừa nhập đúng mật khẩu — lớp HTTP quyết) — thiếu/quá hạn ⇒ REAUTH_REQUIRED; còn là
 //   owner active duy nhất của tổ chức nào ⇒ LAST_OWNER (chuyển quyền hoặc xoá tổ chức trước — T-2312). Tạo mới ≤ 10 lần/giờ/tài khoản.
 // - Worker (`processDsarRequests`, job `privacy.dsar`): nhận việc qua `app.dsar_claim` (SKIP LOCKED; việc treo quá 15 phút được nhận
-//   lại); truy cập = gói JSON từ `app.dsar_export_data` ghi vào kho object riêng tư (`dsar/<tài khoản>/<yêu cầu>.json`, hạn tải 72 giờ)
+//   lại); truy cập = gói JSON từ `app.dsar_export_data` ghi vào kho object riêng tư (`dsar/<tài khoản>/<yêu cầu>.json`, hạn tải 72 giờ;
+//   khoá đã được ghi DỰ KIẾN lúc nhận việc — `pending_file_key` — nên worker chết/chốt lỗi rồi yêu cầu bị đóng thì lượt dọn vẫn xoá)
 //   rồi chốt — thông báo là trạng thái trên trang Quyền riêng tư (email báo cần ngân sách email theo tổ chức — OPS-COST-004 — mà
 //   tài khoản có thể không thuộc tổ chức nào: chưa gửi, câu hỏi mở T-2311); xoá = `app.dsar_erase_account` (một transaction — xem migration 0069) với ghi chú phần
 //   giữ lại + căn cứ; cuối lượt dọn gói hết hạn (xoá object TRƯỚC, gỡ khoá SAU). Một yêu cầu lỗi không chặn yêu cầu khác.

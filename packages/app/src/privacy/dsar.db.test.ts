@@ -529,6 +529,132 @@ describe("worker — xoá tài khoản lan mọi kho, giữ phần nghĩa vụ p
     for (const u of users) expect(fake.puts.filter((k) => k.startsWith(`dsar/${u}/`))).toHaveLength(1);
   });
 
+  it("hai owner DUY NHẤT cùng xoá tài khoản song song ⇒ đúng một xong, một `rejected` last_owner; tổ chức còn 1 owner", async () => {
+    await drain();
+    const v = await newUser();
+    const C = await seedOrg(t.admin, "Nhà nghỉ Hai Chủ Song Song", "rental", v);
+    const w = await newUser();
+    await addMember(C, w, "owner", "Chủ hai", `hai-${randomUUID()}@example.com`);
+    const dv = await createDsarRequest(t.runtime, v, { type: "delete", reauthenticatedAt: now() });
+    const dw = await createDsarRequest(t.runtime, w, { type: "delete", reauthenticatedAt: now() });
+    await sql`update dsar_requests set status = 'processing', processing_started_at = now()
+              where id in (${dv.request.id}, ${dw.request.id})`.execute(t.admin);
+    const note = "giữ theo luật";
+    let second: Promise<{ status?: string; reason?: string } | null> | undefined;
+    const first = await t.worker.connection().execute(async (c) => {
+      await sql`begin`.execute(c);
+      const r1 = await sql<{ res: { status?: string } | null }>`
+        select app.dsar_erase_account(${dv.request.id}::uuid, ${note}) as res`.execute(c);
+      // Giao dịch thứ hai bắt đầu khi giao dịch thứ nhất CHƯA commit (write-skew nếu không khoá hàng owner của tổ chức).
+      second = sql<{ res: { status?: string; reason?: string } | null }>`
+        select app.dsar_erase_account(${dw.request.id}::uuid, ${note}) as res`
+        .execute(t.worker)
+        .then((r) => r.rows[0]?.res ?? null);
+      await new Promise((r) => setTimeout(r, 300));
+      await sql`commit`.execute(c);
+      return r1.rows[0]?.res ?? null;
+    });
+    const res2 = await second;
+    expect(first?.status).toBe("completed");
+    expect(res2).toMatchObject({ status: "rejected", reason: "last_owner" });
+    const owners = await q(sql<{ n: number }>`
+      select count(*)::int as n from memberships where organization_id = ${C.orgId} and role = 'owner' and status = 'active'`);
+    expect(owners[0]?.n).toBe(1);
+    expect((await reqRow(dw.request.id))?.status).toBe("rejected");
+  });
+
+  it("đăng nhập dở dang trong lúc xoá tài khoản (INSERT phiên chờ khoá) ⇒ bị từ chối sau khi xoá commit, không còn phiên", async () => {
+    await drain();
+    const u = await newUser();
+    const del = await createDsarRequest(t.runtime, u, { type: "delete", reauthenticatedAt: now() });
+    await sql`update dsar_requests set status = 'processing', processing_started_at = now() where id = ${del.request.id}`.execute(
+      t.admin,
+    );
+    let insert: Promise<unknown> | undefined;
+    await t.worker.connection().execute(async (c) => {
+      await sql`begin`.execute(c);
+      await sql`select app.dsar_erase_account(${del.request.id}::uuid, ${"giữ theo luật"})`.execute(c);
+      // Như Better Auth (vai trò app_runtime) ghi phiên sau khi đã kiểm mật khẩu.
+      insert = sql`insert into auth."session" (id, "expiresAt", token, "updatedAt", "userId")
+                   values (${randomUUID()}, now() + interval '1 day', ${randomUUID()}, now(), ${u}::uuid)`
+        .execute(t.runtime)
+        .then(
+          () => "inserted",
+          (e: unknown) => e,
+        );
+      await new Promise((r) => setTimeout(r, 300));
+      await sql`commit`.execute(c);
+    });
+    expect(await insert).toMatchObject({ code: "42501", hint: "ACCOUNT_DELETED" });
+    const s = await q(
+      sql<{ n: number }>`select count(*)::int as n from auth."session" where "userId" = ${u}`,
+    );
+    expect(s[0]?.n).toBe(0);
+    // Tài khoản thường vẫn ghi phiên được.
+    const ok = await newUser();
+    await sql`insert into auth."session" (id, "expiresAt", token, "updatedAt", "userId")
+              values (${randomUUID()}, now() + interval '1 day', ${randomUUID()}, now(), ${ok}::uuid)`.execute(
+      t.runtime,
+    );
+  });
+
+  it("gói đã `put` nhưng chốt lỗi (worker coi như chết) rồi tài khoản bị xoá ⇒ object vẫn bị dọn khỏi kho", async () => {
+    await drain();
+    const u = await newUser();
+    const a = await createDsarRequest(t.runtime, u, { type: "access" });
+    const fake = fakeStorage();
+    // CSDL lỗi đúng lúc chốt `app.dsar_complete_access` (sau khi object đã ghi vào kho).
+    const failingComplete = t.worker.withPlugin({
+      transformQuery(args) {
+        if (JSON.stringify(args.node).includes("dsar_complete_access")) throw new Error("mất kết nối CSDL");
+        return args.node;
+      },
+      async transformResult(args) {
+        return args.result;
+      },
+    });
+    const r1 = await processDsarRequests(failingComplete, { storage: fake });
+    expect(r1).toMatchObject({ accessCompleted: 0, failed: 1 });
+    const k = dsarObjectKey(u, a.request.id);
+    expect(fake.objects.has(k)).toBe(true);
+    expect((await reqRow(a.request.id))?.status).toBe("processing");
+    await createDsarRequest(t.runtime, u, { type: "delete", reauthenticatedAt: now() });
+    const r2 = await processDsarRequests(t.worker, { storage: fake });
+    expect(r2).toMatchObject({ deleted: 1 });
+    expect(fake.objects.has(k)).toBe(false);
+    const row = await q(sql<{ status: string; pending_file_key: string | null }>`
+      select status, pending_file_key from dsar_requests where id = ${a.request.id}`);
+    expect(row[0]).toEqual({ status: "rejected", pending_file_key: null });
+    // Lượt sau không còn gì để dọn (khoá dự kiến đã gỡ sau khi xoá object).
+    expect(await expireDsarResults(t.worker, { storage: fake })).toBe(0);
+  });
+
+  it("chốt gói thành công gỡ khoá dự kiến; app_runtime không tự đặt `pending_file_key`", async () => {
+    await drain();
+    const u = await newUser();
+    const a = await createDsarRequest(t.runtime, u, { type: "access" });
+    await processDsarRequests(t.worker, { storage: fakeStorage() });
+    const row = await q(sql<{
+      status: string;
+      pending_file_key: string | null;
+      result_file_key: string | null;
+    }>`
+      select status, pending_file_key, result_file_key from dsar_requests where id = ${a.request.id}`);
+    expect(row[0]).toEqual({
+      status: "completed",
+      pending_file_key: null,
+      result_file_key: dsarObjectKey(u, a.request.id),
+    });
+    await expect(
+      withUserContext(t.runtime, u, (trx) =>
+        sql`insert into dsar_requests (id, subject_user_id, type, status, region, due_at, verified_at, pending_file_key)
+            values (${randomUUID()}, ${u}::uuid, 'restrict', 'verified', 'VN', now() + interval '1 day', now(), 'x')`.execute(
+          trx,
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "42501" });
+  });
+
   it("yêu cầu `processing` treo quá 15 phút được nhận lại; chưa tới 15 phút thì không", async () => {
     await drain();
     const u = await newUser();

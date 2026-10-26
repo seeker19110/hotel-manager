@@ -7,6 +7,10 @@
 //   (không PII); `legal_retention_note` = phần còn giữ + căn cứ (bắt buộc khi xoá xong). Gói truy cập nằm ở kho object riêng tư,
 //   khoá `dsar/<subject_user_id>/<id>.json` (không theo tổ chức — người dùng có thể không thuộc tổ chức nào nên không dùng `files`),
 //   có hạn tải `result_expires_at`; quá hạn thì worker xoá object rồi gỡ khoá (`app.dsar_due_results` → `app.dsar_clear_result`).
+//   Khoá DỰ KIẾN `pending_file_key` được ghi lúc nhận việc (`app.dsar_claim`) — TRƯỚC khi worker `put` object — và chỉ gỡ khi chốt
+//   (`app.dsar_complete_access` chuyển sang `result_file_key`) hoặc khi yêu cầu đã đóng mà object đã bị xoá: worker chết/chốt lỗi
+//   sau khi ghi gói rồi tài khoản bị xoá (yêu cầu ⇒ `rejected`) thì `app.dsar_due_results` vẫn trả khoá đó để dọn — không gói PII
+//   mồ côi trong kho.
 //   Mỗi tài khoản tối đa MỘT yêu cầu mở cùng loại (index unique một phần) — gửi lại trả yêu cầu đang mở (idempotent).
 // - `processing_restrictions`: cờ hạn chế xử lý theo tài khoản (một hàng ⇔ đang hạn chế), trỏ tới yêu cầu restrict đã bật nó.
 //   Bộ kiểm đồng ý analytics (privacy/consent.ts) trả TỪ CHỐI khi có cờ. Chưa có luồng gỡ cờ (không cấp DELETE).
@@ -18,13 +22,16 @@
 //   `app.dsar_sole_owner_orgs()` (app_runtime; đọc `app.current_user_id()` — không nhận id người khác): số tổ chức mà người dùng là
 //     owner active DUY NHẤT ⇒ chặn tạo yêu cầu xoá (LAST_OWNER) — chuyển quyền owner hoặc xoá tổ chức trước (T-2312).
 //   `app.dsar_claim(now, stale_minutes, limit)` (app_worker): nhận yêu cầu access/delete `verified` (hoặc `processing` treo quá
-//     `stale_minutes` — worker chết giữa chừng) theo `due_at` sớm nhất, FOR UPDATE SKIP LOCKED ⇒ nhiều worker không nhận trùng.
+//     `stale_minutes` — worker chết giữa chừng) theo `due_at` sớm nhất, FOR UPDATE SKIP LOCKED ⇒ nhiều worker không nhận trùng;
+//     yêu cầu truy cập được ghi `pending_file_key` ngay lúc nhận.
 //   `app.dsar_export_data(request)` (app_worker): gói JSON dữ liệu của CHÍNH chủ thể (tài khoản, cách đăng nhập không kèm băm/token,
 //     phiên, tư cách thành viên + hồ sơ người liên kết, đồng ý, yêu cầu quyền, cờ hạn chế, sự kiện analytics của mình) — một snapshot.
 //   `app.dsar_complete_access(request, key, expires_at, summary)` (app_worker): chốt yêu cầu truy cập đang `processing` (false nếu đã
 //     bị đóng — worker xoá object vừa ghi). Hạn tải bị chặn trên 7 ngày.
 //   `app.dsar_erase_account(request, note)` (app_worker): xoá tài khoản theo D-123 trong MỘT transaction: khoá yêu cầu + tài khoản +
-//     membership; còn là owner active duy nhất ⇒ `rejected` (last_owner). Ngược lại: thu hồi mọi phiên (để dấu `revoked_session` như
+//     membership của mình VÀ mọi owner active của các tổ chức mình thuộc (một câu, theo id tăng dần — khuôn `lockTarget` của
+//     access/members.ts) rồi mới đếm ⇒ hai owner duy nhất cùng xoá tài khoản song song: đúng một người qua, người kia thấy mình là
+//     owner cuối (không write-skew để tổ chức còn 0 owner); còn là owner active duy nhất ⇒ `rejected` (last_owner). Ngược lại: thu hồi mọi phiên (để dấu `revoked_session` như
 //     `revokeUserSessions` ⇒ cookie cũ nhận 401 SESSION_REVOKED), xoá `auth.account` (băm mật khẩu, token OAuth), `twoFactor`, mã
 //     xác minh/OTP và bộ đếm khoá đăng nhập theo email; ẩn danh `auth."user"` (email ⇒ `deleted+<uuid ngẫu nhiên>@deleted.invalid`
 //     — duy nhất, không định danh, miền .invalid RFC 2606; tên ⇒ "***"; ảnh NULL; giữ id); membership còn hiệu lực ⇒ `revoked`
@@ -32,8 +39,13 @@
 //     (actor worker); `app.unlink_product_events_actor`; file bản xuất do chính tài khoản yêu cầu ⇒ `files.delete_after` = hôm nay
 //     (job `import.retention` xoá object); gói truy cập cũ ⇒ hết hạn ngay (job DSAR xoá object); yêu cầu mở khác của người đó ⇒ `rejected` (account_deleted). GIỮ: hoá đơn/sổ tiền/audit_events/
 //     `consent_records` (chỉ còn id bí danh) và `persons` (dữ liệu của cơ sở — bên kiểm soát; ẩn danh theo hạn lưu RET-17).
-//   `app.dsar_due_results(now, limit)` + `app.dsar_clear_result(id, key)` (app_worker): hai pha dọn gói hết hạn — xoá object TRƯỚC,
-//     gỡ khoá SAU (lỗi kho thì khoá còn, lượt sau thử lại; không để object mồ côi).
+//   `app.dsar_due_results(now, limit)` + `app.dsar_clear_result(id, key)` (app_worker): hai pha dọn gói hết hạn VÀ gói dự kiến của
+//     yêu cầu đã đóng (`pending_file_key`) — xoá object TRƯỚC, gỡ khoá SAU (lỗi kho thì khoá còn, lượt sau thử lại; không để object
+//     mồ côi).
+//   Trigger `trg_session_not_erased` (BEFORE INSERT `auth.session`, hàm definer `app.session_guard_erased`): đọc hàng tài khoản bằng
+//     FOR KEY SHARE ⇒ đăng nhập đang dở (mật khẩu đã kiểm) chờ `dsar_erase_account` (giữ FOR UPDATE trên tài khoản) xong rồi đọc lại
+//     hàng đã ẩn danh ⇒ từ chối (42501 ACCOUNT_DELETED). Xoá phiên lần hai trong hàm xoá KHÔNG đủ: INSERT phiên mới bị khoá ngoại chặn
+//     tới khi transaction xoá COMMIT rồi mới ghi được.
 //   `app.dsar_metrics(now)` (app_runtime, app_worker): gauge `hm_dsar_overdue` = yêu cầu còn mở (received/verified/processing) quá
 //     `due_at`, tổng toàn hệ thống, không nhãn.
 // - Index: unique một phần yêu cầu mở theo (người, loại); (người, requested_at) cho danh sách; `due_at` (một phần: còn mở) cho
@@ -59,6 +71,7 @@ CREATE TABLE dsar_requests (
   legal_retention_note text CHECK (legal_retention_note IS NULL OR char_length(legal_retention_note) BETWEEN 1 AND 2000),
   result_file_key text,
   result_expires_at timestamptz,
+  pending_file_key text,
   updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT ck_dsar_requests_due CHECK (due_at > requested_at),
   CONSTRAINT ck_dsar_requests_closed CHECK ((status IN ('completed', 'rejected')) = (completed_at IS NOT NULL)),
@@ -69,6 +82,9 @@ CREATE TABLE dsar_requests (
     AND (result_file_key IS NULL
          OR (type = 'access' AND status = 'completed'
              AND result_file_key = 'dsar/' || subject_user_id::text || '/' || id::text || '.json'))),
+  CONSTRAINT ck_dsar_requests_pending CHECK (
+    pending_file_key IS NULL
+    OR (type = 'access' AND pending_file_key = 'dsar/' || subject_user_id::text || '/' || id::text || '.json')),
   CONSTRAINT ck_dsar_requests_delete_note CHECK (type <> 'delete' OR status <> 'completed' OR legal_retention_note IS NOT NULL)
 );
 CREATE UNIQUE INDEX uq_dsar_requests_open ON dsar_requests (subject_user_id, type)
@@ -76,6 +92,7 @@ CREATE UNIQUE INDEX uq_dsar_requests_open ON dsar_requests (subject_user_id, typ
 CREATE INDEX ix_dsar_requests_subject_time ON dsar_requests (subject_user_id, requested_at);
 CREATE INDEX ix_dsar_requests_due ON dsar_requests (due_at) WHERE status IN ('received', 'verified', 'processing');
 CREATE INDEX ix_dsar_requests_result_expires ON dsar_requests (result_expires_at) WHERE result_file_key IS NOT NULL;
+CREATE INDEX ix_dsar_requests_pending ON dsar_requests (updated_at) WHERE pending_file_key IS NOT NULL;
 
 ALTER TABLE dsar_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE dsar_requests FORCE ROW LEVEL SECURITY;
@@ -127,7 +144,9 @@ CREATE FUNCTION app.dsar_claim(p_now timestamptz, p_stale_minutes integer, p_lim
       LIMIT least(greatest(p_limit, 1), 100)
       FOR UPDATE SKIP LOCKED
     )
-    UPDATE dsar_requests r SET status = 'processing', processing_started_at = now(), updated_at = now()
+    UPDATE dsar_requests r SET status = 'processing', processing_started_at = now(), updated_at = now(),
+           pending_file_key = CASE WHEN r.type = 'access'
+                                   THEN 'dsar/' || r.subject_user_id::text || '/' || r.id::text || '.json' END
       FROM due WHERE r.id = due.id
     RETURNING r.id, r.subject_user_id, r.type
   $$;
@@ -177,7 +196,7 @@ BEGIN
       SELECT jsonb_agg(jsonb_build_object('id', c.id, 'purpose', c.purpose, 'action', c.action,
                                           'policy_version', c.policy_version, 'channel', c.channel,
                                           'ui_snapshot_hash', c.ui_snapshot_hash, 'recorded_at', c.recorded_at)
-                       ORDER BY c.recorded_at, c.seq)
+                       ORDER BY c.seq)
         FROM consent_records c WHERE c.subject_user_id = v_user), '[]'::jsonb),
     'data_requests', coalesce((
       SELECT jsonb_agg(jsonb_build_object('id', d.id, 'type', d.type, 'status', d.status, 'region', d.region,
@@ -203,7 +222,7 @@ CREATE FUNCTION app.dsar_complete_access(p_request_id uuid, p_key text, p_expire
       UPDATE dsar_requests r
          SET status = 'completed', completed_at = now(), result_file_key = p_key,
              result_expires_at = least(greatest(p_expires_at, now() + interval '1 minute'), now() + interval '7 days'),
-             result_summary = p_summary, updated_at = now()
+             result_summary = p_summary, pending_file_key = NULL, updated_at = now()
        WHERE r.id = p_request_id AND r.type = 'access' AND r.status = 'processing'
       RETURNING 1)
     SELECT count(*) = 1 FROM x
@@ -233,7 +252,13 @@ BEGIN
     RETURN NULL;
   END IF;
   SELECT u.email INTO v_email FROM auth."user" u WHERE u.id = v_user FOR UPDATE;
-  PERFORM 1 FROM memberships m WHERE m.auth_user_id = v_user ORDER BY m.id FOR UPDATE;
+  -- Own memberships + every active owner of our orgs, ONE statement in id order (lockTarget convention, no deadlock): a concurrent
+  -- erase of the other sole owner waits here; the count below (new snapshot) then sees its revocation — no write-skew to 0 owners.
+  PERFORM 1 FROM memberships m
+   WHERE m.auth_user_id = v_user
+      OR (m.role = 'owner' AND m.status = 'active'
+          AND m.organization_id IN (SELECT x.organization_id FROM memberships x WHERE x.auth_user_id = v_user))
+   ORDER BY m.id FOR UPDATE;
   PERFORM 1 FROM dsar_requests r WHERE r.subject_user_id = v_user ORDER BY r.id FOR UPDATE;
 
   SELECT count(*)::int INTO v_sole FROM memberships m
@@ -321,20 +346,51 @@ BEGIN
   RETURN jsonb_build_object('status', 'completed') || v_summary;
 END $$;
 
+CREATE FUNCTION app.session_guard_erased() RETURNS trigger
+  LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+BEGIN
+  -- Locking read: waits for an in-flight dsar_erase_account (FOR UPDATE on the user), then re-checks the committed row.
+  PERFORM 1 FROM auth."user" u
+   WHERE u.id = NEW."userId" AND u.email !~ '^deleted\\+[0-9a-f-]{36}@deleted\\.invalid$'
+   FOR KEY SHARE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'account deleted' USING ERRCODE = '42501', HINT = 'ACCOUNT_DELETED';
+  END IF;
+  RETURN NEW;
+END $$;
+REVOKE ALL ON FUNCTION app.session_guard_erased() FROM PUBLIC;
+CREATE TRIGGER trg_session_not_erased BEFORE INSERT ON auth."session"
+  FOR EACH ROW EXECUTE FUNCTION app.session_guard_erased();
+
 CREATE FUNCTION app.dsar_due_results(p_now timestamptz, p_limit integer)
   RETURNS TABLE (id uuid, result_file_key text)
   LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp SET timezone = 'UTC' AS $$
-    SELECT r.id, r.result_file_key FROM dsar_requests r
-     WHERE r.result_file_key IS NOT NULL AND r.result_expires_at <= least(p_now, now())
-     ORDER BY r.result_expires_at, r.id
+    SELECT x.id, x.k FROM (
+      SELECT r.id, r.result_file_key AS k, r.result_expires_at AS at FROM dsar_requests r
+       WHERE r.result_file_key IS NOT NULL AND r.result_expires_at <= least(p_now, now())
+      UNION ALL
+      -- Package written (or maybe written) for a request that closed without completing: delete it too.
+      SELECT r.id, r.pending_file_key, r.updated_at FROM dsar_requests r
+       WHERE r.pending_file_key IS NOT NULL AND r.status IN ('completed', 'rejected')
+    ) x
+     ORDER BY x.at, x.id
      LIMIT least(greatest(p_limit, 1), 1000)
   $$;
 
 CREATE FUNCTION app.dsar_clear_result(p_id uuid, p_key text) RETURNS boolean
   LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp SET timezone = 'UTC' AS $$
     WITH x AS (
-      UPDATE dsar_requests r SET result_file_key = NULL, result_expires_at = NULL, updated_at = now()
-       WHERE r.id = p_id AND r.result_file_key = p_key AND r.result_expires_at <= now()
+      UPDATE dsar_requests r
+         SET result_file_key = CASE WHEN r.result_file_key = p_key AND r.result_expires_at <= now()
+                                    THEN NULL ELSE r.result_file_key END,
+             result_expires_at = CASE WHEN r.result_file_key = p_key AND r.result_expires_at <= now()
+                                      THEN NULL ELSE r.result_expires_at END,
+             pending_file_key = CASE WHEN r.pending_file_key = p_key AND r.status IN ('completed', 'rejected')
+                                     THEN NULL ELSE r.pending_file_key END,
+             updated_at = now()
+       WHERE r.id = p_id
+         AND ((r.result_file_key = p_key AND r.result_expires_at <= now())
+              OR (r.pending_file_key = p_key AND r.status IN ('completed', 'rejected')))
       RETURNING 1)
     SELECT count(*) = 1 FROM x
   $$;
@@ -357,6 +413,8 @@ GRANT EXECUTE ON FUNCTION app.dsar_metrics(timestamptz) TO app_runtime, app_work
 `;
 
 const DOWN = `
+DROP TRIGGER IF EXISTS trg_session_not_erased ON auth."session";
+DROP FUNCTION IF EXISTS app.session_guard_erased();
 DROP FUNCTION IF EXISTS app.dsar_metrics(timestamptz);
 DROP FUNCTION IF EXISTS app.dsar_clear_result(uuid, text);
 DROP FUNCTION IF EXISTS app.dsar_due_results(timestamptz, integer);

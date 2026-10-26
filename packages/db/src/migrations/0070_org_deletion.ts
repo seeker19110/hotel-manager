@@ -2,9 +2,11 @@
 // mọi bảng theo tổ chức + object kho file → chứng nhận xoá.
 // - `organizations`: thêm trạng thái `pending_deletion` + `deletion_requested_at`, `deletion_due_at`, `deletion_requested_by` (id
 //   `auth."user"` của owner yêu cầu, không FK — tài khoản có thể bị ẩn danh sau đó). CHECK: chờ xoá ⇔ đủ ba cột; hạn ≥ yêu cầu + 30
-//   ngày (CSDL giữ thời hạn, không tin ứng dụng). Không cấp cột mới cho app_runtime/app_worker: chỉ hai hàm SECURITY DEFINER đổi
-//   trạng thái (`app.org_request_deletion`, `app.org_cancel_deletion`); `status` cũ vẫn ghi được bởi app_runtime nhưng CHECK
-//   chặn đặt/gỡ `pending_deletion` khi không đổi ba cột kia.
+//   ngày (CSDL giữ thời hạn, không tin ứng dụng). Chỉ hai hàm SECURITY DEFINER đổi trạng thái (`app.org_request_deletion`,
+//   `app.org_cancel_deletion`): `app_runtime` có UPDATE cả bảng (0001, cần cho `settings`) nên trigger BEFORE UPDATE
+//   `trg_organizations_lifecycle_guard` chặn đổi `status` và ba cột `deletion_*` khi `current_user` KHÔNG phải role sở hữu bảng
+//   (tức không chạy trong hàm definer) — không thì app_runtime tự đặt `pending_deletion` với mốc quá khứ (tới hạn purge ngay) hoặc
+//   huỷ yêu cầu không qua owner. Không REVOKE UPDATE rồi cấp theo cột: danh sách cột phải theo kịp mọi cột mới của bảng.
 // - Chặn truy cập khi chờ xoá: ở `resolveActor` (packages/app/src/access/actor.ts) — điểm uỷ quyền MỌI request có ngữ cảnh tổ chức
 //   (trang, command, query, tải file, export kiểm lại người yêu cầu) — trừ đường được phép rõ ràng (xuất dữ liệu, trạng thái/huỷ
 //   yêu cầu). `app.list_my_organizations` vẫn liệt kê tổ chức chờ xoá để owner vào huỷ/xuất (chọn xong thì mọi trang khác bị chặn).
@@ -14,7 +16,9 @@
 //   tường minh `PURGE_ORDER` bên dưới; test DB so khớp catalog nên bảng mới không bị sót), đếm hàng mỗi bảng, xoá hàng tổ chức, ghi
 //   `org_deletion_certificates`. Cặp `inbox`↔`bank_transactions` (FK vòng, RESTRICT) xoá trong MỘT câu lệnh; `blocks`↔`work_orders`
 //   là FK DEFERRABLE. Object kho file: dọn HAI PHA như DSAR — worker lấy khoá (`app.org_purge_file_keys`), xoá object TRƯỚC, rồi mới
-//   gọi purge (lỗi kho ⇒ không purge, lượt sau thử lại; không để object mồ côi). Mọi khoá object của tổ chức có tiền tố `<org>/`
+//   gọi purge với DANH SÁCH khoá đã xoá (lỗi kho ⇒ không purge, lượt sau thử lại; không để object mồ côi). Trong purge, sau khi khoá
+//   hàng tổ chức, còn hàng `files` nào KHÔNG nằm trong danh sách (file mới — vd bản xuất — ghi giữa lúc liệt kê và lúc purge) ⇒
+//   trả `{skipped: 'new_files'}`, không xoá gì, lượt sau làm lại; `objects_deleted` của chứng nhận = số object đã thực xoá. Mọi khoá object của tổ chức có tiền tố `<org>/`
 //   (ck_files_key_prefix) — gồm file bản xuất (`export_jobs.file_key` trỏ cùng khoá `files`).
 // - Lối vượt trigger append-only/bất biến (audit_events, journal_*, invoices, payments, leases… — mọi trigger chặn DELETE trên bảng
 //   theo tổ chức): `app.org_purge_active(org)` đúng KHI VÀ CHỈ KHI (1) GUC `app.purge_org` = org, (2) `current_user` là role SỞ HỮU
@@ -166,6 +170,21 @@ ALTER TABLE organizations ADD CONSTRAINT ck_organizations_deletion CHECK (
   AND (deletion_due_at IS NULL OR deletion_due_at >= deletion_requested_at + interval '30 days'));
 CREATE INDEX ix_organizations_deletion_due ON organizations (deletion_due_at) WHERE status = 'pending_deletion';
 
+CREATE FUNCTION app.organizations_lifecycle_guard() RETURNS trigger
+  LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+  IF (NEW.status, NEW.deletion_requested_at, NEW.deletion_due_at, NEW.deletion_requested_by)
+       IS DISTINCT FROM (OLD.status, OLD.deletion_requested_at, OLD.deletion_due_at, OLD.deletion_requested_by)
+     AND current_user <> (SELECT pg_get_userbyid(c.relowner) FROM pg_class c WHERE c.oid = 'public.organizations'::regclass) THEN
+    RAISE EXCEPTION 'organizations.status/deletion_* change only via app.org_request_deletion/app.org_cancel_deletion'
+      USING ERRCODE = '42501', HINT = 'FORBIDDEN';
+  END IF;
+  RETURN NEW;
+END $$;
+REVOKE ALL ON FUNCTION app.organizations_lifecycle_guard() FROM PUBLIC;
+CREATE TRIGGER trg_organizations_lifecycle_guard BEFORE UPDATE ON organizations
+  FOR EACH ROW EXECUTE FUNCTION app.organizations_lifecycle_guard();
+
 CREATE OR REPLACE FUNCTION app.list_my_organizations(p_auth_user_id uuid)
   RETURNS TABLE(organization_id uuid, organization_name text, membership_id uuid, role text)
   LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO 'public', 'pg_temp' AS $$
@@ -201,7 +220,7 @@ CREATE TRIGGER trg_org_deletion_certificates_append_only BEFORE UPDATE OR DELETE
 CREATE TRIGGER trg_org_deletion_certificates_no_truncate BEFORE TRUNCATE ON org_deletion_certificates
   FOR EACH STATEMENT EXECUTE FUNCTION app.forbid_mutation();
 
-CREATE FUNCTION app.purge_organization(p_org uuid) RETURNS jsonb
+CREATE FUNCTION app.purge_organization(p_org uuid, p_deleted_keys text[]) RETURNS jsonb
   LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp SET timezone = 'UTC' AS $$
 BEGIN
   RETURN NULL; -- placeholder: real body below (org_purge_active references this function's owner)
@@ -217,7 +236,7 @@ BEGIN
   END IF;
   -- Executing role must own the purge function (i.e. we are inside the SECURITY DEFINER body); a caller-set GUC is not enough.
   IF current_user <> (SELECT pg_get_userbyid(p.proowner) FROM pg_proc p
-                       WHERE p.oid = 'app.purge_organization(uuid)'::regprocedure) THEN
+                       WHERE p.oid = 'app.purge_organization(uuid, text[])'::regprocedure) THEN
     RETURN false;
   END IF;
   RETURN EXISTS (SELECT 1 FROM public.organizations o
@@ -227,7 +246,7 @@ END $$;
 ${injectGuards(sqlList(PURGE_GUARDED_TRIGGER_FUNCTIONS), PURGE_GUARD_LINE)}
 ${injectGuards("'app.forbid_mutation()'", FORBID_GUARD_LINE)}
 
-CREATE OR REPLACE FUNCTION app.purge_organization(p_org uuid) RETURNS jsonb
+CREATE OR REPLACE FUNCTION app.purge_organization(p_org uuid, p_deleted_keys text[]) RETURNS jsonb
   LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp SET timezone = 'UTC' AS $$
 DECLARE
   v_order text[] := ARRAY[${sqlList(PURGE_ORDER)}];
@@ -245,6 +264,11 @@ BEGIN
   SELECT * INTO v_org FROM organizations o WHERE o.id = p_org FOR UPDATE;
   IF NOT FOUND OR v_org.status <> 'pending_deletion' OR v_org.deletion_due_at > now() THEN
     RETURN NULL;
+  END IF;
+  -- Objects are deleted by the worker BEFORE this call; a file row it did not delete (written after it listed keys) ⇒ skip, retry.
+  IF EXISTS (SELECT 1 FROM files f
+              WHERE f.organization_id = p_org AND NOT (f.storage_key = ANY (coalesce(p_deleted_keys, '{}'::text[])))) THEN
+    RETURN jsonb_build_object('skipped', 'new_files');
   END IF;
   SELECT count(*)::int INTO v_objects FROM files f WHERE f.organization_id = p_org;
   PERFORM set_config('app.org_id', p_org::text, true);
@@ -368,9 +392,9 @@ CREATE FUNCTION app.org_deletion_metrics(p_now timestamptz) RETURNS TABLE (name 
       FROM (VALUES ('waiting'), ('due')) AS s(state)
   $$;
 
-REVOKE ALL ON FUNCTION app.purge_organization(uuid), app.org_purge_due(timestamptz, integer), app.org_purge_file_keys(uuid),
+REVOKE ALL ON FUNCTION app.purge_organization(uuid, text[]), app.org_purge_due(timestamptz, integer), app.org_purge_file_keys(uuid),
   app.org_request_deletion(text), app.org_cancel_deletion(text), app.org_deletion_metrics(timestamptz) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION app.purge_organization(uuid), app.org_purge_due(timestamptz, integer),
+GRANT EXECUTE ON FUNCTION app.purge_organization(uuid, text[]), app.org_purge_due(timestamptz, integer),
   app.org_purge_file_keys(uuid) TO app_worker;
 GRANT EXECUTE ON FUNCTION app.org_request_deletion(text), app.org_cancel_deletion(text) TO app_runtime;
 GRANT EXECUTE ON FUNCTION app.org_deletion_metrics(timestamptz) TO app_runtime, app_worker;
@@ -385,7 +409,7 @@ DROP FUNCTION IF EXISTS app.org_purge_due(timestamptz, integer);
 ${removeGuards(sqlList(PURGE_GUARDED_TRIGGER_FUNCTIONS), PURGE_GUARD_LINE)}
 ${removeGuards("'app.forbid_mutation()'", FORBID_GUARD_LINE)}
 DROP FUNCTION IF EXISTS app.org_purge_active(uuid);
-DROP FUNCTION IF EXISTS app.purge_organization(uuid);
+DROP FUNCTION IF EXISTS app.purge_organization(uuid, text[]);
 DROP TABLE IF EXISTS org_deletion_certificates;
 CREATE OR REPLACE FUNCTION app.list_my_organizations(p_auth_user_id uuid)
   RETURNS TABLE(organization_id uuid, organization_name text, membership_id uuid, role text)
@@ -396,6 +420,8 @@ CREATE OR REPLACE FUNCTION app.list_my_organizations(p_auth_user_id uuid)
       AND m.valid_from <= now() AND (m.valid_to IS NULL OR m.valid_to > now())
     ORDER BY o.name
   $$;
+DROP TRIGGER IF EXISTS trg_organizations_lifecycle_guard ON organizations;
+DROP FUNCTION IF EXISTS app.organizations_lifecycle_guard();
 DROP INDEX IF EXISTS ix_organizations_deletion_due;
 UPDATE organizations
    SET status = 'active', deletion_requested_at = NULL, deletion_due_at = NULL, deletion_requested_by = NULL

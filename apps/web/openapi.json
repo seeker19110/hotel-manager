@@ -1657,6 +1657,9 @@
           "409": {
             "$ref": "#/components/responses/Error409"
           },
+          "423": {
+            "$ref": "#/components/responses/Error423"
+          },
           "500": {
             "$ref": "#/components/responses/Error500"
           }

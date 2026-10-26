@@ -58,9 +58,12 @@ export function RegisterForm({
         );
       const s = await post("/api/auth/sign-in/email", { email, password });
       if (!s.ok) return setError(tm(m, "register_form.error.signin_failed"));
-      // Đồng ý chỉ ghi khi người dùng TỰ tick; gửi hỏng thì bỏ qua (mặc định = không đồng ý, chọn lại ở trang Quyền riêng tư).
-      if (analytics) await offerConsent(consent, "signup");
-      window.location.assign("/chon-to-chuc");
+      // Đồng ý chỉ ghi khi người dùng TỰ tick; gửi hỏng ⇒ vẫn đi tiếp (mặc định = không đồng ý) nhưng trang sau hiện thông báo
+      // không chặn để chọn lại ở trang Quyền riêng tư.
+      const saved = analytics ? await offerConsent(consent, "signup") : true;
+      // Đường dẫn nội bộ viết thẳng (rào FE-SEC-002); tham số = CONSENT_UNSAVED_PARAM (test đối chiếu).
+      if (saved) window.location.assign("/chon-to-chuc");
+      else window.location.assign("/chon-to-chuc?dong_y_chua_luu=1");
     } catch {
       setError(tm(m, "auth_form.no_response"));
     } finally {

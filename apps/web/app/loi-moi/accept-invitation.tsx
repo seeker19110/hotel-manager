@@ -6,6 +6,7 @@
 import { safeUrl } from "@hm/app/http";
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { type ConsentOffer, offerConsent } from "../../components/privacy/consent-offer.ts";
+import { ConsentUnsavedNotice } from "../../components/privacy/consent-unsaved-notice.tsx";
 import { clearUserData, useOnline } from "../../components/pwa/pwa-shell.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { CheckboxField, TextField } from "../../components/ui/field.tsx";
@@ -47,6 +48,7 @@ export function AcceptInvitation({ m, consent }: { m: Messages<"invitation.">; c
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | undefined>();
   const [problem, setProblem] = useState<string | undefined>();
+  const [consentUnsaved, setConsentUnsaved] = useState(false);
 
   const checkSession = useCallback(async () => {
     setPhase("checking");
@@ -106,7 +108,9 @@ export function AcceptInvitation({ m, consent }: { m: Messages<"invitation.">; c
         );
       if (r.data.twoFactorRedirect) return setMode("totp");
       // Tài khoản mới tạo ở đây: ô đồng ý analytics (không tick sẵn) — tick thì ghi sau khi có phiên (kênh `invite`, T-2310).
-      if (mode === "register" && f.get("analytics_consent") === "on") await offerConsent(consent, "invite");
+      // Ghi hỏng ⇒ không chặn việc nhận lời mời, nhưng hiện thông báo để chọn lại ở trang Quyền riêng tư.
+      if (mode === "register" && f.get("analytics_consent") === "on")
+        setConsentUnsaved(!(await offerConsent(consent, "invite")));
       await checkSession();
     } catch {
       setError(tm(m, "invitation.error.no_response"));
@@ -291,6 +295,7 @@ export function AcceptInvitation({ m, consent }: { m: Messages<"invitation.">; c
         <strong>{who}</strong>
         {tm(m, "invitation.ready.signed_in_after")}
       </p>
+      {consentUnsaved ? <ConsentUnsavedNotice {...consent.unsaved} /> : null}
       {problem ? (
         <p className="field__error" role="alert">
           {problem}

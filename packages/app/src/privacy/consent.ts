@@ -1,6 +1,7 @@
 // Thu/rút đồng ý theo mục đích (PLAN T-2310; CMP-RIGHTS-001/004, CMP-VN-001; D-122) trên `consent_records` (migration 0068,
 // append-only, RLS theo ngữ cảnh NGƯỜI DÙNG `app.user_id`).
-// - Mô hình: mỗi lần cho/rút là MỘT hàng mới; trạng thái hiện tại = hàng mới nhất theo (recorded_at, seq) của (người, mục đích).
+// - Mô hình: mỗi lần cho/rút là MỘT hàng mới; trạng thái hiện tại = hàng có `seq` lớn nhất của (người, mục đích) —
+//   `seq` cấp lúc INSERT khi đang giữ khoá advisory nên là thứ tự ghi thật (không dùng `recorded_at`: xem migration 0068).
 // - Idempotent theo TRẠNG THÁI (chọn: không ghi thêm khi không đổi): cho khi đang cho CÙNG phiên bản văn bản, hoặc rút khi chưa
 //   từng cho/đã rút ⇒ `unchanged`, không thêm hàng — lịch sử chỉ chứa thay đổi thật, bấm đúp/gửi lại không làm phình bằng chứng.
 //   Cho lại theo phiên bản văn bản MỚI ⇒ ghi hàng mới (đồng ý gắn với văn bản đã thấy). Đọc-rồi-ghi được tuần tự hoá bằng khoá
@@ -85,7 +86,7 @@ async function latest(trx: AnalyticsDb, userId: string, purpose: ConsentPurpose)
   const r = await sql<Row>`
     select id, purpose, action, policy_version, channel, ui_snapshot_hash, recorded_at from consent_records
     where subject_user_id = ${userId}::uuid and purpose = ${purpose}
-    order by recorded_at desc, seq desc limit 1`.execute(trx);
+    order by seq desc limit 1`.execute(trx);
   return r.rows[0];
 }
 
@@ -185,7 +186,7 @@ export async function consentHistory(db: Kysely<unknown>, userId: string): Promi
     const r = await sql<Row>`
       select id, purpose, action, policy_version, channel, ui_snapshot_hash, recorded_at from consent_records
       where subject_user_id = ${userId}::uuid
-      order by recorded_at, seq`.execute(trx);
+      order by seq`.execute(trx);
     return r.rows.map(toRecord);
   });
 }

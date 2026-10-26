@@ -4,8 +4,10 @@
 //   đã chờ xoá ⇒ trả trạng thái hiện có. Trong thời gian giữ, `resolveActor` khoá mọi truy cập trừ xuất dữ liệu + trạng thái/huỷ.
 // - Huỷ (`cancelOrgDeletion`): một bước, chỉ owner; tổ chức về `active` ngay.
 // - Purge (`purgeDueOrganizations`, job `tenancy.purge`): tổ chức tới hạn theo đồng hồ CSDL ⇒ lấy khoá object (`<org>/…`), xoá object
-//   TRƯỚC rồi mới gọi `app.purge_organization` (xoá mọi bảng theo tổ chức + chứng nhận). Lỗi kho ⇒ bỏ qua tổ chức đó, lượt sau thử
-//   lại; một tổ chức lỗi không chặn tổ chức khác. TẮT mặc định khi NODE_ENV=production (grant `data_delete hard_delete=false` trong
+//   TRƯỚC rồi mới gọi `app.purge_organization(org, khoá đã xoá)` (xoá mọi bảng theo tổ chức + chứng nhận). Lỗi kho ⇒ bỏ qua tổ chức
+//   đó, lượt sau thử lại; một tổ chức lỗi không chặn tổ chức khác. Có file MỚI ghi sau lúc liệt kê (vd bản xuất trong thời gian giữ)
+//   ⇒ CSDL trả `skipped` (kiểm SAU khi khoá hàng tổ chức — chặt hơn liệt kê lại ở đây), tổ chức để lượt sau (`deferred`), không
+//   purge bỏ lại object mồ côi; chứng nhận ghi số object đã thực xoá. TẮT mặc định khi NODE_ENV=production (grant `data_delete hard_delete=false` trong
 //   PLAN) — `orgPurgeEnabled`.
 // - Chứng nhận (`listOrgDeletionCertificates`): chỉ người yêu cầu đọc (RLS theo `app.user_id`), còn sau khi tổ chức đã bị xoá.
 import { withTenant, withUserContext } from "@hm/db";
@@ -172,6 +174,8 @@ export interface OrgPurgeDeps {
 export interface OrgPurgeResult {
   due: number;
   purged: number;
+  /** Có file mới sau lúc liệt kê khoá ⇒ chưa purge, lượt sau làm lại. */
+  deferred: number;
   failed: number;
   objectsDeleted: number;
 }
@@ -182,7 +186,7 @@ export async function purgeDueOrganizations(
   deps: OrgPurgeDeps,
 ): Promise<OrgPurgeResult> {
   const now = deps.now ?? new Date();
-  const out: OrgPurgeResult = { due: 0, purged: 0, failed: 0, objectsDeleted: 0 };
+  const out: OrgPurgeResult = { due: 0, purged: 0, deferred: 0, failed: 0, objectsDeleted: 0 };
   const due = await sql<{ id: string }>`
     select id from app.org_purge_due(${now}, ${deps.limit ?? 10})`.execute(workerDb);
   out.due = due.rows.length;
@@ -191,18 +195,32 @@ export async function purgeDueOrganizations(
       const keys = await sql<{ storage_key: string }>`
         select storage_key from app.org_purge_file_keys(${org.id}::uuid)`.execute(workerDb);
       // Hai pha như DSAR: object TRƯỚC (xoá thiếu object = lỗi ⇒ dừng tổ chức này, giữ hàng `files` để lượt sau thử lại).
-      for (const k of keys.rows) await deps.storage.delete(k.storage_key);
-      const r = await sql<{ res: { certificate_id: string; total_rows: number } | null }>`
-        select app.purge_organization(${org.id}::uuid) as res`.execute(workerDb);
+      const deleted: string[] = [];
+      for (const k of keys.rows) {
+        await deps.storage.delete(k.storage_key);
+        deleted.push(k.storage_key);
+      }
+      const r = await sql<{
+        res: {
+          certificate_id?: string;
+          total_rows?: number;
+          objects_deleted?: number;
+          skipped?: string;
+        } | null;
+      }>`
+        select app.purge_organization(${org.id}::uuid, ${deleted}::text[]) as res`.execute(workerDb);
       const res = r.rows[0]?.res;
-      if (res) {
+      if (res?.skipped) {
+        out.deferred += 1;
+        deps.log?.("tenancy.purge_deferred", { organization_id: org.id, reason: res.skipped });
+      } else if (res?.certificate_id) {
         out.purged += 1;
-        out.objectsDeleted += keys.rows.length;
+        out.objectsDeleted += res.objects_deleted ?? 0;
         deps.log?.("tenancy.purged", {
           organization_id: org.id,
           certificate_id: res.certificate_id,
           total_rows: res.total_rows,
-          objects_deleted: keys.rows.length,
+          objects_deleted: res.objects_deleted,
         });
       }
     } catch (error) {

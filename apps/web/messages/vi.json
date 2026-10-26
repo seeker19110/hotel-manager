@@ -4195,6 +4195,14 @@
     "message": "Quyền riêng tư và đồng ý",
     "description": "Liên kết tới /quyen-rieng-tu từ trang Bảo mật tài khoản và khung portal người thuê (T-2310)."
   },
+  "consent_offer.unsaved": {
+    "message": "Chưa lưu được lựa chọn cho phép thống kê sử dụng — hiện đang là không đồng ý. Bạn có thể chọn lại ở trang Quyền riêng tư.",
+    "description": "Thông báo không chặn (role=status) khi đã tick ô đồng ý ở form đăng ký/nhận lời mời nhưng ghi lựa chọn thất bại (T-2310)."
+  },
+  "consent_offer.open_privacy": {
+    "message": "Mở Quyền riêng tư",
+    "description": "Liên kết tới /quyen-rieng-tu trong thông báo chưa lưu được lựa chọn đồng ý."
+  },
   "consent_toggle.save": {
     "message": "Lưu lựa chọn",
     "description": "Nút lưu lựa chọn đồng ý của một mục đích ở trang Quyền riêng tư (cho và rút cùng số bước: đổi ô + Lưu)."

@@ -569,9 +569,12 @@ export function handleCommandStatus(commandId: string, req: Request, deps: HttpD
 async function runCommandStatus(commandId: string, req: Request, deps: HttpDeps): Promise<Response> {
   const correlationId = correlationOf(req);
   try {
-    const actor = await actorFromRequest(req, deps, correlationId, { allowPendingDeletion: true }); // chính lệnh của mình (xuất khi chờ xoá)
+    // Tổ chức chờ xoá: chỉ kết quả lệnh nhóm `exports.*` (xuất dữ liệu trong thời gian giữ — D-125); lệnh khác 423.
+    const actor = await actorFromRequest(req, deps, correlationId, { allowPendingDeletion: true });
     if (actor instanceof Response) return actor;
-    const r = await getCommandResult(deps.db, actor, commandId);
+    const r = await getCommandResult(deps.db, actor, commandId, {
+      allowWhenPendingDeletion: (command) => command.startsWith("exports."),
+    });
     const id = commandId.toLowerCase();
     if (r.status === "committed")
       return json({ command_id: id, status: "committed", data: r.data }, 200, correlationId);

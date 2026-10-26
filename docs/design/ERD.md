@@ -1844,7 +1844,7 @@ Loại: A · không có `organization_id` (đồng ý thuộc tài khoản, có 
 | ui_snapshot_hash | text | không | `CHECK (ui_snapshot_hash ~ '^[0-9a-f]{64}$')` | sha-256 của văn bản hiển thị, server tự tính từ catalog |
 | recorded_at | timestamptz | không | mặc định `now()` | Do CSDL đặt: `app_runtime` không có quyền INSERT cột này |
 
-- Khoá/index: `ix (subject_user_id, purpose, recorded_at DESC, seq DESC)` (hàng mới nhất, lịch sử theo người).
+- Khoá/index: `ix (subject_user_id, purpose, seq DESC)` (hàng mới nhất = `seq` lớn nhất — cấp lúc INSERT khi giữ khoá advisory; `recorded_at DEFAULT clock_timestamp()`), lịch sử theo người.
 - Ràng buộc đặc biệt: **append-only** — trigger `BEFORE UPDATE OR DELETE` (`app.forbid_mutation`) và trigger statement-level chặn `TRUNCATE`; `app_runtime` chỉ `SELECT` + `INSERT (id, subject_user_id, purpose, action, policy_version, channel, ui_snapshot_hash)`.
 - RLS/quyền đặc biệt: RLS bật + FORCE theo **ngữ cảnh người dùng** `app.user_id` (`withUserContext` của `@hm/db`, từ phiên đã xác minh ở server; `app.current_user_id()` ném `42501 USER_CONTEXT_MISSING` khi thiếu): chỉ đọc/chèn hàng `subject_user_id = app.current_user_id()`. `app_worker` không có quyền.
 - Bất biến: INV-G4; `track()` (analytics) chỉ ghi khi hàng mới nhất của (người thao tác, `analytics`) là `grant` theo đúng phiên bản văn bản hiện hành.
@@ -1871,9 +1871,10 @@ Loại: A · không có `organization_id` (tài khoản có thể không thuộc
 | legal_retention_note | text | có | 1…2000 ký tự; bắt buộc khi xoá `completed` | Phần giữ + căn cứ (Luật Kế toán 88/2015/QH13 Đ.41) |
 | result_file_key | text | có | `= 'dsar/<subject>/<id>.json'`, chỉ access completed | Khoá object gói truy cập |
 | result_expires_at | timestamptz | có | NULL ⇔ `result_file_key` NULL | Hạn tải |
+| pending_file_key | text | có | `= 'dsar/<subject>/<id>.json'`, chỉ access | Khoá object DỰ KIẾN: ghi lúc nhận việc (trước khi ghi gói), gỡ khi chốt hoặc khi yêu cầu đóng và object đã xoá (không gói mồ côi) |
 | updated_at | timestamptz | không | mặc định `now()` | |
 
-- Khoá/index: `uq (subject_user_id, type) WHERE status IN ('received','verified','processing')` (một yêu cầu mở cùng loại); `ix (subject_user_id, requested_at)`; `ix (due_at) WHERE` còn mở (nhận việc, metric); `ix (result_expires_at) WHERE result_file_key IS NOT NULL` (dọn gói).
+- Khoá/index: `uq (subject_user_id, type) WHERE status IN ('received','verified','processing')` (một yêu cầu mở cùng loại); `ix (subject_user_id, requested_at)`; `ix (due_at) WHERE` còn mở (nhận việc, metric); `ix (result_expires_at) WHERE result_file_key IS NOT NULL` (dọn gói); `ix (updated_at) WHERE pending_file_key IS NOT NULL` (dọn gói dự kiến của yêu cầu đã đóng).
 - RLS/quyền đặc biệt: RLS + FORCE theo `app.user_id`; `app_runtime` SELECT + INSERT theo cột (policy chỉ cho `verified` access/delete hoặc `completed` restrict); không UPDATE/DELETE. `app_worker` không có quyền bảng — chỉ hàm SECURITY DEFINER `app.dsar_claim`, `app.dsar_export_data`, `app.dsar_complete_access`, `app.dsar_erase_account`, `app.dsar_due_results`, `app.dsar_clear_result`; `app.dsar_sole_owner_orgs()` (app_runtime, chặn LAST_OWNER); `app.dsar_metrics(now)` (gauge `hm_dsar_overdue`).
 - Bất biến: xoá không đụng hoá đơn/sổ/`audit_events`/`consent_records`/`persons` (test `dsar.db.test.ts`).
 

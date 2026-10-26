@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import { expectAccessible } from "./a11y.ts";
 import { HOTEL_HK, INVITEE, INVITEE_EXPIRED_EMAIL, inviteTokensFile, ORG_HOTEL, portOf } from "./fixtures.ts";
-import { signInClick } from "./sign-in.ts";
+import { signInClick, signUpClick } from "./sign-in.ts";
 
 test.describe.configure({ mode: "serial" });
 
@@ -22,7 +22,7 @@ async function register(page: import("@playwright/test").Page, email: string, na
   await page.getByLabel("Họ và tên").fill(name);
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Mật khẩu").fill(PASSWORD);
-  await page.getByRole("button", { name: "Tạo tài khoản và tiếp tục" }).click();
+  await signUpClick(page, page.getByRole("button", { name: "Tạo tài khoản và tiếp tục" }));
 }
 
 test("thiếu token hoặc token sai dạng → báo liên kết không đầy đủ, không gọi API", async ({ page }) => {

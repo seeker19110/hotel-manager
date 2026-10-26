@@ -6,6 +6,7 @@ import { randomUUID } from "node:crypto";
 import { type Browser, expect, type Page, test } from "@playwright/test";
 import { expectAccessible } from "./a11y.ts";
 import { HOTEL_OWNER, PORTAL_TENANT, SMOKE_USER } from "./fixtures.ts";
+import { signUpClick } from "./sign-in.ts";
 
 test.describe.configure({ mode: "serial" });
 
@@ -23,7 +24,7 @@ async function signUp(page: Page, who: typeof ME, consent: boolean): Promise<voi
   await page.getByLabel("Email").fill(who.email);
   await page.getByLabel("Mật khẩu").fill(who.password);
   if (consent) await page.getByLabel(/Tôi đồng ý cho Hotel Manager đo lường/).check();
-  await page.getByRole("button", { name: "Tạo tài khoản" }).click();
+  await signUpClick(page);
   await expect(page).toHaveURL(/\/chon-to-chuc$/, { timeout: 15_000 });
 }
 

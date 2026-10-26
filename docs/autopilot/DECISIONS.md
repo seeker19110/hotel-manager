@@ -908,3 +908,10 @@
 - Chọn: Giữ chặn ở resolveActor; thêm: job nền chọn tổ chức chỉ lấy status='active' (dừng nhắc/email trong thời gian chờ xoá) và liên kết khách bằng token từ chối khi tổ chức không active; không thêm biến môi trường bật purge (bật production = người ghi grant data_delete hard_delete=true + bootWorker orgPurge); hạn giữ chứng nhận xoá chờ pháp lý
 - Lý do (tiêu chí chất lượng cuối): (1) đúng: tổ chức đã yêu cầu xoá thì ngừng xử lý dữ liệu khách/người thuê (tối thiểu hoá), liên kết khách là đường vào không qua resolveActor nên phải tự kiểm; (3) ít chỗ chạm hơn phương án 2, không làm gãy luồng export
 - Đường lùi: Bỏ điều kiện status trong bộ chọn job/guest link
+
+### D-127 · 2026-10-26T02:35:46+00:00 · Review lát D điểm 9: phiên tạo song song với xoá tài khoản
+
+- Phương án: (1) Giữ trigger BEFORE INSERT auth.session từ chối tài khoản đã ẩn danh (42501 ACCOUNT_DELETED) · (2) Bỏ trigger, chỉ ghi rủi ro
+- Chọn: Giữ trigger BEFORE INSERT auth.session từ chối tài khoản đã ẩn danh (42501 ACCOUNT_DELETED)
+- Lý do (tiêu chí chất lượng cuối): (1) đúng: đóng lỗ thật (có test đỏ trên mã cũ), quyền xoá phải dứt điểm; chi phí một lần tra PK mỗi đăng nhập; tài khoản tự đặt email dạng deleted+…@deleted.invalid chỉ tự chặn chính mình
+- Đường lùi: Drop trigger app.session_guard_erased bằng migration mới

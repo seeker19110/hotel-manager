@@ -8,7 +8,7 @@ import { writeFileSync } from "node:fs";
 import { expect, type Page, test } from "@playwright/test";
 import { expectAccessible } from "./a11y.ts";
 import { orgPurgeFile, portOf } from "./fixtures.ts";
-import { signInClick } from "./sign-in.ts";
+import { signInClick, signUpClick, twoFactorClick } from "./sign-in.ts";
 import { totp } from "./totp.ts";
 
 test.describe.configure({ mode: "serial" });
@@ -55,7 +55,7 @@ test("tạo tổ chức → yêu cầu xoá → huỷ → yêu cầu lại → p
   await page.getByLabel("Họ và tên").fill(USER.name);
   await page.getByLabel("Email").fill(USER.email);
   await page.getByLabel("Mật khẩu").fill(USER.password);
-  await page.getByRole("button", { name: "Tạo tài khoản" }).click();
+  await signUpClick(page);
   await expect(page).toHaveURL(/\/chon-to-chuc$/, { timeout: 15_000 });
 
   // Tạo tổ chức: số bước tham chiếu.
@@ -67,10 +67,11 @@ test("tạo tổ chức → yêu cầu xoá → huỷ → yêu cầu lại → p
   // Owner bắt buộc MFA (Q-06).
   await page.goto("/bao-mat");
   await page.getByLabel("Mật khẩu hiện tại").fill(USER.password);
-  await page.getByRole("button", { name: "Tiếp tục" }).click();
+  await twoFactorClick(page, page.getByRole("button", { name: "Tiếp tục" }));
   const secret = (await page.getByTestId("totp-secret").textContent()) ?? "";
-  await page.getByLabel("Mã xác thực 6 số").fill(totp(secret));
-  await page.getByRole("button", { name: "Xác nhận và bật" }).click();
+  const fillCode = () => page.getByLabel("Mã xác thực 6 số").fill(totp(secret));
+  await fillCode();
+  await twoFactorClick(page, page.getByRole("button", { name: "Xác nhận và bật" }), fillCode);
   await expect(page).toHaveURL(/\/chon-to-chuc$/, { timeout: 15_000 });
   // Đăng nhập lại bằng mật khẩu + mã để phiên mang cờ hai lớp.
   await page.context().clearCookies();

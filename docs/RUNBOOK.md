@@ -123,6 +123,7 @@ Vòng đời (T-2312, D-125): owner yêu cầu xoá ⇒ tổ chức `pending_del
 3. **Theo dõi**: log `tenancy.purged` (org, certificate_id, số hàng, số object), `tenancy.purge_failed` (lỗi kho ⇒ không purge, lượt sau thử lại — xem §3.8), `tenancy.purge_run`.
 4. **Huỷ thay người dùng** (hỗ trợ): không sửa tay trạng thái — owner huỷ một bước trên trang Tổ chức; ngoại lệ cần người duyệt.
 5. **Đường lùi**: tắt job (`orgPurge: false`); tổ chức đã purge chỉ khôi phục được bằng PITR toàn cụm (§4), không khôi phục riêng một tổ chức.
+6. **Điều kiện CSDL**: role sở hữu `app.purge_organization` (role chạy migration) phải là superuser hoặc `BYPASSRLS` — không thì `FORCE ROW LEVEL SECURITY` chặn xoá/ghi chứng nhận bên trong hàm (xem [deploy-rollback §3](ops/runbooks/deploy-rollback.md)). Log `tenancy.purge_deferred` = có file mới (vd bản xuất) ghi sau lúc liệt kê khoá ⇒ lượt sau làm lại, bình thường.
 
 ## 4. Sao lưu và khôi phục
 - Diễn tập PITR (dữ liệu giả, cluster tạm): `bash scripts/db-backup-restore-check.sh` — exit 0 = khôi phục đúng (so số dòng, Σ Nợ/Có, số policy RLS).

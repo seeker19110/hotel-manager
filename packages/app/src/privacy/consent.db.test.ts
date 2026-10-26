@@ -51,7 +51,7 @@ interface RawRow {
 const rowsOf = async (userId: string) =>
   (
     await sql<RawRow>`select subject_user_id, action, channel, policy_version, ui_snapshot_hash from consent_records
-                      where subject_user_id = ${userId} order by recorded_at, seq`.execute(t.admin)
+                      where subject_user_id = ${userId} order by seq`.execute(t.admin)
   ).rows;
 
 const analyticsGranted = async (userId: string) =>
@@ -127,6 +127,39 @@ describe("consent_records — bảng append-only theo tài khoản (migration 00
     );
     expect(rs.filter((r) => r.status === "recorded")).toHaveLength(1);
     expect(await rowsOf(u)).toHaveLength(1);
+  });
+
+  it("đồng thời ngược thứ tự: tx rút MỞ TRƯỚC nhưng lấy khoá SAU lần cho ⇒ trạng thái cuối = rút (hành động ghi sau)", async () => {
+    const u = await newUser();
+    await t.runtime.connection().execute(async (w) => {
+      await sql`begin`.execute(w);
+      try {
+        // Transaction W bắt đầu (now() cố định từ đây) TRƯỚC khi G chạy trọn vẹn.
+        await sql`select set_config('app.user_id', ${u}, true), now()`.execute(w);
+        await new Promise((r) => setTimeout(r, 20));
+        const g = await grantConsent(t.runtime, u, { purpose: "analytics", channel: "settings" });
+        expect(g.status).toBe("recorded");
+        // W lấy khoá SAU G (cùng khoá với setConsent), thấy grant ⇒ ghi withdraw như mã thật.
+        await sql`select pg_advisory_xact_lock(hashtextextended(${`consent:${u}:analytics`}, 0))`.execute(w);
+        await sql`insert into consent_records (id, subject_user_id, purpose, action, policy_version, channel, ui_snapshot_hash)
+                  values (${randomUUID()}, ${u}::uuid, 'analytics', 'withdraw', ${VERSION}, 'settings',
+                          ${uiSnapshotHash(purposeDef("analytics"))})`.execute(w);
+        await sql`commit`.execute(w);
+      } catch (e) {
+        await sql`rollback`.execute(w);
+        throw e;
+      }
+    });
+    expect(await analyticsGranted(u)).toBe(false);
+    expect(await hasConsent(t.runtime, u, "analytics")).toBe(false);
+    const hist = await consentHistory(t.runtime, u);
+    expect(hist.map((h) => h.action)).toEqual(["grant", "withdraw"]);
+    // Mốc bằng chứng cũng theo thứ tự ghi (clock_timestamp lúc INSERT, không phải giờ bắt đầu transaction).
+    expect(hist[1]?.recordedAt.getTime()).toBeGreaterThanOrEqual(hist[0]?.recordedAt.getTime() ?? Infinity);
+    // Lần cho tiếp theo đọc đúng trạng thái "đã rút" ⇒ ghi hàng mới (không bị coi là unchanged).
+    expect((await grantConsent(t.runtime, u, { purpose: "analytics", channel: "settings" })).status).toBe(
+      "recorded",
+    );
   });
 
   it("phiên bản văn bản client gửi khác bản hiện hành ⇒ ConsentError, không ghi; rút không cần khớp phiên bản", async () => {
