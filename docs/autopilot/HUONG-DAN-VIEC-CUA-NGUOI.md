@@ -238,3 +238,6 @@ Agent đã làm xong theo mặc định an toàn (mỗi mặc định có D-NNN 
 PR mới chạm auth/dữ liệu cần người merge (AGENTS §7). Migration 0074 giữ `purge_started_at` trước khi xoá file: có claim thì không thể huỷ, kể cả khi kho file lỗi. Khắc phục kho rồi chạy lại worker để hoàn tất; down bị chặn khi còn claim. Không xoá cờ bằng tay để mở lại quyền huỷ. Migration 0075 khoá người ở kèm trong lúc lưu trú và đọc giấy tờ. Production purge vẫn tắt theo D-125.
 
 B2.7 về IP: đã kiểm Caddy mặc định ở máy dev (3 ca header giả) và mã Better Auth 1.7.9; xem `docs/ops/runbooks/auth-proxy.md`. Khi triển khai VPS, thêm CDN hoặc đổi publish cổng, kiểm lại từ bên ngoài. Bằng chứng dev không thay thế cấu hình thực tế.
+
+
+D-137: WF-GIT-001 mở lại vì checker thấy 36 commit lịch sử ngoài squash PR khi clone đầy đủ. Cần quyết ngoại lệ/phạm vi lịch sử bằng bằng chứng; không force-push hoặc rewrite main. Mã sửa đợt 24 ở 66a458a đã qua cổng đầy đủ. Phần mã DSAR audit access/restrict (CMP-AUDIT-002) vẫn còn cho lát tiếp theo; không coi 75 MUST đều chỉ chờ người.

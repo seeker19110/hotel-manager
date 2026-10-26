@@ -2,7 +2,7 @@
 ## Đang làm
 - 2026-10-26 đợt 24 (D-134): từ `main` `3e41782` (#137–#139 đã merge), sửa suspended vẫn dùng cookie cũ, MFA/Retry-After 429, race huỷ tổ chức khi worker xoá object và retention người ở kèm. PLAN đợt 23 lưu tại `docs/autopilot/archive/PLAN-dot-23.md`.
 - Migration mới 0074 claim purge bền trước xoá object, lỗi kho giữ claim để retry; file đang tải lên hoãn purge, staging mới sau claim bị chặn; down từ chối khi còn claim. 0075 giữ khoá người ở kèm; đọc/tái dùng giấy tờ cũng giữ khoá người. Production purge tiếp tục TẮT (D-125).
-- Các test hồi quy đã tái hiện đỏ trên bản cũ; bằng chứng cổng từng task ở `.autopilot/evidence/`. Kiểm cuối và PR: xem Bàn giao phiên.
+- Các test hồi quy đã tái hiện đỏ trên bản cũ; bằng chứng cổng từng task ở `.autopilot/evidence/`. Cổng build/typecheck/lint/toàn bộ test exit 0 trên 66a458a; E2E chọn lọc mobile/desktop 8/8. Kiểm cuối và CI: xem PR và `.autopilot/verified.json`.
 - Lịch sử đợt cũ: `docs/autopilot/archive/PROGRESS-history.md`. MUST hiện đạt 367, miễn 59, mở 75; không tick thêm khi thiếu hạ tầng/pháp lý/thiết bị.
 
 ## Tiếp theo
@@ -31,5 +31,5 @@
 
 ## Bàn giao phiên
 - Checkout gốc `/home/liend/repos/hotel-manager` giữ nguyên nhánh audit và PROGRESS chưa commit của người dùng. Công việc mới ở worktree `/home/liend/repos/hotel-manager-autopilot`, nhánh `chore/autopilot-completion-2026-10-26` từ `3e41782`.
-- Lệnh cổng: `.xtemplates/scripts/dev-task.sh gate`; PostgreSQL 17 của máy dev tại `/home/liend/.local/opt/pg17-embedded/node_modules/@embedded-postgres/linux-x64/native/bin` (`PG_BIN`). Không dùng dữ liệu thật.
-- Trạng thái cuối cập nhật sau khi cổng tổng thể và review hoàn tất; không khai sẵn production GO. Khung doctor: 0 lỗi, cảnh báo phiên bản khung cũ; chưa nâng khung trong lát sửa lỗi này.
+- Lệnh cổng: `.xtemplates/scripts/dev-task.sh gate`; PostgreSQL 17 của máy dev tại `/home/liend/.local/opt/pg17-embedded/node_modules/@embedded-postgres/linux-x64/native/bin` (`PG_BIN`; bộ server 17 của máy thiếu psql, phiên này ghép client psql 18 trong `work/pg-bin`, không đổi server). Browser dùng thư viện user-local `work/browser-libs/usr/lib/x86_64-linux-gnu` qua `LD_LIBRARY_PATH`. Không dùng dữ liệu thật.
+- Mã sửa đã đẩy ở 66a458a; review độc lập không còn lỗi chặn, cổng đầy đủ xanh. Production vẫn NO-GO; còn mã DSAR audit access/restrict ở CMP-AUDIT-002 cho lát tiếp theo, cùng các mục cần quyết định/hạ tầng/thiết bị. Khung doctor: 0 lỗi, cảnh báo phiên bản khung cũ; chưa nâng khung trong lát sửa lỗi này.
