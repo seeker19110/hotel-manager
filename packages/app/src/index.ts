@@ -164,6 +164,7 @@ export {
   listMyRequests,
 } from "./portal/tenant.ts";
 export {
+  accountHasPassword,
   analyticsConsentView,
   CONSENT_CHANNELS,
   type ConsentChannel,
@@ -171,9 +172,18 @@ export {
   consentHistory,
   consentOverview,
   createAnalyticsConsentCheck,
+  createDsarRequest,
+  DSAR_ACCESS_TTL_HOURS,
+  DSAR_DAYS,
+  DSAR_DEFAULT_REGION,
+  type DsarOverview,
+  type DsarRequest,
+  type DsarType,
+  dsarOverview,
   grantConsent,
   type PurposeStatus,
   type PurposeView,
+  processDsarRequests,
   withdrawConsent,
 } from "./privacy/index.ts";
 export { type AutoApplyResult, applyBankTransaction } from "./reconciliation/auto-apply.ts";

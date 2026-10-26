@@ -12,6 +12,7 @@ import { randomUUID } from "node:crypto";
 import { setUserContext, withUserContext } from "@hm/db";
 import { type Kysely, sql, type Transaction } from "kysely";
 import type { AnalyticsDb, ConsentCheck } from "../analytics/index.ts";
+import { hasProcessingRestriction } from "./dsar.ts";
 import {
   type ConsentPurpose,
   isConsentPurpose,
@@ -198,14 +199,19 @@ const isTransaction = (db: AnalyticsDb): db is Transaction<unknown> =>
 const perTransaction = new WeakMap<object, Map<string, boolean>>();
 
 /**
- * Người dùng có đồng ý còn hiệu lực cho mục đích không. Trong transaction của lệnh: đọc trong SAVEPOINT riêng, đặt `app.user_id`
+ * Người dùng có đồng ý còn hiệu lực cho mục đích không — và KHÔNG đang hạn chế xử lý (T-2311, D-123: cờ `processing_restrictions`
+ * chặn mọi xử lý không bắt buộc, kể cả khi đã đồng ý). Trong transaction của lệnh: đọc trong SAVEPOINT riêng, đặt `app.user_id`
  * cục bộ rồi LÙI savepoint (giá trị cũ của `app.user_id` được khôi phục, transaction của lệnh không bị đổi ngữ cảnh, lỗi đọc không
  * làm transaction "aborted"); kết quả cache theo transaction. Ngoài transaction: mở transaction ngắn có ngữ cảnh người dùng.
  */
 export async function hasConsent(db: AnalyticsDb, userId: string, purpose: ConsentPurpose): Promise<boolean> {
   if (!isTransaction(db)) {
-    return withUserContext(db as Kysely<unknown>, userId, async (trx) =>
-      isEffectiveGrant(await latest(trx, userId, purpose), purpose),
+    return withUserContext(
+      db as Kysely<unknown>,
+      userId,
+      async (trx) =>
+        isEffectiveGrant(await latest(trx, userId, purpose), purpose) &&
+        !(await hasProcessingRestriction(trx, userId)),
     );
   }
   const key = `${userId}:${purpose}`;
@@ -215,7 +221,9 @@ export async function hasConsent(db: AnalyticsDb, userId: string, purpose: Conse
   let ok = false;
   try {
     await setUserContext(db, userId);
-    ok = isEffectiveGrant(await latest(db, userId, purpose), purpose);
+    ok =
+      isEffectiveGrant(await latest(db, userId, purpose), purpose) &&
+      !(await hasProcessingRestriction(db, userId));
   } finally {
     await sql`rollback to savepoint hm_consent`.execute(db);
   }

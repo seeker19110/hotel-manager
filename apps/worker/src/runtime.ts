@@ -20,6 +20,7 @@ import {
   loadWorkerConfig,
   type ObjectStorage,
   parseOutboxPayload,
+  processDsarRequests,
   purgeEventTables,
   purgeExpiredOperational,
   remindExpiring,
@@ -66,6 +67,8 @@ export interface Intervals {
   privacyRetention: number;
   /** Đối soát hằng ngày (IND-FIN-006). */
   reconciliation: number;
+  /** Yêu cầu quyền chủ thể: xuất dữ liệu, xoá tài khoản, dọn gói hết hạn (T-2311; hạn VN ngắn nhất 3 ngày). */
+  dsar: number;
 }
 
 export const DEFAULT_INTERVALS: Intervals = {
@@ -82,6 +85,7 @@ export const DEFAULT_INTERVALS: Intervals = {
   eventsRetention: HOUR, // xoá theo lô có trần; tồn đọng lớn được dọn dần qua các lượt
   privacyRetention: 24 * HOUR, // hạn tính theo ngày/tháng — hằng ngày là đủ; tồn đọng dọn dần qua các lượt
   reconciliation: 24 * HOUR,
+  dsar: 2 * MINUTE, // hạn trả lời tính theo ngày; nhịp vài phút để người dùng nhận gói/xoá xong gần như ngay
 };
 
 export const DEFAULT_STOP_TIMEOUT_MS = 25_000;
@@ -279,6 +283,17 @@ export async function startWorker(deps: WorkerDeps): Promise<WorkerHandle> {
           () => purgeExpiredOperational(workerDb, { now: new Date(), log: (e, f) => log.info(e, f) }),
           () => anonymizeExpiredPeople(workerDb, { now: new Date(), log: (e, f) => log.info(e, f) }),
         ]),
+    },
+    {
+      // Quyền chủ thể (D-123): xử lý yêu cầu truy cập/xoá đến hạn (SKIP LOCKED — nhiều worker an toàn), rồi dọn gói hết hạn.
+      // Tắt (đường lùi D-123): bỏ mục này; yêu cầu nằm lại `verified` và metric hm_dsar_overdue báo khi quá hạn.
+      name: "privacy.dsar",
+      everyMs: iv.dsar,
+      run: () =>
+        processDsarRequests(workerDb, {
+          storage,
+          log: (e, f) => log.info(e, f),
+        }),
     },
   ];
   const sender = deps.sender;

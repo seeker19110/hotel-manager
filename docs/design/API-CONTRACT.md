@@ -104,6 +104,8 @@ Danh sách đầy đủ command/query nằm ở `apps/web/openapi.json` (sinh t�
 | GET | `/api/version` | Phiên bản build + `min_client_version` (công khai, không dữ liệu người dùng; SPEC-pwa S-009) |
 | GET | `/api/v1/me` | Người dùng, danh sách tổ chức/vai trò, tổ chức đang chọn |
 | GET/POST | `/api/v1/me/consents` | Đồng ý theo mục đích của chính người đăng nhập (T-2310, D-122): GET trạng thái + lịch sử (`?download=1` tải JSON); POST `{purpose, granted, channel, policy_version?}` cho/rút cùng một bước — idempotent theo trạng thái (không cần `Idempotency-Key`), phiên bản văn bản cũ ⇒ 409 `VERSION_CONFLICT` |
+| GET/POST | `/api/v1/me/data-requests` | Yêu cầu quyền chủ thể của chính người đăng nhập (T-2311, D-123): GET danh sách + `restricted_at`; POST `{type: access\|delete\|restrict, password?}` ⇒ 202 tạo mới / 200 đã có yêu cầu mở cùng loại (idempotent, không cần `Idempotency-Key`); xoá cần xác thực lại (phiên ≤ 5 phút hoặc `password`) ⇒ thiếu/sai 401 `REAUTH_REQUIRED` (`reason`), owner duy nhất 409 `LAST_OWNER`, quá hạn mức 429 |
+| GET | `/api/v1/me/data-requests/{id}/download` | 303 tới URL ký ≤ 5 phút của gói JSON; chưa xong 409 `EXPORT_NOT_READY`, hết hạn 410 `LINK_EXPIRED`, không phải của mình 404 |
 | GET | `/api/v1/commands/{command_id}` | Kết quả một command (chỉ người tạo hoặc quản lý xem được) |
 | POST | `/api/v1/session/switchOrganization` | Đổi tổ chức/cơ sở đang chọn (cần `Idempotency-Key`) |
 | POST | `/api/v1/files/upload` · `/api/v1/import/upload` | Tải file (thân là byte; quét mã độc, kiểm MIME bằng magic bytes) / tải file import |

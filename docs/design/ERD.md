@@ -1832,7 +1832,7 @@ Loại: A · không có `organization_id` (đồng ý thuộc tài khoản, có 
 | Cột | Kiểu | Null | Ràng buộc/mặc định | Ghi chú |
 |---|---|---|---|---|
 | seq | bigint | không | `GENERATED ALWAYS AS IDENTITY` | Phá hoà khi hai hàng cùng transaction (`now()` bằng nhau) |
-| subject_user_id | uuid | không | **không FK** (không FK từ bảng nghiệp vụ sang `auth`) | Id `auth.user` của chủ thể; số phận hàng khi xoá tài khoản: T-2311 |
+| subject_user_id | uuid | không | **không FK** (không FK từ bảng nghiệp vụ sang `auth`) | Id `auth.user` của chủ thể; xoá tài khoản (T-2311, D-123) GIỮ hàng làm bằng chứng — id chỉ còn là bí danh của tài khoản đã ẩn danh |
 | purpose | text | không | `CHECK (purpose IN ('analytics'))` | Khớp `CONSENT_PURPOSES` (test `consent.db.test.ts`); thêm mục đích = migration nới CHECK |
 | action | text | không | `CHECK (action IN ('grant','withdraw'))` | |
 | policy_version | text | không | `CHECK (policy_version ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}(\.[0-9]{1,3})?$')` | Phiên bản văn bản đã hiển thị; đồng ý theo bản cũ không còn hiệu lực |
@@ -1844,6 +1844,49 @@ Loại: A · không có `organization_id` (đồng ý thuộc tài khoản, có 
 - Ràng buộc đặc biệt: **append-only** — trigger `BEFORE UPDATE OR DELETE` (`app.forbid_mutation`) và trigger statement-level chặn `TRUNCATE`; `app_runtime` chỉ `SELECT` + `INSERT (id, subject_user_id, purpose, action, policy_version, channel, ui_snapshot_hash)`.
 - RLS/quyền đặc biệt: RLS bật + FORCE theo **ngữ cảnh người dùng** `app.user_id` (`withUserContext` của `@hm/db`, từ phiên đã xác minh ở server; `app.current_user_id()` ném `42501 USER_CONTEXT_MISSING` khi thiếu): chỉ đọc/chèn hàng `subject_user_id = app.current_user_id()`. `app_worker` không có quyền.
 - Bất biến: INV-G4; `track()` (analytics) chỉ ghi khi hàng mới nhất của (người thao tác, `analytics`) là `grant` theo đúng phiên bản văn bản hiện hành.
+
+### `dsar_requests`
+Yêu cầu quyền chủ thể của **tài khoản** (STD-PRIV-004, CMP-RIGHTS-007, CMP-VN-007, CMP-INTL-007; D-123, T-2311, migration 0069): truy cập (gói JSON dữ liệu của chính mình ở kho object riêng tư, hạn tải 72 giờ), xoá tài khoản (worker ẩn danh `auth.user`, thu hồi phiên/membership, giữ hoá đơn/sổ/audit), hạn chế xử lý (bật `processing_restrictions` ngay). Hạn `due_at` theo vùng ở `packages/app/src/privacy/dsar-policy.ts`.
+
+Chủ module: Privacy
+
+Loại: A · không có `organization_id` (tài khoản có thể không thuộc tổ chức nào; xoá tác động mọi tổ chức — ngoại lệ IND-SAAS-001)
+
+| Cột | Kiểu | Null | Ràng buộc/mặc định | Ghi chú |
+|---|---|---|---|---|
+| subject_user_id | uuid | không | **không FK** | Id `auth.user` |
+| type | text | không | `CHECK (type IN ('access','delete','restrict'))` | |
+| status | text | không | `CHECK (status IN ('received','verified','processing','completed','rejected'))`, mặc định `received` | Đóng (completed/rejected) ⇔ có `completed_at` |
+| region | text | không | `CHECK (region IN ('VN','EU','UK','CA','SG','TH'))` | Khớp `DSAR_REGIONS` (test DB) |
+| requested_at | timestamptz | không | mặc định `now()` | Do CSDL đặt |
+| due_at | timestamptz | không | `CHECK (due_at > requested_at)` | `requested_at + dsar_days(vùng, loại)` |
+| verified_at | timestamptz | có | bắt buộc trừ received/rejected | Phiên đã xác minh / xác thực lại (xoá) |
+| processing_started_at | timestamptz | có | bắt buộc khi `processing` | Treo quá 15 phút ⇒ worker nhận lại |
+| completed_at | timestamptz | có | | |
+| result_summary | jsonb | có | object | Số đếm/mã lý do, không PII |
+| legal_retention_note | text | có | 1…2000 ký tự; bắt buộc khi xoá `completed` | Phần giữ + căn cứ (Luật Kế toán 88/2015/QH13 Đ.41) |
+| result_file_key | text | có | `= 'dsar/<subject>/<id>.json'`, chỉ access completed | Khoá object gói truy cập |
+| result_expires_at | timestamptz | có | NULL ⇔ `result_file_key` NULL | Hạn tải |
+| updated_at | timestamptz | không | mặc định `now()` | |
+
+- Khoá/index: `uq (subject_user_id, type) WHERE status IN ('received','verified','processing')` (một yêu cầu mở cùng loại); `ix (subject_user_id, requested_at)`; `ix (due_at) WHERE` còn mở (nhận việc, metric); `ix (result_expires_at) WHERE result_file_key IS NOT NULL` (dọn gói).
+- RLS/quyền đặc biệt: RLS + FORCE theo `app.user_id`; `app_runtime` SELECT + INSERT theo cột (policy chỉ cho `verified` access/delete hoặc `completed` restrict); không UPDATE/DELETE. `app_worker` không có quyền bảng — chỉ hàm SECURITY DEFINER `app.dsar_claim`, `app.dsar_export_data`, `app.dsar_complete_access`, `app.dsar_erase_account`, `app.dsar_due_results`, `app.dsar_clear_result`; `app.dsar_sole_owner_orgs()` (app_runtime, chặn LAST_OWNER); `app.dsar_metrics(now)` (gauge `hm_dsar_overdue`).
+- Bất biến: xoá không đụng hoá đơn/sổ/`audit_events`/`consent_records`/`persons` (test `dsar.db.test.ts`).
+
+### `processing_restrictions`
+Cờ hạn chế xử lý theo tài khoản (D-123, T-2311): có hàng ⇒ bộ kiểm đồng ý analytics trả từ chối (xử lý không bắt buộc dừng). Chưa có luồng gỡ cờ.
+
+Chủ module: Privacy
+
+Loại: A · không có `organization_id` (ngoại lệ IND-SAAS-001)
+
+| Cột | Kiểu | Null | Ràng buộc/mặc định | Ghi chú |
+|---|---|---|---|---|
+| subject_user_id | uuid | không | PK, **không FK** | Id `auth.user` |
+| request_id | uuid | không | FK → `dsar_requests(id)` `ON DELETE RESTRICT`, có index | Yêu cầu restrict đã bật cờ |
+| restricted_at | timestamptz | không | mặc định `now()` | |
+
+- RLS/quyền đặc biệt: RLS + FORCE theo `app.user_id`; `app_runtime` SELECT + INSERT (subject_user_id, request_id).
 
 ## 4. Bảng do Better Auth quản lý (schema `auth`)
 
@@ -1859,7 +1902,7 @@ Better Auth chạy trong `apps/web`, dùng adapter Kysely/`pg` trên **cùng** P
 
 Hàm `SECURITY DEFINER` phạm vi hẹp (thay cho BYPASSRLS/policy rộng; mỗi hàm `REVOKE ALL FROM PUBLIC` rồi chỉ cấp cho role cần):
 `app.list_my_organizations(auth_user_id)` (liệt kê tổ chức của chính người đăng nhập trước khi có ngữ cảnh tổ chức — 0002) ·
-`app.current_user_id()` (không SECURITY DEFINER: đọc ngữ cảnh người dùng `app.user_id` cho RLS bảng theo tài khoản `consent_records` — 0068) ·
+`app.current_user_id()` (không SECURITY DEFINER: đọc ngữ cảnh người dùng `app.user_id` cho RLS bảng theo tài khoản `consent_records` — 0068, `dsar_requests`/`processing_restrictions` — 0069) ·
 `app.outbox_claim`/`app.outbox_mark` (relay của worker — 0003) · `app.expire_holds` (job — 0004) ·
 `app.receiving_account_owner` (định tuyến webhook ngân hàng — 0005) · `app.actor_role()` (RLS lớp 3 theo vai trò cho giấy tờ — 0006).
 `app.rate_limit_hit(scope, subject, limit, window_seconds, now)` (bộ đếm giới hạn tần suất dùng chung giữa instance cho tải file/nhập liệu/webhook — bảng toàn cục `rate_limit_counters`, khoá advisory theo (scope, subject), lượt bị từ chối không tăng bộ đếm — 0053).

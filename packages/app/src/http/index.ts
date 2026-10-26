@@ -13,6 +13,14 @@ export {
   type UserCommandDef,
 } from "./command-route.ts";
 export { handleGetConsents, handleSetConsent, setConsentInput } from "./consents.ts";
+export {
+  createDataRequestInput,
+  type DataRequestDeps,
+  handleCreateDataRequest,
+  handleDownloadDataRequest,
+  handleListDataRequests,
+  type VerifyPassword,
+} from "./data-requests.ts";
 export { handleFileUpload } from "./file-upload.ts";
 export { handleGuestStay } from "./guest-stay.ts";
 export { handleImportUpload } from "./import-upload.ts";

@@ -12,7 +12,7 @@
 # kèm `art9_note`). Lưu ý: Luật 91/2025/QH15 không có cơ sở "lợi ích hợp pháp" như GDPR — các mục `legitimate_interests`
 # (nhật ký an toàn hệ thống) cần pháp lý chọn cơ sở tương ứng theo luật VN (chưa xác minh).
 version: 1
-updated: 2026-10-25
+updated: 2026-10-26
 status: "đề xuất — chờ DPIA và pháp lý duyệt"
 defaults:
   storage: "Postgres 17 tự host (VPS tại VN — chưa mua)"
@@ -451,8 +451,24 @@ entries:
     purpose: "Bằng chứng đồng ý theo mục đích (analytics) của chính tài khoản: ai, cho/rút, phiên bản + băm văn bản đã thấy, kênh, thời điểm (T-2310, D-122); quyết định `track()` có ghi `product_events` hay không"
     legal_basis: "nghĩa vụ chứng minh đã có đồng ý hợp lệ của bên kiểm soát (Luật 91/2025/QH15 Đ.9 — đề xuất; số điều chưa đối chiếu bản gốc)"
     legal_basis_code: "legal_obligation"
-    retention: "Append-only, chưa có job xoá: giữ trong thời gian tài khoản còn tồn tại; số phận khi xoá tài khoản do T-2311 (DSAR) quyết — chờ pháp lý chốt thời hạn giữ bằng chứng"
+    retention: "Append-only, không xoá: GIỮ cả sau khi xoá tài khoản làm bằng chứng đã có/đã rút đồng ý (D-123) — khi đó `subject_user_id` chỉ còn là id bí danh của `auth.user` đã ẩn danh (không email/tên), bảng không có PII khác; chờ pháp lý chốt thời hạn giữ bằng chứng"
     notes: "Id `auth.user`, không khoá ngoại (ERD §4); RLS theo ngữ cảnh người dùng `app.user_id` — chỉ chính chủ đọc/ghi; trigger chặn UPDATE/DELETE/TRUNCATE"
+  - table: "public.dsar_requests"
+    column: "subject_user_id"
+    classification: "co_ban"
+    purpose: "Hồ sơ yêu cầu quyền chủ thể của chính tài khoản (truy cập, xoá, hạn chế xử lý): loại, trạng thái, vùng, hạn trả lời, kết quả tóm tắt (T-2311, D-123)"
+    legal_basis: "nghĩa vụ pháp lý — đáp ứng và chứng minh đã đáp ứng quyền của chủ thể trong thời hạn (Luật 91/2025/QH15 — đề xuất; điều khoản và thời hạn VN theo nguồn thứ cấp, chưa đối chiếu bản gốc)"
+    legal_basis_code: "legal_obligation"
+    retention: "Giữ cả sau khi xoá tài khoản (bằng chứng đã đáp ứng yêu cầu; chỉ còn id bí danh) — chưa có job xoá, chờ pháp lý chốt thời hạn; gói dữ liệu truy cập (object `dsar/<id tài khoản>/<id yêu cầu>.json`) xoá khi hết hạn tải 7 ngày (job `privacy.dsar`)"
+    notes: "Id `auth.user`, không khoá ngoại (ERD §4); RLS theo ngữ cảnh người dùng `app.user_id`; chuyển trạng thái chỉ qua hàm SECURITY DEFINER của worker"
+  - table: "public.processing_restrictions"
+    column: "subject_user_id"
+    classification: "co_ban"
+    purpose: "Cờ hạn chế xử lý theo tài khoản: có cờ ⇒ mọi xử lý không bắt buộc (hiện là analytics `track()`) từ chối (T-2311, D-123)"
+    legal_basis: "nghĩa vụ pháp lý — thực hiện quyền hạn chế xử lý của chủ thể (Luật 91/2025/QH15 — đề xuất; chưa đối chiếu bản gốc)"
+    legal_basis_code: "legal_obligation"
+    retention: "Giữ trong thời gian tài khoản còn tồn tại và sau khi xoá (chỉ id bí danh) — chưa có luồng gỡ cờ"
+    notes: "Id `auth.user`, không khoá ngoại; RLS theo ngữ cảnh người dùng `app.user_id`"
 not_pii:
   - table: "public.product_events"
     column: "name"
@@ -488,6 +504,18 @@ not_pii:
     column: "bank_code"
     reason: "Mã ngân hàng công khai (ví dụ BIN/mã ngân hàng), không định danh người; số/tên tài khoản được khai riêng ở entries"
 free_text:
+  - table: "public.dsar_requests"
+    column: "result_summary"
+    risk: "khong_pii"
+    note: "Chỉ số đếm (phiên thu hồi, membership thu hồi, sự kiện gỡ liên kết…), mã lý do (`last_owner`, `account_deleted`) và danh sách tên kho được giữ — do hàm SECURITY DEFINER/worker dựng, không nhận từ người dùng"
+  - table: "public.dsar_requests"
+    column: "legal_retention_note"
+    risk: "khong_pii"
+    note: "Văn bản cố định của hệ thống (khoá i18n `privacy.dsar.retention_note`): phần dữ liệu còn giữ sau khi xoá và căn cứ (Luật Kế toán 88/2015/QH13 Đ.41) — không có dữ liệu người dùng"
+  - table: "public.dsar_requests"
+    column: "result_file_key"
+    risk: "khong_pii"
+    note: "Khoá object máy sinh `dsar/<uuid tài khoản>/<uuid yêu cầu>.json` (CHECK ở CSDL); nội dung object là gói dữ liệu của chính chủ thể — riêng tư, URL ký ≤ 5 phút, xoá khi hết hạn tải"
   - table: "public.consent_records"
     column: "ui_snapshot_hash"
     risk: "khong_pii"

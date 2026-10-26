@@ -4,6 +4,9 @@
 > trên). `scripts/privacy-docs.mjs` (job new-deps): `updated:` của tệp trong thư mục không được mới hơn mục mới nhất; quá 6 tháng
 > không có mục mới → cảnh báo rà lại (mốc cập nhật theo NĐ 356/2025 — chưa xác minh số điều).
 
+## 2026-10-26
+- `data-map.yaml`, `ROPA.md` (T-2311, D-123): thêm `dsar_requests` (yêu cầu quyền chủ thể theo tài khoản: truy cập/xoá/hạn chế, hạn theo vùng — VN xoá 3/truy cập 10/hạn chế 3 ngày, chưa xác minh, nguồn thứ cấp; EU/UK/SG/TH 30; CA 45) và `processing_restrictions` (cờ hạn chế ⇒ analytics từ chối). `consent_records`: GIỮ sau khi xoá tài khoản làm bằng chứng (chỉ id bí danh). Xoá tài khoản lan mọi kho (auth, phiên, membership, analytics, file bản xuất, gói DSAR) và giữ hoá đơn/sổ/audit/persons có căn cứ (Luật Kế toán 88/2015/QH13 Đ.41). ROPA §Quyền của chủ thể có quy trình, hạn, kho; retention RET-20/21.
+
 ## 2026-10-25
 - `data-map.yaml` (T-2310, D-122): thêm `consent_records` (bằng chứng đồng ý theo mục đích, append-only, theo tài khoản; RLS chỉ chính chủ): danh mục mục đích trong mã (`packages/app/src/privacy/purposes.ts` — chỉ `analytics` cần đồng ý; cung cấp dịch vụ = hợp đồng, nghĩa vụ pháp lý = không cần đồng ý); thu ở đăng ký/nhận lời mời/portal (ô KHÔNG tick sẵn), rút ở trang Quyền riêng tư cùng số bước; `track()` nay chỉ ghi khi có đồng ý còn hiệu lực theo đúng phiên bản văn bản. Không có bên thứ ba nhận ⇒ lan việc rút tới bên thứ ba: không áp dụng. Hạn giữ khi xoá tài khoản: T-2311.
 - `data-map.yaml` (T-2309, D-118): thêm `product_events` (analytics sản phẩm tự host — ID nội bộ/enum/số, không PII, không SDK/cookie phía client): chỉ ghi khi chủ thể đồng ý mục đích analytics (mặc định từ chối tới khi nối `consent_records`, T-2310); giữ 13 tháng lịch (RET-19); `actor_user_id` gỡ liên kết khi xoá tài khoản (T-2311).

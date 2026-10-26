@@ -25,6 +25,7 @@ const FAST = {
   overdue: 100,
   exports: 100,
   retention: 100,
+  dsar: 100,
 };
 
 function envOf(): Record<string, string> {
@@ -211,6 +212,7 @@ describe("worker chạy thật", () => {
       "import.retention",
       "events.retention",
       "privacy.retention",
+      "privacy.dsar",
       "notifications.send_due",
     ];
     await waitFor(() => expected.every((j) => cap.lines.some((l) => l.msg === "job.done" && l.job === j)));

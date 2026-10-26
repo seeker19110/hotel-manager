@@ -49,7 +49,7 @@
   },
   "packages/app/src/http/openapi.ts": {
     "reason": "Mô tả OpenAPI (apps/web/openapi.json, `pnpm openapi`) — tài liệu cho nhà phát triển tích hợp API, không hiện cho người dùng sản phẩm.",
-    "max": 54
+    "max": 64
   },
   "packages/app/src/http/security.ts": {
     "reason": "Chuỗi duy nhất là Error lập trình khi nonce CSP sai dạng trong buildCsp (proxy) — không ra API/UI. Module được client import (`@hm/app/http` → safeUrl) nên không được import catalog (D-098).",
@@ -61,7 +61,7 @@
   },
   "packages/app/src/observability/metrics.ts": {
     "reason": "Chuỗi HELP của metric Prometheus (/api/metrics, chỉ nội bộ) — chỉ người vận hành/dashboard thấy.",
-    "max": 26
+    "max": 27
   },
   "packages/app/src/outbox/payloads.ts": {
     "reason": "InvalidJobPayloadError khi payload job outbox sai schema — lỗi nội bộ của worker, chỉ vào log/dead-letter, không ra API/UI.",

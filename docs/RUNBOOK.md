@@ -109,6 +109,13 @@ Cảnh báo `HmEmailBudgetHigh` (≥ 80%) / `HmEmailBudgetExhausted` (100%); met
 4. Hệ quả cần biết: mỗi lần gọi nhà cung cấp tính một lượt kể cả khi lỗi tạm (không hoàn lượt) — nhà cung cấp sập kéo dài làm các lần thử lại ăn ngân sách; có thể chạm 100% và chặn cả `account_security`/lời mời tới 00:00 UTC. Khi thấy `HmEmailBudgetExhausted` cùng `HmNotificationDead`/lỗi nhà cung cấp, sửa nhà cung cấp trước; thư vẫn không mất (được hoãn tới ngày sau).
 5. Không sửa tay `email_budget_days` để "xả" ngân sách; nâng trần cần đổi hằng bằng PR có review. Mã OTP đăng nhập người thuê chưa qua ngân sách (không gắn tổ chức, chưa có adapter SMTP thật — D-058).
 
+### 3.13 Yêu cầu quyền chủ thể quá hạn
+Cảnh báo `HmDsarOverdue` (`hm_dsar_overdue > 0` liên tục 15 phút): yêu cầu truy cập/xoá còn mở đã quá `due_at` (hạn theo vùng — `packages/app/src/privacy/dsar-policy.ts`; VN xoá 3 ngày). Đây là nghĩa vụ pháp lý: xử lý trong ngày.
+1. Yêu cầu nào: `select id, type, status, region, requested_at, due_at, processing_started_at from dsar_requests where status in ('received','verified','processing') and due_at < now() order by due_at;` (vai trò quản trị; không in email).
+2. Worker còn chạy? (`hm_worker_heartbeat_age_seconds`, §8) — job `privacy.dsar` mỗi 2 phút. Log `dsar.request_failed` (kèm `request_id`) cho biết lỗi: kho object (§3.8), CSDL. Yêu cầu `processing` treo > 15 phút được nhận lại tự động ở lượt sau.
+3. Xoá bị `rejected` lý do `last_owner` không tính quá hạn (đã đóng) — liên hệ người dùng để chuyển quyền chủ sở hữu/xoá tổ chức rồi gửi lại.
+4. Không sửa tay trạng thái để "tắt" cảnh báo; đường lùi D-123 (tắt job) chỉ khi job gây hại — khi đó yêu cầu nằm lại và cảnh báo tiếp tục báo.
+
 ## 4. Sao lưu và khôi phục
 - Diễn tập PITR (dữ liệu giả, cluster tạm): `bash scripts/db-backup-restore-check.sh` — exit 0 = khôi phục đúng (so số dòng, Σ Nợ/Có, số policy RLS).
 - Khi chạy thật (chờ quyết — PROGRESS "Chờ người"): pgBackRest repo mã hoá ở **máy khác**, giữ khoá `PGBACKREST_REPO_CIPHER_PASS` ngoài máy chủ; diễn tập khôi phục định kỳ.

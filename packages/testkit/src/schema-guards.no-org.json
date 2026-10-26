@@ -7,6 +7,8 @@
     "rate_limit_counters": "Bộ đếm hạn mức tần suất upload/webhook (0053, D-037): khoá `(scope, subject, window_start)` — có phạm vi theo nhà cung cấp webhook trước khi biết tổ chức; không dữ liệu nghiệp vụ, chỉ hàm SECURITY DEFINER app.rate_limit_hit đọc/ghi.",
     "kysely_migration": "Sổ migration của Kysely (hạ tầng migrator), không phải dữ liệu nghiệp vụ.",
     "kysely_migration_lock": "Khoá migrator của Kysely (hạ tầng), không phải dữ liệu nghiệp vụ.",
-    "consent_records": "Bằng chứng đồng ý theo mục đích của TÀI KHOẢN (0068, D-122): đồng ý có từ lúc đăng ký, trước khi thuộc tổ chức nào; RLS theo ngữ cảnh người dùng `app.user_id` (`app.current_user_id()`), chỉ chính chủ SELECT/INSERT, append-only."
+    "consent_records": "Bằng chứng đồng ý theo mục đích của TÀI KHOẢN (0068, D-122): đồng ý có từ lúc đăng ký, trước khi thuộc tổ chức nào; RLS theo ngữ cảnh người dùng `app.user_id` (`app.current_user_id()`), chỉ chính chủ SELECT/INSERT, append-only.",
+    "dsar_requests": "Yêu cầu quyền chủ thể (truy cập/xoá/hạn chế) của TÀI KHOẢN (0069, D-123): tài khoản có thể không thuộc tổ chức nào, xoá tài khoản tác động mọi tổ chức; RLS theo ngữ cảnh người dùng `app.user_id`, chỉ chính chủ SELECT/INSERT, chuyển trạng thái chỉ qua hàm SECURITY DEFINER của worker.",
+    "processing_restrictions": "Cờ hạn chế xử lý theo TÀI KHOẢN (0069, D-123): áp cho mọi xử lý không bắt buộc của tài khoản ở mọi tổ chức; RLS theo ngữ cảnh người dùng `app.user_id`, chỉ chính chủ SELECT/INSERT."
   }
 }

@@ -3406,5 +3406,33 @@
   "privacy.policy_outdated": {
     "message": "Nội dung đã được cập nhật. Vui lòng tải lại trang để xem bản mới trước khi chọn.",
     "description": "`title` problem+json (409 VERSION_CONFLICT) khi POST /api/v1/me/consents gửi đồng ý theo phiên bản văn bản cũ hơn bản hiện hành của mục đích."
+  },
+  "privacy.dsar.reauth_required": {
+    "message": "Cần xác thực lại trước khi xoá tài khoản: nhập lại mật khẩu, hoặc đăng nhập lại rồi gửi yêu cầu trong vòng 5 phút.",
+    "description": "Yêu cầu quyền chủ thể (DSAR — T-2311, D-123): `title` problem+json 401 REAUTH_REQUIRED khi POST /api/v1/me/data-requests loại xoá mà phiên cũ hơn 5 phút và không kèm mật khẩu."
+  },
+  "privacy.dsar.password_invalid": {
+    "message": "Mật khẩu không đúng. Tài khoản chưa bị xoá.",
+    "description": "Yêu cầu quyền chủ thể (DSAR — T-2311, D-123): `title` problem+json 401 REAUTH_REQUIRED (reason invalid_password) khi mật khẩu nhập lại để xác nhận xoá tài khoản sai."
+  },
+  "privacy.dsar.last_owner": {
+    "message": "Bạn đang là chủ sở hữu duy nhất của một tổ chức. Hãy chuyển quyền chủ sở hữu cho người khác hoặc xoá tổ chức trước khi xoá tài khoản.",
+    "description": "Yêu cầu quyền chủ thể (DSAR — T-2311, D-123): `title` problem+json 409 LAST_OWNER khi yêu cầu xoá tài khoản của người là owner active duy nhất của ít nhất một tổ chức."
+  },
+  "privacy.dsar.rate_limited": {
+    "message": "Bạn gửi quá nhiều yêu cầu. Vui lòng thử lại sau ít phút.",
+    "description": "Yêu cầu quyền chủ thể (DSAR — T-2311, D-123): `title` problem+json 429 RATE_LIMITED khi vượt hạn mức tạo yêu cầu hoặc số lần nhập lại mật khẩu."
+  },
+  "privacy.dsar.not_ready": {
+    "message": "Gói dữ liệu của bạn đang được chuẩn bị. Vui lòng quay lại sau ít phút.",
+    "description": "Yêu cầu quyền chủ thể (DSAR — T-2311, D-123): `title` problem+json 409 EXPORT_NOT_READY khi tải gói dữ liệu truy cập chưa xong."
+  },
+  "privacy.dsar.link_expired": {
+    "message": "Gói dữ liệu này đã hết hạn tải. Hãy gửi yêu cầu mới.",
+    "description": "Yêu cầu quyền chủ thể (DSAR — T-2311, D-123): `title` problem+json 410 LINK_EXPIRED khi tải gói dữ liệu truy cập đã quá hạn."
+  },
+  "privacy.dsar.retention_note": {
+    "message": "Đã xoá thông tin đăng nhập, phiên và liên kết phân tích của tài khoản. Được giữ lại theo nghĩa vụ pháp lý: hoá đơn, chứng từ và sổ kế toán liên quan (tối thiểu 10 năm — Luật Kế toán 88/2015/QH13, Điều 41), nhật ký kiểm toán của tổ chức, hồ sơ người trong tổ chức (do cơ sở lưu trú quản lý, ẩn danh theo hạn lưu) và bằng chứng đồng ý/yêu cầu quyền (chỉ còn mã tài khoản, không còn email/tên).",
+    "description": "Yêu cầu quyền chủ thể (DSAR — T-2311, D-123): ghi chú `legal_retention_note` lưu cùng yêu cầu xoá đã hoàn tất: phần dữ liệu được giữ và căn cứ. Hiển thị cho người dùng/kiểm toán."
   }
 }

@@ -993,6 +993,8 @@ describe("BE-API-009 — route không guard = danh sách công khai đã duyệt
     "v1/commands/[id]/route.ts": /handleCommandStatus/,
     "v1/me/route.ts": /getSession/,
     "v1/me/consents/route.ts": /handleGetConsents[\s\S]*handleSetConsent/,
+    "v1/me/data-requests/route.ts": /handleListDataRequests[\s\S]*handleCreateDataRequest/,
+    "v1/me/data-requests/[id]/download/route.ts": /handleDownloadDataRequest/,
     "v1/session/switchOrganization/route.ts": /handleSwitchOrganization/,
     "v1/files/upload/route.ts": /handleFileUpload/,
     "v1/import/upload/route.ts": /handleImportUpload/,
@@ -1034,6 +1036,11 @@ describe("BE-API-009 — route không guard = danh sách công khai đã duyệt
     const consents = readFileSync(new URL("./consents.ts", import.meta.url), "utf8");
     expect(consents).toMatch(/async function sessionUser[\s\S]*deps\.getSession\(req\.headers\)/);
     expect(consents.match(/await sessionUser\(req, deps, correlationId\)/g)).toHaveLength(2);
+    // /api/v1/me/data-requests (T-2311): không ngữ cảnh tổ chức (yêu cầu thuộc tài khoản) — GET, POST và tải đều qua `sessionOf`
+    // (getSession → 401); xử lý thật ở dsar.db.test.ts (được phép và bị từ chối).
+    const dsar = readFileSync(new URL("./data-requests.ts", import.meta.url), "utf8");
+    expect(dsar).toMatch(/async function sessionOf[\s\S]*deps\.getSession\(req\.headers\)/);
+    expect(dsar.match(/await sessionOf\(req, deps, correlationId\)/g)).toHaveLength(3);
     // /api/v1/me: route lấy phiên (getSession) và giao cho handleMe; handleMe trả 401 khi không có người dùng (AUD-XFEAT-004).
     const me = routes.find((r) => r.rel === "v1/me/route.ts")?.text ?? "";
     expect(me).toMatch(/getSession\(/);
@@ -1156,6 +1163,9 @@ describe("BASE-SEC-001 — entrypoint ngoài registry: đầu vào xấu → 4xx
       ],
       // GET chỉ nhận `download=1` (so sánh bằng hằng); POST schema strict (mục đích/kênh enum) — test đầu vào xấu ở consent.db.test.ts.
       "v1/me/consents/route.ts": ["consents.ts", /z\.strictObject\([\s\S]*safeParse/],
+      // POST schema strict (loại enum, mật khẩu có trần độ dài); tải: id phải là UUID — test đầu vào xấu ở dsar.db.test.ts.
+      "v1/me/data-requests/route.ts": ["data-requests.ts", /z\.strictObject\([\s\S]*safeParse/],
+      "v1/me/data-requests/[id]/download/route.ts": ["data-requests.ts", /UUID\.test\(id\)/],
       "v1/files/upload/route.ts": ["file-upload.ts", /OWNER_TYPES\.includes[\s\S]*UUID\.test\(propertyId\)/],
       "v1/import/upload/route.ts": ["import-upload.ts", /UUID\.test\(propertyId\)[\s\S]*kind\.length > 40/],
       "v1/webhooks/[provider]/[account]/route.ts": [

@@ -1305,6 +1305,7 @@ describe("docs/ops/retention-policy.md khớp mã và cấu hình (XC-GREEN-007)
     const sources = [
       policySrc,
       read("packages/app/src/import/retention.ts"),
+      read("packages/app/src/privacy/dsar-policy.ts"),
       read("apps/worker/src/relay.ts"),
     ].join("\n");
     const consts = [...doc.matchAll(/`([A-Z][A-Z0-9_]+)=(\d+)`/g)].map((m) => [m[1], Number(m[2])]);

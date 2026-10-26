@@ -4222,5 +4222,241 @@
   "consent_toggle.error.session": {
     "message": "Phiên đăng nhập đã hết. Đăng nhập lại rồi lưu.",
     "description": "Lỗi 401 khi lưu lựa chọn đồng ý."
+  },
+  "privacy_page.dsar.title": {
+    "message": "Yêu cầu về dữ liệu của bạn",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu, mục Yêu cầu về dữ liệu (T-2311, D-123): tiêu đề h2 của mục."
+  },
+  "privacy_page.dsar.intro": {
+    "message": "Bạn có thể nhận bản sao dữ liệu, hạn chế xử lý hoặc xoá tài khoản. Hạn chúng tôi hoàn tất: bản sao trong {access} ngày, hạn chế trong {restrict} ngày, xoá trong {delete} ngày kể từ khi nhận yêu cầu.",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu, mục Yêu cầu về dữ liệu (T-2311, D-123): đoạn giới thiệu; {access}/{restrict}/{delete} = số ngày hạn trả lời theo vùng (DSAR_DAYS)."
+  },
+  "privacy_page.dsar.type.access": {
+    "message": "Bản sao dữ liệu",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu, mục Yêu cầu về dữ liệu (T-2311, D-123): tên loại yêu cầu truy cập trong lịch sử."
+  },
+  "privacy_page.dsar.type.delete": {
+    "message": "Xoá tài khoản",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu, mục Yêu cầu về dữ liệu (T-2311, D-123): tên loại yêu cầu xoá trong lịch sử."
+  },
+  "privacy_page.dsar.type.restrict": {
+    "message": "Hạn chế xử lý",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu, mục Yêu cầu về dữ liệu (T-2311, D-123): tên loại yêu cầu hạn chế trong lịch sử."
+  },
+  "privacy_page.dsar.status.received": {
+    "message": "đã nhận",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu, mục Yêu cầu về dữ liệu (T-2311, D-123): trạng thái yêu cầu: đã nhận, chờ xác minh."
+  },
+  "privacy_page.dsar.status.verified": {
+    "message": "đang chờ xử lý",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu, mục Yêu cầu về dữ liệu (T-2311, D-123): trạng thái yêu cầu: đã xác minh, chờ xử lý."
+  },
+  "privacy_page.dsar.status.processing": {
+    "message": "đang xử lý",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu, mục Yêu cầu về dữ liệu (T-2311, D-123): trạng thái yêu cầu: đang xử lý."
+  },
+  "privacy_page.dsar.status.completed": {
+    "message": "đã hoàn tất",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu, mục Yêu cầu về dữ liệu (T-2311, D-123): trạng thái yêu cầu: hoàn tất."
+  },
+  "privacy_page.dsar.status.rejected": {
+    "message": "không thực hiện được",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu, mục Yêu cầu về dữ liệu (T-2311, D-123): trạng thái yêu cầu: bị từ chối/đóng (vd còn là chủ duy nhất, tài khoản đã xoá)."
+  },
+  "privacy_page.dsar.access.title": {
+    "message": "Tải dữ liệu của tôi",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu, mục Yêu cầu về dữ liệu (T-2311, D-123): tiêu đề thẻ yêu cầu bản sao dữ liệu."
+  },
+  "privacy_page.dsar.access.text": {
+    "message": "Nhận một tệp JSON gồm thông tin tài khoản, cách đăng nhập, phiên, tư cách thành viên và hồ sơ của bạn ở các tổ chức, lựa chọn đồng ý, các yêu cầu này và số đo sử dụng gắn với bạn. Tệp tải được trong {hours} giờ sau khi sẵn sàng.",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu, mục Yêu cầu về dữ liệu (T-2311, D-123): mô tả nội dung gói dữ liệu; {hours} = số giờ còn tải được."
+  },
+  "privacy_page.dsar.access.pending": {
+    "message": "Đang chuẩn bị bản sao — hoàn tất trước {due}.",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu, mục Yêu cầu về dữ liệu (T-2311, D-123): trạng thái yêu cầu bản sao đang chờ; {due} = hạn trả lời."
+  },
+  "privacy_page.dsar.access.ready": {
+    "message": "Bản sao đã sẵn sàng — tải được tới {until}.",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu, mục Yêu cầu về dữ liệu (T-2311, D-123): trạng thái bản sao sẵn sàng; {until} = hạn tải."
+  },
+  "privacy_page.dsar.access.expired": {
+    "message": "Bản sao trước đã hết hạn tải. Gửi yêu cầu mới nếu cần.",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu, mục Yêu cầu về dữ liệu (T-2311, D-123): trạng thái bản sao đã hết hạn tải."
+  },
+  "privacy_page.dsar.access.rejected": {
+    "message": "Yêu cầu bản sao trước không thực hiện được. Bạn có thể gửi lại.",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu, mục Yêu cầu về dữ liệu (T-2311, D-123): trạng thái yêu cầu bản sao bị đóng."
+  },
+  "privacy_page.dsar.access.download": {
+    "message": "Tải dữ liệu (JSON)",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu, mục Yêu cầu về dữ liệu (T-2311, D-123): liên kết tải gói dữ liệu (GET /api/v1/me/data-requests/{id}/download)."
+  },
+  "privacy_page.dsar.access.request": {
+    "message": "Yêu cầu bản sao dữ liệu",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu, mục Yêu cầu về dữ liệu (T-2311, D-123): nút gửi yêu cầu truy cập."
+  },
+  "privacy_page.dsar.restrict.title": {
+    "message": "Hạn chế xử lý",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu, mục Yêu cầu về dữ liệu (T-2311, D-123): tiêu đề thẻ hạn chế xử lý."
+  },
+  "privacy_page.dsar.restrict.text": {
+    "message": "Tạm dừng mọi xử lý không bắt buộc với dữ liệu của bạn — hiện là đo lường cách bạn dùng sản phẩm — kể cả khi bạn đã đồng ý. Xử lý cần để cung cấp dịch vụ và theo nghĩa vụ pháp lý vẫn tiếp tục.",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu, mục Yêu cầu về dữ liệu (T-2311, D-123): giải thích hạn chế xử lý có tác dụng gì."
+  },
+  "privacy_page.dsar.restrict.active": {
+    "message": "Đang hạn chế xử lý từ {since}.",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu, mục Yêu cầu về dữ liệu (T-2311, D-123): trạng thái đang hạn chế; {since} = thời điểm bật."
+  },
+  "privacy_page.dsar.restrict.request": {
+    "message": "Hạn chế xử lý dữ liệu của tôi",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu, mục Yêu cầu về dữ liệu (T-2311, D-123): nút bật hạn chế xử lý."
+  },
+  "privacy_page.dsar.delete.title": {
+    "message": "Xoá tài khoản",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu, mục Yêu cầu về dữ liệu (T-2311, D-123): tiêu đề thẻ xoá tài khoản."
+  },
+  "privacy_page.dsar.delete.text": {
+    "message": "Xoá tài khoản là vĩnh viễn: bạn sẽ bị đăng xuất khỏi mọi thiết bị và không đăng nhập lại được bằng tài khoản này.",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu, mục Yêu cầu về dữ liệu (T-2311, D-123): cảnh báo hậu quả của xoá tài khoản."
+  },
+  "privacy_page.dsar.delete.removed_title": {
+    "message": "Sẽ bị xoá",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu, mục Yêu cầu về dữ liệu (T-2311, D-123): tiêu đề danh sách phần bị xoá."
+  },
+  "privacy_page.dsar.delete.removed.account": {
+    "message": "Email, tên và ảnh của tài khoản (thay bằng giá trị không định danh).",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu, mục Yêu cầu về dữ liệu (T-2311, D-123): phần bị xoá: hồ sơ tài khoản."
+  },
+  "privacy_page.dsar.delete.removed.sessions": {
+    "message": "Mật khẩu, xác thực hai lớp, mã đăng nhập và mọi phiên đăng nhập.",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu, mục Yêu cầu về dữ liệu (T-2311, D-123): phần bị xoá: thông tin đăng nhập và phiên."
+  },
+  "privacy_page.dsar.delete.removed.memberships": {
+    "message": "Quyền truy cập của bạn ở mọi tổ chức.",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu, mục Yêu cầu về dữ liệu (T-2311, D-123): phần bị xoá: tư cách thành viên (thu hồi)."
+  },
+  "privacy_page.dsar.delete.removed.analytics": {
+    "message": "Liên kết giữa bạn và số đo sử dụng sản phẩm.",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu, mục Yêu cầu về dữ liệu (T-2311, D-123): phần bị xoá: liên kết analytics."
+  },
+  "privacy_page.dsar.delete.removed.files": {
+    "message": "Các tệp xuất dữ liệu bạn đã yêu cầu và bản sao dữ liệu của bạn.",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu, mục Yêu cầu về dữ liệu (T-2311, D-123): phần bị xoá: file riêng của tài khoản."
+  },
+  "privacy_page.dsar.delete.kept_title": {
+    "message": "Được giữ lại và căn cứ",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu, mục Yêu cầu về dữ liệu (T-2311, D-123): tiêu đề danh sách phần được giữ theo nghĩa vụ pháp lý."
+  },
+  "privacy_page.dsar.delete.kept.accounting": {
+    "message": "Hoá đơn, chứng từ và sổ kế toán liên quan: tối thiểu 10 năm (Luật Kế toán 88/2015/QH13, Điều 41).",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu, mục Yêu cầu về dữ liệu (T-2311, D-123): phần giữ: chứng từ kế toán + căn cứ."
+  },
+  "privacy_page.dsar.delete.kept.audit": {
+    "message": "Nhật ký hoạt động của tổ chức (truy vết thao tác đã làm).",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu, mục Yêu cầu về dữ liệu (T-2311, D-123): phần giữ: audit."
+  },
+  "privacy_page.dsar.delete.kept.persons": {
+    "message": "Hồ sơ của bạn do cơ sở lưu trú quản lý (hợp đồng, lưu trú) — cơ sở quyết định và ẩn danh theo hạn lưu.",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu, mục Yêu cầu về dữ liệu (T-2311, D-123): phần giữ: persons của tổ chức (bên kiểm soát là cơ sở)."
+  },
+  "privacy_page.dsar.delete.kept.evidence": {
+    "message": "Bằng chứng đồng ý và yêu cầu này — chỉ còn mã tài khoản, không còn email hay tên.",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu, mục Yêu cầu về dữ liệu (T-2311, D-123): phần giữ: consent_records + dsar_requests (bí danh)."
+  },
+  "privacy_page.dsar.delete.pending": {
+    "message": "Đã nhận yêu cầu xoá tài khoản — hoàn tất trước {due}. Bạn sẽ bị đăng xuất khi xoá xong.",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu, mục Yêu cầu về dữ liệu (T-2311, D-123): trạng thái khi có yêu cầu xoá đang chờ; {due} = hạn."
+  },
+  "privacy_page.dsar.history.title": {
+    "message": "Lịch sử yêu cầu",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu, mục Yêu cầu về dữ liệu (T-2311, D-123): tiêu đề lịch sử yêu cầu quyền chủ thể."
+  },
+  "privacy_page.dsar.history.empty": {
+    "message": "Bạn chưa gửi yêu cầu nào.",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu, mục Yêu cầu về dữ liệu (T-2311, D-123): trạng thái rỗng của lịch sử yêu cầu."
+  },
+  "privacy_page.dsar.history.item": {
+    "message": "{type} — {status} — nhận {requested} — hạn {due}",
+    "description": "Trang Quyền riêng tư /quyen-rieng-tu, mục Yêu cầu về dữ liệu (T-2311, D-123): một dòng lịch sử: loại, trạng thái, lúc nhận, hạn."
+  },
+  "data_requests.error.offline": {
+    "message": "Đang mất mạng — kết nối lại rồi thử.",
+    "description": "Thành phần client yêu cầu quyền chủ thể ở trang Quyền riêng tư (T-2311, D-123): lỗi khi bấm lúc ngoại tuyến."
+  },
+  "data_requests.error.session": {
+    "message": "Phiên đăng nhập đã hết. Đăng nhập lại rồi thử.",
+    "description": "Thành phần client yêu cầu quyền chủ thể ở trang Quyền riêng tư (T-2311, D-123): lỗi 401 khi chưa đăng nhập/phiên hết."
+  },
+  "data_requests.error.too_many": {
+    "message": "Bạn thử quá nhiều lần. Vui lòng đợi ít phút rồi thử lại.",
+    "description": "Thành phần client yêu cầu quyền chủ thể ở trang Quyền riêng tư (T-2311, D-123): lỗi 429."
+  },
+  "data_requests.error.failed": {
+    "message": "Không gửi được yêu cầu. Vui lòng thử lại.",
+    "description": "Thành phần client yêu cầu quyền chủ thể ở trang Quyền riêng tư (T-2311, D-123): lỗi mạng/máy chủ."
+  },
+  "data_requests.notice.existing": {
+    "message": "Yêu cầu của bạn đã được ghi nhận trước đó và đang được xử lý.",
+    "description": "Thành phần client yêu cầu quyền chủ thể ở trang Quyền riêng tư (T-2311, D-123): thông báo khi đã có yêu cầu cùng loại đang mở (gửi lại không tạo thêm)."
+  },
+  "data_requests.notice.access_created": {
+    "message": "Đã nhận yêu cầu. Bản sao thường sẵn sàng sau vài phút — tải ở trang này.",
+    "description": "Thành phần client yêu cầu quyền chủ thể ở trang Quyền riêng tư (T-2311, D-123): thông báo sau khi gửi yêu cầu bản sao."
+  },
+  "data_requests.notice.restrict_created": {
+    "message": "Đã hạn chế xử lý dữ liệu của bạn.",
+    "description": "Thành phần client yêu cầu quyền chủ thể ở trang Quyền riêng tư (T-2311, D-123): thông báo sau khi bật hạn chế xử lý."
+  },
+  "data_requests.delete.password_label": {
+    "message": "Nhập lại mật khẩu để xác nhận",
+    "description": "Thành phần client yêu cầu quyền chủ thể ở trang Quyền riêng tư (T-2311, D-123): nhãn ô mật khẩu xác thực lại trước khi xoá tài khoản."
+  },
+  "data_requests.delete.submit": {
+    "message": "Xoá tài khoản",
+    "description": "Thành phần client yêu cầu quyền chủ thể ở trang Quyền riêng tư (T-2311, D-123): nút mở hộp xác nhận xoá tài khoản."
+  },
+  "data_requests.delete.otp_intro": {
+    "message": "Để xác nhận là bạn, đăng nhập lại bằng mã gửi tới email của bạn.",
+    "description": "Thành phần client yêu cầu quyền chủ thể ở trang Quyền riêng tư (T-2311, D-123): hướng dẫn xác thực lại bằng OTP (tài khoản người thuê không có mật khẩu)."
+  },
+  "data_requests.delete.otp_done": {
+    "message": "Đã xác thực lại. Bạn có 5 phút để xác nhận xoá tài khoản.",
+    "description": "Thành phần client yêu cầu quyền chủ thể ở trang Quyền riêng tư (T-2311, D-123): thông báo sau khi đăng nhập lại bằng OTP thành công."
+  },
+  "data_requests.delete.confirm_title": {
+    "message": "Xoá vĩnh viễn tài khoản?",
+    "description": "Thành phần client yêu cầu quyền chủ thể ở trang Quyền riêng tư (T-2311, D-123): tiêu đề hộp xác nhận xoá tài khoản."
+  },
+  "data_requests.delete.confirm_text": {
+    "message": "Bạn sẽ bị đăng xuất và không thể khôi phục tài khoản. Phần dữ liệu phải giữ theo pháp luật (hoá đơn, sổ kế toán, nhật ký) vẫn được giữ như đã nêu.",
+    "description": "Thành phần client yêu cầu quyền chủ thể ở trang Quyền riêng tư (T-2311, D-123): nội dung hộp xác nhận xoá tài khoản."
+  },
+  "data_requests.delete.back": {
+    "message": "Quay lại",
+    "description": "Thành phần client yêu cầu quyền chủ thể ở trang Quyền riêng tư (T-2311, D-123): nút đóng hộp xác nhận, không gửi gì."
+  },
+  "data_requests.delete.confirm": {
+    "message": "Xoá vĩnh viễn tài khoản",
+    "description": "Thành phần client yêu cầu quyền chủ thể ở trang Quyền riêng tư (T-2311, D-123): nút xác nhận xoá — nêu đúng hành động + đối tượng (UX-STATE-008)."
+  },
+  "data_requests.delete.done": {
+    "message": "Đã nhận yêu cầu xoá. Tài khoản sẽ được xoá trong vài phút và bạn sẽ bị đăng xuất.",
+    "description": "Thành phần client yêu cầu quyền chủ thể ở trang Quyền riêng tư (T-2311, D-123): thông báo sau khi gửi yêu cầu xoá thành công."
+  },
+  "data_requests.delete.error.password_required": {
+    "message": "Nhập mật khẩu để xác nhận.",
+    "description": "Thành phần client yêu cầu quyền chủ thể ở trang Quyền riêng tư (T-2311, D-123): lỗi khi để trống mật khẩu."
+  },
+  "data_requests.delete.error.password_invalid": {
+    "message": "Mật khẩu không đúng. Tài khoản chưa bị xoá.",
+    "description": "Thành phần client yêu cầu quyền chủ thể ở trang Quyền riêng tư (T-2311, D-123): lỗi 401 REAUTH_REQUIRED reason invalid_password."
+  },
+  "data_requests.delete.error.reauth": {
+    "message": "Cần xác thực lại. Tải lại trang rồi xác thực lại.",
+    "description": "Thành phần client yêu cầu quyền chủ thể ở trang Quyền riêng tư (T-2311, D-123): lỗi 401 REAUTH_REQUIRED (phiên OTP đã quá 5 phút)."
+  },
+  "data_requests.delete.error.last_owner": {
+    "message": "Bạn đang là chủ sở hữu duy nhất của một tổ chức. Chuyển quyền chủ sở hữu hoặc xoá tổ chức trước.",
+    "description": "Thành phần client yêu cầu quyền chủ thể ở trang Quyền riêng tư (T-2311, D-123): lỗi 409 LAST_OWNER."
   }
 }

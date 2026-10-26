@@ -7,7 +7,7 @@
 import { z } from "zod";
 import { ERROR_CODES } from "../errors.ts";
 import { IMPORT_KINDS } from "../import/index.ts";
-import { CONSENT_CHANNELS, CONSENT_PURPOSES } from "../privacy/index.ts";
+import { CONSENT_CHANNELS, CONSENT_PURPOSES, DSAR_STATUSES, DSAR_TYPES } from "../privacy/index.ts";
 import { COMMANDS, QUERIES, USER_COMMANDS } from "./registry.ts";
 import { simPayload } from "./webhook-route.ts";
 
@@ -317,6 +317,88 @@ const EXTRA_PATHS: Record<string, Json> = {
       },
     },
   },
+  "/api/v1/me/data-requests": {
+    get: {
+      operationId: "me.listDataRequests",
+      tags: ["privacy"],
+      summary:
+        "Yêu cầu quyền chủ thể (truy cập/xoá/hạn chế) của chính người đăng nhập, mới → cũ, kèm trạng thái hạn chế xử lý",
+      security: [{ sessionCookie: [] }],
+      responses: {
+        "200": {
+          description: "Danh sách yêu cầu (hạn `due_at` theo vùng) và `restricted_at` (null = không hạn chế)",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["requests", "restricted_at"],
+                properties: {
+                  requests: { type: "array", items: { $ref: "#/components/schemas/DataRequest" } },
+                  restricted_at: { type: ["string", "null"], format: "date-time" },
+                },
+              },
+            },
+          },
+        },
+        ...pick("401"),
+      },
+    },
+    post: {
+      operationId: "me.createDataRequest",
+      tags: ["privacy"],
+      summary:
+        "Tạo yêu cầu truy cập/xoá/hạn chế — xoá cần xác thực lại (phiên ≤ 5 phút hoặc `password`); idempotent: đã có yêu cầu mở cùng loại ⇒ 200 trả yêu cầu đó",
+      security: [{ sessionCookie: [] }],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["type"],
+              additionalProperties: false,
+              properties: {
+                type: { type: "string", enum: [...DSAR_TYPES] },
+                password: { type: "string", minLength: 1, maxLength: 256 },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        "200": {
+          description: "Đã có yêu cầu mở cùng loại (hoặc đã hạn chế xử lý) — trả yêu cầu đó",
+          content: { "application/json": { schema: { $ref: "#/components/schemas/DataRequestResult" } } },
+        },
+        "202": {
+          description: "Đã nhận yêu cầu (truy cập/xoá xử lý nền; hạn chế có hiệu lực ngay)",
+          content: { "application/json": { schema: { $ref: "#/components/schemas/DataRequestResult" } } },
+        },
+        ...pick("400", "401", "409", "422", "429"),
+      },
+    },
+  },
+  "/api/v1/me/data-requests/{id}/download": {
+    get: {
+      operationId: "me.downloadDataRequest",
+      tags: ["privacy"],
+      summary:
+        "Tải gói JSON dữ liệu của chính mình (yêu cầu truy cập đã xong) — chuyển hướng tới URL ký ≤ 5 phút",
+      security: [{ sessionCookie: [] }],
+      parameters: [{ name: "id", in: "path", required: true, schema: uuidSchema }],
+      responses: {
+        "303": {
+          description: "Chuyển hướng tới URL ký của gói JSON",
+          headers: { Location: { schema: { type: "string", format: "uri" }, description: "URL ký" } },
+        },
+        "410": {
+          description: "LINK_EXPIRED — gói đã hết hạn tải",
+          content: problemContent,
+        },
+        ...pick("401", "404", "409"),
+      },
+    },
+  },
   "/api/v1/session/switchOrganization": {
     post: {
       operationId: "session.switchOrganization",
@@ -529,6 +611,8 @@ export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
   "v1/commands/[id]/route.ts": { spec: "/api/v1/commands/{id}" },
   "v1/me/route.ts": { spec: "/api/v1/me" },
   "v1/me/consents/route.ts": { spec: "/api/v1/me/consents" },
+  "v1/me/data-requests/route.ts": { spec: "/api/v1/me/data-requests" },
+  "v1/me/data-requests/[id]/download/route.ts": { spec: "/api/v1/me/data-requests/{id}/download" },
   "version/route.ts": { spec: "/api/version" },
   "v1/session/switchOrganization/route.ts": { spec: "/api/v1/session/switchOrganization" },
   "v1/notifications/unsubscribe/route.ts": { spec: "/api/v1/notifications/unsubscribe" },
@@ -670,6 +754,38 @@ export function buildOpenApi(): Json {
             },
           },
           additionalProperties: true,
+        },
+        DataRequest: {
+          type: "object",
+          description: "Yêu cầu quyền chủ thể (DSAR) của chính người đăng nhập — T-2311, D-123",
+          required: ["id", "type", "status", "region", "requested_at", "due_at"],
+          properties: {
+            id: uuidSchema,
+            type: { type: "string", enum: [...DSAR_TYPES] },
+            status: { type: "string", enum: [...DSAR_STATUSES] },
+            region: { type: "string" },
+            requested_at: { type: "string", format: "date-time" },
+            due_at: { type: "string", format: "date-time" },
+            completed_at: { type: ["string", "null"], format: "date-time" },
+            result_summary: { type: ["object", "null"] },
+            legal_retention_note: { type: ["string", "null"] },
+            download_expires_at: { type: ["string", "null"], format: "date-time" },
+            download_url: { type: ["string", "null"] },
+          },
+        },
+        DataRequestResult: {
+          type: "object",
+          required: ["data"],
+          properties: {
+            data: {
+              type: "object",
+              required: ["status", "request"],
+              properties: {
+                status: { type: "string", enum: ["created", "existing"] },
+                request: { $ref: "#/components/schemas/DataRequest" },
+              },
+            },
+          },
         },
       },
     },
