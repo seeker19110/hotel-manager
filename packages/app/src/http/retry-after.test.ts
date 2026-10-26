@@ -52,6 +52,45 @@ describe("phản hồi 429", () => {
 });
 
 describe("withRetryAfter (phản hồi do Better Auth dựng)", () => {
+  it.each([
+    ["179296519744877", 10],
+    ["86401", 60],
+    ["Infinity", 10],
+  ])("Retry-After vô lý (%s) ⇒ cửa sổ dự phòng %i giây", (value, fallback) => {
+    const response = withRetryAfter(
+      new Response(null, { status: 429, headers: { "retry-after": value } }),
+      fallback,
+    );
+    expect(response.headers.get("retry-after")).toBe(String(fallback));
+  });
+  it.each(["900", "86400"])("Retry-After hợp lệ %s giây ⇒ giữ phản hồi gốc", (value) => {
+    const response = new Response(null, { status: 429, headers: { "retry-after": value } });
+    expect(withRetryAfter(response, 10)).toBe(response);
+    expect(response.headers.get("retry-after")).toBe(value);
+  });
+  it.each(["179296519744877", "NaN", "0", "-1", "Infinity", ""])(
+    "X-Retry-After vô lý (%s) ⇒ cửa sổ dự phòng của đường dẫn",
+    (value) => {
+      const response = withRetryAfter(
+        new Response(null, { status: 429, headers: { "x-retry-after": value } }),
+        10,
+      );
+      expect(response.headers.get("retry-after")).toBe("10");
+    },
+  );
+  it("X-Retry-After hợp lệ trong cửa sổ được giữ, Retry-After khoá tài khoản không bị giới hạn bởi cửa sổ IP", () => {
+    const response = withRetryAfter(
+      new Response(null, { status: 429, headers: { "x-retry-after": "10" } }),
+      10,
+    );
+    expect(response.headers.get("retry-after")).toBe("10");
+    const locked = new Response(null, {
+      status: 429,
+      headers: { "retry-after": "900", "x-retry-after": "179296519744877" },
+    });
+    expect(withRetryAfter(locked, 10)).toBe(locked);
+    expect(locked.headers.get("retry-after")).toBe("900");
+  });
   it("429 chỉ có X-Retry-After ⇒ thêm Retry-After; đã có Retry-After hợp lệ ⇒ giữ; thiếu cả hai ⇒ 60; không phải 429 ⇒ nguyên", async () => {
     const a = withRetryAfter(new Response("{}", { status: 429, headers: { "x-retry-after": "42" } }));
     expect(a.headers.get("retry-after")).toBe("42");

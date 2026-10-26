@@ -23,8 +23,18 @@ async function call(method: "POST" | "DELETE", body?: unknown) {
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     credentials: "same-origin",
   });
-  const data = (await res.json().catch(() => ({}))) as { code?: string; reason?: string };
-  return { ok: res.ok, status: res.status, code: data.code ?? null, reason: data.reason ?? null };
+  const data = (await res.json().catch(() => ({}))) as {
+    code?: string;
+    reason?: string;
+    data?: { status?: string };
+  } | null;
+  return {
+    ok: res.ok,
+    status: res.status,
+    code: data?.code ?? null,
+    reason: data?.reason ?? null,
+    organizationStatus: data?.data?.status ?? null,
+  };
 }
 
 export function RequestOrgDeletion({ hasPassword, m }: { hasPassword: boolean; m: OrgDeletionMessages }) {
@@ -108,6 +118,7 @@ export function CancelOrgDeletion({ m }: { m: OrgDeletionMessages }) {
 
   async function onClick() {
     if (busy) return;
+    setNotice("");
     if (!online) return setError(tm(m, "org_deletion.error.offline"));
     setBusy(true);
     setError(undefined);
@@ -115,6 +126,9 @@ export function CancelOrgDeletion({ m }: { m: OrgDeletionMessages }) {
       const r = await call("DELETE");
       if (r.status === 403) return setError(tm(m, "org_deletion.error.forbidden"));
       if (!r.ok) return setError(tm(m, "org_deletion.error.failed"));
+      if (r.organizationStatus === "pending_deletion")
+        return setError(tm(m, "org_deletion.cancel_unavailable"));
+      if (r.organizationStatus !== "active") return setError(tm(m, "org_deletion.error.failed"));
       setNotice(tm(m, "org_deletion.cancelled"));
       router.refresh();
     } catch {

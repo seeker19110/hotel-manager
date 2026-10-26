@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -60,6 +62,42 @@ export const unsubFile = (port: number) => join(tmpdir(), `hm-e2e-${port}-unsub.
  * job `tenancy.purge` (thay cho chờ 30 ngày thật), xong thì xoá file.
  */
 export const orgPurgeFile = (port: number) => join(tmpdir(), `hm-e2e-${port}-org-purge.txt`);
+
+/** Điều khiển riêng của server E2E: cô lập bucket auth giữa spec, không đổi limiter hoặc đường HTTP sản phẩm (D-138). */
+export const authRateLimitResetFile = (port: number) =>
+  join(tmpdir(), `hm-e2e-${port}-auth-rate-limit-reset.txt`);
+export const authRateLimitResetAckFile = (port: number) =>
+  join(tmpdir(), `hm-e2e-${port}-auth-rate-limit-reset-ack.json`);
+
+/** Chỉ gọi trước scenario: server xoá bucket trong CSDL TẠM của project rồi xác nhận đúng nonce, tối đa 5 s. */
+export async function resetAuthRateLimitFixture(baseURL: string | undefined): Promise<void> {
+  const port = portOf(baseURL);
+  const request = authRateLimitResetFile(port);
+  const ack = authRateLimitResetAckFile(port);
+  const nonce = randomUUID();
+  const pending = `${request}.tmp`;
+  try {
+    rmSync(ack, { force: true });
+    writeFileSync(pending, nonce, { mode: 0o600 });
+    renameSync(pending, request);
+    const deadline = Date.now() + 5_000;
+    while (Date.now() < deadline) {
+      if (existsSync(ack)) {
+        const result = JSON.parse(readFileSync(ack, "utf8")) as { nonce?: string; ok?: boolean };
+        if (result.nonce === nonce) {
+          if (result.ok !== true) throw new Error("E2E auth rate-limit fixture reset failed");
+          return;
+        }
+      }
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    throw new Error("E2E auth rate-limit fixture reset was not acknowledged within 5 s");
+  } finally {
+    rmSync(pending, { force: true });
+    rmSync(request, { force: true });
+    rmSync(ack, { force: true });
+  }
+}
 
 /** Token lời mời truy cập hỗ trợ đang chờ (T-2313): server E2E ghi `{ email: token }` mỗi giây (thay email của worker). */
 export const supportTokensFile = (port: number) => join(tmpdir(), `hm-e2e-${port}-support-invites.json`);

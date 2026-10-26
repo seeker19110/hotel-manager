@@ -1,3 +1,4 @@
+// SPEC-lifecycle-race-hardening S-002: claim/cancel, staging, export và purge đồng thời.
 // PLAN T-2312 (IND-SAAS-006, UX-CONTENT-005; D-125; migration 0070) — vòng đời xoá tổ chức trên Postgres thật, bằng `app_runtime`
 // (yêu cầu/huỷ/trạng thái, như request thật) và `app_worker` (purge, như job): chỉ owner + xác thực lại; chờ xoá khoá mọi đường trừ
 // xuất dữ liệu và trạng thái/huỷ; huỷ một bước khôi phục; chưa tới hạn (đồng hồ CSDL) không purge; quá hạn ⇒ MỌI bảng có
@@ -5,19 +6,21 @@
 // nhận đúng số đếm + digest, chỉ người yêu cầu đọc; trigger append-only KHÔNG vượt được bằng GUC từ app_runtime/app_worker; hai
 // purge đồng thời chỉ một chạy; job tắt mặc định ở production.
 import { randomUUID } from "node:crypto";
-import { withTenant } from "@hm/db";
+import { migrations, withTenant } from "@hm/db";
 import {
   activateLease,
+  createTestDb,
   seedAuthUser,
   seedIssuedInvoice,
   seedLease,
+  seedOrg,
   seedReservation,
   tenantTables,
 } from "@hm/testkit";
 import { type Kysely, sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AccessError, type Actor, resolveActor } from "../access/actor.ts";
-import { requestOrgExport } from "../exports/index.ts";
+import { requestExport, requestOrgExport } from "../exports/index.ts";
 import { type HttpDeps, handleCommandStatus, handleQuery } from "../http/command-route.ts";
 import {
   handleCancelOrgDeletion,
@@ -649,5 +652,385 @@ describe("đồng thời + job", () => {
     expect(orgPurgeEnabled(undefined)).toBe(true);
     expect(orgPurgeEnabled("production", true)).toBe(true);
     expect(orgPurgeEnabled("development", false)).toBe(false);
+  });
+});
+
+describe("purge claim bền trước khi xoá object (T-2403)", () => {
+  async function dueOrganization(fileCount = 1, age = true) {
+    const org = await seedOrg(h.t.admin, `Claim ${randomUUID().slice(0, 8)}`);
+    const actor = await resolveActor(h.t.runtime, {
+      authUserId: org.ownerAuthUserId,
+      orgId: org.orgId,
+      twoFactorEnabled: true,
+    });
+    const keys: string[] = [];
+    for (let i = 0; i < fileCount; i++) {
+      const id = randomUUID();
+      const key = `${org.orgId}/work_order/${id}`;
+      await sql`insert into files (id, organization_id, owner_type, mime, size_bytes, sha256, status, storage_key)
+                values (${id}, ${org.orgId}, 'work_order', 'application/pdf', 10, ${"e".repeat(64)}, 'ready', ${key})`.execute(
+        h.t.admin,
+      );
+      keys.push(key);
+    }
+    await requestOrgDeletion(h.t.runtime, actor, {
+      reauthenticatedAt: new Date(),
+      correlationId: "claim-test",
+    });
+    if (age) await ageDeletion(org.orgId);
+    return { org, actor, keys };
+  }
+
+  it("huỷ chạy trong lúc xoá object không khôi phục tổ chức có file đã mất", async () => {
+    const { org, actor, keys } = await dueOrganization();
+    const deleted: string[] = [];
+    let cancelled: boolean | undefined;
+    const result = await purgeDueOrganizations(h.t.worker, {
+      storage: {
+        delete: async (key) => {
+          if (!keys.includes(key)) return;
+          cancelled = await cancelOrgDeletion(h.t.runtime, actor, { correlationId: "cancel-during-delete" });
+          deleted.push(key);
+        },
+      },
+    });
+    expect(cancelled).toBe(false);
+    expect(result).toMatchObject({ purged: 1, failed: 0 });
+    expect(deleted).toEqual(keys);
+    expect((await sql`select 1 from organizations where id = ${org.orgId}`.execute(h.t.admin)).rows).toEqual(
+      [],
+    );
+  });
+
+  it("huỷ thắng trước claim dù worker đã liệt kê tổ chức ⇒ không xoá object", async () => {
+    const { org, actor } = await dueOrganization();
+    let cancelled = false;
+    // Execute cancellation after the due list returns, before the worker's next query (claim).
+    const db = h.t.worker.withPlugin({
+      transformQuery: (args) => args.node,
+      transformResult: async (args) => {
+        const rows = args.result.rows as { id?: string }[];
+        if (!cancelled && rows.some((row) => row.id === org.orgId)) {
+          cancelled = await cancelOrgDeletion(h.t.runtime, actor, { correlationId: "cancel-before-claim" });
+        }
+        return args.result;
+      },
+    });
+    let deleteCalls = 0;
+    const result = await purgeDueOrganizations(db, {
+      storage: {
+        delete: async () => {
+          deleteCalls++;
+        },
+      },
+    });
+    expect(cancelled).toBe(true);
+    expect(deleteCalls).toBe(0);
+    expect(result).toMatchObject({ due: 1, purged: 0, failed: 0 });
+    expect((await orgDeletionStatus(h.t.runtime, actor)).status).toBe("active");
+  });
+
+  it("kho lỗi sau một object: claim còn bền, không huỷ được; thử lại hoàn tất và chỉ ghi một audit bắt đầu", async () => {
+    const { org, actor, keys } = await dueOrganization(2);
+    const deleted = new Set<string>();
+    let calls = 0;
+    const first = await purgeDueOrganizations(h.t.worker, {
+      storage: {
+        delete: async (key) => {
+          calls++;
+          if (calls === 2) throw new Error("object store unavailable");
+          deleted.add(key);
+        },
+      },
+    });
+    expect(first).toMatchObject({ purged: 0, failed: 1 });
+    expect(deleted.size).toBe(1);
+    const claim = await sql<{
+      started_at: Date;
+    }>`select purge_started_at as started_at from organizations where id = ${org.orgId}`.execute(h.t.admin);
+    expect(claim.rows[0]?.started_at).toBeInstanceOf(Date);
+    expect(
+      await cancelOrgDeletion(h.t.runtime, actor, { correlationId: "cancel-after-partial-delete" }),
+    ).toBe(false);
+    expect((await orgDeletionStatus(h.t.runtime, actor)).status).toBe("pending_deletion");
+    expect(
+      (await sql<{ ok: boolean }>`select app.claim_org_purge(${org.orgId}::uuid) as ok`.execute(h.t.worker))
+        .rows[0]?.ok,
+    ).toBe(true);
+    const audit = await sql<{
+      n: number;
+    }>`select count(*)::int as n from audit_events where organization_id = ${org.orgId} and action = 'organization.purge_started'`.execute(
+      h.t.admin,
+    );
+    expect(audit.rows[0]?.n).toBe(1);
+    expect(
+      (
+        await sql<{
+          started_at: Date;
+        }>`select purge_started_at as started_at from organizations where id = ${org.orgId}`.execute(
+          h.t.admin,
+        )
+      ).rows[0]?.started_at,
+    ).toEqual(claim.rows[0]?.started_at);
+    const retry = await purgeDueOrganizations(h.t.worker, {
+      storage: {
+        delete: async (key) => {
+          deleted.add(key);
+        },
+      },
+    });
+    expect(retry).toMatchObject({ purged: 1, failed: 0, objectsDeleted: 2 });
+    expect([...deleted].sort()).toEqual(keys.sort());
+  });
+
+  it("chỉ worker claim; runtime không tự đặt/gỡ claim; chưa tới hạn, active và id lạ không được claim", async () => {
+    const { org } = await dueOrganization();
+    await expect(
+      sql`select app.claim_org_purge(${org.orgId}::uuid)`.execute(h.t.runtime),
+    ).rejects.toMatchObject({ code: "42501" });
+    await expect(
+      withTenant(h.t.runtime, { orgId: org.orgId }, (trx) =>
+        sql`update organizations set purge_started_at = now() where id = ${org.orgId}`.execute(trx),
+      ),
+    ).rejects.toMatchObject({ code: "42501" });
+    const spoofedOrg = randomUUID();
+    await expect(
+      withTenant(h.t.runtime, { orgId: spoofedOrg }, (trx) =>
+        sql`insert into organizations (id, name, created_by, status, deletion_requested_at, deletion_due_at, deletion_requested_by, purge_started_at)
+            values (${spoofedOrg}, 'Spoofed purge claim', ${h.org.ownerAuthUserId}, 'pending_deletion', now() - interval '40 days', now() - interval '10 days', ${h.org.ownerAuthUserId}, now())`.execute(
+          trx,
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "42501" });
+    expect(
+      (await sql<{ ok: boolean }>`select app.claim_org_purge(${org.orgId}::uuid) as ok`.execute(h.t.worker))
+        .rows[0]?.ok,
+    ).toBe(true);
+    await expect(
+      withTenant(h.t.runtime, { orgId: org.orgId }, (trx) =>
+        sql`update organizations set purge_started_at = null where id = ${org.orgId}`.execute(trx),
+      ),
+    ).rejects.toMatchObject({ code: "42501" });
+    const missing = await sql<{
+      ok: boolean;
+    }>`select app.claim_org_purge(${randomUUID()}::uuid) as ok`.execute(h.t.worker);
+    expect(missing.rows[0]?.ok).toBe(false);
+    const active = await sql<{ ok: boolean }>`select app.claim_org_purge(${B}::uuid) as ok`.execute(
+      h.t.worker,
+    );
+    expect(active.rows[0]?.ok).toBe(false);
+    const future = await seedOrg(h.t.admin, `Future ${randomUUID().slice(0, 8)}`);
+    const futureActor = await resolveActor(h.t.runtime, {
+      authUserId: future.ownerAuthUserId,
+      orgId: future.orgId,
+      twoFactorEnabled: true,
+    });
+    await requestOrgDeletion(h.t.runtime, futureActor, {
+      reauthenticatedAt: new Date(),
+      correlationId: "future-claim",
+    });
+    expect(
+      (
+        await sql<{ ok: boolean }>`select app.claim_org_purge(${future.orgId}::uuid) as ok`.execute(
+          h.t.worker,
+        )
+      ).rows[0]?.ok,
+    ).toBe(false);
+    expect(await cancelOrgDeletion(h.t.runtime, futureActor, { correlationId: "cleanup-future" })).toBe(true);
+    await purgeDueOrganizations(h.t.worker, { storage: { delete: async () => {} } });
+    expect((await sql`select 1 from organizations where id = ${org.orgId}`.execute(h.t.admin)).rows).toEqual(
+      [],
+    );
+  });
+
+  it("runtime không được staging file mới sau claim; không thể khoá hoặc chèn file sang tổ chức khác", async () => {
+    const { org, actor } = await dueOrganization();
+    expect(
+      (await sql<{ ok: boolean }>`select app.claim_org_purge(${org.orgId}::uuid) as ok`.execute(h.t.worker))
+        .rows[0]?.ok,
+    ).toBe(true);
+    const id = randomUUID();
+    await expect(
+      withTenant(h.t.runtime, { orgId: org.orgId, actorId: actor.membershipId }, (trx) =>
+        sql`insert into files (id, organization_id, owner_type, mime, size_bytes, sha256, status, storage_key, uploaded_by)
+          values (${id}, ${org.orgId}, 'export_job', 'text/csv', 10, ${"e".repeat(64)}, 'pending_scan', ${`${org.orgId}/export_job/${id}`}, ${actor.membershipId})`.execute(
+          trx,
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "42501", hint: "FORBIDDEN" });
+    await expect(
+      withTenant(h.t.runtime, { orgId: B, actorId: h.other.ownerMembershipId }, (trx) =>
+        sql`insert into files (id, organization_id, owner_type, mime, size_bytes, sha256, status, storage_key, uploaded_by)
+          values (${id}, ${org.orgId}, 'export_job', 'text/csv', 10, ${"e".repeat(64)}, 'pending_scan', ${`${org.orgId}/export_job/${id}`}, ${actor.membershipId})`.execute(
+          trx,
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "23503" });
+    expect((await sql`select 1 from files where id = ${id}`.execute(h.t.admin)).rows).toEqual([]);
+    await purgeDueOrganizations(h.t.worker, { storage: { delete: async () => {} } });
+  });
+
+  it("từ chối transaction bao ngoài: claim không được rollback sau khi xoá object", async () => {
+    let deleted = 0;
+    await expect(
+      h.t.worker.transaction().execute((trx) =>
+        purgeDueOrganizations(trx, {
+          storage: {
+            delete: async () => {
+              deleted++;
+            },
+          },
+        }),
+      ),
+    ).rejects.toThrow(/autocommit database connection/);
+    expect(deleted).toBe(0);
+  });
+
+  it("liệt kê keys của worker N−1 cũng claim trước khi trả object", async () => {
+    const { org, actor, keys } = await dueOrganization();
+    const result = await sql<{
+      storage_key: string;
+    }>`select storage_key from app.org_purge_file_keys(${org.orgId}::uuid)`.execute(h.t.worker);
+    expect(result.rows.map((row) => row.storage_key)).toEqual(keys);
+    expect(await cancelOrgDeletion(h.t.runtime, actor, { correlationId: "old-worker-cancel" })).toBe(false);
+    await purgeDueOrganizations(h.t.worker, { storage: { delete: async () => {} } });
+  });
+
+  it("đã claim thì không nhận yêu cầu xuất mới để kéo dài purge", async () => {
+    const { org, actor } = await dueOrganization();
+    const before = await runAs(h.t, fresh(actor), (ctx) => requestOrgExport(ctx));
+    expect(before.status).toBe("committed");
+    expect(
+      (await sql<{ ok: boolean }>`select app.claim_org_purge(${org.orgId}::uuid) as ok`.execute(h.t.worker))
+        .rows[0]?.ok,
+    ).toBe(true);
+    const after = await runAs(h.t, fresh(actor), (ctx) => requestOrgExport(ctx));
+    expect(after).toMatchObject({
+      status: "failed",
+      httpStatus: 423,
+      problem: { code: "ORG_PENDING_DELETION" },
+    });
+    const report = await runAs(h.t, fresh(actor), (ctx) =>
+      requestExport(ctx, { kind: "receivables", format: "csv" }),
+    );
+    expect(report).toMatchObject({
+      status: "failed",
+      httpStatus: 423,
+      problem: { code: "ORG_PENDING_DELETION" },
+    });
+    const jobs = await sql<{
+      n: number;
+    }>`select count(*)::int as n from export_jobs where organization_id = ${org.orgId}`.execute(h.t.admin);
+    expect(jobs.rows[0]?.n).toBe(1);
+    await purgeDueOrganizations(h.t.worker, { storage: { delete: async () => {} } });
+  });
+
+  it("trong 30 ngày giữ và chưa claim vẫn nhận yêu cầu xuất", async () => {
+    const { org, actor } = await dueOrganization(0, false);
+    expect(
+      (await sql<{ ok: boolean }>`select app.claim_org_purge(${org.orgId}::uuid) as ok`.execute(h.t.worker))
+        .rows[0]?.ok,
+    ).toBe(false);
+    const result = await runAs(h.t, fresh(actor), (ctx) => requestOrgExport(ctx));
+    expect(result).toMatchObject({ status: "committed", data: { status: "queued" } });
+    expect(await cancelOrgDeletion(h.t.runtime, actor, { correlationId: "hold-export-cleanup" })).toBe(true);
+  });
+
+  it("yêu cầu xuất giữ khoá tới commit: claim đợi rồi mới đóng cửa yêu cầu xuất", async () => {
+    const { org, actor } = await dueOrganization();
+    let readyResolve: (pid: number) => void = () => {};
+    let readyReject: (error: unknown) => void = () => {};
+    const ready = new Promise<number>((resolve, reject) => {
+      readyResolve = resolve;
+      readyReject = reject;
+    });
+    let releaseExport = () => {};
+    const released = new Promise<void>((resolve) => {
+      releaseExport = resolve;
+    });
+    let claimed: Promise<unknown> | undefined;
+    const exportRun = runAs(h.t, fresh(actor), async (ctx) => {
+      const result = await requestOrgExport(ctx);
+      const pid = (await sql<{ pid: number }>`select pg_backend_pid() as pid`.execute(ctx.trx)).rows[0]?.pid;
+      if (!pid) throw new Error("missing export backend pid");
+      readyResolve(pid);
+      await released;
+      return result;
+    });
+    // Một lỗi trước điểm ready không được để test chờ vô hạn.
+    void exportRun.then(
+      (result) => {
+        if (result.status === "failed") readyReject(new Error(result.problem.code));
+      },
+      (error: unknown) => readyReject(error),
+    );
+    try {
+      const pid = await ready;
+      claimed = sql<{ ok: boolean }>`select app.claim_org_purge(${org.orgId}::uuid) as ok`.execute(
+        h.t.worker,
+      );
+      let blocked = false;
+      for (let i = 0; i < 200; i++) {
+        blocked =
+          (
+            await sql<{ yes: boolean }>`select exists (
+          select 1 from pg_stat_activity where datname = current_database() and ${pid} = any(pg_blocking_pids(pid))
+        ) as yes`.execute(h.t.admin)
+          ).rows[0]?.yes === true;
+        if (blocked) break;
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      expect(blocked).toBe(true);
+      releaseExport();
+      expect(await exportRun).toMatchObject({ status: "committed" });
+      expect(await claimed).toMatchObject({ rows: [{ ok: true }] });
+      const after = await runAs(h.t, fresh(actor), (ctx) => requestOrgExport(ctx));
+      expect(after).toMatchObject({ status: "failed", httpStatus: 423 });
+    } finally {
+      releaseExport();
+      await exportRun.catch(() => undefined);
+      await claimed?.catch(() => undefined);
+      await purgeDueOrganizations(h.t.worker, { storage: { delete: async () => {} } });
+    }
+  });
+
+  it("migration 0074 down/up được khi không có claim; còn claim thì chặn down để không mở lại cửa huỷ", async () => {
+    const db = await createTestDb();
+    const migration = migrations["0074_org_purge_claim"];
+    if (!migration?.down) throw new Error("missing migration 0074 down");
+    const down = migration.down;
+    try {
+      await db.admin.transaction().execute((trx) => down(trx));
+      expect(
+        (
+          await sql`select 1 from information_schema.columns where table_schema = 'public' and table_name = 'organizations' and column_name = 'purge_started_at'`.execute(
+            db.admin,
+          )
+        ).rows,
+      ).toEqual([]);
+      await db.admin.transaction().execute((trx) => migration.up(trx));
+      const org = await seedOrg(db.admin, "Rollback claim");
+      await sql`update organizations set status = 'pending_deletion', deletion_requested_by = ${org.ownerAuthUserId}, deletion_requested_at = now() - interval '40 days', deletion_due_at = now() - interval '10 days' where id = ${org.orgId}`.execute(
+        db.admin,
+      );
+      expect(
+        (await sql<{ ok: boolean }>`select app.claim_org_purge(${org.orgId}::uuid) as ok`.execute(db.worker))
+          .rows[0]?.ok,
+      ).toBe(true);
+      await expect(db.admin.transaction().execute((trx) => down(trx))).rejects.toThrow(
+        /claimed organization exists/,
+      );
+      expect(
+        (
+          await sql<{
+            present: boolean;
+          }>`select purge_started_at is not null as present from organizations where id = ${org.orgId}`.execute(
+            db.admin,
+          )
+        ).rows[0]?.present,
+      ).toBe(true);
+    } finally {
+      await db.drop();
+    }
   });
 });

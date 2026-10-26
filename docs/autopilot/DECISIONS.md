@@ -957,3 +957,38 @@
 - Chọn: Biểu ngữ không JS client: hiển thị trạng thái + liên kết tới /nhat-ky#truy-cap-ho-tro (thu hồi một bước ở đó)
 - Lý do (tiêu chí chất lượng cuối): (1) không nới cổng, không đổi cấu hình build thử nghiệm ảnh hưởng mọi route; (3) đơn giản; (4) owner vẫn thấy biểu ngữ trên mọi trang, thu hồi một bước tại /nhat-ky (TM-12 vẫn đạt)
 - Đường lùi: Đưa lại nút thu hồi vào biểu ngữ khi có cách tách chunk
+
+### D-134 · 2026-10-26T14:58:06+00:00 · Duyệt PLAN đợt 24 và hàng rào purge/retention
+
+- Phương án: (1) Chỉ sửa giao diện MFA và để lại các race dữ liệu · (2) Sửa hồi quy bằng claim purge bền và khoá người ở kèm trong migration mới, có test đồng thời
+- Chọn: Sửa hồi quy bằng claim purge bền và khoá người ở kèm trong migration mới, có test đồng thời
+- Lý do (tiêu chí chất lượng cuối): Hai race có thể làm mất object hoặc giấy tờ đang dùng; claim purge phải tồn tại qua lỗi kho file, không giữ transaction mạng dài. Từ chối suspended tại request, giữ ngữ nghĩa pending. Test hành vi cần đi cùng bản sửa dù lát có thể vượt 150 dòng; không tách hàng rào khỏi regression.
+- Đường lùi: Revert PR chưa triển khai; down migration chỉ khi job purge đã dừng và không còn claim dở. Không hoàn tác bằng cách bật huỷ khi object đã mất.
+
+### D-135 · 2026-10-26T15:12:37+00:00 · Xử lý góp ý review độc lập đợt 24
+
+- Phương án: (1) Chỉ ghi hạn chế của header chuẩn và xuất dữ liệu sau claim · (2) Chặn Retry-After chuẩn vượt một ngày, chặn yêu cầu xuất mới sau claim cùng khoá tổ chức; giữ header 900 giây và xuất trong thời gian giữ
+- Chọn: Chặn Retry-After chuẩn vượt một ngày, chặn yêu cầu xuất mới sau claim cùng khoá tổ chức; giữ header 900 giây và xuất trong thời gian giữ
+- Lý do (tiêu chí chất lượng cuối): Không báo thời gian thử lại vô lý hoặc hứa xuất dữ liệu khi object đang bị xoá. Quyền ghi stays của worker/import không được mở rộng; kiểm caller và các test hiện có thay vì thêm quyền. Review đầy đủ được ghi sau khi cổng cuối xanh.
+- Đường lùi: Revert PR trước triển khai; giữ claim bền và purge production tắt nếu cần khôi phục riêng giao diện/header.
+
+### D-136 · 2026-10-26T15:21:14+00:00 · Đóng race upload bản xuất đã xếp hàng với purge tổ chức
+
+- Phương án: (1) Chỉ chặn yêu cầu xuất mới, để queued job hoàn tất sau purge · (2) Chặn staging mới sau claim, hoãn purge khi còn pending_scan, dọn object khi upload/finalize lỗi; retention riêng kết thúc staging bỏ dở
+- Chọn: Chặn staging mới sau claim, hoãn purge khi còn pending_scan, dọn object khi upload/finalize lỗi; retention riêng kết thúc staging bỏ dở
+- Lý do (tiêu chí chất lượng cuối): Review tái hiện object PII mồ côi dù DB đã cấp chứng nhận xoá. Claim và staging dùng khoá tổ chức, không giữ transaction mạng; file chưa hoàn tất khiến toàn tổ chức chờ, không cấp chứng nhận sớm. IO production timeout30giây, staging giữ2ngày; không khẳng định xoá hoàn tất nếu tiến trình bị pause vượtTTL hoặc kho hoàn tất PUT sauabort. Purge production vẫn tắt theoD125 tới khi người kiểm môi trường thực.
+- Đường lùi: Dừng purge trước rollback, xử lý hết claim và file đang staging; không gỡ claim để huỷ khi có object đã xoá.
+
+### D-137 · 2026-10-26T15:39:37+00:00 · Giữ tick WF-GIT-001 khi kiểm lịch sử đầy đủ không xanh?
+
+- Phương án: (1) Giữ tick dựa ruleset hiện tại dù lệnh squash-history đỏ · (2) Gỡ tick tới khi chủ repo quyết ngoại lệ lịch sử hoặc phạm vi kiểm hợp lệ, không sửa lịch sử/không nới checker
+- Chọn: Gỡ tick tới khi chủ repo quyết ngoại lệ lịch sử hoặc phạm vi kiểm hợp lệ, không sửa lịch sử/không nới checker
+- Lý do (tiêu chí chất lượng cuối): Clone đầy đủ phát hiện36 commit lịch sử ngoài squashPR, gồm tiền thân khung. Bằng chứng Kiểm hiện tại đỏ thì không được khai đạt; không forcepush hay viết lại main để xoá lịch sử. MUST đạt367, mở75, miễn59.
+- Đường lùi: Tick lại sau khi tiêu chí và bằng chứng được xác nhận, lệnh kiểm thực sự exit0.
+
+### D-138 · 2026-10-26T16:13:07+00:00 · Cô lập ca E2E đăng ký khỏi bucket giới hạn dùng chung của spec trước
+
+- Phương án: (1) Retry 429 bằng route/intercept hoặc tăng thời gian chờ/mô phỏng IP · (2) Đặt lại riêng dữ liệu fixture auth.rateLimit ở DB E2E trước spec đồng ý, không đổi server sản phẩm hoặc limiter trong kịch bản
+- Chọn: Đặt lại riêng dữ liệu fixture auth.rateLimit ở DB E2E trước spec đồng ý, không đổi server sản phẩm hoặc limiter trong kịch bản
+- Lý do (tiêu chí chất lượng cuối): Full E2E local: 221 qua, một signup auto-signin thất bại sau nhiều spec dùng chung IP; toàn bộ6shardCI xanh. Fixture phải có trạng thái Given độc lập. Chỉ testserver vớiDBgiả nhận marker riêng từngproject (1worker/project); mọi HTTP/UI và giới hạn20/60s vẫn thật, không đổi timeout hoặc response. Test DB auth tiếp tục chứng minh429.
+- Đường lùi: Revert helper/marker E2E; không thay chính sách giới hạn sản phẩm.

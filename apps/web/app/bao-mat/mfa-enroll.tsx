@@ -55,6 +55,7 @@ export function MfaEnroll({ m }: { m: Messages<"mfa_enroll." | "auth_form."> }) 
     setError(undefined);
     try {
       const r = await post("/api/auth/two-factor/enable", { password });
+      if (r.status === 429) return setError(tm(m, "auth_form.error.too_many"));
       if (!r.ok) return setError(tm(m, "mfa_enroll.error.password"));
       const uri = String(r.data.totpURI ?? "");
       setSecret(new URL(uri).searchParams.get("secret") ?? "");
@@ -74,6 +75,7 @@ export function MfaEnroll({ m }: { m: Messages<"mfa_enroll." | "auth_form."> }) 
     setError(undefined);
     try {
       const r = await post("/api/auth/two-factor/verify-totp", { code });
+      if (r.status === 429) return setError(tm(m, "auth_form.error.too_many"));
       if (!r.ok) return setError(tm(m, "auth_form.totp.invalid"));
       setSecret("");
       setCodes([]);
