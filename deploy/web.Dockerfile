@@ -3,7 +3,7 @@
 # Kiểm startup/PWA/shutdown ở docs/ops/evidence/local-images-2026-11-01.json; chưa triển khai production.
 # Base: node 24.22.2 (khớp .nvmrc), Debian trixie slim. Digest = index đa kiến trúc, kiểm SHA-256 manifest qua mirror.gcr.io
 # và kéo/chạy image 2026-11-01 (D-139).
-FROM node:24.22.2-trixie-slim@sha256:54f84b4cf8432b21aaffd5d3ce8d41e12cea0d10d33c09d2f3c9879d49d6b446 AS base
+FROM node:24.22.2-trixie-slim@sha256:54f84b4cf8432b21aaffd5d3ce8d41e12cea0d10d33c09d2f3c9879d49d6b446 AS prepared
 WORKDIR /app
 # D-140: Corepack xác minh/cài đúng pnpm đã ghim; bỏ npm khỏi base dùng chung cho build và runtime.
 # Không giữ các gói npm CLI có lỗ hổng trong bất kỳ stage ứng dụng nào; CI quét chính stage base này.
@@ -12,6 +12,15 @@ RUN corepack prepare pnpm@12.16.1 --activate \
  && pnpm --version \
  && test "$(pnpm --version)" = "12.16.1" \
  && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
+
+# Gom filesystem đã chuẩn bị để bỏ cả bytes npm trong layer cũ, không chỉ thêm whiteout.
+# Giữ nguyên Node/pnpm, OS, thư viện và metadata của image Node đã ghim; không nới ngân sách 285 MB.
+FROM scratch AS base
+COPY --from=prepared / /
+ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin NODE_VERSION=24.22.2 YARN_VERSION=1.22.22
+WORKDIR /app
+ENTRYPOINT ["docker-entrypoint.sh"]
+CMD ["node"]
 
 # ── build: cài đủ phụ thuộc (kể cả dev: typescript, esbuild) rồi `next build`. Build không cần biến môi trường runtime.
 FROM base AS build

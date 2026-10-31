@@ -11,7 +11,8 @@ RUN apk add --no-cache git \
  && git clone --quiet --depth 1 --branch "$SEAWEEDFS_VERSION" https://github.com/seaweedfs/seaweedfs /src \
  && test "$(git -C /src rev-parse HEAD)" = "$SEAWEEDFS_COMMIT"
 WORKDIR /src
-RUN go get golang.org/x/net@v0.61.0 && go mod verify
+# GHSA-mgcc-cww5-fp2q (2026-11-01): pin bản vá DoS RSA JWK, không đổi tag/commit SeaweedFS hoặc Go.
+RUN go get golang.org/x/net@v0.61.0 github.com/go-jose/go-jose/v4@v4.1.6 && go mod verify
 RUN cd weed \
  && CGO_ENABLED=0 go build -trimpath \
       -ldflags "-extldflags -static -X github.com/seaweedfs/seaweedfs/weed/util/version.COMMIT=$(git rev-parse --short HEAD)" \

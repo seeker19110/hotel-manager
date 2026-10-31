@@ -1,7 +1,7 @@
 # Caddy tự dựng (D-110): nhị phân phát hành v2.11.7 và image `caddy:2.11.7-alpine` dựng bằng Go 1.26.8 (GO-2026-6612 …) trên Alpine
 # chưa vá (zlib, brotli-libs) và thượng nguồn chưa dựng lại. Ở đây biên dịch đúng v2.11.7 với các module chuẩn — `main.go` chép
 # nguyên từ caddyserver/caddy@v2.11.7 cmd/caddy (Apache-2.0) — bằng Go 1.26.10, `golang.org/x/net` v0.61.0 (go.mod/go.sum trong thư
-# mục này, kiểm bằng `go mod verify`), rồi đặt lên Alpine 3.24 đã cập nhật. Cấu hình chạy giống image chính thức (biến XDG, cổng,
+# mục này, kiểm bằng `go mod verify`), cùng go-jose/v4 v4.1.6 vá GHSA-mgcc-cww5-fp2q, rồi đặt lên Alpine 3.24 đã cập nhật. Cấu hình chạy giống image chính thức (biến XDG, cổng,
 # WORKDIR, CMD) nên deploy/compose.yaml không đổi cách dùng. Nâng Caddy: sửa go.mod (`go get github.com/caddyserver/caddy/v2@vX`),
 # chép lại main.go của tag đó, `go mod tidy`.
 FROM golang:1.26.10-alpine3.24@sha256:27f2d3b83cfc5803c8078f8e730af0f7c431bf067afaec8f60a36fb763187cba AS build

@@ -211,7 +211,7 @@ describe("supply-chain.yml (BASE-DEP-009, OPS-MAINT-004, CMP-LIC-003/004)", () =
     });
     const bases = ["deploy/web.Dockerfile", "deploy/worker.Dockerfile"].map((f) =>
       read(f)
-        .match(/^FROM .+ AS base\n([\s\S]*?)(?=^FROM )/m)[0]
+        .match(/^FROM .+ AS prepared\n([\s\S]*?)(?=^FROM base AS (?:build|deps)$)/m)[0]
         .split("\n")
         .map((l) => l.trim())
         .filter((l) => l && !l.startsWith("#"))
@@ -222,6 +222,14 @@ describe("supply-chain.yml (BASE-DEP-009, OPS-MAINT-004, CMP-LIC-003/004)", () =
     expect(bases[0]).toContain(
       "rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx",
     );
+    expect(bases[0]).toContain("FROM scratch AS base\nCOPY --from=prepared / /");
+    expect(bases[0]).toContain("PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
+    expect(bases[0]).toContain(`NODE_VERSION=${read(".nvmrc").trim()}`);
+    expect(bases[0]).toContain("YARN_VERSION=1.22.22");
+    expect(bases[0]).toContain('ENTRYPOINT ["docker-entrypoint.sh"]');
+    expect(bases[0]).toContain('CMD ["node"]');
+    expect(bases[0]).not.toContain("rm -rf /usr/local/include/node");
+    expect(bases[0]).not.toContain("rm -f pnpm-native");
     for (const f of ["deploy/web.Dockerfile", "deploy/worker.Dockerfile"]) {
       expect(read(f), f).toMatch(/^FROM base AS (?:build|deps)$/m);
       expect(read(f), f).toMatch(/^FROM base AS runtime$/m);
