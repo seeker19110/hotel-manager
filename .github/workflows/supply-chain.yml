@@ -13,7 +13,6 @@ name: Supply chain
 # Danh sách image ở `matrix` phải khớp deploy/ (scripts/supply-chain.test.mjs kiểm).
 on:
   pull_request:
-    branches: [main]
   push:
     branches: [main]
   schedule:

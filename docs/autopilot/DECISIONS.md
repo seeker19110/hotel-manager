@@ -1048,3 +1048,10 @@
 - Chọn: Kiểm toàn bộ file đổi so với HEAD và untracked, gồm file mới đã stage; format chuẩn rồi stage lại đúng lát
 - Lý do (tiêu chí chất lượng cuối): Hai lần gate chặn cùng JSON mới vì danh sách git diff thường bỏ file added đãstage. Không nới formatter: dùng tập diff HEAD đầy đủ và giữ splitindex cho file dùng chung, kiểm cached diff trước commit.
 - Đường lùi: Không có đổi sản phẩm; giữ formatter làm cổng, có thể dùng lệnh format từng file nếu bộ lọc mới phát hiện giao nhau ngoài phạm vi.
+
+### D-147 · 2026-10-31T23:25:14+00:00 · D-147: chạy đầy đủ CI trên PR xếp chồng khi base chưa phải main
+
+- Phương án: (1) Chỉ có2workflow trên stackedPR và chờ retarget main mới kiểm đầy đủ · (2) Bỏ riêng branch/pathfilter ở11workflowPR, giữ mọi job/event/permission và thêm guard từ chối lọc base đểstackedPR chạy đủcổng
+- Chọn: Bỏ riêng branch/pathfilter ở11workflowPR, giữ mọi job/event/permission và thêm guard từ chối lọc base đểstackedPR chạy đủcổng
+- Lý do (tiêu chí chất lượng cuối): PR141basePR140 thực tế chỉ chạy Securityscan và DependencyAudit do9workflow khác lọcmain; autopilot cho phép chồngPR. Broaden coverage giúp review đúnghead trước FIFOmerge, không thêmPRtarget/secret/writepermissions, pushmain và6workflow nonPR giữ nguyên. Có negativecases chống bỏPRtrigger hoặc lọcbranch/path làm mấtcổng.
+- Đường lùi: Revert CI-only commit nếu phát sinh lỗi harness, không hạ requiredchecks; mọiPR vẫn phải qua đầyđủcổng trước merge.

@@ -4,7 +4,6 @@ name: Commit lint
 # `.githooks/commit-msg`). Commit của Dependabot bỏ qua — tiêu đề PR (squash) vẫn do job `quality` của ci.yml kiểm.
 on:
   pull_request:
-    branches: [main]
     types: [opened, synchronize, reopened]
 
 permissions:

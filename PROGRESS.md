@@ -1,5 +1,6 @@
 # PROGRESS.md — Hotel Manager
 ## Đang làm
+- 2026-11-01 D-147: bỏ filter base main ở9workflow để11workflowPR chạy đủ trên stackedPR; giữ events/permissions và thêm negativeguard. PR141 vẫn chờ người merge sau PR140, không triển khai thật.
 - 2026-11-01 đợt25 lát dependency (D-139/140/142/144/145): vá advisory production, Node24.22.2/pnpm12.16.1, web standalone bỏ compiler/devtools khỏi runtime; gỡ4ignore npm, không gia hạn. Bằng chứng tích hợp đợt25 ở docs/ops/evidence/, CI của từng head là cổng merge. Chủ dự án chưa có VPS, chọn hoàn tất mã/PR trước. Các task dữ liệu/cấu hình/vận hành tiếp theo còn ở PLAN.
 - 2026-10-26 đợt 24 (D-134): từ `main` `3e41782` (#137–#139 đã merge), sửa suspended vẫn dùng cookie cũ, MFA/Retry-After 429, race huỷ tổ chức khi worker xoá object và retention người ở kèm. PLAN đợt 23 lưu tại `docs/autopilot/archive/PLAN-dot-23.md`.
 - Migration mới 0074 claim purge bền trước xoá object, lỗi kho giữ claim để retry; file đang tải lên hoãn purge, staging mới sau claim bị chặn; down từ chối khi còn claim. 0075 giữ khoá người ở kèm; đọc/tái dùng giấy tờ cũng giữ khoá người. Production purge tiếp tục TẮT (D-125).

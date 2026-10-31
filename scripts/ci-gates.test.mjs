@@ -52,7 +52,7 @@ function jobNames(wfs) {
 }
 
 /**
- * Workflow có chạy trên MỌI pull_request vào main (không lọc `paths`/`paths-ignore`/nhánh khác)? `pull_request_target`
+ * Workflow có chạy trên MỌI pull_request, cả main và nhánh xếp chồng (không lọc nhánh/path)? `pull_request_target`
  * cũng tính (workflow lấy từ nhánh mặc định, vẫn báo check trên head của PR) — dù WF-CI-004 cấm trigger đó.
  */
 const PR_EVENTS = ["pull_request", "pull_request_target"];
@@ -63,8 +63,7 @@ function runsOnEveryPr(wf) {
   const event = PR_EVENTS.find((e) => on && e in on);
   if (!event) return false;
   const pr = on[event] ?? {};
-  if (pr.paths || pr["paths-ignore"] || pr["branches-ignore"]) return false;
-  return !pr.branches || pr.branches.includes("main");
+  return !["branches", "branches-ignore", "paths", "paths-ignore"].some((key) => Object.hasOwn(pr, key));
 }
 
 /** `if:` của job loại hẳn sự kiện pull_request (chỉ push/lịch/chạy tay/issue)? */
@@ -82,7 +81,7 @@ const ACTION_COND = /github\.event(?:\.|\[\s*['"])\s*(?:action|changes)\b/i;
 const skipsOnEventAction = (job) =>
   [job.if, ...(job.steps ?? []).map((st) => st?.if)].some((c) => ACTION_COND.test(String(c ?? "")));
 
-/** Context của mọi job chạy trên mọi PR vào main (job có `if:` bỏ qua → kết quả skipped, GitHub tính là qua). */
+/** Context của mọi job chạy trên mọi PR, kể cả nhánh xếp chồng (job có `if:` bỏ qua → kết quả skipped, GitHub tính là qua). */
 function prContexts(wfs) {
   const out = new Set();
   for (const wf of Object.values(wfs)) {
@@ -445,7 +444,35 @@ describe("D-084/D-085/D-091 — cổng hoãn ở pha build, rỗng ở harden", 
   });
 });
 
-describe("D-065 — ruleset gom mọi job chạy trên mọi PR vào main", () => {
+describe("D-147 — stacked PR chạy đủ cổng trên mọi nhánh đích", () => {
+  it("mọi workflow PR giữ trigger không lọc base hoặc path", () => {
+    const wfs = workflows();
+    const prFiles = Object.keys(wfs)
+      .filter((file) => Object.hasOwn(wfs[file].on ?? {}, "pull_request"))
+      .sort();
+    expect(prFiles).toEqual([
+      "api-ops.yml",
+      "ci.yml",
+      "commit-lint.yml",
+      "dep-audit.yml",
+      "frontend-quality.yml",
+      "pr-deps.yml",
+      "pr-policy.yml",
+      "secret-scan.yml",
+      "security-scan.yml",
+      "supply-chain.yml",
+      "test-quality.yml",
+    ]);
+    const filtered = prFiles.filter((file) =>
+      ["branches", "branches-ignore", "paths", "paths-ignore"].some((key) =>
+        Object.hasOwn(wfs[file].on.pull_request ?? {}, key),
+      ),
+    );
+    expect(filtered).toEqual([]);
+  });
+});
+
+describe("D-065/D-147 — ruleset gom mọi job chạy trên PR main và nhánh xếp chồng", () => {
   const wfs = workflows();
   const ruleset = JSON.parse(read(".github/rulesets/main.json"));
   const required = new Set(requiredContexts(ruleset));
@@ -453,7 +480,7 @@ describe("D-065 — ruleset gom mọi job chạy trên mọi PR vào main", () =
   const aggregated = new Set(ci.jobs.quality.needs.flatMap((k) => jobContexts(k, ci.jobs[k])));
   const prJobs = prContexts(wfs);
 
-  it("mỗi context trong main.json là job có thật chạy trên pull_request tới main, không lọc paths", () => {
+  it("mỗi context trong main.json là job có thật chạy trên mọi PR, không lọc nhánh/path", () => {
     for (const c of required) expect(prJobs.has(c), `${c} không chạy trên mọi PR`).toBe(true);
   });
 
@@ -530,8 +557,19 @@ describe("D-065 — ruleset gom mọi job chạy trên mọi PR vào main", () =
     const wf = (on, jobs) => ({ on, jobs });
     const job = { "runs-on": "ubuntu-24.04" };
 
-    it("lọc paths / paths-ignore / nhánh khác main → không chạy trên mọi PR", () => {
-      expect(runsOnEveryPr(wf({ pull_request: { branches: ["main"] } }, {}))).toBe(true);
+    it("mọi bộ lọc nhánh/path đều không đạt quy ước trigger không lọc của stacked CI", () => {
+      for (const filtered of [
+        { branches: ["main"] },
+        { branches: ["main", "chore/**"] },
+        { branches: ["**"] },
+        { branches: [] },
+        { "branches-ignore": ["release/**"] },
+        { "branches-ignore": [] },
+        { paths: ["apps/**"] },
+        { paths: [] },
+        { "paths-ignore": ["docs/**"] },
+      ])
+        expect(runsOnEveryPr(wf({ pull_request: filtered }, {})), JSON.stringify(filtered)).toBe(false);
       expect(runsOnEveryPr(wf({ pull_request: null }, {}))).toBe(true);
       expect(runsOnEveryPr(wf("pull_request", {}))).toBe(true);
       expect(runsOnEveryPr(wf(["push", "pull_request"], {}))).toBe(true);

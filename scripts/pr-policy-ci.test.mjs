@@ -19,8 +19,10 @@ describe("pr-policy.yml", () => {
   const yml = read(".github/workflows/pr-policy.yml");
   const job = jobBody(yml, "pr-policy") ?? "";
 
-  it("chạy trên pull_request vào main, chạy lại khi sửa mô tả/nhãn", () => {
-    expect(yml).toMatch(/pull_request:\s*\n\s+branches: \[main\]/);
+  it("chạy trên PR main và nhánh xếp chồng, chạy lại khi sửa mô tả/nhãn", () => {
+    const trigger = /^ {2}pull_request:\n((?: {4}.*\n)*)/m.exec(yml)?.[0] ?? "";
+    expect(trigger).toContain("pull_request:");
+    expect(trigger).not.toMatch(/\b(?:branches(?:-ignore)?|paths(?:-ignore)?):/);
     for (const t of ["opened", "synchronize", "reopened", "edited", "labeled", "unlabeled"])
       expect(yml).toContain(t);
   });
@@ -73,10 +75,10 @@ describe("pr-policy.yml", () => {
     expect(jobIf).toContain("github.event.pull_request.user.login != 'github-actions[bot]'");
     expect(yml).not.toContain("github.actor");
   });
-  it("chạy trên MỌI PR vào main: không lọc paths/branches-ignore ở cấp workflow; bỏ qua chỉ bằng if ở cấp job (D-065)", () => {
+  it("chạy trên MỌI PR, kể cả nhánh xếp chồng: không lọc nhánh/path ở cấp workflow; bỏ qua chỉ bằng if ở cấp job (D-065)", () => {
     const trigger = /^on:\n((?: {2}.*\n|\n)+)/m.exec(yml)?.[1] ?? "";
     expect(trigger).toContain("pull_request:");
-    expect(trigger).not.toMatch(/\bpaths(?:-ignore)?:|branches-ignore:|tags(?:-ignore)?:/);
+    expect(trigger).not.toMatch(/\bpaths(?:-ignore)?:|branches(?:-ignore)?:|tags(?:-ignore)?:/);
     expect(job).toMatch(/^ {4}if: /m);
   });
   it("dòng Bằng chứng của mục blueprint dựa vào job pr-policy nêu mức chặn thật (D-065)", () => {
