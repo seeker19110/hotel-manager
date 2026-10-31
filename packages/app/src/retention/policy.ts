@@ -25,6 +25,12 @@ export const WORKER_HEARTBEAT_RETENTION_DAYS = 30;
 export const AUTH_SESSION_RETENTION_DAYS = 30;
 /** Mã xác minh/OTP (`auth."verification"`): xoá 1 ngày sau `expiresAt`. */
 export const AUTH_VERIFICATION_RETENTION_DAYS = 1;
+/** Lời mời không gắn hồ sơ/thành viên: xoá 90 ngày sau mốc muộn nhất hết hạn/sửa/chấp nhận; lời mời liên kết còn giữ. */
+export const INVITATION_RETENTION_DAYS = 90;
+/** Bucket khoá đăng nhập: giữ 7 ngày sau mốc muộn nhất cửa sổ lỗi/hết khoá; không xoá khoá còn hiệu lực. */
+export const AUTH_LOGIN_THROTTLE_RETENTION_DAYS = 7;
+/** Bucket giới hạn tần suất: xoá 7 ngày sau lastRequest (epoch milliseconds). */
+export const AUTH_RATE_LIMIT_RETENTION_DAYS = 7;
 /** Liên kết khách: xoá 90 ngày sau lúc hết hạn hoặc bị thu hồi (mốc sớm hơn). */
 export const GUEST_LINK_RETENTION_DAYS = 90;
 /** Giấy tờ nhận dạng: ẩn danh 12 tháng sau khi kết thúc lưu trú/thuê cuối của người đó (tháng lịch, không phải 365 ngày). */

@@ -39,6 +39,8 @@ export const DSAR_ACCESS_TTL_HOURS = 72;
 export const DSAR_STALE_MINUTES = 15;
 /** Tối đa số lần tạo yêu cầu mỗi giờ mỗi tài khoản (chống lạm dụng; gửi lại yêu cầu đang mở không tính thêm hàng). */
 export const DSAR_REQUESTS_PER_HOUR = 10;
+/** Cấp URL gói truy cập: tối đa 30 lần thử/giờ/tài khoản, dùng chung mọi yêu cầu; chống làm đầy audit append-only. */
+export const DSAR_DOWNLOADS_PER_HOUR = 30;
 /** Tối đa số lần nhập lại mật khẩu sai trong 15 phút mỗi tài khoản trước khi trả 429. */
 export const DSAR_PASSWORD_ATTEMPTS_PER_15_MIN = 5;
 /**

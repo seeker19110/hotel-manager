@@ -12,7 +12,7 @@
 # kèm `art9_note`). Lưu ý: Luật 91/2025/QH15 không có cơ sở "lợi ích hợp pháp" như GDPR — các mục `legitimate_interests`
 # (nhật ký an toàn hệ thống) cần pháp lý chọn cơ sở tương ứng theo luật VN (chưa xác minh).
 version: 1
-updated: 2026-10-26
+updated: 2026-11-01
 status: "đề xuất — chờ DPIA và pháp lý duyệt"
 defaults:
   storage: "Postgres 17 tự host (VPS tại VN — chưa mua)"
@@ -156,7 +156,7 @@ entries:
     purpose: "Gửi lời mời nhân viên/người thuê"
     legal_basis: "thực hiện hợp đồng dịch vụ với chủ cơ sở/nhân viên (đề xuất)"
     legal_basis_code: "contract"
-    retention: "Hết hạn theo `expires_at`; chưa có job xoá lời mời đã dùng/hết hạn (chưa xác minh)"
+    retention: "Lời mời không liên kết (person_id và membership_id NULL): job privacy.retention xoá 90 ngày sau mốc muộn nhất expires_at/updated_at/accepted_at; giữ pending còn hạn. Lời mời liên kết tiếp tục giữ mốc hoạt động/chứng cứ, chưa có job xoá. RET-24, INVITATION_RETENTION_DAYS, D-141 — đề xuất kỹ thuật, chờ DPIA/pháp lý"
   - table: "public.invitations"
     column: "token_hash"
     classification: "xac_thuc"
@@ -195,7 +195,7 @@ entries:
     purpose: "Khoá tạm đăng nhập sai theo tài khoản (băm email)"
     legal_basis: "bảo đảm an toàn hệ thống và chống gian lận (đề xuất — cần pháp lý xác định cơ sở tương ứng)"
     legal_basis_code: "legitimate_interests"
-    retention: "Xoá khi đăng nhập đúng; còn lại hết hạn khoá 15 phút (chưa có job dọn — chưa xác minh)"
+    retention: "Xoá khi đăng nhập đúng; job privacy.retention dọn sau 7 ngày từ mốc muộn nhất window_started_at/locked_until; giữ cửa sổ mới và mọi khoá còn hiệu lực. RET-25, AUTH_LOGIN_THROTTLE_RETENTION_DAYS, D-141 — đề xuất kỹ thuật, chờ DPIA/pháp lý"
     classification_note: "email đã băm"
   - table: "auth.user"
     column: "name"
@@ -318,7 +318,7 @@ entries:
     purpose: "Khoá giới hạn tốc độ (gồm IP của người gọi)"
     legal_basis: "bảo đảm an toàn hệ thống và chống gian lận (đề xuất — cần pháp lý xác định cơ sở tương ứng)"
     legal_basis_code: "legitimate_interests"
-    retention: "Cửa sổ giới hạn tốc độ (phút); chưa có job dọn (chưa xác minh)"
+    retention: "Job privacy.retention xoá 7 ngày sau lastRequest (epoch milliseconds); giữ giá trị tương lai. RET-26, AUTH_RATE_LIMIT_RETENTION_DAYS, D-141 — đề xuất kỹ thuật, chờ DPIA/pháp lý"
     classification_note: "(chưa xác minh) IP có thể là dữ liệu cá nhân"
   - table: "public.notifications"
     column: "title"
@@ -460,8 +460,16 @@ entries:
     purpose: "Hồ sơ yêu cầu quyền chủ thể của chính tài khoản (truy cập, xoá, hạn chế xử lý): loại, trạng thái, vùng, hạn trả lời, kết quả tóm tắt (T-2311, D-123)"
     legal_basis: "nghĩa vụ pháp lý — đáp ứng và chứng minh đã đáp ứng quyền của chủ thể trong thời hạn (Luật 91/2025/QH15 — đề xuất; điều khoản và thời hạn VN theo nguồn thứ cấp, chưa đối chiếu bản gốc)"
     legal_basis_code: "legal_obligation"
-    retention: "Giữ cả sau khi xoá tài khoản (bằng chứng đã đáp ứng yêu cầu; chỉ còn id bí danh) — chưa có job xoá, chờ pháp lý chốt thời hạn; gói dữ liệu truy cập (object `dsar/<id tài khoản>/<id yêu cầu>.json`) xoá khi hết hạn tải 7 ngày (job `privacy.dsar`)"
+    retention: "Giữ cả sau khi xoá tài khoản (bằng chứng đã đáp ứng yêu cầu; chỉ còn id bí danh) — chưa có job xoá, chờ pháp lý chốt thời hạn; gói dữ liệu truy cập (object `dsar/<id tài khoản>/<id yêu cầu>.json`) hết hạn sau 72 giờ, CSDL chặn trên 7 ngày, job privacy.dsar xoá object khi hết hạn"
     notes: "Id `auth.user`, không khoá ngoại (ERD §4); RLS theo ngữ cảnh người dùng `app.user_id`; chuyển trạng thái chỉ qua hàm SECURITY DEFINER của worker"
+  - table: "public.dsar_audit_events"
+    column: "subject_user_id"
+    classification: "co_ban"
+    purpose: "Bằng chứng tài khoản đã tạo yêu cầu quyền chủ thể, worker đổi trạng thái và đã cấp URL gói access (T-2502, D-139/D-143); dùng cả khi chủ thể không thuộc tổ chức"
+    legal_basis: "nghĩa vụ chứng minh đã đáp ứng quyền của chủ thể — đề xuất kỹ thuật, chưa xác minh điều khoản và thời hạn pháp lý"
+    legal_basis_code: "legal_obligation"
+    retention: "RET-21: append-only, giữ cả sau khi tài khoản được ẩn danh, khi đó id là bí danh; chưa có job xoá và chưa chốt thời hạn cùng DPIA/pháp lý. Down 0076 từ chối khi có bằng chứng; rollback ứng dụng giữ schema"
+    notes: "Chín cột NOT NULL: id, subject_user_id, request_id, actor_type, action, request_type, request_status, occurred_at, correlation_id. Không FK sang auth.user; request_id FK RESTRICT sang dsar_requests. Chỉ chính chủ SELECT qua RLS; runtime/worker không ghi trực tiếp. Không lưu nội dung gói, số giấy tờ, email, IP, user-agent, URL/token hay storage key; việc cấp URL không chứng minh đã tải file"
   - table: "public.organizations"
     column: "deletion_requested_by"
     classification: "co_ban"
