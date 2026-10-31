@@ -247,6 +247,33 @@ describe("supply-chain.yml (BASE-DEP-009, OPS-MAINT-004, CMP-LIC-003/004)", () =
     );
     expect(release).toContain("node-base hm-node-base:release");
   });
+  it("image Go giữ các bản vá module đã xác minh, không đổi Go hoặc bản phát hành dịch vụ", () => {
+    const mod = read("deploy/caddy/go.mod");
+    const sum = read("deploy/caddy/go.sum");
+    for (const pin of [
+      "github.com/go-jose/go-jose/v4 v4.1.6",
+      "golang.org/x/net v0.62.0",
+      "github.com/go-chi/chi/v5 v5.4.0",
+    ]) {
+      expect(
+        mod.split("\n").some((line) => line.trim() === `${pin} // indirect`),
+        pin,
+      ).toBe(true);
+      expect(
+        sum.split("\n").some((line) => line.startsWith(`${pin} h1:`)),
+        pin,
+      ).toBe(true);
+    }
+    expect(mod).toContain("require github.com/caddyserver/caddy/v2 v2.11.7");
+    expect(mod).toMatch(/^go 1\.26\.10$/m);
+    const seaweed = read("deploy/seaweedfs/Dockerfile");
+    expect(seaweed).toContain("golang.org/x/net@v0.62.0");
+    expect(seaweed).toContain("github.com/go-jose/go-jose/v4@v4.1.6");
+    expect(seaweed).toContain("&& go mod verify");
+    expect(seaweed).toMatch(/^ARG SEAWEEDFS_VERSION=4\.48$/m);
+    for (const path of ["deploy/caddy/Dockerfile", "deploy/seaweedfs/Dockerfile"])
+      expect(read(path), path).toMatch(/^FROM golang:1\.26\.10-alpine3\.24@sha256:[a-f0-9]{64} AS build$/m);
+  });
   it("matrix image khớp deploy/: mọi image ngoài đều được quét, không quét image không dùng", () => {
     const deployRefs = new Set();
     let builtDirs = 0;
