@@ -1,0 +1,11 @@
+[Unit]
+Description=Hotel Manager weekly full backup (UTC)
+
+[Timer]
+OnCalendar=Sun *-*-* 02:00:00 UTC
+RandomizedDelaySec=5min
+Persistent=true
+Unit=hm-backup@full.service
+
+[Install]
+WantedBy=timers.target

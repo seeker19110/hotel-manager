@@ -10,6 +10,7 @@ import { createServer, type Server } from "node:http";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { ENV_KEYS } from "@hm/app/config";
 import { createTestDb, type TestDb } from "@hm/testkit";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { startFakeClamd } from "../e2e/fakes.ts";
@@ -18,6 +19,7 @@ import { DRAIN_NOTICE_MS, SHUTDOWN_DEADLINE_MS } from "../lib/shutdown.ts";
 const WEB_DIR = join(dirname(fileURLToPath(import.meta.url)), "..");
 const PORT = 3180;
 const BASE = `http://127.0.0.1:${PORT}`;
+const NEXT_BIN = createRequire(join(WEB_DIR, "package.json")).resolve("next/dist/bin/next");
 
 let t: TestDb;
 let s3: Server;
@@ -26,6 +28,7 @@ let s3DelayMs = 0;
 let clamd: Awaited<ReturnType<typeof startFakeClamd>>;
 let child: ChildProcess | undefined;
 let stderr = "";
+let stdout = "";
 const exited: { code: number | null; signal: NodeJS.Signals | null; at: number }[] = [];
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -54,9 +57,14 @@ beforeAll(async () => {
 
   // Build thiếu hoặc cũ hơn mã dừng êm (instrumentation/lib/shutdown/route ready) ⇒ dựng lại, không kiểm nhầm bản cũ.
   const buildId = join(WEB_DIR, ".next", "BUILD_ID");
-  const sources = ["instrumentation.ts", "lib/shutdown.ts", "app/api/ready/route.ts"].map((f) =>
-    join(WEB_DIR, f),
-  );
+  const sources = [
+    "instrumentation.ts",
+    "lib/shutdown.ts",
+    "app/api/ready/route.ts",
+    "../../packages/app/src/config/runtime.ts",
+    "../../packages/app/src/config/schema.ts",
+    "../../packages/app/src/config/error.ts",
+  ].map((f) => join(WEB_DIR, f));
   const stale = !existsSync(buildId) || sources.some((f) => statSync(f).mtimeMs > statSync(buildId).mtimeMs);
   if (stale) {
     const b = spawnSync("pnpm", ["exec", "next", "build"], {
@@ -66,28 +74,35 @@ beforeAll(async () => {
     });
     if (b.status !== 0) throw new Error(`next build lỗi:\n${b.stdout}\n${b.stderr}`);
   }
-  const nextBin = createRequire(join(WEB_DIR, "package.json")).resolve("next/dist/bin/next");
-  child = spawn(process.execPath, [nextBin, "start", "--hostname", "127.0.0.1", "--port", String(PORT)], {
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    NODE_ENV: "production",
+    LOG_LEVEL: "info",
+    SMTP_URL: "fake://local",
+    NEXT_TELEMETRY_DISABLED: "1",
+    APP_BASE_URL: BASE,
+    DATABASE_URL: t.runtimeUrl,
+    BETTER_AUTH_SECRET: randomBytes(32).toString("base64url"),
+    S3_ENDPOINT: `http://127.0.0.1:${s3Port}`,
+    S3_BUCKET: "hm-shutdown",
+    S3_ACCESS_KEY_ID: "test",
+    S3_SECRET_ACCESS_KEY: "khong-dung-that",
+    HM_PII_KEYS: `1:${randomBytes(32).toString("base64")}`,
+    HM_PII_KEY_ID: "1",
+    HM_PII_INDEX_KEY: randomBytes(32).toString("base64"),
+    CLAMD_HOST: "127.0.0.1",
+    CLAMD_PORT: String(clamd.port),
+  };
+  // NEXT_RUNTIME is a framework compile-time define, not a required runtime environment variable.
+  // Passing it from the test runner would hide a bundled accessor that fails to preserve this define.
+  delete env.NEXT_RUNTIME;
+  child = spawn(process.execPath, [NEXT_BIN, "start", "--hostname", "127.0.0.1", "--port", String(PORT)], {
     cwd: WEB_DIR,
-    env: {
-      ...process.env,
-      NODE_ENV: "production",
-      SMTP_URL: "fake://local",
-      NEXT_TELEMETRY_DISABLED: "1",
-      APP_BASE_URL: BASE,
-      DATABASE_URL: t.runtimeUrl,
-      BETTER_AUTH_SECRET: randomBytes(32).toString("base64url"),
-      S3_ENDPOINT: `http://127.0.0.1:${s3Port}`,
-      S3_BUCKET: "hm-shutdown",
-      S3_ACCESS_KEY_ID: "test",
-      S3_SECRET_ACCESS_KEY: "khong-dung-that",
-      HM_PII_KEYS: `1:${randomBytes(32).toString("base64")}`,
-      HM_PII_KEY_ID: "1",
-      HM_PII_INDEX_KEY: randomBytes(32).toString("base64"),
-      CLAMD_HOST: "127.0.0.1",
-      CLAMD_PORT: String(clamd.port),
-    },
-    stdio: ["ignore", "ignore", "pipe"],
+    env,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  child.stdout?.on("data", (d: Buffer) => {
+    stdout += d.toString();
   });
   child.stderr?.on("data", (d: Buffer) => {
     stderr += d.toString();
@@ -108,6 +123,58 @@ afterAll(async () => {
 });
 
 describe("web-shutdown — SIGTERM khi có request chậm đang chạy", () => {
+  // SPEC-runtime S-001/S-003: execute the production-compiled hook without injecting NEXT_RUNTIME.
+  it("compiled web startup reports validated production configuration", () => {
+    expect(stdout).toContain("config.effective");
+    expect(stdout).toContain('"env":"production"');
+    expect(stdout).toContain('"DATABASE_URL":"***"');
+  });
+
+  it("compiled startup rejects missing required config before becoming ready, without exposing values", async () => {
+    const env: NodeJS.ProcessEnv = { ...process.env, NODE_ENV: "production" };
+    for (const key of ENV_KEYS) if (key !== "NODE_ENV") delete env[key];
+    delete env.NEXT_RUNTIME;
+    env.NEXT_TELEMETRY_DISABLED = "1";
+    const secret = "startup-private-password";
+    env.DATABASE_URL = `postgres://migration:${secret}@127.0.0.1/hotel`;
+    // Exercise the real compiled hook without `next start` reloading local dotenv files and refilling missing fields.
+    const script = `const hook = require(${JSON.stringify(join(WEB_DIR, ".next/server/instrumentation.js"))});
+      hook.register().then(() => { console.log('STARTUP_VALIDATED'); }, error => {
+        console.error(JSON.stringify({ name: error.name, message: error.message })); process.exitCode = 1;
+      });`;
+    const bad = spawn(process.execPath, ["--input-type=commonjs", "--eval", script], {
+      cwd: WEB_DIR,
+      env,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let output = "";
+    let closed: { code: number | null; signal: NodeJS.Signals | null } | undefined;
+    bad.stdout?.on("data", (d: Buffer) => {
+      output += d.toString();
+    });
+    bad.stderr?.on("data", (d: Buffer) => {
+      output += d.toString();
+    });
+    const done = new Promise<void>((resolve) =>
+      bad.once("close", (code, signal) => {
+        closed = { code, signal };
+        resolve();
+      }),
+    );
+    try {
+      await waitUntil(() => !!closed, 15_000, "compiled startup validation");
+      expect(closed).toEqual({ code: 1, signal: null });
+      expect(output).toContain("ConfigError");
+      expect(output).toContain("APP_BASE_URL");
+      expect(output).toContain("BETTER_AUTH_SECRET");
+      expect(output).not.toContain(secret);
+      expect(output).not.toContain("STARTUP_VALIDATED");
+    } finally {
+      if (!closed) bad.kill("SIGKILL");
+      await done;
+    }
+  }, 25_000);
+
   it("ready 200 trước SIGTERM; SIGTERM ⇒ ready mới 503 ngay, request chậm vẫn 200, thoát mã 0 trong hạn, cổng đóng", async () => {
     const ok = await get("/api/ready");
     expect(ok.status).toBe(200);

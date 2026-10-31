@@ -1,0 +1,19 @@
+[Unit]
+Description=Hotel Manager pgBackRest %i backup
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=hotel-manager-ops
+Group=hotel-manager-ops
+WorkingDirectory=/opt/hotel-manager/deploy
+ExecStart=/usr/bin/node /opt/hotel-manager/scripts/ops/run.mjs backup %i /opt/hotel-manager/deploy/compose.yaml /var/lib/hotel-manager/backup /var/lib/node_exporter/textfile_collector
+TimeoutStartSec=65min
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/hotel-manager/backup /var/lib/node_exporter/textfile_collector

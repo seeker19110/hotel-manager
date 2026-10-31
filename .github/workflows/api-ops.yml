@@ -53,6 +53,8 @@ jobs:
         run: promtool check rules deploy/prometheus/alerts.yml
       - name: promtool test rules
         run: promtool test rules deploy/prometheus/alerts.test.yml
+      - name: promtool test backup và đồng hồ host
+        run: promtool test rules deploy/prometheus/host-operations.test.yml
       - name: Truy vấn PromQL trong docs/ops/SLO.md
         run: node scripts/check-slo-promql.mjs
 

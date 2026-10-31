@@ -1,0 +1,154 @@
+rule_files:
+  - alerts.yml
+evaluation_interval: 1m
+tests:
+  - name: backup-failure
+    interval: 1m
+    input_series:
+      - series: hm_backup_last_run_success
+        values: 0+0x10
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: HmBackupFailed
+        exp_alerts:
+          - exp_labels:
+              severity: ticket
+              owner: van-hanh
+            exp_annotations:
+              summary: Lượt backup gần nhất thất bại
+              description: Giữ bản tốt trước đó, kiểm pgBackRest và kho offsite; không xoá
+                backup để thử lại. Metric đến từ textfile collector trên host.
+              runbook_url: docs/RUNBOOK.md
+              runbook_section: 13. Backup và đồng hồ máy chủ
+  - name: backup-success
+    interval: 1m
+    input_series:
+      - series: hm_backup_last_run_success
+        values: 1+0x10
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: HmBackupFailed
+        exp_alerts: []
+  - name: backup-late
+    interval: 1m
+    input_series:
+      - series: hm_backup_last_success_timestamp_seconds
+        values: 0+0x1700
+    alert_rule_test:
+      - eval_time: 27h
+        alertname: HmBackupTooOld
+        exp_alerts:
+          - exp_labels:
+              severity: ticket
+              owner: van-hanh
+            exp_annotations:
+              summary: Chưa có backup thành công trong 26 giờ
+              description: Kiểm timer full/diff và lần chạy thủ công đầu tiên; đây là ngưỡng
+                kỹ thuật khởi điểm, không phải RPO được phê duyệt.
+              runbook_url: docs/RUNBOOK.md
+              runbook_section: 13. Backup và đồng hồ máy chủ
+  - name: backup-fresh
+    interval: 1m
+    input_series:
+      - series: hm_backup_last_success_timestamp_seconds
+        values: 90000+0x1700
+    alert_rule_test:
+      - eval_time: 27h
+        alertname: HmBackupTooOld
+        exp_alerts: []
+  - name: full-backup-late
+    interval: 1m
+    input_series:
+      - series: hm_backup_last_full_success_timestamp_seconds
+        values: 0+0x14000
+    alert_rule_test:
+      - eval_time: 9d
+        alertname: HmFullBackupTooOld
+        exp_alerts:
+          - exp_labels:
+              severity: ticket
+              owner: van-hanh
+            exp_annotations:
+              summary: Chưa có full backup thành công trong tám ngày
+              description: Diff không thay thế lịch full hằng tuần; kiểm chuỗi backup bằng
+                pgBackRest info và diễn tập restore theo runbook.
+              runbook_url: docs/RUNBOOK.md
+              runbook_section: 13. Backup và đồng hồ máy chủ
+  - name: full-backup-fresh
+    interval: 1m
+    input_series:
+      - series: hm_backup_last_full_success_timestamp_seconds
+        values: 700000+0x14000
+    alert_rule_test:
+      - eval_time: 9d
+        alertname: HmFullBackupTooOld
+        exp_alerts: []
+  - name: clock-offset
+    interval: 1m
+    input_series:
+      - series: node_timex_offset_seconds
+        values: 2+0x10
+      - series: node_timex_sync_status
+        values: 1+0x10
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: HmHostClockUnsynchronized
+        exp_alerts:
+          - exp_labels: &a1
+              severity: ticket
+              owner: van-hanh
+            exp_annotations: &a2
+              summary: Đồng hồ host lệch quá một giây hoặc chưa đồng bộ
+              description: Kiểm dịch vụ NTP trên host; đồng hồ ảnh hưởng OTP, hạn quyền và
+                truy vết. Cần bật timex collector và kiểm metric thật.
+              runbook_url: docs/RUNBOOK.md
+              runbook_section: 13. Backup và đồng hồ máy chủ
+  - name: clock-unsynced
+    interval: 1m
+    input_series:
+      - series: node_timex_offset_seconds
+        values: 0+0x10
+      - series: node_timex_sync_status
+        values: 0+0x10
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: HmHostClockUnsynchronized
+        exp_alerts:
+          - exp_labels: *a1
+            exp_annotations: *a2
+  - name: clock-healthy
+    interval: 1m
+    input_series:
+      - series: node_timex_offset_seconds
+        values: 0.5+0x10
+      - series: node_timex_sync_status
+        values: 1+0x10
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: HmHostClockUnsynchronized
+        exp_alerts: []
+  - name: backup-metric-missing
+    interval: 1m
+    input_series: []
+    alert_rule_test:
+      - eval_time: 31m
+        alertname: HmBackupMetricsMissing
+        exp_alerts:
+          - exp_labels:
+              severity: ticket
+              owner: van-hanh
+            exp_annotations:
+              summary: Không thu được metric backup
+              description: Kiểm lần full đầu, quyền đọc file .prom và node_exporter textfile
+                collector; thiếu metric không đồng nghĩa backup thành công.
+              runbook_url: docs/RUNBOOK.md
+              runbook_section: 13. Backup và đồng hồ máy chủ
+  - name: backup-metric-present
+    interval: 1m
+    input_series:
+      - series: hm_backup_last_attempt_timestamp_seconds
+        values: 1+0x31
+    alert_rule_test:
+      - eval_time: 31m
+        alertname: HmBackupMetricsMissing
+        exp_alerts: []

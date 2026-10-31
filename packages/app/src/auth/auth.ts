@@ -7,6 +7,7 @@ import { SECONDS_PER_HOUR } from "@hm/domain";
 import { betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { emailOTP, twoFactor } from "better-auth/plugins";
+import { loadRuntimeConfig } from "../config/index.ts";
 import { createPool } from "../db/index.ts";
 import { t } from "../i18n.ts";
 import { appLogger, requestClient, type SecurityClient } from "../logging/index.ts";
@@ -127,8 +128,7 @@ export function createAuth(deps: AuthDeps) {
 
   // Telemetry của Better Auth: tắt tường minh. Lưu ý thư viện còn bật nếu env BETTER_AUTH_TELEMETRY=1 (env thắng
   // tuỳ chọn) ⇒ chặn khởi động thay vì để gửi dữ liệu ra ngoài âm thầm.
-  if (/^(1|true|yes|on)$/i.test(process.env.BETTER_AUTH_TELEMETRY ?? ""))
-    throw new Error(t("auth.telemetry_must_be_off"));
+  if (loadRuntimeConfig().telemetryRequested) throw new Error(t("auth.telemetry_must_be_off"));
 
   /** Tài khoản chỉ còn là người thuê (xuyên tổ chức): `app.otp_sign_in_allowed`. */
   const tenantOnlyUser = async (userId: string): Promise<boolean> => {

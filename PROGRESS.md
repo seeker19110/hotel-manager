@@ -1,38 +1,27 @@
 # PROGRESS.md — Hotel Manager
 ## Đang làm
-- 2026-11-01 đợt25 lát dữ liệu (T-2502/2503/2505): audit DSAR tài khoản0076, chặn blind UPDATE bootstrap0077, TTL lời mời không liên kết/auth0078. Regression quyền/support/retry/rollback/clock qua PostgreSQL17; chưa bật purge production và hạn pháp lý còn mở. Phụ thuộc PR141 rồi PR140 theo FIFO.
-- 2026-11-01 D-147: bỏ filter base main ở9workflow để11workflowPR chạy đủ trên stackedPR; giữ events/permissions và thêm negativeguard. PR141 vẫn chờ người merge sau PR140, không triển khai thật.
-- 2026-11-01 đợt25 lát dependency (D-139/140/142/144/145): vá advisory production, Node24.22.2/pnpm12.16.1, web standalone bỏ compiler/devtools khỏi runtime; gỡ4ignore npm, không gia hạn. Bằng chứng tích hợp đợt25 ở docs/ops/evidence/, CI của từng head là cổng merge. Chủ dự án chưa có VPS, chọn hoàn tất mã/PR trước. Các task dữ liệu/cấu hình/vận hành tiếp theo còn ở PLAN.
-- 2026-10-26 đợt 24 (D-134): từ `main` `3e41782` (#137–#139 đã merge), sửa suspended vẫn dùng cookie cũ, MFA/Retry-After 429, race huỷ tổ chức khi worker xoá object và retention người ở kèm. PLAN đợt 23 lưu tại `docs/autopilot/archive/PLAN-dot-23.md`.
-- Migration mới 0074 claim purge bền trước xoá object, lỗi kho giữ claim để retry; file đang tải lên hoãn purge, staging mới sau claim bị chặn; down từ chối khi còn claim. 0075 giữ khoá người ở kèm; đọc/tái dùng giấy tờ cũng giữ khoá người. Production purge tiếp tục TẮT (D-125).
-- Các test hồi quy đã tái hiện đỏ trên bản cũ; bằng chứng cổng từng task ở `.autopilot/evidence/`. Cổng build/typecheck/lint/toàn bộ test exit 0 trên 66a458a; E2E chọn lọc mobile/desktop 8/8. Kiểm cuối và CI: xem PR và `.autopilot/verified.json`.
-- Lịch sử đợt cũ: `docs/autopilot/archive/PROGRESS-history.md`. MUST hiện đạt 367, miễn 59, mở 75; không tick thêm khi thiếu hạ tầng/pháp lý/thiết bị.
+- 2026-11-01 đợt 25 (D-139…D-147), theo yêu cầu cập nhật main và hoàn thiện dự án. Đã fetch lại: main vẫn3e41782, PR140 tại81d1c3b chưa merge; nối nhánh từ PR140, không sửa checkout gốc. Chủ dự án xác nhận chưa có VPS/tên miền, hoàn tất mã và PR trước.
+- Vá glob/minimatch/fast-uri, Node24.22.2/pnpm12.16.1; gỡ4ignore npm không gia hạn. Web chuyển Next standalone sau khi full image scan bắt compiler/devtools trong runtime; giữ LICENSE/notices/PWA, scan/runtime evidence ngày01-11. Dev/compiler builder vẫn có rủi ro đã ghi, không khai sạch toàn bộ.
+- Migration0076: audit DSAR theo tài khoản, append-only/RLS/cùng transaction, URL issuance30lần/giờ.0077: chặn blind UPDATE persons khi actor không tồn tại, giữ INSERT bootstrap.0078: dọn lời mời không liên kết90ngày và auth lockout/bucket7ngày, giữ liên kết/chứng cứ và mọi cửa sổ còn hiệu lực. Không sửa migration đã áp.
+- Tách config runtime/edge/build/client và CLI migration dùng URL/owner riêng, kiểm quyền trước DDL. Kiểm image bắt regression NEXT_RUNTIME do accessor raw env làm mất define của Next; đã sửa literal reads trong module config, có test compiled hook đỏ cũ/xanh mới và SIGTERM exit0.
+- Công cụ vận hành: backup full/diff timer, runner có timeout/lock/metric; promote cùng digest, smoke/version/header, rollback và lịch sử nguyên tử. Chỉ kiểm cục bộ bằng dữ liệu giả; không triển khai thật.
+- Blueprint hiện369 đạt /59 miễn /73 mở. Tick BASE-CFG-002 và DB-SEC-002 bằng code/test; FE-BUILD-005 vẫn mở do yêu cầu kiểm build thiếu env, trong khi build chủ đích không nhận secret runtime. Mẫu .env.example cần người sửa theo guard.
 
 ## Tiếp theo
-1. Người review/merge PR đợt 24 (auth/dữ liệu, AGENTS §7). Khi triển khai 0074: không rollback lúc còn `purge_started_at`; hoàn tất purge trước. Chưa bật purge production.
-2. Các bước còn lại: `docs/autopilot/HUONG-DAN-VIEC-CUA-NGUOI.md` (75 MUST); pháp lý/văn bản đồng ý/hạn DSAR, VPS/staging, backup/log giữ hạn, secret store, thiết bị thật.
-3. `release-please` từng lỗi quyền ghi token từ #93: cần xác minh lại quyền hoặc dùng GITHUB_TOKEN theo README. Không đọc/ghi giá trị bí mật trong phiên này.
-4. Theo dõi hạn ngoại lệ Grype 2026-11-01/11-08, giấy phép sharp 2026-12-31/parse-cache-control 2027-04-18. Dependency production: `pnpm audit --prod` ngày 2026-10-26 sạch.
-5. Caddy mặc định đã kiểm chống X-Forwarded-For giả cục bộ: `docs/ops/runbooks/auth-proxy.md`; cấu hình production hoặc thêm CDN phải kiểm lại đường đi thực tế.
+1. Đã mở PR141 dependency/CI và PR142 DSAR/retention; hoàn tất cổng cuối cho lát config/ops; xem docs/autopilot/PLAN.md, .autopilot/verified.json và CI trên đúng head. PR auth/dữ liệu do người merge theo AGENTS§7; merge FIFO từ PR140 rồi các nhánh phụ thuộc.
+2. Khi có hạ tầng: theo docs/autopilot/HUONG-DAN-VIEC-CUA-NGUOI.md; còn73MUST về pháp lý, kho log/offsite/DR, GitHub review, thiết bị thật và chứng cứ triển khai. Không bật production purge (D-125).
+3. Dùng docs/ops/runbooks/database-migrations.md và operations-tools.md khi thiết lập. Migration owner phải BYPASSRLS/ownership/CREATE và SET ROLE app_worker; không cấp BYPASSRLS cho runtime/worker. Down0074 từ chối khi còn claim; down0076 từ chối khi có audit, rollback ứng dụng và giữ schema.
+4. Theo dõi zod3/Lighthouse hạn11-08, compiler native7.0.2 chưa có bản vá upstream và dev audit còn cảnh báo. LGPL sharp hạn12-31, parse-cache-control hạn2027-04-18. Không mặc định gia hạn. Release-please từng lỗi token từ#93: xác minh quyền khi tiếp tục phát hành, không đọc secret trong phiên này.
 
 ## Quyết định
-- 2026-10-15 Repo + khung `.xtemplates/`; tự host (ADR-0002); web-app + saas-multitenant + fintech, quy mô M; stack ADR-0001 (Node 24 · Next 16.4 · PG 17 · Kysely · pg-boss · Better Auth · Serwist · Vitest/Playwright · Biome · pnpm). Quy ước: import đuôi `.ts`; commit qua `scripts/commit-gated.sh`; quyền/tiền kiểm ở CSDL (RLS, EXCLUDE, trigger) + app; pool ≤ 20; cookie `__Host-hm_org` chỉ để chọn; Serwist không cache điều hướng; E2E Chromium sẵn (`/opt/pw-browsers`).
-- 2026-10-15…16 Đợt 2–3 (D-001…D-009): ClamAV qua clamd + bản giả · số giấy tờ AES-256-GCM + blind index · người thuê OTP email · liên kết khách token 256 bit · phụ lục hợp đồng `superseded_on` · giá dịch vụ chỉ owner. Hạn mức mặc định quản lý 5.000.000 đ, lễ tân 2.000.000 đ; `bank_auto` chỉ worker ghi; khoá kỳ theo `business_date`; điều chỉnh chỉ giảm qua duyệt.
-- 2026-10-16 Chủ dự án: merge từng lát, PR mỗi lát. 2026-10-17 merge L3 (AGENTS §7): nhánh riêng, merge khi CI xanh + review hết 🔴/🟠; PR ngoại lệ cứng (auth/tiền/tồn, `merge-check` HUMAN) do người merge (ADR-0019).
-- 2026-10-17 Đợt 4–8 (D-023…D-058): worker runtime, Argon2id, 422 idempotency, FK RESTRICT, rate limit, miễn Storybook; S-025 409, `allocation.held`, EXIF Orientation, migration 0061/0062; D-053 phạm vi · D-054 một theme · D-055 rào test thay lint · D-056 `quality` = clean clone · D-057 `license-policy.json` · D-058 ngân sách email UTC.
-- 2026-10-17 Chủ dự án duyệt: "Duyệt tất cả 55 miễn trừ" (PR #38); "Duyệt CI + công cụ" (đợt 9).
-- D-060 WF-REVIEW-007: giữ CODEOWNERS, không thêm `.github/*` vào `merge_risk_paths` — chờ chủ dự án.
-- D-061 grype only-fixed + SBOM CycloneDX + syft · D-062 link/OpenAPI breaking bằng script Node, breaking bump MAJOR.
-- D-063 cấu hình cổng (vitest/playwright/biome/tsconfig/xt.yaml…) vào `merge_risk_paths` + job coverage-ratchet.
-- D-064 otelcol-contrib ghim SHA-256; `schema-compat` mỗi PR · D-065 required check gom ở `main.json`, import là việc người.
-- D-066 FE-TEST-001 chỉ test Testing Library; giữ `skipLibCheck` có lý do; bỏ husky, một hook `.githooks`.
-- D-067 ngoại lệ grype CÓ HẠN (critical ≤ 7 ngày, high ≤ 30 ngày) + VULN-SLA; kiểm hạn ở job, không ở unit test.
-- D-084…D-086 hoãn 26 cổng ở pha build; D-091 khôi phục khi harden (`DEFERRED_TO_HARDEN` rỗng); D-092 e2e timeout 40 → 15 để vừa trần 600 phút CI/PR.
-- D-068 ngoại lệ giấy phép `parse-cache-control` BSD (hạn 2027-04-18); giữ MỘT lockfile pnpm.
-- Nợ chấp nhận: pháp lý trong `docs/research/` chỉ có nguồn thứ cấp — đối chiếu văn bản gốc trước khi dùng dữ liệu thật.
-- Bài học: `set -o pipefail` với `loop record`; test DB `pnpm vitest run --project db <mẫu>`; sau mỗi merge `main` chạy lại `pnpm test` (rào mới đụng nhau); `merge-check` có thể báo xanh khi job chính chưa có check run (FB-096); E2E đăng nhập qua `signInClick`; `page.route` cần `serviceWorkers: "block"`; mốc `delete_after` theo ngày UTC; migration mới đánh số sau bản cuối trên `main`; job có tên chứa dấu cách (ma trận) cần `while read` khi duyệt context.
+- ADR-0001/0002: modular monolith TypeScript/Postgres17, tự host; quyền/tiền kiểm ở DB và app. Stack theo manifest/pins; không thêm dịch vụ trả phí. Lịch sử D-001…D-138 và quyết định sản phẩm xem docs/autopilot/DECISIONS.md, archive/PROGRESS-dot-24.md.
+- D-139: hoàn tất phần mã còn làm được, không gán mọi MUST cho người. D-140/142: bỏ npm khỏi base và nâng pnpm vá bootstrap. D-141: retention vận hành bảo thủ, giữ lời mời liên kết. D-143: hạn mức URL DSAR. D-144: standalone bỏ compiler khỏi runtime, giữ scan/license và ghi rủi ro builder.
+- D-145: SBOM image kiểm theo phạm vi CI gồm hệ điều hành, không dùng allowlist npm cho OS; không đổi ngưỡng license. D-146: raw report/harness scratch nằm ngoài source checkout. D-147: đủ11workflow chạy trên mọi base PR, có negative guard; giữ event/permissions/jobs.
+- Không force-push/rewrite main, không tự merge ngoại lệ cứng, không hạ ngưỡng/skip test. Bằng chứng phải khớp cây cuối; số đo ở evidence/CI, không dùng bản test cũ để kết luận.
 
 ## Bàn giao phiên
-- Checkout gốc `/home/liend/repos/hotel-manager` giữ nguyên nhánh audit và PROGRESS chưa commit của người dùng. Công việc mới ở worktree `/home/liend/repos/hotel-manager-autopilot`, nhánh `chore/autopilot-completion-2026-10-26` từ `3e41782`.
-- Lệnh cổng: `.xtemplates/scripts/dev-task.sh gate`; PostgreSQL 17 của máy dev tại `/home/liend/.local/opt/pg17-embedded/node_modules/@embedded-postgres/linux-x64/native/bin` (`PG_BIN`; bộ server 17 của máy thiếu psql, phiên này ghép client psql 18 trong `work/pg-bin`, không đổi server). Browser dùng thư viện user-local `work/browser-libs/usr/lib/x86_64-linux-gnu` qua `LD_LIBRARY_PATH`. Không dùng dữ liệu thật.
-- D-138: cô lập bucket fixture trước spec đồng ý (testserver DB tạm, không đổi limiter); test DB auth và E2E riêng đã xanh. Mã sản phẩm đã đẩy ở 66a458a; review độc lập không còn lỗi chặn, cổng đầy đủ xanh. Production vẫn NO-GO; còn mã DSAR audit access/restrict ở CMP-AUDIT-002 cho lát tiếp theo, cùng các mục cần quyết định/hạ tầng/thiết bị. Khung doctor: 0 lỗi, cảnh báo phiên bản khung cũ; chưa nâng khung trong lát sửa lỗi này.
+- Mốc main `3e41782`, công việc nối từ PR140; SHA chốt và CI nằm trên các PR đợt25.
+- Làm tại /home/liend/repos/hotel-manager-autopilot. Checkout gốc /home/liend/repos/hotel-manager giữ nhánh audit và PROGRESS chưa commit của người dùng.
+- Cổng tích hợp gần nhất:292tệp/4439test qua, không lỗi nền. Cổng chuẩn scripts/commit-gated.sh và .xtemplates/scripts/dev-task.sh gate. PG_BIN=/home/liend/repos/hotel-manager-autopilot/work/pg-bin (server17, psql client cục bộ); browserlibs qua LD_LIBRARY_PATH=.../work/browser-libs/usr/lib/x86_64-linux-gnu. E2E_PORT3371; không chạy E2E cùng build/test khác.
+- Task image cần Docker Linux, syft/grype trên PATH và DB scanner mới; phiên này có tools đã kiểm checksum tại work/security-tools. Đường tạm, log/raw scanner report không commit. Mã mẫu chỉ dữ liệu giả, không đọc secret thật.
+- Doctor khung0lỗi, cảnh báo3.15.1cũ hơn bản mới; chưa nâng khung/hook trong đợt này. G7 vẫn NO-GO khi73MUST chưa có bằng chứng thật.

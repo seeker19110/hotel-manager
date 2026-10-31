@@ -1,12 +1,13 @@
 # Hướng dẫn làm toàn bộ việc còn lại — Hotel Manager
 
-> Cập nhật 2026-10-26 sau #137–#139: còn **75 MUST** mở (`xt.py blueprint-status BLUEPRINT.md --strict`).
+> Cập nhật 2026-11-01 sau đợt 25: còn **73 MUST** mở (`xt.py blueprint-status BLUEPRINT.md --strict`).
 > Các bước lịch sử giữ để tra cứu; mục đã tick trong BLUEPRINT hoặc có bằng chứng mới thì không làm lại. Phần repo đã có được ghi ở đợt 23/24; mục còn mở cần bằng chứng triển khai, quyết định sản phẩm/pháp lý, quyền hoặc kiểm tay tương ứng.
 > Mỗi nhóm có ba phần:
 > - **Bạn làm:** việc của bạn.
 > - **Rồi nhắn agent:** câu gửi phiên agent sau khi bạn làm xong, để agent làm phần trong repo và tick kèm bằng chứng.
 > - **Kiểm:** cách tự xác nhận.
 >
+> Chủ dự án ngày 2026-11-01: chưa có VPS/tên miền, hoàn tất mã và PR trước. Công cụ vận hành đã có ở `docs/ops/runbooks/operations-tools.md`; môi trường và diễn tập thật làm sau.
 > Chi tiết gốc nằm ở `docs/autopilot/BLUEPRINT-GAPS.md`, mục "Kết quả đợt 9 (a)".
 
 Thứ tự đề xuất: **0 → A → B → C → D → E**. Bước sau phụ thuộc bước trước; trong cùng một bước, các nhóm làm song song được.
@@ -15,13 +16,10 @@ Thứ tự đề xuất: **0 → A → B → C → D → E**. Bước sau phụ 
 
 ## Bước 0 — Hạn gấp (làm trong tuần này)
 
-### 0.1 Luật grype — **đã xử lý** (2026-10-25, D-110)
+### 0.1 Luật grype — cập nhật 2026-11-01 (D-140/D-142/D-144)
 - Caddy và SeaweedFS giờ **tự dựng** từ mã nguồn bằng Go đã vá trên Alpine cập nhật (`deploy/caddy/`, `deploy/seaweedfs/`, ADR-0006), nên đã gỡ 24 luật bỏ qua của hai image này, gồm toàn bộ luật Critical.
-- Còn 5 luật High, đều không vào bản chạy production:
-  - npm đi kèm image node, hạn **2026-11-01** và **2026-11-08**;
-  - `zod` 3 chỉ dùng trong lighthouse của CI, hạn **2026-11-08**.
-
-  Đến hạn, agent kiểm image node mới hoặc gia hạn kèm lý do (D-067).
+- Đợt 25 đã gỡ bốn luật npm: Node24.22.2/pnpm12.16.1 và base bỏ npm, không gia hạn. Còn một luật `zod`3 trong công cụ Lighthouse, hạn **2026-11-08**; dev audit chưa sạch toàn bộ. Xem evidence và VULN-SLA, không mặc định gia hạn.
+- Web runtime standalone để không mang compiler/devtools vào bản chạy; quét image thật, không coi việc build thành công là scanner xanh.
 - **Bạn làm:** không cần làm gì. Khi có VPS (Bước C1), image production phải dựng từ chính các Dockerfile này: `docker compose build`.
 
 ### 0.2 `release-please` đỏ trên `main` từ #93
@@ -71,19 +69,15 @@ Thứ tự đề xuất: **0 → A → B → C → D → E**. Bước sau phụ 
 - `parse-cache-control` (BSD, chỉ dùng trong CI) có hạn 2027-04-18, chỉ cần xác nhận.
 - **Rồi nhắn agent:** `Duyệt ngoại lệ LGPL sharp tới <ngày>; xác nhận parse-cache-control`.
 
-### A5. Duyệt biến môi trường — 3 mục
-`BASE-CFG-002, FE-BUILD-005, DB-SEC-002`
+### A5. Mẫu biến môi trường — còn FE-BUILD-005
+BASE-CFG-002 và DB-SEC-002 đã tick bằng code/test đợt 25. FE-BUILD-005 còn giữ mở vì tiêu chí kiểm build thiếu env; build không được nhận secret runtime. CLI/config và schema client/server đã có.
 - Agent bị chặn sửa `.env*`. Bạn tự thêm vào `.env.example` hai dòng sau (không chứa mật khẩu thật):
   ```
   WORKER_DATABASE_URL=postgres://hm_worker:CHANGE_ME@localhost:5432/hotel
   MIGRATION_DATABASE_URL=postgres://hm_migrator:CHANGE_ME@localhost:5432/hotel
   ```
   Commit lên một nhánh rồi mở PR, hoặc nhắn agent để agent tạo PR từ phần còn lại.
-- **Rồi nhắn agent:** `đã duyệt 2 biến env`. Agent tiếp tục:
-  - đưa các `process.env` còn lại vào schema;
-  - tách biến client/server;
-  - thêm test build khi thiếu env;
-  - cho app/worker/migration dùng vai trò CSDL riêng.
+- Phần schema/client-server/role riêng đã hoàn tất ở đợt 25. Sau khi sửa mẫu, chỉ cần đối chiếu biến với runbook; không làm lại các task này. Phép kiểm FE-BUILD-005 còn cần quyết rõ yêu cầu build: hiện build không cần secret runtime, startup vẫn từ chối thiếu/sai biến.
 
 ### A6. Hook / ADR — 2 mục
 `ARC-ADR-004, XC-DOCAI-005`
@@ -240,4 +234,4 @@ PR mới chạm auth/dữ liệu cần người merge (AGENTS §7). Migration 00
 B2.7 về IP: đã kiểm Caddy mặc định ở máy dev (3 ca header giả) và mã Better Auth 1.7.9; xem `docs/ops/runbooks/auth-proxy.md`. Khi triển khai VPS, thêm CDN hoặc đổi publish cổng, kiểm lại từ bên ngoài. Bằng chứng dev không thay thế cấu hình thực tế.
 
 
-D-137: WF-GIT-001 mở lại vì checker thấy 36 commit lịch sử ngoài squash PR khi clone đầy đủ. Cần quyết ngoại lệ/phạm vi lịch sử bằng bằng chứng; không force-push hoặc rewrite main. Mã sửa đợt 24 ở 66a458a đã qua cổng đầy đủ. Phần mã DSAR audit access/restrict (CMP-AUDIT-002) vẫn còn cho lát tiếp theo; không coi 75 MUST đều chỉ chờ người.
+D-137: WF-GIT-001 mở lại vì checker thấy 36 commit lịch sử ngoài squash PR khi clone đầy đủ. Cần quyết ngoại lệ/phạm vi lịch sử bằng bằng chứng; không force-push hoặc rewrite main. Mã sửa đợt 24 ở 66a458a đã qua cổng đầy đủ. Đợt25 đã thêm audit DSAR access/restrict ở PR142. CMP-AUDIT-002 vẫn mở cho provenance ip/ua, audit deploy, NTP/WORM và hạn lưu pháp lý; số MUST hiện tại xem đầu tài liệu.

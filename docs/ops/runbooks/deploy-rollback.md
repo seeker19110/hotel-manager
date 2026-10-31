@@ -1,14 +1,14 @@
 ---
 title: Runbook — deploy và rollback
 kind: runbook
-updated: 2026-10-16
+updated: 2026-11-01
 last_drilled: chưa diễn tập (chưa có VPS)
 owner: (chưa gán — Tech Lead)
 ---
 
 # Deploy và rollback
 
-> **Trạng thái:** `deploy/compose.yaml` hiện chỉ có `postgres` (+ pgBackRest), `seaweedfs`, `caddy`. Dockerfile cho `web`/`worker` đã có ở `deploy/` nhưng **chưa build thật** và compose chưa có service tương ứng (Caddy đã trỏ sẵn `web:3000`; danh tính CSDL/S3 riêng từng service: [`deploy/README.md`](../../../deploy/README.md)); mua VPS/tên miền/SMTP là điểm dừng của chủ dự án. Các bước ứng dụng ghi theo thiết kế, đánh dấu "(chờ Dockerfile)". Deploy production là thao tác cần người duyệt (AGENTS §6).
+> **Trạng thái:** `deploy/compose.yaml` có `postgres` (+ pgBackRest), `seaweedfs`, `caddy`, `web` và `worker`; Dockerfile ứng dụng và danh tính CSDL/S3 riêng từng service ở [`deploy/README.md`](../../../deploy/README.md). Sự tồn tại của cấu hình không chứng minh đã dựng/chạy image hoặc triển khai thật; chỉ ghi kết quả khi có bằng chứng tương ứng. VPS/tên miền/SMTP và quyền production vẫn theo AGENTS §6.
 > Không chạy lệnh nào dưới đây lên dữ liệu thật trước khi có người duyệt.
 
 ## Khi nào dùng
@@ -38,32 +38,27 @@ docker compose -f deploy/compose.yaml exec -u postgres postgres psql -U postgres
 Không tiếp tục nếu `check`/`backup` lỗi. Điểm khôi phục `truoc_migrate_<phiên_bản>` là đường lùi chắc chắn (xem [restore](restore.md) mục B).
 
 ### 3. Áp migration
-Hiện **chưa có lệnh `migrate` riêng** (test/E2E gọi `migrateToLatest`). Cho tới khi có script chính thức, chạy từ máy có mã nguồn và `DATABASE_URL` của role chủ schema (không phải `app_runtime`), sau khi role đã tạo bằng `packages/db/sql/bootstrap-roles.sql`:
+Nạp `MIGRATION_DATABASE_URL` từ kho bí mật vào tiến trình rồi dùng CLI chính thức ở gốc repo; production đặt `NODE_ENV=production`. Không ghi URL vào lệnh hay dùng URL runtime/worker. Điều kiện role, TLS và cách xử lý lỗi ở [runbook migration](database-migrations.md):
 ```bash
-cd packages/db && DATABASE_URL=<url role chủ schema> node --input-type=module -e '
-import pg from "pg"; import { Kysely, PostgresDialect } from "kysely";
-import { migrateToLatest } from "./src/index.ts";
-const db = new Kysely({ dialect: new PostgresDialect({ pool: new pg.Pool({ connectionString: process.env.DATABASE_URL }) }) });
-try { await migrateToLatest(db); } finally { await db.destroy(); }'
+pnpm --filter @hm/db migrate status
+pnpm --filter @hm/db migrate up
+pnpm --filter @hm/db migrate status
 ```
-**Giả định về role chủ schema:** role chạy migration (và vì thế sở hữu bảng + mọi hàm `SECURITY DEFINER`) phải là **superuser hoặc có `BYPASSRLS`**. Nhiều bảng bật `FORCE ROW LEVEL SECURITY` (áp cả cho owner) và chỉ có policy theo ngữ cảnh tổ chức/người dùng; hàm definer chạy bằng quyền owner nên nếu owner bị RLS thì: `app.purge_organization` không xoá được hàng theo tổ chức và `INSERT org_deletion_certificates` (chỉ có policy SELECT) bị chặn (0070), `app.dsar_erase_account`/`app.dsar_export_data` không đọc/ghi được `memberships`, `dsar_requests`… (0069), các hàm `app.purge_*` của job dọn (0056/0066) không thấy hàng. Kiểm trước khi áp: `select rolsuper, rolbypassrls from pg_roles where rolname = current_user;` phải có ít nhất một cột `true` (test/E2E chạy bằng superuser của cluster tạm nên không lộ lỗi này). Không cấp `BYPASSRLS` cho `app_runtime`/`app_worker`.
+**Role chủ schema:** cần **superuser hoặc `BYPASSRLS`**, ownership hữu hiệu, quyền CREATE và (với owner không superuser) SET ROLE `app_worker` để 0047 tạo `pgboss` đúng owner. Nhiều bảng có `FORCE ROW LEVEL SECURITY`; owner của hàm `SECURITY DEFINER` thiếu BYPASSRLS sẽ không xử lý được dữ liệu xuyên ngữ cảnh của DSAR/purge/retention. CLI kiểm trước DDL và không tự cấp quyền. Không cấp `BYPASSRLS` cho `app_runtime`/`app_worker`.
 
-(Đã thử trên cluster tạm: áp 46 migration, không lỗi.) **Khoá bảng (RK-021):** migration có `CREATE INDEX`/`ALTER TABLE` khoá bảng đích (0048 xây ~58 index). Chạy **ngoài giờ cao điểm**, sau khi kiểm không còn giao dịch dài (`select pid, now()-xact_start, state, left(query,60) from pg_stat_activity where xact_start is not null order by 2 desc`). Migration phải tự đặt `lock_timeout` (0048: 5 s, cục bộ trong transaction của migrator, trả lại giá trị cũ sau khi xong); nếu báo `canceling statement due to lock timeout` thì transaction đã hoàn tác sạch — chờ giao dịch dài kết thúc rồi chạy lại, không tăng timeout. Bảng lớn (hàng trăm nghìn dòng trở lên): tạo index bằng `CREATE INDEX CONCURRENTLY` ngoài migrator rồi mới đánh dấu migration.
+**Khoá bảng (RK-021):** migration có `CREATE INDEX`/`ALTER TABLE` khoá bảng đích (0048 xây ~58 index). Chạy **ngoài giờ cao điểm**, sau khi kiểm không còn giao dịch dài (`select pid, now()-xact_start, state, left(query,60) from pg_stat_activity where xact_start is not null order by 2 desc`). Migration phải tự đặt `lock_timeout` (0048: 5 s, cục bộ trong transaction của migrator, trả lại giá trị cũ sau khi xong); nếu báo `canceling statement due to lock timeout` thì transaction đã hoàn tác sạch — chờ giao dịch dài kết thúc rồi chạy lại, không tăng timeout. Bảng lớn (hàng trăm nghìn dòng trở lên): tạo index bằng `CREATE INDEX CONCURRENTLY` ngoài migrator rồi mới đánh dấu migration.
 Quy tắc: migration mới là file mới, **không sửa migration đã áp**; thay đổi phá vỡ dùng expand → contract qua hai lần phát hành. Migration có `DROP COLUMN`/`RENAME COLUMN`/`ALTER COLUMN … TYPE`/`DROP TABLE`/`ALTER TABLE … RENAME TO` hoặc `.dropColumn()`/`.renameColumn()`/`.dropTable()`/`.renameTo()` của Kysely (từ 0047, phần `up`) phải mang dấu `-- expand-contract: contract sau expand ở release vX.Y.Z — <lý do>` (gạch `-`/`–`/`—`; rào `arch-guards.test.ts`; release phải là bản đã có mục `## [X.Y.Z]` trong `CHANGELOG.md`); CI job `schema-compat` chạy test CSDL của nhánh nền (N−1) trên schema của PR (N), kèm file nền ratchet của PR (`scripts/schema-compat.mjs`) — chạy trên mỗi PR (khôi phục ở pha harden, D-091).
 
-### 4. Triển khai ứng dụng (chờ Dockerfile)
+### 4. Triển khai ứng dụng bằng digest đã kiểm
+Hạ tầng postgres/seaweedfs/caddy phải được thiết lập riêng trước. Dựng và đẩy image một lần; lấy digest và manifest đã qua staging, không dựng lại ở production. Dùng công cụ [promote và rollback](operations-tools.md):
 ```bash
-git fetch && git checkout <tag hoặc SHA đã merge>
-docker compose -f deploy/compose.yaml pull          # image hạ tầng ghim digest
-docker compose -f deploy/compose.yaml up -d postgres seaweedfs caddy
-# (chờ Dockerfile) build/pull web, worker rồi: docker compose -f deploy/compose.yaml up -d web worker
+node scripts/ops/run.mjs promote <manifest.json> deploy/compose.yaml <state-dir> https://<domain>
 ```
-Ứng dụng tương thích ngược với schema cũ một phiên bản (expand-contract) để bước 3 và 4 không cần dừng dịch vụ.
+Lệnh chỉ thay web/worker, chờ ready rồi kiểm version/header. State-dir nằm ngoài checkout. Lỗi tự áp lại bản tốt trước nếu có nhưng vẫn trả exit khác 0; chưa có bản tốt thì phải phục hồi thủ công. Ứng dụng dùng expand-contract; kiểm N−1 trong CI trước khi đổi schema.
 
 ### 5. Kiểm sau deploy
 ```bash
-curl -fsS https://<domain>/api/health                # 200 {"status":"ok"}
-curl -fsS https://<domain>/api/ready                 # 200, database/storage/scanner = ok
+node scripts/ops/run.mjs smoke https://<domain> <version>
 curl -fsS -H "Authorization: Bearer $(node scripts/metrics-token.mjs)" https://<domain>/api/metrics | head
 ```
 Theo dõi 30 phút: `hm_worker_heartbeat_age_seconds` < 120, `hm_outbox_oldest_unpublished_age_seconds` < 300, tỷ lệ 5xx trong log Caddy; chạy luồng smoke bằng tài khoản kiểm thử.
@@ -73,29 +68,19 @@ Quyết định rollback: IC (INCIDENT-RESPONSE §2). Giảm thiệt hại trư�
 
 ### Chỉ đổi ứng dụng (migration không đổi hoặc đã tương thích ngược)
 ```bash
-git checkout <tag/SHA bản trước>
-# (chờ Dockerfile) docker compose -f deploy/compose.yaml up -d web worker
-curl -fsS https://<domain>/api/ready
+node scripts/ops/run.mjs rollback deploy/compose.yaml <state-dir> https://<domain>
 ```
+Lệnh lấy manifest trước trong lịch sử, áp đúng digest rồi smoke; không down CSDL. Nếu tiến trình chết giữa lúc deploy, đối chiếu `last-attempt.json` và container thực tế; `releases.json` chỉ ghi lần thành công gần nhất.
 
 ### Có migration mới cần lùi
 1. **Ưu tiên** ứng dụng bản trước + giữ schema mới (expand-contract nên bản cũ vẫn chạy). Dùng cách này nếu migration chỉ thêm.
-2. Lùi từng migration bằng `down` (chỉ khi migration mới **chưa có dữ liệu thật phụ thuộc**; `down` bị chặn hoặc mất dữ liệu ở cột/bảng mới — đọc file migration trước, có người duyệt):
+2. Chỉ down khi đã đánh giá dữ liệu phụ thuộc, backup và toàn bộ khoảng migration cần gỡ. Chọn rõ **bản sẽ giữ lại**, có người duyệt theo quyền môi trường. Ví dụ schema 0078 muốn giữ 0077:
    ```bash
-   cd packages/db && DATABASE_URL=<url role chủ schema> node --input-type=module -e '
-   import pg from "pg"; import { Kysely, PostgresDialect } from "kysely";
-   import { createMigrator } from "./src/index.ts";
-   const db = new Kysely({ dialect: new PostgresDialect({ pool: new pg.Pool({ connectionString: process.env.DATABASE_URL }) }) });
-   let code = 0;
-   try {
-     const res = await createMigrator(db).migrateDown();
-     console.log(JSON.stringify(res.results ?? []));
-     if (res.error) { console.error("migrateDown LỖI:", String(res.error)); code = 1; }
-   } finally { await db.destroy(); }
-   process.exit(code);'
+   pnpm --filter @hm/db migrate down --to 0077_persons_bootstrap_scope --confirm-down
+   pnpm --filter @hm/db migrate status
    ```
    **Lùi code trước, migration sau:** với `0063_email_budget`, chạy `down` khi bản mới còn chạy ⇒ vòng gửi email dừng (không có hàm xin ngân sách) và `/api/metrics` trả 500 (thiếu `app.email_budget_metrics`). Triển khai lại bản trước rồi mới lùi migration; `down` xoá bảng bộ đếm `email_budget_days` (chỉ mất bộ đếm ngày, không mất thư).
-   Mỗi lần chạy lùi **một** migration (đã thử trên cluster tạm: lùi `0046_observability`). Kysely không ném lỗi khi `down` hỏng mà trả `res.error`: lệnh trên in lỗi ra stderr và thoát mã 1 (mã 0 = lùi xong, hoặc không còn gì để lùi: `[]`); mã ≠ 0 thì dừng, đọc lỗi, không chạy lại khi chưa hiểu. Không dùng `migrateDownAll` ngoài test.
+   CLI yêu cầu đích đã áp đứng trước bản hiện tại và cờ xác nhận; đích cách nhiều bản sẽ gỡ nhiều migration. Lỗi trả JSON an toàn + exit 1, không in URL/thông điệp DB thô; dừng và đối chiếu [runbook migration](database-migrations.md). Down 0074 bị chặn khi còn claim purge, 0076 bị chặn khi đã có audit DSAR: giữ schema và rollback ứng dụng, không xoá claim/audit để vượt guard. Không dùng `migrateDownAll` ngoài test.
 3. Không đủ ⇒ khôi phục PITR về điểm `truoc_migrate_<phiên_bản>` ([restore](restore.md) mục B) — mất dữ liệu ghi sau điểm đó; cần người duyệt.
 
 ## Xác minh

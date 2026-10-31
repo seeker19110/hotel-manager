@@ -2,7 +2,7 @@
 import { Kysely, PostgresDialect } from "kysely";
 import { configureAnalytics } from "../analytics/index.ts";
 import { type Auth, createAuth, createSignInOtpSender } from "../auth/index.ts";
-import { type AppConfig, loadConfig } from "../config/index.ts";
+import { type AppConfig, loadConfig, runtimeEnvironment } from "../config/index.ts";
 import { createPool } from "../db/index.ts";
 import { createLogger, type Logger, setAppLogger } from "../logging/index.ts";
 import { createAnalyticsConsentCheck } from "../privacy/index.ts";
@@ -18,7 +18,7 @@ export interface ServerContext {
 
 let ctx: ServerContext | undefined;
 
-export function serverContext(env: Record<string, string | undefined> = process.env): ServerContext {
+export function serverContext(env: Record<string, string | undefined> = runtimeEnvironment()): ServerContext {
   if (ctx) return ctx;
   const config = loadConfig(env);
   const log = createLogger({ level: config.LOG_LEVEL, service: "hm-web", env: config.NODE_ENV });

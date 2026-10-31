@@ -1,4 +1,4 @@
-// BASE-CFG-008 — quét bundle client (`.next/static`) theo MẪU GIÁ TRỊ bí mật, bổ sung `client-bundle.test.ts` (quét theo TÊN biến).
+// SPEC-runtime S-002 / BASE-CFG-008 — quét bundle client (`.next/static`) theo MẪU GIÁ TRỊ bí mật, bổ sung `client-bundle.test.ts` (quét theo TÊN biến).
 // Có bundle sau `pnpm build` (cổng `gate`/E2E build trước test); chưa build thì phần quét thật được bỏ qua, phần mẫu vẫn chạy.
 import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";

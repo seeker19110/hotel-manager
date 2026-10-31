@@ -1,7 +1,10 @@
 // Cấu hình môi trường (BASE-CFG-001/002/005, ADR-0002). Mọi đọc `process.env` của server đi qua module này.
 import { z } from "zod";
 import { PiiKeyError, parseKeyring } from "../crypto/index.ts";
+import { ConfigError } from "./error.ts";
 import { parseWebhookSecrets } from "./webhook-secrets.ts";
+
+export { ConfigError } from "./error.ts";
 
 /** Biến là bí mật: không bao giờ in giá trị, không được có tiền tố NEXT_PUBLIC_ (lọt vào bundle client). */
 export const SECRET_KEYS = [
@@ -189,17 +192,6 @@ export const envSchema = z
 
 export type AppConfig = Readonly<z.infer<typeof envSchema>>;
 export const ENV_KEYS = Object.keys(envSchema.shape) as (keyof typeof envSchema.shape)[];
-
-export class ConfigError extends Error {
-  /** Chỉ tên biến và lý do — không bao giờ chứa giá trị. */
-  readonly issues: readonly { key: string; reason: string }[];
-
-  constructor(issues: readonly { key: string; reason: string }[]) {
-    super(`Cấu hình môi trường không hợp lệ: ${issues.map((i) => `${i.key} (${i.reason})`).join("; ")}`);
-    this.name = "ConfigError";
-    this.issues = issues;
-  }
-}
 
 const MASK = "***";
 

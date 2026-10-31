@@ -1,4 +1,5 @@
 "use client";
+import { IS_PRODUCTION_BUILD } from "@hm/app/config/client";
 // Vỏ PWA (SPEC-pwa): đăng ký SW, banner mất mạng, banner có bản mới. Chỉ chạy online — không cache trang/dữ liệu.
 import { SerwistProvider, useSerwist } from "@serwist/turbopack/react";
 import { type ReactNode, useEffect, useState, useSyncExternalStore } from "react";
@@ -136,7 +137,7 @@ export function PwaShell({ children, reauth }: { children: ReactNode; reauth: Re
       cacheOnNavigation={false}
       // Không tự tải lại khi có mạng trở lại — tránh mất dữ liệu đang nhập (S-008).
       reloadOnOnline={false}
-      disable={process.env.NODE_ENV !== "production"}
+      disable={!IS_PRODUCTION_BUILD}
     >
       <NetworkBanner />
       <UpdateBanner />

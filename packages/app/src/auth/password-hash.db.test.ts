@@ -205,6 +205,7 @@ describe("password-hash: Better Auth + Postgres", () => {
   });
 });
 
+// SPEC-runtime S-003: telemetry remains disabled and an environment override refuses startup.
 describe("password-hash: telemetry Better Auth", () => {
   it("tắt tường minh và không gọi mạng khi đăng ký/đăng nhập", async () => {
     const ctx = await auth.$context;

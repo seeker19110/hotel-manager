@@ -4,6 +4,7 @@
 // Trong request/job: thêm `trace_id`/`span_id` (W3C Trace Context, trace.ts). Hình dạng bản ghi: `log-record.schema.json`.
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { loadRuntimeConfig, runtimeEnvironment } from "../config/index.ts";
 import { traceLogFields } from "./trace.ts";
 
 export type LogLevel = "debug" | "info" | "warn" | "error";
@@ -31,7 +32,7 @@ export const DEFAULT_SERVICE = "hotel-manager";
  * (đi ngược từ thư mục chạy), không có nữa thì `0.0.0`. Không hard-code — đổi version ở một chỗ là đủ.
  */
 export function resolveAppVersion(
-  env: Record<string, string | undefined> = process.env,
+  env: Record<string, string | undefined> = runtimeEnvironment(),
   cwd: string = process.cwd(),
 ): string {
   const fromEnv = env.APP_VERSION?.trim();
@@ -166,7 +167,7 @@ export function createLogger(opts: {
   const now = opts.now ?? (() => new Date());
   const service = opts.service ?? DEFAULT_SERVICE;
   const version = opts.version ?? defaultVersion();
-  const env = opts.env ?? process.env.NODE_ENV ?? "development";
+  const env = opts.env ?? loadRuntimeConfig().NODE_ENV;
 
   const emit = (lvl: LogLevel, msg: string, fields?: Record<string, unknown>, category?: string) => {
     if (ORDER[lvl] < ORDER[level]) return;
