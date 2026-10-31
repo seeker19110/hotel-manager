@@ -6,7 +6,7 @@
 |---|---|
 | `compose.yaml` | `postgres` (+ pgBackRest), `seaweedfs`, `caddy`, `web`, `worker`; mọi service dựng tại chỗ từ Dockerfile có `FROM` ghim digest (`postgres/`, `seaweedfs/`, `caddy/` — hai thư mục sau tự dựng từ mã nguồn bằng Go đã vá, ADR-0006 — và `web`/`worker` bên dưới); `stop_grace_period: 40s`, log xoay vòng ([`docs/ops/retention-policy.md`](../docs/ops/retention-policy.md)). **Chưa chạy thật** |
 | `caddy/`, `seaweedfs/` | Caddy v2.11.7 (`main.go`, `go.mod`/`go.sum` trong thư mục) và SeaweedFS 4.48 (clone tag, kiểm commit `530be3e`) dựng bằng Go 1.26.10 + `golang.org/x/net` v0.61.0 trên Alpine 3.24 đã `apk upgrade`; cấu hình chạy như image chính thức. Dựng cần mạng tới github.com và proxy.golang.org. CI dựng + quét ở job `image-scan` (ADR-0006, D-110) |
-| `web.Dockerfile`, `worker.Dockerfile` | image ứng dụng (multi-stage, base Node ghim digest, chạy bằng người dùng `node`, không bí mật trong image). **Chưa build thật** (máy dev không có Docker) |
+| `web.Dockerfile`, `worker.Dockerfile` | image ứng dụng (multi-stage, base Node ghim digest, chạy bằng người dùng `node`, không bí mật trong image). **Đã build/quét và chạy cục bộ** bằng PostgreSQL/SeaweedFS tạm, clamd giả; chưa triển khai production ([bằng chứng](../docs/ops/evidence/local-images-2026-11-01.json)) |
 | `postgres/Dockerfile` | Postgres 17 + pgBackRest |
 | `Caddyfile` | TLS tự động, HSTS, chuyển tiếp tới `web:3000` và kho file |
 | `s3.json.example`, `pgbackrest.conf.example` | mẫu bí mật; bản thật ở `deploy/secrets/` (bị `.gitignore`) |

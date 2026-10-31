@@ -1,0 +1,32 @@
+{
+  "checkedAt": "2026-10-31T23:07:26.254Z",
+  "scope": "local-ephemeral-only",
+  "version": "0.2.0",
+  "images": {
+    "web": "sha256:a1b291227480e7374ab3fb689324f778899f5f574f39478b43279514a9e8683e",
+    "worker": "sha256:86e5078cbe47efe8a0d6795af131ebc1ab1ad6805530c66045cd5d4327922101"
+  },
+  "scans": {
+    "web": {
+      "components": 205,
+      "grypeFixedHighCritical": 0,
+      "licenseCoveragePassed": true,
+      "licenseCoveragePercent": 99.51
+    },
+    "worker": {
+      "components": 330,
+      "grypeFixedHighCritical": 0,
+      "licenseCoveragePassed": true,
+      "licenseCoveragePercent": 99.09
+    }
+  },
+  "nonroot": true,
+  "npmAbsent": true,
+  "smoke": "health-ready-version-security-headers",
+  "workerStarted": true,
+  "pwaAssets": ["service-worker", "manifest", "icon", "next-static"],
+  "gracefulExitCodes": {
+    "web": 0,
+    "worker": 0
+  }
+}

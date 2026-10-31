@@ -20,3 +20,6 @@ coverage
 *.key
 deploy/secrets
 docs
+
+# Scratch cục bộ của agent không thuộc artifact triển khai.
+work

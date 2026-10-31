@@ -39,7 +39,7 @@ updated: 2026-10-16
 
 | Phụ thuộc | Phiên bản ghim | Giấy phép | Hỗ trợ / EOL | Telemetry mặc định | Thoát / xuất dữ liệu |
 |---|---|---|---|---|---|
-| Node.js | 24.22.0 (`.nvmrc`) | (chưa xác minh) | EOL 2028-04-30 (nghiên cứu 2026-10-15); chuyển 26 LTS bằng task riêng (ADR-0001) | (chưa xác minh) | không giữ dữ liệu |
+| Node.js | 24.22.2 (`.nvmrc`) | (chưa xác minh) | EOL 2028-04-30 (nghiên cứu 2026-10-15); chuyển 26 LTS bằng task riêng (ADR-0001) | (chưa xác minh) | không giữ dữ liệu |
 | PostgreSQL | 17.11 (image `postgres:17.11-trixie`) | (chưa xác minh) | EOL 2029-11-08 (nghiên cứu 2026-10-15) | (chưa xác minh) | dữ liệu nằm ở máy mình: `pg_dump`, bản sao lưu pgBackRest; không khoá nhà cung cấp |
 | Next.js | 16.4.1 | MIT | (chưa xác minh) | **bật mặc định** (`next telemetry status` = Enabled, kiểm 2026-10-16); `deploy/web.Dockerfile` đặt `NEXT_TELEMETRY_DISABLED=1`; build ở máy dev/CI chưa tắt | framework, không giữ dữ liệu; thay = viết lại lớp giao diện (logic nằm ở `packages/app`, `packages/domain`) |
 | React | 19.3.1 | MIT | (chưa xác minh) | (chưa xác minh) | như Next.js |

@@ -1087,11 +1087,42 @@ describe("Dockerfile web/worker (BASE-SEC-006)", () => {
     expect(read("docs/RUNBOOK.md")).toContain("node apps/worker/src/index.ts");
     const port = /reverse_proxy web:(\d+)/.exec(read("deploy/Caddyfile"))[1];
     expect(read("deploy/web.Dockerfile")).toContain(`EXPOSE ${port}`);
-    expect(read("deploy/web.Dockerfile")).toContain('"--hostname", "0.0.0.0"');
+    expect(read("deploy/web.Dockerfile")).toContain("HOSTNAME=0.0.0.0");
+    expect(read("deploy/web.Dockerfile")).toContain('["node", "apps/web/server.js"]');
   });
-  it("ghi rõ chưa build thật (không có daemon Docker)", () => {
-    for (const f of DOCKERFILES) expect(read(f)).toMatch(/CHƯA build thật/);
-    expect(read("deploy/README.md")).toMatch(/Chưa build thật/);
+  it("web runtime chỉ phân phối Next standalone, public và static; tracing root bao phủ workspace", () => {
+    const cfg = read("apps/web/next.config.ts");
+    expect(cfg).toContain('output: "standalone"');
+    expect(cfg).toContain('outputFileTracingRoot: fileURLToPath(new URL("../..", import.meta.url))');
+    expect(cfg).toContain('"./node_modules/next/LICENSE*"');
+    expect(cfg).toContain('"./node_modules/next/dist/compiled/**/LICENSE*"');
+    // Attribution include chỉ lấy file LICENSE trong Next; không kéo compiler hay toàn cây node_modules.
+    const includes = /outputFileTracingIncludes:\s*\{([\s\S]*?)\n {2}\}/.exec(cfg)[1];
+    const patterns = [...includes.matchAll(/"(\.\/[^"]+)"/g)].map((m) => m[1]);
+    expect(patterns).toHaveLength(2);
+    expect(patterns.every((p) => p.startsWith("./node_modules/next/") && p.endsWith("LICENSE*"))).toBe(true);
+    const runtime = read("deploy/web.Dockerfile").split(/^FROM base AS runtime$/m)[1];
+    expect(runtime).toContain("COPY --from=build /app/apps/web/.next/standalone /app");
+    expect(runtime).toContain("COPY --from=build /app/apps/web/public /app/apps/web/public");
+    expect(runtime).toContain("COPY --from=build /app/apps/web/.next/static /app/apps/web/.next/static");
+    expect(runtime).toContain("COPY --from=build /app/LICENSE /app/THIRD_PARTY_NOTICES.md /app/");
+    expect(runtime).not.toMatch(/^COPY --from=build \/app(?:\/node_modules)? \/app/m);
+    expect(runtime).not.toContain("node_modules/next/dist/bin/next");
+    expect(runtime).toContain('CMD ["node", "apps/web/server.js"]');
+    expect(runtime).toContain("fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/api/health')");
+  });
+  it("ghi bằng chứng build/quét cục bộ và phân biệt môi trường production", () => {
+    for (const f of DOCKERFILES) {
+      expect(read(f)).toContain("docs/ops/evidence/supply-chain-2026-11-01.json");
+      expect(read(f)).toContain("chưa triển khai production");
+      expect(read(f)).not.toContain("CHƯA build thật");
+    }
+    expect(read("deploy/README.md")).toContain("Đã build/quét và chạy cục bộ");
+    const evidence = JSON.parse(read("docs/ops/evidence/supply-chain-2026-11-01.json"));
+    for (const kind of ["web", "worker"]) {
+      expect(evidence.runtime_artifacts[kind].fixed_findings).toBe(0);
+      expect(evidence.runtime_artifacts[kind].license_coverage_percent).toBeGreaterThanOrEqual(99);
+    }
   });
 });
 

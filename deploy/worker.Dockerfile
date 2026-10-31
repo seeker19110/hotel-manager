@@ -1,14 +1,20 @@
 # Image worker (outbox relay, pg-boss, job định kỳ) — build từ GỐC repo: `docker build -f deploy/worker.Dockerfile -t hotel-manager-worker .`
-# CHƯA build thật (máy dev không có Docker); test tĩnh `scripts/process-docs.test.mjs` kiểm: base ghim digest, USER không root,
-# không bí mật trong image. Khi có Docker: build, chạy với CSDL giả, kiểm log `worker.started`, rồi bỏ dòng này.
-# Base: node 24.22.0 (khớp .nvmrc), Debian trixie slim; digest tra 2026-10-16 qua mirror.gcr.io và public.ecr.aws.
-FROM node:24.22.0-trixie-slim@sha256:7f486cabe892bff8fef04c0f7da8dba84a560be3e4e2740b7a86afc57ebec315 AS base
+# Đã build/quét cục bộ 2026-11-01 bằng dữ liệu giả; bằng chứng docs/ops/evidence/supply-chain-2026-11-01.json.
+# Kiểm startup/PWA/shutdown ở docs/ops/evidence/local-images-2026-11-01.json; chưa triển khai production.
+# Base: node 24.22.2 (khớp .nvmrc), Debian trixie slim; digest kiểm SHA-256 manifest và kéo/chạy qua mirror.gcr.io 2026-11-01 (D-139).
+FROM node:24.22.2-trixie-slim@sha256:54f84b4cf8432b21aaffd5d3ce8d41e12cea0d10d33c09d2f3c9879d49d6b446 AS base
 WORKDIR /app
+# D-140: Corepack xác minh/cài đúng pnpm đã ghim; bỏ npm khỏi base dùng chung cho build và runtime.
+# Không giữ các gói npm CLI có lỗ hổng trong bất kỳ stage ứng dụng nào; CI quét chính stage base này.
+RUN corepack prepare pnpm@12.16.1 --activate \
+ && corepack enable pnpm \
+ && pnpm --version \
+ && test "$(pnpm --version)" = "12.16.1" \
+ && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 
 # ── deps: chỉ phụ thuộc production của worker và gói workspace nó dùng (@hm/app, @hm/db, @hm/domain). Không cần build:
 # Node 24 chạy thẳng TypeScript (`node apps/worker/src/index.ts`, RUNBOOK §8); gói workspace nằm ngoài node_modules nên được phép.
 FROM base AS deps
-RUN npm install -g pnpm@12.11.2
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/web/package.json apps/web/
 COPY apps/worker/package.json apps/worker/
@@ -27,8 +33,10 @@ FROM base AS runtime
 ENV NODE_ENV=production
 # Mã và node_modules do root sở hữu (user `node` chỉ đọc); worker không ghi gì vào cây mã.
 COPY --from=deps /app /app
+# Giữ giấy phép dự án và ghi công phụ thuộc trong artifact phân phối (CMP-LIC-001).
+COPY LICENSE THIRD_PARTY_NOTICES.md /app/
 # Không dùng npm lúc chạy (CMD gọi thẳng node): xoá npm đi kèm image nền để runtime không mang theo phụ thuộc của npm
-# (undici, brace-expansion… — `.grype.yaml` chỉ bỏ qua chúng ở image nền, T-802). Build/deps vẫn dùng npm ở stage trước.
+# D-140: base đã xoá npm; giữ bước phòng vệ ở runtime khi đổi base/copy stage trong tương lai.
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 USER node
 # Không có bí mật trong image: DATABASE_URL, WORKER_DATABASE_URL, S3_*, SMTP_URL, HM_PII_KEYS… chỉ nạp qua môi trường khi chạy.

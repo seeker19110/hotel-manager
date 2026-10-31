@@ -200,6 +200,45 @@ describe("supply-chain.yml (BASE-DEP-009, OPS-MAINT-004, CMP-LIC-003/004)", () =
     expect(s.find((x) => x.uses?.startsWith("actions/upload-artifact@")).if).toBe("always()");
   });
 
+  it("node-base quét đúng base chung đã bỏ npm của cả builder/runtime web và worker, Release dùng cùng stage", () => {
+    expect(matrix.map((m) => m.name).sort()).toEqual(["caddy", "node-base", "postgres", "seaweedfs"]);
+    const node = matrix.find((m) => m.name === "node-base");
+    expect(node).toMatchObject({
+      build: ".",
+      dockerfile: "deploy/web.Dockerfile",
+      target: "base",
+      ref: "hm-node-base:scan",
+    });
+    const bases = ["deploy/web.Dockerfile", "deploy/worker.Dockerfile"].map((f) =>
+      read(f)
+        .match(/^FROM .+ AS base\n([\s\S]*?)(?=^FROM )/m)[0]
+        .split("\n")
+        .map((l) => l.trim())
+        .filter((l) => l && !l.startsWith("#"))
+        .join("\n"),
+    );
+    expect(bases[0]).toBe(bases[1]);
+    expect(bases[0]).toContain("corepack prepare pnpm@12.16.1 --activate");
+    expect(bases[0]).toContain(
+      "rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx",
+    );
+    for (const f of ["deploy/web.Dockerfile", "deploy/worker.Dockerfile"]) {
+      expect(read(f), f).toMatch(/^FROM base AS (?:build|deps)$/m);
+      expect(read(f), f).toMatch(/^FROM base AS runtime$/m);
+      expect(read(f), f).not.toMatch(/^RUN npm /m);
+    }
+    const scanBuild = steps(wf, "image-scan").find((s) => s.env?.BUILD_TARGET);
+    expect(scanBuild.env.DOCKERFILE).toBe(`\${{ matrix.dockerfile }}`);
+    expect(scanBuild.env.BUILD_TARGET).toBe(`\${{ matrix.target }}`);
+    expect(scanBuild.run).toContain('args+=(--file "$DOCKERFILE")');
+    expect(scanBuild.run).toContain('args+=(--target "$BUILD_TARGET")');
+    expect(scanBuild.run).toContain(`docker build "\${args[@]}" "$BUILD_DIR"`);
+    const release = read(".github/workflows/release.yml");
+    expect(release).toContain(
+      "docker build --file deploy/web.Dockerfile --target base --tag hm-node-base:release .",
+    );
+    expect(release).toContain("node-base hm-node-base:release");
+  });
   it("matrix image khớp deploy/: mọi image ngoài đều được quét, không quét image không dùng", () => {
     const deployRefs = new Set();
     let builtDirs = 0;
@@ -218,14 +257,16 @@ describe("supply-chain.yml (BASE-DEP-009, OPS-MAINT-004, CMP-LIC-003/004)", () =
     const pulled = matrix.filter((m) => !m.build);
     for (const m of matrix.filter((x) => x.build)) {
       builtDirs++;
-      expect(existsSync(join(ROOT, m.build, "Dockerfile")), m.build).toBe(true);
+      expect(existsSync(join(ROOT, m.dockerfile ?? join(m.build, "Dockerfile"))), m.build).toBe(true);
     }
     expect(builtDirs).toBeGreaterThan(0);
     // Dockerfile build tại chỗ: base của nó được quét thông qua chính image đã build.
     const builtBases = new Set(
       matrix
         .filter((x) => x.build)
-        .flatMap((m) => readFileSync(join(ROOT, m.build, "Dockerfile"), "utf8").split("\n"))
+        .flatMap((m) =>
+          readFileSync(join(ROOT, m.dockerfile ?? join(m.build, "Dockerfile")), "utf8").split("\n"),
+        )
         .map((l) => /^FROM\s+(\S+)/i.exec(l)?.[1])
         .filter(Boolean),
     );
@@ -371,7 +412,6 @@ describe(".grype.yaml: bỏ qua lỗ hổng chỉ khi có hạn, có theo dõi, 
       expect(tracked.has(r.vulnerability), `${r.vulnerability} chưa có trong bảng Theo dõi`).toBe(true);
     // Mức đọc được từ bảng (cơ sở của trần 7 ngày cho Critical). Luật Critical cuối (brotli, GO-2026-6612) đã gỡ khi tự dựng
     // caddy/seaweedfs (D-110) — bảng hiện chỉ còn High.
-    expect(tracked.get("GHSA-xjj6-f33q-929c")).toBe("high");
     expect(tracked.get("GHSA-mrhx-c7xc-m3w5")).toBe("high");
     for (const [id, level] of tracked) expect(["critical", "high"], id).toContain(level);
   });
@@ -389,8 +429,18 @@ describe(".grype.yaml: bỏ qua lỗ hổng chỉ khi có hạn, có theo dõi, 
       expect(s.with["fail-build"]).toBe("true");
     }
   });
-  it("luật npm (location /usr/local/lib/node_modules/npm) có điều kiện: runtime web/worker xoá npm trước USER node", () => {
-    expect(rules.some((r) => r.package.location?.startsWith("/usr/local/lib/node_modules/npm"))).toBe(true);
+  it("không còn luật bỏ qua npm; runtime web/worker vẫn xoá npm trước USER node", () => {
+    expect(rules.some((r) => r.package.location?.startsWith("/usr/local/lib/node_modules/npm"))).toBe(false);
+    for (const id of [
+      "GHSA-rfgv-xxqx-mfg5",
+      "GHSA-6j4f-fj2g-mc7p",
+      "GHSA-qhr7-859c-m2p7",
+      "GHSA-xjj6-f33q-929c",
+    ])
+      expect(
+        rules.some((r) => r.vulnerability === id),
+        id,
+      ).toBe(false);
     for (const f of ["deploy/web.Dockerfile", "deploy/worker.Dockerfile"]) {
       const runtime = read(f).split(/^FROM .* AS runtime$/m)[1];
       expect(runtime, f).toBeTruthy();
@@ -494,6 +544,7 @@ describe("pnpm overrides — bản vá cho phụ thuộc gián tiếp (grype --o
     ["basic-ftp", "basic-ftp@<6.2.1", "6.2.1", "GHSA-c475-qrg2-pj4r"],
     ["uuid", "uuid@<11.1.1", "11.1.1", "GHSA-w5hq-g745-h8pq"],
     ["body-parser", "body-parser@<1.20.9", "1.20.9", "GHSA-27r3-jxmh-p828"],
+    ["fast-uri", "fast-uri@>=3.0.0 <3.1.9", "3.1.9", "GHSA-w74x-v6f9-j3xg"],
   ];
   for (const [name, selector, fixed, ghsa] of cases) {
     it(`${name}: override ghim ${fixed} (${ghsa}) và lockfile chỉ còn bản đã vá`, () => {
@@ -503,6 +554,22 @@ describe("pnpm overrides — bản vá cho phụ thuộc gián tiếp (grype --o
       expect(found).toEqual([fixed]);
     });
   }
+  it("Serwist: vá glob/minimatch trong cây mới, giữ minimatch API cũ của công cụ khác", () => {
+    expect(overrides["@serwist/build>glob"]).toBe("14.0.2");
+    expect(overrides["glob@>=14.0.2>minimatch"]).toBe("11.0.1");
+    const lock = parseAllDocuments(read("pnpm-lock.yaml"))
+      .map((d) => d.toJS())
+      .find((d) => Object.keys(d?.snapshots ?? {}).some((k) => k.startsWith("@serwist/build@")));
+    const serwist = Object.entries(lock.snapshots).filter(([k]) => k.startsWith("@serwist/build@"));
+    expect(serwist.length).toBeGreaterThan(0);
+    for (const [, snapshot] of serwist) expect(snapshot.dependencies.glob).toBe("14.0.2");
+    expect(lock.snapshots["glob@14.0.2"].dependencies.minimatch).toBe("11.0.1");
+    expect(versionsOf("glob")).not.toContain("13.0.6");
+    expect(versionsOf("minimatch")).toContain("11.0.1");
+    expect(versionsOf("minimatch")).not.toContain("10.2.6");
+    // Spectral/rimraf vẫn dùng minimatch 3.x với API CommonJS callable; không ép qua major 11.
+    expect(versionsOf("minimatch").some((v) => v.startsWith("3."))).toBe(true);
+  });
   // zod: chỉ ghim dải 4.x (dep-audit, GHSA-mrhx-c7xc-m3w5) — zod@3.x của gói khác giữ nguyên nên không so toàn bộ phiên bản.
   it("zod: override ghim 4.6.7 cho 4.x < 4.6.6 (GHSA-mrhx-c7xc-m3w5), lockfile không còn 4.x chưa vá", () => {
     expect(overrides["zod@>=4.0.0 <4.6.6"]).toBe("4.6.7");

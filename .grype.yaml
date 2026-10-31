@@ -1,37 +1,8 @@
-# Bỏ qua CÓ HẠN các lỗ hổng high/critical đã có bản sửa ở thượng nguồn nhưng CHƯA có image vá (T-802; docs/ops/VULN-SLA.md).
-# Mỗi luật: đúng 1 mã lỗ hổng + đúng gói/phiên bản (nâng gói/image thì luật tự hết khớp) + `reason` có "hạn rà lại: YYYY-MM-DD"
-# (≤ 30 ngày, critical ≤ 7 ngày) và mã nằm ở bảng "Theo dõi" của VULN-SLA.md — scripts/grype-ignore-check.mjs kiểm ở job image-scan (mỗi PR + hằng tuần); quá hạn → job đỏ.
-# Không có ngoại lệ ngầm: tắt `only-fixed`/hạ `severity-cutoff` bị cấm; gỡ luật ngay khi có image vá (grype-config không nằm ở workflow:
-# grype tự đọc tệp này ở thư mục gốc repo). Quyết định: D-067 (docs/autopilot/DECISIONS.md).
+# Ngoại lệ có hạn cho gói chưa nâng tương thích được (docs/ops/VULN-SLA.md; D-067/D-109).
+# Đúng mã + gói/phiên bản; hạn tối đa 30 ngày, critical tối đa 7 ngày; CI kiểm hạn và bảng theo dõi.
+# D-140/D-142 (2026-11-01): đã gỡ 4 luật npm sau khi quét base thực dùng bỏ npm và nâng pnpm vá bootstrap undici.
+# Không hạ severity/only-fixed hoặc thay scope: build/runtime web và worker dùng cùng base đã được kiểm.
 ignore:
-  - vulnerability: GHSA-rfgv-xxqx-mfg5
-    reason: "undici 6.28.0 nằm trong npm đi kèm node:24.22.0 (không phải phụ thuộc của dự án); runtime web/worker xoá npm; sửa ở 6.28.1, node 24.22.0 là bản mới nhất (hạn rà lại: 2026-11-01)"
-    package:
-      name: undici
-      version: 6.28.0
-      type: npm
-      location: "/usr/local/lib/node_modules/npm/**"
-  - vulnerability: GHSA-6j4f-fj2g-mc7p
-    reason: "brace-expansion 5.0.9 nằm trong npm đi kèm node:24.22.0 (không phải phụ thuộc của dự án); runtime web/worker xoá npm; sửa ở 5.0.11, node 24.22.0 là bản mới nhất (hạn rà lại: 2026-11-01)"
-    package:
-      name: brace-expansion
-      version: 5.0.9
-      type: npm
-      location: "/usr/local/lib/node_modules/npm/**"
-  - vulnerability: GHSA-qhr7-859c-m2p7
-    reason: "brace-expansion 5.0.9 nằm trong npm đi kèm node:24.22.0 (không phải phụ thuộc của dự án); runtime web/worker xoá npm; sửa ở 5.0.11, node 24.22.0 là bản mới nhất (hạn rà lại: 2026-11-01)"
-    package:
-      name: brace-expansion
-      version: 5.0.9
-      type: npm
-      location: "/usr/local/lib/node_modules/npm/**"
-  - vulnerability: GHSA-xjj6-f33q-929c
-    reason: "undici 6.28.0 nằm trong npm đi kèm node:24.22.0 (không phải phụ thuộc của dự án); runtime web/worker xoá npm; sửa ở 6.29.1, node:24 mới nhất vẫn kèm 6.28.0 — rà 2026-10-25 (D-109) (hạn rà lại: 2026-11-08)"
-    package:
-      name: undici
-      version: 6.28.0
-      type: npm
-      location: "/usr/local/lib/node_modules/npm/**"
   - vulnerability: GHSA-mrhx-c7xc-m3w5
     reason: "zod 3.25.76 chỉ qua @lhci/cli → lighthouse → puppeteer-core → chromium-bidi (công cụ CI, không vào bundle/production); bản sửa duy nhất là 4.6.6 (đổi major, chromium-bidi dùng API zod 3) — rà 2026-10-25 (D-109) (hạn rà lại: 2026-11-08)"
     package:

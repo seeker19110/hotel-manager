@@ -78,9 +78,13 @@ jobs:
           - name: postgres
             build: deploy/postgres
             ref: hm-postgres:scan
-          # Image nền của web/worker (deploy/web.Dockerfile, deploy/worker.Dockerfile) — web/worker chưa build thật trong CI.
+          # D-140: quét đúng base đã chuẩn bị pnpm và bỏ npm, dùng cho CẢ build/runtime web và worker.
+          # Test so nội dung stage base hai Dockerfile; không bỏ qua builder hoặc hạ ngưỡng quét.
           - name: node-base
-            ref: node:24.22.0-trixie-slim@sha256:7f486cabe892bff8fef04c0f7da8dba84a560be3e4e2740b7a86afc57ebec315
+            build: .
+            dockerfile: deploy/web.Dockerfile
+            target: base
+            ref: hm-node-base:scan
           # Tự dựng từ mã nguồn bằng Go đã vá (D-110): image chính thức dựng bằng Go 1.26.8 trên Alpine chưa vá.
           - name: seaweedfs
             build: deploy/seaweedfs
@@ -99,8 +103,16 @@ jobs:
         if: matrix.build != ''
         env:
           BUILD_DIR: ${{ matrix.build }}
+          DOCKERFILE: ${{ matrix.dockerfile }}
+          BUILD_TARGET: ${{ matrix.target }}
           IMAGE_REF: ${{ matrix.ref }}
-        run: docker build --tag "$IMAGE_REF" "$BUILD_DIR"
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=(--tag "$IMAGE_REF")
+          if [ -n "$DOCKERFILE" ]; then args+=(--file "$DOCKERFILE"); fi
+          if [ -n "$BUILD_TARGET" ]; then args+=(--target "$BUILD_TARGET"); fi
+          docker build "${args[@]}" "$BUILD_DIR"
       - name: Kéo image đã ghim digest
         if: matrix.build == ''
         env:

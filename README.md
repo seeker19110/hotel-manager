@@ -26,8 +26,8 @@ không cần bí mật. CI chạy đúng khối lệnh này, nguyên văn, trong
 
 | Thành phần | Phiên bản | Ghi chú |
 |---|---|---|
-| Node.js | `24.22.0` (`.nvmrc`; `engines`: `>=24.11.0 <25`) | trùng `node-version` của CI |
-| pnpm | `12.11.2` (`packageManager` trong `package.json`) | bật bằng `corepack enable` hoặc dùng bản cài sẵn |
+| Node.js | `24.22.2` (`.nvmrc`; `engines`: `>=24.11.0 <25`) | trùng `node-version` của CI |
+| pnpm | `12.16.1` (`packageManager` trong `package.json`) | bật bằng `corepack enable` hoặc dùng bản cài sẵn |
 | PostgreSQL | 17 + pgBackRest | test CSDL dùng cluster tạm hoặc `TEST_DATABASE_URL` |
 | SeaweedFS | 4.48 | kho file riêng tư tương thích S3 (ADR-0002); test file tự dựng bản tạm |
 

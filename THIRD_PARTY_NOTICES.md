@@ -3,7 +3,7 @@
 Hotel Manager (giấy phép: xem `LICENSE`) phân phối kèm các thành phần bên thứ ba dưới đây theo giấy phép riêng của chúng.
 Tệp này **sinh tự động** bởi `node scripts/third-party-notices.mjs` từ lockfile trên linux-x64 (nền tảng image triển khai) — không sửa tay; CI so khác (`--check`).
 
-## Danh sách (99 gói)
+## Danh sách (100 gói)
 
 | Gói | Phiên bản | Giấy phép | Nguồn |
 |---|---|---|---|
@@ -19,6 +19,7 @@ Tệp này **sinh tự động** bởi `node scripts/third-party-notices.mjs` t�
 | @img/colour | 1.1.0 | MIT | https://github.com/lovell/colour |
 | @img/sharp-libvips-linux-x64 | 1.3.4 | LGPL-3.0-or-later | https://github.com/lovell/sharp-libvips |
 | @img/sharp-linux-x64 | 0.35.5 | Apache-2.0 | https://github.com/lovell/sharp |
+| @isaacs/nonrecursive-glob-match | 1.0.3 | BlueOak-1.0.0 |  |
 | @next/env | 16.4.1 | MIT | https://github.com/vercel/next.js |
 | @next/swc-linux-x64-gnu | 16.4.1 | MIT | https://github.com/vercel/next.js |
 | @noble/ciphers | 2.4.0 | MIT | https://github.com/paulmillr/noble-ciphers |
@@ -52,21 +53,21 @@ Tệp này **sinh tự động** bởi `node scripts/third-party-notices.mjs` t�
 | detect-libc | 2.1.2 | Apache-2.0 | https://github.com/lovell/detect-libc |
 | electron-to-chromium | 1.5.456 | ISC | https://github.com/Kilian/electron-to-chromium |
 | escalade | 3.2.0 | MIT | lukeed/escalade |
-| glob | 13.0.6 | BlueOak-1.0.0 | git@github.com:isaacs/node-glob |
+| glob | 14.0.2 | BlueOak-1.0.0 | git@github.com:isaacs/node-glob |
 | idb | 8.0.3 | ISC | https://github.com/jakearchibald/idb |
 | jose | 6.2.12 | MIT | panva/jose |
 | kolorist | 1.8.0 | MIT | https://github.com/marvinhagemeister/kolorist |
 | kysely | 0.29.6 | MIT | https://github.com/kysely-org/kysely |
 | lru-cache | 11.5.3 | BlueOak-1.0.0 | ssh://git@github.com/isaacs/node-lru-cache |
 | luxon | 3.7.2 | MIT | https://github.com/moment/luxon |
-| minimatch | 10.2.6 | BlueOak-1.0.0 | git@github.com:isaacs/minimatch |
+| minimatch | 11.0.1 | BlueOak-1.0.0 | git@github.com:isaacs/minimatch |
 | minipass | 7.1.3 | BlueOak-1.0.0 | https://github.com/isaacs/minipass |
 | nanoid | 3.3.20 | MIT | ai/nanoid |
 | nanostores | 1.5.5 | MIT | nanostores/nanostores |
 | next | 16.4.1 | MIT | vercel/next.js |
 | node-releases | 2.0.58 | MIT | https://github.com/chicoxyzzy/node-releases |
 | non-error | 0.1.0 | MIT | sindresorhus/non-error |
-| path-scurry | 2.0.2 | BlueOak-1.0.0 | https://github.com/isaacs/path-scurry |
+| path-scurry | 3.0.0 | BlueOak-1.0.0 | https://github.com/isaacs/path-scurry |
 | pg | 8.23.1 | MIT | https://github.com/brianc/node-postgres |
 | pg-boss | 12.38.0 | MIT | https://github.com/timgit/pg-boss |
 | pg-cloudflare | 1.4.1 | MIT | https://github.com/brianc/node-postgres |
@@ -473,6 +474,66 @@ third-party archives.
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
+```
+
+### @isaacs/nonrecursive-glob-match@1.0.3, lru-cache@11.5.3, minipass@7.1.3, path-scurry@3.0.0
+
+```text
+# Blue Oak Model License
+
+Version 1.0.0
+
+## Purpose
+
+This license gives everyone as much permission to work with
+this software as possible, while protecting contributors
+from liability.
+
+## Acceptance
+
+In order to receive this license, you must agree to its
+rules.  The rules of this license are both obligations
+under that agreement and conditions to your license.
+You must not do anything with this software that triggers
+a rule that you cannot or will not follow.
+
+## Copyright
+
+Each contributor licenses you to do everything with this
+software that would otherwise infringe that contributor's
+copyright in it.
+
+## Notices
+
+You must ensure that everyone who gets a copy of
+any part of this software from you, with or without
+changes, also gets the text of this license or a link to
+<https://blueoakcouncil.org/license/1.0.0>.
+
+## Excuse
+
+If anyone notifies you in writing that you have not
+complied with [Notices](#notices), you can keep your
+license by taking all practical steps to comply within 30
+days after the notice.  If you do not do so, your license
+ends immediately.
+
+## Patent
+
+Each contributor licenses you to do everything with this
+software that would otherwise infringe any patent claims
+they can license or become able to license.
+
+## Reliability
+
+No contributor can revoke this license.
+
+## No Liability
+
+***As far as the law allows, this software comes as is,
+without any warranty or condition, and no contributor
+will be liable to anyone for any damages related to this
+software or this license, under any kind of legal claim.***
 ```
 
 ### @noble/ciphers@2.4.0
@@ -2053,7 +2114,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### glob@13.0.6
+### glob@14.0.2
 
 ```text
 All packages under `src/` are licensed according to the terms in
@@ -2210,66 +2271,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### lru-cache@11.5.3, minipass@7.1.3, path-scurry@2.0.2
-
-```text
-# Blue Oak Model License
-
-Version 1.0.0
-
-## Purpose
-
-This license gives everyone as much permission to work with
-this software as possible, while protecting contributors
-from liability.
-
-## Acceptance
-
-In order to receive this license, you must agree to its
-rules.  The rules of this license are both obligations
-under that agreement and conditions to your license.
-You must not do anything with this software that triggers
-a rule that you cannot or will not follow.
-
-## Copyright
-
-Each contributor licenses you to do everything with this
-software that would otherwise infringe that contributor's
-copyright in it.
-
-## Notices
-
-You must ensure that everyone who gets a copy of
-any part of this software from you, with or without
-changes, also gets the text of this license or a link to
-<https://blueoakcouncil.org/license/1.0.0>.
-
-## Excuse
-
-If anyone notifies you in writing that you have not
-complied with [Notices](#notices), you can keep your
-license by taking all practical steps to comply within 30
-days after the notice.  If you do not do so, your license
-ends immediately.
-
-## Patent
-
-Each contributor licenses you to do everything with this
-software that would otherwise infringe any patent claims
-they can license or become able to license.
-
-## Reliability
-
-No contributor can revoke this license.
-
-## No Liability
-
-***As far as the law allows, this software comes as is,
-without any warranty or condition, and no contributor
-will be liable to anyone for any damages related to this
-software or this license, under any kind of legal claim.***
-```
-
 ### luxon@3.7.2
 
 ```text
@@ -2282,7 +2283,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### minimatch@10.2.6
+### minimatch@11.0.1
 
 ```text
 # Blue Oak Model License
