@@ -1,20 +1,20 @@
-# Hotel Manager · Đợt 24: khép lỗi sau đợt 23
+# Hotel Manager · Đợt 25: hoàn tất mã và công cụ vận hành còn thiếu
 
-> Phiên chính tự duyệt 2026-10-26 theo AGENTS §5. Tiếp tục từ `origin/main` `3e41782` (#137–#139 đã merge), giữ nguyên audit chưa commit ở checkout cũ.
+> Phiên chính tự duyệt 2026-11-01, D-139. Đã fetch: `main` vẫn `3e41782`; PR #140 ở `81d1c3b` chưa merge. Nhánh con giữ mã đợt 24, checkout gốc và dữ liệu người dùng.
 
 ## Tóm tắt cổng duyệt
-- Mục tiêu: sửa lỗi có đường tái hiện ở MFA, thu hồi quyền tổ chức và hai cuộc đua có thể làm mất dữ liệu khi retention/purge chạy.
-- Giữ stack, không thêm phụ thuộc; PostgreSQL 17 cục bộ với dữ liệu giả; migration mới có down, không sửa bản đã áp.
-- Claim purge phải bền qua lỗi kho file: khi bắt đầu xoá object thì không còn huỷ yêu cầu; lỗi giữa chừng được thử lại.
-- Khách ở kèm cần khoá người như FK trước khi công bố lượt lưu trú để worker không ẩn danh hồ sơ đang dùng.
-- Tổ chức chỉ cho active, hoặc pending_deletion khi đường xuất/huỷ cho phép; suspended không được tiếp tục bằng cookie cũ.
-- Rà IP qua Caddy theo nguồn chính thức; chỉ kết luận sau kiểm mã dependency và cấu hình triển khai.
-- Mỗi lỗi có test tái hiện trước sửa và cổng hành vi sau sửa; không nới test/coverage/cấu hình cổng.
-- Rủi ro auth/dữ liệu: PR cần người merge theo AGENTS §7; hoàn tất mã, test và PR trước bàn giao.
-- Giới hạn điều phối: tối đa 3 subagent, không lồng; migration index/snapshot/tài liệu do phiên chính cập nhật tuần tự.
+- Xử lý phần mã cụ thể trong 75 MUST còn mở; pháp lý, thiết bị, tài khoản và bằng chứng production tiếp tục mở.
+- Vá advisory có bản sửa, kiểm build PWA; không nới cổng hoặc ngoại lệ để làm xanh.
+- DSAR có audit tài khoản kể cả không thuộc tổ chức: append-only, RLS, dữ liệu tối thiểu, cùng transaction; tải ghi việc cấp URL thành công.
+- Thu hẹp bootstrap persons sau test tái hiện; migration mới, không sửa bản đã áp.
+- Dọn dữ liệu vận hành hết hiệu lực theo lô; không tự xoá inbox/ngân hàng/chứng từ hoặc chốt hạn pháp lý.
+- Gom cấu hình và thêm CLI migration riêng có kiểm quyền; không đọc secret thật.
+- Công cụ backup/promote/smoke/rollback kiểm được cục bộ; dựng/chạy image bằng dữ liệu giả.
+- Mỗi lát một PR; nhánh phụ thuộc dùng base PR trước. Auth/dữ liệu do người merge, production purge vẫn tắt.
+- Tối đa ba subagent, không lồng; phiên chính giữ registry migration, snapshot, tài liệu và GitHub.
 
 ## Ngân sách
-- Một phiên (`--single-session`), hạn 24 giờ; timeout cổng 1800 giây; không đặt ngân sách token.
+- Một phiên, hạn 24 giờ; timeout Gate 1800 giây; không đặt ngân sách token. Vòng đợt 24 đã hết hạn; vòng mới tạo bằng `loop init --force`.
 
 ## Ủy quyền production
 - grant: payments | mode=sandbox | max_per_txn=0 | refund=false
@@ -25,14 +25,15 @@
 - grant: secrets | read_values=false
 
 ## Task
-- [x] `T-2401` Sửa AUD-A11Y-001: MFA 429 báo đúng giới hạn tần suất, giữ phase và cho thử lại; cả password/TOTP có regression (files: apps/web/app/bao-mat/mfa-enroll.tsx, apps/web/components/auth/mfa-enroll.test.tsx, apps/web/messages/vi.json) — Gate: `pnpm vitest run --project unit mfa-enroll && pnpm --filter @hm/web typecheck`
-- [x] `T-2402` Từ chối cookie tổ chức suspended, cả đường allowPendingDeletion; giữ 423 pending và quyền active (exec: deep; files: packages/app/src/access/actor.ts, packages/app/src/access/auth.db.test.ts) — Gate: `pnpm vitest run --project db packages/app/src/access/auth.db.test.ts`
-- [x] `T-2403` Claim purge bền trước xoá object; huỷ trước claim thắng thì không xoá; lỗi object không mở lại cửa huỷ, retry được; migration 0074 (exec: deep; files: packages/app/src/tenancy/org-deletion.ts, packages/app/src/tenancy/org-deletion.db.test.ts, packages/app/src/exports/exports.ts, packages/app/src/exports/exports.db.test.ts, packages/app/src/files/, packages/db/src/migrations/0074_org_purge_claim.ts, apps/web/components/tenancy/org-deletion.tsx, apps/web/components/tenancy/org-deletion.test.tsx, apps/web/messages/vi.json) — Gate: `pnpm vitest run --project db packages/app/src/tenancy packages/app/src/exports && pnpm vitest run --project unit org-deletion`
-- [x] `T-2404` Khoá người ở kèm trước ghi stays, chặn race retention; kiểm tenant/UUID không tồn tại và down/up migration 0075 (exec: deep; files: packages/app/src/retention/, packages/app/src/identity/identity.ts, packages/db/src/migrations/0075_additional_guest_retention_lock.ts) — Gate: `pnpm vitest run --project db packages/app/src/retention`
-- [x] `T-2405` Kiểm ranh giới IP Caddy/Better Auth và sửa Retry-After vô lý của database rate limiter, có regression (files: packages/app/src/http/retry-after.ts, packages/app/src/http/retry-after.test.ts, apps/web/app/api/auth/[...all]/route.ts, docs/ops/runbooks/auth-proxy.md) — Gate: `pnpm vitest run --project unit retry-after && pnpm typecheck`
-- [x] `T-2406` Đồng bộ migration index/snapshot, audit/progress/blueprint gaps; ghi bằng chứng kiểm cuối và việc người merge/hạ tầng (sau: T-2401, T-2402, T-2403, T-2404, T-2405; files: BLUEPRINT.md, docs/specs/SPEC-lifecycle-race-hardening.md, packages/testkit/src/migration-0073.db.test.ts, packages/db/src/migrations/index.ts, packages/testkit/src/schema-guards.baseline.json, docs/design/ERD.md, PROGRESS.md, docs/ops/AUDIT-STATUS.md, docs/autopilot/BLUEPRINT-GAPS.md, docs/autopilot/HUONG-DAN-VIEC-CUA-NGUOI.md) — Gate: `python3 scripts/check-blueprint-evidence.py BLUEPRINT.md && python3 .xtemplates/scripts/xt.py progress-check && python3 .xtemplates/scripts/xt.py audit check docs/ops/AUDIT-STATUS.md && pnpm vitest run --project db schema-drift schema-guards`
-
-- [x] `T-2407` Cô lập fixture bucket đăng nhập trước spec đồng ý; limiter sản phẩm và test429 giữ nguyên (files: apps/web/e2e/server.ts, apps/web/e2e/fixtures.ts, apps/web/e2e/rights-withdraw-consent.spec.ts) — Gate: `pnpm vitest run --project db packages/app/src/access/auth.db.test.ts && pnpm --filter @hm/web typecheck && pnpm --filter @hm/web exec playwright test e2e/rights-withdraw-consent.spec.ts`
+- [x] `T-2509` Sửa CI cho PR xếp chồng: mọi workflow PR chạy trên mọi base, giữ events/permissions/jobs và guard không filter (files: .github/workflows/, scripts/ci-gates.test.mjs, scripts/pr-policy-ci.test.mjs, scripts/test-quality.test.mjs, scripts/api-ops.test.mjs) — Gate: `pnpm vitest run --project unit ci-gates api-ops pr-policy-ci test-quality && python3 .xtemplates/scripts/xt.py ci-check .github/workflows`
+- [x] `T-2501` Vá dependency theo advisory hiện tại, kiểm build PWA và ngoại lệ image (files: package.json, pnpm-lock.yaml, security/, deploy/) — Gate: `pnpm audit --prod && pnpm licenses:check && pnpm build && node scripts/grype-ignore-check.mjs`
+- [ ] `T-2502` Audit DSAR tài khoản: tạo/trạng thái/cấp URL, RLS/append-only, retry/rollback và migration 0076 (exec: deep; files: packages/app/src/privacy/dsar.ts, packages/app/src/privacy/dsar-audit.db.test.ts, packages/db/src/migrations/0076_dsar_audit_events.ts) — Gate: `pnpm vitest run --project db dsar && pnpm typecheck`
+- [ ] `T-2503` Đóng bypass bootstrap UPDATE persons, giữ bootstrap hợp lệ, migration 0077 (exec: deep; files: packages/db/src/migrations/0077_persons_bootstrap_scope.ts, packages/app/src/access/persons-bootstrap.db.test.ts) — Gate: `pnpm vitest run --project db persons-bootstrap organizations invitations`
+- [ ] `T-2504` Gom config và CLI migration dùng quyền owner riêng, kiểm fail closed trước migration (sau: T-2501; exec: deep; files: packages/app/src/config/, packages/db/src/, apps/web/, apps/worker/, scripts/) — Gate: `pnpm vitest run --project unit config env migration-cli && pnpm vitest run --project db migration-cli && pnpm typecheck`
+- [ ] `T-2505` Retention vận hành hết hiệu lực: lời mời/lockout/bucket auth, theo lô, giữ cửa sổ còn dùng, down/up 0078 (exec: deep; files: packages/app/src/retention/, packages/db/src/migrations/0078_operational_retention.ts) — Gate: `pnpm vitest run --project db retention && pnpm typecheck`
+- [ ] `T-2506` Lịch backup/báo lỗi/metric và manifest digest/smoke/rollback, kiểm local (files: deploy/, scripts/ops/, scripts/ops.test.mjs, docs/ops/runbooks/) — Gate: `pnpm vitest run --project unit scripts/ops.test.mjs observability && pnpm typecheck && bash scripts/ops-tools.sh run promtool test rules deploy/prometheus/host-operations.test.yml`
+- [ ] `T-2507` Dựng/chạy image web/worker với dữ liệu giả; startup/health/shutdown và bằng chứng digest (sau: T-2501, T-2504, T-2506; files: deploy/, docs/ops/evidence/, scripts/) — Gate: `node scripts/ops/local-images-check.mjs`
+- [ ] `T-2508` Đồng bộ schema/spec/audit/progress, phân loại MUST và xác minh đầy đủ (sau: T-2501, T-2502, T-2503, T-2504, T-2505, T-2506, T-2507; files: BLUEPRINT.md, docs/, PROGRESS.md, packages/db/src/migrations/index.ts, packages/testkit/src/) — Gate: `python3 scripts/check-blueprint-evidence.py BLUEPRINT.md && python3 .xtemplates/scripts/xt.py progress-check && python3 .xtemplates/scripts/xt.py audit check docs/ops/AUDIT-STATUS.md && pnpm vitest run --project db schema-drift schema-guards`
 
 ## Điểm dừng
-- Merge PR auth/dữ liệu do người; production purge giữ tắt như D-125. Các MUST cần hạ tầng/thiết bị/pháp lý tiếp tục theo hướng dẫn hiện có, không khai đạt.
+- PR #140 và PR ngoại lệ cứng mới do người merge theo AGENTS §7. Không triển khai dữ liệu thật/bật purge, không ghi đạt diễn tập/pháp lý/thiết bị chưa xảy ra.

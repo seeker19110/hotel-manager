@@ -6,9 +6,10 @@
 # Dùng cho container phát triển/agent (Ubuntu 24.04 x86_64). CI dùng setup-node + service container.
 set -euo pipefail
 
-NODE_VERSION="24.22.0"
-NODE_SHA256="cc2f601cee82d9a5a233302fe307abc600727035fd7d2c3a3571755989e95008"
-PNPM_VERSION="12.11.2"
+NODE_VERSION="24.22.2"
+# nodejs.org/dist/v24.22.2/SHASUMS256.txt — linux-x64.tar.xz, verified 2026-11-01.
+NODE_SHA256="48cc0e21e048790e54c0cf5749c2725005313d652651c40b7a21feb9697aaf75"
+PNPM_VERSION="12.16.1"
 WEED_VERSION="4.48"
 WEED_SHA256="4a7d108384d044d95212d1342cdda9533fa55842c1c9b41f606ca3c8a9561124"
 # gitleaks (quét log CI tìm bí mật — SEC-SECRET-007): binary linux_x64 từ GitHub release, kiểm SHA-256 (checksums.txt của release v8.30.1).

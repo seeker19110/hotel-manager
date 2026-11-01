@@ -308,7 +308,11 @@ describe("CMP-LIC-003 — SBOM CycloneDX lưu cùng Release", () => {
     expect(Object.keys(listed).sort()).toEqual(matrix.map((m) => m.name).sort());
     for (const m of matrix) {
       if (m.build) {
-        expect(imageRun).toMatch(new RegExp(`^ *docker build --tag ${listed[m.name]} ${m.build}$`, "m"));
+        const options = [m.dockerfile ? `--file ${m.dockerfile}` : "", m.target ? `--target ${m.target}` : ""]
+          .filter(Boolean)
+          .join(" ");
+        const command = `docker build ${options ? `${options} ` : ""}--tag ${listed[m.name]} ${m.build}`;
+        expect(imageRun.split("\n").map((l) => l.trim())).toContain(command);
       } else {
         expect(listed[m.name]).toBe(m.ref);
         expect(m.ref).toMatch(/@sha256:[0-9a-f]{64}$/);

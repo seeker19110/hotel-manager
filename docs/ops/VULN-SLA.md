@@ -30,11 +30,22 @@ Tính từ lúc lỗ hổng xuất hiện trên một lượt quét (CI đỏ ho
 | Tháng | Nguồn | Critical | High | Medium | Quá SLA | Ghi chú |
 |---|---|---|---|---|---|---|
 | 2026-10 | `pnpm audit` (cục bộ, 2026-10-18, mọi gói kể cả dev) | 0 | 0 | 0 | 0 | "No known vulnerabilities found". Quét image/SBOM bằng grype chạy lần đầu trên CI của PR T-802 — kết quả ghi bổ sung khi PR xanh |
+| 2026-11 | `pnpm audit --prod --json` và toàn workspace, cục bộ 2026-11-01 (D-139/D-142) | 0 | 3 (dev) | 1 (dev) | 0 | Production sạch sau vá glob/minimatch và fast-uri. Dev còn hai advisory extract-zip chưa có bản sửa, zod 3 và minimatch 3 của công cụ cũ; không ép qua major thiếu kiểm chứng. |
+
+2026-11-01 (D-139/D-142): `@serwist/build` 9.5.13 vẫn ghim glob 13.0.6. Override chỉ cây này sang glob 14.0.2 + minimatch 11.0.1;
+fast-uri 3.x lên 3.1.9. Build Serwist tạo manifest thành công; không đổi minimatch 3.x của Spectral/rimraf vì API khác.
+Nguồn: [glob cancellation](https://github.com/advisories/GHSA-3g3m-2fjr-6pw4),
+[minimatch amplification](https://github.com/advisories/GHSA-g3hv-75wg-m249),
+[fast-uri scheme](https://github.com/advisories/GHSA-w74x-v6f9-j3xg),
+[fast-uri host](https://github.com/advisories/GHSA-wjr9-j795-jxcr).
+Node 24.22.2 ghim lại digest theo [chỉ mục phát hành Node](https://nodejs.org/dist/index.json); pnpm 12.16.1 cùng major vá undici bootstrap 6.29.1
+(đối chiếu tarball chính thức của registry npm). `pnpm audit` gồm dev vẫn đỏ, ghi rõ phạm vi thay vì khai toàn bộ phụ thuộc sạch.
 
 ## Theo dõi (lỗ hổng chưa có bản sửa)
 
-_Không có lỗ hổng "chưa ai sửa"._ Dưới đây là ngoại lệ có hạn (`.grype.yaml`) cho lỗ hổng high/critical **đã có bản sửa ở thượng nguồn nhưng image
-đang ghim chưa được dựng lại** (không có tag mới cùng dòng phiên bản; tra Docker Hub 2026-10-18, rà lại 2026-10-22 — D-094). Mỗi mã trong `.grype.yaml` phải có mặt ở bảng này
+Hai advisory `extract-zip` (`GHSA-jmr9-qjv8-65gv`, `GHSA-7pqw-9j4j-h8q3`) qua LHCI chưa có bản sửa tại lượt rà 2026-11-01;
+chỉ dùng trong công cụ CI, theo dõi khi nâng LHCI. Ngoại lệ có hạn (`.grype.yaml`) dưới đây áp dụng cho gói **đã có bản sửa
+nhưng chưa nâng tương thích được**; không dùng ngoại lệ cho toàn bộ package hoặc dải phiên bản. Mỗi mã trong `.grype.yaml` phải có mặt ở bảng này
 và `reason` ghi hạn rà lại; job `image-scan` (`scripts/grype-ignore-check.mjs`, mỗi PR + hằng tuần — khôi phục ở pha harden, D-091) đỏ khi quá hạn. Đến hạn: nâng image nếu đã có bản vá (gỡ luật), không thì quyết định lại.
 
 2026-10-25 (D-110): caddy và SeaweedFS **tự dựng** từ mã nguồn (Caddy v2.11.7, SeaweedFS 4.48 commit `530be3e`) bằng Go 1.26.10 +
@@ -42,8 +53,24 @@ và `reason` ghi hạn rà lại; job `image-scan` (`scripts/grype-ignore-check.
 (GO-2026-66xx, zlib CVE-2026-85091, brotli-libs CVE-2026-111497). Còn lại một Medium ở Caddy (`go-chi/chi` v5.3.2, GHSA-j6qf-3m9c-vwj3 —
 dưới ngưỡng chặn, SLA 60 ngày; Dependabot `gomod` nâng).
 
+2026-11-01 (D-140/D-142): web/worker chuẩn bị pnpm 12.16.1 qua Corepack rồi **xoá npm ngay ở base**, trước mọi stage build/runtime.
+`node-base` của Supply chain và SBOM Release dựng đúng `deploy/web.Dockerfile --target base`; regression so base của worker giống hệt.
+Grype 0.121.0 với DB v6.1.10 dựng 2026-10-31T06:18:17Z, ngưỡng high + only-fixed như CI, exit 0: base không có phát hiện đã có bản vá,
+không dùng luật ignore tùy chỉnh; 159 phát hiện OS chưa có bản vá/không sửa vẫn nằm trong báo cáo. Gỡ bốn luật npm; không gia hạn.
+Syft 1.55.0 nhận 105 thành phần, giấy phép 99,0%; image 109,6 MB dưới ngân sách 285 MB.
+SBOM npm: 653 thành phần giấy phép 100%, Grype exit 0, còn một Medium minimatch 3.x và ngoại lệ zod dưới đây.
+Bằng chứng và giới hạn: [supply-chain-2026-11-01.json](evidence/supply-chain-2026-11-01.json).
+
+2026-11-01 (D-144): quét image web chứa nguyên cây builder tìm thấy compiler TypeScript 7.0.2 dùng Go 1.26.4/x/text 0.38.0,
+18 High + 2 Critical có bản vá theo Grype (mức module; chưa chứng minh đường gọi khai thác). Đây là rủi ro **còn mở ở công cụ build**;
+không đổi compiler, không thêm ignore, không khai builder sạch. Web chuyển sang Next standalone với tracing root của monorepo,
+chỉ phân phối closure runtime và asset PWA; giữ LICENSE/notices cùng LICENSE thật của các thư viện Next đóng gói sẵn.
+Image runtime web: 205 thành phần, giấy phép 99,51%; worker: 330 thành phần, 99,09%. Cả hai Grype exit 0, không có phát hiện đã có bản vá
+hoặc custom ignore. Cùng đúng hai image ID đã qua startup/readiness, asset PWA, worker.started và SIGTERM exit 0 trong
+[harness cục bộ dùng dữ liệu giả](evidence/local-images-2026-11-01.json); không suy diễn thành kiểm chứng production.
+Nguồn cấu hình artifact: [Next standalone](https://nextjs.org/docs/app/api-reference/config/next-config-js/output).
+
+
 | Image / gói | Mã (mức) | Sửa ở | Hạn rà lại | Giảm nhẹ / ghi chú |
 |---|---|---|---|---|
-| `node:24.22.0-trixie-slim` — npm đi kèm (`/usr/local/lib/node_modules/npm`): undici 6.28.0, brace-expansion 5.0.9 | GHSA-rfgv-xxqx-mfg5, GHSA-6j4f-fj2g-mc7p, GHSA-qhr7-859c-m2p7 (High) | undici 6.28.1, brace-expansion 5.0.11 | 2026-11-01 | Không phải phụ thuộc của dự án; stage runtime của web/worker xoá npm (`deploy/*.Dockerfile`) nên không có trong image chạy thật |
-| `node:24.22.0-trixie-slim` — npm đi kèm: undici 6.28.0 | GHSA-xjj6-f33q-929c (High) | undici 6.29.1 | 2026-11-08 | Như dòng trên: stage runtime web/worker xoá npm; `node:24` mới nhất (rà 2026-10-25) vẫn kèm 6.28.0 |
 | Phụ thuộc dev `zod` 3.25.76 (qua `@lhci/cli` → lighthouse → puppeteer-core → chromium-bidi) | GHSA-mrhx-c7xc-m3w5 (High) | zod 4.6.6 (đổi major) | 2026-11-08 | Chỉ chạy trong job `lighthouse` của CI, không vào bundle/production; zod 4.x của dự án đã ghim 4.6.7 (override). Gỡ khi lighthouse/chromium-bidi lên zod 4 |

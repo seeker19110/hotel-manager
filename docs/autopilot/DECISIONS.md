@@ -992,3 +992,66 @@
 - Chọn: Đặt lại riêng dữ liệu fixture auth.rateLimit ở DB E2E trước spec đồng ý, không đổi server sản phẩm hoặc limiter trong kịch bản
 - Lý do (tiêu chí chất lượng cuối): Full E2E local: 221 qua, một signup auto-signin thất bại sau nhiều spec dùng chung IP; toàn bộ6shardCI xanh. Fixture phải có trạng thái Given độc lập. Chỉ testserver vớiDBgiả nhận marker riêng từngproject (1worker/project); mọi HTTP/UI và giới hạn20/60s vẫn thật, không đổi timeout hoặc response. Test DB auth tiếp tục chứng minh429.
 - Đường lùi: Revert helper/marker E2E; không thay chính sách giới hạn sản phẩm.
+
+### D-139 · 2026-10-31T22:36:41+00:00 · Duyệt PLAN đợt 25: hoàn tất phần mã còn làm được sau rà 75 MUST ngày 2026-11-01
+
+- Phương án: (1) Chỉ dừng ở PR140 và chuyển mọi MUST cho người · (2) Hoàn tất audit DSAR, vá dependency, quyền persons, retention kỹ thuật, cấu hình/migrate và công cụ vận hành; giữ yêu cầu bằng chứng thật chưa đạt
+- Chọn: Hoàn tất audit DSAR, vá dependency, quyền persons, retention kỹ thuật, cấu hình/migrate và công cụ vận hành; giữ yêu cầu bằng chứng thật chưa đạt
+- Lý do (tiêu chí chất lượng cuối): Main vẫn3e41782 và PR140 đang mở. Có phần mã cụ thể còn thiếu; user yêu cầu hoàn thiện tiếp. Tách lát và PR có kiểm hành vi; không tự merge ngoại lệ auth/dữ liệu, không bật purge production. Giữ các yêu cầu pháp lý/thiết bị/hạ tầng thật mở. Vòng cũ đã hết hạn27-10 nên khởi tạo PLAN mới bằng công cụ, không ghi state tay.
+- Đường lùi: Revert từng PR chưa triển khai; down migration mới trước khi vận hành, giữ bản ứng dụng trước và production purge tắt.
+
+### D-140 · 2026-10-31T22:38:11+00:00 · D-140: loại phụ thuộc npm dễ tổn thương khỏi toàn bộ image ứng dụng và quét artifact base thực dùng
+
+- Phương án: (1) Gia hạn ngoại lệ npm trong Node base mà không thay image · (2) Corepack chuẩn bị pnpm rồi gỡ npm từ base; quét và SBOM đúng stage base đã gỡ npm, cùng builder/web/worker
+- Chọn: Corepack chuẩn bị pnpm rồi gỡ npm từ base; quét và SBOM đúng stage base đã gỡ npm, cùng builder/web/worker
+- Lý do (tiêu chí chất lượng cuối): Node24.22.2 còn npm phụ thuộc undici/brace-expansion có advisory. Đã kiểm image mới có corepack, pnpm12.11.2 chạy sau khi gỡ npm. Giữ nguyên mức quét và toàn bộ artifact; bỏ dependency không cần thay vì gia hạn lặp. Hai Dockerfile phải có cùng base và regression giữ phạm vi quét.
+- Đường lùi: Revert riêng PR dependency trước triển khai; giữ image trước theo digest, không tự gia hạn ngoại lệ đã hết hạn.
+
+### D-141 · 2026-10-31T22:38:50+00:00 · Hạn kỹ thuật cho ba bảng vận hành còn thiếu job retention
+
+- Phương án: (1) Giữ vô thời hạn email lời mời và băm/bucket đăng nhập · (2) Giữ lời mời hết hiệu lực90ngày sau mốc muộn nhất; băm lockout và bucket auth7ngày sau hoạt động/khóa cuối; xoá theo lô worker-only
+- Chọn: Giữ lời mời hết hiệu lực90ngày sau mốc muộn nhất; băm lockout và bucket auth7ngày sau hoạt động/khóa cuối; xoá theo lô worker-only
+- Lý do (tiêu chí chất lượng cuối): Hạn có dư so với invitation TTL và auth window15phút/60giây; giữ pending còn hạn và khóa còn hiệu lực, không nhận đồng hồ tương lai để xoá sớm. SQL kẹp min90/7ngày, retry/SKIP LOCKED. Chỉ kỹ thuật sandbox; không chốt hạn DPIA, không xoá inbox/bank/consent/DSAR/audit, không bật purge production.
+- Đường lùi: Dừng job privacy.retention hoặc revert app; down0078 chỉ gỡ hàm/index, dữ liệu vận hành đã quá hạn không tự khôi phục.
+
+### D-142 · 2026-10-31T22:41:08+00:00 · Nâng pnpm12.11.2 lên12.16.1 để loại undici6.29.0 trong bootstrap khỏi image build
+
+- Phương án: (1) Giữ tool cũ và thêm ngoại lệ lỗ hổng mới · (2) Nâng bản vá cùng major12.16.1 đã kiểm tarball dùngundici6.29.1, cập nhật pins và kiểm build
+- Chọn: Nâng bản vá cùng major12.16.1 đã kiểm tarball dùngundici6.29.1, cập nhật pins và kiểm build
+- Lý do (tiêu chí chất lượng cuối): Quét stage thực dùng phát hiện bootstrap pnpm12.11.2 có dependency high chưa vá; tarball chính thức12.16.1 đã vá. Giữ cùng major, lockfile và cổng tương thích; không thêm ngoại lệ hoặc bỏ builder scan.
+- Đường lùi: Revert PR toolchain trước triển khai, dùng artifact trước đã được chấp nhận; không khai scanner xanh khi chưa đo.
+
+### D-143 · 2026-10-31T22:42:26+00:00 · Giới hạn cấp URL DSAR sau khi thêm audit append-only
+
+- Phương án: (1) Giữ không hạn mức khiến URL request có thể tạo vô hạn audit rows · (2) Tối đa30 lần thử cấp URL mỗi giờ mỗi tài khoản, chung mọi request, kiểm quyền/hạn trước limiter và signer
+- Chọn: Tối đa30 lần thử cấp URL mỗi giờ mỗi tài khoản, chung mọi request, kiểm quyền/hạn trước limiter và signer
+- Lý do (tiêu chí chất lượng cuối): Chặn chi phí ghi mới do audit; URL có hạn ngắn nhưng30lần/giờ vẫn đủ thao tác bình thường. Dùng limiter hiện có,429+Retry-After, không log URL và không đếm request không có quyền. Không thay giới hạn đăng nhập hoặc nới kiểm.
+- Đường lùi: Revert riêng limiter trước triển khai nếu đo UX không phù hợp; giữ audit đúng và điều chỉnh hạn qua quyết định có bằng chứng.
+
+### D-144 · 2026-10-31T22:50:44+00:00 · D-144: đóng runtime web chứa compiler/devtools có lỗi High/Critical khi quét image thật
+
+- Phương án: (1) Giữ nguyên toàn bộ workspace/devtools trong runtime và thêm ngoại lệ · (2) Next standalone với tracing monorepo; chỉ đưa dependency cần chạy và static/public vào runtime, quét/chạy lại artifact thật
+- Chọn: Next standalone với tracing monorepo; chỉ đưa dependency cần chạy và static/public vào runtime, quét/chạy lại artifact thật
+- Lý do (tiêu chí chất lượng cuối): Full image scan phát hiện20High/Critical trong compiler TypeScript native Go7.0.2; nâng TypeScript hiện chưa có bản vá. Runtime không cần compiler/tool dev. Standalone là cơ chế chính thức, giảm bề mặt và giữ builder riêng; không hạ scan/license thresholds, không thêm ignore. Ghi rõ rủi ro toolchain builder còn lại, không khai sạch toàn bộ dev.
+- Đường lùi: Rollback image theo digest trước, không down schema; revert riêng cấu hình standalone nếu kiểm runtime không đạt. Không phát hành khi runtime scan/startup còn đỏ.
+
+### D-145 · 2026-10-31T23:05:42+00:00 · D-145: sửa harness quét license image đúng chế độ CI sau khi helper dùng nhầm allowlist npm
+
+- Phương án: (1) Áp allowlist npm lên cả gói hệ điều hành và thêm ngoại lệ GPL hàng loạt · (2) Giữ image SBOM coverage99% như CI, npm SBOM tiếp tục allowlist; không thêm ignore/ngoại lệ hay hạ ngưỡng
+- Chọn: Giữ image SBOM coverage99% như CI, npm SBOM tiếp tục allowlist; không thêm ignore/ngoại lệ hay hạ ngưỡng
+- Lý do (tiêu chí chất lượng cuối): Runtime scan và shutdown đã qua, lỗi cuối vì harness truyền --policylicense-policy.json cho SBOM OS; cổng image CI dùng sbom-check không npm policy. Chạy đúng lệnh CI trên cùng report hiện205thành phần99.5% đạt. Giữ dữ liệu gốc và giới hạn scanner; toàn bộscan exactimage vẫn bắtHigh/Critical có bản vá.
+- Đường lùi: Không thay policy/sàn; revert riêng harness nếu hợp đồng CI thay đổi, giữ kiểm npm allowlist và image licensecoverage.
+
+### D-146 · 2026-10-31T23:12:18+00:00 · D-146: đổi cách kiểm format trước commit sau hai lần cùng lỗi file evidence mới
+
+- Phương án: (1) Lặp lại gate mà vẫn chỉ kiểm file unstaged · (2) Kiểm toàn bộ file đổi so với HEAD và untracked, gồm file mới đã stage; format chuẩn rồi stage lại đúng lát
+- Chọn: Kiểm toàn bộ file đổi so với HEAD và untracked, gồm file mới đã stage; format chuẩn rồi stage lại đúng lát
+- Lý do (tiêu chí chất lượng cuối): Hai lần gate chặn cùng JSON mới vì danh sách git diff thường bỏ file added đãstage. Không nới formatter: dùng tập diff HEAD đầy đủ và giữ splitindex cho file dùng chung, kiểm cached diff trước commit.
+- Đường lùi: Không có đổi sản phẩm; giữ formatter làm cổng, có thể dùng lệnh format từng file nếu bộ lọc mới phát hiện giao nhau ngoài phạm vi.
+
+### D-147 · 2026-10-31T23:25:14+00:00 · D-147: chạy đầy đủ CI trên PR xếp chồng khi base chưa phải main
+
+- Phương án: (1) Chỉ có2workflow trên stackedPR và chờ retarget main mới kiểm đầy đủ · (2) Bỏ riêng branch/pathfilter ở11workflowPR, giữ mọi job/event/permission và thêm guard từ chối lọc base đểstackedPR chạy đủcổng
+- Chọn: Bỏ riêng branch/pathfilter ở11workflowPR, giữ mọi job/event/permission và thêm guard từ chối lọc base đểstackedPR chạy đủcổng
+- Lý do (tiêu chí chất lượng cuối): PR141basePR140 thực tế chỉ chạy Securityscan và DependencyAudit do9workflow khác lọcmain; autopilot cho phép chồngPR. Broaden coverage giúp review đúnghead trước FIFOmerge, không thêmPRtarget/secret/writepermissions, pushmain và6workflow nonPR giữ nguyên. Có negativecases chống bỏPRtrigger hoặc lọcbranch/path làm mấtcổng.
+- Đường lùi: Revert CI-only commit nếu phát sinh lỗi harness, không hạ requiredchecks; mọiPR vẫn phải qua đầyđủcổng trước merge.

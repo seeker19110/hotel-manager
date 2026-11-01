@@ -492,10 +492,12 @@ describe("api-ops.yml và scripts/ops-tools.sh", () => {
     expect((wf.match(/timeout-minutes:/g) ?? []).length).toBe(4);
   });
 
-  it("chạy trên MỌI PR vào main (không lọc paths cấp workflow) và mọi checkout không giữ token", () => {
+  it("chạy trên MỌI PR, kể cả nhánh xếp chồng, và mọi checkout không giữ token", () => {
     const on = wf.slice(wf.indexOf("\non:"), wf.indexOf("\npermissions:"));
-    expect(on).toMatch(/pull_request:\n {4}branches: \[main\]/);
     expect(on).not.toMatch(/\bpaths(-ignore)?:/);
+    const trigger = /^ {2}pull_request:\n((?: {4}.*\n)*)/m.exec(wf)?.[0] ?? "";
+    expect(trigger).toContain("pull_request:");
+    expect(trigger).not.toMatch(/\b(?:branches(?:-ignore)?|paths(?:-ignore)?):/);
     const checkouts = wf
       .split("\n")
       .flatMap((l, i, a) => (/uses: actions\/checkout@/.test(l) ? [a.slice(i, i + 6).join("\n")] : []));

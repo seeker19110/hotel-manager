@@ -37,7 +37,14 @@ allowBuilds:
 #  - zod 4.x <4.6.6 (4.6.5 ghim cứng trong @serwist/turbopack@9.5.13 và @serwist/build): GHSA-mrhx-c7xc-m3w5 (high) — job dep-audit.
 #    Cập nhật bảo mật không chịu cooldown 14 ngày (DEPENDENCY-POLICY); ghim 4.6.7 = bản packages/app đang dùng. Chỉ dải 4.x:
 #    zod@3.25.76 của gói khác không bị đổi. Gỡ khi @serwist nâng zod ≥ 4.6.6.
+# D-139 (2026-11-01): @serwist/build 9.5.13 ghim glob 13.0.6; vá GHSA-3g3m-2fjr-6pw4/GHSA-g3hv-75wg-m249
+# bằng glob 14.0.2 + minimatch 11.0.1 trong đúng cây Serwist/glob mới. Giữ minimatch 3.x của Spectral vì API khác.
+# fast-uri 3.1.9 vá GHSA-w74x-v6f9-j3xg/GHSA-wjr9-j795-jxcr cùng các advisory low, không đổi major.
+# Cập nhật bảo mật không chịu cooldown; gỡ override khi thượng nguồn tự nâng.
 overrides:
+  '@serwist/build>glob': 14.0.2
+  'glob@>=14.0.2>minimatch': 11.0.1
+  'fast-uri@>=3.0.0 <3.1.9': 3.1.9
   'zod@>=4.0.0 <4.6.6': 4.6.7
   'tmp@<0.2.7': 0.2.7
   'basic-ftp@<6.2.1': 6.2.1

@@ -58,11 +58,13 @@ describe("QA-COV-001: coverage nhánh cho unit + db, lưu artifact", () => {
     );
     expect(workflow).not.toMatch(/continue-on-error/);
   });
-  it("chạy trên MỌI PR vào main: không lọc `paths` cấp workflow; sửa tiêu đề/mô tả (edited) chạy lại", () => {
+  it("chạy trên MỌI PR, kể cả nhánh xếp chồng: không lọc nhánh/path; edited vẫn chạy lại", () => {
     const on = /^on:\n((?: {2}.*\n)+)/m.exec(workflow)?.[1] ?? "";
     expect(on).not.toMatch(/\bpaths(?:-ignore)?:/);
-    expect(on).toMatch(/^ {4}branches: \[main\]$/m);
-    expect(on).toMatch(/^ {4}types: \[opened, synchronize, reopened, edited\]$/m);
+    const trigger = /^ {2}pull_request:\n((?: {4}.*\n)*)/m.exec(workflow)?.[0] ?? "";
+    expect(trigger).toContain("pull_request:");
+    expect(trigger).not.toMatch(/\b(?:branches(?:-ignore)?|paths(?:-ignore)?):/);
+    expect(trigger).toMatch(/^ {4}types: \[opened, synchronize, reopened, edited\]$/m);
   });
   it("không job nào bị bỏ qua khi sửa tiêu đề/mô tả (AUD-CI-001): check-run `skipped` đến sau không được che lần chạy đỏ cùng SHA", () => {
     for (const name of ["coverage", "coverage-ratchet", "fix-requires-test"])

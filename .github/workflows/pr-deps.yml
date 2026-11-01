@@ -4,7 +4,6 @@ name: PR dependencies
 # không khai đủ `tên · giấy phép · lý do · phương án thay thế đã xét` → đỏ. Chạy lại khi sửa mô tả PR (types: edited).
 on:
   pull_request:
-    branches: [main]
     types: [opened, edited, synchronize, reopened]
 
 permissions:

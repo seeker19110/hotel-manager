@@ -1,6 +1,6 @@
 # Hạ tầng tự host cho VPS (ADR-0002, PLAN T-012) — CHƯA TRIỂN KHAI: mua VPS/tên miền/SMTP và nạp secret là điểm dừng cần duyệt.
 # Mọi image ghim theo digest (index đa kiến trúc, tra Docker Hub 2026-10-15); scripts/check-image-pins.test.mjs chặn image không ghim.
-# Ứng dụng: `web` (deploy/web.Dockerfile) và `worker` (deploy/worker.Dockerfile) — CHƯA build/chạy thật (máy dev không có daemon Docker);
+# Ứng dụng: `web` (deploy/web.Dockerfile) và `worker` (deploy/worker.Dockerfile) đã build/chạy cục bộ (evidence ngày 2026-11-01);
 # test tĩnh scripts/process-docs.test.mjs giữ: stop_grace_period ≥ hạn chót dừng êm, danh tính riêng, không bí mật, log có trần.
 # Secret nằm trong deploy/secrets/ (bị .gitignore) — mẫu: *.example cạnh file này; danh sách biến của từng env_file: deploy/README.md.
 name: hotel-manager

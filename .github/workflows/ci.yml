@@ -1,10 +1,10 @@
 name: CI
 
+# D-147: PR xếp chồng cũng chạy đầy đủ cổng; chỉ push được giới hạn vào main.
 on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
 
 # GITHUB_TOKEN chỉ đọc cho mọi job (SEC-SUPPLY-001, BASE-GATE-010). Action ghim theo SHA commit.
 permissions:

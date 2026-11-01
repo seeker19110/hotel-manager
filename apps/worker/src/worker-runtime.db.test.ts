@@ -356,6 +356,9 @@ describe("tiến trình thật (node src/index.ts)", () => {
     expect(r.code).toBe(0);
     expect(r.out).toContain('"worker.stopping"');
     expect(r.out).toContain('"worker.stopped"');
+    // close của tiến trình có thể đến trước lúc Postgres bỏ backend khỏi pg_stat_activity.
+    // Giữ cùng hạn drain với ca shutdown trực tiếp; kết nối rò vẫn làm test đỏ.
+    await waitFor(async () => (await appConnections()) === 0, 5_000);
     expect(await appConnections()).toBe(0);
   });
 });

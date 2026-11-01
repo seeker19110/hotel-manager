@@ -107,13 +107,14 @@ jobs:
           docker build --tag hm-postgres:release deploy/postgres
           docker build --tag hm-seaweedfs:release deploy/seaweedfs
           docker build --tag hm-caddy:release deploy/caddy
+          docker build --file deploy/web.Dockerfile --target base --tag hm-node-base:release .
           while read -r name ref <&3; do
             case "$ref" in hm-*:release) ;; *) docker pull "$ref" ;; esac
             "$SYFT" scan "$ref" -o "cyclonedx-json=dist/sbom-image-$name.cdx.json"
             node scripts/sbom-check.mjs "dist/sbom-image-$name.cdx.json"
           done 3<<'IMAGES'
           postgres hm-postgres:release
-          node-base node:24.22.0-trixie-slim@sha256:7f486cabe892bff8fef04c0f7da8dba84a560be3e4e2740b7a86afc57ebec315
+          node-base hm-node-base:release
           seaweedfs hm-seaweedfs:release
           caddy hm-caddy:release
           IMAGES
