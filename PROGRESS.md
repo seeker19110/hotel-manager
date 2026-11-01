@@ -1,5 +1,6 @@
 # PROGRESS.md — Hotel Manager
 ## Đang làm
+- 2026-11-01 đợt 26 (D-154): thêm migration0079 cho nguồn audit DSAR: IP rút gọn, user-agent chuẩn hóa, worker không có nguồn; bổ sung vào export của chủ thể, giữ RLS và append-only. Rollback từ chối làm mất chứng cứ. CMP-AUDIT-002 còn mở vì audit deploy, hạ tầng và pháp lý.
 - 2026-11-01 đợt 25 (D-139…D-153), theo yêu cầu cập nhật main và hoàn thiện dự án. Đã fetch lại: main vẫn3e41782, PR140 tại81d1c3b chưa merge; nối nhánh từ PR140, không sửa checkout gốc. Chủ dự án xác nhận chưa có VPS/tên miền, hoàn tất mã và PR trước.
 - Vá glob/minimatch/fast-uri, Node24.22.2/pnpm12.16.1; gỡ4ignore npm không gia hạn. Web chuyển Next standalone sau khi full image scan bắt compiler/devtools trong runtime; giữ LICENSE/notices/PWA, scan/runtime evidence ngày01-11. Dev/compiler builder vẫn có rủi ro đã ghi, không khai sạch toàn bộ.
 - Migration0076: audit DSAR theo tài khoản, append-only/RLS/cùng transaction, URL issuance30lần/giờ.0077: chặn blind UPDATE persons khi actor không tồn tại, giữ INSERT bootstrap.0078: dọn lời mời không liên kết90ngày và auth lockout/bucket7ngày, giữ liên kết/chứng cứ và mọi cửa sổ còn hiệu lực. Không sửa migration đã áp.
@@ -8,6 +9,7 @@
 - Blueprint hiện369 đạt /59 miễn /73 mở. Tick BASE-CFG-002 và DB-SEC-002 bằng code/test; FE-BUILD-005 vẫn mở do yêu cầu kiểm build thiếu env, trong khi build chủ đích không nhận secret runtime. Mẫu .env.example cần người sửa theo guard.
 
 ## Tiếp theo
+0. PR đợt26 xếp sau PR143; người duyệt và merge theo thứ tự PR140→143 rồi PR mới vì thay đổi dữ liệu. Kiểm CI trên head thực tế.
 1. Các lát mã ở PR141 dependency/CI, PR142 DSAR/retention và PR143 config/ops; xem docs/autopilot/PLAN.md, .autopilot/verified.json và CI trên đúng head. PR auth/dữ liệu do người merge theo AGENTS§7; merge FIFO từ PR140 rồi các nhánh phụ thuộc.
 2. Khi có hạ tầng: theo docs/autopilot/HUONG-DAN-VIEC-CUA-NGUOI.md; còn73MUST về pháp lý, kho log/offsite/DR, GitHub review, thiết bị thật và chứng cứ triển khai. Không bật production purge (D-125).
 3. Dùng docs/ops/runbooks/database-migrations.md và operations-tools.md khi thiết lập. Migration owner phải BYPASSRLS/ownership/CREATE và SET ROLE app_worker; không cấp BYPASSRLS cho runtime/worker. Down0074 từ chối khi còn claim; down0076 từ chối khi có audit, rollback ứng dụng và giữ schema.

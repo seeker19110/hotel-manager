@@ -98,7 +98,7 @@ public.units owner=<admin> table rls force-rls
 public.work_orders owner=<admin> table rls force-rls
 public.worker_heartbeats owner=<admin> table rls force-rls
 
-## columns (1095)
+## columns (1097)
 auth.account.accessToken text
 auth.account.accessTokenExpiresAt timestamp with time zone
 auth.account.accountId text not null
@@ -308,7 +308,9 @@ public.dsar_audit_events.occurred_at timestamp with time zone not null default c
 public.dsar_audit_events.request_id uuid not null
 public.dsar_audit_events.request_status text not null
 public.dsar_audit_events.request_type text not null
+public.dsar_audit_events.source_ip text
 public.dsar_audit_events.subject_user_id uuid not null
+public.dsar_audit_events.user_agent text
 public.dsar_requests.completed_at timestamp with time zone
 public.dsar_requests.due_at timestamp with time zone not null
 public.dsar_requests.id uuid not null
@@ -1199,7 +1201,7 @@ public.worker_heartbeats.beat_at timestamp with time zone not null
 public.worker_heartbeats.name text not null
 public.worker_heartbeats.started_at timestamp with time zone not null default now()
 
-## constraints (866)
+## constraints (869)
 auth.account account_pkey PRIMARY KEY (id)
 auth.account account_userId_fkey FOREIGN KEY ("userId") REFERENCES auth."user"(id) ON DELETE CASCADE
 auth.login_throttle login_throttle_email_hash_check CHECK (octet_length(email_hash) = 32)
@@ -1330,6 +1332,9 @@ public.deposits fk_deposits_property FOREIGN KEY (organization_id, property_id) 
 public.deposits fk_deposits_reservation FOREIGN KEY (organization_id, reservation_id) REFERENCES reservations(organization_id, id) ON DELETE RESTRICT
 public.deposits uq_deposits_org_id UNIQUE (organization_id, id)
 public.deposits uq_deposits_org_prop_id UNIQUE (organization_id, property_id, id)
+public.dsar_audit_events ck_dsar_audit_source_ip CHECK (source_ip IS NULL OR source_ip ~ '^(\d{1,3}\.\d{1,3}\.\d{1,3}\.0|[0-9a-f]{1,4}:[0-9a-f]{1,4}:[0-9a-f]{1,4}::)$'::text)
+public.dsar_audit_events ck_dsar_audit_user_agent CHECK (user_agent IS NULL OR char_length(user_agent) >= 1 AND char_length(user_agent) <= 200)
+public.dsar_audit_events ck_dsar_audit_worker_source CHECK (actor_type <> 'worker'::text OR source_ip IS NULL AND user_agent IS NULL)
 public.dsar_audit_events dsar_audit_events_action_check CHECK (action = ANY (ARRAY['dsar.requested'::text, 'dsar.received'::text, 'dsar.verified'::text, 'dsar.processing'::text, 'dsar.completed'::text, 'dsar.rejected'::text, 'dsar.url_issued'::text]))
 public.dsar_audit_events dsar_audit_events_actor_type_check CHECK (actor_type = ANY (ARRAY['user'::text, 'worker'::text]))
 public.dsar_audit_events dsar_audit_events_check CHECK (correlation_id = ('dsar:'::text || request_id::text))
@@ -2941,7 +2946,7 @@ public.worker_heartbeats support_ro_del RESTRICTIVE DELETE to app_runtime using 
 public.worker_heartbeats support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
 public.worker_heartbeats support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 
-## triggers (144)
+## triggers (145)
 auth.session CREATE TRIGGER trg_session_not_erased BEFORE INSERT ON auth.session FOR EACH ROW EXECUTE FUNCTION app.session_guard_erased()
 public.allocations CREATE TRIGGER trg_allocations_no_reactivation BEFORE UPDATE OF active ON allocations FOR EACH ROW EXECUTE FUNCTION app.forbid_reactivation()
 public.allocations CREATE TRIGGER trg_allocations_updated BEFORE UPDATE ON allocations FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
@@ -2968,6 +2973,7 @@ public.deposits CREATE TRIGGER trg_deposits_no_delete BEFORE DELETE OR TRUNCATE 
 public.deposits CREATE TRIGGER trg_deposits_updated BEFORE UPDATE ON deposits FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 public.dsar_audit_events CREATE TRIGGER trg_dsar_audit_events_append_only BEFORE DELETE OR UPDATE ON dsar_audit_events FOR EACH ROW EXECUTE FUNCTION app.forbid_mutation()
 public.dsar_audit_events CREATE TRIGGER trg_dsar_audit_events_no_truncate BEFORE TRUNCATE ON dsar_audit_events FOR EACH STATEMENT EXECUTE FUNCTION app.forbid_mutation()
+public.dsar_audit_events CREATE TRIGGER trg_dsar_audit_source BEFORE INSERT ON dsar_audit_events FOR EACH ROW EXECUTE FUNCTION app.dsar_audit_source()
 public.dsar_requests CREATE TRIGGER trg_dsar_requests_audit AFTER INSERT OR UPDATE OF status ON dsar_requests FOR EACH ROW EXECUTE FUNCTION app.dsar_audit_lifecycle()
 public.exceptions CREATE TRIGGER trg_exceptions_updated BEFORE UPDATE ON exceptions FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 public.export_jobs CREATE TRIGGER trg_export_jobs_transition BEFORE UPDATE ON export_jobs FOR EACH ROW EXECUTE FUNCTION app.export_job_transition()
@@ -3087,7 +3093,7 @@ public.units CREATE TRIGGER trg_units_updated BEFORE UPDATE ON units FOR EACH RO
 public.work_orders CREATE TRIGGER trg_work_orders_transition BEFORE UPDATE ON work_orders FOR EACH ROW EXECUTE FUNCTION app.work_order_transition()
 public.work_orders CREATE TRIGGER trg_work_orders_updated BEFORE UPDATE ON work_orders FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 
-## functions (152)
+## functions (153)
 -- app.actor_can_see_property(p uuid) owner=<admin>
 CREATE OR REPLACE FUNCTION app.actor_can_see_property(p uuid)
  RETURNS boolean
@@ -3728,6 +3734,19 @@ BEGIN
   END IF;
   RETURN NEW;
 END $function$
+-- app.dsar_audit_source() owner=<admin>
+CREATE OR REPLACE FUNCTION app.dsar_audit_source()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'pg_catalog', 'public', 'pg_temp'
+AS $function$
+BEGIN
+  IF NEW.actor_type = 'user' THEN
+    NEW.source_ip := nullif(current_setting('app.source_ip', true), '');
+    NEW.user_agent := nullif(current_setting('app.user_agent', true), '');
+  END IF;
+  RETURN NEW;
+END $function$
 -- app.dsar_audit_url_issued(p_request_id uuid) owner=<admin>
 CREATE OR REPLACE FUNCTION app.dsar_audit_url_issued(p_request_id uuid)
  RETURNS boolean
@@ -4021,7 +4040,7 @@ BEGIN
       SELECT jsonb_agg(jsonb_build_object('id', e.id, 'request_id', e.request_id, 'action', e.action,
                                           'actor_type', e.actor_type, 'request_type', e.request_type,
                                           'request_status', e.request_status, 'occurred_at', e.occurred_at,
-                                          'correlation_id', e.correlation_id) ORDER BY e.occurred_at, e.id)
+                                          'correlation_id', e.correlation_id, 'source_ip', e.source_ip, 'user_agent', e.user_agent) ORDER BY e.occurred_at, e.id)
         FROM dsar_audit_events e WHERE e.subject_user_id = v_user), '[]'::jsonb),
     'product_events', coalesce((
       SELECT jsonb_agg(jsonb_build_object('organization_id', e.organization_id, 'property_id', e.property_id,
@@ -6224,7 +6243,7 @@ AS $function$
     ON CONFLICT (name) DO UPDATE SET beat_at = excluded.beat_at
   $function$
 
-## grants (bảng, cột, hàm, schema) (1314)
+## grants (bảng, cột, hàm, schema) (1315)
 column public.consent_records.action app_runtime INSERT
 column public.consent_records.channel app_runtime INSERT
 column public.consent_records.id app_runtime INSERT
@@ -6336,6 +6355,7 @@ function app.dead_letter_jobs() app_worker EXECUTE
 function app.deposit_guard() <admin> EXECUTE
 function app.deposit_guard() PUBLIC EXECUTE
 function app.dsar_audit_lifecycle() <admin> EXECUTE
+function app.dsar_audit_source() <admin> EXECUTE
 function app.dsar_audit_url_issued(p_request_id uuid) <admin> EXECUTE
 function app.dsar_audit_url_issued(p_request_id uuid) app_runtime EXECUTE
 function app.dsar_claim(p_now timestamp with time zone, p_stale_minutes integer, p_limit integer) <admin> EXECUTE
