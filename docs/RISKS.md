@@ -1,7 +1,7 @@
 ---
 title: Sổ rủi ro — Hotel Manager
 kind: risk-register
-updated: 2026-10-16
+updated: 2026-11-01
 ---
 
 # Sổ rủi ro (RK-NNN)
@@ -32,6 +32,8 @@ updated: 2026-10-16
 | RK-019 | Dữ liệu cá nhân giữ quá hạn/không xoá được: nhiều bảng chưa có hạn giữ (thông báo, outbox, inbox, liên kết khách, phiên) | TB | TB | Tech Lead + pháp lý | giảm: sổ `data-map.yaml` ghi từng cột; chốt hạn giữ cùng DPIA rồi viết job; chấp nhận bản sao lưu giữ tới hết retention | mở — chờ DPIA | trước pilot | `docs/privacy/data-map.yaml` · `packages/app/src/import/import-retention.db.test.ts` | 2026-10-16 |
 | RK-020 | Cột PII mới vào schema mà chưa khai trong sổ dữ liệu (lệch giữa mã và hồ sơ quyền riêng tư) | TB | TB | Tech Lead | giảm: test đối chiếu catalog ↔ data-map (đỏ nếu thiếu cột có tên khớp mẫu PII hoặc cột jsonb/chữ tự do chưa rà); cột PII tên lạ và PII nhét trong ô tự do máy không thấy — rà tay (`free_text`); mẫu PR có mục kiểm | giảm đã làm | đổi mẫu tên cột PII | T-309 · `packages/app/src/privacy/data-map.db.test.ts` | 2026-10-16 |
 | RK-021 | Migration 0048 tạo ~58 index bằng `CREATE INDEX` thường: khoá bảng chặn ghi (payments, journal_lines, charges…) trong lúc xây; xếp hàng sau giao dịch dài rồi chặn luôn các ghi đến sau | TB | TB | Vận hành (chưa gán) | giảm: `SET lock_timeout = '5s'` (set_config cục bộ transaction, trả giá trị cũ) nên thà thất bại rollback sạch rồi thử lại; chạy ngoài giờ cao điểm; khi bảng lớn tạo bằng `CREATE INDEX CONCURRENTLY` ngoài migrator (runbook deploy-rollback bước 3) | giảm đã làm; theo dõi | bảng > vài trăm nghìn dòng hoặc có giao dịch dài | T-408 · `packages/testkit/src/migration-0048.db.test.ts` · `docs/ops/runbooks/deploy-rollback.md` | 2026-10-17 |
+| RK-022 | Compiler TypeScript native7.0.2 của builder còn18High+2Critical ở module Go/x-text, chưa có compiler upstream vá | TB | Cao | Tech Lead | giảm: web standalone không phân phối compiler/devtools; giữ scan và báo cáo rủi ro build, không thêm ignore | mở ở công cụ build | compiler phát hành patch hoặc advisory thay đổi | D-144 · `docs/ops/evidence/supply-chain-2026-11-01.json` · `scripts/supply-chain.test.mjs` | 2026-11-01 |
+| RK-023 | Caddy liên kết go-jose/v3 v3.0.5 thuộc advisory DoS RSA JWK, v3 chưa có bản vá | TB | Cao | Tech Lead | theo dõi upstream mỗi tuần; v4 đã pin4.1.6 trong Caddy/SeaweedFS; chưa chứng minh đường gọi khai thác ở cấu hình deploy | mở; không khai runtime hoàn toàn sạch | patch v3 hoặc upstream bỏ v3 | D-150 · `docs/ops/VULN-SLA.md` · go mod why trong deploy/caddy | 2026-11-01 |
 
 ## Phụ thuộc bên thứ ba (PM-RISK-006)
 

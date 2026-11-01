@@ -66,9 +66,88 @@ async function locked(directory, action) {
 /** Deliberately suppress child output: Compose/pgBackRest errors may contain credential-bearing URLs. */
 export async function docker(args, timeout = 180_000) {
   try {
-    await execute("docker", args, { timeout, killSignal: "SIGTERM", maxBuffer: 1024 * 1024 });
+    const { stdout } = await execute("docker", args, {
+      timeout,
+      killSignal: "SIGTERM",
+      maxBuffer: 1024 * 1024,
+    });
+    return stdout;
   } catch {
     fail("DOCKER_COMMAND_FAILED");
+  }
+}
+
+async function workerSnapshot(compose, override, read) {
+  const id = (
+    await read(["compose", "-f", resolve(compose), "-f", override, "ps", "--all", "--quiet", "worker"])
+  ).trim();
+  if (!/^[a-f0-9]{12,64}$/.test(id)) fail("WORKER_CONTAINER_NOT_FOUND");
+  const text = await read(["inspect", "--format", "{{json .State}}", id]);
+  let state;
+  try {
+    state = JSON.parse(text);
+  } catch {
+    fail("WORKER_STATE_UNAVAILABLE");
+  }
+  if (state?.Running !== true || state.Restarting !== false || state.Status !== "running")
+    fail("WORKER_NOT_RUNNING");
+  if (typeof state.StartedAt !== "string" || !(Date.parse(state.StartedAt) > 0))
+    fail("WORKER_START_TIME_INVALID");
+  return { id, startedAt: state.StartedAt };
+}
+
+const sameWorker = (a, b) => {
+  if (a.id !== b.id || a.startedAt !== b.startedAt) fail("WORKER_INSTANCE_CHANGED");
+};
+
+const safeWorkerRead = (run, timeout) => async (args) => {
+  const bound = timeout();
+  try {
+    return String(await run(args, bound));
+  } catch {
+    fail("WORKER_STATE_UNAVAILABLE");
+  }
+};
+
+/** Require the startup marker from this running container instance, never a previous crash/restart. */
+export async function waitForWorker({
+  compose,
+  override,
+  run = docker,
+  timeoutMs = 120_000,
+  now = () => performance.now(),
+  sleep = (ms) => new Promise((accept) => setTimeout(accept, ms)),
+}) {
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0 || timeoutMs > 120_000)
+    fail("INVALID_WORKER_STARTUP_TIMEOUT");
+  const deadline = now() + timeoutMs;
+  const remaining = () => {
+    const left = deadline - now();
+    if (left <= 0) fail("WORKER_STARTUP_TIMEOUT");
+    return Math.min(5_000, left);
+  };
+  const read = safeWorkerRead(run, remaining);
+  let first;
+  while (true) {
+    const current = await workerSnapshot(compose, override, read);
+    first ??= current;
+    sameWorker(first, current);
+    const logs = await read(["logs", "--since", current.startedAt, current.id]);
+    const started = logs.split("\n").some((line) => {
+      try {
+        const event = JSON.parse(line);
+        return (
+          event.msg === "worker.started" &&
+          typeof event.ts === "string" &&
+          Date.parse(event.ts) >= Date.parse(current.startedAt)
+        );
+      } catch {
+        return false;
+      }
+    });
+    sameWorker(first, await workerSnapshot(compose, override, read));
+    if (started) return first;
+    await sleep(Math.min(1_000, remaining()));
   }
 }
 
@@ -136,6 +215,8 @@ export async function deploy({
   origin,
   rollback = false,
   run = docker,
+  read = docker,
+  workerWait = {},
   probe = smoke,
   persist = atomic,
 }) {
@@ -169,7 +250,17 @@ export async function deploy({
         "web",
         "worker",
       ]);
+      const worker = await waitForWorker({ ...workerWait, compose, override, run: read });
       await probe(origin, m.version);
+      // A worker may crash/restart while the HTTP probes pass. Recheck the same instance before committing history.
+      sameWorker(
+        worker,
+        await workerSnapshot(
+          compose,
+          override,
+          safeWorkerRead(read, () => 5_000),
+        ),
+      );
     };
     await persist(
       resolve(stateDir, "last-attempt.json"),

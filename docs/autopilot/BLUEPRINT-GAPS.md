@@ -9,7 +9,7 @@
 > `PM-SPEC-004` và `WF-SDD-003` (nền spec-coverage còn 26 S-NNN). **Tick kèm lưu ý để phiên chính xác nhận:** `DB-MODEL-004` (52 FK nhóm A thiếu index là ngoại lệ có lý do — D-035),
 > `UX-STATE-001` (không Storybook; loading bị D-032 miễn ở trang có route con động/notFound/redirect), `DB-PERF-001` (EXPLAIN không ANALYZE), `XC-GREEN-007` (còn `notifications`/`inbox`/`worker_heartbeats` chưa có job dọn, chờ DPIA).
 
-## Kết quả đợt 25 (2026-11-01; D-139…D-147)
+## Kết quả đợt 25 (2026-11-01; D-139…D-151)
 
 Chủ dự án chưa có VPS/tên miền, chọn hoàn tất mã và PR trước. MUST đạt 369 · miễn 59 · mở 73: tick lại BASE-CFG-002 (schema cho runtime/edge/build/client, rào đọc env, startup thiếu biến fail) và DB-SEC-002 (CLI URL migration riêng, preflight role, kiểm runtime/worker/owner và owner không superuser trên CSDL thật). Mẫu `.env.example` vẫn cần người thêm hai biến vì guard chặn ghi `.env*`; đây không phải thiếu CLI/config nữa. FE-BUILD-005 còn giữ mở vì phép kiểm build thiếu env của tiêu chí cũ chưa đạt: build chủ đích không cần secret runtime; không ép secret vào build để tick.
 

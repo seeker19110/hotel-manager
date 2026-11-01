@@ -32,8 +32,13 @@ Người vận hành dùng cùng artifact bất biến qua staging/production, c
 - When smoke health/ready/version/đăng nhập.
 - Then chỉ 200, version đúng và CSP chặn object/frame cùng nosniff/DENY mới qua; từ chối redirect, URL chứa credentials/path/query, CSP giả bằng tiền tố/nguồn phụ/directive lặp. Request có timeout.
 
+### S-005 — Startup worker thuộc đúng instance
+- Given Compose đã chạy web/worker và HTTP web có thể đang xanh trong khi worker còn chờ kết nối.
+- When promote hoặc rollback chờ worker startup, rồi chạy HTTP smoke.
+- Then trong tối đa 120 giây riêng phải thấy container worker Running, không restart, có JSON `worker.started` từ log sau StartedAt của chính instance đó; query đọc có timeout/buffer giới hạn và không in đầu ra thô. Marker cũ, container thoát, đổi ID/StartedAt, thiếu log hoặc hết hạn không được tiến lịch sử. Sau HTTP smoke phải kiểm lại cùng instance còn chạy; worker lỗi trong rollback không được khai rollback thành công. Cấu hình logger phải giữ mức info/debug cho marker, kiểm startup không thay giám sát heartbeat liên tục.
+
 ## 3. Bằng chứng và giới hạn
 
-`scripts/ops.test.mjs` kiểm hành vi S-001…S-004, gồm lỗi đĩa sau smoke và promote lặp; `deploy/prometheus/host-operations.test.yml` kiểm ngưỡng cảnh báo bằng promtool. `scripts/ops/local-images-check.mjs` dựng/chạy image thật: tài khoản không root, npm absent, PostgreSQL/SeaweedFS tạm, clamd giả, readiness/version/header, worker.started và SIGTERM exit 0. Bằng chứng image ghi ID/digest cục bộ, không khẳng định đã push registry hoặc triển khai thật.
+`scripts/ops.test.mjs` kiểm hành vi S-001…S-005, gồm lỗi đĩa sau smoke, promote lặp, worker pending dù web xanh, marker cũ/restart/đổi container, deadline từng query và worker chết trong lúc smoke; `deploy/prometheus/host-operations.test.yml` kiểm ngưỡng cảnh báo bằng promtool. `scripts/ops/local-images-check.mjs` dựng/chạy image thật: tài khoản không root, npm absent, PostgreSQL/SeaweedFS tạm, clamd giả, readiness/version/header, worker.started và SIGTERM exit 0. Bằng chứng image ghi ID/digest cục bộ, không khẳng định đã push registry hoặc triển khai thật.
 
 Không tự chạy migration khi promote, không down schema khi rollback ứng dụng, không mua dịch vụ hoặc nạp secret thật. Ngưỡng backup 26 giờ/tám ngày và lịch chỉ là mặc định kỹ thuật, chưa thay quyết định RPO/RTO, offsite IAM, escrow hoặc diễn tập restore.

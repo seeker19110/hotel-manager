@@ -14,7 +14,7 @@ import { bootstrapRoles, pgUrl } from "../../packages/testkit/src/bootstrap.ts";
 import { freePort, startPgCluster } from "../../packages/testkit/src/pg-cluster.ts";
 import { startS3Server } from "../../packages/testkit/src/s3-server.ts";
 import { analyzeSbom } from "../sbom-check.mjs";
-import { smoke } from "./run.mjs";
+import { docker, smoke, waitForWorker } from "./run.mjs";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const requireDb = createRequire(new URL("../../packages/db/package.json", import.meta.url));
@@ -92,7 +92,7 @@ try {
   const admin = db(cluster.adminUrl);
   await bootstrapRoles(admin);
   const database = `hm_image_${randomUUID().replaceAll("-", "")}`;
-  await sql.raw(`CREATE DATABASE ${database}`).execute(admin);
+  await sql`CREATE DATABASE ${sql.id(database)}`.execute(admin);
   await migrateToLatest(db(pgUrl(cluster.adminUrl, database)));
   s3 = await startS3Server();
   await new ObjectStorage(s3.config).ensureBucket();
@@ -157,15 +157,12 @@ try {
     if (response.status !== 200 || (await response.arrayBuffer()).byteLength === 0)
       throw new Error(`IMAGE_PWA_ASSET_FAILED:${path}`);
   }
-  await until(async () => {
-    await command(["logs", `${name}-worker`], "worker-started");
-    return (await readFile(resolve(scratch, "worker-started.log"), "utf8")).split("\n").some((line) => {
-      try {
-        return JSON.parse(line).msg === "worker.started";
-      } catch {
-        return false;
-      }
-    });
+  await waitForWorker({
+    compose: resolve(root, "deploy/compose.yaml"),
+    override: resolve(scratch, "images.json"),
+    // This harness starts containers directly. Adapt only Compose selection; inspect/logs use the production executor.
+    run: (args, timeout) =>
+      docker(args[0] === "compose" ? ["inspect", "--format", "{{.Id}}", `${name}-worker`] : args, timeout),
   });
   for (const kind of ["web", "worker"]) {
     await command(["stop", "--time", "40", `${name}-${kind}`], `stop-${kind}`, 50_000);
@@ -216,6 +213,7 @@ try {
     rootLicenseAndNoticesPresent: true,
     smoke: "health-ready-version-security-headers",
     workerStarted: true,
+    workerStartupChecker: "real Docker inspect/logs; Compose selection adapted for this ephemeral harness",
     pwaAssets: ["service-worker", "manifest", "icon", "next-static"],
     gracefulExitCodes: { web: 0, worker: 0 },
   };

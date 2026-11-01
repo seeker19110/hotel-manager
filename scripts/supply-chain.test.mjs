@@ -211,7 +211,7 @@ describe("supply-chain.yml (BASE-DEP-009, OPS-MAINT-004, CMP-LIC-003/004)", () =
     });
     const bases = ["deploy/web.Dockerfile", "deploy/worker.Dockerfile"].map((f) =>
       read(f)
-        .match(/^FROM .+ AS base\n([\s\S]*?)(?=^FROM )/m)[0]
+        .match(/^FROM .+ AS prepared\n([\s\S]*?)(?=^FROM base AS (?:build|deps)$)/m)[0]
         .split("\n")
         .map((l) => l.trim())
         .filter((l) => l && !l.startsWith("#"))
@@ -222,6 +222,14 @@ describe("supply-chain.yml (BASE-DEP-009, OPS-MAINT-004, CMP-LIC-003/004)", () =
     expect(bases[0]).toContain(
       "rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx",
     );
+    expect(bases[0]).toContain("FROM scratch AS base\nCOPY --from=prepared / /");
+    expect(bases[0]).toContain("PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
+    expect(bases[0]).toContain(`NODE_VERSION=${read(".nvmrc").trim()}`);
+    expect(bases[0]).toContain("YARN_VERSION=1.22.22");
+    expect(bases[0]).toContain('ENTRYPOINT ["docker-entrypoint.sh"]');
+    expect(bases[0]).toContain('CMD ["node"]');
+    expect(bases[0]).not.toContain("rm -rf /usr/local/include/node");
+    expect(bases[0]).not.toContain("rm -f pnpm-native");
     for (const f of ["deploy/web.Dockerfile", "deploy/worker.Dockerfile"]) {
       expect(read(f), f).toMatch(/^FROM base AS (?:build|deps)$/m);
       expect(read(f), f).toMatch(/^FROM base AS runtime$/m);
@@ -238,6 +246,33 @@ describe("supply-chain.yml (BASE-DEP-009, OPS-MAINT-004, CMP-LIC-003/004)", () =
       "docker build --file deploy/web.Dockerfile --target base --tag hm-node-base:release .",
     );
     expect(release).toContain("node-base hm-node-base:release");
+  });
+  it("image Go giữ các bản vá module đã xác minh, không đổi Go hoặc bản phát hành dịch vụ", () => {
+    const mod = read("deploy/caddy/go.mod");
+    const sum = read("deploy/caddy/go.sum");
+    for (const pin of [
+      "github.com/go-jose/go-jose/v4 v4.1.6",
+      "golang.org/x/net v0.62.0",
+      "github.com/go-chi/chi/v5 v5.4.0",
+    ]) {
+      expect(
+        mod.split("\n").some((line) => line.trim() === `${pin} // indirect`),
+        pin,
+      ).toBe(true);
+      expect(
+        sum.split("\n").some((line) => line.startsWith(`${pin} h1:`)),
+        pin,
+      ).toBe(true);
+    }
+    expect(mod).toContain("require github.com/caddyserver/caddy/v2 v2.11.7");
+    expect(mod).toMatch(/^go 1\.26\.10$/m);
+    const seaweed = read("deploy/seaweedfs/Dockerfile");
+    expect(seaweed).toContain("golang.org/x/net@v0.62.0");
+    expect(seaweed).toContain("github.com/go-jose/go-jose/v4@v4.1.6");
+    expect(seaweed).toContain("&& go mod verify");
+    expect(seaweed).toMatch(/^ARG SEAWEEDFS_VERSION=4\.48$/m);
+    for (const path of ["deploy/caddy/Dockerfile", "deploy/seaweedfs/Dockerfile"])
+      expect(read(path), path).toMatch(/^FROM golang:1\.26\.10-alpine3\.24@sha256:[a-f0-9]{64} AS build$/m);
   });
   it("matrix image khớp deploy/: mọi image ngoài đều được quét, không quét image không dùng", () => {
     const deployRefs = new Set();

@@ -1,0 +1,516 @@
+{
+  "schema_version": 1,
+  "generated_at_utc": "2026-10-31T23:55:21.607664+00:00",
+  "source_head": "452c580ebb126e04d6142fa7444e987d80eee1c3",
+  "tools": {
+    "syft": "1.55.0",
+    "grype": "0.121.0",
+    "buildx": "0.38.1",
+    "buildx_sha256": "e25d5cd675092bb5d1d03632fdc46cdf3fede7b514dc5f023a105e00d3ce5ad4"
+  },
+  "policy": {
+    "severity_cutoff": "high",
+    "only_fixed": true,
+    "grype_config": ".grype.yaml",
+    "syft_golang_search_remote_licenses": true,
+    "syft_golang_use_proxy": true,
+    "db_auto_update": false,
+    "canonical_size_method": "sum regular-file payload bytes across ALL layers in docker image save; includes deleted/overwritten bytes, not merged docker export"
+  },
+  "source_sha256": {
+    "deploy/caddy/Dockerfile": "68b6a4ccd014411e8a6f72fb9cb7c2d2322a051c861fde501bc382d88fe21d74",
+    "deploy/caddy/go.mod": "fc209015d22302e37317e4ad96881eab13f09c48bf5a0e47688ac353362e9436",
+    "deploy/caddy/go.sum": "4c982bf1e20dd96910e5c3461995b7c620f9a94c0f709791157b451c8e649af5",
+    "deploy/seaweedfs/Dockerfile": "8bec9dbe934ead320a7203b35a9d4bfb17a1a7f56b31ae9ac178c4c8b8e04cbd",
+    ".github/workflows/supply-chain.yml": "392e5715516e4416fe1cde6dd0aa921e1f20e66d61fee826cf6b68072df28d75",
+    ".grype.yaml": "369401787d0d279bd41adfe31de162bbaa1a8d90b34e4cab08b6af6e1161fce0",
+    "license-policy.json": "4be53fba762ff0575dfeee70c63a9c8d51a254411f320eff5ecddbaada82b2e6",
+    "perf/resource-budgets.json": "79104be075af7d137af7ad33833ecf97a0b04541d6a9abf98167af48f86974f2"
+  },
+  "official_advisories": [
+    {
+      "id": "GHSA-mgcc-cww5-fp2q",
+      "official_url": "https://github.com/advisories/GHSA-mgcc-cww5-fp2q",
+      "severity": "high",
+      "sha256": "57ce8298bce2b0e3c00aac65b71baa36c9a46637e0ef783d0276e4cc3ce5f36b",
+      "affected": [
+        {
+          "package": "github.com/go-jose/go-jose/v4",
+          "affected": "<= 4.1.5",
+          "first_patched_version": "4.1.6"
+        },
+        {
+          "package": "github.com/go-jose/go-jose/v3",
+          "affected": "<= 3.0.5",
+          "first_patched_version": null
+        }
+      ]
+    },
+    {
+      "id": "GHSA-4w3g-jfj2-cw2q",
+      "official_url": "https://github.com/advisories/GHSA-4w3g-jfj2-cw2q",
+      "severity": "medium",
+      "sha256": "ca2904985636e163b99a25636772dd155665753a40462514d59538d71b664bba",
+      "affected": [
+        {
+          "package": "github.com/go-jose/go-jose/v4",
+          "affected": "< 4.1.5",
+          "first_patched_version": "4.1.5"
+        },
+        {
+          "package": "github.com/go-jose/go-jose/v3",
+          "affected": "<= 3.0.5",
+          "first_patched_version": null
+        }
+      ]
+    },
+    {
+      "id": "GHSA-vvm8-gf78-28g4",
+      "official_url": "https://github.com/advisories/GHSA-vvm8-gf78-28g4",
+      "severity": "medium",
+      "sha256": "123d9f94cfc84ecd75b5bc6f64e211f684c30ec4ec05c425b53d4fda98c8ab8b",
+      "affected": [
+        {
+          "package": "github.com/go-jose/go-jose/v4",
+          "affected": "< 4.1.5",
+          "first_patched_version": "4.1.5"
+        },
+        {
+          "package": "github.com/go-jose/go-jose/v3",
+          "affected": "<= 3.0.5",
+          "first_patched_version": null
+        }
+      ]
+    },
+    {
+      "id": "GO-2026-6866",
+      "official_url": "https://vuln.go.dev/ID/GO-2026-6866.json",
+      "sha256": "c0d687be9779f000941b6c847646075598b659cdd51476951559208956bd0f82"
+    },
+    {
+      "id": "GO-2026-6860",
+      "official_url": "https://vuln.go.dev/ID/GO-2026-6860.json",
+      "sha256": "443304c129b9540dc46d28392b973a136db90644019dc20c3e25941833d49df3"
+    },
+    {
+      "id": "GHSA-j6qf-3m9c-vwj3",
+      "official_url": "https://api.github.com/advisories/GHSA-j6qf-3m9c-vwj3",
+      "sha256": "48938c114004b1a47ef20dd5214b39edad67077f3d93baa84fe0fdef6d5b7aef"
+    }
+  ],
+  "validation_logs": {
+    "caddy-final-build.log": {
+      "path": "caddy-final-build.log",
+      "sha256": "2831e7d8cf310877584f242ad254713d93910c9c7cce62ca3f554fc2e0de3525"
+    },
+    "seaweedfs-final-build.log": {
+      "path": "seaweedfs-final-build.log",
+      "sha256": "2fab40f86666d12360f280cdae9059f04330c1c8fe12aca352d914e7449f845e"
+    },
+    "caddy-modules.log": {
+      "path": "caddy-modules.log",
+      "sha256": "7afc8296b421ea9f90887b263de9dd5c9fe1e13f93ecc9969e70c698c3dcd40b"
+    },
+    "caddy-followup-modules.log": {
+      "path": "caddy-followup-modules.log",
+      "sha256": "c4a6033a2cf47a0ba276cef667cbc712a6413496970fc68f8d24a1ebd04dc401"
+    },
+    "caddy-v3-graph.log": {
+      "path": "caddy-v3-graph.log",
+      "sha256": "d8566d727d77224425195043b40f0af6a7fd069384a631370b16b3ed42b24f4d"
+    },
+    "seaweedfs-module-graph.log": {
+      "path": "seaweedfs-module-graph.log",
+      "sha256": "3ac1a165b4507065de64abddc70ccd805321fa0e13bae8fb696f4577dfb9a9cc"
+    }
+  },
+  "upstream_tests": {
+    "go-jose/v4": "go test github.com/go-jose/go-jose/v4: exit 0",
+    "chi_and_html": "go test github.com/go-chi/chi/v5/... golang.org/x/net/html/...: exit 0"
+  },
+  "images": [
+    {
+      "name": "caddy",
+      "image_ref": "hm-caddy:go-security-patched",
+      "image_id": "sha256:c05e63da17e49dc1c79e12ba7f4a4c65512f3a773bb478af985dabc3ccfa6dba",
+      "repo_digests": ["hm-caddy@sha256:c05e63da17e49dc1c79e12ba7f4a4c65512f3a773bb478af985dabc3ccfa6dba"],
+      "upstream_version": "v2.11.7",
+      "go_compiler_version": "1.26.10",
+      "docker_inspect_stored_size_bytes": 24356385,
+      "canonical_all_layer_regular_file_bytes": 67133267,
+      "resource_budget_bytes": 80000000,
+      "resource_gate_exit": 0,
+      "modules": [
+        {
+          "name": "github.com/go-chi/chi/v5",
+          "version": "v5.4.0",
+          "licenses": [
+            {
+              "license": {
+                "id": "MIT",
+                "url": "https://proxy.golang.org/github.com/go-chi/chi/v5/@v/v5.4.0.zip#github.com/go-chi/chi/v5@v5.4.0/LICENSE"
+              }
+            }
+          ]
+        },
+        {
+          "name": "github.com/go-jose/go-jose/v3",
+          "version": "v3.0.5",
+          "licenses": [
+            {
+              "license": {
+                "id": "Apache-2.0",
+                "url": "https://proxy.golang.org/github.com/go-jose/go-jose/v3/@v/v3.0.5.zip#github.com/go-jose/go-jose/v3@v3.0.5/LICENSE"
+              }
+            },
+            {
+              "license": {
+                "id": "BSD-3-Clause",
+                "url": "https://proxy.golang.org/github.com/go-jose/go-jose/v3/@v/v3.0.5.zip#github.com/go-jose/go-jose/v3@v3.0.5/json/LICENSE"
+              }
+            }
+          ]
+        },
+        {
+          "name": "github.com/go-jose/go-jose/v4",
+          "version": "v4.1.6",
+          "licenses": [
+            {
+              "license": {
+                "id": "Apache-2.0",
+                "url": "https://proxy.golang.org/github.com/go-jose/go-jose/v4/@v/v4.1.6.zip#github.com/go-jose/go-jose/v4@v4.1.6/LICENSE"
+              }
+            },
+            {
+              "license": {
+                "id": "BSD-3-Clause",
+                "url": "https://proxy.golang.org/github.com/go-jose/go-jose/v4/@v/v4.1.6.zip#github.com/go-jose/go-jose/v4@v4.1.6/json/LICENSE"
+              }
+            }
+          ]
+        },
+        {
+          "name": "golang.org/x/net",
+          "version": "v0.62.0",
+          "licenses": [
+            {
+              "license": {
+                "id": "BSD-3-Clause",
+                "url": "https://proxy.golang.org/golang.org/x/net/@v/v0.62.0.zip#golang.org/x/net@v0.62.0/LICENSE"
+              }
+            }
+          ]
+        },
+        {
+          "name": "stdlib",
+          "version": "go1.26.10",
+          "licenses": [
+            {
+              "license": {
+                "id": "BSD-3-Clause"
+              }
+            }
+          ]
+        }
+      ],
+      "build_exit": 0,
+      "smoke_exit": 0,
+      "license_gate": {
+        "exit": 0,
+        "counted_components": 185,
+        "coverage_percent": 99.5
+      },
+      "fixed_scan": {
+        "exit": 0,
+        "match_count": 0,
+        "matches_by_severity": {},
+        "fixed_high_critical_count": 0
+      },
+      "full_scan_matches_by_severity": {
+        "High": 1,
+        "Medium": 5
+      },
+      "full_scan_matches": [
+        {
+          "package": "github.com/go-jose/go-jose/v3",
+          "version": "v3.0.5",
+          "id": "GHSA-mgcc-cww5-fp2q",
+          "severity": "High",
+          "fix_state": "not-fixed",
+          "fixed_versions": []
+        },
+        {
+          "package": "busybox",
+          "version": "1.37.0-r31",
+          "id": "CVE-2025-60876",
+          "severity": "Medium",
+          "fix_state": "",
+          "fixed_versions": []
+        },
+        {
+          "package": "busybox-binsh",
+          "version": "1.37.0-r31",
+          "id": "CVE-2025-60876",
+          "severity": "Medium",
+          "fix_state": "",
+          "fixed_versions": []
+        },
+        {
+          "package": "ssl_client",
+          "version": "1.37.0-r31",
+          "id": "CVE-2025-60876",
+          "severity": "Medium",
+          "fix_state": "",
+          "fixed_versions": []
+        },
+        {
+          "package": "github.com/go-jose/go-jose/v3",
+          "version": "v3.0.5",
+          "id": "GHSA-vvm8-gf78-28g4",
+          "severity": "Medium",
+          "fix_state": "not-fixed",
+          "fixed_versions": []
+        },
+        {
+          "package": "github.com/go-jose/go-jose/v3",
+          "version": "v3.0.5",
+          "id": "GHSA-4w3g-jfj2-cw2q",
+          "severity": "Medium",
+          "fix_state": "not-fixed",
+          "fixed_versions": []
+        }
+      ],
+      "jose_v3_unfixed": [
+        {
+          "package": "github.com/go-jose/go-jose/v3",
+          "version": "v3.0.5",
+          "id": "GHSA-mgcc-cww5-fp2q",
+          "severity": "High",
+          "fix_state": "not-fixed",
+          "fixed_versions": []
+        },
+        {
+          "package": "github.com/go-jose/go-jose/v3",
+          "version": "v3.0.5",
+          "id": "GHSA-vvm8-gf78-28g4",
+          "severity": "Medium",
+          "fix_state": "not-fixed",
+          "fixed_versions": []
+        },
+        {
+          "package": "github.com/go-jose/go-jose/v3",
+          "version": "v3.0.5",
+          "id": "GHSA-4w3g-jfj2-cw2q",
+          "severity": "Medium",
+          "fix_state": "not-fixed",
+          "fixed_versions": []
+        }
+      ],
+      "artifacts": {
+        "sbom": {
+          "path": "caddy.final.cdx.json",
+          "sha256": "9c25e89cb4754a0a800f7ac80c41520b46f384212c516a8e5ffd371e8d1fc75e"
+        },
+        "fixed_scan": {
+          "path": "caddy.final.grype.json",
+          "sha256": "1beccef92758bf7400dc98fbd4dcb2141acafbbdbf9b695ca933784cc95077b0"
+        },
+        "full_scan": {
+          "path": "caddy.final.grype-all.json",
+          "sha256": "ac047d74ee7155b3f07a3acfe151e5b083901db061079c83ccc6c2aac44e8d97"
+        },
+        "inspect": {
+          "path": "caddy.final.inspect.json",
+          "sha256": "a91ab921d03ee094ad8d8b0f36dffbf9b3be64d3e204591b77d0babbfd03c33f"
+        },
+        "size": {
+          "path": "caddy.final.size.json",
+          "sha256": "66be10a633065b1d0f6f5014e77d9c29da327173a38aed86d073099fe52c585e"
+        },
+        "licenses": {
+          "path": "caddy.final.licenses.log",
+          "sha256": "975bf443234b96b24aec7392e74ed99e07b07ae9bff8695569e03d66c2d2db3d"
+        },
+        "version": {
+          "path": "caddy.final.version.txt",
+          "sha256": "528dbf5ef3ef70408fc96e3b827c6ff9342f193a9650e0e95db8602b9826b325"
+        },
+        "size_gate": {
+          "path": "caddy.final.size-gate.log",
+          "sha256": "95a717eec9d2edf479107feb6fd99af3a7d57cc83ebc4486c3aeed037db6179b"
+        },
+        "scan_log": {
+          "path": "caddy.final.grype.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "syft_log": {
+          "path": "caddy.final.syft.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      },
+      "grype_db": {
+        "schemaVersion": "v6.1.10",
+        "from": "manual import",
+        "built": "2026-10-31T06:18:17Z",
+        "path": "vulnerability.db",
+        "valid": true
+      }
+    },
+    {
+      "name": "seaweedfs",
+      "image_ref": "hm-seaweedfs:go-security-patched",
+      "image_id": "sha256:aa7cfaf2ec25cdca9e2229624f896cb9d7a96c4c2e46b50ae8d7d600306d8ccd",
+      "repo_digests": [
+        "hm-seaweedfs@sha256:aa7cfaf2ec25cdca9e2229624f896cb9d7a96c4c2e46b50ae8d7d600306d8ccd"
+      ],
+      "upstream_version": "4.48",
+      "go_compiler_version": "1.26.10",
+      "docker_inspect_stored_size_bytes": 94794304,
+      "canonical_all_layer_regular_file_bytes": 231155736,
+      "resource_budget_bytes": 280000000,
+      "resource_gate_exit": 0,
+      "modules": [
+        {
+          "name": "github.com/go-jose/go-jose/v4",
+          "version": "v4.1.6",
+          "licenses": [
+            {
+              "license": {
+                "id": "Apache-2.0",
+                "url": "https://proxy.golang.org/github.com/go-jose/go-jose/v4/@v/v4.1.6.zip#github.com/go-jose/go-jose/v4@v4.1.6/LICENSE"
+              }
+            },
+            {
+              "license": {
+                "id": "BSD-3-Clause",
+                "url": "https://proxy.golang.org/github.com/go-jose/go-jose/v4/@v/v4.1.6.zip#github.com/go-jose/go-jose/v4@v4.1.6/json/LICENSE"
+              }
+            }
+          ]
+        },
+        {
+          "name": "golang.org/x/net",
+          "version": "v0.62.0",
+          "licenses": [
+            {
+              "license": {
+                "id": "BSD-3-Clause",
+                "url": "https://proxy.golang.org/golang.org/x/net/@v/v0.62.0.zip#golang.org/x/net@v0.62.0/LICENSE"
+              }
+            }
+          ]
+        },
+        {
+          "name": "stdlib",
+          "version": "go1.26.10",
+          "licenses": [
+            {
+              "license": {
+                "id": "BSD-3-Clause"
+              }
+            }
+          ]
+        }
+      ],
+      "build_exit": 0,
+      "smoke_exit": 0,
+      "license_gate": {
+        "exit": 0,
+        "counted_components": 271,
+        "coverage_percent": 99.6
+      },
+      "fixed_scan": {
+        "exit": 0,
+        "match_count": 0,
+        "matches_by_severity": {},
+        "fixed_high_critical_count": 0
+      },
+      "full_scan_matches_by_severity": {
+        "Medium": 3
+      },
+      "full_scan_matches": [
+        {
+          "package": "busybox",
+          "version": "1.37.0-r31",
+          "id": "CVE-2025-60876",
+          "severity": "Medium",
+          "fix_state": "",
+          "fixed_versions": []
+        },
+        {
+          "package": "busybox-binsh",
+          "version": "1.37.0-r31",
+          "id": "CVE-2025-60876",
+          "severity": "Medium",
+          "fix_state": "",
+          "fixed_versions": []
+        },
+        {
+          "package": "ssl_client",
+          "version": "1.37.0-r31",
+          "id": "CVE-2025-60876",
+          "severity": "Medium",
+          "fix_state": "",
+          "fixed_versions": []
+        }
+      ],
+      "jose_v3_unfixed": [],
+      "artifacts": {
+        "sbom": {
+          "path": "seaweedfs.final.cdx.json",
+          "sha256": "1988341fe32eec3793a404359b9937fd59b10754cf7dcbae25cce3f088c53005"
+        },
+        "fixed_scan": {
+          "path": "seaweedfs.final.grype.json",
+          "sha256": "9f7b54677079bbafc0235ea08d88fa1ab19a2598f0010f58c55fd152eb680298"
+        },
+        "full_scan": {
+          "path": "seaweedfs.final.grype-all.json",
+          "sha256": "7e6dee83636b3146c741a810a7304cc316a03c15b836a9fb7c9802cdd480c46b"
+        },
+        "inspect": {
+          "path": "seaweedfs.final.inspect.json",
+          "sha256": "51f849f58635554cf010fe58e161299f77d1f9b54938969941b8489b59837946"
+        },
+        "size": {
+          "path": "seaweedfs.final.size.json",
+          "sha256": "bdadbba47997f6677b4c1e092871c412b4f5f654aaf1f0c9ad4d953c7be62a4e"
+        },
+        "licenses": {
+          "path": "seaweedfs.final.licenses.log",
+          "sha256": "4f38a2639f38fd9009267ede58d9ee5c32b42d42b4efaa0c72d6c4d1741f903d"
+        },
+        "version": {
+          "path": "seaweedfs.final.version.txt",
+          "sha256": "908f75c56c66b921a80572331f53d9123f3947d10084e354f1591011c52ea1ba"
+        },
+        "size_gate": {
+          "path": "seaweedfs.final.size-gate.log",
+          "sha256": "e8fc93dd7046ca8a70f9946b97186943c18e3ad266c7a1ebc42fc2d47919a796"
+        },
+        "scan_log": {
+          "path": "seaweedfs.final.grype.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "syft_log": {
+          "path": "seaweedfs.final.syft.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      },
+      "grype_db": {
+        "schemaVersion": "v6.1.10",
+        "from": "manual import",
+        "built": "2026-10-31T06:18:17Z",
+        "path": "vulnerability.db",
+        "valid": true
+      }
+    }
+  ],
+  "limits": [
+    "High/Critical with available fixes pass policy; unfixed vulnerabilities still remain and are listed.",
+    "Caddy go-jose/v3 3.0.5 remains linked; upstream currently reports no patched v3 release for the three cited advisories.",
+    "No new vulnerability ignore rules or severity reductions were introduced."
+  ],
+  "scope": "local synthetic build/smoke/scans; no registry push or production deployment",
+  "raw_artifacts": "Hashes and file names identify local retained raw artifacts; CI publishes independent artifacts for its own rebuilt images."
+}
