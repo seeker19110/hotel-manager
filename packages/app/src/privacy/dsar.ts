@@ -19,6 +19,7 @@ import { MS_PER_HOUR, MS_PER_MINUTE, msToSeconds, SECONDS_PER_HOUR, secondsToMs 
 import { type Kysely, sql, type Transaction } from "kysely";
 import { MAX_SIGNED_URL_SECONDS, type ObjectStorage } from "../files/index.ts";
 import { t } from "../i18n.ts";
+import { auditSource, type SecurityClient } from "../logging/index.ts";
 import { rateLimitHit } from "../pipeline/index.ts";
 import {
   DSAR_ACCESS_TTL_HOURS,
@@ -117,6 +118,7 @@ export interface CreateDsarInput {
   /** Lần xác thực lại gần nhất (phiên mới tạo hoặc vừa nhập đúng mật khẩu) — bắt buộc cho `delete`. */
   reauthenticatedAt?: Date | null;
   now?: Date;
+  client?: SecurityClient;
 }
 
 export interface CreateDsarResult {
@@ -175,6 +177,9 @@ export async function createDsarRequest(
       windowSeconds: SECONDS_PER_HOUR,
     });
     if (!rate.allowed) throw new DsarError("RATE_LIMITED", rate.retryAfter);
+    const source = auditSource(input.client);
+    await sql`select set_config('app.source_ip', ${source.sourceIp ?? ""}, true),
+                     set_config('app.user_agent', ${source.userAgent ?? ""}, true)`.execute(trx);
     const id = randomUUID();
     const days = dsarDays(region, input.type);
     const restrict = input.type === "restrict";
@@ -230,6 +235,7 @@ export async function dsarDownloadUrl(
   userId: string,
   requestId: string,
   now: Date = new Date(),
+  client?: SecurityClient,
 ): Promise<{ url: string; expiresIn: number }> {
   const row = await withUserContext(db, userId, async (trx) => {
     const r = await sql<Row>`
@@ -255,6 +261,9 @@ export async function dsarDownloadUrl(
   // Signing is outside a transaction. Re-check ownership/state/expiry afterward and commit evidence before
   // returning the URL; a signing or audit failure never produces a successful issuance response.
   const audited = await withUserContext(db, userId, async (trx) => {
+    const source = auditSource(client);
+    await sql`select set_config('app.source_ip', ${source.sourceIp ?? ""}, true),
+                     set_config('app.user_agent', ${source.userAgent ?? ""}, true)`.execute(trx);
     const r = await sql<{ ok: boolean }>`
       select app.dsar_audit_url_issued(${requestId}::uuid) as ok`.execute(trx);
     return r.rows[0]?.ok ?? false;

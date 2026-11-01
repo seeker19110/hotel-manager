@@ -166,7 +166,7 @@ export async function handleCreateDataRequest(req: Request, deps: DataRequestDep
     reauthenticatedAt = now;
   }
   try {
-    const r = await createDsarRequest(deps.db, s.userId, { type, reauthenticatedAt, now });
+    const r = await createDsarRequest(deps.db, s.userId, { type, reauthenticatedAt, now, client });
     return json(
       { data: { status: r.status, request: requestJson(r.request) } },
       r.status === "created" ? 202 : 200,
@@ -206,6 +206,7 @@ export async function handleDownloadDataRequest(
       s.userId,
       id.toLowerCase(),
       deps.now?.(),
+      requestClient(req.headers),
     );
     return new Response(null, {
       status: 303,

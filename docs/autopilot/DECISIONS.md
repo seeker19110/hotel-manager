@@ -1097,3 +1097,10 @@
 - Chọn: Dùng waitFor có hạn5s như test shutdown trực tiếp rồi vẫn assert0, giữ exit0 và marker stopped
 - Lý do (tiêu chí chất lượng cuối): Coverage toàn bộ4446tests có4445qua,1fail expected0got1 tại appConnections sau childclose; E2E224qua/1skip. Sự kiện close phía Node không đồng bộ pg_stat_activity; chờ điều kiện cụ thể vẫn bắt rò tồn tại sau deadline, không đổi sản phẩm/timeout test/coverage.
 - Đường lùi: Nếu phát hiện backend còn sống quá5s thì giữ gate đỏ và sửa lifecycle thực, không nới deadline hoặc bỏ assert.
+
+### D-154 · 2026-11-01T02:24:40+00:00 · Phạm vi tiếp tục CMP-AUDIT-002 khi chưa có VPS?
+
+- Phương án: (1) Bổ sung nguồn HTTP tối thiểu và kiểm thử cục bộ, giữ các bằng chứng thực tế mở · (2) Chờ hạ tầng rồi mới bổ sung mã
+- Chọn: Bổ sung nguồn HTTP tối thiểu và kiểm thử cục bộ, giữ các bằng chứng thực tế mở
+- Lý do (tiêu chí chất lượng cuối): Hoàn thiện phần có thể xác minh độc lập mà không giả định proxy, pháp lý hoặc triển khai thật
+- Đường lùi: Hoàn nguyên PR và migration theo quy trình có kiểm soát

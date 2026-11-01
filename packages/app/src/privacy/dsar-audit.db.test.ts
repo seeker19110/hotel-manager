@@ -6,6 +6,9 @@ import { createTestDb, seedAuthUser, seedOrg, type TestDb } from "@hm/testkit";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { down, up } from "../../../db/src/migrations/0076_dsar_audit_events.ts";
+import { down as downSource, up as upSource } from "../../../db/src/migrations/0079_dsar_audit_source.ts";
+import { handleCreateDataRequest, handleDownloadDataRequest } from "../http/data-requests.ts";
+import { testServices } from "../server/services.ts";
 import { createDsarRequest, dsarDownloadUrl, processDsarRequests } from "./dsar.ts";
 import { DSAR_DOWNLOADS_PER_HOUR } from "./dsar-policy.ts";
 
@@ -44,6 +47,8 @@ interface Event {
   request_status: string;
   occurred_at: Date;
   correlation_id: string;
+  source_ip: string | null;
+  user_agent: string | null;
 }
 const events = async (requestId: string) =>
   (
@@ -61,12 +66,14 @@ const finishAccess = async (userId: string) => {
 describe("DSAR audit — migration and lifecycle", () => {
   // SPEC-dsar-audit S-007
   it("empty schema down/up restores prior export contract and restricted grants", async () => {
+    await downSource(t.admin);
     await down(t.admin);
     const old = await sql<{
       definition: string;
     }>`select pg_get_functiondef('app.dsar_export_data(uuid)'::regprocedure) as definition`.execute(t.admin);
     expect(old.rows[0]?.definition).not.toContain("dsar_audit_events");
     await up(t.admin);
+    await upSource(t.admin);
     const grants = await sql<{ runtime: boolean; worker: boolean; public: boolean }>`select
       has_function_privilege('app_runtime', 'app.dsar_audit_url_issued(uuid)', 'execute') as runtime,
       has_function_privilege('app_worker', 'app.dsar_audit_url_issued(uuid)', 'execute') as worker,
@@ -74,6 +81,90 @@ describe("DSAR audit — migration and lifecycle", () => {
       t.admin,
     );
     expect(grants.rows[0]).toEqual({ runtime: true, worker: false, public: false });
+  });
+
+  it("records anonymized HTTP source for requests and downloads, never worker transitions", async () => {
+    const userId = await newUser();
+    const request = await createDsarRequest(t.runtime, userId, {
+      type: "access",
+      client: { ip: "203.0.113.42", userAgent: "test\r\nclient" },
+    });
+    const storage = fakeStorage();
+    // Even an inherited transaction-local context cannot attach an HTTP source to worker transitions.
+    await t.worker.transaction().execute(async (trx) => {
+      await sql`select set_config('app.source_ip', '198.51.100.0', true),
+                       set_config('app.user_agent', 'stale', true)`.execute(trx);
+      await sql`select * from app.dsar_claim(now(), 15, 100)`.execute(trx);
+    });
+    // Return this claimed item to the queue so the normal worker can complete it.
+    await sql`update dsar_requests set processing_started_at = now() - interval '16 minutes'
+      where id = ${request.request.id}`.execute(t.admin);
+    await processDsarRequests(t.worker, { storage });
+    const exported = JSON.parse(new TextDecoder().decode([...storage.objects.values()][0]));
+    expect(exported.audit_events.find((e: Event) => e.action === "dsar.requested")).toMatchObject({
+      source_ip: "203.0.113.0",
+      user_agent: "test  client",
+    });
+    await dsarDownloadUrl(t.runtime, storage, userId, request.request.id, new Date(), {
+      ip: "2001:db8:abcd:12::1",
+      userAgent: "download",
+    });
+    const rows = await events(request.request.id);
+    expect(rows.find((e) => e.action === "dsar.requested")).toMatchObject({
+      source_ip: "203.0.113.0",
+      user_agent: "test  client",
+    });
+    expect(rows.find((e) => e.action === "dsar.url_issued")).toMatchObject({
+      source_ip: "2001:db8:abcd::",
+      user_agent: "download",
+    });
+    expect(rows.filter((e) => e.actor_type === "worker").length).toBeGreaterThan(0);
+    expect(
+      rows
+        .filter((e) => e.actor_type === "worker")
+        .every((e) => e.source_ip === null && e.user_agent === null),
+    ).toBe(true);
+    await expect(downSource(t.admin)).rejects.toThrow(/cannot discard DSAR audit source evidence/);
+  });
+
+  it("HTTP handlers audit the rightmost proxy hop and ignore untrusted client headers", async () => {
+    const userId = await newUser();
+    const deps = {
+      db: t.runtime,
+      getSession: async () => ({ user: { id: userId }, session: { createdAt: new Date() } }),
+      services: testServices(),
+    };
+    // The deployment contract is one Caddy proxy; its rightmost hop is the peer it observed.
+    const post = new Request("http://localhost/api/v1/me/data-requests", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-forwarded-for": "192.0.2.44, 203.0.113.42",
+        "x-real-ip": "198.51.100.99",
+        "user-agent": "Create/1",
+      },
+      body: JSON.stringify({ type: "access" }),
+    });
+    const response = await handleCreateDataRequest(post, deps);
+    expect(response.status).toBe(202);
+    const body = (await response.json()) as { data: { request: { id: string } } };
+    const id = body.data.request.id;
+    await processDsarRequests(t.worker, { storage: fakeStorage() });
+    const download = new Request(`http://localhost/api/v1/me/data-requests/${id}/download`, {
+      headers: { "x-forwarded-for": "192.0.2.10, 2001:db8:abcd:12::2", "user-agent": "Download/1" },
+    });
+    expect((await handleDownloadDataRequest(download, deps, id)).status).toBe(303);
+    const noForwarded = new Request(download.url, { headers: { "x-real-ip": "192.0.2.4" } });
+    expect((await handleDownloadDataRequest(noForwarded, deps, id)).status).toBe(303);
+    const rows = await events(id);
+    expect(rows.find((e) => e.action === "dsar.requested")).toMatchObject({
+      source_ip: "203.0.113.0",
+      user_agent: "Create/1",
+    });
+    expect(rows.filter((e) => e.action === "dsar.url_issued")).toMatchObject([
+      { source_ip: "2001:db8:abcd::", user_agent: "Download/1" },
+      { source_ip: null, user_agent: null },
+    ]);
   });
 
   // SPEC-dsar-audit S-001
@@ -452,6 +543,8 @@ describe("DSAR audit — URL issuance and portable evidence", () => {
       "request_id",
       "request_status",
       "request_type",
+      "source_ip",
+      "user_agent",
     ]);
   });
 });
