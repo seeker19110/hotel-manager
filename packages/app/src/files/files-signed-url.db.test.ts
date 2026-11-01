@@ -150,13 +150,14 @@ describe("xin URL ký file của tổ chức A (BE-FILE-005)", () => {
 
 describe("URL ký hết hạn (TM-06)", () => {
   it("hết hạn → SeaweedFS trả 403; trước hạn cùng URL đó → 200 (chứng minh 403 là do hết hạn, không do ký sai)", async () => {
-    const url = await storage.signedGetUrl(storageKey, 1);
-    expect(new URL(url).searchParams.get("X-Amz-Expires")).toBe("1");
+    // Cho runner CI đủ thời gian thực hiện lần GET đầu trước khi URL hết hạn.
+    const url = await storage.signedGetUrl(storageKey, 15);
+    expect(new URL(url).searchParams.get("X-Amz-Expires")).toBe("15");
     expect((await fetch(url)).status).toBe(200);
     // X-Amz-Date chính xác tới giây: chờ quá hạn + dư 1,5 s lệch đồng hồ làm tròn.
-    await new Promise((r) => setTimeout(r, 3500));
+    await new Promise((r) => setTimeout(r, 16_500));
     expect((await fetch(url)).status).toBe(403);
-  }, 30_000);
+  }, 45_000);
 
   it("ca biên: ttl ≤ 0 hoặc quá trần bị kẹp (tối thiểu 1 s, tối đa 300 s) — không bao giờ cấp URL sống lâu hơn trần", async () => {
     expect(new URL(await storage.signedGetUrl(storageKey, 0)).searchParams.get("X-Amz-Expires")).toBe("1");
