@@ -9,10 +9,13 @@ import type { Kysely, RawBuilder } from "kysely";
 import { sql } from "kysely";
 import { drain } from "./events.ts";
 import {
+  AUTH_LOGIN_THROTTLE_RETENTION_DAYS,
+  AUTH_RATE_LIMIT_RETENTION_DAYS,
   AUTH_SESSION_RETENTION_DAYS,
   AUTH_VERIFICATION_RETENTION_DAYS,
   GUEST_LINK_RETENTION_DAYS,
   IDENTITY_DOCUMENT_RETENTION_MONTHS,
+  INVITATION_RETENTION_DAYS,
   NOTIFICATION_RETENTION_DAYS,
   PERSON_RETENTION_MONTHS,
   PRODUCT_EVENTS_RETENTION_MONTHS,
@@ -35,6 +38,9 @@ export interface OperationalPurgeStats {
   authVerifications: number;
   guestAccessLinks: number;
   productEvents: number;
+  invitations: number;
+  authLoginThrottle: number;
+  authRateLimits: number;
 }
 
 export interface PeopleAnonymizeStats {
@@ -111,6 +117,21 @@ export function purgeExpiredOperational(
         "productEvents",
         (now, batch) =>
           sql`select app.purge_product_events(${now}, ${PRODUCT_EVENTS_RETENTION_MONTHS}, ${batch}) as n`,
+      ],
+      [
+        "invitations",
+        (now, batch) =>
+          sql`select app.purge_invitations(${now}, ${INVITATION_RETENTION_DAYS}, ${batch}) as n`,
+      ],
+      [
+        "authLoginThrottle",
+        (now, batch) =>
+          sql`select app.purge_auth_login_throttle(${now}, ${AUTH_LOGIN_THROTTLE_RETENTION_DAYS}, ${batch}) as n`,
+      ],
+      [
+        "authRateLimits",
+        (now, batch) =>
+          sql`select app.purge_auth_rate_limits(${now}, ${AUTH_RATE_LIMIT_RETENTION_DAYS}, ${batch}) as n`,
       ],
     ],
     opts,

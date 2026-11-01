@@ -23,6 +23,7 @@ import { rateLimitHit } from "../pipeline/index.ts";
 import {
   DSAR_ACCESS_TTL_HOURS,
   DSAR_DEFAULT_REGION,
+  DSAR_DOWNLOADS_PER_HOUR,
   DSAR_REAUTH_MAX_AGE_SECONDS,
   DSAR_REQUESTS_PER_HOUR,
   DSAR_STALE_MINUTES,
@@ -241,9 +242,25 @@ export async function dsarDownloadUrl(
   if (row.status !== "completed") throw new DsarError("EXPORT_NOT_READY");
   if (!row.result_file_key || !row.result_expires_at || row.result_expires_at.getTime() <= now.getTime())
     throw new DsarError("LINK_EXPIRED");
+  const rate = await rateLimitHit(db, {
+    scope: "dsar.download",
+    subject: userId,
+    limit: DSAR_DOWNLOADS_PER_HOUR,
+    windowSeconds: SECONDS_PER_HOUR,
+  });
+  if (!rate.allowed) throw new DsarError("RATE_LIMITED", rate.retryAfter);
   const left = Math.floor(msToSeconds(row.result_expires_at.getTime() - now.getTime()));
   const expiresIn = Math.max(1, Math.min(MAX_SIGNED_URL_SECONDS, left));
-  return { url: await storage.signedGetUrl(row.result_file_key, expiresIn), expiresIn };
+  const url = await storage.signedGetUrl(row.result_file_key, expiresIn);
+  // Signing is outside a transaction. Re-check ownership/state/expiry afterward and commit evidence before
+  // returning the URL; a signing or audit failure never produces a successful issuance response.
+  const audited = await withUserContext(db, userId, async (trx) => {
+    const r = await sql<{ ok: boolean }>`
+      select app.dsar_audit_url_issued(${requestId}::uuid) as ok`.execute(trx);
+    return r.rows[0]?.ok ?? false;
+  });
+  if (!audited) throw new DsarError("LINK_EXPIRED");
+  return { url, expiresIn };
 }
 
 // ───────────────────────────── Worker ─────────────────────────────

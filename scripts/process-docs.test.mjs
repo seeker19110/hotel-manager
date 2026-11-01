@@ -1350,6 +1350,9 @@ describe("docs/ops/retention-policy.md khớp mã và cấu hình (XC-GREEN-007)
         "IMPORT_ROW_RETENTION_DAYS",
         "PURGE_BATCH",
         "PURGE_MAX_ROUNDS",
+        "INVITATION_RETENTION_DAYS",
+        "AUTH_LOGIN_THROTTLE_RETENTION_DAYS",
+        "AUTH_RATE_LIMIT_RETENTION_DAYS",
       ]),
     );
     for (const [k, v] of consts) {
@@ -1431,6 +1434,30 @@ describe("docs/ops/retention-policy.md khớp mã và cấu hình (XC-GREEN-007)
     // app_runtime chỉ INSERT vào bảng (không SELECT/UPDATE/DELETE).
     expect(mig).toMatch(/GRANT INSERT ON product_events TO app_runtime;/);
     expect(mig).not.toMatch(/GRANT[^;]*(SELECT|UPDATE|DELETE)[^;]*ON product_events/);
+  });
+  it("RET-24…26 có job dọn vận hành nhưng giữ lời mời liên kết và cửa sổ auth còn dùng (D-141)", () => {
+    const mig = read("packages/db/src/migrations/0078_operational_retention.ts");
+    const runner = read("packages/app/src/retention/personal.ts");
+    const fns = [...mig.matchAll(/CREATE FUNCTION (app\.purge_\w+)/g)].map((m) => m[1]);
+    expect(fns).toEqual([
+      "app.purge_invitations",
+      "app.purge_auth_login_throttle",
+      "app.purge_auth_rate_limits",
+    ]);
+    for (const fn of fns) {
+      expect(doc, fn).toContain(`\`${fn}\``);
+      expect(runner, fn).toContain(`${fn}(`);
+    }
+    const invite = rows.find((r) => r.id === "RET-24");
+    expect(invite.what).toContain("person_id và membership_id đều NULL");
+    expect(invite.keep).toContain("mọi lời mời liên kết còn giữ");
+    expect(rows.find((r) => r.id === "RET-25").keep).toContain("giữ mọi khóa còn hiệu lực");
+    expect(rows.find((r) => r.id === "RET-26").keep).toContain("epoch milliseconds");
+    expect(mig).toMatch(/REVOKE ALL ON FUNCTION app\.purge_invitations[\s\S]*FROM PUBLIC/);
+    expect(mig).toMatch(/GRANT EXECUTE ON FUNCTION app\.purge_invitations[\s\S]*TO app_worker;/);
+    expect(mig).not.toMatch(/TO app_runtime/);
+    expect(rows.find((r) => r.id === "RET-21").what).toContain("dsar_audit_events");
+    expect(rows.find((r) => r.id === "RET-21").keep).toContain("chờ pháp lý chốt thời hạn");
   });
   it("audit_events được ghi rõ là không xoá và vẫn có trigger append-only", () => {
     expect(rows.find((r) => r.what.includes("audit_events")).keep).toContain("không xoá");

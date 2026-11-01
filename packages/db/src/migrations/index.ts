@@ -74,6 +74,9 @@ import * as m0073 from "./0073_plan_quotas_fair_share.ts";
 import * as m0074 from "./0074_org_purge_claim.ts";
 
 import * as m0075 from "./0075_additional_guest_retention_lock.ts";
+import * as m0076 from "./0076_dsar_audit_events.ts";
+import * as m0077 from "./0077_persons_bootstrap_scope.ts";
+import * as m0078 from "./0078_operational_retention.ts";
 
 export const migrations: Record<string, Migration> = {
   "0001_tenancy": m0001,
@@ -147,4 +150,7 @@ export const migrations: Record<string, Migration> = {
   "0073_plan_quotas_fair_share": m0073,
   "0074_org_purge_claim": m0074,
   "0075_additional_guest_retention_lock": m0075,
+  "0076_dsar_audit_events": m0076,
+  "0077_persons_bootstrap_scope": m0077,
+  "0078_operational_retention": m0078,
 };

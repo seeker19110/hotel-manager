@@ -3,7 +3,7 @@
 > Phiên bản 1 · 2026-10-15 · Trạng thái: Draft, chờ duyệt.
 > Nguồn: [DOMAIN-MODEL](DOMAIN-MODEL.md) v1.2 (từ điển §1, bất biến INV-G/I/F §2–§5, vòng đời §4, sổ phụ §5, bảng bổ sung §7) · [ARCHITECTURE](ARCHITECTURE.md) (command pipeline) · [API-CONTRACT](API-CONTRACT.md) · [ADR-0001](../adr/0001-modular-monolith-typescript-postgres.md) (Postgres 17, Kysely, SQL-first) · [ADR-0002](../adr/0002-self-host-auth-storage-backup.md) (Better Auth tự quản bảng trong schema `auth`) · mục 4 "Dữ liệu" của mọi SPEC trong [docs/specs](../specs/).
 > Đây là tiền đề cho migration đầu tiên (kế hoạch §12). Tên bảng chuẩn ở DOMAIN-MODEL; tên cột lấy từ SPEC. Thêm/đổi tên bảng = sửa DOMAIN-MODEL trước. Sau khi migration đã áp, migration là nguồn sự thật và ERD được cập nhật cùng migration kế tiếp.
-> Máy kiểm: `bash scripts/check-erd.sh` đối chiếu 60 bảng DOMAIN-MODEL ↔ ERD (mỗi bảng đúng một tiêu đề `###`, có dòng `Chủ module:`).
+> Máy kiểm: `bash scripts/check-erd.sh` đối chiếu 67 bảng DOMAIN-MODEL ↔ ERD (mỗi bảng đúng một tiêu đề `###`, có dòng `Chủ module:`).
 > Mọi chỗ ghi "đề xuất" là quyết định thiết kế của ERD khi SPEC chưa nêu; chỗ SPEC mâu thuẫn hoặc thiếu nằm ở mục 7.
 
 ## 1. Quy ước chung
@@ -43,7 +43,7 @@ CREATE POLICY tenant_isolation ON <bảng>
 - Truy cập **trước khi có ngữ cảnh tổ chức** (đăng nhập, `org.listMine`, `org.create`, link khách) đi qua hàm `SECURITY DEFINER` có phạm vi hẹp (`app.list_my_organizations(auth_user_id)`, `app.create_organization(...)`, `app.resolve_guest_link(token_hash)`), không mở `BYPASSRLS`.
 
 **Bảng append-only và chứng từ bất biến (INV-G4)**
-- Hoàn toàn append-only (trigger `BEFORE UPDATE OR DELETE` ném lỗi, kèm trigger statement-level chặn `TRUNCATE`, và `REVOKE UPDATE, DELETE, TRUNCATE` khỏi `app_runtime`/`app_worker`): `journal_entries`, `journal_lines`, `audit_events`, `bank_transactions`, `invoice_lines`, `meter_events`, `import_external_refs`, `consent_records`.
+- Hoàn toàn append-only (trigger `BEFORE UPDATE OR DELETE` ném lỗi, kèm trigger statement-level chặn `TRUNCATE`, và `REVOKE UPDATE, DELETE, TRUNCATE` khỏi `app_runtime`/`app_worker`): `journal_entries`, `journal_lines`, `audit_events`, `bank_transactions`, `invoice_lines`, `meter_events`, `import_external_refs`, `consent_records`, `dsar_audit_events`.
 - Bất biến **nội dung tiền** sau một mốc (trigger chặn đổi các cột tiền, cho phép đúng các cột trạng thái được liệt kê): `payments` (sau `confirmed`), `invoices` (sau khi phát hành; chỉ `allocated_total` đổi được), `charges` (sau khi có dòng phiếu), `lease_versions` (sau ký), `handovers` (sau xác nhận), `lease_settlements` (sau duyệt), `shifts` (sau `closed`), `period_locks` (chỉ điền cột mở khoá), `import_batches` (sau `committed`), `inbox` (`raw`, `payload_hash`).
 - Sửa sai bằng chứng từ **đảo/điều chỉnh** tham chiếu bản gốc, có lý do và người duyệt; sau `period_locks` hoặc chốt ca chỉ thêm được chứng từ ghi ngày trong kỳ đang mở (INV-F6).
 
@@ -1882,6 +1882,32 @@ Loại: A · không có `organization_id` (tài khoản có thể không thuộc
 - Khoá/index: `uq (subject_user_id, type) WHERE status IN ('received','verified','processing')` (một yêu cầu mở cùng loại); `ix (subject_user_id, requested_at)`; `ix (due_at) WHERE` còn mở (nhận việc, metric); `ix (result_expires_at) WHERE result_file_key IS NOT NULL` (dọn gói); `ix (updated_at) WHERE pending_file_key IS NOT NULL` (dọn gói dự kiến của yêu cầu đã đóng).
 - RLS/quyền đặc biệt: RLS + FORCE theo `app.user_id`; `app_runtime` SELECT + INSERT theo cột (policy chỉ cho `verified` access/delete hoặc `completed` restrict); không UPDATE/DELETE. `app_worker` không có quyền bảng — chỉ hàm SECURITY DEFINER `app.dsar_claim`, `app.dsar_export_data`, `app.dsar_complete_access`, `app.dsar_erase_account`, `app.dsar_due_results`, `app.dsar_clear_result`; `app.dsar_sole_owner_orgs()` (app_runtime, chặn LAST_OWNER); `app.dsar_metrics(now)` (gauge `hm_dsar_overdue`).
 - Bất biến: xoá không đụng hoá đơn/sổ/`audit_events`/`consent_records`/`persons` (test `dsar.db.test.ts`).
+
+### `dsar_audit_events`
+Bằng chứng DSAR theo **tài khoản** (T-2502, D-139/D-143, migration 0076, SPEC-dsar-audit): trigger ghi tạo yêu cầu/chuyển trạng thái cùng transaction; hàm riêng ghi sau khi ký và kiểm lại hạn URL. Không broadcast sang nhật ký từng tổ chức, không lưu payload/retention note/storage key/URL/IP/user-agent.
+
+Chủ module: Privacy
+
+Loại: A · append-only · không có `organization_id` (ngoại lệ IND-SAAS-001: chủ thể có thể không thuộc tổ chức); **chín cột NOT NULL**, không thêm cột chuẩn nullable.
+
+| Cột | Kiểu | Null | Ràng buộc/mặc định | Ghi chú |
+|---|---|---|---|---|
+| id | uuid | không | PK, mặc định `gen_random_uuid()` | Mã sự kiện |
+| subject_user_id | uuid | không | **không FK** sang auth.user | Chủ thể/actor user; vẫn giữ id bí danh khi tài khoản bị ẩn danh |
+| request_id | uuid | không | FK → `dsar_requests(id)` ON DELETE RESTRICT | Có index tra ngược |
+| actor_type | text | không | CHECK user/worker | INSERT yêu cầu/cấp URL là user; chuyển trạng thái là worker |
+| action | text | không | CHECK dsar.requested/received/verified/processing/completed/rejected/url_issued | `url_issued` không khẳng định đã tải file |
+| request_type | text | không | CHECK access/delete/restrict | Kiểu yêu cầu tại thời điểm ghi |
+| request_status | text | không | CHECK received/verified/processing/completed/rejected | Trạng thái tại thời điểm ghi |
+| occurred_at | timestamptz | không | mặc định `clock_timestamp()` | Đồng hồ CSDL, thứ tự thực lúc ghi |
+| correlation_id | text | không | CHECK `= 'dsar:' || request_id::text` | Không lấy chuỗi tuỳ ý từ client |
+
+- Index: `(subject_user_id, occurred_at, id)` cho lịch sử/export và `(request_id)` cho FK.
+- RLS + FORCE: `subject_user_id = app.current_user_id()`; chỉ `app_runtime` SELECT. Runtime/worker không có INSERT/UPDATE/DELETE/TRUNCATE trực tiếp. `app.forbid_mutation` chặn sửa/xoá/truncate kể cả owner.
+- Hàm definer, search_path cố định và TimeZone UTC: `app.dsar_audit_lifecycle()` chỉ trigger gọi; `app.dsar_audit_url_issued(uuid)` chỉ runtime gọi, kiểm chính chủ/access/completed/còn hạn theo đồng hồ CSDL, khóa request rồi mới ghi. Chỉ thay đổi trạng thái thật phát sự kiện, reclaim cùng trạng thái không trùng.
+- Hạn cấp URL: `DSAR_DOWNLOADS_PER_HOUR=30` lần thử/giờ/tài khoản, dùng chung mọi request; kiểm trước signer, lỗi ký vẫn tính lần thử; 429 không tạo sự kiện cấp URL.
+- `app.dsar_export_data` giữ chữ ký/quyền worker cũ, thêm lịch sử audit của chính chủ theo snapshot; không có bằng chứng cấp URL/completed phát sinh sau snapshot.
+- Down 0076 khóa request rồi audit và từ chối khi có bằng chứng (`55000 DSAR_AUDIT_EVIDENCE_EXISTS`). Rollback ứng dụng giữ schema; không xoá audit để vượt guard. Hạn lưu pháp lý chưa chốt (RET-21); chưa có job xoá, giữ cả sau ẩn danh tài khoản.
 
 ### `processing_restrictions`
 Cờ hạn chế xử lý theo tài khoản (D-123, T-2311): có hàng ⇒ bộ kiểm đồng ý analytics trả từ chối (xử lý không bắt buộc dừng). Chưa có luồng gỡ cờ.
