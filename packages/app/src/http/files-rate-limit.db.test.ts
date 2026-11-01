@@ -4,9 +4,10 @@ import { randomUUID } from "node:crypto";
 import { createTestDb, type SeededOrg, seedAuthUser, seedOrg, type TestDb, testS3Config } from "@hm/testkit";
 import { Kysely, PostgresDialect, sql } from "kysely";
 import pg from "pg";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { ObjectStorage } from "../files/storage.ts";
 import { testServices } from "../server/services.ts";
+import { waitForSafeRateLimitWindow } from "../testing/rate-limit-window.ts";
 import type { HttpDeps } from "./command-route.ts";
 import { handleFileUpload } from "./file-upload.ts";
 import { handleImportUpload } from "./import-upload.ts";
@@ -19,7 +20,6 @@ import {
 
 let t: TestDb;
 let A: SeededOrg;
-let B: SeededOrg;
 let second: Kysely<unknown>;
 let storage: ObjectStorage;
 let userA2: string;
@@ -111,12 +111,13 @@ const fileCount = async (org: SeededOrg): Promise<number> =>
     }>`select count(*)::int as n from files where organization_id = ${org.orgId}`.execute(t.admin)
   ).rows[0]?.n ?? 0;
 
+beforeEach(waitForSafeRateLimitWindow);
+
 beforeAll(async () => {
   t = await createTestDb();
   storage = new ObjectStorage(testS3Config());
   await storage.ensureBucket();
   A = await seedOrg(t.admin, "Rate limit A");
-  B = await seedOrg(t.admin, "Rate limit B");
   userA2 = await seedStaff(A, "front_desk");
   second = new Kysely<unknown>({
     dialect: new PostgresDialect({ pool: new pg.Pool({ connectionString: t.runtimeUrl, max: 10 }) }),
@@ -158,24 +159,32 @@ describe("POST /api/v1/files/upload — giới hạn tần suất", () => {
   });
 
   it("hạn mức TỔ CHỨC: nhiều thành viên cùng đẩy tổng vượt ⇒ 429 dù từng người chưa tới hạn riêng", async () => {
-    const orgLimit = await seedStaff(A, "manager");
-    const other = await seedStaff(A, "front_desk");
-    // Scope khác với test trước? Cùng scope `file_upload:org` của A nên đã có lượt; đo bằng dòng đếm thật.
-    const used = (
-      await sql<{ n: number }>`select coalesce(sum(hits), 0)::int as n from rate_limit_counters
-        where scope = 'file_upload:org' and subject = ${A.orgId}`.execute(t.admin)
-    ).rows[0]?.n as number;
-    const limits = { perMember: 1000, perOrg: used + 2 };
-    expect((await handleFileUpload(fileReq(A, orgLimit), depsFor(t.runtime, limits))).status).toBe(201);
-    expect((await handleFileUpload(fileReq(A, other), depsFor(second, limits))).status).toBe(201);
-    const res = await handleFileUpload(fileReq(A, orgLimit), depsFor(second, limits));
+    const org = await seedOrg(t.admin, "Rate limit isolated org");
+    const orgLimit = await seedStaff(org, "manager");
+    const other = await seedStaff(org, "front_desk");
+    // Lịch sử cửa sổ trước không làm tăng hạn mức của cửa sổ hiện tại.
+    await sql`insert into rate_limit_counters (scope, subject, window_start, hits)
+      values ('file_upload:org', ${org.orgId}, date_trunc('minute', now()) - interval '1 minute', 5)`.execute(
+      t.admin,
+    );
+    const limits = { perMember: 1000, perOrg: 2 };
+    expect((await handleFileUpload(fileReq(org, orgLimit), depsFor(t.runtime, limits))).status).toBe(201);
+    expect((await handleFileUpload(fileReq(org, other), depsFor(second, limits))).status).toBe(201);
+    const res = await handleFileUpload(fileReq(org, orgLimit), depsFor(second, limits));
     expect(res.status).toBe(429);
     expect(res.headers.get("retry-after")).not.toBeNull();
   });
 
   it("tổ chức B không bị ảnh hưởng khi A bão hoà (bộ đếm theo tổ chức/thành viên)", async () => {
-    const userB = await seedStaff(B, "manager");
-    const res = await handleFileUpload(fileReq(B, userB), depsFor(t.runtime, { perMember: 2, perOrg: 2 }));
+    const orgA = await seedOrg(t.admin, "Rate limit saturated A");
+    const orgB = await seedOrg(t.admin, "Rate limit unaffected B");
+    const userA = await seedStaff(orgA, "manager");
+    const userB = await seedStaff(orgB, "manager");
+    const limits = { perMember: 1000, perOrg: 2 };
+    expect((await handleFileUpload(fileReq(orgA, userA), depsFor(t.runtime, limits))).status).toBe(201);
+    expect((await handleFileUpload(fileReq(orgA, userA), depsFor(second, limits))).status).toBe(201);
+    expect((await handleFileUpload(fileReq(orgA, userA), depsFor(second, limits))).status).toBe(429);
+    const res = await handleFileUpload(fileReq(orgB, userB), depsFor(t.runtime, limits));
     expect(res.status).toBe(201);
   });
 

@@ -1083,3 +1083,17 @@
 - Chọn: Pin x/net0.62.0 cho cả hai image và chi5.4.0 cho Caddy, giữ upstream/compiler pins, thêm hồi quy và dựng/quét lại
 - Lý do (tiêu chí chất lượng cuối): Full scan mới xác nhận2advisoryx/net có fix và chiMedium có fix. Đóng các bản vá khả dụng trong cùng graph trước verify cuối; upstreammoduletests/build/validate và Grype phải qua, không đổi ngưỡng severity.
 - Đường lùi: Quay lại digest trước và giữ bằng chứng/SLA các phát hiện; không tự thêm ignore.
+
+### D-152 · 2026-11-01T00:19:31+00:00 · Ổn định test hạn mức tải file khi CI chạy qua ranh giới phút?
+
+- Phương án: (1) Nới assertion hoặc retry test bị429 không đúng kỳ vọng · (2) Dùng helper cửa sổ an toàn đã có, dữ liệu org riêng và hạn2 cố định, seed lịch sử để bắt cộng nhầm window
+- Chọn: Dùng helper cửa sổ an toàn đã có, dữ liệu org riêng và hạn2 cố định, seed lịch sử để bắt cộng nhầm window
+- Lý do (tiêu chí chất lượng cuối): CI1422test expected429got201 tại ranh giới phút. Đã tái hiện bằng row cửa sổ trước hits5; test cũ sum mọiwindow làm tăng ngưỡng sai. Helper chia sẻ giữ6assert biên;2file15test qua, limiter/ngưỡng sản phẩm không đổi.
+- Đường lùi: Quay lại riêng fixture nếu có chứng cứ khác; giữ assertion429 và không skip/retry để làm xanh.
+
+### D-153 · 2026-11-01T00:19:31+00:00 · Test SIGTERM cần quan sát lúc nào để xác nhận Postgres đã bỏ hết backend?
+
+- Phương án: (1) Assert0 ngay tại child close dù TCP cleanup còn đang được server xử lý · (2) Dùng waitFor có hạn5s như test shutdown trực tiếp rồi vẫn assert0, giữ exit0 và marker stopped
+- Chọn: Dùng waitFor có hạn5s như test shutdown trực tiếp rồi vẫn assert0, giữ exit0 và marker stopped
+- Lý do (tiêu chí chất lượng cuối): Coverage toàn bộ4446tests có4445qua,1fail expected0got1 tại appConnections sau childclose; E2E224qua/1skip. Sự kiện close phía Node không đồng bộ pg_stat_activity; chờ điều kiện cụ thể vẫn bắt rò tồn tại sau deadline, không đổi sản phẩm/timeout test/coverage.
+- Đường lùi: Nếu phát hiện backend còn sống quá5s thì giữ gate đỏ và sửa lifecycle thực, không nới deadline hoặc bỏ assert.
