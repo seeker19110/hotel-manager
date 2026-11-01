@@ -1111,3 +1111,10 @@
 - Chọn: So sánh danh sách tên key theo dịch vụ, không nhận giá trị bí mật; giữ tiêu chí triển khai mở
 - Lý do (tiêu chí chất lượng cuối): Kiểm được phần mã bằng dữ liệu tổng hợp mà không truy cập secret hay giả chứng cứ triển khai
 - Đường lùi: Hoàn nguyên PR công cụ
+
+### D-156 · 2026-11-01T02:36:01+00:00 · Giảm lộ source map khi chưa có bộ thu lỗi?
+
+- Phương án: (1) Chặn .map qua proxy và kiểm thử; giữ tích hợp và production mở · (2) Chờ bộ thu lỗi và triển khai
+- Chọn: Chặn .map qua proxy và kiểm thử; giữ tích hợp và production mở
+- Lý do (tiêu chí chất lượng cuối): Phòng vệ kiểm được cục bộ mà không chọn nhà cung cấp hay tuyên bố bảo vệ lưu lượng ngoài proxy
+- Đường lùi: Hoàn nguyên quy tắc Caddy và test qua PR

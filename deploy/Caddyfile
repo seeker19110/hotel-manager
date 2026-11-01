@@ -11,6 +11,9 @@
 		Referrer-Policy "strict-origin-when-cross-origin"
 		-Server
 	}
+	# Không công khai source map; Caddy so path đã giải mã, không bao gồm query.
+	@source_map path_regexp source_map (?i)\.map$
+	respond @source_map 404
 	reverse_proxy web:3000
 }
 

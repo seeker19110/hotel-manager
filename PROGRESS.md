@@ -1,5 +1,6 @@
 # PROGRESS.md — Hotel Manager
 ## Đang làm
+- Đợt26 T-2603 (D-156): Caddy trả 404 cho đường dẫn source map qua web proxy; kiểm proxy thật trong mạng Docker nội bộ không publish cổng. PRF-WEB-008 vẫn mở vì collector, upload theo release và kiểm production chưa có.
 - Đợt26 T-2602 (D-155): công cụ so tên biến theo dịch vụ giữa staging/production chỉ nhận danh sách JSON tên khóa, không cần giá trị secret. PRF-WEB-009 vẫn mở đến khi so cấu hình thực tế và có preview từng PR.
 - 2026-11-01 đợt 26 (D-154): thêm migration0079 cho nguồn audit DSAR: IP rút gọn, user-agent chuẩn hóa, worker không có nguồn; bổ sung vào export của chủ thể, giữ RLS và append-only. Rollback từ chối làm mất chứng cứ. CMP-AUDIT-002 còn mở vì audit deploy, hạ tầng và pháp lý.
 - 2026-11-01 đợt 25 (D-139…D-153), theo yêu cầu cập nhật main và hoàn thiện dự án. Đã fetch lại: main vẫn3e41782, PR140 tại81d1c3b chưa merge; nối nhánh từ PR140, không sửa checkout gốc. Chủ dự án xác nhận chưa có VPS/tên miền, hoàn tất mã và PR trước.
