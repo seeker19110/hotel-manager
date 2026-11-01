@@ -2459,6 +2459,10 @@
     "message": "Không có kết nối mạng. Thao tác chưa được gửi.",
     "description": "Lỗi dùng chung của form xác thực khi trình duyệt mất mạng."
   },
+  "auth_form.error.too_many": {
+    "message": "Thử quá nhiều lần. Vui lòng đợi một lát rồi thử lại.",
+    "description": "Lỗi dùng chung của form xác thực khi máy chủ giới hạn tần suất (429)."
+  },
   "auth_form.no_response": {
     "message": "Chưa nhận được phản hồi. Kiểm tra mạng rồi thử lại.",
     "description": "Lỗi dùng chung của form xác thực khi không nhận được phản hồi từ máy chủ."
@@ -4606,6 +4610,10 @@
   "org_deletion.cancel": {
     "message": "Huỷ yêu cầu xoá",
     "description": "Thành phần client xoá tổ chức ở trang Tổ chức (T-2312, D-125): nút huỷ yêu cầu xoá (một bước)."
+  },
+  "org_deletion.cancel_unavailable": {
+    "message": "Quá trình xoá đã bắt đầu. Không thể huỷ yêu cầu.",
+    "description": "Thông báo khi worker đã bắt đầu xoá dữ liệu tổ chức nên yêu cầu huỷ không còn khả dụng."
   },
   "org_deletion.cancelled": {
     "message": "Đã huỷ yêu cầu xoá. Tổ chức hoạt động lại bình thường.",

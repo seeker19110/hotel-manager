@@ -97,7 +97,7 @@ public.units owner=<admin> table rls force-rls
 public.work_orders owner=<admin> table rls force-rls
 public.worker_heartbeats owner=<admin> table rls force-rls
 
-## columns (1085)
+## columns (1086)
 auth.account.accessToken text
 auth.account.accessTokenExpiresAt timestamp with time zone
 auth.account.accountId text not null
@@ -801,6 +801,7 @@ public.organizations.deletion_requested_by uuid
 public.organizations.id uuid not null
 public.organizations.name text not null
 public.organizations.plan text not null default 'pilot'::text
+public.organizations.purge_started_at timestamp with time zone
 public.organizations.settings jsonb not null default '{}'::jsonb
 public.organizations.status text not null default 'active'::text
 public.organizations.updated_at timestamp with time zone not null default now()
@@ -1188,7 +1189,7 @@ public.worker_heartbeats.beat_at timestamp with time zone not null
 public.worker_heartbeats.name text not null
 public.worker_heartbeats.started_at timestamp with time zone not null default now()
 
-## constraints (858)
+## constraints (859)
 auth.account account_pkey PRIMARY KEY (id)
 auth.account account_userId_fkey FOREIGN KEY ("userId") REFERENCES auth."user"(id) ON DELETE CASCADE
 auth.login_throttle login_throttle_email_hash_check CHECK (octet_length(email_hash) = 32)
@@ -1741,6 +1742,7 @@ public.org_deletion_certificates org_deletion_certificates_pkey PRIMARY KEY (id)
 public.org_deletion_certificates org_deletion_certificates_total_rows_check CHECK (total_rows >= 1)
 public.organizations ck_organizations_deletion CHECK ((status = 'pending_deletion'::text) = (deletion_requested_at IS NOT NULL AND deletion_due_at IS NOT NULL AND deletion_requested_by IS NOT NULL) AND (deletion_requested_at IS NOT NULL OR deletion_due_at IS NULL AND deletion_requested_by IS NULL) AND (deletion_due_at IS NULL OR deletion_due_at >= (deletion_requested_at + '30 days'::interval)))
 public.organizations ck_organizations_plan CHECK (plan = 'pilot'::text)
+public.organizations ck_organizations_purge_claim CHECK (purge_started_at IS NULL OR status = 'pending_deletion'::text AND purge_started_at >= deletion_due_at)
 public.organizations organizations_name_check CHECK (length(btrim(name)) >= 1 AND length(btrim(name)) <= 200)
 public.organizations organizations_pkey PRIMARY KEY (id)
 public.organizations organizations_settings_check CHECK (jsonb_typeof(settings) = 'object'::text)
@@ -2912,7 +2914,7 @@ public.worker_heartbeats support_ro_del RESTRICTIVE DELETE to app_runtime using 
 public.worker_heartbeats support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
 public.worker_heartbeats support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 
-## triggers (138)
+## triggers (141)
 auth.session CREATE TRIGGER trg_session_not_erased BEFORE INSERT ON auth.session FOR EACH ROW EXECUTE FUNCTION app.session_guard_erased()
 public.allocations CREATE TRIGGER trg_allocations_no_reactivation BEFORE UPDATE OF active ON allocations FOR EACH ROW EXECUTE FUNCTION app.forbid_reactivation()
 public.allocations CREATE TRIGGER trg_allocations_updated BEFORE UPDATE ON allocations FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
@@ -2940,6 +2942,7 @@ public.deposits CREATE TRIGGER trg_deposits_updated BEFORE UPDATE ON deposits FO
 public.exceptions CREATE TRIGGER trg_exceptions_updated BEFORE UPDATE ON exceptions FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 public.export_jobs CREATE TRIGGER trg_export_jobs_transition BEFORE UPDATE ON export_jobs FOR EACH ROW EXECUTE FUNCTION app.export_job_transition()
 public.export_jobs CREATE TRIGGER trg_export_jobs_updated BEFORE UPDATE ON export_jobs FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
+public.files CREATE TRIGGER trg_files_org_purge_insert BEFORE INSERT ON files FOR EACH ROW EXECUTE FUNCTION app.files_org_purge_insert_guard()
 public.files CREATE TRIGGER trg_files_plan_quota BEFORE INSERT ON files FOR EACH ROW EXECUTE FUNCTION app.enforce_plan_quota('storage')
 public.files CREATE TRIGGER trg_files_updated BEFORE UPDATE ON files FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 public.floors CREATE TRIGGER trg_floors_updated BEFORE UPDATE ON floors FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
@@ -3004,6 +3007,7 @@ public.org_deletion_certificates CREATE TRIGGER trg_org_deletion_certificates_ap
 public.org_deletion_certificates CREATE TRIGGER trg_org_deletion_certificates_no_truncate BEFORE TRUNCATE ON org_deletion_certificates FOR EACH STATEMENT EXECUTE FUNCTION app.forbid_mutation()
 public.organizations CREATE TRIGGER trg_organizations_lifecycle_guard BEFORE UPDATE ON organizations FOR EACH ROW EXECUTE FUNCTION app.organizations_lifecycle_guard()
 public.organizations CREATE TRIGGER trg_organizations_plan_insert BEFORE INSERT ON organizations FOR EACH ROW EXECUTE FUNCTION app.organizations_plan_insert_guard()
+public.organizations CREATE TRIGGER trg_organizations_purge_claim_insert BEFORE INSERT ON organizations FOR EACH ROW EXECUTE FUNCTION app.organizations_purge_claim_insert_guard()
 public.organizations CREATE TRIGGER trg_organizations_updated BEFORE UPDATE ON organizations FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 public.payment_allocations CREATE TRIGGER trg_payment_allocations_by BEFORE INSERT ON payment_allocations FOR EACH ROW EXECUTE FUNCTION app.check_allocation_by()
 public.payment_allocations CREATE TRIGGER trg_payment_allocations_guard BEFORE UPDATE ON payment_allocations FOR EACH ROW EXECUTE FUNCTION app.allocation_guard()
@@ -3043,6 +3047,7 @@ public.shift_discrepancies CREATE TRIGGER trg_shift_discrepancies_updated BEFORE
 public.shifts CREATE TRIGGER trg_shifts_guard BEFORE UPDATE ON shifts FOR EACH ROW EXECUTE FUNCTION app.shift_guard()
 public.shifts CREATE TRIGGER trg_shifts_no_delete BEFORE DELETE OR TRUNCATE ON shifts FOR EACH STATEMENT EXECUTE FUNCTION app.forbid_mutation()
 public.shifts CREATE TRIGGER trg_shifts_updated BEFORE UPDATE ON shifts FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
+public.stays CREATE TRIGGER trg_stays_additional_guests BEFORE INSERT OR UPDATE OF organization_id, additional_guest_person_ids, status ON stays FOR EACH ROW EXECUTE FUNCTION app.lock_stay_additional_guests()
 public.stays CREATE TRIGGER trg_stays_transition BEFORE UPDATE ON stays FOR EACH ROW EXECUTE FUNCTION app.stay_transition()
 public.stays CREATE TRIGGER trg_stays_updated BEFORE UPDATE ON stays FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 public.tasks CREATE TRIGGER trg_tasks_transition BEFORE UPDATE ON tasks FOR EACH ROW EXECUTE FUNCTION app.task_transition()
@@ -3052,7 +3057,7 @@ public.units CREATE TRIGGER trg_units_updated BEFORE UPDATE ON units FOR EACH RO
 public.work_orders CREATE TRIGGER trg_work_orders_transition BEFORE UPDATE ON work_orders FOR EACH ROW EXECUTE FUNCTION app.work_order_transition()
 public.work_orders CREATE TRIGGER trg_work_orders_updated BEFORE UPDATE ON work_orders FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 
-## functions (143)
+## functions (147)
 -- app.actor_can_see_property(p uuid) owner=<admin>
 CREATE OR REPLACE FUNCTION app.actor_can_see_property(p uuid)
  RETURNS boolean
@@ -3576,6 +3581,27 @@ BEGIN
          locked_until = date_trunc('milliseconds', p_now) + make_interval(secs => greatest(p_lock_seconds, 1))
     FROM picked p WHERE d.id = p.id
   RETURNING d.id, d.organization_id, d.attempts, d.locked_until;
+END $function$
+-- app.claim_org_purge(p_org uuid) owner=<admin>
+CREATE OR REPLACE FUNCTION app.claim_org_purge(p_org uuid)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+ SET "TimeZone" TO 'UTC'
+AS $function$
+DECLARE o organizations%ROWTYPE;
+BEGIN
+  SELECT * INTO o FROM organizations x WHERE x.id = p_org FOR UPDATE;
+  IF NOT FOUND OR o.status <> 'pending_deletion' OR o.deletion_due_at > now() THEN
+    RETURN false;
+  END IF;
+  IF o.purge_started_at IS NOT NULL THEN RETURN true; END IF;
+  UPDATE organizations SET purge_started_at = now(), version = version + 1 WHERE id = p_org;
+  INSERT INTO audit_events (id, organization_id, actor_type, action, entity_type, entity_id, after, correlation_id)
+  VALUES (gen_random_uuid(), p_org, 'worker', 'organization.purge_started', 'organization', p_org,
+          jsonb_build_object('due_at', o.deletion_due_at, 'started_at', now()), 'org-purge');
+  RETURN true;
 END $function$
 -- app.current_org() owner=<admin>
 CREATE OR REPLACE FUNCTION app.current_org()
@@ -4182,6 +4208,28 @@ AS $function$
     ORDER BY f.delete_after, f.id
     LIMIT least(greatest(p_limit, 1), 1000)
   $function$
+-- app.files_org_purge_insert_guard() owner=<admin>
+CREATE OR REPLACE FUNCTION app.files_org_purge_insert_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'pg_catalog', 'public', 'pg_temp'
+AS $function$
+DECLARE v_started timestamptz;
+BEGIN
+  -- The migration/table owner may seed/repair directly; application roles keep tenant-scoped invoker permissions.
+  IF current_user = (SELECT pg_get_userbyid(c.relowner) FROM pg_class c WHERE c.oid = 'public.files'::regclass) THEN
+    RETURN NEW;
+  END IF;
+  SELECT o.purge_started_at INTO v_started FROM organizations o
+    WHERE o.id = NEW.organization_id AND o.id = app.current_org() FOR KEY SHARE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'file organization is unavailable' USING ERRCODE = '23503';
+  END IF;
+  IF v_started IS NOT NULL THEN
+    RAISE EXCEPTION 'organization purge has started' USING ERRCODE = '42501', HINT = 'FORBIDDEN';
+  END IF;
+  RETURN NEW;
+END $function$
 -- app.forbid_mutation() owner=<admin>
 CREATE OR REPLACE FUNCTION app.forbid_mutation()
  RETURNS trigger
@@ -4631,6 +4679,37 @@ AS $function$
       AND m.valid_from <= now() AND (m.valid_to IS NULL OR m.valid_to > now())
     ORDER BY o.name
   $function$
+-- app.lock_stay_additional_guests() owner=<admin>
+CREATE OR REPLACE FUNCTION app.lock_stay_additional_guests()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+DECLARE
+  v_id uuid;
+  v_anonymized_at timestamptz;
+BEGIN
+  -- Closed stays add no open relation; allow checkout of guests anonymized under the retention policy.
+  IF TG_OP = 'UPDATE' AND NEW.organization_id = OLD.organization_id
+     AND NEW.additional_guest_person_ids IS NOT DISTINCT FROM OLD.additional_guest_person_ids
+     AND NEW.status NOT IN ('expected', 'in_house') THEN
+    RETURN NEW;
+  END IF;
+  FOR v_id IN SELECT DISTINCT x.id FROM unnest(NEW.additional_guest_person_ids) x(id) ORDER BY x.id LOOP
+    SELECT p.anonymized_at INTO v_anonymized_at FROM persons p
+      WHERE p.organization_id = NEW.organization_id AND p.id = v_id
+      FOR KEY SHARE;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'additional guest must belong to the stay organization'
+        USING ERRCODE = '23503', CONSTRAINT = 'fk_stays_additional_guests';
+    END IF;
+    IF NEW.status IN ('expected', 'in_house') AND v_anonymized_at IS NOT NULL THEN
+      RAISE EXCEPTION 'additional guest has been anonymized'
+        USING ERRCODE = '23514', CONSTRAINT = 'ck_stays_additional_guests_active';
+    END IF;
+  END LOOP;
+  RETURN NEW;
+END $function$
 -- app.locked_through(p_org uuid, p_property uuid) owner=<admin>
 CREATE OR REPLACE FUNCTION app.locked_through(p_org uuid, p_property uuid)
  RETURNS date
@@ -4796,7 +4875,7 @@ BEGIN
   IF v_person IS NULL OR o.id IS NULL THEN
     RAISE EXCEPTION 'only an active owner may cancel organization deletion' USING ERRCODE = '42501', HINT = 'FORBIDDEN';
   END IF;
-  IF o.status <> 'pending_deletion' THEN
+  IF o.status <> 'pending_deletion' OR o.purge_started_at IS NOT NULL THEN
     RETURN false;
   END IF;
   UPDATE organizations x
@@ -4859,16 +4938,19 @@ AS $function$
 -- app.org_purge_file_keys(p_org uuid) owner=<admin>
 CREATE OR REPLACE FUNCTION app.org_purge_file_keys(p_org uuid)
  RETURNS TABLE(storage_key text)
- LANGUAGE sql
- STABLE SECURITY DEFINER
+ LANGUAGE plpgsql
+ SECURITY DEFINER
  SET search_path TO 'public', 'pg_temp'
  SET "TimeZone" TO 'UTC'
 AS $function$
-    SELECT f.storage_key FROM files f
-      JOIN organizations o ON o.id = f.organization_id
-     WHERE f.organization_id = p_org AND o.status = 'pending_deletion' AND o.deletion_due_at <= now()
-     ORDER BY f.storage_key
-  $function$
+BEGIN
+  -- Also protect a worker N-1 which lists keys without calling claim_org_purge explicitly.
+  IF NOT app.claim_org_purge(p_org) THEN RETURN; END IF;
+  -- A PUT which staged before the claim must finish (or be closed by retention) before ANY object is removed.
+  -- No age-based override here: pending_scan means the upload may still be in flight.
+  IF EXISTS (SELECT 1 FROM files f WHERE f.organization_id = p_org AND f.status = 'pending_scan') THEN RETURN; END IF;
+  RETURN QUERY SELECT f.storage_key FROM files f WHERE f.organization_id = p_org ORDER BY f.storage_key;
+END $function$
 -- app.org_request_deletion(p_correlation text) owner=<admin>
 CREATE OR REPLACE FUNCTION app.org_request_deletion(p_correlation text)
  RETURNS TABLE(status text, requested_at timestamp with time zone, due_at timestamp with time zone, created boolean)
@@ -4915,10 +4997,10 @@ CREATE OR REPLACE FUNCTION app.organizations_lifecycle_guard()
  SET search_path TO 'pg_catalog', 'public', 'pg_temp'
 AS $function$
 BEGIN
-  IF (NEW.status, NEW.deletion_requested_at, NEW.deletion_due_at, NEW.deletion_requested_by)
-       IS DISTINCT FROM (OLD.status, OLD.deletion_requested_at, OLD.deletion_due_at, OLD.deletion_requested_by)
+  IF (NEW.status, NEW.deletion_requested_at, NEW.deletion_due_at, NEW.deletion_requested_by, NEW.purge_started_at)
+       IS DISTINCT FROM (OLD.status, OLD.deletion_requested_at, OLD.deletion_due_at, OLD.deletion_requested_by, OLD.purge_started_at)
      AND current_user <> (SELECT pg_get_userbyid(c.relowner) FROM pg_class c WHERE c.oid = 'public.organizations'::regclass) THEN
-    RAISE EXCEPTION 'organizations.status/deletion_* change only via app.org_request_deletion/app.org_cancel_deletion'
+    RAISE EXCEPTION 'organizations lifecycle changes only via authorized definer functions'
       USING ERRCODE = '42501', HINT = 'FORBIDDEN';
   END IF;
   IF NEW.plan IS DISTINCT FROM OLD.plan
@@ -4938,6 +5020,20 @@ BEGIN
   IF NEW.plan IS DISTINCT FROM 'pilot'
      AND current_user <> (SELECT pg_get_userbyid(c.relowner) FROM pg_class c WHERE c.oid = 'public.organizations'::regclass) THEN
     RAISE EXCEPTION 'organizations.plan is chosen only by the table owner (docs/ops/runbooks/plan-change.md)'
+      USING ERRCODE = '42501', HINT = 'FORBIDDEN';
+  END IF;
+  RETURN NEW;
+END $function$
+-- app.organizations_purge_claim_insert_guard() owner=<admin>
+CREATE OR REPLACE FUNCTION app.organizations_purge_claim_insert_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'pg_catalog', 'public', 'pg_temp'
+AS $function$
+BEGIN
+  IF NEW.purge_started_at IS NOT NULL
+     AND current_user <> (SELECT pg_get_userbyid(c.relowner) FROM pg_class c WHERE c.oid = 'public.organizations'::regclass) THEN
+    RAISE EXCEPTION 'organizations.purge_started_at may only be set by the purge claim function'
       USING ERRCODE = '42501', HINT = 'FORBIDDEN';
   END IF;
   RETURN NEW;
@@ -5987,7 +6083,7 @@ AS $function$
     ON CONFLICT (name) DO UPDATE SET beat_at = excluded.beat_at
   $function$
 
-## grants (bảng, cột, hàm, schema) (1291)
+## grants (bảng, cột, hàm, schema) (1296)
 column public.consent_records.action app_runtime INSERT
 column public.consent_records.channel app_runtime INSERT
 column public.consent_records.id app_runtime INSERT
@@ -6082,6 +6178,8 @@ function app.check_timezone() <admin> EXECUTE
 function app.check_timezone() PUBLIC EXECUTE
 function app.claim_due_deliveries(p_now timestamp with time zone, p_limit integer, p_per_org integer, p_lock_seconds integer, p_max_attempts integer) <admin> EXECUTE
 function app.claim_due_deliveries(p_now timestamp with time zone, p_limit integer, p_per_org integer, p_lock_seconds integer, p_max_attempts integer) app_worker EXECUTE
+function app.claim_org_purge(p_org uuid) <admin> EXECUTE
+function app.claim_org_purge(p_org uuid) app_worker EXECUTE
 function app.current_org() <admin> EXECUTE
 function app.current_org() PUBLIC EXECUTE
 function app.current_org() app_runtime EXECUTE
@@ -6129,6 +6227,7 @@ function app.export_job_transition() <admin> EXECUTE
 function app.export_job_transition() PUBLIC EXECUTE
 function app.files_due_for_deletion(p_today date, p_limit integer) <admin> EXECUTE
 function app.files_due_for_deletion(p_today date, p_limit integer) app_worker EXECUTE
+function app.files_org_purge_insert_guard() <admin> EXECUTE
 function app.forbid_mutation() <admin> EXECUTE
 function app.forbid_mutation() PUBLIC EXECUTE
 function app.forbid_reactivation() <admin> EXECUTE
@@ -6179,6 +6278,7 @@ function app.ledger_drift() <admin> EXECUTE
 function app.ledger_drift() app_worker EXECUTE
 function app.list_my_organizations(p_auth_user_id uuid) <admin> EXECUTE
 function app.list_my_organizations(p_auth_user_id uuid) app_runtime EXECUTE
+function app.lock_stay_additional_guests() <admin> EXECUTE
 function app.locked_through(p_org uuid, p_property uuid) <admin> EXECUTE
 function app.locked_through(p_org uuid, p_property uuid) PUBLIC EXECUTE
 function app.locked_through(p_org uuid, p_property uuid) app_runtime EXECUTE
@@ -6216,6 +6316,7 @@ function app.org_request_deletion(p_correlation text) <admin> EXECUTE
 function app.org_request_deletion(p_correlation text) app_runtime EXECUTE
 function app.organizations_lifecycle_guard() <admin> EXECUTE
 function app.organizations_plan_insert_guard() <admin> EXECUTE
+function app.organizations_purge_claim_insert_guard() <admin> EXECUTE
 function app.otp_sign_in_allowed(p_email text) <admin> EXECUTE
 function app.otp_sign_in_allowed(p_email text) app_runtime EXECUTE
 function app.outbox_claim(p_limit integer) <admin> EXECUTE

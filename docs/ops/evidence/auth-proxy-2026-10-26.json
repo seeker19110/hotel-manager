@@ -1,0 +1,27 @@
+{
+  "caddy": "2.11.7-alpine",
+  "date": "2026-10-26",
+  "cases": [
+    {
+      "input": {},
+      "forwarded": "127.0.0.1",
+      "realIp": null
+    },
+    {
+      "input": {
+        "x-forwarded-for": "198.51.100.20"
+      },
+      "forwarded": "127.0.0.1",
+      "realIp": null
+    },
+    {
+      "input": {
+        "x-forwarded-for": "203.0.113.4, 198.51.100.20",
+        "x-real-ip": "198.51.100.50"
+      },
+      "forwarded": "127.0.0.1",
+      "realIp": "198.51.100.50"
+    }
+  ],
+  "result": "PASS: untrusted forwarded-for values replaced"
+}

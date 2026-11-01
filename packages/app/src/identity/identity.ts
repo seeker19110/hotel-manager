@@ -69,6 +69,13 @@ export async function recordIdentityDocument(
       extensions: { errors: [{ path: "nationality", field: "nationality", code: "invalid_country" }] },
     });
   }
+  // KEY SHARE trước cả SELECT/reuse: worker retention khoá person FOR UPDATE trước khi ẩn danh giấy tờ. Nếu worker đã
+  // thắng, câu SELECT kế tiếp thấy snapshot mới và ghi giấy tờ mới thay vì tái dùng hàng sắp mất; nếu command thắng,
+  // worker SKIP LOCKED tới khi quan hệ lưu trú/thuê đã commit. Đồng thời không ghi thêm vào tombstone của người.
+  const person = await sql<{ id: string }>`
+    select id from persons where organization_id = ${ctx.actor.orgId} and id = ${input.personId}
+      and anonymized_at is null for key share`.execute(ctx.trx);
+  if (!person.rows[0]) throw new CommandError("NOT_FOUND", 404, t("common.not_found_data"));
   const hash = pii.blindIndex(ctx.actor.orgId, input.docType, normalized);
   const existing = await sql<{ id: string }>`
     select id from identity_documents

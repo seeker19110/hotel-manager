@@ -254,10 +254,11 @@ Loại: M · không có `organization_id` (chính là tenant).
 | Cột | Kiểu | Null | Ràng buộc/mặc định | Ghi chú |
 |---|---|---|---|---|
 | name | text | không | `CHECK (length(btrim(name)) BETWEEN 1 AND 200)` | |
-| status | text | không | `CHECK (status IN ('active','suspended','pending_deletion'))`, mặc định `'active'` | `suspended`: tạm khoá toàn tổ chức (đề xuất); `pending_deletion`: owner đã yêu cầu xoá — khoá mọi truy cập trừ xuất dữ liệu + trạng thái/huỷ (`resolveActor`), purge khi quá `deletion_due_at` (0070, D-125) |
+| status | text | không | `CHECK (status IN ('active','suspended','pending_deletion'))`, mặc định `'active'` | `suspended`: tạm khoá toàn tổ chức, request kế tiếp bị NOT_FOUND; `pending_deletion`: owner đã yêu cầu xoá — khoá mọi truy cập trừ xuất dữ liệu + trạng thái/huỷ (`resolveActor`), purge khi quá `deletion_due_at` (0070, D-125) |
 | deletion_requested_at | timestamptz | có | | Mốc yêu cầu xoá |
 | deletion_due_at | timestamptz | có | `ck_organizations_deletion`: ≥ `deletion_requested_at + 30 ngày`; index một phần `WHERE status = 'pending_deletion'` | Hạn purge (đồng hồ CSDL) |
 | deletion_requested_by | uuid | có | không FK | `auth.user.id` của owner yêu cầu — người xem chứng nhận |
+| purge_started_at | timestamptz | có | `ck_organizations_purge_claim`: chỉ pending, ≥ `deletion_due_at` | Claim bền trước xoá object (0074); chỉ worker qua hàm definer đặt; có claim thì không huỷ/nhận yêu cầu xuất mới, lỗi kho được thử lại; pending_scan hoãn toàn bộ purge |
 | plan | text | không | `ck_organizations_plan`: `CHECK (plan IN ('pilot'))` (= `PLAN_IDS` của `packages/app/src/plans/catalog.ts`), mặc định `'pilot'` | Gói dịch vụ (D-130, 0073): chọn hạn mức tài nguyên (`app.plan_limits`) và tần suất; chỉ role sở hữu bảng đổi được (`trg_organizations_lifecycle_guard`) hoặc chọn gói khác mặc định khi INSERT (`trg_organizations_plan_insert`, D-132) — RUNBOOK §Đổi gói |
 | settings | jsonb | không | `CHECK (jsonb_typeof(settings)='object')`, mặc định `'{}'` | Cờ tính năng (`mixed_template_enabled`, mặc định `false`) và hạn mức mặc định theo vai trò (`role_limits`) khi `memberships.limits` không đặt khoá; thay cho "bảng cấu hình theo tổ chức" của PLAN T-007 (mục 7) |
 | created_by | uuid | không | | `auth.user.id` của người tạo; không FK, chỉ để truy vết |

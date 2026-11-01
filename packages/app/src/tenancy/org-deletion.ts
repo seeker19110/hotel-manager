@@ -3,7 +3,7 @@
 //   mật khẩu; lớp HTTP quyết mốc). Tổ chức ⇒ `pending_deletion`, hạn purge = +30 ngày (CSDL đặt, CHECK giữ ≥ 30 ngày). Idempotent:
 //   đã chờ xoá ⇒ trả trạng thái hiện có. Trong thời gian giữ, `resolveActor` khoá mọi truy cập trừ xuất dữ liệu + trạng thái/huỷ.
 // - Huỷ (`cancelOrgDeletion`): một bước, chỉ owner; tổ chức về `active` ngay.
-// - Purge (`purgeDueOrganizations`, job `tenancy.purge`): tổ chức tới hạn theo đồng hồ CSDL ⇒ lấy khoá object (`<org>/…`), xoá object
+// - Purge (`purgeDueOrganizations`, job `tenancy.purge`): tổ chức tới hạn theo đồng hồ CSDL ⇒ claim bền (0074), rồi lấy khoá object (`<org>/…`), xoá object
 //   TRƯỚC rồi mới gọi `app.purge_organization(org, khoá đã xoá)` (xoá mọi bảng theo tổ chức + chứng nhận). Lỗi kho ⇒ bỏ qua tổ chức
 //   đó, lượt sau thử lại; một tổ chức lỗi không chặn tổ chức khác. Có file MỚI ghi sau lúc liệt kê (vd bản xuất trong thời gian giữ)
 //   ⇒ CSDL trả `skipped` (kiểm SAU khi khoá hàng tổ chức — chặt hơn liệt kê lại ở đây), tổ chức để lượt sau (`deferred`), không
@@ -104,7 +104,7 @@ export async function requestOrgDeletion(
   return { status: row.created ? "created" : "existing", requestedAt: row.requested_at, dueAt: row.due_at };
 }
 
-/** Owner huỷ yêu cầu xoá (một bước). Trả false khi tổ chức không đang chờ xoá. */
+/** Owner huỷ yêu cầu xoá (một bước). Trả false khi không chờ xoá hoặc worker đã claim purge trước khi xoá object. */
 export async function cancelOrgDeletion(
   db: Kysely<unknown>,
   actor: Actor,
@@ -191,6 +191,9 @@ export async function purgeDueOrganizations(
   workerDb: Kysely<unknown>,
   deps: OrgPurgeDeps,
 ): Promise<OrgPurgeResult> {
+  // Claim phải commit trước network: transaction do người gọi giữ có thể rollback sau khi object đã bị xoá.
+  if ((workerDb as { isTransaction?: boolean }).isTransaction === true)
+    throw new Error("Organization purge requires an autocommit database connection");
   const now = deps.now ?? new Date();
   const out: OrgPurgeResult = { due: 0, purged: 0, deferred: 0, failed: 0, objectsDeleted: 0 };
   const due = await sql<{ id: string }>`
@@ -198,6 +201,11 @@ export async function purgeDueOrganizations(
   out.due = due.rows.length;
   for (const org of due.rows) {
     try {
+      // Commit claim TRƯỚC mọi thao tác kho: owner huỷ trước claim ⇒ không xoá; claim trước ⇒ không còn huỷ.
+      // Lỗi kho không gỡ claim (object có thể đã xoá một phần); lượt sau claim idempotent rồi thử lại.
+      const claim = await sql<{ ok: boolean }>`
+        select app.claim_org_purge(${org.id}::uuid) as ok`.execute(workerDb);
+      if (!claim.rows[0]?.ok) continue;
       const keys = await sql<{ storage_key: string }>`
         select storage_key from app.org_purge_file_keys(${org.id}::uuid)`.execute(workerDb);
       // Hai pha như DSAR: object TRƯỚC (xoá thiếu object = lỗi ⇒ dừng tổ chức này, giữ hàng `files` để lượt sau thử lại).

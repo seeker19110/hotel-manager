@@ -8,6 +8,7 @@ import { type Action, authorize, mibToBytes } from "@hm/domain";
 import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/index.ts";
 import { t } from "../i18n.ts";
+import { appLogger } from "../logging/index.ts";
 import { type CommandContext, CommandError } from "../pipeline/index.ts";
 import { ScannerUnavailableError } from "./clamd.ts";
 import {
@@ -457,7 +458,32 @@ export async function prepareGeneratedFile(
     sha256,
     exifStripped: false,
   });
-  if (staged.state !== "done") await deps.storage.put(staged.key, input.bytes, input.mime);
+  if (staged.state !== "done") {
+    // Stage and PUT are separate phases: a delayed/retried worker must recheck the durable row before writing.
+    const current = await withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, (trx) =>
+      sql<{
+        status: string;
+      }>`select status from files where organization_id = ${actor.orgId} and id = ${fileId}`.execute(trx),
+    );
+    if (!current.rows[0] || !["pending_scan", "ready"].includes(current.rows[0].status))
+      throw new CommandError("IDEMPOTENCY_CONFLICT", 422, t("files.staging.prepared_gone"));
+    if (current.rows[0].status === "pending_scan") {
+      try {
+        await deps.storage.put(staged.key, input.bytes, input.mime);
+      } catch (error) {
+        // A PUT may have succeeded remotely before its response failed; DELETE is idempotent.
+        try {
+          await deps.storage.delete(staged.key);
+        } catch (cleanupError) {
+          appLogger().warn("files.generated_cleanup_failed", {
+            file_id: fileId,
+            error: cleanupError instanceof Error ? cleanupError.name : "error",
+          });
+        }
+        throw error;
+      }
+    }
+  }
   return {
     fileId,
     key: staged.key,

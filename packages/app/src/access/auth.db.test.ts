@@ -290,6 +290,23 @@ describe("ngữ cảnh tổ chức và quyền (SPEC-access)", () => {
     expect(await listMyOrganizations(t.runtime, userId)).toEqual([]);
   });
 
+  // SPEC-lifecycle-race-hardening S-001: ngữ cảnh bị thu hồi ngay khi tổ chức đình chỉ.
+  it("tổ chức suspended thu hồi ngữ cảnh cũ ngay, kể cả đường cho phép pending deletion", async () => {
+    const org = await seedOrg(t.admin, "Tổ chức đình chỉ");
+    const input = { authUserId: org.ownerAuthUserId, orgId: org.orgId, twoFactorEnabled: true };
+    expect(await resolveActor(t.runtime, input)).toMatchObject({ orgId: org.orgId });
+    await sql`update organizations set status = 'suspended' where id = ${org.orgId}`.execute(t.admin);
+    for (const allowPendingDeletion of [false, true]) {
+      await expect(resolveActor(t.runtime, { ...input, allowPendingDeletion })).rejects.toMatchObject({
+        code: "NOT_FOUND",
+        status: 404,
+      });
+    }
+    expect(await listMyOrganizations(t.runtime, org.ownerAuthUserId)).toEqual([]);
+    await sql`update organizations set status = 'active' where id = ${org.orgId}`.execute(t.admin);
+    expect(await resolveActor(t.runtime, input)).toMatchObject({ orgId: org.orgId });
+  });
+
   it("lễ tân (có quyền xác nhận tiền mặt) cũng bắt buộc MFA (access Q-06)", async () => {
     const org = await seedOrg(t.admin, "KS lễ tân");
     const userId = await signUp(`lt+${randomUUID().slice(0, 8)}@example.test`);

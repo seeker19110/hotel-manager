@@ -1,7 +1,7 @@
 // Migration 0073 (T-2314, D-130/D-132): down gỡ sạch (cột plan, trigger hạn mức + guard INSERT, plan_limits, outbox_claim 2 tham số)
 // và khôi phục `invitation_by_token` của 0062; `outbox_claim(integer)` của 0071 giữ nguyên cả khi up (expand → contract: worker N−1
 // gọi một tham số vẫn chạy — job schema-compat); up lại đưa về trạng thái mới nhất.
-import { createMigrator } from "@hm/db";
+import { createMigrator, migrations } from "@hm/db";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createTestDb, type TestDb } from "./db.ts";
@@ -45,7 +45,15 @@ describe("migration 0073 — down/up", () => {
       insert_guard: true,
     });
     expect((await state())?.token_cols).toContain("plan text");
-    const down = await createMigrator(t.admin).migrateDown();
+    // Revert later migrations in dependency order first: 0073 is not necessarily the latest schema.
+    const later = Object.keys(migrations)
+      .filter((name) => name > NAME)
+      .sort();
+    const migrator = createMigrator(t.admin);
+    const target = await migrator.migrateTo(NAME);
+    expect(target.error).toBeUndefined();
+    expect(target.results?.map((result) => result.migrationName) ?? []).toEqual([...later].reverse());
+    const down = await migrator.migrateDown();
     expect(down.error).toBeUndefined();
     expect(down.results?.[0]?.migrationName).toBe(NAME);
     const after = await state();
@@ -64,6 +72,7 @@ describe("migration 0073 — down/up", () => {
     expect(grants.rows[0]).toEqual({ a: true, b: true });
     const up = await createMigrator(t.admin).migrateToLatest();
     expect(up.error).toBeUndefined();
+    expect(up.results?.map((result) => result.migrationName)).toEqual([NAME, ...later]);
     expect(await state()).toMatchObject({ plan_col: true, claim2: true, claim1: true, insert_guard: true });
   }, 120_000);
 
