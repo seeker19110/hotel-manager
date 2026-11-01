@@ -38,3 +38,15 @@ Rollback đổi chỗ hai manifest hiện tại/trước: gọi lại lần nữ
 ## Căn cứ kỹ thuật
 
 Đối chiếu 2026-11-01: [pgBackRest backup/check](https://pgbackrest.org/command.html), [lịch full/diff](https://pgbackrest.org/user-guide.html), [systemd timer Persistent/RandomizedDelaySec](https://www.freedesktop.org/software/systemd/man/latest/systemd.timer.html), [textfile collector](https://prometheus.github.io/client_python/exporting/textfile/). Quy trình vẫn cần diễn tập với người/kho/kênh trực thật.
+
+## So hình dạng cấu hình staging và production
+
+Tạo **hai tệp JSON chỉ gồm tên dịch vụ và tên biến**, từ danh sách tên do công cụ quản lý cấu hình cung cấp; không xuất giá trị, secret, URL hay tệp `.env`. Ví dụ nội dung cho mỗi môi trường:
+
+```json
+[["web", ["DATABASE_URL", "SESSION_SECRET"]], ["worker", ["DATABASE_URL"]]]
+```
+
+Tên dịch vụ dùng chữ thường, số, gạch ngang hoặc gạch dưới; tên biến dùng chữ hoa, số hoặc gạch dưới. Danh sách dịch vụ không được rỗng, tên dịch vụ và tên biến trong mỗi dịch vụ không được trùng. Dịch vụ không có biến dùng `[]`.
+
+Chạy `node scripts/compare-env-keys.mjs staging-keys.json production-keys.json`: mã thoát 0 khi khớp, 1 khi thiếu dịch vụ hoặc tên biến, 2 khi đầu vào không hợp lệ. Kết quả hiển thị tên dịch vụ và tên biến khác nhau, do đó chỉ đưa vào tệp các tên được phép chia sẻ. Công cụ không xác thực nguồn dữ liệu có đầy đủ hay đúng với cấu hình đang triển khai; cần lấy danh sách đáng tin cậy từ cả hai môi trường và kiểm thực tế sau khi có staging/production. Preview cho từng PR vẫn cần hạ tầng riêng.
