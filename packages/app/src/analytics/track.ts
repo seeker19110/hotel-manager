@@ -13,6 +13,7 @@
 // - Sự kiện nằm cùng transaction của lệnh ⇒ lệnh rollback thì sự kiện cũng rollback (không đo hành động chưa xảy ra).
 import { randomUUID } from "node:crypto";
 import { type Kysely, sql, type Transaction } from "kysely";
+import { loadRuntimeConfig } from "../config/index.ts";
 import { appLogger } from "../logging/index.ts";
 import { EVENTS, type EventName, type EventRegistry } from "./events.ts";
 import { AnalyticsValidationError, assertRegistrySafe, isUuid, validateEvent } from "./validate.ts";
@@ -76,7 +77,7 @@ export function resetAnalytics(): void {
 }
 
 const isStrict = (opt: boolean | undefined): boolean =>
-  opt ?? defaults.strict ?? process.env.NODE_ENV !== "production";
+  opt ?? defaults.strict ?? loadRuntimeConfig().NODE_ENV !== "production";
 
 function checkContext(ctx: TrackContext): void {
   const fail = (field: string): never => {

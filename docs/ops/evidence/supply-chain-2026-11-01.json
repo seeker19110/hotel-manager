@@ -2,7 +2,7 @@
   "schema": 1,
   "checked_on": "2026-11-01",
   "timezone": "Asia/Ho_Chi_Minh",
-  "decisions": ["D-139", "D-140", "D-142", "D-144"],
+  "decisions": ["D-139", "D-140", "D-142", "D-144", "D-145", "D-148", "D-149", "D-150", "D-151"],
   "scope": "local synthetic build and dependency scan; no production deployment or real user data",
   "sources": [
     "https://nodejs.org/dist/index.json",
@@ -35,8 +35,8 @@
   },
   "base_image": {
     "upstream": "node:24.22.2-trixie-slim@sha256:54f84b4cf8432b21aaffd5d3ce8d41e12cea0d10d33c09d2f3c9879d49d6b446",
-    "local_image_id": "sha256:767b0930bc72f8ce92ba51265fcc86aef88c2be7024bb5eb651d9c12b8091b61",
-    "size_bytes": 109610630,
+    "local_image_id": "sha256:94eed53e099128277424fec14318198253e58b3f48fb722204e4ceea2291c3cd",
+    "size_bytes": 282678047,
     "budget_mb": 285,
     "versions_found": {
       "corepack": "0.36.0",
@@ -49,7 +49,17 @@
     "unfixed_or_wont_fix_findings": 159,
     "sbom_components": 105,
     "license_coverage_percent": 99.0,
-    "exit_code": 0
+    "exit_code": 0,
+    "size_metric": "sum of regular-file payload bytes across all saved uncompressed image layers; matches CI accounting",
+    "compressed_inspect_old_size_bytes": 109610630,
+    "previous_uncompressed_size_bytes": 298455626,
+    "metadata_preserved": ["Env", "Entrypoint", "Cmd", "WorkingDir", "User"],
+    "pnpm_install_smoke": {
+      "command": "pnpm install --frozen-lockfile --ignore-scripts --prod --filter @hm/worker...",
+      "packages": 72,
+      "pg_client_loaded": true,
+      "exit_code": 0
+    }
   },
   "npm": {
     "prod_audit": {
@@ -82,22 +92,25 @@
     "exit_code": 0
   },
   "source_sha256": {
-    "deploy/web.Dockerfile": "6b691bb8f276deb5dc3a3c1fe5a1cdf2c6ec2ddf3aaa8034e2cd466c52ec29f4",
-    "deploy/worker.Dockerfile": "f93662527da94cbb2b4bec1974c4b14e5b62ccbdaa196331c1370b815f373351",
+    "deploy/web.Dockerfile": "4bac25aa3abcfde7eb48ade3400a3fe699cb8a466e068a4d69a6d6a19ce86292",
+    "deploy/worker.Dockerfile": "b3594bccadf24b024fd3630b3d173de8e41a717735608999af95c172e61714c6",
     "pnpm-lock.yaml": "1b62e8406f3dd91cb67f2369abfe8712dc5584df7aa3ccb86812033b8d9d955b",
     ".grype.yaml": "369401787d0d279bd41adfe31de162bbaa1a8d90b34e4cab08b6af6e1161fce0",
     "apps/web/next.config.ts": "d3e6fa0f294f891cd2b77e84b32c3cac21c0060e790c6382a63ecb171c729cf5",
     "scripts/dev-env-setup.sh": "3938a00f881627fe5655798fd5bba5aff9bea51096656f6eebf043e4653ca3db",
     "packages/db/package.json": "cb695aadc733dde250d7b60f605544688e91c24c5e0d53b18b8a62b49f6c5b85",
     "packages/app/src/config/runtime.ts": "3db4424c8162b26780cad649c5151301a2b2b9cddc954ddaed45aa3506e95840",
-    "apps/web/instrumentation.ts": "d103858f4681738906fbb88859370f873565c19c93fc4e206bb1e640b2b61075"
+    "apps/web/instrumentation.ts": "d103858f4681738906fbb88859370f873565c19c93fc4e206bb1e640b2b61075",
+    "scripts/ops/run.mjs": "a5e10af836b925cb2b8c5fec60fca446f41c84a49be37166a269d568caf16b2d",
+    "scripts/ops/local-images-check.mjs": "0ea3273c0e787c73fc0f9cc937427a13b817f5d7a480e642c22e1d86e7450b04"
   },
   "limits": [
     "Grype gate uses only-fixed as existing CI policy; 159 OS findings without fixes or marked wont-fix remain reported.",
     "Dev audit still has two unpatched extract-zip advisories, zod3 under a dated exception and legacy minimatch3.",
     "Image scan proves the common builder/runtime base; npm SBOM scan separately covers workspace dependencies. It does not claim a deployed production stack was scanned.",
     "TypeScript native compiler used in build tooling still carries 18 High and 2 Critical module-level findings; no broader ignore or patched compiler claim is made.",
-    "Final runtime image IDs above passed startup, PWA, worker start and graceful shutdown plus exact-artifact inventory/scan in the local synthetic harness. No production deployment or real-service verification is claimed."
+    "Final runtime image IDs above passed startup, PWA, worker start and graceful shutdown plus exact-artifact inventory/scan in the local synthetic harness. No production deployment or real-service verification is claimed.",
+    "Caddy retains go-jose/v3 with1High+2Medium advisories without upstream patches; both Go images retain3Medium Busybox matches without fixes. Full findings are in go image evidence; no wholly clean runtime claim is made."
   ],
   "node_installer": {
     "archive": "node-v24.22.2-linux-x64.tar.xz",
@@ -107,8 +120,8 @@
   },
   "runtime_artifacts": {
     "web": {
-      "tag": "hm-image-ef4a71be-web:check",
-      "image_id": "sha256:a1b291227480e7374ab3fb689324f778899f5f574f39478b43279514a9e8683e",
+      "tag": "hm-image-2ee19e85-web:check",
+      "image_id": "sha256:5065271da828e0391e178594c19f2d59fcecfd7b858b0a2dc7ec646da9671526",
       "scan": "Syft CycloneDX image catalog then Grype --fail-on high --only-fixed using pinned database above",
       "fixed_findings": 0,
       "custom_ignored_findings": 0,
@@ -121,15 +134,17 @@
       "nonroot": true,
       "npm_absent": true,
       "graceful_exit_code": 0,
-      "sbom_sha256": "c4b8abeb6d737fc712a89cae18692ea3c6cf6b2de9570bd12932de069b5bd758",
-      "grype_report_sha256": "60aab2492d8f394855a97e21a37df2b184ba4f8d5d30625d8f819901e3812d6a",
+      "sbom_sha256": "f1c82b792e6be14d83707d356fe4ce3396d65d3de44a7a355ab15fc3b963e8c2",
+      "grype_report_sha256": "cfce0bf05357712f55f71a48cf444a6061469d8b8072ee4d2d49e7e2e189c327",
       "smoke": "health-ready-version-security-headers",
       "pwa_assets_served": ["service-worker", "manifest", "icon", "next-static"],
-      "fixed_findings_by_severity": {}
+      "fixed_findings_by_severity": {},
+      "worker_startup_checker": "real Docker inspect/logs; Compose selection adapted for this ephemeral harness",
+      "root_license_and_notices_present": true
     },
     "worker": {
-      "tag": "hm-image-ef4a71be-worker:check",
-      "image_id": "sha256:86e5078cbe47efe8a0d6795af131ebc1ab1ad6805530c66045cd5d4327922101",
+      "tag": "hm-image-2ee19e85-worker:check",
+      "image_id": "sha256:ab4addb917094d6d253cb25c55ca7d01ad60e7841c130599005dab8e1072b126",
       "scan": "Syft CycloneDX image catalog then Grype --fail-on high --only-fixed using pinned database above",
       "fixed_findings": 0,
       "custom_ignored_findings": 0,
@@ -142,10 +157,12 @@
       "nonroot": true,
       "npm_absent": true,
       "graceful_exit_code": 0,
-      "sbom_sha256": "9725cbc550fc4c5a215ff27b2fe47ca4f962662885fa96683aec89a1d025bb80",
-      "grype_report_sha256": "a308ac40a7640b1e1c9103859682f64671bff5989dab8aad65a7bbdf6241bc1d",
+      "sbom_sha256": "e31ecde1ba38d19edf6ebbad840d3005f1362ce4b5bf479f9c3311a752f120db",
+      "grype_report_sha256": "628ba845912ff9ebadfacaf130ac17cb1caf6f8a4d0a93353f1c972918754df7",
       "worker_started": true,
-      "fixed_findings_by_severity": {}
+      "fixed_findings_by_severity": {},
+      "worker_startup_checker": "real Docker inspect/logs; Compose selection adapted for this ephemeral harness",
+      "root_license_and_notices_present": true
     }
   },
   "compiler_build_risk": {
@@ -161,9 +178,10 @@
   },
   "harness_evidence": {
     "path": "docs/ops/evidence/local-images-2026-11-01.json",
-    "checked_at": "2026-10-31T23:07:26.254Z",
+    "checked_at": "2026-10-31T23:58:19.742Z",
     "exit_code": 0,
     "scope": "local-ephemeral-only",
     "cleanup_confirmed_by_exit_zero": true
-  }
+  },
+  "go_image_evidence": "docs/ops/evidence/go-images-2026-11-01.json"
 }

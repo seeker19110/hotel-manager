@@ -17,7 +17,7 @@
   },
   "packages/app/src/config/schema.ts": {
     "reason": "Lý do lỗi cấu hình biến môi trường lúc khởi động (Error ném khi đọc env) — chỉ người vận hành thấy trong log khởi động, không ra API/UI.",
-    "max": 12
+    "max": 11
   },
   "packages/app/src/config/webhook-secrets.ts": {
     "reason": "Lỗi cấu hình SIM_WEBHOOK_SECRET lúc khởi động (Error ném khi phân tích env) — chỉ người vận hành thấy, không ra API/UI.",

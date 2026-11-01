@@ -1,3 +1,4 @@
+// SPEC-runtime S-001: full server schema rejects missing/invalid config and redacts secrets.
 import { readFileSync } from "node:fs";
 import { inspect } from "node:util";
 import { describe, expect, it } from "vitest";

@@ -1,0 +1,11 @@
+[Unit]
+Description=Hotel Manager daily differential backup (UTC)
+
+[Timer]
+OnCalendar=Mon..Sat *-*-* 02:00:00 UTC
+RandomizedDelaySec=5min
+Persistent=true
+Unit=hm-backup@diff.service
+
+[Install]
+WantedBy=timers.target

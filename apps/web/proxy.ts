@@ -1,9 +1,11 @@
 // Next.js 16 proxy (trước là middleware): CSP có nonce + header bảo mật; chặn ghi khác origin (TM-09).
+
+import { loadProxyConfig } from "@hm/app/config/edge";
 import { isSameOriginWrite, requiresSameOrigin, responseSecurityHeaders } from "@hm/app/http";
 import { type NextRequest, NextResponse } from "next/server";
 
 export function proxy(req: NextRequest): NextResponse {
-  const base = process.env.APP_BASE_URL ?? req.nextUrl.origin;
+  const { appBaseUrl: base, dev } = loadProxyConfig(req.nextUrl.origin);
   if (requiresSameOrigin(req.nextUrl.pathname) && !isSameOriginWrite(req.method, req.headers, base)) {
     return NextResponse.json(
       {
@@ -20,7 +22,7 @@ export function proxy(req: NextRequest): NextResponse {
     nonce,
     pathname: req.nextUrl.pathname,
     appBaseUrl: base,
-    dev: process.env.NODE_ENV !== "production",
+    dev,
   });
   const reqHeaders = new Headers(req.headers);
   reqHeaders.set("x-nonce", nonce);

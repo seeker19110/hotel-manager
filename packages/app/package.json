@@ -7,6 +7,10 @@
   "exports": {
     ".": "./src/index.ts",
     "./config": "./src/config/schema.ts",
+    "./config/runtime": "./src/config/runtime.ts",
+    "./config/edge": "./src/config/edge.ts",
+    "./config/build": "./src/config/build.ts",
+    "./config/client": "./src/config/client.ts",
     "./logging": "./src/logging/index.ts",
     "./http": "./src/http/security.ts",
     "./units": "./src/units.ts",

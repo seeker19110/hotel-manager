@@ -196,3 +196,9 @@ Web chạy vai trò CSDL `app_runtime` và danh tính S3 `hotel-manager-web`; wo
 | Mục tiêu dịch vụ, ngân sách lỗi | [`docs/ops/SLO.md`](ops/SLO.md) |
 | Rule cảnh báo | [`deploy/prometheus/alerts.yml`](../deploy/prometheus/alerts.yml) |
 | Mô hình đe doạ | [`docs/design/THREAT-MODEL.md`](design/THREAT-MODEL.md) |
+
+## 13. Backup và đồng hồ máy chủ
+
+`HmBackupFailed`, `HmBackupTooOld`, `HmFullBackupTooOld`, `HmBackupMetricsMissing`: xem [công cụ vận hành](ops/runbooks/operations-tools.md), `systemctl status hm-backup@full hm-backup@diff` và `pgbackrest --stanza=hm info`. Giữ bản tốt trước đó; sửa kết nối/quyền/dung lượng rồi chạy lại đúng loại. File metric được thay nguyên tử, lỗi giữ nguyên mốc thành công cuối. Chưa có full đầu tiên hoặc thiếu collector phải xử lý trước khi nhận dữ liệu thật.
+
+`HmHostClockUnsynchronized`: kiểm `timedatectl status` và dịch vụ NTP; đối chiếu `node_timex_offset_seconds`/`node_timex_sync_status` của đúng host. Không tự đổi thời gian lùi khi ứng dụng đang ghi. Ngưỡng 26 giờ/tám ngày là mặc định kỹ thuật, cần chủ dự án chốt RPO/RTO và diễn tập trên kho thật.

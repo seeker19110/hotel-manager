@@ -1,10 +1,10 @@
 {
-  "checkedAt": "2026-10-31T23:07:26.254Z",
+  "checkedAt": "2026-10-31T23:58:19.742Z",
   "scope": "local-ephemeral-only",
   "version": "0.2.0",
   "images": {
-    "web": "sha256:a1b291227480e7374ab3fb689324f778899f5f574f39478b43279514a9e8683e",
-    "worker": "sha256:86e5078cbe47efe8a0d6795af131ebc1ab1ad6805530c66045cd5d4327922101"
+    "web": "sha256:5065271da828e0391e178594c19f2d59fcecfd7b858b0a2dc7ec646da9671526",
+    "worker": "sha256:ab4addb917094d6d253cb25c55ca7d01ad60e7841c130599005dab8e1072b126"
   },
   "scans": {
     "web": {
@@ -22,8 +22,10 @@
   },
   "nonroot": true,
   "npmAbsent": true,
+  "rootLicenseAndNoticesPresent": true,
   "smoke": "health-ready-version-security-headers",
   "workerStarted": true,
+  "workerStartupChecker": "real Docker inspect/logs; Compose selection adapted for this ephemeral harness",
   "pwaAssets": ["service-worker", "manifest", "icon", "next-static"],
   "gracefulExitCodes": {
     "web": 0,

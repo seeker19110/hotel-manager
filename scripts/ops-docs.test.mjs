@@ -146,6 +146,11 @@ function knownMetrics() {
     out.push(m[1]);
     if (m[2] === "histogram") out.push(`${m[1]}_bucket`, `${m[1]}_sum`, `${m[1]}_count`);
   }
+  // Host backup counters are emitted by the separate runner, not the application scrape endpoint.
+  for (const m of read("scripts/ops/run.mjs").matchAll(/`(hm_backup_[a-z_]+) \$\{/g)) out.push(m[1]);
+  // External producer: node_exporter timex collector; the host must expose these before enabling the alert.
+  // https://github.com/prometheus/node_exporter/blob/master/docs/TIME.md (checked 2026-11-01).
+  out.push("node_timex_offset_seconds", "node_timex_sync_status");
   return out;
 }
 
@@ -215,7 +220,7 @@ describe("deploy/prometheus/alerts.yml", () => {
       const used = metricsInExpr(r.expr);
       expect(used.length).toBeGreaterThan(0);
       const unknown = used.filter((m) => !known.has(m));
-      expect(unknown, `metric không có ở metrics.ts: ${unknown.join(", ")}`).toEqual([]);
+      expect(unknown, `metric không có ở producer: ${unknown.join(", ")}`).toEqual([]);
     },
   );
   it("metric thực chất là gauge (notification_dead_total = số hàng dead) không dùng increase()/rate(): retry làm giảm ⇒ báo giả", () => {
@@ -337,14 +342,28 @@ describe("runbook có đủ mục bắt buộc", () => {
       "deploy/compose.yaml",
       "pgbackrest --stanza=hm --type=incr backup",
       "pg_create_restore_point",
-      "migrateToLatest",
-      "migrateDown",
-      "res.error",
-      "process.exit(code)",
+      "MIGRATION_DATABASE_URL",
+      "pnpm --filter @hm/db migrate status",
+      "pnpm --filter @hm/db migrate up",
+      "pnpm --filter @hm/db migrate down --to",
+      "--confirm-down",
+      "exit 1",
+      "database-migrations.md",
       "/api/ready",
     ])
       expect(text, `deploy-rollback.md thiếu: ${frag}`).toContain(frag);
     expect(read("deploy/compose.yaml")).toContain("archive-push");
+    expect(text).not.toContain("node --input-type=module -e");
+    const cli = read("docs/ops/runbooks/database-migrations.md");
+    for (const fragment of [
+      "local-only",
+      "BYPASSRLS",
+      "SET ROLE app_worker",
+      "DSAR_AUDIT_EVIDENCE_EXISTS",
+      "0074",
+      "0076",
+    ])
+      expect(cli, `database-migrations.md thiếu: ${fragment}`).toContain(fragment);
   });
 });
 

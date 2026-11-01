@@ -43,6 +43,12 @@ Node 24.22.2 ghim lại digest theo [chỉ mục phát hành Node](https://nodej
 
 ## Theo dõi (lỗ hổng chưa có bản sửa)
 
+2026-11-01 (D-150): [GHSA-mgcc-cww5-fp2q](https://github.com/go-jose/go-jose/security/advisories/GHSA-mgcc-cww5-fp2q) có bản vá go-jose/v4 v4.1.6; Caddy/SeaweedFS pin lại module từ4.1.5/4.1.4 mà giữ tag/commit upstream và Go compiler. Caddy còn liên kết go-jose/v3 v3.0.5 qua caddypki/smallstep/go.step.sm/crypto/jose; advisory ghi v3 chưa có patch. Full scan còn GHSA-mgcc-cww5-fp2q (High), [GHSA-4w3g-jfj2-cw2q](https://github.com/go-jose/go-jose/security/advisories/GHSA-4w3g-jfj2-cw2q) và [GHSA-vvm8-gf78-28g4](https://github.com/go-jose/go-jose/security/advisories/GHSA-vvm8-gf78-28g4) (đều Medium) ởv3.0.5, đều not-fixed. Theo dõi mỗi tuần, rà lại2026-11-08, không thêm ignore. Đây là phát hiện mức module; chưa chứng minh đường khai thác trên cấu hình deploy và không khai toàn bộ runtime sạch.
+
+2026-11-01 (D-151): full scan phát hiện x/net0.61.0 có GO-2026-6866/GO-2026-6860 (severity Unknown, vá0.62.0) và chi5.3.2 có GHSA-j6qf-3m9c-vwj3 (Medium, vá5.4.0). Đã pin các bản vá tương ứng cho hai image, giữ compiler/service pins, chạy module tests và dựng/quét lại; không chờ ngưỡng High mới xử lý.
+
+Bằng chứng hai image Go mới: [go-images-2026-11-01.json](evidence/go-images-2026-11-01.json). Cả hai còn ba match Medium CVE-2025-60876 ở busybox/busybox-binsh/ssl_client chưa có fixed version trong DB hiện tại; Caddy còn1High+2Medium v3 nêu trên. Không có ignore mới và không khai toàn bộ image sạch.
+
 Hai advisory `extract-zip` (`GHSA-jmr9-qjv8-65gv`, `GHSA-7pqw-9j4j-h8q3`) qua LHCI chưa có bản sửa tại lượt rà 2026-11-01;
 chỉ dùng trong công cụ CI, theo dõi khi nâng LHCI. Ngoại lệ có hạn (`.grype.yaml`) dưới đây áp dụng cho gói **đã có bản sửa
 nhưng chưa nâng tương thích được**; không dùng ngoại lệ cho toàn bộ package hoặc dải phiên bản. Mỗi mã trong `.grype.yaml` phải có mặt ở bảng này
@@ -57,7 +63,7 @@ dưới ngưỡng chặn, SLA 60 ngày; Dependabot `gomod` nâng).
 `node-base` của Supply chain và SBOM Release dựng đúng `deploy/web.Dockerfile --target base`; regression so base của worker giống hệt.
 Grype 0.121.0 với DB v6.1.10 dựng 2026-10-31T06:18:17Z, ngưỡng high + only-fixed như CI, exit 0: base không có phát hiện đã có bản vá,
 không dùng luật ignore tùy chỉnh; 159 phát hiện OS chưa có bản vá/không sửa vẫn nằm trong báo cáo. Gỡ bốn luật npm; không gia hạn.
-Syft 1.55.0 nhận 105 thành phần, giấy phép 99,0%; image 109,6 MB dưới ngân sách 285 MB.
+Syft 1.55.0 nhận 105 thành phần, giấy phép 99,0%. D-148: inspect local109,6MB là số nén; CI đo tổng layer chưa nén298,5MB vượt285MB. Base nay flatten filesystem sau xoá npm, còn282678047byte (282,7MB) theo cùng số đo chưa nén; giữ native pnpm/headers, OS và ngân sách285MB. Không lấy số nén để kết luận cổng kích thước.
 SBOM npm: 653 thành phần giấy phép 100%, Grype exit 0, còn một Medium minimatch 3.x và ngoại lệ zod dưới đây.
 Bằng chứng và giới hạn: [supply-chain-2026-11-01.json](evidence/supply-chain-2026-11-01.json).
 

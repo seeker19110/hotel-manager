@@ -8,6 +8,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
+    "migrate": "node src/migration-cli.ts",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {

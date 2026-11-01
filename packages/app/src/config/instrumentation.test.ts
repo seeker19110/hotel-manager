@@ -1,4 +1,4 @@
-// T-301: web validate env lúc khởi động qua `apps/web/instrumentation.ts` — chỉ ở runtime Node.js.
+// SPEC-runtime S-001: T-301 validates config before serving requests, only in the Node runtime.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { register } from "../../../../apps/web/instrumentation.ts";
 import { ConfigError } from "./schema.ts";

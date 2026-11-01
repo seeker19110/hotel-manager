@@ -1055,3 +1055,45 @@
 - Chọn: Bỏ riêng branch/pathfilter ở11workflowPR, giữ mọi job/event/permission và thêm guard từ chối lọc base đểstackedPR chạy đủcổng
 - Lý do (tiêu chí chất lượng cuối): PR141basePR140 thực tế chỉ chạy Securityscan và DependencyAudit do9workflow khác lọcmain; autopilot cho phép chồngPR. Broaden coverage giúp review đúnghead trước FIFOmerge, không thêmPRtarget/secret/writepermissions, pushmain và6workflow nonPR giữ nguyên. Có negativecases chống bỏPRtrigger hoặc lọcbranch/path làm mấtcổng.
 - Đường lùi: Revert CI-only commit nếu phát sinh lỗi harness, không hạ requiredchecks; mọiPR vẫn phải qua đầyđủcổng trước merge.
+
+### D-148 · 2026-10-31T23:38:10+00:00 · Giữ ngân sách node-base 285MB khi Docker runner tính layer chưa nén 298.5MB thay vì inspect local 109.6MB?
+
+- Phương án: (1) Giữ artifact nhiều layer và tăng ngân sách theo số đo mới · (2) Flatten rootfs đã chuẩn bị vào base scratch, giữ metadata và pnpm, loại bytes npm đã xoá khỏi layer cuối
+- Chọn: Flatten rootfs đã chuẩn bị vào base scratch, giữ metadata và pnpm, loại bytes npm đã xoá khỏi layer cuối
+- Lý do (tiêu chí chất lượng cuối): docker save xác nhận tổng layer 298455626bytes; merged rootfs dưới285MB. Flatten giữ đúng công cụ/OS và cổng285MB, không xoá binary pnpm hoặc bỏ quét builder; kiểm lại raw size, pnpm install, OS SBOM/license và runtime.
+- Đường lùi: Quay lại Dockerfile trước và tiếp tục giữ size gate đỏ cho tới phương án đạt; không tự tăng ngân sách.
+
+### D-149 · 2026-10-31T23:38:10+00:00 · Promote có được ghi passed khi web ready nhưng worker chưa started?
+
+- Phương án: (1) Chỉ kiểm web HTTP, ghi rõ giới hạn worker · (2) Chờ đúng worker container boot hiện tại có sự kiện started và còn running trước smoke/history, dùng lại cho rollback
+- Chọn: Chờ đúng worker container boot hiện tại có sự kiện started và còn running trước smoke/history, dùng lại cho rollback
+- Lý do (tiêu chí chất lượng cuối): Compose --wait không chứng minh readiness worker vì service không có healthcheck. Kiểm container ID/StartedAt hai lần, deadline và safe diagnostics chặn log cũ/restart, không mở thêm cổng hoặc cấp quyền DB.
+- Đường lùi: Giữ promote thất bại và khôi phục manifest trước; người vận hành xác minh worker thay vì ghi thành công giả.
+
+### D-150 · 2026-10-31T23:42:58+00:00 · Vá High GHSA-mgcc-cww5-fp2q trong Caddy và SeaweedFS mà giữ upstream source/Go pins?
+
+- Phương án: (1) Chờ bản phát hành Caddy/SeaweedFS đổi toàn bộ dependency graph, giữ CI đỏ · (2) Pin go-jose/v4 lên4.1.6 trong graph hiện tại, build/test/scan lại; ghi riêng v3 chưa có patch
+- Chọn: Pin go-jose/v4 lên4.1.6 trong graph hiện tại, build/test/scan lại; ghi riêng v3 chưa có patch
+- Lý do (tiêu chí chất lượng cuối): Advisory chính thức chỉ v4 có bản vá4.1.6; hai graph đang dùng4.1.5/4.1.4. Vá module tối thiểu giữ đường lùi và cổng. V3.0.5 Caddy còn chưa có patch, phải theo dõi và không khai toàn bộ runtime sạch.
+- Đường lùi: Quay lại image digest trước; không thêm ignore hoặc merge khi còn High/Critical đã có bản vá.
+
+### D-151 · 2026-10-31T23:49:23+00:00 · Có xử lý thêm advisory x/net severityUnknown và chi Medium đã có patch trong lượt image không?
+
+- Phương án: (1) Giữ dưới ngưỡng High của CI, ghi SLA rồi xử lý sau · (2) Pin x/net0.62.0 cho cả hai image và chi5.4.0 cho Caddy, giữ upstream/compiler pins, thêm hồi quy và dựng/quét lại
+- Chọn: Pin x/net0.62.0 cho cả hai image và chi5.4.0 cho Caddy, giữ upstream/compiler pins, thêm hồi quy và dựng/quét lại
+- Lý do (tiêu chí chất lượng cuối): Full scan mới xác nhận2advisoryx/net có fix và chiMedium có fix. Đóng các bản vá khả dụng trong cùng graph trước verify cuối; upstreammoduletests/build/validate và Grype phải qua, không đổi ngưỡng severity.
+- Đường lùi: Quay lại digest trước và giữ bằng chứng/SLA các phát hiện; không tự thêm ignore.
+
+### D-152 · 2026-11-01T00:19:31+00:00 · Ổn định test hạn mức tải file khi CI chạy qua ranh giới phút?
+
+- Phương án: (1) Nới assertion hoặc retry test bị429 không đúng kỳ vọng · (2) Dùng helper cửa sổ an toàn đã có, dữ liệu org riêng và hạn2 cố định, seed lịch sử để bắt cộng nhầm window
+- Chọn: Dùng helper cửa sổ an toàn đã có, dữ liệu org riêng và hạn2 cố định, seed lịch sử để bắt cộng nhầm window
+- Lý do (tiêu chí chất lượng cuối): CI1422test expected429got201 tại ranh giới phút. Đã tái hiện bằng row cửa sổ trước hits5; test cũ sum mọiwindow làm tăng ngưỡng sai. Helper chia sẻ giữ6assert biên;2file15test qua, limiter/ngưỡng sản phẩm không đổi.
+- Đường lùi: Quay lại riêng fixture nếu có chứng cứ khác; giữ assertion429 và không skip/retry để làm xanh.
+
+### D-153 · 2026-11-01T00:19:31+00:00 · Test SIGTERM cần quan sát lúc nào để xác nhận Postgres đã bỏ hết backend?
+
+- Phương án: (1) Assert0 ngay tại child close dù TCP cleanup còn đang được server xử lý · (2) Dùng waitFor có hạn5s như test shutdown trực tiếp rồi vẫn assert0, giữ exit0 và marker stopped
+- Chọn: Dùng waitFor có hạn5s như test shutdown trực tiếp rồi vẫn assert0, giữ exit0 và marker stopped
+- Lý do (tiêu chí chất lượng cuối): Coverage toàn bộ4446tests có4445qua,1fail expected0got1 tại appConnections sau childclose; E2E224qua/1skip. Sự kiện close phía Node không đồng bộ pg_stat_activity; chờ điều kiện cụ thể vẫn bắt rò tồn tại sau deadline, không đổi sản phẩm/timeout test/coverage.
+- Đường lùi: Nếu phát hiện backend còn sống quá5s thì giữ gate đỏ và sửa lifecycle thực, không nới deadline hoặc bỏ assert.

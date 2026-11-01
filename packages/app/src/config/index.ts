@@ -1,4 +1,6 @@
 // Điểm công khai của module `config` (ARC-MOD-005): module khác chỉ import qua tệp này, không import tệp nội bộ.
+
+export { loadRuntimeConfig, runtimeEnvironment } from "./runtime.ts";
 export { type AppConfig, loadConfig } from "./schema.ts";
 export {
   parseWebhookSecrets,

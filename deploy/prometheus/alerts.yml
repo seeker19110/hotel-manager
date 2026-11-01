@@ -8,6 +8,63 @@
 # hàng dead được gửi lại. Vì vậy dùng `delta()` (không dùng `increase()`/`rate()`, vốn coi mọi lần giảm là reset counter và báo giả).
 # Nạp: rule_files: [alerts.yml] trong prometheus.yml; scrape /api/metrics với Bearer token (docs/RUNBOOK.md §1).
 groups:
+  - name: hotel-manager.host-operations
+    rules:
+      - alert: HmBackupFailed
+        expr: hm_backup_last_run_success == 0
+        for: 5m
+        labels:
+          severity: ticket
+          owner: van-hanh
+        annotations:
+          summary: "Lượt backup gần nhất thất bại"
+          description: "Giữ bản tốt trước đó, kiểm pgBackRest và kho offsite; không xoá backup để thử lại. Metric đến từ textfile collector trên host."
+          runbook_url: docs/RUNBOOK.md
+          runbook_section: "13. Backup và đồng hồ máy chủ"
+      - alert: HmBackupTooOld
+        expr: time() - hm_backup_last_success_timestamp_seconds > 93600
+        for: 15m
+        labels:
+          severity: ticket
+          owner: van-hanh
+        annotations:
+          summary: "Chưa có backup thành công trong 26 giờ"
+          description: "Kiểm timer full/diff và lần chạy thủ công đầu tiên; đây là ngưỡng kỹ thuật khởi điểm, không phải RPO được phê duyệt."
+          runbook_url: docs/RUNBOOK.md
+          runbook_section: "13. Backup và đồng hồ máy chủ"
+      - alert: HmFullBackupTooOld
+        expr: time() - hm_backup_last_full_success_timestamp_seconds > 691200
+        for: 15m
+        labels:
+          severity: ticket
+          owner: van-hanh
+        annotations:
+          summary: "Chưa có full backup thành công trong tám ngày"
+          description: "Diff không thay thế lịch full hằng tuần; kiểm chuỗi backup bằng pgBackRest info và diễn tập restore theo runbook."
+          runbook_url: docs/RUNBOOK.md
+          runbook_section: "13. Backup và đồng hồ máy chủ"
+      - alert: HmHostClockUnsynchronized
+        expr: abs(node_timex_offset_seconds) > 1 or node_timex_sync_status == 0
+        for: 5m
+        labels:
+          severity: ticket
+          owner: van-hanh
+        annotations:
+          summary: "Đồng hồ host lệch quá một giây hoặc chưa đồng bộ"
+          description: "Kiểm dịch vụ NTP trên host; đồng hồ ảnh hưởng OTP, hạn quyền và truy vết. Cần bật timex collector và kiểm metric thật."
+          runbook_url: docs/RUNBOOK.md
+          runbook_section: "13. Backup và đồng hồ máy chủ"
+      - alert: HmBackupMetricsMissing
+        expr: absent(hm_backup_last_attempt_timestamp_seconds)
+        for: 30m
+        labels:
+          severity: ticket
+          owner: van-hanh
+        annotations:
+          summary: "Không thu được metric backup"
+          description: "Kiểm lần full đầu, quyền đọc file .prom và node_exporter textfile collector; thiếu metric không đồng nghĩa backup thành công."
+          runbook_url: docs/RUNBOOK.md
+          runbook_section: "13. Backup và đồng hồ máy chủ"
   - name: hotel-manager.van-hanh
     rules:
       - alert: HmMetricsDown

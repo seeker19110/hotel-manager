@@ -1,4 +1,4 @@
-// TM-10: bundle phía client không được chứa tên/giá trị biến bí mật.
+// SPEC-runtime S-002 / TM-10: bundle phía client không được chứa tên/giá trị biến bí mật.
 // Cổng `gate` chạy build trước test nên `.next/static` có sẵn; chạy riêng mà chưa build thì test được bỏ qua có ghi lý do.
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
