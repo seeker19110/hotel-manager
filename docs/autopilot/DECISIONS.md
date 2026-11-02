@@ -1104,3 +1104,10 @@
 - Chọn: Bổ sung nguồn HTTP tối thiểu và kiểm thử cục bộ, giữ các bằng chứng thực tế mở
 - Lý do (tiêu chí chất lượng cuối): Hoàn thiện phần có thể xác minh độc lập mà không giả định proxy, pháp lý hoặc triển khai thật
 - Đường lùi: Hoàn nguyên PR và migration theo quy trình có kiểm soát
+
+### D-155 · 2026-11-01T02:31:30+00:00 · Kiểm hình dạng env khi chưa có staging và production?
+
+- Phương án: (1) So sánh danh sách tên key theo dịch vụ, không nhận giá trị bí mật; giữ tiêu chí triển khai mở · (2) Chờ hạ tầng trước khi viết công cụ
+- Chọn: So sánh danh sách tên key theo dịch vụ, không nhận giá trị bí mật; giữ tiêu chí triển khai mở
+- Lý do (tiêu chí chất lượng cuối): Kiểm được phần mã bằng dữ liệu tổng hợp mà không truy cập secret hay giả chứng cứ triển khai
+- Đường lùi: Hoàn nguyên PR công cụ
