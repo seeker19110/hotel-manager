@@ -50,3 +50,7 @@ Tạo **hai tệp JSON chỉ gồm tên dịch vụ và tên biến**, từ danh
 Tên dịch vụ dùng chữ thường, số, gạch ngang hoặc gạch dưới; tên biến dùng chữ hoa, số hoặc gạch dưới. Danh sách dịch vụ không được rỗng, tên dịch vụ và tên biến trong mỗi dịch vụ không được trùng. Dịch vụ không có biến dùng `[]`.
 
 Chạy `node scripts/compare-env-keys.mjs staging-keys.json production-keys.json`: mã thoát 0 khi khớp, 1 khi thiếu dịch vụ hoặc tên biến, 2 khi đầu vào không hợp lệ. Kết quả hiển thị tên dịch vụ và tên biến khác nhau, do đó chỉ đưa vào tệp các tên được phép chia sẻ. Công cụ không xác thực nguồn dữ liệu có đầy đủ hay đúng với cấu hình đang triển khai; cần lấy danh sách đáng tin cậy từ cả hai môi trường và kiểm thực tế sau khi có staging/production. Preview cho từng PR vẫn cần hạ tầng riêng.
+
+## Kiểm chặn source map qua Caddy
+
+`node scripts/ops/check-caddy-sourcemaps.mjs` dùng Docker network nội bộ, upstream giả và Caddyfile thực; không publish cổng. Cần Docker và hai image cục bộ: mặc định `caddy:2.11.7-alpine`, `hm-node-base:scan`; có thể chọn image đã chuẩn bị qua `CADDY_TEST_IMAGE` và `CADDY_TEST_NODE_IMAGE`. Kiểm này chỉ chứng minh proxy cục bộ, không thay kiểm production hoặc bảo vệ đường truy cập bypass proxy.
