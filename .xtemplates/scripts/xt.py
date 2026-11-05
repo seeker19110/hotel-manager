@@ -767,7 +767,7 @@ def _compose_sections(
                 continue
             counts[lv] += 1
             if lv in levels:
-                rows.append(f"- [ ] `{it.id}` **{lv}** {_rebase_links(it.text, d.rel, _rel_link(root))}")
+                rows.append(f"- [ ] `{it.id}` **{lv}** {_rebase_links(it.text, f'{d.rel}.md', _rel_link(root))}")
         if not rows:
             continue
         link = f"{_rel_link(root)}/{d.rel}.md"
@@ -1035,7 +1035,8 @@ def carry_states(
 
 
 def _rebase_links(text: str, doc_rel: str, link_root: str) -> str:
-    """Liên kết tương đối trong mục (tính từ file module) -> tính từ BLUEPRINT.md qua link_root."""
+    """Liên kết tương đối trong mục (tính từ file module) -> tính từ BLUEPRINT.md qua link_root. `doc_rel`: đường file
+    module CÓ `.md` (`Doc.rel` thì không — anchor nội trang thiếu đuôi thành link gãy, bản vá 3.30.1)."""
     base = posixpath.dirname(doc_rel)
 
     def sub(m: "re.Match[str]") -> str:
@@ -10167,7 +10168,7 @@ def _pa_yaml_views() -> Callable[[str], List[str]]:
     st = _PaScanState()
 
     def views(line: str) -> List[str]:
-        bom = int(line[:1] == "﻿")
+        bom = int(line[:1] == "\ufeff")
         return _pa_splice(line, [(a + bom, b + bom) for a, b in _pa_yaml_spans(st, line[bom:])], _PA_YAML_ESC)
 
     return views

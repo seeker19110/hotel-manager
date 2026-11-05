@@ -45,7 +45,7 @@
     "AGENTS.md": "sha256:65cfd7f296bd9b073bcb74ce79b85ea308c14a32d44deea81a15eedf23425536",
     "CLAUDE.md": "sha256:42e9f60621e5c30d4fd25fb8b40e17747ba68de002644b11b80edafc6a74890b",
     "PROGRESS.md": "sha256:d80a03db3cb157ee682314787afb2eb15911b2f4f86da2f564e49106f6f76941",
-    "xt.yaml": "sha256:6c3c21e6f207a2c06413159eab32b25839b5441a36bc0f1aaa0199d1a02232f9"
+    "xt.yaml": "sha256:7adabeb27d290ea99739c419eb0860272c039db1f2f629fd771244ee7a258c42"
   },
   "git_hooks": [
     ".git/hooks/commit-msg",

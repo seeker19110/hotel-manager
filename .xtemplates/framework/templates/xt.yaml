@@ -53,4 +53,4 @@ preview_smoke: ""     # Gate bản trình: `stage submit` chạy (qua guard), ex
 claude_min_version: ""   # doctor cảnh báo khi Claude Code thấp hơn (LOOP-HARNESS-026)
 ai_attribution: ""    # forbid = guard chặn commit/PR ghi tên model hay URL phiên AI (LOOP-HARNESS-027)
 pr_title_check: ""    # off = không đòi tiêu đề PR `<type>(scope): mô tả` ≤ 100 ký tự
-harness_permissions: ""   # own = install.py giữ quyền + dạng lệnh hook của dự án (không thêm allow/deny khung)
+harness_permissions: ""   # own = install.py giữ quyền của dự án (không thêm allow/deny khung) nhưng ĐỔI lệnh hook khung sang dạng tương đối `bash .claude/hooks/x.sh`; cần dạng ${CLAUDE_PROJECT_DIR} → không dùng own
