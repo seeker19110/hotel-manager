@@ -3,7 +3,7 @@ title: Quy định AI: EU AI Act, minh bạch, phân loại rủi ro, Việt Nam
 kind: module
 prefix: CMP-AI
 applies_to: [ai-agent, agentic-system, data-ml, web-app, mobile-app, desktop-app, static-site, game, monorepo]
-updated: 2026-10-14
+updated: 2026-11-04
 ---
 
 # Quy định AI: EU AI Act, minh bạch, phân loại rủi ro, Việt Nam
@@ -62,7 +62,7 @@ updated: 2026-10-14
 - [ ] `CMP-AI-014` **SHOULD** Thông báo cho người dùng về hạn chế của AI (có thể sai, không phải tư vấn y tế/pháp lý/tài chính) ngay trong giao diện, không chỉ ở điều khoản. → Kiểm: snapshot UI; nội dung từ [`../06-design-ux/ai-ux.md`](../06-design-ux/ai-ux.md). · Nguồn: Luật AI 134/2025/QH15 (minh bạch); EU AI Act Art. 13
 - [ ] `CMP-AI-015` **SHOULD** Sandbox/thử nghiệm có kiểm soát (VN 3 cấp theo NĐ 142; EU Art. 57 từ 02/08/2027) được cân nhắc cho ứng dụng mới trong lĩnh vực nhạy cảm; ADR ghi quyết định. → Kiểm: ADR tồn tại. · Nguồn: NĐ 142/2026/NĐ-CP Chương IV; EU AI Act Art. 57
 - [ ] `CMP-AI-016` **SHOULD** Hợp đồng với nhà cung cấp model/API có điều khoản: dữ liệu không dùng huấn luyện (hoặc có), vị trí xử lý, log, thông báo thay đổi model, bản quyền đầu ra. → Kiểm: `docs/privacy/processors.md` mục AI vendors có điều khoản. · Nguồn: GDPR Art. 28; Luật 91/2025/QH15 Đ.17, Đ.20
-- [ ] `CMP-AI-017` **MAY** Dùng C2PA Content Credentials cho nhãn nguồn gốc nội dung đa phương tiện. → Kiểm: manifest C2PA hợp lệ. · Nguồn: C2PA (chưa xác minh phiên bản ngày 2026-10-13)
+- [ ] `CMP-AI-017` **SHOULD** Media do AI tạo ký C2PA Content Credentials (spec và c2pa-rs/c2pa-node ghim phiên bản) **sau** bước nén/transcode/resize cuối; thêm watermark ẩn bền (vd VideoSeal/AudioSeal) mang id soft-binding khai trong manifest (tên `alg` theo C2PA Soft Binding Algorithm List) làm dự phòng khi metadata bị gỡ; chỉ metadata chưa đủ cho `CMP-AI-004`. → Kiểm: file đúng định dạng phát hành → `c2patool` báo manifest hợp lệ; sau `exiftool -all=` hoặc re-encode, detector watermark vẫn phát hiện và tra ngược manifest; bước ký nằm cuối pipeline media. · Nguồn: C2PA, bản mới nhất 2.5 (10/2026) — <https://spec.c2pa.org/specifications/specifications/2.5/index.html> (tra 2026-11-04)
 - [ ] `CMP-AI-018` **MAY** Công bố "AI transparency report" định kỳ: số sự cố, khiếu nại, kết quả eval. → Kiểm: báo cáo công khai. · Nguồn: thực hành nội bộ
 
 ## Bẫy thường gặp

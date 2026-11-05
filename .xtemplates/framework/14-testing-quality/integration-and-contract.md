@@ -3,7 +3,7 @@ title: Integration & contract test: DB thật, API contract, Pact, testcontainer
 kind: module
 prefix: QA-INT
 applies_to: [web-app, api-service, ai-agent, agentic-system, data-ml, monorepo, blockchain]
-updated: 2026-10-16
+updated: 2026-11-04
 ---
 
 # Integration & contract test: DB thật, API contract, Pact, testcontainers
@@ -52,7 +52,8 @@ updated: 2026-10-16
 - [ ] `QA-INT-017` **SHOULD** Contract test cho sự kiện: schema sự kiện đăng ký trong registry, kiểm tương thích backward trước khi publish. → Kiểm: job `schema-compat` exit 0.
 - [ ] `QA-INT-018` **MAY** Nightly gọi sandbox thật của nhà cung cấp (thanh toán, LLM) với ngân sách giới hạn, cập nhật cassette khi lệch.
 - [ ] `QA-INT-019` **MAY** Blockchain: fork test trên mainnet snapshot (Foundry `--fork-url`) cho tích hợp với hợp đồng ngoài.
-- [ ] `QA-INT-020` **SHOULD** Khi cài đặt một chuẩn có bộ test hoặc test vector chính thức (VietQR/EMVCo, XML hoá đơn điện tử, FHIR, ISO 20022, IDS của buildingSMART…), CI chạy bộ đó **ghim theo phiên bản/commit**; ca chưa đạt ghi trong `known-gaps.txt` kèm lý do, và file này **chỉ được giảm**. → Kiểm: CI đỏ khi có ca fail mới ngoài `known-gaps.txt` hoặc khi số dòng `known-gaps.txt` tăng so với nhánh chính. · Nguồn: `seeker19110/stored` 23 §4.4 (Dhcb-Tools: corpus IDS buildingSMART 334 ca ghim commit + `known-gaps.txt`; đọc 2026-10-16)
+- [ ] `QA-INT-020` **SHOULD** Khi cài đặt một chuẩn có bộ test hoặc test vector chính thức (VietQR/EMVCo, XML hoá đơn điện tử, FHIR, ISO 20022, IDS của buildingSMART…), CI chạy bộ đó **ghim theo phiên bản/commit**; ca chưa đạt ghi trong `known-gaps.txt` kèm lý do, và file này **chỉ được giảm**. Tuyên bố "hỗ trợ <giao thức/spec> phiên bản V" (MCP, A2A, A2UI, OpenAPI profile…) trong README/PROJECT.md/Agent Card cần job conformance chính thức ghim đúng V (MCP: `modelcontextprotocol/conformance --requirements <rev>` cùng `--expected-failures <yaml>` thay cho `known-gaps.txt`; A2A: TCK, tối thiểu mục MUST), mỗi dòng baseline có ID ca + lý do; baseline không rỗng thì tuyên bố ghi "một phần" kèm danh sách ca chưa đạt (ca đã baseline vẫn là ca trượt), không thì bỏ tuyên bố; chưa có job thì bỏ tuyên bố hoặc ghi "chưa kiểm conformance" (liên quan `STD-AI-006`). → Kiểm: CI đỏ khi có ca fail mới ngoài `known-gaps.txt`, khi số dòng `known-gaps.txt` tăng so với nhánh chính, hoặc khi có `skip`/`xfail` trên ca conformance; script đọc phiên bản khai (`MCP 20\d{2}-\d{2}-\d{2}`, `A2A v\d`) → có job cùng phiên bản. · Nguồn: `seeker19110/stored` 23 §4.4 (Dhcb-Tools: corpus IDS buildingSMART 334 ca ghim commit + `known-gaps.txt`; đọc 2026-10-16); MCP conformance https://github.com/modelcontextprotocol/conformance (tra 2026-11-04)
+- [ ] `QA-INT-021` **SHOULD** Agent sửa CAD/BIM/3D kỹ thuật khai cổng riêng theo biểu diễn: schema/đơn vị, yêu cầu bàn giao (IDS…), geometry validity, kết quả host/export; không suy ảnh render, watertight hay IDS pass thành mọi lớp đã đạt. Preview/approval gắn hash model+spec, target ID và diff; model đổi sau preview thì tạo lại preview/approval trước khi áp; host trả `outcome_unknown` thì không retry mù ([`ARC-INT-011`](../05-architecture/integration-patterns.md), [`AI-AGENT-005`](../13-ai-engineering/agents-and-tools.md)); approval theo [`SEC-AI-005`](../12-security/ai-security.md), ghi hash/approval vào ledger: `PRF-AGENTIC-012`. → Kiểm: fixture stale preview, geometry lỗi dù schema đúng, schema đúng nhưng thiếu requirement — mỗi ca có outcome riêng, áp bị chặn. · Nguồn: stored 27 §3–4 (chưa xác minh)
 
 ## Bẫy thường gặp
 

@@ -3,7 +3,7 @@ title: Log bảo mật, audit trail, phát hiện, ứng phó
 kind: module
 prefix: SEC-LOG
 applies_to: [all]
-updated: 2026-10-14
+updated: 2026-10-30
 ---
 
 # Log bảo mật, audit trail, phát hiện, ứng phó
@@ -57,6 +57,7 @@ updated: 2026-10-14
 - [ ] `SEC-LOG-018` **SHOULD** Rà định kỳ (hàng quý) danh sách sự kiện bảo mật so với tính năng mới (route/tool mới có sự kiện chưa?) và so với threat model. → Kiểm: biên bản rà quý; script liệt kê route/tool thiếu `event`. · Nguồn: [`threat-modeling.md`](threat-modeling.md); P12
 - [ ] `SEC-LOG-019` **MAY** Dùng SIEM/OSS (Wazuh, OpenSearch Security Analytics) với rule Sigma khi ≥ L; ingest log cloud (CloudTrail/Audit Logs) cùng log ứng dụng. → Kiểm: pipeline ingest + ≥ 5 rule Sigma bật. · Nguồn: Sigma rules (chưa xác minh phiên bản)
 - [ ] `SEC-LOG-020` **MAY** Honeytoken/canary trong dữ liệu và log để phát hiện truy cập trái phép. → Kiểm: canary đã kích hoạt thử. · Nguồn: kinh nghiệm vận hành
+- [ ] `SEC-LOG-021` **SHOULD** Sản phẩm có phần tử số (phần mềm cài/tải, firmware, app — kể cả phần xử lý từ xa cần cho chức năng của nó) **bán/cung cấp có tính thương mại vào EU** thuộc Cyber Resilience Act: từ **2026-09-11** báo lỗ hổng đang bị khai thác và sự cố nghiêm trọng qua ENISA Single Reporting Platform — cảnh báo sớm 24 giờ, thông báo 72 giờ, báo cáo cuối (lỗ hổng: 14 ngày sau khi có bản vá; sự cố: 1 tháng) tính từ lúc nhà sản xuất biết; runbook sự cố có bước "có phải báo CRA không", người giữ tài khoản EU Login và mẫu báo cáo soạn sẵn. Nghĩa vụ đầy đủ áp dụng **2027-12-11**. SaaS độc lập và nguồn mở phi thương mại nhìn chung ngoài phạm vi — ghi kết luận phạm vi vào hồ sơ. → Kiểm: runbook sự cố có nhánh CRA + liên hệ; tài liệu phạm vi CRA có ngày rà; diễn tập ghi thời điểm "biết" → cảnh báo sớm ≤ 24 giờ. · Nguồn: Regulation (EU) 2024/2847 Đ.14; hướng dẫn áp dụng của Ủy ban 2026-07-27
 
 ## Bẫy thường gặp
 
@@ -97,3 +98,4 @@ updated: 2026-10-14
 - OTel GenAI semantic conventions (trạng thái Development; prompt/completion opt-in): theo `research/2026-10-13-ai-agent-research.md` §4.3 [F/S].
 - (chưa xác minh 2026-10-13) PCI DSS v4 Requirement 10 (12 tháng/3 tháng), ISO/IEC 27035, Sigma rules, tên biến OTel capture content — xác minh trước khi dẫn.
 - Catalog `seeker19110/stored` 12 §3g (audit ledger HMAC), đọc 2026-10-13; khung cũ spec §A4.6 C6 Governance, commit `1b80fe4`.
+- European Commission — Cyber Resilience Act (Regulation (EU) 2024/2847: hiệu lực 2024-12-10, báo cáo Đ.14 từ 2026-09-11, áp dụng đầy đủ 2027-12-11; hướng dẫn áp dụng 2026-07-27): <https://digital-strategy.ec.europa.eu/en/policies/cyber-resilience-act> — xác minh 2026-10-30. Mốc 24 h/72 h/14 ngày/1 tháng, kênh ENISA SRP và phạm vi SaaS/nguồn mở lấy từ nguồn thứ cấp (<https://www.cyberresilienceact.eu/news/cra-single-reporting-platform-not-yet-live.html>, DLA Piper 2026) — chưa đối chiếu văn bản EUR-Lex (trang không tải được 2026-10-30). Văn bản: <https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32024R2847>. Digital Omnibus (đề xuất 2025-11-19) chưa thấy hoãn mốc CRA (chưa xác minh trạng thái thông qua).

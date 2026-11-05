@@ -3,7 +3,7 @@ title: Realtime: WebSocket, SSE, pub/sub, streaming
 kind: module
 prefix: BE-RT
 applies_to: [web-app, api-service, ai-agent, agentic-system, data-ml, monorepo, blockchain]
-updated: 2026-10-14
+updated: 2026-11-04
 ---
 
 # Realtime: WebSocket, SSE, pub/sub, streaming
@@ -61,6 +61,7 @@ Mặc định: SSE + pub/sub + sự kiện có ID. WebSocket chỉ sau khi ghi A
 - [ ] `BE-RT-018` **SHOULD** Test tải kết nối sống (k6 WebSocket/SSE): N kết nối × tốc độ thông điệp mục tiêu, đo RAM/CPU/latency trước khi ra mắt. → Kiểm: báo cáo trong [`../14-testing-quality/performance-and-load.md`](../14-testing-quality/performance-and-load.md).
 - [ ] `BE-RT-019` **MAY** Dùng dịch vụ realtime quản lý (Ably/Pusher/Supabase Realtime/Socket.IO Cloud) khi đội nhỏ; vẫn áp các mục xác thực/kích thước/backpressure ở lớp ứng dụng. → Kiểm: ADR ghi lý do; adapter theo [`integrations-and-webhooks.md`](integrations-and-webhooks.md).
 - [ ] `BE-RT-020` **MAY** Presence (ai đang online) dùng TTL key trong Redis + heartbeat; không dựa vào sự kiện disconnect (có thể không tới). → Kiểm: test kill client → presence hết sau TTL.
+- [ ] `BE-RT-021` **SHOULD** Voice/streaming agent: gắn session/turn ID qua STT→model/tool→TTS, đo completion, ngắt lời (barge-in) và reconnect theo cùng turn; phát lại audio/transport không chạy lại tool (chống chạy lại: [`ARC-INT-001`](../05-architecture/integration-patterns.md), tool agent [`SEC-AI-017`](../12-security/ai-security.md)); đo WER/MOS theo [`AI-EVAL-024`](../13-ai-engineering/evaluation.md). → Kiểm: fixture ngắt lời giữa TTS và mất mạng sau tool commit → chỉ 1 side effect; báo latency từng tầng.
 
 ## Bẫy thường gặp
 

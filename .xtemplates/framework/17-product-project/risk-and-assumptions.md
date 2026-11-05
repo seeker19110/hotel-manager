@@ -3,7 +3,7 @@ title: Rủi ro & giả định: sổ rủi ro, spike, kế hoạch B
 kind: module
 prefix: PM-RISK
 applies_to: [all]
-updated: 2026-10-14
+updated: 2026-11-04
 ---
 
 # Rủi ro & giả định: sổ rủi ro, spike, kế hoạch B
@@ -37,12 +37,12 @@ updated: 2026-10-14
 
 ## Checklist
 
-- [ ] `PM-RISK-001` **MUST** Có sổ rủi ro (`docs/RISKS.md` hoặc mục trong `PROJECT.md`) với cột: ID `RK-NNN` · mô tả · xác suất · ảnh hưởng · chủ · cách ứng xử · biện pháp · trigger · trạng thái · ngày rà. → Kiểm: `rg -n "^\| RK-[0-9]{3}" docs/RISKS.md PROJECT.md` ≥1; mỗi dòng đủ cột.
+- [ ] `PM-RISK-001` **MUST** Có sổ rủi ro (`docs/RISKS.md` hoặc mục trong `PROJECT.md`) với cột: ID `RK-NNN` · mô tả · xác suất · ảnh hưởng · chủ · cách ứng xử · biện pháp · trigger · trạng thái · ngày rà. → Kiểm: `rg -n "^\| RK-[0-9]{3}" docs/RISKS.md PROJECT.md` ≥1; mỗi dòng đủ cột. · Mẫu: [`../templates/RISKS.md`](../templates/RISKS.md)
 - [ ] `PM-RISK-002` **MUST@L** Mỗi giả định trong `PROJECT.md` ánh xạ tới một `RK-NNN` hoặc được đánh dấu "đã kiểm chứng" kèm bằng chứng (link spike/dữ liệu). → Kiểm: bảng giả định có cột "RK / bằng chứng" không rỗng.
 - [ ] `PM-RISK-003` **MUST** Rủi ro xếp đầu (xác suất × ảnh hưởng cao nhất) có spike hoặc biện pháp bắt đầu trong lát dọc đầu tiên. → Kiểm: `PLAN.md` có task tham chiếu `RK-NNN` đứng đầu trong nhóm task đầu.
 - [ ] `PM-RISK-004` **MUST@L** Mỗi spike có: câu hỏi một dòng, hộp thời gian, tiêu chí trả lời, kết quả ghi lại (ADR/spec/`PROGRESS.md`); code spike không merge vào nhánh chính. → Kiểm: issue/ghi chú spike đủ 4 mục; `git log main --grep="spike"` không có commit merge nhánh `spike/`.
 - [ ] `PM-RISK-005` **MUST@L** Rủi ro mức cao có kế hoạch B ghi rõ: trigger cụ thể, hành động, ai quyết, chi phí ước lượng. → Kiểm: cột "Kế hoạch B" không rỗng cho mọi dòng mức cao.
-- [ ] `PM-RISK-006` **MUST** Mỗi phụ thuộc bên thứ ba quan trọng (SaaS, API, thư viện lõi, model AI) có dòng thẩm định: license (OSI hay không), ngày EOL/phiên bản hỗ trợ, telemetry mặc định, cách xuất dữ liệu/thoát. → Kiểm: bảng "Phụ thuộc" trong `docs/RISKS.md`; license tự động ở [`../16-compliance-privacy/licensing-and-ip.md`](../16-compliance-privacy/licensing-and-ip.md); EOL tra `https://endoflife.date/api/<product>.json`.
+- [ ] `PM-RISK-006` **MUST** Mỗi phụ thuộc bên thứ ba quan trọng (SaaS, API, thư viện lõi, model AI) có dòng thẩm định: license (OSI hay không), ngày EOL/phiên bản hỗ trợ, telemetry mặc định, cách xuất dữ liệu/thoát; phụ thuộc hosted có thể bị sunset đột ngột (Tambo Cloud: API dừng 2026-10-31, xoá dữ liệu 2026-11-30; repo Flowise lưu trữ 2026-08-13, mốc Flowise Cloud chưa xác minh), nên flow low-code có cột "cách thoát" = file flow trong `flows/` ([`PRF-AGENTIC-022`](../02-profiles/agentic-system.md)). → Kiểm: bảng "Phụ thuộc" trong `docs/RISKS.md`; license tự động ở [`../16-compliance-privacy/licensing-and-ip.md`](../16-compliance-privacy/licensing-and-ip.md); EOL tra `https://endoflife.date/api/<product>.json`. · Nguồn: Tambo README <https://github.com/tambo-ai/tambo> — tra 2026-11-04.
 - [ ] `PM-RISK-007` **MUST** Danh sách luật áp dụng (số hiệu đầy đủ + ngày hiệu lực + URL + "kiểm tra văn bản sửa đổi") lập ở G2; dự án có dữ liệu cá nhân có DPIA theo [`../templates/DPIA.md`](../templates/DPIA.md). → Kiểm: mục "Khung pháp lý" trong `PROJECT.md`; `docs/DPIA.md` tồn tại khi `PM-REQ-009` = có.
 - [ ] `PM-RISK-008` **MUST@L** Sổ rủi ro được rà tại mỗi cổng G1–G7 (ngày rà cập nhật); rủi ro đã xảy ra chuyển thành sự cố và tạo ≥1 hàng rào mới. → Kiểm: cột "ngày rà" ≥ ngày cổng gần nhất; post-mortem liên kết `RK-NNN`.
 - [ ] `PM-RISK-009` **SHOULD** Rủi ro bảo mật không ghi lặp trong sổ này mà trỏ tới threat model; sổ chỉ giữ dòng tổng "xem THREAT-MODEL #id". → Kiểm: dòng rủi ro bảo mật có link `docs/THREAT-MODEL.md`.

@@ -3,7 +3,7 @@ title: Chuẩn quy trình & chất lượng (ISO 25010, SemVer, Conventional Com
 kind: standard
 prefix: STD-PROC
 applies_to: [all]
-updated: 2026-10-14
+updated: 2026-11-01
 ---
 
 # Chuẩn quy trình & chất lượng (ISO 25010, SemVer, Conventional Commits, SLSA, SBOM, DORA)
@@ -50,7 +50,7 @@ updated: 2026-10-14
 - [ ] `STD-PROC-001` **MUST** `PROJECT.md` có bảng yêu cầu chất lượng theo đặc tính ISO/IEC 25010:2023 với số đo và ngưỡng cho ít nhất 3 đặc tính (vd performance efficiency: p95 < 300 ms; reliability: SLO 99,9%; security: ASVS L2). → Kiểm: `grep -c "25010" PROJECT.md` ≥ 1 và bảng có ≥ 3 hàng ngưỡng số. · Nguồn: ISO/IEC 25010:2023
 - [ ] `STD-PROC-002` **MUST** Phiên bản phát hành theo SemVer 2.0.0, tag Git `vX.Y.Z`. → Kiểm: `git tag --list 'v*' | grep -vE '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$'` rỗng. · Nguồn: SemVer 2.0.0 §2, §9, §10
 - [ ] `STD-PROC-003` **MUST** Thay đổi phá vỡ API công khai chỉ đi với tăng MAJOR và ghi `BREAKING CHANGE:` trong commit. → Kiểm: CI so sánh hợp đồng (oasdiff/API Extractor/`go-apidiff`) đỏ khi breaking mà version không tăng major. · Nguồn: SemVer 2.0.0 §8; Conventional Commits 1.0.0 (footer BREAKING CHANGE)
-- [ ] `STD-PROC-004` **MUST** Mọi commit vào nhánh chính (và tiêu đề PR khi squash) theo Conventional Commits, subject ≤ 72 ký tự. → Kiểm: commitlint (`@commitlint/config-conventional`) chạy trong CI job `pr-policy`, exit 0. · Nguồn: Conventional Commits 1.0.0
+- [ ] `STD-PROC-004` **MUST** Mọi commit vào nhánh chính (và tiêu đề PR khi squash) theo Conventional Commits, subject ≤ 100 ký tự. → Kiểm: commitlint (`@commitlint/config-conventional`) chạy trong CI job `pr-policy`, exit 0. · Nguồn: số 100 theo chủ dự án 2026-11-01 (spec không quy định độ dài; commitlint `header-max-length` 100 — chưa xác minh); Conventional Commits 1.0.0
 - [ ] `STD-PROC-005` **MUST@L** Changelog và tag release sinh tự động từ commit (release-please hoặc tương đương), không viết tay. → Kiểm: workflow release tồn tại; `CHANGELOG.md` có header do công cụ sinh. · Nguồn: Conventional Commits 1.0.0; Keep a Changelog
 - [ ] `STD-PROC-006` **MAY** Ngừng dùng 2026-10-14 — gộp vào [`SEC-SUPPLY-012`](../12-security/supply-chain.md): SBOM CycloneDX 1.7 hoặc SPDX 3.0 cho mỗi bản phát hành, đính kèm artifact.
 - [ ] `STD-PROC-007` **MAY** Ngừng dùng 2026-10-14 — gộp vào [`SEC-SUPPLY-014`](../12-security/supply-chain.md): SLSA Build L2 cho M (bản cũ ghi L1, lệch nhà).

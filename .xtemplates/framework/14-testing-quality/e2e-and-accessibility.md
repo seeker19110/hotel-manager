@@ -3,7 +3,7 @@ title: E2E & a11y: Playwright/axe, mobile, flaky, trace
 kind: module
 prefix: QA-E2E
 applies_to: [web-app, mobile-app, desktop-app, static-site, game, monorepo]
-updated: 2026-10-21
+updated: 2026-10-31
 ---
 
 # E2E & a11y: Playwright/axe, mobile, flaky, trace
@@ -62,6 +62,7 @@ updated: 2026-10-21
 - [ ] `QA-E2E-027` **MAY** Test có **bước agent** (browser agent): job required chỉ **phát lại cache đã kiểm** (cache chỉ ghi sau khi bước xác minh pass; phát lại không gọi model) và không có khoá model; cache miss/stale = đỏ (như `--strict-cache` của tester-army/e2e), cache làm mới ở job riêng ngoài đường merge; luồng tiền/quyền vẫn assert bằng locator. → Kiểm: job required không có secret API model; test cố ý làm hỏng cache → đỏ. · Nguồn: tester-army/e2e docs/cache.mdx <https://github.com/tester-army/e2e> (đọc 2026-10-18)
 - [ ] `QA-E2E-028` **SHOULD** E2E chỉ dùng tài khoản/dữ liệu **tổng hợp**; video, download, cache agent và log **không che** giá trị đã gõ, nên quét `playwright-report/`, `test-results/` và thư mục cache agent bằng `gitleaks dir <path>` (gitleaks ≥ 8.19; `detect`/`protect` deprecated) **trước** `actions/upload-artifact` (`QA-E2E-008`, [`WF-CI-019`](../10-workflow/ci-cd-pipeline.md)) hoặc commit. → Kiểm: bước `gitleaks dir` đứng trước `actions/upload-artifact` trong workflow; `rg` email/SĐT thật trong fixture = 0. · Nguồn: tester-army/e2e docs/security.mdx ("Neither is masked"); gitleaks README <https://github.com/gitleaks/gitleaks> (đọc 2026-10-18)
 - [ ] `QA-E2E-029` **SHOULD** Khởi đầu tối thiểu ở dự án đích: một lệnh `e2e` trong `xt.yaml` chạy `@smoke` luồng chính (`QA-E2E-001`) kèm axe (`QA-E2E-003`), project `desktop` (thêm `mobile` ở L — `QA-E2E-002`), `fullyParallel: true`, `forbidOnly`/`retries`/`trace` theo `QA-E2E-005`, chia shard bằng `--shard=${XT_SHARD:-1/1}` (matrix mẫu 2 shard cần ≥ 2 test — `QA-E2E-001` đã đòi ≥ 3 `@smoke` — để không shard nào rỗng); cài trình duyệt ở `e2e_setup`; job `e2e` của CI mẫu chạy cùng lúc với test (không `needs: build` — lệnh `e2e` tự build và phục vụ). Gộp báo cáo blob, build một lần, đăng nhập theo worker, chọn theo ảnh hưởng, cache trình duyệt, nightly đa trình duyệt (`QA-E2E-012`, `-018`, `-020`…`-023`) thêm khi thời gian PR vượt ngân sách `QA-E2E-026`, không thêm từ đầu. → Kiểm: `xt.yaml` có `e2e` chứa `XT_SHARD`; `dev-task.sh e2e-mode` in `shard`; job `e2e` của CI xanh ở cả hai shard. · Nguồn: [`../10-workflow/ci-cd-pipeline.md`](../10-workflow/ci-cd-pipeline.md) `WF-CI-025`; Playwright docs test-sharding (xác minh 2026-10-18); D-115
+- [ ] `QA-E2E-030` **SHOULD** Agent dùng trình duyệt để kiểm UI hoặc sinh test chạy với **profile cô lập**: `playwright-cli` (profile trong bộ nhớ mặc định), Playwright MCP và `chrome-devtools-mcp` thêm `--isolated`; không gắn vào profile cá nhân (extension trình duyệt, `--autoConnect`, `--user-data-dir` trỏ profile thật) vì agent thấy mọi tab đã đăng nhập; trang ngoài domain dự án đi kèm allowlist domain và đánh dấu nội dung không tin cậy (`AI-AGENT-007`). → Kiểm: cấu hình MCP/CLI trong repo có cờ cô lập; grep không thấy `--autoConnect`. · Nguồn: README `microsoft/playwright-mcp`, `microsoft/playwright-cli`, `ChromeDevTools/chrome-devtools-mcp` `docs/advanced-usage.md` — đọc 2026-10-31
 
 ## Bẫy thường gặp
 
@@ -77,6 +78,7 @@ updated: 2026-10-21
 - **Tăng tốc bằng cách bỏ test hoặc nâng retry/timeout** → cổng xanh nhưng hồi quy lọt. Cách tránh: tăng shard, build một lần, đăng nhập một lần, chọn test theo ảnh hưởng (QA-E2E-020…023); không bao giờ để deploy đi qua mà thiếu lần chạy đầy đủ.
 - **Chọn test theo ảnh hưởng nhưng bỏ sót vùng dùng chung** (lockfile, config, thành phần lõi) → PR đổi nền mà chỉ chạy vài spec. Cách tránh: danh sách vùng chạy đầy đủ trong QA-E2E-023, suite đầy đủ trên `main`.
 - **Đăng nhập qua giao diện ở mọi test** → mỗi test mất vài giây thừa nhân với hàng trăm test. Cách tránh: QA-E2E-022.
+- **Cho agent kiểm UI trên profile trình duyệt thật** (`--autoConnect`, extension) → agent đọc được mọi tab đã đăng nhập; profile bền mặc định của Playwright MCP còn giữ cookie giữa các phiên. Tránh: `QA-E2E-030`.
 
 ## Cổng tự động
 
@@ -105,3 +107,5 @@ updated: 2026-10-21
 - Catalog `seeker19110/stored` 23 §2.5 (Playwright CI: `workers: 4` đo 80/150s, cache browser −29s, `retries: 2`, `trace: on-first-retry`, desktop+mobile+axe), 11 (agent browser, telemetry) — đọc 2026-10-13.
 - Khung cũ X-stored `quality-supplements.md` Nhóm 2 mục 3–4 (axe hai tầng, 2 project desktop/mobile, `getByRole`), commit `1b80fe4`.
 - tester-army/e2e (docs/cache.mdx: cache ghi sau xác minh pass, phát lại không gọi model; docs/security.mdx: video/download/cache "Neither is masked"): <https://github.com/tester-army/e2e> — đọc 2026-10-18. gitleaks ≥ 8.19 (`gitleaks dir`; `detect`/`protect` deprecated): <https://github.com/gitleaks/gitleaks> — đọc 2026-10-18.
+- Playwright MCP README ("CLI vs MCP", profile bền mặc định, `--isolated`): <https://github.com/microsoft/playwright-mcp> · playwright-cli README (profile trong bộ nhớ, `--persistent`): <https://github.com/microsoft/playwright-cli> · chrome-devtools-mcp `docs/advanced-usage.md` (`--isolated`, `--autoConnect` thấy mọi cửa sổ profile mặc định): <https://github.com/ChromeDevTools/chrome-devtools-mcp> — xác minh 2026-10-31
+- Catalog `seeker19110/stored` 11 §1e–§1i (hồ sơ công cụ trình duyệt cho agent, bảng chọn §1g.3) — rà 2026-10-31

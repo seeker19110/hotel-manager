@@ -3,7 +3,7 @@ title: Quản lý bí mật: lưu, xoay, quét, phạm vi
 kind: module
 prefix: SEC-SECRET
 applies_to: [all]
-updated: 2026-10-16
+updated: 2026-11-04
 ---
 
 # Quản lý bí mật: lưu, xoay, quét, phạm vi
@@ -36,7 +36,7 @@ updated: 2026-10-16
 
 ## Checklist
 
-- [ ] `SEC-SECRET-001` **MUST** Không có bí mật trong repo, kể cả lịch sử: quét toàn bộ lịch sử git bằng gitleaks ở CI; phát hiện = đỏ. → Kiểm: job `gitleaks detect --source . --log-opts="--all" --redact --exit-code 1` với `fetch-depth: 0`; báo cáo = 0 finding (false positive ghi `.gitleaksignore` có lý do). · Nguồn: OWASP Secrets Mgmt CS §Detection; Top 10:2025 A02
+- [ ] `SEC-SECRET-001` **MUST** Không có bí mật trong repo, kể cả lịch sử: quét toàn bộ lịch sử git bằng gitleaks ở CI; phát hiện = đỏ. → Kiểm: job `gitleaks git --redact --exit-code 1 --log-opts='--all --diff-merges=first-parent HEAD' .` với `fetch-depth: 0`; báo cáo = 0 finding (false positive ghi `.gitleaksignore` có lý do; quét cả diff của commit merge tạm `refs/pull/N/merge` thì miễn bằng vân tay toàn cục `file:rule:line` hoặc chú thích `gitleaks:allow`, không theo SHA commit tạm). · Nguồn: OWASP Secrets Mgmt CS §Detection; Top 10:2025 A02; gitleaks README §Fingerprints (8.30.1, chưa xác minh lại 2026-11-04)
 - [ ] `SEC-SECRET-002` **MUST@L** Hook pre-commit chặn commit chứa bí mật (gitleaks protect) — và CI chạy lại vì hook có thể bị `--no-verify`. → Kiểm: `.pre-commit-config.yaml`/husky có gitleaks; test cố commit chuỗi `AKIA…` giả → bị chặn. · Nguồn: OWASP Secrets Mgmt CS §Detection
 - [ ] `SEC-SECRET-003` **MAY** Ngừng dùng 2026-10-14 — gộp vào [`BASE-CFG-003`](../01-baseline/configuration-and-secrets.md): `.env*` trong `.gitignore`, `.env.example` liệt kê mọi biến với giá trị giả.
 - [ ] `SEC-SECRET-004` **MUST@L** Ứng dụng từ chối khởi động khi thiếu bí mật bắt buộc (fail-closed), không dùng giá trị mặc định rỗng/"changeme". → Kiểm: test khởi động không có biến → exit ≠ 0 với thông báo tên biến; grep default `SECRET_KEY = "..."` = 0. · Nguồn: P7; catalog stored 23 §8.1 (ai-gateway fail-open)

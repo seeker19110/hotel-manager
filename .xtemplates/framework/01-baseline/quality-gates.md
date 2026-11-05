@@ -3,7 +3,7 @@ title: Cổng chất lượng tối thiểu (lint · format · type · test · C
 kind: baseline
 prefix: BASE-GATE
 applies_to: [all]
-updated: 2026-10-21
+updated: 2026-11-05
 ---
 
 # Cổng chất lượng tối thiểu (lint · format · type · test · CI)
@@ -56,6 +56,7 @@ updated: 2026-10-21
 - [ ] `BASE-GATE-017` **MAY** Thêm cổng "dead code/trùng lặp" (knip, jscpd, vulture, `deadcode`) ở chế độ báo cáo trước, nâng thành chặn khi baseline sạch. → Kiểm: job CI xuất báo cáo; ngưỡng ghi trong config. · Nguồn: [`../14-testing-quality/static-analysis-and-code-quality.md`](../14-testing-quality/static-analysis-and-code-quality.md)
 - [ ] `BASE-GATE-018` **MAY** Fitness function cho **chính CI** (AST/script): job `quality` không được `continue-on-error`, không `if: false`, không `|| true` ở bước cổng. → Kiểm: `xt.py ci-check` exit 0 trong CI (bắt `continue-on-error`, thiếu `permissions`/`timeout-minutes`, action chưa ghim SHA) và job `protection-guard` đối chiếu required check ↔ job thật; `if: false`/`|| true` chưa có máy kiểm, tự rà. · Nguồn: catalog 23 §3.3 (`ci_guard`, bản gốc của ý này)
 - [ ] `BASE-GATE-019` **MUST@M** Ruleset nhánh mặc định không có ai (kể cả admin/bot) trong bypass list; review bắt buộc trước merge theo [`WF-GIT-011`](../10-workflow/git-and-branching.md). → Kiểm: ruleset JSON có `bypass_actors: []` (ruleset dạng code theo `WF-GIT-002`). · Nguồn: GitHub rulesets; Scorecard Branch-Protection
+- [ ] `BASE-GATE-020` **SHOULD** Bộ test chạy **song song theo số nhân**: pytest với pytest-xdist `-n auto`; Jest/Vitest, `go test`, `cargo test` song song mặc định — không tắt; Playwright đặt `workers`. Test dùng chung tài nguyên (DB, cổng mạng, thư mục) phải tách theo worker (vd `PYTEST_XDIST_WORKER`, `JEST_WORKER_ID`, `VITEST_POOL_ID`, `TEST_PARALLEL_INDEX` của Playwright) trước khi tăng số worker; độc lập thứ tự theo [`QA-STRAT-007`](../14-testing-quality/test-strategy.md). Lệnh `test` tự dò của `scripts/dev-task.sh` làm sẵn cho pytest có xdist (`XT_JOBS=N`, `1` = tuần tự). → Kiểm: lệnh `test` (khai trong `xt.yaml` hoặc tự dò) không chứa cờ ép một worker khi không ghi lý do — `jest --runInBand`/`-i`, `vitest --no-file-parallelism`/`--maxWorkers=1`, `go test -p 1`, `cargo test -- --test-threads=1`, `playwright test --workers=1`; pytest có `-n auto` hoặc `-n <N>`. · Nguồn: D-367, D-369; tài liệu pytest-xdist, Jest CLI, Vitest CLI, `go help build` (`-p`), Playwright parallelism (chưa xác minh 2026-11-05)
 
 ## Bẫy thường gặp
 

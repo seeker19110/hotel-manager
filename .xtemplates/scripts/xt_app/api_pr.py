@@ -54,6 +54,7 @@ def _pr_row(ctx: Ctx, item: Dict[str, Any]) -> Dict[str, Any]:
             d,
             bool(pr.get("autoMergeRequest")),
             xt.with_published(rec, pr.get("xtReviews"), bool(pr.get("reviewIdentity"))),
+            xt.pr_rethink_cap(ctx.base, pr),  # cùng trần với `pr next` (ADR-0061, review #380)
         )
     except (xt.PrInputError, *_DATA_ERRORS) as exc:
         return {**row, "lane": "", "action": "error", "reasons": [_one_line(exc)]}
@@ -92,8 +93,8 @@ def _pr_stats(ctx: Ctx) -> Tuple[int, Dict[str, Any]]:
     xt = ctx.xt
     now = _dt.datetime.now(_dt.timezone.utc)
     try:
-        prs, runs = xt._pr_stats_fetch("repos/{owner}/{repo}", now - _dt.timedelta(days=days))
-        stats = xt.pr_stats(prs, runs, now, days)
+        prs, runs, cut = xt._pr_stats_fetch("repos/{owner}/{repo}", now - _dt.timedelta(days=days))
+        stats = xt.pr_stats(prs, runs, now, days, cut)
     except (xt.PrInputError, *_DATA_ERRORS) as exc:
         return _unavailable(exc)
     return 200, {**dict(stats), "available": True}

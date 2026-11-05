@@ -3,7 +3,7 @@ title: Index, truy vấn, N+1, EXPLAIN, pool kết nối
 kind: module
 prefix: DB-PERF
 applies_to: [web-app, api-service, ai-agent, agentic-system, data-ml, monorepo, blockchain, mobile-app, desktop-app, embedded-iot]
-updated: 2026-10-14
+updated: 2026-10-30
 ---
 
 # Index, truy vấn, N+1, EXPLAIN, pool kết nối
@@ -67,6 +67,7 @@ updated: 2026-10-14
 - [ ] `DB-PERF-018` **MAY** Ngân sách truy vấn mỗi endpoint (số câu, tổng thời gian) ghi trong test và chặn tăng (ratchet). → Kiểm: file ngưỡng commit; CI đỏ khi vượt.
 - [ ] `DB-PERF-019` **MAY** Dùng `EXPLAIN (ANALYZE)` trong `BEGIN … ROLLBACK` cho câu ghi khi phân tích, không chạy trên production ngoài giờ bảo trì. → Kiểm: runbook phân tích hiệu năng nêu quy tắc.
 - [ ] `DB-PERF-020` **MAY** SQLite: `PRAGMA journal_mode=WAL`, `synchronous=NORMAL` khi chấp nhận mất vài giao dịch cuối khi mất điện, `EXPLAIN QUERY PLAN` cho truy vấn lõi. → Kiểm: pragma trong mã khởi tạo; test plan không `SCAN` bảng lớn.
+- [ ] `DB-PERF-021` **SHOULD** Khi đọc qua replica: luồng đọc ngay sau ghi của cùng người dùng (read-your-writes, kiểm tra quyền, số dư) đọc từ primary hoặc chờ replica đã replay tới LSN của lần ghi; độ trễ replay là metric có ngưỡng, vượt ngưỡng thì tự chuyển đọc về primary. → Kiểm: test tích hợp: ghi rồi đọc ngay qua API trả giá trị mới khi replica bị trễ giả lập; dashboard `pg_stat_replication.replay_lag` có alert; mã router đọc có nhánh 'sticky primary' sau ghi (theo phiên/cookie hoặc LSN). · Nguồn: PostgreSQL 18 docs §Hot Standby (eventually consistent)
 
 ## Bẫy thường gặp
 
@@ -102,3 +103,5 @@ updated: 2026-10-14
 - MySQL 8.4 InnoDB isolation (REPEATABLE READ, gap lock): <https://dev.mysql.com/doc/refman/8.4/en/innodb-transaction-isolation-levels.html> — xác minh 2026-10-13.
 - SQLite WAL: <https://www.sqlite.org/wal.html>; When to use: <https://www.sqlite.org/whentouse.html> — xác minh 2026-10-13.
 - Khung cũ `quality-supplements.md` (N+1, index cột lọc/sắp xếp/join), `research/2026-10-13-old-framework-analysis.md` (thiếu N+1/index/transaction chi tiết) — commit `1b80fe4`.
+- Dữ liệu trên standby 'eventually consistent' với primary; truy vấn gần như đồng thời trên hai bên có thể trả kết quả khác nhau (`DB-PERF-021`): <https://www.postgresql.org/docs/18/hot-standby.html> — xác minh 2026-10-30.
+- pg_stat_replication có cột replay_lag (`DB-PERF-021`): <https://www.postgresql.org/docs/18/monitoring-stats.html> — chưa đọc trọn trang 2026-10-30 (chưa xác minh trọn).

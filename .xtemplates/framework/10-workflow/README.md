@@ -1,7 +1,7 @@
 ---
 title: Workflow phát triển
 kind: index
-updated: 2026-10-21
+updated: 2026-10-24
 ---
 
 # 10 — Workflow phát triển
@@ -14,7 +14,7 @@ updated: 2026-10-21
 | File | Nội dung | Đọc khi nào |
 |---|---|---|
 | [`git-and-branching.md`](git-and-branching.md) | Trunk-based, PR ≤ 400 dòng, squash, Conventional Commits, không push thẳng `main`, ruleset as code + `protection-guard`, hook chạy lại ở CI | G5 dựng repo; khi thêm người/đổi quy tắc nhánh; khi `main` bị khoá |
-| [`code-review.md`](code-review.md) | Checklist review, AI reviewer khác model (claim), SLA 24h leo thang, vùng nhạy cảm luôn người, fast-lane 5 điều kiện fail-closed | Trước khi bật AI review/tự merge; khi review nghẽn |
+| [`code-review.md`](code-review.md) | Checklist review, AI reviewer năng lực cao hơn (claim), SLA 24h leo thang, vùng nhạy cảm luôn người, fast-lane 5 điều kiện fail-closed | Trước khi bật AI review/tự merge; khi review nghẽn |
 | [`ci-cd-pipeline.md`](ci-cd-pipeline.md) | Job `quality` gom làm required check chất lượng (cùng `gitleaks`), CI mẫu tối thiểu song song tối đa, cache theo lockfile, `permissions` tối thiểu, ghim SHA, chống script injection, environment gate cho CD | G5 viết `ci.yml`; audit vệ sinh workflow; khi CI chậm > 10 phút |
 | [`release-and-versioning.md`](release-and-versioning.md) | release-please/changesets, SemVer, Keep a Changelog, tag ký bất biến, artefact một lần, rollback đã diễn tập | Trước release đầu tiên; khi đổi cách phát hành; monorepo nhiều package |
 | [`environments-and-config.md`](environments-and-config.md) | dev/preview/staging/prod, parity, preview env, feature flag, gate deploy prod (cấu hình → `01-baseline/configuration-and-secrets`, bí mật → `12-security/secrets-management`) | G5; khi thêm môi trường/flag; khi lộ key qua bundle |

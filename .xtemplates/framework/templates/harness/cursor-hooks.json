@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {
+        "command": "python3 -I -B .xtemplates/scripts/xt_adapter.py cursor",
+        "matcher": "Shell|Write|Delete|MCP:.*",
+        "timeout": 30,
+        "failClosed": true
+      }
+    ]
+  }
+}

@@ -8,15 +8,17 @@
 # Thứ tự phân giải (đầu tiên thắng):
 #   1) KHAI BÁO: nếu có xt.yaml (YAML phẳng `task: lệnh`, agent đọc được) hoặc
 #      .claude/project-commands.sh (biến bash <task>=lệnh) → chạy lệnh khai báo.
-#   2) TỰ DÒ: nhận diện hệ sinh thái (node/python/go/rust/make) → chạy lệnh quy ước.
+#   2) TỰ DÒ: nhận diện hệ sinh thái (node/python/go/rust/make) → chạy lệnh quy ước. pytest có xdist chạy song song theo
+#      số nhân (D-367, D-369): `python3 -P -m pytest -q -n auto`, trừ khi cấu hình tắt xdist; XT_JOBS=N chọn số
+#      tiến trình (1 = `pytest -q` tuần tự; trần 4×số nhân). unittest giữ `discover` tuần tự.
 #   3) NO-OP: không có gì khớp → in thông báo skip, exit 0 (KHÔNG làm gãy dự án nào).
 #      Ngoại lệ (ADR-0011): autopilot đang chạy (.autopilot/state.json "active": true) mà `lint`/`test`
 #      rỗng hoặc là lệnh không kiểm gì (true, :, exit 0, echo …) → ĐỎ. Cổng rỗng không phải bằng chứng.
 #
 # Task hỗ trợ: format | lint | typecheck | test | build | gate | gate-par | gate-fast | test-shard | test-combine |
 #   test-weights | test-mode | e2e-mode | e2e | require | setup
-#   gate = chạy tuần tự build→typecheck→lint→test (cái nào phân giải được), đỏ 1 cái → fail. Cổng đầy đủ: CI, bước
-#          mở PR, `xt.py loop record` dùng đúng lệnh này. Khai `test_floor` (lệnh, chỉ khai báo) → chạy thêm sau `test`.
+#   gate = chạy tuần tự build→typecheck→lint→test (cái nào phân giải được), đỏ 1 cái → fail. Cổng đầy đủ = CI (ADR-0056;
+#          cục bộ trước cắt bản), `xt.py loop record` dùng đúng lệnh này. Khai `test_floor` → chạy thêm sau `test`.
 #   gate-par = cùng các lệnh của `gate` nhưng chia nhóm độc lập chạy nền CÙNG LÚC (D-128, job `gate` của CI mẫu):
 #          typecheck ∥ lint ∥ build → test (→ test_floor). Guard hỏi một lần cho mọi lệnh trước khi chạy nhóm nào; mỗi
 #          nhóm log riêng, in lại nguyên khối kèm nhãn nhóm khi xong (theo thứ tự nhóm); đỏ khi nhóm nào đỏ — exit code
@@ -83,10 +85,19 @@ strip_comment() { # bỏ comment YAML: `#` ở đầu giá trị hoặc sau kho�
   done
   printf '%s' "$out"
 }
-yaml_get() { # giá trị khoá $1 trong xt.yaml; bỏ comment, rồi bỏ nháy chỉ khi bọc cả hai đầu ("..." hoặc '...')
-  local v
-  v="$(grep -E "^$1:" "$YAML" | head -1 | sed -E "s/^$1:[[:space:]]*//")"
-  strip_comment "$v" | sed -E "s/[[:space:]]+\$//; s/^\"(.*)\"\$/\\1/; s/^'(.*)'\$/\\1/"
+yaml_get() { # giá trị khoá $1 trong xt.yaml; bỏ comment, rồi bỏ nháy chỉ khi cả giá trị là MỘT chuỗi nháy
+  # ("a" "b" giữ nguyên; 'it''s' → it's — AUD-CODE-037; giống `yaml_scalar` của xt.py, test so hai bên)
+  local v q="'" two="''" dq='^"([^"\\]|\\.)*"$' sq="^'([^']|'')*'\$"
+  # khoá trùng: dòng cuối thắng như `_yaml_keys` của xt.py (AUD-XFEAT-002; `doctor` báo lỗi khoá trùng)
+  v="$(grep -E "^$1:" "$YAML" | tail -1 | sed -E "s/^$1:[[:space:]]*//")"
+  v="$(strip_comment "$v" | sed -E 's/[[:space:]]+$//')"
+  if [[ $v =~ $dq ]]; then
+    v="${v:1:${#v}-2}"
+  elif [[ $v =~ $sq ]]; then
+    v="${v:1:${#v}-2}"
+    v="${v//$two/$q}"
+  fi
+  printf '%s\n' "$v"
 }
 declared_cmd() {
   # In ra lệnh khai báo cho $1 nếu có, ngược lại rỗng. xt.yaml (phẳng) ưu tiên hơn file bash.
@@ -114,9 +125,62 @@ node_has_script() {
   fi
 }
 
+ncpu() { nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2; }
+test_jobs() { # số tiến trình pytest-xdist: XT_JOBS nguyên dương (trần 4×số nhân), rác/không đặt → `auto`; log khi DT_HINT=1
+  local j="${XT_JOBS:-}" cap
+  cap=$(( $(ncpu) * 4 ))
+  if [[ "$j" =~ ^[1-9][0-9]{0,5}$ ]]; then
+    if [ "$j" -gt "$cap" ]; then
+      [ "${DT_HINT:-}" = 1 ] && log "XT_JOBS=$j vượt trần 4×số nhân — dùng $cap"
+      j="$cap"
+    fi
+    printf '%s' "$j"; return 0
+  fi
+  [ -n "$j" ] && [ "${DT_HINT:-}" = 1 ] && log "XT_JOBS='$j' không phải số nguyên dương — dùng mặc định (auto)"
+  printf 'auto'
+}
+pytest_xdist_off() { # 0 = tắt xdist có chủ ý: PYTEST_DISABLE_PLUGIN_AUTOLOAD, PYTEST_ADDOPTS hoặc cấu hình pytest ở ROOT có `no:xdist`
+  [ -n "${PYTEST_DISABLE_PLUGIN_AUTOLOAD:-}" ] && return 0
+  case "${PYTEST_ADDOPTS:-}" in *no:xdist*) return 0 ;; esac
+  local f
+  for f in pytest.ini .pytest.ini pytest.toml .pytest.toml pyproject.toml tox.ini setup.cfg; do
+    [ -f "$ROOT/$f" ] && grep -q 'no:xdist' "$ROOT/$f" 2>/dev/null && return 0
+  done
+  return 1
+}
+python_test_cmd() { # lệnh test Python tự dò; DT_HINT=1 (run_task) → log gợi ý/XT_JOBS đúng một lần mỗi lần chạy
+  local j rc=0
+  if command -v pytest >/dev/null 2>&1; then
+    if pytest_xdist_off; then echo "pytest -q"; return 0; fi
+    # `python3 -P -m pytest`: đúng interpreter vừa tìm thấy xdist (xdist phụ thuộc pytest) — `pytest` trên PATH có thể
+    # là pipx/venv khác không có xdist → `-n` lỗi "unrecognized arguments". `-P` (Python ≥ 3.11): không thêm cwd vào
+    # sys.path, như `pytest` — mô-đun ở gốc (`pytest.py`, `_pytest/`, `pluggy.py`, `argparse.py`…) không che pytest
+    # (D-371, review #446). Dò xdist cũng với `-P`; python3 < 3.11 không có `-P` (exit 2) → `pytest -q` như trước #444.
+    python3 -P -c 'import importlib.util as u,sys; sys.exit(u.find_spec("xdist") is None)' >/dev/null 2>&1 || rc=$?
+    if [ "$rc" = 0 ]; then
+      j="$(test_jobs)"
+      if [ "$j" = 1 ]; then echo "pytest -q"; else echo "python3 -P -m pytest -q -n $j"; fi
+      return 0
+    fi
+    if [ "$rc" = 2 ]; then
+      [ "${XT_JOBS:-}" != 1 ] && [ "${DT_HINT:-}" = 1 ] \
+        && log "python3 không có '-P' (< 3.11) — chạy 'pytest -q', không '-n' (cần Python ≥ 3.11 để chạy song song)"
+      echo "pytest -q"; return 0
+    fi
+    [ "${XT_JOBS:-}" != 1 ] && [ "${DT_HINT:-}" = 1 ] \
+      && log "gợi ý: cài pytest-xdist để chạy test song song theo số nhân (XT_JOBS=1: tuần tự, không gợi ý)"
+    echo "pytest -q"; return 0
+  fi
+  # unittest: `discover` tuần tự như cũ (D-369) — bộ chia theo module tự viết sai với setUpClass/setUpModule skip,
+  # load_tests, FunctionTestCase, lớp test định nghĩa ở module khác.
+  [ -d "$ROOT/tests" ] && echo "python3 -m unittest discover -s tests"
+  return 0
+}
+
 detected_cmd() {
-  # In ra lệnh tự-dò cho task $1, hoặc rỗng nếu không dò được.
-  local t="$1" pm
+  # In ra lệnh tự-dò cho task $1, hoặc rỗng nếu không dò được. Go (`go test` song song theo gói), Rust (`cargo test`
+  # song song theo luồng) và Node (jest/vitest dùng worker) đã chạy song song mặc định — giữ nguyên lệnh.
+  local t="$1" pm c
   # Node/JS: ưu tiên script cùng tên trong package.json
   if [ -f "$ROOT/package.json" ] && node_has_script "$t"; then
     pm="$(node_pm)"; echo "$pm run $t"; return 0
@@ -129,8 +193,7 @@ detected_cmd() {
       lint)      command -v ruff >/dev/null 2>&1 && { echo "ruff check ."; return 0; } ;;
       typecheck) command -v pyright >/dev/null 2>&1 && { echo "pyright"; return 0; }
                  command -v mypy >/dev/null 2>&1 && { echo "mypy ."; return 0; } ;;
-      test)      command -v pytest >/dev/null 2>&1 && { echo "pytest -q"; return 0; }
-                 [ -d "$ROOT/tests" ] && { echo "python3 -m unittest discover -s tests"; return 0; } ;;
+      test)      c="$(python_test_cmd)"; [ -n "$c" ] && { echo "$c"; return 0; } ;;
     esac
   fi
   # Go
@@ -248,7 +311,7 @@ run_counted() { # $@=lệnh như sau `bash -o pipefail -c` → exit của lệnh
 
 RAN=0
 run_task() { # $1=task -> chạy; 0 nếu ok hoặc no-op, khác 0 nếu lệnh fail hoặc no-op trong autopilot
-  local cmd; cmd="$(resolve "$1")"
+  local cmd; cmd="$(DT_HINT=1 resolve "$1")" # gợi ý của lệnh tự dò in ở lần phân giải này (guard_turn không in)
   if loop_noop "$1" "$cmd"; then return 3; fi
   if [ -z "$cmd" ]; then log "skip: chưa cấu hình/dò được '$1'"; return 0; fi
   RAN=$((RAN + 1))
@@ -266,7 +329,8 @@ run_task() { # $1=task -> chạy; 0 nếu ok hoặc no-op, khác 0 nếu lệnh 
 changed_files() { # file đổi so với HEAD (theo gốc dự án) + file mới chưa ignore; không phải repo git/chưa có HEAD → 1
   git -C "$ROOT" rev-parse -q --verify HEAD >/dev/null 2>&1 || return 1
   # core.quotePath=false: tên file Unicode (tiếng Việt) ra nguyên văn, không thành "\303\241…" có nháy.
-  { git -C "$ROOT" -c core.quotePath=false diff --relative --name-only HEAD -- &&
+  # --no-renames: đổi tên giữ cả tên cũ để chọn đúng test của file cũ (như pre-bash-guard.sh — review #321).
+  { git -C "$ROOT" -c core.quotePath=false diff --no-renames --relative --name-only HEAD -- &&
     git -C "$ROOT" -c core.quotePath=false ls-files --others --exclude-standard; } | sort -u
 }
 fast_test_task() { # in task test cho gate-fast: test_fast nếu có lệnh thật và biết file đổi, ngược lại test
@@ -364,7 +428,7 @@ test_shard() { # $1=I (1..N) $2=N [$3=thư mục dữ liệu coverage]
   pick="$(printf '%s\n' "$ids" | shard_pick "$i" "$n")" || return $?
   [ -n "$pick" ] || { log "test-shard: shard $i/$n rỗng (chỉ $total id) — giảm N"; return 1; }
   log "test-shard $i/$n: $(printf '%s\n' "$pick" | grep -c .)/$total id"
-  printf '%s\n' "$pick" | (cd "$ROOT" && run_counted xargs -r -P "$(nproc 2>/dev/null || echo 2)" -n 1 bash -o pipefail -c "$unit" _)
+  printf '%s\n' "$pick" | (cd "$ROOT" && run_counted xargs -r -P "$(ncpu)" -n 1 bash -o pipefail -c "$unit" _)
 }
 test_weights() { # đo lại `test_weights` bằng `test_list` + `test_unit` (coverage vào thư mục tạm, như job `test` của CI)
   local list unit w ids d rc

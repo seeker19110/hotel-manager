@@ -3,7 +3,7 @@ title: Phản hồi về khung từ dự án đích
 kind: module
 prefix: LOOP-FB
 applies_to: [all]
-updated: 2026-10-17
+updated: 2026-11-02
 ---
 
 # Phản hồi về khung từ dự án đích
@@ -22,7 +22,8 @@ updated: 2026-10-17
    dùng, không tên khách hàng, không bí mật. `xt.py feedback` gộp một dòng và lọc bí mật bằng `redact`, nhưng người viết
    vẫn chịu trách nhiệm nội dung.
 4. **Máy gom tín hiệu có sẵn.** MUST bị miễn trong blueprint và lý do autopilot bị chặn là dữ liệu khung cần; `feedback
-   collect` gom chúng, không trùng.
+   collect` gom chúng, không trùng. FB `mien-tru` chỉ ghi ID + tóm tắt chuẩn hoá, **không chép lý do miễn trừ** (lý do
+   chứa dữ liệu dự án); khử trùng theo (loại, ID).
 5. **Khung kéo về, không để dự án đẩy sang.** Dự án đích không cần token ghi vào repo khác; repo khung đọc
    `docs/xtemplates-feedback/` của các dự án trong `docs/ops/TARGETS.md` và mở **PR nháp** — người duyệt trước khi công khai.
 6. **Đổi khung khi có bằng chứng.** Một nhóm phản hồi (cùng loại + ID) đủ ngưỡng sửa khi ≥ 2 dự án cùng báo hoặc có bước
@@ -35,7 +36,7 @@ updated: 2026-10-17
 | `cong-cu` | `xt.py`/`install.py`/`dev-task.sh` crash, sai kết quả, thiếu tính năng chặn việc | tên lệnh, vd `xt.py loop record` |
 | `hook-chan-nham` | Hook `deny`/`ask` một lệnh hoặc file vô hại | tên hook, vd `pre-bash-guard` |
 | `hook-lot` | Hook để lọt hành động lẽ ra phải chặn/hỏi | tên hook |
-| `muc-sai` | Mục checklist sai, mơ hồ, *Kiểm* không chạy được, mức không hợp quy mô | ID mục, vd `SEC-AUTH-001` |
+| `muc-sai` | Mục checklist sai, mơ hồ, *Kiểm* không chạy được, mức không hợp quy mô | ID mục, vd `SEC-WEB-001` |
 | `tai-lieu` | Tài liệu/mẫu/skill thiếu hoặc dẫn sai | đường dẫn file |
 | `mien-tru` | (máy gom) MUST bị miễn trong `BLUEPRINT.md` | ID mục |
 | `bi-chan` | (máy gom) autopilot `blocked` | task hoặc `loop` |
@@ -76,6 +77,6 @@ người duyệt → PR sửa khung theo từng nhóm đủ ngưỡng. Người 
 
 ## Nguồn
 
-- ADR-0010 (`docs/adr/0010-feedback-from-target-projects.md` của repo khung) — chủ repo yêu cầu 2026-10-15.
+- ADR-0010 (`docs/adr/0010-feedback-from-target-projects.md` của repo khung; <https://github.com/seeker19110/X-Templates/blob/main/docs/adr/0010-feedback-from-target-projects.md>) — chủ repo yêu cầu 2026-10-15; xác minh 2026-10-23.
 - `scripts/xt.py` (`feedback_entries`, `write_feedback`, `feedback_aggregate`, `redact`, `redact_feedback` — che cả tên người dùng trong đường dẫn home) và `tests/test_xt_cli.py` `FeedbackTest` — đọc 2026-10-15.
 - Catalog `seeker19110/stored` 23 §4.2, §8 (X-Scanner: adoption pin SHA; thiếu `auto-complete-guard.sh` do adopt trước #287 — drift khung ↔ đích) — đọc 2026-10-16.

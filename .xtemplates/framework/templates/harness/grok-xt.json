@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Write|Edit|MultiEdit|write_file|run_terminal_command|search_replace|.*__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -I -B \"$(git rev-parse --show-toplevel)/.xtemplates/scripts/xt_adapter.py\" grok",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

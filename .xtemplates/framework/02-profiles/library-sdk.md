@@ -4,7 +4,7 @@ kind: profile
 slug: library-sdk
 prefix: PRF-LIB
 modules: [04-standards/*, 05-architecture/*, 08-backend/reliability-and-errors, 10-workflow/*, 11-autonomous-loop/*, 12-security/*, 14-testing-quality/*, 15-operations/maintenance-and-lifecycle, 16-compliance-privacy/*, 17-product-project/*, 18-cross-cutting/*]
-updated: 2026-10-16
+updated: 2026-11-02
 ---
 
 # Hồ sơ: Thư viện / SDK / package
@@ -58,7 +58,7 @@ Xác minh ngày **2026-10-13** — **xác minh lại trước khi dùng**.
 - [ ] `PRF-LIB-002` **MUST** API surface công khai được **liệt kê tường minh** (`exports` map/`__all__`/`pub`) và có **API report** commit trong repo; PR làm đổi report phải gắn nhãn `breaking` hoặc `feature`. → Kiểm: `api-extractor run` (hoặc `cargo semver-checks`) trong CI; diff report ≠ rỗng mà không có nhãn → đỏ.
 - [ ] `PRF-LIB-003` **MUST** Breaking change đi kèm: ghi chú nâng cấp (migration guide), deprecation warning ở ≥ 1 MINOR trước (khi khả thi), codemod cho thay đổi cơ học lớn. → Kiểm: mục `Removed`/`Changed` trong CHANGELOG trỏ guide; test deprecation warning phát ra ở bản trước.
 - [ ] `PRF-LIB-004` **MUST** Type definitions đúng cho mọi cách tiêu thụ: ESM + CJS (hoặc ESM-only có ghi rõ), `exports` có `types` đúng điều kiện, không `any` ở API công khai. → Kiểm: `publint` 0 lỗi; `attw --pack` 0 vấn đề (không "Masquerading as CJS/ESM", không "FalseExportDefault"); `tsc --noEmit` trên project mẫu import package đã pack.
-- [ ] `PRF-LIB-005` **MUST** Publish qua OIDC (npm trusted publishing / PyPI Trusted Publishers) với **provenance/attestation**; không token dài hạn trong CI; `repository` trong manifest khớp repo thật; 2FA bắt buộc cho tài khoản publish. → Kiểm: `npm audit signatures` xanh trên bản đã publish; workflow có `permissions: id-token: write` và không có `NPM_TOKEN`; PyPI project hiện publisher. · Nguồn: npm provenance docs; PyPI trusted publishers; SLSA v1.2
+- [ ] `PRF-LIB-005` **MUST** Hồ sơ thư viện nâng `SEC-SUPPLY-021` ([`../12-security/supply-chain.md`](../12-security/supply-chain.md), nhà — SHOULD) lên MUST: publish qua OIDC với **provenance/attestation**; `repository` trong manifest khớp repo thật; 2FA bắt buộc cho tài khoản publish. → Kiểm: `npm audit signatures` xanh trên bản đã publish; workflow có `permissions: id-token: write` và không có `NPM_TOKEN`; PyPI project hiện publisher. · Nguồn: npm provenance docs; PyPI trusted publishers; SLSA v1.2
 - [ ] `PRF-LIB-006` **MUST** Ma trận phiên bản hỗ trợ ghi trong README + `engines`/`requires-python`/`rust-version` và CI test **đúng ma trận đó** (ít nhất bản thấp nhất và cao nhất). → Kiểm: workflow matrix khớp bảng README; `engines.node` tồn tại; `pnpm install --engine-strict` qua. · Nguồn: endoflife.date (chọn phiên bản còn hỗ trợ)
 - [ ] `PRF-LIB-007` **MUST** Không side effect khi import: không log, không đọc env/file, không fetch, không patch global; `sideEffects: false` (hoặc liệt kê file có) để tree-shake. → Kiểm: test `import` package rồi assert không có output/console/network; `package.json` có `sideEffects`.
 - [ ] `PRF-LIB-008` **MUST** Dependency tối thiểu: không kéo framework vào `dependencies` (dùng `peerDependencies` + `peerDependenciesMeta`), không dependency chỉ cho dev vào runtime, không ghim chặt `=x.y.z` dependency runtime trừ lý do bảo mật có ghi. → Kiểm: `knip` 0 dep thừa; script kiểm `dependencies` không chứa `react|vue|typescript|@types/*`; kích thước install (`npm pack --dry-run`) có ngân sách.

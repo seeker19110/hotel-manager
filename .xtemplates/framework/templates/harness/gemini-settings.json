@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "BeforeTool": [
+      {
+        "matcher": "run_shell_command|write_file|replace|mcp_.*",
+        "hooks": [
+          {
+            "name": "xt-guard",
+            "type": "command",
+            "command": "python3 -I -B \"$GEMINI_PROJECT_DIR/.xtemplates/scripts/xt_adapter.py\" gemini",
+            "timeout": 30000
+          }
+        ]
+      }
+    ]
+  }
+}

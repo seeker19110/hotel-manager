@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# xtemplates-git-hook v1 — pre-commit: cổng commit theo `commit_gate` của xt.yaml (fast → gate-fast, full → gate).
+# Sàn chung cho MỌI agent và người, kể cả công cụ không có hook chặn (ADR-0064 lát C). `install.py` cài khi chưa có hook
+# của dự án, không đè hook người dùng. Phiên Claude Code có hook Bash của khung đã chạy cổng trước `git commit` → bỏ qua
+# để không chạy hai lần (D-309; biến môi trường là lời khai — sàn này đỡ sai sót, không phải hàng rào chống lách).
+set -euo pipefail
+root=$(git rev-parse --show-toplevel)
+xt="$root/.xtemplates/scripts"
+[ -x "$xt/dev-task.sh" ] || exit 0 # khung chưa cài/đã gỡ: không chặn
+if [ -n "${CLAUDECODE:-}" ] && [ -f "$root/.claude/hooks/pre-bash-guard.sh" ]; then
+  exit 0
+fi
+# xt.py lỗi/giá trị lạ → cổng đầy đủ, như `commit_gate_mode` (vắng/lạ = full; AUD-HAR-206)
+case "$(python3 "$xt/xt.py" commit-gate 2>/dev/null || echo full)" in
+  fast) task=gate-fast ;;
+  *) task=gate ;;
+esac
+CLAUDE_PROJECT_DIR="$root" exec "$xt/dev-task.sh" "$task"

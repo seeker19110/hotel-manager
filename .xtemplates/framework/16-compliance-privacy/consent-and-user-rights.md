@@ -3,7 +3,7 @@ title: Đồng ý, quyền chủ thể dữ liệu (truy cập/xoá/di chuyển)
 kind: module
 prefix: CMP-RIGHTS
 applies_to: [web-app, mobile-app, desktop-app, static-site, game, api-service, ai-agent, agentic-system, data-ml, monorepo, blockchain]
-updated: 2026-10-14
+updated: 2026-11-04
 ---
 
 # Đồng ý, quyền chủ thể dữ liệu (truy cập/xoá/di chuyển), cookie, trẻ em
@@ -44,7 +44,7 @@ chỉ nạp sau khi service trả `granted` cho mục đích tương ứng; DSAR
 - [ ] `CMP-RIGHTS-001` **MUST** Bản ghi đồng ý lưu `subject_id, purpose_id, policy_version, granted_at, channel, ui_snapshot_hash, withdrawn_at`; truy vấn được theo người dùng; không sửa tại chỗ (append). → Kiểm: schema bảng; test ghi/rút tạo bản ghi mới; export theo người dùng. · Nguồn: GDPR Art. 7(1); Luật 91/2025/QH15 Đ.9
 - [ ] `CMP-RIGHTS-002` **MUST@L** Mọi ô đồng ý mặc định chưa chọn, tách theo mục đích, nút "từ chối"/"chỉ cần thiết" ngang hàng và cùng bước với "đồng ý". → Kiểm: test E2E snapshot trạng thái mặc định; kiểm cấu trúc DOM 2 nút cùng cấp; không có nút từ chối ẩn sau "tuỳ chỉnh". · Nguồn: Luật 91/2025/QH15 Đ.9; GDPR Art. 4(11), Art. 7(4); NĐ 330/2026 Đ.43
 - [ ] `CMP-RIGHTS-003` **MUST** Script/SDK theo dõi (analytics, ads, session replay, pixel) chỉ nạp **sau** khi đồng ý mục đích tương ứng; từ chối → không có request ra ngoài. → Kiểm: test Playwright chặn mạng: trước khi đồng ý, 0 request tới domain tracker; cookie theo dõi không được đặt. · Nguồn: ePrivacy Directive 2002/58/EC Art. 5(3); Luật 91/2025/QH15 Đ.29
-- [ ] `CMP-RIGHTS-004` **MUST** Rút đồng ý có cùng số bước/vị trí như cho; rút → dừng xử lý mục đích đó ≤ thời hạn luật (VN: không quá 72 giờ theo NĐ 356/2025 — chưa xác minh số điều) và lan tới bên thứ ba. → Kiểm: test E2E rút tiếp thị → email tiếp thị không còn gửi; webhook/API tới nhà cung cấp email cập nhật. · Nguồn: Luật 91/2025/QH15 Đ.10; GDPR Art. 7(3)
+- [ ] `CMP-RIGHTS-004` **MUST** Rút đồng ý có cùng số bước/vị trí như cho; rút → dừng xử lý mục đích đó ≤ thời hạn luật (VN: mốc theo [`CMP-VN-007`](vietnam-data-law.md), không chép số ở đây) và lan tới bên thứ ba. → Kiểm: test E2E rút tiếp thị → email tiếp thị không còn gửi; webhook/API tới nhà cung cấp email cập nhật. · Nguồn: Luật 91/2025/QH15 Đ.10; GDPR Art. 7(3); NĐ 356/2025 (nguồn và ngày tra: `CMP-VN-007`)
 - [ ] `CMP-RIGHTS-005` **MUST@L** Thông báo xử lý (privacy notice) hiển thị **trước** thu thập, có phiên bản; phiên bản người dùng đã đồng ý được lưu; thay đổi lớn → hỏi lại. → Kiểm: `policy_version` trong consent khớp phiên bản hiện hành; test đổi phiên bản → prompt lại. · Nguồn: Luật 91/2025/QH15 Đ.9, Đ.11; GDPR Art. 13
 - [ ] `CMP-RIGHTS-006` **MUST@L** Quyền truy cập/sao chép dữ liệu: người dùng tự phục vụ lấy toàn bộ dữ liệu về mình (gồm dữ liệu suy luận) ở định dạng máy đọc được (JSON/CSV) trong thời hạn luật (GDPR 1 tháng; VN theo NĐ 356 — chưa xác minh số điều). → Kiểm: endpoint/job export có test; đối chiếu danh sách kho trong data map. · Nguồn: GDPR Art. 15, 20; Luật 91/2025/QH15 Đ.4
 - [ ] `CMP-RIGHTS-007` **MUST** Quyền xoá: tự phục vụ, xác thực lại trước khi xoá, lan tới mọi kho và bên xử lý; trường hợp từ chối (nghĩa vụ pháp lý lưu) phải nêu căn cứ và chỉ giữ phần bắt buộc. → Kiểm: mục CMP-PRIV-005; test xoá tài khoản có dữ liệu phải giữ (hoá đơn) → PII ngoài hoá đơn bị xoá, hoá đơn giữ với lý do. · Nguồn: GDPR Art. 17; Luật 91/2025/QH15 Đ.14

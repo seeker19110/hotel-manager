@@ -1,7 +1,7 @@
 ---
 title: Phương pháp của khung
 kind: index
-updated: 2026-10-14
+updated: 2026-10-25
 ---
 
 # 00 — Phương pháp
@@ -15,4 +15,4 @@ updated: 2026-10-14
 | [`composition.md`](composition.md) | Ghép baseline + hồ sơ + ngành thành `BLUEPRINT.md` | G1 — sau khi phân loại dự án |
 | [`evidence-and-sources.md`](evidence-and-sources.md) | 13 luật chống ảo giác, bằng chứng do máy ghi, mẫu ghi nguồn | Luôn; khi viết tài liệu có số liệu/phiên bản |
 | [`conventions.md`](conventions.md) | Hợp đồng định dạng module (frontmatter, ID, mức, cấu trúc) | Khi viết/sửa file trong `framework/` |
-| [`audit.md`](audit.md) | Audit 13 nhóm: phạm vi, mức, bằng chứng, xác minh đối kháng, quét lại theo diff, Definition of Complete | Nhận dự án có sẵn; trước phát hành; định kỳ; `/audit` |
+| [`audit.md`](audit.md) | Audit 13 nhóm: phạm vi, mức, bằng chứng, xác minh đối kháng, quét lại theo diff, Definition of Complete | Nhận dự án có sẵn; trước phát hành; định kỳ; `/audit`, `/complete` |

@@ -3,7 +3,7 @@ title: Repo, phiên bản và lịch sử thay đổi
 kind: baseline
 prefix: BASE-REPO
 applies_to: [all]
-updated: 2026-10-20
+updated: 2026-11-01
 ---
 
 # Repo, phiên bản và lịch sử thay đổi
@@ -38,7 +38,7 @@ updated: 2026-10-20
 - [ ] `BASE-REPO-002` **MUST** Có `.gitignore` phù hợp stack; không commit artefact build, `node_modules/`, `.venv/`, file IDE, file `.env*` chứa giá trị thật. → Kiểm: `git ls-files | grep -E '(^|/)(node_modules|dist|build|\.venv)/|(^|/)\.env($|\.)' | grep -vE '(^|/)\.env\.example$'` ra 0 dòng (`.env.example` được commit theo [`BASE-CFG-003`](configuration-and-secrets.md)); hook pre-commit chặn file bị ignore. · Nguồn: 12-factor III
 - [ ] `BASE-REPO-003` **MUST** Có `.gitattributes` với `* text=auto` (và `eol=lf` cho script shell) để line ending không khác nhau giữa Windows/macOS/Linux. → Kiểm: file `.gitattributes` tồn tại; `git ls-files --eol | grep 'w/crlf'` chỉ ra file được khai báo `eol=crlf` tường minh. · Nguồn: git gitattributes `text`/`eol`
 - [ ] `BASE-REPO-004` **MUST** Có file `LICENSE` ở gốc (kể cả repo riêng tư: ghi rõ "Proprietary"/chủ sở hữu) và trường license trong manifest gói khớp với file. → Kiểm: `LICENSE` tồn tại; `package.json`/`pyproject.toml`/`Cargo.toml` có `license` là SPDX id (hoặc `UNLICENSED`/`LicenseRef-Proprietary`) khớp. · Nguồn: SPDX License List 3.29.0; OpenSSF Badge `license_location`
-- [ ] `BASE-REPO-005` **MUST** Commit message theo **Conventional Commits 1.0.0**: `type(scope)!: mô tả`, `BREAKING CHANGE:` footer khi vỡ tương thích; subject ≤ 72 ký tự. → Kiểm: commitlint (hoặc regex trong hook `commit-msg`) chạy ở local và lặp lại trong CI trên mọi commit của PR. · Nguồn: Conventional Commits 1.0.0 §1, §12–13
+- [ ] `BASE-REPO-005` **MUST** Commit message theo **Conventional Commits 1.0.0**: `type(scope)!: mô tả`, `BREAKING CHANGE:` footer khi vỡ tương thích; subject ≤ 100 ký tự. → Kiểm: commitlint (hoặc regex trong hook `commit-msg`) chạy ở local và lặp lại trong CI trên mọi commit của PR. · Nguồn: số 100 theo chủ dự án 2026-11-01 (spec không quy định độ dài; commitlint `header-max-length` 100 — chưa xác minh); Conventional Commits 1.0.0 §1, §12–13
 - [ ] `BASE-REPO-006` **MUST** Mỗi phiên bản phát hành có **một định danh duy nhất** theo SemVer 2.0.0 hoặc CalVer đã chọn, ghi trong một nguồn duy nhất (manifest gói hoặc file `VERSION`) và gắn **annotated tag** trùng giá trị. → Kiểm: `git tag -l 'v*'` có tag cho bản mới nhất; `git cat-file -t <tag>` = `tag`; giá trị trong manifest == tag. · Nguồn: SemVer 2.0.0 §2–8; OpenSSF Badge `version_unique`, `version_tags`
 - [ ] `BASE-REPO-007` **MUST** Có `CHANGELOG.md` theo Keep a Changelog 1.1.0: mục `Unreleased` ở đầu, mỗi bản có ngày ISO 8601 (`YYYY-MM-DD`), nhóm Added/Changed/Deprecated/Removed/Fixed/Security, bản mới nhất trước; ghi chú người đọc được, không dán `git log`. → Kiểm: CI kiểm `CHANGELOG.md` có heading `## [Unreleased]` và heading bản mới nhất trùng tag; hoặc file sinh bởi release-please/git-cliff trong PR phát hành. · Nguồn: Keep a Changelog 1.1.0; OpenSSF Badge `release_notes`
 - [ ] `BASE-REPO-008` **MUST** Nhánh mặc định được bảo vệ: không force-push, không xoá, mọi thay đổi qua PR (kể cả làm một mình). → Kiểm: ruleset/branch protection đọc qua API (`gh api repos/{o}/{r}/rulesets`) có `non_fast_forward`, `deletion`, `pull_request`; cấu hình lưu dạng code trong `.github/rulesets/*.json`. · Nguồn: GitHub rulesets; Scorecard Branch-Protection

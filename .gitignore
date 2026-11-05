@@ -47,3 +47,6 @@ Thumbs.db
 
 # Worktree tạm của subagent Claude Code (isolation: worktree) — không thuộc repo.
 .claude/worktrees/
+
+# X-Templates: trạng thái autopilot cục bộ, settings cá nhân
+.claude/settings.local.json

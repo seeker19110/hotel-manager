@@ -48,7 +48,7 @@ test_fast: "pnpm exec vitest related --run --project unit --passWithNoTests $XT_
 # merge_hard_exceptions: human
 delivery_phase: harden
 # e2e_affected: ""      # chỉ spec của lát đang làm (Gate mỗi task); trống = e2e
-# pr_title_check: ""    # off = không đòi tiêu đề PR `<type>(scope): mô tả` ≤ 72 ký tự
+# pr_title_check: ""    # off = không đòi tiêu đề PR `<type>(scope): mô tả` ≤ 100 ký tự
 
 # Khoá mới của khung (bản 3.12.0 (5b8b8a6)) — bật bằng cách bỏ "# "; vắng khoá = hành vi cũ
 # e2e_setup: ""         # trước e2e: cài trình duyệt (vd npx playwright install --with-deps chromium)
@@ -61,3 +61,14 @@ attack: "bash scripts/dast.sh"
 # Kiểm tải (`perf`): k6 room-list có thresholds p95/p99 + tỷ lệ lỗi (vượt = đỏ) và quét PII log server; cùng script với job `k6` của
 # perf-nightly.yml. Chỉ tải vào app tạm 127.0.0.1; kết quả ra `mktemp -d` (PERF_OUT đổi được).
 perf: "bash scripts/perf-load.sh"
+
+# Khoá mới của khung (bản 3.30.0 (454d146)) — bật bằng cách bỏ "# "; vắng khoá = hành vi cũ
+# migration_check: ""   # cổng production (ADR-0062): migration tiến + lùi trên bản sao dữ liệu/staging
+# rollback: ""          # cổng production: diễn tập quay về bản trước (tag/artifact cũ + migration lùi)
+# acceptance: ""        # cổng production: kiểm thử nghiệm thu theo tiêu chí chấp nhận (UAT tự động)
+# preview: ""           # cách chạy thử bản trình người duyệt (`xt.py stage submit` ghi lại — ADR-0058); vd npm run preview
+# preview_smoke: ""     # Gate bản trình: `stage submit` chạy (qua guard), exit ≠ 0 → không trình (D-247); vd npm run build && npx playwright test smoke
+# harness_permissions: ""   # own = install.py giữ quyền + dạng lệnh hook của dự án (không thêm allow/deny khung)
+# max_rethink: 1              # trần `pr rethink` mỗi PR (ADR-0061): hết → `pr next` trả `split-or-close`; 0 = không trần; vắng khoá = 1
+# author_effort: ""           # low|medium|high|xhigh|max — reviewer cùng họ model phải effort cao hơn tác giả (D-161, LOOP-ORCH-005)
+# reviewer_effort: ""

@@ -8,16 +8,20 @@
 # protection-guard). Các repo cùng tài khoản dùng chung trần job đồng thời: job ngắn tách riêng làm job dài xếp hàng chờ
 # runner — không tách lại build/typecheck/lint/test thành job riêng.
 # Ruleset mẫu (D-116, D-117, D-122) chỉ đòi 2 check: `quality`, `gitleaks` (secret-scan.yml), không đòi "up to date" — PR
-# merge song song, lỗi kết hợp hai PR bị CI trên push `main` bắt (merge của steward cần `XT_STEWARD_TOKEN` mới kích push,
-# xem pr-steward.yml). Thêm kiểm ngắn (vd `dep-audit` theo ngôn ngữ): thêm BƯỚC vào `gate`; thêm job dài và độc lập
+# merge song song, lỗi kết hợp hai PR bị CI trên `main` bắt (merge của steward: `push` khi có `XT_STEWARD_TOKEN`,
+# không thì steward gọi `workflow_dispatch` — xem pr-steward.yml). Thêm kiểm ngắn (vd `dep-audit` theo ngôn ngữ): thêm BƯỚC vào `gate`; thêm job dài và độc lập
 # (DAST, Lighthouse…): thêm job và tên nó vào `quality.needs` — không thêm required check.
 # Đổi tên job là required check: sửa ruleset cùng PR (bước protection-guard của `quality` đỏ).
 name: CI
 
 on:
   push: { branches: [main] }
-  # `edited`: sửa tiêu đề PR thì chạy lại bước kiểm tiêu đề.
-  pull_request: { branches: [main], types: [opened, synchronize, reopened, edited] }
+  # Không `edited`: sửa tiêu đề/thân PR không đổi SHA mà chạy lại cả CI nặng (rồi `concurrency` huỷ run cũ). Kiểm tiêu đề PR
+  # ở `pr-title.yml` (nghe `edited`, vài giây).
+  pull_request: { branches: [main], types: [opened, synchronize, reopened] }
+  # pr-steward merge bằng GITHUB_TOKEN (thiếu XT_STEWARD_TOKEN) không kích `push` → steward gọi dispatch trên nhánh đích
+  # (biến XT_CI_WORKFLOW nếu file CI đổi tên). Run dispatch chạy đủ job như `push`; đừng lọc job theo `github.event_name`.
+  workflow_dispatch: {}
 
 # Mặc định tối thiểu cho MỌI job (GITHUB_TOKEN chỉ đọc). Job nào cần hơn tự khai ở job-level.
 permissions:
@@ -61,20 +65,16 @@ jobs:
         run: python3 .xtemplates/scripts/xt.py doctor
       - name: Workflow (ghim SHA, quyền, timeout, secret trên PR) + cấu hình xt.yaml — `xt.py ci-check`
         run: python3 .xtemplates/scripts/xt.py ci-check
-      # Miễn như `merge-check`: `pr_title_check: off` trong xt.yaml, PR của bot, `Revert "…"` của GitHub.
-      - name: Tiêu đề PR theo Conventional Commits, ≤ 72 ký tự (thành tiêu đề squash)
-        if: github.event_name == 'pull_request'
-        env:
-          TITLE: ${{ github.event.pull_request.title }}
-          AUTHOR: ${{ github.event.pull_request.user.login }}
-        run: |
-          if grep -Eq "^pr_title_check:[[:space:]]*[\"']?off" xt.yaml 2>/dev/null || [[ "$AUTHOR" == *"[bot]" ]] || [[ "$TITLE" == 'Revert "'* ]]; then
-            echo "Bỏ qua kiểm tiêu đề (pr_title_check: off / bot / revert)."; exit 0
-          fi
-          if ! printf '%s' "$TITLE" | grep -Eq '^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9._/-]+\))?!?: .+$' \
-            || [ "${#TITLE}" -gt 72 ]; then
-            echo "::error::Tiêu đề PR phải dạng '<type>(scope): mô tả' và ≤ 72 ký tự: $TITLE"; exit 1
-          fi
+      # SEC-AI-018 (MUST@L)/SEC-AI-028/CMP-LIC-024: bật bằng cách tạo `prompt-assets-exempt.json` (`[]` hoặc miễn trừ có
+      # `path` + `rule` bắt buộc — id luật, `"*"` = mọi luật — + `reason` + `expires`; `path` khớp theo đoạn: `dir/*` không
+      # phủ thư mục con, dùng `dir/**`); bộ lọc injection runtime có file mẫu riêng thì thêm `--patterns <file>` (cùng nguồn sự thật).
+      # Tài liệu bảo mật/audit TRÍCH lệnh tấn công (sổ audit, ADR, runbook sự cố) sẽ khớp luật `danger` — miễn theo file,
+      # đúng luật, có lý do và hạn, không miễn cả `docs/` (AUD-SEC-360), vd:
+      #   {"path": "docs/ops/AUDIT-*.md", "rule": "danger", "reason": "sổ audit trích lệnh tái hiện", "expires": "YYYY-MM-DD"}
+      #   {"path": "docs/adr/*", "rule": "danger", "reason": "ADR trích lệnh bị chặn làm ví dụ", "expires": "YYYY-MM-DD"}
+      - name: Tài sản prompt (injection, ký tự ẩn, lệnh nguy hiểm, bí mật, bỏ hàng rào, gói/URL không ghim) — `xt.py prompt-assets-scan`
+        if: hashFiles('prompt-assets-exempt.json') != ''
+        run: python3 .xtemplates/scripts/xt.py prompt-assets-scan --exempt prompt-assets-exempt.json
 
   # E2E (QA-E2E-001, QA-E2E-029): chạy CÙNG LÚC với `gate`, không `needs` — lệnh `e2e` tự build và phục vụ (vd `webServer`
   # của Playwright). `e2e-mode`: `off` (chưa khai `e2e`) → bỏ qua; `shard` (lệnh dùng $XT_SHARD, vd

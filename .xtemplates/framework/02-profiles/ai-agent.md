@@ -4,7 +4,7 @@ kind: profile
 slug: ai-agent
 prefix: PRF-AGENT
 modules: [04-standards/*, 05-architecture/*, 08-backend/*, 09-database/*, 10-workflow/*, 11-autonomous-loop/*, 12-security/*, 13-ai-engineering/*, 14-testing-quality/*, 15-operations/*, 16-compliance-privacy/*, 17-product-project/*, 18-cross-cutting/*]
-updated: 2026-10-18
+updated: 2026-10-28
 ---
 
 # Hồ sơ: AI agent (một agent, có tool, có người giám sát)
@@ -24,8 +24,8 @@ updated: 2026-10-18
 | Chỉ gọi LLM một lần/chuỗi cố định (summarize, classify, RAG hỏi-đáp) không tool hành động | `web-app`/`api-service` + [`../13-ai-engineering/llm-app-foundations.md`](../13-ai-engineering/llm-app-foundations.md) |
 | Vòng lặp tự động cho **phát triển phần mềm** (autopilot) | không phải hồ sơ sản phẩm → [`../11-autonomous-loop/README.md`](../11-autonomous-loop/README.md) |
 
-Quy tắc đầu tiên (Anthropic, *Building effective agents*): bắt đầu từ cách đơn giản nhất — một lời gọi → workflow
-(chaining/routing/parallel/orchestrator/evaluator) → agent; chỉ nâng cấp khi đo thấy cần.
+Quy tắc đầu tiên: bắt đầu từ cách đơn giản nhất — một lời gọi + schema (Anthropic, *Building effective agents*); khi đã
+cần agent, một vòng lặp + skill/tool; chỉ thêm workflow hay agent con khi eval đo thấy cần (nhà: [`AI-AGENTIC-001`](../13-ai-engineering/agentic-systems.md)).
 
 ## Kiến trúc tham chiếu
 
@@ -85,6 +85,7 @@ Giao thức và framework chi tiết → [`../13-ai-engineering/protocols-mcp-a2
 - [ ] `PRF-AGENT-020` **SHOULD** Rate limit theo người dùng và chỉ số **cost per completed task**; cảnh báo ngân sách ở 80 %. → Kiểm: metric tồn tại; alert đã thử kích.
 - [ ] `PRF-AGENT-021` **MAY** Streaming UI (SSE/AG-UI) với `display: summarized` cho thinking; Skills đóng gói quy trình; computer use trong VM riêng, allowlist domain, xác nhận hành động hệ quả. → Kiểm: ADR ghi lựa chọn và biện pháp an toàn.
 - [ ] `PRF-AGENT-022` **MAY** Sản phẩm **nhúng CLI agent** của bên khác đặt thư mục cấu hình riêng (`CODEX_HOME`, `CLAUDE_CONFIG_DIR`…); installer không ghi vào thư mục cấu hình của công cụ khác. → Kiểm: test chạy với `HOME` tạm, hash `~/.codex`, `~/.claude` không đổi. · Nguồn: `seeker19110/stored` 19 §1b, 11 §1c (rà 2026-10-18)
+- [ ] `PRF-AGENT-023` **SHOULD** Sản phẩm khởi chạy **CLI agent của người dùng** (Claude Code, Codex…) làm động cơ: truyền allowlist tool qua cờ chính thức của CLI đó, từ chối khởi chạy khi tham số có cờ bỏ quyền (`--dangerously-skip-permissions`, `bypassPermissions`, `--yolo`, `danger-full-access`…), gọi không qua shell, môi trường con chỉ giữ biến cần; CLI không có cơ chế giới hạn tool → ghi rõ "không giới hạn được" trong UI/tài liệu thay vì chạy như CLI có giới hạn. → Kiểm: test spawn với từng cờ bỏ quyền → từ chối; test env con không có biến ngoài allowlist.
 
 ## Ánh xạ OWASP Top 10 for Agentic Applications 2026 → mục
 
@@ -139,3 +140,4 @@ Mối đe doạ chi tiết và biện pháp: [`../12-security/ai-security.md`](.
 - Phiên bản: <https://pypi.org/project/pydantic-ai/> 2.55.0, `litellm` 1.105.0, `langgraph` 1.2.15, `promptfoo` 0.124.1, `langfuse` 4.17.0, `nemoguardrails` 0.24.1, `inspect-ai` 0.3.279, `deepeval` 4.2.8, `openai-agents` 0.23.1 — xác minh 2026-10-13
 - Catalog `seeker19110/stored` mục 02 (§2, §4, §4b), 03 (§6 checklist 9 điểm), 07 (pass^k, negative control), 12 (§1, §4 bảy quy tắc) — đọc 2026-10-13; tóm tắt ở `research/2026-10-13-stored-catalog-extraction.md` §2.1, §2.4, §2.6, §2.11.
 - Catalog `seeker19110/stored` 19 §1b, 11 §1c (thư mục cấu hình riêng cho CLI agent nhúng) — rà 2026-10-18.
+- Catalog `seeker19110/stored` 11 §1d (bridge gọi Claude Code với `--tools ''` + allowlist MCP, Codex sandbox chỉ đọc, chặn cờ `--dangerously*`/`--yolo`; một runner không có cơ chế khoá tool) — đọc mã 2026-10-26, đọc catalog 2026-10-28.

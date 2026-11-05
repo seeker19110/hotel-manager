@@ -3,7 +3,7 @@ title: Phân tích tĩnh: lint, type, complexity, dead code, trùng lặp, kiế
 kind: module
 prefix: QA-STATIC
 applies_to: [all]
-updated: 2026-10-21
+updated: 2026-11-04
 ---
 
 # Phân tích tĩnh: lint, type, complexity, dead code, trùng lặp, kiến trúc
@@ -56,7 +56,7 @@ Mặc định cho repo mới: **Biome + TypeScript strict + knip + jscpd + depen
 - [ ] `QA-STATIC-018` **MAY** Ngừng dùng 2026-10-14 — gộp vào [`LOOP-HARNESS-004`](../11-autonomous-loop/harness-files.md)/[`005`](../11-autonomous-loop/harness-files.md) (`PROGRESS.md` tươi bằng máy: SHA tổ tiên HEAD); hợp đồng repo kiểm bằng `xt.py validate`.
 - [ ] `QA-STATIC-019` **MAY** SonarQube Community Build tự host làm bảng tổng hợp khi đội > 1; không thay cổng CI.
 - [ ] `QA-STATIC-020` **MAY** Fitness function AST tự viết cho quy tắc riêng (vd mọi route có kiểm quyền; SQL chạm PII phải nhận context) khi lint sẵn không đủ.
-- [ ] `QA-STATIC-021` **SHOULD** Mỗi luật/cổng tự viết (semgrep, ESLint, script `check:*`) có fixture xấu phải fail và fixture tốt phải pass, chạy trong CI. Nâng thành **MUST@L** khi cổng nằm trong required check. → Kiểm: `semgrep --test`, ESLint `RuleTester`, script chạy trên `fixtures/bad.*` cho exit ≠ 0 và trên `fixtures/good.*` cho exit 0. · Nguồn: stored 06 §7f (self-test 205 luật), §7b (fixture "plausible-wrong")
+- [ ] `QA-STATIC-021` **SHOULD** Mỗi luật/cổng tự viết (semgrep, ESLint, script `check:*`) có fixture xấu phải fail và fixture tốt phải pass, chạy trong CI. Nâng thành **MUST@L** khi cổng nằm trong required check. Cổng có kết quả riêng cho "không đánh giá được" (thiếu công cụ, input hỏng, 0 file khớp: exit 2, CI coi là đỏ; hook giữ ngữ nghĩa exit của harness) — hợp đồng kết quả cổng: [`QA-STRAT-024`](test-strategy.md). → Kiểm: `semgrep --test`, ESLint `RuleTester`, script chạy trên `fixtures/bad.*` cho exit ≠ 0 và trên `fixtures/good.*` cho exit 0; fixture "input hỏng" và "0 file" → exit 2, job đỏ. · Nguồn: stored 06 §7f (self-test 205 luật), §7b (fixture "plausible-wrong"), 22 §9e (readcheck.mjs 0/1/2), 12 §4b (fail-open/closed) (chưa xác minh — theo stored); hook exit code: https://code.claude.com/docs/en/hooks (tra 2026-11-04)
 
 ## Bẫy thường gặp
 

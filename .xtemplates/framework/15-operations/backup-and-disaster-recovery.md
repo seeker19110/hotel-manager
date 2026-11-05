@@ -3,7 +3,7 @@ title: Sao lưu & DR: RPO/RTO, diễn tập khôi phục, multi-region
 kind: module
 prefix: OPS-DR
 applies_to: [web-app, api-service, ai-agent, agentic-system, data-ml, monorepo, blockchain, mobile-app, desktop-app, embedded-iot]
-updated: 2026-10-14
+updated: 2026-11-02
 ---
 
 # Sao lưu & DR: RPO/RTO, diễn tập khôi phục, multi-region
@@ -41,7 +41,7 @@ updated: 2026-10-14
 
 ## Checklist
 
-- [ ] `OPS-DR-001` **MUST@L** RPO/RTO **cấp dịch vụ hướng người dùng** (toàn hệ thống, không chỉ từng kho) được chốt theo quy mô trong `PROJECT.md`/ADR, là tổng hợp của RPO/RTO từng kho (`DB-BACKUP-001`) cộng thời gian dựng hạ tầng + xoay bí mật + xác minh. → Kiểm: `docs/ops/RPO-RTO.md` có hàng "dịch vụ" với RTO ≥ max(RTO kho) + thời gian dựng IaC đo từ drill. · Nguồn: NIST SP 800-34r1 (BIA cấp hệ thống)
+- [ ] `OPS-DR-001` **MUST@L** RPO/RTO **cấp dịch vụ hướng người dùng** (toàn hệ thống, không chỉ từng kho) được chốt theo quy mô trong `PROJECT.md`/ADR, là tổng hợp của RPO/RTO từng kho (`DB-BACKUP-001`) cộng thời gian dựng hạ tầng + xoay bí mật + xác minh. → Kiểm: `docs/ops/RPO-RTO.md` có hàng "dịch vụ" với RTO ≥ max(RTO kho) + thời gian dựng IaC đo từ drill. · Nguồn: NIST SP 800-34r1 (BIA cấp hệ thống) · Mẫu: [`../templates/RPO-RTO.md`](../templates/RPO-RTO.md)
 - [ ] `OPS-DR-002` **MUST@L** Danh sách phạm vi DR liệt kê **mọi** thứ cần khôi phục ngoài CSDL — object storage, queue bền, bộ nhớ agent/vector store, state IaC, bí mật/khoá, chứng chỉ, cấu hình DNS/CDN — mỗi mục có cơ chế sao lưu tự động ↔ lịch ↔ retention; CSDL chỉ trỏ `DB-BACKUP-002`. → Kiểm: `docs/ops/BACKUP-SCOPE.md`; script đối chiếu tài nguyên dữ liệu trong state IaC với bảng, thiếu = đỏ. · Nguồn: NIST SP 800-34r1; CISA 3-2-1
 - [ ] `OPS-DR-003` **MUST** Áp 3-2-1: ≥ 2 bản sao lưu, 2 hệ thống khác nhau, ≥ 1 bản ở vùng/tài khoản/nhà cung cấp khác production. → Kiểm: cấu hình replication/export sang bucket ở account id khác (IaC); liệt kê trong BACKUP-SCOPE. · Nguồn: CISA/CERT "Data Backup Options" (3-2-1)
 - [ ] `OPS-DR-004` **MUST** Backup mã hoá at-rest và in-transit; khoá mã hoá backup được sao lưu riêng (KMS multi-region/escrow) — mất khoá = mất backup. → Kiểm: cấu hình mã hoá bucket/backup; khoá KMS có bản sao/escrow ghi trong runbook; test giải mã từ tài khoản DR. · Nguồn: NIST SP 800-34r1; [`../12-security/secrets-management.md`](../12-security/secrets-management.md)

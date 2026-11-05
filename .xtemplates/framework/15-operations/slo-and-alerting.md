@@ -3,7 +3,7 @@ title: SLO, error budget, cảnh báo có thể hành động, on-call
 kind: module
 prefix: OPS-SLO
 applies_to: [web-app, api-service, ai-agent, agentic-system, data-ml, monorepo, blockchain]
-updated: 2026-10-14
+updated: 2026-11-04
 ---
 
 # SLO, error budget, cảnh báo có thể hành động, on-call
@@ -35,9 +35,9 @@ updated: 2026-10-14
 
 ## Checklist
 
-- [ ] `OPS-SLO-001` **MUST** Mỗi dịch vụ hướng người dùng có ≥ 1 SLI availability và ≥ 1 SLI latency định nghĩa dạng tỷ lệ tốt/tổng, với query cụ thể, lưu `docs/ops/SLO.md` (hoặc file sloth/OpenSLO) trong repo. → Kiểm: file SLO có query PromQL/SQL chạy được; CI validate cú pháp (sloth/OpenSLO schema). · Nguồn: Google SRE Workbook — Implementing SLOs
+- [ ] `OPS-SLO-001` **MUST** Mỗi dịch vụ hướng người dùng có ≥ 1 SLI availability và ≥ 1 SLI latency định nghĩa dạng tỷ lệ tốt/tổng, với query cụ thể, lưu `docs/ops/SLO.md` (hoặc file sloth/OpenSLO) trong repo. → Kiểm: file SLO có query PromQL/SQL chạy được; CI validate cú pháp (sloth/OpenSLO schema). · Nguồn: Google SRE Workbook — Implementing SLOs · Mẫu: [`../templates/SLO.md`](../templates/SLO.md)
 - [ ] `OPS-SLO-002` **MUST@L** SLO có mục tiêu số, cửa sổ (28/30 ngày) và error budget tính được; mục tiêu không phải 100%. → Kiểm: dashboard hiện SLO, budget còn lại (%), burn rate; mục tiêu < 100%. · Nguồn: SRE Workbook (100% là sai mục tiêu)
-- [ ] `OPS-SLO-003` **MUST@L** Chính sách error budget viết sẵn, được sản phẩm + kỹ thuật + vận hành duyệt: budget hết → đóng băng tính năng/ưu tiên tin cậy; có đường leo thang. → Kiểm: `docs/ops/ERROR-BUDGET-POLICY.md` có chữ ký ba bên (tên/ngày) và được nhắc trong GO/NO-GO. · Nguồn: SRE Workbook — error budget policy
+- [ ] `OPS-SLO-003` **MUST@L** Chính sách error budget viết sẵn, được sản phẩm + kỹ thuật + vận hành duyệt: budget hết → đóng băng tính năng/ưu tiên tin cậy; có đường leo thang. → Kiểm: `docs/ops/ERROR-BUDGET-POLICY.md` có chữ ký ba bên (tên/ngày) và GO/NO-GO đọc + ghi số budget còn lại (% còn, burn rate 28/30 ngày, ngày đo; budget âm → đóng băng hoặc ngoại lệ có ký); thiếu file SLO = NO-GO cho dịch vụ hướng người dùng (`OPS-SLO-001`); CI validate OpenSLO/sloth pass (ký ba bên, ngoại lệ có ký, NO-GO khi thiếu SLO và OpenSLO/sloth là yêu cầu của khung, không phải của nguồn). · Nguồn: SRE Workbook — error budget policy (chỉ phần: vượt budget cửa sổ 28 ngày → dừng thay đổi/phát hành trừ P0 và sửa bảo mật, bất đồng leo lên CTO): <https://sre.google/workbook/error-budget-policy/> — tra 2026-11-04
 - [ ] `OPS-SLO-004` **MUST** Cảnh báo page dựa trên burn rate nhiều cửa sổ (long + short) thay vì ngưỡng tĩnh; ít nhất 2 cặp (nhanh/chậm) + 1 ticket. → Kiểm: rule alert trong repo có biểu thức burn rate với 2 cửa sổ; không có alert page kiểu `cpu > 80%`. · Nguồn: SRE Workbook — Alerting on SLOs (14.4×/1h-5m, 6×/6h-30m, 1×/3d-6h cho 99.9%)
 - [ ] `OPS-SLO-005` **MUST** Mỗi alert có: `severity` (page/ticket), `runbook_url` trỏ runbook có thật, chủ sở hữu, mô tả tác động người dùng; alert không có runbook không được bật. → Kiểm: script đọc rule files: 100% alert có `runbook_url` tồn tại (HTTP 200/file) và `severity`. · Nguồn: SRE Book — Monitoring (alert phải hành động được); [`../templates/RUNBOOK.md`](../templates/RUNBOOK.md)
 - [ ] `OPS-SLO-006` **MUST** Mọi alert được **thử kích hoạt** trước khi tin cậy (inject lỗi/giả metric) và sau mỗi thay đổi rule; ghi ngày diễn tập. → Kiểm: `docs/ops/alert-drills.md` có ngày + kết quả cho từng alert; lifecycle G8 yêu cầu "cảnh báo đã thử kích hoạt". · Nguồn: lifecycle G8; P1

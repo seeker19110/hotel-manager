@@ -11,7 +11,6 @@
 // Mã tự viết cho khung X-Templates (không chép mã của dự án khác); ý tưởng cổng "đo bản render" tham khảo stored 06 §7d.
 import { chromium } from 'playwright';
 import AxeBuilder from '@axe-core/playwright';
-import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const argv = process.argv.slice(2);

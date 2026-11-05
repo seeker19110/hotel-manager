@@ -3,7 +3,7 @@ title: UX cho tính năng AI: minh bạch, streaming, xác nhận, sửa sai
 kind: module
 prefix: UX-AI
 applies_to: [web-app, mobile-app, desktop-app, static-site, game, monorepo, ai-agent, agentic-system, data-ml]
-updated: 2026-10-14
+updated: 2026-11-04
 ---
 
 # UX cho tính năng AI: minh bạch, streaming, xác nhận, sửa sai
@@ -59,7 +59,7 @@ updated: 2026-10-14
 - [ ] `UX-AI-017` **SHOULD** Không dark pattern với AI: không tự bật tính năng AI thu dữ liệu, không ẩn nút tắt, không "giả tiến độ" khi mô hình chưa chạy. → Kiểm: checklist dark-pattern trong PR (xem [`content-and-microcopy.md`](content-and-microcopy.md)).
 - [ ] `UX-AI-018` **SHOULD** Thay đổi hành vi mô hình (đổi phiên bản, đổi prompt hệ thống) được thông báo cho người dùng khi ảnh hưởng kết quả. → Kiểm: changelog trong sản phẩm có mục AI; test eval trước khi đổi. · Nguồn: HAX G18
 - [ ] `UX-AI-019` **MAY** Cho người dùng chỉnh "giọng/độ dài/ngôn ngữ" của output qua tuỳ chọn thay vì phải viết prompt. → Kiểm: tuỳ chọn tồn tại trong UI và được truyền vào request.
-- [ ] `UX-AI-020` **MAY** Media AI tạo gắn Content Credentials (C2PA) ngoài nhãn nhìn thấy. → Kiểm: file xuất có manifest đọc được bằng công cụ C2PA (phiên bản SDK **chưa xác minh**).
+- [ ] `UX-AI-020` **MAY** Ngừng dùng 2026-11-04 — gộp vào [`CMP-AI-017`](../16-compliance-privacy/ai-regulation.md) (nay SHOULD): media AI tạo gắn Content Credentials (C2PA) ngoài nhãn nhìn thấy, ký sau bước nén cuối, kèm watermark ẩn.
 
 ## Bẫy thường gặp
 

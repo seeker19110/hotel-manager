@@ -3,7 +3,7 @@ title: Đội, WIP, định nghĩa sẵn sàng/hoàn thành, bàn giao
 kind: module
 prefix: WF-TEAM
 applies_to: [all]
-updated: 2026-10-15
+updated: 2026-10-24
 ---
 
 # Đội, WIP, định nghĩa sẵn sàng/hoàn thành, bàn giao
@@ -30,7 +30,7 @@ updated: 2026-10-15
 
 | Tình huống | Chọn | Ghi chú |
 |---|---|---|
-| Đội một người (+ agent) | WIP = 2 (một đang code, một chờ CI/review); approval 0 (GitHub không cho tự duyệt); reviewer AI khác model; mọi cổng máy bật | Nâng approval ngay khi có người thứ hai |
+| Đội một người (+ agent) | WIP = 2 (một đang code, một chờ CI/review); approval 0 (GitHub không cho tự duyệt); reviewer AI năng lực cao hơn; mọi cổng máy bật | Nâng approval ngay khi có người thứ hai |
 | Đội 2–5 người | WIP cap 3 PR mở toàn repo (kể cả bot/draft) khởi điểm; tăng tới 6 khi hàng đợi review p95 < 24h trong 4 tuần | Dependabot gom nhóm để không lấp cap |
 | Nhiều đội/monorepo | WIP theo miền (CODEOWNERS), cap toàn repo = tổng; merge queue khi > ~10 PR/ngày | — |
 | Việc "khẩn" chen hàng | Chỉ sự cố production (nhãn `incident`) được nhảy FIFO; còn lại xếp hàng | "Sếp cần gấp" không phải incident |

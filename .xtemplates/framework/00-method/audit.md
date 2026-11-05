@@ -1,7 +1,7 @@
 ---
 title: Phương pháp audit
 kind: method
-updated: 2026-10-20
+updated: 2026-10-25
 ---
 
 # Phương pháp audit
@@ -18,7 +18,8 @@ updated: 2026-10-20
 | Trước phát hành lớn / cổng G7 | Toàn bộ, `--strict` | Còn 🔴 mở → không phát hành |
 | Định kỳ (gợi ý: mỗi quý, hoặc sau ~50 PR) | Chỉ nhóm có thay đổi (§6) | `xt.py audit plan` liệt kê nhóm cần quét lại |
 | Sau sự cố / post-mortem | Nhóm liên quan | Phát hiện thành hàng rào máy (test, lint, Gate) |
-| **Sau mỗi mốc** của `PLAN.md` khi chạy autopilot (lát/nhóm lát xong — `loop status` báo `milestone_done`, ADR-0029) | Chỉ nhóm mà `xt.py audit plan --status …` suy ra từ diff kể từ SHA quét trước (§6), **không** toàn bộ | 🔴/🟠 thành task mới trong PLAN **trước** khi sang mốc kế; mốc kế chỉ bắt đầu khi không còn 🔴 mở. Pha build (`delivery_phase: build`, `milestone_audit: g7`): không quét theo mốc — gom về audit delta trước G7, `release-check` (`phase`, `review_debt`) chặn tới khi trả (ADR-0033) |
+| **Sau mỗi mốc** của `PLAN.md` khi chạy autopilot (lát/nhóm lát xong — `loop status` báo `milestone_done`, ADR-0029) | Chỉ nhóm mà `xt.py audit plan --status …` suy ra từ diff kể từ SHA quét trước (§6), **không** toàn bộ | 🔴/🟠 thành task mới trong PLAN **trước** khi sang mốc kế; mốc kế chỉ bắt đầu khi không còn 🔴 mở. Pha build (`delivery_phase: build`, `milestone_audit: g7`): không quét theo mốc — quét ở cuối đợt (hàng dưới); `release-check` (`phase`, `review_debt`) chặn tới khi sang harden (ADR-0033, ADR-0046) |
+| **Cuối mỗi đợt build** (`loop status` = `done`, pha build — ADR-0047) | Delta kể từ SHA quét trước (lần đầu: toàn bộ) | 🔴/🟠 thành task của `PLAN-<đợt>.md` kế; hết việc → toàn bộ, sạch mới **đề xuất** `/complete` |
 
 ## 2. Bước -1: đọc repo thật, không audit "khung trống"
 

@@ -3,7 +3,7 @@ title: Privacy by design: tối thiểu hoá, mục đích, lưu trữ, xoá, DP
 kind: module
 prefix: CMP-PRIV
 applies_to: [all]
-updated: 2026-10-14
+updated: 2026-11-03
 ---
 
 # Privacy by design: tối thiểu hoá, mục đích, lưu trữ, xoá, DPIA
@@ -44,14 +44,14 @@ trong cùng file → sinh cấu hình job xoá và mục DPIA từ đó (một n
 
 ## Checklist
 
-- [ ] `CMP-PRIV-001` **MUST** Có sổ dữ liệu cá nhân (data map) liệt kê mọi trường PII: hệ thống, bảng/cột, phân loại (thường/nhạy cảm/trẻ em), mục đích, cơ sở pháp lý, thời hạn giữ, nơi sao chép, bên nhận. → Kiểm: file `docs/privacy/data-map.yaml` tồn tại, CI chạy script đối chiếu tên cột trong schema với data map (cột PII không khai báo → fail). · Nguồn: GDPR Art. 30; ISO/IEC 27701:2025
+- [ ] `CMP-PRIV-001` **MUST** Có sổ dữ liệu cá nhân (data map) liệt kê mọi trường PII: hệ thống, bảng/cột, phân loại (thường/nhạy cảm/trẻ em), mục đích, cơ sở pháp lý, thời hạn giữ, nơi sao chép, bên nhận. → Kiểm: file `docs/privacy/data-map.yaml` tồn tại, CI chạy script đối chiếu tên cột trong schema với data map (cột PII không khai báo → fail). · Nguồn: GDPR Art. 30; ISO/IEC 27701:2025 · Mẫu: [`../templates/PRIVACY-DATA-MAP.md`](../templates/PRIVACY-DATA-MAP.md)
 - [ ] `CMP-PRIV-002` **MUST@L** Mỗi trường PII có `purpose` và `retention` không rỗng; trường không có mục đích bị loại khỏi schema. → Kiểm: lint data map (`retention` dạng ISO 8601 duration hoặc `until-account-deleted`), PR thêm cột PII thiếu `purpose` bị chặn. · Nguồn: GDPR Art. 5(1)(b)(e); Luật 91/2025/QH15 Đ.3
 - [ ] `CMP-PRIV-003` **MUST@L** Form/API chỉ yêu cầu trường cần cho mục đích đã công bố; trường "để sau này dùng" bị cấm. → Kiểm: review schema request (OpenAPI/Zod/Pydantic) đối chiếu data map; test từ chối payload có trường PII ngoài schema (`additionalProperties: false`). · Nguồn: GDPR Art. 5(1)(c); Luật 91/2025/QH15 Đ.3
 - [ ] `CMP-PRIV-004` **MUST@L** Có job xoá/khử nhận dạng theo retention chạy định kỳ cho mọi kho (CSDL, object storage, search index, warehouse, queue DLQ). → Kiểm: job có lịch (cron/worker), log lần chạy gần nhất ≤ 1 chu kỳ; test tích hợp tạo bản ghi quá hạn → sau job không còn truy vấn được. · Nguồn: GDPR Art. 5(1)(e); Luật 91/2025/QH15 Đ.14
 - [ ] `CMP-PRIV-005` **MUST** Xoá tài khoản xoá/ẩn danh hoá dữ liệu ở mọi bản sao trong thời hạn công bố, kể cả bên xử lý thứ ba (gọi API xoá hoặc ticket có hạn). → Kiểm: test E2E "xoá tài khoản" rồi truy vấn từng kho (DB, cache, index, storage, analytics) trả rỗng; danh sách bên thứ ba có bằng chứng xoá. · Nguồn: GDPR Art. 17; Luật 91/2025/QH15 Đ.14
 - [ ] `CMP-PRIV-006` **MUST@L** Backup không xoá được từng bản ghi → dùng crypto-shredding theo khoá người dùng/tenant hoặc backup hết hạn ≤ retention tối đa đã công bố. → Kiểm: tài liệu backup ghi cơ chế; test khôi phục backup sau khi huỷ khoá → dữ liệu không đọc được. · Nguồn: GDPR Art. 17; Art. 32
 - [ ] `CMP-PRIV-007` **MUST@L** Dữ liệu nhạy cảm (sức khoẻ, sinh trắc, tài chính, trẻ em, tôn giáo, chính trị, định vị chính xác) được mã hoá ở mức cột/trường với khoá tách khỏi CSDL. → Kiểm: schema đánh dấu cột nhạy cảm; test đọc dump CSDL không thấy bản rõ; cấu hình KMS/HSM. · Nguồn: GDPR Art. 9, 32; Luật 91/2025/QH15 Đ.2, Đ.12
-- [ ] `CMP-PRIV-008` **MUST** Không ghi PII vào log ứng dụng/trace/crash report (email, SĐT, số định danh, token, nội dung tin nhắn). → Kiểm: rule Semgrep/ESLint cấm log object người dùng; test đơn vị bộ lọc log che PII; quét log staging bằng bộ phát hiện PII (vd Presidio) = 0 phát hiện. · Nguồn: GDPR Art. 5(1)(f); ISO/IEC 27701:2025
+- [ ] `CMP-PRIV-008` **MUST** Danh mục cấm ghi log ở `BASE-ERR-007` ([`../01-baseline/errors-and-logging.md`](../01-baseline/errors-and-logging.md), nhà) áp cả cho trace và crash report; góc riêng của quyền riêng tư — chặt hơn `BASE-ERR-007` cho hồ sơ có 16-compliance-privacy: nội dung người dùng và định danh (tin nhắn, file tải lên, email, SĐT, số định danh) không vào bất kỳ đích quan sát nào, kể cả đã pseudonymize. → Kiểm: rule Semgrep/ESLint cấm log object người dùng; test đơn vị bộ lọc log che PII; quét log staging bằng bộ phát hiện PII (vd Presidio) = 0 phát hiện. · Nguồn: GDPR Art. 5(1)(f); ISO/IEC 27701:2025
 - [ ] `CMP-PRIV-009` **MUST@L** DPIA được lập trước khi xử lý rủi ro cao (nhạy cảm, trẻ em, theo dõi, quyết định tự động, ghép nguồn, công nghệ mới) theo [`../templates/DPIA.md`](../templates/DPIA.md). → Kiểm: file `docs/privacy/DPIA-<tính-năng>.md` có mục rủi ro + biện pháp + người duyệt; PR tính năng thuộc nhóm rủi ro cao phải link DPIA (CI kiểm nhãn `privacy:high-risk`). · Nguồn: GDPR Art. 35; Luật 91/2025/QH15 Đ.21
 - [ ] `CMP-PRIV-010` **MUST** PII bị che (redact) trước khi gửi tới LLM, dịch vụ phân tích hoặc nhà cung cấp chưa có hợp đồng xử lý dữ liệu. → Kiểm: test đơn vị lớp redaction với bộ mẫu PII tiếng Việt (SĐT, CCCD 12 số, email, địa chỉ); log request ra ngoài không chứa PII. · Nguồn: GDPR Art. 28, 44; Luật 91/2025/QH15 Đ.17, Đ.20
 - [ ] `CMP-PRIV-011` **MUST@L** Giả danh hoá định danh người dùng trong data warehouse/analytics; bảng ánh xạ ngược chỉ ở hệ thống nguồn với quyền riêng. → Kiểm: schema warehouse không có cột PII trực tiếp; ACL bảng ánh xạ chỉ vai `privacy-admin`. · Nguồn: GDPR Art. 4(5), Art. 25
@@ -66,6 +66,7 @@ trong cùng file → sinh cấu hình job xoá và mục DPIA từ đó (một n
 - [ ] `CMP-PRIV-020` **MAY** Dùng differential privacy hoặc tổng hợp có nhiễu cho thống kê công khai từ dữ liệu người dùng. → Kiểm: tài liệu tham số epsilon và lý do. · Nguồn: NIST Privacy Framework 1.0
 - [ ] `CMP-PRIV-021` **MAY** Cấp "privacy budget" cho mỗi tính năng mới: số trường PII tối đa được thêm, vượt phải qua review riêng tư. → Kiểm: CI đếm trường PII mới trong PR so với ngưỡng. · Nguồn: thực hành nội bộ
 - [ ] `CMP-PRIV-022` **MAY** Hiển thị "nhãn dinh dưỡng dữ liệu" (data nutrition label) trong app: thu gì, vì sao, giữ bao lâu — sinh từ data map. → Kiểm: trang có thật và sinh tự động. · Nguồn: GDPR Art. 12 (minh bạch)
+- [ ] `CMP-PRIV-023` **SHOULD** Che PII/bí mật áp ở **mọi** đường dữ liệu ra model hoặc bên thứ ba: lời gọi ra ngoài đi qua một hàm egress có redact; đường phụ (dựng báo cáo, sinh skill, gói debug) không gọi client trực tiếp. → Kiểm: test liệt kê call site client LLM/HTTP ra ngoài (grep/AST) — chỉ hàm egress chung; test redact trên dữ liệu mẫu có token và email.
 
 ## Bẫy thường gặp
 
@@ -98,3 +99,4 @@ trong cùng file → sinh cấu hình job xoá và mục DPIA từ đó (một n
 - LINDDUN privacy threat modeling: <https://linddun.org/> — (chưa xác minh phiên bản tài liệu ngày 2026-10-13).
 - Microsoft Presidio: <https://pypi.org/pypi/presidio-analyzer/json> — phiên bản 2.2.364, MIT, xác minh 2026-10-13.
 - Mẫu DPIA của khung: [`../templates/DPIA.md`](../templates/DPIA.md).
+- Catalog `seeker19110/stored` 20 §3i (bước phân tích che dữ liệu nhưng bước dựng skill gửi tiêu đề cửa sổ, URL đầy đủ, lệnh terminal cho model mà không qua bộ che) — đọc mã 2026-10-26, đọc catalog 2026-10-28.

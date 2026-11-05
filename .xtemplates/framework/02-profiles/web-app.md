@@ -4,7 +4,7 @@ kind: profile
 slug: web-app
 prefix: PRF-WEB
 modules: [04-standards/*, 05-architecture/*, 06-design-ux/*, 07-frontend/*, 08-backend/*, 09-database/*, 10-workflow/*, 11-autonomous-loop/*, 12-security/*, 14-testing-quality/*, 15-operations/*, 16-compliance-privacy/*, 17-product-project/*, 18-cross-cutting/*]
-updated: 2026-10-14
+updated: 2026-10-30
 ---
 
 # Hồ sơ: Ứng dụng web
@@ -78,6 +78,7 @@ Phiên bản lấy từ registry/endoflife.date ngày **2026-10-13** — **xác 
 - [ ] `PRF-WEB-016` **SHOULD** Có RUM gửi Core Web Vitals thật từ người dùng (thư viện `web-vitals` hoặc tương đương) để đối chiếu với số lab của Lighthouse. → Kiểm: dashboard có p75 LCP/INP/CLS theo trang.
 - [ ] `PRF-WEB-017` **MAY** PWA (manifest, service worker, offline shell) chỉ khi có yêu cầu cài đặt/offline; service worker có chiến lược cache và cập nhật rõ. → Kiểm: Lighthouse PWA audit; test cập nhật SW không kẹt bản cũ.
 - [ ] `PRF-WEB-018` **MAY** Realtime (WebSocket/SSE) có reconnect với backoff, resume theo cursor, và fallback polling. → Kiểm: test ngắt mạng rồi nối lại không mất sự kiện. · Nguồn: [`../08-backend/realtime-and-streaming.md`](../08-backend/realtime-and-streaming.md)
+- [ ] `PRF-WEB-019` **SHOULD** Web app công khai gọi tới mạng nội bộ hoặc loopback (agent/app desktop trên localhost, thiết bị IoT/router trong LAN) thiết kế cho quyền **Local Network Access** (Chrome ≥ 142; từ Chrome 145 tách thành `loopback-network` cho localhost và `local-network` cho IP riêng; Firefox cũng áp dụng): chỉ gọi từ ngữ cảnh HTTPS; khai `fetch(…, {targetAddressSpace: 'loopback'})` cho localhost, `'local'` cho IP riêng, khớp địa chỉ thật (không dùng tên miền công khai trỏ về IP nội bộ); màn hình giải thích trước lời nhắc quyền; đường thay thế khi người dùng từ chối; WebSocket/WebRTC tới localhost tính tới việc sẽ bị gate (mốc Chrome chưa xác minh). → Kiểm: E2E trên Chrome ≥ 142 với quyền mạng nội bộ bị từ chối (tên quyền theo bản Chrome đang test) → UI hiện hướng dẫn/đường thay thế, không treo; cấp quyền → luồng chạy; grep mã gọi localhost/IP riêng đều nằm sau màn hình giải thích. · Nguồn: Chrome *Local Network Access*; MDN `Request.targetAddressSpace`
 
 ## Cổng chất lượng tương đương
 
@@ -116,3 +117,7 @@ Cột "Cổng chung" là cổng nền của khung ([`../01-baseline/quality-gate
 - OWASP ASVS 5.0: <https://owasp.org/www-project-application-security-verification-standard/> — nội dung mục V3/V4/V8 theo [`../04-standards/security-standards.md`](../04-standards/security-standards.md).
 - Bài học catalog (Next.js checklist 09 §1.4, stack quality gate 13 §4b, Lighthouse CI đứng yên): `research/2026-10-13-stored-catalog-extraction.md`; khung cũ KHUNG-3 C1 (commit `1b80fe4`).
 - (chưa xác minh) Phiên bản Sentry SDK, Bun/Deno, Valibot, Cypress, jscpd — không tra ngày 2026-10-13.
+- LNA là lời nhắc quyền khi site công khai gửi request tới mạng nội bộ/loopback. Thử bằng cờ từ Chrome 138; cập nhật 2025-09-29 ghi lời nhắc ra mắt ở Chrome 142. Chỉ trong ngữ cảnh an toàn. Miễn mixed content với IP riêng, .local hoặc targetAddressSpace. WebSocket/WebTransport/WebRTC chưa bị gate ở thời điểm đó (`PRF-WEB-019`): <https://developer.chrome.com/blog/local-network-access> — xác minh 2026-10-30.
+- targetAddressSpace có giá trị loopback/local/public; loopback và local được gate bởi quyền loopback-network và local-network; chỉ miễn mixed content khi quyền đã được cấp; tính năng chưa Baseline (`PRF-WEB-019`): <https://developer.mozilla.org/en-US/docs/Web/API/Request/targetAddressSpace> — chưa đọc trọn trang 2026-10-30 (chưa xác minh trọn).
+- Chrome 142–144 dùng quyền local-network-access; Chrome 145+ tách thành loopback-network và local-network; Firefox 154 áp LNA cho WebSocket; Chromium mới chỉ có trên lộ trình chặn WebSocket (`PRF-WEB-019`): <https://www.dynamsoft.com/web-twain/docs/faq/chromium-142-local-network-access-issue.md> — xác minh 2026-10-30.
+- Blink-dev 'Ready for Developer Testing: LNA restrictions for WebSockets', dự kiến ship desktop 147 (chưa xác minh đã ship) (`PRF-WEB-019`): <https://groups.google.com/a/chromium.org/g/blink-dev/c/4gx2y5jPGbU> — chưa đọc trọn trang 2026-10-30 (chưa xác minh trọn).

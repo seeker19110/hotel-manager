@@ -1,0 +1,39 @@
+# Kiểm tiêu đề PR mẫu cho dự án đích — `install.py --with-github` chép vào `.github/workflows/pr-title.yml` (copy-if-absent).
+# Tách khỏi `ci.yml` (T-2401): `edited` (sửa tiêu đề/thân PR) chỉ chạy workflow vài giây này, không chạy lại CI nặng cùng SHA.
+# Tiêu đề thành tiêu đề squash nên phải Conventional Commits, ≤ 100 ký tự. Miễn như `merge-check`: `pr_title_check: off` trong
+# xt.yaml (đọc từ cây PR), PR của bot, `Revert "…"` của GitHub. Không phải required check của ruleset mẫu.
+name: pr-title
+
+on:
+  pull_request: { branches: [main], types: [opened, edited, synchronize, reopened] }
+
+permissions:
+  contents: read
+
+# Mỗi PR một group: sửa tiêu đề liên tiếp thì chỉ lượt cuối chạy.
+concurrency:
+  group: pr-title-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  title:
+    name: pr-title
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false # chỉ để đọc `xt.yaml` (pr_title_check)
+      - name: Tiêu đề PR theo Conventional Commits, ≤ 100 ký tự (thành tiêu đề squash)
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+          LC_ALL: C.UTF-8 # `${#TITLE}` đếm ký tự, không phải byte (tiêu đề tiếng Việt)
+        run: |
+          if grep -Eq "^pr_title_check:[[:space:]]*[\"']?off" xt.yaml 2>/dev/null || [[ "$AUTHOR" == *"[bot]" ]] || [[ "$TITLE" == 'Revert "'* ]]; then
+            echo "Bỏ qua kiểm tiêu đề (pr_title_check: off / bot / revert)."; exit 0
+          fi
+          if ! printf '%s' "$TITLE" | grep -Eq '^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9._/-]+\))?!?: .+$' \
+            || [ "${#TITLE}" -gt 100 ]; then
+            echo "::error::Tiêu đề PR phải dạng '<type>(scope): mô tả' và ≤ 100 ký tự: $TITLE"; exit 1
+          fi

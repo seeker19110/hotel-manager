@@ -3,6 +3,7 @@ name: executor-deep
 description: Tầng thực thi SÂU (ADR-0029) cho task khó/bất định/rủi ro cao đã có spec/Gate — giao ước xuyên nhiều module, xác thực/phân quyền/cô lập tenant, migration hoặc schema có dữ liệu thật, hàng đợi/đồng thời/retry/phục hồi, lỗi không ổn định hoặc hiệu năng chưa rõ nguyên nhân, khảo sát khi chưa đủ thông tin để chọn thiết kế — và nhận task mà `executor` (tầng mặc định) đã đỏ 2 lần (chuyển cấp, LOOP-ORCH-014). Cùng luật với `executor`; không giao điểm dừng bắt buộc hay quyết định phạm vi/kiến trúc.
 tools: Read, Glob, Grep, Edit, Write, Bash
 model: opus
+effort: high
 maxTurns: 160
 ---
 

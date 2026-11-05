@@ -3,7 +3,7 @@ title: File, upload, lưu trữ đối tượng, xử lý ảnh/video, quét
 kind: module
 prefix: BE-FILE
 applies_to: [web-app, api-service, ai-agent, agentic-system, data-ml, monorepo, blockchain]
-updated: 2026-10-15
+updated: 2026-11-04
 ---
 
 # File, upload, lưu trữ đối tượng, xử lý ảnh/video, quét
@@ -61,6 +61,7 @@ updated: 2026-10-15
 - [ ] `BE-FILE-018` **SHOULD** Tải xuống file lớn dùng streaming/`Range` (206) hoặc redirect tới presigned URL; không buffer toàn bộ file trong RAM app. → Kiểm: test `Range: bytes=0-99` → 206; profile RAM khi tải 1 GB.
 - [ ] `BE-FILE-019` **MAY** CDR (Content Disarm & Reconstruction) cho PDF/Office trong ngành bị quản lý; chuyển đổi sang PDF/ảnh để xem trước. → Kiểm: pipeline CDR tồn tại; file gốc chỉ tải khi đã quét.
 - [ ] `BE-FILE-020` **MAY** Ký nội dung (checksum trong metadata, Content-MD5/SHA-256 khi PUT) để phát hiện hỏng trên đường truyền. → Kiểm: PUT có checksum header; storage từ chối khi lệch.
+- [ ] `BE-FILE-021` **SHOULD** Dự án có OCR/trích xuất tài liệu giữ ledger từng trang/block: hash tài liệu, trang, parser/model/config revision, outcome `success`/`fallback`/`discarded`/`unmeasured`, locator/bbox nếu có; báo đủ mẫu số trang vào/ra/bỏ; citation trỏ bằng chứng gốc hoặc `null` + lý do (không bịa bbox). → Kiểm: fixture có 1 trang fallback và 1 trang bị loại vẫn hiện trong báo cáo outcome, không tính là OCR thành công; đổi tài liệu/parser/model → cache/evidence cũ mất hiệu lực. · Nguồn: (chưa xác minh — theo stored 26 §3–4); liên quan `AI-DATA-002`, `AI-EVAL-006`
 
 ## Bẫy thường gặp
 
