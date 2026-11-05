@@ -13,7 +13,7 @@ Luật: `<FW>/00-method/evidence-and-sources.md` (13 luật). Không chọn theo
 ## Quy trình
 1. **Đặt câu hỏi đúng:** cần gì (năng lực), ràng buộc (giấy phép, chi phí, đội, hạ tầng, pháp lý), quy mô S/M/L, hồ sơ dự án.
 2. **Đọc khung trước:** hồ sơ (`<FW>/02-profiles/<slug>.md`) đã có stack mặc định + phiên bản + ngày, chỉ là điểm xuất phát: **luôn xác minh lại trước khi dùng và ghi ngày** (`<FW>/00-method/conventions.md` §6); cái hồ sơ chưa có thì tra mới.
-3. **Xác minh sống** (giao subagent `researcher` khi nhiều mục):
+3. **Xác minh sống** (giao subagent `researcher` khi nhiều mục; ≥ 3 mục độc lập, có tool Workflow và người gõ trực tiếp `/research` trong phiên tương tác → một workflow: mỗi mục một `agent()` `agentType: 'researcher'`, rồi một `agent()` `researcher` đối chiếu chéo nguồn mâu thuẫn — lô ≤ 5, không lọc `null`, không tự chạy lại (mục `null`/bị chặn → ghi **(chưa xác minh)**, báo người), khuôn `/audit` §3, ADR-0049; gọi khác (`/autopilot`, `/complete`) → subagent; phiên chính chọn và đề xuất ở bước 4–5):
    - Phiên bản: `https://registry.npmjs.org/<pkg>/latest`, `https://pypi.org/pypi/<pkg>/json`, `https://endoflife.date/api/<product>.json` (không phải sản phẩm nào cũng có; 404 → tra trang release chính thức), trang release chính thức, `git ls-remote --tags`.
    - Trạng thái repo: archive? đổi tên? license đổi? telemetry mặc định? Đọc `install.sh`/hook trước khi khuyên cài.
    - Chuẩn/luật: trang chuẩn (owasp.org, w3.org, ietf.org), văn bản luật (vanban.chinhphu.vn, eur-lex), số hiệu đầy đủ + ngày hiệu lực.

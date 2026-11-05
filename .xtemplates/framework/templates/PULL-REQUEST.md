@@ -22,7 +22,7 @@ dụng ghi "không áp dụng — lý do", không xoá mục.
 
 ## Bằng chứng
 <!-- Lệnh + exit code thật, hoặc link lượt chạy CI — tick không kèm bằng chứng là chưa xong. -->
-- [ ] `.xtemplates/scripts/dev-task.sh gate` (build · typecheck · lint · test) — kết quả:
+- [ ] CI (`dev-task.sh gate`: build · typecheck · lint · test) xanh ở head — link run:
 - [ ] Test mới cho thay đổi hành vi, gồm ca biên; sửa lỗi có test đỏ trước, xanh sau — tên test:
 - [ ] Mục blueprint liên quan tick kèm `— Kiểm: <lệnh>` hoặc `— Bằng chứng:` — ID:
 

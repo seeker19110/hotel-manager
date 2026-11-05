@@ -4,7 +4,7 @@ kind: industry
 slug: fintech
 prefix: IND-FIN
 modules: [12-security/*, 16-compliance-privacy/*, 09-database/transactions-and-consistency, 09-database/sensitive-data-and-access, 09-database/backup-and-recovery, 08-backend/authn-authz, 08-backend/integrations-and-webhooks, 08-backend/background-jobs-and-queues, 08-backend/reliability-and-errors, 18-cross-cutting/units-time-and-money, 14-testing-quality/unit-and-logic-edge-cases, 14-testing-quality/integration-and-contract, 15-operations/incident-response, 15-operations/slo-and-alerting, 15-operations/backup-and-disaster-recovery]
-updated: 2026-10-14
+updated: 2026-10-30
 ---
 
 # Gói ngành: Tài chính · thanh toán · ví điện tử
@@ -17,7 +17,7 @@ updated: 2026-10-14
 
 Dùng khi hệ thống **giữ, chuyển, ghi nhận hoặc quyết định về tiền** của người khác, hoặc chạm dữ liệu thẻ/tài khoản
 ngân hàng. Chỉ nhúng nút thanh toán của PSP (Stripe/VNPay/MoMo…) và không chạm số thẻ → vẫn ghép gói này nhưng được
-miễn phần lớn mục PCI (ghi `[~] — Miễn: SAQ A`). Kết hợp `ecommerce` cho sàn, `healthcare` cho thanh toán viện phí.
+miễn phần lớn mục PCI (ghi `[~] — Miễn: SAQ A`); SAQ A bản 01/2025 vẫn đòi xác nhận site không dễ bị tấn công bằng script — làm theo [`IND-ECOM-024`](ecommerce.md). Kết hợp `ecommerce` cho sàn, `healthcare` cho thanh toán viện phí.
 
 ## Kiến trúc tham chiếu
 
@@ -126,6 +126,7 @@ R.15 cho VASP · GDPR 2016/679 · ISO 20022 · EMV 3DS 2.3.1.1.
 - [ ] `IND-FIN-020` **SHOULD** Dashboard vận hành tiền: tỷ lệ giao dịch thành công, p95 độ trễ authorize, số break đối soát, số webhook thất bại — cảnh báo theo SLO. → Kiểm: dashboard tồn tại; alert đã kích hoạt thử; xem [`../15-operations/slo-and-alerting.md`](../15-operations/slo-and-alerting.md). · Nguồn: DORA Art. 10 (phát hiện)
 - [ ] `IND-FIN-021` **MAY** Dùng ISO 20022 (pain/pacs/camt) cho tích hợp ngân hàng mới thay định dạng tệp riêng. → Kiểm: schema XSD trong repo + test parse. · Nguồn: ISO 20022; SWIFT kết thúc song song MT/MX 22/11/2025
 - [ ] `IND-FIN-022` **MAY** Thử nghiệm sản phẩm mới (chấm điểm tín dụng, Open API, P2P) qua sandbox NĐ 94/2025 thay vì tự vận hành ngoài khung pháp lý. → Kiểm: hồ sơ đăng ký sandbox hoặc ADR giải thích vì sao không cần. · Nguồn: NĐ 94/2025/NĐ-CP
+- [ ] `IND-FIN-023` **SHOULD** Dự án tự khởi tạo chuyển tiền tới tài khoản/ví bên thứ ba (ngân hàng, ví điện tử, trung gian thanh toán): trước khi khách xác nhận, tra người thụ hưởng và hiển thị tên chủ tài khoản; cảnh báo khi tài khoản nhận nằm trong dữ liệu nghi gian lận. EU: Verification of Payee với kết quả khớp/gần khớp (hiện tên đúng)/không khớp/không kiểm được, bắt buộc với PSP vùng euro từ 09/10/2025 theo Regulation (EU) 2024/886. VN: dùng dữ liệu cảnh báo SIMO của NHNN khi tổ chức là thành viên được kết nối (nghĩa vụ hiển thị cảnh báo cho khách: chưa xác minh). Khách vẫn quyết định tiếp tục; kết quả tra và lựa chọn của khách được lưu vào nhật ký giao dịch. → Kiểm: test tích hợp với sandbox: tài khoản đánh dấu nghi ngờ → UI hiện cảnh báo trước nút xác nhận và giao dịch chặn/yêu cầu xác thực thêm theo cấu hình; gần khớp → cảnh báo + tên đúng; không khớp → cảnh báo, không lộ tên; bản ghi giao dịch có trường `payee_check_result` và `user_decision`. · Nguồn: NHNN — hệ thống SIMO; Regulation (EU) 2024/886 (Verification of Payee)
 
 ## Cổng chất lượng tương đương
 
@@ -165,3 +166,6 @@ R.15 cho VASP · GDPR 2016/679 · ISO 20022 · EMV 3DS 2.3.1.1.
 - FATF Recommendation 16 (sửa 06/2025): <https://www.fatf-gafi.org/en/publications/Fatfrecommendations/update-Recommendation-16-payment-transparency-june-2025.html> — xác minh 2026-10-13.
 - ISO 20022 / kết thúc song song MT-MX 22/11/2025: <https://www.swift.com/> — xác minh 2026-10-13 (qua trang Swift).
 - Nghiên cứu nền: `research/2026-10-13-stored-catalog-extraction.md` §2.16 (SePay VietQR: HMAC + idempotent).
+- NHNN triển khai SIMO giám sát tài khoản thanh toán/ví điện tử nghi gian lận; thành viên báo cáo và chia sẻ; TCTD 'có thể' ngăn chặn giao dịch ngay hoặc yêu cầu xác thực/định danh trước giao dịch trực tuyến. Không nêu nghĩa vụ hiển thị tên người thụ hưởng hay cảnh báo khách hàng (`IND-FIN-023`): <https://sbv.gov.vn/en/w/sbv622877> — xác minh 2026-10-30.
+- Ngân hàng VN triển khai cảnh báo tài khoản nhận tiền nghi gian lận dựa trên SIMO (Vietcombank mở rộng từ 05/11/2025); người chuyển vẫn quyết định có tiếp tục hay không. Chỉ thấy qua kết quả tìm kiếm, chưa mở trang (`IND-FIN-023`): <https://thitruongtaichinhtiente.vn/vietcombank-mo-rong-tinh-nang-canh-bao-tai-khoan-nhan-tien-co-dau-hieu-nghi-ngo-gian-lan-lua-dao-73679.html> — (chưa xác minh).
+- Verification of Payee bắt buộc với PSP vùng euro từ 09/10/2025 theo Regulation (EU) 2024/886 cho chuyển khoản SEPA thường/tức thời bằng euro; kết quả match/close match (hiện tên đúng)/no match; người trả vẫn tiếp tục được và chịu rủi ro khi đã được cảnh báo (`IND-FIN-023`): <https://www.commerzbank.com/ms/documents/en/vop-verification-of-payee-faq-en.pdf> — chưa đọc trọn trang 2026-10-30 (chưa xác minh trọn).

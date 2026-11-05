@@ -3,7 +3,7 @@ title: Đo lường sản phẩm: sự kiện, funnel, quyền riêng tư trong 
 kind: module
 prefix: PM-METRIC
 applies_to: [web-app, mobile-app, desktop-app, static-site, game, monorepo, api-service, ai-agent, agentic-system, data-ml, blockchain]
-updated: 2026-10-14
+updated: 2026-11-04
 ---
 
 # Đo lường sản phẩm: sự kiện, funnel, quyền riêng tư trong analytics
@@ -55,6 +55,7 @@ updated: 2026-10-14
 - [ ] `PM-METRIC-015` **SHOULD** Sản phẩm dùng AI đo thêm: tỷ lệ phản hồi bị người dùng sửa/từ chối, chi phí mỗi tác vụ, độ trễ; chi tiết ở [`../13-ai-engineering/observability-and-cost.md`](../13-ai-engineering/observability-and-cost.md). → Kiểm: sự kiện `ai.*` trong schema.
 - [ ] `PM-METRIC-016` **MAY** Thu thập phản hồi định tính có cấu trúc (khảo sát ngắn trong sản phẩm, kênh báo lỗi) và gắn với sự kiện để đối chiếu số với lời. → Kiểm: sự kiện `feedback.submitted` + kho phản hồi.
 - [ ] `PM-METRIC-017` **MAY** Sự kiện kiểm toán nghiệp vụ (ai làm gì khi nào) tách khỏi analytics sản phẩm và có nhà riêng ở [`../12-security/logging-audit-and-incident.md`](../12-security/logging-audit-and-incident.md). → Kiểm: không có sự kiện audit trong `events.schema.json`.
+- [ ] `PM-METRIC-018` **SHOULD** Thử nghiệm sản phẩm tách **assignment** khỏi **exposure** thực tế (đơn vị randomization, event exposure có ID/version, join rule, attribution window, consent) và kiểm tính hợp lệ dữ liệu trước khi diễn giải effect (bổ trợ `PM-METRIC-011`): event thiếu/trùng, join rate, A/A khi phù hợp, Sample Ratio Mismatch theo phương pháp đã chọn. Exposure mất, mẫu số lệch hoặc evaluator incomplete/unknown → báo "chưa đủ bằng chứng" và điều tra instrumentation, không coi là hai phương án tương đương. → Kiểm: `docs/experiments/EXP-NNN.md` có mục SRM/exposure; fixture variant có assignment nhưng không gửi exposure bị phát hiện (test đỏ). · Nguồn: (chưa xác minh — theo `seeker19110/stored` 28 §3)
 
 ## Bẫy thường gặp
 

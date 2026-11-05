@@ -1,7 +1,7 @@
 ---
 title: Mẫu tài liệu
 kind: index
-updated: 2026-10-21
+updated: 2026-11-04
 ---
 
 # Mẫu tài liệu
@@ -10,7 +10,7 @@ updated: 2026-10-21
 > cổng nào dùng) rồi phần mẫu trong một khối ```` ```markdown ```` để chép nguyên vào dự án và điền chỗ `<...>`.
 > Không có gì để điền thì ghi "không áp dụng — lý do", không xoá mục. Bốn file `AGENTS.md`, `CLAUDE.md`, `PROGRESS.md`, `xt.yaml` là
 > mẫu harness do `scripts/install.py` copy vào dự án đích (copy-if-absent), có chỗ `[ĐIỀN]` thay vì `<...>`; `PULL-REQUEST.md`,
-> `dependabot.yml`, `ci.yml`, `secret-scan.yml`, `ruleset-main.json` là mẫu `.github/` do `install.py --with-github` copy.
+> `dependabot.yml`, `ci.yml`, `secret-scan.yml`, `pr-title.yml`, `ruleset-main.json` là mẫu `.github/` do `install.py --with-github` copy.
 
 | File | Dùng cho | Giai đoạn · cổng |
 |---|---|---|
@@ -27,6 +27,13 @@ updated: 2026-10-21
 | [`AUDIT-REPORT.md`](AUDIT-REPORT.md) | `docs/ops/AUDIT-REPORT-<ngày>.md` — báo cáo một lần audit: lệnh đã chạy, phát hiện có đường tái hiện + xác minh đối kháng, kế hoạch sửa theo đợt do phiên chính tự duyệt (ADR-0008) | Như trên · `/audit` bước 6 |
 | [`GO-NO-GO.md`](GO-NO-GO.md) | `docs/GO-NO-GO-<v>.md` — BLOCKER/SHOULD/NICE, mỗi mục PASS/FAIL/N/A + bằng chứng file:dòng, "Evidence or FAIL", con người ký | G7 · cổng G7; `PM-HANDOVER-006` |
 | [`RELEASE-NOTES.md`](RELEASE-NOTES.md) | `docs/RELEASE-NOTES-<v>.md` — cho người dùng: cần làm gì, mới/thay đổi/sửa/bảo mật/ngừng hỗ trợ, lỗi đã biết | G7 · mỗi phát hành; `WF-REL-*` |
+| [`SLO.md`](SLO.md) | `docs/ops/SLO.md` — SLI tốt/tổng có query, mục tiêu, cửa sổ, ngân sách lỗi, cảnh báo theo tốc độ đốt, chính sách khi hết ngân sách | G4, G8 · `OPS-SLO-001`, `IND-SAAS-013` |
+| [`RPO-RTO.md`](RPO-RTO.md) | `docs/ops/RPO-RTO.md` — RPO/RTO từng kho và dịch vụ, cách đạt, lần thử khôi phục có ngày + thời gian đo | G4, G8 · `DB-BACKUP-001`, `OPS-DR-001` |
+| [`RISKS.md`](RISKS.md) | `docs/RISKS.md` — sổ rủi ro "nếu … thì …", điểm, chủ, biện pháp, dấu hiệu kích hoạt, ngày rà; phụ thuộc bên thứ ba | G1, mỗi mốc · `PM-RISK-001/006` |
+| [`LIMITATIONS.md`](LIMITATIONS.md) | `docs/limitations.md` — giới hạn đã biết có số đo, cách lách, kế hoạch, phiên bản | G5–G7 · `BASE-DOC-018` |
+| [`GLOSSARY.md`](GLOSSARY.md) | `docs/GLOSSARY.md` — một khái niệm một tên: giao diện, mã, tiếng Anh, từ không dùng | G1–G3 · `UX-CONTENT-008`, `PM-SPEC-015` |
+| [`PRIVACY-DATA-MAP.md`](PRIVACY-DATA-MAP.md) | `docs/privacy/data-map.yaml` (máy đọc) + `docs/privacy/processors.md` — trường PII, phân loại, mục đích, thời hạn, nơi lưu; bên xử lý + DPA | G3 · `CMP-PRIV-001`, `CMP-VN-015` |
+| [`VULN-SLA.md`](VULN-SLA.md) | `docs/ops/VULN-SLA.md` — nguồn quét, hạn vá theo mức (KEV ngắn nhất), ngoại lệ có chủ + hạn | G5 · `OPS-MAINT-004`, `SEC-SUPPLY-030` |
 | [`API-CONTRACT.md`](API-CONTRACT.md) | `docs/api/API-CONTRACT-<slug>.md` — endpoint, schema, lỗi RFC 9457, versioning (`Deprecation`/`Sunset`), phân trang, idempotency, ví dụ chạy được | G3–G4 · trước khi chia việc; `PM-SPEC-005`, `BE-API-*` |
 | [`ui-gates/`](ui-gates/README.md) | `scripts/verify-render.mjs` của dự án web — cổng đo bản render (axe, tràn ngang 320/280 px, tương phản theo trạng thái) | G6–G7 · `UX-A11Y-028/029` |
 | [`AGENTS.md`](AGENTS.md) | `AGENTS.md` của dự án đích — luật vận hành cho mọi AI agent (Claude Code, Codex, Gemini CLI, Cursor…); `install.py` copy-if-absent | G5 · dựng nền harness |
@@ -34,6 +41,8 @@ updated: 2026-10-21
 | [`PULL-REQUEST.md`](PULL-REQUEST.md) | `.github/pull_request_template.md` của dự án đích — mục tiêu + link, bằng chứng exit code, rủi ro/đường lùi, nhãn `risk:`, migration, phụ thuộc mới, hỗ trợ AI; `install.py --with-github` copy-if-absent | Mọi PR · `WF-GIT-014`, `WF-REVIEW-002` |
 | [`ruleset-main.json`](ruleset-main.json) | `.github/rulesets/main.json` của dự án đích (import ở Settings → Rules → Rulesets) — tối thiểu (D-116, D-117, ADR-0039): cấm xoá/force-push, PR squash + resolve thread, đúng 2 required check mà workflow mẫu cung cấp (`quality`, `gitleaks`; `protection-guard` là job con của `quality`; D-122 bỏ `merge-gate` — `install.py --with-github` vẫn phát `merge-gate.yml` dạng stub luôn xanh để giữ context cũ tới khi dự án gỡ khỏi ruleset sống), **không** đòi "up to date" (PR merge song song; lớp đỡ: CI chạy lại trên push `main`), `bypass_actors: []`; `install.py --with-github` copy-if-absent | G5 · `WF-GIT-002`, `WF-CI-001`, `BASE-GATE-007` |
 | [`dependabot.yml`](dependabot.yml) | `.github/dependabot.yml` của dự án đích — chỉ hệ `github-actions` (thêm hệ theo manifest thật), gom nhóm, cooldown 14 ngày; `install.py --with-github` copy-if-absent | G5 · `BASE-DEP-007` |
-| [`ci.yml`](ci.yml) | `.github/workflows/ci.yml` của dự án đích — không phụ thuộc stack, tối thiểu số job, song song tối đa trong job (ADR-0039, D-127, D-128): `gate` (`dev-task.sh gate-par`: typecheck ∥ lint ∥ build → test, rồi doctor · ci-check · tiêu đề PR) · `e2e` (matrix 1 shard, tăng khi đo chậm) · `quality` gom + bước protection-guard; `gate` và `e2e` chạy cùng lúc; `install.py --with-github` copy-if-absent | G5 · `WF-CI-001`, `WF-CI-024`, `WF-CI-025` |
-| [`secret-scan.yml`](secret-scan.yml) | `.github/workflows/secret-scan.yml` của dự án đích — job `gitleaks` (required check của ruleset mẫu), quét toàn lịch sử; `install.py --with-github` copy-if-absent | G5 · `WF-CI-001`, `BASE-SEC-002` |
+| [`ci.yml`](ci.yml) | `.github/workflows/ci.yml` của dự án đích — không phụ thuộc stack, tối thiểu số job, song song tối đa trong job (ADR-0039, D-127, D-128): `gate` (`dev-task.sh gate-par`: typecheck ∥ lint ∥ build → test, rồi doctor · ci-check) · `e2e` (matrix 1 shard, tăng khi đo chậm) · `quality` gom + bước protection-guard; `gate` và `e2e` chạy cùng lúc; `install.py --with-github` copy-if-absent | G5 · `WF-CI-001`, `WF-CI-024`, `WF-CI-025` |
+| [`secret-scan.yml`](secret-scan.yml) | `.github/workflows/secret-scan.yml` của dự án đích — job `gitleaks` (required check của ruleset mẫu), quét lịch sử đã tải và HEAD. `install.py --with-github` cập nhật bản còn nguyên từ lần cài trước. Với workflow đã tùy chỉnh, gộp phần quét CLI từ tệp `.xtemplates-new`. | G5 · `WF-CI-001`, `BASE-SEC-002` |
+| [`git-hooks/`](git-hooks/README.md) | `.git/hooks/pre-commit`, `commit-msg`, `pre-push` của dự án đích — sàn chung cho mọi công cụ agent (cổng commit, subject, ghi công AI, nhánh chính, force); `install.py` cài khi chưa có hook riêng | G5 · ADR-0064 lát C |
+| [`pr-title.yml`](pr-title.yml) | `.github/workflows/pr-title.yml` của dự án đích — kiểm tiêu đề PR Conventional Commits ≤ 100 ký tự, nghe `edited` (T-2401: `ci.yml` không còn nghe `edited`); miễn `pr_title_check: off`/bot/Revert; không phải required check (`merge-check` vẫn chặn tiêu đề sai) | G5 · `WF-GIT-004` |
 | [`xt.yaml`](xt.yaml) | `xt.yaml` — lệnh chuẩn của dự án cho hook và agent; YAML phẳng, không suy diễn từ văn xuôi. `dev-task.sh` chỉ chạy `format · lint · typecheck · test · build · format_file` (`gate` = build→typecheck→lint→test) và `format_check · test_fast` (`gate-fast`, cổng commit khi `commit_gate: fast`); CI mẫu gọi thêm `e2e`/`e2e_setup` (`dev-task.sh e2e`); khoá khác (`install`, `dev`, `migrate`, `init`, `smoke`, `audit`…) agent đọc và chạy trực tiếp | G5 · `dev-task.sh gate`; `LOOP-HARNESS-008` |

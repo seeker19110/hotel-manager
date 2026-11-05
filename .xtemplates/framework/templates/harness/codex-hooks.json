@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "^(Bash|shell|exec_command|apply_patch|Edit|Write|mcp__.*)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -I -B \"$(git rev-parse --show-toplevel)/.xtemplates/scripts/xt_adapter.py\" codex",
+            "timeout": 30,
+            "statusMessage": "X-Templates guard"
+          }
+        ]
+      }
+    ]
+  }
+}

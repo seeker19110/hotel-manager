@@ -3,7 +3,7 @@ title: Cấu hình, biến môi trường và bí mật
 kind: baseline
 prefix: BASE-CFG
 applies_to: [all]
-updated: 2026-10-14
+updated: 2026-11-03
 ---
 
 # Cấu hình, biến môi trường và bí mật
@@ -38,7 +38,7 @@ updated: 2026-10-14
 
 - [ ] `BASE-CFG-001` **MUST** Mọi giá trị thay đổi theo môi trường (URL, cổng, khoá, cờ) đọc từ **biến môi trường** (hoặc file được inject lúc chạy), không hard-code trong mã hay commit vào repo. → Kiểm: grep mã không có URL CSDL/host nội bộ/khoá dạng literal; app chạy được chỉ với env + mã. · Nguồn: 12-factor III
 - [ ] `BASE-CFG-002` **MUST** Cấu hình được **validate lúc khởi động** bằng schema (kiểu, bắt buộc/tuỳ chọn, phạm vi, định dạng URL); thiếu hoặc sai → thoát với mã ≠ 0 và thông báo nêu **tên biến** (không in giá trị). → Kiểm: khởi động với env trống → exit ≠ 0, stderr liệt kê biến thiếu; test đơn vị cho schema; grep `process.env.`/`os.environ[` ngoài module env = 0. · Nguồn: catalog 09 §1.4 (validate env bằng zod); ASVS 5.0 V13; 12-factor III
-- [ ] `BASE-CFG-003` **MUST** Có `.env.example` (hoặc file tương đương) commit, liệt kê **mọi** biến với mô tả và giá trị giả; `.env`, `.env.*.local`, `*.pem`, `*.key` nằm trong `.gitignore`. → Kiểm: CI so khớp tập khoá trong `.env.example` với schema (lệch = đỏ); `git ls-files .env` rỗng; `git check-ignore .env` trả `.env`. · Nguồn: 12-factor III; OWASP Secrets Management CS
+- [ ] `BASE-CFG-003` **MUST** Có `.env.example` (hoặc file tương đương) commit, liệt kê **mọi** biến với mô tả và giá trị giả (không dùng được làm giá trị thật — [`BASE-SEC-005`](security-minimum.md)); `.env`, `.env.*.local`, `*.pem`, `*.key` nằm trong `.gitignore`. → Kiểm: CI so khớp tập khoá trong `.env.example` với schema (lệch = đỏ); `git ls-files .env` rỗng; `git check-ignore .env` trả `.env`. · Nguồn: 12-factor III; OWASP Secrets Management CS
 - [ ] `BASE-CFG-004` **MAY** Ngừng dùng 2026-10-14 — gộp vào [`SEC-SECRET-001`](../12-security/secrets-management.md): không bí mật trong repo, lịch sử git, Dockerfile/image, workflow CI, artefact (sàn mọi quy mô giữ ở [`BASE-SEC-002`](security-minimum.md)).
 - [ ] `BASE-CFG-005` **MUST** Object cấu hình khi in/dump (`--print-config`, log khởi động, trang debug, `repr`/`toString`) **che trường bí mật**; schema đánh dấu trường nào là bí mật. Nguyên tắc "bí mật không vào log/lỗi/URL": xem [`SEC-SECRET-007`](../12-security/secrets-management.md) và [`BASE-ERR-007`](errors-and-logging.md). → Kiểm: test `JSON.stringify(config)`/`repr(settings)` cho `***` ở mọi trường bí mật. · Nguồn: OWASP Logging CS
 - [ ] `BASE-CFG-006` **MUST** Bí mật không truyền qua **tham số dòng lệnh** (lộ trong `ps`, lịch sử shell); nhận qua env, file (`--token-file`), hoặc stdin. → Kiểm: CLI không có cờ `--password <value>`; tài liệu nêu cách truyền an toàn. · Nguồn: clig.dev (Secrets); OWASP Secrets Management CS

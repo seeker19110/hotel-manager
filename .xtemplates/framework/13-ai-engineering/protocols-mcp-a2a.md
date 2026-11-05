@@ -3,7 +3,7 @@ title: Giao thức: MCP, A2A, AG-UI, Agent Skills, AGENTS.md
 kind: module
 prefix: AI-PROTO
 applies_to: [ai-agent, agentic-system, data-ml]
-updated: 2026-10-14
+updated: 2026-11-01
 ---
 
 # Giao thức: MCP, A2A, AG-UI, Agent Skills, AGENTS.md
@@ -73,6 +73,8 @@ passthrough · scope tối thiểu. Server phát `WWW-Authenticate` chuẩn; cli
 - [ ] `AI-PROTO-015` **SHOULD** Giới hạn số MCP server bật đồng thời (mỗi server thêm tool vào context); đo token của `tools/list` tổng. · Nguồn: [`../11-autonomous-loop/context-and-token-budget.md`](../11-autonomous-loop/context-and-token-budget.md)
 - [ ] `AI-PROTO-016` **MAY** Xuất bản MCP server của sản phẩm cho khách: kèm PRM, tài liệu scope, rate limit, changelog tool; coi như API công khai. · Nguồn: [`../08-backend/api-design.md`](../08-backend/api-design.md)
 - [ ] `AI-PROTO-017` **MAY** Dùng A2A giữa các team nội bộ chỉ khi ranh giới tổ chức/nền tảng thật sự khác; không dùng để thay queue nội bộ.
+- [ ] `AI-PROTO-018` **SHOULD** Server/client MCP không dùng cho code mới các tính năng nằm trong sổ Deprecated của spec đang ghim. Với 2026-07-28 gồm: Roots, Sampling (kể cả `includeContext: thisServer/allServers`), Logging, Dynamic Client Registration, transport HTTP+SSE. Code cũ có ADR di trú trước mốc gỡ sớm nhất ghi trong sổ: tham số tool/URI resource, gọi thẳng API nhà cung cấp, stderr/OTel, Client ID Metadata Documents, Streamable HTTP. Mốc gỡ sớm nhất: bản phát hành từ 2027-07-28 cho 4 tính năng đầu; 3 tháng sau khi SEP-2596 Final cho HTTP+SSE. → Kiểm: lint/grep trong CI: `roots/list`, `sampling/createMessage`, `logging/setLevel`, `notifications/message`, endpoint đăng ký client động, transport SSE cũ → đỏ trừ khi file nằm trong allowlist có ADR di trú kèm ngày. · Nguồn: MCP spec 2026-07-28 *Deprecated features* (SEP-2577, SEP-2596)
+- [ ] `AI-PROTO-019` **MUST@L** Khi server/client MCP dùng elicitation: server không xin mật khẩu/API key/access token/thông tin thanh toán qua form mode mà dùng URL mode. URL không chứa thông tin nhạy cảm/PII của người dùng và không được tiền xác thực. Server bảo đảm người mở và hoàn tất URL chính là người khởi tạo elicitation, vd so `sub` của phiên đăng nhập với `sub` từ MCP authorization; không tin định danh do client khai. Client hiển thị server nào đang hỏi và URL đầy đủ (làm nổi domain), xin đồng ý trước khi mở, không tự prefetch, và mở trong trình duyệt/view mà client và LLM không đọc được nội dung. → Kiểm: test server: lint schema form tách tên/tiêu đề trường thành từ (snake/camel) rồi so **theo từ, cả số nhiều** với danh sách từ cấm (`password`, `passwd`, `pass`, `passcode`, `passphrase`, `pwd`, `pin`, `secret`, `token`, `apikey`/`api key`, `card` — gồm `cardNo`, `creditCard`, `card_num` —, `cvv`, `cvc`, `iban`) → bị từ chối, allowlist có lý do cho trường hợp lệ (`max_tokens`, `passenger_count`, `card_title`); test URL elicitation mở bởi user khác `sub` → bị từ chối; test client: không có request mạng tới URL trước khi người dùng đồng ý, UI hiển thị domain và tên server. · Nguồn: MCP spec 2026-07-28 *Client — Elicitation* (MUST/MUST NOT)
 
 ## Bẫy thường gặp
 
@@ -104,3 +106,6 @@ passthrough · scope tối thiểu. Server phát `WWW-Authenticate` chuẩn; cli
 - A2A protocol v1.0.1 (Agent Card có chữ ký, task states, auth schemes): <https://a2a-protocol.org/latest/specification/> — xác minh 2026-10-13 (`research/2026-10-13-ai-agent-research.md` §4).
 - AG-UI (bản release/2026-10-12): <https://docs.ag-ui.com/> — xác minh 2026-10-13 theo research; số phiên bản gói (chưa xác minh).
 - Agent Skills spec (SKILL.md `name`/`description`, progressive disclosure, < 500 dòng): <https://agentskills.io/specification> · AGENTS.md (quy ước, > 60k dự án): <https://agents.md/> — xác minh 2026-10-13.
+- Roots/Sampling/Logging (SEP-2577) và Dynamic Client Registration (PR #2858) deprecated ở 2026-07-28, gỡ sớm nhất ở bản phát hành từ 2027-07-28; includeContext thisServer/allServers deprecated 2025-11-25; HTTP+SSE deprecated 2025-03-26, gỡ sớm nhất 3 tháng sau khi SEP-2596 Final; 'new implementations SHOULD NOT adopt it, existing implementations SHOULD migrate' (`AI-PROTO-018`): <https://modelcontextprotocol.io/specification/2026-07-28/deprecated.md> — xác minh 2026-10-30.
+- Spec latest = 2026-07-28 (`AI-PROTO-018`): <https://modelcontextprotocol.io/specification/latest> — chưa đọc trọn trang 2026-10-30 (chưa xác minh trọn).
+- Servers MUST NOT dùng form mode cho mật khẩu, API key, access token, thông tin thanh toán và MUST dùng URL mode; URL MUST NOT chứa thông tin nhạy cảm/PII và MUST NOT tiền xác thực; client MUST NOT prefetch, MUST NOT mở khi chưa đồng ý, MUST hiện URL đầy đủ, MUST mở sao cho client/LLM không xem được; server MUST bảo đảm người hoàn tất trùng người khởi tạo (so `sub` là ví dụ không chuẩn tắc); URL mode có từ 2025-11-25 (`AI-PROTO-019`): <https://modelcontextprotocol.io/specification/2026-07-28/client/elicitation> — xác minh 2026-10-30.

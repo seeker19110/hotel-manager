@@ -3,7 +3,7 @@ title: Starter layout theo loại dự án và nguồn mã UI khởi đầu
 kind: module
 prefix: FE-START
 applies_to: [web-app, mobile-app, static-site, desktop-app, monorepo]
-updated: 2026-10-18
+updated: 2026-11-04
 ---
 
 # Starter layout theo loại dự án và nguồn mã UI khởi đầu
@@ -42,7 +42,7 @@ updated: 2026-10-18
 - [ ] `FE-START-002` **SHOULD** Chỉ giữ phần dự án dùng: kéo từng block thay vì cả starter, bỏ provider/analytics mặc định không dùng (vd Clerk trong starter Next), không để khoá của provider thừa trong `.env.example`. → Kiểm: `knip` (hoặc `depcheck`) không báo gói thừa từ starter; `.env.example` không có biến của provider đã bỏ. · Nguồn: `seeker19110/stored` 06 §7h.3
 - [ ] `FE-START-003` **SHOULD** Không lấy mẫu **đã ngừng cập nhật** làm nền: ghi ngày commit cuối và major framework của nguồn trong `SOURCE`; cũ hơn 12 tháng hoặc đã discontinued → chỉ tham khảo, hoặc ADR nêu lý do giữ. → Kiểm: `SOURCE` có ngày commit cuối; ADR cho ngoại lệ. · Nguồn: pub.dev `flutter_adaptive_scaffold` (discontinued, đọc 2026-10-18); `seeker19110/stored` 06 §7h.2 (Tremor Blocks 1/2025, Flowbite Admin 3/2025)
 - [ ] `FE-START-004` **SHOULD** Layout chép về **đi qua cổng của dự án trước khi merge**: thay token mẫu bằng token thật (không hex rải rác, `UX-DS-002`), `xt.py contrast` xanh hai theme, `verify-render`/axe 0 vi phạm, không `outline: none` thừa. → Kiểm: PR đưa starter vào có log `xt.py contrast` exit 0 và kết quả axe; E2E mobile + desktop (`UX-RESP-008`). · Nguồn: `seeker19110/stored` 06 §7g.1 (không bộ skill/starter nào tự có cổng đo bản render)
-- [ ] `FE-START-005` **MAY** Dùng thư viện ảnh chụp app thật (Mobbin…) làm tham khảo bố cục: không chép giao diện, logo, asset hay văn bản — không có license tái sử dụng. → Kiểm: review PR: không file ảnh/asset lấy từ thư viện tham khảo. · Nguồn: `seeker19110/stored` 06 §7h.1
+- [ ] `FE-START-005` **MAY** Dùng thư viện ảnh chụp app thật (Mobbin…) làm tham khảo bố cục: không chép giao diện, logo, asset hay văn bản — không có license tái sử dụng. Một số công cụ trích token/clone giao diện có thể không tôn trọng `robots.txt` và tải font, ảnh, chữ thật của site đích (kiểm từng công cụ): chỉ chạy trên site của mình/được phép; font, ảnh, văn bản tải về thay trước merge ([`CMP-LIC-022`](../16-compliance-privacy/licensing-and-ip.md), [`CMP-LIC-026`](../16-compliance-privacy/licensing-and-ip.md)). → Kiểm: review PR: không file ảnh/asset lấy từ thư viện tham khảo; `python3 .xtemplates/scripts/xt.py vendor-check --dirs <thư mục do clone sinh> --strict` exit 0 (asset thiếu `SOURCE` + license → đỏ, kể cả thư mục ngoài `vendor/`); `rg` domain site gốc trong URL asset = 0. · Nguồn: `seeker19110/stored` 06 §7h.1
 
 ## Bẫy thường gặp
 
@@ -62,6 +62,7 @@ updated: 2026-10-18
 
 ## Nguồn
 
+- Hành vi `robots.txt`/tải asset của từng công cụ clone: (chưa xác minh — theo stored 06 §7p.4, §7r); không có nguồn chính chủ chung, kiểm từng công cụ.
 - `seeker19110/stored` mục 06 §7h (layout mẫu cho web, dashboard, mobile; clone 21 repo ngày 2026-10-18, đếm bằng `git ls-tree`), §7g, §7d — đọc 2026-10-18; ghi chép và các điều chưa xác minh: [`research/2026-10-18-stored-ui-extraction.md`](../../research/2026-10-18-stored-ui-extraction.md).
 - shadcn/ui registry `new-york-v4`: `dashboard-01`, `sidebar-07` HTTP 200 (<https://ui.shadcn.com/r/styles/new-york-v4/sidebar-07.json>, <https://ui.shadcn.com/r/styles/new-york-v4/dashboard-01.json>); npm `shadcn` 4.22.0 (MIT) — xác minh 2026-10-18. Cú pháp `npx shadcn add <block>` chưa đọc được từ docs (`/docs/blocks` trả 404) — (chưa xác minh).
 - pub.dev `flutter_adaptive_scaffold` (discontinued, bản 0.3.3+1): <https://pub.dev/packages/flutter_adaptive_scaffold> — xác minh 2026-10-18.

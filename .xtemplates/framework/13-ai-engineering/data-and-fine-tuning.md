@@ -3,7 +3,7 @@ title: Dữ liệu, fine-tuning, dataset, bản quyền, PII trong dữ liệu h
 kind: module
 prefix: AI-DATA
 applies_to: [ai-agent, agentic-system, data-ml]
-updated: 2026-10-14
+updated: 2026-11-04
 ---
 
 # Dữ liệu, fine-tuning, dataset, bản quyền, PII trong dữ liệu huấn luyện
@@ -65,6 +65,10 @@ thế nào · hạn chế đã biết · chủ sở hữu · hash phiên bản.
 - [ ] `AI-DATA-015` **SHOULD** Ghi chi phí fine-tune (huấn luyện + phục vụ) so với prompt/RAG và đo lại sau 3 tháng khi model nền nâng cấp; model nền mới có thể xoá lợi thế. · Nguồn: [`observability-and-cost.md`](observability-and-cost.md)
 - [ ] `AI-DATA-016` **MAY** Dùng lakeFS khi dữ liệu ở object store lớn cần nhánh/commit/rollback kiểu git; DVC khi dữ liệu vừa và pipeline chạy cạnh repo.
 - [ ] `AI-DATA-017` **MAY** Đánh giá thiên lệch (bias) theo nhóm trên holdout khi tác vụ ảnh hưởng tới người (tuyển dụng, tín dụng, y tế); tham chiếu [`../16-compliance-privacy/ai-regulation.md`](../16-compliance-privacy/ai-regulation.md).
+- [ ] `AI-DATA-018` **SHOULD** Dữ liệu có nhiều biến thể cùng tài liệu/người dùng/hội thoại/cụm near-duplicate: xác định `group_id`/source ID và khoá split trước augmentation/generation; bản dẫn xuất kế thừa group và split. Kiểm hash/near-duplicate lẫn group overlap (`AI-DATA-007`) lại trên artifact thực xuất cho trainer/eval. → Kiểm: báo cáo số nhóm/mẫu mỗi split + ca bị loại; fixture hai biến thể cùng nguồn nằm ở train và final test → pipeline đỏ. · Nguồn: (chưa xác minh — theo stored 24 §4, §5)
+- [ ] `AI-DATA-019` **SHOULD** Pipeline sinh/chấm dữ liệu bằng AI phát hành dataset manifest: source IDs/license, hash vào/ra, recipe revision, generator/judge endpoint + model revision, prompt hash, sampling config, validator, human-review revision, lý do rejected/retained (bổ sung `AI-DATA-002`/`011`). Manifest mô tả snapshot thực của release; cache resume/experiment log chỉ hỗ trợ. → Kiểm: thiếu generator/judge revision hoặc không truy được nguồn của một mẫu synthetic → báo `incomplete provenance`, chặn chấp nhận snapshot. · Nguồn: (chưa xác minh — theo stored 24 §4, §5)
+- [ ] `AI-DATA-020` **SHOULD** Tác vụ SFT/chat/tool-call: trước job dài lưu bộ sample sau chat template/tokenization (token IDs, labels/loss mask, phần bị truncation); kiểm span user/system/assistant/tool đúng mục tiêu, có token được học, đáp án không bị cắt ngoài chủ ý; ghim tokenizer/chat-template cùng config. → Kiểm: test fixture thiếu generation mask hoặc nhãn toàn -100 đỏ (không chỉ tin cờ như `assistant_only_loss` hay loss giảm). · Nguồn: https://huggingface.co/docs/trl/sft_trainer (tra 2026-11-04)
+- [ ] `AI-DATA-021` **SHOULD** Model/adapter merge, quantize hoặc export sang runtime khác là artifact mới (bổ sung `AI-DATA-009`, `AI-EVAL-001`): manifest base revision, tokenizer/chat-template, adapter/config, precision, export tool, artifact hash; nạp trong tiến trình sạch rồi chạy lại held-out/regression trên artifact + runtime đích; giữ baseline trước/sau (kèm latency/RAM nếu là mục tiêu). → Kiểm: chỉ artifact đã qua cổng được deploy; load thành công không thay số đo chất lượng. · Nguồn: (chưa xác minh — theo stored 25 §3.1, §3.4, §5)
 
 ## Bẫy thường gặp
 
@@ -96,3 +100,4 @@ thế nào · hạn chế đã biết · chủ sở hữu · hash phiên bản.
 - Presidio / Data Privacy Stack: <https://presidio.dataprivacystack.org/> · PyPI `presidio-analyzer` 2.2.364 (2026-07-22) — xác minh 2026-10-13.
 - Datasheets for Datasets (Gebru et al., CACM 2021): <https://cacm.acm.org/research/datasheets-for-datasets/> — xác minh 2026-10-13 (khái niệm datasheet).
 - NIST AI 600-1 Generative AI Profile (2024-07-26, rủi ro dữ liệu huấn luyện/privacy/IP): <https://www.nist.gov/itl/ai-risk-management-framework> — xác minh 2026-10-13 (`research/2026-10-13-ai-agent-research.md` §5). EU AI Act Reg. (EU) 2024/1689 nghĩa vụ dữ liệu: <https://eur-lex.europa.eu/eli/reg/2024/1689/oj> — (chưa xác minh — trang trả nội dung rỗng ngày 2026-10-13; xem [`../16-compliance-privacy/ai-regulation.md`](../16-compliance-privacy/ai-regulation.md)).
+- Nguồn bổ sung AI-DATA-018–021 (chưa xác minh — theo stored 24 §4-5, 25 §3, §5); đã tra riêng TRL (docs SFTTrainer, 2026-11-04); datatrove, distilabel, PEFT, LLaMA-Factory, Axolotl chưa tra nguồn chính chủ.

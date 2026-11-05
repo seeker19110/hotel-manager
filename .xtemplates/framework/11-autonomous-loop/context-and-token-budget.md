@@ -3,7 +3,7 @@ title: Ngân sách context/token, compaction, bàn giao phiên
 kind: module
 prefix: LOOP-CTX
 applies_to: [all]
-updated: 2026-10-21
+updated: 2026-10-25
 ---
 
 # Ngân sách context/token, compaction, bàn giao phiên
@@ -74,7 +74,7 @@ Ngưỡng 80/100 tương ứng circuit breaker 80/90/100 của stored 21 §10; 9
 - [ ] `LOOP-CTX-007` **MAY** Ngừng dùng 2026-10-14 — gộp vào [`XC-DOCAI-006`](../18-cross-cutting/docs-for-ai-agents.md): `AGENTS.md`/`CLAUDE.md` của dự án ≤ 200 dòng, chi tiết để trong module và link tới.
 - [ ] `LOOP-CTX-008` **MAY** Ngừng dùng 2026-10-15 — thay bằng `LOOP-CTX-018` (ADR-0009: một phiên đến khi xong).
 - [ ] `LOOP-CTX-009` **SHOULD** Đặt PreCompact hook ghi checkpoint (task hiện tại, lệnh vừa chạy, lỗi đang xử lý) trước khi nén, SessionStart(compact) nạp lại; hook luôn exit 0 (exit 2 chặn nén). → Kiểm: `.claude/settings.json` có `PreCompact` → `pre-compact.sh` → `xt.py loop checkpoint`; sau nén `loop status` có dòng "checkpoint trước nén"; test `test_pre_compact_*`. · Nguồn: Claude Code hooks docs (PreCompact/SessionStart `source: compact`, xác minh 2026-10-15)
-- [ ] `LOOP-CTX-010` **SHOULD** Việc đọc dài (tài liệu, repo lạ, log CI) giao subagent `researcher`; phiên chính nhận tóm tắt có đường dẫn/URL. · Nguồn: [`orchestration-and-subagents.md`](orchestration-and-subagents.md)
+- [ ] `LOOP-CTX-010` **MAY** Ngừng dùng 2026-10-25 — gộp vào [`LOOP-ORCH-012`](orchestration-and-subagents.md) (cùng chủ đề: việc đọc dài giao `researcher`).
 - [ ] `LOOP-CTX-011` **SHOULD** Prompt hệ thống/luật/tool schema đứng trước và ổn định; nội dung biến đổi append phía sau để tận dụng prompt cache; đo `cache_read_input_tokens` > 0 trước khi tin cache có tác dụng. · Nguồn: [`../13-ai-engineering/llm-app-foundations.md`](../13-ai-engineering/llm-app-foundations.md)
 - [ ] `LOOP-CTX-012` **MAY** Ngừng dùng 2026-10-15 — thay bằng `LOOP-CTX-019` (ADR-0009: vượt ngân sách thì thu hẹp phạm vi, không chia phiên).
 - [ ] `LOOP-CTX-013` **SHOULD** Skill/tài liệu khung nạp theo tầng (progressive disclosure): chỉ `description` thường trực, nội dung khi gọi; SKILL.md < 500 dòng. · Nguồn: Agent Skills spec

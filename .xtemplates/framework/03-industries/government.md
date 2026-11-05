@@ -4,7 +4,7 @@ kind: industry
 slug: government
 prefix: IND-GOV
 modules: [16-compliance-privacy/*, 12-security/*, 04-standards/accessibility-standards, 04-standards/security-standards, 06-design-ux/accessibility, 06-design-ux/content-and-microcopy, 06-design-ux/ui-states-and-feedback, 08-backend/authn-authz, 08-backend/api-design, 08-backend/integrations-and-webhooks, 08-backend/files-and-media, 09-database/backup-and-recovery, 09-database/data-modeling, 15-operations/backup-and-disaster-recovery, 15-operations/observability, 15-operations/slo-and-alerting, 15-operations/infrastructure-as-code, 18-cross-cutting/i18n-and-l10n, 10-workflow/documentation-workflow, 14-testing-quality/e2e-and-accessibility, 14-testing-quality/integration-and-contract]
-updated: 2026-10-13
+updated: 2026-11-02
 ---
 
 # Gói ngành: Chính phủ · dịch vụ công · khu vực công
@@ -113,7 +113,7 @@ GDPR (khu vực công: cơ sở Art. 6(1)(e)).
 - [ ] `IND-GOV-015` **SHOULD** Thiết kế cho thiết bị yếu/mạng chậm/kiosk: trang quan trọng ≤ 500 KB, hoạt động không JS cho tra cứu cơ bản, hỗ trợ trình duyệt cũ theo thống kê người dùng. → Kiểm: Lighthouse cấu hình 3G; test no-JS tra cứu. · Nguồn: [`../07-frontend/performance-web-vitals.md`](../07-frontend/performance-web-vitals.md)
 - [ ] `IND-GOV-016` **SHOULD** Ngôn ngữ: tiếng Việt chuẩn, thuật ngữ hành chính nhất quán theo bộ từ điển, hỗ trợ tiếng dân tộc/tiếng Anh ở nơi cần; biểu mẫu dùng mẫu chính thức. → Kiểm: glossary trong repo; i18n; xem [`../06-design-ux/content-and-microcopy.md`](../06-design-ux/content-and-microcopy.md). · Nguồn: NĐ 42/2022/NĐ-CP (thông tin dễ hiểu)
 - [ ] `IND-GOV-017` **SHOULD** Dữ liệu mở: công bố dữ liệu không nhạy cảm theo định dạng máy đọc (CSV/JSON/API) có license rõ, cập nhật định kỳ. → Kiểm: cổng dữ liệu mở có metadata + license. · Nguồn: NĐ 47/2020/NĐ-CP (dữ liệu mở); Luật Dữ liệu 60/2024/QH15
-- [ ] `IND-GOV-018` **SHOULD** SLO công khai cho dịch vụ công (uptime, thời gian phản hồi tra cứu) và trang trạng thái; cảnh báo khi hạn xử lý hồ sơ sắp quá. → Kiểm: `docs/ops/slo.md`; alert hồ sơ quá hạn; xem [`../15-operations/slo-and-alerting.md`](../15-operations/slo-and-alerting.md). · Nguồn: NĐ 42/2022/NĐ-CP; thực hành SRE
+- [ ] `IND-GOV-018` **SHOULD** SLO công khai cho dịch vụ công (uptime, thời gian phản hồi tra cứu) và trang trạng thái; cảnh báo khi hạn xử lý hồ sơ sắp quá. → Kiểm: `docs/ops/SLO.md`; alert hồ sơ quá hạn; xem [`../15-operations/slo-and-alerting.md`](../15-operations/slo-and-alerting.md). · Nguồn: NĐ 42/2022/NĐ-CP; thực hành SRE
 - [ ] `IND-GOV-019` **SHOULD** Thông tin công khai và thông tin theo yêu cầu phân loại rõ (công khai/hạn chế/mật) ngay trong schema; cơ chế tiếp nhận yêu cầu cung cấp thông tin có thời hạn. → Kiểm: cờ phân loại; luồng yêu cầu có SLA. · Nguồn: Luật Tiếp cận thông tin 104/2016/QH13 (và luật thay thế 2026 — chưa xác minh)
 - [ ] `IND-GOV-020` **MAY** Hỗ trợ ví định danh EU (eIDAS 2.0) hoặc chuẩn Verifiable Credentials cho giao dịch xuyên biên giới. → Kiểm: ADR + thử nghiệm. · Nguồn: Regulation (EU) 2024/1183
 - [ ] `IND-GOV-021` **MAY** Mã nguồn mở hoá thành phần dùng chung (theo chính sách chủ quản) với license OSI và quy trình đóng góp. → Kiểm: repo công khai có LICENSE; xem [`../18-cross-cutting/open-source-and-community.md`](../18-cross-cutting/open-source-and-community.md). · Nguồn: thực hành chính phủ số

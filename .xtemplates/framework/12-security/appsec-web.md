@@ -3,7 +3,7 @@ title: AppSec web/API: injection, XSS, CSRF, SSRF, IDOR, header, CSP
 kind: module
 prefix: SEC-WEB
 applies_to: [web-app, api-service, ai-agent, agentic-system, data-ml, monorepo, blockchain, static-site]
-updated: 2026-10-16
+updated: 2026-10-30
 ---
 
 # AppSec web/API: injection, XSS, CSRF, SSRF, IDOR, header, CSP
@@ -69,6 +69,7 @@ updated: 2026-10-16
 - [ ] `SEC-WEB-025` **MAY** Ngừng dùng 2026-10-14 — gộp vào [`BASE-SEC-018`](../01-baseline/security-minimum.md) (`security.txt` RFC 9116) và [`BASE-SEC-009`](../01-baseline/security-minimum.md) (`SECURITY.md`, kênh báo lỗ hổng).
 - [ ] `SEC-WEB-026` **MAY** Fuzz endpoint parse dữ liệu phức tạp (file, XML, JSON lồng) bằng bộ fuzz của ngôn ngữ (go-fuzz, atheris, jazzer). → Kiểm: job fuzz theo lịch, corpus trong repo. · Nguồn: OpenSSF Scorecard check Fuzzing
 - [ ] `SEC-WEB-027` **MUST@L** Xuất CSV/XLSX vô hiệu hoá công thức: ô chuỗi do người dùng/đối tác cung cấp mà bắt đầu bằng `=`, `+`, `-`, `@`, tab (`\t`) hoặc CR (`\r`) được thêm tiền tố `'` (hoặc ghi kiểu text/chuỗi, không phải công thức) ở **một hàm xuất dùng chung**; OWASP nay liệt kê thêm LF và biến thể full-width (`＝ ＋ － ＠`). Số do hệ thống tính ghi bằng kiểu số, không đi qua nhánh chuỗi. → Kiểm: test xuất bản ghi có tên `=HYPERLINK("http://evil.example","x")` → ô trong file có `'=` (CSV) hoặc kiểu text (XLSX); test các ký tự đầu còn lại; test số âm thật không bị biến thành chuỗi. · Nguồn: OWASP CSV Injection; `seeker19110/stored` 23 §4.4, 12 §3 (Dhcb-Tools `SECURITY.md`: chặn CSV formula injection; đọc 2026-10-16)
+- [ ] `SEC-WEB-028` **SHOULD** Trang HTML có phiên đặt `Cross-Origin-Opener-Policy: same-origin` (hoặc `same-origin-allow-popups` khi cần popup OAuth/thanh toán tin cậy) để cửa sổ khác origin không giữ tham chiếu `window.opener`/`window.open` tới trang; thêm `Cross-Origin-Embedder-Policy: require-corp` (hoặc `credentialless`) chỉ khi cần cross-origin isolation (`SharedArrayBuffer`, timer độ phân giải cao). Bổ sung cho bộ header của `SEC-WEB-006`/`FE-SEC-018`. → Kiểm: test header trong CI smoke (`curl -I` trang HTML có `Cross-Origin-Opener-Policy`); E2E: trang khác origin mở trang bằng `window.open` → `win.closed === true`/không truy cập được `opener`; luồng đăng nhập popup OAuth vẫn xanh; nếu dùng `SharedArrayBuffer` thì `self.crossOriginIsolated === true`. · Nguồn: MDN Cross-Origin-Opener-Policy; OWASP HTTP Headers Cheat Sheet
 
 ## Bẫy thường gặp
 
@@ -110,3 +111,5 @@ updated: 2026-10-16
 - RFC 9116 `security.txt`: <https://www.rfc-editor.org/rfc/rfc9116> — (chưa fetch lại ngày 2026-10-13; số RFC theo kiến thức nền, xác minh trước khi dùng).
 - Catalog `seeker19110/stored` mục 09 §1.3–1.4 (base checklist Web: CSP/HSTS/CORS/SSRF; Next.js Server Action phải kiểm auth), đọc 2026-10-13.
 - OWASP CSV Injection: <https://owasp.org/www-community/attacks/CSV_Injection> — xác minh 2026-10-16 (danh sách ký tự đầu ô gồm `= + - @` tab CR LF và biến thể full-width; cảnh báo `'` có thể mất tác dụng khi Excel lưu lại; biện pháp bền với Excel: tab đầu ô trong trường có nháy kép). Catalog `seeker19110/stored` 23 §4.4, 12 §3 (đọc 2026-10-16).
+- Giá trị: unsafe-none (mặc định), same-origin-allow-popups (popup OAuth/thanh toán tin cậy), same-origin, noopener-allow-popups; crossOriginIsolated cần COOP same-origin + COEP require-corp hoặc credentialless; với noopener-allow-popups, WindowProxy trả về từ window.open báo closed === true (`SEC-WEB-028`): <https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cross-Origin-Opener-Policy> — xác minh 2026-10-30.
+- OWASP khuyến nghị Cross-Origin-Opener-Policy: same-origin, Cross-Origin-Embedder-Policy: require-corp, Cross-Origin-Resource-Policy: same-site (`SEC-WEB-028`): <https://cheatsheetseries.owasp.org/cheatsheets/HTTP_Headers_Cheat_Sheet.html> — chưa đọc trọn trang 2026-10-30 (chưa xác minh trọn).

@@ -69,7 +69,7 @@ def _max_parallel(ctx: Ctx) -> Optional[int]:
     if not raw.isascii() or not raw.isdigit():
         return None
     n = int(raw)
-    return n if 1 <= n <= 10 else None
+    return n if 1 <= n <= ctx.xt.WAVE_MAX_HARD else None  # trần cứng LOOP-ORCH-008 như `plan waves` (AUD-XFEAT-041)
 
 
 def _default_path(ctx: Ctx, st: Dict[str, Any]) -> Optional[str]:
@@ -118,7 +118,7 @@ def _body(ctx: Ctx, rel: Optional[str], tasks: List[Dict[str, Any]], st: Dict[st
 def _plan(ctx: Ctx) -> Reply:
     mx = _max_parallel(ctx)
     if mx is None:
-        return 400, {"error": "`max` phải là số nguyên từ 1 đến 10"}
+        return 400, {"error": f"`max` phải là số nguyên từ 1 đến {ctx.xt.WAVE_MAX_HARD} (LOOP-ORCH-008)"}
     st = _state(ctx)
     raw = ctx.query.get("path")
     if raw:

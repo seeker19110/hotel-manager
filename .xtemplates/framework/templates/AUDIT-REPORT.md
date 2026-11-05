@@ -1,7 +1,7 @@
 ---
 title: Mẫu AUDIT-REPORT
 kind: template
-updated: 2026-10-20
+updated: 2026-10-25
 ---
 
 # Mẫu AUDIT-REPORT.md — báo cáo một lần audit
@@ -9,7 +9,8 @@ updated: 2026-10-20
 > **Ai viết:** phiên chạy `/audit`, sau khi quét xong và **trước** khi sửa. **Giai đoạn:** G0 brownfield, G7, định kỳ.
 > **Cổng dùng:** phiên chính tự duyệt kế hoạch sửa ở §5 (ADR-0008, D-NNN; skill `/audit` bước 6); sổ máy đọc là
 > [`AUDIT-STATUS.md`](AUDIT-STATUS.md). Phương pháp: [`../00-method/audit.md`](../00-method/audit.md).
-> **Luật:** mỗi phát hiện ở đây trùng ID với `AUDIT-STATUS.md`; 🔴/🟠 có đường tái hiện từng bước và đã qua xác minh đối kháng;
+> **Luật:** mỗi phát hiện ở đây trùng ID với `AUDIT-STATUS.md`; 🔴/🟠 có đường tái hiện từng bước và đã qua xác minh đối kháng
+> (không xác minh được — agent hỏng, bị chặn, người dừng — thì Trạng thái `mở`, ghi `chưa xác minh — <lý do>` ở dòng Xác minh đối kháng);
 > không liệt kê "best practice" chung chung không trỏ được file:dòng hay lệnh.
 
 ```markdown
@@ -37,7 +38,7 @@ Output rút gọn của `xt.py audit plan`: stack dò được, nhóm áp dụng
 ### AUD-<MÃ>-NNN 🔴 <tóm tắt>
 - **Bằng chứng:** đo được / suy luận / chưa biết — <lệnh + output rút gọn, file:dòng>
 - **Tái hiện:** 1. … 2. … → <kết quả sai>
-- **Xác minh đối kháng:** <ai, tái hiện được hay không>
+- **Xác minh đối kháng:** <ai, tái hiện được hay không | `chưa xác minh — <lý do>`>
 - **Đề xuất sửa:** <nhỏ nhất đủ đúng> · **Gate:** `<lệnh>`
 
 ## 5. Kế hoạch sửa theo đợt (tự duyệt — D-NNN)

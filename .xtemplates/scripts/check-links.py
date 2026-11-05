@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """check-links.py — kiểm liên kết Markdown nội bộ (tương đối) trên TOÀN repo, không chỉ framework/.
 
-- Mọi `[text](đường/dẫn.md#anchor)` tương đối phải trỏ tới file/thư mục có thật.
-- Bỏ qua URL (http:, mailto:…), anchor thuần (#…), nội dung trong code fence (``` hoặc ~~~).
+- Mọi `[text](đường/dẫn.md#anchor)` tương đối phải trỏ tới file/thư mục có thật; `#anchor` (cùng file hoặc file `.md`
+  khác) phải là slug của một tiêu đề theo cách GitHub sinh, hoặc `<a id|name="…">`.
+- Bỏ qua URL (http:, mailto:…), nội dung trong code fence (``` hoặc ~~~).
 - Link trỏ ra ngoài gốc repo là lỗi (file có trên máy người viết nhưng không có trong repo).
 - Bỏ qua thư mục: .git, node_modules, .venv, .autopilot, __pycache__.
 Thoát 1 nếu có link hỏng. Chỉ dùng thư viện chuẩn.
@@ -21,12 +22,13 @@ import argparse
 import re
 import sys
 import time
+import unicodedata
 import urllib.error
 import urllib.request
 from collections.abc import Callable, Iterator, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -35,6 +37,13 @@ if ROOT.name == ".xtemplates":  # cài ở dự án đích (.xtemplates/scripts/
 SKIP_DIRS = {".git", "node_modules", ".venv", ".autopilot", "__pycache__", ".xtemplates"}
 LINK_RE = re.compile(r"\[[^\]]*\]\((<[^>]+>|[^)\s]+)(?:\s+\"[^\"]*\")?\)")
 FENCE_RE = re.compile(r"^\s*(```|~~~)")
+# Tiêu đề ATX, kể cả trong trích dẫn `>` hay mục danh sách (GitHub vẫn sinh anchor); setext: dòng `===`/`---` dưới một
+# đoạn (nhiều dòng thì nối bằng khoảng trắng), kể cả trong `>` — QUOTE_RE bỏ tiền tố trích dẫn trước khi xét.
+HEADING_RE = re.compile(r"^\s*(?:>\s*|(?:[-*+]|\d+[.)])\s+)*#{1,6}\s+(.*?)(?:\s+#+)?\s*$")
+SETEXT_RE = re.compile(r"^ {0,3}(?:=+|-+)\s*$")
+QUOTE_RE = re.compile(r"^ {0,3}(?:>\s?)+")
+HTML_ANCHOR_RE = re.compile(r"<[a-z][a-z0-9]*\s[^>]*\b(?:id|name)=[\"']?([^\"'\s>]+)", re.IGNORECASE)
+LINE_ANCHOR_RE = re.compile(r"^L\d+(?:-L\d+)?$")  # `#L3`, `#L3-L9`: dòng mã trên GitHub, không phải tiêu đề
 URL_RE = re.compile(r"^https?://[^\s]+$")
 CODE_SPAN_RE = re.compile(r"(`+)(?!`).*?(?<!`)\1(?!`)")  # `x` và ``x ` y``: URL trong đó là ví dụ, không phải nguồn
 AUTOLINK_RE = re.compile(r"<(https?://[^\s<>]+)>")
@@ -58,7 +67,7 @@ def iter_lines(root: Path) -> Iterator[tuple[Path, int, str]]:
     """(file, số dòng, dòng) của mọi dòng Markdown nằm ngoài code fence."""
     for p in iter_md(root):
         fence: str | None = None
-        for n, line in enumerate(p.read_text(encoding="utf-8").splitlines(), start=1):
+        for n, line in enumerate(p.read_text(encoding="utf-8-sig", errors="replace").splitlines(), start=1):
             m = FENCE_RE.match(line)
             if m and (fence is None or m.group(1) == fence):
                 fence = None if fence else m.group(1)
@@ -93,18 +102,71 @@ def line_urls(line: str) -> list[str]:
     return urls
 
 
+def slug(heading: str) -> str:
+    """Slug tiêu đề như GitHub: bỏ định dạng inline, chữ thường, giữ chữ/số/dấu kết hợp/`-`/`_`, khoảng trắng → `-`."""
+    text = re.sub(r"!?\[([^\]]*)\]\([^)]*\)", r"\1", heading).replace("`", "")
+    text = re.sub(r"<[^>]+>", "", text).lower()
+    kept = "".join(c for c in text if c.isalnum() or c in "-_ " or unicodedata.category(c).startswith("M"))
+    return kept.replace(" ", "-")
+
+
+def slugs(heading: str) -> set[str]:
+    """Các slug chấp nhận: nguyên văn và bản bỏ nhấn `_x_`/link tham chiếu `[x][r]` — thà nhận thừa còn hơn đỏ oan."""
+    plain = re.sub(r"\[([^\]]*)\]\[[^\]]*\]", r"\1", heading)
+    plain = re.sub(r"(?<!\w)_+|_+(?!\w)", "", plain)
+    return {slug(heading), slug(plain)}
+
+
+def anchors(path: Path) -> set[str]:
+    """Anchor có trong file Markdown: slug mọi tiêu đề ngoài code fence (trùng → `-1`, `-2`…), `id|name=` của thẻ
+    HTML, `top`. Đọc bỏ BOM, byte lỗi thay thế — file hỏng mã không làm sập cả lint."""
+    found = {"top"}
+    seen: dict[str, int] = {}
+    fence: str | None = None
+    para: list[str] = []  # đoạn đang mở (đã bỏ tiền tố `>`): dòng `===`/`---` ngay sau biến cả đoạn thành tiêu đề
+    for line in path.read_text(encoding="utf-8-sig", errors="replace").splitlines():
+        m = FENCE_RE.match(line)
+        if m and (fence is None or m.group(1) == fence):
+            fence, para = (None if fence else m.group(1)), []
+            continue
+        if fence:
+            continue
+        found.update(a.lower() for a in HTML_ANCHOR_RE.findall(line))
+        h = HEADING_RE.match(line)
+        body = QUOTE_RE.sub("", line).strip()
+        # Setext: cả đoạn nối (như GitHub) và riêng dòng cuối — dòng HTML/`***` trước tiêu đề không làm đỏ oan link cũ.
+        texts = [h.group(1)] if h else ([" ".join(para), para[-1]] if para and SETEXT_RE.match(body) else [])
+        for base in {s for t in texts for s in slugs(t)}:
+            k = seen.get(base, 0)
+            seen[base] = k + 1
+            found.add(f"{base}-{k}" if k else base)
+        if h or not body or SETEXT_RE.match(body):  # đường kẻ `---` cũng cắt đoạn
+            para = []
+        else:
+            para.append(body)  # không chép lại cả đoạn mỗi dòng (O(n²) với đoạn dài)
+    return found
+
+
 def check(root: Path) -> list[str]:
     errors: list[str] = []
+    cache: dict[Path, set[str]] = {}
     for p, n, target in iter_links(root):
-        if re.match(r"^[a-z][a-z0-9+.-]*:", target) or target.startswith("#"):
+        if re.match(r"^[a-z][a-z0-9+.-]*:", target):
             continue
-        path_part = target.split("#", 1)[0]  # rỗng chỉ với `<>` → thư mục chứa file, luôn tồn tại
+        path_part, _, anchor = target.partition("#")  # path rỗng: `#x` cùng file, hoặc `<>` → thư mục chứa file
         # Đường dẫn tuyệt đối từ gốc repo (/docs/x.md) cũng chấp nhận.
         resolved = (root / path_part.lstrip("/")) if path_part.startswith("/") else (p.parent / path_part)
+        if not path_part and anchor:
+            resolved = p
         if not resolved.exists():
             errors.append(f"{p.relative_to(root)}:{n}: liên kết hỏng -> {target}")
         elif not resolved.resolve().is_relative_to(root.resolve()):
             errors.append(f"{p.relative_to(root)}:{n}: liên kết trỏ ra ngoài repo -> {target}")
+        elif anchor and resolved.suffix == ".md" and resolved.is_file():
+            if resolved not in cache:
+                cache[resolved] = anchors(resolved)
+            if not LINE_ANCHOR_RE.match(anchor) and unquote(anchor).lower() not in cache[resolved]:
+                errors.append(f"{p.relative_to(root)}:{n}: anchor không có trong file -> {target}")
     return errors
 
 

@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# xtemplates-git-hook v1 — pre-push: không đẩy thẳng nhánh chính, không đẩy đè (force) — thay đổi vào nhánh chính đi qua
+# PR (BASE-REPO-*, AGENTS.md §3). Nhánh chính = `main`/`master` hoặc `XT_MAIN_BRANCH`. stdin của git: mỗi dòng
+# `<ref cục bộ> <sha cục bộ> <ref đích> <sha đích>`.
+set -euo pipefail
+main="${XT_MAIN_BRANCH:-}"
+zero=0000000000000000000000000000000000000000
+status=0
+while read -r _local_ref local_sha remote_ref remote_sha; do
+  branch="${remote_ref#refs/heads/}"
+  if [ "$branch" = "$main" ] || { [ -z "$main" ] && { [ "$branch" = main ] || [ "$branch" = master ]; }; }; then
+    echo "✗ pre-push (khung): không đẩy thẳng $branch — mở PR từ nhánh khác" >&2
+    status=1
+  elif [ "$local_sha" = "$zero" ]; then
+    echo "✗ pre-push (khung): không xoá nhánh từ xa $branch qua push — người làm trên GitHub" >&2
+    status=1
+  elif [ "$remote_sha" != "$zero" ] && ! git cat-file -e "$remote_sha^{commit}" 2>/dev/null; then
+    echo "✗ pre-push (khung): chưa có commit đích $remote_sha của $branch ở máy — git fetch rồi đẩy lại" >&2
+    status=1
+  elif [ "$remote_sha" != "$zero" ] && ! git merge-base --is-ancestor "$remote_sha" "$local_sha"; then
+    echo "✗ pre-push (khung): đẩy đè $branch (không fast-forward) — không force-push; tạo commit mới hoặc nhánh mới" >&2
+    status=1
+  fi
+done
+exit "$status"

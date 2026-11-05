@@ -3,7 +3,7 @@ title: Tài liệu sống: ADR, runbook, docs-as-code, tươi bằng máy
 kind: module
 prefix: WF-DOC
 applies_to: [all]
-updated: 2026-10-18
+updated: 2026-11-04
 ---
 
 # Tài liệu sống: ADR, runbook, docs-as-code, tươi bằng máy
@@ -43,7 +43,7 @@ updated: 2026-10-18
 ## Checklist
 
 - [ ] `WF-DOC-001` **MUST** Tài liệu ở dạng text trong repo (Markdown/AsciiDoc), thay đổi hành vi đi cùng PR với cập nhật tài liệu liên quan; không có "sẽ cập nhật docs sau". → Kiểm: PR template mục "Docs cập nhật/không cần (lý do)"; `pr-policy` cảnh báo khi đổi public API/CLI/config mà không chạm `docs/`. · Nguồn: Write the Docs — Docs as Code
-- [ ] `WF-DOC-002` **MUST** Link check nội bộ + ngoại trong CI: mọi link tương đối trỏ file có thật; link ngoài không 404 (cache, retry, allowlist domain chặn bot). → Kiểm: `lychee` hoặc `scripts/check-links.py` exit 0. · Nguồn: P5
+- [ ] `WF-DOC-002` **MUST** Link check nội bộ + ngoại trong CI: mọi link tương đối trỏ file có thật; link ngoài không 404 (cache, retry, allowlist domain chặn bot), kể cả anchor `#heading`. → Kiểm: `lychee --include-fragments --cache` (`--offline` chỉ cho link nội bộ, chặn mạng) hoặc `scripts/check-links.py` exit 0. · Nguồn: P5
 - [ ] `WF-DOC-003` **MUST@L** Mọi đường dẫn/tên file/lệnh được nhắc trong tài liệu phải tồn tại/chạy được (docs-consistency); đổi tên file → CI bắt nơi còn nhắc tên cũ. → Kiểm: script quét backtick path ↔ filesystem; allowlist cho file sinh tại đích. · Nguồn: khung cũ `scripts/check-docs-consistency.sh`
 - [ ] `WF-DOC-004` **MAY** Ngừng dùng 2026-10-14 — gộp vào [`LOOP-HARNESS-004`](../11-autonomous-loop/harness-files.md)/[`005`](../11-autonomous-loop/harness-files.md): định dạng (4 mục, ≤ 8 KB) và độ tươi `PROGRESS.md` (SHA là tổ tiên HEAD và của nhánh chính). Điều kiện cũ "nhánh nêu tên còn trên remote" bỏ vì xung đột với squash-merge xoá nhánh.
 - [ ] `WF-DOC-005` **MUST@L** Quyết định kiến trúc/công nghệ lớn có ADR (đánh số tăng, status, context, options, decision, consequences); không sửa ADR cũ, đổi ý = ADR mới `supersedes`. → Kiểm: `docs/adr/` có template + ADR; lint số liên tục + frontmatter; xem [`../05-architecture/decision-records.md`](../05-architecture/decision-records.md). · Nguồn: adr.github.io

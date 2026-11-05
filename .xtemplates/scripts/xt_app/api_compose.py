@@ -122,6 +122,22 @@ def _out_path(ctx: Ctx, out: Any) -> Optional[Path]:
     return target
 
 
+def _not_blueprint(ctx: Ctx, target: Path) -> Optional[str]:
+    """File có sẵn mà không phải blueprint/backlog do `compose` sinh (front-matter `kind`) → tên file đó; app chỉ ghi
+    blueprint (ADR-0038 §2, AUD-SEC-103), không ghi đè README/AGENTS/ADR… Chưa có file → None."""
+    backlog = cast(Path, ctx.xt._backlog_path(target))
+    for path, kind in ((target, "blueprint"), (backlog, "blueprint-backlog")):
+        if not path.exists():
+            continue
+        try:
+            meta = ctx.xt.parse_frontmatter(path.read_text(encoding="utf-8"))[0]
+        except (UnicodeDecodeError, ValueError):
+            meta = {}
+        if meta.get("kind") != kind:
+            return path.name
+    return None
+
+
 def _blueprint(ctx: Ctx) -> Reply:
     body = ctx.body or {}
     unknown = sorted(set(body) - BODY_KEYS)
@@ -134,6 +150,9 @@ def _blueprint(ctx: Ctx) -> Reply:
     target = _out_path(ctx, body.get("out", DEFAULT_OUT))
     if target is None:
         return _bad("out phải là đường tương đối .md trong dự án (không .., không file ẩn, không symlink)")
+    other = _not_blueprint(ctx, target)
+    if other is not None:
+        return _bad(f"{other} có sẵn và không phải blueprint (front-matter `kind`) — app chỉ ghi blueprint")
     base = ctx.base.resolve()
     try:
         with _WRITE_LOCK:

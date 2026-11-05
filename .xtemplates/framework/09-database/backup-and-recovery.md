@@ -3,7 +3,7 @@ title: Sao lưu, khôi phục, PITR, diễn tập, RPO/RTO
 kind: module
 prefix: DB-BACKUP
 applies_to: [web-app, api-service, ai-agent, agentic-system, data-ml, monorepo, blockchain, mobile-app, desktop-app, embedded-iot]
-updated: 2026-10-14
+updated: 2026-11-02
 ---
 
 # Sao lưu, khôi phục, PITR, diễn tập, RPO/RTO
@@ -44,7 +44,7 @@ Mục tiêu tham chiếu (đội tự chốt và ghi vào `docs/ops/RPO-RTO.md`)
 
 ## Checklist
 
-- [ ] `DB-BACKUP-001` **MUST** RPO và RTO cho mỗi kho dữ liệu được chủ sản phẩm chốt và ghi trong repo, kèm cơ chế đáp ứng. → Kiểm: `docs/ops/RPO-RTO.md` có bảng kho → RPO → RTO → cơ chế → lần diễn tập gần nhất. · Nguồn: NIST SP 800-34 Rev.1 (RPO/RTO)
+- [ ] `DB-BACKUP-001` **MUST** RPO và RTO cho mỗi kho dữ liệu được chủ sản phẩm chốt và ghi trong repo, kèm cơ chế đáp ứng. → Kiểm: `docs/ops/RPO-RTO.md` có bảng kho → RPO → RTO → cơ chế → lần diễn tập gần nhất. · Nguồn: NIST SP 800-34 Rev.1 (RPO/RTO) · Mẫu: [`../templates/RPO-RTO.md`](../templates/RPO-RTO.md)
 - [ ] `DB-BACKUP-002` **MUST** Backup tự động theo lịch, không phụ thuộc người nhớ chạy; thất bại → cảnh báo tới kênh có người trực. → Kiểm: cron/job/nền tảng có lịch; test cố ý làm backup fail → cảnh báo đến. · Nguồn: catalog 09 §1 (`[BLOCKER]` backup có test restore)
 - [ ] `DB-BACKUP-003` **MUST** Đã khôi phục thử từ backup vào môi trường tách biệt ít nhất một lần trước khi ra mắt, ghi ngày, thời gian khôi phục đo được và cách kiểm dữ liệu. → Kiểm: `docs/ops/restore-drills.md` có bản ghi (ngày, backup dùng, RTO đo, kiểm tra đã làm, người làm). · Nguồn: lifecycle G8 ("backup đã thử khôi phục") · khung cũ `01-process-and-standards.md` GĐ6
 - [ ] `DB-BACKUP-004` **MUST** Backup lưu ở vị trí tách biệt khỏi máy chủ CSDL (tài khoản/vùng/nhà cung cấp khác), mã hoá at rest, quyền ghi tối thiểu; tài khoản ứng dụng không có quyền xoá backup. → Kiểm: cấu hình đích backup (bucket khác tài khoản, KMS/`repo-cipher-type`); IAM policy không có `Delete*` cho tài khoản backup-writer. · Nguồn: OWASP Database Security Cheat Sheet (mã hoá backup, quyền hạn chế) · [`sensitive-data-and-access.md`](sensitive-data-and-access.md)
@@ -62,6 +62,7 @@ Mục tiêu tham chiếu (đội tự chốt và ghi vào `docs/ops/RPO-RTO.md`)
 - [ ] `DB-BACKUP-016` **MAY** Replica streaming để rút RTO (failover) — nhưng replica không thay backup (xoá nhầm lan sang replica). → Kiểm: tài liệu DR phân biệt HA và backup; vẫn có PITR.
 - [ ] `DB-BACKUP-017` **MAY** Nâng major PostgreSQL bằng `pg_upgrade --check` trên bản sao trước, giữ backup đã verify; `--link` chỉ khi hiểu không quay lại được. → Kiểm: runbook nâng cấp; bản ghi thử trên bản sao.
 - [ ] `DB-BACKUP-018` **MAY** Dữ liệu dẫn xuất (search/vector index, cache) có script tái dựng từ nguồn sự thật và thời gian tái dựng đo được. → Kiểm: `scripts/reindex.*`; thời gian ghi trong `RPO-RTO.md`.
+- [ ] `DB-BACKUP-019` **SHOULD** Phát hiện hỏng dữ liệu âm thầm trên PostgreSQL tự host: cluster bật data checksums (initdb của 18 bật mặc định; cluster cũ bật bằng `pg_checksums --enable` khi cluster đã dừng, trong cửa sổ bảo trì hoặc khi dựng cluster mới để nâng cấp, vì pg_upgrade đòi cài đặt checksum hai bên khớp nhau); cảnh báo khi `pg_stat_database.checksum_failures` > 0; `amcheck` (`bt_index_check`/`verify_heapam`) chạy định kỳ trên bản restore thử hoặc trên replica. Dịch vụ managed: ghi lại nhà cung cấp xử lý checksum và phát hiện hỏng thế nào. → Kiểm: `SHOW data_checksums` = on trong test hạ tầng; alert rule trên `checksum_failures`; job định kỳ chạy amcheck trên bản restore thử (DB-BACKUP-009) exit 0, log lưu làm bằng chứng. · Nguồn: PostgreSQL 18 release notes, docs §checksums, amcheck
 
 ## Bẫy thường gặp
 
@@ -98,3 +99,7 @@ Mục tiêu tham chiếu (đội tự chốt và ghi vào `docs/ops/RPO-RTO.md`)
 - SQLite Online Backup API: <https://www.sqlite.org/backup.html>; `VACUUM INTO`: <https://www.sqlite.org/lang_vacuum.html> — xác minh 2026-10-13.
 - OWASP Database Security Cheat Sheet (mã hoá backup, quyền): <https://cheatsheetseries.owasp.org/cheatsheets/Database_Security_Cheat_Sheet.html> — xác minh 2026-10-13.
 - Catalog `seeker19110/stored` 09 §1 (backup có test restore là BLOCKER); khung cũ `01-process-and-standards.md` GĐ6 ("đã thử khôi phục một lần"), `quality-supplements.md` §2 (backup trước migration) — commit `1b80fe4`.
+- PostgreSQL 18 (2025-09-25) đổi initdb mặc định bật data checksums; thêm `--no-data-checksums`; pg_upgrade đòi cài đặt checksum của hai cluster khớp nhau (`DB-BACKUP-019`): <https://www.postgresql.org/docs/18/release-18.html> — xác minh 2026-10-30.
+- Kiểm bằng `SHOW data_checksums`; pg_checksums bật/tắt/kiểm checksum khi cluster offline (`DB-BACKUP-019`): <https://www.postgresql.org/docs/18/checksums.html> — chưa đọc trọn trang 2026-10-30 (chưa xác minh trọn).
+- amcheck có bt_index_check, verify_heapam; chỉ chứng minh được là có hỏng, không chứng minh được là không hỏng (`DB-BACKUP-019`): <https://www.postgresql.org/docs/18/amcheck.html> — chưa đọc trọn trang 2026-10-30 (chưa xác minh trọn).
+- pg_stat_database có cột checksum_failures, checksum_last_failure (`DB-BACKUP-019`): <https://www.postgresql.org/docs/18/monitoring-stats.html> — chưa đọc trọn trang 2026-10-30 (chưa xác minh trọn).

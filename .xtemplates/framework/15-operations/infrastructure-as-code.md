@@ -3,7 +3,7 @@ title: IaC: Terraform/Pulumi/compose, drift, review, policy-as-code
 kind: module
 prefix: OPS-IAC
 applies_to: [web-app, api-service, ai-agent, agentic-system, data-ml, monorepo, blockchain, static-site]
-updated: 2026-10-20
+updated: 2026-11-02
 ---
 
 # IaC: Terraform/Pulumi/compose, drift, review, policy-as-code
@@ -49,7 +49,7 @@ updated: 2026-10-20
 - [ ] `OPS-IAC-011` **MUST@L** Tag/label bắt buộc trên mọi tài nguyên (`env`, `service`, `owner`, `cost-center`) để phân bổ chi phí và truy trách nhiệm; policy chặn thiếu tag. → Kiểm: `default_tags` provider + conftest rule thiếu tag = deny. · Nguồn: FinOps FOCUS (phân bổ); [`cost-management.md`](cost-management.md)
 - [ ] `OPS-IAC-012` **MUST@L** Ước tính chi phí thay đổi hạ tầng hiện trong PR (Infracost hoặc tương đương); tăng > ngưỡng đội chọn cần duyệt. → Kiểm: comment Infracost trên PR; ngưỡng trong cấu hình. · Nguồn: Infracost docs (chưa xác minh phiên bản 2026-10-13)
 - [ ] `OPS-IAC-013` **MUST@L** Môi trường dựng lại được từ IaC + backup trên tài khoản sạch trong thời gian ≤ RTO; diễn tập ≥ 1 lần/năm có bằng chứng. → Kiểm: log diễn tập (`docs/ops/dr-drills.md`) với thời gian; xem [`backup-and-disaster-recovery.md`](backup-and-disaster-recovery.md). · Nguồn: NIST SP 800-34r1
-- [ ] `OPS-IAC-014` **MUST@L** Identity apply của CI có quyền tối thiểu theo môi trường, lấy qua OIDC ngắn hạn; apply production cần approval environment; audit log ghi ai apply gì. → Kiểm: environment `production` có required reviewers; không khoá tĩnh; CloudTrail/Audit Log ghi identity CI. · Nguồn: GitHub Actions hardening (OIDC); NIST SP 800-207
+- [ ] `OPS-IAC-014` **MUST@L** Identity apply của CI có quyền tối thiểu theo môi trường, lấy qua OIDC ngắn hạn theo `SEC-SECRET-009`; apply production cần approval environment; audit log ghi ai apply gì. → Kiểm: environment `production` có required reviewers; không khoá tĩnh; CloudTrail/Audit Log ghi identity CI. · Nguồn: GitHub Actions hardening (OIDC); NIST SP 800-207
 - [ ] `OPS-IAC-015` **SHOULD** Module tái dùng có test (terratest/`terraform test`/pulumi unit test) và ví dụ; thay đổi module qua semver. → Kiểm: thư mục `tests/` của module; CI chạy. · Nguồn: Terraform docs `test` (chưa xác minh phiên bản tính năng)
 - [ ] `OPS-IAC-016` **SHOULD** Compose/K8s manifest cho dev giống production về cấu trúc (cùng image, cùng biến) khác về kích thước; `docker compose config` hợp lệ trong CI. → Kiểm: job `compose config --quiet`; image tag giống pipeline. · Nguồn: P5
 - [ ] `OPS-IAC-017` **SHOULD** Thay đổi hạ tầng có cửa sổ và kế hoạch rollback (apply ngược plan cũ/`state` version trước) ghi trong PR; thay đổi đổi mạng/DB lên lịch ngoài giờ cao điểm. → Kiểm: template PR hạ tầng có mục Rollback. · Nguồn: P8; [`deployment-strategies.md`](deployment-strategies.md)

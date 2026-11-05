@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# xtemplates-git-hook v1 — commit-msg: subject ≤ 100 ký tự (LOOP-HARNESS-029) và không ghi công AI khi xt.yaml khai
+# `ai_attribution: forbid` (LOOP-HARNESS-027). Luật nằm ở guard của khung (`guard.py commit-msg`), hook này chỉ gọi.
+set -euo pipefail
+root=$(git rev-parse --show-toplevel)
+guard="$root/.claude/hooks/guard.py"
+[ -f "$guard" ] || exit 0 # không có harness: không chặn
+cd "$root"
+exec python3 -I -B "$guard" commit-msg "$1"

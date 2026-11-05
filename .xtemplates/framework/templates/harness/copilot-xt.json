@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {
+        "type": "command",
+        "bash": "python3 -I -B \"$(git rev-parse --show-toplevel)/.xtemplates/scripts/xt_adapter.py\" copilot",
+        "timeoutSec": 30
+      }
+    ]
+  }
+}

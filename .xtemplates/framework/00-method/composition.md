@@ -1,7 +1,7 @@
 ---
 title: Ghép blueprint cho một dự án
 kind: method
-updated: 2026-10-19
+updated: 2026-10-23
 ---
 
 # Ghép blueprint cho một dự án
@@ -52,7 +52,7 @@ python3 .xtemplates/scripts/xt.py blueprint-status BLUEPRINT.md --strict --run
    kiểm bằng lệnh (tài liệu, quyết định) ghi `— Bằng chứng: <file:dòng | URL job CI>`; `--run` liệt kê số MUST tick kiểu
    này để reviewer soát. Mục còn thiếu có thể ghi `— Thiếu: <việc cần làm>`. Ghi bằng chứng ở PR tương ứng.
 3. **Miễn trừ có lý do**: mục không áp dụng → `[~]` kèm `— Không áp dụng: <điều kiện>` (vd "không có thanh toán"); mục có áp dụng mà bỏ/hoãn → `— Miễn: <lý do>`, ở mức MUST thêm `Duyệt: "<lời chủ dự án>" <ngày>` hoặc link (`LOOP-STOP-024`). Máy chặn miễn
-   trừ thiếu lý do.
+   trừ thiếu lý do, và mục ghi **cả hai** nghĩa (`Không áp dụng` lẫn `Miễn`) ở mọi mức (T-2511).
 4. **Không sửa chữ của mục** trong blueprint dự án; muốn đổi yêu cầu → sửa khung (PR vào X-Templates) rồi ghép lại.
 5. **Ghép lại khi khung cập nhật**: chạy lại đúng lệnh `compose ... --out BLUEPRINT.md`. Khi file đã có, máy giữ ô trạng thái
    và ghi chú cuối dòng (`— Kiểm:` / `— Bằng chứng:` / `— Miễn:` / `— Thiếu:`) theo **ID**; mục mới vào ở `[ ]`, mục đã bỏ khỏi khung biến mất.

@@ -3,7 +3,7 @@ title: Nội dung, microcopy, ngôn ngữ, tiếng Việt có dấu
 kind: module
 prefix: UX-CONTENT
 applies_to: [web-app, mobile-app, desktop-app, static-site, game, monorepo]
-updated: 2026-10-14
+updated: 2026-11-02
 ---
 
 # Nội dung, microcopy, ngôn ngữ, tiếng Việt có dấu
@@ -44,7 +44,7 @@ updated: 2026-10-14
 - [ ] `UX-CONTENT-005` **MUST** Không dark pattern: không mặc định bật tuỳ chọn bất lợi (tự gia hạn, chia sẻ dữ liệu), huỷ dễ bằng đăng ký, không confirmshaming ("Không, tôi không muốn tiết kiệm"), không đếm ngược/khan hiếm giả, không hỏi lại liên tục sau khi đã từ chối. → Kiểm: review checklist dark-pattern trong PR template cho màn hình thanh toán/đăng ký/đồng ý; E2E luồng huỷ gói ≤ số bước luồng đăng ký. · Nguồn: DSA Reg. (EU) 2022/2065 Art. 25; FTC "Bringing Dark Patterns to Light" (09/2022); Luật 19/2023/QH15 Đ.10
 - [ ] `UX-CONTENT-006` **MUST** Giá và chi phí hiển thị đầy đủ trước bước xác nhận (thuế, phí, gia hạn); không "phí ẩn" xuất hiện ở bước cuối. → Kiểm: E2E luồng thanh toán: tổng ở bước đầu = tổng ở bước xác nhận. · Nguồn: Luật 19/2023/QH15; FTC 2022
 - [ ] `UX-CONTENT-007` **MUST@L** Chuỗi UI không nằm cứng trong component mà ở file message/hằng; không nối chuỗi để ghép câu (dùng ICU plural/select). → Kiểm: lint `no-literal-string` (eslint-plugin-i18next hoặc rule tương đương) trên JSX/template; grep `` `${count} mục` `` = 0. · Nguồn: [`../18-cross-cutting/i18n-and-l10n.md`](../18-cross-cutting/i18n-and-l10n.md)
-- [ ] `UX-CONTENT-008` **MUST@L** Sổ thuật ngữ `docs/GLOSSARY.md` tồn tại, mỗi khái niệm nghiệp vụ có một thuật ngữ tiếng Việt + tiếng Anh + định nghĩa; UI và tài liệu dùng đúng. → Kiểm: cspell dùng GLOSSARY làm từ điển dự án; script tìm từ cấm (biến thể không chuẩn) = 0.
+- [ ] `UX-CONTENT-008` **MUST@L** Sổ thuật ngữ `docs/GLOSSARY.md` tồn tại, mỗi khái niệm nghiệp vụ có một thuật ngữ tiếng Việt + tiếng Anh + định nghĩa; UI và tài liệu dùng đúng. → Kiểm: cspell dùng GLOSSARY làm từ điển dự án; script tìm từ cấm (biến thể không chuẩn) = 0. · Mẫu: [`../templates/GLOSSARY.md`](../templates/GLOSSARY.md)
 - [ ] `UX-CONTENT-009` **SHOULD** Chính tả tiếng Việt được kiểm tự động trên file message. → Kiểm: `cspell --locale vi "messages/**/*.json"` 0 lỗi (từ riêng thêm vào `cspell.json`).
 - [ ] `UX-CONTENT-010` **SHOULD** Giọng nhất quán: câu ngắn, chủ động, ngôi "bạn"; không viết hoa toàn bộ, không dấu chấm than dồn dập, không biệt ngữ kỹ thuật trên UI người dùng cuối. → Kiểm: hướng dẫn giọng trong `docs/CONTENT-STYLE.md`; review PR có checklist; script cảnh báo chuỗi toàn chữ hoa > 3 từ.
 - [ ] `UX-CONTENT-011` **SHOULD** Microcopy trạng thái rỗng/lỗi/thành công có hướng dẫn hành động tiếp theo (xem [`ui-states-and-feedback.md`](ui-states-and-feedback.md)). → Kiểm: story Empty/Error có nút hành động với nhãn động từ.

@@ -4,7 +4,7 @@ kind: industry
 slug: media-content
 prefix: IND-MEDIA
 modules: [16-compliance-privacy/*, 12-security/appsec-web, 12-security/ai-security, 12-security/logging-audit-and-incident, 08-backend/files-and-media, 08-backend/realtime-and-streaming, 08-backend/caching, 08-backend/background-jobs-and-queues, 08-backend/authn-authz, 09-database/search-and-vector, 09-database/indexing-and-query-performance, 07-frontend/performance-web-vitals, 07-frontend/rendering-and-routing, 06-design-ux/accessibility, 06-design-ux/content-and-microcopy, 13-ai-engineering/guardrails-and-safety, 18-cross-cutting/i18n-and-l10n, 15-operations/cost-management, 15-operations/observability, 17-product-project/metrics-and-analytics]
-updated: 2026-10-18
+updated: 2026-10-28
 ---
 
 # Gói ngành: Truyền thông · nội dung · xuất bản · UGC
@@ -114,6 +114,7 @@ Directive (EU) 2019/790 (bản quyền thị trường số, Art. 17) · WCAG 2.
 - [ ] `IND-MEDIA-020` **MAY** Hỗ trợ ActivityPub/RSS/Open Graph để nội dung di chuyển được và không khoá người dùng. → Kiểm: feed hợp lệ. · Nguồn: W3C ActivityPub (chưa xác minh phiên bản)
 - [ ] `IND-MEDIA-021` **MAY** Thuê bao/paywall: hoá đơn điện tử, huỷ dễ như đăng ký, không dark pattern. → Kiểm: test huỷ ≤ cùng số bước đăng ký; xem [`fintech.md`](fintech.md). · Nguồn: Luật BVQLNTD 19/2023/QH15
 - [ ] `IND-MEDIA-022` **SHOULD** Pipeline sinh media **trả phí** (ảnh/video/giọng qua API tính tiền) chạy validate/dry-run rẻ trước mỗi lệnh gọi trả phí; artefact ghi **sha256 đầu vào** (prompt, ảnh nguồn, tham số); đầu vào đổi → artefact đánh dấu `stale`, không xuất bản. → Kiểm: test đổi đầu vào → `stale`; log có bước validate trước lệnh trả phí. · Nguồn: `seeker19110/stored` 19 §1d (rà 2026-10-18)
+- [ ] `IND-MEDIA-023` **SHOULD** Nội dung có AI hỗ trợ: người kiểm sự thật mọi số liệu, trích dẫn và metadata (title, description, alt) trước khi đăng; không sinh hàng loạt trang/bài theo mẫu chỉ để xếp hạng; công bố cách dùng tự động khi hợp ngữ cảnh. → Kiểm: CMS bắt trường "người kiểm" trước publish; báo cáo số bài/ngày theo nguồn tạo có ngưỡng cảnh báo. · Nguồn: Google Search Central *Using generative AI content*; *Spam policies* — scaled content abuse
 
 ## Cổng chất lượng tương đương
 
@@ -150,3 +151,4 @@ Directive (EU) 2019/790 (bản quyền thị trường số, Art. 17) · WCAG 2.
 - DMCA 17 U.S.C. §512 — (chưa xác minh truy cập trang gốc ngày 2026-10-13).
 - WCAG 2.2: <https://www.w3.org/TR/WCAG22/> — xác minh 2026-10-13.
 - Catalog `seeker19110/stored` 19 §1d (validate rẻ trước lệnh trả phí, sha256 đầu vào, artefact `stale`) — rà 2026-10-18.
+- Google Search Central: *Using generative AI content* (cập nhật 2026-10-01) <https://developers.google.com/search/docs/fundamentals/using-gen-ai-content>; *Spam policies* — scaled content abuse (cập nhật 2026-08-28) <https://developers.google.com/search/docs/essentials/spam-policies> — xác minh 2026-10-25 qua catalog `seeker19110/stored` 08 §2h; catalog 05 (template video faceless hàng loạt), 19 §1f (video "so sánh kiến thức" không có bước kiểm sự thật) — đọc 2026-10-28.

@@ -47,13 +47,13 @@ export async function api(path, opts = {}) {
   let res;
   try {
     res = await fetch(path, init);
-  } catch (e) {
+  } catch {
     throw Object.assign(new Error("không kết nối được máy chủ"), { status: 0, error: "không kết nối được máy chủ" });
   }
   let data = null;
   try {
     data = await res.json();
-  } catch (e) {
+  } catch {
     data = null;
   }
   if (!res.ok) {

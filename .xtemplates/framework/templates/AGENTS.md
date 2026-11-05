@@ -1,7 +1,7 @@
 ---
 title: Mẫu AGENTS.md cho dự án
 kind: template
-updated: 2026-10-20
+updated: 2026-11-01
 ---
 
 # AGENTS.md — luật vận hành cho AI agent trong dự án này
@@ -39,16 +39,16 @@ Kỹ sư cấp cao kiêm quản lý dự án: dẫn dắt qua G0–G8 (`00-metho
 Quyết định chuyên môn (spec hở, công nghệ/thiết kế, phạm vi, bảo mật/pháp lý mơ hồ, duyệt PLAN): **phiên chính tự duyệt, không chờ người**, theo tiêu chí chất lượng cuối (trên thắng dưới): (1) đúng và an toàn — cách hiểu chặt hơn · (2) giữ đường lùi · (3) bền, đơn giản, theo chuẩn, test được · (4) trải nghiệm cuối · (5) tốc độ/chi phí chỉ phá hoà. **Mặc định tự host** khi phương án cần tài khoản/khoá chỉ chủ dự án có (đề xuất dịch vụ thật bằng `--prod`). Dữ kiện trước, ≥ 2 phương án, ghi `<XT> loop decide …` (D-NNN; kiến trúc thêm ADR). Subagent không tự quyết. Chi tiết: `stop-points-and-escalation.md` §Điểm quyết định. [ĐIỀN nếu dự án muốn người duyệt một loại quyết định cụ thể — mặc định: không.]
 
 ## 6. Điểm dừng bắt buộc về hành động (nhà: `stop-points-and-escalation.md` §Điểm dừng)
-Máy chia ba nhóm, không hỏi người: **máy chặn** (không đảo ngược, tắt hook, ghi tay `.autopilot/`, merge chưa đủ điều kiện) · **cho chạy** (deploy/publish, sửa cổng/CI/hook kèm lý do, thêm phụ thuộc, ra khỏi máy dev) · **vẫn cần người** (tiền thật, dữ liệu người dùng thật, dịch vụ trả phí/khoá thật, bế tắc máy; ngoại lệ cứng khi `merge_hard_exceptions: human` — trừ việc trong mục Ủy quyền production của PLAN và `<XT> grant-check` exit 0). Trong autopilot: `<XT> loop defer --task <ID> --reason …` rồi làm tiếp; mọi việc còn lại phụ thuộc → `loop block`. Autopilot: `<XT> doctor --fix` đầu tiên, **một phiên đến khi xong** ở chế độ quyền Auto (ADR-0009). [ĐIỀN điểm dừng riêng của dự án — mặc định: không.]
+Máy chia ba nhóm, không hỏi người: **máy chặn** (không đảo ngược, tắt hook, ghi tay `.autopilot/`/`STAGE.json`, merge chưa đủ điều kiện) · **cho chạy** (deploy/publish, sửa cổng/CI/hook kèm lý do, thêm phụ thuộc, ra ngoài máy dev) · **vẫn cần người** (tiền thật, dữ liệu người dùng thật, dịch vụ trả phí/khoá thật, bế tắc máy, duyệt giai đoạn; ngoại lệ cứng khi `merge_hard_exceptions: human` — trừ việc trong mục Ủy quyền production của PLAN và `<XT> grant-check` exit 0). Autopilot: `<XT> loop defer --task <ID> --reason …` rồi làm tiếp; mọi việc còn lại phụ thuộc → `loop block`. Autopilot: `<XT> doctor --fix` đầu tiên, **một phiên đến khi xong**, quyền Auto. [ĐIỀN điểm dừng riêng của dự án — mặc định: không.]
 
 ## 7. Cổng (lệnh thật ở `xt.yaml`)
-- **Trước commit:** hook chạy `.xtemplates/scripts/dev-task.sh gate-fast` theo `commit_gate`; tự review diff; conventional commit.
-- **Trước khi đẩy/mở PR:** `dev-task.sh gate` **một lần** (= CI).
-- **PR đã mở:** `<XT> pr next --pr <N>` → làm đúng `do` (`review` → giao `reviewer` khác họ model rồi `pr reviewed`); `merge-watch --pr <N>` chạy nền. Luật làn: `LOOP-STOP-022`/`029`; workflow `pr-steward` (`install.py --with-github`) làm thay khi không còn phiên.
-- **Phát hành (G7):** `<XT> release-check` không NO-GO + `GO-NO-GO.md` không còn BLOCKER + chủ dự án đã quyết các đề xuất "Khi chạy thật". Pha build: audit delta gom về trước G7 (ADR-0033); pha harden: audit delta mỗi mốc PLAN.
+- **Trước commit:** hook/git hook (sàn chung) chạy `dev-task.sh gate-fast` theo `commit_gate`; tự review diff; conventional commit.
+- **Trước khi đẩy/mở PR:** `gate-fast`; cổng đầy đủ = CI (cắt bản/không CI: `gate`).
+- **PR đã mở:** `<XT> pr next --pr <N>` → làm đúng `do` (`review` → reviewer theo §8; `debt` → 🔴 sửa, 🟠/🟢 nợ, ADR-0062); `merge-watch --pr <N>` nền. Luật làn: `LOOP-STOP-022`/`029`; `pr-steward` (`install.py --with-github`) làm thay khi hết phiên.
+- **Phát hành (G7):** `<XT> release-check` không NO-GO + `GO-NO-GO.md` không còn BLOCKER + chủ dự án đã quyết các đề xuất "Khi chạy thật". Pha harden = `/complete` (ADR-0046).
 
 ## 8. Skill và subagent (nhà: `11-autonomous-loop/orchestration-and-subagents.md`)
-`/autopilot` · `/blueprint` · `/gate` · `/research` · `/audit` · `/review` · `/adr` · `/handover`. Subagent: `researcher` · `executor`/`executor-deep` (tầng do `loop status` trả, ADR-0029) · `reviewer`/`reviewer-alt` (khác **họ** model với người viết; không kết luận được → `pr reviewed --inconclusive`). Phiên chính điều phối; không lồng subagent; song song chỉ khi độc lập về file (trong sản phẩm: `AI-AGENTIC-007`).
+Skill `.claude/skills/`: autopilot complete optimize blueprint gate research audit review adr handover; tác vụ debug tdd ui-verify upgrade migrate-db incident. Subagent: `researcher` · `executor`/`executor-deep` (tầng do `loop status` trả) · `reviewer`/`reviewer-alt` (cao hơn người viết, `LOOP-ORCH-005`; không rõ → `pr reviewed --inconclusive`). Phiên chính điều phối, mặc định tự làm (`topo: self`, `LOOP-ORCH-024`); không lồng subagent; song song chỉ khi độc lập file.
 
 ## 9. Quy ước riêng của dự án
 - Cấu trúc thư mục: [ĐIỀN]

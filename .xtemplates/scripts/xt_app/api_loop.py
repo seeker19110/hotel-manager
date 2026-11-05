@@ -89,12 +89,13 @@ def _haystack(d: Dict[str, Any]) -> str:
 
 
 def _decisions(ctx: Ctx) -> Tuple[int, Dict[str, Any]]:
-    path = ctx.base / DECISIONS_FILE
-    try:
-        text = path.read_text(encoding="utf-8")
-    except (OSError, ValueError):
-        return 200, {"decisions": [], "truncated": False}
-    items = _parse_decisions(text)[::-1]  # mới nhất trước
+    items: List[Dict[str, Any]] = []
+    for path in ctx.xt.decision_logs(ctx.base / DECISIONS_FILE):  # bản tháng (cũ trước) rồi sổ hiện tại (T-3651)
+        try:
+            items += _parse_decisions(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):  # file vắng/hỏng: bỏ, vẫn hiện file khác
+            continue
+    items = items[::-1]  # mới nhất trước
     q = (ctx.query.get("q") or [""])[0].strip().casefold()
     if q:
         items = [d for d in items if q in _haystack(d)]

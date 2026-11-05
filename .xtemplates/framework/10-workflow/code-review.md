@@ -3,13 +3,13 @@ title: Code review: người + AI, checklist, SLA, ranh giới
 kind: module
 prefix: WF-REVIEW
 applies_to: [all]
-updated: 2026-10-21
+updated: 2026-10-30
 ---
 
 # Code review: người + AI, checklist, SLA, ranh giới
 
 > Review là cổng cuối trước khi mã vào trunk, nơi máy không kiểm được: ý định, thiết kế, ca biên nghiệp vụ, rủi
-> ro. AI review là **một claim cần verify**, không phải approval; reviewer AI phải **khác model** với implementer;
+> ro. AI review là **một claim cần verify**, không phải approval; reviewer AI phải **năng lực cao hơn** implementer (`LOOP-ORCH-005`);
 > người giữ quyền merge. SLA 24 giờ, quá hạn leo thang chứ không tự pass.
 
 ## Nguyên tắc
@@ -19,7 +19,7 @@ updated: 2026-10-21
 2. **Review để tìm lỗi, không để chứng nhận.** Mỗi review trả lời: đúng spec? ca biên? bảo mật? đảo ngược được?
    test có chứng minh? — có checklist, có bằng chứng (lệnh đã chạy), không "LGTM" trần.
 3. **AI review là claim.** Kết quả của model (kể cả `/review`) phải được người xác nhận hoặc máy chứng minh
-   (test tái hiện); AI không có quyền approve; reviewer và implementer khác model để tránh tự chứng nhận.
+   (test tái hiện); AI không có quyền approve; reviewer năng lực cao hơn implementer (bậc model hoặc cùng họ effort cao hơn; khác nhà cung cấp cũng nhận) để tránh tự chứng nhận.
 4. **Nhỏ và nhanh.** PR ≤ 400 dòng, review ≤ 60 phút/lượt, phản hồi đầu ≤ 24 giờ; quá hạn → leo thang người
    khác, không bao giờ tự merge vì "hết giờ".
 5. **Tôn trọng, cụ thể, có mức.** Nhận xét gắn nhãn `blocker` / `should` / `nit`; blocker phải nêu lý do và
@@ -29,7 +29,7 @@ updated: 2026-10-21
 
 | Tình huống | Chọn | Ghi chú |
 |---|---|---|
-| Ai review | Người có hiểu biết miền + 1 reviewer AI (model khác implementer) chạy trước để lọc | Reviewer AI không thay người ở vùng nhạy cảm |
+| Ai review | Người có hiểu biết miền + 1 reviewer AI (năng lực cao hơn implementer) chạy trước để lọc | Reviewer AI không thay người ở vùng nhạy cảm |
 | Vùng nhạy cảm (auth, payment, migration, CI/hook/ruleset, secrets, crypto) | **Luôn người review**, ≥ 1 code owner, không fast-lane | Tự động merge chỉ cho thay đổi rủi ro thấp (docs, deps patch có test xanh) |
 | Fast-lane (máy merge ghim head khi CI xanh) | Chỉ khi **đủ 5 điều kiện máy kiểm**: diff chỉ trong vùng rủi ro thấp · ≤ N dòng · không chạm schema/CI/auth · có test tăng hoặc giữ coverage · bộ test gồm test viết từ spec (không chỉ test agent sinh từ diff) | Thiếu một điều kiện → làn chuẩn |
 | PR lớn không chia được (sinh mã, refactor tự động) | Review theo diff ngữ nghĩa + chạy script sinh lại để so khớp (`git diff` sau regen = rỗng) | Đọc tay 5.000 dòng |
@@ -41,7 +41,7 @@ updated: 2026-10-21
 - [ ] `WF-REVIEW-001` **MUST** PR chỉ được xin review khi cổng máy đã xanh (lint, format, type, test, scan); reviewer được phép từ chối review PR đỏ. → Kiểm: job `quality` là required check; PR template có mục "CI xanh". · Nguồn: P9
 - [ ] `WF-REVIEW-002` **MUST** Mỗi PR có mô tả: mục tiêu, link spec/issue, **cách đã xác minh** (lệnh + kết quả/exit code hoặc link CI), rủi ro và cách rollback; thiếu → chưa đủ điều kiện review. → Kiểm: `pr-policy` job kiểm các mục bắt buộc trong body. · Nguồn: catalog 23 §2.5 (mục bắt buộc Summary/Validation/Risk)
 - [ ] `WF-REVIEW-003` **MUST@L** Reviewer dùng checklist review (đúng spec/tiêu chí chấp nhận; ca biên null/rỗng/race/UTC/tiền; bảo mật: input validate, quyền server, không secret; test chứng minh thay đổi; đảo ngược được; không nới cổng); kết luận có bằng chứng, không "LGTM" trần cho PR có code. → Kiểm: comment approve chứa mục checklist hoặc skill `/review` xuất báo cáo; mẫu checklist trong PR template. · Nguồn: [`../14-testing-quality/unit-and-logic-edge-cases.md`](../14-testing-quality/unit-and-logic-edge-cases.md)
-- [ ] `WF-REVIEW-004` **MUST@L** AI review (nếu dùng) chạy bằng model/tool **khác** với model/tool đã viết code; kết quả gắn nhãn là claim; chỉ người hoặc test tái hiện mới đóng được finding; AI không có quyền approve/merge. → Kiểm: cấu hình reviewer agent khác model implementer (vd `.claude/agents/reviewer.md`); token bot không có quyền approve trong ruleset. · Nguồn: catalog 23 §2.3 (reviewer khác model), AGENTS.md mục Skill và subagent
+- [ ] `WF-REVIEW-004` **MUST@L** AI review (nếu dùng) chạy bằng model/tool **năng lực cao hơn** model/tool đã viết code (bậc model cao hơn, cùng họ thì effort cao hơn, hoặc khác nhà cung cấp — `LOOP-ORCH-005`); kết quả gắn nhãn là claim; chỉ người hoặc test tái hiện mới đóng được finding; AI không có quyền approve/merge. → Kiểm: cấu hình reviewer agent năng lực cao hơn implementer (vd `.claude/agents/reviewer.md`); `pr reviewed --clean` cùng họ không khai effort cao hơn exit 2; token bot không có quyền approve trong ruleset. · Nguồn: catalog 23 §2.3 (reviewer khác model), AGENTS.md mục Skill và subagent
 - [ ] `WF-REVIEW-005` **MUST** Finding mức `blocker` phải được sửa hoặc bác bỏ có lý do trước merge; `required_review_thread_resolution` bật; tác giả không tự resolve thread blocker của người khác. → Kiểm: ruleset có `required_review_thread_resolution: true`; review log. · Nguồn: GitHub Rulesets
 - [ ] `WF-REVIEW-006` **MUST@L** SLA: phản hồi đầu tiên ≤ 24 giờ làm việc; nhắc ở 12 giờ; quá 24 giờ → leo thang reviewer khác/người quản lý; **không tự merge vì quá hạn**. → Kiểm: job cron đánh dấu PR chờ review > 24h (nhãn `review-overdue` + thông báo); không có cơ chế auto-approve theo thời gian. · Nguồn: catalog 23 §2.6 (gate timeout 24h leo thang, nhắc 12h)
 - [ ] `WF-REVIEW-007` **MUST** Vùng nhạy cảm (auth, payment, migration, `.github/`, hook, ruleset, secrets, crypto, PII) luôn có người review là code owner; không fast-lane; không auto-merge — trừ khi chủ dự án chọn `merge_autonomy: L3` (PR làn chuẩn — vùng nhạy cảm theo đường dẫn, PII qua nhãn `risk:pii` hoặc `merge_risk_paths` — review sạch ở đúng head rồi máy merge ghim head, ADR-0015/ADR-0024/ADR-0036 của repo khung): khi đó miễn cho `.github/`, hook, ruleset, migration (ghi `[~] — Miễn:` kèm lý do); auth, payment, secrets, crypto, PII vẫn người review và merge ở mọi mức (`LOOP-STOP-005`, ADR-0016). → Kiểm: CODEOWNERS có mục; `require_code_owner_review` hoặc guard kiểm đường dẫn ↔ reviewer. · Nguồn: catalog 23 §2.6 (auth/payment/crypto luôn lane kiến trúc)
@@ -58,11 +58,12 @@ updated: 2026-10-21
 - [ ] `WF-REVIEW-018` **MAY** Spot-check: review ngẫu nhiên ≥ 10% PR fast-lane đã merge để hiệu chuẩn vị từ. → Kiểm: nhật ký spot-check hàng tuần. · Nguồn: khung cũ spec L2 (review mẫu ≥ 10%)
 - [ ] `WF-REVIEW-019` **SHOULD** PR template có mục bắt buộc **"Hỗ trợ AI"**: phần nào do AI sinh, phần nào người đã tự kiểm và kiểm thế nào, phần nào chỉ AI kiểm; không cần (và theo [`XC-DOCAI-005`](../18-cross-cutting/docs-for-ai-agents.md) không ghi) tên model/phiên. → Kiểm: `pull_request_template.md` có mục; `pr-policy` job kiểm mục không rỗng. · Nguồn: `seeker19110/stored` 13 §6d (PR template của Homebrew/BrewUI)
 - [ ] `WF-REVIEW-020` **SHOULD** PR `fix:` có mục **"Rà cùng khuôn"** trong body: lệnh `rg`/Semgrep đã chạy để tìm cùng mẫu lỗi ở nơi khác, số chỗ trùng tìm thấy, cách xử lý từng chỗ (sửa trong PR / issue / không áp dụng kèm lý do); lỗi lặp còn ghi hàng rào mới theo `WF-REVIEW-016`. → Kiểm: `pr-policy` cảnh báo (không chặn) khi PR `fix:` thiếu mục hoặc mục rỗng. · Nguồn: `seeker19110/stored` 23 §4.5 (Sales-Hunter: template `TRAPS.md` cứng có mục "rà cả họ"; đọc 2026-10-16)
+- [ ] `WF-REVIEW-021` **SHOULD** Mỗi hunk của diff **truy được về yêu cầu** của PR (tiêu chí chấp nhận, bug, task ghi trong mô tả); dọn dẹp, đổi tên, format, refactor ngoài yêu cầu tách PR riêng; tác giả chỉ dọn phần thừa do chính thay đổi tạo ra (import, biến, hàm hết dùng). Áp như nhau cho diff do agent viết — agent hay "tiện tay" sửa thêm. → Kiểm: reviewer gắn `should` cho hunk không truy được; mô tả PR liệt kê thay đổi ngoài yêu cầu (nếu giữ) kèm lý do. · Nguồn: catalog `seeker19110/stored` 20 §3k.3 (nguyên tắc "Surgical Changes"); Google eng-practices Small CLs (tách refactor)
 
 ## Bẫy thường gặp
 
 - **"LGTM" trong 30 giây cho PR 800 dòng.** Không phải review, là chữ ký. PR nhỏ + checklist + bằng chứng đã chạy.
-- **AI viết code, cùng AI đó review, rồi auto-merge.** Tự chứng nhận vòng tròn (khung cũ spec §B10). Reviewer khác model + test viết từ spec + người giữ merge.
+- **AI viết code, cùng AI đó review, rồi auto-merge.** Tự chứng nhận vòng tròn (khung cũ spec §B10). Reviewer năng lực cao hơn + test viết từ spec + người giữ merge.
 - **Review phong cách thay vì logic.** 40 nit về dấu chấm phẩy, bỏ qua race condition. Formatter lo phong cách; người lo đúng/an toàn.
 - **Quá hạn thì tự pass.** "Không ai phản đối trong 24h = đồng ý" biến SLA thành lỗ hổng. Leo thang người.
 - **Tác giả resolve blocker của reviewer.** Thread biến mất, lỗi vào trunk. Chỉ người nêu (hoặc code owner) resolve.
@@ -78,7 +79,7 @@ updated: 2026-10-21
 |---|---|---|---|
 | pr-policy | script kiểm body có mục Summary/Spec/Validation/Risk-rollback/DoD; `feat` link spec; cảnh báo khi chạm cấu hình cổng không lý do | CI | Đỏ khi thiếu mục |
 | Thread resolution | ruleset `required_review_thread_resolution: true` | GitHub | Chặn merge |
-| Reviewer AI | skill `/review` hoặc action review với model khác implementer; output gắn nhãn claim | CI (góp ý) | Không chặn, không approve |
+| Reviewer AI | skill `/review` hoặc action review với năng lực cao hơn implementer; output gắn nhãn claim | CI (góp ý) | Không chặn, không approve |
 | Luật theo đường dẫn | alibaba/open-code-review (Apache-2.0) `ocr delegate`; Semgrep rule theo glob | CI (góp ý) | — |
 | SLA | cron: `gh pr list --json createdAt,reviews` → nhãn `review-overdue` > 24h, nhắc 12h | CI schedule | Thông báo + leo thang |
 | Fast-lane predicate | script xuất `fast_lane: true/false` + lý do; auto-merge chỉ khi true | CI | Fail-closed |
@@ -96,3 +97,4 @@ updated: 2026-10-21
 - `research/2026-10-13-stored-catalog-extraction.md` §2.11 (reviewer khác model; human gate 24h leo thang; `/hoc` thang mức bền), §4; catalog `23-own-repos-lessons` §2.3, §2.5, §2.6, §4.1, §4.3; `13-dev-stack-devops` §6 (AI code review, open-code-review).
 - Catalog `seeker19110/stored` 13 §6d (Homebrew/BrewUI: PR template có mục bắt buộc "AI assistance", tách phần người kiểm và phần AI kiểm) — đọc 2026-10-15.
 - Catalog `seeker19110/stored` 23 §4.5 (Sales-Hunter: `TRAPS.md` có template triệu chứng / nguyên nhân / bằng chứng đỏ-xanh / rà cả họ / lần sau) — đọc 2026-10-16.
+- Catalog `seeker19110/stored` 20 §3k.3 (`multica-ai/andrej-karpathy-skills`: "mọi dòng thay đổi phải truy được về yêu cầu", chỉ dọn rác do chính mình tạo) — đọc 2026-10-30.

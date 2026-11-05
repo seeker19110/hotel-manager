@@ -3,7 +3,7 @@ title: Bảo mật phía client: XSS, CSP, token, storage, dependency
 kind: module
 prefix: FE-SEC
 applies_to: [web-app, mobile-app, desktop-app, static-site, game, monorepo]
-updated: 2026-10-14
+updated: 2026-11-04
 ---
 
 # Bảo mật phía client: XSS, CSP, token, storage, dependency
@@ -59,6 +59,7 @@ updated: 2026-10-14
 - [ ] `FE-SEC-018` **SHOULD** Header phụ trợ phía client do server đặt và kiểm: `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` tắt API không dùng, `X-Content-Type-Options: nosniff` (danh sách đầy đủ ở appsec-web). → Kiểm: test header trong CI smoke.
 - [ ] `FE-SEC-019` **MAY** Quét CSP bằng công cụ đánh giá (CSP Evaluator) trong CI; ghi điểm. → Kiểm: báo cáo không "High severity".
 - [ ] `FE-SEC-020` **MAY** Ngừng dùng 2026-10-14 — gộp vào [`SEC-WEB-021`](../12-security/appsec-web.md): HTML/SVG người dùng tải lên phục vụ từ origin riêng (sandbox domain) hoặc `Content-Disposition: attachment`.
+- [ ] `FE-SEC-021` **SHOULD** Render sơ đồ Mermaid (kể cả nhúng trong Markdown) do người dùng hoặc LLM viết giữ `securityLevel: 'strict'` (mặc định) hoặc `'sandbox'`; không `loose`/`antiscript`. → Kiểm: `rg "securityLevel.{0,3}[:=] *.(loose|antiscript)"` = 0 (bắt cả dạng JSON/object, không bắt `sandbox`/`strict`); test render sơ đồ có `click` + `<img onerror>` → không chạy script, và nhãn có thẻ HTML (vd `<b>`, `<a href>`) hiện dạng text đã mã hoá (bài test do dự án tự viết; docs chỉ là căn cứ cho hành vi `strict`). · Nguồn: Mermaid usage docs (securityLevel)
 
 ## Bẫy thường gặp
 
@@ -89,6 +90,7 @@ updated: 2026-10-14
 
 ## Nguồn
 
+- Mermaid `securityLevel` (`strict` mặc định mã hoá HTML + tắt click; `loose`/`antiscript` cho HTML; `sandbox` iframe): <https://mermaid.js.org/config/usage.html> — xác minh 2026-11-04.
 - OWASP Cheat Sheet Series — Cross Site Scripting Prevention (encode theo ngữ cảnh; escape hatch `dangerouslySetInnerHTML`, `bypassSecurityTrust*`; DOMPurify; React 19 chặn `javascript:` nhưng vẫn cần validate URL; CSP là defense in depth): <https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html>; Content Security Policy (strict CSP nonce/hash + `'strict-dynamic'`, `object-src 'none'`, `base-uri 'none'`, `frame-ancestors`, Report-Only, `report-to`): <https://cheatsheetseries.owasp.org/cheatsheets/Content_Security_Policy_Cheat_Sheet.html>; HTML5 Security (không lưu session id trong localStorage; HttpOnly; postMessage): <https://cheatsheetseries.owasp.org/cheatsheets/HTML5_Security_Cheat_Sheet.html>; Clickjacking Defense (`frame-ancestors` ưu tiên, `X-Frame-Options: DENY` fallback, `ALLOW-FROM` lỗi thời, SameSite bổ trợ): <https://cheatsheetseries.owasp.org/cheatsheets/Clickjacking_Defense_Cheat_Sheet.html> — xác minh 2026-10-13.
 - MDN — Subresource Integrity (`integrity` sha256/384/512, bắt buộc CORS `crossorigin`): <https://developer.mozilla.org/en-US/docs/Web/Security/Subresource_Integrity> — xác minh 2026-10-13.
 - W3C Trusted Types — Editor's Draft 07/10/2026 (`require-trusted-types-for`, `trusted-types`; > 60 injection sink): <https://w3c.github.io/trusted-types/dist/spec/> — xác minh 2026-10-13.
