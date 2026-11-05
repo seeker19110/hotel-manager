@@ -1118,3 +1118,10 @@
 - Chọn: Chặn .map qua proxy và kiểm thử; giữ tích hợp và production mở
 - Lý do (tiêu chí chất lượng cuối): Phòng vệ kiểm được cục bộ mà không chọn nhà cung cấp hay tuyên bố bảo vệ lưu lượng ngoài proxy
 - Đường lùi: Hoàn nguyên quy tắc Caddy và test qua PR
+
+### D-157 · 2026-11-05T14:09:40+00:00 · CI image-scan đỏ do CVE-2026-109518 (apt 3.0.3, High, có bản sửa 3.0.4) trong base postgres/node trixie đã ghim digest
+
+- Phương án: (1) Đổi digest sang bản dựng lại 2026-11-05 của upstream (apt 3.0.4), kiểm index đa kiến trúc và quét lại · (2) Thêm ngoại lệ .grype.yaml có hạn cho apt/libapt-pkg7.0 · (3) apt-get install --only-upgrade apt trong Dockerfile
+- Chọn: Đổi digest sang bản dựng lại 2026-11-05 của upstream (apt 3.0.4), kiểm index đa kiến trúc và quét lại
+- Lý do (tiêu chí chất lượng cuối): Đúng và an toàn: bản vá có sẵn nên không dùng ngoại lệ; giữ ghim digest bất biến, không thêm lớp tự nâng gói ngoài kiểm soát; đồng bộ service container CI để test chạy trên cùng base
+- Đường lùi: Hoàn nguyên commit đổi digest qua PR
