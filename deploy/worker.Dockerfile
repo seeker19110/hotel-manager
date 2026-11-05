@@ -1,8 +1,8 @@
 # Image worker (outbox relay, pg-boss, job định kỳ) — build từ GỐC repo: `docker build -f deploy/worker.Dockerfile -t hotel-manager-worker .`
 # Đã build/quét cục bộ 2026-11-01 bằng dữ liệu giả; bằng chứng docs/ops/evidence/supply-chain-2026-11-01.json.
 # Kiểm startup/PWA/shutdown ở docs/ops/evidence/local-images-2026-11-01.json; chưa triển khai production.
-# Base: node 24.22.2 (khớp .nvmrc), Debian trixie slim; digest kiểm SHA-256 manifest và kéo/chạy qua mirror.gcr.io 2026-11-01 (D-139).
-FROM node:24.22.2-trixie-slim@sha256:54f84b4cf8432b21aaffd5d3ce8d41e12cea0d10d33c09d2f3c9879d49d6b446 AS prepared
+# Base: node 24.22.2 (khớp .nvmrc), Debian trixie slim; digest kiểm SHA-256 manifest và kéo/chạy qua mirror.gcr.io 2026-11-01 (D-139); đổi digest 2026-11-05 lấy apt 3.0.4 (CVE-2026-109518, D-157).
+FROM node:24.22.2-trixie-slim@sha256:0820eaa85e07d0490446dd01d14707e17e6108a36988cf374899cd057eb3812d AS prepared
 WORKDIR /app
 # D-140: Corepack xác minh/cài đúng pnpm đã ghim; bỏ npm khỏi base dùng chung cho build và runtime.
 # Không giữ các gói npm CLI có lỗ hổng trong bất kỳ stage ứng dụng nào; CI quét chính stage base này.
