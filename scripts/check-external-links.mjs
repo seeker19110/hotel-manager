@@ -24,9 +24,14 @@ const BUILTIN_EXCLUDE = [
   "example.net",
 ];
 
-/** Các liên kết http(s) trong Markdown, bỏ khối code rào và đoạn code dòng. Trả về [{url, line}] không trùng URL. */
+/**
+ * Các liên kết http(s) trong Markdown, bỏ khối code rào và đoạn code dòng. Trả về [{url, line}] không trùng URL (URL bỏ
+ * `#…`); link có anchor thì thêm `fragments` (WF-DOC-002: anchor `#heading` của link ngoài cũng phải tồn tại). Bỏ
+ * text fragment `#:~:text=` (trình duyệt tự tìm chữ, không phải anchor).
+ */
 export function extractUrls(md) {
   const found = new Map();
+  const frags = new Map();
   let fence = null;
   md.split("\n").forEach((raw, i) => {
     const m = /^\s*(`{3,}|~{3,})/.exec(raw);
@@ -48,11 +53,65 @@ export function extractUrls(md) {
       ) {
         url = url.slice(0, -1);
       }
-      url = url.split("#")[0];
-      if (/^https?:\/\/[^/]+/.test(url) && !found.has(url)) found.set(url, i + 1);
+      const hash = url.indexOf("#");
+      const frag = hash >= 0 ? url.slice(hash + 1) : "";
+      url = hash >= 0 ? url.slice(0, hash) : url;
+      if (!/^https?:\/\/[^/]+/.test(url)) continue;
+      if (!found.has(url)) found.set(url, i + 1);
+      if (frag && !frag.startsWith(":~:")) frags.set(url, new Set([...(frags.get(url) ?? []), frag]));
     }
   });
-  return [...found].map(([url, line]) => ({ url, line }));
+  return [...found].map(([url, line]) =>
+    frags.has(url) ? { url, line, fragments: [...frags.get(url)] } : { url, line },
+  );
+}
+
+/** Tên anchor trong HTML: thuộc tính `id` và `name` (GitHub render Markdown với tiền tố `user-content-` — nhận cả hai dạng). */
+export function htmlAnchors(html) {
+  const out = new Set();
+  for (const m of html.matchAll(/\s(?:id|name)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>"']+))/gi)) {
+    const v = (m[1] ?? m[2] ?? m[3] ?? "").replace(/&amp;/g, "&");
+    if (!v) continue;
+    out.add(v);
+    if (v.startsWith("user-content-")) out.add(v.slice("user-content-".length));
+  }
+  return out;
+}
+
+/**
+ * Anchor còn thiếu trên trang `url` (đã biết sống). Trang không phải HTML (zip, PDF…) → [] vì `#…` ở đó không phải
+ * anchor HTML. Lỗi mạng/HTTP khi tải trang → null (không kết luận, để cảnh báo).
+ */
+export async function missingFragments(url, fragments, { fetchImpl = fetch, timeoutMs = 15000 } = {}) {
+  let res;
+  try {
+    res = await fetchImpl(url, {
+      method: "GET",
+      headers: { "user-agent": "Mozilla/5.0 (compatible; hm-link-check/1.0)", accept: "text/html" },
+      redirect: "follow",
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch {
+    return null;
+  }
+  if (res.status >= 400) return null;
+  const type = String(res.headers?.get?.("content-type") ?? "");
+  if (!type.includes("text/html")) {
+    res.body?.cancel?.();
+    return [];
+  }
+  const anchors = htmlAnchors(await res.text());
+  return fragments.filter((f) => !anchors.has(f) && !anchors.has(decodeFragment(f)));
+}
+
+/** `%20` → khoảng trắng như trình duyệt; chuỗi `%` hỏng (URIError) thì so nguyên dạng. */
+function decodeFragment(f) {
+  try {
+    return decodeURIComponent(f);
+  } catch (e) {
+    if (e instanceof URIError) return f;
+    throw e;
+  }
 }
 
 /** `host` khớp một mục loại trừ (đúng tên hoặc `*.hậu-tố`). */
@@ -125,22 +184,45 @@ export function freshInCache(cache, url, now, ttlMs) {
   return hit !== undefined && now - hit.at < ttlMs;
 }
 
-/** Kiểm nhiều URL song song (`concurrency`), bỏ qua URL còn hạn trong cache; cập nhật cache với kết quả ok. */
+/**
+ * Kiểm nhiều URL song song (`concurrency`), bỏ qua URL còn hạn trong cache; cập nhật cache với kết quả ok.
+ * `fragments` (Map url → [anchor]): URL sống thì kiểm từng anchor (cache theo `url#anchor`); thiếu anchor = dead,
+ * không tải được trang để đọc anchor = warn. `ignoreFragmentHosts`: site dựng anchor bằng JS (ghi lý do ở cấu hình).
+ */
 export async function runChecks(
   urls,
-  { cache = {}, now = Date.now(), ttlMs = 7 * 24 * 3600 * 1000, concurrency = 6, ...opts } = {},
+  {
+    cache = {},
+    now = Date.now(),
+    ttlMs = 7 * 24 * 3600 * 1000,
+    concurrency = 6,
+    fragments = new Map(),
+    ignoreFragmentHosts = [],
+    ...opts
+  } = {},
 ) {
   const results = [];
   const queue = [...urls];
+  const anchorCheck = async (url, base) => {
+    const host = URL.canParse(url) ? new URL(url).hostname : "";
+    const todo = (fragments.get(url) ?? []).filter((f) => !freshInCache(cache, `${url}#${f}`, now, ttlMs));
+    if (base.kind !== "ok" || todo.length === 0 || ignoreFragmentHosts.some((e) => hostMatches(host, e)))
+      return base;
+    const missing = await missingFragments(url, todo, opts);
+    if (missing === null)
+      return { url, kind: "warn", detail: `không đọc được trang để kiểm anchor #${todo.join(", #")}` };
+    for (const f of todo) if (!missing.includes(f)) cache[`${url}#${f}`] = { at: now };
+    return missing.length ? { url, kind: "dead", detail: `không có anchor #${missing.join(", #")}` } : base;
+  };
   const worker = async () => {
     for (let item = queue.shift(); item !== undefined; item = queue.shift()) {
       if (freshInCache(cache, item, now, ttlMs)) {
-        results.push({ url: item, kind: "ok", detail: "cache" });
+        results.push(await anchorCheck(item, { url: item, kind: "ok", detail: "cache" }));
         continue;
       }
       const r = await checkUrl(item, opts);
       if (r.kind === "ok") cache[item] = { at: now };
-      results.push(r);
+      results.push(await anchorCheck(item, r));
     }
   };
   await Promise.all(Array.from({ length: Math.min(concurrency, Math.max(urls.length, 1)) }, worker));
@@ -162,13 +244,14 @@ function markdownFiles(root) {
   return out;
 }
 
-/** Mọi URL cần kiểm trong repo: {url → [file:dòng…]}, đã bỏ loại trừ. */
-export function collectUrls(root, config) {
+/** Mọi URL cần kiểm trong repo: {url → [file:dòng…]}, đã bỏ loại trừ. `fragments` (nếu truyền Map) nhận anchor theo URL. */
+export function collectUrls(root, config, fragments = new Map()) {
   const where = new Map();
   for (const file of markdownFiles(root)) {
-    for (const { url, line } of extractUrls(readFileSync(join(root, file), "utf8"))) {
+    for (const { url, line, fragments: fs = [] } of extractUrls(readFileSync(join(root, file), "utf8"))) {
       if (isExcluded(url, config)) continue;
       where.set(url, [...(where.get(url) ?? []), `${file}:${line}`]);
+      if (fs.length) fragments.set(url, [...new Set([...(fragments.get(url) ?? []), ...fs])]);
     }
   }
   return where;
@@ -186,11 +269,14 @@ async function main() {
       cache = {};
     }
   }
-  const where = collectUrls(ROOT, config);
+  const fragments = new Map();
+  const where = collectUrls(ROOT, config, fragments);
   const results = await runChecks([...where.keys()], {
     cache,
     ttlMs: (config.cacheDays ?? 7) * 24 * 3600 * 1000,
     retries: config.retries ?? 2,
+    fragments,
+    ignoreFragmentHosts: config.ignoreFragmentHosts ?? [],
   });
   mkdirSync(dirname(cachePath), { recursive: true });
   writeFileSync(cachePath, `${JSON.stringify(cache)}\n`);

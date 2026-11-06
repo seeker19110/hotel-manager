@@ -1132,3 +1132,10 @@
 - Chọn: Thêm workflow_dispatch vào ci.yml và actions: write cho job steward, kèm test cấu trúc
 - Lý do (tiêu chí chất lượng cuối): Đúng và an toàn: commit trên main luôn có CI mà không cần token dài hạn do người tạo; quyền nới tối thiểu (actions: write chỉ ở job steward, chỉ chạy nhánh mặc định); test khoá lại cấu hình
 - Đường lùi: Hoàn nguyên commit; thay bằng XT_STEWARD_TOKEN nếu chủ dự án muốn
+
+### D-159 · 2026-11-06T00:11:38+00:00 · Khung 3.30 đổi WF-DOC-002: link ngoài phải đúng cả anchor #heading; check-external-links.mjs đang bỏ fragment
+
+- Phương án: (1) Kiểm anchor trong script hiện có: tải trang HTML, so id/name (nhận tiền tố user-content- của GitHub), bỏ qua tài nguyên không phải HTML, cache theo url#anchor, host dựng anchor bằng JS loại qua cấu hình có lý do · (2) Thay bằng lychee --include-fragments ghim phiên bản · (3) Để WF-DOC-002 mở
+- Chọn: Kiểm anchor trong script hiện có: tải trang HTML, so id/name (nhận tiền tố user-content- của GitHub), bỏ qua tài nguyên không phải HTML, cache theo url#anchor, host dựng anchor bằng JS loại qua cấu hình có lý do
+- Lý do (tiêu chí chất lượng cuối): Đúng theo cách hiểu chặt, không thêm phụ thuộc/binary mới vào CI, giữ cache/thử lại/loại trừ đã có và test không gọi mạng; anchor chỉ có nghĩa trên HTML nên zip/PDF không bị báo sai
+- Đường lùi: Hoàn nguyên commit; dùng lychee nếu cần kiểm rộng hơn

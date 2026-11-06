@@ -10,7 +10,9 @@ import {
   extractUrls,
   freshInCache,
   hostMatches,
+  htmlAnchors,
   isExcluded,
+  missingFragments,
   runChecks,
 } from "./check-external-links.mjs";
 
@@ -178,6 +180,94 @@ describe("cache + runChecks", () => {
   });
   it("danh sách rỗng → không lỗi", async () => {
     expect(await runChecks([], { fetchImpl: async () => ({ status: 200 }) })).toEqual([]);
+  });
+});
+
+describe("WF-DOC-002 — anchor #heading của link ngoài", () => {
+  const page = (html, type = "text/html; charset=utf-8", status = 200) => ({
+    status,
+    headers: { get: (k) => (k.toLowerCase() === "content-type" ? type : null) },
+    text: async () => html,
+    body: { cancel() {} },
+  });
+  it("extractUrls gom anchor theo URL, bỏ text fragment; link không anchor giữ nguyên dạng {url, line}", () => {
+    const md =
+      "[a](https://d.dev/p#cai-dat) [b](https://d.dev/p#Su%20dung) https://d.dev/q#:~:text=x https://e.dev/r";
+    expect(extractUrls(md)).toEqual([
+      { url: "https://d.dev/p", line: 1, fragments: ["cai-dat", "Su%20dung"] },
+      { url: "https://d.dev/q", line: 1 },
+      { url: "https://e.dev/r", line: 1 },
+    ]);
+  });
+  it("htmlAnchors đọc id/name (nháy kép, đơn, không nháy) và bỏ tiền tố user-content- của GitHub", () => {
+    const a = htmlAnchors(
+      `<h2 id="cai-dat">x</h2><a name='old'></a><div id=raw></div><h3 id="user-content-faq">`,
+    );
+    expect([...a].sort()).toEqual(["cai-dat", "faq", "old", "raw", "user-content-faq"]);
+    expect(htmlAnchors("<p>không anchor</p>").size).toBe(0);
+  });
+  it("missingFragments: anchor có/thiếu; giải mã %20; trang không phải HTML (zip) không kiểm; lỗi tải → null", async () => {
+    const html = `<h2 id="cai-dat"></h2><h2 id="Su dung"></h2>`;
+    expect(
+      await missingFragments("https://d.dev/p", ["cai-dat", "Su%20dung", "khong-co"], {
+        fetchImpl: async () => page(html),
+      }),
+    ).toEqual(["khong-co"]);
+    // `%` hỏng (decodeURIComponent ném URIError) không làm sập lượt kiểm: so nguyên dạng.
+    expect(
+      await missingFragments("https://d.dev/p", ["a%zz", "b%zz"], {
+        fetchImpl: async () => page(`<h2 id="a%zz"></h2>`),
+      }),
+    ).toEqual(["b%zz"]);
+    expect(
+      await missingFragments("https://z.dev/a.zip", ["mod@v1/LICENSE"], {
+        fetchImpl: async () => page("PK…", "application/zip"),
+      }),
+    ).toEqual([]);
+    expect(
+      await missingFragments("https://d.dev/p", ["x"], { fetchImpl: async () => page("", "text/html", 503) }),
+    ).toBeNull();
+    expect(
+      await missingFragments("https://d.dev/p", ["x"], {
+        fetchImpl: async () => {
+          throw new Error("reset");
+        },
+      }),
+    ).toBeNull();
+  });
+  it("runChecks: anchor thiếu → dead (dù URL sống); anchor đạt → cache url#anchor, lần sau không tải lại; host bỏ qua anchor", async () => {
+    const calls = [];
+    const fetchImpl = async (url, init) => {
+      calls.push(`${init.method} ${url}`);
+      return init.method === "HEAD" ? { status: 200, body: null } : page(`<h2 id="co"></h2>`);
+    };
+    const cache = {};
+    const fragments = new Map([
+      ["https://d.dev/p", ["co"]],
+      ["https://d.dev/q", ["mat"]],
+      ["https://spa.dev/x", ["mat"]],
+    ]);
+    const opts = {
+      cache,
+      now: 1000,
+      ttlMs: 500,
+      fetchImpl,
+      fragments,
+      ignoreFragmentHosts: ["spa.dev"],
+      ...fast,
+    };
+    const r1 = await runChecks(["https://d.dev/p", "https://d.dev/q", "https://spa.dev/x"], opts);
+    expect(r1.map((r) => [r.url, r.kind])).toEqual([
+      ["https://d.dev/p", "ok"],
+      ["https://d.dev/q", "dead"],
+      ["https://spa.dev/x", "ok"],
+    ]);
+    expect(r1[1].detail).toContain("#mat");
+    expect(cache["https://d.dev/p#co"]).toBeDefined();
+    expect(cache["https://d.dev/q#mat"]).toBeUndefined();
+    calls.length = 0;
+    await runChecks(["https://d.dev/p"], opts);
+    expect(calls).toEqual([]);
   });
 });
 
