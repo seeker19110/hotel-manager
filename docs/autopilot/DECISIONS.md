@@ -1153,3 +1153,17 @@
 - Chọn: Coi strict: true là nhánh (a) mà BASE-GATE-007 cho phép, tick WF-GIT-002 dẫn quyết định này
 - Lý do (tiêu chí chất lượng cuối): BASE-GATE-007 cho phép (a) up to date; chủ dự án đã chọn nhánh cập nhật với main ở AGENTS §7; chặt hơn mặc định khung, không đổi ruleset sống
 - Đường lùi: Chủ dự án đổi sang strict: false thì sửa ruleset và dòng bằng chứng
+
+### D-162 · 2026-11-06T09:59:25+00:00 · Duyệt PLAN-harden-2026-11-06 (đợt 28): trả nợ 🟢 #149, phát hiện audit delta, MUST mã; defer 3 việc chủ dự án
+
+- Phương án: (1) Duyệt: nợ #149 trước theo lát nhỏ có test đỏ-trước, rồi 🔴/🟠 audit delta, rồi MUST mã; defer token/miễn trừ/lịch sử · (2) Làm MUST mới trước, để nợ sau
+- Chọn: Duyệt: nợ #149 trước theo lát nhỏ có test đỏ-trước, rồi 🔴/🟠 audit delta, rồi MUST mã; defer token/miễn trừ/lịch sử
+- Lý do (tiêu chí chất lượng cuối): Harden: nợ review và phát hiện có tái hiện được ưu tiên (release-check FAIL khi nợ mở); lát nhỏ giữ đường lùi; việc cần khoá/quyết định của người không tự làm
+- Đường lùi: Sửa PLAN-harden và loop init lại
+
+### D-163 · 2026-11-06T10:03:45+00:00 · Đính chính D-158 (AUD-DOC-005): câu 'chỉ chạy nhánh mặc định' của actions: write ở job steward không đúng với workflow_dispatch chạy tay
+
+- Phương án: (1) Ghi rõ: trigger tự động (schedule, issue_comment, check_suite) chạy workflow và checkout của nhánh mặc định; workflow_dispatch chạy tay trên nhánh khác cần quyền ghi repo — người có quyền ghi vốn chạy được workflow tuỳ ý nên không leo quyền · (2) Bỏ trigger workflow_dispatch của pr-steward
+- Chọn: Ghi rõ: trigger tự động (schedule, issue_comment, check_suite) chạy workflow và checkout của nhánh mặc định; workflow_dispatch chạy tay trên nhánh khác cần quyền ghi repo — người có quyền ghi vốn chạy được workflow tuỳ ý nên không leo quyền
+- Lý do (tiêu chí chất lượng cuối): Đúng sự thật, giữ khả năng chạy tay cho chủ dự án; reviewer #149 xác nhận không có workflow nào gọi được với quyền cao hơn job steward
+- Đường lùi: Bỏ workflow_dispatch khỏi pr-steward nếu muốn chỉ chạy trên nhánh mặc định
