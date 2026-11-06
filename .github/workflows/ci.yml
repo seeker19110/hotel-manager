@@ -5,6 +5,9 @@ on:
   push:
     branches: [main]
   pull_request:
+  # pr-steward merge bằng GITHUB_TOKEN (không có XT_STEWARD_TOKEN) không kích `push` → xt.py 3.30 gọi dispatch workflow này
+  # trên nhánh đích để commit merge có CI (D-158). Run dispatch chạy đủ job như `push`; chỉ bước tiêu đề PR lọc theo event.
+  workflow_dispatch: {}
 
 # GITHUB_TOKEN chỉ đọc cho mọi job (SEC-SUPPLY-001, BASE-GATE-010). Action ghim theo SHA commit.
 permissions:

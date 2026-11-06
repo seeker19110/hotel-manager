@@ -1125,3 +1125,10 @@
 - Chọn: Đổi digest sang bản dựng lại 2026-11-05 của upstream (apt 3.0.4), kiểm index đa kiến trúc và quét lại
 - Lý do (tiêu chí chất lượng cuối): Đúng và an toàn: bản vá có sẵn nên không dùng ngoại lệ; giữ ghim digest bất biến, không thêm lớp tự nâng gói ngoài kiểm soát; đồng bộ service container CI để test chạy trên cùng base
 - Đường lùi: Hoàn nguyên commit đổi digest qua PR
+
+### D-158 · 2026-11-05T23:56:55+00:00 · Sau khi nâng khung 3.30, merge của pr-steward bằng GITHUB_TOKEN không kích CI trên main; xt.py gọi workflow_dispatch ci.yml nhưng ci.yml thiếu trigger và job steward thiếu actions: write
+
+- Phương án: (1) Thêm workflow_dispatch vào ci.yml và actions: write cho job steward, kèm test cấu trúc · (2) Yêu cầu chủ dự án tạo secret XT_STEWARD_TOKEN (PAT/App) để merge kích push · (3) Giữ nguyên, chấp nhận commit merge không có CI và job steward đỏ
+- Chọn: Thêm workflow_dispatch vào ci.yml và actions: write cho job steward, kèm test cấu trúc
+- Lý do (tiêu chí chất lượng cuối): Đúng và an toàn: commit trên main luôn có CI mà không cần token dài hạn do người tạo; quyền nới tối thiểu (actions: write chỉ ở job steward, chỉ chạy nhánh mặc định); test khoá lại cấu hình
+- Đường lùi: Hoàn nguyên commit; thay bằng XT_STEWARD_TOKEN nếu chủ dự án muốn

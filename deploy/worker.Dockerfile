@@ -1,5 +1,6 @@
 # Image worker (outbox relay, pg-boss, job định kỳ) — build từ GỐC repo: `docker build -f deploy/worker.Dockerfile -t hotel-manager-worker .`
-# Đã build/quét cục bộ 2026-11-01 bằng dữ liệu giả; bằng chứng docs/ops/evidence/supply-chain-2026-11-01.json.
+# Đã build/quét cục bộ 2026-11-01 bằng dữ liệu giả trên digest base CŨ; bằng chứng docs/ops/evidence/supply-chain-2026-11-01.json.
+# Digest base hiện tại (D-157) chưa có evidence cục bộ — bằng chứng quét là job CI `image-scan (node-base)` trên main.
 # Kiểm startup/PWA/shutdown ở docs/ops/evidence/local-images-2026-11-01.json; chưa triển khai production.
 # Base: node 24.22.2 (khớp .nvmrc), Debian trixie slim; digest kiểm SHA-256 manifest và kéo/chạy qua mirror.gcr.io 2026-11-01 (D-139); đổi digest 2026-11-05 lấy apt 3.0.4 (CVE-2026-109518, D-157).
 FROM node:24.22.2-trixie-slim@sha256:0820eaa85e07d0490446dd01d14707e17e6108a36988cf374899cd057eb3812d AS prepared

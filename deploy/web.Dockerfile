@@ -1,5 +1,6 @@
 # Image web (Next.js) — build từ GỐC repo: `docker build -f deploy/web.Dockerfile -t hotel-manager-web .`
-# Đã build/quét cục bộ 2026-11-01 bằng dữ liệu giả; bằng chứng docs/ops/evidence/supply-chain-2026-11-01.json.
+# Đã build/quét cục bộ 2026-11-01 bằng dữ liệu giả trên digest base CŨ; bằng chứng docs/ops/evidence/supply-chain-2026-11-01.json.
+# Digest base hiện tại (D-157) chưa có evidence cục bộ — bằng chứng quét là job CI `image-scan (node-base)` trên main.
 # Kiểm startup/PWA/shutdown ở docs/ops/evidence/local-images-2026-11-01.json; chưa triển khai production.
 # Base: node 24.22.2 (khớp .nvmrc), Debian trixie slim. Digest = index đa kiến trúc, kiểm SHA-256 manifest qua mirror.gcr.io
 # và kéo/chạy image 2026-11-01 (D-139); đổi digest 2026-11-05 lấy apt 3.0.4 (CVE-2026-109518, D-157).
