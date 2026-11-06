@@ -34,6 +34,17 @@ function workflows() {
 
 const MATRIX_NAME = ["$", "{{ matrix.name }}"].join("");
 
+/**
+ * Job có `if` cấp job khác `always()` (allowlist — T-2604, AUD-CI-003): mọi điều kiện khác (event, actor, head_ref,
+ * sender…) có thể bỏ job ở run `workflow_dispatch` của steward trên nhánh chính (D-158).
+ */
+function jobsGatedByCondition(jobs) {
+  const allowed = /^\s*(\$\{\{\s*)?always\(\)(\s*\}\})?\s*$/;
+  return Object.entries(jobs)
+    .filter(([, j]) => j.if !== undefined && !allowed.test(String(j.if)))
+    .map(([k]) => k);
+}
+
 /** Context của một job: `name:` (hoặc khoá job); job ma trận → mỗi phần tử `matrix.include[].name` một context. */
 function jobContexts(key, job) {
   const label = String(job.name ?? key);
@@ -768,12 +779,19 @@ describe("D-158 — merge của pr-steward bằng GITHUB_TOKEN vẫn có CI trê
   it("dispatch của steward chỉ gửi `ref`: không input bắt buộc; không job nào lọc theo event (run dispatch chạy đủ job như push)", () => {
     const inputs = wf["ci.yml"].on.workflow_dispatch?.inputs ?? {};
     expect(Object.entries(inputs).filter(([, v]) => v?.required === true)).toEqual([]);
-    const filtered = Object.entries(wf["ci.yml"].jobs)
-      .filter(([, j]) =>
-        /github\.(event_name|event\.pull_request|actor|triggering_actor)/.test(String(j.if ?? "")),
-      )
-      .map(([k]) => k);
-    expect(filtered).toEqual([]);
+    expect(jobsGatedByCondition(wf["ci.yml"].jobs)).toEqual([]);
+  });
+  it("T-2604 (AUD-CI-003): `if` cấp job chỉ được vắng hoặc đúng always() — allowlist, không phải danh sách mẫu", () => {
+    const expr = (s) => ["$", "{{ ", s, " }}"].join("");
+    const jobs = {
+      a: {},
+      b: { if: expr("always()") },
+      c: { if: "always()" },
+      d: { if: expr("github.head_ref != ''") },
+      e: { if: expr("github.event.sender.type != 'Bot'") },
+      f: { if: "github.event_name == 'pull_request'" },
+    };
+    expect(jobsGatedByCondition(jobs)).toEqual(["d", "e", "f"]);
   });
   it("job pr-steward khai quyền theo mục và có actions: write để gọi dispatch", () => {
     const perms = wf["pr-steward.yml"].jobs.steward.permissions;

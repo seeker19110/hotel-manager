@@ -1,6 +1,8 @@
 // BASE-DOC-006 / WF-DOC-002: kiểm link ngoài — trích URL, loại trừ, phân loại, thử lại, cache. Không gọi mạng (fetch giả).
 
-import { readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
@@ -209,6 +211,15 @@ describe("WF-DOC-002 — anchor #heading của link ngoài", () => {
       { url: "https://github.com/o/r/blob/y.ts", line: 1 },
     ]);
   });
+  it("T-2607 (AUD-CODE-002): anchor dòng+cột GitHub `#L10C5`, `#L10C5-L12C3` bỏ qua; anchor chữ giống vậy vẫn kiểm", () => {
+    const md =
+      "https://github.com/o/r/blob/a.ts#L10C5 https://github.com/o/r/blob/b.ts#L10C5-L12C3 https://d.dev/q#L10-intro";
+    expect(extractUrls(md)).toEqual([
+      { url: "https://github.com/o/r/blob/a.ts", line: 1 },
+      { url: "https://github.com/o/r/blob/b.ts", line: 1 },
+      { url: "https://d.dev/q", line: 1, fragments: ["L10-intro"] },
+    ]);
+  });
   it("htmlAnchors giải mã entity trong giá trị (tên + số); entity lạ giữ nguyên", () => {
     const a = htmlAnchors(
       `<h2 id="it&#39;s"></h2><h2 id="a&amp;b"></h2><h2 id="q&#x27;x"></h2><h2 id="k&zz;"></h2>`,
@@ -242,6 +253,42 @@ describe("WF-DOC-002 — anchor #heading của link ngoài", () => {
       },
     };
     expect(await missingFragments("https://d.dev/p", ["x"], { fetchImpl: async () => huge })).toBeNull();
+    // T-2606 (AUD-CODE-001): không content-length → đọc stream đếm byte, vượt trần thì cancel, không kéo hết body.
+    let pulled = 0;
+    let cancelled = false;
+    const MB = new Uint8Array(1024 * 1024).fill(0x61);
+    const chunked = {
+      status: 200,
+      headers: { get: (k) => (k === "content-type" ? "text/html" : null) },
+      body: new ReadableStream({
+        pull(c) {
+          pulled++;
+          if (pulled > 20) c.close();
+          else c.enqueue(MB);
+        },
+        cancel() {
+          cancelled = true;
+        },
+      }),
+      text: async () => {
+        throw new Error("không được gọi text() khi có body stream");
+      },
+    };
+    expect(await missingFragments("https://d.dev/p", ["x"], { fetchImpl: async () => chunked })).toBeNull();
+    expect(cancelled).toBe(true);
+    expect(pulled).toBeLessThanOrEqual(Math.ceil(MAX_HTML_BYTES / MB.length) + 2);
+    // Trần tính theo byte UTF-8, không theo độ dài chuỗi: 2M ký tự "ạ" = 6 MB.
+    const wide = { ...page("ạ".repeat(2 * 1024 * 1024)), body: undefined };
+    expect(await missingFragments("https://d.dev/p", ["x"], { fetchImpl: async () => wide })).toBeNull();
+    // Trang nhỏ qua stream vẫn đọc đúng anchor.
+    const small = {
+      status: 200,
+      headers: { get: (k) => (k === "content-type" ? "text/html" : null) },
+      body: new Blob(["<h2 id='co'></h2>"]).stream(),
+    };
+    expect(
+      await missingFragments("https://d.dev/p", ["co", "mat"], { fetchImpl: async () => small }),
+    ).toEqual(["mat"]);
     // `%` hỏng (decodeURIComponent ném URIError) không làm sập lượt kiểm: so nguyên dạng.
     expect(
       await missingFragments("https://d.dev/p", ["a%zz", "b%zz"], {
@@ -324,6 +371,20 @@ describe("WF-DOC-002 — anchor #heading của link ngoài", () => {
     for (const [u, fs] of fragments) {
       expect(u).not.toContain("#");
       expect(new Set(fs).size).toBe(fs.length);
+    }
+  });
+  it("T-2614 (AUD-TEST-001): fixture hai file md cùng URL khác anchor → collectUrls gộp đủ, giữ vị trí cả hai file", () => {
+    const tmp = mkdtempSync(join(tmpdir(), "hm-links-"));
+    try {
+      mkdirSync(join(tmp, "docs"));
+      writeFileSync(join(tmp, "README.md"), "[a](https://d.dev/p#mot) [b](https://d.dev/p#hai)\n");
+      writeFileSync(join(tmp, "docs", "x.md"), "\n[c](https://d.dev/p#ba) [d](https://d.dev/p#mot)\n");
+      const fragments = new Map();
+      const where = collectUrls(tmp, { excludeHosts: [] }, fragments);
+      expect(where.get("https://d.dev/p")).toEqual(["README.md:1", "docs/x.md:2"]);
+      expect([...fragments.get("https://d.dev/p")].sort()).toEqual(["ba", "hai", "mot"]);
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
     }
   });
 });
