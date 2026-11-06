@@ -256,7 +256,16 @@ export function useCommand<T = unknown>(path: string) {
           .clone()
           .json()
           .catch(() => null)) as ProblemLike | null;
-        if (p?.code === "REAUTH_REQUIRED") return fail({ ...p, status: 401 });
+        if (p?.code === "REAUTH_REQUIRED") {
+          // Form có ô mật khẩu (D-129): sai/thiếu mật khẩu là lỗi tại form. Form KHÔNG có ô mật khẩu (xuất dữ liệu cần đăng nhập
+          // gần đây): chỉ đăng nhập lại mới qua ⇒ hộp đăng nhập lại rồi gửi lại cùng key (T-2616, AUD-WEB-001).
+          const sentPassword =
+            typeof lastBody.current === "object" &&
+            lastBody.current !== null &&
+            "password" in lastBody.current;
+          if (!sentPassword && (await askReauth())) return post(true);
+          return fail({ ...p, status: 401 });
+        }
         // S-013: phiên hết hạn ⇒ hộp đăng nhập lại; xong thì gửi lại với CÙNG key (server chưa ghi gì ở lượt 401).
         if (await askReauth()) return post(true);
         return unauthenticated();
