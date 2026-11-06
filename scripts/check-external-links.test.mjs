@@ -10,7 +10,10 @@ import {
   extractUrls,
   freshInCache,
   hostMatches,
+  htmlAnchors,
   isExcluded,
+  MAX_HTML_BYTES,
+  missingFragments,
   runChecks,
 } from "./check-external-links.mjs";
 
@@ -178,6 +181,150 @@ describe("cache + runChecks", () => {
   });
   it("danh sách rỗng → không lỗi", async () => {
     expect(await runChecks([], { fetchImpl: async () => ({ status: 200 }) })).toEqual([]);
+  });
+});
+
+describe("WF-DOC-002 — anchor #heading của link ngoài", () => {
+  const page = (html, type = "text/html; charset=utf-8", status = 200) => ({
+    status,
+    headers: { get: (k) => (k.toLowerCase() === "content-type" ? type : null) },
+    text: async () => html,
+    body: { cancel() {} },
+  });
+  it("extractUrls gom anchor theo URL, bỏ text fragment; link không anchor giữ nguyên dạng {url, line}", () => {
+    const md =
+      "[a](https://d.dev/p#cai-dat) [b](https://d.dev/p#Su%20dung) https://d.dev/q#:~:text=x https://e.dev/r";
+    expect(extractUrls(md)).toEqual([
+      { url: "https://d.dev/p", line: 1, fragments: ["cai-dat", "Su%20dung"] },
+      { url: "https://d.dev/q", line: 1 },
+      { url: "https://e.dev/r", line: 1 },
+    ]);
+  });
+  it("text fragment sau anchor (`#a:~:text=`) giữ phần anchor; anchor dòng GitHub `#L10`/`#L10-L20` bỏ qua", () => {
+    const md =
+      "https://d.dev/p#setup:~:text=abc https://github.com/o/r/blob/x.ts#L10-L20 https://github.com/o/r/blob/y.ts#L3";
+    expect(extractUrls(md)).toEqual([
+      { url: "https://d.dev/p", line: 1, fragments: ["setup"] },
+      { url: "https://github.com/o/r/blob/x.ts", line: 1 },
+      { url: "https://github.com/o/r/blob/y.ts", line: 1 },
+    ]);
+  });
+  it("htmlAnchors giải mã entity trong giá trị (tên + số); entity lạ giữ nguyên", () => {
+    const a = htmlAnchors(
+      `<h2 id="it&#39;s"></h2><h2 id="a&amp;b"></h2><h2 id="q&#x27;x"></h2><h2 id="k&zz;"></h2>`,
+    );
+    expect([...a].sort()).toEqual(["a&b", "it's", "k&zz;", "q'x"]);
+    // Tên thuộc prototype không được coi là entity (review b5994b4).
+    expect([...htmlAnchors(`<h2 id="a&constructor;b"></h2>`)]).toEqual(["a&constructor;b"]);
+  });
+  it("htmlAnchors đọc id/name (nháy kép, đơn, không nháy) và bỏ tiền tố user-content- của GitHub", () => {
+    const a = htmlAnchors(
+      `<h2 id="cai-dat">x</h2><a name='old'></a><div id=raw></div><h3 id="user-content-faq">`,
+    );
+    expect([...a].sort()).toEqual(["cai-dat", "faq", "old", "raw", "user-content-faq"]);
+    expect(htmlAnchors("<p>không anchor</p>").size).toBe(0);
+  });
+  it("missingFragments: anchor có/thiếu; giải mã %20; trang không phải HTML (zip) không kiểm; lỗi tải → null", async () => {
+    const html = `<h2 id="cai-dat"></h2><h2 id="Su dung"></h2>`;
+    expect(
+      await missingFragments("https://d.dev/p", ["cai-dat", "Su%20dung", "khong-co"], {
+        fetchImpl: async () => page(html),
+      }),
+    ).toEqual(["khong-co"]);
+    // Lỗi giữa lúc đọc body (reset/hết giờ) → null, không ném (review a2f83f4 🟠).
+    const broken = { ...page(""), text: async () => Promise.reject(new TypeError("terminated")) };
+    expect(await missingFragments("https://d.dev/p", ["x"], { fetchImpl: async () => broken })).toBeNull();
+    // Trang quá trần dung lượng → null (khai qua content-length hoặc đọc ra quá dài).
+    const huge = {
+      ...page("<h2 id='x'></h2>"),
+      headers: {
+        get: (k) => ({ "content-type": "text/html", "content-length": String(MAX_HTML_BYTES + 1) })[k],
+      },
+    };
+    expect(await missingFragments("https://d.dev/p", ["x"], { fetchImpl: async () => huge })).toBeNull();
+    // `%` hỏng (decodeURIComponent ném URIError) không làm sập lượt kiểm: so nguyên dạng.
+    expect(
+      await missingFragments("https://d.dev/p", ["a%zz", "b%zz"], {
+        fetchImpl: async () => page(`<h2 id="a%zz"></h2>`),
+      }),
+    ).toEqual(["b%zz"]);
+    expect(
+      await missingFragments("https://z.dev/a.zip", ["mod@v1/LICENSE"], {
+        fetchImpl: async () => page("PK…", "application/zip"),
+      }),
+    ).toEqual([]);
+    expect(
+      await missingFragments("https://d.dev/p", ["x"], { fetchImpl: async () => page("", "text/html", 503) }),
+    ).toBeNull();
+    expect(
+      await missingFragments("https://d.dev/p", ["x"], {
+        fetchImpl: async () => {
+          throw new Error("reset");
+        },
+      }),
+    ).toBeNull();
+  });
+  it("runChecks: anchor thiếu → dead (dù URL sống); anchor đạt → cache url#anchor, lần sau không tải lại; host bỏ qua anchor", async () => {
+    const calls = [];
+    const fetchImpl = async (url, init) => {
+      calls.push(`${init.method} ${url}`);
+      return init.method === "HEAD" ? { status: 200, body: null } : page(`<h2 id="co"></h2>`);
+    };
+    const cache = {};
+    const fragments = new Map([
+      ["https://d.dev/p", ["co"]],
+      ["https://d.dev/q", ["mat"]],
+      ["https://spa.dev/x", ["mat"]],
+    ]);
+    const opts = {
+      cache,
+      now: 1000,
+      ttlMs: 500,
+      fetchImpl,
+      fragments,
+      ignoreFragmentHosts: ["spa.dev"],
+      ...fast,
+    };
+    const r1 = await runChecks(["https://d.dev/p", "https://d.dev/q", "https://spa.dev/x"], opts);
+    expect(r1.map((r) => [r.url, r.kind])).toEqual([
+      ["https://d.dev/p", "ok"],
+      ["https://d.dev/q", "dead"],
+      ["https://spa.dev/x", "ok"],
+    ]);
+    expect(r1[1].detail).toContain("#mat");
+    expect(cache["https://d.dev/p#co"]).toBeDefined();
+    expect(cache["https://d.dev/q#mat"]).toBeUndefined();
+    calls.length = 0;
+    await runChecks(["https://d.dev/p"], opts);
+    expect(calls).toEqual([]);
+  });
+  it("runChecks: lỗi đọc body khi kiểm anchor → warn cho URL đó, các URL khác vẫn có kết quả (không reject)", async () => {
+    const fetchImpl = async (_url, init) => {
+      if (init.method === "HEAD") return { status: 200, body: null };
+      return { ...page(""), text: async () => Promise.reject(new TypeError("terminated")) };
+    };
+    const r = await runChecks(["https://d.dev/a", "https://d.dev/b"], {
+      cache: {},
+      fetchImpl,
+      fragments: new Map([["https://d.dev/a", ["x"]]]),
+      ...fast,
+    });
+    expect(r.map((x) => [x.url, x.kind])).toEqual([
+      ["https://d.dev/a", "warn"],
+      ["https://d.dev/b", "ok"],
+    ]);
+  });
+  it("collectUrls gộp anchor của cùng URL từ nhiều file; cấu hình khai ignoreFragmentHosts có ghi chú", () => {
+    const root = fileURLToPath(new URL("..", import.meta.url));
+    const config = JSON.parse(readFileSync(new URL("./link-check.config.json", import.meta.url), "utf8"));
+    expect(Array.isArray(config.ignoreFragmentHosts)).toBe(true);
+    expect(config._ghi_chu).toContain("ignoreFragmentHosts");
+    const fragments = new Map();
+    collectUrls(root, config, fragments);
+    for (const [u, fs] of fragments) {
+      expect(u).not.toContain("#");
+      expect(new Set(fs).size).toBe(fs.length);
+    }
   });
 });
 

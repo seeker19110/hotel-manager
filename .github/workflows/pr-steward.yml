@@ -72,6 +72,7 @@ jobs:
       issues: write # đọc comment review; gắn nhãn xt-standard-lane
       checks: read # merge-check đọc check-run
       statuses: read # và commit status
+      actions: write # sau merge bằng GITHUB_TOKEN: dispatch ci.yml trên nhánh đích (khung 3.30, D-158)
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

@@ -757,3 +757,27 @@ describe("XC-DX-001 — onboarding-smoke chạy đúng ≤ 3 lệnh ở đầu R
     expect(ci.jobs.quality.needs).toContain("onboarding-smoke");
   });
 });
+
+describe("D-158 — merge của pr-steward bằng GITHUB_TOKEN vẫn có CI trên nhánh chính", () => {
+  // GitHub không chạy workflow `push` cho commit do GITHUB_TOKEN tạo; xt.py (khung 3.30) gọi dispatch `ci.yml` sau merge.
+  // Thiếu trigger hoặc quyền ⇒ commit merge không có run CI và job steward đỏ.
+  const wf = workflows();
+  it("ci.yml nhận workflow_dispatch", () => {
+    expect(Object.keys(wf["ci.yml"].on ?? {})).toContain("workflow_dispatch");
+  });
+  it("dispatch của steward chỉ gửi `ref`: không input bắt buộc; không job nào lọc theo event (run dispatch chạy đủ job như push)", () => {
+    const inputs = wf["ci.yml"].on.workflow_dispatch?.inputs ?? {};
+    expect(Object.entries(inputs).filter(([, v]) => v?.required === true)).toEqual([]);
+    const filtered = Object.entries(wf["ci.yml"].jobs)
+      .filter(([, j]) =>
+        /github\.(event_name|event\.pull_request|actor|triggering_actor)/.test(String(j.if ?? "")),
+      )
+      .map(([k]) => k);
+    expect(filtered).toEqual([]);
+  });
+  it("job pr-steward khai quyền theo mục và có actions: write để gọi dispatch", () => {
+    const perms = wf["pr-steward.yml"].jobs.steward.permissions;
+    expect(typeof perms).toBe("object");
+    expect(perms.actions).toBe("write");
+  });
+});

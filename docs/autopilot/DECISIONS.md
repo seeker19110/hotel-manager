@@ -1125,3 +1125,31 @@
 - Chọn: Đổi digest sang bản dựng lại 2026-11-05 của upstream (apt 3.0.4), kiểm index đa kiến trúc và quét lại
 - Lý do (tiêu chí chất lượng cuối): Đúng và an toàn: bản vá có sẵn nên không dùng ngoại lệ; giữ ghim digest bất biến, không thêm lớp tự nâng gói ngoài kiểm soát; đồng bộ service container CI để test chạy trên cùng base
 - Đường lùi: Hoàn nguyên commit đổi digest qua PR
+
+### D-158 · 2026-11-05T23:56:55+00:00 · Sau khi nâng khung 3.30, merge của pr-steward bằng GITHUB_TOKEN không kích CI trên main; xt.py gọi workflow_dispatch ci.yml nhưng ci.yml thiếu trigger và job steward thiếu actions: write
+
+- Phương án: (1) Thêm workflow_dispatch vào ci.yml và actions: write cho job steward, kèm test cấu trúc · (2) Yêu cầu chủ dự án tạo secret XT_STEWARD_TOKEN (PAT/App) để merge kích push · (3) Giữ nguyên, chấp nhận commit merge không có CI và job steward đỏ
+- Chọn: Thêm workflow_dispatch vào ci.yml và actions: write cho job steward, kèm test cấu trúc
+- Lý do (tiêu chí chất lượng cuối): Đúng và an toàn: commit trên main luôn có CI mà không cần token dài hạn do người tạo; quyền nới tối thiểu (actions: write chỉ ở job steward, chỉ chạy nhánh mặc định); test khoá lại cấu hình
+- Đường lùi: Hoàn nguyên commit; thay bằng XT_STEWARD_TOKEN nếu chủ dự án muốn
+
+### D-159 · 2026-11-06T00:11:38+00:00 · Khung 3.30 đổi WF-DOC-002: link ngoài phải đúng cả anchor #heading; check-external-links.mjs đang bỏ fragment
+
+- Phương án: (1) Kiểm anchor trong script hiện có: tải trang HTML, so id/name (nhận tiền tố user-content- của GitHub), bỏ qua tài nguyên không phải HTML, cache theo url#anchor, host dựng anchor bằng JS loại qua cấu hình có lý do · (2) Thay bằng lychee --include-fragments ghim phiên bản · (3) Để WF-DOC-002 mở
+- Chọn: Kiểm anchor trong script hiện có: tải trang HTML, so id/name (nhận tiền tố user-content- của GitHub), bỏ qua tài nguyên không phải HTML, cache theo url#anchor, host dựng anchor bằng JS loại qua cấu hình có lý do
+- Lý do (tiêu chí chất lượng cuối): Đúng theo cách hiểu chặt, không thêm phụ thuộc/binary mới vào CI, giữ cache/thử lại/loại trừ đã có và test không gọi mạng; anchor chỉ có nghĩa trên HTML nên zip/PDF không bị báo sai
+- Đường lùi: Hoàn nguyên commit; dùng lychee nếu cần kiểm rộng hơn
+
+### D-160 · 2026-11-06T00:34:41+00:00 · SEC-AI-002 đổi chữ ở khung 3.30; [~] Miễn cũ dựa lời duyệt cho chữ cũ
+
+- Phương án: (1) Đổi sang Không áp dụng với điều kiện kiểm được (không SDK LLM/agent, không cấu hình quyền agent) khoá bằng test · (2) Giữ Miễn và xin chủ dự án duyệt lại · (3) Để mở
+- Chọn: Đổi sang Không áp dụng với điều kiện kiểm được (không SDK LLM/agent, không cấu hình quyền agent) khoá bằng test
+- Lý do (tiêu chí chất lượng cuối): Đúng và chặt hơn: điều kiện được máy khoá, đổi trạng thái tự động khi sản phẩm thêm agent; không mượn lời duyệt của chữ cũ
+- Đường lùi: Về Miễn cũ khi chủ dự án duyệt lại
+
+### D-161 · 2026-11-06T00:34:42+00:00 · WF-GIT-002 chữ mới: required check quality, gitleaks và không đòi up to date theo BASE-GATE-007; ruleset dự án đang strict: true
+
+- Phương án: (1) Coi strict: true là nhánh (a) mà BASE-GATE-007 cho phép, tick WF-GIT-002 dẫn quyết định này · (2) Đổi ruleset sang strict: false kèm CI chạy lại khi push main · (3) Để mở WF-GIT-002
+- Chọn: Coi strict: true là nhánh (a) mà BASE-GATE-007 cho phép, tick WF-GIT-002 dẫn quyết định này
+- Lý do (tiêu chí chất lượng cuối): BASE-GATE-007 cho phép (a) up to date; chủ dự án đã chọn nhánh cập nhật với main ở AGENTS §7; chặt hơn mặc định khung, không đổi ruleset sống
+- Đường lùi: Chủ dự án đổi sang strict: false thì sửa ruleset và dòng bằng chứng
