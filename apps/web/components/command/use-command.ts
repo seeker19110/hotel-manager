@@ -258,12 +258,17 @@ export function useCommand<T = unknown>(path: string) {
           .catch(() => null)) as ProblemLike | null;
         if (p?.code === "REAUTH_REQUIRED") {
           // Form có ô mật khẩu (D-129): sai/thiếu mật khẩu là lỗi tại form. Form KHÔNG có ô mật khẩu (xuất dữ liệu cần đăng nhập
-          // gần đây): chỉ đăng nhập lại mới qua ⇒ hộp đăng nhập lại rồi gửi lại cùng key (T-2616, AUD-WEB-001).
+          // gần đây): chỉ đăng nhập lại mới qua ⇒ hộp đăng nhập lại rồi gửi lại (T-2616, AUD-XFEAT-006).
           const sentPassword =
             typeof lastBody.current === "object" &&
             lastBody.current !== null &&
-            "password" in lastBody.current;
-          if (!sentPassword && (await askReauth())) return post(true);
+            typeof (lastBody.current as { password?: unknown }).password === "string";
+          if (!sentPassword && (await askReauth())) {
+            // Pipeline LƯU kết quả failed của REAUTH cho key này (gửi lại cùng key = replay đúng lỗi đó) ⇒ cần key mới. Chỉ khi
+            // lượt này chắc chắn chưa ghi gì; key đang chưa rõ kết quả (mất mạng trước đó) thì giữ, tránh ghi trùng (review #152 🔴).
+            if (!uncertain.current) key.current = crypto.randomUUID();
+            return post(true);
+          }
           return fail({ ...p, status: 401 });
         }
         // S-013: phiên hết hạn ⇒ hộp đăng nhập lại; xong thì gửi lại với CÙNG key (server chưa ghi gì ở lượt 401).

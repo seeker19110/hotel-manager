@@ -40,12 +40,13 @@ const AI_PACKAGES = [
  */
 const LLM_HOSTS = new RegExp(
   [
-    String.raw`api\.(openai|anthropic|mistral|cohere|groq|together|deepseek|x|perplexity|fireworks)\.(com|ai|xyz)`,
+    String.raw`api\.(openai|anthropic|mistral|cohere|groq|together|deepseek|perplexity|fireworks)\.(com|ai|xyz)`,
+    String.raw`api\.x\.ai\b`,
     String.raw`generativelanguage\.googleapis\.com`,
     String.raw`aiplatform\.googleapis\.com`,
     String.raw`bedrock-runtime\.`,
     String.raw`openai\.azure\.com`,
-    String.raw`cognitiveservices\.azure\.com`,
+    String.raw`cognitiveservices\.azure\.com/openai`,
     String.raw`services\.ai\.azure\.com`,
     String.raw`(api-inference|router)\.huggingface\.co`,
     String.raw`api\.replicate\.com`,
@@ -54,7 +55,8 @@ const LLM_HOSTS = new RegExp(
     "/ai/run/",
     String.raw`/chat/completions\b`,
     String.raw`:generateContent\b`,
-    String.raw`/api/(chat|generate|embeddings)\b(?!-)`,
+    String.raw`/api/(chat|generate|embed|embeddings)\b(?![-/])`,
+    String.raw`/v1/(messages|responses|completions)\b`,
   ].join("|"),
 );
 
@@ -169,6 +171,11 @@ describe("SEC-AI-002 — điều kiện Không áp dụng: sản phẩm không c
       "http://localhost:11434/api/chat",
       "fetch(env.LLM_BASE_URL + '/v1/chat/completions')",
       "fetch(base + '/models/gemini:generateContent')",
+      // Review #152 🟢2: API tương thích Anthropic/OpenAI tự host (base URL từ env).
+      "fetch(base + '/v1/messages')",
+      "fetch(base + '/v1/responses')",
+      "fetch(base + '/v1/completions')",
+      "http://localhost:11434/api/embed",
     ])
       expect(LLM_HOSTS.test(host), host).toBe(true);
     for (const s of [
@@ -176,6 +183,10 @@ describe("SEC-AI-002 — điều kiện Không áp dụng: sản phẩm không c
       "https://s3.amazonaws.com/b",
       "https://api.stripe.com/v1",
       "/api/chat-room",
+      // Review #152 🟢1: không bắt nhầm API của X/Twitter, OCR Azure (Document Intelligence), route con nội bộ.
+      "https://api.x.com/2/tweets",
+      "https://r.cognitiveservices.azure.com/documentintelligence/documentModels/prebuilt-read:analyze",
+      "/api/chat/rooms",
     ])
       expect(LLM_HOSTS.test(s), s).toBe(false);
     for (const dep of [

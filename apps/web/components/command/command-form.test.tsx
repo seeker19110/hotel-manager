@@ -111,15 +111,24 @@ describe("CommandForm", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1); // không gửi lại kiểu "đăng nhập lại rồi gửi tiếp"
   });
 
-  it("T-2616 (AUD-WEB-001): form KHÔNG có ô mật khẩu gặp 401 REAUTH_REQUIRED (phiên > 5 phút) ⇒ hộp đăng nhập lại, xong gửi lại cùng key", async () => {
+  it("T-2616 (AUD-XFEAT-006): form KHÔNG có ô mật khẩu gặp 401 REAUTH_REQUIRED (phiên > 5 phút) ⇒ hộp đăng nhập lại, xong gửi lại bằng KEY MỚI", async () => {
     const handler = vi.fn(async () => true);
     setReauthHandler(handler);
     try {
-      fetchMock
-        .mockResolvedValueOnce(
-          jsonResponse(401, { code: "REAUTH_REQUIRED", title: "Vui lòng xác thực lại để xuất dữ liệu." }),
-        )
-        .mockResolvedValueOnce(jsonResponse(200, { data: { job_id: "j1" } }));
+      // Như server thật (pipeline lưu kết quả failed theo Idempotency-Key — review #152 🔴): cùng key ⇒ replay đúng lỗi 401;
+      // key mới sau khi đăng nhập lại ⇒ lệnh được xử lý.
+      const failedKeys = new Set<string>();
+      fetchMock.mockImplementation(async (_url, init) => {
+        const k = ((init?.headers ?? {}) as Record<string, string>)["idempotency-key"] as string;
+        if (failedKeys.size === 0 || failedKeys.has(k)) {
+          failedKeys.add(k);
+          return jsonResponse(401, {
+            code: "REAUTH_REQUIRED",
+            title: "Vui lòng xác thực lại để xuất dữ liệu.",
+          });
+        }
+        return jsonResponse(200, { data: { job_id: "j1" } });
+      });
       setup({
         path: "exports/request",
         fixed: { kind: "audit", format: "csv", filters: { from: "2026-11-01", to: "2026-11-06" } },
@@ -130,7 +139,7 @@ describe("CommandForm", () => {
       expect(await screen.findByText("Đã yêu cầu xuất.")).toBeTruthy();
       expect(handler).toHaveBeenCalledTimes(1);
       expect(fetchMock).toHaveBeenCalledTimes(2);
-      expect(keyOf(1)).toBe(keyOf(0));
+      expect(keyOf(1)).not.toBe(keyOf(0));
     } finally {
       setReauthHandler(null);
     }
