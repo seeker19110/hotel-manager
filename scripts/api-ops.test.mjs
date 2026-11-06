@@ -245,6 +245,11 @@ describe("OPS-OBS-001 — cấu hình OTel Collector", () => {
     for (const ctx of ["resource.attributes", "log.attributes", "log.body"])
       expect(cfg, `thiếu che ở ${ctx}`).toMatch(new RegExp(`\\(${ctx.replace(".", "\\.")}, `));
     expect(cfg).toMatch(/flatten\(log\.attributes\)/);
+    expect(cfg).toMatch(/flatten\(resource\.attributes\)/);
+    // Body map (OTLP/msg là object): flatten rồi che; mọi câu lệnh trên body đều có `where` đúng kiểu (propagate bỏ cả lô nếu sai kiểu).
+    expect(cfg).toMatch(/flatten\(log\.body\) where IsMap\(log\.body\)/);
+    for (const stmt of cfg.split("\n").filter((l) => /^\s+- \w+\(log\.body,/.test(l)))
+      expect(stmt, stmt.slice(0, 60)).toMatch(/where Is(Map|String)\(log\.body\)$/);
     const code = cfg.replace(/^\s*#.*$/gm, "");
     expect(code).not.toMatch(/ignored_keys|allowed_keys|allowed_values|allow_all_keys/);
   });
@@ -333,19 +338,19 @@ describe("otel-collector-e2e — phân tích đầu ra", () => {
     expect(queryByService(rs, "zzz")).toEqual([]);
   });
 
-  it("mẫu docker log: 4 hợp lệ + 3 không parse được + 3 canary PII, đều là một dòng JSON bọc Docker", () => {
+  it("mẫu docker log: 4 hợp lệ + 3 không parse được + 5 canary PII, đều là một dòng JSON bọc Docker", () => {
     const text = sampleDockerLog();
     const lines = text.trim().split("\n");
-    expect(lines).toHaveLength(10);
+    expect(lines).toHaveLength(12);
     for (const l of lines) expect(JSON.parse(l)).toMatchObject({ stream: "stdout" });
     // Đầu vào CÓ canary nguyên văn — nếu không, phép kiểm "không lọt" rỗng nghĩa.
-    for (const [name, v] of Object.entries(CANARY)) expect(text, name).toContain(v);
+    for (const [name, v] of Object.entries(CANARY)) expect(text, name).toContain(String(v));
   });
 
   it("verify: rỗng (Collector không xuất gì) → lỗi; thiếu dòng rác → lỗi", () => {
     expect(verify([]).length).toBeGreaterThan(0);
     const dropped = verify([rec({ "service.name": "hm-web" }, {}, "x")]);
-    expect(dropped.join("\n")).toMatch(/đủ 10 bản ghi/);
+    expect(dropped.join("\n")).toMatch(/đủ 12 bản ghi/);
   });
 
   it("verifyRedaction: canary lọt ở resource, attribute lồng hoặc body → lỗi nêu tên canary", () => {

@@ -111,22 +111,26 @@ processors:
         action: insert
   # OPS-OBS-008 / BASE-ERR-007: che PII/bí mật ở Collector TRƯỚC exporter — lớp thứ hai sau SDK (packages/app/src/logging/logger.ts
   # che trong tiến trình); bắt cả dòng không đi qua logger (stack của runtime, dòng rác, tiến trình gửi OTLP trực tiếp).
-  # Phủ: Resource attributes, log attributes (sau flatten — kể cả object lồng), body. Khoá nhạy cảm bị XOÁ; giá trị khớp mẫu bị che.
+  # Phủ: Resource attributes, log attributes, body chuỗi (kể cả JSON thô) và body map (OTLP) — map được flatten trước (kể cả lồng).
+  # Khoá nhạy cảm bị XOÁ; giá trị khớp mẫu bị che; SĐT/CCCD chạy hai lượt (biên RE2 ăn ký tự ⇒ số liền kề).
   # Không dùng processor `redaction` (alpha) nên KHÔNG có ignored_keys/allowed_keys/allowed_values: không khoá nào được miễn che,
   # không có allowlist fail-closed làm mất series — SLI/alert (deploy/prometheus) đọc metric Prometheus, không đọc log qua Collector.
-  # error_mode: propagate — câu lệnh lỗi thì bỏ lô thay vì để lọt dữ liệu chưa che (body không phải chuỗi được chặn bằng `where`).
-  # Mẫu giữ đồng bộ với logger.ts; kiểm bằng dữ liệu exporter thực nhận: `node scripts/otel-collector-e2e.mjs` (canary từng vị trí).
+  # error_mode: propagate — câu lệnh lỗi thì bỏ lô thay vì để lọt dữ liệu chưa che (mỗi câu trên body có `where` đúng kiểu).
+  # Mẫu giữ đồng bộ với logger.ts (ở đây rộng hơn: khoá k=v có hậu tố, giá trị "…"); kiểm bằng dữ liệu exporter thực nhận: `node scripts/otel-collector-e2e.mjs` (canary từng vị trí).
   transform/redact:
     error_mode: propagate
     log_statements:
       - context: resource
         statements:
+          - flatten(resource.attributes)
           - delete_matching_keys(resource.attributes, "(?i:pass|secret|token|authorization|cookie|api[_-]?key|session|otp|cccd|cmnd|passport|id[_-]?number|document[_-]?number|identity)|(?i:(^|[_.\\s-])keys?($|[_.\\s-]))|[a-z0-9]Keys?([^a-z]|$)")
           - replace_all_patterns(resource.attributes, "value", "(?i)\\b(bearer|basic)\\s+[A-Za-z0-9._~+/=-]{8,}", "$${1} ***")
           - replace_all_patterns(resource.attributes, "value", "(?i)\\b([a-z][a-z0-9+.-]*://[^\\s:/@]+):[^\\s@/]+@", "$${1}:***@")
-          - replace_all_patterns(resource.attributes, "value", "(?i)\\b([\\w-]*(pass(word|wd)?|pwd|secret|token|api[_-]?key))=[^\\s&;,\"]+", "$${1}=***")
+          - replace_all_patterns(resource.attributes, "value", "(?i)\\b([\\w-]*(pass(word|wd)?|pwd|secret|token|api[_-]?key)[\\w-]*)=(\\\\?\"[^\"\\\\]*\\\\?\"|[^\\s&;,\"\\\\]+)", "$${1}=***")
           - replace_all_patterns(resource.attributes, "value", "([A-Za-z0-9._%+-])[A-Za-z0-9._%+-]*@([A-Za-z0-9.-]+\\.[A-Za-z]{2,})", "$${1}***@$${2}")
           - replace_all_patterns(resource.attributes, "value", "(^|[^\\w-])(\\+?84|0)(\\d{2})\\d{4}(\\d{3})($|[^\\w-])", "$${1}0$${3}****$${4}$${5}")
+          - replace_all_patterns(resource.attributes, "value", "(^|[^\\w-])(\\+?84|0)(\\d{2})\\d{4}(\\d{3})($|[^\\w-])", "$${1}0$${3}****$${4}$${5}")
+          - replace_all_patterns(resource.attributes, "value", "(^|[^\\w-])(\\d{5}|\\d{8})(\\d{4})($|[^\\w-])", "$${1}****$${3}$${4}")
           - replace_all_patterns(resource.attributes, "value", "(^|[^\\w-])(\\d{5}|\\d{8})(\\d{4})($|[^\\w-])", "$${1}****$${3}$${4}")
       - context: log
         statements:
@@ -134,17 +138,31 @@ processors:
           - delete_matching_keys(log.attributes, "(?i:pass|secret|token|authorization|cookie|api[_-]?key|session|otp|cccd|cmnd|passport|id[_-]?number|document[_-]?number|identity)|(?i:(^|[_.\\s-])keys?($|[_.\\s-]))|[a-z0-9]Keys?([^a-z]|$)")
           - replace_all_patterns(log.attributes, "value", "(?i)\\b(bearer|basic)\\s+[A-Za-z0-9._~+/=-]{8,}", "$${1} ***")
           - replace_all_patterns(log.attributes, "value", "(?i)\\b([a-z][a-z0-9+.-]*://[^\\s:/@]+):[^\\s@/]+@", "$${1}:***@")
-          - replace_all_patterns(log.attributes, "value", "(?i)\\b([\\w-]*(pass(word|wd)?|pwd|secret|token|api[_-]?key))=[^\\s&;,\"]+", "$${1}=***")
+          - replace_all_patterns(log.attributes, "value", "(?i)\\b([\\w-]*(pass(word|wd)?|pwd|secret|token|api[_-]?key)[\\w-]*)=(\\\\?\"[^\"\\\\]*\\\\?\"|[^\\s&;,\"\\\\]+)", "$${1}=***")
           - replace_all_patterns(log.attributes, "value", "([A-Za-z0-9._%+-])[A-Za-z0-9._%+-]*@([A-Za-z0-9.-]+\\.[A-Za-z]{2,})", "$${1}***@$${2}")
           - replace_all_patterns(log.attributes, "value", "(^|[^\\w-])(\\+?84|0)(\\d{2})\\d{4}(\\d{3})($|[^\\w-])", "$${1}0$${3}****$${4}$${5}")
+          - replace_all_patterns(log.attributes, "value", "(^|[^\\w-])(\\+?84|0)(\\d{2})\\d{4}(\\d{3})($|[^\\w-])", "$${1}0$${3}****$${4}$${5}")
           - replace_all_patterns(log.attributes, "value", "(^|[^\\w-])(\\d{5}|\\d{8})(\\d{4})($|[^\\w-])", "$${1}****$${3}$${4}")
-          # Body chuỗi (msg đã parse, hoặc nguyên dòng không parse được — có thể là JSON thô chứa "password":"…").
-          - replace_pattern(log.body, "(?i)(\"[\\w-]*(pass|secret|token|authorization|cookie|api[_-]?key|otp|cccd|cmnd|passport)[\\w-]*\"\\s*:\\s*)\"[^\"]*\"", "$${1}\"***\"") where IsString(log.body)
+          - replace_all_patterns(log.attributes, "value", "(^|[^\\w-])(\\d{5}|\\d{8})(\\d{4})($|[^\\w-])", "$${1}****$${3}$${4}")
+          - flatten(log.body) where IsMap(log.body)
+          - delete_matching_keys(log.body, "(?i:pass|secret|token|authorization|cookie|api[_-]?key|session|otp|cccd|cmnd|passport|id[_-]?number|document[_-]?number|identity)|(?i:(^|[_.\\s-])keys?($|[_.\\s-]))|[a-z0-9]Keys?([^a-z]|$)") where IsMap(log.body)
+          - replace_all_patterns(log.body, "value", "(?i)\\b(bearer|basic)\\s+[A-Za-z0-9._~+/=-]{8,}", "$${1} ***") where IsMap(log.body)
+          - replace_all_patterns(log.body, "value", "(?i)\\b([a-z][a-z0-9+.-]*://[^\\s:/@]+):[^\\s@/]+@", "$${1}:***@") where IsMap(log.body)
+          - replace_all_patterns(log.body, "value", "(?i)\\b([\\w-]*(pass(word|wd)?|pwd|secret|token|api[_-]?key)[\\w-]*)=(\\\\?\"[^\"\\\\]*\\\\?\"|[^\\s&;,\"\\\\]+)", "$${1}=***") where IsMap(log.body)
+          - replace_all_patterns(log.body, "value", "([A-Za-z0-9._%+-])[A-Za-z0-9._%+-]*@([A-Za-z0-9.-]+\\.[A-Za-z]{2,})", "$${1}***@$${2}") where IsMap(log.body)
+          - replace_all_patterns(log.body, "value", "(^|[^\\w-])(\\+?84|0)(\\d{2})\\d{4}(\\d{3})($|[^\\w-])", "$${1}0$${3}****$${4}$${5}") where IsMap(log.body)
+          - replace_all_patterns(log.body, "value", "(^|[^\\w-])(\\+?84|0)(\\d{2})\\d{4}(\\d{3})($|[^\\w-])", "$${1}0$${3}****$${4}$${5}") where IsMap(log.body)
+          - replace_all_patterns(log.body, "value", "(^|[^\\w-])(\\d{5}|\\d{8})(\\d{4})($|[^\\w-])", "$${1}****$${3}$${4}") where IsMap(log.body)
+          - replace_all_patterns(log.body, "value", "(^|[^\\w-])(\\d{5}|\\d{8})(\\d{4})($|[^\\w-])", "$${1}****$${3}$${4}") where IsMap(log.body)
+          # Body chuỗi: msg đã parse, dòng không parse được, hoặc dòng JSON parse được nhưng thiếu `msg` (body = JSON thô).
+          - replace_pattern(log.body, "(\"(?:[^\"\\\\]*(?i:pass|secret|token|authorization|cookie|api[_-]?key|session|otp|cccd|cmnd|passport|id[_-]?number|document[_-]?number|identity)[^\"\\\\]*|(?:[^\"\\\\]*[_.-])?(?i:keys?)(?:[_.-][^\"\\\\]*)?|[^\"\\\\]*[a-z0-9]Keys?(?:[^a-z\"\\\\][^\"\\\\]*)?)\"\\s*:\\s*)(?:\"(?:[^\"\\\\]|\\\\.)*\"|-?\\d[\\d.eE+-]*|true|false|null)", "$${1}\"***\"") where IsString(log.body)
           - replace_pattern(log.body, "(?i)\\b(bearer|basic)\\s+[A-Za-z0-9._~+/=-]{8,}", "$${1} ***") where IsString(log.body)
           - replace_pattern(log.body, "(?i)\\b([a-z][a-z0-9+.-]*://[^\\s:/@]+):[^\\s@/]+@", "$${1}:***@") where IsString(log.body)
-          - replace_pattern(log.body, "(?i)\\b([\\w-]*(pass(word|wd)?|pwd|secret|token|api[_-]?key))=[^\\s&;,\"]+", "$${1}=***") where IsString(log.body)
+          - replace_pattern(log.body, "(?i)\\b([\\w-]*(pass(word|wd)?|pwd|secret|token|api[_-]?key)[\\w-]*)=(\\\\?\"[^\"\\\\]*\\\\?\"|[^\\s&;,\"\\\\]+)", "$${1}=***") where IsString(log.body)
           - replace_pattern(log.body, "([A-Za-z0-9._%+-])[A-Za-z0-9._%+-]*@([A-Za-z0-9.-]+\\.[A-Za-z]{2,})", "$${1}***@$${2}") where IsString(log.body)
           - replace_pattern(log.body, "(^|[^\\w-])(\\+?84|0)(\\d{2})\\d{4}(\\d{3})($|[^\\w-])", "$${1}0$${3}****$${4}$${5}") where IsString(log.body)
+          - replace_pattern(log.body, "(^|[^\\w-])(\\+?84|0)(\\d{2})\\d{4}(\\d{3})($|[^\\w-])", "$${1}0$${3}****$${4}$${5}") where IsString(log.body)
+          - replace_pattern(log.body, "(^|[^\\w-])(\\d{5}|\\d{8})(\\d{4})($|[^\\w-])", "$${1}****$${3}$${4}") where IsString(log.body)
           - replace_pattern(log.body, "(^|[^\\w-])(\\d{5}|\\d{8})(\\d{4})($|[^\\w-])", "$${1}****$${3}$${4}") where IsString(log.body)
   batch:
     timeout: 2s
