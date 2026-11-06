@@ -765,6 +765,14 @@ describe("D-158 — merge của pr-steward bằng GITHUB_TOKEN vẫn có CI trê
   it("ci.yml nhận workflow_dispatch", () => {
     expect(Object.keys(wf["ci.yml"].on ?? {})).toContain("workflow_dispatch");
   });
+  it("dispatch của steward chỉ gửi `ref`: không input bắt buộc; không job nào lọc theo event (run dispatch chạy đủ job như push)", () => {
+    const inputs = wf["ci.yml"].on.workflow_dispatch?.inputs ?? {};
+    expect(Object.entries(inputs).filter(([, v]) => v?.required === true)).toEqual([]);
+    const filtered = Object.entries(wf["ci.yml"].jobs)
+      .filter(([, j]) => /github\.event_name|github\.event\.pull_request/.test(String(j.if ?? "")))
+      .map(([k]) => k);
+    expect(filtered).toEqual([]);
+  });
   it("job pr-steward khai quyền theo mục và có actions: write để gọi dispatch", () => {
     const perms = wf["pr-steward.yml"].jobs.steward.permissions;
     expect(typeof perms).toBe("object");

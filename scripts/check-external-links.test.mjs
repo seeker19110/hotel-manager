@@ -12,6 +12,7 @@ import {
   hostMatches,
   htmlAnchors,
   isExcluded,
+  MAX_HTML_BYTES,
   missingFragments,
   runChecks,
 } from "./check-external-links.mjs";
@@ -199,6 +200,21 @@ describe("WF-DOC-002 — anchor #heading của link ngoài", () => {
       { url: "https://e.dev/r", line: 1 },
     ]);
   });
+  it("text fragment sau anchor (`#a:~:text=`) giữ phần anchor; anchor dòng GitHub `#L10`/`#L10-L20` bỏ qua", () => {
+    const md =
+      "https://d.dev/p#setup:~:text=abc https://github.com/o/r/blob/x.ts#L10-L20 https://github.com/o/r/blob/y.ts#L3";
+    expect(extractUrls(md)).toEqual([
+      { url: "https://d.dev/p", line: 1, fragments: ["setup"] },
+      { url: "https://github.com/o/r/blob/x.ts", line: 1 },
+      { url: "https://github.com/o/r/blob/y.ts", line: 1 },
+    ]);
+  });
+  it("htmlAnchors giải mã entity trong giá trị (tên + số); entity lạ giữ nguyên", () => {
+    const a = htmlAnchors(
+      `<h2 id="it&#39;s"></h2><h2 id="a&amp;b"></h2><h2 id="q&#x27;x"></h2><h2 id="k&zz;"></h2>`,
+    );
+    expect([...a].sort()).toEqual(["a&b", "it's", "k&zz;", "q'x"]);
+  });
   it("htmlAnchors đọc id/name (nháy kép, đơn, không nháy) và bỏ tiền tố user-content- của GitHub", () => {
     const a = htmlAnchors(
       `<h2 id="cai-dat">x</h2><a name='old'></a><div id=raw></div><h3 id="user-content-faq">`,
@@ -213,6 +229,17 @@ describe("WF-DOC-002 — anchor #heading của link ngoài", () => {
         fetchImpl: async () => page(html),
       }),
     ).toEqual(["khong-co"]);
+    // Lỗi giữa lúc đọc body (reset/hết giờ) → null, không ném (review a2f83f4 🟠).
+    const broken = { ...page(""), text: async () => Promise.reject(new TypeError("terminated")) };
+    expect(await missingFragments("https://d.dev/p", ["x"], { fetchImpl: async () => broken })).toBeNull();
+    // Trang quá trần dung lượng → null (khai qua content-length hoặc đọc ra quá dài).
+    const huge = {
+      ...page("<h2 id='x'></h2>"),
+      headers: {
+        get: (k) => ({ "content-type": "text/html", "content-length": String(MAX_HTML_BYTES + 1) })[k],
+      },
+    };
+    expect(await missingFragments("https://d.dev/p", ["x"], { fetchImpl: async () => huge })).toBeNull();
     // `%` hỏng (decodeURIComponent ném URIError) không làm sập lượt kiểm: so nguyên dạng.
     expect(
       await missingFragments("https://d.dev/p", ["a%zz", "b%zz"], {
@@ -268,6 +295,34 @@ describe("WF-DOC-002 — anchor #heading của link ngoài", () => {
     calls.length = 0;
     await runChecks(["https://d.dev/p"], opts);
     expect(calls).toEqual([]);
+  });
+  it("runChecks: lỗi đọc body khi kiểm anchor → warn cho URL đó, các URL khác vẫn có kết quả (không reject)", async () => {
+    const fetchImpl = async (_url, init) => {
+      if (init.method === "HEAD") return { status: 200, body: null };
+      return { ...page(""), text: async () => Promise.reject(new TypeError("terminated")) };
+    };
+    const r = await runChecks(["https://d.dev/a", "https://d.dev/b"], {
+      cache: {},
+      fetchImpl,
+      fragments: new Map([["https://d.dev/a", ["x"]]]),
+      ...fast,
+    });
+    expect(r.map((x) => [x.url, x.kind])).toEqual([
+      ["https://d.dev/a", "warn"],
+      ["https://d.dev/b", "ok"],
+    ]);
+  });
+  it("collectUrls gộp anchor của cùng URL từ nhiều file; cấu hình khai ignoreFragmentHosts có ghi chú", () => {
+    const root = fileURLToPath(new URL("..", import.meta.url));
+    const config = JSON.parse(readFileSync(new URL("./link-check.config.json", import.meta.url), "utf8"));
+    expect(Array.isArray(config.ignoreFragmentHosts)).toBe(true);
+    expect(config._ghi_chu).toContain("ignoreFragmentHosts");
+    const fragments = new Map();
+    collectUrls(root, config, fragments);
+    for (const [u, fs] of fragments) {
+      expect(u).not.toContain("#");
+      expect(new Set(fs).size).toBe(fs.length);
+    }
   });
 });
 

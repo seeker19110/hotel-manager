@@ -54,11 +54,12 @@ export function extractUrls(md) {
         url = url.slice(0, -1);
       }
       const hash = url.indexOf("#");
-      const frag = hash >= 0 ? url.slice(hash + 1) : "";
+      // `#a:~:text=x` → anchor `a`; anchor dòng `#L10`/`#L10-L20` (GitHub, do JS cuộn) bỏ như check-links.py của khung.
+      const frag = hash >= 0 ? url.slice(hash + 1).split(":~:")[0] : "";
       url = hash >= 0 ? url.slice(0, hash) : url;
       if (!/^https?:\/\/[^/]+/.test(url)) continue;
       if (!found.has(url)) found.set(url, i + 1);
-      if (frag && !frag.startsWith(":~:")) frags.set(url, new Set([...(frags.get(url) ?? []), frag]));
+      if (frag && !/^L\d+(?:-L\d+)?$/.test(frag)) frags.set(url, new Set([...(frags.get(url) ?? []), frag]));
     }
   });
   return [...found].map(([url, line]) =>
@@ -70,7 +71,7 @@ export function extractUrls(md) {
 export function htmlAnchors(html) {
   const out = new Set();
   for (const m of html.matchAll(/\s(?:id|name)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>"']+))/gi)) {
-    const v = (m[1] ?? m[2] ?? m[3] ?? "").replace(/&amp;/g, "&");
+    const v = decodeEntities(m[1] ?? m[2] ?? m[3] ?? "");
     if (!v) continue;
     out.add(v);
     if (v.startsWith("user-content-")) out.add(v.slice("user-content-".length));
@@ -78,9 +79,24 @@ export function htmlAnchors(html) {
   return out;
 }
 
+const NAMED_ENTITIES = { amp: "&", quot: '"', apos: "'", lt: "<", gt: ">" };
+
+/** Giải mã entity HTML trong giá trị thuộc tính: tên thường gặp + số (`&#39;`, `&#x27;`); entity lạ giữ nguyên. */
+function decodeEntities(s) {
+  return s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (whole, e) => {
+    if (e[0] !== "#") return NAMED_ENTITIES[e.toLowerCase()] ?? whole;
+    const code = e[1].toLowerCase() === "x" ? Number.parseInt(e.slice(2), 16) : Number(e.slice(1));
+    return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : whole;
+  });
+}
+
+/** Trần dung lượng trang đọc để tìm anchor: trang lớn hơn → không kết luận (cảnh báo), không giữ chuỗi khổng lồ. */
+export const MAX_HTML_BYTES = 5 * 1024 * 1024;
+
 /**
  * Anchor còn thiếu trên trang `url` (đã biết sống). Trang không phải HTML (zip, PDF…) → [] vì `#…` ở đó không phải
- * anchor HTML. Lỗi mạng/HTTP khi tải trang → null (không kết luận, để cảnh báo).
+ * anchor HTML. Lỗi mạng/HTTP khi tải trang, lỗi giữa lúc đọc body (reset, hết giờ) hoặc trang quá `MAX_HTML_BYTES`
+ * → null (không kết luận, để cảnh báo — không làm sập cả lượt kiểm).
  */
 export async function missingFragments(url, fragments, { fetchImpl = fetch, timeoutMs = 15000 } = {}) {
   let res;
@@ -100,7 +116,18 @@ export async function missingFragments(url, fragments, { fetchImpl = fetch, time
     res.body?.cancel?.();
     return [];
   }
-  const anchors = htmlAnchors(await res.text());
+  if (Number(res.headers?.get?.("content-length") ?? 0) > MAX_HTML_BYTES) {
+    res.body?.cancel?.();
+    return null;
+  }
+  let html;
+  try {
+    html = await res.text();
+  } catch {
+    return null;
+  }
+  if (html.length > MAX_HTML_BYTES) return null;
+  const anchors = htmlAnchors(html);
   return fragments.filter((f) => !anchors.has(f) && !anchors.has(decodeFragment(f)));
 }
 
