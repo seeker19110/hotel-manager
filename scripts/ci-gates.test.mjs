@@ -769,7 +769,9 @@ describe("D-158 — merge của pr-steward bằng GITHUB_TOKEN vẫn có CI trê
     const inputs = wf["ci.yml"].on.workflow_dispatch?.inputs ?? {};
     expect(Object.entries(inputs).filter(([, v]) => v?.required === true)).toEqual([]);
     const filtered = Object.entries(wf["ci.yml"].jobs)
-      .filter(([, j]) => /github\.event_name|github\.event\.pull_request/.test(String(j.if ?? "")))
+      .filter(([, j]) =>
+        /github\.(event_name|event\.pull_request|actor|triggering_actor)/.test(String(j.if ?? "")),
+      )
       .map(([k]) => k);
     expect(filtered).toEqual([]);
   });

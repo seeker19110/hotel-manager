@@ -84,7 +84,8 @@ const NAMED_ENTITIES = { amp: "&", quot: '"', apos: "'", lt: "<", gt: ">" };
 /** Giải mã entity HTML trong giá trị thuộc tính: tên thường gặp + số (`&#39;`, `&#x27;`); entity lạ giữ nguyên. */
 function decodeEntities(s) {
   return s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (whole, e) => {
-    if (e[0] !== "#") return NAMED_ENTITIES[e.toLowerCase()] ?? whole;
+    if (e[0] !== "#")
+      return Object.hasOwn(NAMED_ENTITIES, e.toLowerCase()) ? NAMED_ENTITIES[e.toLowerCase()] : whole;
     const code = e[1].toLowerCase() === "x" ? Number.parseInt(e.slice(2), 16) : Number(e.slice(1));
     return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : whole;
   });

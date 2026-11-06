@@ -214,6 +214,8 @@ describe("WF-DOC-002 — anchor #heading của link ngoài", () => {
       `<h2 id="it&#39;s"></h2><h2 id="a&amp;b"></h2><h2 id="q&#x27;x"></h2><h2 id="k&zz;"></h2>`,
     );
     expect([...a].sort()).toEqual(["a&b", "it's", "k&zz;", "q'x"]);
+    // Tên thuộc prototype không được coi là entity (review b5994b4).
+    expect([...htmlAnchors(`<h2 id="a&constructor;b"></h2>`)]).toEqual(["a&constructor;b"]);
   });
   it("htmlAnchors đọc id/name (nháy kép, đơn, không nháy) và bỏ tiền tố user-content- của GitHub", () => {
     const a = htmlAnchors(
