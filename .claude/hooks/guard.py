@@ -6131,10 +6131,16 @@ def _phase_value(text: str) -> str:
 
 def _committed_phase(xt: str) -> str:
     """`delivery_phase` của xt.yaml đã commit ở nhánh mặc định của remote (ref đầu tiên đọc được); không đọc được → rỗng."""
-    for ref in DEFAULT_REFS:
+    return _committed_value(xt, _phase_value)
+
+
+def _committed_value(xt: str, pick: Callable[[str], str], refs: Tuple[str, ...] = DEFAULT_REFS) -> str:
+    """Giá trị `pick(text)` của xt.yaml đã commit ở nhánh mặc định của remote (ref đầu tiên đọc được trong `refs`); không
+    đọc được → rỗng. `--no-replace-objects`: `.git/refs/replace/` agent ghi được không thay được blob (review harden)."""
+    for ref in refs:
         try:
             r = subprocess.run(
-                ["git", "-C", os.path.dirname(xt), "show", f"{ref}:./xt.yaml"],
+                ["git", "--no-replace-objects", "-C", os.path.dirname(xt), "show", f"{ref}:./xt.yaml"],
                 capture_output=True,
                 text=True,
                 timeout=5,
@@ -6143,7 +6149,7 @@ def _committed_phase(xt: str) -> str:
         except (OSError, subprocess.SubprocessError):
             return ""
         if r.returncode == 0:
-            return _phase_value(r.stdout)
+            return pick(r.stdout)
     return ""
 
 
@@ -6176,6 +6182,37 @@ def build_phase(root: str) -> bool:
             and _committed_phase(xt) == "build"
         )
     return _BUILD_PHASE[root]
+
+
+# ADR-0069 (chủ dự án 2026-11-04, D-352): xt.yaml `stage_approval: agent` → agent được `xt.py stage approve` (tự nghiệm thu
+# giai đoạn); như `delivery_phase`, chỉ có hiệu lực khi CẢ cây làm việc LẪN bản đã commit ở nhánh mặc định khai — phiên
+# không tự cấp quyền cho mình. `init --adopt`, dạng mờ (`$(…)`, biến, glob, stdin) vẫn chặn; `XT_GUARD_POLICY=strict` không nới.
+STAGE_APPROVAL_LINE_RE = re.compile(r"^stage_approval:[ \t]*([\"']?)([A-Za-z]*)\1[ \t]*(?:#.*)?$", re.M)
+_STAGE_AGENT: Dict[str, bool] = {}
+
+
+# Ref đọc khoá giai đoạn: KHÔNG `origin/HEAD` — `git remote set-head origin <nhánh agent đẩy>` lật được nó (review harden
+# PLAN-harden-2026-11-05 F2); đổi refspec/URL của remote rồi fetch vẫn là giới hạn đã biết (D-015).
+STAGE_REFS = ("origin/main", "origin/master")
+
+
+def _stage_approval_value(text: str) -> str:
+    """Giá trị `stage_approval` (dòng trùng → dòng cuối, như `yaml_scalar` của xt.py); vắng → rỗng."""
+    found = STAGE_APPROVAL_LINE_RE.findall(text)
+    return str(found[-1][1]) if found else ""
+
+
+def agent_stage_approval(root: str) -> bool:
+    """Agent được duyệt giai đoạn (ADR-0069); tính một lần mỗi tiến trình."""
+    if root not in _STAGE_AGENT:
+        xt = _xt_yaml_for(root)
+        _STAGE_AGENT[root] = (
+            os.environ.get("XT_GUARD_POLICY") != "strict"
+            and bool(xt)
+            and _stage_approval_value(_read_all(xt)) == "agent"
+            and _committed_value(xt, _stage_approval_value, STAGE_REFS) == "agent"
+        )
+    return _STAGE_AGENT[root]
 
 
 def _temp_roots() -> List[str]:
@@ -6676,7 +6713,9 @@ REVIEW_FORGE_WHY = (
 # Sổ giai đoạn sản phẩm (ADR-0058) — chỉ `xt.py stage …` ghi; duyệt/công nhận giai đoạn là việc của người.
 STAGE_LEDGER = "docs/autopilot/STAGE.json"
 STAGE_APPROVE_WHY = (
-    "duyệt giai đoạn sản phẩm (`xt.py stage approve`/`init --adopt`) — chỉ người, ngoài phiên agent (ADR-0058)"
+    "duyệt giai đoạn sản phẩm (`xt.py stage approve`/`init --adopt`) — chỉ người, ngoài phiên agent (ADR-0058);"
+    " `stage approve` dạng chữ rõ được khi xt.yaml ở cây VÀ bản đã commit ở nhánh chính khai `stage_approval: agent`"
+    " (ADR-0069)"
 )
 
 
@@ -6791,6 +6830,43 @@ def _approves_stage(argv: List[str]) -> bool:
     return False
 
 
+PLAIN_APPROVE_PY = ("python3", "python")
+PLAIN_APPROVE_XT = ("scripts/xt.py", ".xtemplates/scripts/xt.py")  # xt.py của dự án (repo khung · dự án đích)
+PLAIN_APPROVE_OPTS = ("--sha", "--note")
+
+
+def _approve_opts(rest: List[str]) -> bool:
+    """Sau `stage approve` chỉ có `--sha`/`--note` kèm giá trị (`--sha X` hay `--sha=X`)."""
+    i = 0
+    while i < len(rest):
+        if "=" in rest[i] and rest[i].split("=", 1)[0] in PLAIN_APPROVE_OPTS:
+            i += 1
+        elif rest[i] in PLAIN_APPROVE_OPTS and i + 1 < len(rest):
+            i += 2
+        else:
+            return False
+    return True
+
+
+def _plain_approve(argv: List[str], root: str, cwd: Optional[str], single: bool) -> bool:
+    """Dạng DUY NHẤT ADR-0069 cho qua: cả lệnh Bash là MỘT lệnh đơn `[python3|python] <xt.py của dự án> stage approve`
+    chỉ với `--sha`/`--note`, không token mờ. Review harden F1 (PLAN-harden-2026-11-05): `env -u CLAUDECODE …`, `unset …;`,
+    gán biến (`CLAUDE_PROJECT_DIR=`, `PYTHONPATH=`), cờ trình thông dịch (`-c`, `-m pdb`, `-i`), xt.py ngoài dự án, nối
+    lệnh hay lệnh lồng đều rơi về luật ADR-0058 (deny). Đường tương đối chỉ khi thư mục chạy là gốc dự án."""
+    if not single or any(_vague(t) for t in argv):
+        return False
+    rest = argv[1:] if argv[:1] and argv[0] in PLAIN_APPROVE_PY else argv
+    here = cwd is not None and os.path.realpath(cwd) == os.path.realpath(root)
+    own = {os.path.join(root, p) for p in PLAIN_APPROVE_XT} | (set(PLAIN_APPROVE_XT) if here else set())
+    return len(rest) >= 3 and rest[0] in own and rest[1:3] == ["stage", "approve"] and _approve_opts(rest[3:])
+
+
+def _stage_approve_denied(argv: List[str], root: str, cwd: Optional[str] = None, single: bool = False) -> bool:
+    """Lệnh duyệt giai đoạn bị chặn: mọi dạng (ADR-0058), trừ dạng chữ rõ của `_plain_approve` khi `agent_stage_approval`
+    (ADR-0069)."""
+    return _approves_stage(argv) and not (_plain_approve(argv, root, cwd, single) and agent_stage_approval(root))
+
+
 def _approves_literal(n: List[str]) -> bool:
     """Luật chữ: `xt.py … stage … approve` hay `… stage … init … --adopt` sau `xt.py` đầu tiên."""
     at = next((k for k, t in enumerate(n) if posixpath.basename(t) == "xt.py"), len(n))
@@ -6799,6 +6875,128 @@ def _approves_literal(n: List[str]) -> bool:
         return False
     tail = rest[rest.index("stage") + 1 :]
     return "approve" in tail or ("init" in tail and any(t.startswith("--adopt") for t in tail))
+
+
+# AUD-SEC-498 (D-377): script trình thông dịch nạp `xt` trong tiến trình — guard không thấy lệnh con (`xt.main([…])`,
+# `runpy.run_path('scripts/xt.py')`, `exec(open(…).read())`, `python3 -m runpy xt …`). Thư viện đọc của xt
+# (`xt.parse_plan`, `xt.review_debt` — Kiểm PM-PLAN-001, Gate audit) vẫn qua khi script không có tên/chữ rủi ro.
+# Phân tích tĩnh chữ nguyên văn: tên dựng lúc chạy qua đường guard không thấy vẫn lọt (AUD-SEC-161).
+XT_INPROC_WHY = (
+    "duyệt giai đoạn sản phẩm (AUD-SEC-498) có thể chạy trong tiến trình: script trình thông dịch nạp `xt` (`import xt`"
+    " kèm `main`/`stage`/`approve`/`adopt`/biến môi trường/truy cập động; `runpy`, `import_module`, `exec`/`eval` chữ"
+    " không rõ; `-m runpy xt`) — guard không thấy lệnh con; gọi `python3 scripts/xt.py <lệnh>`"
+)
+XT_INPROC_DEPTH = 3  # số tầng `exec('…')` lồng đọc lại; sâu hơn → chặt
+# Hàm nạp/chạy mã theo tên hay đường (gọi theo tên hay thuộc tính: `runpy.run_path`, `from runpy import run_path`)
+XT_INPROC_LOADERS = frozenset(
+    {"run_path", "run_module", "_run_module_as_main", "_run_code", "spec_from_file_location", "SourceFileLoader"}
+    | {"SourcelessFileLoader", "load_source", "load_module", "import_module", "find_spec", "exec_module", "__import__"}
+)
+XT_INPROC_BUILTINS = frozenset({"exec", "eval", "compile", "execfile", "__import__"})  # chỉ khi gọi như builtin
+XT_INPROC_BUILTIN_MODS = frozenset({"builtins", "__builtins__"})  # `builtins.exec(…)`
+XT_INPROC_NAME_RE = re.compile(r"(?:.*[/\\.])?xt(?:\.pyc?)?", re.S)  # `xt`, `scripts.xt`, `scripts/xt.py`
+# Tên/chữ thư viện đọc của xt không cần — đi cùng `import xt` thì chặn (gọi CLI, sửa biến agent, truy cập động)
+XT_INPROC_RISKY_RE = re.compile(
+    r"main|stage|approv|adopt|environ|putenv|unsetenv|CLAUDE|AI_AGENT|[gsd]etattr|^vars$|^dir$|globals|locals"
+    r"|__dict__|__getattribute__|attrgetter|methodcaller|getmembers|^exec|^eval$|^compile$|__import__|import_module"
+    r"|builtins|modules|__loader__|__spec__",
+    re.I,
+)
+# Script không phải Python hợp lệ: luật chữ (`import … xt`, tên hàm nạp)
+XT_INPROC_TEXT_RE = re.compile(
+    r"\b(?:import|from)\b[^;\n]*\bxt\b(?![\w-])|\b(?:runpy|run_path|run_module|spec_from_file_location"
+    r"|Source(?:less)?FileLoader|load_source|import_module|__import__|execfile)\b"
+)
+RUNPY_OPT_RE = re.compile(r"-[A-Za-z]*m(runpy)?")  # `-m runpy`, `-mrunpy`, `-Bm runpy`
+
+
+def _xt_inproc_text(script: str) -> bool:
+    """Luật chữ cho script không phân tích được: nhắc nạp `xt` hay hàm nạp mã."""
+    return bool(XT_INPROC_TEXT_RE.search(script))
+
+
+def _xt_inproc_python(script: str, depth: int) -> bool:
+    """Script Python nạp `xt` trong tiến trình theo cách guard không thấy lệnh con: lời gọi hàm nạp có đối số không rõ
+    hay trỏ `xt`, hoặc `import xt` kèm tên/chữ rủi ro. Không phải Python → luật chữ; `exec('…')` lồng đọc lại tới
+    `XT_INPROC_DEPTH` tầng, sâu hơn thì chặt."""
+    import ast
+
+    if depth >= XT_INPROC_DEPTH:
+        return True
+    try:
+        nodes = list(ast.walk(ast.parse(script)))
+    except Exception:  # SyntaxError, ValueError (NUL), RecursionError: không phải Python — luật chữ
+        return _xt_inproc_text(script)
+    if any(isinstance(n, ast.Call) and _xt_loader_call(n, depth) for n in nodes):
+        return True
+    return any(_xt_imports(n) for n in nodes) and any(_xt_risky(n) for n in nodes)
+
+
+def _xt_loader_call(call: Any, depth: int) -> bool:
+    """`call` (ast.Call) là hàm nạp mã mà một đối số không phải chữ nguyên văn, là tên/đường `xt`, có mở rộng shell,
+    hay (cho `exec('…')`) là script lại nạp `xt`."""
+    import ast
+
+    f = call.func
+    owner = f.value if isinstance(f, ast.Attribute) else None
+    name = f.id if isinstance(f, ast.Name) else f.attr if isinstance(f, ast.Attribute) else ""
+    builtin = isinstance(f, ast.Name) or (isinstance(owner, ast.Name) and owner.id in XT_INPROC_BUILTIN_MODS)
+    if name not in XT_INPROC_LOADERS and not (builtin and name in XT_INPROC_BUILTINS):
+        return False
+    for a in [*call.args, *(k.value for k in call.keywords)]:
+        v = a.value if isinstance(a, ast.Constant) else None
+        if not isinstance(a, ast.Constant):
+            return True
+        text = v.decode("utf-8", "replace") if isinstance(v, bytes) else v if isinstance(v, str) else ""
+        if XT_INPROC_NAME_RE.fullmatch(text) or _opaque(text) or (text and _xt_inproc_python(text, depth + 1)):
+            return True
+    return False
+
+
+def _xt_imports(node: Any) -> bool:
+    """`import xt`, `import scripts.xt`, `from xt import …`, `from scripts import xt`."""
+    import ast
+
+    if isinstance(node, ast.Import):
+        return any("xt" in a.name.split(".") for a in node.names)
+    if isinstance(node, ast.ImportFrom):
+        return "xt" in (node.module or "").split(".") or any(a.name == "xt" for a in node.names)
+    return False
+
+
+def _xt_risky(node: Any) -> bool:
+    """Tên (biến, thuộc tính, tên nhập, `*`) hay chữ nguyên văn rủi ro khi đi cùng `import xt`."""
+    import ast
+
+    if isinstance(node, ast.alias):
+        words = [node.name, node.asname or ""]
+    elif isinstance(node, ast.Constant):
+        words = [node.value] if isinstance(node.value, str) else []
+    else:
+        words = [getattr(node, "id", "") if isinstance(node, ast.Name) else getattr(node, "attr", "")]
+    return any(w == "*" or XT_INPROC_RISKY_RE.search(w) for w in words if w)
+
+
+def _xt_inproc_argv(argv: List[str]) -> bool:
+    """`python3 -m runpy <mô-đun>` mà mô-đun là `xt` (`xt`, `scripts.xt`, `…/xt.py`) hay mờ."""
+    n = _interp_argv(argv) if argv else []
+    if not n or not PYTHON_RE.fullmatch(posixpath.basename(n[0])):
+        return False
+    for i, t in enumerate(n):
+        m = RUNPY_OPT_RE.fullmatch(t)
+        at = i + 1 if m and m.group(1) else i + 2 if m and n[i + 1 : i + 2] == ["runpy"] else 0
+        if at and at < len(n):
+            mod = n[at]
+            return bool(XT_INPROC_NAME_RE.fullmatch(mod)) or _vague(mod)
+    return False
+
+
+def xt_inproc_asks(cmd: str, tokens: List[str], cwd: Optional[str]) -> List[str]:
+    """AUD-SEC-498: script trình thông dịch (`-c`, stdin, heredoc, here-string, ống) hay `-m runpy` nạp `xt` trong
+    tiến trình → cùng nhóm chặn với duyệt giai đoạn (STAGE_APPROVE)."""
+    scripts = [_nfkc(s) for s, _ in _interp_scripts_at(cmd, tokens, cwd)]
+    hit = any(_xt_inproc_python(s, 0) for s in scripts) or any(_xt_inproc_argv(c) for c in split_commands(tokens))
+    return [XT_INPROC_WHY] if hit else []
 
 
 def _forges_review(argv: List[str]) -> bool:
@@ -10784,7 +10982,7 @@ def _scan_command(
 
 
 SCAN_CALLS = 600  # số lệnh con tối đa MỖI quyết định (lệnh bình thường dùng < 20)
-SCAN_SECONDS = 8.0  # hạn giờ quét một quyết định; hook có timeout 600 s — quá hạn thì lệnh chạy không qua guard
+SCAN_SECONDS = 8.0  # hạn giờ quét một quyết định; hook có timeout 1200 s — quá hạn thì lệnh chạy không qua guard
 MAX_REWRITE = 8  # số lần viết lại CÙNG lệnh (thay biến, lệnh bọc) lồng nhau; vượt → chặn (`flock l ` ×10 + lệnh)
 CMD_MAX_CHARS = 262144  # lệnh dài hơn → chặn: quét gần bậc hai theo độ dài (4 MB từng mất > 600 s, quá timeout hook)
 REWRITE_MAX_CHARS = 65536  # bản viết lại dài hơn (biến 4 KB nhân lên nhiều lần) → chặn, không quét chậm hay bỏ qua
@@ -14312,7 +14510,9 @@ def _bash_decision(
     asks: List[str] = interp_write_asks(cmd, tokens, root, cwd, pending_bare)
     asks += _pending_git_write_asks(every, pending_bare)
     asks += [REVIEW_FORGE_WHY] if _review_forge_hit(cmd, tokens, cwd, budget) else []
-    asks += [STAGE_APPROVE_WHY] if any(_approves_stage(c) for c in split_commands(tokens)) else []
+    simple = split_commands(tokens)
+    single = whole and len(simple) == 1  # dạng chữ rõ của ADR-0069 chỉ khi cả lệnh là một lệnh đơn (review harden F1)
+    asks += [STAGE_APPROVE_WHY] if any(_stage_approve_denied(c, root, cwd, single) for c in simple) else []
     braces = brace_variants(cmd)
     nested_deny = (
         "Lệnh quá phức tạp để guard quét hết (brace expansion quá nhiều biến thể): chia nhỏ lệnh."
@@ -14339,6 +14539,7 @@ def _bash_decision(
         return res
     res.pop("exported", None)
     _argv_shell_check(cmd, tokens, strict, asks, res, root, cwd)
+    asks += xt_inproc_asks(cmd, tokens, cwd)  # sau tập con chuẩn: lệnh ngoài tập con giữ mã BUDGET (AUD-SEC-406/415)
     allow = res.pop("allow", "")
     # `allow` bỏ hỏi cho CẢ lệnh Bash → chỉ khi merge đứng một mình và trơn (không gì shell còn mở rộng/chạy thêm).
     if allow and (len(commands) > 1 or not PLAIN_MERGE_RE.fullmatch(cmd.strip())):
@@ -14412,7 +14613,7 @@ REASON_CODES: Tuple[Tuple[str, str], ...] = (
     ("bỏ qua hook của dự án", "HOOK_BYPASS"),
     ("ghi file bí mật qua Bash", "SECRET_WRITE"),
     ("bằng chứng review", "REVIEW_FORGE"),
-    ("duyệt giai đoạn sản phẩm", "STAGE_APPROVE"),  # chỉ người duyệt giai đoạn (ADR-0058)
+    ("duyệt giai đoạn sản phẩm", "STAGE_APPROVE"),  # chỉ người duyệt giai đoạn (ADR-0058; agent khi ADR-0069)
     ("tay bằng chứng", "EVIDENCE_HANDWRITE"),  # ghi/xoá tay `.autopilot/` = bằng chứng giả (ADR-0026)
     ("lệnh đã mã hoá/nén", "OPAQUE_EXEC"),  # `… | base64 -d | sh` từ nguồn guard không giải được
     (BASH_ENV_MARK, "OPAQUE_EXEC"),  # `BASH_ENV=f bash -c true`: bash nạp file guard không đọc (AUD-SEC-250)

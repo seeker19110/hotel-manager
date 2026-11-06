@@ -7,7 +7,7 @@
     ".claude/agents/reviewer.md": "sha256:cce14e0286d9cc7e78d34635cceb9c7c7062c4f6766071e71c48e978d29fd720",
     ".claude/hooks/_lib.sh": "sha256:1d20298fb50b8acd1c5c4de4dd3a705c9cce29efb08683e1b31002e25da4e5c0",
     ".claude/hooks/auto-format.sh": "sha256:77b66366cf89c2577f2e0397346c2f438fda171629bba458477b016910767345",
-    ".claude/hooks/guard.py": "sha256:88273ae483a0bc79ebdcdc757fbc68e928ae24a77291a998d4f416741b270ae2",
+    ".claude/hooks/guard.py": "sha256:1bcdf9eef63eb066fa2dbefe93014dd8a191f4b35a1d07aa3509cd4e4d3de651",
     ".claude/hooks/permission-request.sh": "sha256:a3707521b7c7ac58f1a9ce0fba18f7cd9d3a64967564b82f1666639e75988c26",
     ".claude/hooks/post-tool-failure.sh": "sha256:4c495cae9503d80a968443dd2277690ea3769bbff098436e92ab4ab3a440b196",
     ".claude/hooks/pre-bash-guard.sh": "sha256:ddcd1e9c7cb765cf6b1aae1c16d4f4822a82534de66a9f4f260c50dc99ae2a6f",
@@ -42,10 +42,10 @@
     ".github/workflows/pr-steward.yml": "sha256:7e7b5f6245ea0d557854f521779ab59179459a81f96f361e5b7cb79709d4f2d1",
     ".github/workflows/pr-title.yml": "sha256:de14a19d5a4bf3427159a46ee7120f7a7cb86691d95e5cc62b33bd3220c7d7d5",
     ".github/workflows/secret-scan.yml": "sha256:66ccb6a3cd4ec3de0940f47712c03cf40c1eb07c98787d45144c1625fec191b1",
-    "AGENTS.md": "sha256:65cfd7f296bd9b073bcb74ce79b85ea308c14a32d44deea81a15eedf23425536",
+    "AGENTS.md": "sha256:d2e827711e73055e3d46537d8dcf588cfb4aad1b241d0ba7387b415d0c20b351",
     "CLAUDE.md": "sha256:42e9f60621e5c30d4fd25fb8b40e17747ba68de002644b11b80edafc6a74890b",
     "PROGRESS.md": "sha256:d80a03db3cb157ee682314787afb2eb15911b2f4f86da2f564e49106f6f76941",
-    "xt.yaml": "sha256:7adabeb27d290ea99739c419eb0860272c039db1f2f629fd771244ee7a258c42"
+    "xt.yaml": "sha256:aa633bf4f3b85bcde095d3fd9be83d71d88c97f26867169bcb4a51c8321f82ab"
   },
   "git_hooks": [
     ".git/hooks/commit-msg",

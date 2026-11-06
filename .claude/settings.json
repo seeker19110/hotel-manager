@@ -97,7 +97,7 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PROJECT_DIR}/.claude/hooks/pre-bash-guard.sh\"",
-            "timeout": 600,
+            "timeout": 1200,
             "onFailure": "block"
           }
         ]

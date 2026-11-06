@@ -1,7 +1,7 @@
 ---
 title: Vòng đời dự án và các cổng
 kind: method
-updated: 2026-11-01
+updated: 2026-11-05
 ---
 
 # Vòng đời dự án và các cổng
@@ -37,7 +37,8 @@ updated: 2026-11-01
    lát + review theo làn, **không** audit toàn repo mỗi PR, **không** tối ưu khi chưa có số ([`../11-autonomous-loop/optimization-loop.md`](../11-autonomous-loop/optimization-loop.md)),
    UI "đủ dùng" theo MUST của quy mô; audit **theo delta ở mỗi mốc** của PLAN ở pha harden — pha build ở cuối mỗi đợt (`done`), ADR-0033/0046/0047 ([`audit.md`](audit.md) §1) và **toàn diện ở G7**
    (`xt.py release-check` gom blueprint `--strict --run`, sổ audit `--strict`, kiểm lại cuối, cây git, tấn công thử và kiểm tải
-   — `attack`/`perf` của `xt.yaml`, ADR-0042; cổng production `migration_check`/`rollback`/`acceptance`, ADR-0062 → GO/NO-GO máy đọc;
+   — `attack`/`perf` của `xt.yaml`, ADR-0042; cổng production `migration_check`/`rollback`/`acceptance`, ADR-0062 → GO/NO-GO máy đọc; report có kiểu `<khoá>_report`,
+   digest `release_artifacts` và `promotion` — `templates/xt.yaml`, ADR-0068 lát A;
    người ký `GO-NO-GO.md`). Chỉ G7 mới đòi E2E đầy đủ, kiểm tải, diễn tập rollback/khôi phục. Không phải hạ chuẩn:
    cùng tiêu chí cuối, khác **thời điểm** kiểm. Máy merge theo pha bằng khoá `delivery_phase: build|harden` của `xt.yaml`
    — build hoãn review thành nợ (trừ PR rủi ro cao — ADR-0062), G7 đòi harden và hết nợ (ADR-0031 của repo khung). **Pha build (`/autopilot`, ADR-0046) dùng đầu
