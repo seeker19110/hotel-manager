@@ -271,6 +271,7 @@ describe("supply-chain.yml (BASE-DEP-009, OPS-MAINT-004, CMP-LIC-003/004)", () =
     expect(seaweed).toContain("golang.org/x/net@v0.62.0");
     expect(seaweed).toContain("github.com/go-jose/go-jose/v4@v4.1.6");
     expect(seaweed).toContain("github.com/klauspost/compress@v1.20.2");
+    expect(seaweed).toContain("github.com/andybalholm/brotli@v1.2.7");
     expect(seaweed).toContain("&& go mod verify");
     expect(seaweed).toMatch(/^ARG SEAWEEDFS_VERSION=4\.48$/m);
     for (const path of ["deploy/caddy/Dockerfile", "deploy/seaweedfs/Dockerfile"])
