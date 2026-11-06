@@ -1,4 +1,4 @@
-// Điều kiện của `[~] LOOP-OPT-001…004 — Không áp dụng` (BLUEPRINT, D-074): PLAN chưa có task tối ưu hiệu năng (ngân sách hiệu
+// Điều kiện của `[~] LOOP-OPT-001…005 — Không áp dụng` (BLUEPRINT, D-074; 005 theo D-165): PLAN chưa có task tối ưu hiệu năng (ngân sách hiệu
 // năng trong CI đang xanh — docs/PERF-BUDGET.md). Rào đỏ khi PLAN có task tối ưu: khi đó bỏ `[~]`, và task phải theo vòng của
 // khung (.xtemplates/framework/11-autonomous-loop/optimization-loop.md) — test liệt kê chỗ thiếu: mục tiêu số có đơn vị,
 // script Gate lấy từ commit gốc (`git show <base>:…`), `perf guard --base … --locked …`, `perf compare`.
@@ -68,14 +68,14 @@ function optimizationTaskProblems(task) {
 describe("LOOP-OPT — task tối ưu theo vòng do máy quyết", () => {
   const plan = readFileSync(join(ROOT, "docs/autopilot/PLAN.md"), "utf8");
 
-  it("PLAN chưa có task tối ưu hiệu năng (điều kiện của [~] LOOP-OPT-001…004); có thì bỏ [~] và theo vòng", () => {
+  it("PLAN chưa có task tối ưu hiệu năng (điều kiện của [~] LOOP-OPT-001…005); có thì bỏ [~] và theo vòng", () => {
     const tasks = optimizationTasks(plan);
     expect(
       tasks.map((t) => ({ id: t.id, thieu: optimizationTaskProblems(t) })),
-      "PLAN có task tối ưu: bỏ [~] LOOP-OPT-001…004, tick bằng bằng chứng thật, sửa test này",
+      "PLAN có task tối ưu: bỏ [~] LOOP-OPT-001…005, tick bằng bằng chứng thật, sửa test này",
     ).toEqual([]);
     const bp = readFileSync(join(ROOT, "BLUEPRINT.md"), "utf8");
-    for (const id of ["LOOP-OPT-001", "LOOP-OPT-002", "LOOP-OPT-003", "LOOP-OPT-004"])
+    for (const id of ["LOOP-OPT-001", "LOOP-OPT-002", "LOOP-OPT-003", "LOOP-OPT-004", "LOOP-OPT-005"])
       expect(bp).toMatch(
         new RegExp(`^- \\[~\\] \`${id}\` .*Không áp dụng: .*perf-optimization-tasks\\.test\\.mjs`, "m"),
       );

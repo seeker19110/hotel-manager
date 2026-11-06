@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { readManifest } from "./compare-env-keys.mjs";
 
 const dirs = [];
 afterEach(() => {
@@ -81,6 +82,12 @@ describe("compare environment key manifests", () => {
       });
       expect(r.status).toBe(2);
     }
+    // T-2626 (AUD-TEST-005): exit 2 ở trên có thể chỉ do ENOENT ⇒ kiểm thẳng rào: tên `.env*` bị chặn TRƯỚC khi chạm tệp
+    // (tệp không tồn tại vẫn ra đúng thông điệp chặn), symlink `.json` → tệp không phải JSON cũng bị chặn sau realpath.
+    expect(() => readManifest(protectedPath)).toThrow("chỉ chấp nhận tệp JSON");
+    expect(() => readManifest(join(dir, ".ENV.production.json"))).toThrow("chỉ chấp nhận tệp JSON");
+    expect(() => readManifest(link)).toThrow("chỉ chấp nhận tệp JSON");
+    expect(() => readManifest(join(dir, "khong-co.json"))).toThrow(/ENOENT/);
     const validLink = join(dir, "valid-link.json");
     symlinkSync(valid, validLink);
     const ok = spawnSync(process.execPath, ["scripts/compare-env-keys.mjs", validLink, valid], {

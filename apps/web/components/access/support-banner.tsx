@@ -15,8 +15,13 @@ export function SupportBanner({
   viewerRole: string;
 }) {
   return (
-    <div className="banner banner--warn" role="status" data-testid="support-banner">
-      <h2>{t("support_banner.title")}</h2>
+    // Vùng bổ trợ có tên (T-2624, AUD-A11Y-002): nội dung tĩnh có liên kết — không live region `role=status`.
+    <aside
+      className="banner banner--warn"
+      aria-labelledby="support-banner-title"
+      data-testid="support-banner"
+    >
+      <h2 id="support-banner-title">{t("support_banner.title")}</h2>
       <ul>
         {rows.map((r) => (
           <li key={r.invitationId}>
@@ -48,6 +53,6 @@ export function SupportBanner({
           </a>
         </p>
       ) : null}
-    </div>
+    </aside>
   );
 }

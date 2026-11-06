@@ -1,6 +1,11 @@
 import { fileURLToPath } from "node:url";
+import { loadBuildConfig } from "@hm/app/config/build";
 import { withSerwist } from "@serwist/turbopack";
 import type { NextConfig } from "next";
+
+// FE-BUILD-005: env của bước build (schema riêng, packages/app/src/config/build.ts) sai kiểu thì `next build`/`next start` dừng
+// ngay khi nạp cấu hình, không đợi tới route đầu tiên dùng nó. Env server kiểm lúc khởi động (instrumentation), client không có env.
+loadBuildConfig();
 
 const config: NextConfig = {
   reactStrictMode: true,

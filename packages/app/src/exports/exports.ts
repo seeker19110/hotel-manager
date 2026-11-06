@@ -161,6 +161,7 @@ export interface ExportFilters {
 const AUDIT_ACTOR_TYPES: ReadonlySet<string> = new Set(["user", "worker", "platform_support"]);
 
 const AUDIT_FILTER_KEY = /^[a-z_]+(\.[a-z_]+)*$/;
+const AUDIT_ENTITY_KEY = /^[A-Za-z_]+(\.[A-Za-z_]+)*$/;
 
 function assertKindAllowed(actor: Actor, kind: string): void {
   authorize(actor, "data.export");
@@ -209,11 +210,11 @@ function auditFilters(f: ExportFilters): Record<string, string> {
     });
   if (f.actorPersonId !== undefined && !UUID.test(f.actorPersonId)) throw bad("actor_person_id");
   if (f.actorType !== undefined && !AUDIT_ACTOR_TYPES.has(f.actorType)) throw bad("actor_type");
-  for (const [k, v] of [
-    ["action", f.action],
-    ["entity_type", f.entityType],
-  ] as const)
-    if (v !== undefined && (v.length > 100 || !AUDIT_FILTER_KEY.test(v))) throw bad(k);
+  if (f.action !== undefined && (f.action.length > 100 || !AUDIT_FILTER_KEY.test(f.action)))
+    throw bad("action");
+  // entity_type có thể là tên lệnh camelCase (`command.denied` ghi `member.resetMfa`) — khớp audit.listEvents (≤ 64, T-2625).
+  if (f.entityType !== undefined && (f.entityType.length > 64 || !AUDIT_ENTITY_KEY.test(f.entityType)))
+    throw bad("entity_type");
   return {
     ...(f.correlationId ? { correlation_id: f.correlationId.slice(0, 200) } : {}),
     ...(f.actorPersonId ? { actor_person_id: f.actorPersonId.toLowerCase() } : {}),

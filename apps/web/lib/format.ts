@@ -79,6 +79,16 @@ export const meterLabel = (m: LabelMessages<"label.meter.">, kind: string): stri
 };
 
 // ——— Khách sạn + vận hành (T-223) ———
+/**
+ * `YYYY-MM-DD` là ngày lịch có thật (T-2619): đúng hình dạng VÀ dựng lại ra đúng chuỗi — loại `2026-13-01` (Invalid Date),
+ * `2026-02-30` (Date tự tràn sang 03-02). Giá trị từ URL là dữ liệu không tin cậy, nhận `unknown`.
+ */
+export function isCalendarDate(value: unknown): value is string {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const d = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === value;
+}
+
 /** Cộng `n` ngày vào `YYYY-MM-DD` (UTC, không lệch múi giờ). */
 export function addDays(date: string, n: number): string {
   const d = new Date(`${date}T00:00:00Z`);

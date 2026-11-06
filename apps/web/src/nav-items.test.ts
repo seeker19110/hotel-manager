@@ -31,6 +31,40 @@ describe("primaryNav", () => {
     expect(labels("tenant")).toEqual(["Hôm nay", "Thêm"]);
     expect(labels("")).toEqual(["Hôm nay", "Thêm"]);
   });
+  it("T-2623 (AUD-TEST-002): hỗ trợ nền tảng chỉ xem Phòng/Lịch — không Thu tiền/Công việc; nhà trọ trỏ danh sách phòng", () => {
+    expect(primaryNav("platform_support", HOTEL).map((e) => e.href)).toEqual(["/", "/lich-phong", "/them"]);
+    expect(primaryNav("platform_support", RENTAL).map((e) => e.href)).toEqual(["/", "/phong", "/them"]);
+  });
+});
+
+describe("T-2623 (AUD-TEST-002): /nhat-ky và màn của hỗ trợ trong Thêm", () => {
+  const more = (role: string, kinds = HOTEL) => moreLinks(role, kinds).map((l) => l.href);
+  it("/nhat-ky chỉ cho owner và manager", () => {
+    expect(more("owner")).toContain("/nhat-ky");
+    expect(more("manager")).toContain("/nhat-ky");
+    for (const role of [
+      "front_desk",
+      "accountant",
+      "housekeeping",
+      "maintenance",
+      "platform_support",
+      "tenant",
+    ])
+      expect(more(role), role).not.toContain("/nhat-ky");
+  });
+  it("hỗ trợ nền tảng: không màn ghi/tiền/thành viên/tổ chức/nhật ký trong Thêm", () => {
+    const m = more("platform_support");
+    for (const h of [
+      "/thu-tien",
+      "/dat-phong",
+      "/thanh-vien",
+      "/to-chuc",
+      "/nhat-ky",
+      "/thong-bao",
+      "/co-so",
+    ])
+      expect(m, h).not.toContain(h);
+  });
 });
 
 describe("moreLinks / activeKey", () => {

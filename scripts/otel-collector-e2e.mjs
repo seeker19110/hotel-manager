@@ -2,9 +2,11 @@
 // log JSON hợp lệ → Resource service.name/version/deployment.environment + severity + body; dòng rác/JSON hỏng → vẫn được lưu
 // với thuộc tính `unparsed`; truy vấn theo service.name trả đúng. Dùng: `node scripts/otel-collector-e2e.mjs` (cần `otelcol-contrib`
 // trong PATH hoặc biến OTELCOL_BIN; cài bằng `bash scripts/ops-tools.sh install otelcol-contrib`). CI: job `otel-collector`.
+// OPS-OBS-008: canary email/SĐT/CCCD/token/mật khẩu đi qua resource, attributes (kể cả object lồng) và body của dòng đã parse lẫn
+// dòng không parse được; kiểm trên dữ liệu exporter THỰC NHẬN (không chỉ đọc cấu hình) rằng không giá trị canary nào lọt ra.
 import { spawn } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -54,6 +56,17 @@ const line = (obj) =>
   `${JSON.stringify({ log: `${obj}\n`, stream: "stdout", time: "2026-10-18T01:02:03.456789012Z" })}\n`;
 const app = (o) => line(JSON.stringify(o));
 
+/** Giá trị canary (giả, không phải dữ liệu thật) — không được xuất hiện nguyên văn ở exporter. */
+export const CANARY = {
+  email: "canary.pii@example.com",
+  phone: "0912345678",
+  idNumber: "001203004567",
+  bearer: "cnryTOKEN0123456789abcdef",
+  password: "S3cr3t-canary-pw",
+  accessKey: "AKIACANARYKEY0001",
+  dsnPassword: "Canary-Db-Pw",
+};
+
 /** Mẫu input: 4 dòng hợp lệ của 2 dịch vụ + 3 dòng không parse được (rác, JSON cụt, `{` mở không đóng). */
 export function sampleDockerLog() {
   return [
@@ -98,7 +111,39 @@ export function sampleDockerLog() {
     line("Segmentation noise ### không phải JSON"),
     line('{"ts":"2026-10-18T01:02:07.000Z","service":"hm-web","msg":"cụt'),
     line("{"),
+    ...canaryLines(),
   ].join("");
+}
+
+/** 3 dòng canary OPS-OBS-008: 2 dòng parse được (dịch vụ hm-pii) + 1 dòng JSON hỏng chứa bí mật thô. */
+export function canaryLines() {
+  const c = CANARY;
+  return [
+    app({
+      ts: "2026-10-18T01:02:08.000Z",
+      level: "info",
+      severity_number: 9,
+      service: "hm-pii",
+      version: `build-for ${c.email}`,
+      env: "staging",
+      msg: `gửi tới ${c.email}, gọi ${c.phone}, CCCD ${c.idNumber}, Authorization: Bearer ${c.bearer}, db postgres://app:${c.dsnPassword}@db:5432/hm`,
+      user_email: c.email,
+      password: c.password,
+      accessKeyId: c.accessKey,
+      ctx: { contact: c.email, note: `password=${c.password}`, phone: c.phone, auth: { token: c.bearer } },
+    }),
+    app({
+      ts: "2026-10-18T01:02:09.000Z",
+      level: "warn",
+      severity_number: 13,
+      service: "hm-pii",
+      version: "1.2.3",
+      env: "staging",
+      msg: "gọi lại",
+      detail: `số giấy tờ ${c.idNumber}; liên hệ ${c.phone}`,
+    }),
+    line(`{"password":"${c.password}","email":"${c.email}","authorization":"Bearer ${c.bearer}"`),
+  ];
 }
 
 async function waitFor(pred, ms) {
@@ -110,8 +155,15 @@ async function waitFor(pred, ms) {
   return pred();
 }
 
+/** OTELCOL_BIN → binary do `scripts/ops-tools.sh install` cài ($HM_TOOLS_DIR hoặc ~/.cache/hm-tools) → PATH. */
+export function collectorBin(env = process.env) {
+  if (env.OTELCOL_BIN) return env.OTELCOL_BIN;
+  const installed = join(env.HM_TOOLS_DIR || join(homedir(), ".cache/hm-tools"), "bin/otelcol-contrib");
+  return existsSync(installed) ? installed : "otelcol-contrib";
+}
+
 export async function main() {
-  const bin = process.env.OTELCOL_BIN || "otelcol-contrib";
+  const bin = collectorBin();
   const work = mkdtempSync(join(tmpdir(), "hm-otel-"));
   const input = join(work, "container-json.log");
   const output = join(work, "logs.jsonl");
@@ -136,7 +188,7 @@ export async function main() {
   });
   const count = () => (existsSync(output) ? flattenRecords(readFileSync(output, "utf8")).length : 0);
   try {
-    await waitFor(() => count() >= 7 || exited, 60_000);
+    await waitFor(() => count() >= TOTAL || exited, 60_000);
   } finally {
     child.kill("SIGTERM");
     await waitFor(() => exited, 10_000);
@@ -147,14 +199,58 @@ export async function main() {
   return records;
 }
 
+const TOTAL = 10;
+
+/** OPS-OBS-008: lỗi khi giá trị canary lọt ra ở bất kỳ resource/attribute/body nào, hoặc phần che không như mong đợi. */
+export function verifyRedaction(records) {
+  const errors = [];
+  const expect = (cond, msg) => {
+    if (!cond) errors.push(msg);
+  };
+  const all = JSON.stringify(records, (_, v) => (typeof v === "bigint" ? String(v) : v));
+  for (const [name, value] of Object.entries(CANARY))
+    expect(!all.includes(value), `canary ${name} lọt tới exporter: ${value}`);
+  const pii = queryByService(records, "hm-pii");
+  expect(pii.length === 2, `service.name=hm-pii cần 2 bản ghi, có ${pii.length}`);
+  const first = pii.find((r) => String(r.body).startsWith("gửi tới"));
+  expect(Boolean(first), "thiếu bản ghi canary đầu (body phải giữ phần không nhạy cảm)");
+  if (first) {
+    const body = String(first.body);
+    expect(body.includes("c***@example.com"), "email trong body phải che, giữ tên miền");
+    expect(body.includes("091****678"), "SĐT trong body phải che, giữ đầu/cuối");
+    expect(body.includes("****4567"), "CCCD trong body phải che, giữ 4 số cuối");
+    expect(body.includes("Bearer ***"), "token Bearer trong body phải che");
+    expect(body.includes("postgres://app:***@db"), "mật khẩu trong URL kết nối phải che");
+    expect(first.resource["service.version"] === "build-for c***@example.com", "email ở Resource phải che");
+    expect(first.attributes.user_email === "c***@example.com", "email ở attribute phải che");
+    expect(
+      first.attributes["ctx.contact"] === "c***@example.com",
+      "email ở object lồng phải che (sau flatten)",
+    );
+    expect(first.attributes["ctx.note"] === "password=***", "password=… trong giá trị phải che");
+    expect(first.attributes["ctx.phone"] === "091****678", "SĐT ở object lồng phải che");
+    for (const k of ["password", "accessKeyId", "ctx.auth.token"])
+      expect(!(k in first.attributes), `khoá nhạy cảm ${k} phải bị xoá`);
+  }
+  const second = pii.find((r) => r.body === "gọi lại");
+  expect(
+    second?.attributes.detail === "số giấy tờ ****4567; liên hệ 091****678",
+    `CCCD/SĐT trong attribute phải che, có ${second?.attributes.detail}`,
+  );
+  const raw = records.find((r) => r.attributes.unparsed === "true" && String(r.body).includes('"password"'));
+  expect(Boolean(raw), "dòng JSON hỏng chứa bí mật vẫn phải được lưu (không drop)");
+  if (raw) expect(String(raw.body).includes('"password":"***"'), "JSON thô: giá trị password phải che");
+  return errors;
+}
+
 export function verify(records) {
   const errors = [];
   const expect = (cond, msg) => {
     if (!cond) errors.push(msg);
   };
-  expect(records.length === 7, `cần đủ 7 bản ghi (không drop dòng nào), có ${records.length}`);
+  expect(records.length === TOTAL, `cần đủ ${TOTAL} bản ghi (không drop dòng nào), có ${records.length}`);
   const unparsed = records.filter((r) => r.attributes.unparsed === "true");
-  expect(unparsed.length === 3, `cần 3 dòng gắn unparsed, có ${unparsed.length}`);
+  expect(unparsed.length === 4, `cần 4 dòng gắn unparsed, có ${unparsed.length}`);
   for (const r of unparsed) {
     expect(
       r.resource["service.name"] === "hotel-manager",
@@ -189,6 +285,7 @@ export function verify(records) {
   expect(first?.time === 1792285323123000000n, `timestamp phải lấy từ ts (UTC), có ${first?.time}`);
   expect(web.find((r) => r.body === "lỗi CSDL")?.severityNumber === 17, "ERROR=17");
   expect(worker.find((r) => r.body === "outbox chậm")?.severityNumber === 13, "WARN=13");
+  errors.push(...verifyRedaction(records));
   return errors;
 }
 

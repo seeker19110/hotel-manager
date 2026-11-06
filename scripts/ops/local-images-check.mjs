@@ -102,7 +102,8 @@ try {
   const env = {
     NODE_ENV: "production",
     PORT: String(port),
-    HOSTNAME: "0.0.0.0",
+    // --network host: chỉ nghe loopback, không mở app kiểm (dữ liệu giả) ra mọi interface của máy dev (T-2621).
+    HOSTNAME: "127.0.0.1",
     NEXT_TELEMETRY_DISABLED: "1",
     APP_BASE_URL: origin,
     DATABASE_URL: pgUrl(cluster.adminUrl, database, "app_runtime"),

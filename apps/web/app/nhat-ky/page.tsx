@@ -13,7 +13,7 @@ import { CommandForm, type FieldSpec } from "../../components/command/command-fo
 import { DownloadOrgExport } from "../../components/tenancy/org-deletion.tsx";
 import { SelectField, TextField } from "../../components/ui/field.tsx";
 import { EmptyState, ErrorState } from "../../components/ui/state.tsx";
-import { addDays, DEFAULT_TIME_ZONE, dateTime, isoDateIn } from "../../lib/format.ts";
+import { addDays, DEFAULT_TIME_ZONE, dateTime, isCalendarDate, isoDateIn } from "../../lib/format.ts";
 import { messagesFor, t, tOr } from "../../lib/i18n.ts";
 import { withActor } from "../../lib/page.tsx";
 import { safe } from "../../lib/safe.ts";
@@ -65,7 +65,6 @@ const ENTITY_TYPES = [
 
 const actionLabel = (a: string) => tOr(`audit_log.action.${a}`, a);
 const entityLabel = (e: string) => tOr(`audit_log.entity.${e}`, e);
-const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const KEY = /^[a-z_]+(\.[a-z_]+)*$/;
 const SUPPORT_ACTOR = "platform_support";
@@ -93,8 +92,9 @@ export default async function AuditLogPage({ searchParams }: { searchParams: Pro
     const db = serverContext().db;
     const owner = actor.role === "owner";
     const today = vnToday();
-    const from = q.from && DATE.test(q.from) ? q.from : addDays(today, -6);
-    const to = q.to && DATE.test(q.to) ? q.to : today;
+    // Ngày có thật, không chỉ đúng hình dạng (T-2619): ngày sai dùng mặc định, không ném RangeError ra error boundary.
+    const from = isCalendarDate(q.from) ? q.from : addDays(today, -6);
+    const to = isCalendarDate(q.to) ? q.to : today;
     const who = q.actor && (UUID.test(q.actor) || q.actor === SUPPORT_ACTOR) ? q.actor : "";
     const action = q.action && KEY.test(q.action) ? q.action : "";
     const entityType = q.entity_type && KEY.test(q.entity_type) ? q.entity_type : "";

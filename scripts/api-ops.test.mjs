@@ -19,7 +19,14 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, describe, expect, it } from "vitest";
 import { buildRulesYaml, extractQueries } from "./check-slo-promql.mjs";
-import { flattenRecords, queryByService, sampleDockerLog, verify } from "./otel-collector-e2e.mjs";
+import {
+  CANARY,
+  flattenRecords,
+  queryByService,
+  sampleDockerLog,
+  verify,
+  verifyRedaction,
+} from "./otel-collector-e2e.mjs";
 import {
   appliedMigrationProblems,
   BASELINE_FILES,
@@ -214,8 +221,32 @@ describe("OPS-OBS-001 — cấu hình OTel Collector", () => {
       );
     }
     expect(cfg).toMatch(/processors: \[[^\]]*resource\/app[^\]]*\]/);
-    expect(cfg).not.toMatch(/^ {2}(filter|transform)\b/m);
+    expect(cfg).not.toMatch(/^ {2}filter\b/m);
     expect(cfg).not.toMatch(/type: (filter|remove)\b/);
+    // transform chỉ được dùng để che (OPS-OBS-008): không câu lệnh nào bỏ bản ghi.
+    expect(cfg.match(/^ {2}transform\S*:/gm)).toEqual(["  transform/redact:"]);
+    expect(cfg).not.toMatch(/\b(drop|truncate_all|limit)\(/);
+  });
+
+  it("OPS-OBS-008: MỌI pipeline che PII ở Collector trước exporter; không có khoá miễn che/allowlist fail-closed", () => {
+    const pipelines = [...cfg.matchAll(/processors: \[([^\]]*)\]/g)].map((m) =>
+      m[1].split(",").map((s) => s.trim()),
+    );
+    expect(pipelines.length).toBeGreaterThan(0);
+    for (const p of pipelines) {
+      expect(p, "pipeline thiếu transform/redact").toContain("transform/redact");
+      expect(p.indexOf("transform/redact")).toBeLessThan(p.indexOf("batch"));
+    }
+    // Chỉ có tín hiệu logs: thêm traces/metrics thì phải thêm che và canary cho tín hiệu đó.
+    const pipelineBlock = cfg.slice(cfg.indexOf("  pipelines:"), cfg.indexOf("  telemetry:"));
+    expect(pipelineBlock).toMatch(/^ {4}logs:/m);
+    expect(pipelineBlock).not.toMatch(/^ {4}(traces|metrics)\b/m);
+    expect(cfg).toMatch(/error_mode: propagate/);
+    for (const ctx of ["resource.attributes", "log.attributes", "log.body"])
+      expect(cfg, `thiếu che ở ${ctx}`).toMatch(new RegExp(`\\(${ctx.replace(".", "\\.")}, `));
+    expect(cfg).toMatch(/flatten\(log\.attributes\)/);
+    const code = cfg.replace(/^\s*#.*$/gm, "");
+    expect(code).not.toMatch(/ignored_keys|allowed_keys|allowed_values|allow_all_keys/);
   });
 
   it("dòng không parse được vẫn đi tiếp (on_error: send) và được gắn `unparsed`", () => {
@@ -302,16 +333,33 @@ describe("otel-collector-e2e — phân tích đầu ra", () => {
     expect(queryByService(rs, "zzz")).toEqual([]);
   });
 
-  it("mẫu docker log có 4 dòng hợp lệ + 3 dòng không parse được, đều là một dòng JSON bọc Docker", () => {
-    const lines = sampleDockerLog().trim().split("\n");
-    expect(lines).toHaveLength(7);
+  it("mẫu docker log: 4 hợp lệ + 3 không parse được + 3 canary PII, đều là một dòng JSON bọc Docker", () => {
+    const text = sampleDockerLog();
+    const lines = text.trim().split("\n");
+    expect(lines).toHaveLength(10);
     for (const l of lines) expect(JSON.parse(l)).toMatchObject({ stream: "stdout" });
+    // Đầu vào CÓ canary nguyên văn — nếu không, phép kiểm "không lọt" rỗng nghĩa.
+    for (const [name, v] of Object.entries(CANARY)) expect(text, name).toContain(v);
   });
 
   it("verify: rỗng (Collector không xuất gì) → lỗi; thiếu dòng rác → lỗi", () => {
     expect(verify([]).length).toBeGreaterThan(0);
     const dropped = verify([rec({ "service.name": "hm-web" }, {}, "x")]);
-    expect(dropped.join("\n")).toMatch(/đủ 7 bản ghi/);
+    expect(dropped.join("\n")).toMatch(/đủ 10 bản ghi/);
+  });
+
+  it("verifyRedaction: canary lọt ở resource, attribute lồng hoặc body → lỗi nêu tên canary", () => {
+    const leakRes = verifyRedaction([
+      rec({ "service.name": "hm-pii", "service.version": CANARY.email }, {}, "x"),
+    ]);
+    expect(leakRes.join("\n")).toMatch(/canary email lọt/);
+    const leakAttr = verifyRedaction([
+      rec({ "service.name": "hm-pii" }, { "ctx.auth.token": CANARY.bearer }, "x"),
+    ]);
+    expect(leakAttr.join("\n")).toMatch(/canary bearer lọt/);
+    const leakBody = verifyRedaction([rec({}, { unparsed: "true" }, `{"password":"${CANARY.password}"`)]);
+    expect(leakBody.join("\n")).toMatch(/canary password lọt/);
+    expect(verifyRedaction([]).join("\n")).toMatch(/hm-pii cần 2 bản ghi/);
   });
 });
 
