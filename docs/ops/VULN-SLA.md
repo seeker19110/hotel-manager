@@ -81,4 +81,4 @@ Nguồn cấu hình artifact: [Next standalone](https://nextjs.org/docs/app/api-
 
 | Image / gói | Mã (mức) | Sửa ở | Hạn rà lại | Giảm nhẹ / ghi chú |
 |---|---|---|---|---|
-| Phụ thuộc dev `zod` 3.25.76 (qua `@lhci/cli` → lighthouse → puppeteer-core → chromium-bidi) | GHSA-mrhx-c7xc-m3w5 (High) | zod 4.6.6 (đổi major) | 2026-11-16 | Chỉ chạy trong job `lighthouse` của CI, không vào bundle/production; zod 4.x của dự án đã ghim 4.6.7 (override). D-167 (rà 2026-11-07): `@lhci/cli` 0.16.0 (phát hành 2026-11-02) → chromium-bidi 157 dùng zod ^4.6.5 — nâng khi đủ 2 tuần (2026-11-16) rồi gỡ luật |
+| Phụ thuộc dev `zod` 3.25.76 (qua `@lhci/cli` → lighthouse → puppeteer-core → chromium-bidi) | GHSA-mrhx-c7xc-m3w5 (High) | zod 4.6.6 (đổi major) | 2026-11-17 | Chỉ chạy trong job `lighthouse` của CI, không vào bundle/production; zod 4.x của dự án đã ghim 4.6.7 (override). D-167 (rà 2026-11-07): `@lhci/cli` 0.16.0 (phát hành 2026-11-02) → chromium-bidi 157 khai zod ^4.6.5 (phân giải ≥ 4.6.7 nhờ override) — D-169: nâng ngày 2026-11-17 rồi gỡ luật |

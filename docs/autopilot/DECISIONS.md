@@ -1202,3 +1202,10 @@
 - Chọn: Commit riêng vào #153 (đã là làn người merge, risk:auth) + thêm nhãn risk:data, mô tả tách hai lát; review phần T-2629 trước khi người merge
 - Lý do (tiêu chí chất lượng cuối): Giữ đường lùi và không mất việc (container tạm); cả hai lát cùng làn người merge nên không nới cổng; commit tách riêng, revert được; lệch quy tắc mỗi lát một PR được ghi rõ trong PR
 - Đường lùi: Revert commit lát access/CSDL khỏi #153 rồi mở PR riêng sau khi #153 merge
+
+### D-169 · 2026-11-07T02:03:10+00:00 · Hạn luật grype zod 3 theo D-167 (2026-11-16) sát mốc @lhci/cli 0.16.0 tròn 2 tuần (23:17Z ngày 16)
+
+- Phương án: (1) Dời hạn sang 2026-11-17, nâng @lhci/cli ngày 17; sửa câu chữ: chromium-bidi khai ^4.6.5, phân giải ≥ 4.6.7 nhờ override zod của dự án · (2) Giữ 2026-11-16 và nâng trong 43 phút cuối ngày
+- Chọn: Dời hạn sang 2026-11-17, nâng @lhci/cli ngày 17; sửa câu chữ: chromium-bidi khai ^4.6.5, phân giải ≥ 4.6.7 nhờ override zod của dự án
+- Lý do (tiêu chí chất lượng cuối): Không ép nâng bản chưa đủ 2 tuần; vẫn trong trần 30 ngày; câu chữ chính xác (^4.6.5 cho phép bản chưa vá, override mới bảo đảm ≥ 4.6.6)
+- Đường lùi: Đặt lại 2026-11-16
