@@ -1,6 +1,6 @@
 // SPEC-runtime S-005/S-006/S-007: privileges before DDL and actual migration/rollback on PostgreSQL.
 import { randomUUID } from "node:crypto";
-import { createTestDb, type TestDb } from "@hm/testkit";
+import { createTestDb, seedOrg, type TestDb } from "@hm/testkit";
 import { Kysely, PostgresDialect, sql } from "kysely";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -168,6 +168,55 @@ describe("migration-cli real PostgreSQL preflight", () => {
       ).rejects.toThrow("DOWN_TARGET_MUST_BE_EARLIER_APPLIED_MIGRATION");
     } finally {
       await executeMigrationCommand(t.admin, { action: "up" });
+    }
+  });
+
+  it("T-2618 (AUD-DATA-011): down qua 0072 bị từ chối khi còn dữ liệu platform_support — không mất lý do cấp quyền, up lại được", async () => {
+    const isolated = await createTestDb();
+    try {
+      const seeded = await seedOrg(isolated.admin, "Trọ hỗ trợ");
+      const org = seeded.orgId;
+      const person = randomUUID();
+      await sql`insert into persons (id, organization_id, full_name) values (${person}, ${org}, 'Hỗ trợ')`.execute(
+        isolated.admin,
+      );
+      await sql`insert into memberships (id, organization_id, person_id, role, all_properties, valid_from, valid_to, support_reason)
+        values (${randomUUID()}, ${org}, ${person}, 'platform_support', true, now(), now() + interval '24 hours', 'Phiếu')`.execute(
+        isolated.admin,
+      );
+      const before = await sql<{ n: number }>`select count(*)::int as n from kysely_migration`.execute(
+        isolated.admin,
+      );
+      await expect(
+        executeMigrationCommand(isolated.admin, { action: "down", to: "0071_org_background_active_only" }),
+      ).rejects.toThrow("DOWN_BLOCKED_SUPPORT_DATA");
+      const after = await sql<{ n: number }>`select count(*)::int as n from kysely_migration`.execute(
+        isolated.admin,
+      );
+      expect(after.rows).toEqual(before.rows);
+      // Đích là chính 0072 (0072 không bị down) ⇒ không chặn dù còn dữ liệu hỗ trợ.
+      await expect(
+        executeMigrationCommand(isolated.admin, { action: "down", to: "0072_support_access" }),
+      ).resolves.toMatchObject({ action: "down" });
+      await executeMigrationCommand(isolated.admin, { action: "up" });
+      // Chỉ còn lời mời platform_support (không membership) ⇒ vẫn chặn.
+      await sql`delete from memberships where role = 'platform_support'`.execute(isolated.admin);
+      await sql`insert into invitations (id, organization_id, email, role, token_hash, expires_at, invited_by, support_reason)
+        values (${randomUUID()}, ${org}, 'ho-tro@example.test', 'platform_support', ${Buffer.alloc(32, 7)},
+                now() + interval '24 hours', ${seeded.ownerMembershipId}, 'Phiếu')`.execute(isolated.admin);
+      await expect(
+        executeMigrationCommand(isolated.admin, { action: "down", to: "0071_org_background_active_only" }),
+      ).rejects.toThrow("DOWN_BLOCKED_SUPPORT_DATA");
+      // Không còn dữ liệu hỗ trợ ⇒ down qua 0072 được, rồi up lại sạch.
+      await sql`delete from invitations where role = 'platform_support'`.execute(isolated.admin);
+      await expect(
+        executeMigrationCommand(isolated.admin, { action: "down", to: "0071_org_background_active_only" }),
+      ).resolves.toMatchObject({ action: "down" });
+      await expect(executeMigrationCommand(isolated.admin, { action: "up" })).resolves.toMatchObject({
+        action: "up",
+      });
+    } finally {
+      await isolated.drop();
     }
   });
 

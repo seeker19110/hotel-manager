@@ -571,6 +571,31 @@ describe("xuất nhật ký giữ bộ lọc người hỗ trợ (/nhat-ky, D-12
         ),
       ),
     ).toBe("VALIDATION_FAILED");
+    // T-2625 (AUD-XFEAT-009): `command.denied` ghi entity_type = tên lệnh camelCase (vd `member.resetMfa`); audit.listEvents
+    // nhận bộ lọc đó ⇒ xuất cũng phải nhận (cùng bộ lọc không được 200 ở API nhưng 422 ở xuất). Ký tự lạ vẫn bị từ chối.
+    const camel = await okAs(h.t, owner, (ctx) =>
+      requestExport(ctx, {
+        kind: "audit",
+        format: "csv",
+        filters: { from: TODAY, to: TODAY, action: "command.denied", entityType: "member.resetMfa" },
+      }),
+    );
+    const cf = await sql<{ filters: Record<string, string> }>`
+      select filters from export_jobs where id = ${camel.exportId}`.execute(h.t.admin);
+    expect(cf.rows[0]?.filters).toMatchObject({ entity_type: "member.resetMfa", action: "command.denied" });
+    for (const entityType of ["=cmd()", "a b", "x".repeat(65)])
+      expect(
+        await codeOf(
+          runAs(h.t, owner, (ctx) =>
+            requestExport(ctx, {
+              kind: "audit",
+              format: "csv",
+              filters: { from: TODAY, to: TODAY, entityType },
+            }),
+          ),
+        ),
+        entityType,
+      ).toBe("VALIDATION_FAILED");
   });
 });
 

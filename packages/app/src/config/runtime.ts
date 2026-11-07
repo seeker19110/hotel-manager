@@ -7,7 +7,11 @@ const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).optional(),
   NEXT_RUNTIME: z.enum(["nodejs", "edge"]).optional(),
-  APP_VERSION: z.string().trim().min(1).max(100).optional(),
+  // Rỗng/chỉ khoảng trắng = chưa đặt (T-2620): nơi gọi tự dùng phiên bản gói như resolveAppVersion, logger không ném muộn.
+  APP_VERSION: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().trim().min(1).max(100).optional(),
+  ),
   BETTER_AUTH_TELEMETRY: z.string().optional(),
 });
 

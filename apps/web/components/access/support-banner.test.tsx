@@ -25,7 +25,11 @@ describe("SupportBanner", () => {
       screen.getByRole("link", { name: "Thu hồi hoặc quản lý truy cập hỗ trợ" }).getAttribute("href"),
     ).toBe("/nhat-ky#truy-cap-ho-tro");
     expect(screen.queryAllByRole("button")).toHaveLength(0);
-    expect(screen.getByRole("status").textContent).toContain("Kiểm tra lỗi");
+    // T-2624 (AUD-A11Y-002): vùng bổ trợ có tên (aside + aria-labelledby), KHÔNG live region — nội dung tĩnh có liên kết,
+    // `role=status` đọc lại cả khối mỗi lần thay đổi và lẫn với thông báo kết quả lệnh.
+    const region = screen.getByRole("complementary", { name: "Đang có truy cập hỗ trợ" });
+    expect(region.textContent).toContain("Kiểm tra lỗi");
+    expect(screen.queryAllByRole("status")).toHaveLength(0);
   });
 
   it("manager: liên kết xem thao tác của hỗ trợ trong nhật ký, không có liên kết quản lý", () => {

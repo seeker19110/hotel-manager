@@ -47,8 +47,9 @@ pnpm --filter @hm/db migrate status
 
 Đích phải là migration có trong mã nguồn, đã áp và đứng trước bản đang chạy. Không có lệnh down mặc định, không có đích xoá hết schema; thiếu `--confirm-down` hoặc dùng đích không hợp lệ đều thất bại. Đích cách nhiều phiên bản sẽ chạy down nhiều migration, nên phải xem và phê duyệt cả khoảng đó. Quyền `SET ROLE app_worker` không thay quyền chủ sở hữu hữu hiệu khi một down cần sửa/xoá schema do role khác sở hữu; lỗi quyền vẫn phải được người vận hành xử lý.
 
-Hai guard dữ liệu bắt buộc:
+Ba guard dữ liệu bắt buộc:
 
+- **0072:** còn membership hoặc lời mời `platform_support` thì CLI chặn trước khi chạm schema với `DOWN_BLOCKED_SUPPORT_DATA` (kèm `migration`). Down 0072 xoá cột `support_reason` nhưng giữ các hàng đó, nên sẽ mất lý do cấp quyền và up lại vi phạm `ck_memberships_support_temporary` (AUD-DATA-011, T-2618). Guard đếm **mọi** hàng hỗ trợ, kể cả đã hết hạn/thu hồi (CHECK của 0072 kiểm cả chúng khi up lại; membership chỉ bị xoá khi purge cả tổ chức), nên chờ hết hạn **không** gỡ được: một khi tổ chức đã từng cấp hỗ trợ, down qua 0072 bị chặn vĩnh viễn (trừ khi tổ chức đó đã bị purge). Đường duy nhất là giữ schema và rollback ứng dụng tương thích; không xoá dữ liệu hỗ trợ để vượt guard. Guard chạy trước khoá của Migrator: trong lúc down, tạm ngừng cấp quyền hỗ trợ mới.
 - **0074:** còn `organizations.purge_started_at` thì down bị chặn. Khôi phục kho file và hoàn tất purge theo quy trình đã duyệt; không xoá cờ để mở lại cửa huỷ. Khi chưa được phép hoàn tất purge production, giữ schema và rollback ứng dụng tương thích.
 - **0076:** còn bất kỳ `dsar_audit_events` thì down bị chặn với `DSAR_AUDIT_EVIDENCE_EXISTS`. Giữ schema/bằng chứng và rollback ứng dụng; không xoá audit để vượt guard.
 
@@ -56,7 +57,7 @@ Down có thể xoá dữ liệu ở bảng/cột mới, và không khôi phục 
 
 ## Lỗi và xác minh
 
-CLI xuất JSON an toàn, không in URL, mật khẩu hoặc thông điệp DB thô. `ok: false` đi cùng exit 1; trường `code` phân biệt cấu hình, ý định down, quyền và lỗi migration/kết nối. `MIGRATION_DATABASE_URL_REQUIRED` không được xử lý bằng cách dùng URL runtime. `MIGRATION_OWNER_WITH_BYPASSRLS_REQUIRED` yêu cầu người vận hành kiểm danh tính, ownership, CREATE và SET ROLE; không tự nâng quyền cho ứng dụng. `MIGRATION_FAILED` cần đối chiếu migration/guard và nhật ký CSDL theo quyền vận hành, không thử down thêm khi chưa hiểu nguyên nhân.
+CLI xuất JSON an toàn, không in URL, mật khẩu hoặc thông điệp DB thô. `ok: false` đi cùng exit 1; trường `code` phân biệt cấu hình, ý định down, quyền và lỗi migration/kết nối. `MIGRATION_DATABASE_URL_REQUIRED` không được xử lý bằng cách dùng URL runtime. `MIGRATION_OWNER_WITH_BYPASSRLS_REQUIRED` yêu cầu người vận hành kiểm danh tính, ownership, CREATE và SET ROLE; không tự nâng quyền cho ứng dụng. `MIGRATION_FAILED` kèm `migration` (tên migration lỗi) và `sqlstate` (mã 5 ký tự, ví dụ `23514` vi phạm CHECK) khi có — không kèm thông điệp DB; đối chiếu migration/guard và nhật ký CSDL theo quyền vận hành, không thử down thêm khi chưa hiểu nguyên nhân.
 
 Sau thành công: `status` khớp phiên bản mong muốn; kiểm `/api/ready`, smoke phiên bản và worker; ghi commit, mốc UTC, tên migration, backup/restore point và kết quả an toàn vào biên bản deploy. Không dùng báo cáo test cục bộ làm bằng chứng đã deploy.
 

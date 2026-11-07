@@ -242,8 +242,9 @@ export async function deploy({
         "-d",
         "--no-deps",
         "--no-build",
+        // Image ghim @sha256 (validateManifest) ⇒ `missing` vẫn đúng nội dung; khôi phục bản trước không phụ thuộc registry (T-2622).
         "--pull",
-        "always",
+        "missing",
         "--wait",
         "--wait-timeout",
         "120",

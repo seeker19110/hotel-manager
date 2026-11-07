@@ -9,6 +9,15 @@ import { loadRuntimeConfig } from "./runtime.ts";
 
 afterEach(() => vi.unstubAllEnvs());
 
+describe("T-2620 (AUD-CFG-003): APP_VERSION rỗng = chưa đặt", () => {
+  it("chuỗi rỗng/chỉ khoảng trắng không làm loadRuntimeConfig ném; giá trị thật vẫn được trim; quá dài vẫn bị từ chối", () => {
+    expect(loadRuntimeConfig({ APP_VERSION: "" }).APP_VERSION).toBeUndefined();
+    expect(loadRuntimeConfig({ APP_VERSION: "   " }).APP_VERSION).toBeUndefined();
+    expect(loadRuntimeConfig({ APP_VERSION: " 1.2.3 " }).APP_VERSION).toBe("1.2.3");
+    expect(() => loadRuntimeConfig({ APP_VERSION: "x".repeat(101) })).toThrow(ConfigError);
+  });
+});
+
 describe("runtime env configuration boundaries", () => {
   it("validates bootstrap flags without requiring DB/auth/storage credentials", () => {
     expect(loadRuntimeConfig({})).toMatchObject({ NODE_ENV: "development", telemetryRequested: false });

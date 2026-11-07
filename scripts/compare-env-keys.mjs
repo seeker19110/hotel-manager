@@ -42,7 +42,7 @@ export function compareManifests(staging, production) {
   return result;
 }
 
-function readManifest(path) {
+export function readManifest(path) {
   if (extname(path).toLowerCase() !== ".json" || basename(path).toLowerCase().startsWith(".env"))
     throw new Error("chỉ chấp nhận tệp JSON danh sách tên khóa");
   const real = realpathSync(path);

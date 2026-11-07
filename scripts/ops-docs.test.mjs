@@ -739,3 +739,19 @@ describe("ASVS (STD-SEC-001)", () => {
     expect(p).not.toMatch(/ASVS 5\.0 L/);
   });
 });
+
+describe("DB-BACKUP-001 — docs/ops/RPO-RTO.md", () => {
+  it("mỗi kho dữ liệu một dòng; số khớp PROJECT.md §5 và SLO-PITR; còn ghi ĐỀ XUẤT tới khi chủ sản phẩm chốt và diễn tập", () => {
+    const doc = read("docs/ops/RPO-RTO.md");
+    const row = (store) => doc.split("\n").find((l) => l.startsWith(`| ${store}`)) ?? "";
+    expect(row("PostgreSQL")).toMatch(/≤ 15 phút \| ≤ 4 giờ \|/);
+    expect(row("SeaweedFS")).toMatch(/≤ 24 giờ \|/);
+    for (const store of ["Log ứng dụng", "Prometheus"]) expect(row(store), store).not.toBe("");
+    expect(read("PROJECT.md")).toMatch(/RPO DB ≤ 15 phút, RTO ≤ 4 giờ, RPO file ≤ 24 giờ/);
+    expect(read("docs/ops/SLO.md")).toMatch(/SLO-PITR \| RPO CSDL ≤ 15 phút, RTO ≤ 4 giờ/);
+    // Chưa có lần thử khôi phục production ⇒ không được bỏ nhãn đề xuất (bỏ nhãn = phải điền ngày diễn tập + bằng chứng).
+    if (/^\| PostgreSQL[^\n]*\| chưa có trên production/m.test(doc))
+      expect(doc).toMatch(/\*\*Trạng thái: ĐỀ XUẤT\.\*\*/);
+    expect(doc).toContain("scripts/db-backup-restore-check.sh");
+  });
+});

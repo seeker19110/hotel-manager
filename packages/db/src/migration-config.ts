@@ -1,10 +1,13 @@
 // Only the migration entry point reads MIGRATION_DATABASE_URL; never fall back to a runtime connection.
 export class MigrationCliError extends Error {
   readonly code: string;
-  constructor(code: string) {
+  /** Chi tiết an toàn để in (tên migration, SQLSTATE) — không message/URL của CSDL (T-2618). */
+  readonly details: Readonly<Record<string, string>>;
+  constructor(code: string, details: Record<string, string> = {}) {
     super(code);
     this.name = "MigrationCliError";
     this.code = code;
+    this.details = details;
   }
 }
 
