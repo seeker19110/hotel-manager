@@ -1188,3 +1188,10 @@
 - Chọn: Build kiểm schema env build (HM_BUILD_ID sai kiểu → next build dừng khi nạp next.config); thiếu biến server bắt buộc → khởi động fail (instrumentation đã có); client không có env (test sẵn)
 - Lý do (tiêu chí chất lượng cuối): Đúng và an toàn: không đưa bí mật runtime vào bước build/image (12-factor, image dùng chung nhiều môi trường); mỗi lớp env fail đúng lúc nó được dùng; test máy khoá cả hai và grep process.env ngoài module cấu hình
 - Đường lùi: Bỏ dòng loadBuildConfig() ở apps/web/next.config.ts và packages/app/src/config/env-boundary.test.ts
+
+### D-167 · 2026-11-07T01:50:54+00:00 · Luật grype GHSA-mrhx-c7xc-m3w5 (zod 3.25.76 qua @lhci/cli, công cụ CI) hết hạn 2026-11-08
+
+- Phương án: (1) Gia hạn ngắn tới 2026-11-16 (ngày @lhci/cli 0.16.0 đủ 2 tuần) vì bản vá đã có: 0.16.0 (2026-11-02) → lighthouse 13.6.0 → puppeteer-core 25.16 → chromium-bidi 157 dùng zod ^4.6.5; ngày 16 nâng @lhci/cli và gỡ luật · (2) Nâng @lhci/cli 0.16.0 ngay (bản phát hành mới 5 ngày, trái quy tắc ≥ 2 tuần) · (3) Để image-scan/grype-ignore-check đỏ từ 2026-11-08 tới khi nâng
+- Chọn: Gia hạn ngắn tới 2026-11-16 (ngày @lhci/cli 0.16.0 đủ 2 tuần) vì bản vá đã có: 0.16.0 (2026-11-02) → lighthouse 13.6.0 → puppeteer-core 25.16 → chromium-bidi 157 dùng zod ^4.6.5; ngày 16 nâng @lhci/cli và gỡ luật
+- Lý do (tiêu chí chất lượng cuối): Đúng/an toàn: lỗ hổng chỉ ở công cụ CI (job lighthouse), không vào bundle/production; gia hạn có căn cứ là bản vá cụ thể đã xác minh từ registry (2026-11-07), không phải gia hạn mặc định; giữ quy tắc ≥ 2 tuần chống bản phát hành lỗi/độc; 8 ngày < trần 30 ngày; tránh đỏ mọi PR
+- Đường lùi: Đặt lại hạn 2026-11-08 trong .grype.yaml và VULN-SLA.md, hoặc nâng @lhci/cli sớm
