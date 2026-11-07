@@ -7,6 +7,7 @@ import { authorize } from "@hm/domain";
 import { sql } from "kysely";
 import { t } from "../i18n.ts";
 import { type CommandContext, CommandError, fieldError } from "../pipeline/index.ts";
+import { STAFF } from "./members.ts";
 import { revokeUserSessions } from "./sessions.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -17,7 +18,10 @@ export async function resetMemberMfa(
   input: { membershipId: string; reason: string },
 ): Promise<{ membershipId: string; sessionsRevoked: number }> {
   authorize(ctx.actor, "member.change_role", {});
-  if (input.membershipId === ctx.actor.membershipId) {
+  // Postgres so uuid không phân biệt hoa/thường còn so chuỗi ở JS thì có: chuẩn hoá trước khi tự kiểm, nếu không owner gửi id
+  // của chính mình viết HOA sẽ vượt mfa_reset_self/sole_owner (T-2629, review lô T-2615).
+  const membershipId = input.membershipId.toLowerCase();
+  if (membershipId === ctx.actor.membershipId) {
     const owners = await sql<{ n: number }>`
       select count(*)::int as n from memberships where organization_id = ${ctx.actor.orgId} and role = 'owner'
         and status = 'active' and id <> ${ctx.actor.membershipId}`.execute(ctx.trx);
@@ -29,14 +33,15 @@ export async function resetMemberMfa(
       { extensions: { items: [{ recovery: sole ? "platform_support" : "another_owner" }] } },
     );
   }
-  if (!UUID.test(input.membershipId)) throw new CommandError("NOT_FOUND", 404, t("access.member_not_found"));
+  if (!UUID.test(membershipId)) throw new CommandError("NOT_FOUND", 404, t("access.member_not_found"));
   const reason = input.reason.trim();
   if (!reason || reason.length > 500) throw fieldError("reason", "REQUIRED", t("access.reason_required_500"));
   const m = await sql<{ auth_user_id: string | null; role: string; status: string }>`
-    select auth_user_id, role, status from memberships where organization_id = ${ctx.actor.orgId} and id = ${input.membershipId}
+    select auth_user_id, role, status from memberships where organization_id = ${ctx.actor.orgId} and id = ${membershipId}
     for update`.execute(ctx.trx);
   const target = m.rows[0];
-  if (!target || target.status === "revoked")
+  // Chỉ nhân viên (T-2615, AUD-SEC-008): tài khoản hỗ trợ nền tảng/người thuê không phải đích — 404 như member.updateRole.
+  if (!target || target.status === "revoked" || !STAFF.has(target.role))
     throw new CommandError("NOT_FOUND", 404, t("access.member_not_found"));
   if (!target.auth_user_id) throw new CommandError("INVALID_TRANSITION", 409, t("access.member_no_login"));
   // Mọi membership chưa thu hồi ở tổ chức khác (kể cả tạm khoá/chưa hiệu lực) — review lát 4 🟢4.
@@ -57,7 +62,7 @@ export async function resetMemberMfa(
   await ctx.audit({
     action: "member.mfa_reset",
     entityType: "membership",
-    entityId: input.membershipId,
+    entityId: membershipId,
     reason,
     after: { role: target.role, sessions_revoked: sessionsRevoked },
   });
@@ -65,9 +70,9 @@ export async function resetMemberMfa(
   await ctx.emit({
     eventType: "member.mfa_reset",
     aggregateType: "membership",
-    aggregateId: input.membershipId,
-    payload: { membership_id: input.membershipId, by_membership_id: ctx.actor.membershipId },
+    aggregateId: membershipId,
+    payload: { membership_id: membershipId, by_membership_id: ctx.actor.membershipId },
   });
-  ctx.security({ event: "member.mfa_reset", target: { type: "membership", id: input.membershipId } });
-  return { membershipId: input.membershipId, sessionsRevoked };
+  ctx.security({ event: "member.mfa_reset", target: { type: "membership", id: membershipId } });
+  return { membershipId, sessionsRevoked };
 }

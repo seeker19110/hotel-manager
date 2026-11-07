@@ -1195,3 +1195,10 @@
 - Chọn: Gia hạn ngắn tới 2026-11-16 (ngày @lhci/cli 0.16.0 đủ 2 tuần) vì bản vá đã có: 0.16.0 (2026-11-02) → lighthouse 13.6.0 → puppeteer-core 25.16 → chromium-bidi 157 dùng zod ^4.6.5; ngày 16 nâng @lhci/cli và gỡ luật
 - Lý do (tiêu chí chất lượng cuối): Đúng/an toàn: lỗ hổng chỉ ở công cụ CI (job lighthouse), không vào bundle/production; gia hạn có căn cứ là bản vá cụ thể đã xác minh từ registry (2026-11-07), không phải gia hạn mặc định; giữ quy tắc ≥ 2 tuần chống bản phát hành lỗi/độc; 8 ngày < trần 30 ngày; tránh đỏ mọi PR
 - Đường lùi: Đặt lại hạn 2026-11-08 trong .grype.yaml và VULN-SLA.md, hoặc nâng @lhci/cli sớm
+
+### D-168 · 2026-11-07T01:59:27+00:00 · Lát access/CSDL đợt 28 (T-2615/2617/2618/2629, migration 0080) đã review nhưng chưa commit, trong khi nhánh phiên duy nhất đang gắn PR #153 chờ người merge
+
+- Phương án: (1) Commit riêng vào #153 (đã là làn người merge, risk:auth) + thêm nhãn risk:data, mô tả tách hai lát; review phần T-2629 trước khi người merge · (2) Giữ cục bộ tới khi #153 merge (rủi ro mất việc khi container bị thu hồi — đã khởi động lại một lần) · (3) Push nhánh khác (không được phép trong phiên)
+- Chọn: Commit riêng vào #153 (đã là làn người merge, risk:auth) + thêm nhãn risk:data, mô tả tách hai lát; review phần T-2629 trước khi người merge
+- Lý do (tiêu chí chất lượng cuối): Giữ đường lùi và không mất việc (container tạm); cả hai lát cùng làn người merge nên không nới cổng; commit tách riêng, revert được; lệch quy tắc mỗi lát một PR được ghi rõ trong PR
+- Đường lùi: Revert commit lát access/CSDL khỏi #153 rồi mở PR riêng sau khi #153 merge

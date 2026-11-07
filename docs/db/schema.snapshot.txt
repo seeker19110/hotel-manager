@@ -2525,7 +2525,7 @@ public.work_orders uq_work_orders_org_id :: CREATE UNIQUE INDEX uq_work_orders_o
 public.work_orders work_orders_pkey :: CREATE UNIQUE INDEX work_orders_pkey ON public.work_orders USING btree (id)
 public.worker_heartbeats worker_heartbeats_pkey :: CREATE UNIQUE INDEX worker_heartbeats_pkey ON public.worker_heartbeats USING btree (name)
 
-## policies (RLS) (380)
+## policies (RLS) (388)
 public.allocations portal_deny_read RESTRICTIVE SELECT to app_runtime using ((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
 public.allocations support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
 public.allocations support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
@@ -2541,6 +2541,7 @@ CASE
     ELSE app.actor_can_see_property(property_id)
 END) OR ((app.actor_role() = 'accountant'::text) AND (split_part(action, '.'::text, 1) = ANY (ARRAY['payment'::text, 'payment_claim'::text, 'invoice'::text, 'deposit'::text, 'period'::text, 'billing'::text, 'ledger'::text, 'reconciliation'::text, 'shift'::text, 'folio'::text])) AND ((property_id IS NULL) OR app.actor_can_see_property(property_id)))))
 public.audit_events portal_deny_read RESTRICTIVE SELECT to app_runtime using ((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
+public.audit_events support_limited_ins RESTRICTIVE INSERT to app_runtime check ((( SELECT app.actor_not_support() AS actor_not_support) OR ((actor_type = 'platform_support'::text) AND (actor_person_id = ( SELECT app.actor_person_id() AS actor_person_id)))))
 public.audit_events tenant_isolation PERMISSIVE ALL to public using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
 public.bank_transactions portal_deny_read RESTRICTIVE SELECT to app_runtime using ((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
 public.bank_transactions support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
@@ -2645,6 +2646,9 @@ public.handovers support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELEC
 public.handovers support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
 public.handovers support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.idempotency_keys portal_own_idempotency RESTRICTIVE ALL to app_runtime using (((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)) OR (actor_person_id = app.actor_person_id()))) check (((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)) OR (actor_person_id = app.actor_person_id())))
+public.idempotency_keys support_limited_del RESTRICTIVE DELETE to app_runtime using ((( SELECT app.actor_not_support() AS actor_not_support) OR (actor_person_id = ( SELECT app.actor_person_id() AS actor_person_id))))
+public.idempotency_keys support_limited_ins RESTRICTIVE INSERT to app_runtime check ((( SELECT app.actor_not_support() AS actor_not_support) OR (actor_person_id = ( SELECT app.actor_person_id() AS actor_person_id))))
+public.idempotency_keys support_limited_upd RESTRICTIVE UPDATE to app_runtime using ((( SELECT app.actor_not_support() AS actor_not_support) OR (actor_person_id = ( SELECT app.actor_person_id() AS actor_person_id)))) check ((( SELECT app.actor_not_support() AS actor_not_support) OR (actor_person_id = ( SELECT app.actor_person_id() AS actor_person_id))))
 public.idempotency_keys tenant_isolation PERMISSIVE ALL to public using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
 public.idempotency_keys worker_cleanup PERMISSIVE DELETE to app_worker using ((expires_at < now()))
 public.identity_documents support_ro_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
@@ -2669,6 +2673,9 @@ public.inbox support_ro_ins RESTRICTIVE INSERT to app_runtime check (( SELECT ap
 public.inbox support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.inbox tenant_isolation PERMISSIVE ALL to public using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
 public.invitations portal_deny_read RESTRICTIVE SELECT to app_runtime using ((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
+public.invitations support_limited_del RESTRICTIVE DELETE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support))
+public.invitations support_limited_ins RESTRICTIVE INSERT to app_runtime check (( SELECT app.actor_not_support() AS actor_not_support))
+public.invitations support_limited_upd RESTRICTIVE UPDATE to app_runtime using ((( SELECT app.actor_not_support() AS actor_not_support) OR ((status = 'pending'::text) AND app.support_accepting_invitation(id)))) check ((( SELECT app.actor_not_support() AS actor_not_support) OR ((status = 'accepted'::text) AND (membership_id = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid) AND (person_id = ( SELECT app.actor_person_id() AS actor_person_id)))))
 public.invitations tenant_isolation PERMISSIVE ALL to public using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
 public.invoice_lines invoice_lines_tenant_read PERMISSIVE SELECT to app_runtime using (((organization_id = app.current_org()) AND (app.actor_role() = 'tenant'::text) AND (EXISTS ( SELECT 1
    FROM invoices i
@@ -2782,6 +2789,7 @@ public.organizations support_ro_ins RESTRICTIVE INSERT to app_runtime check (( S
 public.organizations support_ro_upd RESTRICTIVE UPDATE to app_runtime using (( SELECT app.actor_not_support() AS actor_not_support)) check (( SELECT app.actor_not_support() AS actor_not_support))
 public.organizations tenant_isolation PERMISSIVE ALL to public using ((id = app.current_org())) check ((id = app.current_org()))
 public.outbox portal_deny_read RESTRICTIVE SELECT to app_runtime using ((NOT COALESCE((app.actor_role() = ANY (ARRAY['tenant'::text, 'guest'::text])), false)))
+public.outbox support_limited_ins RESTRICTIVE INSERT to app_runtime check ((( SELECT app.actor_not_support() AS actor_not_support) OR ((event_type = ANY (ARRAY['member.accepted'::text, 'member.password_changed'::text, 'member.mfa_disabled'::text])) AND (aggregate_type = 'membership'::text) AND (aggregate_id = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid) AND (lower((payload ->> 'membership_id'::text)) = ((NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid)::text) AND (( SELECT app.actor_person_id() AS actor_person_id) IS NOT NULL))))
 public.outbox tenant_isolation PERMISSIVE ALL to public using ((organization_id = app.current_org())) check ((organization_id = app.current_org()))
 public.payment_allocations allocations_system PERMISSIVE SELECT to app_worker using ((organization_id = app.current_org()))
 public.payment_allocations allocations_system_insert PERMISSIVE INSERT to app_worker check (((organization_id = app.current_org()) AND (allocated_by IS NULL)))
@@ -3093,7 +3101,7 @@ public.units CREATE TRIGGER trg_units_updated BEFORE UPDATE ON units FOR EACH RO
 public.work_orders CREATE TRIGGER trg_work_orders_transition BEFORE UPDATE ON work_orders FOR EACH ROW EXECUTE FUNCTION app.work_order_transition()
 public.work_orders CREATE TRIGGER trg_work_orders_updated BEFORE UPDATE ON work_orders FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 
-## functions (153)
+## functions (154)
 -- app.actor_can_see_property(p uuid) owner=<admin>
 CREATE OR REPLACE FUNCTION app.actor_can_see_property(p uuid)
  RETURNS boolean
@@ -6033,6 +6041,26 @@ AS $function$
                         AND l.source_id = a.source_id AND l.active AND l.kind = 'stay' AND l.id <> a.id
                         AND lower(l.during) >= upper(a.during))
   $function$
+-- app.support_accepting_invitation(p_invitation uuid) owner=<admin>
+CREATE OR REPLACE FUNCTION app.support_accepting_invitation(p_invitation uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+    SELECT EXISTS (
+      SELECT 1
+      FROM memberships m
+      JOIN invitations i ON i.organization_id = m.organization_id AND i.id = p_invitation
+      JOIN auth."user" u ON u.id = m.auth_user_id
+      WHERE m.id = nullif(current_setting('app.actor_id', true), '')::uuid
+        AND m.organization_id = nullif(current_setting('app.org_id', true), '')::uuid
+        AND m.role = 'platform_support' AND m.status = 'active'
+        AND (m.valid_to IS NULL OR m.valid_to > now())
+        AND i.role = m.role AND i.status = 'pending' AND i.expires_at > now()
+        AND lower(btrim(u.email)) = i.email
+        AND NOT EXISTS (SELECT 1 FROM invitations x WHERE x.membership_id = m.id))
+  $function$
 -- app.task_transition() owner=<admin>
 CREATE OR REPLACE FUNCTION app.task_transition()
  RETURNS trigger
@@ -6243,7 +6271,7 @@ AS $function$
     ON CONFLICT (name) DO UPDATE SET beat_at = excluded.beat_at
   $function$
 
-## grants (bảng, cột, hàm, schema) (1315)
+## grants (bảng, cột, hàm, schema) (1317)
 column public.consent_records.action app_runtime INSERT
 column public.consent_records.channel app_runtime INSERT
 column public.consent_records.id app_runtime INSERT
@@ -6570,6 +6598,8 @@ function app.stay_transition() <admin> EXECUTE
 function app.stay_transition() PUBLIC EXECUTE
 function app.stays_overdue(p_now timestamp with time zone) <admin> EXECUTE
 function app.stays_overdue(p_now timestamp with time zone) app_worker EXECUTE
+function app.support_accepting_invitation(p_invitation uuid) <admin> EXECUTE
+function app.support_accepting_invitation(p_invitation uuid) app_runtime EXECUTE
 function app.task_transition() <admin> EXECUTE
 function app.task_transition() PUBLIC EXECUTE
 function app.tenant_access_on_lease_close() <admin> EXECUTE

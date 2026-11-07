@@ -12,8 +12,11 @@ import { authorizeOrAudit } from "./denied.ts";
 import { ALL_PROPERTIES_ROLES, type InviteRole } from "./invitations.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-/** Vai trò nhân viên (đổi được); tenant do cổng người thuê quản, platform_support là quyền tạm thời của nền tảng. */
-const STAFF: ReadonlySet<string> = new Set([
+/**
+ * Vai trò nhân viên — đích hợp lệ của mọi thao tác owner/manager lên THÀNH VIÊN KHÁC (đổi vai/phạm vi, đặt lại MFA, thu hồi
+ * phiên). tenant do cổng người thuê quản; platform_support là tài khoản nền tảng (tổ chức không được hạ bảo mật — T-2615).
+ */
+export const STAFF: ReadonlySet<string> = new Set([
   "owner",
   "manager",
   "front_desk",

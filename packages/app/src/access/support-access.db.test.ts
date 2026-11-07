@@ -3,7 +3,7 @@
 // cấp (owner được, manager/kế toán bị từ chối) → nhận lời mời → đọc được (query + audit `support.accessed` kèm lý do + nguồn) →
 // MỌI lệnh ghi trong registry bị 403 (duyệt registry tự động) + RLS chặn ghi ở CSDL trên mọi bảng RLS → hết hạn đúng mốc theo đồng
 // hồ CSDL → thu hồi một bước. CHECK: TTL > 72 giờ, lý do rỗng. Đồng thời: hai lời cấp song song cùng email ⇒ một thắng.
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { withTenant } from "@hm/db";
 import { createTestDb, type SeededOrg, seedAuthUser, seedOrg, type TestDb } from "@hm/testkit";
 import { sql } from "kysely";
@@ -21,6 +21,7 @@ import { handleCreateDataRequest } from "../http/data-requests.ts";
 import { handleGetOrgDeletion, handleRequestOrgDeletion } from "../http/org-deletion.ts";
 import { COMMANDS, QUERIES, USER_COMMANDS } from "../http/registry.ts";
 import { handleSwitchOrganization } from "../http/switch-organization.ts";
+import { getPerson } from "../lease/index.ts";
 import { testServices } from "../server/services.ts";
 import { seedMember } from "../testing/helpers.ts";
 import { type Actor, resolveActor } from "./actor.ts";
@@ -900,5 +901,322 @@ describe("xác thực lại: input không mang mật khẩu, hạn mức chung (
     expect((await handleRequestOrgDeletion(req(other.authUserId, { password: "sai" }), deps)).status).toBe(
       401,
     );
+  });
+});
+
+// ───────────── AUD-DATA-010 (T-2617): lớp 2 trên bảng 0072 miễn trừ — invitations, audit_events, outbox (idempotency_keys giữ) ─────────────
+
+describe("RLS lớp 2 trên bảng hạ tầng: support chỉ ghi phần của chính mình (AUD-DATA-010)", () => {
+  let support: { user: string; email: string; invitationId: string };
+  let s: Actor;
+  let ownerA: Actor;
+  /** Lời cấp hỗ trợ CHỜ NHẬN của người khác (owner tạo) — đích của các lệnh UPDATE/DELETE bị cấm. */
+  let pendingId: string;
+  const affected = (r: unknown) => Number((r as { numAffectedRows?: bigint }).numAffectedRows ?? 0);
+  const asActor = (membershipId: string, q: ReturnType<typeof sql>) =>
+    t.runtime.transaction().execute(async (trx) => {
+      await sql`select set_config('app.org_id', ${A.orgId}, true), set_config('app.actor_id', ${membershipId}, true)`.execute(
+        trx,
+      );
+      return q.execute(trx);
+    });
+  const RLS = /row-level security|policy/;
+  const invitationRow = async (id: string) =>
+    (
+      await sql<{ status: string; membership_id: string | null }>`
+        select status, membership_id from invitations where id = ${id}`.execute(t.admin)
+    ).rows[0];
+  const insertInvitation = (role: string) =>
+    sql`insert into invitations (id, organization_id, email, role, token_hash, expires_at, invited_by, support_reason)
+        values (${randomUUID()}, ${A.orgId}, ${`gia+${randomUUID().slice(0, 6)}@example.test`}, ${role},
+                ${randomBytes(32)}, now() + interval '24 hours', ${A.ownerMembershipId},
+                ${role === "platform_support" ? "tự cấp" : null})`;
+  const insertAudit = (actorType: string, personId: string) =>
+    sql`insert into audit_events (id, organization_id, actor_type, actor_person_id, action, entity_type, correlation_id)
+        values (${randomUUID()}, ${A.orgId}, ${actorType}, ${personId}, 'organization.deletion_cancelled', 'organization',
+                ${`aud-data-010-${randomUUID()}`})`;
+  const insertOutbox = (eventType: string, membershipId: string, aggregateId: string = membershipId) =>
+    sql`insert into outbox (id, organization_id, event_type, aggregate_type, aggregate_id, payload, correlation_id)
+        values (${randomUUID()}, ${A.orgId}, ${eventType}, 'membership', ${aggregateId},
+                ${JSON.stringify({ membership_id: membershipId })}::jsonb, ${`aud-data-010-${randomUUID()}`})`;
+
+  beforeAll(async () => {
+    support = await grantAndAccept({ reason: "Phiếu #AUD-DATA-010" });
+    s = await supportActor(support.user);
+    ownerA = await ownerActorA();
+    const g = await post("member.grantSupportAccess", owner(), {
+      email: `cho.nhan+${randomUUID().slice(0, 6)}@example.test`,
+      reason: "lời cấp của người khác",
+    });
+    expect(g.status, JSON.stringify(g.json)).toBe(201);
+    pendingId = (g.json.data as { invitationId: string }).invitationId;
+  });
+
+  it("support KHÔNG INSERT được lời mời (owner/manager/platform_support — token tự chọn)", async () => {
+    for (const role of ["owner", "manager", "platform_support"])
+      await expect(asActor(s.membershipId, insertInvitation(role)), role).rejects.toThrow(RLS);
+  });
+
+  it("support KHÔNG UPDATE/DELETE được lời mời của người khác (kể cả 'nhận hộ' gắn vào membership của mình) và lời mời đã nhận", async () => {
+    expect(
+      affected(
+        await asActor(s.membershipId, sql`update invitations set status = 'revoked' where id = ${pendingId}`),
+      ),
+    ).toBe(0);
+    expect(
+      affected(
+        await asActor(
+          s.membershipId,
+          sql`update invitations set status = 'accepted', accepted_at = now(), membership_id = ${s.membershipId},
+                     person_id = ${s.personId} where id = ${pendingId}`,
+        ),
+      ),
+    ).toBe(0);
+    // Lời mời của chính nó đã nhận xong: không sửa lại được.
+    expect(
+      affected(
+        await asActor(
+          s.membershipId,
+          sql`update invitations set status = 'accepted', membership_id = ${s.membershipId} where id = ${support.invitationId}`,
+        ),
+      ),
+    ).toBe(0);
+    expect(
+      affected(
+        await asActor(s.membershipId, sql`delete from invitations where organization_id = ${A.orgId}`),
+      ),
+    ).toBe(0);
+    expect(await invitationRow(pendingId)).toEqual({ status: "pending", membership_id: null });
+    expect(await invitationRow(support.invitationId)).toEqual({
+      status: "accepted",
+      membership_id: s.membershipId,
+    });
+  });
+
+  it("support KHÔNG INSERT audit giả danh: actor_type 'user' hoặc actor_person_id của người khác; của chính nó thì được", async () => {
+    await expect(asActor(s.membershipId, insertAudit("user", A.ownerPersonId))).rejects.toThrow(RLS);
+    await expect(asActor(s.membershipId, insertAudit("platform_support", A.ownerPersonId))).rejects.toThrow(
+      RLS,
+    );
+    await expect(asActor(s.membershipId, insertAudit("user", s.personId))).rejects.toThrow(RLS);
+    await expect(asActor(s.membershipId, insertAudit("worker", s.personId))).rejects.toThrow(RLS);
+    expect(affected(await asActor(s.membershipId, insertAudit("platform_support", s.personId)))).toBe(1);
+  });
+
+  it("support KHÔNG INSERT outbox ngoài sự kiện của chính tài khoản; sự kiện hợp lệ nhắm membership khác cũng bị chặn", async () => {
+    await expect(asActor(s.membershipId, insertOutbox("member.invited", s.membershipId))).rejects.toThrow(
+      RLS,
+    );
+    await expect(asActor(s.membershipId, insertOutbox("invoice.issued", s.membershipId))).rejects.toThrow(
+      RLS,
+    );
+    // Báo động bảo mật giả gửi tới owner (payload.membership_id quyết người nhận ở notifications/dispatch.ts).
+    await expect(
+      asActor(s.membershipId, insertOutbox("member.password_changed", A.ownerMembershipId)),
+    ).rejects.toThrow(RLS);
+    await expect(
+      asActor(s.membershipId, insertOutbox("member.password_changed", A.ownerMembershipId, s.membershipId)),
+    ).rejects.toThrow(RLS);
+    for (const e of ["member.accepted", "member.password_changed", "member.mfa_disabled"])
+      expect(affected(await asActor(s.membershipId, insertOutbox(e, s.membershipId))), e).toBe(1);
+  });
+
+  it("owner không bị ảnh hưởng: INSERT/UPDATE/DELETE lời mời, audit 'user', outbox bất kỳ", async () => {
+    const o = A.ownerMembershipId;
+    expect(ownerA.role).toBe("owner");
+    expect(affected(await asActor(o, insertInvitation("manager")))).toBe(1);
+    expect(affected(await asActor(o, insertAudit("user", A.ownerPersonId)))).toBe(1);
+    expect(affected(await asActor(o, insertOutbox("member.invited", o)))).toBe(1);
+    const g = await post("member.grantSupportAccess", owner(), {
+      email: `owner.sua+${randomUUID().slice(0, 6)}@example.test`,
+      reason: "owner sửa",
+    });
+    const id = (g.json.data as { invitationId: string }).invitationId;
+    expect(affected(await asActor(o, sql`update invitations set status = 'revoked' where id = ${id}`))).toBe(
+      1,
+    );
+    expect(affected(await asActor(o, sql`delete from invitations where id = ${id}`))).toBe(1);
+  });
+
+  it("luồng hợp lệ của support vẫn chạy: nhận lời mời (UPDATE + audit/outbox member.accepted), đọc + support.accessed, lệnh bị từ chối + command.denied", async () => {
+    const fresh = await grantAndAccept({ reason: "Phiếu #luồng-hợp-lệ" });
+    const f = await supportActor(fresh.user);
+    expect(await invitationRow(fresh.invitationId)).toEqual({
+      status: "accepted",
+      membership_id: f.membershipId,
+    });
+    const acc = await sql<{ actor_type: string; actor_person_id: string }>`
+      select actor_type, actor_person_id from audit_events
+      where organization_id = ${A.orgId} and action = 'member.accepted' and entity_id = ${f.membershipId}`.execute(
+      t.admin,
+    );
+    expect(acc.rows).toEqual([{ actor_type: "platform_support", actor_person_id: f.personId }]);
+    const ob = await sql<{ n: number }>`select count(*)::int as n from outbox
+      where organization_id = ${A.orgId} and event_type = 'member.accepted' and aggregate_id = ${f.membershipId}`.execute(
+      t.admin,
+    );
+    expect(ob.rows[0]?.n).toBe(1);
+
+    expect((await get("inventory.getCalendar", { user: fresh.user, org: A.orgId }, cal(A))).status).toBe(200);
+    expect(await supportAccessCount(f.personId, "inventory.getCalendar")).toBe(1);
+
+    const writeCommand = Object.keys(COMMANDS)[0] as string;
+    const w = await post(writeCommand, { user: fresh.user, org: A.orgId }, {});
+    expect(w.status).toBe(403);
+    const denied = await sql<{
+      actor_type: string;
+      entity_type: string;
+    }>`select actor_type, entity_type from audit_events
+      where organization_id = ${A.orgId} and action = 'command.denied' and actor_person_id = ${f.personId}`.execute(
+      t.admin,
+    );
+    expect(denied.rows).toEqual([{ actor_type: "platform_support", entity_type: writeCommand }]);
+  });
+
+  it("person.get không thấy ⇒ audit 'denied' của support mang actor_type platform_support (AUD-XFEAT-008), owner vẫn 'user'", async () => {
+    const missing = randomUUID();
+    await expect(getPerson(t.runtime, s, missing)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    const r = await sql<{ actor_type: string; actor_person_id: string; outcome: string }>`
+      select actor_type, actor_person_id, outcome from audit_events
+      where organization_id = ${A.orgId} and action = 'person.read' and entity_id = ${missing}`.execute(
+      t.admin,
+    );
+    expect(r.rows).toEqual([
+      { actor_type: "platform_support", actor_person_id: s.personId, outcome: "denied" },
+    ]);
+    const missing2 = randomUUID();
+    await expect(getPerson(t.runtime, ownerA, missing2)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    const o = await sql<{ actor_type: string }>`select actor_type from audit_events
+      where organization_id = ${A.orgId} and action = 'person.read' and entity_id = ${missing2}`.execute(
+      t.admin,
+    );
+    expect(o.rows).toEqual([{ actor_type: "user" }]);
+  });
+
+  it("đồng thời: hai lần nhận song song CÙNG lời cấp hỗ trợ (khác Idempotency-Key) ⇒ đúng một 200; lời mời gắn membership bên thắng", async () => {
+    const email = `song.song.nhan+${randomUUID().slice(0, 6)}@example.test`;
+    const user = await seedAuthUser(t.admin, email);
+    const g = await post("member.grantSupportAccess", owner(), { email, reason: "nhận song song" });
+    const invitationId = (g.json.data as { invitationId: string }).invitationId;
+    const token = invitationToken(services.invitationKey, invitationId);
+    const rs = await Promise.all([1, 2].map(() => post("member.acceptInvitation", { user }, { token })));
+    expect(rs.map((r) => r.status).sort()).toEqual([200, 410]);
+    const won = rs.find((r) => r.status === 200)?.json.data as { membershipId: string };
+    expect(await invitationRow(invitationId)).toEqual({
+      status: "accepted",
+      membership_id: won.membershipId,
+    });
+  });
+
+  it("idempotency_keys (D-164): support không INSERT hộ / UPDATE / DELETE hàng của người khác; hàng của chính nó thì được", async () => {
+    const ownerKey = (
+      await sql<{ key: string; response: unknown }>`select key, response from idempotency_keys
+        where organization_id = ${A.orgId} and actor_person_id = ${A.ownerPersonId} and status = 'committed'
+        order by created_at limit 1`.execute(t.admin)
+    ).rows[0];
+    expect(ownerKey).toBeTruthy();
+    const key = ownerKey?.key as string;
+    const forged = JSON.stringify({ data: { forged: true } });
+    // UPDATE (replay giả): USING lọc hết ⇒ 0 dòng.
+    expect(
+      affected(
+        await asActor(
+          s.membershipId,
+          sql`update idempotency_keys set response = ${forged}::jsonb where organization_id = ${A.orgId} and key = ${key}`,
+        ),
+      ),
+    ).toBe(0);
+    expect(
+      affected(
+        await asActor(
+          s.membershipId,
+          sql`update idempotency_keys set response = ${forged}::jsonb where organization_id = ${A.orgId}
+                and actor_person_id <> ${s.personId}`,
+        ),
+      ),
+    ).toBe(0);
+    // DELETE: app_runtime không có quyền DELETE; policy 0080 là lớp sau nếu quyền được cấp.
+    await expect(
+      asActor(
+        s.membershipId,
+        sql`delete from idempotency_keys where organization_id = ${A.orgId} and key = ${key}`,
+      ),
+    ).rejects.toThrow(/permission denied|row-level security|policy/);
+    const after = await sql<{ response: unknown }>`select response from idempotency_keys
+      where organization_id = ${A.orgId} and key = ${key}`.execute(t.admin);
+    expect(after.rows[0]?.response).toEqual(ownerKey?.response);
+    // INSERT hộ người khác bị chặn; hàng của chính nó được.
+    const ins = (personId: string) =>
+      sql`insert into idempotency_keys (id, organization_id, key, command, actor_person_id, request_hash, correlation_id)
+          values (${randomUUID()}, ${A.orgId}, ${randomUUID()}, 'probe.idempotency', ${personId}, ${randomBytes(32)}, 'aud-data-010')`;
+    await expect(asActor(s.membershipId, ins(A.ownerPersonId))).rejects.toThrow(RLS);
+    expect(affected(await asActor(s.membershipId, ins(s.personId)))).toBe(1);
+    expect(
+      affected(
+        await asActor(
+          s.membershipId,
+          sql`update idempotency_keys set status = 'committed', http_status = 200, response = '{"data":{}}'::jsonb
+                where organization_id = ${A.orgId}
+                and actor_person_id = ${s.personId} and command = 'probe.idempotency'`,
+        ),
+      ),
+    ).toBe(1);
+    // Owner không bị ảnh hưởng.
+    expect(
+      affected(
+        await asActor(
+          A.ownerMembershipId,
+          sql`update idempotency_keys set response = response where organization_id = ${A.orgId} and key = ${key}`,
+        ),
+      ),
+    ).toBe(1);
+  });
+
+  it("idempotency_keys: luồng nhận lời mời và đổi tổ chức của support vẫn ghi được hàng của chính nó", async () => {
+    const fresh = await grantAndAccept({ reason: "Phiếu #idem" });
+    const f = await supportActor(fresh.user);
+    const accepted = await sql<{ status: string }>`select status from idempotency_keys
+      where organization_id = ${A.orgId} and command = 'member.acceptInvitation' and actor_person_id = ${f.personId}`.execute(
+      t.admin,
+    );
+    expect(accepted.rows).toEqual([{ status: "committed" }]);
+    const r = await handleSwitchOrganization(
+      new Request("http://local.test/api/v1/x", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "idempotency-key": randomUUID(),
+          "x-test-user": fresh.user,
+          "x-test-2fa": "1",
+          "x-org-id": A.orgId,
+        },
+        body: JSON.stringify({ organization_id: A.orgId, property_id: A.propertyId }),
+      }),
+      deps,
+    );
+    expect(r.status, await r.clone().text()).toBe(200);
+    const switched = await sql<{ n: number }>`select count(*)::int as n from idempotency_keys
+      where organization_id = ${A.orgId} and actor_person_id = ${f.personId} and command <> 'member.acceptInvitation'`.execute(
+      t.admin,
+    );
+    expect(switched.rows[0]?.n).toBe(1);
+  });
+
+  it("policy 0080 có mặt: invitations/idempotency_keys (ins/upd/del), audit_events (ins), outbox (ins)", async () => {
+    const r = await sql<{ tablename: string; cmd: string }>`
+      select tablename, cmd from pg_policies
+      where schemaname = 'public' and policyname like 'support_limited_%' and permissive = 'RESTRICTIVE'
+        and roles = '{app_runtime}'
+      order by 1, 2`.execute(t.admin);
+    expect(r.rows).toEqual([
+      { tablename: "audit_events", cmd: "INSERT" },
+      { tablename: "idempotency_keys", cmd: "DELETE" },
+      { tablename: "idempotency_keys", cmd: "INSERT" },
+      { tablename: "idempotency_keys", cmd: "UPDATE" },
+      { tablename: "invitations", cmd: "DELETE" },
+      { tablename: "invitations", cmd: "INSERT" },
+      { tablename: "invitations", cmd: "UPDATE" },
+      { tablename: "outbox", cmd: "INSERT" },
+    ]);
   });
 });
