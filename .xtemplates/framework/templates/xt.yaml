@@ -51,7 +51,7 @@ acceptance: ""        # cổng production: kiểm thử nghiệm thu theo tiêu 
 # Hợp đồng phát hành có kiểu (ADR-0068 lát A, tuỳ chọn; trống = như cũ): `<khoá>_report` của attack/perf/migration_check/
 # rollback/acceptance = report lệnh đó sinh (JUnit XML · SARIF · pip-audit JSON) — thiếu, cũ hơn lần chạy, 0 test, scan chưa xong = FAIL.
 acceptance_report: "" # vd reports/junit.xml — trong dự án VÀ trong .gitignore (file chưa commit làm hàng `tree` FAIL)
-release_artifacts: "" # artifact ứng viên, cách nhau bởi khoảng trắng (sidecar <file>.sha256 nếu có) → `subject.digest`; GO-NO-GO §5 nhắc 12 ký tự đầu
+release_artifacts: "" # artifact ứng viên, cách nhau bởi khoảng trắng (sidecar <file>.sha256 nếu có) → `subject.digest`; GO-NO-GO ghi dòng `subject: digest` (mẫu GO-NO-GO.md §1)
 release_approval_days: "" # hạn chữ ký GO-NO-GO §5 để `promotion: approved` (mặc định 30 ngày)
 preview: ""           # cách chạy thử bản trình người duyệt (`xt.py stage submit` ghi lại — ADR-0058); vd npm run preview
 preview_smoke: ""     # Gate bản trình: `stage submit` chạy (qua guard), exit ≠ 0 → không trình (D-247); vd npm run build && npx playwright test smoke
