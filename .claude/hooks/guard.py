@@ -6713,9 +6713,10 @@ REVIEW_FORGE_WHY = (
 # Sổ giai đoạn sản phẩm (ADR-0058) — chỉ `xt.py stage …` ghi; duyệt/công nhận giai đoạn là việc của người.
 STAGE_LEDGER = "docs/autopilot/STAGE.json"
 STAGE_APPROVE_WHY = (
-    "duyệt giai đoạn sản phẩm (`xt.py stage approve`/`init --adopt`) — chỉ người, ngoài phiên agent (ADR-0058);"
-    " `stage approve` dạng chữ rõ được khi xt.yaml ở cây VÀ bản đã commit ở nhánh chính khai `stage_approval: agent`"
-    " (ADR-0069)"
+    # vế lệnh-con-từ-biến đứng đầu: lý do bị cắt ở trần độ dài khi có lý do chặn khác (AUD-HAR-313)
+    "duyệt giai đoạn sản phẩm (`xt.py stage approve`/`init --adopt`; lệnh con lấy từ biến `xt.py $c` cũng tính — viết"
+    " rõ từng lệnh, AUD-HAR-307) — chỉ người, ngoài phiên agent (ADR-0058); `stage approve` dạng chữ rõ được khi"
+    " xt.yaml ở cây VÀ bản đã commit ở nhánh chính khai `stage_approval: agent` (ADR-0069)"
 )
 
 

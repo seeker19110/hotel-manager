@@ -7,7 +7,7 @@
     ".claude/agents/reviewer.md": "sha256:cce14e0286d9cc7e78d34635cceb9c7c7062c4f6766071e71c48e978d29fd720",
     ".claude/hooks/_lib.sh": "sha256:1d20298fb50b8acd1c5c4de4dd3a705c9cce29efb08683e1b31002e25da4e5c0",
     ".claude/hooks/auto-format.sh": "sha256:77b66366cf89c2577f2e0397346c2f438fda171629bba458477b016910767345",
-    ".claude/hooks/guard.py": "sha256:1bcdf9eef63eb066fa2dbefe93014dd8a191f4b35a1d07aa3509cd4e4d3de651",
+    ".claude/hooks/guard.py": "sha256:768440c0e9697338d68b7bdc05f3ffe51936f0157d1622fe3144ccb472645b8c",
     ".claude/hooks/permission-request.sh": "sha256:a3707521b7c7ac58f1a9ce0fba18f7cd9d3a64967564b82f1666639e75988c26",
     ".claude/hooks/post-tool-failure.sh": "sha256:4c495cae9503d80a968443dd2277690ea3769bbff098436e92ab4ab3a440b196",
     ".claude/hooks/pre-bash-guard.sh": "sha256:ddcd1e9c7cb765cf6b1aae1c16d4f4822a82534de66a9f4f260c50dc99ae2a6f",
