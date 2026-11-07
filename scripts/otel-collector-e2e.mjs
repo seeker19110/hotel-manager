@@ -76,6 +76,15 @@ export const CANARY = {
   escLeak: "POSTLEAKCANARY",
   suffixKey: "SKCANARY0001",
   otp: 987654,
+  // Review #153 lượt 2: giá trị mảng/object của khoá nhạy cảm, msg là mảng, `\` trong giá trị, `khoá: 'v'`, header x-api-key.
+  tokenArr: "TOKARRCANARY01",
+  secretInner: "SECINNERCANARY01",
+  arrEmail: "arr.msg@example.com",
+  arrToken: "ARRMSGTOKCANARY",
+  bsTail: "BSTAILCANARY01",
+  inspectPw: "NODEINSPECTPW01",
+  // Ghép lúc chạy: chuỗi giả, tránh gitleaks generic-api-key báo nhầm (quy ước .gitleaksignore — không thêm ngoại lệ).
+  hdrKey: ["HDRAPI", "KEYCANARY01"].join(""),
 };
 
 /** Mẫu input: 4 dòng hợp lệ của 2 dịch vụ + 3 dòng không parse được (rác, JSON cụt, `{` mở không đóng). */
@@ -127,7 +136,7 @@ export function sampleDockerLog() {
 }
 
 /**
- * 5 dòng canary OPS-OBS-008: 2 dòng parse được (hm-pii), 1 dòng parse được nhưng thiếu msg (hm-pii2 — body là JSON thô),
+ * 7 dòng canary OPS-OBS-008: 2 dòng parse được (hm-pii), 1 dòng thiếu msg (hm-pii2), 1 dòng msg mảng (hm-pii4), 1 dòng rác `\`/inspect/header,
  * 1 dòng msg là object (hm-pii3 — body map), 1 dòng JSON hỏng chứa bí mật thô.
  */
 export function canaryLines() {
@@ -163,6 +172,8 @@ export function canaryLines() {
       env: "staging",
       privateKey: c.privateKey,
       sessionId: c.sessionId,
+      tokens: [c.tokenArr],
+      secret: { inner: c.secretInner },
       note: `password="${c.quoted}"`,
     }),
     app({
@@ -174,6 +185,16 @@ export function canaryLines() {
     }),
     line(
       `{"password":"${c.password}","email":"${c.email}","authorization":"Bearer ${c.bearer}","sessionId":"${c.sessionId}","otp":${c.otp},"identity":"${c.idNumber2}","pwd2":{"password":"pre\\"${c.escLeak}"`,
+    ),
+    app({
+      ts: "2026-10-18T01:02:12.000Z",
+      service: "hm-pii4",
+      version: "1.2.3",
+      env: "staging",
+      msg: [c.arrEmail, { token: c.arrToken }, "giữ"],
+    }),
+    line(
+      `login password=abc\\${c.bsTail} end { user: 'app', password: '${c.inspectPw}' } x-api-key: ${c.hdrKey}`,
     ),
   ];
 }
@@ -231,7 +252,7 @@ export async function main() {
   return records;
 }
 
-const TOTAL = 12;
+const TOTAL = 14;
 
 /** OPS-OBS-008: lỗi khi giá trị canary lọt ra ở bất kỳ resource/attribute/body nào, hoặc phần che không như mong đợi. */
 export function verifyRedaction(records) {
@@ -273,13 +294,14 @@ export function verifyRedaction(records) {
     second?.attributes.detail === "số giấy tờ ****4567 ****4568; liên hệ 091****678,090****456",
     `CCCD/SĐT liền kề trong attribute phải che, có ${second?.attributes.detail}`,
   );
-  // Dòng parse được nhưng thiếu msg: attribute nhạy cảm bị xoá, body (JSON thô) vẫn được giữ nhưng đã che.
+  // Dòng parse được nhưng thiếu msg: body (JSON thô lặp mọi trường) đặt rỗng ở receiver; trường nằm ở attributes, nhạy cảm bị xoá/che.
   const noMsg = queryByService(records, "hm-pii2");
   expect(noMsg.length === 1, `service.name=hm-pii2 cần 1 bản ghi, có ${noMsg.length}`);
   if (noMsg[0]) {
-    for (const k of ["privateKey", "sessionId"])
+    for (const k of ["privateKey", "sessionId", "tokens", "secret.inner"])
       expect(!(k in noMsg[0].attributes), `khoá nhạy cảm ${k} phải bị xoá`);
-    expect(String(noMsg[0].body).includes('"privateKey":"***"'), "JSON thô thiếu msg: privateKey phải che");
+    expect(noMsg[0].body === "", `JSON thô thiếu msg: body phải rỗng, có ${JSON.stringify(noMsg[0].body)}`);
+    expect(noMsg[0].attributes.note === "password=***", 'attribute note: password="…" phải che');
   }
   // msg là object ⇒ body map (như OTLP gửi trực tiếp): flatten rồi che; phần không nhạy cảm giữ nguyên.
   const mapRec = queryByService(records, "hm-pii3")[0];
@@ -289,6 +311,14 @@ export function verifyRedaction(records) {
     expect(b.includes("m***@example.com"), `body map: email phải che, có ${b}`);
     expect(b.includes("090****456"), "body map: SĐT phải che");
     expect(b.includes('"giữ"'), "body map: giá trị không nhạy cảm phải giữ");
+  }
+  // msg là mảng ⇒ body slice: bọc vào map rồi flatten/che (items.N).
+  const arrRec = queryByService(records, "hm-pii4")[0];
+  expect(Boolean(arrRec), "thiếu bản ghi body mảng (hm-pii4)");
+  if (arrRec) {
+    const b = JSON.stringify(arrRec.body);
+    expect(b.includes("a***@example.com"), `body mảng: email phải che, có ${b}`);
+    expect(b.includes('"giữ"'), "body mảng: giá trị không nhạy cảm phải giữ");
   }
   const raw = records.find((r) => r.attributes.unparsed === "true" && String(r.body).includes('"password"'));
   expect(Boolean(raw), "dòng JSON hỏng chứa bí mật vẫn phải được lưu (không drop)");
@@ -307,7 +337,7 @@ export function verify(records) {
   };
   expect(records.length === TOTAL, `cần đủ ${TOTAL} bản ghi (không drop dòng nào), có ${records.length}`);
   const unparsed = records.filter((r) => r.attributes.unparsed === "true");
-  expect(unparsed.length === 4, `cần 4 dòng gắn unparsed, có ${unparsed.length}`);
+  expect(unparsed.length === 5, `cần 5 dòng gắn unparsed, có ${unparsed.length}`);
   for (const r of unparsed) {
     expect(
       r.resource["service.name"] === "hotel-manager",

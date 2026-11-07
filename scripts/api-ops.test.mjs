@@ -248,8 +248,16 @@ describe("OPS-OBS-001 — cấu hình OTel Collector", () => {
     expect(cfg).toMatch(/flatten\(resource\.attributes\)/);
     // Body map (OTLP/msg là object): flatten rồi che; mọi câu lệnh trên body đều có `where` đúng kiểu (propagate bỏ cả lô nếu sai kiểu).
     expect(cfg).toMatch(/flatten\(log\.body\) where IsMap\(log\.body\)/);
-    for (const stmt of cfg.split("\n").filter((l) => /^\s+- \w+\(log\.body,/.test(l)))
-      expect(stmt, stmt.slice(0, 60)).toMatch(/where Is(Map|String)\(log\.body\)$/);
+    // Body mảng (OTLP/msg là mảng): bọc vào map qua log.cache rồi xử lý như map.
+    expect(cfg).toMatch(/set\(log\.cache\["items"\], log\.body\) where IsList\(log\.body\)/);
+    const bodyStmts = cfg.split("\n").filter((l) => /^\s+- '?\w+\(log\.body,/.test(l));
+    expect(bodyStmts.length).toBeGreaterThan(10);
+    for (const stmt of bodyStmts)
+      expect(stmt, stmt.slice(0, 60)).toMatch(/where Is(Map|String|List)\(log\.body\)'?$/);
+    // Dòng parse được mà thiếu msg: body (JSON thô) đặt rỗng ở receiver — điều kiện theo resource vì service đã được chuyển.
+    expect(cfg).toMatch(
+      /id: body_no_msg\n\s+if: 'resource\["service\.name"\] != nil and attributes\["msg"\] == nil'\n\s+field: body\n\s+value: ""/,
+    );
     const code = cfg.replace(/^\s*#.*$/gm, "");
     expect(code).not.toMatch(/ignored_keys|allowed_keys|allowed_values|allow_all_keys/);
   });
@@ -338,10 +346,10 @@ describe("otel-collector-e2e — phân tích đầu ra", () => {
     expect(queryByService(rs, "zzz")).toEqual([]);
   });
 
-  it("mẫu docker log: 4 hợp lệ + 3 không parse được + 5 canary PII, đều là một dòng JSON bọc Docker", () => {
+  it("mẫu docker log: 4 hợp lệ + 3 không parse được + 7 canary PII, đều là một dòng JSON bọc Docker", () => {
     const text = sampleDockerLog();
     const lines = text.trim().split("\n");
-    expect(lines).toHaveLength(12);
+    expect(lines).toHaveLength(14);
     for (const l of lines) expect(JSON.parse(l)).toMatchObject({ stream: "stdout" });
     // Đầu vào CÓ canary nguyên văn — nếu không, phép kiểm "không lọt" rỗng nghĩa.
     for (const [name, v] of Object.entries(CANARY)) expect(text, name).toContain(String(v));
@@ -350,7 +358,7 @@ describe("otel-collector-e2e — phân tích đầu ra", () => {
   it("verify: rỗng (Collector không xuất gì) → lỗi; thiếu dòng rác → lỗi", () => {
     expect(verify([]).length).toBeGreaterThan(0);
     const dropped = verify([rec({ "service.name": "hm-web" }, {}, "x")]);
-    expect(dropped.join("\n")).toMatch(/đủ 12 bản ghi/);
+    expect(dropped.join("\n")).toMatch(/đủ 14 bản ghi/);
   });
 
   it("verifyRedaction: canary lọt ở resource, attribute lồng hoặc body → lỗi nêu tên canary", () => {
