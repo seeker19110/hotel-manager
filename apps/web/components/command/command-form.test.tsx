@@ -14,6 +14,7 @@ vi.mock("@serwist/turbopack/react", () => ({
 
 import { WithMessages } from "../testing/with-messages.tsx";
 import { CommandForm, type FieldSpec } from "./command-form.tsx";
+import { setReauthHandler } from "./reauth.ts";
 
 const UNIT = "2f1b1f0e-6b1e-4a0e-8d54-0d3a1c8a9e11";
 const fields: FieldSpec[] = [
@@ -108,6 +109,61 @@ describe("CommandForm", () => {
     );
     expect(JSON.parse(String(initOf(0).body))).toMatchObject({ password: " mk có cách " });
     expect(fetchMock).toHaveBeenCalledTimes(1); // không gửi lại kiểu "đăng nhập lại rồi gửi tiếp"
+  });
+
+  it("T-2616 (AUD-XFEAT-006): form KHÔNG có ô mật khẩu gặp 401 REAUTH_REQUIRED (phiên > 5 phút) ⇒ hộp đăng nhập lại, xong gửi lại bằng KEY MỚI", async () => {
+    const handler = vi.fn(async () => true);
+    setReauthHandler(handler);
+    try {
+      // Như server thật (pipeline lưu kết quả failed theo Idempotency-Key — review #152 🔴): cùng key ⇒ replay đúng lỗi 401;
+      // key mới sau khi đăng nhập lại ⇒ lệnh được xử lý.
+      const failedKeys = new Set<string>();
+      fetchMock.mockImplementation(async (_url, init) => {
+        const k = ((init?.headers ?? {}) as Record<string, string>)["idempotency-key"] as string;
+        if (failedKeys.size === 0 || failedKeys.has(k)) {
+          failedKeys.add(k);
+          return jsonResponse(401, {
+            code: "REAUTH_REQUIRED",
+            title: "Vui lòng xác thực lại để xuất dữ liệu.",
+          });
+        }
+        return jsonResponse(200, { data: { job_id: "j1" } });
+      });
+      setup({
+        path: "exports/request",
+        fixed: { kind: "audit", format: "csv", filters: { from: "2026-11-01", to: "2026-11-06" } },
+        fields: [],
+        successText: "Đã yêu cầu xuất.",
+      });
+      await userEvent.click(screen.getByRole("button", { name: "Tạo việc" }));
+      expect(await screen.findByText("Đã yêu cầu xuất.")).toBeTruthy();
+      expect(handler).toHaveBeenCalledTimes(1);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(keyOf(1)).not.toBe(keyOf(0));
+    } finally {
+      setReauthHandler(null);
+    }
+  });
+
+  it("T-2616: form không có ô mật khẩu, người dùng huỷ hộp đăng nhập lại ⇒ báo lỗi tại form, không gửi lại", async () => {
+    const handler = vi.fn(async () => false);
+    setReauthHandler(handler);
+    try {
+      fetchMock.mockResolvedValueOnce(
+        jsonResponse(401, { code: "REAUTH_REQUIRED", title: "Vui lòng xác thực lại để xuất dữ liệu." }),
+      );
+      setup({
+        path: "exports/request",
+        fixed: { kind: "audit", format: "csv", filters: { from: "2026-11-01", to: "2026-11-06" } },
+        fields: [],
+      });
+      await userEvent.click(screen.getByRole("button", { name: "Tạo việc" }));
+      expect((await screen.findByRole("alert")).textContent).toBe("Vui lòng xác thực lại để xuất dữ liệu.");
+      expect(handler).toHaveBeenCalledTimes(1);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      setReauthHandler(null);
+    }
   });
 
   it("ô bắt buộc để trống: báo lỗi đúng ô (role=alert, aria-invalid) và KHÔNG gửi gì", async () => {

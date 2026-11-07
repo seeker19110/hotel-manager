@@ -54,12 +54,13 @@ export function extractUrls(md) {
         url = url.slice(0, -1);
       }
       const hash = url.indexOf("#");
-      // `#a:~:text=x` → anchor `a`; anchor dòng `#L10`/`#L10-L20` (GitHub, do JS cuộn) bỏ như check-links.py của khung.
+      // `#a:~:text=x` → anchor `a`; anchor dòng/cột `#L10`, `#L10-L20`, `#L10C5-L12C3` (GitHub, do JS cuộn) bỏ qua (T-2607; check-links.py của khung chưa nhận dạng cột — FB).
       const frag = hash >= 0 ? url.slice(hash + 1).split(":~:")[0] : "";
       url = hash >= 0 ? url.slice(0, hash) : url;
       if (!/^https?:\/\/[^/]+/.test(url)) continue;
       if (!found.has(url)) found.set(url, i + 1);
-      if (frag && !/^L\d+(?:-L\d+)?$/.test(frag)) frags.set(url, new Set([...(frags.get(url) ?? []), frag]));
+      if (frag && !/^L\d+(?:C\d+)?(?:-L\d+(?:C\d+)?)?$/.test(frag))
+        frags.set(url, new Set([...(frags.get(url) ?? []), frag]));
     }
   });
   return [...found].map(([url, line]) =>
@@ -121,15 +122,43 @@ export async function missingFragments(url, fragments, { fetchImpl = fetch, time
     res.body?.cancel?.();
     return null;
   }
-  let html;
+  const html = await readCapped(res, MAX_HTML_BYTES);
+  if (html === null) return null;
+  const anchors = htmlAnchors(html);
+  return fragments.filter((f) => !anchors.has(f) && !anchors.has(decodeFragment(f)));
+}
+
+/**
+ * Đọc body tối đa `max` byte UTF-8 (T-2606): có stream thì đếm byte từng chunk, vượt trần → cancel, không kéo phần còn lại;
+ * không có stream thì `text()` rồi đo byte. Lỗi giữa chừng (reset, hết giờ) hoặc vượt trần → null.
+ */
+async function readCapped(res, max) {
+  const reader = res.body?.getReader?.();
+  if (!reader) {
+    try {
+      const text = await res.text();
+      return Buffer.byteLength(text, "utf8") > max ? null : text;
+    } catch {
+      return null;
+    }
+  }
+  const decoder = new TextDecoder();
+  let bytes = 0;
+  let out = "";
   try {
-    html = await res.text();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) return out + decoder.decode();
+      bytes += value.byteLength;
+      if (bytes > max) {
+        await reader.cancel(); // ném → catch dưới cũng trả null
+        return null;
+      }
+      out += decoder.decode(value, { stream: true });
+    }
   } catch {
     return null;
   }
-  if (html.length > MAX_HTML_BYTES) return null;
-  const anchors = htmlAnchors(html);
-  return fragments.filter((f) => !anchors.has(f) && !anchors.has(decodeFragment(f)));
 }
 
 /** `%20` → khoảng trắng như trình duyệt; chuỗi `%` hỏng (URIError) thì so nguyên dạng. */
