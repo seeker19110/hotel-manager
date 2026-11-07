@@ -738,6 +738,130 @@ def _gitfile_target(path: str, root: str) -> bool:
     return posixpath.basename(_norm_path(path)) == ".git" or posixpath.basename(rel_path(path, root)) == ".git"
 
 
+# AUD-SEC-497 (D-390): dòng ký §5 của `GO-NO-GO*.md` là của người (mẫu GO-NO-GO §5: "con người, không phải agent";
+# ADR-0068 §Quyết định 3a: máy không tự nâng `pending_human` thành `approved`) — agent tự ghi thì `release-check` ra
+# `promotion: approved` không người duyệt. Edit/Write làm xuất hiện dòng ký mới hay
+# đổi dòng ký → deny; xoá dòng ký, sửa phần khác → cho chạy. Bash ghi file đó → deny (guard không so được nội dung).
+# Bản sao tối thiểu của `GO_SIGN_ROW_RE`/`_go_sign_rows` ở scripts/xt.py (guard chỉ stdlib, không import xt): dòng bảng
+# `| vai trò | tên | quyết định | YYYY-MM-DD |` có ô tên và ô ngày khác rỗng, trong mục `## 5` tới `## ` kế.
+GO_NO_GO_NAME = "go-no-go*.md"  # so tên chữ thường: hệ tệp không phân biệt hoa thường mở cùng file
+GO_SIGN_ROW_RE = re.compile(r"^\|[^|\n]*\|\s*[^|\s][^|\n]*\|[^|\n]*\|\s*\d{4}-\d{2}-\d{2}\s*\|\s*$", re.M)
+GO_SIGN_HEAD_RE = re.compile(r"^## 5\b.*$", re.M)
+GO_NEXT_HEAD_RE = re.compile(r"^## ", re.M)
+GO_SIGN_WHY = "chữ ký §5 là của người (mẫu GO-NO-GO §5, ADR-0068 §Quyết định 3a; AUD-SEC-497)"
+GO_SIGN_BASH_WHY = "ghi GO-NO-GO qua Bash ({}) — " + GO_SIGN_WHY + "; sửa GO-NO-GO bằng Edit để guard so dòng ký"
+GO_GLOB_CHARS = frozenset("*?[")
+GO_DELETERS = frozenset({"rm", "unlink", "shred", "rmdir"})  # xoá cả file chỉ bỏ chữ ký, không thêm (D-390 cho xoá)
+# AUD-SEC-535 (theo ADR-0066): lệnh NGOÀI danh sách trắng (`_go_reader`) có từ nguyên văn khớp `go-no-go*.md` → chặn —
+# lệnh lạ (`sponge`, `ruby -pi`, `ex`, `gsed -i`, `python3 -c … F`) có thể ghi file đó. Họ đổi tên theo biểu thức
+# (`rename`, `mmv`) và archive đổi tên thành viên (`tar --transform`/`--xform`, `bsdtar`/`pax -s`) có chữ `go-no-go`
+# ở bất kỳ từ nào → chặn (tên đích dựng từ biểu thức, không là một từ).
+GO_NAME_PART = "go-no-go"
+GO_RENAMERS = frozenset("rename rename.ul prename perl-rename file-rename mmv mcp mad mln".split())
+GO_ARCHIVERS = frozenset("tar gtar bsdtar pax".split())
+GO_XFORM_OPTS = ("--transform", "--xform")
+# lệnh mà guard đã mô hình đích ghi (`write_targets`, `_go_link_sources`): tên GO-NO-GO ở vị trí khác là nguồn đọc
+GO_MODELLED = frozenset("cp mv install ln link tee dd sed touch truncate rsync scp curl wget awk gawk".split())
+GO_GIT_READS = frozenset(
+    "add commit diff show log blame annotate status ls-files grep cat-file restore checkout".split()
+)
+GO_GIT_READS |= frozenset({"reset", "rm", "mv"})  # reset: chỉ mục; rm/mv/restore/checkout: đích đã mô hình
+GO_PAGERS = frozenset({"less", "more"})  # chỉ hiển thị (LESSOPEN chỉ qua gán biến — gán đầu lệnh làm mất miễn)
+GO_CHECKERS = {"prettier": ("--write", "-w"), "markdownlint": ("--fix", "-f"), "markdownlint-cli2": ("--fix",)}
+# D-392: chữ ký gắn ứng viên qua tiêu đề `# ` đầu tiên (ngoài frontmatter — `GO_FRONT_RE` của xt.py) và dòng `subject:`
+# (D-389; tiền tố như `SUBJECT_LINE_RE` của xt.py: `>` trích dẫn, một gạch đầu dòng, khoá không phân biệt hoa thường).
+# File đã ký mà đổi hai thứ này (kết quả còn dòng ký) = chuyển chữ ký người sang ứng viên khác → deny.
+# AUD-SEC-537: `GO_SUBJECT_RE` rộng hơn `SUBJECT_LINE_RE` (mọi dòng `subject:`, không chỉ `content|digest <hex>`) — có
+# chủ ý, chiều chặt: đổi một dòng `subject:` mà `release-check` không đọc vẫn bị chặn trên file đã ký.
+GO_FRONT_RE = re.compile(r"\A---\n.*?\n---\n", re.S)
+GO_TITLE_RE = re.compile(r"^# .*$", re.M)
+GO_SUBJECT_RE = re.compile(r"^[ \t]*(?:>[ \t]*)*(?:[-*+][ \t]+)?subject[ \t]*:.*$", re.I | re.M)
+GO_REBIND_WHY = (
+    "file đã ký: đổi tiêu đề/subject chuyển chữ ký người sang ứng viên khác — xoá dòng ký trước, người ký lại"
+)
+GoRow = Tuple[str, ...]
+
+
+def _is_go_no_go(path: str) -> bool:
+    return fnmatch.fnmatchcase(posixpath.basename(path.rstrip("/")).lower(), GO_NO_GO_NAME)
+
+
+def _go_sign_rows(text: str, loose: bool = False) -> Set[GoRow]:
+    """Dòng ký (các ô, bỏ khoảng trắng hai đầu) ở §5 của GO-NO-GO. `loose` (đoạn Edit, không có file để áp) và đoạn
+    không có tiêu đề §5 → mọi dòng khớp (chiều chặt)."""
+    part = GO_SIGN_HEAD_RE.split(text, maxsplit=1)
+    if len(part) == 2:
+        text = GO_NEXT_HEAD_RE.split(part[1], maxsplit=1)[0]
+    elif not loose:
+        return set()
+    return {tuple(c.strip() for c in m[0].strip().strip("|").split("|")) for m in GO_SIGN_ROW_RE.finditer(text)}
+
+
+def _go_read(full: str, limit: int = -1) -> Optional[str]:
+    """Nội dung file thường trên đĩa; không có/không phải file thường (FIFO làm treo `open`)/lỗi đọc/dài quá `limit` ký
+    tự (`limit` ≥ 0) → None."""
+    if not os.path.isfile(full):
+        return None
+    try:
+        with open(full, encoding="utf-8", errors="replace") as f:
+            text = f.read(limit + 1 if limit >= 0 else -1)
+    except (OSError, ValueError):
+        return None
+    return None if 0 <= limit < len(text) else text
+
+
+def _go_pairs(tool_input: Dict[str, object]) -> List[Tuple[str, str, bool]]:
+    """(old, new, replace_all) của Edit/MultiEdit; NotebookEdit `new_source` là đoạn mới không có đoạn cũ."""
+    edits = tool_input.get("edits")
+    if not isinstance(edits, list):
+        new = tool_input.get("new_string", tool_input.get("new_source"))
+        edits = [{**tool_input, "new_string": new}]
+    return [
+        (_text(e.get("old_string")), _text(e.get("new_string")), e.get("replace_all") is True)
+        for e in edits
+        if isinstance(e, dict)
+    ]
+
+
+def _go_texts(disk: Optional[str], tool_input: Dict[str, object]) -> Tuple[str, str, bool]:
+    """(trước, sau, loose) của lần ghi: Write → file trên đĩa `disk` (không đọc được = rỗng) và `content`; Edit/MultiEdit
+    → áp lần lượt old→new lên `disk`; không đọc được file hay `old_string` không có trong đó → chính các đoạn
+    old/new (`loose`)."""
+    if "content" in tool_input:
+        return disk or "", _text(tool_input.get("content")), False
+    pairs, after = _go_pairs(tool_input), disk
+    for old, new, every in pairs:
+        if after is None or not old or old not in after:
+            return "\n".join(p[0] for p in pairs), "\n".join(p[1] for p in pairs), True
+        after = after.replace(old, new, -1 if every else 1)
+    return disk or "", after or "", False
+
+
+def _go_sign_deny(path: str, rel: str, root: str, tool_input: Optional[Dict[str, object]]) -> str:
+    """Lý do deny khi lần ghi vào `GO-NO-GO*.md` (tên hay đích symlink) thêm hoặc đổi dòng ký §5; không thì ''."""
+    if not tool_input or not (_is_go_no_go(path) or _is_go_no_go(rel)):
+        return ""
+    disk = _go_read(os.path.join(root, rel))
+    before, after, loose = _go_texts(disk, tool_input)
+    old_rows, new_rows = _go_sign_rows(before, loose), _go_sign_rows(after, loose)
+    new = sorted(new_rows - old_rows)
+    if new:
+        row = ("| " + " | ".join(new[0]) + " |")[:160]
+        return f"Không ghi dòng ký §5 vào {rel} (`{row}`): {GO_SIGN_WHY} — agent lập phần máy, để trống ô Tên/Ngày."
+    # dòng ký còn lại sau lần ghi; `loose` (không áp được lên file) → của file trừ dòng đoạn cũ bỏ, cộng dòng đoạn mới
+    signed = _go_sign_rows(disk or "")
+    kept = ((signed - old_rows) | new_rows) if loose else new_rows
+    if signed and kept and _go_anchors(before) != _go_anchors(after):
+        return f"Không đổi tiêu đề/dòng `subject:` của {rel}: {GO_REBIND_WHY} (D-392); {GO_SIGN_WHY}."
+    return ""
+
+
+def _go_anchors(text: str) -> Tuple[str, List[str]]:
+    """(tiêu đề `# ` đầu tiên ngoài frontmatter, các dòng `subject:` đã sắp) — thứ gắn chữ ký với ứng viên (D-392)."""
+    title = GO_TITLE_RE.search(GO_FRONT_RE.sub("", text, count=1))
+    return (title[0].strip() if title else ""), sorted(m[0].strip() for m in GO_SUBJECT_RE.finditer(text))
+
+
 def edit_decision(path: str, root: str, tool_input: Optional[Dict[str, object]] = None) -> Tuple[str, str]:
     rel = rel_path(path, root)
     kind = path_kind(rel, root)
@@ -751,6 +875,9 @@ def edit_decision(path: str, root: str, tool_input: Optional[Dict[str, object]] 
         or _git_hook_target(path, root)
     ):
         return "deny", GIT_HOOK_WHY.format(rel) + "."
+    signed = _go_sign_deny(path, rel, root, tool_input)
+    if signed:
+        return "deny", signed
     if kind == "capability":
         return "ask", "Sửa cấu hình " + CAPABILITY_WHY.format(rel) + "."
     if kind == "secret" and not build_local_secret(path, root, root):
@@ -2884,9 +3011,49 @@ def _patch_cmd(argv: List[str]) -> bool:
     return n[:1] in (["patch"], ["gpatch"]) or n[:2] in (["git", "apply"], ["git", "am"])
 
 
+# Review #469 🔴: git/GNU patch giải tên có nháy kiểu C (`"b/\107O-NO-GO.md"` = `GO-NO-GO.md` — git `unquote_c_style`,
+# patch `parse_c_string`) và cắt timestamp cách tên bằng DẤU CÁCH (`+++ b/x.md 2026-11-07 10:00:00 +0700`); `diff --git`
+# không nháy được có dấu cách trong tên (`a/x y.md b/x y.md`). Ứng viên THÊM vào kết quả của `PATCH_HEADER_RE` (không
+# bớt — luật AUD-SEC-414 dùng chung): mọi đoạn có nháy đã giải; phần không nháy (tới tab đầu) cắt ở khoảng trắng — tiền tố
+# (cả dòng `diff --git`: hậu tố), tối đa `PATCH_HEADER_CUTS` chỗ đầu và 4 chỗ cuối (tên dài bị chặn đường quét).
+PATCH_HEADER_LINE_RE = re.compile(
+    r"^((?:\+\+\+|---|\*\*\*|Index:) |(?:rename|copy) (?:from|to) |diff --git )(.*?)\r?$", re.M
+)
+PATCH_QUOTED_RE = re.compile(r"\"((?:[^\"\\\n]|\\.)*)\"")
+PATCH_HEADER_CUTS = 16
+C_ESCAPES = {"a": 7, "b": 8, "t": 9, "n": 10, "v": 11, "f": 12, "r": 13}
+C_OCTAL_RE = re.compile(r"\\([0-7]{1,3})|\\(.)|([^\\]+)|\\$", re.S)
+
+
+def _c_unquote(s: str) -> str:
+    """Giải phần trong nháy kiểu C của git: `\\NNN` bát phân → byte (ghép UTF-8), `\\t \\n \\a \\b \\f \\r \\v`, `\\x` khác
+    → `x`; byte không phải UTF-8 → ký tự thay thế."""
+    out = bytearray()
+    for m in C_OCTAL_RE.finditer(s):
+        octal, esc, plain = m.groups()
+        if octal:
+            out.append(int(octal, 8) & 0xFF)
+        elif esc:
+            out += bytes([C_ESCAPES[esc]]) if esc in C_ESCAPES else esc.encode()
+        else:
+            out += (plain or "\\").encode()
+    return out.decode("utf-8", "replace")
+
+
+def _header_cuts(value: str, suffixes: bool) -> List[str]:
+    """Tên có thể của phần không nháy: cắt ở khoảng trắng (tiền tố, `suffixes` thì cả hậu tố)."""
+    head = value.split("\t", 1)[0].rstrip()
+    spaces = [m.start() for m in re.finditer(r"\s", head)]
+    spaces = list(dict.fromkeys(spaces[:PATCH_HEADER_CUTS] + spaces[-4:]))
+    return [head[:i].rstrip() for i in spaces] + ([head[i + 1 :].strip() for i in spaces] if suffixes else [])
+
+
 def _patch_header_paths(text: str) -> List[str]:
     out = [g for m in PATCH_HEADER_RE.finditer(text) for g in m.groups() if g]
-    return [p for p in dict.fromkeys(out) if _norm_path(p) != "/dev/null"]
+    for m in PATCH_HEADER_LINE_RE.finditer(text):
+        out += [_c_unquote(q) for q in PATCH_QUOTED_RE.findall(m[2])]
+        out += [] if m[2].startswith('"') else _header_cuts(m[2], m[1] == "diff --git ")
+    return [p for p in dict.fromkeys(out) if p and _norm_path(p) != "/dev/null"]
 
 
 def _patch_candidates(path: str) -> List[str]:
@@ -7586,6 +7753,7 @@ def mcp_decision(tool_name: str, tool_input: Dict[str, object], root: str) -> Tu
     if MCP_REVIEW_POST_RE.fullmatch(tool_name) and any(REVIEW_MARK_RE.search(s) for s in _strings(tool_input)):
         return "deny", f"Lệnh bị khung chặn ({REVIEW_FORGE_WHY}): {tool_name}"
     hit = mcp_attribution(tool_name, tool_input, root) or mcp_title(tool_name, tool_input, root)
+    hit = hit or _mcp_go_sign_why(tool_name, tool_input)
     if hit:
         return "deny", hit
     if not MCP_MERGE_RE.fullmatch(tool_name):
@@ -9508,8 +9676,186 @@ def _write_asks(
         for t, k in restored
         if k == "secret" and not build_local_secret(t, root, cwd)
     ]
-    asks += _ledger_asks(n, argv, root, cwd)
+    asks += _ledger_asks(n, argv, root, cwd) + _go_sign_asks(n, argv, targets, root, cwd)
     return asks + [EVIDENCE_WHY.format(f"git {n[1]} {t}") for t, k in restored if k == "evidence"]
+
+
+def _go_glob_hit(x: str) -> bool:
+    """Đích tuyệt đối có glob ở tên (`/…/docs/ops/*.md`) mà shell nở ra được một `GO-NO-GO*.md` đang có trong thư mục
+    (thư mục viết chữ; quá `OUTSIDE_SCAN_MAX` mục hay không đọc được thì không xét — giới hạn ghi ở harness-files)."""
+    d, base = posixpath.split(x)
+    if not GO_GLOB_CHARS & set(base) or GO_GLOB_CHARS & set(d) or not posixpath.isabs(d):
+        return False
+    return any(_is_go_no_go(e) and fnmatch.fnmatchcase(e, base) for e in _outside_names(d) or [])
+
+
+def _go_sign_asks(n: List[str], argv: List[str], targets: List[str], root: str, cwd: Optional[str]) -> List[str]:
+    """Bash ghi/dời/khôi phục `GO-NO-GO*.md` (tên, đích symlink có sẵn, glob nở ra file đó), tạo liên kết tới nó
+    (AUD-SEC-533) hay lệnh ngoài danh sách trắng nêu tên nó (AUD-SEC-535) → chặn: guard không so được dòng ký §5 như ở
+    Edit (AUD-SEC-497). Xoá cả file (`rm`, `git rm`) và `touch` (chỉ đổi mtime — AUD-SEC-537) cho chạy."""
+    if n[:1] and n[0] in GO_DELETERS or n[:2] == ["git", "rm"]:
+        return []
+    if n[:1] == ["touch"]:  # đích của touch không đổi nội dung; chuyển hướng của lệnh vẫn là ghi
+        targets = [argv[k + 1] for k, t in enumerate(argv[:-1]) if t in REDIRECTS]
+    links = _go_link_sources(n)
+    hits = [
+        t
+        for t in dict.fromkeys([*targets, *_git_file_targets(n), *links])
+        if any(_is_go_no_go(x) or _go_glob_hit(x) for x in [t, *_where(t, root, cwd), *_real_targets(t, root, cwd)])
+    ]
+    hits += [t for t in _go_argv_hits(n, argv, root, cwd) if t not in hits]
+    return [GO_SIGN_BASH_WHY.format(t + (" — nguồn liên kết" if t in links else "")) for t in hits]
+
+
+def _go_link_sources(n: List[str]) -> List[str]:
+    """AUD-SEC-533: toán hạng của `ln`/`link`/`cp -l|--link` — liên kết cứng chung inode: ghi tên trung tính là ghi
+    GO-NO-GO mà luật tên không thấy (cả đích lẫn nguồn; `ln -s` cũng tính, chiều chặt)."""
+    if n[:1] == ["link"]:
+        return _positionals(n[1:])
+    if n[:1] == ["ln"] or n[:1] == ["cp"] and _copy_opts("cp", n[1:])[2] & {"l", "link"}:
+        return _copy_opts(n[0], n[1:])[1]
+    return []
+
+
+def _go_reader(n: List[str], argv: List[str]) -> bool:
+    """Lệnh mà từ khớp `GO-NO-GO*.md` chỉ là nguồn đọc (AUD-SEC-535): danh sách trắng chỉ đọc của ADR-0066
+    (`_reuse_reader`), trình xem, lệnh git đọc/đích đã mô hình, `find` không hành động ghi, công cụ kiểm không cờ sửa, lệnh
+    đã mô hình đích ghi (`GO_MODELLED`). Lệnh bọc `normalize` bóc (`env`, `command`, `nice`, `timeout`) trong suốt; gán
+    biến đổi chương trình lệnh đọc chạy (`REUSE_ENV_RE`: `PATH`/`GIT_*`/`LESS*` — `LESSOPEN=… less`, D-329) mất miễn."""
+    head = posixpath.basename(n[0])
+    k = next((i for i, a in enumerate(argv) if posixpath.basename(a) == head), 0)
+    if any(REUSE_ENV_RE.fullmatch(a) for a in argv[:k]):
+        return False
+    if head == "git":  # `git -c`/`-C` trước lệnh con: mất miễn
+        return argv[k + 1 : k + 2] == n[1:2] and "".join(n[1:2]) in GO_GIT_READS
+    if head == "find":
+        return _find_exec_readonly(" ".join(n[1:]))
+    if head in GO_CHECKERS:
+        return not any(a.split("=")[0] in GO_CHECKERS[head] for a in n[1:])
+    return head in GO_MODELLED or head in GO_PAGERS or _reuse_reader(n)
+
+
+def _go_argv_hits(n: List[str], argv: List[str], root: str, cwd: Optional[str]) -> List[str]:
+    """Từ của lệnh ngoài `_go_reader` khớp `go-no-go*.md` (sau `=`/`:` cuối; glob nở ra file có sẵn); họ đổi tên/archive
+    đổi tên thành viên: từ có chữ `go-no-go` (AUD-SEC-535)."""
+    if not n or _go_reader(n, argv):
+        return []
+    words = {posixpath.basename(a) for a in n}
+    xform = words & GO_ARCHIVERS and any(a.startswith(GO_XFORM_OPTS) or a == "-s" for a in n)
+    if words & GO_RENAMERS or xform:
+        return [a for a in n if GO_NAME_PART in a.lower()]
+    return [
+        a for a in n[1:] if _go_word(a) or GO_GLOB_CHARS & set(a) and any(_go_glob_hit(x) for x in _where(a, root, cwd))
+    ]
+
+
+def _go_word(a: str) -> bool:
+    """Từ là đường dẫn tới `GO-NO-GO*.md` (phần sau `=`/`:` cuối); phần thư mục có khoảng trắng là câu chữ (thân
+    `--body "đã lập docs/ops/GO-NO-GO-x.md"`), không phải đường dẫn."""
+    p = re.split(r"[=:]", a)[-1]
+    return _is_go_no_go(p) and not re.search(r"\s", posixpath.dirname(p))
+
+
+# AUD-SEC-534: `patch`/`git apply`/`git am` đọc diff từ tệp/stdin — đích nằm trong diff, guard không thấy. Dự án có
+# `GO-NO-GO*.md` ở `GO_NO_GO_DIRS` (như `release-check` tìm) → chặn, TRỪ khi mọi diff là tệp nêu nguyên văn, đọc được
+# (tệp thường ≤ `GO_PATCH_MAX` ký tự, mọi thư mục ứng viên) và không header nào là `GO-NO-GO*.md`; mbox mã hoá MIME
+# (`git am`) không đọc được header → chặn. Diff trong thân heredoc/chữ đổ qua ống do `_patch_fence_scripts` xét.
+# AUD-SEC-539: tệp diff đọc được có header `GO-NO-GO*.md` (tạo mới, đổi tên tới) → chặn cả ở dự án chưa có GO-NO-GO.
+GO_NO_GO_DIRS = ("docs/ops", "docs", "")
+GO_PATCH_MAX = 1 << 20
+GIT_PATCH_VALS: Tuple[str, ...] = ("-p", "-C", "--exclude", "--include", "--directory", "--whitespace")
+GIT_PATCH_VALS += ("--build-fake-ancestor", "--patch-format", "--resolvemsg")
+PATCH_VALS = ("-p", "-i", "-o", "-d", "-B", "-r", "-z", "-V", "-D", "-F", "-g", "--output", "--input")
+PATCH_DRY = frozenset("--check --stat --numstat --summary --dry-run --abort --quit --show-current-patch".split())
+GO_DIFF_CLEAR, GO_DIFF_BLIND, GO_DIFF_TOUCHES = "clear", "blind", "touches"  # trạng thái tệp diff (`_go_diff_state`)
+MIME_ENCODED_RE = re.compile(r"^content-transfer-encoding:[ \t]*(?:base64|quoted-printable)", re.I | re.M)
+GO_PATCH_WHY = (
+    "`patch`/`git apply`/`git am` với diff guard không đọc được hay chạm GO-NO-GO ({}) — "
+    + GO_SIGN_WHY
+    + "; guard chỉ cho diff là tệp thường nêu ở đối số/`< tệp` (≤ 1 MiB) không có header `GO-NO-GO*.md` — sửa GO-NO-GO"
+    " bằng Edit để guard so dòng ký"
+)
+
+
+def _go_patch_asks(
+    cmd: str, placed: List[Tuple[List[str], Cands]], root: str, cwd: Optional[str], strict: bool
+) -> List[str]:
+    """AUD-SEC-534: lệnh áp diff không thấy đích (như `_patch_file_why`): diff đọc được có header `GO-NO-GO*.md` → chặn
+    bất kể dự án đã có GO-NO-GO chưa (AUD-SEC-539: diff tạo mới GO-NO-GO đã ký); diff không đọc được → chặn chỉ ở dự án
+    có GO-NO-GO (`_go_on_disk` — không chặn oan dự án không dùng). Lớp danh sách trắng (`strict` + `_allowlist_why`) đã
+    chặn chắc lệnh này (BUDGET kèm cách viết lại — `_argv_shell_check`) → nhường, giữ mã đó."""
+    if not PATCH_WORD_RE.search(cmd):
+        return []
+    cmds = _reuse_cmds(cmd, 0)
+    blind = [c for j, c in enumerate(cmds) if c.top and _patch_applies(c.argv) and not _patch_targets_at(cmds, j)]
+    if not blind:
+        return []
+    states = [(a, _go_patch_state(a, cands)) for a, cands in placed if _patch_applies(a)]
+    bad = [a for a, s in states if s == GO_DIFF_TOUCHES]
+    if not bad and _go_on_disk(root):
+        bad = [a for a, s in states if s == GO_DIFF_BLIND] or ([] if states else [blind[0].argv])
+    if not bad or strict and _allowlist_why(cmd, root, cwd):
+        return []
+    return [GO_PATCH_WHY.format(" ".join(bad[0])[:160])]
+
+
+def _patch_applies(argv: List[str]) -> bool:
+    """`_patch_cmd` mà không chỉ kiểm/thống kê/dừng (`--check`, `--stat`, `--dry-run`, `git am --abort`…)."""
+    n = normalize(argv)
+    return _patch_cmd(argv) and ("--apply" in n or not PATCH_DRY & set(n))
+
+
+def _go_on_disk(root: str) -> bool:
+    """Dự án có `GO-NO-GO*.md` ở `GO_NO_GO_DIRS`; thư mục không đọc được (khác không có) → coi như có (chiều chặt)."""
+    for d in GO_NO_GO_DIRS:
+        try:
+            with os.scandir(os.path.join(root, d)) as it:
+                if any(_is_go_no_go(e.name) for e in it):
+                    return True
+        except (FileNotFoundError, NotADirectoryError):
+            continue
+        except OSError:
+            return True
+    return False
+
+
+def _patch_sources(argv: List[str]) -> List[str]:
+    """Tệp diff nêu nguyên văn của lệnh áp diff (`-i`/`--input`, toán hạng của `git apply|am`, `< tệp`); stdin (`-`,
+    không nêu tệp, heredoc/here-string) → rỗng. `patch` có toán hạng file gốc: đích đã mô hình — trả `[""]`."""
+    if any(t in ("<<", "<<-", "<<<") for t in argv):
+        return []
+    ins = [argv[k + 1] for k, t in enumerate(argv[:-1]) if t == "<"]
+    n = _no_redirects(normalize(argv))
+    if n[0] in ("patch", "gpatch"):
+        if _positionals(n[1:], PATCH_VALS):
+            return [""]
+        srcs = _flag_values(n[1:], ("-i", "--input")) + ins
+    else:
+        srcs = _positionals(n[2:], GIT_PATCH_VALS) + ins + (["-"] if "-" in n[2:] else [])
+    return [] if "-" in srcs else srcs
+
+
+def _go_patch_state(argv: List[str], cands: Cands) -> str:
+    """Trạng thái diff của một lệnh áp diff: có tệp diff (ở thư mục ứng viên nào) có header `GO-NO-GO*.md` → `touches`;
+    không thì có diff không đọc được (stdin, không có, quá lớn, mbox mã hoá) → `blind`; còn lại `clear`."""
+    srcs = _patch_sources(argv)
+    if srcs == [""]:
+        return GO_DIFF_CLEAR
+    am = normalize(argv)[1:2] == ["am"]
+    states = {_go_diff_state(s, d, am) for s in srcs for d in cands} if srcs else {GO_DIFF_BLIND}
+    return GO_DIFF_TOUCHES if GO_DIFF_TOUCHES in states else GO_DIFF_BLIND if GO_DIFF_BLIND in states else GO_DIFF_CLEAR
+
+
+def _go_diff_state(src: str, here: Optional[str], am: bool) -> str:
+    path = os.path.expanduser(src)
+    if not posixpath.isabs(path):
+        if here is None:  # thư mục không biết (D-106): không biết đọc tệp nào
+            return GO_DIFF_BLIND
+        path = posixpath.join(here, path)
+    text = _go_read(path, GO_PATCH_MAX)
+    if text is None or am and MIME_ENCODED_RE.search(text):
+        return GO_DIFF_BLIND
+    return GO_DIFF_TOUCHES if any(_is_go_no_go(p) for p in _patch_header_paths(text)) else GO_DIFF_CLEAR
 
 
 # sổ giai đoạn và thư mục tổ tiên của nó (`docs/autopilot`, `docs`)
@@ -10369,6 +10715,26 @@ def _mcp_issue_update(tool_name: str, tool_input: Dict[str, object]) -> bool:
 # cho chạy, strict hỏi — ADR-0018); chạy lại/huỷ lần chạy như `gh run rerun|cancel` → không phản đối.
 MCP_ACTIONS_TRIGGER_RE = re.compile(r"mcp__.+__actions_run_trigger")
 ACTIONS_RERUN_METHODS = frozenset({"rerun_workflow_run", "rerun_failed_jobs", "cancel_workflow_run"})
+
+
+# AUD-SEC-536: tool MCP ghi file vào repo trên forge (GitHub `create_or_update_file`: `path`+`content`; `push_files`:
+# `files[].path/content`) — guard không đọc được bản trên remote để so như Edit, nên GO-NO-GO có dòng ký §5 → deny
+# (cả khi dòng ký đã có sẵn). Payload lạ (không phải chuỗi/danh sách) → không phản đối.
+MCP_GO_WRITE_RE = re.compile(r"mcp__.+__(create_or_update_file|push_files)")
+
+
+def _mcp_go_sign_why(tool_name: str, tool_input: Dict[str, object]) -> str:
+    if not MCP_GO_WRITE_RE.fullmatch(tool_name):
+        return ""
+    files = tool_input.get("files")
+    for f in [tool_input, *(files if isinstance(files, list) else [])]:
+        path, content = (f.get("path"), f.get("content")) if isinstance(f, dict) else (None, None)
+        if isinstance(path, str) and isinstance(content, str) and _is_go_no_go(path) and _go_sign_rows(content):
+            return (
+                f"Lệnh bị khung chặn ({GO_SIGN_WHY}): {tool_name} ghi `{path[:120]}` có dòng ký §5 — guard không so được"
+                " với bản trên remote; sửa GO-NO-GO cục bộ bằng Edit (để trống ô Tên/Ngày) rồi commit/push bằng git."
+            )
+    return ""
 
 
 def _mcp_actions_verdict(tool_name: str, tool_input: Dict[str, object]) -> Tuple[str, str]:
@@ -13381,10 +13747,15 @@ def interp_write_asks(
         # `t.extract(m, "docs")`, `dircopy(…, "docs/autopilot")` — AUD-SEC-340
         asks += [EVIDENCE_WHY.format(lit) for lit in _ledger_dest_hits(script, root, here)]
         hint, ro, probe = bool(WRITE_HINT_RE.search(script)), _ReadOnly(script, families), _WriteProbe(script)
+        lits = _script_literals(script, families) + (_ipython_magic_words(script) if ipython else [])
         asks += [
-            a
-            for raw in _script_literals(script, families) + (_ipython_magic_words(script) if ipython else [])
-            if (a := _interp_literal_ask(script, raw, root, here, hint, ro, probe, pending_bare))
+            a for raw in lits if (a := _interp_literal_ask(script, raw, root, here, hint, ro, probe, pending_bare))
+        ]
+        # AUD-SEC-497: tên `GO-NO-GO*.md` nguyên văn trong script không chỉ đọc (D-105) — như chuyển hướng vào file đó
+        asks += [
+            GO_SIGN_BASH_WHY.format(f"{raw} — script trình thông dịch")
+            for raw in lits
+            if _is_go_no_go(PERL_OPEN_MODE_RE.sub("", raw)) and (not ro or probe(raw))
         ]
     return asks
 
@@ -14514,6 +14885,7 @@ def _bash_decision(
     simple = split_commands(tokens)
     single = whole and len(simple) == 1  # dạng chữ rõ của ADR-0069 chỉ khi cả lệnh là một lệnh đơn (review harden F1)
     asks += [STAGE_APPROVE_WHY] if any(_stage_approve_denied(c, root, cwd, single) for c in simple) else []
+    asks += _go_patch_asks(cmd, placed, root, cwd, strict)  # AUD-SEC-534: diff từ tệp/stdin ở dự án có GO-NO-GO
     braces = brace_variants(cmd)
     nested_deny = (
         "Lệnh quá phức tạp để guard quét hết (brace expansion quá nhiều biến thể): chia nhỏ lệnh."
@@ -14615,6 +14987,7 @@ REASON_CODES: Tuple[Tuple[str, str], ...] = (
     ("ghi file bí mật qua Bash", "SECRET_WRITE"),
     ("bằng chứng review", "REVIEW_FORGE"),
     ("duyệt giai đoạn sản phẩm", "STAGE_APPROVE"),  # chỉ người duyệt giai đoạn (ADR-0058; agent khi ADR-0069)
+    (GO_SIGN_WHY, "GO_SIGN"),  # dòng ký §5 của GO-NO-GO là của người (AUD-SEC-497, D-390)
     ("tay bằng chứng", "EVIDENCE_HANDWRITE"),  # ghi/xoá tay `.autopilot/` = bằng chứng giả (ADR-0026)
     ("lệnh đã mã hoá/nén", "OPAQUE_EXEC"),  # `… | base64 -d | sh` từ nguồn guard không giải được
     (BASH_ENV_MARK, "OPAQUE_EXEC"),  # `BASH_ENV=f bash -c true`: bash nạp file guard không đọc (AUD-SEC-250)

@@ -3,7 +3,7 @@ title: Điểm dừng bắt buộc, mức tin cậy T0–T4, leo thang
 kind: module
 prefix: LOOP-STOP
 applies_to: [all]
-updated: 2026-11-05
+updated: 2026-11-07
 ---
 
 # Điểm dừng bắt buộc, mức tin cậy T0–T4, leo thang
@@ -94,6 +94,7 @@ chuyên môn. Guard **không hỏi người** (ADR-0018): bộ luật vẫn tín
 | Ra khỏi máy dev | `ssh`/`scp`/`rsync` tới máy khác, `psql`/`mysql` tới máy chủ không cục bộ, `curl`/`wget` gửi dữ liệu ra ngoài, thêm phụ thuộc (`pnpm add`, `pip install <gói>`), container trên daemon máy khác | Cho chạy; gửi file bí mật/biến môi trường ra mạng, container có quyền máy chủ → **deny** | Review PR |
 | Merge thay đổi rủi ro cao | Chạm auth, mật mã, dữ liệu nhạy cảm, luật ngành | Luôn làn kiến trúc; `merge-check` `hard` → agent merge bị **deny** (`merge_hard_exceptions: auto` → CI + reviewer máy, ADR-0020); máy chỉ merge ghim head sau `merge-check` ở đúng head và không bao giờ bật auto-merge, nên push commit `hard` vào PR đang mở không tự merge (ADR-0036); `risk_tags` ≠ rỗng → thêm review bảo mật (`LOOP-STOP-005`) | Người phê duyệt bảo mật |
 | Duyệt giai đoạn sản phẩm | Nghiệm thu MVP/hoàn thiện/tối ưu, công nhận dự án đã chạy (ADR-0058) | `xt.py stage approve`/`init --adopt` từ chối trong phiên agent — trừ `stage approve` khi xt.yaml (cây **và** bản đã commit ở nhánh chính) khai `stage_approval: agent` (ADR-0069): agent duyệt bản trình còn nguyên của **giai đoạn 1 (MVP)**, khoá bật thì mọi người duyệt đều cần bản còn nguyên, `next-step` trả `stage-approve`; khoá vắng: guard **deny** lệnh đó, agent `stage submit` rồi dừng; ghi tay `docs/autopilot/STAGE.json` luôn deny; `loop init/next/record` từ chối PLAN của giai đoạn khoá; xoá/dời sổ đã có trong git → chặn | Người: `stage approve --sha <bản đã trình> --note …` ở terminal riêng |
+| Ký phát hành | Dòng ký §5 của `GO-NO-GO*.md` (đầu vào `promotion: approved` của `release-check`; mẫu GO-NO-GO §5, ADR-0068 §Quyết định 3a) | Edit/Write thêm hay đổi dòng ký (tên + ngày), hay đổi tiêu đề/dòng `subject:` của file đã ký (D-392) → **deny** `GO_SIGN`; Bash ghi file đó (cả liên kết tới nó, diff từ tệp/stdin không đọc được hay chạm nó, lệnh ngoài danh sách trắng nêu tên nó) và MCP ghi file đó có dòng ký → **deny**; agent lập phần máy, để trống ô Tên/Ngày (AUD-SEC-497; giới hạn: `harness-files.md` §Giới hạn) | Người ký §5 |
 | Bế tắc máy | Cùng chữ ký lỗi lần 3, ngân sách/hạn hết | `loop record` tự đặt `blocked`; verdict `budget` | Lỗi lặp: người xem rồi `loop unblock --reason …`; hết ngân sách/hạn: `loop init --plan <đợt kế>` |
 
 **Lệnh ngoài tập con guard (ADR-0063) và cách viết thay.** Guard chỉ cho chạy chữ bash nó đọc chắc; cấu trúc ngoài tập con
