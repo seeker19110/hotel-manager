@@ -48,9 +48,9 @@
     "xt.yaml": "sha256:9379e2efcc5a5f553541ed361094eebd463affad18420b527377d4490185e448"
   },
   "git_hooks": [
-    "/home/liend/hotel-manager/.git/hooks/commit-msg",
-    "/home/liend/hotel-manager/.git/hooks/pre-commit",
-    "/home/liend/hotel-manager/.git/hooks/pre-push"
+    ".git/hooks/commit-msg",
+    ".git/hooks/pre-commit",
+    ".git/hooks/pre-push"
   ],
   "policy": {
     "ask_removal": "manifest-only"
