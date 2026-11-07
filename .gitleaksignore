@@ -51,6 +51,3 @@ d6d1268d867f6fb822fa1bad57465d1609115ac1:packages/app/src/reconciliation/reconci
 # (#84, nâng khung 3.5.1). Giữ fingerprint để `gitleaks git --log-opts=--all` (WF-GIT-010) không đỏ.
 d893db2b63d55ad4549b3e809595d7be424f9773:packages/app/src/access/support-access.db.test.ts:generic-api-key:27
 ba46c5bfc20c4da9484969f727fc352122ea9a2f:packages/app/src/reconciliation/reconciliation.db.test.ts:generic-api-key:30
-# Cùng chuỗi giả SECRET của reconciliation.db.test.ts (dòng trên) xuất hiện lại ở commit squash 14b5747 (#95) — thấy khi
-# chạy lại WF-GIT-010 trên mọi ref 2026-11-06 (máy phiên trước đó chưa có gitleaks). Không phải bí mật thật.
-14b574719a112c0e10d143087573a2f94eb25d21:packages/app/src/reconciliation/reconciliation.db.test.ts:generic-api-key:30

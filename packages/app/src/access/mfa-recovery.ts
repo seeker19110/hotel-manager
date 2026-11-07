@@ -40,7 +40,7 @@ export async function resetMemberMfa(
     select auth_user_id, role, status from memberships where organization_id = ${ctx.actor.orgId} and id = ${membershipId}
     for update`.execute(ctx.trx);
   const target = m.rows[0];
-  // Chỉ nhân viên (T-2615, AUD-SEC-008): tài khoản hỗ trợ nền tảng/người thuê không phải đích — 404 như member.updateRole.
+  // Chỉ nhân viên (T-2615, AUD-SEC-008): tài khoản hỗ trợ nền tảng/người thuê không phải đích — 404 (không lộ tồn tại; chặt hơn member.updateRole trả 409 members_staff_only).
   if (!target || target.status === "revoked" || !STAFF.has(target.role))
     throw new CommandError("NOT_FOUND", 404, t("access.member_not_found"));
   if (!target.auth_user_id) throw new CommandError("INVALID_TRANSITION", 409, t("access.member_no_login"));

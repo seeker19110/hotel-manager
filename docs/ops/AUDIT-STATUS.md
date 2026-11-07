@@ -108,6 +108,8 @@
 | AUD-SEC-013 | 🟢 | mở | Collector: khoá có nháy kiểu util.inspect (`{ 'x-api-key': 'v', 'x-auth-token': 'v' }` — console.log(req.headers)) và header không tiền tố `x-` (`api-key: v`, `private-token: v`) lọt | đo được: review #153 lượt 3 (rv153/cases5.json, otelcol 0.161) |  | nợ-review: #153 · `['"]?` quanh khoá trong mẫu dấu hai chấm; cân nhắc che nhầm văn "token: …" |
 | AUD-SEC-014 | 🟢 | mở | Collector: JSON hợp lệ thiếu cả `service` lẫn `msg` giữ body thô, mẫu cặp JSON chỉ lồng một tầng ⇒ giá trị nhạy cảm lồng ≥ 2 tầng lọt ở body (và chuỗi JSON lồng 2 tầng trong attribute) | đo được: review #153 lượt 3 (cases4.json) |  | nợ-review: #153 · làm rỗng body mọi dòng parse được thiếu msg, hoặc mẫu 2–3 tầng |
 | AUD-SEC-015 | 🟢 | mở | Collector: giá trị nháy kép kiểu inspect (`password: "it's v"`) lọt; `password="pa\"v" end` lộ đuôi sau `\"` | đo được: review #153 lượt 3 |  | nợ-review: #153 · thêm nhánh `"(?:[^"\\]\|\\.)*"` |
+| AUD-TEST-010 | 🟢 | mở | migration-cli DOWN_GUARDS: đột biến `at <= current` → `at < current` sống (mọi ca test có current = 0080; biên chỉ có tác dụng khi DB dừng đúng ở 0072) | đo được: review 68cc054 (đột biến M4) |  | nợ-review: #153 · ca test DB dừng ở 0072 rồi down về 0071 |
+| AUD-SEC-016 | 🟢 | mở | Cùng loại UUID viết HOA: `shifts.ts:196` so `input.toMembershipId === s.opened_by` phân biệt hoa/thường (đóng an toàn nhờ CHECK ck_shifts_handover_self) — nên chuẩn hoá ở schema: `z.uuid().transform(toLowerCase)` tại http/command-inputs.ts | suy luận: review 68cc054 đọc mã, chưa chạy |  | Có từ trước · "mỗi lỗi lặp → một hàng rào": chuẩn hoá UUID một chỗ |
 
 ## Delta đợt 25 (2026-11-01, D-139…D-153)
 

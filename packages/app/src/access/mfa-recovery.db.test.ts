@@ -196,7 +196,7 @@ describe("member.resetMfa (access Q-08)", () => {
     expect(await reset(O2, f.actor.membershipId)).toMatchObject({ status: "committed" });
   });
 
-  it("T-2615 (AUD-SEC-008): owner KHÔNG đặt lại MFA/thu hồi phiên của tài khoản hỗ trợ nền tảng hay người thuê — 404 như member.updateRole, giữ nguyên 2FA và phiên", async () => {
+  it("T-2615 (AUD-SEC-008): owner KHÔNG đặt lại MFA/thu hồi phiên của tài khoản hỗ trợ nền tảng hay người thuê — 404, giữ nguyên 2FA và phiên", async () => {
     const supportUser = await seedAuthUser(t.admin, `support+${randomUUID().slice(0, 6)}@example.test`);
     const supportPerson = randomUUID();
     await sql`insert into persons (id, organization_id, full_name) values (${supportPerson}, ${A.orgId}, 'Hỗ trợ nền tảng')`.execute(
