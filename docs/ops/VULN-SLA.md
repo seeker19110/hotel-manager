@@ -47,6 +47,8 @@ Node 24.22.2 ghim lại digest theo [chỉ mục phát hành Node](https://nodej
 
 2026-11-01 (D-151): full scan phát hiện x/net0.61.0 có GO-2026-6866/GO-2026-6860 (severity Unknown, vá0.62.0) và chi5.3.2 có GHSA-j6qf-3m9c-vwj3 (Medium, vá5.4.0). Đã pin các bản vá tương ứng cho hai image, giữ compiler/service pins, chạy module tests và dựng/quét lại; không chờ ngưỡng High mới xử lý.
 
+2026-11-06 (#152, AUD-DOC-007): DB grype 2026-11-06 thêm GO-2026-6865 (High, `klauspost/compress`, vá 1.20.2) và GO-2026-6888 (Critical, KEV — CVE-2026-111497 bản **Go** `andybalholm/brotli`, vá 1.2.7; bản C `brotli-libs` đã xử lý trước đó). Caddy: compress 1.20.1 → 1.20.2 (gián tiếp, go.mod). SeaweedFS (weed): compress là phụ thuộc **trực tiếp** 1.19.2 → 1.20.2 (nâng minor) và brotli 1.2.2 → 1.2.7, ghim ở bước `go get` của Dockerfile. Không đổi tag/commit dịch vụ hay Go, không thêm ignore; image-scan cả hai xanh trên cùng DB.
+
 Bằng chứng hai image Go mới: [go-images-2026-11-01.json](evidence/go-images-2026-11-01.json). Cả hai còn ba match Medium CVE-2025-60876 ở busybox/busybox-binsh/ssl_client chưa có fixed version trong DB hiện tại; Caddy còn1High+2Medium v3 nêu trên. Không có ignore mới và không khai toàn bộ image sạch.
 
 Hai advisory `extract-zip` (`GHSA-jmr9-qjv8-65gv`, `GHSA-7pqw-9j4j-h8q3`) qua LHCI chưa có bản sửa tại lượt rà 2026-11-01;
@@ -79,4 +81,4 @@ Nguồn cấu hình artifact: [Next standalone](https://nextjs.org/docs/app/api-
 
 | Image / gói | Mã (mức) | Sửa ở | Hạn rà lại | Giảm nhẹ / ghi chú |
 |---|---|---|---|---|
-| Phụ thuộc dev `zod` 3.25.76 (qua `@lhci/cli` → lighthouse → puppeteer-core → chromium-bidi) | GHSA-mrhx-c7xc-m3w5 (High) | zod 4.6.6 (đổi major) | 2026-11-08 | Chỉ chạy trong job `lighthouse` của CI, không vào bundle/production; zod 4.x của dự án đã ghim 4.6.7 (override). Gỡ khi lighthouse/chromium-bidi lên zod 4 |
+| Phụ thuộc dev `zod` 3.25.76 (qua `@lhci/cli` → lighthouse → puppeteer-core → chromium-bidi) | GHSA-mrhx-c7xc-m3w5 (High) | zod 4.6.6 (đổi major) | 2026-11-17 | Chỉ chạy trong job `lighthouse` của CI, không vào bundle/production; zod 4.x của dự án đã ghim 4.6.7 (override). D-167 (rà 2026-11-07): `@lhci/cli` 0.16.0 (phát hành 2026-11-02) → chromium-bidi 157 khai zod ^4.6.5 (phân giải ≥ 4.6.7 nhờ override) — D-169: nâng ngày 2026-11-17 rồi gỡ luật |

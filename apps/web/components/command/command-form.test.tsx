@@ -267,6 +267,35 @@ describe("CommandForm", () => {
     expect(keyOf(2)).toBe(keyOf(0));
   });
 
+  it("AUD-TEST-008: kết quả trước CHƯA RÕ (mất mạng, tra 404) rồi gặp 401 REAUTH ⇒ đăng nhập lại và gửi lại bằng CÙNG key (server replay, không ghi trùng)", async () => {
+    const handler = vi.fn(async () => true);
+    setReauthHandler(handler);
+    try {
+      fetchMock
+        .mockRejectedValueOnce(new TypeError("Failed to fetch")) // POST#1: có thể đã commit ở server
+        .mockResolvedValueOnce(jsonResponse(404, { code: "COMMAND_NOT_FOUND" })) // GET tra theo key: chưa thấy
+        .mockResolvedValueOnce(
+          jsonResponse(401, { code: "REAUTH_REQUIRED", title: "Vui lòng xác thực lại." }),
+        ) // POST#2
+        .mockResolvedValueOnce(jsonResponse(200, { data: { job_id: "j1" } })); // POST#3 sau đăng nhập lại
+      setup({
+        path: "exports/request",
+        fixed: { kind: "audit", format: "csv", filters: { from: "2026-11-01", to: "2026-11-06" } },
+        fields: [],
+        successText: "Đã yêu cầu xuất.",
+      });
+      await userEvent.click(screen.getByRole("button", { name: "Tạo việc" }));
+      await userEvent.click(await screen.findByRole("button", { name: "Gửi lại" }));
+      expect(await screen.findByText("Đã yêu cầu xuất.")).toBeTruthy();
+      expect(handler).toHaveBeenCalledTimes(1);
+      expect(fetchMock).toHaveBeenCalledTimes(4);
+      expect(keyOf(2)).toBe(keyOf(0));
+      expect(keyOf(3)).toBe(keyOf(0));
+    } finally {
+      setReauthHandler(null);
+    }
+  });
+
   it("thao tác không hoàn tác: hộp xác nhận nêu đúng giá trị, 'Quay lại' không gửi gì, xác nhận mới gửi", async () => {
     fetchMock.mockResolvedValue(jsonResponse(200, { data: {} }));
     setup({

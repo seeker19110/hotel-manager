@@ -9,7 +9,13 @@ import { type Kysely, sql, type Transaction } from "kysely";
 import type { Actor } from "../access/index.ts";
 import { t as msg } from "../i18n.ts";
 import { confirmHold, createHold, type Interval, lockUnit } from "../inventory/index.ts";
-import { type CommandContext, CommandError, canonicalJson, fieldError } from "../pipeline/index.ts";
+import {
+  actorType,
+  type CommandContext,
+  CommandError,
+  canonicalJson,
+  fieldError,
+} from "../pipeline/index.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -784,7 +790,7 @@ export async function getPerson(
     sql`
       insert into audit_events (id, organization_id, actor_type, actor_person_id, action, entity_type, entity_id, correlation_id,
                                 outcome)
-      values (${randomUUID()}, ${actor.orgId}, 'user', ${actor.personId}, 'person.read', 'person',
+      values (${randomUUID()}, ${actor.orgId}, ${actorType(actor)}, ${actor.personId}, 'person.read', 'person',
               ${UUID.test(personId) ? personId : null}, ${`query:person.get:${randomUUID()}`}, 'denied')`.execute(
       trx,
     ),

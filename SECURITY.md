@@ -37,6 +37,12 @@ engineering, lỗ hổng của dịch vụ bên thứ ba (báo cho bên đó), b
 
 Vi phạm dữ liệu cá nhân được xử lý theo `docs/ops/runbooks/data-breach.md` (thông báo cơ quan và chủ thể trong thời hạn luật định).
 
+## Địa chỉ nghe (BASE-SEC-010)
+
+- Máy dev và `next start` ngoài container: web nghe **127.0.0.1** (`apps/web/package.json`: `-H ${HOST:-127.0.0.1}`); máy chủ test, S3 giả, kiểm image cục bộ cũng chỉ loopback.
+- Container production: web nghe `0.0.0.0` **bên trong** container (`deploy/web.Dockerfile`, `HOSTNAME=0.0.0.0`) trên mạng Docker `backend` nội bộ (`internal: true`); web, worker, Postgres, SeaweedFS **không publish cổng** ra host. Web chỉ nhận request qua Caddy trên mạng nội bộ; route không cần phiên (đăng nhập, `/api/health`…) là công khai có chủ đích, còn lại kiểm phiên/quyền ở server.
+- Chỉ **Caddy** publish ra Internet: 80 (chuyển hướng HTTPS), 443/tcp và 443/udp (HTTPS, HTTP/3). Publish dịch vụ khác trên máy dev phải dạng `127.0.0.1:P:P`. Kiểm bằng `scripts/port-publish.test.mjs`.
+
 ---
 
 **English (summary):** report vulnerabilities privately via GitHub Private Vulnerability Reporting (link above) — never in public

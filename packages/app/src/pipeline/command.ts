@@ -166,8 +166,12 @@ function replay<T>(commandId: string, row: StoredRow): CommandResult<T> {
   };
 }
 
-/** `audit_events.actor_type`: tài khoản hỗ trợ (D-128) tách khỏi người dùng của tổ chức để owner lọc/nhận ra. */
-const actorType = (actor: Actor) => (actor.role === "platform_support" ? "platform_support" : "user");
+/**
+ * `audit_events.actor_type`: tài khoản hỗ trợ (D-128) tách khỏi người dùng của tổ chức để owner lọc/nhận ra. Mọi audit ghi tay
+ * cho một actor người dùng dùng hàm này, không ghi cố định `'user'`: RLS 0080 chỉ cho support ghi audit `platform_support` của chính nó.
+ */
+export const actorType = (actor: Pick<Actor, "role">): "platform_support" | "user" =>
+  actor.role === "platform_support" ? "platform_support" : "user";
 
 /**
  * "Từ đâu" cho audit ghi bằng SQL trong transaction (hàm CSDL, insert trực tiếp): GUC giao dịch mà trigger 0072 đọc khi dòng chưa

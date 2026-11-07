@@ -8,6 +8,7 @@ import { type Kysely, sql, type Transaction } from "kysely";
 import { t } from "../i18n.ts";
 import { type CommandContext, CommandError } from "../pipeline/index.ts";
 import { authorizeOrAudit } from "./denied.ts";
+import { STAFF } from "./members.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Vai trò mà manager được thu hồi phiên (khớp "Mời/thu hồi front_desk/housekeeping/maintenance", ma trận 5.3). */
@@ -87,7 +88,9 @@ export async function revokeAllSessions(
                   and (${ctx.actor.allProperties} or ps.property_id = any(${ctx.actor.propertyIds}::uuid[])))) as shared
       from memberships m where m.organization_id = ${ctx.actor.orgId} and m.id = ${id}`.execute(ctx.trx);
     const target = m.rows[0];
-    if (!target) throw new CommandError("NOT_FOUND", 404, t("access.member_not_found"));
+    // Chỉ nhân viên (T-2615, AUD-SEC-008): không thu hồi phiên tài khoản hỗ trợ nền tảng/người thuê từ tổ chức.
+    if (!target || !STAFF.has(target.role))
+      throw new CommandError("NOT_FOUND", 404, t("access.member_not_found"));
     if (ctx.actor.role === "manager") {
       if (!target.shared) throw new CommandError("NOT_FOUND", 404, t("access.member_not_found"));
       authorizeOrAudit(() => {

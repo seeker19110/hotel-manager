@@ -241,16 +241,23 @@ test("release manifest rejects tags, unknown fields and unsafe values before any
   assert.deepEqual(JSON.parse(composeOverride(release())).services.web, { image: release().web });
 });
 
+test("T-2621 (AUD-SEC-011): kiểm image cục bộ chạy app chỉ nghe loopback dù dùng --network host", async () => {
+  const src = await readFile(new URL("./ops/local-images-check.mjs", import.meta.url), "utf8");
+  assert.match(src, /HOSTNAME: "127\.0\.0\.1"/);
+  assert.doesNotMatch(src, /HOSTNAME: "0\.0\.0\.0"/);
+});
+
 test("promotion pins identical digests and saves history only after smoke; explicit rollback swaps versions", async () => {
   const applied = [];
   const run = async (args) => {
+    // T-2622 (AUD-CI-006): image ghim @sha256 ⇒ `missing` đủ đúng nội dung; khôi phục/rollback không cần registry khi image cũ còn cache.
     assert.deepEqual(args.slice(-11), [
       "up",
       "-d",
       "--no-deps",
       "--no-build",
       "--pull",
-      "always",
+      "missing",
       "--wait",
       "--wait-timeout",
       "120",

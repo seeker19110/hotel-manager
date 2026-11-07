@@ -1,7 +1,7 @@
 // SPEC-runtime S-004/S-006/S-007: dedicated config, explicit commands, safe CLI errors.
 import { inspect } from "node:util";
 import { describe, expect, it } from "vitest";
-import { migrationMain, parseMigrationCommand } from "./migration-cli.ts";
+import { failureDetails, migrationMain, parseMigrationCommand } from "./migration-cli.ts";
 import { loadMigrationConfig } from "./migration-config.ts";
 import { migrations } from "./migrations/index.ts";
 
@@ -99,5 +99,26 @@ describe("migration-cli config and intent", () => {
       expect(line).not.toContain("private-password");
       expect(line).not.toContain("postgres://");
     }
+  });
+
+  it("T-2618 (AUD-CODE-003): MIGRATION_FAILED kèm tên migration lỗi + SQLSTATE, không message/URL", () => {
+    const err = Object.assign(new Error("check constraint violated at postgres://u:secret@h/db"), {
+      code: "23514",
+      severity: "ERROR",
+    });
+    const details = failureDetails({
+      error: err,
+      results: [
+        { migrationName: "0071_org_background_active_only", status: "Success" },
+        { migrationName: "0072_support_access", status: "Error" },
+        { migrationName: "0073_plan_quotas_fair_share", status: "NotExecuted" },
+      ],
+    });
+    expect(details).toEqual({ migration: "0072_support_access", sqlstate: "23514" });
+    expect(JSON.stringify(details)).not.toContain("secret");
+    expect(failureDetails({ error: Object.assign(new Error("x"), { code: "ECONNRESET" }) })).toEqual({});
+    // errno 5 chữ của Node không phải SQLSTATE (review 🟢3).
+    expect(failureDetails({ error: Object.assign(new Error("x"), { code: "EPIPE" }) })).toEqual({});
+    expect(failureDetails({ error: new Error("x"), results: [] })).toEqual({});
   });
 });

@@ -47,6 +47,43 @@ export async function assertMigrationRole(db: Kysely<unknown>): Promise<void> {
   if (!r.rows[0]?.allowed) throw new MigrationCliError("MIGRATION_OWNER_WITH_BYPASSRLS_REQUIRED");
 }
 
+/**
+ * Down không được làm mất dữ liệu mà migration đã áp không tự giữ được (AUD-DATA-011, T-2618): 0072 down xoá cột
+ * `support_reason` nhưng giữ hàng platform_support ⇒ mất lý do cấp quyền và up lại vi phạm ck_memberships_support_temporary.
+ * Không sửa migration đã áp — chặn ở CLI, trước khi chạm schema. Vai migration có BYPASSRLS nên thấy mọi hàng.
+ */
+const DOWN_GUARDS: readonly {
+  migration: string;
+  code: string;
+  blocked: (db: Kysely<unknown>) => Promise<boolean>;
+}[] = [
+  {
+    migration: "0072_support_access",
+    code: "DOWN_BLOCKED_SUPPORT_DATA",
+    blocked: async (db) =>
+      (
+        await sql<{ blocked: boolean }>`select (
+          exists (select 1 from memberships where role = 'platform_support')
+          or exists (select 1 from invitations where role = 'platform_support')) as blocked`.execute(db)
+      ).rows[0]?.blocked === true,
+  },
+];
+
+/** Tên migration lỗi + SQLSTATE (5 ký tự) từ kết quả Migrator — không đưa message/URL ra ngoài. */
+export function failureDetails(result: {
+  error?: unknown;
+  results?: readonly { migrationName: string; status: string }[];
+}): Record<string, string> {
+  const failed = result.results?.find((m) => m.status === "Error")?.migrationName;
+  // Chỉ lỗi của server Postgres (pg.DatabaseError có `severity`) mới mang SQLSTATE; errno 5 chữ của Node (EPIPE…) thì không.
+  const err = result.error as { code?: unknown; severity?: unknown } | undefined;
+  const code = typeof err?.severity === "string" ? err.code : undefined;
+  return {
+    ...(failed ? { migration: failed } : {}),
+    ...(typeof code === "string" && /^[0-9A-Z]{5}$/.test(code) ? { sqlstate: code } : {}),
+  };
+}
+
 export async function executeMigrationCommand(db: Kysely<unknown>, command: MigrationCommand) {
   await assertMigrationRole(db);
   const migrator = createMigrator(db);
@@ -61,10 +98,15 @@ export async function executeMigrationCommand(db: Kysely<unknown>, command: Migr
     const current = known.findLastIndex((m) => m.executedAt);
     if (target < 0 || target >= current)
       throw new MigrationCliError("DOWN_TARGET_MUST_BE_EARLIER_APPLIED_MIGRATION");
+    for (const guard of DOWN_GUARDS) {
+      const at = known.findIndex((m) => m.name === guard.migration);
+      if (at > target && at <= current && (await guard.blocked(db)))
+        throw new MigrationCliError(guard.code, { migration: guard.migration });
+    }
   }
   const result =
     command.action === "down" ? await migrator.migrateTo(command.to) : await migrator.migrateToLatest();
-  if (result.error) throw new MigrationCliError("MIGRATION_FAILED");
+  if (result.error) throw new MigrationCliError("MIGRATION_FAILED", failureDetails(result));
   return {
     action: command.action,
     migrations: (result.results ?? []).map((m) => ({
@@ -98,7 +140,11 @@ export async function migrationMain(
     return 0;
   } catch (err) {
     output.write(
-      `${JSON.stringify({ ok: false, code: err instanceof MigrationCliError ? err.code : "MIGRATION_CONNECTION_OR_DATABASE_ERROR" })}\n`,
+      `${JSON.stringify(
+        err instanceof MigrationCliError
+          ? { ok: false, code: err.code, ...err.details }
+          : { ok: false, code: "MIGRATION_CONNECTION_OR_DATABASE_ERROR" },
+      )}\n`,
     );
     return 1;
   } finally {

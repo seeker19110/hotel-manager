@@ -1167,3 +1167,45 @@
 - Chọn: Ghi rõ: trigger tự động (schedule, issue_comment, check_suite) chạy workflow và checkout của nhánh mặc định; workflow_dispatch chạy tay trên nhánh khác cần quyền ghi repo — người có quyền ghi vốn chạy được workflow tuỳ ý nên không leo quyền
 - Lý do (tiêu chí chất lượng cuối): Đúng sự thật, giữ khả năng chạy tay cho chủ dự án; reviewer #149 xác nhận không có workflow nào gọi được với quyền cao hơn job steward
 - Đường lùi: Bỏ workflow_dispatch khỏi pr-steward nếu muốn chỉ chạy trên nhánh mặc định
+
+### D-164 · 2026-11-06T10:42:01+00:00 · T-2617 (AUD-DATA-010): duyệt các chỗ chặt hơn brief và chọn hướng cho idempotency_keys của platform_support
+
+- Phương án: (1) Duyệt: UPDATE invitations qua app.support_accepting_invitation (membership hỗ trợ còn hạn, đúng email/vai, chưa gắn lời mời), outbox buộc aggregate/payload.membership_id = actor, tên policy support_limited_*; idempotency_keys thêm policy như portal_own_idempotency (actor_not_support() OR actor_person_id = actor) gộp vào 0080 chưa áp · (2) Như trên nhưng giữ idempotency_keys không policy (dựa lớp 1)
+- Chọn: Duyệt: UPDATE invitations qua app.support_accepting_invitation (membership hỗ trợ còn hạn, đúng email/vai, chưa gắn lời mời), outbox buộc aggregate/payload.membership_id = actor, tên policy support_limited_*; idempotency_keys thêm policy như portal_own_idempotency (actor_not_support() OR actor_person_id = actor) gộp vào 0080 chưa áp
+- Lý do (tiêu chí chất lượng cuối): Đúng và an toàn — cách hiểu chặt hơn: lớp 2 không để support sửa response sẽ replay của người khác; 0080 chưa áp ở môi trường nào nên gộp không vi phạm 'không sửa migration đã áp'; có test
+- Đường lùi: Down 0080 chỉ DROP policy/hàm, không đụng dữ liệu
+
+### D-165 · 2026-11-06T11:21:38+00:00 · LOOP-OPT-005 (MUST mới khung 3.30: reviewer trả lời từng ⚠ của perf guard) khi PLAN chưa có task tối ưu
+
+- Phương án: (1) [~] Không áp dụng cùng điều kiện D-074 của LOOP-OPT-001…004, khoá bằng scripts/perf-optimization-tasks.test.mjs (đỏ khi PLAN có task tối ưu) · (2) Để mở MUST tới khi có task tối ưu đầu tiên · (3) loop defer chờ người
+- Chọn: [~] Không áp dụng cùng điều kiện D-074 của LOOP-OPT-001…004, khoá bằng scripts/perf-optimization-tasks.test.mjs (đỏ khi PLAN có task tối ưu)
+- Lý do (tiêu chí chất lượng cuối): Đúng: chưa có lượt perf guard nào nên không có ⚠ để trả lời; điều kiện máy khoá nên khi có task tối ưu test đỏ buộc bỏ [~] (giữ đường lùi); đơn giản, theo đúng cách đã duyệt cho 001…004
+- Đường lùi: Bỏ [~] LOOP-OPT-005 và ID khỏi danh sách trong test; khi có task tối ưu thì pr reviewed ghi trả lời từng ⚠
+
+### D-166 · 2026-11-06T11:23:34+00:00 · FE-BUILD-005: 'thiếu/sai kiểu → build/khởi động fail' khi bước build chủ đích không có biến bắt buộc
+
+- Phương án: (1) Build kiểm schema env build (HM_BUILD_ID sai kiểu → next build dừng khi nạp next.config); thiếu biến server bắt buộc → khởi động fail (instrumentation đã có); client không có env (test sẵn) · (2) Bắt build đòi đủ env runtime (DATABASE_URL…) lúc build
+- Chọn: Build kiểm schema env build (HM_BUILD_ID sai kiểu → next build dừng khi nạp next.config); thiếu biến server bắt buộc → khởi động fail (instrumentation đã có); client không có env (test sẵn)
+- Lý do (tiêu chí chất lượng cuối): Đúng và an toàn: không đưa bí mật runtime vào bước build/image (12-factor, image dùng chung nhiều môi trường); mỗi lớp env fail đúng lúc nó được dùng; test máy khoá cả hai và grep process.env ngoài module cấu hình
+- Đường lùi: Bỏ dòng loadBuildConfig() ở apps/web/next.config.ts và packages/app/src/config/env-boundary.test.ts
+
+### D-167 · 2026-11-07T01:50:54+00:00 · Luật grype GHSA-mrhx-c7xc-m3w5 (zod 3.25.76 qua @lhci/cli, công cụ CI) hết hạn 2026-11-08
+
+- Phương án: (1) Gia hạn ngắn tới 2026-11-16 (ngày @lhci/cli 0.16.0 đủ 2 tuần) vì bản vá đã có: 0.16.0 (2026-11-02) → lighthouse 13.6.0 → puppeteer-core 25.16 → chromium-bidi 157 dùng zod ^4.6.5; ngày 16 nâng @lhci/cli và gỡ luật · (2) Nâng @lhci/cli 0.16.0 ngay (bản phát hành mới 5 ngày, trái quy tắc ≥ 2 tuần) · (3) Để image-scan/grype-ignore-check đỏ từ 2026-11-08 tới khi nâng
+- Chọn: Gia hạn ngắn tới 2026-11-16 (ngày @lhci/cli 0.16.0 đủ 2 tuần) vì bản vá đã có: 0.16.0 (2026-11-02) → lighthouse 13.6.0 → puppeteer-core 25.16 → chromium-bidi 157 dùng zod ^4.6.5; ngày 16 nâng @lhci/cli và gỡ luật
+- Lý do (tiêu chí chất lượng cuối): Đúng/an toàn: lỗ hổng chỉ ở công cụ CI (job lighthouse), không vào bundle/production; gia hạn có căn cứ là bản vá cụ thể đã xác minh từ registry (2026-11-07), không phải gia hạn mặc định; giữ quy tắc ≥ 2 tuần chống bản phát hành lỗi/độc; 8 ngày < trần 30 ngày; tránh đỏ mọi PR
+- Đường lùi: Đặt lại hạn 2026-11-08 trong .grype.yaml và VULN-SLA.md, hoặc nâng @lhci/cli sớm
+
+### D-168 · 2026-11-07T01:59:27+00:00 · Lát access/CSDL đợt 28 (T-2615/2617/2618/2629, migration 0080) đã review nhưng chưa commit, trong khi nhánh phiên duy nhất đang gắn PR #153 chờ người merge
+
+- Phương án: (1) Commit riêng vào #153 (đã là làn người merge, risk:auth) + thêm nhãn risk:data, mô tả tách hai lát; review phần T-2629 trước khi người merge · (2) Giữ cục bộ tới khi #153 merge (rủi ro mất việc khi container bị thu hồi — đã khởi động lại một lần) · (3) Push nhánh khác (không được phép trong phiên)
+- Chọn: Commit riêng vào #153 (đã là làn người merge, risk:auth) + thêm nhãn risk:data, mô tả tách hai lát; review phần T-2629 trước khi người merge
+- Lý do (tiêu chí chất lượng cuối): Giữ đường lùi và không mất việc (container tạm); cả hai lát cùng làn người merge nên không nới cổng; commit tách riêng, revert được; lệch quy tắc mỗi lát một PR được ghi rõ trong PR
+- Đường lùi: Revert commit lát access/CSDL khỏi #153 rồi mở PR riêng sau khi #153 merge
+
+### D-169 · 2026-11-07T02:03:10+00:00 · Hạn luật grype zod 3 theo D-167 (2026-11-16) sát mốc @lhci/cli 0.16.0 tròn 2 tuần (23:17Z ngày 16)
+
+- Phương án: (1) Dời hạn sang 2026-11-17, nâng @lhci/cli ngày 17; sửa câu chữ: chromium-bidi khai ^4.6.5, phân giải ≥ 4.6.7 nhờ override zod của dự án · (2) Giữ 2026-11-16 và nâng trong 43 phút cuối ngày
+- Chọn: Dời hạn sang 2026-11-17, nâng @lhci/cli ngày 17; sửa câu chữ: chromium-bidi khai ^4.6.5, phân giải ≥ 4.6.7 nhờ override zod của dự án
+- Lý do (tiêu chí chất lượng cuối): Không ép nâng bản chưa đủ 2 tuần; vẫn trong trần 30 ngày; câu chữ chính xác (^4.6.5 cho phép bản chưa vá, override mới bảo đảm ≥ 4.6.6)
+- Đường lùi: Đặt lại 2026-11-16

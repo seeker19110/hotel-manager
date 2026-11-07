@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { executeCommand } from "../pipeline/command.ts";
 import { type Actor, resolveActor } from "./actor.ts";
 import { resetMemberMfa } from "./mfa-recovery.ts";
+import { revokeAllSessions } from "./sessions.ts";
 
 let t: TestDb;
 let A: SeededOrg;
@@ -140,6 +141,18 @@ describe("member.resetMfa (access Q-08)", () => {
       items: [{ recovery: "platform_support" }],
     });
     expect(await authState(B.ownerAuthUserId)).toEqual({ enabled: true, secrets: 1, sessions: 2 });
+    // T-2629: id của chính mình viết HOA (z.uuid() nhận, Postgres so uuid không phân biệt hoa/thường) vẫn là "chính mình".
+    expect(await fails(reset(OB, OB.membershipId.toUpperCase()))).toMatchObject({
+      code: "FORBIDDEN",
+      status: 403,
+      items: [{ recovery: "platform_support" }],
+    });
+    expect(await fails(reset(O1, O1.membershipId.toUpperCase()))).toMatchObject({
+      code: "FORBIDDEN",
+      status: 403,
+      items: [{ recovery: "another_owner" }],
+    });
+    expect(await authState(B.ownerAuthUserId)).toEqual({ enabled: true, secrets: 1, sessions: 2 });
   });
 
   it("chỉ owner; cần lý do; thành viên tổ chức khác → 404; tài khoản dùng ở tổ chức khác → hỗ trợ nền tảng, không đổi gì", async () => {
@@ -181,5 +194,40 @@ describe("member.resetMfa (access Q-08)", () => {
     });
     // Lễ tân chỉ thuộc A: owner đặt lại được.
     expect(await reset(O2, f.actor.membershipId)).toMatchObject({ status: "committed" });
+  });
+
+  it("T-2615 (AUD-SEC-008): owner KHÔNG đặt lại MFA/thu hồi phiên của tài khoản hỗ trợ nền tảng hay người thuê — 404, giữ nguyên 2FA và phiên", async () => {
+    const supportUser = await seedAuthUser(t.admin, `support+${randomUUID().slice(0, 6)}@example.test`);
+    const supportPerson = randomUUID();
+    await sql`insert into persons (id, organization_id, full_name) values (${supportPerson}, ${A.orgId}, 'Hỗ trợ nền tảng')`.execute(
+      t.admin,
+    );
+    const supportMembership = randomUUID();
+    await sql`insert into memberships (id, organization_id, auth_user_id, person_id, role, all_properties, valid_from, valid_to, support_reason)
+      values (${supportMembership}, ${A.orgId}, ${supportUser}, ${supportPerson}, 'platform_support', true, now(), now() + interval '24 hours', 'Phiếu hỗ trợ')`.execute(
+      t.admin,
+    );
+    await enrolMfa(supportUser);
+    expect(await fails(reset(O1, supportMembership))).toMatchObject({ code: "NOT_FOUND", status: 404 });
+    expect(await authState(supportUser)).toEqual({ enabled: true, secrets: 1, sessions: 2 });
+    // session.revokeAll theo membership: cùng chặn.
+    const key = randomUUID();
+    const revoke = await executeCommand(
+      t.runtime,
+      O1,
+      { command: "session.revokeAll", idempotencyKey: key, payload: { key }, correlationId: "c-t2615" },
+      async (ctx) => ({ data: await revokeAllSessions(ctx, { membershipId: supportMembership }) }),
+    );
+    expect(revoke).toMatchObject({ status: "failed", problem: { code: "NOT_FOUND", status: 404 } });
+    expect((await authState(supportUser))?.sessions).toBe(2);
+    const tenant = await member(A, "tenant");
+    const tenantMembership = await sql<{ id: string }>`
+      select id from memberships where organization_id = ${A.orgId} and auth_user_id = ${tenant.userId}`.execute(
+      t.admin,
+    );
+    expect(await fails(reset(O1, tenantMembership.rows[0]?.id as string))).toMatchObject({
+      code: "NOT_FOUND",
+    });
+    expect((await authState(tenant.userId))?.secrets).toBe(1);
   });
 });

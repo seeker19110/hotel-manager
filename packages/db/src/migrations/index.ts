@@ -78,6 +78,7 @@ import * as m0076 from "./0076_dsar_audit_events.ts";
 import * as m0077 from "./0077_persons_bootstrap_scope.ts";
 import * as m0078 from "./0078_operational_retention.ts";
 import * as m0079 from "./0079_dsar_audit_source.ts";
+import * as m0080 from "./0080_support_ro_excluded_tables.ts";
 
 export const migrations: Record<string, Migration> = {
   "0001_tenancy": m0001,
@@ -155,4 +156,5 @@ export const migrations: Record<string, Migration> = {
   "0077_persons_bootstrap_scope": m0077,
   "0078_operational_retention": m0078,
   "0079_dsar_audit_source": m0079,
+  "0080_support_ro_excluded_tables": m0080,
 };

@@ -20,10 +20,10 @@ Rào máy: `packages/app/src/units-guards.test.ts` (chạy trong `pnpm test`).
 ## Số mẫu đã khai (được phép xuất hiện ở dạng thật)
 Danh sách máy đọc: mỗi dòng bắt đầu bằng "- `số`".
 
-- `0912345678` — ví dụ phổ biến trong tài liệu, chỉ dùng trong `logging/logger.test.ts` để kiểm bộ che SĐT dạng thật (dạng `0xx`, `+84xx`).
+- `0912345678` — ví dụ phổ biến trong tài liệu, chỉ dùng trong `logging/logger.test.ts` và canary `scripts/otel-collector-e2e.mjs` để kiểm bộ che SĐT dạng thật (dạng `0xx`, `+84xx`; SDK và Collector).
 - `+84912345678` — cùng mục đích, dạng quốc tế.
 - `0900000001` — ví dụ hiển thị cho người dùng trong mẫu nhập hợp đồng (`import.ts`, dãy gần như toàn số 0; không phải số của ai).
-- `0905123456` — ví dụ trong bộ che số trong mẫu thông báo (`notifications/templates.ts`, `templates.test.ts`): ca kiểm phải mang đúng dạng SĐT Việt Nam di động để chứng minh bị che thành `***` (không phải số của ai).
+- `0905123456` — ví dụ trong bộ che số trong mẫu thông báo (`notifications/templates.ts`, `templates.test.ts`) và số thứ hai liền kề trong canary `scripts/otel-collector-e2e.mjs`: ca kiểm phải mang đúng dạng SĐT Việt Nam di động để chứng minh bị che thành `***` (không phải số của ai).
 
 ## Còn treo (không thuộc rào hiện có)
 - Số CCCD mẫu trong fixture (`001…`, `079…`, 12 chữ số) là chuỗi tự đặt, chưa có rào quét riêng; việc quét CCCD/CMND cần quy ước kiểm tra chữ số tỉnh (chưa làm).
