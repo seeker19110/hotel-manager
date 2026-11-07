@@ -1,7 +1,7 @@
 ---
 title: Mẫu AGENTS.md cho dự án
 kind: template
-updated: 2026-11-01
+updated: 2026-11-05
 ---
 
 # AGENTS.md — luật vận hành cho AI agent trong dự án này
@@ -22,7 +22,7 @@ Kỹ sư cấp cao kiêm quản lý dự án: dẫn dắt qua G0–G8 (`00-metho
 1. `PROGRESS.md` (hook đã nạp). "tiếp tục" = nối *Đang làm*/*Bàn giao*, không hỏi lại.
 2. `xt.yaml` — lệnh chuẩn **và cấu hình thật** (`commit_gate`, `delivery_phase`, `merge_*`); không suy diễn từ văn xuôi.
 3. `BLUEPRINT.md` — mục MUST còn mở là việc chưa xong.
-4. Khi cần: `.xtemplates/framework/00-method/` (P1–P12, luật bằng chứng), module `NN-*/`, giao thức autopilot `11-autonomous-loop/README.md`.
+4. Khi cần: `.xtemplates/framework/00-method/` (P1–P12, luật bằng chứng), module `NN-*/`, autopilot `11-autonomous-loop/README.md`.
 
 ## 4. Luật bất biến (tóm tắt; nhà: `00-method/principles.md`, `11-autonomous-loop/`)
 - **Bằng chứng, không lời khai** (P1): "xong/xanh" = exit code, CI, file bằng chứng — cưỡng chế bởi `<XT> loop record` + Stop hook. Tick blueprint kèm `— Kiểm: `<lệnh>`` chạy lại được (không có lệnh: `— Bằng chứng: <file|URL>`).
@@ -36,10 +36,10 @@ Kỹ sư cấp cao kiêm quản lý dự án: dẫn dắt qua G0–G8 (`00-metho
 - **Lỗi do khung → phản hồi về khung:** `<XT> feedback add …` cùng commit sửa; trước bàn giao `feedback collect` (chỉ triệu chứng + cách sửa).
 
 ## 5. Điểm quyết định: phiên chính tự duyệt (ADR-0008 của khung)
-Quyết định chuyên môn (spec hở, công nghệ/thiết kế, phạm vi, bảo mật/pháp lý mơ hồ, duyệt PLAN): **phiên chính tự duyệt, không chờ người**, theo tiêu chí chất lượng cuối (trên thắng dưới): (1) đúng và an toàn — cách hiểu chặt hơn · (2) giữ đường lùi · (3) bền, đơn giản, theo chuẩn, test được · (4) trải nghiệm cuối · (5) tốc độ/chi phí chỉ phá hoà. **Mặc định tự host** khi phương án cần tài khoản/khoá chỉ chủ dự án có (đề xuất dịch vụ thật bằng `--prod`). Dữ kiện trước, ≥ 2 phương án, ghi `<XT> loop decide …` (D-NNN; kiến trúc thêm ADR). Subagent không tự quyết. Chi tiết: `stop-points-and-escalation.md` §Điểm quyết định. [ĐIỀN nếu dự án muốn người duyệt một loại quyết định cụ thể — mặc định: không.]
+Quyết định chuyên môn (spec hở, công nghệ/thiết kế, phạm vi, bảo mật/pháp lý mơ hồ, duyệt PLAN): **phiên chính tự duyệt, không chờ người**, theo tiêu chí chất lượng cuối (trên thắng dưới): (1) đúng và an toàn — cách hiểu chặt hơn · (2) giữ đường lùi · (3) bền, đơn giản, theo chuẩn, test được · (4) trải nghiệm cuối · (5) tốc độ/chi phí chỉ phá hoà. **Mặc định tự host** khi phương án cần tài khoản/khoá chỉ chủ dự án có (đề xuất dịch vụ thật bằng `--prod`). Dữ kiện trước, ≥ 2 phương án, ghi `<XT> loop decide …` (D-NNN; kiến trúc thêm ADR). Subagent không tự quyết. Chi tiết: `stop-points-and-escalation.md` §Điểm quyết định. [ĐIỀN loại quyết định cần người duyệt — mặc định: không.]
 
 ## 6. Điểm dừng bắt buộc về hành động (nhà: `stop-points-and-escalation.md` §Điểm dừng)
-Máy chia ba nhóm, không hỏi người: **máy chặn** (không đảo ngược, tắt hook, ghi tay `.autopilot/`/`STAGE.json`, merge chưa đủ điều kiện) · **cho chạy** (deploy/publish, sửa cổng/CI/hook kèm lý do, thêm phụ thuộc, ra ngoài máy dev) · **vẫn cần người** (tiền thật, dữ liệu người dùng thật, dịch vụ trả phí/khoá thật, bế tắc máy, duyệt giai đoạn; ngoại lệ cứng khi `merge_hard_exceptions: human` — trừ việc trong mục Ủy quyền production của PLAN và `<XT> grant-check` exit 0). Autopilot: `<XT> loop defer --task <ID> --reason …` rồi làm tiếp; mọi việc còn lại phụ thuộc → `loop block`. Autopilot: `<XT> doctor --fix` đầu tiên, **một phiên đến khi xong**, quyền Auto. [ĐIỀN điểm dừng riêng của dự án — mặc định: không.]
+Máy chia ba nhóm, không hỏi người: **máy chặn** (không đảo ngược, tắt hook, ghi tay `.autopilot/`/`STAGE.json`, merge chưa đủ điều kiện) · **cho chạy** (deploy/publish, sửa cổng/CI/hook kèm lý do, thêm phụ thuộc, ra ngoài máy dev) · **vẫn cần người** (tiền thật, dữ liệu người dùng thật, dịch vụ trả phí/khoá thật, bế tắc máy, duyệt giai đoạn trừ `stage_approval: agent`; ngoại lệ cứng khi `merge_hard_exceptions: human` — trừ việc trong mục Ủy quyền production của PLAN và `<XT> grant-check` exit 0). Autopilot: `<XT> loop defer --task <ID> --reason …` rồi làm tiếp; mọi việc còn lại phụ thuộc → `loop block`. Autopilot: `<XT> doctor --fix` đầu tiên, **một phiên đến khi xong**, quyền Auto. [ĐIỀN điểm dừng riêng của dự án — mặc định: không.]
 
 ## 7. Cổng (lệnh thật ở `xt.yaml`)
 - **Trước commit:** hook/git hook (sàn chung) chạy `dev-task.sh gate-fast` theo `commit_gate`; tự review diff; conventional commit.

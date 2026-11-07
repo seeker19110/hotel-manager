@@ -3,7 +3,7 @@ title: File harness: PLAN · PROGRESS · BLUEPRINT · evidence · state
 kind: module
 prefix: LOOP-HARNESS
 applies_to: [all]
-updated: 2026-11-05
+updated: 2026-11-06
 ---
 
 # File harness: PLAN · PROGRESS · BLUEPRINT · evidence · state
@@ -85,14 +85,19 @@ OS/devcontainer có egress allowlist (`LOOP-HARNESS-022`) và việc phiên chí
   `pyenv exec`, `asdf exec`, `volta run`, `fnm exec`, `direnv exec`, `bundle exec`, `nix develop -c`, `pnpm exec`)
   không được bóc để trích script; lồng hơn 8 lớp lệnh chạy hộ cũng không; đích `rm -rf` là thay thế lệnh khác `$(pwd)` (`$(pwd -P)/..`,
   `$(dirname $PWD)`, `$(realpath ..)`) là không rõ nên cho qua — D-051 (AUD-SEC-101).
-- **Duyệt giai đoạn** (ADR-0058, AUD-SEC-155): luật chữ (`xt.py … stage … approve`/`init … --adopt`) cộng luật token
+- **Duyệt giai đoạn** (ADR-0058, AUD-SEC-155; ADR-0069: chỉ đúng MỘT lệnh đơn `python3 <xt.py của dự án> stage approve --sha … [--note …]` — không `env`/`unset`/gán biến/cờ trình thông dịch, không nối hay lồng lệnh, không token mờ — được cho qua khi xt.yaml ở cây **và** bản đã commit ở nhánh chính (`origin/main`, rồi `origin/master`) khai `stage_approval: agent`, `XT_GUARD_POLICY=strict` không nới): luật chữ (`xt.py … stage … approve`/`init … --adopt`) cộng luật token
   mờ: ở mọi vị trí script (`-m xt`/`-mxt`/`-m scripts.xt`, lồng trong `perf sample --`), bỏ chuyển hướng và fd
   (`2>/dev/null`, `{fd}>f`; đích bị cắt như `> >(cat)` là mờ), lệnh con, cờ/giá trị `--framework` (cả `=` rỗng) hay tuỳ
   chọn `init` mờ (`$(…)`, backtick, biến, glob), chuỗi thay chỗ (`xargs -I`/`-i`/`--replace`, mẫu `{…}`, `:::`) hay đến
   từ stdin. Lệnh con mờ không tính khi lệnh chỉ đọc file (`cat`/`grep`/`git`… `scripts/xt.py "$F"`); đường script mờ chỉ
   tính khi có `python` đứng trước hoặc nó là lệnh, và lệnh con là `stage`. `xt.py` coi biến phiên agent có mặt (kể cả
   rỗng) là agent. `--framework "$FW"` bị chặn với mọi lệnh con — dùng `XT_FRAMEWORK`. Còn lọt (AUD-SEC-161): đường
-  script mờ sau trình chạy không phải python (`uv run "$XT" "$(…)"`), bản sao/tên khác của `xt.py`, `python3 -c`/`runpy`, alias, script lồng.
+  script mờ sau trình chạy không phải python (`uv run "$XT" "$(…)"`), bản sao/tên khác của `xt.py`, alias, script lồng.
+  Nạp `xt` trong tiến trình (AUD-SEC-498): script trình thông dịch (`-c`, stdin, heredoc, ống) có `import xt` kèm
+  `main`/`stage`/`approve`/`adopt`/biến môi trường/truy cập động, hàm nạp (`runpy`, `import_module`, `__import__`,
+  `exec`/`eval`/`compile`, `spec_from_file_location`) với đối số không phải chữ nguyên văn hay trỏ `xt`, và
+  `-m runpy xt` bị chặn; thư viện đọc (`xt.parse_plan`, `xt.review_debt`) vẫn qua. Còn lọt: tên dựng qua đường guard không
+  thấy (tệp `.py` ghi bằng Write rồi chạy).
 - **Dấu review đăng tay** (AUD-SEC-069/156/157): guard chặn lệnh `gh` đăng chữ khi dấu `xt-review v1` ở argv, ở bất
   kỳ đâu trong chuỗi lệnh (heredoc, `printf`), hay trong nguồn thân của chính lệnh đó (`-F f`, `--body-file`, `-F k=@f`,
   `--input`, `< f`, file đọc trong `$(…)`/backtick, `cat f |`, `$(cat)` đọc stdin; cả chuỗi JSON, cả khoá) — nguồn có mà
@@ -227,8 +232,9 @@ YAML phẳng `khoá: lệnh`; `""` = không có, thiếu khoá = tự dò từ m
 | `migration_check` · `rollback` · `acceptance` | `release-check` (cổng production, ADR-0062 §6) | Migration tiến + lùi trên bản sao dữ liệu/staging · diễn tập quay về bản trước (tag/artifact cũ + migration lùi) · kiểm thử nghiệm thu tự động theo tiêu chí chấp nhận — đỏ = NO-GO, chặn `prod_switch`; chưa khai ở M/L → người ký lý do |
 | `preview` | `xt.py stage submit` (ghi, không chạy) | Cách chạy thử bản trình người duyệt giai đoạn (ADR-0058) — chỉ ghi vào sổ và in ở `stage status` |
 | `preview_smoke` | `xt.py stage submit` (chạy qua guard) | Gate bản trình (D-247): exit ≠ 0, để lại thay đổi trong cây hay HEAD đổi trong lúc chạy → không trình; trống → sổ ghi "không có smoke" |
+| `stage_approval` | `xt.py stage approve` · `loop next-step` · guard — đọc ở **cây và bản đã commit ở nhánh chính** | `agent` = agent tự nghiệm thu giai đoạn (ADR-0069): duyệt bản trình còn nguyên, `next-step` trả `stage-approve`; vắng/`human` = chỉ người, ngoài phiên agent (ADR-0058). `init --adopt` luôn chỉ người |
 | `claude_min_version` · `ai_attribution` | `doctor` · guard | Cảnh báo Claude Code thấp hơn (`LOOP-HARNESS-026`) · `forbid` chặn commit/PR ghi tên model hay URL phiên AI (`LOOP-HARNESS-027`) |
-| `harness_permissions` | `install.py` | `own` = dự án giữ mô hình quyền riêng: không thêm `allow: Bash`/`deny` của khung, lệnh hook của khung ghi (và lệnh khung sẵn có đổi) sang dạng tương đối `bash .claude/hooks/x.sh` (giao ước dhcb — chủ repo 2026-10-22), nên dự án cần dạng `${CLAUDE_PROJECT_DIR}` tuyệt đối thì không dùng `own` hoặc gộp tay sau mỗi lần cài (D-375; xét lại ở 3.31.0); guard vẫn chạy trong hook. Vắng = gộp quyền theo ADR-0018 |
+| `harness_permissions` | `install.py` | `own` = dự án giữ mô hình quyền riêng: không thêm `allow: Bash`/`deny` của khung, lệnh hook của khung theo dạng dự án đang dùng — có lệnh khung dạng `${CLAUDE_PROJECT_DIR}/.claude/hooks/…` thì giữ tuyệt đối, không có thì tương đối `bash .claude/hooks/x.sh` (giao ước dhcb — chủ repo 2026-10-22; ADR-0073, D-383); guard vẫn chạy trong hook. Vắng = gộp quyền theo ADR-0018 |
 
 Mẫu theo stack (giữ MỘT bộ): **Node** `lint: npm run lint` · `typecheck: npm run typecheck` · `test: npm test -- --run` · `build: npm run build` · `format: npm run format` · `format_file: npx --no-install prettier --write "{}"` · `format_check: npx --no-install prettier --check .` · `coverage: npx --no-install vitest run --coverage` · `test_fast: npx --no-install vitest related --run $XT_CHANGED_FILES`. **Python** `lint: ruff check .` · `typecheck: pyright` · `test: pytest -q` · `format: ruff format .` · `format_file: case "{}" in *.py) ruff format "{}" ;; esac` · `format_check: ruff format --check .` · `coverage: COVERAGE_FILE="$(mktemp)" PYTHONDONTWRITEBYTECODE=1 pytest -p no:cacheprovider --cov --cov-fail-under=80` · `test_fast: pytest -q $(python3 .xtemplates/scripts/xt.py test-select)`. **Go** `lint: go vet ./...` · `test: go test ./...` · `build: go build ./...` · `format: gofmt -l -w .` · `format_file: gofmt -w "{}"` · `format_check: test -z "$(gofmt -l .)"` · `coverage: f="$(mktemp)" && go test -coverprofile="$f" ./... && go tool cover -func="$f" | awk '/^total:/{exit ($3+0 < 80)}'` · `test_fast: p="$(printf '%s\n' $XT_CHANGED_FILES | sed -n 's|^\(.*\)/[^/]*\.go$|./\1/...|p' | sort -u)"; go test ${p:-./...}`. **Java (Maven)** `test: mvn -q test` · `test_fast: c="$(printf '%s\n' $XT_CHANGED_FILES | sed -n 's|.*/\([A-Za-z0-9_]*\)\.java$|\1*|p' | sort -u | paste -sd, -)"; mvn -q test ${c:+-Dtest="$c" -Dsurefire.failIfNoSpecifiedTests=false}`. **.NET** `test: dotnet test` · `test_fast: c="$(printf '%s\n' $XT_CHANGED_FILES | sed -n 's|.*/\([A-Za-z0-9_]*\)\.cs$|FullyQualifiedName~\1|p' | sort -u | paste -sd'|' -)"; dotnet test ${c:+--filter "$c"}`. Ba mẫu `test_fast` này lọc theo gói (Go) hoặc tên lớp (Java `Foo*`, .NET `~Foo`); không khớp file nào → chạy cả suite (không yếu hơn `test`); chưa chạy ở dự án đích thật — kiểm một lần khi áp (research `research/2026-10-21-next-level-speed-automation-quality.md` NH-6).
 

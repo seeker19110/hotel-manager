@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "note": "Ca sai cố ý (ADR-0068 §Xác nhận B): mỗi ca sửa đúng một chỗ của repo sạch; bộ nghiệm thu phải ĐỎ ở đúng test `expect_fail` (tên test chứa chuỗi này). Không cài vào dự án đích.",
+  "mutants": [
+    {
+      "id": "tenant-leak",
+      "why": "policy RLS cho mọi dòng — tenant chéo đọc được dữ liệu",
+      "file": "src/migrations/0002_notes.ts",
+      "find": "USING (tenant_id = app.current_tenant())",
+      "replace": "USING (true)",
+      "expect_fail": "tenant B không đọc được ghi chú của A"
+    },
+    {
+      "id": "broken-down",
+      "why": "migration lùi không xoá bảng — rollback hỏng",
+      "file": "src/migrations/0002_notes.ts",
+      "find": "    DROP TABLE notes;\n",
+      "replace": "    SELECT 1;\n",
+      "expect_fail": "lùi hết rồi tiến lại"
+    },
+    {
+      "id": "contract-runtime",
+      "why": "server bỏ trường bắt buộc của phản hồi (created_at của POST /v1/notes) — chỉ bộ so schema khi chạy bắt được",
+      "file": "src/server.ts",
+      "find": "      .returning([\"id\", \"body\", \"created_at\"])\n      .executeTakeFirstOrThrow(),",
+      "replace": "      .returning([\"id\", \"body\"])\n      .executeTakeFirstOrThrow(),",
+      "expect_fail": "mọi phản hồi khớp schema đã khai"
+    },
+    {
+      "id": "contract-static",
+      "why": "contract bỏ trường bắt buộc của phản hồi so với baseline đã phát hành",
+      "file": "contract/openapi.json",
+      "find": "\"Session\": { \"type\": \"object\", \"required\": [\"token\"]",
+      "replace": "\"Session\": { \"type\": \"object\", \"required\": []",
+      "expect_fail": "không thay đổi không tương thích so với baseline"
+    },
+    {
+      "id": "contract-request-type",
+      "why": "contract đổi kiểu trường request (NoteInput.body string → integer) so với baseline — client cũ gửi chuỗi bị từ chối",
+      "file": "contract/openapi.json",
+      "find": "\"NoteInput\": { \"type\": \"object\", \"required\": [\"body\"], \"properties\": { \"body\": { \"type\": \"string\" } } }",
+      "replace": "\"NoteInput\": { \"type\": \"object\", \"required\": [\"body\"], \"properties\": { \"body\": { \"type\": \"integer\" } } }",
+      "expect_fail": "không thay đổi không tương thích so với baseline"
+    }
+  ]
+}
