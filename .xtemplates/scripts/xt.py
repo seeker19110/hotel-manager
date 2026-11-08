@@ -135,7 +135,7 @@ import urllib.parse
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, Iterator, List, NoReturn, Optional, Sequence, Set, Tuple
+from typing import Any, Callable, Dict, Iterable, Iterator, List, NamedTuple, NoReturn, Optional, Sequence, Set, Tuple
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_FRAMEWORK = (SCRIPT_DIR.parent / "framework").resolve()
@@ -12543,9 +12543,22 @@ def _sarif_rule_hit(desc: Dict[str, Any], idx: Any, rid: Any) -> bool:
     return (idx is not None and desc.get("index") == idx) or (rid is not None and desc.get("id") == rid)
 
 
+# D-391: công cụ quét bí mật không ghi `level` (gitleaks) — mọi phát hiện là lộ bí mật, nên tính là error dù level/rule.
+SECRET_SCANNERS = ("gitleaks",)
+
+
+def _secret_scanner(run: Dict[str, Any]) -> bool:
+    """Run của công cụ quét bí mật (`SECRET_SCANNERS`, tên driver so không phân biệt hoa thường)."""
+    name = _dict(_dict(run.get("tool")).get("driver")).get("name")
+    return isinstance(name, str) and name.lower() in SECRET_SCANNERS
+
+
 def _sarif_level(run: Dict[str, Any], x: Dict[str, Any]) -> str:
-    """Mức hiệu lực của một kết quả SARIF: `level` ghi trên kết quả; không có và `kind` khác `fail` → `none`; còn lại theo
-    rule (`_sarif_rule_level`), mặc định `warning` (§3.27.10) — CodeQL không ghi `level` trên từng kết quả."""
+    """Mức hiệu lực của một kết quả SARIF: run của công cụ quét bí mật (`SECRET_SCANNERS`, so không phân biệt hoa thường)
+    → `error`; còn lại `level` ghi trên kết quả; không có và `kind` khác `fail` → `none`; rồi theo rule
+    (`_sarif_rule_level`), mặc định `warning` (§3.27.10) — CodeQL không ghi `level` trên từng kết quả."""
+    if _secret_scanner(run):
+        return "error"
     if "level" in x:
         return str(x["level"])
     if x.get("kind", "fail") != "fail":
@@ -12565,9 +12578,23 @@ def _sarif_result(doc: Dict[str, Any]) -> Dict[str, Any]:
     if any(not isinstance(r.get("results"), list) for r in runs):
         return _report("sarif", "PENDING", 0, 0, "run không có `results` — scan chưa xác định kết quả")
     found = [(r, x) for r in runs for x in r["results"] if isinstance(x, dict)]
-    errors = sum(1 for r, x in found if _sarif_level(r, x) == "error")
+    live = [(r, x) for r, x in found if not _sarif_suppressed(r, x)]
+    errors = sum(1 for r, x in live if _sarif_level(r, x) == "error")
     status = "FAIL" if errors else "PASS"
-    return _report("sarif", status, len(found), errors, f"{len(found)} kết quả, {errors} mức error")
+    muted = len(found) - len(live)
+    note = f", {muted} đã chấp nhận (suppression) bỏ qua" if muted else ""
+    return _report("sarif", status, len(found), errors, f"{len(found)} kết quả, {errors} mức error{note}")
+
+
+def _sarif_suppressed(run: Dict[str, Any], x: Dict[str, Any]) -> bool:
+    """Kết quả bị chặn (AUD-HAR-316, D-394): `suppressions` là mảng khác rỗng (§3.27.23: rỗng/vắng = không bị chặn) và
+    MỌI mục ghi `status` đúng `accepted`. Vắng `status` → vẫn tính: SARIF 2.1.0 errata01 §3.35.3 không ghi mặc định
+    (chưa xác minh) nên lấy cách hiểu chặt; `underReview`/`rejected`/giá trị lạ/mục sai dạng → vẫn tính. Run của công cụ
+    quét bí mật (`SECRET_SCANNERS`) không bao giờ bỏ qua theo suppression (D-391, D-394)."""
+    sups = x.get("suppressions")
+    if _secret_scanner(run) or not isinstance(sups, list) or not sups:
+        return False
+    return all(isinstance(s, dict) and s.get("status") == "accepted" for s in sups)
 
 
 def _pip_audit_dep(d: Any) -> bool:
@@ -12577,13 +12604,20 @@ def _pip_audit_dep(d: Any) -> bool:
     return "skip_reason" in d or (isinstance(d.get("version"), str) and isinstance(d.get("vulns"), list))
 
 
+def _pip_audit_vulns(vulns: List[Any]) -> int:
+    """Số lỗ hổng khác nhau của một gói (AUD-HAR-317): mục cùng `id` (pip-audit lặp mục từ nhiều nguồn) đếm một lần;
+    mục không có `id` chuỗi đếm riêng từng mục (không gộp nhầm)."""
+    keys = {v["id"] if isinstance(v, dict) and isinstance(v.get("id"), str) else i for i, v in enumerate(vulns)}
+    return len(keys)
+
+
 def _pip_audit_result(deps: List[Any]) -> Dict[str, Any]:
     """pip-audit JSON (`{"dependencies": [...]}` hay danh sách cũ): mọi phần tử phải đúng dạng (ESLint, CycloneDX, `[{}]`
     → INCONCLUSIVE); gói có `skip_reason` không được quét; vuln = FAIL; không gói nào được quét = scan chưa xong."""
     if not all(_pip_audit_dep(d) for d in deps):
         return _unknown("không nhận dạng được report: `dependencies` không đúng dạng pip-audit (name, version, vulns)")
     audited = [d for d in deps if "skip_reason" not in d]
-    vulns = sum(len(d["vulns"]) for d in audited)
+    vulns = sum(_pip_audit_vulns(d["vulns"]) for d in audited)
     if not audited:
         return _report("pip-audit", "PENDING", 0, 0, "0 gói được quét")
     status = "FAIL" if vulns else "PASS"
@@ -12694,13 +12728,27 @@ GO_SIGN_ROW_RE = re.compile(r"^\|[^|\n]*\|\s*[^|\s][^|\n]*\|[^|\n]*\|\s*\d{4}-\d
 
 
 def _go_sign_rows(text: str) -> List[Tuple[str, str]]:
-    """(quyết định, ngày) của các dòng ký có tên + ngày ở §5 (Ký) của GO-NO-GO."""
-    part = re.split(r"^## 5\b.*$", text, maxsplit=1, flags=re.M)
+    """(quyết định, ngày) của các dòng ký có tên + ngày ở §5 (Ký) của GO-NO-GO — chỉ phần người ký thấy
+    (`_markdown_shown`, AUD-HAR-323): dòng ký, tiêu đề `## ` trong khối code/chú thích HTML không tính. Guard `GO_SIGN`
+    giữ luật riêng, chặt hơn (đọc văn bản thô). Lời từ chối thì đọc cả văn bản thô: `_go_no_go_refusals`."""
+    part = re.split(r"^## 5\b.*$", _markdown_shown(text), maxsplit=1, flags=re.M)
     if len(part) != 2:
         return []
-    section = re.split(r"^## ", part[1], maxsplit=1, flags=re.M)[0]
+    return _sign_rows_in(re.split(r"^## ", part[1], maxsplit=1, flags=re.M)[0])
+
+
+def _sign_rows_in(section: str) -> List[Tuple[str, str]]:
     cells = [m[0].strip().strip("|").split("|") for m in GO_SIGN_ROW_RE.finditer(section)]
     return [(c[2].strip(), c[3].strip()) for c in cells]
+
+
+def _go_no_go_refusals(text: str) -> List[str]:
+    """Ô quyết định NO-GO của mọi dòng ký ở §5 hiển thị VÀ ở văn bản thô từ dòng `## 5` đầu tiên tới HẾT FILE (review
+    #467): bộ lọc `_markdown_shown` lệch trình xem (ẩn thừa) hay `## ` giả trong khối code (cắt mục nếu tách theo tiêu
+    đề thô) không được làm mất lời từ chối người thấy — ẩn thêm chỉ an toàn cho GO; NO-GO thì đọc rộng (chặt)."""
+    head = re.search(r"^## 5\b", text, flags=re.M)
+    rows = (_sign_rows_in(text[head.start() :]) if head else []) + _go_sign_rows(text)
+    return [d for d, _ in rows if _decision(d) == "no"]
 
 
 def _go_no_go_signed(text: str) -> bool:
@@ -12792,7 +12840,9 @@ def _release_unchecked_must(base: Path, blueprint: str, mode: str) -> Dict[str, 
 ARTIFACTS_KEY = "release_artifacts"  # đường file cách nhau bởi khoảng trắng; sidecar `<file>.sha256` (sha256sum) nếu có
 APPROVAL_DAYS_KEY = "release_approval_days"  # chữ ký GO-NO-GO còn hiệu lực bao nhiêu ngày (mặc định 30)
 APPROVAL_DAYS = 30
-RELEASE_SCHEMA = 3  # schema của `release-check --json`: 3 = thêm subject/artifacts/results/promotion, giữ trường cũ
+# schema của `release-check --json`: 3 = thêm subject/artifacts/results/promotion, giữ trường cũ; `subject.content`
+# (D-389) chỉ thêm trường — không tăng (người đọc schema 3 bỏ qua khoá lạ)
+RELEASE_SCHEMA = 3
 
 
 SHA256_HEX_RE = re.compile(r"[0-9a-f]{64}")
@@ -12845,20 +12895,256 @@ def _release_artifacts(base: Path) -> Tuple[Optional[Dict[str, str]], List[Dict[
     return _release_row("artifacts", "PASS", f"{len(arts)} artifact, digest khớp sidecar (nếu có)"), arts
 
 
+def _subject_excluded(path: str) -> bool:
+    """File ngoài `subject.content` (D-393): `GO-NO-GO*.md` nằm TRỰC TIẾP ở `GO_NO_GO_DIRS`, sổ `DECISIONS_LOG`,
+    `PROGRESS.md` gốc, `.autopilot/` — hẹp hơn `_signoff_excluded` (theo tên ở mọi cấp: `src/DECISIONS.md` là mã)."""
+    folder, _, name = path.rpartition("/")
+    if path.startswith(".autopilot/") or path in ("PROGRESS.md", DECISIONS_LOG):
+        return True
+    return (folder or ".") in GO_NO_GO_DIRS and fnmatch.fnmatchcase(name, "GO-NO-GO*.md")
+
+
+SUBJECT_EXCLUDE = [  # pathspec cùng tập `_subject_excluded`; `glob`: `*` không qua `/`
+    *(f":(exclude,glob){'' if d == '.' else d + '/'}GO-NO-GO*.md" for d in GO_NO_GO_DIRS),
+    f":(exclude,literal){DECISIONS_LOG}",
+    ":(exclude,literal)PROGRESS.md",
+]
+
+
+def subject_fingerprint(base: Path) -> Optional[str]:
+    """`subject.content` (D-389, D-393): sha256 nội dung cây — blob của HEAD (`ls-tree`, không SHA commit) + diff so HEAD
+    + file chưa track — trừ đúng các file ký/sổ máy đọc (`_subject_excluded`): không đổi qua commit ký và squash, đổi
+    khi bất kỳ file khác đổi. Đường dẫn tính từ dự án (như `evidence_fingerprint`). Không phải repo git/chưa commit → None."""
+    tree = _git(base, "ls-tree", "-r", "-z", "HEAD", "--", ".")
+    if tree.returncode != 0:
+        return None
+    paths = ((e, e.partition("\t")[2]) for e in tree.stdout.split("\0") if e)
+    kept = "\0".join(e for e, p in paths if not _subject_excluded(p))
+    return tree_hash(base, kept, lambda *a: _git(base, *a).stdout, SUBJECT_EXCLUDE)[0]
+
+
 def _release_subject(base: Path, arts: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Ứng viên được chứng nhận: HEAD, vân tay cây, digest gộp của artifact (None khi không khai hay có artifact lỗi)."""
+    """Ứng viên được chứng nhận: HEAD, vân tay cây, digest gộp của artifact (None khi không khai hay có artifact lỗi) và
+    `content` = `subject_fingerprint` — vân tay nội dung trừ file ký/sổ máy đọc: không đổi qua commit ký và squash,
+    đổi khi mã đổi; chữ ký §5 gắn vào nó (D-389, AUD-HAR-219, D-393). Chỉ thêm khoá nên `RELEASE_SCHEMA` giữ 3."""
     ok = bool(arts) and not any(a["problem"] for a in arts)
     lines = "".join(f"{a['path']}\0{a['sha256']}\n" for a in sorted(arts, key=lambda a: str(a["path"])))
     digest = hashlib.sha256(lines.encode()).hexdigest() if ok else None
-    return {"head": _git_head(base), "tree": tree_fingerprint(base), "digest": digest}
+    return {
+        "head": _git_head(base),
+        "tree": tree_fingerprint(base),
+        "digest": digest,
+        "content": subject_fingerprint(base),
+    }
+
+
+SUBJECT_KINDS = ("content", "digest")  # ô của dòng `subject:` trong GO-NO-GO, theo thứ tự xét (D-389)
+# `subject: content <hex>` cả dòng; trước có thể là `>` trích dẫn và một gạch đầu dòng, hex có thể trong backtick
+SUBJECT_LINE_RE = re.compile(
+    r"^[ \t]*(?:>[ \t]*)*(?:[-*+][ \t]+)?subject[ \t]*:[ \t]*(content|digest)[ \t]+(\S+?)[ \t]*$", re.I | re.M
+)
+
+
+def subject_lines(subject: Dict[str, Any]) -> List[str]:
+    """Dòng GO-NO-GO phải ghi để chữ ký §5 gắn ứng viên này (D-389): `content` luôn, `digest` khi khai artifact."""
+    return [f"subject: {kind} {subject[kind]}" for kind in SUBJECT_KINDS if subject.get(kind)]
+
+
+# Rào mở: sau tiền tố khối chứa (trích dẫn `>`, dấu mục danh sách `-*+`/`1.`/`1)` + cách) — nhóm 1 tiền tố, 2 rào, 3 info.
+# Lượng từ chiếm hữu: không quay lui theo số dấu `>` (ReDoS).
+SHOWN_FENCE_RE = re.compile(r"^((?:[ ]*+(?:>|(?:[-*+]|\d{1,9}[.)])(?=[ ])))*+)[ ]*+(`{3,}|~{3,})(.*)$")
+SHOWN_CLOSE_RE = re.compile(r"(`{3,}|~{3,})\s*\Z")  # rào đóng: không chữ sau
+# Dòng không phải đoạn văn (khối code thụt mở được ngay sau): tiêu đề, đường kẻ/gạch setext, dòng bảng, định nghĩa
+# link, dòng HTML — kể cả trong trích dẫn; nhận rộng (ẩn thêm) vì dòng sau đoạn văn mới là dòng tiếp.
+SHOWN_BLOCK_LINE_RE = re.compile(r"[ >]*+(?:#{1,6}(?:[ \t]|\s*\Z)|(?:[-*_=][ \t]*+)++\s*\Z|\||\[[^\]]*\]:|<)")
+
+
+class _ShownFence(NamedTuple):
+    mark: str  # chuỗi rào mở
+    quotes: int  # số `>` của khối chứa
+    col: int  # cột ký tự rào đầu tiên
+    in_item: bool  # mở cùng dòng với dấu mục danh sách: biết cột nội dung của mục
+
+
+def _shown_fence_open(line: str) -> Optional[_ShownFence]:
+    """Rào mở ở dòng `line` (tab đã đổi ra cách) hay None; rào backtick không nhận info có backtick (CommonMark)."""
+    m = SHOWN_FENCE_RE.match(line)
+    if not m or (m[2][0] == "`" and "`" in m[3]):
+        return None
+    return _ShownFence(m[2], m[1].count(">"), m.start(2), bool(re.search(r"[-*+\d]", m[1])))
+
+
+def _shown_fence_step(fence: _ShownFence, line: str) -> Tuple[bool, bool]:
+    """(rào còn mở?, dòng thuộc rào?) — khối chứa đóng (thiếu `>`; dòng có chữ thụt ít hơn cột rào của mục danh sách)
+    thì rào đóng theo, dòng được xét lại ngoài rào; rào đóng: cùng số `>`, cùng ký tự, dài ≥ rào mở, thụt ≤ cột rào + 3."""
+    indent = len(line) - len(line.lstrip(" >"))
+    quotes = line[:indent].count(">")
+    body = line[indent:]
+    if quotes < fence.quotes or (fence.in_item and body.strip() and indent < fence.col):
+        return False, False
+    m = SHOWN_CLOSE_RE.match(body)
+    if m and quotes == fence.quotes and indent <= fence.col + 3:
+        return not (m[1][0] == fence.mark[0] and len(m[1]) >= len(fence.mark)), True
+    return True, True
+
+
+# Token của một dòng cho chú thích HTML: `<!-->`/`<!--->` (chú thích trọn, CommonMark 0.31.2 §6.6), mở, đóng (`-->`,
+# và `--!>` — trình duyệt HTML5 cũng đóng ở đó, CodeQL py/bad-tag-filter), chuỗi backtick (code span) — một lượt
+# `finditer`, không cắt chuỗi (review #467: bậc hai).
+HTML_COMMENT_TOKEN_RE = re.compile(r"<!---?>|<!--|--!?>|`+")
+
+
+def _code_span_closers(toks: List["re.Match[str]"]) -> Dict[int, int]:
+    """Chỉ số token chuỗi backtick → chỉ số chuỗi backtick cùng độ dài kế sau nó (đóng code span)."""
+    closers: Dict[int, int] = {}
+    after: Dict[str, int] = {}
+    for i in range(len(toks) - 1, -1, -1):
+        tok = toks[i][0]
+        if tok[0] == "`":
+            if tok in after:
+                closers[i] = after[tok]
+            after[tok] = i
+    return closers
+
+
+def _strip_html_comments(line: str, inside: bool) -> Tuple[str, bool]:
+    """(phần ngoài chú thích HTML của `line`, dòng kết thúc vẫn trong chú thích?) — `inside`: dòng mở đầu trong chú
+    thích; `<!--` chưa đóng ẩn tới `-->`/`--!>` sau đó hay hết file (CommonMark khối HTML loại 2, HTML5); `<!-->`,
+    `<!--->` là chú thích trọn. `<!--` trong code span (backtick, đóng trên cùng dòng) là chữ, không mở chú thích; code span nhiều
+    dòng không nhận (ẩn thêm)."""
+    toks = list(HTML_COMMENT_TOKEN_RE.finditer(line))
+    closers = _code_span_closers(toks)
+    parts: List[str] = []
+    last = i = 0
+    while i < len(toks):
+        tok = toks[i][0]
+        if inside:
+            if tok != "<!--" and tok[0] != "`":  # `-->`, `--!>` hay `<!--->` (có `-->`) đóng chú thích
+                inside, last = False, toks[i].end()
+        elif tok[0] == "`":
+            i = closers.get(i, i)  # bỏ qua nội dung code span; không đóng → backtick là chữ
+        elif tok[0] == "<":  # `<!--` mở, `<!-->`/`<!--->` trọn; `-->`/`--!>` lẻ là chữ
+            parts.append(line[last : toks[i].start()])
+            inside, last = tok == "<!--", toks[i].end()
+        i += 1
+    if not inside:
+        parts.append(line[last:])
+    return "".join(parts), inside
+
+
+# Khối HTML trình xem không hiện (CommonMark §4.6 loại 1 `script`/`style`, 3 `<?`, 5 CDATA, 4 `<!X`) — sau tiền tố
+# cách/`>`; `<pre>`/`<textarea>` (cũng loại 1) hiện nên không ẩn.
+HTML_HIDDEN_RE = re.compile(r"[ >]*+<(?:(script|style)(?=[\s>]|\Z)|(\?)|!(\[CDATA\[)|![A-Za-z])", re.I)
+
+
+def _html_hidden_start(line: str) -> Optional[str]:
+    """Khối HTML ẩn mở ở `line`: đuôi đóng còn chờ ("" = đóng ngay dòng này); None = không mở khối."""
+    m = HTML_HIDDEN_RE.match(line)
+    if not m:
+        return None
+    end = f"</{m[1].lower()}>" if m[1] else "?>" if m[2] else "]]>" if m[3] else ">"
+    return "" if end in line[m.end() :].lower() else end
+
+
+class _ShownView:
+    """Trạng thái duyệt từng dòng của `_markdown_shown`."""
+
+    def __init__(self) -> None:
+        self.fence: Optional[_ShownFence] = None
+        self.html = ""  # đuôi đóng của khối HTML ẩn đang mở
+        self.comment = False
+        self.block_start = True  # khối code thụt mở được ở dòng này
+
+    def _inside_block(self, line: str) -> bool:
+        """Dòng thuộc khối HTML ẩn/rào đang mở (cập nhật trạng thái khi khối đóng)."""
+        if self.html:
+            self.html = "" if self.html in line.lower() else self.html
+            return True
+        if self.fence is None:
+            return False
+        still, inside = _shown_fence_step(self.fence, line)
+        self.fence, self.block_start = (self.fence if still else None), True
+        return inside
+
+    def _opens_block(self, line: str) -> bool:
+        """Dòng mở (hoặc thuộc) khối ẩn: khối code thụt, rào, khối HTML ẩn — không xét khi đang trong chú thích."""
+        if self.comment:
+            return False
+        if self.block_start and line.strip() and len(line) - len(line.lstrip(" ")) >= 4:
+            return True
+        self.fence = _shown_fence_open(line)
+        end = None if self.fence else _html_hidden_start(line)
+        if end is None:
+            return self.fence is not None
+        self.html, self.block_start = end, True
+        return True
+
+    def shown(self, raw: str) -> Optional[str]:
+        """Phần hiện của dòng `raw`; None = cả dòng thuộc khối ẩn."""
+        line = raw.expandtabs(4)
+        if self._inside_block(line) or self._opens_block(line):
+            return None
+        shown, self.comment = _strip_html_comments(raw, self.comment)
+        self.block_start = not shown.strip() or bool(SHOWN_BLOCK_LINE_RE.match(shown.expandtabs(4)))
+        return shown
+
+
+def _markdown_shown(text: str) -> str:
+    """Phần Markdown người ký thấy khi xem (AUD-HAR-320, AUD-HAR-322) — duyệt từng dòng theo khối CommonMark nên rào và
+    chú thích không nuốt nhau (`<!--` trong khối code không ẩn phần sau; rào trong chú thích không mở khối). Bỏ BOM; bỏ
+    chú thích HTML `<!-- … -->` (cả nhiều dòng, chưa đóng → tới hết file); bỏ khối rào ``` / ~~~ (cả trong trích dẫn
+    và mục danh sách, chưa đóng → hết file — `_shown_fence_step`); bỏ khối code thụt ≥ 4 cách (tab = 4) ở đầu văn bản
+    hay sau dòng trống, khối rào/thụt/HTML/chú thích, dòng không phải đoạn văn (`SHOWN_BLOCK_LINE_RE`) — không sau dòng
+    đoạn văn/mục danh sách (dòng tiếp của nó). Khối HTML trình xem không hiện (`<script>`, `<style>`, `<?`,
+    `<![CDATA[`, `<!X` đầu dòng) ẩn tới hết dòng có đuôi đóng; HTML nội dòng (trừ chú thích) không xét.
+    Giới hạn (phần lớn lệch về phía ẩn thêm): không theo dõi mục danh sách qua nhiều dòng — dòng thụt sau dòng trống
+    trong mục bị coi là khối code, rào mở ở dòng tiếp của mục (không có dấu mục) chỉ đóng bằng rào đóng; khối thụt chỉ
+    nhận ở cấp gốc. Markdown cố tình đánh lừa vẫn có thể lệch — dòng ký §5 còn có guard `GO_SIGN` chặn agent ghi, và
+    lời từ chối NO-GO đọc cả văn bản thô (`_go_no_go_refusals`)."""
+    view = _ShownView()
+    kept: List[str] = []
+    for raw in text.lstrip("\ufeff").split("\n"):
+        shown = view.shown(raw)
+        if shown is not None:
+            kept.append(shown)
+    return "\n".join(kept)
+
+
+def _short_repr(text: str, limit: int = 120) -> str:
+    r = repr(text)
+    return r if len(r) <= limit else r[: limit - 1] + "…"
+
+
+def _subject_problem(rel: str, text: str, subject: Dict[str, Any]) -> str:
+    """Lý do dòng `subject:` của `rel` không gắn chữ ký với ứng viên hiện tại; rỗng = gắn đúng. Chỉ xét phần người ký
+    thấy (`_markdown_shown`); so đủ 64 hex từng ô; nhiều dòng cùng ô mà một dòng lệch → lệch (chặt), in nguyên văn dòng
+    lệch. Không có vân tay nội dung → không gắn được, không duyệt."""
+    if not subject.get("content"):
+        return f"{rel}: không tính được vân tay nội dung (không phải repo git có commit) — chữ ký không gắn ứng viên"
+    found: Dict[str, List[Tuple[str, str]]] = {}
+    for m in SUBJECT_LINE_RE.finditer(_markdown_shown(text)):
+        found.setdefault(m[1].lower(), []).append((m[2].strip("`").lower(), m[0].strip()))
+    for line in subject_lines(subject):
+        kind, want = line.split()[1:]
+        bad = [shown for got, shown in found.get(kind, []) if got != want]
+        if bad:
+            return (
+                f"{rel}: dòng {_short_repr(bad[0])} — chữ ký gắn ứng viên khác; ứng viên này: `{line}` "
+                "(người xem lại và ký lại)"
+            )
+        if kind not in found:
+            return f"{rel}: thiếu dòng `{line}` — chữ ký chưa gắn ứng viên (D-389)"
+    return ""
 
 
 def _signed_go_no_go(base: Path) -> List[Tuple[str, str]]:
-    """MỌI GO-NO-GO đã ký §5 của `VERSION` (cùng luật hàng `go_no_go`) — xét hết để kết quả không phụ thuộc thứ tự file
-    (review lát A); không có/không đọc được → rỗng."""
+    """MỌI GO-NO-GO đã ký §5 của `VERSION` (cùng luật hàng `go_no_go`) hay có dòng ký NO-GO ở §5 thô
+    (`_go_no_go_refusals`) — xét hết để kết quả không phụ thuộc thứ tự file (review lát A); không có/không đọc được →
+    rỗng."""
     try:
         version = (base / "VERSION").read_text(encoding="utf-8").strip()
-        return [(r, t) for r, t in _go_no_go_docs(base, version) if _go_no_go_signed(t)]
+        docs = _go_no_go_docs(base, version)
+        return [(r, t) for r, t in docs if _go_no_go_signed(t) or _go_no_go_refusals(t)]
     except (OSError, ValueError):
         return []
 
@@ -12885,15 +13171,15 @@ def _decision(cell: str) -> str:
     return "go" if GO_DECISION_RE.fullmatch(text) else "?"
 
 
-def _approval_problem(base: Path, rel: str, text: str, digest: Optional[str]) -> str:
-    """Lý do chữ ký §5 của `rel` chưa đủ cho promotion; rỗng = đủ. Dòng ký từ chối → `rejected:`; ô không phải GO, ngày
-    không hợp lệ/ở tương lai (quá 1 ngày — múi giờ người ký)/quá hạn, hay có digest mà văn bản không nhắc → chờ người."""
-    rows = _go_sign_rows(text)
-    kinds = [(_decision(d), d) for d, _ in rows]
-    no = [d for k, d in kinds if k == "no"]
+def _approval_problem(base: Path, rel: str, text: str, subject: Dict[str, Any]) -> str:
+    """Lý do chữ ký §5 của `rel` chưa đủ cho promotion; rỗng = đủ. Dòng ký từ chối (§5 hiển thị hay thô —
+    `_go_no_go_refusals`) → `rejected:`; ô không phải GO, ngày không hợp lệ/ở tương lai (quá 1 ngày — múi giờ người
+    ký)/quá hạn, hay dòng `subject:` thiếu/lệch → chờ người."""
+    no = _go_no_go_refusals(text)
     if no:
         return f"rejected:{rel}: quyết định ký §5 ghi `{no[0]}` (NO-GO)"
-    other = [d for k, d in kinds if k != "go"]
+    rows = _go_sign_rows(text)
+    other = [d for d, _ in rows if _decision(d) != "go"]
     if other:
         return f"{rel}: ô quyết định `{other[0] or '(trống)'}` không phải GO — người ký ghi GO hoặc NO-GO"
     today = _dt.datetime.now(_dt.timezone.utc).date()
@@ -12906,19 +13192,17 @@ def _approval_problem(base: Path, rel: str, text: str, digest: Optional[str]) ->
         return f"{rel}: ngày ký {max(dates)} ở tương lai"
     if (today - min(dates)).days > days:
         return f"{rel}: chữ ký {min(dates)} hết hạn ({days} ngày — `{APPROVAL_DAYS_KEY}`)"
-    if digest and digest[:12] not in text:
-        return f"{rel}: không nhắc digest ứng viên `{digest[:12]}` — chữ ký chưa gắn subject"
-    return ""
+    return _subject_problem(rel, text, subject)
 
 
-def _release_promotion(base: Path, fails: List[str], human: List[str], digest: Optional[str]) -> Dict[str, Any]:
+def _release_promotion(base: Path, fails: List[str], human: List[str], subject: Dict[str, Any]) -> Dict[str, Any]:
     """`blocked` (hàng BLOCKER FAIL) · `rejected` (một dòng ký từ chối ở bất kỳ GO-NO-GO nào của VERSION) ·
     `pending_human` (còn việc người, chữ ký thiếu/không phải GO/hết hạn/chưa gắn subject) · `approved`. Máy không nâng
     `pending_human` (ADR-0068 câu 3): "đã duyệt" vẫn là chữ ký người."""
     if fails:
         return {"state": "blocked", "reasons": fails}
     docs = _signed_go_no_go(base)
-    problems = [_approval_problem(base, rel, text, digest) for rel, text in docs]
+    problems = [_approval_problem(base, rel, text, subject) for rel, text in docs]
     rejected = [p.removeprefix("rejected:") for p in problems if p.startswith("rejected:")]
     if rejected:
         return {"state": "rejected", "reasons": rejected}
@@ -12969,7 +13253,7 @@ def release_check(base: Path, blueprint: str, status: str, unchecked_must: str =
         "subject": subject,
         "artifacts": arts,
         "results": [res for _, res in runs.values() if res],
-        "promotion": _release_promotion(base, fails, human, subject["digest"]),
+        "promotion": _release_promotion(base, fails, human, subject),
     }
 
 
@@ -12987,7 +13271,25 @@ def cmd_release_check(args: argparse.Namespace) -> int:
             print("Chờ người: " + ", ".join(out["human"]) + " — máy không thay được chữ ký (GO-NO-GO.md §5)")
         promo = out["promotion"]
         print(f"promotion: {promo['state']} — " + "; ".join(promo["reasons"]))
+        _print_subject_lines(out)
     return 0 if out["go"] else 1
+
+
+def _print_subject_lines(out: Dict[str, Any]) -> None:
+    """Dòng `subject:` để chép vào GO-NO-GO — chỉ khi hàng `tree` PASS (AUD-HAR-318): cây bẩn thì vân tay có thể gồm
+    diff chưa commit, lệch sau commit (người ký phải ký lại) → in nhắc commit rồi chạy lại. Không khẳng định vân tay gồm
+    diff: cây có thể chỉ bẩn vì file ngoài vân tay, như GO-NO-GO vừa ghi (AUD-HAR-322)."""
+    lines = subject_lines(out["subject"])
+    if not lines:
+        return
+    if any(r["id"] == "tree" and r["result"] == "PASS" for r in out["rows"]):
+        print("Dòng gắn chữ ký §5 với ứng viên này — chép nguyên vào GO-NO-GO (D-389):")
+        print("\n".join(lines))
+    else:
+        print(
+            "Dòng `subject:` chưa in: cây chưa sạch — commit rồi chạy lại để lấy dòng đúng (commit VERSION/CHANGELOG "
+            "trước khi soạn GO-NO-GO)"
+        )
 
 
 WATCH_ERROR_LIMIT = 3  # lần lỗi đọc PR liên tiếp tối đa trước khi merge-watch bỏ cuộc (mạng chập chờn không đáng dừng)
