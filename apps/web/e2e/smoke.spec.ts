@@ -152,7 +152,7 @@ test("/.well-known/security.txt phục vụ được, đúng RFC 9116 (XC-OSS-00
   expect(res.status()).toBe(200);
   const body = await res.text();
   expect(body).toMatch(
-    /^Contact: https:\/\/github\.com\/seeker19110\/hotel-manager\/security\/advisories\/new$/m,
+    /^Contact: https:\/\/github\.com\/www-donghanhcungban-org\/hotel-manager\/security\/advisories\/new$/m,
   );
   expect(body).toMatch(/^Expires: \d{4}-\d{2}-\d{2}T/m);
 });

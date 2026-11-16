@@ -102,7 +102,7 @@ describe("repo thật (D-111; chủ dự án đổi sang MIT 2026-11-16)", () =>
     const lic = readFileSync(join(ROOT, "LICENSE"), "utf8");
     expect(lic).toMatch(/^MIT License$/m);
     expect(lic).toMatch(/Permission is hereby granted, free of charge/);
-    expect(lic).toMatch(/Copyright \(c\) \d{4} seeker19110/);
+    expect(lic).toMatch(/Copyright \(c\) \d{4} www-donghanhcungban-org/);
     expect(JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")).license).toBe("MIT");
     const workspaces = [
       ...globSync("apps/*/package.json", { cwd: ROOT }),

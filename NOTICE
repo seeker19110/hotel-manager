@@ -1,5 +1,5 @@
 Hotel Manager
-Copyright (c) 2026 seeker19110
+Copyright (c) 2026 www-donghanhcungban-org
 
 Toàn bộ repo (mã, tài liệu, đặc tả, biểu tượng) phát hành theo giấy phép MIT — xem LICENSE — trừ các
 thành phần bên thứ ba liệt kê dưới đây, giữ nguyên giấy phép gốc của chúng.
@@ -13,7 +13,7 @@ Caddy — deploy/caddy/main.go (điểm vào chuẩn của Caddy để dựng b�
   Module Go trong deploy/caddy/go.mod tải lúc build, mỗi module giữ giấy phép riêng.
 
 X-Templates — .xtemplates/
-  Copyright (c) 2026 seeker19110. Giấy phép: MIT (https://github.com/seeker19110/X-Templates).
+  Copyright (c) 2026 www-donghanhcungban-org. Giấy phép: MIT (https://github.com/www-donghanhcungban-org/X-Templates).
 
 Phụ thuộc npm phân phối: THIRD_PARTY_NOTICES.md (sinh tự động từ lockfile); mỗi gói giữ giấy phép riêng.
 Công cụ Python của CI (security/semgrep/requirements.txt) không phân phối kèm sản phẩm.

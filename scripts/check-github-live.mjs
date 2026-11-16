@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import { isMain } from "./is-main.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
-const REPO = process.env.GH_REPO || "seeker19110/hotel-manager";
+const REPO = process.env.GH_REPO || "www-donghanhcungban-org/hotel-manager";
 
 const contextsOf = (rules) =>
   rules

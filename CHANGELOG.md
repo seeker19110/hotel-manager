@@ -44,6 +44,7 @@ phiên bản theo [SemVer](https://semver.org/lang/vi/). Chưa có bản phát h
   (nền spec-coverage 26 scenario chưa có tính năng); đóng thêm 21 mục blueprint (267/496 MUST đạt).
 
 ### Changed
+- Chuyển chủ repo sang `www-donghanhcungban-org`: cập nhật liên kết repo (FUNDING, mẫu issue, security.txt, script/test liên quan) và dòng bản quyền trong `LICENSE`/`NOTICE`; link cũ vẫn chuyển hướng.
 - Đợt 3: sửa theo các vòng review độc lập (công nợ tính từ sổ phụ gồm điều chỉnh giảm, job xuất không kẹt, claim thông báo chia đều
   theo tổ chức, phụ lục hợp đồng không thời hạn không tính trùng kỳ).
 

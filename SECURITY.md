@@ -12,7 +12,7 @@
 **Không** báo lỗ hổng qua issue, PR hay thảo luận công khai.
 
 Báo riêng tư qua **GitHub Private Vulnerability Reporting**:
-<https://github.com/seeker19110/hotel-manager/security/advisories/new>
+<https://github.com/www-donghanhcungban-org/hotel-manager/security/advisories/new>
 
 Nên kèm: mô tả, phiên bản/commit, bước tái hiện tối thiểu, ảnh hưởng ước tính, và cách bạn muốn được ghi công.
 Không đưa dữ liệu cá nhân thật của người dùng vào báo cáo; nếu buộc phải chứng minh truy cập dữ liệu, chỉ nêu loại dữ liệu.
