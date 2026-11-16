@@ -45,6 +45,10 @@ phiên bản theo [SemVer](https://semver.org/lang/vi/). Chưa có bản phát h
 - Đợt 3: sửa theo các vòng review độc lập (công nợ tính từ sổ phụ gồm điều chỉnh giảm, job xuất không kẹt, claim thông báo chia đều
   theo tổ chức, phụ lục hợp đồng không thời hạn không tính trùng kỳ).
 
+### Fixed
+- Test S-010 huỷ đăng ký từ email không còn phụ thuộc ngày chạy: `handleUnsubscribe` nhận đồng hồ tuỳ chọn (`deps.now`, route
+  production không truyền → giờ thật), test ghim vào thời điểm gửi email và kiểm thêm link hết hạn đúng sau 30 ngày.
+
 ### Security
 - Khoá mã hoá số giấy tờ AES-256-GCM tầng ứng dụng + blind index; quét file bằng clamd (không coi file là sạch khi chưa quét);
   RLS chặn người thuê đọc sổ cái/audit/dữ liệu người khác; `/api/metrics` dùng Bearer token dẫn xuất từ bí mật phiên.
