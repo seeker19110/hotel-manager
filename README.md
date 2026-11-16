@@ -108,7 +108,7 @@ Kiểm phụ thuộc có lỗ hổng: `pnpm audit --prod`.
 
 Một thay đổi nhỏ một commit (Conventional Commits, tiếng Việt), qua cổng ở trên; mẫu PR ở
 [`.github/pull_request_template.md`](.github/pull_request_template.md). Không dùng dữ liệu thật ở dev/test.
-Giấy phép mã nguồn và kênh báo lỗ hổng: chưa có (chờ chủ dự án quyết — `PROJECT.md` §10).
+Giấy phép mã nguồn: MIT (mục [Giấy phép](#giấy-phép)); kênh báo lỗ hổng: [`SECURITY.md`](SECURITY.md).
 
 ## Hook git
 
@@ -136,3 +136,22 @@ người tạo kích hoạt CI) và đợi check xanh trước khi merge. Chủ 
 **Contents: Read and write** + **Pull requests: Read and write**) làm secret `RELEASE_PLEASE_TOKEN`; workflow tự dùng nó nếu có (không
 cần đổi mã) và Release PR chạy CI ngay. Job `release-please` đỏ với `Error adding to tree: <sha>` nghĩa là token đọc được repo nhưng
 không ghi được (thiếu Contents: write) — sửa quyền token, hoặc xoá secret để quay về `GITHUB_TOKEN`, rồi chạy lại workflow `Release`.
+
+## Ủng hộ và liên hệ
+
+Dự án miễn phí và mở mã. Nếu nó giúp bạn tiết kiệm thời gian, bạn có thể ủng hộ để tác giả duy trì và phát triển tiếp:
+
+<img src="docs/assets/donate-vietqr-techcombank.png" alt="Mã VietQR ủng hộ: Techcombank, số tài khoản 890977819110" width="260">
+
+- Quét mã VietQR bằng ứng dụng ngân hàng bất kỳ, hoặc chuyển khoản **Techcombank — số tài khoản `890977819110`**.
+- Liên hệ, góp ý, hợp tác: điện thoại / Zalo **[+84 977 819 110](https://zalo.me/0977819110)** ·
+  email **admin@donghanhcungban.org**. Lỗi và đề xuất tính năng xin mở issue trên GitHub.
+- **Hỗ trợ triển khai:** tác giả hỗ trợ cài đặt và áp dụng dự án cho nhu cầu của bạn — **trực tiếp tại TP. Hồ Chí Minh**
+  hoặc **online** ở bất kỳ đâu. Liên hệ qua điện thoại/Zalo hoặc email ở trên để trao đổi.
+
+Ủng hộ là tự nguyện, không kèm quyền lợi riêng; hỗ trợ triển khai thoả thuận riêng theo từng dự án.
+
+## Giấy phép
+
+Mở mã theo giấy phép [MIT](LICENSE) (`"license": "MIT"` trong mọi `package.json`). Thành phần bên thứ ba giữ giấy phép gốc —
+xem [NOTICE](NOTICE) và [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) (phụ thuộc phân phối, sinh tự động).

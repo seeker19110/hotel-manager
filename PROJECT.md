@@ -166,4 +166,4 @@ Danh sách đầy đủ ở mục "Câu hỏi mở" của từng SPEC. Ba câu c
 
 Còn mở, không chặn pilot:
 - [ ] Ghi nhận doanh thu (khi phát hành phiếu hay khi kỳ kết thúc) — chặn báo cáo doanh thu, không chặn pilot — hỏi: kế toán
-- [ ] Giấy phép mã nguồn của sản phẩm — hỏi: chủ dự án
+- [x] Giấy phép mã nguồn của sản phẩm — **chủ dự án chốt 2026-11-16: MIT** (thay Proprietary của D-111); `LICENSE`, `NOTICE`

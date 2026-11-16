@@ -1,7 +1,7 @@
 # Đóng góp cho Hotel Manager
 
-Repository này là mã **độc quyền** (xem `LICENSE`). Đóng góp chỉ nhận từ người được chủ sở hữu mời; khi gửi đóng góp, bạn đồng ý
-chuyển giao/cấp quyền cho chủ sở hữu sử dụng phần đóng góp theo cùng điều khoản.
+Repository này mở mã theo giấy phép **MIT** (xem `LICENSE`). Khi gửi đóng góp, bạn đồng ý cấp phép phần đóng góp theo cùng giấy
+phép MIT. Thay đổi lớn nên mở issue trao đổi với chủ dự án trước.
 
 ## Quy trình
 

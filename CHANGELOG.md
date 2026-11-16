@@ -6,6 +6,8 @@ phiên bản theo [SemVer](https://semver.org/lang/vi/). Chưa có bản phát h
 ## [Unreleased]
 
 ### Added
+- Mở mã theo giấy phép MIT (thay giấy phép độc quyền của D-111): `LICENSE`, `NOTICE` (Caddy Apache-2.0, nhãn hiệu), `license: MIT`
+  trong mọi `package.json`; README thêm mục "Ủng hộ và liên hệ" (mã VietQR, liên hệ, hỗ trợ triển khai) và `.github/FUNDING.yml`.
 - Đợt 1 — nền: pnpm workspace (`apps/web`, `apps/worker`, `packages/*`), schema biến môi trường, `packages/db` (Kysely, migration,
   vai trò + RLS theo tổ chức), đăng nhập + MFA (Better Auth), `authorize()`, command pipeline (idempotency, audit, outbox),
   tồn phòng chống chồng bằng `EXCLUDE` (100 lệnh tranh một phòng → 1 allocation), lõi sổ tiền (sổ phụ bất biến, phân bổ, cọc),
