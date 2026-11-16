@@ -521,7 +521,7 @@ describe("OPS-DEPLOY-003 — schema-compat (bản N−1 trên schema N)", () => 
     expect(job).toContain(
       'pnpm vitest run --project db --exclude "**/schema-drift.db.test.ts" --exclude "**/migration-*.db.test.ts"',
     );
-    expect(job).toContain("postgres:17.11");
+    expect(job).toContain("postgres:17.12");
     // Bản N−1 có connection-tls.db.test.ts tự initdb cluster PG 17: job phải có binary như job `gate`.
     const pg = job.indexOf("scripts/dev-env-setup.sh --only postgres");
     expect(pg).toBeGreaterThan(0);

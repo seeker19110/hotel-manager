@@ -15,7 +15,7 @@ x-logging: &default-logging
 
 services:
   postgres:
-    # FROM postgres:17.11-trixie@sha256:… + pgBackRest 2.59.3 (deploy/postgres/Dockerfile)
+    # FROM postgres:17.12-trixie@sha256:… + pgBackRest 2.59.3 (deploy/postgres/Dockerfile)
     build: ./postgres
     restart: unless-stopped
     environment:

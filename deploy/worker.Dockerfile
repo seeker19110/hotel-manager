@@ -5,6 +5,11 @@
 # Base: node 24.22.2 (khớp .nvmrc), Debian trixie slim; digest kiểm SHA-256 manifest và kéo/chạy qua mirror.gcr.io 2026-11-01 (D-139); đổi digest 2026-11-05 lấy apt 3.0.4 (CVE-2026-109518, D-157).
 FROM node:24.22.2-trixie-slim@sha256:0820eaa85e07d0490446dd01d14707e17e6108a36988cf374899cd057eb3812d AS prepared
 WORKDIR /app
+# zlib1g: base Node (cả bản dựng mới nhất của 24.22.x) còn `1.3.1-1+b1` (CVE-2026-76844, CVE-2026-85091) — ghim bản vá
+# `+deb13u1` từ trixie-security (2026-11-16) tới khi base dựng lại có sẵn; xoá danh sách apt để không tăng kích thước.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends "zlib1g=1:1.3.dfsg+really1.3.1-1+deb13u1" \
+ && rm -rf /var/lib/apt/lists/*
 # D-140: Corepack xác minh/cài đúng pnpm đã ghim; bỏ npm khỏi base dùng chung cho build và runtime.
 # Không giữ các gói npm CLI có lỗ hổng trong bất kỳ stage ứng dụng nào; CI quét chính stage base này.
 RUN corepack prepare pnpm@12.16.1 --activate \
