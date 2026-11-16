@@ -16,6 +16,6 @@ xúc phạm, công kích cá nhân, quấy rối công khai hay riêng tư, côn
 ## Phạm vi và thực thi
 
 Áp dụng trong mọi không gian của dự án (repository, issue, PR, kênh trao đổi) và khi đại diện dự án nơi công cộng.
-Báo hành vi vi phạm riêng tư cho người duy trì qua hồ sơ GitHub của chủ sở hữu repository (<https://github.com/seeker19110>);
+Báo hành vi vi phạm riêng tư cho người duy trì qua hồ sơ GitHub của chủ sở hữu repository (<https://github.com/www-donghanhcungban-org>);
 báo cáo được xem xét kịp thời, giữ bí mật người báo. Biện pháp theo mức độ: nhắc nhở → cảnh cáo → cấm tạm thời → cấm vĩnh viễn
 (hướng dẫn thực thi của Contributor Covenant 2.1).
