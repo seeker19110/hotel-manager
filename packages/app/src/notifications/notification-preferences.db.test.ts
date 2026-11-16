@@ -148,15 +148,18 @@ describe("S-010 huỷ đăng ký từ email", () => {
     const mail = fake.sent.find((m) => m.subject.includes("quá hạn"));
     const link = /https:\/\/app\.example\/huy-dang-ky\?t=(\S+)/.exec(mail?.text ?? "")?.[1];
     expect(link).toBeTruthy();
-    const post = (token: string) =>
+    // Đồng hồ của handler ghim vào NOW (lúc gửi email/ký link): hạn 30 ngày không phụ thuộc ngày chạy test.
+    const post = (token: string, at: Date = NOW) =>
       handleUnsubscribe(
         new Request("https://app.example/api/v1/notifications/unsubscribe", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ token }),
         }),
-        { db: t.runtime, secret: SECRET },
+        { db: t.runtime, secret: SECRET, now: () => at },
       );
+    // Chính link trong email hết hạn đúng sau UNSUBSCRIBE_TTL_DAYS (30 ngày) kể từ lúc gửi.
+    expect((await post(link as string, new Date(NOW.getTime() + 30 * 86_400_000))).status).toBe(410);
     const r1 = await post(link as string);
     expect(r1.status).toBe(200);
     expect(((await r1.json()) as { data: { message: string } }).data.message).toBe(
@@ -181,24 +184,26 @@ describe("S-010 huỷ đăng ký từ email", () => {
       orgId: A.orgId,
       personId: an.personId,
       type: "invoice_issued",
-      expiresAt: new Date(Date.now() - 1000),
+      expiresAt: new Date(NOW.getTime() - 1000),
     });
     expect((await post(expired)).status).toBe(410);
     const forged = signUnsubscribe(unsubscribeKey("khoa-khac-khoa-khac-khoa-khac-khoa-khac"), {
       orgId: A.orgId,
       personId: an.personId,
       type: "invoice_issued",
-      expiresAt: new Date(Date.now() + 86_400_000),
+      expiresAt: new Date(NOW.getTime() + 86_400_000),
     });
     expect((await post(forged)).status).toBe(404);
     const required = signUnsubscribe(key, {
       orgId: A.orgId,
       personId: an.personId,
       type: "account_security",
-      expiresAt: new Date(Date.now() + 86_400_000),
+      expiresAt: new Date(NOW.getTime() + 86_400_000),
     });
     expect(
-      await unsubscribe(t.runtime, key, { token: required, correlationId: "test-corr" }).catch((e) => e.code),
+      await unsubscribe(t.runtime, key, { token: required, correlationId: "test-corr", now: NOW }).catch(
+        (e) => e.code,
+      ),
     ).toBe("PREFERENCE_REQUIRED");
     expect((await getPreferences(t.runtime, an)).find((p) => p.type === "invoice_issued")?.state).toBe(
       "opted_in",

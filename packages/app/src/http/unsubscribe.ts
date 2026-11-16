@@ -1,6 +1,7 @@
 // POST /api/v1/notifications/unsubscribe (SPEC-notifications S-010): không phiên, xác thực bằng token ký có hạn trong email.
 // Chỉ POST (trình quét liên kết trong email hay tự GET — không được đổi tuỳ chọn khi chỉ mở link); trang `/huy-dang-ky`
 // (T-219) hiện nút xác nhận rồi POST. Lỗi theo problem+json; token không bao giờ ghi log.
+// `deps.now` để test ghim đồng hồ khi kiểm hạn token; route production không truyền → dùng giờ thật.
 import type { Kysely } from "kysely";
 import { t } from "../i18n.ts";
 import { unsubscribe, unsubscribeKey } from "../notifications/index.ts";
@@ -9,7 +10,7 @@ import { correlationOf, json, simpleProblem } from "./command-route.ts";
 
 export async function handleUnsubscribe(
   req: Request,
-  deps: { db: Kysely<unknown>; secret: string },
+  deps: { db: Kysely<unknown>; secret: string; now?: () => Date },
 ): Promise<Response> {
   const correlationId = correlationOf(req);
   let token: unknown;
@@ -21,7 +22,11 @@ export async function handleUnsubscribe(
   if (typeof token !== "string" || token.length < 10 || token.length > 512)
     return simpleProblem("MALFORMED_REQUEST", 400, t("http.unsubscribe.invalid_request"), correlationId);
   try {
-    const r = await unsubscribe(deps.db, unsubscribeKey(deps.secret), { token, correlationId });
+    const r = await unsubscribe(deps.db, unsubscribeKey(deps.secret), {
+      token,
+      correlationId,
+      ...(deps.now ? { now: deps.now() } : {}),
+    });
     return json({ data: { type: r.type, message: r.message } }, 200, correlationId);
   } catch (err) {
     if (err instanceof CommandError)
