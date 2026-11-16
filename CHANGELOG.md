@@ -48,3 +48,5 @@ phiên bản theo [SemVer](https://semver.org/lang/vi/). Chưa có bản phát h
 ### Security
 - Khoá mã hoá số giấy tờ AES-256-GCM tầng ứng dụng + blind index; quét file bằng clamd (không coi file là sạch khi chưa quét);
   RLS chặn người thuê đọc sổ cái/audit/dữ liệu người khác; `/api/metrics` dùng Bearer token dẫn xuất từ bí mật phiên.
+- Vá CVE High trong image (grype DB 2026-11-15): Postgres 17.11 → 17.12 (`postgres:17.12-trixie`, ghim digest, cả service CI);
+  zlib1g `+deb13u1` từ trixie-security trong image Postgres và base Node web/worker; SeaweedFS dựng với apache/thrift 0.25.0.
