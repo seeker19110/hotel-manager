@@ -1209,3 +1209,10 @@
 - Chọn: Dời hạn sang 2026-11-17, nâng @lhci/cli ngày 17; sửa câu chữ: chromium-bidi khai ^4.6.5, phân giải ≥ 4.6.7 nhờ override zod của dự án
 - Lý do (tiêu chí chất lượng cuối): Không ép nâng bản chưa đủ 2 tuần; vẫn trong trần 30 ngày; câu chữ chính xác (^4.6.5 cho phép bản chưa vá, override mới bảo đảm ≥ 4.6.6)
 - Đường lùi: Đặt lại 2026-11-16
+
+### D-170 · 2026-11-17T01:07:11+00:00 · 2026-11-17: nâng @lhci/cli 0.16.0 để gỡ luật grype zod 3 (GHSA-mrhx-c7xc-m3w5) — đã thử: lockfile hết zod 3, nhưng lighthouse 13.x (mọi bản) kéo @sentry/node ^11 → @sentry/bundler-plugins → sentry@0.49.0 giấy phép FSL-1.1-Apache-2.0 (source-available) ⇒ sbom-check đỏ (cần ngoại lệ + ADR)
+
+- Phương án: (1) Giữ @lhci/cli 0.15.1, gia hạn luật grype có căn cứ mới tới 2026-12-17 (≤ 30 ngày, High), chủ dự án quyết hướng giấy phép · (2) Nâng và tự thêm ngoại lệ giấy phép FSL + ADR cho công cụ CI · (3) Override @sentry/node bằng gói giả để bỏ sentry
+- Chọn: Giữ @lhci/cli 0.15.1, gia hạn luật grype có căn cứ mới tới 2026-12-17 (≤ 30 ngày, High), chủ dự án quyết hướng giấy phép
+- Lý do (tiêu chí chất lượng cuối): Đúng/an toàn: nhận giấy phép source-available là quyết định pháp lý — cách hiểu chặt hơn là không tự đưa vào; lỗ hổng zod 3 chỉ ở công cụ CI (job lighthouse), không vào bundle/production; override gói giả mong manh (lighthouse có thể import tĩnh); giữ đường lùi
+- Đường lùi: Nếu chủ dự án chấp nhận FSL: nâng @lhci/cli 0.16.x + ngoại lệ giấy phép có ADR, gỡ luật grype; nếu thay Lighthouse CI: công cụ khác rồi gỡ
