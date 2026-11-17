@@ -1216,3 +1216,10 @@
 - Chọn: Giữ @lhci/cli 0.15.1, gia hạn luật grype có căn cứ mới tới 2026-12-17 (≤ 30 ngày, High), chủ dự án quyết hướng giấy phép
 - Lý do (tiêu chí chất lượng cuối): Đúng/an toàn: nhận giấy phép source-available là quyết định pháp lý — cách hiểu chặt hơn là không tự đưa vào; lỗ hổng zod 3 chỉ ở công cụ CI (job lighthouse), không vào bundle/production; override gói giả mong manh (lighthouse có thể import tĩnh); giữ đường lùi
 - Đường lùi: Nếu chủ dự án chấp nhận FSL: nâng @lhci/cli 0.16.x + ngoại lệ giấy phép có ADR, gỡ luật grype; nếu thay Lighthouse CI: công cụ khác rồi gỡ
+
+### D-171 · 2026-11-17T02:32:15+00:00 · DB grype 2026-11-16: zlib1g (Debian trixie, CVE-2026-76844/85091 High, vá 1:1.3.dfsg+really1.3.1-1+deb13u1) trong node-base và postgres; apache/thrift 0.24.0 (5 High, vá 0.25.0) trong weed — main và mọi PR đỏ image-scan; upstream node:24.22.2-trixie-slim chưa dựng lại (digest vẫn bản 11-05)
+
+- Phương án: (1) Thêm apt-get upgrade (đã update sẵn) ở stage prepared node-base (web+worker giống nhau) và Dockerfile postgres; ghim thrift@v0.25.0 ở go get của seaweedfs · (2) Chờ upstream dựng lại digest mới · (3) Ngoại lệ grype có hạn
+- Chọn: Thêm apt-get upgrade (đã update sẵn) ở stage prepared node-base (web+worker giống nhau) và Dockerfile postgres; ghim thrift@v0.25.0 ở go get của seaweedfs
+- Lý do (tiêu chí chất lượng cuối): Đúng/an toàn: lấy bản vá Debian ngay, giống apk upgrade của caddy/seaweedfs (D-110); không nới ngưỡng, không ngoại lệ; giữ digest base ghim, chỉ thêm gói vá; chờ upstream để main/PR đỏ không hạn định
+- Đường lùi: Gỡ bước apt-get upgrade khi upstream dựng lại digest có bản vá (đổi digest như D-157)
