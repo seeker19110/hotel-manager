@@ -1,7 +1,7 @@
 ---
 title: Adapter hook cho công cụ agent khác
 kind: index
-updated: 2026-11-03
+updated: 2026-11-05
 ---
 
 # Adapter hook cho công cụ agent khác Claude Code (ADR-0064 lát B)
@@ -17,6 +17,11 @@ updated: 2026-11-03
 > có ở lớp quyền Claude (`.claude/settings.json`). Host khác dùng ignore/permission riêng của host (vd `.cursorignore`,
 > `.geminiignore` — <https://cursor.com/docs/context/ignore-files>, <https://geminicli.com/docs/cli/gemini-ignore/>, đọc
 > 2026-11-03) để chặn đọc bí mật (AUD-DOC-214). Sàn chung cho mọi công cụ vẫn là git hook ([`../git-hooks/`](../git-hooks/README.md)).
+
+**Mức hỗ trợ** (thang stored METHOD.md §2; ADR-0068 lát D — "hỗ trợ" chỉ khi `checks-run` với payload thật kèm bản + ngày
+ở `tests/fixtures/harness/<tool>/`): Claude Code — hỗ trợ (hook gốc của khung) · Codex, Gemini, Cursor, Copilot, Grok,
+OpenCode — **thử nghiệm**: adapter chạy với payload dựng theo tài liệu host (`tests/test_adapters.py`), chưa có payload
+thật (2026-11-05: Codex CLI 0.147.0 có trên máy dev nhưng chạy nó tốn hạn mức tài khoản của chủ dự án — chờ chủ dự án).
 
 | File | Chép tới | Ghi chú |
 |---|---|---|

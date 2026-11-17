@@ -8,6 +8,7 @@ const ROUTES = {
   plan: ["plan", "Kế hoạch"],
   loop: ["loop", "Vòng tự động"],
   pr: ["pr", "PR"],
+  registry: ["registry", "Registry sản phẩm"],
 };
 
 export function h(tag, attrs, ...children) {

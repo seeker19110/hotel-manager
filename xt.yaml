@@ -72,3 +72,9 @@ perf: "bash scripts/perf-load.sh"
 # max_rethink: 1              # trần `pr rethink` mỗi PR (ADR-0061): hết → `pr next` trả `split-or-close`; 0 = không trần; vắng khoá = 1
 # author_effort: ""           # low|medium|high|xhigh|max — reviewer cùng họ model phải effort cao hơn tác giả (D-161, LOOP-ORCH-005)
 # reviewer_effort: ""
+
+# Khoá mới của khung (bản 3.31.0 (01ab9b5)) — bật bằng cách bỏ "# "; vắng khoá = hành vi cũ
+# acceptance_report: "" # vd reports/junit.xml — trong dự án VÀ trong .gitignore (file chưa commit làm hàng `tree` FAIL)
+# release_artifacts: "" # artifact ứng viên, cách nhau bởi khoảng trắng (sidecar <file>.sha256 nếu có) → `subject.digest`; GO-NO-GO §5 nhắc 12 ký tự đầu
+# release_approval_days: "" # hạn chữ ký GO-NO-GO §5 để `promotion: approved` (mặc định 30 ngày)
+# stage_approval: agent # agent tự nghiệm thu giai đoạn (`stage approve` bản trình còn nguyên — ADR-0069, chủ dự án 2026-11-04); human = chỉ người ngoài phiên agent (ADR-0058). Có hiệu lực khi cả cây lẫn bản đã commit ở nhánh chính khai

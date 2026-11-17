@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "id": "web-api-ts",
+  "title": "Web/API nghiệp vụ nhiều tenant — Node 24 + TypeScript + Postgres (RLS)",
+  "owner": "chủ dự án",
+  "support_until": "2027-01-21",
+  "compat": {
+    "node": ">=24.11.0 <25",
+    "pnpm": "12.16.1",
+    "postgres": "17",
+    "os": ["linux"],
+    "hosts": ["claude-code"]
+  },
+  "profiles": ["web-app", "api-service"],
+  "controls": ["QA-STRAT-024", "OPS-DEPLOY-001", "OPS-DEPLOY-005", "WF-ENV-006", "WF-REL-005", "BASE-GATE-014"],
+  "xt_yaml": {
+    "lint": "pnpm lint",
+    "typecheck": "pnpm typecheck",
+    "test": "pnpm test",
+    "build": "pnpm build",
+    "format": "pnpm format",
+    "format_file": "pnpm exec biome format --write {}",
+    "install": "pnpm install --frozen-lockfile",
+    "migrate": "pnpm migrate up",
+    "release_artifacts": "dist/app.tgz"
+  }
+}
