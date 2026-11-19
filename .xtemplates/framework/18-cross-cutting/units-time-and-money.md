@@ -101,4 +101,4 @@ updated: 2026-10-14
 - UAX #15 rev. 58 (Unicode 18.0.0): <https://unicode.org/reports/tr15/>; UTS #10 rev. 55: <https://unicode.org/reports/tr10/> — xác minh 2026-10-13; ICU 78.3 (2026-03-17, CLDR 48, Unicode 17): <https://icu.unicode.org/> — xác minh 2026-10-13
 - W3C i18n — Personal names around the world: <https://www.w3.org/International/questions/qa-personal-names> — xác minh 2026-10-13
 - dinero.js 2.0.2 (MIT), decimal.js 10.6.0, big.js 7.0.1 (npm, xác minh 2026-10-13)
-- Khung cũ X-stored `quality-supplements.md` N2 §6 (UTC, DST, float tiền), commit `1b80fe4`; catalog `seeker19110/stored` 23 §4.5 ("không dùng float cho tiền; không để model tính giá"), đọc 2026-10-13.
+- Khung cũ X-stored `quality-supplements.md` N2 §6 (UTC, DST, float tiền), commit `1b80fe4`; catalog `www-donghanhcungban-org/stored` 23 §4.5 ("không dùng float cho tiền; không để model tính giá"), đọc 2026-10-13.

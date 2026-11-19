@@ -2,10 +2,16 @@
 # Đã build/quét cục bộ 2026-11-01 bằng dữ liệu giả trên digest base CŨ; bằng chứng docs/ops/evidence/supply-chain-2026-11-01.json.
 # Digest base hiện tại (D-157) chưa có evidence cục bộ — bằng chứng quét là job CI `image-scan (node-base)` trên main.
 # Kiểm startup/PWA/shutdown ở docs/ops/evidence/local-images-2026-11-01.json; chưa triển khai production.
-# Base: node 24.22.2 (khớp .nvmrc), Debian trixie slim. Digest = index đa kiến trúc, kiểm SHA-256 manifest qua mirror.gcr.io
-# và kéo/chạy image 2026-11-01 (D-139); đổi digest 2026-11-05 lấy apt 3.0.4 (CVE-2026-109518, D-157).
-FROM node:24.22.2-trixie-slim@sha256:0820eaa85e07d0490446dd01d14707e17e6108a36988cf374899cd057eb3812d AS prepared
+# Base: node 24.22.3 (khớp .nvmrc), Debian trixie slim. Digest = index đa kiến trúc, kiểm SHA-256 manifest qua mirror.gcr.io
+# và kéo/chạy image 2026-11-01 (D-139); đổi digest 2026-11-05 lấy apt 3.0.4 (CVE-2026-109518, D-157);
+# nâng Node 24.22.3 2026-11-19 vá 7 CVE High (D-172; digest đối chiếu mirror.gcr.io và Docker Hub).
+FROM node:24.22.3-trixie-slim@sha256:af02d57b57719b9657a45199a79264a9437940cd55b3c7b3fc99615654f124a0 AS prepared
 WORKDIR /app
+# D-171 (2026-11-17): lấy bản vá Debian trixie khi upstream chưa dựng lại digest (zlib1g deb13u1, CVE-2026-76844/85091);
+# gỡ bước này khi đổi sang digest upstream đã có bản vá (như D-157).
+RUN apt-get update \
+ && apt-get -y upgrade --no-install-recommends \
+ && rm -rf /var/lib/apt/lists/*
 # D-140: Corepack xác minh/cài đúng pnpm đã ghim; bỏ npm khỏi base dùng chung cho build và runtime.
 # Không giữ các gói npm CLI có lỗ hổng trong bất kỳ stage ứng dụng nào; CI quét chính stage base này.
 RUN corepack prepare pnpm@12.16.1 --activate \
@@ -18,7 +24,7 @@ RUN corepack prepare pnpm@12.16.1 --activate \
 # Giữ nguyên Node/pnpm, OS, thư viện và metadata của image Node đã ghim; không nới ngân sách 285 MB.
 FROM scratch AS base
 COPY --from=prepared / /
-ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin NODE_VERSION=24.22.2 YARN_VERSION=1.22.22
+ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin NODE_VERSION=24.22.3 YARN_VERSION=1.22.22
 WORKDIR /app
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["node"]

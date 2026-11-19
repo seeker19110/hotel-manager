@@ -12,9 +12,10 @@ RUN apk add --no-cache git \
  && test "$(git -C /src rev-parse HEAD)" = "$SEAWEEDFS_COMMIT"
 WORKDIR /src
 # GHSA-mgcc-cww5-fp2q (2026-11-01): pin bản vá DoS RSA JWK; GO-2026-6865 (2026-11-06): klauspost/compress 1.20.2;
-# GO-2026-6888 (2026-11-06, Critical, KEV): andybalholm/brotli 1.2.7. Không đổi tag/commit SeaweedFS hoặc Go.
+# GO-2026-6888 (2026-11-06, Critical, KEV): andybalholm/brotli 1.2.7; D-171 (2026-11-17): apache/thrift 0.25.0
+# (CVE-2026-82458 …, High). Không đổi tag/commit SeaweedFS hoặc Go.
 RUN go get golang.org/x/net@v0.62.0 github.com/go-jose/go-jose/v4@v4.1.6 github.com/klauspost/compress@v1.20.2 \
-      github.com/andybalholm/brotli@v1.2.7 \
+      github.com/andybalholm/brotli@v1.2.7 github.com/apache/thrift@v0.25.0 \
  && go mod verify
 RUN cd weed \
  && CGO_ENABLED=0 go build -trimpath \

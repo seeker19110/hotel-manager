@@ -89,9 +89,9 @@ updated: 2026-11-04
 - Tín hiệu bảo trì đọc sai (`pushed_at` ≠ commit mã cuối, đổi org, archive không báo): (chưa xác minh — theo stored 16 §2g, 19 §3c, 22 §9f).
 - GitHub Docs — Dependabot options reference (`groups`, `open-pull-requests-limit` mặc định 5, `ignore`/`update-types`): <https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference> — xác minh 2026-10-13.
 - endoflife.date API (Python 3.10 EOL 2026-10-01, 3.9 EOL 2025-10-31; Node 18 EOL 2025-04-30, 20 EOL 2026-04-30, 22 EOL 2027-04-30, 24 EOL 2028-04-30; Terraform/OpenTofu/PostgreSQL/Kubernetes cycles): <https://endoflife.date/api/python.json>, <https://endoflife.date/api/nodejs.json> — xác minh 2026-10-13.
-- Renovate AGPL-3.0: <https://github.com/renovatebot/renovate/blob/main/license> — xác minh 2026-10-13; phiên bản 44.151.5 theo catalog `seeker19110/stored` 13 §4c (2026-10-12).
+- Renovate AGPL-3.0: <https://github.com/renovatebot/renovate/blob/main/license> — xác minh 2026-10-13; phiên bản 44.151.5 theo catalog `www-donghanhcungban-org/stored` 13 §4c (2026-10-12).
 - OpenSSF Scorecard (check Maintained, Vulnerabilities, Dependency-Update-Tool): <https://scorecard.dev/> — xác minh 2026-10-13.
 - NIST SP 800-218 SSDF v1.1 — RV.1 (phát hiện và xác nhận lỗ hổng liên tục): <https://csrc.nist.gov/pubs/sp/800/218/final> — xác minh 2026-10-13.
 - Khung cũ X-stored `docs/ops/code-optimization-audit-prompt.md` (knip/depcheck/jscpd), `01-process-and-standards.md` GĐ 8, commit `1b80fe4`; `research/2026-10-13-old-framework-analysis.md` §3b (PROGRESS "Nợ kỹ thuật: (không có)").
-- Catalog `seeker19110/stored` 23 §2.5 (Dependabot gom nhóm, WIP cap), §8.1 (Node 18/Python 3.9 EOL còn trong repo; mirror trôi upstream), 21 §2.2 (harness có hạn sử dụng), §8 điểm 9 (docs tươi bằng máy), §9 (agent sửa CI), đọc 2026-10-13.
+- Catalog `www-donghanhcungban-org/stored` 23 §2.5 (Dependabot gom nhóm, WIP cap), §8.1 (Node 18/Python 3.9 EOL còn trong repo; mirror trôi upstream), 21 §2.2 (harness có hạn sử dụng), §8 điểm 9 (docs tươi bằng máy), §9 (agent sửa CI), đọc 2026-10-13.
 - (chưa xác minh 2026-10-13) RFC 9745 Deprecation header, automerge docs của Dependabot/Renovate, knip/vulture/depcheck phiên bản — xác minh trước khi dẫn.

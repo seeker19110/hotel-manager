@@ -1,7 +1,7 @@
 ---
 name: blueprint
 description: Ghép hoặc cập nhật BLUEPRINT.md cho dự án từ khung X-Templates (hồ sơ + gói ngành + quy mô), audit hiện trạng theo blueprint và báo tiến độ MUST/SHOULD. Dùng ở G1, khi khung cập nhật, hoặc khi người dùng hỏi "dự án còn thiếu gì".
-argument-hint: "[compose|status|audit] [--profile p --industry i --scale M]"
+argument-hint: "[compose|status|audit] [--profile p --industry i --scale S|M|L]"
 ---
 
 # /blueprint — checklist có ID cho dự án

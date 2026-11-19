@@ -1,7 +1,7 @@
 """`GET /api/prs`, `GET /api/pr-stats` — màn PR (SPEC-app §3), CHỈ ĐỌC GitHub (ADR-0038 §2, RK-3 của PLAN-3.14).
 
 GitHub đọc qua `ctx.xt._gh_api` (REST `gh api <đường>` — luôn GET); hành động kế tính bằng chính chuỗi của `pr next`
-(`_pr_rest` → `_merge_eval` → `pr_next`, hàm thuần) nhưng KHÔNG ghi sổ review (bước nhớ `standard_seen` của `xt.py pr next`), không
+(`_pr_rest` → `_merge_eval` → `_eval_pr_next`) nhưng KHÔNG ghi sổ review (bước nhớ `standard_seen` của `xt.py pr next`), không
 gắn nhãn, không merge, không đăng comment. Không có `gh`/chưa đăng nhập/hết giờ/lỗi REST → 200 `available: false`.
 """
 
@@ -50,11 +50,8 @@ def _pr_row(ctx: Ctx, item: Dict[str, Any]) -> Dict[str, Any]:
         rec = dict(xt._pr_record(xt.read_reviews(ctx.base), str(d["pr"])))
         if d.get("lane") == "chuẩn" or xt._standard_seen(pr):
             rec["standard_seen"] = True
-        out = xt.pr_next(
-            d,
-            bool(pr.get("autoMergeRequest")),
-            xt.with_published(rec, pr.get("xtReviews"), bool(pr.get("reviewIdentity"))),
-            xt.pr_rethink_cap(ctx.base, pr),  # cùng trần với `pr next` (ADR-0061, review #380)
+        d, out = xt._eval_pr_next(
+            pr, d, xt.with_published(rec, pr.get("xtReviews"), bool(pr.get("reviewIdentity"))), ctx.base
         )
     except (xt.PrInputError, *_DATA_ERRORS) as exc:
         return {**row, "lane": "", "action": "error", "reasons": [_one_line(exc)]}

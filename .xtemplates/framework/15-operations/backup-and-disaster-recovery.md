@@ -95,5 +95,5 @@ updated: 2026-11-02
 - CISA/CERT (Carnegie Mellon) — "Data Backup Options" (2012): quy tắc 3-2-1 "3 copies, 2 media types, 1 offsite": <https://www.cisa.gov/sites/default/files/publications/data_backup_options.pdf> — xác minh 2026-10-13 (đọc PDF bằng pdftotext).
 - PITR/WAL cấp CSDL: nguồn và yêu cầu ở [`../09-database/backup-and-recovery.md`](../09-database/backup-and-recovery.md) (`DB-BACKUP-005`), không lặp ở đây.
 - Google SRE Book — Data Integrity (kiểm backup bằng restore liên tục) — (chưa fetch lại 2026-10-13).
-- Lifecycle G8 của khung ([`../00-method/lifecycle.md`](../00-method/lifecycle.md)): "backup đã thử khôi phục"; catalog `seeker19110/stored` 09 §1.3 ([BLOCKER] backup có test restore), đọc 2026-10-13.
+- Lifecycle G8 của khung ([`../00-method/lifecycle.md`](../00-method/lifecycle.md)): "backup đã thử khôi phục"; catalog `www-donghanhcungban-org/stored` 09 §1.3 ([BLOCKER] backup có test restore), đọc 2026-10-13.
 - (chưa xác minh 2026-10-13) pgBackRest, Barman, restic, Velero, Litestream phiên bản/license; CISA ransomware guidance — xác minh trước khi dùng.

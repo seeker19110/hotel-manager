@@ -81,5 +81,5 @@ Mặc định: **branch coverage ratchet toàn repo + mutation ≥ 70% cho thư 
 - StrykerJS configuration (`thresholds` mặc định `{high: 80, low: 60, break: null}`, `incremental`): <https://stryker-mutator.io/docs/stryker-js/configuration/> — xác minh 2026-10-13; v10.0.0 (14/08/2026) catalog 13 §4c
 - mutmut 3 (cấu hình `[tool.mutmut]`, `export-cicd-stats`, `badge`; không có cờ ngưỡng): <https://mutmut.readthedocs.io/en/latest/> — xác minh 2026-10-13
 - Phiên bản (registry, xác minh 2026-10-13): npm `@stryker-mutator/core` 10.0.0, `@vitest/coverage-v8` 5.0.4, `c8` 12.0.0; PyPI `mutmut` 3.8.0 (2026-09-12), `coverage` 7.16.2, `pytest-cov` 7.1.0; PIT 1.30.0 (<https://github.com/hcoles/pitest/releases>, 27/08, năm không hiện).
-- Catalog `seeker19110/stored` 23 §3.3 (qlkh: mutmut ≥ 70%, `fail_under=100` với loại trừ có lý do; xboss: coverage ratchet), 07 (mutation: cố ý phá bất biến, đòi test đỏ) — đọc 2026-10-13.
+- Catalog `www-donghanhcungban-org/stored` 23 §3.3 (qlkh: mutmut ≥ 70%, `fail_under=100` với loại trừ có lý do; xboss: coverage ratchet), 07 (mutation: cố ý phá bất biến, đòi test đỏ) — đọc 2026-10-13.
 - Khung cũ X-stored `quality-supplements.md` Nhóm 2 mục 4 "coverage là sàn, không phải mục tiêu", commit `1b80fe4`.

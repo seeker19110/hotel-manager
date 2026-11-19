@@ -99,4 +99,4 @@ trong cùng file → sinh cấu hình job xoá và mục DPIA từ đó (một n
 - LINDDUN privacy threat modeling: <https://linddun.org/> — (chưa xác minh phiên bản tài liệu ngày 2026-10-13).
 - Microsoft Presidio: <https://pypi.org/pypi/presidio-analyzer/json> — phiên bản 2.2.364, MIT, xác minh 2026-10-13.
 - Mẫu DPIA của khung: [`../templates/DPIA.md`](../templates/DPIA.md).
-- Catalog `seeker19110/stored` 20 §3i (bước phân tích che dữ liệu nhưng bước dựng skill gửi tiêu đề cửa sổ, URL đầy đủ, lệnh terminal cho model mà không qua bộ che) — đọc mã 2026-10-26, đọc catalog 2026-10-28.
+- Catalog `www-donghanhcungban-org/stored` 20 §3i (bước phân tích che dữ liệu nhưng bước dựng skill gửi tiêu đề cửa sổ, URL đầy đủ, lệnh terminal cho model mà không qua bộ che) — đọc mã 2026-10-26, đọc catalog 2026-10-28.

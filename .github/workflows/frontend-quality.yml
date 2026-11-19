@@ -163,6 +163,10 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: pnpm
+      # Test `unit` có ca gọi `python3 xt.py ci-check` — khung ≥ 3.34 cần CPython 3.15.x (ADR-0078).
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.15.2"
       - run: pnpm install --frozen-lockfile
       - name: Unit x3, múi giờ máy chạy khác UTC vẫn phải xanh (cấu hình ghim TZ)
         run: |

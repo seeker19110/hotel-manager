@@ -9,7 +9,8 @@ import { correlationOf, json, simpleProblem } from "./command-route.ts";
 
 export async function handleUnsubscribe(
   req: Request,
-  deps: { db: Kysely<unknown>; secret: string },
+  // `now` chỉ để test cố định thời điểm kiểm hạn token (route production không truyền ⇒ đồng hồ thật).
+  deps: { db: Kysely<unknown>; secret: string; now?: Date },
 ): Promise<Response> {
   const correlationId = correlationOf(req);
   let token: unknown;
@@ -21,7 +22,11 @@ export async function handleUnsubscribe(
   if (typeof token !== "string" || token.length < 10 || token.length > 512)
     return simpleProblem("MALFORMED_REQUEST", 400, t("http.unsubscribe.invalid_request"), correlationId);
   try {
-    const r = await unsubscribe(deps.db, unsubscribeKey(deps.secret), { token, correlationId });
+    const r = await unsubscribe(deps.db, unsubscribeKey(deps.secret), {
+      token,
+      correlationId,
+      ...(deps.now ? { now: deps.now } : {}),
+    });
     return json({ data: { type: r.type, message: r.message } }, 200, correlationId);
   } catch (err) {
     if (err instanceof CommandError)

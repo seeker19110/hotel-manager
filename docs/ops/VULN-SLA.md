@@ -38,7 +38,7 @@ Nguồn: [glob cancellation](https://github.com/advisories/GHSA-3g3m-2fjr-6pw4),
 [minimatch amplification](https://github.com/advisories/GHSA-g3hv-75wg-m249),
 [fast-uri scheme](https://github.com/advisories/GHSA-w74x-v6f9-j3xg),
 [fast-uri host](https://github.com/advisories/GHSA-wjr9-j795-jxcr).
-Node 24.22.2 ghim lại digest theo [chỉ mục phát hành Node](https://nodejs.org/dist/index.json); pnpm 12.16.1 cùng major vá undici bootstrap 6.29.1
+Node 24.22.3 ghim lại digest theo [chỉ mục phát hành Node](https://nodejs.org/dist/index.json); pnpm 12.16.1 cùng major vá undici bootstrap 6.29.1
 (đối chiếu tarball chính thức của registry npm). `pnpm audit` gồm dev vẫn đỏ, ghi rõ phạm vi thay vì khai toàn bộ phụ thuộc sạch.
 
 ## Theo dõi (lỗ hổng chưa có bản sửa)
@@ -81,4 +81,4 @@ Nguồn cấu hình artifact: [Next standalone](https://nextjs.org/docs/app/api-
 
 | Image / gói | Mã (mức) | Sửa ở | Hạn rà lại | Giảm nhẹ / ghi chú |
 |---|---|---|---|---|
-| Phụ thuộc dev `zod` 3.25.76 (qua `@lhci/cli` → lighthouse → puppeteer-core → chromium-bidi) | GHSA-mrhx-c7xc-m3w5 (High) | zod 4.6.6 (đổi major) | 2026-11-17 | Chỉ chạy trong job `lighthouse` của CI, không vào bundle/production; zod 4.x của dự án đã ghim 4.6.7 (override). D-167 (rà 2026-11-07): `@lhci/cli` 0.16.0 (phát hành 2026-11-02) → chromium-bidi 157 khai zod ^4.6.5 (phân giải ≥ 4.6.7 nhờ override) — D-169: nâng ngày 2026-11-17 rồi gỡ luật |
+| Phụ thuộc dev `zod` 3.25.76 (qua `@lhci/cli` → lighthouse → puppeteer-core → chromium-bidi) | GHSA-mrhx-c7xc-m3w5 (High) | zod 4.6.6 (đổi major) | 2026-12-17 | Chỉ chạy trong job `lighthouse` của CI, không vào bundle/production; zod 4.x của dự án đã ghim 4.6.7 (override). D-167 (rà 2026-11-07): `@lhci/cli` 0.16.0 (phát hành 2026-11-02) → chromium-bidi 157 khai zod ^4.6.5 (phân giải ≥ 4.6.7 nhờ override) — D-169: nâng ngày 2026-11-17. D-170 (thử 2026-11-17): 0.16.0 bỏ zod 3 nhưng lighthouse 13.x kéo `sentry@0.49.0` (FSL-1.1-Apache-2.0, source-available) ⇒ chưa nâng; chủ dự án chọn nhận FSL (ngoại lệ + ADR) hay thay Lighthouse CI |

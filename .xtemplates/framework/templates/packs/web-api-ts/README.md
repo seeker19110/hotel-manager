@@ -1,14 +1,18 @@
 ---
 title: Gói web-api-ts — API nhiều tenant trên Node 24 + Postgres
 kind: index
-updated: 2026-11-06
+updated: 2026-11-19
 ---
 
 # Gói `web-api-ts`
 
-> Stack lấy từ dự án đích hotel-manager (`seeker19110/hotel-manager@30492c9`, đọc 2026-11-05): Node 24, pnpm 12.16.1,
-> TypeScript 7.0.2, `pg` 8.23.1 + `kysely` 0.29.6, `vitest` 5.0.3, `biome` 2.5.15, Postgres 17.11 (ghim digest). Không có
-> UI (Next.js của hotel-manager không vào gói đầu — D-359). Hạn hỗ trợ: `pack.json` → `support_until`.
+> Stack lấy từ dự án đích hotel-manager (`www-donghanhcungban-org/hotel-manager@30492c9`, đọc 2026-11-05): Node 24, pnpm,
+> TypeScript, `pg` + `kysely`, `vitest`, `biome` và PostgreSQL. Gói đầu chưa có UI (D-359).
+> Hạn hỗ trợ nằm ở `support_until` trong `pack.json`.
+
+Phiên bản pnpm và các gói npm nằm trong `starter/package.json` ở cây nguồn của gói. Sau khi cài starter, xem
+`package.json` ở gốc dự án. Image PostgreSQL của CI nghiệm thu được ghim theo digest trong
+`managed/.github/workflows/pack-acceptance.yml` ở cây nguồn và `.github/workflows/pack-acceptance.yml` khi dự án nhận workflow.
 
 ## Có gì (starter)
 
@@ -26,6 +30,22 @@ updated: 2026-11-06
 Chạy cục bộ: `DATABASE_URL=postgres://…/postgres pnpm test` (vai trò có quyền `CREATE DATABASE`; mỗi file test tạo cơ sở
 riêng). Không có `DATABASE_URL` → test đỏ, không bỏ qua.
 
+## Quét phụ thuộc
+
+Workflow `pack-acceptance` quét `pnpm-lock.yaml` bằng `pnpm audit --audit-level moderate` rồi kiểm ngoại lệ bằng
+`pnpm audit:exceptions` trước khi cài phụ thuộc.
+Cảnh báo từ mức vừa hoặc lỗi truy cập registry làm job đỏ. Chạy cùng lệnh tại gốc dự án để kiểm tra cục bộ.
+
+Để bật PR cập nhật tự động, kiểm tra phiên bản pnpm của dự án với bảng hỗ trợ của Dependabot. Nếu được hỗ trợ,
+thêm một mục `package-ecosystem: npm`, `directory: /` và lịch vào `updates` trong `.github/dependabot.yml`.
+Quét registry của workflow chạy độc lập với cấu hình Dependabot.
+
+Ngoại lệ hẹp theo từng GHSA nằm ở `starter/pnpm-workspace.yaml` (`auditConfig.ignoreGhsas`) và phải có dòng cùng id trong
+`starter/audit-exceptions.json` (`cve`, lý do, người duyệt, hạn). Hết hạn thì xét lại hoặc bỏ; không hạ `--audit-level`.
+`pnpm audit:exceptions` (`scripts/check-audit-exceptions.ts`) đỏ khi ngoại lệ hết hạn, thiếu khoá, hay `ignoreGhsas`/
+`ignoreCves` lệch với file ngoại lệ; workflow `pack-acceptance` chạy bước này ngay sau `pnpm audit`, trước khi cài phụ thuộc.
+[Xem phiên bản được hỗ trợ](https://docs.github.com/en/code-security/reference/supply-chain-security/supported-ecosystems-and-repositories).
+
 ## Ca sai cố ý (`mutants.json`)
 
 `tenant-leak` (policy RLS `true`) · `broken-down` (`down` không xoá bảng) · `contract-runtime` (phản hồi thiếu trường bắt buộc) ·
@@ -33,6 +53,12 @@ riêng). Không có `DATABASE_URL` → test đỏ, không bỏ qua.
 phải làm đỏ đúng test ghi ở `expect_fail`.
 
 ## Giới hạn đã biết
+
+- Lệnh `up` trong `src/migrate.ts` của starter dùng Kysely để áp dụng mọi migration còn thiếu trong cùng một giao dịch
+  PostgreSQL (DB-MIG-006). Cổng từ chối `CREATE INDEX CONCURRENTLY` trong migration và index thường trên bảng có sẵn,
+  kể cả `IF NOT EXISTS`. Ngoại lệ đã phát hành là `0005_sessions_expiry` với hai index trên `sessions` (AUD-DATA-011).
+  Gói chưa có luồng dựng index ngoài giao dịch. Khi bổ sung luồng đó, kiểm định nghĩa và trạng thái hợp lệ của index trước
+  khi tiếp tục migration (AUD-DATA-013).
 
 - Kết nối ứng dụng dùng một vai trò có quyền `SET ROLE app_rw`; triển khai thật: vai trò đăng nhập riêng chỉ là thành viên
   `app_rw` + vai trò migration riêng (sở hữu bảng) — chưa có trong gói.

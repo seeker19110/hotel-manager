@@ -2,6 +2,9 @@
 import { randomUUID } from "node:crypto";
 import { type Kysely, sql } from "kysely";
 
+/** 12 ký tự hex đầu của UUID (bỏ gạch) — đủ duy nhất cho tên/mã gieo trong một cơ sở. */
+const uniq = (uuid: string) => uuid.replace(/-/g, "").slice(0, 12);
+
 export interface SeededOrg {
   orgId: string;
   propertyId: string;
@@ -169,15 +172,18 @@ export async function seedLease(
       const floorId = randomUUID();
       const typeId = randomUUID();
       unitId = randomUUID();
-      await sql`insert into floors (id, organization_id, property_id, name) values (${floorId}, ${input.orgId}, ${input.propertyId}, ${`T-${floorId.slice(0, 4)}`})`.execute(
+      // Tên/mã duy nhất theo cơ sở (uq_floors_name, uq_room_types_code, uq_units_code): 12 hex (~2,8e14) thay vì 4 hex — 4 hex
+      // trùng theo nghịch lý ngày sinh khi một test gieo nhiều hợp đồng cùng cơ sở (reminders.db.test đỏ chập chờn
+      // "duplicate key … uq_floors_name", CI 2026-11-17). Vẫn ≤ 20 ký tự của CHECK độ dài mã.
+      await sql`insert into floors (id, organization_id, property_id, name) values (${floorId}, ${input.orgId}, ${input.propertyId}, ${`T-${uniq(floorId)}`})`.execute(
         trx,
       );
       await sql`insert into room_types (id, organization_id, property_id, code, name, capacity)
-                values (${typeId}, ${input.orgId}, ${input.propertyId}, ${`RT${typeId.slice(0, 6)}`}, 'Phòng trọ', 2)`.execute(
+                values (${typeId}, ${input.orgId}, ${input.propertyId}, ${`RT${uniq(typeId)}`}, 'Phòng trọ', 2)`.execute(
         trx,
       );
       await sql`insert into units (id, organization_id, property_id, floor_id, room_type_id, code)
-                values (${unitId}, ${input.orgId}, ${input.propertyId}, ${floorId}, ${typeId}, ${`P${unitId.slice(0, 6)}`})`.execute(
+                values (${unitId}, ${input.orgId}, ${input.propertyId}, ${floorId}, ${typeId}, ${`P${uniq(unitId)}`})`.execute(
         trx,
       );
     }

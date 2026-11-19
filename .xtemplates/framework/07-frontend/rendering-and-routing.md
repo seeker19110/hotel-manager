@@ -92,4 +92,4 @@ cho dự án có sẵn chỉ vì "mới".
 - React blog — React 19.3 (09/09/2026), 19.2 (01/10/2025), bản vá RSC 19.0.1/19.1.2/19.2.1 (12/2025): <https://react.dev/blog> — xác minh 2026-10-13.
 - Vite blog — Vite 8 (12/03/2026), Vite 7 (24/06/2025): <https://vite.dev/blog> — xác minh 2026-10-13.
 - Phiên bản npm `latest` (2026-10-13): next 16.4.0 · react 19.3.0 · vue 3.5.43 · nuxt 4.6.1 · svelte 5.57.2 · @sveltejs/kit 3.0.1 · astro 7.3.8 · @angular/core 22.2.2 · solid-js 1.9.17 · react-router 8.4.0 · @tanstack/react-router 1.170.44 · vite 8.3.4 · @next/bundle-analyzer 16.4.0 · rollup-plugin-visualizer 7.1.1 · size-limit 14.2.0 · eslint 10.12.0.
-- Catalog `seeker19110/stored` mục 09 §1.4 (không `ignoreBuildErrors`; `NEXT_PUBLIC_` chỉ công khai), mục 13 §4b (stack Next 16 + React 19), đọc 2026-10-13; `research/2026-10-13-stored-catalog-extraction.md`.
+- Catalog `www-donghanhcungban-org/stored` mục 09 §1.4 (không `ignoreBuildErrors`; `NEXT_PUBLIC_` chỉ công khai), mục 13 §4b (stack Next 16 + React 19), đọc 2026-10-13; `research/2026-10-13-stored-catalog-extraction.md`.

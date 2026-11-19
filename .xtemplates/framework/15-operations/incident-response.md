@@ -100,4 +100,4 @@ updated: 2026-10-20
 - DORA — failed deployment recovery time, change fail rate: <https://dora.dev/guides/dora-metrics-four-keys/> — xác minh 2026-10-13.
 - NIST SP 800-34 Rev. 1 Contingency Planning Guide (11/2010): <https://csrc.nist.gov/pubs/sp/800/34/r1/upd1/final> — xác minh 2026-10-13.
 - Khung cũ X-stored `docs/ops/incident-response.md` (SEV, 7 bước, mẫu post-mortem, "mỗi sự cố ≥ 1 cải tiến"), commit `1b80fe4` — tận dụng và mở rộng.
-- Khung cũ `docs/specs/AI-HARNESS-AND-COMPANY-SPEC.md` §A4.5 C5-FR-09 (kill switch ≤ 10 s), commit `1b80fe4`; catalog `seeker19110/stored` 23 §2.6 (lỗi lần thứ ba), đọc 2026-10-13.
+- Khung cũ `docs/specs/AI-HARNESS-AND-COMPANY-SPEC.md` §A4.5 C5-FR-09 (kill switch ≤ 10 s), commit `1b80fe4`; catalog `www-donghanhcungban-org/stored` 23 §2.6 (lỗi lần thứ ba), đọc 2026-10-13.

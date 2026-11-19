@@ -94,4 +94,4 @@ updated: 2026-11-03
 - OpenSSF Scorecard (Apache-2.0; v5.6.0): <https://github.com/ossf/scorecard> — xác minh 2026-10-13
 - OSV-Scanner v2.7.0: <https://github.com/google/osv-scanner/releases/latest> — xác minh 2026-10-13; pip-audit 2.10.1: <https://pypi.org/pypi/pip-audit/json> — xác minh 2026-10-13
 - OWASP Top 10 for LLM Applications **2026** (công bố 04/08/2026; LLM01 Prompt Injection): <https://github.com/GenAI-Security-Project/GenAI-LLM-Top10> — xác minh 2026-10-14; ấn bản, bảng mã và đính chính 2025 → 2026 ở [`../12-security/ai-security.md`](../12-security/ai-security.md)
-- Catalog `seeker19110/stored` 11 §1c, 12 §3b/§3d/§3i/§4, 23 §8.1 (mặc định nguy hiểm, bridge loopback, ma trận vệ sinh), đọc 2026-10-13.
+- Catalog `www-donghanhcungban-org/stored` 11 §1c, 12 §3b/§3d/§3i/§4, 23 §8.1 (mặc định nguy hiểm, bridge loopback, ma trận vệ sinh), đọc 2026-10-13.

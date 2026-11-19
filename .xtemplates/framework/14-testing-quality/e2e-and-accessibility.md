@@ -104,8 +104,8 @@ updated: 2026-10-31
 - Phiên bản (npm, xác minh 2026-10-13): `@playwright/test` 1.64.0, `@axe-core/playwright` 4.13.0, `pa11y-ci` 5.0.0.
 - Lighthouse CI commit cuối 2025-06-26: <https://github.com/GoogleChrome/lighthouse-ci/commits/main> — xác minh 2026-10-13
 - WCAG 2.2: <https://www.w3.org/TR/WCAG22/> — xác minh 2026-10-13
-- Catalog `seeker19110/stored` 23 §2.5 (Playwright CI: `workers: 4` đo 80/150s, cache browser −29s, `retries: 2`, `trace: on-first-retry`, desktop+mobile+axe), 11 (agent browser, telemetry) — đọc 2026-10-13.
+- Catalog `www-donghanhcungban-org/stored` 23 §2.5 (Playwright CI: `workers: 4` đo 80/150s, cache browser −29s, `retries: 2`, `trace: on-first-retry`, desktop+mobile+axe), 11 (agent browser, telemetry) — đọc 2026-10-13.
 - Khung cũ X-stored `quality-supplements.md` Nhóm 2 mục 3–4 (axe hai tầng, 2 project desktop/mobile, `getByRole`), commit `1b80fe4`.
 - tester-army/e2e (docs/cache.mdx: cache ghi sau xác minh pass, phát lại không gọi model; docs/security.mdx: video/download/cache "Neither is masked"): <https://github.com/tester-army/e2e> — đọc 2026-10-18. gitleaks ≥ 8.19 (`gitleaks dir`; `detect`/`protect` deprecated): <https://github.com/gitleaks/gitleaks> — đọc 2026-10-18.
 - Playwright MCP README ("CLI vs MCP", profile bền mặc định, `--isolated`): <https://github.com/microsoft/playwright-mcp> · playwright-cli README (profile trong bộ nhớ, `--persistent`): <https://github.com/microsoft/playwright-cli> · chrome-devtools-mcp `docs/advanced-usage.md` (`--isolated`, `--autoConnect` thấy mọi cửa sổ profile mặc định): <https://github.com/ChromeDevTools/chrome-devtools-mcp> — xác minh 2026-10-31
-- Catalog `seeker19110/stored` 11 §1e–§1i (hồ sơ công cụ trình duyệt cho agent, bảng chọn §1g.3) — rà 2026-10-31
+- Catalog `www-donghanhcungban-org/stored` 11 §1e–§1i (hồ sơ công cụ trình duyệt cho agent, bảng chọn §1g.3) — rà 2026-10-31

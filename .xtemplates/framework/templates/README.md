@@ -1,7 +1,7 @@
 ---
 title: Mẫu tài liệu
 kind: index
-updated: 2026-11-04
+updated: 2026-11-19
 ---
 
 # Mẫu tài liệu
@@ -39,7 +39,7 @@ updated: 2026-11-04
 | [`AGENTS.md`](AGENTS.md) | `AGENTS.md` của dự án đích — luật vận hành cho mọi AI agent (Claude Code, Codex, Gemini CLI, Cursor…); `install.py` copy-if-absent | G5 · dựng nền harness |
 | [`CLAUDE.md`](CLAUDE.md) | `CLAUDE.md` của dự án đích — chỉ import `AGENTS.md` + phần riêng cho Claude Code (hook, skill) | G5 · dựng nền harness |
 | [`PULL-REQUEST.md`](PULL-REQUEST.md) | `.github/pull_request_template.md` của dự án đích — mục tiêu + link, bằng chứng exit code, rủi ro/đường lùi, nhãn `risk:`, migration, phụ thuộc mới, hỗ trợ AI; `install.py --with-github` copy-if-absent | Mọi PR · `WF-GIT-014`, `WF-REVIEW-002` |
-| [`ruleset-main.json`](ruleset-main.json) | `.github/rulesets/main.json` của dự án đích (import ở Settings → Rules → Rulesets) — tối thiểu (D-116, D-117, ADR-0039): cấm xoá/force-push, PR squash + resolve thread, đúng 2 required check mà workflow mẫu cung cấp (`quality`, `gitleaks`; `protection-guard` là job con của `quality`; D-122 bỏ `merge-gate` — `install.py --with-github` vẫn phát `merge-gate.yml` dạng stub luôn xanh để giữ context cũ tới khi dự án gỡ khỏi ruleset sống), **không** đòi "up to date" (PR merge song song; lớp đỡ: CI chạy lại trên push `main`), `bypass_actors: []`; `install.py --with-github` copy-if-absent | G5 · `WF-GIT-002`, `WF-CI-001`, `BASE-GATE-007` |
+| [`ruleset-main.json`](ruleset-main.json) | `.github/rulesets/main.json` của dự án đích (import ở Settings → Rules → Rulesets) — tối thiểu (D-116, D-117, ADR-0039): cấm xoá/force-push, PR squash (thread resolution `false` theo `merge_review: optional`; bật `true` khi đổi sang `required` — `WF-REVIEW-005`), đúng 2 required check mà workflow mẫu cung cấp (`quality`, `gitleaks`; `protection-guard` là job con của `quality`; D-122 bỏ `merge-gate` — `install.py --with-github` vẫn phát `merge-gate.yml` dạng stub luôn xanh để giữ context cũ tới khi dự án gỡ khỏi ruleset sống), **không** đòi "up to date" (PR merge song song; lớp đỡ: CI chạy lại trên push `main`), `bypass_actors: []`; `install.py --with-github` copy-if-absent | G5 · `WF-GIT-002`, `WF-CI-001`, `BASE-GATE-007` |
 | [`dependabot.yml`](dependabot.yml) | `.github/dependabot.yml` của dự án đích — chỉ hệ `github-actions` (thêm hệ theo manifest thật), gom nhóm, cooldown 14 ngày; `install.py --with-github` copy-if-absent | G5 · `BASE-DEP-007` |
 | [`ci.yml`](ci.yml) | `.github/workflows/ci.yml` của dự án đích — không phụ thuộc stack, tối thiểu số job, song song tối đa trong job (ADR-0039, D-127, D-128): `gate` (`dev-task.sh gate-par`: typecheck ∥ lint ∥ build → test, rồi doctor · ci-check) · `e2e` (matrix 1 shard, tăng khi đo chậm) · `quality` gom + bước protection-guard; `gate` và `e2e` chạy cùng lúc; `install.py --with-github` copy-if-absent | G5 · `WF-CI-001`, `WF-CI-024`, `WF-CI-025` |
 | [`secret-scan.yml`](secret-scan.yml) | `.github/workflows/secret-scan.yml` của dự án đích — job `gitleaks` (required check của ruleset mẫu), quét lịch sử đã tải và HEAD. `install.py --with-github` cập nhật bản còn nguyên từ lần cài trước. Với workflow đã tùy chỉnh, gộp phần quét CLI từ tệp `.xtemplates-new`. | G5 · `WF-CI-001`, `BASE-SEC-002` |

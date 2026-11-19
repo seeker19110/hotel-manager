@@ -87,4 +87,4 @@ updated: 2026-11-04
 - MADR 4.0.0 (ADR có "Pros and Cons of the Options", "Confirmation"): <https://adr.github.io/madr/> — xác minh 2026-10-13.
 - Kanban Guide 2025.5 — SLE là dự báo có xác suất dựa trên cycle time lịch sử: <https://kanbanguides.org/english/> — xác minh 2026-10-13.
 - endoflife.date API: <https://endoflife.date/docs/api> — xác minh qua `research/2026-10-13-stored-catalog-extraction.md` (dùng trong BRIEF §1).
-- Khung cũ X-stored `01-process-and-standards.md` GĐ0 "sổ rủi ro: giả định nguy hiểm nhất + cách kiểm chứng", commit `1b80fe4`; `seeker19110/stored` mục 05 (ba câu hỏi trước khi tin "free"), mục 23 §8 (phụ thuộc archive) — đọc 2026-10-13.
+- Khung cũ X-stored `01-process-and-standards.md` GĐ0 "sổ rủi ro: giả định nguy hiểm nhất + cách kiểm chứng", commit `1b80fe4`; `www-donghanhcungban-org/stored` mục 05 (ba câu hỏi trước khi tin "free"), mục 23 §8 (phụ thuộc archive) — đọc 2026-10-13.

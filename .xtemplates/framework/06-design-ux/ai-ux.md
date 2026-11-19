@@ -95,4 +95,4 @@ updated: 2026-11-04
 - WAI-ARIA APG Alert (live region, không cướp focus): <https://www.w3.org/WAI/ARIA/apg/patterns/alert/> — xác minh 2026-10-13.
 - Phiên bản npm `latest` (2026-10-13): ai 7.0.138 · @assistant-ui/react 0.15.28 · @ag-ui/core 1.0.2 · dompurify 3.4.17 · msw 3.0.3 · @playwright/test 1.64.0 · c2pa 0.30.17 (SDK JS; tính năng ký manifest **chưa xác minh**).
 - Google PAIR People + AI Guidebook: <https://pair.withgoogle.com/guidebook/> — **không truy cập được nội dung ngày 2026-10-13**; không trích.
-- Catalog `seeker19110/stored` mục 06 §6 (agentic UI: AG-UI, assistant-ui, CopilotKit), đọc 2026-10-13.
+- Catalog `www-donghanhcungban-org/stored` mục 06 §6 (agentic UI: AG-UI, assistant-ui, CopilotKit), đọc 2026-10-13.

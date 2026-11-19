@@ -83,4 +83,4 @@ updated: 2026-10-14
 - Phiên bản công cụ (registry, xác minh 2026-10-13): npm `vitest` 5.0.4, `jest` 30.5.2, `fast-check` 4.10.2; PyPI `pytest` 9.1.1, `hypothesis` 6.169.0 (2026-10-11), `pytest-xdist` 3.8.0, `ruff` 0.17.0; Go 1.27 (<https://endoflife.date/api/go.json>); JUnit 6.1.3 (<https://github.com/junit-team/junit-framework/releases>).
 - fast-check: <https://fast-check.dev/> · Hypothesis: <https://hypothesis.readthedocs.io/> — tra cứu 2026-10-13 (phiên bản từ registry).
 - Khung cũ X-stored `quality-supplements.md` Nhóm 2 mục 6 "Chống lỗi logic" (bảng ca biên: rỗng, null vs 0, off-by-one, tiền, chia 0, UTC/DST, race, idempotency, stale response, all-or-nothing), commit `1b80fe4` — đọc 2026-10-13.
-- Catalog `seeker19110/stored` 13 §4b (fast-check trong quality gate stack của REA) — đọc 2026-10-13.
+- Catalog `www-donghanhcungban-org/stored` 13 §4b (fast-check trong quality gate stack của REA) — đọc 2026-10-13.

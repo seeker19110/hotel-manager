@@ -33,5 +33,5 @@ nhắm mục tiêu hàng loạt, tấn công chuỗi cung ứng hay né tránh p
 ## Nguồn
 
 - Tổng hợp từ khung cũ X-stored (commit `1b80fe4`, `01-process-and-standards.md`, `AI-HARNESS-AND-COMPANY-SPEC.md` §A2) và
-  bài học harness trong `seeker19110/stored` mục 23 (đọc 2026-10-13). Xem [`research/`](../../research/).
+  bài học harness trong `www-donghanhcungban-org/stored` mục 23 (đọc 2026-10-13). Xem [`research/`](../../research/).
 - RFC 2119 — từ khoá mức yêu cầu: <https://www.rfc-editor.org/rfc/rfc2119> (xác minh 2026-10-13).

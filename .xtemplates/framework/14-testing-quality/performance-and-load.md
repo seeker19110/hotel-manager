@@ -81,5 +81,5 @@ updated: 2026-10-17
 - k6 thresholds (`p(95)<…`, `http_req_failed: ['rate<0.01']`, `abortOnFail`): <https://grafana.com/docs/k6/latest/using-k6/thresholds/> — xác minh 2026-10-13; k6 v2.3.0 (2026-09-21): <https://github.com/grafana/k6/releases>
 - Lighthouse CI configuration (`numberOfRuns`, `aggregationMethod: median`, `categories:performance`): <https://github.com/GoogleChrome/lighthouse-ci/blob/main/docs/configuration.md> — xác minh 2026-10-13; commit cuối 2025-06-26: <https://github.com/GoogleChrome/lighthouse-ci/commits/main>
 - Phiên bản (registry, xác minh 2026-10-13): npm `@lhci/cli` 0.15.1, `lighthouse` 13.5.0; PyPI `locust` 2.46.7 (2026-10-04).
-- Catalog `seeker19110/stored` 23 §2.5 (Lighthouse ≥ 0,9 + LCP/CLS/TBT trên 5 URL), 13 §4c (Lighthouse CI đứng yên) — đọc 2026-10-13.
+- Catalog `www-donghanhcungban-org/stored` 23 §2.5 (Lighthouse ≥ 0,9 + LCP/CLS/TBT trên 5 URL), 13 §4c (Lighthouse CI đứng yên) — đọc 2026-10-13.
 - Khung cũ X-stored `quality-supplements.md` Nhóm 2 mục 2 (ngân sách CWV, `numberOfRuns: 3`, `warn` trước `error`), commit `1b80fe4`.

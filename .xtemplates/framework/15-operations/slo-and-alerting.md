@@ -89,4 +89,4 @@ updated: 2026-11-04
 - PagerDuty Incident Response — roles (IC, Deputy, Scribe, SME, Liaison): <https://response.pagerduty.com/before/different_roles/> — xác minh 2026-10-13.
 - OpenTelemetry HTTP metrics (`http.server.request.duration`) làm nguồn SLI latency: <https://opentelemetry.io/docs/specs/semconv/http/http-metrics/> — xác minh 2026-10-13.
 - (chưa xác minh 2026-10-13) Alertmanager docs, sloth/pyrra/OpenSLO phiên bản — xác minh trước khi dùng.
-- Khung cũ X-stored `01-process-and-standards.md` GĐ 8 (giám sát + cảnh báo), commit `1b80fe4`; catalog `seeker19110/stored` 21 §8 (observability cho loop), đọc 2026-10-13.
+- Khung cũ X-stored `01-process-and-standards.md` GĐ 8 (giám sát + cảnh báo), commit `1b80fe4`; catalog `www-donghanhcungban-org/stored` 21 §8 (observability cho loop), đọc 2026-10-13.

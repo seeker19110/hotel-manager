@@ -78,5 +78,5 @@ updated: 2026-10-14
 - Luật Bảo vệ dữ liệu cá nhân 91/2025/QH15 (hiệu lực 01/01/2026): <https://bocongan.gov.vn/chinh-sach-phap-luat/co-so-du-lieu-van-ban/luat-bao-ve-du-lieu-ca-nhan-1753688803> — xác minh 2026-10-13 (nguồn Bộ Công an; đối chiếu văn bản gốc trước khi trích)
 - GDPR Art. 5 (data minimisation), Art. 35: <https://eur-lex.europa.eu/eli/reg/2016/679/oj> — **(chưa xác minh trực tiếp ngày 2026-10-13)**
 - Reserved domains cho ví dụ (`example.com`): RFC 2606 — <https://www.rfc-editor.org/rfc/rfc2606> (**chưa truy cập lại ngày 2026-10-13**)
-- Catalog `seeker19110/stored` 07 (golden dataset, negative control, record/replay), 23 §3.1 (ghi lại eval chỉ qua `workflow_dispatch`), 09 (quét secret toàn bộ lịch sử) — đọc 2026-10-13.
+- Catalog `www-donghanhcungban-org/stored` 07 (golden dataset, negative control, record/replay), 23 §3.1 (ghi lại eval chỉ qua `workflow_dispatch`), 09 (quét secret toàn bộ lịch sử) — đọc 2026-10-13.
 - Khung cũ X-stored `quality-supplements.md` Nhóm 2 mục 4 "Chiến lược dữ liệu test" (factory, không dump production, E2E tự tạo/xoá, cố định thời gian/ngẫu nhiên), commit `1b80fe4`.

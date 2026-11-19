@@ -1,7 +1,7 @@
 ---
 title: Vòng lặp tự động (autopilot)
 kind: index
-updated: 2026-11-01
+updated: 2026-11-17
 ---
 
 # 11 — Vòng lặp tự động (autopilot)
@@ -32,8 +32,7 @@ template và `AGENTS.md` chỉ tóm tắt và liên kết, không chép bảng/n
 ## Giao thức autopilot (AGENTS.md trỏ tới đây)
 
 `<XT>` = `python3 .xtemplates/scripts/xt.py` trong dự án đích (`python3 scripts/xt.py` trong repo khung). Skill
-`/autopilot` (`.claude/skills/autopilot/SKILL.md`) là checklist của giao thức này. Máy in sẵn bước kế ở mỗi lệnh (`doctor`,
-`loop init`, `loop status`, `pr next`, Stop hook) — tài liệu không chép lại output đó; agent làm theo output.
+`/autopilot` (`.claude/skills/autopilot/SKILL.md`) là checklist của giao thức này. Agent làm theo bước kế do máy in.
 
 **Pha 0 — chuẩn bị** ([`LOOP-HARNESS-020`](harness-files.md), [`LOOP-HARNESS-028`](harness-files.md))
 
@@ -68,9 +67,8 @@ template và `AGENTS.md` chỉ tóm tắt và liên kết, không chép bảng/n
    (Gate, tick PLAN, `.autopilot/` riêng); `hook-stop`/`checkpoint` luôn theo `CLAUDE_PROJECT_DIR` — vòng ở worktree thì mở phiên
    Claude với thư mục dự án là worktree đó (`loop init` cảnh báo khi khác).
 10. **Mỗi vòng**: `<XT> loop status --json` → `continue` kèm `task`, `executor` (ADR-0029/0061; `null` = tự làm; `escalated` =
-    chuyển cấp kèm diff + evidence lỗi + giả thuyết đã loại), `milestone_done` + `milestone_audit` (`now` → audit delta theo
-    [`../00-method/audit.md`](../00-method/audit.md) §1 trước task kế, 🔴/🟠 thành task mới; `g7` ở pha build → làm tiếp —
-    ADR-0033) → làm task → Gate **y nguyên** qua `<XT> loop record --task T-NNN [--executor <agent>] -- '<Gate>'` (Gate là MỘT đối số
+    chuyển cấp kèm diff + evidence lỗi + giả thuyết đã loại), `milestone_done` + `milestone_audit` (không audit theo mốc,
+    làm tiếp: `g7` = build, audit cuối đợt; `signoff` = harden, audit ở cổng ký — [`audit.md`](../00-method/audit.md) §1) → làm task → Gate **y nguyên** qua `<XT> loop record --task T-NNN [--executor <agent>] -- '<Gate>'` (Gate là MỘT đối số
     bọc nháy đơn — mỗi `'` trong Gate viết `'\''`; ghi `.autopilot/evidence/T-NNN.json`: `exit_code`, `cmd`, `head`, 40 dòng cuối).
 11. Exit 0 → máy tự tick `[x]` (`--no-tick` để tự tay), commit nhỏ (conventional) qua cổng commit (`commit_gate`, [`LOOP-HARNESS-008`](harness-files.md)).
     Exit ≠ 0 → sửa; cùng chữ ký lỗi lần 2 → đổi cách tiếp cận (ghi D-NNN); lần 3 → máy đặt `blocked`
@@ -99,11 +97,11 @@ template và `AGENTS.md` chỉ tóm tắt và liên kết, không chép bảng/n
     = PLAN hết task, 0 MUST mở ngoài chờ người, 0 🔴/🟠 → `/audit full` sạch → đề xuất bước 17.
     `done-pending-human` → như `done` + chờ người. `blocked`/`budget` → lý do + bước kế, không khai "xong".
 17. **Pha 3 — hoàn thiện** (`/complete`, ADR-0046; dự án đã `harden` chạy luật này từ bước 12): PR đặt `delivery_phase: harden`
-    → `/audit` + nợ review → `PLAN-harden-<ngày>.md` → vòng lặp bước 9–15 luật harden → `<XT> release-check` không
-    NO-GO → `GO-NO-GO.md` (người ký).
+    → `PLAN-harden-<ngày>.md` từ sổ audit → bước 9–15 hết việc → cổng ký: audit delta + nợ review, FAIL → lặp (ADR-0080) → `<XT> release-check` không NO-GO → người ký
+    `GO-NO-GO.md`. Agent chỉ ký khi đã bật `release_signoff: agent` và đủ điều kiện ADR-0074.
 
 ## Lệnh thật
 
-Bảng mọi lệnh con của `scripts/xt.py`: README gốc repo khung §Công cụ ([`../../README.md`](../../README.md); dự án đích: GitHub `seeker19110/X-Templates`) và `<XT> --help`.
+Bảng mọi lệnh con của `scripts/xt.py`: README gốc repo khung §Công cụ ([`../../README.md`](../../README.md); dự án đích: GitHub `www-donghanhcungban-org/X-Templates`) và `<XT> --help`.
 Trần ngoài xt.py: Claude Code tự ngừng block Stop sau 8 lần liên tiếp không có tool call
 (`CLAUDE_CODE_STOP_HOOK_BLOCK_CAP`, không đặt `0`); headless thêm `--max-turns`, `--max-budget-usd`.

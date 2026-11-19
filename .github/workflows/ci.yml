@@ -61,6 +61,10 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: pnpm
+      # Khung X-Templates ≥ 3.34 chạy bằng CPython 3.15.x (ADR-0078): `dev-task.sh`/`xt.py` thoát nếu `python3` sai phiên bản.
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.15.2"
       - name: Cài phụ thuộc (lockfile đóng băng — BASE-DEP-002)
         run: pnpm install --frozen-lockfile
       # T-011: object storage tự host (ADR-0002) cho test file riêng tư — binary kiểm SHA-256 trong script.
@@ -284,6 +288,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # `pnpm test` của README chạy test `unit` gọi `python3 xt.py ci-check` — khung ≥ 3.34 cần CPython 3.15.x (ADR-0078).
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.15.2"
       - name: Bắt đầu đo thời gian
         run: echo "ONBOARD_T0=$(date +%s)" >> "$GITHUB_ENV"
       # Đúng khối lệnh README, nguyên văn, một shell (dòng 1 có `export PATH` nên các dòng sau thấy node/pnpm vừa cài). Không bước PATH riêng.

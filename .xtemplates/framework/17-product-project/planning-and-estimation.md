@@ -89,5 +89,5 @@ updated: 2026-10-16
 - SMART cho task (Specific, Measurable, Achievable, Relevant, Time-boxed) — Bill Wake (2003): <https://xp123.com/articles/invest-in-good-stories-and-smart-tasks/> — xác minh 2026-10-13.
 - MoSCoW Could ≈ 20% làm vùng đệm — DSDM: <https://www.agilebusiness.org/dsdm-project-framework/moscow-prioritisation.html> — xác minh 2026-10-13.
 - Cú pháp task/Gate và verdict máy: `scripts/xt.py` (`TASK_RE`, `GATE_RE`, `loop_verdict`) của khung này; [`../00-method/evidence-and-sources.md`](../00-method/evidence-and-sources.md) §2.
-- Ngân sách 4 con số, PROGRESS ≤ 8 KB 4 mục, WIP cap 3 PR, SHA tổ tiên HEAD: `seeker19110/stored` mục 21 §8–§10, mục 23 §2.1, §2.5 — qua `research/2026-10-13-stored-catalog-extraction.md`, đọc 2026-10-13.
+- Ngân sách 4 con số, PROGRESS ≤ 8 KB 4 mục, WIP cap 3 PR, SHA tổ tiên HEAD: `www-donghanhcungban-org/stored` mục 21 §8–§10, mục 23 §2.1, §2.5 — qua `research/2026-10-13-stored-catalog-extraction.md`, đọc 2026-10-13.
 - Khung cũ X-stored `PROGRESS.md` (376 dòng, lẫn nhật ký repo khác) — ví dụ bẫy, `research/2026-10-13-old-framework-analysis.md` §3b.

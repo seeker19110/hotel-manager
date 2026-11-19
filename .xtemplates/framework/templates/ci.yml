@@ -1,7 +1,7 @@
 # CI mẫu cho dự án đích — `install.py --with-github` chép vào `.github/workflows/ci.yml` (copy-if-absent: dự án đã có
 # ci.yml thì giữ nguyên, bản khung ghi `ci.yml.xtemplates-new` để gộp tay). KHÔNG phụ thuộc stack: mọi lệnh lấy từ
-# `xt.yaml` qua `.xtemplates/scripts/dev-task.sh <task>` (WF-CI-002); toolchain/phụ thuộc cài bằng khoá `setup:` của xt.yaml
-# (vd `setup: npm ci`, `setup: pip install -r requirements.txt`) — runner ubuntu-latest đã có node/python/go/java.
+# `xt.yaml` qua `.xtemplates/scripts/dev-task.sh <task>` (WF-CI-002). CI ghim Python để chạy công cụ khung.
+# Toolchain và phụ thuộc của ứng dụng do dự án khai ở khoá `setup:` của xt.yaml.
 # Tối thiểu số job, song song tối đa trong số đó (ADR-0039, D-128, WF-CI-025): `gate` (một lần cài phụ thuộc,
 # `dev-task.sh gate-par` = typecheck ∥ lint ∥ build → test kèm coverage chạy nền cùng lúc TRONG job, rồi kiểm của khung) ·
 # `e2e` (job dài) — hai job không `needs`, bắt đầu cùng lúc · `quality` (TỔNG HỢP với `if: always()`, WF-CI-001, kèm bước
@@ -47,6 +47,15 @@ jobs:
         with:
           fetch-depth: 0 # PROGRESS.md: SHA bàn giao phải là tổ tiên HEAD (doctor kiểm)
           persist-credentials: false
+      - id: framework-python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.15.2"
+          update-environment: false
+      - name: Runtime của khung
+        env:
+          FRAMEWORK_PYTHON: ${{ steps.framework-python.outputs.python-path }}
+        run: printf 'XT_FRAMEWORK_PYTHON=%s\n' "$FRAMEWORK_PYTHON" >> "$GITHUB_ENV"
       # D-096: `dev-task.sh gate-par` bỏ qua (`skip`, xanh) task để rỗng → `quality` xanh mà không chạy gì. Bước này đỏ (mọi
       # `delivery_phase`) tới khi xt.yaml khai lệnh thật cho `lint` và `test`; typecheck/build rỗng vẫn được. Đặt trước
       # `setup` để đỏ sớm, không tốn thời gian cài phụ thuộc.
@@ -60,11 +69,11 @@ jobs:
       # trước chỉ `loop verify` chạy nên CI xanh khi sàn đỏ (AUD-XFEAT-020). Lệnh trùng lệnh của gate-par bỏ qua; `e2e` có
       # job riêng; quy mô S/không blueprint → không áp; khoá thiếu chỉ cảnh báo (như doctor).
       - name: Sàn Gate M/L — `xt.py floor --run` (khoá sàn đã khai đỏ → bước đỏ)
-        run: python3 .xtemplates/scripts/xt.py floor --run --skip e2e
+        run: '"$XT_FRAMEWORK_PYTHON" .xtemplates/scripts/xt.py floor --run --skip e2e'
       - name: Khung đã cài còn nguyên — `xt.py doctor` (đỏ khi có lỗi; cảnh báo không chặn)
-        run: python3 .xtemplates/scripts/xt.py doctor
+        run: '"$XT_FRAMEWORK_PYTHON" .xtemplates/scripts/xt.py doctor'
       - name: Workflow (ghim SHA, quyền, timeout, secret trên PR) + cấu hình xt.yaml — `xt.py ci-check`
-        run: python3 .xtemplates/scripts/xt.py ci-check
+        run: '"$XT_FRAMEWORK_PYTHON" .xtemplates/scripts/xt.py ci-check'
       # SEC-AI-018 (MUST@L)/SEC-AI-028/CMP-LIC-024: bật bằng cách tạo `prompt-assets-exempt.json` (`[]` hoặc miễn trừ có
       # `path` + `rule` bắt buộc — id luật, `"*"` = mọi luật — + `reason` + `expires`; `path` khớp theo đoạn: `dir/*` không
       # phủ thư mục con, dùng `dir/**`); bộ lọc injection runtime có file mẫu riêng thì thêm `--patterns <file>` (cùng nguồn sự thật).
@@ -74,7 +83,7 @@ jobs:
       #   {"path": "docs/adr/*", "rule": "danger", "reason": "ADR trích lệnh bị chặn làm ví dụ", "expires": "YYYY-MM-DD"}
       - name: Tài sản prompt (injection, ký tự ẩn, lệnh nguy hiểm, bí mật, bỏ hàng rào, gói/URL không ghim) — `xt.py prompt-assets-scan`
         if: hashFiles('prompt-assets-exempt.json') != ''
-        run: python3 .xtemplates/scripts/xt.py prompt-assets-scan --exempt prompt-assets-exempt.json
+        run: '"$XT_FRAMEWORK_PYTHON" .xtemplates/scripts/xt.py prompt-assets-scan --exempt prompt-assets-exempt.json'
 
   # E2E (QA-E2E-001, QA-E2E-029): chạy CÙNG LÚC với `gate`, không `needs` — lệnh `e2e` tự build và phục vụ (vd `webServer`
   # của Playwright). `e2e-mode`: `off` (chưa khai `e2e`) → bỏ qua; `shard` (lệnh dùng $XT_SHARD, vd
@@ -92,6 +101,15 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - id: framework-python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.15.2"
+          update-environment: false
+      - name: Runtime của khung
+        env:
+          FRAMEWORK_PYTHON: ${{ steps.framework-python.outputs.python-path }}
+        run: printf 'XT_FRAMEWORK_PYTHON=%s\n' "$FRAMEWORK_PYTHON" >> "$GITHUB_ENV"
       - id: mode
         name: e2e-mode — có suite E2E không, chia shard được không (đọc xt.yaml)
         run: |
@@ -129,6 +147,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.15.2"
       - name: protection-guard — required check trong ruleset ↔ job có thật
         run: |
           set -euo pipefail

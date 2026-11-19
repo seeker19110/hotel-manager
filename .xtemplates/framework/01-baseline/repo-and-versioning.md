@@ -88,4 +88,4 @@ updated: 2026-11-01
 - OpenSSF Best Practices Badge, tiêu chí passing (`version_unique`, `version_tags`, `license_location`, `release_notes`): <https://www.bestpractices.dev/en/criteria/0> — xác minh 2026-10-13
 - Developer Certificate of Origin 1.1: <https://developercertificate.org/> — xác minh 2026-10-13
 - Phiên bản công cụ (xác minh 2026-10-13): commitlint 21.2.3 (`registry.npmjs.org/commitlint/latest`); gitleaks v8.30.1 (<https://github.com/gitleaks/gitleaks/releases/latest>); git-cliff v2.14.2 (<https://github.com/orhun/git-cliff/releases/latest>); release-please v17.11.2 theo [`../../research/2026-10-13-stored-catalog-extraction.md`](../../research/2026-10-13-stored-catalog-extraction.md) (catalog 13 §4c, đọc 2026-10-12).
-- Khung cũ X-stored `CLAUDE.md` §8 (quy ước Git, squash merge), commit `1b80fe4`; catalog `seeker19110/stored` 23 §2.5 (commit subject ≤ 72, WIP cap), đọc 2026-10-13.
+- Khung cũ X-stored `CLAUDE.md` §8 (quy ước Git, squash merge), commit `1b80fe4`; catalog `www-donghanhcungban-org/stored` 23 §2.5 (commit subject ≤ 72, WIP cap), đọc 2026-10-13.

@@ -87,6 +87,6 @@ updated: 2026-10-14
 
 - MADR 4.0.0 (2024-09-17) — template và các mục: <https://adr.github.io/madr/>, changelog <https://raw.githubusercontent.com/adr/madr/main/CHANGELOG.md> — xác minh 2026-10-13 (không có bản 4.x mới hơn trong changelog ngày đó).
 - Khung cũ X-stored: `docs/adr/0000-template.md` (quy ước không sửa ADR cũ), `docs/adr/0003-thu-hep-ve-boi-canh-cuc-bo.md` (bảng giả định vs thực tế, điều kiện đọc lại), `.claude/commands/adr.md` (đánh số, research-first), spec §B3 (làn kiến trúc) — commit `1b80fe4`.
-- Catalog `seeker19110/stored` 23 §6.4 (reveser: `docs/adr/README.md` tách Status và Implementation status; catalog sinh từ mã + cổng drift), 23 §4.3 (`/hoc`: kiến trúc → ADR), 23 §4 (`pr-policy.yml`), đọc 2026-10-13.
+- Catalog `www-donghanhcungban-org/stored` 23 §6.4 (reveser: `docs/adr/README.md` tách Status và Implementation status; catalog sinh từ mã + cổng drift), 23 §4.3 (`/hoc`: kiến trúc → ADR), 23 §4 (`pr-policy.yml`), đọc 2026-10-13.
 - `research/2026-10-13-old-framework-analysis.md` (lệch phiên bản giữa tài liệu khung cũ), `research/2026-10-13-stored-catalog-extraction.md` (§ ADR tách cột).
 - markdownlint-cli2 0.23.3 MIT: <https://registry.npmjs.org/markdownlint-cli2/latest>; lychee 0.24.2: <https://crates.io/api/v1/crates/lychee> — xác minh 2026-10-13.

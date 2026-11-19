@@ -93,5 +93,5 @@ updated: 2026-10-14
 - OpenCost (CNCF incubating): <https://www.opencost.io/> — xác minh 2026-10-13 (license phần mềm không hiện trên trang chủ — xác minh repo).
 - OWASP Top 10 for LLM Applications 2026 — LLM06 Unbounded Consumption (bản 2025 là LLM10; bảng đổi mã ở [`../12-security/ai-security.md`](../12-security/ai-security.md)): <https://github.com/GenAI-Security-Project/GenAI-LLM-Top10> — xác minh 2026-10-14; OWASP API Top 10 2023 API4: <https://api-security.owasp.org/> — xác minh 2026-10-13.
 - OTel GenAI semconv `gen_ai.usage.input_tokens/output_tokens`: theo research AI §4.3.
-- Catalog `seeker19110/stored` 21 §8 (spend circuit breaker 80/90/100, runaway 400 lần/5 phút; arXiv 2606.03115 SPOQ — chưa xác minh), 05 (3 câu hỏi "free"), 23 §2.1/§4.1 (bảng giá model lệch; free tier dhcb), đọc 2026-10-13.
+- Catalog `www-donghanhcungban-org/stored` 21 §8 (spend circuit breaker 80/90/100, runaway 400 lần/5 phút; arXiv 2606.03115 SPOQ — chưa xác minh), 05 (3 câu hỏi "free"), 23 §2.1/§4.1 (bảng giá model lệch; free tier dhcb), đọc 2026-10-13.
 - (chưa xác minh 2026-10-13) FinOps Framework unit economics, cloud recommender docs, Infracost/Kubecost phiên bản — xác minh trước khi dẫn.

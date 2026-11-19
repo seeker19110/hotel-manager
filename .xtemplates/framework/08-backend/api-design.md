@@ -93,7 +93,7 @@ Chỉ đổi khi có điều kiện ở cột "Chọn" rõ ràng và ghi ADR ([`
 
 ## Nguồn
 
-- RFC 9457 Problem Details for HTTP APIs (obsoletes RFC 7807, Proposed Standard): <https://www.rfc-editor.org/rfc/rfc9457> — xác minh 2026-10-13
+- RFC 9457 Problem Details for HTTP APIs (obsoletes RFC 7807, Proposed Standard): <https://www.rfc-editor.org/info/rfc9457/> — xác minh 2026-10-13
 - RFC 9110 HTTP Semantics (STD 97; §9.2.1 safe, §9.2.2 idempotent, §13 conditional): <https://www.rfc-editor.org/rfc/rfc9110> — xác minh 2026-10-13
 - RFC 6585 Additional HTTP Status Codes (428, 429, 431): <https://www.rfc-editor.org/rfc/rfc6585> — xác minh 2026-10-13
 - OpenAPI Specification 3.2.1 (10/09/2026; có `query` method, sequential/streaming media types): <https://spec.openapis.org/oas/latest.html> — xác minh 2026-10-13

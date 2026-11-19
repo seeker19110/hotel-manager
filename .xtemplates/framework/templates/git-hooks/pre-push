@@ -3,6 +3,8 @@
 # PR (BASE-REPO-*, AGENTS.md §3). Nhánh chính = `main`/`master` hoặc `XT_MAIN_BRANCH`. stdin của git: mỗi dòng
 # `<ref cục bộ> <sha cục bộ> <ref đích> <sha đích>`.
 set -euo pipefail
+# Git gọi pre-push từ gốc worktree (hoặc GIT_DIR của repo bare).
+[ -d .xtemplates ] || exit 0 # core.hooksPath có thể dùng chung với repo chưa cài khung
 main="${XT_MAIN_BRANCH:-}"
 zero=0000000000000000000000000000000000000000
 status=0

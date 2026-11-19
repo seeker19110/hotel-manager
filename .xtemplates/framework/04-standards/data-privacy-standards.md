@@ -86,4 +86,4 @@ Mặc định: **Luật 91/2025/QH15 + NĐ 356/2025/NĐ-CP + (GDPR nếu có ng�
 - GDPR Regulation (EU) 2016/679: <https://eur-lex.europa.eu/eli/reg/2016/679/oj> — **(chưa xác minh trực tiếp — eur-lex không trả nội dung ngày 2026-10-13)**
 - ISO/IEC 27701: <https://www.iso.org/standard/71670.html> — **(chưa xác minh — iso.org trả 403 ngày 2026-10-13)**
 - NIST Privacy Framework 1.0 (1.1 IPD): <https://www.nist.gov/privacy-framework> — xác minh 2026-10-13
-- Catalog `seeker19110/stored` mục 23 §3.3 (qlkh: OPA storage.rego fail-closed, `p3_gate.py`, DPIA dữ liệu trẻ em) — đọc 2026-10-13.
+- Catalog `www-donghanhcungban-org/stored` mục 23 §3.3 (qlkh: OPA storage.rego fail-closed, `p3_gate.py`, DPIA dữ liệu trẻ em) — đọc 2026-10-13.

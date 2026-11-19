@@ -148,22 +148,27 @@ describe("S-010 huỷ đăng ký từ email", () => {
     const mail = fake.sent.find((m) => m.subject.includes("quá hạn"));
     const link = /https:\/\/app\.example\/huy-dang-ky\?t=(\S+)/.exec(mail?.text ?? "")?.[1];
     expect(link).toBeTruthy();
-    const post = (token: string) =>
+    const post = (token: string, now?: Date) =>
       handleUnsubscribe(
         new Request("https://app.example/api/v1/notifications/unsubscribe", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ token }),
         }),
-        { db: t.runtime, secret: SECRET },
+        { db: t.runtime, secret: SECRET, ...(now ? { now } : {}) },
       );
-    const r1 = await post(link as string);
+    // Link sinh lúc NOW (cố định) có hạn 30 ngày — kiểm hạn ở thời điểm cố định ngay sau đó, không theo đồng hồ thật
+    // (trước đây test đỏ từ 2026-11-15 khi NOW + 30 ngày trôi qua). Ca hết hạn/giả mạo bên dưới tính theo Date.now().
+    const clickedAt = new Date(NOW.getTime() + 3_600_000);
+    const r1 = await post(link as string, clickedAt);
     expect(r1.status).toBe(200);
     expect(((await r1.json()) as { data: { message: string } }).data.message).toBe(
       "Bạn sẽ không nhận email nhắc quá hạn từ Nhà trọ Hoa Sen nữa.",
     );
-    const r2 = await post(link as string);
+    const r2 = await post(link as string, clickedAt);
     expect(r2.status).toBe(200);
+    // Cùng link sau hạn 30 ngày ⇒ 410 (ranh giới hạn đúng UNSUBSCRIBE_TTL_DAYS).
+    expect((await post(link as string, new Date(NOW.getTime() + 31 * 86_400_000))).status).toBe(410);
     const pref = await sql<{ state: string; source: string }>`
       select state, source from notification_preferences where person_id = ${an.personId} and type = 'invoice_overdue'`.execute(
       t.admin,

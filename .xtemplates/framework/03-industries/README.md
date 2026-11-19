@@ -1,7 +1,7 @@
 ---
 title: Gói ngành
 kind: index
-updated: 2026-10-14
+updated: 2026-11-19
 ---
 
 # 03 — Gói ngành
@@ -9,7 +9,7 @@ updated: 2026-10-14
 > Chọn **0..n** gói ngành khi `compose` (vd ví điện tử cho bệnh viện = `fintech` + `healthcare`). Mỗi gói = **khung
 > pháp lý** (Việt Nam + quốc tế, số hiệu + ngày hiệu lực + nguồn, xác minh 2026-10-13) + **mô hình nghiệp vụ** + **ca biên**
 > + **checklist đặc thù** (prefix `IND-*`) + `modules` kéo thêm module khung cần cho ngành. Ngành bị quản lý (fintech,
-> healthcare, government) mặc định quy mô **L**. Luật Việt Nam đổi nhanh trong 2025–2026 (Luật 91/2025 + NĐ 356/2025 thay
+> healthcare, government) quy mô khi vận hành thật **L** (`compose` vắng `--scale` ra S, ADR-0081). Luật Việt Nam đổi nhanh trong 2025–2026 (Luật 91/2025 + NĐ 356/2025 thay
 > NĐ 13/2023; Luật ANM 2025 + NĐ 333/2026 thay Luật 2018 + NĐ 53/2022; Luật TMĐT 2025; Luật AI 2025) — **kiểm tra văn bản
 > sửa đổi/thay thế trước khi áp dụng**.
 

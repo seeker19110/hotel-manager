@@ -6,7 +6,7 @@ updated: 2026-11-03
 
 # Adaptive Agent: một agent chính, subagent theo loại việc, KPI đo thật — nghiên cứu 2026-11-01
 
-> Đầu vào: nhận định của chủ dự án (2026-11-01, phiên `seeker/wizardly-tesla-amsxmp`) đề xuất X-Templates dùng kiến trúc
+> Đầu vào: nhận định của chủ dự án (2026-11-01, một phiên cloud) đề xuất X-Templates dùng kiến trúc
 > *Adaptive Agent*: Software Factory tự chọn cấu hình theo độ độc lập của việc; mặc định **một** agent sở hữu code và tích
 > hợp; subagent chỉ khi việc độc lập về file và có hợp đồng đầu ra; ưu tiên test tự động liên tục hơn nhiều reviewer trao đổi;
 > một lượt audit sau pha lớn rồi sửa theo batch; chỉ tăng số agent khi số đo chứng minh; 1 agent chính + tối đa 2–4 subagent;
@@ -107,8 +107,8 @@ Chưa xác minh: nội dung đổi của ba bài Anthropic có `modified` 2026-1
 - Nhận định của chủ dự án, phiên 2026-11-01 (nguyên văn trong lịch sử phiên; tóm tắt ở đầu file).
 - `research/2026-10-24-single-agent-loop.md`, ADR-0045, `LOOP-ORCH-017/019/020`, `LOOP-DESIGN-024` — đọc 2026-11-01.
 - `scripts/xt.py`: `loop_stats`/`_delegation_stats`, `pr_stats`, `plan_waves(max_parallel=5)`, `review_window`/`_rethink_pending` — đọc 2026-11-01.
-- Số đo phiên 2026-10-31/11-01: PR #363, #365–#368, #371, #375–#377 merge (9); #372 đóng sau 7 lượt review đăng dấu (REST, 2026-11-01; D-284…D-286, D-288…D-291 trên nhánh `seeker/wizardly-tesla-amsxmp`, không trong sổ `main`).
-  **Cửa sổ đếm (đính chính 2026-11-03, AUD-DOC-140):** PR có `merged_at`/`closed_at` trong [2026-10-31T12:00Z, 2026-11-01T03:23Z) — sau #362, trước khi mở #378 của chính note này. REST `gh api 'repos/{owner}/{repo}/pulls?state=all&per_page=60'` (đọc 2026-11-03) trong cửa sổ: **12 merge** (#363–#369, #371, #373, #375–#377) và **2 đóng không merge** (#372, #374 — cả hai ở nhánh `seeker/wizardly-tesla-amsxmp`). Tập "của phiên" (9 merge) là do phiên tự khai, bỏ #364/#373 (phiên khác) và #369 (Dependabot); "1 PR đóng" ở bản đầu sót #374. ADR-0061:23 giữ số cũ (ADR không sửa).
+- Số đo phiên 2026-10-31/11-01: PR #363, #365–#368, #371, #375–#377 merge (9); #372 đóng sau 7 lượt review đăng dấu (REST, 2026-11-01; D-284…D-286, D-288…D-291 trên nhánh của phiên đó, không trong sổ `main`).
+  **Cửa sổ đếm (đính chính 2026-11-03, AUD-DOC-140):** PR có `merged_at`/`closed_at` trong [2026-10-31T12:00Z, 2026-11-01T03:23Z) — sau #362, trước khi mở #378 của chính note này. REST `gh api 'repos/{owner}/{repo}/pulls?state=all&per_page=60'` (đọc 2026-11-03) trong cửa sổ: **12 merge** (#363–#369, #371, #373, #375–#377) và **2 đóng không merge** (#372, #374 — cả hai ở nhánh của phiên đó). Tập "của phiên" (9 merge) là do phiên tự khai, bỏ #364/#373 (phiên khác) và #369 (Dependabot); "1 PR đóng" ở bản đầu sót #374. ADR-0061:23 giữ số cũ (ADR không sửa).
 - Nguồn sống §3 (đọc 2026-11-01; URL thêm và kiểm còn sống — HTTP 200, tiêu đề khớp — ngày 2026-11-03, AUD-DOC-147):
   1. <https://claude.com/blog/building-agents-when-to-fold-subagents-into-your-main-agent-loop> (2026-10-22)
   2. <https://www.anthropic.com/engineering/harness-design-long-running-apps> (2026-03-24)

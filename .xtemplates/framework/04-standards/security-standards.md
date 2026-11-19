@@ -100,4 +100,4 @@ Cấu hình cụ thể của scanner (SAST/DAST/SCA) thuộc [`../12-security/ap
 - NIST SP 800-218 v1.1: <https://csrc.nist.gov/pubs/sp/800/218/final> · SP 800-218A: <https://csrc.nist.gov/pubs/sp/800/218/a/final> — xác minh 2026-10-13
 - CIS Benchmarks: <https://www.cisecurity.org/cis-benchmarks> — xác minh 2026-10-13
 - ISO/IEC 27001:2022 (+Amd 1:2024): <https://www.iso.org/standard/27001> — **(chưa xác minh trực tiếp — iso.org trả 403 ngày 2026-10-13; năm theo nguồn thứ cấp)**
-- Catalog `seeker19110/stored` mục 09 (evidence or FAIL), mục 12 §1 — đọc 2026-10-13; `research/2026-10-13-stored-catalog-extraction.md` §2.5–2.6.
+- Catalog `www-donghanhcungban-org/stored` mục 09 (evidence or FAIL), mục 12 §1 — đọc 2026-10-13; `research/2026-10-13-stored-catalog-extraction.md` §2.5–2.6.

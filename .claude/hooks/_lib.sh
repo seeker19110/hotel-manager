@@ -16,7 +16,8 @@ xt_py() {
 # `-I` (cách ly): bỏ biến PYTHON*, user-site (`usercustomize.py`) và cwd — mã agent đặt ở đó không chạy trước guard
 # (AUD-SEC-065). `-B`: Python không ghi bytecode (không đẻ `__pycache__` cạnh hook). KHÔNG cache bytecode: biên dịch từ
 # nguồn mỗi lần — thư mục agent ghi được không thể tin (header pyc checked-hash tính được từ nguồn công khai, phần
-# marshal không ai kiểm — AUD-SEC-074, review PR #182); đổi lại thêm ~80–100 ms mỗi lệnh Bash. Bộ nạp giống hệt
+# marshal không ai kiểm — AUD-SEC-074, review PR #182). Audit 2026-11-11 đo biên dịch 155–175 ms mỗi lệnh Bash
+# (AUD-PERF-031). Bộ nạp giống hệt
 # `PY_LOADER` của guard.py (test so).
 py_run() { # $1=đường dẫn .py (có main()) $2…=đối số
   python3 -I -B -c 'import sys

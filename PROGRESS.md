@@ -12,7 +12,7 @@
 ## Tiếp theo
 0. Chủ dự án quyết (ghi ở #149): (a) AGENTS §7/xt.yaml còn ghi "mở PR là bật auto-merge" trong khi guard 3.30 chặn agent bật auto-merge; (b) WF-CI-001 đòi đúng 2 required check, ruleset có 28 — gom vào `quality` (admin) hay duyệt miễn; (c) sửa `.env.example`/`deploy/*.example` bỏ giá trị mẫu dùng được (BASE-SEC-005/CFG-003, guard chặn agent sửa `.env*`); (d) AGENTS §7 "reviewer model khác" vs LOOP-ORCH-005 (cùng họ, effort cao hơn); (e) ký lý do "chưa có staging" cho migration_check/acceptance/rollback trong GO-NO-GO.
 1. Merge #152 → reset nhánh về main → mở 2 PR đợt 28 (trên). Nợ review ghi sổ: #152 🟠 thiếu test nhánh giữ key khi `uncertain`, 🟢 setCommandId sau key mới, 🟢 `/api/v1/messages` khớp LLM_HOSTS, 🟢 assert ghim Dockerfile lỏng, 🟢 VULN-SLA thiếu dòng 2026-11-06; lô hỗ trợ 🟢 replay bootstrap 500 sau hết hạn, 🟢 grep rào `'user'` actor_type. ARCH/DOC/HAR chưa audit delta (SHA cũ). Thêm vào (e): ký RPO/RTO ở docs/ops/RPO-RTO.md; DPO/pháp lý; kiểm tay thiết bị thật.
-2. `.grype.yaml` luật cuối (GHSA-mrhx-c7xc-m3w5, zod 3 qua @lhci) gia hạn tới 2026-11-17 (D-167, D-169): ngày đó nâng `@lhci/cli` 0.16.0 (đủ 2 tuần; chromium-bidi 157 khai zod ^4.6.5, override dự án ⇒ ≥ 4.6.7) rồi GỠ luật — không gia hạn tiếp.
+2. `.grype.yaml` luật cuối (GHSA-mrhx-c7xc-m3w5, zod 3 qua @lhci, công cụ CI) gia hạn tới 2026-12-17 (D-170): @lhci/cli 0.16.0 bỏ được zod 3 nhưng lighthouse 13.x kéo `sentry@0.49.0` giấy phép FSL-1.1-Apache-2.0 (source-available). **Chủ dự án chọn**: (i) nhận FSL cho công cụ CI (ngoại lệ giấy phép + ADR) rồi nâng và gỡ luật, hoặc (ii) thay Lighthouse CI. Không gia hạn mặc định sau 12-17.
 3. Khi có hạ tầng: docs/autopilot/HUONG-DAN-VIEC-CUA-NGUOI.md (pháp lý, kho log/offsite/DR, thiết bị thật, chứng cứ triển khai). Không bật production purge (D-125). Migration owner BYPASSRLS/ownership/CREATE, SET ROLE app_worker; runtime/worker không BYPASSRLS.
 4. Theo dõi zod3/Lighthouse hạn 11-08, compiler native 7.0.2, LGPL sharp hạn 12-31, parse-cache-control 2027-04-18; không mặc định gia hạn. Release-please từng lỗi token từ #93.
 
@@ -23,6 +23,6 @@
 
 ## Bàn giao phiên
 - Mốc main `1ca16f7` (#149). Phiên cloud dùng nhánh `claude/fervent-hamilton-n8e6jm` (reset về main sau mỗi PR merge).
-- Môi trường cục bộ giống CI: Node 24.22.2 (lấy từ image node đã ghim), Postgres 17 container + binary PGDG (`bash scripts/dev-env-setup.sh --only postgres`), SeaweedFS 4.48 trên PATH, Chromium /opt/pw-browsers, dockerd tự khởi động. Cổng: scripts/commit-gated.sh (đặt TEST_DATABASE_URL, I18N_REQUIRE_BASE=1). Không chạy E2E/DAST/perf song song (cùng cổng 3100, cùng build).
+- Môi trường cục bộ giống CI: Node 24.22.3 (lấy từ image node đã ghim), Postgres 17 container + binary PGDG (`bash scripts/dev-env-setup.sh --only postgres`), SeaweedFS 4.48 trên PATH, Chromium /opt/pw-browsers, dockerd tự khởi động. Cổng: scripts/commit-gated.sh (đặt TEST_DATABASE_URL, I18N_REQUIRE_BASE=1). Không chạy E2E/DAST/perf song song (cùng cổng 3100, cùng build).
 - Guard 3.30 chặn lệnh Bash gộp ghi-tệp-rồi-chạy và `$(…)` dựng lệnh: ghi script bằng Write, chạy ở lệnh riêng.
 - Review: reviewer-alt nay là Opus effort max (cùng họ người viết, effort cao hơn — LOOP-ORCH-005); ghi `pr reviewed --reviewer-effort max --author-effort <x>`.

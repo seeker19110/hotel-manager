@@ -9,13 +9,15 @@ typecheck: ""
 test: ""
 build: ""
 format: ""
-setup: ""             # cài phụ thuộc trước mỗi job CI (npm ci · pip install …); trống = bỏ qua
-format_check: ""      # sàn M/L: kiểm format không ghi file, đỏ khi lệch
-coverage: ""          # sàn M/L: test có ngưỡng coverage; artefact ra mktemp, không `|| true`
-format_file: ""       # format MỘT file (hook PostToolUse), `{}` = đường dẫn; trống = mẫu dựng sẵn của khung
+setup: "" # cài phụ thuộc trước mỗi job CI (npm ci · pip install …); trống = bỏ qua
+format_check: "" # sàn M/L: kiểm format không ghi file, đỏ khi lệch
+# Formatter Markdown (prettier, markdownlint…): thêm `GO-NO-GO*.md` vào file ignore của nó (`.prettierignore`,
+# `.markdownlintignore`) — `dev-task.sh format` không ghi file này (dòng ký §5 của người), cổng kiểm sẽ đỏ (AUD-SEC-649).
+coverage: "" # sàn M/L: test có ngưỡng coverage; artefact ra mktemp, không `|| true`
+format_file: "" # format MỘT file (hook PostToolUse), `{}` = đường dẫn; trống = mẫu dựng sẵn của khung
 # commit_gate: hook trước `git commit` — fast = gate-fast · full = gate; diff đụng cấu hình cổng → mọi lớp test
 commit_gate: fast
-test_fast: ""         # test liên quan file đổi (XT_CHANGED_FILES, mỗi dòng một file); trống → test
+test_fast: "" # test liên quan file đổi (XT_CHANGED_FILES, mỗi dòng một file); trống → test
 # Ngưỡng coverage của CI mẫu nằm trong `test` (job `gate` chạy nó). Chia shard (chỉ khi đo thấy test là đường dài nhất
 # và CI tách test ra job riêng; gate-fast cũng dùng khi diff đụng cấu hình cổng): test_list (in mỗi dòng một id) ·
 # test_unit (chạy id "$1", coverage vào "$XT_COV_DIR" nếu có) · test_combine (gộp coverage, đòi ngưỡng).
@@ -24,39 +26,42 @@ test_fast: ""         # test liên quan file đổi (XT_CHANGED_FILES, mỗi dò
 # test_combine: ""
 # merge_autonomy: L3 = máy merge ghim head theo làn · L2 = chỉ làn nhanh · L1 = người merge (ADR-0015, D-122)
 merge_autonomy: L3
-merge_risk_paths: ""          # glob thêm vào đường dẫn nhạy cảm (ngoại lệ cứng), cách nhau dấu phẩy
+# Không bắt buộc review để merge; đặt required nếu dự án cần review.
+merge_review: optional
+merge_risk_paths: "" # glob thêm vào đường dẫn nhạy cảm (ngoại lệ cứng), cách nhau dấu phẩy
 # merge_hard_exceptions: auto = máy merge PR chạm auth/tiền/PII khi CI xanh (mặc định từ 3.24.0 — ADR-0047, D-176 của repo khung) ·
 # human = người merge ngoại lệ cứng (ADR-0016). Dự án có tiền thật/dữ liệu người dùng thật: đặt human, hoặc ghi D-NNN/ADR
 # của dự án chấp nhận rủi ro khi giữ auto (LOOP-STOP-005). Thiếu khoá = human; PR đổi khoá luôn người merge
 merge_hard_exceptions: auto
-# delivery_phase: build = CI xanh là merge, review ghi nợ (trừ rủi ro cao: auth/thanh toán/bí mật/migration — ADR-0062) · harden (chỉ khi lên production) = review sạch ở head (ADR-0031/0037)
+# delivery_phase xác định pha build hoặc harden. Review merge được cấu hình ở merge_review (ADR-0079).
 delivery_phase: build
 # max_rethink: 1              # trần `pr rethink` mỗi PR (ADR-0061): hết → `pr next` trả `split-or-close`; 0 = không trần; PR cắt bản miễn; lấy mức chặt hơn với nhánh đích
-# review_identity: ""         # chỉ dấu review của tài khoản này mở được merge (T-1508)
+# review_identity: ""         # khi review required, chỉ dấu của tài khoản này mở được merge (T-1508)
 # author_model_family: ""     # reviewer năng lực cao hơn tác giả: bậc model cao hơn, cùng họ thì effort cao hơn (ci-check kiểm)
 # reviewer_model_family: ""
 # author_effort: ""           # low|medium|high|xhigh|max — cần cả hai khi cùng họ (D-161); chỉ dùng cùng model lấy từ cấu hình
 # reviewer_effort: ""
 # CI mẫu 3 job (ADR-0039): job e2e chạy cùng lúc với job gate; khoá rỗng = bỏ qua có log.
-e2e: ""               # suite E2E, CI chạy (`dev-task.sh e2e I N`); dùng $XT_SHARD để chia shard, vd npx playwright test --shard=${XT_SHARD:-1/1}
-e2e_setup: ""         # trước e2e: cài trình duyệt (vd npx playwright install --with-deps chromium)
-e2e_affected: ""      # chỉ spec của lát đang làm (Gate mỗi task); trống = e2e
-audit: ""             # audit phụ thuộc (npm audit · pip-audit …)
+e2e: "" # suite E2E, CI chạy (`dev-task.sh e2e I N`); dùng $XT_SHARD để chia shard, vd npx playwright test --shard=${XT_SHARD:-1/1}
+e2e_setup: "" # trước e2e: cài trình duyệt (vd npx playwright install --with-deps chromium)
+e2e_affected: "" # chỉ spec của lát đang làm (Gate mỗi task); trống = e2e
+audit: "" # audit phụ thuộc (npm audit · pip-audit …)
 # Trước phát hành (pha harden, `release-check` chạy — ADR-0042): đỏ = NO-GO; trống ở M/L = người ký lý do không áp.
-attack: ""            # tấn công thử: DAST (ZAP baseline/API scan) · fuzz API (schemathesis run …) trên bản chạy cục bộ/staging
-perf: ""              # kiểm tải có ngưỡng, đỏ khi vượt ngân sách (vd k6 run với thresholds)
-migration_check: ""   # cổng production (ADR-0062): migration tiến + lùi trên bản sao dữ liệu/staging
-rollback: ""          # cổng production: diễn tập quay về bản trước (tag/artifact cũ + migration lùi)
-acceptance: ""        # cổng production: kiểm thử nghiệm thu theo tiêu chí chấp nhận (UAT tự động)
+attack: "" # tấn công thử: DAST (ZAP baseline/API scan) · fuzz API (schemathesis run …) trên bản chạy cục bộ/staging
+perf: "" # kiểm tải có ngưỡng, đỏ khi vượt ngân sách (vd k6 run với thresholds)
+migration_check: "" # cổng production (ADR-0062): migration tiến + lùi trên bản sao dữ liệu/staging
+rollback: "" # cổng production: diễn tập quay về bản trước (tag/artifact cũ + migration lùi)
+acceptance: "" # cổng production: kiểm thử nghiệm thu theo tiêu chí chấp nhận (UAT tự động)
 # Hợp đồng phát hành có kiểu (ADR-0068 lát A, tuỳ chọn; trống = như cũ): `<khoá>_report` của attack/perf/migration_check/
 # rollback/acceptance = report lệnh đó sinh (JUnit XML · SARIF · pip-audit JSON) — thiếu, cũ hơn lần chạy, 0 test, scan chưa xong = FAIL.
 acceptance_report: "" # vd reports/junit.xml — trong dự án VÀ trong .gitignore (file chưa commit làm hàng `tree` FAIL)
 release_artifacts: "" # artifact ứng viên, cách nhau bởi khoảng trắng (sidecar <file>.sha256 nếu có) → `subject.digest`; GO-NO-GO ghi dòng `subject: digest` (mẫu GO-NO-GO.md §1)
 release_approval_days: "" # hạn chữ ký GO-NO-GO §5 để `promotion: approved` (mặc định 30 ngày)
-preview: ""           # cách chạy thử bản trình người duyệt (`xt.py stage submit` ghi lại — ADR-0058); vd npm run preview
-preview_smoke: ""     # Gate bản trình: `stage submit` chạy (qua guard), exit ≠ 0 → không trình (D-247); vd npm run build && npx playwright test smoke
+release_signoff: "" # agent = agent ký §5 GO-NO-GO bằng `xt.py release-sign` khi release-check không FAIL và chỉ còn chữ ký (ADR-0074); trống/human = người ký. Có hiệu lực khi cả cây lẫn bản đã commit ở nhánh chính khai; PR đổi khoá luôn người merge
+preview: "" # cách chạy thử bản trình người duyệt (`xt.py stage submit` ghi lại — ADR-0058); vd npm run preview
+preview_smoke: "" # Gate bản trình: `stage submit` chạy (qua guard), exit ≠ 0 → không trình (D-247); vd npm run build && npx playwright test smoke
 stage_approval: agent # agent tự nghiệm thu giai đoạn (`stage approve` bản trình còn nguyên — ADR-0069, chủ dự án 2026-11-04); human = chỉ người ngoài phiên agent (ADR-0058). Có hiệu lực khi cả cây lẫn bản đã commit ở nhánh chính khai
-claude_min_version: ""   # doctor cảnh báo khi Claude Code thấp hơn (LOOP-HARNESS-026)
-ai_attribution: ""    # forbid = guard chặn commit/PR ghi tên model hay URL phiên AI (LOOP-HARNESS-027)
-pr_title_check: ""    # off = không đòi tiêu đề PR `<type>(scope): mô tả` ≤ 100 ký tự
-harness_permissions: ""   # own = install.py giữ quyền của dự án (không thêm allow/deny khung); lệnh hook khung theo dạng dự án đang dùng (có ${CLAUDE_PROJECT_DIR} → tuyệt đối, không → `bash .claude/hooks/x.sh`) — ADR-0073
+claude_min_version: "" # doctor cảnh báo khi Claude Code thấp hơn (LOOP-HARNESS-026)
+ai_attribution: "" # forbid = guard chặn commit/PR ghi tên model hay URL phiên AI (LOOP-HARNESS-027)
+pr_title_check: "" # off = không đòi tiêu đề PR `<type>(scope): mô tả` ≤ 100 ký tự
+harness_permissions: "" # own = install.py giữ quyền của dự án (không thêm allow/deny khung); lệnh hook khung theo dạng dự án đang dùng (có ${CLAUDE_PROJECT_DIR} → tuyệt đối, không → `bash .claude/hooks/x.sh`) — ADR-0073

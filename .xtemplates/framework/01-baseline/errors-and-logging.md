@@ -90,10 +90,10 @@ Lưu ý license: Sentry server là FSL (không OSI, chuyển Apache-2.0 sau 2 n�
 - OWASP Cheat Sheet Series — Error Handling: <https://cheatsheetseries.owasp.org/cheatsheets/Error_Handling_Cheat_Sheet.html> — xác minh 2026-10-13
 - OWASP ASVS 5.0.0 V16 Security Logging and Error Handling: <https://github.com/OWASP/ASVS/tree/master/5.0/en> — xác minh 2026-10-13
 - OpenTelemetry Logs Data Model (Stable; SeverityNumber 1–24): <https://opentelemetry.io/docs/specs/otel/logs/data-model/> — xác minh 2026-10-13
-- OpenTelemetry Semantic Conventions 1.44.0 — logs (Development) và exceptions (Stable): <https://opentelemetry.io/docs/specs/semconv/general/logs/>, <https://opentelemetry.io/docs/specs/semconv/exceptions/exceptions-logs/> — xác minh 2026-10-13
-- RFC 9457 Problem Details for HTTP APIs (2023, obsoletes RFC 7807): <https://www.rfc-editor.org/rfc/rfc9457> — xác minh 2026-10-13
+- OpenTelemetry Semantic Conventions 1.44.0 — logs (Development) và exceptions (Stable): <https://opentelemetry.io/docs/specs/semconv/registry/attributes/log/>, <https://opentelemetry.io/docs/specs/semconv/exceptions/exceptions-logs/> — xác minh 2026-10-13
+- RFC 9457 Problem Details for HTTP APIs (2023, obsoletes RFC 7807): <https://www.rfc-editor.org/info/rfc9457/> — xác minh 2026-10-13
 - RFC 3339 Date and Time on the Internet: Timestamps: <https://www.rfc-editor.org/rfc/rfc3339> — xác minh 2026-10-13
 - The Twelve-Factor App XI Logs, III Config: <https://12factor.net/logs> — xác minh 2026-10-13
 - Command Line Interface Guidelines (errors, exit codes, stdout/stderr): <https://clig.dev/> — xác minh 2026-10-13
 - Phiên bản thư viện (xác minh 2026-10-13 qua registry): pino 10.4.0 (MIT), winston 3.19.0 (MIT), structlog 26.1.0.
-- Khung cũ X-stored `quality-supplements.md` N2 §7 (Sentry: `beforeSend`, tách env), commit `1b80fe4`; catalog `seeker19110/stored` 12 §3b (504 = có thể đã chạy), 21 §8 (outbox, outcome_unknown), đọc 2026-10-13.
+- Khung cũ X-stored `quality-supplements.md` N2 §7 (Sentry: `beforeSend`, tách env), commit `1b80fe4`; catalog `www-donghanhcungban-org/stored` 12 §3b (504 = có thể đã chạy), 21 §8 (outbox, outcome_unknown), đọc 2026-10-13.

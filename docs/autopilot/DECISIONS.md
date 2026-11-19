@@ -1209,3 +1209,24 @@
 - Chọn: Dời hạn sang 2026-11-17, nâng @lhci/cli ngày 17; sửa câu chữ: chromium-bidi khai ^4.6.5, phân giải ≥ 4.6.7 nhờ override zod của dự án
 - Lý do (tiêu chí chất lượng cuối): Không ép nâng bản chưa đủ 2 tuần; vẫn trong trần 30 ngày; câu chữ chính xác (^4.6.5 cho phép bản chưa vá, override mới bảo đảm ≥ 4.6.6)
 - Đường lùi: Đặt lại 2026-11-16
+
+### D-170 · 2026-11-17T01:07:11+00:00 · 2026-11-17: nâng @lhci/cli 0.16.0 để gỡ luật grype zod 3 (GHSA-mrhx-c7xc-m3w5) — đã thử: lockfile hết zod 3, nhưng lighthouse 13.x (mọi bản) kéo @sentry/node ^11 → @sentry/bundler-plugins → sentry@0.49.0 giấy phép FSL-1.1-Apache-2.0 (source-available) ⇒ sbom-check đỏ (cần ngoại lệ + ADR)
+
+- Phương án: (1) Giữ @lhci/cli 0.15.1, gia hạn luật grype có căn cứ mới tới 2026-12-17 (≤ 30 ngày, High), chủ dự án quyết hướng giấy phép · (2) Nâng và tự thêm ngoại lệ giấy phép FSL + ADR cho công cụ CI · (3) Override @sentry/node bằng gói giả để bỏ sentry
+- Chọn: Giữ @lhci/cli 0.15.1, gia hạn luật grype có căn cứ mới tới 2026-12-17 (≤ 30 ngày, High), chủ dự án quyết hướng giấy phép
+- Lý do (tiêu chí chất lượng cuối): Đúng/an toàn: nhận giấy phép source-available là quyết định pháp lý — cách hiểu chặt hơn là không tự đưa vào; lỗ hổng zod 3 chỉ ở công cụ CI (job lighthouse), không vào bundle/production; override gói giả mong manh (lighthouse có thể import tĩnh); giữ đường lùi
+- Đường lùi: Nếu chủ dự án chấp nhận FSL: nâng @lhci/cli 0.16.x + ngoại lệ giấy phép có ADR, gỡ luật grype; nếu thay Lighthouse CI: công cụ khác rồi gỡ
+
+### D-171 · 2026-11-17T02:32:15+00:00 · DB grype 2026-11-16: zlib1g (Debian trixie, CVE-2026-76844/85091 High, vá 1:1.3.dfsg+really1.3.1-1+deb13u1) trong node-base và postgres; apache/thrift 0.24.0 (5 High, vá 0.25.0) trong weed — main và mọi PR đỏ image-scan; upstream node:24.22.2-trixie-slim chưa dựng lại (digest vẫn bản 11-05)
+
+- Phương án: (1) Thêm apt-get upgrade (đã update sẵn) ở stage prepared node-base (web+worker giống nhau) và Dockerfile postgres; ghim thrift@v0.25.0 ở go get của seaweedfs · (2) Chờ upstream dựng lại digest mới · (3) Ngoại lệ grype có hạn
+- Chọn: Thêm apt-get upgrade (đã update sẵn) ở stage prepared node-base (web+worker giống nhau) và Dockerfile postgres; ghim thrift@v0.25.0 ở go get của seaweedfs
+- Lý do (tiêu chí chất lượng cuối): Đúng/an toàn: lấy bản vá Debian ngay, giống apk upgrade của caddy/seaweedfs (D-110); không nới ngưỡng, không ngoại lệ; giữ digest base ghim, chỉ thêm gói vá; chờ upstream để main/PR đỏ không hạn định
+- Đường lùi: Gỡ bước apt-get upgrade khi upstream dựng lại digest có bản vá (đổi digest như D-157)
+
+### D-172 · 2026-11-19T11:13:03+00:00 · DB grype 2026-11-19: Node 24.22.2 dính 7 CVE High (CVE-2026-123863/123864/123865/123866/123872/123874/126051; vá ở Node 24.22.3, phát hành 2026-11-11) làm image-scan (node-base) đỏ trên main và mọi PR
+
+- Phương án: (1) Nâng Node 24.22.3 trong #159 (đổi .nvmrc, digest base web/worker, dev-env-setup, tài liệu) · (2) Nâng ở PR riêng, #159 còn đỏ image-scan (node-base) tới khi PR đó merge · (3) Ngoại lệ grype có hạn cho 7 CVE
+- Chọn: Nâng Node 24.22.3 trong #159 (đổi .nvmrc, digest base web/worker, dev-env-setup, tài liệu)
+- Lý do (tiêu chí chất lượng cuối): Đúng/an toàn: lấy bản vá ngay, không nới ngưỡng, không ngoại lệ; Node 24.22.3 là bản LTS vá bảo mật cùng dòng 24 (không đổi major); digest index đa kiến trúc af02d57b… đối chiếu hai nguồn (mirror.gcr.io và Docker Hub, băm manifest khớp); SHA-256 tarball dev-env lấy từ SHASUMS256 của nodejs.org; chủ dự án chọn gộp vào #159 để PR tự xanh
+- Đường lùi: Revert commit nâng Node (về 24.22.2 digest 0820eaa8…); image-scan (node-base) đỏ trở lại
