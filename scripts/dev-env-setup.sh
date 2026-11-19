@@ -105,8 +105,11 @@ install_node() {
     local f="node-v${NODE_VERSION}-linux-x64.tar.xz"
     curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/${f}" -o "$tmp/$f"
     echo "${NODE_SHA256}  $tmp/$f" | sha256sum -c --quiet -
+    # Thư mục thuộc người chạy script, giải nén không qua sudo: `npm install -g pnpm` bên dưới cần ghi vào lib/node_modules.
+    # (Trước đây `sudo tar` giữ uid của tarball — chạy được chỉ khi uid đó tình cờ trùng người dùng runner; Node 24.22.3 thì không.)
     $SUDO mkdir -p "$dest"
-    $SUDO tar -xJf "$tmp/$f" -C "$dest" --strip-components=1
+    $SUDO chown "$(id -u):$(id -g)" "$dest"
+    tar -xJf "$tmp/$f" -C "$dest" --strip-components=1
     log "đã cài Node ${NODE_VERSION}"
   fi
   mkdir -p "$BIN_DIR"
