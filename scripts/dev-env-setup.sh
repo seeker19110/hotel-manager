@@ -112,7 +112,8 @@ install_node() {
   mkdir -p "$BIN_DIR"
   for b in node npm npx corepack; do ln -sf "$dest/bin/$b" "$BIN_DIR/$b"; done
   if ! "$dest/bin/npm" ls -g --depth=0 "pnpm@${PNPM_VERSION}" >/dev/null 2>&1; then
-    "$dest/bin/npm" install -g --silent "pnpm@${PNPM_VERSION}"
+    # Chỉ ẩn stdout: lỗi của npm (quyền ghi, mạng, chính sách phát hành) phải hiện ra thay vì thất bại âm thầm.
+    "$dest/bin/npm" install -g "pnpm@${PNPM_VERSION}" >/dev/null
     log "đã cài pnpm ${PNPM_VERSION}"
   fi
   ln -sf "$dest/bin/pnpm" "$BIN_DIR/pnpm"
