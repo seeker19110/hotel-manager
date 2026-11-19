@@ -106,4 +106,4 @@ updated: 2026-10-14
 - CIS Benchmarks PostgreSQL (18 v1.0.0, 17 v1.1.0, 16 v1.1.0): <https://www.cisecurity.org/benchmark/postgresql> — xác minh 2026-10-13.
 - PgBouncer transaction mode và `SET` rò giữa client: <https://www.pgbouncer.org/config.html> — xác minh 2026-10-13.
 - Pháp lý: Luật Bảo vệ dữ liệu cá nhân 91/2025/QH15 + NĐ 356/2025/NĐ-CP (hiệu lực 01/01/2026), quyền chủ thể, DPIA — xem [`../16-compliance-privacy/vietnam-data-law.md`](../16-compliance-privacy/vietnam-data-law.md) (số hiệu, hiệu lực và văn bản sửa đổi xác minh ở đó); `research/2026-10-13-stored-catalog-extraction.md` (NĐ 217/2026, 207/2026, 70/2025 ghi theo docs nội bộ, **chưa xác minh**).
-- Catalog `seeker19110/stored` 13 §6b (thiếu xoá dữ liệu cá nhân/GDPR/nghị định dữ liệu cá nhân VN cũ trong ảnh CRM), 23 §4.1 (`validateAuth()` + user_id từ token chống IDOR) — đọc 2026-10-13.
+- Catalog `www-donghanhcungban-org/stored` 13 §6b (thiếu xoá dữ liệu cá nhân/GDPR/nghị định dữ liệu cá nhân VN cũ trong ảnh CRM), 23 §4.1 (`validateAuth()` + user_id từ token chống IDOR) — đọc 2026-10-13.

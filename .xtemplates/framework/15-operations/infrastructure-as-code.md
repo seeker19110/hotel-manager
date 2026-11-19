@@ -95,4 +95,4 @@ updated: 2026-11-02
 - CIS Benchmarks (cloud): <https://www.cisecurity.org/cis-benchmarks> — xác minh 2026-10-13.
 - GitHub Actions security hardening (OIDC, environment): <https://docs.github.com/en/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions> — xác minh 2026-10-13.
 - (chưa xác minh 2026-10-13) Infracost, tflint, Argo CD/Flux, Terratest phiên bản; Terraform license FAQ chi tiết — xác minh trước khi dùng.
-- Catalog `seeker19110/stored` 13 §3 (Terraform BSL vs OpenTofu MPL), 12 §3 (OPA/conftest), đọc 2026-10-13.
+- Catalog `www-donghanhcungban-org/stored` 13 §3 (Terraform BSL vs OpenTofu MPL), 12 §3 (OPA/conftest), đọc 2026-10-13.

@@ -97,4 +97,4 @@ Cảnh báo: Renovate AGPL-3.0 (chỉ ảnh hưởng khi sửa và phân phối 
 - Node.js previous releases (v24 Krypton, v22 Jod là LTS; v26 Current): <https://nodejs.org/en/about/previous-releases> — xác minh 2026-10-13; Python versions: <https://devguide.python.org/versions/> — xác minh 2026-10-13
 - OpenSSF Scorecard (Dependency-Update-Tool, Pinned-Dependencies, Vulnerabilities): <https://github.com/ossf/scorecard> — xác minh 2026-10-13
 - Phiên bản công cụ (xác minh 2026-10-13): OSV-Scanner v2.7.0, syft v1.54.1, pinact v5.0.0, Renovate 44.155.1 (release page GitHub); pip-audit 2.10.1, uv 0.13.0 (PyPI); knip 6.41.0 (npm)
-- Catalog `seeker19110/stored` 04 §2c, 05, 12 §3, 13 §4c, 20 §3b, 23 §2.5/§3.1/§8.1 theo [`../../research/2026-10-13-stored-catalog-extraction.md`](../../research/2026-10-13-stored-catalog-extraction.md), đọc 2026-10-13.
+- Catalog `www-donghanhcungban-org/stored` 04 §2c, 05, 12 §3, 13 §4c, 20 §3b, 23 §2.5/§3.1/§8.1 theo [`../../research/2026-10-13-stored-catalog-extraction.md`](../../research/2026-10-13-stored-catalog-extraction.md), đọc 2026-10-13.

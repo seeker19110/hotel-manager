@@ -4,7 +4,7 @@ kind: industry
 slug: government
 prefix: IND-GOV
 modules: [16-compliance-privacy/*, 12-security/*, 04-standards/accessibility-standards, 04-standards/security-standards, 06-design-ux/accessibility, 06-design-ux/content-and-microcopy, 06-design-ux/ui-states-and-feedback, 08-backend/authn-authz, 08-backend/api-design, 08-backend/integrations-and-webhooks, 08-backend/files-and-media, 09-database/backup-and-recovery, 09-database/data-modeling, 15-operations/backup-and-disaster-recovery, 15-operations/observability, 15-operations/slo-and-alerting, 15-operations/infrastructure-as-code, 18-cross-cutting/i18n-and-l10n, 10-workflow/documentation-workflow, 14-testing-quality/e2e-and-accessibility, 14-testing-quality/integration-and-contract]
-updated: 2026-11-02
+updated: 2026-11-19
 ---
 
 # Gói ngành: Chính phủ · dịch vụ công · khu vực công
@@ -12,7 +12,7 @@ updated: 2026-11-02
 > Ghép cho cổng dịch vụ công, hệ thống thông tin giải quyết thủ tục hành chính, CSDL chuyên ngành, phần mềm nội bộ cơ
 > quan nhà nước, hoặc sản phẩm **bán cho khu vực công**. Khác biệt: **ai cũng phải dùng được** (tiếp cận, ngôn ngữ, thiết
 > bị yếu), **định danh quốc gia** (VNeID), **kiến trúc và cấp độ an toàn theo quy định** (Khung kiến trúc Chính phủ số
-> 4.0, cấp độ 1–5), và **mọi thứ phải lưu trữ/truy vết** theo Luật Lưu trữ. Quy mô mặc định **L**.
+> 4.0, cấp độ 1–5), và **mọi thứ phải lưu trữ/truy vết** theo Luật Lưu trữ. Quy mô khi vận hành thật **L** (`compose` vắng `--scale` ra S, ADR-0081).
 
 ## Khi nào dùng
 

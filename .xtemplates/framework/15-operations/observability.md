@@ -95,4 +95,4 @@ updated: 2026-11-04
 - Google SRE Workbook — Implementing SLOs (SLI theo người dùng): <https://sre.google/workbook/implementing-slos/> — xác minh 2026-10-13.
 - Grafana AGPL-3.0: <https://github.com/grafana/grafana/blob/main/LICENSE> — xác minh 2026-10-13 (Loki/Tempo AGPL theo kiến thức nền — chưa fetch lại).
 - (chưa xác minh 2026-10-13) Brendan Gregg USE method URL, Kubernetes probes docs, OTel Collector docs, Sentry, Uptime Kuma, OpenMetrics exemplars — xác minh trước khi dẫn.
-- Catalog `seeker19110/stored` 13 §3 (Prometheus/Grafana/OTel/Loki), 07 (observability eval), 11 §1c (telemetry) — đọc 2026-10-13.
+- Catalog `www-donghanhcungban-org/stored` 13 §3 (Prometheus/Grafana/OTel/Loki), 07 (observability eval), 11 §1c (telemetry) — đọc 2026-10-13.

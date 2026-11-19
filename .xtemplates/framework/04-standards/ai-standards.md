@@ -102,4 +102,4 @@ Mặc định: **OWASP LLM Top 10 2026 + Agentic Top 10 + phân loại AI Act + 
 - MCP specification 2026-07-28: <https://modelcontextprotocol.io/specification/latest> — xác minh 2026-10-13
 - A2A 1.0.1 (2026-05-26): <https://a2a-protocol.org/latest/specification/> · <https://github.com/a2aproject/A2A/releases> — xác minh 2026-10-13
 - OTel GenAI semconv (Development): <https://github.com/open-telemetry/semantic-conventions-genai> — theo research §4.3 (đọc 2026-10-13)
-- Catalog `seeker19110/stored` mục 07 (pass^k, negative control), 12 §1/§4 — đọc 2026-10-13.
+- Catalog `www-donghanhcungban-org/stored` mục 07 (pass^k, negative control), 12 §1/§4 — đọc 2026-10-13.

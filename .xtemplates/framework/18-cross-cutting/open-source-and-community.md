@@ -102,4 +102,4 @@ updated: 2026-11-04
 - REUSE Specification 3.3 (2024-11-14): <https://reuse.software/spec-3.3/> — xác minh 2026-10-13; reuse 6.2.0 (PyPI) — xác minh 2026-10-13; SPDX License List 3.29.0: <https://spdx.org/licenses/> — xác minh 2026-10-13
 - SLSA v1.2 là bản hiện hành (v1.1 đã retired): <https://slsa.dev/spec/v1.1/levels> — xác minh 2026-10-13
 - Keep a Changelog 1.1.0: <https://keepachangelog.com/en/1.1.0/> — xác minh 2026-10-13
-- Catalog `seeker19110/stored` 20 §3c–3d (SCOPE.md, `needs-info` 14 ngày, sao ≠ chất lượng), 04 §2c (5,5 % repo "official" archive), 22 §9c, 23 §8.1 (`author_association`, ma trận vệ sinh), README §18 (mirror cite upstream) theo [`../../research/2026-10-13-stored-catalog-extraction.md`](../../research/2026-10-13-stored-catalog-extraction.md), đọc 2026-10-13.
+- Catalog `www-donghanhcungban-org/stored` 20 §3c–3d (SCOPE.md, `needs-info` 14 ngày, sao ≠ chất lượng), 04 §2c (5,5 % repo "official" archive), 22 §9c, 23 §8.1 (`author_association`, ma trận vệ sinh), README §18 (mirror cite upstream) theo [`../../research/2026-10-13-stored-catalog-extraction.md`](../../research/2026-10-13-stored-catalog-extraction.md), đọc 2026-10-13.

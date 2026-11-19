@@ -93,4 +93,4 @@ updated: 2026-10-14
 - RFC 3339 / RFC 9557: <https://www.rfc-editor.org/rfc/rfc3339>, <https://www.rfc-editor.org/rfc/rfc9557> — xác minh 2026-10-13
 - ISO 4217 List One (SIX, xuất bản 2026-09-17): <https://www.six-group.com/en/products-services/financial-information/data-standards.html> — xác minh 2026-10-13
 - Hypothesis 6.169.0, editorconfig-checker 7.0.0 (registry, xác minh 2026-10-13)
-- Khung cũ X-stored `quality-supplements.md` N2 §6 (chống lỗi logic), commit `1b80fe4`; catalog `seeker19110/stored` 23 §4.1/§4.5 (không float cho tiền, không để model tính giá), đọc 2026-10-13.
+- Khung cũ X-stored `quality-supplements.md` N2 §6 (chống lỗi logic), commit `1b80fe4`; catalog `www-donghanhcungban-org/stored` 23 §4.1/§4.5 (không float cho tiền, không để model tính giá), đọc 2026-10-13.

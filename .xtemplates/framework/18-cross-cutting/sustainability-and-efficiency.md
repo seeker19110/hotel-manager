@@ -90,4 +90,4 @@ updated: 2026-10-14
 - Cloud Carbon Footprint (Apache-2.0): <https://github.com/cloud-carbon-footprint/cloud-carbon-footprint> — xác minh 2026-10-13; CodeCarbon 3.3.1 (PyPI) — xác minh 2026-10-13, tài liệu <https://docs.codecarbon.io/> chỉ trả trang chuyển hướng ngày 2026-10-13 **(chi tiết phương pháp chưa xác minh)**
 - web.dev Performance budgets 101: <https://web.dev/articles/performance-budgets-101> — xác minh 2026-10-13
 - knip 6.41.0, jscpd 5.4.1 (npm, xác minh 2026-10-13); actionlint v1.7.12 — xác minh 2026-10-13
-- Khung cũ X-stored `quality-supplements.md` N2 §9 (tối ưu mã nguồn: nguyên tắc vàng, checklist, khi nào không refactor), `CLAUDE.md` §3.7, commit `1b80fe4`; catalog `seeker19110/stored` 03 §4 (code execution với MCP 150k → 2k token), 21 §8 (circuit breaker), 23 §2.5 (cron jitter, concurrency), đọc 2026-10-13.
+- Khung cũ X-stored `quality-supplements.md` N2 §9 (tối ưu mã nguồn: nguyên tắc vàng, checklist, khi nào không refactor), `CLAUDE.md` §3.7, commit `1b80fe4`; catalog `www-donghanhcungban-org/stored` 03 §4 (code execution với MCP 150k → 2k token), 21 §8 (circuit breaker), 23 §2.5 (cron jitter, concurrency), đọc 2026-10-13.

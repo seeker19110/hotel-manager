@@ -116,4 +116,4 @@ Chỉ số vượt `budget_*` thành task; không có `budget_*` → không ph�
 - PostgreSQL `EXPLAIN`: <https://www.postgresql.org/docs/current/using-explain.html>; `pg_stat_statements`: <https://www.postgresql.org/docs/current/pgstatstatements.html>.
 - Prompt caching: <https://platform.claude.com/docs/en/build-with-claude/prompt-caching>.
 - Chưa xác minh: tín hiệu thưởng AlphaEvolve, audit KernelBench, chống gian lận autoresearch, quy trình chính thống baseline → profile → một thay đổi.
-- Stored (`seeker19110/stored`, `a1a1f51`): mục 23 (coverage ratchet, mutation test, tối đa 3 lần sửa cùng lỗi), 03 (evaluator–optimizer; lời khai không phải bằng chứng), 07 (Overmind: bản thắng là một git diff).
+- Stored (`www-donghanhcungban-org/stored`, `a1a1f51`): mục 23 (coverage ratchet, mutation test, tối đa 3 lần sửa cùng lỗi), 03 (evaluator–optimizer; lời khai không phải bằng chứng), 07 (Overmind: bản thắng là một git diff).

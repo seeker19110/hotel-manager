@@ -103,6 +103,6 @@ kiến trúc áp cho phần backend nếu có; client tuân luật phụ thuộc
   <https://learn.microsoft.com/en-us/azure/architecture/patterns/saga>; Bulkhead (cell-based) ms.date 2026-03-19:
   <https://learn.microsoft.com/en-us/azure/architecture/patterns/bulkhead> — xác minh 2026-10-13.
 - C4 model (4 mức): <https://c4model.com/> — xác minh 2026-10-13.
-- Catalog `seeker19110/stored` 13 §6b (phản biện ảnh CRM microservices; các CRM OSS đều monolith), đọc 2026-10-13.
+- Catalog `www-donghanhcungban-org/stored` 13 §6b (phản biện ảnh CRM microservices; các CRM OSS đều monolith), đọc 2026-10-13.
 - Khung cũ X-stored ADR-0003 (hai hồ sơ cục bộ/đám mây + điều kiện chuyển), commit `1b80fe4`.
 - `research/2026-10-13-old-framework-analysis.md` (thiếu backend/kiến trúc chi tiết ở khung cũ).

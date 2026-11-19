@@ -4,14 +4,14 @@ kind: industry
 slug: healthcare
 prefix: IND-HEALTH
 modules: [12-security/*, 16-compliance-privacy/*, 09-database/sensitive-data-and-access, 09-database/backup-and-recovery, 09-database/transactions-and-consistency, 08-backend/authn-authz, 08-backend/files-and-media, 08-backend/integrations-and-webhooks, 08-backend/reliability-and-errors, 06-design-ux/accessibility, 06-design-ux/ui-states-and-feedback, 14-testing-quality/unit-and-logic-edge-cases, 14-testing-quality/integration-and-contract, 15-operations/backup-and-disaster-recovery, 15-operations/incident-response, 18-cross-cutting/units-time-and-money, 13-ai-engineering/guardrails-and-safety]
-updated: 2026-10-14
+updated: 2026-11-19
 ---
 
 # Gói ngành: Y tế · sức khoẻ · dữ liệu bệnh nhân
 
 > Ghép cho phần mềm xử lý **dữ liệu sức khoẻ** hoặc hỗ trợ **quyết định lâm sàng**: HIS/EMR/bệnh án điện tử, đặt lịch,
 > kê đơn, LIS/RIS/PACS, app sức khoẻ, bảo hiểm y tế, telehealth, AI chẩn đoán. Sai một đơn vị thuốc có thể gây chết
-> người; lộ một bệnh án là vi phạm dữ liệu nhạy cảm. Quy mô mặc định **L**.
+> người; lộ một bệnh án là vi phạm dữ liệu nhạy cảm. Quy mô khi vận hành thật **L** (`compose` vắng `--scale` ra S, ADR-0081).
 
 ## Khi nào dùng
 

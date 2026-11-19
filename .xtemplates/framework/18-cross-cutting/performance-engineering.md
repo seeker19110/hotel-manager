@@ -91,4 +91,4 @@ updated: 2026-10-14
 - Command Line Interface Guidelines (responsiveness, output): <https://clig.dev/> — xác minh 2026-10-13
 - Conventional Commits 1.0.0 (`perf` type): <https://www.conventionalcommits.org/en/v1.0.0/> — xác minh 2026-10-13
 - Lighthouse CI đứng yên từ 2025-06-26 theo [`../../research/2026-10-13-stored-catalog-extraction.md`](../../research/2026-10-13-stored-catalog-extraction.md) (catalog 13 §4c) — đọc 2026-10-13
-- Khung cũ X-stored `quality-supplements.md` N2 §2 (ngân sách), §9 (đo trước–sau, tối ưu non), commit `1b80fe4`; catalog `seeker19110/stored` 19 (aggregator sai số ~100 lần), 21 §8 (circuit breaker 80/90/100 %), 23 §2.5/§4.4, đọc 2026-10-13.
+- Khung cũ X-stored `quality-supplements.md` N2 §2 (ngân sách), §9 (đo trước–sau, tối ưu non), commit `1b80fe4`; catalog `www-donghanhcungban-org/stored` 19 (aggregator sai số ~100 lần), 21 §8 (circuit breaker 80/90/100 %), 23 §2.5/§4.4, đọc 2026-10-13.

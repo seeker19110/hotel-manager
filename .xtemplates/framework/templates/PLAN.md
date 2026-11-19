@@ -1,7 +1,7 @@
 ---
 title: Mẫu PLAN
 kind: template
-updated: 2026-11-01
+updated: 2026-11-17
 ---
 
 # Mẫu PLAN.md
@@ -12,7 +12,7 @@ updated: 2026-11-01
 > **Dependency và phạm vi ghi (máy đọc):** ghi chú trong ngoặc của dòng task `(sau: T-001, T-002; files: src/a.ts, tests/)` — `sau:` = task TRONG file này phải `[x]`/`[~]` trước (ID không có trong file thì bỏ qua; `loop record` từ chối chạy task khi dependency còn mở, exit 2; chu trình `sau:` hiện ở `loop status`); `files:` = đường dẫn/thư mục task ghi, cách nhau dấu phẩy (thư mục chứa nhau tính là giao nhau). `loop next [--json]` liệt kê task sẵn sàng + cặp giao nhau `files:` (không giao song song) + task chưa khai `files:`. Các mục khác trong ngoặc (`S-001`, `cần: …`) máy bỏ qua; nhóm ngoặc chứa dấu `;` mà không có `sau:`/`files:` vẫn hợp lệ.
 > **Trạng thái:** `[ ]` chưa · `[x]` xong (chỉ khi `.autopilot/evidence/T-NNN.json` có `exit_code: 0` và `cmd` đúng Gate) · `[~]` bỏ (ghi `— Bỏ: <lý do>`, thiếu thì `loop status` ra `verify`).
 > **Cấu hình và tầng (ADR-0061, ADR-0029):** mặc định `topo: self` (phiên chính tự làm, `executor: null`); `(topo: review)` xuyên module/chạm bảo mật — reviewer độc lập trước PR; `(topo: parallel)` chỉ khi module độc lập file (`files:` không giao, đợt ≤ 4) — giao `executor`, task khó/bất định/rủi ro cao/phạm vi rộng (giao ước xuyên module, auth/phân quyền/tenant, migration dữ liệu thật, đồng thời/retry, lỗi không ổn định) ghi thêm `(exec: deep)` → `executor-deep`; `(topo: audit)` audit một lượt rồi sửa batch. Tầng đỏ 2 lần → máy tự chuyển cấp. Tên tầng, không tên model.
-> **Mốc:** mỗi mục `### Lát N — …` là một mốc; `loop status` báo `milestone_done` khi mọi task của mục trước đã đóng → audit delta (`xt.py audit plan --status …`) trước khi làm task đầu của mục kế; pha build (`milestone_audit: g7`) không audit theo mốc mà ở cuối đợt (`done` → `/audit delta`, ADR-0033/0046/0047 của khung); khi chưa có `PROJECT.md`, 4 dòng Khung (vấn đề · người dùng · 1 chỉ số · không làm) đặt ngay dưới dòng Duyệt.
+> **Mốc:** mỗi mục `### Lát N — …` là một mốc; `loop status` báo `milestone_done` khi mọi task của mục trước đã đóng → làm tiếp task kế, không audit theo mốc: pha build (`milestone_audit: g7`) audit ở cuối đợt (`done` → `/audit delta`, ADR-0033/0046/0047 của khung), pha harden (`signoff`) audit ở cổng ký (`/complete` bước 5, ADR-0080); khi chưa có `PROJECT.md`, 4 dòng Khung (vấn đề · người dùng · 1 chỉ số · không làm) đặt ngay dưới dòng Duyệt.
 > **Giai đoạn sản phẩm (ADR-0058 của khung):** dự án có `docs/autopilot/STAGE.json` thì PLAN khai đúng giai đoạn + chu kỳ đang mở; khai khác/thiếu → `loop init`/`next`/`record` exit 2 (giai đoạn sau khoá tới khi người `stage approve`).
 > Máy đọc: dòng task và mục "Ủy quyền production" (`xt.py grant-check`). "Ngân sách (4 con số)" theo [`LOOP-DESIGN-001`](../11-autonomous-loop/loop-design.md) là số truyền cho cờ `loop init` (`--max-iterations`, `--hours`) và `XT_RECORD_TIMEOUT`; "Điểm dừng bắt buộc" và "Hạn" để người đọc — điểm dừng thật đi qua `loop defer`/`loop block` lúc chạy.
 

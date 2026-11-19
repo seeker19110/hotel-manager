@@ -99,4 +99,4 @@ updated: 2026-10-16
 - SQLite — When to use: <https://www.sqlite.org/whentouse.html>; WAL: <https://www.sqlite.org/wal.html> — xác minh 2026-10-13.
 - OWASP ASVS 5.0 V14 Data Protection (14.1.1 phân loại): <https://github.com/OWASP/ASVS/blob/master/5.0/en/0x23-V14-Data-Protection.md> — xác minh 2026-10-13.
 - Công cụ: sqlfluff 4.4.0 MIT (PyPI); squawk-cli 2.68.0 (npm); atlas 1.3.0 Apache-2.0 (brew); pgTAP 1.3.4 (PGXN) — xác minh 2026-10-13.
-- Catalog `seeker19110/stored` 23 §4.1 (dhcb rule: migration lũy đẳng/timestamptz), 23 §6.4; khung cũ `quality-supplements.md` mục "Số & tiền" (commit `1b80fe4`).
+- Catalog `www-donghanhcungban-org/stored` 23 §4.1 (dhcb rule: migration lũy đẳng/timestamptz), 23 §6.4; khung cũ `quality-supplements.md` mục "Số & tiền" (commit `1b80fe4`).

@@ -1,7 +1,7 @@
 ---
 title: Ghép blueprint cho một dự án
 kind: method
-updated: 2026-10-23
+updated: 2026-11-19
 ---
 
 # Ghép blueprint cho một dự án
@@ -64,17 +64,24 @@ python3 .xtemplates/scripts/xt.py blueprint-status BLUEPRINT.md --strict --run
 
 ## Chọn quy mô
 
-| Câu hỏi | Có → |
+Trả lời theo **hiện trạng**, không theo dự định (ADR-0081 của repo khung): sản phẩm *sẽ* có người dùng vẫn là S cho tới
+khi sắp phát hành cho họ.
+
+| Câu hỏi (về hiện tại) | Có → |
 |---|---|
-| Có người dùng thật ngoài đội phát triển? | ≥ M |
-| Có tiền thật, dữ liệu sức khoẻ, dữ liệu trẻ em, dữ liệu định danh nhạy cảm? | L (hoặc M + gói ngành đúng) |
+| Đang có người dùng thật ngoài đội phát triển? | ≥ M |
+| Đang giữ tiền thật, dữ liệu sức khoẻ, dữ liệu trẻ em, dữ liệu định danh nhạy cảm? | L (hoặc M + gói ngành đúng) |
 | Nhiều đội cùng phát triển, SLA ký với khách hàng, kiểm toán bên ngoài? | L |
-| Chỉ thử nghiệm ý tưởng, không lưu dữ liệu thật? | S |
+| Đang xây hoặc thử nghiệm, chưa lưu dữ liệu thật? | S |
+
+`compose` không `--scale` giữ quy mô của blueprint đã ghép ở `--out`, chưa có thì S (có bản mà quy mô không đọc được → lỗi, truyền `--scale`). Lên quy mô ở ranh giới pha: `/complete` bước 1
+ghép lại `--scale M` (hoặc L) trước khi phát hành cho người dùng thật — MUST của quy mô đó vào PLAN-harden, trước
+`release-check`.
 
 Quy mô quyết định khối lượng: blueprint `web-app` 70 MUST ở S, 473 ở M, 1.146 ở L (đo 2026-10-19). Chọn đúng quy mô quan trọng hơn chọn đủ module. Quy mô cũng quyết định cỡ file agent đọc: `web-app` + `ecommerce` có `BLUEPRINT.md` 41 KB ở S, 229 KB ở M, 483 KB ở L; bản một file (`--full`) ~690 KB ở cả ba (đo 2026-10-16).
 
 ## Nguồn
 
 - Quy ước định dạng: [`conventions.md`](conventions.md).
-- Ý tưởng "checklist máy đọc được, GO/NO-GO theo bằng chứng": `seeker19110/stored` mục 09 (deployment-checklist,
+- Ý tưởng "checklist máy đọc được, GO/NO-GO theo bằng chứng": `www-donghanhcungban-org/stored` mục 09 (deployment-checklist,
   production-readiness-checklist), đọc 2026-10-13.

@@ -107,4 +107,4 @@ Linux Foundation) BSD-3-Clause. Chọn Valkey khi cần OSI-permissive; xem
 - Redis licenses (7.2 BSD-3 → 7.4 RSALv2/SSPLv1 → 8.0 + AGPLv3): <https://redis.io/legal/licenses/>; Redis 8.10.2: <https://endoflife.date/api/redis.json>; Valkey 9.1.2 BSD-3-Clause: <https://endoflife.date/api/valkey.json>, <https://raw.githubusercontent.com/valkey-io/valkey/unstable/COPYING> — xác minh 2026-10-13.
 - Thư viện: cockatiel 4.0.0 MIT, p-retry 8.0.1 MIT (npm); tenacity 9.2.1 Apache-2.0 (PyPI); resilience4j-core 2.4.0 (Maven Central, 2026-03-14); Polly 8.8.0 (NuGet, giấy phép **chưa xác minh** từ registry); toxiproxy 2.12.0 MIT (brew) — xác minh 2026-10-13.
 - PostgreSQL 18 `statement_timeout`/`lock_timeout`: <https://www.postgresql.org/docs/current/runtime-config-client.html> — xác minh 2026-10-13.
-- Catalog `seeker19110/stored` 21 (runaway loop 400 lần/5 phút, spend circuit breaker), 09 §1 (production-readiness), đọc 2026-10-13.
+- Catalog `www-donghanhcungban-org/stored` 21 (runaway loop 400 lần/5 phút, spend circuit breaker), 09 §1 (production-readiness), đọc 2026-10-13.

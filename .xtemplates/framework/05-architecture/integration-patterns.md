@@ -107,5 +107,5 @@ Khoá idempotency: header `Idempotency-Key` theo Internet-Draft `draft-ietf-http
 - IETF Internet-Draft `draft-ietf-httpapi-idempotency-key-header-07` (expired; header `Idempotency-Key`): <https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/> — xác minh 2026-10-13.
 - Debezium 3.7 (stable) — Outbox Event Router: <https://debezium.io/documentation/reference/stable/transformations/outbox-event-router.html> — xác minh 2026-10-13.
 - Temporal CLI 1.9.1 MIT: <https://formulae.brew.sh/api/formula/temporal.json>; toxiproxy 2.12.0 MIT: <https://formulae.brew.sh/api/formula/toxiproxy.json> — xác minh 2026-10-13. Restate/Inngest/DBOS: phiên bản **(chưa xác minh)**.
-- Catalog `seeker19110/stored` 21 §5 (durable execution), 21 §8 và 23 §4.5 (outbox/lease/fencing/`outcome_unknown`, Sales-Hunter ADR-0010), 23 §4.1 (SePay VietQR HMAC + idempotent), đọc 2026-10-13.
+- Catalog `www-donghanhcungban-org/stored` 21 §5 (durable execution), 21 §8 và 23 §4.5 (outbox/lease/fencing/`outcome_unknown`, Sales-Hunter ADR-0010), 23 §4.1 (SePay VietQR HMAC + idempotent), đọc 2026-10-13.
 - Khung cũ spec `AI-HARNESS-AND-COMPANY-SPEC.md` §C2-FR-05, §C3-FR-04 (idempotency_key dẫn xuất `run_id + step_id`), commit `1b80fe4`.

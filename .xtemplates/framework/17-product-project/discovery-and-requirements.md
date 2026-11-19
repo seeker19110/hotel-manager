@@ -88,4 +88,4 @@ updated: 2026-10-15
 - INVEST / SMART — Bill Wake, "INVEST in Good Stories, and SMART Tasks" (2003-08-17): <https://xp123.com/articles/invest-in-good-stories-and-smart-tasks/> — xác minh 2026-10-13.
 - MoSCoW (Must/Should/Could/Won't this time) — Agile Business Consortium, DSDM Project Framework: <https://www.agilebusiness.org/dsdm-project-framework/moscow-prioritisation.html> — xác minh 2026-10-13.
 - Kanban Guide 2025.5 (chỉ số dòng chảy, SLE): <https://kanbanguides.org/english/> — xác minh 2026-10-13.
-- `seeker19110/stored` mục 20 §3c (`SCOPE.md`, `.out-of-scope/`), mục 23 §2.4; `research/2026-10-13-stored-catalog-extraction.md` — đọc 2026-10-13.
+- `www-donghanhcungban-org/stored` mục 20 §3c (`SCOPE.md`, `.out-of-scope/`), mục 23 §2.4; `research/2026-10-13-stored-catalog-extraction.md` — đọc 2026-10-13.

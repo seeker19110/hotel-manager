@@ -4,7 +4,7 @@ kind: profile
 slug: monorepo
 prefix: PRF-MONO
 modules: [04-standards/*, 05-architecture/*, 06-design-ux/*, 07-frontend/*, 08-backend/*, 09-database/*, 10-workflow/*, 11-autonomous-loop/*, 12-security/*, 14-testing-quality/*, 15-operations/*, 16-compliance-privacy/*, 17-product-project/*, 18-cross-cutting/*]
-updated: 2026-10-21
+updated: 2026-11-14
 ---
 
 # Hồ sơ: Monorepo nhiều thành phần (web + mobile + API)
@@ -106,7 +106,7 @@ Xác minh ngày **2026-10-13** — **xác minh lại trước khi dùng**. Bản
 - Nx affected (base/head, `nx-set-shas`, lockfile → all affected): <https://nx.dev/docs/features/ci-features/affected> — xác minh 2026-10-13.
 - GitHub CODEOWNERS (vị trí, cú pháp, Require review from Code Owners): <https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners> — xác minh 2026-10-13.
 - pnpm settings (`catalog`/`catalogs`, `minimumReleaseAge`, `engineStrict`, `verifyDepsBeforeRun`, `strictDepBuilds` có trong danh sách): <https://pnpm.io/settings> — xác minh 2026-10-13 (mô tả chi tiết từng khóa chưa đọc).
-- Changesets workflow: <https://github.com/changesets/changesets/blob/main/docs/intro-to-using-changesets.md> — xác minh 2026-10-13 (trang ghi outdated, trỏ changesets.dev).
+- Changesets workflow: <https://changesets.dev/guide/getting-started> — xác minh 2026-11-14.
 - Phiên bản npm: `pnpm`, `npm`, `turbo`, `nx`, `@changesets/cli`, `release-please`, `lerna`, `syncpack`, `@manypkg/cli`, `knip`, `@biomejs/biome`, `oxlint`, `vitest`, `@playwright/test`, `typescript`; endoflife.date `pnpm` (12.12.1 — lệch với npm `latest` 12.11.2), `nodejs`, `go`, `rust`; PyPI `uv` — xác minh 2026-10-13.
 - Bài học catalog: job `quality` gom làm required check, Dependabot gom nhóm + WIP cap, dhcb monorepo npm 3 app/23 package (13 §4b, 23 §2.5, 23 §4.1) — `research/2026-10-13-stored-catalog-extraction.md`; khung cũ `ci.yml` `protection-guard` — `research/2026-10-13-old-framework-analysis.md`; KHUNG-3 C10 (commit `1b80fe4`).
 - (chưa xác minh) `dependency-cruiser`, `madge`, moon, Bazel/Pants, Bun workspaces phiên bản — không tra ngày 2026-10-13.

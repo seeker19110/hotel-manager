@@ -1,12 +1,12 @@
 ---
 title: Mẫu AGENTS.md cho dự án
 kind: template
-updated: 2026-11-05
+updated: 2026-11-14
 ---
 
 # AGENTS.md — luật vận hành cho AI agent trong dự án này
 
-> Do `install.py` của khung X-Templates tạo (copy-if-absent). Sửa phần `[ĐIỀN]`; phần còn lại là luật chung của khung ở `.xtemplates/` (`framework/` = thư viện yêu cầu, `scripts/xt.py` = công cụ; `<XT>` dưới đây = `python3 .xtemplates/scripts/xt.py`). Dùng chung cho mọi agent; `CLAUDE.md` chỉ import file này. Hướng dẫn này **không thay cho hook/permission**: hàng rào thật là `.claude/settings.json` + hook guard.
+> Do `install.py` của khung X-Templates tạo (copy-if-absent). Sửa phần `[ĐIỀN]`; phần còn lại là luật chung của khung ở `.xtemplates/` (`framework/` = thư viện yêu cầu, `scripts/xt.py` = công cụ; `<XT>` dưới đây = `python3 .xtemplates/scripts/xt.py`). CPython 3.15.x trên PATH; `CLAUDE.md` chỉ import file này. Hướng dẫn này **không thay cho hook/permission**: hàng rào thật là `.claude/settings.json` + hook guard.
 
 ## 1. Dự án này
 - **Tên / mục tiêu:** [ĐIỀN — một câu]
@@ -44,7 +44,7 @@ Máy chia ba nhóm, không hỏi người: **máy chặn** (không đảo ngư�
 ## 7. Cổng (lệnh thật ở `xt.yaml`)
 - **Trước commit:** hook/git hook (sàn chung) chạy `dev-task.sh gate-fast` theo `commit_gate`; tự review diff; conventional commit.
 - **Trước khi đẩy/mở PR:** `gate-fast`; cổng đầy đủ = CI (cắt bản/không CI: `gate`).
-- **PR đã mở:** `<XT> pr next --pr <N>` → làm đúng `do` (`review` → reviewer theo §8; `debt` → 🔴 sửa, 🟠/🟢 nợ, ADR-0062); `merge-watch --pr <N>` nền. Luật làn: `LOOP-STOP-022`/`029`; `pr-steward` (`install.py --with-github`) làm thay khi hết phiên.
+- **PR đã mở:** `<XT> pr next --pr <N>` → làm đúng `do`; `merge-watch --pr <N>` chạy nền. Mặc định CI xanh không đòi review (ADR-0079); `pr-steward` làm thay khi hết phiên.
 - **Phát hành (G7):** `<XT> release-check` không NO-GO + `GO-NO-GO.md` không còn BLOCKER + chủ dự án đã quyết các đề xuất "Khi chạy thật". Pha harden = `/complete` (ADR-0046).
 
 ## 8. Skill và subagent (nhà: `11-autonomous-loop/orchestration-and-subagents.md`)

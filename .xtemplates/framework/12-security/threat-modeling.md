@@ -89,4 +89,4 @@ xác minh phiên bản trước khi dùng; tài liệu Markdown theo mẫu của
 - NIST SP 800-207 Zero Trust Architecture (08/2020): <https://csrc.nist.gov/pubs/sp/800/207/final> — xác minh 2026-10-13.
 - OWASP Top 10 for Agentic Applications 2026 (ASI01–10, công bố 2025-12-09): ghi theo `research/2026-10-13-ai-agent-research.md` §5.1 [F]; trang genai.owasp.org trả 403 khi fetch lại ngày 2026-10-13.
 - ISO/IEC 27005 (quản lý rủi ro an toàn thông tin) — (chưa xác minh phiên bản hiện hành ngày 2026-10-13; tiêu chuẩn trả phí).
-- Khung cũ X-stored `docs/specs/AI-HARNESS-AND-COMPANY-SPEC.md` §A4.5 (ánh xạ ASI), commit `1b80fe4`; catalog `seeker19110/stored` mục 09 §1.3 (STRIDE trong checklist Security), đọc 2026-10-13.
+- Khung cũ X-stored `docs/specs/AI-HARNESS-AND-COMPANY-SPEC.md` §A4.5 (ánh xạ ASI), commit `1b80fe4`; catalog `www-donghanhcungban-org/stored` mục 09 §1.3 (STRIDE trong checklist Security), đọc 2026-10-13.

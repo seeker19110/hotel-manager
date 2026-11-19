@@ -28,7 +28,7 @@ import urllib.request
 from collections.abc import Callable, Iterator, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from urllib.parse import unquote, urlsplit
+from urllib.parse import quote, unquote, urlsplit
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -50,12 +50,15 @@ TABLE_DELIM_RE = re.compile(r"^\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*\|?\s*$")
 # Dòng mở khối mới (CommonMark): tiêu đề ATX, mục danh sách, đường kẻ/setext — code span không vượt qua. Nhận rộng tay:
 # tách khối thừa chỉ làm backtick mở thành chữ (kiểm thêm link, có thể báo oan), không bao giờ che thừa link thật.
 BLOCK_START_RE = re.compile(r"^ {0,3}(?:#{1,6}(?:\s|$)|[-*+](?:\s|$)|\d{1,9}[.)](?:\s|$)|(?:[-*_=][ \t]*){3,}$|=+\s*$)")
+_SPAN_SPECIAL_RE = re.compile(r"[\\`]")  # ký tự đổi trạng thái của `mask_code_spans`
+_CELL_SPECIAL_RE = re.compile(r"[\\|]")  # ký tự đổi trạng thái của `table_cells`
 AUTOLINK_RE = re.compile(r"<(https?://[^\s<>]+)>")
 BARE_URL_RE = re.compile(r"https?://[^\s<>\[\]\"`|]+")
 SKIP_HOSTS = {"localhost", "127.0.0.1", "example.com", "example.org", "example.net"}
 SKIP_SUFFIXES = (".invalid", ".example", ".test", ".localhost")
-RETRY_GET_CODES = {501}  # HEAD bị từ chối → thử lại bằng GET trước khi kết luận; cùng mọi 4xx trừ GONE_CODES
-GONE_CODES = {404, 410}  # HEAD 404/410 đủ kết luận "không còn" — không gọi GET
+# HEAD bị từ chối → thử lại bằng GET trước khi kết luận; cùng mọi 4xx, kể cả 404/410: NIST nvlpubs và support.google.com
+# trả HEAD 404 nhưng GET 200 (đo 2026-11-16) — chỉ GET 404/410 mới kết luận "không còn".
+RETRY_GET_CODES = {501}
 USER_AGENT = "xtemplates-check-links/1 (+https://github.com/)"
 Fetcher = Callable[[str, float], int]
 
@@ -87,13 +90,16 @@ def mask_code_spans(text: str) -> str:
     out: list[str] = []
     i = 0
     while i < len(text):
+        hit = _SPAN_SPECIAL_RE.search(text, i)  # AUD-PERF-027: nhảy tới `\`/backtick kế, không duyệt từng ký tự
+        if hit is None:
+            out.append(text[i:])
+            break
+        if hit.start() > i:
+            out.append(text[i : hit.start()])
+            i = hit.start()
         if text[i] == "\\":
             out.append(text[i : i + 2])
             i += 2
-            continue
-        if text[i] != "`":
-            out.append(text[i])
-            i += 1
             continue
         j = i
         while j < len(text) and text[j] == "`":
@@ -111,15 +117,18 @@ def table_cells(line: str) -> list[str]:
     cur: list[str] = []
     i = 0
     while i < len(line):
+        hit = _CELL_SPECIAL_RE.search(line, i)  # AUD-PERF-027: nhảy tới `\`/`|` kế
+        if hit is None:
+            cur.append(line[i:])
+            break
+        cur.append(line[i : hit.start()])
+        i = hit.start()
         if line[i] == "\\":
             cur.append(line[i : i + 2])
             i += 2
-        elif line[i] == "|":
+        else:
             cells.append("".join(cur))
             cur = []
-            i += 1
-        else:
-            cur.append(line[i])
             i += 1
     cells.append("".join(cur))
     return cells
@@ -333,18 +342,21 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 def http_status(url: str, timeout: float, opener: urllib.request.OpenerDirector | None = None) -> int:
-    """Mã HTTP của URL (HEAD, rồi GET nếu HEAD trả 4xx khác 404/410 hoặc 501 — nhiều máy chủ từ chối HEAD bằng 400/403/
-    405 dù trang còn, PR #173). Timeout/lỗi mạng → `OSError` cho người gọi phân loại."""
+    """Mã HTTP của URL (HEAD, rồi GET nếu HEAD trả 4xx hoặc 501 — nhiều máy chủ từ chối HEAD bằng 400/403/404/405 dù
+    trang còn, PR #173). Timeout/lỗi mạng → `OSError` cho người gọi phân loại."""
+    parts = urlsplit(url)
+    reserved = "!$&'()*+,;=:@%/"  # giữ dấu phân cách và các byte đã mã hoá
+    target = parts._replace(path=quote(parts.path, safe=reserved), query=quote(parts.query, safe=reserved + "?"))
     op = opener or urllib.request.build_opener(_NoRedirect)
     code = 0
     for method in ("HEAD", "GET"):
-        req = urllib.request.Request(url, method=method, headers={"User-Agent": USER_AGENT})
+        req = urllib.request.Request(target.geturl(), method=method, headers={"User-Agent": USER_AGENT})
         try:
             with op.open(req, timeout=timeout) as resp:
                 return int(resp.status)
         except urllib.error.HTTPError as e:
             code = e.code
-        if code not in RETRY_GET_CODES and not (400 <= code < 500 and code not in GONE_CODES):
+        if code not in RETRY_GET_CODES and not 400 <= code < 500:
             break
     return code
 

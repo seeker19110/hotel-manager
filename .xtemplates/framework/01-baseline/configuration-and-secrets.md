@@ -88,4 +88,4 @@ updated: 2026-11-03
 - Command Line Interface Guidelines (không nhận bí mật qua flag): <https://clig.dev/> — xác minh 2026-10-13
 - SOPS v3.13.3: <https://github.com/getsops/sops/releases/latest> — xác minh 2026-10-13; gitleaks v8.30.1: <https://github.com/gitleaks/gitleaks/releases/latest> — xác minh 2026-10-13; Yelp/detect-secrets (Apache-2.0): <https://github.com/Yelp/detect-secrets> — xác minh 2026-10-13
 - Zod 4.6.7, pydantic 2.14.1 (registry, xác minh 2026-10-13). OpenFeature: <https://openfeature.dev/> **(chưa xác minh phiên bản ngày 2026-10-13)**
-- Khung cũ X-stored `quality-supplements.md` N1 §1 (`lib/env.ts` validate bằng Zod), commit `1b80fe4`; catalog `seeker19110/stored` 09 §1.4 (`NEXT_PUBLIC_`, validate env), 12 §3i, 07 Overmind (API từ chối khởi động khi thiếu key), đọc 2026-10-13.
+- Khung cũ X-stored `quality-supplements.md` N1 §1 (`lib/env.ts` validate bằng Zod), commit `1b80fe4`; catalog `www-donghanhcungban-org/stored` 09 §1.4 (`NEXT_PUBLIC_`, validate env), 12 §3i, 07 Overmind (API từ chối khởi động khi thiếu key), đọc 2026-10-13.

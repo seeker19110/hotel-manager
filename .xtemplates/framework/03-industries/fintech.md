@@ -4,13 +4,13 @@ kind: industry
 slug: fintech
 prefix: IND-FIN
 modules: [12-security/*, 16-compliance-privacy/*, 09-database/transactions-and-consistency, 09-database/sensitive-data-and-access, 09-database/backup-and-recovery, 08-backend/authn-authz, 08-backend/integrations-and-webhooks, 08-backend/background-jobs-and-queues, 08-backend/reliability-and-errors, 18-cross-cutting/units-time-and-money, 14-testing-quality/unit-and-logic-edge-cases, 14-testing-quality/integration-and-contract, 15-operations/incident-response, 15-operations/slo-and-alerting, 15-operations/backup-and-disaster-recovery]
-updated: 2026-10-30
+updated: 2026-11-19
 ---
 
 # Gói ngành: Tài chính · thanh toán · ví điện tử
 
 > Ghép cho sản phẩm chạm tới **tiền thật**: cổng thanh toán, ví điện tử, trung gian thanh toán, cho vay/BNPL, đầu tư,
-> ngân hàng số, kế toán/hoá đơn, tài sản mã hoá. Ngành bị quản lý → quy mô mặc định **L**. Tiền là số nguyên, sổ cái
+> ngân hàng số, kế toán/hoá đơn, tài sản mã hoá. Ngành bị quản lý → quy mô khi vận hành thật **L** (`compose` vắng `--scale` ra S, ADR-0081). Tiền là số nguyên, sổ cái
 > bút toán kép, mọi thao tác idempotent, đối soát hằng ngày, PCI scope nhỏ nhất, KYC/AML theo luật.
 
 ## Khi nào dùng

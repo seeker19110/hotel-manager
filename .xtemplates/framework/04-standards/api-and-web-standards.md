@@ -37,7 +37,7 @@ Mặc định: **OpenAPI 3.1.x + RFC 9457 + JSON Schema 2020-12 + OAuth 2.0/PKCE
 | Chuẩn | Phiên bản | Phát hành | URL | Áp dụng khi | Chứng minh tuân thủ |
 |---|---|---|---|---|---|
 | OpenAPI Specification | **3.2.1** (mới nhất); 3.1.x vẫn hợp lệ | 2026-09-10 | <https://spec.openapis.org/oas/latest.html> | Mọi HTTP API | `openapi:` trong file + lint 0 lỗi + contract test |
-| RFC 9457 Problem Details for HTTP APIs | Proposed Standard (thay RFC 7807) | 2023-07 | <https://www.rfc-editor.org/rfc/rfc9457> | Mọi phản hồi lỗi | Test content-type `application/problem+json` + 5 trường chuẩn |
+| RFC 9457 Problem Details for HTTP APIs | Proposed Standard (thay RFC 7807) | 2023-07 | <https://www.rfc-editor.org/info/rfc9457/> | Mọi phản hồi lỗi | Test content-type `application/problem+json` + 5 trường chuẩn |
 | RFC 9110 HTTP Semantics (STD 97) + 9111 Caching, 9112 HTTP/1.1, 9113 HTTP/2, 9114 HTTP/3 | Internet Standard | 2022-06 | <https://www.rfc-editor.org/rfc/rfc9110> | Mọi HTTP | Lint rule (GET không body), test idempotency, `curl --http2` |
 | OAuth 2.1 | **draft-ietf-oauth-v2-1-16** (Internet-Draft, chưa RFC; WG dự kiến nộp IESG 12/2026) | 2026-09-03 | <https://datatracker.ietf.org/doc/draft-ietf-oauth-v2-1/> | Mọi uỷ quyền | Test: PKCE bắt buộc, `response_type=token` bị từ chối |
 | OpenID Connect Core 1.0 | incorporating errata set 2 | 2023-12-15 | <https://openid.net/specs/openid-connect-core-1_0.html> | Đăng nhập SSO | Test validate ID token (iss, aud, exp, nonce, chữ ký) |
@@ -90,7 +90,7 @@ Phiên bản Spectral, Redocly, oasdiff: **chưa xác minh** ngày 2026-10-13 �
 ## Nguồn
 
 - OpenAPI Specification 3.2.1 (2026-09-10): <https://spec.openapis.org/oas/latest.html> — xác minh 2026-10-13
-- RFC 9457 Problem Details (07/2023, obsoletes RFC 7807): <https://www.rfc-editor.org/rfc/rfc9457> · <https://datatracker.ietf.org/doc/rfc9457/> — xác minh 2026-10-13
+- RFC 9457 Problem Details (07/2023, obsoletes RFC 7807): <https://www.rfc-editor.org/info/rfc9457/> · <https://datatracker.ietf.org/doc/rfc9457/> — xác minh 2026-10-13
 - RFC 9110 HTTP Semantics (STD 97, 06/2022): <https://www.rfc-editor.org/rfc/rfc9110> — xác minh 2026-10-13
 - OAuth 2.1 draft-ietf-oauth-v2-1-16 (2026-09-03, I-D): <https://datatracker.ietf.org/doc/draft-ietf-oauth-v2-1/> — xác minh 2026-10-13
 - OpenID Connect Core 1.0 errata set 2 (2023-12-15): <https://openid.net/specs/openid-connect-core-1_0.html> — xác minh 2026-10-13

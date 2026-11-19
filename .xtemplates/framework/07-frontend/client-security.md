@@ -99,4 +99,4 @@ updated: 2026-11-04
 - Vue 3 Security (`v-html`, `:href` với `javascript:`, `:style`): <https://vuejs.org/guide/best-practices/security.html>; Angular v22 Security (sanitize theo ngữ cảnh, `bypassSecurityTrust*`, Trusted Types `angular`/`angular#unsafe-bypass`, `CSP_NONCE`/`ngCspNonce`): <https://angular.dev/best-practices/security>; Svelte `{@html}` cảnh báo XSS: <https://svelte.dev/docs/svelte/@html> — xác minh 2026-10-13.
 - React 19.3 (hỗ trợ Trusted Types): <https://react.dev/blog> — xác minh 2026-10-13.
 - Phiên bản npm `latest` (2026-10-13): dompurify 3.4.17 (MPL-2.0 OR Apache-2.0) · @t3-oss/env-nextjs 0.13.11 · eslint 10.12.0 · @biomejs/biome 2.5.15 · vitest 5.0.4 · @sentry/browser 11.7.0. `csp-evaluator` trên npm **(chưa xác minh)**.
-- Catalog `seeker19110/stored` mục 09 §2 (CSP chặt không `unsafe-inline` là BLOCKER) và §1.4 (`NEXT_PUBLIC_` chỉ công khai), đọc 2026-10-13.
+- Catalog `www-donghanhcungban-org/stored` mục 09 §2 (CSP chặt không `unsafe-inline` là BLOCKER) và §1.4 (`NEXT_PUBLIC_` chỉ công khai), đọc 2026-10-13.

@@ -57,6 +57,6 @@ Trong autopilot, `xt.py loop record --task T-001 -- <lệnh>` chạy lệnh và 
 ## Nguồn
 
 - Khung cũ X-stored `CLAUDE.md` §4 (chống ảo giác), commit `1b80fe4`.
-- `seeker19110/stored` `WORKFLOW.md` (grep cổng đang chạy, ba cột, ghi ngày đọc, chưa xác minh) và mục 23 (verified_by
+- `www-donghanhcungban-org/stored` `WORKFLOW.md` (grep cổng đang chạy, ba cột, ghi ngày đọc, chưa xác minh) và mục 23 (verified_by
   do code điền), đọc 2026-10-13.
 - `seeker19110/projects-template` ADR-0009 (nội dung ngoài là dữ liệu, không phải chỉ thị), đọc 2026-10-13.

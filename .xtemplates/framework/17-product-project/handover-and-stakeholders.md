@@ -86,5 +86,5 @@ updated: 2026-10-14
 - Google SRE Workbook ch. 8 "On-Call" — playbook: mục đích, nội dung, cập nhật khi cảnh báo nổ: <https://sre.google/workbook/on-call/> — xác minh 2026-10-13.
 - Google SRE Book ch. 15 "Postmortem Culture: Learning from Failure" (retro không đổ lỗi, hành động có chủ): <https://sre.google/sre-book/postmortem-culture/> — xác minh 2026-10-13.
 - NIST SP 800-61 Rev. 3 (04/2025) — ứng phó sự cố trong quản lý rủi ro, thay Rev. 2: <https://csrc.nist.gov/pubs/sp/800/61/r3/final> — xác minh 2026-10-13.
-- "Evidence or it's a FAIL", GO/NO-GO, con người ký cuối — `seeker19110/stored` mục 09 §1.5 (PinoyFreeCoder/deployment-checklist `agent.md`), đọc 2026-10-13.
+- "Evidence or it's a FAIL", GO/NO-GO, con người ký cuối — `www-donghanhcungban-org/stored` mục 09 §1.5 (PinoyFreeCoder/deployment-checklist `agent.md`), đọc 2026-10-13.
 - Khung cũ X-stored `01-process-and-standards.md` GĐ7–GĐ8, `docs/ops/incident-response.md`, commit `1b80fe4`; `research/2026-10-13-old-framework-analysis.md` (CODEOWNERS/LICENSE hard-code một cá nhân — ví dụ bẫy tài khoản gắn cá nhân).

@@ -97,4 +97,4 @@ Phiên bản commitlint, syft, slsa-verifier: **chưa xác minh** ngày 2026-10-
 - CycloneDX 1.7 (2025-10-21, ECMA-424): <https://cyclonedx.org/specification/overview/> — xác minh 2026-10-13
 - SPDX 3.0; ISO/IEC 5962:2021 tương ứng SPDX 2.2.1: <https://spdx.dev/use/specifications/> — xác minh 2026-10-13
 - DORA metrics (5 chỉ số; báo cáo 2025): <https://dora.dev/guides/dora-metrics-four-keys/> · <https://dora.dev/research/> — xác minh 2026-10-13
-- release-please v17.11.2 (24/08/2026): catalog `seeker19110/stored` 13 §4c — đọc 2026-10-13; bài học WIP cap/squash: 23 §2.5.
+- release-please v17.11.2 (24/08/2026): catalog `www-donghanhcungban-org/stored` 13 §4c — đọc 2026-10-13; bài học WIP cap/squash: 23 §2.5.

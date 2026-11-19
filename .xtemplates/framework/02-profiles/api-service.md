@@ -111,7 +111,7 @@ Quy tắc chọn phiên bản (né `x.0.0` mới ra, ưu tiên LTS): xem [`../01
 ## Nguồn
 
 - OpenAPI Specification 3.2.1 (2026-09-10): <https://spec.openapis.org/oas/latest.html> — xác minh 2026-10-13
-- RFC 9457 Problem Details for HTTP APIs (obsoletes RFC 7807): <https://www.rfc-editor.org/rfc/rfc9457> — xác minh 2026-10-13
+- RFC 9457 Problem Details for HTTP APIs (obsoletes RFC 7807): <https://www.rfc-editor.org/info/rfc9457/> — xác minh 2026-10-13
 - RFC 8594 The Sunset HTTP Header Field (Informational, 05/2019): <https://www.rfc-editor.org/rfc/rfc8594> — xác minh 2026-10-13
 - draft-ietf-httpapi-idempotency-key-header-07 (2025-10-15; trạng thái Expired): <https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/> — xác minh 2026-10-13
 - The Twelve-Factor App (III Config, IX Disposability): <https://12factor.net/> — xác minh 2026-10-13

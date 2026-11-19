@@ -86,5 +86,5 @@ updated: 2026-10-14
 - MoSCoW — Agile Business Consortium (DSDM): Must ≤ 60% nỗ lực, Could ≈ 20% đệm: <https://www.agilebusiness.org/dsdm-project-framework/moscow-prioritisation.html> — xác minh 2026-10-13.
 - RICE — Intercom, "RICE: Simple prioritization for product managers": <https://www.intercom.com/blog/rice-simple-prioritization-for-product-managers/> — xác minh 2026-10-13.
 - Vertical slice / walking skeleton: cổng G5–G6 trong [`../00-method/lifecycle.md`](../00-method/lifecycle.md); khung cũ X-stored `01-process-and-standards.md` GĐ1 "đóng băng phạm vi MVP" (commit `1b80fe4`).
-- `SCOPE.md` + `.out-of-scope/` — `seeker19110/stored` mục 20 §3c (mattpocock/skills), đọc 2026-10-13; `research/2026-10-13-stored-catalog-extraction.md`.
+- `SCOPE.md` + `.out-of-scope/` — `www-donghanhcungban-org/stored` mục 20 §3c (mattpocock/skills), đọc 2026-10-13; `research/2026-10-13-stored-catalog-extraction.md`.
 - Kano model, WSJF: khái niệm phổ biến trong quản lý sản phẩm — (chưa xác minh nguồn gốc chính thống ngày 2026-10-13); dùng như gợi ý MAY, không phải chuẩn.

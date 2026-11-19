@@ -44,7 +44,7 @@ g="$(dirname "$0")/guard.py"
 [ -f "$g" ] && [ -r "$g" ] && [ -s "$g" ] || broken "vắng/không đọc được/rỗng"
 if ! guard_fields bash <<<"$payload"; then # guard.py chết: merge/`gh api` chặn (AUD-HAR-040/SEC-045)
   merge_like && fence_closed "Khung cần xác nhận: guard.py lỗi nên không kiểm được merge/ghi GitHub"
-  broken "không nạp được (file hỏng hoặc python3 < 3.11; có thể sửa bằng Edit)"
+  broken "không nạp được (file hỏng hoặc python3 không phải CPython 3.15.x; có thể sửa bằng Edit)"
 fi
 decision="$XG_DECISION"
 [ "$decision" = "deny" ] && pretool_decision deny "$XG_REASON"
