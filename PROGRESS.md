@@ -23,6 +23,6 @@
 
 ## Bàn giao phiên
 - Mốc main `1ca16f7` (#149). Phiên cloud dùng nhánh `claude/fervent-hamilton-n8e6jm` (reset về main sau mỗi PR merge).
-- Môi trường cục bộ giống CI: Node 24.22.2 (lấy từ image node đã ghim), Postgres 17 container + binary PGDG (`bash scripts/dev-env-setup.sh --only postgres`), SeaweedFS 4.48 trên PATH, Chromium /opt/pw-browsers, dockerd tự khởi động. Cổng: scripts/commit-gated.sh (đặt TEST_DATABASE_URL, I18N_REQUIRE_BASE=1). Không chạy E2E/DAST/perf song song (cùng cổng 3100, cùng build).
+- Môi trường cục bộ giống CI: Node 24.22.3 (lấy từ image node đã ghim), Postgres 17 container + binary PGDG (`bash scripts/dev-env-setup.sh --only postgres`), SeaweedFS 4.48 trên PATH, Chromium /opt/pw-browsers, dockerd tự khởi động. Cổng: scripts/commit-gated.sh (đặt TEST_DATABASE_URL, I18N_REQUIRE_BASE=1). Không chạy E2E/DAST/perf song song (cùng cổng 3100, cùng build).
 - Guard 3.30 chặn lệnh Bash gộp ghi-tệp-rồi-chạy và `$(…)` dựng lệnh: ghi script bằng Write, chạy ở lệnh riêng.
 - Review: reviewer-alt nay là Opus effort max (cùng họ người viết, effort cao hơn — LOOP-ORCH-005); ghi `pr reviewed --reviewer-effort max --author-effort <x>`.

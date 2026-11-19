@@ -38,7 +38,7 @@ Nguồn: [glob cancellation](https://github.com/advisories/GHSA-3g3m-2fjr-6pw4),
 [minimatch amplification](https://github.com/advisories/GHSA-g3hv-75wg-m249),
 [fast-uri scheme](https://github.com/advisories/GHSA-w74x-v6f9-j3xg),
 [fast-uri host](https://github.com/advisories/GHSA-wjr9-j795-jxcr).
-Node 24.22.2 ghim lại digest theo [chỉ mục phát hành Node](https://nodejs.org/dist/index.json); pnpm 12.16.1 cùng major vá undici bootstrap 6.29.1
+Node 24.22.3 ghim lại digest theo [chỉ mục phát hành Node](https://nodejs.org/dist/index.json); pnpm 12.16.1 cùng major vá undici bootstrap 6.29.1
 (đối chiếu tarball chính thức của registry npm). `pnpm audit` gồm dev vẫn đỏ, ghi rõ phạm vi thay vì khai toàn bộ phụ thuộc sạch.
 
 ## Theo dõi (lỗ hổng chưa có bản sửa)

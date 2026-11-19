@@ -1223,3 +1223,10 @@
 - Chọn: Thêm apt-get upgrade (đã update sẵn) ở stage prepared node-base (web+worker giống nhau) và Dockerfile postgres; ghim thrift@v0.25.0 ở go get của seaweedfs
 - Lý do (tiêu chí chất lượng cuối): Đúng/an toàn: lấy bản vá Debian ngay, giống apk upgrade của caddy/seaweedfs (D-110); không nới ngưỡng, không ngoại lệ; giữ digest base ghim, chỉ thêm gói vá; chờ upstream để main/PR đỏ không hạn định
 - Đường lùi: Gỡ bước apt-get upgrade khi upstream dựng lại digest có bản vá (đổi digest như D-157)
+
+### D-172 · 2026-11-19T11:13:03+00:00 · DB grype 2026-11-19: Node 24.22.2 dính 7 CVE High (CVE-2026-123863/123864/123865/123866/123872/123874/126051; vá ở Node 24.22.3, phát hành 2026-11-11) làm image-scan (node-base) đỏ trên main và mọi PR
+
+- Phương án: (1) Nâng Node 24.22.3 trong #159 (đổi .nvmrc, digest base web/worker, dev-env-setup, tài liệu) · (2) Nâng ở PR riêng, #159 còn đỏ image-scan (node-base) tới khi PR đó merge · (3) Ngoại lệ grype có hạn cho 7 CVE
+- Chọn: Nâng Node 24.22.3 trong #159 (đổi .nvmrc, digest base web/worker, dev-env-setup, tài liệu)
+- Lý do (tiêu chí chất lượng cuối): Đúng/an toàn: lấy bản vá ngay, không nới ngưỡng, không ngoại lệ; Node 24.22.3 là bản LTS vá bảo mật cùng dòng 24 (không đổi major); digest index đa kiến trúc af02d57b… đối chiếu hai nguồn (mirror.gcr.io và Docker Hub, băm manifest khớp); SHA-256 tarball dev-env lấy từ SHASUMS256 của nodejs.org; chủ dự án chọn gộp vào #159 để PR tự xanh
+- Đường lùi: Revert commit nâng Node (về 24.22.2 digest 0820eaa8…); image-scan (node-base) đỏ trở lại
