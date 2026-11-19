@@ -4,7 +4,7 @@
 # Không hạ severity/only-fixed hoặc thay scope: build/runtime web và worker dùng cùng base đã được kiểm.
 ignore:
   - vulnerability: GHSA-mrhx-c7xc-m3w5
-    reason: "zod 3.25.76 chỉ qua @lhci/cli → lighthouse → puppeteer-core → chromium-bidi (công cụ CI, không vào bundle/production); rà 2026-11-07 (D-167): @lhci/cli 0.16.0 (2026-11-02) kéo chromium-bidi 157 khai zod ^4.6.5, phân giải ≥ 4.6.7 nhờ override zod của dự án (đã vá) — D-169: nâng ngày 2026-11-17 (đủ 2 tuần) rồi gỡ luật (hạn rà lại: 2026-11-17)"
+    reason: "zod 3.25.76 chỉ qua @lhci/cli → lighthouse → puppeteer-core → chromium-bidi (công cụ CI, không vào bundle/production); rà 2026-11-17 (D-170): @lhci/cli 0.16.0 bỏ được zod 3 nhưng lighthouse 13.x kéo @sentry/node 11 → sentry@0.49.0 giấy phép FSL-1.1-Apache-2.0 (source-available, sbom-check đỏ) — chờ chủ dự án chọn: nhận FSL (ngoại lệ + ADR) rồi nâng, hoặc thay Lighthouse CI (hạn rà lại: 2026-12-17)"
     package:
       name: zod
       version: 3.25.76

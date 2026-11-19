@@ -20,8 +20,8 @@ Tệp này **sinh tự động** bởi `node scripts/third-party-notices.mjs` t�
 | @img/sharp-libvips-linux-x64 | 1.3.4 | LGPL-3.0-or-later | https://github.com/lovell/sharp-libvips |
 | @img/sharp-linux-x64 | 0.35.5 | Apache-2.0 | https://github.com/lovell/sharp |
 | @isaacs/nonrecursive-glob-match | 1.0.3 | BlueOak-1.0.0 |  |
-| @next/env | 16.4.1 | MIT | https://github.com/vercel/next.js |
-| @next/swc-linux-x64-gnu | 16.4.1 | MIT | https://github.com/vercel/next.js |
+| @next/env | 16.4.5 | MIT | https://github.com/vercel/next.js |
+| @next/swc-linux-x64-gnu | 16.4.5 | MIT | https://github.com/vercel/next.js |
 | @noble/ciphers | 2.4.0 | MIT | https://github.com/paulmillr/noble-ciphers |
 | @noble/hashes | 2.4.0 | MIT | https://github.com/paulmillr/noble-hashes |
 | @opentelemetry/api | 1.9.1 | Apache-2.0 | open-telemetry/opentelemetry-js |
@@ -64,7 +64,7 @@ Tệp này **sinh tự động** bởi `node scripts/third-party-notices.mjs` t�
 | minipass | 7.1.3 | BlueOak-1.0.0 | https://github.com/isaacs/minipass |
 | nanoid | 3.3.20 | MIT | ai/nanoid |
 | nanostores | 1.5.5 | MIT | nanostores/nanostores |
-| next | 16.4.1 | MIT | vercel/next.js |
+| next | 16.4.5 | MIT | vercel/next.js |
 | node-releases | 2.0.58 | MIT | https://github.com/chicoxyzzy/node-releases |
 | non-error | 0.1.0 | MIT | sindresorhus/non-error |
 | path-scurry | 3.0.0 | BlueOak-1.0.0 | https://github.com/isaacs/path-scurry |
@@ -2393,7 +2393,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### next@16.4.1
+### next@16.4.5
 
 ```text
 The MIT License (MIT)

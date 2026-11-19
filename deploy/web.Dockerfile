@@ -6,6 +6,11 @@
 # và kéo/chạy image 2026-11-01 (D-139); đổi digest 2026-11-05 lấy apt 3.0.4 (CVE-2026-109518, D-157).
 FROM node:24.22.2-trixie-slim@sha256:0820eaa85e07d0490446dd01d14707e17e6108a36988cf374899cd057eb3812d AS prepared
 WORKDIR /app
+# D-171 (2026-11-17): lấy bản vá Debian trixie khi upstream chưa dựng lại digest (zlib1g deb13u1, CVE-2026-76844/85091);
+# gỡ bước này khi đổi sang digest upstream đã có bản vá (như D-157).
+RUN apt-get update \
+ && apt-get -y upgrade --no-install-recommends \
+ && rm -rf /var/lib/apt/lists/*
 # D-140: Corepack xác minh/cài đúng pnpm đã ghim; bỏ npm khỏi base dùng chung cho build và runtime.
 # Không giữ các gói npm CLI có lỗ hổng trong bất kỳ stage ứng dụng nào; CI quét chính stage base này.
 RUN corepack prepare pnpm@12.16.1 --activate \
