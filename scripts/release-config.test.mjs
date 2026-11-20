@@ -1,6 +1,6 @@
 // T-807: rào cấu hình phát hành (WF-REL-001 SemVer tự sinh bằng release-please; WF-REL-003 tag bất biến, Release có artefact + checksum).
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -62,7 +62,12 @@ describe("WF-REL-001 — phiên bản SemVer sinh tự động từ Conventional
 
   it("release-please đọc token riêng nếu có, rơi về github.token (không ép secret, không tạo secret mới)", () => {
     const step = rp.steps.find((s) => s.id === "rp");
-    expect(step.with.token).toMatch(/^\$\{\{ secrets\.RELEASE_PLEASE_TOKEN \|\| github\.token \}\}$/);
+    expect(step.with.token).toMatch(
+      /^\$\{\{ steps\.release_auth\.outputs\.use_custom == 'true' && secrets\.RELEASE_PLEASE_TOKEN \|\| github\.token \}\}$/,
+    );
+    const check = rp.steps.find((s) => s.id === "release_auth");
+    expect(check.env.GH_TOKEN).toMatch(/^\$\{\{ secrets\.RELEASE_PLEASE_TOKEN \}\}$/);
+    expect(rp.steps.indexOf(check)).toBeLessThan(rp.steps.indexOf(step));
     expect(release.on.pull_request).toBeUndefined(); // secret chỉ đọc ở sự kiện push/dispatch (WF-CI-023)
     expect(release.on.pull_request_target).toBeUndefined();
     const readme = read("README.md");
@@ -70,6 +75,54 @@ describe("WF-REL-001 — phiên bản SemVer sinh tự động từ Conventional
     expect(section).toContain("RELEASE_PLEASE_TOKEN");
     expect(section).toMatch(/đóng rồi mở lại Release PR/);
     expect(read("docs/autopilot/BLUEPRINT-GAPS.md")).toContain("RELEASE_PLEASE_TOKEN");
+  });
+
+  it.each([
+    ["", "", 0, "false"],
+    ["fixture", "200", 0, "true"],
+    ["fixture", "401", 1, "false"],
+    ["fixture", "403", 1, undefined],
+    ["fixture", "404", 1, undefined],
+    ["fixture", "429", 1, undefined],
+    ["fixture", "503", 1, undefined],
+    ["fixture", "", 1, undefined],
+    ["fixture", "200", 1, undefined],
+  ])("preflight phát hành khi token=%s, HTTP=%s, gh=%i", (provided, status, rc, expected) => {
+    const dir = mkdtempSync(join(tmpdir(), "hm-release-"));
+    dirs.push(dir);
+    const out = join(dir, "output");
+    const called = join(dir, "called");
+    const fixture = "example-value-for-release-test";
+    const probe = rp.steps.find((s) => s.id === "release_auth");
+    writeFileSync(
+      join(dir, "gh"),
+      [
+        "#!/bin/sh",
+        'test "$*" = "api --method GET --include --silent repos/example/hotel" || exit 9',
+        'touch "$CALLED"',
+        'if [ -n "$STATUS" ]; then printf "HTTP/2.0 %s test\\n" "$STATUS"; fi',
+        'printf "X-Fixture: %s\\n" "$GH_TOKEN"',
+        'exit "$RC"',
+      ].join("\n"),
+      { mode: 0o700 },
+    );
+    const result = spawnSync("bash", ["-eo", "pipefail", "-c", probe.run], {
+      encoding: "utf8",
+      env: {
+        PATH: `${dir}:${process.env.PATH}`,
+        GITHUB_REPOSITORY: "example/hotel",
+        GITHUB_OUTPUT: out,
+        GH_TOKEN: provided ? fixture : "",
+        CALLED: called,
+        STATUS: status,
+        RC: String(rc),
+      },
+    });
+    expect(result.status).toBe(expected === undefined ? 1 : 0);
+    expect(existsSync(called)).toBe(Boolean(provided));
+    if (expected === undefined) expect(existsSync(out)).toBe(false);
+    else expect(readFileSync(out, "utf8")).toBe(`use_custom=${expected}\n`);
+    expect(result.stdout + result.stderr).not.toContain(fixture);
   });
 
   it("quyền tối thiểu: mặc định rỗng; chỉ job release-please được ghi contents + pull-requests", () => {
