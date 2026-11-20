@@ -137,6 +137,6 @@ HTTP 403/404, lỗi mạng hoặc lỗi máy chủ dừng trước khi ghi; ki�
 `Error adding to tree` sau khi xác thực thành công cần kiểm tra quyền **Contents: write** của token đã chọn.
 
 Để token tích hợp tạo Release PR, repo cần bật **Settings → Actions → General → Allow GitHub Actions to create and approve pull requests**.
-Với Release PR do `GITHUB_TOKEN` tạo, người có quyền ghi duyệt chạy workflow khi GitHub hiển thị **Approve and run workflows**.
+Với Release PR do `GITHUB_TOKEN` tạo, người có quyền ghi chọn **Approve workflows to run** trong khung merge khi GitHub yêu cầu duyệt chạy CI.
 Nếu PR vẫn đứng ở **Expected** và chưa có lượt chạy, người có quyền có thể đóng rồi mở lại Release PR để kích hoạt sự kiện từ tài khoản của mình.
 Chỉ merge sau khi mọi check bắt buộc xanh. [Hướng dẫn kích hoạt workflow của GitHub](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow).
