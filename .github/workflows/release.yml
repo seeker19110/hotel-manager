@@ -7,10 +7,8 @@ name: Release
 # giấy phép theo license-policy.json) và `sbom-image-<tên>.cdx.json` cho từng image triển khai (cùng danh sách `matrix` của
 # supply-chain.yml — scripts/release-config.test.mjs khoá), đều nằm trong SHA256SUMS. Tag `v*` bất biến nhờ `.github/rulesets/tags.json` (chủ dự án import).
 # Cần bật Settings → Actions → "Allow GitHub Actions to create and approve pull requests".
-# Token: PR do GITHUB_TOKEN tạo KHÔNG kích hoạt workflow khác → Release PR không có CI, check bắt buộc đứng "Expected". Chủ dự án có thể
-# cấp secret `RELEASE_PLEASE_TOKEN` (GitHub App/PAT, quyền contents + pull-requests) để Release PR chạy CI; chưa có thì dùng
-# `github.token` và người đóng rồi mở lại Release PR trước khi merge (README, mục Phát hành). Workflow này không chạy trên pull_request
-# nên đọc secret ở đây không vi phạm WF-CI-023.
+# RELEASE_PLEASE_TOKEN là tuỳ chọn. Kiểm danh tính bằng GET trước khi ghi; HTTP 401 quay về github.token.
+# Các lỗi khác cần điều tra. Release PR do github.token mở có thể cần duyệt chạy CI (xem README).
 on:
   push:
     branches: [main]
@@ -35,10 +33,28 @@ jobs:
       tag_name: ${{ steps.rp.outputs.tag_name }}
       sha: ${{ steps.rp.outputs.sha }}
     steps:
+      - name: Kiểm danh tính phát hành
+        id: release_auth
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+        run: |
+          use_custom=false
+          if [[ -n "$GH_TOKEN" ]]; then
+            rc=0
+            headers=$(gh api --method GET --include --silent "repos/$GITHUB_REPOSITORY" 2>/dev/null) || rc=$?
+            status=$(awk 'NR == 1 && $1 ~ /^HTTP\// && $2 ~ /^[0-9][0-9][0-9]$/ {print $2}' <<< "$headers")
+            case "$rc:$status" in
+              0:200) use_custom=true ;;
+              *:401) echo "::warning::GitHub từ chối token phát hành (HTTP 401). Dùng token tích hợp cho lần chạy này." ;;
+              *) echo "::error::Không xác nhận được danh tính phát hành (HTTP ${status:-không có phản hồi})."; exit 1 ;;
+            esac
+          fi
+          printf 'use_custom=%s\n' "$use_custom" >> "$GITHUB_OUTPUT"
       - id: rp
         uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         with:
-          token: ${{ secrets.RELEASE_PLEASE_TOKEN || github.token }}
+          token: ${{ steps.release_auth.outputs.use_custom == 'true' && secrets.RELEASE_PLEASE_TOKEN || github.token }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 

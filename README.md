@@ -130,9 +130,13 @@ mã nguồn + `SHA256SUMS`, rồi công khai và tạo tag `vX.Y.Z`. Tag `v*` b�
 (chủ dự án import một lần ở Settings → Rules → Rulesets, cùng `main.json`). Ghi chú phát hành nằm ở nội dung Release; `CHANGELOG.md`
 vẫn do người viết.
 
-**Release PR và CI.** PR do `GITHUB_TOKEN` tạo không kích hoạt workflow khác, nên khi chưa có token riêng Release PR không có CI và
-check bắt buộc (`quality`…) đứng "Expected — waiting". Khi chưa có token riêng: **người đóng rồi mở lại Release PR** (sự kiện do
-người tạo kích hoạt CI) và đợi check xanh trước khi merge. Chủ dự án có thể cấp GitHub App hoặc PAT fine-grained (chỉ repo này;
-**Contents: Read and write** + **Pull requests: Read and write**) làm secret `RELEASE_PLEASE_TOKEN`; workflow tự dùng nó nếu có (không
-cần đổi mã) và Release PR chạy CI ngay. Job `release-please` đỏ với `Error adding to tree: <sha>` nghĩa là token đọc được repo nhưng
-không ghi được (thiếu Contents: write) — sửa quyền token, hoặc xoá secret để quay về `GITHUB_TOKEN`, rồi chạy lại workflow `Release`.
+Workflow dùng token tích hợp `GITHUB_TOKEN` theo mặc định. Để Release PR chạy CI bằng danh tính riêng, chủ dự án có thể
+đặt `RELEASE_PLEASE_TOKEN` cho đúng repo (GitHub App hoặc PAT, **Contents: Read and write** và **Pull requests: Read and write**).
+Workflow kiểm tra bằng một yêu cầu GET trước khi chạy release-please. HTTP 401 chuyển lần chạy đó về token tích hợp và ghi cảnh báo.
+HTTP 403/404, lỗi mạng hoặc lỗi máy chủ dừng trước khi ghi; kiểm tra quyền truy cập hay trạng thái GitHub rồi chạy lại.
+`Error adding to tree` sau khi xác thực thành công cần kiểm tra quyền **Contents: write** của token đã chọn.
+
+Để token tích hợp tạo Release PR, repo cần bật **Settings → Actions → General → Allow GitHub Actions to create and approve pull requests**.
+Với Release PR do `GITHUB_TOKEN` tạo, người có quyền ghi duyệt chạy workflow khi GitHub hiển thị **Approve and run workflows**.
+Nếu PR vẫn đứng ở **Expected** và chưa có lượt chạy, người có quyền có thể đóng rồi mở lại Release PR để kích hoạt sự kiện từ tài khoản của mình.
+Chỉ merge sau khi mọi check bắt buộc xanh. [Hướng dẫn kích hoạt workflow của GitHub](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow).
