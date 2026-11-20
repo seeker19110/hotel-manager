@@ -113,6 +113,7 @@ import copy
 import datetime as _dt
 import errno
 import fnmatch
+import functools
 import glob
 import hashlib
 import importlib.util
@@ -145,6 +146,7 @@ from typing import (
     BinaryIO,
     Callable,
     Dict,
+    FrozenSet,
     Iterable,
     Iterator,
     List,
@@ -2069,7 +2071,7 @@ def _with_dispatch(
         v["milestone_done"] = done
         v["milestone_audit"] = "g7" if build else "signoff"
         v["reason"] += f" · mốc «{done}» đã xong · " + (
-            "pha build: audit delta ở cuối đợt (D-177), làm tiếp task kế"
+            "pha build: làm task kế, cuối đợt dùng loop next-step để chọn trình MVP hoặc audit delta"
             if build
             else "pha harden: audit delta dồn về cổng ký (ADR-0080), làm tiếp task kế"
         )
@@ -2472,15 +2474,83 @@ def cmd_guard_check(args: argparse.Namespace) -> int:
     return 0
 
 
-# Chọn test liên quan cho `dev-task.sh gate-fast` (cổng commit nhanh): file test bị đổi chạy chính nó; file khác →
-# test `test_<tên>.py` cùng tên, test nhắc tên file (`"guard.py"`, `"dev-task.sh"`), test import module (`import xt`)
-# và test quét theo đuôi (`*.md`).
-# Không ánh xạ được → cả suite (None). Cổng đầy đủ (CI, `dev-task.sh gate`) vẫn chạy mọi test + ngưỡng coverage.
+# Chọn test liên quan cho `dev-task.sh gate-fast` (cổng commit nhanh) theo LỚP (D-516): mỗi file test tách bằng `ast`
+# thành thân từng lớp top-level (kể cả decorator) và phần ngoài lớp. Lớp chạy khi thân lớp nhắc tên file đổi
+# (`"guard.py"`, `"dev-task.sh"`) hoặc có glob khớp tên đó (`*.md`, `docs/ops/GO-NO-GO*.md` — chỉ so phần sau `/` cuối),
+# hoặc thân lớp nhắc tên một lớp cùng file đang chạy (lớp cha, lớp phụ trợ kiểu `FakeGh` — bắc cầu). Cả file chạy
+# khi: phần ngoài lớp khớp hoặc nhắc tên lớp đã chọn, file import module đổi (`import xt`), file là `test_<tên>.py`
+# cùng tên, chính file test bị đổi, hoặc file không parse được. Lớp sinh động (không phải ClassDef top-level) chạy khi
+# file có lớp trúng; lọc ra 0 lớp dù có file liên quan → không lọc. Không ánh xạ được → cả suite (None). Cổng đầy đủ
+# (CI, `dev-task.sh gate`) vẫn chạy mọi test + ngưỡng coverage.
 CHANGED_FILES_ENV = "XT_CHANGED_FILES"
+# Token glob trong văn bản test: có `*`, phần sau `*` không chứa `/` (đuôi nối vào khi dùng, `_test_globs`)
+_TEST_GLOB_TOKEN = r"[\w.\-/*?\[\]]*\*[\w.\-*?\[\]]*"
+# (phần ngoài lớp, {lớp top-level: thân kể cả decorator})
+_TestParts = Tuple[str, Dict[str, str]]
 
 
 def _test_mentions(name: str, text: str) -> bool:
-    return re.search(rf"(?<![\w.-]){re.escape(name)}(?![\w-])", text) is not None
+    # `in` lọc nhanh trước regex (cùng kết quả: regex chỉ khớp khi `text` chứa `name`)
+    return name in text and re.search(rf"(?<![\w.-]){re.escape(name)}(?![\w-])", text) is not None
+
+
+@functools.lru_cache(maxsize=1 << 16)  # hàm thuần; nhiều file đổi cùng đuôi quét mỗi thân lớp một lần (review #678)
+def _test_globs(text: str, suffix: str) -> FrozenSet[str]:
+    """Phần tên (sau `/` cuối) của các token glob trong `text` có `*` và kết thúc bằng `suffix`."""
+    if "*" not in text or suffix not in text:  # lọc nhanh, cùng kết quả: token khớp phải chứa cả hai
+        return frozenset()
+    pat = _TEST_GLOB_TOKEN + re.escape(suffix) + r"(?!\w)"
+    return frozenset(t.rpartition("/")[2] for t in re.findall(pat, text))
+
+
+def _test_matches(name: str, text: str) -> bool:
+    """`text` nhắc tên file `name` hoặc có glob mà phần tên khớp `name` (`GO-NO-GO*.md` không khớp `PROGRESS.md`)."""
+    if _test_mentions(name, text):
+        return True
+    suffix = posixpath.splitext(name)[1]
+    return bool(suffix) and any(fnmatch.fnmatchcase(name, g) for g in _test_globs(text, suffix))
+
+
+def _test_parts(text: str) -> _TestParts:
+    """Tách file test thành phần ngoài lớp và thân từng lớp top-level; không parse được → cả file là phần ngoài lớp
+    (được chọn thì chạy cả file, lỗi nổi ở bước nạp)."""
+    try:
+        tree = ast.parse(text)
+    except (SyntaxError, ValueError):
+        return text, {}
+    lines = text.split("\n")
+    used: Set[int] = set()
+    classes: Dict[str, str] = {}
+    for node in tree.body:
+        if isinstance(node, ast.ClassDef):
+            rng = range(min([node.lineno] + [d.lineno for d in node.decorator_list]) - 1, node.end_lineno or 0)
+            used.update(rng)
+            classes[node.name] = classes.get(node.name, "") + "\n".join(lines[i] for i in rng) + "\n"  # trùng: gộp
+    return "\n".join(ln for i, ln in enumerate(lines) if i not in used), classes
+
+
+def _test_names_re(names: Set[str]) -> "re.Pattern[str]":
+    """Regex khớp một trong các tên lớp `names` như một từ (`\\bTên\\b`)."""
+    return re.compile(rf"\b(?:{'|'.join(map(re.escape, sorted(names)))})\b")
+
+
+def _test_classes_hit(name: str, parts: _TestParts, whole: bool) -> Optional[Set[str]]:
+    """Lớp top-level chọn cho file đổi `name`; `whole` hoặc phần ngoài lớp khớp → mọi lớp; không lớp nào → None."""
+    rest, classes = parts
+    if whole or _test_matches(name, rest):
+        return set(classes)
+    hit = {c for c, body in classes.items() if _test_matches(name, body)}
+    more = hit
+    while more:
+        # lớp cùng file nhắc TÊN lớp vừa chọn (bắc cầu): lớp con (`class C(A):` nằm trong thân C) và lớp dùng lớp phụ
+        # trợ không phải lớp cha (`FakeGh().run()`)
+        ref = _test_names_re(more)
+        more = {c for c, body in classes.items() if c not in hit and ref.search(body)}
+        hit |= more
+    if hit and _test_names_re(hit).search(rest):
+        # phần ngoài lớp (hàm `make_runner()` trả lớp phụ trợ…) dùng lớp đã trúng: không lần được ai gọi → cả file
+        return set(classes)
+    return hit or None
 
 
 def _test_imports(module: str, text: str) -> bool:
@@ -2501,36 +2571,81 @@ def _importers(name: str, texts: Dict[str, str]) -> Set[str]:
     return {t for t, s in texts.items() if _test_imports(stem, s)}
 
 
-def _tests_for_file(rel: str, tests_rel: str, texts: Dict[str, str]) -> Optional[Set[str]]:
-    """Test liên quan tới `rel` (đường dẫn POSIX theo gốc); None = không ánh xạ được."""
+def _test_parts_of(t: str, texts: Dict[str, str], memo: Dict[str, _TestParts]) -> _TestParts:
+    """`_test_parts` của file test `t`, tách lần đầu cần tới: file mà cả văn bản không khớp file đổi thì không phần nào
+    khớp (phần = tập dòng nguyên, tên/token không vượt dòng) nên khỏi parse."""
+    if t not in memo:
+        memo[t] = _test_parts(texts[t])
+    return memo[t]
+
+
+def _tests_for_file(
+    rel: str, tests_rel: str, texts: Dict[str, str], memo: Dict[str, _TestParts]
+) -> Optional[Dict[str, Set[str]]]:
+    """{file test: lớp top-level chọn} cho file đổi `rel` (đường dẫn POSIX theo gốc); None = không ánh xạ được."""
     p = posixpath.normpath(rel)
     name = posixpath.basename(p)
+    whole = _importers(name, texts)
     if posixpath.dirname(p) == tests_rel and name.startswith("test_") and name.endswith(".py"):
         # file test bị xoá: không còn gì để chạy — trừ test khác import helper từ nó (`from test_merge import …`)
-        return ({p} & texts.keys()) | _importers(name, texts)
+        return {t: set(_test_parts_of(t, texts, memo)[1]) for t in ({p} & texts.keys()) | whole}
     stem = posixpath.splitext(name)[0].replace("-", "_").lstrip("_")
-    hit = {t for t, s in texts.items() if _test_mentions(name, s)} | _importers(name, texts)
-    hit |= {posixpath.join(tests_rel, f"test_{stem}.py")} & texts.keys()
-    suffix = posixpath.splitext(name)[1]
-    if suffix:
-        hit |= {t for t, s in texts.items() if f"*{suffix}" in s}
-    return hit or None
+    whole |= {posixpath.join(tests_rel, f"test_{stem}.py")} & texts.keys()
+    cand = [t for t, s in texts.items() if t in whole or _test_matches(name, s)]
+    hits = {t: _test_classes_hit(name, _test_parts_of(t, texts, memo), t in whole) for t in cand}
+    chosen = {t: cls for t, cls in hits.items() if cls is not None}
+    return chosen or None
 
 
-def test_select(root: Path, tests_dir: str, files: Sequence[str]) -> Optional[List[str]]:
-    """File test (POSIX, theo gốc) liên quan tới `files`; None = chạy cả suite."""
+def test_select_plan(root: Path, tests_dir: str, files: Sequence[str]) -> Optional[Dict[str, Set[str]]]:
+    """{file test (POSIX, theo gốc) liên quan tới `files`: lớp top-level BỎ QUA (rỗng = cả file)}; None = cả suite."""
     tests_rel = posixpath.normpath(tests_dir)
     texts = {
         posixpath.join(tests_rel, p.name): p.read_text(encoding="utf-8", errors="replace")
         for p in sorted((root / tests_rel).glob("test_*.py"))
     }
-    chosen: Set[str] = set()
+    parts: Dict[str, _TestParts] = {}  # tách lười (`_test_parts_of`); file được chọn luôn đã tách
+    chosen: Dict[str, Set[str]] = {}
     for f in files:
-        hit = _tests_for_file(f, tests_rel, texts)
+        hit = _tests_for_file(f, tests_rel, texts, parts)
         if hit is None:
             return None
-        chosen |= hit
-    return sorted(chosen)
+        for t, cls in hit.items():
+            chosen.setdefault(t, set()).update(cls)
+    return {t: set(parts[t][1]) - cls for t, cls in chosen.items()}
+
+
+def test_select(root: Path, tests_dir: str, files: Sequence[str]) -> Optional[List[str]]:
+    """File test (POSIX, theo gốc) có lớp/phần liên quan tới `files`; None = chạy cả suite."""
+    plan = test_select_plan(root, tests_dir, files)
+    return None if plan is None else sorted(plan)
+
+
+def _unittest_pkg(tests_dir: str) -> str:
+    """Tiền tố gói của id lớp test (`tests/` → `tests.`; `.` → rỗng)."""
+    return "".join(f"{part}." for part in Path(posixpath.normpath(tests_dir)).parts)
+
+
+def _class_ids_planned(ids: List[str], tests_dir: str, plan: Optional[Dict[str, Set[str]]]) -> List[str]:
+    """Bỏ id lớp top-level mà `plan` loại; lớp không phải ClassDef top-level (sinh động) hoặc của module ngoài `plan`
+    (lớp import từ file test khác) giữ — thận trọng. Lọc ra 0 lớp dù file liên quan có lớp test (chỉ lớp phụ trợ trúng
+    mà không lần ra ai dùng nó) → không lọc, báo stderr: không bao giờ "có file liên quan mà 0 lớp" (xanh giả, #678)."""
+    if plan is None:
+        return ids
+    pkg, tests_rel = _unittest_pkg(tests_dir), posixpath.normpath(tests_dir)
+    kept = []
+    for cid in ids:
+        module, _, cls = cid[len(pkg) :].rpartition(".")
+        if cls not in plan.get(posixpath.join(tests_rel, f"{module}.py"), set()):
+            kept.append(cid)
+    if ids and not kept:
+        print(
+            f"[test-select] lọc theo lớp ra 0 lớp dù có file liên quan ({', '.join(sorted(plan))}) — chạy mọi lớp của"
+            " các file đó",
+            file=sys.stderr,
+        )
+        return ids
+    return kept
 
 
 def unittest_class_ids(root: Path, tests_dir: str, test_files: Optional[List[str]]) -> List[str]:
@@ -2544,7 +2659,7 @@ def unittest_class_ids(root: Path, tests_dir: str, test_files: Optional[List[str
     stack: List[Any] = [loader.discover(start, pattern=pat, top_level_dir=start) for pat in patterns]
     if loader.errors:
         raise ValueError(f"không nạp được test: {str(loader.errors[0]).strip()}")
-    pkg = "".join(f"{part}." for part in Path(posixpath.normpath(tests_dir)).parts)
+    pkg = _unittest_pkg(tests_dir)
     ids: Set[str] = set()
     while stack:
         item = stack.pop()
@@ -2566,10 +2681,12 @@ def _changed_files(args: argparse.Namespace) -> Optional[List[str]]:
 def cmd_test_select(args: argparse.Namespace) -> int:
     """`xt.py test-select [FILE…] [--tests DIR] [--unittest]`: in file test liên quan tới file đã đổi (đối số, hoặc
     `XT_CHANGED_FILES` do `dev-task.sh gate-fast` đặt); không biết file nào đổi hoặc có file không ánh xạ được → in
-    `DIR` (cả suite). `--unittest`: in id lớp test (`tests.test_x.Lop`) để chạy mỗi lớp một tiến trình."""
+    `DIR` (cả suite). `--unittest`: in id lớp test liên quan (`tests.test_x.Lop`, chọn theo lớp — D-516) để chạy mỗi
+    lớp một tiến trình."""
     root = project_dir()
     files = _changed_files(args)
-    picked = None if files is None else test_select(root, args.tests, files)
+    plan = None if files is None else test_select_plan(root, args.tests, files)
+    picked = None if plan is None else sorted(plan)
     if picked is None:
         print(
             f"[test-select] cả suite ({args.tests}): không biết file đổi hoặc có file không ánh xạ được",
@@ -2580,7 +2697,7 @@ def cmd_test_select(args: argparse.Namespace) -> int:
     out = [args.tests] if picked is None else picked
     if args.unittest:
         try:
-            out = unittest_class_ids(root, args.tests, picked)
+            out = _class_ids_planned(unittest_class_ids(root, args.tests, picked), args.tests, plan)
         except ValueError as e:
             print(f"✗ {e}", file=sys.stderr)
             return 1
@@ -5865,7 +5982,8 @@ AGENT_RULE_GLOBS += (".github/copilot-instructions.md", ".github/instructions/*"
 # `GATE_PATTERNS` của `.claude/hooks/guard.py` — test giữ hai nhà khớp nhau (AUD-HAR-021); thêm luật agent.
 MERGE_GATE_GLOBS = (
     *(".github/workflows/*", ".github/rulesets/*", ".github/dependabot.yml", ".gitlab-ci.yml"),
-    *(".claude/settings.json", ".claude/settings.local.json", ".claude/hooks/*", ".xtemplates/*"),
+    *(".claude/settings.json", ".claude/settings.local.json", ".claude/hooks/*", ".xtemplates/*", ".codex/hooks.json"),
+    *(".cursor/hooks.json", ".github/hooks/xt.json", ".grok/hooks/xt.json", ".opencode/plugins/xt.ts"),  # AUD-SEC-989
     *("eslint.config.*", ".eslintrc*", "biome.json*", ".oxlintrc*", "tsconfig*.json", "jsconfig*.json"),
     *("vitest.config.*", "jest.config.*", "playwright.config.*", "lighthouserc*", ".lighthouserc*"),
     *("pyproject.toml", "setup.cfg", "mypy.ini", "pyrightconfig.json", "ruff.toml", ".coveragerc"),
@@ -5879,6 +5997,7 @@ MERGE_GATE_GLOBS = (
     # Năng lực agent (LOOP-STOP-023; khớp `CAPABILITY_PATTERNS` của guard): MCP server, plugin, skill — PR chỉ đổi những
     # file này + một test từng vào làn nhanh (rà stored 2026-10-16).
     *(".mcp.json", "mcp.json", ".claude.json", ".claude-plugin/*", ".codex/*", ".gemini/*", "SKILL.md"),
+    ".agents/skills/*",  # skill của Codex CLI (ADR-0082, AUD-SEC-987): metadata `agents/openai.yaml` không tên SKILL.md
 )
 
 
@@ -6178,12 +6297,64 @@ def _branch_pr_title() -> str:
     return title
 
 
+def _pr_title_history(base: Path, revision_range: str) -> List[Tuple[str, str, str]]:
+    """Đọc SHA, tác giả gốc và subject của BASE..HEAD trong một lượt Git."""
+    refs = revision_range.split("..")
+    if len(refs) != 2 or any(not re.fullmatch(r"(?![-.^])[^\s:\x00]+", ref) for ref in refs):
+        raise ValueError("cần dải BASE..HEAD với hai đầu xác định")
+    commits = f"{refs[0]}^{{commit}}..{refs[1]}^{{commit}}"
+    result = _git(
+        base,
+        "log",
+        "-z",
+        "--no-patch",
+        "--no-notes",
+        "--no-show-signature",
+        "--no-decorate",
+        "--format=%H%x00%an%x00%s",
+        "--end-of-options",
+        commits,
+        "--",
+    )
+    if result.returncode:
+        raise ValueError(result.stderr.strip())
+    fields = result.stdout.split("\0")
+    if fields.pop() or len(fields) % 3:
+        raise ValueError("git log trả về bản ghi thiếu trường")
+    return list(zip(fields[::3], fields[1::3], fields[2::3]))
+
+
+def _check_commit_titles(history: List[Tuple[str, str, str]]) -> int:
+    bots = 0
+    failed = 0
+    for sha, author, subject in history:
+        if author.endswith("[bot]"):
+            bots += 1
+            continue
+        title = re.sub(r" \(#[0-9]+\)\Z", "", subject)
+        problems = pr_title_problems(title)
+        if problems:
+            failed += 1
+            print(f"✗ {sha}: {subject!r} — {'; '.join(problems)}", file=sys.stderr)
+    print(f"pr title-check: {len(history)} commit, {bots} bot, {failed} sai")
+    return int(bool(failed))
+
+
 def cmd_pr_title_check(args: argparse.Namespace) -> int:
-    """`pr title-check [TITLE]`: kiểm tiêu đề TRƯỚC `gh pr create` (merge-check chỉ thấy sau khi PR mở — research NH-2).
-    0 hợp lệ hoặc `pr_title_check: off` · 1 sai (kèm gợi ý) · 2 không có TITLE và không đọc được PR của nhánh."""
-    if _xt_keys(project_dir()).get("pr_title_check") == "off":
+    """0 hợp lệ hoặc tắt policy, 1 có tiêu đề sai, 2 không đọc được đầu vào."""
+    base = project_dir()
+    history = None
+    if args.revision_range is not None:
+        try:
+            history = _pr_title_history(base, args.revision_range)
+        except (OSError, ValueError) as exc:
+            print(f"✗ pr title-check --range {args.revision_range!r}: {exc}", file=sys.stderr)
+            return 2
+    if _xt_keys(base).get("pr_title_check") == "off":
         print("pr title-check: bỏ qua — xt.yaml đặt `pr_title_check: off`")
         return 0
+    if history is not None:
+        return _check_commit_titles(history)
     title = args.title
     if title is None:
         try:
@@ -7857,6 +8028,8 @@ def next_step_facts(
     prs: Optional[List[Dict[str, str]]],
     objective: str = NEXT_STEP_OBJECTIVES[0],
     signoff: Optional[Dict[str, Any]] = None,
+    *,
+    offline: bool = False,
 ) -> Dict[str, Any]:
     """Đầu vào của `next_step` (đọc đĩa/git, không gọi GitHub, không ghi): verdict đợt, kiểm lại cuối, PR, sổ audit, MUST;
     mục tiêu harden thêm danh sách việc nháp (`harden_work`) và dữ kiện gói nghiệm thu (`signoff_facts`; `signoff` =
@@ -7874,7 +8047,7 @@ def next_step_facts(
         "open_must": len(_open_must(base, st)),
         "harden": harden_work(base, st, status) if harden else [],
         "signoff": signoff_facts(base, st, **(signoff or {})) if harden else None,
-        "stage": stage_facts(base),
+        "stage": stage_facts(base, offline=offline),
         "state": {
             "rev": _state_rev(st),
             "plan": st.get("plan"),
@@ -8310,7 +8483,20 @@ def _step_signoff(f: Dict[str, Any]) -> Dict[str, Any]:
     return _signoff_part(pkg, "máy đã đạt (`release-check` không FAIL BLOCKER); gói nghiệm thu nháp")
 
 
-def stage_facts(base: Path) -> Optional[Dict[str, Any]]:
+def _mvp_preview_first(base: Path) -> bool:
+    """Chỉ bản thử quy mô S có cổng smoke thực thi mới được trình trước audit tổng thể."""
+    try:
+        keys = _xt_keys(base)
+    except (OSError, ValueError):
+        return False
+    return (
+        keys.get(PHASE_KEY) == "build"
+        and blueprint_scale(base)[0] == "S"
+        and not gate_noop(keys.get("preview_smoke", ""))
+    )
+
+
+def stage_facts(base: Path, *, offline: bool = False) -> Optional[Dict[str, Any]]:
     """Sổ giai đoạn cho `next-step` (ADR-0058): None khi không dùng; sổ hỏng → {"error"}; còn lại chu kỳ/giai đoạn/trạng
     thái và SHA chờ duyệt."""
     try:
@@ -8327,7 +8513,8 @@ def stage_facts(base: Path) -> Optional[Dict[str, Any]]:
         "status": led["status"],
         "sha": sha,
         "changed": _stage_changed(base, sub) if sha else [],
-        "agent_approval": stage_agent_approval(base),  # ADR-0069: `next-step` chỉ agent tự duyệt thay vì chờ người
+        "preview_first": led["stage"] == 1 and _mvp_preview_first(base),
+        "agent_approval": not offline and stage_agent_approval(base),  # đọc offline không fetch và không cấp quyền
     }
 
 
@@ -8434,6 +8621,24 @@ def _harden_stage_lock(sf: Optional[Dict[str, Any]]) -> StepPart:
     }
 
 
+def _step_batch(f: Dict[str, Any], harden: bool) -> StepPart:
+    audit = f["audit"]
+    needs_repair = any(not e.endswith(": chưa quét (--strict)") for e in audit["errors"])
+    if harden:
+        # Sổ có thể đọc và đã quét: sửa các mục đã biết trước khi rà diff cuối.
+        if audit["exists"] and audit["scanned"] and not needs_repair:
+            return _step_harden(f) or _step_audit(f)
+        return _step_audit(f)
+    if (f.get("stage") or {}).get("preview_first") and not needs_repair:
+        if audit["open"]:
+            return _step_stalled(f) or {
+                "action": "replan",
+                "reason": f"Sửa {audit['open']} phát hiện hoặc nợ review đang mở trước khi trình MVP. Các MUST ngoài PLAN còn trong blueprint cho pha hoàn thiện.",
+            }
+        return None  # PLAN đã verify; sổ nợ và MUST còn nguyên cho giai đoạn 2.
+    return _step_audit(f) or _step_work(f)
+
+
 def _next_step_part(f: Dict[str, Any], harden: bool) -> Dict[str, Any]:
     """Bước kế (action/reason/…) của `next_step`, theo thứ tự ưu tiên: khoá giai đoạn của harden → vòng → PR → sổ audit →
     việc → gói/giai đoạn."""
@@ -8450,7 +8655,7 @@ def _next_step_part(f: Dict[str, Any], harden: bool) -> Dict[str, Any]:
             # chỉ sổ/PROGRESS đổi (hay không so được) sau bản đã kiểm lại cuối lúc `submit`, hoặc container mới chưa bật
             # vòng: không bắt chạy lại mọi Gate/lập đợt mới — vẫn chờ người (review #330)
             loop = None
-    part = loop or _step_prs(f) or _step_audit(f) or (_step_harden(f) if harden else _step_work(f))
+    part = loop or _step_prs(f) or _step_batch(f, harden)
     if part is None and harden:
         part = _step_signoff(f)
     pending = f"; {f['verdict']['reason']}" if f["verdict"]["verdict"] == PENDING_HUMAN else ""
@@ -9539,7 +9744,12 @@ def _resolve_apply(cur: Dict[str, Any], task: str, reason: str, problem: List[st
     waiting = dict(_deferred(cur))
     item = waiting.pop(task)
     cur["deferred"] = waiting
-    done = {"id": task, "reason": reason, "deferred_reason": item.get("reason") if isinstance(item, dict) else None}
+    done = {
+        "id": task,
+        "reason": reason,
+        "deferred_reason": item.get("reason") if isinstance(item, dict) else None,
+        "deferred_at": item.get("at") if isinstance(item, dict) else None,
+    }
     cur["resolved"] = [*_interventions(cur, "resolved"), {**done, "at": now_iso()}]
     return cur
 
@@ -12086,6 +12296,93 @@ def cmd_registry(args: argparse.Namespace) -> int:
     return 1 if args.strict and (out["drift"] or out["expired"]) else 0
 
 
+def github_origin_slug(origin: str) -> str:
+    """Tên owner/repo từ origin GitHub HTTPS, SSH hoặc SCP. Không nhận host/port khác, thông tin đăng nhập hay tham số URL."""
+    if not origin.isascii() or not origin.isprintable() or any(c in origin for c in " ?#"):
+        return ""
+    if origin.startswith("git@github.com:"):
+        path = origin.removeprefix("git@github.com:")
+    else:
+        try:
+            url = urllib.parse.urlsplit(origin)
+        except ValueError:
+            return ""
+        if (url.scheme, url.netloc) not in {("https", "github.com"), ("ssh", "git@github.com")}:
+            return ""
+        path = url.path.removeprefix("/")
+    path = path.removesuffix("/").removesuffix(".git")
+    if not REGISTRY_REPO_RE.fullmatch(path) or any(part in (".", "..") for part in path.split("/")):
+        return ""
+    return path
+
+
+def _registry_clones(source: Path, repos: set[str]) -> dict[str, Path]:
+    """Nhận một clone hoặc thư mục chứa clone ở một/hai cấp. Đối chiếu origin, không đoán theo tên thư mục."""
+    root = source.resolve(strict=True)
+    markers = [root / ".git"] if (root / ".git").exists() else [*root.glob("*/.git"), *root.glob("*/*/.git")]
+    clones: dict[str, Path] = {}
+    for marker in markers:
+        clone = marker.parent.resolve()
+        if not clone.is_relative_to(root):
+            continue
+        url = _git(
+            clone, "config", "--local", "--no-includes", "--get", "remote.origin.url", env=_go_git_env()
+        ).stdout.strip()
+        name = github_origin_slug(url).lower()
+        if name in repos:
+            if name in clones:
+                raise DeployError(f"nhiều clone cùng trỏ tới {name}")
+            clones[name] = clone
+    if not clones:
+        raise DeployError("không thấy clone có GitHub origin khớp sản phẩm trong registry")
+    return clones
+
+
+def _reg_pull_product(product: dict[str, Any], clone: Path) -> str:
+    if not os.path.lexists(clone / DEPLOY_LEDGER):
+        return f"{product['repo']}: chưa có {DEPLOY_LEDGER}, giữ nguyên dữ liệu"
+    envs = read_deploy_ledger(clone)["envs"]
+    product["environments"] = sorted(name for name, slot in envs.items() if slot["current"] is not None)
+    prod = envs.get("prod", {}).get("current")
+    if prod is not None:
+        if product["release"] is None:
+            return f"{product['repo']}: có bản production nhưng registry chưa có release.version"
+        product["release"].update(
+            digest=prod["served_digest"], date=_dt.datetime.fromisoformat(prod["finished"]).date().isoformat()
+        )
+    return ""
+
+
+def cmd_registry_pull(args: argparse.Namespace) -> int:
+    base = project_dir()
+    path = base / args.file
+    try:
+        if path.resolve() != path or not path.is_relative_to(base):
+            raise DeployError("file registry phải nằm trong dự án và không đi qua symlink")
+        with _state_lock(base):
+            data, errors = registry_load(path, args.framework)
+            if data is None:
+                raise DeployError("\n".join(errors))
+            products = data["products"]
+            clones = _registry_clones(args.source, {p["repo"].lower() for p in products})
+            before = json.dumps(data, ensure_ascii=False, indent=2)
+            warnings = []
+            for product in products:
+                clone = clones.get(product["repo"].lower())
+                if clone and (warning := _reg_pull_product(product, clone)):
+                    warnings.append(warning)
+            after = json.dumps(data, ensure_ascii=False, indent=2)
+            if before != after:
+                write_atomic(path, after + "\n", keep_mode=True)
+    except (DeployError, OSError, ValueError) as exc:
+        print(f"✗ registry pull: {exc}", file=sys.stderr)
+        return 2
+    for warning in warnings:
+        print(warning, file=sys.stderr)
+    print(f"Đã đối chiếu {len(clones)}/{len(products)} sản phẩm trong {args.file}")
+    return 0
+
+
 # --------------------------------------------------------------------------- release-check (G7 máy đọc, ADR-0029)
 
 # --- Giai đoạn sản phẩm (ADR-0058): MVP → hoàn thiện → tối ưu, giai đoạn sau khoá tới khi người duyệt giai đoạn trước ---
@@ -13922,6 +14219,23 @@ def _go_signers(text: str) -> List[str]:
     return [name for name in names if _go_visible_name(name)]
 
 
+def _release_deploy(base: Path, subject: dict[str, Any]) -> list[dict[str, str]]:
+    """Một BLOCKER khi bật deploy_envs. Receipt vẫn hợp lệ sau khi commit sổ nếu content và digest giữ nguyên."""
+    try:
+        envs = _deploy_env_names(base)
+        if not envs:
+            return []
+        if "dev" not in envs or not all(DEPLOY_ENV_NAME.fullmatch(name) for name in envs):
+            raise DeployError("deploy_envs cần khai dev và tên môi trường hợp lệ")
+        current = read_deploy_ledger(base)["envs"].get("dev", {}).get("current")
+        if current and all(current["subject"][key] == subject[key] for key in ("digest", "content")):
+            return [_release_row("deploy", "PASS", f"{DEPLOY_LEDGER} dev.current · {current['served_digest']}")]
+        reason = "bản dev chưa chạy ứng viên này"
+    except (DeployError, OSError, ValueError) as exc:
+        reason = str(exc)
+    return [_release_row("deploy", "FAIL", f"{reason} — kiểm cấu hình/sổ, chạy xt.py deploy run --env dev")]
+
+
 def release_check(base: Path, blueprint: str, status: str, unchecked_must: str = "warn") -> Dict[str, Any]:
     """Cổng G7 máy đọc (ADR-0029): gom `blueprint-status --strict --run`, `audit check --strict`, kiểm lại cuối của autopilot
     và cây git thành bảng PASS/FAIL/N-A có bằng chứng — cùng nguồn cho GO-NO-GO.md (phần máy) và JSON. GO chỉ khi không
@@ -13949,6 +14263,7 @@ def release_check(base: Path, blueprint: str, status: str, unchecked_must: str =
         _release_review_debt(base, status),
         *(row for row, _ in runs.values()),
         *([art_row] if art_row else []),
+        *_release_deploy(base, subject),
         _release_unchecked_must(base, blueprint, unchecked_must),
         _release_go_no_go(base),
     ]
@@ -14249,6 +14564,234 @@ def _deploy_metrics(ledger: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
         }
         for name, events in grouped.items()
     }
+
+
+DEV_DRIVER = "node scripts/dev-preview.mjs"
+DEV_ACTIONS = ("deploy", "smoke", "digest", "rollback")
+
+
+class DevGuardDenied(DeployError):
+    """Một bước bị guard chặn trước khi đụng môi trường."""
+
+
+def _dev_preflight(base: Path, env: str) -> int:
+    """Lát dev dùng adapter của pack, argv cố định. Không chạy lệnh triển khai tuỳ ý hoặc production."""
+    if env != "dev" or "dev" not in _deploy_envs(base):
+        raise DeployError("chỉ hỗ trợ môi trường dev đã khai")
+    config = _xt_keys(base)
+    commands = [config.get(action + "_dev", "") for action in DEV_ACTIONS]
+    blocked = next((reason for reason in guard_blocks([*commands, f"{DEV_DRIVER} candidate"], base) if reason), "")
+    if blocked:
+        raise DevGuardDenied(blocked)
+    if commands != [f"{DEV_DRIVER} {action}" for action in DEV_ACTIONS]:
+        raise DeployError("dev cần đủ bốn lệnh của adapter web-api-ts trong xt.yaml")
+    if config.get("url_dev") != "http://127.0.0.1:4317":
+        raise DeployError("url_dev phải là địa chỉ loopback của adapter web-api-ts")
+    if not (base / "scripts/dev-preview.mjs").is_file():
+        raise DeployError("thiếu scripts/dev-preview.mjs của gói")
+    timeout = os.environ.get("XT_DEPLOY_TIMEOUT", "1200")
+    if not re.fullmatch(r"[1-9][0-9]{0,4}", timeout):
+        raise DeployError("XT_DEPLOY_TIMEOUT cần số giây dương, tối đa 99999")
+    return int(timeout)
+
+
+@contextlib.contextmanager
+def _dev_lock(base: Path) -> Iterator[Path]:
+    """Một bản dev trên checkout chính của gói. Giữ khoá riêng xuyên suốt cả deploy và rollback."""
+    tree = _git_tree(base)
+    if tree != (base, base / ".git") or not (base / ".git").is_dir():
+        raise DeployError("cần checkout chính ở gốc repository (không chạy trong linked worktree)")
+    state = base / ".git/xt-preview/dev"
+    if state.resolve() != state:
+        raise DeployError("thư mục trạng thái dev không được qua symlink")
+    state.mkdir(mode=0o700, parents=True, exist_ok=True)
+    fc = _fcntl()
+    if fc is None:
+        raise DeployError("triển khai dev cần flock trên Linux")
+    fd = os.open(state / "coordinator.lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    try:
+        fc.flock(fd, fc.LOCK_EX | fc.LOCK_NB)
+        yield state
+    finally:
+        os.close(fd)
+
+
+def _dev_candidate(base: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    row, arts = _release_artifacts(base)
+    if row is None or row["result"] != "PASS" or [a["path"] for a in arts] != ["dist/app.tgz"]:
+        raise DeployError("cần dist/app.tgz đã build, khớp release_artifacts và sidecar (nếu có)")
+    head = _release_git_stdout(base, "rev-parse", "--verify", "HEAD").strip()
+    subject, why = _release_subject(base, arts, head, tree_readable=True)
+    identity = {key: subject[key] for key in ("head", "content", "digest")}
+    if why or not _deploy_subject_ok(identity):
+        raise DeployError("không tính được định danh của cây ứng viên")
+    return identity, [{"path": a["path"], "sha256": a["sha256"]} for a in arts]
+
+
+@dataclass
+class DevPreview:
+    base: Path
+    state: Path
+    timeout: int
+    subject: dict[str, Any]
+    previous: str
+
+    def invoke(self, action: str) -> tuple[dict[str, Any], Optional[str]]:
+        """digest đọc giá trị quan sát ở đích; không truyền sẵn đáp án. Sổ không giữ stdout/stderr."""
+        cmd = f"{DEV_DRIVER} {action}"
+        env = {k: v for k, v in os.environ.items() if not k.startswith("XT_DEPLOY_")}
+        env.update(XT_DEPLOY_ENV="dev", XT_DEPLOY_STATE=str(self.state), XT_DEPLOY_ARTIFACTS="dist/app.tgz")
+        if action != "digest":
+            env.update(XT_DEPLOY_DIGEST=self.subject["digest"], XT_DEPLOY_PREVIOUS=self.previous)
+        with tempfile.TemporaryFile() as sink:
+            rc = self.run(cmd.split(), env, sink)
+            sink.seek(0)
+            raw = sink.read(67)
+        digest = raw[:64].decode("ascii") if re.fullmatch(rb"[0-9a-f]{64}(?:\r?\n)?", raw) else None
+        return {"cmd_sha256": hashlib.sha256(cmd.encode()).hexdigest(), "exit_code": rc}, digest
+
+    def run(self, argv: list[str], env: dict[str, str], sink: BinaryIO) -> int:
+        try:
+            proc = subprocess.Popen(
+                argv,
+                cwd=self.base,
+                env=env,
+                stdin=subprocess.DEVNULL,
+                stdout=sink,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+        except OSError:
+            return 127
+        try:
+            return proc.wait(timeout=self.timeout)
+        except subprocess.TimeoutExpired:
+            _stop_group(proc)
+            return 124
+        except BaseException:
+            _stop_group(proc)
+            raise
+
+    def confirm(self) -> tuple[dict[str, Any], Optional[str]]:
+        smoke, _ = self.invoke("smoke")
+        if smoke["exit_code"]:
+            return smoke, None
+        step, digest = self.invoke("digest")
+        return smoke, digest if step["exit_code"] == 0 else None
+
+
+def _dev_receipt(candidate: dict[str, Any], artifacts: list[dict[str, Any]], prior: str) -> dict[str, Any]:
+    run_id = os.environ.get("GITHUB_RUN_ID", "")
+    repo = os.environ.get("GITHUB_REPOSITORY", "")
+    on_ci = os.environ.get("GITHUB_ACTIONS") == "true" and run_id.isdecimal()
+    return {
+        "env": "dev",
+        "subject": candidate,
+        "artifacts": artifacts,
+        "started": now_iso(),
+        "previous_digest": prior or None,
+        "url": "http://127.0.0.1:4317",
+        "deploy": None,
+        "rollback": None,
+        "smoke": None,
+        "served_digest": None,
+        "runner": {
+            "kind": "ci" if on_ci else "local",
+            "run_id": run_id if on_ci else None,
+            "run_url": f"https://github.com/{repo}/actions/runs/{run_id}"
+            if on_ci and re.fullmatch(r"[\w.-]+/[\w.-]+", repo)
+            else None,
+        },
+        "session": None,
+    }
+
+
+def _dev_restore(driver: DevPreview, receipt: dict[str, Any], explicit: bool) -> bool:
+    step, _ = driver.invoke("rollback")
+    receipt["rollback"] = step
+    if explicit:
+        receipt["deploy"] = step
+    confirmed = None
+    if step["exit_code"] == 0:
+        smoke, confirmed = driver.confirm()
+        if explicit:
+            receipt["smoke"] = smoke
+    receipt["served_digest"] = confirmed
+    ok = driver.previous == confirmed
+    receipt["result"] = "rolled_back" if ok else "rollback_failed"
+    return ok
+
+
+def _dev_install(driver: DevPreview, receipt: dict[str, Any]) -> bool:
+    step, _ = driver.invoke("deploy")
+    receipt["deploy"] = step
+    if step["exit_code"] == 0:
+        receipt["smoke"], receipt["served_digest"] = driver.confirm()
+    if receipt["served_digest"] == driver.subject["digest"]:
+        receipt["result"] = "deployed"
+        return True
+    if driver.previous:
+        _dev_restore(driver, receipt, False)
+    else:
+        receipt["result"] = "failed"
+    return False
+
+
+def _dev_write(base: Path, ledger: dict[str, Any]) -> None:
+    path = base / DEPLOY_LEDGER
+    if path.resolve() != path:
+        raise DeployError("không ghi sổ triển khai qua symlink")
+    write_atomic(path, json.dumps(_validate_deploy_ledger(ledger), ensure_ascii=False, indent=2) + "\n", keep_mode=True)
+
+
+def _dev_execute(base: Path, state: Path, timeout: int, explicit: bool) -> tuple[dict[str, Any], bool]:
+    ledger = read_deploy_ledger(base)
+    slot = ledger["envs"].setdefault("dev", {"current": None, "previous": None, "unknown": False})
+    current, previous = slot["current"], slot["previous"]
+    if explicit:
+        if previous is None:
+            raise DeployError("chưa có bản dev trước để quay lui")
+        source = current or previous
+        subject, artifacts, target = source["subject"], source["artifacts"], previous
+    else:
+        subject, artifacts = _dev_candidate(base)
+        target = current or previous
+    prior_digest = target["subject"]["digest"] if target else ""
+    receipt = _dev_receipt(subject, artifacts, prior_digest)
+    driver = DevPreview(base, state, timeout, subject, prior_digest)
+    if not explicit:
+        check, _ = driver.invoke("candidate")
+        if check["exit_code"]:
+            raise DeployError("không xác nhận được dist/app.tgz từ mã hiện tại; chạy pnpm build rồi thử lại")
+    # Nếu tiến trình bị ngắt sau khi chạm đích, lần sau chỉ có thể tin bản đã xác nhận sau khi smoke lại.
+    slot.update(current=None, previous=target, unknown=True)
+    _dev_write(base, ledger)
+    if explicit:
+        ok = _dev_restore(driver, receipt, True)
+    else:
+        ok = _dev_install(driver, receipt)
+    receipt["finished"] = now_iso()
+    if receipt["result"] == "deployed":
+        fallback = previous if prior_digest == subject["digest"] else target
+        slot.update(current=receipt, previous=fallback, unknown=False)
+    elif receipt["result"] == "rolled_back":
+        slot.update(current=target, previous=current if explicit else previous, unknown=False)
+    ledger["events"].append(receipt)
+    _dev_write(base, ledger)
+    return receipt, ok
+
+
+def cmd_deploy_dev(args: argparse.Namespace) -> int:
+    base = loop_root(project_dir())
+    try:
+        timeout = _dev_preflight(base, args.env)
+        with _dev_lock(base) as state:
+            receipt, ok = _dev_execute(base, state, timeout, args.deploy_cmd == "rollback")
+    except (DeployError, OSError, ValueError, _ReleaseTreeError) as exc:
+        print(f"✗ deploy dev: {exc}", file=sys.stderr)
+        return 126 if isinstance(exc, DevGuardDenied) else 2
+    print(json.dumps(receipt) if args.json else f"dev: {receipt['result']} — {receipt['url']} ({DEPLOY_LEDGER})")
+    return 0 if ok else 1
 
 
 def cmd_deploy_status(args: argparse.Namespace) -> int:
@@ -20528,6 +21071,46 @@ def _add_perf_trial(ppsub: "argparse._SubParsersAction[argparse.ArgumentParser]"
     plg.add_argument("--check", action="store_true", help="chỉ so file với bản dựng từ sổ")
 
 
+def cmd_release_ops(args: argparse.Namespace) -> int:
+    """Nạp module của lệnh khi chạy; help, doctor và những lệnh khác chỉ cần schema argparse."""
+    if str(SCRIPT_DIR) not in sys.path:  # `python -I xt.py …`: các module của bản cài nằm cạnh xt.py
+        sys.path.insert(0, str(SCRIPT_DIR))
+    core = sys.modules[__name__]
+    if args.cmd == "admin-plan":
+        import xt_ops_setup
+
+        return xt_ops_setup.command(core, args)
+    import xt_release_ops
+
+    handler = {"rollout-drill": xt_release_ops.rollout, "ops-check": xt_release_ops.field_check}[args.cmd]
+    return handler(core, args)
+
+
+def _add_release_ops(sub: "argparse._SubParsersAction[argparse.ArgumentParser]") -> None:
+    admin = sub.add_parser("admin-plan", help="kiểm thiết lập một lần trên nhánh chính và quyền quản trị")
+    group = admin.add_mutually_exclusive_group()
+    group.add_argument("--json", action="store_true")
+    group.add_argument("--script", action="store_true", help="in gợi ý lệnh dành cho chủ repo")
+    admin.add_argument("--out", metavar="MARKDOWN")
+    admin.set_defaults(fn=cmd_release_ops)
+
+    drill = sub.add_parser("rollout-drill", help="diễn tập bàn giao từ bản dev đang chạy sang pipeline do dự án sở hữu")
+    drill.add_argument("--env", required=True, help="đích triển khai ngoài dev")
+    drill.add_argument("--release", metavar="FILE", help="JSON xuất bởi release-check cho cùng ứng viên")
+    drill.add_argument("--require-ready", action="store_true", help="exit 1 nếu thiếu bằng chứng bàn giao")
+    drill.add_argument("--json", action="store_true")
+    drill.set_defaults(fn=cmd_release_ops)
+
+    ops = sub.add_parser("ops-check", help="đối chiếu cửa sổ SLO đã xuất với biên nhận của môi trường")
+    ops.add_argument("--env", required=True)
+    ops.add_argument("--field", required=True, metavar="FILE")
+    ops.add_argument("--max-p95-ms", required=True, type=float)
+    ops.add_argument("--max-error-pct", required=True, type=float)
+    ops.add_argument("--max-age-hours", type=float, help="tuổi tối đa của cuối cửa sổ đo (giờ)")
+    ops.add_argument("--json", action="store_true")
+    ops.set_defaults(fn=cmd_release_ops)
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="xt.py",
@@ -20550,6 +21133,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="thư mục framework/ (mặc định: cạnh scripts/)",
     )
     sub = p.add_subparsers(dest="cmd", required=True)
+    if all((SCRIPT_DIR / f).is_file() for f in ("xt_ops_setup.py", "xt_release_ops.py", "xt_flow.py")):
+        _add_release_ops(sub)
     pv = sub.add_parser("validate")
     pv.add_argument(
         "--stale", type=int, metavar="N", help="cảnh báo mọi 'xác minh YYYY-MM-DD' cũ hơn N ngày (AUD-DOC-177)"
@@ -20690,7 +21275,11 @@ def build_parser() -> argparse.ArgumentParser:
         "title-check",
         help=f"tiêu đề PR đúng luật CI `pr-title`/merge-check (Conventional Commits, ≤ {PR_TITLE_MAX} ký tự — D-056) trước `gh pr create`",
     )
-    ptc.add_argument("title", nargs="?", help="tiêu đề định đặt (mặc định tiêu đề PR mở của nhánh hiện tại)")
+    title_source = ptc.add_mutually_exclusive_group()
+    title_source.add_argument("title", nargs="?", help="tiêu đề định đặt (mặc định tiêu đề PR mở của nhánh hiện tại)")
+    title_source.add_argument(
+        "--range", dest="revision_range", metavar="BASE..HEAD", help="kiểm subject commit trong dải Git"
+    )
     pss = prsub.add_parser(
         "stats",
         help="số đo PR đã merge trong N ngày qua REST: lead time trung vị/P95, run CI mỗi PR, run đỏ/huỷ, làn chuẩn,"
@@ -20730,6 +21319,11 @@ def build_parser() -> argparse.ArgumentParser:
     ds.add_argument("--env", help="chỉ in biên nhận của môi trường này")
     ds.add_argument("--json", action="store_true", help="in sổ schema 1 và số liệu theo môi trường dưới dạng JSON")
     ds.set_defaults(fn=cmd_deploy_status)
+    for op in ("run", "rollback"):
+        action = dsub.add_parser(op, allow_abbrev=False, help="áp dụng hoặc quay lui bản dev của gói web-api-ts")
+        action.add_argument("--env", required=True, help="dev")
+        action.add_argument("--json", action="store_true", help="in receipt schema 1")
+        action.set_defaults(fn=cmd_deploy_dev)
     prg = sub.add_parser(
         "registry",
         help="registry sản phẩm đích: lệch core/gói so với VERSION khung, ngoại lệ hết hạn (ADR-0068 lát E)",
@@ -20739,6 +21333,14 @@ def build_parser() -> argparse.ArgumentParser:
     prg.add_argument("--today", default="", help="ngày so hạn ngoại lệ (YYYY-MM-DD; mặc định hôm nay)")
     prg.add_argument("--strict", action="store_true", help="exit 1 khi còn sản phẩm lệch hoặc ngoại lệ hết hạn")
     prg.set_defaults(fn=cmd_registry)
+    pull = prg.add_subparsers(dest="registry_cmd").add_parser(
+        "pull", help="đồng bộ registry từ sổ triển khai của các clone cục bộ"
+    )
+    pull.add_argument(
+        "--from", dest="source", type=Path, required=True, help="clone hoặc thư mục chứa các clone sản phẩm"
+    )
+    pull.add_argument("--file", default=argparse.SUPPRESS, help="file registry trong dự án")
+    pull.set_defaults(fn=cmd_registry_pull)
     pab = sub.add_parser(
         "autonomy-bench",
         help="corpus PR/rollup/review/guard/log CI/harness qua hàm thật — exit 1 khi có false-green (AUTO-07)",

@@ -21,7 +21,16 @@
     "format": "pnpm format",
     "format_file": "pnpm exec biome format --write {}",
     "install": "pnpm install --frozen-lockfile",
+    "setup": "pnpm install --frozen-lockfile",
     "migrate": "pnpm migrate up",
-    "release_artifacts": "dist/app.tgz"
+    "release_artifacts": "dist/app.tgz",
+    "deploy_envs": "dev",
+    "deploy_dev": "node scripts/dev-preview.mjs deploy",
+    "smoke_dev": "node scripts/dev-preview.mjs smoke",
+    "digest_dev": "node scripts/dev-preview.mjs digest",
+    "rollback_dev": "node scripts/dev-preview.mjs rollback",
+    "url_dev": "http://127.0.0.1:4317",
+    "preview": "http://127.0.0.1:4317",
+    "preview_smoke": "node scripts/dev-preview.mjs verify"
   }
 }

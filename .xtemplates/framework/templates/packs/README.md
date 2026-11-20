@@ -12,7 +12,7 @@ updated: 2026-11-05
 
 | Gói | Stack | Nghiệm thu | Ghi chú |
 |---|---|---|---|
-| [`web-api-ts`](web-api-ts/README.md) | Node 24 · pnpm 12 · TypeScript · Postgres 17 (RLS) · kysely · vitest · biome | `.github/workflows/pack-web-api.yml` của khung | API nhiều tenant + worker; không UI |
+| [`web-api-ts`](web-api-ts/README.md) | Node 24 · pnpm 12 · TypeScript · Postgres 17 (RLS) · kysely · vitest · biome | `.github/workflows/pack-web-api.yml` của khung | API nhiều tenant, UI ghi chú và bản dev Compose |
 
 ## Cấu trúc một gói
 
