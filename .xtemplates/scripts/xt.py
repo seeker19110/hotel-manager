@@ -1180,7 +1180,7 @@ def run_blueprint_checks(checks: List[Dict[str, Any]], base: Path, timeout: int)
         if not cmd:
             hit = (2, "ghi chú `Kiểm:` phải có đúng một lệnh trong một cặp backtick (nhiều lệnh gộp bằng `&&`)")
         else:
-            key = _blueprint_command_key(cmd)
+            key = _gate_command_key(cmd)
             if key not in done:
                 code, text = run_gate_shell(cmd, base, timeout)
                 done[key] = (code, redact_tail(text, 20))
@@ -1189,7 +1189,7 @@ def run_blueprint_checks(checks: List[Dict[str, Any]], base: Path, timeout: int)
     return out
 
 
-def _blueprint_command_key(cmd: str) -> Tuple[bool, str]:
+def _gate_command_key(cmd: str) -> Tuple[bool, str]:
     """Khử trùng lệnh chuẩn và giữ cùng phép so chuỗi thô cho các lệnh lệch nháy."""
     try:
         return True, canonical_command(cmd)
@@ -2747,7 +2747,8 @@ def shard_plan(ids: Iterable[str], weights: Dict[str, float], n: int) -> List[Li
         k = min(range(n), key=lambda j: (loads[j], j))
         loads[k] += weights.get(t, default)
         shards[k].append(t)
-    return [sorted(s) for s in shards]
+    # Giữ thứ tự LPT trong từng shard để xargs -P khởi chạy lớp lâu nhất trước.
+    return shards
 
 
 def _stdin_ids() -> List[str]:
@@ -2951,21 +2952,21 @@ def _verify_gates(base: Path, tasks: List[Dict[str, Any]], timeout: int, run_all
     """Gate của task `[x]`, một lần mỗi lệnh: chạy lại khi `run_all` hoặc evidence v2 của MỘT task dùng lệnh đó không còn
     khớp (`evidence_stale`); mọi task cùng lệnh đều khớp → giữ (`kept`, exit 0 của evidence) — AUTO-02, T-1513."""
     why = {t["id"]: "--all" if run_all else evidence_stale(t, base) for t in tasks}
-    results: List[Dict[str, Any]] = []
+    groups: Dict[Tuple[bool, str], List[Dict[str, Any]]] = {}
     for t in tasks:
-        if any(same_command(t["gate"], r["gate"]) for r in results):
-            continue
-        reasons = [why[x["id"]] for x in tasks if why[x["id"]] and same_command(x["gate"], t["gate"])]
-        if not reasons:
+        groups.setdefault(_gate_command_key(t["gate"]), []).append(t)
+    results: List[Dict[str, Any]] = []
+    for group in groups.values():
+        t = group[0]
+        reason = next((why[task["id"]] for task in group if why[task["id"]]), "")
+        if not reason:
             results.append({"task": t["id"], "gate": t["gate"], "exit_code": 0, "kept": True, "output_tail": ""})
             print(f"[xt] verify {t['id']}: giữ — evidence v2 khớp lệnh, phạm vi, yêu cầu, digest file")
             continue
         code, out = run_gate_shell(t["gate"], base, timeout)
         tail = redact_tail(out, 20)
-        results.append(
-            {"task": t["id"], "gate": t["gate"], "exit_code": code, "rerun": reasons[0], "output_tail": tail}
-        )
-        print(f"[xt] verify {t['id']}: exit {code} ({reasons[0]})")
+        results.append({"task": t["id"], "gate": t["gate"], "exit_code": code, "rerun": reason, "output_tail": tail})
+        print(f"[xt] verify {t['id']}: exit {code} ({reason})")
     return results
 
 

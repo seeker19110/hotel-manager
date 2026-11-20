@@ -58,3 +58,7 @@ Skill `.claude/skills/`: autopilot complete optimize blueprint gate research aud
 
 Dùng `/factory <yêu cầu>` để mở hoặc tiếp tục một vòng sản phẩm. Đọc trạng thái bằng
 `python3 .xtemplates/scripts/xt_flow.py --json` rồi chạy các cổng của dự án.
+Trong lúc sửa giao diện, dùng `pnpm dev:up` để khởi động môi trường Hotel Manager.
+Theo dõi test unit của phần đang sửa bằng Vitest, ví dụ
+`pnpm exec vitest watch --project unit packages/domain/src/date/iso-date.test.ts`.
+Khi đổi hành vi lưu trữ, chạy cả `pnpm test:db` trên PostgreSQL dev.

@@ -14,6 +14,7 @@
   "profiles": ["web-app", "api-service"],
   "controls": ["QA-STRAT-024", "OPS-DEPLOY-001", "OPS-DEPLOY-005", "WF-ENV-006", "WF-REL-005", "BASE-GATE-014"],
   "xt_yaml": {
+    "dev": "pnpm dev",
     "lint": "pnpm lint",
     "typecheck": "pnpm typecheck",
     "test": "pnpm test",
