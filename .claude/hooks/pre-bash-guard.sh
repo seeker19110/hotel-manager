@@ -51,9 +51,10 @@ decision="$XG_DECISION"
 
 gate_config_changed() { # $1=gốc repo → 0 nếu file đổi so với HEAD (đã/chưa stage, file mới) là cấu hình cổng
   local f
+  # `.claude/hooks/guard.py` = hàng rào: nhiều test mở nó qua đường dẫn ghép mà test-select theo lớp không thấy (#678)
   while IFS= read -r f; do
     case "$f" in
-    xt.yaml | .claude/settings.json | .claude/hooks/pre-bash-guard.sh | scripts/dev-task.sh | \
+    xt.yaml | .claude/settings.json | .claude/hooks/pre-bash-guard.sh | .claude/hooks/guard.py | scripts/dev-task.sh | \
       .xtemplates/scripts/dev-task.sh | scripts/xt.py | .xtemplates/scripts/xt.py | ruff.toml | */ruff.toml | .ruff.toml | */.ruff.toml | pyproject.toml | \
       */pyproject.toml | .coveragerc | */.coveragerc | requirements*.txt | */requirements*.txt | \
       pytest.py | conftest.py | */conftest.py | pytest.ini | .pytest.ini | pytest.toml | .pytest.toml | tox.ini | \
@@ -62,6 +63,49 @@ gate_config_changed() { # $1=gốc repo → 0 nếu file đổi so với HEAD (�
   done < <(git -C "$1" -c core.quotePath=false diff --no-renames --relative --name-only HEAD -- 2>/dev/null
     git -C "$1" -c core.quotePath=false ls-files --others --exclude-standard 2>/dev/null)
   return 1
+}
+
+# Thư mục git của toplevel $1 (`--git-dir`|`--git-common-dir`), đường dẫn vật lý. Chạy được ở mọi git có worktree
+# (2.5+): không dùng `--path-format` (2.31) hay `--absolute-git-dir` (2.13) — git cũ in nguyên cờ lạ ra stdout thành
+# "đường dẫn" rác; đường tương đối git in ra tính theo thư mục chạy ($1). Không đọc được → 1, không in gì.
+git_dir_of() { # $1=toplevel (vật lý) $2=--git-dir|--git-common-dir
+  local d
+  d="$(cd -P -- "$1" 2>/dev/null && git rev-parse "$2" 2>/dev/null)" && [ -n "$d" ] || return 1
+  case "$d" in /*) ;; *) d="$1/$d" ;; esac
+  (cd -P -- "$d" 2>/dev/null && pwd -P)
+}
+
+# Worktree của CHÍNH repo dự án (AUD-HAR-442): in gốc cổng trên worktree = `$1/<tiền tố của gốc dự án trong repo>`
+# (monorepo `apps/web` → `<worktree>/apps/web`). 1 = repo khác (hoặc dự án không có trên worktree) → luật cũ; 2 = git
+# không trả lời được (không xác định). Cùng `--git-common-dir` chưa đủ: thư mục lạ có `.git` trỏ vào gitdir của repo này
+# (hoặc gitdir tự dựng có `commondir` trỏ về) giả được → kiểm thêm LIÊN KẾT NGƯỢC: checkout chính = `$1/.git` là THƯ MỤC
+# THẬT (không symlink), chính là common-dir và cha của common-dir là `$1`; worktree liên kết = `$1/.git` là TỆP thật
+# (không symlink), gitdir nằm ngay dưới `<common>/worktrees/` và tệp `gitdir` trong đó trỏ đúng `$1/.git`. `-d`/`-f`/`cd`
+# đi theo symlink ở thành phần cuối: `.git` symlink tới common-dir/admin (giải nén được từ tar) từng qua (review #680
+# R2-1) → mọi phép thử trên `.git` kèm `! -L`. Không đọc `git worktree list --porcelain`: không `-z` thì đường dẫn có
+# xuống dòng chèn được dòng `worktree <thư mục lạ>` giả, còn `-z` cần git 2.36. Checkout chính có `.git` là symlink
+# (hiếm) → luật cũ.
+same_repo_root() { # $1=gốc repo nhận commit (vật lý) $2=gốc dự án (vật lý)
+  local xtop c1 c2 gd p="" pre r
+  xtop="$(git -C "$2" rev-parse --show-toplevel 2>/dev/null)" && [ -n "$xtop" ] || return 2
+  c1="$(git_dir_of "$1" --git-common-dir)" && c2="$(git_dir_of "$xtop" --git-common-dir)" || return 2
+  gd="$(git_dir_of "$1" --git-dir)" || return 2
+  [ "$c1" = "$c2" ] && [ ! -L "$1/.git" ] || return 1
+  if [ "$gd" = "$c1" ]; then
+    [ -d "$1/.git" ] && [ "$(cd -P -- "$1/.git" 2>/dev/null && pwd -P)" = "$c1" ] &&
+      [ "$(cd -P -- "$c1/.." 2>/dev/null && pwd -P)" = "$1" ] || return 1
+  else
+    # `read` trả 1 khi tệp thiếu xuống dòng cuối dù đã đọc được dòng (review #680 R2-2)
+    [ -f "$1/.git" ] && [ "${gd%/*}" = "$c1/worktrees" ] && [ -f "$gd/gitdir" ] &&
+      { IFS= read -r p || [ -n "$p" ]; } <"$gd/gitdir" || return 1
+    case "$p" in /*) ;; *) p="$gd/$p" ;; esac # `worktree.useRelativePaths` (git 2.48): tương đối theo gitdir
+    # thư mục cha chuẩn hoá vật lý (macOS /var → /private/var); thành phần cuối so theo TÊN, tệp thật đã kiểm ở trên
+    [ "${p##*/}" = .git ] && [ "$(cd -P -- "${p%/*}" 2>/dev/null && pwd -P)" = "$1" ] || return 1
+  fi
+  pre="$(git -C "$2" rev-parse --show-prefix 2>/dev/null)" || return 2
+  # tiền tố dự án trên worktree không được đi qua symlink (`apps/web` → thư mục lạ): đường vật lý phải đúng `$1/<tiền tố>`
+  r="$(cd -P -- "$1/$pre" 2>/dev/null && pwd -P)" && [ "$r" = "$1${pre:+/${pre%/}}" ] || return 1
+  printf '%s\n' "$r"
 }
 
 # ---- 3) Cổng trước commit (chạy TRƯỚC khi hỏi người — ask không được bỏ cổng, AUD-HAR-013) ----
@@ -79,7 +123,25 @@ if [ "$XG_COMMIT" = "true" ] && { [ "$XG_NO_VERIFY" != "true" ] || [ "${XT_GUARD
   [ -n "$cdir" ] && top="$(git -C "$cdir" rev-parse --show-toplevel 2>/dev/null)"
   # git trả đường dẫn vật lý; gốc dự án có thể đi qua symlink (macOS: /var → /private/var) → so theo `pwd -P`.
   xroot="$(cd "$XT_ROOT" 2>/dev/null && pwd -P)" || xroot="$XT_ROOT"
-  if [ -n "$top" ] && [ "$top" != "$xroot" ]; then
+  # Worktree của CHÍNH repo (`.claude/worktrees/<tên>` dưới gốc, hay ngoài gốc; cả checkout chính khi phiên mở trong
+  # worktree) là mã của dự án, không phải repo khác → cổng chạy trên CHÍNH worktree: tệp đổi, xt.yaml, `commit_gate`,
+  # `gate_config_changed` theo cây đó, và dev-task.sh của worktree (vòng `gate` dưới đây tìm ở `$groot` trước). Lý do
+  # chọn script của worktree, không của gốc phiên: ở repo khung dev-task.sh/xt.py chính là mã đang phát triển trên nhánh
+  # đó (script gốc phiên có thể cũ hơn, thiếu bước mới, lệch xt.yaml của worktree); mức phơi nhiễm bằng checkout chính
+  # (worktree checkout nhánh fork/PR lạ chạy mã của nhánh đó — y như `git checkout` nhánh đó ở checkout chính). Không mở
+  # đường hạ cổng mới: commit đổi dev-task.sh/xt.py/xt.yaml… của worktree vẫn bị `gate_config_changed` ép cổng đầy đủ
+  # như ở checkout chính; đánh đổi y hệt checkout chính — commit sửa chính dev-task.sh chạy bản đã sửa (CI là lưới
+  # cuối). Trước đây (AUD-HAR-442) rơi vào nhánh "repo lồng/ngoài" → bỏ cổng.
+  wrc=1
+  [ -n "$top" ] && [ "$top" != "$xroot" ] && { wroot="$(same_repo_root "$top" "$xroot")"; wrc=$?; }
+  if [ "$wrc" = 0 ]; then
+    groot="$wroot"
+  elif [ -n "$top" ] && [ "$top" != "$xroot" ]; then
+    # Không xác định được mà trông như worktree (`.git` là TỆP): luật cũ (không chạy cổng) — nói ra, không lặng lẽ bỏ
+    # cổng; không chặn (fail-open về luồng, ADR-0002).
+    if [ "$wrc" = 2 ] && [ -f "$top/.git" ]; then
+      echo "⚠️ Không xác định được $top có phải worktree của chính dự án không (git không trả lời) — cổng commit KHÔNG chạy cho commit này; chạy cổng (dev-task.sh gate) ở đó trước khi đẩy." >&2
+    fi
     case "$top/" in
     "$xroot"/*)
       if [ -e "$top/xt.yaml" ] || [ -d "$top/.xtemplates" ]; then

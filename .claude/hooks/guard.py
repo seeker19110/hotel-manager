@@ -42,7 +42,7 @@ import sys
 import tempfile
 import time
 import unicodedata
-from typing import Any, Callable, Dict, FrozenSet, Iterator, List, NamedTuple, Optional, Set, Tuple, cast
+from typing import Any, Callable, Dict, FrozenSet, Iterable, Iterator, List, NamedTuple, Optional, Set, Tuple, cast
 
 # `busybox <applet>`/`toybox <applet>`: applet là lệnh thật (`busybox sh`, `toybox rm …` — AUD-SEC-332/341)
 WRAPPERS = {"command", "builtin", "exec", "nohup", "time", "nice", "stdbuf", "xargs", "timeout", "setsid", "busybox"}
@@ -123,6 +123,10 @@ GATE_PATTERNS = (
     ".claude/settings.json",
     ".claude/settings.local.json",
     ".claude/hooks/*",
+    ".codex/hooks.json",  # AUD-SEC-987: nối guard cho Codex CLI (ADR-0082) — như `.claude/settings.json`
+    # AUD-SEC-989: tệp nối guard cho host khác do `install.py --harness` cài (ADR-0064 lát B); `.gemini/settings.json` ở
+    # CAPABILITY_PATTERNS (Edit hỏi như nhau ở `strict`)
+    *(".cursor/hooks.json", ".github/hooks/xt.json", ".grok/hooks/xt.json", ".opencode/plugins/xt.ts"),
     ".xtemplates/*",
     "eslint.config.*",
     ".eslintrc*",
@@ -170,9 +174,13 @@ CAPABILITY_PATTERNS = (
     *(".mcp.json", "mcp.json", ".claude.json", ".claude-plugin/*", ".codex/config.toml", ".gemini/settings.json"),
     ".gemini/extensions/*",
 )
-# Agent/skill/lệnh tắt của Claude Code: ở dự án đích (có `.xtemplates/`) là harness đã cài → hỏi; ở repo khung là sản
-# phẩm đang phát triển → không hỏi (sửa hằng ngày).
-TARGET_CAPABILITY_PATTERNS = (".claude/agents/*", ".claude/skills/*", ".claude/commands/*")
+# Agent/skill/lệnh tắt của Claude Code, skill/agent của Codex CLI do `install.py --harness codex` sinh (ADR-0082,
+# AUD-SEC-987): ở dự án đích (có `.xtemplates/`) là harness đã cài → hỏi; ở repo khung là sản phẩm đang phát triển →
+# không hỏi (sửa hằng ngày).
+TARGET_CAPABILITY_PATTERNS = (
+    *(".claude/agents/*", ".claude/skills/*", ".claude/commands/*"),
+    *(".agents/skills/*", ".codex/agents/*"),
+)
 MIGRATION_RE = re.compile(r"(^|/)(migrations?|migrate)/|(^|/)db/schema\.|(^|/)prisma/schema\.prisma$")
 
 # File test (đa ngôn ngữ). Sửa test ĐÃ CÓ theo hướng làm yếu bài kiểm = nới cổng (LOOP-CI-001): agent đang sửa lỗi
@@ -4482,7 +4490,7 @@ def _grep_source_safe(words: List[str], root: str, here: str) -> bool:
     for p in paths:
         full = os.path.realpath(os.path.join(here, os.path.expanduser(p)))
         rel = os.path.relpath(full, os.path.realpath(root))
-        bad = re.search(r"[$`~]", p) or XARGS_DOT_RE.search(p) or rel == "." or rel.split("/", 1)[0] == ".."
+        bad = re.search(r"[$`~]", p) or _xargs_fence_word(p, root) or rel == "." or rel.split("/", 1)[0] == ".."
         if bad or os.path.lexists(os.path.join(full, ".git")):
             return False
     return bool(paths)
@@ -4518,7 +4526,8 @@ def _xargs_listed(cmd: str, root: str = "", cwd: Optional[str] = None) -> bool:
             if not all(_grep_source_safe(words, root, d) for d in here):
                 return False
         elif m[1] in ("ls", "echo"):
-            bad = any(XARGS_DOT_RE.search(w) or "\\" in w and m[1] == "echo" for w in words)
+            bad = any(_xargs_fence_word(w, root) or "\\" in w and m[1] == "echo" for w in words)
+            bad = bad or any(_xargs_fence_word(_xargs_from_root(w, root, d), root) for w in words for d in here)
             if bad or m[1] == "ls" and any(LS_ALL_RE.fullmatch(w) for w in words):
                 return False
         elif not all(_xargs_source_safe(m[1], words, root, d) for d in here):
@@ -4528,7 +4537,11 @@ def _xargs_listed(cmd: str, root: str = "", cwd: Optional[str] = None) -> bool:
 
 # T-3942: thư mục hàng rào (đoạn đầu đường tương đối với gốc dự án) và tệp hàng rào mẫu cho nguồn của xargs — tệp mà
 # lệnh xoá/ghi trực tiếp bị chặn (FENCE/EVIDENCE/GIT_HOOK/SECRET). Mẫu bí mật nằm ở mọi thư mục.
-XARGS_FENCE_DIRS = frozenset({".claude", ".autopilot", ".git"})
+# AUD-SEC-987: `.codex` (hàng rào `hooks.json`, agent) và `.agents` (skill của Codex) như `.claude` (ADR-0082).
+# AUD-SEC-989: thư mục tệp nối guard của host khác (`XARGS_ADAPTER_DIRS`; `.github` chỉ đoạn `.github/hooks`) — chỉ
+# khi tệp nối có thật (`_fence_entry_live`), như luật hàng rào.
+XARGS_FENCE_DIRS = frozenset({".claude", ".autopilot", ".git", ".codex", ".agents"})
+XARGS_ADAPTER_DIRS = (".cursor", ".github/hooks", ".grok", ".opencode", ".gemini")
 XARGS_DIR_HEADS = frozenset({"find", "ls", "git", "echo", "xargs"})  # lệnh mà thư mục chạy quyết định tệp được liệt kê
 XARGS_FENCE_FILES = (
     ".claude/settings.json",
@@ -4536,6 +4549,7 @@ XARGS_FENCE_FILES = (
     ".claude/hooks/guard.py",
     ".claude/hooks/_lib.sh",
     ".claude/hooks/pre-bash-guard.sh",
+    ".codex/hooks.json",
     ".autopilot/state.json",
     ".autopilot/evidence/T-001.json",
     "docs/autopilot/STAGE.json",
@@ -4552,7 +4566,7 @@ XARGS_FENCE_FILES = (
 )
 XARGS_SECRET_NAMES: Tuple[str, ...] = (".env", ".env.local", "a.pem", "a.key", "a.p12", "a.pfx", "id_rsa")
 XARGS_SECRET_NAMES += ("id_ed25519", ".envrc", ".npmrc", ".pypirc", ".netrc", "secrets/a")
-XARGS_DOT_RE = re.compile(r"(?:^|/)(?:\.claude|\.autopilot|\.git|\.[^/]*[*?\[][^/]*)(?:/|$)")
+XARGS_DOT_RE = re.compile(r"(?:^|/)(?:\.claude|\.autopilot|\.git|\.codex|\.agents|\.[^/]*[*?\[][^/]*)(?:/|$)")
 XARGS_FIND_FILTERS = frozenset({"-name", "-iname", "-path", "-ipath", "-wholename", "-iwholename", "-regex", "-iregex"})
 XARGS_FIND_ACTIONS = frozenset("-printf -fprint -fprint0 -fprintf -exec -execdir -ok -okdir -ls -fls".split())
 XARGS_FIND_PRINTS = ("-print", "-print0")  # chỉ ở cuối nhánh: đứng giữa thì in trước bộ lọc sau nó
@@ -4566,18 +4580,55 @@ def _xargs_dirs(cmd: str, root: str, cwd: Optional[str]) -> Optional[List[str]]:
     if not root or None in dirs:
         return None
     real = os.path.realpath(root)
+    fence = [*XARGS_FENCE_DIRS, *_xargs_live_dirs(root)]
     for d in dirs:
         rel = os.path.relpath(os.path.realpath(str(d)), real)
-        if rel == ".." or rel.startswith("../") or rel.split("/")[0] in XARGS_FENCE_DIRS:
+        if rel == ".." or rel.startswith("../") or any(rel == f or rel.startswith(f + "/") for f in fence):
             return None
     return sorted(str(d) for d in dirs)
 
 
+def _xargs_live_dirs(root: str) -> List[str]:
+    """Thư mục tệp nối guard của host khác có tệp nối thật ở `root` (AUD-SEC-989)."""
+    return [d for d in XARGS_ADAPTER_DIRS if root and _fence_entry_live(d, root)]
+
+
+def _xargs_fence_word(word: str, root: str) -> bool:
+    """Toán hạng nguồn của xargs chạm thư mục hàng rào: đoạn dấu chấm cũ (`XARGS_DOT_RE`), hay chuỗi đoạn khớp thư mục
+    tệp nối của host khác — đoạn có glob so bằng fnmatch (`.github/hook?/*`, `.github/h*/x*` — AUD-SEC-989)."""
+    if XARGS_DOT_RE.search(word):
+        return True
+    segs = posixpath.normpath(word).split("/")
+    for d in _xargs_live_dirs(root):
+        ds = d.split("/")
+        for i in range(len(segs) - len(ds) + 1):
+            if all(s == p or set(s) & set("*?[") and fnmatch.fnmatchcase(p, s) for s, p in zip(segs[i:], ds)):
+                return True
+    return False
+
+
+def _xargs_from_root(word: str, root: str, here: str) -> str:
+    """Toán hạng `word` của `ls`/`echo` chạy ở `here`, viết lại tính từ gốc dự án (AUD-SEC-989: `cd .github && ls -d
+    hooks/*` liệt kê `.github/hooks/xt.json` mà chữ `hooks/*` không có đoạn hàng rào); `here` ngoài gốc → `word`."""
+    rel = os.path.relpath(os.path.realpath(here), os.path.realpath(root)) if root else ".."
+    return word if rel == ".." or rel.startswith("../") else posixpath.normpath(posixpath.join(rel, word))
+
+
 def _xargs_fence_paths(root: str) -> List[str]:
     """Tệp hàng rào (đường tương đối với gốc): mẫu cố định cộng tên có thật trong `.claude`, `.claude/hooks`,
-    `.autopilot` (hai cấp) và `.git/hooks`."""
-    out = list(XARGS_FENCE_FILES)
-    for sub in (".claude", ".claude/hooks", ".autopilot", ".autopilot/evidence", ".git", ".git/hooks"):
+    `.autopilot` (hai cấp), `.git/hooks`, `.codex` và `.agents` (AUD-SEC-987); tệp nối guard của host khác có thật
+    (AUD-SEC-989)."""
+    out = [*XARGS_FENCE_FILES, *(f for f in ADAPTER_FENCE_FILES if _adapter_live(f, root))]
+    for sub in (
+        ".claude",
+        ".claude/hooks",
+        ".autopilot",
+        ".autopilot/evidence",
+        ".git",
+        ".git/hooks",
+        ".codex",
+        ".agents",
+    ):
         try:
             out += [f"{sub}/{name}" for name in os.listdir(os.path.join(root, sub))]
         except OSError:
@@ -6829,12 +6880,20 @@ def _argv_shell_check(
     """Chặn (BUDGET) khi `_argv_shell_why` có lý do — trừ khi câu hỏi nguy hiểm của luật cũ đã làm lệnh bị chặn (giữ mã
     của luật cũ: HOOK_BYPASS…). Chữ lỏng (guard tự dựng) không qua tập con. Cờ bỏ hook đã đặt trong `res` đi theo lỗi
     (review #433 R1 — adapter host khác đọc `push_no_verify`). Câu hỏi mã BUDGET (`gh pr close 5 ${a[@]}` — AUD-SEC-598)
-    không tính: nó là ask ở strict, lỗi tập con là deny ở mọi chính sách."""
+    không tính: nó là ask ở strict, lỗi tập con là deny ở mọi chính sách. Câu hỏi của luật hàng rào mới (AUD-SEC-988/989,
+    `_new_fence_ask`) cũng không tính: thêm luật không được làm deny BUDGET của lệnh cũ thành ask ở strict."""
     why = _argv_shell_why(cmd, tokens, root, cwd) if strict else ""
-    if why and not _asks_denied([a for a in asks if reason_code("ask", a) != BUDGET]):
+    if why and not _asks_denied([a for a in asks if reason_code("ask", a) != BUDGET and not _new_fence_ask(a)]):
         err = ScanTooComplex(f"ngoài tập con guard đọc chắc — {why} (ADR-0063)")
         setattr(err, "flags", {k: True for k in ("no_verify", "push_no_verify") if res.get(k)})
         raise err
+
+
+def _new_fence_ask(ask: str) -> bool:
+    """Câu hỏi do luật AUD-SEC-988 (khôi phục từ nguồn khác, dấu `FENCE_NEW_TAG`) hay AUD-SEC-989 (hàng rào ở thư mục của
+    host khác) sinh — nhận theo chữ; nhận thừa chỉ làm lệnh giữ BUDGET (chiều chặt)."""
+    fence = FENCE_WHY.split("(", 1)[0]
+    return FENCE_NEW_TAG in ask or fence in ask and any(d in ask for d in ADAPTER_FENCE_DIRS)
 
 
 def _asks_denied(asks: List[str]) -> bool:
@@ -14712,13 +14771,251 @@ FILE_WRITERS: Dict[str, Callable[[List[str]], List[str]]] = {
 
 
 def _git_file_targets(n: List[str]) -> List[str]:
-    """File mà `git checkout <rev> -- f`/`git restore -s <rev> f` ghi đè từ commit khác — chỉ xét bí mật và bằng chứng:
-    khôi phục file cổng/hàng rào bằng git là đường lùi chuẩn, không chặn."""
+    """File mà `git checkout <rev> -- f`/`git restore -s <rev> f` ghi đè từ commit khác — xét bí mật và bằng chứng
+    (khôi phục tệp cổng bằng git là đường lùi chuẩn, không chặn); hàng rào từ nguồn khác chỉ mục/HEAD:
+    `_fence_restore_asks` (AUD-SEC-988)."""
     if n[:2] == ["git", "restore"] and "--staged" in n and not {"--worktree", "-W"} & set(n):
         return []  # chỉ đổi chỉ mục, không ghi cây làm việc
     if n[:2] in (["git", "checkout"], ["git", "restore"]):
         return _positionals(n[2:], ("-s", "--source", "-b", "-B", "--orphan", "--conflict", "--pathspec-from-file"))
     return []
+
+
+# AUD-SEC-988 (T-3968): git đưa nội dung từ nguồn KHÁC chỉ mục/HEAD (commit, nhánh, tag, stash, cây rỗng, chỉ mục/kho
+# khác qua `GIT_INDEX_FILE`/`--git-dir`) vào cây làm việc — hay vào chỉ mục, bước đệm của `git reset <rev> -- f; git
+# checkout -- f` — ở đường phủ tệp hàng rào (tệp, thư mục cha, `.`, `:/`, glob/magic pathspec) = thay hàng rào bằng bản
+# cũ hay xoá nó (`restore` no-overlay) → như ghi hàng rào qua Bash (HOOK_BYPASS). Khôi phục từ chỉ mục/HEAD (đường lùi
+# chuẩn) và lệnh dời HEAD cả cây (`checkout <nhánh>`, `switch`, `reset [--hard] <rev>` không pathspec, `pull`, `merge`,
+# `stash pop`) cho chạy: nội dung đi theo lịch sử nhánh, PR thấy diff. Đường không đọc chắc (biến, thay lệnh,
+# `--pathspec-from-file`) với nguồn khác → BUDGET.
+RESTORE_SUBS = frozenset({"checkout", "restore", "reset", "read-tree", "checkout-index", "switch"})
+RESTORE_HEAD_REVS = frozenset({"HEAD", "@"})
+RESTORE_OTHER_REPO_RE = re.compile(r"--(?:git-dir|work-tree)(?:=.*)?|core\.worktree=.*", re.I | re.S)
+RESTORE_OTHER_ENV_RE = re.compile(r"GIT_(?:DIR|WORK_TREE|INDEX_FILE|COMMON_DIR|OBJECT_DIRECTORY|CONFIG\w*)")
+RESTORE_TREE_MOVED_RE = re.compile(r"--work-tree(?:=.*)?|core\.worktree=.*|GIT_WORK_TREE", re.I | re.S)
+RESTORE_UNREAD = "<--pathspec-from-file>"
+RESTORE_RESET_MODES = ("--soft", "--hard", "--merge", "--keep")
+FENCE_RESTORE_DYN_MARK = "đường khôi phục từ nguồn khác chỉ mục/HEAD không đọc chắc"
+FENCE_RESTORE_DYN_WHY = (
+    FENCE_RESTORE_DYN_MARK
+    + " ({}) — có thể là tệp hàng rào (AUD-SEC-988); viết lại: nêu đường nguyên văn, hay khôi phục"
+    " từ chỉ mục/HEAD (`git restore <tệp>`)"
+)
+RestoreSpec = Tuple[str, List[str]]
+# Cờ/biến toàn cục của git đổi cách khớp pathspec: `icase` so không phân hoa thường; `glob`/`noglob`/`literal` chỉ thu
+# hẹp tập khớp so với cách so glob không theo đoạn của guard (chiều chặt giữ nguyên).
+RESTORE_ICASE_FLAG, RESTORE_ICASE_ENV = "--icase-pathspecs", "GIT_ICASE_PATHSPECS"
+# Câu hỏi của luật mới (AUD-SEC-988/989) không thay lỗi tập con đọc chắc (BUDGET, deny ở mọi chính sách) như câu hỏi
+# nguy hiểm của luật cũ (`_argv_shell_check`): quyết định mới không bao giờ nhẹ hơn quyết định trước khi có luật.
+FENCE_NEW_TAG = "(AUD-SEC-988)"
+# Cả lệnh Bash ở tầng ngoài có nhiều nhất MỘT lệnh đơn đổi được tệp/ref (`_restore_solo`): chỉ khi đó "toán hạng đầu là
+# tệp có thật → pathspec" của `checkout`/`reset` mới đáng tin — lệnh khác trong chuỗi có thể xoá tệp đó và tạo nhánh cùng
+# tên (TOCTOU, `git branch x HEAD~3 && rm x && git checkout x f`).
+RESTORE_SOLO: contextvars.ContextVar[bool] = contextvars.ContextVar("RESTORE_SOLO", default=False)
+
+
+RESTORE_SAFE_HEADS = frozenset("true : cd pushd popd echo printf pwd ls cat test [ [[".split())
+RESTORE_SAFE_GIT = frozenset({"status", "diff", "log", "show", "add"})
+
+
+def _restore_harmless(argv: List[str]) -> bool:
+    """Lệnh không xoá/đổi tên tệp hay tạo ref được: đầu lệnh trong danh sách đọc/điều hướng, không đích ghi."""
+    n = normalize(argv)
+    if not n or write_targets(n, argv):
+        return False
+    return n[0] in RESTORE_SAFE_HEADS or n[0] == "git" and n[1:2] != [] and n[1] in RESTORE_SAFE_GIT
+
+
+def _restore_solo(simple: List[List[str]]) -> bool:
+    """Cả lệnh Bash có nhiều nhất MỘT lệnh đơn có thể đổi tệp/ref (các lệnh còn lại vô hại — `true; …`, `cd d && …`)."""
+    return sum(not _restore_harmless(c) for c in simple) <= 1
+
+
+def _restore_pos_split(
+    args: List[str], short_val: str, long_val: Tuple[str, ...]
+) -> Tuple[ParsedOpts, List[str], bool]:
+    """(tuỳ chọn trước `--`, đối số sau `--`, có `--`) — `checkout`/`reset` phân rev và pathspec theo `--` trần;
+    `--end-of-options` chỉ dừng đọc tuỳ chọn (`_parse_opts`), git vẫn tách rev/pathspec theo `--` sau nó."""
+    k = next((i for i, a in enumerate(args) if a == "--"), -1)
+    head = args[:k] if k >= 0 else args
+    return _parse_opts(head, short_val, long_val), (args[k + 1 :] if k >= 0 else []), k >= 0
+
+
+def _restore_has(keys: Iterable[str], *opts: str) -> bool:
+    return any(k in opts or _long_match(k, tuple(o for o in opts if o.startswith("--"))) for k in keys)
+
+
+def _restore_rev_paths(pos: List[str], post: List[str], dashed: bool, patch: bool, base: Optional[str]) -> RestoreSpec:
+    """`checkout`/`reset` kiểu `[<rev>] [--] <pathspec>…`: có `--` → toán hạng trước là rev; không `--` → toán hạng đầu là
+    rev khi còn pathspec sau nó (hay `-p`) và — khi cả lệnh Bash là một lệnh đơn (`RESTORE_SOLO`) — không phải tệp có
+    thật (git báo mơ hồ); một toán hạng không `-p` = đổi HEAD/khôi phục từ chỉ mục → không xét. `-p` không pathspec = cả
+    cây."""
+    if dashed:
+        rev, paths = (pos[0] if pos else ""), post
+        return (rev, paths or ([":/"] if patch else [])) if paths or patch else ("", [])
+    if not pos or len(pos) == 1 and not patch:
+        return "", []
+    if RESTORE_SOLO.get() and base is not None and os.path.lexists(os.path.join(base, pos[0])):
+        return "", []
+    return pos[0], pos[1:] or [":/"]
+
+
+def _restore_checkout(args: List[str], base: Optional[str]) -> RestoreSpec:
+    (flags, pos, vals), post, dashed = _restore_pos_split(
+        args, "bB", ("--orphan", "--conflict", "--pathspec-from-file")
+    )
+    keys = [k for k, _ in vals]
+    if _restore_has(keys, "-b", "-B", "--orphan"):
+        return "", []  # tạo nhánh: dời HEAD, git không nhận pathspec cùng lúc
+    if _restore_has(keys, "--pathspec-from-file"):
+        return (pos[0] if pos else ""), [RESTORE_UNREAD]
+    return _restore_rev_paths(pos, post, dashed, _restore_has(flags, "-p", "--patch"), base)
+
+
+def _restore_restore(args: List[str]) -> RestoreSpec:
+    """`restore` không pathspec: git báo lỗi, trừ `-p` (cả cây)."""
+    flags, pos, vals = _parse_opts(args, "s", ("--source", "--conflict", "--pathspec-from-file"))
+    srcs = [v for k, v in vals if _restore_has([k], "-s", "--source")]
+    paths = [RESTORE_UNREAD] if _restore_has([k for k, _ in vals], "--pathspec-from-file") else pos
+    whole = [":/"] if _restore_has(flags, "-p", "--patch") else []
+    return (srcs[-1] if srcs else ""), paths or whole
+
+
+def _restore_reset(args: List[str], base: Optional[str]) -> RestoreSpec:
+    (flags, pos, vals), post, dashed = _restore_pos_split(args, "", ("--pathspec-from-file",))
+    if _restore_has(flags, *RESTORE_RESET_MODES):
+        return "", []  # dời HEAD cả cây (`--hard` do luật vứt thay đổi xét), không nhận pathspec
+    if _restore_has([k for k, _ in vals], "--pathspec-from-file"):
+        return (pos[0] if pos else ""), [RESTORE_UNREAD]
+    return _restore_rev_paths(pos, post, dashed, _restore_has(flags, "-p", "--patch"), base)
+
+
+def _restore_read_tree(args: List[str]) -> RestoreSpec:
+    flags, pos, vals = _parse_opts(args, "", ("--prefix", "--index-output", "--exclude-per-directory"))
+    other = [t for t in pos if t not in RESTORE_HEAD_REVS] or (["--empty"] if _restore_has(flags, "--empty") else [])
+    prefix = [v for k, v in vals if _restore_has([k], "--prefix")]
+    return (other[0], [":/" + prefix[-1]] if prefix else [":/"]) if other else ("", [])
+
+
+def _restore_spec(n: List[str], other_repo: bool, base: Optional[str]) -> RestoreSpec:
+    """(nguồn khác chỉ mục/HEAD — rỗng: không có, pathspec) mà lệnh git `n` ghi vào cây làm việc/chỉ mục. Chỉ mục/kho
+    khác (`other_repo`) → nguồn khác; không pathspec thì cả cây."""
+    sub, args = n[1], n[2:]
+    if sub == "checkout":
+        rev, paths = _restore_checkout(args, base)
+    elif sub == "restore":
+        rev, paths = _restore_restore(args)
+    elif sub == "reset":
+        rev, paths = _restore_reset(args, base)
+    elif sub == "read-tree":
+        rev, paths = _restore_read_tree(args)
+    else:  # checkout-index (`-a`/không đường = cả cây, `--stdin` không đọc được), switch: chỉ khi chỉ mục/kho khác
+        stdin = sub == "checkout-index" and "--stdin" in args
+        whole = sub == "switch" or _restore_has(args, "-a", "--all")
+        rev, paths = "", [RESTORE_UNREAD] if stdin else [] if whole else _positionals(args, ("--prefix",))
+    if rev in RESTORE_HEAD_REVS:
+        rev = ""
+    if other_repo:
+        return rev or "chỉ mục/kho khác", paths or [":/"]
+    return rev, paths if rev else []
+
+
+def _pathspec_magic(spec: str) -> Optional[Tuple[bool, str, bool, bool]]:
+    """(gốc repo `top`, phần đường, so không phân hoa thường `icase`, loại trừ `exclude`) của pathspec git (magic dài
+    `:(top,icase)`, ngắn `:/`, `:!`, `:^`); magic dài không đóng → None. `literal`/`glob`/`attr` bỏ qua: so như glob
+    không theo đoạn — tập lớn hơn, chiều chặt."""
+    if spec.startswith(":("):
+        end = spec.find(")")
+        if end < 0:
+            return None
+        words = {w.split(":")[0].strip() for w in spec[2:end].split(",")}
+        return "top" in words, spec[end + 1 :], "icase" in words, "exclude" in words
+    if not spec.startswith(":"):
+        return False, spec, False, False
+    i = 1
+    while spec[i : i + 1] and spec[i] in "/!^":
+        i += 1
+    marks = spec[1:i]
+    return "/" in marks, spec[i + 1 :] if spec[i : i + 1] == ":" else spec[i:], False, bool(set(marks) & set("!^"))
+
+
+def _restore_covers(x: str, root: str) -> bool:
+    """Đường tuyệt đối `x` là tệp/thư mục hàng rào hay tổ tiên của tệp hàng rào ở gốc (kể cả tổ tiên của chính gốc)."""
+    rel = _rel_dir(x, root)
+    if rel in ("", ".") or _is_fence(x, root):
+        return True
+    if rel.startswith("/"):  # `rel_path` trả đường tuyệt đối khi ra ngoài gốc
+        return os.path.realpath(root).startswith(os.path.realpath(x).rstrip("/") + "/")
+    return any(f == rel or f.startswith(rel + "/") for f in _restore_fence_files(root))
+
+
+def _restore_fence_files(root: str) -> List[str]:
+    """Tệp hàng rào đang có hiệu lực ở gốc (của host khác: chỉ khi tệp nối có thật — `_fence_entry_live`)."""
+    return [f for f in (*FENCE_FILES, ".claude/hooks/guard.py") if _fence_entry_live(f, root)]
+
+
+def _restore_fence_names(root: str) -> List[str]:
+    """Tệp hàng rào và mọi thư mục tổ tiên của chúng (tương đối với gốc) — đích so glob pathspec."""
+    try:
+        hooks = os.listdir(os.path.join(root, ".claude", "hooks"))
+    except OSError:
+        hooks = []
+    files = [*_restore_fence_files(root), *(".claude/hooks/" + h for h in hooks)]
+    return list(dict.fromkeys(f.rsplit("/", k)[0] for f in files for k in range(f.count("/") + 1)))
+
+
+def _restore_glob_hit(x: str, root: str, icase: bool) -> bool:
+    """Pathspec có glob/`icase` (đường tuyệt đối) khớp tệp hàng rào hay thư mục tổ tiên của nó, hay là thư mục chứa
+    nó: `*` qua `/` như wildmatch của git không `:(glob)`; gốc hay ra ngoài gốc → coi là khớp."""
+    rel = _rel_dir(x, root)
+    if rel in ("", ".") or rel.startswith("/"):
+        return True
+    pat = rel.casefold() if icase else rel
+    names = [f.casefold() if icase else f for f in _restore_fence_names(root)]
+    return any(fnmatch.fnmatchcase(f, pat) or f.startswith(pat + "/") for f in names)
+
+
+def _restore_spec_hit(spec: str, root: str, base: Optional[str], icase_all: bool = False) -> str:
+    """'dyn' (đường không đọc chắc), 'fence' (phủ hàng rào) hay '' cho một pathspec của lệnh khôi phục từ nguồn khác;
+    magic dài không đóng → 'fence' (chiều chặt); `icase_all`: `--icase-pathspecs`/`GIT_ICASE_PATHSPECS`."""
+    if spec == RESTORE_UNREAD or set(spec) & {"$", "`"}:
+        return "dyn"
+    magic = _pathspec_magic(spec)
+    if magic is None:
+        return "fence"
+    top, rest, icase, _ = magic
+    icase = icase or icase_all
+    xs = _where(rest or ".", root, root if top else base)
+    if set(rest) & set("*?[") or icase:
+        return "fence" if any(_restore_glob_hit(x, root, icase) for x in xs) else ""
+    return "fence" if any(_restore_covers(x, root) for x in xs) else ""
+
+
+def _restore_excluded(spec: str) -> bool:
+    magic = _pathspec_magic(spec)
+    return magic is not None and magic[3]
+
+
+def _fence_restore_asks(
+    n: List[str], argv: List[str], root: str, cwd: Optional[str], env: Optional[Dict[str, str]] = None
+) -> List[str]:
+    """AUD-SEC-988: câu hỏi cho lệnh git đưa nội dung từ nguồn khác chỉ mục/HEAD vào đường phủ hàng rào. Pathspec loại
+    trừ (`:!x`) không bớt phạm vi (chiều chặt); chỉ có loại trừ = cả cây như git."""
+    if n[:1] != ["git"] or len(n) < 2 or n[1] not in RESTORE_SUBS:
+        return []
+    assigned = [*(a.split("=", 1)[0] for a in argv if "=" in a), *(env or {})]  # `GIT_DIR=x git …`, `export GIT_DIR=x`
+    other = any(RESTORE_OTHER_REPO_RE.fullmatch(a) for a in argv) or any(map(RESTORE_OTHER_ENV_RE.fullmatch, assigned))
+    base = _git_dir(argv, cwd)
+    rev, specs = _restore_spec(n, other, base)
+    icase = RESTORE_ICASE_FLAG in argv or RESTORE_ICASE_ENV in assigned
+    live = [s for s in specs if not _restore_excluded(s)] or [":/"][: len(specs)]
+    # cây làm việc dời (`--work-tree`, `GIT_WORK_TREE`, `core.worktree`): pathspec tính từ thư mục guard không giải →
+    # mọi pathspec coi là phủ hàng rào (`git --work-tree=.claude checkout <rev> -- hooks/guard.py`)
+    moved = any(RESTORE_TREE_MOVED_RE.fullmatch(a) for a in [*argv, *assigned])
+    hits = [(s, "fence" if moved else _restore_spec_hit(s, root, base, icase)) for s in live]
+    what = f"git {n[1]} từ `{rev}`"
+    out = [FENCE_RESTORE_DYN_WHY.format(f"{what}: {s}") for s, h in hits if h == "dyn"]
+    return out + [FENCE_WHY.format(f"{what} vào {s} {FENCE_NEW_TAG}") for s, h in hits if h == "fence"]
 
 
 PYCACHE_ENV_RE = re.compile(r"PYTHONPYCACHEPREFIX=(.+)")
@@ -14810,8 +15107,25 @@ def _commit_flag_args(args: List[str]) -> List[str]:
 
 # Hàng rào của harness (AUD-SEC-046): Bash ghi đè/xoá/dời = gỡ hàng rào mà không để lại diff đọc được → chặn. Sửa hook
 # bằng Edit/Write vẫn được (ADR-0018: sửa cấu hình hook cho chạy, nêu lý do); khôi phục bằng `git checkout -- <file>`.
-FENCE_PATTERNS = (".claude/hooks/*", ".claude/settings.json", ".claude/settings.local.json")
-FENCE_DIRS = {".claude", ".claude/hooks"}
+# AUD-SEC-987: `.codex/hooks.json` nối guard cho Codex CLI (ADR-0082) — gỡ nó là tắt hook như gỡ `.claude/settings.json`.
+# AUD-SEC-989: tệp nối guard `install.py --harness` cài cho host khác (ADR-0064 lát B) như `.codex/hooks.json`; Gemini
+# gộp hook vào `.gemini/settings.json` (cấu hình + hook trong một tệp, như `.claude/settings.json`). Thư mục: cha và ông
+# của tệp nối — trừ `.github` (workflow/ruleset dùng hằng ngày: chỉ rào `.github/hooks`). Tệp/thư mục của host khác chỉ
+# là hàng rào khi tệp nối CÓ THẬT lúc xét (`_fence_entry_live`): dự án không cài adapter đó không có gì để bảo vệ, không
+# bị chặn thêm; xoá tệp nối ở lệnh trước trong cùng lệnh ghép tự nó bị chặn. `.claude/*`, `.codex/hooks.json`: luôn rào.
+LEGACY_FENCE_FILES = (".claude/settings.json", ".claude/settings.local.json", ".codex/hooks.json")
+LEGACY_FENCE_PATTERNS = (".claude/hooks/*", *LEGACY_FENCE_FILES)
+LEGACY_FENCE_DIRS = frozenset({".claude", ".claude/hooks", ".codex"})
+ADAPTER_FENCE_FILES: Tuple[str, ...] = (".cursor/hooks.json", ".github/hooks/xt.json", ".grok/hooks/xt.json")
+ADAPTER_FENCE_FILES += (".opencode/plugins/xt.ts", ".gemini/settings.json")
+# thư mục rào của host khác → tệp nối nằm dưới nó
+ADAPTER_FENCE_DIRS: Dict[str, Tuple[str, ...]] = {
+    d: tuple(f for f in ADAPTER_FENCE_FILES if f.startswith(d + "/"))
+    for d in (".cursor", ".github/hooks", ".grok", ".grok/hooks", ".opencode", ".opencode/plugins", ".gemini")
+}
+FENCE_FILES = (*LEGACY_FENCE_FILES, *ADAPTER_FENCE_FILES)
+FENCE_PATTERNS = (".claude/hooks/*", *FENCE_FILES)
+FENCE_DIRS = {*LEGACY_FENCE_DIRS, *ADAPTER_FENCE_DIRS}
 FENCE_WHY = "ghi/xoá hàng rào qua Bash ({}) — tắt hook của khung; sửa bằng Edit/Write, khôi phục bằng git checkout"
 
 
@@ -14821,9 +15135,21 @@ PERM_VALUE_FLAGS: Tuple[str, ...] = ("-m", "--modify", "-x", "--remove", "-M", "
 PERM_VALUE_FLAGS += ("--set", "--set-file", "--restore", "-v", "-p")  # setfacl, chattr
 
 
+def _adapter_live(rel: str, root: str) -> bool:
+    """Tệp nối guard `rel` (tương đối với gốc, hay tuyệt đối khi ngoài gốc) có thật lúc xét."""
+    return os.path.lexists(rel if rel.startswith("/") else posixpath.join(root, rel))
+
+
+def _fence_entry_live(k: str, root: str) -> bool:
+    """Mục hàng rào `k` (tương đối với gốc) đang có hiệu lực: của Claude/Codex luôn; của host khác khi tệp nối có thật."""
+    if k in ADAPTER_FENCE_DIRS:
+        return any(_adapter_live(f, root) for f in ADAPTER_FENCE_DIRS[k])
+    return k not in ADAPTER_FENCE_FILES or _adapter_live(k, root)
+
+
 def _fence_glob(target: str, root: str) -> bool:
     """Glob (`.claude/*/guard.py`) shell nở ra file hàng rào — so theo đoạn như shell: `*` không qua `/`, không khớp
-    dotfile (T-3532)."""
+    dotfile (T-3532). Mục của host khác chỉ tính khi tệp nối có thật (`rm -rf .github/*` ở dự án không cài Copilot)."""
     pat = _rel_dir(target, root).split("/")
     if not set("".join(pat)) & set("*?["):
         return False
@@ -14831,7 +15157,7 @@ def _fence_glob(target: str, root: str) -> bool:
         names = os.listdir(os.path.join(root, ".claude", "hooks"))
     except OSError:
         names = ["guard.py"]
-    known = [*FENCE_DIRS, ".claude/settings.json", ".claude/settings.local.json"]
+    known = [k for k in (*FENCE_DIRS, *FENCE_FILES) if _fence_entry_live(k, root)]
     segs = [k.split("/") for k in [*known, *(".claude/hooks/" + f for f in names)]]
     return any(
         len(k) == len(pat) and all((s[:1] != "." or p[:1] == ".") and fnmatch.fnmatchcase(s, p) for p, s in zip(pat, k))
@@ -14843,7 +15169,11 @@ def _is_fence(target: str, root: str) -> bool:
     if not target or _norm_path(target).startswith("/dev/"):  # `/dev/../<gốc>/…` không phải thiết bị (AUD-SEC-511)
         return False
     rel = _rel_dir(target, root)
-    return rel in FENCE_DIRS or _match_any(rel, FENCE_PATTERNS) or _fence_glob(target, root)
+    if rel in LEGACY_FENCE_DIRS or _match_any(rel, LEGACY_FENCE_PATTERNS):
+        return True
+    if rel in ADAPTER_FENCE_DIRS and _fence_entry_live(rel, root):
+        return True
+    return _match_any(rel, ADAPTER_FENCE_FILES) and _adapter_live(rel, root) or _fence_glob(target, root)
 
 
 def _at(target: str, cwd: Optional[str]) -> str:
@@ -14881,6 +15211,10 @@ GIT_HOOK_NAMES = frozenset(
 UNKNOWN_CWD_DIRS: Tuple[Tuple[str, FrozenSet[str]], ...] = (
     (".claude", frozenset({"settings.json", "settings.local.json", "hooks"})),
     (".claude/hooks", frozenset()),
+    (".codex", frozenset({"hooks.json"})),  # AUD-SEC-987
+    # AUD-SEC-989: thư mục chứa tệp nối guard của host khác (`.github` chỉ tên `hooks`)
+    *((d, frozenset({b})) for d, b in (posixpath.split(f) for f in ADAPTER_FENCE_FILES)),
+    *((".github", frozenset({"hooks"})), (".grok", frozenset({"hooks"})), (".opencode", frozenset({"plugins"}))),
     (".autopilot", frozenset(EVIDENCE_NAMES)),
     (".git", frozenset({"config", "hooks"})),
     (".git/hooks", GIT_HOOK_NAMES),
@@ -15077,6 +15411,7 @@ def _write_asks(
     asks += _ledger_asks(n, argv, root, cwd) + _go_sign_asks(n, argv, targets, root, cwd)
     asks += _prod_decided_asks(n, argv, targets, root, cwd)  # AUD-SEC-804
     asks += [a for a in _fence_argv_asks(n, argv, root, cwd) if a not in asks]  # T-3951 A9
+    asks += _fence_restore_asks(n, argv, root, cwd, env)  # AUD-SEC-988
     asks += _home_dotfile_asks(n, argv, targets, root, cwd)  # T-3951 A11
     return asks + [EVIDENCE_WHY.format(f"git {n[1]} {t}") for t, k in restored if k == "evidence"]
 
@@ -22960,6 +23295,7 @@ def bash_decision(
         return _bash_reading(cmd, root, cwd, depth, budget, rewrites)
     mode, seen = READING.set(LITERAL), LIT_SEEN.set(False)
     due, memo = DEADLINE.set(time.monotonic() + DECISION_SECONDS), CWDS_MEMO.set({})
+    solo = RESTORE_SOLO.set(False)
     try:
         literal = _bash_reading(cmd, root, cwd, depth, budget, rewrites)
         if not LIT_SEEN.get():
@@ -22972,6 +23308,7 @@ def bash_decision(
     except ScanTimeout:
         return _budget_result(cmd, f"vượt hạn giờ {DECISION_SECONDS:g} s của một quyết định")
     finally:
+        RESTORE_SOLO.reset(solo)
         CWDS_MEMO.reset(memo)
         DEADLINE.reset(due)
         LIT_SEEN.reset(seen)
@@ -23029,7 +23366,9 @@ def _rough_budget(res: Dict[str, object], cmd: str) -> Dict[str, object]:
     không thì BUDGET (D-415): token thô không tách `(`/`<`/hàm như bash nên "không thấy gì" không phải bằng chứng.
     Quyết định cuối không nhẹ đi; lệnh cần hai lần đọc (`LitWord`) mà chỉ lần đọc cũ chặn thì mã có thể thành BUDGET
     (`_stricter_reading` hoà lấy lần đọc mới)."""
-    if policy_action(decide(res)) == "deny":
+    # AUD-SEC-988/989: câu hỏi của luật hàng rào mới không giữ được lệnh khỏi BUDGET (không nhẹ hơn nền ở strict)
+    new_rule = res.get("decision") == "ask" and _new_fence_ask(str(res.get("reason") or ""))
+    if policy_action(decide(res)) == "deny" and not new_rule:
         return res
     return {**res, "decision": "deny", "reason": _budget_result(cmd, SHLEX_UNCLOSED_WHY)["reason"], "code": BUDGET}
 
@@ -23171,6 +23510,9 @@ def _bash_decision(
     asks += [REVIEW_FORGE_WHY] if _review_forge_hit(cmd, tokens, cwd, budget) else []
     simple = split_commands(tokens)
     single = whole and len(simple) == 1  # dạng chữ rõ của ADR-0069 chỉ khi cả lệnh là một lệnh đơn (review harden F1)
+    RESTORE_SOLO.set(
+        whole and _restore_solo(simple)
+    )  # AUD-SEC-988; lệnh lồng đặt False; `bash_decision` trả giá trị cũ
     asks += [STAGE_APPROVE_WHY] if any(_stage_approve_denied(c, root, cwd, single) for c in simple) else []
     asks += [RELEASE_SIGN_WHY] if any(_release_sign_denied(c, root, cwd, single) for c in simple) else []
     asks += _go_patch_asks(cmd, placed, root, cwd, strict)  # AUD-SEC-534: diff từ tệp/stdin ở dự án có GO-NO-GO
@@ -23303,6 +23645,7 @@ REASON_CODES: Tuple[Tuple[str, str], ...] = (
     (GH_DYN_NAME_MARK, BUDGET),  # `gh pr merge$Z`: tên lệnh/cờ gh guard không biết (AUD-SEC-587, ADR-0065 lớp A)
     (GIT_DYN_NAME_MARK, BUDGET),  # `git pus? …`: lệnh con git guard không biết (AUD-SEC-635)
     (GIT_DYN_FLAG_MARK, BUDGET),  # `git push --delet$X`: viết tắt cờ nguy hiểm có mở rộng (AUD-SEC-644, D-415)
+    (FENCE_RESTORE_DYN_MARK, BUDGET),  # `git checkout HEAD~3 -- "$X"`: đường khôi phục có thể là hàng rào (AUD-SEC-988)
     ("brace expansion quá nhiều", BRACE_OVERFLOW),
     (REMOTE_EXEC_MARK, "REMOTE_EXEC"),  # T-3952: lệnh ở máy xa/container vi phạm luật
     # T-3951: dấu chung đứng cuối — đích cùng lúc khớp luật cụ thể (`~/.gitconfig` → HOOK_BYPASS) giữ mã cụ thể

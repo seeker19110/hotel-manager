@@ -3,7 +3,7 @@ title: File harness: PLAN · PROGRESS · BLUEPRINT · evidence · state
 kind: module
 prefix: LOOP-HARNESS
 applies_to: [all]
-updated: 2026-11-19
+updated: 2026-11-20
 ---
 
 # File harness: PLAN · PROGRESS · BLUEPRINT · evidence · state
@@ -44,6 +44,13 @@ updated: 2026-11-19
 
 Hook là lớp chặn sai lầm bằng phân tích tĩnh, không phải ranh giới cách ly (D-015). Lớp đỡ cho các chỗ dưới đây là sandbox
 OS/devcontainer có egress allowlist (`LOOP-HARNESS-022`) và việc phiên chính chạy lại Gate (`loop record`):
+
+- **Hàng rào qua lịch sử git** (AUD-SEC-988): không bị chặn như ghi hàng rào — (a) lệnh dời HEAD cả cây (`checkout
+  <rev>`, `switch`, `reset [--hard|--soft] <rev>`, `symbolic-ref HEAD`, `pull`, `merge`) rồi khôi phục từ HEAD mới,
+  `git apply`/`am`/`cherry-pick`/`revert -n`, `stash apply` (cả `stash store <commit>`), `git archive <rev> | tar -x`,
+  `rm -rf .github` (cha của `.github/hooks`): lớp đỡ là diff PR (tệp cổng, không làn nhanh) và review; (b) hạ cấp chỉ ở
+  cây làm việc, không để lại diff PR — `reset <rev> && checkout -- f && reset ORIG_HEAD`, `update-index --index-info`
+  rồi `checkout -- f`: **chưa có lớp đỡ** ngoài sandbox OS (`LOOP-HARNESS-022`).
 
 - **Cơ chế kiểm không dùng được** (ADR-0054): CLI/Gate chặn mã 126 khi guard lỗi nạp hoặc fallback hỏng;
   không dùng module nạp dở; `apply_policy` hỏng không cho raw `ask` thành allow. Runtime fallback khỏe giữ ADR-0002. State thiếu `fcntl` hoặc FS không hỗ trợ
@@ -408,7 +415,8 @@ Copilot, Grok chưa xác minh) → vòng lặp ngoài tin `loop verify`, không 
 Cài và chạy (lát B–D đã làm): `install.py --harness codex,gemini,cursor,copilot,grok,opencode` chép cấu hình hook mẫu
 ([`../templates/harness/`](../templates/harness/README.md)) gọi `xt_adapter.py`; git hook sàn ([`../templates/git-hooks/`](../templates/git-hooks/README.md)) cài
 mặc định; công cụ không có Stop hook chặn (Gemini, Grok, OpenCode, Cursor `-p`) chạy vòng ngoài `xt.py loop run --agent
-<host>` — mỗi lượt một task do `loop_verdict` chọn, dừng khi xong/chặn hay 3 lượt không tiến triển.
+<host>` — mỗi lượt một task do `loop_verdict` chọn, dừng khi xong/chặn hay 3 lượt không tiến triển. Codex còn nhận skill
+`.agents/skills/` và agent `.codex/agents/*.toml` sinh từ `.claude/` (ADR-0082; chi tiết ở README của `harness/`).
 
 ### Khoá của `xt.yaml` (nhà — mẫu: [`../templates/xt.yaml`](../templates/xt.yaml) chỉ còn một dòng chú thích mỗi khoá)
 
@@ -419,7 +427,7 @@ YAML phẳng `khoá: lệnh`; `""` = không có, thiếu khoá = tự dò từ m
 | `lint` · `typecheck` · `test` · `build` | `dev-task.sh gate` (= CI) | Cổng đầy đủ theo thứ tự build → typecheck → lint → test; `lint` nên gồm kiểm format. Autopilot đang chạy mà `lint`/`test` rỗng hay no-op (`true`, `:`, `exit 0`, `echo …`) = cổng **đỏ** (ADR-0011); CI mẫu đỏ tới khi có lệnh thật (D-096). Ở M/L còn sàn `LOOP-HARNESS-023` |
 | `format` · `format_file` | `dev-task.sh format` · hook PostToolUse | Format cả repo · format MỘT file (`{}` = đường dẫn); `format_file` trống → mẫu dựng sẵn (prettier/ruff/black/gofmt/rustfmt), không qua guard; lệnh khai báo qua guard (LOOP-STOP-027). `dev-task.sh format` chụp mọi `GO-NO-GO*.md` dưới gốc dự án trước khi chạy và khôi phục file bị formatter đổi; **giới hạn**: thư mục là symlink trỏ ra ngoài gốc dự án không được chụp (khôi phục sẽ ghi ngoài dự án) — GO-NO-GO phải nằm trong cây dự án. Thư mục user không đi xuyên được (thiếu `x`, tên Unicode/có nháy) bị bỏ qua có log, lỗi find lạ vẫn dừng |
 | `format_check` · `coverage` | `loop verify` (sàn M/L) | Kiểm format không ghi file; test có ngưỡng coverage — artefact ra `mktemp`, không `\|\| true` |
-| `commit_gate` · `test_fast` | hook trước `git commit` | `fast` (mặc định dự án mới) = `gate-fast` (format_check → lint → typecheck → `test_fast` với `XT_CHANGED_FILES`, trống → `test`); `full`/vắng = `gate`. Diff đụng cấu hình cổng (xt.yaml, xt.py, dev-task.sh, hook, ruff/coverage/requirements) → mọi lớp test qua `test_list`/`test_unit` không coverage, chưa khai hai khoá đó → `test` (D-112). Giá trị khác `fast`/`full` → `doctor` (lỗi `xt-yaml`) và `ci-check` từ chối |
+| `commit_gate` · `test_fast` | hook trước `git commit` | `fast` (mặc định dự án mới) = `gate-fast` (format_check → lint → typecheck → `test_fast` với `XT_CHANGED_FILES`, trống → `test`); `full`/vắng = `gate`. Diff đụng cấu hình cổng (xt.yaml, xt.py, dev-task.sh, hook, ruff/coverage/requirements) → mọi lớp test qua `test_list`/`test_unit` không coverage, chưa khai hai khoá đó → `test` (D-112). Commit trong worktree của chính repo (cùng common-dir và liên kết ngược tới gitdir đã đăng ký, trong hay ngoài gốc) → cổng chạy trên worktree đó (dev-task.sh, xt.yaml, tệp đổi của nó); repo khác không tự chạy cổng (AUD-SEC-015); git không trả lời được → luật cũ kèm cảnh báo stderr. Giá trị khác `fast`/`full` → `doctor` (lỗi `xt-yaml`) và `ci-check` từ chối |
 | `setup` · `test_list` · `test_unit` · `test_combine` · `test_weights` | `setup`: CI mẫu (`install.py --with-github`); bốn khoá chia test: `dev-task.sh test-shard`/`test-combine`, `gate-fast` khi diff đụng cấu hình cổng, CI tự tách test thành shard | `setup` cài phụ thuộc mỗi job CI. CI mẫu 3 job (ADR-0039) không chia shard: job `gate` chạy `dev-task.sh gate-par` (typecheck ∥ lint ∥ build → test song song trong job, D-128) nên ngưỡng coverage nằm trong `test`. Chia shard — chỉ khi đo thấy test là đường dài nhất — cần đủ `test_list` (mỗi dòng một id), `test_unit` (chạy `"$1"`, coverage vào `"$XT_COV_DIR"` nếu có), `test_combine` (gộp, đòi ngưỡng); `test_weights` = file trọng số LPT (`dev-task.sh test-weights`) |
 | `merge_autonomy` · `merge_risk_paths` · `merge_hard_exceptions` · `delivery_phase` · `pr_title_check` | `merge-check`/`pr next`/guard — đọc ở **nhánh đích đã commit** (PR không tự đổi luật cho mình) | L3 (mặc định) máy merge ghim head theo làn (ADR-0015, ADR-0036), L2 chỉ làn nhanh, L1 người merge · glob thêm vào đường dẫn nhạy cảm (hợp của cây làm việc và nhánh đích) · `human` người merge ngoại lệ cứng (ADR-0016), `auto` máy merge khi CI xanh (ADR-0020; PR đổi khoá này luôn người merge) · `build`/`harden` quyết pha giao hàng; cổng review theo `merge_review` (ADR-0079) · `off` tắt kiểm tiêu đề PR Conventional Commits |
 | `merge_review` | `merge-check`/`pr next`/`pr steward` | `optional` hoặc vắng: CI xanh, không bắt buộc review và steward xét theo số PR tăng dần; `required`: dùng cổng review theo làn. Đọc cấu hình tại nhánh đích (ADR-0079). |

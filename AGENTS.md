@@ -53,3 +53,12 @@ Skill `.claude/skills/`: autopilot complete optimize blueprint gate research aud
 - Môi trường & secrets: biến môi trường validate bằng schema lúc khởi động; mẫu ở `.env.example`; dev/CI dùng Postgres 17 + SeaweedFS tự host, không cần Docker (ADR-0002): máy dev cài bằng `scripts/dev-env-setup.sh` rồi `pnpm dev:up`; CI dùng service container, không dùng dữ liệu thật, không tạo tài khoản trả phí khi chưa được duyệt.
 - Tên phiên **bắt buộc, đặt ngay đầu phiên**: `<Tên repo> — <tên nhánh>` (`LOOP-HARNESS-028`).
 - Giao tiếp: tiếng Việt có dấu, ngắn, dẫn đầu bằng kết quả; báo cáo cuối: đã làm · bằng chứng · D-NNN · còn treo · đề xuất.
+
+## /factory
+
+Dùng `/factory <yêu cầu>` để mở hoặc tiếp tục một vòng sản phẩm. Đọc trạng thái bằng
+`python3 .xtemplates/scripts/xt_flow.py --json` rồi chạy các cổng của dự án.
+Trong lúc sửa giao diện, dùng `pnpm dev:up` để khởi động môi trường Hotel Manager.
+Theo dõi test unit của phần đang sửa bằng Vitest, ví dụ
+`pnpm exec vitest watch --project unit packages/domain/src/date/iso-date.test.ts`.
+Khi đổi hành vi lưu trữ, chạy cả `pnpm test:db` trên PostgreSQL dev.

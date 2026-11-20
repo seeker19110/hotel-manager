@@ -48,7 +48,7 @@ Máy chia ba nhóm, không hỏi người: **máy chặn** (không đảo ngư�
 - **Phát hành (G7):** `<XT> release-check` không NO-GO + `GO-NO-GO.md` không còn BLOCKER + chủ dự án đã quyết các đề xuất "Khi chạy thật". Pha harden = `/complete` (ADR-0046).
 
 ## 8. Skill và subagent (nhà: `11-autonomous-loop/orchestration-and-subagents.md`)
-Skill `.claude/skills/`: autopilot complete optimize blueprint gate research audit review adr handover; tác vụ debug tdd ui-verify upgrade migrate-db incident. Subagent: `researcher` · `executor`/`executor-deep` (tầng do `loop status` trả) · `reviewer`/`reviewer-alt` (cao hơn người viết, `LOOP-ORCH-005`; không rõ → `pr reviewed --inconclusive`). Phiên chính điều phối, mặc định tự làm (`topo: self`, `LOOP-ORCH-024`); không lồng subagent; song song chỉ khi độc lập file.
+Skill `.claude/skills/`: factory autopilot complete optimize blueprint gate research audit review adr handover; tác vụ debug tdd ui-verify upgrade migrate-db incident. Subagent: `researcher` · `executor`/`executor-deep` (tầng do `loop status` trả) · `reviewer`/`reviewer-alt` (cao hơn người viết, `LOOP-ORCH-005`; không rõ → `pr reviewed --inconclusive`). Phiên chính điều phối, mặc định tự làm (`topo: self`, `LOOP-ORCH-024`); không lồng subagent; song song chỉ khi độc lập file.
 
 ## 9. Quy ước riêng của dự án
 - Cấu trúc thư mục: [ĐIỀN]

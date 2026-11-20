@@ -4,7 +4,7 @@ description: Chạy tự động pha BUILD theo khung X-Templates — kế hoạ
 argument-hint: "[mô tả yêu cầu hoặc đường dẫn PROJECT.md]"
 ---
 
-# /autopilot — pha build: nhanh nhất trên sàn máy, lặp build → audit → build tới khi hết việc
+# /autopilot — pha build: nhanh nhất trên sàn máy, code tới khi có bản thử
 
 Giao thức đầy đủ: `<FW>/11-autonomous-loop/README.md`; file này là checklist pha build (ADR-0046). `<FW>` = `.xtemplates/framework` (dự án đích) hoặc `framework` (repo khung); `<XT>` = `python3 .xtemplates/scripts/xt.py` (hoặc `python3 scripts/xt.py`). Máy in sẵn bước kế. Một phiên tới khi hết việc (ADR-0009).
 **Sàn không bỏ** (`stop-points-and-escalation.md` §Điểm dừng): guard chặn không đảo ngược/đối ngoại/bí mật; điểm dừng tiền/dữ liệu/khoá thật (`loop defer`); Gate máy mỗi task; cổng commit; CI xanh để merge; `verify --all` trước khi dừng. Bị chặn là kết luận.
@@ -21,12 +21,12 @@ Giao thức đầy đủ: `<FW>/11-autonomous-loop/README.md`; file này là che
 ## Pha 2 — vòng lặp có bằng chứng (G5–G6)
 4. `<XT> loop init --plan docs/autopilot/PLAN.md --blueprint BLUEPRINT.md --single-session [--hours <H>]` (exit 2 "đang có vòng" → `<XT> loop attach`, không tự `--force`).
 5. Mỗi vòng: `<XT> loop status --json` → làm đúng `task` theo `topology` (thiếu=`self`; `review`: `reviewer-alt` rà trước PR; `audit`: `/audit` — harden: cả hai dồn về cổng ký; `parallel`: giao `executor` — `LOOP-ORCH-024`); `milestone_done` → làm tiếp (audit cuối đợt/cổng ký, D-500) → Gate chạy **y nguyên** qua `<XT> loop record --task T-NNN [--executor <agent>] -- '<Gate>'` → exit 0: máy tự tick `[x]`, commit nhỏ; exit ≠ 0: sửa — lần 2 cùng lỗi → đổi cách (D-NNN), máy chuyển cấp sau 2 lần đỏ, BLOCKED sau 3. Không nới cổng.
-6. Lát xong → một PR: `PROGRESS.md` (≤ 8 KB) vào commit cuối → đẩy **một lần** (CI là cổng — ADR-0041), mở PR (tiêu đề: guard kiểm) → `<XT> pr next --pr <N>` → làm đúng `do` (theo chính sách nhánh đích, ADR-0079) → `<XT> merge-watch --pr <N>` nền, làm lát kế ngay; PR đổi → lại `pr next`. Push thêm: gói sửa vào **một** commit.
+6. Một luồng dùng thử (UI/API/dữ liệu/test) → một PR: `PROGRESS.md` (≤ 8 KB) vào commit cuối → đẩy một lần, mở PR → `<XT> pr next --pr <N>` → làm đúng `do` (theo chính sách nhánh đích, ADR-0079) → `<XT> merge-watch --pr <N>` nền, làm lát kế ngay; PR đổi → lại `pr next`. Push thêm: gói sửa vào **một** commit.
 7. Blueprint: tick `[x]` mục task vừa chứng minh kèm `— Kiểm: `<lệnh>`` chạy lại được (không có lệnh: `— Bằng chứng: <file|URL>`); `[~] — Không áp dụng: <điều kiện>`; MUST muốn miễn → `loop defer`. MUST mở không chặn `done` ở build (đợt kế/`/complete`).
 8. Việc cần người (AGENTS.md §Điểm dừng): `<XT> loop defer --task <ID> --reason "…"` rồi làm tiếp; mọi việc còn lại phụ thuộc → `<XT> loop block --reason "…"`. Việc production: `<XT> grant-check <nhóm> khoá=giá trị` exit 0 mới làm.
 9. ≥ 80 % trần vòng/giờ/tiền → Bàn giao vào PROGRESS, commit + push.
 
 ## Kết thúc đợt → audit → đợt kế (không dừng — ADR-0047)
 - Stop hook quyết: `continue`/`verify` → làm theo lý do nó in; `blocked`/`budget` → dừng, báo lý do + bước kế, không khai "xong".
-- `done`/`done-pending-human` → `<XT> loop stats`, báo cáo ≤ 20 dòng, gọi `<XT> loop next-step --prs <JSON pr next của đợt>`. `pr` → bước 6; `audit` → `/audit delta` (lần đầu `full`); `replan` → PLAN đợt kế từ 🔴/🟠 + MUST mở (chép nguyên dòng task chờ người), tự duyệt, `loop init` → bước 5; `verify` → `loop verify --all`; `blocked`/`budget` → dừng, báo; `ready-for-complete` → `feedback collect`, đề xuất `/complete`, dừng.
+- `done`/`done-pending-human` → `<XT> loop stats`, báo cáo ≤ 20 dòng, gọi `<XT> loop next-step --prs <JSON pr next của đợt>`. `pr` → bước 6; `stage-submit` → trình MVP ngay; `audit` → `/audit delta` (lần đầu `full`); `replan` → PLAN đợt kế từ 🔴/🟠 + MUST mở (chép nguyên dòng task chờ người), tự duyệt, `loop init` → bước 5; `verify` → `loop verify --all`; `blocked`/`budget` → dừng, báo; `ready-for-complete` → `feedback collect`, đề xuất `/complete`, dừng.
 - `stage-submit` → trình, gọi lại `loop next-step`; smoke đỏ → `replan`. `stage-approve` → đối chiếu tiêu chí MVP trong PLAN, duyệt hoặc mở lại theo `reason`. `stage-reopen` → mở lại, tiếp tục giai đoạn 1. `wait-approval` → báo người, dừng.

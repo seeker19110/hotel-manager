@@ -1,7 +1,7 @@
 ---
 title: Vòng lặp tự động (autopilot)
 kind: index
-updated: 2026-11-17
+updated: 2026-11-20
 ---
 
 # 11 — Vòng lặp tự động (autopilot)
@@ -91,11 +91,9 @@ template và `AGENTS.md` chỉ tóm tắt và liên kết, không chép bảng/n
     [`stop-points-and-escalation.md`](stop-points-and-escalation.md). Người: `<XT> loop resolve --task <ID> --reason …`; vòng dừng → `loop unblock --reason …`.
 15. **Context đầy** → compaction tự nén (PreCompact ghi checkpoint, SessionStart in lại `loop status`); gần trần máy
     (≥ 80 % vòng/giờ/tiền) → Bàn giao vào PROGRESS, commit + push ([`context-and-token-budget.md`](context-and-token-budget.md)).
-16. **Kết thúc đợt → đợt kế (ADR-0047)**: `done` = mọi task xanh + `verify --all` khớp cây (build: MUST blueprint mở không
-    chặn, ghi `open_must` — ADR-0046) → `<XT> loop stats`, báo cáo ≤ 20 dòng → không dừng: `/audit delta` (🔴/🟠 → task)
-    + MUST mở → `PLAN-<đợt>.md` (chờ người cùng ID đi theo), `loop verify --all` trên cây có PLAN mới, `loop init` → bước 10. **Hết việc**
-    = PLAN hết task, 0 MUST mở ngoài chờ người, 0 🔴/🟠 → `/audit full` sạch → đề xuất bước 17.
-    `done-pending-human` → như `done` + chờ người. `blocked`/`budget` → lý do + bước kế, không khai "xong".
+16. **Kết thúc đợt**: mọi Gate xanh, `verify --all` khớp cây → `loop next-step` kèm trạng thái PR. MVP quy mô S ở build có
+    smoke: `stage-submit` để trình bản dev, audit tổng thể ở pha hoàn thiện. Lỗi đã biết theo sổ vẫn cần xử lý. Ở dự án khác,
+    `audit` → rà delta (lần đầu full), `replan` → gom 🔴/🟠 và MUST vào PLAN kế, giữ ID chờ người. `blocked`/`budget` → báo lý do.
 17. **Pha 3 — hoàn thiện** (`/complete`, ADR-0046; dự án đã `harden` chạy luật này từ bước 12): PR đặt `delivery_phase: harden`
     → `PLAN-harden-<ngày>.md` từ sổ audit → bước 9–15 hết việc → cổng ký: audit delta + nợ review, FAIL → lặp (ADR-0080) → `<XT> release-check` không NO-GO → người ký
     `GO-NO-GO.md`. Agent chỉ ký khi đã bật `release_signoff: agent` và đủ điều kiện ADR-0074.
