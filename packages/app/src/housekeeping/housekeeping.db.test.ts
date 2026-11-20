@@ -17,6 +17,7 @@ import {
   createCleaningTask,
   createTask,
   getTask,
+  getTaskBoard,
   listTasks,
   startTask,
   TASK_FIELDS,
@@ -146,6 +147,26 @@ describe("S-003 danh sách việc theo tầng và ưu tiên", () => {
     expect(list.find((x) => x.id === t2)?.arrivalToday).toBe(true);
     for (const row of list) expect(Object.keys(row).sort()).toEqual([...TASK_FIELDS].sort());
     expect(JSON.stringify(list)).not.toMatch(/Khách Bí Mật|0100008999|600000/);
+  });
+
+  it("bảng việc lọc đúng tầng của cơ sở, giữ lựa chọn khi kết quả rỗng và từ chối tầng ngoài phạm vi", async () => {
+    const floorId = randomUUID();
+    await sql`insert into floors (id, organization_id, property_id, name)
+      values (${floorId}, ${h.org.orgId}, ${h.org.propertyId}, 'Tầng kiểm tra S-003')`.execute(h.t.admin);
+    const existing = await newTask(await unit());
+    const read = (floor?: string) => getTaskBoard(h.t.runtime, H1, h.org.propertyId, floor);
+    expect((await read(floorId)).tasks).toEqual([]);
+    const moved = await unit();
+    await sql`update units set floor_id = ${floorId} where id = ${moved}`.execute(h.t.admin);
+    const selected = await newTask(moved);
+    const view = await read(floorId);
+    expect(view.tasks.map((task) => task.id)).toEqual([selected]);
+    expect(view.floors.map((f) => f.id)).toEqual(expect.arrayContaining([h.org.floorId, floorId]));
+    expect((await read()).tasks.map((task) => task.id)).toEqual(expect.arrayContaining([existing, selected]));
+    await expect(read(randomUUID())).rejects.toMatchObject({ status: 404 });
+    await expect(getTaskBoard(h.t.runtime, h.ownerOther, h.org.propertyId)).rejects.toMatchObject({
+      status: 404,
+    });
   });
 });
 

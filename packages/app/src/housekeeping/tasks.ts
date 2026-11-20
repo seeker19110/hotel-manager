@@ -510,16 +510,44 @@ export async function listTasks(
   actor: Actor,
   input: { propertyId: string; floorId?: string; status?: TaskStatus; assignee?: string; now?: Date },
 ): Promise<TaskView[]> {
-  if (!UUID.test(input.propertyId)) throw new CommandError("NOT_FOUND", 404, msg("common.not_found_data"));
-  authorizeRead(actor, input.propertyId);
+  return withTaskProperty(db, actor, input.propertyId, (trx) =>
+    queryTasks(trx, actor, input, input.now ?? new Date()),
+  );
+}
+
+async function withTaskProperty<T>(
+  db: Kysely<unknown>,
+  actor: Actor,
+  propertyId: string,
+  read: (trx: Transaction<unknown>) => Promise<T>,
+): Promise<T> {
+  if (!UUID.test(propertyId)) throw new CommandError("NOT_FOUND", 404, msg("common.not_found_data"));
+  authorizeRead(actor, propertyId);
   return withTenant(db, { orgId: actor.orgId, actorId: actor.membershipId }, async (trx) => {
     const p = await sql<{
       id: string;
-    }>`select id from properties where organization_id = ${actor.orgId} and id = ${input.propertyId}`.execute(
-      trx,
-    );
+    }>`select id from properties where organization_id = ${actor.orgId} and id = ${propertyId}`.execute(trx);
     if (!p.rows[0]) throw new CommandError("NOT_FOUND", 404, msg("common.not_found_data"));
-    return queryTasks(trx, actor, input, input.now ?? new Date());
+    return read(trx);
+  });
+}
+
+/** S-003: lấy các tầng của cơ sở độc lập với trần 500 việc để tầng ít việc vẫn chọn được. */
+export async function getTaskBoard(db: Kysely<unknown>, actor: Actor, propertyId: string, floorId?: string) {
+  return withTaskProperty(db, actor, propertyId, async (trx) => {
+    const { rows: floors } = await sql<{ id: string; name: string }>`
+      select id, name from floors
+      where organization_id = ${actor.orgId} and property_id = ${propertyId} and archived_at is null
+      order by sort_order, name, id`.execute(trx);
+    if (floorId !== undefined && !floors.some((floor) => floor.id === floorId))
+      throw new CommandError("NOT_FOUND", 404, msg("common.not_found_data"));
+    const tasks = await queryTasks(
+      trx,
+      actor,
+      floorId ? { propertyId, floorId } : { propertyId },
+      new Date(),
+    );
+    return { floors, tasks };
   });
 }
 

@@ -6,6 +6,7 @@ phiên bản theo [SemVer](https://semver.org/lang/vi/). Chưa có bản phát h
 ## [Unreleased]
 
 ### Added
+- Buồng phòng: nhân viên chọn tầng theo cơ sở để xem việc theo thứ tự ưu tiên, kể cả trên trình duyệt tắt JavaScript (S-003).
 - Đợt 1 — nền: pnpm workspace (`apps/web`, `apps/worker`, `packages/*`), schema biến môi trường, `packages/db` (Kysely, migration,
   vai trò + RLS theo tổ chức), đăng nhập + MFA (Better Auth), `authorize()`, command pipeline (idempotency, audit, outbox),
   tồn phòng chống chồng bằng `EXCLUDE` (100 lệnh tranh một phòng → 1 allocation), lõi sổ tiền (sổ phụ bất biến, phân bổ, cọc),

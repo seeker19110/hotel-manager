@@ -1535,6 +1535,14 @@
     "message": "Không tải được việc dọn",
     "description": "Tiêu đề lỗi khi không tải được việc dọn của một cơ sở."
   },
+  "housekeeping.list.filter.label": {
+    "message": "Lọc công việc theo tầng tại {property}",
+    "description": "Tên vùng điều hướng chọn tầng trong danh sách việc buồng phòng của một cơ sở."
+  },
+  "housekeeping.list.filter.all": {
+    "message": "Tất cả các tầng",
+    "description": "Bỏ bộ lọc tầng và xem lại việc buồng phòng của mọi tầng."
+  },
   "housekeeping.list.empty.title": {
     "message": "Không có phòng cần dọn",
     "description": "Trạng thái rỗng: cơ sở không có việc dọn phòng nào."
