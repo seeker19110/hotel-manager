@@ -6,6 +6,8 @@ phiên bản theo [SemVer](https://semver.org/lang/vi/). Chưa có bản phát h
 ## [Unreleased]
 
 ### Added
+- Mở mã theo giấy phép MIT (thay giấy phép độc quyền của D-111): `LICENSE`, `NOTICE` (Caddy Apache-2.0, nhãn hiệu), `license: MIT`
+  trong mọi `package.json`; README thêm mục "Ủng hộ và liên hệ" (mã VietQR, liên hệ, hỗ trợ triển khai) và `.github/FUNDING.yml`.
 - Đợt 1 — nền: pnpm workspace (`apps/web`, `apps/worker`, `packages/*`), schema biến môi trường, `packages/db` (Kysely, migration,
   vai trò + RLS theo tổ chức), đăng nhập + MFA (Better Auth), `authorize()`, command pipeline (idempotency, audit, outbox),
   tồn phòng chống chồng bằng `EXCLUDE` (100 lệnh tranh một phòng → 1 allocation), lõi sổ tiền (sổ phụ bất biến, phân bổ, cọc),
@@ -42,6 +44,7 @@ phiên bản theo [SemVer](https://semver.org/lang/vi/). Chưa có bản phát h
   (nền spec-coverage 26 scenario chưa có tính năng); đóng thêm 21 mục blueprint (267/496 MUST đạt).
 
 ### Changed
+- Chuyển chủ repo sang `www-donghanhcungban-org`: cập nhật liên kết repo (FUNDING, mẫu issue, security.txt, script/test liên quan) và dòng bản quyền trong `LICENSE`/`NOTICE`; link cũ vẫn chuyển hướng.
 - Đợt 3: sửa theo các vòng review độc lập (công nợ tính từ sổ phụ gồm điều chỉnh giảm, job xuất không kẹt, claim thông báo chia đều
   theo tổ chức, phụ lục hợp đồng không thời hạn không tính trùng kỳ).
 

@@ -1,0 +1,26 @@
+Hotel Manager
+Copyright (c) 2026 www-donghanhcungban-org
+
+Toàn bộ repo (mã, tài liệu, đặc tả, biểu tượng) phát hành theo giấy phép MIT — xem LICENSE — trừ các
+thành phần bên thứ ba liệt kê dưới đây, giữ nguyên giấy phép gốc của chúng.
+
+Thành phần bên thứ ba
+---------------------
+
+Caddy — deploy/caddy/main.go (điểm vào chuẩn của Caddy để dựng bản tuỳ chỉnh)
+  Copyright 2015 Matthew Holt and The Caddy Authors. Giấy phép: Apache-2.0
+  (http://www.apache.org/licenses/LICENSE-2.0), giữ nguyên tiêu đề giấy phép trong tệp.
+  Module Go trong deploy/caddy/go.mod tải lúc build, mỗi module giữ giấy phép riêng.
+
+X-Templates — .xtemplates/
+  Copyright (c) 2026 www-donghanhcungban-org. Giấy phép: MIT (https://github.com/www-donghanhcungban-org/X-Templates).
+
+Phụ thuộc npm phân phối: THIRD_PARTY_NOTICES.md (sinh tự động từ lockfile); mỗi gói giữ giấy phép riêng.
+Công cụ Python của CI (security/semgrep/requirements.txt) không phân phối kèm sản phẩm.
+
+Nhãn hiệu
+---------
+
+Tên sản phẩm và tổ chức nhắc trong repo (ví dụ Next.js, PostgreSQL, Caddy, SeaweedFS, GitHub; Techcombank, VietQR,
+NAPAS 247 trên ảnh mã ủng hộ docs/assets/) là nhãn hiệu của chủ sở hữu tương ứng, chỉ dùng để gọi đúng tên.
+Hotel Manager không liên kết với, không được tài trợ hay xác nhận bởi các chủ sở hữu đó.

@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const read = (p) => readFileSync(join(ROOT, p), "utf8");
-const PVR = "https://github.com/seeker19110/hotel-manager/security/advisories/new";
+const PVR = "https://github.com/www-donghanhcungban-org/hotel-manager/security/advisories/new";
 const DAY = 86_400_000;
 
 describe("file sức khoẻ cộng đồng (đường dẫn GitHub nhận)", () => {
@@ -54,7 +54,9 @@ describe("security.txt (RFC 9116)", () => {
   const txt = read("apps/web/public/.well-known/security.txt");
   it("Contact trỏ kênh riêng tư như SECURITY.md; Policy trỏ SECURITY", () => {
     expect(txt).toMatch(new RegExp(`^Contact: ${PVR.replace(/[.]/g, "\\.")}$`, "m"));
-    expect(txt).toMatch(/^Policy: https:\/\/github\.com\/seeker19110\/hotel-manager\/security\/policy$/m);
+    expect(txt).toMatch(
+      /^Policy: https:\/\/github\.com\/www-donghanhcungban-org\/hotel-manager\/security\/policy$/m,
+    );
   });
   it("Expires là ISO 8601, còn hạn và không quá 1 năm (RFC 9116 §2.5.5) — đỏ khi cần gia hạn", () => {
     const exp = Date.parse(/^Expires: (\S+)$/m.exec(txt)?.[1] ?? "");

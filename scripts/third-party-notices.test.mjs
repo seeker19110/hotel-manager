@@ -97,12 +97,13 @@ describe("describe + render", () => {
   });
 });
 
-describe("repo thật (D-111)", () => {
-  it("LICENSE ở gốc ghi Proprietary + chủ sở hữu; package.json gốc có license UNLICENSED, workspace có trường license thì phải khớp", () => {
+describe("repo thật (D-111; chủ dự án đổi sang MIT 2026-11-16)", () => {
+  it("LICENSE ở gốc là MIT + chủ sở hữu; package.json gốc có license MIT, workspace có trường license thì phải khớp", () => {
     const lic = readFileSync(join(ROOT, "LICENSE"), "utf8");
-    expect(lic).toMatch(/Proprietary/);
-    expect(lic).toMatch(/Copyright \(c\) \d{4} seeker19110/);
-    expect(JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")).license).toBe("UNLICENSED");
+    expect(lic).toMatch(/^MIT License$/m);
+    expect(lic).toMatch(/Permission is hereby granted, free of charge/);
+    expect(lic).toMatch(/Copyright \(c\) \d{4} www-donghanhcungban-org/);
+    expect(JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")).license).toBe("MIT");
     const workspaces = [
       ...globSync("apps/*/package.json", { cwd: ROOT }),
       ...globSync("packages/*/package.json", { cwd: ROOT }),
@@ -111,7 +112,7 @@ describe("repo thật (D-111)", () => {
     for (const m of workspaces) {
       const pkg = JSON.parse(readFileSync(join(ROOT, m), "utf8"));
       expect(pkg.private, `${m}: workspace phải private (không phát hành)`).toBe(true);
-      if (pkg.license !== undefined) expect(pkg.license, m).toBe("UNLICENSED");
+      if (pkg.license !== undefined) expect(pkg.license, m).toBe("MIT");
     }
   });
 
