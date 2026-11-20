@@ -73,6 +73,7 @@ export {
 export { ObjectStorage, StorageError } from "./files/storage.ts";
 export {
   getTask as getHousekeepingTask,
+  getTaskBoard as getHousekeepingTaskBoard,
   listTasks as listHousekeepingTasks,
   type TaskView,
 } from "./housekeeping/tasks.ts";
